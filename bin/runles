@@ -30,7 +30,7 @@ fi
 # is not available otherwise and a default value is used)
 command -v git 2>&1 >/dev/null
 if [ $? -eq 0 ]; then
-    ver=`git describe --abbrev=0 --tags 2>&1`
+    ver=`git describe --tags 2>&1`
     if [ $? -ne 0 ]; then
 	echo "Ignore possible error, git just doesn't find a version tag - using default value"
 	ver=vx.x.x

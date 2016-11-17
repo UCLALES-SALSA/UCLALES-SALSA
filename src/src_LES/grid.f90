@@ -25,7 +25,7 @@ module grid
 
   implicit none
   !                         
-  CHARACTER(len=6)  :: ver = "latest"
+  CHARACTER(len=20)  :: ver = "latest"
   integer           :: nxp = 132           ! number of x points
   integer           :: nyp = 132           ! number of y points
   integer           :: nzp = 105           ! number of z points
