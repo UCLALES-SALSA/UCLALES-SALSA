@@ -24,7 +24,8 @@ module grid
   USE class_componentIndex, ONLY : componentIndex
 
   implicit none
-  !
+  !                         
+  CHARACTER(len=6)  :: ver = "latest"
   integer           :: nxp = 132           ! number of x points
   integer           :: nyp = 132           ! number of y points
   integer           :: nzp = 105           ! number of z points

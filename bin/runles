@@ -4,28 +4,49 @@
 #PBS -l mppnppn=20
 #PBS -l walltime=20:00:00
 
-###############################################
-## This jobscript is written for the FMI's 
-## Cray XC30 system. Job submission is done
-## at the end of the script. It can do both
-## sequential or parallel runs by adjusting the
-## value IsSeq below. For running on simple 
-## linux workstation, set IsSeq=1 and simply
-## run ./runles.
-###############################################
+###############################################################
+## This jobscript is written for the FMI's Cray XC30 system. 
+## Job submission is done at the end of the script. It can do 
+## both sequential or parallel runs by adjusting the value 
+## IsSeq below. For running on simple linux workstation, set 
+## IsSeq=1 and simply run ./runles.
+##
+## Note: For cluster runs, you may need to adjust the headers 
+## above (#PBS...) and the run command at the end of this script 
+## depending on your system.
+###############################################################
 
-set -e
 #--------------------------------------------
 IsSeq=1 # 0 for mpi runs, 1 for sequential
 # -------------------------------------------
 
-if [ $IsSeq -eq 0]; then
+if [ $IsSeq -eq 0 ]; then
     export MPICH_ENV_DISPLAY=1
     cd $PBS_O_WORKDIR
 fi
 
+# --------------------------------------------------------------- <DO NOT CHANGE>
+# Get the current version from GIT (if used - this functionality 
+# is not available otherwise and a default value is used)
+command -v git 2>&1 >/dev/null
+if [ $? -eq 0 ]; then
+    ver=`git describe --abbrev=0 --tags 2>&1`
+    if [ $? -ne 0 ]; then
+	echo "Ignore possible error, git just doesn't find a version tag - using default value"
+	ver=vx.x.x
+    fi
+else
+    ver=latest
+fi
+# ---------------------------------------------------------------- </DO NOT CHANGE>
+set -e
+
 # Create namelists
 cat > NAMELIST <<EOF
+ &version
+  ver="$ver"
+ /
+
  &model
   nxp =   5
   nyp =   40
@@ -72,6 +93,7 @@ cat > NAMELIST <<EOF
   umean =  0.1
   vmean = -0.1
  /
+
  &salsa	
    nlcoag = .TRUE.       ! Master coagulation switch
    nlcgcc = .TRUE.       ! Self-collection of cloud droplets
