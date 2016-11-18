@@ -14,10 +14,9 @@ a Cray supercomputing cluster.
 
 After compiling the model, the executable is found in the bin-folder
 together with the runscript "runles". This should be used for both
-parallel and sequential runs. You probably need to adjust the header
-lines (#PBS...) according to the specifics of your local batch system.
-The command for initiating the model run is found at the end of the
-runscript.
+parallel and sequential runs. You probably need to adjust the generation
+of the file job.sh at the end of the script according to the specifics 
+of your local batch system.
 
 Case specific runscripts and sound-in files used in publications
 will be available in another repository at 
