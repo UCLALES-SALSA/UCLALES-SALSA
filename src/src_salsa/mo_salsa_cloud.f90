@@ -20,7 +20,7 @@ MODULE mo_salsa_cloud
   !
   ! Interface:
   ! ----------
-  ! Called from main aerosol model
+  ! Called from the salsa main subroutine
   !
   !
   ! Coded by:
@@ -33,6 +33,9 @@ MODULE mo_salsa_cloud
 
 CONTAINS
 
+
+  ! NOTE: THE ACTIVATION PROCEDURES DO NOT CURRENTLY ACCOUNT FOR INSOLUBLE CORES!!!
+  ! *********************************************************************************
   SUBROUTINE cloud_activation(kproma, kbdim, klev,   &
                               temp,   pres,  rv,     &
                               rs,     w,     paero,  &
@@ -89,10 +92,6 @@ CONTAINS
 
     ! Properties of newly activate particles
     TYPE(t_section), INTENT(out) :: pactd(kbdim,klev,ncld)
-
-    !! Properties of newly activated interstitial particles (for diagnostics)
-    !TYPE(t_section) :: pactd_intst(kbdim,klev,ncld)
-
 
     !-- local variables --------------
     INTEGER :: ii, jj, kk             ! loop indices
@@ -240,9 +239,6 @@ CONTAINS
              dv1= 1.e-4 * (0.211/x1) * ((temp(ii,jj)/273.)**1.94)
 
              rref = 10.e-9
-             !-- corrected diffusivity, part 1, eq (17)
-             ! dv = dv1 / (rref/(rref + deltaV) + (dv1/(rref * alphac)) *        &
-             !     SQRT(2.*pi*mwa/(rg*temp(ii,jj))))
 
              !-- thermal conductivity [J/(m s K)], Seinfeld and Pandis (15.75)
              ka1= 1.e-3 * (4.39 + 0.071 * temp(ii,jj))
@@ -268,11 +264,7 @@ CONTAINS
                   + ((s_eff**2)/(theta+3.*khi))**(3./4.))
 
              !-- Juha: Get the critical diameter corresponding to the maximum supersaturation
-             ! ------ NÄISTÄ LASKUISTA PUUTTUU LIUKENEMATTOMAN COREN VAIKUTUS?
              zdcstar = 2.*aa(ii,jj)/(3.*s_max)
-
-             !WRITE(*,*) s_max
-             !WRITE(*,*) zdcstar
 
              DO kk = in1a, fn2b
 
@@ -417,8 +409,6 @@ CONTAINS
   SUBROUTINE actInterst(kproma,kbdim,klev,paero,pcloud,prv,prs,paa)
     !
     ! Activate interstitial aerosols if they've reached their critical size
-    ! HUOM TEKEE VAAN A-BINIT NYT!!
-    !
     !
     ! 1. Formulate the profiles of Dwet within bins
     !      - Get the slopes between adjacent bin mids (known)
@@ -702,8 +692,7 @@ CONTAINS
                        pdcrit, pdcrlo, pdcrhi, pdcstar, pactd   )
     !
     ! Gets the number and mass activated in the critical aerosol size bin
-    ! TEKEE NYT VAIN a-binit!!!!
-    !
+
     
     USE mo_submctl, ONLY : t_parallelbin, t_section, pi6, nlim, fn2b, ncld,  &
                                in1a,in2a,fn1a,fn2a, ica,fca,icb,fcb
@@ -904,9 +893,6 @@ CONTAINS
     intgV = (1./3.)*ikk*MAX(ihigh**3 - ilow**3,0.) + 0.5*icc*MAX(ihigh**2 - ilow**2,0.)
   END FUNCTION intgV
 
-
-
-
   !-----------------------------------------
   SUBROUTINE autoconv2(kproma,kbdim,klev,   &
                       pcloud,pprecp         )
@@ -960,7 +946,6 @@ CONTAINS
                 dg = dvg*EXP( -3.*LOG(sigmag)**2 )
 
                 !testi = cumlognorm(2.19e-4,sigmag,zd0)
-                !WRITE(*,*) 'TESTAAN: ',testi
 
                 Vrem = Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) )
                 Nrem = Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )
@@ -1007,7 +992,7 @@ CONTAINS
 
   SUBROUTINE ice_het_nucl(kproma,kbdim,klev,   &
                       pcloud,pice,paero,ppres, &
-                      ptemp,prv,prs,ptstep ) !'debugkebab'
+                      ptemp,prv,prs,ptstep ) 
 
 
 
@@ -1051,10 +1036,6 @@ CONTAINS
                 dnumb,   &  ! Change in droplet number concentration
                 frvol       ! Fractional change in volume concentration
 
-
-
-
-
     INTEGER :: ii,jj,kk,ss
     INTEGER :: hh
     REAL :: phf = 0., & ! probability of homogeneous freezing of a wet aerosol particle
@@ -1063,19 +1044,17 @@ CONTAINS
     LOGICAL :: freez
     REAL :: Vrem, Nrem, Vtot, Ntot, frac
 
-
     DO kk = in2b, fn2b ! insoluble materials !1,nice
        DO ii = 1,kproma
 
           DO jj = 1,klev
-
 
               rdry = (3.*sum(paero(ii,jj,kk)%volc) /paero(ii,jj,kk)%numc/4./pi)**(1./3.) !! dry radius of particle  !!huomhuom pcloud vai paero
               qv = (1.-sum( paero(ii,jj,kk)%volc(3:4) ))/(1. - sum(paero(ii,jj,kk)%volc(1:7))) !!! the volume soluble fraction of the aerosol huomhuom tarkista tämän laskeminen
               rn = rdry*(1-qv)**(1./3.)
               jcf = calc_JCF( rn,ptemp(ii,jj), ppres(ii,jj), prv(ii,jj), prs(ii,jj) )
               phf = 1 - exp( -jcf*ptstep )
-!              if (phf > 0.)  write(*,*) 'phf ', phf, ' heterogenous debugkebab'
+
               Ntot = pcloud(ii,jj,kk)%numc
               Vtot = SUM(pcloud(ii,jj,kk)%volc(:))
 
@@ -1096,7 +1075,7 @@ CONTAINS
           END DO
        END DO
     END DO
-IF (debug)             write(*,*)  'nyt on jäänukleoitu ', ' debugkebab'
+
 
   END SUBROUTINE ice_het_nucl
   !***********************************************
@@ -1198,8 +1177,6 @@ IF (debug)             write(*,*)  'nyt on jäänukleoitu ', ' debugkebab'
 
                pice(ii,jj,kk)%numc = max( 0., pice(ii,jj,kk)%numc + paero(ii,jj,kk)%numc*frac )
                paero(ii,jj,kk)%numc = max(0., paero(ii,jj,kk)%numc*(1. - frac) )
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
           END DO
        END DO
@@ -1337,16 +1314,11 @@ open(23, file="immersoitu", position='append')
 
                if(pice(ii,jj,kk)%numc-Nicetot>0.0) write(23,*) 'jäätä', pice(ii,jj,kk)%numc-Nicetot, frac, Ts, Temp_tend
 
-
-
-
-
-
           END DO
        END DO
     END DO
 close(23)
-    IF (debug)              write(*,*)  'nyt on immersoitu ', ' debugkebab'
+
 
   END SUBROUTINE ice_immers_nucl
 

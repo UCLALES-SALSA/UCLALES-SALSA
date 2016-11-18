@@ -423,7 +423,6 @@ MODULE mo_submctl
        epsoc = 0.15     ! water uptake of organic material
 
   !-- 7) Parameters for cloud activation
-  ! OSAN NÄISTÄ VOIS POISTAA
 
   REAL, PARAMETER :: crcut=0.035*1E-6 ! Assumed lower cut-off of the
                                              ! aerosol size distribution [m]

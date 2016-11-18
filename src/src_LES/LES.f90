@@ -152,8 +152,6 @@ contains
     read  (1, nml=model)
     close (1)
 
-    WRITE(*,*) 'JEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE', ver
-
     !
     ! write file variable control to standard output
     !

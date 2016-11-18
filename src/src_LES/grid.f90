@@ -25,7 +25,7 @@ module grid
 
   implicit none
   !                         
-  CHARACTER(len=20)  :: ver = "latest"
+  CHARACTER(len=20)  :: ver = "latest"     ! Model version - you have to use git for this to work right
   integer           :: nxp = 132           ! number of x points
   integer           :: nyp = 132           ! number of y points
   integer           :: nzp = 105           ! number of z points
@@ -1920,9 +1920,6 @@ contains
                                rhodu,rhowa
     USE class_ComponentIndex, ONLY : GetIndex, IsUsed
 
-    ! LISÄÄ FIKSUMPI ERROR HANDLING JOS AINE EI KÄYTÖSSÄ - PALAUTA VAIKKA NOLLIA
-
-
     CHARACTER(len=*), INTENT(in) :: icomp  ! This should be either:
                                            ! SO4,OC,NO,NH,BC,DU,SS,H2O.
 
@@ -1938,7 +1935,7 @@ contains
     mixrat = 0.
 
     ! Determine multipliers
-    ! RHOOTA EI TARVI ENÄÄ KUN MASSAT TULEE RUN_SALSALTA kg/kg
+    ! zrho not needed anymore, should be removed
     IF (icomp == 'SO4' .AND. IsUsed(prtcl,icomp)) THEN
        mm = GetIndex(prtcl,icomp)
        zrho = rhosu
@@ -2014,7 +2011,7 @@ contains
   ! ----------------------------------------------
   ! Subroutine binSpecMixrat: Calculate the mixing
   ! ratio of selected aerosol species in individual
-  ! bins. OTA TÄÄLTÄ ULOS TÄYS k,i,j-KENTTÄ!!!
+  ! bins. 
   !
   ! Juha Tonttila, FMI, 2015
   SUBROUTINE binSpecMixrat(ipart,icomp,ibin,mixr)
@@ -2039,7 +2036,7 @@ contains
 
 
     ! Determine multipliers
-    ! EI TARVI ENÄÄ RHOOTA
+    ! zrho not needed anymore, should be removed
     IF (icomp == 'SO4' .AND. IsUsed(prtcl,icomp)) THEN
        mm = GetIndex(prtcl,icomp)
        zrho = rhosu
