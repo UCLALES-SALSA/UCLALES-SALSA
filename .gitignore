@@ -1,0 +1,4 @@
+src/*.mod
+src/*.o
+bin/les.mpi
+bin/les.seq

@@ -1,0 +1,48 @@
+ &salsa	
+   nlcoag = .TRUE.       ! Master coagulation switch
+   nlcgcc = .TRUE.       ! Self-collection of cloud droplets
+   nlcgpp = .TRUE.       ! Self-collection of rain drops
+   nlcgpc = .TRUE.       ! Rain collection of cloud droplets
+   nlcgaa = .FALSE.      ! Aerosol coagulation
+   nlcgca = .TRUE.       ! Cloud collection of aerosols
+   nlcgpa = .TRUE.       ! Rain collection of aerosols
+   nlcgia = .TRUE.       ! Ice collection of aerosols
+   nlcgic = .TRUE.       ! Ice collection of cloud droplets
+   nlcgii = .TRUE.       ! Self-collection of ice
+   nlcgip = .TRUE.       ! Ice collection of rain drops
+   nlcgsa = .TRUE.       ! Snow collection of aerosols
+   nlcgsc = .TRUE.       ! Snow collection of cloud droplets
+   nlcgsi = .TRUE.       ! Snow collection of ice particles
+   nlcgsp = .TRUE.       ! Snow collection of rain drops
+   nlcgss = .TRUE.       ! Self-collection of snow
+
+   nlcnd       = .TRUE.  ! Master condensation switch
+   nlcndgas    = .TRUE.  ! --Aerosol precursor gas codensation
+   nlcndh2oae  = .TRUE.  ! --Condensation of water on aerosols (if FALSE, equilibrium assumed)
+   nlcndh2ocl  = .TRUE.  ! --Condensation of water on cloud droplets (and drizzle)
+   nlcndh2oic  = .TRUE.  ! --Condensation of water on ice particles
+   nlauto      = .TRUE.  ! Master autoconversion switch
+   nlautosnow  = .FALSE. ! Master snow autoconversion switch
+   nlactiv     = .TRUE.  ! Master cloud activation switch
+   nlactbase   = .FALSE.  ! --Switch for parameterized cloud base activation
+   nlactintst  = .TRUE.  ! --Switch for interstitial activation based on host model Smax
+
+   nlichom     = .FALSE.     ! Switch for homogeneous ice nucleation
+   nlichet     = .FALSE.     ! Switch for heterogeneous ice nucleation
+   nlicimmers  = .FALSE.   ! Switch for ice nucleation by immersion
+   nlicmelt    = .FALSE.    ! Switch for ice'n' snow melting
+
+   rhlim = 1.2          ! RH limit for SALSA during initialization and spinup
+
+   isdtyp = 0
+   nspec = 1
+   listspec = 'SO4','','','','','',''
+   volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0   
+   volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+   nf2a = 1.0
+
+   sigmag = 1.2, 1.7, 2.0, 2.0, 2.0, 2.0, 2.0  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
+   dpg = 0.022, 0.12, 0.2, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
+   n = 1250., 65., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3
+ /
+
