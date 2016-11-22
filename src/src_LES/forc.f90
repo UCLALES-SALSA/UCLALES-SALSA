@@ -29,6 +29,7 @@ module forc
                                                             ! from the NAMELIST
   REAL :: sfc_albedo = 0.05
   REAL  :: div = 0.
+  LOGICAL :: useMcICA = .TRUE.
 
 contains
   !
@@ -47,8 +48,8 @@ contains
     real, optional, intent (in) :: time_in, cntlat, sst
 
     real :: xka, fr0, fr1, xref1, xref2
-    REAL :: zrv(nzp,nxp,nyp), znc(nzp,nxp,nyp)
-         
+    REAL :: znc(nzp,nxp,nyp)
+
     ! DIVERGENCE GIVEN FROM NAMELIST
     if (trim(case_name) == 'atex') then
        xka = 130.
@@ -101,7 +102,7 @@ contains
 
              call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, CCN,&
                   dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rv, a_rc, a_tt,  &
-                  a_rflx, a_sflx, albedo, rr=a_rpp,radsounding=radsounding)
+                  a_rflx, a_sflx, albedo, rr=a_rpp,radsounding=radsounding,useMcICA=useMcICA)
 
           ELSE IF (level < 3) THEN
 
@@ -109,7 +110,7 @@ contains
              xref2 = 0.
              call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, CCN,&
                   dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rv, a_rc, a_tt,  &
-                  a_rflx, a_sflx, albedo,radsounding=radsounding)
+                  a_rflx, a_sflx, albedo,radsounding=radsounding,useMcICA=useMcICA)
              xref1 = xref1 + a_sflx(nzp,3,3)/albedo(3,3)
              xref2 = xref2 + a_sflx(nzp,3,3)
              albedo(3,3) = xref2/xref1
@@ -121,7 +122,7 @@ contains
 
              CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, CCN,&
                   dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rp, a_rc, a_tt,  &
-                  a_rflx, a_sflx, albedo, rr = a_srp, CDNC=znc, radsounding=radsounding) 
+                  a_rflx, a_sflx, albedo, rr = a_srp, CDNC=znc, radsounding=radsounding,useMcICA=useMcICA) 
 
           END IF
 

@@ -29,6 +29,7 @@ module radiation
   implicit none
 
   character (len=50) :: background = 'datafiles/dsrt.lay'
+  LOGICAL :: McICA = .TRUE.
 
   logical, save     :: first_time = .True.
   real, allocatable, save ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
@@ -41,7 +42,7 @@ module radiation
   contains
 
     subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, CCN, dn0, &
-         pi0, pi1, dzm, pip, tk, rv, rc, tt, rflx, sflx, albedo, rr, CDNC, radsounding)
+         pi0, pi1, dzm, pip, tk, rv, rc, tt, rflx, sflx, albedo, rr, CDNC, radsounding, useMcICA)
 
 
       integer, intent (in) :: n1, n2, n3
@@ -53,6 +54,7 @@ module radiation
       ! Juha added
       REAL, OPTIONAL, DIMENSION(n1,n2,n3), INTENT(in)   :: CDNC
       CHARACTER(len=50), OPTIONAL, INTENT(in)           :: radsounding
+	  LOGICAL, OPTIONAL                                     :: useMcICA
       real, intent (out)                                :: albedo(n2,n3)
 
       integer :: kk
@@ -60,6 +62,7 @@ module radiation
       xfact = 0.0; prw = 0.0; p0 = 0.0; exner = 0.0; pres = 0.0;
       IF (PRESENT(radsounding)) background = radsounding ! Juha: Added; can change the background
                                                          ! profile file from the NAMELIST
+      IF (PRESENT(useMcICA)) McICA = useMcICA
 
       if (first_time) then
          p0(n1) = (p00*(pi0(n1)/cp)**cpr) / 100.
@@ -146,7 +149,7 @@ module radiation
             
 
             call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                 fds, fus, fdir, fuir, plwc=plwc, pre=pre, useMcICA=.True.)
+                 fds, fus, fdir, fuir, plwc=plwc, pre=pre, useMcICA=McICA)
 
             do k=1,n1
                kk = nv1 - (k-1)

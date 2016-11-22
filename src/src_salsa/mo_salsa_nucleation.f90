@@ -341,7 +341,7 @@ CONTAINS
     !-- 2) Change of particle and gas concentrations ------------------------------------
     ! loops over
     DO jj = 1,klev !  vertical grid
-       DO ii = 1,kproma !  horizontal kproma in the slab
+       DO ii = 1,kbdim !  horizontal kbdim in the slab
 
 !          !-- very small nucleation rates neglected
 !          IF (zjnuc(ii,jj) < 1.e3) CYCLE
@@ -683,8 +683,6 @@ CONTAINS
                      pnuc_rate, pn_crit_sa, pn_crit_ocnv, pd_crit, &
                      ppbl,      pk_sa,      pk_ocnv)
 
-    
-
     USE mo_submctl, ONLY : rg, pi, avog
 
     IMPLICIT NONE
@@ -732,7 +730,7 @@ CONTAINS
     zpbl(:) = ppbl(:)
     if (lnuctropo) then
 
-       DO ii = 1,kproma !  horizontal kproma in the slab
+       DO ii = 1,kbdim !  horizontal kbdim in the slab
           DO jj = 1,zpbl(ii) !  vertical grid
              !-- 1) Checking that we are in the validity range of the parameterization -----------
 
@@ -944,8 +942,6 @@ CONTAINS
                      pnuc_rate, pn_crit_sa, pn_crit_ocnv, pd_crit, &
                      pk_sa,     pk_ocnv)
 
-    
-
     IMPLICIT NONE
     !-- Input variables -------------------
     INTEGER, INTENT(IN) ::       &
@@ -977,7 +973,7 @@ CONTAINS
 	!------------------------------------------------------------------------------------------------
 	! loops over
 	DO jj = 1,klev !  vertical grid
-		DO ii = 1,kproma !  horizontal kproma in the slab
+		DO ii = 1,kbdim !  horizontal kbdim in the slab
 
           !-- 1) Checking that we are in the validity range of the parameterization -----------
           ! validity of parameterization : DO NOT REMOVE!
@@ -1126,8 +1122,6 @@ CONTAINS
                      pnuc_rate,  pd_crit,      ppbl,          &
                      pn_crit_sa, pn_crit_ocnv, pk_sa, pk_ocnv)
 
-     
-
      IMPLICIT NONE
 
      !-- Input variables -------------------
@@ -1158,7 +1152,7 @@ CONTAINS
      zpbl(:)=ppbl(:)
 
      ! loops over
-     DO ii = 1,kproma !  horizontal kproma in the slab
+     DO ii = 1,kbdim !  horizontal kbdim in the slab
         DO jj = zpbl(ii),klev !  vertical grid
 
            !  pnuc_rate(ii,jj) = 1.19386e-17*sqrt(ptemp(ii,jj))*pc_sa(ii,jj)**2 ! [#/(m3 s)]
@@ -1182,8 +1176,6 @@ CONTAINS
    SUBROUTINE actnucl(kproma,     kbdim,        klev,                   &
                       psa_conc,   pnuc_rate,    pd_crit, ppbl,          &
                       pn_crit_sa, pn_crit_ocnv, pk_sa,   pk_ocnv, activ)
-
-     
 
      IMPLICIT NONE
 
@@ -1213,7 +1205,7 @@ CONTAINS
      ! loops over
      !  previous loop structure
      !    DO jj = 1,klev !  vertical grid
-     !       DO ii = 1,kproma !  horizontal kproma in the slab
+     !       DO ii = 1,kbdim !  horizontal kbdim in the slab
      !          pnuc_rate(ii,jj) = 1.e-7*psa_conc(ii,jj) ! [#/(m3 s)]
      !	   END DO
      !    END DO
@@ -1221,7 +1213,7 @@ CONTAINS
 
      zpbl(:)=ppbl(:)
 
-     DO ii = 1,kproma !  horizontal kproma in the slab
+     DO ii = 1,kbdim !  horizontal kbdim in the slab
         DO jj = zpbl(ii),klev !  vertical grid
            !  gone through for boundary layer klev only!
            ! act_coeff 1e-7 by default, namelist controllable.
@@ -1252,8 +1244,6 @@ CONTAINS
    SUBROUTINE orgnucl(kproma,     kbdim,        klev,            &
 		      pc_org,     pnuc_rate,    pd_crit, ppbl,   &
                       pn_crit_sa, pn_crit_ocnv, pk_sa,   pk_ocnv)
-
-     
 
      IMPLICIT NONE
 
@@ -1286,7 +1276,7 @@ CONTAINS
      !-------------------------------------
      zpbl(:)=ppbl(:)
      ! loops over
-     DO ii = 1,kproma !  horizontal kproma in the slab
+     DO ii = 1,kbdim !  horizontal kbdim in the slab
         DO jj = zpbl(ii),klev !  vertical grid
            pnuc_rate(ii,jj) = Aorg*pc_org(ii,jj)
            !          pnuc_rate(ii,jj) = Korg*pc_org(ii,jj)**2       ! homomolecular nuleation - which one?
@@ -1316,8 +1306,6 @@ CONTAINS
    SUBROUTINE sumnucl(kproma,     kbdim,        klev,                     &
                       pc_sa,      pc_org,       pnuc_rate, pd_crit, ppbl, &
                       pn_crit_sa, pn_crit_ocnv, pk_sa,     pk_ocnv)
-
-     
 
      IMPLICIT NONE
 
@@ -1350,7 +1338,7 @@ CONTAINS
 
      !-------------------------------------
      zpbl(:)=ppbl(:)
-     DO ii = 1,kproma !  horizontal kproma in the slab
+     DO ii = 1,kbdim !  horizontal kbdim in the slab
         DO jj = zpbl(ii),klev !  vertical grid
            pnuc_rate(ii,jj) = As1*pc_sa(ii,jj)+As2*pc_org(ii,jj) ![#/m3/s]
 
@@ -1380,8 +1368,6 @@ CONTAINS
                       pc_sa,      pc_org,                      &
                       pnuc_rate,  pd_crit,      ppbl,          &
                       pn_crit_sa, pn_crit_ocnv, pk_sa, pk_ocnv)
-
-     
 
      IMPLICIT NONE
 
@@ -1413,7 +1399,7 @@ CONTAINS
 
      !-------------------------------------
      zpbl(:)=ppbl(:)
-     DO ii = 1,kproma         !  horizontal kproma in the slab
+     DO ii = 1,kbdim         !  horizontal kbdim in the slab
         DO jj = zpbl(ii),klev !  vertical grid
            pnuc_rate(ii,jj) = zKhet*pc_sa(ii,jj)*pc_org(ii,jj)*1.E6 ![#/m3/s]
 
@@ -1445,8 +1431,6 @@ CONTAINS
                      pnuc_rate,  pd_crit,      ppbl,          &
                      pn_crit_sa, pn_crit_ocnv, pk_sa, pk_ocnv)
 
-     
-
      IMPLICIT NONE
 
      !-- Input variables -------------------
@@ -1477,7 +1461,7 @@ CONTAINS
 
      !-------------------------------------
      zpbl(:)=ppbl(:)
-     DO ii = 1,kproma !  horizontal kproma in the slab
+     DO ii = 1,kbdim !  horizontal kbdim in the slab
         DO jj = zpbl(ii),klev !  vertical grid
            pnuc_rate(ii,jj) = (zKsa1*pc_sa(ii,jj)**2 + zKsa2*pc_sa(ii,jj)*pc_org(ii,jj))*1.E6 ![#/m3/s]
 
@@ -1506,8 +1490,6 @@ CONTAINS
                         pc_sa,      pc_org,                      &
                         pnuc_rate,  pd_crit,      ppbl,          &
                         pn_crit_sa, pn_crit_ocnv, pk_sa, pk_ocnv)
-
-     
 
      IMPLICIT NONE
 
@@ -1538,7 +1520,7 @@ CONTAINS
      REAL :: zKs1 = 0.92e-14, zKs2 = 7.0e-14, zKs3 = 0.098e-14 ![cm3/s] (Paasonen et al. Table 3.)
      !-------------------------------------
      zpbl(:)=ppbl(:)
-     DO ii = 1,kproma !  horizontal points in the slab
+     DO ii = 1,kbdim !  horizontal points in the slab
         DO jj = zpbl(ii),klev !  vertical grid
            pnuc_rate(ii,jj) = (zKs1*pc_sa(ii,jj)**2 + &
                 zKs2*pc_sa(ii,jj)*pc_org(ii,jj)+ zKs3*pc_org(ii,jj)**2)*1.E6  ![#/m3/s]

@@ -7,22 +7,20 @@ MODULE mo_submctl
   PRIVATE
 
   !M7 and SALSA
-  PUBLIC :: lspropupdate,lsdistupdate,nsnucl
+  PUBLIC :: lsdistupdate,nsnucl
 
-  PUBLIC :: oldupdate, debug
+  PUBLIC :: debug
 
   !SALSA:
-  PUBLIC :: locgas, lsol2b, act_coeff,nj3
+  PUBLIC :: act_coeff,nj3
 
   PUBLIC :: in1a,in2a,in2b,fn1a,fn2a,fn2b,nbins
   PUBLIC :: nbin, nbin2, nbin3,reglim,nlim,prlim,nreg
-  PUBLIC :: epsv,vhilim,vlolim,vratiohi,vratiolo,dpmid,sigma
+  PUBLIC :: vhilim,vlolim,vratiohi,vratiolo,dpmid
   PUBLIC :: pi, pi6, rg, avog, planck, boltz, cpa, mair, grav, eps
   PUBLIC :: rhosu,rhooc, rhobc,rhoss, rhodu, rhowa, rhonh, rhono, rhoic,rhosn
-  PUBLIC :: msu,mdu,mno,mnh,n3,massacc,d_sa,pstand,mss,mbc,moc,epsoc,mwa,slim,ions,&
+  PUBLIC :: msu,mdu,mno,mnh,n3,massacc,d_sa,pstand,mss,mbc,moc,epsoc,mwa,ions,&
             mvsu,mvoc,mvss,surfw0,surfi0,mvwa,mvno,mvnh
-  PUBLIC :: recalc
-  PUBLIC :: csr_strat_wat,csr_strat_mix,csr_strat_ice,csr_conv,zbcr,cfracn,zfracn,zfracn_cv
 
   PUBLIC :: t_section,t_parallelbin
   PUBLIC :: ncldbin,ica,fca,icb,fcb,ira,fra,ncld,nprc,dmincld
@@ -112,7 +110,6 @@ MODULE mo_submctl
 
   !--- Physical:
   !Switches for both M7 and SALSA aerosol microphysical processes
-  LOGICAL :: oldupdate  = .FALSE.
   LOGICAL :: nldebug      = .FALSE., & ! debuggin output
              debug
 
@@ -187,15 +184,9 @@ MODULE mo_submctl
                lsicmelt
 
   LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
-  
-  LOGICAL :: lspropupdate = .FALSE.  ! Update diagnostic particle properties between processes
 
   ! 1) Switches for M7 aerosol microphysical processes ------------------------
   INTEGER, PARAMETER :: nmod = 7
-  INTEGER :: nwater     = 1         ! Aerosol water uptake scheme:
-                                    !
-                                    ! nwater = 0 Jacobson et al., JGR 1996
-                                    !        = 1 Kappa-Koehler theory based approach (Petters and Kreidenweis, ACP 2007)
 
   INTEGER :: nsnucl     = 0         ! Choice of the H2SO4/H2O nucleation scheme:
                                     ! M7:
@@ -215,30 +206,8 @@ MODULE mo_submctl
                                     !           heteromolecular nucleation with H2SO4*ORG
                                     ! 9 = homomolecular nucleation of  H2SO4 and ORG + 
                                     !           heteromolecular nucleation with H2SO4*ORG
-
-  INTEGER :: nonucl     = 0         ! Choice of the organic nucleation scheme:
-                                    ! 
-                                    ! nonucl = 0 off
-                                    !        = 1 Activation nucleation, Kulmala et al., ACP 2006
-                                    !        = 2 Activation nucleation, Laakso et al., ACP 2004
-  
-  LOGICAL :: lgcr       = .TRUE.    ! Calculate ionization due to galactic cosmic rays
-  
-  REAL:: nsolact    = -99.99 ! Solar activity parameter [-1,1]; if outside of
-                                    ! this range (as per default), then the model will
-                                    ! determine the solar activity based on the model
-                                    ! calendar date; otherwise, it will use the user
-                                    ! set solar activity parameter throughout the run.
-                                    ! -1 is solar minimum, 1 solar maximum.
   
   ! 1) Switches for SALSA aerosol microphysical processes ------------------------ 
-
-  LOGICAL :: locgas = .FALSE.,&   ! emission of organic carbon in gas phase
-             lsol2b = .FALSE.     ! repartitioning of insoluble material in 
-                                  ! case of increase in solubility 
-
-  LOGICAL :: recalc   = .FALSE.   ! recalculation of wet diameter between
-                                  ! calculation of microphysical processes
 
   INTEGER ::                    & ! J3 parametrization
              nj3 = 1              ! 1 = condensational sink (Kerminen&Kulmala, 2002)
@@ -260,7 +229,7 @@ MODULE mo_submctl
   REAL :: volDistA(maxspec) = (/1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
   REAL :: volDistB(maxspec) = (/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
   ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
-  REAL :: nf2a = 1.0   
+  REAL :: nf2a = 1.0
 
   ! Should not be necessary!
   LOGICAL :: initliqice = .FALSE. ! initialize ice and liquid cloud particles from aerosol bins
@@ -282,7 +251,7 @@ MODULE mo_submctl
 
   REAL ::                       &
    reglim(nreg+2) =                            & ! low/high diameter limits
-    (/ 3.e-9, 5.e-8, 7.e-7, 1.e-5 /) ! of main size regimes [m]  
+    (/ 3.e-9, 5.e-8, 7.e-7, 1.e-5 /) ! of main size regimes [m]
 
    INTEGER :: &
    nbin(nreg) = (/ 3, 7 /)   ! number of bins in each main regime 
@@ -295,12 +264,10 @@ MODULE mo_submctl
    in1a,          & ! regime 1a
    in2a,          & ! regime 2a
    in2b,          & ! regime 2b
-
                     ! last index for bin regimes
    fn1a,          & ! regime 1a
    fn2a,          & ! regime 2a
    fn2b,          & ! regime 2b
-
    nbins            ! total number of size bins
 
    ! Juha: Cloud and rain bins:
@@ -316,6 +283,7 @@ MODULE mo_submctl
   REAL            ::   dmincld = 5.e-8   ! Minimum diameter for the cloud droplet regime in terms of the 
                                                 ! ccn dry radius. The first cloud droplet bin is taken to coincide 
                                                 ! with the smallest full aerosol bin that conforms with this diameter. 
+
    ! Jaakko: ice bins:
   INTEGER :: nicebin(2) = (/7,7/)        ! Number of bins for ice bins in regime a and b
 
@@ -336,21 +304,11 @@ MODULE mo_submctl
                            icebins(:), &
                            snowbins(:)
 
-
-  !!!! SOME OF THIS IS REPLACED BY THE T_SECTION DATATYPE
-  REAL, ALLOCATABLE :: epsv(:),           &
-                           vhilim(:),         &
+  REAL, ALLOCATABLE :: vhilim(:),         &
                            vlolim(:),         &
                            vratiohi(:),       &
                            vratiolo(:),       &
-                           dpmid(:),          &
-                           sigma(:),          &
-                           csr_strat_wat(:),  &
-                           csr_strat_mix(:),  &
-                           csr_strat_ice(:),  &
-                           csr_conv(:),       &
-                           zbcr(:)
-
+                           dpmid(:)
 
   REAL, PARAMETER ::     &
    avog   = 6.0221e+23,   & ! Avogadro number (#/mol)
@@ -358,7 +316,7 @@ MODULE mo_submctl
    planck = 6.626070040e-34, & ! Planck constant (J*s)
    grav   = 9.81,         & ! gravitational acceleration (m/s^2)
    pstand = 1.01325e+5,   & ! standard pressure (Pa)
-   rg     = 8.314,        & ! molar gas constant (J/(mol K)) 
+   rg     = 8.314,        & ! molar gas constant (J/(mol K))
    pi     = 3.1415927,    & ! self explanatory
    pi6    = 0.5235988,    & ! pi/6
    cpa    = 1010.,        & ! specific heat of dry air, constant P (J/kg/K)
@@ -371,9 +329,9 @@ MODULE mo_submctl
 
 
   REAL, PARAMETER ::     & ! molar mass [kg/mol]
-   msu = 98.08e-3,        & ! sulphate   
-   mno = 62.01e-3,        & ! HNO3 
-   mnh = 18.04e-3,        & ! NH3 
+   msu = 98.08e-3,        & ! sulphate
+   mno = 62.01e-3,        & ! HNO3
+   mnh = 18.04e-3,        & ! NH3
    moc = 150.e-3,         & ! organic carbon
    mbc = 12.e-3,          & ! black carbon
    mss = 58.44e-3,        & ! sea salt (NaCl)
@@ -384,7 +342,7 @@ MODULE mo_submctl
                                ! densities [kg/m3]
    rhosu = 1830.,         & ! sulphate
    rhono = 1479.,         & ! HNO3
-   rhonh = 1530.,         & ! NH3 
+   rhonh = 1530.,         & ! NH3
    rhooc = 2000.,         & ! organic carbon
    rhobc = 2000.,         & ! black carbon
    rhoss = 2165.,         & ! sea salt (NaCl)
@@ -408,15 +366,12 @@ MODULE mo_submctl
                                !  assuming d_sa = 5.54 ???     
   !-- 4.3) Properties of condensing vapours
 
-  REAL, PARAMETER ::                               & ! diameter of condensing molecule [m]
-      d_sa   = 5.539376964394570e-10,               &
-
-      d_oc   = 6.195906936656752e-10,               &
-
+  REAL, PARAMETER :: & ! diameter of condensing molecule [m]
+      d_sa   = 5.539376964394570e-10,  &
+      d_oc   = 6.195906936656752e-10,  &
       d_h2o  = 3.851565216195334e-10
 
   REAL, PARAMETER :: &
-       slim = 1.005,  & ! water saturation used as limit
        ions = 3.0,    & ! van't Hoff factor (ions produced upon dissociation)
        surfw0 = 0.073, & ! surface tension of pure water @ ~ 293 K [J/m2]
        surfi0 = 0.105, & ! surface tension of ice
@@ -424,29 +379,12 @@ MODULE mo_submctl
 
   !-- 7) Parameters for cloud activation
 
-  REAL, PARAMETER :: crcut=0.035*1E-6 ! Assumed lower cut-off of the
-                                             ! aerosol size distribution [m]
-
-  !--- Ulrike: included for activation in convective clouds
-  REAL, PARAMETER :: crcut_cv=0.025*1E-6 ! Assumed lower cut-off of the
-  
-
-
-  REAL, ALLOCATABLE :: cfracn(:)
-  REAL, ALLOCATABLE :: zfracn(:)
-  REAL, ALLOCATABLE :: zfracn_cv(:)
   REAL, ALLOCATABLE :: massacc(:)
 
 
-
   REAL, PARAMETER :: &
-   nlim = 1.,         & ! number conc. limit below which bin empty  [#/m3] 
-   prlim = 1.e-40,     & ! The same for precipitation drops for which concentrations are normally much lower [#/m3]
-   m3_2_um3 = 1.e+18    ! conversion factor for volume from m3 to um3
-
-  INTEGER, ALLOCATABLE, PUBLIC :: iso4b(:), inob(:), inhb(:),   &
-                                  iocb(:),  ibcb(:),            &
-                                  idub(:),  issb(:)
+   nlim = 1.,  & ! Number conc. limit (#/kg) for aerosol and cloud droplets 
+   prlim = 1.e-6 ! The same for precipitation and ice species for which concentrations are normally much lower [#/m3]
   
 
   !--- 12) Service routines for initialization and auxiliary computations ----------

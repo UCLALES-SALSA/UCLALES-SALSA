@@ -540,12 +540,11 @@ contains
   ! MASKACTIV: Create a logical mask for grid points where cloud
   !            activation will be calculated.
   !
-  ! VOIS LAITTAA STEPPIIN MIELUMMIN
-  !
   ! Juha Tonttila, FMI, 2014
   !
   SUBROUTINE maskactiv(act_mask,nx,ny,nz,nbins,mode,prtcl,rh,    &
                        rc,pa_naerop, pa_maerop, pt, Rpwet, w, pa_ncloud  )
+    USE mo_submctl, ONLY : rhowa, rhosu, rhooc, rhoss, mwa, msu, moc, mss, pi6, nlim
     USE class_ComponentIndex, ONLY : ComponentIndex,GetIndex,IsUsed
     IMPLICIT NONE
 
@@ -566,7 +565,6 @@ contains
 
     LOGICAL, INTENT(out) :: act_mask(nz,nx,ny)
 
-    !REAL :: zrh(n1,n2,n3)
     LOGICAL :: actmask_newcloud(nz,nx,ny)
     LOGICAL :: actmask_oldcloud(nz,nx,ny)
     LOGICAL :: cldmask(nz,nx,ny)
@@ -579,9 +577,6 @@ contains
     REAL :: nwtrue(nbins)  ! moles of water minus the core particle
     REAL :: nsaero(nbins) ! moles of solute
     REAL :: vsaero(nbins) ! Volume of solute
-    REAL :: mwa,rhowa,pi6
-    REAL :: rhosu,rhooc,rhoss,msu,moc,mss ! LAITA ARVOT NÄILLE, MYÖHEMMIN OTETTAVA VALMIISTA MODUULISTA
-    
     REAL :: nwact(nz,nx,ny) ! Minimum activity from the aerosol bins assuming a 1 micron droplet for each gridpoint
     REAL :: nwactbin(nbins) ! Activities for each aerosol bin
 
@@ -589,28 +584,12 @@ contains
 
     INTEGER :: j, i, k, b, nc
 
-    ! NÄÄ ON SAATAVILLA VALMIISTA MODUULEISTAKIN!
-    mwa = 18.016e-3
-    rhowa = 1000.
-
-    msu = 98.08e-3
-    rhosu = 1830.
-
-    moc = 150.e-3
-    rhooc = 2000.
-    
-    mss = 58.44e-3
-    rhoss = 2165.
-
-    pi6 = 0.5235988
-
     actmask_newcloud = .FALSE.
     actmask_oldcloud = .FALSE.
     cldm1 = .TRUE.
     cldp1 = .TRUE.
     cldpm = .TRUE.
     act_mask = .FALSE. 
-    !zrh = 0.
 
     nwactbin = 0.
 
@@ -645,7 +624,7 @@ contains
                 nsaero(:) = 0.
                 vsaero(:) = 0.
                 DO b = 1,nbins
-                   IF (pa_naerop(k,i,j,b) > 1.) THEN
+                   IF (pa_naerop(k,i,j,b) > nlim) THEN
 
                       IF ( IsUsed(prtcl,'SO4') ) THEN
                          nc = GetIndex(prtcl,'SO4')
@@ -680,11 +659,11 @@ contains
                 nwtrue(1:nbins) = nwtrue(1:nbins)/mwa
 
                 nwactbin(:) = 999. ! undefined
-                WHERE(pa_naerop(k,i,j,1:nbins) > 1.) &
+                WHERE(pa_naerop(k,i,j,1:nbins) > nlim) &
                      nwactbin(1:nbins) = nwkelvin*nwtrue(1:nbins)/( nwtrue(1:nbins) + nsaero(1:nbins) )
 
-                nwact(k,i,j) = MINVAL(nwactbin(:)) 
- 
+                nwact(k,i,j) = MINVAL(nwactbin(:))
+
              END DO ! k
           END DO ! i
        END DO ! j
@@ -707,9 +686,6 @@ contains
        
        cldp1(:,:,:) = .TRUE.
        cldp1(2:nz,:,:) = ( .NOT. cldpm(1:nz-1,:,:) ) 
-       
-       ! actmask_oldcloud(:,:,:) = ( cldpm(:,:,:) .AND. cldp1(:,:,:) ) .AND. ( w(:,:,:) > 0. )
-
 
        ! Take the lowest level of the two cases
        

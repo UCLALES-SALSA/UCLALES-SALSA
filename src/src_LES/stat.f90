@@ -81,11 +81,6 @@ module stat
        'rmNO3dr','rmNO3cl','rmNO3pr','rmNO3wt','rmNO3tt'             & !58, total 62
        /),                                                           &
 
-       ! *** Mass budget statistics ***
-       s1MassBudged(nv1MB) = (/                                      &
-       'iMwAtm ','MwAtm  ','mwEvap ','mwDepo '                       &
-       /),                                                           &
-
         s2(nvar2)=(/                                                 &
         'time   ','zt     ','zm     ','dn0    ','u0     ','v0     ', & ! 1
         'fsttm  ','lsttm  ','nsmp   ','u      ','v      ','t      ', & ! 7
@@ -172,9 +167,8 @@ contains
   subroutine init_stat(time, filprf, expnme, nzp)
 
     use grid, only : nxp, nyp, iradtyp, prtcl
-    use mpi_interface, only : myid
-    use mo_submctl, only : nbins, ncld, nprc, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
-                               ica,fca,icb,fcb,ira,fra
+    use mpi_interface, only : myid, ver, author
+    use mo_submctl, only : nprc, fn2a,fn2b,fca,fcb,fra
     USE class_ComponentIndex, ONLY : IsUsed
 
     character (len=80), intent (in) :: filprf, expnme
@@ -229,8 +223,7 @@ contains
     ! For SALSA
     case (4)
        nv1 = nvar1
-       !if (iradtyp == 3) nv1=nvar1
-       nv2 = nvar2 !+nv2sbulk+nv2sabin+nv2scbin+nv2spbin
+       nv2 = nvar2
     case default
        nv1 = nvar1
        nv2 = nvar2
@@ -444,7 +437,7 @@ contains
     fname =  trim(filprf)//'.ts'
     if(myid == 0) print                                                  &
          "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
-    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid1, nrec1)
+    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid1, nrec1, ver, author)
     ! Juha: Modified for SALSA output
     call define_nc( ncid1, nrec1, COUNT(s1bool), PACK(s1Total,s1bool))
     if (myid == 0) print *, '   ...starting record: ', nrec1
@@ -454,7 +447,7 @@ contains
     fname =  trim(filprf)//'.ps'
     if(myid == 0) print                                                  &
          "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
-    call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2)
+    call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2, ver, author)
     ! Juha: Modified due to SALSA output
     call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp, inae_a=fn2a, inae_b=fn2b-fn2a, &
                     incld_a=fca%cur, incld_b=fcb%cur-fca%cur, inprc=fra)
@@ -478,9 +471,8 @@ contains
 
     use grid, only : a_up, a_vp, a_wp, a_rc, a_theta, a_scr2                    &
          , a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean            &
-         , vmean, dn0, precip, a_rpp, a_npp, albedo, CCN, iradtyp, a_rflx               &
-         , a_sflx, albedo, a_rh,a_ncloudp,a_Rcwet,a_nprecpp,a_Rpwet,a_naerop,a_Rawet    &
-         , a_srp, a_snrp
+         , vmean, dn0, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx               &
+         , a_sflx, albedo, a_srp, a_snrp
 
     real, intent (in) :: time
 
@@ -627,7 +619,7 @@ contains
   !  Some rewriting and adjusting by Juha Tonttila
   !
   SUBROUTINE ts_lvl4(n1,n2,n3,rc)
-    USE mo_submctl, only : in1a,fn2a,fn2b,nbins,fca,fra,ncld,nprc,nlim
+    use mo_submctl, only : nlim
     USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,dzt
     USE class_componentIndex, ONLY : IsUsed
 
@@ -804,7 +796,7 @@ contains
     real, intent (in), dimension(n1)        :: zm, dn0
     real, intent (in), dimension(n1,n2,n3)  :: w, th, tl, rl, rs, rt
 
-    real, dimension(n1,n2,n3) :: tv
+    real, dimension(n1,n2,n3) :: tv	! Local variable
     integer                   :: k, i, j, km1
     logical                   :: aflg
     real                      :: xy1mx
@@ -1035,9 +1027,9 @@ contains
   ! on level 4 variables.
   !
   subroutine accum_lvl4(n1,n2,n3)
-    use mo_submctl, only : in1a,in2a,in2b,fn1a,fn2a,fn2b, &
-                               ica,fca,icb,fcb,ira,fra,nbins, &
-                               ncld,nprc,nlim,prlim
+    use mo_submctl, only : in1a,in2b,fn2a,fn2b, &
+                               ica,fca,icb,fcb,ira,fra, &
+                               nprc,nlim,prlim
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                      a_rc, a_srp, a_rp, a_rh, prtcl,    &
                      a_naerop, a_ncloudp, a_nprecpp
@@ -1046,7 +1038,7 @@ contains
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3
-    INTEGER :: ii,ss,k,i,j,bb,a,c,p
+    INTEGER :: ii,ss,k,bb
 
     REAL :: Nctot(n1,n2,n3)
     REAL :: Nptot(n1,n2,n3)
@@ -1450,7 +1442,7 @@ contains
 
     use netcdf
     use defs, only : alvl, cp
-    USE mo_submctl, ONLY : in1a,in2a,in2b,fn1a,fn2a,fn2b,fca,ica,fcb,icb,fra,ira, &
+    USE mo_submctl, ONLY : in1a,in2b,fn2a,fn2b,fca,ica,fcb,icb,fra,ira, &
                                aerobins,cloudbins,precpbins
 
     integer, intent (in) :: n1
@@ -1900,11 +1892,9 @@ contains
 
     REAL :: zavg
 
-    INTEGER :: ss, nc,si
-    INTEGER :: ii,tt
+    INTEGER :: ss, si
+    INTEGER :: tt
     INTEGER :: end,str
-
-    ! BULKKI, TEE MYÖS BINEITTÄIN
 
     ! Removal of water first
     si = GetIndex(prtcl,'H2O')
@@ -2118,8 +2108,6 @@ contains
   !
   SUBROUTINE write_massbudged()
     IMPLICIT NONE
-
-    INTEGER :: ii
 
     OPEN(88,FILE='MASSBUDGED.TXT')
     WRITE(88,*) 'Initial mass (atm), Final mass (atm), Final-Initial, Total evpaoration, Total deposition, Evap-Dep  '

@@ -47,7 +47,7 @@ CONTAINS
     zvfrac = 0.
 
     DO jj = 1,klev
-       DO ii = 1,kproma
+       DO ii = 1,kbdim
           
           ! ------------------------------------------------------------------------
           ! ************* AEROSOLS **************
@@ -69,7 +69,7 @@ CONTAINS
                    IF (kk == fn2a) CYCLE 
 
                    ! Dry volume
-                   zvpart = sum(paero(ii,jj,kk)%volc(1:5))/paero(ii,jj,kk)%numc
+                   zvpart = sum(paero(ii,jj,kk)%volc(1:7))/paero(ii,jj,kk)%numc
 
                    ! Smallest bin cannot decrease
                    IF (paero(ii,jj,kk)%vlolim > zvpart .AND. kk == in1a) CYCLE
@@ -77,7 +77,7 @@ CONTAINS
                    ! Decreasing bins
                    IF(paero(ii,jj,kk)%vlolim > zvpart) THEN
                       mm = kk - 1
-                      IF(kk == in2b) mm = fn1a
+                      IF(kk == in2b) mm = fn1a ! 2b goes to 1a
                       
                       paero(ii,jj,mm)%numc = paero(ii,jj,mm)%numc + paero(ii,jj,kk)%numc 
                       paero(ii,jj,kk)%numc = 0.
@@ -109,18 +109,17 @@ CONTAINS
                    !zvfrac = znfrac * zVexc / (1./2.*(zVihi+zVilo))
                    zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
 
-                   IF(zvfrac > 1.) WRITE(*,*) 'VIRHE aerosol'
-                   IF(zvfrac < 0.) WRITE(*,*) 'VIRHE aerosol 0'
+                   IF(zvfrac < 0.) WRITE(*,*) 'Error aerosol 0'
                    !-- update bin
                    mm = kk+1
                    !-- volume
                    paero(ii,jj,mm)%volc(:) = paero(ii,jj,mm)%volc(:) &
                         + znfrac * paero(ii,jj,kk)%numc * zVexc * paero(ii,jj,kk)%volc(:) / &
-                        sum(paero(ii,jj,kk)%volc(1:5))
+                        sum(paero(ii,jj,kk)%volc(1:7))
 
                    paero(ii,jj,kk)%volc(:) = paero(ii,jj,kk)%volc(:) &
                         - znfrac * paero(ii,jj,kk)%numc * zVexc * paero(ii,jj,kk)%volc(:) / &
-                        sum(paero(ii,jj,kk)%volc(1:5))
+                        sum(paero(ii,jj,kk)%volc(1:7))
 
                    !-- number
                    paero(ii,jj,mm)%numc = paero(ii,jj,mm)%numc + znfrac * paero(ii,jj,kk)%numc
@@ -130,8 +129,8 @@ CONTAINS
                 END IF ! nlim
 
                 IF ( paero(ii,jj,kk)%numc > nlim ) THEN
-                   zvpart = sum(paero(ii,jj,kk)%volc(1:5))/paero(ii,jj,kk)%numc
-                   IF(zvpart > paero(ii,jj,kk)%vhilim) within_bins = .FALSE.
+                   zvpart = sum(paero(ii,jj,kk)%volc(1:7))/paero(ii,jj,kk)%numc  ! Note: dry volume
+                   within_bins = (paero(ii,jj,kk)%vlolim<zvpart .AND. zvpart<paero(ii,jj,kk)%vhilim)
                 END IF
 
              END DO ! - kk
@@ -156,10 +155,10 @@ CONTAINS
              DO kk = ncld,ica%cur,-1
                 mm = 0
 
-                IF ( pcloud(ii,jj,kk)%numc > nlim .AND. sum(pcloud(ii,jj,kk)%volc(1:5)) > 1.e-30 ) THEN
+                IF ( pcloud(ii,jj,kk)%numc > nlim .AND. sum(pcloud(ii,jj,kk)%volc(1:7)) > 1.e-30 ) THEN
                 
                    ! Don't convert cloud or rain droplets to anything else here.
-                   zvpart = sum(pcloud(ii,jj,kk)%volc(1:5))/pcloud(ii,jj,kk)%numc
+                   zvpart = sum(pcloud(ii,jj,kk)%volc(1:7))/pcloud(ii,jj,kk)%numc
                 
                    !-- volume ratio of the size bin
                    zVrat = pcloud(ii,jj,kk)%vhilim/pcloud(ii,jj,kk)%vlolim
@@ -204,12 +203,9 @@ CONTAINS
                    !zvfrac = znfrac * zVexc / (0.5*(zVihi+zVilo))
                    !zvfrac = min(zvfrac,1.)
                    zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
-                   IF(zvfrac > 1.) THEN
-                      WRITE(*,*) 'VIRHE cloud'
-                      WRITE(*,*) zvfrac,zvpart,pi6*pcloud(ii,jj,kk)%dmid**3
-                   END IF
 
-                   IF(zvfrac < 0.) WRITE(*,*) 'VIRHE cloud 0'
+                   IF(zvfrac < 0.) WRITE(*,*) 'Error cloud 0'
+
                    !-- volume
                    pcloud(ii,jj,mm)%volc(:) = pcloud(ii,jj,mm)%volc(:)     &
                         + zvfrac*pcloud(ii,jj,kk)%volc(:)
@@ -226,14 +222,9 @@ CONTAINS
               
                 END IF !nlim
                 
-                IF ( pcloud(ii,jj,kk)%numc > nlim .AND.  sum(pcloud(ii,jj,kk)%volc(1:5)) > 1.e-30 ) THEN
-                   zvpart = sum(pcloud(ii,jj,kk)%volc(1:5))/pcloud(ii,jj,kk)%numc
-
-                   IF(zvpart > pcloud(ii,jj,kk)%vhilim  .OR.   &
-                      zvpart < pcloud(ii,jj,kk)%vlolim) THEN
-                      within_bins = .FALSE.
-                   END IF
-
+                IF ( pcloud(ii,jj,kk)%numc > nlim .AND.  sum(pcloud(ii,jj,kk)%volc(1:7)) > 1.e-30 ) THEN
+                   zvpart = sum(pcloud(ii,jj,kk)%volc(1:7))/pcloud(ii,jj,kk)%numc ! Note: dry volume
+                   within_bins = (pcloud(ii,jj,kk)%vlolim<zvpart .AND. zvpart<pcloud(ii,jj,kk)%vhilim)
                 END IF
 
              END DO !kk
@@ -297,10 +288,7 @@ CONTAINS
                       
                       !-- Number fraction to be moved to the smaller bin
                       znfrac = min(1.,(pprecp(ii,jj,kk)%vlolim-zVilo) / (zVihi-zVilo))
-                      IF (znfrac < 0.) THEN
-                         WRITE(*,*) 'VIRHE, numc precp 0, DEC'
-                         write(*,*) zVihi-zVilo
-                      END IF
+                      IF (znfrac < 0.) STOP 'Error, numc precp 0'
 
                       !-- Index for the smaller bin
                       mm = kk - 1
@@ -313,13 +301,7 @@ CONTAINS
 
                       !-- number fraction to be moved to the larger bin
                       znfrac = min(.99,(zVihi-pprecp(ii,jj,kk)%vhilim) / (zVihi-zVilo))
-          
-                      IF (znfrac < 0.) THEN
-                         WRITE(*,*) 'VIRHE, numc precp 0, INC'
-                         write(*,*) zVihi-zVilo
-                         WRITE(*,*) zVihi, pprecp(ii,jj,kk)%vhilim,zvpart
-                         WRITE(*,*) pi6*pprecp(ii,jj,kk)%dmid**3
-                      END IF
+                      IF (znfrac < 0.) STOP 'Error, numc precp 0, INC'
 
                       !-- Index for the larger bin
                       mm = kk + 1
@@ -331,9 +313,7 @@ CONTAINS
                    !-- volume fraction to be moved 
                    !zvfrac = min(0.99,znfrac * zVexc / (0.5*(zVihi+zVilo)))
                    zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
-
-                   IF(zvfrac > 1.) WRITE(*,*) 'VIRHE, precp'
-                   IF(zvfrac < 0.) WRITE(*,*) 'VIRHE, precp 0'
+                   IF(zvfrac < 0.) STOP 'Error, volc precp 0'
 
                    !-- volume
                    pprecp(ii,jj,mm)%volc(:) = pprecp(ii,jj,mm)%volc(:)     &
@@ -352,13 +332,8 @@ CONTAINS
                 END IF !nlim
                 
                 IF ( pprecp(ii,jj,kk)%numc > prlim ) THEN
-                   zvpart = sum(pprecp(ii,jj,kk)%volc(:))/pprecp(ii,jj,kk)%numc
-
-                   IF(zvpart > pprecp(ii,jj,kk)%vhilim  .OR.   &
-                      zvpart < pprecp(ii,jj,kk)%vlolim) THEN
-                      within_bins = .FALSE.
-                   END IF
-
+                   zvpart = sum(pprecp(ii,jj,kk)%volc(1:8))/pprecp(ii,jj,kk)%numc ! Note: droplet volume
+                   within_bins = (pprecp(ii,jj,kk)%vlolim<zvpart .AND. zvpart<pprecp(ii,jj,kk)%vhilim )
                 END IF
 
              END DO !kk
@@ -376,7 +351,6 @@ CONTAINS
 
         IF(level < 5 ) CYCLE ! skip ice and snow distr. updates if thermodynamical level doesn't include ice microphysics
 
-          ! apinoitu CLOUD DROP kohdasta suoraan
           ! ------------------------------------------------------------------------
           ! ************* ICE PARTICLES  **************
           ! ------------------------------------------------------------------------
@@ -389,10 +363,10 @@ CONTAINS
              DO kk = nice,iia%cur,-1
                 mm = 0
 
-                IF ( pice(ii,jj,kk)%numc > nlim .AND. sum(pice(ii,jj,kk)%volc(1:5)) > 1.e-30 ) THEN
+                IF ( pice(ii,jj,kk)%numc > prlim .AND. sum(pice(ii,jj,kk)%volc(1:7)) > 1.e-30 ) THEN
 
                    ! Don't convert cloud or rain droplets to anything else here. !!huomhuom
-                   zvpart = sum(pice(ii,jj,kk)%volc(1:5))/pice(ii,jj,kk)%numc
+                   zvpart = sum(pice(ii,jj,kk)%volc(1:7))/pice(ii,jj,kk)%numc
 
                    !-- volume ratio of the size bin
                    zVrat = pice(ii,jj,kk)%vhilim/pice(ii,jj,kk)%vlolim
@@ -435,15 +409,10 @@ CONTAINS
                    END IF
 
                    !-- volume fraction to be moved
-                   !zvfrac = znfrac * zVexc / (0.5*(zVihi+zVilo))
-                   !zvfrac = min(zvfrac,1.)
-                   zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
-                   IF(zvfrac > 1.) THEN
-                      WRITE(*,*) 'VIRHE cloud'
-                      WRITE(*,*) zvfrac,zvpart,pi6*pice(ii,jj,kk)%dmid**3
-                   END IF
 
-                   IF(zvfrac < 0.) WRITE(*,*) 'VIRHE cloud 0'
+                   zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
+                   IF(zvfrac < 0.) STOP 'Error cloud volc 0'
+
                    !-- volume
                    pice(ii,jj,mm)%volc(:) = pice(ii,jj,mm)%volc(:)     &
                         + zvfrac*pice(ii,jj,kk)%volc(:)
@@ -460,14 +429,9 @@ CONTAINS
 
                 END IF !nlim
 
-                IF ( pice(ii,jj,kk)%numc > nlim .AND.  sum(pice(ii,jj,kk)%volc(1:5)) > 1.e-30 ) THEN
-                   zvpart = sum(pice(ii,jj,kk)%volc(1:5))/pice(ii,jj,kk)%numc
-
-                   IF(zvpart > pice(ii,jj,kk)%vhilim  .OR.   &
-                      zvpart < pice(ii,jj,kk)%vlolim) THEN
-                      within_bins = .FALSE.
-                   END IF
-
+                IF ( pice(ii,jj,kk)%numc > prlim .AND.  sum(pice(ii,jj,kk)%volc(1:7)) > 1.e-30 ) THEN
+                   zvpart = sum(pice(ii,jj,kk)%volc(1:7))/pice(ii,jj,kk)%numc ! Note: dry volume
+                   within_bins = (pice(ii,jj,kk)%vlolim<zvpart .AND. zvpart<pice(ii,jj,kk)%vhilim)
                 END IF
 
              END DO !kk
@@ -541,10 +505,7 @@ CONTAINS
 
                       !-- Number fraction to be moved to the smaller bin
                       znfrac = min(1.,(psnow(ii,jj,kk)%vlolim-zVilo) / (zVihi-zVilo))
-                      IF (znfrac < 0.) THEN
-                         WRITE(*,*) 'VIRHE, numc precp 0, DEC'
-                         write(*,*) zVihi-zVilo
-                      END IF
+                      IF (znfrac < 0.) STOP 'Error, numc precp 0'
 
                       !-- Index for the smaller bin
                       mm = kk - 1
@@ -557,13 +518,7 @@ CONTAINS
 
                       !-- number fraction to be moved to the larger bin
                       znfrac = min(.99,(zVihi-psnow(ii,jj,kk)%vhilim) / (zVihi-zVilo))
-
-                      IF (znfrac < 0.) THEN
-                         WRITE(*,*) 'VIRHE, numc precp 0, INC'
-                         write(*,*) zVihi-zVilo
-                         WRITE(*,*) zVihi, psnow(ii,jj,kk)%vhilim,zvpart
-                         WRITE(*,*) pi6*psnow(ii,jj,kk)%dmid**3
-                      END IF
+                      IF (znfrac < 0.) STOP 'Error, snow numc 0'
 
                       !-- Index for the larger bin
                       mm = kk + 1
@@ -573,11 +528,8 @@ CONTAINS
                    END IF
 
                    !-- volume fraction to be moved
-                   !zvfrac = min(0.99,znfrac * zVexc / (0.5*(zVihi+zVilo)))
                    zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
-
-                   IF(zvfrac > 1.) WRITE(*,*) 'VIRHE, precp'
-                   IF(zvfrac < 0.) WRITE(*,*) 'VIRHE, precp 0'
+                   IF(zvfrac < 0.) STOP 'Error: snow volc 0'
 
                    !-- volume
                    psnow(ii,jj,mm)%volc(:) = psnow(ii,jj,mm)%volc(:)     &
@@ -597,12 +549,7 @@ CONTAINS
 
                 IF ( psnow(ii,jj,kk)%numc > prlim ) THEN
                    zvpart = sum(psnow(ii,jj,kk)%volc(:))/psnow(ii,jj,kk)%numc
-
-                   IF(zvpart > psnow(ii,jj,kk)%vhilim  .OR.   &
-                      zvpart < psnow(ii,jj,kk)%vlolim) THEN
-                      within_bins = .FALSE.
-                   END IF
-
+                   within_bins = (psnow(ii,jj,kk)%vlolim<zvpart .AND. zvpart<psnow(ii,jj,kk)%vhilim)
                 END IF
 
              END DO !kk
