@@ -3,62 +3,60 @@
 # Exit on error
 set -e
 
-
-
-
 postfix=$1
 
+root="$(dirname $PWD)"
+salsa=${root}/src/src_salsa
+les=${root}/src/src_LES
+bin=${root}/bin
+script=${root}/script
 
-salsa=../src/src_salsa
-les=../src/src_LES
-bin=../bin
-scripts=../scripts
 
-
-cd ${bin}
+cd ${root}
 make seq || exit 1
 make mpi || exit 1
-cd ${scripts}
+cd ${script}
 echo " "
 echo "Compiled"
 
 function submitting {
 	
 	testi=$1
-	dim=$2
-	nproc=$3
-	NLsalsaPF=$4  # $4
-	NLpostfix=$5
+	nproc=$2
+        namelistPF=$3
+        historyrun=$4
 	
- 	pre=campaign_
+	if [ $namelistPF == 'normal' ]; then
+            namelistPF=''
+        fi
+ 	
         
 	echo ' '
 	echo ' '
 	echo 'Nyt suoritetaan funktiota submitting '
 
-	nimi=${pre}${testi}
+	nimi=${testi}
 	dir=${bin}/${nimi}
 	echo 'nimi ' $nimi
 	
-	cp ${dir}/namelist.salsa${NLsalsaPF} ${bin}/namelist.salsa
-	#cp ${dir}/namelist.salsa ${bin}/namelist.salsa
 	cp ${dir}/sound_in ${bin}/sound_in
+	cp ${dir}/NAMELIST${namelistPF} ${bin}/NAMELIST
 	
 	
+	nimi=${nimi}_${nproc}${namelistPF}_${postfix}
 	
-	nimi=${nimi}_${dim}${NLsalsaPF}${NLpostfix}_${postfix}
-	if [ $dim == 3 ]; then
-	  cp ${dir}/NAMELIST_3D${NLpostfix} ${bin}/NAMELIST
-	  ${scripts}/ajoskripti_MPI.bash $nimi $nproc
-	  
-	elif [ $dim == 2 ]; then
-	  cp ${dir}/NAMELIST_2D ${bin}/NAMELIST
-	  ${scripts}/ajoskripti_MPI.bash $nimi $nproc
-	  
+	if [ $historyrun != 'initial' ]; then         
+            cp ${dir}/$historyrun ${bin}/$historyrun
+            
+	fi
+	
+	
+	## submit
+	
+	if [ $nproc -gt 1 ]; then
+            ${script}/ajoskripti_MPI.bash $nimi $nproc
 	else
-	  cp ${dir}/NAMELIST_1D ${bin}/NAMELIST
-	  cp ${dir}/0000_0000.SPINUP7200.rst ${bin}/0000_0000.SPINUP7200.rst
-	  ${scripts}/ajoskripti.bash $nimi
+            ${script}/ajoskripti.bash $nimi
 	fi
 	
 	sleep 3s
@@ -68,6 +66,12 @@ function submitting {
 
 #submitting sheba
 #submitting ascos
+
+
+
+##########
+# isdac 
+#########
 # submitting isdac 3 64 _thrm4
 # submitting isdac 3 64 _thrm5
 
@@ -80,9 +84,13 @@ function submitting {
 # submitting isdac 1 1 _all_on_fixINC_4 
 
 # submitting isdac 2 8 _all_on_fixINC_4 _thrm5
-submitting isdac 3 64 _all_on_fixINC_4 _thrm5
 
-submitting isdac 3 64 _all_on_fixINC_4 _thrm4
+##################################################
+# submitting isdac 3 64 _all_on_fixINC_4 _thrm5
+# 
+# submitting isdac 3 64 _all_on_fixINC_4 _thrm4
+
+##################################
 # submitting isdac 2 8 _init_ice_all_off
 
 # submitting isdac 1 1 _init_ice_all_off
@@ -98,6 +106,20 @@ submitting isdac 3 64 _all_on_fixINC_4 _thrm4
 
 
 # submitting isdac 1 1 _init_iceliq_cond_on
+
+
+#  0000_0000.SPINUP7200.rst
+
+##
+### speed tests
+
+
+# function name  nproc namelistPF historyrun
+submitting speed 64    normal     initial
+
+submitting speed 100   normal     initial
+
+submitting speed 400   normal     initial
 
 echo 'Simulaatioajojen tulostus: '
 qstat -u aholaj

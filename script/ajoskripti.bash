@@ -75,7 +75,7 @@ cp ${exepath}/${exename} ${rundir}/
 # Link input files
 cp ${exepath}/sound_in ${rundir}/
 cp ${exepath}/NAMELIST ${rundir}/
-cp ${exepath}/namelist.salsa ${rundir}/
+
 cp ${exepath}/*.rst ${rundir}/
 
 cp ${exepath}/datafiles/* ${datadir}/

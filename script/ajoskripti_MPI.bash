@@ -36,8 +36,7 @@ sed -i "/filprf\s\{0,\}=\s\{0,\}/c\  filprf  = '"$1"'" ${bin}/NAMELIST
 sed -i "/hfilin\s\{0,\}=\s\{0,\}/c\  hfilin  = '"$1".rst'" ${bin}/NAMELIST
 
 alikansio=UCLALES-SALSA
-#clock=`date +%Y-%m-%d-%H-%M`
-#$ending=`echo $1`
+
 # Main directory
 wrkdir=/lustre/tmp/aholaj/${alikansio}
 # Running directory
@@ -85,11 +84,10 @@ inputdir=${wrkdir}/input
 # Link input files
 cp ${exepath}/sound_in ${rundir}/
 cp ${exepath}/NAMELIST ${rundir}/
-cp ${exepath}/namelist.salsa ${rundir}/
 
 cp ${exepath}/datafiles/* ${datadir}/
 
-#cp ${inputdir}/0000_0000.voimatesti01.rst ${rundir}/
+
 
 length=$(( ${#1} < 6 ? ${#1} : 6))
 
@@ -100,7 +98,7 @@ cat > ${rundir}/runles_MPI.sh <<FINAL
 #PBS -N LES_${1:$((${#1}-${length})):${length}}
 #PBS -l mppwidth=${nproc}
 #PBS -l mppnppn=20
-#PBS -l walltime=30:00:00
+#PBS -l walltime=48:00:00
 #PBS -j oe
 #PBS -M jaakko.ahola@fmi.fi
 #PBS -m ae
