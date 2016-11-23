@@ -1,4 +1,7 @@
 
+UCLALES-SALSA is a Large-Eddy model coupled with a detailed sectional 
+microphysics module for aerosol, clouds and precipitation.
+
 To install this model, simply type 
    >> git clone https://github.com/UCLALES-SALSA/UCLALES-SALSA.git
 and run 
@@ -16,7 +19,8 @@ After compiling the model, the executable is found in the bin-folder
 together with the runscript "runles". This should be used for both
 parallel and sequential runs. You probably need to adjust the generation
 of the file job.sh at the end of the script according to the specifics 
-of your local batch system.
+of your local batch system. The bin folder contains all the necessary files
+to perform a testrun.
 
 Case specific runscripts and sound-in files used in publications
 will be available in another repository at 
