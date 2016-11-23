@@ -9,7 +9,7 @@
 #
 # Joni-Pekka Pietikäinen, FMI, 2013 #
 #
-# Modified for use of UCLA-LES_SALSA, Jaakko Ahola, FMI, 10/2015
+# Modified for use of UCLALES-SALSA, Jaakko Ahola, FMI, 10/2015
 #
 #
 #

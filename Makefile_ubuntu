@@ -2,7 +2,7 @@
 #
 # Llocation of code (in $ROOT) and location where model is to be built $BIN
 #
-ROOT      = /home/tonttila/work/SAACID/MALLIT/UCLALES/JULKAISU
+ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BIN       = $(ROOT)/bin
 ARCH      := $(shell uname)
 #

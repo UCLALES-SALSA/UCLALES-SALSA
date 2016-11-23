@@ -27,17 +27,8 @@ function submitting {
 	testi=$1
 	dim=$2
 	nproc=$3
-	NLsalsaPF=$4  
+	NLsalsaPF=$4  # $4
 	NLpostfix=$5
-
-	if [ $NLsalsaPF == normal ]; then
-		$NLsalsaPF=''
-	fi
-
-
-	if [ $NLpostfix == normal ]; then
-		$NLpostfix=''
-	fi
 	
  	pre=campaign_
         
@@ -50,7 +41,7 @@ function submitting {
 	echo 'nimi ' $nimi
 	
 	cp ${dir}/namelist.salsa${NLsalsaPF} ${bin}/namelist.salsa
-
+	#cp ${dir}/namelist.salsa ${bin}/namelist.salsa
 	cp ${dir}/sound_in ${bin}/sound_in
 	
 	
@@ -89,10 +80,9 @@ function submitting {
 # submitting isdac 1 1 _all_on_fixINC_4 
 
 # submitting isdac 2 8 _all_on_fixINC_4 _thrm5
-submitting speed 3 64 normal normal
+submitting isdac 3 64 _all_on_fixINC_4 _thrm5
 
-submitting speed 3 64 normal normal
-
+submitting isdac 3 64 _all_on_fixINC_4 _thrm4
 # submitting isdac 2 8 _init_ice_all_off
 
 # submitting isdac 1 1 _init_ice_all_off

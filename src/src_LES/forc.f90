@@ -48,9 +48,7 @@ contains
 
     real :: xka, fr0, fr1, xref1, xref2
     REAL :: zrv(nzp,nxp,nyp), znc(nzp,nxp,nyp)
-    
-
-     
+         
     ! DIVERGENCE GIVEN FROM NAMELIST
     if (trim(case_name) == 'atex') then
        xka = 130.
@@ -390,6 +388,42 @@ contains
              enddo
           enddo
        enddo
+
+       	case ('ascos')
+		! ASCOS
+		! ---------
+		!
+		do k=2,n1-2
+			! calculate subsidence factor (wsub / dz)
+			sf(k) = -5.0e-6*min(2000.0,zt(k))*dzt(k)
+		end do
+		!
+		do j=3,n3-2
+			do i=3,n2-2
+				do k=2,n1-2
+					!
+					! subsidence and temperature advection and radiative cooling
+					!
+					kp1 = k+1
+					tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
+					rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
+					!
+					! a) Temperature
+					! 	Adiabatic cooling: dT=-g/cp*dz
+					! 	Heat source: dT=Q*dt		Q=heat source
+					!	Environmental change: dT=L*dz	L=lapse rate
+					! No net change: Q=(L-g/c)*dz/dt=(L-g/cp)*w
+					!	L=6.5 K/km
+					! Note: this is for temperature, but theta=T*(p/p00)^(R/cp)
+					! b) Humidity
+					!	Source: dq=Q*dt
+					!	Environmental change:  dT=L*dz
+					! No net change: Q=L*w
+					!	L=(1.1 g/kg)/(1000 m)
+				enddo
+			enddo
+		enddo
+
     case default
        if (myid == 0) print *, '  ABORTING: inproper call to radiation'
        call appl_abort(0)

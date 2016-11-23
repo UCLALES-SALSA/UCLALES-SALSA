@@ -1,14 +1,10 @@
 ###############################################################
 #
-# Type of code to build $CNFG, location of code (in $ROOT) and 
-# location where model is to be built $BIN
+# Location of code (in $ROOT) and location where model is to be built $BIN
 #
-ROOT      = /home/users/aholaj/UCLALES-SALSA
+ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BIN       = $(ROOT)/bin
 ARCH      := $(shell uname)
-#
-# Define machine dependent variables
-#
 #
 # Generic Variables
 #
@@ -35,16 +31,11 @@ ARCHIVE = ar rs
 RANLIB =:
 SEQFFLAGS = -I$(SRC) $(HDF5_INCLUDE) $(NETCDF_INCLUDE)
 MPIFFLAGS = -I$(SRC) $(HDF5_INCLUDE) $(NETCDF_INCLUDE)
-# NCDF = /usr
-# NCDFLIB = '-L$(NCDF)/lib -lnetcdf -lnetcdff'
-# NCDFINC = -I$(NCDF)/include
 
-#LIBS = $(NETCDF_LIB) $(HDF5_LIB)
 F90 = ftn
 MPIF90 = ftn
 FFLAGS =  -O2 -msse2 -fp-model source -fp-model precise -g -traceback -convert big_endian -integer-size 32 -real-size 64 -check bounds -fpe0
 F77FLAGS = -O2 -msse2 -fp-model source -fp-model precise -g -traceback -convert big_endian -integer-size 32 -real-size 64 -check bounds -fpe0
-
 
 
 LES_OUT_MPI=$(BIN)/les.mpi
@@ -58,7 +49,6 @@ all:  mpi seq
 seq: $(LES_OUT_SEQ)
 
 mpi: $(LES_OUT_MPI)
-
 
 $(LES_OUT_SEQ): 
 	cd $(SRC); $(MAKE) LES_ARC=seq \

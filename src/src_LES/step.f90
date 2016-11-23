@@ -48,7 +48,7 @@ contains
     use mpi_interface, only : myid, double_scalar_par_max
 
     use grid, only : dtl, dzt, zt, zm, nzp, dn0, u0, v0, a_up, a_vp, a_wp, &
-         a_uc, a_vc, a_wc, write_hist, write_anal, close_anal, dtlt,  &
+         a_uc, a_vc, a_wc, write_hist, write_analysis, close_analysis, dtlt,  &
          dtlv, dtlong, nzp, nyp, nxp, level,                          &
          ! For mass budged
          a_rp, a_rc, a_srp, a_dn
@@ -105,7 +105,7 @@ contains
 
        if ((mod(tplsdt,frqanl) < dtl .or. time >= timmax) .and. outflg) then
           call thermo(level)
-          call write_anal(time)
+          call write_analysis(time)
        end if
 
        if (cflflg) then
@@ -136,7 +136,7 @@ contains
     END IF ! mcflg
 
     call write_hist(1, time)
-    iret = close_anal()
+    iret = close_analysis()
     iret = close_stat()
 
   end subroutine stepper
@@ -180,7 +180,7 @@ end subroutine tstep_reset
   !
   subroutine t_step(cflflg,cflmax)
 
-    use grid, only : level, dtl, dtlt, Tspinup,                                         &
+    use grid, only : level, dtl, dtlt, Tspinup, zt,                                        &
                      ! Added parameters for interfacing with SALSA
                      nxp, nyp, nzp, dzt, dn0, a_press, a_scr1, a_scr2,                       &
                      a_rc, a_wp, a_rp, a_rt, a_rh, a_tp,                                 &
@@ -192,7 +192,9 @@ end subroutine tstep_reset
                      a_Radry,  a_Rawet,  a_Rcdry,   a_Rcwet,   a_Rpdry,   a_Rpwet,      &
                      a_Ridry,  a_Riwet,  a_Rsdry,   a_Rswet,                            &
                      a_rt,a_rp,a_tt, sst, &
-                     a_rsi, a_temp0
+                     a_rsi, a_temp0,      &
+                     minispinup01, minispinup02, & !debugkebab
+                     minispinupCase01, minispinupCase02 !debugkebab
 
 
     use stat, only : sflg, statistics, acc_massbudged
@@ -222,7 +224,7 @@ end subroutine tstep_reset
     INTEGER :: zrm
     LOGICAL :: dbg,dbg2,tulostus
 
-    INTEGER :: n4,hhh
+    INTEGER :: n4
 
     dbg = .FALSE.
     tulostus = .false.
@@ -235,6 +237,8 @@ end subroutine tstep_reset
     zrm = 3
     IF ( time < Tspinup ) zrm = 2
 
+if (time > Tspinup + minispinup01 ) zrm = minispinupCase01 !! all processes off !debugkebab
+if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'cloud testing runmode parameter !minispinup !debugkebab
 
     ! Reset ALL tendencies here.
     !----------------------------------------------------------------
@@ -290,7 +294,7 @@ end subroutine tstep_reset
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-                  a_rhop, zrm, prtcl, dtlt, dbg2, time, level  )
+                  a_rhop, zrm, prtcl, dtlt, dbg2, time, level, zt  )
           ELSE
              !! for 2D or 3D runs
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,a_wp,a_dn,  &
@@ -304,8 +308,8 @@ end subroutine tstep_reset
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-                  a_rhop, zrm, prtcl, dtlt, dbg2, time, level  )
-             
+                  a_rhop, zrm, prtcl, dtlt, dbg2, time, level,zt  )
+
           END IF !nxp==5 and nyp == 5
           
        END IF
@@ -356,7 +360,6 @@ end subroutine tstep_reset
 
     call thermo(level)
 
-    ! TÄSTÄ TULEE VÄLILLÄ JOTAIN HÄRÖJÄ + EI OLE TÄRKEÄ? Flagi namelistissa FALSE
     call corlos
 
     call ladvect
@@ -373,6 +376,7 @@ end subroutine tstep_reset
 
     if (sflg) then
        call statistics (time+dtl)
+       CALL thermo(level)
     end if
 
     IF (level >= 4) &
@@ -432,13 +436,6 @@ end subroutine tstep_reset
              ! Aerosols
              DO cc = 1,nbins
 
-                !volp = 0.
-                !volt = 0.
-                !DO ni = 1,nn
-                !   volp(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !   volt(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !END DO
-
                 IF ( a_naerop(kk,ii,jj,cc)+a_naerot(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
                    a_naerot(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_naerop(kk,ii,jj,cc))/dtlt,a_naerot(kk,ii,jj,cc))
@@ -453,13 +450,6 @@ end subroutine tstep_reset
 
              ! Cloud droplets
              DO cc = 1,ncld
-
-                !volp = 0.
-                !volt = 0.
-                !DO ni = 1,nn
-                !   volp(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !   volt(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !END DO
 
                 IF ( a_ncloudp(kk,ii,jj,cc)+a_ncloudt(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
@@ -476,13 +466,6 @@ end subroutine tstep_reset
              ! Precipitation
              DO cc = 1,nprc
 
-                !volp = 0.
-                !volt = 0.
-                !DO ni = 1,nn
-                !   volp(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !   volt(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !END DO
-
                 IF ( a_nprecpp(kk,ii,jj,cc)+a_nprecpt(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
                    a_nprecpt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nprecpp(kk,ii,jj,cc))/dtlt,a_nprecpt(kk,ii,jj,cc))
@@ -498,13 +481,6 @@ end subroutine tstep_reset
              ! ice particles
              DO cc = 1,nice
 
-                !volp = 0.
-                !volt = 0.
-                !DO ni = 1,nn
-                !   volp(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !   volt(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !END DO
-
                 IF ( a_nicep(kk,ii,jj,cc)+a_nicet(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
                    a_nicet(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nicep(kk,ii,jj,cc))/dtlt,a_nicet(kk,ii,jj,cc))
@@ -519,13 +495,6 @@ end subroutine tstep_reset
 
              ! Snow
              DO cc = 1,nsnw
-
-                !volp = 0.
-                !volt = 0.
-                !DO ni = 1,nn
-                !   volp(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !   volt(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !END DO
 
                 IF ( a_nsnowp(kk,ii,jj,cc)+a_nsnowt(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
@@ -544,32 +513,6 @@ end subroutine tstep_reset
        END DO ! ii
 
     END DO ! jj
-
-
-
-    !WHERE ( a_naerop(:,:,:,:)+a_naerot(:,:,:,:)*dtlt < 0. )
-    !   a_naerot(:,:,:,:) = MAX(((1.e-10-1.0)*a_naerop(:,:,:,:))/dtlt,a_naerot(:,:,:,:))
-    !ENDWHERE
-
-    !WHERE ( a_ncloudp(:,:,:,:)+a_ncloudt(:,:,:,:)*dtlt < 0. )
-    !   a_ncloudt(:,:,:,:) = MAX(((1.e-10-1.0)*a_ncloudp(:,:,:,:))/dtlt,a_ncloudt(:,:,:,:))
-    !ENDWHERE
-
-    !WHERE ( a_nprecpp(:,:,:,:)+a_nprecpt(:,:,:,:)*dtlt < 0. )
-    !   a_nprecpt(:,:,:,:) = MAX(((1.e-10-1.0)*a_nprecpp(:,:,:,:))/dtlt,a_nprecpt(:,:,:,:))
-    !ENDWHERE
-
-    !WHERE ( a_maerop(:,:,:,:)+a_maerot(:,:,:,:)*dtlt < 0. )
-    !   a_maerot(:,:,:,:) = MAX(((1.e-10-1.0)*a_maerop(:,:,:,:))/dtlt,a_maerot(:,:,:,:))
-    !ENDWHERE
-
-    !WHERE ( a_mcloudp(:,:,:,:)+a_mcloudt(:,:,:,:)*dtlt < 0. )
-    !   a_mcloudt(:,:,:,:) = MAX(((1.e-10-1.0)*a_mcloudp(:,:,:,:))/dtlt,a_mcloudt(:,:,:,:))
-    !ENDWHERE
-
-    !WHERE ( a_mprecpp(:,:,:,:)+a_mprecpt(:,:,:,:)*dtlt < 0. )
-    !   a_mprecpt(:,:,:,:) = MAX(((1.e-10-1.0)*a_mprecpp(:,:,:,:))/dtlt,a_mprecpt(:,:,:,:))
-    !ENDWHERE
 
   END SUBROUTINE tend_constrain
   !
@@ -824,7 +767,7 @@ end subroutine tstep_reset
                                nice,nsnw,iia,fia,iib,fib,isa,fsa,                    & !! ice'n'snow
                                rhosu,rhooc,rhono,rhonh,rhoss,rhowa,rhoic,rhosn,      &  !! Jaakko: rhoic added
                                msu,moc,mno,mnh,mss,mwa,avog,pi6,                     &
-                               surfw0,surfi0, rg, nlim, prlim, pi
+                               surfw0,surfi0, rg, nlim, prlim, iclim, pi
     USE class_ComponentIndex, ONLY : GetIndex, GetNcomp, IsUsed
 
 
@@ -995,7 +938,7 @@ end subroutine tstep_reset
 
              END DO ! nprc
 
-             ! Ice
+             ! Ice - Köhler theory not needed for solids!
              DO c = 1,nice
                 vsum = 0.
                 DO s = 1,nn
@@ -1009,48 +952,13 @@ end subroutine tstep_reset
                 END IF
 
                 ! Critical radius -----------------
-                ! Moles of solute
-                ns = 0.
-                IF (a_nicep(k,i,j,c) > nlim) THEN   ! note:use prlim here
-                   IF (IsUsed(prtcl,'SO4')) THEN
-                      s = GetIndex(prtcl,'SO4')
-                      str = (s-1)*nice + c
-                      ns = ns + 3.*a_micep(k,i,j,str)/msu
-                   END IF
-                   IF (IsUsed(prtcl,'OC')) THEN
-                      s = GetIndex(prtcl,'OC')
-                      str = (s-1)*nice + c
-                      ns = ns + a_micep(k,i,j,str)/moc
-                   END IF
-                   IF (IsUsed(prtcl,'NO')) THEN
-                      s = GetIndex(prtcl,'NO')
-                      str = (s-1)*nice + c
-                      ns = ns + a_micep(k,i,j,str)/mno
-                   END IF
-                   IF (IsUsed(prtcl,'NH')) THEN
-                      s = GetIndex(prtcl,'NH')
-                      str = (s-1)*nice + c
-                      ns = ns + a_micep(k,i,j,str)/mnh
-                   END IF
-                   IF (IsUsed(prtcl,'SS')) THEN
-                      s = GetIndex(prtcl,'SS')
-                      str = (s-1)*nice + c
-                      ns = ns + 2.*a_micep(k,i,j,str)/mss
-                   END IF
-                   ns = ns/a_nicep(k,i,j,c)
+				! For ice it can be set to dry diameter (or somewhat larger)
+                ! Total solute volume
 
-                   bb = 3.*mwa*ns/(4.*pi*rhoic)
-                   aa = 4.*mwa*surfi0/(rg*rhoic*a_scr1(k,i,j))
-                   cdice(k,i,j,c) = max(rempty,SQRT(3.*bb/aa))
-
-                ELSE
-                   cdice(k,i,j,c) = rempty
-                END IF ! nlim
-                ! -----------------------------------
 
              END DO ! ncld
 
-             ! Snowing
+             ! Snowing - Köhler theory not valid for solids!
              DO c = 1,nsnw
                 IF (a_nsnowp(k,i,j,c) > 0. .AND. a_msnowp(k,i,j,(nn-1)*nsnw+c) == 0.) THEN
                    a_nsnowp(k,i,j,c) = 0.
@@ -1061,41 +969,6 @@ end subroutine tstep_reset
 
                 ! Critical radius -----------------
                 ! Moles of solute
-                ns = 0.
-                IF (a_nsnowp(k,i,j,c) > nlim) THEN
-                   IF (IsUsed(prtcl,'SO4')) THEN
-                      s = GetIndex(prtcl,'SO4')
-                      str = (s-1)*nsnw + c
-                      ns = ns + 3.*a_msnowp(k,i,j,str)/msu
-                   END IF
-                   IF (IsUsed(prtcl,'OC')) THEN
-                      s = GetIndex(prtcl,'OC')
-                      str = (s-1)*nsnw + c
-                      ns = ns + a_msnowp(k,i,j,str)/moc
-                   END IF
-                   IF (IsUsed(prtcl,'NO')) THEN
-                      s = GetIndex(prtcl,'NO')
-                      str = (s-1)*nsnw + c
-                      ns = ns + a_msnowp(k,i,j,str)/mno
-                   END IF
-                   IF (IsUsed(prtcl,'NH')) THEN
-                      s = GetIndex(prtcl,'NH')
-                      str = (s-1)*nsnw + c
-                      ns = ns + a_msnowp(k,i,j,str)/mnh
-                   END IF
-                   IF (IsUsed(prtcl,'SS')) THEN
-                      s = GetIndex(prtcl,'SS')
-                      str = (s-1)*nsnw + c
-                      ns = ns + a_msnowp(k,i,j,str)/mss
-                   END IF
-                   ns = ns/a_nsnowp(k,i,j,c)
-
-                   bb = 3.*mwa*ns/(4.*pi*rhoic)
-                   aa = 4.*mwa*surfi0/(rg*rhoic*a_scr1(k,i,j))
-                   cdsnw(k,i,j,c) = max(rempty,SQRT(3.*bb/aa))
-                ELSE
-                   cdsnw(k,i,j,c) = rempty
-                END IF !prlim
                 ! -----------------------------------
 
              END DO ! nsnw
@@ -1116,8 +989,6 @@ end subroutine tstep_reset
              ! Loop over cloud droplet bins, regime a
              DO bc = ica%cur,fca%cur
                 ba = ica%par + (bc-ica%cur) ! Index for parallel aerosol bin
-                nc = GetIndex(prtcl,'H2O')
-                ww = (nc-1)*ncld + bc ! Index for water content in the cloud bin
 
                 ! Hydrometeor dry radius
                 ! If used, remove NO and NH from the total volume because of their volatility
@@ -1163,8 +1034,6 @@ end subroutine tstep_reset
              ! Loop over cloud droplet bins, regime b
              DO bc = icb%cur,fcb%cur
                 ba = icb%par + (bc-icb%cur) ! Index for parallel aerosol bin
-                nc = GetIndex(prtcl,'H2O')
-                ww = (nc-1)*ncld + bc ! Index for water content in each bin
 
                 ! Hydrometeor dry radius
                 ! If used, remove NO and NH from the total volume because of their volatility
@@ -1212,8 +1081,6 @@ end subroutine tstep_reset
              !!!!!!!!!!!!!!!!!!!!!!!
 
              DO bc = ira,fra
-                nc = GetIndex(prtcl,'H2O')
-                ww = (nc-1)*nprc + bc ! Index for water content in each bin
 
                 ! Hydrometeor dry radius
                 ! If used, remove NO and NH from the total volume because of their volatility
@@ -1279,32 +1146,26 @@ end subroutine tstep_reset
              ! Loop over cloud droplet bins, regime a
              DO bc = iia%cur,fia%cur
                 ba = iia%par + (bc-iia%cur) ! Index for parallel aerosol bin
-                nc = GetIndex(prtcl,'H2O')
-                ww = (nc-1)*nice + bc ! Index for water content in the cloud bin
 
                 ! Hydrometeor dry radius
                 ! If used, remove NO and NH from the total volume because of their volatility
-                zvrem = 0
-                IF ( IsUsed(prtcl,'NO') ) THEN
-                   ino = GetIndex(prtcl,'NO')
-                   str = (ino-1)*nice + bc
-                   zvrem = zvrem + a_micep(k,i,j,str)
-                END IF
-                IF ( IsUsed(prtcl,'NH') ) THEN
-                   inh = GetIndex(prtcl,'NH')
-                   str = (inh-1)*nice + bc
-                   zvrem = zvrem + a_micep(k,i,j,str)
-                END IF
+				! Not valatile from solid!
 
-                IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > prlim ) THEN ! note:prlim
+                IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > iclim ) THEN ! #icelimit
 
                    CALL binMixrat('ice','wet',bc,i,j,k,zvol)
 				   zvol = zvol/rhoic
                    zdh2o = (zvol/a_nicep(k,i,j,bc)/pi6)**(1./3.)
 
-                   ! Loose the droplets if smaller than the critical size !!huomhuom ice'n'snow
-                   IF ( zdh2o < MAX(0.2*cdice(k,i,j,bc),2.e-6) .AND. a_rhi(k,i,j)<0.999 ) THEN
+				   ! Critical size for solids from nucleation theory => not practical
+				   ! Limit based on the dry size?
+				   CALL binMixrat('ice','dry',bc,i,j,k,zvol)
+				   zvol = zvol/rhosu
+				   cdice(k,i,j,bc) = (zvol/a_nicep(k,i,j,bc)/pi6)**(1./3.)
 
+                   ! Loose the droplets if smaller than the critical size !!huomhuom ice'n'snow
+                   IF ( zdh2o < 1.2*cdice(k,i,j,bc) .AND. a_rhi(k,i,j)<0.999 ) THEN
+						! This method loses latent heat!
                       ! Move the number of particles from cloud to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
                       a_nicep(k,i,j,bc) = 0.
@@ -1319,7 +1180,7 @@ end subroutine tstep_reset
 
                    END IF ! critical radius
 
-                END IF  ! prlim
+                END IF  ! iclim
 
              END DO ! bc
 
@@ -1343,14 +1204,14 @@ end subroutine tstep_reset
                    zvrem = zvrem + a_micep(k,i,j,str)
                 END IF
 
-                IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > nlim ) THEN
+                IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > iclim ) THEN ! #icelimit
 
                    CALL binMixrat('ice','wet',bc,i,j,k,zvol)
 				   zvol = zvol/rhoic
                    zdh2o = (zvol/a_nicep(k,i,j,bc)/pi6)**(1./3.)
 
                    ! Loose the droplets if smaller than critical radius !!huomhuom ice'n'snow
-                   IF ( zdh2o < MAX(0.2*cdice(k,i,j,bc),2.e-6) .AND. a_rhi(k,i,j) < 0.999 ) THEN
+                   IF ( zdh2o < 0.5e-6 .AND. a_rhi(k,i,j) < 0.999 ) THEN
 
                       ! Move the number of particles from cloud to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
@@ -1366,7 +1227,7 @@ end subroutine tstep_reset
 
                    END IF ! critical radius
 
-                END IF ! nlim
+                END IF ! iclim
 
              END DO ! bc
 
@@ -1392,7 +1253,7 @@ end subroutine tstep_reset
                    zvrem = zvrem + a_msnowp(k,i,j,str)
                 END IF
 
-                IF ( a_nsnowp(k,i,j,bc)*a_dn(k,i,j) > nlim ) THEN
+                IF ( a_nsnowp(k,i,j,bc)*a_dn(k,i,j) > iclim ) THEN ! #icelimit
 
                    CALL binMixrat('snow','wet',bc,i,j,k,zvol)
 				   zvol = zvol/rhosn
@@ -1430,7 +1291,7 @@ end subroutine tstep_reset
 
                    END IF ! Critical radius
 
-                END IF ! nlim
+                END IF ! iclim
 
              END DO ! bc
 
@@ -1650,36 +1511,26 @@ end subroutine tstep_reset
                    CALL binMixrat('precp','wet',bc,i,j,k,zvol)
                    zvol = zvol/rhowa
                    a_Rpwet(k,i,j,bc) = 0.5*(zvol/a_nprecpp(k,i,j,bc)/pi6)**(1./3.)
-                   !if (a_Rpwet(k,i,j,bc) > 1  &
-                   !½ ) then
-                   ! write(*,*) 'step sade märkäsäde aika iso debugkebab', a_Rpwet(k,i,j,bc)
-                   ! stop
-                   !end if
                 ELSE
                    a_Rpdry(k,i,j,bc) = rempty
                    a_Rpwet(k,i,j,bc) = rempty
                 END IF
              END DO
              DO bc = 1,nice
-                IF (a_nicep(k,i,j,bc) > nlim) THEN
+                IF (a_nicep(k,i,j,bc) > iclim) THEN ! #icelimit
                    CALL binMixrat('ice','dry',bc,i,j,k,zvol)
 				   zvol = zvol/rhosu
                    a_Ridry(k,i,j,bc) = 0.5*(zvol/a_nicep(k,i,j,bc)/pi6)**(1./3.)
                    CALL binMixrat('ice','wet',bc,i,j,k,zvol)
 				   zvol = zvol/rhoic
                    a_Riwet(k,i,j,bc) = 0.5*(zvol/a_nicep(k,i,j,bc)/pi6)**(1./3.)
-                    if (a_Riwet(k,i,j,bc) > 1  &
-                    ) then
-                    write(*,*) 'step jää märkäsäde aika iso debugkebab'
-                    stop
-                    end if
                 ELSE
                    a_Ridry(k,i,j,bc) = rempty
                    a_Riwet(k,i,j,bc) = rempty
                 END IF
              END DO
              DO bc = 1,nsnw
-                IF (a_nsnowp(k,i,j,bc) > nlim) THEN
+                IF (a_nsnowp(k,i,j,bc) > iclim) THEN
                    CALL binMixrat('snow','dry',bc,i,j,k,zvol)
 				   zvol = zvol/rhosu
                    a_Rsdry(k,i,j,bc) = 0.5*(zvol/a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
@@ -1721,7 +1572,7 @@ end subroutine tstep_reset
              ! ice, regime a
              str = (nc-1)*nice+iia%cur
              end = (nc-1)*nice+fia%cur
-             a_ri(k,i,j) = a_ri(k,i,j) + SUM(a_micep(k,i,j,str:end))
+             a_ri(k,i,j) = SUM(a_micep(k,i,j,str:end))  ! bug fixed !debugkebab
              ! ice, regime b
              str = (nc-1)*nice+iib%cur
              end = (nc-1)*nice+fib%cur

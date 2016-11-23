@@ -20,11 +20,13 @@ MODULE mo_salsa
 CONTAINS
 
   SUBROUTINE salsa(kproma,   kbdim,    klev,    krow,       &
-                   ppres,    prv, prs, prsi,    ptemp, ptt, ptstep,     &
+                   ppres,    prv,      prs,     prsi,       &
+                   ptemp,    ptt,      ptstep,              &
                    pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,    &
                    pc_nh3,   paero,    pcloud,  pprecp,     &
-                   pice, psnow,                             &
-                   pactd,    pw,       dbg2,    prtcl, time,level      )
+                   pice,     psnow,                         &
+                   pactd,    pw,       dbg2,    prtcl,      &
+                   time,     level,    pdn      )
 
     USE mo_salsa_properties
     USE mo_salsa_dynamics
@@ -52,6 +54,8 @@ CONTAINS
          lsichom,                   &
          lsichet,                   &
          lsicimmers,                &
+         lsicbasic,                 &
+         lsfixinc,                  &
          lsicmelt,                  &
          lsdistupdate,              &
          debug,                     &
@@ -86,8 +90,9 @@ CONTAINS
          ppres(kbdim,klev),            & ! atmospheric pressure at each grid point [Pa]
          ptemp(kbdim,klev),            & ! temperature at each grid point [K]
          ptt(kbdim,klev),              & ! temperature tendency
-         ptstep,                       &   ! time step [s]
-         time                             ! time
+         ptstep,                       & ! time step [s]
+         time,                         & ! time
+         pdn(kbdim,klev)                 ! air density
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl
 
@@ -97,7 +102,7 @@ CONTAINS
     LOGICAL, INTENT(in) :: dbg2!, testswitch
 
     !-- Input variables that are changed within --------------------------------------
-    REAL, INTENT(inout) ::      & ! gas phase concentrations at each grid point [#/m3]
+    REAL, INTENT(inout) ::          & ! gas phase concentrations at each grid point [#/m3]
          pc_h2so4(kbdim,klev),      & ! sulphuric acid
          pc_hno3 (kbdim,klev),      & ! nitric acid
          pc_nh3  (kbdim,klev),      & ! ammonia
@@ -128,7 +133,7 @@ CONTAINS
     INTEGER, INTENT(in) :: level                         ! thermodynamical level
 
     INTEGER :: zpbl(kbdim)            ! Planetary boundary layer top level
-    !REAL :: zrh(kbdim,klev)           ! Relative humidity
+    !REAL(dp) :: zrh(kbdim,klev)           ! Relative humidity
 
 
     !-- Output variables -----------------------------------------------------------------
@@ -144,12 +149,12 @@ CONTAINS
     REAL :: zrhop(kbdim,klev,fn2b)
 
 
-    REAL ::                       &
-         zcore   (kbdim,klev,fn2b),   & ! volume of the core in one size bin
-         !zdwet   (kbdim,klev,fn2b),   &  ! EI TARVI??
-         zvq     (kbdim,klev,fn2b),   &
-         !zlwc    (kbdim,klev,fn2b),   & ! liquid water in a droplet in one size bin
-         zddry                          !EI TARVI??
+    REAL ::                         &
+         zcore   (kbdim,klev,fn2b), & ! volume of the core in one size bin
+         !zdwet  (kbdim,klev,fn2b), & ! EI TARVI??
+         zvq     (kbdim,klev,fn2b), &
+         !zlwc   (kbdim,klev,fn2b), & ! liquid water in a droplet in one size bin
+         zddry                         !EI TARVI??
 
     IF (debug) WRITE(*,*) 'start salsa'
 
@@ -212,10 +217,10 @@ CONTAINS
                        paero(ii,jj,kk)%numc/pi6)**(1./3.)
              IF(zddry < 1.e-10) THEN
                 pc_h2so4(ii,jj)   = pc_h2so4(ii,jj) + paero(ii,jj,kk)%volc(1) * rhosu / msu * avog
-                pc_ocsv(ii,jj)    = pc_ocsv(ii,jj) + paero(ii,jj,kk)%volc(2) * rhooc / moc * avog
-                pc_hno3(ii,jj)   = pc_hno3(ii,jj) + paero(ii,jj,kk)%volc(6) * rhono / mno * avog
-                pc_nh3(ii,jj)    = pc_nh3(ii,jj)  + paero(ii,jj,kk)%volc(7) * rhonh / mnh * avog
-                paero(ii,jj,kk)%numc  = 0.0
+                pc_ocsv(ii,jj)    = pc_ocsv(ii,jj)  + paero(ii,jj,kk)%volc(2) * rhooc / moc * avog
+                pc_hno3(ii,jj)    = pc_hno3(ii,jj)  + paero(ii,jj,kk)%volc(6) * rhono / mno * avog
+                pc_nh3(ii,jj)     = pc_nh3(ii,jj)   + paero(ii,jj,kk)%volc(7) * rhonh / mnh * avog
+                paero(ii,jj,kk)%numc    = 0.0
                 paero(ii,jj,kk)%volc(:) = 0.0
                 !WRITE(*,*) 'he'
                 STOP 'he'
@@ -252,9 +257,24 @@ CONTAINS
                                pcloud, pactd          )
     ! Immersion freezing
     IF (lsicimmers) &
-         CALL ice_immers_nucl(kproma,kbdim,klev,            &
-                              pcloud,pice,ppres,            &
-                              ptemp,ptt,prv,prs,ptstep,time )
+         CALL ice_immers_nucl(kproma,  kbdim,  klev,   &
+                              pcloud,  pice,   ppres,  &
+                              ptemp,   ptt,    prv,    &
+                              prs,     ptstep, time    )
+
+    ! Basic freezing !testfunction
+    IF (lsicbasic) &
+         CALL ice_basic_nucl(kproma,   kbdim,  klev,   &
+                             pcloud,   pice,   ppres,  &
+                             ptemp,    prv,    prs,    &
+                             ptstep                    )
+
+    ! Fixed ice number concentration
+    IF (lsfixinc) &
+          CALL  ice_fixed_NC(kproma,   kbdim,  klev,   &
+                             pcloud,   pice,   ppres,  &
+                             ptemp,    prv,    prs,    &
+                             prsi,     ptstep, pdn, time     )
 
     ! Homogenous nucleation Morrison et al. 2005 eq. (25)
     IF (lsichom) &

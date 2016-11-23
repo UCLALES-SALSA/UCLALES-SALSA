@@ -88,10 +88,11 @@ contains
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon
     use step, only : timmax, istpfl, corflg, outflg, frqanl, frqhis,          &
          strtim, radfrq, cntlat
-    use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
+    use grid, only : ver, deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
-         Tspinup,sst, lbinanl
+         Tspinup,sst, lbinanl, &
+         minispinup01, minispinup02, minispinupCase01, minispinupCase02 ! debugkebab
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand
     use stat, only : ssam_intvl, savg_intvl, mcflg
@@ -129,9 +130,14 @@ contains
          us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
          umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
          Tspinup, lbinanl,          & ! Length of spinup period in seconds
+         minispinup01, minispinup02, & ! minispinup lengths !debugkebab
+         minispinupCase01, minispinupCase02, & ! minispinup cases !debugkebab
          radsounding, div, case_name, & ! Name of the radiation sounding file, divergence for LEVEL 4
          sfc_albedo,                  & ! Surface albedo
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
+
+    namelist /version/  &
+         ver
 
     ps       = 0.
     ts       = th00
@@ -145,8 +151,10 @@ contains
     ! read namelist from specified file
     !
     open  (1,status='old',file='NAMELIST')
+    read  (1, nml=version)
     read  (1, nml=model)
     close (1)
+
     !
     ! write file variable control to standard output
     !

@@ -638,6 +638,9 @@ CONTAINS
                                nlichom,               &
                                nlichet,               &
                                nlicimmers,            &
+                               nlicbasic,             &
+                               nlfixinc,              &
+                               fixINC,                &
                                nlicmelt,              &
                                dmincld,nbin,reglim,   &
                                nice,nsnw,             &
@@ -676,6 +679,9 @@ CONTAINS
          nlichom,     & ! Switch for homogeneous ice nucleation
          nlichet,     & ! Switch for heterogeneous ice nucleation
          nlicimmers,  & ! Switch for ice nucleation by immersion
+         nlicbasic,   & ! Switch for ice nucleation by basic freezing (only for testing purposes)
+         nlfixinc,    & ! Fix ice number concentration to be over given limit fixINC
+         fixINC,      & ! fixed ice number concentration #/liter, nlfixinc should be set to true inorder to have this working
          nlicmelt,    & ! Switch for ice'n'snow melting
          nbin,        & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
          nice,        & ! number of ice bins
@@ -711,8 +717,8 @@ CONTAINS
          iceFracA,      & ! fraction of aerosols that are activated to ice cloud particles in A bins
          liqFracB,      & ! fraction of aerosols that are activated to liquid cloud droplets  in B bins
          iceFracB,      & ! fraction of aerosols that are activated to    ice cloud particles in B bins
-	     ! ---------------------------------------------------------------------------------------------------		
-         rhlim,         & ! Upper limit RH/100 for sals during initialization and spinup 
+	     ! ---------------------------------------------------------------------------------------------------
+         rhlim,         & ! Upper limit RH/100 for sals during initialization and spinup
 
          sigmag,        & ! Stdev for the 7 initial lognormal modes
          dpg,           & ! Mean diameter for the 7 initial lognormal modes

@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 def openr(filepref,ff):
     import netCDF4 as nc
     fname = '%s.%04u%04u.nc' % (filepref, ff[0], ff[1])

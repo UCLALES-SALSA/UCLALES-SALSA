@@ -26,9 +26,8 @@ fi
 sed -i "/filprf = /c\  filprf = '"$1"'" ./NAMELIST
 sed -i "/hfilin = /c\  hfilin = '"$1".h.rst'" ./NAMELIST
 
-alikansio=ICE_UCLA-LES-SALSA
-#clock=`date +%Y-%m-%d-%H-%M`
-#$ending=`echo $1`
+alikansio=UCLALES-SALSA
+
 # Main directory
 wrkdir=/lustre/tmp/aholaj/${alikansio}
 # Running directory
@@ -126,8 +125,6 @@ FINAL
 # Goto rundir
 cd ${rundir}
 
-# Make initial submit
-#qsub runles.sh
 
 #
 exit

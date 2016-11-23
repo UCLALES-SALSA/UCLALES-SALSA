@@ -1,7 +1,7 @@
 
 !****************************************************************
 !*                                                              *
-!*   module MO_SALSA_DYNAMICS                               *
+!*   module MO_SALSA_DYNAMICS                                   *
 !*                                                              *
 !*   Contains subroutines and functions that are used           *
 !*   to calculate aerosol dynamics                              *
@@ -114,7 +114,7 @@ CONTAINS
          rhobc,rhodu,rhoss,rhowa,    &
          rhoic,                      & ! density of ice  !ice'n'snow
          rhosn,                      & ! density of snow
-         nlim,prlim,                 &
+         nlim,prlim,iclim,            &
          lscgaa, lscgcc, lscgca,     &
          lscgpp, lscgpa, lscgpc,     &
          lscgia, lscgic, lscgii, lscgip, &
@@ -225,10 +225,10 @@ CONTAINS
 
            !-- Ice mass;  huomhuom tarkista tämä, tärkeä
 
-           zmice(1:nice) =   pi6*(MIN(pice(ii,jj,1:nice)%dwet, 2.e-3)**3)*rhoic
+           zmice(1:nice) =   pi6*(MIN(pice(ii,jj,1:nice)%dwet, 1.e-6)**3)*rhoic !#icelimit
 
            !-- Snow mass?? huomhuom tarkista tämä, tärkeä
-           zmsnow(1:nsnw) =  pi6*(MIN(psnow(ii,jj,1:nsnw)%dwet, 2.e-3)**3)*rhosn
+           zmsnow(1:nsnw) =  pi6*(MIN(psnow(ii,jj,1:nsnw)%dwet, 1.e-6)**3)*rhosn !#icelimit
 
            temppi=ptemp(ii,jj)
            pressi=ppres(ii,jj)
@@ -328,11 +328,11 @@ CONTAINS
            END IF
   	       IF (debug .and. lscgia) WRITE(*,*) 'before lscgia ' !debugtulostus
            !  collection of aerosols by ice !!huomhuom
-           IF (lscgia .AND. ANY(pice(ii,jj,:)%numc > nlim) ) THEN
+           IF (lscgia .AND. ANY(pice(ii,jj,:)%numc > iclim) ) THEN ! #icelimit
               DO mm = 1,fn2b
                  DO nn = 1,nice
                     pdmm = paero(ii,jj,mm)%dwet
-                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-3)
+                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-6) !#icelimit
                     zccia(mm,nn) =  coagc(pdmm,pdnn,zmpart(mm),zmice(nn),temppi,pressi,2)!*zsec(mm)*zsec(nn) !! huomhuom kernel
 
                  END DO
@@ -340,24 +340,24 @@ CONTAINS
            END IF
 		   IF (debug .and. lscgic) WRITE(*,*) 'before lscgic ' !debugtulostus
            !  collection of cloud particles droplets by ice
-           IF (lscgic .AND. (ANY(pice(ii,jj,:)%numc > nlim) .AND. ANY(pcloud(ii,jj,:)%numc > nlim)) ) THEN
+           IF (lscgic .AND. (ANY(pice(ii,jj,:)%numc > iclim) .AND. ANY(pcloud(ii,jj,:)%numc > nlim)) ) THEN ! #icelimit
               DO mm = 1,ncld
                  DO nn = 1,nice
                     pdmm = pcloud(ii,jj,mm)%dwet
-                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-3)
+                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-6) !#icelimit
                     zccic(mm,nn) = coagc(pdmm,pdnn,zmcloud(mm),zmice(nn),temppi,pressi,2)  !! huomhuom kernel  ?
                  END DO
               END DO
            END IF
 
            !  collitions between ice particles
-           IF (lscgii .AND. ANY(pice(ii,jj,:)%numc > nlim) ) THEN  !huomhuom no testswitch
+           IF (lscgii .AND. ANY(pice(ii,jj,:)%numc > iclim) ) THEN  !huomhuom no testswitch ! #icelimit
               pdmm = 0.
               pdnn = 0.
               DO mm = 1,nice
                  DO nn = mm,nice
-                    pdmm = MIN(pice(ii,jj,mm)%dwet,1.e-3)
-                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-3)
+                    pdmm = MIN(pice(ii,jj,mm)%dwet,1.e-6) !#icelimit
+                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-6) !#icelimit
 
                     zccii(mm,nn) = coagc(pdmm,pdnn,zmice(mm),zmice(nn),temppi,pressi,2)
                     zccii(nn,mm) = zcccc(mm,nn)
@@ -367,24 +367,24 @@ CONTAINS
 
 		   IF (debug .and. lscgip) WRITE(*,*) 'before lscgip ' !debugtulostus
            !  collection of precip by ice-collision
-           IF (lscgip .AND. (ANY(pprecp(ii,jj,:)%numc > prlim) .AND. ANY(pice(ii,jj,:)%numc > nlim)) ) THEN
+           IF (lscgip .AND. (ANY(pprecp(ii,jj,:)%numc > prlim) .AND. ANY(pice(ii,jj,:)%numc > iclim)) ) THEN ! #icelimit
               DO mm = 1,nprc
                  DO nn = 1,nice
                     pdmm = MIN(pprecp(ii,jj,mm)%dwet,2.e-3)
-                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-3)
+                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-6) !#icelimit
                     zccip(mm,nn) = coagc(pdmm,pdnn,zmprecp(mm),zmice(nn),temppi,pressi,2)!*zsec(nn) !! huomhuom kernel  ?
                   END DO
               END DO
            END IF
 
            ! Self-collection of snow particles
-           IF (lscgss .AND. ANY(psnow(ii,jj,:)%numc > nlim ) ) THEN
+           IF (lscgss .AND. ANY(psnow(ii,jj,:)%numc > iclim ) ) THEN ! #icelimit
               pdmm = 0.
               pdnn = 0.
               DO mm = 1,nsnw
                  DO nn = mm,nsnw
-                    pdmm = MIN(psnow(ii,jj,mm)%dwet,1.e-3)
-                    pdnn = MIN(psnow(ii,jj,nn)%dwet,1.e-3)
+                    pdmm = MIN(psnow(ii,jj,mm)%dwet,1.e-6) !#icelimit
+                    pdnn = MIN(psnow(ii,jj,nn)%dwet,1.e-6) !#icelimit
                     zccss(mm,nn) =  coagc(pdmm,pdnn,zmsnow(mm),zmsnow(nn),temppi,pressi,2)*zsecs(mm)*zsecs(nn) !! huomhuom kernel?  ?
                     zccss(nn,mm) = zccss(mm,nn)
                  END DO
@@ -393,44 +393,44 @@ CONTAINS
 
            IF (debug .and. lscgsa) WRITE(*,*) 'before lscgsa ' !debugtulostus
            ! Collection of aerosols by snow
-           IF (lscgsa .AND. ANY(psnow(ii,jj,:)%numc > nlim ) ) THEN
+           IF (lscgsa .AND. ANY(psnow(ii,jj,:)%numc > iclim ) ) THEN ! #icelimit
               DO mm = 1,fn2b
                  DO nn = 1,nsnw
                     pdmm = paero(ii,jj,mm)%dwet
-                    pdnn = MIN(psnow(ii,jj,nn)%dwet, 1.e-3)
+                    pdnn = MIN(psnow(ii,jj,nn)%dwet, 1.e-6) !#icelimit
                     zccsa(mm,nn) = coagc(pdmm,pdnn,zmpart(mm),zmsnow(nn),temppi,pressi,2)*zsecs(nn) !! huomhuom kernel?  ?
                  END DO
               END DO
            END IF
 		   IF (debug .and. lscgsp) WRITE(*,*) 'before lscgsp ' !debugtulostus
            ! collection of precip by snow
-           IF (lscgsp .AND. (ANY(pprecp(ii,jj,:)%numc > prlim) .AND. ANY(psnow(ii,jj,:)%numc > nlim))) THEN
+           IF (lscgsp .AND. (ANY(pprecp(ii,jj,:)%numc > prlim) .AND. ANY(psnow(ii,jj,:)%numc > iclim))) THEN ! #icelimit
               DO mm = 1,nprc
                  DO nn = 1,nsnw
                     pdmm = MIN(pprecp(ii,jj,mm)%dwet,2.e-3)
-                    pdnn = MIN(psnow(ii,jj,nn)%dwet,1.e-3)
+                    pdnn = MIN(psnow(ii,jj,nn)%dwet,1.e-6) !#icelimit
                     zccsp(mm,nn) = coagc(pdmm,pdnn,zmprecp(mm),zmsnow(nn),temppi,pressi,2)*zsec(mm)*zsecs(nn) !! huomhuom kernel  ?
                   END DO
               END DO
            END IF
 		   IF (debug .and. lscgsc) WRITE(*,*) 'before lscgsc ' !debugtulostus
            ! collection of cloud droples by snow
-           IF (lscgsc .AND. (ANY(pcloud(ii,jj,:)%numc > nlim) .AND. ANY(psnow(ii,jj,:)%numc > nlim))) THEN
+           IF (lscgsc .AND. (ANY(pcloud(ii,jj,:)%numc > nlim) .AND. ANY(psnow(ii,jj,:)%numc > iclim))) THEN ! #icelimit
               DO mm = 1,ncld
                  DO nn = 1,nsnw
                     pdmm = pcloud(ii,jj,mm)%dwet
-                    pdnn = MIN(psnow(ii,jj,nn)%dwet,1.e-3)
+                    pdnn = MIN(psnow(ii,jj,nn)%dwet,1.e-6) !#icelimit
                     zccsc(mm,nn) = coagc(pdmm,pdnn,zmcloud(mm),zmsnow(nn),temppi,pressi,2)*zsecs(nn) !! huomhuom kernel  ?
                   END DO
               END DO
            END IF
 		   IF (debug .and. lscgsi) WRITE(*,*) 'before lscgsi ' !debugtulostus
            ! collection of ice by snow
-           IF (lscgsi .AND. (ANY(pice(ii,jj,:)%numc > prlim) .AND. ANY(psnow(ii,jj,:)%numc > nlim))) THEN
+           IF (lscgsi .AND. (ANY(pice(ii,jj,:)%numc > iclim) .AND. ANY(psnow(ii,jj,:)%numc > iclim))) THEN ! #icelimit
               DO mm = 1,nice
                  DO nn = 1,nsnw
-                    pdmm = MIN(pice(ii,jj,mm)%dwet,1.e-3)
-                    pdnn = MIN(psnow(ii,jj,nn)%dwet,2.e-3)
+                    pdmm = MIN(pice(ii,jj,mm)%dwet,1.e-6)
+                    pdnn = MIN(psnow(ii,jj,nn)%dwet,1.e-6)
                     zccsi(mm,nn) = coagc(pdmm,pdnn,zmice(mm),zmsnow(nn),temppi,pressi,2)*zsecs(nn) !! huomhuom kernel  ?
                   END DO
               END DO
@@ -808,7 +808,7 @@ CONTAINS
 
           ! Ice particles, regime a
            ! ------------------------------------------------
-		IF ( ANY(pice(ii,jj,:)%numc > nlim) ) THEN
+		IF ( ANY(pice(ii,jj,:)%numc > iclim) ) THEN ! #icelimit
            DO cc = iia%cur,fia%cur
 
               zminusterm = 0.
@@ -944,7 +944,7 @@ CONTAINS
 
            ! Snow drops
            ! -----------------------------------
-		IF ( ANY(psnow(ii,jj,:)%numc > nlim) ) THEN
+		IF ( ANY(psnow(ii,jj,:)%numc > iclim) ) THEN ! #icelimit
            DO cc = 1,nsnw
 
               zminusterm = 0.
@@ -997,7 +997,7 @@ CONTAINS
               psnow(ii,jj,cc)%numc = max(0.,psnow(ii,jj,cc)%numc/( 1. + ptstep*zminusterm +  &
                    0.5*ptstep*zccss(cc,cc)*psnow(ii,jj,cc)%numc ) )
            END DO
-		END IF !nlim
+		END IF !iclim
 
 
 
@@ -1122,6 +1122,7 @@ CONTAINS
          avog,                      &
          nlim,                      &
          prlim,                     &
+         iclim,                     &
          rhowa,                     & ! density of water (kg/m3)
          rhoic,                     & ! density of ice (kg/m3)
          rhosn,                     & ! density of snow (kg/m3)
@@ -1430,7 +1431,7 @@ CONTAINS
                zcolrateia(1:nice) = MERGE( 2.*pi*pice(ii,jj,1:nice)%dwet*zdfvap*    &
                                            zbetaia(1:nice)*pice(ii,jj,1:nice)%numc,    &
                                            0.,                                        &
-                                           pice(ii,jj,1:ncld)%numc > nlim              )
+                                           pice(ii,jj,1:ncld)%numc > iclim              )  ! #icelimit
 
           ! Gases on snow flakes
           zcolratesa = 0.
@@ -1438,7 +1439,7 @@ CONTAINS
                zcolratesa(1:nsnw) = MERGE( 2.*pi*psnow(ii,jj,1:nsnw)%dwet*zdfvap*    &
                                            zbetasa(1:nsnw)*psnow(ii,jj,1:nsnw)%numc,    &
                                            0.,                                        &
-                                           psnow(ii,jj,1:nsnw)%numc > nlim             )
+                                           psnow(ii,jj,1:nsnw)%numc > iclim             )
 
           !-- 4) Condensation sink [1/s] -------------------------------------
 
@@ -1630,7 +1631,7 @@ CONTAINS
                                nice, nsnw,            &
                                rhowa, rhoic, rhosn,mwa, mair,     &
                                surfw0,surfi0, rg,           &
-                               pi, prlim, nlim,      &
+                               pi, prlim, nlim,iclim,      &
                                massacc,avog,pstand,  &
                                in1a,fn1a,in2a,fn2a,  &
                                in2b,fn2b,            &
@@ -1739,16 +1740,17 @@ CONTAINS
                (rg*ptemp(ii,jj)*rhowa*MIN(pprecp(ii,jj,1:nprc)%dwet,2.e-3)) )
 
           zkelvinid(1:nice) = exp( 4.*surfi0*mwa /  &          ! ice surface tension
-               (rg*ptemp(ii,jj)*rhoic*pice(ii,jj,1:nice)%dwet) )
+               (rg*ptemp(ii,jj)*rhoic*MIN(pice(ii,jj,1:nice)%dwet,1.e-6)) ) ! #icelimit !! huomhuom onko MIN-lauseke tarpeellinen, plus tarkista tiheys
 
           zkelvinsd(1:nsnw) = exp( 4.*surfi0*mwa /  &
-               (rg*ptemp(ii,jj)*rhosn*MIN(psnow(ii,jj,1:nsnw)%dwet,2.e-3)) ) !! huomhuom onko MIN-lauseke tarpeellinen, plus tarkista tiheys
+               (rg*ptemp(ii,jj)*rhosn*MIN(psnow(ii,jj,1:nsnw)%dwet,1.e-6)) ) !! huomhuom onko MIN-lauseke tarpeellinen, plus tarkista tiheys
+
 
           ! Cloud droplets --------------------------------------------------------------------------------
           zmtcd(:) = 0.
           zcwsurfcd(:) = 0.
           DO cc = 1,ncld
-             IF (pcloud(ii,jj,cc)%numc > prlim .AND. lscndh2ocl) THEN
+             IF (pcloud(ii,jj,cc)%numc > prlim .AND. lscndh2ocl) THEN ! #cloudlimit huomhuom
 
                 ! Activity + Kelvin effect
                 zact = acth2o(pcloud(ii,jj,cc))
@@ -1808,17 +1810,17 @@ CONTAINS
           zmtid(:) = 0.
           zcwsurfid(:) = 0.
           DO cc = 1,nice
-             IF (pice(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
+             IF (pice(ii,jj,cc)%numc > iclim .AND. lscndh2oic) THEN  ! #icelimit
 
                 ! Activity + Kelvin effect
-                zact = acth2o(pice(ii,jj,cc))
+                !zact = 1. !acth2o(pice(ii,jj,cc)) ! no activity for ice
 
 
                 ! Saturation mole concentration over flat surface
                 zcwsurfid(cc) = prsi(ii,jj)*rhoair/mwa
 
                 ! Equilibrium saturation ratio
-                zwsatid(cc) = zact*zkelvinid(cc)
+                zwsatid(cc) = 1.*zkelvinid(cc)
 
                 !-- transitional correction factor
                 zknud = 2.*zmfph2o/pice(ii,jj,cc)%dwet
@@ -1827,7 +1829,7 @@ CONTAINS
 
                 ! Mass transfer according to Jacobson
                 zhlp1 = pice(ii,jj,cc)%numc*2.*pi*pice(ii,jj,cc)%dwet*zdfh2o*zbeta
-                zhlp2 = mwa*zdfh2o*als*zwsatcd(cc)*zcwsurfcd(cc)/(zthcond*ptemp(ii,jj)) !! huomhuom als
+                zhlp2 = mwa*zdfh2o*als*zwsatid(cc)*zcwsurfid(cc)/(zthcond*ptemp(ii,jj)) !! huomhuom als
                 zhlp3 = ( (als*mwa)/(rg*ptemp(ii,jj)) ) - 1. !! huomhuom als
 
                 zmtid(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
@@ -1839,17 +1841,17 @@ CONTAINS
           zmtsd(:) = 0.
           zcwsurfsd(:) = 0.
           DO cc = 1,nsnw
-             IF (psnow(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
+             IF (psnow(ii,jj,cc)%numc > iclim .AND. lscndh2oic) THEN ! #icelimit
 
                 ! Activity + Kelvin effect
-                zact = acth2o(psnow(ii,jj,cc))
+                !zact = acth2o(psnow(ii,jj,cc))
 
 
                 ! Saturation mole concentrations over flat surface
                 zcwsurfsd(cc) = prsi(ii,jj)*rhoair/mwa
 
                 ! Equilibrium saturation ratio
-                zwsatsd(cc) = zact*zkelvinsd(cc)
+                zwsatsd(cc) = 1.*zkelvinsd(cc)
 
                 !-- transitional correction factor
                 zknud = 2.*zmfph2o/psnow(ii,jj,cc)%dwet
@@ -1956,20 +1958,20 @@ CONTAINS
                    zwsatpd(cc) = acth2o(pprecp(ii,jj,cc),zcwintpd(cc))*zkelvinpd(cc)
                 END DO
              END IF
-             IF (ANY(pice(ii,jj,:)%numc > nlim) ) THEN
-                DO cc = 1,nice
-                   zcwintid(cc) = zcwcid(cc) + min(max(adt*zmtid(cc)*(zcwint - zwsatid(cc)*zcwsurfid(cc)), &
-                        -0.02*zcwcid(cc)),0.05*zcwcid(cc))
-                   zwsatid(cc) = zkelvinid(cc)
-                END DO
-             END IF
-             IF (ANY(psnow(ii,jj,:)%numc > nlim) ) THEN
-                DO cc = 1,nsnw
-                   zcwintsd(cc) = zcwcsd(cc) + min(max(adt*zmtsd(cc)*(zcwint - zwsatsd(cc)*zcwsurfsd(cc)),&
-                        -0.02*zcwcsd(cc)),0.05*zcwcsd(cc))
-                   zwsatsd(cc) = zkelvinsd(cc)
-                END DO
-             END IF
+			 IF (ANY(pice(ii,jj,:)%numc > iclim) ) THEN ! #icelimit
+           		  DO cc = 1,nice
+		         	zcwintid(cc) = zcwcid(cc) + min(max(adt*zmtid(cc)*(zcwint - zwsatid(cc)*zcwsurfid(cc)), &
+		                 -0.02*zcwcid(cc)),0.05*zcwcid(cc))
+					zwsatid(cc) = zkelvinid(cc)
+	             END DO
+			 END IF
+			IF (ANY(psnow(ii,jj,:)%numc > iclim) ) THEN ! #icelimit
+		         DO cc = 1,nsnw
+		            zcwintsd(cc) = zcwcsd(cc) + min(max(adt*zmtsd(cc)*(zcwint - zwsatsd(cc)*zcwsurfsd(cc)),&
+		                 -0.02*zcwcsd(cc)),0.05*zcwcsd(cc))
+					zwsatsd(cc) = zkelvinsd(cc)
+		         END DO
+			END IF
              zcwintae(nstr:nbins) = MAX(zcwintae(nstr:nbins),0.)
              zcwintcd(1:ncld) = MAX(zcwintcd(1:ncld),0.)
              zcwintpd(1:nprc) = MAX(zcwintpd(1:nprc),0.)
@@ -2004,8 +2006,8 @@ CONTAINS
           paero(ii,jj,1:nbins)%volc(8) = max(0.,zcwnae(1:nbins)*mwa/rhowa)
           pcloud(ii,jj,1:ncld)%volc(8) = max(0.,zcwncd(1:ncld)*mwa/rhowa)
           pprecp(ii,jj,1:nprc)%volc(8) = max(0.,zcwnpd(1:nprc)*mwa/rhowa)
-          pice(ii,jj,1:nice)%volc(8) = max(0.,zcwnid(1:nice)*mwa/rhowa)
-          psnow(ii,jj,1:nsnw)%volc(8) = max(0.,zcwnsd(1:nsnw)*mwa/rhowa)
+          pice(ii,jj,1:nice)%volc(8)   = max(0.,zcwnid(1:nice)*mwa/rhoic)
+          psnow(ii,jj,1:nsnw)%volc(8)  = max(0.,zcwnsd(1:nsnw)*mwa/rhoic)
 
        END DO !kproma
 

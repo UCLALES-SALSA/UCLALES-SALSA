@@ -24,7 +24,8 @@ module grid
   USE class_componentIndex, ONLY : componentIndex
 
   implicit none
-  !
+  !                         
+  CHARACTER(len=20)  :: ver = "latest"     ! Model version - you have to use git for this to work right
   integer           :: nxp = 132           ! number of x points
   integer           :: nyp = 132           ! number of y points
   integer           :: nzp = 105           ! number of z points
@@ -65,6 +66,11 @@ module grid
   character (len=7) :: runtype = 'INITIAL'! Run Type Selection
 
   REAL              :: Tspinup = 7200.    ! Spinup period in seconds (added by Juha)
+  real              :: minispinup01 = 0. ! testing purposes !debugkebab ! default value is just normal run
+  real              :: minispinup02 = 0. ! testing purposes !debugkebab ! default value is just normal run
+  integer           :: minispinupCase01 = 3. ! testing purposes !debugkebab ! default value is just normal run
+  integer           :: minispinupCase02 = 3. ! testing purposes !debugkebab ! default value is just normal run
+
 
 
   character (len=7),  private :: v_snm='sxx    '
@@ -671,13 +677,13 @@ contains
   end subroutine define_grid
   !
   ! ----------------------------------------------------------------------
-  ! subroutine init_anal:  Defines the netcdf Analysis file
+  ! subroutine init_analysis:  Defines the netcdf Analysis file
   !
   ! Modified for level 4.
   ! Juha Tonttila, FMI, 2014
   !
   !
-  subroutine init_anal(time)
+  subroutine init_analysis(time)
 
     use mpi_interface, only :myid
     USE mo_submctl, ONLY : in1a,fn1a,in2a,fn2a,in2b,fn2b,ica,fca,icb,fcb,ira,fra, &
@@ -782,19 +788,18 @@ contains
           salsabool((/34,36,38,40,42,43,46,47,49,51,53,54,57,58,60,62/)) = .FALSE.
        END IF
 
-       IF (level < 5 ) THEN
-          salsabool(13:15) = .FALSE. ! ica, icb, snw
-          salsabool(27:29) = .FALSE.
-          salsabool(91:104) = .FALSE. ! aerosols in ice particles
-          salsabool(31) = .FALSE.
-          salsabool(52:62) = .FALSE.
-       END IF
-
+	   IF (level < 5 ) THEN
+	      salsabool(13:15)  = .FALSE. ! ica, icb, snw
+	      salsabool(27:29)  = .FALSE. ! f, i, s (total ice, ice & snow mixing ratio)
+	      salsabool(91:104) = .FALSE. ! aerosols in ice particles
+	      salsabool(31)     = .FALSE. ! S_RHI
+              salsabool(52:62)  = .FALSE. ! S_Nic - S_Rwsba
+	   END IF
        IF (.NOT. IsUsed(prtcl,'SO4')) &
-            salsabool((/ 63, 70, 77, 84, 91,  98 /)) = .FALSE.
+            salsabool((/ 63, 70, 77, 84, 91,  98 /))  = .FALSE.
 
        IF (.NOT. IsUsed(prtcl,'NH'))  &
-            salsabool((/ 64, 71, 78, 85, 92,  99 /)) = .FALSE.
+            salsabool((/ 64, 71, 78, 85, 92,  99 /))  = .FALSE.
 
        IF (.NOT. IsUsed(prtcl,'NO'))  &
             salsabool((/ 65, 72, 79, 86, 93,  100 /)) = .FALSE.
@@ -841,27 +846,27 @@ contains
     if (myid == 0) print *,'   ...starting record: ', nrec0
 
 
-  end subroutine init_anal
+  end subroutine init_analysis
   !
   ! ----------------------------------------------------------------------
-  ! subroutine close_anal:  Closes netcdf anal file
+  ! subroutine close_analysis:  Closes netcdf anal file
   !
-  integer function close_anal()
+  integer function close_analysis()
 
     use netcdf
 
-    close_anal = nf90_close(ncid0)
+    close_analysis = nf90_close(ncid0)
 
-  end function close_anal
+  end function close_analysis
   !
   ! ----------------------------------------------------------------------
-  ! Subroutine Write_anal:  Writes the netcdf Analysis file
+  ! Subroutine Write_analysis:  Writes the netcdf Analysis file
   !
   ! Modified for level 4
   ! Juha Tonttila, FMI, 2014
   !
   !
-  subroutine write_anal(time)
+  subroutine write_analysis(time)
     use netcdf
     use mpi_interface, only : myid, appl_abort
     USE class_ComponentIndex, ONLY : IsUsed
@@ -887,8 +892,8 @@ contains
     icntcla = (/nzp,nxp-4,nyp-4, fca%cur, 1/)
     icntclb = (/nzp,nxp-4,nyp-4, fcb%cur-fca%cur, 1/)
     icntpra = (/nzp,nxp-4,nyp-4, fra, 1/)
-    icntica = (/nzp,nxp-4,nyp-4, iia%cur, 1/)
-    icnticb = (/nzp,nxp-4,nyp-4, iib%cur-iia%cur, 1/)
+    icntica = (/nzp,nxp-4,nyp-4, fia%cur, 1/)
+    icnticb = (/nzp,nxp-4,nyp-4, fib%cur-fia%cur, 1/)
     icntsna = (/nzp,nxp-4,nyp-4, fsa, 1/)
     ibeg = (/1  ,1  ,1  ,nrec0/)
     ibegsd = (/1,1,1,1,nrec0/)
@@ -985,7 +990,7 @@ contains
        iret = nf90_inq_varid(ncid0, 'dn0', VarID)
        iret = nf90_put_var(ncid0, VarID, dn0, start = (/nrec0/))
 
-       !IF (.FALSE.) THEN
+
 
        iret = nf90_inq_varid(ncid0, 'u', VarID)
        iret = nf90_put_var(ncid0, VarID, a_up(:,i1:i2,j1:j2), start=ibeg,    &
@@ -1007,7 +1012,7 @@ contains
        iret = nf90_put_var(ncid0, VarID, a_press(:,i1:i2,j1:j2), start=ibeg, &
             count=icnt)
 
-       !END IF
+
 
     END IF
 
@@ -1292,26 +1297,26 @@ contains
              ! Ice particle size distribution reg. b
              iret = nf90_inq_varid(ncid0,'S_Nibb',VarID)
              iret = nf90_put_var(ncid0,VarID,a_nicep(:,i1:i2,j1:j2,iib%cur:fib%cur), &
-                  start=ibegsd,count=icntica)
-             
+                  start=ibegsd,count=icnticb)
+
              ! Ice particle bin wet radius regime a
              iret = nf90_inq_varid(ncid0,'S_Rwiba',VarID)
-             iret = nf90_put_var(ncid0,VarID,a_Rcwet(:,i1:i2,j1:j2,iia%cur:fia%cur), &
+             iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,iia%cur:fia%cur), &
                   start=ibegsd,count=icntica)
              
              ! Ice particle bin wet radius regime b
              iret = nf90_inq_varid(ncid0,'S_Rwibb',VarID)
-             iret = nf90_put_var(ncid0,VarID,a_Rcwet(:,i1:i2,j1:j2,iib%cur:fib%cur), &
-                  start=ibegsd,count=icntica)
-             
+             iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,iib%cur:fib%cur), &
+                  start=ibegsd,count=icnticb)
+
              ! Snow size distribution
              iret = nf90_inq_varid(ncid0,'S_Nsba',VarID)
-             iret = nf90_put_var(ncid0,VarID,a_nprecpp(:,i1:i2,j1:j2,ira:fra), &
+             iret = nf90_put_var(ncid0,VarID,a_nsnowp(:,i1:i2,j1:j2,isa:fsa), &
                   start=ibegsd,count=icntsna)
              
              ! Snow drop bin wet radius
              iret = nf90_inq_varid(ncid0,'S_Rwsba',VarID)
-             iret = nf90_put_var(ncid0,VarID,a_Rpwet(:,i1:i2,j1:j2,ira:fra),  &
+             iret = nf90_put_var(ncid0,VarID,a_Rswet(:,i1:i2,j1:j2,isa:fsa),  &
                   start=ibegsd,count=icntsna)
              
           END IF !(lbinanl)
@@ -1700,7 +1705,7 @@ contains
     iret  = nf90_sync(ncid0)
     nrec0 = nrec0+1
 
-  end subroutine write_anal
+  end subroutine write_analysis
   !
   ! ----------------------------------------------------------------------
   ! Subroutine write_hist:  This subroutine writes a binary history file
@@ -1919,9 +1924,6 @@ contains
                                rhodu,rhowa
     USE class_ComponentIndex, ONLY : GetIndex, IsUsed
 
-    ! LISÄÄ FIKSUMPI ERROR HANDLING JOS AINE EI KÄYTÖSSÄ - PALAUTA VAIKKA NOLLIA
-
-
     CHARACTER(len=*), INTENT(in) :: icomp  ! This should be either:
                                            ! SO4,OC,NO,NH,BC,DU,SS,H2O.
 
@@ -1937,7 +1939,7 @@ contains
     mixrat = 0.
 
     ! Determine multipliers
-    ! RHOOTA EI TARVI ENÄÄ KUN MASSAT TULEE RUN_SALSALTA kg/kg
+    ! zrho not needed anymore, should be removed
     IF (icomp == 'SO4' .AND. IsUsed(prtcl,icomp)) THEN
        mm = GetIndex(prtcl,icomp)
        zrho = rhosu
@@ -2013,7 +2015,7 @@ contains
   ! ----------------------------------------------
   ! Subroutine binSpecMixrat: Calculate the mixing
   ! ratio of selected aerosol species in individual
-  ! bins. OTA TÄÄLTÄ ULOS TÄYS k,i,j-KENTTÄ!!!
+  ! bins. 
   !
   ! Juha Tonttila, FMI, 2015
   SUBROUTINE binSpecMixrat(ipart,icomp,ibin,mixr)
@@ -2038,7 +2040,7 @@ contains
 
 
     ! Determine multipliers
-    ! EI TARVI ENÄÄ RHOOTA
+    ! zrho not needed anymore, should be removed
     IF (icomp == 'SO4' .AND. IsUsed(prtcl,icomp)) THEN
        mm = GetIndex(prtcl,icomp)
        zrho = rhosu
@@ -2143,7 +2145,7 @@ contains
           DO s = 1,GetNcomp(prtcl)+1
              zidx(s) = (s-1)*nsnw
           END DO
-          ALLOCATE(zmask((getNcomp(prtcl)+1)*nprc))
+          ALLOCATE(zmask((getNcomp(prtcl)+1)*nsnw))
           zdata => a_msnowp(kk,ii,jj,:)
 
        CASE DEFAULT
@@ -2239,7 +2241,7 @@ contains
                                ica,fca,icb,fcb,ira,fra,       &
                                iia,fia,iib,fib,isa,fsa,       &
                                in1a,fn1a,in2a,fn2a,in2b,fn2b, &
-                               nlim,prlim
+                               nlim,prlim,iclim
     IMPLICIT NONE
 
     CHARACTER(len=*), INTENT(in) :: ipart
@@ -2305,14 +2307,14 @@ contains
           STOP 'meanRadius: Invalid bin regime selection (ice)'
        END IF
 
-       CALL getRadius(istr,iend,nice,a_nicep,zvar1,nlim,a_Riwet,rad)
+       CALL getRadius(istr,iend,nice,a_nicep,zvar1,iclim,a_Riwet,rad) ! #icelimit
 
     CASE('snow')
 
        istr = isa
        iend = fsa
 
-       CALL getRadius(istr,iend,nsnw,a_nsnowp,zvar1,nlim,a_Rswet,rad)
+       CALL getRadius(istr,iend,nsnw,a_nsnowp,zvar1,iclim,a_Rswet,rad) ! #icelimit
 
     END SELECT
 

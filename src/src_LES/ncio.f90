@@ -156,7 +156,7 @@ contains
           iret = nf90_def_dim(ncID, 'icb', inice_b, icbID)
        END IF
        IF (PRESENT(insnw)) THEN
-          iret = nf90_def_dim(ncID, 'snow', insnw, snowID)
+          iret = nf90_def_dim(ncID, 'snw', insnw, snowID)
        END IF
 
        dim_tt = (/ztID,timeID/)
@@ -231,7 +231,7 @@ contains
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,icaID   ,VarID)
           case ('icb')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,icbID   ,VarID)
-          case ('snow')
+          case ('snw')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,snowID   ,VarID)
           !Juha added
           case ('ttttaea')
@@ -403,7 +403,7 @@ contains
     case('snw')
        if (itype==0) ncinfo = 'Snow size bins'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'snow'
+       if (itype==2) ncinfo = 'snw'
     !----
     case('u0')
        if (itype==0) ncinfo = 'Geostrophic zonal wind'
@@ -527,6 +527,14 @@ contains
        if (itype==2) ncinfo = 'time'
     case('lwp_var')
        if (itype==0) ncinfo = 'Liquid-water path variance'
+       if (itype==1) ncinfo = 'kg/m^2'
+       if (itype==2) ncinfo = 'time'
+    case('iwp_bar')
+       if (itype==0) ncinfo = 'Ice-water path'
+       if (itype==1) ncinfo = 'kg/m^2'
+       if (itype==2) ncinfo = 'time'
+    case('iwp_var')
+       if (itype==0) ncinfo = 'Ice-water path variance'
        if (itype==1) ncinfo = 'kg/m^2'
        if (itype==2) ncinfo = 'time'
     case('zc')
@@ -1203,15 +1211,15 @@ contains
 
     case('S_Nic')
        if (itype==0) ncinfo = 'SALSA ice nuclei'
-       if (itype==1) ncinfo = 'm^-3'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('S_Niba')
        if (itype==0) ncinfo = 'SALSA ice particle size distribution, regime a'
-       if (itype==1) ncinfo = 'm^-3'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttttica'
     case('S_Nibb')
        if (itype==0) ncinfo = 'SALSA ice particle size distribution, regime b'
-       if (itype==1) ncinfo = 'm^-3'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttttica'
     case('S_Rwia')
        if (itype==0) ncinfo = 'SALSA number mean radius of ice particles, regime a'
@@ -1231,11 +1239,11 @@ contains
        if (itype==2) ncinfo = 'ttttcla'
     case('S_Ns')
        if (itype==0) ncinfo = 'SALSA sdnc'
-       if (itype==1) ncinfo = 'm^-3'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('S_Nsba')
        if (itype==0) ncinfo = 'SALSA snow size distribution'
-       if (itype==1) ncinfo = 'm^-3'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttttsnw'
     case('S_Rwsa')
        if (itype==0) ncinfo = 'SALSA number mean radius of snow particles'

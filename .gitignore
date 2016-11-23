@@ -1,4 +1,29 @@
+# Don't follow compiled files
+
 src/*.mod
 src/*.o
 bin/les.mpi
 bin/les.seq
+
+util/
+
+############################
+# Jaakko's auxialiry files #
+############################
+
+# campaign inputs
+bin/campaign_ascos/
+bin/campaign_isdac/
+bin/campaign_sheba/
+bin/campaign_speed/
+
+#history run
+bin/0000_0000.SPINUP7200.rst
+
+# git trees
+gitpuut/
+
+
+
+## remove this later
+src/src_LES/stat_icesnow.f90

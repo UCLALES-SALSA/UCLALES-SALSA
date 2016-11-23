@@ -73,7 +73,7 @@ IMPLICIT NONE
                        pa_Ridry,   pa_Rsdry,                            &
                        pa_Rawet,   pa_Rcwet,   pa_Rpwet,                &
                        pa_Riwet,   pa_Rswet,                            &
-                       pa_rhop, prunmode, prtcl, tstep, dbg2, time, level)
+                       pa_rhop, prunmode, prtcl, tstep, dbg2, time, level,zt)
 
     USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
                                nice,nsnw,		     &
@@ -82,7 +82,7 @@ IMPLICIT NONE
                                rhono, rhonh, rhoss, rhodu,   &
                                rhlim
     USE mo_salsa, ONLY : salsa
-    USE mo_salsa_properties, ONLY : equilibration, equilibration_cloud
+    USE mo_salsa_properties, ONLY : equilibration
     USE class_componentIndex, ONLY : ComponentIndex, GetIndex, GetNcomp, IsUsed
     IMPLICIT NONE
 
@@ -95,7 +95,8 @@ IMPLICIT NONE
                                rv(pnz,pnx,pny),    &            ! Water vapor mixing ratio
                                rs(pnz,pnx,pny),    &            ! Water vapour saturation mixing ratio
                                rsi(pnz,pnx,pny),   &            ! water vapour sat mix rat over ice
-                               wp(pnz,pnx,pny)                  ! Vertical velocity (m s-1)
+                               wp(pnz,pnx,pny),    &            ! Vertical velocity (m s-1)
+                               zt(pnz)                          ! grid heights
 
     REAL, INTENT(in)    :: pdn(pnz,pnx,pny)             ! Air density (for normalizing concentrations)
 
@@ -169,8 +170,8 @@ IMPLICIT NONE
 
     INTEGER :: jj,ii,kk,ss,str,end, nc,vc, cc,pp
     REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
-                in_w(kbdim,klev), in_rsi(kbdim,klev), in_tt(kbdim,klev)
-    
+                in_w(kbdim,klev), in_rsi(kbdim,klev), in_tt(kbdim,klev), in_pdn(kbdim,klev)
+
     REAL :: rv_old(kbdim,klev)
 
     maero_old = 0.;  naero_old = 0.
@@ -231,7 +232,8 @@ IMPLICIT NONE
              ! Set inputs
              in_p(1,1) = press(kk,ii,jj)
              in_t(1,1) = tk(kk,ii,jj)
-             in_tt(1,1) = tt(kk,ii,jj)
+             in_tt(1,1) = ( tk(kk+1,ii,jj) - tk(kk,ii,jj)) / (zt(kk+1) -zt (kk))*wp(kk,ii,jj)
+             in_pdn(1,1) = pdn(kk,ii,jj)
              in_rs(1,1) = rs(kk,ii,jj)
              in_rsi(1,1) = rsi(kk,ii,jj)
              in_w(1,1) = wp(kk,ii,jj)
@@ -480,12 +482,12 @@ IMPLICIT NONE
              str = (nc-1)*nice+1
              end = nc*nice
 
-             ice(1,1,1:nice)%volc(vc) = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rhowa
+             ice(1,1,1:nice)%volc(vc) = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rhoic	
              mice_old(kk,ii,jj,str:end) = ice(1,1,1:nice)%volc(vc)
 
              str = (nc-1)*nsnw+1
              end = nc*nsnw
-             snow(1,1,1:nsnw)%volc(vc) = pa_msnowp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rhowa
+             snow(1,1,1:nsnw)%volc(vc) = pa_msnowp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rhosn
              msnow_old(kk,ii,jj,str:end) = snow(1,1,1:nsnw)%volc(vc)
 
              ! -----------------------------
@@ -522,15 +524,12 @@ IMPLICIT NONE
              If (prunmode == 1) CALL equilibration(kproma,kbdim,klev,   &
                                                     init_rh,in_t,aero,.TRUE.)
 
-	         ! Juha: Should be removed when possible
-             If (prunmode == 1) CALL equilibration_cloud(kproma,kbdim,klev,   &
-                                                    in_rs,in_t,cloud,ice)
 
 
              ! Convert to #/m3
-             zgso4(1,1) = pa_gaerop(kk,ii,jj,1)*pdn(kk,ii,jj)
+             zgso4(1,1)  = pa_gaerop(kk,ii,jj,1)*pdn(kk,ii,jj)
              zghno3(1,1) = pa_gaerop(kk,ii,jj,2)*pdn(kk,ii,jj)
-             zgnh3(1,1) = pa_gaerop(kk,ii,jj,3)*pdn(kk,ii,jj)
+             zgnh3(1,1)  = pa_gaerop(kk,ii,jj,3)*pdn(kk,ii,jj)
              zgocnv(1,1) = pa_gaerop(kk,ii,jj,4)*pdn(kk,ii,jj)
              zgocsv(1,1) = pa_gaerop(kk,ii,jj,5)*pdn(kk,ii,jj)
 
@@ -539,11 +538,11 @@ IMPLICIT NONE
              ! ***************************************!
              CALL salsa(kproma, kbdim,  klev,   krow,          &
                         in_p,   in_rv,  in_rs,  in_rsi,        &
-                        in_t,  in_tt, tstep,                         &
+                        in_t,   in_tt,  tstep,                 &
                         zgso4,  zgocnv, zgocsv, zghno3,        &
                         zgnh3,  aero,   cloud,  precp,         &
                         ice,    snow,                          &
-                        actd,   in_w,   dbg3,   prtcl, time, level)
+                        actd,   in_w,   dbg3,   prtcl, time, level, in_pdn)
 
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)
@@ -821,7 +820,7 @@ IMPLICIT NONE
              str = (nc-1)*nice+1
              end = nc*nice
              pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
-                  ( ice(1,1,1:nice)%volc(vc) - mice_old(kk,ii,jj,str:end) )*rhowa/pdn(kk,ii,jj)/tstep
+                  ( ice(1,1,1:nice)%volc(vc) - mice_old(kk,ii,jj,str:end) )*rhoic/pdn(kk,ii,jj)/tstep
              ! Snow bins
              str = (nc-1)*nsnw+1
              end = nc*nsnw
@@ -919,6 +918,8 @@ IMPLICIT NONE
                                nlichet,                &
                                nlicimmers,             &
                                nlicmelt,               &
+                               nlicbasic,              &
+                               nlfixinc,               &
 
                                lscgia,lscgic,lscgii,   &
                                lscgip,lscgsa,lscgsc,   &
@@ -926,7 +927,8 @@ IMPLICIT NONE
                                lsichom,                &
                                lsichet,                &
                                lsicimmers,             &
-                               lsicmelt,               &
+                               lsicmelt, lsicbasic,    &
+                               lsfixinc,               &
                                nldebug, debug,         &
                                lsdistupdate
 
@@ -950,21 +952,27 @@ IMPLICIT NONE
           lsactiv     = nlactiv
           lsactbase   = .FALSE.
           lsactintst  = .TRUE.
+          lsicimmers  = .FALSE.
+          lsicbasic   = .FALSE.
+          lsfixinc    = .FALSE.
           debug       = nldebug
 
        CASE(2)  ! Spinup period
 
-          lscoag      = ( .FALSE. .AND. nlcoag   )
-          lscnd       = ( .TRUE.  .AND. nlcnd    )
-          lscndgas    = ( .TRUE.  .AND. nlcndgas )
+          lscoag      = ( .FALSE. .AND. nlcoag     )
+          lscnd       = ( .TRUE.  .AND. nlcnd      )
+          lscndgas    = ( .TRUE.  .AND. nlcndgas   )
           lscndh2oae  = ( .TRUE.  .AND. nlcndh2oae )
           lscndh2ocl  = ( .TRUE.  .AND. nlcndh2ocl )
           lscndh2oic  = ( .TRUE.  .AND. nlcndh2oic )
-          lsauto      = ( .FALSE. .AND. nlauto   )
-          lsautosnow  = ( .FALSE. .AND. nlautosnow  )
-          lsactiv     = ( .TRUE.  .AND. nlactiv  )
-          lsactbase   = ( .TRUE.  .AND. nlactbase )
+          lsauto      = ( .FALSE. .AND. nlauto     )
+          lsautosnow  = ( .FALSE. .AND. nlautosnow )
+          lsactiv     = ( .TRUE.  .AND. nlactiv    )
+          lsactbase   = ( .TRUE.  .AND. nlactbase  )
           lsactintst  = ( .TRUE.  .AND. nlactintst )
+          lsicimmers  = .FALSE.
+          lsicbasic   = .FALSE.
+          lsfixinc    = .FALSE.
           debug       = nldebug
 
        CASE(3)  ! Run
@@ -1000,11 +1008,232 @@ IMPLICIT NONE
           lsactintst  = nlactintst
 
           lsichom     = nlichom
-          lsichet     = nlichet
-          lsicimmers  = nlicimmers
+          lsichet     = ( nlichet    .AND. ( .NOT. nlfixinc ) )
+          lsicimmers  = ( nlicimmers .AND. ( .NOT. nlfixinc ) )
+          lsicbasic   = ( nlicbasic  .AND. ( .NOT. nlfixinc ) )
+          lsfixinc    = nlfixinc
           lsicmelt    = nlicmelt
 
+
           debug       = nldebug
+
+
+       CASE(4)  ! after minispinup
+                ! self_coagulation only
+                ! distupdate ON
+
+          lscoag      = .TRUE. !true
+          lscgaa      = .TRUE. !true
+          lscgcc      = .TRUE. !true
+          lscgpp      = .TRUE. !true
+          lscgca      = .false.
+          lscgpa      = .false.
+          lscgpc      = .false.
+          lscgia      = .false.
+          lscgic      = .false.
+          lscgii      = .TRUE. !true
+          lscgip      = .false.
+          lscgsa      = .false.
+          lscgsc      = .false.
+          lscgsi      = .false.
+          lscgsp      = .false.
+          lscgss      = .TRUE. !true
+          lscnd       = .false.
+          lscndgas    = .false.
+          lscndh2oae  = .false.
+          lscndh2ocl  = .false.
+          lsauto      = .false.
+          lsautosnow  = .false.
+          lsactiv     = .false.
+          lsactintst  = .false.
+          lsichom     = .false.
+          lsichet     = .false.
+          lsicimmers  = .false.
+          lsicbasic   = .false.
+          lsfixinc    = .false.
+          lsicmelt    = .false.
+          debug       = .false.
+
+       CASE(5)  ! after minispinup
+                ! condensation only
+                ! distupdate ON
+
+          lscoag      = .false.
+          lscgaa      = .false.
+          lscgcc      = .false.
+          lscgpp      = .false.
+          lscgca      = .false.
+          lscgpa      = .false.
+          lscgpc      = .false.
+          lscgia      = .false.
+          lscgic      = .false.
+          lscgii      = .false.
+          lscgip      = .false.
+          lscgsa      = .false.
+          lscgsc      = .false.
+          lscgsi      = .false.
+          lscgsp      = .false.
+          lscgss      = .false.
+          lscnd       = .TRUE. !true
+          lscndgas    = .false.
+          lscndh2oae  = .false.
+          lscndh2ocl  = .TRUE. !true
+          lscndh2oic  = .TRUE. !true
+          lsauto      = .false.
+          lsautosnow  = .false.
+          lsactiv     = .false.
+          lsactintst  = .false.
+          lsichom     = .false.
+          lsichet     = .false.
+          lsicimmers  = .false.
+          lsicbasic   = .false.
+          lsfixinc    = .false.
+          lsicmelt    = .false.
+          debug       = .false.
+
+       CASE(6)  ! after minispinup
+                ! immersion only
+                ! distupdate ON
+
+          lscoag      = .false.
+          lscgaa      = .false.
+          lscgcc      = .false.
+          lscgpp      = .false.
+          lscgca      = .false.
+          lscgpa      = .false.
+          lscgpc      = .false.
+          lscgia      = .false.
+          lscgic      = .false.
+          lscgii      = .false.
+          lscgip      = .false.
+          lscgsa      = .false.
+          lscgsc      = .false.
+          lscgsi      = .false.
+          lscgsp      = .false.
+          lscgss      = .false.
+          lscnd       = .false.
+          lscndgas    = .false.
+          lscndh2oae  = .false.
+          lscndh2ocl  = .false.
+          lsauto      = .false.
+          lsautosnow  = .false.
+          lsactiv     = .false.
+          lsactintst  = .false.
+          lsichom     = .false.
+          lsichet     = .false.
+          lsicimmers  = .TRUE. !true
+          lsfixinc    = .false.
+          lsicbasic   = .false.
+          lsicmelt    = .false.
+          debug       = .false.
+
+       CASE(7)  ! after minispinup
+                ! basic freezing only
+                ! distupdate ON
+
+          lscoag      = .false.
+          lscgaa      = .false.
+          lscgcc      = .false.
+          lscgpp      = .false.
+          lscgca      = .false.
+          lscgpa      = .false.
+          lscgpc      = .false.
+          lscgia      = .false.
+          lscgic      = .false.
+          lscgii      = .false.
+          lscgip      = .false.
+          lscgsa      = .false.
+          lscgsc      = .false.
+          lscgsi      = .false.
+          lscgsp      = .false.
+          lscgss      = .false.
+          lscnd       = .false.
+          lscndgas    = .false.
+          lscndh2oae  = .false.
+          lscndh2ocl  = .false.
+          lsauto      = .false.
+          lsautosnow  = .false.
+          lsactiv     = .false.
+          lsactintst  = .false.
+          lsichom     = .false.
+          lsichet     = .false.
+          lsicimmers  = .false.
+          lsicbasic   = .TRUE. !true
+          lsfixinc    = .false.
+          lsicmelt    = .false.
+          debug       = .false.
+
+       CASE(8)  ! after minispinup
+                ! fixed INC only
+                ! distupdate ON
+
+          lscoag      = .false.
+          lscgaa      = .false.
+          lscgcc      = .false.
+          lscgpp      = .false.
+          lscgca      = .false.
+          lscgpa      = .false.
+          lscgpc      = .false.
+          lscgia      = .false.
+          lscgic      = .false.
+          lscgii      = .false.
+          lscgip      = .false.
+          lscgsa      = .false.
+          lscgsc      = .false.
+          lscgsi      = .false.
+          lscgsp      = .false.
+          lscgss      = .false.
+          lscnd       = .false.
+          lscndgas    = .false.
+          lscndh2oae  = .false.
+          lscndh2ocl  = .false.
+          lsauto      = .false.
+          lsautosnow  = .false.
+          lsactiv     = .false.
+          lsactintst  = .false.
+          lsichom     = .false.
+          lsichet     = .false.
+          lsicimmers  = .false.
+          lsicbasic   = .false.
+          lsfixinc    = .TRUE. !true
+          lsicmelt    = .false.
+          debug       = .false.
+
+
+       CASE(0)  ! all off
+
+          lscoag      = .false.
+          lscgaa      = .false.
+          lscgcc      = .false.
+          lscgpp      = .false.
+          lscgca      = .false.
+          lscgpa      = .false.
+          lscgpc      = .false.
+          lscgia      = .false.
+          lscgic      = .false.
+          lscgii      = .false.
+          lscgip      = .false.
+          lscgsa      = .false.
+          lscgsc      = .false.
+          lscgsi      = .false.
+          lscgsp      = .false.
+          lscgss      = .false.
+          lscnd       = .false.
+          lscndgas    = .false.
+          lscndh2oae  = .false.
+          lscndh2ocl  = .false.
+          lsauto      = .false.
+          lsautosnow  = .false.
+          lsactiv     = .false.
+          lsactintst  = .false.
+          lsichom     = .false.
+          lsichet     = .false.
+          lsicimmers  = .false.
+          lsicbasic   = .false.
+          lsfixinc    = .false.
+          lsicmelt    = .false.
+          debug       = .false.
+
 
     END SELECT
 
@@ -1027,6 +1256,8 @@ IMPLICIT NONE
           lsichom     = .false.
           lsichet     = .false.
           lsicimmers  = .false.
+          lsicbasic   = .false.
+          lsfixinc    = .false.
           lsicmelt    = .false.
 
     END IF !level

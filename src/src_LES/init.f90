@@ -78,8 +78,7 @@ contains
        ! spin-up period to set up aerosol and cloud fields.
        IF (level >= 4) THEN
 
-          !WRITE(*,*) a_rh(:,3,3)
-          ! Interst. aktivaatiolla tääkin aika turha tässä
+          ! This is not needed? Check & remove
           CALL maskactiv(zactmask,nxp,nyp,nzp,nbins,1,prtcl,a_rh)
 
           n4 = GetNcomp(prtcl) + 1 ! Aerosol compoenents + water
@@ -96,7 +95,7 @@ contains
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-                  a_rhop, 1, prtcl, dtlt, .false., 0., level   )
+                  a_rhop, 1, prtcl, dtlt, .false., 0., level,zt   )
           ELSE
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,a_wp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
@@ -109,7 +108,7 @@ contains
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-                  a_rhop, 1, prtcl, dtlt, .false., 0., level   )
+                  a_rhop, 1, prtcl, dtlt, .false., 0., level,zt   )
 
           END IF
           CALL SALSAInit(zactmask)
@@ -144,11 +143,11 @@ contains
     if (outflg) then
        if (runtype == 'INITIAL') then
           call write_hist(1, time)
-          call init_anal(time)
+          call init_analysis(time)
           call thermo(level)
-          call write_anal(time)
+          call write_analysis(time)
        else
-          call init_anal(time+dtl)
+          call init_analysis(time+dtl)
           call write_hist(0, time)
        end if
     end if !outflg
@@ -270,15 +269,12 @@ contains
     !
     IF (level >= 4) THEN
        CALL aerosol_init
-       CALL liq_ice_init      ! This should be replaced by physical processing!
        CALL init_gas_tracers
     END IF
 
     call atob(nxyzp,a_up,a_uc)
     call atob(nxyzp,a_vp,a_vc)
     call atob(nxyzp,a_wp,a_wc)
-    !call atob(nxyzp,a_pexnr,a_press) ! a_press asetetaan thermossa! Tämä rivi vaan nollaa sen ja menee rikki kaikki!
-
 
     return
   end subroutine fldinit
@@ -741,9 +737,6 @@ contains
     DO bb = ica%cur, fca%cur
        bbpar = ica%par + (bb-ica%cur)
 
-       ! JOS INITIALISOINNISSA INTERSTACT, TÄTÄ EI PIDÄ TEHÄ!
-       !CALL ActInit(bb,bbpar,pactmask)
-
        CALL DiagInitCloud(bb)
 
     END DO! bb
@@ -751,9 +744,6 @@ contains
     ! Regime b
     DO bb = icb%cur, fcb%cur
        bbpar = icb%par + (bb-icb%cur)
-
-       ! JOS INITIALISOINNISSA INTERSTACT, TÄTÄ EI PIDÄ TEHÄ!
-       !CALL ActInit(bb,bbpar,pactmask)
 
        CALL DiagInitCloud(bb)
 
@@ -904,7 +894,7 @@ contains
 
                 IF (a_nicep(k,i,j,b)  > 1.) THEN
                    CALL binMixrat('ice','dry',b,i,j,k,zvol)
-					zvol = zvol/rhosu !! huomhuom onko oikea density
+					zvol = zvol/rhosu !! density should be revised
                    a_Ridry(k,i,j,b) = 0.5*( zvol/(pi6*a_nicep(k,i,j,b)) )**(1./3.)
                    CALL binMixrat('ice','wet',b,i,j,k,zvol)
 					zvol = zvol/rhoic
@@ -979,8 +969,6 @@ contains
   !
   ! Tomi Raatikainen, FMI, 29.2.2016
   !
-  ! TÄMÄ EI PIDÄ HUOLTA ETTÄ TIEDOSTOSTA LUETUT MASSAFRAKTIOT VASTAAVAT NAMELIST.SALSASSA ANNETTUJA AINEITA
-  ! Myöskin ulottuvuuksien pitää vastata malliin annettuja
   SUBROUTINE aerosol_init
 
     USE class_componentIndex, ONLY : getIndex,IsUsed
@@ -1076,7 +1064,7 @@ contains
           ! Pure SO4
           pvfOC1a(:) = 0.0
        ELSE
-          ! Jos näit' ei ole niin laitetaan vaan nollaa kehiin?
+          ! Just put zeros if this happens?
           STOP 'Either OC or SO4 must be active for aerosol region 1a!'
        ENDIF
 
@@ -1210,150 +1198,7 @@ contains
   END SUBROUTINE aerosol_init
 
 
-!!!
-!!! initialize liquid and ice cloud particles ie. move particle fractions from aerosol bins to liquid cloud and ice particle bins
-!!!
 
- ! ---------- Juha: This should be replaced ASAP with a physical treatment. Do NOT use for liquid clouds.
-  SUBROUTINE liq_ice_init
-
-    USE class_componentIndex, ONLY : getIndex,IsUsed, GetNcomp, componentIndex
-    USE mo_salsa_sizedist, ONLY : size_distribution
-    USE mo_salsa_driver, ONLY : aero
-    USE mo_submctl, ONLY : pi6, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
-                               ica,fca,icb,fcb,iia,fia,iib,fib, &
-                               ncld, nice, &
-                               sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp,nspec,maxspec, &
-                               initliqice, &
-                               liqFracA,iceFracA,liqFracB,iceFracB, &
-                               rhosu, rhooc, rhobc, rhodu, rhoss, rhono, rhonh,prlim
-    USE mpi_interface, ONLY : myid
-
-    IMPLICIT NONE
-
-    INTEGER :: ss,ee,i,j,k,nc,bb,m
-    REAL :: apu = 0.0, zumCum,zumA, zumB, zumCumIce, zumCumLiq, &
-            excessIce, excessLiq,excessFracIce,excessFracLiq, &
-            aeroAlku, aeroAlkuV(nzp,nxp,nyp,nbins*(nspec+1)), aeroAlkuN(nzp,nxp,nyp,nbins)
-    real :: testiC(fcb%cur*(nspec+1)), testiI(fib%cur*(nspec+1))
-
-	! initialize liquid and ice only if it is determinded so in the namelist.salsa
-	IF(initliqice) THEN
-    	IF(level==4) THEN
-    	    iceFracA = 0.0; iceFracB = 0.0;
-    	END IF
-        !#cloudinit
-    	DO k = 2,nzp  ! DONT PUT STUFF INSIDE THE GROUND
-       	   DO j = 1,nyp
-              DO i = 1,nxp
-                 IF (a_rh(k,i,j)<1.0  .or. a_scr1(k,i,j) > 273.15) CYCLE
-                 zumA=sum(a_naerop(k,i,j,in2a:fn2a))
-                 zumB=sum(a_naerop(k,i,j,in2b:fn2b))
-
-                 zumCumIce = 0.0
-                 zumCumLiq = 0.0
-                 excessIce = 0.0
-             	 excessFracIce = 1.0
-             	 excessFracLiq = 1.0
-
-             	 DO bb=fn2a,in2a,-1
-
-               	 	IF(a_scr1(k,i,j) < 273.15 .and. zumCumIce<iceFracA*zumA .and. a_naerop(k,i,j,bb)>10e-10) THEN !initialize ice if it is cold enough
-
-                       excessIce =min(abs(zumCumIce-iceFracA*zumA),a_naerop(k,i,j,bb))
-                       a_nicep(k,i,j,bb-3) = a_nicep(k,i,j,bb-3) + excessIce
-                       zumCumIce = zumCumIce + excessIce
-
-                       excessFracIce = excessIce/a_naerop(k,i,j,bb)
-                       excessFracIce = MAX(0.0,MIN(1.0,excessFracIce))
-                       a_naerop(k,i,j,bb)=(1.0-excessFracIce)*a_naerop(k,i,j,bb)
-
-                       DO m=1,nspec
-                          a_micep(k,i,j,(m-1)*nice+bb-3) = &
-                             excessFracIce*a_maerop(k,i,j,(m-1)*nbins+bb)
-
-                          a_maerop(k,i,j,(m-1)*nbins+bb) = &
-                            (1.0-excessFracIce)*a_maerop(k,i,j,(m-1)*nbins+bb)
-                       END DO
-
-                    END IF
-
-                    IF (a_rh(k,i,j)>1.0 .and. zumCumLiq<liqFracA*zumA .and. a_naerop(k,i,j,bb)>10e-10) THEN
-
-                       excessLiq =min(abs(zumCumLiq-liqFracA*zumA),a_naerop(k,i,j,bb))
-                       a_ncloudp(k,i,j,bb-3) = a_ncloudp(k,i,j,bb-3) + excessLiq
-                       zumCumLiq = zumCumLiq + excessLiq
-
-                       excessFracLiq = excessLiq/a_naerop(k,i,j,bb)
-                       excessFracLiq = MAX(0.0,MIN(1.0,excessFracLiq))
-
-                       a_naerop(k,i,j,bb)=(1.0-excessFracLiq)*a_naerop(k,i,j,bb)
-
-                       DO m=1,nspec
-                          a_mcloudp(k,i,j,(m-1)*ncld+bb-3) = &
-                              excessFracLiq*a_maerop(k,i,j,(m-1)*nbins+bb)
-
-                          a_maerop(k,i,j,(m-1)*nbins+bb) = &
-                             (1.0-excessFracLiq)*a_maerop(k,i,j,(m-1)*nbins+bb)
-                       END DO
-
-                    END IF
-
-                 END DO ! fn2a
-
-                zumCumIce = 0.0
-                zumCumLiq = 0.0
-                excessFracIce = 1.0
-                excessFracLiq = 1.0
-                DO bb=fn2b,in2b,-1
-                   IF(a_scr1(k,i,j) < 273.15 .and. zumCumIce<iceFracB*zumB  .and. a_naerop(k,i,j,bb)>10e-10) THEN !initialize ice if it is cold enough
-
-                      excessIce =min(abs(zumCumIce-iceFracB*zumB),a_naerop(k,i,j,bb))
-                      a_nicep(k,i,j,bb-3) = a_nicep(k,i,j,bb-3) + excessIce
-                      zumCumIce = zumCumIce + excessIce
-
-                      excessFracIce = excessIce/a_naerop(k,i,j,bb)
-                      excessFracIce = MAX(0.0,MIN(1.0,excessFracIce))
-
-                      a_naerop(k,i,j,bb)=(1.0-excessFracIce)*a_naerop(k,i,j,bb)
-
-                      DO m=1,nspec
-                         a_micep(k,i,j,(m-1)*nice+bb-3) = &
-                             excessFracIce*a_maerop(k,i,j,(m-1)*nbins+bb)
- 
-                         a_maerop(k,i,j,(m-1)*nbins+bb) = &
-                            (1.0-excessFracIce)*a_maerop(k,i,j,(m-1)*nbins+bb)
-                      END DO
-                   END IF
-
-                   IF (a_rh(k,i,j)>1.0 .and. zumCumLiq<liqFracB*zumB .and. a_naerop(k,i,j,bb)>10e-10) THEN
-
-                      excessLiq =min(abs(zumCumLiq-liqFracB*zumB),a_naerop(k,i,j,bb))
-                      a_ncloudp(k,i,j,bb-3) = a_ncloudp(k,i,j,bb-3) + excessLiq
-                      zumCumLiq = zumCumLiq + excessLiq
-
-                      excessFracLiq = excessLiq/a_naerop(k,i,j,bb)
-                      excessFracLiq = MAX(0.0,MIN(1.0,excessFracLiq))
-
-                      a_naerop(k,i,j,bb)=(1.0-excessFracLiq)*a_naerop(k,i,j,bb)
-
-                      DO m=1,nspec
-                         a_mcloudp(k,i,j,(m-1)*ncld+bb-3) = &
-                             excessFracLiq*a_maerop(k,i,j,(m-1)*nbins+bb)
-
-                         a_maerop(k,i,j,(m-1)*nbins+bb) = &
-                             (1.0-excessFracLiq)*a_maerop(k,i,j,(m-1)*nbins+bb)
-                      END DO
-
-                   END IF
-                END DO ! fn2b
-
-             END DO ! i
-          END DO ! j
-       END DO ! 
-    END IF
-
-END SUBROUTINE liq_ice_init
 
   !
   ! ----------------------------------------------------------

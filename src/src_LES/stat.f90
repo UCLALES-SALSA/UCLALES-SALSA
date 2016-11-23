@@ -27,7 +27,7 @@ module stat
   implicit none
   private
 
-  integer, parameter :: nvar1 = 27,               &
+  integer, parameter :: nvar1 = 29,               &
                         nv1sbulk = 62,            &
                         nv1MB = 4,                &
                         nvar2 = 92,               &
@@ -57,9 +57,10 @@ module stat
   character (len=7), save :: s1(nvar1)=(/                           &
        'time   ','cfl    ','maxdiv ','zi1_bar','zi2_bar','zi3_bar', & ! 1
        'vtke   ','sfcbflx','wmax   ','tsrf   ','ustar  ','shf_bar', & ! 7
-       'lhf_bar','zi_bar ','lwp_bar','lwp_var','zc     ','zb     ', & !13
-       'cfrac  ','lmax   ','albedo ','rwp_bar','prcp   ','pfrac  ', & !19
-       'CCN    ','nrain  ','nrcnt  '/),                             & !25
+       'lhf_bar','zi_bar ','lwp_bar','lwp_var','iwp_bar','iwp_var', & ! 13
+       'zc     ','zb     ','cfrac  ','lmax   ','albedo ','rwp_bar', & ! 19
+       'prcp   ','pfrac  ','CCN    ','nrain  ','nrcnt  '            & ! 25
+       /),                                                          & ! total, 29
 
        ! **** Bulk temporal statistics for SALSA ****
        s1SalsaBulk(nv1sbulk) = (/                                    &
@@ -174,7 +175,7 @@ contains
     use grid, only : nxp, nyp, iradtyp, prtcl
     use mpi_interface, only : myid
     use mo_submctl, only : nbins, ncld, nprc, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
-                               ica,fca,icb,fcb,ira,fra
+                               ica,fca,icb,fcb,ira,fra, iia,fia,iib,fib,isa,fsa
     USE class_ComponentIndex, ONLY : IsUsed
 
     character (len=80), intent (in) :: filprf, expnme
@@ -457,7 +458,7 @@ contains
     call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2)
     ! Juha: Modified due to SALSA output
     call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp, inae_a=fn2a, inae_b=fn2b-fn2a, &
-                    incld_a=fca%cur, incld_b=fcb%cur-fca%cur, inprc=fra)
+                    incld_a=fca%cur, incld_b=fcb%cur-fca%cur, inice_a=fia%cur, inice_b=fib%cur-fia%cur, inprc=fra)
     if (myid == 0) print *, '   ...starting record: ', nrec2
 
   end subroutine init_stat
@@ -480,7 +481,7 @@ contains
          , a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean            &
          , vmean, dn0, precip, a_rpp, a_npp, albedo, CCN, iradtyp, a_rflx               &
          , a_sflx, albedo, a_rh,a_ncloudp,a_Rcwet,a_nprecpp,a_Rpwet,a_naerop,a_Rawet    &
-         , a_srp, a_snrp
+         , a_nicep, a_Riwet, a_nsnowp ,a_Rswet, a_srp,a_snrp
 
     real, intent (in) :: time
 

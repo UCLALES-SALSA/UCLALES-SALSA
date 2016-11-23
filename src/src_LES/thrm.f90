@@ -123,7 +123,7 @@ contains
                          tk(n1,n2,n3),  &     ! Absolute temperature
                          p(n1,n2,n3)          ! Air pressure
 
-    REAL, INTENT(out), OPTIONAL ::  ri(n1,n2,n3),  &     ! Total ice condensate mix rat        ! ice'n'snow
+    REAL, INTENT(out), OPTIONAL ::  ri(n1,n2,n3),  &     ! Total ice  mix rat                  ! ice'n'snow
                                     rsi(n1,n2,n3), &     ! Saturation mix rat over ice         ! ice'n'snow
                                     rhi(n1,n2,n3), &     ! relative humidity                   ! ice'n'snow
                                     srs(n1,n2,n3)        ! Snow mix rat                        ! ice'n'snow

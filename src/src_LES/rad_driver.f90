@@ -25,7 +25,7 @@ module radiation
 
 
   use defs, only       : cp, rcp, cpr, rowt, p00, pi, nv1, nv, SolarConstant
-  use fuliou, only     : rad,minSolarZenithCosForVis
+  use fuliou, only     : rad, minSolarZenithCosForVis
   implicit none
 
   character (len=50) :: background = 'datafiles/dsrt.lay'
@@ -143,17 +143,16 @@ module radiation
             !IF (ANY(nc /= nc)) write(*,*) 'SÄTEILY1', pre
             !IF (ANY(nc /= nc)) write(*,*) 'SÄTEILY2', nc
             !IF (ANY(nc /= nc)) write(*,*) 'SÄTEILY3', plwc
-            
+
 
             call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
                  fds, fus, fdir, fuir, plwc=plwc, pre=pre, useMcICA=.True.)
 
             do k=1,n1
                kk = nv1 - (k-1)
-               sflx(k,i,j) = fus(kk)  - fds(kk) 
+               sflx(k,i,j) = fus(kk)  - fds(kk)
                rflx(k,i,j) = sflx(k,i,j) + fuir(kk) - fdir(kk)
             end do
-
             if (u0 > minSolarZenithCosForVis) then
                albedo(i,j) = fus(1)/fds(1)
             else

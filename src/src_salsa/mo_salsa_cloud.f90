@@ -20,7 +20,7 @@ MODULE mo_salsa_cloud
   !
   ! Interface:
   ! ----------
-  ! Called from main aerosol model
+  ! Called from the salsa main subroutine
   !
   !
   ! Coded by:
@@ -33,6 +33,9 @@ MODULE mo_salsa_cloud
 
 CONTAINS
 
+
+  ! NOTE: THE ACTIVATION PROCEDURES DO NOT CURRENTLY ACCOUNT FOR INSOLUBLE CORES!!!
+  ! *********************************************************************************
   SUBROUTINE cloud_activation(kproma, kbdim, klev,   &
                               temp,   pres,  rv,     &
                               rs,     w,     paero,  &
@@ -89,10 +92,6 @@ CONTAINS
 
     ! Properties of newly activate particles
     TYPE(t_section), INTENT(out) :: pactd(kbdim,klev,ncld)
-
-    !! Properties of newly activated interstitial particles (for diagnostics)
-    !TYPE(t_section) :: pactd_intst(kbdim,klev,ncld)
-
 
     !-- local variables --------------
     INTEGER :: ii, jj, kk             ! loop indices
@@ -240,9 +239,6 @@ CONTAINS
              dv1= 1.e-4 * (0.211/x1) * ((temp(ii,jj)/273.)**1.94)
 
              rref = 10.e-9
-             !-- corrected diffusivity, part 1, eq (17)
-             ! dv = dv1 / (rref/(rref + deltaV) + (dv1/(rref * alphac)) *        &
-             !     SQRT(2.*pi*mwa/(rg*temp(ii,jj))))
 
              !-- thermal conductivity [J/(m s K)], Seinfeld and Pandis (15.75)
              ka1= 1.e-3 * (4.39 + 0.071 * temp(ii,jj))
@@ -268,11 +264,7 @@ CONTAINS
                   + ((s_eff**2)/(theta+3.*khi))**(3./4.))
 
              !-- Juha: Get the critical diameter corresponding to the maximum supersaturation
-             ! ------ NÄISTÄ LASKUISTA PUUTTUU LIUKENEMATTOMAN COREN VAIKUTUS?
              zdcstar = 2.*aa(ii,jj)/(3.*s_max)
-
-             !WRITE(*,*) s_max
-             !WRITE(*,*) zdcstar
 
              DO kk = in1a, fn2b
 
@@ -417,8 +409,6 @@ CONTAINS
   SUBROUTINE actInterst(kproma,kbdim,klev,paero,pcloud,prv,prs,paa)
     !
     ! Activate interstitial aerosols if they've reached their critical size
-    ! HUOM TEKEE VAAN A-BINIT NYT!!
-    !
     !
     ! 1. Formulate the profiles of Dwet within bins
     !      - Get the slopes between adjacent bin mids (known)
@@ -518,7 +508,7 @@ CONTAINS
                    Vim1 = Vlo/2.
                    Vlom1 = 0.
                    Vhim1 = Vlo
-                   Vwim1 = Vwmid/3. ! Tää ny o vähä tämmöne
+                   Vwim1 = Vwmid/3. ! Tää ny o vähä tämmöne !debugkebab
                 END IF
                 IF ( ab < fn2a ) THEN
                    Nip1 = paero(ii,jj,ab+1)%numc
@@ -702,8 +692,7 @@ CONTAINS
                        pdcrit, pdcrlo, pdcrhi, pdcstar, pactd   )
     !
     ! Gets the number and mass activated in the critical aerosol size bin
-    ! TEKEE NYT VAIN a-binit!!!!
-    !
+
     
     USE mo_submctl, ONLY : t_parallelbin, t_section, pi6, nlim, fn2b, ncld,  &
                                in1a,in2a,fn1a,fn2a, ica,fca,icb,fcb
@@ -859,7 +848,7 @@ CONTAINS
 
              END IF
 
-             !IF ( pactd(ii,jj,cb)%numc < 0. .OR. ANY(pactd(ii,jj,cb)%volc(:) < 0.) ) WRITE(*,*) 'HEPHEPHPE'
+             !IF ( pactd(ii,jj,cb)%numc < 0. .OR. ANY(pactd(ii,jj,cb)%volc(:) < 0.) ) WRITE(*,*) 'debugkebab'
              IF ( pactd(ii,jj,cb)%numc < -1.e-10 ) THEN
                 WRITE(*,*) 'activate3: negative numc, ',pactd(ii,jj,cb)%numc, ab
                 WRITE(*,*) dNim1,dNip1,dNmid
@@ -903,9 +892,6 @@ CONTAINS
     REAL, INTENT(in) :: ikk,icc,ilow,ihigh
     intgV = (1./3.)*ikk*MAX(ihigh**3 - ilow**3,0.) + 0.5*icc*MAX(ihigh**2 - ilow**2,0.)
   END FUNCTION intgV
-
-
-
 
   !-----------------------------------------
   SUBROUTINE autoconv2(kproma,kbdim,klev,   &
@@ -960,7 +946,6 @@ CONTAINS
                 dg = dvg*EXP( -3.*LOG(sigmag)**2 )
 
                 !testi = cumlognorm(2.19e-4,sigmag,zd0)
-                !WRITE(*,*) 'TESTAAN: ',testi
 
                 Vrem = Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) )
                 Nrem = Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )
@@ -1025,7 +1010,7 @@ CONTAINS
                                planck,      &
                                pi6,         &
                                pi,          &
-                               nlim, prlim,eps, debug
+                               nlim, prlim,iclim,eps, debug
     USE mo_constants, ONLY : rd, alf, avo
 
     IMPLICIT NONE
@@ -1041,19 +1026,6 @@ CONTAINS
                                       pice(kbdim,klev,nice),  &
                                       paero(kbdim,klev,fn2b)
 
-    REAL, PARAMETER :: zd00 = 30.e-6,  &  ! Drizzle onset mean diameter
-                           zd0 = 50.e-6,   &  ! Initial drizzle droplet diameter
-                           ze1 = 2.47,     &
-                           ze2 = -1.79,    &
-                           mult = 1.e-3
-    REAL :: dmixr,   &  ! Change in cloud droplet mixing ratio
-                cmixr,   &  ! Current mixing ratio
-                dnumb,   &  ! Change in droplet number concentration
-                frvol       ! Fractional change in volume concentration
-
-
-
-
 
     INTEGER :: ii,jj,kk,ss
     INTEGER :: hh
@@ -1063,23 +1035,20 @@ CONTAINS
     LOGICAL :: freez
     REAL :: Vrem, Nrem, Vtot, Ntot, frac
 
-
     DO kk = in2b, fn2b ! insoluble materials !1,nice
        DO ii = 1,kproma
 
           DO jj = 1,klev
-
 
               rdry = (3.*sum(paero(ii,jj,kk)%volc) /paero(ii,jj,kk)%numc/4./pi)**(1./3.) !! dry radius of particle  !!huomhuom pcloud vai paero
               qv = (1.-sum( paero(ii,jj,kk)%volc(3:4) ))/(1. - sum(paero(ii,jj,kk)%volc(1:7))) !!! the volume soluble fraction of the aerosol huomhuom tarkista tämän laskeminen
               rn = rdry*(1-qv)**(1./3.)
               jcf = calc_JCF( rn,ptemp(ii,jj), ppres(ii,jj), prv(ii,jj), prs(ii,jj) )
               phf = 1 - exp( -jcf*ptstep )
-!              if (phf > 0.)  write(*,*) 'phf ', phf, ' heterogenous debugkebab'
+
               Ntot = pcloud(ii,jj,kk)%numc
               Vtot = SUM(pcloud(ii,jj,kk)%volc(:))
 
-!              if ( phf> 0. ) write (*,*) 'phf ',phf , ' debugkebab'
 
               frac = MAX(0.,MIN(1.,phf))
 
@@ -1096,7 +1065,7 @@ CONTAINS
           END DO
        END DO
     END DO
-IF (debug)             write(*,*)  'nyt on jäänukleoitu ', ' debugkebab'
+
 
   END SUBROUTINE ice_het_nucl
   !***********************************************
@@ -1123,7 +1092,7 @@ IF (debug)             write(*,*)  'nyt on jäänukleoitu ', ' debugkebab'
                                planck,      &
                                pi6,         &
                                pi,          &
-                               nlim, prlim,eps
+                               nlim, prlim,iclim,eps
     USE mo_constants, ONLY : rd, alf, avo
 
     IMPLICIT NONE
@@ -1139,15 +1108,6 @@ IF (debug)             write(*,*)  'nyt on jäänukleoitu ', ' debugkebab'
                                       pice(kbdim,klev,nice),  &
                                       paero(kbdim,klev,fn2b)
 
-    REAL, PARAMETER :: zd00 = 30.e-6,  &  ! Drizzle onset mean diameter
-                           zd0 = 50.e-6,   &  ! Initial drizzle droplet diameter
-                           ze1 = 2.47,     &
-                           ze2 = -1.79,    &
-                           mult = 1.e-3
-    REAL :: dmixr,   &  ! Change in cloud droplet mixing ratio
-                cmixr,   &  ! Current mixing ratio
-                dnumb,   &  ! Change in droplet number concentration
-                frvol       ! Fractional change in volume concentration
 
 
     INTEGER :: ii,jj,kk,ss
@@ -1172,7 +1132,6 @@ IF (debug)             write(*,*)  'nyt on jäänukleoitu ', ' debugkebab'
               if (ptemp(ii,jj) > 243 ) cycle
               jhf = calc_JHF( NL , ptemp(ii,jj))
               phf = 1 - exp( -jhf*pi6*( rw**3 - rn**3 )*ptstep)
-!              if (phf > 0.)  write(*,*) 'phf ', phf, ' homogenous debugkebab'
               Ntot = paero(ii,jj,kk)%numc
               Vtot = SUM(paero(ii,jj,kk)%volc(:))
 
@@ -1199,8 +1158,6 @@ IF (debug)             write(*,*)  'nyt on jäänukleoitu ', ' debugkebab'
                pice(ii,jj,kk)%numc = max( 0., pice(ii,jj,kk)%numc + paero(ii,jj,kk)%numc*frac )
                paero(ii,jj,kk)%numc = max(0., paero(ii,jj,kk)%numc*(1. - frac) )
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
           END DO
        END DO
     END DO
@@ -1210,8 +1167,8 @@ IF (debug)             write(*,*)  'nyt on jäänukleoitu ', ' debugkebab'
 
   !***********************************************
   !
-  ! heterogenous immersion nucleation according to Dieh & Wurzler 2006 JAS 61:2063-2072
-  ! as of referenced as [Mor05]
+  ! heterogenous immersion nucleation according to Dieh & Wurzler 2004 JAS 61:2063-2072
+  ! as of referenced as [DW04]
   !
   !***********************************************
   SUBROUTINE ice_immers_nucl(kproma,kbdim,klev,   &
@@ -1233,9 +1190,10 @@ IF (debug)             write(*,*)  'nyt on jäänukleoitu ', ' debugkebab'
                                planck,      &
                                pi6,         &
                                pi,          &
-                               nlim, prlim,eps, &
+                               nlim, prlim,iclim,eps, &
                                debug
     USE mo_constants, ONLY : rd, alf, avo
+    use mpi_interface, ONLY : myid
 
     IMPLICIT NONE
 
@@ -1249,41 +1207,38 @@ IF (debug)             write(*,*)  'nyt on jäänukleoitu ', ' debugkebab'
 
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
                                       pice(kbdim,klev,nice)
-
-    REAL, PARAMETER :: zd00 = 30.e-6,  &  ! Drizzle onset mean diameter
-                           zd0 = 50.e-6,   &  ! Initial drizzle droplet diameter
-                           ze1 = 2.47,     &
-                           ze2 = -1.79,    &
-                           mult = 1.e-3
-    REAL :: dmixr,   &  ! Change in cloud droplet mixing ratio
-                cmixr,   &  ! Current mixing ratio
-                dnumb,   &  ! Change in droplet number concentration
-                frvol       ! Fractional change in volume concentration
-
-
     INTEGER :: ii,jj,kk,ss
     INTEGER :: hh
     REAL :: frac_numc = 0., & ! probability of homogeneous freezing of a wet aerosol particle
                 frac_volc = 0., &
-                frac,              &
-                Ts
+                frac = 0.,              &
+                Ts, frac_DW = 0., rsi
     LOGICAL :: freez
-    REAL :: Vrem, Nrem, Vtot, Ntot, &
+    REAL :: Vrem, Nrem, Vtot, Ntot, DV, DVt, &
                 a_kiehl, B_kiehl, nucl_rate, &
-                Nicetot, Vicetot, Vinsolub,Temp_tend
+                Nicetot, Vicetot, Vinsolub,Temp_tend,J_DW
+!    character(len=10) :: leadchr, leadchrICE ! #commentmpi
+!    character(len=14) :: filename, filenameICE ! #commentmpi
+!    leadchr='immersoitu' ! #commentmpi
+!    leadchrICE='ice' ! #commentmpi
+!    write(filename, '(A10,I4.4)') leadchr, myid ! #commentmpi
+!    write(filenameICE, '(A3,I4.4)') leadchrICE, myid ! #commentmpi
 
-      B_kiehl=1.0e-6
-      a_kiehl=1.0
-open(23, file="immersoitu", position='append')
+    B_kiehl=6.15e-8*1e6 ! kaolinite         !1.0e-6
+    a_kiehl=1.0
+
+!open(23, file=filename, position='append') ! #commentmpi
+!open(24, file=filenameICE, position='append') ! #commentmpi
     DO kk =1,nice  ! insoluble materials !
        DO ii = 1,kproma
 
           DO jj = 1,klev
-
+              rsi = prv(ii,jj)/prs(ii,jj) ! sup sat over ice
               Ntot = pcloud(ii,jj,kk)%numc
               Vtot = SUM(pcloud(ii,jj,kk)%volc(:))
-              write(23,'(A12,A3,I3,A5,F5.1, 3(A5,ES9.1E3))') &
-              'tulostusta','kk', kk, 'aika',time, 'Vtot',Vtot,'Ntot',Ntot, 'dwet', pcloud(ii,jj,kk)%dwet
+              DV = pi6*pcloud(ii,jj,kk)%dwet**3
+              DVt = DV*Ntot
+
               Vinsolub = SUM(pcloud(ii,jj,kk)%volc(3:4))
 
               Nicetot = pice(ii,jj,kk)%numc
@@ -1291,39 +1246,59 @@ open(23, file="immersoitu", position='append')
 
               Ts = 273.15-ptemp(ii,jj)
               Temp_tend = ptt(ii,jj)
-              if (Temp_tend > 0. .and. abs(Ntot)<eps .and.  Vinsolub < eps)  then
-                    write(23,*) 'temp_0_N_0_insolub_0', time
-              elseif(Temp_tend > 0. .and. abs(Ntot)<eps .and.  Vinsolub > eps) then
-                    write(23,*) 'temp_0_N_0_insolub_1', time
-              elseif(Temp_tend > 0. .and. abs(Ntot)>eps .and.  Vinsolub < eps) then
-                    write(23,*) 'temp_0_N_1_insolub_0', time
-              elseif(Temp_tend > 0. .and. abs(Ntot)>eps .and.  Vinsolub > eps) then
-                    write(23,*) 'temp_0_N_1_insolub_1', time, Temp_tend
-              elseif(Temp_tend < 0. .and. abs(Ntot)<eps .and.  Vinsolub < eps) then
-                    write(23,*) 'temp_1_N_0_insolub_0', time, Temp_tend
-              elseif(Temp_tend < 0. .and. abs(Ntot)<eps .and.  Vinsolub > eps) then
-                    write(23,*) 'temp_1_N_0_insolub_1', time, Temp_tend
-              elseif(Temp_tend < 0. .and. abs(Ntot)>eps .and.  Vinsolub < eps) then
-                    write(23,*) 'temp_1_N_1_insolub_0', time, Temp_tend
-              elseif(Temp_tend < 0. .and. abs(Ntot)>eps .and.  Vinsolub > eps) then
-                    write(23,'(A25,A5,F7.1, A5, I3, 9(A15,ES10.1E3))') 'temp_1_N_1_insolub_1', &
-                    'aika',time,'bini', kk,&
-                    'tend', Temp_tend,              'Ntot', Ntot,           'Nicetot', Nicetot,&
-                    'Vtot', Vtot,                   'Vinsolub', Vinsolub,   'Vtot/Ntot', Vtot/Ntot, &
-                    'Vinsolub/Vtot', Vinsolub/Vtot, 'dwet cloud', pcloud(ii,jj,kk)%dwet,&
-                    'dwet ice', pice(ii,jj,kk)%dwet
-              end if
+              if (rsi< 1.0 .or. Ts<0.0) cycle
+!              write(23,*) ' '
+!              write(23,*) 'sup sat over ice', rsi
+!              ! #commentmpi##########################################
+!              write(23,'(A12,A3,I3,A5,F5.1, 7(A5,ES9.1E3))') &                                           ! #commentmpi
+!              'tulostusta','kk', kk, 'aika',time, 'Vtot',Vtot,'Ntot',Ntot, 'dwet', pcloud(ii,jj,kk)%dwet,&! #commentmpi
+!                                                  'DV', DV, 'DVt', DVt, 'Ts', Ts, 'TT', Temp_tend
+!
+!              if (Temp_tend > 0. .and. abs(Ntot)<eps .and.  Vinsolub < eps)  then                        ! #commentmpi
+!                    cycle
+!                    !write(23,*) 'temp_0_N_0_insolub_0', time                                            ! #commentmpi
+!!              elseif(Temp_tend > 0. .and. abs(Ntot)<eps .and.  Vinsolub > eps) then                     ! #commentmpi
+!!                    write(23,*) 'temp_0_N_0_insolub_1', time                                            ! #commentmpi
+!!              elseif(Temp_tend > 0. .and. abs(Ntot)>eps .and.  Vinsolub < eps) then                     ! #commentmpi
+!!                    write(23,*) 'temp_0_N_1_insolub_0', time                                            ! #commentmpi
+!!              elseif(Temp_tend > 0. .and. abs(Ntot)>eps .and.  Vinsolub > eps) then                     ! #commentmpi
+!!                    write(23,*) 'temp_0_N_1_insolub_1', time, Temp_tend                                 ! #commentmpi
+!!              elseif(Temp_tend < 0. .and. abs(Ntot)<eps .and.  Vinsolub < eps) then                     ! #commentmpi
+!!                    write(23,*) 'temp_1_N_0_insolub_0', time, Temp_tend                                 ! #commentmpi
+!!              elseif(Temp_tend < 0. .and. abs(Ntot)<eps .and.  Vinsolub > eps) then                     ! #commentmpi
+!!                    write(23,*) 'temp_1_N_0_insolub_1', time, Temp_tend                                 ! #commentmpi
+!!              elseif(Temp_tend < 0. .and. abs(Ntot)>eps .and.  Vinsolub < eps) then                     ! #commentmpi
+!!                    write(23,*) 'temp_1_N_1_insolub_0', time, Temp_tend                                 ! #commentmpi
+!!              elseif(Temp_tend < 0. .and. abs(Ntot)>eps .and.  Vinsolub > eps) then                     ! #commentmpi
+!!                    write(23,'(A25,A5,F7.1, A5, I3, 10(A15,ES10.1E3))') 'temp_1_N_1_insolub_1', &   	  ! #commentmpi
+!!                    'aika',time,'bini', kk,&                                                        	  ! #commentmpi
+!!                    'tend', Temp_tend,              'Ntot', Ntot,           'Nicetot', Nicetot,&        ! #commentmpi
+!!                    'Vtot', Vtot,                   'Vinsolub', Vinsolub,   'Vtot/Ntot', Vtot/Ntot, &   ! #commentmpi
+!!                    'Vinsolub/Vtot', Vinsolub/Vtot, 'dwet cloud', pcloud(ii,jj,kk)%dwet,&               ! #commentmpi
+!!                    'dwet ice', pice(ii,jj,kk)%dwet, 'Ts', Ts                                           ! #commentmpi
+!              end if                                                                                     ! #commentmpi
+!
+!!             !#commentmpi##########################################
+
+              if (Temp_tend > 0. .or. abs(Ntot)<iclim .or.  Vinsolub < eps) cycle  ! #icelimit
 
 
-              if (Temp_tend > 0. .or. abs(Ntot)<eps .or.  Vinsolub < eps) cycle
+!              nucl_rate = Vtot*(-a_kiehl)*B_kiehl*exp(a_kiehl*Ts)*Temp_tend*ptstep
 
-              if (Temp_tend > 0. .or. abs(Ntot)<eps .or.  Vinsolub < eps) cycle
-!              write(*,*) 'nyt vois tulla jääpilvee debugkebab'
-              nucl_rate = Vtot*(-a_kiehl)*B_kiehl*exp(a_kiehl*Ts)*Temp_tend*ptstep
+              J_DW = a_kiehl*B_kiehl*exp(a_kiehl*Ts)*-Temp_tend*ptstep ! nucleation rate according to Diehl & Wurzler
+!              write(23,*) a_kiehl, B_kiehl, exp(a_kiehl*Ts)*-Temp_tend*ptstep            ! #commentmpi
+!              write(23,*) 'J_Dw ', J_DW, ' -(J_DW*DV) ', -(J_DW*DV*-Temp_tend*ptstep)    ! #commentmpi
+!              write(23,*) 'exp(-(J_DW*DV)) ', exp(-(J_DW*DV*-Temp_tend*ptstep))          ! #commentmpi
+!              frac = (nucl_rate+Nicetot)/max(eps,Ntot)                 ! #commentmpi
 
-              frac = (nucl_rate+Nicetot)/max(eps,Ntot)
+              frac = 1.-exp(-(J_DW*DV))
+
+
 
               frac = MAX(0.,MIN(1.,frac))
+
+            ! if (pcloud(ii,jj,kk)%numc*frac > 1e-8*ptstep) cycle
+!              write(23,*) 'frac ', frac                            ! #commentmpi
 
               DO ss = 1,8
                       pice(ii,jj,kk)%volc(ss) = max(0., pice(ii,jj,kk)%volc(ss) + &
@@ -1335,7 +1310,7 @@ open(23, file="immersoitu", position='append')
                pice(ii,jj,kk)%numc = max( 0., pice(ii,jj,kk)%numc + pcloud(ii,jj,kk)%numc*frac )
                pcloud(ii,jj,kk)%numc = max(0., pcloud(ii,jj,kk)%numc*(1. - frac) )
 
-               if(pice(ii,jj,kk)%numc-Nicetot>0.0) write(23,*) 'jäätä', pice(ii,jj,kk)%numc-Nicetot, frac, Ts, Temp_tend
+!               if(pice(ii,jj,kk)%numc-Nicetot > eps) write(24,*) 'some ice', pice(ii,jj,kk)%numc-Nicetot, frac, Ts, Temp_tend ! #commentmpi
 
 
 
@@ -1345,10 +1320,206 @@ open(23, file="immersoitu", position='append')
           END DO
        END DO
     END DO
-close(23)
+!close(23) ! #commentmpi
+!close(24) ! #commentmpi
     IF (debug)              write(*,*)  'nyt on immersoitu ', ' debugkebab'
 
   END SUBROUTINE ice_immers_nucl
+
+
+  SUBROUTINE ice_basic_nucl(kproma,  kbdim,  klev,   &
+                            pcloud,  pice,   ppres,  &
+                            ptemp,   prv,    prs,    &
+                            ptstep                   )
+
+    USE mo_submctl, ONLY : t_section,   &
+                               ica,fca,     &
+                               icb,fcb,     &
+                               ncld,        &
+                               iia,fia,     &
+                               iib,fib,     &
+                               nice,        &
+                               rhowa,       &
+                               rhoic,       &
+                               planck,      &
+                               pi6,         &
+                               pi,          &
+                               nlim, prlim,iclim
+
+    IMPLICIT NONE
+    INTEGER, INTENT(in) :: kbdim,kproma,klev
+    REAL, INTENT(in) :: ptstep
+    REAL, INTENT(in) :: ppres(kbdim,klev),  &
+                            ptemp(kbdim,klev),  &
+                            prv(kbdim,klev),    &
+                            prs(kbdim,klev)
+
+    TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
+                                      pice(kbdim,klev,nice)
+
+    INTEGER :: ii,jj,kk,ss
+
+    REAL :: frac = 0.0, t0, t1
+
+    DO kk = 1,nice
+       DO ii = 1,kproma
+          DO jj = 1,klev
+
+!              !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!              !!  ihan omasta päästä -parametrisaatio      !!
+!              !! Shupe et al 2006
+!              !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+              t0 = 0.
+              t1 = -40.
+
+
+!              if(  pcloud(ii,jj,kk)%volc(4)  < iclim ) cycle
+
+!              frac = 1/(t1-t0)*(ptemp(ii,jj)-273.15)
+!              frac = MAX(0.,MIN(1.,frac))
+              frac = 1.e-4
+              DO ss = 1,8
+                      pice(ii,jj,kk)%volc(ss) = max(0., pice(ii,jj,kk)%volc(ss) + &
+                                                           pcloud(ii,jj,kk)%volc(ss)*frac)
+
+                      pcloud(ii,jj,kk)%volc(ss) = max(0., pcloud(ii,jj,kk)%volc(ss)*(1. - frac))
+               END DO
+
+               pice(ii,jj,kk)%numc = max( 0., pice(ii,jj,kk)%numc + pcloud(ii,jj,kk)%numc*frac )
+               pcloud(ii,jj,kk)%numc = max(0., pcloud(ii,jj,kk)%numc*(1. - frac) )
+
+          END DO
+       END DO
+    END DO
+
+  END SUBROUTINE ice_basic_nucl
+
+!! in given hard coded conditions keep the ice particle number concentration over given limit #/kg
+  SUBROUTINE ice_fixed_NC(kproma,  kbdim,  klev,   &
+                          pcloud,  pice,   ppres,  &
+                          ptemp,   prv,    prs,    &
+                          prsi,    ptstep, pdn, time     )
+
+
+    USE mo_submctl, ONLY : t_section,   &
+                               ica,fca,     &
+                               icb,fcb,     &
+                               ncld,        &
+                               iia,fia,     &
+                               iib,fib,     &
+                               nice,        &
+                               rhowa,       &
+                               rhoic,       &
+                               planck,      &
+                               pi6,         &
+                               pi,          &
+                               eps,         &
+                               nlim, prlim,iclim, fixinc
+
+    IMPLICIT NONE
+    INTEGER, INTENT(in) :: kbdim,kproma,klev
+    REAL, INTENT(in) :: ptstep, time  ! time step length
+
+    REAL, INTENT(in) :: ppres(kbdim,klev),  &
+                            ptemp(kbdim,klev),  &
+                            prv(kbdim,klev),    &
+                            prs(kbdim,klev),    &
+                            prsi(kbdim,klev),   &
+                            pdn(kbdim, klev)       ! air density
+    TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
+                                      pice(kbdim,klev,nice)
+
+    INTEGER :: ii,jj,kk,ss
+
+    REAL :: frac, tC, liqsupsat, icesupsat, old_INC, new_INC,old_LNC, new_LNC, fixed, ashnikushni, &
+                zumCN, zumCumIce, excessFracIce, excessIce
+
+
+
+
+    DO ii = 1,kproma
+    DO jj = 1,klev
+
+        fixed     = fixinc * 1000.0 * pdn(ii,jj)
+
+        liqsupsat = prv(ii,jj) /  prs(ii,jj) - 1.0
+        icesupsat = prv(ii,jj) / prsi(ii,jj) - 1.0
+        tC = ptemp(ii,jj) - 273.15 ! absolute temperature in celsius degrees
+        if( .NOT. ( (liqsupsat >= -0.001 .and. tC <= -8. .and. tC > -38.) .OR. icesupsat >= 0.08 )   ) cycle
+
+        zumCN         = sum( pcloud(ii,jj,:)%numc )
+        zumCumIce     = sum(   pice(ii,jj,:)%numc )
+        excessIce     = 0.0
+        excessFracIce = 1.0
+!        write(*,*) ' '
+!        write(*,*) ' '
+!        write(*,*) ' zumCumIce ', zumCumIce
+!        write(*,*) ' '
+
+        if ( zumCumIce > fixed ) cycle
+
+        DO kk = nice,1,-1
+
+
+            IF( zumCumIce < fixed ) THEN
+
+
+
+
+
+                old_LNC = pcloud(ii,jj,kk)%numc
+                old_INC = pice(ii,jj,kk)%numc
+
+                if (old_LNC < 1e-10 ) cycle
+
+                excessIce = min( fixed - zumCumIce , pcloud(ii,jj,kk)%numc ) / 5.0 ! division by two means nudging towards the fixed value
+
+                pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + excessIce
+
+                zumCumIce = zumCumIce + excessIce
+
+                excessFracIce = MAX( 0.0, MIN( 1.0, excessIce /  pcloud(ii,jj,kk)%numc) )
+
+                pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - excessIce
+
+
+
+                new_INC =   pice(ii,jj,kk)%numc
+                new_LNC = pcloud(ii,jj,kk)%numc
+!                write(*,*) ' '
+!                write(*,*) ' voidaan tehda jaata, aika: ', time, ' bini ', kk
+!                write(*,*) 'liqsupsat ', liqsupsat, ' icesupsat '  , icesupsat
+!                write(*,*) ' temp C ', tC
+!                write(*,*) ' fixed ice numc ', fixed, ' zumCN', zumCN, ' pdn ', pdn(ii,jj)
+!
+!                write(*,*) 'old inc', old_INC, ' new inc ', new_INC
+!                write(*,*) 'old lnc', old_LNC, ' new lnc ', new_LNC
+!                write(*,*) ' old_LNC - new_LNC', old_LNC - new_LNC, 'new_INC', new_INC
+!                write(*,*) ' excessFracIce ', excessFracIce
+!                write(*,*) ' new zumCumIce ', zumCumIce
+!                write(*,*) ' '
+
+
+                DO ss = 1,8
+                    pice(ii,jj,kk)%volc(ss)   = pice(ii,jj,kk)%volc(ss)   +  max(0., pcloud(ii,jj,kk)%volc(ss)*excessFracIce )
+                    pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) -  max(0., pcloud(ii,jj,kk)%volc(ss)*excessFracIce )
+                END DO
+
+            END IF
+
+
+
+
+
+        END DO
+        !END DO
+    END DO
+    END DO
+
+  END SUBROUTINE ice_fixed_NC
+
 
   ! ------------------------------------------------------------
 
@@ -1524,7 +1695,7 @@ close(23)
                                nprc,        &
                                rhowa,       &
                                pi6,         &
-                               nlim, prlim
+                               nlim, prlim,iclim
     USE mo_constants, ONLY : rd
 
     IMPLICIT NONE
@@ -1601,7 +1772,7 @@ close(23)
                                nsnw,        &
                                rhowa,       &
                                pi6,         &
-                               nlim, debug
+                               nlim,iclim, debug
     USE mo_constants, ONLY : rd
     IMPLICIT NONE
 
