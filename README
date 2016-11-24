@@ -13,7 +13,8 @@ or an MPI build for parallel multiprocessor runs. Note that you
 probably have to adjust the paths to MPI and NetCDF libraries in the
 makefile found in the model root folder. Makefile_ubuntu and 
 Makefile_CRAY provide examples for a simple ubuntu workstation and
-a Cray supercomputing cluster.
+a Cray supercomputing cluster. The code compiles correctly at least 
+with GCC. Intel compilers should work, too.
 
 After compiling the model, the executable is found in the bin-folder
 together with the runscript "runles". This should be used for both
