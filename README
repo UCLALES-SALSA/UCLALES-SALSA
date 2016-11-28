@@ -1,0 +1,32 @@
+
+UCLALES-SALSA is a Large-Eddy model coupled with a detailed sectional 
+microphysics module for aerosol, clouds and precipitation.
+
+To install this model, simply type 
+   >> git clone https://github.com/UCLALES-SALSA/UCLALES-SALSA.git
+and run 
+   >> make seq
+or
+   >> make mpi
+depending if you want a sequential build for single-processor runs
+or an MPI build for parallel multiprocessor runs. Note that you
+probably have to adjust the paths to MPI and NetCDF libraries in the
+makefile found in the model root folder. Makefile_ubuntu and 
+Makefile_CRAY provide examples for a simple ubuntu workstation and
+a Cray supercomputing cluster. The code compiles correctly at least 
+with GCC. Intel compilers should work, too.
+
+After compiling the model, the executable is found in the bin-folder
+together with the runscript "runles". This should be used for both
+parallel and sequential runs. You probably need to adjust the generation
+of the file job.sh at the end of the script according to the specifics 
+of your local batch system. The bin folder contains all the necessary files
+to perform a testrun.
+
+Case specific runscripts and sound-in files used in publications
+will be available in another repository at 
+  https://github.com/UCLALES-SALSA/CONFIGURATION-FILES
+For simple cases, just replace the runscript and sound-in files
+in the bin-directory of the model with the case-specific ones. If 
+anything more elaborate is necessary, this will be documented with 
+the case-specific configuration files.

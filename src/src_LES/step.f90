@@ -356,7 +356,6 @@ end subroutine tstep_reset
 
     call thermo(level)
 
-    ! TÄSTÄ TULEE VÄLILLÄ JOTAIN HÄRÖJÄ + EI OLE TÄRKEÄ? Flagi namelistissa FALSE
     call corlos
 
     call ladvect
@@ -432,13 +431,6 @@ end subroutine tstep_reset
              ! Aerosols
              DO cc = 1,nbins
 
-                !volp = 0.
-                !volt = 0.
-                !DO ni = 1,nn
-                !   volp(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !   volt(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !END DO
-
                 IF ( a_naerop(kk,ii,jj,cc)+a_naerot(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
                    a_naerot(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_naerop(kk,ii,jj,cc))/dtlt,a_naerot(kk,ii,jj,cc))
@@ -453,13 +445,6 @@ end subroutine tstep_reset
 
              ! Cloud droplets
              DO cc = 1,ncld
-
-                !volp = 0.
-                !volt = 0.
-                !DO ni = 1,nn
-                !   volp(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !   volt(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !END DO
 
                 IF ( a_ncloudp(kk,ii,jj,cc)+a_ncloudt(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
@@ -476,13 +461,6 @@ end subroutine tstep_reset
              ! Precipitation
              DO cc = 1,nprc
 
-                !volp = 0.
-                !volt = 0.
-                !DO ni = 1,nn
-                !   volp(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !   volt(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !END DO
-
                 IF ( a_nprecpp(kk,ii,jj,cc)+a_nprecpt(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
                    a_nprecpt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nprecpp(kk,ii,jj,cc))/dtlt,a_nprecpt(kk,ii,jj,cc))
@@ -498,13 +476,6 @@ end subroutine tstep_reset
              ! ice particles
              DO cc = 1,nice
 
-                !volp = 0.
-                !volt = 0.
-                !DO ni = 1,nn
-                !   volp(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !   volt(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !END DO
-
                 IF ( a_nicep(kk,ii,jj,cc)+a_nicet(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
                    a_nicet(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nicep(kk,ii,jj,cc))/dtlt,a_nicet(kk,ii,jj,cc))
@@ -519,13 +490,6 @@ end subroutine tstep_reset
 
              ! Snow
              DO cc = 1,nsnw
-
-                !volp = 0.
-                !volt = 0.
-                !DO ni = 1,nn
-                !   volp(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !   volt(ni) = a_maerop(kk,ii,jj,(ni-1)*nbins+cc)
-                !END DO
 
                 IF ( a_nsnowp(kk,ii,jj,cc)+a_nsnowt(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
@@ -544,32 +508,6 @@ end subroutine tstep_reset
        END DO ! ii
 
     END DO ! jj
-
-
-
-    !WHERE ( a_naerop(:,:,:,:)+a_naerot(:,:,:,:)*dtlt < 0. )
-    !   a_naerot(:,:,:,:) = MAX(((1.e-10-1.0)*a_naerop(:,:,:,:))/dtlt,a_naerot(:,:,:,:))
-    !ENDWHERE
-
-    !WHERE ( a_ncloudp(:,:,:,:)+a_ncloudt(:,:,:,:)*dtlt < 0. )
-    !   a_ncloudt(:,:,:,:) = MAX(((1.e-10-1.0)*a_ncloudp(:,:,:,:))/dtlt,a_ncloudt(:,:,:,:))
-    !ENDWHERE
-
-    !WHERE ( a_nprecpp(:,:,:,:)+a_nprecpt(:,:,:,:)*dtlt < 0. )
-    !   a_nprecpt(:,:,:,:) = MAX(((1.e-10-1.0)*a_nprecpp(:,:,:,:))/dtlt,a_nprecpt(:,:,:,:))
-    !ENDWHERE
-
-    !WHERE ( a_maerop(:,:,:,:)+a_maerot(:,:,:,:)*dtlt < 0. )
-    !   a_maerot(:,:,:,:) = MAX(((1.e-10-1.0)*a_maerop(:,:,:,:))/dtlt,a_maerot(:,:,:,:))
-    !ENDWHERE
-
-    !WHERE ( a_mcloudp(:,:,:,:)+a_mcloudt(:,:,:,:)*dtlt < 0. )
-    !   a_mcloudt(:,:,:,:) = MAX(((1.e-10-1.0)*a_mcloudp(:,:,:,:))/dtlt,a_mcloudt(:,:,:,:))
-    !ENDWHERE
-
-    !WHERE ( a_mprecpp(:,:,:,:)+a_mprecpt(:,:,:,:)*dtlt < 0. )
-    !   a_mprecpt(:,:,:,:) = MAX(((1.e-10-1.0)*a_mprecpp(:,:,:,:))/dtlt,a_mprecpt(:,:,:,:))
-    !ENDWHERE
 
   END SUBROUTINE tend_constrain
   !

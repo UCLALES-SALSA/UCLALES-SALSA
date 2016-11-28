@@ -78,8 +78,7 @@ contains
        ! spin-up period to set up aerosol and cloud fields.
        IF (level >= 4) THEN
 
-          !WRITE(*,*) a_rh(:,3,3)
-          ! Interst. aktivaatiolla tääkin aika turha tässä
+          ! This is not needed? Check & remove
           CALL maskactiv(zactmask,nxp,nyp,nzp,nbins,1,prtcl,a_rh)
 
           n4 = GetNcomp(prtcl) + 1 ! Aerosol compoenents + water
@@ -277,8 +276,6 @@ contains
     call atob(nxyzp,a_up,a_uc)
     call atob(nxyzp,a_vp,a_vc)
     call atob(nxyzp,a_wp,a_wc)
-    !call atob(nxyzp,a_pexnr,a_press) ! a_press asetetaan thermossa! Tämä rivi vaan nollaa sen ja menee rikki kaikki!
-
 
     return
   end subroutine fldinit
@@ -741,9 +738,6 @@ contains
     DO bb = ica%cur, fca%cur
        bbpar = ica%par + (bb-ica%cur)
 
-       ! JOS INITIALISOINNISSA INTERSTACT, TÄTÄ EI PIDÄ TEHÄ!
-       !CALL ActInit(bb,bbpar,pactmask)
-
        CALL DiagInitCloud(bb)
 
     END DO! bb
@@ -751,9 +745,6 @@ contains
     ! Regime b
     DO bb = icb%cur, fcb%cur
        bbpar = icb%par + (bb-icb%cur)
-
-       ! JOS INITIALISOINNISSA INTERSTACT, TÄTÄ EI PIDÄ TEHÄ!
-       !CALL ActInit(bb,bbpar,pactmask)
 
        CALL DiagInitCloud(bb)
 
@@ -904,7 +895,7 @@ contains
 
                 IF (a_nicep(k,i,j,b)  > 1.) THEN
                    CALL binMixrat('ice','dry',b,i,j,k,zvol)
-					zvol = zvol/rhosu !! huomhuom onko oikea density
+					zvol = zvol/rhosu !! density should be revised
                    a_Ridry(k,i,j,b) = 0.5*( zvol/(pi6*a_nicep(k,i,j,b)) )**(1./3.)
                    CALL binMixrat('ice','wet',b,i,j,k,zvol)
 					zvol = zvol/rhoic
@@ -979,8 +970,6 @@ contains
   !
   ! Tomi Raatikainen, FMI, 29.2.2016
   !
-  ! TÄMÄ EI PIDÄ HUOLTA ETTÄ TIEDOSTOSTA LUETUT MASSAFRAKTIOT VASTAAVAT NAMELIST.SALSASSA ANNETTUJA AINEITA
-  ! Myöskin ulottuvuuksien pitää vastata malliin annettuja
   SUBROUTINE aerosol_init
 
     USE class_componentIndex, ONLY : getIndex,IsUsed
@@ -1076,7 +1065,7 @@ contains
           ! Pure SO4
           pvfOC1a(:) = 0.0
        ELSE
-          ! Jos näit' ei ole niin laitetaan vaan nollaa kehiin?
+          ! Just put zeros if this happens?
           STOP 'Either OC or SO4 must be active for aerosol region 1a!'
        ENDIF
 

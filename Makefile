@@ -1,14 +1,10 @@
 ###############################################################
 #
-# Type of code to build $CNFG, location of code (in $ROOT) and 
-# location where model is to be built $BIN
+# Llocation of code (in $ROOT) and location where model is to be built $BIN
 #
-ROOT      = /lustre/tmp/tonttila/UCLALES-SALSA
+ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BIN       = $(ROOT)/bin
 ARCH      := $(shell uname)
-#
-# Define machine dependent variables
-#
 #
 # Generic Variables
 #
@@ -27,13 +23,14 @@ RANLIB =:
 SEQFFLAGS = -I$(SRC)
 MPIFFLAGS = -I$(SRC)
 NCDF = /usr
-NCDFLIB = #'-L$(NCDF)/lib -lnetcdf -lnetcdff'
-NCDFINC = #-I$(NCDF)/include
-LIBS = #$(NCDFLIB)
-F90 = ftn
-MPIF90 = ftn
-FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} #-O1  -fbounds-check -fdefault-real-8 ${NCDFINC}
-F77FLAGS = -O2 #-O1 -fbounds-check  
+NCDFLIB = '-L$(NCDF)/lib -lnetcdf -lnetcdff'
+NCDFINC = -I$(NCDF)/include
+LIBS = $(NCDFLIB)
+F90 = f95
+MPIF90 = f95
+FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} #-fbounds-check  -g -fcheck=all  -Wall -Wtabs -fbacktrace -ffpe-trap=invalid,zero,overflow
+F77FLAGS = -O2 #-fbounds-check  -ffpe-trap=invalid,zero,overflow
+
 
 LES_OUT_MPI=$(BIN)/les.mpi
 

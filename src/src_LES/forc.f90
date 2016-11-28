@@ -48,9 +48,7 @@ contains
 
     real :: xka, fr0, fr1, xref1, xref2
     REAL :: zrv(nzp,nxp,nyp), znc(nzp,nxp,nyp)
-    
-
-     
+         
     ! DIVERGENCE GIVEN FROM NAMELIST
     if (trim(case_name) == 'atex') then
        xka = 130.
