@@ -6,7 +6,6 @@ MODULE mo_submctl
 
   PRIVATE
 
-  !M7 and SALSA
   PUBLIC :: lspropupdate,lsdistupdate,nsnucl
 
   PUBLIC :: oldupdate, debug
@@ -108,10 +107,8 @@ MODULE mo_submctl
      INTEGER :: par  ! Index for corresponding parallel distribution
   END TYPE t_parallelbin
 
-  !--- 1) Define and pre-set switches for the processes of M7: -----------------------
-
-  !--- Physical:
-  !Switches for both M7 and SALSA aerosol microphysical processes
+    !--- Physical:
+  !Switches for SALSA aerosol microphysical processes
   LOGICAL :: oldupdate  = .FALSE.
   LOGICAL :: nldebug      = .FALSE., & ! debuggin output
              debug
@@ -190,19 +187,14 @@ MODULE mo_submctl
   
   LOGICAL :: lspropupdate = .FALSE.  ! Update diagnostic particle properties between processes
 
-  ! 1) Switches for M7 aerosol microphysical processes ------------------------
+  ! 1) Switches for aerosol microphysical processes ------------------------
   INTEGER, PARAMETER :: nmod = 7
   INTEGER :: nwater     = 1         ! Aerosol water uptake scheme:
                                     !
                                     ! nwater = 0 Jacobson et al., JGR 1996
                                     !        = 1 Kappa-Koehler theory based approach (Petters and Kreidenweis, ACP 2007)
 
-  INTEGER :: nsnucl     = 0         ! Choice of the H2SO4/H2O nucleation scheme:
-                                    ! M7:
-                                    ! nsnucl = 0 off
-                                    !        = 1 Vehkamaeki et al., JGR 2002
-                                    !        = 2 Kazil and Lovejoy, ACP 2007
-                                    ! SALSA:
+  INTEGER :: nsnucl     = 0         ! Choice of the nucleation scheme:
                                     ! 0 = off   
                                     ! 1 = binary nucleation
                                     ! 2 = activation type nucleation
