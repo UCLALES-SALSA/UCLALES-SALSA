@@ -1,6 +1,6 @@
 ###############################################################
 #
-# Location of code (in $ROOT) and location where model is to be built $BIN
+# Llocation of code (in $ROOT) and location where model is to be built $BIN
 #
 ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BIN       = $(ROOT)/bin
@@ -18,24 +18,18 @@ VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC)
 ECHO    = /bin/echo
 RM      = /bin/rm -f
 
-NETCDFROOT         = /opt/cray/netcdf/4.3.0/intel/130
-NETCDF_LIB         = -L$(NETCDFROOT)/lib -lnetcdff -lnetcdf
-NETCDF_INCLUDE     = -I$(NETCDFROOT)/include
-
-HDF5ROOT           = /opt/cray/hdf5/1.8.11/intel/130
-HDF5_LIB           = -L$(HDF5ROOT)/lib -lhdf5_hl -lhdf5
-HDF5_INCLUDE       = -I$(HDF5ROOT)/include
-LIBS = '$(HDF5_LIB) $(NETCDF_LIB)'
-
 ARCHIVE = ar rs
 RANLIB =:
-SEQFFLAGS = -I$(SRC) $(HDF5_INCLUDE) $(NETCDF_INCLUDE)
-MPIFFLAGS = -I$(SRC) $(HDF5_INCLUDE) $(NETCDF_INCLUDE)
-
+SEQFFLAGS = -I$(SRC)
+MPIFFLAGS = -I$(SRC)
+NCDF = /usr
+NCDFLIB = '-L$(NCDF)/lib -lnetcdf -lnetcdff'
+NCDFINC = -I$(NCDF)/include
+LIBS = $(NCDFLIB)
 F90 = ftn
-MPIF90 = ftn
-FFLAGS =  -O2 -msse2 -fp-model source -fp-model precise -g -traceback -convert big_endian -integer-size 32 -real-size 64 -check bounds -fpe0
-F77FLAGS = -O2 -msse2 -fp-model source -fp-model precise -g -traceback -convert big_endian -integer-size 32 -real-size 64 -check bounds -fpe0
+MPIF90 =ftn
+FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} -fbounds-check  -g -fcheck=all  -Wall -Wtabs -fbacktrace -ffpe-trap=invalid,zero,overflow
+F77FLAGS = -O2 #-fbounds-check  -ffpe-trap=invalid,zero,overflow
 
 
 LES_OUT_MPI=$(BIN)/les.mpi

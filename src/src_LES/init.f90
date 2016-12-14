@@ -167,10 +167,8 @@ contains
     use sgsm, only : tkeinit
     use util, only : azero, atob
     use thrm, only : thermo, rslf
-use mpi_interface, only : myid
+    use mpi_interface, only : myid
     implicit none
-    character(len=10) :: leadchr ! #commentmpi
-    character(len=14) :: filename ! #commentmpi
     integer :: i,j,k
     real    :: exner, pres, tk, rc, xran(nzp)
 
@@ -268,18 +266,10 @@ use mpi_interface, only : myid
     !
     ! Initialize aerosol size distributions
     !
-    leadchr='initaeroso' ! #commentmpi
-write(filename, '(A10,I4.4)') leadchr, myid ! #commentmpi
-open(24, file=filename, position='append') ! #commentmpi
-    write(24,*) 'initialisoidaan aerosolit'
-    write(24,*) 'a_naerop ', a_naerop
     IF (level >= 4) THEN
        CALL aerosol_init
-    write(24,*) ' aerosolit initialisoitu'
-    write(24,*) 'a_naerop ', a_naerop
        CALL init_gas_tracers
     END IF
-    close(24)
     call atob(nxyzp,a_up,a_uc)
     call atob(nxyzp,a_vp,a_vc)
     call atob(nxyzp,a_wp,a_wc)

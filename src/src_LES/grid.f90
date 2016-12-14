@@ -884,8 +884,6 @@ contains
 	       icntica(5), icnticb(5), icntsna(5)
     REAL :: zsum(nzp,nxp,nyp) ! Juha: Helper for computing bulk output diagnostics
     REAL :: zvar(nzp,nxp,nyp)
-    character(len=10) :: leadchr ! #commentmpi
-    character(len=14) :: filename ! #commentmpi
     !return
     icnt = (/nzp, nxp-4, nyp-4, 1/)
     icntaea = (/nzp,nxp-4,nyp-4, fn2a, 1 /)
@@ -1216,16 +1214,11 @@ contains
           iret = nf90_inq_varid(ncid0,'S_Naba',VarID)
           iret = nf90_put_var(ncid0,VarId,a_naerop(:,i1:i2,j1:j2,in1a:fn2a), &
                start=ibegsd,count=icntaea)
-leadchr='a_naeropou' ! #commentmpi
-write(filename, '(A10,I4.4)') leadchr, myid ! #commentmpi
-open(23, file=filename, position='append') ! #commentmpi
           !Aerosol size distribution (regime B)
           iret = nf90_inq_varid(ncid0,'S_Nabb',VarID)
-          write(23,*) ' S_Nabb netcdf:iin '
-          write(23,*) 'a_naerop(:,i1:i2,j1:j2,in2b:fn2b) ', a_naerop(:,i1:i2,j1:j2,in2b:fn2b)
           iret = nf90_put_var(ncid0,VarID,a_naerop(:,i1:i2,j1:j2,in2b:fn2b), &
                start=ibegsd,count=icntaeb)
-close(23)
+
        END IF
 
        ! Mean aerosol wet radius (regime A)

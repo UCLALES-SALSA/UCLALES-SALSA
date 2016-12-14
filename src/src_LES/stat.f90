@@ -23,7 +23,6 @@ module stat
   use grid, only : level
   use util, only : get_avg, get_cor, get_avg3, get_cor3, get_var3, get_csum, get_avg_ts, &
                    get_cavg, get_avg2dh
-!    use mpi_interface, ONLY : myid ! #commentmpi
 
   implicit none
   private
@@ -54,8 +53,6 @@ module stat
   ! 4. Add the new variables in ncio.f90 list of variables
   ! 5. Make sure stat_init is up to date (boolean arrays etc).
 
-!    character(len=10) :: leadchr ! #commentmpi
-!        character(len=14) :: filename ! #commentmpi
 
 
   character (len=7), save :: s1(nvar1)=(/                           &
@@ -1532,19 +1529,13 @@ contains
     iret = nf90_put_var(ncid2, VarID, lsttm, start=(/nrec2/))
     iret = nf90_inq_VarID(ncid2, s2(9), VarID)
     iret = nf90_put_var(ncid2, VarID, nsmp,  start=(/nrec2/))
-!leadchr='statoutput' ! #commentmpi
-!write(filename, '(A10,I4.4)') leadchr, myid ! #commentmpi
-!open(23, file=filename) ! #commentmpi
 
     do n=10,nvar2
        iret = nf90_inq_varid(ncid2, s2(n), VarID)
-!       write(23,*) ' iret ', iret
-!       write(23,*) 's2(n) ', s2(n), ' n ', n
-!       write(23,*) 'svctr(:,n) ', svctr(:,n)
        iret = nf90_put_var(ncid2,VarID,svctr(:,n), start=(/1,nrec2/),    &
             count=(/n1,1/))
     end do
-!close(23)
+
     IF (level >= 4) THEN
        ! Bulk SALSA
        DO n = 6,nv2sbulk

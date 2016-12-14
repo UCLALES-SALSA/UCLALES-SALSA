@@ -173,7 +173,7 @@ contains
 
        ! Juha: dimension environments for size distribution variables
        dim_ttttaea = (/ztID,xtID,ytID,aeaID,timeID/)
-       dim_ttttaeb = (/xtID,xtID,ytID,aebID,timeID/)
+       dim_ttttaeb = (/ztID,xtID,ytID,aebID,timeID/)
        dim_ttttcla = (/ztID,xtID,ytID,claID,timeID/)
        dim_ttttclb = (/ztID,xtID,ytID,clbID,timeID/)
        dim_ttttprc = (/ztID,xtID,ytID,prcID,timeID/)
@@ -1237,11 +1237,11 @@ contains
     case('S_Rwiba')
        if (itype==0) ncinfo = 'SALSA bin ice particle radius, regime a'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'ttttcla'
+       if (itype==2) ncinfo = 'ttttica'
     case('S_Rwibb')
        if (itype==0) ncinfo = 'SALSA bin ice particle radius, regime b'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'ttttcla'
+       if (itype==2) ncinfo = 'ttttica'
     case('S_Ns')
        if (itype==0) ncinfo = 'SALSA sdnc'
        if (itype==1) ncinfo = 'kg^-1'
