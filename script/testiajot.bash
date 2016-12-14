@@ -108,9 +108,9 @@ fi
 
 submitting case_isdac 64 _thrm5_all_on_fixINC_1_7600 initial
 
-#submitting case_isdac 64 _thrm4                  initial
-#submitting case_isdac 64 _thrm5_all_on_fixINC_1  initial
-#submitting case_isdac 64 _thrm5_all_on_fixINC_4  initial
+submitting case_isdac 64 _thrm4                  initial
+submitting case_isdac 64 _thrm5_all_on_fixINC_1  initial
+submitting case_isdac 64 _thrm5_all_on_fixINC_4  initial
 
 
 #  0000_0000.SPINUP7200.rst

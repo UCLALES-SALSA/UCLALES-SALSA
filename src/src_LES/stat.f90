@@ -58,9 +58,9 @@ module stat
   character (len=7), save :: s1(nvar1)=(/                           &
        'time   ','cfl    ','maxdiv ','zi1_bar','zi2_bar','zi3_bar', & ! 1
        'vtke   ','sfcbflx','wmax   ','tsrf   ','ustar  ','shf_bar', & ! 7
-       'lhf_bar','zi_bar ','lwp_bar','lwp_var','iwp_bar','iwp_var', & ! 13
-       'zc     ','zb     ','cfrac  ','lmax   ','albedo ','rwp_bar', & ! 19
-       'prcp   ','pfrac  ','CCN    ','nrain  ','nrcnt  '            & ! 25
+       'lhf_bar','zi_bar ','lwp_bar','lwp_var','zc     ','zb     ', & ! 13
+       'cfrac  ','lmax   ','albedo ','rwp_bar','prcp   ','pfrac  ', & ! 19
+       'CCN    ','nrain  ','nrcnt  ','iwp_bar','iwp_var'            & ! 25
        /),                                                          & ! total, 29
 
        ! **** Bulk temporal statistics for SALSA ****
@@ -528,6 +528,7 @@ contains
     IF ( level >=1 ) CALL ts_lvl1(nzp, nxp, nyp, dn0, zt, dzm, rxt)
     IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, rxt, a_scr2, zt)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp, a_rc)
+
 
     !WRITE(*,*) ssclr_b(10:12)
 
