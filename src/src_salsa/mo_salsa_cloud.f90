@@ -317,13 +317,13 @@ CONTAINS
 
     END IF ! lsactbase
 
- 
+
   END SUBROUTINE cloud_activation
 
 ! -----------------------------------------------------------------
 
   SUBROUTINE getSolute(kproma,kbdim,klev,paero,pns)
-    
+
     USE mo_submctl, ONLY : t_section,nlim,       &
                                in1a,fn1a,            &
                                in2a,fn2a,            &
@@ -417,7 +417,7 @@ CONTAINS
     ! 3. Formulate the slopes for number concentration
     ! 4. Use the Dry limits from (2) as the integration limits if they are defined
 
-    
+
     USE mo_submctl, ONLY : t_section,nlim,pi6,ica,fca,icb,fcb, &
                                in1a,fn1a,in2a,fn2a,                &
                                nbins,ncld
@@ -590,6 +590,54 @@ CONTAINS
                 END IF
                 ! DONE WITH INTEGRATION LIMITS
                 ! -------------------------------------
+!if ( abs(Vhim1-Vlom1) < epsilon(1.0) .or. abs(Vhip1-Vlop1) < epsilon(1.0) .or. abs(Vhi-Vlo) < epsilon(1.0) .or. abs(Vmid - Vim1) < epsilon(1.0) .or. abs(Vip1 - Vmid) < epsilon(1.0) ) then
+if ( abs(Vhim1-Vlom1) == 0.0 .or. abs(Vhip1-Vlop1) == 0.0 .or. abs(Vhi-Vlo) == 0.0 &
+.or. abs(Vmid - Vim1) == 0.0 .or. abs(Vip1 - Vmid) == 0.0 ) then
+    write(*,*) ' cb ', cb, ' ab ', ab
+    write(*,*) ' zvcstar ', zvcstar
+    write(*,*) ' zdcstar ', zdcstar
+    write(*,*) ' vcut ', vcut
+    write(*,*) ' Vhim1 ', Vhim1, ' Vlom1 ', Vlom1
+    write(*,*) ' Vhip1 ', Vhip1, ' Vlop1 ', Vlop1
+    write(*,*) ' Vlo ', Vlo, ' Vhi ', Vhi
+    write(*,*) ' Vip1 ', Vip1, ' Vmid ', Vmid
+    write(*,*) ' Vmid ', Vmid, ' Vim1 ', Vim1
+    write(*,*) ' prv ', prv(1,1), ' prs ', prs(ii,jj)
+    write(*,*) ' paero ', ' bini 1 ', paero(1,1, 1)
+    write(*,*) ' paero ', ' bini 2 ', paero(1,1, 2)
+    write(*,*) ' paero ', ' bini 3 ', paero(1,1, 3)
+    write(*,*) ' paero ', ' bini 4 ', paero(1,1, 4)
+    write(*,*) ' paero ', ' bini 5 ', paero(1,1, 5)
+    write(*,*) ' paero ', ' bini 6 ', paero(1,1, 6)
+    write(*,*) ' paero ', ' bini 7 ', paero(1,1, 7)
+    write(*,*) ' paero ', ' bini 8 ', paero(1,1, 8)
+    write(*,*) ' paero ', ' bini 9 ', paero(1,1, 9)
+    write(*,*) ' paero ', ' bini 10 ', paero(1,1, 10)
+    write(*,*) ' paero ', ' bini 11 ', paero(1,1, 11)
+    write(*,*) ' paero ', ' bini 12 ', paero(1,1, 12)
+    write(*,*) ' paero ', ' bini 13 ', paero(1,1, 13)
+    write(*,*) ' paero ', ' bini 14 ', paero(1,1, 14)
+    write(*,*) ' paero ', ' bini 15 ', paero(1,1, 15)
+    write(*,*) ' paero ', ' bini 16 ', paero(1,1, 16)
+    write(*,*) ' paero ', ' bini 17 ', paero(1,1, 17)
+
+    write(*,*) ' pcloud ', ' bini 1 ', pcloud(1,1, 1)
+    write(*,*) ' pcloud ', ' bini 2 ', pcloud(1,1, 2)
+    write(*,*) ' pcloud ', ' bini 3 ', pcloud(1,1, 3)
+    write(*,*) ' pcloud ', ' bini 4 ', pcloud(1,1, 4)
+    write(*,*) ' pcloud ', ' bini 5 ', pcloud(1,1, 5)
+    write(*,*) ' pcloud ', ' bini 6 ', pcloud(1,1, 6)
+    write(*,*) ' pcloud ', ' bini 7 ', pcloud(1,1, 7)
+    write(*,*) ' pcloud ', ' bini 8 ', pcloud(1,1, 8)
+    write(*,*) ' pcloud ', ' bini 9 ', pcloud(1,1, 9)
+    write(*,*) ' pcloud ', ' bini 10 ', pcloud(1,1, 10)
+    write(*,*) ' pcloud ', ' bini 11 ', pcloud(1,1, 11)
+    write(*,*) ' pcloud ', ' bini 12 ', pcloud(1,1, 12)
+    write(*,*) ' pcloud ', ' bini 13 ', pcloud(1,1, 13)
+    write(*,*) ' pcloud ', ' bini 14 ', pcloud(1,1, 14)
+
+
+end if
 
                 ! Number concentration profiles within bins and integration for number of activated:
                 ! -----------------------------------------------------------------------------------
@@ -597,6 +645,7 @@ CONTAINS
                 dNim1 = Nim1/(Vhim1-Vlom1)
                 dNip1 = Nip1/(Vhip1-Vlop1)
                 dNmid = Nmid/(Vhi-Vlo)
+!if ( abs(Vip1 - Vmid) < epsilon(1.0) .or. abs(Vmid - Vim1) < epsilon(1.0) ) then
 
                 ! Get slopes
                 zs1 = ( dNmid - dNim1 )/( Vmid - Vim1 )
@@ -642,7 +691,7 @@ CONTAINS
                 ! Store the number concentration and mass of activated particles for current bins
                 zactd(cb)%numc = MIN(Nact,Nmid)
                 zactd(cb)%volc(:) = MIN(Vact(:),paero(ii,jj,ab)%volc(:))
-                
+
 
                 IF (zactd(cb)%numc < 0.) THEN
                    WRITE(*,*) Nim1,Nmid,Nip1
@@ -665,7 +714,7 @@ CONTAINS
                 END DO
 
              END IF
-             
+
              ! Apply the number and mass activated to aerosol and cloud bins
              !WRITE(*,*) zactd(1:7)%numc/paero(ii,jj,4:10)%numc
              paero(ii,jj,ica%par:fca%par)%numc =   &
@@ -676,7 +725,7 @@ CONTAINS
                      MAX(0., paero(ii,jj,ica%par:fca%par)%volc(ss) - zactd(ica%cur:fca%cur)%volc(ss))
                 pcloud(ii,jj,ica%cur:fca%cur)%volc(ss) = pcloud(ii,jj,ica%cur:fca%cur)%volc(ss) + zactd(ica%cur:fca%cur)%volc(ss)
              END DO
-             
+
           END IF ! RH limit
 
        END DO ! ii
@@ -693,7 +742,7 @@ CONTAINS
     !
     ! Gets the number and mass activated in the critical aerosol size bin
 
-    
+
     USE mo_submctl, ONLY : t_parallelbin, t_section, pi6, nlim, fn2b, ncld,  &
                                in1a,in2a,fn1a,fn2a, ica,fca,icb,fcb
     IMPLICIT NONE
@@ -729,7 +778,7 @@ CONTAINS
 
           ! This means in practice that vertical velocity is <= 0 or Ntot == 0
           IF ( ALL(pdcrit(ii,jj,:) < epsilon(1.0)) ) CYCLE
-          
+
           zvcstar = 0.
 
           IF ( paero(ii,jj,pbcrita(ii,jj))%numc < nlim ) THEN
@@ -755,7 +804,7 @@ CONTAINS
           END IF
 
           zvcstar = MAX( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vlolim )
-          zvcstar = MIN( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vhilim ) 
+          zvcstar = MIN( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vhilim )
 
           ! Loop over cloud droplet (and aerosol) bins
           DO cb = ica%cur,fca%cur
@@ -805,7 +854,7 @@ CONTAINS
 
              Vip1 = MAX(Vlop1,MIN(Vip1,Vhip1))
              Vim1 = MAX(Vlom1,MIN(Vim1,Vhim1))
-             
+
 
              ! get density distribution values for
              dNim1 = Nim1/(Vhim1-Vlom1)
@@ -878,7 +927,7 @@ CONTAINS
   REAL FUNCTION intgN(ikk,icc,ilow,ihigh)
     ! Gets the integral over a (linear) number concentration distribution
     !
-    
+
     IMPLICIT NONE
     REAL, INTENT(in) :: ikk,icc,ilow,ihigh
     intgN = 0.5*ikk*MAX(ihigh**2 - ilow**2,0.) + icc*MAX(ihigh - ilow,0.)
@@ -887,7 +936,7 @@ CONTAINS
   REAL FUNCTION intgV(ikk,icc,ilow,ihigh)
     ! Gets the integral over a volume volume distribution based on a linear
     ! number concentration distribution
-    
+
     IMPLICIT NONE
     REAL, INTENT(in) :: ikk,icc,ilow,ihigh
     intgV = (1./3.)*ikk*MAX(ihigh**3 - ilow**3,0.) + 0.5*icc*MAX(ihigh**2 - ilow**2,0.)
@@ -901,7 +950,7 @@ CONTAINS
   ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
   ! parameter and is set to 1.2 by default
   !
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
                                nprc,        &
@@ -965,7 +1014,7 @@ CONTAINS
                       pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + pcloud(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
                       pcloud(ii,jj,cc)%volc(ss) = pcloud(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
                    END DO
-                   
+
                    pprecp(ii,jj,1)%volc(8) = pprecp(ii,jj,1)%volc(8) + pcloud(ii,jj,cc)%volc(8)*(Vrem/Vtot)
                    pcloud(ii,jj,cc)%volc(8) = pcloud(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot))
 
@@ -996,7 +1045,7 @@ CONTAINS
 
 
 
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                in2b,fn2b,   &
                                ica,fca,     &
@@ -1076,9 +1125,9 @@ CONTAINS
   !***********************************************
   SUBROUTINE ice_hom_nucl(kproma,kbdim,klev,   &
                       pcloud,pice,paero,ppres, &
-                      ptemp,prv,prs,ptstep ) 
+                      ptemp,prv,prs,ptstep )
 
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                in2b,fn2b,   &
                                ica,fca,     &
@@ -1177,7 +1226,7 @@ CONTAINS
 
 
 
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                ica,fca,     &
                                icb,fcb,     &
@@ -1193,7 +1242,7 @@ CONTAINS
                                nlim, prlim,iclim,eps, &
                                debug
     USE mo_constants, ONLY : rd, alf, avo
-    use mpi_interface, ONLY : myid
+!    use mpi_interface, ONLY : myid ! #commentmpi
 
     IMPLICIT NONE
 
@@ -1285,7 +1334,7 @@ CONTAINS
 
 !              nucl_rate = Vtot*(-a_kiehl)*B_kiehl*exp(a_kiehl*Ts)*Temp_tend*ptstep
 
-              J_DW = a_kiehl*B_kiehl*exp(a_kiehl*Ts)*-Temp_tend*ptstep ! nucleation rate according to Diehl & Wurzler
+              J_DW = a_kiehl*B_kiehl*exp(a_kiehl*Ts)*Temp_tend*ptstep ! nucleation rate according to Diehl & Wurzler
 !              write(23,*) a_kiehl, B_kiehl, exp(a_kiehl*Ts)*-Temp_tend*ptstep            ! #commentmpi
 !              write(23,*) 'J_Dw ', J_DW, ' -(J_DW*DV) ', -(J_DW*DV*-Temp_tend*ptstep)    ! #commentmpi
 !              write(23,*) 'exp(-(J_DW*DV)) ', exp(-(J_DW*DV*-Temp_tend*ptstep))          ! #commentmpi
@@ -1525,7 +1574,7 @@ CONTAINS
 
   REAL FUNCTION calc_JCF(rn,temp,ppres,prv,prs) ! heterogenous (condensation) freezing  !!check  [Mor05] eq. (26)
                       !the rate of germ formation per volume of solution
-        
+
         USE mo_submctl, ONLY : boltz, planck,pi
         REAL, INTENT(in) :: rn,  &
                               temp,ppres, prv,prs
@@ -1541,7 +1590,7 @@ CONTAINS
 
   REAL FUNCTION calc_JHF(NL,temp) ! homogenous freezing !! Khovosrotyanov & Sassen 1998 [KS98] eq. (7)
 
-    
+
     USE mo_submctl, ONLY : boltz, planck,surfi0,pi
     REAL, intent(in) :: NL, & !  number of water molecules per unit volume of the liquid
                             temp
@@ -1557,7 +1606,7 @@ CONTAINS
 
   REAL FUNCTION calc_act_energy(temp,nucltype) ! activation energy of solution ice interface  !!check
 
-    
+
     REAL, INTENT(in) :: temp
     CHARACTER(len=*), INTENT(in) :: nucltype
     REAL :: Tc
@@ -1583,7 +1632,7 @@ CONTAINS
   ! ------------------------------------------------------------
 
   REAL FUNCTION calc_crit_energy(rn,prv,prs,temp) ! critical energy KC[00] (eq. 2.10) !!huomhuom #arvo
-    
+
     USE mo_submctl, ONLY : surfi0
     REAL, INTENT(in) :: rn, prv,prs, temp
     REAL :: mis, r_g, x, sigma_is,sigma_ns,sigma_ni
@@ -1603,10 +1652,10 @@ CONTAINS
   ! ------------------------------------------------------------
 
   ! [KC00] eq. (2.9)
-  REAL FUNCTION calc_shapefactor(m,x) !! according to Khvorostyanov & Curry, Geophysical Research letters 27(24):4081-4084, 
+  REAL FUNCTION calc_shapefactor(m,x) !! according to Khvorostyanov & Curry, Geophysical Research letters 27(24):4081-4084,
                                       !december 2000  !!check
                                  !! as of referenced as [KC00]
-    
+
     REAL, INTENT(IN) :: m,x
     REAL :: psi,fii
     fii = (1.-2.*m*x+x**2)**(0.5)
@@ -1622,7 +1671,7 @@ CONTAINS
 
   ! [KC00] eq. (2.6)
   REAL FUNCTION calc_r_g(sigma_is,prv,prs,temp) !! calculate ice germ radius [KC00] !!huomhuom !! sigma_is #arvo
-    
+
     USE mo_submctl, ONLY : rhoic,rg,mwa
     REAL, intent(in) :: sigma_is, prv, prs, temp
     REAL :: Late, epsi,temp00,GG,C
@@ -1640,7 +1689,7 @@ CONTAINS
 
   ! [KS98] eq. (8)
   REAL FUNCTION calc_r_cr(temp) !! calculate ice embryo radius [KC00] !!check
-    
+
     USE mo_submctl, ONLY : rhoic,surfi0
     REAL, intent(in) :: temp
     REAL :: Late, temp00
@@ -1657,7 +1706,7 @@ CONTAINS
 
   ! Harri Kokkola pilvikurssi eq. (2.43)
   REAL FUNCTION calc_Lefm(temp) !! Latent heat of fusion !!check
-    
+
     REAL, intent(in) :: temp
     REAL :: Tc ! temperature in celsius degrees
     Tc = temp-273.15
@@ -1668,7 +1717,7 @@ CONTAINS
   ! ------------------------------------------------------------
 
   REAL function calc_temp00(temp) !!freezing point depression !! huomhuom korjaa parametrit ja täydennä #arvo
-    
+
     REAL, intent(in) :: temp
 
     calc_temp00 = 273.15
@@ -1683,7 +1732,7 @@ CONTAINS
 
 
 
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                ica,fca,     &
                                icb,fcb,     &
@@ -1763,7 +1812,7 @@ CONTAINS
   ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
   ! parameter and is set to 1.2 by default
   !
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                iia,fia,     &
                                iib,fib,     &
@@ -1854,7 +1903,7 @@ CONTAINS
   ! -----------------------------------------------------------------
   !
   REAL FUNCTION cumlognorm(dg,sigmag,dpart)
-    
+
     USE mo_submctl, ONLY : pi
     IMPLICIT NONE
     ! Cumulative lognormal function
@@ -1875,7 +1924,7 @@ CONTAINS
   ! ----------------------------------------------------------------
   !
   REAL FUNCTION errf(x)
-    
+
     IMPLICIT NONE
     ! (Approximative) Error function.
     ! This is available as an intrinsic function as well but the implementation is somewhat compiler-specific

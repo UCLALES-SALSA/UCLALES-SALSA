@@ -71,6 +71,10 @@ def main( piirra = False ):
     
     #P_rv_data	 = read_Data( filenamePS, 'P_rv'    )
     
+    liqWP_Tdata  = read_Data( filenameTS, 'lwp_bar'  )
+    rainWP_Tdata  = read_Data( filenameTS, 'rwp_bar' )
+    
+    
     #top_data     = read_Data( filenameTS, 'zc'      )
     #base_data    = read_Data( filenameTS, 'zb'      )
     
@@ -81,18 +85,18 @@ def main( piirra = False ):
     
     #aikasarjaTulostus( depth, nimi= 'cloud depth' )
 
-    print_shape( 'S_Rwiba', S_Rwiba_data )
-    print_shape( 'S_Rwcba', S_Rwcba_data )
-    print_shape( 'S_Rwaba', S_Rwaba_data )
-    print_shape( 'S_Nic',   S_Nic_data   )
-    print_shape( 'S_Nc',    S_Nc_data    )
-    print_shape( 'xt',	    xt_data      )
-    print_shape( 'yt',	    yt_data      )
-    print_shape( 'f',	    f_data       )
-    print_shape( 'dn0',     dn0_data     )
-    print_shape( 'height',  korkeus      )
-    print_shape( 'aika',    time_data    )
-    #print_shape( 'depth',   depth         )
+    #print_shape( 'S_Rwiba', S_Rwiba_data )
+    #print_shape( 'S_Rwcba', S_Rwcba_data )
+    #print_shape( 'S_Rwaba', S_Rwaba_data )
+    #print_shape( 'S_Nic',   S_Nic_data   )
+    #print_shape( 'S_Nc',    S_Nc_data    )
+    #print_shape( 'xt',	    xt_data      )
+    #print_shape( 'yt',	    yt_data      )
+    #print_shape( 'f',	    f_data       )
+    #print_shape( 'dn0',     dn0_data     )
+    #print_shape( 'height',  korkeus      )
+    #print_shape( 'aika',    time_data    )
+    ##print_shape( 'depth',   depth         )
     #print_shape( 'water-vap mix rat', P_rv_data )
     
     print time_data

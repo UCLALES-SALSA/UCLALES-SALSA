@@ -58,7 +58,7 @@ contains
     LOGICAL :: zactmask(nzp,nxp,nyp)
     LOGICAL :: TMP
     INTEGER :: n4
-    
+
     ztkt = 0.
 
     TMP = .false.
@@ -113,7 +113,7 @@ contains
           END IF
           CALL SALSAInit(zactmask)
 
-          
+
        END IF !level >= 4
 
     else if (runtype == 'HISTORY') then
@@ -167,9 +167,10 @@ contains
     use sgsm, only : tkeinit
     use util, only : azero, atob
     use thrm, only : thermo, rslf
-
+use mpi_interface, only : myid
     implicit none
-
+    character(len=10) :: leadchr ! #commentmpi
+    character(len=14) :: filename ! #commentmpi
     integer :: i,j,k
     real    :: exner, pres, tk, rc, xran(nzp)
 
@@ -267,11 +268,18 @@ contains
     !
     ! Initialize aerosol size distributions
     !
+    leadchr='initaeroso' ! #commentmpi
+write(filename, '(A10,I4.4)') leadchr, myid ! #commentmpi
+open(24, file=filename, position='append') ! #commentmpi
+    write(24,*) 'initialisoidaan aerosolit'
+    write(24,*) 'a_naerop ', a_naerop
     IF (level >= 4) THEN
        CALL aerosol_init
+    write(24,*) ' aerosolit initialisoitu'
+    write(24,*) 'a_naerop ', a_naerop
        CALL init_gas_tracers
     END IF
-
+    close(24)
     call atob(nxyzp,a_up,a_uc)
     call atob(nxyzp,a_vp,a_vc)
     call atob(nxyzp,a_wp,a_wc)
@@ -712,13 +720,13 @@ contains
     DO j=1,nyp
        DO i=1,nxp
           DO k=1,nzp ! Apply tendencies
-             a_naerop(k,i,j,:) = MAX( a_naerop(k,i,j,:) + dtlt*a_naerot(k,i,j,:), 0. )
+             a_naerop(k,i,j,:)  = MAX( a_naerop(k,i,j,:)  + dtlt*a_naerot(k,i,j,:),  0. )
              a_ncloudp(k,i,j,:) = MAX( a_ncloudp(k,i,j,:) + dtlt*a_ncloudt(k,i,j,:), 0. )
              a_nprecpp(k,i,j,:) = MAX( a_nprecpp(k,i,j,:) + dtlt*a_nprecpt(k,i,j,:), 0. )
-             a_maerop(k,i,j,:)  = MAX( a_maerop(k,i,j,:)  + dtlt*a_maerot(k,i,j,:), 0. )
+             a_maerop(k,i,j,:)  = MAX( a_maerop(k,i,j,:)  + dtlt*a_maerot(k,i,j,:),  0. )
              a_mcloudp(k,i,j,:) = MAX( a_mcloudp(k,i,j,:) + dtlt*a_mcloudt(k,i,j,:), 0. )
              a_mprecpp(k,i,j,:) = MAX( a_mprecpp(k,i,j,:) + dtlt*a_mprecpt(k,i,j,:), 0. )
-             a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtlt*a_gaerot(k,i,j,:), 0. )
+             a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtlt*a_gaerot(k,i,j,:),  0. )
              a_rp(k,i,j) = a_rp(k,i,j) + dtlt*a_rt(k,i,j)
 
 			IF(level < 5) cycle

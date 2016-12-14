@@ -76,16 +76,21 @@ contains
   ! Juha: Added more dimensions to represent bins for aerosol, cloud and
   ! precipitation particles.
   !
-  subroutine define_nc(ncID, nRec, nVar, sx, n1, n2, n3, &
-                       inae_a,incld_a,inprc,           &
-                       inae_b,incld_b,inice_a,inice_b,insnw         )
+  subroutine define_nc(ncID, nRec, nVar, sx, n1, n2, n3,    &
+                       inae_a, inae_b,	      		        &
+                       incld_a,incld_b,  			        &
+                       inprc, 				                &
+                       inice_a,inice_b,			            &
+                       insnw 				                )
 
     integer, intent (in)           :: nVar, ncID
     integer, optional, intent (in) :: n1, n2, n3
     ! Juha: Added
-    INTEGER, OPTIONAL, INTENT(in)  :: inae_a,incld_a,inprc, &
-                                      inae_b,incld_b,       &
-                                      inice_a,inice_b,insnw
+    INTEGER, OPTIONAL, INTENT(in)  :: inae_a, inae_b,	    &
+                                      incld_a,incld_b,      &
+                                      inprc,     		    &
+                                      inice_a,inice_b,	    &
+                                      insnw
     ! --
     integer, intent (inout)        :: nRec
     character (len=7), intent (in) :: sx(nVar)
@@ -232,7 +237,7 @@ contains
           case ('icb')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,icbID   ,VarID)
           case ('snw')
-             iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,snowID   ,VarID)
+             iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,snowID  ,VarID)
           !Juha added
           case ('ttttaea')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttaea,VarID)

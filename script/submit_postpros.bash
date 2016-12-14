@@ -33,7 +33,7 @@ cd ${dir}
 
 rm -rf post_* *pros.sh combine2.py
 
-cp /home/users/aholaj/ICE_UCLA-LES-SALSA/bin/combine2.py ${dir}/
+cp /home/users/aholaj/UCLALES-SALSA/bin/combine2.py ${dir}/
 
 cat > runpostpros.sh <<FINAL
 #!/bin/sh

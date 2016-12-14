@@ -133,7 +133,7 @@ CONTAINS
     INTEGER, INTENT(in) :: level                         ! thermodynamical level
 
     INTEGER :: zpbl(kbdim)            ! Planetary boundary layer top level
-    !REAL(dp) :: zrh(kbdim,klev)           ! Relative humidity
+    !REAL :: zrh(kbdim,klev)           ! Relative humidity
 
 
     !-- Output variables -----------------------------------------------------------------

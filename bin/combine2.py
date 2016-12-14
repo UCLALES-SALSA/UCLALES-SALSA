@@ -506,8 +506,6 @@ def reduce_full(infile,imax,jmax):
 		id=ncid_dst.createVariable(name,typ,dims)
 		#id.assignValue(val)
 		print ' '
-		print 'debuggausta'
-		print val
 		id[:]=val
 		# Copy attributes
 		for att in var_info.keys(): setattr(id,att,var_info[att])
@@ -623,6 +621,6 @@ else:
 	reduce_full(infile,imax,jmax)
 #
 # Save information about file content?
-nc_PrintFileContent(infile+'.nc',infile+'.nc.txt')
+#nc_PrintFileContent(infile+'.nc',infile+'.nc.txt')
 #
 # End of function combine.py

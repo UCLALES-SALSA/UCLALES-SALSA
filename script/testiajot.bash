@@ -3,7 +3,28 @@
 # Exit on error
 set -e
 
+if [ -z $1 ]; then
+  echo "You didn't give any postfix name"
+  exit 1
+fi
+
+# if [ -z $2 ]; then
+#   echo "You didn't give waiting parameter ( true / false )"
+#   exit 1
+# fi
+
 postfix=$1
+
+
+if [ -z $2 ]; then
+  odotus='false'
+else
+  odotus=$2
+fi
+
+
+
+
 
 root="$(dirname $PWD)"
 salsa=${root}/src/src_salsa
@@ -37,13 +58,14 @@ function submitting {
 
 	nimi=${testi}
 	dir=${bin}/${nimi}
-	echo 'nimi ' $nimi
 	
 	cp ${dir}/sound_in ${bin}/sound_in
 	cp ${dir}/NAMELIST${namelistPF} ${bin}/NAMELIST
 	
 	
 	nimi=${nimi}_${nproc}${namelistPF}_${postfix}
+
+	echo 'nimi ' $nimi
 	
 	if [ $historyrun != 'initial' ]; then         
             cp ${dir}/$historyrun ${bin}/$historyrun
@@ -64,62 +86,52 @@ function submitting {
 }
 
 
+if [ $odotus == 'true' ]; then
+    while [[ ! -z $( qstat -u aholaj ) ]]
+    do
+        qstat -u aholaj
+        sleep 15m
+
+    done
+
+fi
+
+
 #submitting sheba
 #submitting ascos
 
-
+# function name  nproc namelistPF historyrun
 
 ##########
 # isdac 
 #########
-# submitting isdac 3 64 _thrm4
-# submitting isdac 3 64 _thrm5
 
-# submitting isdac 3 64 _all_on_fixINC_1 _thrm5
-# submitting isdac 3 64 _all_on_fixINC_1 _thrm4
-# 
-# submitting isdac 3 64 _all_on_fixINC_4 _thrm5
-# submitting isdac 3 64 _all_on_fixINC_4 _thrm4
+submitting case_isdac 64 _thrm5_all_on_fixINC_1_7600 initial
 
-# submitting isdac 1 1 _all_on_fixINC_4 
-
-# submitting isdac 2 8 _all_on_fixINC_4 _thrm5
-
-##################################################
-# submitting isdac 3 64 _all_on_fixINC_4 _thrm5
-# 
-# submitting isdac 3 64 _all_on_fixINC_4 _thrm4
-
-##################################
-# submitting isdac 2 8 _init_ice_all_off
-
-# submitting isdac 1 1 _init_ice_all_off
-
-#submitting isdac 1 1 _init_ice_cond_activ_on
-# submitting isdac 2 8 _init_iceliq_cond_on
-# submitting isdac 2 8 _init_iceliq_immers_on
-# submitting isdac 1 1 _init_iceliq_basic_on
-
-# submitting isdac 1 1 _basic_on
-#submitting isdac 1 1 _fixedinc_on
-# submitting isdac 1 1 _immers_on
-
-
-# submitting isdac 1 1 _init_iceliq_cond_on
+#submitting case_isdac 64 _thrm4                  initial
+#submitting case_isdac 64 _thrm5_all_on_fixINC_1  initial
+#submitting case_isdac 64 _thrm5_all_on_fixINC_4  initial
 
 
 #  0000_0000.SPINUP7200.rst
 
-##
-### speed tests
+####################
+### speed tests  ###
+###              ###
+####################
 
 
-# function name  nproc namelistPF historyrun
-submitting speed 64    normal     initial
+# submitting case_speed 64    normal     initial
+# 
+# submitting case_speed 100   normal     initial
 
-submitting speed 100   normal     initial
+# submitting case_speed 400   normal     initial
+# 
+# submitting case_speed 100   _double     initial
+# submitting case_speed 144   _double     initial
 
-submitting speed 400   normal     initial
+
+
 
 echo 'Simulaatioajojen tulostus: '
 qstat -u aholaj

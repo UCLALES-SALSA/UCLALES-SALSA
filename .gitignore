@@ -10,15 +10,17 @@ util/
 bin/NAMELIST
 bin/sound_in
 
+script/ModDataPros.pyc
+
 ############################
 # Jaakko's auxialiry files #
 ############################
 
 # campaign inputs
-bin/campaign_ascos/
-bin/campaign_isdac/
-bin/campaign_sheba/
-bin/speed/
+bin/case_ascos/
+bin/case_isdac/
+bin/case_sheba/
+bin/case_speed/
 
 #history run
 bin/0000_0000.SPINUP7200.rst
@@ -30,3 +32,9 @@ gitpuut/
 
 ## remove this later
 src/src_LES/stat_icesnow.f90
+
+# Makefiles
+Makefile_Jaakko_karsittu
+
+bineja.ods
+

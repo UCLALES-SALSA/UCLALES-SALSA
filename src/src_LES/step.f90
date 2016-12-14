@@ -1143,7 +1143,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
              ! ICE PARTICLES
              !!!!!!!!!!!!!!!!!!!!!!!
 
-             ! Loop over cloud droplet bins, regime a
+             ! Loop over ice particle bins, regime a
              DO bc = iia%cur,fia%cur
                 ba = iia%par + (bc-iia%cur) ! Index for parallel aerosol bin
 
@@ -1184,7 +1184,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
              END DO ! bc
 
-             ! Loop over cloud droplet bins, regime b
+             ! Loop over ice particle bins, regime b
              DO bc = iib%cur,fib%cur
                 ba = iib%par + (bc-iib%cur) ! Index for parallel aerosol bin
                 nc = GetIndex(prtcl,'H2O')
