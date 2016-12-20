@@ -22,10 +22,6 @@ else
   odotus=$2
 fi
 
-
-
-
-
 root="$(dirname $PWD)"
 salsa=${root}/src/src_salsa
 les=${root}/src/src_LES
@@ -44,8 +40,8 @@ function submitting {
 	
 	testi=$1
 	nproc=$2
-        namelistPF=$3
-        historyrun=$4
+    namelistPF=$3
+    historyrun=$4
 	
 	if [ $namelistPF == 'normal' ]; then
             namelistPF=''
@@ -75,11 +71,8 @@ function submitting {
 	
 	## submit
 	
-	if [ $nproc -gt 1 ]; then
-            ${script}/ajoskripti_MPI.bash $nimi $nproc
-	else
-            ${script}/ajoskripti.bash $nimi
-	fi
+    ${script}/submit_uclales-salsa.bash $nimi $nproc
+	
 	
 	sleep 3s
 
@@ -106,13 +99,13 @@ fi
 # isdac 
 #########
 
-submitting case_isdac 64 _thrm5_all_on_fixINC_1_7600 initial
+# submitting case_isdac 64 _thrm5_all_on_fixINC_1_7800 initial
+# 
+# submitting case_isdac 64 _thrm4                  initial
+# submitting case_isdac 64 _thrm5_all_on_fixINC_1  initial
+# submitting case_isdac 64 _thrm5_all_on_fixINC_4  initial
 
-submitting case_isdac 64 _thrm4                  initial
-submitting case_isdac 64 _thrm5_all_on_fixINC_1  initial
-submitting case_isdac 64 _thrm5_all_on_fixINC_4  initial
-
-
+# submitting case_isdac 1 _1D_testing  initial
 #  0000_0000.SPINUP7200.rst
 
 ####################
@@ -123,11 +116,11 @@ submitting case_isdac 64 _thrm5_all_on_fixINC_4  initial
 
 # submitting case_speed 64    normal     initial
 # 
-# submitting case_speed 100   normal     initial
+submitting case_speed 100   normal     initial
 
 # submitting case_speed 400   normal     initial
 # 
-# submitting case_speed 100   _double     initial
+submitting case_speed 100   _double     initial
 # submitting case_speed 144   _double     initial
 
 

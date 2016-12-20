@@ -20,7 +20,7 @@
 module radiation
 
   ! 20151022: Made some modifications for parameters going to *rad* to
-  ! avoid errors with SALSA. 
+  ! avoid errors with SALSA.
   ! Juha Tonttila, FMI
 
 
@@ -81,17 +81,17 @@ module radiation
       ! The lowest LES model pressure levels (without contribution from variable pip)
       !             n1 - Pressure levels for LES: starts from below surface and is defined for cell centers
       !             nv1 - Pressure levels for the radiation model (nv=nv1-1): starts from TOA and is defined for cell edges
-      pres(n1)=p00 * ((pi0(n1)+pi1(n1))/cp)**cpr
-      pres(n1-1)=p00 * ((pi0(n1-1)+pi1(n1-1))/cp)**cpr
+      !pres(n1)=p00 * ((pi0(n1)+pi1(n1))/cp)**cpr
+      !pres(n1-1)=p00 * ((pi0(n1-1)+pi1(n1-1))/cp)**cpr
       ! Pressure for the last cell edge
-      pp(nv1-n1+1) = pres(n1)/100. - 0.5*(pres(n1-1)-pres(n1)) / 100.
+      !pp(nv1-n1+1) = pres(n1)/100. - 0.5*(pres(n1-1)-pres(n1)) / 100.
       ! This must be larger (e.g. by 1 hPa) than the obove radiation model pressure level (nv1-n1+1-1=nv1-n1)
-      if ( pp(nv1-n1+1) < pp(nv1-n1)+1.0 ) THEN
-         ! Simple solution to the problem: remove sounding level nv1-n1, which means that LES data is written over that
-         nv1=nv1-1       ! This should do it (start from the previos location)
-         nv=nv-1
-         WRITE(*,*) 'LES model pressure levels ovelapping with radiation soundings - removing the lowest sounding level!'
-      endif
+      !if ( pp(nv1-n1+1) < pp(nv1-n1)+1.0 ) THEN
+      !   ! Simple solution to the problem: remove sounding level nv1-n1, which means that LES data is written over that
+      !   nv1=nv1-1       ! This should do it (start from the previos location)
+      !   nv=nv-1
+      !   WRITE(*,*) 'LES model pressure levels ovelapping with radiation soundings - removing the lowest sounding level!'
+      !endif
       ! ------------------------------------------------------------------------------------------
       !
       ! initialize surface albedo, emissivity and skin temperature.
@@ -108,10 +108,24 @@ module radiation
       prw = (4./3.)*pi*rowt
       do j=3,n3-2
          do i=3,n2-2
+            ! Avoid overlapping LES and radiation pressure levels
+            pres(n1)=p00 * ((pi0(n1)+pi1(n1)+pip(n1,i,j))/cp)**cpr
+            pres(n1-1)=p00 * ((pi0(n1-1)+pi1(n1-1)+pip(n1-1,i,j))/cp)**cpr
+            ! Pressure for the last cell edge
+            pp(nv1-n1+1) = pres(n1)/100. - 0.5*(pres(n1-1)-pres(n1)) / 100.
+            ! This must be larger (e.g. by 1 hPa) than the obove radiation model pressure level (nv1-n1+1-1=nv1-n1)
+            if ( pp(nv1-n1+1) < pp(nv1-n1)+1.0 ) THEN
+               ! Simple solution to the problem: remove sounding level nv1-n1, which means that LES data is written over that
+               nv1=nv1-1       ! This should do it (start from the previos location)
+               nv=nv-1
+               WRITE(*,*) 'LES model pressure levels ovelapping with radiation soundings - removing the lowest sounding level!',j,i
+            endif
+
             do k=1,n1
                exner(k)= (pi0(k)+pi1(k)+pip(k,i,j))/cp
                pres(k) = p00 * (exner(k))**cpr
             end do
+
             pp(nv1) = 0.5*(pres(1)+pres(2)) / 100.
             do k=2,n1
                kk = nv-(k-2)
@@ -140,9 +154,6 @@ module radiation
             end do
             pp(nv-n1+2) = pres(n1)/100. - 0.5*(pres(n1-1)-pres(n1)) / 100.
 
-            !IF (ANY(nc /= nc)) write(*,*) 'SÄTEILY1', pre
-            !IF (ANY(nc /= nc)) write(*,*) 'SÄTEILY2', nc
-            !IF (ANY(nc /= nc)) write(*,*) 'SÄTEILY3', plwc
 
 
             call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
@@ -201,7 +212,7 @@ module radiation
     ! identify what part, if any, of background sounding to use
     !
     ptop = zp(n1)
-    if (sp(2) < ptop) then 
+    if (sp(2) < ptop) then
        pa = sp(1)
        pb = sp(2)
        k = 3
@@ -211,13 +222,13 @@ module radiation
           k  = k+1
        end do
        k=k-1           ! identify first level above top of input
-       blend = .True. 
+       blend = .True.
     else
        blend = .False.
     end if
     !
     ! if blend is true then the free atmosphere above the sounding will be
-    ! specified based on the specified background climatology, here the 
+    ! specified based on the specified background climatology, here the
     ! pressure levels for this part of the sounding are determined
     !
     if (blend) then
@@ -240,7 +251,7 @@ module radiation
     end if
     nv = nv1-1
     !
-    ! allocate the arrays for the sounding data to be used in the radiation 
+    ! allocate the arrays for the sounding data to be used in the radiation
     ! profile and then fill them first with the sounding data, by afill, then
     ! by interpolating the background profile at pressures less than the
     ! pressure at the top of the sounding
@@ -301,7 +312,7 @@ module radiation
   end function getindex
 
   ! ---------------------------------------------------------------------------
-  ! linear interpolation between two points, 
+  ! linear interpolation between two points,
   !
   real function intrpl(x1,y1,x2,y2,x)
 
@@ -315,7 +326,7 @@ module radiation
   end function intrpl
 
   ! ---------------------------------------------------------------------------
-  ! Return the cosine of the solar zenith angle give the decimal day and 
+  ! Return the cosine of the solar zenith angle give the decimal day and
   ! the latitude
   !
   real function zenith(alat,time)

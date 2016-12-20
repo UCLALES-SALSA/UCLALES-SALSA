@@ -50,31 +50,31 @@ for i in xrange(len(sys.argv)-1):
     uusikuva = True if i == 0 else  False
 
     f_data      = mdp.read_Data( filenameNC[i], 'f'    )
-    timeNC_data = mdp.read_Data( filenameNC[i], 'time' )
-    dn0_data    = mdp.read_Data( filenameNC, 'dn0'     )
-
-
-    #mdp.print_shape( 'lwp', liqWP_Tdata )
-
-    #mdp.print_shape( 'time', time_data )
+    time_data   = mdp.read_Data( filenameNC[i], 'time' )
+    dn0_data    = mdp.read_Data( filenameNC[i], 'dn0'     )
+    zt_data     = mdp.read_Data( filenameNC[i], 'zt'      )
+    zm_data     = mdp.read_Data( filenameNC[i], 'zm'      )
+    korkeus = ( zm_data - zt_data )*2.0
     
-    nimi = 'IWP ' + filenameTS[i]
+    nimi = 'IWP ' + filenameNC[i]
 
-    mdp.laske_path_aikasarjaXYZ( f_data, dn0_data, korkeus, timeNC_data, tulostus = True, piirra = piirra, uusikuva = uusikuva, nimi = 'Ice water path')
+    mdp.laske_path_aikasarjaXYZ( f_data, dn0_data, korkeus, time_data, tulostus = True, piirra = piirra, uusikuva = uusikuva, nimi = 'Ice water path')
 
 
 
 for i in xrange(len(sys.argv)-1):
     uusikuva = True if i == 0 else  False
 
-    time_data    = mdp.read_Data( filenameNC[i], 'time'    )
+    l_data     = mdp.read_Data( filenameNC[i], 'l'    )
+    time_data  = mdp.read_Data( filenameNC[i], 'time' )
+    dn0_data   = mdp.read_Data( filenameNC[i], 'dn0'  )
+    zt_data    = mdp.read_Data( filenameNC[i], 'zt'   )
+    zm_data    = mdp.read_Data( filenameNC[i], 'zm'   )
+    korkeus    = ( zm_data - zt_data )*2.0
     
-    dn0_data     = mdp.read_Data( filenameNC[i], 'dn0'     )
+    nimi = 'LWP ' + filenameNC[i]
 
-    
-    nimi = 'LWP ' + filenameTS[i]
-
-    mpd.laske_path_aikasarjaXYZ( l_data,    dn0_data, korkeus, time_data, tulostus = True, piirra = piirra, uusikuva = uusikuva, nimi = 'Liquid water path' )
+    mdp.laske_path_aikasarjaXYZ( l_data,    dn0_data, korkeus, time_data, tulostus = True, piirra = piirra, uusikuva = uusikuva, nimi = 'Liquid water path' )
 
 
 for i in xrange(len(sys.argv)-1):
