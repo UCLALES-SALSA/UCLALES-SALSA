@@ -19,6 +19,8 @@
 !
 program ucla_les
 
+  use mpi_interface, ONLY : myid
+
   implicit none
 
   real :: t1, t2
@@ -27,8 +29,10 @@ program ucla_les
   call driver
   call cpu_time(t2)
 
-  print "(/,' ',49('-')/,' ',A16,F10.1,' s')", '  Execution time: ', t2-t1
-  stop ' ..... Normal termination'
+  if (myid == 0) THEN
+    print "(/,' ',49('-')/,' ',A16,F10.1,' s')", '  Execution time: ', t2-t1
+    stop ' ..... Normal termination'
+  ENDIF
 
 contains
 

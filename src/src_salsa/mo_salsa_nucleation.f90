@@ -91,7 +91,7 @@ CONTAINS
          avog,                   &
          rg,                     &
          pi,                     &
-		 reglim
+         reglim
 
     IMPLICIT NONE
 
@@ -970,10 +970,10 @@ CONTAINS
     REAL :: &
          zlnj     ! logarithm of nucleation rate
 
-	!------------------------------------------------------------------------------------------------
-	! loops over
-	DO jj = 1,klev !  vertical grid
-		DO ii = 1,kbdim !  horizontal kbdim in the slab
+    !------------------------------------------------------------------------------------------------
+    ! loops over
+    DO jj = 1,klev !  vertical grid
+        DO ii = 1,kbdim !  horizontal kbdim in the slab
 
           !-- 1) Checking that we are in the validity range of the parameterization -----------
           ! validity of parameterization : DO NOT REMOVE!
@@ -1207,7 +1207,7 @@ CONTAINS
      !    DO jj = 1,klev !  vertical grid
      !       DO ii = 1,kbdim !  horizontal kbdim in the slab
      !          pnuc_rate(ii,jj) = 1.e-7*psa_conc(ii,jj) ! [#/(m3 s)]
-     !	   END DO
+     !       END DO
      !    END DO
      !    pd_crit = 7.9375e-10 ! [m]
 
@@ -1242,7 +1242,7 @@ CONTAINS
    ! ---------------------------------------------------------------
 
    SUBROUTINE orgnucl(kproma,     kbdim,        klev,            &
-		      pc_org,     pnuc_rate,    pd_crit, ppbl,   &
+              pc_org,     pnuc_rate,    pd_crit, ppbl,   &
                       pn_crit_sa, pn_crit_ocnv, pk_sa,   pk_ocnv)
 
      IMPLICIT NONE

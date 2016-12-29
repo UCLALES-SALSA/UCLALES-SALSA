@@ -531,7 +531,7 @@ CONTAINS
                                nlauto,nlautosnow,     &
                                nlactiv,               &
                                nlactintst,            &
-							   nlactbase,			  &
+                               nlactbase,            &
                                nlichom,               &
                                nlichet,               &
                                nlicimmers,            &
@@ -601,14 +601,14 @@ CONTAINS
          volDistB,      & ! Same as above but for b-bins
          nf2a,          & ! Number fraction of particles allocated to a-bins in regime 2. b-bins will get 1-nf2a
 
-	     ! ------------
-	     ! -- Juha: These should eventually be replaced with physical processing !!!! Dont use for liquid clouds!
+         ! ------------
+         ! -- Juha: These should eventually be replaced with physical processing !!!! Dont use for liquid clouds!
          initliqice,  & ! initialize ice and liquid cloud particles from aerosol bins
          liqFracA,      & ! fraction of aerosols that are activated to liquid cloud droplets in A bins
          iceFracA,      & ! fraction of aerosols that are activated to ice cloud particles in A bins
          liqFracB,      & ! fraction of aerosols that are activated to liquid cloud droplets  in B bins
          iceFracB,      & ! fraction of aerosols that are activated to    ice cloud particles in B bins
-	     ! ---------------------------------------------------------------------------------------------------		
+         ! ---------------------------------------------------------------------------------------------------
          rhlim,         & ! Upper limit RH/100 for sals during initialization and spinup 
 
          sigmag,        & ! Stdev for the 7 initial lognormal modes

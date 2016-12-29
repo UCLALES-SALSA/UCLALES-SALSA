@@ -79,7 +79,7 @@ contains
        IF (level >= 4) THEN
 
           ! Not needed when using interst. acivation?
-		  CALL maskactiv(zactmask,nxp,nyp,nzp,nbins,1,prtcl,a_rh)
+          CALL maskactiv(zactmask,nxp,nyp,nzp,nbins,1,prtcl,a_rh)
 
           n4 = GetNcomp(prtcl) + 1 ! Aerosol compoenents + water
 
@@ -165,7 +165,6 @@ contains
 
     use defs, only : alvl, cpr, cp, p00, R
     use sgsm, only : tkeinit
-    use util, only : azero, atob
     use thrm, only : thermo, rslf
 
     implicit none
@@ -257,7 +256,7 @@ contains
        call random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
     end if
 
-    call azero(nxyzp,a_wp)
+    a_wp=0.
     if(isgstyp == 2) call tkeinit(nxyzp,a_qp)
     !
     ! initialize thermodynamic fields
@@ -273,9 +272,9 @@ contains
        CALL init_gas_tracers
     END IF
 
-    call atob(nxyzp,a_up,a_uc)
-    call atob(nxyzp,a_vp,a_vc)
-    call atob(nxyzp,a_wp,a_wc)
+    a_uc=a_up
+    a_vc=a_vp
+    a_wc=a_wp
 
     return
   end subroutine fldinit
@@ -715,7 +714,7 @@ contains
              a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtlt*a_gaerot(k,i,j,:), 0. )
              a_rp(k,i,j) = a_rp(k,i,j) + dtlt*a_rt(k,i,j)
 
-			IF(level < 5) cycle
+            IF(level < 5) cycle
 
              a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtlt*a_nicet(k,i,j,:), 0. )
              a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtlt*a_nsnowt(k,i,j,:), 0. )
@@ -807,7 +806,7 @@ contains
 
     nc = GetIndex(prtcl,'H2O')
     str = (nc-1)*ncld+b
-	   
+
        DO j = 1,nyp
           DO i = 1,nxp
              DO k = 1,nzp
@@ -851,10 +850,10 @@ contains
 
                 IF (a_nicep(k,i,j,b)  > prlim) THEN
                    CALL binMixrat('ice','dry',b,i,j,k,zvol)
-					zvol = zvol/rhosu
+                    zvol = zvol/rhosu
                    a_Ridry(k,i,j,b) = 0.5*( zvol/(pi6*a_nicep(k,i,j,b)) )**(1./3.)
                    CALL binMixrat('ice','wet',b,i,j,k,zvol)
-					zvol = zvol/rhoic
+                    zvol = zvol/rhoic
                    a_Riwet(k,i,j,b) = 0.5*( zvol/(pi6*a_nicep(k,i,j,b)) )**(1./3.)
                 ELSE
                    a_Ridry(k,i,j,b) = 1.e-10
@@ -1156,15 +1155,15 @@ contains
     INTEGER :: i,j,k,bb,m
     REAL :: zumA, zumB, zumCumIce, zumCumLiq, &
             excessIce, excessLiq,excessFracIce,excessFracLiq
-	
-	! initialize liquid and ice only if it is determinded so in the namelist.salsa
-	IF(initliqice) THEN
-    	IF(level==4) THEN
-    	    iceFracA = 0.0; iceFracB = 0.0;
-    	END IF
+
+    ! initialize liquid and ice only if it is determinded so in the namelist.salsa
+    IF(initliqice) THEN
+        IF(level==4) THEN
+            iceFracA = 0.0; iceFracB = 0.0;
+        END IF
         !#cloudinit
-    	DO k = 2,nzp  ! DONT PUT STUFF INSIDE THE GROUND
-       	   DO j = 1,nyp
+        DO k = 2,nzp  ! DONT PUT STUFF INSIDE THE GROUND
+           DO j = 1,nyp
               DO i = 1,nxp
                  IF (a_rh(k,i,j)<1.0  .or. a_scr1(k,i,j) > 273.15) CYCLE
                  zumA=sum(a_naerop(k,i,j,in2a:fn2a))
@@ -1173,12 +1172,12 @@ contains
                  zumCumIce = 0.0
                  zumCumLiq = 0.0
                  excessIce = 0.0
-             	 excessFracIce = 1.0
-             	 excessFracLiq = 1.0
+                 excessFracIce = 1.0
+                 excessFracLiq = 1.0
 
-             	 DO bb=fn2a,in2a,-1
+                 DO bb=fn2a,in2a,-1
 
-               	 	IF(a_scr1(k,i,j) < 273.15 .and. zumCumIce<iceFracA*zumA .and. a_naerop(k,i,j,bb)>10e-10) THEN !initialize ice if it is cold enough
+                    IF(a_scr1(k,i,j) < 273.15 .and. zumCumIce<iceFracA*zumA .and. a_naerop(k,i,j,bb)>10e-10) THEN !initialize ice if it is cold enough
 
                        excessIce =min(abs(zumCumIce-iceFracA*zumA),a_naerop(k,i,j,bb))
                        a_nicep(k,i,j,bb-3) = a_nicep(k,i,j,bb-3) + excessIce
@@ -1402,7 +1401,7 @@ END SUBROUTINE liq_ice_init
        ! The true number of altitude levels
        nc_levs=i-1
     END IF
-	!
+    !
     IF (zlevs(nc_levs)<zt(nzp)) then
        if (myid == 0) print *, '  ABORTING: Model top above aerosol sounding top'
        if (myid == 0) print '(2F12.2)', zlevs(nc_levs), zt(nzp)

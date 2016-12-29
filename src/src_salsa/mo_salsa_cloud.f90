@@ -1229,7 +1229,7 @@ CONTAINS
 
     REAL, INTENT(in) :: temp
     CHARACTER(len=*), INTENT(in) :: nucltype
-    REAL :: Tc
+    REAL :: Tc, a0, a1, a2, a3
     Tc = temp-273.15
 
     calc_act_energy = 0.
@@ -1254,7 +1254,7 @@ CONTAINS
   REAL FUNCTION calc_crit_energy(rn,prv,prs,temp) ! critical energy KC[00] (eq. 2.10)
     USE mo_submctl, ONLY : surfi0, pi
     REAL, INTENT(in) :: rn, prv,prs, temp
-    REAL :: mis, r_g, x, sigma_is,sigma_ns,sigma_ni
+    REAL :: mis, r_g, x, sigma_is,sigma_ns,sigma_ni,alpha
 
     sigma_is = surfi0!! surface tension of ice-solution interface
     sigma_ns = 1

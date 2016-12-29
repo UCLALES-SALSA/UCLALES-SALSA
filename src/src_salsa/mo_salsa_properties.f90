@@ -1,5 +1,5 @@
 !****************************************************************
-!*	                                                        *
+!*                                                            *
 !*   module MO_SALSA_PROPERTIES                                 *
 !*                                                              *
 !*   Contains subroutines and functions that are used           *
@@ -211,10 +211,7 @@ CONTAINS
                    !-- Kelvin effect 
                    
                    count = count + 1
-                   IF (count > 1000) THEN
-                      WRITE(*,*) 'SALSA properties: no convergence!!'
-                      EXIT
-                   END IF
+                   IF (count > 1000) STOP 'SALSA equilibration (regime 1): no convergence!!'
 
                 END DO
 
@@ -322,10 +319,7 @@ CONTAINS
                       zke = exp(2.*surfw0*mvsu/(boltz*ptemp(ii,jj)*zdwet))
 
                       count = count + 1
-                      IF (count > 1000) THEN
-                         WRITE(*,*) 'SALSA properties: no convergence!!'
-                         EXIT
-                      END IF
+                      IF (count > 1000) STOP 'SALSA equilibration (regime 2): no convergence!!'
                       
                    END DO
 

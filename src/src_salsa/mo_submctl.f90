@@ -6,7 +6,6 @@ MODULE mo_submctl
 
   PRIVATE
 
-  !M7 and SALSA
   PUBLIC :: lsdistupdate,nsnucl
 
   PUBLIC :: debug
@@ -106,10 +105,6 @@ MODULE mo_submctl
      INTEGER :: par  ! Index for corresponding parallel distribution
   END TYPE t_parallelbin
 
-  !--- 1) Define and pre-set switches for the processes of M7: -----------------------
-
-  !--- Physical:
-  !Switches for both M7 and SALSA aerosol microphysical processes
   LOGICAL :: nldebug      = .FALSE., & ! debuggin output
              debug
 
@@ -185,15 +180,10 @@ MODULE mo_submctl
 
   LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
 
-  ! 1) Switches for M7 aerosol microphysical processes ------------------------
+  ! 1) Switches for aerosol microphysical processes ------------------------
   INTEGER, PARAMETER :: nmod = 7
 
-  INTEGER :: nsnucl     = 0         ! Choice of the H2SO4/H2O nucleation scheme:
-                                    ! M7:
-                                    ! nsnucl = 0 off
-                                    !        = 1 Vehkamaeki et al., JGR 2002
-                                    !        = 2 Kazil and Lovejoy, ACP 2007
-                                    ! SALSA:
+  INTEGER :: nsnucl     = 0         ! Choice of the nucleation scheme:
                                     ! 0 = off   
                                     ! 1 = binary nucleation
                                     ! 2 = activation type nucleation
@@ -330,6 +320,7 @@ MODULE mo_submctl
 
   REAL, PARAMETER ::     & ! molar mass [kg/mol]
    msu = 98.08e-3,        & ! sulphate
+   !msu = 132.14e-3,        & ! ammonium sulphate (for ASCOS simulations) TR
    mno = 62.01e-3,        & ! HNO3
    mnh = 18.04e-3,        & ! NH3
    moc = 150.e-3,         & ! organic carbon
@@ -341,6 +332,7 @@ MODULE mo_submctl
                                !
                                ! densities [kg/m3]
    rhosu = 1830.,         & ! sulphate
+   !rhosu = 1770.,         & ! ammoniun sulphate (for ASCOS simulations) TR
    rhono = 1479.,         & ! HNO3
    rhonh = 1530.,         & ! NH3
    rhooc = 2000.,         & ! organic carbon

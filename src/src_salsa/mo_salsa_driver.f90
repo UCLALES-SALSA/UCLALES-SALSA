@@ -76,7 +76,7 @@ IMPLICIT NONE
                        prunmode, prtcl, tstep, dbg2, time, level)
 
     USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
-                               nice,nsnw,		     &
+                               nice,nsnw,             &
                                rhoic,rhosn,                  &
                                rhowa, rhosu, rhobc, rhooc,   &
                                rhono, rhonh, rhoss, rhodu,   &
@@ -153,7 +153,7 @@ IMPLICIT NONE
     TYPE(t_section) :: actd(kbdim,klev,ncld) ! Activated droplets - for interfacing with SALSA
 
     ! Helper arrays for calculating the rates of change
-	TYPE(t_section) :: aero_old(1,1,nbins), cloud_old(1,1,ncld), precp_old(1,1,nprc), &
+    TYPE(t_section) :: aero_old(1,1,nbins), cloud_old(1,1,ncld), precp_old(1,1,nprc), &
        ice_old(1,1,nice), snow_old(1,1,nsnw)
 
     INTEGER :: jj,ii,kk,ss,str,end, nc,vc
@@ -474,7 +474,7 @@ IMPLICIT NONE
              If (prunmode == 1) CALL equilibration(kproma,kbdim,klev,   &
                                                     init_rh,in_t,aero,.TRUE.)
 
-	         ! Juha: Should be removed when possible
+             ! Juha: Should be removed when possible
              If (prunmode == 1) CALL equilibration_cloud(kproma,kbdim,klev,   &
                                                     in_rs,in_t,cloud,ice)
 
@@ -800,7 +800,7 @@ IMPLICIT NONE
 
                pa_gaerot(kk,ii,jj,5) = pa_gaerot(kk,ii,jj,5) + &
                   ( zgocsv(1,1)/pdn(kk,ii,jj) - pa_gaerop(kk,ii,jj,5) )/tstep
-		     ENDIF
+             ENDIF
 
 
              ! Tendency of water vapour mixing ratio is obtained from the change in RH during SALSA run.

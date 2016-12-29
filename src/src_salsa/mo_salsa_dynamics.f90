@@ -40,7 +40,7 @@ CONTAINS
   !  does not follow particle size in regime 2.
   !
   !Schematic for bin numbers in different regimes:
-  !        	 1             			2
+  !             1                            2
   !    +-------------------------------------------+
   !  a | 1 | 2 | 3 || 4 | 5 | 6 | 7 |  8 |  9 | 10||
   !  b |           ||11 |12 |13 |14 | 15 | 16 | 17||
@@ -1071,10 +1071,9 @@ CONTAINS
     IF (lscndgas) CALL condgas(kproma,  kbdim,  klev,   krow,      &
                           paero,   pcloud, pprecp,            &
                           pice,    psnow,                     &
-                          pcsa,                               &
-                          pcocnv,  pcocsv, pchno3, pcnh3,     &
-                          prv,prs, prsi,ptemp,  ppres,  ptstep,    &
-                          ppbl,    prtcl)
+                          pcsa, pcocnv, pcocsv, pchno3, pcnh3,     &
+                          zxsa, prv,prs, prsi,ptemp,  ppres, ptstep,    &
+                          prtcl)
 
     ! Condensation of water vapour
     IF (nlcndh2ocl .OR. nlcndh2oae .OR. nlcndh2oic) &
@@ -1099,8 +1098,8 @@ CONTAINS
                           pice,    psnow,                     &
                           pcsa,                               &
                           pcocnv,  pcocsv, pchno3, pcnh3,     &
-                          prv,prs, prsi,ptemp,  ppres,  ptstep,    &
-                          ppbl,    prtcl)
+                          zxsa, prv,prs, prsi,ptemp,  ppres,  ptstep,    &
+                          prtcl)
 
     USE mo_submctl,    ONLY :   &
          pi,                        &
@@ -1168,16 +1167,14 @@ CONTAINS
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl  ! Keeps track which substances are used
 
-    INTEGER :: ppbl(kbdim)           ! Planetary boundary layer top level
-
     REAL, INTENT(INOUT) ::     &
-         !prh(kbdim,klev),          & ! Juha: Moved from above
          prv(kbdim,klev),          & ! Water vapor mixing ratio
          pcsa(kbdim,klev),         & ! sulphuric acid concentration [#/m3]
          pcocnv(kbdim,klev),       & ! non-volatile organic concentration [#/m3]
          pcocsv(kbdim,klev),       & ! semivolatile organic concentration [#/m3]
          pchno3(kbdim,klev),       & ! nitric acid concentration [#/m3]
-         pcnh3(kbdim,klev)           ! ammonia concentration [#/m3]
+         pcnh3(kbdim,klev),        & ! ammonia concentration [#/m3]
+         zxsa(kbdim,klev)            ! ratio of sulphuric acid and organic vapor in 3nm particles
 
     TYPE(t_section), INTENT(inout) :: &
          pcloud(kbdim,klev,ncld),     & ! Hydrometeor properties
@@ -1233,7 +1230,6 @@ CONTAINS
 
          zj3n3(kbdim,klev,2),        & ! Formation massrate of molecules in nucleation, [molec/m3s].  (kbdim,klev,1) for H2SO4 and (kbdim,klev,2) for Organic vapor
          zn_vs_c,                    & ! ratio of nucleation of all mass transfer in the smallest bin
-         zxsa(kbdim,klev),           & ! ratio of sulphuric acid and organic vapor in 3nm particles
          zxocnv(kbdim,klev)
 
 
@@ -1845,10 +1841,10 @@ CONTAINS
                    zwsatid(cc) = zkelvinid(cc)
                 END DO
              END IF
-			 IF (ANY(psnow(ii,jj,:)%numc > prlim) ) THEN
+             IF (ANY(psnow(ii,jj,:)%numc > prlim) ) THEN
                 DO cc = 1,nsnw
                    zcwintsd(cc) = zcwcsd(cc) + min(max(adt*zmtsd(cc)*(zcwint - zwsatsd(cc)*zcwsurfsd(cc)),&
-						-0.02*zcwcsd(cc)),0.05*zcwcsd(cc))
+                        -0.02*zcwcsd(cc)),0.05*zcwcsd(cc))
                    zwsatsd(cc) = zkelvinsd(cc)
                 END DO
              END IF

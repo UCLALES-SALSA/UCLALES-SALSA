@@ -27,10 +27,10 @@ module mcrp
        a_Riwet, a_Rswet,                                                        &
        a_naerop,  a_naerot,  a_maerop,  a_maerot,                               &
        a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,                              &
-       a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt, mc_ApVdom,					&
-	   a_nicep,   a_nicet,   a_micep,   a_micet,                                &
+       a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt, mc_ApVdom,         &
+       a_nicep,   a_nicet,   a_micep,   a_micet,                                &
        a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
-	   snowin,    prtcl
+       snowin,    prtcl
   use thrm, only : thermo
   use stat, only : sflg, updtst, acc_removal, mcflg, acc_massbudged
   implicit none
@@ -79,8 +79,6 @@ contains
     case(3)
        call mcrph(nzp,nxp,nyp,dn0,a_theta,a_scr1,a_rv,a_scr2,a_rc,a_rpp,   &
                   a_npp,precip,a_rt,a_tt,a_rpt,a_npt)
-
-
     case(4,5)
        IF (level < 5) sed_ice = .FALSE.; sed_snow = .FALSE.
        nn = GetNcomp(prtcl)+1
@@ -785,7 +783,7 @@ contains
     INTEGER, INTENT(in) :: nn             ! Number of bins
     REAL, INTENT(in) :: tk(n1,n2,n3)      ! Absolute temprature
     REAL, INTENT(in) :: adn(n1,n2,n3)     ! Air density
-    REAL, INTENT(in) :: pdn  ! Particle density ! VOISI ANTAA BINEITTÄINKIN JNE
+    REAL, INTENT(in) :: pdn  ! Particle density
     REAL, INTENT(in) :: rwet(n1,n2,n3,nn) ! Particle wet radius
     REAL, INTENT(in) :: numc(n1,n2,n3,nn) ! Particle number concentrations
     REAL, INTENT(in) :: dzt(n1)           ! Inverse of grid level thickness
@@ -869,7 +867,7 @@ contains
     INTEGER, INTENT(in) :: nn                ! Number of bins
     REAL, INTENT(in) :: tk(n1,n2,n3)         ! Absolute temprature
     REAL, INTENT(in) :: adn(n1,n2,n3)        ! Air density
-    REAL, INTENT(in) :: pdn                  ! Particle density !!! VOISI ANTAA BINEITTÄINKIN JNE
+    REAL, INTENT(in) :: pdn                  ! Particle density
     REAL, INTENT(in) :: rwet(n1,n2,n3,nn)    ! Particle wet radius
     REAL, INTENT(in) :: numc(n1,n2,n3,nn)    ! Particle number concentration
     REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4) ! Particle mass mixing ratio
@@ -1018,7 +1016,7 @@ contains
 
              IF (rwet(k,i,j,bin) < 20.e-6 ) THEN
                 vc = (2.*(rwet(k,i,j,bin)**2)*(pdn-adn(k,i,j))*g/(9.*avis))*GG
-				vc = MIN(vc,1.)
+                vc = MIN(vc,1.)
              ELSE
                 vc = 2.e3*(2.*rwet(k,i,j,bin))*(rhoref/adn(k,i,j))**2
                 vc = MIN(vc,5.) 

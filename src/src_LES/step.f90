@@ -60,7 +60,8 @@ contains
     logical, parameter :: StopOnCFLViolation = .False.
     real, parameter :: cfl_upper = 0.50, cfl_lower = 0.30
 
-    real    :: t1,t2,tplsdt,begtime,cflmax,gcflmax
+    real    :: t1,t2,tplsdt,begtime
+    REAL(kind=8) :: cflmax,gcflmax
     integer :: istp, iret
     logical :: cflflg
     !
@@ -68,8 +69,8 @@ contains
     !
     begtime = time
     istp = 0
-	
-	call cpu_time(t1)
+
+    call cpu_time(t1)
 
     do while (time + 0.1*dtl < timmax)
 
@@ -149,7 +150,8 @@ contains
   subroutine tstep_reset(n1,n2,n3,up,vp,wp,uc,vc,wc,dtl,dtmx,cfl,c1,c2)
 
   integer, intent (in) :: n1,n2,n3
-  real, intent (in)    :: up(n1,n2,n3),vp(n1,n2,n3),wp(n1,n2,n3),dtmx,cfl,c1,c2
+  real, intent (in)    :: up(n1,n2,n3),vp(n1,n2,n3),wp(n1,n2,n3),dtmx,c1,c2
+  REAL(kind=8), INTENT (IN) :: cfl
   real, intent (inout) :: uc(n1,n2,n3),vc(n1,n2,n3),wc(n1,n2,n3),dtl
 
   integer :: i,j,k
@@ -212,7 +214,7 @@ end subroutine tstep_reset
     USE class_ComponentIndex, ONLY : GetNcomp
 
     logical, intent (out) :: cflflg
-    real, intent (out)    :: cflmax
+    real(KIND=8), intent (out)    :: cflmax
 
     real :: xtime
 
@@ -382,18 +384,16 @@ end subroutine tstep_reset
   !
   subroutine tend0(sclonly)
 
-    use grid, only : a_ut, a_vt, a_wt, nscl, a_st, nxyzp, newsclr
-    use util, only : azero
+    use grid, only : a_ut, a_vt, a_wt, nscl, a_st, newsclr
 
     LOGICAL, INTENT(in) :: sclonly ! If true, only put scalar tendencies to zero
 
     integer :: n
 
-    IF( .NOT. sclonly) &
-         call azero(nxyzp,a_ut,a2=a_vt,a3=a_wt)
+    IF( .NOT. sclonly) a_ut=0.; a_vt=0.; a_wt=0.
     do n=1,nscl
        call newsclr(n)
-       call azero(nxyzp,a_st)
+       a_st=0.
     end do
 
   end subroutine tend0
@@ -516,14 +516,14 @@ end subroutine tstep_reset
     use stat, only : fill_scalar
 
     logical, intent(out) :: cflflg
-    real, intent (out)   :: cflmax
+    real(KIND=8), intent (out)   :: cflmax
     real, parameter :: cflnum=0.95
 
     cflmax =  cfll(nzp,nxp,nyp,a_up,a_vp,a_wp,dxi,dyi,dzt,dtlt)
 
     cflflg = (cflmax > cflnum)
     if (cflflg) print *, 'Warning CFL Violation :', cflmax
-    call fill_scalar(1,cflmax)
+    call fill_scalar(1,REAL(cflmax))
 
   end subroutine cfl
   !
@@ -531,7 +531,7 @@ end subroutine tstep_reset
   ! Subroutine cfll: Checks CFL criteria, brings down the model if the
   ! maximum thershold is exceeded
   !
-  real function cfll(n1,n2,n3,u,v,w,dxi,dyi,dzt,dtlt)
+  real(KIND=8) function cfll(n1,n2,n3,u,v,w,dxi,dyi,dzt,dtlt)
 
     integer, intent (in) :: n1, n2, n3
     real, dimension (n1,n2,n3), intent (in) :: u, v, w
@@ -759,7 +759,7 @@ end subroutine tstep_reset
                                rhosu,rhooc,rhono,rhonh,rhoss,rhowa,rhoic,rhosn,      &  !! Jaakko: rhoic added
                                msu,moc,mno,mnh,mss,mwa,avog,pi6,                     &
                                surfw0,surfi0, rg, nlim, prlim, pi, &
-							   lscndgas
+                               lscndgas
     USE class_ComponentIndex, ONLY : GetIndex, GetNcomp, IsUsed
 
 
@@ -777,7 +777,7 @@ end subroutine tstep_reset
     LOGICAL :: zclosest(fn2a)
     REAL :: vsum
 
-    ! Remove negative values (CHECK HOW MUCH THIS AFFECTS MASS CONCERVATION?)
+    ! Remove negative values
     a_naerop = MAX(0.,a_naerop)
     a_ncloudp = MAX(0.,a_ncloudp)
     a_nprecpp = MAX(0.,a_nprecpp)
@@ -796,7 +796,6 @@ end subroutine tstep_reset
     DO j = 3,nyp-2
        DO i = 3,nxp-2
           DO k = 1,nzp
-
              ! Aerosols
              DO c = 1,nbins
                 vsum = 0.
@@ -1081,7 +1080,7 @@ end subroutine tstep_reset
                       ! Move evaporating rain drops to a soluble aerosoln bin with
                       ! the closest match in dry particle radius. Ain't perfect but
                       ! the bin update subroutine in SALSA will take care of the rest.
-	                  zvol = 0.
+                      zvol = 0.
                       zclosest = .FALSE.
                       CALL binMixrat('precp','dry',bc,i,j,k,zvol)
                       zvol = zvol/rhosu
@@ -1281,7 +1280,7 @@ end subroutine tstep_reset
                    zvol = zvol/rhosu
                    a_Ridry(k,i,j,bc) = 0.5*(zvol/a_nicep(k,i,j,bc)/pi6)**(1./3.)
                    CALL binMixrat('ice','wet',bc,i,j,k,zvol)
-	               zvol = zvol/rhoic
+                   zvol = zvol/rhoic
                    a_Riwet(k,i,j,bc) = 0.5*(zvol/a_nicep(k,i,j,bc)/pi6)**(1./3.)
                 ELSE
                    a_Ridry(k,i,j,bc) = rempty
@@ -1333,7 +1332,7 @@ end subroutine tstep_reset
              str = (nc-1)*nsnw+isa
              end = (nc-1)*nsnw+fsa
              a_srs(k,i,j) = SUM(a_msnowp(k,i,j,str:end))
-	         a_snrs(k,i,j) = SUM(a_nsnowp(k,i,j,isa:fsa))
+             a_snrs(k,i,j) = SUM(a_nsnowp(k,i,j,isa:fsa))
 
           END DO   ! k
        END DO   ! i

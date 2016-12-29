@@ -15,9 +15,9 @@ MODULE mo_salsa_update
 
 CONTAINS
 
-  SUBROUTINE distr_update(kproma,	kbdim, 	klev,   	&
-                          paero,	pcloud, pprecp , 	&
-                          pice,  	psnow,  level 		)
+  SUBROUTINE distr_update(kproma, kbdim, klev, &
+                          paero, pcloud, pprecp, &
+                          pice, psnow, level )
 
     USE mo_submctl
     
@@ -109,7 +109,7 @@ CONTAINS
                    !zvfrac = znfrac * zVexc / (1./2.*(zVihi+zVilo))
                    zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
 
-                   IF(zvfrac < 0.) WRITE(*,*) 'Error aerosol 0'
+                   IF(zvfrac < 0.) STOP 'Error aerosol 0'
                    !-- update bin
                    mm = kk+1
                    !-- volume
@@ -136,10 +136,7 @@ CONTAINS
              END DO ! - kk
 
              count = count + 1
-             IF (count > 100) THEN
-                WRITE(*,*) 'WARNING: Aerosol bin update not converged'
-                EXIT
-             END IF
+             IF (count > 100) STOP 'Error: Aerosol bin update not converged'
 
           END DO ! - within bins
 
@@ -204,7 +201,7 @@ CONTAINS
                    !zvfrac = min(zvfrac,1.)
                    zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
 
-                   IF(zvfrac < 0.) WRITE(*,*) 'Error cloud 0'
+                   IF(zvfrac < 0.) STOP 'Error cloud 0'
 
                    !-- volume
                    pcloud(ii,jj,mm)%volc(:) = pcloud(ii,jj,mm)%volc(:)     &
@@ -230,19 +227,7 @@ CONTAINS
              END DO !kk
 
              count = count + 1
-             IF (count > 100) THEN
-                WRITE(*,*) 'WARNING: Cloud bin update not converged'
-                WRITE(*,*) pcloud(ii,jj,1:7)%numc
-                WRITE(*,*) pcloud(ii,jj,1:7)%volc(1)
-                WRITE(*,*) pcloud(ii,jj,1:7)%volc(2)
-                WRITE(*,*) pcloud(ii,jj,1:7)%volc(3)
-                WRITE(*,*) pcloud(ii,jj,1:7)%volc(4)
-                WRITE(*,*) pcloud(ii,jj,1:7)%volc(5)
-                WRITE(*,*) pcloud(ii,jj,1:7)%volc(6)
-                WRITE(*,*) pcloud(ii,jj,1:7)%volc(7)
-                WRITE(*,*) pcloud(ii,jj,1:7)%volc(8)
-                EXIT
-             END IF
+             IF (count > 100) STOP 'Error: Cloud bin update not converged'
 
           END DO !within_bins
 
@@ -339,12 +324,7 @@ CONTAINS
              END DO !kk
 
              count = count + 1
-             IF (count > 100) THEN
-                WRITE(*,*) 'WARNING: precipitation bin update not converged'
-                WRITE(*,'(7ES4.1E3)') pprecp(ii,jj,ira:fra)%numc
-                WRITE(*,'(7ES4.1E3)') pprecp(ii,jj,ira:fra)%volc(8)
-                EXIT
-             END IF
+             IF (count > 100) STOP 'Error: precipitation bin update not converged'
 
           END DO !within_bins
 
@@ -437,29 +417,7 @@ CONTAINS
              END DO !kk
 
              count = count + 1
-             IF (count > 100) THEN
-                WRITE(*,*) 'WARNING: Ice bin update not converged'
-                WRITE(*,*) 'numc'
-                WRITE(*,'(7ES10.1E3)') pice(ii,jj,1:7)%numc
-                WRITE(*,*) 'volc'
-                WRITE(*,*) 'SO4'
-                WRITE(*,'(7ES10.1E3)') pice(ii,jj,1:7)%volc(1)
-                WRITE(*,*) 'OC'
-                WRITE(*,'(7ES10.1E3)') pice(ii,jj,1:7)%volc(2)
-                WRITE(*,*) 'BC'
-                WRITE(*,'(7ES10.1E3)') pice(ii,jj,1:7)%volc(3)
-                WRITE(*,*) 'DU'
-                WRITE(*,'(7ES10.1E3)') pice(ii,jj,1:7)%volc(4)
-                WRITE(*,*) 'SS'
-                WRITE(*,'(7ES10.1E3)') pice(ii,jj,1:7)%volc(5)
-                WRITE(*,*) 'NO'
-                WRITE(*,'(7ES10.1E3)') pice(ii,jj,1:7)%volc(6)
-                WRITE(*,*) 'NH'
-                WRITE(*,'(7ES10.1E3)') pice(ii,jj,1:7)%volc(7)
-                WRITE(*,*) 'H2O'
-                WRITE(*,'(7ES10.1E3)') pice(ii,jj,1:7)%volc(8)
-                EXIT
-             END IF
+             IF (count > 100) STOP 'Error: Ice bin update not converged'
 
           END DO !within_bins
 
@@ -555,12 +513,7 @@ CONTAINS
              END DO !kk
 
              count = count + 1
-             IF (count > 100) THEN
-                WRITE(*,*) 'WARNING: snow bin update not converged'
-                WRITE(*,*) psnow(ii,jj,isa:fsa)%numc
-                WRITE(*,*) psnow(ii,jj,isa:fsa)%volc(8)
-                EXIT
-             END IF
+             IF (count > 100) STOP 'Error: snow bin update not converged'
 
           END DO !within_bins
 

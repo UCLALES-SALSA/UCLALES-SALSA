@@ -102,7 +102,7 @@ contains
 
   SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,rsi,rhi,srs)
     USE defs, ONLY : R,Rm, cp, cpr, p00, alvl, alvi
-    USE grid, ONLY : a_dn ! Siirrä nää argumenteiksi!
+    USE grid, ONLY : a_dn
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: level,n1,n2,n3
@@ -111,18 +111,17 @@ contains
                         tl(n1,n2,n3)          ! liquid potential temp
     REAL, INTENT(in) :: th00
     REAL, INTENT(in) :: pi0(n1),pi1(n1)
-    REAL, INTENT(out) :: rc(n1,n2,n3),  &     ! Total cloud condensate mix rat
-                         rs(n1,n2,n3),  &     ! Saturation mix rat
+    REAL, INTENT(IN) :: rc(n1,n2,n3),  &  ! Total cloud condensate mix rat
+                         srp(n1,n2,n3)            ! Precipitation mix rat
+    REAL, INTENT(OUT) :: rs(n1,n2,n3),  &   ! Saturation mix rat
                          rh(n1,n2,n3),  &     ! Relative humidity
-                         srp(n1,n2,n3), &     ! Precipitation mix rat
                          th(n1,n2,n3),  &     ! Potential temperature
                          tk(n1,n2,n3),  &     ! Absolute temperature
-                         p(n1,n2,n3)          ! Air pressure
-
-    REAL, INTENT(out), OPTIONAL ::  ri(n1,n2,n3),  &     ! Total ice condensate mix rat        ! ice'n'snow
-                                    rsi(n1,n2,n3), &     ! Saturation mix rat over ice         ! ice'n'snow
-                                    rhi(n1,n2,n3), &     ! relative humidity                   ! ice'n'snow
-                                    srs(n1,n2,n3)        ! Snow mix rat                        ! ice'n'snow
+                         p(n1,n2,n3)           ! Air pressure
+    REAL, OPTIONAL, INTENT(IN) :: ri(n1,n2,n3),  &  ! Total ice condensate mix rat
+                         srs(n1,n2,n3)      ! Snow mix rat
+    REAL, OPTIONAL, INTENT(OUT) :: rsi(n1,n2,n3), & ! Saturation mix rat over ice
+                         rhi(n1,n2,n3)      ! relative humidity over ice
     REAL :: exner
     INTEGER :: k,i,j
     REAL :: thil

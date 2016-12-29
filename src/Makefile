@@ -69,11 +69,11 @@ init.o: grid.o stat.o util.o defs.o step.o sgsm.o thrm.o  \
 rfft.o:
 rad_rndnmb.o:
 rad_solver.o: defs.o
-rad_corkds.o: defs.o
+rad_corkds.o: defs.o $(seqmpi:.f90=.o)
 rad_cldwtr.o: defs.o rad_corkds.o
 rad_d4strm.o: defs.o rad_solver.o rad_rndnmb.o \
 	      rad_corkds.o rad_cldwtr.o
-rad_driver.o: defs.o rad_d4strm.o
+rad_driver.o: defs.o rad_d4strm.o $(seqmpi:.f90=.o)
 $(seqmpi:.f90=.o):
 mo_salsa_driver.o: mo_submctl.o mo_salsa.o class_componentIndex.o
 mo_constants.o:

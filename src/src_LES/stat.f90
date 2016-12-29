@@ -22,12 +22,12 @@ module stat
   use ncio, only : open_nc, define_nc
   use grid, only : level
   use util, only : get_avg, get_cor, get_avg3, get_cor3, get_var3, get_csum, get_avg_ts, &
-                   get_cavg, get_avg2dh
+                   get_cavg, get_avg2dh, get_3rd3
 
   implicit none
   private
 
-  integer, parameter :: nvar1 = 27,               &
+  integer, parameter :: nvar1 = 28,               &
                         nv1sbulk = 62,            &
                         nv1MB = 4,                &
                         nvar2 = 92,               &
@@ -59,7 +59,7 @@ module stat
        'vtke   ','sfcbflx','wmax   ','tsrf   ','ustar  ','shf_bar', & ! 7
        'lhf_bar','zi_bar ','lwp_bar','lwp_var','zc     ','zb     ', & !13
        'cfrac  ','lmax   ','albedo ','rwp_bar','prcp   ','pfrac  ', & !19
-       'CCN    ','nrain  ','nrcnt  '/),                             & !25
+       'CCN    ','nrain  ','nrcnt  ','nccnt  '/),                   & !25
 
        ! **** Bulk temporal statistics for SALSA ****
        s1SalsaBulk(nv1sbulk) = (/                                    &
@@ -519,8 +519,6 @@ contains
     IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, rxt, a_scr2, zt)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp, a_rc)
 
-    !WRITE(*,*) ssclr_b(10:12)
-
     call write_ts
 
   end subroutine statistics
@@ -591,6 +589,7 @@ contains
     ssclr(18)  = zt(n1)
     ssclr(19)  = 0.
     ssclr(20)  = 0.
+    ssclr(28)  = 0.
 
     unit = 1./real((n2-4)*(n3-4))
     do j=3,n3-2
@@ -603,6 +602,7 @@ contains
                 ssclr(18) = min(ssclr(18),zt(k))
                 cpnt = unit
                 ssclr(20) = max(ssclr(20), xaqua)
+                ssclr(28) = ssclr(28) + 1.
              end if
           end do
           ssclr(19) = ssclr(19) + cpnt
@@ -633,17 +633,12 @@ contains
     LOGICAL :: cond_ic(n1,n2,n3), cond_oc(n1,n2,n3)
     CHARACTER(len=3), PARAMETER :: zspec(7) = (/'SO4','OC ','BC ','DU ','SS ','NH ','NO '/)
 
-
-    a0 = 0.; a1 = 0.
     CALL bulkNumc('cloud','a',a0)
     CALL bulkNumc('cloud','b',a1)
-    cond_ic = .FALSE.
-    cond_oc = .FALSE.
     cond_ic(:,:,:) = ( a0(:,:,:) + a1(:,:,:) > nlim .AND. rc(:,:,:) > 1.e-5 )
     cond_oc = .NOT. cond_ic
 
     ssclr_b(1) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
-    a0 = 0.; a1 = 0.
     CALL bulkNumc('aerosol','a',a0)
     CALL bulkNumc('aerosol','b',a1)
     ssclr_b(2) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
@@ -653,13 +648,11 @@ contains
     DO ss = 1,7
 
        IF (IsUsed(prtcl,zspec(ss))) THEN
-          a0 = 0.; a1 = 0.
           CALL bulkMixrat(zspec(ss),'cloud','a',a0)
           CALL bulkMixrat(zspec(ss),'cloud','b',a1)
           ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
           ii = ii + 1
 
-          a0 = 0.; a1 = 0.
           CALL bulkMixrat(zspec(ss),'aerosol','a',a0)
           CALL bulkMixrat(zspec(ss),'aerosol','b',a1)
 
@@ -685,26 +678,17 @@ contains
     real, dimension (n1,n2,n3), intent (in)    :: u, v, w, t, p
     real, intent (in)           :: um, vm, th00
 
-    integer :: i,j,k
-    real    :: a1(n1), b1(n1), c1(n1), d1(n1), a3(n1), b3(n1), x
+    integer :: k
+    real    :: a1(n1), b1(n1), c1(n1), d1(n1), a3(n1), b3(n1), tmp(n1)
 
-    x = 1./real( (n3-4)*(n2-4))
     call get_avg3(n1,n2,n3, u,a1)
     call get_avg3(n1,n2,n3, v,b1)
     call get_avg3(n1,n2,n3, t,c1)
     call get_avg3(n1,n2,n3, p,d1)
     call get_var3(n1,n2,n3, t, c1, thvar)
-
-    a3(:) = 0.
-    b3(:) = 0.
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
-             a3(k)=a3(k) + w(k,i,j)**3
-             b3(k)=b3(k) + (t(k,i,j)-a1(k))**3
-          end do
-       end do
-    end do
+    call get_3rd3(n1,n2,n3, t, c1, b3) ! Used to be (t-a1)**3
+    tmp(:)=0.
+    call get_3rd3(n1,n2,n3, w, tmp, a3) ! Now just w**3
 
     do k=1,n1
        svctr(k,10)=svctr(k,10) + a1(k) + um
@@ -712,8 +696,8 @@ contains
        svctr(k,12)=svctr(k,12) + c1(k) + th00
        svctr(k,13)=svctr(k,13) + d1(k)
        svctr(k,17)=svctr(k,17) + thvar(k)
-       svctr(k,18)=svctr(k,18) + a3(k) * x
-       svctr(k,19)=svctr(k,19) + b3(k) * x
+       svctr(k,18)=svctr(k,18) + a3(k)
+       svctr(k,19)=svctr(k,19) + b3(k)
     end do
 
   end subroutine accum_stat
@@ -759,25 +743,17 @@ contains
     integer, intent (in) :: n1,n2,n3
     real, intent (in)  :: rt(n1,n2,n3)
 
-    integer :: i,j,k
+    integer :: k
     real    :: a1(n1),a2(n1),a3(n1)
 
     call get_avg3(n1,n2,n3,rt,a1)
     call get_var3(n1,n2,n3,rt,a1,a2)
-
-    a3(:) = 0.
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
-             a3(k) = a3(k) + (rt(k,i,j)-a1(k))**3
-          end do
-       end do
-    end do
+    CALL get_3rd3(n1,n2,n3,rt,a1,a3)
 
     do k=1,n1
        svctr(k,50)=svctr(k,50) + a1(k)*1000.
        svctr(k,51)=svctr(k,51) + a2(k)
-       svctr(k,52)=svctr(k,52) + a3(k)/REAL((n2-4)*(n3-4))
+       svctr(k,52)=svctr(k,52) + a3(k)
     end do
 
   end subroutine accum_lvl1
@@ -796,7 +772,7 @@ contains
     real, intent (in), dimension(n1)        :: zm, dn0
     real, intent (in), dimension(n1,n2,n3)  :: w, th, tl, rl, rs, rt
 
-    real, dimension(n1,n2,n3) :: tv	! Local variable
+    real, dimension(n1,n2,n3) :: tv    ! Local variable
     integer                   :: k, i, j, km1
     logical                   :: aflg
     real                      :: xy1mx
@@ -808,20 +784,12 @@ contains
     !
     call get_avg3(n1,n2,n3,rl,a1)
     call get_var3(n1,n2,n3,rl,a1,a2)
-
-    a3(:) = 0.
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
-             a3(k) = a3(k) + (rl(k,i,j)-a1(k))**3
-          end do
-       end do
-    end do
+    call get_3rd3(n1,n2,n3,rl,a1,a3)
 
     do k=1,n1
        svctr(k,59)=svctr(k,59) + a1(k)*1000.
        svctr(k,60)=svctr(k,60) + a2(k)
-       svctr(k,61)=svctr(k,61) + a3(k)/REAL((n2-4)*(n3-4))
+       svctr(k,61)=svctr(k,61) + a3(k)
     end do
     !
     ! do some conditional sampling statistics: cloud, cloud-core
@@ -922,7 +890,7 @@ contains
     real, intent (in), dimension(n1,n2,n3) :: rc, rr, nr, rrate
 
     integer                :: k, i, j, km1
-    real                   :: nrsum, nrcnt, rrsum, rrcnt, xrain, xaqua
+    real                   :: nrsum, nrcnt, rrsum, rrcnt, xrain
     real                   :: rmax, rmin
     real, dimension(n1)    :: a1
     real, dimension(n2,n3) :: scr1,scr2
@@ -969,7 +937,7 @@ contains
              if (rrate(k,i,j) > 3.65e-5) then
                 aflg = .true.
                 scr1(i,j) = 1.
-                rrsum = rrsum + rrate(k,i,j) !* alvl * 0.5*(dn0(1)+dn0(2)) ! TEHTY JO??
+                rrsum = rrsum + rrate(k,i,j) !* alvl * 0.5*(dn0(1)+dn0(2))
                 rrcnt = rrcnt + 1.
              end if
           end do
@@ -999,20 +967,14 @@ contains
     !
     do j=3,n3-2
        do i=3,n2-2
-          scr1(i,j) = 0.
           scr2(i,j) = 0.
           do k=1,n1
              km1=max(1,k-1)
              xrain = max(0.,rr(k,i,j))
-             xaqua = max(xrain,rc(k,i,j))
-             !scr1(i,j)=scr1(i,j)+xaqua*dn0(k)*(zm(k)-zm(km1))*1000.
              scr2(i,j)=scr2(i,j)+xrain*dn0(k)*(zm(k)-zm(km1))
           enddo
        end do
     end do
-    ! TEHTY JO accum_lvl2!!
-    !ssclr(15) = get_avg(1,n2,n3,1,scr1)
-    !ssclr(16) = get_cor(1,n2,n3,1,scr1,scr1)
     ssclr(22) = get_avg(1,n2,n3,1,scr2)
     zarg(1,:,:) = rrate(2,:,:) 
     ssclr(23) = get_avg(1,n2,n3,1,zarg)

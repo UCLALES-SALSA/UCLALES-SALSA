@@ -27,7 +27,7 @@ NCDFLIB = '-L$(NCDF)/lib -lnetcdf -lnetcdff'
 NCDFINC = -I$(NCDF)/include
 LIBS = $(NCDFLIB)
 F90 = f95
-MPIF90 = mpif90 #f95
+MPIF90 = f95
 FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} #-fbounds-check  -g -fcheck=all  -Wall -Wtabs -fbacktrace -ffpe-trap=invalid,zero,overflow
 F77FLAGS = -O2 #-fbounds-check  -ffpe-trap=invalid,zero,overflow
 

@@ -46,7 +46,7 @@ contains
        iret = nf90_put_att(ncid,NF90_GLOBAL,'title',ename)
        iret = nf90_put_att(ncid,NF90_GLOBAL,'history','Created on '//date)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'Source','UCLALES-SALSA Version '//trim(version))
-       IF (LEN(trim(author))>0) iret = nf90_put_att(ncid, NF90_GLOBAL, 'Author',trim(author))
+       iret = nf90_put_att(ncid, NF90_GLOBAL, 'Author',trim(author))
        iret = nf90_put_att(ncid, NF90_GLOBAL, '_FillValue',-999.)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPTS',npts)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPROCS',pecount)
@@ -169,7 +169,7 @@ contains
 
        ! Juha: dimension environments for size distribution variables
        dim_ttttaea = (/ztID,xtID,ytID,aeaID,timeID/)
-       dim_ttttaeb = (/xtID,xtID,ytID,aebID,timeID/)
+       dim_ttttaeb = (/ztID,xtID,ytID,aebID,timeID/)
        dim_ttttcla = (/ztID,xtID,ytID,claID,timeID/)
        dim_ttttclb = (/ztID,xtID,ytID,clbID,timeID/)
        dim_ttttprc = (/ztID,xtID,ytID,prcID,timeID/)
@@ -572,6 +572,10 @@ contains
        if (itype==2) ncinfo = 'time'
     case('nrcnt')
        if (itype==0) ncinfo = 'Rain cell counts'
+       if (itype==1) ncinfo = '#'
+       if (itype==2) ncinfo = 'time'
+    case('nccnt')
+       if (itype==0) ncinfo = 'Cloud cell counts'
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'time'
     !
@@ -1826,9 +1830,7 @@ contains
     INTEGER :: iret, vid
 
     iret = nf90_inq_varid(ncid,name,vid)
-    IF ( iret /= NF90_NOERR) WRITE(*,*) 'ei löyry'
     iret = nf90_get_var(ncid,vid,var)
-    IF ( iret /= NF90_NOERR) WRITE(*,*) 'ei lue'
 
   END SUBROUTINE read_aero_nc_2d
   !

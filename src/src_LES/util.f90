@@ -143,18 +143,16 @@ contains
     INTEGER, INTENT(in) :: n2,n3
     REAL, INTENT(in)    :: a(n2,n3)
 
-    INTEGER :: npnt,i,j
+    INTEGER :: i,j
     
     get_avg2dh = 0.
-    npnt = 0
     DO j = 3,n3-2
        DO i = 3,n2-2
-          npnt = npnt + 1
           get_avg2dh = get_avg2dh + a(i,j)
        END DO
     END DO
 
-    get_avg2dh = get_avg2dh/REAL(npnt)
+    get_avg2dh = get_avg2dh/real((n3-4)*(n2-4))
 
   END FUNCTION get_avg2dh
   !
@@ -189,8 +187,8 @@ contains
                 END IF
              END DO
              ! Grid weighted vertical average
-             ztmp = MERGE(ztmp/ztot, 0., ztmp /= 0.) ! avoid nans
-             npnt = npnt + 1
+             if (ztot /=0.0 ) ztmp = ztmp/ztot
+             npnt = npnt + 1 ! Note: this should not be used (use ztot instead!)
              get_avg_ts = get_avg_ts + ztmp
           END DO
        END DO
@@ -220,7 +218,7 @@ contains
   !
   !---------------------------------------------------------------------
   ! GET_AVG3: gets average across outer two dimensions at each
-  ! point along inner dimension
+  ! point along inner dimension - calculated over all PUs
   !
   subroutine get_avg3(n1,n2,n3,a,avg)
 
@@ -257,17 +255,17 @@ contains
     real, intent (in)    :: a(n1,n2,n3),x(n2,n3)
 
     integer :: i,j
-    real    :: avg, cnt
+    real    :: cnt
 
-    avg=0.
+    get_cavg=0.
     cnt=0.
     do j=3,n3-2
        do i=3,n2-2
-          avg=avg+a(k,i,j)*x(i,j)
+          get_cavg=get_cavg+a(k,i,j)*x(i,j)
           cnt=cnt+x(i,j)
        end do
     end do
-    get_cavg=avg/max(1.,cnt)
+    IF (cnt /= 0.0) get_cavg=get_cavg/cnt
 
   end function get_cavg
   !
@@ -280,15 +278,13 @@ contains
     real, intent (in)    :: a(n1,n2,n3),x(n2,n3)
 
     integer :: i,j
-    real    :: csum
 
-    csum=0.
+    get_csum=0.
     do j=3,n3-2
        do i=3,n2-2
-          csum=csum+a(k,i,j)*x(i,j)
+          get_csum=get_csum+a(k,i,j)*x(i,j)
        enddo
     enddo
-    get_csum=csum
 
   end function get_csum
   !
@@ -302,15 +298,14 @@ contains
     real, intent (inout) :: a(n1,n2,n3),b(n1,n2,n3)
 
     integer :: i,j
-    real    :: avg
-    avg=0.
 
+    get_cor=0.
     do j=3,n3-2
        do i=3,n2-2
-          avg=avg+a(k,i,j)*b(k,i,j)
+          get_cor=get_cor+a(k,i,j)*b(k,i,j)
        end do
     end do
-    get_cor=avg/real((n3-4)*(n2-4))
+    get_cor=get_cor/real((n3-4)*(n2-4))
 
   end function get_cor
   !
@@ -325,20 +320,16 @@ contains
     real, intent (out)   :: avg(n1)
 
     integer :: k,i,j
-    real    :: x
 
-    do k=1,n1
-       avg(k) = 0.
-    end do
-    x = 1./real((n3-4)*(n2-4))
-
+    avg(:) = 0.
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1
-             avg(k)=avg(k)+a(k,i,j)*b(k,i,j)*x
+             avg(k)=avg(k)+a(k,i,j)*b(k,i,j)
           end do
        enddo
     enddo
+    avg(:)=avg(:)/real((n3-4)*(n2-4))
 
   end subroutine get_cor3
   !
@@ -348,22 +339,39 @@ contains
   subroutine get_var3(n1,n2,n3,a,b,avg)
 
     integer n1,n2,n3,k,i,j
-    real a(n1,n2,n3),b(n1),avg(n1),x
+    real a(n1,n2,n3),b(n1),avg(n1)
 
-    do k=1,n1
-       avg(k) = 0.
-    end do
-    x = 1./real((n3-4)*(n2-4))
-
+    avg(:) = 0.
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1
-             avg(k)=avg(k)+((a(k,i,j)-b(k))**2 )*x
+             avg(k)=avg(k)+(a(k,i,j)-b(k))**2
           end do
        enddo
     enddo
+    avg(:)=avg(:)/real((n3-4)*(n2-4))
 
   end subroutine get_var3
+  !
+  !---------------------------------------------------------------------
+  ! function get_3rd3: gets the third moment for a field whose mean is known
+  !
+  subroutine get_3rd3(n1,n2,n3,a,b,avg)
+
+    integer n1,n2,n3,k,i,j
+    real a(n1,n2,n3),b(n1),avg(n1)
+
+    avg(:) = 0.
+    do j=3,n3-2
+       do i=3,n2-2
+          do k=1,n1
+             avg(k)=avg(k)+(a(k,i,j)-b(k))**3
+          end do
+       enddo
+    enddo
+    avg(:)=avg(:)/real((n3-4)*(n2-4))
+
+  end subroutine get_3rd3
   ! 
   !-------------------------------------------------------------------
   ! function get_var: gets square of a field from k'th level 
@@ -439,27 +447,11 @@ contains
   end subroutine tridiff
   !
   ! --------------------------------------------------------------------
-  !
-  subroutine azero(n1, a1, a2, a3)
-
-    integer, intent (in) :: n1
-    real, intent (inout) :: a1(n1)
-    real, optional, intent (inout) :: a2(n1), a3(n1)
-
-    integer :: k
-
-    do k=1,n1
-       a1(k)=0.
-       if (present(a2)) a2(k)=0.
-       if (present(a3)) a3(k)=0.
-    enddo
-
-  end subroutine azero
-  !
-  ! --------------------------------------------------------------------
   ! subroutine ae1mm: subtracts mean value from given field (a=a-a_bar)
   !
   subroutine ae1mm(n1,n2,n3,a,abar)
+
+    use mpi_interface, only : nypg,nxpg,double_array_par_sum
 
     integer n1,n2,n3
     real, intent (inout), dimension (n1,n2,n3) :: a(n1,n2,n3)
@@ -467,7 +459,22 @@ contains
 
     integer :: i,j,k
 
-    call get_avg3(n1,n2,n3,a,abar)
+    real(kind=8) :: lavg(n1),gavg(n1)
+
+    ! TR: this used to be for the whole domain ...
+    !call get_avg3(n1,n2,n3,a,abar)
+
+    gavg(:) = 0.
+    do j=3,n3-2
+       do i=3,n2-2
+          do k=1,n1
+             gavg(k)=gavg(k)+a(k,i,j)
+          end do
+       end do
+    end do
+    lavg = gavg
+    call double_array_par_sum(lavg,gavg,n1)
+    abar(:) = real( gavg(:)/real((nypg-4)*(nxpg-4)) )
 
     do j=1,n3
        do i=1,n2
@@ -478,23 +485,6 @@ contains
     enddo
 
   end subroutine ae1mm
-  !
-  ! --------------------------------------------------------------------
-  ! subroutine atob: copies array a to array b
-  !
-  subroutine atob(nn,a,b)
-
-    integer, intent (in) :: nn
-    real, intent(in)     :: a(nn)
-    real, intent(out)    :: b(nn)
-
-    integer :: j
-
-    do j=1,nn
-       b(j)=a(j)
-    end do
-
-  end subroutine atob
   !
   !---------------------------------------------------------------------
   ! CRAYFFTUSE:  Uses the cray routines to do a 2D transform
@@ -691,7 +681,7 @@ contains
        
        notused = .TRUE.
        DO k = 2,nz-1
-          !                             uusi pilvi + ei vanhaa pilveä
+          ! New cloud + no old cloud
           act_mask(k,:,:) = MERGE( (actmask_oldcloud(k,:,:) .OR. actmask_newcloud(k,:,:))  &
                                 .AND. cldp1(k,:,:), .FALSE., notused(:,:))
           notused(:,:) = notused(:,:) .AND. .NOT. act_mask(k,:,:)

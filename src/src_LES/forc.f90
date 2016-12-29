@@ -21,6 +21,7 @@ module forc
 
   use defs, only      : cp
   use radiation, only : d4stream
+  use stat, only : sflg
   implicit none
 
   ! these are now all namelist parameters
@@ -62,6 +63,11 @@ contains
        fr1 = 22.
        !div = 3.75e-6
     end if
+
+    if (trim(case_name)=='ascos') THEN
+        ! Full radiation calculations when saving data (stat/sflg=.TRUE. when saving)
+        useMcICA=.NOT.sflg
+    endif
 
     select case(iradtyp)
     case (1)
@@ -255,8 +261,8 @@ contains
     real (kind=8) :: zig, zil
     real          :: zibar
 
-	zig = 0.0; zil = 0.0; zibar = 0.0
-	kp1= 0
+    zig = 0.0; zil = 0.0; zibar = 0.0
+    kp1= 0
     select case (trim(case_name))
     case('default')
        !
@@ -389,6 +395,60 @@ contains
              enddo
           enddo
        enddo
+        !
+    case ('ascos')
+        ! ASCOS
+        ! ---------
+        !
+        do k=2,n1-2
+            ! calculate subsidence factor (wsub / dz)
+            sf(k) = -5.0e-6*min(2000.0,zt(k))*dzt(k)
+        end do
+        !
+        do j=3,n3-2
+            do i=3,n2-2
+                do k=2,n1-2
+                    !
+                    ! Temperature and humidity advection due to subsidence
+                    !
+                    kp1 = k+1
+                    tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
+                    rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
+                enddo
+            enddo
+        enddo
+        !
+    case ('barba')
+        ! Barbados
+        ! -----------
+        ! Large scale subsidence: w(z)=w0*(1-exp(z/H)), where w0=7.5 mm/s and H=1000 m.
+        ! Radiative cooling rate: 2.5 K/day
+        ! No temperature or humidity advection
+        !
+        ! calculate subsidence factor (wsub / dz)
+        do k=2,n1-2
+            sf(k) = -7.5e-3*(1.0-exp(-zt(k)/1000.0))*dzt(k)
+        end do
+        !
+        do j=3,n3-2
+            do i=3,n2-2
+                do k=2,n1-2
+                    ! Subsidence
+                    kp1 = k+1
+                    tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
+                    rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
+                    !
+                    ! Radiative cooling: 2.5 K/day
+                    tt(k,i,j) = tt(k,i,j)  - 2.5/86400.
+                enddo
+            enddo
+        enddo
+        !
+    CASE ('amazon')
+        ! Amazon
+        ! --------
+        ! - to be added -
+        !
     case default
        if (myid == 0) print *, '  ABORTING: inproper call to radiation'
        call appl_abort(0)

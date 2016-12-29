@@ -33,10 +33,10 @@ contains
   !
   subroutine fadvect
     use grid, only : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, newsclr  &
-         , a_scr1, a_scr2, nscl, a_sp, a_st, nxyzp,dn0 , nxp, nyp, nzp, dtlt  &
+         , a_scr1, a_scr2, nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt  &
          , dzt, dzm, zt, dxi, dyi, level, isgstyp
     use stat, only      : sflg, updtst
-    use util, only      : atob, get_avg3
+    use util, only      : get_avg3
 
     real    :: v1da(nzp)
     integer :: n
@@ -45,7 +45,7 @@ contains
     ! diagnose liquid water flux
     !
     if (sflg .and. level > 1 .AND. level < 4) then
-       call atob(nxyzp,a_rc,a_scr1)
+       a_scr1=a_rc
        call add_vel(nzp,nxp,nyp,a_scr2,a_wp,a_wc,.false.)
        call mamaos(nzp,nxp,nyp,a_scr2,a_rc,a_scr1,zt,dzm,dn0,dtlt,.false.)
        call get_avg3(nzp,nxp,nyp,a_scr2,v1da)
@@ -59,8 +59,8 @@ contains
     !
     do n=1,nscl
        call newsclr(n)
-      IF ( ANY(a_sp /= 0.0 ) ) THEN ! TR added: no need to calculate advection for constant arrays (often just zeros)
-       call atob(nxyzp,a_sp,a_scr1)
+      IF ( ANY(a_sp /= 0.0 ) ) THEN ! TR added: no need to calculate advection for zero arrays
+       a_scr1=a_sp
 
        if (isgstyp > 1 .and. associated(a_qp,a_sp)) then
           iw= .true.
@@ -98,10 +98,10 @@ contains
   SUBROUTINE newdroplet(pactmask)
     USE mo_submctl, ONLY : ncld,nbins,ica,fca,eps
     use grid, only : nxp,nyp,nzp,dzt,            &
-                     a_up,a_wp,a_wc,  &
+                     a_wp,a_wc,  &
                      a_naerop, a_naerot, a_maerop, a_maerot,  &
                      a_ncloudt, a_mcloudt,  &
-                     a_nactd,  a_vactd,  a_rp,     a_rt,      &
+                     a_nactd,  a_vactd,  a_rt,      &
                      prtcl
     USE class_ComponentIndex, ONLY : GetNcomp, GetIndex
     IMPLICIT NONE

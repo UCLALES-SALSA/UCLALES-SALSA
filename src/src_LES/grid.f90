@@ -53,9 +53,9 @@ module grid
   real              :: distim = 300.0      ! dissipation timescale
 
   real              :: sst=283.   ! Surface temperature      added by Zubair Maalick
-  real	            :: W1 = 0.9   !Water content
-  real		    :: W2 = 0.9
-  real		    :: W3 = 0.9
+  real            :: W1 = 0.9   !Water content
+  real            :: W2 = 0.9
+  real            :: W3 = 0.9
 
 
 
@@ -688,13 +688,13 @@ contains
     ! Added for SALSA
     character(len=7), save :: salsa_sbase(salsa_nn) = (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     ',  &  ! 1 
-         'ym     ','aea    ','aeb    ','cla    ','clb    ','prc    ',  &  ! 7		
-         'ica    ','icb    ','snw    ','u0     ','v0     ','dn0    ',  &  ! 13							
-         'u      ','v      ','w      ','t      ','p      ','q      ',  &  ! 19	
-         'l      ','r      ','f      ','i      ','s      ',	       &  ! 25		
+         'ym     ','aea    ','aeb    ','cla    ','clb    ','prc    ',  &  ! 7
+         'ica    ','icb    ','snw    ','u0     ','v0     ','dn0    ',  &  ! 13
+         'u      ','v      ','w      ','t      ','p      ','q      ',  &  ! 19
+         'l      ','r      ','f      ','i      ','s      ',         &  ! 25
          'S_RH   ','S_RHI  ','S_Nact ','S_Na   ','S_Naba ','S_Rwaa ',  &  ! 30
          'S_Rwaba','S_Nb   ','S_Nabb ','S_Rwab ','S_Rwabb','S_Nc   ',  &  ! 36
-         'S_Ncba ','S_Ncbb ','S_Rwca ','S_Rwcb ','S_Rwcba','S_Rwcbb',  &  ! 42	 		
+         'S_Ncba ','S_Ncbb ','S_Rwca ','S_Rwcb ','S_Rwcba','S_Rwcbb',  &  ! 42
          'S_Np   ','S_Npba ','S_Rwpa ','S_Rwpba','S_Nic  ','S_Niba ',  &  ! 48
          'S_Nibb ','S_Rwia ','S_Rwib ','S_Rwiba','S_Rwibb','S_Ns   ',  &  ! 54
          'S_Nsba ','S_Rwsa ','S_Rwsba','S_aSO4a','S_aNHa ','S_aNOa ',  &  ! 60
@@ -704,7 +704,7 @@ contains
          'S_cSO4b','S_cNHb ','S_cNOb ','S_cOCb ','S_cBCb ','S_cDUb ',  &  ! 84
          'S_cSSb ','S_iSO4a','S_iNHa ','S_iNOa ','S_iOCa ','S_iBCa ',  &  ! 90
          'S_iDUa ','S_iSSa ','S_iSO4b','S_iNHb ','S_iNOb ','S_iOCb ',  &  ! 96
-         'S_iBCb ','S_iDUb ','S_iSSb ' /)								
+         'S_iBCb ','S_iDUb ','S_iSSb ' /)
          ! total 104
 
     LOGICAL, SAVE :: salsabool(salsa_nn)
@@ -823,14 +823,12 @@ contains
     ELSE IF (level == 4 .AND. lbinanl) THEN
        call define_nc( ncid0, nrec0, nvar0, sanal, n1=nzp, n2=nxp-4, n3=nyp-4,  &
                        inae_a=fn2a, inae_b=fn2b-fn2a, incld_a=fca%cur,          &
-                       incld_b=fcb%cur-fca%cur, inprc=fra	                &
-                                		                                )
+                       incld_b=fcb%cur-fca%cur, inprc=fra )
     ELSE IF (level == 5 .AND. lbinanl) THEN
         call define_nc( ncid0, nrec0, nvar0, sanal, n1=nzp, n2=nxp-4, n3=nyp-4,  &
                         inae_a=fn2a,  inae_b =fn2b-fn2a, incld_a=fca%cur,        &
                         incld_b=fcb%cur-fca%cur, inprc=fra, inice_a=fia%cur,     &
-                        inice_b=fib%cur-fia%cur, insnw=fsa                       &
-							                         )
+                        inice_b=fib%cur-fia%cur, insnw=fsa )
     END IF
     if (myid == 0) print *,'   ...starting record: ', nrec0
 
@@ -870,7 +868,7 @@ contains
     integer :: iret, VarID, nn, n
     integer :: ibeg(4), icnt(4), i1, i2, j1, j2
     INTEGER :: ibegsd(5), icntaea(5), icntaeb(5), icntcla(5), icntclb(5), icntpra(5), & ! Juha: For sizedistribution variables
-	       icntica(5), icnticb(5), icntsna(5)
+           icntica(5), icnticb(5), icntsna(5)
     REAL :: zsum(nzp,nxp,nyp) ! Juha: Helper for computing bulk output diagnostics
     REAL :: zvar(nzp,nxp,nyp)
 
@@ -1894,7 +1892,7 @@ contains
           mixr(:,:,:) = a_mprecpp(:,:,:,(mm-1)*nprc+ibin)
        CASE('ice')
           mixr(:,:,:) = a_micep(:,:,:,(mm-1)*nice+ibin)
-	   CASE('snow')
+       CASE('snow')
           mixr(:,:,:) = a_msnowp(:,:,:,(mm-1)*nsnw+ibin)
     END SELECT
 
@@ -1919,9 +1917,9 @@ contains
 
     INTEGER :: iend
 
-	! Number of components-1
+    ! Number of components-1
     IF (itype == 'dry') THEN
-		iend=GetNcomp(prtcl)-1 ! dry case
+        iend=GetNcomp(prtcl)-1 ! dry case
     ELSEIF (itype == 'wet') THEN
         iend=GetNcomp(prtcl) ! wet case
     ELSE
@@ -1966,7 +1964,7 @@ contains
     iend = 0
 
     ! Outputs #/kg
-	! No concentration limits (nlim or prlim) for number
+    ! No concentration limits (nlim or prlim) for number
 
     SELECT CASE(ipart)
        CASE('aerosol')

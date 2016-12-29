@@ -80,11 +80,11 @@ contains
     use grid, only : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt    &
          , a_rv, a_rc, a_rp, a_tp, a_tt, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta  &
          , a_scr1, a_scr2, a_scr3, a_scr4, a_scr5, a_scr6, nscl, nxp, nyp    &
-         , nzp, nxyp, nxyzp, zm, dxi, dyi, dzt, dzm, dtlt, dtlv , th00, dn0  &
+         , nzp, zm, dxi, dyi, dzt, dzm, dtlt, dtlv , th00, dn0  &
          , pi0, pi1, newsclr, level, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc &
          , wq_sfc
 
-    use util, only         : atob, azero, get_avg3
+    use util, only         : get_avg3
     use mpi_interface, only: cyclics, cyclicc
     use thrm, only         : bruvais, fll_tkrs
 
@@ -144,7 +144,7 @@ contains
          ,sz4,sz5,sz6,1,'sgs')
 
     call diff_prep(nzp,nxp,nyp,a_scr5,a_scr6,a_scr4,a_scr1)
-    call azero(nxyp,sxy1,a2=sxy2)
+    sxy1=0.; sxy2=0.
 
     call diff_vpt(nzp,nxp,nyp,dn0,dzm,dzt,dxi,dyi,dtlv,vw_sfc,sxy2,a_scr6     &
          ,a_scr5,a_scr1,a_vp,a_wp,a_vt,sz2)
@@ -170,16 +170,16 @@ contains
     !
     ! Diffuse scalars
     !
-    call azero(nxyzp,a_tt)
+    a_tt=0.
     do n=1,nscl
        call newsclr(n)
-       call azero(nxyp,sxy1)
-       call azero(nxyp,sxy2)
-       if ( associated(a_tp,a_sp) ) call atob(nxyp,wt_sfc,sxy1)
-       if ( associated(a_tp,a_sp) ) call atob(nxyp,wt_sfc,sxy2)
-       if ( associated(a_rp,a_sp) ) call atob(nxyp,wq_sfc,sxy1)
+       sxy1=0.
+       sxy2=0.
+       if ( associated(a_tp,a_sp) ) sxy1=wt_sfc
+       if ( associated(a_tp,a_sp) ) sxy2=wt_sfc
+       if ( associated(a_rp,a_sp) ) sxy1=wq_sfc
 
-       if (sflg) call azero(nxyzp,a_scr1)
+       if (sflg) a_scr1=0.
        if ( isgstyp <= 1) then
           call diffsclr(nzp,nxp,nyp,dtlt,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
                ,a_sp,a_scr2,a_st,a_scr1)
