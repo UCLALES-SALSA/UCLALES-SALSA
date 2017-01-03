@@ -80,7 +80,9 @@ contains
        call mcrph(nzp,nxp,nyp,dn0,a_theta,a_scr1,a_rv,a_scr2,a_rc,a_rpp,   &
                   a_npp,precip,a_rt,a_tt,a_rpt,a_npt)
     case(4,5)
-       IF (level < 5) sed_ice = .FALSE.; sed_snow = .FALSE.
+       IF (level < 5) THEN
+            sed_ice = .FALSE.; sed_snow = .FALSE.
+       ENDIF
        nn = GetNcomp(prtcl)+1
        CALL sedim_SALSA(nzp,nxp,nyp,nn, level,dtlt, a_scr1, a_theta,               &
                         a_Rawet,   a_Rcwet,   a_Rpwet,                       &
