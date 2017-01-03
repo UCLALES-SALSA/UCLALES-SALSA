@@ -105,6 +105,8 @@ MODULE mo_submctl
      INTEGER :: par  ! Index for corresponding parallel distribution
   END TYPE t_parallelbin
 
+
+  !Switches for SALSA aerosol microphysical processes
   LOGICAL :: nldebug      = .FALSE., & ! debuggin output
              debug
 
