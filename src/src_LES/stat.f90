@@ -22,12 +22,12 @@ module stat
   use ncio, only : open_nc, define_nc
   use grid, only : level
   use util, only : get_avg, get_cor, get_avg3, get_cor3, get_var3, get_csum, get_avg_ts, &
-                   get_cavg, get_avg2dh
+                   get_cavg, get_avg2dh, get_3rd3
 
   implicit none
   private
 
-  integer, parameter :: nvar1 = 27,               &
+  integer, parameter :: nvar1 = 28,               &
                         nv1sbulk = 62,            &
                         nv1MB = 4,                &
                         nvar2 = 92,               &
@@ -59,7 +59,7 @@ module stat
        'vtke   ','sfcbflx','wmax   ','tsrf   ','ustar  ','shf_bar', & ! 7
        'lhf_bar','zi_bar ','lwp_bar','lwp_var','zc     ','zb     ', & !13
        'cfrac  ','lmax   ','albedo ','rwp_bar','prcp   ','pfrac  ', & !19
-       'CCN    ','nrain  ','nrcnt  '/),                             & !25
+       'CCN    ','nrain  ','nrcnt  ','nccnt  '/),                   & !25
 
        ! **** Bulk temporal statistics for SALSA ****
        s1SalsaBulk(nv1sbulk) = (/                                    &
@@ -79,11 +79,6 @@ module stat
        'rmSSdr ','rmSScl ','rmSSpr ','rmSSwt ','rmSStt ',            & !48
        'rmNH3dr','rmNH3cl','rmNH3pr','rmNH3wt','rmNH3tt',            & !53
        'rmNO3dr','rmNO3cl','rmNO3pr','rmNO3wt','rmNO3tt'             & !58, total 62
-       /),                                                           &
-
-       ! *** Mass budget statistics ***
-       s1MassBudged(nv1MB) = (/                                      &
-       'iMwAtm ','MwAtm  ','mwEvap ','mwDepo '                       &
        /),                                                           &
 
         s2(nvar2)=(/                                                 &
@@ -172,9 +167,8 @@ contains
   subroutine init_stat(time, filprf, expnme, nzp)
 
     use grid, only : nxp, nyp, iradtyp, prtcl
-    use mpi_interface, only : myid
-    use mo_submctl, only : nbins, ncld, nprc, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
-                               ica,fca,icb,fcb,ira,fra
+    use mpi_interface, only : myid, ver, author
+    use mo_submctl, only : nprc, fn2a,fn2b,fca,fcb,fra
     USE class_ComponentIndex, ONLY : IsUsed
 
     character (len=80), intent (in) :: filprf, expnme
@@ -229,8 +223,7 @@ contains
     ! For SALSA
     case (4)
        nv1 = nvar1
-       !if (iradtyp == 3) nv1=nvar1
-       nv2 = nvar2 !+nv2sbulk+nv2sabin+nv2scbin+nv2spbin
+       nv2 = nvar2
     case default
        nv1 = nvar1
        nv2 = nvar2
@@ -444,7 +437,7 @@ contains
     fname =  trim(filprf)//'.ts'
     if(myid == 0) print                                                  &
          "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
-    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid1, nrec1)
+    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid1, nrec1, ver, author)
     ! Juha: Modified for SALSA output
     call define_nc( ncid1, nrec1, COUNT(s1bool), PACK(s1Total,s1bool))
     if (myid == 0) print *, '   ...starting record: ', nrec1
@@ -454,7 +447,7 @@ contains
     fname =  trim(filprf)//'.ps'
     if(myid == 0) print                                                  &
          "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
-    call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2)
+    call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2, ver, author)
     ! Juha: Modified due to SALSA output
     call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp, inae_a=fn2a, inae_b=fn2b-fn2a, &
                     incld_a=fca%cur, incld_b=fcb%cur-fca%cur, inprc=fra)
@@ -478,9 +471,8 @@ contains
 
     use grid, only : a_up, a_vp, a_wp, a_rc, a_theta, a_scr2                    &
          , a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean            &
-         , vmean, dn0, precip, a_rpp, a_npp, albedo, CCN, iradtyp, a_rflx               &
-         , a_sflx, albedo, a_rh,a_ncloudp,a_Rcwet,a_nprecpp,a_Rpwet,a_naerop,a_Rawet    &
-         , a_srp, a_snrp
+         , vmean, dn0, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx               &
+         , a_sflx, albedo, a_srp, a_snrp
 
     real, intent (in) :: time
 
@@ -526,8 +518,6 @@ contains
     IF ( level >=1 ) CALL ts_lvl1(nzp, nxp, nyp, dn0, zt, dzm, rxt)
     IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, rxt, a_scr2, zt)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp, a_rc)
-
-    !WRITE(*,*) ssclr_b(10:12)
 
     call write_ts
 
@@ -599,6 +589,7 @@ contains
     ssclr(18)  = zt(n1)
     ssclr(19)  = 0.
     ssclr(20)  = 0.
+    ssclr(28)  = 0.
 
     unit = 1./real((n2-4)*(n3-4))
     do j=3,n3-2
@@ -611,6 +602,7 @@ contains
                 ssclr(18) = min(ssclr(18),zt(k))
                 cpnt = unit
                 ssclr(20) = max(ssclr(20), xaqua)
+                ssclr(28) = ssclr(28) + 1.
              end if
           end do
           ssclr(19) = ssclr(19) + cpnt
@@ -627,7 +619,7 @@ contains
   !  Some rewriting and adjusting by Juha Tonttila
   !
   SUBROUTINE ts_lvl4(n1,n2,n3,rc)
-    USE mo_submctl, only : in1a,fn2a,fn2b,nbins,fca,fra,ncld,nprc,nlim
+    use mo_submctl, only : nlim
     USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,dzt
     USE class_componentIndex, ONLY : IsUsed
 
@@ -641,17 +633,12 @@ contains
     LOGICAL :: cond_ic(n1,n2,n3), cond_oc(n1,n2,n3)
     CHARACTER(len=3), PARAMETER :: zspec(7) = (/'SO4','OC ','BC ','DU ','SS ','NH ','NO '/)
 
-
-    a0 = 0.; a1 = 0.
     CALL bulkNumc('cloud','a',a0)
     CALL bulkNumc('cloud','b',a1)
-    cond_ic = .FALSE.
-    cond_oc = .FALSE.
     cond_ic(:,:,:) = ( a0(:,:,:) + a1(:,:,:) > nlim .AND. rc(:,:,:) > 1.e-5 )
     cond_oc = .NOT. cond_ic
 
     ssclr_b(1) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
-    a0 = 0.; a1 = 0.
     CALL bulkNumc('aerosol','a',a0)
     CALL bulkNumc('aerosol','b',a1)
     ssclr_b(2) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
@@ -661,13 +648,11 @@ contains
     DO ss = 1,7
 
        IF (IsUsed(prtcl,zspec(ss))) THEN
-          a0 = 0.; a1 = 0.
           CALL bulkMixrat(zspec(ss),'cloud','a',a0)
           CALL bulkMixrat(zspec(ss),'cloud','b',a1)
           ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
           ii = ii + 1
 
-          a0 = 0.; a1 = 0.
           CALL bulkMixrat(zspec(ss),'aerosol','a',a0)
           CALL bulkMixrat(zspec(ss),'aerosol','b',a1)
 
@@ -693,26 +678,17 @@ contains
     real, dimension (n1,n2,n3), intent (in)    :: u, v, w, t, p
     real, intent (in)           :: um, vm, th00
 
-    integer :: i,j,k
-    real    :: a1(n1), b1(n1), c1(n1), d1(n1), a3(n1), b3(n1), x
+    integer :: k
+    real    :: a1(n1), b1(n1), c1(n1), d1(n1), a3(n1), b3(n1), tmp(n1)
 
-    x = 1./real( (n3-4)*(n2-4))
     call get_avg3(n1,n2,n3, u,a1)
     call get_avg3(n1,n2,n3, v,b1)
     call get_avg3(n1,n2,n3, t,c1)
     call get_avg3(n1,n2,n3, p,d1)
     call get_var3(n1,n2,n3, t, c1, thvar)
-
-    a3(:) = 0.
-    b3(:) = 0.
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
-             a3(k)=a3(k) + w(k,i,j)**3
-             b3(k)=b3(k) + (t(k,i,j)-a1(k))**3
-          end do
-       end do
-    end do
+    call get_3rd3(n1,n2,n3, t, c1, b3) ! Used to be (t-a1)**3
+    tmp(:)=0.
+    call get_3rd3(n1,n2,n3, w, tmp, a3) ! Now just w**3
 
     do k=1,n1
        svctr(k,10)=svctr(k,10) + a1(k) + um
@@ -720,8 +696,8 @@ contains
        svctr(k,12)=svctr(k,12) + c1(k) + th00
        svctr(k,13)=svctr(k,13) + d1(k)
        svctr(k,17)=svctr(k,17) + thvar(k)
-       svctr(k,18)=svctr(k,18) + a3(k) * x
-       svctr(k,19)=svctr(k,19) + b3(k) * x
+       svctr(k,18)=svctr(k,18) + a3(k)
+       svctr(k,19)=svctr(k,19) + b3(k)
     end do
 
   end subroutine accum_stat
@@ -767,25 +743,17 @@ contains
     integer, intent (in) :: n1,n2,n3
     real, intent (in)  :: rt(n1,n2,n3)
 
-    integer :: i,j,k
+    integer :: k
     real    :: a1(n1),a2(n1),a3(n1)
 
     call get_avg3(n1,n2,n3,rt,a1)
     call get_var3(n1,n2,n3,rt,a1,a2)
-
-    a3(:) = 0.
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
-             a3(k) = a3(k) + (rt(k,i,j)-a1(k))**3
-          end do
-       end do
-    end do
+    CALL get_3rd3(n1,n2,n3,rt,a1,a3)
 
     do k=1,n1
        svctr(k,50)=svctr(k,50) + a1(k)*1000.
        svctr(k,51)=svctr(k,51) + a2(k)
-       svctr(k,52)=svctr(k,52) + a3(k)/REAL((n2-4)*(n3-4))
+       svctr(k,52)=svctr(k,52) + a3(k)
     end do
 
   end subroutine accum_lvl1
@@ -804,7 +772,7 @@ contains
     real, intent (in), dimension(n1)        :: zm, dn0
     real, intent (in), dimension(n1,n2,n3)  :: w, th, tl, rl, rs, rt
 
-    real, dimension(n1,n2,n3) :: tv
+    real, dimension(n1,n2,n3) :: tv    ! Local variable
     integer                   :: k, i, j, km1
     logical                   :: aflg
     real                      :: xy1mx
@@ -816,20 +784,12 @@ contains
     !
     call get_avg3(n1,n2,n3,rl,a1)
     call get_var3(n1,n2,n3,rl,a1,a2)
-
-    a3(:) = 0.
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
-             a3(k) = a3(k) + (rl(k,i,j)-a1(k))**3
-          end do
-       end do
-    end do
+    call get_3rd3(n1,n2,n3,rl,a1,a3)
 
     do k=1,n1
        svctr(k,59)=svctr(k,59) + a1(k)*1000.
        svctr(k,60)=svctr(k,60) + a2(k)
-       svctr(k,61)=svctr(k,61) + a3(k)/REAL((n2-4)*(n3-4))
+       svctr(k,61)=svctr(k,61) + a3(k)
     end do
     !
     ! do some conditional sampling statistics: cloud, cloud-core
@@ -930,7 +890,7 @@ contains
     real, intent (in), dimension(n1,n2,n3) :: rc, rr, nr, rrate
 
     integer                :: k, i, j, km1
-    real                   :: nrsum, nrcnt, rrsum, rrcnt, xrain, xaqua
+    real                   :: nrsum, nrcnt, rrsum, rrcnt, xrain
     real                   :: rmax, rmin
     real, dimension(n1)    :: a1
     real, dimension(n2,n3) :: scr1,scr2
@@ -977,7 +937,7 @@ contains
              if (rrate(k,i,j) > 3.65e-5) then
                 aflg = .true.
                 scr1(i,j) = 1.
-                rrsum = rrsum + rrate(k,i,j) !* alvl * 0.5*(dn0(1)+dn0(2)) ! TEHTY JO??
+                rrsum = rrsum + rrate(k,i,j) !* alvl * 0.5*(dn0(1)+dn0(2))
                 rrcnt = rrcnt + 1.
              end if
           end do
@@ -1007,20 +967,14 @@ contains
     !
     do j=3,n3-2
        do i=3,n2-2
-          scr1(i,j) = 0.
           scr2(i,j) = 0.
           do k=1,n1
              km1=max(1,k-1)
              xrain = max(0.,rr(k,i,j))
-             xaqua = max(xrain,rc(k,i,j))
-             !scr1(i,j)=scr1(i,j)+xaqua*dn0(k)*(zm(k)-zm(km1))*1000.
              scr2(i,j)=scr2(i,j)+xrain*dn0(k)*(zm(k)-zm(km1))
           enddo
        end do
     end do
-    ! TEHTY JO accum_lvl2!!
-    !ssclr(15) = get_avg(1,n2,n3,1,scr1)
-    !ssclr(16) = get_cor(1,n2,n3,1,scr1,scr1)
     ssclr(22) = get_avg(1,n2,n3,1,scr2)
     zarg(1,:,:) = rrate(2,:,:) 
     ssclr(23) = get_avg(1,n2,n3,1,zarg)
@@ -1035,9 +989,9 @@ contains
   ! on level 4 variables.
   !
   subroutine accum_lvl4(n1,n2,n3)
-    use mo_submctl, only : in1a,in2a,in2b,fn1a,fn2a,fn2b, &
-                               ica,fca,icb,fcb,ira,fra,nbins, &
-                               ncld,nprc,nlim,prlim
+    use mo_submctl, only : in1a,in2b,fn2a,fn2b, &
+                               ica,fca,icb,fcb,ira,fra, &
+                               nprc,nlim,prlim
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                      a_rc, a_srp, a_rp, a_rh, prtcl,    &
                      a_naerop, a_ncloudp, a_nprecpp
@@ -1046,7 +1000,7 @@ contains
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3
-    INTEGER :: ii,ss,k,i,j,bb,a,c,p
+    INTEGER :: ii,ss,k,bb
 
     REAL :: Nctot(n1,n2,n3)
     REAL :: Nptot(n1,n2,n3)
@@ -1450,7 +1404,7 @@ contains
 
     use netcdf
     use defs, only : alvl, cp
-    USE mo_submctl, ONLY : in1a,in2a,in2b,fn1a,fn2a,fn2b,fca,ica,fcb,icb,fra,ira, &
+    USE mo_submctl, ONLY : in1a,in2b,fn2a,fn2b,fca,ica,fcb,icb,fra,ira, &
                                aerobins,cloudbins,precpbins
 
     integer, intent (in) :: n1
@@ -1900,11 +1854,9 @@ contains
 
     REAL :: zavg
 
-    INTEGER :: ss, nc,si
-    INTEGER :: ii,tt
+    INTEGER :: ss, si
+    INTEGER :: tt
     INTEGER :: end,str
-
-    ! BULKKI, TEE MYÖS BINEITTÄIN
 
     ! Removal of water first
     si = GetIndex(prtcl,'H2O')
@@ -2118,8 +2070,6 @@ contains
   !
   SUBROUTINE write_massbudged()
     IMPLICIT NONE
-
-    INTEGER :: ii
 
     OPEN(88,FILE='MASSBUDGED.TXT')
     WRITE(88,*) 'Initial mass (atm), Final mass (atm), Final-Initial, Total evpaoration, Total deposition, Evap-Dep  '

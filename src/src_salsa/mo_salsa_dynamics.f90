@@ -40,7 +40,7 @@ CONTAINS
   !  does not follow particle size in regime 2.
   !
   !Schematic for bin numbers in different regimes:
-  !        	 1             			2
+  !             1                            2
   !    +-------------------------------------------+
   !  a | 1 | 2 | 3 || 4 | 5 | 6 | 7 |  8 |  9 | 10||
   !  b |           ||11 |12 |13 |14 | 15 | 16 | 17||
@@ -103,12 +103,9 @@ CONTAINS
          in2a, fn2a,                 &
          in2b, fn2b,                 &
          ica,fca,icb,fcb,            &
-         ncld, nprc, ira,fra,        &
+         ncld, nprc,        &
          iia,fia,iib,fib,            &
-         nice, nsnw,isa,fsa,         &
-         debug,                      &
-         ncldbin,                    & ! Sizes of cloud and drizzle droplet regimes
-         nicebin,                    &
+         nice, nsnw,         &
          pi6,                        &
          rhosu,rhooc,rhono,rhonh,    &
          rhobc,rhodu,rhoss,rhowa,    &
@@ -120,12 +117,6 @@ CONTAINS
          lscgia, lscgic, lscgii, lscgip, &
          lscgsa, lscgsc, lscgsi, lscgsp, lscgss, &
          debug
-    !USE mo_aero_mem_salsa, ONLY :    &
-    !     d_cond_so4,                 & ! diagnostic variable for condensated mass of so4
-    !     d_nuc_so4                     !diagnostic variable for nucleated mass of so4
-    !USE mo_salsa_init, only: coagc
-    !USE mo_salsa_init, ONLY : coagc
-    
 
     IMPLICIT NONE
 
@@ -150,11 +141,9 @@ CONTAINS
     !-- Local variables ------------------------
     INTEGER ::                      &
          ii,jj,kk,ll,mm,nn,cc,      & ! loop indices
-         index_2a, index_2b,        & ! corresponding bin in regime 2a/2b
-         index_cd                     ! corresponding bin in cloud droplet regime
+         index_2a, index_2b        ! corresponding bin in regime 2a/2b
 
     REAL ::                     &
-         zntemp(kbdim,klev),        & ! variable for saving pnaero(fn2b) temporarily
          zcc(fn2b,fn2b),            & ! updated coagulation coefficients [m3/s]
          zcccc(ncld,ncld),          & ! - '' - for collision-coalescence [m3/s]
          zccca(fn2b,ncld),          & ! - '' - for cloud collection of aerosols [m3/s]
@@ -170,65 +159,64 @@ CONTAINS
          zccsi(nice,nsnw),          & ! - '' - for collection of ice by snow !!huomhuom
          zccsp(nprc,nsnw),          & ! - '' - for collection of precip by snow !!huomhuom
          zccss(nsnw,nsnw),          & ! - '' - for collitions between snow particles !!huomhuom
-
          zminusterm,                & ! coagulation loss in a bin [1/s]
          zplusterm(8)                 ! coagulation gain in a bin [fxm/s]
                                       ! (for each chemical compound)
-         !zcc(kbdim,klev,fn2b,fn2b), & ! updated coagulation coefficients [m3/s]
 
-    !REAL ::                     &
-    !     zrho(8)                     ! Table for densities of different species in hydrometeor distribution
     REAL :: &
          zmpart(fn2b),   & ! approximate mass of particles [kg]
          zmcloud(ncld),  &    ! approximate mass of cloud droplets [kg]
          zmprecp(nprc),  & ! Approximate mass for rain drops [kg]
          zmice(nice),     & ! approximate mass for ice particles [kg] !huomhuom
-         zmsnow(nsnw)     ! approximate mass for snow particles [kg] !!huomhuom
+         zmsnow(nsnw), &  ! approximate mass for snow particles [kg] !!huomhuom
+         zdpart(fn2b),   & ! diameter of particles [kg]
+         zdcloud(ncld),  &   ! diameter of cloud droplets [kg]
+         zdprecp(nprc),  & ! diameter for rain drops [kg]
+         zdice(nice),     & ! diameter for ice particles [kg] !huomhuom
+         zdsnow(nsnw)     ! diameter for snow particles [kg] !!huomhuom
 
     REAL :: &
-         temppi,pressi,pdmm,pdnn
-    REAL :: zsec(nprc), & ! Security coefficient
-                zsecs(nsnw)   ! Security coefficient for snow
+         temppi,pressi
 
-    !REAL :: &
-    !     zhvol(kbdim,klev,ncld),  &       ! Total volume concentration of hydrometeors
-    !     zavol(kbdim,klev,fn2b)           ! Total volume concentration of aerosols
-
-
-    REAL :: t1,t2
-
-    IF (debug) WRITE(*,*) 'coagulation init'
-
+    LOGICAL :: any_cloud, any_precp, any_ice, any_snow
 
     !-----------------------------------------------------------------------------
     !-- 1) Coagulation to coarse mode calculated in a simplified way: ------------
     !      CoagSink ~ Dp in continuum regime, thus we calculate
     !      'effective' number concentration of coarse particles
 
-    zntemp = paero(:,:,fn2b)%numc
 
     !-- 2) Updating coagulation coefficients -------------------------------------
 
-    IF (debug) WRITE(*,*) 'start kernels'
+    IF (debug) WRITE(*,*) 'start coagulation kernels'
 
      DO jj = 1,klev      ! vertical grid
-        DO ii = 1,kproma ! horizontal kproma in the slab
+        DO ii = 1,kbdim ! horizontal kproma in the slab
+           ! Which species are included
+           any_cloud = ANY(pcloud(ii,jj,:)%numc > nlim)
+           any_precp = ANY(pprecp(ii,jj,:)%numc > prlim)
+           any_ice = ANY(pice(ii,jj,:)%numc > prlim)
+           any_snow = ANY(psnow(ii,jj,:)%numc > prlim)
 
-           !-- particle mass; density of 1500 kg/m3 assumed [kg]
-           zmpart = pi6*(MIN(paero(ii,jj,1:fn2b)%dwet, 30.e-6)**3)*1500.
+           !-- Aerosol diameter [m] and mass [kg]; density of 1500 kg/m3 assumed
+           zdpart(1:fn2b) = MIN(paero(ii,jj,1:fn2b)%dwet, 30.e-6) ! Limit to 30 um
+           zmpart(1:fn2b) = pi6*(zdpart(1:fn2b)**3)*1500. ! Should calculate masses here (%dwet may be inaccurate)
 
-           !-- Cloud mass; Assume water density
-           zmcloud(1:ncld) = pi6*(pcloud(ii,jj,1:ncld)%dwet**3)*rhowa
+           !-- Cloud droplet diameter and mass; Assume water density
+           zdcloud(1:ncld) = pcloud(ii,jj,1:ncld)%dwet ! No size limit?
+           zmcloud(1:ncld) = pi6*(zdcloud(1:ncld)**3)*rhowa
 
-           !-- Precipitation mass
-           zmprecp(1:nprc) = pi6*(MIN(pprecp(ii,jj,1:nprc)%dwet, 2.e-3)**3)*rhowa
+           !-- Precipitation droplet diameter and mass
+           zdprecp(1:nprc) = MIN(pprecp(ii,jj,1:nprc)%dwet, 2.e-3) ! Limit to 2 mm
+           zmprecp(1:nprc) = pi6*(zdprecp(1:nprc)**3)*rhowa
 
-           !-- Ice mass;  huomhuom tarkista tämä, tärkeä
+           !-- Ice particle diameter and mass
+           zdice(1:nice) = MIN(pice(ii,jj,1:nice)%dwet, 2.e-3) ! Limit to 2 mm
+           zmice(1:nice) =   pi6*(zdice(1:nice)**3)*rhoic
 
-           zmice(1:nice) =   pi6*(MIN(pice(ii,jj,1:nice)%dwet, 2.e-3)**3)*rhoic
-
-           !-- Snow mass?? huomhuom tarkista tämä, tärkeä
-           zmsnow(1:nsnw) =  pi6*(MIN(psnow(ii,jj,1:nsnw)%dwet, 2.e-3)**3)*rhosn
+           !-- Snow diameter and mass
+           zdsnow(1:nsnw) = MIN(psnow(ii,jj,1:nsnw)%dwet, 2.e-3) ! Limit to 2 mm (too low!)
+           zmsnow(1:nsnw) =  pi6*(zdsnow(1:nsnw)**3)*rhosn
 
            temppi=ptemp(ii,jj)
            pressi=ppres(ii,jj)
@@ -248,190 +236,158 @@ CONTAINS
            zccsp = 0.
            zccss = 0.
 
-           zsec(:) = MERGE(1.,0.,pprecp(ii,jj,:)%numc > 1.e-10) ! Typical "physical" minimum number concentration for LES
-           zsecs(:)= MERGE(1.,0., psnow(ii,jj,:)%numc > 1.e-10)  ! Typical "physical" minimum number concentration for LES
-
-		   IF (debug .and. lscgaa) WRITE(*,*) 'before lscgaa ' !debugtulostus
            ! Aero-aero coagulation
            IF (lscgaa) THEN
-              pdmm = 0.
-              pdnn = 0.
               DO mm = 1,fn2b         ! smaller colliding particle
+                 IF (paero(ii,jj,mm)%numc<nlim) cycle
                  DO nn = mm,fn2b            ! larger colliding particle
-                    pdmm=MIN(paero(ii,jj,mm)%dwet, 30.e-6)
-                    pdnn=MIN(paero(ii,jj,nn)%dwet, 30.e-6)
-                    zcc(mm,nn) = coagc(pdmm,pdnn,zmpart(mm),zmpart(nn),temppi,pressi,1)
+                    IF (paero(ii,jj,nn)%numc<nlim) cycle
+                    zcc(mm,nn) = coagc(zdpart(mm),zdpart(nn),zmpart(mm),zmpart(nn),temppi,pressi,1)
                     zcc(nn,mm) = zcc(mm,nn)
                  END DO
               END DO
            END IF
-		   IF (debug .and. lscgcc) WRITE(*,*) 'before lscgcc ' !debugtulostus
-           ! Collision-coalescence between cloud droplets
-           IF (lscgcc .AND. ANY(pcloud(ii,jj,:)%numc > nlim)) THEN
-              pdmm = 0.
-              pdnn = 0.
+          ! Collision-coalescence between cloud droplets
+           IF (lscgcc .AND. any_cloud) THEN
               DO mm = 1,ncld
+                 IF (pcloud(ii,jj,mm)%numc<nlim) cycle
                  DO nn = mm,ncld
-                    pdmm = pcloud(ii,jj,mm)%dwet
-                    pdnn = pcloud(ii,jj,nn)%dwet
-                    zcccc(mm,nn) = coagc(pdmm,pdnn,zmcloud(mm),zmcloud(nn),temppi,pressi,2)
+                    IF (pcloud(ii,jj,nn)%numc<nlim) cycle
+                    zcccc(mm,nn) = coagc(zdcloud(mm),zdcloud(nn),zmcloud(mm),zmcloud(nn),temppi,pressi,2)
                     zcccc(nn,mm) = zcccc(mm,nn)
                  END DO
               END DO
            END IF
-		   IF (debug .and. lscgpp) WRITE(*,*) 'before lscgpp ' !debugtulostus
            ! Self-collection of rain drops
-           IF (lscgpp .AND. ANY(pprecp(ii,jj,:)%numc > prlim)) THEN
-              pdmm = 0.
-              pdnn = 0.
+           IF (lscgpp .AND. any_precp) THEN
               DO mm = 1,nprc
+                 IF (pprecp(ii,jj,mm)%numc<prlim) cycle
                  DO nn = mm,nprc
-                    pdmm = MIN(pprecp(ii,jj,mm)%dwet,2.e-3)
-                    pdnn = MIN(pprecp(ii,jj,nn)%dwet,2.e-3)
-                    zccpp(mm,nn) =  coagc(pdmm,pdnn,zmprecp(mm),zmprecp(nn),temppi,pressi,2)*zsec(mm)*zsec(nn)
+                    IF (pprecp(ii,jj,nn)%numc<prlim) cycle
+                    zccpp(mm,nn) =  coagc(zdprecp(mm),zdprecp(nn),zmprecp(mm),zmprecp(nn),temppi,pressi,2)
                     zccpp(nn,mm) = zccpp(mm,nn)
                  END DO
               END DO
            END IF
-		   IF (debug .and. lscgca) WRITE(*,*) 'before lscgca ' !debugtulostus
            ! Cloud collection of aerosols
-           IF (lscgca .AND. ANY(pcloud(ii,jj,:)%numc > nlim)) THEN
+           IF (lscgca .AND. any_cloud) THEN
               DO mm = 1,fn2b
+                 IF (paero(ii,jj,mm)%numc<nlim) cycle
                  DO nn = 1,ncld
-                    pdmm = MIN(paero(ii,jj,mm)%dwet, 30.e-6)
-                    pdnn = pcloud(ii,jj,nn)%dwet
-                    zccca(mm,nn) = coagc(pdmm,pdnn,zmpart(mm),zmcloud(nn),temppi,pressi,2)
+                    IF (pcloud(ii,jj,nn)%numc<nlim) cycle
+                    zccca(mm,nn) = coagc(zdpart(mm),zdcloud(nn),zmpart(mm),zmcloud(nn),temppi,pressi,2)
                  END DO
               END DO
            END IF
-		   IF (debug .and. lscgpa) WRITE(*,*) 'before lscgpa ' !debugtulostus
            ! Collection of aerosols by rain
-           IF (lscgpa .AND. ANY(pprecp(ii,jj,:)%numc > prlim)) THEN
+           IF (lscgpa .AND. any_precp) THEN
               DO mm = 1,fn2b
+                 IF (paero(ii,jj,mm)%numc<nlim) cycle
                  DO nn = 1,nprc
-                    pdmm = MIN(paero(ii,jj,mm)%dwet,30.e-6)
-                    pdnn = MIN(pprecp(ii,jj,nn)%dwet, 2.e-3)
-                    zccpa(mm,nn) = coagc(pdmm,pdnn,zmpart(mm),zmprecp(nn),temppi,pressi,2)*zsec(nn)
+                    IF (pprecp(ii,jj,nn)%numc<prlim) cycle
+                    zccpa(mm,nn) = coagc(zdpart(mm),zdprecp(nn),zmpart(mm),zmprecp(nn),temppi,pressi,2)
                  END DO
               END DO
            END IF
-		   IF (debug .and. lscgpc) WRITE(*,*) 'before lscgpc ' !debugtulostus 
            ! Collection of cloud droplets by rain
-           IF (lscgpc .AND. (ANY(pcloud(ii,jj,:)%numc > nlim) .AND. ANY(pprecp(ii,jj,:)%numc > prlim)) ) THEN
+           IF (lscgpc .AND. any_cloud .AND. any_precp) THEN
               DO mm = 1,ncld
+                 IF (pcloud(ii,jj,mm)%numc<nlim) cycle
                  DO nn = 1,nprc
-                    pdmm = pcloud(ii,jj,mm)%dwet
-                    pdnn = MIN(pprecp(ii,jj,nn)%dwet,2.e-3)
-                    zccpc(mm,nn) = coagc(pdmm,pdnn,zmcloud(mm),zmprecp(nn),temppi,pressi,2)!*zsec(nn)
+                    IF (pprecp(ii,jj,nn)%numc<prlim) cycle
+                    zccpc(mm,nn) = coagc(zdcloud(mm),zdprecp(nn),zmcloud(mm),zmprecp(nn),temppi,pressi,2)
                   END DO
               END DO
            END IF
-  	       IF (debug .and. lscgia) WRITE(*,*) 'before lscgia ' !debugtulostus
-           !  collection of aerosols by ice !!huomhuom
-           IF (lscgia .AND. ANY(pice(ii,jj,:)%numc > nlim) ) THEN
+           !  collection of aerosols by ice
+           IF (lscgia .AND. any_ice) THEN
               DO mm = 1,fn2b
+                 IF (paero(ii,jj,mm)%numc<nlim) cycle
                  DO nn = 1,nice
-                    pdmm = paero(ii,jj,mm)%dwet
-                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-3)
-                    zccia(mm,nn) =  coagc(pdmm,pdnn,zmpart(mm),zmice(nn),temppi,pressi,2)!*zsec(mm)*zsec(nn) !! huomhuom kernel
-
+                    IF (pice(ii,jj,nn)%numc<prlim) cycle
+                    zccia(mm,nn) =  coagc(zdpart(mm),zdice(nn),zmpart(mm),zmice(nn),temppi,pressi,2)
                  END DO
               END DO
            END IF
-		   IF (debug .and. lscgic) WRITE(*,*) 'before lscgic ' !debugtulostus
-           !  collection of cloud particles droplets by ice
-           IF (lscgic .AND. (ANY(pice(ii,jj,:)%numc > nlim) .AND. ANY(pcloud(ii,jj,:)%numc > nlim)) ) THEN
+          !  collection of cloud particles droplets by ice
+           IF (lscgic .AND. any_ice .AND. any_cloud) THEN
               DO mm = 1,ncld
+                 IF (pcloud(ii,jj,mm)%numc<nlim) cycle
                  DO nn = 1,nice
-                    pdmm = pcloud(ii,jj,mm)%dwet
-                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-3)
-                    zccic(mm,nn) = coagc(pdmm,pdnn,zmcloud(mm),zmice(nn),temppi,pressi,2)  !! huomhuom kernel  ?
+                    IF (pice(ii,jj,nn)%numc<prlim) cycle
+                    zccic(mm,nn) = coagc(zdcloud(mm),zdice(nn),zmcloud(mm),zmice(nn),temppi,pressi,2)
                  END DO
               END DO
            END IF
-
            !  collitions between ice particles
-           IF (lscgii .AND. ANY(pice(ii,jj,:)%numc > nlim) ) THEN  !huomhuom no testswitch
-              pdmm = 0.
-              pdnn = 0.
+           IF (lscgii .AND. any_ice) THEN
               DO mm = 1,nice
+                 IF (pice(ii,jj,mm)%numc<prlim) CYCLE
                  DO nn = mm,nice
-                    pdmm = MIN(pice(ii,jj,mm)%dwet,1.e-3)
-                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-3)
-
-                    zccii(mm,nn) = coagc(pdmm,pdnn,zmice(mm),zmice(nn),temppi,pressi,2)
+                    IF (pice(ii,jj,nn)%numc<prlim) CYCLE
+                    zccii(mm,nn) = coagc(zdice(mm),zdice(nn),zmice(mm),zmice(nn),temppi,pressi,2)
                     zccii(nn,mm) = zcccc(mm,nn)
                  END DO
               END DO
            END IF
-
-		   IF (debug .and. lscgip) WRITE(*,*) 'before lscgip ' !debugtulostus
            !  collection of precip by ice-collision
-           IF (lscgip .AND. (ANY(pprecp(ii,jj,:)%numc > prlim) .AND. ANY(pice(ii,jj,:)%numc > nlim)) ) THEN
+           IF (lscgip .AND. any_precp .AND. any_ice) THEN
               DO mm = 1,nprc
+                 IF (pprecp(ii,jj,mm)%numc<prlim) CYCLE
                  DO nn = 1,nice
-                    pdmm = MIN(pprecp(ii,jj,mm)%dwet,2.e-3)
-                    pdnn = MIN(pice(ii,jj,nn)%dwet,1.e-3)
-                    zccip(mm,nn) = coagc(pdmm,pdnn,zmprecp(mm),zmice(nn),temppi,pressi,2)!*zsec(nn) !! huomhuom kernel  ?
+                    IF (pice(ii,jj,nn)%numc<prlim) CYCLE
+                    zccip(mm,nn) = coagc(zdprecp(mm),zdice(nn),zmprecp(mm),zmice(nn),temppi,pressi,2)
                   END DO
               END DO
            END IF
-
            ! Self-collection of snow particles
-           IF (lscgss .AND. ANY(psnow(ii,jj,:)%numc > nlim ) ) THEN
-              pdmm = 0.
-              pdnn = 0.
+           IF (lscgss .AND. any_snow) THEN
               DO mm = 1,nsnw
+                 IF (psnow(ii,jj,mm)%numc<prlim) CYCLE
                  DO nn = mm,nsnw
-                    pdmm = MIN(psnow(ii,jj,mm)%dwet,1.e-3)
-                    pdnn = MIN(psnow(ii,jj,nn)%dwet,1.e-3)
-                    zccss(mm,nn) =  coagc(pdmm,pdnn,zmsnow(mm),zmsnow(nn),temppi,pressi,2)*zsecs(mm)*zsecs(nn) !! huomhuom kernel?  ?
+                    IF (psnow(ii,jj,nn)%numc<prlim) CYCLE
+                    zccss(mm,nn) =  coagc(zdsnow(mm),zdsnow(nn),zmsnow(mm),zmsnow(nn),temppi,pressi,2)
                     zccss(nn,mm) = zccss(mm,nn)
                  END DO
               END DO
            END IF
-
-           IF (debug .and. lscgsa) WRITE(*,*) 'before lscgsa ' !debugtulostus
            ! Collection of aerosols by snow
-           IF (lscgsa .AND. ANY(psnow(ii,jj,:)%numc > nlim ) ) THEN
+           IF (lscgsa .AND. any_snow) THEN
               DO mm = 1,fn2b
+                 IF (paero(ii,jj,mm)%numc<nlim) CYCLE
                  DO nn = 1,nsnw
-                    pdmm = paero(ii,jj,mm)%dwet
-                    pdnn = MIN(psnow(ii,jj,nn)%dwet, 1.e-3)
-                    zccsa(mm,nn) = coagc(pdmm,pdnn,zmpart(mm),zmsnow(nn),temppi,pressi,2)*zsecs(nn) !! huomhuom kernel?  ?
+                    IF (psnow(ii,jj,nn)%numc<prlim) CYCLE
+                    zccsa(mm,nn) = coagc(zdpart(mm),zdsnow(nn),zmpart(mm),zmsnow(nn),temppi,pressi,2)
                  END DO
               END DO
            END IF
-		   IF (debug .and. lscgsp) WRITE(*,*) 'before lscgsp ' !debugtulostus
            ! collection of precip by snow
-           IF (lscgsp .AND. (ANY(pprecp(ii,jj,:)%numc > prlim) .AND. ANY(psnow(ii,jj,:)%numc > nlim))) THEN
+           IF (lscgsp .AND. any_precp .AND. any_snow) THEN
               DO mm = 1,nprc
+                 IF (pprecp(ii,jj,mm)%numc<prlim) CYCLE
                  DO nn = 1,nsnw
-                    pdmm = MIN(pprecp(ii,jj,mm)%dwet,2.e-3)
-                    pdnn = MIN(psnow(ii,jj,nn)%dwet,1.e-3)
-                    zccsp(mm,nn) = coagc(pdmm,pdnn,zmprecp(mm),zmsnow(nn),temppi,pressi,2)*zsec(mm)*zsecs(nn) !! huomhuom kernel  ?
+                    IF (psnow(ii,jj,nn)%numc<prlim) CYCLE
+                    zccsp(mm,nn) = coagc(zdprecp(mm),zdsnow(nn),zmprecp(mm),zmsnow(nn),temppi,pressi,2)
                   END DO
               END DO
            END IF
-		   IF (debug .and. lscgsc) WRITE(*,*) 'before lscgsc ' !debugtulostus
            ! collection of cloud droples by snow
-           IF (lscgsc .AND. (ANY(pcloud(ii,jj,:)%numc > nlim) .AND. ANY(psnow(ii,jj,:)%numc > nlim))) THEN
+           IF (lscgsc .AND. any_cloud .AND. any_snow) THEN
               DO mm = 1,ncld
+                 IF (pcloud(ii,jj,mm)%numc<nlim) CYCLE
                  DO nn = 1,nsnw
-                    pdmm = pcloud(ii,jj,mm)%dwet
-                    pdnn = MIN(psnow(ii,jj,nn)%dwet,1.e-3)
-                    zccsc(mm,nn) = coagc(pdmm,pdnn,zmcloud(mm),zmsnow(nn),temppi,pressi,2)*zsecs(nn) !! huomhuom kernel  ?
+                    IF (psnow(ii,jj,nn)%numc<prlim) CYCLE
+                    zccsc(mm,nn) = coagc(zdcloud(mm),zdsnow(nn),zmcloud(mm),zmsnow(nn),temppi,pressi,2)
                   END DO
               END DO
            END IF
-		   IF (debug .and. lscgsi) WRITE(*,*) 'before lscgsi ' !debugtulostus
            ! collection of ice by snow
-           IF (lscgsi .AND. (ANY(pice(ii,jj,:)%numc > prlim) .AND. ANY(psnow(ii,jj,:)%numc > nlim))) THEN
+           IF (lscgsi .AND. any_ice .AND. any_snow) THEN
               DO mm = 1,nice
+                 IF (pice(ii,jj,mm)%numc<prlim) CYCLE
                  DO nn = 1,nsnw
-                    pdmm = MIN(pice(ii,jj,mm)%dwet,1.e-3)
-                    pdnn = MIN(psnow(ii,jj,nn)%dwet,2.e-3)
-                    zccsi(mm,nn) = coagc(pdmm,pdnn,zmice(mm),zmsnow(nn),temppi,pressi,2)*zsecs(nn) !! huomhuom kernel  ?
+                    IF (psnow(ii,jj,nn)%numc<prlim) CYCLE
+                    zccsi(mm,nn) = coagc(zdice(mm),zdsnow(nn),zmice(mm),zmsnow(nn),temppi,pressi,2)
                   END DO
               END DO
            END IF
@@ -442,6 +398,7 @@ CONTAINS
            ! Aerosols in regime 1a
            ! --------------------------------
            DO kk = in1a,fn1a
+              IF (paero(ii,jj,kk)%numc<nlim) CYCLE
 
               zminusterm = 0.
               zplusterm(:) = 0.
@@ -471,20 +428,12 @@ CONTAINS
               END DO
 
               DO ll = in1a,kk-1
-                 zplusterm(1:2) = zplusterm(1:2) + zcc(ll,kk)*paero(ii,jj,ll)%volc(1:2)
-                 zplusterm(6:7) = zplusterm(6:7) + zcc(ll,kk)*paero(ii,jj,ll)%volc(6:7)
-                 zplusterm(8) = zplusterm(8) + zcc(ll,kk)*paero(ii,jj,ll)%volc(8)
+                 zplusterm(1:8) = zplusterm(1:8) + zcc(ll,kk)*paero(ii,jj,ll)%volc(1:8)
               END DO
 
               !-- Volume and number concentrations after coagulation update [fxm]
-              paero(ii,jj,kk)%volc(1:2) = ( paero(ii,jj,kk)%volc(1:2)+ptstep*zplusterm(1:2) * &
+              paero(ii,jj,kk)%volc(1:8) = ( paero(ii,jj,kk)%volc(1:8)+ptstep*zplusterm(1:8) * &
                    paero(ii,jj,kk)%numc ) / (1. + ptstep*zminusterm)
-
-              paero(ii,jj,kk)%volc(6:7) = ( paero(ii,jj,kk)%volc(6:7)+ptstep*zplusterm(6:7) * &
-                   paero(ii,jj,kk)%numc ) / (1. + ptstep*zminusterm)
-
-              paero(ii,jj,kk)%volc(8) = ( paero(ii,jj,kk)%volc(8)+ptstep*zplusterm(8) * &
-                   paero(ii,jj,kk)%numc ) / ( 1. + ptstep*zminusterm)
 
               paero(ii,jj,kk)%numc = paero(ii,jj,kk)%numc/(1. + ptstep*zminusterm  + &
                    0.5*ptstep*zcc(kk,kk)*paero(ii,jj,kk)%numc)
@@ -494,6 +443,7 @@ CONTAINS
            ! Aerosols in regime 2a
            ! ---------------------------------
            DO kk = in2a,fn2a
+              IF (paero(ii,jj,kk)%numc<nlim) CYCLE
 
               zminusterm = 0.
               zplusterm(:) = 0.
@@ -533,21 +483,12 @@ CONTAINS
 
               ! Particle volume gained from smaller particles in regimes 1, 2a and 2b
               DO ll = in1a, kk-1
-                 zplusterm(1:2) = zplusterm(1:2) + zcc(ll,kk)*paero(ii,jj,ll)%volc(1:2)
-                 zplusterm(6:7) = zplusterm(6:7) + zcc(ll,kk)*paero(ii,jj,ll)%volc(6:7) ! NO + NH
-                 zplusterm(8) = zplusterm(8) + zcc(ll,kk)*paero(ii,jj,ll)%volc(8) ! for h2o
-              END DO
-
-              ! Particle volume gained from smaller particles in 2a
-              ! (Note, for components not included in the previous loop!)
-              DO ll = in2a, kk-1
-                 ! Don't do water twice!
-                 zplusterm(3:5) = zplusterm(3:5) + zcc(ll,kk)*paero(ii,jj,ll)%volc(3:5)
+                 zplusterm(1:8) = zplusterm(1:8) + zcc(ll,kk)*paero(ii,jj,ll)%volc(1:8)
               END DO
 
               ! Particle volume gained from smaller (and equal) particles in 2b
               DO ll = in2b, index_2b
-                 zplusterm(1:8) = zplusterm(1:8) + zcc(ll,kk)*paero(ii,jj,ll)%volc(1:8) ! 2b
+                 zplusterm(1:8) = zplusterm(1:8) + zcc(ll,kk)*paero(ii,jj,ll)%volc(1:8)
               END DO
 
               !-- Volume and number concentrations after coagulation update [fxm]
@@ -562,6 +503,7 @@ CONTAINS
            ! Aerosols in regime 2b
            ! ---------------------------------
            DO kk = in2b,fn2b
+              IF (paero(ii,jj,kk)%numc<nlim) CYCLE
 
               zminusterm = 0.
               zplusterm(:) = 0.
@@ -601,13 +543,7 @@ CONTAINS
 
               ! Particle volume gained from smaller particles in 1/2a
               DO ll = in1a, index_2a-1
-                 zplusterm(1:2) = zplusterm(1:2) + zcc(ll,kk)*paero(ii,jj,ll)%volc(1:2)
-                 zplusterm(6:7) = zplusterm(6:7) + zcc(ll,kk)*paero(ii,jj,ll)%volc(6:7)
-                 zplusterm(8) = zplusterm(8) + zcc(ll,kk)*paero(ii,jj,ll)%volc(8)
-              END DO
-              DO ll = in2a, index_2a-1
-                 ! Don't do water twice!
-                 zplusterm(3:5) = zplusterm(3:5) + zcc(ll,kk)*paero(ii,jj,ll)%volc(3:5)
+                 zplusterm(1:8) = zplusterm(1:8) + zcc(ll,kk)*paero(ii,jj,ll)%volc(1:8)
               END DO
 
               ! Particle volume gained from smaller particles in 2b
@@ -626,8 +562,8 @@ CONTAINS
 
            ! Cloud droplets, regime a
            ! ------------------------------------------------
-           IF ( ANY(pcloud(ii,jj,:)%numc > nlim) ) THEN
-              DO cc = ica%cur,fca%cur
+           DO cc = ica%cur,fca%cur
+              IF (pcloud(ii,jj,cc)%numc<nlim) CYCLE
 
               zminusterm = 0.
               zplusterm(:) = 0.
@@ -661,7 +597,6 @@ CONTAINS
                  zminusterm = zminusterm + zccsc(cc,ll)*psnow(ii,jj,ll)%numc
               END DO
 
-
               ! Volume gained from cloud collection of aerosols
               DO ll = in1a,fn2b
                  zplusterm(1:8) = zplusterm(1:8) + zccca(ll,cc)*paero(ii,jj,ll)%volc(1:8)
@@ -682,7 +617,7 @@ CONTAINS
                    ptstep*zplusterm(1:8)*pcloud(ii,jj,cc)%numc ) /         &
                    (1. + ptstep*zminusterm) )
 
-              ! Update the hydrometeor number concentration (Removal by coagulation with lrger bins and self)
+              ! Update the hydrometeor number concentration (Removal by coagulation with larger bins and self)
               pcloud(ii,jj,cc)%numc = max(0., pcloud(ii,jj,cc)%numc/( 1. + ptstep*zminusterm +  &
                    0.5*ptstep*zcccc(cc,cc)*pcloud(ii,jj,cc)%numc ) )
 
@@ -691,6 +626,7 @@ CONTAINS
            ! Cloud droplets, regime b
            ! -----------------------------------------
            DO cc = icb%cur,fcb%cur
+              IF (pcloud(ii,jj,cc)%numc<nlim) CYCLE
 
               zminusterm = 0.
               zplusterm(:) = 0.
@@ -713,18 +649,15 @@ CONTAINS
                  zminusterm = zminusterm + zccpc(cc,ll)*pprecp(ii,jj,ll)%numc
               END DO
 
-              ! ice'n'snow
               ! Droplets lost by collection by ice
               DO ll = 1,nice
                  zminusterm = zminusterm + zccic(cc,ll)*pice(ii,jj,ll)%numc
               END DO
 
-              ! ice'n'snow
               ! Droplets lost by collection by snow particles
               DO ll = 1,nsnw
                  zminusterm = zminusterm + zccsc(cc,ll)*psnow(ii,jj,ll)%numc
               END DO
-
 
               ! Volume gained from cloud collection of aerosols
               DO ll = in1a,fn2b
@@ -750,13 +683,12 @@ CONTAINS
               pcloud(ii,jj,cc)%numc = max(0.,pcloud(ii,jj,cc)%numc/( 1. + ptstep*zminusterm +  &
                    0.5*ptstep*zcccc(cc,cc)*pcloud(ii,jj,cc)%numc ) )
 
-              END DO
-           END IF ! nlim
+           END DO
 
            ! Rain drops
            ! -----------------------------------
-           IF ( ANY(pprecp(ii,jj,:)%numc > prlim) ) THEN
-              DO cc = 1,nprc
+           DO cc = 1,nprc
+              IF (pprecp(ii,jj,cc)%numc<prlim) CYCLE
 
               zminusterm = 0.
               zplusterm(:) = 0.
@@ -771,7 +703,7 @@ CONTAINS
                  zminusterm = zminusterm + zccsp(cc,ll)*psnow(ii,jj,ll)%numc
               END DO
 
-              ! Drops lost by collisions with ice  !! ice'n'precp huomhuom
+              ! Drops lost by collisions with ice
               DO ll = 1,nice
                  zminusterm = zminusterm + zccip(cc,ll)*pice(ii,jj,ll)%numc
               END DO
@@ -787,29 +719,25 @@ CONTAINS
               END DO
 
               ! Volume gained from smaller drops
-              IF (cc > 1) THEN
               DO ll = 1,cc-1
                  zplusterm(1:8) = zplusterm(1:8) + zccpp(ll,cc)*pprecp(ii,jj,ll)%volc(1:8)
               END DO
-              END IF
 
               ! Update the hydrometeor volume concentrations
               pprecp(ii,jj,cc)%volc(1:8) = max(0., ( pprecp(ii,jj,cc)%volc(1:8) +  &
                    ptstep*zplusterm(1:8)*pprecp(ii,jj,cc)%numc ) /         &
                    (1. + ptstep*zminusterm) )
 
-
               ! Update the hydrometeor number concentration (Removal by coagulation with lrger bins and self)
               pprecp(ii,jj,cc)%numc = max(0.,pprecp(ii,jj,cc)%numc/( 1. + ptstep*zminusterm +  &
                    0.5*ptstep*zccpp(cc,cc)*pprecp(ii,jj,cc)%numc ) )
 
            END DO
-        END IF  !prlim
 
-          ! Ice particles, regime a
+           ! Ice particles, regime a
            ! ------------------------------------------------
-		IF ( ANY(pice(ii,jj,:)%numc > nlim) ) THEN
            DO cc = iia%cur,fia%cur
+              IF (pice(ii,jj,cc)%numc<prlim) CYCLE
 
               zminusterm = 0.
               zplusterm(:) = 0.
@@ -828,7 +756,6 @@ CONTAINS
                  zminusterm = zminusterm + zccii(cc,ll)*pice(ii,jj,ll)%numc
               END DO
 
-
               ! Particles lost by collection by snow drops
               DO ll = 1,nsnw
                  zminusterm = zminusterm + zccsi(cc,ll)*psnow(ii,jj,ll)%numc
@@ -841,16 +768,13 @@ CONTAINS
 
               ! Volume gained from ice collection of aerosols
               DO ll = in1a,fn2b
-                 zplusterm(1:8) = zplusterm(1:8) + zccia(ll,cc)*paero(ii,jj,ll)%volc(1:8)
+                 zplusterm(1:8) = zplusterm(1:8) + zccia(ll,cc)*paero(ii,jj,ll)%volc(1:8)*rhowa/rhoic
               END DO
-
 
               ! Volume gained from cloud collection
               DO ll = 1,ncld
-                 zplusterm(1:8) = zplusterm(1:8) + zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1:8)
+                 zplusterm(1:8) = zplusterm(1:8) + zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1:8)*rhowa/rhoic
               END DO
-
-
 
               ! Volume gained from smaller droplets in a
               DO ll = iia%cur,cc-1
@@ -862,8 +786,6 @@ CONTAINS
                  zplusterm(1:8) = zplusterm(1:8) + zccii(ll,cc)*pice(ii,jj,ll)%volc(1:8)
               END DO
 
-              !! huomhuom ice + precp collision?
-
               ! Update the hydrometeor volume concentrations
               pice(ii,jj,cc)%volc(1:8) = max(0., ( pice(ii,jj,cc)%volc(1:8) +  &
                    ptstep*zplusterm(1:8)*pice(ii,jj,cc)%numc ) /         &
@@ -873,12 +795,12 @@ CONTAINS
               pice(ii,jj,cc)%numc = max(0.,pice(ii,jj,cc)%numc/( 1. + ptstep*zminusterm +  &
                    0.5*ptstep*zccii(cc,cc)*pice(ii,jj,cc)%numc ) )
 
-
            END DO
 
            ! Ice particles, regime b
            ! -----------------------------------------
            DO cc = iib%cur,fib%cur
+              IF (pice(ii,jj,cc)%numc<prlim) CYCLE
 
               zminusterm = 0.
               zplusterm(:) = 0.
@@ -906,17 +828,14 @@ CONTAINS
                  zminusterm = zminusterm + zccip(ll,cc)*pice(ii,jj,ll)%numc
               END DO
 
-
-
-
               ! Volume gained from ice collection of aerosols
               DO ll = in1a,fn2b
-                 zplusterm(1:8) = zplusterm(1:8) + zccia(ll,cc)*paero(ii,jj,ll)%volc(1:8)
+                 zplusterm(1:8) = zplusterm(1:8) + zccia(ll,cc)*paero(ii,jj,ll)%volc(1:8)*rhowa/rhoic
               END DO
 
               ! Volume gained from cloud collection
               DO ll = 1,ncld
-                 zplusterm(1:8) = zplusterm(1:8) + zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1:8)
+                 zplusterm(1:8) = zplusterm(1:8) + zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1:8)*rhowa/rhoic
               END DO
 
               ! Volume gained from smaller droplets in b
@@ -938,14 +857,12 @@ CONTAINS
               pice(ii,jj,cc)%numc = max(0.,pice(ii,jj,cc)%numc/( 1. + ptstep*zminusterm +  &
                    0.5*ptstep*zccii(cc,cc)*pice(ii,jj,cc)%numc ) )
 
-
            END DO
-		END IF !nlim
 
-           ! Snow drops
+           ! Snow
            ! -----------------------------------
-		IF ( ANY(psnow(ii,jj,:)%numc > nlim) ) THEN
            DO cc = 1,nsnw
+              IF (psnow(ii,jj,cc)%numc<prlim) CYCLE
 
               zminusterm = 0.
               zplusterm(:) = 0.
@@ -957,36 +874,35 @@ CONTAINS
 
               ! Volume gained by collection of aerosols
               DO ll = in1a,fn2b
-                 zplusterm(1:8) = zplusterm(1:8) + zccsa(ll,cc)*paero(ii,jj,ll)%volc(1:8)
+                 zplusterm(1:8) = zplusterm(1:8) + zccsa(ll,cc)*paero(ii,jj,ll)%volc(1:8)*rhowa/rhosn
               END DO
 
               ! Volume gained by collection of cloud droplets
               DO ll = 1,ncld
-                 zplusterm(1:8) = zplusterm(1:8) + zccsc(ll,cc)*pcloud(ii,jj,ll)%volc(1:8)
+                 zplusterm(1:8) = zplusterm(1:8) + zccsc(ll,cc)*pcloud(ii,jj,ll)%volc(1:8)*rhowa/rhosn
               END DO
 
               ! Volume gained by collection of ice particles
               DO ll = 1,nice
-                 zplusterm(1:8) = zplusterm(1:8) + zccsi(ll,cc)*pice(ii,jj,ll)%volc(1:8)
+                 zplusterm(1:8) = zplusterm(1:8) + zccsi(ll,cc)*pice(ii,jj,ll)%volc(1:8)*rhoic/rhosn
               END DO
 
               ! Volume gained by collection of rain drops
               DO ll = 1,nprc
-                 zplusterm(1:8) = zplusterm(1:8) + zccsp(ll,cc)*pprecp(ii,jj,ll)%volc(1:8)
+                 zplusterm(1:8) = zplusterm(1:8) + zccsp(ll,cc)*pprecp(ii,jj,ll)%volc(1:8)*rhowa/rhosn
               END DO
 
-               !Volume gained by collisions between ice and rain !! huomhuom ice'n'precp
+              ! Volume gained by collisions between ice and rain
               nn = min(nice,nprc)
               DO ll = 1,nn
-                 zplusterm(1:8) = zplusterm(1:8) + zccip(ll,cc)*pice(ii,jj,ll)%volc(1:8)*pprecp(ii,jj,ll)%volc(1:8)
+                 zplusterm(1:8) = zplusterm(1:8) + zccip(ll,cc)*pice(ii,jj,ll)%volc(1:8)*rhoic/rhosn* &
+                                                                  pprecp(ii,jj,ll)%volc(1:8)*rhowa/rhosn
               END DO
 
               ! Volume gained from smaller drops
-              IF (cc > 1) THEN
               DO ll = 1,cc-1
                  zplusterm(1:8) = zplusterm(1:8) + zccss(ll,cc)*psnow(ii,jj,ll)%volc(1:8)
               END DO
-              END IF
 
               ! Update the hydrometeor volume concentrations
               psnow(ii,jj,cc)%volc(1:8) = max(0.,( psnow(ii,jj,cc)%volc(1:8) +  &
@@ -996,23 +912,11 @@ CONTAINS
               ! Update the hydrometeor number concentration (Removal by coagulation with larger bins and self)
               psnow(ii,jj,cc)%numc = max(0.,psnow(ii,jj,cc)%numc/( 1. + ptstep*zminusterm +  &
                    0.5*ptstep*zccss(cc,cc)*psnow(ii,jj,cc)%numc ) )
+
            END DO
-		END IF !nlim
-
-
 
       END DO ! kbdim
      END DO ! klev
-     ! fxm: here we approximate that the sea salt regime 2b particles have
-     ! gained by coagulation can be treated as sulphate
-     paero(:,:,in2b:fn2b)%volc(1) = paero(:,:,in2b:fn2b)%volc(1) + paero(:,:,in2b:fn2b)%volc(5)
-     paero(:,:,in2b:fn2b)%volc(5) = 0.
-
-     DO cc = 1,8
-        paero(:,:,in2b:fn2b)%volc(cc) = MAX(paero(:,:,in2b:fn2b)%volc(cc), 0.)
-     END DO
-
-     if (debug) write(*,*)  'nyt on coaguloitu ', ' debugkebab'  !debugtulostus
 
   END SUBROUTINE coagulation
 
@@ -1099,26 +1003,114 @@ CONTAINS
     USE mo_salsa_nucleation
 
     USE mo_submctl,    ONLY :   &
+         t_section,                 & ! Data type for the cloud bin representation
+         fn2b,                      &
+         ncld,nprc,                  &
+         nice,nsnw,                 &
+         lscndgas,                  & 
+         nlcndh2oae, nlcndh2ocl, nlcndh2oic, & ! Condensation to aerosols, clouds and ice particles
+         nsnucl                     ! nucleation
+
+    USE class_componentIndex, ONLY : ComponentIndex,IsUsed
+
+    IMPLICIT NONE
+
+    !-- Input and output variables ----------
+    INTEGER, INTENT(IN) ::          &
+         kproma,                    & ! number of horiz. grid kproma
+         kbdim,                     & ! dimension for arrays
+         klev,                      & ! number of vertical klev
+         krow
+
+    REAL, INTENT(IN) ::         &
+         ptemp(kbdim,klev),         & ! ambient temperature [K]
+         ppres(kbdim,klev),         & ! ambient pressure [Pa]
+         ptstep,                    & ! timestep [s]
+         prs(kbdim,klev),           & ! Water vapor saturation mixing ratio
+         prsi(kbdim,klev)              ! Saturation mixing ratio    [kg/m3]
+
+    TYPE(ComponentIndex), INTENT(in) :: prtcl  ! Keeps track which substances are used
+
+    INTEGER :: ppbl(kbdim)           ! Planetary boundary layer top level
+
+    REAL, INTENT(INOUT) ::     &
+         prv(kbdim,klev),          & ! Water vapor mixing ratio
+         pcsa(kbdim,klev),         & ! sulphuric acid concentration [#/m3]
+         pcocnv(kbdim,klev),       & ! non-volatile organic concentration [#/m3]
+         pcocsv(kbdim,klev),       & ! semivolatile organic concentration [#/m3]
+         pchno3(kbdim,klev),       & ! nitric acid concentration [#/m3]
+         pcnh3(kbdim,klev)           ! ammonia concentration [#/m3]
+
+    TYPE(t_section), INTENT(inout) :: &
+         pcloud(kbdim,klev,ncld),     & ! Hydrometeor properties
+         paero(kbdim,klev,fn2b),      & ! Aerosol properties
+         pprecp(kbdim,klev,nprc),     & ! rain properties
+         pice(kbdim,klev,nice),       & ! ice properties
+         psnow(kbdim,klev,nsnw)        ! snowing properties
+
+    REAL :: zj3n3(kbdim,klev,2),        & ! Formation massrate of molecules in nucleation, [molec/m3s].  (kbdim,klev,1) for H2SO4 and (kbdim,klev,2) for Organic vapor
+         zxsa(kbdim,klev),           & ! ratio of sulphuric acid and organic vapor in 3nm particles
+         zxocnv(kbdim,klev), &
+         zrh(kbdim,klev)
+
+    zxocnv = 0.
+    zxsa = 0.
+    zj3n3 = 0.
+    zrh(1:kbdim,:) = prv(1:kbdim,:)/prs(1:kbdim,:)
+
+
+    !------------------------------------------------------------------------------
+
+    ! Nucleation
+    IF (nsnucl > 0) CALL nucleation(kproma, kbdim,  klev,   krow,   &
+                                    paero,  ptemp,  zrh,    ppres,  &
+                                    pcsa,   pcocnv, ptstep, zj3n3,  &
+                                    zxsa,   zxocnv, ppbl            )
+
+    ! Condensation of H2SO4 and organic vapors
+    IF (lscndgas) CALL condgas(kproma,  kbdim,  klev,   krow,      &
+                          paero,   pcloud, pprecp,            &
+                          pice,    psnow,                     &
+                          pcsa, pcocnv, pcocsv, pchno3, pcnh3,     &
+                          zxsa, prv,prs, prsi,ptemp,  ppres, ptstep,    &
+                          prtcl)
+
+    ! Condensation of water vapour
+    IF (nlcndh2ocl .OR. nlcndh2oae .OR. nlcndh2oic) &
+        CALL gpparth2o(kproma,kbdim,klev,krow,  &
+                   paero, pcloud, pprecp,   &
+                   pice, psnow,             & ! ice'n'snow
+                   ptemp,ppres,prs,prsi,prv,     &
+                   ptstep)
+
+    ! HNO3/NH3 - currently disabled
+    !CALL gpparthno3(kproma,kbdim,klev,krow,ppres,ptemp,paero,pcloud,   &
+    !                pprecp,pchno3,pcnh3,prv,prs,zbeta,ptstep           )
+
+  END SUBROUTINE condensation
+
+!
+! ----------------------------------------------------------------------------------------------------------
+!
+
+  SUBROUTINE condgas(kproma,  kbdim,  klev,   krow,      &
+                          paero,   pcloud, pprecp,            &
+                          pice,    psnow,                     &
+                          pcsa,                               &
+                          pcocnv,  pcocsv, pchno3, pcnh3,     &
+                          zxsa, prv,prs, prsi,ptemp,  ppres,  ptstep,    &
+                          prtcl)
+
+    USE mo_submctl,    ONLY :   &
          pi,                        &
          pi6,                       & ! pi/6
          in1a, in2a,                & ! size bin indices
-         fn1a,                       &
-         fn2a, fn2b,                &
-         nbin,                      & ! number of size bins in each regime
-         nbins,                     & ! Total number of aerosol bins
-
+         fn2b,                &
          t_section,                 & ! Data type for the cloud bin representation
-         ica,fca,icb,fcb,           & ! bin indices for cloud/rain bins
-         ira,fra,                   &
-         iia,fia,iib,fib,           & ! bin indices for cloud/rain bins ! ice'n'snow
-         isa,fsa,                   &
          ncld,                      &
          nprc,                      &
          nice,                      & ! ice'n'snow
          nsnw,                      & ! ice'n'snow
-         debug,                     &
-         lscndgas,                  &
-         !lscndh2o,                  &
          avog,                      &
          nlim,                      &
          prlim,                     &
@@ -1151,15 +1143,10 @@ CONTAINS
          epsoc,                     & ! soluble fraction of organics (scaled to sulphate)
          massacc,                   & ! mass accomodation coefficients in each bin
          n3,                        & ! number of molecules in one 3 nm particle [1]
-         nsnucl,                    & ! nucleation
          surfw0,                    & ! surface tension of water
          surfi0                       ! surface tension of ice
 
-    
-
     USE class_componentIndex, ONLY : ComponentIndex,IsUsed
-
-    !USE mo_time_control,   ONLY: delta_time,time_step_len
 
     USE mo_constants,      ONLY: g, avo, alv, rv, als
    IMPLICIT NONE
@@ -1180,18 +1167,14 @@ CONTAINS
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl  ! Keeps track which substances are used
 
-    !LOGICAL, INTENT(in) :: pactmask(kbdim,klev)
-
-    INTEGER :: ppbl(kbdim)           ! Planetary boundary layer top level
-
     REAL, INTENT(INOUT) ::     &
-         !prh(kbdim,klev),          & ! Juha: Moved from above
          prv(kbdim,klev),          & ! Water vapor mixing ratio
          pcsa(kbdim,klev),         & ! sulphuric acid concentration [#/m3]
          pcocnv(kbdim,klev),       & ! non-volatile organic concentration [#/m3]
          pcocsv(kbdim,klev),       & ! semivolatile organic concentration [#/m3]
          pchno3(kbdim,klev),       & ! nitric acid concentration [#/m3]
-         pcnh3(kbdim,klev)           ! ammonia concentration [#/m3]
+         pcnh3(kbdim,klev),        & ! ammonia concentration [#/m3]
+         zxsa(kbdim,klev)            ! ratio of sulphuric acid and organic vapor in 3nm particles
 
     TYPE(t_section), INTENT(inout) :: &
          pcloud(kbdim,klev,ncld),     & ! Hydrometeor properties
@@ -1201,9 +1184,8 @@ CONTAINS
          psnow(kbdim,klev,nsnw)        ! snowing properties
 
 
-
     !-- Local variables ----------------------
-    INTEGER :: ii, jj, kk, ll, mm, cc    ! loop indices
+    INTEGER :: ii, jj    ! loop indices
 
     REAL ::                      &
          zvisc,                      & ! viscosity of air [kg/(m s)]
@@ -1213,131 +1195,51 @@ CONTAINS
          zcs_ocsv,                   & ! condensation sink for semivolatile organics [1/s]
          zcs_su,                     & ! condensation sink for sulfate [1/s]
          zcs_ocnv,                   & ! condensation sink for nonvolatile organics [1/s]
-         zcs_no,                     & ! condensation sink for NO3 [1/s]
-         zcs_nh,                     & ! condensation sink for NH3 [1/s]
-         zcs_h2o,                    & ! Condensation sink for H2O [1/s]
                                        ! vapour concentration after time step [#/m3]
          zcvap_new1,                 & ! sulphuric acid
          zcvap_new2,                 & ! nonvolatile organics
          zcvap_new3,                 & ! semivolatile organics
-         zcvap_newno,                & ! HNO3
-         zcvap_newnh,                & ! NH3
                                        ! change in vapour concentration [#/m3]
          zdvap1,                     & ! sulphuric acid
          zdvap2,                     & ! nonvolatile organics
          zdvap3,                     & ! semivolatile organics
-         zdvapno,                    & ! HNO3
-         zdvapnh,                    & ! NH3
 
          zdfpart(in1a+1),            & ! particle diffusion coefficient
-         zdfh2o,                     & ! diffusion coefficient for h2o vapour in air
 
          zknud(fn2b),                & ! particle Knudsen number
-         zknaw(fn2b),                & ! Kundsen number for aerosols and water vapour
-         zkncw(ncld),                & ! Knudsen number for cloud droplets and water vapour
          zknca(ncld),                & ! Knudsen number for cloud droplets and aerosol vapours
-         zknpw(nprc),                & ! Knudsen number for rain drops and water vapour
          zknpa(nprc),                & ! Knudsen number for rain drops and aerosol vapours
-         ! ice'n'snow
-         zkniw(nice),                & ! Knudsen number for ice particles and water vapour
          zknia(nice),                & ! Knudsen number for ice particles and aerosol vapours
-         zknsw(nsnw),                & ! Knudsen number for snow flakes and water vapour
          zknsa(nsnw),                & ! Knudsen number for snow flakes and aerosol vapours
 
-
-
          zbeta(fn2b),                & ! transitional correction factor for aerosols
-         zbetaaw(fn2b),              & ! - '' - for water condensing on aerosols
-         zbetacw(ncld),              & ! transitional correction for condensing water vapour on clouds (is this even needed?)
          zbetaca(ncld),              & ! - '' - for condensing aerosol vapours on clouds (is this needed?)
-         zbetapw(nprc),              & ! - '' - for condensing water on rain drops
          zbetapa(nprc),              & ! - '' - for condensing aerosol vapours on rain drops
-         ! ice'n'snow
-         zbetaiw(nice),              & ! transitional correction for condensing water vapour on ice particles
          zbetaia(nice),              & ! - '' - for condensing aerosol vapours on ice (is this needed?)
-         zbetasw(nsnw),              & ! - '' - for condensing water on snow flakes
          zbetasa(nsnw),              & ! - '' - for condensing aerosol vapours on snow flakes
 
          zcolrate(fn2b),             & ! collision rate of molecules to particles [1/s]
          zcolrate_ocnv(fn2b),        & ! collision rate of organic molecules to particles [1/s]
-         zcolrateaw(fn2b),           & ! Collision rate of water vapour on aerosols
-         zcolratecw(ncld),           & ! Collision rate of water vapour to cloud drops
          zcolrateca(ncld),           & ! Collision rate of aerosol vapour molecules to cloud drops
-         zcolratepw(nprc),           & ! Collision rate of water vapour to rain drops
          zcolratepa(nprc),           & ! Collision rate of gases to rain drops
-         ! ice'n'snow huomhuom onko nämä edes tarpeen
-         zcolrateiw(nice),           & ! Collision rate of water vapour to ice particles
          zcolrateia(nice),           & ! Collision rate of aerosol vapour molecules to ice particles
-         ! ice'n'snow huomhuom onko nämä edes tarpeen
-         zcolratesw(nsnw),           & ! Collision rate of water vapour to rain drops
          zcolratesa(nsnw),           & ! Collision rate of gases to rain drops
-
-         zmtae(fn2b),                & ! Mass transfer coefficients for aerosols
-         zmtcd(ncld),                & ! Mass transfer coefficients for cloud droplets
-         zmtpd(nprc),                & ! Mass transfer coefficients for rain drops
-         zmtid(nice),                & ! Mass transfer coefficients for ice particles
-         zmtsd(nsnw),                & ! Mass transfer coefficients for snow flakes
-         zmttot,                     & ! Total mass transfer coefficient
 
          zdvolsa(fn2b),              & ! change of sulphate volume in each bin [fxm]
          zdvoloc(fn2b),              & !    - " - organics
 
          zj3n3(kbdim,klev,2),        & ! Formation massrate of molecules in nucleation, [molec/m3s].  (kbdim,klev,1) for H2SO4 and (kbdim,klev,2) for Organic vapor
          zn_vs_c,                    & ! ratio of nucleation of all mass transfer in the smallest bin
-         zxsa(kbdim,klev),           & ! ratio of sulphuric acid and organic vapor in 3nm particles
-         zxocnv(kbdim,klev),         & !
-         zmaxdvol(fn2b),             & !
-         zcno_tot,                   & ! total available NO3
-         zcnh3_tot,                  & ! total available NH3
-
-         zthcond               ! thermal conductivity of air
-         !zmfph2o                   ! Mean free path for h2o vapour
-
-    REAL :: zns, znw    ! Number of moles of solute and water in particles
-
-    REAL :: zhlp1,zhlp2,zhlp3  ! Helper variables
-    REAL :: zhlp1a(ncld), zhlp2a(ncld), zhlp3a(ncld)
-    REAL :: zhlp1b(nbins), zhlp2b(nbins), zhlp3b(nbins)
-
-    real::ztmst,zqtmst,        &
-         ztstep2, ztstep_pre,zthno3,ztnh3,zph2o,zphno3,zpnh3,zaw
-
-    REAL :: zrh(kbdim,klev)
-
-   ! REAL :: zbetann(kbdim,klev,nbins) ! Correction factor for nitrate calculations
-
-                      ! FROM/TO ISOROPIA
-         REAL :: zwi_S(5)          ! Total species concentrations in moles/m**3 air
-         REAL :: zcntrl_s(2)       ! nug for different types of problems solved
-                                       ! different state of aerosols (deliquescent or
-                                       ! metastable)
-         REAL :: zwt_s(1)          ! ?
-         REAL :: zaerliq_S(12)     ! Aqueous-phase concentration array in moles/m**3air
-         REAL :: zaersld_S(9)      ! Solid-phase concentration array in moles/m**3 air
-         REAL :: zother_s(6)       ! Solution information array
-         REAL :: zgas_s(3)         ! Gas-phase concentration array in moles/m**3 air
-         CHARACTER*15 scasi_s          ! Returns the subcase which the input corresponds to
-    INTEGER, PARAMETER :: NCmax=3, NAmax=5, NNmax=1
-    REAL :: MOLAL(-NAmax:NCmax)    !-- Initializations
-    INTEGER :: tt
+         zxocnv(kbdim,klev)
 
 
-
-    zxocnv = 0.
-    zxsa = 0.
     zj3n3 = 0.
-    zrh(1:kproma,:) = prv(1:kproma,:)/prs(1:kproma,:)
+    zxocnv = 0.
 
-    !------------------------------------------------------------------------------
-
-    IF (nsnucl > 0) CALL nucleation(kproma, kbdim,  klev,   krow,   &
-                                    paero,  ptemp,  zrh,    ppres,  &
-                                    pcsa,   pcocnv, ptstep, zj3n3,  &
-                                    zxsa,   zxocnv, ppbl            )
     zdvolsa=0.
     zn_vs_c=0.
     DO jj = 1,klev
-       DO ii = 1,kproma
+       DO ii = 1,kbdim
 
           zdvoloc = 0.
 
@@ -1345,8 +1247,6 @@ CONTAINS
           zvisc  = (7.44523e-3*ptemp(ii,jj)**1.5)/(5093.*(ptemp(ii,jj)+110.4))! viscosity of air [kg/(m s)]
           zdfvap = 5.1111e-10*ptemp(ii,jj)**1.75*pstand/ppres(ii,jj)                ! diffusion coefficient [m2/s]
           zmfp   = 3.*zdfvap*sqrt(pi*msu/(8.*rg*ptemp(ii,jj)))                      ! mean free path [m]
-
-          !zmfph2o = 3.*zdfh2o*sqrt(pi*mwa/(8.*rg*ptemp(ii,jj)))                                ! Mean free path fro h2o
 
           !-- 2) Transition regime correction factor for particles ---------
           !
@@ -1396,49 +1296,43 @@ CONTAINS
 
           !-- collision rate (gases on aerosols) [1/s]
           zcolrate = 0.
-          IF (lscndgas) &
-               zcolrate(in1a:in1a+1) = MERGE( 2.*pi*(paero(ii,jj,in1a:in1a+1)%dwet+d_sa)*    &
+          zcolrate(in1a:in1a+1) = MERGE( 2.*pi*(paero(ii,jj,in1a:in1a+1)%dwet+d_sa)*    &
                                               (zdfvap+zdfpart)*zbeta(in1a:in1a+1)*              &
                                               paero(ii,jj,in1a:in1a+1)%numc,                    &
                                               0.,                                            &
                                               paero(ii,jj,in1a:in1a+1)%numc > nlim              )
 
-          IF (lscndgas) &
-               zcolrate(in1a+2:fn2b) = MERGE( 2.*pi*paero(ii,jj,in1a+2:fn2b)%dwet*zdfvap*    &
+          zcolrate(in1a+2:fn2b) = MERGE( 2.*pi*paero(ii,jj,in1a+2:fn2b)%dwet*zdfvap*    &
                                               zbeta(in1a+2:fn2b)*paero(ii,jj,in1a+2:fn2b)%numc, &
                                               0.,                                            &
                                               paero(ii,jj,in1a+2:fn2b)%numc > nlim              )
 
           !-- gases on hydrometeors
           zcolrateca = 0.
-          IF (lscndgas) &
-               zcolrateca(1:ncld) = MERGE( 2.*pi*pcloud(ii,jj,1:ncld)%dwet*zdfvap*    &
+          zcolrateca(1:ncld) = MERGE( 2.*pi*pcloud(ii,jj,1:ncld)%dwet*zdfvap*    &
                                            zbetaca(1:ncld)*pcloud(ii,jj,1:ncld)%numc,    &
                                            0.,                                        &
                                            pcloud(ii,jj,1:ncld)%numc > nlim              )
 
           ! Gases on rain drops
           zcolratepa = 0.
-          IF (lscndgas) &
-               zcolratepa(1:nprc) = MERGE( 2.*pi*pprecp(ii,jj,1:nprc)%dwet*zdfvap*    &
+          zcolratepa(1:nprc) = MERGE( 2.*pi*pprecp(ii,jj,1:nprc)%dwet*zdfvap*    &
                                            zbetapa(1:nprc)*pprecp(ii,jj,1:nprc)%numc,    &
                                            0.,                                        &
-                                           pprecp(ii,jj,1:nprc)%numc > prlim             )          !-- gases on hydrometeors
+                                           pprecp(ii,jj,1:nprc)%numc > prlim             )
           !-- gases on ice particles
           zcolrateia = 0.
-          IF (lscndgas) &
-               zcolrateia(1:nice) = MERGE( 2.*pi*pice(ii,jj,1:nice)%dwet*zdfvap*    &
+          zcolrateia(1:nice) = MERGE( 2.*pi*pice(ii,jj,1:nice)%dwet*zdfvap*    &
                                            zbetaia(1:nice)*pice(ii,jj,1:nice)%numc,    &
                                            0.,                                        &
-                                           pice(ii,jj,1:ncld)%numc > nlim              )
+                                           pice(ii,jj,1:ncld)%numc > prlim              )
 
           ! Gases on snow flakes
           zcolratesa = 0.
-          IF (lscndgas) &
-               zcolratesa(1:nsnw) = MERGE( 2.*pi*psnow(ii,jj,1:nsnw)%dwet*zdfvap*    &
+          zcolratesa(1:nsnw) = MERGE( 2.*pi*psnow(ii,jj,1:nsnw)%dwet*zdfvap*    &
                                            zbetasa(1:nsnw)*psnow(ii,jj,1:nsnw)%numc,    &
                                            0.,                                        &
-                                           psnow(ii,jj,1:nsnw)%numc > nlim             )
+                                           psnow(ii,jj,1:nsnw)%numc > prlim             )
 
           !-- 4) Condensation sink [1/s] -------------------------------------
 
@@ -1600,20 +1494,7 @@ CONTAINS
 
     END DO ! klev
 
-    ! -- 5.3) Water vapour
-    CALL gpparth2o(kproma,kbdim,klev,krow,  &
-                   paero, pcloud, pprecp,   &
-                   pice, psnow,             & ! ice'n'snow
-                   ptemp,ppres,prs,prsi,prv,     &
-                   ptstep)
-
-    ! -- 5.4) HNO3/NH3
-    !CALL gpparthno3(kproma,kbdim,klev,krow,ppres,ptemp,paero,pcloud,   &
-    !                pprecp,pchno3,pcnh3,prv,prs,zbeta,ptstep           )
-
-  IF (debug)        write(*,*)  'nyt on condensoitu ', ' debugkebab'
-
-  END SUBROUTINE condensation
+  END SUBROUTINE condgas
 
 !
 ! ----------------------------------------------------------------------------------------------------------
@@ -1632,8 +1513,8 @@ CONTAINS
                                surfw0,surfi0, rg,           &
                                pi, prlim, nlim,      &
                                massacc,avog,pstand,  &
-                               in1a,fn1a,in2a,fn2a,  &
-                               in2b,fn2b,            &
+                               in1a,in2a,  &
+                               fn2b,            &
                                lscndh2oae, lscndh2ocl, lscndh2oic
     USE mo_constants, ONLY : alv, als  ! ice'n'snow
     USE mo_salsa_properties, ONLY : equilibration
@@ -1660,7 +1541,6 @@ CONTAINS
                 zmtid(nice), zmtsd(nsnw)
     REAL :: zwsatae(nbins), zwsatcd(ncld), zwsatpd(nprc), &  ! Water saturation ratios above
                 zwsatid(nice), zwsatsd(nsnw)                      ! ice'n'snow
-    REAL :: zmttot                                        ! Total condensation rate
     REAL :: zcwtot                                        ! Total water mole concentration
     REAL :: zcwc, zcwn, zcwint                            ! Current and new water vapour mole concentrations
     REAL :: zcwcae(nbins), zcwnae(nbins), zcwintae(nbins) ! Current and new water mole concentrations in aerosols
@@ -1668,7 +1548,6 @@ CONTAINS
     REAL :: zcwcpd(nprc), zcwnpd(nprc), zcwintpd(nprc)    !     -  ''  -     in rain drops
     REAL :: zcwcid(nice), zcwnid(nice), zcwintid(nice)    !     -  ''  -     in ice particles
     REAL :: zcwcsd(nsnw), zcwnsd(nsnw), zcwintsd(nsnw)    !     -  ''  -     in snow particles
-    REAL :: zdcwae(nbins), zdcwcd(ncld), zdcwpd(nprc),zdcwid(nice),zdcwsd(nsnw)
     REAL :: zdfh2o, zthcond,rhoair
     REAL :: zbeta,zknud,zmfph2o
     REAL :: zact, zhlp1,zhlp2,zhlp3
@@ -1713,7 +1592,7 @@ CONTAINS
     zwsatae = 0.; zwsatcd = 0.; zwsatpd = 0.; zwsatid = 0.; zwsatsd = 0.
 
     DO jj = 1,klev
-       DO ii = 1,kproma
+       DO ii = 1,kbdim
 
           rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
 
@@ -1748,7 +1627,7 @@ CONTAINS
           zmtcd(:) = 0.
           zcwsurfcd(:) = 0.
           DO cc = 1,ncld
-             IF (pcloud(ii,jj,cc)%numc > prlim .AND. lscndh2ocl) THEN
+             IF (pcloud(ii,jj,cc)%numc > nlim .AND. lscndh2ocl) THEN
 
                 ! Activity + Kelvin effect
                 zact = acth2o(pcloud(ii,jj,cc))
@@ -1875,8 +1754,7 @@ CONTAINS
                 ! Water activity
                 zact = acth2o(paero(ii,jj,cc))
                 testi(cc) = zact
-                !                write(*,*) zact
-                ! Ssaturation mole concentration over flat surface
+                ! Saturation mole concentration over flat surface
                 ! Limit the supersaturation to max 1.01 for the mass transfer
                 ! EXPERIMENTAL
                 zcwsurfae(cc) = MAX(prs(ii,jj),prv(ii,jj)/1.01)*rhoair/mwa
@@ -1956,14 +1834,14 @@ CONTAINS
                    zwsatpd(cc) = acth2o(pprecp(ii,jj,cc),zcwintpd(cc))*zkelvinpd(cc)
                 END DO
              END IF
-             IF (ANY(pice(ii,jj,:)%numc > nlim) ) THEN
+             IF (ANY(pice(ii,jj,:)%numc > prlim) ) THEN
                 DO cc = 1,nice
                    zcwintid(cc) = zcwcid(cc) + min(max(adt*zmtid(cc)*(zcwint - zwsatid(cc)*zcwsurfid(cc)), &
                         -0.02*zcwcid(cc)),0.05*zcwcid(cc))
                    zwsatid(cc) = zkelvinid(cc)
                 END DO
              END IF
-             IF (ANY(psnow(ii,jj,:)%numc > nlim) ) THEN
+             IF (ANY(psnow(ii,jj,:)%numc > prlim) ) THEN
                 DO cc = 1,nsnw
                    zcwintsd(cc) = zcwcsd(cc) + min(max(adt*zmtsd(cc)*(zcwint - zwsatsd(cc)*zcwsurfsd(cc)),&
                         -0.02*zcwcsd(cc)),0.05*zcwcsd(cc))
@@ -1973,7 +1851,6 @@ CONTAINS
              zcwintae(nstr:nbins) = MAX(zcwintae(nstr:nbins),0.)
              zcwintcd(1:ncld) = MAX(zcwintcd(1:ncld),0.)
              zcwintpd(1:nprc) = MAX(zcwintpd(1:nprc),0.)
-             ! ice'n'snow
              zcwintid(1:nice) = MAX(zcwintid(1:nice),0.)
              zcwintsd(1:nsnw) = MAX(zcwintsd(1:nsnw),0.)
 
@@ -2014,7 +1891,7 @@ CONTAINS
   END SUBROUTINE gpparth2o
   !-------------------------------------------------------
   REAL FUNCTION acth2o(ppart,pcw)
-    
+
     USE mo_submctl, ONLY : t_section,  &
                                rhosu, msu,   &
                                rhooc, moc,   &
@@ -2026,7 +1903,6 @@ CONTAINS
 
     TYPE(t_section), INTENT(in) :: ppart
     REAL, INTENT(in), OPTIONAL :: pcw
-    !REAL, INTENT(out) :: pact
 
     REAL :: zns, znw
 
@@ -2055,7 +1931,6 @@ CONTAINS
     
     USE mo_submctl, ONLY : t_section,           &
                                nbins, ncld, nprc,   &
-                               in1a, fn2b,          &
                                surfw0, mvno, mvnh, boltz, &
                                rhono, mno,          &
                                rhonh, mnh,          &
@@ -2065,9 +1940,6 @@ CONTAINS
                                nlim, prlim
 
     IMPLICIT NONE
-
-    ! OTA MOLAALISUUDET PDFITESTA JA LASKE BETAT MYÖS PISAROILLE!!!!
-
 
     INTEGER, INTENT(in) :: kproma,kbdim,klev,krow
     REAL, INTENT(in) :: ptstep
@@ -2083,7 +1955,6 @@ CONTAINS
 
     REAL :: zkelno3ae(nbins), zkelno3cd(ncld), zkelno3pd(nprc)     ! Kelvin effects for HNO3
     REAL :: zkelnh3ae(nbins), zkelnh3cd(ncld), zkelnh3pd(nprc)     ! Kelvin effects for NH3
-    REAL :: zkelw(nbins), zkelwcd(ncld), zkelwpd(nprc)           ! Kelvin effects for H2O
 
     REAL :: zcno3cae(nbins), zcno3intae(nbins), zcno3nae(nbins),  & ! Current, intermediate and new HNO3 in aerosols
                 zcnh3cae(nbins), zcnh3intae(nbins), zcnh3nae(nbins),  & !  -  ''  - NH3
@@ -2096,9 +1967,6 @@ CONTAINS
 
     REAL :: zcno3c, zcno3int, zcno3n                             ! Current, intermediate and new HNO3 gas concentration
     REAL :: zcnh3c, zcnh3int, zcnh3n                             ! -  ''  - NH3
-
-    REAL :: zcno3eqae(nbins), zcno3eqcd(ncld), zcno3eqpd(nprc)   ! Equilibrium particle concentrations of HNO3 (isorropia)
-    REAL :: zcnh3eqae(nbins), zcnh3eqcd(ncld), zcnh3eqpd(nprc)   ! Equilibrium particle concentrations of NH3 (isorropia)
 
     REAL :: zcgnh3eqae(nbins), zcgno3eqae(nbins), &              ! Equilibrium gas concentrations
                 zcgnh3eqcd(ncld), zcgno3eqcd(ncld), &
@@ -2118,31 +1986,27 @@ CONTAINS
     REAL :: zsathno3ae(nbins), zsathno3cd(ncld), zsathno3pd(nprc)
     REAL :: zsatnh3ae(nbins), zsatnh3cd(ncld), zsatnh3pd(nprc)
 
-    REAL :: Hhno3ae(nbins),Hnh3ae(nbins)
-
-    REAL :: zbeta ! LASKE
+    REAL :: zbeta
     REAL :: zdfvap ! Diffusion coefficient for vapors
 
     REAL :: zrh
 
-    REAL :: zhlp1,zhlp2,zhlp3,zhlp4,zhlp5,zhlp6,zhlp7,zhlp8
+    REAL :: zhlp1,zhlp2,zhlp3,zhlp4,zhlp5,zhlp6
 
-    REAL :: adt,adtcae(2,nbins),adtcae2(2,nbins),adtccd(2,ncld),adtcpd(2,nprc) ! Adaptive timestep
+    REAL :: adt,adtcae(2,nbins),adtccd(2,ncld),adtcpd(2,nprc) ! Adaptive timestep
     REAL :: adtc2(2,nbins)
-    REAL :: telp,ttot ! Elapsed time
 
     INTEGER :: nstr
-    INTEGER :: ii,jj,cc,tt
+    INTEGER :: ii,jj,cc
 
     nstr = 1
-    ! ALUSTA KRIITTISET NOLLIKSI
     adtcae(:,:) = 0.
     adtccd(:,:) = 0.
     adtcpd(:,:) = 0.
     adtc2(:,:) = 0.
 
     DO jj = 1,klev
-       DO ii = 1,kproma
+       DO ii = 1,kbdim
 
           zkelno3pd = 1.; zkelno3cd = 1.; zkelno3ae = 1.
           zkelnh3pd = 1.; zkelnh3cd = 1.; zkelnh3ae = 1.
@@ -2236,9 +2100,6 @@ CONTAINS
                          zcgno3eqpd,zcgnh3eqpd,zacno3pd,zacnh3pd,  &
                          zacnh4hso2pd,zachhso4pd,zmolspd           )
 
-
-          !WRITE(*,*) zmolsae(1:7,1)
-
           zsatnh3ae = 1.; zsathno3ae = 1.
           zsatnh3cd = 1.; zsathno3cd = 1.
           zsatnh3pd = 1.; zsathno3pd = 1.
@@ -2257,8 +2118,6 @@ CONTAINS
                zsathno3pd,zsatnh3pd,zmolspd,prlim                                         )
 
           adt = ptstep
-
-          !WRITE(*,*) adt
 
           zhlp1 = SUM( zcno3cae(nstr:nbins) /  &
                (1. + adt*zmtno3ae(nstr:nbins)*zsathno3ae(nstr:nbins)) )
@@ -2317,8 +2176,6 @@ CONTAINS
           zcnh3intcd(1:ncld) = MAX(zcnh3intcd(1:ncld),0.)
           zcnh3intpd(1:nprc) = MAX(zcnh3intpd(1:nprc),0.)
 
-          ! JACOBSONIN RAJOTUS TÄHÄ?
-
           !zcno3int = zcno3tot - SUM(zcno3intae(1:nbins)) - &
           !     SUM(zcno3intcd(1:ncld))  - &
           !     SUM(zcno3intpd(1:nprc))
@@ -2326,9 +2183,6 @@ CONTAINS
           !zcnh3int = zcnh3tot - SUM(zcnh3intae(1:nbins)) - &
           !     SUM(zcnh3intcd(1:ncld))  - &
           !     SUM(zcnh3intpd(1:nprc))
-
-          !WRITE(*,*) zcnh3int, SUM(zcnh3intae(1:nbins))
-          !WRITE(*,*) zsatnh3ae(1:7)
 
           zcno3n = zcno3int
           zcno3nae(:) = zcno3intae(:); zcno3ncd(:) = zcno3intcd(:); zcno3npd(:) = zcno3intpd(:)
@@ -2489,10 +2343,6 @@ CONTAINS
        pgammanh4hso2(cc) = zgammas(6)
        pgammahhso4(cc) = zgammas(7)
 
-       !IF (ppart(cc)%numc < nlim) pmols(cc,:) = 0.
-
-       !WRITE(*,*) pgammano(cc), pgammanh(cc), pgammanh4hso2(cc), pgammahhso4(cc)
-
        pcgno3eq(cc) = zphno3/(rg*ptemp)
        pcgnh3eq(cc) = zpnh3/(rg*ptemp)
 
@@ -2574,8 +2424,6 @@ CONTAINS
     KglNH3 = k03*EXP( a3*zhlp2 + b3*zhlp3 )
     KglHNO3 = k04*EXP( a4*zhlp2 + b4*zhlp3 )
 
-    !WRITE(*,*) 'testi', KllH2O, KllNH3, KglNH3, KglHNO3
-
     ! Get NO3- and H+ molality
     DO cc = 1,nb
 
@@ -2588,10 +2436,6 @@ CONTAINS
           zxi = ( pcnh3(cc) + ppart(cc)%volc(5)*rhoss/mss ) / &
                 ( ppart(cc)%volc(1)*rhosu/msu )
           IF ( zxi <= 2. ) THEN
-             !psathno3(cc) = acthno3(ppart(cc),pachno3(cc),pchno3(cc)) * &
-             !        pkelhno3(cc) / KglHNO3
-             !psatnh3(cc) = actnh3(ppart(cc),pacnh3(cc),pcnh3(cc)) *   &
-             !     pkelnh3(cc) / KglNH3
              ! Molality of SO4
              zhlp1 = pcnh3(cc)*mnh + pchno3(cc)*mno + ppart(cc)%volc(2)*rhooc + &
                   ppart(cc)%volc(5)*rhoss + ppart(cc)%volc(8)*rhowa
@@ -2609,18 +2453,10 @@ CONTAINS
                   ppart(cc)%volc(1)*rhosu + ppart(cc)%volc(8)*rhowa
              zmolna = (ppart(cc)%volc(5)*rhoss/mss)/zhlp1
 
-             !zmolhp = 2.*pmols(cc,4) + pmols(cc,5) + pmols(cc,6) + pmols(cc,7) - &
-             !     (pmols(cc,2) + pmols(cc,3))!2.*zmolso4 + zmolno3 + zmolcl - (zmolnh4 + zmolna)
-
              zmolhp = 2.*zmolso4 + zmolno3 + zmolcl - (zmolnh4 + zmolna)
-
-             !zmolhp = 2.*pmols(cc,4) + pmols(cc,5) + zmolno3 + zmolcl - (zmolnh4 + zmolna)
-
-             !WRITE(*,*) zmolso4, pmols(cc,4), pmols(cc,5),cc
 
           ELSE
 
-             !WRITE(*,*) 'HEP'
              zhlp2 = pkelhno3(cc)*zmolno3*pachno3(cc)**2.
              zmolhp = KglHNO3*pchno3eq(cc)/zhlp2
 
@@ -2636,7 +2472,6 @@ CONTAINS
 
        ELSE
 
-          ! Ei hyvä näin!!!!
           psatnh3(cc) = 0.
           psathno3(cc) = 0.
        END IF
@@ -2729,8 +2564,6 @@ CONTAINS
   !-------------------------------------------------
   REAL FUNCTION coagc(diam1,diam2,mass1,mass2,temp,pres,kernel)
 
-    
-
     USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav
     USE mo_constants, ONLY : rd, amd
 
@@ -2749,8 +2582,6 @@ CONTAINS
                                   !                            2 - hydrometeor-aerosol or hydrometeor-hydrometeor coagulation
 
     !-- Output variables ---------
-    !REAL ::  &
-    !     coagc       ! coagulation coefficient of particles [m3/s]
 
     !-- Local variables ----------
     REAL ::  &
@@ -2782,15 +2613,12 @@ CONTAINS
          flux        ! flux in continuum and free molec. regime [m/s]
 
 
-    REAL, DIMENSION(2) ::  &
-         schm,   &   ! Schmidt nubmer
-         reyn        ! Reynolds number
-    REAL :: &
-         stok        ! Stokes number
-    INTEGER :: lrg,sml
-
-    INTEGER :: i
-    REAL :: rhoref ! reference density in STP conditions
+    REAL ::  &
+         schm(2), &   ! Schmidt nubmer
+         reyn(2), &    ! Reynolds number
+         stok             ! Stokes number
+    REAL :: rhoref               ! Reference air density in STP conditions
+    INTEGER :: lrg,sml,i
 
     zbrown = 0.
     zbrconv = 0.
@@ -2798,7 +2626,7 @@ CONTAINS
     zev = 0.
     coagc = 0.
 
-    rhoref =  1.01325e5/(287.*273.15)
+    rhoref = 1.01325e5/(287.*273.15)
 
     !-------------------------------------------------------------------------------
 
@@ -2806,8 +2634,7 @@ CONTAINS
     diam = (/ diam1, diam2 /)       ! particle diameters [m]
     mpart = (/ mass1, mass2 /)       ! particle masses [kg]
 
-    visc = (7.44523e-3*temp**1.5)/ &
-         (5093.*(temp+110.4))                   ! viscosity of air [kg/(m s)]
+    visc = (7.44523e-3*temp**1.5)/(5093.*(temp+110.4)) ! viscosity of air [kg/(m s)]
 
     mfp = (1.656e-10*temp+1.828e-8)*pstand/pres ! mean free path of air [m]
 
@@ -2846,7 +2673,7 @@ CONTAINS
     SELECT CASE(kernel)
        CASE(1)
 
-          ! Aerosol-Aerosol coagulation - like the original version
+          ! Aerosol-Aerosol coagulation - like the f version
           !-- 5) Coagulation coefficient [m3/s] -------------------------------------
           coagc = flux(1) / (mdiam/(mdiam+fmdist) + flux(1)/flux(2))
 

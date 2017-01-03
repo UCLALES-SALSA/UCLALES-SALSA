@@ -33,10 +33,10 @@ contains
   !
   subroutine fadvect
     use grid, only : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, newsclr  &
-         , a_scr1, a_scr2, nscl, a_sp, a_st, nxyzp,dn0 , nxp, nyp, nzp, dtlt  &
+         , a_scr1, a_scr2, nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt  &
          , dzt, dzm, zt, dxi, dyi, level, isgstyp
     use stat, only      : sflg, updtst
-    use util, only      : atob, get_avg3
+    use util, only      : get_avg3
 
     real    :: v1da(nzp)
     integer :: n
@@ -45,7 +45,7 @@ contains
     ! diagnose liquid water flux
     !
     if (sflg .and. level > 1 .AND. level < 4) then
-       call atob(nxyzp,a_rc,a_scr1)
+       a_scr1=a_rc
        call add_vel(nzp,nxp,nyp,a_scr2,a_wp,a_wc,.false.)
        call mamaos(nzp,nxp,nyp,a_scr2,a_rc,a_scr1,zt,dzm,dn0,dtlt,.false.)
        call get_avg3(nzp,nxp,nyp,a_scr2,v1da)
@@ -59,7 +59,8 @@ contains
     !
     do n=1,nscl
        call newsclr(n)
-       call atob(nxyzp,a_sp,a_scr1)
+      IF ( ANY(a_sp /= 0.0 ) ) THEN ! TR added: no need to calculate advection for zero arrays
+       a_scr1=a_sp
 
        if (isgstyp > 1 .and. associated(a_qp,a_sp)) then
           iw= .true.
@@ -75,13 +76,17 @@ contains
 
        call add_vel(nzp,nxp,nyp,a_scr2,a_wp,a_wc,iw)
        call mamaos(nzp,nxp,nyp,a_scr2,a_sp,a_scr1,dzt,dzm,dn0,dtlt,iw)
-
        if (sflg) then
           call get_avg3(nzp,nxp,nyp,a_scr2,v1da)
           call updtst(nzp,'adv',n,v1da,1)
        end if
 
        call advtnd(nzp,nxp,nyp,a_sp,a_scr1,a_st,dtlt)
+      ELSEIF (sflg) THEN
+       ! Averages & statistics even for zeros
+       call get_avg3(nzp,nxp,nyp,a_scr2,v1da)
+       call updtst(nzp,'adv',n,v1da,1)
+      ENDIF
     end do
 
   end subroutine fadvect
@@ -91,19 +96,18 @@ contains
   ! and aerosols due to cloud activation.
   !
   SUBROUTINE newdroplet(pactmask)
-    USE mo_submctl, ONLY : ncld,nbins,ica,fca,icb,fcb,eps
-    use grid, only : nxp,nyp,nzp,dzt,dzm,            &
-                     a_up,a_vp,a_wp,a_uc,a_vc,a_wc,  &
+    USE mo_submctl, ONLY : ncld,nbins,ica,fca,eps
+    use grid, only : nxp,nyp,nzp,dzt,            &
+                     a_wp,a_wc,  &
                      a_naerop, a_naerot, a_maerop, a_maerot,  &
-                     a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
-                     a_nactd,  a_vactd,  a_rp,     a_rt,      &
-                     a_scr1,   a_scr2, prtcl
+                     a_ncloudt, a_mcloudt,  &
+                     a_nactd,  a_vactd,  a_rt,      &
+                     prtcl
     USE class_ComponentIndex, ONLY : GetNcomp, GetIndex
     IMPLICIT NONE
 
     LOGICAL, INTENT(in) :: pactmask(nzp,nxp,nyp)
     REAL :: zw(nxp,nyp)
-    REAL :: rpsink(nxp,nyp)
     INTEGER :: ii,jj,kk,bb,bbpar,ss,mm,mmpar,kp1,nc
     REAL :: frac(nxp,nyp)
     REAL :: fix_flux(nxp,nyp)
@@ -127,7 +131,7 @@ contains
              end do
           end do
 
-          ! Add to cloud droplets 
+          ! Add to cloud droplets
           a_ncloudt(kp1,:,:,bb) = a_ncloudt(kp1,:,:,bb) +   &
                                  MERGE( dn(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
@@ -317,11 +321,8 @@ contains
           do k = 1, n1-1
              gamma = -sign(1.,cfl(k))
              if (scp0(k+1,i,j)-scp0(k,i,j) /= 0.0 .AND.scp0(k+1,i,j)+scp0(k,i,j).GT.1.e-40) then
-!                IF (ANY(scp0(:,i,j) /= scp0(:,i,j)) ) write(*,*) 'here'
                 k2 = max(1,k+gamma)
                 k1 = min(n1,k+gamma+1)
-!                if (time > 1277.0) write(*,*) scp0(k1,i,j), scp0(k2,i,j), scp0(k+1,i,j), scp0(k,i,j), &
-!                     scp0(k+1,i,j) - scp0(k,i,j),k1,k2,k
                 r(k) = (scp0(k1,i,j) - scp0(k2,i,j)) / (scp0(k+1,i,j) - scp0(k,i,j))
              else
                 r(k) = 0.

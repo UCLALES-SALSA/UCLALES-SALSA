@@ -29,6 +29,7 @@ module radiation
   implicit none
 
   character (len=50) :: background = 'datafiles/dsrt.lay'
+  LOGICAL :: McICA = .TRUE.
 
   logical, save     :: first_time = .True.
   real, allocatable, save ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
@@ -41,8 +42,7 @@ module radiation
   contains
 
     subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, CCN, dn0, &
-         pi0, pi1, dzm, pip, tk, rv, rc, tt, rflx, sflx, albedo, rr, CDNC, radsounding)
-
+         pi0, pi1, dzm, pip, tk, rv, rc, tt, rflx, sflx, albedo, rr, CDNC, radsounding, useMcICA)
 
       integer, intent (in) :: n1, n2, n3
       real, intent (in)    :: alat, time, sknt, sfc_albedo, CCN
@@ -53,6 +53,7 @@ module radiation
       ! Juha added
       REAL, OPTIONAL, DIMENSION(n1,n2,n3), INTENT(in)   :: CDNC
       CHARACTER(len=50), OPTIONAL, INTENT(in)           :: radsounding
+      LOGICAL, OPTIONAL                                     :: useMcICA
       real, intent (out)                                :: albedo(n2,n3)
 
       integer :: kk
@@ -60,11 +61,18 @@ module radiation
       xfact = 0.0; prw = 0.0; p0 = 0.0; exner = 0.0; pres = 0.0;
       IF (PRESENT(radsounding)) background = radsounding ! Juha: Added; can change the background
                                                          ! profile file from the NAMELIST
+      IF (PRESENT(useMcICA)) McICA = useMcICA
 
       if (first_time) then
-         p0(n1) = (p00*(pi0(n1)/cp)**cpr) / 100.
-         p0(n1-1) = (p00*(pi0(n1-1)/cp)**cpr) / 100.
-         call setup(background,n1,npts,nv1,nv,p0)
+         IF (.TRUE.) THEN
+            ! Works well with the LES model
+            p0(1:n1) = 0.01*p00*( (pi0(1:n1)+pi1(1:n1))/cp )**cpr
+            call setup_les(background,n1,nv1,nv,p0,tk(n1,3,3),rv(n1,3,3))
+         ELSE
+            p0(n1) = (p00*(pi0(n1)/cp)**cpr) / 100.
+            p0(n1-1) = (p00*(pi0(n1-1)/cp)**cpr) / 100.
+            call setup(background,n1,npts,nv1,nv,p0)
+         ENDIF
          first_time = .False.
          if (allocated(pre))   pre(:) = 0.
          if (allocated(pde))   pde(:) = 0.
@@ -74,25 +82,6 @@ module radiation
          if (allocated(pgwc)) pgwc(:) = 0.
          if (allocated(nc)) nc(:) = 0.
       end if
-      !
-      ! ------------------------------------------------------------------------------------------
-      ! Tomi Raatikainen 17.6.2016: fix problem related to ovelapping LES pressure levels
-      !
-      ! The lowest LES model pressure levels (without contribution from variable pip)
-      !             n1 - Pressure levels for LES: starts from below surface and is defined for cell centers
-      !             nv1 - Pressure levels for the radiation model (nv=nv1-1): starts from TOA and is defined for cell edges
-      pres(n1)=p00 * ((pi0(n1)+pi1(n1))/cp)**cpr
-      pres(n1-1)=p00 * ((pi0(n1-1)+pi1(n1-1))/cp)**cpr
-      ! Pressure for the last cell edge
-      pp(nv1-n1+1) = pres(n1)/100. - 0.5*(pres(n1-1)-pres(n1)) / 100.
-      ! This must be larger (e.g. by 1 hPa) than the obove radiation model pressure level (nv1-n1+1-1=nv1-n1)
-      if ( pp(nv1-n1+1) < pp(nv1-n1)+1.0 ) THEN
-         ! Simple solution to the problem: remove sounding level nv1-n1, which means that LES data is written over that
-         nv1=nv1-1       ! This should do it (start from the previos location)
-         nv=nv-1
-         WRITE(*,*) 'LES model pressure levels ovelapping with radiation soundings - removing the lowest sounding level!'
-      endif
-      ! ------------------------------------------------------------------------------------------
       !
       ! initialize surface albedo, emissivity and skin temperature.
       !
@@ -108,13 +97,25 @@ module radiation
       prw = (4./3.)*pi*rowt
       do j=3,n3-2
          do i=3,n2-2
-            do k=1,n1
-               exner(k)= (pi0(k)+pi1(k)+pip(k,i,j))/cp
-               pres(k) = p00 * (exner(k))**cpr
-            end do
-            pp(nv1) = 0.5*(pres(1)+pres(2)) / 100.
+            ! Grid cell pressures in the LES model (Pa)
+            exner(1:n1) = (pi0(1:n1)+pi1(1:n1)+pip(1:n1,i,j))/cp
+            pres(1:n1) = p00*( exner(1:n1) )**cpr
+
+            ! LES and background pressure levels must be separate (LES pressure levels will change)
+            !      Tomi Raatikainen 17.6.2016 & 21.12.2016
+            pp(nv-n1+2) = pres(n1)/100. - 0.5*(pres(n1-1)-pres(n1)) / 100.
+            if ( pp(nv-n1+2) < pp(nv-n1+1)+1.0 ) THEN
+                ! Simple solution to the problem: remove sounding level nv-n1+1, which means that LES data is written over that
+                nv1=nv1-1       ! This should do it (start from the previos location)
+                nv=nv-1
+                pp(nv-n1+2) = pres(n1)/100. - 0.5*(pres(n1-1)-pres(n1)) / 100. ! Update
+
+                WRITE(*,*) 'Warning (radiation/d4stream): ovelapping pressure levels observed (i,j)!',i,j
+            endif
+
             do k=2,n1
                kk = nv-(k-2)
+               pp(kk+1) = 0.5*(pres(k-1)+pres(k)) / 100.
                pt(kk) = tk(k,i,j)
                ph(kk) = rv(k,i,j)
                if (present(rr)) then
@@ -131,22 +132,14 @@ module radiation
 
                   pre(kk) = MERGE( 1.e6*(plwc(kk)/(1000.*prw*MAX(nc(kk),1.e-20)))**(1./3.), 0.,  &
                                   ( plwc(kk) > 0. .AND. nc(kk) > 0. ) )
-                  if (k < n1) pp(kk) = 0.5*(pres(k)+pres(k+1)) / 100.
                ELSE
                   pre(kk)  = 1.e6*(plwc(kk)/(1000.*prw*CCN*dn0(k)))**(1./3.)
                   if (plwc(kk).le.0.) pre(kk) = 0.
-                  if (k < n1) pp(kk) = 0.5*(pres(k)+pres(k+1)) / 100.
                END IF
             end do
-            pp(nv-n1+2) = pres(n1)/100. - 0.5*(pres(n1-1)-pres(n1)) / 100.
-
-            !IF (ANY(nc /= nc)) write(*,*) 'SÄTEILY1', pre
-            !IF (ANY(nc /= nc)) write(*,*) 'SÄTEILY2', nc
-            !IF (ANY(nc /= nc)) write(*,*) 'SÄTEILY3', plwc
-            
 
             call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                 fds, fus, fdir, fuir, plwc=plwc, pre=pre, useMcICA=.True.)
+                 fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre)
 
             do k=1,n1
                kk = nv1 - (k-1)
@@ -271,6 +264,132 @@ module radiation
     end if
 
   end subroutine setup
+  !
+  ! ---------------------------------------------------------------------------
+  ! This version of setup is modified for LES simulations
+  !    - Always using background soundings and LES data
+  !    - Separate LES and background profiles
+  !    - Weighting of the backgound towards smooth transition at the interface
+  !
+  ! Tomi Raatikainen, 22.12.2016
+  !
+  subroutine setup_les(background,n1,nv1,nv,zp,ttop,qtop)
+    use mpi_interface, only: myid
+    implicit none
+
+    character (len=19), intent (in) :: background
+    integer, intent (in) :: n1
+    integer, intent (out):: nv1,nv
+    real, intent (in)    :: zp(n1), ttop, qtop
+
+    real, allocatable  :: sp(:), st(:), sh(:), so(:), sl(:)
+
+    integer :: k, ind, ns, nb, nt
+    real    :: ptop, dp, ptmp, Tsurf
+
+    ! Read backgroud profiles (p [hPa], T [K], q [kg/kg], O3 [-] and an unused concentration)
+    open ( unit = 08, file = background, status = 'old' )
+    read (08,*) Tsurf, ns
+    allocate ( sp(ns), st(ns), sh(ns), so(ns), sl(ns))
+    do k=1,ns
+       read ( 08, *) sp(k), st(k), sh(k), so(k), sl(k)
+    enddo
+    close (08)
+
+    ! Merge background and LES pressure levels (p_LES > p_background)
+    !
+    ! The highest LES model pressure - defined for cell interface
+    ptop=zp(n1)-0.5*(zp(n1-1)-zp(n1))
+    !
+    ! The first sounding level must be somewhat higher (lower pressure) then the last LES pressure level
+    !  - Must avoid overlapping pressure levels when LES pressures change with time
+    !  - 10 hPa should be large enough for most cases (LES has typically high pressure resolution)
+    dp=MAX(10.0,zp(n1-1)-zp(n1))
+    !
+    k=1 ! Note: increasing pressure and decreasing altitude
+    DO WHILE (sp(k) < ptop-dp )
+        k=k+1
+        IF (k==ns+1) EXIT
+    END DO
+    nb=k-1 ! Background soundings from 1 to k (nb points)
+
+    ! Add layers between LES and soundings (mind the gap!)
+    nt=0 ! Transition regime
+    IF (nb>0) nt=FLOOR( (ptop-sp(nb))/dp )-1
+
+    ! Include complete LES grid (n1 points), soundings (nb points) and the transition regime (nt points)
+    nv1 = n1+nb+nt  ! Total number of pressure points (cell interfaces)
+    nv = nv1-1   ! Total number of scalars (cell centers)
+
+    ! allocate the arrays for the sounding data to be used in the radiation
+    ! profile and then fill them first with the sounding data, by afill, then
+    ! by interpolating the background profile at pressures less than the
+    ! pressure at the top of the sounding
+    !
+    ! Note: LES pressure levels are increasing, but radiation calculations
+    ! expect decreasing pressure grid (from TOA to surface)
+    !
+    allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),nc(nv)) ! Cell centers
+
+    po=0.
+    IF (nb>0) THEN
+        ! Levels above LES domain: copy background soundings
+        pp(1:nb) = sp(1:nb)
+        pt(1:nb) = st(1:nb)
+        ph(1:nb) = sh(1:nb)
+        po(1:nb) = so(1:nb)
+    ENDIF
+
+    IF (nt>0) THEN
+        ! Interpolated levels between pp(nb) and ptop
+        DO k=1,nt
+            pp(nb+k)=pp(nb+k-1)-(pp(nb)-ptop)/REAL(nt+1)
+            ! Interpolate between LES model top and the lowest sounding
+            !   y=y0+(y1-y0)(p1-p0)*(p-p0)
+            ind = getindex(sp,ns,pp(nb+k)) ! Typically ind=nb
+            pt(nb+k)=ttop+(st(ind)-ttop)/(sp(ind)-ptop)*(pp(nb+k)-ptop)
+            ph(nb+k)=qtop+(sh(ind)-qtop)/(sp(ind)-ptop)*(pp(nb+k)-ptop)
+            ! Interpolate ozone using background soundings
+            po(nb+k)=so(ind+1)+(so(ind)-so(ind+1))/(sp(ind)-sp(ind+1))*(pp(nb+k)-sp(ind+1))
+        ENDDO
+    ENDIF
+
+    ! Within the LES domain
+    !  a) pressure, temperature and humidity will be obtained from the LES
+    !  b) set the ozone to a constant value
+    IF (nb+nt>0) po(nb+nt+1:nv) = po(nb+nt)
+
+    ! Print information about sounding
+    IF (myid==0) THEN
+        WRITE(*,'(/,/,20A)') '-------------------------------------------------'
+        WRITE(*,'(/2x,20A,/)') 'Reading Background Sounding: '//trim(background)
+        WRITE(*,'(/2x,A7,4A10)') 'Source','p (hPa)','T (K)','q (g/kg)','O3 (ppm)'
+
+        ! Calculate LES pressure levels ([zp]=hPa) and T and q for cell centers
+        pp(nv-n1+2) = zp(n1)/100. - 0.5*(zp(n1-1)-zp(n1))
+        do k=2,n1
+             pp(nv-(k-2)+1) = 0.5*(zp(k-1)+zp(k))
+        ENDDO
+
+        DO k=1,nv
+            IF (k<=nb .AND. nb>0) THEN
+                ! Data from backgound soundings
+                WRITE(*,'(2x,A7,2F10.2,2F10.3)') 'Backgr',pp(k),pt(k),ph(k)*1.e3,po(k)*1.e6
+            ELSEIF (k<=nb+nt .AND. nt>0) THEN
+                ! Interpolation
+                WRITE(*,'(2x,A7,2F10.2,2F10.3)') 'Interp',pp(k),pt(k),ph(k)*1.e3,po(k)*1.e6
+            ELSEIF (k==nb+nt+1) THEN
+                ! The highest LES layer - other layers not yet available
+                WRITE(*,'(2x,A7,2F10.2,2F10.3)') 'LES',ptop,ttop,qtop*1.e3,po(k)*1.e6
+                !WRITE(*,'(2x,A7,3A10,F10.3)') 'LES','*','*','*',po(k)*1.e6
+                WRITE(*,'(2x,A7,4A10)') 'LES','...','...','...','...'
+            ENDIF
+        ENDDO
+        WRITE(*,*) ' '
+    ENDIF
+
+  end subroutine setup_les
   ! ---------------------------------------------------------------------------
   !  locate the index closest to a value
   !

@@ -1,5 +1,5 @@
 !****************************************************************
-!*	                                                        *
+!*                                                            *
 !*   module MO_SALSA_PROPERTIES                                 *
 !*                                                              *
 !*   Contains subroutines and functions that are used           *
@@ -76,8 +76,8 @@ CONTAINS
          t_section,    &
          pi6,          & ! pi/6
          in1a, fn1a,   &
-         in2a, fn2a,   &
-         in2b, fn2b,   &
+         in2a,    &
+         fn2b,   &
          boltz,        & ! Boltzmann constant [J/K]
          nlim,         & ! lowest possible particle conc. in a bin [#/m3]
     
@@ -97,9 +97,6 @@ CONTAINS
          rhoss, mss,   &
          rhono, mno,   &
          rhonh, mnh
-
-
-    
 
     IMPLICIT NONE
 
@@ -146,10 +143,9 @@ CONTAINS
     !-- 1) Regime 1: sulphate and partly water-soluble OC -----------------
     !                This is done for every CALL
     zke = 1.001
-    !pdwet = 0.
     DO kk = in1a,fn1a      ! size bin
        DO jj = 1,klev      ! vertical grid
-          DO ii = 1,kproma ! horizontal grid
+          DO ii = 1,kbdim ! horizontal grid
 
              !-- initialize
              zbinmol = 0.
@@ -215,16 +211,12 @@ CONTAINS
                    !-- Kelvin effect 
                    
                    count = count + 1
-                   IF (count > 1000) THEN
-                      WRITE(*,*) 'SALSA properties: no convergence!!'
-                      EXIT
-                   END IF
+                   IF (count > 1000) STOP 'SALSA equilibration (regime 1): no convergence!!'
 
                 END DO
 
                 ! Instead of lwc, use the volume concentration of water from now on 
                 ! (easy to convert...)
-                !plwc(ii,jj,kk) = zlwc
                 paero(ii,jj,kk)%volc(8) = zlwc/rhowa
                 
                 ! If this is initialization, update the core and wet diameter
@@ -255,7 +247,7 @@ CONTAINS
        ! loops over:
        DO kk = in2a,fn2b      ! size bin
           DO jj = 1,klev      ! vertical grid
-             DO ii = 1,kproma ! horizontal grid
+             DO ii = 1,kbdim ! horizontal grid
 
                 zke = 1.02
             
@@ -327,10 +319,7 @@ CONTAINS
                       zke = exp(2.*surfw0*mvsu/(boltz*ptemp(ii,jj)*zdwet))
 
                       count = count + 1
-                      IF (count > 1000) THEN
-                         WRITE(*,*) 'SALSA properties: no convergence!!'
-                         EXIT
-                      END IF
+                      IF (count > 1000) STOP 'SALSA equilibration (regime 2): no convergence!!'
                       
                    END DO
 
@@ -355,6 +344,10 @@ CONTAINS
   END SUBROUTINE equilibration
 
   ! Juha: It should not be necessary to do this since cloud water content is Always calculated via condensation equations
+  !               - This is done only for initialization call, otherwise the
+  !                 water contents are computed via condensation
+  !               - Not an equilibrium, but fixed droplet/ice diameter
+  !               - Regimes 2a & 2b for ice and cloud droplets
   ! ----------------------------------------------------------------------------------------------------------------------
   SUBROUTINE equilibration_cloud(kproma, kbdim, klev,    &
                            prh, ptemp, pcloud, pice )
@@ -362,34 +355,10 @@ CONTAINS
     USE mo_submctl, ONLY : &
          t_section,    &
          pi6,          & ! pi/6
-         ica, fca,     &
-         icb, fcb,     &
-         iia, fia,     &
-         iib, fib,     &
+         ica, fcb,     &
+         iia, fib,     &
          ncld,nice,  &
-         boltz,        & ! Boltzmann constant [J/K]
-         nlim,         & ! lowest possible particle conc. in a bin [#/m3]
-
-                         ! molar masses [kg/mol]
-         mwa,          & ! water
-                         ! molecular volumes [m3]
-         mvsu,         & ! sulphate
-                         ! density [kg/m3]
-         rhowa,        & ! water
-
-         surfw0,       & ! surface tension of water [J/m2]
-         epsoc,        & ! fxm
-
-         rhosu, msu,   & ! properties of compounds
-         rhooc, moc,   &
-         rhobc, mbc,   &
-         rhoss, mss,   &
-         rhono, mno,   &
-         rhonh, mnh,   &
-         rhoic
-
-
-    
+         nlim, prlim
 
     IMPLICIT NONE
 
@@ -403,86 +372,44 @@ CONTAINS
          prh(kbdim,klev),          & ! relative humidity [0-1]
          ptemp(kbdim,klev)           ! temperature [K]
 
-
     !-- output variables -------------
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
                                       pice(kbdim,klev,nice)
 
-
-
     !-- local variables --------------
     INTEGER :: ii, jj, kk             ! loop indices
 
-
-    !-- 2) Regime 2a & 2b: sulphate, OC, BC and sea salt ----------------------------
-    !                 This is done only for initialization call, otherwise the
-    !                 water contents are computed via condensation
-
-
-       ! loops over:
-       DO kk = ica%cur,fcb%cur      ! size bin
-          DO jj = 1,klev      ! vertical grid
-             DO ii = 1,kproma ! horizontal grid
-
-
-
-                !-- 1) particle properties calculated for non-empty bins ---------
+    DO jj = 1,klev      ! vertical grid
+        DO ii = 1,kbdim ! horizontal grid
+            ! Cloud droplets
+            DO kk = ica%cur,fcb%cur      ! size bin
                 IF ((pcloud(ii,jj,kk)%numc > nlim)) THEN
-
-
-                   ! Liquid water content; instead of LWC use the volume concentration
-
+                   !-- 1) particle properties calculated for non-empty bins ---------
                    pcloud(ii,jj,kk)%volc(8) = pi6*12.0E-6**3*pcloud(ii,jj,kk)%numc ! set water content according to 12um diameter
-
                    pcloud(ii,jj,kk)%dwet = 11.0E-6
                    pcloud(ii,jj,kk)%core = pi6*pcloud(ii,jj,kk)%dmid**3
-
-
-
                 ELSE
-                   !-- 2.2) empty bins given bin average values -------------------------
+                   !-- 2) empty bins given bin average values -------------------------
                    pcloud(ii,jj,kk)%dwet = pcloud(ii,jj,kk)%dmid
                    pcloud(ii,jj,kk)%core = pi6*pcloud(ii,jj,kk)%dmid**3
                 END IF
+            ENDDO
 
-             END DO
-          END DO
-       END DO
-
-!!!!!!*******************************************************************************'
-!!!!!! ice bins
-!!!!!!**************************************************************
-    !-- 2) Regime 2a & 2b: sulphate, OC, BC and sea salt ----------------------------
-    !                 This is done only for initialization call, otherwise the
-    !                 water contents are computed via condensation
-
-
-       ! loops over:
-       DO kk = iia%cur,fib%cur      ! size bin
-          DO jj = 1,klev      ! vertical grid
-             DO ii = 1,kproma ! horizontal grid
-
-
-
-                !-- 1) particle properties calculated for non-empty bins ---------
-                IF ((pice(ii,jj,kk)%numc > nlim)) THEN
-
-
+            ! Ice
+            DO kk = iia%cur,fib%cur      ! size bin
+                IF ((pice(ii,jj,kk)%numc > prlim)) THEN
+                    !-- 1) particle properties calculated for non-empty bins ---------
                    pice(ii,jj,kk)%volc(8) = pi6*30.0E-6**3*pice(ii,jj,kk)%numc  ! set water content according to 30um diameter
                    pice(ii,jj,kk)%dwet = 30.0E-6! sqrt(3*B/A)
-
                    pice(ii,jj,kk)%core = pi6*pice(ii,jj,kk)%dmid**3
-
-
                 ELSE
-                   !-- 2.2) empty bins given bin average values -------------------------
+                   !-- 2) empty bins given bin average values -------------------------
                    pice(ii,jj,kk)%dwet = pice(ii,jj,kk)%dmid
                    pice(ii,jj,kk)%core = pi6*pice(ii,jj,kk)%dmid**3
                 END IF
-
-             END DO
-          END DO
-       END DO
+            END DO
+        END DO
+    END DO
 
   END SUBROUTINE equilibration_cloud
 
