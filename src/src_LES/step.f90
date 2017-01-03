@@ -390,7 +390,9 @@ end subroutine tstep_reset
 
     integer :: n
 
-    IF( .NOT. sclonly) a_ut=0.; a_vt=0.; a_wt=0.
+    IF( .NOT. sclonly) THEN
+       a_ut=0.; a_vt=0.; a_wt=0.
+    ENDIF
     do n=1,nscl
        call newsclr(n)
        a_st=0.
