@@ -29,7 +29,7 @@ echo ' '
 username=aholaj
 email=jaakko.ahola@fmi.fi
 subfolder=UCLALES-SALSA
-outputroot=/lustre/tmp/${username}/${subfolder}
+outputroot=/lustre/tmp/${username}/${subfolder}/${subsubfolder}
 root=/home/users/${username}/${subfolder}
 
 # supercomputer related variable settings
@@ -38,8 +38,10 @@ nodeNPU=20  # number of processing units in a node
 JOBFLAG=PBS     # job flag of the job scheduling system ( e.g. PBS or SBATCH )
 
 if [ -z $3 ]; then
+  echo ' '
   echo "You didn't give the optional JOB FLAG of the job scheduling system"
   echo "Using assumption: " $JOBFLAG
+  echo ' '
 else
   JOBFLAG=$3
 fi
@@ -106,8 +108,14 @@ fi
 ###			                 ###
 ################################
 
-sed -i "/filprf\s\{0,\}=\s\{0,\}/c\  filprf  = '"$1"'" ${bin}/NAMELIST
-sed -i "/hfilin\s\{0,\}=\s\{0,\}/c\  hfilin  = '"$1".rst'" ${bin}/NAMELIST
+modifyoutput=${modifyoutput:-true}
+
+if [ $modifyoutput == 'true' ]; then
+    sed -i "/filprf\s\{0,\}=\s\{0,\}/c\  filprf  = '"$1"'" ${bin}/NAMELIST
+    sed -i "/hfilin\s\{0,\}=\s\{0,\}/c\  hfilin  = '"$1".rst'" ${bin}/NAMELIST
+fi
+
+
 
 ################################
 ###			                 ###
@@ -140,7 +148,7 @@ cp ${bin}/datafiles/* ${datadir}/
 ### Create run script ###
 ###		              ###
 #########################
-
+echo ' '
 ## modify the job name based on length: ###
 length=$(( ${#1} < 6 ? ${#1} : 6))
 
@@ -176,6 +184,7 @@ FINALPBS
 cd ${rundir}
 
 # Make initial submit
+echo 'Submit to job scheduler'
 qsub runles.sh
 
 elif [ $JOBFLAG == 'SBATCH' ] ; then
@@ -212,6 +221,7 @@ FINALSBATCH
 cd ${rundir}
 
 # Make initial submit
+echo 'Submit to job scheduler'
 sbatch runles.sh
 
 fi

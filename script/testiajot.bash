@@ -3,25 +3,6 @@
 # Exit on error
 set -e
 
-if [ -z $1 ]; then
-  echo "You didn't give any postfix name"
-  exit 1
-fi
-
-# if [ -z $2 ]; then
-#   echo "You didn't give waiting parameter ( true / false )"
-#   exit 1
-# fi
-
-postfix=$1
-
-
-if [ -z $2 ]; then
-  odotus='false'
-else
-  odotus=$2
-fi
-
 root="$(dirname $PWD)"
 salsa=${root}/src/src_salsa
 les=${root}/src/src_LES
@@ -29,12 +10,30 @@ bin=${root}/bin
 script=${root}/script
 
 
-cd ${root}
-make seq || exit 1
-make mpi || exit 1
-cd ${script}
-echo " "
-echo "Compiled"
+if [ -z $1 ]; then
+  echo "You didn't give any postfix name"
+  exit 1
+else
+  postfix=$1
+fi
+
+compile=${compile:-true}
+
+if [ $compile == 'true' ]; then
+    cd ${root}
+    make seq || exit 1
+    make mpi || exit 1
+    cd ${script}
+    echo " "
+    echo "Compiled"
+elif [ $compile == 'false' ]; then
+    echo 'use previously compiled les-binary'
+    compile=$2
+fi
+
+odotus=${odotus:-false}
+
+
 
 function submitting {
 	
@@ -101,7 +100,7 @@ fi
 
 # submitting case_isdac 64 _thrm5_all_on_fixINC_1_7800 initial
 # 
-# submitting case_isdac 64 _thrm4                  initial
+submitting case_isdac 64 _thrm4                  initial
 # submitting case_isdac 64 _thrm5_all_on_fixINC_1  initial
 # submitting case_isdac 64 _thrm5_all_on_fixINC_4  initial
 
@@ -116,11 +115,11 @@ fi
 
 # submitting case_speed 64    normal     initial
 # 
-submitting case_speed 100   normal     initial
+# submitting case_speed 100   normal     initial
 
 # submitting case_speed 400   normal     initial
 # 
-submitting case_speed 100   _double     initial
+# submitting case_speed 100   _double     initial
 # submitting case_speed 144   _double     initial
 
 

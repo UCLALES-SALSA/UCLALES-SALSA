@@ -12,7 +12,7 @@ Created on Wed Jul 13 13:50:26 2016
 ### imports and global values ###
 #################################
 
-from netCDF4 import Dataset
+
 import numpy as np
 import sys
 import os
@@ -50,7 +50,7 @@ def nollaa(data):
 ### read variable from data   ###
 #################################  
 def read_Data(filename,var):
-
+  from netCDF4 import Dataset
   fileH = Dataset(filename,mode='r')
   data = fileH.variables[var][:]
   fileH.close()

@@ -25,7 +25,7 @@ scriptname=combine.py  # postp_uclales-salsa3.py
 scriptfolder=${root}/script
 
 # supercomputer related variable settings
-WT=00:01:00 # walltime
+WT=01:00:00 # walltime
 nodeNPU=20  # number of processing units in a node  
 JOBFLAG=PBS # job flag of the job scheduling system ( e.g. PBS or SBATCH )
 
@@ -70,21 +70,31 @@ if [ $dir == '.' ]; then
   dir=$PWD
 fi
 
+if  [[ $1 == *"."* ]]
+then
+	# "input argument $1 contains a dot
+	postfix=${1:$((${#1}-3)):3}
+else
+	# "input argument $1 does NOT contain a dot" -> a regular .nc
+	postfix=.nc
+fi
+
+
 ##########################
 ###			           ###
 ### Create run scripts ###
 ###		               ###
 ##########################
-
+echo " "
 ## modify the job name based on length: ###
-length=$(( ${#1} < 5 ? ${#1} : 5))
+
 
 rm -rf ${dir}/post_* ${dir}/*pros.sh ${dir}/${scriptname}
 
 cp ${scriptfolder}/${scriptname} ${dir}/
 
 ### first script
-cat > postpros.sh <<EOF
+cat > ${dir}/postpros${postfix}.sh <<EOF
 #!/bin/bash
 
 set -e
@@ -99,9 +109,9 @@ EOF
 
 if [ $JOBFLAG == 'PBS' ] ; then
 
-cat > runpostpros.sh <<FINALPBS
+cat > ${dir}/runpostpros${postfix}.sh <<FINALPBS
 #!/bin/sh
-#PBS -N post_${1:$((${#1}-${length})):${length}}
+#PBS -N postPRO${postfix}
 #PBS -l mppwidth=1
 #PBS -l mppnppn=1
 #PBS -l mppdepth=${nodeNPU}
@@ -115,21 +125,22 @@ module load Python
 
 cd ${dir}
 
-aprun -n1 -N1 -d20 ./postpros.sh | tee ${PBS_JOBNAME:-post_interactive}.${PBS_JOBID:-help}
+aprun -n1 -N1 -d${nodeNPU} ./postpros${postfix}.sh | tee ${PBS_JOBNAME:-post_interactive${postfix}}.${PBS_JOBID:-help}
 
 exit
 FINALPBS
 
 cd ${dir}
 # Make initial submit
-chmod +x runpostpros.sh ${scriptname} postpros.sh
-qsub runpostpros.sh
+chmod +x runpostpros${postfix}.sh ${scriptname} postpros${postfix}.sh
+echo 'Submit to job scheduler'
+qsub runpostpros${postfix}.sh
 
 elif [ $JOBFLAG == 'SBATCH' ] ; then
 
-cat > runpostpros.sh <<FINALSBATCH
+cat > ${dir}/runpostpros${postfix}.sh <<FINALSBATCH
 #!/bin/sh
-#SBATCH -J post_${1:$((${#1}-${length})):${length}}
+#SBATCH -J postPRO${postfix}
 #SBATCH -n 1
 #SBATCH -t ${WT}
 #SBATCH --output=postpro_${1}-%j.out
@@ -141,15 +152,16 @@ cat > runpostpros.sh <<FINALSBATCH
 source /etc/profile
 cd ${dir}
 
-srun -n1 -N1 -d${nodeNPU} ./postpros.sh
+srun -n1 -N1 -d${nodeNPU} ./postpros${postfix}.sh
 
 exit
 FINALSBATCH
 
 cd ${dir}
 # Make initial submit
-chmod +x runpostpros.sh combine2.py postpros.sh
-sbatch runpostpros.sh
+chmod +x runpostpros${postfix}.sh ${scriptname} postpros${postfix}.sh
+echo 'Submit to job scheduler'
+sbatch runpostpros${postfix}.sh
 
 fi
 

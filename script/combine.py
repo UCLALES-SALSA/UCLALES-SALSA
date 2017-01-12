@@ -59,25 +59,25 @@ def reduce_ts_ps(infile,imax,jmax):
 	# a) Averages - when the ouput should be the average over model domain
 	#	Note: this is the 'default' method
 	# b) Maximums - when the output should be the maximum over all model grid cells
-	maxnms = ['cfl','maxdiv','wmax','lmax']
+	maxnms = ['zc','cfl','maxdiv','wmax','lmax']
 	# c) Minimum - when the output should be the minimum over all model grid cells
-	minnms = []
+	minnms = ['zb']
 	# d) Sums - when the output is the sum over model grid cells
 	#	Note: the output really depends on the size of the number of grid cells!
-	sumnms = ['nrcnt','nrain','cnt_cs1','w_cs1','tl_cs1','tv_cs1','rt_cs1','rl_cs1','wt_cs1','wv_cs1','wr_cs1',\
+	sumnms = ['nrcnt','nccnt','nrain','pfrac','cnt_cs1','w_cs1','tl_cs1','tv_cs1','rt_cs1','rl_cs1','wt_cs1','wv_cs1','wr_cs1',\
 	'cnt_cs2','w_cs2','tl_cs2','tv_cs2','rt_cs2','rl_cs2','wt_cs2','wv_cs2','wr_cs2']
 	# e) Weighted averages (weights must be specified below) - needed for conditional averages
 	#	Note: weight ~ conditinal coverage
-	weighted = ['zb','zc']
+	weighted = []
 	# f) Variances (weights must be specified below) 
 	#	Note 1: combining variances requires information about averages
 	# 	Note 2: some units refer to standard deviation = sqrt(variance)?
 	#	Note 3: some of the reported variances are not actually variances, but averages of squares
 	#	           Example 1: lwp_var or 'Liquid-water path variance (kg/m^2)' is actually the average of LWP^2 (kg^2/m^4)
-	variances = ['l_2','q_2','t_2','rflx2','sflx2']
+	variances = ['l_2','q_2','t_2','rflx2','sflx2',]
 	# g) Third moments
 	thirdmom = ['l_3','q_3']
-	# g) Static - these should have the same values
+	# h) Static - these should have the same values
 	static = ['dn0','u0','v0','fsttm','lsttm','nsmp']
 	#
 	# *.ts.nc
@@ -132,6 +132,10 @@ def reduce_ts_ps(infile,imax,jmax):
 	ncid = netcdf.Dataset(dst,'r+')
 	#ncid = netcdf.NetCDFFile(dst,'r+')
 	#
+	# Can use variables:
+	#	NPTS = (nxp-4)*(nyp-4)
+	#	NZ = nzp
+	#
 	# Variable list - without dimensions
 	var_list=ncid.variables.keys()	# Variables
 	dim_list=ncid.dimensions.keys()	# Dimensions
@@ -185,7 +189,7 @@ def reduce_ts_ps(infile,imax,jmax):
 				aname='q'
 			elif name=='rflx2':	# Total radiative flux
 				aname='rflx'
-			elif name=='sflx2':	# Sortwave radiative flux
+			elif name=='sflx2':	# Shortwave radiative flux
 				aname='sflx'
 			else:
 				print 'Unknown method for '+name+': default (avg) used!'
@@ -206,6 +210,26 @@ def reduce_ts_ps(infile,imax,jmax):
 		elif name in static:
 			# Should have constant values
 			op='con'
+		elif name[-3:]=='_ic' or name[-4:]=='_int':
+			# Cloud region: these numbers are actually averages of column averages, 
+			# so cloud fraction is a proper weight. This should be replaced the overall 
+			# average (then shoul use the number of cloudy grid cells)!
+			op='wgh'
+			wname='cfrac'
+			#if 'nccnt' in var_list:
+			#	# This is update from December 2016
+			#	wname='nccnt'
+			#else:
+			#	# Use cloud fraction (better than nothing!)
+			#	wname='cfrac'
+		elif 0>1: #name[-3:]=='_oc':
+			# Outside cloud region: should be weighted by the number of clear grid cells
+			#if 'nccnt' in var_list:
+			#	# This is update from December 2016
+			#	op='wgh_neg'
+			#	wname='nccnt'
+			#else:
+			op='avg'	# Simple average, because most grid cells are anyhow outside clouds
 		else:
 			# Average (default)
 			op='avg'
@@ -242,6 +266,8 @@ def reduce_ts_ps(infile,imax,jmax):
 					else:
 						if info_prints==0: print '	Flagged values (-999) found!'
 						info_prints+=1
+					#
+					if (i+j==0): val=val_src
 				#
 				if op=='max':
 					# Maximum (i=j=0 is already the value for val)
@@ -302,7 +328,7 @@ def reduce_ts_ps(infile,imax,jmax):
 				ncid_src.close()
 		#
 		if op=='wgh':
-			weight[weight==0]=1e-20	# Avoid dividing by NaN
+			weight[weight==0]=1e-20	# Avoid dividing by zero
 			val/=weight
 		if op=='var': val-=avg**2
 		if op=='thr': val-=3.0*avg*var+avg**3
@@ -505,7 +531,6 @@ def reduce_full(infile,imax,jmax):
 		# Create variable
 		id=ncid_dst.createVariable(name,typ,dims)
 		#id.assignValue(val)
-		print ' '
 		id[:]=val
 		# Copy attributes
 		for att in var_info.keys(): setattr(id,att,var_info[att])
@@ -621,6 +646,6 @@ else:
 	reduce_full(infile,imax,jmax)
 #
 # Save information about file content?
-#nc_PrintFileContent(infile+'.nc',infile+'.nc.txt')
+# nc_PrintFileContent(infile+'.nc',infile+'.nc.txt')
 #
 # End of function combine.py

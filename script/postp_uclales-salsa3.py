@@ -7,12 +7,12 @@ def openr(filepref,ff):
 
 def openw(filepref):
     import netCDF4 as nc
-    fname = '%s_pp.nc' % (filepref)
+    fname = '%s.nc' % (filepref)
     return nc.Dataset(fname,'w')
 
 def opena(filepref):
     import netCDF4 as nc
-    fname = '%s_pp.nc' % (filepref)
+    fname = '%s.nc' % (filepref)
     return nc.Dataset(fname,'a')
 
 def getVariable(fid,vname):

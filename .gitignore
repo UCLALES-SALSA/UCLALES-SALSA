@@ -2,13 +2,16 @@
 
 src/*.mod
 src/*.o
-bin/les.mpi
-bin/les.seq
+les.mpi
+les.seq
 
 util/
 
+
 bin/NAMELIST
 bin/sound_in
+
+sound_in*
 
 script/ModDataPros.pyc
 
@@ -21,6 +24,9 @@ bin/case_ascos/
 bin/case_isdac/
 bin/case_sheba/
 bin/case_speed/
+bin/case_emulator/
+
+
 
 #history run
 bin/0000_0000.SPINUP7200.rst
@@ -28,6 +34,11 @@ bin/0000_0000.SPINUP7200.rst
 # git trees
 gitpuut/
 
+# emulator design
+designs/
+
+#emulator output from runs
+script/emulatoroutput
 
 
 ## remove this later
