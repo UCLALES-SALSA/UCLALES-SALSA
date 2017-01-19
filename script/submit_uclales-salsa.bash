@@ -33,7 +33,7 @@ outputroot=/lustre/tmp/${username}/${subfolder}/${subsubfolder}
 root=/home/users/${username}/${subfolder}
 
 # supercomputer related variable settings
-WT=36:00:00 # walltime
+WT=00:01:00 # walltime
 nodeNPU=20  # number of processing units in a node  
 JOBFLAG=PBS     # job flag of the job scheduling system ( e.g. PBS or SBATCH )
 

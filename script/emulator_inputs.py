@@ -22,25 +22,41 @@ from subprocess import call
 from ModDataPros import plottaa
 from ModDataPros import plot_alustus
 from ModDataPros import plot_lopetus
+from FindCloudBase import calc_rh_profile
 import sys
 
 global rootfolder
 rootfolder='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/bin/case_emulator/'
 
-filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/corr_design_15d_withconstraints.csv'
+filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/corr_design_15d.csv'
+#filu='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/vanhat/corr_design_15d_withconstraints.csv'
 
 if (len(sys.argv) > 1):
     for i in sys.argv[1:]:
         rootfolder = sys.argv[1]
         filu = sys.argv[2]
 
-def deltaz( pblh, nzp=200 ):
+
+def deltaz( pblh, nzp ):
     deltaz = max( 1., min( 20. , round( 1.3333 * pblh / float(nzp) ) ) )
+   
+   
+    return deltaz, nzp
+
+def deltaz2( pblh, nzp ):
+    dz = max( 1., min( 20. , round( 1.3333 * pblh / float(nzp) ) ) )
+
+    deltaz = 10.0    
     
+    if ( dz < 10.0 ):
+        nzp = int(nzp*dz/deltaz)
+        deltaz = 10.0
+    else:
+        deltaz = dz
     
-    return deltaz
+    return deltaz, nzp
     
-def define_z( pblh, deltaz, nzp=200 ):
+def define_z( pblh, deltaz, nzp ):
 #z = [ 100., 200., 500.,790.,795.,800.,850.,900.,950.,1000.,1050.,1100.,1150.,1200.,1250.,1300.,1350.,1400.,1450.,1500.,1550.,1600.,1650.,1700.,1750.,1800.,1850.,1900.,1950.,2000.]
     
     zt = []    
@@ -50,9 +66,12 @@ def define_z( pblh, deltaz, nzp=200 ):
     for i in xrange(nzp+4):
         zt.append(zt[i]+deltaz)
     
-    print 'deltaz ' + str(deltaz)
+    print 'deltaz '  + str(deltaz)
     print 'korkeus ' + str(zt[-1])
-    print 'pblh ' + str(pblh)
+    print 'pblh '    + str(pblh)
+    print 'nzp '     + str(nzp)
+    if (pblh > zt[-1]):
+        sys.exit("MODEL HEIGHT NOT ABOVE PBLH")
     
     return zt
 
@@ -64,15 +83,34 @@ def tot_wat_mix_rat( z, pblh, q_pbl, q_inv, q_toa = 2. ):
        
     return q
 
-def liq_pot_temp( z, pblh, tpot_pbl, tpot_inv ):
+def pot_temp( z, pblh, tpot_pbl, tpot_inv ):
     if (z < pblh ):
         theta = tpot_pbl
     else:
         theta = tpot_pbl + tpot_inv +np.power( z-pblh , 1./3. )
     
     return theta
+    
+    
+    
         
+def tot_wat_mix_rat_IT( z, pblh, q_pbl, q_inv, q_toa = 2.  ):
+    if ( z < pblh ):
+        q = q_pbl # g/kg
+    else:
+        q = (q_pbl - q_inv) - ( q_pbl - q_inv - q_toa) * (1. - np.exp( -( z-pblh ) / 500. ) ) # g/kg
+       
+    return q
 
+def pot_temp_IT( z, pblh, tpot_pbl, tpot_inv, dz, invThi ):
+    if   (z < pblh ):
+        theta = tpot_pbl
+    elif (z > pblh + invThi ):
+        theta = tpot_pbl + tpot_inv +np.power( z-pblh , 1./3. )
+    else:
+        theta = 1.
+    
+    return theta
 
 # westerly winds
 def u_zonal(z):
@@ -122,7 +160,7 @@ def read_design( filu  ):
     return case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, num_pbl
 
 
-def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp=200, pres0 = 1017.8, u0 = 0., v0 = 0. ):
+def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, pres0 = 1017.8, u0 = 0., v0 = 0. ):
 
     
     #pres0 = 1017.8
@@ -146,46 +184,68 @@ def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp=200, p
 
     
     z = define_z( pblh, dz, nzp )
-
+    print 'theta ' + str(t0)
     z[0] = pres0
-    liqPotTemp = [t0]
+    potTemp = [t0]
     wc = [q0]
     u = [u0]
     v = [v0]
-
+    
+    
 
     for k in xrange(1,len(z)):
         
-        liqPotTemp.append( liq_pot_temp( z[k], pblh, tpot_pbl, tpot_inv ) )
+        potTemp.append( pot_temp( z[k], pblh, tpot_pbl, tpot_inv ) )
         wc.append(      tot_wat_mix_rat( z[k], pblh,    q_pbl,    q_inv ) )
         u.append(               u_zonal( z[k] ) )
         v.append(          v_meridional( z[k] ) )
-    #    print 'lev '+ str(lev)+' lpt '+ str(liqPotTemp(lev))+ ' wc ' + str(wc(lev)) + ' u ' + str(u(lev)) + ' v ' + str(v(lev))
+    
+#    for k in xrange(len(z)):
+#        print z[k], potTemp[k]
+        
+    #    print 'lev '+ str(lev)+' theta '+ str(potTemp(lev))+ ' wc ' + str(wc(lev)) + ' u ' + str(u(lev)) + ' v ' + str(v(lev))
+
+    rh = calc_rh_profile(  potTemp, np.multiply(np.asarray(wc), 0.001),  z )
+#    if you want to modify water content use the two following commands
+#    rh, wc2 = calc_rh_profile(  potTemp, np.multiply(np.asarray(wc), 0.001),  z, True )
+#    wc = np.multiply(wc,1000.)
+    
+    # write to sound_in    
 
     for k in xrange(len(z)):
         
-        row= ' {0:4f} {1:4f} {2:4f} {3:4f} {4:4f}\n'.format(            \
+        row= ' {0:15f} {1:15.6f} {2:15.6f} {3:15.6f} {4:15.6f}\n'.format(            \
                                         z[k],                           \
-                                        liqPotTemp[k],                  \
+                                        potTemp[k],                  \
                                         wc[k],                          \
                                         u[k],                           \
                                         v[k]                            )
         f.write(row)                                        
     
+#     plotting
+#    print 'max liq pot temp', np.max(potTemp)
+#    print 'm
+    z[0] = 0.
     plot_alustus()
-    plottaa( liqPotTemp[1:], z[1:], case+' liquid potential temperature', 'liquid potential temperature', 'height' )
-    plt.savefig( folder + case + '_'+ 'liquid potential temperature'  + '.png', bbox_inches='tight')    
+    plottaa( potTemp, z, case+' liquid potential temperature', 'liquid potential temperature', 'height' )
+    plt.savefig( folder + case + '_'+ 'liquid_potential_temperature'  + '.png', bbox_inches='tight')    
     
     plot_alustus()
-    plottaa( wc[1:], z[1:], case+' water mixing ratio', 'water mixing ratio', 'height' )
-    plt.savefig( folder + case + '_'+ 'water mixing ratio'  + '.png', bbox_inches='tight')    
+    plottaa( wc, z, case+' water mixing ratio', 'water mixing ratio', 'height' )
+    plt.savefig( folder + case + '_'+ 'water_mixing_ratio'  + '.png', bbox_inches='tight')    
+#
+
     
+    
+    plot_alustus()
+    plottaa( rh, z, case+' relative humidity', 'relative humidity', 'height' )
+    plt.savefig( folder + case + '_'+ 'relative_humidity'  + '.png', bbox_inches='tight')    
 
        
     
     f.close()
     
-def write_namelist(case, dz, num_pbl, nzp=200):
+def write_namelist(case, dz, num_pbl, nzp):
     import os
     folder = rootfolder +'emul' + case +'/'
     call(['mkdir','-p', folder])
@@ -196,12 +256,14 @@ def write_namelist(case, dz, num_pbl, nzp=200):
 #    print len(num_pbl)
     command = 'dir='+folder                                         + \
               ' nzp='+str(nzp)                                      + \
-              ' deltaz=' + str(dz)                                    + \
-              ' dtlong=2.'                                         + \
+              ' deltaz=' + str(dz)                                  + \
+              ' timmax=2'                                           + \
+              ' Tspinup=0'                                          + \
+              ' dtlong=2.'                                          + \
               ' level=3'                                            + \
-              ' filprf=' + '"' + "'emul" + case + "'"    +'"'           + \
-              ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'           + \
-              ' CCN=' + str(num_pbl)                                  + \
+              ' filprf=' + '"' + "'emul" + case + "'"    +'"'       + \
+              ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'      + \
+              ' CCN=' + str(num_pbl)                                + \
               ' n='+'"'+'125., ' + str(num_pbl*1e-6)+' , 0., 0., 0., 0., 0.' + '"'   + \
               ' /home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/script/generate_namelist.bash'
 
@@ -215,16 +277,21 @@ def write_namelist(case, dz, num_pbl, nzp=200):
 #    args = ['timmax=20.','/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/script/generate_namelist.bash']
 #    call(args)
     
-def main( nzp=200, filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/corr_design_15d_withconstraints.csv' ):
+def main( nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/corr_design_15d_withconstraints.csv' ):
     args=['rm','-rf', rootfolder+'*']
     call(args)
     case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, num_pbl = read_design( filu )
     
+#    print 'nzp '     + str(nzp)
 
     for k in xrange(len(case)): #
         print ' '
         print case[k]
-        dz = deltaz( pblh[k] )    
+        
+        dz, nzp = deltaz2( pblh[k], nzp_orig )    
+#        print 'nzp '     + str(nzp)
+#        print 'dz ' + str(dz)
+#        print 'write_sound_in'
         write_sound_in( case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], dz, nzp )
         write_namelist( case[k], dz, num_pbl[k], nzp )
 

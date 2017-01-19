@@ -2,7 +2,7 @@
 
 src/*.mod
 src/*.o
-les.mpi
+les.mpi*
 les.seq
 
 util/
@@ -13,7 +13,8 @@ bin/sound_in
 
 sound_in*
 
-script/ModDataPros.pyc
+*.pyc
+*.zip
 
 ############################
 # Jaakko's auxialiry files #
@@ -40,6 +41,8 @@ designs/
 #emulator output from runs
 script/emulatoroutput
 
+# emulator input generating output
+script/emulator_output
 
 ## remove this later
 src/src_LES/stat_icesnow.f90
@@ -51,3 +54,7 @@ bineja.ods
 
 # some old files
 script/vanhaa_settii/
+
+
+script/plt
+script/sys

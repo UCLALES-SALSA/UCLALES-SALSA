@@ -52,11 +52,12 @@ function odota {
     
     echo ' '
     echo 'Nyt odotetaan'
-    while [[ ! -z $( qstat -u $username ) ]]
+    nimi=$1
+    while [[ ! -z $( qstat -u $username | grep $nimi ) ]]
     do
         qstat -u aholaj
 #         sleep 15s
-        sleep 3m
+        sleep 30s
     done
 
 }
@@ -99,15 +100,15 @@ function postprossoi {
     echo ' '
     nimi=$1
     echo 'Nyt postprosessoidaan .nc'
-    ${script}/submit_postpros.bash ${outputrootfolder}/${nimi}/${nimi} $scriptname $jobflag
+    ${script}/submit_postpros.bash ${outputrootfolder}/${nimi}/${nimi} $scriptname $jobflag $nimi
     
     echo ' '
     echo 'Nyt postprosessoidaan .ps'
-    ${script}/submit_postpros.bash ${outputrootfolder}/${nimi}/${nimi}.ps $scriptname $jobflag
+    ${script}/submit_postpros.bash ${outputrootfolder}/${nimi}/${nimi}.ps $scriptname $jobflag $nimi
     
     echo ' '
     echo 'Nyt postprosessoidaan .nc'
-    ${script}/submit_postpros.bash ${outputrootfolder}/${nimi}/${nimi}.ts $scriptname $jobflag
+    ${script}/submit_postpros.bash ${outputrootfolder}/${nimi}/${nimi}.ts $scriptname $jobflag $nimi
     echo ' '
     
     echo 'Kaikki submittoitu postprosessointiin'
@@ -141,6 +142,7 @@ function kopioibrixille {
     echo ' '
     echo 'Ollaan postprosessoitu, nyt voidaan kopioida ibrixille'
     nimi=$1
+    mkdir -p ${ibrixrootfolder}/${nimi}/
     rsync -avz ${outputrootfolder}/${nimi}/ ${ibrixrootfolder}/${nimi}/
     echo ' '
 
@@ -170,10 +172,10 @@ do
     echo $i
     echo ' '
     submitting emul${i} 
-    odota
+    odota emul
     
     postprossoi emul${i}
-    odota
+    odota emul
     
     
     poistaturhat emul${i}

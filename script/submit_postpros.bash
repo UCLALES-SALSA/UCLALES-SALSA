@@ -28,6 +28,7 @@ scriptfolder=${root}/script
 WT=01:00:00 # walltime
 nodeNPU=20  # number of processing units in a node  
 JOBFLAG=PBS # job flag of the job scheduling system ( e.g. PBS or SBATCH )
+postpostfix=pros
 
 if [ -z $2 ]; then
   echo "You didn't give the optional name of the post processing script"
@@ -41,6 +42,13 @@ if [ -z $3 ]; then
   echo "Using assumption: " $JOBFLAG
 else
   JOBFLAG=$3 # 
+fi
+
+if [ -z $4 ]; then
+  echo "You didn't give the optional and additional postfix"
+  echo "Using assumption: " $postpostfix
+else
+  postpostfix=$4 # 
 fi
 
 if [ $JOBFLAG == 'PBS' ]; then
@@ -87,6 +95,7 @@ fi
 ##########################
 echo " "
 ## modify the job name based on length: ###
+length=$(( ${#postpostfix} < 7 ? ${#postpostfix} : 7))
 
 
 rm -rf ${dir}/post_* ${dir}/*pros.sh ${dir}/${scriptname}
@@ -111,7 +120,7 @@ if [ $JOBFLAG == 'PBS' ] ; then
 
 cat > ${dir}/runpostpros${postfix}.sh <<FINALPBS
 #!/bin/sh
-#PBS -N postPRO${postfix}
+#PBS -N ${postfix:$((${#postfix}-2)):2}_${postpostfix:$((${#postpostfix}-${length})):${length}}
 #PBS -l mppwidth=1
 #PBS -l mppnppn=1
 #PBS -l mppdepth=${nodeNPU}
@@ -140,7 +149,7 @@ elif [ $JOBFLAG == 'SBATCH' ] ; then
 
 cat > ${dir}/runpostpros${postfix}.sh <<FINALSBATCH
 #!/bin/sh
-#SBATCH -J postPRO${postfix}
+#SBATCH -J ${postfix:$((${#postfix}-2)):2}_${postpostfix:$((${#postpostfix}-${length})):${length}}
 #SBATCH -n 1
 #SBATCH -t ${WT}
 #SBATCH --output=postpro_${1}-%j.out

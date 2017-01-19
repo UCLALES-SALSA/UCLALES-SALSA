@@ -1,4 +1,9 @@
 #!/bin/bash
+# 
+# input variables
+# $1 = postfix
+# compile true or false
+
 
 # Exit on error
 set -e
@@ -82,7 +87,7 @@ if [ $odotus == 'true' ]; then
     while [[ ! -z $( qstat -u aholaj ) ]]
     do
         qstat -u aholaj
-        sleep 15m
+        sleep 3m
 
     done
 
