@@ -218,8 +218,9 @@ contains
           end if
 
        CASE(4,5)
-          ! Condensation will be calculated by the initial call of SALSA
-          ! Assume no condensation at this point
+          ! Condensation will be calculated by the initial call of SALSA, so use the
+          ! saturation adjustment method to estimate the amount of liquid water,
+          ! which is needed for theta_l
           DO j = 1,nyp
              DO i = 1,nxp
                 DO k = 1,nzp
@@ -227,12 +228,14 @@ contains
                    pres  = p00 * (exner)**cpr
                    IF (itsflg == 0) THEN
                       tk = th0(k)*exner
-                      a_tp(k,i,j) = a_theta(k,i,j) - th00
+                      rc  = max(0.,a_rp(k,i,j)-rslf(pres,tk))
+                      a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
                    END IF
                    IF (itsflg == 2) THEN
                       tk = th0(k)
                       a_theta(k,i,j) = tk/exner
-                      a_tp(k,i,j) = a_theta(k,i,j) - th00
+                      rc  = max(0.,a_rp(k,i,j)-rslf(pres,tk))
+                      a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
                    END IF
                 END DO !k
              END DO !i
@@ -372,8 +375,13 @@ contains
              hs(ns) = ps(ns)
              zold1=zold2
              zold2=ps(ns)
-             tavg=(ts(ns)*xs(ns)+ts(ns-1)*xs(ns-1)*(p00**rcp)             &
-                  /ps(ns-1)**rcp)*.5
+             IF ( itsflg==0 .OR. itsflg==1) THEN
+                ! ts=potential or liquid water potential temperature (condensation not included here)
+                tavg=0.5*(ts(ns)*xs(ns)+ts(ns-1)*xs(ns-1))*((p00/ps(ns-1))**rcp)
+             ELSE
+                ! ts=T [K]
+                tavg=0.5*(ts(ns)*xs(ns)+ts(ns-1)*xs(ns-1))
+             ENDIF
              ps(ns)=(ps(ns-1)**rcp-g*(zold2-zold1)*(p00**rcp)/(cp*tavg))**cpr
           end if
        end select
