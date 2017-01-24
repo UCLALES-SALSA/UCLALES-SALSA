@@ -244,7 +244,7 @@ contains
     END SELECT
 
     k=1
-    do while( zt(k+1) <= zrand .and. k < nzp)
+    do while( zt(k+1) <= zrand .and. k+1 < nzp)
        k=k+1
        xran(k) = 0.2*(zrand - zt(k))/zrand
     end do
@@ -252,7 +252,7 @@ contains
 
     if (associated(a_rp)) then
        k=1
-       do while( zt(k+1) <= zrand .and. k < nzp)
+       do while( zt(k+1) <= zrand .and. k+1 < nzp)
           k=k+1
           xran(k) = 5.0e-5*(zrand - zt(k))/zrand
        end do
