@@ -23,6 +23,7 @@ from ModDataPros import plottaa
 from ModDataPros import plot_alustus
 from ModDataPros import plot_lopetus
 from FindCloudBase import calc_rh_profile
+from FindCloudBase import calc_cloud_droplet_diam
 import sys
 
 global rootfolder
@@ -75,7 +76,7 @@ def define_z( pblh, deltaz, nzp ):
     
     return zt
 
-def tot_wat_mix_rat( z, pblh, q_pbl, q_inv, q_toa = 2. ):
+def tot_wat_mix_rat( z, pblh, q_pbl, q_inv, invThi = 0., q_toa = 2. ):
     if ( z < pblh ):
         q = q_pbl # g/kg
     else:
@@ -83,7 +84,7 @@ def tot_wat_mix_rat( z, pblh, q_pbl, q_inv, q_toa = 2. ):
        
     return q
 
-def pot_temp( z, pblh, tpot_pbl, tpot_inv ):
+def pot_temp( z, pblh, tpot_pbl, tpot_inv, invThi=0.  ):
     if (z < pblh ):
         theta = tpot_pbl
     else:
@@ -94,24 +95,33 @@ def pot_temp( z, pblh, tpot_pbl, tpot_inv ):
     
     
         
-def tot_wat_mix_rat_IT( z, pblh, q_pbl, q_inv, q_toa = 2.  ):
+def tot_wat_mix_rat_IT( z, pblh, q_pbl, q_inv, invThi = 50., q_toa = 2.  ):
     if ( z < pblh ):
         q = q_pbl # g/kg
-    else:
+    elif (z > pblh + invThi ):
         q = (q_pbl - q_inv) - ( q_pbl - q_inv - q_toa) * (1. - np.exp( -( z-pblh ) / 500. ) ) # g/kg
+    else:
+        q = -q_inv/invThi * ( z - pblh ) + q_pbl
+        
        
     return q
 
-def pot_temp_IT( z, pblh, tpot_pbl, tpot_inv, dz, invThi ):
+def pot_temp_IT( z, pblh, tpot_pbl, tpot_inv, invThi = 50. ):
     if   (z < pblh ):
         theta = tpot_pbl
     elif (z > pblh + invThi ):
         theta = tpot_pbl + tpot_inv +np.power( z-pblh , 1./3. )
     else:
-        theta = 1.
+        theta = tpot_inv/invThi * ( z - pblh )  + tpot_pbl
     
     return theta
 
+# t_grad [ K / m]
+def thickness( tpot_inv, t_grad = 0.2   ):
+
+    invThi = tpot_inv / t_grad
+    return invThi
+    
 # westerly winds
 def u_zonal(z):
 #    u = 3. + 4.2*z/1000.
@@ -160,7 +170,7 @@ def read_design( filu  ):
     return case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, num_pbl
 
 
-def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, pres0 = 1017.8, u0 = 0., v0 = 0. ):
+def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, num_pbl, pres0 = 1017.8, u0 = 0., v0 = 0. ):
 
     
     #pres0 = 1017.8
@@ -184,19 +194,27 @@ def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, pres0
 
     
     z = define_z( pblh, dz, nzp )
-    print 'theta ' + str(t0)
+    print 'tpot_pbl ' + str(tpot_pbl)
+    print 'tpot_inv ' + str(tpot_inv)
+    print 'q_pbl ' + str(q_pbl)
+    print 'q_inv ' + str(q_inv)
+    print 'num_pbl ' + str(num_pbl)
     z[0] = pres0
     potTemp = [t0]
     wc = [q0]
     u = [u0]
     v = [v0]
-    
-    
+
+#    invThi = 50.    
+    invThi = thickness( tpot_inv, t_grad = 0.2 )
+    print 'inversion thickness ' + str(invThi)
 
     for k in xrange(1,len(z)):
         
-        potTemp.append( pot_temp( z[k], pblh, tpot_pbl, tpot_inv ) )
-        wc.append(      tot_wat_mix_rat( z[k], pblh,    q_pbl,    q_inv ) )
+        
+
+        potTemp.append( pot_temp_IT( z[k], pblh, tpot_pbl, tpot_inv, invThi ) )
+        wc.append(      tot_wat_mix_rat_IT( z[k], pblh, q_pbl, q_inv, invThi ) )
         u.append(               u_zonal( z[k] ) )
         v.append(          v_meridional( z[k] ) )
     
@@ -205,7 +223,9 @@ def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, pres0
         
     #    print 'lev '+ str(lev)+' theta '+ str(potTemp(lev))+ ' wc ' + str(wc(lev)) + ' u ' + str(u(lev)) + ' v ' + str(v(lev))
 
-    rh = calc_rh_profile(  potTemp, np.multiply(np.asarray(wc), 0.001),  z )
+    rh, pressL = calc_rh_profile(  potTemp, np.multiply(np.asarray(wc), 0.001),  z )
+    drop, cloudwater = calc_cloud_droplet_diam( potTemp, np.multiply(np.asarray(wc), 0.001),  pressL, num_pbl)
+    cloudwater = np.multiply(cloudwater,1000.)
 #    if you want to modify water content use the two following commands
 #    rh, wc2 = calc_rh_profile(  potTemp, np.multiply(np.asarray(wc), 0.001),  z, True )
 #    wc = np.multiply(wc,1000.)
@@ -227,21 +247,24 @@ def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, pres0
 #    print 'm
     z[0] = 0.
     plot_alustus()
-    plottaa( potTemp, z, case+' liquid potential temperature', 'liquid potential temperature', 'height' )
+    plottaa( potTemp, z, case+' liquid potential temperature', 'liquid potential temperature K', 'height m' )
     plt.savefig( folder + case + '_'+ 'liquid_potential_temperature'  + '.png', bbox_inches='tight')    
     
     plot_alustus()
-    plottaa( wc, z, case+' water mixing ratio', 'water mixing ratio', 'height' )
+    plottaa( wc, z, case+' water mixing ratio', 'water mixing ratio g/kg', 'height m' )
     plt.savefig( folder + case + '_'+ 'water_mixing_ratio'  + '.png', bbox_inches='tight')    
 #
-
-    
-    
     plot_alustus()
-    plottaa( rh, z, case+' relative humidity', 'relative humidity', 'height' )
+    plottaa( rh, z, case+' relative humidity', 'relative humidity %', 'height m' )
     plt.savefig( folder + case + '_'+ 'relative_humidity'  + '.png', bbox_inches='tight')    
 
-       
+    plot_alustus()
+    plottaa( drop, z, case+' cloud droplet diameter', r'cloud droplet diameter $ \mu m$', 'height m' )
+    plt.savefig( folder + case + '_'+ 'cloud_droplet_diameter'  + '.png', bbox_inches='tight')   
+
+    plot_alustus()
+    plottaa( cloudwater, z, case+' cloud water mixing ratio', 'cloud water mixing ratio g/kg', 'height m' )
+    plt.savefig( folder + case + '_'+ 'cloud_water_mixing_ratio'  + '.png', bbox_inches='tight')         
     
     f.close()
     
@@ -254,13 +277,14 @@ def write_namelist(case, dz, num_pbl, nzp):
     
 #    print num_pbl
 #    print len(num_pbl)
+
     command = 'dir='+folder                                         + \
               ' nzp='+str(nzp)                                      + \
               ' deltaz=' + str(dz)                                  + \
-              ' timmax=2'                                           + \
-              ' Tspinup=0'                                          + \
               ' dtlong=2.'                                          + \
               ' level=3'                                            + \
+              ' timmax=100.'                                        + \
+              ' Tspinup=0.'                                         + \
               ' filprf=' + '"' + "'emul" + case + "'"    +'"'       + \
               ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'      + \
               ' CCN=' + str(num_pbl)                                + \
@@ -284,7 +308,7 @@ def main( nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLA
     
 #    print 'nzp '     + str(nzp)
 
-    for k in xrange(len(case)): #
+    for k in xrange(len(case)): #len(case)
         print ' '
         print case[k]
         
@@ -292,7 +316,7 @@ def main( nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLA
 #        print 'nzp '     + str(nzp)
 #        print 'dz ' + str(dz)
 #        print 'write_sound_in'
-        write_sound_in( case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], dz, nzp )
+        write_sound_in( case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], dz, nzp, num_pbl[k] )
         write_namelist( case[k], dz, num_pbl[k], nzp )
 
 def dycoms():

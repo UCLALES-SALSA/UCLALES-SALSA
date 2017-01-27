@@ -175,9 +175,67 @@ def calc_rh_profile( theta, wc, z, modify = False, rh_max = 101. ):
     if modify:
         return xs, rts
     else:
-        return xs
- 
- 
+        return xs, ps
+
+def calc_cloud_droplet_diam( theta, wc, press, num_pbl ): 
+    ts = copy.deepcopy(theta)
+    rts = copy.deepcopy(wc)
+    ps = copy.deepcopy(press)    
+    ccn = copy.deepcopy(num_pbl)
+# CONSTANTS    
+    R = 287.04    # Specific gas constant for dry air (R_specific=R/M), J/kg/K
+    Rm = 461.5    # -||- for water
+    ep = R/Rm
+    ep2 = Rm/R-1.0 #M_air/M_water-1
+    cp = 1005.0    # Specific heat for a constant pressure
+    rcp = R/cp
+    cpr = cp/R
+    g = 9.8
+    p00 =1.0e+05
+    p00i = 1./p00
+    
+    alvl   = 2.5e+06 
+    #
+
+    
+    # Iterate pressure for each altitude level (P & T => RH)
+#    dz_orig = dz
+    k=len(ps)
+    
+#    xs = np.zeros(k)
+    tks = np.zeros(k)
+    diam = np.zeros(k)
+    wcd = np.zeros(k)
+#    thds = np.zeros(k)
+#    hs = np.zeros(k)
+    
+    for ns in xrange(k):
+        til = ts[ns]*( ps[ns]*p00i )**rcp
+        xx = til
+        yy = rslf( ps[ns],xx )
+        zz = max( rts[ns]-yy, 0. )
+        erotus = 10.
+        
+#        RH = calc_rh( rw, til, ps[ns] )
+        i = 0
+        if (zz > 0.):
+            #for i in xrange(3):
+            while ( erotus > 0.01 and i < 25 ): #abs( til -xx) > 0.1 or i == 0
+                x1 = alvl / ( cp*xx )
+                xx = xx - ( xx - til*( 1.+x1*zz ) )/( 1. + x1*til*( zz/xx + (1.+yy*ep)*yy*alvl/( Rm*xx*xx )))
+                yy = rslf( ps[ns],xx )
+                zz = max( rts[ns]-yy, 0. )
+#                print 'erotus '+ str(abs( til -xx))
+                erotus = abs( til -xx)
+                i += 1
+#            print 'iteraatiokierrosten lkm '+str(i)
+#            print 'erotus '+ str(abs( til -xx))
+        diam[ns] = np.power( (6.*zz/ccn)/(1000.*np.pi), 1./3. )*1e6      
+        wcd[ns] = zz
+        tks[ns]=xx
+    
+    return diam, wcd
+#######################################################################################    
 # Test
 # =====
 # Take relavant values from "corr_design_15d.csv"

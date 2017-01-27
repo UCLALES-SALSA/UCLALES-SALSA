@@ -16,6 +16,10 @@
 # $1 = name of output directory
 # $2 = number of processors
 # $3 = job flag of the job scheduling system (OPTIONAL) default value: PBS
+# 
+# it is recommended to give input folder value:
+# e.g. input=/home/users/aholaj/UCLALES-SALSA/bin/case_emulator/emul01 ./submit_uclales-salsa.bash
+#
 
 # Exit on error
 set -e
@@ -33,9 +37,11 @@ outputroot=/lustre/tmp/${username}/${subfolder}/${subsubfolder}
 root=/home/users/${username}/${subfolder}
 
 # supercomputer related variable settings
-WT=00:01:00 # walltime
+WT=24:00:00 # walltime
 nodeNPU=20  # number of processing units in a node  
 JOBFLAG=PBS     # job flag of the job scheduling system ( e.g. PBS or SBATCH )
+COPY=${COPY:-true}
+clean=${clean:-true}
 
 if [ -z $3 ]; then
   echo ' '
@@ -62,9 +68,14 @@ fi
 ###         			      ### 
 #################################
 
-salsa=${root}/src/src_salsa
-les=${root}/src/src_LES
+
 bin=${root}/bin/
+input=${input/:-}
+
+
+if [ -z $input ]; then
+    input=$bin
+fi
 
 ################################
 ###			                 ###
@@ -102,18 +113,6 @@ else
    mode=seq
 fi
 
-################################
-###			                 ###
-### change output file names ###
-###			                 ###
-################################
-
-modifyoutput=${modifyoutput:-true}
-
-if [ $modifyoutput == 'true' ]; then
-    sed -i "/filprf\s\{0,\}=\s\{0,\}/c\  filprf  = '"$1"'" ${bin}/NAMELIST
-    sed -i "/hfilin\s\{0,\}=\s\{0,\}/c\  hfilin  = '"$1".rst'" ${bin}/NAMELIST
-fi
 
 
 
@@ -129,19 +128,37 @@ datadir=${rundir}/datafiles
 
 # if main directory exists -> clean it
 # if not -> make it
-if [ -d ${rundir} ] ; then
-   rm -fr ${rundir}/*
-else
-   mkdir -p ${rundir}
-fi
+if [ $clean == true ]; then
+    if [ -d ${rundir} ] ; then
+    rm -fr ${rundir}/*
+    else
+    mkdir -p ${rundir}
+    fi
+fi    
 
 mkdir -p ${datadir} 
 
 # copy executables and input files to running directory
-cp ${bin}/les.${mode} ${rundir}/
-cp ${bin}/sound_in ${rundir}/
-cp ${bin}/NAMELIST ${rundir}/
-cp ${bin}/datafiles/* ${datadir}/
+if [ $COPY == 'true' ]; then
+    cp ${input}/les.${mode} ${rundir}/
+    cp ${input}/datafiles/* ${datadir}/
+    cp ${input}/sound_in ${rundir}/
+    cp ${input}/NAMELIST ${rundir}/
+fi
+
+################################
+###			                 ###
+### change output file names ###
+###			                 ###
+################################
+
+modifyoutput=${modifyoutput:-true}
+
+if [ $modifyoutput == 'true' ]; then
+    sed -i "/filprf\s\{0,\}=\s\{0,\}/c\  filprf  = '"$1"'" ${rundir}/NAMELIST
+    sed -i "/hfilin\s\{0,\}=\s\{0,\}/c\  hfilin  = '"$1".rst'" ${rundir}/NAMELIST
+fi
+
 
 #########################
 ###			          ###

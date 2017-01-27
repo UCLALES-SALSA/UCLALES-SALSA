@@ -22,7 +22,12 @@ email=jaakko.ahola@fmi.fi
 subfolder=UCLALES-SALSA
 root=/home/users/${username}/${subfolder}
 scriptname=combine.py  # postp_uclales-salsa3.py
-scriptfolder=${root}/script
+
+scriptfolder=${scriptfolder:-}
+
+if [ -z $scriptfolder ]; then
+    scriptfolder=${root}/script
+fi    
 
 # supercomputer related variable settings
 WT=01:00:00 # walltime
