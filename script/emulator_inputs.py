@@ -24,6 +24,7 @@ from ModDataPros import plot_alustus
 from ModDataPros import plot_lopetus
 from FindCloudBase import calc_rh_profile
 from FindCloudBase import calc_cloud_droplet_diam
+from plot_profiles import PlotProfiles
 import sys
 
 global rootfolder
@@ -123,16 +124,38 @@ def thickness( tpot_inv, t_grad = 0.2   ):
     return invThi
     
 # westerly winds
-def u_zonal(z):
+def u_zonal_0(z):
 #    u = 3. + 4.2*z/1000.
     u = 0.
     return u
 
 # southerly winds
-def v_meridional(z):
+def v_meridional_0(z):
 #    v = -9. + 5.6*z/1000.
     v= 0.
     return v
+    
+# westerly winds
+def u_zonal_dycoms(z):
+    u = 3. + 4.2*z/1000.
+#    u = 0.
+    return u
+
+# southerly winds
+def v_meridional_dycoms(z):
+    v = -9. + 5.6*z/1000.
+    v= 0.
+    return v
+
+def u_zonal_ascos(z):
+    ascos=PlotProfiles('sound_in', "bin/case_ascos/")
+
+
+    return u
+
+def v_meridional_ascos(z):
+    
+    return v    
 
 def read_design( filu  ):
     
@@ -205,8 +228,8 @@ def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, num_p
     u = [u0]
     v = [v0]
 
-#    invThi = 50.    
-    invThi = thickness( tpot_inv, t_grad = 0.2 )
+    invThi = 50.    
+#    invThi = thickness( tpot_inv, t_grad = 0.2 )
     print 'inversion thickness ' + str(invThi)
 
     for k in xrange(1,len(z)):
@@ -277,14 +300,13 @@ def write_namelist(case, dz, num_pbl, nzp):
     
 #    print num_pbl
 #    print len(num_pbl)
-
+#              ' timmax=100.'                                        + \
+#              ' Tspinup=0.'                                         + \
     command = 'dir='+folder                                         + \
               ' nzp='+str(nzp)                                      + \
               ' deltaz=' + str(dz)                                  + \
               ' dtlong=2.'                                          + \
               ' level=3'                                            + \
-              ' timmax=100.'                                        + \
-              ' Tspinup=0.'                                         + \
               ' filprf=' + '"' + "'emul" + case + "'"    +'"'       + \
               ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'      + \
               ' CCN=' + str(num_pbl)                                + \

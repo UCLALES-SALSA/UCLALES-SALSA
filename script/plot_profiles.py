@@ -15,36 +15,115 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-folder='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/'
-#file = 'sound_in_DYCOMSIIRF02'
-file = 'sound_in_eimear'
-filu = folder+file
-f = open(filu, 'r')
+class PlotProfiles:
 
-z = []
-t = []
-q = []
-u = []
-v = []
-
-
-for line in f:
-    zA, tA, qA, uA, vA = line.split()
-    z.append(float(zA))
-    t.append(float(tA))
-    q.append(float(qA))
-    u.append(float(uA))
-    v.append(float(vA))
+    def __init__(self, file, subfolder, folder = '/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/' ):
+        self.folder=folder
+        self.file = file
+        self.subfolder = subfolder
+        #file = 'sound_in_DYCOMSIIRF02'
+        #file = 'sound_in'
+        filu = self.folder + self.subfolder + self.file
+        f = open(filu, 'r')
     
-f.close()
-z[0]=0.
+        self.z = []
+        self.t = []
+        self.q = []
+        self.u = []
+        self.v = []
+        
+        
+        
+        
+        for line in f:
+            zA, tA, qA, uA, vA = line.split()
+            self.z.append(float(zA))
+            self.t.append(float(tA))
+            self.q.append(float(qA))
+            self.u.append(float(uA))
+            self.v.append(float(vA))
+        
+            
+        f.close()
+        self.z[0]=0.
+        
+        self.zu = np.column_stack(( self.z, self.u ))
+        self.zv = np.column_stack(( self.z, self.v ))
+    
+    def getU(self):
+        return self.u
+    
+    def getV(self):
+        return self.v
 
-plt.figure()
-plt.plot( t, z )
+    def getZU(self):
+        return self.zu
 
-plt.figure()
-plt.plot( q, z )
+    def getZV(self):
+        return self.zv
 
-plt.show()
+    def returnWindAppr(self, height, wind):
+        found = False
+        i = 0
+        indexUpper=0
+        while ( i < len(self.z) and (not found) ) :
+            if self.z[i] > height:
+                found = True
+                indexUpper = i
+            i += 1
+        
+        found = False
+        i = len(self.z)-1
+        indexLower=0
+        while ( i >= 0 and (not found) ) :
+            if self.z[i] < height:
+                found = True
+                indexLower = i
+            i -= 1
+        print 'indexLower ' + str(indexLower)
+        print 'indexUpper ' + str(indexUpper)
+        if ( indexUpper - indexLower == 2):
+            WindAppr = wind[indexLower+1]
+        else:
+            WindAppr = ( wind[indexUpper]-wind[indexLower] )/( self.z[indexUpper] - self.z[indexLower] )*( height-self.z[indexLower] ) + wind[indexLower]
+        print 'WindAppr' + str(WindAppr)
+        return WindAppr
+    
+    def returnUAppr(self, height):
+        u = self.returnWindAppr( height,self.u)
+        return u
 
+    def returnVAppr(self, height):
+        v = self.returnWindAppr( height,self.v)
+        return v
+                    
+            
+
+    def plot(self):
+    
+        
+        
+        plt.figure()
+        plt.plot( self.t, self.z )
+        
+        plt.figure()
+        plt.plot( self.q, self.z )
+        
+        plt.figure()
+        plt.plot( self.u, self.z )
+        
+        print 'u'
+        plt.figure()
+        plt.plot( self.u, self.z )
+        
+        plt.show()
+
+
+
+#def giveU():
+#    return
+#
+#
+#if __name__ == "__main__":
+#    main()
 #print z

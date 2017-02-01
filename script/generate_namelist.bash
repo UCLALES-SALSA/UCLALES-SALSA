@@ -55,8 +55,8 @@ cat > ${dir}NAMELIST <<EOF
   div = ${div:-1.5e-6}              ! Divergence for e.g. case_name = 'default'
   sfc_albedo = ${sfc_albedo:-0.05}
   radsounding = ${radsounding:-"'datafiles/dsrt.lay'"}
-  dthcon = ${dthcon:-20.}
-  drtcon = ${drtcon:-0.}
+  dthcon = ${dthcon:-20.} ! heat flux
+  drtcon = ${drtcon:-0.}  ! latent
   ubmin  = ${ubmin:--0.25}
   zrough = ${zrough:-0.01}
   th00 = ${th00:-289.}

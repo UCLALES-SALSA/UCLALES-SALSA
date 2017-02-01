@@ -113,31 +113,6 @@ done
 
 ########################################
 
-# first script
-
-cat > ${outputrootfolder}/simul.sh << EOF
-#!/bin/bash
-
-# Exit on error
-set -e
-
-EOF
-
-chmod u+x ${outputrootfolder}/simul.sh ${outputrootfolder}/*.bash ${outputrootfolder}/*.py
-
-for n in $( seq ${Nro} )
-do
-    
-echo $k
-
-echo "runNroBegin=$k simulNro=$Nro runNroEnd=$B threadNro=$n nproc=${nproc} jobflag=$JOBFLAG scriptname=$scriptname ${outputrootfolder}/emulator_runs_parallel.bash | tee ${outputrootfolder}/emulatoroutput${n} &" >> ${outputrootfolder}/simul.sh
-
-k=$((A+$n))
-done
-
-echo 'wait' >> ${outputrootfolder}/simul.sh
-
-### second script
 
 if [ $JOBFLAG == 'PBS' ] ; then
 
@@ -152,53 +127,55 @@ cat > ${outputrootfolder}/control_multiple_emulator_run.sh <<FINALPBS
 #PBS -M ${email}
 #PBS -m ae
 
-
-
 cd ${outputrootfolder}
 
-aprun -n1 -N1 -d${nodeNPU} ./simul.sh | tee ${PBS_JOBNAME:-emulator}.${PBS_JOBID:-help}
-wait
-
-exit
 FINALPBS
 
-cd ${outputrootfolder}
-# Make initial submit
-chmod +x simul.sh control_multiple_emulator_run.sh
-echo 'Submit to job scheduler'
-qsub control_multiple_emulator_run.sh
+elif [ $JOBFLAG == 'SBATCH' ] ; then
 
-# elif [ $JOBFLAG == 'SBATCH' ] ; then
-# 
-# cat > ${outputrootfolder}/control_multiple_emulator_run.sh <<FINALSBATCH
-# #!/bin/sh
-# #SBATCH -J EMULATOR
-# #SBATCH -n 1
-# #SBATCH -t ${WT}
-# #SBATCH --output=emulator_${1}-%j.out
-# #SBATCH --error=emulator_${1}-%j.err
-# #SBATCH --mail-type=ALL
-# #SBATCH --mail-user=${email}
-# #SBATCH -p ${QUEUE}
-# 
-# source /etc/profile
-# cd ${outputrootfolder}
-# 
-# srun -n1 -N1 -d${nodeNPU} ./simul.sh
-# wait
-# 
-# exit
-# FINALSBATCH
-# 
-# cd ${outputrootfolder}
-# # Make initial submit
-# chmod +x control_multiple_emulator_run.sh  simul.sh
-# echo 'Submit to job scheduler'
-# sbatch control_multiple_emulator_run.sh
+cat > ${outputrootfolder}/control_multiple_emulator_run.sh <<FINALSBATCH
+#!/bin/sh
+#SBATCH -J EMULATOR
+#SBATCH -n 1
+#SBATCH -t ${WT}
+#SBATCH --output=emulator_${1}-%j.out
+#SBATCH --error=emulator_${1}-%j.err
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=${email}
+#SBATCH -p ${QUEUE}
+
+cd ${outputrootfolder}
+
+FINALSBATCH
 
 fi
 
+
+for n in $( seq ${Nro} )
+do
+
+echo "runNroBegin=$k simulNro=$Nro runNroEnd=$B threadNro=$n nproc=${nproc} jobflag=$JOBFLAG scriptname=$scriptname ${outputrootfolder}/emulator_runs_parallel.bash | tee ${outputrootfolder}/emulatoroutput${n} &" >> ${outputrootfolder}/control_multiple_emulator_run.sh
+
+k=$((A+$n))
+done
+
+cat >> ${outputrootfolder}/control_multiple_emulator_run.sh <<EOF
+wait
 exit
 
+EOF
+
+cd ${outputrootfolder}
+
+# Make initial submit
+chmod +x  control_multiple_emulator_run.sh
+echo 'Submit emulator controller to job scheduler'
+
+if [ $JOBFLAG == 'PBS' ] ; then
+    qsub control_multiple_emulator_run.sh
+elif [ $JOBFLAG == 'SBATCH' ] ; then
+    sbatch control_multiple_emulator_run.sh
+fi
 
 
+exit
