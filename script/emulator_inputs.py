@@ -117,45 +117,33 @@ def pot_temp_IT( z, pblh, tpot_pbl, tpot_inv, invThi = 50. ):
     
     return theta
 
+    
+
+def wind_0(z):
+    u = 0.
+    v = 0.
+    return u,v
+    
+def wind_dycoms(z):
+    u = 3. + 4.2*z/1000.
+    v = -9. + 5.6*z/1000.
+    return u,v
+
+
+def wind_ascos(z):
+    ascos=PlotProfiles('sound_in', "bin/case_ascos/")
+    u = ascos.returnUAppr( z )
+    v = ascos.returnVAppr( z )
+
+    return u,v
+
+
 # t_grad [ K / m]
 def thickness( tpot_inv, t_grad = 0.2   ):
 
     invThi = tpot_inv / t_grad
     return invThi
-    
-# westerly winds
-def u_zonal_0(z):
-#    u = 3. + 4.2*z/1000.
-    u = 0.
-    return u
 
-# southerly winds
-def v_meridional_0(z):
-#    v = -9. + 5.6*z/1000.
-    v= 0.
-    return v
-    
-# westerly winds
-def u_zonal_dycoms(z):
-    u = 3. + 4.2*z/1000.
-#    u = 0.
-    return u
-
-# southerly winds
-def v_meridional_dycoms(z):
-    v = -9. + 5.6*z/1000.
-    v= 0.
-    return v
-
-def u_zonal_ascos(z):
-    ascos=PlotProfiles('sound_in', "bin/case_ascos/")
-
-
-    return u
-
-def v_meridional_ascos(z):
-    
-    return v    
 
 def read_design( filu  ):
     
@@ -238,8 +226,9 @@ def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, num_p
 
         potTemp.append( pot_temp_IT( z[k], pblh, tpot_pbl, tpot_inv, invThi ) )
         wc.append(      tot_wat_mix_rat_IT( z[k], pblh, q_pbl, q_inv, invThi ) )
-        u.append(               u_zonal( z[k] ) )
-        v.append(          v_meridional( z[k] ) )
+        u_apu, v_apu = wind_0( z[k] )        
+        u.append( u_apu )
+        v.append( v_apu )
     
 #    for k in xrange(len(z)):
 #        print z[k], potTemp[k]
