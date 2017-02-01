@@ -42,14 +42,14 @@ contains
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc     &
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_scr1  &
          , a_rv, a_rpp, a_srp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
-         a_ncloudp, a_nprecpp
+         a_ncloudp, a_nprecpp, a_ri, a_nicep, a_nsnowp
 
     use mpi_interface, only : myid, appl_abort
 
     real, optional, intent (in) :: time_in, cntlat, sst
 
     real :: xka, fr0, fr1, xref1, xref2
-    REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp)
+    REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
 
     ! DIVERGENCE GIVEN FROM NAMELIST
     if (trim(case_name) == 'atex') then
@@ -104,33 +104,51 @@ contains
        ! -------------------------------------
        if (present(time_in) .and. present(cntlat) .and. present(sst)) then
 
-          IF (level == 3) THEN
+          IF (level <= 3) THEN
+             ! a_rv=water vapor (Levels 1-3)
+             ! a_rc=cloud water (Levels 2 and 3)
+             ! CCN=cloud droplet number concentration
+             ! a_rpp=total rain water (Level 3), but this is not used
+             znc(:,:,:) = CCN
 
-             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, CCN,&
-                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rv, a_rc, a_tt,  &
+             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rv, a_rc, znc, a_tt,  &
                   a_rflx, a_sflx, albedo,radsounding=radsounding,useMcICA=useMcICA)
 
-          ELSE IF (level < 3) THEN
+          ELSE IF (level == 4) THEN
+             ! a_rp=water vapor
+             ! a_rc=cloud+aerosol water
+             ! a_ncloudp=cloud droplet number concentrations for each size bin
+             ! a_srp=rain water, but this is not used(?)
 
-             xref1 = 0.
-             xref2 = 0.
-             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, CCN,&
-                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rv, a_rc, a_tt,  &
+             ! Cloud droplets + aerosols (+ precipitation)
+             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) !+SUM(a_nprecpp(:,:,:,:),DIM=4)
+             zrc(:,:,:) = a_rc(:,:,:) !+a_srp(:,:,:)
+
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rp, zrc, znc, a_tt,  &
                   a_rflx, a_sflx, albedo,radsounding=radsounding,useMcICA=useMcICA)
-             xref1 = xref1 + a_sflx(nzp,3,3)/albedo(3,3)
-             xref2 = xref2 + a_sflx(nzp,3,3)
-             albedo(3,3) = xref2/xref1
 
-          ELSE IF (level >= 4) THEN
+          ELSE IF (level == 5) THEN
+             ! a_rp=water vapor
+             ! a_rc=cloud+aerosol water
+             ! a_ncloudp=cloud droplet number concentrations for each size bin
+             ! a_srp=rain water, but this is not used(?)
+             ! a_ri=ice
+             ! a_nice=ice number concentrations for each size bin
+             ! a_srs=snow ice, but this is not used(?)
 
-             ! Cloud droplets + precipitation
-             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4)+SUM(a_nprecpp(:,:,:,:),DIM=4)
-             zrc(:,:,:) = a_rc(:,:,:) + a_srp(:,:,:)
+             ! Cloud droplets + aerosols (+ precipitation)
+             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) !+SUM(a_nprecpp(:,:,:,:),DIM=4)
+             zrc(:,:,:) = a_rc(:,:,:) !+a_srp(:,:,:)
 
-             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, CCN,&
-                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rp, zrc, a_tt,  &
-                  a_rflx, a_sflx, albedo, CDNC=znc, radsounding=radsounding,useMcICA=useMcICA)
+             ! Ice (+snow)
+             zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4) !+SUM(a_nsnow(:,:,:,:),DIM=4)
+             zri(:,:,:) = a_ri(:,:,:) !+a_srs(:,:,:)
 
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rp, zrc, znc, a_tt,  &
+                  a_rflx, a_sflx, albedo,ice=zri,nice=zni,radsounding=radsounding,useMcICA=useMcICA)
           END IF
 
           IF ( case_name /= 'none') THEN
