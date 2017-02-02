@@ -725,7 +725,7 @@ contains
                 rrate(k,i,j) = -SUM(prvt(k,i,j,istr:iend)*2.) * alvl*0.5*(a_dn(k,i,j)+a_dn(kp1,i,j))
 
                 tlt(k,i,j) = tlt(k,i,j) - SUM(prvt(k,i,j,istr:iend)/tstep)*(alvl/cp)*th(k,i,j)/tk(k,i,j)
-
+                
                 IF (sflg) v1(k) = v1(k) + rrate(k,i,j)*xnpts
              END DO
           END DO
@@ -750,7 +750,7 @@ contains
                 srate(k,i,j) = -SUM(srvt(k,i,j,istr:iend)*1.) * alvi*0.5*(a_dn(k,i,j)+a_dn(kp1,i,j)) 
 
                 tlt(k,i,j) = tlt(k,i,j) - SUM(srvt(k,i,j,istr:iend)/tstep)*(alvi/cp)*th(k,i,j)/tk(k,i,j)
-
+                
                 IF (sflg) v1(k) = v1(k) + srate(k,i,j)*xnpts
              END DO
           END DO
