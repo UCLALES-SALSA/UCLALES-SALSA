@@ -106,30 +106,29 @@ contains
 
           IF (level == 3) THEN
 
-             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, CCN,&
-                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rv, a_rc, a_tt,  &
-                  a_rflx, a_sflx, albedo,radsounding=radsounding,useMcICA=useMcICA)
+             znc(:,:,:) = CCN
+             zrc(:,:,:) = a_rc(:,:,:) ! Cloud water only
+             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rv, zrc, znc, a_tt,  &
+                  a_rflx, a_sflx, albedo, rr=a_rpp,radsounding=radsounding,useMcICA=useMcICA)
 
           ELSE IF (level < 3) THEN
 
-             xref1 = 0.
-             xref2 = 0.
-             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, CCN,&
-                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rv, a_rc, a_tt,  &
+             znc(:,:,:) = CCN
+             zrc(:,:,:) = a_rc(:,:,:) ! Cloud water only
+             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rv, zrc, znc, a_tt,  &
                   a_rflx, a_sflx, albedo,radsounding=radsounding,useMcICA=useMcICA)
-             xref1 = xref1 + a_sflx(nzp,3,3)/albedo(3,3)
-             xref2 = xref2 + a_sflx(nzp,3,3)
-             albedo(3,3) = xref2/xref1
 
           ELSE IF (level >= 4) THEN
 
-             ! Cloud droplets + precipitation
-             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4)+SUM(a_nprecpp(:,:,:,:),DIM=4)
-             zrc(:,:,:) = a_rc(:,:,:) + a_srp(:,:,:)
+             ! Cloud droplets (+ precipitation)
+             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) !+SUM(a_nprecpp(:,:,:,:),DIM=4)
+             zrc(:,:,:) = a_rc(:,:,:) !+ a_srp(:,:,:)
 
-             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, CCN,&
-                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rp, zrc, a_tt,  &
-                  a_rflx, a_sflx, albedo, CDNC=znc, radsounding=radsounding,useMcICA=useMcICA)
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rp, zrc, znc, a_tt,  &
+                  a_rflx, a_sflx, albedo, rr=a_srp,radsounding=radsounding,useMcICA=useMcICA) 
 
           END IF
 
