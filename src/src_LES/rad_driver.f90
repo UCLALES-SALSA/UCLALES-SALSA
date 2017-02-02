@@ -119,7 +119,7 @@ module radiation
                pt(kk) = tk(k,i,j)
                ph(kk) = rv(k,i,j)
                if (present(rr)) then
-                  plwc(kk) = 1000.*dn0(k)*max(0.,(rc(k,i,j)-rr(k,i,j)))  ! rc  = total condensate??
+                  plwc(kk) = 1000.*dn0(k)*max(0.,rc(k,i,j))  ! rc  = total condensate??
                   prwc(kk) = 1000.*dn0(k)*rr(k,i,j)
                else
                   plwc(kk) = 1000.*dn0(k)*rc(k,i,j)
@@ -154,7 +154,7 @@ module radiation
             end if
 
             do k=2,n1-3
-               xfact  = exner(k)*dzm(k)/(cp*dn0(k))
+               xfact  = dzm(k)/(cp*dn0(k)*exner(k))
                tt(k,i,j) = tt(k,i,j) - (rflx(k,i,j) - rflx(k-1,i,j))*xfact
             end do
 
