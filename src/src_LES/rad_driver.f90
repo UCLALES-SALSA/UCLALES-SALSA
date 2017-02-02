@@ -33,34 +33,30 @@ module radiation
 
   logical, save     :: first_time = .True.
   real, allocatable, save ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
-       plwc(:), piwc(:), prwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:), &
-       nc(:) ! Juha: added nc
+       plwc(:), piwc(:), prwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:)
 
   integer :: k,i,j, npts
   real    :: ee, u0, day, time, alat, zz
 
   contains
 
-    subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, CCN, dn0, &
-         pi0, pi1, dzm, pip, tk, rv, rc, tt, rflx, sflx, albedo, rr, CDNC, radsounding, useMcICA)
+    subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn0, &
+         pi0, pi1, dzm, pip, tk, rv, rc, nc, tt, rflx, sflx, albedo, rr, radsounding, useMcICA)
 
       integer, intent (in) :: n1, n2, n3
-      real, intent (in)    :: alat, time, sknt, sfc_albedo, CCN
+      real, intent (in)    :: alat, time, sknt, sfc_albedo
       real, dimension (n1), intent (in)                 :: dn0, pi0, pi1, dzm
-      real, dimension (n1,n2,n3), intent (in)           :: pip, tk, rv, rc
+      real, dimension (n1,n2,n3), intent (in)           :: pip, tk, rv, rc, nc
       real, optional, dimension (n1,n2,n3), intent (in) :: rr
       real, dimension (n1,n2,n3), intent (inout)        :: tt, rflx, sflx
-      ! Juha added
-      REAL, OPTIONAL, DIMENSION(n1,n2,n3), INTENT(in)   :: CDNC
       CHARACTER(len=50), OPTIONAL, INTENT(in)           :: radsounding
       LOGICAL, OPTIONAL                                     :: useMcICA
       real, intent (out)                                :: albedo(n2,n3)
 
       integer :: kk
       real    :: xfact, prw, p0(n1), exner(n1), pres(n1)
-      xfact = 0.0; prw = 0.0; p0 = 0.0; exner = 0.0; pres = 0.0;
-      IF (PRESENT(radsounding)) background = radsounding ! Juha: Added; can change the background
-                                                         ! profile file from the NAMELIST
+
+      IF (PRESENT(radsounding)) background = radsounding
       IF (PRESENT(useMcICA)) McICA = useMcICA
 
       if (first_time) then
@@ -80,7 +76,6 @@ module radiation
          if (allocated(prwc)) prwc(:) = 0.
          if (allocated(plwc)) plwc(:) = 0.
          if (allocated(pgwc)) pgwc(:) = 0.
-         if (allocated(nc)) nc(:) = 0.
       end if
       !
       ! initialize surface albedo, emissivity and skin temperature.
@@ -118,24 +113,23 @@ module radiation
                pp(kk+1) = 0.5*(pres(k-1)+pres(k)) / 100.
                pt(kk) = tk(k,i,j)
                ph(kk) = rv(k,i,j)
-               if (present(rr)) then
-                  plwc(kk) = 1000.*dn0(k)*max(0.,(rc(k,i,j)-rr(k,i,j)))  ! rc  = total condensate??
-                  prwc(kk) = 1000.*dn0(k)*rr(k,i,j)
-               else
+
+               ! Cloud water
+               if ((rc(k,i,j).gt.0.) .and. (nc(k,i,j).gt.0.)) THEN
                   plwc(kk) = 1000.*dn0(k)*rc(k,i,j)
-                  prwc(kk) = 0.
+                  pre(kk)  = 1.e6*(plwc(kk)/(1000.*prw*nc(k,i,j)*dn0(k)))**(1./3.)
+                  !pre(kk)=min(max(pre(kk),4.18),31.23)
+               ELSE
+                  pre(kk) = 0.
+                  plwc(kk) = 0.
                end if
 
-               ! Juha: Added
-               IF (PRESENT(CDNC)) THEN
-                  nc(kk) = CDNC(k,i,j)*dn0(k)
-
-                  pre(kk) = MERGE( 1.e6*(plwc(kk)/(1000.*prw*MAX(nc(kk),1.e-20)))**(1./3.), 0.,  &
-                                  ( plwc(kk) > 0. .AND. nc(kk) > 0. ) )
-               ELSE
-                  pre(kk)  = 1.e6*(plwc(kk)/(1000.*prw*CCN*dn0(k)))**(1./3.)
-                  if (plwc(kk).le.0.) pre(kk) = 0.
-               END IF
+               ! Precipitation (not used at the moment)
+               if (present(rr)) then
+                  prwc(kk) = 1000.*dn0(k)*rr(k,i,j)
+               else
+                  prwc(kk) = 0.
+               end if
             end do
 
             call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
@@ -154,7 +148,7 @@ module radiation
             end if
 
             do k=2,n1-3
-               xfact  = exner(k)*dzm(k)/(cp*dn0(k))
+               xfact  = dzm(k)/(cp*dn0(k)*exner(k))
                tt(k,i,j) = tt(k,i,j) - (rflx(k,i,j) - rflx(k-1,i,j))*xfact
             end do
 
@@ -240,7 +234,7 @@ module radiation
     ! pressure at the top of the sounding
     !
     allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1))
-    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),nc(nv)) ! Juha: added nc
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),piwc(nv),prwc(nv))
 
     if (blend) then
        pp(1:norig) = sp(1:norig)
@@ -330,7 +324,7 @@ module radiation
     ! expect decreasing pressure grid (from TOA to surface)
     !
     allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
-    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),nc(nv)) ! Cell centers
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),piwc(nv),prwc(nv)) ! Cell centers
 
     po=0.
     IF (nb>0) THEN
