@@ -42,14 +42,14 @@ contains
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc     &
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_scr1  &
          , a_rv, a_rpp, a_srp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
-         a_ncloudp, a_nprecpp
+         a_ncloudp, a_nprecpp, a_ri, a_nicep, a_nsnowp
 
     use mpi_interface, only : myid, appl_abort
 
     real, optional, intent (in) :: time_in, cntlat, sst
 
     real :: xka, fr0, fr1, xref1, xref2
-    REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp)
+    REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
 
     ! DIVERGENCE GIVEN FROM NAMELIST
     if (trim(case_name) == 'atex') then
@@ -105,7 +105,6 @@ contains
        if (present(time_in) .and. present(cntlat) .and. present(sst)) then
 
           IF (level == 3) THEN
-
              znc(:,:,:) = CCN
              zrc(:,:,:) = a_rc(:,:,:) ! Cloud water only
              call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
@@ -113,23 +112,28 @@ contains
                   a_rflx, a_sflx, albedo, rr=a_rpp,radsounding=radsounding,useMcICA=useMcICA)
 
           ELSE IF (level < 3) THEN
-
              znc(:,:,:) = CCN
              zrc(:,:,:) = a_rc(:,:,:) ! Cloud water only
              call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                   dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rv, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, albedo,radsounding=radsounding,useMcICA=useMcICA)
+                  a_rflx, a_sflx, albedo, radsounding=radsounding,useMcICA=useMcICA)
 
-          ELSE IF (level >= 4) THEN
-
-             ! Cloud droplets (+ precipitation)
-             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) !+SUM(a_nprecpp(:,:,:,:),DIM=4)
-             zrc(:,:,:) = a_rc(:,:,:) !+ a_srp(:,:,:)
-
+          ELSE IF (level == 4) THEN
+             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) ! Cloud droplets
+             zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
              CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                   dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rp, zrc, znc, a_tt,  &
                   a_rflx, a_sflx, albedo, rr=a_srp,radsounding=radsounding,useMcICA=useMcICA) 
 
+          ELSE IF (level == 5) THEN
+             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) ! Cloud droplets
+             zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
+             zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4) ! Ice
+             zri(:,:,:) = a_ri(:,:,:) ! Ice (no aerosol ice?)
+
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+                  dn0, pi0, pi1, dzt, a_pexnr, a_scr1, a_rp, zrc, znc, a_tt,  &
+                  a_rflx, a_sflx, albedo, rr=a_srp,ice=zri,nice=zni,radsounding=radsounding,useMcICA=useMcICA)
           END IF
 
           IF ( case_name /= 'none') THEN

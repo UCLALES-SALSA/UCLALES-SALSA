@@ -24,8 +24,8 @@ module radiation
   ! Juha Tonttila, FMI
 
 
-  use defs, only       : cp, rcp, cpr, rowt, p00, pi, nv1, nv, SolarConstant
-  use fuliou, only     : rad,minSolarZenithCosForVis
+  use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv, SolarConstant
+  use fuliou, only     : rad, minSolarZenithCosForVis
   implicit none
 
   character (len=50) :: background = 'datafiles/dsrt.lay'
@@ -40,21 +40,21 @@ module radiation
 
   contains
 
-    subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn0, &
-         pi0, pi1, dzm, pip, tk, rv, rc, nc, tt, rflx, sflx, albedo, rr, radsounding, useMcICA)
+    subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn0, pi0, pi1, dzm, &
+         pip, tk, rv, rc, nc, tt, rflx, sflx, albedo, rr, ice, nice, grp, radsounding, useMcICA)
 
       integer, intent (in) :: n1, n2, n3
       real, intent (in)    :: alat, time, sknt, sfc_albedo
       real, dimension (n1), intent (in)                 :: dn0, pi0, pi1, dzm
       real, dimension (n1,n2,n3), intent (in)           :: pip, tk, rv, rc, nc
-      real, optional, dimension (n1,n2,n3), intent (in) :: rr
+      real, optional, dimension (n1,n2,n3), intent (in) :: rr, ice, nice, grp
       real, dimension (n1,n2,n3), intent (inout)        :: tt, rflx, sflx
       CHARACTER(len=50), OPTIONAL, INTENT(in)           :: radsounding
       LOGICAL, OPTIONAL                                     :: useMcICA
       real, intent (out)                                :: albedo(n2,n3)
 
       integer :: kk
-      real    :: xfact, prw, p0(n1), exner(n1), pres(n1)
+      real    :: xfact, prw, pri, p0(n1), exner(n1), pres(n1)
 
       IF (PRESENT(radsounding)) background = radsounding
       IF (PRESENT(useMcICA)) McICA = useMcICA
@@ -80,16 +80,17 @@ module radiation
       !
       ! initialize surface albedo, emissivity and skin temperature.
       !
-      ee = 1.0 
+      ee = 1.0
       !
-      ! determine the solar geometery, as measured by u0, the cosine of the 
+      ! determine the solar geometery, as measured by u0, the cosine of the
       ! solar zenith angle
       !
       u0 = zenith(alat,time)
       !
-      ! call the radiation 
+      ! call the radiation
       !
       prw = (4./3.)*pi*rowt
+      pri = (3.*sqrt(3.)/8.)*roice
       do j=3,n3-2
          do i=3,n2-2
             ! Grid cell pressures in the LES model (Pa)
@@ -118,7 +119,7 @@ module radiation
                if ((rc(k,i,j).gt.0.) .and. (nc(k,i,j).gt.0.)) THEN
                   plwc(kk) = 1000.*dn0(k)*rc(k,i,j)
                   pre(kk)  = 1.e6*(plwc(kk)/(1000.*prw*nc(k,i,j)*dn0(k)))**(1./3.)
-                  !pre(kk)=min(max(pre(kk),4.18),31.23)
+                  pre(kk)=min(max(pre(kk),4.18),31.23)
                ELSE
                   pre(kk) = 0.
                   plwc(kk) = 0.
@@ -127,17 +128,50 @@ module radiation
                ! Precipitation (not used at the moment)
                if (present(rr)) then
                   prwc(kk) = 1000.*dn0(k)*rr(k,i,j)
-               else
-                  prwc(kk) = 0.
                end if
+
+               ! Ice
+               if (present(ice)) then
+                  if ((ice(k,i,j).gt.0.).and.(nice(k,i,j).gt.0.)) then
+                     piwc(kk) = 1000.*dn0(k)*ice(k,i,j)
+                     pde(kk)  = 1.e6*(piwc(kk)/(1000.*pri*nice(k,i,j)*dn0(k)))**(1./3.)
+                     pde(kk)=min(max(pde(kk),20.),180.)
+                  else
+                     piwc(kk) = 0.0
+                     pde(kk)  = 0.0
+                  endif
+               end if
+
+               ! Graupel
+               if (present(grp)) then
+                  pgwc(kk) = 1000.*dn0(k)*grp(k,i,j)
+               end if
+
             end do
 
-            call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                 fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre)
+            if (present(ice).and.present(rr).and.present(grp)) then
+                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, prwc=prwc, pgwc=pgwc)
+            ELSEif (present(ice).and.present(grp)) then
+                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, pgwc=pgwc)
+            ELSEif (present(ice).and.present(rr)) then
+                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, prwc=prwc)
+            ELSEif (present(ice)) then
+                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde)
+            ELSEif (present(rr)) then
+                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, prwc=prwc)
+            else
+                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre)
+            end if
 
             do k=1,n1
                kk = nv1 - (k-1)
-               sflx(k,i,j) = fus(kk)  - fds(kk) 
+               sflx(k,i,j) = fus(kk)  - fds(kk)
                rflx(k,i,j) = sflx(k,i,j) + fuir(kk) - fdir(kk)
             end do
 
@@ -189,7 +223,7 @@ module radiation
     ! identify what part, if any, of background sounding to use
     !
     ptop = zp(n1)
-    if (sp(2) < ptop) then 
+    if (sp(2) < ptop) then
        pa = sp(1)
        pb = sp(2)
        k = 3
@@ -199,13 +233,13 @@ module radiation
           k  = k+1
        end do
        k=k-1           ! identify first level above top of input
-       blend = .True. 
+       blend = .True.
     else
        blend = .False.
     end if
     !
     ! if blend is true then the free atmosphere above the sounding will be
-    ! specified based on the specified background climatology, here the 
+    ! specified based on the specified background climatology, here the
     ! pressure levels for this part of the sounding are determined
     !
     if (blend) then
@@ -234,7 +268,7 @@ module radiation
     ! pressure at the top of the sounding
     !
     allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1))
-    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),piwc(nv),prwc(nv))
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv))
 
     if (blend) then
        pp(1:norig) = sp(1:norig)
@@ -324,7 +358,7 @@ module radiation
     ! expect decreasing pressure grid (from TOA to surface)
     !
     allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
-    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),piwc(nv),prwc(nv)) ! Cell centers
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
 
     po=0.
     IF (nb>0) THEN
@@ -415,7 +449,7 @@ module radiation
   end function getindex
 
   ! ---------------------------------------------------------------------------
-  ! linear interpolation between two points, 
+  ! linear interpolation between two points,
   !
   real function intrpl(x1,y1,x2,y2,x)
 
@@ -429,7 +463,7 @@ module radiation
   end function intrpl
 
   ! ---------------------------------------------------------------------------
-  ! Return the cosine of the solar zenith angle give the decimal day and 
+  ! Return the cosine of the solar zenith angle give the decimal day and
   ! the latitude
   !
   real function zenith(alat,time)
