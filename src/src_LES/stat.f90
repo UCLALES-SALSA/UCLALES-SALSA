@@ -787,7 +787,7 @@ contains
     call get_3rd3(n1,n2,n3,rl,a1,a3)
 
     do k=1,n1
-       svctr(k,59)=svctr(k,59) + a1(k)*1000.
+       svctr(k,59)=svctr(k,59) + a1(k)
        svctr(k,60)=svctr(k,60) + a2(k)
        svctr(k,61)=svctr(k,61) + a3(k)
     end do
@@ -873,6 +873,7 @@ contains
        end do
     end do
     ssclr(15) = get_avg(1,n2,n3,1,scr)
+    scr=scr-ssclr(15) ! For LWP variance
     ssclr(16) = get_cor(1,n2,n3,1,scr,scr)
   end subroutine accum_lvl2
   !
@@ -917,8 +918,8 @@ contains
              end if
           end do
        end do
-       svctr(k,84)=svctr(k,84) + CCN*dn0(k)/1000. ! nc (1/litre)
-       svctr(k,86)=svctr(k,86) + a1(k)*1000.
+       svctr(k,84)=svctr(k,84) + CCN   ! nc (#/kg)
+       svctr(k,86)=svctr(k,86) + a1(k) ! rr (kg/kg)
        if (aflg) then
           svctr(k,85)=svctr(k,85)+get_csum(n1,n2,n3,k,nr,scr1)
           svctr(k,91)=svctr(k,91)+get_avg(1,n2,n3,1,scr1)
@@ -942,8 +943,8 @@ contains
              end if
           end do
        end do
+       if (k == 2 ) ssclr(24) = rrcnt/REAL( (n3-4)*(n2-4) )
        if (aflg) then
-          if (k == 2 ) ssclr(24) = rrcnt
           svctr(k-1,90)=svctr(k-1,90)+get_csum(n1,n2,n3,k,rrate,scr1)
           svctr(k-1,89)=svctr(k-1,89)+get_avg(1,n2,n3,1,scr1)
        end if
@@ -978,8 +979,8 @@ contains
     ssclr(22) = get_avg(1,n2,n3,1,scr2)
     zarg(1,:,:) = rrate(2,:,:) 
     ssclr(23) = get_avg(1,n2,n3,1,zarg)
-    ssclr(25) = CCN*1.e-6 ! per cc
-    ssclr(26) = nrsum
+    ssclr(25) = CCN
+    IF (nrcnt>0.) ssclr(26) = nrsum/nrcnt
     ssclr(27) = nrcnt
 
   end subroutine accum_lvl3

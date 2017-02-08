@@ -528,7 +528,7 @@ contains
        if (itype==2) ncinfo = 'time'
     case('lwp_var')
        if (itype==0) ncinfo = 'Liquid-water path variance'
-       if (itype==1) ncinfo = 'kg/m^2'
+       if (itype==1) ncinfo = 'kg^2/m^4'
        if (itype==2) ncinfo = 'time'
     case('zc')
        if (itype==0) ncinfo = 'Cloud-top height'
@@ -547,7 +547,7 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
     case('albedo')
-       if (itype==0) ncinfo = 'Relfected (TOA) shortwave radiation'
+       if (itype==0) ncinfo = 'Reflected (TOA) shortwave radiation'
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'time'
     case('rwp_bar')
@@ -559,16 +559,16 @@ contains
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'time'
     case('pfrac')
-       if (itype==0) ncinfo = 'Precipitation fraction'
+       if (itype==0) ncinfo = 'Surface precipitation fraction'
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'time'
     case('CCN')
        if (itype==0) ncinfo = 'Cloud condensation nuclei'
-       if (itype==1) ncinfo = '#'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('nrain')
        if (itype==0) ncinfo = 'Conditionally sampled rain number mixing ratio'
-       if (itype==1) ncinfo = '#/l'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('nrcnt')
        if (itype==0) ncinfo = 'Rain cell counts'
@@ -679,168 +679,168 @@ contains
        if (itype==2) ncinfo = 'time'
     case('rmH2Oae')
        if (itype==0) ncinfo = 'Deposition of H2O with aerosols'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmH2Ocl')
        if (itype==0) ncinfo = 'Deposition of H2O with cloud droplets'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmH2Opr')
        if (itype==0) ncinfo = 'Deposition of water with rain'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmSO4dr')
        if (itype==0) ncinfo = 'Aerosol deposition of SO4'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmSO4cl')
        if (itype==0) ncinfo = 'Cloud deposition of SO4'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmSO4pr')
        if (itype==0) ncinfo = 'Precipitation deposition of SO4'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmSO4wt')
        if (itype==0) ncinfo = 'Total wet deposition of SO4'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmSO4tt')
        if (itype==0) ncinfo = 'Total deposition of SO4'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmOCdr')
        if (itype==0) ncinfo = 'Aerosol deposition of OC'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmOCcl')
        if (itype==0) ncinfo = 'Cloud deposition of OC'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmOCpr')
        if (itype==0) ncinfo = 'Precipitation deposition of OC'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmOCwt')
        if (itype==0) ncinfo = 'Total wet deposition of OC'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmOCtt')
        if (itype==0) ncinfo = 'Total deposition of OC'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmBCdr')
        if (itype==0) ncinfo = 'Aerosol deposition of BC'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmBCcl')
        if (itype==0) ncinfo = 'Cloud deposition of BC'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmBCpr')
        if (itype==0) ncinfo = 'Precipitation deposition of BC'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmBCwt')
        if (itype==0) ncinfo = 'Total wet deposition of BC'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmBCtt')
        if (itype==0) ncinfo = 'Total deposition of BC'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmDUdr')
        if (itype==0) ncinfo = 'Aerosol deposition of DU'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmDUcl')
        if (itype==0) ncinfo = 'Cloud deposition of DU'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmDUpr')
        if (itype==0) ncinfo = 'Precipitation deposition of DU'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmDUwt')
        if (itype==0) ncinfo = 'Total wet deposition of DU'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmDUtt')
        if (itype==0) ncinfo = 'Total deposition of DU'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmSSdr')
        if (itype==0) ncinfo = 'Aerosol deposition of SS'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmSScl')
        if (itype==0) ncinfo = 'Cloud deposition of SS'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmSSpr')
        if (itype==0) ncinfo = 'Precipitation deposition of SS'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmSSwt')
        if (itype==0) ncinfo = 'Total wet deposition of SS'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmSStt')
        if (itype==0) ncinfo = 'Total deposition of SS'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmNH3dr')
        if (itype==0) ncinfo = 'Aerosol deposition of NH3'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmNH3cl')
        if (itype==0) ncinfo = 'Cloud deposition of NH3'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmNH3pr')
        if (itype==0) ncinfo = 'Precipitation deposition of NH3'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmNH3wt')
        if (itype==0) ncinfo = 'Total wet deposition of NH3'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmNH3tt')
        if (itype==0) ncinfo = 'Total deposition of NH3'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmNO3dr')
        if (itype==0) ncinfo = 'Aerosol deposition of NO3'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmNO3cl')
        if (itype==0) ncinfo = 'Cloud deposition of NO3'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmNO3pr')
        if (itype==0) ncinfo = 'Precipitation deposition of NO3'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmNO3wt')
        if (itype==0) ncinfo = 'Total wet deposition of NO3'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmNO3tt')
        if (itype==0) ncinfo = 'Total deposition of NO3'
-       if (itype==1) ncinfo = 'kg/m^2s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     ! // SALSA temporal
     case('fsttm')
        if (itype==0) ncinfo = 'First sample time'
-       if (itype==1) ncinfo = 'kg/m^3'
+       if (itype==1) ncinfo = 's'
        if (itype==2) ncinfo = 'time'
     case('lsttm')
-       if (itype==0) ncinfo = 'Basic state density'
-       if (itype==1) ncinfo = 'kg/m^3'
+       if (itype==0) ncinfo = 'Last sample time'
+       if (itype==1) ncinfo = 's'
        if (itype==2) ncinfo = 'time'
     case('nsmp')
-       if (itype==0) ncinfo = 'Basic state density'
-       if (itype==1) ncinfo = 'kg/m^3'
+       if (itype==0) ncinfo = 'Number of samples'
+       if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'time'
     case('u_2')
        if (itype==0) ncinfo = 'Variance of u wind'
@@ -1008,7 +1008,7 @@ contains
        if (itype==2) ncinfo = 'ttmt'
     case('rflx2')
        if (itype==0) ncinfo = 'Variance of total radiative flux'
-       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==1) ncinfo = 'W^2/m^4'
        if (itype==2) ncinfo = 'ttmt'
     case('sflx')
        if (itype==0) ncinfo = 'Shortwave radiative flux'
@@ -1016,18 +1016,18 @@ contains
        if (itype==2) ncinfo = 'ttmt'
     case('sflx2')
        if (itype==0) ncinfo = 'Variance of shortwave radiative flux'
-       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==1) ncinfo = 'W^2/m^4'
        if (itype==2) ncinfo = 'ttmt'
     case('l_2')
-       if (itype==0) ncinfo = 'Variance of liquid'
+       if (itype==0) ncinfo = 'Variance of liquid water mixing ratio'
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'tttt'
     case('l_3')
-       if (itype==0) ncinfo = 'Third moment of liquid'
+       if (itype==0) ncinfo = 'Third moment of liquid water mixing ratio'
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'tttt'
     case('tot_lw')
-       if (itype==0) ncinfo = 'Resolved turbulent flux of liquid'
+       if (itype==0) ncinfo = 'Resolved turbulent flux of liquid water mixing ratio'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sed_lw')
@@ -1116,15 +1116,15 @@ contains
        if (itype==2) ncinfo = 'ttmt'
     case('Nc')
        if (itype==0) ncinfo = 'Cloud Number Concentration'
-       if (itype==1) ncinfo = 'cm^3'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('Nr')
        if (itype==0) ncinfo = 'Rain Number Concentration'
-       if (itype==1) ncinfo = 'cm^-3'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('rr')
        if (itype==0) ncinfo = 'Rain water'
-       if (itype==1) ncinfo = 'gkg'
+       if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('precip')
        if (itype==0) ncinfo = 'Precipitation Flux (positive downward'
@@ -1606,7 +1606,7 @@ contains
        if (itype==2) ncinfo = 'tttt'
     case('P_RH')
        if (itype==0) ncinfo = 'Level 4 relative humidity'
-       if (itype==1) ncinfo = '1'
+       if (itype==1) ncinfo = '%'
        if (itype==2) ncinfo = 'tttt'
     case('P_Naba')
        if (itype==0) ncinfo = 'Aerosol number concentration in size bins A'

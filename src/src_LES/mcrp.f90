@@ -1186,7 +1186,6 @@ contains
     REAL :: prnchg(n1,nn), prvchg(n1,nn,n4) ! Instantaneous changes in precipitation number and mass (volume)
  
     REAL :: prnumc, prvolc(n4)  ! Instantaneous source number and volume
-    REAL :: prdepn(nn), prdepv(nn,n4)
     INTEGER :: kf, ni,fi
     LOGICAL :: prcdep  ! Deposition flag
 
@@ -1200,8 +1199,6 @@ contains
        
        DO i = 3,n2-2
 
-          prdepn = 0.
-          prdepv = 0.
           prnchg = 0.
           prvchg = 0.
           
@@ -1267,8 +1264,6 @@ contains
              
                 ! Put the drops to new positions (may be partially the original grid cell as well!)
                 IF (prcdep) THEN
-                   prdepn(bin) = prdepn(bin) + prnumc
-                   prdepv(bin,:) = prdepv(bin,:) + prvolc(:)
                    DO ni=1,n4
                       remprc(i,j,(ni-1)*nn+bin) = remprc(i,j,(ni-1)*nn+bin) +    &
                            prvolc(ni)*adn(k,i,j)*vc
