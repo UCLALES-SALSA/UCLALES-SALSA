@@ -174,8 +174,8 @@ contains
     REAL :: ztmp,ztot
 
     npnt = 0
+    get_avg_ts=0.
     IF (PRESENT(cond)) THEN
-       get_avg_ts=0.
        DO j=3,n3-2
           DO i=3,n2-2
              ztot = 0.
@@ -186,15 +186,15 @@ contains
                    ztot = ztot + (1./dz(k))
                 END IF
              END DO
-             ! Grid weighted vertical average
-             if (ztot /=0.0 ) ztmp = ztmp/ztot
-             npnt = npnt + 1 ! Note: this should not be used (use ztot instead!)
-             get_avg_ts = get_avg_ts + ztmp
+             ! Grid weighted vertical average for columns with at least one available value
+             if (ztot /=0.0 ) THEN
+                get_avg_ts = get_avg_ts + ztmp/ztot
+                npnt = npnt + 1
+             END IF
           END DO
        END DO
        
     ELSE
-       get_avg_ts=0.
        DO j=3,n3-2
           DO i=3,n2-2
              ztot = 0.
@@ -212,7 +212,7 @@ contains
 
     END IF
 
-    get_avg_ts = get_avg_ts/max(10e-5,real(npnt))
+    IF (npnt>0) get_avg_ts = get_avg_ts/real(npnt)
 
   end function get_avg_ts
   !
@@ -372,27 +372,6 @@ contains
     avg(:)=avg(:)/real((n3-4)*(n2-4))
 
   end subroutine get_3rd3
-  ! 
-  !-------------------------------------------------------------------
-  ! function get_var: gets square of a field from k'th level 
-  ! 
-  real function get_sqr(n1,n2,n3,k,a)
-
-    integer, intent (in):: n1, n2, n3, k
-    real, intent (in)   :: a(n1,n2,n3)
-
-    integer :: i,j
-    real    :: avg
-
-    avg=0.
-    do j=3,n3-2
-       do i=3,n2-2
-          avg=avg+a(k,i,j)**2
-       end do
-    end do
-    get_sqr = avg/real((n3-4)*(n2-4))
-
-  end function get_sqr
   !
   ! ----------------------------------------------------------------------
   ! subroutine tridiff: standard tri-diagonal solver for nh columns

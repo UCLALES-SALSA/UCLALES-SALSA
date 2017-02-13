@@ -14,14 +14,14 @@ contains
   ! ----------------------------------------------------------------------
   ! Subroutine Open_NC: Opens a NetCDF File and identifies starting record
   !
-  subroutine open_nc (fname, ename, time, npts, ncid, nrec, version, author)
+  subroutine open_nc (fname, ename, time, npts, ncid, nrec, version, author, info)
 
     integer, intent(in)             :: npts
     integer, intent(out)            :: ncid
     integer, intent(out)            :: nrec
     real, intent (in)               :: time
     character (len=80), intent (in) :: fname, ename
-    CHARACTER(LEN=80) :: version, author
+    CHARACTER(LEN=80) :: version, author, info
 
     real, allocatable :: xtimes(:)
 
@@ -45,12 +45,14 @@ contains
 
        iret = nf90_put_att(ncid,NF90_GLOBAL,'title',ename)
        iret = nf90_put_att(ncid,NF90_GLOBAL,'history','Created on '//date)
-       iret = nf90_put_att(ncid, NF90_GLOBAL, 'Source','UCLALES-SALSA Version '//trim(version))
-       iret = nf90_put_att(ncid, NF90_GLOBAL, 'Author',trim(author))
+       iret = nf90_put_att(ncid, NF90_GLOBAL, 'Source','UCLALES-SALSA '//trim(version))
+       if (len(author)>0) iret = nf90_put_att(ncid, NF90_GLOBAL, 'Author',trim(author)) ! Optional
+       if (len(info)>0) iret = nf90_put_att(ncid, NF90_GLOBAL, 'Info',trim(info)) ! Optional
        iret = nf90_put_att(ncid, NF90_GLOBAL, '_FillValue',-999.)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPTS',npts)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPROCS',pecount)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'PROCID',myid)
+       iret = nf90_put_att(ncid, NF90_GLOBAL, 'IO_version',1.1)
     else
        iret = nf90_open (trim(lfname), NF90_WRITE, ncid)
        iret = nf90_inquire(ncid, unlimitedDimId = RecordDimID)
@@ -1115,15 +1117,15 @@ contains
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('Nc')
-       if (itype==0) ncinfo = 'Cloud Number Concentration'
+       if (itype==0) ncinfo = 'Cloud droplet number concentration'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('Nr')
-       if (itype==0) ncinfo = 'Rain Number Concentration'
+       if (itype==0) ncinfo = 'Rain drop number concentration'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('rr')
-       if (itype==0) ncinfo = 'Rain water'
+       if (itype==0) ncinfo = 'Rain water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('precip')
@@ -1593,7 +1595,7 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('P_rl')
-       if (itype==0) ncinfo = 'Level 4 liquid water mixing ratio (no precp)'
+       if (itype==0) ncinfo = 'Level 4 cloud water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('P_rr')

@@ -167,7 +167,7 @@ contains
   subroutine init_stat(time, filprf, expnme, nzp)
 
     use grid, only : nxp, nyp, iradtyp, prtcl
-    use mpi_interface, only : myid, ver, author
+    use mpi_interface, only : myid, ver, author, info
     use mo_submctl, only : nprc, fn2a,fn2b,fca,fcb,fra
     USE class_ComponentIndex, ONLY : IsUsed
 
@@ -437,7 +437,7 @@ contains
     fname =  trim(filprf)//'.ts'
     if(myid == 0) print                                                  &
          "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
-    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid1, nrec1, ver, author)
+    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid1, nrec1, ver, author, info)
     ! Juha: Modified for SALSA output
     call define_nc( ncid1, nrec1, COUNT(s1bool), PACK(s1Total,s1bool))
     if (myid == 0) print *, '   ...starting record: ', nrec1
@@ -447,7 +447,7 @@ contains
     fname =  trim(filprf)//'.ps'
     if(myid == 0) print                                                  &
          "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
-    call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2, ver, author)
+    call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2, ver, author, info)
     ! Juha: Modified due to SALSA output
     call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp, inae_a=fn2a, inae_b=fn2b-fn2a, &
                     incld_a=fca%cur, incld_b=fcb%cur-fca%cur, inprc=fra)
@@ -775,7 +775,6 @@ contains
     real, dimension(n1,n2,n3) :: tv    ! Local variable
     integer                   :: k, i, j, km1
     logical                   :: aflg
-    real                      :: xy1mx
     real, dimension(n1)       :: a1, a2, a3, tvbar
     real, dimension(n2,n3)    :: scr, xy1, xy2
 
@@ -803,7 +802,6 @@ contains
     end do
     call get_avg3(n1,n2,n3,tv,tvbar)
 
-    xy1mx = 0.
     do k=1,n1-1 ! Juha: below references to k+1!!
        aflg = .false.
        do j=3,n3-2
@@ -2156,7 +2154,7 @@ contains
 
     case(4)
        !
-       ! find level where xx is a maximum
+       ! find level where xx is a minimum
        !
        sval = huge(1.)
        kk = 1
