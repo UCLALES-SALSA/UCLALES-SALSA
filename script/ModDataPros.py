@@ -21,10 +21,6 @@ import matplotlib.pyplot as plt
 from itertools import cycle
 import matplotlib.patches as mpatches
 
-global colors
-global colorpool    
-colors = ['r','b','g','c','m','y','k']
-colorpool = cycle(colors)
 
 #################################
 ### subroutines               ###
@@ -113,7 +109,7 @@ def laske_minimi_maksimi(nimi,data):
   print 'mini ' + str(mini)
   print 'maxikoord' + str(maxikoord)
   print 'minikoord' + str(minikoord)		  
-  print ' '  
+  print ' '
 
 ##########################################################
 ### handle timeseries data by summing them columnwise  ###
@@ -480,7 +476,7 @@ def rmse(predictions, targets):
 ### most useful with .ts.nc files       ###
 ###                                     ###
 ###########################################
-def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuva = True, nimi = 'aikasarja', xnimi = 'x-akseli', ynimi= 'y-akseli' ):
+def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuva = True, nimi = 'aikasarja', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, colorNRO=7):
   if not isinstance(aika, np.ndarray):
     aika=np.zeros( (np.shape(data)[0]))
   
@@ -495,7 +491,35 @@ def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuv
       
   uusikuva = ( piirra and uusikuva )
   plot_alustus() if uusikuva else False
-  plottaa( aika, data, nimi, xnimi, ynimi)  if piirra else False
+  plottaa( aika, data, nimi, xnimi, ynimi, changeColor = changeColor)
+
+########################################
+### colorPool object class           ###
+###                                  ###
+########################################  
+class colorPool:
+    
+    def __init__( self, colorNumber ):
+        colorMap = plt.cm.gist_ncar
+        self.colors    = cycle( [colorMap(i) for i in np.linspace(0, 0.95, colorNumber)] )
+        self.currentColor = next(self.colors)
+
+    def getCurrentColor(self):
+        return self.currentColor
+    
+    def getNextColor(self):
+        self.currentColor = next(self.colors)
+        return self.currentColor
+
+########################################
+### colorPool object                 ###
+### needs to be called if plots are  ###
+### drawn                            ###
+########################################  
+
+def initializeColors(colorNRO=6):
+  color = colorPool(colorNRO)
+  global color
 
 ########################################
 ### initialize a new figure          ###
@@ -504,6 +528,7 @@ def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuv
 def plot_alustus():
   plt.figure()
 
+  
 ########################################
 ### show figures                     ###
 ###                                  ###
@@ -512,23 +537,54 @@ def plot_lopetus():
   plt.show()
 
 ########################################
+### change y-limits of the plot      ###
+###                                  ###
+########################################
+def plot_setYlim( minimiY, maksimiY, extendBelowZero = True, A = 0.05 ):
+    from sys import float_info
+    
+    # A = extensionparametri
+    #print 'minimiY '  + str(minimiY)
+    #print 'maksimiY ' + str(maksimiY)
+    if (abs(minimiY-maksimiY) >  float_info.epsilon*10 ):
+        if extendBelowZero:
+            ymin = minimiY - A*(maksimiY-minimiY) 
+        else:
+            ymin = 0.0
+    
+        ymax = maksimiY + A*(maksimiY-minimiY)
+        #print 'y limit min ' + str(ymin)
+        #print 'y limit max ' + str(ymax)
+        plt.ylim( ymin, ymax )
+    
+########################################
 ### plot data                        ###
 ###                                  ###
 ########################################
-def plottaa(x,y,tit,xl,yl,label=0,log=False):
+def plottaa( x, y, tit, xl, yl, label=0, log=False, changeColor=True):
+  global color
   if  isinstance(label, int):
       label = tit
 
-  c = next(colorpool)
-  plt.plot(x,y, color=c, label=label)
-  plt.xlabel(xl) #r'$\#/m^3$'
-  plt.ylabel(yl)
-  plt.title(tit)
+  if changeColor:
+    currentColor = color.getNextColor()
+  else:
+    currentColor = color.getCurrentColor()
+  
+    
+  plt.plot( x, y, color = currentColor, label=label )
+  
+  plt.xlabel( xl ) #r'$\#/m^3$'
+  plt.ylabel( yl )
+  #plt.title(tit)
   #plt.xticks( xtikut )
-  plt.grid(True)
+  plt.grid( True )
+  #plt.autoscale(enable=True, axis='y', tight=True)
+  plt.autoscale( enable=True, axis='x', tight=True )
   #patch = mpatches.Patch(color=c, label=legend)
   #plt.legend(handles=[patch])
-  plt.legend(bbox_to_anchor=(0., 1.02, 1., 10.102), loc=3,ncol=2, mode="expand", borderaxespad=0.)
+
+  plt.legend( bbox_to_anchor = ( 0., 1.02, 1., 10.102 ), loc=3, ncol=2, mode="expand", borderaxespad=0. )
   if (log):
     plt.xscale('log')  
     

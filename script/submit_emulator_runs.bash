@@ -6,7 +6,7 @@ set -e
 #
 #
 # EXAMPLE USAGE
-# A=28 B=30 ./submit_emulator_runs_parallel.bash 3
+# A=28 B=30 postfix=geggals ./submit_emulator_runs_parallel.bash 3
 # where A is the case number that you want to start from
 #       B is the case number that you want to end up
 #    $1 = 3 is the number of how many runs you dare to submit at the same time
@@ -19,15 +19,21 @@ les=${root}/src/src_LES
 bin=${root}/bin
 script=${root}/script
 
+if [ -n $postfix ]; then
+    postfix=_${postfix}
+fi
 
 #### user parameters
 username=aholaj
 email=jaakko.ahola@fmi.fi
 
-folder=case_emulator
+prefix=case_emulator
+inputsubfolder=$prefix
+folder=${prefix}${postfix}
+
 subfolder=UCLALES-SALSA
 
-inputrootfolder=${bin}/${folder}
+inputrootfolder=${bin}/${inputsubfolder}
 outputrootfolder=/lustre/tmp/${username}/${subfolder}/${folder}
 # ibrixrootfolder=/ibrix/arch/ClimRes/aholaj/${folder}
 
@@ -154,7 +160,7 @@ fi
 for n in $( seq ${Nro} )
 do
 
-echo "runNroBegin=$k simulNro=$Nro runNroEnd=$B threadNro=$n nproc=${nproc} jobflag=$JOBFLAG scriptname=$scriptname ${outputrootfolder}/emulator_runs_parallel.bash | tee ${outputrootfolder}/emulatoroutput${n} &" >> ${outputrootfolder}/control_multiple_emulator_run.sh
+echo "runNroBegin=$k simulNro=$Nro runNroEnd=$B threadNro=$n nproc=${nproc} postfix=${postfix} jobflag=$JOBFLAG scriptname=$scriptname ${outputrootfolder}/emulator_runs_parallel.bash | tee ${outputrootfolder}/emulatoroutput${n} &" >> ${outputrootfolder}/control_multiple_emulator_run.sh
 
 k=$((A+$n))
 done

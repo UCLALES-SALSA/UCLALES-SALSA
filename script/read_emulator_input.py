@@ -9,6 +9,8 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
+import FindCloudBase
+
 folder='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/'
 #file = 'sound_in_DYCOMSIIRF02'
 file = 'corr_design_15d.csv'
@@ -42,4 +44,19 @@ for line in f:
     
 f.close()
 
-print pblh
+#print pblh
+
+k = 0
+for i in xrange(len(pblh)):
+    base = FindCloudBase.calc_cloud_base( 101780, tpot_pbl[i], q_pbl[i]/1000.  )
+    pbl  = pblh[i]*1000.
+        
+    if ( base > pbl or base < 0.1 ):
+        print ' '
+        print 'ÄLÄHDYS ' + str(case[i])
+        print 'pilven korkeus ' + str(base)
+        print 'rajakerros ' + str(pbl)
+        k += 1
+
+print ' '
+print 'väärien määrä ' + str(k)

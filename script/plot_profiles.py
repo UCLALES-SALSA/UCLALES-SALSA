@@ -80,21 +80,27 @@ class PlotProfiles:
                 found = True
                 indexLower = i
             i -= 1
-        print 'indexLower ' + str(indexLower)
-        print 'indexUpper ' + str(indexUpper)
+#        print 'indexLower ' + str(indexLower)
+#        print 'indexUpper ' + str(indexUpper)
         if ( indexUpper - indexLower == 2):
             WindAppr = wind[indexLower+1]
         else:
             WindAppr = ( wind[indexUpper]-wind[indexLower] )/( self.z[indexUpper] - self.z[indexLower] )*( height-self.z[indexLower] ) + wind[indexLower]
-        print 'WindAppr' + str(WindAppr)
+#        print 'WindAppr' + str(WindAppr)
         return WindAppr
     
     def returnUAppr(self, height):
-        u = self.returnWindAppr( height,self.u)
+        if (height <= 3000.):
+            u = self.returnWindAppr( height,self.u)
+        else:
+            u = 0. #10.*np.random.random()
         return u
 
     def returnVAppr(self, height):
-        v = self.returnWindAppr( height,self.v)
+        if (height <= 3000.):
+            v = self.returnWindAppr( height,self.v)
+        else:
+            v = 0. # -10.*np.random.random()
         return v
                     
             

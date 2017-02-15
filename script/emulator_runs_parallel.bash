@@ -6,7 +6,7 @@ set -e
 
 #### user parameters
 username=aholaj
-folder=case_emulator
+folder=case_emulator${postfix}
 subfolder=UCLALES-SALSA
 
 

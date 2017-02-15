@@ -1,4 +1,7 @@
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
+# #                   nzp          file         windprofile  pres0        par/serial   runNroBegin  runNroEnd
+# ./emulatorinputs    200         $DESIGN       zero         1017.8       parallel     28           30
 """
 Created on Wed Dec 21 14:20:00 2016
 
@@ -24,8 +27,10 @@ from ModDataPros import plot_alustus
 from ModDataPros import plot_lopetus
 from FindCloudBase import calc_rh_profile
 from FindCloudBase import calc_cloud_droplet_diam
+from FindCloudBase import rslf
 from plot_profiles import PlotProfiles
 import sys
+import os
 
 global rootfolder
 rootfolder='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/bin/case_emulator/'
@@ -33,10 +38,10 @@ rootfolder='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/bin/case_
 filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/corr_design_15d.csv'
 #filu='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/vanhat/corr_design_15d_withconstraints.csv'
 
-if (len(sys.argv) > 1):
-    for i in sys.argv[1:]:
-        rootfolder = sys.argv[1]
-        filu = sys.argv[2]
+#if (len(sys.argv) > 1):
+#    for i in sys.argv[1:]:
+#        rootfolder = sys.argv[1]
+#        filu = sys.argv[2]
 
 
 def deltaz( pblh, nzp ):
@@ -45,17 +50,16 @@ def deltaz( pblh, nzp ):
    
     return deltaz, nzp
 
-def deltaz2( pblh, nzp ):
-    dz = max( 1., min( 20. , round( 1.3333 * pblh / float(nzp) ) ) )
+def deltaz2( pblh, nzp_orig ):
+    dz = max( 1., min( 20. , round( max( 1.3333 * pblh, pblh + 500.) / float(nzp_orig) ) ) )
 
-    deltaz = 10.0    
-    
     if ( dz < 10.0 ):
-        nzp = int(nzp*dz/deltaz)
         deltaz = 10.0
+        nzp = int((nzp_orig-1.5)*dz/deltaz)
     else:
         deltaz = dz
-    
+        nzp = nzp_orig
+
     return deltaz, nzp
     
 def define_z( pblh, deltaz, nzp ):
@@ -65,13 +69,9 @@ def define_z( pblh, deltaz, nzp ):
     
     zt.append(-deltaz/2.)
     
-    for i in xrange(nzp+4):
+    for i in xrange(nzp-1):
         zt.append(zt[i]+deltaz)
     
-    print 'deltaz '  + str(deltaz)
-    print 'korkeus ' + str(zt[-1])
-    print 'pblh '    + str(pblh)
-    print 'nzp '     + str(nzp)
     if (pblh > zt[-1]):
         sys.exit("MODEL HEIGHT NOT ABOVE PBLH")
     
@@ -117,7 +117,52 @@ def pot_temp_IT( z, pblh, tpot_pbl, tpot_inv, invThi = 50. ):
     
     return theta
 
+def dthcon(tpot_pbl, sst, pres0 ):
+    # CONSTANTS    
+    R = 287.04    # Specific gas constant for dry air (R_specific=R/M), J/kg/K
+    Rm = 461.5    # -||- for water
+    ep = R/Rm
+    ep2 = Rm/R-1.0 #M_air/M_water-1
+    cp = 1005.0    # Specific heat for a constant pressure
+    rcp = R/cp
+    cpr = cp/R
+    g = 9.8
+    p00 =1.0e+05
+    p00i = 1./p00
+    alvl   = 2.5e+06
+    ############
+    dthcon = tpot_pbl - sst*(p00/pres0)**rcp
     
+    return dthcon
+    
+def drtcon( q_pbl, sst, pres0 ):
+    drtcon = q_pbl - rslf(pres0,sst)
+
+    return drtcon    
+
+def absT( theta, p ):
+    p = p*100. # conversion from hPa to Pa
+    R = 287.04    # Specific gas constant for dry air (R_specific=R/M), J/kg/K
+    p00 =1.0e+05
+    p00i = 1./p00
+    cp = 1005.0    # Specific heat for a constant pressure
+    rcp = R/cp
+
+    absolut = theta*(p*p00i)**rcp
+    
+    return absolut
+
+def potT( t, p):
+    p = p*100. # conversion from hPa to Pa
+    R = 287.04    # Specific gas constant for dry air (R_specific=R/M), J/kg/K
+    p00 =1.0e+05
+#    p00i = 1./p00
+    cp = 1005.0    # Specific heat for a constant pressure
+    rcp = R/cp
+
+    theta = t*(p00/p)**rcp
+    
+    return theta
 
 def wind_0(z):
     u = 0.
@@ -131,12 +176,30 @@ def wind_dycoms(z):
 
 
 def wind_ascos(z):
-    ascos=PlotProfiles('sound_in', "bin/case_ascos/")
+    ascos = PlotProfiles('sound_in', "bin/case_ascos/")
     u = ascos.returnUAppr( z )
     v = ascos.returnVAppr( z )
 
     return u,v
 
+def calcWind(u,v):
+    x = np.asarray(u)
+    y = np.asarray(v)    
+    t = np.column_stack(( x, y))
+    wind = np.zeros(len(u))
+    for k in xrange(len(u)):
+        wind[k] = np.linalg.norm(t[k])
+    
+    return wind
+    
+def calcWindShear(u,v,z):
+    size = len(z)-1
+    shear = np.zeros(size)
+    for k in xrange(size):
+        shear[k] = np.sqrt( np.power( u[k+1] - u[k], 2 ) + np.power( v[k+1] - v[k], 2 ) ) / ( z[k+1] - z[k] )
+    
+    return shear
+        
 
 # t_grad [ K / m]
 def thickness( tpot_inv, t_grad = 0.2   ):
@@ -181,23 +244,28 @@ def read_design( filu  ):
     return case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, num_pbl
 
 
-def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, num_pbl, pres0 = 1017.8, u0 = 0., v0 = 0. ):
-
+def write_sound_in( input_vector ):
+#    input_vector = case[0], q_inv[1], tpot_inv[2], q_pbl[3], tpot_pbl[4], pblh[5], num_pbl[6], dz[7], nzp[8], windprofile[9], pres0[10]
+    case        = input_vector[0]
+    q_inv       = float( input_vector[1] )
+    tpot_inv    = float( input_vector[2] )
+    q_pbl       = float( input_vector[3] )
+    tpot_pbl    = float( input_vector[4] )
+    pblh        = float( input_vector[5] )
+    num_pbl     = float( input_vector[6] )
+    dz          = float( input_vector[7] )
+    nzp         = int( input_vector[8] )
+    windprofile = input_vector[9]
+    pres0       = float(input_vector[10])
     
-    #pres0 = 1017.8
-    t0 = tpot_pbl
-    q0 = q_pbl
-    #u0 = 3.
-    #v0 = -9.
-        
-    folder= rootfolder+'emul' + case +'/'
+    folder = rootfolder+'emul' + case +'/'
     call(['mkdir','-p', folder])
-    filename='sound_in' #+case
+    filename = 'sound_in' #+case
 #    print filename
-    filu=folder+filename
+    filu = folder + filename
     
     
-    f=open(filu,'w')
+    f = open(filu,'w')
     
     #z = [ 100., 200., 500.,790.,795.,800.,850.,900.,950.,1000.,1050.,1100.,1150.,1200.,1250.,1300.,1350.,1400.,1450.,1500.,1550.,1600.,1650.,1700.,1750.,1800.,1850.,1900.,1950.,2000.]
     
@@ -205,16 +273,23 @@ def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, num_p
 
     
     z = define_z( pblh, dz, nzp )
+    print ' '
+    print 'case '     + str(case)
+    print 'deltaz '  + str(dz)
+    print 'korkeus ' + str(z[-1])
+    print 'pblh '    + str(pblh)
+    print 'nzp '     + str(nzp)
+
     print 'tpot_pbl ' + str(tpot_pbl)
     print 'tpot_inv ' + str(tpot_inv)
-    print 'q_pbl ' + str(q_pbl)
-    print 'q_inv ' + str(q_inv)
-    print 'num_pbl ' + str(num_pbl)
+    print 'q_pbl '    + str(q_pbl)
+    print 'q_inv '    + str(q_inv)
+    print 'num_pbl '  + str(num_pbl)
     z[0] = pres0
-    potTemp = [t0]
-    wc = [q0]
-    u = [u0]
-    v = [v0]
+    potTemp = [tpot_pbl]
+    wc = [q_pbl]
+    u = [0.]
+    v = [0.]
 
     invThi = 50.    
 #    invThi = thickness( tpot_inv, t_grad = 0.2 )
@@ -226,10 +301,22 @@ def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, num_p
 
         potTemp.append( pot_temp_IT( z[k], pblh, tpot_pbl, tpot_inv, invThi ) )
         wc.append(      tot_wat_mix_rat_IT( z[k], pblh, q_pbl, q_inv, invThi ) )
-        u_apu, v_apu = wind_0( z[k] )        
+        if ( windprofile == 'zero' ):
+                u_apu, v_apu = wind_0( z[k] )
+        elif ( windprofile == 'ascos' ):
+                u_apu, v_apu = wind_ascos( z[k] )
+        elif ( windprofile == 'dycoms' ):
+                u_apu, v_apu = wind_dycoms( z[k] )                
         u.append( u_apu )
         v.append( v_apu )
-    
+    if ( windprofile == 'zero' ):
+        u_apu, v_apu = wind_0( 0. )
+    elif ( windprofile == 'ascos' ):
+        u_apu, v_apu = wind_ascos(  0. )
+    elif ( windprofile == 'dycoms' ):
+        u_apu, v_apu = wind_dycoms(  0. )
+    u[0] = u_apu
+    v[0] = v_apu        
 #    for k in xrange(len(z)):
 #        print z[k], potTemp[k]
         
@@ -238,9 +325,11 @@ def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, num_p
     rh, pressL = calc_rh_profile(  potTemp, np.multiply(np.asarray(wc), 0.001),  z )
     drop, cloudwater = calc_cloud_droplet_diam( potTemp, np.multiply(np.asarray(wc), 0.001),  pressL, num_pbl)
     cloudwater = np.multiply(cloudwater,1000.)
+    wind = calcWind(u,v)
+    windshear = calcWindShear(u,v,z)
 #    if you want to modify water content use the two following commands
 #    rh, wc2 = calc_rh_profile(  potTemp, np.multiply(np.asarray(wc), 0.001),  z, True )
-#    wc = np.multiply(wc,1000.)
+#    wc = np.multiply(wc,1000.)[7]
     
     # write to sound_in    
 
@@ -256,10 +345,10 @@ def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, num_p
     
 #     plotting
 #    print 'max liq pot temp', np.max(potTemp)
-#    print 'm
+#    print 'mcloud_water_mixing_ratio
     z[0] = 0.
     plot_alustus()
-    plottaa( potTemp, z, case+' liquid potential temperature', 'liquid potential temperature K', 'height m' )
+    plottaa( potTemp, z, case+' liquid potential temperature, inv. thick.: ' +str(invThi) , 'liquid potential temperature K', 'height m' )
     plt.savefig( folder + case + '_'+ 'liquid_potential_temperature'  + '.png', bbox_inches='tight')    
     
     plot_alustus()
@@ -278,12 +367,37 @@ def write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, dz, nzp, num_p
     plottaa( cloudwater, z, case+' cloud water mixing ratio', 'cloud water mixing ratio g/kg', 'height m' )
     plt.savefig( folder + case + '_'+ 'cloud_water_mixing_ratio'  + '.png', bbox_inches='tight')         
     
+    plot_alustus()
+    plottaa( wind, z, case+' wind '+ windprofile, 'wind m/s', 'height m' )
+    plt.savefig( folder + case + '_'+ 'wind'  + '.png', bbox_inches='tight')
+    
+    plot_alustus()
+    plottaa( windshear, z[:-1], case+' wind shear '+ windprofile, 'wind shear s^-1', 'height m' )
+    plt.savefig( folder + case + '_'+ 'windshear'  + '.png', bbox_inches='tight')
+
     f.close()
     
-def write_namelist(case, dz, num_pbl, nzp):
-    import os
+    return True
+    
+def write_namelist( input_vector ):
+#    case 0, nzp 1, dz 2, q_pbl 3, tpot_pbl 4, num_pbl 5, pres0 6
+    case     = input_vector[0]
+    nzp      = int( input_vector[1] )
+    dz       = float( input_vector[2] )
+    q_pbl    = float( input_vector[3] )
+    tpot_pbl = float( input_vector[4] )    
+    num_pbl  = float( input_vector[5] )    
+    pres0    = float( input_vector[6] )
+
+
+
+
     folder = rootfolder +'emul' + case +'/'
     call(['mkdir','-p', folder])
+    sst = absT(tpot_pbl, pres0)
+    print 'generating NAMELIST ' + str(case)
+#    dth = dthcon( tpot_pbl, sst, pres0 )
+#    drt = drtcon( q_pbl, sst, pres0 )
     #filename = 'NAMELIST'
     #filu = folder+filename
     
@@ -291,15 +405,19 @@ def write_namelist(case, dz, num_pbl, nzp):
 #    print len(num_pbl)
 #              ' timmax=100.'                                        + \
 #              ' Tspinup=0.'                                         + \
-    command = 'dir='+folder                                         + \
-              ' nzp='+str(nzp)                                      + \
-              ' deltaz=' + str(dz)                                  + \
-              ' dtlong=2.'                                          + \
-              ' level=3'                                            + \
-              ' filprf=' + '"' + "'emul" + case + "'"    +'"'       + \
-              ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'      + \
-              ' CCN=' + str(num_pbl)                                + \
-              ' n='+'"'+'125., ' + str(num_pbl*1e-6)+' , 0., 0., 0., 0., 0.' + '"'   + \
+#              ' th00=' + str(tpot_pbl)                              +\
+#              ' dthcon=' + str(dth)                              +\
+#              ' drtcon=' + str(drt)                              +\
+#                  ' dtlong=2.'                                          + \
+    command = 'dir='+folder              +\
+              ' level=3'                 +\
+              ' nzp='    + str(nzp)      +\
+              ' deltaz=' + str(dz)       +\
+              ' CCN='    + str(num_pbl)  +\
+              ' sst='    + str(sst)      +\
+              ' filprf=' + '"' + "'emul" + case + "'"    +'"'                        +\
+              ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'                       +\
+              ' n='+'"'+'0., ' + str(num_pbl*1e-6)+' , 0., 0., 0., 0., 0.' + '"'   +\
               ' /home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/script/generate_namelist.bash'
 
 #               ' Tspinup=10.'     
@@ -312,35 +430,72 @@ def write_namelist(case, dz, num_pbl, nzp):
 #    args = ['timmax=20.','/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/script/generate_namelist.bash']
 #    call(args)
     
-def main( nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/corr_design_15d_withconstraints.csv' ):
-    args=['rm','-rf', rootfolder+'*']
-    call(args)
+    return True
+    
+def main( nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/corr_design_15d.csv', windprofile = 'zero', pres0 = 1017.8, mode='serial', runNroBegin = 1, runNroEnd = 90 ):
+    nzp_orig = int(nzp_orig)
+    pres0 = float(pres0)
+    runNroBegin = int(runNroBegin)
+    runNroEnd   = int(runNroEnd)
+    A = runNroBegin - 1
+    B = runNroEnd    
+#    args=['rm','-rf', rootfolder+'*']
+#    call(args)
+    args ='rm -rf '+ rootfolder+'*'
+    os.system(args)
+
     case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, num_pbl = read_design( filu )
-    
-#    print 'nzp '     + str(nzp)
 
-    for k in xrange(len(case)): #len(case)
-        print ' '
-        print case[k]
-        
-        dz, nzp = deltaz2( pblh[k], nzp_orig )    
-#        print 'nzp '     + str(nzp)
-#        print 'dz ' + str(dz)
-#        print 'write_sound_in'
-        write_sound_in( case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], dz, nzp, num_pbl[k] )
-        write_namelist( case[k], dz, num_pbl[k], nzp )
-
-def dycoms():
-    call(['rm','-rf', rootfolder+'*'])
-    case = 'dycoms'
-    q_inv = 4.45
-    tpot_inv = 6.7
-    q_pbl = 9.45
-    tpot_pbl = 288.3
-    pblh = 795.
-    write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh)
-    write_namelist( case, 20., 660. )
+    if runNroEnd > len(case):
+        runNroEnd = len(case)        
+        print 'runNroEnd set to max value: ' + str(len(case))
     
-main(200, filu)
+    
+    # define resolutions and nzp's    
+    dz = np.zeros(len(case))
+    nzp = np.zeros(len(case))    
+    for k in xrange( A, B ):
+        dz[k], nzp[k] = deltaz2( pblh[k], nzp_orig )
+    nzp = nzp.astype(int)
+    
+    if ( mode == 'serial' ) :
+        print 'serial mode'
+        for k in xrange( A, B ): 
+            write_sound_in( [ case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], num_pbl[k], dz[k], nzp[k], windprofile, pres0 ] )
+            write_namelist( [ case[k], nzp[k], dz[k], q_pbl[k], tpot_pbl[k], num_pbl[k], pres0 ] )
+            
+    elif ( mode == 'parallel' ):
+        print 'parallel mode'
+        koko = len(case)
+        windprofile = [windprofile]*koko
+        pres0       = [pres0]*koko
+        from multiprocessing import Pool
+        pool = Pool(processes= 4)
+        sound_in_iter = iter( np.column_stack( ( case[A:B], q_inv[A:B], tpot_inv[A:B], q_pbl[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], dz[A:B], nzp[A:B], windprofile[A:B], pres0[A:B] ) ) )
+        namelist_iter = iter( np.column_stack( ( case[A:B], nzp[A:B], dz[A:B], q_pbl[A:B], tpot_pbl[A:B], num_pbl[A:B], pres0[A:B] ) ) )
+        for i in pool.imap_unordered( write_sound_in, sound_in_iter ):
+            print i
+        for k in pool.imap_unordered( write_namelist, namelist_iter ):
+            print k
+        #pool.imap_unordered( write_namelist, namelist_iter )
+            
+
+#def dycoms():
+#    call(['rm','-rf', rootfolder+'*'])
+#    case = 'dycoms'
+#    q_inv = 4.45
+#    tpot_inv = 6.7
+#    q_pbl = 9.45
+#    tpot_pbl = 288.3
+#    pblh = 795.
+#    write_sound_in( case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh)
+#    write_namelist( case, 20., 660. )
+#    
+if __name__ == "__main__":
+    #     nzp          file         windprofile  pres0        par/serial   runNroBegin  runNroEnd
+    main( sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7] )    
+
+
+#main(200, filu, 'ascos')
 #dycoms()
 #plot_lopetus()

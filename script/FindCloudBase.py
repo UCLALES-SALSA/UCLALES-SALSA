@@ -169,7 +169,7 @@ def calc_rh_profile( theta, wc, z, modify = False, rh_max = 101. ):
          
 #print row
 
-        print row.expandtabs(10)
+        #print row.expandtabs(10)
 #         press -= g*dz*press/(R*tavg*xsi)
     
     if modify:
@@ -193,7 +193,6 @@ def calc_cloud_droplet_diam( theta, wc, press, num_pbl ):
     g = 9.8
     p00 =1.0e+05
     p00i = 1./p00
-    
     alvl   = 2.5e+06 
     #
 

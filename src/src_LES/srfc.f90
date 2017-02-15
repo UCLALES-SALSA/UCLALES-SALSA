@@ -53,7 +53,7 @@ module srfc
 contains
   !
   ! --------------------------------------------------------------------------
-  ! SURFACE: Calcualtes surface fluxes using an algorithm chosen by ISFCLYR
+  ! SURFACE: Calculates surface fluxes using an algorithm chosen by ISFCLYR
   ! and fills the appropriate 2D arrays
   !
   !     default: specified thermo-fluxes (drtcon, dthcon)
@@ -96,7 +96,7 @@ contains
     real    :: zs, bflx, ffact, sst1, bflx1, Vbulk, Vzt, usum
     real (kind=8) :: bfl(2), bfg(2)
 
-    REAL :: mctmp(nxp,nyp) ! Helper for mass concenrvation statistics
+    REAL :: mctmp(nxp,nyp) ! Helper for mass concervation statistics
 
     !    if(myid==5)  dthcon=100.0
     !    if(myid==15)  dthcon=200.0

@@ -25,7 +25,7 @@ cat > ${dir}NAMELIST <<EOF
   nxpart = ${nxpart:-.true.}
   dzmax  = ${dzmax:-3500.}
   dzrat  = ${dzrat:-1.0}
-  dtlong = ${dtlong:-1.}
+  dtlong = ${dtlong:-2.}
   distim = ${distim:-100.}
   timmax = ${timmax:-12600.}
   Tspinup = ${Tspinup:-5400.}
@@ -54,9 +54,14 @@ cat > ${dir}NAMELIST <<EOF
                                       ! default = simple divergence forcing with specified div 
   div = ${div:-1.5e-6}              ! Divergence for e.g. case_name = 'default'
   sfc_albedo = ${sfc_albedo:-0.05}
-  radsounding = ${radsounding:-"'datafiles/dsrt.lay'"}
-  dthcon = ${dthcon:-20.} ! heat flux
-  drtcon = ${drtcon:-0.}  ! latent
+  radsounding = ${radsounding:-"'datafiles/kmls.lay'"} 
+
+ isfctyp = ${isfctyp:-2}
+  sst = ${sst:-271.35}
+
+!  dthcon = ${dthcon:-20.} ! heat flux
+!  drtcon = ${drtcon:-0.}  ! latent
+
   ubmin  = ${ubmin:--0.25}
   zrough = ${zrough:-0.01}
   th00 = ${th00:-289.}
@@ -109,7 +114,7 @@ cat > ${dir}NAMELIST <<EOF
 
    sigmag = ${sigmag:-1.2, 1.7, 2.0, 2.0, 2.0, 2.0, 2.0}  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpg    = ${dpg:-0.022, 0.12, 0.2, 0.2, 0.2, 0.2, 0.2}     ! Mode mean diameters in micrometers
-   n      = ${n:-125., 46.2502241367474 , 0., 0., 0., 0., 0.}  ! Mode number concentrations in #/cm^3
+   n      = ${n:-0., 46.2502241367474 , 0., 0., 0., 0., 0.}  ! Mode number concentrations in #/cm^3
  /
 
 EOF

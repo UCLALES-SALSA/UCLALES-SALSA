@@ -1,20 +1,13 @@
 #!/bin/bash
 start=$(date +%s)
-root=/home/users/aholaj/UCLALES-SALSA
-salsa=${root}/src/src_salsa
-les=${root}/src/src_LES
-bin=${root}/bin
-script=${root}/script
-
 
 #### user parameters
 username=aholaj
 email=jaakko.ahola@fmi.fi
 
-folder=case_emulator
+folder=${folder:-case_emulator}
 subfolder=UCLALES-SALSA
 
-inputrootfolder=${bin}/${folder}
 outputrootfolder=/lustre/tmp/${username}/${subfolder}/${folder}
 ibrixrootfolder=/ibrix/arch/ClimRes/aholaj/${folder}
 
