@@ -73,10 +73,10 @@ contains
     use grid, only: nzp, nxp, nyp, a_up, a_vp, a_theta, a_rv, a_rp, zt, dzt, psrf, th00  &
          , umean, vmean, a_ustar, a_tstar, a_rstar, uw_sfc, vw_sfc, ww_sfc    &
          , wt_sfc, wq_sfc, dn0, level,dtl, a_sflx, a_rflx, precip, a_dn,  &
-	 W1,W2,W3, mc_ApVdom, dtlt
+        W1,W2,W3, mc_ApVdom, dtlt
     use thrm, only: rslf
     use stat, only: sfc_stat, sflg, mcflg, acc_massbudged
-    use mpi_interface, only : nypg, nxpg, double_array_par_sum,myid
+    use mpi_interface, only : nypg, nxpg, double_array_par_sum
 
 
     implicit none
@@ -98,10 +98,6 @@ contains
 
     REAL :: mctmp(nxp,nyp) ! Helper for mass concervation statistics
 
-    !    if(myid==5)  dthcon=100.0
-    !    if(myid==15)  dthcon=200.0
-
-
     ! Added by Juha
     SELECT CASE(level)
        CASE(1,2,3)
@@ -120,6 +116,7 @@ contains
           do i=3,nxp-2
              dtdz(i,j)=dthcon
              drdz(i,j)=drtcon
+             bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2) ! TR: is this needed?
           end do
        end do
        zs = zt(2)/zrough

@@ -58,7 +58,7 @@ contains
     LOGICAL :: zactmask(nzp,nxp,nyp)
     LOGICAL :: TMP
     INTEGER :: n4
-
+    
     ztkt = 0.
 
     TMP = .false.
@@ -78,7 +78,7 @@ contains
        ! spin-up period to set up aerosol and cloud fields.
        IF (level >= 4) THEN
 
-          ! This is not needed? Check & remove
+          ! Not needed when using interst. acivation?
           CALL maskactiv(zactmask,nxp,nyp,nzp,nbins,1,prtcl,a_rh)
 
           n4 = GetNcomp(prtcl) + 1 ! Aerosol compoenents + water
@@ -95,7 +95,7 @@ contains
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-                  a_rhop, 1, prtcl, dtlt, .false., 0., level,zt   )
+		  1, prtcl, dtlt, .false., 0., level,zt   )
           ELSE
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,a_wp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
@@ -108,12 +108,12 @@ contains
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-                  a_rhop, 1, prtcl, dtlt, .false., 0., level,zt   )
+                  1, prtcl, dtlt, .false., 0., level, zt   )
 
           END IF
-          CALL SALSAInit(zactmask)
+          CALL SALSAInit
 
-
+          
        END IF !level >= 4
 
     else if (runtype == 'HISTORY') then
@@ -165,10 +165,10 @@ contains
 
     use defs, only : alvl, cpr, cp, p00, R
     use sgsm, only : tkeinit
-    use util, only : azero, atob
     use thrm, only : thermo, rslf
-    use mpi_interface, only : myid
+
     implicit none
+
     integer :: i,j,k
     real    :: exner, pres, tk, rc, xran(nzp)
 
@@ -193,7 +193,7 @@ contains
        CASE(1,2,3)
           if ( allocated (a_rv)) a_rv = a_rp
 
-          if ( allocated (a_rc) .and. itsflg == 0) then
+          if ( allocated (a_rc)) then
              do j=1,nyp
                 do i=1,nxp
                    do k=1,nzp
@@ -241,7 +241,7 @@ contains
     END SELECT
 
     k=1
-    do while( zt(k+1) <= zrand .and. k+1  < nzp)
+    do while( zt(k+1) <= zrand .and. k < nzp)
        k=k+1
        xran(k) = 0.2*(zrand - zt(k))/zrand
     end do
@@ -249,14 +249,14 @@ contains
 
     if (associated(a_rp)) then
        k=1
-       do while( zt(k+1) <= zrand .and. k+1 < nzp)
+       do while( zt(k+1) <= zrand .and. k < nzp)
           k=k+1
           xran(k) = 5.0e-5*(zrand - zt(k))/zrand
        end do
        call random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
     end if
 
-    call azero(nxyzp,a_wp)
+    a_wp=0.
     if(isgstyp == 2) call tkeinit(nxyzp,a_qp)
     !
     ! initialize thermodynamic fields
@@ -270,9 +270,10 @@ contains
        CALL aerosol_init
        CALL init_gas_tracers
     END IF
-    call atob(nxyzp,a_up,a_uc)
-    call atob(nxyzp,a_vp,a_vc)
-    call atob(nxyzp,a_wp,a_wc)
+
+    a_uc=a_up
+    a_vc=a_vp
+    a_wc=a_wp
 
     return
   end subroutine fldinit
@@ -437,8 +438,6 @@ contains
        write(6,fm1)(ps(k),hs(k),tks(k),thds(k),us(k),vs(k),rts(k),xs(k),k=1,ns)
     endif
 
-604 format('    input sounding needs to go higher ! !', /,                &
-         '      sounding top (m) = ',f12.2,'  model top (m) = ',f12.2)
     return
   end subroutine arrsnd
   !
@@ -696,30 +695,25 @@ contains
   !
   ! Juha Tonttila, FMI, 2014
   !
-  SUBROUTINE SALSAInit(pactmask)
-    USE mo_submctl, ONLY : ica,fca,icb,fcb,ncld,nbins, &
-                               iia,fia,iib,fib,nice
-    USE class_componentIndex, ONLY : getNcomp, getIndex
+  SUBROUTINE SALSAInit
+    USE mo_submctl, ONLY : ncld,nbins,nice
     IMPLICIT NONE
 
-    INTEGER :: k,i,j,bb,bbpar,s,m,mpar,nc
-    LOGICAL, INTENT(in) :: pactmask(nzp,nxp,nyp)
-    REAL :: frac(nzp,nxp,nyp)
-    REAL :: zvol
+    INTEGER :: k,i,j,bb
 
     DO j=1,nyp
        DO i=1,nxp
           DO k=1,nzp ! Apply tendencies
-             a_naerop(k,i,j,:)  = MAX( a_naerop(k,i,j,:)  + dtlt*a_naerot(k,i,j,:),  0. )
+             a_naerop(k,i,j,:) = MAX( a_naerop(k,i,j,:) + dtlt*a_naerot(k,i,j,:), 0. )
              a_ncloudp(k,i,j,:) = MAX( a_ncloudp(k,i,j,:) + dtlt*a_ncloudt(k,i,j,:), 0. )
              a_nprecpp(k,i,j,:) = MAX( a_nprecpp(k,i,j,:) + dtlt*a_nprecpt(k,i,j,:), 0. )
-             a_maerop(k,i,j,:)  = MAX( a_maerop(k,i,j,:)  + dtlt*a_maerot(k,i,j,:),  0. )
+             a_maerop(k,i,j,:)  = MAX( a_maerop(k,i,j,:)  + dtlt*a_maerot(k,i,j,:), 0. )
              a_mcloudp(k,i,j,:) = MAX( a_mcloudp(k,i,j,:) + dtlt*a_mcloudt(k,i,j,:), 0. )
              a_mprecpp(k,i,j,:) = MAX( a_mprecpp(k,i,j,:) + dtlt*a_mprecpt(k,i,j,:), 0. )
-             a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtlt*a_gaerot(k,i,j,:),  0. )
+             a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtlt*a_gaerot(k,i,j,:), 0. )
              a_rp(k,i,j) = a_rp(k,i,j) + dtlt*a_rt(k,i,j)
 
-			IF(level < 5) cycle
+            IF(level < 5) cycle
 
              a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtlt*a_nicet(k,i,j,:), 0. )
              a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtlt*a_nsnowt(k,i,j,:), 0. )
@@ -730,37 +724,20 @@ contains
     END DO
 
     ! Activation + diagnostic array initialization
-    ! Regime a
+    ! Clouds and aerosols
     a_rc(:,:,:) = 0.
-    DO bb = ica%cur, fca%cur
-       bbpar = ica%par + (bb-ica%cur)
-
+    DO bb = 1, ncld
        CALL DiagInitCloud(bb)
-
-    END DO! bb
-
-    ! Regime b
-    DO bb = icb%cur, fcb%cur
-       bbpar = icb%par + (bb-icb%cur)
-
-       CALL DiagInitCloud(bb)
-
     END DO
-
     DO bb = 1,nbins
        CALL DiagInitAero(bb)
     END DO
 
-    !! Jaakko: ice'n'snow
+    ! Ice
     a_ri(:,:,:) = 0.
-    do bb = iia%cur, fia%cur
+    do bb = 1,nice
         call DiagInitIce(bb)
     end do
-
-    do bb = iib%cur, fib%cur
-        call DiagInitIce(bb)
-    end do
-
 
   END SUBROUTINE SALSAInit
   !-------------------------------------------
@@ -817,32 +794,23 @@ contains
   END SUBROUTINE ActInit
   !------------------------------------------
   SUBROUTINE DiagInitCloud(b)
-    USE mo_submctl, ONLY : ncld, pi6, rhowa,rhosu
-    USE class_componentIndex, ONLY : IsUsed, GetIndex
+    USE mo_submctl, ONLY : ncld, pi6, rhowa, rhosu, nlim
+    USE class_componentIndex, ONLY : GetIndex
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: b
 
-    INTEGER :: ino,inh,str,k,i,j,nc
-    REAL :: zvol,zvrem
+    INTEGER :: str,k,i,j,nc
+    REAL :: zvol
+
+    nc = GetIndex(prtcl,'H2O')
+    str = (nc-1)*ncld+b
 
        DO j = 1,nyp
           DO i = 1,nxp
              DO k = 1,nzp
 
-                zvrem = 0
-                IF ( IsUsed(prtcl,'NO') ) THEN
-                   ino = GetIndex(prtcl,'NO')
-                   str = (ino-1)*ncld + b
-                   zvrem = zvrem + a_mcloudp(k,i,j,str)
-                END IF
-                IF ( IsUsed(prtcl,'NH') ) THEN
-                   inh = GetIndex(prtcl,'NH')
-                   str = (inh-1)*ncld + b
-                   zvrem = zvrem + a_mcloudp(k,i,j,str)
-                END IF
-
-                IF (a_ncloudp(k,i,j,b)  > 1.) THEN
+                IF (a_ncloudp(k,i,j,b)  > nlim) THEN
                    CALL binMixrat('cloud','dry',b,i,j,k,zvol)
                    zvol = zvol/rhosu
                    a_Rcdry(k,i,j,b) = 0.5*( zvol/(pi6*a_ncloudp(k,i,j,b)) )**(1./3.)
@@ -855,8 +823,6 @@ contains
                 END IF
 
                 ! Cloud water
-                nc = GetIndex(prtcl,'H2O')
-                str = (nc-1)*ncld+b
                 a_rc(k,i,j) = a_rc(k,i,j) + a_mcloudp(k,i,j,str)
 
              END DO ! k
@@ -865,80 +831,60 @@ contains
   END SUBROUTINE DiagInitCloud
     !------------------------------------------
   SUBROUTINE DiagInitIce(b)
-    USE mo_submctl, ONLY : nice, pi6, rhosu,rhoic
+    USE mo_submctl, ONLY : nice, pi6, rhosu,rhoic, prlim
     USE class_componentIndex, ONLY : IsUsed, GetIndex
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: b
 
-    INTEGER :: ino,inh,str,k,i,j,nc
-    REAL :: zvol,zvrem
+    INTEGER :: str,k,i,j,nc
+    REAL :: zvol
+
+    nc = GetIndex(prtcl,'H2O')
+    str = (nc-1)*nice + b
 
        DO j = 1,nyp
           DO i = 1,nxp
              DO k = 1,nzp
 
-                zvrem = 0
-                IF ( IsUsed(prtcl,'NO') ) THEN
-                   ino = GetIndex(prtcl,'NO')
-                   str = (ino-1)*nice + b
-                   zvrem = zvrem + a_micep(k,i,j,str)
-                END IF
-                IF ( IsUsed(prtcl,'NH') ) THEN
-                   inh = GetIndex(prtcl,'NH')
-                   str = (inh-1)*nice + b
-                   zvrem = zvrem + a_micep(k,i,j,str)
-                END IF
-
-                IF (a_nicep(k,i,j,b)  > 1.) THEN
+                IF (a_nicep(k,i,j,b)  > prlim) THEN
                    CALL binMixrat('ice','dry',b,i,j,k,zvol)
-					zvol = zvol/rhosu !! density should be revised
+                    zvol = zvol/rhosu
                    a_Ridry(k,i,j,b) = 0.5*( zvol/(pi6*a_nicep(k,i,j,b)) )**(1./3.)
                    CALL binMixrat('ice','wet',b,i,j,k,zvol)
-					zvol = zvol/rhoic
+                    zvol = zvol/rhoic
                    a_Riwet(k,i,j,b) = 0.5*( zvol/(pi6*a_nicep(k,i,j,b)) )**(1./3.)
                 ELSE
                    a_Ridry(k,i,j,b) = 1.e-10
                    a_Riwet(k,i,j,b) = 1.e-10
                 END IF
 
-                !Cloud water
-                nc = GetIndex(prtcl,'H2O')
-                str = (nc-1)*nice + b
+                ! Cloud ice
                 a_ri(k,i,j) = a_ri(k,i,j) + a_micep(k,i,j,str)
 
              END DO ! k
           END DO ! i
        END DO ! j
   END SUBROUTINE DiagInitIce
-
+    !------------------------------------------
   SUBROUTINE DiagInitAero(b)
-    USE mo_submctl, ONLY : nbins, pi6, rhowa
+    USE mo_submctl, ONLY : nbins, pi6, rhowa, nlim
     USE class_componentIndex, ONLY : IsUsed, GetIndex
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: b
 
-    INTEGER :: ino,inh,str,k,i,j,nc
-    REAL :: zvol,zvrem
+    INTEGER :: k,i,j,nc, str
+    REAL :: zvol
+
+    nc = GetIndex(prtcl,'H2O')
+    str = (nc-1)*nbins+b
 
        DO j = 1,nyp
           DO i = 1,nxp
              DO k = 1,nzp
 
-                zvrem = 0
-                IF ( IsUsed(prtcl,'NO') ) THEN
-                   ino = GetIndex(prtcl,'NO')
-                   str = (ino-1)*nbins + b
-                   zvrem = zvrem + a_maerop(k,i,j,str)
-                END IF
-                IF ( IsUsed(prtcl,'NH') ) THEN
-                   inh = GetIndex(prtcl,'NH')
-                   str = (inh-1)*nbins + b
-                   zvrem = zvrem + a_maerop(k,i,j,str)
-                END IF
-
-                IF (a_naerop(k,i,j,b) > 1.) THEN
+                IF (a_naerop(k,i,j,b) > nlim) THEN
                    CALL binMixrat('aerosol','dry',b,i,j,k,zvol)
                    a_Radry(k,i,j,b) = 0.5*( zvol/(pi6*a_naerop(k,i,j,b)) )**(1./3.)
                    CALL binMixrat('aerosol','wet',b,i,j,k,zvol)
@@ -948,11 +894,7 @@ contains
                    a_Rawet(k,i,j,b) = 1.e-10
                 END IF
 
-                a_rhop(k,i,j,b) = 1500.
-
                 ! To cloud water
-                nc = GetIndex(prtcl,'H2O')
-                str = (nc-1)*nbins+b
                 a_rc(k,i,j) = a_rc(k,i,j) + a_maerop(k,i,j,str)
 
              END DO ! k
@@ -983,7 +925,7 @@ contains
     REAL :: pvf2a(nzp,nspec), pvf2b(nzp,nspec)        ! Mass distributions of aerosol species for a and b-bins
     REAL :: pnf2a(nzp)                                ! Number fraction for bins 2a
     REAL :: pvfOC1a(nzp)                              ! Mass distribution between SO4 and OC in 1a
-    INTEGER :: ss,ee,i,j,k,nc
+    INTEGER :: ss,ee,i,j,k
     INTEGER :: iso4=-1, ioc=-1, ibc=-1, idu=-1, &
                iss=-1, inh=-1, ino=-1
 
@@ -1062,7 +1004,6 @@ contains
           ! Pure SO4
           pvfOC1a(:) = 0.0
        ELSE
-          ! Just put zeros if this happens?
           STOP 'Either OC or SO4 must be active for aerosol region 1a!'
        ENDIF
 
@@ -1242,7 +1183,7 @@ contains
   !
   SUBROUTINE READ_AERO_INPUT(piso4,pioc,ppndist,ppvfOC1a,ppvf2a,ppvf2b,ppnf2a)
     USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
-    USE mo_submctl, ONLY : in1a, fn1a, in2a, fn2a, in2b, fn2b, nbins,  &
+    USE mo_submctl, ONLY : nbins,  &
                                nspec, maxspec, nmod
     USE mo_salsa_sizedist, ONLY : size_distribution
     USE mpi_interface, ONLY : appl_abort, myid
@@ -1325,7 +1266,7 @@ contains
        ! The true number of altitude levels
        nc_levs=i-1
     END IF
-	!
+    !
     IF (zlevs(nc_levs)<zt(nzp)) then
        if (myid == 0) print *, '  ABORTING: Model top above aerosol sounding top'
        if (myid == 0) print '(2F12.2)', zlevs(nc_levs), zt(nzp)
@@ -1363,7 +1304,6 @@ contains
        ! Pure SO4
        ppvfOC1a(:) = 0.0
     ELSE
-       ! Jos näit' ei ole niin laitetaan vaan nollaa kehiin?
        STOP 'Either OC or SO4 must be active for aerosol region 1a!'
     ENDIF
 

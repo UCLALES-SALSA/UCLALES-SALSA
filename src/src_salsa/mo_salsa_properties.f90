@@ -1,5 +1,5 @@
 !****************************************************************
-!*	                                                        *
+!*                                                            *
 !*   module MO_SALSA_PROPERTIES                                 *
 !*                                                              *
 !*   Contains subroutines and functions that are used           *
@@ -76,8 +76,8 @@ CONTAINS
          t_section,    &
          pi6,          & ! pi/6
          in1a, fn1a,   &
-         in2a, fn2a,   &
-         in2b, fn2b,   &
+         in2a,    &
+         fn2b,   &
          boltz,        & ! Boltzmann constant [J/K]
          nlim,         & ! lowest possible particle conc. in a bin [#/m3]
     
@@ -97,9 +97,6 @@ CONTAINS
          rhoss, mss,   &
          rhono, mno,   &
          rhonh, mnh
-
-
-    
 
     IMPLICIT NONE
 
@@ -146,10 +143,9 @@ CONTAINS
     !-- 1) Regime 1: sulphate and partly water-soluble OC -----------------
     !                This is done for every CALL
     zke = 1.001
-    !pdwet = 0.
     DO kk = in1a,fn1a      ! size bin
        DO jj = 1,klev      ! vertical grid
-          DO ii = 1,kproma ! horizontal grid
+          DO ii = 1,kbdim ! horizontal grid
 
              !-- initialize
              zbinmol = 0.
@@ -215,16 +211,12 @@ CONTAINS
                    !-- Kelvin effect 
                    
                    count = count + 1
-                   IF (count > 1000) THEN
-                      WRITE(*,*) 'SALSA properties: no convergence!!'
-                      EXIT
-                   END IF
+                   IF (count > 1000) STOP 'SALSA equilibration (regime 1): no convergence!!'
 
                 END DO
 
                 ! Instead of lwc, use the volume concentration of water from now on 
                 ! (easy to convert...)
-                !plwc(ii,jj,kk) = zlwc
                 paero(ii,jj,kk)%volc(8) = zlwc/rhowa
                 
                 ! If this is initialization, update the core and wet diameter
@@ -255,7 +247,7 @@ CONTAINS
        ! loops over:
        DO kk = in2a,fn2b      ! size bin
           DO jj = 1,klev      ! vertical grid
-             DO ii = 1,kproma ! horizontal grid
+             DO ii = 1,kbdim ! horizontal grid
 
                 zke = 1.02
             
@@ -327,10 +319,7 @@ CONTAINS
                       zke = exp(2.*surfw0*mvsu/(boltz*ptemp(ii,jj)*zdwet))
 
                       count = count + 1
-                      IF (count > 1000) THEN
-                         WRITE(*,*) 'SALSA properties: no convergence!!'
-                         EXIT
-                      END IF
+                      IF (count > 1000) STOP 'SALSA equilibration (regime 2): no convergence!!'
                       
                    END DO
 

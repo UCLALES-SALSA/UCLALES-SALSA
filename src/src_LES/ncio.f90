@@ -14,13 +14,14 @@ contains
   ! ----------------------------------------------------------------------
   ! Subroutine Open_NC: Opens a NetCDF File and identifies starting record
   !
-  subroutine open_nc (fname, ename, time, npts, ncid, nrec)
+  subroutine open_nc (fname, ename, time, npts, ncid, nrec, version, author)
 
     integer, intent(in)             :: npts
     integer, intent(out)            :: ncid
     integer, intent(out)            :: nrec
     real, intent (in)               :: time
     character (len=80), intent (in) :: fname, ename
+    CHARACTER(LEN=80) :: version, author
 
     real, allocatable :: xtimes(:)
 
@@ -44,8 +45,8 @@ contains
 
        iret = nf90_put_att(ncid,NF90_GLOBAL,'title',ename)
        iret = nf90_put_att(ncid,NF90_GLOBAL,'history','Created on '//date)
-       iret = nf90_put_att(ncid, NF90_GLOBAL, 'Source','UCLA-LES Version 2.0')
-       iret = nf90_put_att(ncid, NF90_GLOBAL, 'Author','Bjorn Stevens')
+       iret = nf90_put_att(ncid, NF90_GLOBAL, 'Source','UCLALES-SALSA Version '//trim(version))
+       iret = nf90_put_att(ncid, NF90_GLOBAL, 'Author',trim(author))
        iret = nf90_put_att(ncid, NF90_GLOBAL, '_FillValue',-999.)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPTS',npts)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPROCS',pecount)
@@ -584,6 +585,10 @@ contains
        if (itype==2) ncinfo = 'time'
     case('nrcnt')
        if (itype==0) ncinfo = 'Rain cell counts'
+       if (itype==1) ncinfo = '#'
+       if (itype==2) ncinfo = 'time'
+    case('nccnt')
+       if (itype==0) ncinfo = 'Cloud cell counts'
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'time'
     !
@@ -1838,9 +1843,7 @@ contains
     INTEGER :: iret, vid
 
     iret = nf90_inq_varid(ncid,name,vid)
-    IF ( iret /= NF90_NOERR) WRITE(*,*) 'ei löyry'
     iret = nf90_get_var(ncid,vid,var)
-    IF ( iret /= NF90_NOERR) WRITE(*,*) 'ei lue'
 
   END SUBROUTINE read_aero_nc_2d
   !

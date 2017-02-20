@@ -179,6 +179,7 @@ echo 'Submit emulator controller to job scheduler'
 
 if [ $JOBFLAG == 'PBS' ] ; then
     qsub control_multiple_emulator_run.sh
+    qstat -u $username
 elif [ $JOBFLAG == 'SBATCH' ] ; then
     sbatch control_multiple_emulator_run.sh
 fi

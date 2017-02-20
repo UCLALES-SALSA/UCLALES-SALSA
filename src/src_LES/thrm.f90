@@ -100,10 +100,9 @@ contains
 !            in SALSA.
 !
 
-  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,rsi,rhi,srs) !new arguments ri,rsi,rhi,srs for ice microphysics
-    !USE mo_submctl, ONLY : ncld,ica,icb,fca,fcb,ira,irb,fra,frb,rhowa
+  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,rsi,rhi,srs)
     USE defs, ONLY : R,Rm, cp, cpr, p00, alvl, alvi
-    USE grid, ONLY : a_dn ! Siirrä nää argumenteiksi!
+    USE grid, ONLY : a_dn
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: level,n1,n2,n3
@@ -112,33 +111,25 @@ contains
                         tl(n1,n2,n3)          ! liquid potential temp
     REAL, INTENT(in) :: th00
     REAL, INTENT(in) :: pi0(n1),pi1(n1)
-    REAL, INTENT(out) :: rc(n1,n2,n3),  &     ! Total cloud condensate mix rat
-                         rs(n1,n2,n3),  &     ! Saturation mix rat
-
+    REAL, INTENT(IN) :: rc(n1,n2,n3),  &  ! Total cloud condensate mix rat
+                         srp(n1,n2,n3)            ! Precipitation mix rat
+    REAL, INTENT(OUT) :: rs(n1,n2,n3),  &   ! Saturation mix rat
                          rh(n1,n2,n3),  &     ! Relative humidity
-
-                         srp(n1,n2,n3), &     ! Precipitation mix rat
-
                          th(n1,n2,n3),  &     ! Potential temperature
                          tk(n1,n2,n3),  &     ! Absolute temperature
-                         p(n1,n2,n3)          ! Air pressure
-
-    REAL, INTENT(out), OPTIONAL ::  ri(n1,n2,n3),  &     ! Total ice  mix rat                  ! ice'n'snow
-                                    rsi(n1,n2,n3), &     ! Saturation mix rat over ice         ! ice'n'snow
-                                    rhi(n1,n2,n3), &     ! relative humidity                   ! ice'n'snow
-                                    srs(n1,n2,n3)        ! Snow mix rat                        ! ice'n'snow
-    REAL :: exner, poiss,expt
+                         p(n1,n2,n3)           ! Air pressure
+    REAL, OPTIONAL, INTENT(IN) :: ri(n1,n2,n3),  &  ! Total ice condensate mix rat
+                         srs(n1,n2,n3)      ! Snow mix rat
+    REAL, OPTIONAL, INTENT(OUT) :: rsi(n1,n2,n3), & ! Saturation mix rat over ice
+                         rhi(n1,n2,n3)      ! relative humidity over ice
+    REAL :: exner
     INTEGER :: k,i,j
-    INTEGER :: iterate
-    REAL :: rcx,srpx, thil,rt
-    INTEGER :: str,end
+    REAL :: thil
 
      DO j = 3,n3-2
        DO i = 3,n2-2
           DO k = 1,n1
 
-             ! Poisson constant
-             !poiss = 0.2854*(1.-0.24*a_rp(k,i,j))
              ! Pressure
              exner = (pi0(k) + pi1(k) + pp(k,i,j))/cp
              p(k,i,j) = p00*exner**cpr
@@ -146,21 +137,22 @@ contains
 
              ! Potential and absolute temperatures
              th(k,i,j) = thil + (alvl*( rc(k,i,j) + srp(k,i,j) ))/cp
+			 
+             if(level==5) then
+                th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp
+				
+                rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))
+                rhi(k,i,j) = rv(k,i,j)/rsi(k,i,j)
+             end if
+			 
              tk(k,i,j) = th(k,i,j)*exner
 
              ! Saturation mixing ratio
              rs(k,i,j) = rslf(p(k,i,j),tk(k,i,j))
              rh(k,i,j) = rv(k,i,j)/rs(k,i,j)
 
-             if(level==5) then
-                th(k,i,j) = th(k,i,j) + alvi*( ri(k,i,j)+ srs(k,i,j)) /cp
-                rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))  ! ice'n'snow
-                rhi(k,i,j) = rv(k,i,j)/rsi(k,i,j) ! ice'n'snow
-             end if
-
              ! True air density
              a_dn(k,i,j) = p(k,i,j)/(R*tk(k,i,j))
-
 
           END DO
        END DO
@@ -384,7 +376,6 @@ contains
   do j=3,n3-2
     do i=3,n2-2
       do k=1,n1
-        !print *, pi0(k), pi1(k), pp(k,i,j), k, i, j
         exner=(pi0(k)+pi1(k)+pp(k,i,j))/cp
         tk(k,i,j)=th(k,i,j)*exner
         if (present(rs)) rs(k,i,j)=rslf(R*exner*th00*dn0(k),tk(k,i,j))

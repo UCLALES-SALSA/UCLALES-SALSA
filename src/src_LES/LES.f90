@@ -19,6 +19,8 @@
 !
 program ucla_les
 
+  use mpi_interface, ONLY : myid
+
   implicit none
 
   real :: t1, t2
@@ -27,8 +29,10 @@ program ucla_les
   call driver
   call cpu_time(t2)
 
-  print "(/,' ',49('-')/,' ',A16,F10.1,' s')", '  Execution time: ', t2-t1
-  stop ' ..... Normal termination'
+  if (myid == 0) THEN
+    print "(/,' ',49('-')/,' ',A16,F10.1,' s')", '  Execution time: ', t2-t1
+    stop ' ..... Normal termination'
+  ENDIF
 
 contains
 
@@ -100,7 +104,7 @@ contains
                      div, case_name, &     ! Divergence, forcing case name
                      sfc_albedo            ! Surface albedo
     USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
-    use mpi_interface, only : myid, appl_abort
+    use mpi_interface, only : myid, appl_abort, ver, author
 
     implicit none
 
@@ -134,7 +138,10 @@ contains
          minispinupCase01, minispinupCase02, & ! minispinup cases !debugkebab
          radsounding, div, case_name, & ! Name of the radiation sounding file, divergence for LEVEL 4
          sfc_albedo,                  & ! Surface albedo
-         sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
+         sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
+
+    namelist /version/  &
+         ver, author        ! Information about UCLALES-SALSA version and author
 
     namelist /version/  &
          ver
@@ -186,7 +193,7 @@ contains
     end if
 
 600 format(//' ',49('-')/,' ',/,'  Initial Experiment: ',A50 &
-         /,'  Final Time:         ',F7.1,' s'              )
+         /,'  Final Time:         ',F8.1,' s'              )
 601 format(//' ',49('-')/,' ',/,'  Restart Experiment: ',A50 &
          /,'  Restart File: ',A30,                           &
          /,'  Final Time: ',F10.1,' s'              )

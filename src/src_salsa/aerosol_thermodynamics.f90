@@ -1,11 +1,5 @@
 module aerosol_thermodynamics
 
-  
-    !use chamber_Parameters
-    !use chamber_Global, only: n_org_spc
-
-
-
    ! Prototype module for calculating water content and vapour pressures for 
    ! organic species condensing in a chamber study.
 
@@ -21,11 +15,6 @@ module aerosol_thermodynamics
    ! Queries concerning the use of this code through Gordon McFiggans, g.mcfiggans@manchester.ac.uk,
    ! Ownership: D. Topping, Centre for Atmospheric Sciences, University of Manchester, 2007
 
-	!implicit none   
-	!!glc- delcare vapour pure here, so that it can be accessed from the rates module
-	!real(), dimension(n_org_spc) :: vapour_pure
-	!!glc public
-	!public :: vapour_pure
 	contains
 
 

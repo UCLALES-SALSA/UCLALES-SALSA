@@ -56,7 +56,7 @@ cat > ${dir}NAMELIST <<EOF
   sfc_albedo = ${sfc_albedo:-0.05}
   radsounding = ${radsounding:-"'datafiles/kmls.lay'"} 
 
- isfctyp = ${isfctyp:-2}
+  isfctyp = ${isfctyp:-2}
   sst = ${sst:-271.35}
 
 !  dthcon = ${dthcon:-20.} ! heat flux

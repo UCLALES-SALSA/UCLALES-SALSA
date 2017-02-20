@@ -18,9 +18,9 @@ for filebase in sys.argv[1:]:
     filenamePS.append( filebase + '.ps.nc' )
     filenameTS.append( filebase + '.ts.nc' )
 
+colorNRO = len(sys.argv)-1
 
-
-
+mdp.initializeColors(colorNRO)
 
 ##############################
 #### YOU CAN CHANGE THESE: ###
@@ -38,9 +38,8 @@ piirra = True
 
 tulostus = False
 
-colorNRO = len(sys.argv)-1
+tightXAxis = True
 
-mdp.initializeColors(colorNRO)
 
 ###################################
 #
@@ -71,7 +70,7 @@ for i in xrange(len(sys.argv)-1):
     
     nimi = 'LWP ' + "_".join(filenameTS[i][14:-6].split("/")[::2]) # + filenameTS[i]
 
-    mdp.aikasarjaTulostus( liqWP_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'LWP g/m^2')
+    mdp.aikasarjaTulostus( liqWP_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'LWP g/m^2', tightXAxis=tightXAxis)
 
 
 mdp.plot_setYlim( 0.0, maksimiLWP, False)
@@ -96,7 +95,7 @@ for i in xrange(len(sys.argv)-1):
         #minimiRWP = np.min(rainWP_Tdata)
         
     nimi = 'RWP ' + "_".join(filenameTS[i][14:-6].split("/")[::2]) # + filenameTS[i]
-    mdp.aikasarjaTulostus( rainWP_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'RWP g/m^2' )
+    mdp.aikasarjaTulostus( rainWP_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'RWP g/m^2', tightXAxis=tightXAxis )
 
 mdp.plot_setYlim( 0.0, maksimiRWP, False)
 
@@ -126,8 +125,8 @@ for i in xrange(len(sys.argv)-1):
 
 
     nimi = 'Cloud base & top ' + "_".join(filenameTS[i][14:-6].split("/")[::2]) # + filenameTS[i]
-    mdp.aikasarjaTulostus( base_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'height [m]' )
-    mdp.aikasarjaTulostus(  top_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = False,    nimi = nimi, xnimi = 'time [s]', ynimi = 'height [m]', changeColor = False)
+    mdp.aikasarjaTulostus( base_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'height [m]', tightXAxis=tightXAxis )
+    mdp.aikasarjaTulostus(  top_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = False,    nimi = nimi, xnimi = 'time [s]', ynimi = 'height [m]', changeColor = False, tightXAxis=tightXAxis)
 
 
 mdp.plot_setYlim( 0.0, maksimiCLOUD, False )
@@ -154,7 +153,7 @@ for i in xrange(len(sys.argv)-1):
         minimiSHF = np.min(shf_Tdata)
 
     nimi = 'SHflux ' + "_".join(filenameTS[i][14:-6].split("/")[::2]) # + filenameTS[i]
-    mdp.aikasarjaTulostus( shf_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'Sensible heat flux W/m^2' )
+    mdp.aikasarjaTulostus( shf_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'Sensible heat flux W/m^2', tightXAxis=tightXAxis )
     
    
 mdp.plot_setYlim( minimiSHF, maksimiSHF )    
@@ -180,7 +179,7 @@ for i in xrange(len(sys.argv)-1):
         minimiLHF = np.min(lhf_Tdata)
 
     nimi = 'LHflux ' + "_".join(filenameTS[i][14:-6].split("/")[::2]) # + filenameTS[i]
-    mdp.aikasarjaTulostus( lhf_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'Latent heat flux W/m^2' )    
+    mdp.aikasarjaTulostus( lhf_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'Latent heat flux W/m^2', tightXAxis=tightXAxis )    
 
 mdp.plot_setYlim( minimiLHF, maksimiLHF )
 

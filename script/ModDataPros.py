@@ -476,7 +476,7 @@ def rmse(predictions, targets):
 ### most useful with .ts.nc files       ###
 ###                                     ###
 ###########################################
-def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuva = True, nimi = 'aikasarja', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, colorNRO=7):
+def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuva = True, nimi = 'aikasarja', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, tightXAxis=False, LEGEND=True ):
   if not isinstance(aika, np.ndarray):
     aika=np.zeros( (np.shape(data)[0]))
   
@@ -491,7 +491,7 @@ def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuv
       
   uusikuva = ( piirra and uusikuva )
   plot_alustus() if uusikuva else False
-  plottaa( aika, data, nimi, xnimi, ynimi, changeColor = changeColor)
+  plottaa( aika, data, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND )
 
 ########################################
 ### colorPool object class           ###
@@ -501,7 +501,11 @@ class colorPool:
     
     def __init__( self, colorNumber ):
         colorMap = plt.cm.gist_ncar
-        self.colors    = cycle( [colorMap(i) for i in np.linspace(0, 0.95, colorNumber)] )
+        if colorNumber > 7:
+            self.colors    = cycle( [colorMap(i) for i in np.linspace(0, 0.95, colorNumber)] )
+        else:
+            self.colors = cycle( ['r','b','g','c','m','y','k'][:colorNumber] )
+
         self.currentColor = next(self.colors)
 
     def getCurrentColor(self):
@@ -518,8 +522,9 @@ class colorPool:
 ########################################  
 
 def initializeColors(colorNRO=6):
-  color = colorPool(colorNRO)
-  global color
+  global colorChoice
+  colorChoice = colorPool(colorNRO)
+
 
 ########################################
 ### initialize a new figure          ###
@@ -527,6 +532,10 @@ def initializeColors(colorNRO=6):
 ########################################   
 def plot_alustus():
   plt.figure()
+  #fig = plt.figure()
+  #ax = fig.add_subplot(1,1,1)
+  
+  #return ax
 
   
 ########################################
@@ -561,30 +570,35 @@ def plot_setYlim( minimiY, maksimiY, extendBelowZero = True, A = 0.05 ):
 ### plot data                        ###
 ###                                  ###
 ########################################
-def plottaa( x, y, tit, xl, yl, label=0, log=False, changeColor=True):
+def plottaa( x, y, tit, xl, yl, label=0, log=False, changeColor=True, tightXAxis=False, markers=False, LEGEND=True):
   global color
   if  isinstance(label, int):
       label = tit
 
   if changeColor:
-    currentColor = color.getNextColor()
+    currentColor = colorChoice.getNextColor()
   else:
-    currentColor = color.getCurrentColor()
+    currentColor = colorChoice.getCurrentColor()
   
-    
-  plt.plot( x, y, color = currentColor, label=label )
-  
+  if markers:
+      plt.plot( x, y, color = currentColor, label=label, linestyle='-', marker='o' )
+  else:
+      plt.plot( x, y, color = currentColor, label=label)
   plt.xlabel( xl ) #r'$\#/m^3$'
   plt.ylabel( yl )
-  #plt.title(tit)
+  
   #plt.xticks( xtikut )
   plt.grid( True )
   #plt.autoscale(enable=True, axis='y', tight=True)
-  plt.autoscale( enable=True, axis='x', tight=True )
+  plt.autoscale( enable=True, axis='x', tight=tightXAxis )
   #patch = mpatches.Patch(color=c, label=legend)
   #plt.legend(handles=[patch])
 
-  plt.legend( bbox_to_anchor = ( 0., 1.02, 1., 10.102 ), loc=3, ncol=2, mode="expand", borderaxespad=0. )
+  if LEGEND:
+      plt.legend( bbox_to_anchor = ( 0., 1.02, 1., 10.102 ), loc=3, ncol=2, mode="expand", borderaxespad=0. )
+  else:
+      plt.title(tit)
+      
   if (log):
     plt.xscale('log')  
     

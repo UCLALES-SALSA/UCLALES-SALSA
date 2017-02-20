@@ -59,9 +59,6 @@ CONTAINS
 
   SUBROUTINE set_sizebins()
 
-    
-
-    ! POISTA MITÄ EI TARVII
     USE mo_submctl, ONLY : &
          pi6,         & ! pi/6
          reglim,      & ! diameter limits for size regimes [m]
@@ -71,11 +68,10 @@ CONTAINS
          in2b, fn2b,  & !     - " -       2b
          nbin2, nbin3,& !
          nbins,  &
-         sigma,  &
          aerobins
 
     USE mo_salsa_driver, ONLY : &
-         kbdim,kproma,klev,  &
+         kbdim,klev,  &
          aero
 
     IMPLICIT NONE
@@ -83,10 +79,7 @@ CONTAINS
     !-- local variables ----------
     INTEGER :: ii, jj,cc,dd,vv ! loop indices
 
-    REAL ::  &
-         ratio,  & ! ratio of regime upper and lower diameter
-         vlo,    & !
-         vhi
+    REAL ::  ratio ! ratio of regime upper and lower diameter
 
     ! -------------------------
     ! Allocate aerosol tracers
@@ -97,7 +90,7 @@ CONTAINS
     !-------------------------------------------------------------------------------
 
     DO jj = 1,klev
-       DO ii = 1,kproma
+       DO ii = 1,kbdim
 
           !-- 1) size regime 1: --------------------------------------
           !  - minimum & maximum *dry* volumes [fxm]
@@ -187,8 +180,6 @@ CONTAINS
   !---------------------------------------------------------------------------
 
   SUBROUTINE set_cloudbins()
-    
-    !POISTA MITÄ EI TARVII
     USE mo_submctl, ONLY : pi6,             &
                                ica,icb,         &
                                fca,fcb,         &
@@ -200,7 +191,7 @@ CONTAINS
                                in2b,fn2b,       &
                                cloudbins,       &
                                precpbins
-    USE mo_salsa_driver, ONLY : kproma, kbdim, klev, &
+    USE mo_salsa_driver, ONLY : kbdim, klev, &
                                  cloud,precp,aero
 
     IMPLICIT NONE
@@ -214,13 +205,11 @@ CONTAINS
     INTEGER :: armin(1)
     LOGICAL :: l_min(fn2a)
 
-    REAL :: tmplolim(7), tmphilim(7), tmpmid(7)
+    REAL :: tmplolim(7), tmphilim(7)
 
     ! Helper arrays to set up precipitation size bins
     tmplolim = (/50.,55.,65.,100.,200.,500.,1000./)*1.e-6
     tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
-
-    armin = 0
 
     ! For setting cloud droplet bins
     DO ii = in1a,fn2a
@@ -269,7 +258,7 @@ CONTAINS
     ALLOCATE(cloud(kbdim,klev,ncld), precp(kbdim,klev,nprc))
 
     DO jj = 1,klev
-       DO ii = 1,kproma
+       DO ii = 1,kbdim
 
           ! -------------------------------------------------
           ! Set cloud properties (parallel to aerosol bins)
@@ -356,8 +345,6 @@ CONTAINS
   !
   !---------------------------------------------------------------------------
   SUBROUTINE set_icebins()
-    
-    !POISTA MITÄ EI TARVII
     USE mo_submctl, ONLY : pi6,             &
                                iia,iib,         &
                                fia,fib,         &
@@ -369,33 +356,26 @@ CONTAINS
                                in2b,fn2b,       &
                                icebins,         &
                                snowbins
-    USE mo_salsa_driver, ONLY : kproma, kbdim, klev, &
-                                 ice,snow,aero !!huomhuom tarviiko myös aero?
-
+    USE mo_salsa_driver, ONLY : kbdim, klev, &
+                                 ice,snow,aero
 
     IMPLICIT NONE
 
     INTEGER :: ii,jj,cc,bb
 
-    ! For ice bins !! huomhuom ilmeisesti voi apinoida suoraan??
+    ! For ice bins
     REAL :: zvoldiff(fn2a)
     INTEGER :: zindex(fn2a)
     INTEGER :: imin, nba,nbb
     INTEGER :: armin(1)
     LOGICAL :: l_min(fn2a)
 
-    REAL :: tmplolim(7), tmphilim(7), tmpmid(7)
+    REAL :: tmplolim(7), tmphilim(7)
 
     !!huomhuom näillä alkuun, todelliset arvot myöhemmin, alaraja kriittisempi #arvo
     ! Helper arrays to set up ice size bins
     tmplolim = (/50.,55.,65., 100.,200.,500., 1000./)*1.e-6
     tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
-!    tmplolim = (/1.,3., 13.,50., 190.,720., 2700./)*1.e-6
-!    tmphilim = (/3.,13.,50.,190.,720.,2700.,10000./)*1.e-6
-
-
-
-    armin = 0
 
     ! For setting ice particle bins
     DO ii = in1a,fn2a
@@ -444,7 +424,7 @@ CONTAINS
     ALLOCATE(ice(kbdim,klev,nice), snow(kbdim,klev,nsnw))
 
     DO jj = 1,klev
-       DO ii = 1,kproma
+       DO ii = 1,kbdim
 
           ! -------------------------------------------------
           ! Set iceproperties (parallel to aerosol bins) !!!huomhuom tehdäänkö jäälle myös näin?
@@ -521,89 +501,8 @@ CONTAINS
     END DO
     snowbins = 0.5*snowbins ! To radius
 
-
   END SUBROUTINE set_icebins
 
-
-  ! fxm: is it really the upper limit of the particles that we want to
-  !  use as a criterion? how about supersat of 0.5%.
-  !*********************************************************************
-  !
-  !  subroutine ACTCURVE()
-  !
-  !*********************************************************************
-  !
-  ! Purpose:
-  ! --------
-  ! Calculates the criterion based on which particles from
-  !  insoluble sections are moved into soluble sections
-  !
-  !
-  ! Method:
-  ! -------
-  ! Critical dry volume ratio of soluble matter calculated at
-  !  upper volume boundary (in regime 3: fixed bin volume) of each bin
-  !
-  ! A fixed critical saturation ratio assumed for this calculation
-  !
-  ! NB! The critical soluble fraction is calculated according to
-  !  sulphate properties
-  !
-  !
-  ! Interface:
-  ! ----------
-  ! Called from model driver
-  ! (only at the beginning of simulation)
-  !
-  !
-  ! Coded by:
-  ! ---------
-  ! Hannele Korhonen (FMI) 2005
-  !
-  ! Juha Tonttila (FMI) 2014: Updated for the new aerosol datatype
-  !
-  !----------------------------------------------------------------------
-
-  SUBROUTINE actcurve()
-
-    USE mo_submctl, ONLY: &
-         pi,        &
-         pi6,       & ! pi/6
-         rg,        & ! universal gas constant [J/(mol K)]
-         in1a,fn2b, & ! size bin indices
-         mwa,       & ! molar mass of water [kg/mol]
-         rhowa,     & ! density of water [kg/m3]
-         surfw0,    & ! surface tension of water [J/m2]
-         msu,       & ! molar mass of sulphate [kg/mol]
-         rhosu,     & ! density of sulphate [kg/m3]
-         ions,      & ! van t'Hoff factor
-         slim,      & ! critical saturation value
-         epsv         ! critical volume ratio of soluble material (*temp**3)
-
-    USE  mo_salsa_driver, ONLY : &
-         aero
-
-    IMPLICIT NONE
-
-    !-- local variables ------
-    REAL :: aa, bb   ! constants in K?hler equation
-
-    !--------------------------------------------------------------------
-
-    aa = 4.*mwa*surfw0/(rg*rhowa)   ! curvature (Kelvin) effect
-    bb = 6.*mwa*ions*rhosu/(pi*rhowa*msu) ! solute (Raoult) effect
-
-    !-- Calculation of critical soluble material in each bin
-    !   (must be divided with temp**3 when used) ------------------
-    !
-    !TB changed the calculation of  maximum soluble fraction from
-    !   high volume limit to mean diameter
-    !
-
-    !    epsv(in1a:fn2b) = 4.*aa**3/(27.*bb*(log(slim))**2*vhilim(in1a:fn2b))
-    epsv(in1a:fn2b) = 4.*aa**3/(27.*bb*(log(slim))**2*(pi6*aero(1,1,in1a:fn2b)%dmid**3))
-
-  END SUBROUTINE actcurve
 
 
   !----------------------------------------------------------------------
@@ -620,7 +519,6 @@ CONTAINS
   !----------------------------------------------------------------------
   SUBROUTINE define_salsa()
 
-    
     USE mo_submctl, ONLY : nlcoag,                &
                                nlcgaa,nlcgcc,nlcgpp,  &
                                nlcgca,nlcgpa,nlcgpc,  &
@@ -634,7 +532,7 @@ CONTAINS
                                nlauto,nlautosnow,     &
                                nlactiv,               &
                                nlactintst,            &
-							   nlactbase,			  &
+                               nlactbase,            &
                                nlichom,               &
                                nlichet,               &
                                nlicimmers,            &
@@ -710,15 +608,15 @@ CONTAINS
          volDistB,      & ! Same as above but for b-bins
          nf2a,          & ! Number fraction of particles allocated to a-bins in regime 2. b-bins will get 1-nf2a
 
-	     ! ------------
-	     ! -- Juha: These should eventually be replaced with physical processing !!!! Dont use for liquid clouds!
+         ! ------------
+         ! -- Juha: These should eventually be replaced with physical processing !!!! Dont use for liquid clouds!
          initliqice,  & ! initialize ice and liquid cloud particles from aerosol bins
          liqFracA,      & ! fraction of aerosols that are activated to liquid cloud droplets in A bins
          iceFracA,      & ! fraction of aerosols that are activated to ice cloud particles in A bins
          liqFracB,      & ! fraction of aerosols that are activated to liquid cloud droplets  in B bins
          iceFracB,      & ! fraction of aerosols that are activated to    ice cloud particles in B bins
-	     ! ---------------------------------------------------------------------------------------------------
-         rhlim,         & ! Upper limit RH/100 for sals during initialization and spinup
+         ! ---------------------------------------------------------------------------------------------------
+         rhlim,         & ! Upper limit RH/100 for sals during initialization and spinup 
 
          sigmag,        & ! Stdev for the 7 initial lognormal modes
          dpg,           & ! Mean diameter for the 7 initial lognormal modes
@@ -751,18 +649,10 @@ CONTAINS
     !
     !-------------------------------------------------------------------------------
 
-    
-    USE mo_submctl, ONLY : reglim, nbin, nbin2, nbin3,     &
+    USE mo_submctl, ONLY : nbin, nbin2, nbin3,     &
                                in1a,fn1a,in2a,fn2a,in2b,fn2b,  &
-                               nbins,                          &
-
-                               epsv,sigma,csr_strat_wat,csr_strat_mix, &
-                               csr_strat_ice,csr_conv,zbcr,             &
-
-                               cfracn,zfracn,zfracn_cv,massacc,          &
-                               iso4b,inob,inhb,iocb,ibcb,idub,issb
-
-    USE mo_salsa_driver, ONLY : kproma,kbdim
+                               nbins, &
+                               massacc
 
     IMPLICIT NONE
 
@@ -783,16 +673,10 @@ CONTAINS
     nbins = fn2b
 
     ! --2) Allocate arrays
-    ALLOCATE(epsv(nbins), &
-             sigma(fn2b),csr_strat_wat(fn2b),csr_strat_mix(fn2b),     &
-             csr_strat_ice(fn2b),csr_conv(fn2b),zbcr(fn2b)                        )
 
-    ALLOCATE(cfracn(fn2b),zfracn(fn2b),zfracn_cv(fn2b),massacc(nbins))
+    ALLOCATE(massacc(nbins))
 
     massacc = 1.
-
-    ! Tarvitaanko näitä??
-    ALLOCATE(iso4b(fn2b),inob(fn2b),inhb(fn2b),iocb(fn2b),ibcb(fn2b),idub(fn2b),issb(fn2b))
 
 
     ! -- Aerosol tracers are allocated in *set_sizebins*
@@ -804,8 +688,6 @@ CONTAINS
     CALL set_cloudbins()
 
     CALL set_icebins()
-
-    CALL actcurve()
 
   END SUBROUTINE salsa_initialize
 

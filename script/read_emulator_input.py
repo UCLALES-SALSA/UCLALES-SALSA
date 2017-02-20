@@ -13,7 +13,7 @@ import FindCloudBase
 
 folder='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/'
 #file = 'sound_in_DYCOMSIIRF02'
-file = 'corr_design_15d.csv'
+file = 'corr_design_updated.csv'
 filu = folder+file
 f = open(filu, 'r')
 
@@ -51,7 +51,7 @@ for i in xrange(len(pblh)):
     base = FindCloudBase.calc_cloud_base( 101780, tpot_pbl[i], q_pbl[i]/1000.  )
     pbl  = pblh[i]*1000.
         
-    if ( base > pbl or base < 0.1 ):
+    if ( base > pbl or base < 10. ):
         print ' '
         print 'ÄLÄHDYS ' + str(case[i])
         print 'pilven korkeus ' + str(base)

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # #                   nzp          file         windprofile  pres0        par/serial   runNroBegin  runNroEnd
-# ./emulatorinputs    200         $DESIGN       zero         1017.8       parallel     28           30
+# ./emulator_inputs.py    200         $DESIGN       dycoms         1017.8       parallel     1           90
 """
 Created on Wed Dec 21 14:20:00 2016
 
@@ -25,6 +25,7 @@ from subprocess import call
 from ModDataPros import plottaa
 from ModDataPros import plot_alustus
 from ModDataPros import plot_lopetus
+from ModDataPros import initializeColors
 from FindCloudBase import calc_rh_profile
 from FindCloudBase import calc_cloud_droplet_diam
 from FindCloudBase import rslf
@@ -100,7 +101,7 @@ def tot_wat_mix_rat_IT( z, pblh, q_pbl, q_inv, invThi = 50., q_toa = 2.  ):
     if ( z < pblh ):
         q = q_pbl # g/kg
     elif (z > pblh + invThi ):
-        q = (q_pbl - q_inv) - ( q_pbl - q_inv - q_toa) * (1. - np.exp( -( z-pblh ) / 500. ) ) # g/kg
+        q = (q_pbl - q_inv) - ( q_pbl - q_inv - q_toa) * (1. - np.exp( -( z-pblh-invThi ) / 500. ) ) # g/kg
     else:
         q = -q_inv/invThi * ( z - pblh ) + q_pbl
         
@@ -111,7 +112,7 @@ def pot_temp_IT( z, pblh, tpot_pbl, tpot_inv, invThi = 50. ):
     if   (z < pblh ):
         theta = tpot_pbl
     elif (z > pblh + invThi ):
-        theta = tpot_pbl + tpot_inv +np.power( z-pblh , 1./3. )
+        theta = tpot_pbl + tpot_inv +np.power( z-pblh-invThi , 1./3. )
     else:
         theta = tpot_inv/invThi * ( z - pblh )  + tpot_pbl
     
@@ -202,7 +203,7 @@ def calcWindShear(u,v,z):
         
 
 # t_grad [ K / m]
-def thickness( tpot_inv, t_grad = 0.2   ):
+def thickness( tpot_inv, t_grad = 0.3   ):
 
     invThi = tpot_inv / t_grad
     return invThi
@@ -277,23 +278,23 @@ def write_sound_in( input_vector ):
     print 'case '     + str(case)
     print 'deltaz '  + str(dz)
     print 'korkeus ' + str(z[-1])
-    print 'pblh '    + str(pblh)
+    print 'pblh '    + str(round(pblh,2))
     print 'nzp '     + str(nzp)
 
-    print 'tpot_pbl ' + str(tpot_pbl)
-    print 'tpot_inv ' + str(tpot_inv)
-    print 'q_pbl '    + str(q_pbl)
-    print 'q_inv '    + str(q_inv)
-    print 'num_pbl '  + str(num_pbl)
+    print 'tpot_pbl ' + str(round(tpot_pbl,2))
+    print 'tpot_inv ' + str(round(tpot_inv,2))
+    print 'q_pbl '    + str(round(q_pbl,2))
+    print 'q_inv '    + str(round(q_inv,2))
+    print 'num_pbl '  + str(round(num_pbl*1e-6,2))
     z[0] = pres0
     potTemp = [tpot_pbl]
     wc = [q_pbl]
     u = [0.]
     v = [0.]
 
-    invThi = 50.    
-#    invThi = thickness( tpot_inv, t_grad = 0.2 )
-    print 'inversion thickness ' + str(invThi)
+#    invThi = 50.    
+    invThi = thickness( tpot_inv, t_grad = 0.3 )
+    print 'inversion thickness ' + str(round(invThi,2))
 
     for k in xrange(1,len(z)):
         
@@ -323,7 +324,7 @@ def write_sound_in( input_vector ):
     #    print 'lev '+ str(lev)+' theta '+ str(potTemp(lev))+ ' wc ' + str(wc(lev)) + ' u ' + str(u(lev)) + ' v ' + str(v(lev))
 
     rh, pressL = calc_rh_profile(  potTemp, np.multiply(np.asarray(wc), 0.001),  z )
-    drop, cloudwater = calc_cloud_droplet_diam( potTemp, np.multiply(np.asarray(wc), 0.001),  pressL, num_pbl)
+    drop, cloudwater = calc_cloud_droplet_diam( potTemp, np.multiply(np.asarray(wc), 0.001),  pressL, num_pbl*1e6)
     cloudwater = np.multiply(cloudwater,1000.)
     wind = calcWind(u,v)
     windshear = calcWindShear(u,v,z)
@@ -346,33 +347,45 @@ def write_sound_in( input_vector ):
 #     plotting
 #    print 'max liq pot temp', np.max(potTemp)
 #    print 'mcloud_water_mixing_ratio
+    markers=True
     z[0] = 0.
+    initializeColors(7)
     plot_alustus()
-    plottaa( potTemp, z, case+' liquid potential temperature, inv. thick.: ' +str(invThi) , 'liquid potential temperature K', 'height m' )
+    plottaa( potTemp, z, case+' liquid potential temperature, inv. thick.: ' +str( round(invThi,2) ) , 'liquid potential temperature K', 'height m', markers=markers )
+    plt.axhline( y = pblh )
+    plt.axhline( y = pblh + invThi )
+    plt.plot([tpot_pbl,tpot_pbl+tpot_inv], [pblh,pblh+invThi], color='r', marker='o')
+    plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
+#    ax.set_yticks(z)
+#    ax.set_yticks([pblh, pblh+invThi], minor=True)
     plt.savefig( folder + case + '_'+ 'liquid_potential_temperature'  + '.png', bbox_inches='tight')    
     
     plot_alustus()
-    plottaa( wc, z, case+' water mixing ratio', 'water mixing ratio g/kg', 'height m' )
+    plottaa( wc, z, case+' water mixing ratio', 'water mixing ratio g/kg', 'height m', markers=markers )
+    plt.axhline( y = pblh )
+    plt.axhline( y = pblh + invThi )
+    plt.plot([q_pbl,q_pbl-q_inv], [pblh,pblh+invThi], color='r', marker='o')
+    plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
     plt.savefig( folder + case + '_'+ 'water_mixing_ratio'  + '.png', bbox_inches='tight')    
 #
     plot_alustus()
-    plottaa( rh, z, case+' relative humidity', 'relative humidity %', 'height m' )
+    plottaa( rh, z, case+' relative humidity', 'relative humidity %', 'height m', markers=markers )
     plt.savefig( folder + case + '_'+ 'relative_humidity'  + '.png', bbox_inches='tight')    
 
     plot_alustus()
-    plottaa( drop, z, case+' cloud droplet diameter', r'cloud droplet diameter $ \mu m$', 'height m' )
+    plottaa( drop, z, case+' cloud droplet diameter', r'cloud droplet diameter $ \mu m$', 'height m', markers=markers )
     plt.savefig( folder + case + '_'+ 'cloud_droplet_diameter'  + '.png', bbox_inches='tight')   
 
     plot_alustus()
-    plottaa( cloudwater, z, case+' cloud water mixing ratio', 'cloud water mixing ratio g/kg', 'height m' )
+    plottaa( cloudwater, z, case+' cloud water mixing ratio', 'cloud water mixing ratio g/kg', 'height m', markers=markers )
     plt.savefig( folder + case + '_'+ 'cloud_water_mixing_ratio'  + '.png', bbox_inches='tight')         
     
     plot_alustus()
-    plottaa( wind, z, case+' wind '+ windprofile, 'wind m/s', 'height m' )
+    plottaa( wind, z, case+' wind '+ windprofile, 'wind m/s', 'height m', markers=markers )
     plt.savefig( folder + case + '_'+ 'wind'  + '.png', bbox_inches='tight')
     
     plot_alustus()
-    plottaa( windshear, z[:-1], case+' wind shear '+ windprofile, 'wind shear s^-1', 'height m' )
+    plottaa( windshear, z[:-1], case+' wind shear '+ windprofile, 'wind shear s^-1', 'height m', markers=markers )
     plt.savefig( folder + case + '_'+ 'windshear'  + '.png', bbox_inches='tight')
 
     f.close()
@@ -413,11 +426,11 @@ def write_namelist( input_vector ):
               ' level=3'                 +\
               ' nzp='    + str(nzp)      +\
               ' deltaz=' + str(dz)       +\
-              ' CCN='    + str(num_pbl)  +\
+              ' CCN='    + str(num_pbl*1e6)  +\
               ' sst='    + str(sst)      +\
               ' filprf=' + '"' + "'emul" + case + "'"    +'"'                        +\
               ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'                       +\
-              ' n='+'"'+'0., ' + str(num_pbl*1e-6)+' , 0., 0., 0., 0., 0.' + '"'   +\
+              ' n='+'"'+'0., ' + str(num_pbl)+' , 0., 0., 0., 0., 0.' + '"'   +\
               ' /home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/script/generate_namelist.bash'
 
 #               ' Tspinup=10.'     

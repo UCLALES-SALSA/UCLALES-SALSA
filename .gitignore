@@ -4,7 +4,7 @@ src/*.mod
 src/*.o
 les.mpi*
 les.seq
-
+*.orig
 util/
 
 
@@ -59,3 +59,7 @@ script/testi.bash
 
 script/plt
 script/sys
+
+case_emulator_week7/
+src/ice_immers_nucl_Jaakko.f90
+

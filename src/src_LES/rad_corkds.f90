@@ -57,7 +57,7 @@ contains
   ! that it conforms to expected properties
   !
   subroutine init_ckd
-
+    use mpi_interface, only: myid
     implicit none
 
     integer :: i, j, k, l, n, ib, ii, mbs, mbir
@@ -65,7 +65,7 @@ contains
     real    :: bllmx, brlmn
     real, dimension(2000) :: realVars 
 
-    real, allocatable :: gasesinband(:)
+    INTEGER, allocatable :: gasesinband(:)
 
     OPEN ( unit = 66, file = trim(gasfile), status = 'old' )
     read (66, '(2I5)') mb, ngases
@@ -80,7 +80,7 @@ contains
        band(ib)%power = realVars(ib) 
     end do 
 
-    mbs = 0.
+    mbs = 0
     do ib=1,mb-1
        band(ib)%rlimit = band(ib+1)%llimit
        band(ib)%center =(band(ib)%rlimit+band(ib)%llimit)*0.5
@@ -90,7 +90,7 @@ contains
 
     if (band(mb)%power > 0.) mbs = mbs + 1
     mbir = mb - mbs
-    print 600, trim(gasfile), ngases, mb, mbs, mbir, sum(band%power)
+    IF (myid==0) print 600, trim(gasfile), ngases, mb, mbs, mbir, sum(band%power)
 
     do n=1,ngases
        read (66,'(A5,I4)') gas(n)%name,gas(n)%iband
@@ -116,7 +116,7 @@ contains
        end do 
 
        if (abs(sum(gas(n)%hk) - 1.) <= 1.1 * spacing(1.) ) then
-          print 601, gas(n)%name, gas(n)%iband, gas(n)%noverlap,              &
+          IF (myid==0) print 601, gas(n)%name, gas(n)%iband, gas(n)%noverlap, &
                gas(n)%ng, gas(n)%np, gas(n)%nt
        else
           print *, gas(n)%hk, sum(gas(n)%hk(:))
@@ -163,20 +163,20 @@ contains
     do ib = 1, mb
        if(isSolar(band(ib))) then
           if(i > size(solar_bands)) stop 'TERMINATING: mismatch in solar bands'
-          solar_bands(i) = copy_band_properties(band(ib)) 
+          solar_bands(i) = band(ib)
           i = i + 1
        else
-          if(j > size(ir_bands))    stop 'TERMINATING: mismatch in solar bands'
-          ir_bands(j) = copy_band_properties(band(ib)) 
+          if(j > size(ir_bands))    stop 'TERMINATING: mismatch in IR bands'
+          ir_bands(j) = band(ib)
           j = j + 1
        end if
     end do
     
     do ib=1,mb
-       print 602, ib, band(ib)%power, band(ib)%llimit, band(ib)%rlimit,    &
+       IF (myid==0) print 602, ib, band(ib)%power, band(ib)%llimit, band(ib)%rlimit, &
             band(ib)%ngases, band(ib)%kg
     end do
-    print 604
+    IF (myid==0) print 604
 
     Initialized = .True.
 
@@ -405,30 +405,5 @@ contains
     
     isSolar = thisBand%power > 0. 
   end function isSolar
-  !
-  ! ----------------------------------------------------------------------
-  !
-  function copy_band_properties(original) result(copy)
-
-    type(band_properties), intent(in) :: original 
-    type(band_properties)             :: copy
-        
-    copy%kg     = original%kg
-    copy%ngases = original%ngases
-    copy%llimit = original%llimit
-    copy%rlimit = original%rlimit
-    copy%center = original%center
-    copy%power  = original%power
-    
-    if(allocated(original%gas_id)) then
-       allocate(copy%gas_id(size(original%gas_id)))
-       copy%gas_id(:) = original%gas_id(:)
-    end if
-    
-    if(allocated(original%hk)) then
-       allocate(copy%hk(size(original%hk)))
-       copy%hk(:) = original%hk(:)
-    end if
-  end function copy_band_properties
 
 end module ckd

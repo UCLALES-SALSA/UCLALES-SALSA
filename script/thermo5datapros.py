@@ -18,9 +18,9 @@ for filebase in sys.argv[1:]:
     filenamePS.append( filebase + '.ps.nc' )
     filenameTS.append( filebase + '.ts.nc' )
 
+colorNRO = len(sys.argv)-1
 
-
-
+mdp.initializeColors(colorNRO)
 
 ##############################
 #### YOU CAN CHANGE THESE: ###
@@ -38,12 +38,15 @@ piirra = True
 
 tulostus = False
 
+tightXAxis = True
+
+
 ###################################
-#
-#
-# LWP - loop over given files 
-#
-#
+###				###
+###				###
+### IWP - loop over given files ###
+###				###
+###				###
 ###################################
 
 for i in xrange(len(sys.argv)-1):
@@ -58,9 +61,15 @@ for i in xrange(len(sys.argv)-1):
     
     nimi = 'IWP ' + filenameNC[i]
 
-    mdp.laske_path_aikasarjaXYZ( f_data, dn0_data, korkeus, time_data, tulostus = True, piirra = piirra, uusikuva = uusikuva, nimi = 'Ice water path')
+    mdp.laske_path_aikasarjaXYZ( f_data, dn0_data, korkeus, time_data, tulostus = True, piirra = piirra, uusikuva = uusikuva, nimi = nimi)
 
-
+###################################
+###				###
+###				###
+### LWP - loop over given files ###
+###				###
+###				###
+###################################
 
 for i in xrange(len(sys.argv)-1):
     uusikuva = True if i == 0 else  False
@@ -76,7 +85,13 @@ for i in xrange(len(sys.argv)-1):
 
     mdp.laske_path_aikasarjaXYZ( l_data,    dn0_data, korkeus, time_data, tulostus = True, piirra = piirra, uusikuva = uusikuva, nimi = 'Liquid water path' )
 
-
+###################################
+###				###
+###				###
+### LWP - loop over given files ###
+###				###
+###				###
+###################################
 for i in xrange(len(sys.argv)-1):
     uusikuva = True if i == 0 else  False
 

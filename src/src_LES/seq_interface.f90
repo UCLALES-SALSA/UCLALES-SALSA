@@ -39,6 +39,7 @@ module mpi_interface
   integer :: nxnzp,nynzp
   integer :: wrxid, wryid, nxprocs, nyprocs
   integer, allocatable, dimension(:) :: xoffset, yoffset, nxpa, nypa
+  CHARACTER(len=80) :: ver='latest', author='Bjorn Stevens'
 
   ! these are the parameters used in the alltoallw call in the fft
 
@@ -77,8 +78,8 @@ contains
     end select
     !
     call date_and_time(date)
-    if (myid == 0) print "(/1x,75('-'),/2x,A13,A8,/2x,A15,I2,A15,I2,A14)", &
-         'UCLA LES 2.0 ',date, 'Computing using',nbytes,' byte reals and', &
+    if (myid == 0) print "(/1x,75('-'),/2x,A22,1x,A8,/2x,A15,I2,A15,I2,A14)", &
+         'UCLALES-SALSA '//trim(ver),date, 'Computing using',nbytes,' byte reals and', &
          intsize," byte integers"
 
   end subroutine init_mpi

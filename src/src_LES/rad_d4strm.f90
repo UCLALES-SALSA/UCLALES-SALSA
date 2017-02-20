@@ -45,16 +45,14 @@ contains
        call init_cldwtr
        Initialized = .True.
     end if
-    
-    Initialized = .True.
+
   end subroutine rad_init
   ! ----------------------------------------------------------------------
   ! Subroutine rad: Computes radiative fluxes using a band structure 
   ! defined by input ckd file
   !
-
   subroutine rad (as, u0, ss, pts, ee, pp, pt, ph, po, fds, fus, fdir, fuir, &
-       plwc, pre, piwc, pde, prwc, pgwc, useMcICA )
+       McICA, plwc, pre, piwc, pde, prwc, pgwc )
 
     real, intent (in)  :: pp (nv1) ! pressure at interfaces
 
@@ -78,16 +76,12 @@ contains
          ss, & ! Solar constant
          pts   ! Surface skin temperature
 
-    logical, optional, intent (in ) :: useMcICA
+    logical, intent (in) :: McICA
     
     real, dimension(nv1), intent (out)::  &
          fds, fus,  & ! downward and upward solar flux
          fdir, fuir   ! downward and upward ir flux
 
-    logical            :: McICA = .False. 
-
-    if(present(useMcICA)) McICA = useMcICA
-    
     call rad_ir(pts, ee, pp, pt, ph, po, fdir, fuir, &
                  plwc, pre, piwc, pde, prwc, pgwc, McICA  )
     call rad_vis(as, u0, ss, pp, pt, ph, po, fds, fus,  &
@@ -101,7 +95,7 @@ contains
   ! defined by input ckd file
   !
   subroutine rad_ir (pts, ee, pp, pt, ph, po, fdir, fuir, &
-       plwc, pre, piwc, pde, prwc, pgwc, useMcICA  )
+       plwc, pre, piwc, pde, prwc, pgwc, McICA )
 
     real, intent (in)  :: pp (nv1) ! pressure at interfaces
 
@@ -122,13 +116,12 @@ contains
          ee, & ! broadband surface emissivity (all IR bands given this value)
          pts   ! Surface skin temperature
          
-    logical, optional, intent (in ) :: useMcICA
+    logical, intent(in) :: McICA
     
     real, dimension(nv1), intent (out)::  &
          fdir, fuir   ! downward and upward ir flux
 
     ! ----------------------------------------
-    logical            :: McICA = .False. 
     logical, parameter :: irWeighted = .False. 
 
     real, dimension (nv)   :: tw,ww,tg,dz,tauNoGas, wNoGas, Tau, w
@@ -143,18 +136,13 @@ contains
     tw = 0.0; ww = 0.0; tg = 0.0; dz = 0.0; tauNoGas = 0.0;  wNoGas = 0.0;
     Tau = 0.0;  w = 0.0; fu1 = 0.0;  fd1 = 0.0;  bf = 0.0;
     www = 0.0;  pfNoGas = 0.0;  pf = 0.0;
-    if (.not.Initialized) then
-       call init_ckd   
-       randoms = new_RandomNumberSequence(1)
-       call init_cldwtr
-       Initialized = .True.
-    end if
+
+    if (.not.Initialized) CALL rad_init
 
     if(.not. allocated(bandweights)) then 
       allocate(bandweights(size(ir_bands)))
       call computeIRBandWeights(ir_bands, irWeighted, bandWeights)
     end if
-    if(present(useMcICA)) McICA = useMcICA
     
     fdir(:) = 0.0; fuir(:) = 0.0
     
@@ -165,7 +153,7 @@ contains
        ! Select a single band and g-point (ib, ig1) and use these as the limits
        !   in the loop through the spectrum below. 
        !
-       randomNumber = getRandomReal(randoms)
+       randomNumber = REAL( getRandomReal(randoms) )
        call select_bandg(ir_bands, bandweights, randomNumber, ib, ig1) 
        ig2 = ig1
        iblimit = 1
@@ -228,7 +216,7 @@ contains
   !
 
   subroutine rad_vis (as, u0, ss, pp, pt, ph, po, fds, fus,  &
-       plwc, pre, piwc, pde, prwc, pgwc, useMcICA  )
+       plwc, pre, piwc, pde, prwc, pgwc, McICA )
 
     real, intent (in)  :: pp (nv1) ! pressure at interfaces
 
@@ -250,13 +238,12 @@ contains
          u0, & ! cosine of solar zenith angle
          ss    ! Solar constant
          
-    logical, optional, intent (in ) :: useMcICA
+    logical, intent(in) :: McICA
     
     real, dimension(nv1), intent (out)::  &
          fds, fus    ! downward and upward solar flux
 
     ! ----------------------------------------
-    logical            :: McICA = .False. 
     logical, parameter :: solarWeighted = .false. 
 
     real, dimension (nv)   :: tw,ww,tg,tgm,dz, tauNoGas, wNoGas, tau, w
@@ -276,7 +263,6 @@ contains
       allocate(bandweights(size(solar_bands)))
       call computeSolarBandWeights(solar_bands, solarWeighted, bandWeights)
     end if
-    if(present(useMcICA)) McICA = useMcICA
     
     fds(:)  = 0.0
     fus(:)  = 0.0
@@ -286,11 +272,11 @@ contains
       call thicks(pp, pt, ph, dz) 
   
       if (McICA) then
-         randomNumber = getRandomReal(randoms)
          !
          ! Select a single band and g-point (ib, ig1) and use these as the 
          ! limits in the loop through the spectrum below. 
          !
+         randomNumber = REAL( getRandomReal(randoms) )
          call select_bandg(solar_bands, bandweights, randomNumber, ib, ig1) 
          ig2 = ig1
          iblimit = 1 
@@ -598,7 +584,7 @@ contains
         if(size(bands) /= size(bandweights)) &
          stop "Didn't provide the right amount of storage for band weights" 
     if(any(.not. isSolar(bands))) stop "Can't compute solar band weights in IR"
-    
+
     if(weighted) then 
        bandweights(:) = (/ (power(bands(i))/totalpower, i = 1, size(bands)) /)
     else 
