@@ -101,7 +101,8 @@ contains
     use stat, only : ssam_intvl, savg_intvl, mcflg
     USE forc, ONLY : radsounding, &        ! Juha: added for radiation background profile
                      div, case_name, &     ! Divergence, forcing case name
-                     sfc_albedo            ! Surface albedo
+                     sfc_albedo, &         ! Surface albedo
+                     useMcICA,RadConstPress,RadPrecipBins
     USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, appl_abort, ver, author
 
@@ -135,6 +136,9 @@ contains
          Tspinup, lbinanl,          & ! Length of spinup period in seconds
          radsounding, div, case_name, & ! Name of the radiation sounding file, divergence for LEVEL 4
          sfc_albedo,                  & ! Surface albedo
+         useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
+         RadConstPress       & ! keep constant pressure levels (T/F),
+         RadPrecipBins,      & ! add precipitation bins cloud water (0, 1, 2, 3,...)
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
 
     namelist /version/  &

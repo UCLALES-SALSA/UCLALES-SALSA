@@ -25,11 +25,14 @@ module radiation
 
 
   use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv, SolarConstant
-  use fuliou, only     : rad, minSolarZenithCosForVis
+  use fuliou, only     : rad, set_random_offset, minSolarZenithCosForVis
   implicit none
 
   character (len=50) :: background = 'datafiles/dsrt.lay'
   LOGICAL :: McICA = .TRUE.
+
+  LOGICAL :: ConstPress = .FALSE.
+  REAL, ALLOCATABLE, SAVE :: exner(:), pres(:)
 
   logical, save     :: first_time = .True.
   real, allocatable, save ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
@@ -41,8 +44,8 @@ module radiation
   contains
 
     subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn0, pi0, pi1, dzm, &
-         pip, tk, rv, rc, nc, tt, rflx, sflx, albedo, rr, ice, nice, grp, radsounding, useMcICA)
-
+         pip, tk, rv, rc, nc, tt, rflx, sflx, albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs)
+      use mpi_interface, only: myid, pecount
       integer, intent (in) :: n1, n2, n3
       real, intent (in)    :: alat, time, sknt, sfc_albedo
       real, dimension (n1), intent (in)                 :: dn0, pi0, pi1, dzm
@@ -50,19 +53,24 @@ module radiation
       real, optional, dimension (n1,n2,n3), intent (in) :: rr, ice, nice, grp
       real, dimension (n1,n2,n3), intent (inout)        :: tt, rflx, sflx
       CHARACTER(len=50), OPTIONAL, INTENT(in)           :: radsounding
-      LOGICAL, OPTIONAL                                     :: useMcICA
+      LOGICAL, OPTIONAL, INTENT(in)                     :: useMcICA, ConstPrs
       real, intent (out)                                :: albedo(n2,n3)
 
       integer :: kk
-      real    :: xfact, prw, pri, p0(n1), exner(n1), pres(n1)
+      real    :: xfact, prw, pri, p0(n1)
 
       IF (PRESENT(radsounding)) background = radsounding
       IF (PRESENT(useMcICA)) McICA = useMcICA
+      IF (PRESENT(ConstPrs)) ConstPress = ConstPrs
 
       if (first_time) then
+         ! Possible to use constant LES pressure levels (fixed during the first call)
+         ALLOCATE(exner(n1), pres(n1))
+         exner(1:n1) = (pi0(1:n1)+pi1(1:n1))/cp
+         pres(1:n1) = p00*( exner(1:n1) )**cpr
          IF (.TRUE.) THEN
             ! Works well with the LES model
-            p0(1:n1) = 0.01*p00*( (pi0(1:n1)+pi1(1:n1))/cp )**cpr
+            p0(1:n1) = 0.01*pres(1:n1)
             call setup_les(background,n1,nv1,nv,p0,tk(n1,3,3),rv(n1,3,3))
          ELSE
             p0(n1) = (p00*(pi0(n1)/cp)**cpr) / 100.
@@ -87,15 +95,31 @@ module radiation
       !
       u0 = zenith(alat,time)
       !
+      ! Avoid identical random numbers by adding an offset for each PU
+      !     myid=0,1,2,...
+      !     (n3-4)*(n2-4) is the number of random numbers for each PU
+      !     IR and optionally also visible wavelengths
+      ! First, call random numbers to add offset for PUs before myid
+      IF (McICA .and. myid>0) THEN
+        if (u0 > minSolarZenithCosForVis) THEN
+            kk=myid*(n3-4)*(n2-4)*2
+        ELSE
+            kk=myid*(n3-4)*(n2-4) ! Without solar wavelengths
+        ENDIF
+        CALL set_random_offset( kk )
+      ENDIF
+      !
       ! call the radiation
       !
       prw = (4./3.)*pi*rowt
       pri = (3.*sqrt(3.)/8.)*roice
       do j=3,n3-2
          do i=3,n2-2
-            ! Grid cell pressures in the LES model (Pa)
-            exner(1:n1) = (pi0(1:n1)+pi1(1:n1)+pip(1:n1,i,j))/cp
-            pres(1:n1) = p00*( exner(1:n1) )**cpr
+            IF (.NOT.ConstPress) THEN
+                ! Grid cell pressures in the LES model (Pa)
+                exner(1:n1) = (pi0(1:n1)+pi1(1:n1)+pip(1:n1,i,j))/cp
+                pres(1:n1) = p00*( exner(1:n1) )**cpr
+            ENDIF
 
             ! LES and background pressure levels must be separate (LES pressure levels will change)
             !      Tomi Raatikainen 17.6.2016 & 21.12.2016
@@ -189,6 +213,15 @@ module radiation
          end do
       end do
 
+      ! Call random numbers to add offset for PUs after myid
+      IF (McICA .and. myid<pecount-1) THEN
+        if (u0 > minSolarZenithCosForVis) THEN
+            kk=(pecount-1-myid)*(n3-4)*(n2-4)*2
+        ELSE
+            kk=(pecount-1-myid)*(n3-4)*(n2-4) ! Without solar wavelengths
+        ENDIF
+        CALL set_random_offset( kk )
+      ENDIF
     end subroutine d4stream
 
   ! ---------------------------------------------------------------------------
