@@ -260,7 +260,7 @@ module radiation
        pa = sp(1)
        pb = sp(2)
        k = 3
-       do while (sp(k) < ptop)
+       do while (sp(k) < ptop .and. k<ns)
           pa = pb
           pb = sp(k)
           k  = k+1

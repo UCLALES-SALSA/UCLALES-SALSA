@@ -167,7 +167,7 @@ contains
   subroutine init_stat(time, filprf, expnme, nzp)
 
     use grid, only : nxp, nyp, iradtyp, prtcl
-    use mpi_interface, only : myid, ver, author
+    use mpi_interface, only : myid, ver, author, info
     use mo_submctl, only : nprc, fn2a,fn2b,fca,fcb,fra
     USE class_ComponentIndex, ONLY : IsUsed
 
@@ -437,7 +437,7 @@ contains
     fname =  trim(filprf)//'.ts'
     if(myid == 0) print                                                  &
          "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
-    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid1, nrec1, ver, author)
+    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid1, nrec1, ver, author, info)
     ! Juha: Modified for SALSA output
     call define_nc( ncid1, nrec1, COUNT(s1bool), PACK(s1Total,s1bool))
     if (myid == 0) print *, '   ...starting record: ', nrec1
@@ -447,7 +447,7 @@ contains
     fname =  trim(filprf)//'.ps'
     if(myid == 0) print                                                  &
          "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
-    call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2, ver, author)
+    call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2, ver, author, info)
     ! Juha: Modified due to SALSA output
     call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp, inae_a=fn2a, inae_b=fn2b-fn2a, &
                     incld_a=fca%cur, incld_b=fcb%cur-fca%cur, inprc=fra)
@@ -775,7 +775,6 @@ contains
     real, dimension(n1,n2,n3) :: tv    ! Local variable
     integer                   :: k, i, j, km1
     logical                   :: aflg
-    real                      :: xy1mx
     real, dimension(n1)       :: a1, a2, a3, tvbar
     real, dimension(n2,n3)    :: scr, xy1, xy2
 
@@ -787,7 +786,7 @@ contains
     call get_3rd3(n1,n2,n3,rl,a1,a3)
 
     do k=1,n1
-       svctr(k,59)=svctr(k,59) + a1(k)*1000.
+       svctr(k,59)=svctr(k,59) + a1(k)
        svctr(k,60)=svctr(k,60) + a2(k)
        svctr(k,61)=svctr(k,61) + a3(k)
     end do
@@ -803,7 +802,6 @@ contains
     end do
     call get_avg3(n1,n2,n3,tv,tvbar)
 
-    xy1mx = 0.
     do k=1,n1-1 ! Juha: below references to k+1!!
        aflg = .false.
        do j=3,n3-2
@@ -873,6 +871,7 @@ contains
        end do
     end do
     ssclr(15) = get_avg(1,n2,n3,1,scr)
+    scr=scr-ssclr(15) ! For LWP variance
     ssclr(16) = get_cor(1,n2,n3,1,scr,scr)
   end subroutine accum_lvl2
   !
@@ -917,8 +916,8 @@ contains
              end if
           end do
        end do
-       svctr(k,84)=svctr(k,84) + CCN*dn0(k)/1000. ! nc (1/litre)
-       svctr(k,86)=svctr(k,86) + a1(k)*1000.
+       svctr(k,84)=svctr(k,84) + CCN   ! nc (#/kg)
+       svctr(k,86)=svctr(k,86) + a1(k) ! rr (kg/kg)
        if (aflg) then
           svctr(k,85)=svctr(k,85)+get_csum(n1,n2,n3,k,nr,scr1)
           svctr(k,91)=svctr(k,91)+get_avg(1,n2,n3,1,scr1)
@@ -942,8 +941,8 @@ contains
              end if
           end do
        end do
+       if (k == 2 ) ssclr(24) = rrcnt/REAL( (n3-4)*(n2-4) )
        if (aflg) then
-          if (k == 2 ) ssclr(24) = rrcnt
           svctr(k-1,90)=svctr(k-1,90)+get_csum(n1,n2,n3,k,rrate,scr1)
           svctr(k-1,89)=svctr(k-1,89)+get_avg(1,n2,n3,1,scr1)
        end if
@@ -978,8 +977,8 @@ contains
     ssclr(22) = get_avg(1,n2,n3,1,scr2)
     zarg(1,:,:) = rrate(2,:,:) 
     ssclr(23) = get_avg(1,n2,n3,1,zarg)
-    ssclr(25) = CCN*1.e-6 ! per cc
-    ssclr(26) = nrsum
+    ssclr(25) = CCN
+    IF (nrcnt>0.) ssclr(26) = nrsum/nrcnt
     ssclr(27) = nrcnt
 
   end subroutine accum_lvl3
@@ -2155,7 +2154,7 @@ contains
 
     case(4)
        !
-       ! find level where xx is a maximum
+       ! find level where xx is a minimum
        !
        sval = huge(1.)
        kk = 1

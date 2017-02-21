@@ -137,7 +137,7 @@ contains
          radsounding, div, case_name, & ! Name of the radiation sounding file, divergence for LEVEL 4
          sfc_albedo,                  & ! Surface albedo
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
-         RadConstPress       & ! keep constant pressure levels (T/F),
+         RadConstPress,      & ! keep constant pressure levels (T/F),
          RadPrecipBins,      & ! add precipitation bins cloud water (0, 1, 2, 3,...)
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
 
