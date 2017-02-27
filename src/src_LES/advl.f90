@@ -32,51 +32,52 @@ contains
 !
   subroutine ladvect
 
-    use grid, only : a_uc, a_vc, a_wc, a_ut, a_vt, a_wt, a_scr1, a_scr2,      &
+    use grid, only : a_uc, a_vc, a_wc, a_ut, a_vt, a_wt,      &
          nxp, nyp, nzp, dzt, dzm, dxi, dyi, dn0
     use stat, only : sflg, updtst, acc_tend
     use util, only : get_avg3
 
-    real ::  v1da(nzp), v1db(nzp), v1dc(nzp), v1dd(nzp), v1de(nzp)
+    real ::  v1da(nzp), v1db(nzp), v1dc(nzp), v1dd(nzp), v1de(nzp), &
+         a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
     !
     ! prepare density weights for use vertical advection
     !
     if (sflg) call acc_tend(nzp,nxp,nyp,a_uc,a_vc,a_wc,a_ut,a_vt,a_wt,        &
          v1dc,v1dd,v1de,1,'adv')
 
-    call advl_prep(nzp,nxp,nyp,a_wc,a_scr1,dn0,dzt,dzm,v1da,v1db)
+    call advl_prep(nzp,nxp,nyp,a_wc,a_tmp1,dn0,dzt,dzm,v1da,v1db)
     !
     ! advection of u by (u,v,w) all at current timelevel.  also when flag
     ! is set updated statistical array with uw flux derived from ladvzu
     !
-    call ladvxu(nzp,nxp,nyp,a_uc,a_ut,a_scr2,dxi)
-    call ladvyu(nzp,nxp,nyp,a_uc,a_ut,a_vc,a_scr2,dyi)
-    call ladvzu(nzp,nxp,nyp,a_uc,a_ut,a_scr1,a_scr2,v1da)
+    call ladvxu(nzp,nxp,nyp,a_uc,a_ut,a_tmp2,dxi)
+    call ladvyu(nzp,nxp,nyp,a_uc,a_ut,a_vc,a_tmp2,dyi)
+    call ladvzu(nzp,nxp,nyp,a_uc,a_ut,a_tmp1,a_tmp2,v1da)
     if (sflg) then
-       call get_avg3(nzp,nxp,nyp,a_scr2,v1da)
+       call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
        call updtst(nzp,'adv',-1,v1da,1)
     end if
     !
     ! advection of v by (u,v,w) all at current timelevel.  also when flag
     ! is set updated statistical array with uw flux derived from ladvzu
     !    
-    call ladvxv(nzp,nxp,nyp,a_uc,a_vc,a_vt,a_scr2,dxi)
-    call ladvyv(nzp,nxp,nyp,a_vc,a_vt,a_scr2,dyi)
-    call ladvzv(nzp,nxp,nyp,a_vc,a_vt,a_scr1,a_scr2,v1da)
+    call ladvxv(nzp,nxp,nyp,a_uc,a_vc,a_vt,a_tmp2,dxi)
+    call ladvyv(nzp,nxp,nyp,a_vc,a_vt,a_tmp2,dyi)
+    call ladvzv(nzp,nxp,nyp,a_vc,a_vt,a_tmp1,a_tmp2,v1da)
     if (sflg) then
-       call get_avg3(nzp,nxp,nyp,a_scr2,v1da)
+       call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
        call updtst(nzp,'adv',-2,v1da,1)
     end if
     !
     ! advection of w by (u,v,w) all at current timelevel.  also when flag
     ! is set updated statistical array with uw flux derived from ladvzu
     !
-    call ladvxw(nzp,nxp,nyp,a_uc,a_wc,a_wt,a_scr2,dxi)
-    call ladvyw(nzp,nxp,nyp,a_vc,a_wc,a_wt,a_scr2,dyi)
-    call ladvzw(nzp,nxp,nyp,a_wc,a_wt,a_scr1,a_scr2,v1db)
+    call ladvxw(nzp,nxp,nyp,a_uc,a_wc,a_wt,a_tmp2,dxi)
+    call ladvyw(nzp,nxp,nyp,a_vc,a_wc,a_wt,a_tmp2,dyi)
+    call ladvzw(nzp,nxp,nyp,a_wc,a_wt,a_tmp1,a_tmp2,v1db)
 
     if (sflg) then
-       call get_avg3(nzp,nxp,nyp,a_scr2,v1da)
+       call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
        call updtst(nzp,'adv',-3,v1da,1)
     end if
 

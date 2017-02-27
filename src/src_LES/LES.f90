@@ -98,7 +98,7 @@ contains
          Tspinup,sst, lbinanl
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand
-    use stat, only : ssam_intvl, savg_intvl, mcflg
+    use stat, only : ssam_intvl, savg_intvl, mcflg, csflg
     USE forc, ONLY : radsounding, &        ! Juha: added for radiation background profile
                      div, case_name, &     ! Divergence, forcing case name
                      sfc_albedo, &         ! Surface albedo
@@ -115,6 +115,7 @@ contains
          savg_intvl,       & ! output statistics frequency
          ssam_intvl,       & ! integral accumulate/ts print frequency
          mcflg,            & ! Mass conservation stats flag
+         csflg,            & ! Column statatistics flag
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          level  , CCN    , & ! Microphysical model Number of CCN per kg of air

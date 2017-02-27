@@ -185,7 +185,7 @@ end subroutine tstep_reset
 
     use grid, only : level, dtl, dtlt, Tspinup,                                         &
                      ! Added parameters for interfacing with SALSA
-                     nxp, nyp, nzp, a_press, a_scr1, a_scr2,                       &
+                     nxp, nyp, nzp, a_press, a_temp, a_rsl,                       &
                      a_rc, a_wp, a_rp, a_rt, a_rh,                                  &
                      a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,    &
                      a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,    &
@@ -270,16 +270,16 @@ end subroutine tstep_reset
 
           ! Rate of change in absolute temperature (for some ice processes)
           if (time >= 1.) then
-             ztkt = a_scr1-a_temp0
-             a_temp0 = a_scr1
+             ztkt = a_temp-a_temp0
+             a_temp0 = a_temp
           else if (time == 0.) then
-             a_temp0 = a_scr1
+             a_temp0 = a_temp
              ztkt = 0.
           end if
 
           IF ( nxp ==5 .and. nyp == 5 ) THEN
              ! 1D -runs
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,zwp,a_dn,  &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -293,7 +293,7 @@ end subroutine tstep_reset
                   zrm, prtcl, dtlt, dbg2, time, level  )
           ELSE
              !! for 2D or 3D runs
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,a_wp,a_dn,  &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -337,7 +337,7 @@ end subroutine tstep_reset
     ! Mask for cloud base activation
     IF (level >= 4)  CALL maskactiv(zactmask,nxp,nyp,nzp,nbins,2,prtcl,a_rh,              &
                                     rc = a_rc,pa_naerop = a_naerop, pa_maerop = a_maerop, &
-                                    pt = a_scr1, Rpwet=a_Rawet, w=a_wp, &
+                                    pt = a_temp, Rpwet=a_Rawet, w=a_wp, &
                                     pa_ncloud= a_ncloudp(:,:,:,:) )
     ! Get tendencies from cloud base activation
     IF (level >= 4) CALL newdroplet(zactmask)
@@ -351,10 +351,10 @@ end subroutine tstep_reset
 
     CALL thermo(level)
 
-    IF (level >= 4)  &
+    IF (level >= 4)  THEN
          CALL SALSA_diagnostics
-
-    call thermo(level)
+         call thermo(level)
+    ENDIF
 
     call corlos
 
@@ -602,24 +602,24 @@ end subroutine tstep_reset
   !
   subroutine buoyancy
 
-    use grid, only : a_uc, a_vc, a_wc, a_wt, a_rv, a_rc, a_theta, a_scr1, a_scr3, &
+    use grid, only : a_uc, a_vc, a_wc, a_wt, a_rv, a_rc, a_theta, &
          a_rp, nxp, nyp, nzp, dzm, th00, level, pi1
     use stat, only : sflg, comp_tke
     use util, only : ae1mm
     use thrm, only : update_pi1
 
-    real, dimension (nzp) :: awtbar
+    real, dimension (nzp) :: awtbar, a_tmp1(nzp,nxp,nyp)
 
     IF (level < 4) THEN
-       call boyanc(nzp,nxp,nyp,level,a_wt,a_theta,a_rp,th00,a_scr1,a_rv)
+       call boyanc(nzp,nxp,nyp,level,a_wt,a_theta,a_rp,th00,a_tmp1,a_rv)
     ELSE IF (level >= 4) THEN
-       call boyanc(nzp,nxp,nyp,level,a_wt,a_theta,a_rp,th00,a_scr1,a_rc)
+       call boyanc(nzp,nxp,nyp,level,a_wt,a_theta,a_rp,th00,a_tmp1,a_rc)
     END IF
 
     call ae1mm(nzp,nxp,nyp,a_wt,awtbar)
     call update_pi1(nzp,awtbar,pi1)
 
-    if (sflg)  call comp_tke(nzp,nxp,nyp,dzm,th00,a_uc,a_vc,a_wc,a_scr1,a_scr3)
+    if (sflg)  call comp_tke(nzp,nxp,nyp,dzm,th00,a_uc,a_vc,a_wc,a_tmp1)
 
   end subroutine buoyancy
   !
@@ -753,7 +753,7 @@ end subroutine tstep_reset
                      a_naerop,a_maerop,a_ncloudp,a_mcloudp,a_nprecpp,a_mprecpp,      &
                      a_gaerop, a_Radry, a_Rcdry, a_Rpdry, a_Rawet, a_Rcwet, a_Rpwet, &
                      a_rc, a_srp,a_snrp, binMixrat, prtcl,   &
-                     a_rh, a_scr1, a_ri,a_srs,a_snrs,a_rhi,                                      &
+                     a_rh, a_temp, a_ri,a_srs,a_snrs,a_rhi,                                      &
                      a_nicep,a_micep,a_nsnowp,a_msnowp,a_Ridry,a_Riwet,a_Rswet,a_Rsdry !! ice'n'snow
     USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,              &
                                in1a,fn2a,fn2b,                        &
@@ -857,7 +857,7 @@ end subroutine tstep_reset
                    ns = ns/a_ncloudp(k,i,j,c)
 
                    bb = 3.*mwa*ns/(4.*pi*rhowa)
-                   aa = 4.*mwa*surfw0/(rg*rhowa*a_scr1(k,i,j))
+                   aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
                    cdcld(k,i,j,c) = SQRT(3.*bb/aa)
                 ELSE
                    cdcld(k,i,j,c) = rempty
@@ -907,7 +907,7 @@ end subroutine tstep_reset
                    ns = ns/a_nprecpp(k,i,j,c)
 
                    bb = 3.*mwa*ns/(4.*pi*rhowa)
-                   aa = 4.*mwa*surfw0/(rg*rhowa*a_scr1(k,i,j))
+                   aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
                    cdprc(k,i,j,c) = SQRT(3.*bb/aa)
                 ELSE
                    cdprc(k,i,j,c) = rempty
@@ -961,7 +961,7 @@ end subroutine tstep_reset
                    ns = ns/a_nicep(k,i,j,c)
 
                    bb = 3.*mwa*ns/(4.*pi*rhoic)
-                   aa = 4.*mwa*surfi0/(rg*rhoic*a_scr1(k,i,j))
+                   aa = 4.*mwa*surfi0/(rg*rhoic*a_temp(k,i,j))
                    cdice(k,i,j,c) = max(rempty,SQRT(3.*bb/aa))
                 ELSE
                    cdice(k,i,j,c) = rempty
@@ -1011,7 +1011,7 @@ end subroutine tstep_reset
                    ns = ns/a_nsnowp(k,i,j,c)
 
                    bb = 3.*mwa*ns/(4.*pi*rhoic)
-                   aa = 4.*mwa*surfi0/(rg*rhoic*a_scr1(k,i,j))
+                   aa = 4.*mwa*surfi0/(rg*rhoic*a_temp(k,i,j))
                    cdsnw(k,i,j,c) = max(rempty,SQRT(3.*bb/aa))
                 ELSE
                    cdsnw(k,i,j,c) = rempty

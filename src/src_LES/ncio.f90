@@ -6,7 +6,7 @@ module ncio
   implicit none
   private
 
-  public :: open_nc, define_nc,  &
+  public :: open_nc, define_nc, define_nc_cs, &
             open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
 
 contains
@@ -327,6 +327,115 @@ contains
   end subroutine define_nc
   !
   ! ----------------------------------------------------------------------
+  ! Subroutine define_nc_cs: Defines the structure of a new column statatistics nc file
+  !
+  subroutine define_nc_cs(ncID, nRec, n2, n3, level, rad_level, spec_list, nspec )
+    integer, intent (in) :: ncID, n2, n3, level, rad_level, nspec
+    integer, intent (inout) :: nRec ! nRec=0 means new files
+    CHARACTER(LEN=3), intent (in) :: spec_list(nspec) ! SALSA species (e.g. SO4, Org,...)
+
+    integer, save :: timeID=0, xtID=0, ytID=0
+    integer, save :: dim_ttt(3)
+    CHARACTER(LEN=7) nam
+    integer :: iret, n, VarID, ss, si
+
+    if (nRec == 0) then
+       iret = nf90_def_dim(ncID, 'time', NF90_UNLIMITED, timeID)
+       iret = nf90_def_dim(ncID, 'xt', n2, xtID)
+       iret = nf90_def_dim(ncID, 'yt', n3, ytID)
+
+       dim_ttt= (/xtID,ytID,timeID/)
+
+       iret=nf90_def_var(ncID,'time',NF90_FLOAT,timeID  ,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'time'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'time'))
+
+       iret=nf90_def_var(ncID,'xt',NF90_FLOAT,xtID    ,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'xt'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'xt'))
+
+       iret=nf90_def_var(ncID,'yt',NF90_FLOAT,ytID    ,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'yt'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'yt'))
+
+       iret=nf90_def_var(ncID,'lwp',NF90_FLOAT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'lwp'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'lwp'))
+
+       iret=nf90_def_var(ncID,'rwp',NF90_FLOAT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'rwp'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'rwp'))
+
+       iret=nf90_def_var(ncID,'Nc',NF90_FLOAT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'Nc'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'Nc'))
+
+       iret=nf90_def_var(ncID,'Nr',NF90_FLOAT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'Nr'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'Nr'))
+
+       iret=nf90_def_var(ncID,'nccnt',NF90_INT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'nccnt'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'nccnt'))
+
+       iret=nf90_def_var(ncID,'nrcnt',NF90_INT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'nrcnt'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'nrcnt'))
+
+       iret=nf90_def_var(ncID,'zb',NF90_FLOAT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'zb'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'zb'))
+
+       iret=nf90_def_var(ncID,'zc',NF90_FLOAT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'zc'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'zc'))
+
+       IF (rad_level==3) THEN
+          iret=nf90_def_var(ncID,'albedo',NF90_FLOAT,dim_ttt,VarID)
+          iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'albedo'))
+          iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'albedo'))
+       ENDIF
+
+       IF (level>=4) THEN
+          ! Aerosol and water removal
+           iret=nf90_def_var(ncID,'rmH2Odr',NF90_FLOAT,dim_ttt,VarID)
+           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'rmH2Odr'))
+           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'rmH2Odr'))
+
+           iret=nf90_def_var(ncID,'rmH2Ocl',NF90_FLOAT,dim_ttt,VarID)
+           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'rmH2Ocl'))
+           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'rmH2Ocl'))
+
+           iret=nf90_def_var(ncID,'rmH2Opr',NF90_FLOAT,dim_ttt,VarID)
+           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'rmH2Opr'))
+           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'rmH2Opr'))
+
+           DO ss = 1,nspec
+              nam='rm'//spec_list(ss)//'dr'
+              iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
+              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
+              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
+
+              nam='rm'//spec_list(ss)//'cl'
+              iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
+              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
+              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
+
+              nam='rm'//spec_list(ss)//'pr'
+              iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
+              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
+              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
+           END DO
+       ENDIF
+
+       iret  = nf90_enddef(ncID)
+       iret  = nf90_sync(ncID)
+       nRec = 1
+    end if
+
+  end subroutine define_nc_cs
+  !
+  ! ----------------------------------------------------------------------
   ! Subroutine nc_info: Gets long_name, units and dimension info given a
   ! short name.
   !
@@ -524,7 +633,7 @@ contains
        if (itype==0) ncinfo = 'Height of maximum scalar gradient'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'time'
-    case('lwp_bar')
+    case('lwp_bar','lwp')
        if (itype==0) ncinfo = 'Liquid-water path'
        if (itype==1) ncinfo = 'kg/m^2'
        if (itype==2) ncinfo = 'time'
@@ -552,7 +661,7 @@ contains
        if (itype==0) ncinfo = 'Reflected (TOA) shortwave radiation'
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'time'
-    case('rwp_bar')
+    case('rwp_bar','rwp')
        if (itype==0) ncinfo = 'Rain-water path'
        if (itype==1) ncinfo = 'kg/m^2'
        if (itype==2) ncinfo = 'time'
@@ -679,7 +788,7 @@ contains
        if (itype==0) ncinfo = 'NO3 mass mixing ratio in interstitial particles'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
-    case('rmH2Oae')
+    case('rmH2Oae','rmH2Odr')
        if (itype==0) ncinfo = 'Deposition of H2O with aerosols'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
@@ -853,7 +962,7 @@ contains
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'tttt'
     case('w_2')
-       if (itype==0) ncinfo = 'Variance of w wind'
+       if (itype==0) ncinfo = 'Second raw moment of w wind'
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('t_2')
@@ -861,7 +970,7 @@ contains
        if (itype==1) ncinfo = 'K^2'
        if (itype==2) ncinfo = 'tttt'
     case('w_3')
-       if (itype==0) ncinfo = 'Third moment of w wind'
+       if (itype==0) ncinfo = 'Third raw moment of w wind'
        if (itype==1) ncinfo = 'm^3/s^3'
        if (itype==2) ncinfo = 'ttmt'
     case('t_3')
@@ -1037,11 +1146,11 @@ contains
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('cs1')
-       if (itype==0) ncinfo = 'Conditionally sampled fraction of flow'
+       if (itype==0) ncinfo = 'Fraction of cloudy columns (cs1)'
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'tttt'
     case('cnt_cs1')
-       if (itype==0) ncinfo = 'Sum of I_cs1'
+       if (itype==0) ncinfo = 'Number of cloudy columns (cs1)'
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'tttt'
     case('w_cs1')
@@ -1066,22 +1175,22 @@ contains
        if (itype==2) ncinfo = 'tttt'
     case('wt_cs1')
        if (itype==0) ncinfo = 'Covariance of wtheta_l flux and cs1'
-       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==1) ncinfo = 'K*m/s'
        if (itype==2) ncinfo = 'ttmt'
     case('wv_cs1')
        if (itype==0) ncinfo = 'Covariance of wtheta_v flux and cs1'
-       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==1) ncinfo = 'K*m/s'
        if (itype==2) ncinfo = 'ttmt'
     case('wr_cs1')
        if (itype==0) ncinfo = 'Covariance of wr_t flux and cs1'
-       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==1) ncinfo = 'kg/kg*m/s'
        if (itype==2) ncinfo = 'ttmt'
     case('cs2')
-       if (itype==0) ncinfo = 'Conditionally sampled fraction of flow'
+       if (itype==0) ncinfo = 'Fraction of cloud core columns (cs2)'
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'tttt'
     case('cnt_cs2')
-       if (itype==0) ncinfo = 'Sum of I_cs2'
+       if (itype==0) ncinfo = 'Number of cloud core columns (cs2)'
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'tttt'
     case('w_cs2')
@@ -1106,15 +1215,15 @@ contains
        if (itype==2) ncinfo = 'tttt'
     case('wt_cs2')
        if (itype==0) ncinfo = 'Covariance of wtheta_l flux and cs2'
-       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==1) ncinfo = 'K*m/s'
        if (itype==2) ncinfo = 'ttmt'
     case('wv_cs2')
        if (itype==0) ncinfo = 'Covariance of wtheta_v flux and cs2'
-       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==1) ncinfo = 'K*m/s'
        if (itype==2) ncinfo = 'ttmt'
     case('wr_cs2')
        if (itype==0) ncinfo = 'Covariance of wr_t flux and cs2'
-       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==1) ncinfo = 'kg/kg*m/s'
        if (itype==2) ncinfo = 'ttmt'
     case('Nc')
        if (itype==0) ncinfo = 'Cloud droplet number concentration'

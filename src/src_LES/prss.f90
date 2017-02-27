@@ -399,16 +399,16 @@ contains
   !
   subroutine asselin(iac)
 
-    use grid, only : a_up,a_vp,a_wp,a_uc,a_vc,a_wc,a_scr1, nxyzp, runtype
+    use grid, only : a_up,a_vp,a_wp,a_uc,a_vc,a_wc, nxyzp, runtype
 
     integer :: iac
     integer, save ::ncall=0
 
     if (runtype == 'HISTORY') ncall=1
 
-    call predict(nxyzp,a_uc,a_up,a_scr1,iac,ncall)
-    call predict(nxyzp,a_vc,a_vp,a_scr1,iac,ncall)
-    call predict(nxyzp,a_wc,a_wp,a_scr1,iac,ncall)
+    call predict(nxyzp,a_uc,a_up,iac,ncall)
+    call predict(nxyzp,a_vc,a_vp,iac,ncall)
+    call predict(nxyzp,a_wc,a_wp,iac,ncall)
     if (iac == 2) ncall=ncall+1
 
   end subroutine asselin
@@ -427,7 +427,7 @@ contains
   ! we seem to get by with eps=0.1, perhaps because of the coupling
   ! provided by the staggered forward step.
   !
-  subroutine predict(npts,ac,ap,af,iac,iflag)
+  subroutine predict(npts,ac,ap,iac,iflag)
 
     integer :: m,npts,iac,iflag
     real :: ac(npts),ap(npts),af(npts),epsu
