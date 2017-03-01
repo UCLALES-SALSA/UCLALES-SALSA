@@ -29,6 +29,7 @@ bin/case_emulator/
 
 script/ajakaksiajoa.bash
 
+dict/
 
 #history run
 bin/0000_0000.SPINUP7200.rst

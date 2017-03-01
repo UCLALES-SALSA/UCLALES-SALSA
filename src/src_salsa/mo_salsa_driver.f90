@@ -55,7 +55,7 @@ IMPLICIT NONE
   !
   ! Now takes masses in as kg/kg from LES!! Converted to m3/m3 for SALSA
   !
-  ! 05/2016 Juha: This routine is still pretty much in its original shape. 
+  ! 05/2016 Juha: This routine is still pretty much in its original shape.
   !               It's dumb as a mule and twice as ugly, so implementation of
   !               an improved solution is necessary sooner or later.
   !
@@ -73,7 +73,7 @@ IMPLICIT NONE
                        pa_Ridry,   pa_Rsdry,                            &
                        pa_Rawet,   pa_Rcwet,   pa_Rpwet,                &
                        pa_Riwet,   pa_Rswet,                            &
-                       prunmode, prtcl, tstep, dbg2, time, level,zt)
+                       prunmode, prtcl, tstep, time, level,zt)
 
     USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
                                nice,nsnw,             &
@@ -86,7 +86,7 @@ IMPLICIT NONE
     USE class_componentIndex, ONLY : ComponentIndex, GetIndex, GetNcomp, IsUsed
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: pnx,pny,pnz,n4                       ! Dimensions: x,y,z,number of chemical species  
+    INTEGER, INTENT(in) :: pnx,pny,pnz,n4                       ! Dimensions: x,y,z,number of chemical species
     REAL, INTENT(in)    :: tstep, time                      ! Model timestep length
 
     REAL, INTENT(in)    :: press(pnz,pnx,pny), &            ! Pressure (Pa)
@@ -118,7 +118,6 @@ IMPLICIT NONE
                                                          ! 3: Regular runtime call'
     INTEGER, INTENT(in) :: level                         ! thermodynamical level
 
-    LOGICAL, INTENT(in) :: dbg2
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl ! Object containing the indices of different aerosol components for mass arrays
 
@@ -202,7 +201,7 @@ IMPLICIT NONE
                 in_rv(1,1) = rv(kk,ii,jj)
              END IF
              rv_old(1,1) = in_rv(1,1)
-                
+
              ! Set volume concentrations
              IF (IsUsed(prtcl,'SO4')) THEN
                 nc = GetIndex(prtcl,'SO4')
@@ -494,7 +493,7 @@ IMPLICIT NONE
                         zgso4,  zgocnv, zgocsv, zghno3,        &
                         zgnh3,  aero,   cloud,  precp,         &
                         ice,    snow,                          &
-                        actd,   in_w,   dbg3,   prtcl, time, level, in_pdn)
+                        actd,   in_w,   prtcl, time, level, in_pdn)
 
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)

@@ -58,7 +58,7 @@ contains
     LOGICAL :: zactmask(nzp,nxp,nyp)
     LOGICAL :: TMP
     INTEGER :: n4
-    
+
     ztkt = 0.
 
     TMP = .false.
@@ -95,7 +95,7 @@ contains
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-		  1, prtcl, dtlt, .false., 0., level,zt   )
+                  1, prtcl, dtlt, 0., level,zt   )
           ELSE
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,a_wp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
@@ -108,12 +108,12 @@ contains
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-                  1, prtcl, dtlt, .false., 0., level, zt   )
+                  1, prtcl, dtlt, 0., level, zt   )
 
           END IF
           CALL SALSAInit
 
-          
+
        END IF !level >= 4
 
     else if (runtype == 'HISTORY') then

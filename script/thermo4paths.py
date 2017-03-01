@@ -73,7 +73,7 @@ for i in xrange(len(sys.argv)-1):
     mdp.aikasarjaTulostus( liqWP_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'LWP g/m^2', tightXAxis=tightXAxis)
 
 
-mdp.plot_setYlim( 0.0, maksimiLWP, False)
+mdp.plot_setYlim( 0.0, maksimiLWP, True)
 
 #print ' '
 #print 'RWP'
@@ -97,7 +97,7 @@ for i in xrange(len(sys.argv)-1):
     nimi = 'RWP ' + "_".join(filenameTS[i][14:-6].split("/")[::2]) # + filenameTS[i]
     mdp.aikasarjaTulostus( rainWP_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'RWP g/m^2', tightXAxis=tightXAxis )
 
-mdp.plot_setYlim( 0.0, maksimiRWP, False)
+mdp.plot_setYlim( 0.0, maksimiRWP, True)
 
 #print ' '
 #print 'CLOUD'
@@ -182,6 +182,34 @@ for i in xrange(len(sys.argv)-1):
     mdp.aikasarjaTulostus( lhf_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'Latent heat flux W/m^2', tightXAxis=tightXAxis )    
 
 mdp.plot_setYlim( minimiLHF, maksimiLHF )
+
+#########################################
+
+###################################
+for i in xrange(len(sys.argv)-1):
+    uusikuva = True if i == 0 else  False
+
+    time_data    = mdp.read_Data( filenameTS[i], 'time'    )
+    wmax_Tdata = mdp.read_Data( filenameTS[i], 'wmax' )
+    
+    if 'maksimiW' in locals():
+        maksimiW = max( maksimiW,  np.max(wmax_Tdata) )
+    else:
+        maksimiW = np.max(wmax_Tdata)
+    
+    if 'minimiW' in locals():
+        minimiW = min( minimiW,  np.min(wmax_Tdata) )
+    else:
+        minimiW = np.min(wmax_Tdata)
+
+    nimi ='W max ' + "_".join(filenameTS[i][14:-6].split("/")[::2])
+        
+    mdp.aikasarjaTulostus( wmax_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'W max m/s', tightXAxis=tightXAxis )    
+
+mdp.plot_setYlim( minimiW, maksimiW )
+
+
+############################
 
 ########################
 ### finishing up     ###

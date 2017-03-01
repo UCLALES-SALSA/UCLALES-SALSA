@@ -38,7 +38,7 @@ outputrootfolder=/lustre/tmp/${username}/${subfolder}/${folder}
 # ibrixrootfolder=/ibrix/arch/ClimRes/aholaj/${folder}
 
 # supercomputer related variable settings
-WT=24:00:00 # walltime
+WT=336:00:00 # walltime
 nodeNPU=20  # number of processing units in a node  
 JOBFLAG=PBS     # job flag of the job scheduling system ( e.g. PBS or SBATCH )
 scriptname=combine.py

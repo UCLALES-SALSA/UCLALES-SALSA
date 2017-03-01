@@ -169,7 +169,7 @@ contains
 
     use grid, only : nxp, nyp, iradtyp, prtcl
     use mpi_interface, only : myid, ver, author
-    use mo_submctl, only : nprc, fn2a,fn2b,fca,fcb,fra
+    use mo_submctl, only : nprc, fn2a,fn2b,fca,fcb,fra,fia,fib,fsa
     USE class_ComponentIndex, ONLY : IsUsed
 
     character (len=80), intent (in) :: filprf, expnme

@@ -224,11 +224,11 @@ end subroutine tstep_reset
     REAL :: zwp(nzp,nxp,nyp), &  !! FOR SINGLE-COLUMN RUNS
             ztkt(nzp,nxp,nyp)
     INTEGER :: zrm
-    LOGICAL :: dbg,dbg2,tulostus
+    LOGICAL :: tulostus
 
     INTEGER :: n4
 
-    dbg = .FALSE.
+
     tulostus = .false.
     zwp = 0.5
 
@@ -296,7 +296,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-		  zrm, prtcl, dtlt, dbg2, time, level, zt  )
+		  zrm, prtcl, dtlt,  time, level, zt  )
           ELSE
              !! for 2D or 3D runs
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,a_wp,a_dn,  &
@@ -310,7 +310,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-		  zrm, prtcl, dtlt, dbg2, time, level,zt  )
+		  zrm, prtcl, dtlt,  time, level,zt  )
 
           END IF !nxp==5 and nyp == 5
 
@@ -1076,8 +1076,6 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
              ! Loop over precipitation bins
              DO bc = ira,fra
-                nc = GetIndex(prtcl,'H2O')
-                ww = (nc-1)*nprc + bc ! Index for water content in each bin
 
                 IF ( a_nprecpp(k,i,j,bc) > prlim .AND. a_rh(k,i,j)<0.999 ) THEN
 
@@ -1159,8 +1157,6 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
              ! Loop over snow bins
              DO bc = isa,fsa
-                nc = GetIndex(prtcl,'H2O')
-                ww = (nc-1)*nsnw + bc ! Index for water content in each bin
 
                 IF ( a_nsnowp(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 ) THEN
 

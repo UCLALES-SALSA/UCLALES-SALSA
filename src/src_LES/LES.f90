@@ -92,7 +92,7 @@ contains
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon
     use step, only : timmax, istpfl, corflg, outflg, frqanl, frqhis,          &
          strtim, radfrq, cntlat
-    use grid, only : ver, deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
+    use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
          Tspinup,sst, lbinanl, &
@@ -142,9 +142,6 @@ contains
 
     namelist /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author
-
-    namelist /version/  &
-         ver
 
     ps       = 0.
     ts       = th00

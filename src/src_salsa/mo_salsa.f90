@@ -27,7 +27,7 @@ CONTAINS
     USE mo_salsa_update, ONLY : distr_update
     USE mo_salsa_cloud, only : cloud_activation, autoconv2, &
               ice_immers_nucl,ice_hom_nucl,ice_het_nucl,ice_melt, &
-              autosnow
+              autosnow, ice_basic_nucl, ice_fixed_NC
 
     USE mo_submctl, ONLY :      &
          fn2b,               & ! size section and composition indices
@@ -165,7 +165,7 @@ CONTAINS
         CALL ice_het_nucl(kproma,kbdim,klev,       &
                           pcloud,pice,paero,ppres, &
                           ptemp,prv,prs,ptstep)
-    
+
     ! Melting of ice
     IF (lsicmelt) &
          CALL ice_melt(kproma,kbdim,klev,              &

@@ -1201,6 +1201,201 @@ CONTAINS
 
   END SUBROUTINE ice_immers_nucl
 
+
+  SUBROUTINE ice_basic_nucl(kproma,  kbdim,  klev,   &
+                            pcloud,  pice,   ppres,  &
+                            ptemp,   prv,    prs,    &
+                            ptstep                   )
+
+    USE mo_submctl, ONLY : t_section,   &
+                               ica,fca,     &
+                               icb,fcb,     &
+                               ncld,        &
+                               iia,fia,     &
+                               iib,fib,     &
+                               nice,        &
+                               rhowa,       &
+                               rhoic,       &
+                               planck,      &
+                               pi6,         &
+                               pi,          &
+                               nlim, prlim
+
+    IMPLICIT NONE
+    INTEGER, INTENT(in) :: kbdim,kproma,klev
+    REAL, INTENT(in) :: ptstep
+    REAL, INTENT(in) :: ppres(kbdim,klev),  &
+                            ptemp(kbdim,klev),  &
+                            prv(kbdim,klev),    &
+                            prs(kbdim,klev)
+
+    TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
+                                      pice(kbdim,klev,nice)
+
+    INTEGER :: ii,jj,kk,ss
+
+    REAL :: frac = 0.0, t0, t1
+
+    DO kk = 1,nice
+       DO ii = 1,kproma
+          DO jj = 1,klev
+
+!              !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!              !!  ihan omasta päästä -parametrisaatio      !!
+!              !! Shupe et al 2006
+!              !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+              t0 = 0.
+              t1 = -40.
+
+
+!              if(  pcloud(ii,jj,kk)%volc(4)  < prlim ) cycle
+
+!              frac = 1/(t1-t0)*(ptemp(ii,jj)-273.15)
+!              frac = MAX(0.,MIN(1.,frac))
+              frac = 1.e-4
+              DO ss = 1,8
+                      pice(ii,jj,kk)%volc(ss) = max(0., pice(ii,jj,kk)%volc(ss) + &
+                                                           pcloud(ii,jj,kk)%volc(ss)*frac)
+
+                      pcloud(ii,jj,kk)%volc(ss) = max(0., pcloud(ii,jj,kk)%volc(ss)*(1. - frac))
+               END DO
+
+               pice(ii,jj,kk)%numc = max( 0., pice(ii,jj,kk)%numc + pcloud(ii,jj,kk)%numc*frac )
+               pcloud(ii,jj,kk)%numc = max(0., pcloud(ii,jj,kk)%numc*(1. - frac) )
+
+          END DO
+       END DO
+    END DO
+
+  END SUBROUTINE ice_basic_nucl
+
+!! in given hard coded conditions keep the ice particle number concentration over given limit #/kg
+  SUBROUTINE ice_fixed_NC(kproma,  kbdim,  klev,   &
+                          pcloud,  pice,   ppres,  &
+                          ptemp,   prv,    prs,    &
+                          prsi,    ptstep, pdn, time     )
+
+
+    USE mo_submctl, ONLY : t_section,   &
+                               ica,fca,     &
+                               icb,fcb,     &
+                               ncld,        &
+                               iia,fia,     &
+                               iib,fib,     &
+                               nice,        &
+                               rhowa,       &
+                               rhoic,       &
+                               planck,      &
+                               pi6,         &
+                               pi,          &
+                               eps,         &
+                               nlim, prlim, fixinc
+
+    IMPLICIT NONE
+    INTEGER, INTENT(in) :: kbdim,kproma,klev
+    REAL, INTENT(in) :: ptstep, time  ! time step length
+
+    REAL, INTENT(in) :: ppres(kbdim,klev),  &
+                            ptemp(kbdim,klev),  &
+                            prv(kbdim,klev),    &
+                            prs(kbdim,klev),    &
+                            prsi(kbdim,klev),   &
+                            pdn(kbdim, klev)       ! air density
+    TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
+                                      pice(kbdim,klev,nice)
+
+    INTEGER :: ii,jj,kk,ss
+
+    REAL :: frac, tC, liqsupsat, icesupsat, old_INC, new_INC,old_LNC, new_LNC, fixed, ashnikushni, &
+                zumCN, zumCumIce, excessFracIce, excessIce
+
+
+
+
+    DO ii = 1,kproma
+    DO jj = 1,klev
+
+        fixed     = fixinc * 1000.0 * pdn(ii,jj)
+
+        liqsupsat = prv(ii,jj) /  prs(ii,jj) - 1.0
+        icesupsat = prv(ii,jj) / prsi(ii,jj) - 1.0
+        tC = ptemp(ii,jj) - 273.15 ! absolute temperature in celsius degrees
+        if( .NOT. ( (liqsupsat >= -0.001 .and. tC <= -8. .and. tC > -38.) .OR. icesupsat >= 0.08 )   ) cycle
+
+        zumCN         = sum( pcloud(ii,jj,:)%numc )
+        zumCumIce     = sum(   pice(ii,jj,:)%numc )
+        excessIce     = 0.0
+        excessFracIce = 1.0
+!        write(*,*) ' '
+!        write(*,*) ' '
+!        write(*,*) ' zumCumIce ', zumCumIce
+!        write(*,*) ' '
+
+        if ( zumCumIce > fixed ) cycle
+
+        DO kk = nice,1,-1
+
+
+            IF( zumCumIce < fixed ) THEN
+
+
+
+
+
+                old_LNC = pcloud(ii,jj,kk)%numc
+                old_INC = pice(ii,jj,kk)%numc
+
+                if (old_LNC < 1e-10 ) cycle
+
+                excessIce = min( fixed - zumCumIce , pcloud(ii,jj,kk)%numc ) / 5.0 ! division by two means nudging towards the fixed value
+
+                pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + excessIce
+
+                zumCumIce = zumCumIce + excessIce
+
+                excessFracIce = MAX( 0.0, MIN( 1.0, excessIce /  pcloud(ii,jj,kk)%numc) )
+
+                pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - excessIce
+
+
+
+                new_INC =   pice(ii,jj,kk)%numc
+                new_LNC = pcloud(ii,jj,kk)%numc
+!                write(*,*) ' '
+!                write(*,*) ' voidaan tehda jaata, aika: ', time, ' bini ', kk
+!                write(*,*) 'liqsupsat ', liqsupsat, ' icesupsat '  , icesupsat
+!                write(*,*) ' temp C ', tC
+!                write(*,*) ' fixed ice numc ', fixed, ' zumCN', zumCN, ' pdn ', pdn(ii,jj)
+!
+!                write(*,*) 'old inc', old_INC, ' new inc ', new_INC
+!                write(*,*) 'old lnc', old_LNC, ' new lnc ', new_LNC
+!                write(*,*) ' old_LNC - new_LNC', old_LNC - new_LNC, 'new_INC', new_INC
+!                write(*,*) ' excessFracIce ', excessFracIce
+!                write(*,*) ' new zumCumIce ', zumCumIce
+!                write(*,*) ' '
+
+
+                DO ss = 1,8
+                    pice(ii,jj,kk)%volc(ss)   = pice(ii,jj,kk)%volc(ss)   +  max(0., pcloud(ii,jj,kk)%volc(ss)*excessFracIce )
+                    pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) -  max(0., pcloud(ii,jj,kk)%volc(ss)*excessFracIce )
+                END DO
+
+            END IF
+
+
+
+
+
+        END DO
+        !END DO
+    END DO
+    END DO
+
+  END SUBROUTINE ice_fixed_NC
+
+
   ! ------------------------------------------------------------
 
   REAL FUNCTION calc_JCF(rn,temp,ppres,prv,prs) ! heterogenous (condensation) freezing  !!check  [Mor05] eq. (26)

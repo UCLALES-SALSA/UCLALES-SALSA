@@ -204,8 +204,7 @@ for i in xrange(len(sys.argv)-1):
 
 mdp.plot_setYlim( minimiLHF, maksimiLHF )
 
-
-############################
+#############################################
 
 mdp.plot_alustus()
 mdp.plottaa(range( 1,len(sys.argv) ), maksimisateet, 'maximum precipitation after 2h', 'case', 'precipitation W/m^2', changeColor = True, markers=True)

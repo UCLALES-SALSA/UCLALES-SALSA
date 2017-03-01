@@ -30,13 +30,15 @@ from FindCloudBase import calc_rh_profile
 from FindCloudBase import calc_cloud_droplet_diam
 from FindCloudBase import rslf
 from plot_profiles import PlotProfiles
+from ECLAIR_calcs import solve_rw
+
 import sys
 import os
 
 global rootfolder
 rootfolder='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/bin/case_emulator/'
 
-filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/corr_design_15d.csv'
+filu ='/home/aholaj/mounttauskansiot/ibrixmount/DESIGN/corr_design.csv'
 #filu='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/vanhat/corr_design_15d_withconstraints.csv'
 
 #if (len(sys.argv) > 1):
@@ -233,7 +235,7 @@ def read_design( filu  ):
             tpot_inv.append( float(tpot_invA) )
             q_pbl.append( float(q_pblA) )
             tpot_pbl.append( float(tpot_pblA) )
-            pblh.append( 1000.*float(pblhA) )           
+            pblh.append( float(pblhA) )           
             num_pbl.append( float(num_pblA) )
             
         i=i+1   
@@ -255,9 +257,10 @@ def write_sound_in( input_vector ):
     pblh        = float( input_vector[5] )
     num_pbl     = float( input_vector[6] )
     dz          = float( input_vector[7] )
-    nzp         = int( input_vector[8] )
+    nzp         = int(   input_vector[8] )
     windprofile = input_vector[9]
-    pres0       = float(input_vector[10])
+    pres0       = float( input_vector[10] )
+    mounted     = bool(  input_vector[11] )
     
     folder = rootfolder+'emul' + case +'/'
     call(['mkdir','-p', folder])
@@ -344,51 +347,53 @@ def write_sound_in( input_vector ):
                                         v[k]                            )
         f.write(row)                                        
     
-#     plotting
-#    print 'max liq pot temp', np.max(potTemp)
-#    print 'mcloud_water_mixing_ratio
-    markers=True
-    z[0] = 0.
-    initializeColors(7)
-    plot_alustus()
-    plottaa( potTemp, z, case+' liquid potential temperature, inv. thick.: ' +str( round(invThi,2) ) , 'liquid potential temperature K', 'height m', markers=markers )
-    plt.axhline( y = pblh )
-    plt.axhline( y = pblh + invThi )
-    plt.plot([tpot_pbl,tpot_pbl+tpot_inv], [pblh,pblh+invThi], color='r', marker='o')
-    plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
-#    ax.set_yticks(z)
-#    ax.set_yticks([pblh, pblh+invThi], minor=True)
-    plt.savefig( folder + case + '_'+ 'liquid_potential_temperature'  + '.png', bbox_inches='tight')    
-    
-    plot_alustus()
-    plottaa( wc, z, case+' water mixing ratio', 'water mixing ratio g/kg', 'height m', markers=markers )
-    plt.axhline( y = pblh )
-    plt.axhline( y = pblh + invThi )
-    plt.plot([q_pbl,q_pbl-q_inv], [pblh,pblh+invThi], color='r', marker='o')
-    plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
-    plt.savefig( folder + case + '_'+ 'water_mixing_ratio'  + '.png', bbox_inches='tight')    
-#
-    plot_alustus()
-    plottaa( rh, z, case+' relative humidity', 'relative humidity %', 'height m', markers=markers )
-    plt.savefig( folder + case + '_'+ 'relative_humidity'  + '.png', bbox_inches='tight')    
-
-    plot_alustus()
-    plottaa( drop, z, case+' cloud droplet diameter', r'cloud droplet diameter $ \mu m$', 'height m', markers=markers )
-    plt.savefig( folder + case + '_'+ 'cloud_droplet_diameter'  + '.png', bbox_inches='tight')   
-
-    plot_alustus()
-    plottaa( cloudwater, z, case+' cloud water mixing ratio', 'cloud water mixing ratio g/kg', 'height m', markers=markers )
-    plt.savefig( folder + case + '_'+ 'cloud_water_mixing_ratio'  + '.png', bbox_inches='tight')         
-    
-    plot_alustus()
-    plottaa( wind, z, case+' wind '+ windprofile, 'wind m/s', 'height m', markers=markers )
-    plt.savefig( folder + case + '_'+ 'wind'  + '.png', bbox_inches='tight')
-    
-    plot_alustus()
-    plottaa( windshear, z[:-1], case+' wind shear '+ windprofile, 'wind shear s^-1', 'height m', markers=markers )
-    plt.savefig( folder + case + '_'+ 'windshear'  + '.png', bbox_inches='tight')
-
     f.close()
+    
+#     plotting if mounted
+    if ( mounted ):
+                    
+        markers=True
+        z[0] = 0.
+        initializeColors(7)
+        plot_alustus()
+        plottaa( potTemp, z, case+' liquid potential temperature, inv. thick.: ' +str( round(invThi,2) ) , 'liquid potential temperature K', 'height m', markers=markers )
+        plt.axhline( y = pblh )
+        plt.axhline( y = pblh + invThi )
+        plt.plot([tpot_pbl,tpot_pbl+tpot_inv], [pblh,pblh+invThi], color='r', marker='o')
+        plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
+    #    ax.set_yticks(z)
+    #    ax.set_yticks([pblh, pblh+invThi], minor=True)
+        plt.savefig( folder + case + '_'+ 'liquid_potential_temperature'  + '.png', bbox_inches='tight')    
+        
+        plot_alustus()
+        plottaa( wc, z, case+' water mixing ratio', 'water mixing ratio g/kg', 'height m', markers=markers )
+        plt.axhline( y = pblh )
+        plt.axhline( y = pblh + invThi )
+        plt.plot([q_pbl,q_pbl-q_inv], [pblh,pblh+invThi], color='r', marker='o')
+        plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
+        plt.savefig( folder + case + '_'+ 'water_mixing_ratio'  + '.png', bbox_inches='tight')    
+    #
+        plot_alustus()
+        plottaa( rh, z, case+' relative humidity', 'relative humidity %', 'height m', markers=markers )
+        plt.savefig( folder + case + '_'+ 'relative_humidity'  + '.png', bbox_inches='tight')    
+    
+        plot_alustus()
+        plottaa( drop, z, case+' cloud droplet diameter', r'cloud droplet diameter $ \mu m$', 'height m', markers=markers )
+        plt.savefig( folder + case + '_'+ 'cloud_droplet_diameter'  + '.png', bbox_inches='tight')   
+    
+        plot_alustus()
+        plottaa( cloudwater, z, case+' cloud water mixing ratio', 'cloud water mixing ratio g/kg', 'height m', markers=markers )
+        plt.savefig( folder + case + '_'+ 'cloud_water_mixing_ratio'  + '.png', bbox_inches='tight')         
+        
+        plot_alustus()
+        plottaa( wind, z, case+' wind '+ windprofile, 'wind m/s', 'height m', markers=markers )
+        plt.savefig( folder + case + '_'+ 'wind'  + '.png', bbox_inches='tight')
+        
+        plot_alustus()
+        plottaa( windshear, z[:-1], case+' wind shear '+ windprofile, 'wind shear s^-1', 'height m', markers=markers )
+        plt.savefig( folder + case + '_'+ 'windshear'  + '.png', bbox_inches='tight')
+
+    
     
     return True
     
@@ -397,7 +402,7 @@ def write_namelist( input_vector ):
     case     = input_vector[0]
     nzp      = int( input_vector[1] )
     dz       = float( input_vector[2] )
-    q_pbl    = float( input_vector[3] )
+#    q_pbl    = float( input_vector[3] )
     tpot_pbl = float( input_vector[4] )    
     num_pbl  = float( input_vector[5] )    
     pres0    = float( input_vector[6] )
@@ -422,8 +427,9 @@ def write_namelist( input_vector ):
 #              ' dthcon=' + str(dth)                              +\
 #              ' drtcon=' + str(drt)                              +\
 #                  ' dtlong=2.'                                          + \
+#                  ' level=3'                 +\
+
     command = 'dir='+folder              +\
-              ' level=3'                 +\
               ' nzp='    + str(nzp)      +\
               ' deltaz=' + str(dz)       +\
               ' CCN='    + str(num_pbl*1e6)  +\
@@ -445,7 +451,8 @@ def write_namelist( input_vector ):
     
     return True
     
-def main( nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/corr_design_15d.csv', windprofile = 'zero', pres0 = 1017.8, mode='serial', runNroBegin = 1, runNroEnd = 90 ):
+def main( mounted = True, nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/ibrixmount/DESIGN/corr_design.csv', windprofile = 'dycoms', pres0 = 1017.8, runmode='parallel', runNroBegin = 1, runNroEnd = 90 ):
+    mounted = bool(mounted)    
     nzp_orig = int(nzp_orig)
     pres0 = float(pres0)
     runNroBegin = int(runNroBegin)
@@ -457,7 +464,7 @@ def main( nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLA
     args ='rm -rf '+ rootfolder+'*'
     os.system(args)
 
-    case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, num_pbl = read_design( filu )
+    case, q_inv, tpot_inv, lwc_max, tpot_pbl, pblh, num_pbl = read_design( filu )
 
     if runNroEnd > len(case):
         runNroEnd = len(case)        
@@ -466,25 +473,28 @@ def main( nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLA
     
     # define resolutions and nzp's    
     dz = np.zeros(len(case))
-    nzp = np.zeros(len(case))    
+    nzp = np.zeros(len(case))
+    q_pbl = np.zeros(len(case))    
     for k in xrange( A, B ):
         dz[k], nzp[k] = deltaz2( pblh[k], nzp_orig )
+        q_pbl[k]      = lwc_max[k] #solve_rw( pres0, tpot_pbl[k], lwc_max[k], pblh[k]*1000. ) 
     nzp = nzp.astype(int)
     
-    if ( mode == 'serial' ) :
+    if ( runmode == 'serial' ) :
         print 'serial mode'
         for k in xrange( A, B ): 
-            write_sound_in( [ case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], num_pbl[k], dz[k], nzp[k], windprofile, pres0 ] )
+            write_sound_in( [ case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], num_pbl[k], dz[k], nzp[k], windprofile, pres0, mounted ] )
             write_namelist( [ case[k], nzp[k], dz[k], q_pbl[k], tpot_pbl[k], num_pbl[k], pres0 ] )
             
-    elif ( mode == 'parallel' ):
+    elif ( runmode == 'parallel' ):
         print 'parallel mode'
         koko = len(case)
         windprofile = [windprofile]*koko
         pres0       = [pres0]*koko
+        mounted     = [mounted]*koko
         from multiprocessing import Pool
         pool = Pool(processes= 4)
-        sound_in_iter = iter( np.column_stack( ( case[A:B], q_inv[A:B], tpot_inv[A:B], q_pbl[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], dz[A:B], nzp[A:B], windprofile[A:B], pres0[A:B] ) ) )
+        sound_in_iter = iter( np.column_stack( ( case[A:B], q_inv[A:B], tpot_inv[A:B], q_pbl[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], dz[A:B], nzp[A:B], windprofile[A:B], pres0[A:B], mounted[A:B] ) ) )
         namelist_iter = iter( np.column_stack( ( case[A:B], nzp[A:B], dz[A:B], q_pbl[A:B], tpot_pbl[A:B], num_pbl[A:B], pres0[A:B] ) ) )
         for i in pool.imap_unordered( write_sound_in, sound_in_iter ):
             print i
@@ -505,8 +515,13 @@ def main( nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/voimahomemount/UCLA
 #    write_namelist( case, 20., 660. )
 #    
 if __name__ == "__main__":
-    #     nzp          file         windprofile  pres0        par/serial   runNroBegin  runNroEnd
-    main( sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7] )    
+    
+    if ( len(sys.argv) > 2):
+        main( mountend = sys.argv[1], nzp_orig = sys.argv[2], filu =  sys.argv[3], windprofile = sys.argv[4], pres0 = sys.argv[5], runmode = sys.argv[6], runNroBegin = sys.argv[7], runNroEnd =  sys.argv[8] )
+        print 'generated by using Command Line arguments'
+    else:
+        main()
+        print 'generated by using default values'
 
 
 #main(200, filu, 'ascos')
