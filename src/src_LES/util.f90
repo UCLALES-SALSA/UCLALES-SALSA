@@ -232,8 +232,9 @@ contains
 
     integer      :: k,i,j
     real(kind=8) :: lavg(n1),gavg(n1),counts(n1), x
-    LOGICAL :: norm = .TRUE.
+    LOGICAL :: norm
 
+    norm = .TRUE. ! Default
     IF (present(normalize)) norm=normalize
 
     IF (present(cond)) THEN
@@ -256,7 +257,7 @@ contains
             call double_array_par_sum(lavg,counts,n1)
             avg(:)=0.
             do k=1,n1
-                IF (counts(k)>0) avg(:) = real(gavg(k)/counts(k))
+                IF (counts(k)>0.) avg(:) = real(gavg(k)/counts(k))
             END DO
         ELSE
             avg(:)=REAL(gavg(:))

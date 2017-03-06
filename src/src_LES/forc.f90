@@ -108,21 +108,13 @@ contains
        ! -------------------------------------
        if (present(time_in) .and. present(cntlat) .and. present(sst)) then
 
-          IF (level == 3) THEN
+          IF (level <= 3) THEN
              znc(:,:,:) = CCN
              zrc(:,:,:) = a_rc(:,:,:) ! Cloud water only
-             IF (RadPrecipBins>0) THEN ! Add precipitation (all or nothing)
+             IF (level == 3 .AND. RadPrecipBins > 0) THEN ! Add precipitation (all or nothing)
                 znc(:,:,:) = znc(:,:,:) + a_npp(:,:,:)
                 zrc(:,:,:) = zrc(:,:,:) + a_rpp(:,:,:)
              ENDIF
-             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                  dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, albedo, radsounding=radsounding, &
-                  useMcICA=useMcICA, ConstPrs=RadConstPress)
-
-          ELSE IF (level < 3) THEN
-             znc(:,:,:) = CCN
-             zrc(:,:,:) = a_rc(:,:,:) ! Cloud water only
              call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                   dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
                   a_rflx, a_sflx, albedo, radsounding=radsounding, &

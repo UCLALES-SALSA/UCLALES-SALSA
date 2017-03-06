@@ -1089,7 +1089,7 @@ contains
     real, dimension(n1,n2,n3) :: tv    ! Local variable
     integer                   :: k, i, j, kp1
     real, dimension(n1)       :: a1, a2, a3, tvbar
-    real, dimension(n1,n2,n3)    :: scr, xy1, xy2, tlw, tvw, rtw
+    real, dimension(n1,n2,n3) :: scr, xy1, xy2, tlw, tvw, rtw
 
     !
     ! liquid water statistics

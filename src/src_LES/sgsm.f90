@@ -79,7 +79,7 @@ contains
 
     use grid, only : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt    &
          , a_rv, a_rc, a_rp, a_tp, a_tt, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta  &
-         , a_rsl, a_temp, nscl, nxp, nyp    &
+         , a_temp, a_rsl, nscl, nxp, nyp    &
          , nzp, zm, dxi, dyi, dzt, dzm, dtlt, dtlv , th00, dn0  &
          , pi0, pi1, newsclr, level, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc &
          , wq_sfc
@@ -108,7 +108,8 @@ contains
     ! ----------
     ! Calculate Deformation and stability for SGS calculations
     !
-    call fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,dn0,th00,a_temp,rs=a_rsl)
+    ! Not needed; a_temp and a_rsl already up-to-date
+    !call fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,dn0,th00,a_temp,rs=a_rsl)
 
     call bruvais(nzp,nxp,nyp,level,a_theta,a_tp,rxt,a_rsl,a_tmp3,dzm,th00)
 
@@ -129,7 +130,7 @@ contains
     case (2)
        call deardf(nzp,nxp,nyp,sflg,dxi,zm,dn0,a_qp,a_qt,a_tmp3,a_tmp2,a_tmp1)
 
-       call solv_tke(nzp,nxp,nyp,a_tmp3,a_temp,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi  &
+       call solv_tke(nzp,nxp,nyp,a_tmp3,a_tmp1,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi  &
             ,dtlt)
     end select
     !

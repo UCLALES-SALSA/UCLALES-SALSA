@@ -386,7 +386,7 @@ contains
   end subroutine fll_tkrs
 !
 ! -------------------------------------------------------------------------
-! BRUVAIS:  Cacluates the brunt-vaisaila frequency in accordance with the
+! BRUVAIS:  Calcuates the brunt-vaisaila frequency in accordance with the
 ! thermodynamic level
 !
 ! Modified for level 4,

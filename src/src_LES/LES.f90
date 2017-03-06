@@ -91,7 +91,8 @@ contains
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon
     use step, only : timmax, istpfl, corflg, outflg, frqanl, frqhis,          &
-         strtim, radfrq, cntlat
+         strtim, radfrq, cntlat, &
+         nudge_theta, tau_theta, nudge_rv, tau_rv, nudge_ccn, tau_ccn
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
@@ -115,7 +116,7 @@ contains
          savg_intvl,       & ! output statistics frequency
          ssam_intvl,       & ! integral accumulate/ts print frequency
          mcflg,            & ! Mass conservation stats flag
-         csflg,            & ! Column statatistics flag
+         csflg,            & ! Column statistics flag
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          level  , CCN    , & ! Microphysical model Number of CCN per kg of air
@@ -135,6 +136,9 @@ contains
          us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
          umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
          Tspinup, lbinanl,          & ! Length of spinup period in seconds
+         nudge_theta, tau_theta,   & ! Temperature nudging
+         nudge_rv, tau_rv,   & ! Water vapor mixing ratio nudging
+         nudge_ccn, tau_ccn,   & ! Aerosol number concentration nudging
          radsounding, div, case_name, & ! Name of the radiation sounding file, divergence for LEVEL 4
          sfc_albedo,                  & ! Surface albedo
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)

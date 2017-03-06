@@ -24,7 +24,6 @@ module step
   integer :: istpfl = 1
   real    :: timmax = 18000.
   logical :: corflg = .false.
-  logical :: rylflg = .true.
 
   real    :: frqhis =  9000.
   real    :: frqanl =  3600.
@@ -34,6 +33,13 @@ module step
   real    :: strtim =  0.0
   real    :: cntlat =  31.5 ! 30.0
   logical :: outflg = .true.
+
+  ! Nudging options (1=soft, 2=hard, else=disabled) and time constants (tau [s])
+  INTEGER :: nudge_theta=0, & ! (liquid water) potential temperature, depending on the microphysical leve
+    nudge_rv=0,&  ! Water vapor mixing ratio
+    nudge_ccn=0 ! Aerosol number concentration (level>3)
+  REAL :: tau_theta = 300., tau_rv=300., tau_ccn=300.
+  real, save, allocatable :: theta_ref(:), rv_ref(:), ccn_ref(:,:)
 
 contains
   !
@@ -195,7 +201,7 @@ end subroutine tstep_reset
                      a_Radry,  a_Rawet,  a_Rcdry,   a_Rcwet,   a_Rpdry,   a_Rpwet,      &
                      a_Ridry,  a_Riwet,  a_Rsdry,   a_Rswet,                            &
                      a_rt,a_rp, sst, &
-                     a_rsi, a_temp0
+                     a_rsi, a_temp0, a_tp, a_tt, th0, th00
 
 
     use stat, only : sflg, statistics, acc_massbudged
@@ -220,7 +226,7 @@ end subroutine tstep_reset
 
     LOGICAL :: zactmask(nzp,nxp,nyp)
     REAL :: zwp(nzp,nxp,nyp), &  !! FOR SINGLE-COLUMN RUNS
-            ztkt(nzp,nxp,nyp)
+            ztkt(nzp,nxp,nyp), col(nzp)
     INTEGER :: zrm
     LOGICAL :: dbg2
 
@@ -322,9 +328,8 @@ end subroutine tstep_reset
     ! -- Reset only scalar tendencies
     CALL tend0(.TRUE.)
 
-    ! Dont perform sedimentation during spinup for level 4 OR level 5!
-    IF (zrm == 3 .OR. level < 4) &
-         CALL micro(level)
+    ! Dont perform sedimentation or level 3 autoconversion during spinup
+    IF (zrm == 3) CALL micro(level)
 
     IF (level >= 4) CALL tend_constrain(n4)
     CALL update_sclrs
@@ -350,6 +355,50 @@ end subroutine tstep_reset
     CALL update_sclrs
 
     CALL thermo(level)
+
+    ! Nudging only during spinup
+     IF (zrm == 2 .AND. (nudge_theta>0 .OR. nudge_rv>0 .OR. (nudge_ccn>0 .AND. level>3))) THEN
+        IF (time<1.e-5) THEN
+            ! (Liquid water) potential temperature: nudge towards th0(:)-th00
+            IF (nudge_theta>0) THEN
+                ALLOCATE(theta_ref(nzp))
+                theta_ref(:)=th0(:)-th00
+            ENDIF
+            !
+            ! Water mixing ratio
+            !   Levels 0-3: total water (a_rp)
+            !   Levels 4-5: water vapor (a_rp)
+            IF (nudge_rv>0)  THEN
+                ALLOCATE(rv_ref(nzp))
+                rv_ref(:)=a_rp(:,3,3)
+            ENDIF
+            !
+            ! Aerosol concentration
+            IF (nudge_ccn>0 .AND. level>3) THEN
+                ALLOCATE(ccn_ref(nzp,nbins))
+                ccn_ref(:,:)=a_naerop(:,3,3,:)
+            ENDIF
+        ENDIF
+
+        ! Reset tendencies
+        call tend0(.TRUE.)
+
+        ! (Liquid water) potential temperature:
+        IF (nudge_theta>0) &
+            CALL nudge_any(nxp,nyp,nzp,a_tp,a_tt,theta_ref,dtlt,tau_theta,nudge_theta)
+
+        ! Water vapor
+        IF (nudge_rv>0) &
+            CALL nudge_any(nxp,nyp,nzp,a_rp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+
+        ! Aerosol number (2D)
+        IF (nudge_ccn>0 .AND. level>3) &
+            CALL nudge_aero(nxp,nyp,nzp,nbins,a_naerop,a_naerot,ccn_ref,dtlt,tau_ccn,nudge_ccn)
+
+        CALL update_sclrs
+
+        CALL thermo(level)
+    ENDIF
 
     IF (level >= 4)  THEN
          CALL SALSA_diagnostics
@@ -378,6 +427,65 @@ end subroutine tstep_reset
        CALL SALSA_diagnostics
 
   end subroutine t_step
+  !
+  !
+  SUBROUTINE nudge_any(nxp,nyp,nzp,ap,at,trgt,dt,tau,iopt)
+    USE util, ONLY : get_avg3
+    IMPLICIT NONE
+    INTEGER :: nxp,nyp,nzp
+    REAL :: ap(nzp,nxp,nyp), at(nzp,nxp,nyp)
+    REAL :: dt
+    REAL :: trgt(nzp)
+    REAL :: tau
+    INTEGER :: iopt
+    INTEGER ii, jj, kk
+    REAL :: avg(nzp)
+    !
+    IF (iopt==1) THEN
+        ! Soft nudging
+        CALL get_avg3(nzp,nxp,nyp,ap,avg)
+        DO kk = 1,nzp
+            at(kk,:,:)=at(kk,:,:)-(avg(kk)-trgt(kk))/max(tau,dt)
+        ENDDO
+    ELSEIF (iopt==2) THEN
+        ! Hard nudging
+        DO kk = 1,nzp
+            at(kk,:,:)=at(kk,:,:)-(ap(kk,:,:)-trgt(kk))/max(tau,dt)
+        ENDDO
+    ENDIF
+    !
+  END SUBROUTINE nudge_any
+  !
+  SUBROUTINE nudge_aero(nxp,nyp,nzp,nbins,ap,at,trgt,dt,tau,iopt)
+    USE util, ONLY : get_avg3
+    IMPLICIT NONE
+    INTEGER :: nxp,nyp,nzp,nbins
+    REAL :: ap(nzp,nxp,nyp,nbins), at(nzp,nxp,nyp,nbins)
+    REAL :: dt
+    REAL :: trgt(nzp,nbins)
+    REAL :: tau
+    INTEGER :: iopt
+    INTEGER ii, jj, kk
+    REAL :: avg(nzp)
+    !
+    IF (iopt==1) THEN
+        ! Soft nudging
+        DO ii=1,nbins
+            CALL get_avg3(nzp,nxp,nyp,ap(:,:,:,ii),avg)
+            DO kk = 1,nzp
+                at(kk,:,:,ii)=at(kk,:,:,ii)-(avg(kk)-trgt(kk,ii))/max(tau,dt)
+            ENDDO
+        ENDDO
+    ELSEIF (iopt==2) THEN
+        ! Hard nudging
+        DO ii=1,nbins
+            DO kk = 1,nzp
+                at(kk,:,:,ii)=at(kk,:,:,ii)-(ap(kk,:,:,ii)-trgt(kk,ii))/max(tau,dt)
+            ENDDO
+        ENDDO
+    ENDIF
+    !
+  END SUBROUTINE nudge_aero
   !
   !----------------------------------------------------------------------
   ! subroutine tend0: sets all tendency arrays to zero
