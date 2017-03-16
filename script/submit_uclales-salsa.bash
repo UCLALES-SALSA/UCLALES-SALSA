@@ -33,13 +33,12 @@ echo ' '
 username=aholaj
 email=jaakko.ahola@fmi.fi
 subfolder=UCLALES-SALSA
-outputroot=/lustre/tmp/${username}/${subfolder}/${subsubfolder}
-root=/home/users/${username}/${subfolder}
+
 
 # supercomputer related variable settings
-WT=24:00:00 # walltime
-nodeNPU=20  # number of processing units in a node  
-JOBFLAG=PBS     # job flag of the job scheduling system ( e.g. PBS or SBATCH )
+WT=${WT:-24:00:00} # walltime
+
+JOBFLAG=${JOBFLAG:-PBS}     # job flag of the job scheduling system ( e.g. PBS or SBATCH )
 COPY=${COPY:-true}
 clean=${clean:-true}
 
@@ -47,13 +46,14 @@ if [ -z $3 ]; then
   echo ' '
   echo "You didn't give the optional JOB FLAG of the job scheduling system"
   echo "Using assumption: " $JOBFLAG
-  echo ' '
 else
   JOBFLAG=$3
 fi
 
 if [ $JOBFLAG == 'PBS' ]; then
-    echo 'using default values of Voima'
+    outputroot=/lustre/tmp/${username}/${subfolder}/${subsubfolder}
+    root=/home/users/${username}/${subfolder}
+    nodeNPU=20  # number of processing units in a node  
 
 elif [ $JOBFLAG == 'SBATCH' ]; then ## CSC's Sisu machine values
     nodeNPU=24 # number of processing units in a node 
@@ -61,6 +61,10 @@ elif [ $JOBFLAG == 'SBATCH' ]; then ## CSC's Sisu machine values
     outputroot=/wrk/${username}/${subfolder}
     root=/homeappl/home/${username}/appl_sisu/${subfolder}
 fi
+echo ' '
+echo 'SUPERCOMPUTER VALUES'
+
+
 
 #################################
 ###			                  ###
@@ -69,8 +73,8 @@ fi
 #################################
 
 
-bin=${root}/bin/
-input=${input/:-}
+bin=${root}/bin
+input=${input:-}
 
 
 if [ -z $input ]; then
@@ -87,6 +91,7 @@ if [ -z $1 ]; then
   echo "You didn't give any name for output directory"
   exit 1
 fi
+nimi=$1
 
 ################################
 ###			                 ###
@@ -107,13 +112,14 @@ fi
 ###			                 ###
 ################################
 
-if [ $nproc -gt 1 ]; then
-   mode=mpi
-else
-   mode=seq
-fi
+mode=${mode:-mpi}
 
-
+# nn=$(( ${#mode}- 4 ))
+# if [[ $nn -gt 0 ]]; then
+#     nimi=${1}_${mode:$((${#mode}-$nn)):$nn}
+# else
+#     nimi=$1
+# fi
 
 
 ################################
@@ -123,16 +129,16 @@ fi
 ###			                 ###
 ################################
 
-rundir=${outputroot}/${1}
+rundir=${outputroot}/${nimi}
 datadir=${rundir}/datafiles
 
 # if main directory exists -> clean it
 # if not -> make it
 if [ $clean == true ]; then
     if [ -d ${rundir} ] ; then
-    rm -fr ${rundir}/*
+        rm -rf ${rundir}/*
     else
-    mkdir -p ${rundir}
+        mkdir -p ${rundir}
     fi
 fi    
 
@@ -140,8 +146,10 @@ mkdir -p ${datadir}
 
 # copy executables and input files to running directory
 if [ $COPY == 'true' ]; then
-    cp ${input}/les.${mode} ${rundir}/
-    cp ${input}/datafiles/* ${datadir}/
+    
+    cp ${bin}/les.${mode} ${rundir}/
+    cp ${bin}/datafiles/* ${datadir}/
+    
     cp ${input}/sound_in ${rundir}/
     cp ${input}/NAMELIST ${rundir}/
 fi
@@ -155,8 +163,8 @@ fi
 modifyoutput=${modifyoutput:-true}
 
 if [ $modifyoutput == 'true' ]; then
-    sed -i "/filprf\s\{0,\}=\s\{0,\}/c\  filprf  = '"$1"'" ${rundir}/NAMELIST
-    sed -i "/hfilin\s\{0,\}=\s\{0,\}/c\  hfilin  = '"$1".rst'" ${rundir}/NAMELIST
+    sed -i "/filprf\s\{0,\}=\s\{0,\}/c\  filprf  = '"$nimi"'" ${rundir}/NAMELIST
+    sed -i "/hfilin\s\{0,\}=\s\{0,\}/c\  hfilin  = '"$nimi".rst'" ${rundir}/NAMELIST
 fi
 
 
@@ -167,13 +175,15 @@ fi
 #########################
 echo ' '
 ## modify the job name based on length: ###
-length=$(( ${#1} < 6 ? ${#1} : 6))
+length=$(( ${#nimi} < 6 ? ${#nimi} : 6))
+jobname=LES_${nimi:$((${#nimi}-${length})):${length}}
+echo 'Queuing system jobname' $jobname
 
 if [ $JOBFLAG == 'PBS' ] ; then
 
 cat > ${rundir}/runles.sh <<FINALPBS
 #!/bin/sh
-#PBS -N LES_${1:$((${#1}-${length})):${length}}
+#PBS -N ${jobname}
 #PBS -l mppwidth=${nproc}
 #PBS -l mppnppn=${nodeNPU}
 #PBS -l walltime=${WT}
@@ -208,12 +218,12 @@ elif [ $JOBFLAG == 'SBATCH' ] ; then
 
 cat > ${rundir}/runles.sh <<FINALSBATCH
 #!/bin/sh
-#SBATCH -J LES_${1:$((${#1}-${length})):${length}}
+#SBATCH -J ${jobname}
 #SBATCH -n ${nproc}
 #SBATCH --ntasks-per-node=${nodeNPU}
 #SBATCH -t ${WT}
-#SBATCH --output=LES_${1}-%j.out
-#SBATCH --error=LES_${1}-%j.err
+#SBATCH --output=LES_${nimi}-%j.out
+#SBATCH --error=LES_${nimi}-%j.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=${email}
 #SBATCH -p ${QUEUE}

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # #                   nzp          file         windprofile  pres0        par/serial   runNroBegin  runNroEnd
-# ./emulator_inputs.py    200         $DESIGN       dycoms         1017.8       parallel     1           90
+# ./emulator_inputs.py  True  200         $DESIGN       dycoms         1017.8       parallel     1           90
 """
 Created on Wed Dec 21 14:20:00 2016
 
@@ -34,6 +34,8 @@ from ECLAIR_calcs import solve_rw
 
 import sys
 import os
+import subprocess
+
 
 global rootfolder
 rootfolder='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/bin/case_emulator/'
@@ -58,7 +60,7 @@ def deltaz2( pblh, nzp_orig ):
 
     if ( dz < 10.0 ):
         deltaz = 10.0
-        nzp = int((nzp_orig-1.5)*dz/deltaz)
+        nzp = int(( nzp_orig-1.5 )*dz/deltaz )
     else:
         deltaz = dz
         nzp = nzp_orig
@@ -211,32 +213,29 @@ def thickness( tpot_inv, t_grad = 0.3   ):
     return invThi
 
 
-def read_design( filu  ):
+def read_design( filu ):
     
+    nroCases = 90
     
-    f = open(filu, 'r')
+    f = open( filu, 'r' )
     
-    case     = []
-    q_inv    = []
-    tpot_inv = []
-    q_pbl    = []
-    tpot_pbl = []
-    pblh     = []
-    num_pbl  = []
+    design     = np.zeros( (   nroCases,6 ) )
+    caselist   = np.chararray( nroCases, itemsize=2)
     
     i=0
     for line in f:
         #print line
             
-        caseA, q_invA, tpot_invA, q_pblA, tpot_pblA, pblhA, num_pblA = line.split(',')
+        A0, A1, A2, A3, A4, A5, A6 = line.split(',')
         if ( i > 0 ):
-            case.append( caseA.replace('"',"").zfill(2) )
-            q_inv.append( float(q_invA) )
-            tpot_inv.append( float(tpot_invA) )
-            q_pbl.append( float(q_pblA) )
-            tpot_pbl.append( float(tpot_pblA) )
-            pblh.append( float(pblhA) )           
-            num_pbl.append( float(num_pblA) )
+            index = i-1 
+            caselist[index]    = A0.replace('"',"").zfill(2) # case
+            design[ index, 0 ] = float( A1 ) # q_inv
+            design[ index, 1 ] = float( A2 ) # tpot_inv
+            design[ index, 2 ] = float( A3 ) # lwc_max
+            design[ index, 3 ] = float( A4 ) # tpot_pbl
+            design[ index, 4 ] = float( A5 ) # pblh
+            design[ index, 5 ] = float( A6 ) # num_pbl
             
         i=i+1   
     
@@ -244,12 +243,14 @@ def read_design( filu  ):
         
     f.close()
     
-    return case, q_inv, tpot_inv, q_pbl, tpot_pbl, pblh, num_pbl
+    #      case,        q_inv,       tpot_inv,    lwc_max,     tpot_pbl,    pblh,        num_pbl
+    return caselist,    design[:,0], design[:,1], design[:,2], design[:,3], design[:,4], design[:,5]
+    
 
 
 def write_sound_in( input_vector ):
 #    input_vector = case[0], q_inv[1], tpot_inv[2], q_pbl[3], tpot_pbl[4], pblh[5], num_pbl[6], dz[7], nzp[8], windprofile[9], pres0[10]
-    case        = input_vector[0]
+    case        =        input_vector[0]
     q_inv       = float( input_vector[1] )
     tpot_inv    = float( input_vector[2] )
     q_pbl       = float( input_vector[3] )
@@ -258,7 +259,7 @@ def write_sound_in( input_vector ):
     num_pbl     = float( input_vector[6] )
     dz          = float( input_vector[7] )
     nzp         = int(   input_vector[8] )
-    windprofile = input_vector[9]
+    windprofile =        input_vector[9]
     pres0       = float( input_vector[10] )
     mounted     = bool(  input_vector[11] )
     
@@ -278,7 +279,7 @@ def write_sound_in( input_vector ):
     
     z = define_z( pblh, dz, nzp )
     print ' '
-    print 'case '     + str(case)
+    print 'case '    + str(case)
     print 'deltaz '  + str(dz)
     print 'korkeus ' + str(z[-1])
     print 'pblh '    + str(round(pblh,2))
@@ -288,7 +289,7 @@ def write_sound_in( input_vector ):
     print 'tpot_inv ' + str(round(tpot_inv,2))
     print 'q_pbl '    + str(round(q_pbl,2))
     print 'q_inv '    + str(round(q_inv,2))
-    print 'num_pbl '  + str(round(num_pbl*1e-6,2))
+    print 'num_pbl '  + str(round(num_pbl,2))
     z[0] = pres0
     potTemp = [tpot_pbl]
     wc = [q_pbl]
@@ -334,7 +335,7 @@ def write_sound_in( input_vector ):
 #    if you want to modify water content use the two following commands
 #    rh, wc2 = calc_rh_profile(  potTemp, np.multiply(np.asarray(wc), 0.001),  z, True )
 #    wc = np.multiply(wc,1000.)[7]
-    
+
     # write to sound_in    
 
     for k in xrange(len(z)):
@@ -399,21 +400,23 @@ def write_sound_in( input_vector ):
     
 def write_namelist( input_vector ):
 #    case 0, nzp 1, dz 2, q_pbl 3, tpot_pbl 4, num_pbl 5, pres0 6
-    case     = input_vector[0]
-    nzp      = int( input_vector[1] )
+    case     =        input_vector[0]
+    nzp      = int(   input_vector[1] )
     dz       = float( input_vector[2] )
-#    q_pbl    = float( input_vector[3] )
+    q_pbl    = float( input_vector[3] )
     tpot_pbl = float( input_vector[4] )    
     num_pbl  = float( input_vector[5] )    
     pres0    = float( input_vector[6] )
+    designV  =        input_vector[7]
 
 
 
 
-    folder = rootfolder +'emul' + case +'/'
+    folder = rootfolder +'emul' + case 
     call(['mkdir','-p', folder])
     sst = absT(tpot_pbl, pres0)
     print 'generating NAMELIST ' + str(case)
+#    print 'design tag', designV, type(designV)
 #    dth = dthcon( tpot_pbl, sst, pres0 )
 #    drt = drtcon( q_pbl, sst, pres0 )
     #filename = 'NAMELIST'
@@ -429,11 +432,12 @@ def write_namelist( input_vector ):
 #                  ' dtlong=2.'                                          + \
 #                  ' level=3'                 +\
 
-    command = 'dir='+folder              +\
-              ' nzp='    + str(nzp)      +\
-              ' deltaz=' + str(dz)       +\
-              ' CCN='    + str(num_pbl*1e6)  +\
-              ' sst='    + str(sst)      +\
+    command = 'dir='     + folder           +\
+              ' design=' + '"' + designV +'"'  +\
+              ' nzp='    + str(nzp)         +\
+              ' deltaz=' + str(dz)          +\
+              ' CCN='    + str(num_pbl*1e6) +\
+              ' sst='    + str(sst)         +\
               ' filprf=' + '"' + "'emul" + case + "'"    +'"'                        +\
               ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'                       +\
               ' n='+'"'+'0., ' + str(num_pbl)+' , 0., 0., 0., 0., 0.' + '"'   +\
@@ -442,7 +446,7 @@ def write_namelist( input_vector ):
 #               ' Tspinup=10.'     
  #               ' timmax=20.'
 
-    #print command
+#    print command
     os.system(command)
 #    args = shlex.split(command)
 #    print  args  
@@ -463,12 +467,17 @@ def main( mounted = True, nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/ibr
 #    call(args)
     args ='rm -rf '+ rootfolder+'*'
     os.system(args)
+    cwd = os.getcwd()
+    designfolder = os.path.dirname( os.path.realpath( filu ) )
+    os.chdir( designfolder )
+    designV = str( subprocess.check_output( 'git describe --tags', shell=True ) )
+    os.chdir( cwd )
 
     case, q_inv, tpot_inv, lwc_max, tpot_pbl, pblh, num_pbl = read_design( filu )
 
     if runNroEnd > len(case):
         runNroEnd = len(case)        
-        print 'runNroEnd set to max value: ' + str(len(case))
+        sys.exit('runNroEnd too big: '+ str( runNroEnd ) + ' max value: ' + str( len(case) ) )
     
     
     # define resolutions and nzp's    
@@ -477,14 +486,16 @@ def main( mounted = True, nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/ibr
     q_pbl = np.zeros(len(case))    
     for k in xrange( A, B ):
         dz[k], nzp[k] = deltaz2( pblh[k], nzp_orig )
-        q_pbl[k]      = lwc_max[k] #solve_rw( pres0, tpot_pbl[k], lwc_max[k], pblh[k]*1000. ) 
+        q_pbl[k]      = solve_rw( pres0*100., tpot_pbl[k], lwc_max[k]*0.001, pblh[k] )*1000.
+        if (q_pbl[k] < 0. ):
+            sys.exit('q_pbl NEGATIVE VALUE')
     nzp = nzp.astype(int)
     
     if ( runmode == 'serial' ) :
         print 'serial mode'
         for k in xrange( A, B ): 
             write_sound_in( [ case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], num_pbl[k], dz[k], nzp[k], windprofile, pres0, mounted ] )
-            write_namelist( [ case[k], nzp[k], dz[k], q_pbl[k], tpot_pbl[k], num_pbl[k], pres0 ] )
+            write_namelist( [ case[k], nzp[k], dz[k], q_pbl[k], tpot_pbl[k], num_pbl[k], pres0, designV ] )
             
     elif ( runmode == 'parallel' ):
         print 'parallel mode'
@@ -492,10 +503,11 @@ def main( mounted = True, nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/ibr
         windprofile = [windprofile]*koko
         pres0       = [pres0]*koko
         mounted     = [mounted]*koko
+        designV     = [designV]*koko
         from multiprocessing import Pool
         pool = Pool(processes= 4)
         sound_in_iter = iter( np.column_stack( ( case[A:B], q_inv[A:B], tpot_inv[A:B], q_pbl[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], dz[A:B], nzp[A:B], windprofile[A:B], pres0[A:B], mounted[A:B] ) ) )
-        namelist_iter = iter( np.column_stack( ( case[A:B], nzp[A:B], dz[A:B], q_pbl[A:B], tpot_pbl[A:B], num_pbl[A:B], pres0[A:B] ) ) )
+        namelist_iter = iter( np.column_stack( ( case[A:B], nzp[A:B], dz[A:B], q_pbl[A:B], tpot_pbl[A:B], num_pbl[A:B], pres0[A:B], designV[A:B] ) ) )
         for i in pool.imap_unordered( write_sound_in, sound_in_iter ):
             print i
         for k in pool.imap_unordered( write_namelist, namelist_iter ):
@@ -517,7 +529,7 @@ def main( mounted = True, nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/ibr
 if __name__ == "__main__":
     
     if ( len(sys.argv) > 2):
-        main( mountend = sys.argv[1], nzp_orig = sys.argv[2], filu =  sys.argv[3], windprofile = sys.argv[4], pres0 = sys.argv[5], runmode = sys.argv[6], runNroBegin = sys.argv[7], runNroEnd =  sys.argv[8] )
+        main( mounted = sys.argv[1], nzp_orig = sys.argv[2], filu =  sys.argv[3], windprofile = sys.argv[4], pres0 = sys.argv[5], runmode = sys.argv[6], runNroBegin = sys.argv[7], runNroEnd =  sys.argv[8] )
         print 'generated by using Command Line arguments'
     else:
         main()

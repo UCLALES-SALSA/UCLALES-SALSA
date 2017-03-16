@@ -22,7 +22,7 @@ else
   postfix=$1
 fi
 
-compile=${compile:-true}
+compile=${compile:-false}
 
 if [ $compile == 'true' ]; then
     cd ${root}

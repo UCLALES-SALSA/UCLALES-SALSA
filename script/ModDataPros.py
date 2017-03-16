@@ -493,6 +493,34 @@ def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuv
   plot_alustus() if uusikuva else False
   plottaa( aika, data, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND )
 
+
+###########################################
+### print/draw timeseries of a variable ###
+### most useful with .ts.nc files       ###
+###                                     ###
+###########################################
+def profiiliTulostus( data, aikaPisteet = 0, korkeus=0, tulostus = False, piirra = False, uusikuva = True, nimi = 'profiili', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, tightXAxis=False, LEGEND=True, omavari = False ):
+  
+  if not isinstance(korkeus, np.ndarray):
+    korkeus=np.arange( (np.shape(data)[1]) )
+  
+  if tulostus:
+      print ' '
+      print nimi
+      for t in xrange( np.shape(data)[0] ):
+         print 'ajanhetki: ' + str(aika[t]) + ' ' + ' arvo : ' + str(data[t,:])
+      print ' '    
+
+## drawing ##
+  uusikuva = ( piirra and uusikuva )
+  plot_alustus() if uusikuva else False
+  
+  if isinstance( aikaPisteet, np.ndarray):
+      for t in aikaPisteet:
+        plottaa( data[t,:], korkeus, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari )
+  else:
+      plottaa( data, korkeus, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari)
+
 ########################################
 ### colorPool object class           ###
 ###                                  ###
@@ -565,20 +593,44 @@ def plot_setYlim( minimiY, maksimiY, extendBelowZero = True, A = 0.05 ):
         #print 'y limit min ' + str(ymin)
         #print 'y limit max ' + str(ymax)
         plt.ylim( ymin, ymax )
+
+########################################
+### change x-limits of the plot      ###
+###                                  ###
+########################################
+def plot_setXlim( minimiX, maksimiX, extendBelowZero = True, A = 0.05 ):
+    from sys import float_info
+    
+    # A = extensionparametri
+    #print 'minimiY '  + str(minimiY)
+    #print 'maksimiY ' + str(maksimiY)
+    if (abs(minimiX-maksimiX) >  float_info.epsilon*10 ):
+        if extendBelowZero:
+            xmin = minimiX - A*(maksimiX-minimiX) 
+        else:
+            xmin = 0.0
+    
+        xmax = maksimiX + A*(maksimiX-minimiX)
+        #print 'y limit min ' + str(ymin)
+        #print 'y limit max ' + str(ymax)
+        plt.xlim( xmin, xmax )
     
 ########################################
 ### plot data                        ###
 ###                                  ###
 ########################################
-def plottaa( x, y, tit, xl, yl, label=0, log=False, changeColor=True, tightXAxis=False, markers=False, LEGEND=True):
+def plottaa( x, y, tit, xl, yl, label=0, log=False, changeColor=True, tightXAxis=False, markers=False, LEGEND=True, omavari = False):
   global color
   if  isinstance(label, int):
       label = tit
 
-  if changeColor:
-    currentColor = colorChoice.getNextColor()
+  if ( isinstance(omavari, bool) ):
+    if changeColor:
+        currentColor = colorChoice.getNextColor()
+    else:
+        currentColor = colorChoice.getCurrentColor()
   else:
-    currentColor = colorChoice.getCurrentColor()
+      currentColor = omavari
   
   if markers:
       plt.plot( x, y, color = currentColor, label=label, linestyle='-', marker='o' )

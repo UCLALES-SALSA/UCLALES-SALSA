@@ -83,16 +83,16 @@ if [ $dir == '.' ]; then
   dir=$PWD
 fi
 
-if  [[ $1 == *"."* ]]
+base=$(basename ${input})
+if  [ ${base: -3} == ".ts" ] || [ ${base: -3} == ".ps" ]
 then
-	# "input argument $1 contains a dot
-	postfix=${1:$((${#1}-3)):3}
+	postfix=${input:$((${#input}-3)):3}
 else
-	# "input argument $1 does NOT contain a dot" -> a regular .nc
+	# "input argument is a regular .nc
 	postfix=.nc
 fi
 
-
+echo 'postfix' $postfix
 ##########################
 ###			           ###
 ### Create run scripts ###
@@ -101,7 +101,8 @@ fi
 echo " "
 ## modify the job name based on length: ###
 length=$(( ${#postpostfix} < 7 ? ${#postpostfix} : 7))
-
+jobname=${postfix:$((${#postfix}-2)):2}_${postpostfix:$((${#postpostfix}-${length})):${length}}
+echo 'Queuing system jobname' $jobname
 
 rm -rf ${dir}/post_* ${dir}/*pros.sh ${dir}/${scriptname}
 
@@ -125,7 +126,7 @@ if [ $JOBFLAG == 'PBS' ] ; then
 
 cat > ${dir}/runpostpros${postfix}.sh <<FINALPBS
 #!/bin/sh
-#PBS -N ${postfix:$((${#postfix}-2)):2}_${postpostfix:$((${#postpostfix}-${length})):${length}}
+#PBS -N ${jobname}
 #PBS -l mppwidth=1
 #PBS -l mppnppn=1
 #PBS -l mppdepth=${nodeNPU}
@@ -154,11 +155,11 @@ elif [ $JOBFLAG == 'SBATCH' ] ; then
 
 cat > ${dir}/runpostpros${postfix}.sh <<FINALSBATCH
 #!/bin/sh
-#SBATCH -J ${postfix:$((${#postfix}-2)):2}_${postpostfix:$((${#postpostfix}-${length})):${length}}
+#SBATCH -J ${jobname}
 #SBATCH -n 1
 #SBATCH -t ${WT}
-#SBATCH --output=postpro_${1}-%j.out
-#SBATCH --error=postpro_${1}-%j.err
+#SBATCH --output=postpro_${input}-%j.out
+#SBATCH --error=postpro_${input}-%j.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=${email}
 #SBATCH -p ${QUEUE}

@@ -2,7 +2,9 @@ import ModDataPros as mdp
 import sys
 from itertools import cycle
 import numpy as np
-
+from scipy import interpolate
+from emulator_inputs import read_design
+import matplotlib.pyplot as plt
 
 #######################
 ##### setting up    ###    
@@ -72,7 +74,7 @@ for i in xrange(len(sys.argv)-1):
     cfrac_Tdata  = mdp.read_Data( filenameTS[i], 'cfrac' )
 
     if LEGEND:
-        nimi = 'Cloud fraction ' + "".join(filenameTS[i].split(".")[0])[-2:]
+        nimi = 'Cloud fraction ' + filenameNC[i].split("/")[-2]
     else:
         nimi = 'Cloud fraction'
 
@@ -107,7 +109,7 @@ for i in xrange(len(sys.argv)-1):
         
 
     if LEGEND:
-        nimi = 'Change of cloud top ' + "".join(filenameTS[i].split(".")[0])[-2:]
+        nimi = 'Change of cloud top ' + filenameNC[i].split("/")[-2]
     else:
         nimi = 'Change of cloud top'
         
@@ -132,7 +134,7 @@ for i in xrange(len(sys.argv)-1):
         maksimiPRCP = np.max(top_Tdata)
 
     if LEGEND:
-        nimi = 'Surface precipitation ' + "".join(filenameTS[i].split(".")[0])[-2:]
+        nimi = 'Surface precipitation ' + filenameNC[i].split("/")[-2]
     else:
         nimi = 'Surface precipitation'
 
@@ -165,7 +167,7 @@ for i in xrange(len(sys.argv)-1):
         minimiSHF = np.min(shf_Tdata)
 
     if LEGEND:
-        nimi = 'Sensible heat flux ' + "".join(filenameTS[i].split(".")[0])[-2:]
+        nimi = 'Sensible heat flux ' + filenameNC[i].split("/")[-2]
     else:
         nimi = 'Sensible heat flux'
         
@@ -196,7 +198,7 @@ for i in xrange(len(sys.argv)-1):
         minimiLHF = np.min(lhf_Tdata)
 
     if LEGEND:
-        nimi = 'Latent heat flux ' + "".join(filenameTS[i].split(".")[0])[-2:]
+        nimi = 'Latent heat flux ' + filenameNC[i].split("/")[-2]
     else:
         nimi ='Latent heat flux'
         
@@ -206,12 +208,121 @@ mdp.plot_setYlim( minimiLHF, maksimiLHF )
 
 #############################################
 
+
+#print ' '
+#print 'LWP'
+for i in xrange(len(sys.argv)-1):
+    uusikuva = True if i == 0 else  False
+    
+    time_data    = mdp.read_Data( filenameTS[i], 'time'    )
+    liqWP_Tdata  = np.multiply( mdp.read_Data( filenameTS[i], 'lwp_bar' ), 1000.0)
+    #print 'minimi '  + str(np.min(liqWP_Tdata))
+    #print 'maksimi ' + str(np.max(liqWP_Tdata))
+    if 'maksimiLWP' in locals():
+        maksimiLWP = max( maksimiLWP,  np.max(liqWP_Tdata) )
+    else:
+        maksimiLWP = np.max(liqWP_Tdata)
+    
+    #if 'minimiLWP' in locals():
+        #minimiLWP = min( minimiLWP,  np.min(liqWP_Tdata) )
+    #else:
+        #minimiLWP = np.min(liqWP_Tdata)
+        
+    
+    nimi = 'LWP ' + filenameNC[i].split("/")[-2]
+
+    mdp.aikasarjaTulostus( liqWP_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'LWP g/m^2', tightXAxis=tightXAxis, LEGEND=LEGEND )
+
+
+mdp.plot_setYlim( 0.0, maksimiLWP )
+
+#############################################
+
+#print ' '
+#print 'q profile changes'
+for i in xrange(len(sys.argv)-1):
+    uusikuva = True if i == 0 else  False
+    
+    q_data      = mdp.read_Data( filenamePS[i], 'q' )   
+    time_data   = mdp.read_Data( filenameTS[i], 'time'    )
+
+    height_data = mdp.read_Data( filenameNC[i], 'zt' )
+    
+    ajanhetket = 2*3600. #7200.
+    aikaP = np.argmin( np.abs(ajanhetket - time_data) )
+    
+    #q_difference = q_data[ aikaP, : ] / q_data[ 0, : ] -1
+    filu ='/home/aholaj/mounttauskansiot/ibrixmount/DESIGN/corr_design.csv'
+    case, q_inv, tpot_inv, lwc_max, tpot_pbl, pblh, num_pbl = read_design( filu )
+
+    pbl_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
+    dens = 20
+    
+    fracZ   = np.zeros( dens*(len(height_data)-1) +1 )
+    normZ   = np.zeros( len(fracZ) )
+    
+    qSpline = np.zeros( ( 2, len(fracZ) ) )
+    
+    
+    for k in xrange(len(fracZ)-1):
+        h_indeksi = int(np.floor(k/dens) )
+        normZ[k] =  ( height_data[ h_indeksi ] + np.mod(k,dens)*(height_data[ h_indeksi + 1] - height_data[ h_indeksi ])/float(dens) )
+        fracZ[k] =  normZ[k] / pblh[pbl_indeksi]
+   
+    normZ[-1] = height_data[-1]
+    fracZ[-1] = normZ[-1] / pblh[pbl_indeksi]
+    #np.set_printoptions(formatter={'float': lambda x: "{0:0.1f}".format(x)})
+    tck0 = interpolate.splrep( height_data, q_data[ 0,: ]     )
+    tckT = interpolate.splrep(height_data, q_data[ aikaP,:]  )
+    for k in xrange( np.shape(qSpline)[1] ):
+        qSpline[ 0,k ]  = interpolate.splev( normZ[k], tck0 )
+        qSpline[ 1,k ]  = interpolate.splev( normZ[k], tckT )
+    
+    q_difference = qSpline[ 1,:] / qSpline[ 0,:] -1
+        
+
+    #print 'minimi '  + str(np.min(liqWP_Tdata))
+    #print 'maksimi ' + str(np.max(liqWP_Tdata))
+    if 'maksimifracZ' in locals():
+        maksimifracZ = max( maksimifracZ,  np.max(fracZ) )
+    else:
+        maksimifracZ = np.max(fracZ)
+    
+    if 'maksimiQ' in locals():
+        maksimiQ = max( maksimiQ,  np.max(q_difference) )
+    else:
+        maksimiQ = np.max(q_difference)
+
+    if 'minimiQ' in locals():
+        minimiQ = max( minimiQ,  np.max(q_difference) )
+    else:
+        minimiQ = np.max(q_difference)
+    colorMap = plt.cm.rainbow
+    skal = pblh[ pbl_indeksi ] / np.max( pblh)
+    color = colorMap(skal)
+    #if 'minimiLWP' in locals():
+        #minimiLWP = min( minimiLWP,  np.min(liqWP_Tdata) )
+    #else:
+        #minimiLWP = np.min(liqWP_Tdata)
+        
+    
+    nimi = 'Total water mix. rat g/m^2 difference between 0h & '+str((ajanhetket/3600.)) + 'h ' + filenameNC[i].split("/")[-2]
+
+    mdp.profiiliTulostus( q_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = r'$\frac{q_{t=2h}}{q_{t=0h}}-1$', ynimi = 'z/pblh', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = color )
+    #mdp.profiiliTulostus( q_data[0,:],  aikaPisteet = 0, korkeus = height_data, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'q [g/kg]', ynimi = 'height [m]', tightXAxis=tightXAxis, LEGEND=LEGEND )
+    #mdp.profiiliTulostus( q_data[60,:], aikaPisteet = 0, korkeus = height_data, tulostus = tulostus, piirra = piirra, uusikuva = False,    nimi = nimi, xnimi = 'q [g/kg]', ynimi = 'height [m]', tightXAxis=tightXAxis, LEGEND=LEGEND )
+
+mdp.plot_setYlim( 0.0, 1.01 )
+plt.xlim( -0.25, 0.025)
+
+#############################################
+
 mdp.plot_alustus()
 mdp.plottaa(range( 1,len(sys.argv) ), maksimisateet, 'maximum precipitation after 2h', 'case', 'precipitation W/m^2', changeColor = True, markers=True)
-mdp.plot_alustus()
-mdp.plottaa(range( 1,len(sys.argv) ), maksimiSensible, 'maximum sensible heat', 'case', 'Sensible heat flux W/m^2', changeColor = True, markers=True)
-mdp.plot_alustus()
-mdp.plottaa(range( 1,len(sys.argv) ), maksimiLatent, 'maximum latent heat', 'case', 'Latent heat flux W/m^2', changeColor = True, markers=True)
+#mdp.plot_alustus()
+#mdp.plottaa(range( 1,len(sys.argv) ), maksimiSensible, 'maximum sensible heat', 'case', 'Sensible heat flux W/m^2', changeColor = True, markers=True)
+#mdp.plot_alustus()
+#mdp.plottaa(range( 1,len(sys.argv) ), maksimiLatent, 'maximum latent heat', 'case', 'Latent heat flux W/m^2', changeColor = True, markers=True)
 
 ########################
 ### finishing up     ###

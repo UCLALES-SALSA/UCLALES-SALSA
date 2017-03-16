@@ -23,7 +23,7 @@ jobflag=${jobflag:-PBS}
 scriptname=${scriptname:-combine.py}
 
 
-
+mode=${mode:-mpi}
 
 
 
@@ -56,12 +56,17 @@ function submitting {
 	dir=${root}/${nimi}
 
 	echo 'nimi ' $nimi
-	
-
-	
+	LVL=$(grep level ${dir}/NAMELIST)
+	LVL=${LVL: -1}
+	echo 'level' $LVL
+    if [ $LVL -le 3 ]; then
+        walltime=12:00:00
+    else
+        walltime=36:00:00
+    fi
 	## submit
 	
-    input=${dir} subsubfolder=${folder} modifyoutput='false' COPY=false clean=false ${root}/submit_uclales-salsa.bash $nimi $nproc $jobflag
+    input=${dir} subsubfolder=${folder} modifyoutput='false' COPY=false clean=false WT=$walltime mode=${mode} ${root}/submit_uclales-salsa.bash $nimi $nproc $jobflag
 
 
 }
@@ -91,25 +96,24 @@ function postprosessoi {
 
 function poistaturhat {
     
-    echo ' '
     echo 'Poistetaan lustrelta turhat tiedostot'
     nimi=$1
-    rm -rf ${root}/${nimi}/datafiles
-    rm -rf ${root}/${nimi}/*.sh
-    rm -rf ${root}/${nimi}/*.py
-    rm -rf ${root}/${nimi}/les.*
-    rm -rf ${root}/${nimi}/*.rst
-    rm -rf ${root}/${nimi}/${nimi}.ts.0*0*.nc
-    rm -rf ${root}/${nimi}/${nimi}.ps.0*0*.nc
-    rm -rf ${root}/${nimi}/${nimi}.0*0*.nc
-    rm -rf ${root}/${nimi}/0*_0*.${nimi}.*
-    echo ' '
-
+    if [ -f ${outputroot}/${nimi}/${nimi}.nc ] && [ -f ${outputroot}/${nimi}/${nimi}.ts.nc ] && [ -f ${outputroot}/${nimi}/${nimi}.ps.nc ]; then
+        echo "kaikki kolme postprosessoitua tiedostoa ovat olemassa"
+        ls ${outputroot}/${nimi}/${nimi}.nc
+        ls ${outputroot}/${nimi}/${nimi}.ts.nc
+        ls ${outputroot}/${nimi}/${nimi}.ps.nc
+        echo 'poistetaan'
+        rm -rf ${outputroot}/${nimi}/datafiles
+        rm -rf ${outputroot}/${nimi}/*.sh
+        rm -rf ${outputroot}/${nimi}/*.py
+        rm -rf ${outputroot}/${nimi}/*.rst
+        rm -rf ${outputroot}/${nimi}/${nimi}.ts.0*0*.nc
+        rm -rf ${outputroot}/${nimi}/${nimi}.ps.0*0*.nc
+        rm -rf ${outputroot}/${nimi}/${nimi}.0*0*.nc
+        rm -rf ${outputroot}/${nimi}/0*_0*.${nimi}.*
+    fi
 }
-
-
-
-
 
 
 

@@ -21,11 +21,7 @@ sound_in*
 ############################
 
 # campaign inputs
-bin/case_ascos/
-bin/case_isdac/
-bin/case_sheba/
-bin/case_speed/
-bin/case_emulator/
+case_*
 
 script/ajakaksiajoa.bash
 
@@ -41,10 +37,13 @@ gitpuut/
 designs/
 
 #emulator output from runs
-script/emulatoroutput
+script/emulatoroutput*
 
 # emulator input generating output
-script/emulator_output
+script/emulator_output*
+
+# checking up design variables & constraints
+script/design_checkup_*
 
 ## remove this later
 src/src_LES/stat_icesnow.f90
@@ -63,4 +62,4 @@ script/sys
 
 case_emulator_week7/
 src/ice_immers_nucl_Jaakko.f90
-
+script/cloud_thickness_test.py

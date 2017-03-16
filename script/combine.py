@@ -63,8 +63,8 @@ def reduce_ts_ps(infile,imax,jmax):
 	# c) Minimum - when the output should be the minimum over all model grid cells
 	minnms = ['zb']
 	# d) Sums - when the output is the sum over model grid cells
-	#	Note: the output really depends on the size of the number of grid cells!
-	sumnms = ['nrcnt','nccnt','nrain','pfrac','cnt_cs1','w_cs1','tl_cs1','tv_cs1','rt_cs1','rl_cs1','wt_cs1','wv_cs1','wr_cs1',\
+	#	Note: the output really depends on the number of grid cells!
+	sumnms = ['nrcnt','nccnt','cnt_cs1','w_cs1','tl_cs1','tv_cs1','rt_cs1','rl_cs1','wt_cs1','wv_cs1','wr_cs1',\
 	'cnt_cs2','w_cs2','tl_cs2','tv_cs2','rt_cs2','rl_cs2','wt_cs2','wv_cs2','wr_cs2']
 	# e) Weighted averages (weights must be specified below) - needed for conditional averages
 	#	Note: weight ~ conditinal coverage
@@ -83,10 +83,10 @@ def reduce_ts_ps(infile,imax,jmax):
 	# *.ts.nc
 	# ======
 	# nrain         	{'units': '#/l', 'longname': 'Conditionally sampled rain number mixing ratio'}	<= Sum of rain drop concentrations over rainy grid cells (not avearge)
-	# nrcnt         	{'units': '#', 'longname': 'Rain cell counts'}										<= Number of rainy grid cells
 	# pfrac			{'units': '-', 'longname': 'Precipitation fraction'}									<= Number of precipitating grid cells (-999,0 means zero)
 	# lwp_var		{'units': 'kg/m^2', 'longname': 'Liquid-water path variance'}						<= Actually just average of LWP^2
-	# CCN         		{'units': '#', 'longname': 'Cloud condensation nuclei'}								<= Actually concentration (#/cc)
+	# CCN         		{'units': '#', 'longname': 'Cloud condensation nuclei'}								<= Actually concentration (#/kg)
+	# *_ic, *_int, *_oc	<= Definition changes
 	#
 	# *.ps.nc
 	# ======
@@ -130,11 +130,18 @@ def reduce_ts_ps(infile,imax,jmax):
 	#
 	# Open the target NetCDF file
 	ncid = netcdf.Dataset(dst,'r+')
-	#ncid = netcdf.NetCDFFile(dst,'r+')
 	#
 	# Can use variables:
 	#	NPTS = (nxp-4)*(nyp-4)
 	#	NZ = nzp
+	#
+	# Information about file version: 1.0 is the original one and later versions are greater than that
+	if 'IO_version' in ncid.ncattrs():
+		io=getattr(ncid,'IO_version')
+	else:
+		# IO before version v1.0.5
+		io=1.0
+		sumnms+=['nrain','pfrac']
 	#
 	# Variable list - without dimensions
 	var_list=ncid.variables.keys()	# Variables
@@ -163,15 +170,12 @@ def reduce_ts_ps(infile,imax,jmax):
 		elif name in weighted:
 			# Weighted averages
 			op='wgh'
-			if name=='zb' or name=='zc':
-				# Cloud base or top heights: average weighted by cloud fraction
-				wname='cfrac'
-			else:
-				print 'Unknown method for '+name+': default (avg) used!'
-				op='avg'
+			# No weighted averages?
+			print 'Unknown method for '+name+': default (avg) used!'
+			op='avg'
 		elif name in variances:
 			# Average of variances: need both variance and average
-			# 	Note: this is for true variances and not for sqaures
+			# 	Note: this is for true variances, but not for sqaures
 			op='var'
 			if name=='lwp_var':	# Liquid water path
 				aname='lwp_bar'
@@ -196,7 +200,7 @@ def reduce_ts_ps(infile,imax,jmax):
 				op='avg'
 		elif name in thirdmom:
 			# Third momenets: need the second (variance) and first (average) moments
-			# 	Note: this is for true third moments and not for cubes
+			# 	Note: this is for true third moments, but not for cubes
 			op='thr'
 			if name=='l_3':
 				vname='l_2'
@@ -210,34 +214,13 @@ def reduce_ts_ps(infile,imax,jmax):
 		elif name in static:
 			# Should have constant values
 			op='con'
-		elif name[-3:]=='_ic' or name[-4:]=='_int':
-			# Cloud region: these numbers are actually averages of column averages, 
-			# so cloud fraction is a proper weight. This should be replaced the overall 
-			# average (then shoul use the number of cloudy grid cells)!
-			op='wgh'
-			wname='cfrac'
-			#if 'nccnt' in var_list:
-			#	# This is update from December 2016
-			#	wname='nccnt'
-			#else:
-			#	# Use cloud fraction (better than nothing!)
-			#	wname='cfrac'
-		elif 0>1: #name[-3:]=='_oc':
-			# Outside cloud region: should be weighted by the number of clear grid cells
-			#if 'nccnt' in var_list:
-			#	# This is update from December 2016
-			#	op='wgh_neg'
-			#	wname='nccnt'
-			#else:
-			op='avg'	# Simple average, because most grid cells are anyhow outside clouds
 		else:
 			# Average (default)
 			op='avg'
 		#
 		# Object
 		obj = ncid.variables[name]
-		#val = obj.getValue()
-		val = obj[:] #.getValue()
+		val = obj[:]
 		#
 		# Calculations for the given variable
 		tmp=obj.__dict__	# Dictionary of information
@@ -245,23 +228,30 @@ def reduce_ts_ps(infile,imax,jmax):
 		#
 		info_prints=0
 		#
+		set_missing=-999 
+		#
 		# All files
 		for i in range(imax):
 			for j in range(jmax):
 				src='%s.%04u%04u.nc' % (infile, i, j)
-				#ncid_src = netcdf.NetCDFFile(src,'r')
 				ncid_src = netcdf.Dataset(src,'r')
 				# Object
 				obj_src = ncid_src.variables[name]
-				val_src = obj_src[:] #.getValue()
+				val_src = obj_src[:]
 				#
 				# Are there flagged values?
 				if numpy.any(val_src==-999):
 					# Flagged values found
 					if name=='pfrac':
-						# Precipitation fraction (actually the number of precipitating grid cells): -999 = 0
+						# Precipitation fraction: missing values can be set to zero
 						val_src[val_src==-999]=0
 						if info_prints==0: print '	Flagged values (-999) set to zero!'
+						info_prints+=1
+					elif name=='zb':
+						# Cloud base height: set to a large number (and convert back to -999 when all values are unavailable)
+						set_missing=99999	# Will be changed to -999 if any left
+						val_src[val_src==-999]=set_missing
+						if info_prints==0: print '	Flagged values (-999) found!'
 						info_prints+=1
 					else:
 						if info_prints==0: print '	Flagged values (-999) found!'
@@ -281,7 +271,7 @@ def reduce_ts_ps(infile,imax,jmax):
 				elif op=='wgh':
 					# Weighted average
 					obj_src = ncid_src.variables[wname]	# Weight
-					val_weight = obj_src[:] #.getValue()
+					val_weight = obj_src[:]
 					if i+j==0:
 						val=val_src*val_weight
 						weight=val_weight
@@ -291,7 +281,7 @@ def reduce_ts_ps(infile,imax,jmax):
 				elif op=='var':
 					# Variance
 					obj_src = ncid_src.variables[aname]	# Average
-					val_avg = obj_src[:] #.getValue()
+					val_avg = obj_src[:]
 					if i+j==0:
 						val=(val_src+val_avg**2)/float(nfiles)	# Variance
 						avg=val_avg/float(nfiles)						# Average
@@ -301,9 +291,9 @@ def reduce_ts_ps(infile,imax,jmax):
 				elif op=='thr':
 					# Third central moment
 					obj_src = ncid_src.variables[aname]	# Average
-					val_avg = obj_src[:] #.getValue()
+					val_avg = obj_src[:]
 					obj_src = ncid_src.variables[vname]	# Variance
-					val_var = obj_src[:] #.getValue()
+					val_var = obj_src[:]
 					if i+j==0:
 						val=(val_src+3.0*val_avg*val_var+val_avg**3)/float(nfiles)
 						var=(val_var+val_avg**2)/float(nfiles)	# Variance
@@ -333,10 +323,12 @@ def reduce_ts_ps(infile,imax,jmax):
 		if op=='var': val-=avg**2
 		if op=='thr': val-=3.0*avg*var+avg**3
 		#
+		# May need to convert some values back to -999
+		if numpy.any(val==set_missing):
+			val[val==set_missing]=-999
+		#
 		# Save updated data
-		#obj.assignValue(val)
 		obj[:]=val
-		#ncid.flush()
 		ncid.sync()
 	#	
 	# Close file
@@ -348,7 +340,6 @@ def reduce_full(infile,imax,jmax):
 	#	-Shapes cannot be modified so a new NetCDF file and variables must be created
 	import numpy
 	import netCDF4 as netcdf
-	#from Scientific.IO import NetCDF as netcdf
 	from shutil import copy2
 	#
 	nfiles=imax*jmax
@@ -392,7 +383,6 @@ def reduce_full(infile,imax,jmax):
 	# ============
 	# Existing NetCDF file
 	src='%s.%04u%04u.nc' % (infile, 0, 0)
-	#ncid_src = netcdf.NetCDFFile(src,'r')
 	ncid_src = netcdf.Dataset(src,'r')
 	# Variable and dimension list
 	var_list=ncid_src.variables.keys()		# Variables
@@ -401,16 +391,10 @@ def reduce_full(infile,imax,jmax):
 	# Output NetCDF file
 	dst='%s.nc' % (infile)
 	ncid_dst = netcdf.Dataset(dst,'w',format='NETCDF3_CLASSIC')
-	#ncid_dst = netcdf.NetCDFFile(dst,'w')
 	# Copy global attributes
 	print 'Copying global attributes...'
 	for att in ncid_src.ncattrs():
 		ncid_dst.setncattr(att,ncid_src.getncattr(att))
-	#
-	#skip=['close', 'createDimension', 'createVariable', 'flush', 'sync','__class__'] # These are always included, but should not be saved!
-	#for att in dir(ncid_src):
-	#	if att in skip: continue
-	#	setattr(ncid_dst,att,getattr(ncid_src,att))
 	#
 	print 'Done'
 	ncid_src.close()
@@ -428,10 +412,9 @@ def reduce_full(infile,imax,jmax):
 				# Source
 				src='%s.%04u%04u.nc' % (infile, i, j)
 				ncid_src = netcdf.Dataset(src,'r')
-				#ncid_src = netcdf.NetCDFFile(src,'r')
 				# Source data
 				obj_src = ncid_src.variables[name]
-				val_src = obj_src[:] #.getValue()
+				val_src = obj_src[:]
 				#
 				if i==0 and j==0:
 					# Initialize output
@@ -442,7 +425,6 @@ def reduce_full(infile,imax,jmax):
 					old_len=len(val)			# Original length (in file 0000 0000)
 					var_info=obj_src.__dict__	# Attributes
 					typ=obj_src.dtype
-					#typ=obj_src.typecode() 	# Type code
 				elif numpy.amin(val_src)>numpy.amax(val):
 					# Append after previous data
 					indices[k,i,j]=len(val)
@@ -463,12 +445,8 @@ def reduce_full(infile,imax,jmax):
 		ncid_dst.createDimension(name,len(val))
 		# b) Save value as that of a variable
 		id=ncid_dst.createVariable(name,typ,(name,))
-		#id.assignValue(val)
 		id[:]=val
 		# Copy attributes
-		#for att in ncid_src.ncattrs(): id.setncattr(att,ncid_src.getncattr(att))
-		#print var_info.keys()
-		#for att in var_info.keys(): id.setncattr(att,var_info[att])	#setattr(id,att,var_info[att])
 		for att in var_info.keys(): setattr(id,att,var_info[att])
 		#
 		print '  %-8s %4u => %-4u  %s' % (name, old_len, len(val), var_info)
@@ -491,7 +469,6 @@ def reduce_full(infile,imax,jmax):
 				# Source
 				src='%s.%04u%04u.nc' % (infile, i, j)
 				ncid_src = netcdf.Dataset(src,'r')
-				#ncid_src = netcdf.NetCDFFile(src,'r')
 				obj_src = ncid_src.variables[name]
 				val_src = obj_src[:] #.getValue()	
 				#
@@ -500,8 +477,7 @@ def reduce_full(infile,imax,jmax):
 					#
 					# Information about the variable
 					var_info=obj_src.__dict__	# Attributes
-					typ=obj_src.dtype
-					#typ=obj_src.typecode() 	# Type code
+					typ=obj_src.dtype	# Type code
 					dims=obj_src.dimensions	# Dimensions
 					#
 					# Index to current dimensions
@@ -511,9 +487,6 @@ def reduce_full(infile,imax,jmax):
 					# Update output size
 					val=numpy.copy(val_src)
 					val.resize(sizes[dim_ind])
-					#
-					# Current starting index should be unique
-					#ind_ref=indices[dim_ind,0,0]	# Starting index
 				elif (indices[dim_ind,0,0]==indices[dim_ind,i,j]).all():
 					# The data will be overwritten
 					# => OK when the data is aways identical
@@ -530,13 +503,11 @@ def reduce_full(infile,imax,jmax):
 		#
 		# Create variable
 		id=ncid_dst.createVariable(name,typ,dims)
-		#id.assignValue(val)
 		id[:]=val
 		# Copy attributes
 		for att in var_info.keys(): setattr(id,att,var_info[att])
 		#
 		# Save data
-		#ncid_dst.flush()
 		ncid_dst.sync()
 		#
 		# Print info
@@ -553,99 +524,11 @@ def reduce_full(infile,imax,jmax):
 	ncid_dst.close()
 #
 #
-def nc_PrintFileContent(filename,filename_out=''):
-	# Print information on all variables from a file
-	import netCDF4 as netcdf
-	#from Scientific.IO import NetCDF as netcdf
-	#
-	# Save results to a file
-	if len(filename_out)>0:
-		# Save output to a file - the old file is overwritten!
-		out_file=open(filename_out,'w')
-	#
-	# Open
-	ncid = netcdf.Dataset(filename,'r')
-	#ncid = netcdf.NetCDFFile(filename,'r')
-	#
-	# Dimension variables
-	allDimNames = ncid.dimensions.keys()
-	ndims=len(allDimNames)
-	#
-	# List of all variables
-	vars=ncid.variables
-	#
-	# Header line
-	if len(filename_out)==0:
-		# Print to screen
-		print '%3s %10s %10s %5s   %5s' % ('No.','dimens.','name','size','attributes')
-	else:
-		print >>out_file, '%3s %10s %10s %5s   %5s' % ('No.','dimens.','name','size','attributes')
-	#
-	# 1) Print dimension variables
-	i=0				# Counter
-	for name in allDimNames:
-		# Object
-		obj = ncid.variables[name]
-		#
-		# Variable information: no dimension id, but size
-		dstr='-';
-		dimlen=obj.shape
-		dimlen_str=str(dimlen[0])
-		#
-		# Attribute information
-		attrs=str( obj.__dict__ )
-		#
-		if len(filename_out)==0:
-			# Print to screen
-			print '%3u %10s %10s %5s   %5s' % (i,dstr,name,dimlen_str,attrs)
-		else:
-			# Print to file
-			print >>out_file, '%3u %10s %10s %5s   %5s' % (i,dstr,name,dimlen_str,attrs)
-		i+=1
-	#
-	# 2) Print data
-	for name in sorted(vars.iterkeys()):
-		# Skip dimension variables
-		if name in allDimNames: continue
-		#
-		# Object
-		obj = ncid.variables[name]
-		#
-		# Variable information: no size, but dimension id list
-		dimlen_str='';
-		# All dimensions
-		dims=obj.dimensions
-		dstr=''
-		for dim in dims:
-			dstr+=str( allDimNames.index(dim)  )+','
-		dstr=dstr[0:len(dstr)-1]
-		#
-		# Attribute information
-		attrs=str( obj.__dict__ )
-		#
-		if len(filename_out)==0:
-			# Print to screen
-			print '%3u %10s %10s %5s   %5s' % (i,dstr,name,dimlen_str,attrs)
-		else:
-			# Print to file
-			print >>out_file, '%3u %10s %10s %5s   %5s' % (i,dstr,name,dimlen_str,attrs)
-		i+=1
-	#
-	# Close file
-	ncid.close()
-	#
-	# Close output
-	if len(filename_out): out_file.close()
-#
-#
 if '.ts' in infile or '.ps' in infile:
 	# Time or profile statistics
 	reduce_ts_ps(infile,imax,jmax)
 else:
 	# Full 4D data
 	reduce_full(infile,imax,jmax)
-#
-# Save information about file content?
-# nc_PrintFileContent(infile+'.nc',infile+'.nc.txt')
 #
 # End of function combine.py

@@ -18,8 +18,11 @@ salsa=${root}/src/src_salsa
 les=${root}/src/src_LES
 bin=${root}/bin
 script=${root}/script
+submit=${submit:-true}
 
-if [ -n $postfix ]; then
+
+if [[ -n $postfix ]]; then
+    echo "postfix olemassa" $postfix
     postfix=_${postfix}
 fi
 
@@ -96,17 +99,17 @@ mkdir -p ${outputrootfolder}
 
 cp ${script}/emulator_runs_parallel.bash ${outputrootfolder}/
 cp ${script}/submit_uclales-salsa.bash   ${outputrootfolder}/
-cp ${script}/submit_postpros.bash   ${outputrootfolder}/
+cp ${script}/submit_postpros.bash        ${outputrootfolder}/
 
 cp ${script}/${scriptname} ${outputrootfolder}/
 
+mode=${mode:-mpi}
 
-
-if [ $nproc -gt 1 ]; then
-   mode=mpi
-else
-   mode=seq
-fi
+# if [ $nproc -gt 1 ]; then
+#    mode=mpi
+# else
+#    mode=seq
+# fi
 
 for i in $(seq -f"%02g" $A $B  )
 do
@@ -160,7 +163,7 @@ fi
 for n in $( seq ${Nro} )
 do
 
-echo "runNroBegin=$k simulNro=$Nro runNroEnd=$B threadNro=$n nproc=${nproc} postfix=${postfix} jobflag=$JOBFLAG scriptname=$scriptname ${outputrootfolder}/emulator_runs_parallel.bash | tee ${outputrootfolder}/emulatoroutput${n} &" >> ${outputrootfolder}/control_multiple_emulator_run.sh
+echo "runNroBegin=$k simulNro=$Nro runNroEnd=$B threadNro=$n nproc=${nproc} postfix=${postfix} jobflag=$JOBFLAG mode=${mode} scriptname=$scriptname ${outputrootfolder}/emulator_runs_parallel.bash | tee ${outputrootfolder}/emulatoroutput$(printf %02d $n) &" >> ${outputrootfolder}/control_multiple_emulator_run.sh
 
 k=$((A+$n))
 done
@@ -176,13 +179,15 @@ cd ${outputrootfolder}
 # Make initial submit
 chmod +x  control_multiple_emulator_run.sh
 echo 'Submit emulator controller to job scheduler'
+if [ $submit == 'true' ]; then
 
-if [ $JOBFLAG == 'PBS' ] ; then
-    qsub control_multiple_emulator_run.sh
-    qstat -u $username
-elif [ $JOBFLAG == 'SBATCH' ] ; then
-    sbatch control_multiple_emulator_run.sh
+    if [ $JOBFLAG == 'PBS' ] ; then
+        qsub control_multiple_emulator_run.sh
+        qstat -u $username
+    elif [ $JOBFLAG == 'SBATCH' ] ; then
+        sbatch control_multiple_emulator_run.sh
+    fi
+
 fi
-
 
 exit

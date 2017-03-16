@@ -11,39 +11,43 @@ set -e
 ##########################
 
 cat > ${dir}/NAMELIST <<EOF
-! DESIGN VERSION ${design}
-
  &version
-  ver="v1.0.2"
+  ver="v1.0.4"
  /
 
  &model
-  nxp =   ${nxp:-204}
-  nyp =   ${nyp:-204}
-  nzp =   ${nzp:-200}
+  nxp =   ${nxp:-68}
+  nyp =   ${nyp:-68}
+  nzp =   ${nzp:-140}
   deltax = ${deltax:-50.}
   deltay = ${deltay:-50.}
-  deltaz = ${deltaz:-20.}
-  nxpart = ${nxpart:-.true.}
-  dzmax  = ${dzmax:-3500.}
-  dzrat  = ${dzrat:-1.0}
-  dtlong = ${dtlong:-2.}
+  deltaz = ${deltaz:-10.}
+  nxpart = ${nxpart:-.false.}
+  dzmax  = ${dzmax:-1200.}
+  dzrat  = ${dzrat:-1.05}
+  dtlong = ${dtlong:-1.}
   distim = ${distim:-100.}
-  timmax = ${timmax:-12600.}
-  Tspinup = ${Tspinup:-5400.}
+  timmax = ${timmax:-28800.}
+  Tspinup = ${Tspinup:-7200.}
+${notJJA}  minispinup01 = ${minispinup01:-0.}
+${notJJA}  minispinup02 = ${minispinup02:-0.}
+${notJJA}  minispinupCase01 = ${minispinupCase01:-3}
+${notJJA}  minispinupCase02 = ${minispinupCase02:-3}
   runtype = ${runtype:-'"INITIAL"'}
-  level = ${level:-3}
-  CCN = ${CCN:-600.e6}
+  level = ${level:-5}
+  CCN = ${CCN:-30.e6}
   prndtl = ${prndtl:--0.3333333}
-  filprf = ${filprf:-"'emul'"}
-  hfilin = ${hfilin:-"'emul.rst'"}
+  filprf = ${filprf:-"'isdac'"}
+  hfilin = ${hfilin:-"'isdac.rst'"}
   ssam_intvl = ${ssam_intvl:-120.}
   savg_intvl = ${savg_intvl:-120.}
   mcflg = ${mcflg:-.FALSE.}
-  frqhis  = ${frqhis:-30000.}
+  frqhis  = ${frqhis:-3600.}
+  istpfl  = ${istpfl:-1}
   lbinanl = ${lbinanl:-.false.}
   frqanl = ${frqanl:-5400.}
   corflg = ${corflg:-.false.}
+  ipsflg = ${ipsflg:-1}
   itsflg = ${itsflg:-1}
   strtim = ${strtim:-180.0}
   sed_aero = ${sed_aero:-.FALSE.}
@@ -52,42 +56,54 @@ cat > ${dir}/NAMELIST <<EOF
   sed_ice = ${sed_ice:-.FALSE.}
   sed_snow = ${sed_snow:-.FALSE.}
   iradtyp = ${iradtyp:-3}                ! 1 = no radiation, only large-scale forcing, 3 = radiation + large-scale forcing 
-  case_name = ${case_name:-"'default'"}            ! Case-specific large-scale forcing: none = not used, 
+  case_name = ${case_name:-"'ascos'"}            ! Case-specific large-scale forcing: none = not used, 
                                       ! default = simple divergence forcing with specified div 
   div = ${div:-1.5e-6}              ! Divergence for e.g. case_name = 'default'
-  sfc_albedo = ${sfc_albedo:-0.05}
-  radsounding = ${radsounding:-"'datafiles/kmls.lay'"} 
+  sfc_albedo = ${sfc_albedo:-0.7}
+  radsounding = ${radsounding:-"'datafiles/ksaw.lay'"}
+  
+  cntlat = ${cntlat:-71.32}
+  strtim = ${strtim:-117.75}
+  
 
-!  isfctyp = ${isfctyp:-2}
-  sst = ${sst:-271.35}
+  isfctyp = ${isfctyp:-0} ! surface fluxes
+  sst = ${sst:-267.}
 
-  dthcon = ${dthcon:-0.} ! heat flux 18.4613
-  drtcon = ${drtcon:-0.}  ! latent 84.8921 
+  dthcon = ${dthcon:-0.} ! heat flux
+  drtcon = ${drtcon:-0.}  ! latent
 
   ubmin  = ${ubmin:--0.25}
   zrough = ${zrough:-0.01}
-  th00 = ${th00:-289.}
-  umean =  ${umean:-0.1}
-  vmean = ${vmean:--0.1}
+  th00 = ${th00:-267.}
+  umean =  ${umean:--7.0}
+  vmean = ${vmean:-2.45554452055}
  /
 
  &salsa	
    nlcoag = ${nlcoag:-.TRUE.}       ! Master coagulation switch
-   nlcgcc = ${nlcgcc:-.TRUE.}       ! Self-collection of cloud droplets
-   nlcgpp = ${nlcgpp:-.TRUE.}       ! Self-collection of rain drops
-   nlcgpc = ${nlcgpc:-.TRUE.}       ! Rain collection of cloud droplets
+   
+   !! selfcoagulation processes   
+   nlcgcc = ${nlcgcc:-T}       ! Self-collection of cloud droplets
+   nlcgpp = ${nlcgpp:-T}       ! Self-collection of rain drops
    nlcgaa = ${nlcgaa:-.FALSE.}      ! Aerosol coagulation
-   nlcgca = ${nlcgca:-.TRUE.}       ! Cloud collection of aerosols
-   nlcgpa = ${nlcgpa:-.TRUE.}       ! Rain collection of aerosols
-   nlcgia = ${nlcgia:-.TRUE.}       ! Ice collection of aerosols
-   nlcgic = ${nlcgic:-.TRUE.}       ! Ice collection of cloud droplets
-   nlcgii = ${nlcgii:-.TRUE.}       ! Self-collection of ice
-   nlcgip = ${nlcgip:-.TRUE.}       ! Ice collection of rain drops
-   nlcgsa = ${nlcgsa:-.TRUE.}       ! Snow collection of aerosols
-   nlcgsc = ${nlcgsc:-.TRUE.}       ! Snow collection of cloud droplets
-   nlcgsi = ${nlcgsi:-.TRUE.}       ! Snow collection of ice particles
-   nlcgsp = ${nlcgsp:-.TRUE.}       ! Snow collection of rain drops
-   nlcgss = ${nlcgss:-.TRUE.}       ! Self-collection of snow
+   nlcgii = ${nlcgii:-T}       ! Self-collection of ice
+   nlcgss = ${nlcgss:-.FALSE.}       ! Self-collection of snow
+
+   !! coagulation between different particles   
+   nlcgpc = ${nlcgpc:-T}       ! Rain collection of cloud droplets
+   nlcgca = ${nlcgca:-T}       ! Cloud collection of aerosols
+   nlcgpa = ${nlcgpa:-T}       ! Rain collection of aerosols
+
+   ! ice related
+   nlcgia = ${nlcgia:-T}       ! Ice collection of aerosols
+   nlcgic = ${nlcgic:-T}       ! Ice collection of cloud droplets
+   nlcgip = ${nlcgip:-T}       ! Ice collection of rain drops
+   
+   ! snow related
+   nlcgsa = ${nlcgsa:-.FALSE.}       ! Snow collection of aerosols
+   nlcgsc = ${nlcgsc:-.FALSE.}       ! Snow collection of cloud droplets
+   nlcgsi = ${nlcgsi:-.FALSE.}       ! Snow collection of ice particles
+   nlcgsp = ${nlcgsp:-.FALSE.}       ! Snow collection of rain drops
 
    nlcnd       = ${nlcnd:-.TRUE.}  ! Master condensation switch
    nlcndgas    = ${nlcndgas:-.FALSE.}  ! --Aerosol precursor gas codensation
@@ -104,6 +120,10 @@ cat > ${dir}/NAMELIST <<EOF
    nlichet     = ${nlichet:-.FALSE.}     ! Switch for heterogeneous ice nucleation
    nlicimmers  = ${nlicimmers:-.FALSE.}   ! Switch for ice nucleation by immersion
    nlicmelt    = ${nlicmelt:-.FALSE.}    ! Switch for ice'n' snow melting
+${notJJA}   nlicbasic   = ${nlicbasic:-.FALSE.}
+   
+${notJJA}   nlfixinc   = ${nlfixinc:-.TRUE.}      ! Fix ice number concentration to be over given limit fixINC
+${notJJA}   fixINC     = ${fixINC:-1.0}         ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
 
    rhlim = ${rhlim:-1.2}          ! RH limit for SALSA during initialization and spinup
 
@@ -114,9 +134,9 @@ cat > ${dir}/NAMELIST <<EOF
    volDistB = ${volDistB:-0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}
    nf2a = ${nf2a:-1.0}
 
-   sigmag = ${sigmag:-1.2, 1.7, 2.0, 2.0, 2.0, 2.0, 2.0}  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
-   dpg    = ${dpg:-0.022, 0.12, 0.2, 0.2, 0.2, 0.2, 0.2}     ! Mode mean diameters in micrometers
-   n      = ${n:-0., 46.2502241367474 , 0., 0., 0., 0., 0.}  ! Mode number concentrations in #/cm^3
+   sigmag = ${sigmag:- 1.5,  1.5, 1.5, 2.45, 2.0, 2.0, 2.0}  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
+   dpg    = ${dpg:-     0.,  0.2, 0.2,  0.2, 0.2, 0.2, 0.2}     ! Mode mean diameters in micrometers
+   n      = ${n:-       0., 207., 0.0,  8.5,  0.,  0.,  0.}  ! Mode number concentrations in #/cm^3
  /
 
 EOF
