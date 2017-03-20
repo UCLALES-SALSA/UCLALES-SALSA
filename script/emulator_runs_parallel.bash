@@ -38,6 +38,7 @@ function odota {
     echo 'Nyt odotetaan' $nimi $aika
     while [[ ! -z $( qstat -u $username | grep $nimi ) ]]
     do
+        date +%Y-%m-%d-%H-%M
         qstat -u aholaj
 #         sleep 15s
         sleep $aika
@@ -96,22 +97,24 @@ function postprosessoi {
 
 function poistaturhat {
     
-    echo 'Poistetaan lustrelta turhat tiedostot'
+    echo ' '
+    echo 'Poistetaan lustrelta turhat tiedostot jos postprosessointi on tehty'
     nimi=$1
-    if [ -f ${outputroot}/${nimi}/${nimi}.nc ] && [ -f ${outputroot}/${nimi}/${nimi}.ts.nc ] && [ -f ${outputroot}/${nimi}/${nimi}.ps.nc ]; then
+
+    if [[ -f ${root}/${nimi}/${nimi}.nc ]] && [[ -f ${root}/${nimi}/${nimi}.ts.nc ]] && [[ -f ${root}/${nimi}/${nimi}.ps.nc ]]; then
         echo "kaikki kolme postprosessoitua tiedostoa ovat olemassa"
-        ls ${outputroot}/${nimi}/${nimi}.nc
-        ls ${outputroot}/${nimi}/${nimi}.ts.nc
-        ls ${outputroot}/${nimi}/${nimi}.ps.nc
+        ls ${root}/${nimi}/${nimi}.nc
+        ls ${root}/${nimi}/${nimi}.ts.nc
+        ls ${root}/${nimi}/${nimi}.ps.nc
         echo 'poistetaan'
-        rm -rf ${outputroot}/${nimi}/datafiles
-        rm -rf ${outputroot}/${nimi}/*.sh
-        rm -rf ${outputroot}/${nimi}/*.py
-        rm -rf ${outputroot}/${nimi}/*.rst
-        rm -rf ${outputroot}/${nimi}/${nimi}.ts.0*0*.nc
-        rm -rf ${outputroot}/${nimi}/${nimi}.ps.0*0*.nc
-        rm -rf ${outputroot}/${nimi}/${nimi}.0*0*.nc
-        rm -rf ${outputroot}/${nimi}/0*_0*.${nimi}.*
+        rm -rf ${root}/${nimi}/datafiles
+        rm -rf ${root}/${nimi}/*.sh
+        rm -rf ${root}/${nimi}/*.py
+        rm -rf ${root}/${nimi}/*.rst
+        rm -rf ${root}/${nimi}/${nimi}.ts.0*0*.nc
+        rm -rf ${root}/${nimi}/${nimi}.ps.0*0*.nc
+        rm -rf ${root}/${nimi}/${nimi}.0*0*.nc
+        rm -rf ${root}/${nimi}/0*_0*.${nimi}.*
     fi
 }
 

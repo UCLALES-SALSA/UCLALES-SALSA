@@ -17,31 +17,51 @@ Created on Wed Aug 17 13:40:45 2016
 
 import numpy as np
 
-import matplotlib.pyplot as plt
+
 
 from subprocess import call
 #import shlex
 
-from ModDataPros import plottaa
-from ModDataPros import plot_alustus
-from ModDataPros import plot_lopetus
-from ModDataPros import initializeColors
+
 from FindCloudBase import calc_rh_profile
 from FindCloudBase import calc_cloud_droplet_diam
 from FindCloudBase import rslf
-from plot_profiles import PlotProfiles
 from ECLAIR_calcs import solve_rw
 
 import sys
 import os
 import subprocess
 
-
+global mounted
 global rootfolder
-rootfolder='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/bin/case_emulator/'
+global designfilu
 
-filu ='/home/aholaj/mounttauskansiot/ibrixmount/DESIGN/corr_design.csv'
-#filu='/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/designs/vanhat/corr_design_15d_withconstraints.csv'
+def bool_convert(s):
+    return s == "True"
+
+if ( len(sys.argv) > 2):
+    mounted = bool_convert( sys.argv[1] )
+else:
+    mounted = True
+  
+if mounted:
+    import matplotlib.pyplot as plt
+    from ModDataPros import plottaa
+    from ModDataPros import plot_alustus
+    from ModDataPros import plot_lopetus
+    from plot_profiles import PlotProfiles
+    from ModDataPros import initializeColors
+    lesroot    = '/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/'
+    designroot = '/home/aholaj/mounttauskansiot/ibrixmount/DESIGN/'
+else:
+    lesroot    = '/home/users/aholaj/UCLALES-SALSA/'
+    designroot = '/ibrix/arch/ClimRes/aholaj/DESIGN/'
+
+
+rootfolder = lesroot + 'bin/case_emulator/'
+
+
+designfilu = designroot + 'corr_design.csv'
 
 #if (len(sys.argv) > 1):
 #    for i in sys.argv[1:]:
@@ -261,7 +281,6 @@ def write_sound_in( input_vector ):
     nzp         = int(   input_vector[8] )
     windprofile =        input_vector[9]
     pres0       = float( input_vector[10] )
-    mounted     = bool(  input_vector[11] )
     
     folder = rootfolder+'emul' + case +'/'
     call(['mkdir','-p', folder])
@@ -305,7 +324,7 @@ def write_sound_in( input_vector ):
         
 
         potTemp.append( pot_temp_IT( z[k], pblh, tpot_pbl, tpot_inv, invThi ) )
-        wc.append(      tot_wat_mix_rat_IT( z[k], pblh, q_pbl, q_inv, invThi ) )
+        wc.append(      tot_wat_mix_rat_IT( z[k], pblh, q_pbl, q_inv, invThi, q_toa = min( max( q_pbl-q_inv-0.01, 0.01) , 2. ) ) )
         if ( windprofile == 'zero' ):
                 u_apu, v_apu = wind_0( z[k] )
         elif ( windprofile == 'ascos' ):
@@ -358,20 +377,20 @@ def write_sound_in( input_vector ):
         initializeColors(7)
         plot_alustus()
         plottaa( potTemp, z, case+' liquid potential temperature, inv. thick.: ' +str( round(invThi,2) ) , 'liquid potential temperature K', 'height m', markers=markers )
-        plt.axhline( y = pblh )
-        plt.axhline( y = pblh + invThi )
-        plt.plot([tpot_pbl,tpot_pbl+tpot_inv], [pblh,pblh+invThi], color='r', marker='o')
-        plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
-    #    ax.set_yticks(z)
-    #    ax.set_yticks([pblh, pblh+invThi], minor=True)
+#        plt.axhline( y = pblh )
+#        plt.axhline( y = pblh + invThi )
+#        plt.plot([tpot_pbl,tpot_pbl+tpot_inv], [pblh,pblh+invThi], color='r', marker='o')
+#        plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
+#    #    ax.set_yticks(z)
+#    #    ax.set_yticks([pblh, pblh+invThi], minor=True)
         plt.savefig( folder + case + '_'+ 'liquid_potential_temperature'  + '.png', bbox_inches='tight')    
         
         plot_alustus()
         plottaa( wc, z, case+' water mixing ratio', 'water mixing ratio g/kg', 'height m', markers=markers )
-        plt.axhline( y = pblh )
-        plt.axhline( y = pblh + invThi )
-        plt.plot([q_pbl,q_pbl-q_inv], [pblh,pblh+invThi], color='r', marker='o')
-        plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
+#        plt.axhline( y = pblh )
+#        plt.axhline( y = pblh + invThi )
+#        plt.plot([q_pbl,q_pbl-q_inv], [pblh,pblh+invThi], color='r', marker='o')
+#        plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
         plt.savefig( folder + case + '_'+ 'water_mixing_ratio'  + '.png', bbox_inches='tight')    
     #
         plot_alustus()
@@ -394,7 +413,8 @@ def write_sound_in( input_vector ):
         plottaa( windshear, z[:-1], case+' wind shear '+ windprofile, 'wind shear s^-1', 'height m', markers=markers )
         plt.savefig( folder + case + '_'+ 'windshear'  + '.png', bbox_inches='tight')
 
-    
+    else:
+        print 'Not plotting initial conditions'
     
     return True
     
@@ -414,7 +434,7 @@ def write_namelist( input_vector ):
 
     folder = rootfolder +'emul' + case 
     call(['mkdir','-p', folder])
-    sst = absT(tpot_pbl, pres0)
+    sst = absT( tpot_pbl, pres0 )
     print 'generating NAMELIST ' + str(case)
 #    print 'design tag', designV, type(designV)
 #    dth = dthcon( tpot_pbl, sst, pres0 )
@@ -441,7 +461,7 @@ def write_namelist( input_vector ):
               ' filprf=' + '"' + "'emul" + case + "'"    +'"'                        +\
               ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'                       +\
               ' n='+'"'+'0., ' + str(num_pbl)+' , 0., 0., 0., 0., 0.' + '"'   +\
-              ' /home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/script/generate_namelist.bash'
+              ' ' + lesroot + 'script/generate_namelist.bash'
 
 #               ' Tspinup=10.'     
  #               ' timmax=20.'
@@ -455,8 +475,7 @@ def write_namelist( input_vector ):
     
     return True
     
-def main( mounted = True, nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/ibrixmount/DESIGN/corr_design.csv', windprofile = 'dycoms', pres0 = 1017.8, runmode='parallel', runNroBegin = 1, runNroEnd = 90 ):
-    mounted = bool(mounted)    
+def main( nzp_orig=200, filu = designfilu, windprofile = 'dycoms', pres0 = 1017.8, runmode='parallel', runNroBegin = 1, runNroEnd = 90 ):
     nzp_orig = int(nzp_orig)
     pres0 = float(pres0)
     runNroBegin = int(runNroBegin)
@@ -494,7 +513,7 @@ def main( mounted = True, nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/ibr
     if ( runmode == 'serial' ) :
         print 'serial mode'
         for k in xrange( A, B ): 
-            write_sound_in( [ case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], num_pbl[k], dz[k], nzp[k], windprofile, pres0, mounted ] )
+            write_sound_in( [ case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], num_pbl[k], dz[k], nzp[k], windprofile, pres0 ] )
             write_namelist( [ case[k], nzp[k], dz[k], q_pbl[k], tpot_pbl[k], num_pbl[k], pres0, designV ] )
             
     elif ( runmode == 'parallel' ):
@@ -502,11 +521,10 @@ def main( mounted = True, nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/ibr
         koko = len(case)
         windprofile = [windprofile]*koko
         pres0       = [pres0]*koko
-        mounted     = [mounted]*koko
         designV     = [designV]*koko
         from multiprocessing import Pool
         pool = Pool(processes= 4)
-        sound_in_iter = iter( np.column_stack( ( case[A:B], q_inv[A:B], tpot_inv[A:B], q_pbl[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], dz[A:B], nzp[A:B], windprofile[A:B], pres0[A:B], mounted[A:B] ) ) )
+        sound_in_iter = iter( np.column_stack( ( case[A:B], q_inv[A:B], tpot_inv[A:B], q_pbl[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], dz[A:B], nzp[A:B], windprofile[A:B], pres0[A:B] ) ) )
         namelist_iter = iter( np.column_stack( ( case[A:B], nzp[A:B], dz[A:B], q_pbl[A:B], tpot_pbl[A:B], num_pbl[A:B], pres0[A:B], designV[A:B] ) ) )
         for i in pool.imap_unordered( write_sound_in, sound_in_iter ):
             print i
@@ -529,7 +547,7 @@ def main( mounted = True, nzp_orig=200, filu ='/home/aholaj/mounttauskansiot/ibr
 if __name__ == "__main__":
     
     if ( len(sys.argv) > 2):
-        main( mounted = sys.argv[1], nzp_orig = sys.argv[2], filu =  sys.argv[3], windprofile = sys.argv[4], pres0 = sys.argv[5], runmode = sys.argv[6], runNroBegin = sys.argv[7], runNroEnd =  sys.argv[8] )
+        main( nzp_orig = sys.argv[2], filu =  sys.argv[3], windprofile = sys.argv[4], pres0 = sys.argv[5], runmode = sys.argv[6], runNroBegin = sys.argv[7], runNroEnd =  sys.argv[8] )
         print 'generated by using Command Line arguments'
     else:
         main()

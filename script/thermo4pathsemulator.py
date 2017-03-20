@@ -238,6 +238,8 @@ mdp.plot_setYlim( 0.0, maksimiLWP )
 
 #############################################
 
+ajanhetket = 2*3600. #7200.
+
 #print ' '
 #print 'q profile changes'
 for i in xrange(len(sys.argv)-1):
@@ -248,7 +250,7 @@ for i in xrange(len(sys.argv)-1):
 
     height_data = mdp.read_Data( filenameNC[i], 'zt' )
     
-    ajanhetket = 2*3600. #7200.
+
     aikaP = np.argmin( np.abs(ajanhetket - time_data) )
     
     #q_difference = q_data[ aikaP, : ] / q_data[ 0, : ] -1
@@ -304,16 +306,99 @@ for i in xrange(len(sys.argv)-1):
         #minimiLWP = min( minimiLWP,  np.min(liqWP_Tdata) )
     #else:
         #minimiLWP = np.min(liqWP_Tdata)
-        
     
-    nimi = 'Total water mix. rat g/m^2 difference between 0h & '+str((ajanhetket/3600.)) + 'h ' + filenameNC[i].split("/")[-2]
+    sst=''
+    if "sst" in filenameNC[i]:
+        sst = 'sst '        
+    
+    nimi = 'Total water mix. rat g/m^2 difference between 0h & '+str((ajanhetket/3600.)) + 'h '+ sst + filenameNC[i].split("/")[-2]
 
-    mdp.profiiliTulostus( q_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = r'$\frac{q_{t=2h}}{q_{t=0h}}-1$', ynimi = 'z/pblh', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = color )
-    #mdp.profiiliTulostus( q_data[0,:],  aikaPisteet = 0, korkeus = height_data, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'q [g/kg]', ynimi = 'height [m]', tightXAxis=tightXAxis, LEGEND=LEGEND )
-    #mdp.profiiliTulostus( q_data[60,:], aikaPisteet = 0, korkeus = height_data, tulostus = tulostus, piirra = piirra, uusikuva = False,    nimi = nimi, xnimi = 'q [g/kg]', ynimi = 'height [m]', tightXAxis=tightXAxis, LEGEND=LEGEND )
+    mdp.profiiliTulostus( q_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = r'$\frac{q_{t=2h}}{q_{t=0h}}-1$', ynimi = 'z/pblh', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = False )
 
 mdp.plot_setYlim( 0.0, 1.01 )
 plt.xlim( -0.25, 0.025)
+
+#############################################
+
+#print ' '
+#print 't profile changes'
+for i in xrange(len(sys.argv)-1):
+    uusikuva = True if i == 0 else  False
+    
+    t_data      = mdp.read_Data( filenamePS[i], 't' )   
+    time_data   = mdp.read_Data( filenameTS[i], 'time'    )
+
+    height_data = mdp.read_Data( filenameNC[i], 'zt' )
+    
+    aikaP = np.argmin( np.abs(ajanhetket - time_data) )
+    
+    #t_difference = t_data[ aikaP, : ] / t_data[ 0, : ] -1
+    filu ='/home/aholaj/mounttauskansiot/ibrixmount/DESIGN/corr_design.csv'
+    case, q_inv, tpot_inv, lwc_max, tpot_pbl, pblh, num_pbl = read_design( filu )
+
+    pbl_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
+    dens = 20
+    
+    fracZ   = np.zeros( dens*(len(height_data)-1) +1 )
+    normZ   = np.zeros( len(fracZ) )
+    
+    tSpline = np.zeros( ( 2, len(fracZ) ) )
+    
+    
+    for k in xrange(len(fracZ)-1):
+        h_indeksi = int(np.floor(k/dens) )
+        normZ[k] =  ( height_data[ h_indeksi ] + np.mod(k,dens)*(height_data[ h_indeksi + 1] - height_data[ h_indeksi ])/float(dens) )
+        fracZ[k] =  normZ[k] / pblh[pbl_indeksi]
+   
+    normZ[-1] = height_data[-1]
+    fracZ[-1] = normZ[-1] / pblh[pbl_indeksi]
+    #np.set_printoptions(formatter={'float': lambda x: "{0:0.1f}".format(x)})
+    tck0 = interpolate.splrep( height_data, t_data[ 0,: ]     )
+    tckT = interpolate.splrep(height_data, t_data[ aikaP,:]  )
+    for k in xrange( np.shape(tSpline)[1] ):
+        tSpline[ 0,k ]  = interpolate.splev( normZ[k], tck0 )
+        tSpline[ 1,k ]  = interpolate.splev( normZ[k], tckT )
+    
+    t_difference = tSpline[ 1,:] / tSpline[ 0,:] -1
+        
+
+    #print 'minimi '  + str(np.min(liqWP_Tdata))
+    #print 'maksimi ' + str(np.max(liqWP_Tdata))
+    if 'maksimifracZ' in locals():
+        maksimifracZ = max( maksimifracZ,  np.max(fracZ) )
+    else:
+        maksimifracZ = np.max(fracZ)
+    
+    if 'maksimiT' in locals():
+        maksimiT = max( maksimiT,  np.max(t_difference) )
+    else:
+        maksimiT = np.max(t_difference)
+
+    if 'minimiT' in locals():
+        minimiT = max( minimiT,  np.max(t_difference) )
+    else:
+        minimiT = np.max(t_difference)
+    colorMap = plt.cm.rainbow
+    skal = pblh[ pbl_indeksi ] / np.max( pblh)
+    color = colorMap(skal)
+    #if 'minimiLWP' in locals():
+        #minimiLWP = min( minimiLWP,  np.min(liqWP_Tdata) )
+    #else:
+        #minimiLWP = np.min(liqWP_Tdata)
+    
+    sst=''
+    if "sst" in filenameNC[i]:
+        sst = 'sst '
+        
+    
+    nimi = 'Temperature [K] difference between 0h & '+str((ajanhetket/3600.)) + 'h '+ sst + filenameNC[i].split("/")[-2]
+
+    mdp.profiiliTulostus( t_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = r'$\frac{t_{t=2h}}{t_{t=0h}}-1$', ynimi = 'z/pblh', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = False )
+
+mdp.plot_setYlim( 0.0, 1.01 )
+plt.xlim( -0.25, 0.025)
+
+################
 
 #############################################
 
