@@ -83,7 +83,7 @@ contains
 
        call advtnd(nzp,nxp,nyp,a_sp,a_tmp1,a_st,dtlt)
       ELSEIF (sflg) THEN
-       ! Averages & statistics even for zeros
+       ! Averages & statistics even for zeros (might be non-zero elsewhere)
        a_tmp2(:,:,:)=0.
        call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
        call updtst(nzp,'adv',n,v1da,1)

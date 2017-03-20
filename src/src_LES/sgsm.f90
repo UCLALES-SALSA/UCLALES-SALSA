@@ -108,8 +108,7 @@ contains
     ! ----------
     ! Calculate Deformation and stability for SGS calculations
     !
-    ! Not needed; a_temp and a_rsl already up-to-date
-    !call fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,dn0,th00,a_temp,rs=a_rsl)
+    call fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,dn0,th00,a_temp,rs=a_rsl)
 
     call bruvais(nzp,nxp,nyp,level,a_theta,a_tp,rxt,a_rsl,a_tmp3,dzm,th00)
 

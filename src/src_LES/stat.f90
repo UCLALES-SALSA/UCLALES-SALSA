@@ -493,7 +493,7 @@ contains
         fname =  trim(filprf)//'.cs'
         if(myid == 0) print "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
         call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid3, nrec3, ver, author, info)
-        IF (ncid3>=0) CALL define_nc_cs(ncid3, nrec3, nxp, nyp, level, iradtyp, spec3, nvar_spec3)
+        IF (ncid3>=0) CALL define_nc_cs(ncid3, nrec3, nxp-4, nyp-4, level, iradtyp, spec3, nvar_spec3)
         if (myid == 0) print *, '   ...starting record: ', nrec3
     ENDIF
 
@@ -580,7 +580,7 @@ contains
             CALL cs_rem_save(nxp,nyp)
         ENDIF
 
-        ! Warm cloud statatistics
+        ! Warm cloud statistics
         rxt = 0.    ! Condensate
         rnt = 0.
         xrpp = 0.   ! Precipitate
@@ -610,7 +610,8 @@ contains
   end subroutine statistics
   !
   ! -----------------------------------------------------------------------
-  ! subroutines set_cs_warm, cs_rem_set, cs_rem_save and set_cs_any: write (and compute) column average statistics
+  ! subroutines set_cs_warm, cs_rem_set, cs_rem_save and set_cs_any:
+  ! write (and compute) column average statistics
   !
   ! Save named data (already available)
   subroutine set_cs_any(n2,n3,r,nam)
@@ -623,7 +624,7 @@ contains
     IF (csflg) THEN
         iret = nf90_inq_varid(ncid3,trim(nam),VarID)
         IF (iret==NF90_NOERR) THEN
-            iret = nf90_put_var(ncid3, VarID, r, start=(/1,1,nrec3/))
+            iret = nf90_put_var(ncid3, VarID, r(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
             iret = nf90_sync(ncid3)
         ENDIF
     ENDIF
@@ -757,7 +758,7 @@ contains
     nrain=0.    ! Average RDNC (#/kg)
     nrainy=0    ! Number of cloudy grid cells
     zb=zm(n1)+100.  ! Cloud base (m)
-    zc=0.               ! Cloud top (m)
+    zc=0.           ! Cloud top (m)
     do j=3,n3-2
        do i=3,n2-2
           cld=0.
@@ -768,7 +769,7 @@ contains
                 lwp(i,j)=lwp(i,j)+rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
                 ! Volume weighted average of the CDNC
                 ncld(i,j)=ncld(i,j)+nc(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
-                cld=cld+(zm(k)-zm(k-1))
+                cld=cld+dn0(k)*(zm(k)-zm(k-1))
                 ! Number of cloudy pixels
                 ncloudy(i,j)=ncloudy(i,j)+1
                 ! Cloud base and top
@@ -780,18 +781,19 @@ contains
                 rwp(i,j)=rwp(i,j)+rp(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
                 ! Volume weighted average of the RDNC
                 nrain(i,j)=ncld(i,j)+nc(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
-                rn=rn+(zm(k)-zm(k-1))
+                rn=rn+dn0(k)*(zm(k)-zm(k-1))
                 ! Number of rainy pixels
                 nrainy(i,j)=nrainy(i,j)+1
              end if
           enddo
           IF (cld>0.) THEN
             ncld(i,j)=ncld(i,j)/cld
+          ELSE
             zb(i,j)=-999.
             zc(i,j)=-999.
           END IF
           IF (rn>0.) THEN
-            nrain(i,j)=nrain(i,j)/cld
+            nrain(i,j)=nrain(i,j)/rn
           END IF
        end do
     end do
@@ -802,34 +804,34 @@ contains
 
     if (nrec3 == 1) then
        iret = nf90_inq_varid(ncid3, 'xt', VarID)
-       iret = nf90_put_var(ncid3, VarID, xt, start = (/nrec3/))
+       iret = nf90_put_var(ncid3, VarID, xt(3:n2-2), start = (/nrec3/))
        iret = nf90_inq_varid(ncid3, 'yt', VarID)
-       iret = nf90_put_var(ncid3, VarID, yt, start = (/nrec3/))
+       iret = nf90_put_var(ncid3, VarID, yt(3:n3-2), start = (/nrec3/))
     END IF
 
     iret = nf90_inq_varid(ncid3,'lwp',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, lwp, start=(/1,1,nrec3/))
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, lwp(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_inq_varid(ncid3,'rwp',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rwp, start=(/1,1,nrec3/))
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rwp(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_inq_varid(ncid3,'Nc',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, ncld, start=(/1,1,nrec3/))
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, ncld(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_inq_varid(ncid3,'Nr',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nrain, start=(/1,1,nrec3/))
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nrain(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_inq_varid(ncid3,'nccnt',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, ncloudy, start=(/1,1,nrec3/))
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, ncloudy(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_inq_varid(ncid3,'nrcnt',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nrainy, start=(/1,1,nrec3/))
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nrainy(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_inq_varid(ncid3,'zb',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, zb, start=(/1,1,nrec3/))
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, zb(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_inq_varid(ncid3,'zc',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, zc, start=(/1,1,nrec3/))
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, zc(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
 
     iret = nf90_sync(ncid3)
@@ -1065,7 +1067,7 @@ contains
     CALL get_3rd3(n1,n2,n3,rt,a1,a3)
 
     do k=1,n1
-       svctr(k,50)=svctr(k,50) + a1(k)*1000.
+       svctr(k,50)=svctr(k,50) + a1(k)
        svctr(k,51)=svctr(k,51) + a2(k)
        svctr(k,52)=svctr(k,52) + a3(k)
     end do
@@ -1090,6 +1092,7 @@ contains
     integer                   :: k, i, j, kp1
     real, dimension(n1)       :: a1, a2, a3, tvbar
     real, dimension(n1,n2,n3) :: scr, xy1, xy2, tlw, tvw, rtw
+    LOGICAL :: cond(n1,n2,n3)
 
     !
     ! liquid water statistics
@@ -1132,58 +1135,44 @@ contains
     svctr(:,64)=svctr(:,64)+a1(:)
     CALL get_avg3(n1,n2,n3,xy1,a1,normalize=.FALSE.)
     svctr(:,65)=svctr(:,65)+a1(:)   ! Counts
-    scr(:,:,:)=w(:,:,:)*xy1(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    cond(:,:,:)=xy1(:,:,:)>0.5
+    CALL get_avg3(n1,n2,n3,w,a1,cond=cond)
     svctr(:,66)=svctr(:,66)+a1(:)
-    scr(:,:,:)=tl(:,:,:)*xy1(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,tl+th00,a1,cond=cond)
     svctr(:,67)=svctr(:,67)+a1(:)
-    scr(:,:,:)=tv(:,:,:)*xy1(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,tv,a1,cond=cond)
     svctr(:,68)=svctr(:,68)+a1(:)
-    scr(:,:,:)=rt(:,:,:)*xy1(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,rt,a1,cond=cond)
     svctr(:,69)=svctr(:,69)+a1(:)
-    scr(:,:,:)=rl(:,:,:)*xy1(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,rl,a1,cond=cond)
     svctr(:,70)=svctr(:,70)+a1(:)
-    scr(:,:,:)=tlw(:,:,:)*xy1(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,tlw,a1,cond=cond)
     svctr(:,71)=svctr(:,71)+a1(:)
-    scr(:,:,:)=tvw(:,:,:)*xy1(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,tvw,a1,cond=cond)
     svctr(:,72)=svctr(:,72)+a1(:)
-    scr(:,:,:)=rtw(:,:,:)*xy1(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,rtw,a1,cond=cond)
     svctr(:,73)=svctr(:,73)+a1(:)
 
     CALL get_avg3(n1,n2,n3,xy2,a1)
     svctr(:,74)=svctr(:,74)+a1(:)
     CALL get_avg3(n1,n2,n3,xy2,a1,normalize=.FALSE.)
     svctr(:,75)=svctr(:,75)+a1(:)   ! Counts
-    scr(:,:,:)=w(:,:,:)*xy2(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    cond(:,:,:)=xy2(:,:,:)>0.5
+    CALL get_avg3(n1,n2,n3,w,a1,cond=cond)
     svctr(:,76)=svctr(:,76)+a1(:)
-    scr(:,:,:)=tl(:,:,:)*xy2(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,tl+th00,a1,cond=cond)
     svctr(:,77)=svctr(:,77)+a1(:)
-    scr(:,:,:)=tv(:,:,:)*xy2(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,tv,a1,cond=cond)
     svctr(:,78)=svctr(:,78)+a1(:)
-    scr(:,:,:)=rt(:,:,:)*xy2(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,rt,a1,cond=cond)
     svctr(:,79)=svctr(:,79)+a1(:)
-    scr(:,:,:)=rl(:,:,:)*xy2(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,rl,a1,cond=cond)
     svctr(:,80)=svctr(:,80)+a1(:)
-    scr(:,:,:)=tlw(:,:,:)*xy2(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,tlw,a1,cond=cond)
     svctr(:,81)=svctr(:,81)+a1(:)
-    scr(:,:,:)=tvw(:,:,:)*xy2(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,tvw,a1,cond=cond)
     svctr(:,82)=svctr(:,82)+a1(:)
-    scr(:,:,:)=rtw(:,:,:)*xy2(:,:,:)
-    CALL get_avg3(n1,n2,n3,scr,a1)
+    CALL get_avg3(n1,n2,n3,rtw,a1,cond=cond)
     svctr(:,83)=svctr(:,83)+a1(:)
 
     !
@@ -1238,10 +1227,9 @@ contains
        mask = 0.
     END WHERE
 
-    tmp(:,:,:)=mask(:,:,:)*rr(:,:,:)
-    call get_avg3(n1,n2,n3,tmp,a1)
+    call get_avg3(n1,n2,n3,nr,a1,cond=(mask>0.5))
     svctr(:,85)=svctr(:,85)+a1(:)
-    call get_avg3(n1,n2,n3,mask,a1,normalize=.FALSE.)
+    call get_avg3(n1,n2,n3,mask,a1)
     svctr(:,91)=svctr(:,91)+a1(:)
 
     !
@@ -1256,7 +1244,7 @@ contains
     tmp(:,:,:)=mask(:,:,:)*rrate(:,:,:)
     call get_avg3(n1,n2,n3,tmp,a1)
     svctr(:,90)=svctr(:,90)+a1(:)
-    call get_avg3(n1,n2,n3,mask,a1,normalize=.FALSE.)
+    call get_avg3(n1,n2,n3,mask,a1)
     svctr(:,89)=svctr(:,89)+a1(:)
 
     !

@@ -327,7 +327,7 @@ contains
   end subroutine define_nc
   !
   ! ----------------------------------------------------------------------
-  ! Subroutine define_nc_cs: Defines the structure of a new column statatistics nc file
+  ! Subroutine define_nc_cs: Defines the structure of a new column statistics nc file
   !
   subroutine define_nc_cs(ncID, nRec, n2, n3, level, rad_level, spec_list, nspec )
     integer, intent (in) :: ncID, n2, n3, level, rad_level, nspec
@@ -389,6 +389,9 @@ contains
        iret=nf90_def_var(ncID,'zc',NF90_FLOAT,dim_ttt,VarID)
        iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'zc'))
        iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'zc'))
+
+       ! Can add: max(w), max(l), VTKE, height of the maximum theta gradient& variance,
+       ! surface heat and humidity fluxes, buoyancy statistics,...
 
        IF (rad_level==3) THEN
           iret=nf90_def_var(ncID,'albedo',NF90_FLOAT,dim_ttt,VarID)
@@ -499,7 +502,7 @@ contains
     case('clb')
        if (itype==0) ncinfo = 'Cloud droplet size bins, regime b'
        if (itype==1) ncinfo = 'm'
-       if (itype==1) ncinfo = 'clb'
+       if (itype==2) ncinfo = 'clb'
     case('prc')
        if (itype==0) ncinfo = 'Precipitation size bins'
        if (itype==1) ncinfo = 'm'
@@ -511,7 +514,7 @@ contains
     case('icb')
        if (itype==0) ncinfo = 'Ice cloud droplet size bins, regime b'
        if (itype==1) ncinfo = 'm'
-       if (itype==1) ncinfo = 'icb'
+       if (itype==2) ncinfo = 'icb'
     case('snw')
        if (itype==0) ncinfo = 'Snow size bins'
        if (itype==1) ncinfo = 'm'
@@ -1155,7 +1158,7 @@ contains
        if (itype==2) ncinfo = 'tttt'
     case('w_cs1')
        if (itype==0) ncinfo = 'Conditional average of w over cs1'
-       if (itype==1) ncinfo = 'm'
+       if (itype==1) ncinfo = 'm/s'
        if (itype==2) ncinfo = 'ttmt'
     case('tl_cs1')
        if (itype==0) ncinfo = 'Conditional average of theta_l over cs1'
@@ -1195,7 +1198,7 @@ contains
        if (itype==2) ncinfo = 'tttt'
     case('w_cs2')
        if (itype==0) ncinfo = 'Conditional average of w over cs2'
-       if (itype==1) ncinfo = 'm'
+       if (itype==1) ncinfo = 'm/s'
        if (itype==2) ncinfo = 'ttmt'
     case('tl_cs2')
        if (itype==0) ncinfo = 'Conditional average of theta_l over cs2'

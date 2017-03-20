@@ -39,7 +39,7 @@ module step
     nudge_rv=0,&  ! Water vapor mixing ratio
     nudge_ccn=0 ! Aerosol number concentration (level>3)
   REAL :: tau_theta = 300., tau_rv=300., tau_ccn=300.
-  real, save, allocatable :: theta_ref(:), rv_ref(:), ccn_ref(:,:)
+  real, save, allocatable :: theta_ref(:), rv_ref(:), aero_ref(:,:), cloud_ref(:,:)
 
 contains
   !
@@ -216,7 +216,7 @@ end subroutine tstep_reset
     USE util, ONLY : maskactiv !Juha: Included for SALSA
 
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : nbins
+    USE mo_submctl, ONLY : nbins, ncld
     USE class_ComponentIndex, ONLY : GetNcomp
 
     logical, intent (out) :: cflflg
@@ -226,7 +226,7 @@ end subroutine tstep_reset
 
     LOGICAL :: zactmask(nzp,nxp,nyp)
     REAL :: zwp(nzp,nxp,nyp), &  !! FOR SINGLE-COLUMN RUNS
-            ztkt(nzp,nxp,nyp), col(nzp)
+            ztkt(nzp,nxp,nyp)
     INTEGER :: zrm
     LOGICAL :: dbg2
 
@@ -373,10 +373,13 @@ end subroutine tstep_reset
                 rv_ref(:)=a_rp(:,3,3)
             ENDIF
             !
-            ! Aerosol concentration
+            ! Aerosol concentration for level 4. Because significant fraction
+            ! of the initial aerosol becomes activated, cloud droplet number
+            ! concentration is nudged at the same time.
             IF (nudge_ccn>0 .AND. level>3) THEN
-                ALLOCATE(ccn_ref(nzp,nbins))
-                ccn_ref(:,:)=a_naerop(:,3,3,:)
+                ALLOCATE(aero_ref(nzp,nbins),cloud_ref(nzp,ncld))
+                aero_ref(:,:)=a_naerop(:,3,3,:)
+                cloud_ref(:,:)=a_ncloudp(:,3,3,:)
             ENDIF
         ENDIF
 
@@ -392,8 +395,10 @@ end subroutine tstep_reset
             CALL nudge_any(nxp,nyp,nzp,a_rp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
 
         ! Aerosol number (2D)
-        IF (nudge_ccn>0 .AND. level>3) &
-            CALL nudge_aero(nxp,nyp,nzp,nbins,a_naerop,a_naerot,ccn_ref,dtlt,tau_ccn,nudge_ccn)
+        IF (nudge_ccn>0 .AND. level>3) THEN
+            CALL nudge_aero(nxp,nyp,nzp,nbins,a_naerop,a_naerot,aero_ref,dtlt,tau_ccn,nudge_ccn)
+            CALL nudge_aero(nxp,nyp,nzp,ncld,a_ncloudp,a_ncloudt,cloud_ref,dtlt,tau_ccn,nudge_ccn)
+        ENDIF
 
         CALL update_sclrs
 
@@ -429,6 +434,7 @@ end subroutine tstep_reset
   end subroutine t_step
   !
   !
+  ! Nudging for any 3D field based on 1D target
   SUBROUTINE nudge_any(nxp,nyp,nzp,ap,at,trgt,dt,tau,iopt)
     USE util, ONLY : get_avg3
     IMPLICIT NONE
@@ -456,13 +462,14 @@ end subroutine tstep_reset
     !
   END SUBROUTINE nudge_any
   !
-  SUBROUTINE nudge_aero(nxp,nyp,nzp,nbins,ap,at,trgt,dt,tau,iopt)
+  ! Nudging for aerosol, cloud and ice 4D fields based on 2D target
+  SUBROUTINE nudge_aero(nxp,nyp,nzp,nb,ap,at,trgt,dt,tau,iopt)
     USE util, ONLY : get_avg3
     IMPLICIT NONE
-    INTEGER :: nxp,nyp,nzp,nbins
-    REAL :: ap(nzp,nxp,nyp,nbins), at(nzp,nxp,nyp,nbins)
+    INTEGER :: nxp,nyp,nzp,nb
+    REAL :: ap(nzp,nxp,nyp,nb), at(nzp,nxp,nyp,nb)
     REAL :: dt
-    REAL :: trgt(nzp,nbins)
+    REAL :: trgt(nzp,nb)
     REAL :: tau
     INTEGER :: iopt
     INTEGER ii, jj, kk
@@ -470,7 +477,7 @@ end subroutine tstep_reset
     !
     IF (iopt==1) THEN
         ! Soft nudging
-        DO ii=1,nbins
+        DO ii=1,nb
             CALL get_avg3(nzp,nxp,nyp,ap(:,:,:,ii),avg)
             DO kk = 1,nzp
                 at(kk,:,:,ii)=at(kk,:,:,ii)-(avg(kk)-trgt(kk,ii))/max(tau,dt)
@@ -478,7 +485,7 @@ end subroutine tstep_reset
         ENDDO
     ELSEIF (iopt==2) THEN
         ! Hard nudging
-        DO ii=1,nbins
+        DO ii=1,nb
             DO kk = 1,nzp
                 at(kk,:,:,ii)=at(kk,:,:,ii)-(ap(kk,:,:,ii)-trgt(kk,ii))/max(tau,dt)
             ENDDO
