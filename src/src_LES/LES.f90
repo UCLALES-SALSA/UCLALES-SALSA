@@ -91,8 +91,9 @@ contains
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon
     use step, only : timmax, istpfl, corflg, outflg, frqanl, frqhis,          &
-         strtim, radfrq, cntlat, &
-         nudge_theta, tau_theta, nudge_rv, tau_rv, nudge_ccn, tau_ccn
+         strtim, radfrq, cntlat, nudge_time, nudge_zmin, nudge_zmax, &
+         nudge_theta, tau_theta, nudge_rv, tau_rv, nudge_u, tau_u, &
+         nudge_v, tau_v, nudge_ccn, nudge_aero, nudge_cloud, tau_ccn
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
@@ -136,9 +137,12 @@ contains
          us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
          umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
          Tspinup, lbinanl,          & ! Length of spinup period in seconds
+         nudge_time,                & ! Total nudging time (independent of spin-up)
+         nudge_zmin, nudge_zmax, & ! Altitude (m) range for nudging
          nudge_theta, tau_theta,   & ! Temperature nudging
          nudge_rv, tau_rv,   & ! Water vapor mixing ratio nudging
-         nudge_ccn, tau_ccn,   & ! Aerosol number concentration nudging
+         nudge_u, tau_u, nudge_v, tau_v,  & ! Horozontal wind nudging
+         nudge_ccn, nudge_aero, nudge_cloud, tau_ccn,   & ! Aerosol and/or cloud droplet number concentration nudging
          radsounding, div, case_name, & ! Name of the radiation sounding file, divergence for LEVEL 4
          sfc_albedo,                  & ! Surface albedo
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
