@@ -158,15 +158,15 @@ module grid
   REAL, ALLOCATABLE :: a_srs(:,:,:)    ! Total snow for use with SALSA
   REAL, ALLOCATABLE :: a_snrs(:,:,:)   ! Total number of snow particles for use with LEVEL 5 (Diagnostic scalar!!)
   REAL, ALLOCATABLE :: a_rh(:,:,:)     ! Relative humidity
+  REAL, ALLOCATABLE :: a_rsl(:,:,:)     ! water saturation vapor mixing ratio
   REAL, ALLOCATABLE :: a_rhi(:,:,:)     ! Relative humidity over ice
-  REAL, ALLOCATABLE :: a_rsi(:,:,:)     ! ice saturation vapor mixing ratio; Juha: lisätään myös a_rsl, nyt menee jonkun a_scr2 kautta....
+  REAL, ALLOCATABLE :: a_rsi(:,:,:)     ! ice saturation vapor mixing ratio
   REAL, ALLOCATABLE :: a_dn(:,:,:)     ! Air density (for normalizing concentrations according to mass, levels < 4!)
   !
   ! scratch arrays
   !
-  real, allocatable, dimension (:,:,:) :: a_rflx, a_sflx, a_scr1, a_scr2, &
-       a_scr3, a_scr4, a_scr5, a_scr6, &
-       a_temp0 ! store temperatures of previous timestep
+  real, allocatable, dimension (:,:,:) :: a_rflx, a_sflx, &
+       a_temp, a_temp0 ! store temperatures of previous timestep
   !
   !
   real, allocatable :: a_ustar(:,:)
@@ -268,19 +268,11 @@ contains
        memsize = memsize + nxyzp + nxyp
     end if
 
-    allocate (a_scr1(nzp,nxp,nyp),a_scr2(nzp,nxp,nyp),a_scr3(nzp,nxp,nyp))
-    allocate (a_scr4(nzp,nxp,nyp),a_scr5(nzp,nxp,nyp),a_scr6(nzp,nxp,nyp))
-    a_scr1(:,:,:) = 0.
-    a_scr2(:,:,:) = 0.
-    a_scr3(:,:,:) = 0.
-    a_scr4(:,:,:) = 0.
-    a_scr5(:,:,:) = 0.
-    a_scr6(:,:,:) = 0.
-    memsize = memsize + 6*nxyzp
-
-    allocate (a_temp0(nzp,nxp,nyp))
-    a_temp0(nzp,nxp,nyp) = 0.
-    memsize = memsize + nxyzp
+    allocate (a_temp(nzp,nxp,nyp),a_temp0(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp))
+    a_temp(:,:,:) = 0.
+    a_temp0(:,:,:) = 0.
+    a_rsl(:,:,:) = 0.
+    memsize = memsize + nxyzp*3
 
     ! Juha: Stuff that's allocated if SALSA is NOT used
     !-----------------------------------------------------
@@ -673,7 +665,7 @@ contains
   !
   subroutine init_anal(time)
 
-    use mpi_interface, only :myid, ver, author
+    use mpi_interface, only :myid, ver, author, info
     USE mo_submctl, ONLY : fn2a,fn2b,fca,fcb,fra, &
                                fia,fib,fsa
     USE class_ComponentIndex, ONLY : IsUsed
@@ -815,7 +807,7 @@ contains
     fname =  trim(filprf)
     if(myid == 0) print                                                  &
             "(//' ',49('-')/,' ',/,'   Initializing: ',A20)",trim(fname)
-    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid0, nrec0, ver, author)
+    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid0, nrec0, ver, author, info)
 
     IF (level < 4 .OR. .NOT. lbinanl) THEN
        call define_nc( ncid0, nrec0, nvar0, sanal, n1=nzp, n2=nxp-4, n3=nyp-4)

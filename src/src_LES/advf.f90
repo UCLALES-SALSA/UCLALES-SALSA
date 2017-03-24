@@ -33,22 +33,22 @@ contains
   !
   subroutine fadvect
     use grid, only : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, newsclr  &
-         , a_scr1, a_scr2, nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt  &
+         , nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt  &
          , dzt, dzm, zt, dxi, dyi, level, isgstyp
     use stat, only      : sflg, updtst
     use util, only      : get_avg3
 
-    real    :: v1da(nzp)
+    real    :: v1da(nzp), a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
     integer :: n
     logical :: iw
     !
     ! diagnose liquid water flux
     !
     if (sflg .and. level > 1 .AND. level < 4) then
-       a_scr1=a_rc
-       call add_vel(nzp,nxp,nyp,a_scr2,a_wp,a_wc,.false.)
-       call mamaos(nzp,nxp,nyp,a_scr2,a_rc,a_scr1,zt,dzm,dn0,dtlt,.false.)
-       call get_avg3(nzp,nxp,nyp,a_scr2,v1da)
+       a_tmp1=a_rc
+       call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.false.)
+       call mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtlt,.false.)
+       call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
        call updtst(nzp,'adv',0,v1da,1)
     end if
     !
@@ -60,7 +60,7 @@ contains
     do n=1,nscl
        call newsclr(n)
       IF ( ANY(a_sp /= 0.0 ) ) THEN ! TR added: no need to calculate advection for zero arrays
-       a_scr1=a_sp
+       a_tmp1=a_sp
 
        if (isgstyp > 1 .and. associated(a_qp,a_sp)) then
           iw= .true.
@@ -68,23 +68,24 @@ contains
           iw= .false.
        end if
 
-       call add_vel(nzp,nxp,nyp,a_scr2,a_vp,a_vc,iw)
-       call mamaos_y(nzp,nxp,nyp,a_scr2,a_sp,a_scr1,dyi,dtlt)
+       call add_vel(nzp,nxp,nyp,a_tmp2,a_vp,a_vc,iw)
+       call mamaos_y(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dyi,dtlt)
 
-       call add_vel(nzp,nxp,nyp,a_scr2,a_up,a_uc,iw)
-       call mamaos_x(nzp,nxp,nyp,a_scr2,a_sp,a_scr1,dxi,dtlt)
+       call add_vel(nzp,nxp,nyp,a_tmp2,a_up,a_uc,iw)
+       call mamaos_x(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dxi,dtlt)
 
-       call add_vel(nzp,nxp,nyp,a_scr2,a_wp,a_wc,iw)
-       call mamaos(nzp,nxp,nyp,a_scr2,a_sp,a_scr1,dzt,dzm,dn0,dtlt,iw)
+       call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,iw)
+       call mamaos(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dzt,dzm,dn0,dtlt,iw)
        if (sflg) then
-          call get_avg3(nzp,nxp,nyp,a_scr2,v1da)
+          call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
           call updtst(nzp,'adv',n,v1da,1)
        end if
 
-       call advtnd(nzp,nxp,nyp,a_sp,a_scr1,a_st,dtlt)
+       call advtnd(nzp,nxp,nyp,a_sp,a_tmp1,a_st,dtlt)
       ELSEIF (sflg) THEN
-       ! Averages & statistics even for zeros
-       call get_avg3(nzp,nxp,nyp,a_scr2,v1da)
+       ! Averages & statistics even for zeros (might be non-zero elsewhere)
+       a_tmp2(:,:,:)=0.
+       call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
        call updtst(nzp,'adv',n,v1da,1)
       ENDIF
     end do

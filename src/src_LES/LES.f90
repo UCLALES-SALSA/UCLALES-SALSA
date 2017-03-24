@@ -91,17 +91,20 @@ contains
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon
     use step, only : timmax, istpfl, corflg, outflg, frqanl, frqhis,          &
-         strtim, radfrq, cntlat
+         strtim, radfrq, cntlat, nudge_time, nudge_zmin, nudge_zmax, &
+         nudge_theta, tau_theta, nudge_rv, tau_rv, nudge_u, tau_u, &
+         nudge_v, tau_v, nudge_ccn, tau_ccn
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
          Tspinup,sst, lbinanl
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand
-    use stat, only : ssam_intvl, savg_intvl, mcflg
+    use stat, only : ssam_intvl, savg_intvl, mcflg, csflg
     USE forc, ONLY : radsounding, &        ! Juha: added for radiation background profile
                      div, case_name, &     ! Divergence, forcing case name
-                     sfc_albedo            ! Surface albedo
+                     sfc_albedo, &         ! Surface albedo
+                     useMcICA,RadConstPress,RadPrecipBins
     USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, appl_abort, ver, author
 
@@ -114,6 +117,7 @@ contains
          savg_intvl,       & ! output statistics frequency
          ssam_intvl,       & ! integral accumulate/ts print frequency
          mcflg,            & ! Mass conservation stats flag
+         csflg,            & ! Column statistics flag
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          level  , CCN    , & ! Microphysical model Number of CCN per kg of air
@@ -133,8 +137,17 @@ contains
          us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
          umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
          Tspinup, lbinanl,          & ! Length of spinup period in seconds
+         nudge_time,                & ! Total nudging time (independent of spin-up)
+         nudge_zmin, nudge_zmax, & ! Altitude (m) range for nudging
+         nudge_theta, tau_theta,   & ! Temperature nudging
+         nudge_rv, tau_rv,   & ! Water vapor mixing ratio nudging
+         nudge_u, tau_u, nudge_v, tau_v,  & ! Horozontal wind nudging
+         nudge_ccn, tau_ccn,   & ! Aerosol number concentration nudging
          radsounding, div, case_name, & ! Name of the radiation sounding file, divergence for LEVEL 4
          sfc_albedo,                  & ! Surface albedo
+         useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
+         RadConstPress,      & ! keep constant pressure levels (T/F),
+         RadPrecipBins,      & ! add precipitation bins cloud water (0, 1, 2, 3,...)
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
 
     namelist /version/  &

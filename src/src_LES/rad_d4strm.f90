@@ -37,9 +37,8 @@ contains
   ! model on first call
   !
   subroutine rad_init
-
-  integer, dimension (:), allocatable :: seed
-  INTEGER :: isize
+    integer, dimension (:), allocatable :: seed
+    INTEGER :: isize
 
     if (.not.Initialized) then
        ! Initialize random numbers for McICA
@@ -57,6 +56,26 @@ contains
     end if
 
   end subroutine rad_init
+  !
+  ! ----------------------------------------------------------------------
+  ! Subroutine set_random_offset is needed to generate true pseudorandom numbers for parallel runs
+  SUBROUTINE set_random_offset(ioffset)
+    implicit none
+    INTEGER :: ioffset, i
+    REAL :: randomNumber
+
+    ! Initialize random number generator, if not yet initialized
+    if (.not.Initialized) CALL rad_init
+
+    ! Call randon mumbers
+    IF (ioffset>0) THEN
+        DO i=1,ioffset
+            call random_number(randomNumber)
+        ENDDO
+    ENDIF
+
+  END SUBROUTINE set_random_offset
+  !
   ! ----------------------------------------------------------------------
   ! Subroutine rad: Computes radiative fluxes using a band structure 
   ! defined by input ckd file
