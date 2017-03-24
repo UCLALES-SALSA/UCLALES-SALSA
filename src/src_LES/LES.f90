@@ -93,7 +93,7 @@ contains
     use step, only : timmax, istpfl, corflg, outflg, frqanl, frqhis,          &
          strtim, radfrq, cntlat, nudge_time, nudge_zmin, nudge_zmax, &
          nudge_theta, tau_theta, nudge_rv, tau_rv, nudge_u, tau_u, &
-         nudge_v, tau_v, nudge_ccn, nudge_aero, nudge_cloud, tau_ccn
+         nudge_v, tau_v, nudge_ccn, tau_ccn
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
@@ -142,7 +142,7 @@ contains
          nudge_theta, tau_theta,   & ! Temperature nudging
          nudge_rv, tau_rv,   & ! Water vapor mixing ratio nudging
          nudge_u, tau_u, nudge_v, tau_v,  & ! Horozontal wind nudging
-         nudge_ccn, nudge_aero, nudge_cloud, tau_ccn,   & ! Aerosol and/or cloud droplet number concentration nudging
+         nudge_ccn, tau_ccn,   & ! Aerosol number concentration nudging
          radsounding, div, case_name, & ! Name of the radiation sounding file, divergence for LEVEL 4
          sfc_albedo,                  & ! Surface albedo
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)

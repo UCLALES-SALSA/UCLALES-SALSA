@@ -36,13 +36,12 @@ module step
 
   ! Nudging options (nudge_*: 0=disabled, 1=soft, 2=hard), total nudging time (s), altitude range, and time constants (tau [s])
   INTEGER :: nudge_theta=0, & ! (liquid water) potential temperature, depending on the microphysical level
-    nudge_rv=0, & ! Water vapor mixing ratio
+    nudge_rv=0, & ! Water vapor mixing ratio (maintain total water)
     nudge_u=0, nudge_v=0, & ! Horizontal winds
-    nudge_ccn=0, & ! Either aerosol+cloud droplet bin number concentrations combined (allow aerosol <=> cloud) or
-    nudge_aero=0, nudge_cloud=0 ! ... these independently (level>3). These have common time constant (tau_ccn).
+    nudge_ccn=0 ! Sectional aerosol for levels 4 and 5 (maintain aerosol+cloud+ice)
   REAL :: nudge_time=3600., nudge_zmin=-1.e10, nudge_zmax=1.e10
   REAL :: tau_theta=300., tau_rv=300., tau_u=300., tau_v=300., tau_ccn=300.
-  real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:), cloud_ref(:,:)
+  real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
 
 contains
   !
@@ -360,7 +359,7 @@ end subroutine tstep_reset
 
     ! Nudging time is independent of the spinup!
      IF (time<=nudge_time .AND. (nudge_theta/=0 .OR. nudge_rv/=0 .OR. &
-            (level>3 .AND. (nudge_aero/=0 .OR. nudge_cloud/=0  .OR. nudge_ccn/=0)) )) THEN
+            (level>3 .AND. nudge_ccn/=0) ) ) THEN
 
         ! Reset tendencies
         call tend0(.TRUE.)
@@ -409,15 +408,15 @@ end subroutine tstep_reset
   !
   SUBROUTINE nudging(time)
 
-    use grid, only : level, dtlt, &
-                     nxp, nyp, nzp, zt, a_rp, a_rt,  &
-                     a_naerop, a_naerot, a_ncloudp, a_ncloudt, &
-                     a_nicep,  a_nicet, a_nsnowp, a_nsnowt, &
-                     a_tp, a_tt, th0, th00, a_up, a_ut, a_vp, a_vt
-    USE mo_submctl, ONLY : nbins, ncld, in2a, fn2b
+    use grid, only : level, dtlt, nxp, nyp, nzp, &
+                zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, a_srs, &
+                a_naerop, a_naerot, a_ncloudp, a_nicep, &
+                a_tp, a_tt, th0, th00, a_up, a_ut, a_vp, a_vt
+    USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
 
     IMPLICIT NONE
     REAL, INTENT(IN) :: time
+    REAL, ALLOCATABLE :: aero_target(:,:) ! Local
     LOGICAL, SAVE :: init=.TRUE.
 
     ! Nudging time is independent of the spin-up
@@ -431,12 +430,19 @@ end subroutine tstep_reset
             theta_ref(:)=th0(:)-th00
         ENDIF
         !
-        ! Water mixing ratio
-        !   Levels 0-3: total water (a_rp)
-        !   Levels 4-5: water vapor (a_rp)
+        ! Water vapor mixing ratio based on total water
+        !   Levels 0-3: total = cloud water and water vapor (a_rp) + rain water (a_rpp)
+        !   Levels 4-5: total = water vapor (a_rp) + condensate (a_rc) + rain water (a_srp)
+        !                            + ice (a_ri) + snow (a_srs)
         IF (nudge_rv/=0)  THEN
             ALLOCATE(rv_ref(nzp))
-            rv_ref(:)=a_rp(:,3,3)
+            IF (level==5) THEN
+                rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)+a_ri(:,3,3)+a_srs(:,3,3)
+            ELSEIF (level==4) THEN
+                rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)
+            ELSE ! Levels 0-3
+                rv_ref(:)=a_rp(:,3,3)+a_rpp(:,3,3)
+            ENDIF
         ENDIF
         !
         ! Horizontal winds
@@ -449,20 +455,16 @@ end subroutine tstep_reset
             v_ref(:)=a_vp(:,3,3)
         ENDIF
         !
-        ! Aerosol concentration for level 4. Because significant fraction
-        ! of the initial aerosol becomes activated, cloud droplet number
-        ! concentration should be nudged at the same time. Note: using the
-        ! same nudging time parameter (tau_ccn)!
+        ! Aerosol concentration for level 4. Nudge aerosol concentration based on
+        ! total CCN = aerosol + cloud droplets + ice (a_nicep). Precipitation and snow
+        ! are not included, because these cannot be related to a specific aerosol bin
+        ! and their concentrations are low.
         IF (level>3 .AND. nudge_ccn/=0) THEN
-            ! Total (=aerosol+cloud)
-            ALLOCATE(aero_ref(nzp,nbins))
+            ! Nudge aerosol based on the total number (aerosol+cloud+ice)
+            ALLOCATE(aero_ref(nzp,nbins),aero_target(nzp,nbins))
             aero_ref(:,:)=a_naerop(:,3,3,:)
-            aero_ref(:,in2a:fn2b)=aero_ref(:,in2a:fn2b)+a_naerop(:,3,3,1:ncld)
-        ELSEIF (level>3 .AND. (nudge_aero/=0 .OR. nudge_cloud/=0)) THEN
-            ! Aerosol and/or cloud droplets separately
-            ALLOCATE(aero_ref(nzp,nbins),cloud_ref(nzp,ncld))
-            aero_ref(:,:)=a_naerop(:,3,3,:)
-            cloud_ref(:,:)=a_ncloudp(:,3,3,:)
+            aero_ref(:,in2a:fn2b)=aero_ref(:,in2a:fn2b)+a_ncloudp(:,3,3,1:ncld)
+            IF (level==5) aero_ref(:,in2a:fn2b)=aero_ref(:,in2a:fn2b)+a_nicep(:,3,3,1:nice)
         ENDIF
         !
         ! Initialized
@@ -474,8 +476,15 @@ end subroutine tstep_reset
         CALL nudge_any(nxp,nyp,nzp,zt,a_tp,a_tt,theta_ref,dtlt,tau_theta,nudge_theta)
 
     ! Water vapor
-    IF (nudge_rv>0) &
-        CALL nudge_any(nxp,nyp,nzp,zt,a_rp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+    IF (nudge_rv>0) THEN
+        IF (level>3) THEN
+            ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain)
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+        ELSE
+            ! Nudge total water (a_rp) based on total + rain
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rpp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+        ENDIF
+    ENDIF
 
     ! Horizontal winds
     IF (nudge_u>0) &
@@ -483,15 +492,14 @@ end subroutine tstep_reset
     IF (nudge_v>0) &
         CALL nudge_any(nxp,nyp,nzp,zt,a_vp,a_vt,v_ref,dtlt,tau_v,nudge_v)
 
-    ! Aerosol and/or cloud droplet number (2D)
+    ! Aerosol
     IF (level>3 .AND. nudge_ccn/=0) THEN
-        CALL nudge_aero_cloud(nxp,nyp,nzp,nbins,ncld,zt,in2a,a_naerop,a_naerot,a_ncloudt,cloud_ref, &
-            aero_ref,dtlt,tau_ccn,nudge_ccn)
-    ELSEIF (level>3) THEN
-        IF (nudge_aero/=0) &
-            CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,a_naerop,a_naerot,aero_ref,dtlt,tau_ccn,nudge_aero)
-        IF (nudge_cloud/=0) &
-            CALL nudge_any_2d(nxp,nyp,nzp,ncld,zt,a_ncloudp,a_ncloudt,cloud_ref,dtlt,tau_ccn,nudge_cloud)
+        ! Target aerosol concentration = total(t=0)-cloud(t)-ice(t)
+        aero_target(:,:)=aero_ref(:,:)
+        aero_target(:,in2a:fn2b)=aero_target(:,in2a:fn2b)-a_ncloudp(:,3,3,1:ncld)
+        IF (level==5) aero_target(:,in2a:fn2b)=aero_target(:,in2a:fn2b)-a_nicep(:,3,3,1:nice)
+        ! Apply to sectional data
+        CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,a_naerop,a_naerot,aero_target,dtlt,tau_ccn,nudge_ccn)
     ENDIF
 
   END SUBROUTINE nudging
@@ -567,77 +575,6 @@ end subroutine tstep_reset
     ENDIF
     !
   END SUBROUTINE nudge_any_2d
-  !
-  ! Nudge aerosol and cloud droplets at the same time (i.e. allow activation)
-  SUBROUTINE nudge_aero_cloud(nxp,nyp,nzp,na,nc,zt,in2a,aap,aat,acp,act,trgt,dt,tau,iopt)
-    USE util, ONLY : get_avg3
-    IMPLICIT NONE
-    INTEGER :: nxp,nyp,nzp,na,nc,in2a
-    REAL :: zt(nzp)
-    REAL :: aap(nzp,nxp,nyp,na), aat(nzp,nxp,nyp,na)
-    REAL :: acp(nzp,nxp,nyp,nc), act(nzp,nxp,nyp,nc)
-    REAL :: dt
-    REAL :: trgt(nzp,na)
-    REAL :: tau
-    INTEGER :: iopt
-    INTEGER ii, jj, kk
-    REAL :: avga(nzp), avgc(nzp)
-    !
-    IF (iopt==1) THEN
-        ! Soft nudging
-        DO ii=1,na
-            ! Aerosol average
-            CALL get_avg3(nzp,nxp,nyp,aap(:,:,:,ii),avga)
-            IF (ii<in2a) THEN
-                ! 1a is for aerosol only
-                DO kk = 1,nzp
-                    IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
-                        aat(kk,:,:,ii)=aat(kk,:,:,ii)-(avga(kk)-trgt(kk,ii))/max(tau,dt)
-                ENDDO
-            ELSE
-                ! 2a and 2b for for aerosol and cloud droplets
-                jj=ii-in2a+1    ! Index to cloud bins
-                ! Cloud average
-                CALL get_avg3(nzp,nxp,nyp,acp(:,:,:,jj),avgc)
-                !
-                DO kk = 1,nzp
-                    IF (abs(avga(kk)+avgc(kk))<1e-20 .OR. zt(kk)<nudge_zmin .OR. zt(kk)>nudge_zmax) CYCLE
-                    aat(kk,:,:,ii)=aat(kk,:,:,ii)-(avga(kk)-avga(kk)/(avga(kk)+avgc(kk))*trgt(kk,ii))/max(tau,dt)
-                    act(kk,:,:,jj)=act(kk,:,:,jj)-(avgc(kk)-avgc(kk)/(avga(kk)+avgc(kk))*trgt(kk,ii))/max(tau,dt)
-                ENDDO
-            ENDIF
-        ENDDO
-    ELSEIF (iopt==2) THEN
-        ! Hard nudging
-        DO ii=1,na
-            ! Aerosol average
-            CALL get_avg3(nzp,nxp,nyp,aap(:,:,:,ii),avga)
-            IF (ii<in2a) THEN
-                ! 1a is for aerosol only
-                DO kk = 1,nzp
-                    IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
-                        aat(kk,:,:,ii)=aat(kk,:,:,ii)-(aap(kk,:,:,ii)-trgt(kk,ii))/max(tau,dt)
-                ENDDO
-            ELSE
-                ! 2a and 2b for for aerosol and cloud droplets
-                jj=ii-in2a+1    ! Index to cloud bins
-                ! Cloud average
-                CALL get_avg3(nzp,nxp,nyp,acp(:,:,:,jj),avgc)
-                !
-                DO kk = 1,nzp
-                    IF (abs(avga(kk)+avgc(kk))<1e-20 .OR. zt(kk)<nudge_zmin .OR. zt(kk)>nudge_zmax) CYCLE
-                    aat(kk,:,:,ii)=aat(kk,:,:,ii)-(aap(kk,:,:,ii)-avga(kk)/(avga(kk)+avgc(kk))*trgt(kk,ii))/max(tau,dt)
-                    act(kk,:,:,jj)=act(kk,:,:,jj)-(acp(kk,:,:,jj)-avgc(kk)/(avga(kk)+avgc(kk))*trgt(kk,ii))/max(tau,dt)
-                ENDDO
-            ENDIF
-        ENDDO
-    ELSE
-        ! Unknown
-        WRITE(*,*)'Unknown nudging option!'
-        STOP
-    ENDIF
-    !
-  END SUBROUTINE nudge_aero_cloud
   !
   !----------------------------------------------------------------------
   ! subroutine tend0: sets all tendency arrays to zero
