@@ -416,7 +416,7 @@ end subroutine tstep_reset
 
     IMPLICIT NONE
     REAL, INTENT(IN) :: time
-    REAL, ALLOCATABLE :: aero_target(:,:) ! Local
+    REAL, SAVE, ALLOCATABLE :: aero_target(:,:) ! Local
     LOGICAL, SAVE :: init=.TRUE.
 
     ! Nudging time is independent of the spin-up
