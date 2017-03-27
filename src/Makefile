@@ -19,7 +19,7 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 \
           mo_salsa_nucleation.f90 mo_salsa_properties.f90 \
           mo_constants.f90 mo_submctl.f90 \
           defs.f90 $(seqmpi) rad_solver.f90 rad_corkds.f90 LES.f90 \
-          rad_cldwtr.f90 rad_rndnmb.f90 rad_d4strm.f90 rad_driver.f90 \
+          rad_cldwtr.f90 rad_d4strm.f90 rad_driver.f90 \
           ncio.f90 util.f90 grid.f90 stat.f90 thrm.f90 forc.f90 advf.f90 \
           advl.f90 srfc.f90 prss.f90 sgsm.f90 mcrp.f90 step.f90 init.f90 \
           rfft.f90 class_componentIndex.f90 aerosol_thermodynamics.f90
@@ -52,7 +52,7 @@ defs.o:
 grid.o: ncio.o $(seqmpi:.f90=.o) mo_submctl.o class_componentIndex.o
 stat.o: ncio.o grid.o util.o defs.o mo_submctl.o class_componentIndex.o $(seqmpi:.f90=.o)
 thrm.o: grid.o defs.o $(seqmpi:.f90=.o) mo_submctl.o 
-forc.o: grid.o defs.o stat.o rad_driver.o $(seqmpi:.f90=.o)
+forc.o: grid.o defs.o stat.o rad_driver.o mo_submctl.o $(seqmpi:.f90=.o)
 advf.o: grid.o stat.o util.o mo_submctl.o $(seqmpi:.f90=.o) class_componentIndex.o
 advl.o: grid.o stat.o util.o
 srfc.o: grid.o stat.o defs.o thrm.o $(seqmpi:.f90=.o)
@@ -67,11 +67,10 @@ init.o: grid.o stat.o util.o defs.o step.o sgsm.o thrm.o  \
 	mo_salsa_driver.o mo_submctl.o class_componentIndex.o \
 	ncio.o
 rfft.o:
-rad_rndnmb.o:
 rad_solver.o: defs.o
 rad_corkds.o: defs.o $(seqmpi:.f90=.o)
 rad_cldwtr.o: defs.o rad_corkds.o
-rad_d4strm.o: defs.o rad_solver.o rad_rndnmb.o \
+rad_d4strm.o: defs.o rad_solver.o \
 	      rad_corkds.o rad_cldwtr.o
 rad_driver.o: defs.o rad_d4strm.o $(seqmpi:.f90=.o)
 $(seqmpi:.f90=.o):

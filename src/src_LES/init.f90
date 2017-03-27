@@ -58,7 +58,7 @@ contains
     LOGICAL :: zactmask(nzp,nxp,nyp)
     LOGICAL :: TMP
     INTEGER :: n4
-
+    
     ztkt = 0.
 
     TMP = .false.
@@ -84,7 +84,7 @@ contains
           n4 = GetNcomp(prtcl) + 1 ! Aerosol compoenents + water
 
           IF ( nxp == 5 .and. nyp == 5 ) THEN
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,zwp,a_dn, &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -95,9 +95,9 @@ contains
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-                  1, prtcl, dtlt, 0., level,zt   )
+                  1, prtcl, dtlt, .false., 0., level,zt   )
           ELSE
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,a_wp,a_dn, &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -108,12 +108,12 @@ contains
                   a_Ridry,   a_Rsdry,                          &
                   a_Rawet,   a_Rcwet,   a_Rpwet,               &
                   a_Riwet,   a_Rswet,                          &
-                  1, prtcl, dtlt, 0., level, zt   )
+                  1, prtcl, dtlt, .false., 0., level, zt   )
 
           END IF
           CALL SALSAInit
 
-
+          
        END IF !level >= 4
 
     else if (runtype == 'HISTORY') then
@@ -218,8 +218,9 @@ contains
           end if
 
        CASE(4,5)
-          ! Condensation will be calculated by the initial call of SALSA
-          ! Assume no condensation at this point
+          ! Condensation will be calculated by the initial call of SALSA, so use the
+          ! saturation adjustment method to estimate the amount of liquid water,
+          ! which is needed for theta_l
           DO j = 1,nyp
              DO i = 1,nxp
                 DO k = 1,nzp
@@ -227,12 +228,14 @@ contains
                    pres  = p00 * (exner)**cpr
                    IF (itsflg == 0) THEN
                       tk = th0(k)*exner
-                      a_tp(k,i,j) = a_theta(k,i,j) - th00
+                      rc  = max(0.,a_rp(k,i,j)-rslf(pres,tk))
+                      a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
                    END IF
                    IF (itsflg == 2) THEN
                       tk = th0(k)
                       a_theta(k,i,j) = tk/exner
-                      a_tp(k,i,j) = a_theta(k,i,j) - th00
+                      rc  = max(0.,a_rp(k,i,j)-rslf(pres,tk))
+                      a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
                    END IF
                 END DO !k
              END DO !i
@@ -241,7 +244,7 @@ contains
     END SELECT
 
     k=1
-    do while( zt(k+1) <= zrand .and. k < nzp)
+    do while( zt(k+1) <= zrand .and. k+1 < nzp)
        k=k+1
        xran(k) = 0.2*(zrand - zt(k))/zrand
     end do
@@ -249,7 +252,7 @@ contains
 
     if (associated(a_rp)) then
        k=1
-       do while( zt(k+1) <= zrand .and. k < nzp)
+       do while( zt(k+1) <= zrand .and. k+1 < nzp)
           k=k+1
           xran(k) = 5.0e-5*(zrand - zt(k))/zrand
        end do
@@ -371,8 +374,13 @@ contains
              hs(ns) = ps(ns)
              zold1=zold2
              zold2=ps(ns)
-             tavg=(ts(ns)*xs(ns)+ts(ns-1)*xs(ns-1)*(p00**rcp)             &
-                  /ps(ns-1)**rcp)*.5
+             IF ( itsflg==0 .OR. itsflg==1) THEN
+                ! ts=potential or liquid water potential temperature (condensation not included here)
+                tavg=0.5*(ts(ns)*xs(ns)+ts(ns-1)*xs(ns-1))*((p00/ps(ns-1))**rcp)
+             ELSE
+                ! ts=T [K]
+                tavg=0.5*(ts(ns)*xs(ns)+ts(ns-1)*xs(ns-1))
+             ENDIF
              ps(ns)=(ps(ns-1)**rcp-g*(zold2-zold1)*(p00**rcp)/(cp*tavg))**cpr
           end if
        end select
