@@ -73,7 +73,7 @@ IMPLICIT NONE
                        pa_Ridry,   pa_Rsdry,                            &
                        pa_Rawet,   pa_Rcwet,   pa_Rpwet,                &
                        pa_Riwet,   pa_Rswet,                            &
-                       prunmode, prtcl, tstep, time, level,zt)
+                       prunmode, prtcl, tstep, dbg2, time, level,zt)
 
     USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
                                nice,nsnw,             &
@@ -117,6 +117,9 @@ IMPLICIT NONE
                                                          ! 2: Spinup period call
                                                          ! 3: Regular runtime call'
     INTEGER, INTENT(in) :: level                         ! thermodynamical level
+
+    LOGICAL, INTENT(in) :: dbg2
+
 
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl ! Object containing the indices of different aerosol components for mass arrays
