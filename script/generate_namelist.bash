@@ -11,7 +11,15 @@ set -e
 ##########################
 
 cat > ${dir}/NAMELIST <<EOF
-! DESIGN VERSION ${design}
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! DESIGN VERSION ${design}
+!!! design variables case ${case}
+!!! q_inv    == ${q_inv}
+!!! tpot_inv == ${tpot_inv}
+!!! clw_max  == ${clw_max}
+!!! tpot_pbl == ${tpot_pbl}
+!!! pblh     == ${pblh}
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
  &version
   ver="v1.0.2"
@@ -31,6 +39,12 @@ cat > ${dir}/NAMELIST <<EOF
   distim = ${distim:-100.}
   timmax = ${timmax:-12600.}
   Tspinup = ${Tspinup:-5400.}
+  
+  nudge_time = ${nudge_time:-12600.}
+  nudge_zmax = ${nudge_zmax:-80.}
+  nudge_rv   = ${nudge_rv:-1}
+  tau_rv     = ${tau_rv:-500.}
+  
   runtype = ${runtype:-'"INITIAL"'}
   level = ${level:-3}
   CCN = ${CCN:-600.e6}

@@ -161,12 +161,15 @@ fi
 ################################
 
 modifyoutput=${modifyoutput:-true}
+modifyoutputHistory=${modifyoutputHistory:-${modifyoutput}}
 
 if [ $modifyoutput == 'true' ]; then
-    sed -i "/filprf\s\{0,\}=\s\{0,\}/c\  filprf  = '"$nimi"'" ${rundir}/NAMELIST
-    sed -i "/hfilin\s\{0,\}=\s\{0,\}/c\  hfilin  = '"$nimi".rst'" ${rundir}/NAMELIST
+    sed -i "/filprf\s\{0,\}=\s\{0,\}/c\  filprf  = '"$nimi"'" ${rundir}/NAMELIST    
 fi
 
+if [ $modifyoutputHistory == 'true' ]; then
+    sed -i "/hfilin\s\{0,\}=\s\{0,\}/c\  hfilin  = '"$nimi".rst'" ${rundir}/NAMELIST
+fi
 
 #########################
 ###			          ###

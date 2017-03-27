@@ -73,14 +73,14 @@ ${notJJA}  minispinupCase02 = ${minispinupCase02:-3}
   drtcon = ${drtcon:-0.}  ! latent
 
   ubmin  = ${ubmin:--0.25}
-  zrough = ${zrough:-0.01}
+  zrough = ${zrough:-4e-4}
   th00 = ${th00:-267.}
   umean =  ${umean:--7.0}
   vmean = ${vmean:-2.45554452055}
  /
 
  &salsa	
-   nlcoag = ${nlcoag:-.TRUE.}       ! Master coagulation switch
+   nlcoag = ${nlcoag:-.FALSE.}       ! Master coagulation switch
    
    !! selfcoagulation processes   
    nlcgcc = ${nlcgcc:-T}       ! Self-collection of cloud droplets
@@ -134,9 +134,9 @@ ${notJJA}   fixINC     = ${fixINC:-1.0}         ! fixed ice number concentration
    volDistB = ${volDistB:-0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}
    nf2a = ${nf2a:-1.0}
 
-   sigmag = ${sigmag:- 1.5,  1.5, 1.5, 2.45, 2.0, 2.0, 2.0}  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
-   dpg    = ${dpg:-     0.,  0.2, 0.2,  0.2, 0.2, 0.2, 0.2}     ! Mode mean diameters in micrometers
-   n      = ${n:-       0., 207., 0.0,  8.5,  0.,  0.,  0.}  ! Mode number concentrations in #/cm^3
+   sigmag = ${sigmag:- 1.5,    2.45, 2.0, 2.0, 2.0, 2.0, 2.0}  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
+   dpg    = ${dpg:-    0.2,     0.7, 0.2, 0.2, 0.2, 0.2, 0.2}     ! Mode mean diameters in micrometers
+   n      = ${n:-   156.42,    6.42,  0.,  0.,  0.,  0.,  0.}  ! Mode number concentrations in #/mg
  /
 
 EOF

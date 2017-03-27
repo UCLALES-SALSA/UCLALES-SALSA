@@ -24,6 +24,26 @@ postpros=${postpros:-false}
 odotus=${odotus:-false}
 poista=${poista:-false}
 
+RUNTYPE=${RUNTYPE:-'"INITIAL"'}
+
+LVL=${LVL:-5}
+isoT=${isoT:-28800}
+ice=${ice:-1.0} # ice #/kg
+
+HFILEBASE=${HFILEBASE:-}
+
+if [ $RUNTYPE != '"INITIAL"' ]; then
+    RUNTYPE='"HISTORY"'
+fi
+
+if [[ $isoT -lt 28800 ]]; then
+    pikkuT=$((isoT/2))
+else
+    pikkuT=7200
+fi    
+isoT=${isoT}.
+pikkuT=${pikkuT}.
+
 function odota {
     
     nimi=$1
@@ -65,6 +85,14 @@ function copy {
     cp ${bin}/${inputsubfolder}/sound_in ${outputroot}/${nimi}/
 #    cp ${input}/NAMELIST ${rundir}/
 
+#   copy hfilin file
+	if [ -n $HFILEBASE ]; then         
+            cp ${bin}/0*_0*.${HFILEBASE}  ${outputroot}/${nimi}/
+            modifyoutputHistory='false'
+    else
+            modifyoutputHistory='true'
+	fi
+
 }
 
 
@@ -87,7 +115,7 @@ function submitting {
 	
 	## submit
 	
-    input=${bin}/${inputsubfolder} mode=${mode} modifyoutput='true' COPY=${copyOUT} clean=${copyOUT} ${script}/submit_uclales-salsa.bash $nimi $nproc $jobflag
+    input=${bin}/${inputsubfolder} mode=${mode} modifyoutput='true' modifyoutputHistory=${modifyoutputHistory} COPY=${copyOUT} clean=${copyOUT} ${script}/submit_uclales-salsa.bash $nimi $nproc $jobflag
 	
 	sleep 3s
     qstat -u $username
@@ -191,7 +219,7 @@ function main {
     if [[ $postpros == 'true' ]]; then
         echo 'postprosessoidaan'
         
-        postprosessoi $nimi
+        postprosessoi $nimi4
         
         qstat -u $username | grep $odotusPP
         
@@ -233,14 +261,25 @@ function main {
 # main case_testaus_lvl4 100 mpi.hotfix.1.0.5    
 
 
-# 2D
-postfix=LVL4_2D nxp=5 level=4          main case_isdac 8 mpi.mergattu
-postfix=LVL4_2D nxp=5 level=4 notJJA=! main case_isdac 8 mpi.v1.0.4
-postfix=LVL4_2D nxp=5 level=4 notJJA=! main case_isdac 8 mpi.cray.2017.01.13
 
-# 3D
-postfix=LVL4_3D level=4 notJJA=! main case_isdac 64 mpi.mergattu
-postfix=LVL4_3D level=4 notJJA=! main case_isdac 64 mpi.v1.0.4
+
+if [[ $LVL == 5 ]]; then
+    icePF=_INC${ice}
+fi
+
+# # 1D
+fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin=$HFILEBASE postfix=LVL${LVL}_1D${icePF} nxp=5 nyp=5 level=$LVL          main case_isdac 1 seq.Jaakko.intel
+
+# # 2D
+# fixINC=$ice timmax=$isoT Tspinup=$pikkuT postfix=LVL${LVL}_2D${icePF} nxp=5 level=$LVL                main case_isdac 8 mpi.jaakko.gnu
+
+# # 3D
+# fixINC=$ice timmax=$isoT Tspinup=$pikkuT postfix=LVL${LVL}_3D${icePF} level=$LVL                      main case_isdac 64 mpi.jaakko.intel
+
+
+
+
+
 
 
 qstat -u $username

@@ -3,7 +3,7 @@
 src/*.mod
 src/*.o
 les.mpi*
-les.seq
+les.seq*
 *.orig
 util/
 

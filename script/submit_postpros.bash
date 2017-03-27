@@ -82,7 +82,7 @@ dir=$(dirname ${input})
 if [ $dir == '.' ]; then
   dir=$PWD
 fi
-
+echo $dir
 base=$(basename ${input})
 if  [ ${base: -3} == ".ts" ] || [ ${base: -3} == ".ps" ]
 then

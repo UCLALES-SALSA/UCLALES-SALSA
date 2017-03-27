@@ -38,9 +38,9 @@ FFLAGS =  -O2 -msse2 -fp-model source -fp-model precise -g -traceback -convert b
 F77FLAGS = -O2 -msse2 -fp-model source -fp-model precise -g -traceback -convert big_endian -integer-size 32 -real-size 64 -check bounds -fpe0
 
 
-LES_OUT_MPI=$(BIN)/les.mpi
+LES_OUT_MPI=$(BIN)/les.mpi.intel
 
-LES_OUT_SEQ=$(BIN)/les.seq
+LES_OUT_SEQ=$(BIN)/les.seq.intel
 
 default: mpi
 

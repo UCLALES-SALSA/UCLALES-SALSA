@@ -252,7 +252,7 @@ def read_design( filu ):
             caselist[index]    = A0.replace('"',"").zfill(2) # case
             design[ index, 0 ] = float( A1 ) # q_inv
             design[ index, 1 ] = float( A2 ) # tpot_inv
-            design[ index, 2 ] = float( A3 ) # lwc_max
+            design[ index, 2 ] = float( A3 ) # clw_max
             design[ index, 3 ] = float( A4 ) # tpot_pbl
             design[ index, 4 ] = float( A5 ) # pblh
             design[ index, 5 ] = float( A6 ) # num_pbl
@@ -263,7 +263,7 @@ def read_design( filu ):
         
     f.close()
     
-    #      case,        q_inv,       tpot_inv,    lwc_max,     tpot_pbl,    pblh,        num_pbl
+    #      case,        q_inv,       tpot_inv,    clw_max,     tpot_pbl,    pblh,        num_pbl
     return caselist,    design[:,0], design[:,1], design[:,2], design[:,3], design[:,4], design[:,5]
     
 
@@ -419,15 +419,17 @@ def write_sound_in( input_vector ):
     return True
     
 def write_namelist( input_vector ):
-#    case 0, nzp 1, dz 2, q_pbl 3, tpot_pbl 4, num_pbl 5, pres0 6
     case     =        input_vector[0]
     nzp      = int(   input_vector[1] )
     dz       = float( input_vector[2] )
-    q_pbl    = float( input_vector[3] )
-    tpot_pbl = float( input_vector[4] )    
-    num_pbl  = float( input_vector[5] )    
-    pres0    = float( input_vector[6] )
-    designV  =        input_vector[7]
+    q_inv    = float( input_vector[3] )
+    tpot_inv = float( input_vector[4] )
+    clw_max  = float( input_vector[5] )
+    tpot_pbl = float( input_vector[6] )    
+    pblh     = float( input_vector[7] )
+    num_pbl  = float( input_vector[8] )    
+    pres0    = float( input_vector[9] )
+    designV  =        input_vector[10]
 
 
 
@@ -435,6 +437,7 @@ def write_namelist( input_vector ):
     folder = rootfolder +'emul' + case 
     call(['mkdir','-p', folder])
     sst = absT( tpot_pbl, pres0 )
+    nudge_zmax = pblh - 100.
     print 'generating NAMELIST ' + str(case)
 #    print 'design tag', designV, type(designV)
 #    dth = dthcon( tpot_pbl, sst, pres0 )
@@ -452,12 +455,20 @@ def write_namelist( input_vector ):
 #                  ' dtlong=2.'                                          + \
 #                  ' level=3'                 +\
 
-    command = 'dir='     + folder           +\
-              ' design=' + '"' + designV +'"'  +\
-              ' nzp='    + str(nzp)         +\
-              ' deltaz=' + str(dz)          +\
-              ' CCN='    + str(num_pbl*1e6) +\
-              ' sst='    + str(sst)         +\
+    command = 'dir='       + folder              +\
+              ' design='   + '"' + designV +'"'  +\
+              ' case='     + case                +\
+              ' q_inv='    + str(q_inv)          +\
+              ' tpot_inv=' + str(tpot_inv)       +\
+              ' clw_max='  + str(clw_max)        +\
+              ' tpot_pbl=' + str(tpot_pbl)       +\
+              ' pblh='     + str(pblh)           +\
+              ' num_pbl='  + str(num_pbl)        +\
+              ' nzp='      + str(nzp)            +\
+              ' deltaz='   + str(dz)             +\
+              ' CCN='      + str(num_pbl*1e6)    +\
+              ' sst='      + str(sst)            +\
+              ' nudge_zmax=' + str(nudge_zmax)   +\
               ' filprf=' + '"' + "'emul" + case + "'"    +'"'                        +\
               ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'                       +\
               ' n='+'"'+'0., ' + str(num_pbl)+' , 0., 0., 0., 0., 0.' + '"'   +\
@@ -492,7 +503,7 @@ def main( nzp_orig=200, filu = designfilu, windprofile = 'dycoms', pres0 = 1017.
     designV = str( subprocess.check_output( 'git describe --tags', shell=True ) )
     os.chdir( cwd )
 
-    case, q_inv, tpot_inv, lwc_max, tpot_pbl, pblh, num_pbl = read_design( filu )
+    case, q_inv, tpot_inv, clw_max, tpot_pbl, pblh, num_pbl = read_design( filu )
 
     if runNroEnd > len(case):
         runNroEnd = len(case)        
@@ -505,16 +516,29 @@ def main( nzp_orig=200, filu = designfilu, windprofile = 'dycoms', pres0 = 1017.
     q_pbl = np.zeros(len(case))    
     for k in xrange( A, B ):
         dz[k], nzp[k] = deltaz2( pblh[k], nzp_orig )
-        q_pbl[k]      = solve_rw( pres0*100., tpot_pbl[k], lwc_max[k]*0.001, pblh[k] )*1000.
+        q_pbl[k]      = solve_rw( pres0*100., tpot_pbl[k], clw_max[k]*0.001, pblh[k] )*1000.
         if (q_pbl[k] < 0. ):
             sys.exit('q_pbl NEGATIVE VALUE')
     nzp = nzp.astype(int)
+    
+
+#    case     =        input_vector[0]
+#    nzp      = int(   input_vector[1] )
+#    dz       = float( input_vector[2] )
+#    q_inv    = float( input_vector[3] )
+#    tpot_inv = float( input_vector[4] )
+#    clw_max  = float( input_vector[5] )
+#    tpot_pbl = float( input_vector[6] )    
+#    pblh     = float( input_vector[7] )
+#    num_pbl  = float( input_vector[8] )    
+#    pres0    = float( input_vector[9] )
+#    designV  =        input_vector[10]    
     
     if ( runmode == 'serial' ) :
         print 'serial mode'
         for k in xrange( A, B ): 
             write_sound_in( [ case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], num_pbl[k], dz[k], nzp[k], windprofile, pres0 ] )
-            write_namelist( [ case[k], nzp[k], dz[k], q_pbl[k], tpot_pbl[k], num_pbl[k], pres0, designV ] )
+            write_namelist( [ case[k], nzp[k], dz[k], q_inv[k], tpot_inv[k], clw_max[k], tpot_pbl[k], pblh[k], num_pbl[k], pres0, designV ] )
             
     elif ( runmode == 'parallel' ):
         print 'parallel mode'
@@ -525,7 +549,7 @@ def main( nzp_orig=200, filu = designfilu, windprofile = 'dycoms', pres0 = 1017.
         from multiprocessing import Pool
         pool = Pool(processes= 4)
         sound_in_iter = iter( np.column_stack( ( case[A:B], q_inv[A:B], tpot_inv[A:B], q_pbl[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], dz[A:B], nzp[A:B], windprofile[A:B], pres0[A:B] ) ) )
-        namelist_iter = iter( np.column_stack( ( case[A:B], nzp[A:B], dz[A:B], q_pbl[A:B], tpot_pbl[A:B], num_pbl[A:B], pres0[A:B], designV[A:B] ) ) )
+        namelist_iter = iter( np.column_stack( ( case[A:B], nzp[A:B], dz[A:B], q_inv[A:B], tpot_inv[A:B], clw_max[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], pres0[A:B], designV[A:B] ) ) )
         for i in pool.imap_unordered( write_sound_in, sound_in_iter ):
             print i
         for k in pool.imap_unordered( write_namelist, namelist_iter ):

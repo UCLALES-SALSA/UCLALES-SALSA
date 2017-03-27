@@ -1308,88 +1308,62 @@ CONTAINS
 
     INTEGER :: ii,jj,kk,ss
 
-    REAL :: frac, tC, liqsupsat, icesupsat, old_INC, new_INC,old_LNC, new_LNC, fixed, ashnikushni, &
-                zumCN, zumCumIce, excessFracIce, excessIce
-
+    REAL :: liqSupSat, iceSupSat, &
+            Ni, Ni0,  &
+            Nl,       &
+            sumLIQ, sumICE, iceTendecyNumber, liqToIceTendecyFrac
+            !tC, !ASCOS
 
 
 
     DO ii = 1,kproma
     DO jj = 1,klev
 
-        fixed     = fixinc * 1000.0 * pdn(ii,jj)
+        Ni0     = fixinc * 1000.0 * pdn(ii,jj) ! target number concentration of ice
 
-        liqsupsat = prv(ii,jj) /  prs(ii,jj) - 1.0
-        icesupsat = prv(ii,jj) / prsi(ii,jj) - 1.0
-        tC = ptemp(ii,jj) - 273.15 ! absolute temperature in celsius degrees
-        if( .NOT. ( (liqsupsat >= -0.001 .and. tC <= -8. .and. tC > -38.) .OR. icesupsat >= 0.08 )   ) cycle
+        liqSupSat = prv(ii,jj) /  prs(ii,jj)  - 1.0
+        iceSupSat = prv(ii,jj) / prsi(ii,jj)  - 1.0
+        sumLIQ    = sum( pcloud(ii,jj,:)%numc )
+        sumICE    = sum(   pice(ii,jj,:)%numc )
+        iceTendecyNumber    = 0.0
+        liqToIceTendecyFrac = 0.0
 
-        zumCN         = sum( pcloud(ii,jj,:)%numc )
-        zumCumIce     = sum(   pice(ii,jj,:)%numc )
-        excessIce     = 0.0
-        excessFracIce = 1.0
-!        write(*,*) ' '
-!        write(*,*) ' '
-!        write(*,*) ' zumCumIce ', zumCumIce
-!        write(*,*) ' '
+!        tC = ptemp(ii,jj) - 273.15 ! absolute temperature in celsius degrees                                 ! ASCOS
+!        if( .NOT. ( (liqsupsat >= -0.001 .and. tC <= -8. .and. tC > -38.) .OR. icesupsat >= 0.08 )   ) cycle ! ASCOS
 
-        if ( zumCumIce > fixed ) cycle
+        ! condition for ice nucleation
+write(*,*) 'fixed INC ', &
+           'prv ', prv(ii,jj), ' prsi ', prsi(ii,jj), &
+           ' ppres ', ppres(ii,jj), ' ptemp ', ptemp(ii,jj), &
+           ' icesupsat ', iceSupSat, ' liquid water mix. rat. ', sum( pcloud(ii,jj,:)%volc(8) )*rhowa*1000.0
 
+        if ( icesupsat < 0.05 .OR.  sum( pcloud(ii,jj,:)%volc(8) )*rhowa*1000.0 < 0.001  ) cycle
+
+write(*,*) 'jäädytys olosuhteet kohillaan'
+
+        if ( sumICE > Ni0 ) cycle
+
+write(*,*) 'jäätä ei ole tarpeeksi'
         DO kk = nice,1,-1
+            IF( sumICE < Ni0 ) THEN
+                Nl = pcloud(ii,jj,kk)%numc
+                Ni = pice(ii,jj,kk)%numc
 
+                iceTendecyNumber = max( 0.0, min( Ni0 - Ni , pcloud(ii,jj,kk)%numc ) / ptstep ) ! division by two means nudging towards the fixed value
+!write (*,*) 'iceTendencyNumber ', iceTendecyNumber
+                pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + iceTendecyNumber
+                sumICE = sumICE + iceTendecyNumber
 
-            IF( zumCumIce < fixed ) THEN
-
-
-
-
-
-                old_LNC = pcloud(ii,jj,kk)%numc
-                old_INC = pice(ii,jj,kk)%numc
-
-                if (old_LNC < 1e-10 ) cycle
-
-                excessIce = min( fixed - zumCumIce , pcloud(ii,jj,kk)%numc ) / 5.0 ! division by two means nudging towards the fixed value
-
-                pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + excessIce
-
-                zumCumIce = zumCumIce + excessIce
-
-                excessFracIce = MAX( 0.0, MIN( 1.0, excessIce /  pcloud(ii,jj,kk)%numc) )
-
-                pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - excessIce
-
-
-
-                new_INC =   pice(ii,jj,kk)%numc
-                new_LNC = pcloud(ii,jj,kk)%numc
-!                write(*,*) ' '
-!                write(*,*) ' voidaan tehda jaata, aika: ', time, ' bini ', kk
-!                write(*,*) 'liqsupsat ', liqsupsat, ' icesupsat '  , icesupsat
-!                write(*,*) ' temp C ', tC
-!                write(*,*) ' fixed ice numc ', fixed, ' zumCN', zumCN, ' pdn ', pdn(ii,jj)
-!
-!                write(*,*) 'old inc', old_INC, ' new inc ', new_INC
-!                write(*,*) 'old lnc', old_LNC, ' new lnc ', new_LNC
-!                write(*,*) ' old_LNC - new_LNC', old_LNC - new_LNC, 'new_INC', new_INC
-!                write(*,*) ' excessFracIce ', excessFracIce
-!                write(*,*) ' new zumCumIce ', zumCumIce
-!                write(*,*) ' '
-
+                liqToIceTendecyFrac   = MAX( 0.0, MIN( 1.0, iceTendecyNumber /  max( pcloud(ii,jj,kk)%numc, eps) ) )
+                pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - iceTendecyNumber
 
                 DO ss = 1,8
-                    pice(ii,jj,kk)%volc(ss)   = pice(ii,jj,kk)%volc(ss)   +  max(0., pcloud(ii,jj,kk)%volc(ss)*excessFracIce )
-                    pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) -  max(0., pcloud(ii,jj,kk)%volc(ss)*excessFracIce )
+                      pice(ii,jj,kk)%volc(ss) =   pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceTendecyFrac )
+                    pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceTendecyFrac )
                 END DO
-
             END IF
-
-
-
-
-
         END DO
-        !END DO
+
     END DO
     END DO
 
