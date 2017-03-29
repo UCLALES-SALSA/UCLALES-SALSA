@@ -1332,18 +1332,23 @@ CONTAINS
 !        if( .NOT. ( (liqsupsat >= -0.001 .and. tC <= -8. .and. tC > -38.) .OR. icesupsat >= 0.08 )   ) cycle ! ASCOS
 
         ! condition for ice nucleation
-write(*,*) 'fixed INC ', &
-           'prv ', prv(ii,jj), ' prsi ', prsi(ii,jj), &
-           ' ppres ', ppres(ii,jj), ' ptemp ', ptemp(ii,jj), &
-           ' icesupsat ', iceSupSat, ' liquid water mix. rat. ', sum( pcloud(ii,jj,:)%volc(8) )*rhowa*1000.0
+
 
         if ( icesupsat < 0.05 .OR.  sum( pcloud(ii,jj,:)%volc(8) )*rhowa*1000.0 < 0.001  ) cycle
 
-write(*,*) 'jäädytys olosuhteet kohillaan'
-
+!write(*,*) 'jäädytys olosuhteet kohillaan'
+!write(*,*) ' '
+!write(*,*) 'fixed INC '
+!write(*,*) ' prv ', prv(ii,jj)
+!write(*,*) ' prsi ', prsi(ii,jj)
+!write(*,*) ' ppres ', ppres(ii,jj)
+!write(*,*) ' ptemp ', ptemp(ii,jj)
+!write(*,*) ' icesupsat ', iceSupSat
+!write(*,*) ' liquid water mix. rat. ', sum( pcloud(ii,jj,:)%volc(8) )*rhowa*1000.0
         if ( sumICE > Ni0 ) cycle
 
-write(*,*) 'jäätä ei ole tarpeeksi'
+!write(*,*) 'jäätä ei ole tarpeeksi'
+!write(*,*) ' '
         DO kk = nice,1,-1
             IF( sumICE < Ni0 ) THEN
                 Nl = pcloud(ii,jj,kk)%numc

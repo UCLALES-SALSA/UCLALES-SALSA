@@ -137,14 +137,14 @@ contains
 
              ! Potential and absolute temperatures
              th(k,i,j) = thil + (alvl*( rc(k,i,j) + srp(k,i,j) ))/cp
-			 
+
              if(level==5) then
                 th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp
-				
+
                 rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))
                 rhi(k,i,j) = rv(k,i,j)/rsi(k,i,j)
              end if
-			 
+
              tk(k,i,j) = th(k,i,j)*exner
 
              ! Saturation mixing ratio

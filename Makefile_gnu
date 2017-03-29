@@ -5,6 +5,8 @@
 ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BIN       = $(ROOT)/bin
 ARCH      := $(shell uname)
+VERS      := $(shell git symbolic-ref --short -q HEAD)
+
 #
 # Generic Variables
 #
@@ -32,9 +34,9 @@ FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} -fbounds-check  -g -fcheck=all  -Wall -
 F77FLAGS = -O2 #-fbounds-check  -ffpe-trap=invalid,zero,overflow
 
 
-LES_OUT_MPI=$(BIN)/les.mpi
+LES_OUT_MPI=$(BIN)/les.mpi.$(VERS).gnu
 
-LES_OUT_SEQ=$(BIN)/les.seq
+LES_OUT_SEQ=$(BIN)/les.seq.$(VERS).gnu
 
 default: mpi
 

@@ -19,10 +19,11 @@ les=${root}/src/src_LES
 bin=${root}/bin
 script=${root}/script
 submit=${submit:-true}
+restart=${restart:-false}
 
 
 if [[ -n $postfix ]]; then
-    echo "postfix olemassa" $postfix
+    echo "postfix annettu" $postfix
     postfix=_${postfix}
 fi
 
@@ -47,8 +48,10 @@ JOBFLAG=PBS     # job flag of the job scheduling system ( e.g. PBS or SBATCH )
 scriptname=combine.py
 nproc=${nproc:-100}
 
-echo 'poista vanhat kansiot' $folder
-rm -rf  ${outputrootfolder} 
+if [[ $restart == 'false' ]]; then
+    echo 'poista vanhat kansiot' $folder
+    rm -rf  ${outputrootfolder} 
+fi
 
 if [ -z $1 ]; then
   echo "You didn't the number of simultaneous submits of emulator runs"
@@ -96,13 +99,13 @@ mkdir -p ${outputrootfolder}
 ### copy all necessary files to lustre ###
 ###                                    ###
 ##########################################
+if [[ $restart == 'false' ]]; then
+    cp ${script}/emulator_runs_parallel.bash ${outputrootfolder}/
+    cp ${script}/submit_uclales-salsa.bash   ${outputrootfolder}/
+    cp ${script}/submit_postpros.bash        ${outputrootfolder}/
 
-cp ${script}/emulator_runs_parallel.bash ${outputrootfolder}/
-cp ${script}/submit_uclales-salsa.bash   ${outputrootfolder}/
-cp ${script}/submit_postpros.bash        ${outputrootfolder}/
-
-cp ${script}/${scriptname} ${outputrootfolder}/
-
+    cp ${script}/${scriptname} ${outputrootfolder}/
+fi
 mode=${mode:-mpi}
 
 # if [ $nproc -gt 1 ]; then
@@ -113,10 +116,14 @@ mode=${mode:-mpi}
 
 for i in $(seq -f"%02g" $A $B  )
 do
-    mkdir -p ${outputrootfolder}/emul${i}/datafiles
-    cp ${inputrootfolder}/emul${i}/* ${outputrootfolder}/emul${i}/
-    cp ${bin}/les.${mode} ${outputrootfolder}/emul${i}/
-    cp ${bin}/datafiles/* ${outputrootfolder}/emul${i}/datafiles
+    if [ $restart == 'false' ] ||  [ $restart == 'true' -a ! -f ${outputrootfolder}/emul${i}/emul${i}.nc -a ! -f ${outputrootfolder}/emul${i}/emul${i}.ts.nc -a ! -f ${outputrootfolder}/emul${i}/emul${i}.ps.nc -a ! -f ${outputrootfolder}/emul${i}/valmis${i} ]; then
+        rm -rf ${outputrootfolder}/emul${i}/ # clean it first
+        
+        mkdir -p ${outputrootfolder}/emul${i}/datafiles
+        cp ${inputrootfolder}/emul${i}/* ${outputrootfolder}/emul${i}/
+        cp ${bin}/les.${mode} ${outputrootfolder}/emul${i}/
+        cp ${bin}/datafiles/* ${outputrootfolder}/emul${i}/datafiles
+    fi
 done
 
 
@@ -163,7 +170,7 @@ fi
 for n in $( seq ${Nro} )
 do
 
-echo "runNroBegin=$k simulNro=$Nro runNroEnd=$B threadNro=$n nproc=${nproc} postfix=${postfix} jobflag=$JOBFLAG mode=${mode} scriptname=$scriptname ${outputrootfolder}/emulator_runs_parallel.bash | tee ${outputrootfolder}/emulatoroutput$(printf %02d $n) &" >> ${outputrootfolder}/control_multiple_emulator_run.sh
+echo "runNroBegin=$k simulNro=$Nro runNroEnd=$B threadNro=$n nproc=${nproc} postfix=${postfix} jobflag=$JOBFLAG mode=${mode} restart=${restart} scriptname=$scriptname ${outputrootfolder}/emulator_runs_parallel.bash | tee ${outputrootfolder}/emulatoroutput$(printf %02d $n) &" >> ${outputrootfolder}/control_multiple_emulator_run.sh
 
 k=$((A+$n))
 done

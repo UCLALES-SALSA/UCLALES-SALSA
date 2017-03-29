@@ -24,25 +24,22 @@ postpros=${postpros:-false}
 odotus=${odotus:-false}
 poista=${poista:-false}
 
-RUNTYPE=${RUNTYPE:-'"INITIAL"'}
+compiler=${compiler:-intel}
+vers=${vers:-Jaakko}
+
+RUNTYPE='"INITIAL"'
 
 LVL=${LVL:-5}
-isoT=${isoT:-28800}
+isoT=${isoT:-28800.}
+pikkuT=${pikkuT:-7200.}
 ice=${ice:-1.0} # ice #/kg
 
-HFILEBASE=${HFILEBASE:-}
 
-if [ $RUNTYPE != '"INITIAL"' ]; then
+if [[ -n $hfilebase ]]; then
     RUNTYPE='"HISTORY"'
+    
 fi
 
-if [[ $isoT -lt 28800 ]]; then
-    pikkuT=$((isoT/2))
-else
-    pikkuT=7200
-fi    
-isoT=${isoT}.
-pikkuT=${pikkuT}.
 
 function odota {
     
@@ -86,8 +83,10 @@ function copy {
 #    cp ${input}/NAMELIST ${rundir}/
 
 #   copy hfilin file
-	if [ -n $HFILEBASE ]; then         
-            cp ${bin}/0*_0*.${HFILEBASE}  ${outputroot}/${nimi}/
+
+	if [[ -n $hfilebase ]]; then
+            echo $hfilebase
+            cp ${bin}/0*_0*.${hfilebase}  ${outputroot}/${nimi}/
             modifyoutputHistory='false'
     else
             modifyoutputHistory='true'
@@ -99,7 +98,7 @@ function copy {
     
 function submitting {
 	
-	inputsubfolder=$1
+	inputsubfolder=$1$
 	nimi=$2
 	nproc=$3
 	mode=$4
@@ -115,7 +114,7 @@ function submitting {
 	
 	## submit
 	
-    input=${bin}/${inputsubfolder} mode=${mode} modifyoutput='true' modifyoutputHistory=${modifyoutputHistory} COPY=${copyOUT} clean=${copyOUT} ${script}/submit_uclales-salsa.bash $nimi $nproc $jobflag
+    input=${bin}/${inputsubfolder} mode=${mode} modifyoutput='true' modifyoutputHistory=${modifyoutputHistory} COPY=${copyOUT} clean=${copyOUT} ownjobname=$ownjobnameSUB ${script}/submit_uclales-salsa.bash $nimi $nproc $jobflag
 	
 	sleep 3s
     qstat -u $username
@@ -203,7 +202,7 @@ function main {
         echo ' '
         echo -n 'Käynnistetään Simulaatio ' $nimi ' '; date '+%T %d-%m-%Y'
         echo ' '
-        submitting $inputsubfolder $nimi $nproc $mode
+        ownjobnameSUB=$ownjobnameMAIN submitting $inputsubfolder $nimi $nproc $mode
         qstat -u $username | grep $odotusLES
     fi
 
@@ -267,19 +266,20 @@ if [[ $LVL == 5 ]]; then
     icePF=_INC${ice}
 fi
 
+if [[ -n $testinumero ]]; then
+    testinumero=_testi${testinumero}
+fi    
+
 # # 1D
-fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin=$HFILEBASE postfix=LVL${LVL}_1D${icePF} nxp=5 nyp=5 level=$LVL          main case_isdac 1 seq.Jaakko.intel
+# fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_1D${testinumero}        nyp=5 nxp=5 postfix=LVL${LVL}_1D${icePF}${testinumero}  main case_isdac 1 seq.${vers}.${compiler}
 
 # # 2D
-# fixINC=$ice timmax=$isoT Tspinup=$pikkuT postfix=LVL${LVL}_2D${icePF} nxp=5 level=$LVL                main case_isdac 8 mpi.jaakko.gnu
+# echo 2D
+# fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_2D${testinumero}  notJJA=!           nxp=5 postfix=LVL${LVL}_2D${icePF}${testinumero}  main case_isdac 8 mpi.${vers}.${compiler}
 
 # # 3D
-# fixINC=$ice timmax=$isoT Tspinup=$pikkuT postfix=LVL${LVL}_3D${icePF} level=$LVL                      main case_isdac 64 mpi.jaakko.intel
+echo 3D
+fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_3D${testinumero}  notJJA=!                 postfix=LVL${LVL}_3D${icePF}${testinumero} main case_isdac 64 mpi.${vers}.${compiler}
 
-
-
-
-
-
-
+##################
 qstat -u $username

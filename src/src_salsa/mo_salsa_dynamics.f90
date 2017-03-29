@@ -1007,7 +1007,7 @@ CONTAINS
          fn2b,                      &
          ncld,nprc,                  &
          nice,nsnw,                 &
-         lscndgas,                  & 
+         lscndgas,                  &
          nlcndh2oae, nlcndh2ocl, nlcndh2oic, & ! Condensation to aerosols, clouds and ice particles
          nsnucl                     ! nucleation
 
@@ -1505,7 +1505,7 @@ CONTAINS
                        pice, psnow,                 &
                        ptemp,  ppres,  prs,prsi, prv,    &
                        ptstep)
-    
+
     USE mo_submctl, ONLY : t_section,            &
                                nbins, ncld, nprc,    &
                                nice, nsnw,            &
@@ -1612,7 +1612,7 @@ CONTAINS
                (rg*ptemp(ii,jj)*rhowa*paero(ii,jj,1:nbins)%dwet) )
 
           zkelvincd(1:ncld) = exp( 4.*surfw0*mwa /  &
-               (rg*ptemp(ii,jj)*rhowa*pcloud(ii,jj,1:ncld)%dwet) )
+               (rg*ptemp(ii,jj)*rhowa*pcloud(ii,jj,1:ncld)%dwet) )!(rg*ptemp(ii,jj)*rhowa*max( pcloud(ii,jj,1:ncld)%dwet, 1e-10 )) ) ! debugkebab
 
           zkelvinpd(1:nprc) = exp( 4.*surfw0*mwa /  &
                (rg*ptemp(ii,jj)*rhowa*MIN(pprecp(ii,jj,1:nprc)%dwet,2.e-3)) )
@@ -1888,7 +1888,7 @@ CONTAINS
   END SUBROUTINE gpparth2o
   !-------------------------------------------------------
   REAL FUNCTION acth2o(ppart,pcw)
-    
+
     USE mo_submctl, ONLY : t_section,  &
                                rhosu, msu,   &
                                rhooc, moc,   &
@@ -1925,7 +1925,7 @@ CONTAINS
 
   SUBROUTINE gpparthno3(kproma,kbdim,klev,krow,ppres,ptemp,paero,pcloud,    &
                         pprecp,pghno3,pgnh3,prv,prs,pbeta,ptstep)
-    
+
     USE mo_submctl, ONLY : t_section,           &
                                nbins, ncld, nprc,   &
                                surfw0, mvno, mvnh, boltz, &
@@ -2207,7 +2207,7 @@ CONTAINS
   ! ---------------------------------------------------------------
 
   REAL FUNCTION acthno3(ppart,pgamma,pchno3p)
-    
+
     USE mo_submctl, ONLY : t_section,  &
                                rhosu, msu,   &
                                rhooc, moc,   &
@@ -2243,7 +2243,7 @@ CONTAINS
   END FUNCTION acthno3
   ! -------------------------------------------------------
   REAL FUNCTION actnh3(ppart,pgamma,pcnh3p)
-    
+
     USE mo_submctl, ONLY : t_section,  &
                                rhosu, msu,   &
                                rhooc, moc,   &
@@ -2282,7 +2282,7 @@ CONTAINS
   ! ------------------------------------------------------------------
   SUBROUTINE NONHEquil(nb,prh,ptemp,ppart,pcgno3eq,pcgnh3eq,      &
                        pgammano,pgammanh,pgammanh4hso2,pgammahhso4,pmols)
-    
+
     USE mo_submctl, ONLY : t_section,    &
                                rhosu,msu,    &
                                rhoss,mss,    &
@@ -2352,7 +2352,7 @@ CONTAINS
   SUBROUTINE SVsat(nb,ptemp,ppart,pachno3,pacnh3,pacnh4hso2,   &
                    pachhso4,pchno3eq,pchno3,pcnh3,pkelhno3,    &
                    pkelnh3,psathno3,psatnh3,pmols,plim         )
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                rhosu,msu,   &
                                rhooc,moc,   &
@@ -2481,7 +2481,7 @@ CONTAINS
   ! ------------------------------------------------------------------
 
   FUNCTION GetTstep(nb,zcg,zcs,zmt,zconst) RESULT(tscale)
-    
+
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: nb
@@ -2513,7 +2513,7 @@ CONTAINS
     !
     ! J. Tonttila, FMI, 03/2014
     !-----------------------------------------------------------------
-    
+
     IMPLICIT NONE
 
     REAL, INTENT(in) :: ptemp

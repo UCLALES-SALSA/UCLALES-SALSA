@@ -25,7 +25,7 @@ scriptname=${scriptname:-combine.py}
 
 mode=${mode:-mpi}
 
-
+restart=${restart:-false}
 
 
 function odota {
@@ -122,33 +122,36 @@ function poistaturhat {
 
 for i in $(seq -f"%02g" ${runNroBegin} ${simulNro} ${runNroEnd}  )
 do
-    echo ' '
-    echo ' '
-    echo ' '
-    echo ' '
-    echo ' '
-    echo -n 'Käynnistetään emulaattoriajo ' $i ' '; date '+%T %d-%m-%Y'
-    echo ' '
-    submitting emul${i} 
-    odota LES_emul${i}
-    echo -n 'Simulaatio on valmis: ' LES_emul${i}' '; date '+%T %d-%m-%Y'
-    
-    
-    postprosessoi emul${i}
-    odota nc_emul${i}
-    echo -n 'Postprosessointi on valmis: ' nc_emul${i}' '; date '+%T %d-%m-%Y'
-    odota ps_emul${i} 5s
-    echo -n 'Postprosessointi on valmis: ' ps_emul${i}' '; date '+%T %d-%m-%Y'
-    odota ts_emul${i} 5s
-    echo -n 'Postprosessointi on valmis: ' ts_emul${i}' '; date '+%T %d-%m-%Y'
-    echo ' '
-    echo 'Kaikki on postprosessoitu'
-    
-    poistaturhat emul${i}
-    echo -n 'Turhat poistettu'' '; date '+%T %d-%m-%Y'
-    echo 'Valmis' emul$i 
-    echo 'Valmis' emul$i >>  ${root}/emul${i}/valmis${i}
-    date '+%T %d-%m-%Y' >>  ${root}/emul${i}/valmis${i}
+    if [ $restart == 'false' ] ||  [ $restart == 'true' -a ! -f ${outputrootfolder}/emul${i}/emul${i}.nc -a ! -f ${outputrootfolder}/emul${i}/emul${i}.ts.nc -a ! -f ${outputrootfolder}/emul${i}/emul${i}.ps.nc -a ! -f ${outputrootfolder}/emul${i}/valmis${i} ]; then
+
+        echo ' '
+        echo ' '
+        echo ' '
+        echo ' '
+        echo ' '
+        echo -n 'Käynnistetään emulaattoriajo ' $i ' '; date '+%T %d-%m-%Y'
+        echo ' '
+        submitting emul${i} 
+        odota LES_emul${i}
+        echo -n 'Simulaatio on valmis: ' LES_emul${i}' '; date '+%T %d-%m-%Y'
+        
+        
+        postprosessoi emul${i}
+        odota nc_emul${i}
+        echo -n 'Postprosessointi on valmis: ' nc_emul${i}' '; date '+%T %d-%m-%Y'
+        odota ps_emul${i} 5s
+        echo -n 'Postprosessointi on valmis: ' ps_emul${i}' '; date '+%T %d-%m-%Y'
+        odota ts_emul${i} 5s
+        echo -n 'Postprosessointi on valmis: ' ts_emul${i}' '; date '+%T %d-%m-%Y'
+        echo ' '
+        echo 'Kaikki on postprosessoitu'
+        
+        poistaturhat emul${i}
+        echo -n 'Turhat poistettu'' '; date '+%T %d-%m-%Y'
+        echo 'Valmis' emul$i 
+        echo 'Valmis' emul$i >>  ${root}/emul${i}/valmis${i}
+        date '+%T %d-%m-%Y' >>  ${root}/emul${i}/valmis${i}
+    fi
 done
 
 echo -n "Valmis threadNro" $threadNro ' '; date '+%T %d-%m-%Y'

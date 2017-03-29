@@ -179,7 +179,11 @@ fi
 echo ' '
 ## modify the job name based on length: ###
 length=$(( ${#nimi} < 6 ? ${#nimi} : 6))
-jobname=LES_${nimi:$((${#nimi}-${length})):${length}}
+if [[ -n $ownjobname ]]; then
+    jobname=LES_$ownjobname
+else
+    jobname=LES_${nimi:$((${#nimi}-${length})):${length}}
+fi    
 echo 'Queuing system jobname' $jobname
 
 if [ $JOBFLAG == 'PBS' ] ; then

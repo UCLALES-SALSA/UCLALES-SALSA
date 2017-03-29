@@ -5,6 +5,7 @@ import numpy as np
 from scipy import interpolate
 from emulator_inputs import read_design
 import matplotlib.pyplot as plt
+import os
 
 #######################
 ##### setting up    ###    
@@ -41,6 +42,13 @@ piirra = True
 tulostus = False
 
 tightXAxis = True
+
+saveFig=True
+
+if saveFig:
+    picturefolder='./pictures/'
+    if not os.path.exists( picturefolder ):
+        os.makedirs( picturefolder )
 
 colorNRO = len(sys.argv)-1
 
@@ -83,6 +91,9 @@ for i in xrange(len(sys.argv)-1):
 
 mdp.plot_setYlim( 0.0, 1.0, extendBelowZero = True)
 
+if saveFig:
+    plt.savefig( picturefolder + 'cfrac.png')
+
 ###################################
 for i in xrange(len(sys.argv)-1):
     uusikuva = True if i == 0 else  False
@@ -119,6 +130,8 @@ for i in xrange(len(sys.argv)-1):
 
 mdp.plot_setYlim( minimiCLOUD, maksimiCLOUD, extendBelowZero = True)
 
+if saveFig:
+    plt.savefig( picturefolder + 'change_of_cloud_top.png')
 
 ###################################
 for i in xrange(len(sys.argv)-1):
@@ -141,8 +154,11 @@ for i in xrange(len(sys.argv)-1):
     mdp.aikasarjaTulostus( prcp_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'precipitation W/m^2', tightXAxis=tightXAxis, LEGEND=LEGEND  )
 
 
-mdp.plot_setYlim( 0.0, 200., extendBelowZero = True)
+#mdp.plot_setYlim( 0.0, 200., extendBelowZero = True)
+mdp.plot_setYlim( 0.0, maksimiPRCP, extendBelowZero = True)
 
+if saveFig:
+    plt.savefig( picturefolder + 'prcp.png')
 
 #print ' '
 #print 'SENSIBLE'
@@ -174,7 +190,9 @@ for i in xrange(len(sys.argv)-1):
     mdp.aikasarjaTulostus( shf_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'Sensible heat flux W/m^2', tightXAxis=tightXAxis, LEGEND=LEGEND )
     
    
-mdp.plot_setYlim( minimiSHF, maksimiSHF )    
+mdp.plot_setYlim( minimiSHF, maksimiSHF )
+if saveFig:
+    plt.savefig( picturefolder + 'heat_flux_sensible.png')
 
 #print ' '
 #print 'LATENT'
@@ -205,6 +223,8 @@ for i in xrange(len(sys.argv)-1):
     mdp.aikasarjaTulostus( lhf_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'Latent heat flux W/m^2', tightXAxis=tightXAxis, LEGEND=LEGEND )    
 
 mdp.plot_setYlim( minimiLHF, maksimiLHF )
+if saveFig:
+    plt.savefig( picturefolder + 'heat_flux_latent.png')
 
 #############################################
 
@@ -228,13 +248,17 @@ for i in xrange(len(sys.argv)-1):
     #else:
         #minimiLWP = np.min(liqWP_Tdata)
         
-    
-    nimi = 'LWP ' + filenameNC[i].split("/")[-2]
+    if LEGEND:
+        nimi = 'LWP ' + filenameNC[i].split("/")[-2]
+    else:
+        nimi = 'LWP'
 
     mdp.aikasarjaTulostus( liqWP_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'LWP g/m^2', tightXAxis=tightXAxis, LEGEND=LEGEND )
 
 
 mdp.plot_setYlim( 0.0, maksimiLWP )
+if saveFig:
+    plt.savefig( picturefolder + 'lwp.png')
 
 #############################################
 
@@ -307,16 +331,17 @@ for i in xrange(len(sys.argv)-1):
     #else:
         #minimiLWP = np.min(liqWP_Tdata)
     
-    sst=''
-    if "sst" in filenameNC[i]:
-        sst = 'sst '        
-    
-    nimi = 'Total water mix. rat g/m^2 difference between 0h & '+str((ajanhetket/3600.)) + 'h '+ sst + filenameNC[i].split("/")[-2]
+    if LEGEND:
+        nimi = 'Total water mix. rat g/m^2 difference between 0h & '+str((ajanhetket/3600.)) + 'h ' + filenameNC[i].split("/")[-2]
+    else:
+        nimi = 'Total water mix. rat g/m^2 difference between 0h & '+str((ajanhetket/3600.)) + 'h'
 
     mdp.profiiliTulostus( q_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = r'$\frac{q_{t=2h}}{q_{t=0h}}-1$', ynimi = 'z/pblh', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = False )
 
 mdp.plot_setYlim( 0.0, 1.01 )
 plt.xlim( -0.25, 0.025)
+if saveFig:
+    plt.savefig( picturefolder + 'q_diff.png')
 
 #############################################
 
@@ -386,17 +411,17 @@ for i in xrange(len(sys.argv)-1):
     #else:
         #minimiLWP = np.min(liqWP_Tdata)
     
-    sst=''
-    if "sst" in filenameNC[i]:
-        sst = 'sst '
-        
-    
-    nimi = 'Temperature [K] difference between 0h & '+str((ajanhetket/3600.)) + 'h '+ sst + filenameNC[i].split("/")[-2]
+    if LEGEND:
+        nimi = 'Temperature [K] difference between 0h & '+str((ajanhetket/3600.)) + 'h ' + filenameNC[i].split("/")[-2]
+    else:
+        nimi = 'Temperature [K] difference between 0h & '+str((ajanhetket/3600.)) + 'h'
 
     mdp.profiiliTulostus( t_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = r'$\frac{t_{t=2h}}{t_{t=0h}}-1$', ynimi = 'z/pblh', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = False )
 
 mdp.plot_setYlim( 0.0, 1.01 )
-plt.xlim( -0.25, 0.025)
+plt.xlim( -0.05, 0.025)
+if saveFig:
+    plt.savefig( picturefolder + 't_diff.png')
 
 ################
 
@@ -404,6 +429,8 @@ plt.xlim( -0.25, 0.025)
 
 mdp.plot_alustus()
 mdp.plottaa(range( 1,len(sys.argv) ), maksimisateet, 'maximum precipitation after 2h', 'case', 'precipitation W/m^2', changeColor = True, markers=True)
+if saveFig:
+    plt.savefig( picturefolder + 'prcp_max.png')
 #mdp.plot_alustus()
 #mdp.plottaa(range( 1,len(sys.argv) ), maksimiSensible, 'maximum sensible heat', 'case', 'Sensible heat flux W/m^2', changeColor = True, markers=True)
 #mdp.plot_alustus()
@@ -413,5 +440,5 @@ mdp.plottaa(range( 1,len(sys.argv) ), maksimisateet, 'maximum precipitation afte
 ### finishing up     ###
 ### DO NOT CHANGE    ###
 ########################
-if piirra:
-    mdp.plot_lopetus()
+#if piirra:
+    #mdp.plot_lopetus()

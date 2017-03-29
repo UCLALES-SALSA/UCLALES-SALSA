@@ -12,13 +12,13 @@ set -e
 
 cat > ${dir}/NAMELIST <<EOF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!! DESIGN VERSION ${design}
-!!! design variables case ${case}
+!!! DESIGN VERSION ${design}!!! design variables case ${case}
 !!! q_inv    == ${q_inv}
 !!! tpot_inv == ${tpot_inv}
 !!! clw_max  == ${clw_max}
 !!! tpot_pbl == ${tpot_pbl}
 !!! pblh     == ${pblh}
+!!! num_pbl  == ${num_pbl}
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
  &version
@@ -130,7 +130,7 @@ cat > ${dir}/NAMELIST <<EOF
 
    sigmag = ${sigmag:-1.2, 1.7, 2.0, 2.0, 2.0, 2.0, 2.0}  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpg    = ${dpg:-0.022, 0.12, 0.2, 0.2, 0.2, 0.2, 0.2}     ! Mode mean diameters in micrometers
-   n      = ${n:-0., 46.2502241367474 , 0., 0., 0., 0., 0.}  ! Mode number concentrations in #/cm^3
+   n      = ${n:-0., 46.2502241367474 , 0., 0., 0., 0., 0.}  ! Mode number concentrations in #/mg
  /
 
 EOF

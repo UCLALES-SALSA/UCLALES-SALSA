@@ -455,15 +455,15 @@ def write_namelist( input_vector ):
 #                  ' dtlong=2.'                                          + \
 #                  ' level=3'                 +\
 
-    command = 'dir='       + folder              +\
-              ' design='   + '"' + designV +'"'  +\
-              ' case='     + case                +\
-              ' q_inv='    + str(q_inv)          +\
-              ' tpot_inv=' + str(tpot_inv)       +\
-              ' clw_max='  + str(clw_max)        +\
-              ' tpot_pbl=' + str(tpot_pbl)       +\
-              ' pblh='     + str(pblh)           +\
-              ' num_pbl='  + str(num_pbl)        +\
+    command = 'dir='       + folder                    +\
+              ' design='   + '"' + designV +'"'        +\
+              ' case='     + case                      +\
+              ' q_inv='    + '"' + str(round(q_inv,2))    + '    [g/kg]' + '"' +\
+              ' tpot_inv=' + '"' + str(round(tpot_inv,2)) + '    [g/kg]' + '"' +\
+              ' clw_max='  + '"' + str(round(clw_max,2))  + '    [g/kg]' + '"' +\
+              ' tpot_pbl=' + '"' + str(round(tpot_pbl,2)) +      '  [K]' + '"' +\
+              ' pblh='     + '"' + str(round(pblh,2))     +       ' [m]' + '"' +\
+              ' num_pbl='  + '"' + str(round(num_pbl,2))  +  '   [#/mg]' + '"' +\
               ' nzp='      + str(nzp)            +\
               ' deltaz='   + str(dz)             +\
               ' CCN='      + str(num_pbl*1e6)    +\
