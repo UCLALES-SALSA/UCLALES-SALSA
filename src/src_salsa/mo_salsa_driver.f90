@@ -455,7 +455,7 @@ IMPLICIT NONE
 
              cloud(1,1,1:ncld)%numc = pa_ncloudp(kk,ii,jj,1:ncld)*pdn(kk,ii,jj)
              cloud_old(1,1,1:ncld)%numc = cloud(1,1,1:ncld)%numc
-             cloud(1,1,1:ncld)%dwet = max( pa_Rcwet(kk,ii,jj,1:ncld)*2. , 1e-10) !debugkebab
+             cloud(1,1,1:ncld)%dwet = pa_Rcwet(kk,ii,jj,1:ncld)*2.
              cloud(1,1,1:ncld)%core = pi6*(pa_Rcdry(kk,ii,jj,1:ncld)*2.)**3.
 
              precp(1,1,1:nprc)%numc = pa_nprecpp(kk,ii,jj,1:nprc)*pdn(kk,ii,jj)
@@ -465,7 +465,7 @@ IMPLICIT NONE
 
              ice(1,1,1:nice)%numc = pa_nicep(kk,ii,jj,1:nice)*pdn(kk,ii,jj)
              ice_old(1,1,1:nice)%numc = ice(1,1,1:nice)%numc
-             ice(1,1,1:nice)%dwet = max( pa_Riwet(kk,ii,jj,1:nice)*2., 1e-10) !debugkebab
+             ice(1,1,1:nice)%dwet = pa_Riwet(kk,ii,jj,1:nice)*2.
              ice(1,1,1:nice)%core = pi6*(pa_Ridry(kk,ii,jj,1:nice)*2.)**3.
 
              snow(1,1,1:nsnw)%numc = pa_nsnowp(kk,ii,jj,1:nsnw)*pdn(kk,ii,jj)

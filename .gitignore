@@ -51,6 +51,7 @@ src/src_LES/stat_icesnow.f90
 
 # Makefiles
 Makefile_Jaakko_karsittu
+Makefile_intel_DivideByZeroAllowed
 
 bineja.ods
 
