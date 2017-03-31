@@ -427,7 +427,7 @@ end subroutine tstep_reset
         ! (Liquid water) potential temperature: nudge towards th0(:)-th00
         IF (nudge_theta/=0) THEN
             ALLOCATE(theta_ref(nzp))
-            theta_ref(:)=th0(:)-th00
+            theta_ref(:)=a_tp(:,3,3)
         ENDIF
         !
         ! Water vapor mixing ratio based on total water
