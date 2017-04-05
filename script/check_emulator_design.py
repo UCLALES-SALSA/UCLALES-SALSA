@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import ECLAIR_calcs
 import sys
 import os
+import glob
 import subprocess
 from itertools import cycle
 from termcolor import colored
@@ -23,8 +24,12 @@ if ( len(sys.argv) > 1):
 else:
     folder='/home/aholaj/mounttauskansiot/ibrixmount/DESIGN/'
     #file = 'sound_in_DYCOMSIIRF02'
-    file = 'corr_design.csv'
-    filu = folder+file
+    cwd = os.getcwd()
+    os.chdir(folder)
+    for file in glob.glob("*.csv"):
+        designbasename=file
+    filu = folder+designbasename
+    os.chdir(cwd)
     
 f = open(filu, 'r')
 
@@ -151,7 +156,7 @@ def check_constrain( variable, lowerbound, upperbound, variablename, lowerboundN
     for i in xrange(dimensions):        
         if ( variable[i] < lowerbound[i] ):
             print 'VIOLATION', i+1, 'constraint', check_constrain.counter
-            print str(variablename) +  'too small value:' + str(round( variable[i], 1)).rjust(wi) + ' lower bound:' + str(round( lowerbound[i], 1)).rjust(wi) + ' unit ', unit
+            print str(variablename) +  ' too small value:' + str(round( variable[i], 1)).rjust(wi) + ' lower bound:' + str(round( lowerbound[i], 1)).rjust(wi) + ' unit ', unit
             check_constrain.checkoutALA[i, check_constrain.counter] += 1
         if ( variable[i] > upperbound[i]   ):
             print 'VIOLATION', i+1, 'constraint', check_constrain.counter
@@ -392,5 +397,5 @@ print ' '
 print 'use LWC from csv', LWC
 
 os.chdir(folder)
-tag =subprocess.check_output('git describe --tags', shell=True)
+tag =subprocess.check_output("git describe --tags | tr -dc '[:alnum:].'", shell=True)
 print 'version', tag

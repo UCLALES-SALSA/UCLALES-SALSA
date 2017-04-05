@@ -29,10 +29,10 @@ cat > ${dir}/NAMELIST <<EOF
   distim = ${distim:-100.}
   timmax = ${timmax:-28800.}
   Tspinup = ${Tspinup:-7200.}
-${notJJA}  minispinup01 = ${minispinup01:-0.}
-${notJJA}  minispinup02 = ${minispinup02:-0.}
-${notJJA}  minispinupCase01 = ${minispinupCase01:-3}
-${notJJA}  minispinupCase02 = ${minispinupCase02:-3}
+${jaakkoNL}  minispinup01 = ${minispinup01:-0.}
+${jaakkoNL}  minispinup02 = ${minispinup02:-0.}
+${jaakkoNL}  minispinupCase01 = ${minispinupCase01:-3}
+${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
   runtype = ${runtype:-'"INITIAL"'}
   level = ${level:-5}
   CCN = ${CCN:-30.e6}
@@ -120,10 +120,10 @@ ${notJJA}  minispinupCase02 = ${minispinupCase02:-3}
    nlichet     = ${nlichet:-.FALSE.}     ! Switch for heterogeneous ice nucleation
    nlicimmers  = ${nlicimmers:-.FALSE.}   ! Switch for ice nucleation by immersion
    nlicmelt    = ${nlicmelt:-.FALSE.}    ! Switch for ice'n' snow melting
-${notJJA}   nlicbasic   = ${nlicbasic:-.FALSE.}
+${jaakkoNL}   nlicbasic   = ${nlicbasic:-.FALSE.}
    
-${notJJA}   nlfixinc   = ${nlfixinc:-.TRUE.}      ! Fix ice number concentration to be over given limit fixINC
-${notJJA}   fixINC     = ${fixINC:-1.0}         ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
+${jaakkoNL}   nlfixinc   = ${nlfixinc:-.TRUE.}      ! Fix ice number concentration to be over given limit fixINC
+${jaakkoNL}   fixINC     = ${fixINC:-1.0}         ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
 
    rhlim = ${rhlim:-1.2}          ! RH limit for SALSA during initialization and spinup
 

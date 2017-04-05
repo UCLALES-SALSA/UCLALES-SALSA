@@ -3,62 +3,50 @@
 # Exit on error
 set -e
 
-
-#### user parameters
-username=aholaj
-folder=case_emulator${postfix}
-subfolder=UCLALES-SALSA
+# import subroutines & variables 
+source ./subroutines_variables.bash
 
 
-root=/lustre/tmp/${username}/${subfolder}/${folder}
-
-
+emulatorname=${emulatorname:-case_emulator}
+emulatoroutputroot=${outputroot}/${emulatorname}
 
 runNroBegin=${runNroBegin:-1}
 simulNro=${simulNro:-1}
 runNroEnd=${runNroEnd:-90}
 threadNro=${threadNro:-0}
-nproc=${nproc:-100}    # number of processors
-jobflag=${jobflag:-PBS}
-scriptname=${scriptname:-combine.py}
 
+nproc=${nproc:-100}    # number of processors
 
 mode=${mode:-mpi}
 
 restart=${restart:-false}
 
-
-function odota {
-    
-    nimi=$1
-    aika=$2
-    aika=${aika:-30s}
-    
-    echo ' '
-    echo 'Nyt odotetaan' $nimi $aika
-    while [[ ! -z $( qstat -u $username | grep $nimi ) ]]
+if [[ -z $list ]]
+then
+    array=($(seq -f"%02g" ${runNroBegin} ${simulNro} ${runNroEnd}  ))
+else
+    u=0
+    for kk in ${list[@]}
     do
-        date +%Y-%m-%d-%H-%M
-        qstat -u aholaj
-#         sleep 15s
-        sleep $aika
+        array[u]=$(printf %02d $kk)
+        u=$((u+1))
     done
-
-}
+fi  
+echo "parallel array" ${array[@]}
 
 function submitting {
 	
-	nimi=$1
+	simulation=$1
     
 	echo ' '
 	echo ' '
 	echo 'Nyt suoritetaan funktiota submitting '
 
-	dir=${root}/${nimi}
+	rundir=${emulatoroutputroot}/${simulation}
 
-	echo 'nimi ' $nimi
-	LVL=$(grep level ${dir}/NAMELIST)
-	LVL=${LVL: -1}
+	echo 'simulation ' $simulation
+	LVL=$(grep level ${rundir}/NAMELIST)
+	LVL=${LVL: -1} # last char
 	echo 'level' $LVL
     if [ $LVL -le 3 ]; then
         walltime=12:00:00
@@ -67,66 +55,17 @@ function submitting {
     fi
 	## submit
 	
-    input=${dir} subsubfolder=${folder} modifyoutput='false' COPY=false clean=false WT=$walltime mode=${mode} ${root}/submit_uclales-salsa.bash $nimi $nproc $jobflag
+    input=${rundir} outputname=${simulation} modifyoutput='false' COPY=false clean=false WT=$walltime mode=${mode} ${emulatoroutputroot}/submit_uclales-salsa.bash ${emulatorname}/${simulation} $nproc
 
 
 }
 
 
-function postprosessoi {
-    
-    echo ' '
-    nimi=$1
-    echo 'Nyt postprosessoidaan .nc'
-    scriptfolder=${root} ${root}/submit_postpros.bash ${root}/${nimi}/${nimi} $scriptname $jobflag $nimi
-    
-    echo ' '
-    echo 'Nyt postprosessoidaan .ps'
-    scriptfolder=${root} ${root}/submit_postpros.bash ${root}/${nimi}/${nimi}.ps $scriptname $jobflag $nimi
-    
-    echo ' '
-    echo 'Nyt postprosessoidaan .ts'
-    scriptfolder=${root} ${root}/submit_postpros.bash ${root}/${nimi}/${nimi}.ts $scriptname $jobflag $nimi
-    echo ' '
-    
-    echo 'Kaikki submittoitu postprosessointiin'
-    
-    
-
-}
-
-function poistaturhat {
-    
-    echo ' '
-    echo 'Poistetaan lustrelta turhat tiedostot jos postprosessointi on tehty'
-    nimi=$1
-
-    if [[ -f ${root}/${nimi}/${nimi}.nc ]] && [[ -f ${root}/${nimi}/${nimi}.ts.nc ]] && [[ -f ${root}/${nimi}/${nimi}.ps.nc ]]; then
-        echo "kaikki kolme postprosessoitua tiedostoa ovat olemassa"
-        ls ${root}/${nimi}/${nimi}.nc
-        ls ${root}/${nimi}/${nimi}.ts.nc
-        ls ${root}/${nimi}/${nimi}.ps.nc
-        echo 'poistetaan'
-        rm -rf ${root}/${nimi}/datafiles
-        rm -rf ${root}/${nimi}/*.sh
-        rm -rf ${root}/${nimi}/*.py
-        rm -rf ${root}/${nimi}/*.rst
-        rm -rf ${root}/${nimi}/${nimi}.ts.0*0*.nc
-        rm -rf ${root}/${nimi}/${nimi}.ps.0*0*.nc
-        rm -rf ${root}/${nimi}/${nimi}.0*0*.nc
-        rm -rf ${root}/${nimi}/0*_0*.${nimi}.*
-    fi
-}
-
-
-
-for i in $(seq -f"%02g" ${runNroBegin} ${simulNro} ${runNroEnd}  )
+for i in ${array[@]}
 do
-    if [ $restart == 'false' ] ||  [ $restart == 'true' -a ! -f ${outputrootfolder}/emul${i}/emul${i}.nc -a ! -f ${outputrootfolder}/emul${i}/emul${i}.ts.nc -a ! -f ${outputrootfolder}/emul${i}/emul${i}.ps.nc -a ! -f ${outputrootfolder}/emul${i}/valmis${i} ]; then
+    if [ $restart == 'false' ] ||  ([ $restart == 'true' ] && ([ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.nc ] || [ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.ts.nc ] || [ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.ps.nc ]))
+    then
 
-        echo ' '
-        echo ' '
-        echo ' '
         echo ' '
         echo ' '
         echo -n 'Käynnistetään emulaattoriajo ' $i ' '; date '+%T %d-%m-%Y'
@@ -136,7 +75,8 @@ do
         echo -n 'Simulaatio on valmis: ' LES_emul${i}' '; date '+%T %d-%m-%Y'
         
         
-        postprosessoi emul${i}
+        scriptname=${scriptname} scriptfolder=${emulatoroutputroot} postprosessoi ${emulatorname}/emul${i} emul${i}
+
         odota nc_emul${i}
         echo -n 'Postprosessointi on valmis: ' nc_emul${i}' '; date '+%T %d-%m-%Y'
         odota ps_emul${i} 5s
@@ -146,12 +86,17 @@ do
         echo ' '
         echo 'Kaikki on postprosessoitu'
         
-        poistaturhat emul${i}
+        poistaturhat ${emulatorname}/emul${i} emul${i}
         echo -n 'Turhat poistettu'' '; date '+%T %d-%m-%Y'
         echo 'Valmis' emul$i 
-        echo 'Valmis' emul$i >>  ${root}/emul${i}/valmis${i}
-        date '+%T %d-%m-%Y' >>  ${root}/emul${i}/valmis${i}
+        echo 'Valmis' emul$i >>  ${emulatoroutputroot}/emul${i}/valmis${i}
+        date '+%T %d-%m-%Y' >>   ${emulatoroutputroot}/emul${i}/valmis${i}
     fi
 done
 
 echo -n "Valmis threadNro" $threadNro ' '; date '+%T %d-%m-%Y'
+
+echo "Valmis threadNro" $threadNro >> ${emulatoroutputroot}/log
+date '+%T %d-%m-%Y'   >> ${emulatoroutputroot}/log
+date '+%s'            >> ${emulatoroutputroot}/log
+echo ' '              >> ${emulatoroutputroot}/log

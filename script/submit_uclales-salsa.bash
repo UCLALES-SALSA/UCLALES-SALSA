@@ -30,41 +30,14 @@ echo ' '
 ###			                  ###
 #################################
 
-username=aholaj
-email=jaakko.ahola@fmi.fi
-subfolder=UCLALES-SALSA
-
+jobflag=${jobflag} scriptname=${scriptname} source ./subroutines_variables.bash
 
 # supercomputer related variable settings
 WT=${WT:-24:00:00} # walltime
 
-JOBFLAG=${JOBFLAG:-PBS}     # job flag of the job scheduling system ( e.g. PBS or SBATCH )
+
 COPY=${COPY:-true}
 clean=${clean:-true}
-
-if [ -z $3 ]; then
-  echo ' '
-  echo "You didn't give the optional JOB FLAG of the job scheduling system"
-  echo "Using assumption: " $JOBFLAG
-else
-  JOBFLAG=$3
-fi
-
-if [ $JOBFLAG == 'PBS' ]; then
-    outputroot=/lustre/tmp/${username}/${subfolder}/${subsubfolder}
-    root=/home/users/${username}/${subfolder}
-    nodeNPU=20  # number of processing units in a node  
-
-elif [ $JOBFLAG == 'SBATCH' ]; then ## CSC's Sisu machine values
-    nodeNPU=24 # number of processing units in a node 
-    QUEUE=small_long # name of the queue of Sisu machine
-    outputroot=/wrk/${username}/${subfolder}
-    root=/homeappl/home/${username}/appl_sisu/${subfolder}
-fi
-echo ' '
-echo 'SUPERCOMPUTER VALUES'
-
-
 
 #################################
 ###			                  ###
@@ -72,10 +45,7 @@ echo 'SUPERCOMPUTER VALUES'
 ###         			      ### 
 #################################
 
-
-bin=${root}/bin
 input=${input:-}
-
 
 if [ -z $input ]; then
     input=$bin
@@ -88,10 +58,15 @@ fi
 ################################
 
 if [ -z $1 ]; then
-  echo "You didn't give any name for output directory"
+  echo "You didn't give any name for output subfolder of lustre"
   exit 1
 fi
-nimi=$1
+simulation=$1
+
+# if outputname doesn't exist set it to be same as simulation
+if [[ -z $outputname ]]; then
+    outputname=${simulation}
+fi
 
 ################################
 ###			                 ###
@@ -105,6 +80,10 @@ else
   nproc=$2
 fi
 
+if [[ -n $3 ]]; then
+  jobflag=$3
+fi
+echo "job scheduling system" $jobflag
 
 ################################
 ###			                 ###
@@ -116,9 +95,9 @@ mode=${mode:-mpi}
 
 # nn=$(( ${#mode}- 4 ))
 # if [[ $nn -gt 0 ]]; then
-#     nimi=${1}_${mode:$((${#mode}-$nn)):$nn}
+#     outputname=${1}_${mode:$((${#mode}-$nn)):$nn}
 # else
-#     nimi=$1
+#     outputname=$1
 # fi
 
 
@@ -129,7 +108,7 @@ mode=${mode:-mpi}
 ###			                 ###
 ################################
 
-rundir=${outputroot}/${nimi}
+rundir=${outputroot}/${simulation}
 datadir=${rundir}/datafiles
 
 # if main directory exists -> clean it
@@ -138,11 +117,10 @@ if [ $clean == true ]; then
     if [ -d ${rundir} ] ; then
         rm -rf ${rundir}/*
     else
-        mkdir -p ${rundir}
+        mkdir -p ${rundir} ${datadir}
     fi
 fi    
 
-mkdir -p ${datadir} 
 
 # copy executables and input files to running directory
 if [ $COPY == 'true' ]; then
@@ -164,11 +142,11 @@ modifyoutput=${modifyoutput:-true}
 modifyoutputHistory=${modifyoutputHistory:-${modifyoutput}}
 
 if [ $modifyoutput == 'true' ]; then
-    sed -i "/filprf\s\{0,\}=\s\{0,\}/c\  filprf  = '"$nimi"'" ${rundir}/NAMELIST    
+    sed -i "/filprf\s\{0,\}=\s\{0,\}/c\  filprf  = '"$outputname"'" ${rundir}/NAMELIST    
 fi
 
 if [ $modifyoutputHistory == 'true' ]; then
-    sed -i "/hfilin\s\{0,\}=\s\{0,\}/c\  hfilin  = '"$nimi".rst'" ${rundir}/NAMELIST
+    sed -i "/hfilin\s\{0,\}=\s\{0,\}/c\  hfilin  = '"$outputname".rst'" ${rundir}/NAMELIST
 fi
 
 #########################
@@ -178,15 +156,15 @@ fi
 #########################
 echo ' '
 ## modify the job name based on length: ###
-length=$(( ${#nimi} < 6 ? ${#nimi} : 6))
+length=$(( ${#outputname} < 6 ? ${#outputname} : 6))
 if [[ -n $ownjobname ]]; then
     jobname=LES_$ownjobname
 else
-    jobname=LES_${nimi:$((${#nimi}-${length})):${length}}
+    jobname=LES_${outputname:$((${#outputname}-${length})):${length}}
 fi    
 echo 'Queuing system jobname' $jobname
 
-if [ $JOBFLAG == 'PBS' ] ; then
+if [ $jobflag == 'PBS' ] ; then
 
 cat > ${rundir}/runles.sh <<FINALPBS
 #!/bin/sh
@@ -221,7 +199,7 @@ cd ${rundir}
 echo 'Submit to job scheduler'
 qsub runles.sh
 
-elif [ $JOBFLAG == 'SBATCH' ] ; then
+elif [ $jobflag == 'SBATCH' ] ; then
 
 cat > ${rundir}/runles.sh <<FINALSBATCH
 #!/bin/sh
@@ -229,8 +207,8 @@ cat > ${rundir}/runles.sh <<FINALSBATCH
 #SBATCH -n ${nproc}
 #SBATCH --ntasks-per-node=${nodeNPU}
 #SBATCH -t ${WT}
-#SBATCH --output=LES_${nimi}-%j.out
-#SBATCH --error=LES_${nimi}-%j.err
+#SBATCH --output=LES_${outputname}-%j.out
+#SBATCH --error=LES_${outputname}-%j.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=${email}
 #SBATCH -p ${QUEUE}

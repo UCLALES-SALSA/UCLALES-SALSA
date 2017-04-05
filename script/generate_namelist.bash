@@ -12,7 +12,8 @@ set -e
 
 cat > ${dir}/NAMELIST <<EOF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!! DESIGN VERSION ${design}!!! design variables case ${case}
+!!! DESIGN VERSION ${design}
+!!! design variables case ${case}
 !!! q_inv    == ${q_inv}
 !!! tpot_inv == ${tpot_inv}
 !!! clw_max  == ${clw_max}
@@ -22,7 +23,7 @@ cat > ${dir}/NAMELIST <<EOF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
  &version
-  ver="v1.0.2"
+  ver="v1.0.4"
  /
 
  &model
@@ -38,12 +39,14 @@ cat > ${dir}/NAMELIST <<EOF
   dtlong = ${dtlong:-2.}
   distim = ${distim:-100.}
   timmax = ${timmax:-12600.}
-  Tspinup = ${Tspinup:-5400.}
+  Tspinup = ${Tspinup:-0.}
   
-  nudge_time = ${nudge_time:-12600.}
-  nudge_zmax = ${nudge_zmax:-80.}
-  nudge_rv   = ${nudge_rv:-1}
-  tau_rv     = ${tau_rv:-500.}
+!  nudge_time  = ${nudge_time:-5400.}
+!  nudge_zmax  = ${nudge_zmax:-80.}
+!  nudge_theta = ${nudge_theta:-1}
+!  tau_theta   = ${tau_theta:-600.0}
+!  nudge_rv    = ${nudge_rv:-1}
+!  tau_rv      = ${tau_rv:-300.0}
   
   runtype = ${runtype:-'"INITIAL"'}
   level = ${level:-3}
@@ -81,8 +84,8 @@ cat > ${dir}/NAMELIST <<EOF
   ubmin  = ${ubmin:--0.25}
   zrough = ${zrough:-0.01}
   th00 = ${th00:-289.}
-  umean =  ${umean:-0.1}
-  vmean = ${vmean:--0.1}
+  umean =  ${umean:-10.}
+  vmean = ${vmean:-0.}
  /
 
  &salsa	

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 # #                   nzp          file         windprofile  pres0        par/serial   runNroBegin  runNroEnd
-# ./emulator_inputs.py  True  200         $DESIGN       dycoms         1017.8       parallel     1           90
+# ./emulator_inputs.py  200         $DESIGN       dycoms         1017.8       parallel     1           90
 """
 Created on Wed Dec 21 14:20:00 2016
 
@@ -31,15 +31,25 @@ from ECLAIR_calcs import solve_rw
 import sys
 import os
 import subprocess
+import glob
 
 global mounted
 global rootfolder
 global designfilu
+global tag
 
 def bool_convert(s):
-    return s == "True"
+    if s=="True":
+        r = True
+    elif s=="False":
+        r = False
+    else:
+        r = True
+    return r
+
 
 if ( len(sys.argv) > 2):
+    print sys.argv[1]
     mounted = bool_convert( sys.argv[1] )
 else:
     mounted = True
@@ -57,11 +67,18 @@ else:
     lesroot    = '/home/users/aholaj/UCLALES-SALSA/'
     designroot = '/ibrix/arch/ClimRes/aholaj/DESIGN/'
 
+cwd = os.getcwd()
 
-rootfolder = lesroot + 'bin/case_emulator/'
+os.chdir(designroot)
 
+tag =subprocess.check_output("git describe --tags | tr -dc '[:alnum:].'", shell=True)
+rootfolder = lesroot + 'bin/case_emulator_DESIGN_' + tag + '/'
+for file in glob.glob("*.csv"):
+    designbasename=file
 
-designfilu = designroot + 'corr_design.csv'
+os.chdir(cwd)
+
+designfilu = designroot + designbasename
 
 #if (len(sys.argv) > 1):
 #    for i in sys.argv[1:]:
@@ -69,13 +86,13 @@ designfilu = designroot + 'corr_design.csv'
 #        filu = sys.argv[2]
 
 
-def deltaz( pblh, nzp ):
+def deltazvanha( pblh, nzp ):
     deltaz = max( 1., min( 20. , round( 1.3333 * pblh / float(nzp) ) ) )
    
    
     return deltaz, nzp
 
-def deltaz2( pblh, nzp_orig ):
+def deltaz( pblh, nzp_orig ):
     dz = max( 1., min( 20. , round( max( 1.3333 * pblh, pblh + 500.) / float(nzp_orig) ) ) )
 
     if ( dz < 10.0 ):
@@ -102,25 +119,27 @@ def define_z( pblh, deltaz, nzp ):
     
     return zt
 
-def tot_wat_mix_rat( z, pblh, q_pbl, q_inv, invThi = 0., q_toa = 2. ):
+def tot_wat_mix_rat_LIN(  z, pblh, q_pbl, q_inv, invThi = 50. ):
     if ( z < pblh ):
         q = q_pbl # g/kg
+    elif (z > pblh + invThi ):
+        q = q_pbl - q_inv - ( z - ( pblh + invThi ))*tot_wat_mix_rat_LIN( pblh + invThi, pblh, q_pbl, q_inv, invThi )/2000.
     else:
-        q = (q_pbl - q_inv) - ( q_pbl - q_inv - q_toa) * (1. - np.exp( -( z-pblh ) / 500. ) ) # g/kg
+        q = q_pbl - q_inv/invThi * ( z - pblh )
        
     return q
 
-def pot_temp( z, pblh, tpot_pbl, tpot_inv, invThi=0.  ):
+def pot_temp_LIN( z, pblh, tpot_pbl, tpot_inv, t_grad, invThi = 50., dtdzFT = 0.003  ):
     if (z < pblh ):
         theta = tpot_pbl
+    elif( z > pblh + invThi):
+        theta = tpot_pbl + tpot_inv + dtdzFT*( z - ( pblh + invThi ))
     else:
-        theta = tpot_pbl + tpot_inv +np.power( z-pblh , 1./3. )
+        theta = tpot_pbl + t_grad * ( z - pblh )
     
     return theta
-    
-    
-    
-        
+
+
 def tot_wat_mix_rat_IT( z, pblh, q_pbl, q_inv, invThi = 50., q_toa = 2.  ):
     if ( z < pblh ):
         q = q_pbl # g/kg
@@ -193,6 +212,11 @@ def wind_0(z):
     u = 0.
     v = 0.
     return u,v
+
+def wind_ideal(z):
+    u = 10.
+    v = 0.
+    return u,v    
     
 def wind_dycoms(z):
     u = 3. + 4.2*z/1000.
@@ -315,22 +339,29 @@ def write_sound_in( input_vector ):
     u = [0.]
     v = [0.]
 
-#    invThi = 50.    
-    invThi = thickness( tpot_inv, t_grad = 0.3 )
+#    invThi = 50.
+    t_grad = 0.3   
+    invThi = thickness( tpot_inv, t_grad )
     print 'inversion thickness ' + str(round(invThi,2))
 
     for k in xrange(1,len(z)):
         
         
 
-        potTemp.append( pot_temp_IT( z[k], pblh, tpot_pbl, tpot_inv, invThi ) )
-        wc.append(      tot_wat_mix_rat_IT( z[k], pblh, q_pbl, q_inv, invThi, q_toa = min( max( q_pbl-q_inv-0.01, 0.01) , 2. ) ) )
+#        potTemp.append( pot_temp_IT( z[k], pblh, tpot_pbl, tpot_inv, invThi ) )
+#        wc.append(      tot_wat_mix_rat_IT( z[k], pblh, q_pbl, q_inv, invThi, q_toa = min( max( q_pbl-q_inv-0.01, 0.01) , 2. ) ) )
+
+        potTemp.append( pot_temp_LIN(        z[k], pblh, tpot_pbl, tpot_inv, t_grad, invThi, dtdzFT = 0.003 ) ) 
+        wc.append(      tot_wat_mix_rat_LIN( z[k], pblh,    q_pbl,    q_inv,  invThi  ) )
+
         if ( windprofile == 'zero' ):
                 u_apu, v_apu = wind_0( z[k] )
         elif ( windprofile == 'ascos' ):
                 u_apu, v_apu = wind_ascos( z[k] )
         elif ( windprofile == 'dycoms' ):
-                u_apu, v_apu = wind_dycoms( z[k] )                
+                u_apu, v_apu = wind_dycoms( z[k] )
+        elif ( windprofile == 'ideal' ):
+                u_apu, v_apu = wind_ideal( z[k] )                  
         u.append( u_apu )
         v.append( v_apu )
     if ( windprofile == 'zero' ):
@@ -339,6 +370,8 @@ def write_sound_in( input_vector ):
         u_apu, v_apu = wind_ascos(  0. )
     elif ( windprofile == 'dycoms' ):
         u_apu, v_apu = wind_dycoms(  0. )
+    elif ( windprofile == 'ideal' ):
+        u_apu, v_apu = wind_ideal(  0. )
     u[0] = u_apu
     v[0] = v_apu        
 #    for k in xrange(len(z)):
@@ -376,22 +409,22 @@ def write_sound_in( input_vector ):
         z[0] = 0.
         initializeColors(7)
         plot_alustus()
-        plottaa( potTemp, z, case+' liquid potential temperature, inv. thick.: ' +str( round(invThi,2) ) , 'liquid potential temperature K', 'height m', markers=markers )
-#        plt.axhline( y = pblh )
+        plottaa( potTemp, z, case+' liq. pot. temp., pblh: ' + str( round(pblh,2) ) + ' ilt.: ' +str( round(invThi,2) ), 'liquid potential temperature K', 'height m', markers=markers )
+        plt.axhline( y = pblh )
 #        plt.axhline( y = pblh + invThi )
 #        plt.plot([tpot_pbl,tpot_pbl+tpot_inv], [pblh,pblh+invThi], color='r', marker='o')
 #        plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
 #    #    ax.set_yticks(z)
 #    #    ax.set_yticks([pblh, pblh+invThi], minor=True)
-        plt.savefig( folder + case + '_'+ 'liquid_potential_temperature'  + '.png', bbox_inches='tight')    
+        plt.savefig( folder + case + '_0_'+ 'liquid_potential_temperature'  + '.png', bbox_inches='tight')    
         
         plot_alustus()
-        plottaa( wc, z, case+' water mixing ratio', 'water mixing ratio g/kg', 'height m', markers=markers )
-#        plt.axhline( y = pblh )
+        plottaa( wc, z, case+' water mix. rat., pblh: ' + str( round(pblh,2) ) + ' ilt.: ' +str( round(invThi,2) ), 'water mixing ratio g/kg', 'height m', markers=markers )
+        plt.axhline( y = pblh )
 #        plt.axhline( y = pblh + invThi )
 #        plt.plot([q_pbl,q_pbl-q_inv], [pblh,pblh+invThi], color='r', marker='o')
 #        plt.ylim( [pblh-1.*dz, pblh + invThi+1*dz])
-        plt.savefig( folder + case + '_'+ 'water_mixing_ratio'  + '.png', bbox_inches='tight')    
+        plt.savefig( folder + case + '_0_'+ 'water_mixing_ratio'  + '.png', bbox_inches='tight')    
     #
         plot_alustus()
         plottaa( rh, z, case+' relative humidity', 'relative humidity %', 'height m', markers=markers )
@@ -429,7 +462,6 @@ def write_namelist( input_vector ):
     pblh     = float( input_vector[7] )
     num_pbl  = float( input_vector[8] )    
     pres0    = float( input_vector[9] )
-    designV  =        input_vector[10]
 
 
 
@@ -439,7 +471,7 @@ def write_namelist( input_vector ):
     sst = absT( tpot_pbl, pres0 )
     nudge_zmax = pblh - 100.
     print 'generating NAMELIST ' + str(case)
-#    print 'design tag', designV, type(designV)
+#    print 'design tag', tag, type(tag)
 #    dth = dthcon( tpot_pbl, sst, pres0 )
 #    drt = drtcon( q_pbl, sst, pres0 )
     #filename = 'NAMELIST'
@@ -456,7 +488,7 @@ def write_namelist( input_vector ):
 #                  ' level=3'                 +\
 
     command = 'dir='       + folder                    +\
-              ' design='   + '"' + designV +'"'        +\
+              ' design='   + '"' + tag +'"'        +\
               ' case='     + case                      +\
               ' q_inv='    + '"' + str(round(q_inv,2))    + '    [g/kg]' + '"' +\
               ' tpot_inv=' + '"' + str(round(tpot_inv,2)) + '    [g/kg]' + '"' +\
@@ -486,7 +518,7 @@ def write_namelist( input_vector ):
     
     return True
     
-def main( nzp_orig=200, filu = designfilu, windprofile = 'dycoms', pres0 = 1017.8, runmode='parallel', runNroBegin = 1, runNroEnd = 90 ):
+def main( nzp_orig=200, filu = designfilu, windprofile = 'ideal', pres0 = 1017.8, runmode='parallel', runNroBegin = 1, runNroEnd = 90 ):
     nzp_orig = int(nzp_orig)
     pres0 = float(pres0)
     runNroBegin = int(runNroBegin)
@@ -500,7 +532,6 @@ def main( nzp_orig=200, filu = designfilu, windprofile = 'dycoms', pres0 = 1017.
     cwd = os.getcwd()
     designfolder = os.path.dirname( os.path.realpath( filu ) )
     os.chdir( designfolder )
-    designV = str( subprocess.check_output( 'git describe --tags', shell=True ) )
     os.chdir( cwd )
 
     case, q_inv, tpot_inv, clw_max, tpot_pbl, pblh, num_pbl = read_design( filu )
@@ -515,7 +546,7 @@ def main( nzp_orig=200, filu = designfilu, windprofile = 'dycoms', pres0 = 1017.
     nzp = np.zeros(len(case))
     q_pbl = np.zeros(len(case))    
     for k in xrange( A, B ):
-        dz[k], nzp[k] = deltaz2( pblh[k], nzp_orig )
+        dz[k], nzp[k] = deltaz( pblh[k], nzp_orig )
         q_pbl[k]      = solve_rw( pres0*100., tpot_pbl[k], clw_max[k]*0.001, pblh[k] )*1000.
         if (q_pbl[k] < 0. ):
             sys.exit('q_pbl NEGATIVE VALUE')
@@ -532,24 +563,22 @@ def main( nzp_orig=200, filu = designfilu, windprofile = 'dycoms', pres0 = 1017.
 #    pblh     = float( input_vector[7] )
 #    num_pbl  = float( input_vector[8] )    
 #    pres0    = float( input_vector[9] )
-#    designV  =        input_vector[10]    
     
     if ( runmode == 'serial' ) :
         print 'serial mode'
         for k in xrange( A, B ): 
             write_sound_in( [ case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], num_pbl[k], dz[k], nzp[k], windprofile, pres0 ] )
-            write_namelist( [ case[k], nzp[k], dz[k], q_inv[k], tpot_inv[k], clw_max[k], tpot_pbl[k], pblh[k], num_pbl[k], pres0, designV ] )
+            write_namelist( [ case[k], nzp[k], dz[k], q_inv[k], tpot_inv[k], clw_max[k], tpot_pbl[k], pblh[k], num_pbl[k], pres0] )
             
     elif ( runmode == 'parallel' ):
         print 'parallel mode'
         koko = len(case)
         windprofile = [windprofile]*koko
         pres0       = [pres0]*koko
-        designV     = [designV]*koko
         from multiprocessing import Pool
         pool = Pool(processes= 4)
         sound_in_iter = iter( np.column_stack( ( case[A:B], q_inv[A:B], tpot_inv[A:B], q_pbl[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], dz[A:B], nzp[A:B], windprofile[A:B], pres0[A:B] ) ) )
-        namelist_iter = iter( np.column_stack( ( case[A:B], nzp[A:B], dz[A:B], q_inv[A:B], tpot_inv[A:B], clw_max[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], pres0[A:B], designV[A:B] ) ) )
+        namelist_iter = iter( np.column_stack( ( case[A:B], nzp[A:B], dz[A:B], q_inv[A:B], tpot_inv[A:B], clw_max[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], pres0[A:B] ) ) )
         for i in pool.imap_unordered( write_sound_in, sound_in_iter ):
             print i
         for k in pool.imap_unordered( write_namelist, namelist_iter ):
@@ -571,6 +600,7 @@ def main( nzp_orig=200, filu = designfilu, windprofile = 'dycoms', pres0 = 1017.
 if __name__ == "__main__":
     
     if ( len(sys.argv) > 2):
+        print sys.argv[2]
         main( nzp_orig = sys.argv[2], filu =  sys.argv[3], windprofile = sys.argv[4], pres0 = sys.argv[5], runmode = sys.argv[6], runNroBegin = sys.argv[7], runNroEnd =  sys.argv[8] )
         print 'generated by using Command Line arguments'
     else:

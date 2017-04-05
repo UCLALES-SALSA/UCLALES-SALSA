@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Submit postprosessing to queue, Jaakko Ahola, FMI, 09/2016
-# Update 20.12.2016
+# Major update 31.3.2017
 #
 # input variables:
 # $1 = name of netcdf input file
@@ -10,61 +10,45 @@
 
 # Exit on error
 set -e
-echo ' '
-#################################
-###			                  ###
-### user spesific information ###
-###			                  ###
-#################################
 
-username=aholaj
-email=jaakko.ahola@fmi.fi
-subfolder=UCLALES-SALSA
-root=/home/users/${username}/${subfolder}
-scriptname=combine.py  # postp_uclales-salsa3.py
-
-scriptfolder=${scriptfolder:-}
-
-if [ -z $scriptfolder ]; then
-    scriptfolder=${root}/script
+# import subroutines & variables 
+if [ -d /home/users/aholaj/UCLALES-SALSA/script/ ]
+then
+    scripting=/home/users/aholaj/UCLALES-SALSA/script
+else
+    scripting=.
 fi    
+source ${scripting}/subroutines_variables.bash
+
+
+scriptfolder="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+echo "scriptfolder" $scriptfolder
 
 # supercomputer related variable settings
 WT=01:00:00 # walltime
-nodeNPU=20  # number of processing units in a node  
-JOBFLAG=PBS # job flag of the job scheduling system ( e.g. PBS or SBATCH )
-postpostfix=pros
+jobnamepostfix=pros
 
-if [ -z $2 ]; then
-  echo "You didn't give the optional name of the post processing script"
-  echo "Using assumption: " ${scriptname} 
-else
+echo "scriptname" ${scriptname}
+if [ -n $2 ]; then
   scriptname=$2
 fi
 
-if [ -z $3 ]; then
-  echo "You didn't give the optional JOB FLAG of the job scheduling system"
-  echo "Using assumption: " $JOBFLAG
-else
-  JOBFLAG=$3 # 
+echo "scriptname" ${scriptname}
+
+if [[ -n $3 ]]; then
+  jobflag=$3
 fi
+echo "job scheduling system" $jobflag
 
 if [ -z $4 ]; then
-  echo "You didn't give the optional and additional postfix"
-  echo "Using assumption: " $postpostfix
+  echo "jobname postfix: " $jobnamepostfix
 else
-  postpostfix=$4 # 
+  jobnamepostfix=$4
+  echo "jobname postfix: " $jobnamepostfix
 fi
 
-if [ $JOBFLAG == 'PBS' ]; then
-    echo 'using default values of Voima'
 
-elif [ $JOBFLAG == 'SBATCH' ]; then ## CSC's Sisu machine values
-    nodeNPU=24 # number of processing units in a node 
-    QUEUE=serial # name of the queue of Sisu machine
-    root=/homeappl/home/${username}/appl_sisu/${subfolder}
-    scriptfolder=${root}/script
-fi
 
 ################################
 ###			                 ###
@@ -100,14 +84,15 @@ echo 'postfix' $postfix
 ##########################
 echo " "
 ## modify the job name based on length: ###
-length=$(( ${#postpostfix} < 7 ? ${#postpostfix} : 7))
-jobname=${postfix:$((${#postfix}-2)):2}_${postpostfix:$((${#postpostfix}-${length})):${length}}
+length=$(( ${#jobnamepostfix} < 7 ? ${#jobnamepostfix} : 7))
+jobname=${postfix:$((${#postfix}-2)):2}_${jobnamepostfix:$((${#jobnamepostfix}-${length})):${length}}
 echo 'Queuing system jobname' $jobname
 
 rm -rf ${dir}/post_* ${dir}/*pros.sh ${dir}/${scriptname}
 
+echo kopioidaan skripti
 cp ${scriptfolder}/${scriptname} ${dir}/
-
+echo kopiointi suoritettu
 ### first script
 cat > ${dir}/postpros${postfix}.sh <<EOF
 #!/bin/bash
@@ -122,7 +107,7 @@ EOF
 
 ### second script
 
-if [ $JOBFLAG == 'PBS' ] ; then
+if [ $jobflag == 'PBS' ] ; then
 
 cat > ${dir}/runpostpros${postfix}.sh <<FINALPBS
 #!/bin/sh
@@ -151,7 +136,7 @@ chmod +x runpostpros${postfix}.sh ${scriptname} postpros${postfix}.sh
 echo 'Submit to job scheduler'
 qsub runpostpros${postfix}.sh
 
-elif [ $JOBFLAG == 'SBATCH' ] ; then
+elif [ $jobflag == 'SBATCH' ] ; then
 
 cat > ${dir}/runpostpros${postfix}.sh <<FINALSBATCH
 #!/bin/sh
