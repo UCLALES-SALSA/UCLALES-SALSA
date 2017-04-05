@@ -96,7 +96,7 @@ done
 
 echo -n "Valmis threadNro" $threadNro ' '; date '+%T %d-%m-%Y'
 
-echo "Valmis threadNro" $threadNro >> ${emulatoroutputroot}/log
-date '+%T %d-%m-%Y'   >> ${emulatoroutputroot}/log
+echo "LOG Valmis threadNro" $threadNro >> ${emulatoroutputroot}/log
+echo -n "LOG " >> ${emulatoroutputroot}/log; date '+%T %d-%m-%Y'   >> ${emulatoroutputroot}/log
 date '+%s'            >> ${emulatoroutputroot}/log
 echo ' '              >> ${emulatoroutputroot}/log

@@ -101,8 +101,8 @@ echo "job scheduling system" $jobflag
 
 
 mkdir -p ${emulatoroutputroot}
-echo 'emulator begin' >> ${emulatoroutputroot}/log
-date '+%T %d-%m-%Y'   >> ${emulatoroutputroot}/log
+echo 'LOG emulator begin' >> ${emulatoroutputroot}/log
+echo -n "LOG " >> ${emulatoroutputroot}/log; date '+%T %d-%m-%Y'   >> ${emulatoroutputroot}/log
 date '+%s'            >> ${emulatoroutputroot}/log
 echo ' '              >> ${emulatoroutputroot}/log
 ##########################################
@@ -187,7 +187,6 @@ nroJobs=0
 for n in $( seq 0 $((ThreadNro-1)) )
 do
 nroJobs=$(python -c "from math import ceil; print int( ceil( ( ${#array[@]}-$aloitusindeksi  )/float( $ThreadNro-$n ) ) )")
-# echo apu $apu bang $bang
 echo "submit->parallel" ${array[@]:$aloitusindeksi:$nroJobs}
 echo "emulatorname=${emulatorname} list='"${array[@]:$aloitusindeksi:$nroJobs}"' threadNro=$n nproc=${nproc} jobflag=$jobflag mode=${mode} restart=${restart} scriptname=$scriptname ${emulatoroutputroot}/emulator_runs_parallel.bash | tee ${emulatoroutputroot}/emulatoroutput$(printf %02d $n) &" >> ${emulatoroutputroot}/control_multiple_emulator_run.sh
 aloitusindeksi=$((aloitusindeksi+nroJobs))
