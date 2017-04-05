@@ -43,7 +43,7 @@ k=0
 
 mode=${mode:-mpi}
 # supercomputer related variable settings
-WT=336:00:00 # walltime
+WT=${WTMAX} # walltime
 nproc=${nproc:-100}
 
 

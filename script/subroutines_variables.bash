@@ -9,7 +9,6 @@ model=UCLALES-SALSA
 
 email='jaakko.ahola@fmi.fi'
 
-jobflag=PBS
 scriptname=combine.py
 
 ibrixrootfolder=/ibrix/arch/ClimRes/${USER}/
