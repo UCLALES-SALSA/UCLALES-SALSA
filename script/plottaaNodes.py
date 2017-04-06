@@ -88,8 +88,9 @@ mdp.plottaa( time, postp_q_nodes, ' ' , xl = 'time '+ suoritusaika, yl = '# node
 
 mdp.plot_alustus()
 mdp.plot_setYlim( 0.,  max(np.max(RUN), np.max(QU) )+1. )
-mdp.plottaa( time, RUN, 'nodes ' + suoritusaika, xl = 'time '+ suoritusaika, yl = '# nodes', label='run',   changeColor = True, markers=True, tightXAxis = True )
-mdp.plottaa( time, QU, 'nodes ' + suoritusaika, xl = 'time '+ suoritusaika, yl = '# nodes', label='queue', changeColor = True, markers=True, tightXAxis = True )
+mdp.plottaa( time, RUN, ' ', xl = 'time '+ suoritusaika, yl = '# nodes', label='run',   changeColor = True, markers=True, tightXAxis = True )
+mdp.plottaa( time, QU,  ' ', xl = 'time '+ suoritusaika, yl = '# nodes', label='queue', changeColor = True, markers=True, tightXAxis = True )
+mdp.plottaa( time, nooditvapaat, ' ', xl = 'time '+ suoritusaika, yl = '# nodes', label='free', changeColor = True, markers=True, tightXAxis = True )
 
 #############
 ### nro   ###
@@ -123,8 +124,8 @@ TH = np.asarray(threads_active) + np.asarray(threads_passive)
 
 mdp.plot_alustus()
 mdp.plot_setYlim ( 0., np.max(TH)+1. )
-mdp.plottaa( time, threads_active,   ' ', xl = 'time '+ suoritusaika, yl = '# jobs', label='threads_active',   changeColor = True, markers=True,     tightXAxis = True, tightYAxis = False   )
-mdp.plottaa( time, threads_passive,  ' ', xl = 'time '+ suoritusaika, yl = '# jobs', label='threads_passive', changeColor = True, markers=True,     tightXAxis = True , tightYAxis = False  )
+mdp.plottaa( time, threads_active,   ' ', xl = 'time '+ suoritusaika, yl = '# jobs', label='threads_active',   changeColor = True, markers=True,     tightXAxis = True   )
+mdp.plottaa( time, threads_passive,  ' ', xl = 'time '+ suoritusaika, yl = '# jobs', label='threads_passive', changeColor = True, markers=True,     tightXAxis = True  )
 
 
 
