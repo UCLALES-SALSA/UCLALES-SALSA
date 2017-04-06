@@ -28,7 +28,7 @@ else
     u=0
     for kk in ${list[@]}
     do
-        array[u]=$(printf %02d $kk)
+        array[u]=$(printf %02d ${kk#0})
         u=$((u+1))
     done
 fi  

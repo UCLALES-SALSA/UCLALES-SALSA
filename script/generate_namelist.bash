@@ -39,7 +39,7 @@ cat > ${dir}/NAMELIST <<EOF
   dtlong = ${dtlong:-2.}
   distim = ${distim:-100.}
   timmax = ${timmax:-12600.}
-  Tspinup = ${Tspinup:-0.}
+  Tspinup = ${Tspinup:-5400.}
   
 !  nudge_time  = ${nudge_time:-5400.}
 !  nudge_zmax  = ${nudge_zmax:-80.}

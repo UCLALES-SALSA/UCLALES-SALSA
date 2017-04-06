@@ -34,7 +34,7 @@ else
     u=0
     for kk in ${list[@]}
     do
-        array[u]=$(printf %02d $kk)
+        array[u]=$(printf %02d ${kk#0})
         u=$((u+1))
     done
 fi
@@ -122,11 +122,11 @@ for i in ${array[@]}
 do
     if [ $restart == 'false' ] ||  ([ $restart == 'true' ] && ([ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.nc ] || [ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.ts.nc ] || [ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.ps.nc ] || [ ! -f ${emulatoroutputroot}/emul${i}/valmis${i} ]));
     then
-        echo emul${i} "ei ole valmis"
+        if [ $restart == 'true' ]; then  echo emul${i} "ei ole valmis"; fi
         mkdir -p ${emulatoroutputroot}/emul${i}/
         if [[ -z $(ls -A ${emulatoroutputroot}/emul${i}/) ]]
         then
-            echo 'folder is empty'
+            if [ $restart == 'true' ]; then  echo 'folder is empty'; fi
             
             cp ${inputrootfolder}/emul${i}/* ${emulatoroutputroot}/emul${i}/
             cp ${bin}/les.${mode} ${emulatoroutputroot}/emul${i}/
@@ -188,7 +188,7 @@ for n in $( seq 0 $((ThreadNro-1)) )
 do
 nroJobs=$(python -c "from math import ceil; print int( ceil( ( ${#array[@]}-$aloitusindeksi  )/float( $ThreadNro-$n ) ) )")
 echo "submit->parallel" ${array[@]:$aloitusindeksi:$nroJobs}
-echo "emulatorname=${emulatorname} list='"${array[@]:$aloitusindeksi:$nroJobs}"' threadNro=$n nproc=${nproc} jobflag=$jobflag mode=${mode} restart=${restart} scriptname=$scriptname ${emulatoroutputroot}/emulator_runs_parallel.bash | tee ${emulatoroutputroot}/emulatoroutput$(printf %02d $n) &" >> ${emulatoroutputroot}/control_multiple_emulator_run.sh
+echo "emulatorname=${emulatorname} list='"${array[@]:$aloitusindeksi:$nroJobs}"' threadNro=$n nproc=${nproc} jobflag=$jobflag mode=${mode} restart=${restart} scriptname=$scriptname ${emulatoroutputroot}/emulator_runs_parallel.bash | tee ${emulatoroutputroot}/emulatoroutput$(printf %02d ${n#0}) &" >> ${emulatoroutputroot}/control_multiple_emulator_run.sh
 aloitusindeksi=$((aloitusindeksi+nroJobs))
 done
 
