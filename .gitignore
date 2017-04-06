@@ -65,4 +65,5 @@ script/sys
 case_emulator_week7/
 src/ice_immers_nucl_Jaakko.f90
 script/cloud_thickness_test.py
-
+script/nodelog
+script/qstatlogi

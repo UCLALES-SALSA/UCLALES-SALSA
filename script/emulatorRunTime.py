@@ -36,7 +36,7 @@ else:
     filu = '/home/aholaj/koodit_IL/bash/emulatortime/log'
 
 folder = os.path.dirname(os.path.realpath( filu ))
-f = open('/home/aholaj/koodit_IL/bash/emulatortime/log', 'r+')
+f = open(filu, 'r+')
 
 unixtimes=[]
 for line in f:

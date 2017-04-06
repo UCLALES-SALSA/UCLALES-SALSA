@@ -641,7 +641,7 @@ def plottaa( x, y, tit, xl, yl, label=0, log=False, changeColor=True, tightXAxis
   
   #plt.xticks( xtikut )
   plt.grid( True )
-  #plt.autoscale(enable=True, axis='y', tight=True)
+  #plt.autoscale( enable=True, axis='y', tight=tightYAxis )
   plt.autoscale( enable=True, axis='x', tight=tightXAxis )
   #patch = mpatches.Patch(color=c, label=legend)
   #plt.legend(handles=[patch])
