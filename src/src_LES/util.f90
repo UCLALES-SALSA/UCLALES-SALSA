@@ -116,26 +116,6 @@ contains
   end subroutine velset
   !
   !---------------------------------------------------------------------
-  ! GET_AVG: gets average field value from k'th level
-  !
-  real function get_avg(n1,n2,n3,k,a)
-
-    integer, intent (in):: n1, n2, n3, k
-    real, intent (in)   :: a(n1,n2,n3)
-
-    integer :: i,j
-
-    get_avg=0.
-    do j=3,n3-2
-       do i=3,n2-2
-          get_avg = get_avg + a(k,i,j)
-       enddo
-    enddo
-    get_avg = get_avg/real((n3-4)*(n2-4))
-
-  end function get_avg
-  !
-  !---------------------------------------------------------------------
   ! GET_AVG2dh: Get the average of a 2 dimensional (horizontal) input field
   !
   REAL FUNCTION get_avg2dh(n2,n3,a)

@@ -390,7 +390,15 @@ contains
        iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'zc'))
        iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'zc'))
 
-       ! Can add: max(w), max(l), VTKE, height of the maximum theta gradient& variance,
+       iret=nf90_def_var(ncID,'zi1',NF90_FLOAT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'zi1_bar'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'zi1_bar'))
+
+       iret=nf90_def_var(ncID,'lmax',NF90_FLOAT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'lmax'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'lmax'))
+
+       ! Can add: maximum/minimum vertical velocities and their variances,
        ! surface heat and humidity fluxes, buoyancy statistics,...
 
        IF (rad_level==3) THEN

@@ -22,7 +22,7 @@ module stat
 
   use ncio, only : open_nc, define_nc, define_nc_cs
   use grid, only : level
-  use util, only : get_avg, get_avg3, get_cor3, get_var3, get_avg_ts, &
+  use util, only : get_avg3, get_cor3, get_var3, get_avg_ts, &
                    get_avg2dh, get_3rd3
 
   implicit none
@@ -604,7 +604,7 @@ contains
             xrpp = a_srp
             xnpp = a_snrp
         ENDIF
-        CALL set_cs_warm(nzp,nxp,nyp,rxt,rnt,xrpp,xnpp,dn0,zm,zt,xt,yt,time)
+        CALL set_cs_warm(nzp,nxp,nyp,rxt,rnt,xrpp,xnpp,a_theta,dn0,zm,zt,dzm,xt,yt,time)
     ENDIF
 
   end subroutine statistics
@@ -734,18 +734,19 @@ contains
   END SUBROUTINE cs_rem_save
   !
   ! Calculate warm cloud statistics
-  subroutine set_cs_warm(n1,n2,n3,rc,nc,rp,np,dn0,zm,zt,xt,yt,time)
+  subroutine set_cs_warm(n1,n2,n3,rc,nc,rp,np,th,dn0,zm,zt,dzm,xt,yt,time)
 
     use netcdf
     integer :: iret, n, VarID
 
     integer, intent(in) :: n1,n2,n3
-    real, intent(in)    :: rc(n1,n2,n3),nc(n1,n2,n3),rp(n1,n2,n3),np(n1,n2,n3)
-    real, intent(in)    :: dn0(n1),zm(n1),zt(n1),xt(n2),yt(n3),time
-    REAL :: lwp(n2,n3), ncld(n2,n3), rwp(n2,n3), nrain(n2,n3), zb(n2,n3), zc(n2,n3)
+    real, intent(in)    :: rc(n1,n2,n3),nc(n1,n2,n3),rp(n1,n2,n3),np(n1,n2,n3),th(n1,n2,n3)
+    real, intent(in)    :: dn0(n1),zm(n1),zt(n1),dzm(n1),xt(n2),yt(n3),time
+    REAL :: lwp(n2,n3), ncld(n2,n3), rwp(n2,n3), nrain(n2,n3), zb(n2,n3), zc(n2,n3), &
+                th1(n2,n3), lmax(n2,n3)
     INTEGER :: ncloudy(n2,n3), nrainy(n2,n3)
     integer :: i, j, k
-    real    :: bf(n1), cld, rn
+    real    :: bf(n1), cld, rn, sval, dmy
 
     ! No outputs for level 1
     IF (level<2) RETURN
@@ -759,10 +760,13 @@ contains
     nrainy=0    ! Number of cloudy grid cells
     zb=zm(n1)+100.  ! Cloud base (m)
     zc=0.           ! Cloud top (m)
+    lmax=0.     ! Liquid water mixing ratio (kg/kg)
+    th1=0.      ! Height of the maximum theta gradient
     do j=3,n3-2
        do i=3,n2-2
           cld=0.
           rn=0.
+          sval = 0.
           do k=2,n1
              IF (rc(k,i,j)>0.01e-3) THEN
                 ! Cloudy grid
@@ -785,6 +789,16 @@ contains
                 ! Number of rainy pixels
                 nrainy(i,j)=nrainy(i,j)+1
              end if
+             ! Maximum liquid water mixing ratio
+             lmax(i,j) = max(lmax(i,j),rc(k,i,j))
+             ! Height of the maximum theta gradient
+             if (k<=n1-5) then
+                dmy = (th(k+1,i,j)-th(k,i,j))*dzm(k)
+                if (dmy > sval ) then
+                   sval = dmy
+                   th1(i,j) = zt(k)
+                end if
+            ENDIF
           enddo
           IF (cld>0.) THEN
             ncld(i,j)=ncld(i,j)/cld
@@ -833,6 +847,11 @@ contains
     iret = nf90_inq_varid(ncid3,'zc',VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, zc(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
+    iret = nf90_inq_varid(ncid3,'zi1',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, th1(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+
+    iret = nf90_inq_varid(ncid3,'lmax',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, lmax(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_sync(ncid3)
     nrec3 = nrec3 + 1
@@ -1045,7 +1064,7 @@ contains
           svctr(k,57)=svctr(k,57) + a1(k)
           svctr(k,58)=svctr(k,58) + a2(k)
        end do
-       ssclr(21) = get_avg(1,n2,n3,1,alb)
+       ssclr(21) = get_avg2dh(n2,n3,alb)
     end if
 
   end subroutine accum_rad
@@ -1186,9 +1205,9 @@ contains
           enddo
        end do
     end do
-    ssclr(15) = get_avg(1,n2,n3,1,scr(1,:,:))
+    ssclr(15) = get_avg2dh(n2,n3,scr(1,:,:))
     scr(1,:,:)=(scr(1,:,:)-ssclr(15))**2 ! For LWP variance
-    ssclr(16) = get_avg(1,n2,n3,1,scr(1,:,:))
+    ssclr(16) = get_avg2dh(n2,n3,scr(1,:,:))
   end subroutine accum_lvl2
   !
   !---------------------------------------------------------------------
@@ -1292,9 +1311,9 @@ contains
        end do
        if (k == 2 ) ssclr(24) = rrcnt/REAL( (n3-4)*(n2-4) )
     end do
-    ssclr(22) = get_avg(1,n2,n3,1,scr2)
+    ssclr(22) = get_avg2dh(n2,n3,scr2)
     scr2(:,:) = rrate(2,:,:)
-    ssclr(23) = get_avg(1,n2,n3,1,scr2)
+    ssclr(23) = get_avg2dh(n2,n3,scr2)
     ssclr(25) = CCN
     IF (nrcnt>0.) ssclr(26) = nrsum/nrcnt
     ssclr(27) = nrcnt
@@ -1803,10 +1822,10 @@ contains
     real, intent(in)    :: sst
 
     ssclr(10) = sst
-    ssclr(11) = get_avg(1,n2,n3,1,ustar)
+    ssclr(11) = get_avg2dh(n2,n3,ustar)
 
-    ssclr(12) = get_avg(1,n2,n3,1,tflx)
-    if (level >= 1) ssclr(13) = get_avg(1,n2,n3,1,qflx)
+    ssclr(12) = get_avg2dh(n2,n3,tflx)
+    if (level >= 1) ssclr(13) = get_avg2dh(n2,n3,qflx)
 
   end subroutine sfc_stat
   !
@@ -2367,7 +2386,7 @@ contains
              end do
           end do
        end do
-       get_zi = get_avg(1,n2,n3,1,scr)
+       get_zi = get_avg2dh(n2,n3,scr)
 
     case(3)
        !
