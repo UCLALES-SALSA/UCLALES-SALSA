@@ -226,26 +226,40 @@ contains
 
     fk1 = 4.7320545
     fk2 = 1.2679491
-    y = exp ( - ( t1 - t0 ) / u0 )
-    fw = 0.5 * f0
-    do i = 1, 4
-       if ( solar ) then
-          z1(i) = 0.0
-          zz(i,1) = 0.0
-          zz(i,2) = 0.0
-       else
+    IF (solar) THEN
+       z1(:) = 0.0
+       zz(:,:) = 0.0
+    ELSE
+        y = exp ( - ( t1 - t0 ) / u0 )
+        fw = 0.5 * f0
+        do i = 1, 4
           jj = 5 - i
           z1(i) = fw / ( 1.0 + u(jj) / u0 )
           zz(i,1) = z1(i) 
           zz(i,2) = z1(i) * y
-       endif
-       do j = 1, 4
-          a1(i,j) = 0.0
-          do k = 1, 2
-             aa(i,j,k) = 0.0
-          end do
-       end do
-    end do
+        end do
+    ENDIF
+    a1(:,:) = 0.0
+    aa(:,:,:) = 0.0
+    
+    !do i = 1, 4
+    !   if ( solar ) then
+    !      z1(i) = 0.0
+    !      zz(i,1) = 0.0
+    !      zz(i,2) = 0.0
+    !   else
+    !      jj = 5 - i
+    !      z1(i) = fw / ( 1.0 + u(jj) / u0 )
+    !      zz(i,1) = z1(i) 
+    !      zz(i,2) = z1(i) * y
+    !   endif
+    !   do j = 1, 4
+    !      a1(i,j) = 0.0
+    !      do k = 1, 2
+    !         aa(i,j,k) = 0.0
+    !      end do
+    !   end do
+    !end do
     do  i = 1, 4
        j = 5 - i
        a1(i,j) = 1.0

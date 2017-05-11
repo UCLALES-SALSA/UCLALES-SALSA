@@ -2591,14 +2591,15 @@ CONTAINS
          mfp,    &   ! mean free path of air molecules [m]
          mdiam,  &   ! mean diameter of colliding particles [m]
          fmdist, &   ! distance of flux matching [m]
+         eddy_dis,&  ! Eddy dissipation time
          zecoll, &   ! Collition efficiency for graviational collection
          zev,    &   !
          zea,    &
          zbrown, &   ! Components for coagulation kernel; Brownian
          zbrconv,&   !                                    Convective diffusion enhancement
-         zgrav       !                                    Gravitational collection
-
-
+         zgrav  ,&   !                                    Gravitational collection
+         ztshear, &     ! turbulent shear
+         zturbinert  ! turbulent inertia
     REAL, DIMENSION (2) :: &
          diam,   &   ! diameters of particles [m]
          mpart,  &   ! masses of particles [kg]
@@ -2617,16 +2618,13 @@ CONTAINS
          schm(2), &   ! Schmidt nubmer
          reyn(2), &    ! Reynolds number
          stok             ! Stokes number
-    REAL :: rhoref               ! Reference air density in STP conditions
-    INTEGER :: lrg,sml,i
+    INTEGER :: lrg,sml
 
     zbrown = 0.
     zbrconv = 0.
     zgrav = 0.
     zev = 0.
     coagc = 0.
-
-    rhoref = 1.01325e5/(287.*273.15)
 
     !-------------------------------------------------------------------------------
 
@@ -2688,13 +2686,15 @@ CONTAINS
           zrhoa = pres/(rd*temp)   ! Density of air
           zrhop = mpart/(pi6*diam**3)             ! Density of particles
           vkin = visc/zrhoa   ! Kinematic viscosity of air [m2 s-1]
-          DO i = 1,2
-             IF (diam(i) < 40.e-6) THEN
-                termv(i) = ( (diam(i)**2) * (zrhop(i) - zrhoa) * grav * beta(i) )/( 18.*visc  ) ![m s-1]
-             ELSE IF (diam(i) >= 40.e-6) THEN
-                termv(i) = 2.e3*diam(i)*(rhoref/zrhoa)**2
-             END IF
-          END DO
+          !IK
+          !termv = ( (diam**2) * (zrhop - zrhoa) * grav * beta )/( 18.*visc  ) ![m s-1]  
+          termv(1) = terminal_vel(diam(1)/2.,  zrhoa,Temp,pres)
+          termv(2) = terminal_vel(diam(2)/2.,  zrhoa,Temp,pres)
+          !IK
+
+          termv(1) = terminal_vel_tr(diam(1)/2.,zrhop(1),temp,pres)
+          termv(2) = terminal_vel_tr(diam(2)/2.,zrhop(2),temp,pres)
+
           ! Reynolds number
           reyn = diam*termv/vkin
           ! Schmidt number for the smaller particle
@@ -2712,6 +2712,12 @@ CONTAINS
              zbrconv = 0.45*zbrown*SQRT(reyn(lrg))*( schm(sml)**(1./3.) )
           END IF
 
+          ! Turbulent Shear
+          eddy_dis=10.e-4
+          ztshear=(8.*pi*eddy_dis/(15.*vkin))**(1./2.)*(0.5*(diam(1)+diam(2)))**3.
+          zturbinert = pi*eddy_dis**(3./4.)/(grav*vkin**(1./4.)) &
+               *(0.5*(diam(1)+diam(2)))**2.* ABS(termv(1)-termv(2))
+
           ! gravitational collection
           zea = stok**2/( stok + 0.5 )**2
           IF (stok > 1.214) THEN
@@ -2726,12 +2732,98 @@ CONTAINS
           zgrav = zgrav * ABS(termv(1)-termv(2))
 
           ! Total coagulation kernel
-          coagc = zbrown  + zbrconv + zgrav
+          coagc = zbrown  + zbrconv + (zgrav**2+ ztshear**2+ zturbinert**2)**(1./2.)
 
     END SELECT
 
   END FUNCTION coagc
 
 
+
+  !********************************************************************
+  ! Function for calculating terminal velocities for different particles size ranges.
+  ! Tomi Raatikainen (2.5.2017)
+  REAL FUNCTION terminal_vel_tr(radius,rhop,temp,pres)
+    implicit none
+    REAL, intent(in) :: radius, rhop ! Particle radius and density
+    REAL, intent(in) :: temp, pres ! Air temperature and pressure
+    ! Local variables
+    REAL :: rhoa, visc, mfp, beta
+    ! Constants
+    real, parameter :: rhoa_ref = 1.225, & ! reference air density (kg/m^3)
+        grav   = 9.81,         & ! gravitational acceleration (m/s^2)
+        pstand = 1.01325e+5 ! standard pressure (Pa)
+
+    ! Air density
+    rhoa = pres/(287.058*temp)
+
+    IF (radius<40.0e-6) THEN
+        ! Stokes law with Cunningham slip correction factor
+        visc = (7.44523e-3*temp**1.5)/(5093.*(temp+110.4)) ! viscosity of air [kg/(m s)]
+        mfp = (1.656e-10*temp+1.828e-8)*pstand/pres ! mean free path of air [m]
+        beta = 1.+mfp/radius*(1.142+0.558*exp(-0.999*radius/mfp)) ! Cunningham correction factor
+        terminal_vel_tr = (4.*radius**2)*(rhop-rhoa)*grav*beta/(18.*visc) ![m s-1]
+    ELSEIF (radius<0.6e-3) THEN
+        ! Droplets from 40 um to 0.6 mm: linear dependence on particle radius and a correction for reduced pressure
+        !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
+        terminal_vel_tr = 8.e3*radius*sqrt(rhoa_ref/rhoa)
+    ELSE
+        ! Droplets larger than 0.6 mm: square root dependence on particle radius and a correction for reduced pressure
+        !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
+        ! Note: this is valid up to 2 mm or 9 m/s (at 1000 mbar), where droplets start to break
+        terminal_vel_tr = 2.01e2*sqrt( min(radius,2.0e-3)*rhoa_ref/rhoa)
+    ENDIF
+  END FUNCTION terminal_vel_tr
+  !********************************************************************
+  !
+  !This function is a hybrid parameterisation for the the terminal fall
+  !velocities of particles. It uses the existing iterative scheme 
+  !in the box model for particles smaller than 40 microns and a 
+  !corrected version of rogers and yau for larger sizes
+  !
+  
+  FUNCTION terminal_vel(part_radius, air_den,Temp,pres ) 
+    implicit none
+    REAL, intent(in) :: part_radius, air_den,Temp,pres
+    REAL :: air_den_ref = 1.225	!reference air density
+    REAL :: terminal_vel	
+    
+    
+    IF (part_radius <= 8.e-5) then
+       terminal_vel = term_v_stock(part_radius,Temp,pres)
+    ELSE
+       terminal_vel  = 2.*4.e3*part_radius*(air_den_ref/air_den)**(1./2.)
+    ENDIF
+    !terminal_vel = min(15.,terminal_vel)
+    
+  END FUNCTION terminal_vel
+
+  Function term_v_stock(r_1,Temp,pres)
+    !C ********************************************************************
+    !C          Function CALCULATES GRAVITATIONAL SETTLING VELOCITY       *
+    !C                                                                    *
+    !C ********************************************************************
+    USE mo_submctl,    ONLY : PI, pstand, grav,pi6
+    USE mo_constants, ONLY : rd
+    implicit none
+    REAL, intent(in) :: r_1,Temp,pres
+    REAL :: mpart, zrhoa, zrhop, visc, mfp, knud, beta
+    REAL :: term_v_stock
+    
+    mpart = (4.0/3.0)*Pi*r_1**3*1000.
+    zrhoa = pres/(rd*temp)   ! Density of air
+    zrhop = mpart/(pi6*(2.*r_1)**3)             ! Density of particles
+    
+    visc = (7.44523e-3*temp**1.5)/ &
+         (5093.*(temp+110.4))                   ! viscosity of air [kg/(m s)]
+    
+    mfp = (1.656e-10*temp+1.828e-8)*pstand/pres ! mean free path of air [m]
+    
+    knud = 2.*mfp/(2.*r_1)                                   ! Knudsen number
+    beta = 1.+knud*(1.142+0.558*exp(-0.999/knud))! Cunningham correction factor
+        
+    term_v_stock = ( ((2.*r_1)**2) * (zrhop - zrhoa) * grav * beta )/( 18.*visc  ) ![m s-1] 
+         
+  END Function term_v_stock
 
 END MODULE mo_salsa_dynamics

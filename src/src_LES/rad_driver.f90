@@ -346,7 +346,7 @@ module radiation
     real, allocatable  :: sp(:), st(:), sh(:), so(:), sl(:)
 
     integer :: k, ind, ns, nb, nt
-    real    :: ptop, dp, ptmp, Tsurf
+    real    :: ptop, dp, Tsurf
 
     ! Read backgroud profiles (p [hPa], T [K], q [kg/kg], O3 [-] and an unused concentration)
     open ( unit = 08, file = background, status = 'old' )

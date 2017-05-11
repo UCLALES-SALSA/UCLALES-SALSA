@@ -337,7 +337,7 @@ contains
     integer, save :: timeID=0, xtID=0, ytID=0
     integer, save :: dim_ttt(3)
     CHARACTER(LEN=7) nam
-    integer :: iret, n, VarID, ss, si
+    integer :: iret, VarID, ss
 
     if (nRec == 0) then
        iret = nf90_def_dim(ncID, 'time', NF90_UNLIMITED, timeID)
@@ -1249,8 +1249,8 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('precip')
-       if (itype==0) ncinfo = 'Precipitation Flux (positive downward'
-       if (itype==1) ncinfo = 'm/s'
+       if (itype==0) ncinfo = 'Precipitation Flux (positive downward)'
+       if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('evap')
        if (itype==0) ncinfo = 'Net evap  of rain-water'
@@ -1261,8 +1261,8 @@ contains
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'ttmt'
     case('prc_prc')
-       if (itype==0) ncinfo = 'Conditionally sampled rain rate'
-       if (itype==1) ncinfo = 'm/s'
+       if (itype==0) ncinfo = 'Conditionally sampled precipitation flux'
+       if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('frc_ran')
        if (itype==0) ncinfo = 'Rain water fraction'

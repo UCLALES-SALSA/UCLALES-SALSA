@@ -693,7 +693,7 @@ contains
 
     INTEGER, INTENT(in) :: n2,n3
 
-    INTEGER :: si, i, end,str
+    INTEGER :: si, i
     CHARACTER(LEN=3) :: nam
 
     IF (.NOT.csflg) RETURN
@@ -737,7 +737,7 @@ contains
   subroutine set_cs_warm(n1,n2,n3,rc,nc,rp,np,th,dn0,zm,zt,dzm,xt,yt,time)
 
     use netcdf
-    integer :: iret, n, VarID
+    integer :: iret, VarID
 
     integer, intent(in) :: n1,n2,n3
     real, intent(in)    :: rc(n1,n2,n3),nc(n1,n2,n3),rp(n1,n2,n3),np(n1,n2,n3),th(n1,n2,n3)
@@ -746,7 +746,7 @@ contains
                 th1(n2,n3), lmax(n2,n3)
     INTEGER :: ncloudy(n2,n3), nrainy(n2,n3)
     integer :: i, j, k
-    real    :: bf(n1), cld, rn, sval, dmy
+    real    :: cld, rn, sval, dmy
 
     ! No outputs for level 1
     IF (level<2) RETURN
@@ -784,7 +784,7 @@ contains
                 ! Rainy grid cell
                 rwp(i,j)=rwp(i,j)+rp(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
                 ! Volume weighted average of the RDNC
-                nrain(i,j)=ncld(i,j)+nc(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+                nrain(i,j)=ncld(i,j)+np(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
                 rn=rn+dn0(k)*(zm(k)-zm(k-1))
                 ! Number of rainy pixels
                 nrainy(i,j)=nrainy(i,j)+1
@@ -1336,12 +1336,11 @@ contains
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3
-    INTEGER :: ii,ss,k,bb
+    INTEGER :: ii,ss,bb
 
     LOGICAL :: cloudmask(n1,n2,n3)
     LOGICAL :: drizzmask(n1,n2,n3)
 
-    REAL :: a0
     REAL, DIMENSION(n1,n2,n3)           :: a1,a12
     REAL, DIMENSION(n1,5)               :: a2
     REAL, DIMENSION(n1,fn2a)            :: a3_a
@@ -1505,6 +1504,7 @@ contains
 
     ! Relative humidity
     CALL get_avg3(n1,n2,n3,a_rh,a2(:,4))
+    a2(:,4)=a2(:,4)*100.0 ! RH in %
 
     svctr_b(:,37:40) = svctr_b(:,37:40) + a2(:,1:4)
 
@@ -1519,7 +1519,7 @@ contains
     real, intent (in)    :: dzm(n1),th00,u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
     real, intent (inout) :: s(n1,n2,n3)
 
-    integer :: k,kp1,i,j
+    integer :: k,kp1
     real    :: x1(n1), x2(n1)
 
     !

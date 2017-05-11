@@ -69,10 +69,6 @@ IMPLICIT NONE
                        pa_nicep,   pa_nicet,   pa_micep,   pa_micet,    &
                        pa_nsnowp,  pa_nsnowt,  pa_msnowp,  pa_msnowt,   &
                        pa_nactd,   pa_vactd,   pa_gaerop,  pa_gaerot,   &
-                       pa_Radry,   pa_Rcdry,   pa_Rpdry,                &
-                       pa_Ridry,   pa_Rsdry,                            &
-                       pa_Rawet,   pa_Rcwet,   pa_Rpwet,                &
-                       pa_Riwet,   pa_Rswet,                            &
                        prunmode, prtcl, tstep, dbg2, time, level)
 
     USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
@@ -80,7 +76,7 @@ IMPLICIT NONE
                                rhoic,rhosn,                  &
                                rhowa, rhosu, rhobc, rhooc,   &
                                rhono, rhonh, rhoss, rhodu,   &
-                               rhlim, lscndgas
+                               rhlim, lscndgas, nlim, prlim
     USE mo_salsa, ONLY : salsa
     USE mo_salsa_properties, ONLY : equilibration, equilibration_cloud
     USE class_componentIndex, ONLY : ComponentIndex, GetIndex, GetNcomp, IsUsed
@@ -135,17 +131,6 @@ IMPLICIT NONE
     REAL, INTENT(inout)   :: pa_gaerot(pnz,pnx,pny,5)         ! Gaseous tracer tendency
     REAL, INTENT(inout)   :: rt(pnz,pnx,pny)                  ! Water vapour tendency
 
-    REAL, INTENT(in)   :: pa_Radry(pnz,pnx,pny,nbins),   & ! Aerosol dry particle radius
-                              pa_Rcdry(pnz,pnx,pny,ncld),    & ! Cloud dry radius
-                              pa_Rpdry(pnz,pnx,pny,nprc),    & ! Rain dry radius
-                              pa_Rawet(pnz,pnx,pny,nbins),   & ! Aerosol wet radius
-                              pa_Rcwet(pnz,pnx,pny,ncld),    & ! Cloud wet radius
-                              pa_Rpwet(pnz,pnx,pny,nprc),    & ! Rain drop wet radius
-                              pa_Ridry(pnz,pnx,pny,nice),    & ! Ice dry radius
-                              pa_Riwet(pnz,pnx,pny,nice),    & ! ice wet radius !!huomhuom
-                              pa_Rsdry(pnz,pnx,pny,nsnw),    & ! snow dry radius !!huomhuom
-                              pa_Rswet(pnz,pnx,pny,nsnw)      ! snow wet radius !!huomhuom
-
     REAL, INTENT(out)   :: pa_vactd(pnz,pnx,pny,n4*ncld) ! Volume concentrations of newly activated droplets for calculating the
                                                          ! actual tendency due to new droplet formation.
     REAL, INTENT(out)   :: pa_nactd(pnz,pnx,pny,ncld)   ! Same for number concentration
@@ -159,7 +144,7 @@ IMPLICIT NONE
     INTEGER :: jj,ii,kk,ss,str,end, nc,vc
     REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
                 in_w(kbdim,klev), in_rsi(kbdim,klev), in_tt(kbdim,klev)
-    
+    REAL :: vdry
     REAL :: rv_old(kbdim,klev)
 
     ! Number is always set, but mass can be uninitialized
@@ -446,29 +431,84 @@ IMPLICIT NONE
              ! Number concentrations and particle sizes
              aero(1,1,1:nbins)%numc = pa_naerop(kk,ii,jj,1:nbins)*pdn(kk,ii,jj)
              aero_old(1,1,1:nbins)%numc = aero(1,1,1:nbins)%numc
-             aero(1,1,1:nbins)%dwet = pa_Rawet(kk,ii,jj,1:nbins)*2.
-             aero(1,1,1:nbins)%core = pi6*(pa_Radry(kk,ii,jj,1:nbins)*2.)**3.
+             DO ss=1,nbins
+                IF (aero(1,1,ss)%numc>nlim) THEN
+                    vdry = (aero(1,1,ss)%volc(1) + &
+                        aero(1,1,ss)%volc(2) + aero(1,1,ss)%volc(3) + &
+                        aero(1,1,ss)%volc(4) + aero(1,1,ss)%volc(5) + &
+                        aero(1,1,ss)%volc(6) + aero(1,1,ss)%volc(7))/aero(1,1,ss)%numc
+                    aero(1,1,ss)%core = vdry
+                    aero(1,1,ss)%dwet = ((vdry+aero(1,1,ss)%volc(8)/aero(1,1,ss)%numc)/pi6)**(1./3.)
+                ELSE
+                    aero(1,1,ss)%dwet = 2.0e-10
+                    aero(1,1,ss)%core = pi6*(2.0e-10)**3.
+                ENDIF
+             ENDDO
 
              cloud(1,1,1:ncld)%numc = pa_ncloudp(kk,ii,jj,1:ncld)*pdn(kk,ii,jj)
              cloud_old(1,1,1:ncld)%numc = cloud(1,1,1:ncld)%numc
-             cloud(1,1,1:ncld)%dwet = pa_Rcwet(kk,ii,jj,1:ncld)*2.
-             cloud(1,1,1:ncld)%core = pi6*(pa_Rcdry(kk,ii,jj,1:ncld)*2.)**3.
+             DO ss=1,ncld
+                IF (cloud(1,1,ss)%numc>nlim) THEN
+                    vdry = (cloud(1,1,ss)%volc(1) + &
+                        cloud(1,1,ss)%volc(2) + cloud(1,1,ss)%volc(3) + &
+                        cloud(1,1,ss)%volc(4) + cloud(1,1,ss)%volc(5) + &
+                        cloud(1,1,ss)%volc(6) + cloud(1,1,ss)%volc(7))/cloud(1,1,ss)%numc
+                    cloud(1,1,ss)%core = vdry
+                    cloud(1,1,ss)%dwet = ((vdry+cloud(1,1,ss)%volc(8)/cloud(1,1,ss)%numc)/pi6)**(1./3.)
+                ELSE
+                    cloud(1,1,ss)%dwet = 2.0e-10
+                    cloud(1,1,ss)%core = pi6*(2.0e-10)**3.
+                ENDIF
+             ENDDO
 
              precp(1,1,1:nprc)%numc = pa_nprecpp(kk,ii,jj,1:nprc)*pdn(kk,ii,jj)
              precp_old(1,1,1:nprc)%numc = precp(1,1,1:nprc)%numc
-             precp(1,1,1:nprc)%dwet = pa_Rpwet(kk,ii,jj,1:nprc)*2.
-             precp(1,1,1:nprc)%core = pi6*(pa_Rpdry(kk,ii,jj,1:nprc)*2.)**3.
-
+             DO ss=1,nprc
+                IF (precp(1,1,ss)%numc>nlim) THEN
+                    vdry = (precp(1,1,ss)%volc(1) + &
+                        precp(1,1,ss)%volc(2) + precp(1,1,ss)%volc(3) + &
+                        precp(1,1,ss)%volc(4) + precp(1,1,ss)%volc(5) + &
+                        precp(1,1,ss)%volc(6) + precp(1,1,ss)%volc(7))/precp(1,1,ss)%numc
+                    precp(1,1,ss)%core = vdry
+                    precp(1,1,ss)%dwet = ((vdry+precp(1,1,ss)%volc(8)/precp(1,1,ss)%numc)/pi6)**(1./3.)
+                ELSE
+                    precp(1,1,ss)%dwet = 2.0e-10
+                    precp(1,1,ss)%core = pi6*(2.0e-10)**3.
+                ENDIF
+             ENDDO
+ 
              ice(1,1,1:nice)%numc = pa_nicep(kk,ii,jj,1:nice)*pdn(kk,ii,jj)
              ice_old(1,1,1:nice)%numc = ice(1,1,1:nice)%numc
-             ice(1,1,1:nice)%dwet = pa_Riwet(kk,ii,jj,1:nice)*2.
-             ice(1,1,1:nice)%core = pi6*(pa_Ridry(kk,ii,jj,1:nice)*2.)**3.
-
+             DO ss=1,nice
+                IF (ice(1,1,ss)%numc>nlim) THEN
+                    vdry = (ice(1,1,ss)%volc(1) + &
+                        ice(1,1,ss)%volc(2) + ice(1,1,ss)%volc(3) + &
+                        ice(1,1,ss)%volc(4) + ice(1,1,ss)%volc(5) + &
+                        ice(1,1,ss)%volc(6) + ice(1,1,ss)%volc(7))/ice(1,1,ss)%numc
+                    ice(1,1,ss)%core = vdry
+                    ice(1,1,ss)%dwet = ((vdry+ice(1,1,ss)%volc(8)/ice(1,1,ss)%numc)/pi6)**(1./3.)
+                ELSE
+                    ice(1,1,ss)%dwet = 2.0e-10
+                    ice(1,1,ss)%core = pi6*(2.0e-10)**3.
+                ENDIF
+             ENDDO
+ 
              snow(1,1,1:nsnw)%numc = pa_nsnowp(kk,ii,jj,1:nsnw)*pdn(kk,ii,jj)
              snow_old(1,1,1:nsnw)%numc = snow(1,1,1:nsnw)%numc
-             snow(1,1,1:nsnw)%dwet = pa_Rswet(kk,ii,jj,1:nsnw)*2.
-             snow(1,1,1:nsnw)%core = pi6*(pa_Rsdry(kk,ii,jj,1:nsnw)*2.)**3.
-
+             DO ss=1,nsnw
+                IF (snow(1,1,ss)%numc>nlim) THEN
+                    vdry = (snow(1,1,ss)%volc(1) + &
+                        snow(1,1,ss)%volc(2) + snow(1,1,ss)%volc(3) + &
+                        snow(1,1,ss)%volc(4) + snow(1,1,ss)%volc(5) + &
+                        snow(1,1,ss)%volc(6) + snow(1,1,ss)%volc(7))/snow(1,1,ss)%numc
+                    snow(1,1,ss)%core = vdry
+                    snow(1,1,ss)%dwet = ((vdry+snow(1,1,ss)%volc(8)/snow(1,1,ss)%numc)/pi6)**(1./3.)
+                ELSE
+                    snow(1,1,ss)%dwet = 2.0e-10
+                    snow(1,1,ss)%core = pi6*(2.0e-10)**3.
+                ENDIF
+             ENDDO
+ 
 
              ! If this is an initialization call, calculate the equilibrium particle
              If (prunmode == 1) CALL equilibration(kproma,kbdim,klev,   &
