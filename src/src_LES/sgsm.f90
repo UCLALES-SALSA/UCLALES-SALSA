@@ -79,7 +79,7 @@ contains
 
     use grid, only : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt    &
          , a_rv, a_rc, a_rp, a_tp, a_tt, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta  &
-         , a_scr1, a_scr2, a_scr3, a_scr4, a_scr5, a_scr6, nscl, nxp, nyp    &
+         , a_temp, a_rsl, nscl, nxp, nyp    &
          , nzp, zm, dxi, dyi, dzt, dzm, dtlt, dtlv , th00, dn0  &
          , pi0, pi1, newsclr, level, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc &
          , wq_sfc
@@ -89,7 +89,9 @@ contains
     use thrm, only         : bruvais, fll_tkrs
 
     integer :: n
-    REAL :: rx(nzp,nxp,nyp), rxt(nzp,nxp,nyp)
+    REAL :: rx(nzp,nxp,nyp), rxt(nzp,nxp,nyp), a_tmp1(nzp,nxp,nyp), &
+        a_tmp2(nzp,nxp,nyp), a_tmp3(nzp,nxp,nyp), a_tmp4(nzp,nxp,nyp), &
+        a_tmp5(nzp,nxp,nyp), a_tmp6(nzp,nxp,nyp)
 
     SELECT CASE(level)
        CASE(1,2,3)
@@ -106,35 +108,28 @@ contains
     ! ----------
     ! Calculate Deformation and stability for SGS calculations
     !
-    call fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,dn0,th00,a_scr1,        &
-         rs=a_scr2)
+    call fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,dn0,th00,a_temp,rs=a_rsl)
 
-    ! Tartteeks täs olla iffiä?
-    if (level > 1) then
-       call bruvais(nzp,nxp,nyp,level,a_theta,a_tp,rxt,a_scr2,a_scr3,dzm   &
-            ,th00) ! Juha: rxt OK
-    else
-       call bruvais(nzp,nxp,nyp,level,a_theta,a_tp,rxt,a_scr2,a_scr3,dzm,th00) ! Juha: rxt
-    end if
+    call bruvais(nzp,nxp,nyp,level,a_theta,a_tp,rxt,a_rsl,a_tmp3,dzm,th00)
 
     !
     ! the a_ut, a_wt, a_ut arrays are first used when the diffusive tendencies
     ! are calculated and applied.  Until then use them as scratch by
     ! associating them with scratch pointers (a-c)
     !
-    call deform(nzp,nxp,nyp,dzm,dzt,dxi,dyi,a_up,a_vp,a_wp,a_scr5,a_scr6     &
-         ,a_scr4,a_scr2)
+    call deform(nzp,nxp,nyp,dzm,dzt,dxi,dyi,a_up,a_vp,a_wp,a_tmp5,a_tmp6     &
+         ,a_tmp4,a_tmp2)
 
     ! ----------
     ! Calculate Eddy Viscosity/Diffusivity according to specified SGS model
     !
     select case (isgstyp)
     case (1)
-       call smagor(nzp,nxp,nyp,sflg,dxi,dn0,a_scr3,a_scr2,a_scr1,zm)
+       call smagor(nzp,nxp,nyp,sflg,dxi,dn0,a_tmp3,a_tmp2,a_tmp1,zm)
     case (2)
-       call deardf(nzp,nxp,nyp,sflg,dxi,zm,dn0,a_qp,a_qt,a_scr3,a_scr2,a_scr1)
+       call deardf(nzp,nxp,nyp,sflg,dxi,zm,dn0,a_qp,a_qt,a_tmp3,a_tmp2,a_tmp1)
 
-       call solv_tke(nzp,nxp,nyp,a_scr3,a_scr1,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi  &
+       call solv_tke(nzp,nxp,nyp,a_tmp3,a_tmp1,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi  &
             ,dtlt)
     end select
     !
@@ -143,17 +138,17 @@ contains
     if (sflg) call acc_tend(nzp,nxp,nyp,a_uc,a_vc,a_wc,a_ut,a_vt,a_wt         &
          ,sz4,sz5,sz6,1,'sgs')
 
-    call diff_prep(nzp,nxp,nyp,a_scr5,a_scr6,a_scr4,a_scr1)
+    call diff_prep(nzp,nxp,nyp,a_tmp5,a_tmp6,a_tmp4,a_tmp1)
     sxy1=0.; sxy2=0.
 
-    call diff_vpt(nzp,nxp,nyp,dn0,dzm,dzt,dxi,dyi,dtlv,vw_sfc,sxy2,a_scr6     &
-         ,a_scr5,a_scr1,a_vp,a_wp,a_vt,sz2)
+    call diff_vpt(nzp,nxp,nyp,dn0,dzm,dzt,dxi,dyi,dtlv,vw_sfc,sxy2,a_tmp6     &
+         ,a_tmp5,a_tmp1,a_vp,a_wp,a_vt,sz2)
 
-    call diff_upt(nzp,nxp,nyp,dn0,dzm,dzt,dxi,dyi,dtlv,uw_sfc,sxy1,a_scr5     &
-         ,a_scr1,a_up,a_wp,a_ut,sz1)
+    call diff_upt(nzp,nxp,nyp,dn0,dzm,dzt,dxi,dyi,dtlv,uw_sfc,sxy1,a_tmp5     &
+         ,a_tmp1,a_up,a_wp,a_ut,sz1)
 
-    call diff_wpt(nzp,nxp,nyp,dn0,dzm,dzt,dyi,dxi,dtlv,ww_sfc,sxy1,a_scr4     &
-         ,a_scr1,a_wp,a_up,a_wt,sz3)
+    call diff_wpt(nzp,nxp,nyp,dn0,dzm,dzt,dyi,dxi,dtlv,ww_sfc,sxy1,a_tmp4     &
+         ,a_tmp1,a_wp,a_up,a_wt,sz3)
 
     call cyclics(nzp,nxp,nyp,a_wt,req)
     call cyclicc(nzp,nxp,nyp,a_wt,req)
@@ -179,21 +174,21 @@ contains
        if ( associated(a_tp,a_sp) ) sxy2=wt_sfc
        if ( associated(a_rp,a_sp) ) sxy1=wq_sfc
 
-       if (sflg) a_scr1=0.
+       if (sflg) a_tmp1=0.
        if ( isgstyp <= 1) then
           call diffsclr(nzp,nxp,nyp,dtlt,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
-               ,a_sp,a_scr2,a_st,a_scr1)
+               ,a_sp,a_tmp2,a_st,a_tmp1)
        else if ( .not.associated(a_qp,a_sp) ) then
           call diffsclr(nzp,nxp,nyp,dtlt,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
-               ,a_sp,a_scr2,a_st,a_scr1)
+               ,a_sp,a_tmp2,a_st,a_tmp1)
        end if
        if (sflg) then
-          call get_avg3(nzp,nxp,nyp,a_scr1,sz1)
+          call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
           call updtst(nzp,'sgs',n,sz1,1)
           if (associated(a_sp,a_tp))                                          &
-             call sgsflxs(nzp,nxp,nyp,level,a_scr3,rx,a_theta,a_scr1,'tl')
+             call sgsflxs(nzp,nxp,nyp,level,a_tmp3,rx,a_theta,a_tmp1,'tl')
           if (associated(a_sp,a_rp))                          &
-             call sgsflxs(nzp,nxp,nyp,level,a_scr3,rx,a_theta,a_scr1,'rt')
+             call sgsflxs(nzp,nxp,nyp,level,a_tmp3,rx,a_theta,a_tmp1,'rt')
        endif
        call cyclics(nzp,nxp,nyp,a_st,req)
        call cyclicc(nzp,nxp,nyp,a_st,req)

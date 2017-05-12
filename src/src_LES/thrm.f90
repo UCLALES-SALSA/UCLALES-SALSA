@@ -43,28 +43,28 @@ contains
 !
   subroutine thermo (level)
 
-    use grid, only : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_scr1,  &
-         a_scr2, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
+    use grid, only : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_temp,  &
+         a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
          a_srp, a_ri, a_rsi, a_rhi, a_srs
 
     integer, intent (in) :: level
 
     select case (level)
     case default
-       call drythrm(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_scr1,pi0,   &
+       call drythrm(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,   &
                     pi1,th00,a_rp,a_rv)
     case (2)
-       call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_scr1,pi0,  &
-                     pi1,th00,a_rp,a_rv,a_rc,a_scr2)
+       call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
+                     pi1,th00,a_rp,a_rv,a_rc,a_rsl)
     case (3)
-       call satadjst3(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_scr1,pi0, &
-                      pi1,th00,a_rp,a_rv,a_rc,a_scr2,a_rpp)
+       call satadjst3(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0, &
+                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp)
     case (4)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
-                      a_scr1,a_press,a_scr2,a_rh,a_rc,a_srp)
+                      a_temp,a_press,a_rsl,a_rh,a_rc,a_srp)
     case (5)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
-                      a_scr1,a_press,a_scr2,a_rh,a_rc,a_srp,a_ri,a_rsi,a_rhi,a_srs)
+                      a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_rsi,a_rhi,a_srs)
     end select
 
   end subroutine thermo
@@ -386,7 +386,7 @@ contains
   end subroutine fll_tkrs
 !
 ! -------------------------------------------------------------------------
-! BRUVAIS:  Cacluates the brunt-vaisaila frequency in accordance with the
+! BRUVAIS:  Calcuates the brunt-vaisaila frequency in accordance with the
 ! thermodynamic level
 !
 ! Modified for level 4,

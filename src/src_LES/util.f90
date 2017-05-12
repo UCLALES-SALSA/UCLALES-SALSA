@@ -116,26 +116,6 @@ contains
   end subroutine velset
   !
   !---------------------------------------------------------------------
-  ! GET_AVG: gets average field value from k'th level
-  !
-  real function get_avg(n1,n2,n3,k,a)
-
-    integer, intent (in):: n1, n2, n3, k
-    real, intent (in)   :: a(n1,n2,n3)
-
-    integer :: i,j
-
-    get_avg=0.
-    do j=3,n3-2
-       do i=3,n2-2
-          get_avg = get_avg + a(k,i,j)
-       enddo
-    enddo
-    get_avg = get_avg/real((n3-4)*(n2-4))
-
-  end function get_avg
-  !
-  !---------------------------------------------------------------------
   ! GET_AVG2dh: Get the average of a 2 dimensional (horizontal) input field
   !
   REAL FUNCTION get_avg2dh(n2,n3,a)
@@ -174,8 +154,8 @@ contains
     REAL :: ztmp,ztot
 
     npnt = 0
+    get_avg_ts=0.
     IF (PRESENT(cond)) THEN
-       get_avg_ts=0.
        DO j=3,n3-2
           DO i=3,n2-2
              ztot = 0.
@@ -186,15 +166,15 @@ contains
                    ztot = ztot + (1./dz(k))
                 END IF
              END DO
-             ! Grid weighted vertical average
-             if (ztot /=0.0 ) ztmp = ztmp/ztot
-             npnt = npnt + 1 ! Note: this should not be used (use ztot instead!)
-             get_avg_ts = get_avg_ts + ztmp
+             ! Grid weighted vertical average for columns with at least one available value
+             if (ztot /=0.0 ) THEN
+                get_avg_ts = get_avg_ts + ztmp/ztot
+                npnt = npnt + 1
+             END IF
           END DO
        END DO
        
     ELSE
-       get_avg_ts=0.
        DO j=3,n3-2
           DO i=3,n2-2
              ztot = 0.
@@ -212,7 +192,7 @@ contains
 
     END IF
 
-    get_avg_ts = get_avg_ts/max(10e-5,real(npnt))
+    IF (npnt>0) get_avg_ts = get_avg_ts/real(npnt)
 
   end function get_avg_ts
   !
@@ -220,73 +200,66 @@ contains
   ! GET_AVG3: gets average across outer two dimensions at each
   ! point along inner dimension - calculated over all PUs
   !
-  subroutine get_avg3(n1,n2,n3,a,avg)
+  subroutine get_avg3(n1,n2,n3,a,avg,normalize,cond)
 
     use mpi_interface, only : nypg,nxpg,double_array_par_sum
 
     integer,intent(in) :: n1,n2,n3
     real,intent(in) :: a(n1,n2,n3)
     real,intent(out) :: avg(n1)
+    LOGICAL, OPTIONAL :: normalize
+    LOGICAL, OPTIONAL :: cond(n1,n2,n3)
 
     integer      :: k,i,j
-    real(kind=8) :: lavg(n1),gavg(n1),x
+    real(kind=8) :: lavg(n1),gavg(n1),counts(n1), x
+    LOGICAL :: norm
 
-    x = 1./(real(nypg-4)*real(nxpg-4))
-    gavg(:) = 0.
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
-             gavg(k)=gavg(k)+a(k,i,j)
-          end do
-       end do
-    end do
-    lavg = gavg
-    call double_array_par_sum(lavg,gavg,n1)
-    avg(:) = real(gavg(:) * x)
+    norm = .TRUE. ! Default
+    IF (present(normalize)) norm=normalize
+
+    IF (present(cond)) THEN
+        gavg(:) = 0.
+        counts(:) = 0.
+        do j=3,n3-2
+           do i=3,n2-2
+              do k=1,n1
+                 IF (cond(k,i,j)) THEN
+                    gavg(k)=gavg(k)+a(k,i,j)
+                    counts(k)=counts(k)+1.
+                 ENDIF
+              end do
+           end do
+        end do
+        lavg = gavg
+        call double_array_par_sum(lavg,gavg,n1)
+        IF (norm) THEN
+            lavg = counts
+            call double_array_par_sum(lavg,counts,n1)
+            avg(:)=0.
+            do k=1,n1
+                IF (counts(k)>0.) avg(k) = real(gavg(k)/counts(k))
+            END DO
+        ELSE
+            avg(:)=REAL(gavg(:))
+        ENDIF
+    ELSE
+        x=1.
+        IF (norm) x = 1./(real(nypg-4)*real(nxpg-4))
+
+        gavg(:) = 0.
+        do j=3,n3-2
+           do i=3,n2-2
+              do k=1,n1
+                 gavg(k)=gavg(k)+a(k,i,j)
+              end do
+           end do
+        end do
+        lavg = gavg
+        call double_array_par_sum(lavg,gavg,n1)
+        avg(:) = real(gavg(:) * x)
+    ENDIF
 
   end subroutine get_avg3
-  !
-  !---------------------------------------------------------------------
-  ! function get_cavg: gets conditionally average field from kth level
-  !
-  real function get_cavg(n1,n2,n3,k,a,x)
-
-    integer, intent (in) :: n1,n2,n3,k
-    real, intent (in)    :: a(n1,n2,n3),x(n2,n3)
-
-    integer :: i,j
-    real    :: cnt
-
-    get_cavg=0.
-    cnt=0.
-    do j=3,n3-2
-       do i=3,n2-2
-          get_cavg=get_cavg+a(k,i,j)*x(i,j)
-          cnt=cnt+x(i,j)
-       end do
-    end do
-    IF (cnt /= 0.0) get_cavg=get_cavg/cnt
-
-  end function get_cavg
-  !
-  !---------------------------------------------------------------------
-  ! function get_csum: conditionally sum field a over indicator x
-  !
-  real function get_csum(n1,n2,n3,k,a,x)
-
-    integer, intent (in) :: n1,n2,n3,k
-    real, intent (in)    :: a(n1,n2,n3),x(n2,n3)
-
-    integer :: i,j
-
-    get_csum=0.
-    do j=3,n3-2
-       do i=3,n2-2
-          get_csum=get_csum+a(k,i,j)*x(i,j)
-       enddo
-    enddo
-
-  end function get_csum
   !
   !---------------------------------------------------------------------
   ! function get_cor: gets mean correlation between two fields at a 
@@ -372,27 +345,6 @@ contains
     avg(:)=avg(:)/real((n3-4)*(n2-4))
 
   end subroutine get_3rd3
-  ! 
-  !-------------------------------------------------------------------
-  ! function get_var: gets square of a field from k'th level 
-  ! 
-  real function get_sqr(n1,n2,n3,k,a)
-
-    integer, intent (in):: n1, n2, n3, k
-    real, intent (in)   :: a(n1,n2,n3)
-
-    integer :: i,j
-    real    :: avg
-
-    avg=0.
-    do j=3,n3-2
-       do i=3,n2-2
-          avg=avg+a(k,i,j)**2
-       end do
-    end do
-    get_sqr = avg/real((n3-4)*(n2-4))
-
-  end function get_sqr
   !
   ! ----------------------------------------------------------------------
   ! subroutine tridiff: standard tri-diagonal solver for nh columns

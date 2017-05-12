@@ -20,15 +20,14 @@
 module fuliou
 
   use defs, only   : nv, nv1, mb, pi, totalpower, g, R, ep2
-  use cldwtr, only : init_cldwtr, cloud_water
+  use cldwtr, only : init_cldwtr, cloud_water, init_cldice, cloud_ice, init_cldgrp, cloud_grp
   use solver, only : qft
-  use RandomNumbers
   use ckd
 
   implicit none
 
   logical, save :: Initialized = .False.
-  type(randomNumberSequence), save :: randoms
+  integer :: iseed = 0
   real, parameter :: minSolarZenithCosForVis = 1.e-4
 
 contains
@@ -38,15 +37,45 @@ contains
   ! model on first call
   !
   subroutine rad_init
+    integer, dimension (:), allocatable :: seed
+    INTEGER :: isize
 
     if (.not.Initialized) then
-       call init_ckd   
-       randoms = new_RandomNumberSequence(1)
+       ! Initialize random numbers for McICA
+       call random_seed(size=isize)
+       allocate (seed(isize))
+       seed(:) = iseed
+       call random_seed(put=seed)
+       deallocate (seed)
+
+       call init_ckd
        call init_cldwtr
+       call init_cldice
+       call init_cldgrp
        Initialized = .True.
     end if
 
   end subroutine rad_init
+  !
+  ! ----------------------------------------------------------------------
+  ! Subroutine set_random_offset is needed to generate true pseudorandom numbers for parallel runs
+  SUBROUTINE set_random_offset(ioffset)
+    implicit none
+    INTEGER :: ioffset, i
+    REAL :: randomNumber
+
+    ! Initialize random number generator, if not yet initialized
+    if (.not.Initialized) CALL rad_init
+
+    ! Call randon mumbers
+    IF (ioffset>0) THEN
+        DO i=1,ioffset
+            call random_number(randomNumber)
+        ENDDO
+    ENDIF
+
+  END SUBROUTINE set_random_offset
+  !
   ! ----------------------------------------------------------------------
   ! Subroutine rad: Computes radiative fluxes using a band structure 
   ! defined by input ckd file
@@ -82,10 +111,10 @@ contains
          fds, fus,  & ! downward and upward solar flux
          fdir, fuir   ! downward and upward ir flux
 
-    call rad_ir(pts, ee, pp, pt, ph, po, fdir, fuir, &
-                 plwc, pre, piwc, pde, prwc, pgwc, McICA  )
-    call rad_vis(as, u0, ss, pp, pt, ph, po, fds, fus,  &
-                 plwc, pre, piwc, pde, prwc, pgwc, McICA  )
+    call rad_ir(pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
+                 plwc, pre, piwc, pde, prwc, pgwc )
+    call rad_vis(as, u0, ss, pp, pt, ph, po, fds, fus, McICA, &
+                 plwc, pre, piwc, pde, prwc, pgwc )
 
   end subroutine rad
 
@@ -94,8 +123,8 @@ contains
   ! Computes IR radiative fluxes using a band structure 
   ! defined by input ckd file
   !
-  subroutine rad_ir (pts, ee, pp, pt, ph, po, fdir, fuir, &
-       plwc, pre, piwc, pde, prwc, pgwc, McICA )
+  subroutine rad_ir (pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
+       plwc, pre, piwc, pde, prwc, pgwc )
 
     real, intent (in)  :: pp (nv1) ! pressure at interfaces
 
@@ -125,17 +154,16 @@ contains
     logical, parameter :: irWeighted = .False. 
 
     real, dimension (nv)   :: tw,ww,tg,dz,tauNoGas, wNoGas, Tau, w
+    real, dimension (nv)   :: ti,wi,tgr,wgr
     real, dimension (nv1)  :: fu1, fd1, bf
     real, dimension (nv,4) :: www, pfNoGas, pf
+    real, dimension (nv,4) :: wwi,wwgr
 
     integer :: ib, ig, k, ig1, ig2, ibandloop, iblimit
     real :: fuq2, xir_norm
     real, dimension(:), allocatable, save :: bandWeights
     real :: randomNumber
     ! ----------------------------------------
-    tw = 0.0; ww = 0.0; tg = 0.0; dz = 0.0; tauNoGas = 0.0;  wNoGas = 0.0;
-    Tau = 0.0;  w = 0.0; fu1 = 0.0;  fd1 = 0.0;  bf = 0.0;
-    www = 0.0;  pfNoGas = 0.0;  pf = 0.0;
 
     if (.not.Initialized) CALL rad_init
 
@@ -145,7 +173,7 @@ contains
     end if
     
     fdir(:) = 0.0; fuir(:) = 0.0
-    
+
     call thicks(pp, pt, ph, dz) 
 
     if (McICA) then
@@ -153,7 +181,7 @@ contains
        ! Select a single band and g-point (ib, ig1) and use these as the limits
        !   in the loop through the spectrum below. 
        !
-       randomNumber = REAL( getRandomReal(randoms) )
+       call random_number(randomNumber)
        call select_bandg(ir_bands, bandweights, randomNumber, ib, ig1) 
        ig2 = ig1
        iblimit = 1
@@ -175,6 +203,14 @@ contains
       if (present(plwc)) then
         call cloud_water(ib + size(solar_bands), pre, plwc, dz, tw, ww, www)
         call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw, ww, www)
+      end if
+      if (present(piwc)) then
+        call cloud_ice(ib + size(solar_bands), pde, piwc, dz, ti, wi, wwi)
+        call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti, wi, wwi)
+      end if
+      if (present(pgwc)) then
+        call cloud_grp(ib + size(solar_bands), pgwc, dz, tgr, wgr, wwgr)
+        call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr, wwgr)
       end if 
       
       call planck(pt, pts, llimit(ir_bands(ib)), rlimit(ir_bands(ib)), bf)
@@ -198,7 +234,7 @@ contains
          else
             xir_norm = gPointWeight(ir_bands(ib), ig)
          end if
-         
+
          fdir(:) = fdir(:) + fd1(:) * xir_norm
          fuir(:) = fuir(:) + fu1(:) * xir_norm
       end do gPointLoop
@@ -215,8 +251,8 @@ contains
   ! defined by input ckd file
   !
 
-  subroutine rad_vis (as, u0, ss, pp, pt, ph, po, fds, fus,  &
-       plwc, pre, piwc, pde, prwc, pgwc, McICA )
+  subroutine rad_vis (as, u0, ss, pp, pt, ph, po, fds, fus, McICA,  &
+       plwc, pre, piwc, pde, prwc, pgwc )
 
     real, intent (in)  :: pp (nv1) ! pressure at interfaces
 
@@ -244,11 +280,15 @@ contains
          fds, fus    ! downward and upward solar flux
 
     ! ----------------------------------------
-    logical, parameter :: solarWeighted = .false. 
+    logical, parameter :: solarWeighted = .false. ! Could be .true.?
 
     real, dimension (nv)   :: tw,ww,tg,tgm,dz, tauNoGas, wNoGas, tau, w
+    real, dimension (nv)   :: ti,wi
+    real, dimension (nv)   :: tgr,wgr
     real, dimension (nv1)  :: fu1, fd1, bf
     real, dimension (nv,4) :: www, pfNoGas, pf
+    real, dimension (nv,4) :: wwi
+    real, dimension (nv,4) :: wwgr
 
     real, dimension(:), allocatable, save :: bandWeights
 
@@ -276,7 +316,7 @@ contains
          ! Select a single band and g-point (ib, ig1) and use these as the 
          ! limits in the loop through the spectrum below. 
          !
-         randomNumber = REAL( getRandomReal(randoms) )
+         call random_number(randomNumber)
          call select_bandg(solar_bands, bandweights, randomNumber, ib, ig1) 
          ig2 = ig1
          iblimit = 1 
@@ -311,6 +351,14 @@ contains
          if (present(plwc)) then
            call cloud_water(ib, pre, plwc, dz, tw, ww, www)
            call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw,ww,www)
+         end if
+         if (present(piwc)) then
+           call cloud_ice(ib, pde, piwc, dz, ti, wi, wwi)
+           call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti,wi,wwi)
+         end if
+         if (present(pgwc)) then
+           call cloud_grp(ib,pgwc, dz, tgr, wgr, wwgr)
+           call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr,wwgr)
          end if 
   
          gPointLoop: do ig =  ig1, ig2
@@ -365,7 +413,7 @@ contains
 
     real :: cumulative
     
-    i=1; j=1 
+    i=1; j=1
     ! The probability contained in the first g point of the first band
     cumulative = gPointWeight(bands(i), j) * bandweights(i)
 
@@ -533,8 +581,16 @@ contains
        fq2 = 1.43884 * vmid
        do k = 2, nv
           tk = (pt(k)+pt(k-1))*0.5
+          if (tk.le.0.) then
+             print*,'tk wrong',tk,v1,v2,rlimit,llimit
+             stop
+          endif
           bf(k) = bf(k) + (fq1/(exp(fq2/tk) - 1.0))*(v1-v2)
        end do
+       if (pt(1).le.0.) then
+          print*,'pt wrong',pt(1),v1,v2,rlimit,llimit
+          stop
+       endif
        bf(1) = bf(1) + (fq1/(exp(fq2/pt(1)) - 1.0))*(v1-v2)
        bf(nv1) = bf(nv1) + (fq1/(exp(fq2/tskin) - 1.0))*(v1-v2)
        v1 = v2

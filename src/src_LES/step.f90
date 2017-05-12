@@ -24,7 +24,6 @@ module step
   integer :: istpfl = 1
   real    :: timmax = 18000.
   logical :: corflg = .false.
-  logical :: rylflg = .true.
 
   real    :: frqhis =  9000.
   real    :: frqanl =  3600.
@@ -34,6 +33,15 @@ module step
   real    :: strtim =  0.0
   real    :: cntlat =  31.5 ! 30.0
   logical :: outflg = .true.
+
+  ! Nudging options (nudge_*: 0=disabled, 1=soft, 2=hard), total nudging time (s), altitude range, and time constants (tau [s])
+  INTEGER :: nudge_theta=0, & ! (liquid water) potential temperature, depending on the microphysical level
+    nudge_rv=0, & ! Water vapor mixing ratio (maintain total water)
+    nudge_u=0, nudge_v=0, & ! Horizontal winds
+    nudge_ccn=0 ! Sectional aerosol for levels 4 and 5 (maintain aerosol+cloud+ice)
+  REAL :: nudge_time=3600., nudge_zmin=-1.e10, nudge_zmax=1.e10
+  REAL :: tau_theta=300., tau_rv=300., tau_u=300., tau_v=300., tau_ccn=300.
+  real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
 
 contains
   !
@@ -185,7 +193,7 @@ end subroutine tstep_reset
 
     use grid, only : level, dtl, dtlt, Tspinup,                                         &
                      ! Added parameters for interfacing with SALSA
-                     nxp, nyp, nzp, a_press, a_scr1, a_scr2,                       &
+                     nxp, nyp, nzp, a_press, a_temp, a_rsl,                       &
                      a_rc, a_wp, a_rp, a_rt, a_rh,                                  &
                      a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,    &
                      a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,    &
@@ -194,8 +202,7 @@ end subroutine tstep_reset
                      a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl,    &
                      a_Radry,  a_Rawet,  a_Rcdry,   a_Rcwet,   a_Rpdry,   a_Rpwet,      &
                      a_Ridry,  a_Riwet,  a_Rsdry,   a_Rswet,                            &
-                     a_rt,a_rp, sst, &
-                     a_rsi, a_temp0
+                     sst, a_rsi, a_temp0
 
 
     use stat, only : sflg, statistics, acc_massbudged
@@ -210,7 +217,7 @@ end subroutine tstep_reset
     USE util, ONLY : maskactiv !Juha: Included for SALSA
 
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : nbins
+    USE mo_submctl, ONLY : nbins, ncld
     USE class_ComponentIndex, ONLY : GetNcomp
 
     logical, intent (out) :: cflflg
@@ -270,16 +277,16 @@ end subroutine tstep_reset
 
           ! Rate of change in absolute temperature (for some ice processes)
           if (time >= 1.) then
-             ztkt = a_scr1-a_temp0
-             a_temp0 = a_scr1
+             ztkt = a_temp-a_temp0
+             a_temp0 = a_temp
           else if (time == 0.) then
-             a_temp0 = a_scr1
+             a_temp0 = a_temp
              ztkt = 0.
           end if
 
           IF ( nxp ==5 .and. nyp == 5 ) THEN
              ! 1D -runs
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,zwp,a_dn,  &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -293,7 +300,7 @@ end subroutine tstep_reset
                   zrm, prtcl, dtlt, dbg2, time, level  )
           ELSE
              !! for 2D or 3D runs
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,a_wp,a_dn,  &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -322,9 +329,8 @@ end subroutine tstep_reset
     ! -- Reset only scalar tendencies
     CALL tend0(.TRUE.)
 
-    ! Dont perform sedimentation during spinup for level 4 OR level 5!
-    IF (zrm == 3 .OR. level < 4) &
-         CALL micro(level)
+    ! Dont perform sedimentation or level 3 autoconversion during spinup
+    IF (zrm == 3) CALL micro(level)
 
     IF (level >= 4) CALL tend_constrain(n4)
     CALL update_sclrs
@@ -337,7 +343,7 @@ end subroutine tstep_reset
     ! Mask for cloud base activation
     IF (level >= 4)  CALL maskactiv(zactmask,nxp,nyp,nzp,nbins,2,prtcl,a_rh,              &
                                     rc = a_rc,pa_naerop = a_naerop, pa_maerop = a_maerop, &
-                                    pt = a_scr1, Rpwet=a_Rawet, w=a_wp, &
+                                    pt = a_temp, Rpwet=a_Rawet, w=a_wp, &
                                     pa_ncloud= a_ncloudp(:,:,:,:) )
     ! Get tendencies from cloud base activation
     IF (level >= 4) CALL newdroplet(zactmask)
@@ -351,10 +357,24 @@ end subroutine tstep_reset
 
     CALL thermo(level)
 
-    IF (level >= 4)  &
-         CALL SALSA_diagnostics
+    ! Nudging time is independent of the spinup!
+     IF (time<=nudge_time .AND. (nudge_theta/=0 .OR. nudge_rv/=0 .OR. &
+            (level>3 .AND. nudge_ccn/=0) ) ) THEN
 
-    call thermo(level)
+        ! Reset tendencies
+        call tend0(.TRUE.)
+
+        CALL nudging(time)
+
+        CALL update_sclrs
+
+        CALL thermo(level)
+    ENDIF
+
+    IF (level >= 4)  THEN
+         CALL SALSA_diagnostics
+         call thermo(level)
+    ENDIF
 
     call corlos
 
@@ -378,6 +398,183 @@ end subroutine tstep_reset
        CALL SALSA_diagnostics
 
   end subroutine t_step
+  !
+  !----------------------------------------------------------------------
+  !
+  ! Nudging towards the initial state (temperature, water vapor,
+  ! horizontal winds and aerosol and/or cloud droplets).
+  !
+  ! TR 22.3.2017
+  !
+  SUBROUTINE nudging(time)
+
+    use grid, only : level, dtlt, nxp, nyp, nzp, &
+                zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, a_srs, &
+                a_naerop, a_naerot, a_ncloudp, a_nicep, &
+                a_tp, a_tt, th0, th00, a_up, a_ut, a_vp, a_vt
+    USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
+
+    IMPLICIT NONE
+    REAL, INTENT(IN) :: time
+    REAL, SAVE, ALLOCATABLE :: aero_target(:,:) ! Local
+    LOGICAL, SAVE :: init=.TRUE.
+
+    ! Nudging time is independent of the spin-up
+    IF (time>nudge_time) RETURN
+
+    ! Initialization
+    IF (init) THEN
+        ! (Liquid water) potential temperature: nudge towards th0(:)-th00
+        IF (nudge_theta/=0) THEN
+            ALLOCATE(theta_ref(nzp))
+            theta_ref(:)=a_tp(:,3,3)
+        ENDIF
+        !
+        ! Water vapor mixing ratio based on total water
+        !   Levels 0-3: total = cloud water and water vapor (a_rp) + rain water (a_rpp)
+        !   Levels 4-5: total = water vapor (a_rp) + condensate (a_rc) + rain water (a_srp)
+        !                            + ice (a_ri) + snow (a_srs)
+        IF (nudge_rv/=0)  THEN
+            ALLOCATE(rv_ref(nzp))
+            IF (level==5) THEN
+                rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)+a_ri(:,3,3)+a_srs(:,3,3)
+            ELSEIF (level==4) THEN
+                rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)
+            ELSE ! Levels 0-3
+                rv_ref(:)=a_rp(:,3,3)+a_rpp(:,3,3)
+            ENDIF
+        ENDIF
+        !
+        ! Horizontal winds
+        IF (nudge_u/=0) THEN
+            ALLOCATE(u_ref(nzp))
+            u_ref(:)=a_up(:,3,3)
+        ENDIF
+        IF (nudge_v/=0) THEN
+            ALLOCATE(v_ref(nzp))
+            v_ref(:)=a_vp(:,3,3)
+        ENDIF
+        !
+        ! Aerosol concentration for level 4. Nudge aerosol concentration based on
+        ! total CCN = aerosol + cloud droplets + ice (a_nicep). Precipitation and snow
+        ! are not included, because these cannot be related to a specific aerosol bin
+        ! and their concentrations are low.
+        IF (level>3 .AND. nudge_ccn/=0) THEN
+            ! Nudge aerosol based on the total number (aerosol+cloud+ice)
+            ALLOCATE(aero_ref(nzp,nbins),aero_target(nzp,nbins))
+            aero_ref(:,:)=a_naerop(:,3,3,:)
+            aero_ref(:,in2a:fn2b)=aero_ref(:,in2a:fn2b)+a_ncloudp(:,3,3,1:ncld)
+            IF (level==5) aero_ref(:,in2a:fn2b)=aero_ref(:,in2a:fn2b)+a_nicep(:,3,3,1:nice)
+        ENDIF
+        !
+        ! Initialized
+        init=.FALSE.
+    ENDIF
+
+    ! (Liquid water) potential temperature:
+    IF (nudge_theta>0) &
+        CALL nudge_any(nxp,nyp,nzp,zt,a_tp,a_tt,theta_ref,dtlt,tau_theta,nudge_theta)
+
+    ! Water vapor
+    IF (nudge_rv>0) THEN
+        IF (level>3) THEN
+            ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain)
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+        ELSE
+            ! Nudge total water (a_rp) based on total + rain
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rpp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+        ENDIF
+    ENDIF
+
+    ! Horizontal winds
+    IF (nudge_u>0) &
+         CALL nudge_any(nxp,nyp,nzp,zt,a_up,a_ut,u_ref,dtlt,tau_u,nudge_u)
+    IF (nudge_v>0) &
+        CALL nudge_any(nxp,nyp,nzp,zt,a_vp,a_vt,v_ref,dtlt,tau_v,nudge_v)
+
+    ! Aerosol
+    IF (level>3 .AND. nudge_ccn/=0) THEN
+        ! Target aerosol concentration = total(t=0)-cloud(t)-ice(t)
+        aero_target(:,:)=aero_ref(:,:)
+        aero_target(:,in2a:fn2b)=aero_target(:,in2a:fn2b)-a_ncloudp(:,3,3,1:ncld)
+        IF (level==5) aero_target(:,in2a:fn2b)=aero_target(:,in2a:fn2b)-a_nicep(:,3,3,1:nice)
+        ! Apply to sectional data
+        CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,a_naerop,a_naerot,aero_target,dtlt,tau_ccn,nudge_ccn)
+    ENDIF
+
+  END SUBROUTINE nudging
+  !
+  ! Nudging for any 3D field based on 1D target
+  SUBROUTINE nudge_any(nxp,nyp,nzp,zt,ap,at,trgt,dt,tau,iopt)
+    USE util, ONLY : get_avg3
+    IMPLICIT NONE
+    INTEGER :: nxp,nyp,nzp
+    REAL :: zt(nzp), ap(nzp,nxp,nyp), at(nzp,nxp,nyp)
+    REAL :: dt
+    REAL :: trgt(nzp)
+    REAL :: tau
+    INTEGER :: iopt
+    INTEGER :: kk
+    REAL :: avg(nzp)
+    !
+    IF (iopt==1) THEN
+        ! Soft nudging
+        CALL get_avg3(nzp,nxp,nyp,ap,avg)
+        DO kk = 1,nzp
+            IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+                at(kk,:,:)=at(kk,:,:)-(avg(kk)-trgt(kk))/max(tau,dt)
+        ENDDO
+    ELSEIF (iopt==2) THEN
+        ! Hard nudging
+        DO kk = 1,nzp
+            IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+                at(kk,:,:)=at(kk,:,:)-(ap(kk,:,:)-trgt(kk))/max(tau,dt)
+        ENDDO
+    ELSE
+        ! Unknown
+        WRITE(*,*)'Unknown nudging option!'
+        STOP
+    ENDIF
+    !
+  END SUBROUTINE nudge_any
+  !
+  ! Nudging for any 4D field based on 2D target
+  SUBROUTINE nudge_any_2d(nxp,nyp,nzp,nb,zt,ap,at,trgt,dt,tau,iopt)
+    USE util, ONLY : get_avg3
+    IMPLICIT NONE
+    INTEGER :: nxp,nyp,nzp,nb
+    REAL :: zt(nzp), ap(nzp,nxp,nyp,nb), at(nzp,nxp,nyp,nb)
+    REAL :: dt
+    REAL :: trgt(nzp,nb)
+    REAL :: tau
+    INTEGER :: iopt
+    INTEGER :: ii, kk
+    REAL :: avg(nzp)
+    !
+    IF (iopt==1) THEN
+        ! Soft nudging
+        DO ii=1,nb
+            CALL get_avg3(nzp,nxp,nyp,ap(:,:,:,ii),avg)
+            DO kk = 1,nzp
+                IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+                    at(kk,:,:,ii)=at(kk,:,:,ii)-(avg(kk)-trgt(kk,ii))/max(tau,dt)
+            ENDDO
+        ENDDO
+    ELSEIF (iopt==2) THEN
+        ! Hard nudging
+        DO ii=1,nb
+            DO kk = 1,nzp
+                IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+                    at(kk,:,:,ii)=at(kk,:,:,ii)-(ap(kk,:,:,ii)-trgt(kk,ii))/max(tau,dt)
+            ENDDO
+        ENDDO
+    ELSE
+        ! Unknown
+        WRITE(*,*)'Unknown nudging option!'
+        STOP
+    ENDIF
+    !
+  END SUBROUTINE nudge_any_2d
   !
   !----------------------------------------------------------------------
   ! subroutine tend0: sets all tendency arrays to zero
@@ -602,24 +799,24 @@ end subroutine tstep_reset
   !
   subroutine buoyancy
 
-    use grid, only : a_uc, a_vc, a_wc, a_wt, a_rv, a_rc, a_theta, a_scr1, a_scr3, &
+    use grid, only : a_uc, a_vc, a_wc, a_wt, a_rv, a_rc, a_theta, &
          a_rp, nxp, nyp, nzp, dzm, th00, level, pi1
     use stat, only : sflg, comp_tke
     use util, only : ae1mm
     use thrm, only : update_pi1
 
-    real, dimension (nzp) :: awtbar
+    real, dimension (nzp) :: awtbar, a_tmp1(nzp,nxp,nyp)
 
     IF (level < 4) THEN
-       call boyanc(nzp,nxp,nyp,level,a_wt,a_theta,a_rp,th00,a_scr1,a_rv)
+       call boyanc(nzp,nxp,nyp,level,a_wt,a_theta,a_rp,th00,a_tmp1,a_rv)
     ELSE IF (level >= 4) THEN
-       call boyanc(nzp,nxp,nyp,level,a_wt,a_theta,a_rp,th00,a_scr1,a_rc)
+       call boyanc(nzp,nxp,nyp,level,a_wt,a_theta,a_rp,th00,a_tmp1,a_rc)
     END IF
 
     call ae1mm(nzp,nxp,nyp,a_wt,awtbar)
     call update_pi1(nzp,awtbar,pi1)
 
-    if (sflg)  call comp_tke(nzp,nxp,nyp,dzm,th00,a_uc,a_vc,a_wc,a_scr1,a_scr3)
+    if (sflg)  call comp_tke(nzp,nxp,nyp,dzm,th00,a_uc,a_vc,a_wc,a_tmp1)
 
   end subroutine buoyancy
   !
@@ -753,7 +950,7 @@ end subroutine tstep_reset
                      a_naerop,a_maerop,a_ncloudp,a_mcloudp,a_nprecpp,a_mprecpp,      &
                      a_gaerop, a_Radry, a_Rcdry, a_Rpdry, a_Rawet, a_Rcwet, a_Rpwet, &
                      a_rc, a_srp,a_snrp, binMixrat, prtcl,   &
-                     a_rh, a_scr1, a_ri,a_srs,a_snrs,a_rhi,                                      &
+                     a_rh, a_temp, a_ri,a_srs,a_snrs,a_rhi,                                      &
                      a_nicep,a_micep,a_nsnowp,a_msnowp,a_Ridry,a_Riwet,a_Rswet,a_Rsdry !! ice'n'snow
     USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,              &
                                in1a,fn2a,fn2b,                        &
@@ -857,7 +1054,7 @@ end subroutine tstep_reset
                    ns = ns/a_ncloudp(k,i,j,c)
 
                    bb = 3.*mwa*ns/(4.*pi*rhowa)
-                   aa = 4.*mwa*surfw0/(rg*rhowa*a_scr1(k,i,j))
+                   aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
                    cdcld(k,i,j,c) = SQRT(3.*bb/aa)
                 ELSE
                    cdcld(k,i,j,c) = rempty
@@ -907,7 +1104,7 @@ end subroutine tstep_reset
                    ns = ns/a_nprecpp(k,i,j,c)
 
                    bb = 3.*mwa*ns/(4.*pi*rhowa)
-                   aa = 4.*mwa*surfw0/(rg*rhowa*a_scr1(k,i,j))
+                   aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
                    cdprc(k,i,j,c) = SQRT(3.*bb/aa)
                 ELSE
                    cdprc(k,i,j,c) = rempty
@@ -961,7 +1158,7 @@ end subroutine tstep_reset
                    ns = ns/a_nicep(k,i,j,c)
 
                    bb = 3.*mwa*ns/(4.*pi*rhoic)
-                   aa = 4.*mwa*surfi0/(rg*rhoic*a_scr1(k,i,j))
+                   aa = 4.*mwa*surfi0/(rg*rhoic*a_temp(k,i,j))
                    cdice(k,i,j,c) = max(rempty,SQRT(3.*bb/aa))
                 ELSE
                    cdice(k,i,j,c) = rempty
@@ -1011,7 +1208,7 @@ end subroutine tstep_reset
                    ns = ns/a_nsnowp(k,i,j,c)
 
                    bb = 3.*mwa*ns/(4.*pi*rhoic)
-                   aa = 4.*mwa*surfi0/(rg*rhoic*a_scr1(k,i,j))
+                   aa = 4.*mwa*surfi0/(rg*rhoic*a_temp(k,i,j))
                    cdsnw(k,i,j,c) = max(rempty,SQRT(3.*bb/aa))
                 ELSE
                    cdsnw(k,i,j,c) = rempty

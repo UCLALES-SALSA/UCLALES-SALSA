@@ -22,7 +22,7 @@ module mcrp
   use defs, only : alvl, alvi, rowt, pi, Rm, cp, kb, g, vonk
   use grid, only : dtlt, dzt, nxp, nyp, nzp,a_pexnr, a_rp, a_tp, th00, CCN,     &
        dn0, pi0, a_rt, a_tt, a_rpp, a_rpt, a_npp, a_npt, a_rv, a_rc, a_theta,   &
-       a_press, a_scr1, a_scr2, precip, a_dn, a_ustar,                  &
+       a_press, a_temp, a_rsl, precip, a_dn, a_ustar,                  &
        a_Radry, a_Rawet, a_Rcdry, a_Rcwet, a_Rpdry, a_Rpwet,                    &
        a_Riwet, a_Rswet,                                                        &
        a_naerop,  a_naerot,  a_maerop,  a_maerot,                               &
@@ -32,7 +32,7 @@ module mcrp
        a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
        snowin,    prtcl
   use thrm, only : thermo
-  use stat, only : sflg, updtst, acc_removal, mcflg, acc_massbudged
+  use stat, only : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
   implicit none
 
   logical, parameter :: droplet_sedim = .False., khairoutdinov = .False.
@@ -75,16 +75,16 @@ contains
     select case (level)
     case(2)
        if (droplet_sedim)  &
-            call sedim_cd(nzp,nxp,nyp,a_theta,a_scr1,a_rc,precip,a_rt,a_tt)
+            call sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
     case(3)
-       call mcrph(nzp,nxp,nyp,dn0,a_theta,a_scr1,a_rv,a_scr2,a_rc,a_rpp,   &
+       call mcrph(nzp,nxp,nyp,dn0,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,   &
                   a_npp,precip,a_rt,a_tt,a_rpt,a_npt)
     case(4,5)
        IF (level < 5) THEN
             sed_ice = .FALSE.; sed_snow = .FALSE.
        ENDIF
        nn = GetNcomp(prtcl)+1
-       CALL sedim_SALSA(nzp,nxp,nyp,nn, level,dtlt, a_scr1, a_theta,               &
+       CALL sedim_SALSA(nzp,nxp,nyp,nn, level,dtlt, a_temp, a_theta,               &
                         a_Rawet,   a_Rcwet,   a_Rpwet,                       &
                         a_Riwet,   a_Rswet,                                  &
                         a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
@@ -776,6 +776,7 @@ contains
     if (sflg) call updtst(n1,'prc',1,v1,1)
     ! Aerosol removal statistics
     IF (sflg) CALL acc_removal(n2,n3,n4,remaer,remcld,remprc,remice,remsnw)
+    IF (sflg) CALL cs_rem_set(n2,n3,n4,remaer,remcld,remprc,remice,remsnw)
 
   END SUBROUTINE !sedim_SALSA
 
@@ -1186,7 +1187,6 @@ contains
     REAL :: prnchg(n1,nn), prvchg(n1,nn,n4) ! Instantaneous changes in precipitation number and mass (volume)
  
     REAL :: prnumc, prvolc(n4)  ! Instantaneous source number and volume
-    REAL :: prdepn(nn), prdepv(nn,n4)
     INTEGER :: kf, ni,fi
     LOGICAL :: prcdep  ! Deposition flag
 
@@ -1200,8 +1200,6 @@ contains
        
        DO i = 3,n2-2
 
-          prdepn = 0.
-          prdepv = 0.
           prnchg = 0.
           prvchg = 0.
           
@@ -1267,8 +1265,6 @@ contains
              
                 ! Put the drops to new positions (may be partially the original grid cell as well!)
                 IF (prcdep) THEN
-                   prdepn(bin) = prdepn(bin) + prnumc
-                   prdepv(bin,:) = prdepv(bin,:) + prvolc(:)
                    DO ni=1,n4
                       remprc(i,j,(ni-1)*nn+bin) = remprc(i,j,(ni-1)*nn+bin) +    &
                            prvolc(ni)*adn(k,i,j)*vc

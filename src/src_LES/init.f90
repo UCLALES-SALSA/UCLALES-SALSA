@@ -84,7 +84,7 @@ contains
           n4 = GetNcomp(prtcl) + 1 ! Aerosol compoenents + water
 
           IF ( nxp == 5 .and. nyp == 5 ) THEN
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,zwp,a_dn, &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -97,7 +97,7 @@ contains
                   a_Riwet,   a_Rswet,                          &
                   1, prtcl, dtlt, .false., 0., level   )
           ELSE
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_scr1,ztkt,a_rp,a_rt,a_scr2,a_rsi,a_wp,a_dn, &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -218,8 +218,9 @@ contains
           end if
 
        CASE(4,5)
-          ! Condensation will be calculated by the initial call of SALSA
-          ! Assume no condensation at this point
+          ! Condensation will be calculated by the initial call of SALSA, so use the
+          ! saturation adjustment method to estimate the amount of liquid water,
+          ! which is needed for theta_l
           DO j = 1,nyp
              DO i = 1,nxp
                 DO k = 1,nzp
@@ -227,12 +228,14 @@ contains
                    pres  = p00 * (exner)**cpr
                    IF (itsflg == 0) THEN
                       tk = th0(k)*exner
-                      a_tp(k,i,j) = a_theta(k,i,j) - th00
+                      rc  = max(0.,a_rp(k,i,j)-rslf(pres,tk))
+                      a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
                    END IF
                    IF (itsflg == 2) THEN
                       tk = th0(k)
                       a_theta(k,i,j) = tk/exner
-                      a_tp(k,i,j) = a_theta(k,i,j) - th00
+                      rc  = max(0.,a_rp(k,i,j)-rslf(pres,tk))
+                      a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
                    END IF
                 END DO !k
              END DO !i
@@ -241,7 +244,7 @@ contains
     END SELECT
 
     k=1
-    do while( zt(k+1) <= zrand .and. k < nzp)
+    do while( zt(k+1) <= zrand .and. k+1 < nzp)
        k=k+1
        xran(k) = 0.2*(zrand - zt(k))/zrand
     end do
@@ -249,7 +252,7 @@ contains
 
     if (associated(a_rp)) then
        k=1
-       do while( zt(k+1) <= zrand .and. k < nzp)
+       do while( zt(k+1) <= zrand .and. k+1 < nzp)
           k=k+1
           xran(k) = 5.0e-5*(zrand - zt(k))/zrand
        end do
@@ -372,8 +375,13 @@ contains
              hs(ns) = ps(ns)
              zold1=zold2
              zold2=ps(ns)
-             tavg=(ts(ns)*xs(ns)+ts(ns-1)*xs(ns-1)*(p00**rcp)             &
-                  /ps(ns-1)**rcp)*.5
+             IF ( itsflg==0 .OR. itsflg==1) THEN
+                ! ts=potential or liquid water potential temperature (condensation not included here)
+                tavg=0.5*(ts(ns)*xs(ns)+ts(ns-1)*xs(ns-1))*((p00/ps(ns-1))**rcp)
+             ELSE
+                ! ts=T [K]
+                tavg=0.5*(ts(ns)*xs(ns)+ts(ns-1)*xs(ns-1))
+             ENDIF
              ps(ns)=(ps(ns-1)**rcp-g*(zold2-zold1)*(p00**rcp)/(cp*tavg))**cpr
           end if
        end select
@@ -1165,7 +1173,7 @@ contains
         DO k = 2,nzp  ! DONT PUT STUFF INSIDE THE GROUND
            DO j = 1,nyp
               DO i = 1,nxp
-                 IF (a_rh(k,i,j)<1.0  .or. a_scr1(k,i,j) > 273.15) CYCLE
+                 IF (a_rh(k,i,j)<1.0  .or. a_temp(k,i,j) > 273.15) CYCLE
                  zumA=sum(a_naerop(k,i,j,in2a:fn2a))
                  zumB=sum(a_naerop(k,i,j,in2b:fn2b))
 
@@ -1177,7 +1185,7 @@ contains
 
                  DO bb=fn2a,in2a,-1
 
-                    IF(a_scr1(k,i,j) < 273.15 .and. zumCumIce<iceFracA*zumA .and. a_naerop(k,i,j,bb)>10e-10) THEN !initialize ice if it is cold enough
+                    IF(a_temp(k,i,j) < 273.15 .and. zumCumIce<iceFracA*zumA .and. a_naerop(k,i,j,bb)>10e-10) THEN !initialize ice if it is cold enough
 
                        excessIce =min(abs(zumCumIce-iceFracA*zumA),a_naerop(k,i,j,bb))
                        a_nicep(k,i,j,bb-3) = a_nicep(k,i,j,bb-3) + excessIce
@@ -1225,7 +1233,7 @@ contains
                 excessFracIce = 1.0
                 excessFracLiq = 1.0
                 DO bb=fn2b,in2b,-1
-                   IF(a_scr1(k,i,j) < 273.15 .and. zumCumIce<iceFracB*zumB  .and. a_naerop(k,i,j,bb)>10e-10) THEN !initialize ice if it is cold enough
+                   IF(a_temp(k,i,j) < 273.15 .and. zumCumIce<iceFracB*zumB  .and. a_naerop(k,i,j,bb)>10e-10) THEN !initialize ice if it is cold enough
 
                       excessIce =min(abs(zumCumIce-iceFracB*zumB),a_naerop(k,i,j,bb))
                       a_nicep(k,i,j,bb-3) = a_nicep(k,i,j,bb-3) + excessIce
