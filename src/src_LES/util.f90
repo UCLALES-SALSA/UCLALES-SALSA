@@ -548,7 +548,7 @@ contains
 
        ! Normal opperation
        
-       IF ( .NOT. (PRESENT(rc) ) ) STOP 'maskactiv: invalid arguments'
+       IF ( .NOT. PRESENT(rc) ) STOP 'maskactiv: invalid arguments'
 
        ! Mask grid points just below cloud or where new cloud is expected to form
        ! 

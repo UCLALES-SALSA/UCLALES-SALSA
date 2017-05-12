@@ -476,7 +476,7 @@ IMPLICIT NONE
                     precp(1,1,ss)%core = pi6*(2.0e-10)**3.
                 ENDIF
              ENDDO
- 
+
              ice(1,1,1:nice)%numc = pa_nicep(kk,ii,jj,1:nice)*pdn(kk,ii,jj)
              ice_old(1,1,1:nice)%numc = ice(1,1,1:nice)%numc
              DO ss=1,nice
@@ -492,7 +492,7 @@ IMPLICIT NONE
                     ice(1,1,ss)%core = pi6*(2.0e-10)**3.
                 ENDIF
              ENDDO
- 
+
              snow(1,1,1:nsnw)%numc = pa_nsnowp(kk,ii,jj,1:nsnw)*pdn(kk,ii,jj)
              snow_old(1,1,1:nsnw)%numc = snow(1,1,1:nsnw)%numc
              DO ss=1,nsnw
@@ -508,7 +508,7 @@ IMPLICIT NONE
                     snow(1,1,ss)%core = pi6*(2.0e-10)**3.
                 ENDIF
              ENDDO
- 
+
 
              ! If this is an initialization call, calculate the equilibrium particle
              If (prunmode == 1) CALL equilibration(kproma,kbdim,klev,   &

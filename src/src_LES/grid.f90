@@ -2212,8 +2212,8 @@ contains
 
     ! Radius from total volume per particle
     calc_wet_radius=0.5*( SUM(mass(:)/dens(:))/numc/pi6)**(1./3.)
-    
+
   END FUNCTION calc_wet_radius
-  
+
 end module grid
 

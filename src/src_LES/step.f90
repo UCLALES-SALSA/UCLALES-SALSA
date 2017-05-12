@@ -954,7 +954,7 @@ end subroutine tstep_reset
 
     IMPLICIT NONE
 
-    INTEGER :: i,j,k,bc,ba,s,sc,sa,str,end,nc,c,nn, iba
+    INTEGER :: i,j,k,bc,ba,s,sc,sa,str,end,nc,c,nn,iba
 
     REAL :: zvol, zvola, zvolnew
     REAL, PARAMETER :: rempty = 1.e-10
@@ -1284,7 +1284,7 @@ end subroutine tstep_reset
                          ENDIF
                       ENDDO
                       if (ba==0) STOP 'FAIL: no sink for evaporating rain drops'
-                      
+
                       ! Move the number of particles from cloud to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nprecpp(k,i,j,bc)
                       a_nprecpp(k,i,j,bc) = 0.
@@ -1427,10 +1427,12 @@ end subroutine tstep_reset
                    END IF
                 END IF
              END DO
+
           END DO   ! k
        END DO   ! i
     END DO   ! j
-    
+
+
     !!!!!!!!!!!!!!!!!!!!!!!
     ! Update diagnostic tracers
     !!!!!!!!!!!!!!!!!!!!!!!

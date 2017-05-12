@@ -445,7 +445,6 @@ contains
               npt(k,i,j) = npt(k,i,j)-(nfl(kp1)-nfl(k))*dzt(k)/dn0(k)
 
               rrate(k,i,j)    = -rfl(k)/dn0(k) * alvl*0.5*(dn0(k)+dn0(kp1))
-              
               if (sflg) v1(k) = v1(k) + rrate(k,i,j)*xnpts
 
            end do
@@ -525,7 +524,7 @@ contains
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,n4
-    REAL, INTENT(inOUT) :: tstep,                    &
+    REAL, INTENT(in) :: tstep,                    &
                         tk(n1,n2,n3),             &
                         th(n1,n2,n3),             &
                         ustar(n2,n3),             &
@@ -704,7 +703,7 @@ contains
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 1,n1-1
-                 tlt(k,i,j) = tlt(k,i,j) - SUM(prvt(k,i,j,istr:iend))/tstep*(alvl/cp)*th(k,i,j)/tk(k,i,j)
+                tlt(k,i,j) = tlt(k,i,j) - SUM(prvt(k,i,j,istr:iend))/tstep*(alvl/cp)*th(k,i,j)/tk(k,i,j)
              END DO
           END DO
        END DO
@@ -727,7 +726,7 @@ contains
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 1,n1-1
-              tlt(k,i,j) = tlt(k,i,j) - SUM(srvt(k,i,j,istr:iend))/tstep*(alvi/cp)*th(k,i,j)/tk(k,i,j)
+                tlt(k,i,j) = tlt(k,i,j) - SUM(srvt(k,i,j,istr:iend))/tstep*(alvi/cp)*th(k,i,j)/tk(k,i,j)
              END DO
           END DO
        END DO
@@ -759,7 +758,6 @@ contains
 
   ! -----------------------------------------------------------------
 
- 
 
   SUBROUTINE NumMassDivergence(n1,n2,n3,n4,nn,tk,adn,pdn,numc,mass,dzt,clim,flxdivn,flxdivm)
     IMPLICIT NONE
@@ -920,7 +918,7 @@ contains
              Kn = lambda/rwet
              GG = 1.+ Kn*(A+B*exp(-C/Kn))
 
-              ! Terminal velocity
+             ! Terminal velocity
              vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG)
 
              ! Particle diffusitivity  (15.29) in jacobson book
@@ -943,7 +941,7 @@ contains
 
           END DO ! bin
 
-          depflxn(i,j,:) = -rfln(:)*dzt(k)           
+          depflxn(i,j,:) = -rfln(:)*dzt(k)
 
        END DO ! i
     END DO ! j
@@ -995,9 +993,9 @@ contains
     LOGICAL :: prcdep  ! Deposition flag
 
     remprc(:,:,:) = 0.
+    rate(:,:,:) = 0.
     prnt(:,:,:,:) = 0.
     prvt(:,:,:,:) = 0.
-    rate(:,:,:) = 0.
 
     DO j = 3,n3-2
        
@@ -1028,6 +1026,10 @@ contains
                 Kn = lambda/rwet
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
                 vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG)
+
+                ! Rain rate statistics: removal of water from the current bin is accounted for
+                ! Water is the last (n4) species and rain rate is given here kg/s/m^2
+                rate(k,i,j)=rate(k,i,j)+mass(k,i,j,(n4-1)*nn+bin)*adn(k,i,j)*vc
 
                 ! Rain rate statistics: removal of water from the current bin is accounted for
                 ! Water is the last (n4) species and rain rate is given here kg/s/m^2
