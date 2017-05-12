@@ -2017,14 +2017,9 @@ contains
     CHARACTER(len=*), INTENT(in) :: itype
     REAL, INTENT(out) :: rad(nzp,nxp,nyp)
 
-    REAL :: zvar1(nzp,nxp,nyp)
-
     INTEGER :: istr,iend
 
     rad = 0.
-
-    ! Get the total number concentration for selected particle type
-    CALL bulkNumc(ipart,itype,zvar1)
 
     SELECT CASE(ipart)
     CASE('aerosol')
@@ -2039,7 +2034,7 @@ contains
           STOP 'meanRadius: Invalid bin regime selection (aerosol)'
        END IF
 
-       CALL getRadius(istr,iend,nbins,a_naerop,zvar1,nlim,a_Rawet,rad)
+       CALL getRadius(istr,iend,nbins,a_naerop,nlim,a_Rawet,rad)
 
     CASE('cloud')
 
@@ -2053,14 +2048,14 @@ contains
           STOP 'meanRadius: Invalid bin regime selection (cloud)'
        END IF
 
-       CALL getRadius(istr,iend,ncld,a_ncloudp,zvar1,nlim,a_Rcwet,rad)
+       CALL getRadius(istr,iend,ncld,a_ncloudp,nlim,a_Rcwet,rad)
 
     CASE('precp')
 
        istr = ira
        iend = fra
 
-       CALL getRadius(istr,iend,nprc,a_nprecpp,zvar1,prlim,a_Rpwet,rad)
+       CALL getRadius(istr,iend,nprc,a_nprecpp,prlim,a_Rpwet,rad)
 
     CASE('ice')
 
@@ -2074,14 +2069,14 @@ contains
           STOP 'meanRadius: Invalid bin regime selection (ice)'
        END IF
 
-       CALL getRadius(istr,iend,nice,a_nicep,zvar1,prlim,a_Riwet,rad)
+       CALL getRadius(istr,iend,nice,a_nicep,prlim,a_Riwet,rad)
 
     CASE('snow')
 
        istr = isa
        iend = fsa
 
-       CALL getRadius(istr,iend,nsnw,a_nsnowp,zvar1,prlim,a_Rswet,rad)
+       CALL getRadius(istr,iend,nsnw,a_nsnowp,prlim,a_Rswet,rad)
 
     END SELECT
 
@@ -2090,13 +2085,12 @@ contains
   ! ---------------------------------------------------
   ! SUBROUTINE getRadius
   !
-  SUBROUTINE getRadius(zstr,zend,nb,numc,ntot,numlim,rpart,zrad)
+  SUBROUTINE getRadius(zstr,zend,nb,numc,numlim,rpart,zrad)
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: nb ! Number of bins for current particle distribution
     INTEGER, INTENT(in) :: zstr,zend  ! Start and end index for averaging
     REAL, INTENT(in) :: numc(nzp,nxp,nyp,nb)
-    REAL, INTENT(in) :: ntot(nzp,nxp,nyp)
     REAL, INTENT(in) :: numlim
     REAL, INTENT(in) :: rpart(nzp,nxp,nyp,nb)
 
@@ -2104,21 +2098,21 @@ contains
 
     LOGICAL :: nlmask(nb)
     INTEGER :: k,i,j
+    REAL :: ntot
 
+    zrad(:,:,:)=0.
     DO j = 3,nyp-2
        DO i = 3,nxp-2
-          DO k = 3,nzp-2
-             nlmask = .FALSE.
+          DO k = 1,nzp
              nlmask(zstr:zend) = ( numc(k,i,j,zstr:zend) > numlim )
+             ntot = 0.
+             ntot = SUM( numc(k,i,j,zstr:zend), MASK=nlmask(zstr:zend) )
 
-             IF (ntot(k,i,j) > numlim) THEN
+             IF (ntot > numlim) &
                 zrad(k,i,j) = SUM( rpart(k,i,j,zstr:zend) * &
                                    numc(k,i,j,zstr:zend),   &
                                    MASK=nlmask(zstr:zend)   ) / &
-                                   ntot(k,i,j)
-             ELSE
-                zrad(k,i,j) = 0.
-             END IF
+                                   ntot
 
           END DO
        END DO

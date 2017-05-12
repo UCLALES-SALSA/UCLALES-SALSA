@@ -485,7 +485,7 @@ contains
   ! Juha Tonttila, FMI, 2014
   !
   SUBROUTINE maskactiv(act_mask,nx,ny,nz,nbins,mode,prtcl,rh,    &
-                       rc,pa_naerop, pa_maerop, pt, Rpwet, w, pa_ncloud  )
+                       rc,pa_naerop, pa_maerop, pt, w, pa_ncloud  )
     USE mo_submctl, ONLY : rhowa, rhosu, rhooc, rhoss, mwa, msu, moc, mss, pi6, nlim
     USE class_ComponentIndex, ONLY : ComponentIndex,GetIndex,IsUsed
     IMPLICIT NONE
@@ -496,7 +496,6 @@ contains
     REAL, OPTIONAL, INTENT(in) :: pa_naerop(nz,nx,ny,nbins),    &
                                   pa_maerop(nz,nx,ny,8*nbins),  &
                                   pt(nz,nx,ny),                 &
-                                  Rpwet(nz,nx,ny,nbins),        &
                                   w(nz,nx,ny),                  &
                                   rc(nz,nx,ny),                 &
                                   pa_ncloud(nz,nx,ny,nbins)
@@ -549,7 +548,7 @@ contains
 
        ! Normal opperation
        
-       IF ( .NOT. (PRESENT(rc) .AND. PRESENT(Rpwet)) ) STOP 'maskactiv: invalid arguments'
+       IF ( .NOT. PRESENT(rc) ) STOP 'maskactiv: invalid arguments'
 
        ! Mask grid points just below cloud or where new cloud is expected to form
        ! 

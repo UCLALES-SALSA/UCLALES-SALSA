@@ -343,7 +343,7 @@ end subroutine tstep_reset
     ! Mask for cloud base activation
     IF (level >= 4)  CALL maskactiv(zactmask,nxp,nyp,nzp,nbins,2,prtcl,a_rh,              &
                                     rc = a_rc,pa_naerop = a_naerop, pa_maerop = a_maerop, &
-                                    pt = a_temp, Rpwet=a_Rawet, w=a_wp, &
+                                    pt = a_temp, w=a_wp, &
                                     pa_ncloud= a_ncloudp(:,:,:,:) )
     ! Get tendencies from cloud base activation
     IF (level >= 4) CALL newdroplet(zactmask)
@@ -411,7 +411,7 @@ end subroutine tstep_reset
     use grid, only : level, dtlt, nxp, nyp, nzp, &
                 zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, a_srs, &
                 a_naerop, a_naerot, a_ncloudp, a_nicep, &
-                a_tp, a_tt, th0, th00, a_up, a_ut, a_vp, a_vt
+                a_tp, a_tt, a_up, a_ut, a_vp, a_vt
     USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
 
     IMPLICIT NONE
@@ -1276,7 +1276,7 @@ end subroutine tstep_reset
                    ! Loose the droplets if smaller than critical radius
                    IF ( zdh2o < MAX(0.02*cdprc(k,i,j,bc),2.e-6)  ) THEN
 
-                      ! Move evaporating rain drops to a soluble aerosoln bin with
+                      ! Move evaporating rain drops to a soluble aerosol bin with
                       ! the closest match in dry particle radius. Ain't perfect but
                       ! the bin update subroutine in SALSA will take care of the rest.
                       zvol = 0.
@@ -1357,7 +1357,7 @@ end subroutine tstep_reset
                    ! Loose the droplets if smaller than critical radius !!huomhuom a_rhi ice'n'snow
                    IF ( zdh2o < MAX(0.02*cdsnw(k,i,j,bc),2.e-6) ) THEN
 
-                      ! Move evaporating rain drops to a soluble aerosoln bin with
+                      ! Move evaporating rain drops to a soluble aerosol bin with
                       ! the closest match in dry particle radius. Ain't perfect but
                       ! the bin update subroutine in SALSA will take care of the rest.
                       zclosest = .FALSE.
@@ -1502,41 +1502,40 @@ end subroutine tstep_reset
                 END IF
              END DO
 
-
-             !!!!!!!!!!!!!!!!!!!!!!!
-             ! Update diagnostic tracers
-             !!!!!!!!!!!!!!!!!!!!!!!
-
-             ! Liquid water content
-             nc = GetIndex(prtcl,'H2O')
-             ! Aerosols, regimes a and b
-             str = (nc-1)*nbins + in1a
-             end = (nc-1)*nbins + fn2b
-             a_rc(k,i,j) = SUM(a_maerop(k,i,j,str:end))
-             ! Clouds, regime a and b
-             str = (nc-1)*ncld+ica%cur
-             end = (nc-1)*ncld+fcb%cur
-             a_rc(k,i,j) = a_rc(k,i,j) + SUM(a_mcloudp(k,i,j,str:end))
-             ! Precipitation
-             str = (nc-1)*nprc+ira
-             end = (nc-1)*nprc+fra
-             a_srp(k,i,j) = SUM(a_mprecpp(k,i,j,str:end))
-             a_snrp(k,i,j) = SUM(a_nprecpp(k,i,j,ira:fra))
-
-             ! ice, regimes a and b
-             str = (nc-1)*nice+iia%cur
-             end = (nc-1)*nice+fib%cur
-             a_ri(k,i,j) = SUM(a_micep(k,i,j,str:end))
-             ! Snow
-             str = (nc-1)*nsnw+isa
-             end = (nc-1)*nsnw+fsa
-             a_srs(k,i,j) = SUM(a_msnowp(k,i,j,str:end))
-             a_snrs(k,i,j) = SUM(a_nsnowp(k,i,j,isa:fsa))
-
           END DO   ! k
        END DO   ! i
     END DO   ! j
 
+
+    !!!!!!!!!!!!!!!!!!!!!!!
+    ! Update diagnostic tracers
+    !!!!!!!!!!!!!!!!!!!!!!!
+
+    ! Liquid water content
+    nc = GetIndex(prtcl,'H2O')
+    ! Aerosols, regimes a and b
+    str = (nc-1)*nbins + in1a
+    end = (nc-1)*nbins + fn2b
+    a_rc(:,:,:) = SUM(a_maerop(:,:,:,str:end),DIM=4)
+    ! Clouds, regime a and b
+    str = (nc-1)*ncld+ica%cur
+    end = (nc-1)*ncld+fcb%cur
+    a_rc(:,:,:) = a_rc(:,:,:) + SUM(a_mcloudp(:,:,:,str:end),DIM=4)
+    ! Precipitation
+    str = (nc-1)*nprc+ira
+    end = (nc-1)*nprc+fra
+    a_srp(:,:,:) = SUM(a_mprecpp(:,:,:,str:end),DIM=4)
+    a_snrp(:,:,:) = SUM(a_nprecpp(:,:,:,ira:fra),DIM=4)
+
+    ! ice, regimes a and b
+    str = (nc-1)*nice+iia%cur
+    end = (nc-1)*nice+fib%cur
+    a_ri(:,:,:) = SUM(a_micep(:,:,:,str:end),DIM=4)
+    ! Snow
+    str = (nc-1)*nsnw+isa
+    end = (nc-1)*nsnw+fsa
+    a_srs(:,:,:) = SUM(a_msnowp(:,:,:,str:end),DIM=4)
+    a_snrs(:,:,:) = SUM(a_nsnowp(:,:,:,isa:fsa),DIM=4)
 
   END SUBROUTINE SALSA_diagnostics
 

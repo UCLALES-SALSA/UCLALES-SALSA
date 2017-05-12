@@ -1,21 +1,24 @@
 #!/usr/bin/python
 #
 # Functions for post-processing UCLALES-SALSA outputs from parallel runs.
-#	1a) Combine 4D outputs (name.########.nc) 
-# 	1b) Combine 3D column outputs (name.cs.########.nc)  
+#	1a) Combine 4D outputs (name.########.nc)
+# 	1b) Combine 3D column outputs (name.cs.########.nc)
 #	2) Average profile (name.ps.########.nc) or temporal (name.ts.########.nc) statistics
 #
 # Execution:
 #	One or more files
 #		python combine.py rf01
 #		python combine.py rf01.ts
-#		python combine.py rf01.ts rf01.ps rf01.cs 
+#		python combine.py rf01.ts rf01.ps rf01.cs
 #	One file and list if variables to be included in the outputs
 #		python combine.py rf01 l q t
 #
 # Last update: 13.4.2017 Tomi Raatikainen
 #
-# Edit this tag when something is changed
+# Required modules
+#		Python 2.7.10
+#
+# Edit this tag when outputs are changed
 version='combine_1.0.0'
 #
 import sys
@@ -57,7 +60,7 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 	# e) Weighted averages (weights must be specified below) - needed for conditional averages
 	#	Note: weight ~ conditinal coverage
 	weighted = []
-	# f) Variances (weights must be specified below) 
+	# f) Variances (weights must be specified below)
 	#	Note 1: combining variances requires information about averages
 	# 	Note 2: some units refer to standard deviation = sqrt(variance)?
 	#	Note 3: some of the reported variances are not actually variances, but averages of squares
@@ -230,7 +233,7 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 		#
 		info_prints=0
 		#
-		set_missing=-999 
+		set_missing=-999
 		#
 		# All files
 		for i in range(imax):
@@ -332,7 +335,7 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 		# Save updated data
 		obj[:]=val
 		ncid.sync()
-	#	
+	#
 	# Close file
 	ncid.close()
 #
@@ -488,7 +491,7 @@ def reduce_full(infile,imax,jmax,var_list):
 				src='%s.%04u%04u.nc' % (infile, i, j)
 				ncid_src = netcdf.Dataset(src,'r')
 				obj_src = ncid_src.variables[name]
-				val_src = obj_src[:] #.getValue()	
+				val_src = obj_src[:] #.getValue()
 				#
 				if i==0 and j==0:
 					# Generate new dimension by reshaping single processor data
@@ -587,7 +590,7 @@ def examine_var_name(file,var):
 	# Not found
 	ncid.close()
 	return False
-#	
+#
 #
 # Input files
 # ==========

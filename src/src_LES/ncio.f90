@@ -1249,11 +1249,11 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('precip')
-       if (itype==0) ncinfo = 'Precipitation Flux (positive downward'
-       if (itype==1) ncinfo = 'm/s'
+       if (itype==0) ncinfo = 'Precipitation Flux (positive downward)'
+       if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('evap')
-       if (itype==0) ncinfo = 'Net evap  of rain-water'
+       if (itype==0) ncinfo = 'Net evap of rain-water'
        if (itype==1) ncinfo = 's^-1'
        if (itype==2) ncinfo = 'tttt'
     case('frc_prc')
@@ -1261,8 +1261,8 @@ contains
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'ttmt'
     case('prc_prc')
-       if (itype==0) ncinfo = 'Conditionally sampled rain rate'
-       if (itype==1) ncinfo = 'm/s'
+       if (itype==0) ncinfo = 'Conditionally sampled precipitation flux'
+       if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('frc_ran')
        if (itype==0) ncinfo = 'Rain water fraction'
