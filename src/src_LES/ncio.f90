@@ -1253,7 +1253,7 @@ contains
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('evap')
-       if (itype==0) ncinfo = 'Net evap  of rain-water'
+       if (itype==0) ncinfo = 'Net evap of rain-water'
        if (itype==1) ncinfo = 's^-1'
        if (itype==2) ncinfo = 'tttt'
     case('frc_prc')

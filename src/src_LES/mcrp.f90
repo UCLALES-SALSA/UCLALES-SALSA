@@ -444,7 +444,6 @@ contains
 
               npt(k,i,j) = npt(k,i,j)-(nfl(kp1)-nfl(k))*dzt(k)/dn0(k)
 
-              !rrate(k,i,j)    = -rfl(k) * alvl*0.5*(dn0(k)+dn0(kp1))
               rrate(k,i,j)    = -rfl(k)/dn0(k) * alvl*0.5*(dn0(k)+dn0(kp1))
               
               if (sflg) v1(k) = v1(k) + rrate(k,i,j)*xnpts
@@ -706,9 +705,6 @@ contains
           DO i = 3,n2-2
              DO k = 1,n1-1
                  tlt(k,i,j) = tlt(k,i,j) - SUM(prvt(k,i,j,istr:iend))/tstep*(alvl/cp)*th(k,i,j)/tk(k,i,j)
-
-                 ! Rain rate
-                ! rrate(k,i,j) = -SUM(prvt(k,i,j,istr:iend)*2.) * alvl*0.5*(a_dn(k,i,j)+a_dn(k+1,i,j))
              END DO
           END DO
        END DO
@@ -732,9 +728,6 @@ contains
           DO i = 3,n2-2
              DO k = 1,n1-1
               tlt(k,i,j) = tlt(k,i,j) - SUM(srvt(k,i,j,istr:iend))/tstep*(alvi/cp)*th(k,i,j)/tk(k,i,j)
-
-              ! Snow rate
-              !srate(k,i,j) = -SUM(srvt(k,i,j,istr:iend)*1.) * alvi*0.5*(a_dn(k,i,j)+a_dn(k+1,i,j)) 
              END DO
           END DO
        END DO
@@ -797,13 +790,10 @@ contains
     REAL :: va                    ! Thermal speed of air molecule
     REAL :: Kn, GG               ! Knudsen number, slip correction
     REAL :: vc                    ! Critical fall speed
-    REAL :: rhoref               ! Reference air density in STP conditions
 
-    REAL :: rflm(n1,nn,n4), rfln(n1,nn), prvolc(n4),rwet
+    REAL :: rflm(n1,nn,n4), rfln(n1,nn), prvolc(n4), rwet
     flxdivm = 0.
     flxdivn = 0.
-
-    rhoref = 1.01325e5/(287.*273.15)
 
     DO j = 3,n3-2
        DO i = 3,n2-2
@@ -832,16 +822,10 @@ contains
                 prvolc(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
                 rwet=calc_wet_radius(n4,numc(k,i,j,bin),prvolc)
 
-                IF (rwet < 20.e-6 ) THEN
-                   Kn = lambda/rwet
-                   GG = 1.+ Kn*(A+B*exp(-C/Kn))
-                   vc = (2.*(rwet**2)*(pdn-adn(k,i,j))*g/(9.*avis))*GG
-                   vc = MIN(vc,1.)
-                ELSE
-                   vc = 2.e3*(2.*rwet)*(rhoref/adn(k,i,j))**2
-                   vc = MIN(vc,5.) 
-                END IF
-                vc = terminal_vel_tr(rwet,pdn,tk(k,i,j),adn(k,i,j)*287.058*tk(k,i,j))
+                ! Terminal velocity
+                Kn = lambda/rwet
+                GG = 1.+ Kn*(A+B*exp(-C/Kn))
+                vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG)
 
                 ! Flux for the particle mass
                 IF ( k > 2 ) THEN
@@ -903,14 +887,11 @@ contains
     REAL :: va          ! Thermal speed of air molecule
     REAL :: vc,vd       ! Particle fall speed, deposition velocity
     REAL :: rt
-    REAL :: rhoref      ! Reference air density in STP conditions
 
     REAL :: rflm(nn,n4), rfln(nn), prvolc(n4), rwet
 
     depflxm = 0.
     depflxn = 0.
-
-    rhoref = 1.01325e5/(287.*273.15)
 
     ! Fix level to lowest above ground level
     k = 2
@@ -939,14 +920,8 @@ contains
              Kn = lambda/rwet
              GG = 1.+ Kn*(A+B*exp(-C/Kn))
 
-             IF (rwet < 20.e-6 ) THEN
-                vc = (2.*(rwet**2)*(pdn-adn(k,i,j))*g/(9.*avis))*GG
-                vc = MIN(vc,1.)
-             ELSE
-                vc = 2.e3*(2.*rwet)*(rhoref/adn(k,i,j))**2
-                vc = MIN(vc,5.) 
-             END IF
-             vc = terminal_vel_tr(rwet,pdn,tk(k,i,j),adn(k,i,j)*287.058*tk(k,i,j))
+              ! Terminal velocity
+             vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG)
 
              ! Particle diffusitivity  (15.29) in jacobson book
              mdiff = (kb*tk(k,i,j)*GG)/(6.0*pi*avis*rwet)
@@ -1009,12 +984,11 @@ contains
     REAL :: avis,kvis   ! Air viscosity, kinematic viscosity
     REAL :: va          ! Thermal speed of air molecule
     REAL :: vc
-    REAL :: rhoref      ! Reference air density in STP conditions
 
     ! For precipitation:
     REAL :: fd,fdmax,fdos ! Fall distance for rain drops, max fall distance, overshoot from nearest grid level
     REAL :: prnchg(n1,nn), prvchg(n1,nn,n4) ! Instantaneous changes in precipitation number and mass (volume)
-    REAL :: frac_tot, rwet
+    REAL :: rwet
  
     REAL :: prnumc, prvolc(n4)  ! Instantaneous source number and volume
     INTEGER :: kf, ni,fi
@@ -1025,17 +999,15 @@ contains
     prvt(:,:,:,:) = 0.
     rate(:,:,:) = 0.
 
-    rhoref = 1.01325e5/(287.*273.15)
-
     DO j = 3,n3-2
        
        DO i = 3,n2-2
 
           prnchg = 0.
           prvchg = 0.
-
+          
           DO k=n1-1,2,-1
-
+          
              ! atm modelling Eq.4.54
              avis = 1.8325e-5*(416.16/(tk(k,i,j)+120.0))*(tk(k,i,j)/296.16)**1.5
              kvis = avis/adn(k,i,j) !actual density ???
@@ -1053,75 +1025,13 @@ contains
                 rwet=calc_wet_radius(n4,numc(k,i,j,bin),prvolc)
 
                 ! Terminal velocity
-                IF (rwet < 20.e-6 ) THEN
-                   Kn = lambda/rwet
-                   GG = 1.+ Kn*(A+B*exp(-C/Kn))
-                   vc = (2.*(rwet**2)*(pdn-adn(k,i,j))*g/(9.*avis))*GG
-                ELSE
-                   vc = 2.e3*(2.*rwet)*(rhoref/adn(k,i,j))**2
-                END IF
-                vc = MIN(vc,10.)
-
-                vc = terminal_vel_tr(rwet,pdn,tk(k,i,j),adn(k,i,j)*287.058*tk(k,i,j))
+                Kn = lambda/rwet
+                GG = 1.+ Kn*(A+B*exp(-C/Kn))
+                vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG)
 
                 ! Rain rate statistics: removal of water from the current bin is accounted for
                 ! Water is the last (n4) species and rain rate is given here kg/s/m^2
                 rate(k,i,j)=rate(k,i,j)+mass(k,i,j,(n4-1)*nn+bin)*adn(k,i,j)*vc
-
-                ! Total fall distance during one time step
-                fdmax = tstep*vc
-
-                ! Ignore insignificant fall velocities
-                if (fdmax*dzt(k)<1.e-5) CYCLE
-
-                ! 1) Remove from the original bin
-                !   fraction to be removed=min(dz,tstep*vc)/dz=min(1.,tstep*vc/dz)
-                fdos = MIN(1.,fdmax*dzt(k))
-                prnumc = fdos*numc(k,i,j,bin)
-                prnchg(k,bin) = prnchg(k,bin) - prnumc
-                DO ni = 1,n4
-                   prvolc(ni) = fdos*mass(k,i,j,(ni-1)*nn+bin)
-                   prvchg(k,bin,ni) = prvchg(k,bin,ni) - prvolc(ni)
-                END DO ! ni
-
-                ! 2) Redistribute removed particles to the overlapping bins below this one, which
-                ! drops are distributed between fdmax-0.5./dzt(k) and fdmax+0.5./dzt(k)
-                frac_tot=0.
-                fd = 0.
-                DO fi=k-1,2,-1
-                    ! Distance to new bin center; extends from fd-0.5./dzt(fi) to fd+0.5./dzt(fi)
-                    fd = fd + ( 1./dzt(fi) )
-                    IF ((k<=2) .OR. (fd-0.5/dzt(fi) > fdmax+0.5/dzt(k)) ) THEN
-                        ! Deposition to surface or below relevant bins
-                        exit
-                    ELSEIF ( fdmax-0.5/dzt(k) > fd+0.5/dzt(fi) ) THEN
-                        ! Drops go past this bin (unlikely for >10 m vertical resolution and ~1 s time step)
-                    ELSE
-                        ! This bin takes a fraction of the falling drops (typically fdos is ~1 for fi=k-1)
-                        fdos=( min(fd+0.5/dzt(fi),fdmax+0.5/dzt(k))-max(fd-0.5/dzt(fi),fdmax-0.5/dzt(k)) )/fdmax
-                        ! Good to have due to limited numerical accuracy
-                        fdos=min(1.,max(0.,fdos))
-
-                        ! Mass and number evenly distributed
-                        !   Note: prvolc is fraction, so it must be scaled with bin height (typically equal bin heights)
-                        prnchg(fi,bin) = prnchg(fi,bin) + fdos*prnumc/dzt(k)*dzt(fi)
-                        prvchg(fi,bin,:) = prvchg(fi,bin,1:n4) + fdos*prvolc(:)/dzt(k)*dzt(fi)
-
-                        frac_tot=frac_tot+fdos
-                    ENDIF
-                ENDDO
-
-                ! 3) Remaining drops fall to the surface
-                !   Note: counter fi should have decreased to 1 in the case of surface deposition
-                if ((fi<=2) .AND. frac_tot<1.0) THEN
-                    DO ni=1,n4
-                        ! All remaining mass here: (1.0-frac_tot)*prvolc(ni)/dzt(k)
-                        ! ... in unit time and per unit area (unit=kg/m^2/s)
-                        remprc(i,j,(ni-1)*nn+bin) = remprc(i,j,(ni-1)*nn+bin) + (1.0-frac_tot)*prvolc(ni)/dzt(k)*adn(k,i,j)/tstep
-                    END DO
-                ENDIF
-
-                cycle
 
                 ! Determine output flux for current level: Find the closest level to which the
                 ! current drop parcel can fall within 1 timestep. If the lowest atmospheric level
@@ -1199,38 +1109,28 @@ contains
 
   !********************************************************************
   ! Function for calculating terminal velocities for different particles size ranges.
-  ! Tomi Raatikainen (2.5.2017)
-  REAL FUNCTION terminal_vel_tr(radius,rhop,temp,pres)
+  !     Tomi Raatikainen (2.5.2017)
+  REAL FUNCTION terminal_vel(radius,rhop,rhoa,visc,beta)
     implicit none
     REAL, intent(in) :: radius, rhop ! Particle radius and density
-    REAL, intent(in) :: temp, pres ! Air temperature and pressure
-    ! Local variables
-    REAL :: rhoa, visc, mfp, beta
+    REAL, intent(in) :: rhoa, visc, beta ! Air density, viscocity and Cunningham correction factor
     ! Constants
-    real, parameter :: rhoa_ref = 1.225, & ! reference air density (kg/m^3)
-        grav   = 9.81,         & ! gravitational acceleration (m/s^2)
-        pstand = 1.01325e+5 ! standard pressure (Pa)
-
-    ! Air density
-    rhoa = pres/(287.058*temp)
+    real, parameter :: rhoa_ref = 1.225 ! reference air density (kg/m^3)
 
     IF (radius<40.0e-6) THEN
         ! Stokes law with Cunningham slip correction factor
-        visc = (7.44523e-3*temp**1.5)/(5093.*(temp+110.4)) ! viscosity of air [kg/(m s)]
-        mfp = (1.656e-10*temp+1.828e-8)*pstand/pres ! mean free path of air [m]
-        beta = 1.+mfp/radius*(1.142+0.558*exp(-0.999*radius/mfp)) ! Cunningham correction factor
-        terminal_vel_tr = (4.*radius**2)*(rhop-rhoa)*grav*beta/(18.*visc) ![m s-1]
+        terminal_vel = (4.*radius**2)*(rhop-rhoa)*g*beta/(18.*visc) ![m s-1]
     ELSEIF (radius<0.6e-3) THEN
         ! Droplets from 40 um to 0.6 mm: linear dependence on particle radius and a correction for reduced pressure
         !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
-        terminal_vel_tr = 8.e3*radius*sqrt(rhoa_ref/rhoa)
+        terminal_vel = 8.e3*radius*sqrt(rhoa_ref/rhoa)
     ELSE
         ! Droplets larger than 0.6 mm: square root dependence on particle radius and a correction for reduced pressure
         !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
         ! Note: this is valid up to 2 mm or 9 m/s (at 1000 mbar), where droplets start to break
-        terminal_vel_tr = 2.01e2*sqrt( min(radius,2.0e-3)*rhoa_ref/rhoa)
+        terminal_vel = 2.01e2*sqrt( min(radius,2.0e-3)*rhoa_ref/rhoa)
     ENDIF
-  END FUNCTION terminal_vel_tr
+  END FUNCTION terminal_vel
   !********************************************************************
 
 end module mcrp
