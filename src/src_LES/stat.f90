@@ -1696,6 +1696,9 @@ contains
           svctr_ca(k,:,:) = svctr_ca(k,:,:)/nsmp
           svctr_cb(k,:,:) = svctr_cb(k,:,:)/nsmp
           svctr_p(k,:,:) = svctr_p(k,:,:)/nsmp
+
+          ! Replace level 3 CDNC=CCN with that from SALSA (a + b bins)
+          svctr(k,84)=svctr_b(k,8)+svctr_b(k,9)
        END IF
 
     end do

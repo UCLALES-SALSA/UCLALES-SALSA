@@ -1031,10 +1031,6 @@ contains
                 ! Water is the last (n4) species and rain rate is given here kg/s/m^2
                 rate(k,i,j)=rate(k,i,j)+mass(k,i,j,(n4-1)*nn+bin)*adn(k,i,j)*vc
 
-                ! Rain rate statistics: removal of water from the current bin is accounted for
-                ! Water is the last (n4) species and rain rate is given here kg/s/m^2
-                rate(k,i,j)=rate(k,i,j)+mass(k,i,j,(n4-1)*nn+bin)*adn(k,i,j)*vc
-
                 ! Determine output flux for current level: Find the closest level to which the
                 ! current drop parcel can fall within 1 timestep. If the lowest atmospheric level
                 ! is reached, the drops are sedimented.
@@ -1069,28 +1065,29 @@ contains
                    prvolc(ni) = mass(k,i,j,(ni-1)*nn+bin)
                    prvchg(k,bin,ni) = prvchg(k,bin,ni) - prvolc(ni)
                 END DO ! ni
-             
-                ! Put the drops to new positions (may be partially the original grid cell as well!)
+
+                ! Removal statistics
                 IF (prcdep) THEN
                    DO ni=1,n4
                       remprc(i,j,(ni-1)*nn+bin) = remprc(i,j,(ni-1)*nn+bin) +    &
                            prvolc(ni)*adn(k,i,j)*vc
                    END DO
+                ENDIF ! prcdep
+
+                ! Put the drops to new positions (may be partially the original grid cell as well!)
+                IF (fdos*dzt(kf) > 0.5) THEN  ! Reduce numerical diffusion
+                   prnchg(kf-1,bin) = prnchg(kf-1,bin) + prnumc
+                   DO ni = 1,n4
+                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + prvolc(ni)
+                   END DO
                 ELSE
-                   IF (fdos*dzt(kf) > 0.5) THEN  ! Reduce numerical diffusion
-                      prnchg(kf-1,bin) = prnchg(kf-1,bin) + prnumc
-                      DO ni = 1,n4
-                         prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + prvolc(ni)
-                      END DO
-                   ELSE
-                      prnchg(kf-1,bin) = prnchg(kf-1,bin) + ( fdos*dzt(kf) )*prnumc
-                      prnchg(kf,bin) = prnchg(kf,bin) + ( 1. - fdos*dzt(kf) )*prnumc
-                      DO ni = 1,n4
-                         prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + ( fdos*dzt(kf) )*prvolc(ni)
-                         prvchg(kf,bin,ni) = prvchg(kf,bin,ni) + ( 1. - fdos*dzt(kf) )*prvolc(ni)
-                      END DO
-                   END IF ! diffusion
-                END IF ! prcdep
+                   prnchg(kf-1,bin) = prnchg(kf-1,bin) + ( fdos*dzt(kf) )*prnumc
+                   prnchg(kf,bin) = prnchg(kf,bin) + ( 1. - fdos*dzt(kf) )*prnumc
+                   DO ni = 1,n4
+                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + ( fdos*dzt(kf) )*prvolc(ni)
+                      prvchg(kf,bin,ni) = prvchg(kf,bin,ni) + ( 1. - fdos*dzt(kf) )*prvolc(ni)
+                   END DO
+                END IF ! diffusion
              
              END DO !bin
           

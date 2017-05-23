@@ -344,8 +344,8 @@ CONTAINS
   END SUBROUTINE equilibration
 
   ! Juha: It should not be necessary to do this since cloud water content is Always calculated via condensation equations
-  !               - This is done only for initialization call, otherwise the
-  !                 water contents are computed via condensation
+  !               - This is done for initialization call when non-zero cloud or ice number concentration is initialized
+  !                 manually. Otherwise water contents are computed via condensation
   !               - Not an equilibrium, but fixed droplet/ice diameter
   !               - Regimes 2a & 2b for ice and cloud droplets
   ! ----------------------------------------------------------------------------------------------------------------------
@@ -386,12 +386,7 @@ CONTAINS
                 IF ((pcloud(ii,jj,kk)%numc > nlim)) THEN
                    !-- 1) particle properties calculated for non-empty bins ---------
                    pcloud(ii,jj,kk)%volc(8) = pi6*12.0E-6**3*pcloud(ii,jj,kk)%numc ! set water content according to 12um diameter
-                   pcloud(ii,jj,kk)%dwet = 11.0E-6
-                   pcloud(ii,jj,kk)%core = pi6*pcloud(ii,jj,kk)%dmid**3
-                ELSE
-                   !-- 2) empty bins given bin average values -------------------------
-                   pcloud(ii,jj,kk)%dwet = pcloud(ii,jj,kk)%dmid
-                   pcloud(ii,jj,kk)%core = pi6*pcloud(ii,jj,kk)%dmid**3
+                   pcloud(ii,jj,kk)%dwet = 12.0E-6
                 END IF
             ENDDO
 
@@ -401,11 +396,6 @@ CONTAINS
                     !-- 1) particle properties calculated for non-empty bins ---------
                    pice(ii,jj,kk)%volc(8) = pi6*30.0E-6**3*pice(ii,jj,kk)%numc  ! set water content according to 30um diameter
                    pice(ii,jj,kk)%dwet = 30.0E-6! sqrt(3*B/A)
-                   pice(ii,jj,kk)%core = pi6*pice(ii,jj,kk)%dmid**3
-                ELSE
-                   !-- 2) empty bins given bin average values -------------------------
-                   pice(ii,jj,kk)%dwet = pice(ii,jj,kk)%dmid
-                   pice(ii,jj,kk)%core = pi6*pice(ii,jj,kk)%dmid**3
                 END IF
             END DO
         END DO

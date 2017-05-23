@@ -433,15 +433,11 @@ IMPLICIT NONE
              aero_old(1,1,1:nbins)%numc = aero(1,1,1:nbins)%numc
              DO ss=1,nbins
                 IF (aero(1,1,ss)%numc>nlim) THEN
-                    vdry = (aero(1,1,ss)%volc(1) + &
-                        aero(1,1,ss)%volc(2) + aero(1,1,ss)%volc(3) + &
-                        aero(1,1,ss)%volc(4) + aero(1,1,ss)%volc(5) + &
-                        aero(1,1,ss)%volc(6) + aero(1,1,ss)%volc(7))/aero(1,1,ss)%numc
-                    aero(1,1,ss)%core = vdry
-                    aero(1,1,ss)%dwet = ((vdry+aero(1,1,ss)%volc(8)/aero(1,1,ss)%numc)/pi6)**(1./3.)
+                    aero(1,1,ss)%core = SUM(aero(1,1,ss)%volc(1:7))/aero(1,1,ss)%numc
+                    aero(1,1,ss)%dwet = ( SUM(aero(1,1,ss)%volc(:))/aero(1,1,ss)%numc/pi6 )**(1./3.)
                 ELSE
-                    aero(1,1,ss)%dwet = 2.0e-10
-                    aero(1,1,ss)%core = pi6*(2.0e-10)**3.
+                    aero(1,1,ss)%dwet = aero(1,1,ss)%dmid
+                    aero(1,1,ss)%core = pi6*(aero(1,1,ss)%dwet)**3.
                 ENDIF
              ENDDO
 
@@ -449,63 +445,47 @@ IMPLICIT NONE
              cloud_old(1,1,1:ncld)%numc = cloud(1,1,1:ncld)%numc
              DO ss=1,ncld
                 IF (cloud(1,1,ss)%numc>nlim) THEN
-                    vdry = (cloud(1,1,ss)%volc(1) + &
-                        cloud(1,1,ss)%volc(2) + cloud(1,1,ss)%volc(3) + &
-                        cloud(1,1,ss)%volc(4) + cloud(1,1,ss)%volc(5) + &
-                        cloud(1,1,ss)%volc(6) + cloud(1,1,ss)%volc(7))/cloud(1,1,ss)%numc
-                    cloud(1,1,ss)%core = vdry
-                    cloud(1,1,ss)%dwet = ((vdry+cloud(1,1,ss)%volc(8)/cloud(1,1,ss)%numc)/pi6)**(1./3.)
+                    cloud(1,1,ss)%core = SUM(cloud(1,1,ss)%volc(1:7))/cloud(1,1,ss)%numc
+                    cloud(1,1,ss)%dwet = ( SUM(cloud(1,1,ss)%volc(:))/cloud(1,1,ss)%numc/pi6 )**(1./3.)
                 ELSE
-                    cloud(1,1,ss)%dwet = 2.0e-10
-                    cloud(1,1,ss)%core = pi6*(2.0e-10)**3.
+                    cloud(1,1,ss)%dwet = cloud(1,1,ss)%dmid
+                    cloud(1,1,ss)%core = pi6*(cloud(1,1,ss)%dwet)**3.
                 ENDIF
              ENDDO
 
              precp(1,1,1:nprc)%numc = pa_nprecpp(kk,ii,jj,1:nprc)*pdn(kk,ii,jj)
              precp_old(1,1,1:nprc)%numc = precp(1,1,1:nprc)%numc
              DO ss=1,nprc
-                IF (precp(1,1,ss)%numc>nlim) THEN
-                    vdry = (precp(1,1,ss)%volc(1) + &
-                        precp(1,1,ss)%volc(2) + precp(1,1,ss)%volc(3) + &
-                        precp(1,1,ss)%volc(4) + precp(1,1,ss)%volc(5) + &
-                        precp(1,1,ss)%volc(6) + precp(1,1,ss)%volc(7))/precp(1,1,ss)%numc
-                    precp(1,1,ss)%core = vdry
-                    precp(1,1,ss)%dwet = ((vdry+precp(1,1,ss)%volc(8)/precp(1,1,ss)%numc)/pi6)**(1./3.)
+                IF (precp(1,1,ss)%numc>prlim) THEN
+                    precp(1,1,ss)%core = SUM(precp(1,1,ss)%volc(1:7))/precp(1,1,ss)%numc
+                    precp(1,1,ss)%dwet = ( SUM(precp(1,1,ss)%volc(:))/precp(1,1,ss)%numc/pi6 )**(1./3.)
                 ELSE
-                    precp(1,1,ss)%dwet = 2.0e-10
-                    precp(1,1,ss)%core = pi6*(2.0e-10)**3.
+                    precp(1,1,ss)%dwet = precp(1,1,ss)%dmid
+                    precp(1,1,ss)%core = pi6*(precp(1,1,ss)%dwet)**3.
                 ENDIF
              ENDDO
 
              ice(1,1,1:nice)%numc = pa_nicep(kk,ii,jj,1:nice)*pdn(kk,ii,jj)
              ice_old(1,1,1:nice)%numc = ice(1,1,1:nice)%numc
              DO ss=1,nice
-                IF (ice(1,1,ss)%numc>nlim) THEN
-                    vdry = (ice(1,1,ss)%volc(1) + &
-                        ice(1,1,ss)%volc(2) + ice(1,1,ss)%volc(3) + &
-                        ice(1,1,ss)%volc(4) + ice(1,1,ss)%volc(5) + &
-                        ice(1,1,ss)%volc(6) + ice(1,1,ss)%volc(7))/ice(1,1,ss)%numc
-                    ice(1,1,ss)%core = vdry
-                    ice(1,1,ss)%dwet = ((vdry+ice(1,1,ss)%volc(8)/ice(1,1,ss)%numc)/pi6)**(1./3.)
+                IF (ice(1,1,ss)%numc>prlim) THEN
+                    ice(1,1,ss)%core = SUM(ice(1,1,ss)%volc(1:7))/ice(1,1,ss)%numc
+                    ice(1,1,ss)%dwet = ( SUM(ice(1,1,ss)%volc(:))/ice(1,1,ss)%numc/pi6 )**(1./3.)
                 ELSE
-                    ice(1,1,ss)%dwet = 2.0e-10
-                    ice(1,1,ss)%core = pi6*(2.0e-10)**3.
+                    ice(1,1,ss)%dwet = ice(1,1,ss)%dmid
+                    ice(1,1,ss)%core = pi6*(ice(1,1,ss)%dwet)**3.
                 ENDIF
              ENDDO
 
              snow(1,1,1:nsnw)%numc = pa_nsnowp(kk,ii,jj,1:nsnw)*pdn(kk,ii,jj)
              snow_old(1,1,1:nsnw)%numc = snow(1,1,1:nsnw)%numc
              DO ss=1,nsnw
-                IF (snow(1,1,ss)%numc>nlim) THEN
-                    vdry = (snow(1,1,ss)%volc(1) + &
-                        snow(1,1,ss)%volc(2) + snow(1,1,ss)%volc(3) + &
-                        snow(1,1,ss)%volc(4) + snow(1,1,ss)%volc(5) + &
-                        snow(1,1,ss)%volc(6) + snow(1,1,ss)%volc(7))/snow(1,1,ss)%numc
-                    snow(1,1,ss)%core = vdry
-                    snow(1,1,ss)%dwet = ((vdry+snow(1,1,ss)%volc(8)/snow(1,1,ss)%numc)/pi6)**(1./3.)
+                IF (snow(1,1,ss)%numc>prlim) THEN
+                    snow(1,1,ss)%core = SUM(snow(1,1,ss)%volc(1:7))/snow(1,1,ss)%numc
+                    snow(1,1,ss)%dwet = ( SUM(snow(1,1,ss)%volc(:))/snow(1,1,ss)%numc/pi6 )**(1./3.)
                 ELSE
-                    snow(1,1,ss)%dwet = 2.0e-10
-                    snow(1,1,ss)%core = pi6*(2.0e-10)**3.
+                    snow(1,1,ss)%dwet = snow(1,1,ss)%dmid
+                    snow(1,1,ss)%core = pi6*(snow(1,1,ss)%dwet)**3.
                 ENDIF
              ENDDO
 
