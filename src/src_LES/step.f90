@@ -200,8 +200,6 @@ end subroutine tstep_reset
                      a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                      a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl,    &
-                     a_Radry,  a_Rawet,  a_Rcdry,   a_Rcwet,   a_Rpdry,   a_Rpwet,      &
-                     a_Ridry,  a_Riwet,  a_Rsdry,   a_Rswet,                            &
                      sst, a_rsi, a_temp0
 
 
@@ -217,7 +215,7 @@ end subroutine tstep_reset
     USE util, ONLY : maskactiv !Juha: Included for SALSA
 
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : nbins, ncld
+    USE mo_submctl, ONLY : nbins
     USE class_ComponentIndex, ONLY : GetNcomp
 
     logical, intent (out) :: cflflg
@@ -293,10 +291,6 @@ end subroutine tstep_reset
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  a_Radry,   a_Rcdry,   a_Rpdry,               &
-                  a_Ridry,   a_Rsdry,                          &
-                  a_Rawet,   a_Rcwet,   a_Rpwet,               &
-                  a_Riwet,   a_Rswet,                          &
                   zrm, prtcl, dtlt, dbg2, time, level  )
           ELSE
              !! for 2D or 3D runs
@@ -307,10 +301,6 @@ end subroutine tstep_reset
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  a_Radry,   a_Rcdry,   a_Rpdry,               &
-                  a_Ridry,   a_Rsdry,                          &
-                  a_Rawet,   a_Rcwet,   a_Rpwet,               &
-                  a_Riwet,   a_Rswet,                          &
                   zrm, prtcl, dtlt, dbg2, time, level  )
              
           END IF !nxp==5 and nyp == 5
@@ -948,10 +938,10 @@ end subroutine tstep_reset
   SUBROUTINE SALSA_diagnostics
     USE grid, ONLY : nxp,nyp,nzp,    &
                      a_naerop,a_maerop,a_ncloudp,a_mcloudp,a_nprecpp,a_mprecpp,      &
-                     a_gaerop, a_Radry, a_Rcdry, a_Rpdry, a_Rawet, a_Rcwet, a_Rpwet, &
+                     a_gaerop,  &
                      a_rc, a_srp,a_snrp, binMixrat, prtcl,   &
                      a_rh, a_temp, a_ri,a_srs,a_snrs,a_rhi,                                      &
-                     a_nicep,a_micep,a_nsnowp,a_msnowp,a_Ridry,a_Riwet,a_Rswet,a_Rsdry !! ice'n'snow
+                     a_nicep,a_micep,a_nsnowp,a_msnowp !! ice'n'snow
     USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,              &
                                in1a,fn2a,fn2b,                        &
                                nice,nsnw,iia,fia,iib,fib,isa,fsa,                    & !! ice'n'snow
@@ -964,16 +954,14 @@ end subroutine tstep_reset
 
     IMPLICIT NONE
 
-    INTEGER :: i,j,k,bc,ba,s,sc,sa,str,end,nc,c,nn
+    INTEGER :: i,j,k,bc,ba,s,sc,sa,str,end,nc,c,nn,iba
 
-    REAL :: zvol
+    REAL :: zvol, zvola, zvolnew
     REAL, PARAMETER :: rempty = 1.e-10
     REAL :: zdh2o,zddry
-    REAL :: zdiff(fn2a)
     REAL :: ns, bb, aa ! Number of moles, Raoult effect, Kelvin effect; For calculating the critical radius
     REAL :: cdcld(nzp,nxp,nyp,ncld),cdprc(nzp,nxp,nyp,nprc),  & ! Critical diameter for cloud droplets and precipitation
             cdice(nzp,nxp,nyp,nice),cdsnw(nzp,nxp,nyp,nsnw)   ! Critical diameter for cloud droplets and precipitation
-    LOGICAL :: zclosest(fn2a)
     REAL :: vsum
 
     ! Remove negative values
@@ -1277,20 +1265,25 @@ end subroutine tstep_reset
                    IF ( zdh2o < MAX(0.02*cdprc(k,i,j,bc),2.e-6)  ) THEN
 
                       ! Move evaporating rain drops to a soluble aerosol bin with
-                      ! the closest match in dry particle radius. Ain't perfect but
+                      ! the closest match in dry particle mass. Ain't perfect but
                       ! the bin update subroutine in SALSA will take care of the rest.
-                      zvol = 0.
-                      zclosest = .FALSE.
                       CALL binMixrat('precp','dry',bc,i,j,k,zvol)
-                      zvol = zvol/rhosu
-                      zddry = (zvol/a_nprecpp(k,i,j,bc)/pi6)**(1./3.)
-                      zdiff(in1a:fn2a) = ABS(2.*a_Radry(k,i,j,in1a:fn2a) - zddry)
-                      zclosest(in1a:fn2a) = ( zdiff(in1a:fn2a) == MINVAL(zdiff(in1a:fn2a)) )
-                      IF (ALL(zclosest .EQV. .FALSE.)) STOP 'FAIL: zclosest based on NANs'
-                      ba = 1
-                      DO WHILE( .NOT. zclosest(ba))
-                         ba = ba + 1
-                      END DO
+                      zvol=zvol/a_nprecpp(k,i,j,bc)
+
+                      ba=0
+                      zvola=-1.
+                      DO iba=in1a,fn2a
+                        IF (a_naerop(k,i,j,iba)>nlim) THEN
+                            CALL binMixrat('aerosol','dry',iba,i,j,k,zvolnew)
+                            zvolnew=zvolnew/a_naerop(k,i,j,iba)
+                            IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
+                                ! New closest match
+                                ba=iba
+                                zvola=zvolnew
+                            ENDIF
+                         ENDIF
+                      ENDDO
+                      if (ba==0) STOP 'FAIL: no sink for evaporating rain drops'
 
                       ! Move the number of particles from cloud to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nprecpp(k,i,j,bc)
@@ -1357,20 +1350,26 @@ end subroutine tstep_reset
                    ! Loose the droplets if smaller than critical radius !!huomhuom a_rhi ice'n'snow
                    IF ( zdh2o < MAX(0.02*cdsnw(k,i,j,bc),2.e-6) ) THEN
 
-                      ! Move evaporating rain drops to a soluble aerosol bin with
-                      ! the closest match in dry particle radius. Ain't perfect but
+                      ! Move evaporating snow to a soluble aerosol bin with
+                      ! the closest match in dry particle mass. Ain't perfect but
                       ! the bin update subroutine in SALSA will take care of the rest.
-                      zclosest = .FALSE.
                       CALL binMixrat('snow','dry',bc,i,j,k,zvol)
-                      zvol = zvol/rhosu
-                      zddry = (zvol/a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
-                      zdiff(in1a:fn2a) = ABS(2.*a_Radry(k,i,j,in1a:fn2a) - zddry)
-                      zclosest(in1a:fn2a) = ( zdiff(in1a:fn2a) == MINVAL(zdiff(in1a:fn2a)) )
-                      IF (ALL(zclosest .EQV. .FALSE.)) STOP 'FAIL: zclosest based on NANs'
-                      ba = 1
-                      DO WHILE( .NOT. zclosest(ba))
-                         ba = ba + 1
-                      END DO
+                      zvol=zvol/a_nsnowp(k,i,j,bc)
+
+                      ba=0
+                      zvola=-1.
+                      DO iba=in1a,fn2a
+                         IF (a_naerop(k,i,j,iba)>nlim) THEN
+                            CALL binMixrat('aerosol','dry',iba,i,j,k,zvolnew)
+                            zvolnew=zvolnew/a_naerop(k,i,j,iba)
+                            IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
+                                ! New closest match
+                                ba=iba
+                                zvola=zvolnew
+                            ENDIF
+                         ENDIF
+                      ENDDO
+                      if (ba==0) STOP 'FAIL: no sink for evaporating snow'
 
                       ! Move the number of particles from cloud to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nsnowp(k,i,j,bc)
@@ -1390,12 +1389,7 @@ end subroutine tstep_reset
 
              END DO ! bc
 
-
-             !!!!!!!!!!!!!!!!!!!!!!!
-             ! Update particle radiae
-             !!!!!!!!!!!!!!!!!!!!!!!
-
-             ! Aerosols
+             ! Loop over aerosol bins
              DO ba = 1,nbins
                 IF (a_naerop(k,i,j,ba) > nlim) THEN
                    CALL binMixrat('aerosol','dry',ba,i,j,k,zvol)
@@ -1430,75 +1424,7 @@ end subroutine tstep_reset
                       a_maerop(k,i,j,ba:(nn-1)*nbins+ba:nbins) = 0.
                       a_naerop(k,i,j,ba) = 0.
                       zvol=0.
-                   END IF ! Rdry
-
-                   a_Radry(k,i,j,ba) = 0.5*(zvol/a_naerop(k,i,j,ba)/pi6)**(1./3.)
-                   CALL binMixrat('aerosol','wet',ba,i,j,k,zvol)
-                   zvol = zvol/1500.  ! Why 1500 and not rhowa?
-                   a_Rawet(k,i,j,ba) = 0.5*(zvol/a_naerop(k,i,j,ba)/pi6)**(1./3.)
-                ELSE
-                   a_Radry(k,i,j,ba) = rempty
-                   a_Rawet(k,i,j,ba) = rempty
-                END IF
-             END DO
-
-             ! Cloud droplets
-             DO bc = 1,ncld
-                IF (a_ncloudp(k,i,j,bc) > nlim) THEN
-                   CALL binMixrat('cloud','dry',bc,i,j,k,zvol)
-                   zvol = zvol/rhosu
-                   a_Rcdry(k,i,j,bc) = 0.5*(zvol/a_ncloudp(k,i,j,bc)/pi6)**(1./3.)
-                   CALL binMixrat('cloud','wet',bc,i,j,k,zvol)
-                   zvol = zvol/rhowa
-                   a_Rcwet(k,i,j,bc) = 0.5*(zvol/a_ncloudp(k,i,j,bc)/pi6)**(1./3.)
-                ELSE
-                   a_Rcdry(k,i,j,bc) = rempty
-                   a_Rcwet(k,i,j,bc) = rempty
-                END IF
-             END DO
-
-             ! Precipitation
-             DO bc = 1,nprc
-                IF (a_nprecpp(k,i,j,bc) > prlim) THEN
-                   CALL binMixrat('precp','dry',bc,i,j,k,zvol)
-                   zvol = zvol/rhosu
-                   a_Rpdry(k,i,j,bc) = 0.5*(zvol/a_nprecpp(k,i,j,bc)/pi6)**(1./3.)
-                   CALL binMixrat('precp','wet',bc,i,j,k,zvol)
-                   zvol = zvol/rhowa
-                   a_Rpwet(k,i,j,bc) = 0.5*(zvol/a_nprecpp(k,i,j,bc)/pi6)**(1./3.)
-                ELSE
-                   a_Rpdry(k,i,j,bc) = rempty
-                   a_Rpwet(k,i,j,bc) = rempty
-                END IF
-             END DO
-
-             ! Ice
-             DO bc = 1,nice
-                IF (a_nicep(k,i,j,bc) > prlim) THEN
-                   CALL binMixrat('ice','dry',bc,i,j,k,zvol)
-                   zvol = zvol/rhosu
-                   a_Ridry(k,i,j,bc) = 0.5*(zvol/a_nicep(k,i,j,bc)/pi6)**(1./3.)
-                   CALL binMixrat('ice','wet',bc,i,j,k,zvol)
-                   zvol = zvol/rhoic
-                   a_Riwet(k,i,j,bc) = 0.5*(zvol/a_nicep(k,i,j,bc)/pi6)**(1./3.)
-                ELSE
-                   a_Ridry(k,i,j,bc) = rempty
-                   a_Riwet(k,i,j,bc) = rempty
-                END IF
-             END DO
-
-             ! Snow
-             DO bc = 1,nsnw
-                IF (a_nsnowp(k,i,j,bc) > prlim) THEN
-                   CALL binMixrat('snow','dry',bc,i,j,k,zvol)
-                   zvol = zvol/rhosu
-                   a_Rsdry(k,i,j,bc) = 0.5*(zvol/a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
-                   CALL binMixrat('snow','wet',bc,i,j,k,zvol)
-                   zvol = zvol/rhosn
-                   a_Rswet(k,i,j,bc) = 0.5*(zvol/a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
-                ELSE
-                   a_Rsdry(k,i,j,bc) = rempty
-                   a_Rswet(k,i,j,bc) = rempty
+                   END IF
                 END IF
              END DO
 

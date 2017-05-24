@@ -126,13 +126,6 @@ module grid
   ! -- Gas compound tracers
   REAL, POINTER :: a_gaerop(:,:,:,:), a_gaerot(:,:,:,:)
 
-  ! Diagnostic tracers
-  REAL, ALLOCATABLE :: a_Rawet(:,:,:,:), a_Radry(:,:,:,:),  &
-                       a_Rcwet(:,:,:,:), a_Rcdry(:,:,:,:),  &
-                       a_Rpwet(:,:,:,:), a_Rpdry(:,:,:,:),  &
-                       a_Riwet(:,:,:,:), a_Ridry(:,:,:,:),  &
-                       a_Rswet(:,:,:,:), a_Rsdry(:,:,:,:)
-
   ! Some stuff for tendency formulation
   REAL, ALLOCATABLE :: a_vactd(:,:,:,:), a_nactd(:,:,:,:)
 
@@ -141,6 +134,8 @@ module grid
                                ! aerosol component name, i.e. 1:SO4, 2:OC, 3:BC, 4:DU,
                                ! 5:SS, 6:NO, 7:NH, 8:H2O
 
+  ! Physical properties for the selected aerosol components
+  real, allocatable :: dens(:), mws(:), mvol(:), diss(:)
   !---------------------------------------------------------------------------
 
   real, allocatable, target :: a_sclrp(:,:,:,:),a_sclrt(:,:,:,:)
@@ -207,10 +202,11 @@ contains
     use mpi_interface, only :myid
     USE mo_submctl, ONLY : nbins,ncld,nprc,  & ! Number of aerosol and hydrometeor size bins for SALSA
                                nice,nsnw,        & ! number of ice and snow size bins for SALSA
-                               nspec, maxspec, listspec
+                               nspec, maxspec, listspec, &
+                               rhosu,rhooc,rhobc,rhono,rhonh,rhoss,rhodu,rhowa,  &
+                               msu,moc,mbc,mno,mnh,mss,mdu,mwa
     USE class_ComponentIndex, ONLY : ComponentIndexConstructor,  &
                                      GetNcomp, IsUsed
-
 
     integer :: memsize
     INTEGER :: zz
@@ -322,40 +318,25 @@ contains
        nc = GetNcomp(prtcl) ! number of aerosol components used. For allocations + 1 for water.
 
        allocate (a_rc(nzp,nxp,nyp), a_srp(nzp,nxp,nyp), a_snrp(nzp,nxp,nyp),     &
-                 a_Rawet(nzp,nxp,nyp,nbins),a_Radry(nzp,nxp,nyp,nbins),          &
-                 a_Rcwet(nzp,nxp,nyp,ncld), a_Rcdry(nzp,nxp,nyp,ncld),           &
-                 a_Rpwet(nzp,nxp,nyp,nprc), a_Rpdry(nzp,nxp,nyp,nprc),           &
                  a_rh(nzp,nxp,nyp),a_dn(nzp,nxp,nyp), &
                  a_nactd(nzp,nxp,nyp,ncld), a_vactd(nzp,nxp,nyp,(nc+1)*ncld)  )
 
        a_rc(:,:,:) = 0.
        a_srp(:,:,:) = 0.
        a_snrp(:,:,:) = 0.
-       a_Rawet(:,:,:,:) = 1.e-10
-       a_Radry(:,:,:,:) = 1.e-10
-       a_Rcwet(:,:,:,:) = 1.e-10
-       a_Rcdry(:,:,:,:) = 1.e-10
-       a_Rpwet(:,:,:,:) = 1.e-10
-       a_Rpdry(:,:,:,:) = 1.e-10
        a_rh(:,:,:) = 0.
        a_dn(:,:,:) = 0.
        a_nactd(:,:,:,:) = 0.
        a_vactd(:,:,:,:) = 0.
        memsize = memsize + 4*nxyzp + 3*nbins*nxyzp + 3*ncld*nxyzp + nxyzp*(nc+1)*ncld + 2*nprc*nxyzp
 
-       allocate ( a_Riwet(nzp,nxp,nyp,nice), a_Ridry(nzp,nxp,nyp,nice),           &
-                  a_Rswet(nzp,nxp,nyp,nsnw), a_Rsdry(nzp,nxp,nyp,nsnw),           &
-                  a_ri(nzp,nxp,nyp), a_rsi(nzp,nxp,nyp), a_rhi(nzp,nxp,nyp),      &
+       allocate (a_ri(nzp,nxp,nyp), a_rsi(nzp,nxp,nyp), a_rhi(nzp,nxp,nyp),      &
                   a_srs(nzp,nxp,nyp), a_snrs(nzp,nxp,nyp)  )  ! ice'n'snow
        a_ri(:,:,:) = 0.
        a_rsi(:,:,:) = 0.
        a_rhi(:,:,:) = 0.
        a_srs(:,:,:) = 0.
        a_snrs(:,:,:) = 0.
-       a_Riwet(:,:,:,:) = 1.e-10
-       a_Ridry(:,:,:,:) = 1.e-10
-       a_Rswet(:,:,:,:) = 1.e-10
-       a_Rsdry(:,:,:,:) = 1.e-10
        memsize = memsize + 5*nxyzp + 2*nice*nxyzp + 2*nsnw*nxyzp
 
        ! Total number of prognostic scalars: temp + total water + SALSA + tke(?)
@@ -426,6 +407,66 @@ contains
        a_msnowt => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nsnw)
 
        zz = zz+(nc+1)*nsnw
+
+        ! Density, molecular weight, dissociation factor and molar volume arrays for the used species
+        !   1:SO4, 2:OC, 3:BC, 4:DU, 5:SS, 6:NO, 7:NH, 8:H2O
+        ALLOCATE ( dens(nc+1), mws(nc+1), diss(nc+1), mvol(nc+1) )
+        zz=0
+        IF (IsUsed(prtcl,'SO4')) THEN
+            zz=zz+1
+            dens(zz)=rhosu
+            diss(zz)=3.  ! H2SO4
+            mws(zz)=msu
+        ENDIF
+        IF (IsUsed(prtcl,'OC')) THEN
+            zz=zz+1
+            dens(zz)=rhooc
+            diss(zz)=1.
+            mws(zz)=moc
+        ENDIF
+        IF (IsUsed(prtcl,'BC')) THEN
+            zz=zz+1
+            dens(zz)=rhobc
+            diss(zz)=0.  ! Insoluble
+            mws(zz)=mbc
+        ENDIF
+        IF (IsUsed(prtcl,'DU')) THEN
+            zz=zz+1
+            dens(zz)=rhodu
+            diss(zz)=0.  ! Insoluble
+            mws(zz)=mdu
+        ENDIF
+        IF (IsUsed(prtcl,'SS')) THEN
+            zz=zz+1
+            dens(zz)=rhoss
+            diss(zz)=2.  ! NaCl
+            mws(zz)=mss
+        ENDIF
+        IF (IsUsed(prtcl,'NO')) THEN
+            zz=zz+1
+            dens(zz)=rhono
+            diss(zz)=1.  ! NO3- ??
+            mws(zz)=mno
+        ENDIF
+        IF (IsUsed(prtcl,'NH')) THEN
+            zz=zz+1
+            dens(zz)=rhonh
+            diss(zz)=1.  ! NH4+ ??
+            mws(zz)=mnh
+        ENDIF
+        ! Water is always there
+        zz=zz+1
+        dens(zz)=rhowa
+        diss(zz)=1.
+        mws(zz)=mwa
+
+        IF (zz/=nc+1) THEN
+            WRITE(*,*) 'Physical properties not found for all species!'
+            STOP
+        ENDIF
+
+        ! Molar volume volume, (kg/mol)/(kg/m^3)=m^3/mol
+        mvol(:)=mws(:)/dens(:)
 
     END IF ! level
 
@@ -853,7 +894,8 @@ contains
                                ica,fca,icb,fcb,ira,fra,       &
                                iia,fia,iib,fib,isa,fsa,       &
                                aerobins, cloudbins, precpbins, &
-                               icebins, snowbins
+                               icebins, snowbins, nlim, prlim, &
+                               nspec, nbins, ncld, nice, nprc, nsnw
 
     real, intent (in) :: time
 
@@ -863,6 +905,8 @@ contains
            icntica(5), icnticb(5), icntsna(5)
     REAL :: zsum(nzp,nxp,nyp) ! Juha: Helper for computing bulk output diagnostics
     REAL :: zvar(nzp,nxp,nyp)
+    REAL :: a_Rawet(nzp,nxp,nyp,nbins), a_Rcwet(nzp,nxp,nyp,ncld),a_Rpwet(nzp,nxp,nyp,nprc), &
+          a_Riwet(nzp,nxp,nyp,nice),a_Rswet(nzp,nxp,nyp,nsnw)
 
     icnt = (/nzp, nxp-4, nyp-4, 1/)
     icntaea = (/nzp,nxp-4,nyp-4, fn2a, 1 /)
@@ -1111,6 +1155,7 @@ contains
        
        IF (lbinanl) THEN
           ! Cloud droplet bin wet radius (regime A)
+          CALL getBinRadius(ncld,nspec+1,a_ncloudp,a_mcloudp,nlim,a_Rcwet)
           iret = nf90_inq_varid(ncid0,'S_Rwcba',VarID)
           iret = nf90_put_var(ncid0,VarID,a_Rcwet(:,i1:i2,j1:j2,ica%cur:fca%cur), &
                start=ibegsd,count=icntcla)
@@ -1142,6 +1187,7 @@ contains
        
        IF (lbinanl) THEN
           ! Rain drop bin wet radius
+          CALL getBinRadius(nprc,nspec+1,a_nprecpp,a_mprecpp,prlim,a_Rpwet)
           iret = nf90_inq_varid(ncid0,'S_Rwpba',VarID)
           iret = nf90_put_var(ncid0,VarID,a_Rpwet(:,i1:i2,j1:j2,ira:fra),  &
                start=ibegsd,count=icntpra)
@@ -1185,6 +1231,7 @@ contains
        
        IF (lbinanl) THEN
           ! Aerosol bin wet radius (regime A)
+          CALL getBinRadius(nbins,nspec+1,a_naerop,a_maerop,nlim,a_Rawet)
           iret = nf90_inq_varid(ncid0,'S_Rwaba',VarID)
           iret = nf90_put_var(ncid0,VarID,a_Rawet(:,i1:i2,j1:j2,in1a:fn2a),  &
                start=ibegsd,count=icntaea)
@@ -1241,6 +1288,7 @@ contains
                   start=ibegsd,count=icntica)
              
              ! Ice particle bin wet radius regime a
+             CALL getBinRadius(nice,nspec+1,a_nicep,a_micep,prlim,a_Riwet)
              iret = nf90_inq_varid(ncid0,'S_Rwiba',VarID)
              iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,iia%cur:fia%cur), &
                   start=ibegsd,count=icntica)
@@ -1256,6 +1304,7 @@ contains
                   start=ibegsd,count=icntsna)
              
              ! Snow drop bin wet radius
+             CALL getBinRadius(nsnw,nspec+1,a_nsnowp,a_msnowp,prlim,a_Rswet)
              iret = nf90_inq_varid(ncid0,'S_Rwsba',VarID)
              iret = nf90_put_var(ncid0,VarID,a_Rswet(:,i1:i2,j1:j2,isa:fsa),  &
                   start=ibegsd,count=icntsna)
@@ -2002,7 +2051,7 @@ contains
   !
   ! -------------------------------------------------
   ! SUBROUTINE meanRadius
-  ! Gets the mean wet radius for particles.
+  ! Gets the mean wet (water=nspec+1) radius for particles.
   !
   SUBROUTINE meanRadius(ipart,itype,rad)
     USE mo_submctl, ONLY : nbins,ncld,nprc,               &
@@ -2010,7 +2059,7 @@ contains
                                ica,fca,icb,fcb,ira,fra,       &
                                iia,fia,iib,fib,isa,fsa,       &
                                in1a,fn2a,in2b,fn2b, &
-                               nlim,prlim
+                               nlim,prlim,nspec
     IMPLICIT NONE
 
     CHARACTER(len=*), INTENT(in) :: ipart
@@ -2034,7 +2083,7 @@ contains
           STOP 'meanRadius: Invalid bin regime selection (aerosol)'
        END IF
 
-       CALL getRadius(istr,iend,nbins,a_naerop,nlim,a_Rawet,rad)
+       CALL getRadius(istr,iend,nbins,nspec+1,a_naerop,a_maerop,nlim,rad)
 
     CASE('cloud')
 
@@ -2048,14 +2097,14 @@ contains
           STOP 'meanRadius: Invalid bin regime selection (cloud)'
        END IF
 
-       CALL getRadius(istr,iend,ncld,a_ncloudp,nlim,a_Rcwet,rad)
+       CALL getRadius(istr,iend,ncld,nspec+1,a_ncloudp,a_mcloudp,nlim,rad)
 
     CASE('precp')
 
        istr = ira
        iend = fra
 
-       CALL getRadius(istr,iend,nprc,a_nprecpp,prlim,a_Rpwet,rad)
+       CALL getRadius(istr,iend,nprc,nspec+1,a_nprecpp,a_mprecpp,prlim,rad)
 
     CASE('ice')
 
@@ -2069,14 +2118,14 @@ contains
           STOP 'meanRadius: Invalid bin regime selection (ice)'
        END IF
 
-       CALL getRadius(istr,iend,nice,a_nicep,prlim,a_Riwet,rad)
+       CALL getRadius(istr,iend,nice,nspec+1,a_nicep,a_micep,prlim,rad)
 
     CASE('snow')
 
        istr = isa
        iend = fsa
 
-       CALL getRadius(istr,iend,nsnw,a_nsnowp,prlim,a_Rswet,rad)
+       CALL getRadius(istr,iend,nsnw,nspec+1,a_nsnowp,a_msnowp,prlim,rad)
 
     END SELECT
 
@@ -2084,41 +2133,87 @@ contains
   !
   ! ---------------------------------------------------
   ! SUBROUTINE getRadius
-  !
-  SUBROUTINE getRadius(zstr,zend,nb,numc,numlim,rpart,zrad)
+  ! Calculates number mean wet radius (over selected bins) for the whole domain
+  SUBROUTINE getRadius(zstr,zend,nn,n4,numc,mass,numlim,zrad)
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: nb ! Number of bins for current particle distribution
+    INTEGER, INTENT(in) :: nn, n4 ! Number of bins (nn) and aerosol species (n4)
     INTEGER, INTENT(in) :: zstr,zend  ! Start and end index for averaging
-    REAL, INTENT(in) :: numc(nzp,nxp,nyp,nb)
+    REAL, INTENT(in) :: numc(nzp,nxp,nyp,nn)
+    REAL, INTENT(in) :: mass(nzp,nxp,nyp,nn*n4)
     REAL, INTENT(in) :: numlim
-    REAL, INTENT(in) :: rpart(nzp,nxp,nyp,nb)
-
     REAL, INTENT(out) :: zrad(nzp,nxp,nyp)
 
-    LOGICAL :: nlmask(nb)
-    INTEGER :: k,i,j
-    REAL :: ntot
+    INTEGER :: k,i,j,bin
+    REAL :: tot, rwet, tmp(n4)
 
     zrad(:,:,:)=0.
     DO j = 3,nyp-2
-       DO i = 3,nxp-2
-          DO k = 1,nzp
-             nlmask(zstr:zend) = ( numc(k,i,j,zstr:zend) > numlim )
-             ntot = 0.
-             ntot = SUM( numc(k,i,j,zstr:zend), MASK=nlmask(zstr:zend) )
-
-             IF (ntot > numlim) &
-                zrad(k,i,j) = SUM( rpart(k,i,j,zstr:zend) * &
-                                   numc(k,i,j,zstr:zend),   &
-                                   MASK=nlmask(zstr:zend)   ) / &
-                                   ntot
-
-          END DO
-       END DO
+      DO i = 3,nxp-2
+        DO k = 1,nzp
+          tot=0.
+          rwet=0.
+          DO bin = zstr,zend
+            IF (numc(k,i,j,bin)>numlim) THEN
+              tot=tot+numc(k,i,j,bin)
+              tmp(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
+              rwet=rwet+calc_wet_radius(n4,numc(k,i,j,bin),tmp)*numc(k,i,j,bin)
+            ENDIF
+          ENDDO
+          IF (tot>numlim) THEN
+            zrad(k,i,j) = rwet/tot
+          ENDIF
+        END DO
+      END DO
     END DO
 
   END SUBROUTINE getRadius
+  !
+  SUBROUTINE getBinRadius(nn,n4,numc,mass,numlim,zrad)
+    IMPLICIT NONE
+
+    INTEGER, INTENT(in) :: nn, n4 ! Number of bins (nn) and aerosol species (n4)
+    REAL, INTENT(in) :: numc(nzp,nxp,nyp,nn)
+    REAL, INTENT(in) :: mass(nzp,nxp,nyp,nn*n4)
+    REAL, INTENT(in) :: numlim
+    REAL, INTENT(out) :: zrad(nzp,nxp,nyp,nn)
+
+    INTEGER :: k,i,j,bin
+    REAL :: tmp(n4)
+
+    zrad(:,:,:,:)=0.
+    DO j = 3,nyp-2
+      DO i = 3,nxp-2
+        DO k = 1,nzp
+          DO bin = 1,nn
+            IF (numc(k,i,j,bin)>numlim) THEN
+              tmp(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
+              zrad(k,i,j,bin)=calc_wet_radius(n4,numc(k,i,j,bin),tmp)
+            ENDIF
+          END DO
+        END DO
+      END DO
+    END DO
+
+  END SUBROUTINE getBinRadius
+
+  ! Aerosol and cloud droplet composition
+  !     Needs local density array dens
+  REAL FUNCTION calc_wet_radius(n,numc,mass)
+    USE mo_submctl, ONLY : pi6
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: n
+    REAL, INTENT(IN) :: numc, mass(n)
+
+    calc_wet_radius=0.
+
+    ! Don't calculate if very low number concentration
+    IF (numc<1e-15) RETURN
+
+    ! Radius from total volume per particle
+    calc_wet_radius=0.5*( SUM(mass(:)/dens(:))/numc/pi6)**(1./3.)
+
+  END FUNCTION calc_wet_radius
 
 end module grid
 
