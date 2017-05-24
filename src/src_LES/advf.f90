@@ -44,7 +44,7 @@ contains
     !
     ! diagnose liquid water flux
     !
-    if (sflg .and. level > 1 .AND. level < 4) then
+    if (sflg .and. level > 1) then
        a_tmp1=a_rc
        call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.false.)
        call mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtlt,.false.)
