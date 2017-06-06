@@ -21,7 +21,7 @@
 module stat
 
   use ncio, only : open_nc, define_nc, define_nc_cs
-  use grid, only : level
+  use grid, only : level, lbinanl
   use util, only : get_avg3, get_cor3, get_var3, get_avg_ts, &
                    get_avg2dh, get_3rd3
 
@@ -32,7 +32,7 @@ module stat
                         nv1sbulk = 62,            &
                         nv1MB = 4,                &
                         nvar2 = 92,               &
-                        nv2sbulk = 40,            &
+                        nv2sbulk = 46,            &
                         nv2saa = 8, nv2sab = 8,   &
                         nv2sca = 8, nv2scb = 8,   &
                         nv2sp = 8
@@ -46,6 +46,8 @@ module stat
   logical            :: sflg = .false.
   LOGICAL            :: mcflg = .FALSE.
   LOGICAL            :: csflg = .FALSE.
+  LOGICAL            :: salsa_b_bins = .FALSE.
+  LOGICAL            :: cloudy_col_stats = .FALSE.
   real               :: ssam_intvl = 30.   ! statistical sampling interval
   real               :: savg_intvl = 1800. ! statistical averaging interval
 
@@ -115,7 +117,8 @@ module stat
         'P_cSSa ','P_cSSc ','P_cSSp ',                               & !28
         'P_cNH3a','P_cNH3c','P_cNH3p',                               & !31
         'P_cNO3a','P_cNO3c','P_cNO3p',                               & !34
-        'P_rl   ','P_rr   ','P_rv   ','P_RH   '/),                   & !37, total 40
+        'P_rl   ','P_rr   ','P_rv   ','P_RH   ',                     & !37
+        'P_Na_c ','P_Nc_c ','P_Np_c ','P_cfrac', 'P_clw_c','P_thl_c'/),    & ! 41, total 46
 
         ! **** BINNED PROFILE OUTPUT FOR SALSA ****
         ! **** Aerosols
@@ -160,7 +163,8 @@ module stat
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
        acc_tend, updtst, sfc_stat, close_stat, fill_scalar, tke_sgs, sgsflxs,&
-       sgs_vel, comp_tke, get_zi, acc_removal, cs_rem_set, acc_massbudged, write_massbudged, mcflg, csflg
+       sgs_vel, comp_tke, get_zi, acc_removal, cs_rem_set, acc_massbudged, write_massbudged, mcflg, csflg, &
+       salsa_b_bins, cloudy_col_stats
 
 contains
   !
@@ -454,6 +458,25 @@ contains
 
        s2bool(nvar2+37:nvar2+40) = .TRUE.     ! Water mixing ratios
 
+       s2bool(nvar2+41:nvar2+nv2sbulk) = cloudy_col_stats   ! Stats for cloudy columns
+
+       ! Bin statistics not always saved
+       IF (.not. lbinanl) &
+            s2bool(nvar2+nv2sbulk+1:nvar2+nv2sbulk+nv2saa+nv2sab+nv2sca+nv2scb) = .FALSE.
+
+       ! b-bins are not always saved
+       IF (.not. salsa_b_bins) THEN
+          ! Concentrations and sizes
+          s2bool(nvar2+7) = .FALSE.
+          s2bool(nvar2+9) = .FALSE.
+          s2bool(nvar2+12) = .FALSE.
+          s2bool(nvar2+14) = .FALSE.
+
+          ! Mass concentrations for aerosol and cloud species
+          s2bool(nvar2+nv2sbulk+nv2saa+1:nvar2+nv2sbulk+nv2saa+nv2sab) = .FALSE.
+          s2bool(nvar2+nv2sbulk+nv2saa+nv2sab+nv2sca+1:nvar2+nv2sbulk+nv2saa+nv2sab+nv2sca+nv2scb) = .FALSE.
+       ENDIF
+
        IF (csflg .and. level>3) THEN
            ! Allocate array for level 4 removal rate column statistics
            ! Total number of ouputs is 3 for warm (aerosol, cloud and precipitation)
@@ -513,7 +536,7 @@ contains
   ! Jaakko Ahola, FMI, 2016
   subroutine statistics(time)
 
-    use grid, only : a_up, a_vp, a_wp, a_rc, a_theta, a_rsl           &
+    use grid, only : a_up, a_vp, a_wp, a_rc, a_theta           &
          , a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean            &
          , vmean, dn0, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx               &
          , a_sflx, albedo, a_srp, a_snrp, a_ncloudp, a_nprecpp, xt, yt
@@ -549,7 +572,7 @@ contains
     end if
     if (level >=1) call accum_lvl1(nzp, nxp, nyp, rxt)
     if (level >=2) call accum_lvl2(nzp, nxp, nyp, th00, dn0, zm, a_wp,        &
-                                   a_theta, a_tp, a_rc, a_rsl, rxt   )
+                                   a_theta, a_tp, a_rc, rxt   )
     if (level >=3) call accum_lvl3(nzp, nxp, nyp, dn0, zm, a_rc, xrpp,  &
                                    xnpp, precip, CCN                    )
     if (level >=4)  call accum_lvl4(nzp, nxp, nyp)
@@ -560,7 +583,7 @@ contains
     !
     call set_ts(nzp, nxp, nyp, a_wp, a_theta, dn0, zt,zm,dzt,dzm,th00,time)
     IF ( level >=1 ) CALL ts_lvl1(nzp, nxp, nyp, dn0, zt, dzm, rxt)
-    IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, rxt, a_rsl, zt)
+    IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, a_rc, zt)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp, a_rc)
 
     call write_ts
@@ -913,13 +936,13 @@ contains
   ! -----------------------------------------------------------------------
   ! subroutine ts_lvl2: computes and writes time sequence stats
   !
-  subroutine ts_lvl2(n1,n2,n3,rt,rs,zt)
+  subroutine ts_lvl2(n1,n2,n3,rc,zt)
 
     integer, intent(in) :: n1,n2,n3
-    real, intent(in)    :: rt(n1,n2,n3),rs(n1,n2,n3), zt(n1)
+    real, intent(in)    :: rc(n1,n2,n3), zt(n1)
 
     integer :: k,i,j
-    real    :: cpnt, unit, xaqua
+    real    :: cpnt, unit
 
     ssclr(18)  = zt(n1)
     ssclr(19)  = 0.
@@ -931,12 +954,11 @@ contains
        do i=3,n2-2
           cpnt  = 0.
           do k=2,n1-2
-             xaqua = rt(k,i,j) - rs(k,i,j)
-             if (xaqua > 1.e-5) then
+             if (rc(k,i,j) > 1.e-5) then
                 ssclr(17) = max(ssclr(17),zt(k))
                 ssclr(18) = min(ssclr(18),zt(k))
                 cpnt = unit
-                ssclr(20) = max(ssclr(20), xaqua)
+                ssclr(20) = max(ssclr(20), rc(k,i,j))
                 ssclr(28) = ssclr(28) + 1.
              end if
           end do
@@ -1098,14 +1120,14 @@ contains
   ! on level 2 variables.
   !
   subroutine accum_lvl2(n1, n2, n3, th00, dn0, zm, w, th, tl, &
-       rl, rs, rt)
+       rl, rt)
 
     use defs, only : ep2
 
     integer, intent (in) :: n1,n2,n3
     real, intent (in)                       :: th00
     real, intent (in), dimension(n1)        :: zm, dn0
-    real, intent (in), dimension(n1,n2,n3)  :: w, th, tl, rl, rs, rt
+    real, intent (in), dimension(n1,n2,n3)  :: w, th, tl, rl, rt
 
     real, dimension(n1,n2,n3) :: tv    ! Local variable
     integer                   :: k, i, j, kp1
@@ -1137,7 +1159,7 @@ contains
        if (k==n1) kp1=k
        do j=3,n3-2
           do i=3,n2-2
-             if (rt(k,i,j) > rs(k,i,j) + 0.01e-3) then
+             if (rl(k,i,j) > 1.e-5) then
                 xy1(k,i,j)=1.
                 if (tv(k,i,j) > tvbar(k)) THEN
                    xy2(k,i,j)=1.
@@ -1330,7 +1352,7 @@ contains
                                nprc,nlim,prlim
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                      a_rc, a_srp, a_rp, a_rh, prtcl,    &
-                     a_naerop, a_ncloudp, a_nprecpp
+                     a_naerop, a_ncloudp, a_nprecpp, a_tp
     USE class_ComponentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
@@ -1508,6 +1530,50 @@ contains
 
     svctr_b(:,37:40) = svctr_b(:,37:40) + a2(:,1:4)
 
+    ! Stats for cloudy columns
+    !   Cloudy column: LWC > 1e-5 kg/kg and CDNC>nlim anywhere in a column
+    IF (cloudy_col_stats) THEN
+        ! Total cloud droplets
+        CALL bulkNumc('cloud','ab',a1)
+        ! Which columns should be included
+        cloudmask(1,:,:)=ANY( (a1>nlim .AND. a_rc>1.e-5), DIM=1)
+        ! Fill array
+        DO ii=2,n1
+            cloudmask(ii,:,:)=cloudmask(1,:,:)
+        ENDDO
+
+        ! Save the fraction of cloudy columns
+        WHERE (cloudmask)
+            a1=1.
+        ELSEWHERE
+            a1=0.
+        END WHERE
+        CALL get_avg3(n1,n2,n3,a1,a2(:,4),cond=cloudmask)
+
+        ! Aerosol number concentration (a+b)
+        CALL bulkNumc('aerosol','ab',a1)
+        CALL get_avg3(n1,n2,n3,a1,a2(:,1),cond=cloudmask)
+
+        ! Cloud droplet number concentration (a+b)
+        CALL bulkNumc('cloud','ab',a1)
+        CALL get_avg3(n1,n2,n3,a1,a2(:,2),cond=cloudmask)
+
+        ! Rain drop number concentration
+        CALL bulkNumc('precp','a',a1)
+        CALL get_avg3(n1,n2,n3,a1,a2(:,3),cond=cloudmask)
+
+        ! Save
+        svctr_b(:,41:44) = svctr_b(:,41:44) + a2(:,1:4)
+
+        ! Cloud liquid water mixing ratio
+        CALL get_avg3(n1,n2,n3,a_rc,a2(:,1),cond=cloudmask)
+
+        ! Liquid water potential temperature
+        CALL get_avg3(n1,n2,n3,a_tp,a2(:,2),cond=cloudmask)
+
+        ! Save
+        svctr_b(:,45:46) = svctr_b(:,45:46) + a2(:,1:2)
+    ENDIF
   end subroutine accum_lvl4
 
   !

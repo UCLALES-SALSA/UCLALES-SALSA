@@ -712,7 +712,7 @@ contains
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('Na_int')
-       if (itype==0) ncinfo = 'In-cloud intersitial aerosol number concentration'
+       if (itype==0) ncinfo = 'In-cloud interstitial aerosol number concentration'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('SO4_ic')
@@ -1729,6 +1729,30 @@ contains
     case('P_RH')
        if (itype==0) ncinfo = 'Level 4 relative humidity'
        if (itype==1) ncinfo = '%'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_Na_c')
+       if (itype==0) ncinfo = 'Aerosol number concentration in cloudy columns'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_Nc_c')
+       if (itype==0) ncinfo = 'Cloud droplet number concentration in cloudy columns'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_Np_c')
+       if (itype==0) ncinfo = 'Rain drop number concentration in cloudy columns'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cfrac')
+       if (itype==0) ncinfo = 'Fraction of cloudy columns'
+       if (itype==1) ncinfo = ''
+       if (itype==2) ncinfo = 'tttt'
+    case('P_clw_c')
+       if (itype==0) ncinfo = 'Cloud liquid water in cloudy columns'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_thl_c')
+       if (itype==0) ncinfo = 'Liquid water potential temperature in cloudy columns'
+       if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
     case('P_Naba')
        if (itype==0) ncinfo = 'Aerosol number concentration in size bins A'
