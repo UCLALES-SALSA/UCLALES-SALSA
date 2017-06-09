@@ -597,7 +597,7 @@ contains
             rnt = CCN
             xrpp = a_rpp
             xnpp = a_npp
-        ELSE
+        ELSEif (level==4 .OR. level==5) THEN
             ! Levels 4 and 5
             rxt = a_rc
             rnt = SUM(a_ncloudp,DIM=4)
