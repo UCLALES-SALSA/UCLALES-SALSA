@@ -833,19 +833,19 @@ contains
                    DO ss = 1,n4
                       bs = (ss-1)*nn + bin
                       rflm(k,bin,ss) = -mass(k,i,j,bs)*vc
-                      flxdivm(k,i,j,bs) = (rflm(kp1,bin,ss)-rflm(k,bin,ss))*dzt(k)
-                   END DO
-                ELSE
-                   rflm(k,bin,:) = 0.
-                   DO ss = 1,n4
-                      bs = (ss-1)*nn + bin
-                      flxdivm(k,i,j,bs) = (rflm(kp1,bin,ss)-rflm(k,bin,ss))*dzt(k)
                    END DO
                 END IF
 
                 ! Flux for the particle number
                 IF ( k > 2 ) rfln(k,bin) = -numc(k,i,j,bin)*vc
 
+             END DO
+
+             DO bin = 1,nn
+                DO ss = 1,n4
+                   bs = (ss-1)*nn + bin
+                   flxdivm(k,i,j,bs) = (rflm(kp1,bin,ss)-rflm(k,bin,ss))*dzt(k)
+                END DO
              END DO
 
              flxdivn(k,i,j,:) = (rfln(kp1,:)-rfln(k,:))*dzt(k)
