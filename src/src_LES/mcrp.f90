@@ -615,15 +615,16 @@ contains
 
        remaer(:,:,:) = amdep(:,:,:)
 
-       ! Account for changes in in liquid water pot temperature
+       ! Account for changes in liquid water pot temperature
        nc = GetIndex(prtcl,'H2O')
        istr = (nc-1)*nbins+1
        iend = nc*nbins
        DO j = 3,n3-2
           DO i = 3,n2-2
-             DO k = 1,n1
+             DO k = 2,n1
                 tlt(k,i,j) = tlt(k,i,j) + SUM(amdiv(k,i,j,istr:iend))*(alvl/cp)*th(k,i,j)/tk(k,i,j)
              END DO
+             tlt(2,i,j) = tlt(2,i,j) + SUM(amdep(i,j,istr:iend))*(alvl/cp)*th(2,i,j)/tk(2,i,j)
           END DO
        END DO
 
@@ -642,15 +643,16 @@ contains
 
        remcld(:,:,:) = cmdep(:,:,:)
 
-       ! Account for changes in in liquid water pot temperature
+       ! Account for changes in liquid water pot temperature
        nc = GetIndex(prtcl,'H2O')
        istr = (nc-1)*ncld+1
        iend = nc*ncld
        DO j = 3,n3-2
           DO i = 3,n2-2
-             DO k = 1,n1
+             DO k = 2,n1
                 tlt(k,i,j) = tlt(k,i,j) + SUM(cmdiv(k,i,j,istr:iend))*(alvl/cp)*th(k,i,j)/tk(k,i,j)
              END DO
+             tlt(2,i,j) = tlt(2,i,j) + SUM(cmdep(i,j,istr:iend))*(alvl/cp)*th(2,i,j)/tk(2,i,j)
           END DO
        END DO
 
@@ -669,15 +671,16 @@ contains
 
        remice(:,:,:) = imdep(:,:,:)
 
-       ! Account for changes in in liquid water pot temperature
+       ! Account for changes in liquid water pot temperature
        nc = GetIndex(prtcl,'H2O')
        istr = (nc-1)*nice+1
        iend = nc*nice
        DO j = 3,n3-2
           DO i = 3,n2-2
-             DO k = 1,n1
+             DO k = 2,n1
                 tlt(k,i,j) = tlt(k,i,j) + SUM(imdiv(k,i,j,istr:iend))*(alvi/cp)*th(k,i,j)/tk(k,i,j)
              END DO
+             tlt(2,i,j) = tlt(2,i,j) + SUM(imdep(i,j,istr:iend))*(alvi/cp)*th(2,i,j)/tk(2,i,j)
           END DO
        END DO
 
@@ -830,19 +833,19 @@ contains
                    DO ss = 1,n4
                       bs = (ss-1)*nn + bin
                       rflm(k,bin,ss) = -mass(k,i,j,bs)*vc
-                      flxdivm(k,i,j,bs) = (rflm(kp1,bin,ss)-rflm(k,bin,ss))*dzt(k)
-                   END DO
-                ELSE
-                   rflm(k,bin,:) = 0.
-                   DO ss = 1,n4
-                      bs = (ss-1)*nn + bin
-                      flxdivm(k,i,j,bs) = (rflm(kp1,bin,ss)-rflm(k,bin,ss))*dzt(k)
                    END DO
                 END IF
 
                 ! Flux for the particle number
                 IF ( k > 2 ) rfln(k,bin) = -numc(k,i,j,bin)*vc
 
+             END DO
+
+             DO bin = 1,nn
+                DO ss = 1,n4
+                   bs = (ss-1)*nn + bin
+                   flxdivm(k,i,j,bs) = (rflm(kp1,bin,ss)-rflm(k,bin,ss))*dzt(k)
+                END DO
              END DO
 
              flxdivn(k,i,j,:) = (rfln(kp1,:)-rfln(k,:))*dzt(k)
