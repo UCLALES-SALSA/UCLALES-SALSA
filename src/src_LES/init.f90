@@ -56,12 +56,9 @@ contains
     ! Local variables for SALSA basic state
     REAL :: zwp(nzp,nxp,nyp), ztkt(nzp,nxp,nyp)
     LOGICAL :: zactmask(nzp,nxp,nyp)
-    LOGICAL :: TMP
     INTEGER :: n4
     
     ztkt = 0.
-
-    TMP = .false.
 
     ! Set vertical velocity as 0.5 m/s to intialize cloud microphysical properties with
     ! SALSA
@@ -69,10 +66,15 @@ contains
 
     if (runtype == 'INITIAL') then
        time=0.
+       IF (.TRUE.) THEN
+       ! Possible to have input sounding for all columns
+       CALL full_init()
+       ELSE
        call arrsnd
        call basic_state
        call fldinit ! Juha: aerosol size distributions are initialized here.
                     !       Also thermodynamics!
+       ENDIF
 
        ! If SALSA is used, call SALSA with full configuration once before beginning
        ! spin-up period to set up aerosol and cloud fields.
@@ -155,6 +157,382 @@ contains
 
     return
   end subroutine initialize
+
+
+  !
+  !----------------------------------------------------------------------
+  !
+  subroutine full_init()
+    use defs, only : p00,p00i,cp,cpr,rcp,R,g,ep2,alvl,Rm,ep
+    use sgsm, only : tkeinit
+    use thrm, only : thermo, rslf
+    use mpi_interface, only : appl_abort, myid
+
+    implicit none
+
+    integer :: i,j,k,ii,jj,n
+    real    :: exner, pres, tk, rc, xran(nzp), xx(nns), yy(nns)
+    REAL    :: psm(nns),tsm(nns),rtsm(nns),usm(nns),vsm(nns)
+    LOGICAL :: sound3d, set(nxp,nyp)
+    CHARACTER(LEN=7) :: line
+    !
+    ! Step 1: read meteorological soundings
+    ! ===================================
+    !
+    if (ps(1) == 0.) then
+        ! Read inputs from files
+        open (1,file='sound_in',status='old',form='formatted')
+        !
+        ! Read first few values to detemine file content
+        !   Single sounding: p,theta,r,u,v
+        !   Soundings for all columns: starts with text '3Dinput(N=x)', where x is the toal number of points
+        read (1,*) line
+        sound3d=(line=='3Dinput')
+        !
+        if (.NOT.sound3d) then
+            ! Single sounding
+            !
+            ! Read data
+            REWIND(1) ! Go back to the first line
+            do ns=1,nns
+                read (1,*,end=100) ps(ns),ts(ns),rts(ns),us(ns),vs(ns)
+            end do
+100       continue
+            ! Total number of soundings
+            ns=ns-1
+            !
+            ! Process input soundings
+            call process_sounding(ns,myid==0)
+            ! Calculate basic state from the current inputs
+            CALL basic_state
+            ! Put values to 3D fields
+            call fldinit
+        ELSE
+            ! Soundings for all columns
+            !
+            ! Read all other soundings
+            n=0 ! Number of profiles set
+            j=0  ! Total number of profiles in the file
+            i=1  ! Altitude points for each profile
+            ns=-1 ! Size not known yet
+            ! Averaging (for basic state)
+            psm=0.; tsm=0.; rtsm=0.; usm=0.; vsm=0.
+            ! Nothing set yet
+            set(:,:)=.FALSE.
+            DO WHILE ( ANY(.NOT.set) )
+                ! Read line
+                read (1,*,end=110) xx(i),yy(i),ps(i),ts(i),rts(i),us(i),vs(i)
+                !
+                IF (i>1) THEN
+                    IF (xx(i-1)/=xx(i) .OR. yy(i-1)/=yy(i)) THEN
+                        ! Column coordinates change
+                        IF (j==0) THEN
+                            ! Found the first sounding
+                            ns=i-1
+                            backspace (1)
+                            i=ns
+                        ELSE
+                            ! Expecting the same size for all columns
+                            WRITE(*,*) '  ABORTING: change in size of input soundings!'
+                            call appl_abort(0)
+                        ENDIF
+                    ENDIF
+                ENDIF
+                !
+                ! Assume constant number of altitude levels (ns) for all soundings
+                IF (i==ns) THEN
+                    ! Save these to calculate the mean profiles
+                    psm(1:ns)=psm(1:ns)+ps(1:ns)
+                    tsm(1:ns)=tsm(1:ns)+ts(1:ns)-th00
+                    rtsm(1:ns)=rtsm(1:ns)+rts(1:ns)
+                    usm(1:ns)=usm(1:ns)+us(1:ns)-umean
+                    vsm(1:ns)=vsm(1:ns)+vs(1:ns)-vmean
+                    ! Total number
+                    j=j+1
+                    !
+                    ! Are these needed here (parallel computations)?
+                    jj=-1
+                    do k=1,nyp
+                        IF (abs(yy(1)-yt(k))<0.1) THEN
+                            jj=k
+                            exit
+                        ENDIF
+                    END DO
+                    ii=-1
+                    do k=1,nxp
+                        IF (abs(xx(1)-xt(k))<0.1) THEN
+                            ii=k
+                            exit
+                        ENDIF
+                    END DO
+                    !
+                    if (ii/=-1 .and. jj/=-1) THEN
+                        ! Process input soundings
+                        call process_sounding(ns,.FALSE.)
+
+                        ! Calculate parameters and put those to 3D fields (see basic_state and fldinit)
+                        ! a) Winds
+                        call htint(ns,us,hs,nzp,u0,zt)
+                        call htint(ns,vs,hs,nzp,v0,zt)
+                        u0(1) = u0(2); v0(1) = v0(2)
+                        a_up(:,ii,jj) = u0(:)-umean
+                        a_vp(:,ii,jj) = v0(:)-vmean
+                        !
+                        ! b) Total water vapor
+                        if (level >= 1 .AND. associated (a_rp)) then
+                            call htint(ns,rts,hs,nzp,rt0,zt)
+                            rt0(1)=rt0(2)
+                            a_rp(:,ii,jj) = rt0(:)
+                        end if
+                        !
+                        ! c) Temperature: depends on the thermodynamic level (assuming level>=3) and inputs (itsflg)
+                        ! Potential temperature is already known
+                        call htint(ns,thds,hs,nzp,th0,zt)
+                        th0(1)=th0(2)
+                        a_theta(:,ii,jj) = th0(:)
+                        ! When itsflag=1, ts is liquid water potential temperature, but otherwise it will be calculated later
+                        call htint(ns,ts,hs,nzp,th0,zt)
+                        th0(1)=th0(2)
+                        a_tp(:,ii,jj) = th0(:) - th00
+
+                        ! Update counter
+                        n=n+1
+                        set(ii,jj)=.TRUE.
+                    ENDIF
+
+                    ! Reset counter
+                    i=0
+                ENDIF
+                !
+                ! The next point
+                i=i+1
+                IF (i>nns) THEN
+                    WRITE(*,*)'  ABORTING: soundings exceed maximum dimensions!'
+                    call appl_abort(0)
+                ENDIF
+            END DO
+110     CONTINUE
+
+            ! All columns should be initialized now
+            if ( ANY(.NOT.set) ) THEN
+                WRITE(*,*) '  ABORTING: not all columns initialized'
+                call appl_abort(0)
+            ENDIF
+
+            ! Average sounding for calculating basic state (independent of the number of PUs)
+            ps(1:ns)=psm(1:ns)/j
+            ts(1:ns)=tsm(1:ns)/j+th00
+            rts(1:ns)=rtsm(1:ns)/j
+            us(1:ns)=usm(1:ns)/j+vmean
+            vs(1:ns)=vsm(1:ns)/j+umean
+            ! Process input soundings
+            call process_sounding(ns,myid==0)
+            ! Calculate basic state
+            CALL basic_state
+
+            ! Remaining 3 D field initializations
+            a_ustar(:,:) = 0.
+            a_pexnr(:,:,:) = 0.
+
+            ! Liquid water content is needed for liquid water potential temperature, and it can be
+            ! calculated using saturation adjustment method. This is also needed for levels 4 and 5!
+            IF ((itsflg==0 .OR. itsflg==2) .AND. level>1) THEN
+                do j=1,nyp
+                    do i=1,nxp
+                        do k=1,nzp
+                            exner = (pi0(k)+pi1(k))/cp
+                            pres  = p00 * (exner)**cpr
+                            if (itsflg == 0) then
+                                ! Potential temperature was given, which is now in a_theta
+                                a_theta(k,i,j) = a_tp(k,i,j) ! Will match with the given values
+                                tk = a_theta(k,i,j)*exner
+                            ELSE ! itsflg=2
+                                ! Absolute temperature was given
+                                tk = a_tp(k,i,j)
+                            ENDIF
+                            rc  = max(0.,a_rp(k,i,j)-rslf(pres,tk))
+                            a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
+                        end do
+                    end do
+                end do
+            ENDIF
+
+        end if
+
+        ! Close
+        close (1)
+    ELSE
+        ! Soundings given in the NAMELIST
+        ! Find the number of data points
+        ns=1
+        do while (ps(ns) /= 0. .and. ns < nns)
+            ns=ns+1
+        END DO
+        ns=ns-1
+
+        ! Process input soundings
+        call process_sounding(ns,myid==0)
+        ! Calculate basic state from the current inputs
+        CALL basic_state
+        ! Put values to 3D fields
+        call fldinit
+    ENDIF
+    !
+    ! Step 2: The other operations
+    ! ===========================
+      k=1
+    do while( zt(k+1) <= zrand .and. k+1 < nzp)
+       k=k+1
+       xran(k) = 0.2*(zrand - zt(k))/zrand
+    end do
+    call random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
+
+    if (associated(a_rp)) then
+       k=1
+       do while( zt(k+1) <= zrand .and. k+1 < nzp)
+          k=k+1
+          xran(k) = 5.0e-5*(zrand - zt(k))/zrand
+       end do
+       call random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
+    end if
+
+    a_wp=0.
+    if(isgstyp == 2) call tkeinit(nxyzp,a_qp)
+    !
+    ! initialize thermodynamic fields
+    !
+    call thermo (level)
+
+    !
+    ! Initialize aerosol size distributions
+    !
+    IF (level >= 4) THEN
+       CALL aerosol_init
+       CALL liq_ice_init      ! This should be replaced by physical processing!
+       CALL init_gas_tracers
+    END IF
+
+    a_uc=a_up
+    a_vc=a_vp
+    a_wc=a_wp
+
+  end subroutine full_init
+  !
+  ! This function does processing for a single sounding (taken from arrsnd)
+  !     n is the number of values (known)
+  SUBROUTINE process_sounding(n,prnt)
+    use defs, only          : p00,p00i,cp,cpr,rcp,R,g,ep2,alvl,Rm,ep
+    use thrm, only          : rslf
+    use mpi_interface, only : appl_abort, myid
+    implicit none
+    INTEGER, INTENT(IN) :: n
+    LOGICAL, INTENT(IN) :: prnt
+    integer :: k,iterate,ns
+    real    :: tavg, zold2, zold1, x1, xx, yy, zz, til
+    character (len=245) :: fm0 = &
+         "(/,' -------------------------------------------------',/,"       //&
+         "'  Sounding Input: ',//,7x,'ps',9x,'hs',7x,'ts',6x ,'thds',6x," // &
+         "'us',7x,'vs',7x,'rts',5x,'rel hum',/,6x,'(Pa)',7X,'(m)',6X,'(K)'"// &
+         ",6X,'(K)',6X,'(m/s)',4X,'(m/s)',3X,'(kg/kg)',5X,'(%)',/,1x/)"
+    character (len=36) :: fm1 = "(f11.1,f10.1,2f9.2,2f9.2,f10.5,f9.1)"
+
+    DO ns=1,n
+       ! filling relative humidity array only accepts sounding in mixing
+       ! ratio (g/kg) converts to (kg/kg)
+       !
+       rts(ns)=rts(ns)*1.e-3
+       !
+       ! filling pressure array:
+       ! ipsflg = 0 :pressure in millibars
+       ! 1 :pressure array is height in meters (ps(1) is surface pressure)
+       !
+       select case (ipsflg)
+       case (0)
+          ps(ns)=ps(ns)*100.
+       case default
+          xs(ns)=(1.+ep2*rts(ns))
+          if (ns == 1)then
+             ps(ns)=ps(ns)*100.
+             zold2=0.
+             hs(1) = 0.
+          else
+             hs(ns) = ps(ns)
+             zold1=zold2
+             zold2=ps(ns)
+             IF ( itsflg==0 .OR. itsflg==1) THEN
+                ! ts=potential or liquid water potential temperature (condensation not included here)
+                tavg=0.5*(ts(ns)*xs(ns)+ts(ns-1)*xs(ns-1))*((p00/ps(ns-1))**rcp)
+             ELSE
+                ! ts=T [K]
+                tavg=0.5*(ts(ns)*xs(ns)+ts(ns-1)*xs(ns-1))
+             ENDIF
+             ps(ns)=(ps(ns-1)**rcp-g*(zold2-zold1)*(p00**rcp)/(cp*tavg))**cpr
+          end if
+       end select
+       !
+       ! filling temperature array:
+       ! itsflg = 0 :potential temperature in kelvin
+       !          1 :liquid water potential temperature in kelvin
+       !          2 :temperature
+       !
+       select case (itsflg)
+       case (0)
+          tks(ns)=ts(ns)*(ps(ns)*p00i)**rcp
+       case (1)
+          til=ts(ns)*(ps(ns)*p00i)**rcp
+          xx=til
+          yy=rslf(ps(ns),xx)
+          zz=max(rts(ns)-yy,0.)
+          if (zz > 0.) then
+             do iterate=1,3
+                x1=alvl/(cp*xx)
+                xx=xx - (xx - til*(1.+x1*zz))/(1. + x1*til                &
+                     *(zz/xx+(1.+yy*ep)*yy*alvl/(Rm*xx*xx)))
+                yy=rslf(ps(ns),xx)
+                zz=max(rts(ns)-yy,0.)
+             enddo
+          endif
+          tks(ns)=xx
+       case (2)
+          tks(ns) = ts(ns) ! a long way of saying do nothing
+       case default
+          if (myid == 0) print *, '  ABORTING: itsflg not supported'
+          call appl_abort(0)
+       end select
+    end do
+    ns=ns-1
+    !
+    ! compute height levels of input sounding.
+    !
+    if (ipsflg == 0) then
+       do k=2,ns
+          hs(k)=hs(k-1)-r*.5 *(tks(k)*(1.+ep2*rts(k))                      &
+               +tks(k-1)*(1.+ep2*rts(k-1)))*(log(ps(k))-log(ps(k-1)))/g
+       end do
+    end if
+
+    if (hs(ns) < zt(nzp)) then
+       if (myid == 0) print *, '  ABORTING: Model top above sounding top'
+       if (myid == 0) print '(2F12.2)', hs(ns), zt(nzp)
+       call appl_abort(0)
+    end if
+
+    do k=1,ns
+       thds(k)=tks(k)*(p00/ps(k))**rcp
+    end do
+
+    do k=1,ns
+       xs(k)=100.*rts(k)/rslf(ps(k),tks(k))
+    end do
+
+    ! Print soundings
+    if(prnt) then
+        write(6,fm0)
+        write(6,fm1)(ps(k),hs(k),tks(k),thds(k),us(k),vs(k),rts(k),xs(k),k=1,ns)
+    endif
+
+  END SUBROUTINE process_sounding
+  !
   !
   !----------------------------------------------------------------------
   ! FLDINIT: Initializeds 3D fields, mostly from 1D basic state

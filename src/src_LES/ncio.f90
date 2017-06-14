@@ -327,7 +327,7 @@ contains
   end subroutine define_nc
   !
   ! ----------------------------------------------------------------------
-  ! Subroutine define_nc_cs: Defines the structure of a new column statistics nc file
+  ! Subroutine define_nc_cs: Defines the structure of a column statistics nc file
   !
   subroutine define_nc_cs(ncID, nRec, n2, n3, level, rad_level, spec_list, nspec )
     integer, intent (in) :: ncID, n2, n3, level, rad_level, nspec
@@ -437,6 +437,11 @@ contains
               iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
               iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
            END DO
+       ELSEIF (level==3) THEN
+           ! Surface precipitation for levels 3
+           iret=nf90_def_var(ncID,'prcp',NF90_FLOAT,dim_ttt,VarID)
+           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'prcp'))
+           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'prcp'))
        ENDIF
 
        iret  = nf90_enddef(ncID)
@@ -553,7 +558,7 @@ contains
        if (itype==1) ncinfo = 'm/s'
        if (itype==2) ncinfo = 'ttmt'
     case('t')
-       if (itype==0) ncinfo = 'Potential temperature'
+       if (itype==0) ncinfo = 'Liquid water potential temperature'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
     case('p')
@@ -977,7 +982,7 @@ contains
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('t_2')
-       if (itype==0) ncinfo = 'Variance of theta'
+       if (itype==0) ncinfo = 'Variance of theta_l'
        if (itype==1) ncinfo = 'K^2'
        if (itype==2) ncinfo = 'tttt'
     case('w_3')
@@ -985,7 +990,7 @@ contains
        if (itype==1) ncinfo = 'm^3/s^3'
        if (itype==2) ncinfo = 'ttmt'
     case('t_3')
-       if (itype==0) ncinfo = 'Third moment of theta'
+       if (itype==0) ncinfo = 'Third moment of theta_l'
        if (itype==1) ncinfo = 'K^3'
        if (itype==2) ncinfo = 'tttt'
     case('tot_tw')
