@@ -1041,7 +1041,7 @@ end subroutine tstep_reset
                    END IF
                    ns = ns/a_ncloudp(k,i,j,c)
 
-                   bb = 3.*mwa*ns/(4.*pi*rhowa)
+                   bb = 6.*mwa*ns/(pi*rhowa)
                    aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
                    cdcld(k,i,j,c) = SQRT(3.*bb/aa)
                 ELSE
@@ -1091,7 +1091,7 @@ end subroutine tstep_reset
                    END IF
                    ns = ns/a_nprecpp(k,i,j,c)
 
-                   bb = 3.*mwa*ns/(4.*pi*rhowa)
+                   bb = 6.*mwa*ns/(pi*rhowa)
                    aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
                    cdprc(k,i,j,c) = SQRT(3.*bb/aa)
                 ELSE

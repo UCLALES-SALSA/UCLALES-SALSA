@@ -42,12 +42,12 @@ contains
   subroutine initialize
 
     use step, only : time, outflg
-    use stat, only : init_stat, mcflg, acc_massbudged
+    use stat, only : init_stat, mcflg, acc_massbudged, salsa_b_bins
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : nbins ! Olis parempi jos ei tarttis
+    USE mo_submctl, ONLY : nbins, in2b, fn2b, iib, fib, nlim, prlim ! Olis parempi jos ei tarttis
     USE util, ONLY : maskactiv
     USE class_ComponentIndex, ONLY : GetNcomp
 
@@ -56,12 +56,9 @@ contains
     ! Local variables for SALSA basic state
     REAL :: zwp(nzp,nxp,nyp), ztkt(nzp,nxp,nyp)
     LOGICAL :: zactmask(nzp,nxp,nyp)
-    LOGICAL :: TMP
     INTEGER :: n4
     
     ztkt = 0.
-
-    TMP = .false.
 
     ! Set vertical velocity as 0.5 m/s to intialize cloud microphysical properties with
     ! SALSA
@@ -104,8 +101,8 @@ contains
 
           END IF
           CALL SALSAInit
-
           
+
        END IF !level >= 4
 
     else if (runtype == 'HISTORY') then
@@ -115,6 +112,15 @@ contains
        if (myid == 0) print *,'  ABORTING:  Invalid Runtype'
        call appl_abort(0)
     end if ! runtype
+
+
+    ! When SALSA b-bin outputs are needed?
+    !   -level >= 4
+    !   -outputs are forced (salsa_b_bins=.true.)
+    !   -b-bins initialized with non-zero concentration
+    !   -nucleation set to produce particles to b bins (currently only a bins)
+    IF (level >= 4 .and. (.not. salsa_b_bins)) &
+       salsa_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim ) .OR. any( a_nicep(:,:,:,iib%cur:fib%cur)>prlim )
 
     call sponge_init
     call init_stat(time+dtl,filprf,expnme,nzp)
@@ -135,11 +141,11 @@ contains
     if (outflg) then
        if (runtype == 'INITIAL') then
           call write_hist(1, time)
-          call init_anal(time)
+          call init_anal(time,salsa_b_bins)
           call thermo(level)
           call write_anal(time)
        else
-          call init_anal(time+dtl)
+          call init_anal(time+dtl,salsa_b_bins)
           call write_hist(0, time)
        end if
     end if !outflg
