@@ -704,7 +704,7 @@ contains
   ! Juha Tonttila, FMI, 2014
   !
   !
-  subroutine init_anal(time)
+  subroutine init_anal(time,salsa_b_bins)
 
     use mpi_interface, only :myid, ver, author, info
     USE mo_submctl, ONLY : fn2a,fn2b,fca,fcb,fra, &
@@ -743,6 +743,7 @@ contains
     LOGICAL, SAVE :: salsabool(salsa_nn)
 
     real, intent (in) :: time
+    LOGICAL, INTENT (IN) :: salsa_b_bins
     integer           :: nbeg, nend
 
     IF (level < 4) THEN  ! Standard operation for levels 1-3
@@ -837,6 +838,14 @@ contains
 
        IF (.NOT. IsUsed(prtcl,'SS'))  &
             salsabool((/ 69, 76, 83, 90, 97,  104 /)) = .FALSE.
+
+        ! b-bins are not always saved
+        IF (.NOT. salsa_b_bins) THEN
+            salsabool((/ 37, 38, 39, 40, 43, 45, 47, 54, 56, 58 /)) = .FALSE.
+            salsabool(70:76)=.FALSE.    ! Aerosol species
+            salsabool(84:90)=.FALSE.    ! Cloud species
+            salsabool(98:104)=.FALSE.   ! Ice species
+        ENDIF
 
        nvar0 = COUNT(salsabool) + naddsc
        ALLOCATE(sanal(nvar0))
@@ -1137,7 +1146,8 @@ contains
           
           ! Cloud droplet size distribution (regime B)
           iret = nf90_inq_varid(ncid0,'S_Ncbb',VarID)
-          iret = nf90_put_var(ncid0,VarID,a_ncloudp(:,i1:i2,j1:j2,icb%cur:fcb%cur), &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,VarID,a_ncloudp(:,i1:i2,j1:j2,icb%cur:fcb%cur), &
                start=ibegsd,count=icntclb)
        END IF
        
@@ -1150,7 +1160,8 @@ contains
        ! Mean cloud droplet wet radius (regime B)
        CALL meanRadius('cloud','b',zvar(:,:,:))
        iret = nf90_inq_varid(ncid0,'S_Rwcb',VarID)
-       iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+       IF (iret==NF90_NOERR) &
+            iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
             count=icnt)
        
        IF (lbinanl) THEN
@@ -1162,7 +1173,8 @@ contains
           
           ! Cloud droplet bin wet radius (regime B)
           iret = nf90_inq_varid(ncid0,'S_Rwcbb',VarID)
-          iret = nf90_put_var(ncid0,VarID,a_Rcwet(:,i1:i2,j1:j2,icb%cur:fcb%cur), &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,VarID,a_Rcwet(:,i1:i2,j1:j2,icb%cur:fcb%cur), &
                start=ibegsd,count=icntclb)
        END IF
        
@@ -1202,7 +1214,8 @@ contains
        ! Number of insoluble aerosols (regime B)
        CALL bulkNumc('aerosol','b',zvar(:,:,:))
        iret = nf90_inq_varid(ncid0,'S_Nb',VarID)
-       iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+       IF (iret==NF90_NOERR) &
+            iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
             count=icnt)
        
        IF (lbinanl) THEN
@@ -1213,7 +1226,8 @@ contains
           
           !Aerosol size distribution (regime B)
           iret = nf90_inq_varid(ncid0,'S_Nabb',VarID)
-          iret = nf90_put_var(ncid0,VarID,a_naerop(:,i1:i2,j1:j2,in2b:fn2b), &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,VarID,a_naerop(:,i1:i2,j1:j2,in2b:fn2b), &
                start=ibegsd,count=icntaeb)
        END IF
        
@@ -1226,7 +1240,8 @@ contains
        ! Mean aerosol wet radius (regime B)
        CALL meanRadius('aerosol','b',zvar(:,:,:))
        iret = nf90_inq_varid(ncid0,'S_Rwab',VarID)
-       iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,  &
+       IF (iret==NF90_NOERR) &
+            iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,  &
             count=icnt)
        
        IF (lbinanl) THEN
@@ -1238,7 +1253,8 @@ contains
           
           ! Aerosol bin wet radius (regime B)
           iret = nf90_inq_varid(ncid0,'S_Rwabb',VarID)
-          iret = nf90_put_var(ncid0,VarID,a_Rawet(:,i1:i2,j1:j2,in2b:fn2b),  &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,VarID,a_Rawet(:,i1:i2,j1:j2,in2b:fn2b),  &
                start=ibegsd,count=icntaeb)
        END IF
        
@@ -1267,7 +1283,8 @@ contains
           ! Mean ice particle wet radius (b)
           CALL meanRadius('ice','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_Rwib',VarID)
-          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           ! Mean snow drop wet radius
@@ -1284,7 +1301,8 @@ contains
              
              ! Ice particle size distribution reg. b
              iret = nf90_inq_varid(ncid0,'S_Nibb',VarID)
-             iret = nf90_put_var(ncid0,VarID,a_nicep(:,i1:i2,j1:j2,iib%cur:fib%cur), &
+             IF (iret==NF90_NOERR) &
+                  iret = nf90_put_var(ncid0,VarID,a_nicep(:,i1:i2,j1:j2,iib%cur:fib%cur), &
                   start=ibegsd,count=icntica)
              
              ! Ice particle bin wet radius regime a
@@ -1295,7 +1313,8 @@ contains
              
              ! Ice particle bin wet radius regime b
              iret = nf90_inq_varid(ncid0,'S_Rwibb',VarID)
-             iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,iib%cur:fib%cur), &
+             IF (iret==NF90_NOERR) &
+                  iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,iib%cur:fib%cur), &
                   start=ibegsd,count=icntica)
              
              ! Snow size distribution
@@ -1331,7 +1350,8 @@ contains
           ! --Sulphate (aerosol, regime B)
           CALL bulkMixrat('SO4','aerosol','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_aSO4b',VarID)
-          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           ! --Sulphate (clouds, regime A)
@@ -1343,7 +1363,8 @@ contains
           ! --Sulphate (clouds, regime B)
           CALL bulkMixrat('SO4','cloud','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_cSO4b',VarID)
-          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
 
           IF (level == 5) THEN
@@ -1356,7 +1377,8 @@ contains
              ! --Sulphate (ice, regime B)
              CALL bulkMixrat('SO4','ice','b',zvar(:,:,:))
              iret = nf90_inq_varid(ncid0,'S_iSO4b',VarID)
-             iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+             IF (iret==NF90_NOERR) &
+                  iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                   count=icnt)
           END IF ! level 5
 
@@ -1373,7 +1395,8 @@ contains
           !-- Ammonium (aerosol, regime B)
           CALL bulkMixrat('NH','aerosol','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_aNH3b',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           !-- Ammonium (clouds, regime A)
@@ -1385,7 +1408,8 @@ contains
           !-- Ammonium (clouds, regime B)
           CALL bulkMixrat('NH','cloud','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_cNH3b',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
 
           IF (level == 5) THEN
@@ -1398,7 +1422,8 @@ contains
              ! --Ammonium (ice, regime B)
              CALL bulkMixrat('NH','ice','b',zvar(:,:,:))
              iret = nf90_inq_varid(ncid0,'S_iNHb',VarID)
-             iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+             IF (iret==NF90_NOERR) &
+                  iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                   count=icnt)
           END IF ! level 5
 
@@ -1415,7 +1440,8 @@ contains
           !-- Nitrate (aerosol, regime B)
           CALL bulkMixrat('NO','aerosol','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_aNO3b',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           !-- Nitrate (clouds, regime A)
@@ -1427,7 +1453,8 @@ contains
           !-- Nitrate (clouds, regime B)
           CALL bulkMixrat('NO','cloud','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_cNO3b',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           IF (level == 5) THEN
@@ -1440,7 +1467,8 @@ contains
              ! --Nitrate (ice, regime B)
              CALL bulkMixrat('NO','ice','b',zvar(:,:,:))
              iret = nf90_inq_varid(ncid0,'S_iNOb',VarID)
-             iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+             IF (iret==NF90_NOERR) &
+                  iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                   count=icnt)
           END IF ! level 5
           
@@ -1457,7 +1485,8 @@ contains
           !-- Organic Carbon (aerosol, regime B)
           CALL bulkMixrat('OC','aerosol','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_aOCb',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           !-- Organic Carbon (clouds, regime A)
@@ -1469,7 +1498,8 @@ contains
           !-- Organic Carbon (clouds, regime B)
           CALL bulkMixrat('OC','cloud','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_cOCb',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           IF (level == 5) THEN
@@ -1482,7 +1512,8 @@ contains
              ! --Organic Carbon (ice, regime B)
              CALL bulkMixrat('OC','ice','b',zvar(:,:,:))
              iret = nf90_inq_varid(ncid0,'S_iOCb',VarID)
-             iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+             IF (iret==NF90_NOERR) &
+                  iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                   count=icnt)
           END IF ! level 5
 
@@ -1499,7 +1530,8 @@ contains
           !-- Black Carbon (aerosol, regime B)
           CALL bulkMixrat('BC','aerosol','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_aBCb',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           !-- Black Carbon (clouds, regime A)
@@ -1511,7 +1543,8 @@ contains
           !-- Black Carbon (clouds, regime B)
           CALL bulkMixrat('BC','cloud','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_cBCb',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
 
           IF (level == 5) THEN
@@ -1524,7 +1557,8 @@ contains
              ! --Black Carbon (ice, regime B)
              CALL bulkMixrat('BC','ice','b',zvar(:,:,:))
              iret = nf90_inq_varid(ncid0,'S_iBCb',VarID)
-             iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+             IF (iret==NF90_NOERR) &
+                  iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                   count=icnt)
           END IF ! level 5
 
@@ -1541,7 +1575,8 @@ contains
           !-- Dust (aerosol, regime B)
           CALL bulkMixrat('DU','aerosol','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_aDUb',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           !-- Dust (clouds, regime A)
@@ -1553,7 +1588,8 @@ contains
           !-- Dust (clouds, regime B)
           CALL bulkMixrat('DU','cloud','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_cDUb',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           IF (level == 5) THEN
@@ -1566,7 +1602,8 @@ contains
              ! --Dust (ice, regime B)
              CALL bulkMixrat('DU','ice','b',zvar(:,:,:))
              iret = nf90_inq_varid(ncid0,'S_iDUb',VarID)
-             iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+             IF (iret==NF90_NOERR) &
+                  iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                   count=icnt)
           END IF ! level 5
 
@@ -1583,7 +1620,8 @@ contains
           !-- Sea Salt (aerosol, regime B)
           CALL bulkMixrat('SS','aerosol','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_aSSb',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           !-- Sea Salt (aerosol, regime A)
@@ -1595,7 +1633,8 @@ contains
           !-- Sea Salt (aerosol, regime B)
           CALL bulkMixrat('SS','cloud','b',zvar(:,:,:))
           iret = nf90_inq_varid(ncid0,'S_cSSb',VarID)
-          iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
+          IF (iret==NF90_NOERR) &
+               iret = nf90_put_var(ncid0,Varid,zvar(:,i1:i2,j1:j2),start=ibeg, &
                count=icnt)
           
           IF (level == 5) THEN
@@ -1608,7 +1647,8 @@ contains
              ! -- Sea Salt (ice, regime B)
              CALL bulkMixrat('SS','ice','b',zvar(:,:,:))
              iret = nf90_inq_varid(ncid0,'S_iSSb',VarID)
-             iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+             IF (iret==NF90_NOERR) &
+                  iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                   count=icnt)
           END IF ! level 5
           
@@ -2009,7 +2049,10 @@ contains
 
     SELECT CASE(ipart)
        CASE('aerosol')
-          IF (itype == 'a') THEN ! Note: 1a and 2a combined
+          IF (itype == 'ab') THEN ! Note: 1a, 2a and 2b combined
+             istr = in1a
+             iend = fn2b
+          ELSE IF (itype == 'a') THEN ! Note: 1a and 2a combined
              istr = in1a
              iend = fn2a
           ELSE IF (itype == 'b') THEN ! 2b
@@ -2018,7 +2061,10 @@ contains
           END IF
           numc(:,:,:) = SUM(a_naerop(:,:,:,istr:iend),DIM=4)
        CASE('cloud')
-          IF (itype == 'a') THEN
+          IF (itype == 'ab') THEN
+             istr = ica%cur
+             iend = fcb%cur
+          ELSE IF (itype == 'a') THEN
              istr = ica%cur
              iend = fca%cur
           ELSE IF (itype == 'b') THEN
@@ -2031,7 +2077,10 @@ contains
           iend = fra
           numc(:,:,:) = SUM(a_nprecpp(:,:,:,istr:iend),DIM=4)
         CASE('ice')
-          IF (itype == 'a') THEN
+          IF (itype == 'ab') THEN
+             istr = iia%cur
+             iend = fib%cur
+          ELSE IF (itype == 'a') THEN
              istr = iia%cur
              iend = fia%cur
           ELSE IF (itype == 'b') THEN
@@ -2073,7 +2122,10 @@ contains
     SELECT CASE(ipart)
     CASE('aerosol')
 
-       IF (itype == 'a') THEN ! Note: 1a and 2a combined
+       IF (itype == 'ab') THEN ! Note: 1a, 2a and 2b combined
+          istr = in1a
+          iend = fn2b
+       ELSE IF (itype == 'a') THEN ! Note: 1a and 2a combined
           istr = in1a
           iend = fn2a
        ELSE IF (itype == 'b') THEN
@@ -2087,7 +2139,10 @@ contains
 
     CASE('cloud')
 
-       IF (itype == 'a') THEN
+       IF (itype == 'ab') THEN
+          istr = ica%cur
+          iend = fcb%cur
+       ELSE IF (itype == 'a') THEN
           istr = ica%cur
           iend = fca%cur
        ELSE IF (itype == 'b') THEN
@@ -2108,7 +2163,10 @@ contains
 
     CASE('ice')
 
-       IF (itype == 'a') THEN
+       IF (itype == 'ab') THEN
+          istr = iia%cur
+          iend = fib%cur
+       ELSE IF (itype == 'a') THEN
           istr = iia%cur
           iend = fia%cur
        ELSE IF (itype == 'b') THEN
