@@ -2,9 +2,14 @@
 
 # Exit on error
 set -e
-
+shopt -s extglob
 # import subroutines & variables 
-source ./subroutines_variables.bash
+if [[ -d ${SCRIPT} ]]; then
+   scriptref=${SCRIPT}
+else
+   scriptref=.
+fi
+source ${scriptref}/subroutines_variables.bash
 
 #
 #
@@ -26,15 +31,23 @@ restart=${restart:-false}
 A=${A:-1}
 B=${B:-90}
 
+##apuetunolla=$( python -c "print max( ${#A}, ${#B} )" )
 
+##if [[ -z $etunolla ]]
+##then
+##    etunolla=$apuetunolla
+##fi
+##echo "etunolla" $etunolla
+
+etunolla=3 # huomhuom
 if [[ -z $list ]]
 then
-    array=($(seq -f"%02g" $A $B  ))
+    array=($(seq -f"%0${etunolla}g" $A $B  ))
 else
     u=0
     for kk in ${list[@]}
     do
-        array[u]=$(printf %02d ${kk#0})
+        array[u]=$(printf %0${etunolla}d ${kk##+(0)})
         u=$((u+1))
     done
 fi
@@ -43,7 +56,6 @@ k=0
 
 mode=${mode:-mpi}
 # supercomputer related variable settings
-WT=${WTMAX} # walltime
 nproc=${nproc:-100}
 
 
@@ -54,10 +66,9 @@ if [[ -n $postfix ]]; then
     postfix=_${postfix}
 fi
 
-# design version
-cd $(dirname $DESIGN)
-designV=$(git describe --tags)
-cd $bashfolder
+if [[ -z $designV ]]; then
+    "You didn't give the version of design"
+fi
 
 # LES version
 nn=$(( ${#mode}- 4 ))
@@ -69,8 +80,17 @@ emulatorinput=case_emulator_DESIGN_${designV}
 inputrootfolder=${bin}/${emulatorinput}
 
 
-LVL=$(grep level ${inputrootfolder}/emul??/NAMELIST | tail -1)
+LVL=$(grep level ${inputrootfolder}/emul???/NAMELIST | tail -1)
 LVL=${LVL: -1} # last char
+echo 'keissien lkm' ${#array[@]}
+if [[ $LVL -ge 4 ]]; then
+    WT=${WTMAX} # walltime
+else
+    WT=48:00:00
+    if [[ ${#array[@]} -gt 100 ]]; then
+	WT=${WTMAX}
+    fi
+fi
 
 emulatorname=${emulatorinput}_LES${les}_LVL${LVL}${postfix}
 
@@ -80,6 +100,13 @@ emulatoroutputroot=${outputroot}/${emulatorname}
 if [[ $restart == 'false' ]]; then
     echo 'poista vanhat kansiot' $folder
     rm -rf  ${emulatoroutputroot} 
+fi
+
+if [[ ! -d ${emulatoroutputroot} ]]; then
+    restart='false'
+    echo ' ' 
+    echo  "if emulatoroutputroot folder doesn't exist then restart value is always false"
+    echo "restart -> $restart"
 fi
 
 if [[ -z $1 ]]; then
@@ -115,33 +142,46 @@ cp ${script}/subroutines_variables.bash ${emulatoroutputroot}/
 cp ${script}/emulator_runs_parallel.bash ${emulatoroutputroot}/
 cp ${script}/submit_uclales-salsa.bash   ${emulatoroutputroot}/
 cp ${script}/submit_postpros.bash        ${emulatoroutputroot}/
+cp ${script}/nodestats.py                ${emulatoroutputroot}/
 
 cp ${script}/${scriptname}               ${emulatoroutputroot}/
 
 for i in ${array[@]}
 do
-    if [ $restart == 'false' ] ||  ([ $restart == 'true' ] && ([ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.nc ] || [ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.ts.nc ] || [ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.ps.nc ] || [ ! -f ${emulatoroutputroot}/emul${i}/valmis${i} ]));
-    then
-        if [ $restart == 'true' ]; then  echo emul${i} "ei ole valmis"; fi
-        mkdir -p ${emulatoroutputroot}/emul${i}/
-        if [[ -z $(ls -A ${emulatoroutputroot}/emul${i}/) ]]
-        then
-            if [ $restart == 'true' ]; then  echo 'folder is empty'; fi
-            
-            cp ${inputrootfolder}/emul${i}/* ${emulatoroutputroot}/emul${i}/
-            cp ${bin}/les.${mode} ${emulatoroutputroot}/emul${i}/
-        else
-            echo "poistetaan turhat"
-            restart=$restart poistaturhat ${emulatorinput}/emul${i} emul${i}
-        fi
-        
-        
-        mkdir -p ${emulatoroutputroot}/emul${i}/datafiles
+
+    if [[ $restart == 'true' ]]; then
+	echo ' '
+	echo ' '
+    	status=$( tarkistastatus ${emulatorname}/emul${i} emul${i} )
+
+    	echo "statuksen tarkistus" emul${i} $status
+
+    	if [[ $status == '11' ]]
+    	then
+        	echo emul${i} "on VALMIS"
+    	fi
+    	LS=${status:0:1}
+    	PPS=${status:1:2}
+ 
+
+        echo emul${i} "poistetaan turhat statuksen mukaan"
+        poistaturhat ${emulatorname}/emul${i} emul${i}
+    else
+	echo ' '
+        echo 'uudelta pohjalta'
+	echo "kopioidaan input tiedostot emul${i}"
+    	mkdir -p ${emulatoroutputroot}/emul${i}/datafiles
+        cp ${inputrootfolder}/emul${i}/* ${emulatoroutputroot}/emul${i}/
+        cp ${bin}/les.${mode} ${emulatoroutputroot}/emul${i}/
         cp ${bin}/datafiles/* ${emulatoroutputroot}/emul${i}/datafiles
+        
     fi
+    
+    
 done
 
-
+echo ' '
+echo ' '
 ########################################
 
 
@@ -159,6 +199,10 @@ cat > ${emulatoroutputroot}/control_multiple_emulator_run.sh <<FINALPBS
 #PBS -m ae
 
 cd ${emulatoroutputroot}
+
+source /etc/profile
+module load Python/2.7.10
+python ${emulatoroutputroot}/nodestats.py ${emulatoroutputroot}/ False &
 
 FINALPBS
 
@@ -188,7 +232,7 @@ for n in $( seq 0 $((ThreadNro-1)) )
 do
 nroJobs=$(python -c "from math import ceil; print int( ceil( ( ${#array[@]}-$aloitusindeksi  )/float( $ThreadNro-$n ) ) )")
 echo "submit->parallel" ${array[@]:$aloitusindeksi:$nroJobs}
-echo "emulatorname=${emulatorname} list='"${array[@]:$aloitusindeksi:$nroJobs}"' threadNro=$n nproc=${nproc} jobflag=$jobflag mode=${mode} restart=${restart} scriptname=$scriptname ${emulatoroutputroot}/emulator_runs_parallel.bash | tee ${emulatoroutputroot}/emulatoroutput$(printf %02d ${n#0}) &" >> ${emulatoroutputroot}/control_multiple_emulator_run.sh
+echo "emulatorname=${emulatorname} list='"${array[@]:$aloitusindeksi:$nroJobs}"' threadNro=$n nproc=${nproc} jobflag=$jobflag mode=${mode} etunolla=$etunolla  scriptname=$scriptname ${emulatoroutputroot}/emulator_runs_parallel.bash | tee ${emulatoroutputroot}/emulatoroutput$(printf %0${etunolla}d ${n##+(0)}) &" >> ${emulatoroutputroot}/control_multiple_emulator_run.sh
 aloitusindeksi=$((aloitusindeksi+nroJobs))
 done
 

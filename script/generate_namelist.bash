@@ -54,8 +54,8 @@ cat > ${dir}/NAMELIST <<EOF
   prndtl = ${prndtl:--0.3333333}
   filprf = ${filprf:-"'emul'"}
   hfilin = ${hfilin:-"'emul.rst'"}
-  ssam_intvl = ${ssam_intvl:-120.}
-  savg_intvl = ${savg_intvl:-120.}
+  ssam_intvl = ${ssam_intvl:-300.}
+  savg_intvl = ${savg_intvl:-300.}
   mcflg = ${mcflg:-.FALSE.}
   frqhis  = ${frqhis:-30000.}
   lbinanl = ${lbinanl:-.false.}
@@ -131,9 +131,9 @@ cat > ${dir}/NAMELIST <<EOF
    volDistB = ${volDistB:-0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}
    nf2a = ${nf2a:-1.0}
 
-   sigmag = ${sigmag:-1.2, 1.7, 2.0, 2.0, 2.0, 2.0, 2.0}  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
-   dpg    = ${dpg:-0.022, 0.12, 0.2, 0.2, 0.2, 0.2, 0.2}     ! Mode mean diameters in micrometers
-   n      = ${n:-0., 46.2502241367474 , 0., 0., 0., 0., 0.}  ! Mode number concentrations in #/mg
+   sigmag = ${sigmag:-1.3, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0}  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
+   dpg    = ${dpg:-0.1, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2}     ! Mode mean diameters in micrometers
+   n      = ${n:-46.2502241367474, 0. , 0., 0., 0., 0., 0.}  ! Mode number concentrations in #/mg
  /
 
 EOF

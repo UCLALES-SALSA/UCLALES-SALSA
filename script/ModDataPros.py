@@ -52,6 +52,37 @@ def read_Data(filename,var):
   fileH.close()
   return data
 
+def read_NamelistValue( filename = 'NAMELIST', var = 'Tspinup' ):
+    import re
+    f = open( filename )
+    value = None
+    for line in f:
+        
+        aa = line.split('=')
+        k = 0
+        nimi = ''
+        arvo = ''
+        for sentence in aa:
+            if   np.mod(k,2) == 0:
+                nimi = re.sub(r"\s+", "", sentence, flags=re.UNICODE)
+            elif np.mod(k,2) == 1:
+                kakka = re.sub(r"\s+", "", sentence, flags=re.UNICODE)
+                arvo  = kakka.split('!', 1)[0]
+            k+=1
+         
+        #print 'nimi', nimi, 'arvo', arvo
+        if nimi == var:
+            value = arvo
+            break
+        
+
+
+       
+        
+    f.close()
+    return float(value)
+
+
 ######################################################
 ### count min and max values of 5 dimensional data ###
 ### time x y z bin                                 ###
@@ -214,7 +245,7 @@ def area( xm_data, ym_data ):
 ### input variable: mix ratio ( kg / kg )              ###
 ### 4 dimensions: time, x, y z                         ###
 ##########################################################
-def laske_path_aikasarjaXYZ( mixRatData, dn0_data, korkeus, aika, onlyCloudy = False, tulostus = False, piirra = False, uusikuva = True, nimi = 'path aikasarja' ):
+def laske_path_aikasarjaXYZ( mixRatData, dn0_data, korkeus, aika, onlyCloudy = False, tulostus = False, piirra = False, uusikuva = True, nimi = 'path aikasarja', xlabel = 'aika [s]', tightXAxis=False ):
   
     mixRatData = mixRatData*1000.0 # kg/kg -> g/kg
 
@@ -262,7 +293,7 @@ def laske_path_aikasarjaXYZ( mixRatData, dn0_data, korkeus, aika, onlyCloudy = F
 
     uusikuva = ( piirra and uusikuva )
     plot_alustus() if uusikuva else False
-    plottaa( aika, timeSeries, nimi, 'aika [s]', 'path [g/m^2]')  if piirra else False   
+    plottaa( aika, timeSeries, nimi, xlabel , 'path [g/m^2]', tightXAxis = tightXAxis)  if piirra else False   
     
 
 ##########################################################
@@ -414,7 +445,7 @@ def laske_NumberConcentration( Ndata, refNdata, dn0_data, aika, tulostus = False
         
 
 #######################################################################
-### calculate mean diametr in a bin                                 ###
+### calculate mean diameter in a bin                                ###
 ### according to the reference data                                 ###
 ###                                                                 ###
 ### input variable: mix ratio ( kg / kg )                           ###
@@ -464,6 +495,94 @@ def laske_MeanDiameterInBin( RadiusBinData, bini, refNdata, aika, tulostus = Fal
     plot_alustus() if uusikuva else False
     plottaa( aika, timeSeries, nimi, 'aika [s]', 'diameter [um]')  if piirra else False
 
+#######################################################################
+### calculate column mean PSD divided into bins                     ###
+### at a spesific time                                              ###
+###                                                                 ###
+### input variable: mix ratio ( kg / kg )                           ###
+### 5 dimensions: time, x, y z, bin                                 ###
+#######################################################################
+
+def laske_PSD_TimestepColumnAverage( data, aikaPisteet = 0, tulostus = False, piirra =False, uusikuva = True, nimi = 'PSD ' ):
+    #bini in xrange( np.shape(S_Rwiba_data)[1] ):
+    biniNimi = str(bini+1)
+    nimi     = nimi + biniNimi
+    
+    timeDim  = np.shape( data )[0]
+    binDim   = np.shape( data )[1]
+    xDim     = np.shape( data )[2]
+    yDim     = np.shape( data )[3]
+    zDim     = np.shape( data )[4]
+    
+    if not isinstance( aikaPisteet, np.ndarray):
+        aikaPisteet = np.asarray( aikaPisteet )
+    
+    aikaPisteetDim = np.shape( aikaPisteet)[0]
+    
+    nXY      = xDim * yDim  
+    
+    nXYZ     = nXY*zDim
+  
+    aikaBinData  = np.zeros(( aikaPisteetDim, binDim ))
+    
+   
+    for aika in aikaPisteet:
+        for bini in binDim:
+            aikaBinData = data( aika, bini)
+
+    #timeSeriesTXYZ = np.zeros( ( timeDim, xDim, yDim, zDim ) )
+    #timeSeries     = np.zeros(   timeDim             ) 
+  
+    timeSeriesTXYZ =  2.0 * data[ :, bini, :, : , : ]*1e6 # select only one bin and change to diameter in um
+    if isinstance( aikaPisteet, np.ndarray):
+      for t in aikaPisteet:
+          print 'o'
+    #onlyCloudyTXYZ = np.where( refNdata > 1e-10, 1.0, 0.0)
+    
+    timeSeries  = np.sum( np.sum( np.sum( timeSeriesTXYZ, axis = 1), axis = 1), axis = 1 )
+    #onlyCloudyT = np.sum( np.sum( np.sum( onlyCloudyTXYZ, axis = 1), axis = 1), axis = 1 )
+  
+
+  
+    #timeSeries = np.where( onlyCloudyT > 0.0, timeSeries / onlyCloudyT , 0.0 )
+    #print ' '
+    #print nimi, 'aikasarja'
+    #kokoaika = np.shape(data)[0]
+    #aikasarja = np.zeros(kokoaika)
+
+    #for time in xrange(np.shape(data)[0]):
+        #for z in  xrange(np.shape(data)[4]):
+            #for y in xrange(np.shape(data)[3]):
+                #for x in xrange(np.shape(data)[2]):
+                    #for bini in xrange(np.shape(data)[1]):
+                        #aikasarja[time] = aikasarja[time] + data[time,bini,x,y,z]
+	  
+    #if tulostus:
+        #for time in xrange(kokoaika):
+            #print 'ajanhetki: ' + str(aika[time]) + ' ' + ' arvo : ' + str(aikasarja[time])
+    #print ' '
+  
+    ### drawing ##
+
+    #uusikuva = ( piirra and uusikuva )
+    #plot_alustus() if uusikuva else False
+    #plottaa( aika, timeSeries, nimi, 'aika', 'path')  if piirra else False   
+    
+    if tulostus:
+        
+        print ' '
+        print 'bini: ' + biniNimi
+        print nimi
+        for t in xrange(timeDim):
+            print 'ajanhetki: ' + str(aika[t]) + ' ' + ' arvo : ' + str(timeSeries[t])
+        print ' '    
+
+    ## drawing ##
+      
+    uusikuva = ( piirra and uusikuva )
+    plot_alustus() if uusikuva else False
+    plottaa( aika, timeSeries, nimi, 'aika [s]', 'diameter [um]')  if piirra else False
+
 ########################################
 ### calculate root mean square error ###
 ###                                  ###
@@ -476,7 +595,7 @@ def rmse(predictions, targets):
 ### most useful with .ts.nc files       ###
 ###                                     ###
 ###########################################
-def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuva = True, nimi = 'aikasarja', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, tightXAxis=False, LEGEND=True ):
+def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuva = True, nimi = 'aikasarja', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, tightXAxis=False, LEGEND=True, omavari = False ):
   if not isinstance(aika, np.ndarray):
     aika=np.zeros( (np.shape(data)[0]))
   
@@ -490,9 +609,14 @@ def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuv
 ## drawing ##
       
   uusikuva = ( piirra and uusikuva )
-  plot_alustus() if uusikuva else False
-  plottaa( aika, data, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND )
-
+  
+  if uusikuva:
+      fig, ax = plot_alustus()
+      
+  plottaa( aika, data, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari )
+    
+  if uusikuva:
+    return fig, ax
 
 ###########################################
 ### print/draw timeseries of a variable ###
@@ -532,7 +656,7 @@ class colorPool:
         if colorNumber > 7:
             self.colors    = cycle( [colorMap(i) for i in np.linspace(0, 0.95, colorNumber)] )
         else:
-            self.colors = cycle( ['r','b','g','c','m','y','k'][:colorNumber] )
+            self.colors = cycle( ['r','k','b','g','c','m','y'][:colorNumber] )
 
         self.currentColor = next(self.colors)
 
@@ -553,17 +677,28 @@ def initializeColors(colorNRO=6):
   global colorChoice
   colorChoice = colorPool(colorNRO)
 
+########################################
+### add a vertical line              ###
+###                                  ###
+########################################   
+def plot_vertical( x, vari = 'k', viivatyyli = '--' ):
+    plt.axvline(x, color = vari , linestyle = viivatyyli)
+
 
 ########################################
 ### initialize a new figure          ###
 ###                                  ###
 ########################################   
 def plot_alustus():
-  plt.figure()
-  #fig = plt.figure()
-  #ax = fig.add_subplot(1,1,1)
+  #plt.figure( figsize=(20,10) )
   
-  #return ax
+  #manager = plt.get_current_fig_manager()
+  #manager.window.showMaximized()
+  
+  fig = plt.figure( figsize = (24,15) )
+  ax  = fig.add_subplot()
+  
+  return fig, ax
 
   
 ########################################
@@ -619,30 +754,40 @@ def plot_setXlim( minimiX, maksimiX, extendBelowZero = True, A = 0.05 ):
 ### plot data                        ###
 ###                                  ###
 ########################################
-def plottaa( x, y, tit, xl, yl, label=0, log=False, changeColor=True, tightXAxis=False, markers=False, LEGEND=True, omavari = False):
+def plottaa( x, y, tit, xl, yl, label=0, log=False, changeColor=True, tightXAxis=False, tightYAxis = None, markers=False, LEGEND=True, omavari = None, scatter=False, uusikuva = False):
+  if uusikuva == True:
+      plot_alustus()
+
   global color
   if  isinstance(label, int):
       label = tit
 
-  if ( isinstance(omavari, bool) ):
+  if ( omavari is None ):
     if changeColor:
         currentColor = colorChoice.getNextColor()
     else:
         currentColor = colorChoice.getCurrentColor()
   else:
       currentColor = omavari
-  
-  if markers:
+
+  if markers and not scatter:
       plt.plot( x, y, color = currentColor, label=label, linestyle='-', marker='o' )
-  else:
+  elif not markers and not scatter:
       plt.plot( x, y, color = currentColor, label=label)
+  elif scatter:
+      plt.scatter( x, y, color = currentColor, label=label)
+      
   plt.xlabel( xl ) #r'$\#/m^3$'
   plt.ylabel( yl )
   
   #plt.xticks( xtikut )
   plt.grid( True )
-  #plt.autoscale( enable=True, axis='y', tight=tightYAxis )
+  
   plt.autoscale( enable=True, axis='x', tight=tightXAxis )
+  
+  if tightYAxis is not None:
+    plt.autoscale( enable=True, axis='y', tight=tightYAxis )
+  
   #patch = mpatches.Patch(color=c, label=legend)
   #plt.legend(handles=[patch])
 

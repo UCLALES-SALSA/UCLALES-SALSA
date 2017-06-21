@@ -47,9 +47,11 @@ def bool_convert(s):
         r = True
     return r
 
-
+home= os.environ["HOME"]
+ibrix = os.environ["IBRIXMOUNT"]
+les = os.environ["LES"]
 if ( len(sys.argv) > 2):
-    print sys.argv[1]
+    print "Mounted:", sys.argv[1], "nzp:",sys.argv[2], "filu:", sys.argv[3], "windprofile:",  sys.argv[4], "pres0:", sys.argv[5], "runmode:", sys.argv[6], "runNroBegin:", sys.argv[7], "runNroEnd:",  sys.argv[8], "level:",  sys.argv[9]
     mounted = bool_convert( sys.argv[1] )
 else:
     mounted = True
@@ -61,11 +63,10 @@ if mounted:
     from ModDataPros import plot_lopetus
     from plot_profiles import PlotProfiles
     from ModDataPros import initializeColors
-    lesroot    = '/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/'
-    designroot = '/home/aholaj/mounttauskansiot/ibrixmount/DESIGN/'
-else:
-    lesroot    = '/home/users/aholaj/UCLALES-SALSA/'
-    designroot = '/ibrix/arch/ClimRes/aholaj/DESIGN/'
+
+
+lesroot    = les + '/'
+designroot = ibrix + '/DESIGN/'
 
 cwd = os.getcwd()
 
@@ -259,12 +260,14 @@ def thickness( tpot_inv, t_grad = 0.3   ):
 
 def read_design( filu ):
     
-    nroCases = 90
+    riviLKM = subprocess.check_output( "cat " + filu + " | wc -l ", shell=True)
+    nroCases = int( riviLKM )-1
+    etunolla = 3 #int(len(str(nroCases)))
     
     f = open( filu, 'r' )
     
     design     = np.zeros( (   nroCases,6 ) )
-    caselist   = np.chararray( nroCases, itemsize=2)
+    caselist   = np.chararray( nroCases, itemsize = etunolla)
     
     i=0
     for line in f:
@@ -273,7 +276,7 @@ def read_design( filu ):
         A0, A1, A2, A3, A4, A5, A6 = line.split(',')
         if ( i > 0 ):
             index = i-1 
-            caselist[index]    = A0.replace('"',"").zfill(2) # case
+            caselist[index]    = A0.replace('"',"").zfill(etunolla) # case
             design[ index, 0 ] = float( A1 ) # q_inv
             design[ index, 1 ] = float( A2 ) # tpot_inv
             design[ index, 2 ] = float( A3 ) # clw_max
@@ -445,6 +448,9 @@ def write_sound_in( input_vector ):
         plot_alustus()
         plottaa( windshear, z[:-1], case+' wind shear '+ windprofile, 'wind shear s^-1', 'height m', markers=markers )
         plt.savefig( folder + case + '_'+ 'windshear'  + '.png', bbox_inches='tight')
+        
+        plt.clf()
+        plt.close()
 
     else:
         print 'Not plotting initial conditions'
@@ -462,6 +468,7 @@ def write_namelist( input_vector ):
     pblh     = float( input_vector[7] )
     num_pbl  = float( input_vector[8] )    
     pres0    = float( input_vector[9] )
+    level    = input_vector[10]
 
 
 
@@ -485,7 +492,7 @@ def write_namelist( input_vector ):
 #              ' dthcon=' + str(dth)                              +\
 #              ' drtcon=' + str(drt)                              +\
 #                  ' dtlong=2.'                                          + \
-#                  ' level=3'                 +\
+
 
     command = 'dir='       + folder                    +\
               ' design='   + '"' + tag +'"'        +\
@@ -496,6 +503,7 @@ def write_namelist( input_vector ):
               ' tpot_pbl=' + '"' + str(round(tpot_pbl,2)) +      '  [K]' + '"' +\
               ' pblh='     + '"' + str(round(pblh,2))     +       ' [m]' + '"' +\
               ' num_pbl='  + '"' + str(round(num_pbl,2))  +  '   [#/mg]' + '"' +\
+              ' level='    + level               +\
               ' nzp='      + str(nzp)            +\
               ' deltaz='   + str(dz)             +\
               ' CCN='      + str(num_pbl*1e6)    +\
@@ -503,7 +511,7 @@ def write_namelist( input_vector ):
               ' nudge_zmax=' + str(nudge_zmax)   +\
               ' filprf=' + '"' + "'emul" + case + "'"    +'"'                        +\
               ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'                       +\
-              ' n='+'"'+'0., ' + str(num_pbl)+' , 0., 0., 0., 0., 0.' + '"'   +\
+              ' n='+'"'+ str(num_pbl)+', 0., 0., 0., 0., 0., 0.' + '"'   +\
               ' ' + lesroot + 'script/generate_namelist.bash'
 
 #               ' Tspinup=10.'     
@@ -513,12 +521,12 @@ def write_namelist( input_vector ):
     os.system(command)
 #    args = shlex.split(command)
 #    print  args  
-#    args = ['timmax=20.','/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/script/generate_namelist.bash']
+#    args = ['timmax=20.',home+'/mounttauskansiot/voimahomemount/UCLALES-SALSA/script/generate_namelist.bash']
 #    call(args)
     
     return True
     
-def main( nzp_orig=200, filu = designfilu, windprofile = 'ideal', pres0 = 1017.8, runmode='parallel', runNroBegin = 1, runNroEnd = 90 ):
+def main( nzp_orig=200, filu = designfilu, windprofile = 'ideal', pres0 = 1017.8, runmode='parallel', runNroBegin = 1, runNroEnd = 90, level = '3' ):
     nzp_orig = int(nzp_orig)
     pres0 = float(pres0)
     runNroBegin = int(runNroBegin)
@@ -568,17 +576,18 @@ def main( nzp_orig=200, filu = designfilu, windprofile = 'ideal', pres0 = 1017.8
         print 'serial mode'
         for k in xrange( A, B ): 
             write_sound_in( [ case[k], q_inv[k], tpot_inv[k], q_pbl[k], tpot_pbl[k], pblh[k], num_pbl[k], dz[k], nzp[k], windprofile, pres0 ] )
-            write_namelist( [ case[k], nzp[k], dz[k], q_inv[k], tpot_inv[k], clw_max[k], tpot_pbl[k], pblh[k], num_pbl[k], pres0] )
+            write_namelist( [ case[k], nzp[k], dz[k], q_inv[k], tpot_inv[k], clw_max[k], tpot_pbl[k], pblh[k], num_pbl[k], pres0, level] )
             
     elif ( runmode == 'parallel' ):
         print 'parallel mode'
         koko = len(case)
         windprofile = [windprofile]*koko
         pres0       = [pres0]*koko
+        level       = [level]*koko
         from multiprocessing import Pool
         pool = Pool(processes= 4)
         sound_in_iter = iter( np.column_stack( ( case[A:B], q_inv[A:B], tpot_inv[A:B], q_pbl[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], dz[A:B], nzp[A:B], windprofile[A:B], pres0[A:B] ) ) )
-        namelist_iter = iter( np.column_stack( ( case[A:B], nzp[A:B], dz[A:B], q_inv[A:B], tpot_inv[A:B], clw_max[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], pres0[A:B] ) ) )
+        namelist_iter = iter( np.column_stack( ( case[A:B], nzp[A:B], dz[A:B], q_inv[A:B], tpot_inv[A:B], clw_max[A:B], tpot_pbl[A:B], pblh[A:B], num_pbl[A:B], pres0[A:B], level[A:B] ) ) )
         for i in pool.imap_unordered( write_sound_in, sound_in_iter ):
             print i
         for k in pool.imap_unordered( write_namelist, namelist_iter ):
@@ -601,7 +610,7 @@ if __name__ == "__main__":
     
     if ( len(sys.argv) > 2):
         print sys.argv[2]
-        main( nzp_orig = sys.argv[2], filu =  sys.argv[3], windprofile = sys.argv[4], pres0 = sys.argv[5], runmode = sys.argv[6], runNroBegin = sys.argv[7], runNroEnd =  sys.argv[8] )
+        main( nzp_orig = sys.argv[2], filu =  sys.argv[3], windprofile = sys.argv[4], pres0 = sys.argv[5], runmode = sys.argv[6], runNroBegin = sys.argv[7], runNroEnd =  sys.argv[8], level = sys.argv[9] )
         print 'generated by using Command Line arguments'
     else:
         main()

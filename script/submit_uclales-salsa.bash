@@ -30,7 +30,12 @@ echo ' '
 ###			                  ###
 #################################
 
-jobflag=${jobflag} scriptname=${scriptname} source ./subroutines_variables.bash
+if [[ -d ${SCRIPT} ]]; then
+   scriptref=${SCRIPT}
+else
+   scriptref=.
+fi
+source ${scriptref}/subroutines_variables.bash
 
 # supercomputer related variable settings
 WT=${WT:-24:00:00} # walltime
@@ -156,12 +161,13 @@ fi
 #########################
 echo ' '
 ## modify the job name based on length: ###
-length=$(( ${#outputname} < 6 ? ${#outputname} : 6))
 if [[ -n $ownjobname ]]; then
-    jobname=LES_$ownjobname
+    apuNimi=$ownjobname
 else
-    jobname=LES_${outputname:$((${#outputname}-${length})):${length}}
+    apuNimi=$outputname
 fi    
+length=$(( ${#apuNimi} < 7 ? ${#apuNimi} : 7))
+jobname=LES${apuNimi:$((${#apuNimi}-${length})):${length}}
 echo 'Queuing system jobname' $jobname
 
 if [ $jobflag == 'PBS' ] ; then

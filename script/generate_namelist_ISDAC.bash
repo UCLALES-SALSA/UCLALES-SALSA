@@ -42,10 +42,10 @@ ${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
   ssam_intvl = ${ssam_intvl:-120.}
   savg_intvl = ${savg_intvl:-120.}
   mcflg = ${mcflg:-.FALSE.}
-  frqhis  = ${frqhis:-3600.}
+  frqhis  = ${frqhis:-1800.}
   istpfl  = ${istpfl:-1}
-  lbinanl = ${lbinanl:-.false.}
-  frqanl = ${frqanl:-5400.}
+  lbinanl = ${lbinanl:-.true.}
+  frqanl = ${frqanl:-120.}
   corflg = ${corflg:-.false.}
   ipsflg = ${ipsflg:-1}
   itsflg = ${itsflg:-1}
@@ -53,7 +53,7 @@ ${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
   sed_aero = ${sed_aero:-.FALSE.}
   sed_cloud = ${sed_cloud:-.TRUE.}
   sed_precp = ${sed_precp:-.TRUE.}
-  sed_ice = ${sed_ice:-.FALSE.}
+  sed_ice = ${sed_ice:-.TRUE.}
   sed_snow = ${sed_snow:-.FALSE.}
   iradtyp = ${iradtyp:-3}                ! 1 = no radiation, only large-scale forcing, 3 = radiation + large-scale forcing 
   case_name = ${case_name:-"'ascos'"}            ! Case-specific large-scale forcing: none = not used, 

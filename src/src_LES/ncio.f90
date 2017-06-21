@@ -816,6 +816,14 @@ contains
        if (itype==0) ncinfo = 'Deposition of water with rain'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
+    case('rmH2Oic')
+       if (itype==0) ncinfo = 'Deposition of H2O with ice particles'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmH2Osn')
+       if (itype==0) ncinfo = 'Deposition of water with snow'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
     case('rmSO4dr')
        if (itype==0) ncinfo = 'Aerosol deposition of SO4'
        if (itype==1) ncinfo = 'kg/m^2/s'

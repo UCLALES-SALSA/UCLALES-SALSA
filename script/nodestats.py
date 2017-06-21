@@ -5,6 +5,8 @@ Created on Thu Apr  6 13:21:16 2017
 
 @author: aholaj
 """
+
+### keraa training simulations -ajon aikana tietoja ajon kayttamista noodeista ja vapaista noodeista
 import os
 import sys
 import time
@@ -19,27 +21,29 @@ def bool_convert(s):
         r = True
     return r
 
-
-
+begin = time.time()
+now = begin
+interactive = False
 if ( len(sys.argv) > 1):
-    folder = sys.argv[1]
-
+    folder      = sys.argv[1]
+    interactive = sys.argv[2]
 else:
     folder = '/home/aholaj/mounttauskansiot/voimahomemount/UCLALES-SALSA/script'
+    interactive = True
 
 
 qlog = 'qstatlogi'
 nodelog = 'nodelog'
 filu = folder + qlog
 nodefilu = folder + nodelog
+nod = open(nodefilu , 'w')
 
-
-command = 'qstat -u aholaj > ' + filu
+command = 'qstat -u aholaj | grep emul > ' + filu
 
 os.system(  command )
 k=0
-
-while ( os.stat( filu ).st_size != 0 ):
+threads_active = 1
+while ( os.stat( filu ).st_size != 0 or now - begin < 60 ):
 #    while ( k < 2):
 
     unixtime = int( time.time() )
@@ -60,10 +64,10 @@ while ( os.stat( filu ).st_size != 0 ):
     threads_passive = 0
     
     cases = []
-    i=0
+#    i=0
     f   = open(filu, 'r')
     for line in f:
-        if i > 4:
+        if True:#i > 4:
             nodes  = line[54]
             job    = line[34:37]
             status = line[73]
@@ -102,17 +106,18 @@ while ( os.stat( filu ).st_size != 0 ):
                         cases.append(emul)                
                     
                     
-        i += 1
+#        i += 1
     f.close()            
     data =  str(unixtime) +','+ str(les_r_nodes)  +','+ str(les_q_nodes)    +','+ str(postp_r_nodes)   +','+ str(postp_q_nodes) +',' \
                               + str(les_r_nro)    +','+ str(les_q_nro)      +','+ str(postp_r_nro)     +','+ str(postp_q_nro)   +',' \
                               + str(nooditvapaat) +','+ str(threads_active) +','+ str(threads_passive) +'\n'
-    print data
-
-    nod = open(nodefilu , 'w')
+    if ( interactive ):
+        print data
+   
     nod.write(data)
-    nod.close()
-
-    time.sleep(15)               
+   
+    time.sleep(15)
+    now = time.time()               
     os.system(  command )
     k += 1
+nod.close()    

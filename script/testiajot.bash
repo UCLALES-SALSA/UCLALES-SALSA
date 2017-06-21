@@ -4,8 +4,15 @@
 set -e
 
 # import subroutines & variables 
-source ./subroutines_variables.bash
+if [[ -d ${SCRIPT} ]]; then
+   scriptref=${SCRIPT}
+else
+   scriptref=.
+fi
+source ${scriptref}/subroutines_variables.bash
 
+#max pituus 62 
+maximus=62
 
 copyOUT=${copyOUT:-false}
 
@@ -33,7 +40,7 @@ if [[ -n $hfilebase ]]; then
     
 fi
 
-jaakkoNL=${jaakkoNL:-false}
+jaakkoNL=${jaakkoNL:-true}
 
 if [[ $jaakkoNL == 'false' ]]; then
     jaakkoNL='!'
@@ -125,16 +132,25 @@ function main {
         postfix=_${postfix}
     fi
 	
-    nn=$(( ${#mode}- 4 ))
-    if [[ $nn -gt 0 ]]; then
-        nimi=${inputsubfolder}${postfix}_${mode:$((${#mode}-$nn)):$nn}
-    else
-        nimi=${inputsubfolder}${postfix}
-    fi 
-    
-    length=$(( ${#nimi} < 6 ? ${#nimi} : 6))
+    # jos haluaa kaannoksen kayta tata 
+    #nn=$(( ${#mode}- 4 ))
+    #if [[ $nn -gt 0 ]]; then
+    #    nimi=${inputsubfolder}${postfix}_${mode:$((${#mode}-$nn)):$nn}
+    #else
+    #    nimi=${inputsubfolder}${postfix}
+    #fi 
+    nimi=${inputsubfolder}${postfix} # poista tama jos haluat kaannoksen mukaan nimeen 
+    if [[ ${#nimi} -gt $maximus ]]; then
+        vanha=$nimi
+        #maxi=$(( ${#nimi} < $maximus ? ${#nimi} : $maximus))
+        #nimi=${nimi:$((${#nimi}-${maxi})):${maxi}}
+        nimi=${nimi:0:$maximus}
+        echo "WARNING name too long" $vanha "pituus" ${#vanha} "shortened name" $nimi
+    fi
+
+    length=$(( ${#nimi} < 7 ? ${#nimi} : 7))
     if [[ -n $ownjobnameMAIN ]]; then
-        odotusLES=LES_${ownjobnameMAIN}
+        odotusLES=LES${ownjobnameMAIN}
     else
         odotusLES=${nimi:$((${#nimi}-${length})):${length}}
     fi
@@ -223,7 +239,7 @@ if [[ $LVL == 5 ]]; then
 fi
 
 if [[ -n $testinumero ]]; then
-    testinumero=_testi${testinumero}
+    testinumero=_${testinumero}
 fi    
 
 # 1D

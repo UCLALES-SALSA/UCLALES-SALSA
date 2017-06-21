@@ -8,7 +8,19 @@ Created on Wed Dec 21 16:48:41 2016
 
 import numpy as np
 
-import matplotlib.pyplot as plt
+#try:
+#	PLOT = True
+#	import matplotlib.pyplot as plt
+#	print "matplotlib.pyplot imported"
+#except ImportError:
+#	PLOT = False
+
+try:
+	COLOR = True
+	from termcolor import colored
+	print 'colored imported'
+except ImportError: 
+	COLOR = False
 
 import ECLAIR_calcs
 import sys
@@ -16,13 +28,14 @@ import os
 import glob
 import subprocess
 from itertools import cycle
-from termcolor import colored
+from netCDF4 import Dataset
 
+ibrix = os.environ["IBRIXMOUNT"]
 if ( len(sys.argv) > 1):
     filu = sys.argv[1]
     folder = os.path.dirname(os.path.realpath( filu ))
 else:
-    folder='/home/aholaj/mounttauskansiot/ibrixmount/DESIGN/'
+    folder=ibrix+'/DESIGN/'
     #file = 'sound_in_DYCOMSIIRF02'
     cwd = os.getcwd()
     os.chdir(folder)
@@ -30,13 +43,19 @@ else:
         designbasename=file
     filu = folder+designbasename
     os.chdir(cwd)
+print filu
+
+ncfolder = ibrix + '/DESIGNnetcdf/'
     
 f = open(filu, 'r')
 
 LWC = True
-nroCases = 90
+riviLKM = subprocess.check_output( "cat " + filu + " | wc -l ", shell=True)
+nroCases = int( riviLKM )-1
+etunolla = len(str(nroCases))
+print nroCases
 design     = np.zeros( ( nroCases,6 ) )
-caselist   = np.chararray(nroCases, itemsize=2)
+caselist   = np.chararray(nroCases, itemsize = etunolla)
 
 q_inv    = np.zeros( nroCases )
 tpot_inv = np.zeros( nroCases )
@@ -59,6 +78,8 @@ else:
     
 tabs = cycle(tabs)
 
+
+
 ## READ CSV
 i=0
 for line in f:
@@ -68,7 +89,7 @@ for line in f:
         A0, A1, A2, A3, A4, A5, A6 = line.split(',')
         if ( i > 0 ):
             index = i-1 
-            caselist[index]    = A0.replace('"',"").zfill(2) # case
+            caselist[index]    = A0.replace('"',"").zfill(etunolla) # case
             design[ index, 0 ] = float( A1 ) # q_inv
             design[ index, 1 ] = float( A2 ) # tpot_inv
             design[ index, 2 ] = float( A3 ) # clw_max
@@ -98,7 +119,10 @@ for line in f:
     i=i+1
         
 f.close()
-   
+
+os.chdir(folder)
+tag =subprocess.check_output("git describe --tags | tr -dc '[:alnum:].'", shell=True)   
+
 
 p_surf = 101780.
 cloudbase   = np.zeros(nroCases)
@@ -128,6 +152,30 @@ for i in xrange(nroCases):
         cloudbase[i] = ECLAIR_calcs.calc_cloud_base(   p_surf, tpot_pbl[i], q_pbl[i]*0.001  ) # m
 
 
+ncfile = Dataset( ncfolder + 'design_'+tag + '.nc', 'w' )
+
+ncfile.createDimension('case', nroCases )
+q_inv_ncf     = ncfile.createVariable( 'q_inv',     np.dtype('float32').char, ('case') )
+tpot_inv_ncf  = ncfile.createVariable( 'tpot_inv',  np.dtype('float32').char, ('case') )
+clw_max_ncf   = ncfile.createVariable( 'clw_max',   np.dtype('float32').char, ('case') )
+tpot_pbl_ncf  = ncfile.createVariable( 'tpot_pbl',  np.dtype('float32').char, ('case') )
+pblh_ncf      = ncfile.createVariable( 'pblh',      np.dtype('float32').char, ('case') )
+num_pbl_ncf   = ncfile.createVariable( 'num_pbl',   np.dtype('float32').char, ('case') )
+q_pbl_ncf     = ncfile.createVariable( 'q_pbl',     np.dtype('float32').char, ('case') )
+cloudbase_ncf = ncfile.createVariable( 'cloudbase', np.dtype('float32').char, ('case') )
+thickness_ncf = ncfile.createVariable( 'thickness', np.dtype('float32').char, ('case') )
+
+q_inv_ncf[:]     = q_inv
+tpot_inv_ncf[:]  = tpot_inv
+clw_max_ncf[:]   = clw_max
+tpot_pbl_ncf[:]  = tpot_pbl
+pblh_ncf[:]      = pblh
+num_pbl_ncf[:]   = num_pbl
+q_pbl_ncf[:]     = q_pbl
+cloudbase_ncf[:] = cloudbase
+thickness_ncf[:] = pblh - cloudbase
+
+ncfile.close()
 
 def check_constrain( variable, lowerbound, upperbound, variablename, lowerboundNAME, upperboundNAME, unit, dimensions = 90 ):
     if check_constrain.counter >= 1:
@@ -169,11 +217,11 @@ def check_constrain( variable, lowerbound, upperbound, variablename, lowerboundN
 print ' '
 check_constrain.counter = 0
 
-check_constrain( q_inv,     1.,  q_pbl,                    'q_inv',      '1',   'q_pbl',     'g/kg' )
-check_constrain( tpot_inv,  1.,  15.,                      't_inv',      '1',   '15',        'K'    )
-check_constrain( pblh,      80., 3000.,                    'pblh',       '80',  '3000',      'm'    )
-check_constrain( cloudbase, 30., pblh-50.*np.ones(nroCases), 'cloud base', '30',  'pblh - 50', 'm'    )
-check_constrain( clw_max,   0.0,  10000.,                   'clw_max',    '0.0', 'INF',       'g/kg' )
+check_constrain( q_inv,     1.,  q_pbl,                      'q_inv',      '1',   'q_pbl',     'g/kg', nroCases )
+check_constrain( tpot_inv,  1.,  15.,                        't_inv',      '1',   '15',        'K'   , nroCases )
+check_constrain( pblh,      80., 3000.,                      'pblh',       '80',  '3000',      'm'   , nroCases )
+check_constrain( cloudbase, 30., pblh-50.*np.ones(nroCases), 'cloud base', '30',  'pblh - 50', 'm'   , nroCases )
+check_constrain( clw_max,   0.0,  10000.,                    'clw_max',    '0.0', 'INF',       'g/kg', nroCases )
 
 # forming CSV
 for i in xrange(nroCases):
@@ -258,13 +306,11 @@ for printindeksi in xrange( 1, np.size(printtaus) ): #
             alku = loppu
             loppu = itersu.next()
             if molemmat[int(k)] in MINI and molemmat[int(k)] not in MAXI:
-                sys.stdout.write( colored( printtaus[printindeksi][ alku : loppu ], "blue" ) )
-                
+                sys.stdout.write( colored( printtaus[printindeksi][ alku : loppu ], "blue" ) ) if COLOR else sys.stdout.write( printtaus[printindeksi][ alku : loppu ] )
             elif molemmat[int(k)] in MAXI and molemmat[int(k)] not in MINI:
-                sys.stdout.write( colored( printtaus[printindeksi][ alku : loppu ], "red" ) )
-                
+                sys.stdout.write( colored( printtaus[printindeksi][ alku : loppu ], "red" ) ) if COLOR else sys.stdout.write( printtaus[printindeksi][ alku : loppu ] )
             elif molemmat[int(k)] in MAXI and molemmat[int(k)] in MINI:
-                sys.stdout.write( colored( printtaus[printindeksi][ alku : loppu ], "green" ) )
+                sys.stdout.write( colored( printtaus[printindeksi][ alku : loppu ], "green" ) ) if COLOR else sys.stdout.write( printtaus[printindeksi][ alku : loppu ] )
             else:
                 sys.stdout.write( printtaus[printindeksi][alku : loppu ] )                
                 
@@ -396,6 +442,5 @@ print 'total number of violations ' + str(int(sum( ala + yla ))).rjust(ww)
 print ' '
 print 'use LWC from csv', LWC
 
-os.chdir(folder)
-tag =subprocess.check_output("git describe --tags | tr -dc '[:alnum:].'", shell=True)
+
 print 'version', tag

@@ -562,7 +562,7 @@ contains
     IF ( level >=1 ) CALL ts_lvl1(nzp, nxp, nyp, dn0, zt, dzm, rxt)
     IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, rxt, a_rsl, zt)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp, a_rc)
-!    IF ( level >=5 ) CALL ts_lvl5(nzp, nxp, nyp, a_ri,a_rsi)
+    !IF ( level >=5 ) CALL ts_lvl5(nzp, nxp, nyp, a_ri) ! should be ,a_rsi) ? ! debugkebab poista kommentti tästä
 
     call write_ts
 
@@ -723,11 +723,11 @@ contains
 
         IF (level>4) THEN
             ! Removal by sedimentation of ice particles
-            !CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//name//'ic')
+            !CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'ic') ! debugkebab poistakommentti tästä
             i=i+1
 
             ! Removal by snow
-            !CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'sn')
+            !CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'sn') ! debugkebab poistakommentti tästä
             i=i+1
         ENDIF
     ENDDO

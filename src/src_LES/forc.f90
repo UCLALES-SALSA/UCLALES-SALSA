@@ -25,7 +25,7 @@ module forc
   implicit none
 
   ! these are now all namelist parameters
-  character (len=10) :: case_name = 'none'               
+  character (len=10) :: case_name = 'none'
   character (len=50) :: radsounding = 'datafiles/dsrt.lay'  ! Juha: Added so the radiation background sounding can be given
                                                             ! from the NAMELIST
   REAL :: sfc_albedo = 0.05
@@ -75,7 +75,7 @@ contains
 
     select case(iradtyp)
     case (1)
-       ! No radiation, just large-scale forcing. 
+       ! No radiation, just large-scale forcing.
        ! Note, there's a slight discrepancy between lev 1-3 and lev 4 with a_rp
        ! (total water vs vapour): it perhaps doesn't make sence to change the
        ! tendency of condesated water due to subsidence in level4 and for level
@@ -94,7 +94,7 @@ contains
        END IF
 
        select case(level)
-       case(1) 
+       case(1)
           call smoke_rad(nzp, nxp, nyp, dn0, a_rflx, zm, dzt,a_tt,a_rp)
        case(2)
           call gcss_rad(nzp, nxp, nyp, xka, fr0, fr1, div, a_rc, dn0,     &
@@ -152,7 +152,7 @@ contains
 
           IF ( case_name /= 'none') THEN
              CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
-          END IF 
+          END IF
 
        else
           if (myid == 0) print *, '  ABORTING: inproper call to radiation'
@@ -161,13 +161,13 @@ contains
     case (4)
        call bellon(nzp, nxp, nyp, a_rflx, a_sflx, zt, dzt, dzm, a_tt, a_tp&
             ,a_rt, a_rp, a_ut, a_up, a_vt, a_vp)
-    end select 
+    end select
 
   end subroutine forcings
 
   !
   ! -------------------------------------------------------------------
-  ! subroutine gcss_rad:  call simple radiative parameterization and 
+  ! subroutine gcss_rad:  call simple radiative parameterization and
   ! simultaneously update fields due to vertical motion as given by div
   !
   subroutine gcss_rad(n1,n2,n3,xka,fr0,fr1,div,rc,dn0,flx,zt,zm,dzt,   &
@@ -223,7 +223,7 @@ contains
   end subroutine gcss_rad
   !
   ! -------------------------------------------------------------------
-  ! subroutine smoke_rad:  call simple radiative parameterization for 
+  ! subroutine smoke_rad:  call simple radiative parameterization for
   ! the smoke cloud
   !
   subroutine smoke_rad(n1,n2,n3,dn0,flx,zm,dzt,tt,rt)
@@ -305,7 +305,7 @@ contains
           if (zt(k) < zmx_sub) then
              sf(k) =  -0.005*zt(k)/zmx_sub
           else
-             sf(k) =  -0.005 
+             sf(k) =  -0.005
           end if
           sf(k) = sf(k)*dzt(k)
        end do
@@ -315,7 +315,7 @@ contains
              do k=2,n1-2
                 !
                 ! subsidence
-                ! 
+                !
                 kp1 = k+1
                 tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
                 rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
@@ -462,6 +462,28 @@ contains
             enddo
         enddo
         !
+    case ('isdac')
+        ! ISDAC
+        ! ---------
+        !
+        do k=2,n1-2
+            ! calculate subsidence factor (wsub / dz)
+            sf(k) = -4.125e-3*min( 825.,zt(k) )*dzt(k) 
+        end do
+        !
+        do j=3,n3-2
+            do i=3,n2-2
+                do k=2,n1-2
+                    !
+                    ! Temperature and humidity advection due to subsidence
+                    !
+                    kp1 = k+1
+                    tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
+                    rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
+                enddo
+            enddo
+        enddo
+        !
     CASE ('amazon')
         ! Amazon
         ! --------
@@ -518,5 +540,5 @@ contains
     enddo
 
   end subroutine bellon
- 
+
 end module forc

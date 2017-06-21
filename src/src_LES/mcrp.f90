@@ -689,7 +689,7 @@ contains
        micet(2,:,:,:) = micet(2,:,:,:) - imdep
 
        remice(:,:,:) = imdep(:,:,:)
-
+  
        ! Account for changes in in liquid water pot temperature
        nc = GetIndex(prtcl,'H2O')
        istr = (nc-1)*nice+1
@@ -940,16 +940,30 @@ contains
                    DO ss = 1,n4
                       bs = (ss-1)*nn + bin
                       rfl(k,bin,ss) = -mass(k,i,j,bs)*vc
-                      flxdiv(k,i,j,bs) = (rfl(kp1,bin,ss)-rfl(k,bin,ss))*dzt(k)
+                      !flxdiv(k,i,j,bs) = (rfl(kp1,bin,ss)-rfl(k,bin,ss))*dzt(k)
                    END DO
                 ELSE
                    rfl(k,bin,:) = 0.
+                   !DO ss = 1,n4
+                      !bs = (ss-1)*nn + bin
+                      !flxdiv(k,i,j,bs) = (rfl(kp1,bin,ss)-rfl(k,bin,ss))*dzt(k)
+                   !END DO
+                END IF
+
+             END DO ! bin
+
+             DO bin = 1,nn
+                IF ( k > 2 ) THEN
+                   DO ss = 1,n4
+                      bs = (ss-1)*nn + bin
+                      flxdiv(k,i,j,bs) = (rfl(kp1,bin,ss)-rfl(k,bin,ss))*dzt(k)
+                   END DO
+                ELSE
                    DO ss = 1,n4
                       bs = (ss-1)*nn + bin
                       flxdiv(k,i,j,bs) = (rfl(kp1,bin,ss)-rfl(k,bin,ss))*dzt(k)
                    END DO
                 END IF
-
              END DO ! bin
 
           END DO ! k

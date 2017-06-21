@@ -17,6 +17,9 @@ if len(sys.argv)<2: raise Exception('At least file name required!')
 tmp=sys.argv[1]
 infile=tmp.strip('\r')	# Mainly a windows problem
 #
+#ignore_list=[]	# Ignore variable
+# 
+#
 # At least one file must exists
 if not os.path.isfile('%s.%04u%04u.nc' % (infile, 0, 0)):
 	print '%s.%04u%04u.nc' % (infile, 0, 0)
@@ -64,8 +67,7 @@ def reduce_ts_ps(infile,imax,jmax):
 	minnms = ['zb']
 	# d) Sums - when the output is the sum over model grid cells
 	#	Note: the output really depends on the number of grid cells!
-	sumnms = ['nrcnt','nccnt','cnt_cs1','w_cs1','tl_cs1','tv_cs1','rt_cs1','rl_cs1','wt_cs1','wv_cs1','wr_cs1',\
-	'cnt_cs2','w_cs2','tl_cs2','tv_cs2','rt_cs2','rl_cs2','wt_cs2','wv_cs2','wr_cs2']
+	sumnms = ['nrcnt','nccnt','cnt_cs1','cnt_cs2']
 	# e) Weighted averages (weights must be specified below) - needed for conditional averages
 	#	Note: weight ~ conditinal coverage
 	weighted = []
@@ -142,6 +144,8 @@ def reduce_ts_ps(infile,imax,jmax):
 		# IO before version v1.0.5
 		io=1.0
 		sumnms+=['nrain','pfrac']
+		sumnms+=['w_cs1','tl_cs1','tv_cs1','rt_cs1','rl_cs1','wt_cs1','wv_cs1','wr_cs1',\
+			'w_cs2','tl_cs2','tv_cs2','rt_cs2','rl_cs2','wt_cs2','wv_cs2','wr_cs2']
 	#
 	# Variable list - without dimensions
 	var_list=ncid.variables.keys()	# Variables
@@ -387,14 +391,26 @@ def reduce_full(infile,imax,jmax):
 	# Variable and dimension list
 	var_list=ncid_src.variables.keys()		# Variables
 	dim_list=ncid_src.dimensions.keys()	# Dimensions
+	# netCDF data model version (typically NETCDF3_CLASSIC)
+	fmt=ncid_src.__getattribute__('data_model')
+	# **********************************************************
+	# Note: NETCDF3_CLASSIC does not handle 2+ Gb files!
+	# File size in bytes
+	b = os.path.getsize(src)
+	if nfiles*b>2e9:
+		print 'Warning: file size exceeds 2 GB (total approx. %.2f GB) - changing to NetCDF4' % (nfiles*b/1073741824.0)
+		fmt='NETCDF4'
+		#fmt='NETCDF4_CLASSIC'
+	# **********************************************************
 	#
 	# Output NetCDF file
 	dst='%s.nc' % (infile)
-	ncid_dst = netcdf.Dataset(dst,'w',format='NETCDF3_CLASSIC')
+	ncid_dst = netcdf.Dataset(dst,'w',format=fmt)
 	# Copy global attributes
 	print 'Copying global attributes...'
 	for att in ncid_src.ncattrs():
 		ncid_dst.setncattr(att,ncid_src.getncattr(att))
+		print '  %-15s  %s' %(att,ncid_src.getncattr(att))
 	#
 	print 'Done'
 	ncid_src.close()
@@ -436,6 +452,7 @@ def reduce_full(infile,imax,jmax):
 					# There should be a matching sequence
 					start=find_sequence(val,val_src)
 					indices[k,i,j]=start
+				del val_src
 				ncid_src.close()
 		# New size of the dimension
 		sizes[k]=len(val)
@@ -449,7 +466,9 @@ def reduce_full(infile,imax,jmax):
 		# Copy attributes
 		for att in var_info.keys(): setattr(id,att,var_info[att])
 		#
-		print '  %-8s %4u => %-4u  %s' % (name, old_len, len(val), var_info)
+		#print '  %-8s %4u => %-4u  %s' % (name, old_len, len(val), var_info)
+		print '  %-8s %4u => %-4u  %s (%s)' % (name,old_len, len(val),var_info['longname'],var_info['units'])
+
 		k+=1
 	print 'Done'
 	#
@@ -458,6 +477,7 @@ def reduce_full(infile,imax,jmax):
 	for name in var_list:
 		# Skip dimension variables
 		if name in dim_list: continue
+		#if name in ignore_list: continue
 		#
 		# There are variables that are independent of processor (e.g. u0, v0, w0,...)
 		# => Should be constants
@@ -500,8 +520,12 @@ def reduce_full(infile,imax,jmax):
 				# Set the data
 				ind=indices[dim_ind,i,j]	# Starting index
 				set_values(val,val_src,ind)
+				#
+				# Clean
+				del val_src
 		#
 		# Create variable
+		#print 'creating',name,typ,dims,val.shape
 		id=ncid_dst.createVariable(name,typ,dims)
 		id[:]=val
 		# Copy attributes
@@ -513,15 +537,18 @@ def reduce_full(infile,imax,jmax):
 		# Print info
 		if IsConst:
 			# Constant data
-			print '  *%-8s %30s  %s' % (name,dims,var_info)
+			#print '  *%-8s %30s  %s' % (name,dims,var_info)
+			print '  *%-8s %30s  %s (%s)' % (name,dims,var_info['longname'],var_info['units'])
 		else:
-			print '  %-8s  %30s  %s' % (name,dims,var_info)
+			#print '  %-8s  %30s  %s' % (name,dims,var_info)
+			print '  %-8s  %30s  %s (%s)' % (name,dims,var_info['longname'],var_info['units'])
 	#
 	print '*Identical data in each netCDF file'
-	print 'Done'
+	
 	#	
 	# Close file
 	ncid_dst.close()
+	
 #
 #
 if '.ts' in infile or '.ps' in infile:
@@ -532,3 +559,4 @@ else:
 	reduce_full(infile,imax,jmax)
 #
 # End of function combine.py
+print 'Postprosessing ready'

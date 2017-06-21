@@ -10,15 +10,15 @@
 
 # Exit on error
 set -e
+# echo eka $1 toka $2 kolmas $3 neljas $4
 
 # import subroutines & variables 
-if [ -d /home/users/aholaj/UCLALES-SALSA/script/ ]
-then
-    scripting=/home/users/aholaj/UCLALES-SALSA/script
+if [[ -d ${SCRIPT} ]]; then
+   scriptref=${SCRIPT}
 else
-    scripting=.
-fi    
-source ${scripting}/subroutines_variables.bash
+   scriptref=.
+fi
+source ${scriptref}/subroutines_variables.bash
 
 
 scriptfolder="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -26,11 +26,11 @@ scriptfolder="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 echo "scriptfolder" $scriptfolder
 
 # supercomputer related variable settings
-WT=01:00:00 # walltime
+WT=${WT:-01:00:00} # walltime
 jobnamepostfix=pros
 
 echo "scriptname" ${scriptname}
-if [ -n $2 ]; then
+if [[ -n $2 ]]; then
   scriptname=$2
 fi
 
@@ -41,7 +41,7 @@ if [[ -n $3 ]]; then
 fi
 echo "job scheduling system" $jobflag
 
-if [ -z $4 ]; then
+if [[ -z $4 ]]; then
   echo "jobname postfix: " $jobnamepostfix
 else
   jobnamepostfix=$4
@@ -49,13 +49,12 @@ else
 fi
 
 
-
 ################################
 ###			                 ###
 ### input directory	         ###
 ###			                 ###
 ################################
-if [ -z $1 ]; then
+if [[ -z $1 ]]; then
   echo "You didn't give any name of netcdf input file"
   exit 1
 fi
@@ -63,10 +62,10 @@ fi
 input=$1
 dir=$(dirname ${input})
 
-if [ $dir == '.' ]; then
+if [[ $dir == '.' ]]; then
   dir=$PWD
 fi
-echo $dir
+echo "kansio: " $dir
 base=$(basename ${input})
 if  [ ${base: -3} == ".ts" ] || [ ${base: -3} == ".ps" ]
 then
@@ -121,7 +120,7 @@ cat > ${dir}/runpostpros${postfix}.sh <<FINALPBS
 #PBS -m ae
 
 source /etc/profile
-module load Python
+module load Python/2.7.10
 
 cd ${dir}
 

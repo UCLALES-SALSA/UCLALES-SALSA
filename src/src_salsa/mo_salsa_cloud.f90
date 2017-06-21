@@ -1354,7 +1354,7 @@ CONTAINS
                 Nl = pcloud(ii,jj,kk)%numc
                 Ni = pice(ii,jj,kk)%numc
 
-                iceTendecyNumber = max( 0.0, min( Ni0 - Ni , pcloud(ii,jj,kk)%numc ) / ptstep ) ! division by two means nudging towards the fixed value
+                iceTendecyNumber = max( 0.0, min( Ni0 - Ni , pcloud(ii,jj,kk)%numc )  ) ! division by two means nudging towards the fixed value
 !write (*,*) 'iceTendencyNumber ', iceTendecyNumber
                 pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + iceTendecyNumber
                 sumICE = sumICE + iceTendecyNumber
@@ -1368,7 +1368,6 @@ CONTAINS
                 END DO
             END IF
         END DO
-
     END DO
     END DO
 

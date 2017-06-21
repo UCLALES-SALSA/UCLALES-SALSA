@@ -1561,7 +1561,6 @@ CONTAINS
     INTEGER :: nstr
     INTEGER :: ii,jj,cc
 
-
     zhlp1 = 0.
     zrh(:,:) = prv(:,:)/prs(:,:)
 
@@ -1590,7 +1589,6 @@ CONTAINS
     zcwintae = 0.; zcwintcd = 0.; zcwintpd = 0.; zcwintid = 0.; zcwintsd = 0.
     zcwnae = 0.; zcwncd = 0.; zcwnpd = 0.; zcwnid = 0.; zcwnsd = 0.
     zwsatae = 0.; zwsatcd = 0.; zwsatpd = 0.; zwsatid = 0.; zwsatsd = 0.
-
     DO jj = 1,klev
        DO ii = 1,kbdim
 
@@ -1859,7 +1857,7 @@ CONTAINS
                                SUM(zcwintsd(1:nsnw))
 
              ! Update "old" values for next cycle
-             zcwcae = zcwintae; zcwccd = zcwintcd; zcwcpd = zcwintpd
+             zcwcae = zcwintae; zcwccd = zcwintcd; zcwcpd = zcwintpd; zcwcid =zcwintid; zcwcsd = zcwintsd;
              zcwc = zcwint
 
              ttot = ttot + adt

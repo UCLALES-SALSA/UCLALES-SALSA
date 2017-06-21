@@ -2,9 +2,14 @@
 
 # Exit on error
 set -e
-
+shopt -s extglob
 # import subroutines & variables 
-source ./subroutines_variables.bash
+if [[ -d ${SCRIPT} ]]; then
+   scriptref=${SCRIPT}
+else
+   scriptref=.
+fi
+source ${scriptref}/subroutines_variables.bash
 
 
 emulatorname=${emulatorname:-case_emulator}
@@ -19,16 +24,16 @@ nproc=${nproc:-100}    # number of processors
 
 mode=${mode:-mpi}
 
-restart=${restart:-false}
-
+etunolla=${etunolla:-2}
+echo "etunolla" $etunolla 
 if [[ -z $list ]]
 then
-    array=($(seq -f"%02g" ${runNroBegin} ${simulNro} ${runNroEnd}  ))
+    array=($(seq -f"%0${etunolla}g" ${runNroBegin} ${simulNro} ${runNroEnd}  ))
 else
     u=0
     for kk in ${list[@]}
     do
-        array[u]=$(printf %02d ${kk#0})
+        array[u]=$(printf %0${etunolla}d ${kk##+(0)} )
         u=$((u+1))
     done
 fi  
@@ -40,18 +45,17 @@ function submitting {
     
 	echo ' '
 	echo ' '
-	echo 'Nyt suoritetaan funktiota submitting '
+	
 
 	rundir=${emulatoroutputroot}/${simulation}
 
-	echo 'simulation ' $simulation
 	LVL=$(grep level ${rundir}/NAMELIST)
 	LVL=${LVL: -1} # last char
-	echo 'level' $LVL
+	echo 'Nyt suoritetaan funktiota submitting simulation: ' $simulation 'level' $LVL
     if [ $LVL -le 3 ]; then
         walltime=12:00:00
     else
-        walltime=36:00:00
+        walltime=24:00:00
     fi
 	## submit
 	
@@ -63,35 +67,62 @@ function submitting {
 
 for i in ${array[@]}
 do
-    if [ $restart == 'false' ] ||  ([ $restart == 'true' ] && ([ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.nc ] || [ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.ts.nc ] || [ ! -f ${emulatoroutputroot}/emul${i}/emul${i}.ps.nc ]))
-    then
 
-        echo ' '
-        echo ' '
-        echo -n 'Käynnistetään emulaattoriajo ' $i ' '; date '+%T %d-%m-%Y'
-        echo ' '
-        submitting emul${i} 
-        odota LES_emul${i}
-        echo -n 'Simulaatio on valmis: ' LES_emul${i}' '; date '+%T %d-%m-%Y'
-        
-        
-        scriptname=${scriptname} scriptfolder=${emulatoroutputroot} postprosessoi ${emulatorname}/emul${i} emul${i}
+# sed -i "/runtype\s\{0,\}=\s\{0,\}/c\  runtype  = '"HISTORY"'"  ${outputroot}/${simulation}/NAMELIST
+    
+    
+    status=$( tarkistastatus ${emulatorname}/emul${i} emul${i} )
+    LS=${status:0:1}
+    PPS=${status:1:2}
+    
 
-        odota nc_emul${i}
-        echo -n 'Postprosessointi on valmis: ' nc_emul${i}' '; date '+%T %d-%m-%Y'
-        odota ps_emul${i} 5s
-        echo -n 'Postprosessointi on valmis: ' ps_emul${i}' '; date '+%T %d-%m-%Y'
-        odota ts_emul${i} 5s
-        echo -n 'Postprosessointi on valmis: ' ts_emul${i}' '; date '+%T %d-%m-%Y'
-        echo ' '
-        echo 'Kaikki on postprosessoitu'
+    start=$( date +%s )
+    
+    echo ' '
+    echo ' '
+    echo -n 'Toimitaan emulaattoriajossa ' $i ' '; date '+%T %d-%m-%Y'; echo -n 'status' $status
+    echo ' '
+    
+    while [[ $LS -ne '1' ]] ; do
+        if [[ $LS == '2' ]]; then
+            sed -i "/runtype\s\{0,\}=\s\{0,\}/c\  runtype  = '"HISTORY"'"  ${outputroot}/${emulatorname}/emul${i}/NAMELIST
+        fi
+        submitting emul${i}
+        odota LESemul${i}
         
-        poistaturhat ${emulatorname}/emul${i} emul${i}
-        echo -n 'Turhat poistettu'' '; date '+%T %d-%m-%Y'
-        echo 'Valmis' emul$i 
-        echo 'Valmis' emul$i >>  ${emulatoroutputroot}/emul${i}/valmis${i}
-        date '+%T %d-%m-%Y' >>   ${emulatoroutputroot}/emul${i}/valmis${i}
-    fi
+        status=$( tarkistastatus ${emulatorname}/emul${i} emul${i} )
+        LS=${status:0:1}
+        PPS=${status:1:2}
+	echo "while-kierros loppuu: simulaatio" emul${i} "status" $status
+        
+    done 
+    echo ' '
+    echo "while paattynyt: simulaatio" emul${i} "status" $status
+    end=$( date +%s )
+    runtime=$(( end-start ))
+    echo -n 'Simulaatio on valmis: ' LES_emul${i}' '; date '+%T %d-%m-%Y'
+    echo -n 'Suoritusaika' LES_emul${i}' ' $runtime' '; printf '%02dh:%02dm:%02ds\n' $(($runtime/3600)) $(($runtime%3600/60)) $(($runtime%60))
+    
+    scriptname=${scriptname} scriptfolder=${emulatoroutputroot} postprosessoi ${emulatorname}/emul${i} emul${i}
+
+    odota nc_emul${i}
+    echo -n 'Postprosessointi on valmis: ' nc_emul${i}' '; date '+%T %d-%m-%Y'
+    odota ps_emul${i} 5s
+    echo -n 'Postprosessointi on valmis: ' ps_emul${i}' '; date '+%T %d-%m-%Y'
+    odota ts_emul${i} 5s
+    echo -n 'Postprosessointi on valmis: ' ts_emul${i}' '; date '+%T %d-%m-%Y'
+    echo ' '
+    echo 'Kaikki on postprosessoitu'
+    
+    poistaturhat ${emulatorname}/emul${i} emul${i}
+    echo -n 'Turhat poistettu'' '; date '+%T %d-%m-%Y'
+    end=$( date +%s )
+    runtime=$(( end-start))
+    echo 'Valmis' emul$i 
+    echo 'Valmis' emul$i >>  ${emulatoroutputroot}/emul${i}/valmis${i}
+    echo $runtime >>   ${emulatoroutputroot}/emul${i}/valmis${i}
+
+    
 done
 
 echo -n "Valmis threadNro" $threadNro ' '; date '+%T %d-%m-%Y'
