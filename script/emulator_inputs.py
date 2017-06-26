@@ -512,7 +512,7 @@ def write_namelist( input_vector ):
               ' filprf=' + '"' + "'emul" + case + "'"    +'"'                        +\
               ' hfilin=' + '"' + "'emul" + case + ".rst'" +'"'                       +\
               ' n='+'"'+ str(num_pbl)+', 0., 0., 0., 0., 0., 0.' + '"'   +\
-              ' ' + lesroot + 'script/generate_namelist.bash'
+              ' ' + cwd + '/generate_namelist.bash'
 
 #               ' Tspinup=10.'     
  #               ' timmax=20.'

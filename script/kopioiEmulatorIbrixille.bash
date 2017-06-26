@@ -13,6 +13,8 @@ if [[ -d ${SCRIPT} ]]; then
 else
    scriptref=.
 fi
+
+echo "scriptref" $scriptref
 source ${scriptref}/subroutines_variables.bash
 
 if [ -z $1 ]; then
@@ -30,6 +32,13 @@ if [[ -z $outputname ]]; then
      
 fi
 
+if [[ -d ${outputroot}/${simulation}/ ]]; then
+    echo "Lustre folder ${outputroot}/${simulation} exists. We're good to go."
+else
+    echo "Lustre folder ${outputroot}/${simulation} does not exist. EXIT."
+    exit 1
+fi
+
 aika=${aika:-10m}
 while [[ ! -z $( qstat -u $USER | grep EMULATOR ) ]]
 do
@@ -45,3 +54,7 @@ kopioibrixille $simulation $outputname
 
 setfacl -Rm g:tut-kuo:rx /ibrix/arch/ClimRes/aholaj/
 setfacl -Rm g:climres:rx /ibrix/arch/ClimRes/aholaj/
+
+
+
+printf "Training simulations are ready in ${ibrixrootfolder}${outputname} \n\n -Jaakko- \n\n PS This was an automated message" | mail -s "Training simulations ready $outputname" Jaakko.Ahola@fmi.fi,Muzaffer.Ege.Alper@fmi.fi -r jaakko.ahola@fmi.fi

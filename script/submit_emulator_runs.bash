@@ -14,9 +14,11 @@ source ${scriptref}/subroutines_variables.bash
 #
 #
 # EXAMPLE USAGE
-# A=28 B=30 mode=mpi.v1.0.4 postfix=geggals ./submit_emulator_runs_parallel.bash 3
+# A=28 B=30 mode=mpi.v1.0.4 designV=v1.5.1 postfix=geggals ./submit_emulator_runs_parallel.bash 3
 # where A is the case number that you want to start from
 #       B is the case number that you want to end up
+#       mode is the postfix of the LES executable (les.mode)
+#       designV is the design version
 #    $1 = 3 is the number of how many runs you dare to submit at the same time
 #    $2 = scriptname
 #    $3 = job flag of the job scheduling system (OPTIONAL) default value: PBS

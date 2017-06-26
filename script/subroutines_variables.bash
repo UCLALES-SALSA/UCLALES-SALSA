@@ -3,33 +3,33 @@
 # user parameters
 
 # folders
-model=UCLALES-SALSA
+export model=UCLALES-SALSA
 
 
 
-email='jaakko.ahola@fmi.fi'
+export email='jaakko.ahola@fmi.fi'
 
-scriptname=combine.py
+export scriptname=combine.py
 
-ibrixrootfolder=/ibrix/arch/ClimRes/${USER}/
+export ibrixrootfolder=/ibrix/arch/ClimRes/${USER}/
 # subroutines
 
-if [ $jobflag == 'PBS' ]; then
-    outputroot=/lustre/tmp/${USER}/${model}/
-    root=/home/users/${USER}/${model}
-    nodeNPU=20  # number of processing units in a node  
+if [[ $jobflag == 'PBS' ]]; then
+    export outputroot=/lustre/tmp/${USER}/${model}/
+    export root=/home/users/${USER}/${model}
+    export nodeNPU=20  # number of processing units in a node  
 
-elif [ $jobflag == 'SBATCH' ]; then ## CSC's Sisu machine values
-    nodeNPU=24 # number of processing units in a node 
-    QUEUE=small_long # name of the queue of Sisu machine
-    outputroot=/wrk/${USER}/${model}
-    root=/homeappl/home/${USER}/appl_sisu/${model}
+elif [[ $jobflag == 'SBATCH' ]]; then ## CSC's Sisu machine values
+    export nodeNPU=24 # number of processing units in a node 
+    export QUEUE=small_long # name of the queue of Sisu machine
+    export outputroot=/wrk/${USER}/${model}
+    export root=/homeappl/home/${USER}/appl_sisu/${model}
 fi
 
-salsa=${root}/src/src_salsa
-les=${root}/src/src_LES
-bin=${root}/bin
-script=${root}/script
+export salsa=${root}/src/src_salsa
+export les=${root}/src/src_LES
+export bin=${root}/bin
+export script=${root}/script
 
 
 function odota {
