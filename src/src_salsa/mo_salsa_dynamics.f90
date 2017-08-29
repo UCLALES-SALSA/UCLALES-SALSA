@@ -1608,7 +1608,7 @@ CONTAINS
     ! The new aerosol water content after equilibrium calculation
     zaelwc2(:,:) = SUM(paero(:,:,in1a:fn2b)%volc(8),DIM=3)*rhowa
 
-    prv(:,:) = prv(:,:) - ( zaelwc2(:,:) - zaelwc1(:,:) )*ppres(:,:)*mair/(rg*ptemp(:,:))
+    prv(:,:) = prv(:,:) - ( zaelwc2(:,:) - zaelwc1(:,:) )/(ppres(:,:)*mair/(rg*ptemp(:,:)))
 
     adtc(:) = 0.
     zcwc = 0.; zcwint = 0.; zcwn = 0.
