@@ -22,7 +22,7 @@ threadNro=${threadNro:-0}
 
 nproc=${nproc:-100}    # number of processors
 
-mode=${mode:-mpi}
+exe=${exe:-les.mpi}
 
 etunolla=${etunolla:-2}
 echo "etunolla" $etunolla 
@@ -59,7 +59,7 @@ function submitting {
     fi
 	## submit
 	
-    input=${rundir} outputname=${simulation} modifyoutput='false' COPY=false clean=false WT=$walltime mode=${mode} ${emulatoroutputroot}/submit_uclales-salsa.bash ${emulatorname}/${simulation} $nproc
+    input=${rundir} outputname=${simulation} modifyoutput='false' COPY=false clean=false WT=$walltime exe=${exe} ${emulatoroutputroot}/submit_uclales-salsa.bash ${emulatorname}/${simulation} $nproc
 
 
 }
@@ -82,7 +82,7 @@ do
     echo ' '
     echo -n 'Toimitaan emulaattoriajossa ' $i ' '; date '+%T %d-%m-%Y'; echo -n 'status' $status
     echo ' '
-    
+    loopN=1 
     while [[ $LS -ne '1' ]] ; do
         if [[ $LS == '2' ]]; then
             sed -i "/runtype\s\{0,\}=\s\{0,\}/c\  runtype  = '"HISTORY"'"  ${outputroot}/${emulatorname}/emul${i}/NAMELIST
@@ -93,9 +93,21 @@ do
         status=$( tarkistastatus ${emulatorname}/emul${i} emul${i} )
         LS=${status:0:1}
         PPS=${status:1:2}
-	echo "while-kierros loppuu: simulaatio" emul${i} "status" $status
-        
-    done 
+	    echo "while-kierros loppuu: simulaatio" emul${i} "status" $status
+        loopN=$((loopN+1))
+
+        if [[ $loopN -gt 4 ]]; then
+            printf "There's something wrong with simulation emul${i}, looping for ${loopN}:th time" | mail -s "Something wrong with EMULATOR" jaakko.ahola@fmi.fi,Muzaffer.Ege.Alper@fmi.fi
+            echo 'breaking out of while'
+            break
+        fi
+    done
+    
+    if [[ $loopN -gt 4 ]]; then
+        echo 'continue with next item in the for loop'
+        continue
+    fi
+     
     echo ' '
     echo "while paattynyt: simulaatio" emul${i} "status" $status
     end=$( date +%s )
@@ -103,17 +115,26 @@ do
     echo -n 'Simulaatio on valmis: ' LES_emul${i}' '; date '+%T %d-%m-%Y'
     echo -n 'Suoritusaika' LES_emul${i}' ' $runtime' '; printf '%02dh:%02dm:%02ds\n' $(($runtime/3600)) $(($runtime%3600/60)) $(($runtime%60))
     
-    scriptname=${scriptname} scriptfolder=${emulatoroutputroot} postprosessoi ${emulatorname}/emul${i} emul${i}
-
-    odota nc_emul${i}
-    echo -n 'Postprosessointi on valmis: ' nc_emul${i}' '; date '+%T %d-%m-%Y'
-    odota ps_emul${i} 5s
-    echo -n 'Postprosessointi on valmis: ' ps_emul${i}' '; date '+%T %d-%m-%Y'
-    odota ts_emul${i} 5s
-    echo -n 'Postprosessointi on valmis: ' ts_emul${i}' '; date '+%T %d-%m-%Y'
-    echo ' '
-    echo 'Kaikki on postprosessoitu'
+    if [ $PPS -eq 0 ] || [ $PPS -eq 3 ] ; then # [ $PPS -eq 2 ] || [ $LS -eq 2 ]    
+        scriptname=${scriptname} scriptfolder=${emulatoroutputroot} postprosessoi ${emulatorname}/emul${i} emul${i}
+        odota nc_emul${i}
+        echo -n 'Postprosessointi on valmis: ' nc_emul${i}' '; date '+%T %d-%m-%Y'
+        odota ps_emul${i} 5s
+        echo -n 'Postprosessointi on valmis: ' ps_emul${i}' '; date '+%T %d-%m-%Y'
+        odota ts_emul${i} 5s
+        echo -n 'Postprosessointi on valmis: ' ts_emul${i}' '; date '+%T %d-%m-%Y'
+        echo ' '
+        echo 'Kaikki on postprosessoitu'
+    elif [[ $PPS == '1' ]]; then
+        echo 'postprosessointi on jo valmis'
+    else
+        echo "WARNING Jotain on pielessä restartissa kun postprosessointi status on $PPS"
+    fi 
     
+    status=$( tarkistastatus ${emulatorname}/emul${i} emul${i} )
+
+    echo "emulaattoriajon emul${i} status: ${status}"
+
     poistaturhat ${emulatorname}/emul${i} emul${i}
     echo -n 'Turhat poistettu'' '; date '+%T %d-%m-%Y'
     end=$( date +%s )

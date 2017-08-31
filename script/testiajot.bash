@@ -1,5 +1,7 @@
 #!/bin/bash
 
+####### DO NOT USE dim1 simultaneously with dim2 & dim3
+
 # Exit on error
 set -e
 
@@ -21,8 +23,25 @@ postpros=${postpros:-false}
 odotus=${odotus:-false}
 poista=${poista:-false}
 
+exe=${exe:-} # seq.${vers}.${compiler} 
+
+# not necessarily needed
 compiler=${compiler:-intel.zero}
 vers=${vers:-Jaakko}
+
+dim1=${dim1:-false}
+dim2=${dim2:-false}
+dim3=${dim3:-false}
+
+if [[ $dim1 == 'true' ]]; then
+    interface=seq
+else
+    interface=mpi
+fi
+
+if [[ -z $exe ]]; then
+    exe=les.${interface}.${vers}.${compiler} 
+fi
 
 RUNTYPE='"INITIAL"'
 
@@ -31,9 +50,6 @@ isoT=${isoT:-28800.}
 pikkuT=${pikkuT:-7200.}
 ice=${ice:-1.0} # ice #/kg
 
-dim1=${dim1:-false}
-dim2=${dim2:-false}
-dim3=${dim3:-false}
 
 if [[ -n $hfilebase ]]; then
     RUNTYPE='"HISTORY"'
@@ -52,7 +68,7 @@ function copy {
 	
 	inputsubfolder=$1
 	nimi=$2
-	mode=$3
+	exe=$3
 
 
 
@@ -66,7 +82,7 @@ function copy {
     datadir=${outputroot}/${nimi}/datafiles
     mkdir -p ${datadir} 
 
-    cp ${bin}/les.${mode} ${outputroot}/${nimi}/
+    cp ${bin}/${exe} ${outputroot}/${nimi}/
     cp ${bin}/datafiles/* ${datadir}/
     
     cp ${bin}/${inputsubfolder}/sound_in ${outputroot}/${nimi}/
@@ -91,10 +107,10 @@ function submitting {
 	inputsubfolder=$1$
 	nimi=$2
 	nproc=$3
-	mode=$4
+	exe=$4
 	
-    if [ -z $mode ]; then
-        $mode=mpi
+    if [ -z $exe ]; then
+        $exe=les.mpi
     fi    
 
 	echo ' '
@@ -104,7 +120,7 @@ function submitting {
 	
 	## submit
 	
-    input=${bin}/${inputsubfolder} mode=${mode} modifyoutput='true' modifyoutputHistory=${modifyoutputHistory} COPY=${copyOUT} clean=${copyOUT} ownjobname=$ownjobnameSUB ${script}/submit_uclales-salsa.bash $nimi $nproc $jobflag
+    input=${bin}/${inputsubfolder} exe=${exe} modifyoutput='true' modifyoutputHistory=${modifyoutputHistory} COPY=${copyOUT} clean=${copyOUT} ownjobname=$ownjobnameSUB ${script}/submit_uclales-salsa.bash $nimi $nproc $jobflag
 	
 	sleep 3s
     qstat -u $USER
@@ -126,19 +142,13 @@ function main {
 
 	inputsubfolder=$1
 	nproc=$2
-	mode=$3
+	exe=$3
 	
 	if [[ -n $postfix ]]; then
         postfix=_${postfix}
     fi
 	
-    # jos haluaa kaannoksen kayta tata 
-    #nn=$(( ${#mode}- 4 ))
-    #if [[ $nn -gt 0 ]]; then
-    #    nimi=${inputsubfolder}${postfix}_${mode:$((${#mode}-$nn)):$nn}
-    #else
-    #    nimi=${inputsubfolder}${postfix}
-    #fi 
+
     nimi=${inputsubfolder}${postfix} # poista tama jos haluat kaannoksen mukaan nimeen 
     if [[ ${#nimi} -gt $maximus ]]; then
         vanha=$nimi
@@ -156,7 +166,7 @@ function main {
     fi
     
     if [[ $copyOUT == 'false' ]] && [[ ${submit} == 'true' ]]; then
-        copy $inputsubfolder $nimi $mode
+        copy $inputsubfolder $nimi $exe
         
         dir=${outputroot}/${nimi} nxp=${nxp} nyp=${nyp} nzp=${nzp} deltax=${deltax} deltay=${deltay} deltaz=${deltaz} nxpart=${nxpart} dzmax=${dzmax} dzrat=${dzrat} dtlong=${dtlong} distim=${distim} timmax=${timmax} Tspinup=${Tspinup} minispinup01=${minispinup01} minispinup02=${minispinup02} minispinupCase01=${minispinupCase01} minispinupCase02=${minispinupCase02} runtype=${runtype} level=${level} CCN=${CCN} prndtl=${prndtl} filprf=${filprf} hfilin=${hfilin} ssam_intvl=${ssam_intvl} savg_intvl=${savg_intvl} mcflg=${mcflg} frqhis=${frqhis} istpfl=${istpfl} lbinanl=${lbinanl} frqanl=${frqanl} corflg=${corflg} ipsflg=${ipsflg} itsflg=${itsflg} strtim=${strtim} sed_aero=${sed_aero} sed_cloud=${sed_cloud} sed_precp=${sed_precp} sed_ice=${sed_ice} sed_snow=${sed_snow} iradtyp=${iradtyp} case_name=${case_name} div=${div} sfc_albedo=${sfc_albedo} radsounding=${radsounding} cntlat=${cntlat} strtim=${strtim} isfctyp=${isfctyp} sst=${sst} dthcon=${dthcon} drtcon=${drtcon} ubmin=${ubmin} zrough=${zrough} th00=${th00} umean=${umean} vmean=${vmean} nlcoag=${nlcoag} nlcgcc=${nlcgcc} nlcgpp=${nlcgpp} nlcgaa=${nlcgaa} nlcgii=${nlcgii} nlcgss=${nlcgss} nlcgpc=${nlcgpc} nlcgca=${nlcgca} nlcgpa=${nlcgpa} nlcgia=${nlcgia} nlcgic=${nlcgic} nlcgip=${nlcgip} nlcgsa=${nlcgsa} nlcgsc=${nlcgsc} nlcgsi=${nlcgsi} nlcgsp=${nlcgsp} nlcnd=${nlcnd} nlcndgas=${nlcndgas} nlcndh2oae=${nlcndh2oae} nlcndh2ocl=${nlcndh2ocl} nlcndh2oic=${nlcndh2oic} nlauto=${nlauto} nlautosnow=${nlautosnow} nlactiv=${nlactiv} nlactbase=${nlactbase} nlactintst=${nlactintst} nlichom=${nlichom} nlichet=${nlichet} nlicimmers=${nlicimmers} nlicmelt=${nlicmelt} nlicbasic=${nlicbasic} nlfixinc=${nlfixinc} fixINC=${fixINC} rhlim=${rhlim} isdtyp=${isdtyp0} nspec=${nspec1} listspec=${listspec} volDistA=${volDistA} volDistB=${volDistB} nf2a=${nf2a} sigmag=${sigmag} dpg=${dpg} n=${n} notJJA=${notJJA} ${script}/generate_namelist_ISDAC.bash
         
@@ -168,7 +178,7 @@ function main {
         echo ' '
         echo -n 'Käynnistetään Simulaatio ' $nimi ' '; date '+%T %d-%m-%Y'
         echo ' '
-        ownjobnameSUB=$ownjobnameMAIN submitting $inputsubfolder $nimi $nproc $mode
+        ownjobnameSUB=$ownjobnameMAIN submitting $inputsubfolder $nimi $nproc $exe
         qstat -u $USER | tail -1
     fi
 
@@ -211,7 +221,7 @@ function main {
         echo 'Kaikki on postprosessoitu'
     fi
         
-    if [[ $poisto == 'true' ]]; then 
+    if [[ $poista == 'true' ]]; then 
         poistaturhat $nimi
         echo -n 'Turhat poistettu'' '; date '+%T %d-%m-%Y'
         echo 'Valmis' $nimi 
@@ -245,19 +255,19 @@ fi
 # 1D
 if [[ ${dim1} == 'true' ]]; then
     echo 1D
-    fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_1D${testinumero} jaakkoNL=${jaakkoNL}     nyp=5 nxp=5 postfix=LVL${LVL}_1D${icePF}${testinumero}  main case_isdac 1 seq.${vers}.${compiler}
+    fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_1D${testinumero} jaakkoNL=${jaakkoNL}     nyp=5 nxp=5 postfix=LVL${LVL}_1D${icePF}${testinumero}  main case_isdac 1 $exe # seq.${vers}.${compiler}
 fi
 
 # 2D
 if [[ ${dim2} == 'true' ]]; then
     echo 2D
-    fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_2D${testinumero} jaakkoNL=${jaakkoNL}           nxp=5 postfix=LVL${LVL}_2D${icePF}${testinumero}  main case_isdac 8 mpi.${vers}.${compiler}
+    fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_2D${testinumero} jaakkoNL=${jaakkoNL}           nxp=5 postfix=LVL${LVL}_2D${icePF}${testinumero}  main case_isdac 8 $exe # mpi.${vers}.${compiler}
 fi
 
 # 3D
 if [[ ${dim3} == 'true' ]]; then
     echo 3D
-    fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_3D${testinumero} jaakkoNL=${jaakkoNL}                 postfix=LVL${LVL}_3D${icePF}${testinumero} main case_isdac 64 mpi.${vers}.${compiler}
+    fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_3D${testinumero} jaakkoNL=${jaakkoNL}                 postfix=LVL${LVL}_3D${icePF}${testinumero} main case_isdac 64 $exe # mpi.${vers}.${compiler}
 fi
 ##################
 qstat -u $USER

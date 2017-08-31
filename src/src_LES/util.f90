@@ -116,26 +116,6 @@ contains
   end subroutine velset
   !
   !---------------------------------------------------------------------
-  ! GET_AVG: gets average field value from k'th level
-  !
-  real function get_avg(n1,n2,n3,k,a)
-
-    integer, intent (in):: n1, n2, n3, k
-    real, intent (in)   :: a(n1,n2,n3)
-
-    integer :: i,j
-
-    get_avg=0.
-    do j=3,n3-2
-       do i=3,n2-2
-          get_avg = get_avg + a(k,i,j)
-       enddo
-    enddo
-    get_avg = get_avg/real((n3-4)*(n2-4))
-
-  end function get_avg
-  !
-  !---------------------------------------------------------------------
   ! GET_AVG2dh: Get the average of a 2 dimensional (horizontal) input field
   !
   REAL FUNCTION get_avg2dh(n2,n3,a)
@@ -505,7 +485,7 @@ contains
   ! Juha Tonttila, FMI, 2014
   !
   SUBROUTINE maskactiv(act_mask,nx,ny,nz,nbins,mode,prtcl,rh,    &
-                       rc,pa_naerop, pa_maerop, pt, Rpwet, w, pa_ncloud  )
+                       rc,pa_naerop, pa_maerop, pt, w, pa_ncloud  )
     USE mo_submctl, ONLY : rhowa, rhosu, rhooc, rhoss, mwa, msu, moc, mss, pi6, nlim
     USE class_ComponentIndex, ONLY : ComponentIndex,GetIndex,IsUsed
     IMPLICIT NONE
@@ -516,7 +496,6 @@ contains
     REAL, OPTIONAL, INTENT(in) :: pa_naerop(nz,nx,ny,nbins),    &
                                   pa_maerop(nz,nx,ny,8*nbins),  &
                                   pt(nz,nx,ny),                 &
-                                  Rpwet(nz,nx,ny,nbins),        &
                                   w(nz,nx,ny),                  &
                                   rc(nz,nx,ny),                 &
                                   pa_ncloud(nz,nx,ny,nbins)
@@ -569,7 +548,7 @@ contains
 
        ! Normal opperation
        
-       IF ( .NOT. (PRESENT(rc) .AND. PRESENT(Rpwet)) ) STOP 'maskactiv: invalid arguments'
+       IF ( .NOT. PRESENT(rc) ) STOP 'maskactiv: invalid arguments'
 
        ! Mask grid points just below cloud or where new cloud is expected to form
        ! 

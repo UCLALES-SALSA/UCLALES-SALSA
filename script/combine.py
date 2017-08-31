@@ -1,45 +1,34 @@
 #!/usr/bin/python
 #
-# Combine complete (name.########.nc) or profile (name.ps.########.nc) or temporal (name.ts.########.nc) statistics files from parallel runs. 
+# Functions for post-processing UCLALES-SALSA outputs from parallel runs.
+#	1a) Combine 4D outputs (name.########.nc)
+# 	1b) Combine 3D column outputs (name.cs.########.nc)
+#	2) Average profile (name.ps.########.nc) or temporal (name.ts.########.nc) statistics
 #
 # Execution:
-#	python combine.py rf01.ps
-#	python combine.py rf01.ts
-#	python combine.py rf01
+#	One or more files
+#		python combine.py rf01
+#		python combine.py rf01.ts
+#		python combine.py rf01.ts rf01.ps rf01.cs
+#	One file and list if variables to be included in the outputs
+#		python combine.py rf01 l q t
+#
+# Last update: 13.4.2017 Tomi Raatikainen
+#
+# Required modules
+#		Python 2.7.10
+#
+# Edit this tag when outputs are changed
+version='combine_1.0.0'
 #
 import sys
 import os
+import time
 #
-# Input files
-# ==========
-# Input file name
-if len(sys.argv)<2: raise Exception('At least file name required!')
-tmp=sys.argv[1]
-infile=tmp.strip('\r')	# Mainly a windows problem
+# Time when data is post-processed
+date=time.asctime()
 #
-#ignore_list=[]	# Ignore variable
-# 
-#
-# At least one file must exists
-if not os.path.isfile('%s.%04u%04u.nc' % (infile, 0, 0)):
-	print '%s.%04u%04u.nc' % (infile, 0, 0)
-	raise Exception( 'Data not found (expecting file %s.%04u%04u.nc)!' % (infile, 0, 0) )
-#
-# Limits for the data file indices
-imax,jmax=0,0
-while imax<1000 and os.path.isfile( '%s.%04u%04u.nc' % (infile, imax, 0) ): imax+=1
-while jmax<1000 and os.path.isfile( '%s.%04u%04u.nc' % (infile, 0, jmax) ): jmax+=1
-#
-# More than one file required
-if imax*jmax<=1: raise Exception('Not enough files: '+str(imax)+' x '+str(jmax)+'!')
-#
-# Test that everything is there
-for i in range(imax):
-	for j in range(jmax):
-		if not os.path.isfile( '%s.%04u%04u.nc' % (infile, i, j) ): raise Exception('File %s.%04u%04u.nc not found!' % (infile, i, j)  )
-#		
-#
-def reduce_ts_ps(infile,imax,jmax):
+def reduce_ts_ps(infile,imax,jmax,var_list):
 	# Statistics files
 	#
 	import numpy
@@ -71,55 +60,15 @@ def reduce_ts_ps(infile,imax,jmax):
 	# e) Weighted averages (weights must be specified below) - needed for conditional averages
 	#	Note: weight ~ conditinal coverage
 	weighted = []
-	# f) Variances (weights must be specified below) 
+	# f) Variances (weights must be specified below)
 	#	Note 1: combining variances requires information about averages
 	# 	Note 2: some units refer to standard deviation = sqrt(variance)?
 	#	Note 3: some of the reported variances are not actually variances, but averages of squares
-	#	           Example 1: lwp_var or 'Liquid-water path variance (kg/m^2)' is actually the average of LWP^2 (kg^2/m^4)
 	variances = ['l_2','q_2','t_2','rflx2','sflx2',]
 	# g) Third moments
 	thirdmom = ['l_3','q_3']
 	# h) Static - these should have the same values
 	static = ['dn0','u0','v0','fsttm','lsttm','nsmp']
-	#
-	# *.ts.nc
-	# ======
-	# nrain         	{'units': '#/l', 'longname': 'Conditionally sampled rain number mixing ratio'}	<= Sum of rain drop concentrations over rainy grid cells (not avearge)
-	# pfrac			{'units': '-', 'longname': 'Precipitation fraction'}									<= Number of precipitating grid cells (-999,0 means zero)
-	# lwp_var		{'units': 'kg/m^2', 'longname': 'Liquid-water path variance'}						<= Actually just average of LWP^2
-	# CCN         		{'units': '#', 'longname': 'Cloud condensation nuclei'}								<= Actually concentration (#/kg)
-	# *_ic, *_int, *_oc	<= Definition changes
-	#
-	# *.ps.nc
-	# ======
-	# evap			{'units': 's^-1', 'longname': 'Net evap  of rain-water'}
-	# frc_prc		{'units': '-', 'longname': 'Conditionally sampled rain fraction'}
-	# frc_ran        	{'units': '-', 'longname': 'Rain water fraction'}
-	# hst_srf         	{'units': '-', 'longname': 'Histogram of surface rain rates'}
-	# fsttm         	{'units': 'kg/m^3', 'longname': 'First sample time'}
-	# lsttm         	{'units': 'kg/m^3', 'longname': 'Basic state density'}							<= the last time point (s)
-	# nsmp         		{'units': 'kg/m^3', 'longname': 'Basic state density'}							<= number of time steps for the average
-	# prc_prc         	{'units': 'm/s', 'longname': 'Conditionally sampled rain rate'}
-	# rflx2       		{'units': 'W/m^2', 'longname': 'Variance of total radiative flux'}			<= it is variance
-	# sflx2         	{'units': 'W/m^2', 'longname': 'Variance of shortwave radiative flux'}		<= it is variance
-	# l_2        		{'units': '-', 'longname': 'Variance of liquid'}									<= it is variance
-	# l_3         		{'units': '-', 'longname': 'Third moment of liquid'}								<= it is the third central moment
-	# q_2         		{'units': '-', 'longname': 'Variance of total water'}							<= it is variance
-	# q_3         		{'units': '-', 'longname': 'Third moment of total water'}						<= it is the third central moment
-	# t_2         		{'units': 'K^2', 'longname': 'Variance of theta'}								<= it is variance
-	# t_3         		{'units': 'K^3', 'longname': 'Third moment of theta'}							<= average of (t-avg(v))^3, which must be an error
-	# u_2         		{'units': 'm^2/s^2', 'longname': 'Variance of u wind'}							<= no, it is average of u^2
-	# v_2         		{'units': 'm^2/s^2', 'longname': 'Variance of v wind'}							<= no, it is average of v^2
-	# w_2         		{'units': 'm^2/s^2', 'longname': 'Variance of w wind'}							<= no, it is average of w^2
-	# w_3         		{'units': 'm^3/s^3', 'longname': 'Third moment of w wind'}					<= it is the third raw moment of w (i.e. average of w^3)
-	# cs1         		{'units': '-', 'longname': 'Conditionally sampled fraction of flow'}			<= average number of flag values
-	# cnt_cs1			{'units': '#', 'longname': 'Sum of I_cs1'}										<= number of flag values
-	# w_cs1         	{'units': 'm', 'longname': 'Conditional average of w over cs1'}				<= sum of flagged values
-	# ...
-	# wr_cs1         	{'units': 'W/m^2', 'longname': 'Covariance of wr_t flux and cs1'}			<= sum of flagged w*r values
-	# wt_cs1         	{'units': 'W/m^2', 'longname': 'Covariance of wtheta_l flux and cs1'}		<= sum of flagged w*thetal_l values
-	# wv_cs1         	{'units': 'W/m^2', 'longname': 'Covariance of wtheta_v flux and cs1'}		<= sum of flagged w*thetal_v values
-	# ...
 	#
 	nfiles=imax*jmax
 	#
@@ -128,10 +77,62 @@ def reduce_ts_ps(infile,imax,jmax):
 	# 1) Generate target
 	src='%s.%04u%04u.nc' % (infile, 0, 0)
 	dst='%s.nc' % (infile)
-	copy2(src, dst)
+	if len(var_list)==0:	# Variables not filtered
+		# Just copy the first file
+		copy2(src, dst)
+		#
+		# Add information about post processing? Not possible for NetCDF3!
+	else:
+		# Generate new file with same global attributes and dimensions, but with selected variables
+		ncid_src = netcdf.Dataset(src,'r')
+		dim_list=ncid_src.dimensions.keys()	# Dimensions
+		fmt=ncid_src.data_model	# Typically NETCDF3_CLASSIC, but this cannot handle 2+ Gb files!
+		# Output NetCDF file
+		dst='%s.nc' % (infile)
+		ncid = netcdf.Dataset(dst,'w',format=fmt)
+		#
+		# Copy global attributes
+		for att in ncid_src.ncattrs():
+			ncid.setncattr(att,ncid_src.getncattr(att))
+		#
+		# Add information about post processing
+		ncid.setncattr('PP_version',version)
+		ncid.setncattr('PP_date',date)
+		#
+		# Copy dimensions and relevant variables
+		for name in ncid_src.variables.keys():
+			# Source data
+			obj_src = ncid_src.variables[name]
+			val = obj_src[:]	# Values
+			typ=obj_src.dtype	# Type
+			#
+			if name in dim_list: 	# Create dimension
+				# Target
+				ncid.createDimension(name,len(val))
+				# Save value as that of a variable
+				id=ncid.createVariable(name,typ,(name,))
+				id[:]=val
+			elif name in var_list:	# Create variable
+				dims=obj_src.dimensions	# Dimensions
+				id=ncid.createVariable(name,typ,dims)
+				id[:]=val
+			else:
+				# Skip
+				continue
+			#
+			# Copy attributes
+			var_info=obj_src.__dict__	# Attributes
+			for att in var_info.keys(): setattr(id,att,var_info[att])
+		#
+		# Save data
+		ncid.sync()
+		#
+		ncid_src.close()
+		ncid.close()
 	#
 	# Open the target NetCDF file
 	ncid = netcdf.Dataset(dst,'r+')
+	#
 	#
 	# Can use variables:
 	#	NPTS = (nxp-4)*(nyp-4)
@@ -147,7 +148,7 @@ def reduce_ts_ps(infile,imax,jmax):
 		sumnms+=['w_cs1','tl_cs1','tv_cs1','rt_cs1','rl_cs1','wt_cs1','wv_cs1','wr_cs1',\
 			'w_cs2','tl_cs2','tv_cs2','rt_cs2','rl_cs2','wt_cs2','wv_cs2','wr_cs2']
 	#
-	# Variable list - without dimensions
+	# Variable and dimension lists
 	var_list=ncid.variables.keys()	# Variables
 	dim_list=ncid.dimensions.keys()	# Dimensions
 	#
@@ -232,7 +233,7 @@ def reduce_ts_ps(infile,imax,jmax):
 		#
 		info_prints=0
 		#
-		set_missing=-999 
+		set_missing=-999
 		#
 		# All files
 		for i in range(imax):
@@ -334,12 +335,12 @@ def reduce_ts_ps(infile,imax,jmax):
 		# Save updated data
 		obj[:]=val
 		ncid.sync()
-	#	
+	#
 	# Close file
 	ncid.close()
 #
 #
-def reduce_full(infile,imax,jmax):
+def reduce_full(infile,imax,jmax,var_list):
 	# Full data files
 	#	-Shapes cannot be modified so a new NetCDF file and variables must be created
 	import numpy
@@ -388,19 +389,16 @@ def reduce_full(infile,imax,jmax):
 	# Existing NetCDF file
 	src='%s.%04u%04u.nc' % (infile, 0, 0)
 	ncid_src = netcdf.Dataset(src,'r')
-	# Variable and dimension list
-	var_list=ncid_src.variables.keys()		# Variables
+	# Variable and dimension lists
+	if len(var_list)==0: var_list=ncid_src.variables.keys()		# Variables
 	dim_list=ncid_src.dimensions.keys()	# Dimensions
-	# netCDF data model version (typically NETCDF3_CLASSIC)
-	fmt=ncid_src.__getattribute__('data_model')
+	fmt=ncid_src.data_model	# netCDF data model version (typically NETCDF3_CLASSIC)
 	# **********************************************************
 	# Note: NETCDF3_CLASSIC does not handle 2+ Gb files!
-	# File size in bytes
-	b = os.path.getsize(src)
+	b = os.path.getsize(src)	# File size in bytes
 	if nfiles*b>2e9:
 		print 'Warning: file size exceeds 2 GB (total approx. %.2f GB) - changing to NetCDF4' % (nfiles*b/1073741824.0)
 		fmt='NETCDF4'
-		#fmt='NETCDF4_CLASSIC'
 	# **********************************************************
 	#
 	# Output NetCDF file
@@ -411,6 +409,9 @@ def reduce_full(infile,imax,jmax):
 	for att in ncid_src.ncattrs():
 		ncid_dst.setncattr(att,ncid_src.getncattr(att))
 		print '  %-15s  %s' %(att,ncid_src.getncattr(att))
+	# Add information about post processing
+	ncid_dst.setncattr('PP_version',version)
+	ncid_dst.setncattr('PP_date',date)
 	#
 	print 'Done'
 	ncid_src.close()
@@ -490,7 +491,7 @@ def reduce_full(infile,imax,jmax):
 				src='%s.%04u%04u.nc' % (infile, i, j)
 				ncid_src = netcdf.Dataset(src,'r')
 				obj_src = ncid_src.variables[name]
-				val_src = obj_src[:] #.getValue()	
+				val_src = obj_src[:] #.getValue()
 				#
 				if i==0 and j==0:
 					# Generate new dimension by reshaping single processor data
@@ -544,19 +545,106 @@ def reduce_full(infile,imax,jmax):
 			print '  %-8s  %30s  %s (%s)' % (name,dims,var_info['longname'],var_info['units'])
 	#
 	print '*Identical data in each netCDF file'
-	
+	print 'Done'
 	#	
 	# Close file
 	ncid_dst.close()
-	
 #
 #
-if '.ts' in infile or '.ps' in infile:
-	# Time or profile statistics
-	reduce_ts_ps(infile,imax,jmax)
-else:
-	# Full 4D data
-	reduce_full(infile,imax,jmax)
+def examine_fname(infile):
+	# Examine if the given file name pattern represents a valid output file
+	import os
+	#
+	# At least one file must exists
+	if not os.path.isfile('%s.%04u%04u.nc' % (infile, 0, 0)): return 0,0
+	#
+	# Limits for the data file indices
+	imax,jmax=0,0
+	while imax<1000 and os.path.isfile( '%s.%04u%04u.nc' % (infile, imax, 0) ): imax+=1
+	while jmax<1000 and os.path.isfile( '%s.%04u%04u.nc' % (infile, 0, jmax) ): jmax+=1
+	#
+	# More than one file required
+	if imax*jmax<=1: return 0,0
+	#
+	# Test that everything is there
+	for i in range(imax):
+		for j in range(jmax):
+			if not os.path.isfile( '%s.%04u%04u.nc' % (infile, i, j) ): return 0,0
+	#
+	# Valid file found
+	return imax,jmax
+#
+#
+def examine_var_name(file,var):
+	# Examine if variable can be found from given NetCDF file (given file name pattern)
+	import netCDF4 as netcdf
+	# File name
+	fname=('%s.%04u%04u.nc' % (file, 0, 0))
+	# OPen NetCDF file
+	ncid = netcdf.Dataset(fname,'r')
+	# Compare name with variable list
+	if var in ncid.variables.keys():
+		# Found
+		ncid.close()
+		return True
+	# Not found
+	ncid.close()
+	return False
+#
+#
+# Input files
+# ==========
+# Input file name must be given
+if len(sys.argv)<2: raise Exception('At least file name required!')
+#
+# Input options:
+#	a) One or more file name patterns
+#	b) Single file name pattern and a list of data to be included
+names=[]		# List of file names
+variables=[]	# List of variable (empty=all)
+i=1
+for tmp in sys.argv:
+	# The first argument is not an input
+	if tmp==sys.argv[0]: continue
+	#
+	infile=tmp.strip('\r')	# Mainly a windows problem
+	#
+	# The first argument must be a file name. The second argument determines the following arguments after that.
+	# If the second argument is file name, variable name list is empty.
+	if i==1 or (i>2 and len(variables)==0):
+		# Expect file name
+		imax,jmax=examine_fname(infile)
+		if imax==0:
+			raise Exception( 'File %s.%04u%04u.nc not found!' % (infile, 0, 0) )
+		# It is a valid file
+		names.append(infile)
+	elif i==2:
+		# The second argument can be either file or variable name
+		imax,jmax=examine_fname(infile)
+		if imax>0:
+			# It is a valid file
+			names.append(infile)
+		elif examine_var_name(names[0],infile):
+			# It is a valid variable
+			variables.append(infile)
+		else:
+			raise Exception( 'Data not found (file or variable name %s)!' % (infile) )
+	else:
+		# Expecting variable
+		if not examine_var_name(names[0],infile):
+			raise Exception( 'Variable %s not found from file %s.%04u%04u.nc)!' % (infile, names[0], 0, 0) )
+		variables.append(infile)
+	i+=1
+#
+#
+for infile in names:
+	# Determine the true number of files
+	imax,jmax=examine_fname(infile)
+	if '.ts' in infile or '.ps' in infile:
+		# Time or profile statistics
+		reduce_ts_ps(infile,imax,jmax,variables)
+	else:
+		# Full 4D data
+		reduce_full(infile,imax,jmax,variables)
 #
 # End of function combine.py
-print 'Postprosessing ready'

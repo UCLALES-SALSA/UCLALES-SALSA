@@ -64,7 +64,7 @@ function kopioibrixille {
     fi
     
     mkdir -p ${ibrixrootfolder}/${outputname}/
-    rsync -avz ${outputroot}/${simulation}/ ${ibrixrootfolder}/${outputname}/
+    rsync -avz --ignore-existing ${outputroot}/${simulation}/ ${ibrixrootfolder}/${outputname}/
     echo ' '
 
 }
@@ -164,46 +164,51 @@ function poistaturhat {
 function tarkistastatus {
     simulation=$1
     outputname=$2
+    folderROOT=$3
     
     if [[ -z $outputname ]]; then
         outputname=${simulation}
     fi
+    
+    if [[ -z $folderROOT ]]; then
+        folderROOT=${outputroot}
+    fi
     #################
     #### LESin STATUS
     #################
-    for f in ${outputroot}/${simulation}/NAMELIST; do
-        [ -e "$f" ] && timmax=$( cat ${outputroot}/${simulation}/NAMELIST | grep timmax | cut -c11-30 | tr -d .) || timmax=100000000
+    for f in ${folderROOT}/${simulation}/NAMELIST; do
+        [ -e "$f" ] && timmax=$( cat ${folderROOT}/${simulation}/NAMELIST | grep timmax | cut -c11-30 | tr -d .) || timmax=100000000
         break
     done
     
-    for f in ${outputroot}/${simulation}/LES*; do
-        [ -e "$f" ] && last=$( cat "$(ls -rt ${outputroot}/${simulation}/LES* | tail -n1)" | grep --ignore-case "model time" | tail -1 | cut -c40-46 ) || last=0
+    for f in ${folderROOT}/${simulation}/LES*; do
+        [ -e "$f" ] && last=$( cat "$(ls -rt ${folderROOT}/${simulation}/LES* | tail -n1)" | grep --ignore-case "model time" | tail -1 | cut -c40-46 ) || last=0
         break
     done
     
     if [[ $last -ge $((timmax-1)) ]]; then
-        for f in ${outputroot}/${simulation}/*.nc; do 
+        for f in ${folderROOT}/${simulation}/*.nc; do 
             [ -e "$f" ] && les=1 || les=0
             break
         done
     else
-        for f in ${outputroot}/${simulation}/*.rst; do # les ei ole valmis, voidaan restartata jos tiedostot on olemassa
+        for f in ${folderROOT}/${simulation}/*.rst; do # les ei ole valmis, voidaan restartata jos tiedostot on olemassa
             [ -e "$f" ] && les=2 || les=0
             break
         done
     fi
     
-    #touch ${outputroot}/${simulation}/debug${outputname}.log #debugkebab
-    #echo $simulation $outputname 'ollaan tarkistastatuksessa LESSIN STATUKSEN tarkastelun jalkeen LES status' $les >> ${outputroot}/${simulation}/debug${outputname}.log   #debugkebab
+    #touch ${folderROOT}/${simulation}/debug${outputname}.log #debugkebab
+    #echo $simulation $outputname 'ollaan tarkistastatuksessa LESSIN STATUKSEN tarkastelun jalkeen LES status' $les >> ${folderROOT}/${simulation}/debug${outputname}.log   #debugkebab
     ############################
     #### postprosessointi STATUS
     ############################
     if [[ $les == 1 ]]; then
-        if [ -f ${outputroot}/${simulation}/${outputname}.nc ] && [ -f ${outputroot}/${simulation}/${outputname}.ts.nc ] && [ -f ${outputroot}/${simulation}/${outputname}.ps.nc ]; then
-            #lasttimeNC=$( ncdump -v time -f fortran ${outputroot}/${simulation}/${outputname}.nc    | tail -2 | head -1 | cut -f 1 --delimiter=/ |tr -dc '[:alnum:].' | cut -f 1 --delimiter=. ) 
+        if [ -f ${folderROOT}/${simulation}/${outputname}.nc ] && [ -f ${folderROOT}/${simulation}/${outputname}.ts.nc ] && [ -f ${folderROOT}/${simulation}/${outputname}.ps.nc ]; then
+            #lasttimeNC=$( ncdump -v time -f fortran ${folderROOT}/${simulation}/${outputname}.nc    | tail -2 | head -1 | cut -f 1 --delimiter=/ |tr -dc '[:alnum:].' | cut -f 1 --delimiter=. ) 
 	    lasttimeNC=$timmax
-            lasttimePS=$( ncdump -v time -f fortran ${outputroot}/${simulation}/${outputname}.ps.nc | tail -2 | head -1 | cut -f 1 --delimiter=/ | tr -dc '[:alnum:].' | cut -f 1 --delimiter=. )
-            lasttimeTS=$( ncdump -v time -f fortran ${outputroot}/${simulation}/${outputname}.ts.nc | tail -2 | head -1 | cut -f 1 --delimiter=/ | tr -dc '[:alnum:].' | cut -f 1 --delimiter=. )
+            lasttimePS=$( ncdump -v time -f fortran ${folderROOT}/${simulation}/${outputname}.ps.nc | tail -2 | head -1 | cut -f 1 --delimiter=/ | tr -dc '[:alnum:].' | cut -f 1 --delimiter=. )
+            lasttimeTS=$( ncdump -v time -f fortran ${folderROOT}/${simulation}/${outputname}.ts.nc | tail -2 | head -1 | cut -f 1 --delimiter=/ | tr -dc '[:alnum:].' | cut -f 1 --delimiter=. )
 	    PPtime=$( python -c "print min( $lasttimeNC, $lasttimePS, $lasttimeTS )" )
 
     	    if [[ $PPtime -ge $((timmax-1)) ]]; then
@@ -211,15 +216,15 @@ function tarkistastatus {
 	    else
 	        postpros=2
 	    fi
-	    #for f in ${outputroot}/${simulation}/${outputname}*.0*0*.nc; do # jos postprosessoituja filuja on, mutta prossufiluja on edelleen olemassa niin postprosessoidaan uusiks ja lessi on tosiaan valmis; muutoin ollaan valmiita
+	    #for f in ${folderROOT}/${simulation}/${outputname}*.0*0*.nc; do # jos postprosessoituja filuja on, mutta prossufiluja on edelleen olemassa niin postprosessoidaan uusiks ja lessi on tosiaan valmis; muutoin ollaan valmiita
             #    [ -e "$f" ] && postpros=2 || postpros=1
             #    break
             #done
 
         else
-            for f in ${outputroot}/${simulation}/${outputname}*.0*0*.nc; do # jos postprosessoituja filuja ei ole,  mutta prossufiluja on, postprosessoidaan uusiks; jos mitään ei ole kaikki menee urhomatti
+            for f in ${folderROOT}/${simulation}/${outputname}*.0*0*.nc; do # jos postprosessoituja filuja ei ole,  mutta prossufiluja on, postprosessoidaan uusiks; jos mitään ei ole kaikki menee urhomatti
                 if [ -e "$f" ]; then
-                    postpros=2 
+                    postpros=3 #les is ready and pospros is ready to be postprocessed 
                 else
                     postpros=0
                     les=0
@@ -231,7 +236,7 @@ function tarkistastatus {
         postpros=0
     fi
     
-    #echo 'ollaan tarkistastatuksessa POSTPROS STATUKSEN tarkastelun jalkeen LES status' $les 'postpros status' $postpros  >> ${outputroot}/${simulation}/debug${outputname}.log #debugkebab
+    #echo 'ollaan tarkistastatuksessa POSTPROS STATUKSEN tarkastelun jalkeen LES status' $les 'postpros status' $postpros  >> ${folderROOT}/${simulation}/debug${outputname}.log #debugkebab
     echo ${les}${postpros}
     
 }    

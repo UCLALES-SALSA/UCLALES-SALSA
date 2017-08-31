@@ -245,9 +245,12 @@ def area( xm_data, ym_data ):
 ### input variable: mix ratio ( kg / kg )              ###
 ### 4 dimensions: time, x, y z                         ###
 ##########################################################
-def laske_path_aikasarjaXYZ( mixRatData, dn0_data, korkeus, aika, onlyCloudy = False, tulostus = False, piirra = False, uusikuva = True, nimi = 'path aikasarja', xlabel = 'aika [s]', tightXAxis=False ):
-  
-    mixRatData = mixRatData*1000.0 # kg/kg -> g/kg
+def laske_path_aikasarjaXYZ( mixRatData, dn0_data, korkeus, aika = None, muunnosKerroin = 1000.,  onlyCloudy = False, tulostus = False, piirra = False, uusikuva = True, nimi = 'path aikasarja', xlabel = 'aika [s]', tightXAxis=False):
+    
+    #fig.laske_path_aikasarjaXYZ = None
+    #ax.laske_path_aikasarjaXYZ  = None
+    
+    mixRatData = mixRatData*muunnosKerroin # kg/kg -> g/kg
 
     timeDim  = np.shape( mixRatData )[0]
     xDim     = np.shape( mixRatData )[1]
@@ -279,22 +282,31 @@ def laske_path_aikasarjaXYZ( mixRatData, dn0_data, korkeus, aika, onlyCloudy = F
         timeSeries = timeSeries / np.sum( np.sum( onesTXY,       axis = 1) , axis = 1 )
 
 
-    print 'dimensiot aikasarjaXYZ'+ str(np.shape(aika))+ ' timeseries '+ str(np.shape(timeSeries))
+
 
     if tulostus:
+        print 'dimensiot aikasarjaXYZ'+ str(np.shape(aika))+ ' timeseries '+ str(np.shape(timeSeries))
         print ' '
         print nimi
         for t in xrange(timeDim):
             print 'ajanhetki: ' + str(aika[t]) + ' ' + ' arvo : ' + str(timeSeries[t])
-    print ' '    
+        print ' '    
 
 
         ## drawing ##
 
     uusikuva = ( piirra and uusikuva )
-    plot_alustus() if uusikuva else False
+    
+    if uusikuva:
+        laske_path_aikasarjaXYZ.fig, laske_path_aikasarjaXYZ.ax = plot_alustus()
+        
     plottaa( aika, timeSeries, nimi, xlabel , 'path [g/m^2]', tightXAxis = tightXAxis)  if piirra else False   
     
+    
+ #   if uusikuva:
+    return laske_path_aikasarjaXYZ.fig, laske_path_aikasarjaXYZ.ax
+    #else:
+        #return None, None
 
 ##########################################################
 ### calculate vertical path of a variable according    ###
@@ -333,9 +345,9 @@ def laske_path_aikasarjaZ( mixRatData, dn0_data, korkeus, aika, tulostus = False
         print nimi
         for t in xrange(timeDim):
             print 'ajanhetki: ' + str(aika[t]) + ' ' + ' arvo : ' + str(timeSeries[t])
-    print ' '    
+        print ' '    
 
-    print 'dimensiot aikasarjaZ'+ str(np.shape(aika))+ ' timeseries '+ str(np.shape(timeSeries))
+        print 'dimensiot aikasarjaZ'+ str(np.shape(aika))+ ' timeseries '+ str(np.shape(timeSeries))
 
         ## drawing ##
 
@@ -596,6 +608,9 @@ def rmse(predictions, targets):
 ###                                     ###
 ###########################################
 def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuva = True, nimi = 'aikasarja', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, tightXAxis=False, LEGEND=True, omavari = False ):
+  #fig.aikasarjaTulostus = None
+  #ax.aikasarjaTulostus  = None
+  
   if not isinstance(aika, np.ndarray):
     aika=np.zeros( (np.shape(data)[0]))
   
@@ -611,12 +626,11 @@ def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuv
   uusikuva = ( piirra and uusikuva )
   
   if uusikuva:
-      fig, ax = plot_alustus()
+      aikasarjaTulostus.fig, aikasarjaTulostus.ax = plot_alustus()
       
   plottaa( aika, data, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari )
     
-  if uusikuva:
-    return fig, ax
+  return aikasarjaTulostus.fig, aikasarjaTulostus.ax
 
 ###########################################
 ### print/draw timeseries of a variable ###
@@ -696,7 +710,8 @@ def plot_alustus():
   #manager.window.showMaximized()
   
   fig = plt.figure( figsize = (24,15) )
-  ax  = fig.add_subplot()
+  ax  = fig.add_subplot(1,1,1)
+
   
   return fig, ax
 

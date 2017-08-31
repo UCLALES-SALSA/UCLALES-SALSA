@@ -332,7 +332,7 @@ contains
   end subroutine define_nc
   !
   ! ----------------------------------------------------------------------
-  ! Subroutine define_nc_cs: Defines the structure of a new column statistics nc file
+  ! Subroutine define_nc_cs: Defines the structure of a column statistics nc file
   !
   subroutine define_nc_cs(ncID, nRec, n2, n3, level, rad_level, spec_list, nspec )
     integer, intent (in) :: ncID, n2, n3, level, rad_level, nspec
@@ -342,7 +342,7 @@ contains
     integer, save :: timeID=0, xtID=0, ytID=0
     integer, save :: dim_ttt(3)
     CHARACTER(LEN=7) nam
-    integer :: iret, n, VarID, ss, si
+    integer :: iret, VarID, ss
 
     if (nRec == 0) then
        iret = nf90_def_dim(ncID, 'time', NF90_UNLIMITED, timeID)
@@ -395,7 +395,15 @@ contains
        iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'zc'))
        iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'zc'))
 
-       ! Can add: max(w), max(l), VTKE, height of the maximum theta gradient& variance,
+       iret=nf90_def_var(ncID,'zi1',NF90_FLOAT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'zi1_bar'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'zi1_bar'))
+
+       iret=nf90_def_var(ncID,'lmax',NF90_FLOAT,dim_ttt,VarID)
+       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'lmax'))
+       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'lmax'))
+
+       ! Can add: maximum/minimum vertical velocities and their variances,
        ! surface heat and humidity fluxes, buoyancy statistics,...
 
        IF (rad_level==3) THEN
@@ -434,6 +442,11 @@ contains
               iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
               iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
            END DO
+       ELSEIF (level==3) THEN
+           ! Surface precipitation for levels 3
+           iret=nf90_def_var(ncID,'prcp',NF90_FLOAT,dim_ttt,VarID)
+           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'prcp'))
+           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'prcp'))
        ENDIF
 
        iret  = nf90_enddef(ncID)
@@ -550,7 +563,7 @@ contains
        if (itype==1) ncinfo = 'm/s'
        if (itype==2) ncinfo = 'ttmt'
     case('t')
-       if (itype==0) ncinfo = 'Potential temperature'
+       if (itype==0) ncinfo = 'Liquid water potential temperature'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
     case('p')
@@ -717,7 +730,7 @@ contains
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('Na_int')
-       if (itype==0) ncinfo = 'In-cloud intersitial aerosol number concentration'
+       if (itype==0) ncinfo = 'In-cloud interstitial aerosol number concentration'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('SO4_ic')
@@ -990,7 +1003,7 @@ contains
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('t_2')
-       if (itype==0) ncinfo = 'Variance of theta'
+       if (itype==0) ncinfo = 'Variance of theta_l'
        if (itype==1) ncinfo = 'K^2'
        if (itype==2) ncinfo = 'tttt'
     case('w_3')
@@ -998,7 +1011,7 @@ contains
        if (itype==1) ncinfo = 'm^3/s^3'
        if (itype==2) ncinfo = 'ttmt'
     case('t_3')
-       if (itype==0) ncinfo = 'Third moment of theta'
+       if (itype==0) ncinfo = 'Third moment of theta_l'
        if (itype==1) ncinfo = 'K^3'
        if (itype==2) ncinfo = 'tttt'
     case('tot_tw')
@@ -1030,7 +1043,7 @@ contains
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sfs_ww')
-       if (itype==0) ncinfo = 'SGS vertical flux of v-wind'
+       if (itype==0) ncinfo = 'SGS vertical flux of w-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('km')
@@ -1262,11 +1275,11 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('precip')
-       if (itype==0) ncinfo = 'Precipitation Flux (positive downward'
-       if (itype==1) ncinfo = 'm/s'
+       if (itype==0) ncinfo = 'Precipitation Flux (positive downward)'
+       if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('evap')
-       if (itype==0) ncinfo = 'Net evap  of rain-water'
+       if (itype==0) ncinfo = 'Net evap of rain-water'
        if (itype==1) ncinfo = 's^-1'
        if (itype==2) ncinfo = 'tttt'
     case('frc_prc')
@@ -1274,8 +1287,8 @@ contains
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'ttmt'
     case('prc_prc')
-       if (itype==0) ncinfo = 'Conditionally sampled rain rate'
-       if (itype==1) ncinfo = 'm/s'
+       if (itype==0) ncinfo = 'Conditionally sampled precipitation flux'
+       if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('frc_ran')
        if (itype==0) ncinfo = 'Rain water fraction'
@@ -1742,6 +1755,30 @@ contains
     case('P_RH')
        if (itype==0) ncinfo = 'Level 4 relative humidity'
        if (itype==1) ncinfo = '%'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_Na_c')
+       if (itype==0) ncinfo = 'Aerosol number concentration in cloudy columns'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_Nc_c')
+       if (itype==0) ncinfo = 'Cloud droplet number concentration in cloudy columns'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_Np_c')
+       if (itype==0) ncinfo = 'Rain drop number concentration in cloudy columns'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cfrac')
+       if (itype==0) ncinfo = 'Fraction of cloudy columns'
+       if (itype==1) ncinfo = ''
+       if (itype==2) ncinfo = 'tttt'
+    case('P_clw_c')
+       if (itype==0) ncinfo = 'Cloud liquid water in cloudy columns'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_thl_c')
+       if (itype==0) ncinfo = 'Liquid water potential temperature in cloudy columns'
+       if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
     case('P_Naba')
        if (itype==0) ncinfo = 'Aerosol number concentration in size bins A'

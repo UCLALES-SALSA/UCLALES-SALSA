@@ -294,7 +294,9 @@ def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVe
 
 
 ############################
-def piirra_aikasarjaPathXYZ( muuttuja, longName = None, savePrefix = None, xlabel = 'time [s]' ):
+def piirra_aikasarjaPathXYZ( muuttuja, longName = None, savePrefix = None, xaxislabel = 'time [s]', xlabels = None, ylabels = None, xticks = None, yticks = None ):
+    
+        
     if longName is None:
         longName = muuttuja
     for i in xrange(len(arguments)-1):
@@ -309,7 +311,25 @@ def piirra_aikasarjaPathXYZ( muuttuja, longName = None, savePrefix = None, xlabe
 
         nimi = longName +' ' + filenameNC[i]
 
-        mdp.laske_path_aikasarjaXYZ( muuttuja_data, dn0_data, korkeus, time_data, tulostus = True, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xlabel = xlabel, tightXAxis=tightXAxis)
+        fig,ax = mdp.laske_path_aikasarjaXYZ( muuttuja_data, dn0_data, korkeus, time_data, tulostus = True, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xlabel = xaxislabel, tightXAxis=tightXAxis)
+    
+    
+    ajat  =  np.round( mdp.read_Data( filenameNC[0], 'time' ), 0 )
+    
+    if xticks is None:
+        xticks = np.arange(min(ajat)*3600., max(ajat)*3600., 0.5)
+        
+    oikeatXtikit = np.zeros( ( np.shape( xticks ) ))
+    
+    for i in xrange(len(xticks)):
+        oikeatXtikit[i] = np.argmin( np.abs(ajat - 3600.*xticks[i]) )
+    
+    oikeatXleimat= map( int, np.multiply( ajat[[ map( int, oikeatXtikit)]], 1./3600) )
+    
+    #ax.set_xticks( oikeatXtikit )
+
+    ax.set_xticklabels( oikeatXleimat )
+    
     if savePrefix is None:
         savePrefix = muuttuja
     if saveFig:
@@ -370,6 +390,7 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
         variKartta   = colors.ListedColormap(variKartta)
         bounds = colorBarTickValues
         norm   = colors.BoundaryNorm(bounds, variKartta.N)
+    
     
     
     # Make plot with vertical (default) colorbar
@@ -470,7 +491,7 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
     #Add colorbar, make sure to specify tick locations to match desired ticklabels
     #cbar = plt.colorbar(cax,fraction=0.046, pad=0.04, ticks = colorBarTickValues)
     #cbar = fig.colorbar(cax, ticks = colorBarTickValues) # , cax=cax1
-    cbar = fig.colorbar(cax, ax=ax, shrink=.45, pad=.03, aspect=10, ticks = colorBarTickValues, norm = norm)
+    cbar = fig.colorbar(cax, ax=ax, shrink=.9, pad=.03, aspect=10, ticks = colorBarTickValues, norm = norm)
     cbar.ax.set_yticklabels(colorBarTickNames)  # vertically oriented colorbar
     
 
@@ -651,7 +672,8 @@ def piirra_MeanSize( tyyppi = 'ice', bini='a', ajanhetket = [0], korkeus = [0], 
         #savePrefix = 'MeanSize'
     #if saveFig:
         #plt.savefig( picturefolder + savePrefix+ '_' + tag + '_' + 'LVL'+lvl + '.png')
-        
+
+#############################        
 def piirra_domainMeanProfiili( muuttuja, muunnosKerroin = 1.0, ajanhetket = [0], useDN = True, profiili = False, xAxisL = '', color = 'k', savePrefix = None    ):
         
     minimi  = None
@@ -708,6 +730,131 @@ def piirra_domainMeanProfiili( muuttuja, muunnosKerroin = 1.0, ajanhetket = [0],
     
     if saveFig:
         plt.savefig( picturefolder + savePrefix+ '_' + tag + '_' + 'LVL'+lvl + '.png')
+
+def animoi_path(muuttuja, muunnosKerroin = 1.0, transpose = False, longName = None , savePrefix = None, useDN = False, colorBarTickValues = [0,1], colorBarTickNames = ['< -1', '0', '> 1'], xlabels = None, ylabels = None, xticks = None, yticks = None, variKartta = plt.cm.Blues, profiili = False, spinup = None ):        
+    
+    import matplotlib.animation as animation
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    from matplotlib import colors
+    from itertools import cycle
+
+    if profiili:
+        tiedostonimi = filenamePS
+    else:
+        tiedostonimi = filenameNC
+    
+    
+    if isinstance( variKartta, list):
+        variKartta   = colors.ListedColormap(variKartta)
+        bounds = colorBarTickValues
+        norm   = colors.BoundaryNorm(bounds, variKartta.N)
+    else:
+        norm = None
+    
+    
+    # Make plot with vertical (default) colorbar
+    asp = 1.
+    w, h = mpl.figure.figaspect( asp )
+    fig, ax = plt.subplots(figsize = (24,15)) #figsize=(w, h)
+
+    def onClick(event):
+        global pause
+        pause ^= True
+
+    #for i in xrange(len(arguments)-1):
+    global muuttuja_meanDomain
+    if (len(arguments)-1)>1:
+        sys.exit("animation doesn't work at the moment with multiple arguments")
+    
+    
+    muuttuja_data  = np.multiply( mdp.read_Data( tiedostonimi[0], muuttuja ), muunnosKerroin)
+    dn0_data = mdp.read_Data( filenameNC[0], 'dn0'    )
+    zt_data       = mdp.read_Data( filenameNC[0], 'zt'     )
+    zm_data       = mdp.read_Data( filenameNC[0], 'zm'     )
+    korkeus = ( zm_data - zt_data )*2.0
+    
+    dn0Kork  = dn0_data * korkeus
+    
+    muuttuja_meanDomain = np.sum( muuttuja_data * dn0Kork, axis = -1 )
+    
+    print 'muoto txyz', np.shape(muuttuja_data)
+    print 'muoto txy', np.shape(muuttuja_meanDomain)
+    
+    
+    
+    if transpose:
+        muuttuja_meanDomain = np.rot90(muuttuja_meanDomain)  #zip(*muuttuja_meanDomain[::-1])#muuttuja_meanDomain.T
+
+    data = muuttuja_meanDomain[0,:,:]
+
+
+
+
+    def simData():
+        ajat  =  np.round( mdp.read_Data( filenameNC[0], 'time' ), 0 )
+        indeksijoukko = cycle( np.arange(np.shape(muuttuja_meanDomain)[0]) )
+        t_max = ajat[-1]
+        dt = ajat[2]-ajat[1]
+        t = 0.0
+
+        while t < t_max:
+            if not pause:
+                k = next(indeksijoukko)
+                data = muuttuja_meanDomain[k,:,:]
+                t = t + dt
+                
+            yield data, t
+
+    def simPoints(simData):
+        data, t = simData[0], simData[1]
+        time_text.set_text(time_template%(t))
+        cax.set_array( data )
+        return cax, time_text
+
+    global pause
+    pause = False
+
+    cax = ax.imshow( [[],[]] , interpolation='nearest', cmap=variKartta, aspect=asp, norm = norm, animated=True ) 
+    
+    if longName is None:
+        longName = muuttuja
+        
+    ax.set_title(longName)
+    
+    xt = mdp.read_Data( filenameNC[0], 'xt'     )
+    oikeatXtikit = np.arange( np.shape( data)[1], 0, -20  )
+    ax.set_yticks( oikeatXtikit  )
+    ax.set_xticklabels( map(str, xt) )
+
+    h = 0
+    for label in ax.xaxis.get_ticklabels():
+        if np.mod(h,20) != 0:
+            label.set_visible(False)
+        h+=1
+    
+
+    yt = mdp.read_Data( filenameNC[0], 'yt'     )
+    
+    oikeatYtikit = np.arange( np.shape(data)[0], 0, -20  )
+    ax.set_yticks( oikeatYtikit  )
+    ax.set_yticklabels( map(str, yt) )
+
+    j = 0
+    for label in ax.yaxis.get_ticklabels():
+        if np.mod(j,6) != 0:
+            label.set_visible(False)
+        j+=1
+
+
+    # Add colorbar, make sure to specify tick locations to match desired ticklabels
+    cbar = fig.colorbar(cax, ax=ax, shrink=.45, pad=.03, aspect=10, ticks = colorBarTickValues, norm = norm)
+    cbar.ax.set_yticklabels(colorBarTickNames)
+
+    time_template = 'Time = %.1f s'
+    time_text = ax.text(-1.00, 0.9, '', transform=ax.transAxes )
+    fig.canvas.mpl_connect('button_press_event', onClick)
+    ani = animation.FuncAnimation(fig, simPoints, simData, blit=False, interval=10, repeat=True)
+      
         
 ##############################
 #
@@ -860,33 +1007,38 @@ if ICE and not importOnly:
         cbvalICE    =  np.arange(0, 1.41, 0.1)
     cbvalICEStr = map(str, cbvalICE)
     
+    cbvalLIQPATH = np.arange(0, 61, 5)
+    cbvalLIQPATHStr = map(str, cbvalLIQPATH)
+    
     if int(lvl)>=4:
     
-        #piirra_aikasarjaPathXYZ( 'l', longName = 'Liquid Water Path', savePrefix = 'lwp', xlabel = 'time [h]' )
-        #mdp.plot_vertical( spinup )
-        #plt.xticks( xtikit, xlabels )
+        piirra_aikasarjaPathXYZ( 'l', longName = 'Liquid Water Path', savePrefix = 'lwp', xaxislabel = 'time [h]' )
+        mdp.plot_vertical( spinup )
+        plt.xticks( tuntileimat, xlabels )
         
         ##piirra_aikasarjasettii( muuttuja = 'lwp_bar', muunnosKerroin = 1000.0, longName = 'LWP', ylabel = 'LWP g/m^2', ymin = 0.0,  savePrefix = 'lwpTS', omaVari = False, xlabel = 'time [h]' )
         #mdp.plot_vertical( spinup )
-        #plt.xticks( xtikit, xlabels )
+        #plt.xticks( tuntileimat, xlabels )
         
-        piirra_domainProfiili( 'l', muunnosKerroin = 1000., longName = "ice1 Liquid water mixing ratio  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQ, colorBarTickNames = cbvalLIQStr, xlabels = xlabels, ylabels = ylabels, xticks = tuntileimat, yticks = korkeusleimat,  variKartta = profiiliVariLIQ, spinup = spinup )
+        piirra_domainProfiili( 'l', muunnosKerroin = 1000., longName = tag + "Liquid water mixing ratio  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQ, colorBarTickNames = cbvalLIQStr, xlabels = xlabels, ylabels = ylabels, xticks = tuntileimat, yticks = korkeusleimat,  variKartta = profiiliVariLIQ, spinup = spinup )
+        
+        #animoi_path( 'l', muunnosKerroin = 1000., longName = tag + "Liquid water path  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQPATH, colorBarTickNames = cbvalLIQPATHStr, xlabels = xlabels, ylabels = ylabels, xticks = tuntileimat, yticks = korkeusleimat,  variKartta = plt.cm.Reds, spinup = spinup )
         
         #piirra_MeanSize(tyyppi = 'cloud', ajanhetket = [6], korkeus = [700], color = 'r')
         
-        piirra_domainMeanProfiili( 'S_Nc',  muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
+        #piirra_domainMeanProfiili( 'S_Nc',  muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
         
         #piirra_domainProfiili( 'w_2', longName = tag + "vertical velocity squared " + r'$m^{2}/s^{-2}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xlabels, ylabels = ylabels, xticks = tuntileimat, yticks = korkeusleimat,  variKartta = plt.cm.RdPu, profiili = True, spinup = spinup )
         
     if int(lvl)>= 5:
-        #piirra_aikasarjaPathXYZ( 'f', longName = 'Ice Water Path', savePrefix = 'iwp', xlabel = 'time [h]' )
-        #mdp.plot_vertical( spinup )
-        #plt.xticks( xtikit, xlabels )
+        piirra_aikasarjaPathXYZ( 'f', longName = 'Ice Water Path', savePrefix = 'iwp', xaxislabel = 'time [h]',xlabels = xlabels, ylabels = ylabels, xticks = tuntileimat )
+        mdp.plot_vertical( spinup )
+        #plt.xticks( tuntileimat, xlabels )
     
 
         piirra_domainProfiili( 'f', muunnosKerroin = 1000.*np.power(10.,2), longName = tag + 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xlabels, ylabels = ylabels, xticks = tuntileimat, yticks = korkeusleimat, variKartta = profiiliVariICE, spinup = spinup  )
         
-
+        #animoi_path( 'f', muunnosKerroin = 1000., longName = tag + "Ice water path  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQPATH, colorBarTickNames = cbvalLIQPATHStr, xlabels = xlabels, ylabels = ylabels, xticks = tuntileimat, yticks = korkeusleimat,  variKartta = plt.cm.Blues, spinup = spinup )
         ## muuttuja, muunnosKerroin = 1.0, transpose = False, longName = None , savePrefix = None, useDN = False, colorBarTickValues = [0,1], colorBarTickNames = ['< -1', '0', '> 1'], xlabels = None, ylabels = None, xticks = None, yticks = None
         
         #piirra_MeanSize(tyyppi = 'ice', ajanhetket = [6], korkeus = [700] )
@@ -904,495 +1056,3 @@ print toc - tic
 ########################
 if piirra and not importOnly:
     mdp.plot_lopetus()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-###################################
-#if CLOUD:
-#    for i in xrange(len(arguments)-1):
-#        uusikuva = True if i == 0 else  False
-#
-#        time_data    = mdp.read_Data( filenameTS[i], 'time'    )
-#        top_Tdata    = mdp.read_Data( filenameTS[i], 'zc' )
-#        top_Tdata = top_Tdata/top_Tdata[0]
-#
-#        case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
-#        
-#        colorMap = thickness_color
-#        skal = thickness_design[ case_indeksi ] / np.max( thickness_design)
-#        color = colorMap(skal)
-#
-#        if 'maksimiCLOUD' in locals():
-#            maksimiCLOUD = max( maksimiCLOUD,   np.max( top_Tdata ) )
-#        else:
-#            maksimiCLOUD = np.max( top_Tdata )
-#        
-#        if 'minimiCLOUD' in locals():
-#            minimiCLOUD = min( minimiCLOUD,  np.min(top_Tdata) ) 
-#        else:
-#            minimiCLOUD = np.min( top_Tdata )
-#            
-#
-#        if LEGEND:
-#            nimi = 'Relative change of cloud top' + ' ' + tag + ' ' + 'LVL' + lvl +  ' ' + filenameNC[i].split("/")[-2]
-#        else:
-#            nimi = 'Relative change of cloud top' + ' ' + tag + ' ' + 'LVL' + lvl
-#            
-#        mdp.aikasarjaTulostus(  top_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva,    nimi = nimi, xnimi = 'time [s]', ynimi = 'relative change', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = color )
-#
-#
-#    mdp.plot_setYlim( minimiCLOUD, maksimiCLOUD, extendBelowZero = True)
-#
-#if saveFig:
-#    plt.savefig( picturefolder + 'change_of_cloud_top'+ '_' + tag + '_' + 'LVL'+lvl + '.png')
-###################################
-#if CFRAC:
-    #for i in xrange(len(arguments)-1):
-        #uusikuva = True if i == 0 else  False
-        #time_data    = mdp.read_Data( filenameTS[i], 'time'  )
-        #cfrac_Tdata  = mdp.read_Data( filenameTS[i], 'cfrac' )
-        
-        #case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
-        
-        #colorMap = thickness_color
-        #skal = thickness_design[ case_indeksi ] / np.max( thickness_design)
-        #color = colorMap(skal)
-
-        #if LEGEND:
-            #nimi = 'Cloud fraction' + ' ' + tag + ' ' + 'LVL' + lvl +  ' ' + filenameNC[i].split("/")[-2]
-        #else:
-            #nimi = 'Cloud fraction' + ' ' + tag + ' ' + 'LVL' + lvl
-
-        #if uusikuva:
-            #fig, ax = mdp.aikasarjaTulostus( cfrac_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'cloud fraction', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = color )
-        #else:
-            #mdp.aikasarjaTulostus( cfrac_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'cloud fraction', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = color )
-
-    ##cax.imshow(
-    #mdp.plot_setYlim( 0.0, 1.0, extendBelowZero = True)
-
-    
-    #if saveFig:
-        #plt.savefig( picturefolder + 'cfrac'+ '_' + tag + '_' + 'LVL'+lvl + '.png')
-
-###################################
-#if PRCP:
-#    for i in xrange(len(arguments)-1):
-#        uusikuva = True if i == 0 else  False
-#        time_data    = mdp.read_Data( filenameTS[i], 'time'    )
-#        prcp_Tdata  = mdp.read_Data( filenameTS[i], prcp )*sadekerroin
-#        
-#        aikaP = np.argmin( np.abs(ajanhetket - time_data) )
-#        
-#        case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
-#        
-#        colorMap = thickness_color
-#        skal = thickness_design[ case_indeksi ] / np.max( thickness_design)
-#        color = colorMap(skal)        
-#    
-#        maksimisateet[case_indeksi] = np.max(prcp_Tdata[aikaP:])
-#        if 'maksimiPRCP' in locals():
-#            maksimiPRCP = max( maksimiPRCP,   np.max(prcp_Tdata) ) 
-#        else:
-#            maksimiPRCP = np.max(prcp_Tdata)
-#
-#        if LEGEND:
-#            nimi = 'Surface precipitation' + ' ' + tag + ' ' + 'LVL' + lvl +  ' ' + filenameNC[i].split("/")[-2]
-#        else:
-#            nimi = 'Surface precipitation' + ' ' + tag + ' ' + 'LVL' + lvl
-#
-#        mdp.aikasarjaTulostus( prcp_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'precipitation W/m^2', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = color   )
-#
-#
-#    mdp.plot_setYlim( 0.0, maksimiPRCP, extendBelowZero = True)
-#
-#    if saveFig:
-#        plt.savefig( picturefolder + 'prcp'+ '_' + tag + '_' + 'LVL'+lvl + '.png')
-#print ' '
-#print 'SENSIBLE'
-###################################
-#if SHF:
-#    for i in xrange(len(arguments)-1):
-#        uusikuva = True if i == 0 else  False
-#
-#        time_data = mdp.read_Data( filenameTS[i], 'time'    )
-#        shf_Tdata = mdp.read_Data( filenameTS[i], 'shf_bar' )
-#
-#        case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
-#        maksimiSensible[ case_indeksi ] = np.max(shf_Tdata)
-#        
-#        if 'maksimiSHF' in locals():
-#            maksimiSHF = max( maksimiSHF,  np.max(shf_Tdata) )
-#        else:
-#            maksimiSHF = np.max(shf_Tdata)
-#        
-#        if 'minimiSHF' in locals():
-#            minimiSHF = min( minimiSHF,  np.min(shf_Tdata) )
-#        else:
-#            minimiSHF = np.min(shf_Tdata)
-#
-#        if LEGEND:
-#            nimi = 'Sensible heat flux' + ' ' + tag + ' ' + 'LVL' + lvl +  ' ' + filenameNC[i].split("/")[-2]
-#        else:
-#            nimi = 'Sensible heat flux' + ' ' + tag + ' ' + 'LVL' + lvl
-#            
-#        mdp.aikasarjaTulostus( shf_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'Sensible heat flux W/m^2', tightXAxis=tightXAxis, LEGEND=LEGEND )
-#        
-#    
-#    mdp.plot_setYlim( minimiSHF, maksimiSHF )
-#    if saveFig:
-#        plt.savefig( picturefolder + 'heat_flux_sensible'+ '_' + tag + '_' + 'LVL'+lvl + '.png')
-#
-#print ' '
-#print 'LATENT'
-###################################
-#if LHF:
-#    for i in xrange(len(arguments)-1):
-#        uusikuva = True if i == 0 else  False
-#
-#        time_data    = mdp.read_Data( filenameTS[i], 'time'    )
-#        lhf_Tdata = mdp.read_Data( filenameTS[i], 'lhf_bar' )
-#
-#        case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
-#        maksimiLatent[ case_indeksi ] = np.max( lhf_Tdata )
-#        if 'maksimiLHF' in locals():
-#            maksimiLHF = max( maksimiLHF,  np.max(lhf_Tdata) )
-#        else:
-#            maksimiLHF = np.max(lhf_Tdata)
-#        
-#        if 'minimiLHF' in locals():
-#            minimiLHF = min( minimiLHF,  np.min(lhf_Tdata) )
-#        else:
-#            minimiLHF = np.min(lhf_Tdata)
-#
-#        if LEGEND:
-#            nimi = 'Latent heat flux' + ' ' + tag + ' ' + 'LVL' + lvl +  ' ' + filenameNC[i].split("/")[-2]
-#        else:
-#            nimi ='Latent heat flux' + ' ' + tag + ' ' + 'LVL' + lvl
-#            
-#        mdp.aikasarjaTulostus( lhf_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'Latent heat flux W/m^2', tightXAxis=tightXAxis, LEGEND=LEGEND )    
-#
-#    mdp.plot_setYlim( minimiLHF, maksimiLHF )
-#    if saveFig:
-#        plt.savefig( picturefolder + 'heat_flux_latent'+ '_' + tag + '_' + 'LVL'+lvl + '.png')
-#
-#############################################
-#if LWP:
-#    for i in xrange(len(arguments)-1):
-#        uusikuva = True if i == 0 else  False
-#        
-#        time_data    = mdp.read_Data( filenameTS[i], 'time'    )
-#        liqWP_Tdata  = np.multiply( mdp.read_Data( filenameTS[i], 'lwp_bar' ), 1000.0)
-#        case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
-#        maksimiLWPlist[ case_indeksi ] = np.max(liqWP_Tdata)
-#        
-#        colorMap = thickness_color
-#        skal = thickness_design[ case_indeksi ] / np.max( thickness_design)
-#        color = colorMap(skal)
-#        
-#        if 'maksimiLWP' in locals():
-#            if maksimiLWP <  np.max(liqWP_Tdata):
-#                maksimiLWP    =    np.max(liqWP_Tdata)
-#        else:
-#            maksimiLWP    =    np.max(liqWP_Tdata)
-#        
-#        
-#        
-#        
-#        #if 'minimiLWP' in locals():
-#            #minimiLWP = min( minimiLWP,  np.min(liqWP_Tdata) )
-#        #else:
-#            #minimiLWP = np.min(liqWP_Tdata)
-#            
-#        if LEGEND:
-#            nimi = 'LWP' + ' ' + tag + ' ' + 'LVL' + lvl +  ' ' + filenameNC[i].split("/")[-2]
-#        else:
-#            nimi = 'LWP' + ' ' + tag + ' ' + 'LVL' + lvl
-#
-#        mdp.aikasarjaTulostus( liqWP_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'LWP g/m^2', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = color )
-#
-#
-#    mdp.plot_setYlim( 0.0, maksimiLWP )
-#    if saveFig:
-#        plt.savefig( picturefolder + 'lwp'+ '_' + tag + '_' + 'LVL'+lvl + '.png')
-
-#print ' '
-#print 'q profile changes'
-#if QDIFF:
-#    for i in xrange(len(arguments)-1):
-#        uusikuva = True if i == 0 else  False
-#        
-#        q_data      = mdp.read_Data( filenamePS[i], 'q' )   
-#        time_data   = mdp.read_Data( filenameTS[i], 'time'    )
-#
-#        height_data = mdp.read_Data( filenameNC[i], 'zt' )
-#        
-#
-#        aikaP = np.argmin( np.abs(ajanhetket - time_data) )
-#        
-#        #q_difference = q_data[ aikaP, : ] / q_data[ 0, : ] -1
-#
-#
-#        case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
-#        dens = 20
-#        
-#        fracZ   = np.zeros( dens*(len(height_data)-1) +1 )
-#        normZ   = np.zeros( len(fracZ) )
-#        
-#        qSpline = np.zeros( ( 2, len(fracZ) ) )
-#        
-#        
-#        for k in xrange(len(fracZ)-1):
-#            h_indeksi = int(np.floor(k/dens) )
-#            normZ[k] =  ( height_data[ h_indeksi ] + np.mod(k,dens)*(height_data[ h_indeksi + 1] - height_data[ h_indeksi ])/float(dens) )
-#            fracZ[k] =  normZ[k] / pblh_design[case_indeksi]
-#    
-#        normZ[-1] = height_data[-1]
-#        fracZ[-1] = normZ[-1] / pblh_design[case_indeksi]
-#        #np.set_printoptions(formatter={'float': lambda x: "{0:0.1f}".format(x)})
-#        tck0 = interpolate.splrep( height_data, q_data[ 0,: ]     )
-#        tckT = interpolate.splrep(height_data, q_data[ aikaP,:]  )
-#        for k in xrange( np.shape(qSpline)[1] ):
-#            qSpline[ 0,k ]  = interpolate.splev( normZ[k], tck0 )
-#            qSpline[ 1,k ]  = interpolate.splev( normZ[k], tckT )
-#        
-#        q_difference = qSpline[ 1,:] / qSpline[ 0,:] -1
-#            
-#
-#        #print 'minimi '  + str(np.min(liqWP_Tdata))
-#        #print 'maksimi ' + str(np.max(liqWP_Tdata))
-#        if 'maksimifracZ' in locals():
-#            maksimifracZ = max( maksimifracZ,  np.max(fracZ) )
-#        else:
-#            maksimifracZ = np.max(fracZ)
-#        
-#        if 'maksimiQ' in locals():
-#            maksimiQ = max( maksimiQ,  np.max(q_difference) )
-#        else:
-#           maksimiQ = np.max(q_difference)
-#
-#        if 'minimiQ' in locals():
-#            minimiQ = max( minimiQ,  np.max(q_difference) )
-#        else:
-#            minimiQ = np.max(q_difference)
-#        
-#        colorMap = pblh_color #plt.cm.Reds
-#        skal = pblh_design[ case_indeksi ] / np.max( pblh_design)
-#        color = colorMap(skal)
-#        #if 'minimiLWP' in locals():
-#            #minimiLWP = min( minimiLWP,  np.min(liqWP_Tdata) )
-#        #else:
-#            #minimiLWP = np.min(liqWP_Tdata)
-#        
-#        if LEGEND:
-#            nimi = 'Total water mix. rat g/m^2 difference between 0h & '+str((ajanhetket/3600.)) + 'h' + ' ' + tag + ' ' + 'LVL' + lvl +  ' ' + filenameNC[i].split("/")[-2]
-#        else:
-#            nimi = 'Total water mix. rat g/m^2 difference between 0h & '+str((ajanhetket/3600.)) + 'h' + ' ' + tag + ' ' + 'LVL' + lvl
-#
-#        mdp.profiiliTulostus( q_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = r'$\frac{q_{t=2h}}{q_{t=0h}}-1$', ynimi = 'z/pblh', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = color )
-#
-#    mdp.plot_setYlim( 0.0, 1.01 )
-#    plt.xlim( -0.3, 0.025)
-#    if saveFig:
-#        plt.savefig( picturefolder + 'q_diff'+ '_' + tag + '_' + 'LVL'+lvl + '.png')
-
-#############################################
-##print ' '
-##print 't profile changes'
-#if TDIFF:
-#    for i in xrange(len(arguments)-1):
-#        uusikuva = True if i == 0 else  False
-#        
-#        t_data      = mdp.read_Data( filenamePS[i], 't' )   
-#        time_data   = mdp.read_Data( filenameTS[i], 'time'    )
-#
-#        height_data = mdp.read_Data( filenameNC[i], 'zt' )
-#        
-#        aikaP = np.argmin( np.abs(ajanhetket - time_data) )
-#        
-#        #t_difference = t_data[ aikaP, : ] / t_data[ 0, : ] -1
-#
-#
-#        case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
-#        dens = 20
-#        
-#        fracZ   = np.zeros( dens*(len(height_data)-1) +1 )
-#        normZ   = np.zeros( len(fracZ) )
-#        
-#        tSpline = np.zeros( ( 2, len(fracZ) ) )
-#        
-#        
-#        for k in xrange(len(fracZ)-1):
-#            h_indeksi = int(np.floor(k/dens) )
-#            normZ[k] =  ( height_data[ h_indeksi ] + np.mod(k,dens)*(height_data[ h_indeksi + 1] - height_data[ h_indeksi ])/float(dens) )
-#            fracZ[k] =  normZ[k] / pblh_design[case_indeksi]
-#    
-#        normZ[-1] = height_data[-1]
-#        fracZ[-1] = normZ[-1] / pblh_design[case_indeksi]
-#        #np.set_printoptions(formatter={'float': lambda x: "{0:0.1f}".format(x)})
-#        tck0 = interpolate.splrep( height_data, t_data[ 0,: ]     )
-#        tckT = interpolate.splrep(height_data, t_data[ aikaP,:]  )
-#        for k in xrange( np.shape(tSpline)[1] ):
-#            tSpline[ 0,k ]  = interpolate.splev( normZ[k], tck0 )
-#            tSpline[ 1,k ]  = interpolate.splev( normZ[k], tckT )
-#        
-#        t_difference = tSpline[ 1,:] / tSpline[ 0,:] -1
-#            
-#
-#        #print 'minimi '  + str(np.min(liqWP_Tdata))
-#        #print 'maksimi ' + str(np.max(liqWP_Tdata))
-#        if 'maksimifracZ' in locals():
-#            maksimifracZ = max( maksimifracZ,  np.max(fracZ) )
-#        else:
-#            maksimifracZ = np.max(fracZ)
-#        
-#        if 'maksimiT' in locals():
-#            maksimiT = max( maksimiT,  np.max(t_difference) )
-#        else:
-#            maksimiT = np.max(t_difference)
-#
-#        if 'minimiT' in locals():
-#            minimiT = max( minimiT,  np.max(t_difference) )
-#        else:
-#            minimiT = np.max(t_difference)
-#        
-#        colorMap = pblh_color # plt.cm.Reds
-#        skal = pblh_design[ case_indeksi ] / np.max( pblh_design)
-#        color = colorMap(skal)
-#        #if 'minimiLWP' in locals():
-#            #minimiLWP = min( minimiLWP,  np.min(liqWP_Tdata) )
-#        #else:
-#            #minimiLWP = np.min(liqWP_Tdata)
-#        
-#        if LEGEND:
-#            nimi = 'Temperature [K] difference between 0h & '+str((ajanhetket/3600.)) + 'h' + ' ' + tag + ' ' + 'LVL' + lvl +  ' ' + filenameNC[i].split("/")[-2]
-#        else:
-#            nimi = 'Temperature [K] difference between 0h & '+str((ajanhetket/3600.)) + 'h' + ' ' + tag + ' ' + 'LVL' + lvl
-#
-#        mdp.profiiliTulostus( t_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = r'$\frac{t_{t=2h}}{t_{t=0h}}-1$', ynimi = 'z/pblh', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = color )
-#
-#    mdp.plot_setYlim( 0.0, 1.01 )
-#    plt.xlim( -0.05, 0.025)
-#    if saveFig:
-#        plt.savefig( picturefolder + 't_diff'+ '_' + tag + '_' + 'LVL'+lvl + '.png')
-#
-###################################
-#if CDNC:
-#    for i in xrange(len(arguments)-1):
-#        uusikuva = True if i == 0 else  False
-#        time_data    = mdp.read_Data( filenameTS[i], 'time'    )
-#        Nc_ic_Tdata  = mdp.read_Data( filenameTS[i], 'Nc_ic' )
-#        case_indeksi = int(filenameTS[i].split("/")[-2][-2:])-1
-#        Nc_ic_Tdata = Nc_ic_Tdata / (np.ones(len(Nc_ic_Tdata))*num_pbl_design[case_indeksi]*1e6)
-#        
-#        colorMap = num_pbl_color # plt.cm.Oranges
-#        skal = num_pbl_design[ case_indeksi ] / np.max( num_pbl_design )
-#        
-#        color = colorMap(skal)
-#
-#        #maksimicdnc[i] = np.max(Nc_ic_Tdata)
-#        if 'maksimiCDNC' in locals():
-#            maksimiCDNC = max( maksimiCDNC,   np.max(Nc_ic_Tdata) ) 
-#        else:
-#            maksimiCDNC = np.max(Nc_ic_Tdata)
-#
-#        if LEGEND:
-#            nimi = 'Relative change of In-cloud CDNC #/kg' + ' ' + tag + ' ' + 'LVL' + lvl +  ' ' + filenameNC[i].split("/")[-2]
-#        else:
-#            nimi = 'Relative change of In-cloud CDNC #/kg' + ' ' + tag + ' ' + 'LVL' + lvl
-#
-#        mdp.aikasarjaTulostus( Nc_ic_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = 'time [s]', ynimi = 'Relative change of In-cloud CDNC #/kg', tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = color  )
-#
-#
-#    mdp.plot_setYlim( 0.0, maksimiCDNC, extendBelowZero = True)
-#
-#    if saveFig:
-#        plt.savefig( picturefolder + 'cdnc'+ '_' + tag + '_' + 'LVL'+lvl + '.png')
-#

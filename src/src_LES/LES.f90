@@ -101,7 +101,7 @@ contains
          minispinup01, minispinup02, minispinupCase01, minispinupCase02 ! debugkebab
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand
-    use stat, only : ssam_intvl, savg_intvl, mcflg, csflg
+    use stat, only : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
     USE forc, ONLY : radsounding, &        ! Juha: added for radiation background profile
                      div, case_name, &     ! Divergence, forcing case name
                      sfc_albedo, &         ! Surface albedo
@@ -119,6 +119,8 @@ contains
          ssam_intvl,       & ! integral accumulate/ts print frequency
          mcflg,            & ! Mass conservation stats flag
          csflg,            & ! Column statistics flag
+         salsa_b_bins,     & ! b-bins output statistics flag
+         cloudy_col_stats, & ! Output column statistics for cloudy/clear columns
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          level  , CCN    , & ! Microphysical model Number of CCN per kg of air

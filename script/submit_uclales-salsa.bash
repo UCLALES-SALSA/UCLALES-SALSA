@@ -96,14 +96,8 @@ echo "job scheduling system" $jobflag
 ###			                 ###
 ################################
 
-mode=${mode:-mpi}
+exe=${exe:-les.mpi}
 
-# nn=$(( ${#mode}- 4 ))
-# if [[ $nn -gt 0 ]]; then
-#     outputname=${1}_${mode:$((${#mode}-$nn)):$nn}
-# else
-#     outputname=$1
-# fi
 
 
 ################################
@@ -130,7 +124,7 @@ fi
 # copy executables and input files to running directory
 if [ $COPY == 'true' ]; then
     
-    cp ${bin}/les.${mode} ${rundir}/
+    cp ${bin}/${exe} ${rundir}/
     cp ${bin}/datafiles/* ${datadir}/
     
     cp ${input}/sound_in ${rundir}/
@@ -192,7 +186,7 @@ set -e
 
 cd ${rundir}
 
-aprun -n ${nproc} les.${mode} | tee ${PBS_JOBNAME:-interactive}.${PBS_JOBID:-help}
+aprun -n ${nproc} ${exe} | tee ${PBS_JOBNAME:-interactive}.${PBS_JOBID:-help}
 
 exit
 
@@ -229,7 +223,7 @@ set -e
 
 cd ${rundir}
 
-srun les.${mode}
+srun ${exe}
 
 exit
 

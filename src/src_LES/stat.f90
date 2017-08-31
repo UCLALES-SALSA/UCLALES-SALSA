@@ -20,8 +20,8 @@
 module stat
 
   use ncio, only : open_nc, define_nc, define_nc_cs
-  use grid, only : level
-  use util, only : get_avg, get_avg3, get_cor3, get_var3, get_avg_ts, &
+  use grid, only : level, lbinanl
+  use util, only : get_avg3, get_cor3, get_var3, get_avg_ts, &
                    get_avg2dh, get_3rd3
 
   implicit none
@@ -31,7 +31,7 @@ module stat
                         nv1sbulk = 62,            &
                         nv1MB = 4,                &
                         nvar2 = 92,               &
-                        nv2sbulk = 40,            &
+                        nv2sbulk = 46,            &
                         nv2saa = 8, nv2sab = 8,   &
                         nv2sca = 8, nv2scb = 8,   &
                         nv2sp = 8
@@ -45,6 +45,8 @@ module stat
   logical            :: sflg = .false.
   LOGICAL            :: mcflg = .FALSE.
   LOGICAL            :: csflg = .FALSE.
+  LOGICAL            :: salsa_b_bins = .FALSE.
+  LOGICAL            :: cloudy_col_stats = .FALSE.
   real               :: ssam_intvl = 30.   ! statistical sampling interval
   real               :: savg_intvl = 1800. ! statistical averaging interval
 
@@ -115,7 +117,8 @@ module stat
         'P_cSSa ','P_cSSc ','P_cSSp ',                               & !28
         'P_cNH3a','P_cNH3c','P_cNH3p',                               & !31
         'P_cNO3a','P_cNO3c','P_cNO3p',                               & !34
-        'P_rl   ','P_rr   ','P_rv   ','P_RH   '/),                   & !37, total 40
+        'P_rl   ','P_rr   ','P_rv   ','P_RH   ',                     & !37
+        'P_Na_c ','P_Nc_c ','P_Np_c ','P_cfrac', 'P_clw_c','P_thl_c'/),    & ! 41, total 46
 
         ! **** BINNED PROFILE OUTPUT FOR SALSA ****
         ! **** Aerosols
@@ -160,7 +163,8 @@ module stat
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
        acc_tend, updtst, sfc_stat, close_stat, fill_scalar, tke_sgs, sgsflxs,&
-       sgs_vel, comp_tke, get_zi, acc_removal, cs_rem_set, acc_massbudged, write_massbudged, mcflg, csflg
+       sgs_vel, comp_tke, get_zi, acc_removal, cs_rem_set, acc_massbudged, write_massbudged, mcflg, csflg, &
+       salsa_b_bins, cloudy_col_stats
 
 contains
   !
@@ -454,6 +458,25 @@ contains
 
        s2bool(nvar2+37:nvar2+40) = .TRUE.     ! Water mixing ratios
 
+       s2bool(nvar2+41:nvar2+nv2sbulk) = cloudy_col_stats   ! Stats for cloudy columns
+
+       ! Bin statistics not always saved
+       IF (.not. lbinanl) &
+            s2bool(nvar2+nv2sbulk+1:nvar2+nv2sbulk+nv2saa+nv2sab+nv2sca+nv2scb) = .FALSE.
+
+       ! b-bins are not always saved
+       IF (.not. salsa_b_bins) THEN
+          ! Concentrations and sizes
+          s2bool(nvar2+7) = .FALSE.
+          s2bool(nvar2+9) = .FALSE.
+          s2bool(nvar2+12) = .FALSE.
+          s2bool(nvar2+14) = .FALSE.
+
+          ! Mass concentrations for aerosol and cloud species
+          s2bool(nvar2+nv2sbulk+nv2saa+1:nvar2+nv2sbulk+nv2saa+nv2sab) = .FALSE.
+          s2bool(nvar2+nv2sbulk+nv2saa+nv2sab+nv2sca+1:nvar2+nv2sbulk+nv2saa+nv2sab+nv2sca+nv2scb) = .FALSE.
+       ENDIF
+
        IF (csflg .and. level>3) THEN
            ! Allocate array for level 4 removal rate column statistics
            ! Total number of ouputs is 3 for warm (aerosol, cloud and precipitation)
@@ -513,7 +536,7 @@ contains
   ! Jaakko Ahola, FMI, 2016
   subroutine statistics(time)
 
-    use grid, only : a_up, a_vp, a_wp, a_rc, a_theta, a_rsl           &
+    use grid, only : a_up, a_vp, a_wp, a_rc, a_theta           &
          , a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean            &
          , vmean, dn0, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx               &
          , a_sflx, albedo, a_srp, a_snrp, a_ri, a_ncloudp, a_nprecpp, xt, yt
@@ -549,7 +572,7 @@ contains
     end if
     if (level >=1) call accum_lvl1(nzp, nxp, nyp, rxt)
     if (level >=2) call accum_lvl2(nzp, nxp, nyp, th00, dn0, zm, a_wp,        &
-                                   a_theta, a_tp, a_rc, a_rsl, rxt   )
+                                   a_theta, a_tp, a_rc, rxt   )
     if (level >=3) call accum_lvl3(nzp, nxp, nyp, dn0, zm, a_rc, xrpp,  &
                                    xnpp, precip, CCN                    )
     if (level >=4)  call accum_lvl4(nzp, nxp, nyp)
@@ -560,7 +583,7 @@ contains
     !
     call set_ts(nzp, nxp, nyp, a_wp, a_theta, dn0, zt,zm,dzt,dzm,th00,time)
     IF ( level >=1 ) CALL ts_lvl1(nzp, nxp, nyp, dn0, zt, dzm, rxt)
-    IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, rxt, a_rsl, zt)
+    IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, a_rc, zt)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp, a_rc)
     !IF ( level >=5 ) CALL ts_lvl5(nzp, nxp, nyp, a_ri) ! should be ,a_rsi) ? ! debugkebab poista kommentti tästä
 
@@ -598,14 +621,14 @@ contains
             rnt = CCN
             xrpp = a_rpp
             xnpp = a_npp
-        ELSE
+        ELSEif (level==4 .OR. level==5) THEN
             ! Levels 4 and 5
             rxt = a_rc
             rnt = SUM(a_ncloudp,DIM=4)
             xrpp = a_srp
             xnpp = a_snrp
         ENDIF
-        CALL set_cs_warm(nzp,nxp,nyp,rxt,rnt,xrpp,xnpp,dn0,zm,zt,xt,yt,time)
+        CALL set_cs_warm(nzp,nxp,nyp,rxt,rnt,xrpp,xnpp,a_theta,dn0,zm,zt,dzm,xt,yt,time)
     ENDIF
 
   end subroutine statistics
@@ -694,7 +717,7 @@ contains
 
     INTEGER, INTENT(in) :: n2,n3
 
-    INTEGER :: si, i, end,str
+    INTEGER :: si, i
     CHARACTER(LEN=3) :: nam
 
     IF (.NOT.csflg) RETURN
@@ -735,18 +758,19 @@ contains
   END SUBROUTINE cs_rem_save
   !
   ! Calculate warm cloud statistics
-  subroutine set_cs_warm(n1,n2,n3,rc,nc,rp,np,dn0,zm,zt,xt,yt,time)
+  subroutine set_cs_warm(n1,n2,n3,rc,nc,rp,np,th,dn0,zm,zt,dzm,xt,yt,time)
 
     use netcdf
-    integer :: iret, n, VarID
+    integer :: iret, VarID
 
     integer, intent(in) :: n1,n2,n3
-    real, intent(in)    :: rc(n1,n2,n3),nc(n1,n2,n3),rp(n1,n2,n3),np(n1,n2,n3)
-    real, intent(in)    :: dn0(n1),zm(n1),zt(n1),xt(n2),yt(n3),time
-    REAL :: lwp(n2,n3), ncld(n2,n3), rwp(n2,n3), nrain(n2,n3), zb(n2,n3), zc(n2,n3)
+    real, intent(in)    :: rc(n1,n2,n3),nc(n1,n2,n3),rp(n1,n2,n3),np(n1,n2,n3),th(n1,n2,n3)
+    real, intent(in)    :: dn0(n1),zm(n1),zt(n1),dzm(n1),xt(n2),yt(n3),time
+    REAL :: lwp(n2,n3), ncld(n2,n3), rwp(n2,n3), nrain(n2,n3), zb(n2,n3), zc(n2,n3), &
+                th1(n2,n3), lmax(n2,n3)
     INTEGER :: ncloudy(n2,n3), nrainy(n2,n3)
     integer :: i, j, k
-    real    :: bf(n1), cld, rn
+    real    :: cld, rn, sval, dmy
 
     ! No outputs for level 1
     IF (level<2) RETURN
@@ -760,10 +784,13 @@ contains
     nrainy=0    ! Number of cloudy grid cells
     zb=zm(n1)+100.  ! Cloud base (m)
     zc=0.           ! Cloud top (m)
+    lmax=0.     ! Liquid water mixing ratio (kg/kg)
+    th1=0.      ! Height of the maximum theta gradient
     do j=3,n3-2
        do i=3,n2-2
           cld=0.
           rn=0.
+          sval = 0.
           do k=2,n1
              IF (rc(k,i,j)>0.01e-3) THEN
                 ! Cloudy grid
@@ -781,11 +808,21 @@ contains
                 ! Rainy grid cell
                 rwp(i,j)=rwp(i,j)+rp(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
                 ! Volume weighted average of the RDNC
-                nrain(i,j)=ncld(i,j)+nc(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+                nrain(i,j)=ncld(i,j)+np(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
                 rn=rn+dn0(k)*(zm(k)-zm(k-1))
                 ! Number of rainy pixels
                 nrainy(i,j)=nrainy(i,j)+1
              end if
+             ! Maximum liquid water mixing ratio
+             lmax(i,j) = max(lmax(i,j),rc(k,i,j))
+             ! Height of the maximum theta gradient
+             if (k<=n1-5) then
+                dmy = (th(k+1,i,j)-th(k,i,j))*dzm(k)
+                if (dmy > sval ) then
+                   sval = dmy
+                   th1(i,j) = zt(k)
+                end if
+            ENDIF
           enddo
           IF (cld>0.) THEN
             ncld(i,j)=ncld(i,j)/cld
@@ -834,6 +871,11 @@ contains
     iret = nf90_inq_varid(ncid3,'zc',VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, zc(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
+    iret = nf90_inq_varid(ncid3,'zi1',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, th1(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+
+    iret = nf90_inq_varid(ncid3,'lmax',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, lmax(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_sync(ncid3)
     nrec3 = nrec3 + 1
@@ -895,13 +937,13 @@ contains
   ! -----------------------------------------------------------------------
   ! subroutine ts_lvl2: computes and writes time sequence stats
   !
-  subroutine ts_lvl2(n1,n2,n3,rt,rs,zt)
+  subroutine ts_lvl2(n1,n2,n3,rc,zt)
 
     integer, intent(in) :: n1,n2,n3
-    real, intent(in)    :: rt(n1,n2,n3),rs(n1,n2,n3), zt(n1)
+    real, intent(in)    :: rc(n1,n2,n3), zt(n1)
 
     integer :: k,i,j
-    real    :: cpnt, unit, xaqua
+    real    :: cpnt, unit
 
     ssclr(18)  = zt(n1)
     ssclr(19)  = 0.
@@ -913,12 +955,11 @@ contains
        do i=3,n2-2
           cpnt  = 0.
           do k=2,n1-2
-             xaqua = rt(k,i,j) - rs(k,i,j)
-             if (xaqua > 1.e-5) then
+             if (rc(k,i,j) > 1.e-5) then
                 ssclr(17) = max(ssclr(17),zt(k))
                 ssclr(18) = min(ssclr(18),zt(k))
                 cpnt = unit
-                ssclr(20) = max(ssclr(20), xaqua)
+                ssclr(20) = max(ssclr(20), rc(k,i,j))
                 ssclr(28) = ssclr(28) + 1.
              end if
           end do
@@ -1108,7 +1149,7 @@ contains
           svctr(k,57)=svctr(k,57) + a1(k)
           svctr(k,58)=svctr(k,58) + a2(k)
        end do
-       ssclr(21) = get_avg(1,n2,n3,1,alb)
+       ssclr(21) = get_avg2dh(n2,n3,alb)
     end if
 
   end subroutine accum_rad
@@ -1142,14 +1183,14 @@ contains
   ! on level 2 variables.
   !
   subroutine accum_lvl2(n1, n2, n3, th00, dn0, zm, w, th, tl, &
-       rl, rs, rt)
+       rl, rt)
 
     use defs, only : ep2
 
     integer, intent (in) :: n1,n2,n3
     real, intent (in)                       :: th00
     real, intent (in), dimension(n1)        :: zm, dn0
-    real, intent (in), dimension(n1,n2,n3)  :: w, th, tl, rl, rs, rt
+    real, intent (in), dimension(n1,n2,n3)  :: w, th, tl, rl, rt
 
     real, dimension(n1,n2,n3) :: tv    ! Local variable
     integer                   :: k, i, j, kp1
@@ -1181,7 +1222,7 @@ contains
        if (k==n1) kp1=k
        do j=3,n3-2
           do i=3,n2-2
-             if (rt(k,i,j) > rs(k,i,j) + 0.01e-3) then
+             if (rl(k,i,j) > 1.e-5) then
                 xy1(k,i,j)=1.
                 if (tv(k,i,j) > tvbar(k)) THEN
                    xy2(k,i,j)=1.
@@ -1249,9 +1290,9 @@ contains
           enddo
        end do
     end do
-    ssclr(15) = get_avg(1,n2,n3,1,scr(1,:,:))
+    ssclr(15) = get_avg2dh(n2,n3,scr(1,:,:))
     scr(1,:,:)=(scr(1,:,:)-ssclr(15))**2 ! For LWP variance
-    ssclr(16) = get_avg(1,n2,n3,1,scr(1,:,:))
+    ssclr(16) = get_avg2dh(n2,n3,scr(1,:,:))
   end subroutine accum_lvl2
   !
   !---------------------------------------------------------------------
@@ -1355,9 +1396,9 @@ contains
        end do
        if (k == 2 ) ssclr(24) = rrcnt/REAL( (n3-4)*(n2-4) )
     end do
-    ssclr(22) = get_avg(1,n2,n3,1,scr2)
+    ssclr(22) = get_avg2dh(n2,n3,scr2)
     scr2(:,:) = rrate(2,:,:)
-    ssclr(23) = get_avg(1,n2,n3,1,scr2)
+    ssclr(23) = get_avg2dh(n2,n3,scr2)
     ssclr(25) = CCN
     IF (nrcnt>0.) ssclr(26) = nrsum/nrcnt
     ssclr(27) = nrcnt
@@ -1374,18 +1415,17 @@ contains
                                nprc,nlim,prlim
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                      a_rc, a_srp, a_rp, a_rh, prtcl,    &
-                     a_naerop, a_ncloudp, a_nprecpp
+                     a_naerop, a_ncloudp, a_nprecpp, a_tp
     USE class_ComponentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3
-    INTEGER :: ii,ss,k,bb
+    INTEGER :: ii,ss,bb
 
     LOGICAL :: cloudmask(n1,n2,n3)
     LOGICAL :: drizzmask(n1,n2,n3)
 
-    REAL :: a0
     REAL, DIMENSION(n1,n2,n3)           :: a1,a12
     REAL, DIMENSION(n1,5)               :: a2
     REAL, DIMENSION(n1,fn2a)            :: a3_a
@@ -1549,9 +1589,54 @@ contains
 
     ! Relative humidity
     CALL get_avg3(n1,n2,n3,a_rh,a2(:,4))
+    a2(:,4)=a2(:,4)*100.0 ! RH in %
 
     svctr_b(:,37:40) = svctr_b(:,37:40) + a2(:,1:4)
 
+    ! Stats for cloudy columns
+    !   Cloudy column: LWC > 1e-5 kg/kg and CDNC>nlim anywhere in a column
+    IF (cloudy_col_stats) THEN
+        ! Total cloud droplets
+        CALL bulkNumc('cloud','ab',a1)
+        ! Which columns should be included
+        cloudmask(1,:,:)=ANY( (a1>nlim .AND. a_rc>1.e-5), DIM=1)
+        ! Fill array
+        DO ii=2,n1
+            cloudmask(ii,:,:)=cloudmask(1,:,:)
+        ENDDO
+
+        ! Save the fraction of cloudy columns
+        WHERE (cloudmask)
+            a1=1.
+        ELSEWHERE
+            a1=0.
+        END WHERE
+        CALL get_avg3(n1,n2,n3,a1,a2(:,4),cond=cloudmask)
+
+        ! Aerosol number concentration (a+b)
+        CALL bulkNumc('aerosol','ab',a1)
+        CALL get_avg3(n1,n2,n3,a1,a2(:,1),cond=cloudmask)
+
+        ! Cloud droplet number concentration (a+b)
+        CALL bulkNumc('cloud','ab',a1)
+        CALL get_avg3(n1,n2,n3,a1,a2(:,2),cond=cloudmask)
+
+        ! Rain drop number concentration
+        CALL bulkNumc('precp','a',a1)
+        CALL get_avg3(n1,n2,n3,a1,a2(:,3),cond=cloudmask)
+
+        ! Save
+        svctr_b(:,41:44) = svctr_b(:,41:44) + a2(:,1:4)
+
+        ! Cloud liquid water mixing ratio
+        CALL get_avg3(n1,n2,n3,a_rc,a2(:,1),cond=cloudmask)
+
+        ! Liquid water potential temperature
+        CALL get_avg3(n1,n2,n3,a_tp,a2(:,2),cond=cloudmask)
+
+        ! Save
+        svctr_b(:,45:46) = svctr_b(:,45:46) + a2(:,1:2)
+    ENDIF
   end subroutine accum_lvl4
 
   !
@@ -1563,7 +1648,7 @@ contains
     real, intent (in)    :: dzm(n1),th00,u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
     real, intent (inout) :: s(n1,n2,n3)
 
-    integer :: k,kp1,i,j
+    integer :: k,kp1
     real    :: x1(n1), x2(n1)
 
     !
@@ -1740,6 +1825,9 @@ contains
           svctr_ca(k,:,:) = svctr_ca(k,:,:)/nsmp
           svctr_cb(k,:,:) = svctr_cb(k,:,:)/nsmp
           svctr_p(k,:,:) = svctr_p(k,:,:)/nsmp
+
+          ! Replace level 3 CDNC=CCN with that from SALSA (a + b bins)
+          svctr(k,84)=svctr_b(k,8)+svctr_b(k,9)
        END IF
 
     end do
@@ -1866,10 +1954,10 @@ contains
     real, intent(in)    :: sst
 
     ssclr(10) = sst
-    ssclr(11) = get_avg(1,n2,n3,1,ustar)
+    ssclr(11) = get_avg2dh(n2,n3,ustar)
 
-    ssclr(12) = get_avg(1,n2,n3,1,tflx)
-    if (level >= 1) ssclr(13) = get_avg(1,n2,n3,1,qflx)
+    ssclr(12) = get_avg2dh(n2,n3,tflx)
+    if (level >= 1) ssclr(13) = get_avg2dh(n2,n3,qflx)
 
   end subroutine sfc_stat
   !
@@ -2430,7 +2518,7 @@ contains
              end do
           end do
        end do
-       get_zi = get_avg(1,n2,n3,1,scr)
+       get_zi = get_avg2dh(n2,n3,scr)
 
     case(3)
        !

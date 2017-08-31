@@ -42,12 +42,12 @@ contains
   subroutine initialize
 
     use step, only : time, outflg
-    use stat, only : init_stat, mcflg, acc_massbudged
+    use stat, only : init_stat, mcflg, acc_massbudged, salsa_b_bins
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : nbins ! Olis parempi jos ei tarttis
+    USE mo_submctl, ONLY : nbins, in2b, fn2b, iib, fib, nlim, prlim ! Olis parempi jos ei tarttis
     USE util, ONLY : maskactiv
     USE class_ComponentIndex, ONLY : GetNcomp
 
@@ -56,12 +56,9 @@ contains
     ! Local variables for SALSA basic state
     REAL :: zwp(nzp,nxp,nyp), ztkt(nzp,nxp,nyp)
     LOGICAL :: zactmask(nzp,nxp,nyp)
-    LOGICAL :: TMP
     INTEGER :: n4
     
     ztkt = 0.
-
-    TMP = .false.
 
     ! Set vertical velocity as 0.5 m/s to intialize cloud microphysical properties with
     ! SALSA
@@ -91,10 +88,6 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  a_Radry,   a_Rcdry,   a_Rpdry,               &
-                  a_Ridry,   a_Rsdry,                          &
-                  a_Rawet,   a_Rcwet,   a_Rpwet,               &
-                  a_Riwet,   a_Rswet,                          &
                   1, prtcl, dtlt, .false., 0., level,zt   )
           ELSE
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
@@ -104,11 +97,7 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  a_Radry,   a_Rcdry,   a_Rpdry,               &
-                  a_Ridry,   a_Rsdry,                          &
-                  a_Rawet,   a_Rcwet,   a_Rpwet,               &
-                  a_Riwet,   a_Rswet,                          &
-                  1, prtcl, dtlt, .false., 0., level, zt   )
+                  1, prtcl, dtlt, .false., 0., level,zt   )
 
           END IF
           CALL SALSAInit
@@ -123,6 +112,15 @@ contains
        if (myid == 0) print *,'  ABORTING:  Invalid Runtype'
        call appl_abort(0)
     end if ! runtype
+
+
+    ! When SALSA b-bin outputs are needed?
+    !   -level >= 4
+    !   -outputs are forced (salsa_b_bins=.true.)
+    !   -b-bins initialized with non-zero concentration
+    !   -nucleation set to produce particles to b bins (currently only a bins)
+    IF (level >= 4 .and. (.not. salsa_b_bins)) &
+       salsa_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim ) .OR. any( a_nicep(:,:,:,iib%cur:fib%cur)>prlim )
 
     call sponge_init
     call init_stat(time+dtl,filprf,expnme,nzp)
@@ -143,11 +141,11 @@ contains
     if (outflg) then
        if (runtype == 'INITIAL') then
           call write_hist(1, time)
-          call init_analysis(time)
+          call init_analysis(time,salsa_b_bins)
           call thermo(level)
           call write_analysis(time)
        else
-          call init_analysis(time+dtl)
+          call init_analysis(time+dtl,salsa_b_bins)
           call write_hist(0, time)
        end if
     end if !outflg
@@ -705,9 +703,9 @@ contains
   !
   SUBROUTINE SALSAInit
     USE mo_submctl, ONLY : ncld,nbins,nice
+    USE class_componentIndex, ONLY : GetIndex
     IMPLICIT NONE
-
-    INTEGER :: k,i,j,bb
+    INTEGER :: k,i,j,bb,nc
 
     DO j=1,nyp
        DO i=1,nxp
@@ -731,20 +729,21 @@ contains
        END DO
     END DO
 
+    nc = GetIndex(prtcl,'H2O')
     ! Activation + diagnostic array initialization
     ! Clouds and aerosols
     a_rc(:,:,:) = 0.
     DO bb = 1, ncld
-       CALL DiagInitCloud(bb)
+       a_rc(:,:,:) = a_rc(:,:,:) + a_mcloudp(:,:,:,(nc-1)*ncld+bb)
     END DO
     DO bb = 1,nbins
-       CALL DiagInitAero(bb)
+       a_rc(:,:,:) = a_rc(:,:,:) + a_maerop(:,:,:,(nc-1)*nbins+bb)
     END DO
 
     ! Ice
     a_ri(:,:,:) = 0.
     do bb = 1,nice
-        call DiagInitIce(bb)
+        a_ri(:,:,:) = a_ri(:,:,:) + a_micep(:,:,:,(nc-1)*nice + bb)
     end do
 
   END SUBROUTINE SALSAInit
@@ -800,117 +799,8 @@ contains
     END DO
 
   END SUBROUTINE ActInit
-  !------------------------------------------
-  SUBROUTINE DiagInitCloud(b)
-    USE mo_submctl, ONLY : ncld, pi6, rhowa, rhosu, nlim
-    USE class_componentIndex, ONLY : GetIndex
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: b
-
-    INTEGER :: str,k,i,j,nc
-    REAL :: zvol
-
-    nc = GetIndex(prtcl,'H2O')
-    str = (nc-1)*ncld+b
-
-       DO j = 1,nyp
-          DO i = 1,nxp
-             DO k = 1,nzp
-
-                IF (a_ncloudp(k,i,j,b)  > nlim) THEN
-                   CALL binMixrat('cloud','dry',b,i,j,k,zvol)
-                   zvol = zvol/rhosu
-                   a_Rcdry(k,i,j,b) = 0.5*( zvol/(pi6*a_ncloudp(k,i,j,b)) )**(1./3.)
-                   CALL binMixrat('cloud','wet',b,i,j,k,zvol)
-                   zvol = zvol/rhowa
-                   a_Rcwet(k,i,j,b) = 0.5*( zvol/(pi6*a_ncloudp(k,i,j,b)) )**(1./3.)
-                ELSE
-                   a_Rcdry(k,i,j,b) = 1.e-10
-                   a_Rcwet(k,i,j,b) = 1.e-10
-                END IF
-
-                ! Cloud water
-                a_rc(k,i,j) = a_rc(k,i,j) + a_mcloudp(k,i,j,str)
-
-             END DO ! k
-          END DO ! i
-       END DO ! j
-  END SUBROUTINE DiagInitCloud
     !------------------------------------------
-  SUBROUTINE DiagInitIce(b)
-    USE mo_submctl, ONLY : nice, pi6, rhosu,rhoic, prlim
-    USE class_componentIndex, ONLY : IsUsed, GetIndex
-    IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: b
-
-    INTEGER :: str,k,i,j,nc
-    REAL :: zvol
-
-    nc = GetIndex(prtcl,'H2O')
-    str = (nc-1)*nice + b
-
-       DO j = 1,nyp
-          DO i = 1,nxp
-             DO k = 1,nzp
-
-                IF (a_nicep(k,i,j,b)  > prlim) THEN
-                   CALL binMixrat('ice','dry',b,i,j,k,zvol)
-                    zvol = zvol/rhosu
-                   a_Ridry(k,i,j,b) = 0.5*( zvol/(pi6*a_nicep(k,i,j,b)) )**(1./3.)
-                   CALL binMixrat('ice','wet',b,i,j,k,zvol)
-                    zvol = zvol/rhoic
-                   a_Riwet(k,i,j,b) = 0.5*( zvol/(pi6*a_nicep(k,i,j,b)) )**(1./3.)
-                ELSE
-                   a_Ridry(k,i,j,b) = 1.e-10
-                   a_Riwet(k,i,j,b) = 1.e-10
-                END IF
-
-                ! Cloud ice
-                a_ri(k,i,j) = a_ri(k,i,j) + a_micep(k,i,j,str)
-
-             END DO ! k
-          END DO ! i
-       END DO ! j
-  END SUBROUTINE DiagInitIce
-    !------------------------------------------
-  SUBROUTINE DiagInitAero(b)
-    USE mo_submctl, ONLY : nbins, pi6, rhowa, nlim
-    USE class_componentIndex, ONLY : IsUsed, GetIndex
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: b
-
-    INTEGER :: k,i,j,nc, str
-    REAL :: zvol
-
-    nc = GetIndex(prtcl,'H2O')
-    str = (nc-1)*nbins+b
-
-       DO j = 1,nyp
-          DO i = 1,nxp
-             DO k = 1,nzp
-
-                IF (a_naerop(k,i,j,b) > nlim) THEN
-                   CALL binMixrat('aerosol','dry',b,i,j,k,zvol)
-                   a_Radry(k,i,j,b) = 0.5*( zvol/(pi6*a_naerop(k,i,j,b)) )**(1./3.)
-                   CALL binMixrat('aerosol','wet',b,i,j,k,zvol)
-                   a_Rawet(k,i,j,b) = 0.5*( zvol/(pi6*a_naerop(k,i,j,b)) )**(1./3.)
-                ELSE
-                   a_Radry(k,i,j,b) = 1.e-10
-                   a_Rawet(k,i,j,b) = 1.e-10
-                END IF
-
-                ! To cloud water
-                a_rc(k,i,j) = a_rc(k,i,j) + a_maerop(k,i,j,str)
-
-             END DO ! k
-          END DO ! i
-       END DO ! j
-  END SUBROUTINE DiagInitAero
-
-    !
   ! --------------------------------------------------------------------------------------------------
   ! Replacement for SUBROUTINE init_aero_sizedist (init.f90): initilize altitude-dependent aerosol
   ! size distributions and compositions.

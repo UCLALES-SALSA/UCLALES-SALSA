@@ -14,10 +14,10 @@ source ${scriptref}/subroutines_variables.bash
 #
 #
 # EXAMPLE USAGE
-# A=28 B=30 mode=mpi.v1.0.4 designV=v1.5.1 postfix=geggals ./submit_emulator_runs_parallel.bash 3
+# A=28 B=30 exe=les.mpi.v1.0.4 designV=v1.5.1 postfix=geggals ./submit_emulator_runs_parallel.bash 3
 # where A is the case number that you want to start from
 #       B is the case number that you want to end up
-#       mode is the postfix of the LES executable (les.mode)
+#       exe is the name of the LES executable (les.mpi)
 #       designV is the design version
 #    $1 = 3 is the number of how many runs you dare to submit at the same time
 #    $2 = scriptname
@@ -56,7 +56,7 @@ fi
 echo "submit array" ${array[@]}
 k=0
 
-mode=${mode:-mpi}
+exe=${exe:-les.mpi}
 # supercomputer related variable settings
 nproc=${nproc:-100}
 
@@ -73,9 +73,9 @@ if [[ -z $designV ]]; then
 fi
 
 # LES version
-nn=$(( ${#mode}- 4 ))
+nn=$(( ${#exe}- 7 ))
 if [[ $nn -gt 0 ]]; then
-    les=_${mode:$((${#mode}-$nn)):$nn}
+    les=_${exe:$((${#exe}-$nn)):$nn}
 fi
 
 emulatorinput=case_emulator_DESIGN_${designV}
@@ -148,6 +148,11 @@ cp ${script}/nodestats.py                ${emulatoroutputroot}/
 
 cp ${script}/${scriptname}               ${emulatoroutputroot}/
 
+statusValmiit=0
+statusVainLESValmis=0
+statusKesken=0
+
+
 for i in ${array[@]}
 do
 
@@ -157,13 +162,19 @@ do
     	status=$( tarkistastatus ${emulatorname}/emul${i} emul${i} )
 
     	echo "statuksen tarkistus" emul${i} $status
-
+    	LS=${status:0:1}
+    	PPS=${status:1:2}
+    	
     	if [[ $status == '11' ]]
     	then
         	echo emul${i} "on VALMIS"
+        	statusValmiit=$((statusValmiit+1))
+    	elif [ $LS -eq 1 ] && [ $PPS -ne 1 ]; then
+            statusVainLESValmis=$((statusVainLESValmis+1))
+    	elif [ $LS -ne 1 ] && [ $PPS -ne 1 ]; then
+            statusKesken=$((statusKesken+1))
     	fi
-    	LS=${status:0:1}
-    	PPS=${status:1:2}
+
  
 
         echo emul${i} "poistetaan turhat statuksen mukaan"
@@ -174,7 +185,7 @@ do
 	echo "kopioidaan input tiedostot emul${i}"
     	mkdir -p ${emulatoroutputroot}/emul${i}/datafiles
         cp ${inputrootfolder}/emul${i}/* ${emulatoroutputroot}/emul${i}/
-        cp ${bin}/les.${mode} ${emulatoroutputroot}/emul${i}/
+        cp ${bin}/${exe} ${emulatoroutputroot}/emul${i}/
         cp ${bin}/datafiles/* ${emulatoroutputroot}/emul${i}/datafiles
         
     fi
@@ -182,6 +193,10 @@ do
     
 done
 
+echo 'valmiit' $statusValmiit
+echo 'vain les valmis' $statusVainLESValmis
+echo 'kesken' $statusKesken
+echo 'tarkistussumma kaikki' $((statusValmiit+statusVainLESValmis+statusKesken))
 echo ' '
 echo ' '
 ########################################
@@ -234,7 +249,7 @@ for n in $( seq 0 $((ThreadNro-1)) )
 do
 nroJobs=$(python -c "from math import ceil; print int( ceil( ( ${#array[@]}-$aloitusindeksi  )/float( $ThreadNro-$n ) ) )")
 echo "submit->parallel" ${array[@]:$aloitusindeksi:$nroJobs}
-echo "emulatorname=${emulatorname} list='"${array[@]:$aloitusindeksi:$nroJobs}"' threadNro=$n nproc=${nproc} jobflag=$jobflag mode=${mode} etunolla=$etunolla  scriptname=$scriptname ${emulatoroutputroot}/emulator_runs_parallel.bash | tee ${emulatoroutputroot}/emulatoroutput$(printf %0${etunolla}d ${n##+(0)}) &" >> ${emulatoroutputroot}/control_multiple_emulator_run.sh
+echo "emulatorname=${emulatorname} list='"${array[@]:$aloitusindeksi:$nroJobs}"' threadNro=$n nproc=${nproc} jobflag=$jobflag exe=${exe} etunolla=$etunolla  scriptname=$scriptname ${emulatoroutputroot}/emulator_runs_parallel.bash | tee ${emulatoroutputroot}/emulatoroutput$(printf %0${etunolla}d ${n##+(0)}) &" >> ${emulatoroutputroot}/control_multiple_emulator_run.sh
 aloitusindeksi=$((aloitusindeksi+nroJobs))
 done
 
