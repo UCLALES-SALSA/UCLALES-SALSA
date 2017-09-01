@@ -100,7 +100,7 @@ contains
          Tspinup,sst, lbinanl, &
          minispinup01, minispinup02, minispinupCase01, minispinupCase02 ! debugkebab
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
-         zrand
+         zrand, zrndamp
     use stat, only : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
     USE forc, ONLY : radsounding, &        ! Juha: added for radiation background profile
                      div, case_name, &     ! Divergence, forcing case name
@@ -124,7 +124,7 @@ contains
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          level  , CCN    , & ! Microphysical model Number of CCN per kg of air
-         iseed  , zrand  , & ! random seed
+         iseed  , zrand  , zrndamp, & ! random seed
          nxp    , nyp    , nzp   ,  & ! number of x, y, z points
          deltax , deltay , deltaz , & ! delta x, y, z (meters)
          dzrat  , dzmax  , igrdtyp, & ! stretched grid parameters

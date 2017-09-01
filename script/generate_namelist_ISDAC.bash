@@ -33,6 +33,20 @@ ${jaakkoNL}  minispinup01 = ${minispinup01:-0.}
 ${jaakkoNL}  minispinup02 = ${minispinup02:-0.}
 ${jaakkoNL}  minispinupCase01 = ${minispinupCase01:-3}
 ${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
+
+  nudge_time  = ${nudge_time:-28800.}
+
+  nudge_theta = ${nudge_theta:-3}
+  nudge_rv    = ${nudge_rv:-3}
+  nudge_u     = ${nudge_u:-3}
+  nudge_v     = ${nudge_v:-3}
+  
+  tau_theta   = ${tau_theta:-1.}
+  tau_rv      = ${tau_rv:-1.}
+  tau_u       = ${tau_u:-2.}
+  tau_v       = ${tau_v:-2.}
+  
+
   runtype = ${runtype:-'"INITIAL"'}
   level = ${level:-5}
   CCN = ${CCN:-30.e6}
@@ -55,7 +69,7 @@ ${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
   sed_precp = ${sed_precp:-.TRUE.}
   sed_ice = ${sed_ice:-.TRUE.}
   sed_snow = ${sed_snow:-.FALSE.}
-  iradtyp = ${iradtyp:-3}                ! 1 = no radiation, only large-scale forcing, 3 = radiation + large-scale forcing 
+  iradtyp = ${iradtyp:-5}                ! 1 = no radiation, only large-scale forcing, 3 = radiation + large-scale forcing 5
   case_name = ${case_name:-"'ascos'"}            ! Case-specific large-scale forcing: none = not used, 
                                       ! default = simple divergence forcing with specified div 
   div = ${div:-1.5e-6}              ! Divergence for e.g. case_name = 'default'
@@ -73,10 +87,13 @@ ${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
   drtcon = ${drtcon:-0.}  ! latent
 
   ubmin  = ${ubmin:--0.25}
-  zrough = ${zrough:-4e-4}
+  zrough = ${zrough:-4.E-4}
   th00 = ${th00:-267.}
   umean =  ${umean:--7.0}
   vmean = ${vmean:-2.45554452055}
+  
+  zrand = ${zrand:-825.}
+  zrndamp = ${zrndamp:-0.1} ! the amplitude of pseudorandom fluctuations
  /
 
  &salsa	

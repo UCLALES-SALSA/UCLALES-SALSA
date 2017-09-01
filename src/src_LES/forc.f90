@@ -161,6 +161,14 @@ contains
     case (4)
        call bellon(nzp, nxp, nyp, a_rflx, a_sflx, zt, dzt, dzm, a_tt, a_tp&
             ,a_rt, a_rp, a_ut, a_up, a_vt, a_vp)
+
+    case (5) ! parameterized long wave radiation
+       xka = 170.
+       fr0 = 72.
+       fr1 = 15.
+       call isdac_gcss(nzp, nxp, nyp, xka, fr0, fr1, div, a_rc, dn0,     &
+               a_rflx, zt, zm, dzt, a_tt, a_tp, a_rt, a_rp)
+
     end select
 
   end subroutine forcings
@@ -221,6 +229,65 @@ contains
     enddo
 
   end subroutine gcss_rad
+
+
+  subroutine isdac_gcss(n1,n2,n3,xka,fr0,fr1,div,rc,dn0,flx,zt,zm,dzt,   &
+       tt,tl,rtt,rt)
+
+    integer, intent (in):: n1,n2, n3
+    real, intent (in)   :: xka, fr0, fr1, div
+    real, intent (in)   :: zt(n1),zm(n1),dzt(n1),dn0(n1),rc(n1,n2,n3),   &
+         tl(n1,n2,n3),rt(n1,n2,n3)
+    real, intent (inout):: tt(n1,n2,n3),rtt(n1,n2,n3)
+    real, intent (out)  :: flx(n1,n2,n3)
+
+    integer :: i, j, k, km1, kp1, ki
+    real    :: lwp(n2,n3), fact
+    real, dimension (n1) :: sf
+
+    lwp=0.
+    do j=3,n3-2
+       do i=3,n2-2
+          ki = n1
+          do k=1,n1
+             km1=max(1,k-1)
+             lwp(i,j)=lwp(i,j)+max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(km1)))
+             flx(k,i,j)=fr1*exp(-1.*xka*lwp(i,j))
+             !if ( (rc(k,i,j) > 0.01e-3) .and. (rt(k,i,j) >= 0.008) ) ki=k !HUOMHUOM
+          enddo
+
+
+          do k=2,n1
+             km1=max(2,k-1)
+             lwp(i,j)=lwp(i,j)-max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1)))
+             flx(k,i,j)=flx(k,i,j)+fr0*exp(-1.*xka*lwp(i,j))
+
+             tt(k,i,j) =tt(k,i,j)-(flx(k,i,j)-flx(km1,i,j))*dzt(k)/(dn0(k)*cp)
+          enddo
+
+        ! ISDAC
+        ! ---------
+        !
+        do k=2,n1-2
+            ! calculate subsidence factor (wsub / dz)
+            sf(k) = -4.125e-3*min( 825.,zt(k) )*dzt(k)
+        end do
+        !
+        do j=3,n3-2
+            do i=3,n2-2
+                do k=2,n1-2
+                    !
+                    ! Temperature and humidity advection due to subsidence
+                    !
+                    kp1 = k+1
+                    tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
+                    rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
+                enddo
+            enddo
+        enddo
+        !
+
+  end subroutine isdac_gcss
   !
   ! -------------------------------------------------------------------
   ! subroutine smoke_rad:  call simple radiative parameterization for
@@ -462,28 +529,8 @@ contains
             enddo
         enddo
         !
-    case ('isdac')
-        ! ISDAC
-        ! ---------
-        !
-        do k=2,n1-2
-            ! calculate subsidence factor (wsub / dz)
-            sf(k) = -4.125e-3*min( 825.,zt(k) )*dzt(k) 
-        end do
-        !
-        do j=3,n3-2
-            do i=3,n2-2
-                do k=2,n1-2
-                    !
-                    ! Temperature and humidity advection due to subsidence
-                    !
-                    kp1 = k+1
-                    tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
-                    rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
-                enddo
-            enddo
-        enddo
-        !
+
+
     CASE ('amazon')
         ! Amazon
         ! --------

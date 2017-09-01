@@ -31,6 +31,7 @@ module init
        !          2 :temperature
   real, dimension(nns)  :: us,vs,ts,thds,ps,hs,rts,rss,tks,xs
   real                  :: zrand = 200.
+  real                  :: zrndamp = 0.2 ! the amplitude of pseudorandom fluctuations
   character  (len=80)   :: hfilin = 'test.'
 
 contains
@@ -57,7 +58,7 @@ contains
     REAL :: zwp(nzp,nxp,nyp), ztkt(nzp,nxp,nyp)
     LOGICAL :: zactmask(nzp,nxp,nyp)
     INTEGER :: n4
-    
+
     ztkt = 0.
 
     ! Set vertical velocity as 0.5 m/s to intialize cloud microphysical properties with
@@ -102,7 +103,7 @@ contains
           END IF
           CALL SALSAInit
 
-          
+
        END IF !level >= 4
 
     else if (runtype == 'HISTORY') then
@@ -244,7 +245,8 @@ contains
     k=1
     do while( zt(k+1) <= zrand .and. k+1 < nzp)
        k=k+1
-       xran(k) = 0.2*(zrand - zt(k))/zrand
+       xran(k) = zrndamp*(zrand - zt(k))/zrand
+
     end do
     call random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
 

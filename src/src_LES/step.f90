@@ -306,9 +306,9 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
                   zrm, prtcl, dtlt, dbg2, time, level,zt  )
-             
+
           END IF !nxp==5 and nyp == 5
-          
+
        END IF
 
     end if ! level
@@ -501,6 +501,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
   ! Nudging for any 3D field based on 1D target
   SUBROUTINE nudge_any(nxp,nyp,nzp,zt,ap,at,trgt,dt,tau,iopt)
     USE util, ONLY : get_avg3
+    USE defs, ONLY : pi
     IMPLICIT NONE
     INTEGER :: nxp,nyp,nzp
     REAL :: zt(nzp), ap(nzp,nxp,nyp), at(nzp,nxp,nyp)
@@ -510,6 +511,18 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
     INTEGER :: iopt
     INTEGER :: kk
     REAL :: avg(nzp)
+
+
+
+    ! isdac parameters:
+
+    REAL :: C_nudge = 1. ! nudging parameter
+    REAL :: Z1, Z2, ZUV
+
+    Z1  = 1200.
+    Z2  = 1500.
+    ZUV = 825.
+
     !
     IF (iopt==1) THEN
         ! Soft nudging
@@ -523,6 +536,31 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
         DO kk = 1,nzp
             IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
                 at(kk,:,:)=at(kk,:,:)-(ap(kk,:,:)-trgt(kk))/max(tau,dt)
+        ENDDO
+    ELSEIF (iopt==3) THEN ! ISDAC nudging
+        DO kk = 1,nzp
+            IF ( tau == 1. ) THEN ! theta / q_t
+
+                IF ( zt(kk)< Z1 ) THEN
+                    C_nudge = 0
+
+                ELSEIF ( zt(kk) >= Z1 .and. zt(kk) < Z2 ) THEN
+                    C_nudge = (1./3600.)*( 1-COS( pi*(zt(kk) - Z1 )/(Z2-Z1) ) )/2.
+
+                ELSEIF ( zt(kk) >= Z2 ) THEN
+                    C_nudge = 1./3600.
+                ENDIF
+
+            ELSEIF ( tau == 2.) THEN
+                IF ( zt(kk)  <= ZUV ) THEN
+                    C_nudge = (1./7200.)*( 1-COS( pi*zt(kk)/ZUV ) )/2.
+                ELSEIF ( zt(kk) >= ZUV )
+                    C_nudge = 1./7200.
+                ENDIF
+            ENDIF
+
+            at(kk,:,:)=at(kk,:,:)-C_nudge*(ap(kk,:,:)-trgt(kk))/dt
+
         ENDDO
     ELSE
         ! Unknown
@@ -1399,7 +1437,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                    CALL binMixrat('aerosol','dry',ba,i,j,k,zvol)
                    zvol = zvol/rhosu
 
-                   ! Particles smaller then 0.1 nm diameter are set to zero 
+                   ! Particles smaller then 0.1 nm diameter are set to zero
                    zddry = (zvol/a_naerop(k,i,j,ba)/pi6)**(1./3.)
                    IF ( zddry < 1.e-10 ) THEN
                       ! Volatile species to the gas phase
