@@ -57,6 +57,7 @@ module grid
   real            :: W2 = 0.9
   real            :: W3 = 0.9
 
+  LOGICAL           :: laerorad = .FALSE.  ! Aerosol radiation on/off
 
 
   character (len=7), allocatable, save :: sanal(:)
@@ -133,6 +134,8 @@ module grid
   TYPE(componentIndex) :: prtcl ! Contains "getIndex" which gives the index for a given
                                ! aerosol component name, i.e. 1:SO4, 2:OC, 3:BC, 4:DU,
                                ! 5:SS, 6:NO, 7:NH, 8:H2O
+
+
 
   ! Physical properties for the selected aerosol components
   real, allocatable :: dens(:), mws(:), mvol(:), diss(:)

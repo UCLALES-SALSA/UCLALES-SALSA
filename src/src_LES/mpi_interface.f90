@@ -22,6 +22,15 @@ module mpi_interface
 
   use mpi
   implicit none
+
+  ! Juha: Some interfaces for communication subroutines; Makes it also easier to set corresponding
+  !       dummy subroutines in seq_interface.f90 to avoid hairy looking tests in the main source code 
+  !       whether MPI is used or not. Another option of course would be to use compiler directives,
+  !       maye future work? However it will make the source code again a bit more messy.
+  INTERFACE broadcast
+     MODULE PROCEDURE broadcastRealArray1d, broadcastRealArray3d, broadcastInteger
+  END INTERFACE broadcast
+
   !
   !    nxg = nxpg-4
   !    nyg = nypg-4
@@ -654,6 +663,62 @@ contains
          MPI_COMM_WORLD, ierror)
 
   end subroutine double_array_par_sum
+
+ ! Juha added: Broadcast real arrays and stuff (Need interface to cover everything!)
+ SUBROUTINE broadcastRealArray1d(NNdims,rootid,sendbuff)
+   IMPLICIT NONE
+   
+   INTEGER, INTENT(in) :: NNdims(1)
+   INTEGER, INTENT(in) :: rootid
+   REAL, INTENT(inout) :: sendbuff(NNdims(1))
+   INTEGER :: ierror
+
+   CALL MPI_BCAST(sendbuff,NNdims(1),MPI_DOUBLE_PRECISION,rootid,MPI_COMM_WORLD,ierror)
+
+ END SUBROUTINE 
+ 
+ SUBROUTINE broadcastRealArray3d(NNdims,rootid,sendbuff)
+   IMPLICIT NONE
+
+   INTEGER, INTENT(in) :: NNdims(3)
+   INTEGER, INTENT(in) :: rootid
+   REAL, INTENT(inout) :: sendbuff(NNdims(1),NNdims(2),NNdims(3))
+   INTEGER :: NNtot
+   INTEGER :: ierror
+
+   REAL, ALLOCATABLE :: buff1d(:)
+
+   NNtot = NNdims(1)*NNdims(2)*NNdims(3)
+   IF (myid /= rootid) sendbuff = 0.
+
+   ALLOCATE(buff1d(NNtot))
+   IF (myid == 0) THEN
+      buff1d = RESHAPE(sendbuff,(/NNtot/))
+   ELSE
+      buff1d = 0.
+   END IF
+
+   CALL MPI_BCAST(buff1d,NNtot,MPI_DOUBLE_PRECISION,rootid,MPI_COMM_WORLD,ierror)
+  
+   sendbuff = RESHAPE(buff1d,NNdims)
+   DEALLOCATE(buff1d)
+
+
+ END SUBROUTINE broadcastRealArray3d
+
+ SUBROUTINE broadcastInteger(sendbuff,rootid)
+   IMPLICIT NONE
+
+   INTEGER, INTENT(inout) :: sendbuff
+   INTEGER, INTENT(in) :: rootid
+   INTEGER :: ierror
+
+   CALL MPI_BCAST(sendbuff,1,MPI_INTEGER,rootid,MPI_COMM_WORLD,ierror)
+
+
+ END SUBROUTINE broadcastInteger
+
+
 
 
 end module mpi_interface

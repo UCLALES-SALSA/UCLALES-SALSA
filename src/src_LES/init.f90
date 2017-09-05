@@ -20,6 +20,7 @@
 module init
 
   use grid
+  use mpi_interface, only : appl_abort, myid
 
   integer, parameter    :: nns = 500
   integer               :: ns
@@ -44,12 +45,13 @@ contains
     use step, only : time, outflg
     use stat, only : init_stat, mcflg, acc_massbudged, salsa_b_bins
     use sgsm, only : tkeinit
-    use mpi_interface, only : appl_abort, myid
+
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
     USE mo_submctl, ONLY : nbins, in2b, fn2b, iib, fib, nlim, prlim ! Olis parempi jos ei tarttis
     USE util, ONLY : maskactiv
     USE class_ComponentIndex, ONLY : GetNcomp
+ 
 
     implicit none
 
@@ -70,7 +72,7 @@ contains
        call basic_state
        call fldinit ! Juha: aerosol size distributions are initialized here.
                     !       Also thermodynamics!
-
+      
        ! If SALSA is used, call SALSA with full configuration once before beginning
        ! spin-up period to set up aerosol and cloud fields.
        IF (level >= 4) THEN
@@ -100,8 +102,8 @@ contains
                   1, prtcl, dtlt, .false., 0., level   )
 
           END IF
+
           CALL SALSAInit
-          
 
        END IF !level >= 4
 
@@ -113,14 +115,13 @@ contains
        call appl_abort(0)
     end if ! runtype
 
-
     ! When SALSA b-bin outputs are needed?
     !   -level >= 4
     !   -outputs are forced (salsa_b_bins=.true.)
     !   -b-bins initialized with non-zero concentration
     !   -nucleation set to produce particles to b bins (currently only a bins)
-    IF (level >= 4 .and. (.not. salsa_b_bins)) &
-       salsa_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim ) .OR. any( a_nicep(:,:,:,iib%cur:fib%cur)>prlim )
+    IF (level >= 4 .AND. (.NOT. salsa_b_bins)) &
+       salsa_b_bins=ANY( a_naerop(:,:,:,in2b:fn2b)>nlim ) .OR. ANY( a_nicep(:,:,:,iib%cur:fib%cur)>prlim )
 
     call sponge_init
     call init_stat(time+dtl,filprf,expnme,nzp)
@@ -1371,7 +1372,5 @@ END SUBROUTINE liq_ice_init
 
 
   END SUBROUTINE init_gas_tracers
-
-
 
 end module init

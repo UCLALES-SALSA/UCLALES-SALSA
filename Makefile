@@ -12,8 +12,9 @@ SRC         =$(ROOT)/src
 SRC_UTIL    =$(SRC)/src_util
 SRC_LES     =$(SRC)/src_LES
 SRC_SALSA   =$(SRC)/src_salsa
+SRC_RAD     =$(SRC)/src_rad
 
-VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC)
+VPATH = $(SRC_RAD):$(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC)
 
 ECHO    = /bin/echo
 RM      = /bin/rm -f
@@ -23,12 +24,15 @@ RANLIB =:
 SEQFFLAGS = -I$(SRC)
 MPIFFLAGS = -I$(SRC)
 NCDF = /usr
-NCDFLIB = '-L$(NCDF)/lib -lnetcdf -lnetcdff'
+MPICH = /usr
+NCDFLIB = -L$(NCDF)/lib -lnetcdf -lnetcdff
 NCDFINC = -I$(NCDF)/include
-LIBS = $(NCDFLIB)
+MPICHLIB = -L$(MPICH)/lib -lmpi
+MPICHINC = -I$(MPICH)/include/mpich
+LIBS = "$(NCDFLIB) $(MPICHLIB)"
 F90 = f95
 MPIF90 = f95
-FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} #-fbounds-check  -g -fcheck=all  -Wall -Wtabs -fbacktrace -ffpe-trap=invalid,zero,overflow
+FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} $(MPICHINC) #-fbounds-check  -g -fcheck=all  -Wall -Wtabs -fbacktrace -ffpe-trap=invalid,zero,overflow
 F77FLAGS = -O2 #-fbounds-check  -ffpe-trap=invalid,zero,overflow
 
 
@@ -49,14 +53,14 @@ $(LES_OUT_SEQ):
 	FFLAGS='$(FFLAGS) $(SEQFFLAGS)' F90=$(F90) \
 	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_SEQ) \
 	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) SRCLES=$(SRC_LES) \
-	SRCSALSA=$(SRC_SALSA)
+	SRCSALSA=$(SRC_SALSA) SRCRAD=$(SRC_RAD)
 
 $(LES_OUT_MPI):
 	cd $(SRC); $(MAKE) LES_ARC=mpi \
 	FFLAGS='$(FFLAGS) $(MPIFFLAGS)' F90=$(MPIF90)  \
 	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_MPI) \
 	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) SRCLES=$(SRC_LES) \
-	SRCSALSA=$(SRC_SALSA)
+	SRCSALSA=$(SRC_SALSA) SRCRAD=$(SRC_RAD)
 
 .PHONY: $(LES_OUT_SEQ) 
 .PHONY: $(LES_OUT_MPI)

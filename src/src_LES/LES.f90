@@ -72,6 +72,8 @@ contains
 
     call define_vars
 
+    WRITE(*,*) "INITIALIZING ********************************************"
+
     call initialize ! Added initialization of aerosol size distributions here + a single call
                     ! for SALSA to set up cloud microphysics
     call stepper
@@ -97,7 +99,7 @@ contains
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
-         Tspinup,sst, lbinanl
+         Tspinup,sst, lbinanl, laerorad
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand
     use stat, only : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
@@ -150,6 +152,7 @@ contains
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
          RadConstPress,      & ! keep constant pressure levels (T/F),
          RadPrecipBins,      & ! add precipitation bins cloud water (0, 1, 2, 3,...)
+         laerorad,           & ! Use aerosol radiation calculations
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
 
     namelist /version/  &
@@ -184,6 +187,11 @@ contains
        !
        ! do some cursory error checking in namelist variables
        !
+
+       IF (laerorad .AND. level < 4) THEN 
+          IF (myid ==0) WRITE(*,*) "WARNING: laerorad=TRUE valid only for level >= 4, setting to FALSE"
+          laerorad = .FALSE.
+       END IF 
 
        if (min(nxp,nyp) < 5) then
           if (myid == 0) print *, '  ABORTING: min(nxp,nyp) must be > 4.'

@@ -4,7 +4,8 @@
 
 VPATH = $(SRCUTIL): \
 	$(SRCLES):  \
-	$(SRCSALSA)
+	$(SRCSALSA): \
+        $(SRCRAD)
 
 
 ifneq (,$(findstring mpi,$(LES_ARC)))
@@ -22,7 +23,8 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 \
           rad_cldwtr.f90 rad_d4strm.f90 rad_driver.f90 \
           ncio.f90 util.f90 grid.f90 stat.f90 thrm.f90 forc.f90 advf.f90 \
           advl.f90 srfc.f90 prss.f90 sgsm.f90 mcrp.f90 step.f90 init.f90 \
-          rfft.f90 class_componentIndex.f90 aerosol_thermodynamics.f90
+          rfft.f90 class_componentIndex.f90 aerosol_thermodynamics.f90   \
+	  mo_aerorad_lut.f90
 SRCSF77 = 
 
 
@@ -52,7 +54,7 @@ defs.o:
 grid.o: ncio.o $(seqmpi:.f90=.o) mo_submctl.o class_componentIndex.o
 stat.o: ncio.o grid.o util.o defs.o mo_submctl.o class_componentIndex.o $(seqmpi:.f90=.o)
 thrm.o: grid.o defs.o $(seqmpi:.f90=.o) mo_submctl.o 
-forc.o: grid.o defs.o stat.o rad_driver.o mo_submctl.o $(seqmpi:.f90=.o)
+forc.o: grid.o defs.o stat.o rad_driver.o mo_submctl.o $(seqmpi:.f90=.o) class_componentIndex.o
 advf.o: grid.o stat.o util.o mo_submctl.o $(seqmpi:.f90=.o) class_componentIndex.o
 advl.o: grid.o stat.o util.o
 srfc.o: grid.o stat.o defs.o thrm.o $(seqmpi:.f90=.o)
@@ -65,14 +67,16 @@ step.o: grid.o stat.o util.o defs.o thrm.o sgsm.o srfc.o  \
 init.o: grid.o stat.o util.o defs.o step.o sgsm.o thrm.o  \
 	$(seqmpi:.f90=.o) mo_salsa_sizedist.o mo_submctl.o \
 	mo_salsa_driver.o mo_submctl.o class_componentIndex.o \
-	ncio.o
+	ncio.o mo_aerorad_lut.o 
 rfft.o:
 rad_solver.o: defs.o
 rad_corkds.o: defs.o $(seqmpi:.f90=.o)
-rad_cldwtr.o: defs.o rad_corkds.o
+rad_cldwtr.o: defs.o rad_corkds.o mo_submctl.o $(seqmpi:.f90=.o) \
+              mo_aerorad_lut.o class_componentIndex.o
 rad_d4strm.o: defs.o rad_solver.o \
-	      rad_corkds.o rad_cldwtr.o
-rad_driver.o: defs.o rad_d4strm.o $(seqmpi:.f90=.o)
+	      rad_corkds.o rad_cldwtr.o class_componentIndex.o mo_submctl.o
+rad_driver.o: defs.o rad_d4strm.o $(seqmpi:.f90=.o) class_componentIndex.o mo_submctl.o
+mo_aerorad_lut.o: 
 $(seqmpi:.f90=.o):
 mo_salsa_driver.o: mo_submctl.o mo_salsa.o class_componentIndex.o
 mo_constants.o:

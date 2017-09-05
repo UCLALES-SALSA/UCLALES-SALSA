@@ -22,6 +22,7 @@ module forc
   use defs, only      : cp
   use radiation, only : d4stream
   use stat, only : sflg
+  USE class_componentIndex, ONLY : GetNcomp
   implicit none
 
   ! these are now all namelist parameters
@@ -43,17 +44,23 @@ contains
 
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc     &
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp  &
-         , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
-         a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp
+         , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp &
+         , a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, a_naerop &
+         , a_maerop, prtcl, laerorad 
+           
 
-    USE mo_submctl, ONLY : nspec,nprc,ira,fra
+    USE mo_submctl, ONLY : nprc,ira,fra, nbins
 
     use mpi_interface, only : myid, appl_abort
 
     real, optional, intent (in) :: time_in, cntlat, sst
 
+    INTEGER :: nchem ! Number of chemical components for aerosols, get from prtcl-instance
+
     real :: xka, fr0, fr1, xref1, xref2
     REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
+
+    nchem = GetNcomp(prtcl)
 
     ! DIVERGENCE GIVEN FROM NAMELIST
     if (trim(case_name) == 'atex') then
@@ -115,38 +122,41 @@ contains
                 znc(:,:,:) = znc(:,:,:) + a_npp(:,:,:)
                 zrc(:,:,:) = zrc(:,:,:) + a_rpp(:,:,:)
              ENDIF
-             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo,   &
                   dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, albedo, radsounding=radsounding, &
+                  a_rflx, a_sflx,laerorad,albedo,radsounding=radsounding,            &
                   useMcICA=useMcICA, ConstPrs=RadConstPress)
 
           ELSE IF (level == 4) THEN
              znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) ! Cloud droplets
              zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
              IF (RadPrecipBins>0) THEN ! Add precipitation bins
-                ! Water is the last species (nspec+1)
-                zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
+                ! Water is the last species (nchem+1)
+                zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nchem*nprc+ira:nchem*nprc+min(RadPrecipBins,fra)),DIM=4)
                 znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
              ENDIF
-             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                  dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, albedo, radsounding=radsounding, &
-                  useMcICA=useMcICA, ConstPrs=RadConstPress)
+
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo,            &
+                  dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,           &
+                  a_rflx,a_sflx,laerorad,albedo,radsounding=radsounding,               &
+                  useMcICA=useMcICA, ConstPrs=RadConstPress,                           &
+                  maerop=a_maerop,naerop=a_naerop,prtcl=prtcl)
 
           ELSE IF (level == 5) THEN
              znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) ! Cloud droplets
              zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
              IF (RadPrecipBins>0) THEN ! Add precipitation bins
                 ! Water is the last species (nspec+1)
-                zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
+                zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nchem*nprc+ira:nchem*nprc+min(RadPrecipBins,fra)),DIM=4)
                 znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
              ENDIF
              zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4) ! Ice
              zri(:,:,:) = a_ri(:,:,:) ! Ice (no aerosol ice?)
-             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                  dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, albedo, ice=zri,nice=zni,radsounding=radsounding, &
-                  useMcICA=useMcICA, ConstPrs=RadConstPress)
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo,                &
+                  dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,               &
+                  a_rflx,a_sflx,laerorad,albedo,ice=zri,nice=zni,radsounding=radsounding,  &
+                  useMcICA=useMcICA, ConstPrs=RadConstPress,                               &
+                  maerop=a_maerop,naerop=a_naerop,prtcl=prtcl)
 
           END IF
 

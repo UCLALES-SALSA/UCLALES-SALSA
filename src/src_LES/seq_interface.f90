@@ -34,6 +34,14 @@ module mpi_interface
   !
   implicit none
 
+  ! Juha: Some interfaces for communication subroutines; Makes it also easier to set corresponding
+  !       dummy subroutines in seq_interface.f90 to avoid hairy looking tests in the main source code 
+  !       whether MPI is used or not. Another option of course would be to use compiler directives,
+  !       maye future work? However it will make the source code again a bit more messy.
+  INTERFACE broadcast
+     MODULE PROCEDURE broadcastRealArray1d, broadcastRealArray3d, broadcastInteger
+  END INTERFACE broadcast
+
   integer :: myid, pecount, nxpg, nypg, nxg, nyg, nbytes, intsize
   integer :: xcomm, ycomm,commxid,commyid, MY_CMPLX, MY_SIZE
   integer :: nxnzp,nynzp
@@ -314,6 +322,29 @@ contains
     xxg=xxl
 
   end subroutine double_array_par_sum
+
+ ! Juha added: Broadcast real arrays and stuff (Need interface to cover everything!)
+ SUBROUTINE broadcastRealArray1d(NNdims,rootid,sendbuff)
+   IMPLICIT NONE
+   INTEGER, INTENT(in) :: NNdims(1)
+   INTEGER, INTENT(in) :: rootid
+   REAL, INTENT(inout) :: sendbuff(NNdims(1))
+ END SUBROUTINE 
+ 
+ SUBROUTINE broadcastRealArray3d(NNdims,rootid,sendbuff)
+   IMPLICIT NONE
+   INTEGER, INTENT(in) :: NNdims(3)
+   INTEGER, INTENT(in) :: rootid
+   REAL, INTENT(inout) :: sendbuff(NNdims(1),NNdims(2),NNdims(3))
+ END SUBROUTINE broadcastRealArray3d
+
+ SUBROUTINE broadcastInteger(sendbuff,rootid)
+   IMPLICIT NONE
+   INTEGER, INTENT(inout) :: sendbuff
+   INTEGER, INTENT(in) :: rootid
+ END SUBROUTINE broadcastInteger
+
+
 
 
 end module mpi_interface
