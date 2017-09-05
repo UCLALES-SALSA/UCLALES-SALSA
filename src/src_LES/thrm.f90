@@ -101,7 +101,7 @@ contains
 !
 
   SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,rsi,rhi,srs)
-    USE defs, ONLY : R,Rm, cp, cpr, p00, alvl, alvi
+    USE defs, ONLY : R, cp, cpr, p00, alvl, alvi
     USE grid, ONLY : a_dn
     IMPLICIT NONE
 

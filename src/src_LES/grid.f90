@@ -161,6 +161,7 @@ module grid
   ! scratch arrays
   !
   real, allocatable, dimension (:,:,:) :: a_rflx, a_sflx, &
+       a_fus, a_fds, a_fuir, a_fdir, &
        a_temp, a_temp0 ! store temperatures of previous timestep
   !
   !
@@ -261,7 +262,12 @@ contains
        allocate (a_sflx(nzp,nxp,nyp),albedo(nxp,nyp))
        a_sflx(:,:,:) = 0.
        albedo(:,:) = 0.
-       memsize = memsize + nxyzp + nxyp
+       allocate (a_fus(nzp,nxp,nyp),a_fds(nzp,nxp,nyp),a_fuir(nzp,nxp,nyp),a_fdir(nzp,nxp,nyp))
+       a_fus(:,:,:) = 0.
+       a_fds(:,:,:) = 0.
+       a_fuir(:,:,:) = 0.
+       a_fdir(:,:,:) = 0.
+       memsize = memsize + nxyzp + nxyp + 4*nxyp
     end if
 
     allocate (a_temp(nzp,nxp,nyp),a_temp0(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp))

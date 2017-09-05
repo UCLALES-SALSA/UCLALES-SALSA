@@ -484,25 +484,14 @@ contains
   !
   ! Juha Tonttila, FMI, 2014
   !
-  SUBROUTINE maskactiv(act_mask,nx,ny,nz,nbins,mode,prtcl,rh,    &
-                       rc,pa_naerop, pa_maerop, pt, w, pa_ncloud  )
-    USE mo_submctl, ONLY : rhowa, rhosu, rhooc, rhoss, mwa, msu, moc, mss, pi6, nlim
-    USE class_ComponentIndex, ONLY : ComponentIndex,GetIndex,IsUsed
+  SUBROUTINE maskactiv(act_mask,nx,ny,nz,mode,rh,rc,w)
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: nx,ny,nz,nbins
+    INTEGER, INTENT(in) :: nx,ny,nz
     REAL, INTENT(in)    :: rh(nz,nx,ny)
+    REAL, OPTIONAL, INTENT(in) :: rc(nz,nx,ny),w(nz,nx,ny)
 
-    REAL, OPTIONAL, INTENT(in) :: pa_naerop(nz,nx,ny,nbins),    &
-                                  pa_maerop(nz,nx,ny,8*nbins),  &
-                                  pt(nz,nx,ny),                 &
-                                  w(nz,nx,ny),                  &
-                                  rc(nz,nx,ny),                 &
-                                  pa_ncloud(nz,nx,ny,nbins)
-    
     INTEGER, INTENT(in) :: mode ! 1 = Initialization; 2 = Normal timestepping
-    TYPE(ComponentIndex), INTENT(in) :: prtcl
-
 
     LOGICAL, INTENT(out) :: act_mask(nz,nx,ny)
 
@@ -513,17 +502,9 @@ contains
                cldp1(nz,nx,ny),   & !inverse cloud mask offset upwards by one grid level 
                cldpm(nz,nx,ny)
 
-    REAL :: nwpure ! number of moles for 1 micron droplet of pure water
-    REAL :: nwkelvin ! kelvin effect for 1 micron droplet
-    REAL :: nwtrue(nbins)  ! moles of water minus the core particle
-    REAL :: nsaero(nbins) ! moles of solute
-    REAL :: vsaero(nbins) ! Volume of solute
-    REAL :: nwact(nz,nx,ny) ! Minimum activity from the aerosol bins assuming a 1 micron droplet for each gridpoint
-    REAL :: nwactbin(nbins) ! Activities for each aerosol bin
-
     LOGICAL :: notused(nx,ny)
 
-    INTEGER :: j, i, k, b, nc
+    INTEGER :: k
 
     actmask_newcloud = .FALSE.
     actmask_oldcloud = .FALSE.
@@ -531,10 +512,6 @@ contains
     cldp1 = .TRUE.
     cldpm = .TRUE.
     act_mask = .FALSE. 
-
-    nwactbin = 0.
-
-    nwpure = pi6*((1.e-6)**3)*rhowa ! MAss of pure water droplet
 
 
     SELECT CASE(mode)
@@ -552,62 +529,6 @@ contains
 
        ! Mask grid points just below cloud or where new cloud is expected to form
        ! 
-       
-       ! Check critical RH for 1 micron droplets
-       DO j = 3,ny-2
-          DO i = 3,nx-2
-             DO k = 1,nz
-                ! -- Get the water content and the soluble material content for imaginary 1 micron droplets
-                ! -- Kelvin effect for 1 micron droplets
-                nwkelvin = EXP( 4.*0.073*mwa /           &  
-                                (8.314*pt(k,i,j)*rhowa*(1.e-6)) )
-
-                nsaero(:) = 0.
-                vsaero(:) = 0.
-                DO b = 1,nbins
-                   IF (pa_naerop(k,i,j,b) > nlim) THEN
-
-                      IF ( IsUsed(prtcl,'SO4') ) THEN
-                         nc = GetIndex(prtcl,'SO4')
-                         nc = (nc-1)*nbins+b
-                         vsaero(b) = vsaero(b) + pa_maerop(k,i,j,nc)
-                         nsaero(b) = nsaero(b) + 3.*(pa_maerop(k,i,j,nc)/msu)     
-                      END IF
-                      
-                      IF ( IsUsed(prtcl,'OC') ) THEN
-                         nc = GetIndex(prtcl,'OC')
-                         nc = (nc-1)*nbins+b
-                         vsaero(b) = vsaero(b) + pa_maerop(k,i,j,nc)
-                         nsaero(b) = nsaero(b) + pa_maerop(k,i,j,nc)/moc
-                      END IF
-
-                      IF ( IsUsed(prtcl,'SS') ) THEN
-                         nc = GetIndex(prtcl,'SS')
-                         nc = (nc-1)*nbins+b
-                         vsaero(b) = vsaero(b) + pa_maerop(k,i,j,nc)
-                         nsaero(b) = nsaero(b) + 2.*(pa_maerop(k,i,j,nc)/mss)
-                      END IF
-                      
-                      nsaero(b) = nsaero(b)/pa_naerop(k,i,j,b)
-                      vsaero(b) = vsaero(b)/pa_naerop(k,i,j,b)
-
-                   END IF
-                END DO
-
-                ! True mass of water in a droplet
-                nwtrue(1:nbins) = nwpure - vsaero(1:nbins)
-                ! Convert to number of moles of water in a droplet
-                nwtrue(1:nbins) = nwtrue(1:nbins)/mwa
-
-                nwactbin(:) = 999. ! undefined
-                WHERE(pa_naerop(k,i,j,1:nbins) > nlim) &
-                     nwactbin(1:nbins) = nwkelvin*nwtrue(1:nbins)/( nwtrue(1:nbins) + nsaero(1:nbins) )
-
-                nwact(k,i,j) = MINVAL(nwactbin(:))
-
-             END DO ! k
-          END DO ! i
-       END DO ! j
        
        cldmask(:,:,:) = ( rc(:,:,:) >= 1.e-5 )
 

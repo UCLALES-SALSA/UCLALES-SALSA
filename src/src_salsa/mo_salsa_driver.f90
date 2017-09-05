@@ -144,7 +144,6 @@ IMPLICIT NONE
     INTEGER :: jj,ii,kk,ss,str,end, nc,vc
     REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
                 in_w(kbdim,klev), in_rsi(kbdim,klev), in_tt(kbdim,klev)
-    REAL :: vdry
     REAL :: rv_old(kbdim,klev)
 
     ! Number is always set, but mass can be uninitialized

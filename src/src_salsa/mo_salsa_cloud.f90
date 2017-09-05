@@ -92,11 +92,11 @@ CONTAINS
   SUBROUTINE getSolute(kproma,kbdim,klev,paero,pns)
     USE mo_submctl, ONLY : t_section,nlim,       &
                                fn2b,            &
-                               rhosu, rhooc, rhobc,  &
-                               rhonh, rhono, rhodu,  &
-                               rhoss,                &
-                               msu, moc, mbc,        &
-                               mnh, mno, mdu,        &
+                               rhosu, rhooc,    &
+                               rhonh, rhono,    &
+                               rhoss,             &
+                               msu, moc,        &
+                               mnh, mno,        &
                                mss
     IMPLICIT NONE
 
@@ -844,7 +844,6 @@ CONTAINS
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
                                nprc,        &
-                               rhowa,       &
                                pi6,         &
                                nlim, prlim
     IMPLICIT NONE
@@ -926,7 +925,7 @@ CONTAINS
                                planck,      &
                                pi,          &
                                nlim, prlim
-    USE mo_constants, ONLY : rd, alf, avo
+    USE mo_constants, ONLY : rd, avo
 
     IMPLICIT NONE
 
@@ -1026,7 +1025,7 @@ CONTAINS
                                pi6,         &
                                pi,          &
                                nlim, prlim
-    USE mo_constants, ONLY : rd, alf, avo
+    USE mo_constants, ONLY : rd, avo
 
     IMPLICIT NONE
 
@@ -1123,7 +1122,7 @@ CONTAINS
                                pi,          &
                                nlim, prlim, &
                                debug
-    USE mo_constants, ONLY : rd, alf, avo
+    USE mo_constants, ONLY : rd, avo
 
     IMPLICIT NONE
 
@@ -1490,7 +1489,6 @@ CONTAINS
   !
   REAL FUNCTION cumlognorm(dg,sigmag,dpart)
     
-    USE mo_submctl, ONLY : pi
     IMPLICIT NONE
     ! Cumulative lognormal function
     REAL, INTENT(in) :: dg
