@@ -30,10 +30,6 @@ module srfc
 
 ! Sami added ----->
 ! Initial values for surface properties
- ! real :: W1 = 0.9   !Water content      ... Definition in grid now because of restrat files
- ! real :: W2 = 0.9
- ! real :: W3 = 0.9
-
   real ::  B1 = 6.5
   real ::  B3 = 7.26
   real ::  K_s1 = 5.8e-5
@@ -49,6 +45,12 @@ module srfc
 
 ! <--- Sami added
 
+! Juha moved/added
+  ! for isfctyp == 5:
+  REAL :: C_heat = 2.e6                 ! Surface heat capacity
+  REAL :: deepSoilTemp = 280.            ! Assumed deep soil layer temperature
+  LOGICAL :: lConstSoilWater = .FALSE.   ! Keep the value(s) of surface water content constant (as specified in NAMELIST)
+  LOGICAL :: lConstSoilHeatCap = .FALSE. ! Keep the value of surface heat capacity constant (as specified in NAMELIST)
 
 contains
   !
@@ -87,7 +89,7 @@ contains
 
 
     real :: total_sw, total_rw, total_la, total_se, total_pre  ! Sami added
-    real :: C_heat,lambda ! Sami added
+    real :: lambda ! Sami added
     real :: K1,K2,K3,Kmean1,Kmean2,fii_1,fii_2,fii_3,Q3,Q12,Q23,ff1  ! Sami added
 
 
@@ -230,8 +232,7 @@ contains
        total_la = 0.0
        total_se = 0.0
        total_pre = 0.0
-       ffact = 1.
-
+       ffact = 1
        !, a_rflx, precip
        !
        !   Calculate mean energy fluxes(Mean for each proceccors)
@@ -256,11 +257,12 @@ contains
 
         ! From energy fluxes calculate new sirface temperature
         sst1 =sst
-        C_heat = 1.29e3*(840+4187*thetaS1*W1) ! Eq 33
-        lambda=1.5e-7*C_heat
-        !       write(*,*)  sst,total_rw
+        IF (.NOT. lConstSoilHeatCap) THEN
+           C_heat = 1.29e3*(840+4187*thetaS1*W1) ! Eq 33
+        END IF
 
-        !459    FORMAT(8001(E15.6))
+        lambda=1.5e-7*C_heat
+
         ! Determine moisture at different depths in the ground
         !
 
@@ -279,9 +281,11 @@ contains
         Q12 = Kmean1*2.*( (fii_1-fii_2)/(D1+D2)+1.0)
         Q23 = Kmean2*2.*( (fii_2-fii_3)/(D2+D3)+1.0)
 
-        W1 = W1+1./(thetaS1*D1)*(-Q12-((total_la+total_pre)/((0.5*(dn0(1)+dn0(2))*alvl)/ffact))/(thetaS1*1000))*dtl
-        W2 = W2+1./(thetaS2*D2)*(Q12-Q23)*dtl
-        W3 = W3+1./(thetaS3*D3)*(Q23-Q3)*dtl
+        IF (.NOT. lConstSoilWater) THEN
+           W1 = W1+1./(thetaS1*D1)*(-Q12-((total_la+total_pre)/((0.5*(dn0(1)+dn0(2))*alvl)/ffact))/(thetaS1*1000))*dtl
+           W2 = W2+1./(thetaS2*D2)*(Q12-Q23)*dtl
+           W3 = W3+1./(thetaS3*D3)*(Q23-Q3)*dtl
+        END IF
         !
         !  Following is copied from case (2). No idea if this is valid or not..
         !
@@ -312,7 +316,7 @@ contains
 
         !       write(*,*) ww_sfc(3,10),a_ustar(3,10),'sflx'
 
-           sst1 = sst1-(total_rw+total_la+total_se+((lambda*C_heat*7.27d-5/(2.0))**0.5*(SST1-280.0)))&
+           sst1 = sst1-(total_rw+total_la+total_se+((lambda*C_heat*7.27d-5/(2.0))**0.5*(SST1-deepSoilTemp)))&
                 /(2.0e-2*C_heat+(lambda*C_heat/(2.0*7.27d-5))**0.5)*dtl
 
            sst = sst1

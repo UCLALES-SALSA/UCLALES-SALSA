@@ -144,7 +144,7 @@ contains
 
           ELSE IF (level == 5) THEN
              znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) ! Cloud droplets
-             zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
+             zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol waterx
              IF (RadPrecipBins>0) THEN ! Add precipitation bins
                 ! Water is the last species (nspec+1)
                 zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nchem*nprc+ira:nchem*nprc+min(RadPrecipBins,fra)),DIM=4)

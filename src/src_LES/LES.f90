@@ -72,8 +72,6 @@ contains
 
     call define_vars
 
-    WRITE(*,*) "INITIALIZING ********************************************"
-
     call initialize ! Added initialization of aerosol size distributions here + a single call
                     ! for SALSA to set up cloud microphysics
     call stepper
@@ -91,7 +89,8 @@ contains
 
     use util, only : fftinix,fftiniy
     use sgsm, only : csx, prndtl
-    use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon
+    use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon, C_heat,          &
+                     deepSoilTemp, lConstSoilWater, lConstSoilHeatCap
     use step, only : timmax, istpfl, corflg, outflg, frqanl, frqhis,          &
          strtim, radfrq, cntlat, nudge_time, nudge_zmin, nudge_zmax, &
          nudge_theta, tau_theta, nudge_rv, tau_rv, nudge_u, tau_u, &
@@ -99,7 +98,7 @@ contains
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
-         Tspinup,sst, lbinanl, laerorad
+         Tspinup,sst,W1,W2,W3, lbinanl, laerorad
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand
     use stat, only : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
@@ -133,8 +132,6 @@ contains
          runtype, hfilin , filprf , & ! type of run (INITIAL or HISTORY)
          frqhis , frqanl , outflg , & ! freq of history/anal writes, output flg
          iradtyp, radfrq , strtim , & ! radiation type flag
-         isfctyp, ubmin  , zrough , & ! surface parameterization type
-         sst    , dthcon , drtcon , & ! SSTs, surface flx parameters
          isgstyp, csx    , prndtl , & ! SGS model type, parameters
          ipsflg , itsflg ,          & ! sounding flags
          hs     , ps     , ts    ,  & ! sounding heights, pressure, temperature
@@ -154,6 +151,21 @@ contains
          RadPrecipBins,      & ! add precipitation bins cloud water (0, 1, 2, 3,...)
          laerorad,           & ! Use aerosol radiation calculations
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
+
+    namelist /surface/      &
+         isfctyp,           &   ! Surface parameterization type
+         zrough,            &   ! roughness length
+         ubmin,             &   !
+         sst,               &   ! Surface temperature
+         dthcon,            &   ! Sensible heat flux
+         drtcon,            &   ! Latent heat flux 
+         C_heat,            &   ! Soil heat capacity (Only with isfctyp=5)
+         deepSoilTemp,      &   ! Deep soil temperature (Only with isfctyp=5)
+         W1,                &   ! Soil water contents
+         W2,                &  
+         W3,                &
+         lConstSoilWater,   &   ! Keep soil water content(s) constant? (Only with isfctyp=5)
+         lConstSoilHeatCap      ! Keep soil heat capacity constant? (Only with isfctyp=5)
 
     namelist /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author

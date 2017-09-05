@@ -94,14 +94,27 @@ cat > NAMELIST <<EOF
   div = 3.75e-6             
   sfc_albedo = 0.05
   radsounding = 'datafiles/dsrt.lay'
-  dthcon = 16.
-  drtcon = 93.
-  ubmin  = -0.25
-  zrough = 0.01
   th00 = 289.
   umean =  0.1
   vmean = -0.1
  /
+
+&surface
+  isfctyp           = 5
+  zrough            = 0.01
+  ubmin             = -0.25
+  sst               = 283.
+  dthcon            = 16.
+  drtcon            = 93.
+  C_heat            = 2.e6
+  deepSoilTemp      = 280.
+  W1                = 0.9
+  W2                = 0.9
+  W3                = 0.9
+  lConstSoilWater   = .TRUE.
+  lConstSoilHeatCap = .TRUE. 
+/
+
 
  &salsa	
    nlcoag = .TRUE.       ! Master coagulation switch
