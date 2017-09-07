@@ -74,7 +74,8 @@ module radiation
       INTEGER :: nchem
       real    :: xfact, prw, pri, p0(n1)
 
-      nchem = GetNcomp(prtcl)
+      IF (PRESENT(prtcl)) &
+           nchem = GetNcomp(prtcl)
 
       IF (PRESENT(radsounding)) background = radsounding
       IF (PRESENT(useMcICA)) McICA = useMcICA

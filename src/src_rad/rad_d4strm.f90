@@ -195,7 +195,8 @@ contains
 
     call thicks(pp, pt, ph, dz) 
 
-    nchem = GetNcomp(prtcl)+1
+    IF (PRESENT(prtcl)) &
+         nchem = GetNcomp(prtcl)+1
 
     if (McICA) then
        !
@@ -343,7 +344,8 @@ contains
     fus(:)  = 0.0
     bf(:)   = 0.0
 
-    nchem = GetNcomp(prtcl) + 1
+    IF (PRESENT(prtcl)) &
+         nchem = GetNcomp(prtcl) + 1
 
     if(u0 > minSolarZenithCosForVis) then
       call thicks(pp, pt, ph, dz) 
