@@ -184,6 +184,7 @@ contains
     open  (1,status='old',file='NAMELIST')
     read  (1, nml=version)
     read  (1, nml=model)
+    read  (1, nml=surface)
     close (1)
 
     !

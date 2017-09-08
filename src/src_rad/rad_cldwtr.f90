@@ -222,7 +222,7 @@ contains
     CALL broadcast((/Nre,Nim,Nalpha/),0,zaer_asym)
     CALL broadcast((/Nre,Nim,Nalpha/),0,zaer_omega)
 
-  END SUBROUTINE
+  END SUBROUTINE init_aerorad_lookuptables
 
   ! -----------------------------------------------------------------------
   ! Subroutine cloud_water:  calculates the optical depth (tw), single 

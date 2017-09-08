@@ -39,9 +39,11 @@ contains
   ! model on first call
   ! Juha: added initialization of aerosol model
   !
-  subroutine rad_init
+  subroutine rad_init(laerorad)
+	LOGICAL, INTENT(in) :: laerorad
     integer, dimension (:), allocatable :: seed
     INTEGER :: isize
+
 
     if (.not.Initialized) then
        ! Initialize random numbers for McICA
@@ -55,7 +57,8 @@ contains
        call init_cldwtr
        call init_cldice
        call init_cldgrp
-       CALL init_aerorad
+       IF (laerorad) &
+            CALL init_aerorad
        Initialized = .True.
     end if
 
@@ -63,13 +66,14 @@ contains
   !
   ! ----------------------------------------------------------------------
   ! Subroutine set_random_offset is needed to generate true pseudorandom numbers for parallel runs
-  SUBROUTINE set_random_offset(ioffset)
+  SUBROUTINE set_random_offset(ioffset,laerorad)
     implicit none
+    LOGICAL, INTENT(in) :: laerorad
     INTEGER :: ioffset, i
     REAL :: randomNumber
 
     ! Initialize random number generator, if not yet initialized
-    if (.not.Initialized) CALL rad_init
+    if (.not.Initialized) CALL rad_init(laerorad)
 
     ! Call randon mumbers
     IF (ioffset>0) THEN
@@ -184,7 +188,7 @@ contains
     real :: randomNumber
     ! ----------------------------------------
 
-    if (.not.Initialized) CALL rad_init
+    if (.not.Initialized) CALL rad_init(laerorad)
 
     if(.not. allocated(bandweights)) then 
       allocate(bandweights(size(ir_bands)))
@@ -333,7 +337,7 @@ contains
     real    :: randomNumber
     ! ----------------------------------------
 
-    if (.not.Initialized) call rad_init
+    if (.not.Initialized) call rad_init(laerorad)
 
     if (.not. allocated(bandweights)) then 
       allocate(bandweights(size(solar_bands)))

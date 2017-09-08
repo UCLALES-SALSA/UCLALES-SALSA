@@ -122,7 +122,7 @@ module radiation
         ELSE
             kk=myid*(n3-4)*(n2-4) ! Without solar wavelengths
         ENDIF
-        CALL set_random_offset( kk )
+        CALL set_random_offset( kk, laerorad )
       ENDIF
       !
       ! call the radiation

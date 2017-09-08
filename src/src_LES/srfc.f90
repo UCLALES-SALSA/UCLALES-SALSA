@@ -232,7 +232,7 @@ contains
        total_la = 0.0
        total_se = 0.0
        total_pre = 0.0
-       ffact = 1
+       ffact = 1.
        !, a_rflx, precip
        !
        !   Calculate mean energy fluxes(Mean for each proceccors)
