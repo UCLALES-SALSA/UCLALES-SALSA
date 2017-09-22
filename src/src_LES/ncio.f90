@@ -561,6 +561,10 @@ contains
        if (itype==0) ncinfo = 'Liquid water potential temperature'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
+    case('theta')
+       if (itype==0) ncinfo = 'Potential temperature'
+       if (itype==1) ncinfo = 'K'
+       if (itype==2) ncinfo = 'tttt'
     case('p')
        if (itype==0) ncinfo = 'Pressure'
        if (itype==1) ncinfo = 'Pa'

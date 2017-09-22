@@ -450,7 +450,7 @@ contains
   !
   !----------------------------------------------------------------------
   ! BASIC_STATE: This routine computes the basic state values
-  ! of pressure, density, moisture and temperature.  The basi!state
+  ! of pressure, density, moisture and temperature. The basic state
   ! temperature is assumed to be a the volume weighted average value of
   ! the sounding
   !

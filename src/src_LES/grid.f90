@@ -721,7 +721,7 @@ contains
     character (len=7), save :: sbase(nnames) =  (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     '   ,& ! 1
          'ym     ','u0     ','v0     ','dn0    ','u      ','v      '   ,& ! 7
-         'w      ','t      ','p      ','q      ','l      ','r      '   ,& ! 13
+         'w      ','theta  ','p      ','q      ','l      ','r      '   ,& ! 13
          'f      ','i      ','s      '                                 ,& ! 19 ice'n'snow
          'n      ','stke   ','rflx   '/)                                  ! 22 total 24
     ! Added for SALSA
@@ -729,7 +729,7 @@ contains
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     ',  &  ! 1 
          'ym     ','aea    ','aeb    ','cla    ','clb    ','prc    ',  &  ! 7
          'ica    ','icb    ','snw    ','u0     ','v0     ','dn0    ',  &  ! 13
-         'u      ','v      ','w      ','t      ','p      ','q      ',  &  ! 19
+         'u      ','v      ','w      ','theta  ','p      ','q      ',  &  ! 19
          'l      ','r      ','f      ','i      ','s      ',         &  ! 25
          'S_RH   ','S_RHI  ','S_Nact ','S_Na   ','S_Naba ','S_Rwaa ',  &  ! 30
          'S_Rwaba','S_Nb   ','S_Nabb ','S_Rwab ','S_Rwabb','S_Nc   ',  &  ! 36
@@ -1029,7 +1029,7 @@ contains
        iret = nf90_inq_varid(ncid0, 'w', VarID)
        iret = nf90_put_var(ncid0, VarID, a_wp(:,i1:i2,j1:j2), start=ibeg,    &
             count=icnt)
-       iret = nf90_inq_varid(ncid0, 't', VarID)
+       iret = nf90_inq_varid(ncid0, 'theta', VarID)
        iret = nf90_put_var(ncid0, VarID, a_theta(:,i1:i2,j1:j2), start=ibeg, &
             count=icnt)
        iret = nf90_inq_varid(ncid0, 'p', VarID)

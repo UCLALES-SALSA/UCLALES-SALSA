@@ -203,7 +203,7 @@ end subroutine tstep_reset
                      sst, a_rsi, a_temp0
 
 
-    use stat, only : sflg, statistics, acc_massbudged
+    use stat, only : sflg, statistics
     use sgsm, only : diffuse
     use srfc, only : surface
     use thrm, only : thermo
@@ -271,6 +271,9 @@ end subroutine tstep_reset
        IF (level >= 4) THEN
 
           n4 = GetNcomp(prtcl) + 1 ! Aerosol components + water
+          CALL tend_constrain(n4)
+          call update_sclrs
+          CALL tend0(.TRUE.)
 
           ! Rate of change in absolute temperature (for some ice processes)
           if (time >= 1.) then
@@ -303,13 +306,11 @@ end subroutine tstep_reset
                   zrm, prtcl, dtlt, dbg2, time, level  )
              
           END IF !nxp==5 and nyp == 5
-          
+
+          CALL tend_constrain(n4)
        END IF
 
     end if ! level
-
-    IF (level >= 4)  &
-         CALL tend_constrain(n4)
 
     call update_sclrs
 
@@ -376,12 +377,14 @@ end subroutine tstep_reset
 
     CALL thermo(level)
 
+    IF (level >= 4)  THEN
+         CALL SALSA_diagnostics
+         call thermo(level)
+    ENDIF
+
     if (sflg) then
        call statistics (time+dtl)
     end if
-
-    IF (level >= 4) &
-       CALL SALSA_diagnostics
 
   end subroutine t_step
   !
