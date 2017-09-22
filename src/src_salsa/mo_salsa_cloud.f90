@@ -92,11 +92,11 @@ CONTAINS
   SUBROUTINE getSolute(kproma,kbdim,klev,paero,pns)
     USE mo_submctl, ONLY : t_section,nlim,       &
                                fn2b,            &
-                               rhosu, rhooc, rhobc,  &
-                               rhonh, rhono, rhodu,  &
-                               rhoss,                &
-                               msu, moc, mbc,        &
-                               mnh, mno, mdu,        &
+                               rhosu, rhooc,    &
+                               rhonh, rhono,    &
+                               rhoss,             &
+                               msu, moc,        &
+                               mnh, mno,        &
                                mss
     IMPLICIT NONE
 
@@ -834,7 +834,7 @@ CONTAINS
 
   !-----------------------------------------
   SUBROUTINE autoconv2(kproma,kbdim,klev,   &
-                      pcloud,pprecp         )
+                      pcloud,pprecp,ptstep)
   !
   ! Uses a more straightforward method for converting cloud droplets to drizzle.
   ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
@@ -844,20 +844,22 @@ CONTAINS
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
                                nprc,        &
-                               rhowa,       &
                                pi6,         &
                                nlim, prlim
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kproma,kbdim,klev
+    REAL, INTENT(in) :: ptstep
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld)
     TYPE(t_section), INTENT(inout) :: pprecp(kbdim,klev,nprc)
 
     REAL :: Vrem, Nrem, Vtot, Ntot
     REAL :: dvg,dg
+    REAL :: tot
 
     REAL, PARAMETER :: zd0 = 50.e-6
     REAL, PARAMETER :: sigmag = 1.2
+    REAL, PARAMETER :: max_rate_autoc=1.0e10 ! Maximum autoconversion rate (#/m^3/s)
 
     INTEGER :: ii,jj,cc,ss
 
@@ -865,7 +867,9 @@ CONTAINS
     ! Do some fitting...
     DO jj = 1,klev
        DO ii = 1,kbdim
-          DO cc = 1,ncld
+          DO cc = ncld,1,-1 ! Start from the largest drops
+             ! Autoconversion rate can be limited
+             tot = 0.
 
              Ntot = pcloud(ii,jj,cc)%numc
              Vtot = SUM(pcloud(ii,jj,cc)%volc(:))
@@ -894,6 +898,8 @@ CONTAINS
                    pprecp(ii,jj,1)%numc = pprecp(ii,jj,1)%numc + Nrem
                    pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc - Nrem
 
+                   tot = tot + Nrem
+                   IF (tot > max_rate_autoc*ptstep) EXIT
                 END IF ! Nrem Vrem
 
              END IF ! Ntot Vtot
@@ -926,7 +932,7 @@ CONTAINS
                                planck,      &
                                pi,          &
                                nlim, prlim
-    USE mo_constants, ONLY : rd, alf, avo
+    USE mo_constants, ONLY : rd, avo
 
     IMPLICIT NONE
 
@@ -1026,7 +1032,7 @@ CONTAINS
                                pi6,         &
                                pi,          &
                                nlim, prlim
-    USE mo_constants, ONLY : rd, alf, avo
+    USE mo_constants, ONLY : rd, avo
 
     IMPLICIT NONE
 
@@ -1123,7 +1129,7 @@ CONTAINS
                                pi,          &
                                nlim, prlim, &
                                debug
-    USE mo_constants, ONLY : rd, alf, avo
+    USE mo_constants, ONLY : rd, avo
 
     IMPLICIT NONE
 
@@ -1490,7 +1496,6 @@ CONTAINS
   !
   REAL FUNCTION cumlognorm(dg,sigmag,dpart)
     
-    USE mo_submctl, ONLY : pi
     IMPLICIT NONE
     ! Cumulative lognormal function
     REAL, INTENT(in) :: dg

@@ -422,17 +422,17 @@ contains
            iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'rmH2Opr'))
 
            DO ss = 1,nspec
-              nam='rm'//spec_list(ss)//'dr'
+              nam='rm'//trim(spec_list(ss))//'dr'
               iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
               iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
               iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
 
-              nam='rm'//spec_list(ss)//'cl'
+              nam='rm'//trim(spec_list(ss))//'cl'
               iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
               iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
               iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
 
-              nam='rm'//spec_list(ss)//'pr'
+              nam='rm'//trim(spec_list(ss))//'pr'
               iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
               iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
               iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
@@ -561,6 +561,10 @@ contains
        if (itype==0) ncinfo = 'Liquid water potential temperature'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
+    case('theta')
+       if (itype==0) ncinfo = 'Potential temperature'
+       if (itype==1) ncinfo = 'K'
+       if (itype==2) ncinfo = 'tttt'
     case('p')
        if (itype==0) ncinfo = 'Pressure'
        if (itype==1) ncinfo = 'Pa'
@@ -683,6 +687,10 @@ contains
        if (itype==2) ncinfo = 'time'
     case('prcp')
        if (itype==0) ncinfo = 'Surface precipitation rate'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'time'
+    case('prcp_bc')
+       if (itype==0) ncinfo = 'Below cloud precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'time'
     case('pfrac')
@@ -1144,6 +1152,23 @@ contains
     case('sflx2')
        if (itype==0) ncinfo = 'Variance of shortwave radiative flux'
        if (itype==1) ncinfo = 'W^2/m^4'
+       if (itype==2) ncinfo = 'ttmt'
+    case('sw_up')
+       if (itype==0) ncinfo = 'Upwelling shortwave radiation'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'ttmt'
+    case('sw_down')
+       if (itype==0) ncinfo = 'Downwelling shortwave radiation'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'ttmt'
+    case('lw_up')
+       if (itype==0) ncinfo = 'Upwelling longwave radiation'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'ttmt'
+    case('lw_down')
+       if (itype==0) ncinfo = 'Downwelling longwave radiation'
+       if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('l_2')
        if (itype==0) ncinfo = 'Variance of liquid water mixing ratio'

@@ -21,7 +21,6 @@ module advf
 
   implicit none
 
-  logical :: newscheme = .true.
   integer :: lmtr = 1
 
 contains
