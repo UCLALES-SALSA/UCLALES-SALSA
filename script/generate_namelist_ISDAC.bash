@@ -70,7 +70,7 @@ ${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
   sed_ice = ${sed_ice:-.TRUE.}
   sed_snow = ${sed_snow:-.FALSE.}
   iradtyp = ${iradtyp:-5}                ! 1 = no radiation, only large-scale forcing, 3 = radiation + large-scale forcing 5
-  case_name = ${case_name:-"'ascos'"}            ! Case-specific large-scale forcing: none = not used, 
+  case_name = ${case_name:-"'isdac'"}            ! Case-specific large-scale forcing: none = not used, 
                                       ! default = simple divergence forcing with specified div 
   div = ${div:-1.5e-6}              ! Divergence for e.g. case_name = 'default'
   sfc_albedo = ${sfc_albedo:-0.7}

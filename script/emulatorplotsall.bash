@@ -1,6 +1,20 @@
 #!/bin/bash
 shopt -s nullglob
-scr="python ${LES}/script/plotLesOutput.py "
+plotScriptName=plotLesOutput.py
+
+plotScriptMount=${LES}/script/${plotScriptName}
+plotScriptSync=${SOFTA}/${plotScriptName}
+
+if  [ -f $plotScriptMount ]; then
+    scr="python $plotScriptMount "
+
+elif [ -f $plotScriptSync ]; then
+    scr="python $plotScriptSync "
+else
+    echo 'skripti ei ole olemassa'
+    exit
+fi
+
 puuttuvat="puuttuvat keissit: "
 pattern='emul([0-9])\w+'
 for i in *

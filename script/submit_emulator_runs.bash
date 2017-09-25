@@ -73,7 +73,7 @@ if [[ -z $designV ]]; then
 fi
 
 # LES version
-nn=$(( ${#exe}- 7 ))
+nn=$(( ${#exe}- 8 ))
 if [[ $nn -gt 0 ]]; then
     les=_${exe:$((${#exe}-$nn)):$nn}
 fi

@@ -265,26 +265,28 @@ contains
              tt(k,i,j) =tt(k,i,j)-(flx(k,i,j)-flx(km1,i,j))*dzt(k)/(dn0(k)*cp)
           enddo
 
-        ! ISDAC
-        ! ---------
-        !
-        do k=2,n1-2
-            ! calculate subsidence factor (wsub / dz)
-            sf(k) = -4.125e-3*min( 825.,zt(k) )*dzt(k)
-        end do
-        !
-        do j=3,n3-2
-            do i=3,n2-2
-                do k=2,n1-2
-                    !
-                    ! Temperature and humidity advection due to subsidence
-                    !
-                    kp1 = k+1
-                    tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
-                    rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
-                enddo
+      enddo
+    enddo
+    ! ISDAC
+    ! ---------
+    !
+    do k=2,n1-2
+        ! calculate subsidence factor (wsub / dz)
+        sf(k) = -4.125e-3*min( 825.,zt(k) )*dzt(k)
+    end do
+    !
+    do j=3,n3-2
+        do i=3,n2-2
+            do k=2,n1-2
+                !
+                ! Temperature and humidity advection due to subsidence
+                !
+                kp1 = k+1
+                tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
+                rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
             enddo
         enddo
+    enddo
         !
 
   end subroutine isdac_gcss

@@ -97,7 +97,7 @@ do
         loopN=$((loopN+1))
 
         if [[ $loopN -gt 4 ]]; then
-            printf "There's something wrong with simulation emul${i}, looping for ${loopN}:th time" | mail -s "Something wrong with EMULATOR" jaakko.ahola@fmi.fi,Muzaffer.Ege.Alper@fmi.fi
+            printf "There's something wrong with simulation emul${i}, looping for ${loopN}:th time" | mail -s "Something wrong with EMULATOR" jaakko.ahola@fmi.fi #,Muzaffer.Ege.Alper@fmi.fi
             echo 'breaking out of while'
             break
         fi

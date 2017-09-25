@@ -18,7 +18,7 @@
 # $3 = job flag of the job scheduling system (OPTIONAL) default value: PBS
 # 
 # it is recommended to give input folder value:
-# e.g. input=/home/users/aholaj/UCLALES-SALSA/bin/case_emulator/emul01 ./submit_uclales-salsa.bash
+# e.g. exe=les.mpi input=/home/users/aholaj/UCLALES-SALSA/bin/case_emulator/emul01 ./submit_uclales-salsa.bash simulaatioKansio 64
 #
 
 # Exit on error
@@ -115,9 +115,9 @@ datadir=${rundir}/datafiles
 if [ $clean == true ]; then
     if [ -d ${rundir} ] ; then
         rm -rf ${rundir}/*
-    else
-        mkdir -p ${rundir} ${datadir}
     fi
+        mkdir -p ${rundir} ${datadir}
+
 fi    
 
 

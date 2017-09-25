@@ -57,4 +57,5 @@ setfacl -Rm g:climres:rx /ibrix/arch/ClimRes/aholaj/
 
 
 
-printf "Training simulations are ready in ${ibrixrootfolder}${outputname} \n\n -Jaakko- \n\n PS This was an automated message" | mail -s "Training simulations ready $outputname" Jaakko.Ahola@fmi.fi,Muzaffer.Ege.Alper@fmi.fi -r jaakko.ahola@fmi.fi
+# printf "Training simulations are ready in ${ibrixrootfolder}${outputname} \n\n -Jaakko- \n\n PS This was an automated message" | mail -s "Training simulations ready $outputname" Jaakko.Ahola@fmi.fi,Muzaffer.Ege.Alper@fmi.fi -r jaakko.ahola@fmi.fi # Ege
+printf "Training simulations are ready in ${ibrixrootfolder}${outputname} \n\n -Jaakko- \n\n PS This was an automated message" | mail -s "Training simulations ready $outputname" Jaakko.Ahola@fmi.fi -r jaakko.ahola@fmi.fi

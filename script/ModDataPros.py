@@ -146,7 +146,7 @@ def laske_minimi_maksimi(nimi,data):
 ### handle timeseries data by summing them columnwise  ###
 ### 4 dimensions: time, x, y, z                        ###
 ##########################################################
-def vertical_sum_timeseries( nimi, data, aika, tulostus = False, piirra = False, uusikuva = True ):
+def vertical_sum_timeseries( nimi, data, aika, tulostus = False, piirra = False, uusikuva = True, label = None ):
     print ' '
     print nimi, 'aikasarja'
     kokoaika = np.shape(data)[0]
@@ -167,13 +167,13 @@ def vertical_sum_timeseries( nimi, data, aika, tulostus = False, piirra = False,
 
     uusikuva = ( piirra and uusikuva )
     plot_alustus() if uusikuva else False
-    plottaa( aika, timeSeries, nimi, 'aika', 'path')  if piirra else False   
+    plottaa( aika, timeSeries, nimi, 'aika', 'path', label = label)  if piirra else False   
 
 ##########################################################
 ### handle timeseries data by summing them columnwise  ###
 ### 5 dimensions: time, x, y, z, bin                   ###
 ##########################################################    
-def vertical_sum_timeseries_bini( nimi, data, aika, tulostus = False, piirra = False, uusikuva = True ):
+def vertical_sum_timeseries_bini( nimi, data, aika, tulostus = False, piirra = False, uusikuva = True, label = None ):
     print ' '
     print nimi, 'aikasarja'
     kokoaika = np.shape(data)[0]
@@ -195,7 +195,7 @@ def vertical_sum_timeseries_bini( nimi, data, aika, tulostus = False, piirra = F
 
     uusikuva = ( piirra and uusikuva )
     plot_alustus() if uusikuva else False
-    plottaa( aika, timeSeries, nimi, 'aika', 'path')  if piirra else False   
+    plottaa( aika, timeSeries, nimi, 'aika', 'path', label = label)  if piirra else False   
 
 
 ##########################################################
@@ -245,7 +245,7 @@ def area( xm_data, ym_data ):
 ### input variable: mix ratio ( kg / kg )              ###
 ### 4 dimensions: time, x, y z                         ###
 ##########################################################
-def laske_path_aikasarjaXYZ( mixRatData, dn0_data, korkeus, aika = None, muunnosKerroin = 1000.,  onlyCloudy = False, tulostus = False, piirra = False, uusikuva = True, nimi = 'path aikasarja', xlabel = 'aika [s]', tightXAxis=False):
+def laske_path_aikasarjaXYZ( mixRatData, dn0_data, korkeus, aika = None, muunnosKerroin = 1000.,  onlyCloudy = False, tulostus = False, piirra = False, uusikuva = True, nimi = 'path aikasarja', xlabel = 'aika [s]', tightXAxis=False, label = None):
     
     #fig.laske_path_aikasarjaXYZ = None
     #ax.laske_path_aikasarjaXYZ  = None
@@ -300,7 +300,7 @@ def laske_path_aikasarjaXYZ( mixRatData, dn0_data, korkeus, aika = None, muunnos
     if uusikuva:
         laske_path_aikasarjaXYZ.fig, laske_path_aikasarjaXYZ.ax = plot_alustus()
         
-    plottaa( aika, timeSeries, nimi, xlabel , 'path [g/m^2]', tightXAxis = tightXAxis)  if piirra else False   
+    plottaa( aika, timeSeries, nimi, xlabel , 'path [g/m^2]', tightXAxis = tightXAxis, label = label)  if piirra else False   
     
     
  #   if uusikuva:
@@ -315,7 +315,7 @@ def laske_path_aikasarjaXYZ( mixRatData, dn0_data, korkeus, aika = None, muunnos
 ### input variable: mix ratio ( kg / kg )              ###
 ### 2 dimensions: time, z                              ###
 ##########################################################
-def laske_path_aikasarjaZ( mixRatData, dn0_data, korkeus, aika, tulostus = False, piirra = False, uusikuva = True, nimi = 'path aikasarja' ):
+def laske_path_aikasarjaZ( mixRatData, dn0_data, korkeus, aika, tulostus = False, piirra = False, uusikuva = True, nimi = 'path aikasarja', label = None ):
   
     print ' '
 
@@ -353,7 +353,7 @@ def laske_path_aikasarjaZ( mixRatData, dn0_data, korkeus, aika, tulostus = False
 
     uusikuva = ( piirra and uusikuva )
     plot_alustus() if uusikuva else False
-    plottaa( aika, timeSeries, nimi, 'aika [s]', 'path [g/m^2]')  if piirra else False   
+    plottaa( aika, timeSeries, nimi, 'aika [s]', 'path [g/m^2]', label = label)  if piirra else False   
 
 ##########################################################
 ### calculate content of a variable according          ###
@@ -362,7 +362,7 @@ def laske_path_aikasarjaZ( mixRatData, dn0_data, korkeus, aika, tulostus = False
 ### input variable: mix ratio ( kg / kg )              ###
 ### 4 dimensions: time, x, y z                         ###
 ##########################################################
-def laske_WC( mixRatData, dn0_data, aika, tulostus = False, piirra = False, uusikuva = True, nimi = 'water content aikasarja' ):
+def laske_WC( mixRatData, dn0_data, aika, tulostus = False, piirra = False, uusikuva = True, nimi = 'water content aikasarja', label = None ):
   
     mixRatData = mixRatData*1000.0 # kg/kg -> g/kg
 
@@ -401,7 +401,7 @@ def laske_WC( mixRatData, dn0_data, aika, tulostus = False, piirra = False, uusi
 
     uusikuva = ( piirra and uusikuva )
     plot_alustus() if uusikuva else False
-    plottaa( aika, timeSeries, nimi, 'aika [s]', 'Content [g/m^3]')  if piirra else False    
+    plottaa( aika, timeSeries, nimi, 'aika [s]', 'Content [g/m^3]', label = label)  if piirra else False    
 
 #######################################################################
 ### calculate number concentration of a variable according          ###
@@ -412,7 +412,7 @@ def laske_WC( mixRatData, dn0_data, aika, tulostus = False, piirra = False, uusi
 #######################################################################
 
 ############## NEEDS REVISION ############################
-def laske_NumberConcentration( Ndata, refNdata, dn0_data, aika, tulostus = False, uusikuva = True, piirra =False, nimi = 'number concentration' ):
+def laske_NumberConcentration( Ndata, refNdata, dn0_data, aika, tulostus = False, uusikuva = True, piirra =False, nimi = 'number concentration', label = None ):
     
     #dn0_data = dn0_data/1000.0 # kg/m^3 -> kg/l
     
@@ -453,7 +453,7 @@ def laske_NumberConcentration( Ndata, refNdata, dn0_data, aika, tulostus = False
       
     uusikuva = ( piirra and uusikuva )
     plot_alustus() if uusikuva else False
-    plottaa( aika, timeSeries, nimi, 'aika [s]', 'Number concentration [#/kg]')  if piirra else False
+    plottaa( aika, timeSeries, nimi, 'aika [s]', 'Number concentration [#/kg]', label = label)  if piirra else False
         
 
 #######################################################################
@@ -463,7 +463,7 @@ def laske_NumberConcentration( Ndata, refNdata, dn0_data, aika, tulostus = False
 ### input variable: mix ratio ( kg / kg )                           ###
 ### 5 dimensions: time, x, y z, bin                                 ###
 #######################################################################
-def laske_MeanDiameterInBin( RadiusBinData, bini, refNdata, aika, tulostus = False, piirra =False, uusikuva = True, nimi = 'Mean diameter in bin ' ):
+def laske_MeanDiameterInBin( RadiusBinData, bini, refNdata, aika, tulostus = False, piirra =False, uusikuva = True, nimi = 'Mean diameter in bin ', label = None ):
     biniNimi = str(bini+1)
     nimi     = nimi + biniNimi
     
@@ -505,7 +505,7 @@ def laske_MeanDiameterInBin( RadiusBinData, bini, refNdata, aika, tulostus = Fal
       
     uusikuva = ( piirra and uusikuva )
     plot_alustus() if uusikuva else False
-    plottaa( aika, timeSeries, nimi, 'aika [s]', 'diameter [um]')  if piirra else False
+    plottaa( aika, timeSeries, nimi, 'aika [s]', 'diameter [um]', label = label )  if piirra else False
 
 #######################################################################
 ### calculate column mean PSD divided into bins                     ###
@@ -515,7 +515,7 @@ def laske_MeanDiameterInBin( RadiusBinData, bini, refNdata, aika, tulostus = Fal
 ### 5 dimensions: time, x, y z, bin                                 ###
 #######################################################################
 
-def laske_PSD_TimestepColumnAverage( data, aikaPisteet = 0, tulostus = False, piirra =False, uusikuva = True, nimi = 'PSD ' ):
+def laske_PSD_TimestepColumnAverage( data, aikaPisteet = 0, tulostus = False, piirra =False, uusikuva = True, nimi = 'PSD ', label = None ):
     #bini in xrange( np.shape(S_Rwiba_data)[1] ):
     biniNimi = str(bini+1)
     nimi     = nimi + biniNimi
@@ -593,7 +593,7 @@ def laske_PSD_TimestepColumnAverage( data, aikaPisteet = 0, tulostus = False, pi
       
     uusikuva = ( piirra and uusikuva )
     plot_alustus() if uusikuva else False
-    plottaa( aika, timeSeries, nimi, 'aika [s]', 'diameter [um]')  if piirra else False
+    plottaa( aika, timeSeries, nimi, 'aika [s]', 'diameter [um]', label = label)  if piirra else False
 
 ########################################
 ### calculate root mean square error ###
@@ -607,7 +607,7 @@ def rmse(predictions, targets):
 ### most useful with .ts.nc files       ###
 ###                                     ###
 ###########################################
-def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuva = True, nimi = 'aikasarja', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, tightXAxis=False, LEGEND=True, omavari = False ):
+def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuva = True, nimi = 'aikasarja', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, tightXAxis=False, LEGEND=True, omavari = False, label = None ):
   #fig.aikasarjaTulostus = None
   #ax.aikasarjaTulostus  = None
   
@@ -628,8 +628,8 @@ def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuv
   if uusikuva:
       aikasarjaTulostus.fig, aikasarjaTulostus.ax = plot_alustus()
       
-  plottaa( aika, data, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari )
-    
+  plottaa( aika, data, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari, label = label )
+
   return aikasarjaTulostus.fig, aikasarjaTulostus.ax
 
 ###########################################
@@ -637,7 +637,7 @@ def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuv
 ### most useful with .ts.nc files       ###
 ###                                     ###
 ###########################################
-def profiiliTulostus( data, aikaPisteet = 0, korkeus=0, tulostus = False, piirra = False, uusikuva = True, nimi = 'profiili', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, tightXAxis=False, LEGEND=True, omavari = False ):
+def profiiliTulostus( data, aikaPisteet = 0, korkeus=0,label = None, tulostus = False, piirra = False, uusikuva = True, nimi = 'profiili', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, tightXAxis=False, LEGEND=True, omavari = False):
   
   if not isinstance(korkeus, np.ndarray):
     korkeus=np.arange( (np.shape(data)[1]) )
@@ -651,13 +651,18 @@ def profiiliTulostus( data, aikaPisteet = 0, korkeus=0, tulostus = False, piirra
 
 ## drawing ##
   uusikuva = ( piirra and uusikuva )
-  plot_alustus() if uusikuva else False
+
+  if uusikuva:
+      profiiliTulostus.fig, profiiliTulostus.ax = plot_alustus()
   
-  if isinstance( aikaPisteet, np.ndarray):
+  if isinstance( aikaPisteet, np.ndarray) or isinstance( aikaPisteet, list):
       for t in aikaPisteet:
-        plottaa( data[t,:], korkeus, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari )
+        plottaa( data[t,:], korkeus, nimi, xnimi, ynimi, label = label, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari )
   else:
-      plottaa( data, korkeus, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari)
+      plottaa( data, korkeus, nimi, xnimi, ynimi, label = label, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari )
+          
+
+  return profiiliTulostus.fig, profiiliTulostus.ax
 
 ########################################
 ### colorPool object class           ###
@@ -769,12 +774,12 @@ def plot_setXlim( minimiX, maksimiX, extendBelowZero = True, A = 0.05 ):
 ### plot data                        ###
 ###                                  ###
 ########################################
-def plottaa( x, y, tit, xl, yl, label=0, log=False, changeColor=True, tightXAxis=False, tightYAxis = None, markers=False, LEGEND=True, omavari = None, scatter=False, uusikuva = False):
-  if uusikuva == True:
-      plot_alustus()
+def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, changeColor=True, tightXAxis=False, tightYAxis = False, markers=False, LEGEND=True, omavari = None, scatter=False, uusikuva = False, gridi = True):
+  if uusikuva:
+      plottaa.fig, plottaa.ax = plot_alustus()
 
   global color
-  if  isinstance(label, int):
+  if  label is None:
       label = tit
 
   if ( omavari is None ):
@@ -796,23 +801,26 @@ def plottaa( x, y, tit, xl, yl, label=0, log=False, changeColor=True, tightXAxis
   plt.ylabel( yl )
   
   #plt.xticks( xtikut )
-  plt.grid( True )
+  plt.grid( gridi )
   
   plt.autoscale( enable=True, axis='x', tight=tightXAxis )
   
-  if tightYAxis is not None:
+  if tightYAxis:
     plt.autoscale( enable=True, axis='y', tight=tightYAxis )
   
   #patch = mpatches.Patch(color=c, label=legend)
   #plt.legend(handles=[patch])
 
   if LEGEND:
-      plt.legend( bbox_to_anchor = ( 0., 1.02, 1., 10.102 ), loc=3, ncol=2, mode="expand", borderaxespad=0. )
-  else:
-      plt.title(tit)
+      plt.legend( bbox_to_anchor = ( 0., 1.1, 0.6, 20.102 ),loc="upper center",  ncol=2, mode="expand", borderaxespad=0.,  prop={'size': 18}, fancybox = True, shadow = True ) #
+  plt.title(tit)
+  
       
   if (log):
-    plt.xscale('log')  
+    plt.xscale('log')
+
+  if uusikuva:
+    return plottaa.fig, plottaa.ax
     
 #y = zt_data[1:]
 #c = next(colorpool)

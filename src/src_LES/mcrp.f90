@@ -31,6 +31,7 @@ module mcrp
        snowin,    prtcl, calc_wet_radius
   use thrm, only : thermo
   use stat, only : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
+  character (len=10) :: case_name = 'none'
   implicit none
 
   logical, parameter :: droplet_sedim = .False., khairoutdinov = .False.
@@ -578,7 +579,7 @@ contains
     REAL :: andiv(n1,n2,n3,nbins),       &
             cndiv(n1,n2,n3,ncld),        &
             indiv(n1,n2,n3,nice)
-    
+
     ! Deposition fields (given as particle divergence)
     REAL :: amdep(n2,n3,n4*nbins),  &
             cmdep(n2,n3,n4*ncld),   &
@@ -605,9 +606,9 @@ contains
     IF (sed_aero) THEN
 
        CALL NumMassDivergence(n1,n2,n3,n4,nbins,tk,a_dn,1500.,naerop,maerop,dzt,nlim,andiv,amdiv)
-       
+
        CALL NumMassDepositionSlow(n1,n2,n3,n4,nbins,a_dn,1500.,tk,ustar,naerop,maerop,nlim,andep,amdep)
-       
+
        naerot = naerot - andiv
        naerot(2,:,:,:) = naerot(2,:,:,:) - andep
        maerot = maerot - amdiv
@@ -633,7 +634,7 @@ contains
     IF (sed_cloud) THEN
 
        CALL NumMassDivergence(n1,n2,n3,n4,ncld,tk,a_dn,rhowa,ncloudp,mcloudp,dzt,nlim,cndiv,cmdiv)
-    
+
        CALL NumMassDepositionSlow(n1,n2,n3,n4,ncld,a_dn,rhowa,tk,ustar,ncloudp,mcloudp,nlim,cndep,cmdep)
 
        ncloudt = ncloudt - cndiv
@@ -658,15 +659,15 @@ contains
 
     END IF ! sed_cloud
 
-    IF (sed_ice) THEN
+    IF (sed_ice .and.  (trim(case_name) /= 'isdac')  ) THEN
 
        CALL NumMassDivergence(n1,n2,n3,n4,nice,tk,a_dn,rhoic,nicep,micep,dzt,prlim,indiv,imdiv)
 
        CALL NumMassDepositionSlow(n1,n2,n3,n4,nice,a_dn,rhoic,tk,ustar,nicep,micep,prlim,indep,imdep)
 
-       nicet = nicet - indiv 
+       nicet = nicet - indiv
        nicet(2,:,:,:) = nicet(2,:,:,:) - indep
-       micet = micet - imdiv 
+       micet = micet - imdiv
        micet(2,:,:,:) = micet(2,:,:,:) - imdep
 
        remice(:,:,:) = imdep(:,:,:)
@@ -711,7 +712,7 @@ contains
           END DO
        END DO
     END IF
-    
+
     IF (sed_snow) THEN
        CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,rowt,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate)
 
@@ -801,7 +802,7 @@ contains
 
           rflm = 0.
           rfln = 0.
-          
+
           DO k=n1-1,2,-1
              kp1 = k+1
 
@@ -862,7 +863,7 @@ contains
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,n4,nn
-    REAL, INTENT(in) :: adn(n1,n2,n3) 
+    REAL, INTENT(in) :: adn(n1,n2,n3)
     REAL, INTENT(in) :: pdn
     REAL, INTENT(in) :: tk(n1,n2,n3)
     REAL, INTENT(in) :: ustar(n2,n3)
@@ -926,14 +927,14 @@ contains
 
              ! Particle diffusitivity  (15.29) in jacobson book
              mdiff = (kb*tk(k,i,j)*GG)/(6.0*pi*avis*rwet)
-             
+
              Sc = kvis/mdiff
              St = vc*ustar(i,j)**2.0/g*kvis
              if (St<0.01) St=0.01
              rt = 1.0/MAX(epsilon(1.0),(ustar(i,j)*(Sc**(-2.0/3.0)+10**(-3.0/St)))) ! atm chem&phy eq19.18
 
              vd = (1./rt) + vc
-    
+
              DO ss = 1,n4
                 bs = (ss-1)*nn + bin
                 rflm(bin,ss) = -mass(k,i,j,bs)*vd
@@ -951,7 +952,88 @@ contains
 
   END SUBROUTINE NumMassDepositionSlow
 
-  
+  SUBROUTINE NumMassDepositionISDAC(n1,n2,n3,n4,nn,adn,pdn,tk,ustar,numc,mass,clim,depflxn,depflxm)
+    IMPLICIT NONE
+
+    INTEGER, INTENT(in) :: n1,n2,n3,n4,nn
+    REAL, INTENT(in) :: adn(n1,n2,n3)
+    REAL, INTENT(in) :: pdn
+    REAL, INTENT(in) :: tk(n1,n2,n3)
+    REAL, INTENT(in) :: ustar(n2,n3)
+    REAL, INTENT(in) :: numc(n1,n2,n3,nn)
+    REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4)
+    REAL, INTENT(IN) :: clim                ! Concentration limit
+    REAL, INTENT(OUT) :: depflxn(n2,n3,nn), depflxm(n2,n3,nn*n4)
+
+    INTEGER :: i,j,k,bin
+    INTEGER :: ss,bs
+
+    real, parameter :: A = 1.249 ! fundamentals of atm. modelling pg509
+    real, parameter :: B = 0.42
+    real, parameter :: C = 0.87
+    real, parameter :: M = 4.8096e-26 ! average mass of one air molecule, eq2.3 fundamentals of atm.
+                                      ! modelling [kg molec-1]
+
+    REAL :: GG
+    REAL :: St, Sc, Kn
+    REAL :: lambda      ! Mean free path
+    REAL :: mdiff       ! Particle diffusivity
+    REAL :: avis,kvis   ! Air viscosity, kinematic viscosity
+    REAL :: va          ! Thermal speed of air molecule
+    REAL :: vc,vd       ! Particle fall speed, deposition velocity
+    REAL :: rt
+
+    REAL :: rflm(nn,n4), rfln(nn), prvolc(n4), rwet
+
+    depflxm = 0.
+    depflxn = 0.
+
+    ! Fix level to lowest above ground level
+    k = 2
+
+    DO j = 3,n3-2
+       DO i = 3,n2-2
+
+
+          rflm = 0.
+          rfln = 0.
+
+          DO bin = 1,nn
+             IF (numc(k,i,j,bin) < clim) CYCLE
+
+             ! Calculate wet size
+             !   n4 = number of active species
+             !   bin = size bin
+             prvolc(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
+             rwet=calc_wet_radius(n4,numc(k,i,j,bin),prvolc)
+
+
+             ! Terminal velocity
+             vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG)
+
+             ! Particle diffusitivity  (15.29) in jacobson book
+             mdiff = (kb*tk(k,i,j)*GG)/(6.0*pi*avis*rwet)
+
+
+
+             DO ss = 1,n4
+                bs = (ss-1)*nn + bin
+                rflm(bin,ss) = -mass(k,i,j,bs)*vd
+                depflxm(i,j,bs) = -rflm(bin,ss)*dzt(k)
+             END DO
+
+             rfln(bin) = -numc(k,i,j,bin)*vd
+
+          END DO ! bin
+
+          depflxn(i,j,:) = -rfln(:)*dzt(k)
+
+       END DO ! i
+    END DO ! j
+
+  END SUBROUTINE NumMassDepositionISDAC
+
+
   !------------------------------------------------------------------
   SUBROUTINE DepositionFast(n1,n2,n3,n4,nn,tk,adn,pdn,numc,mass,tstep,dzt,prnt,prvt,remprc,clim,rate)
     IMPLICIT NONE
@@ -990,7 +1072,7 @@ contains
     REAL :: fd,fdmax,fdos ! Fall distance for rain drops, max fall distance, overshoot from nearest grid level
     REAL :: prnchg(n1,nn), prvchg(n1,nn,n4) ! Instantaneous changes in precipitation number and mass (volume)
     REAL :: rwet
- 
+
     REAL :: prnumc, prvolc(n4)  ! Instantaneous source number and volume
     INTEGER :: kf, ni,fi
     LOGICAL :: prcdep  ! Deposition flag
@@ -1001,14 +1083,14 @@ contains
     prvt(:,:,:,:) = 0.
 
     DO j = 3,n3-2
-       
+
        DO i = 3,n2-2
 
           prnchg = 0.
           prvchg = 0.
-          
+
           DO k=n1-1,2,-1
-          
+
              ! atm modelling Eq.4.54
              avis = 1.8325e-5*(416.16/(tk(k,i,j)+120.0))*(tk(k,i,j)/296.16)**1.5
              kvis = avis/adn(k,i,j) !actual density ???
@@ -1037,10 +1119,10 @@ contains
                 ! Determine output flux for current level: Find the closest level to which the
                 ! current drop parcel can fall within 1 timestep. If the lowest atmospheric level
                 ! is reached, the drops are sedimented.
-                
+
                 ! Maximum fall distance:
                 fdmax = tstep*vc
-             
+
                 fd = 0.
                 fi = 0
                 prcdep = .FALSE. ! deposition flag
@@ -1057,10 +1139,10 @@ contains
                 fi = fi-1
                 kf = k - fi
                 fd = fd - ( 1./dzt(kf) )
-             
+
                 ! How much the actual fall distance overshoots below the layer kf
                 fdos = MIN(MAX(fdmax-fd,0.),1./dzt(kf))
-             
+
                 ! Remove the drops from the original level
                 prnumc = numc(k,i,j,bin)
                 prnchg(k,bin) = prnchg(k,bin) - prnumc
@@ -1091,9 +1173,9 @@ contains
                       prvchg(kf,bin,ni) = prvchg(kf,bin,ni) + ( 1. - fdos*dzt(kf) )*prvolc(ni)
                    END DO
                 END IF ! diffusion
-             
+
              END DO !bin
-          
+
           END DO ! k
 
           prnt(:,i,j,:) = prnt(:,i,j,:) + prnchg(:,:)

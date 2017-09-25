@@ -85,6 +85,8 @@ module stat
        'rmSSdr ','rmSScl ','rmSSpr ','rmSSwt ','rmSStt ',            & !48
        'rmNH3dr','rmNH3cl','rmNH3pr','rmNH3wt','rmNH3tt',            & !53
        'rmNO3dr','rmNO3cl','rmNO3pr','rmNO3wt','rmNO3tt'             & !58, total 62
+       'rmSO4ic','rmOCic ','rmBCic ','rmDUic ','rmSSic ',            & !63
+       'rmNH3ic','rmN03ic','rmH20ic'
        /),                                                           &
 
         s2(nvar2)=(/                                                 &
@@ -585,7 +587,7 @@ contains
     IF ( level >=1 ) CALL ts_lvl1(nzp, nxp, nyp, dn0, zt, dzm, rxt)
     IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, a_rc, zt)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp, a_rc)
-    !IF ( level >=5 ) CALL ts_lvl5(nzp, nxp, nyp, a_ri) ! should be ,a_rsi) ? ! debugkebab poista kommentti tästä
+    IF ( level >=5 ) CALL ts_lvl5(nzp, nxp, nyp, a_ri)   ! debugkebab poista kommentti tästä
 
     call write_ts
 
@@ -744,13 +746,13 @@ contains
         CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'pr')
         i=i+1
 
-        IF (level>4) THEN
+        IF (level>=5) THEN
             ! Removal by sedimentation of ice particles
-            !CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'ic') ! debugkebab poistakommentti tästä
+            CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'ic') ! debugkebab poistakommentti tästä
             i=i+1
 
             ! Removal by snow
-            !CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'sn') ! debugkebab poistakommentti tästä
+            CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'sn') ! debugkebab poistakommentti tästä
             i=i+1
         ENDIF
     ENDDO
