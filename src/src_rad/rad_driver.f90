@@ -248,7 +248,7 @@ module radiation
         ELSE
             kk=(pecount-1-myid)*(n3-4)*(n2-4) ! Without solar wavelengths
         ENDIF
-        CALL set_random_offset( kk )
+        CALL set_random_offset( kk, laerorad )
       ENDIF
     end subroutine d4stream
 
