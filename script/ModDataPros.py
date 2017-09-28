@@ -637,10 +637,10 @@ def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuv
 ### most useful with .ts.nc files       ###
 ###                                     ###
 ###########################################
-def profiiliTulostus( data, aikaPisteet = 0, korkeus=0,label = None, tulostus = False, piirra = False, uusikuva = True, nimi = 'profiili', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, tightXAxis=False, LEGEND=True, omavari = False):
+def profiiliTulostus( data, aikaPisteet = 0, korkeus=0,label = None, tulostus = False, piirra = False, uusikuva = True, nimi = 'profiili', xnimi = 'x-akseli', ynimi= 'y-akseli', changeColor=True, tightXAxis=False, tightYAxis=False, LEGEND=True, omavari = False, loc = 2):
   
   if not isinstance(korkeus, np.ndarray):
-    korkeus=np.arange( (np.shape(data)[1]) )
+    korkeus=np.arange( (np.shape(data)[0]) )
   
   if tulostus:
       print ' '
@@ -657,9 +657,9 @@ def profiiliTulostus( data, aikaPisteet = 0, korkeus=0,label = None, tulostus = 
   
   if isinstance( aikaPisteet, np.ndarray) or isinstance( aikaPisteet, list):
       for t in aikaPisteet:
-        plottaa( data[t,:], korkeus, nimi, xnimi, ynimi, label = label, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari )
+        plottaa( data[t,:], korkeus, nimi, xnimi, ynimi, label = label, changeColor = changeColor, tightXAxis=tightXAxis, tightYAxis=tightYAxis, LEGEND=LEGEND, omavari = omavari, loc = loc )
   else:
-      plottaa( data, korkeus, nimi, xnimi, ynimi, label = label, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari )
+      plottaa( data, korkeus, nimi, xnimi, ynimi, label = label, changeColor = changeColor, tightXAxis=tightXAxis, tightYAxis=tightYAxis, LEGEND=LEGEND, omavari = omavari, loc = loc )
           
 
   return profiiliTulostus.fig, profiiliTulostus.ax
@@ -774,21 +774,23 @@ def plot_setXlim( minimiX, maksimiX, extendBelowZero = True, A = 0.05 ):
 ### plot data                        ###
 ###                                  ###
 ########################################
-def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, changeColor=True, tightXAxis=False, tightYAxis = False, markers=False, LEGEND=True, omavari = None, scatter=False, uusikuva = False, gridi = True):
+def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, currentColor = 'b', changeColor=True, tightXAxis=False, tightYAxis = False, markers=False, LEGEND=True, omavari = None, scatter=False, uusikuva = False, gridi = True, loc = 3 ):
   if uusikuva:
       plottaa.fig, plottaa.ax = plot_alustus()
 
   global color
   if  label is None:
       label = tit
-
-  if ( omavari is None ):
+  if ( (omavari is None) and ('colorChoice' in globals() )):
     if changeColor:
         currentColor = colorChoice.getNextColor()
     else:
         currentColor = colorChoice.getCurrentColor()
-  else:
+  else:    
       currentColor = omavari
+
+  
+
 
   if markers and not scatter:
       plt.plot( x, y, color = currentColor, label=label, linestyle='-', marker='o' )
@@ -796,7 +798,13 @@ def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, changeC
       plt.plot( x, y, color = currentColor, label=label)
   elif scatter:
       plt.scatter( x, y, color = currentColor, label=label)
-      
+  
+  if LEGEND:
+      if loc == 2:
+        plt.legend(bbox_to_anchor=(1.02, 1), loc=loc, borderaxespad=0., fancybox = True, shadow = True )
+      elif loc == 3:
+        plt.legend(bbox_to_anchor=(0., 1.06, 1., .102), loc=loc, ncol=6, fancybox = True, shadow = True , mode="expand" ) # upper center ,  prop={'size': 18}      bbox_to_anchor = ( 0., 1.1, 0.6, 20.102 ),loc=9,  ncol=2, mode="expand", borderaxespad=0., fancybox = True, shadow = True
+  
   plt.xlabel( xl ) #r'$\#/m^3$'
   plt.ylabel( yl )
   
@@ -811,8 +819,7 @@ def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, changeC
   #patch = mpatches.Patch(color=c, label=legend)
   #plt.legend(handles=[patch])
 
-  if LEGEND:
-      plt.legend( bbox_to_anchor = ( 0., 1.1, 0.6, 20.102 ),loc="upper center",  ncol=2, mode="expand", borderaxespad=0.,  prop={'size': 18}, fancybox = True, shadow = True ) #
+#
   plt.title(tit)
   
       

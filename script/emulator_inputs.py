@@ -47,21 +47,24 @@ def bool_convert(s):
         r = True
     return r
 
-home= os.environ["HOME"]
-ibrix = os.environ["IBRIXMOUNT"]
-les = os.environ["LES"]
-if ( len(sys.argv) > 2):
-    print "Mounted:", sys.argv[1], "nzp:",sys.argv[2], "filu:", sys.argv[3], "windprofile:",  sys.argv[4], "pres0:", sys.argv[5], "runmode:", sys.argv[6], "runNroBegin:", sys.argv[7], "runNroEnd:",  sys.argv[8], "level:",  sys.argv[9]
-    mounted = bool_convert( sys.argv[1] )
-else:
-    mounted = True
-  
+mounted = True
+
+if __name__ == "__main__":
+
+    if ( len(sys.argv) > 2):
+        print "Mounted:", sys.argv[1], "nzp:",sys.argv[2], "filu:", sys.argv[3], "windprofile:",  sys.argv[4], "pres0:", sys.argv[5], "runmode:", sys.argv[6], "runNroBegin:", sys.argv[7], "runNroEnd:",  sys.argv[8], "level:",  sys.argv[9]
+        mounted = bool_convert( sys.argv[1] )
+
+      
 if mounted:
     import matplotlib.pyplot as plt
     from ModDataPros import plottaa
     from plot_profiles import PlotProfiles
     from ModDataPros import initializeColors
 
+home= os.environ["HOME"]
+ibrix = os.environ["IBRIXMOUNT"]
+les = os.environ["LES"]
 
 lesroot    = les + '/'
 designroot = ibrix + '/DESIGN/'
@@ -183,8 +186,8 @@ def drtcon( q_pbl, sst, pres0 ):
 
     return drtcon    
 
-def absT( theta, p ):
-    p = p*100. # conversion from hPa to Pa
+def absT( theta, p, conversion = 100. ):
+    p = p*conversion # conversion from hPa to Pa by default
     R = 287.04    # Specific gas constant for dry air (R_specific=R/M), J/kg/K
     p00 =1.0e+05
     p00i = 1./p00
@@ -195,8 +198,8 @@ def absT( theta, p ):
     
     return absolut
 
-def potT( t, p):
-    p = p*100. # conversion from hPa to Pa
+def potT( t, p, conversion = 100.):
+    p = p*conversion # conversion from hPa to Pa by default
     R = 287.04    # Specific gas constant for dry air (R_specific=R/M), J/kg/K
     p00 =1.0e+05
 #    p00i = 1./p00
@@ -445,7 +448,7 @@ def write_sound_in( input_vector ):
         plt.savefig( folder + case + '_'+ 'wind'  + '.png', bbox_inches='tight')
         plt.close()
 
-        plottaa( windshear, z[:-1], tit = case+' wind shear '+ windprofile, xl = 'wind shear s^-1', yl = 'height m', markers=markers, uusikuva = True )
+        plottaa( windshear, z[:-1], tit = case+' wind shear '+ windprofile, xl = 'wind shear '+ r'$s^{-1}$', yl = 'height m', markers=markers, uusikuva = True )
         plt.savefig( folder + case + '_'+ 'windshear'  + '.png', bbox_inches='tight')
         plt.close()
 

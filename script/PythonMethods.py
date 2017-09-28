@@ -42,3 +42,6 @@ def waterBallVolumeToDiam(V):
 
 def myRound(x, base = 5):
     return int(base*round(float(x)/base))
+
+def myRoundFloat(x, prec=2, base=.5):
+  return round(base * round(float(x)/base),prec)
