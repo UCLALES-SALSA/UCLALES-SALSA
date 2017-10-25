@@ -17,65 +17,65 @@
 ! Copyright 1999-2008, Bjorn B. Stevens, Dep't Atmos and Ocean Sci, UCLA
 !----------------------------------------------------------------------------
 !
-module forc
+MODULE forc
 
-  use defs, only      : cp
-  use radiation, only : d4stream
-  use stat, only : sflg
-  implicit none
+  USE defs, ONLY      : cp
+  USE radiation, ONLY : d4stream
+  USE stat, ONLY      : sflg
+  IMPLICIT NONE
 
   ! these are now all namelist parameters
-  character (len=10) :: case_name = 'none'               
-  character (len=50) :: radsounding = 'datafiles/dsrt.lay'  ! Juha: Added so the radiation background sounding can be given
+  CHARACTER (len=10) :: case_name = 'none'               
+  CHARACTER (len=50) :: radsounding = 'datafiles/dsrt.lay'  ! Juha: Added so the radiation background sounding can be given
                                                             ! from the NAMELIST
-  REAL :: sfc_albedo = 0.05
-  REAL  :: div = 0.
+  REAL    :: sfc_albedo = 0.05
+  REAL    :: div = 0.
   LOGICAL :: useMcICA = .TRUE.
   LOGICAL :: RadConstPress = .FALSE. ! Keep constant pressure levels
   INTEGER :: RadPrecipBins = 0 ! Add precipitation bins to cloud water (for level 3 and up)
 
-contains
+CONTAINS
   !
   ! -------------------------------------------------------------------
-  ! subroutine forcings:  calls the appropriate large-scale forcings
+  ! Subroutine forcings:  calls the appropriate large-scale forcings
   !
-  subroutine forcings(time_in, cntlat, sst)
+  SUBROUTINE forcings(time_in, cntlat, sst)
 
-    use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc     &
-         , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp  &
-         , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
-         a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, &
-         a_fus, a_fds, a_fuir, a_fdir
+    USE grid, ONLY: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc,     &
+                    a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp,  &
+                    a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
+                    a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, &
+                    a_fus, a_fds, a_fuir, a_fdir
 
     USE mo_submctl, ONLY : nspec,nprc,ira,fra
 
-    use mpi_interface, only : myid, appl_abort
+    USE mpi_interface, ONLY : myid, appl_abort
 
-    real, optional, intent (in) :: time_in, cntlat, sst
+    REAL, OPTIONAL, INTENT (in) :: time_in, cntlat, sst
 
-    real :: xka, fr0, fr1, xref1, xref2
+    REAL :: xka, fr0, fr1
     REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
 
     ! DIVERGENCE GIVEN FROM NAMELIST
-    if (trim(case_name) == 'atex') then
+    IF (trim(case_name) == 'atex') THEN
        xka = 130.
        fr0 = 74.
        fr1 = 0.
        div = 0.
-    else
+    ELSE
        xka = 85.
        fr0 = 70.
        fr1 = 22.
        !div = 3.75e-6
-    end if
+    END IF
 
-    if (trim(case_name)=='ascos') THEN
+    IF (trim(case_name) == 'ascos') THEN
         ! Full radiation calculations when saving data (stat/sflg=.TRUE. when saving)
-        useMcICA=.NOT.sflg
-    endif
+        useMcICA = .NOT. sflg
+    END IF
 
-    select case(iradtyp)
-    case (1)
+    SELECT CASE(iradtyp)
+    CASE (1)
        ! No radiation, just large-scale forcing. 
        ! Note, there's a slight discrepancy between lev 1-3 and lev 4 with a_rp
        ! (total water vs vapour): it perhaps doesn't make sence to change the
@@ -83,31 +83,31 @@ contains
        ! 1-3 total mixing ratio is the only prognostic water variable.
        ! -------------------------------------------------
        IF ( case_name /= 'none' ) THEN
-          call case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
+          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
        END IF
 
-    case (2)
-       ! Some original special cases....
+    CASE (2)
+       ! Some original special CASEs....
        ! ---------------------------------
        IF ( level >= 4) THEN
           IF(myid == 0) WRITE(*,*) 'FORCING: selection not implemented for level 4 or 5, iradtyp = ',iradtyp
           CALL appl_abort(0)
        END IF
 
-       select case(level)
-       case(1) 
-          call smoke_rad(nzp, nxp, nyp, dn0, a_rflx, zm, dzt,a_tt,a_rp)
-       case(2)
-          call gcss_rad(nzp, nxp, nyp, xka, fr0, fr1, div, a_rc, dn0,     &
-               a_rflx, zt, zm, dzt, a_tt, a_tp, a_rt, a_rp)
+       SELECT CASE(level)
+       CASE(1) 
+          CALL smoke_rad(nzp, nxp, nyp, dn0, a_rflx, zm, dzt,a_tt,a_rp)
+       CASE(2)
+          CALL gcss_rad(nzp, nxp, nyp, xka, fr0, fr1, div, a_rc, dn0,     &
+                        a_rflx, zt, zm, dzt, a_tt, a_tp, a_rt, a_rp)
 
-       end select
-       if (trim(case_name) == 'atex') call case_forcing(nzp, nxp, nyp,    &
-            zt, dzt, dzm, div, a_tp, a_rp, a_tt, a_rt)
-    case (3)
+       END SELECT
+       IF (trim(case_name) == 'atex') CALL case_forcing(nzp, nxp, nyp,    &
+                                                        zt, dzt, dzm, div, a_tp, a_rp, a_tt, a_rt)
+    CASE (3)
        ! Radiation + large-scale forcing
        ! -------------------------------------
-       if (present(time_in) .and. present(cntlat) .and. present(sst)) then
+       IF (present(time_in) .AND. present(cntlat) .AND. present(sst)) THEN
 
           IF (level <= 3) THEN
              znc(:,:,:) = CCN
@@ -115,39 +115,39 @@ contains
              IF (level == 3 .AND. RadPrecipBins > 0) THEN ! Add precipitation (all or nothing)
                 znc(:,:,:) = znc(:,:,:) + a_npp(:,:,:)
                 zrc(:,:,:) = zrc(:,:,:) + a_rpp(:,:,:)
-             ENDIF
-             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                  dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
-                  useMcICA=useMcICA, ConstPrs=RadConstPress)
+             END IF
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+                           dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
+                           a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
+                           useMcICA=useMcICA, ConstPrs=RadConstPress)
 
           ELSE IF (level == 4) THEN
              znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) ! Cloud droplets
              zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
-             IF (RadPrecipBins>0) THEN ! Add precipitation bins
+             IF (RadPrecipBins > 0) THEN ! Add precipitation bins
                 ! Water is the last species (nspec+1)
                 zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
                 znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
-             ENDIF
+             END IF
              CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                  dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
-                  useMcICA=useMcICA, ConstPrs=RadConstPress)
+                           dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
+                           a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
+                           useMcICA=useMcICA, ConstPrs=RadConstPress)
 
           ELSE IF (level == 5) THEN
              znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) ! Cloud droplets
              zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
-             IF (RadPrecipBins>0) THEN ! Add precipitation bins
+             IF (RadPrecipBins > 0) THEN ! Add precipitation bins
                 ! Water is the last species (nspec+1)
                 zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
                 znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
-             ENDIF
+             END IF
              zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4) ! Ice
              zri(:,:,:) = a_ri(:,:,:) ! Ice (no aerosol ice?)
              CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                  dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
-                  useMcICA=useMcICA, ConstPrs=RadConstPress)
+                           dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
+                           a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
+                           useMcICA=useMcICA, ConstPrs=RadConstPress)
 
           END IF
 
@@ -155,142 +155,142 @@ contains
              CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
           END IF 
 
-       else
-          if (myid == 0) print *, '  ABORTING: inproper call to radiation'
-          call appl_abort(0)
-       end if
-    case (4)
-       call bellon(nzp, nxp, nyp, a_rflx, a_sflx, zt, dzt, dzm, a_tt, a_tp&
-            ,a_rt, a_rp, a_ut, a_up, a_vt, a_vp)
-    end select 
+       ELSE
+          IF (myid == 0) PRINT *, '  ABORTING: inproper CALL to radiation'
+          CALL appl_abort(0)
+       END IF
+    CASE (4)
+       CALL bellon(nzp, nxp, nyp, a_rflx, a_sflx, zt, dzt, dzm, a_tt, a_tp,&
+                   a_rt, a_rp, a_ut, a_up, a_vt, a_vp)
+    END SELECT 
 
-  end subroutine forcings
+  END SUBROUTINE forcings
 
   !
   ! -------------------------------------------------------------------
-  ! subroutine gcss_rad:  call simple radiative parameterization and 
+  ! Subroutine gcss_rad:  call simple radiative parameterization and
   ! simultaneously update fields due to vertical motion as given by div
   !
-  subroutine gcss_rad(n1,n2,n3,xka,fr0,fr1,div,rc,dn0,flx,zt,zm,dzt,   &
-       tt,tl,rtt,rt)
+  SUBROUTINE gcss_rad(n1,n2,n3,xka,fr0,fr1,div,rc,dn0,flx,zt,zm,dzt,   &
+                      tt,tl,rtt,rt)
 
-    integer, intent (in):: n1,n2, n3
-    real, intent (in)   :: xka, fr0, fr1, div
-    real, intent (in)   :: zt(n1),zm(n1),dzt(n1),dn0(n1),rc(n1,n2,n3),   &
-         tl(n1,n2,n3),rt(n1,n2,n3)
-    real, intent (inout):: tt(n1,n2,n3),rtt(n1,n2,n3)
-    real, intent (out)  :: flx(n1,n2,n3)
+    INTEGER, INTENT (in) :: n1,n2, n3
+    REAL, INTENT (in)    :: xka, fr0, fr1, div
+    REAL, INTENT (in)    :: zt(n1),zm(n1),dzt(n1),dn0(n1),rc(n1,n2,n3),   &
+                           tl(n1,n2,n3),rt(n1,n2,n3)
+    REAL, INTENT (inout) :: tt(n1,n2,n3),rtt(n1,n2,n3)
+    REAL, INTENT (out)   :: flx(n1,n2,n3)
 
-    integer :: i, j, k, km1, kp1, ki
-    real    :: lwp(n2,n3), fact
+    INTEGER :: i, j, k, km1, kp1, ki
+    REAL    :: lwp(n2,n3), fact
 
-    lwp=0.
-    do j=3,n3-2
-       do i=3,n2-2
+    lwp = 0.
+    DO j = 3, n3-2
+       DO i = 3, n2-2
           ki = n1
-          do k=1,n1
-             km1=max(1,k-1)
-             lwp(i,j)=lwp(i,j)+max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(km1)))
-             flx(k,i,j)=fr1*exp(-1.*xka*lwp(i,j))
-             if ( (rc(k,i,j) > 0.01e-3) .and. (rt(k,i,j) >= 0.008) ) ki=k
-          enddo
+          DO k = 1, n1
+             km1 = max(1,k-1)
+             lwp(i,j) = lwp(i,j)+max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(km1)))
+             flx(k,i,j) = fr1*exp(-1.*xka*lwp(i,j))
+             IF ( (rc(k,i,j) > 0.01e-3) .AND. (rt(k,i,j) >= 0.008) ) ki = k
+          END DO
 
           fact = div*cp*dn0(ki)
-          do k=2,n1
-             km1=max(2,k-1)
-             lwp(i,j)=lwp(i,j)-max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1)))
-             flx(k,i,j)=flx(k,i,j)+fr0*exp(-1.*xka*lwp(i,j))
-             if (zm(k) > zm(ki) .and. ki > 1 .and. fact > 0.) then
-                flx(k,i,j)=flx(k,i,j) + fact*(0.25*(zm(k)-zm(ki))**1.333 + &
-                  zm(ki)*(zm(k)-zm(ki))**0.333333)
-             end if
-             tt(k,i,j) =tt(k,i,j)-(flx(k,i,j)-flx(km1,i,j))*dzt(k)/(dn0(k)*cp)
-          enddo
+          DO k = 2, n1
+             km1 = max(2,k-1)
+             lwp(i,j) = lwp(i,j)-max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1)))
+             flx(k,i,j) = flx(k,i,j)+fr0*exp(-1.*xka*lwp(i,j))
+             IF (zm(k) > zm(ki) .AND. ki > 1 .AND. fact > 0.) THEN
+                flx(k,i,j) = flx(k,i,j) + fact*(0.25*(zm(k)-zm(ki))**1.333 + &
+                             zm(ki)*(zm(k)-zm(ki))**(1./3.))
+             END IF
+             tt(k,i,j) = tt(k,i,j)-(flx(k,i,j)-flx(km1,i,j))*dzt(k)/(dn0(k)*cp)
+          END DO
           !
           ! subsidence
           !
-          if (div /= 0.) then
-             do k=2,n1-2
+          IF (div /= 0.) THEN
+             DO k = 2, n1-2
                 kp1 = k+1
-                tt(k,i,j) = tt(k,i,j) + &
-                        div*zt(k)*(tl(kp1,i,j)-tl(k,i,j))*dzt(k)
-                rtt(k,i,j)=rtt(k,i,j) + &
-                        div*zt(k)*(rt(kp1,i,j)-rt(k,i,j))*dzt(k)
-             end do
-          end if
-       enddo
-    enddo
+                tt(k,i,j)  = tt(k,i,j) + &
+                             div*zt(k)*(tl(kp1,i,j)-tl(k,i,j))*dzt(k)
+                rtt(k,i,j) = rtt(k,i,j) + &
+                             div*zt(k)*(rt(kp1,i,j)-rt(k,i,j))*dzt(k)
+             END DO
+          END IF
+       END DO
+    END DO
 
-  end subroutine gcss_rad
+  END SUBROUTINE gcss_rad
   !
   ! -------------------------------------------------------------------
-  ! subroutine smoke_rad:  call simple radiative parameterization for 
+  ! Subroutine smoke_rad:  call simple radiative parameterization for
   ! the smoke cloud
   !
-  subroutine smoke_rad(n1,n2,n3,dn0,flx,zm,dzt,tt,rt)
+  SUBROUTINE smoke_rad(n1,n2,n3,dn0,flx,zm,dzt,tt,rt)
 
-    integer, intent (in):: n1,n2, n3
-    real, intent (in)   :: zm(n1),dzt(n1),dn0(n1),rt(n1,n2,n3)
-    real, intent (inout):: tt(n1,n2,n3)
-    real, intent (out)  :: flx(n1,n2,n3)
-    real, parameter     :: xka= 50.0, fr0=60.0
+    INTEGER, INTENT (in) :: n1,n2, n3
+    REAL, INTENT (in)    :: zm(n1),dzt(n1),dn0(n1),rt(n1,n2,n3)
+    REAL, INTENT (inout) :: tt(n1,n2,n3)
+    REAL, INTENT (out)   :: flx(n1,n2,n3)
+    REAL, PARAMETER      :: xka = 50.0, fr0 = 60.0
 
-    integer :: i,j,k, km1, ki
-    real    :: smoke(n2,n3)
+    INTEGER :: i,j,k, km1, ki
+    REAL    :: smoke(n2,n3)
 
-    smoke=0.
-    do j=3,n3-2
-       do i=3,n2-2
+    smoke = 0.
+    DO j = 3, n3-2
+       DO i = 3, n2-2
           ki = n1
-          do k=1,n1
-             km1=max(1,k-1)
-             smoke(i,j)=smoke(i,j)+max(0.,rt(k,i,j)*dn0(k)*(zm(k)-zm(km1)))
-          enddo
+          DO k = 1, n1
+             km1 = max(1,k-1)
+             smoke(i,j) = smoke(i,j)+max(0.,rt(k,i,j)*dn0(k)*(zm(k)-zm(km1)))
+          END DO
 
-          do k=2,n1
-             km1=max(2,k-1)
-             smoke(i,j)=smoke(i,j)-max(0.,rt(k,i,j)*dn0(k)*(zm(k)-zm(k-1)))
-             flx(k,i,j)=fr0*exp(-1.*xka*smoke(i,j))
-             tt(k,i,j) =tt(k,i,j)-(flx(k,i,j)-flx(km1,i,j))*dzt(k)/(dn0(k)*cp)
-          enddo
-       enddo
-    enddo
+          DO k = 2, n1
+             km1 = max(2,k-1)
+             smoke(i,j) = smoke(i,j)-max(0.,rt(k,i,j)*dn0(k)*(zm(k)-zm(k-1)))
+             flx(k,i,j) = fr0*exp(-1.*xka*smoke(i,j))
+             tt(k,i,j) = tt(k,i,j)-(flx(k,i,j)-flx(km1,i,j))*dzt(k)/(dn0(k)*cp)
+          END DO
+       END DO
+    END DO
 
-  end subroutine smoke_rad
+  END SUBROUTINE smoke_rad
   !
   ! -------------------------------------------------------------------
-  ! subroutine case_forcing: adjusts tendencies according to a specified
-  ! large scale forcing.  Normally case (run) specific.
+  ! Subroutine case_forcing: adjusts tendencies according to a specified
+  ! large scale forcing.  Normally CASE (run) specific.
   !
-  subroutine case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,tl,rt,tt,rtt)
+  SUBROUTINE case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,tl,rt,tt,rtt)
 
-    use mpi_interface, only : pecount, double_scalar_par_sum,myid, appl_abort
-    use stat, only : get_zi
+    USE mpi_interface, ONLY : pecount, double_scalar_par_sum,myid, appl_abort
+    USE stat, ONLY : get_zi
 
-    integer, intent (in):: n1,n2, n3
-    real, dimension (n1), intent (in)          :: zt, dzt, dzm
-    real, intent(in)                           :: zdiv
-    real, dimension (n1,n2,n3), intent (in)    :: tl, rt
-    real, dimension (n1,n2,n3), intent (inout) :: tt, rtt
+    INTEGER, INTENT (in) :: n1,n2, n3
+    REAL, DIMENSION (n1), INTENT (in)          :: zt, dzt, dzm
+    REAL, INTENT(in)                           :: zdiv
+    REAL, DIMENSION (n1,n2,n3), INTENT (in)    :: tl, rt
+    REAL, DIMENSION (n1,n2,n3), INTENT (inout) :: tt, rtt
 
-    integer :: i,j,k,kp1
-    real, dimension (n1) :: sf
-    real, parameter :: zmx_sub = 2260. ! originally 2260.
+    INTEGER :: i,j,k,kp1
+    REAL, DIMENSION (n1) :: sf
+    REAL, PARAMETER :: zmx_sub = 2260. ! originally 2260.
 
-    real (kind=8) :: zig, zil
-    real          :: zibar
+    REAL (kind=8) :: zig, zil
+    REAL          :: zibar
 
     zig = 0.0; zil = 0.0; zibar = 0.0
-    kp1= 0
-    select case (trim(case_name))
-    case('default')
+    kp1 = 0
+    SELECT CASE (trim(case_name))
+    CASE('default')
        !
        ! User specified divergence used as a simple large scle forcing for moisture and temperature fields
        ! -------------------------------------------------------------------------------------------------
        !
-       DO j=3,n3-2
-          DO i=3,n2-2
-             DO k=2,n1-1
+       DO j = 3, n3-2
+          DO i = 3, n2-2
+             DO k = 2, n1-1
                 kp1 = k+1
                 tt(k,i,j) = tt(k,i,j) + zdiv*zt(k)*(tl(kp1,i,j)-tl(k,i,j))*dzt(k)
                 rtt(k,i,j) = rtt(k,i,j) + zdiv*zt(k)*(rt(kp1,i,j)-rt(k,i,j))*dzt(k)
@@ -298,22 +298,22 @@ contains
           END DO
        END DO
 
-    case('rico')
+    CASE('rico')
        !
        ! calculate subsidence factor (wsub / dz)
        !
-       do k=2,n1-2
-          if (zt(k) < zmx_sub) then
-             sf(k) =  -0.005*zt(k)/zmx_sub
-          else
-             sf(k) =  -0.005 
-          end if
+       DO k = 2, n1-2
+          IF (zt(k) < zmx_sub) THEN
+             sf(k) = -0.005*zt(k)/zmx_sub
+          ELSE
+             sf(k) = -0.005
+          END IF
           sf(k) = sf(k)*dzt(k)
-       end do
+       END DO
 
-       do j=3,n3-2
-          do i=3,n2-2
-             do k=2,n1-2
+       DO j = 3, n3-2
+          DO i = 3, n2-2
+             DO k = 2, n1-2
                 !
                 ! subsidence
                 ! 
@@ -327,117 +327,117 @@ contains
                 !
                 ! moisture advection
                 !
-                if (zt(k) <= 2980.) then
-                   rtt(k,i,j) = rtt(k,i,j)  - (1. -  1.3456*zt(k)/2980.)/8.64e7
-                else
-                   rtt(k,i,j) = rtt(k,i,j)  + .3456/8.64e7
-                end if
-             enddo
-          enddo
-       enddo
+                IF (zt(k) <= 2980.) THEN
+                   rtt(k,i,j) = rtt(k,i,j) - (1. - 1.3456*zt(k)/2980.)/8.64e7
+                ELSE
+                   rtt(k,i,j) = rtt(k,i,j) + .3456/8.64e7
+                END IF
+             END DO
+          END DO
+       END DO
 
-    case ('bomex')
+    CASE ('bomex')
        !
        ! calculate subsidence factor (wsub / dz)
        !
-       do k=2,n1-2
-          if (zt(k) < 1500.) then
-             sf(k) =  -0.0065*zt(k)/1500.
-          else
-             sf(k) =  min(0.,-0.0065  + 0.0065*(zt(k)-1500.)/600.)
-          end if
+       DO k = 2, n1-2
+          IF (zt(k) < 1500.) THEN
+             sf(k) = -0.0065*zt(k)/1500.
+          ELSE
+             sf(k) = min(0.,-0.0065  + 0.0065*(zt(k)-1500.)/600.)
+          END IF
           sf(k) = sf(k)*dzt(k)
-       end do
+       END DO
 
-       do j=3,n3-2
-          do i=3,n2-2
-             do k=2,n1-2
+       DO j = 3, n3-2
+          DO i = 3, n2-2
+             DO k = 2, n1-2
                 !
                 ! temperature advection and radiative cooling
                 !
                 kp1 = k+1
-                if (zt(k) < 1500.) then
+                IF (zt(k) < 1500.) THEN
                    tt(k,i,j) = tt(k,i,j) - ( tl(kp1,i,j)-tl(k,i,j) )*sf(k) &
-                        - 2.315e-5
-                else if (zt(k) < 2000.) then
+                              - 2.315e-5
+                ELSE IF (zt(k) < 2000.) THEN
                    tt(k,i,j) = tt(k,i,j) - ( tl(kp1,i,j)-tl(k,i,j) )*sf(k) &
-                        - 2.315e-5*(1.- (zt(k)-1500.)*1.e-3)
-                end if
+                              - 2.315e-5*(1.- (zt(k)-1500.)*1.e-3)
+                END IF
                 !
                 ! moisture advection
                 !
                 rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
-                if (zt(k) < 300.) then
-                   rtt(k,i,j) = rtt(k,i,j)  - 1.2e-8
-                elseif (zt(k) < 500.) then
-                   rtt(k,i,j) = rtt(k,i,j)  - 1.2e-8*(1.- (zt(k)-300.)/200.)
-                end if
-             enddo
-          enddo
-       enddo
-    case ('atex')
+                IF (zt(k) < 300.) THEN
+                   rtt(k,i,j) = rtt(k,i,j) - 1.2e-8
+                ELSE IF (zt(k) < 500.) THEN
+                   rtt(k,i,j) = rtt(k,i,j) - 1.2e-8*(1.- (zt(k)-300.)/200.)
+                END IF
+             END DO
+          END DO
+       END DO
+    CASE ('atex')
        !
        ! calculate subsidence factor (wsub / dz)
        !
        zil = get_zi (n1, n2, n3, 2, rt, dzm, zt, 6.5e-3)
-       call double_scalar_par_sum(zil,zig)
-       zibar = real(zig/pecount)
+       CALL double_scalar_par_sum(zil,zig)
+       zibar = REAL(zig/pecount)
 
-       do k=2,n1-2
-          if (zt(k) < zibar) then
-             sf(k) =  -0.0065*zt(k)/1500.
-          else
-             sf(k) =  min(0.,-0.0065*(1 - (zt(k)-zibar)/300.))
-          end if
+       DO k = 2, n1-2
+          IF (zt(k) < zibar) THEN
+             sf(k) = -0.0065*zt(k)/1500.
+          ELSE
+             sf(k) = min(0.,-0.0065*(1 - (zt(k)-zibar)/300.))
+          END IF
           sf(k) = sf(k)*dzt(k)
-       end do
+       END DO
 
-       do j=3,n3-2
-          do i=3,n2-2
-             do k=2,n1-2
+       DO j = 3, n3-2
+          DO i = 3, n2-2
+             DO k = 2, n1-2
                 !
                 ! temperature advection and radiative cooling
                 !
                 kp1 = k+1
-                if (zt(k) < zibar) then
+                IF (zt(k) < zibar) THEN
                    tt(k,i,j) = tt(k,i,j) - ( tl(kp1,i,j)-tl(k,i,j) )*sf(k) &
-                        - 2.315e-5*(1. + (1.- zt(k)/zibar)/2.)
-                else if (zt(k) < zibar+300.) then
+                              - 2.315e-5*(1. + (1.- zt(k)/zibar)/2.)
+                ELSE IF (zt(k) < zibar+300.) THEN
                    tt(k,i,j) = tt(k,i,j) - ( tl(kp1,i,j)-tl(k,i,j) )*sf(k) &
-                        - 2.315e-5*(1.- (zt(k)-zibar)/300.)
-                end if
+                              - 2.315e-5*(1.- (zt(k)-zibar)/300.)
+                END IF
                 !
                 ! moisture advection
                 !
                 rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
-                if (zt(k) < zibar) rtt(k,i,j) = rtt(k,i,j)  - 1.5e-8
-             enddo
-          enddo
-       enddo
+                IF (zt(k) < zibar) rtt(k,i,j) = rtt(k,i,j)  - 1.5e-8
+             END DO
+          END DO
+       END DO
         !
-    case ('ascos')
+    CASE ('ascos')
         ! ASCOS
         ! ---------
         !
-        do k=2,n1-2
+        DO k = 2, n1-2
             ! calculate subsidence factor (wsub / dz)
             sf(k) = -5.0e-6*min(2000.0,zt(k))*dzt(k)
-        end do
+        END DO
         !
-        do j=3,n3-2
-            do i=3,n2-2
-                do k=2,n1-2
+        DO j = 3, n3-2
+            DO i = 3, n2-2
+                DO k = 2, n1-2
                     !
                     ! Temperature and humidity advection due to subsidence
                     !
                     kp1 = k+1
                     tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
                     rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
-                enddo
-            enddo
-        enddo
+                END DO
+            END DO
+        END DO
         !
-    case ('barba')
+    CASE ('barba')
         ! Barbados
         ! -----------
         ! Large scale subsidence: w(z)=w0*(1-exp(z/H)), where w0=7.5 mm/s and H=1000 m.
@@ -445,13 +445,13 @@ contains
         ! No temperature or humidity advection
         !
         ! calculate subsidence factor (wsub / dz)
-        do k=2,n1-2
+        DO k = 2, n1-2
             sf(k) = -7.5e-3*(1.0-exp(-zt(k)/1000.0))*dzt(k)
-        end do
+        END DO
         !
-        do j=3,n3-2
-            do i=3,n2-2
-                do k=2,n1-2
+        DO j = 3, n3-2
+            DO i = 3, n2-2
+                DO k = 2, n1-2
                     ! Subsidence
                     kp1 = k+1
                     tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
@@ -459,65 +459,65 @@ contains
                     !
                     ! Radiative cooling: 2.5 K/day
                     tt(k,i,j) = tt(k,i,j)  - 2.5/86400.
-                enddo
-            enddo
-        enddo
+                END DO
+            END DO
+        END DO
         !
     CASE ('amazon')
         ! Amazon
         ! --------
         ! - to be added -
         !
-    case default
-       if (myid == 0) print *, '  ABORTING: inproper call to radiation'
-       call appl_abort(0)
-    end select
+    CASE DEFAULT
+       IF (myid == 0) PRINT *, '  ABORTING: inproper CALL to radiation'
+       CALL appl_abort(0)
+    END SELECT
 
-  end subroutine case_forcing
+  END SUBROUTINE case_forcing
   !
   ! -------------------------------------------------------------------
-  ! subroutine bellon_rad:  call simple radiative parameterization
+  ! Subroutine bellon_rad:  call simple radiative parameterization
   !
-  subroutine bellon(n1,n2,n3,flx,sflx,zt,dzt,dzm,tt,tl,rtt,rt, ut,u,vt,v)
+  SUBROUTINE bellon(n1,n2,n3,flx,sflx,zt,dzt,dzm,tt,tl,rtt,rt, ut,u,vt,v)
 
-    integer, intent (in) :: n1,n2, n3
+    INTEGER, INTENT (in) :: n1,n2, n3
 
-    real, dimension (n1), intent (in)            :: zt, dzt, dzm
-    real, dimension (n1, n2, n3), intent (inout) :: tt, tl, rtt, rt, ut,u,vt,v
-    real,  dimension (n1, n2, n3), intent (out)  :: flx, sflx
-    real, parameter      :: w0= 7.5e-3, H=1000., Qrate = 2.5/86400.
+    REAL, DIMENSION (n1), INTENT (in)            :: zt, dzt, dzm
+    REAL, DIMENSION (n1, n2, n3), INTENT (inout) :: tt, tl, rtt, rt, ut,u,vt,v
+    REAL,  DIMENSION (n1, n2, n3), INTENT (out)  :: flx, sflx
+    REAL, PARAMETER      :: w0 = 7.5e-3, H = 1000., Qrate = 2.5/86400.
 
-    integer :: i,j,k,kp1
-    real    :: grad,wk
+    INTEGER :: i,j,k,kp1
+    REAL    :: grad,wk
 
-    do j=3,n3-2
-       do i=3,n2-2
+    DO j = 3, n3-2
+       DO i = 3, n2-2
           !
           ! subsidence
           !
           flx(1,i,j)  = 0.
           sflx(1,i,j) = 0.
-          do k=2,n1-2
+          DO k = 2, n1-2
              kp1 = k+1
              wk = w0*(1.-exp(-zt(k)/H))
              grad = Qrate/wk
              flx(k,i,j)  = wk*((tl(kp1,i,j)-tl(k,i,j))*dzt(k)-grad)
              sflx(k,i,j) = wk*((rt(kp1,i,j)-rt(k,i,j))*dzt(k)-grad)
              tt(k,i,j) = tt(k,i,j) + flx(k,i,j)
-             rtt(k,i,j)=rtt(k,i,j) + &
-                  wk*(rt(kp1,i,j)-rt(k,i,j))*dzt(k)
+             rtt(k,i,j)= rtt(k,i,j) + &
+                         wk*(rt(kp1,i,j)-rt(k,i,j))*dzt(k)
              ut(k,i,j) =  ut(k,i,j) + &
-                  wk*(u(kp1,i,j)-u(k,i,j))*dzm(k)
+                          wk*(u(kp1,i,j)-u(k,i,j))*dzm(k)
              vt(k,i,j) =  vt(k,i,j) + &
-                  wk*(v(kp1,i,j)-v(k,i,j))*dzm(k)
-          end do
+                          wk*(v(kp1,i,j)-v(k,i,j))*dzm(k)
+          END DO
           flx(n1,  i,j)  = 0.
           flx(n1-1,i,j)  = 0.
           sflx(n1,  i,j) = 0.
           sflx(n1-1,i,j) = 0.
-       enddo
-    enddo
+       END DO
+    END DO
 
-  end subroutine bellon
+  END SUBROUTINE bellon
  
-end module forc
+END MODULE forc

@@ -32,7 +32,7 @@ NCDFINC = #-I$(NCDF)/include
 LIBS = #$(NCDFLIB)
 F90 = ftn
 MPIF90 = ftn
-FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} #-O1  -fbounds-check -fdefault-real-8 ${NCDFINC}
+FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} -std=f2008  #-O1  -fbounds-check -fdefault-real-8 ${NCDFINC}
 F77FLAGS = -O2 #-O1 -fbounds-check  
 
 LES_OUT_MPI=$(BIN)/les.mpi

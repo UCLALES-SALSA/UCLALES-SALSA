@@ -18,31 +18,31 @@
 !----------------------------------------------------------------------------
 !
 !
-module defs
+MODULE defs
 
-  integer :: nv=1, nv1=2, mb=1
-  real    :: totalpower
-  real, parameter :: R      = 287.04
-  real, parameter :: Rm     = 461.5
-  real, parameter :: ep     = R/Rm
-  real, parameter :: ep2    = Rm/R - 1.
-  real, parameter :: cp     = 1005.
-  real, parameter :: cv     = cp-R
-  real, parameter :: rcp    = R/cp
-  real, parameter :: cpr    = cp/R
-  real, parameter :: g      = 9.8
-  real, parameter :: p00    = 1.e+05
-  real, parameter :: p00i   = 1./p00
-  real, parameter :: omega  = 7.292e-05
-  real, parameter :: alvl   = 2.5e+06  ! latent heat of vaporization
-  real, parameter :: alvi   = 2.834e+06 ! latent heat of sublimation
-  real, parameter :: rowt   = 1.e+3
-  real, parameter :: roice  = 0.9e+3
-  real, parameter :: vonk   = 0.40
-  real, parameter :: stefan = 5.6696e-8
-  real, parameter :: SolarConstant  = 1.365d+3
-  real, parameter :: mair   = 28.967 ! molar mass of air
-  real, parameter :: pi     = 3.14159265358979323846264338327
-  real, parameter :: kb     = 1.3806e-23 !Boltzman constant
+  INTEGER :: nv = 1, nv1 = 2, mb = 1
+  REAL    :: totalpower
+  REAL, PARAMETER :: R      = 287.04
+  REAL, PARAMETER :: Rm     = 461.5
+  REAL, PARAMETER :: ep     = R/Rm
+  REAL, PARAMETER :: ep2    = Rm/R - 1.
+  REAL, PARAMETER :: cp     = 1005.
+  REAL, PARAMETER :: cv     = cp-R
+  REAL, PARAMETER :: rcp    = R/cp
+  REAL, PARAMETER :: cpr    = cp/R
+  REAL, PARAMETER :: g      = 9.8
+  REAL, PARAMETER :: p00    = 1.e+05
+  REAL, PARAMETER :: p00i   = 1./p00
+  REAL, PARAMETER :: omega  = 7.292e-05
+  REAL, PARAMETER :: alvl   = 2.5e+06  ! latent heat of vaporization
+  REAL, PARAMETER :: alvi   = 2.834e+06 ! latent heat of sublimation
+  REAL, PARAMETER :: rowt   = 1.e+3
+  REAL, PARAMETER :: roice  = 0.9e+3
+  REAL, PARAMETER :: vonk   = 0.40
+  REAL, PARAMETER :: stefan = 5.6696e-8
+  REAL, PARAMETER :: SolarConstant  = 1.365d+3
+  REAL, PARAMETER :: mair   = 28.967 ! molar mass of air
+  REAL, PARAMETER :: pi     = 3.14159265358979323846264338327
+  REAL, PARAMETER :: kb     = 1.3806e-23 !Boltzman constant
 
-end module defs
+END MODULE defs

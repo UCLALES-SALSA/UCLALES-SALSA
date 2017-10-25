@@ -29,11 +29,11 @@
 !
 !
 !
-module thrm
+MODULE thrm
 
-  implicit none
+  IMPLICIT NONE
 
-contains
+CONTAINS
 
 !
 ! -------------------------------------------------------------------------
@@ -41,64 +41,64 @@ contains
 ! is passed in to allow level of diagnosis to be determined by call rather
 ! than by runtype
 !
-  subroutine thermo (level)
+  SUBROUTINE thermo (level)
 
-    use grid, only : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_temp,  &
-         a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
-         a_srp, a_ri, a_rsi, a_rhi, a_srs
+    USE grid, ONLY : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_temp,  &
+                     a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
+                     a_srp, a_ri, a_rsi, a_rhi, a_srs
 
-    integer, intent (in) :: level
+    INTEGER, INTENT (in) :: level
 
-    select case (level)
-    case default
-       call drythrm(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,   &
+    SELECT CASE (level)
+    CASE DEFAULT
+       CALL drythrm(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,   &
                     pi1,th00,a_rp,a_rv)
-    case (2)
-       call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
+    CASE (2)
+       CALL satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl)
-    case (3)
-       call satadjst3(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0, &
+    CASE (3)
+       CALL satadjst3(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0, &
                       pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp)
-    case (4)
+    CASE (4)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
                       a_temp,a_press,a_rsl,a_rh,a_rc,a_srp)
-    case (5)
+    CASE (5)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
                       a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_rsi,a_rhi,a_srs)
-    end select
+    END SELECT
 
-  end subroutine thermo
+  END SUBROUTINE thermo
 !
 ! -------------------------------------------------------------------------
 ! update_pi1:  this routine updates a pressure associated with the
 ! subtraction of a mean acceleration, only incrementing it for dynamic and
 ! thermal effects for layers above the surface
 !
-  subroutine update_pi1(n1,awtbar,pi1)
+  SUBROUTINE update_pi1(n1,awtbar,pi1)
 
-    use grid, only : th00, zt
+    USE grid, ONLY : th00, zt
 
-    integer, intent (in) :: n1
-    real, intent (in) , dimension (n1) :: awtbar
-    real, intent (inout), dimension (n1) :: pi1
+    INTEGER, INTENT (in) :: n1
+    REAL, INTENT (in) , DIMENSION (n1)   :: awtbar
+    REAL, INTENT (inout), DIMENSION (n1) :: pi1
 
-    integer :: k
+    INTEGER :: k
 
-    do k=2,n1
+    DO k = 2, n1
        pi1(k) = pi1(k-1) + awtbar(k-1)*(zt(k)-zt(k-1))/th00
-    end do
+    END DO
 
-  end subroutine update_pi1
+  END SUBROUTINE update_pi1
 
-!
-!----------------------------------------------------------------------
-! SALSAthrm: Calculates potential and absolute temperatures, pressure,
-!            and total cloud/rain water mixing ratios with microphysics
-!            provided by the SALSA model. NOTE, no saturation adjustment
-!            takes place -> the resulting water vapour mixing ratio
-!            can be supersaturated, allowing the microphysical calculations
-!            in SALSA.
-!
+  !
+  !----------------------------------------------------------------------
+  ! SALSAthrm: Calculates potential and absolute temperatures, pressure,
+  !            and total cloud/rain water mixing ratios with microphysics
+  !            provided by the SALSA model. NOTE, no saturation adjustment
+  !            takes place -> the resulting water vapour mixing ratio
+  !            can be supersaturated, allowing the microphysical calculations
+  !            in SALSA.
+  !
 
   SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,rsi,rhi,srs)
     USE defs, ONLY : R, cp, cpr, p00, alvl, alvi
@@ -111,24 +111,24 @@ contains
                         tl(n1,n2,n3)          ! liquid potential temp
     REAL, INTENT(in) :: th00
     REAL, INTENT(in) :: pi0(n1),pi1(n1)
-    REAL, INTENT(IN) :: rc(n1,n2,n3),  &  ! Total cloud condensate mix rat
-                         srp(n1,n2,n3)            ! Precipitation mix rat
+    REAL, INTENT(IN) :: rc(n1,n2,n3),   &  ! Total cloud condensate mix rat
+                        srp(n1,n2,n3)            ! Precipitation mix rat
     REAL, INTENT(OUT) :: rs(n1,n2,n3),  &   ! Saturation mix rat
                          rh(n1,n2,n3),  &     ! Relative humidity
                          th(n1,n2,n3),  &     ! Potential temperature
                          tk(n1,n2,n3),  &     ! Absolute temperature
-                         p(n1,n2,n3)           ! Air pressure
-    REAL, OPTIONAL, INTENT(IN) :: ri(n1,n2,n3),  &  ! Total ice condensate mix rat
-                         srs(n1,n2,n3)      ! Snow mix rat
-    REAL, OPTIONAL, INTENT(OUT) :: rsi(n1,n2,n3), & ! Saturation mix rat over ice
-                         rhi(n1,n2,n3)      ! relative humidity over ice
-    REAL :: exner
+                         p(n1,n2,n3)          ! Air pressure
+    REAL, OPTIONAL, INTENT(IN)  :: ri(n1,n2,n3),   &  ! Total ice condensate mix rat
+                                   srs(n1,n2,n3)      ! Snow mix rat
+    REAL, OPTIONAL, INTENT(OUT) :: rsi(n1,n2,n3), &  ! Saturation mix rat over ice
+                                   rhi(n1,n2,n3)     ! relative humidity over ice
+    REAL    :: exner
     INTEGER :: k,i,j
-    REAL :: thil
+    REAL    :: thil
 
-     DO j = 3,n3-2
-       DO i = 3,n2-2
-          DO k = 1,n1
+     DO j = 3, n3-2
+       DO i = 3, n2-2
+          DO k = 1, n1
 
              ! Pressure
              exner = (pi0(k) + pi1(k) + pp(k,i,j))/cp
@@ -138,18 +138,18 @@ contains
              ! Potential and absolute temperatures
              th(k,i,j) = thil + (alvl*( rc(k,i,j) + srp(k,i,j) ))/cp
 			 
-             if(level==5) th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp
-			 
+             IF(level == 5) th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp
+
              tk(k,i,j) = th(k,i,j)*exner
 
              ! Saturation mixing ratio
              rs(k,i,j) = rslf(p(k,i,j),tk(k,i,j))
              rh(k,i,j) = rv(k,i,j)/rs(k,i,j)
 
-             if(level==5) then
-                rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))
-                rhi(k,i,j) = rv(k,i,j)/rsi(k,i,j)
-             end if
+             IF (level==5) THEN
+                 rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))
+                 rhi(k,i,j) = rv(k,i,j)/rsi(k,i,j)
+             END IF
 
              ! True air density
              a_dn(k,i,j) = p(k,i,j)/(R*tk(k,i,j))
@@ -164,226 +164,226 @@ contains
 ! DRYTHRM:  this routine calculates theta, and pressure for
 ! the case when no moisture is present
 !
-  subroutine drythrm(n1,n2,n3,pp,p,thil,theta,t,pi0,pi1,th00,rt,rv)
+  SUBROUTINE drythrm(n1,n2,n3,pp,p,thil,theta,t,pi0,pi1,th00,rt,rv)
 
-  use defs, only : cp, cpr, p00
+  USE defs, ONLY : cp, cpr, p00
 
-  integer, intent (in) :: n1,n2,n3
-  real, intent (in)    :: pi0(n1),pi1(n1),th00
-  real, intent (in)    :: pp(n1,n2,n3),thil(n1,n2,n3),rt(n1,n2,n3)
-  real, intent (out)   :: p(n1,n2,n3),theta(n1,n2,n3),rv(n1,n2,n3),t(n1,n2,n3)
+  INTEGER, INTENT (in) :: n1,n2,n3
+  REAL, INTENT (in)    :: pi0(n1),pi1(n1),th00
+  REAL, INTENT (in)    :: pp(n1,n2,n3),thil(n1,n2,n3),rt(n1,n2,n3)
+  REAL, INTENT (out)   :: p(n1,n2,n3),theta(n1,n2,n3),rv(n1,n2,n3),t(n1,n2,n3)
 
-  integer :: i,j,k
-  real    :: exner
+  INTEGER :: i,j,k
+  REAL    :: exner
 
-  do j=3,n3-2
-    do i=3,n2-2
-      do k=1,n1
+  DO j = 3, n3-2
+    DO i = 3, n2-2
+      DO k = 1, n1
         exner  = (pi0(k)+pi1(k)+pp(k,i,j))/cp
         p(k,i,j) = p00 * (exner)**cpr
-        theta(k,i,j)=thil(k,i,j)+th00
-        t(k,i,j)=theta(k,i,j)*exner
-        rv(k,i,j)=rt(k,i,j)
-      enddo
-    enddo
-  enddo
+        theta(k,i,j) = thil(k,i,j)+th00
+        t(k,i,j) = theta(k,i,j)*exner
+        rv(k,i,j) = rt(k,i,j)
+      END DO
+    END DO
+  END DO
 
-  end subroutine drythrm
+  END SUBROUTINE drythrm
 !
 ! -------------------------------------------------------------------------
 ! SATADJST:  this routine calculates theta, and pressure and diagnoses
 ! liquid water using a saturation adjustment for warm-phase systems
 !
-  subroutine satadjst(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs)
+  SUBROUTINE satadjst(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs)
 
-    use defs, only : cp, cpr, alvl, ep, Rm, p00
+    USE defs, ONLY : cp, cpr, alvl, ep, Rm, p00
 
-    integer, intent (in) ::  n1,n2,n3
+    INTEGER, INTENT (in) ::  n1,n2,n3
 
-    real, intent (in), dimension (n1,n2,n3)    :: pp, tl, rt
-    real, intent (in), dimension (n1)          :: pi0, pi1
-    real, intent (in)                          :: th00
-    real, intent (out), dimension (n1,n2,n3)   :: rc,rv,rs,th,tk,p
+    REAL, INTENT (in), DIMENSION (n1,n2,n3)  :: pp, tl, rt
+    REAL, INTENT (in), DIMENSION (n1)        :: pi0, pi1
+    REAL, INTENT (in)                        :: th00
+    REAL, INTENT (out), DIMENSION (n1,n2,n3) :: rc,rv,rs,th,tk,p
 
-    integer :: k, i, j, iterate
-    real    :: exner,til,x1,xx,yy,zz
+    INTEGER :: k, i, j, iterate
+    REAL    :: exner,til,x1,xx,yy,zz
 
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
+    DO j = 3, n3-2
+       DO i = 3, n2-2
+          DO k = 1, n1
              exner = (pi0(k)+pi1(k)+pp(k,i,j))/cp
              p(k,i,j) = p00 * (exner)**cpr
-             til=(tl(k,i,j)+th00)*exner
-             xx=til
-             yy=rslf(p(k,i,j),xx)
-             zz=max(rt(k,i,j)-yy,0.)
-             if (zz > 0.) then
-                do iterate=1,3
-                   x1=alvl/(cp*xx)
-                   xx=xx - (xx - til*(1.+x1*zz))/(1. + x1*til                &
+             til = (tl(k,i,j)+th00)*exner
+             xx = til
+             yy = rslf(p(k,i,j),xx)
+             zz = max(rt(k,i,j)-yy,0.)
+             IF (zz > 0.) THEN
+                DO iterate = 1, 3
+                   x1 = alvl/(cp*xx)
+                   xx = xx - (xx - til*(1.+x1*zz))/(1. + x1*til                &
                         *(zz/xx+(1.+yy*ep)*yy*alvl/(Rm*xx*xx)))
-                   yy=rslf(p(k,i,j),xx)
-                   zz=max(rt(k,i,j)-yy,0.)
-                enddo
-             endif
-             rc(k,i,j)=zz
-             rv(k,i,j)=rt(k,i,j)-rc(k,i,j)
-             rs(k,i,j)=yy
-             tk(k,i,j)=xx
-             th(k,i,j)=tk(k,i,j)/exner
-          enddo
-       enddo
-    enddo
+                   yy = rslf(p(k,i,j),xx)
+                   zz = max(rt(k,i,j)-yy,0.)
+                END DO
+             END IF
+             rc(k,i,j) = zz
+             rv(k,i,j) = rt(k,i,j)-rc(k,i,j)
+             rs(k,i,j) = yy
+             tk(k,i,j) = xx
+             th(k,i,j) = tk(k,i,j)/exner
+          END DO
+       END DO
+    END DO
 
-  end subroutine satadjst
+  END SUBROUTINE satadjst
 !
 ! -------------------------------------------------------------------------
 ! SATADJST3:  this routine calculates theta, and pressure and diagnoses
 ! liquid water using a saturation adjustment for warm-phase systems; in
 ! addition, takes in the account the precipitable water when present
 !
-  subroutine satadjst3(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs,rp)
+  SUBROUTINE satadjst3(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs,rp)
 
-    use defs, only : cp, cpr, alvl, ep, Rm, p00
-    use mpi_interface, only : myid, appl_abort
+    USE defs, ONLY : cp, cpr, alvl, ep, Rm, p00
+    USE mpi_interface, ONLY : myid, appl_abort
 
-    integer, intent (in) ::  n1,n2,n3
+    INTEGER, INTENT (in) ::  n1,n2,n3
 
-    real, intent (in), dimension (n1,n2,n3)  :: pp, tl, rt, rp
-    real, intent (in), dimension (n1)        :: pi0, pi1
-    real, intent (in)                        :: th00
-    real, intent (out), dimension (n1,n2,n3) :: rc, rv, rs, th, tk, p
+    REAL, INTENT (in), DIMENSION (n1,n2,n3)  :: pp, tl, rt, rp
+    REAL, INTENT (in), DIMENSION (n1)        :: pi0, pi1
+    REAL, INTENT (in)                        :: th00
+    REAL, INTENT (out), DIMENSION (n1,n2,n3) :: rc, rv, rs, th, tk, p
 
-    integer :: k, i, j, iterate
-    real    :: exner, tli, tx, txi, rsx, rcx, rpc, tx1, dtx
-    real, parameter :: epsln = 1.e-4
+    INTEGER :: k, i, j, iterate
+    REAL    :: exner, tli, tx, txi, rsx, rcx, rpc, tx1, dtx
+    REAL, PARAMETER :: epsln = 1.e-4
 
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
-             exner=(pi0(k)+pi1(k)+pp(k,i,j))/cp
+    DO j = 3, n3-2
+       DO i = 3, n2-2
+          DO k = 1, n1
+             exner = (pi0(k)+pi1(k)+pp(k,i,j))/cp
              p(k,i,j) = p00 * (exner)**cpr
-             tli=(tl(k,i,j)+th00)*exner
-             tx=tli
-             rsx=rslf(p(k,i,j),tx)
-             rcx=max(rt(k,i,j)-rsx,0.)
+             tli = (tl(k,i,j)+th00)*exner
+             tx = tli
+             rsx = rslf(p(k,i,j),tx)
+             rcx = max(rt(k,i,j)-rsx,0.)
              rpc = rp(k,i,j)
-             if (rcx > 0. .or. rpc > 0.) then
+             IF (rcx > 0. .OR. rpc > 0.) THEN
                 iterate = 1
                 dtx = 1.
-                if (rcx < rpc) then
-                   do while (dtx > epsln .and. iterate < 10)
+                IF (rcx < rpc) THEN
+                   DO WHILE (dtx > epsln .AND. iterate < 10)
                       txi = alvl*rpc/(cp*tx)
                       tx1 = tx - (tx - tli*(1+txi)) / (1+txi*tli/tx)
                       dtx = abs(tx1-tx)
                       tx  = tx1
                       iterate = iterate+1
-                   end do
-                   rsx=rslf(p(k,i,j),tx)
-                   rcx=max(rt(k,i,j)-rsx,0.)
-                else
-                   do while(dtx > epsln .and. iterate < 10)
-                      txi=alvl/(cp*tx)
-                      tx1=tx - (tx - tli*(1.+txi*rcx))/(1. + txi*tli         &
-                           *(rcx/tx+(1.+rsx*ep)*rsx*alvl/(Rm*tx*tx)))
+                   END DO
+                   rsx = rslf(p(k,i,j),tx)
+                   rcx = max(rt(k,i,j)-rsx,0.)
+                ELSE
+                   DO WHILE(dtx > epsln .AND. iterate < 10)
+                      txi = alvl/(cp*tx)
+                      tx1 = tx - (tx - tli*(1.+txi*rcx))/(1. + txi*tli         &
+                             *(rcx/tx+(1.+rsx*ep)*rsx*alvl/(Rm*tx*tx)))
                       dtx = abs(tx1-tx)
                       tx  = tx1
-                      rsx=rslf(p(k,i,j),tx)
-                      rcx=max(rt(k,i,j)-rsx,0.)
+                      rsx = rslf(p(k,i,j),tx)
+                      rcx = max(rt(k,i,j)-rsx,0.)
                       iterate = iterate+1
-                   enddo
-                endif
+                   END DO
+                END IF
 
-                if (dtx > epsln) then
-                   if (myid == 0) print *, '  ABORTING: thrm', dtx, epsln
+                IF (dtx > epsln) THEN
+                   IF (myid == 0) PRINT *, '  ABORTING: thrm', dtx, epsln
                    IF (myid == 0) WRITE(*,*) pp(k,i,j),p(k,i,j),tl(k,i,j),th(k,i,j), &
                                              tk(k,i,j),rt(k,i,j),rv(k,i,j),rc(k,i,j),rs(k,i,j),rp(k,i,j)
-                   call appl_abort(0)
-                endif
-             endif
-             rc(k,i,j)=rcx
-             rv(k,i,j)=rt(k,i,j)-rc(k,i,j)
-             rs(k,i,j)=rsx
-             tk(k,i,j)=tx
-             th(k,i,j)=tk(k,i,j)/exner
-          enddo
-       enddo
-    enddo
+                   CALL appl_abort(0)
+                END IF
+             END IF
+             rc(k,i,j) = rcx
+             rv(k,i,j) = rt(k,i,j)-rc(k,i,j)
+             rs(k,i,j) = rsx
+             tk(k,i,j) = tx
+             th(k,i,j) = tk(k,i,j)/exner
+          END DO
+       END DO
+    END DO
 
-  end subroutine satadjst3
+  END SUBROUTINE satadjst3
 !
 ! ---------------------------------------------------------------------
 ! This function calculates the liquid saturation vapor mixing ratio as
 ! a function of temperature and pressure
 !
-  real function rslf(p,t)
+  REAL FUNCTION rslf(p,t)
 
-  real, intent (in) :: p, t
-  real, parameter :: c0=0.6105851e+03, c1=0.4440316e+02,    &
-                     c2=0.1430341e+01, c3=0.2641412e-01,    &
-                     c4=0.2995057e-03, c5=0.2031998e-05,    &
-                     c6=0.6936113e-08, c7=0.2564861e-11,    &
-                     c8=-.3704404e-13
+  REAL, INTENT (in) :: p, t
+  REAL, PARAMETER   :: c0 = 0.6105851e+03, c1 = 0.4440316e+02,    &
+                       c2 = 0.1430341e+01, c3 = 0.2641412e-01,    &
+                       c4 = 0.2995057e-03, c5 = 0.2031998e-05,    &
+                       c6 = 0.6936113e-08, c7 = 0.2564861e-11,    &
+                       c8 = -.3704404e-13
 
-  real ::  esl, x
+  REAL ::  esl, x
 
-  x=min(max(-80.,t-273.16),50.)
+  x = min(max(-80.,t-273.16),50.)
 
   ! esl=612.2*exp(17.67*x/(t-29.65))
-  esl=c0+x*(c1+x*(c2+x*(c3+x*(c4+x*(c5+x*(c6+x*(c7+x*c8)))))))
-  rslf=.622*esl/(p-esl)
+  esl = c0+x*(c1+x*(c2+x*(c3+x*(c4+x*(c5+x*(c6+x*(c7+x*c8)))))))
+  rslf = .622*esl/(p-esl)
 
-  end function rslf
+  END FUNCTION rslf
 !
 ! ---------------------------------------------------------------------
 ! This function calculates the ice saturation vapor mixing ratio as a
 ! function of temperature and pressure
 !
-  real function rsif(p,t)
+  REAL FUNCTION rsif(p,t)
 
-  real, intent (in) :: p, t
-  real, parameter :: c0=0.6114327e+03, c1=0.5027041e+02,    &
-                     c2=0.1875982e+01, c3=0.4158303e-01,    &
-                     c4=0.5992408e-03, c5=0.5743775e-05,    &
-                     c6=0.3566847e-07, c7=0.1306802e-09,    &
-                     c8=0.2152144e-12
+  REAL, INTENT (in) :: p, t
+  REAL, PARAMETER   :: c0 = 0.6114327e+03, c1 = 0.5027041e+02,    &
+                       c2 = 0.1875982e+01, c3 = 0.4158303e-01,    &
+                       c4 = 0.5992408e-03, c5 = 0.5743775e-05,    &
+                       c6 = 0.3566847e-07, c7 = 0.1306802e-09,    &
+                       c8 = 0.2152144e-12
 
-  real  :: esi, x
+  REAL  :: esi, x
 
-  x=max(-80.,t-273.16)
-  esi=c0+x*(c1+x*(c2+x*(c3+x*(c4+x*(c5+x*(c6+x*(c7+x*c8)))))))
-  rsif=.622*esi/(p-esi)
+  x = max(-80.,t-273.16)
+  esi = c0+x*(c1+x*(c2+x*(c3+x*(c4+x*(c5+x*(c6+x*(c7+x*c8)))))))
+  rsif = .622*esi/(p-esi)
 
-  end function rsif
+  END FUNCTION rsif
 !
 ! -------------------------------------------------------------------------
 ! FLL_TKRS: Updates scratch arrays with temperature and saturation mixing
 ! ratio
 !
-  subroutine fll_tkrs(n1,n2,n3,th,pp,pi0,pi1,dn0,th00,tk,rs)
+  SUBROUTINE fll_tkrs(n1,n2,n3,th,pp,pi0,pi1,dn0,th00,tk,rs)
 
-  use defs, only : cp, R
+  USE defs, ONLY : cp, R
 
-  integer, intent (in) :: n1,n2,n3
-  real, intent (in)    :: th(n1,n2,n3), pp(n1,n2,n3)
-  real, intent (in)    :: pi0(n1), pi1(n1), dn0(n1), th00
-  real, intent (out)   :: tk(n1,n2,n3)
-  real, optional, intent (out)   :: rs(n1,n2,n3)
+  INTEGER, INTENT (in) :: n1,n2,n3
+  REAL, INTENT (in)    :: th(n1,n2,n3), pp(n1,n2,n3)
+  REAL, INTENT (in)    :: pi0(n1), pi1(n1), dn0(n1), th00
+  REAL, INTENT (out)   :: tk(n1,n2,n3)
+  REAL, OPTIONAL, INTENT (out) :: rs(n1,n2,n3)
 
-  integer :: i, j, k
-  real    :: exner
+  INTEGER :: i, j, k
+  REAL    :: exner
 
-  do j=3,n3-2
-    do i=3,n2-2
-      do k=1,n1
-        exner=(pi0(k)+pi1(k)+pp(k,i,j))/cp
-        tk(k,i,j)=th(k,i,j)*exner
-        if (present(rs)) rs(k,i,j)=rslf(R*exner*th00*dn0(k),tk(k,i,j))
-      end do
-    end do
-  end do
+  DO j = 3, n3-2
+    DO i = 3, n2-2
+      DO k = 1, n1
+        exner = (pi0(k)+pi1(k)+pp(k,i,j))/cp
+        tk(k,i,j) = th(k,i,j)*exner
+        IF (present(rs)) rs(k,i,j) = rslf(R*exner*th00*dn0(k),tk(k,i,j))
+      END DO
+    END DO
+  END DO
 
-  end subroutine fll_tkrs
+  END SUBROUTINE fll_tkrs
 !
 ! -------------------------------------------------------------------------
 ! BRUVAIS:  Calcuates the brunt-vaisaila frequency in accordance with the
@@ -392,66 +392,66 @@ contains
 ! Modified for level 4,
 ! Juha Tonttila, FMI, 2014
 !
-  subroutine bruvais(n1,n2,n3,level,th,tl,rt,rs,en2,dzm,th00)
+  SUBROUTINE bruvais(n1,n2,n3,level,th,tl,rt,rs,en2,dzm,th00)
 
-  use defs, only : g, R, cp, alvl, ep, ep2
+  USE defs, ONLY : g, R, cp, alvl, ep, ep2
 
-  integer, intent (in) ::  n1, n2, n3, level
-  real, intent (in)    ::  th(n1,n2,n3), tl(n1,n2,n3), rt(n1,n2,n3),         &
-                           rs(n1,n2,n3), dzm(n1), th00
-  real, intent (out)   ::  en2(n1,n2,n3)
+  INTEGER, INTENT (in) :: n1, n2, n3, level
+  REAL, INTENT (in)    :: th(n1,n2,n3), tl(n1,n2,n3), rt(n1,n2,n3),         &
+                          rs(n1,n2,n3), dzm(n1), th00
+  REAL, INTENT (out)   :: en2(n1,n2,n3)
 
-  integer :: i, k, j, kp1
-  real    :: c1, c2, c3, tvk, tvkp1, rtbar, rsbar, aa, bb
+  INTEGER :: i, k, j, kp1
+  REAL    :: c1, c2, c3, tvk, tvkp1, rtbar, rsbar, aa, bb
 
-  c1=(1.+ep*alvl/R/th00)/ep
-  c2=ep*alvl*alvl/(R*cp*th00*th00)
-  c3=alvl/(cp*th00)
+  c1 = (1.+ep*alvl/R/th00)/ep
+  c2 = ep*alvl*alvl/(R*cp*th00*th00)
+  c3 = alvl/(cp*th00)
 
-  do j=3,n3-2
-     do i=3,n2-2
-        do k=1,n1-1
-           select case(level)
-           case (0)
-              en2(k,i,j)=g*dzm(k)*((th(k+1,i,j)-th(k,i,j))/th00)
-           case (1)
-              tvk=th(k,i,j)*(1.+ep2*rt(k,i,j))
-              tvkp1=th(k+1,i,j)*(1.+ep2*rt(k+1,i,j))
-              en2(k,i,j)=g*dzm(k)*(tvkp1-tvk)/th00
-           case (2)
-              rtbar=0.5*(rt(k,i,j)+rt(k+1,i,j))
-              rsbar=0.5*(rs(k,i,j)+rs(k+1,i,j))
-              kp1=min(n1-1,k+1)
-              if (rt(k,i,j) > rs(k,i,j) .and. rt(kp1,i,j) > rs(kp1,i,j)) then
-                 aa=(1. - rtbar + rsbar*c1)/(1. + c2*rsbar)
-                 bb=(c3*aa - 1.)
-              else
-                 aa=(1.00 + ep2*rtbar)
-                 bb=ep2
-              end if
-              en2(k,i,j)=g*dzm(k)*(aa*(tl(k+1,i,j)-tl(k,i,j))/th00        &
-                   + bb*(rt(k+1,i,j)-rt(k,i,j)))
-           case (3,4,5)
-              rtbar=0.5*(rt(k,i,j)+rt(k+1,i,j))
-              rsbar=0.5*(rs(k,i,j)+rs(k+1,i,j))
-              kp1=min(n1-1,k+2)
-              if (rt(k,i,j) > rs(k,i,j) .and. rt(kp1,i,j) > rs(kp1,i,j)) then
-                 aa=(1. - rtbar + rsbar*c1)/(1. + c2*rsbar)
-                 bb=(c3*aa - 1.)
-              else
-                 aa=(1.00 + ep2*rtbar)
-                 bb=ep2
-              end if
-              en2(k,i,j)=g*dzm(k)*(aa*(tl(k+1,i,j)-tl(k,i,j))/th00        &
-                   + bb*(rt(k+1,i,j)-rt(k,i,j)))
-           case default
-              stop 'level not supported in bruvais'
-           end select
-        end do
-        en2(n1,i,j)=en2(n1-1,i,j)
-     end do
-  end do
+  DO j = 3, n3-2
+     DO i = 3, n2-2
+        DO k = 1, n1-1
+           SELECT CASE(level)
+           CASE (0)
+              en2(k,i,j) = g*dzm(k)*((th(k+1,i,j)-th(k,i,j))/th00)
+           CASE (1)
+              tvk = th(k,i,j)*(1.+ep2*rt(k,i,j))
+              tvkp1 = th(k+1,i,j)*(1.+ep2*rt(k+1,i,j))
+              en2(k,i,j) = g*dzm(k)*(tvkp1-tvk)/th00
+           CASE (2)
+              rtbar = 0.5*(rt(k,i,j)+rt(k+1,i,j))
+              rsbar = 0.5*(rs(k,i,j)+rs(k+1,i,j))
+              kp1 = min(n1-1,k+1)
+              IF (rt(k,i,j) > rs(k,i,j) .AND. rt(kp1,i,j) > rs(kp1,i,j)) THEN
+                 aa = (1. - rtbar + rsbar*c1)/(1. + c2*rsbar)
+                 bb = (c3*aa - 1.)
+              ELSE
+                 aa = (1.00 + ep2*rtbar)
+                 bb = ep2
+              END IF
+              en2(k,i,j) = g*dzm(k)*(aa*(tl(k+1,i,j)-tl(k,i,j))/th00        &
+                           + bb*(rt(k+1,i,j)-rt(k,i,j)))
+           CASE (3,4,5)
+              rtbar = 0.5*(rt(k,i,j)+rt(k+1,i,j))
+              rsbar = 0.5*(rs(k,i,j)+rs(k+1,i,j))
+              kp1 = min(n1-1,k+2)
+              IF (rt(k,i,j) > rs(k,i,j) .AND. rt(kp1,i,j) > rs(kp1,i,j)) THEN
+                 aa = (1. - rtbar + rsbar*c1)/(1. + c2*rsbar)
+                 bb = (c3*aa - 1.)
+              ELSE
+                 aa = (1.00 + ep2*rtbar)
+                 bb = ep2
+              END IF
+              en2(k,i,j) = g*dzm(k)*(aa*(tl(k+1,i,j)-tl(k,i,j))/th00        &
+                           + bb*(rt(k+1,i,j)-rt(k,i,j)))
+           CASE DEFAULT
+              STOP 'level not supported in bruvais'
+           END SELECT
+        END DO
+        en2(n1,i,j) = en2(n1-1,i,j)
+     END DO
+  END DO
 
-  end subroutine bruvais
+  END SUBROUTINE bruvais
 
-end module thrm
+END MODULE thrm

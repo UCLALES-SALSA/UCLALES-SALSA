@@ -1,17 +1,17 @@
 MODULE class_componentIndex
-  IMPLICIT NONE
+   IMPLICIT NONE
 
-  TYPE ComponentIndex
+   TYPE ComponentIndex
 
-     INTEGER :: ncomp
-     INTEGER, ALLOCATABLE :: ind(:)
-     CHARACTER(len=3), ALLOCATABLE :: comp(:)
+      INTEGER :: ncomp
+      INTEGER, ALLOCATABLE :: ind(:)
+      CHARACTER(len=3), ALLOCATABLE :: comp(:)
 
-  END TYPE ComponentIndex
+   END TYPE ComponentIndex
 
-  CONTAINS
+CONTAINS
   
-    SUBROUTINE ComponentIndexConstructor(SELF, ncomp, nlist, listcomp)
+   SUBROUTINE ComponentIndexConstructor(SELF, ncomp, nlist, listcomp)
       IMPLICIT NONE
 
       TYPE(ComponentIndex), INTENT(inout) :: SELF
@@ -22,22 +22,22 @@ MODULE class_componentIndex
 
       SELF%ncomp = ncomp
       ALLOCATE(SELF%ind(ncomp),SELF%comp(ncomp))
-      DO i = 1,ncomp
+      DO i = 1, ncomp
          SELF%ind(i) = i
       END DO
 
       jj = 1
-      DO i = 1,nlist
+      DO i = 1, nlist
          IF (listcomp(i) == '') CYCLE
          SELF%comp(jj) = listcomp(i)
          jj = jj+1
       END DO
 
-    END SUBROUTINE ComponentIndexConstructor
+   END SUBROUTINE ComponentIndexConstructor
 
-    ! ---------------------------------
+   ! ---------------------------------
 
-    INTEGER FUNCTION GetIndex(SELF,incomp)
+   INTEGER FUNCTION GetIndex(SELF,incomp)
       IMPLICIT NONE
 
       TYPE(ComponentIndex), INTENT(in) :: SELF
@@ -60,11 +60,11 @@ MODULE class_componentIndex
 
       RETURN
 
-    END FUNCTION GetIndex
+   END FUNCTION GetIndex
 
-    ! -------------------------------------
+   ! -------------------------------------
 
-    INTEGER FUNCTION GetNcomp(SELF)
+   INTEGER FUNCTION GetNcomp(SELF)
 
       TYPE(ComponentIndex), INTENT(in) :: SELF
 
@@ -72,11 +72,11 @@ MODULE class_componentIndex
 
       RETURN
 
-    END FUNCTION GetNcomp
+   END FUNCTION GetNcomp
       
-    ! -------------------------------------
+   ! -------------------------------------
 
-    LOGICAL FUNCTION IsUsed(SELF,incomp)
+   LOGICAL FUNCTION IsUsed(SELF,incomp)
       IMPLICIT NONE
       
       TYPE(ComponentIndex), INTENT(in) :: SELF
@@ -90,7 +90,7 @@ MODULE class_componentIndex
 
       RETURN
 
-    END FUNCTION
+   END FUNCTION
       
 
 

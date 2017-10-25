@@ -17,62 +17,62 @@
 ! Copyright 1999-2008, Bjorn B. Stevens, Dep't Atmos and Ocean Sci, UCLA
 !----------------------------------------------------------------------------
 !
-module fuliou
+MODULE fuliou
 
-  use defs, only   : nv, nv1, mb, pi, totalpower, g, R, ep2
-  use cldwtr, only : init_cldwtr, cloud_water, init_cldice, cloud_ice, init_cldgrp, cloud_grp
-  use solver, only : qft
-  use ckd
+  USE defs,   ONLY : nv, nv1, mb, pi, totalpower, g, R, ep2
+  USE cldwtr, ONLY : init_cldwtr, cloud_water, init_cldice, cloud_ice, init_cldgrp, cloud_grp
+  USE solver, ONLY : qft
+  USE ckd
 
-  implicit none
+  IMPLICIT NONE
 
-  logical, save :: Initialized = .False.
-  integer :: iseed = 0
-  real, parameter :: minSolarZenithCosForVis = 1.e-4
+  LOGICAL, SAVE :: Initialized = .FALSE.
+  INTEGER :: iseed = 0
+  REAL, PARAMETER :: minSolarZenithCosForVis = 1.e-4
 
-contains
+CONTAINS
   !
   !---------------------------------------------------------------------------
   ! Subroutine rad_init initialize data arrays for gases, ice model and water
   ! model on first call
   !
-  subroutine rad_init
-    integer, dimension (:), allocatable :: seed
+  SUBROUTINE rad_init
+    INTEGER, DIMENSION (:), ALLOCATABLE :: seed
     INTEGER :: isize
 
-    if (.not.Initialized) then
+    IF (.NOT. Initialized) THEN
        ! Initialize random numbers for McICA
-       call random_seed(size=isize)
-       allocate (seed(isize))
+       CALL random_seed(size=isize)
+       ALLOCATE (seed(isize))
        seed(:) = iseed
-       call random_seed(put=seed)
-       deallocate (seed)
+       CALL random_seed(put=seed)
+       DEALLOCATE (seed)
 
-       call init_ckd
-       call init_cldwtr
-       call init_cldice
-       call init_cldgrp
-       Initialized = .True.
-    end if
+       CALL init_ckd
+       CALL init_cldwtr
+       CALL init_cldice
+       CALL init_cldgrp
+       Initialized = .TRUE.
+    END IF
 
-  end subroutine rad_init
+  END SUBROUTINE rad_init
   !
   ! ----------------------------------------------------------------------
   ! Subroutine set_random_offset is needed to generate true pseudorandom numbers for parallel runs
   SUBROUTINE set_random_offset(ioffset)
-    implicit none
+    IMPLICIT NONE
     INTEGER :: ioffset, i
-    REAL :: randomNumber
+    REAL    :: randomNumber
 
     ! Initialize random number generator, if not yet initialized
-    if (.not.Initialized) CALL rad_init
+    IF (.NOT. Initialized) CALL rad_init
 
     ! Call randon mumbers
-    IF (ioffset>0) THEN
-        DO i=1,ioffset
-            call random_number(randomNumber)
-        ENDDO
-    ENDIF
+    IF (ioffset > 0) THEN
+        DO i = 1, ioffset
+            CALL random_number(randomNumber)
+        END DO
+    END IF
 
   END SUBROUTINE set_random_offset
   !
@@ -80,17 +80,17 @@ contains
   ! Subroutine rad: Computes radiative fluxes using a band structure 
   ! defined by input ckd file
   !
-  subroutine rad (as, u0, ss, pts, ee, pp, pt, ph, po, fds, fus, fdir, fuir, &
-       McICA, plwc, pre, piwc, pde, prwc, pgwc )
+  SUBROUTINE rad (as, u0, ss, pts, ee, pp, pt, ph, po, fds, fus, fdir, fuir, &
+                  McICA, plwc, pre, piwc, pde, prwc, pgwc )
 
-    real, intent (in)  :: pp (nv1) ! pressure at interfaces
+    REAL, INTENT(in) :: pp (nv1) ! pressure at interfaces
 
-    real, dimension(nv), intent (in)  :: &
+    REAL, DIMENSION(nv), INTENT (in) :: &
          pt,   & ! temperature [K] at mid points
          ph,   & ! humidity mixing ratio in kg/kg
          po      ! ozone mixing ratio
 
-    real, optional, dimension(nv), intent (in)  :: &
+    REAL, OPTIONAL, DIMENSION(nv), INTENT (in) :: &
          plwc, & ! cloud liquid water content [g/m^3]
          pre,  & ! effective radius of cloud droplets [microns]
          piwc, & ! cloud ice water content [g/m^3]
@@ -98,42 +98,43 @@ contains
          prwc, & ! rain water content [g/m^3]
          pgwc    ! graupel water content
 
-    real, intent (in) :: &
+    REAL, INTENT(in) :: &
          as, & ! broadband albedo (all visible bands given this value)
          ee, & ! broadband surface emissivity (all IR bands given this value)
          u0, & ! cosine of solar zenith angle
          ss, & ! Solar constant
          pts   ! Surface skin temperature
 
-    logical, intent (in) :: McICA
+    LOGICAL, INTENT(in) :: McICA
     
-    real, dimension(nv1), intent (out)::  &
+    REAL, DIMENSION(nv1), INTENT (out) ::  &
          fds, fus,  & ! downward and upward solar flux
          fdir, fuir   ! downward and upward ir flux
 
-    call rad_ir(pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
-                 plwc, pre, piwc, pde, prwc, pgwc )
-    call rad_vis(as, u0, ss, pp, pt, ph, po, fds, fus, McICA, &
+    CALL rad_ir(pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
                  plwc, pre, piwc, pde, prwc, pgwc )
 
-  end subroutine rad
+    CALL rad_vis(as, u0, ss, pp, pt, ph, po, fds, fus, McICA, &
+                 plwc, pre, piwc, pde, prwc, pgwc )
+
+  END SUBROUTINE rad
 
   ! ----------------------------------------------------------------------
   ! Subroutine rad_ir 
   ! Computes IR radiative fluxes using a band structure 
   ! defined by input ckd file
   !
-  subroutine rad_ir (pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
-       plwc, pre, piwc, pde, prwc, pgwc )
+  SUBROUTINE rad_ir (pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
+                     plwc, pre, piwc, pde, prwc, pgwc )
 
-    real, intent (in)  :: pp (nv1) ! pressure at interfaces
+    REAL, INTENT(in) :: pp (nv1) ! pressure at interfaces
 
-    real, dimension(nv), intent (in)  :: &
+    REAL, DIMENSION(nv), INTENT(in) :: &
          pt,   & ! temperature [K] at mid points
          ph,   & ! humidity mixing ratio in kg/kg
          po      ! ozone mixing ratio
 
-    real, optional, dimension(nv), intent (in)  :: &
+    REAL, OPTIONAL, DIMENSION(nv), INTENT(in) :: &
          plwc, & ! cloud liquid water content [g/m^3]
          pre,  & ! effective radius of cloud droplets [microns]
          piwc, & ! cloud ice water content [g/m^3]
@@ -141,127 +142,127 @@ contains
          prwc, & ! rain water content [g/m^3]
          pgwc    ! graupel water content
 
-    real, intent (in) :: &
+    REAL, INTENT(in) :: &
          ee, & ! broadband surface emissivity (all IR bands given this value)
          pts   ! Surface skin temperature
          
-    logical, intent(in) :: McICA
+    LOGICAL, INTENT(in) :: McICA
     
-    real, dimension(nv1), intent (out)::  &
+    REAL, DIMENSION(nv1), INTENT (out) :: &
          fdir, fuir   ! downward and upward ir flux
 
     ! ----------------------------------------
-    logical, parameter :: irWeighted = .False. 
+    LOGICAL, PARAMETER :: irWeighted = .FALSE. 
 
-    real, dimension (nv)   :: tw,ww,tg,dz,tauNoGas, wNoGas, Tau, w
-    real, dimension (nv)   :: ti,wi,tgr,wgr
-    real, dimension (nv1)  :: fu1, fd1, bf
-    real, dimension (nv,4) :: www, pfNoGas, pf
-    real, dimension (nv,4) :: wwi,wwgr
+    REAL, DIMENSION (nv)   :: tw,ww,tg,dz,tauNoGas, wNoGas, Tau, w
+    REAL, DIMENSION (nv)   :: ti,wi,tgr,wgr
+    REAL, DIMENSION (nv1)  :: fu1, fd1, bf
+    REAL, DIMENSION (nv,4) :: www, pfNoGas, pf
+    REAL, DIMENSION (nv,4) :: wwi,wwgr
 
-    integer :: ib, ig, k, ig1, ig2, ibandloop, iblimit
-    real :: fuq2, xir_norm
-    real, dimension(:), allocatable, save :: bandWeights
-    real :: randomNumber
+    INTEGER :: ib, ig, k, ig1, ig2, ibandloop, iblimit
+    REAL    :: fuq2, xir_norm
+    REAL, DIMENSION(:), ALLOCATABLE, SAVE :: bandWeights
+    REAL    :: randomNumber
     ! ----------------------------------------
 
-    if (.not.Initialized) CALL rad_init
+    IF (.NOT. Initialized) CALL rad_init
 
-    if(.not. allocated(bandweights)) then 
-      allocate(bandweights(size(ir_bands)))
-      call computeIRBandWeights(ir_bands, irWeighted, bandWeights)
-    end if
+    IF(.NOT. allocated(bandweights)) THEN 
+      ALLOCATE(bandweights(size(ir_bands)))
+      CALL computeIRBandWeights(ir_bands, irWeighted, bandWeights)
+    END IF
     
     fdir(:) = 0.0; fuir(:) = 0.0
 
-    call thicks(pp, pt, ph, dz) 
+    CALL thicks(pp, pt, ph, dz) 
 
-    if (McICA) then
+    IF (McICA) THEN
        !
        ! Select a single band and g-point (ib, ig1) and use these as the limits
        !   in the loop through the spectrum below. 
        !
-       call random_number(randomNumber)
-       call select_bandg(ir_bands, bandweights, randomNumber, ib, ig1) 
+       CALL random_number(randomNumber)
+       CALL select_bandg(ir_bands, bandweights, randomNumber, ib, ig1) 
        ig2 = ig1
        iblimit = 1
-    else
+    ELSE
        iblimit = size(ir_bands)
-    end if
+    END IF
 
-    bandLoop: do ibandloop = 1, iblimit
-      if (.not. McICA) then
+    bandLoop: DO ibandloop = 1, iblimit
+      IF (.NOT. McICA) THEN
          ib  = ibandloop
          ig1 = 1
          ig2 = kg(ir_bands(ib))
-      end if
+      END IF
       !
       ! Water vapor continuum optical depth
       !
-      call gascon ( center(ir_bands(ib)), pp, pt, ph, TauNoGas )
+      CALL gascon ( center(ir_bands(ib)), pp, pt, ph, TauNoGas )
       wNoGas = 0.; pfNoGas  = 0. 
-      if (present(plwc)) then
-        call cloud_water(ib + size(solar_bands), pre, plwc, dz, tw, ww, www)
-        call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw, ww, www)
-      end if
-      if (present(piwc)) then
-        call cloud_ice(ib + size(solar_bands), pde, piwc, dz, ti, wi, wwi)
-        call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti, wi, wwi)
-      end if
-      if (present(pgwc)) then
-        call cloud_grp(ib + size(solar_bands), pgwc, dz, tgr, wgr, wwgr)
-        call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr, wwgr)
-      end if 
+      IF (present(plwc)) THEN
+        CALL cloud_water(ib + size(solar_bands), pre, plwc, dz, tw, ww, www)
+        CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw, ww, www)
+      END IF
+      IF (present(piwc)) THEN
+        CALL cloud_ice(ib + size(solar_bands), pde, piwc, dz, ti, wi, wwi)
+        CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti, wi, wwi)
+      END IF
+      IF (present(pgwc)) THEN
+        CALL cloud_grp(ib + size(solar_bands), pgwc, dz, tgr, wgr, wwgr)
+        CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr, wwgr)
+      END IF 
       
-      call planck(pt, pts, llimit(ir_bands(ib)), rlimit(ir_bands(ib)), bf)
+      CALL planck(pt, pts, llimit(ir_bands(ib)), rlimit(ir_bands(ib)), bf)
 
-      gPointLoop: do ig = ig1, ig2
+      gPointLoop: DO ig = ig1, ig2
          tau = TauNoGas; w = wNoGas; pf = pfNoGas
-         call gases (ir_bands(ib), ig, pp, pt, ph, po, tg )
-         call combineOpticalProperties(tau, w, pf, tg)
+         CALL gases (ir_bands(ib), ig, pp, pt, ph, po, tg )
+         CALL combineOpticalProperties(tau, w, pf, tg)
 
          !
          ! Solver expects cumulative optical depth
          !
-         do k = 2, nv
+         DO k = 2, nv
            tau(k) = tau(k) + tau(k - 1)
-         end do
-         call qft (.False., ee, 0., 0., bf, tau, w, pf(:, 1), pf(:, 2),      &
-              pf(:, 3), pf(:, 4), fu1, fd1)
+         END DO
+         CALL qft (.FALSE., ee, 0., 0., bf, tau, w, pf(:, 1), pf(:, 2),      &
+                   pf(:, 3), pf(:, 4), fu1, fd1)
 
-         if (McICA) then 
+         IF (McICA) THEN 
             xir_norm = 1./bandweights(ib)
-         else
+         ELSE
             xir_norm = gPointWeight(ir_bands(ib), ig)
-         end if
+         END IF
 
          fdir(:) = fdir(:) + fd1(:) * xir_norm
          fuir(:) = fuir(:) + fu1(:) * xir_norm
-      end do gPointLoop
-    end do bandLoop
+      END DO gPointLoop
+    END DO bandLoop
     !
     ! fuq2 is the surface emitted flux in the band 0 - 280 cm**-1 with a
     ! hk of 0.03.
     !
     fuq2 = bf(nv1) * 0.03 * pi * ee
     fuir(:) = fuir(:) + fuq2
-  end subroutine rad_ir
+  END SUBROUTINE rad_ir
   ! ----------------------------------------------------------------------
   ! Subroutine rad_vis: Computes radiative fluxes using a band structure 
   ! defined by input ckd file
   !
 
-  subroutine rad_vis (as, u0, ss, pp, pt, ph, po, fds, fus, McICA,  &
-       plwc, pre, piwc, pde, prwc, pgwc )
+  SUBROUTINE rad_vis (as, u0, ss, pp, pt, ph, po, fds, fus, McICA,  &
+                      plwc, pre, piwc, pde, prwc, pgwc )
 
-    real, intent (in)  :: pp (nv1) ! pressure at interfaces
+    REAL, INTENT(in) :: pp (nv1) ! pressure at interfaces
 
-    real, dimension(nv), intent (in)  :: &
+    REAL, DIMENSION(nv), INTENT (in) ::  &
          pt,   & ! temperature [K] at mid points
          ph,   & ! humidity mixing ratio in kg/kg
          po      ! ozone mixing ratio
 
-    real, optional, dimension(nv), intent (in)  :: &
+    REAL, OPTIONAL, DIMENSION(nv), INTENT (in) ::  &
          plwc, & ! cloud liquid water content [g/m^3]
          pre,  & ! effective radius of cloud droplets [microns]
          piwc, & ! cloud ice water content [g/m^3]
@@ -269,120 +270,120 @@ contains
          prwc, & ! rain water content [g/m^3]
          pgwc    ! graupel water content
 
-    real, intent (in) :: &
+    REAL, INTENT(in) :: &
          as, & ! broadband albedo (all visible bands given this value)
          u0, & ! cosine of solar zenith angle
          ss    ! Solar constant
          
-    logical, intent(in) :: McICA
+    LOGICAL, INTENT(in) :: McICA
     
-    real, dimension(nv1), intent (out)::  &
+    REAL, DIMENSION(nv1), INTENT (out)::  &
          fds, fus    ! downward and upward solar flux
 
     ! ----------------------------------------
-    logical, parameter :: solarWeighted = .false. ! Could be .true.?
+    LOGICAL, PARAMETER :: solarWeighted = .FALSE. ! Could be .TRUE.?
 
-    real, dimension (nv)   :: tw,ww,tg,tgm,dz, tauNoGas, wNoGas, tau, w
-    real, dimension (nv)   :: ti,wi
-    real, dimension (nv)   :: tgr,wgr
-    real, dimension (nv1)  :: fu1, fd1, bf
-    real, dimension (nv,4) :: www, pfNoGas, pf
-    real, dimension (nv,4) :: wwi
-    real, dimension (nv,4) :: wwgr
+    REAL, DIMENSION(nv)   :: tw,ww,tg,tgm,dz, tauNoGas, wNoGas, tau, w
+    REAL, DIMENSION(nv)   :: ti,wi
+    REAL, DIMENSION(nv)   :: tgr,wgr
+    REAL, DIMENSION(nv1)  :: fu1, fd1, bf
+    REAL, DIMENSION(nv,4) :: www, pfNoGas, pf
+    REAL, DIMENSION(nv,4) :: wwi
+    REAL, DIMENSION(nv,4) :: wwgr
 
-    real, dimension(:), allocatable, save :: bandWeights
+    REAL, DIMENSION(:), ALLOCATABLE, SAVE :: bandWeights
 
-    integer :: ib, ig, k, ig1, ig2, ibandloop, iblimit
-    real    :: fuq1, xs_norm
-    real    :: randomNumber
+    INTEGER :: ib, ig, k, ig1, ig2, ibandloop, iblimit
+    REAL    :: fuq1, xs_norm
+    REAL    :: randomNumber
     ! ----------------------------------------
 
-    if (.not.Initialized) call rad_init
+    IF (.NOT.Initialized) CALL rad_init
 
-    if (.not. allocated(bandweights)) then 
-      allocate(bandweights(size(solar_bands)))
-      call computeSolarBandWeights(solar_bands, solarWeighted, bandWeights)
-    end if
+    IF (.NOT. allocated(bandweights)) THEN 
+      ALLOCATE(bandweights(size(solar_bands)))
+      CALL computeSolarBandWeights(solar_bands, solarWeighted, bandWeights)
+    END IF
     
-    fds(:)  = 0.0
-    fus(:)  = 0.0
-    bf(:)   = 0.0
+    fds(:) = 0.0
+    fus(:) = 0.0
+    bf(:)  = 0.0
     
-    if(u0 > minSolarZenithCosForVis) then
-      call thicks(pp, pt, ph, dz) 
+    IF(u0 > minSolarZenithCosForVis) THEN
+      CALL thicks(pp, pt, ph, dz) 
   
-      if (McICA) then
+      IF (McICA) THEN
          !
-         ! Select a single band and g-point (ib, ig1) and use these as the 
+         ! Select a single band and g-point (ib, ig1) and use these as the
          ! limits in the loop through the spectrum below. 
          !
-         call random_number(randomNumber)
-         call select_bandg(solar_bands, bandweights, randomNumber, ib, ig1) 
+         CALL random_number(randomNumber)
+         CALL select_bandg(solar_bands, bandweights, randomNumber, ib, ig1) 
          ig2 = ig1
          iblimit = 1 
-      else
+      ELSE
          iblimit = size(solar_bands)
-      end if
+      END IF
   
-      bandLoop: do ibandloop =  1, iblimit
+      bandLoop: DO ibandloop = 1, iblimit
          !
-         ! select g points either all, or one depending on McICA
+         ! Select g points either all, or one depending on McICA
          !
-         if (.not. McICA) then
+         IF (.NOT. McICA) THEN
            ib  = ibandloop
            ig1 = 1
            ig2 = kg(solar_bands(ib))
-         end if
+         END IF
   
          !
          ! Rayleigh scattering
          !
-         call rayle ( ib, u0, power(solar_bands(ib)), pp, pt, dz, tauNoGas, &
-              wNoGas, pfNoGas)
+         CALL rayle ( ib, u0, power(solar_bands(ib)), pp, pt, dz, tauNoGas, &
+                      wNoGas, pfNoGas)
          !
          ! Water vapor continuum
          !
-         call gascon ( center(solar_bands(ib)), pp, pt, ph, tgm )
-         if(any(tgm > 0.)) &
-           call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgm)
+         CALL gascon ( center(solar_bands(ib)), pp, pt, ph, tgm )
+         IF(any(tgm > 0.)) &
+           CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgm)
          !
          ! Cloud water
          !
-         if (present(plwc)) then
-           call cloud_water(ib, pre, plwc, dz, tw, ww, www)
-           call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw,ww,www)
-         end if
-         if (present(piwc)) then
-           call cloud_ice(ib, pde, piwc, dz, ti, wi, wwi)
-           call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti,wi,wwi)
-         end if
-         if (present(pgwc)) then
-           call cloud_grp(ib,pgwc, dz, tgr, wgr, wwgr)
-           call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr,wwgr)
-         end if 
+         IF (present(plwc)) THEN
+           CALL cloud_water(ib, pre, plwc, dz, tw, ww, www)
+           CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw,ww,www)
+         END IF
+         IF (present(piwc)) THEN
+           CALL cloud_ice(ib, pde, piwc, dz, ti, wi, wwi)
+           CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti,wi,wwi)
+         END IF
+         IF (present(pgwc)) THEN
+           CALL cloud_grp(ib,pgwc, dz, tgr, wgr, wwgr)
+           CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr,wwgr)
+         END IF 
   
-         gPointLoop: do ig =  ig1, ig2
+         gPointLoop: DO ig = ig1, ig2
            tau = tauNoGas; w = wNoGas; pf = pfNoGas
-           call gases (solar_bands(ib), ig, pp, pt, ph, po, tg )
-           call combineOpticalProperties(tau, w, pf, tg)
+           CALL gases (solar_bands(ib), ig, pp, pt, ph, po, tg )
+           CALL combineOpticalProperties(tau, w, pf, tg)
            
            !
            ! Solver expects cumulative optical depth
            !
-           do k = 2, nv
+           DO k = 2, nv
              tau(k) = tau(k) + tau(k - 1)
-           end do
-           call qft (.true., 0., as, u0, bf, tau, w, pf(:, 1), pf(:, 2),    &
-                pf(:, 3), pf(:, 4), fu1, fd1)
-           if (McICA) then 
-              xs_norm =power(solar_bands(ib))/ bandweights(ib)
-           else
-              xs_norm =gPointWeight(solar_bands(ib), ig)*power(solar_bands(ib))
-           end if
+           END DO
+           CALL qft (.TRUE., 0., as, u0, bf, tau, w, pf(:, 1), pf(:, 2),    &
+                     pf(:, 3), pf(:, 4), fu1, fd1)
+           IF (McICA) THEN 
+              xs_norm = power(solar_bands(ib))/ bandweights(ib)
+           ELSE
+              xs_norm = gPointWeight(solar_bands(ib), ig)*power(solar_bands(ib))
+           END IF
            fds(:) = fds(:) + fd1(:) * xs_norm
            fus(:) = fus(:) + fu1(:) * xs_norm
-         end do gPointLoop
-      end do bandLoop
+         END DO gPointLoop
+      END DO bandLoop
       !
       ! In this model, we used the solar spectral irradiance determined by
       ! Thekaekara (1973), and 1340.0 W/m**2 is the solar energy contained 
@@ -392,100 +393,100 @@ contains
       fuq1 = ss / totalpower
       fds(:)  = fds(:)*fuq1
       fus(:)  = fus(:)*fuq1
-    end if 
-  end subroutine rad_vis
+    END IF 
+  END SUBROUTINE rad_vis
   ! ----------------------------------------------------------------------
   ! Subroutine select_bandg
   !
-  ! selects the band (i) and the g point (j) based on the probability a 
+  ! Selects the band (i) and the g point (j) based on the probability a
   ! photon would be found in the wavelengths covered by the band and g
   ! point, which is given by g_prob.  Note g_prob sums to unity for both
   ! the solar bands (power > 0.) and the infrared bands respectively.
   ! 
-  subroutine select_bandg(bands, bandweights, randomNumber, i, j)
-    type(band_properties), &
-          dimension(:),    &
-             intent ( in) :: bands
-    real, dimension(:), &
-             intent ( in) :: bandweights
-    real,    intent ( in) :: randomNumber
-    integer, intent (out) :: i, j
+  SUBROUTINE select_bandg(bands, bandweights, randomNumber, i, j)
+    TYPE(band_properties), &
+          DIMENSION(:),    &
+             INTENT(in)  :: bands
+    REAL, DIMENSION(:), &
+             INTENT(in)  :: bandweights
+    REAL,    INTENT(in)  :: randomNumber
+    INTEGER, INTENT(out) :: i, j
 
-    real :: cumulative
+    REAL :: cumulative
     
-    i=1; j=1
+    i = 1; j = 1
     ! The probability contained in the first g point of the first band
     cumulative = gPointWeight(bands(i), j) * bandweights(i)
 
-    do while (randomNumber > cumulative .and. cumulative < 1.0)
+    DO WHILE (randomNumber > cumulative .AND. cumulative < 1.0)
        j = j+1
-       if (j > kg(bands(i)) ) then
-          i=i+1
-          j=1
-       end if
+       IF (j > kg(bands(i)) ) THEN
+          i = i+1
+          j = 1
+       END IF
        cumulative = cumulative + gPointWeight(bands(i), j) * bandweights(i)
-    end do
-  end subroutine select_bandg
+    END DO
+  END SUBROUTINE select_bandg
 
   ! ----------------------------------------------------------------------
-  ! subroutine thicks: Integrates the hydrostatic equation to provide 
+  ! Subroutine thicks: Integrates the hydrostatic equation to provide 
   ! layer thicknesses
   ! 
-  subroutine thicks(pp, pt, ph, dz) 
+  SUBROUTINE thicks(pp, pt, ph, dz) 
 
-    real, intent (in) :: pp(nv1), pt(nv), ph(nv)
-    real, intent (out):: dz(nv)
+    REAL, INTENT (in)  :: pp(nv1), pt(nv), ph(nv)
+    REAL, INTENT (out) :: dz(nv)
 
-    integer :: i
-    real    :: tv
+    INTEGER :: i
+    REAL    :: tv
 
-    do  i = 1, nv
+    DO  i = 1, nv
        tv = pt(i)*(1+0. + ep2*ph(i) )
        dz(i) = (R/g) * tv * alog( pp(i+1) / pp(i) )
-    end do
+    END DO
     
-  end subroutine thicks
+  END SUBROUTINE thicks
   ! ----------------------------------------------------------------------
   !
-  subroutine combineOpticalProperties(tau,      ssa,      pF, &
+  SUBROUTINE combineOpticalProperties(tau,      ssa,      pF, &
                                       tauToAdd, ssaToAdd, pFtoAdd)
-    real, dimension(:),    intent(inout) :: tau, ssa
-    real, dimension(:, :), intent(inout) :: pF   ! Phs function (level, moment)
-    real, dimension(:),    intent(in)    :: tautoAdd
-    real, dimension(:),    optional, intent(in) :: ssaToAdd
-    real, dimension(:, :), optional, intent(in) :: pFToAdd ! Phs function
+    REAL, DIMENSION(:),    INTENT(inout) :: tau, ssa
+    REAL, DIMENSION(:, :), INTENT(inout) :: pF   ! Phs function (level, moment)
+    REAL, DIMENSION(:),    INTENT(in)    :: tautoAdd
+    REAL, DIMENSION(:),    OPTIONAL, INTENT(in) :: ssaToAdd
+    REAL, DIMENSION(:, :), OPTIONAL, INTENT(in) :: pFToAdd ! Phs function
 
-    integer :: j
+    INTEGER :: j
     !
     ! Adds optical properties to running sum
     !   If ssa and/or w[1-4] are not present we assume the new medium is 
     ! strictly absorbring
     ! 
-    if(present(ssaToAdd) .and. present(pfToAdd)) then
-       do j = 1, size(pF, 2) 
-          where (ssa(:) * tau(:) + ssaToAdd(:) * tauToAdd(:) > 0.)
+    IF(present(ssaToAdd) .AND. present(pfToAdd)) THEN
+       DO j = 1, size(pF, 2) 
+          WHERE (ssa(:) * tau(:) + ssaToAdd(:) * tauToAdd(:) > 0.)
              pf(:, j) = (ssa(:)*tau(:)*pf(:, j) + ssaToAdd(:)*tauToAdd(:)     &
-                  * pfToAdd(:, j))/(ssa(:)*tau(:) + ssaToAdd(:) * tauToAdd(:))
-          elsewhere
+                        * pfToAdd(:, j))/(ssa(:)*tau(:) + ssaToAdd(:) * tauToAdd(:))
+          ELSE WHERE
              pf(:, j) = 0.  
-          end where
-       end do
-       where (tau(:) + tauToAdd(:) > 0.)
+          END WHERE
+       END DO
+       WHERE (tau(:) + tauToAdd(:) > 0.)
           ssa(:) = (ssa(:) * tau(:) + ssaToAdd(:) * tauToAdd(:)) /            &
-               (tau(:) + tauToAdd(:))
-       elsewhere     
+                   (tau(:) + tauToAdd(:))
+       ELSE WHERE
           ssa(:) = 0. 
-       end where
+       END WHERE
        tau(:) = tau(:) + tauToAdd(:) 
-    else
+    ELSE
       !
       ! New medium is absorbing - phase function doesn't change
       !
        ssa(:) = (ssa(:) * tau(:)) / (tau(:) + tauToAdd(:))
        tau(:) = tau(:) + tauToAdd(:) 
-    end if
+    END IF
  
-  end subroutine combineOpticalProperties
+  END SUBROUTINE combineOpticalProperties
   ! ----------------------------------------------------------------------
   ! Subroutine rayle:  computes optical properties associated with rayleigh
   ! scattering 
@@ -497,36 +498,36 @@ contains
   ! and expansion coefficients of the phase function ( 1, 2, 3, and
   ! 4 ) due to the Rayleigh scattering for a given layer.
   ! 
-  subroutine rayle ( ib, u0, power, pp, pt, dz, tr, wr, wwr)
-    integer, intent (in) :: ib
-    real, intent (in)    :: u0, power, pp(nv1), pt(nv), dz(nv)
-    real, intent (out)   :: tr(nv), wr(nv), wwr(nv,4)
+  SUBROUTINE rayle ( ib, u0, power, pp, pt, dz, tr, wr, wwr)
+    INTEGER, INTENT(in) :: ib
+    REAL, INTENT(in)    :: u0, power, pp(nv1), pt(nv), dz(nv)
+    REAL, INTENT(out)   :: tr(nv), wr(nv), wwr(nv,4)
 
-    real, parameter :: ri(6)=(/ 0.9022e-5, 0.5282e-6, 0.5722e-7, &
-         0.1433e-7, 0.4526e-8, 0.1529e-8 /)
+    REAL, PARAMETER :: ri(6) = (/ 0.9022e-5, 0.5282e-6, 0.5722e-7, &
+                                  0.1433e-7, 0.4526e-8, 0.1529e-8 /)
 
-    integer :: i
-    real    :: x
+    INTEGER :: i
+    REAL    :: x
 
-    if ( ib == 1 ) then
+    IF ( ib == 1 ) THEN
        x = -3.902860e-6*u0*u0 + 6.120070e-6*u0 + 4.177440e-6
-    else
+    ELSE
        x = ri(ib)
-    endif
+    END IF
     
-    if(power > 0.) then
-      do  i = 1, nv
+    IF(power > 0.) THEN
+      DO  i = 1, nv
         tr(i) = x * ( pp(i) + pp(i+1) ) * dz(i) * 0.5 / pt(i)
-      end do
+      END DO
       wr(:) = 1.0
       wwr(:, :) = 0. 
       wwr(:, 2) = 0.5
-    else
+    ELSE
       tr(:)     = 0. 
       wr(:)     = 0.
       wwr(:, :) = 0. 
-    end if 
-  end subroutine rayle
+    END IF 
+  END SUBROUTINE rayle
 
   ! *********************************************************************
   ! tgm(nv) are the optical depthes due to water vapor continuum absorp-
@@ -534,25 +535,25 @@ contains
   ! tion in the 280 to 1250 cm**-1 region. vv(11)-vv(17) are the central
   ! wavenumbers of each band in this region. 
   ! *********************************************************************
-  subroutine gascon ( center, pp, pt, ph, tgm)
-    real,  intent (in) :: center, pp(nv1), pt(nv), ph(nv)
-    real, intent (out) :: tgm(nv)
+  SUBROUTINE gascon ( center, pp, pt, ph, tgm)
+    REAL, INTENT(in)  :: center, pp(nv1), pt(nv), ph(nv)
+    REAL, INTENT(out) :: tgm(nv)
 
-    integer :: k
-    real    :: ff, pe, s, pmid
+    INTEGER :: k
+    REAL    :: ff, pe, s, pmid
 
-    if ( center >= 280 .and. center <= 1250.) then
+    IF ( center >= 280 .AND. center <= 1250.) THEN
        s = ( 4.18 +  5577.8 * exp ( - 0.00787 * center ) ) / 1013.25
-       do k = 1, nv
+       DO k = 1, nv
           pmid   = (pp(k) + pp(k+1))*0.5
           pe     = pmid * ph(k) / ( 0.622 + 0.378 * ph(k) )
           ff     = s*(pe +  0.002*pmid ) *exp (1800.0/pt(k) -6.08108)
           tgm(k) = ff * ph(k) * ( pp(k+1) - pp(k) ) * 1.019767
-       end do
-    else
+       END DO
+    ELSE
        tgm(:) = 0.
-    end if
-  end subroutine gascon
+    END IF
+  END SUBROUTINE gascon
   ! ----------------------------------------------------------------------
   ! Subroutine planck:  Integrates planck function over band in xk sub
   ! intervals.  The temperatures at the interfaces are taken as the 
@@ -560,92 +561,92 @@ contains
   ! pressure interface is set to the temperature at the first mid point, 
   ! and surface temperatures are taken as the skin temperature.
   ! 
-  subroutine planck ( pt, tskin, llimit, rlimit, bf)
-    real, intent (in)    :: pt(nv), tskin, llimit, rlimit
-    real, intent (out)   :: bf(nv1) ! intensity [W/m^2/Sr]
+  SUBROUTINE planck ( pt, tskin, llimit, rlimit, bf)
+    REAL, INTENT(in)  :: pt(nv), tskin, llimit, rlimit
+    REAL, INTENT(out) :: bf(nv1) ! intensity [W/m^2/Sr]
 
-    real, parameter :: xk = 10.
+    REAL, PARAMETER :: xk = 10.
 
-    integer :: k
-    real    :: v1, v2, vmid, fq1, fq2, tk
+    INTEGER :: k
+    REAL    :: v1, v2, vmid, fq1, fq2, tk
 
-    do k = 1, nv1
+    DO k = 1, nv1
        bf(k) = 0.0
-    end do
+    END DO
 
     v1 = llimit
-    do while (v1 > rlimit+epsilon(rlimit))
+    DO WHILE (v1 > rlimit+epsilon(rlimit))
        v2 = max(v1 - xk, rlimit)
        vmid = ( v1 + v2 ) * 0.5
        fq1 = 1.19107e-8 * vmid * vmid * vmid
        fq2 = 1.43884 * vmid
-       do k = 2, nv
+       DO k = 2, nv
           tk = (pt(k)+pt(k-1))*0.5
-          if (tk.le.0.) then
-             print*,'tk wrong',tk,v1,v2,rlimit,llimit
+          IF (tk <= 0.) THEN
+             PRINT*,'tk wrong',tk,v1,v2,rlimit,llimit
              stop
-          endif
+          END IF
           bf(k) = bf(k) + (fq1/(exp(fq2/tk) - 1.0))*(v1-v2)
-       end do
-       if (pt(1).le.0.) then
-          print*,'pt wrong',pt(1),v1,v2,rlimit,llimit
+       END DO
+       IF (pt(1) <= 0.) THEN
+          PRINT*,'pt wrong',pt(1),v1,v2,rlimit,llimit
           stop
-       endif
+       END IF
        bf(1) = bf(1) + (fq1/(exp(fq2/pt(1)) - 1.0))*(v1-v2)
        bf(nv1) = bf(nv1) + (fq1/(exp(fq2/tskin) - 1.0))*(v1-v2)
        v1 = v2
-    end do
+    END DO
 
-  end subroutine planck
+  END SUBROUTINE planck
   !
   ! ---------------------------------------------------------------------------
-  subroutine computeIRBandWeights(bands, weighted, bandweights)
-    type(band_properties), &
-          dimension(:), intent( in) :: bands
-    logical,            intent( in) :: weighted
-    real, dimension(:), intent(out) :: bandweights
+  SUBROUTINE computeIRBandWeights(bands, weighted, bandweights)
+    TYPE(band_properties), &
+          DIMENSION(:), INTENT(in)  :: bands
+    LOGICAL,            INTENT(in)  :: weighted
+    REAL, DIMENSION(:), INTENT(out) :: bandweights
     
-    integer :: ib
+    INTEGER :: ib
     !
     ! find the weighting for band points so that the probability of a photon
     ! existing in the g-point range of a band can be calculated, and used for
     ! McICA calculations.  This is the relative band width for the IR bands
     !
     
-    if(size(bands) /= size(bandweights)) &
-      stop "Didn't provide the right amount of storage for band weights" 
-    if(any(isSolar(bands))) stop "Can't compute IR band weights for solar bands." 
+    IF(size(bands) /= size(bandweights)) &
+      STOP "Didn't provide the right amount of storage for band weights" 
+    IF(any(isSolar(bands))) STOP "Can't compute IR band weights for solar bands." 
     
-    if (weighted) then
-       do ib = 1, size(bands)
+    IF (weighted) THEN
+       DO ib = 1, size(bands)
          bandweights(ib) = (llimit(bands(ib)) - rlimit(bands(ib)))/(bllmx-brlmn)
-       end do 
-    else
-       bandweights(:) = 1./(real(size(bands)))
-    end if
-  end subroutine computeIRBandWeights
+       END DO 
+    ELSE
+       bandweights(:) = 1./(REAL(size(bands)))
+    END IF
+  END SUBROUTINE computeIRBandWeights
   ! ---------------------------------------------------------------------------
-  subroutine computeSolarBandWeights(bands, weighted, bandweights)
-    type(band_properties), &
-          dimension(:), intent( in) :: bands
-    logical,            intent( in) :: weighted
-    real, dimension(:), intent(out) :: bandweights
+  SUBROUTINE computeSolarBandWeights(bands, weighted, bandweights)
+    TYPE(band_properties), &
+          DIMENSION(:), INTENT(in)  :: bands
+    LOGICAL,            INTENT(in)  :: weighted
+    REAL, DIMENSION(:), INTENT(out) :: bandweights
     
-    integer :: i
+    INTEGER :: i
     !
     ! find the weighting for band points so that the probability of a photon
     ! existing in the g-point range of a band can be calculated, and used for
     ! McICA calculations.  This is the solar power for the solar bands
     !
-        if(size(bands) /= size(bandweights)) &
-         stop "Didn't provide the right amount of storage for band weights" 
-    if(any(.not. isSolar(bands))) stop "Can't compute solar band weights in IR"
+        IF(size(bands) /= size(bandweights)) &
+         STOP "Didn't provide the right amount of storage for band weights" 
+    IF(any(.NOT. isSolar(bands))) STOP "Can't compute solar band weights in IR"
 
-    if(weighted) then 
+    IF(weighted) THEN 
        bandweights(:) = (/ (power(bands(i))/totalpower, i = 1, size(bands)) /)
-    else 
-       bandweights(:) = 1./(real(size(bands)))
-    end if
-  end subroutine computeSolarBandWeights
+    ELSE 
+       bandweights(:) = 1./(REAL(size(bands)))
+    END IF
+  END SUBROUTINE computeSolarBandWeights
 
-end module fuliou
+END MODULE fuliou

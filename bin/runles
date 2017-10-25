@@ -15,19 +15,19 @@
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
 IsSeq=1 # 0 for mpi runs, 1 for sequential
 
-EXPNAME="DYCOMS"  # Name of the experiment
+EXPNAME="OASIS_2014020916_lat24.197_lon54.496_CCN600_div6e-6_soundin1"  # Name of the experiment
 
-NPROCS=144          # Number of processors (for IsSeq==0)
-TWALL=20:00:00      # Required wallclock time for batch system
+NPROCS=1          # Number of processors (for IsSeq==0)
+TWALL=5:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=40              # Number of points in Y-direction (including "halo" points)
-NZP=80              # Number of points in Z-direction
+NYP=50              # Number of points in Y-direction (including "halo" points)
+NZP=150              # Number of points in Z-direction
 DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=300.        # Length of the spinup period (seconds)
+Tspinup=3600.        # Length of the spinup period (seconds)
 Texp=43200.         # Length of the experiment (seconds)
 LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
@@ -51,6 +51,7 @@ fi
 
 # Create namelists
 cat > NAMELIST <<EOF
+
  &version
   ver="${ver}"
  /
@@ -81,8 +82,8 @@ cat > NAMELIST <<EOF
   lbinanl = .FALSE.
   frqanl = 60.
   corflg = .false.
-  itsflg = 1
-  strtim = 180.0
+  itsflg = 0
+  strtim = 45.4
   sed_aero = .FALSE.
   sed_cloud = .FALSE.
   sed_precp = .TRUE.
@@ -90,16 +91,19 @@ cat > NAMELIST <<EOF
   sed_snow = .TRUE.
   iradtyp = 3            
   case_name = 'default'   
-  div = 3.75e-6             
-  sfc_albedo = 0.05
+  div = 6.00e-6             
+  sfc_albedo = 0.1
   radsounding = 'datafiles/dsrt.lay'
-  dthcon = 16.
-  drtcon = 93.
+  dthcon = 6.1478
+  drtcon = -9.0333
   ubmin  = -0.25
-  zrough = 0.01
+  zrough = 0.5
   th00 = 289.
   umean =  0.1
   vmean = -0.1
+ /
+
+ &nudge
  /
 
  &salsa	
@@ -149,6 +153,7 @@ cat > NAMELIST <<EOF
    dpg = 0.022, 0.12, 0.2, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
    n = 125., 65., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3
  /
+
 
 EOF
 
