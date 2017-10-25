@@ -31,7 +31,7 @@ module mcrp
        snowin,    prtcl, calc_wet_radius
   use thrm, only : thermo
   use stat, only : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
-  character (len=10) :: case_name = 'none'
+  use forc, only : case_name
   implicit none
 
   logical, parameter :: droplet_sedim = .False., khairoutdinov = .False.

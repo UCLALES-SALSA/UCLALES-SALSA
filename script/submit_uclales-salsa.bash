@@ -43,6 +43,7 @@ WT=${WT:-24:00:00} # walltime
 
 COPY=${COPY:-true}
 clean=${clean:-true}
+submit=${submit:-true}
 
 #################################
 ###			                  ###
@@ -192,20 +193,21 @@ exit
 
 FINALPBS
 
-# Goto rundir
-cd ${rundir}
-
-# Make initial submit
-echo 'Submit to job scheduler'
-qsub runles.sh
 
 elif [ $jobflag == 'SBATCH' ] ; then
+
+
+    if [[ $nproc -gt 24 ]]; then
+        QUEUE=parallel
+    else
+        QUEUE=serial    
+    fi
+
 
 cat > ${rundir}/runles.sh <<FINALSBATCH
 #!/bin/sh
 #SBATCH -J ${jobname}
 #SBATCH -n ${nproc}
-#SBATCH --ntasks-per-node=${nodeNPU}
 #SBATCH -t ${WT}
 #SBATCH --output=LES_${outputname}-%j.out
 #SBATCH --error=LES_${outputname}-%j.err
@@ -229,14 +231,17 @@ exit
 
 FINALSBATCH
 
+fi
+###########################################
+
 # Goto rundir
 cd ${rundir}
 
 # Make initial submit
-echo 'Submit to job scheduler'
-sbatch runles.sh
-
+if [ $submit == 'true' ]; then
+    echo 'Submit to job scheduler'
+    ${submitCMD} runles.sh
 fi
-###########################################    
+
 
 exit

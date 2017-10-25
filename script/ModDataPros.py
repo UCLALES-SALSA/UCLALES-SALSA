@@ -696,6 +696,8 @@ def initializeColors(colorNRO=6):
   global colorChoice
   colorChoice = colorPool(colorNRO)
 
+  return colorChoice
+
 ########################################
 ### add a vertical line              ###
 ###                                  ###
@@ -727,7 +729,15 @@ def plot_alustus():
 ########################################
 def plot_lopetus():
   plt.show()
-
+  
+########################################
+### close figure                     ###
+###                                  ###
+########################################
+def plot_suljetus( joojoo = True ):
+    if joojoo:
+        plt.close()
+        
 ########################################
 ### change y-limits of the plot      ###
 ###                                  ###
@@ -774,14 +784,14 @@ def plot_setXlim( minimiX, maksimiX, extendBelowZero = True, A = 0.05 ):
 ### plot data                        ###
 ###                                  ###
 ########################################
-def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, currentColor = 'b', changeColor=True, tightXAxis=False, tightYAxis = False, markers=False, LEGEND=True, omavari = None, scatter=False, uusikuva = False, gridi = True, loc = 3 ):
+def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, currentColor = 'b', changeColor=True, tightXAxis=False, tightYAxis = False, markers=False, LEGEND=True, omavari = False, scatter=False, uusikuva = False, gridi = True, loc = 3 ):
   if uusikuva:
       plottaa.fig, plottaa.ax = plot_alustus()
 
   global color
   if  label is None:
       label = tit
-  if ( (omavari is None) and ('colorChoice' in globals() )):
+  if ( (omavari is False) and ('colorChoice' in globals() )):
     if changeColor:
         currentColor = colorChoice.getNextColor()
     else:
@@ -800,9 +810,9 @@ def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, current
       plt.scatter( x, y, color = currentColor, label=label)
   
   if LEGEND:
-      if loc == 2:
+      if loc == 2: # right side
         plt.legend(bbox_to_anchor=(1.02, 1), loc=loc, borderaxespad=0., fancybox = True, shadow = True )
-      elif loc == 3:
+      elif loc == 3: # top
         plt.legend(bbox_to_anchor=(0., 1.06, 1., .102), loc=loc, ncol=6, fancybox = True, shadow = True , mode="expand" ) # upper center ,  prop={'size': 18}      bbox_to_anchor = ( 0., 1.1, 0.6, 20.102 ),loc=9,  ncol=2, mode="expand", borderaxespad=0., fancybox = True, shadow = True
   
   plt.xlabel( xl ) #r'$\#/m^3$'

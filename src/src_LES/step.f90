@@ -542,19 +542,19 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
             IF ( tau == 1. ) THEN ! theta / q_t
 
                 IF ( zt(kk)< Z1 ) THEN
-                    C_nudge = 0
+                    C_nudge = 0.
 
-                ELSEIF ( zt(kk) >= Z1 .and. zt(kk) < Z2 ) THEN
+                ELSEIF ( zt(kk) >= Z1 .and. zt(kk) <= Z2 ) THEN
                     C_nudge = (1./3600.)*( 1-COS( pi*(zt(kk) - Z1 )/(Z2-Z1) ) )/2.
 
-                ELSEIF ( zt(kk) >= Z2 ) THEN
+                ELSEIF ( zt(kk) > Z2 ) THEN
                     C_nudge = 1./3600.
                 ENDIF
 
             ELSEIF ( tau == 2.) THEN ! horizontal winds
                 IF ( zt(kk)  <= ZUV ) THEN
                     C_nudge = (1./7200.)*( 1-COS( pi*zt(kk)/ZUV ) )/2.
-                ELSEIF ( zt(kk) >= ZUV ) THEN
+                ELSEIF ( zt(kk) > ZUV ) THEN
                     C_nudge = 1./7200.
                 ENDIF
             ENDIF

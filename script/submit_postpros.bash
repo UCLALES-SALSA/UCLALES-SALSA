@@ -129,12 +129,6 @@ aprun -n1 -N1 -d${nodeNPU} ./postpros${postfix}.sh | tee ${PBS_JOBNAME:-post_int
 exit
 FINALPBS
 
-cd ${dir}
-# Make initial submit
-chmod +x runpostpros${postfix}.sh ${scriptname} postpros${postfix}.sh
-echo 'Submit to job scheduler'
-qsub runpostpros${postfix}.sh
-
 elif [ $jobflag == 'SBATCH' ] ; then
 
 cat > ${dir}/runpostpros${postfix}.sh <<FINALSBATCH
@@ -146,7 +140,7 @@ cat > ${dir}/runpostpros${postfix}.sh <<FINALSBATCH
 #SBATCH --error=postpro_${input}-%j.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=${email}
-#SBATCH -p ${QUEUE}
+#SBATCH -p serial
 
 source /etc/profile
 cd ${dir}
@@ -156,12 +150,13 @@ srun -n1 -N1 -d${nodeNPU} ./postpros${postfix}.sh
 exit
 FINALSBATCH
 
+fi
+
 cd ${dir}
 # Make initial submit
 chmod +x runpostpros${postfix}.sh ${scriptname} postpros${postfix}.sh
 echo 'Submit to job scheduler'
-sbatch runpostpros${postfix}.sh
+${submitCMD} runpostpros${postfix}.sh
 
-fi
 
 exit

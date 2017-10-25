@@ -17,13 +17,15 @@ export ibrixrootfolder=/ibrix/arch/ClimRes/${USER}/
 if [[ $jobflag == 'PBS' ]]; then
     export outputroot=/lustre/tmp/${USER}/${model}/
     export root=/home/users/${USER}/${model}
-    export nodeNPU=20  # number of processing units in a node  
+    export nodeNPU=20  # number of processing units in a node
+    export submitCMD=qsub
 
 elif [[ $jobflag == 'SBATCH' ]]; then ## CSC's Sisu machine values
-    export nodeNPU=24 # number of processing units in a node 
-    export QUEUE=small_long # name of the queue of Sisu machine
     export outputroot=/wrk/${USER}/${model}
-    export root=/homeappl/home/${USER}/appl_sisu/${model}
+    export root=/homeappl/home/${USER}/appl_taito/${model}
+    export nodeNPU=24 # number of processing units in a node 
+    export submitCMD=sbatch
+    export WTmax=72:00:00 #maximum value of wall time for small_long
 fi
 
 export salsa=${root}/src/src_salsa
@@ -124,32 +126,50 @@ function poistaturhat {
 
     simulation=$1
     outputname=$2
+    folderROOT=$3
+    
+    override=${override:-false}
+    
+
 
     if [[ -z $outputname ]]; then
         outputname=${simulation}
     fi
     
+    if [[ -z $folderROOT ]]; then
+        folderROOT=$outputroot
+    fi
+    
     echo 'Tarkastellaan statusta, kansio :' ${simulation}
     
-    status=$( tarkistastatus $simulation $outputname )
+    status=$( tarkistastatus $simulation $outputname $folderROOT)
     LS=${status:0:1}
     PPS=${status:1:2}
 
     if [[ $status == '11' ]]
     then
         echo 'Simulaatio' $simulation  'on valmis poistetaan turhat'
-#       rm -rf ${outputroot}/${simulation}/datafiles
-        rm -rf ${outputroot}/${simulation}/*.sh
-        rm -rf ${outputroot}/${simulation}/*.py
-        rm -rf ${outputroot}/${simulation}/*.rst
-        rm -rf ${outputroot}/${simulation}/${outputname}.ts.0*0*.nc
-        rm -rf ${outputroot}/${simulation}/${outputname}.ps.0*0*.nc
-        rm -rf ${outputroot}/${simulation}/${outputname}.0*0*.nc
-        rm -rf ${outputroot}/${simulation}/0*_0*.${outputname}.*
-    elif [ $PPS -eq 2 ] || [ $LS -eq 2 ]
+    fi
+    
+    if [[ $override == 'true' ]]
+    then
+        echo 'poistetaan turhat, koska override'
+    fi
+    
+    if [ $status == '11'  ] || [ $override == 'true' ]; then
+        echo 'DELETING'
+#       rm -rf ${folderROOT}/${simulation}/datafiles
+        rm -rf ${folderROOT}/${simulation}/*.*.sh
+        rm -rf ${folderROOT}/${simulation}/*.py
+        rm -rf ${folderROOT}/${simulation}/*.rst
+        rm -rf ${folderROOT}/${simulation}/${outputname}.ts.0*0*.nc
+        rm -rf ${folderROOT}/${simulation}/${outputname}.ps.0*0*.nc
+        rm -rf ${folderROOT}/${simulation}/${outputname}.0*0*.nc
+        rm -rf ${folderROOT}/${simulation}/0*_0*.${outputname}.*
+    elif [ $PPS -eq 2 ] || [ $LS -eq 2 ] && [ $override != 'true' ]
     then
         echo "Restartataan, koska jokin simulaation vaiheista on kesken, poistetaan mahdolliset postprosessoidut setit"
-        rm -rf ${outputroot}/${simulation}/${outputname}.nc ${outputroot}/${simulation}/${outputname}.ts.nc  ${outputroot}/${simulation}/${outputname}.ps.nc
+        rm -rf ${folderROOT}/${simulation}/${outputname}.nc ${folderROOT}/${simulation}/${outputname}.ts.nc  ${folderROOT}/${simulation}/${outputname}.ps.nc
 
     else
         echo 'Simulaatio' $simulation "on alkutilassa ei poisteta turhia"

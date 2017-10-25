@@ -106,7 +106,7 @@ contains
                      div, case_name, &     ! Divergence, forcing case name
                      sfc_albedo, &         ! Surface albedo
                      useMcICA,RadConstPress,RadPrecipBins
-    USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, case_name
+    USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, appl_abort, ver, author
 
     implicit none

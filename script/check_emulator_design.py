@@ -216,12 +216,13 @@ def check_constrain( variable, lowerbound, upperbound, variablename, lowerboundN
         print 'Constraint', check_constrain.counter, 'is OK'
 print ' '
 check_constrain.counter = 0
-
-check_constrain( q_inv,     1.,  q_pbl,                      'q_inv',      '1',   'q_pbl',     'g/kg', nroCases )
-check_constrain( tpot_inv,  1.,  15.,                        't_inv',      '1',   '15',        'K'   , nroCases )
-check_constrain( pblh,      80., 3000.,                      'pblh',       '80',  '3000',      'm'   , nroCases )
-check_constrain( cloudbase, 30., pblh-50.*np.ones(nroCases), 'cloud base', '30',  'pblh - 50', 'm'   , nroCases )
-check_constrain( clw_max,   0.0,  10000.,                    'clw_max',    '0.0', 'INF',       'g/kg', nroCases )
+alvl=2500.
+cp=1005.
+check_constrain( q_inv,     1.,                     q_pbl,                      'q_inv',      '1',                     'q_pbl',     'g/kg', nroCases )
+check_constrain( tpot_inv,  1. + (alvl/cp)*clw_max, 15.,                        't_inv',      '1 + (alvl/cp)*clw_max', '15',        'K'   , nroCases )
+check_constrain( pblh,      80.,                    3000.,                      'pblh',       '80',                    '3000',      'm'   , nroCases )
+check_constrain( cloudbase, 30.,                    pblh-50.*np.ones(nroCases), 'cloud base', '30',                    'pblh - 50', 'm'   , nroCases )
+check_constrain( clw_max,   0.0,                    10000.,                     'clw_max',    '0.0',                   'INF',       'g/kg', nroCases )
 
 # forming CSV
 for i in xrange(nroCases):

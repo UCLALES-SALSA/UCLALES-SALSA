@@ -28,7 +28,7 @@ module stat
   private
 
   integer, parameter :: nvar1 = 28,               &
-                        nv1sbulk = 62,            &
+                        nv1sbulk = 70,            &
                         nv1MB = 4,                &
                         nvar2 = 92,               &
                         nv2sbulk = 46,            &
@@ -64,7 +64,7 @@ module stat
        'vtke   ','sfcbflx','wmax   ','tsrf   ','ustar  ','shf_bar', & ! 7
        'lhf_bar','zi_bar ','lwp_bar','lwp_var','zc     ','zb     ', & !13
        'cfrac  ','lmax   ','albedo ','rwp_bar','prcp   ','pfrac  ', & !19
-       'CCN    ','nrain  ','nrcnt  ','nccnt  '/),                   & !25
+       'CCN    ','nrain  ','nrcnt  ','nccnt  '/),                   & !25, total 28
 
 ! ^ iwp_bar iwp_var needs to be implemented
        ! **** Bulk temporal statistics for SALSA ****
@@ -84,9 +84,9 @@ module stat
        'rmDUdr ','rmDUcl ','rmDUpr ','rmDUwt ','rmDUtt ',            & !43
        'rmSSdr ','rmSScl ','rmSSpr ','rmSSwt ','rmSStt ',            & !48
        'rmNH3dr','rmNH3cl','rmNH3pr','rmNH3wt','rmNH3tt',            & !53
-       'rmNO3dr','rmNO3cl','rmNO3pr','rmNO3wt','rmNO3tt'             & !58, total 62
+       'rmNO3dr','rmNO3cl','rmNO3pr','rmNO3wt','rmNO3tt',            & !58, total 62
        'rmSO4ic','rmOCic ','rmBCic ','rmDUic ','rmSSic ',            & !63
-       'rmNH3ic','rmN03ic','rmH20ic'
+       'rmNH3ic','rmN03ic','rmH20ic'                                 & !68, total 70
        /),                                                           &
 
         s2(nvar2)=(/                                                 &

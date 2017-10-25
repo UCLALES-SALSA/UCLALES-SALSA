@@ -8,6 +8,7 @@ import numpy as np
 from scipy import interpolate
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.colors as colors
 import os
 import glob
 from netCDF4 import Dataset
@@ -26,6 +27,7 @@ if lvl == '0':
 else:
     EMUL = raw_input('Emulator/Regular pictures: e/r (y/n): ') in emuloo
     tag  = raw_input('give tag: ')
+    LVLprint     = raw_input("Do you want to print LEVEL (yes/no): ") in kylla
     
     icevari = 'k'
     if len(tag) == 4 and tag[0:3]=='ice':
@@ -38,9 +40,19 @@ else:
 
     if len(tag)>0:
         tag = tag + ' '
+        saveTag = tag.replace(" ","_")
+    else:
+        saveTag = ''
 
     ICE = (not EMUL )
+    
+    customLabels = raw_input("Do you want to give custom labels for plots (yes/no): ") in kylla
 
+    
+    if EMUL:
+        EMULCASES = raw_input("Do you want to give custom emul cases (yes/no): ") in kylla
+    
+    
 #ICE  = raw_input('Ice plots: yes/no: ') in kylla
 
 
@@ -57,14 +69,15 @@ if not importOnly:
     arguments = sys.argv
     
     labelArray = []
+    emulCaseIndexes  = []
 
     filenameNC = []
     filenamePS = []
     filenameTS = []
     
     
-    customLabels = raw_input("Do you want to give custom labels for plots (yes/no): ") in kylla
-    LVLprint     = raw_input("Do you want to print LEVEL (yes/no): ") in kylla
+
+    
     if LVLprint:
         LVLprintFig  = ' ' + 'LVL' + lvl
         LVLprintSave = '_' + 'LVL' + lvl
@@ -73,21 +86,32 @@ if not importOnly:
         LVLprintSave = ''
         
     kkk = 1
+    uuu = 1
+    applyForAll = False
     for filebase in arguments[1:]:
 
         filenameNC.append( filebase + '.nc'    )
         filenamePS.append( filebase + '.ps.nc' )
         filenameTS.append( filebase + '.ts.nc' )
         
-        if not EMUL:
-            if customLabels:
-                teksti = "Give "+ str(kkk) +". label: "
-                labelArray.append( raw_input(teksti) )
-                kkk += 1
-            else:
-                labelArray.append( filebase )
         
-        
+        if customLabels:
+            teksti = "Give "+ str(kkk) +". label: (" + str(filebase)+") : "
+            labelArray.append( raw_input(teksti) )
+            kkk += 1
+        elif ( (not customLabels) and (not EMUL) ):
+            labelArray.append( filebase )
+    
+        if EMUL and EMULCASES :
+                emulteksti = "Give "+ str(uuu) +". emul case (" + str(filebase)+") : "
+                if not applyForAll:
+                    emulcase = int(raw_input(emulteksti))-1
+                    
+                    applyteksti = "Do you want to apply this case " + str(emulcase+1) + " for all the rest? (yes/no): "
+                    applyForAll = raw_input(applyteksti) in kylla
+                
+                emulCaseIndexes.append( emulcase )
+                uuu += 1            
             
 
 
@@ -102,8 +126,8 @@ if not importOnly:
 # parameter settings 
 #
 ##############################
-cases = 1
 
+naytaPlotit = False
 
 piirra = True
 
@@ -114,7 +138,7 @@ tightXAxis = True
 saveFig=True
 
 global jarjestys
-jarjestys = np.arange( 1, cases + 1 )
+
 
 if not importOnly:
     if saveFig:
@@ -124,13 +148,16 @@ if not importOnly:
 
     cases    = len(arguments)-1
     colorNRO = cases
+    
+    jarjestys = np.arange( 1, cases + 1 )
 
     if ( colorNRO > 6 ) :
         LEGEND = False
     else:
         LEGEND = True
 
-    mdp.initializeColors(colorNRO)
+    colorChoice = mdp.initializeColors(colorNRO)
+
 
 
     ajanhetket = 3*3600. #7200.
@@ -138,7 +165,7 @@ if not importOnly:
     spinup = mdp.read_NamelistValue( os.path.dirname(os.path.realpath(arguments[1]))+"/NAMELIST" ,var = 'Tspinup' )
     tmax   = mdp.read_NamelistValue( os.path.dirname(os.path.realpath(arguments[1]))+"/NAMELIST" ,var = 'timmax'  )
 
-    ticksHours  = np.arange(0, tmax/3600. + 0.1, 0.5)
+    ticksHours  = np.arange(0., tmax/3600. + 0.1, 0.5)
     xLabelsHours = map(str, ticksHours )
 
     xTicksSeconds = ticksHours*3600.
@@ -161,9 +188,66 @@ def varibaari( variRefVektori, variKartta ):
     plt.close()
     return CS3
 
-##########################
-def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVektori = jarjestys, colorBar = None, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], muunnosKerroin = 1.0, longName = 'titteli', xlabel = 'time [h]', ylabel='ylabel', extendBelowZero = True, asetaRajat = True, ymin = None, ymax = None, relative = False, savePrefix = None, omaVari = True, tit = ' ', nollaArvo = None, xlabels = None, ylabels = None, xticks = None, yticks = None, spinup = None, ylabelFont = False ):
+def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+    new_cmap = colors.LinearSegmentedColormap.from_list(
+        'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
+        cmap(np.linspace(minval, maxval, n)))
+    return new_cmap
 
+def shiftedColorMap(cmap, start=0, midpoint=0.5, stop=1.0, name='shiftedcmap'):
+    '''
+    Function to offset the "center" of a colormap. Useful for
+    data with a negative min and positive max and you want the
+    middle of the colormap's dynamic range to be at zero
+
+    Input
+    -----
+      cmap : The matplotlib colormap to be altered
+      start : Offset from lowest point in the colormap's range.
+          Defaults to 0.0 (no lower ofset). Should be between
+          0.0 and `midpoint`.
+      midpoint : The new center of the colormap. Defaults to 
+          0.5 (no shift). Should be between 0.0 and 1.0. In
+          general, this should be  1 - vmax/(vmax + abs(vmin))
+          For example if your data range from -15.0 to +5.0 and
+          you want the center of the colormap at 0.0, `midpoint`
+          should be set to  1 - 5/(5 + 15)) or 0.75
+      stop : Offset from highets point in the colormap's range.
+          Defaults to 1.0 (no upper ofset). Should be between
+          `midpoint` and 1.0.
+    '''
+    cdict = {
+        'red': [],
+        'green': [],
+        'blue': [],
+        'alpha': []
+    }
+
+    # regular index to compute the colors
+    reg_index = np.linspace(start, stop, 257)
+
+    # shifted index to match the data
+    shift_index = np.hstack([
+        np.linspace(0.0, midpoint, 128, endpoint=False), 
+        np.linspace(midpoint, 1.0, 129, endpoint=True)
+    ])
+
+    for ri, si in zip(reg_index, shift_index):
+        r, g, b, a = cmap(ri)
+
+        cdict['red'].append((si, r, r))
+        cdict['green'].append((si, g, g))
+        cdict['blue'].append((si, b, b))
+        cdict['alpha'].append((si, a, a))
+
+    newcmap = mpl.colors.LinearSegmentedColormap(name, cdict)
+    plt.register_cmap(cmap=newcmap)
+
+    return newcmap
+
+##########################
+def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVektori = jarjestys, colorBar = None, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], muunnosKerroin = 1.0, longName = 'titteli', xlabel = 'time [h]', ylabel='ylabel', extendBelowZero = True, asetaRajat = True, ymin = None, ymax = None, relative = False, savePrefix = None, omaVari = True, tit = ' ', nollaArvo = None, xlabels = None, ylabels = None, xticks = None, yticks = None, spinup = None, ylabelFont = False, askChangeOfVariable = False, piilotaOsaXlabel = False ):
+    origmuuttuja = muuttuja
     maksimi = None
     minimi  = None
     maxRef = np.max( variRefVektori )
@@ -173,12 +257,39 @@ def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefV
     nono = None
     for i in xrange(len(arguments)-1):
         uusikuva = True if i == 0 else  False
+        muuttuja = origmuuttuja
+        if EMUL:
+            if not EMULCASES:
+                case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
+            else:
+                case_indeksi = emulCaseIndexes[i]
+        else:
+            case_indeksi = i
+            
+        if askChangeOfVariable:
+            printti = "Case is "+ arguments[i+1] + ", the variable is currently: " + muuttuja + ' if you want to keep it press [Enter], otherwise give the name of the variable (e.g. prcp/rmH2Opr Nc_ic/CCN): '
+            apumuuttuja = raw_input(printti)
+            
+            if apumuuttuja != '':
+                muuttuja = apumuuttuja
+            
+            if muuttuja == 'prcp':
+                muunnosKerroin = 1.
+            elif muuttuja == 'rmH2Opr':
+                muunnosKerroin = 2.5e+06
+            
+            print 'variable is', muuttuja, 'muunnosKerroin', muunnosKerroin
+            
+
+            
         time_data       = mdp.read_Data( filenameTS[i], 'time'  )
         muuttuja_Tdata  = mdp.read_Data( filenameTS[i], muuttuja )*muunnosKerroin
         
 
         #### relative    
         if relative:
+            
+           
             if ((nollaArvo is None) and (nono is None)):
                 lahtoarvo = muuttuja_Tdata[0]
                 if lahtoarvo == -999.:
@@ -186,7 +297,7 @@ def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefV
                     lahtoarvo = muuttuja_Tdata[1]
                     
             elif ( isinstance( nollaArvo, np.ndarray) or isinstance(nollaArvo, list) ):
-                lahtoarvo = nollaArvo[i]
+                lahtoarvo = nollaArvo[case_indeksi]
             elif nono is not None:
                 lahtoarvo = muuttuja_Tdata[nono]
             if lahtoarvo == 0.:
@@ -206,15 +317,13 @@ def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefV
                     else:
                         print "Let's skip this", muuttuja, i+1
                         continue
-                        
+
+                
             muuttuja_Tdata = np.where( muuttuja_Tdata > -999.,  muuttuja_Tdata / lahtoarvo, 0. )
         #### end relative        
                 
                 
-        if EMUL:
-            case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
-        else:
-            case_indeksi = i
+
         
         
         colorMap = variKartta
@@ -255,7 +364,10 @@ def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefV
 
         if EMUL:
             nimi = longName + ' ' + tag + LVLprintFig
-            label = str(case_indeksi+1)
+            if customLabels:
+                label = labelArray[i]
+            else:    
+                label = str(case_indeksi+1)
         else:
             nimi = longName + ' ' + tag
             label = labelArray[i]
@@ -264,13 +376,12 @@ def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefV
         #######################
     #print 'muuttuja', muuttuja, 'indeksi min', minInd, 'arvo min', minimi, 'indeksi max', maksInd, 'arvo max', maksimi
     
-    xticksHours = np.arange(0, max(muuttuja_Tdata)/3600. + 0.1, 0.5)
-    
-    if xticks is None:
-        xticks = xticksHours * 3600.
+    xticksHours = np.arange(0., max(time_data)/3600. + 0.1, 0.5)
+
+    xticks = xticksHours * 3600.
     
     if xlabels is None:
-        xticks = map( str, xticksHours)
+        xlabels = map( str, xticksHours)
     
     if yticks is not None:
         ax.set_yticks( yticks)
@@ -278,9 +389,16 @@ def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefV
     if ylabels is not None:
         ax.set_yticklabels( ylabels )
     
-    
+
     ax.set_xticks( xticks )
     ax.set_xticklabels( xlabels )
+    
+    if piilotaOsaXlabel:
+        k = 0
+        for label in ax.xaxis.get_ticklabels():
+            if np.mod(k,4) != 0:
+                label.set_visible(False)
+            k+=1
     
     if ((ylabelFont is not None) and (yticks is not None)):
         for takka in ( ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks() ):
@@ -292,7 +410,7 @@ def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefV
     if spinup is not None:
         mdp.plot_vertical( spinup )
 
-    if colorBar is not None:
+    if colorBar is not None and ( omaVari == True):
        cb = plt.colorbar( colorBar, shrink=.9, pad=.03, aspect=10, ticks = colorBarTickValues )#colorBar 
        cb.ax.set_yticklabels(colorBarTickNames)
        cb.ax.set_ylabel( tit )
@@ -311,10 +429,10 @@ def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefV
         savePrefix = muuttuja
 
     if saveFig:
-        plt.savefig( picturefolder + savePrefix + '_' + tag + LVLprintSave + '.png')
+        plt.savefig( picturefolder + savePrefix + '_' + saveTag + LVLprintSave + '.png')
 
 #########################
-def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVektori = jarjestys, colorBar = None, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], muunnosKerroin = 1.0, longName = 'titteli', xlabel = 'xlabel', ylabel='ylabel', extendBelowZero = True, asetaRajat = True, ymin = None, ymax = None, xmin = None, xmax = None, relative = False, savePrefix = None, ajanhetket = None, tit = ' ', nollaArvo = None, rajaKerros = None ):
+def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVektori = jarjestys, colorBar = None, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], muunnosKerroin = 1.0, longName = 'titteli', xlabel = 'xlabel', ylabel='ylabel', extendBelowZero = True, asetaRajat = True, ymin = None, ymax = None, xmin = None, xmax = None, relative = False, savePrefix = None, ajanhetket = None, tit = ' ', nollaArvo = None, rajaKerros = None, omaVari = True ):
 
     maksimi = None
     minimi  = None
@@ -325,6 +443,14 @@ def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVe
         
         muuttuja_data      = mdp.read_Data( filenamePS[i], muuttuja )*muunnosKerroin   
         
+        if EMUL:
+            if not EMULCASES:
+                case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
+            else:
+                case_indeksi = emulCaseIndexes[i]
+        else:
+            case_indeksi = i  
+        
         #### relative    
         if relative:
             if ((nollaArvo is None) and (nono is None)):
@@ -334,7 +460,7 @@ def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVe
                     print 'WARNING lahtoarvo = -999. lasketaan seuraavasta arvosta', muuttuja
                     lahtoarvo = muuttuja_data[1]
             elif ( isinstance( nollaArvo, np.ndarray) or isinstance(nollaArvo, list) ):
-                lahtoarvo = nollaArvo[i]
+                lahtoarvo = nollaArvo[case_indeksi]
             elif nono is not None:
                 lahtoarvo = muuttuja_data[nono]
                 
@@ -358,11 +484,6 @@ def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVe
                         
             muuttuja_Tdata = muuttuja_data / lahtoarvo
         #### end relative 
-        
-        if EMUL:
-            case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
-        else:
-            case_indeksi = i  
 
         time_data   = mdp.read_Data( filenameTS[i], 'time'    )
 
@@ -431,15 +552,20 @@ def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVe
         colorMap = variKartta
         skal = variRefVektori[ case_indeksi ] / maxRef
         color = colorMap(skal)
-
+        
+        if omaVari:
+            omaVari = color
         
         if EMUL:
             nimi = longName + ' ' + tag + LVLprintFig
-            label = str(case_indeksi+1)
+            if customLabels:
+                label = labelArray[i]
+            else:    
+                label = str(case_indeksi+1)
         else:
             nimi = longName + ' ' + tag
             label = labelArray[i]
-        fig, ax = mdp.profiiliTulostus( p_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = xlabel, ynimi = ylabel, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = color, label = label )
+        fig, ax = mdp.profiiliTulostus( p_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = xlabel, ynimi = ylabel, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omaVari, label = label, loc = 3 )
 
         ####################
     # tikkien fonttikoko
@@ -453,7 +579,7 @@ def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVe
     
 
                 
-    if colorBar is not None:
+    if colorBar is not None and ( omaVari == True):
        cb = plt.colorbar( colorBar, shrink=.9, pad=.03, aspect=10, ticks = colorBarTickValues )#colorBar 
        cb.ax.set_yticklabels(colorBarTickNames)
        cb.ax.set_ylabel( tit )
@@ -475,10 +601,10 @@ def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVe
         savePrefix = muuttuja
 
     if saveFig:
-        plt.savefig( picturefolder + savePrefix + '_' + tag + LVLprintSave + '.png')
+        plt.savefig( picturefolder + savePrefix + '_' + saveTag + LVLprintSave + '.png')
 
 
-def piirra_profiiliKehitys(  muuttuja, variKartta = plt.cm.gist_rainbow, colorBar = None, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], muunnosKerroin = 1.0, longName = 'titteli', xlabel = 'xlabel', ylabel='ylabel', extendBelowZero = True, asetaRajat = True, ymin = None, ymax = None, xmin = None, xmax = None,  savePrefix = None, aikaPisteet = None, tit = ' ', nollaArvo = None, rajaKerros = None, paksuus = None, xlabels = None, ylabels = None, xticks = None, yticks = None, tempConversion = False ):
+def piirra_profiiliKehitys(  muuttuja, variKartta = plt.cm.gist_rainbow, colorBar = None, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], muunnosKerroin = 1.0, longName = 'titteli', xlabel = 'xlabel', ylabel='ylabel', extendBelowZero = True, asetaRajat = True, ymin = None, ymax = None, xmin = None, xmax = None,  savePrefix = None, aikaPisteet = None, tit = ' ', nollaArvo = None, rajaKerros = None, paksuus = None, xlabels = None, ylabels = None, xticks = None, yticks = None, tempConversion = False, askChangeOfVariable = False):
     #import matplotlib.patches as mpatches
     from PythonMethods import myRoundFloat
     from emulator_inputs import absT
@@ -495,17 +621,27 @@ def piirra_profiiliKehitys(  muuttuja, variKartta = plt.cm.gist_rainbow, colorBa
         minimi  = None
         maksimifracZ = None
         if EMUL:
-            case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
+            if not EMULCASES:
+                case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
+            else:
+                case_indeksi = emulCaseIndexes[i]
         else:
             case_indeksi = i
 
-
+        if askChangeOfVariable:
+            printti = "Case is "+ arguments[i+1] + ", the variable is currently: " + muuttuja + ' if you want to keep it press [Enter], otherwise give the name of the variable (e.g. [prcp/rmH2Opr] [Nc_ic/CCN] [P_rl/l]): '
+            apumuuttuja = raw_input(printti)
+        
+            if apumuuttuja != '':
+                muuttuja = apumuuttuja
+        
+            print 'variable is', muuttuja
+    
     
 
         for t in xrange(len(aikaPisteet)):
             uusikuva = True if t == 0 else  False
-        
-        
+
             muuttuja_data      = mdp.read_Data( filenamePS[i], muuttuja )*muunnosKerroin
             
             if tempConversion:
@@ -587,13 +723,15 @@ def piirra_profiiliKehitys(  muuttuja, variKartta = plt.cm.gist_rainbow, colorBa
             color = colorMap(skal)
 
             
-            if EMUL:
-                legend = str(myRoundFloat( time_data[aikaP]/3600.) ) + ' [h]'
-                nimi = longName + ' ' + filenameNC[i].split("/")[-2] + ' ' + tag + LVLprintFig
+            
+            if EMUL and not customLabels:
+                aputagi = str(case_indeksi+1)
                 
             else:
-                legend = str(myRoundFloat( time_data[aikaP]/3600.) ) + ' [h]'
-                nimi = longName + ' ' + labelArray[i] + ' ' + tag
+                aputagi = labelArray[i]
+            
+            legend = str(myRoundFloat( time_data[aikaP]/3600.) ) + ' [h]'
+            nimi = longName + ' ' + aputagi + ' ' + tag
                 
                 
 
@@ -654,12 +792,24 @@ def piirra_profiiliKehitys(  muuttuja, variKartta = plt.cm.gist_rainbow, colorBa
             savePrefix = muuttuja
 
         if saveFig:
-            plt.savefig( picturefolder + savePrefix + '_' + str(case_indeksi+1) + '_' + tag + LVLprintSave + '.png')
+            valitagi = '_'
+            if customLabels:
+                valitagi = labelArray[i]
+            elif applyForAll and not customLabels:
+                valitagi = str(case_indeksi+1) + str(i)
+            else:
+                valitagi = str(case_indeksi+1)
+            
+            subfolder = picturefolder + '/' + savePrefix + '/'
+            if not os.path.exists( subfolder ):
+                os.makedirs( subfolder )
+            
+            plt.savefig( subfolder + savePrefix + '_' + valitagi + '_' + saveTag + LVLprintSave + '.png')
         
 
 
 ############################
-def piirra_aikasarjaPathXYZ( muuttuja, longName = None, savePrefix = None, xaxislabel = 'time [h]', xlabels = None, ylabels = None, xticks = None, yticks = None, spinup = None ):
+def piirra_aikasarjaPathXYZ( muuttuja, muunnosKerroin = 1.0, longName = None, savePrefix = None, xaxislabel = 'time [h]', xlabels = None, ylabels = None, xticks = None, yticks = None, spinup = None, piilotaOsaXlabel = False ):
     
         
     if longName is None:
@@ -667,16 +817,23 @@ def piirra_aikasarjaPathXYZ( muuttuja, longName = None, savePrefix = None, xaxis
     for i in xrange(len(arguments)-1):
         uusikuva = True if i == 0 else  False
 
-        muuttuja_data = mdp.read_Data( filenameNC[i], muuttuja )
+        muuttuja_data = mdp.read_Data( filenameNC[i], muuttuja )*muunnosKerroin
         time_data     = mdp.read_Data( filenameNC[i], 'time'   )
         dn0_data      = mdp.read_Data( filenameNC[i], 'dn0'    )
         zt_data       = mdp.read_Data( filenameNC[i], 'zt'     )
         zm_data       = mdp.read_Data( filenameNC[i], 'zm'     )
         korkeus = ( zm_data - zt_data )*2.0
+        
+        
+        if customLabels:
+            aputagi = labelArray[i]
+        else: 
+            aputagi = str(case_indeksi+1)
+        
+        nimi = longName + ' grid data'
+        label = aputagi
 
-        nimi = longName +' ' + filenameNC[i]
-
-        fig,ax = mdp.laske_path_aikasarjaXYZ( muuttuja_data, dn0_data, korkeus, time_data, tulostus = True, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xlabel = xaxislabel, tightXAxis=tightXAxis)
+        fig,ax = mdp.laske_path_aikasarjaXYZ( muuttuja_data, dn0_data, korkeus, time_data, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xlabel = xaxislabel, tightXAxis=tightXAxis, label = label)
     
     
     ajat  =  np.round( mdp.read_Data( filenameNC[0], 'time' ), 0 )
@@ -687,11 +844,18 @@ def piirra_aikasarjaPathXYZ( muuttuja, longName = None, savePrefix = None, xaxis
         xticks = xticksHours * 3600.
     
     if xlabels is None:
-        xticks = map( str, xticksHours)
+        xlabels = map( str, xticksHours)
     
     
     ax.set_xticks( xticks )
     ax.set_xticklabels( xlabels )
+    
+    if piilotaOsaXlabel:
+        k = 0
+        for label in ax.xaxis.get_ticklabels():
+            if np.mod(k,4) != 0:
+                label.set_visible(False)
+            k+=1
     
     if spinup is not None:
         mdp.plot_vertical( spinup )
@@ -699,20 +863,38 @@ def piirra_aikasarjaPathXYZ( muuttuja, longName = None, savePrefix = None, xaxis
     if savePrefix is None:
         savePrefix = muuttuja
     if saveFig:
-        plt.savefig( picturefolder + savePrefix + '_' + tag + LVLprintSave + '.png')
+        plt.savefig( picturefolder + savePrefix + '_' + saveTag + LVLprintSave + '.png')
 
 
 ##########################
-def piirra_maksimiKeissit( muuttuja, muunnosKerroin = 1.0, longName = 'pitka nimi', xlabel = 'case', ylabel = 'ylabel', savePrefix = None):
+def piirra_maksimiKeissit( muuttuja, muunnosKerroin = 1.0, longName = 'pitka nimi', xlabel = 'case', ylabel = 'ylabel', savePrefix = None, askChangeOfVariable = False):
     lista = np.zeros( cases )
     xTikit = np.zeros( cases ) 
 
     
     for i in xrange(len(arguments)-1):
+        if askChangeOfVariable:
+            printti = "Case is "+ arguments[i+1] + ", the variable is currently: " + muuttuja + ' if you want to keep it press [Enter], otherwise give the name of the variable (e.g. [prcp/rmH2Opr] [Nc_ic/CCN] [P_rl/l]): '
+            apumuuttuja = raw_input(printti)
+        
+            if apumuuttuja != '':
+                muuttuja = apumuuttuja
+            
+            if muuttuja == 'prcp':
+                muunnosKerroin = 1.
+            elif muuttuja == 'rmH2Opr':
+                muunnosKerroin = 2.5e+06
+            
+            print 'variable is', muuttuja, 'muunnosKerroin', muunnosKerroin
+                
         muuttuja_Tdata  = mdp.read_Data( filenameTS[i], muuttuja )*muunnosKerroin
         time_data       = mdp.read_Data( filenameNC[i], 'time'   )
+        
         if EMUL:
-            tikki = int(filenameNC[i].split("/")[-2][-2:])
+            if not EMULCASES:
+                tikki = int(filenameNC[i].split("/")[-2][-2:])
+            else:
+                tikki = emulCaseIndexes[i]+1    
         else:
             
             tikki = int(i+1)
@@ -736,7 +918,7 @@ def piirra_maksimiKeissit( muuttuja, muunnosKerroin = 1.0, longName = 'pitka nim
         
         lista[i] = np.max( muuttuja_Tdata[aikaP:] )
 
-    fig, ax = mdp.plottaa( jarjestys, lista, tit = longName+ ' ' + tag + LVLprintFig, xl = xlabel, yl = ylabel, changeColor = True, markers = True, uusikuva = True, gridi = False, tightXAxis = False, tightYAxis = True, LEGEND = LEGEND )
+    fig, ax = mdp.plottaa( jarjestys, lista, tit = longName+ ' ' + tag + LVLprintFig, xl = xlabel, yl = ylabel, changeColor = True, markers = True, uusikuva = True, gridi = False, tightXAxis = False, tightYAxis = True, LEGEND = False )
     
     mdp.plot_setYlim( 0., max(lista), extendBelowZero = False, A = 0.05 )
     #print map(str, xTikit)
@@ -748,7 +930,7 @@ def piirra_maksimiKeissit( muuttuja, muunnosKerroin = 1.0, longName = 'pitka nim
     if savePrefix is None:
                 savePrefix = longName.replace( " ", "_" )
     if saveFig:
-        plt.savefig( picturefolder + savePrefix+ '_' + tag + LVLprintSave + '.png')
+        plt.savefig( picturefolder + savePrefix+ '_' + saveTag + LVLprintSave + '.png')
 
 #######################
 def piirra_binijakauma( muuttuja, muunnosKerroin = 1.0, longName = None, savePrefix = None ):
@@ -761,7 +943,7 @@ def piirra_binijakauma( muuttuja, muunnosKerroin = 1.0, longName = None, savePre
         
 
 #######################
-def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, longName = None , savePrefix = None, useDN = False, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], xlabels = None, ylabels = None, xticks = None, yticks = None, variKartta = plt.cm.Blues, profiili = False, spinup = None ):
+def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, longName = None , savePrefix = None, useDN = False, colorBarTickValues = None, colorBarTickNames = None, xlabels = None, ylabels = None, xticks = None, yticks = None, variKartta = plt.cm.Blues, profiili = False, radCool = False, cloudBaseTop = False, spinup = None ):
     
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     from matplotlib import colors
@@ -774,18 +956,26 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
         tiedostonimi = filenameNC
     
     
-    if isinstance( variKartta, list):
-        variKartta   = colors.ListedColormap(variKartta)
-        bounds = colorBarTickValues
-        norm   = colors.BoundaryNorm(bounds, variKartta.N)
+
+
+    norm = None
     
-    
-    
-    # Make plot with vertical (default) colorbar
-    asp = 25./45.
-    w, h = mpl.figure.figaspect( asp )
-    fig, ax = plt.subplots(figsize = (24,15)) #figsize=(w, h)
+
+
     for i in xrange(len(arguments)-1):
+        if EMUL:
+            if not EMULCASES:
+                case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
+            else:
+                case_indeksi = emulCaseIndexes[i]
+        else:
+            case_indeksi = i
+        # Make plot with vertical (default) colorbar
+        asp = 25./45.
+        
+        #w, h = mpl.figure.figaspect( asp )
+        #fig, ax = plt.subplots(figsize = (24,15)) #figsize=(w, h)
+        fig, ax = mdp.plot_alustus()
         muuttuja_data  = np.multiply( mdp.read_Data( tiedostonimi[i], muuttuja ), muunnosKerroin)
 
         if useDN:
@@ -800,101 +990,182 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
         
         if transpose:
             muuttuja_meanProfile = np.rot90(muuttuja_meanProfile)  #zip(*muuttuja_meanProfile[::-1])#muuttuja_meanProfile.T
+        
+        if radCool:
+            for pp in xrange(np.shape(muuttuja_meanProfile)[0]):
+                for rr in xrange(1, np.shape(muuttuja_meanProfile)[1]):
+                    muuttuja_meanProfile[pp,rr-1] = muuttuja_meanProfile[pp,rr] - muuttuja_meanProfile[pp,rr-1]
+                muuttuja_meanProfile[pp,-1] = 0.
+            
+            mini = np.min(muuttuja_meanProfile)
+            maxi = np.max(muuttuja_meanProfile)
 
+            midpoint = np.abs( mini ) / np.abs( maxi-mini )
+            print 'midpoint', midpoint
+            
+            apu = (1-midpoint) / midpoint
+            start = 0.
+            stop  = 1.
+            if apu<1.:
+                stop  = min( midpoint + apu*(1-midpoint), 1.)
+            else:
+                start = max( 0, midpoint - (1./apu*midpoint) ) 
+            print 'start', start, 'stop', stop
+            
+            variKartta = shiftedColorMap( variKartta, start=start, stop=stop, midpoint = midpoint,   name='shrunk') #
+        
+        if colorBarTickValues is None:
+            baseN = 5
+            posi = np.arange( 0., min(10., maxi)+.5,  1. )
+            nega = np.arange( max(-10, mini), 0., 1. )
+            kokonaisluvut = map(int, np.arange( int(mini/baseN)*baseN, int(maxi/baseN)*baseN, baseN  ))
+            colorBarTickValues = map(int, np.concatenate((np.asarray([int(mini)]), nega, kokonaisluvut, posi, np.asarray([int(maxi)]) )) )
+            
+        if isinstance( variKartta, list):
+            variKartta   = colors.ListedColormap(variKartta)
+            bounds = colorBarTickValues
+            norm   = colors.BoundaryNorm(bounds, variKartta.N)
+        
         cax = ax.imshow( muuttuja_meanProfile, interpolation='nearest', cmap=variKartta, aspect=asp, norm = norm ) 
         
         
-    if longName is None:
-        longName = muuttuja
         
-    ax.set_title(longName)
-    
-    if xticks is None:
-         sys.exit("anna xticks")
-         
-    #if yticks is None:
-         #yticks  = np.arange( np.shape(muuttuja_data)[-1])
-         
-    #if xlabels is None:
-         #xlabels = map(str,  np.multiply( xticks,  1./3600. ) ) 
-    #if ylabels is None:
-         #ylabels = map(str, mdp.read_Data( filenameNC[0], 'zt' )  )
-    
-    
-    
-    ajat  =  np.round( mdp.read_Data( filenameNC[0], 'time' ), 0 )
-    oikeatXtikit = np.zeros( ( np.shape( xticks ) ))
-    
-    for i in xrange(len(xticks)):
-        oikeatXtikit[i] = np.argmin( np.abs(ajat - 3600.*xticks[i]) )
-    
-    oikeatXleimat= map( int, np.multiply( ajat[[ map( int, oikeatXtikit)]], 1./3600) )
+        
+        if longName is None:
+            longName = muuttuja
+        
+        if customLabels:
+            aputagi = labelArray[i]
+        else: 
+            aputagi = str(case_indeksi+1)
+        
+        nimi = longName + ' ' + aputagi + ' ' + tag    
+        
+        ax.set_title(nimi)
+        
+        if xticks is None:
+            sys.exit("anna xticks")
+            
+        #if yticks is None:
+            #yticks  = np.arange( np.shape(muuttuja_data)[-1])
+            
+        #if xlabels is None:
+            #xlabels = map(str,  np.multiply( xticks,  1./3600. ) ) 
+        #if ylabels is None:
+            #ylabels = map(str, mdp.read_Data( filenameNC[0], 'zt' )  )
+        
+        
+        
+        ajat  =  np.round( mdp.read_Data( filenameNC[0], 'time' ), 0 )
+        oikeatXtikit = np.zeros( ( np.shape( xticks ) ))
+        
+        for tt in xrange(len(xticks)):
+            oikeatXtikit[tt] = np.argmin( np.abs(ajat - 3600.*xticks[tt]) )
+        
+        oikeatXleimat= map( int, np.multiply( ajat[[ map( int, oikeatXtikit)]], 1./3600) )
 
-    ax.set_xticks( oikeatXtikit )
-    ax.set_xticklabels( oikeatXleimat )
-    
-    
-    
-    k = 0
-    for label in ax.xaxis.get_ticklabels():
-        if np.mod(k,4) != 0:
-            label.set_visible(False)
-        k+=1
-    
-    
-    
-    
-    korkeudet =  np.round( mdp.read_Data( filenameNC[0], 'zt' ), 0 ) 
-    Ytikit = np.arange(0, 1500, 200 )  #np.zeros( ( np.shape( yticks ) ))
-    
-    #oikeatYtikit = np.zeros( np.shape(Ytikit))
-    
-    #yind = np.arange( np.shape( muuttuja_meanProfile)[0] )
-    
-    
-    oikeatYleimat = map( str, Ytikit  )
-    #print Ytikit
-    
-    #for i in xrange(len(Ytikit)):
-        #oikeatYtikit[i] = np.interp( Ytikit[i], korkeudet, yind)
-    #print oikeatYtikit
-    
-    oikeatYtikit = np.arange( np.shape( muuttuja_meanProfile)[0], 0, -20  )
-    
-    ax.set_yticks( oikeatYtikit )
-    ax.set_yticklabels( oikeatYleimat )
-    
+        ax.set_xticks( oikeatXtikit )
+        ax.set_xticklabels( oikeatXleimat )
+        
 
-    #j = 0
-    #for label in ax.yaxis.get_ticklabels():
-        #if np.mod(j,4) != 0:
-            #label.set_visible(False)
-        #j+=1
+        
+        k = 0
+        for label in ax.xaxis.get_ticklabels():
+            if np.mod(k,4) != 0:
+                label.set_visible(False)
+            k+=1
+        
+        
+        
+        
+        korkeudet =  np.round( mdp.read_Data( filenameNC[0], 'zt' ), 0 ) 
+        Ytikit = np.arange(0, 1500, 200 )  #np.zeros( ( np.shape( yticks ) ))
+        
+        #oikeatYtikit = np.zeros( np.shape(Ytikit))
+        
+        #yind = np.arange( np.shape( muuttuja_meanProfile)[0] )
+        
+        
+        oikeatYleimat = map( str, Ytikit  )
+        #print Ytikit
+        
+        #for i in xrange(len(Ytikit)):
+            #oikeatYtikit[i] = np.interp( Ytikit[i], korkeudet, yind)
+        #print oikeatYtikit
+        
+        oikeatYtikit = np.arange( np.shape( muuttuja_meanProfile)[0], 0, -20  )
+        
+        ax.set_yticks( oikeatYtikit )
+        ax.set_yticklabels( oikeatYleimat )
+        
 
-    # create an axes on the right side of ax. The width of cax will be 5%
-    # of ax and the padding between cax and ax will be fixe  at 0.05 inch.
-    #divider = make_axes_locatable(ax)
-    #cax1 = divider.append_axes("right",  "5%", pad="3%")
+        #j = 0
+        #for label in ax.yaxis.get_ticklabels():
+            #if np.mod(j,4) != 0:
+                #label.set_visible(False)
+            #j+=1
 
-    #Add colorbar, make sure to specify tick locations to match desired ticklabels
-    #cbar = plt.colorbar(cax,fraction=0.046, pad=0.04, ticks = colorBarTickValues)
-    #cbar = fig.colorbar(cax, ticks = colorBarTickValues) # , cax=cax1
-    cbar = fig.colorbar(cax, ax=ax, shrink=.9, pad=.03, aspect=10, ticks = colorBarTickValues, norm = norm)
-    cbar.ax.set_yticklabels(colorBarTickNames)  # vertically oriented colorbar
-    
+        # create an axes on the right side of ax. The width of cax will be 5%
+        # of ax and the padding between cax and ax will be fixe  at 0.05 inch.
+        #divider = make_axes_locatable(ax)
+        #cax1 = divider.append_axes("right",  "5%", pad="3%")
 
-    
+        #Add colorbar, make sure to specify tick locations to match desired ticklabels
+        #cbar = plt.colorbar(cax,fraction=0.046, pad=0.04, ticks = colorBarTickValues)
+        #cbar = fig.colorbar(cax, ticks = colorBarTickValues) # , cax=cax1
+        cbar = fig.colorbar(cax, ax=ax, shrink=.9, pad=.03, aspect=10, ticks = colorBarTickValues, norm = norm)
+        
+        if colorBarTickNames is None:
+            colorBarTickNames = map( str, colorBarTickValues)
+            
+        cbar.ax.set_yticklabels(colorBarTickNames)  # vertically oriented colorbar
+        cbar.ax.tick_params(labelsize=18)
 
-    spinupIND = np.argmin( np.abs( ajat - spinup ) )
-    mdp.plot_vertical( spinupIND )
-    plt.ylabel('z(m)')
-    plt.xlabel('Time(h)')
-    plt.tight_layout()
-    
-    if savePrefix is None:
-        savePrefix = 'domainTimeseriesProfiili'    
-    if saveFig:
-        plt.savefig( picturefolder + savePrefix+ '_' + tag + LVLprintSave + '.png')
+        
+
+        spinupIND = np.argmin( np.abs( ajat - spinup ) )
+        mdp.plot_vertical( spinupIND )
+        plt.ylabel('z(m)')
+        plt.xlabel('Time(h)')
+        plt.tight_layout()
+        
+        
+        if savePrefix is None:
+            savePrefix = 'domainTimeseriesProfiili'    
+        if saveFig:
+            valitagi = '_'
+            if customLabels:
+                valitagi = labelArray[i]
+            elif applyForAll and not customLabels:
+                valitagi = str(case_indeksi+1) + str(i)
+            else:
+                valitagi = str(case_indeksi+1)
+            plt.savefig( picturefolder + savePrefix + '_' + valitagi + '_' + saveTag + LVLprintSave + '.png')
+
+
+        if cloudBaseTop:
+            top  = mdp.read_Data( filenameTS[i], 'zc'   )
+            base = mdp.read_Data( filenameTS[i], 'zb'   )
+            aika = mdp.read_Data( filenameTS[i], 'time' )
+            zt   = mdp.read_Data( filenamePS[i], 'zt'   )
+            
+            pilvi = np.zeros(np.shape(muuttuja_meanProfile))
+
+            for mm in xrange(np.shape(top)[0]):
+                indT = np.argmin( np.abs(  top[ mm ] - zt ))
+                indB = np.argmin( np.abs( base[ mm ] - zt ))
+                #print 'mm', mm,'base', base[mm], zt[indB], indB, 'top', top[mm], zt[indT], indT
+                
+                pilvi[-indT, mm] = 100.
+                pilvi[-indB, mm] = 100.
+            #asp = 25./45.
+            #w, h = mpl.figure.figaspect( asp )
+            #fig, ax = plt.subplots(figsize = (24,15)) #figsize=(w, h)    
+            plt.imshow( pilvi, cmap='Greys',  interpolation='none', alpha= 0.1 )
+            #mdp.plottaa( aika, top, uusikuva = True  )
+            #mdp.plottaa( aika, base )
+            
+
     
 ###########################
 #### NEEDS REVISION BIG TIME (INTERPOLATION)
@@ -975,7 +1246,7 @@ def piirra_hiukkausjakauma( tyyppi = 'ice', bini='a', ajanhetket = [0], korkeus 
     if savePrefix is None:
         savePrefix = 'Hiukkasjakauma'        
     if saveFig:
-        plt.savefig( picturefolder + savePrefix+ '_' + tag + LVLprintSave + '.png')
+        plt.savefig( picturefolder + savePrefix+ '_' + saveTag + LVLprintSave + '.png')
         
 ###########################
 def piirra_MeanSize( tyyppi = 'ice', bini='a', ajanhetket = [0], korkeus = [0], useDN = True, color = 'b', savePrefix = None   ):
@@ -1029,7 +1300,7 @@ def piirra_MeanSize( tyyppi = 'ice', bini='a', ajanhetket = [0], korkeus = [0], 
         
         HslizeSTR = r'$h_0$' + ' = ' + str( zt[ min(korkeusindeksit) ] ) 
         if len(korkeusindeksit)>0:
-            HslizeSTR += + ' ' + r'$h_1$' + ' = ' + str( zt[ max(korkeusindeksit) ] )
+            HslizeSTR +=  ' ' + r'$h_1$' + ' = ' + str( zt[ max(korkeusindeksit) ] )
         print HslizeSTR
         #####################
         
@@ -1059,7 +1330,7 @@ def piirra_MeanSize( tyyppi = 'ice', bini='a', ajanhetket = [0], korkeus = [0], 
     #if savePrefix is None:
         #savePrefix = 'MeanSize'
     #if saveFig:
-        #plt.savefig( picturefolder + savePrefix+ '_' + tag + LVLprintSave + '.png')
+        #plt.savefig( picturefolder + savePrefix+ '_' + saveTag + LVLprintSave + '.png')
 
 #############################        
 def piirra_domainMeanProfiili( muuttuja, muunnosKerroin = 1.0, ajanhetket = [0], useDN = True, profiili = False, xAxisL = '', color = 'k', savePrefix = None    ):
@@ -1070,7 +1341,7 @@ def piirra_domainMeanProfiili( muuttuja, muunnosKerroin = 1.0, ajanhetket = [0],
     for i in xrange(len(arguments)-1):
         uusikuva = True if i == 0 else  False
         data  = np.multiply( mdp.read_Data( filenameNC[i], muuttuja), muunnosKerroin )
-        zt = mdp.read_Data( filenameNC[i], 'zt')
+        zt    = np.asmatrix( mdp.read_Data( filenameNC[i], 'zt') )
         if useDN:
             dn00   = np.power( mdp.read_Data( filenameNC[i], 'dn0'    ), -1 ) 
             data = np.multiply ( data, dn00 )
@@ -1110,6 +1381,8 @@ def piirra_domainMeanProfiili( muuttuja, muunnosKerroin = 1.0, ajanhetket = [0],
         else:
             minimi = np.min(dataSlizeMean)
         
+        dataSlizeMean = np.asmatrix(dataSlizeMean)
+        
         mdp.plottaa( dataSlizeMean, zt, tit , xl = xAxisL, yl='height [m]', changeColor=True, tightXAxis=True, tightYAxis = True, markers=False, LEGEND=True, omavari = color, scatter=False, uusikuva=uusikuva )       
         mdp.plot_setXlim( minimi, maksimi, extendBelowZero = False, A = 0.05 )
     
@@ -1117,7 +1390,7 @@ def piirra_domainMeanProfiili( muuttuja, muunnosKerroin = 1.0, ajanhetket = [0],
         savePrefix = 'domainMeanProfiili'
     
     if saveFig:
-        plt.savefig( picturefolder + savePrefix+ '_' + tag + LVLprintSave + '.png')
+        plt.savefig( picturefolder + savePrefix+ '_' + saveTag + LVLprintSave + '.png')
 
 def animoi_path(muuttuja, muunnosKerroin = 1.0, transpose = False, longName = None , savePrefix = None, useDN = False, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], xlabels = None, ylabels = None, xticks = None, yticks = None, variKartta = plt.cm.Blues, profiili = False, spinup = None ):        
     
@@ -1253,28 +1526,32 @@ def animoi_path(muuttuja, muunnosKerroin = 1.0, transpose = False, longName = No
 ##############################
 
 if EMUL and not importOnly:
-    #CFRAC = True
-    #CLOUD = True
-    #PRCP  = True
-    #LWP   = True
-    #SHF   = False
-    #LHF   = False
-    #QDIFF = True
-    #TDIFF = True
-    #CDNC  = True
-    #WMAX  = True
-    
-    
-    CFRAC = False
+    CFRAC = True
     CLOUD = True
-    PRCP  = False
+    PRCP  = True
     LWP   = True
     SHF   = False
     LHF   = False
     QDIFF = True
     TDIFF = True
-    CDNC  = False
+    CDNC  = True
     WMAX  = True
+    RAD   = True
+    
+    refColorbarSwitch = False
+    askChangeOfVariable = False
+    
+    
+    #CFRAC = False
+    #CLOUD = True
+    #PRCP  = False
+    #LWP   = False
+    #SHF   = False
+    #LHF   = False
+    #QDIFF = False
+    #TDIFF = False
+    #CDNC  = False
+    #WMAX  = False
 
     NCFwrite = False
 
@@ -1292,9 +1569,11 @@ if EMUL and not importOnly:
         CDNC = False
         prcp = 'prcp'
         sadekerroin = 1.
+        liqW='l'
     else:
         prcp = 'rmH2Opr'
         sadekerroin = 2.5e+06 # latent heat of vaporization J/kg
+        liqW = 'P_rl'
 
 
 
@@ -1316,7 +1595,7 @@ if EMUL and not importOnly:
     thickness_color = plt.cm.gist_rainbow #Paired Blues
     pblh_color      = plt.cm.cool
     num_pbl_color   = plt.cm.Wistia
-    aika_color      = plt.cm.gist_rainbow
+    aika_color      = truncate_colormap(  plt.cm.Blues, minval = 0.3)
 
     for file in glob.glob("*.csv"):
         designbasename=file
@@ -1381,51 +1660,85 @@ if EMUL and not importOnly:
     #plt.hist(thickness_design, 20, normed=1, facecolor='green', alpha=0.75)
     # thickBAR
     if CFRAC:
-        piirra_aikasarjasettii( muuttuja = 'cfrac',  variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName= 'Cloud fraction',               ylabel = 'Cloud fraction',      variKartta = thickness_color, ymin = 0.0, ymax = 1.0, tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds )
-    
+        piirra_aikasarjasettii( muuttuja = 'cfrac',  variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName= 'Cloud fraction',               ylabel = 'Cloud fraction',      variKartta = thickness_color, ymin = 0.0, ymax = 1.0, tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds, omaVari = refColorbarSwitch )
+        
+        mdp.plot_suljetus(naytaPlotit)
+        
     if CLOUD:
-        piirra_aikasarjasettii( muuttuja = 'zc',     variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName= 'Relative change of cloud top', ylabel = 'relative change',     variKartta = thickness_color, relative = True, savePrefix = 'cloud_top_rel_change', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds, yticks = zcTicks, ylabelFont = 18  )
+        piirra_aikasarjasettii( muuttuja = 'zc',     variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName= 'Relative change of cloud top', ylabel = 'relative change',     variKartta = thickness_color, relative = True, savePrefix = 'cloud_top_rel_change', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds, yticks = zcTicks, ylabelFont = 18, omaVari = refColorbarSwitch  )
         
-        piirra_profiiliKehitys( 'P_rl', muunnosKerroin = 1000.0, variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Cloud ' + r'$H_2{O}$' + ' mix. rat. evolution', xlabel = 'q_cloud [g/kg]', ylabel = 'z [m]', savePrefix = 'q_cloud_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, rajaKerros = pblh_design, asetaRajat = False, paksuus = thickness_design )
+        mdp.plot_suljetus(naytaPlotit)
         
+        piirra_profiiliKehitys( liqW, muunnosKerroin = 1000.0, variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Cloud ' + r'$H_2{O}$' + ' mix. rat. evolution', xlabel = 'q_cloud [g/kg]', ylabel = 'z [m]', savePrefix = 'q_cloud_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, rajaKerros = pblh_design, asetaRajat = False, paksuus = thickness_design, askChangeOfVariable = askChangeOfVariable )
+        
+        mdp.plot_suljetus(naytaPlotit)
         
     if PRCP:
-        piirra_aikasarjasettii( muuttuja = prcp,     muunnosKerroin = sadekerroin, variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'Surface precipitation',       ylabel = 'Precipitation W/m^2', variKartta = thickness_color, ymin = 0.0, savePrefix = 'prcp', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds )
+        piirra_aikasarjasettii( muuttuja = prcp,     muunnosKerroin = sadekerroin, variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'Surface precipitation',       ylabel = 'Precipitation W/m^2', variKartta = thickness_color, ymin = 0.0, savePrefix = 'prcp', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds, omaVari = refColorbarSwitch, askChangeOfVariable = askChangeOfVariable )
         
-        piirra_maksimiKeissit( muuttuja = prcp, muunnosKerroin = sadekerroin, longName = 'Maximum precipitation after '+str(int(ajanhetket/3600.))+'h', ylabel = 'precipitation W/m^2',      savePrefix = 'prcp_max' )
+        mdp.plot_suljetus(naytaPlotit)
+        
+        piirra_maksimiKeissit( muuttuja = prcp, muunnosKerroin = sadekerroin, longName = 'Maximum precipitation after '+str(int(ajanhetket/3600.))+'h', ylabel = 'precipitation W/m^2',      savePrefix = 'prcp_max', askChangeOfVariable = askChangeOfVariable )
+        
+        mdp.plot_suljetus(naytaPlotit)
     
     if SHF:
-        piirra_aikasarjasettii( muuttuja = 'shf_bar', variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'Sensible heat flux',        ylabel = 'Sensible heat flux W/m^2', variKartta = thickness_color, savePrefix = 'heat_flux_sensible', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds )
+        piirra_aikasarjasettii( muuttuja = 'shf_bar', variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'Sensible heat flux',        ylabel = 'Sensible heat flux W/m^2', variKartta = thickness_color, savePrefix = 'heat_flux_sensible', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds, omaVari = refColorbarSwitch )
+        
+        mdp.plot_suljetus(naytaPlotit)
         
         piirra_maksimiKeissit( maksimiSensible, longName = "Maximum sensible heat",                                       ylabel = 'Sensible heat flux W/m^2', savePrefix = 'heat_flx_sensible_max' ) 
-    
+        
+        mdp.plot_suljetus(naytaPlotit)
+        
     if LHF:
-        piirra_aikasarjasettii( muuttuja = 'lhf_bar', variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'Latent heat flux',        ylabel = 'Latent heat flux W/m^2', variKartta = thickness_color, savePrefix = 'heat_flux_latent', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds )
+        piirra_aikasarjasettii( muuttuja = 'lhf_bar', variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'Latent heat flux',        ylabel = 'Latent heat flux W/m^2', variKartta = thickness_color, savePrefix = 'heat_flux_latent', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds, omaVari = refColorbarSwitch )
+        
+        mdp.plot_suljetus(naytaPlotit)
         
         piirra_maksimiKeissit( maksimiLatent,   longName = "Maximum latent heat",                                         ylabel = 'Latent heat flux W/m^2',   savePrefix = 'heat_flx_latent_max' ) 
-
+        
+        mdp.plot_suljetus(naytaPlotit)
+        
     if LWP:
-        piirra_aikasarjasettii( muuttuja = 'lwp_bar', muunnosKerroin = 1000.0, variKartta = thickness_color,  variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'LWP', ylabel = 'LWP g/m^2', ymin = 0.0,  savePrefix = 'lwp', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds )
-
+        piirra_aikasarjasettii( muuttuja = 'lwp_bar', muunnosKerroin = 1000.0, variKartta = thickness_color,  variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'LWP', ylabel = 'LWP g/m^2', ymin = 0.0,  savePrefix = 'lwp', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds, omaVari = refColorbarSwitch )
+        
+        mdp.plot_suljetus(naytaPlotit)
+        
     if CDNC:
-        piirra_aikasarjasettii( muuttuja = 'Nc_ic', variKartta = num_pbl_color, variRefVektori = num_pbl_design, colorBar = cdncBAR, colorBarTickValues = cbvalQ, colorBarTickNames = cbvalQStr, longName = 'Relative change of in-cloud CDNC', ylabel = 'Relative change of In-cloud CDNC #/kg', tit = cdncTIT, relative = True, nollaArvo = 1.e6*num_pbl_design,  spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds) #
-
+        piirra_aikasarjasettii( muuttuja = 'Nc_ic', variKartta = num_pbl_color, variRefVektori = num_pbl_design, colorBar = cdncBAR, colorBarTickValues = cbvalQ, colorBarTickNames = cbvalQStr, longName = 'Relative change of in-cloud CDNC', ylabel = 'Relative change of In-cloud CDNC #/kg', tit = cdncTIT, relative = True, nollaArvo = 1.e6*num_pbl_design,  spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds, omaVari = refColorbarSwitch, askChangeOfVariable = askChangeOfVariable) #
+        
+        mdp.plot_suljetus(naytaPlotit)
+        
     if QDIFF:
-        piirra_profiilisettii( 'q', variKartta = pblh_color, variRefVektori = pblh_design, colorBar = pblhBAR, colorBarTickValues = cbvalPblh, colorBarTickNames = cbvalPblhStr, longName =  'Tot. ' + r'$H_2{O}$' + ' mix. rat. ' + ' relative change ' +'0h - '+str((ajanhetket/3600.)) + 'h', xlabel = r'$\frac{q_{t=2h}}{q_{t=0h}}-1$', ylabel = 'z/pblh', ymin = 0.0, ymax = 1.01, xmin = -0.35, xmax = 0.025, savePrefix = 'q_diff', ajanhetket = ajanhetket, tit = pblhTIT, rajaKerros = pblh_design, relative = True, nollaArvo = q_pbl_design )
+        piirra_profiilisettii( 'q', variKartta = pblh_color, variRefVektori = pblh_design, colorBar = pblhBAR, colorBarTickValues = cbvalPblh, colorBarTickNames = cbvalPblhStr, longName =  'Tot. ' + r'$H_2{O}$' + ' mix. rat. ' + ' relative change ' +'0h - '+str((ajanhetket/3600.)) + 'h', xlabel = r'$\frac{q_{t=2h}}{q_{t=0h}}-1$', ylabel = 'z/pblh', ymin = 0.0, ymax = 1.01, xmin = -0.35, xmax = 0.025, savePrefix = 'q_diff', ajanhetket = ajanhetket, tit = pblhTIT, rajaKerros = pblh_design, relative = True, nollaArvo = q_pbl_design, omaVari = refColorbarSwitch )
+        
+        mdp.plot_suljetus(naytaPlotit)
         
         piirra_profiiliKehitys( 'q', muunnosKerroin = 1000.0, variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Tot. ' + r'$H_2{O}$' + ' mix. rat. evolution', xlabel = 'q [g/kg]', ylabel = 'z [m]', savePrefix = 'q_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, rajaKerros = pblh_design, asetaRajat = False, paksuus = thickness_design )
-
+        
+        mdp.plot_suljetus(naytaPlotit)
 
     if TDIFF:
-        piirra_profiilisettii( 't', variKartta = pblh_color, variRefVektori = pblh_design, colorBar = pblhBAR, colorBarTickValues = cbvalPblh, colorBarTickNames = cbvalPblhStr, longName =  r'$\theta$' + ' relative change 0h - '+str((ajanhetket/3600.)) + 'h', xlabel = r'$\frac{\theta_{t=2h}}{\theta_{t=0h}}-1$', ylabel = 'z/pblh', ymin = 0.0, ymax = 1.01, xmin = -0.05, xmax = 0.025, savePrefix = 't_diff', ajanhetket = ajanhetket, tit = pblhTIT, rajaKerros = pblh_design, relative = True, nollaArvo = tpot_pbl_design )
+        piirra_profiilisettii( 't', variKartta = pblh_color, variRefVektori = pblh_design, colorBar = pblhBAR, colorBarTickValues = cbvalPblh, colorBarTickNames = cbvalPblhStr, longName =  r'$\theta$' + ' relative change 0h - '+str((ajanhetket/3600.)) + 'h', xlabel = r'$\frac{\theta_{t=2h}}{\theta_{t=0h}}-1$', ylabel = 'z/pblh', ymin = 0.0, ymax = 1.01, xmin = -0.05, xmax = 0.025, savePrefix = 't_diff', ajanhetket = ajanhetket, tit = pblhTIT, rajaKerros = pblh_design, relative = True, nollaArvo = tpot_pbl_design, omaVari = refColorbarSwitch )
+        
+        mdp.plot_suljetus(naytaPlotit)
         
         piirra_profiiliKehitys( 't',  variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Potential temperature', xlabel = r'$\theta$' + ' [K]', ylabel = 'z [m]', savePrefix = 'theta_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, rajaKerros = pblh_design, asetaRajat = False, paksuus = thickness_design )
         
+        mdp.plot_suljetus(naytaPlotit)
+        
         piirra_profiiliKehitys( 't',  variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Absolute temperature', xlabel = 't' + ' [K]', ylabel = 'z [m]', savePrefix = 'temp_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, rajaKerros = pblh_design, asetaRajat = False, paksuus = thickness_design, tempConversion = True )
         
+        mdp.plot_suljetus(naytaPlotit)
+        
     if WMAX:
-        piirra_aikasarjasettii( muuttuja = 'wmax', variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'Maximum vertical velocity',        ylabel = 'Maximum vertical velocity m/s', variKartta = thickness_color, savePrefix = 'w_max', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds )
+        piirra_aikasarjasettii( muuttuja = 'wmax', variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'Maximum vertical velocity',        ylabel = 'Maximum vertical velocity m/s', variKartta = thickness_color, savePrefix = 'w_max', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds, omaVari = refColorbarSwitch )
+        
+        mdp.plot_suljetus(naytaPlotit)
     
+    #if RAD:
+        
 
     if NCFwrite:
         maksimiLWPlist_ncf    = ncfile.createVariable( 'lwp_max',     np.dtype('float32').char, ('case') )
@@ -1437,7 +1750,7 @@ if EMUL and not importOnly:
 if ICE and not importOnly:
     
 
-    
+    naytaPlotit = True
     korkeustikit =np.arange(0, 1250, 50)
     ylabels    = map(str, korkeustikit )
     
@@ -1455,35 +1768,39 @@ if ICE and not importOnly:
     cbvalLIQPATH = np.arange(0, 61, 5)
     cbvalLIQPATHStr = map(str, cbvalLIQPATH)
     
+    piilotaOsaXlabel = True
+    
     if int(lvl)>=4:
     
-        piirra_aikasarjaPathXYZ( 'l', longName = 'Liquid Water Path', savePrefix = 'lwp', xaxislabel = 'time [h]' )
+        piirra_aikasarjaPathXYZ( 'l', longName = 'Liquid Water Path', savePrefix = 'lwp', xaxislabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel )
         #mdp.plot_vertical( spinup )
-        #plt.xticks( ticksHours, xLabesHours )
+        #plt.xticks( ticksHours, xLabelsHours )
         
-        ##piirra_aikasarjasettii( muuttuja = 'lwp_bar', muunnosKerroin = 1000.0, longName = 'LWP', ylabel = 'LWP g/m^2', ymin = 0.0,  savePrefix = 'lwpTS', omaVari = False, xlabel = 'time [h]', spinup = spinup )
+        piirra_aikasarjasettii( muuttuja = 'lwp_bar', muunnosKerroin = 1000.0, longName = 'LWP', ylabel = 'LWP g/m^2', ymin = 0.0,  savePrefix = 'lwpTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel  )
         #mdp.plot_vertical( spinup )
-        #plt.xticks( ticksHours, xLabesHours )
+        #plt.xticks( ticksHours, xLabelsHours )
         
-        piirra_domainProfiili( 'l', muunnosKerroin = 1000., longName = tag + "Liquid water mixing ratio  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQ, colorBarTickNames = cbvalLIQStr, xlabels = xLabesHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = profiiliVariLIQ, spinup = spinup )
+        piirra_domainProfiili( 'l', muunnosKerroin = 1000., longName = tag + "Liquid water mixing ratio  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQ, colorBarTickNames = cbvalLIQStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = profiiliVariLIQ, spinup = spinup )
         
-        #animoi_path( 'l', muunnosKerroin = 1000., longName = tag + "Liquid water path  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQPATH, colorBarTickNames = cbvalLIQPATHStr, xlabels = xLabesHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.Reds, spinup = spinup )
+        #animoi_path( 'l', muunnosKerroin = 1000., longName = tag + "Liquid water path  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQPATH, colorBarTickNames = cbvalLIQPATHStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.Reds, spinup = spinup )
         
         #piirra_MeanSize(tyyppi = 'cloud', ajanhetket = [6], korkeus = [700], color = 'r')
         
         #piirra_domainMeanProfiili( 'S_Nc',  muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
         
-        #piirra_domainProfiili( 'w_2', longName = tag + "vertical velocity squared " + r'$m^{2}/s^{-2}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabesHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.RdPu, profiili = True, spinup = spinup )
+        #piirra_domainProfiili( 'w_2', longName = tag + "vertical velocity squared " + r'$m^{2}/s^{-2}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.RdPu, profiili = True, spinup = spinup )
+        
+        piirra_domainProfiili( 'rflx', longName = tag + "Radiative cooling " + r'$W/m^{2}$', useDN = False, transpose = True, profiili = True, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.bwr, spinup = spinup, radCool = True, cloudBaseTop = True )
         
     if int(lvl)>= 5:
-        piirra_aikasarjaPathXYZ( 'f', longName = 'Ice Water Path', savePrefix = 'iwp', xaxislabel = 'time [h]',xlabels = xLabesHours, ylabels = ylabels, xticks = ticksHours, spinup = spinup )
+        piirra_aikasarjaPathXYZ( 'f', longName = 'Ice Water Path', savePrefix = 'iwp', xaxislabel = 'time [h]',xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel )
         mdp.plot_vertical( spinup )
-        #plt.xticks( ticksHours, xLabesHours )
+        #plt.xticks( ticksHours, xLabelsHours )
     
 
-        piirra_domainProfiili( 'f', muunnosKerroin = 1000.*np.power(10.,2), longName = tag + 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabesHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup  )
+        piirra_domainProfiili( 'f', muunnosKerroin = 1000.*np.power(10.,2), longName = tag + 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup  )
         
-        #animoi_path( 'f', muunnosKerroin = 1000., longName = tag + "Ice water path  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQPATH, colorBarTickNames = cbvalLIQPATHStr, xlabels = xLabesHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.Blues, spinup = spinup )
+        #animoi_path( 'f', muunnosKerroin = 1000., longName = tag + "Ice water path  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQPATH, colorBarTickNames = cbvalLIQPATHStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.Blues, spinup = spinup )
         ## muuttuja, muunnosKerroin = 1.0, transpose = False, longName = None , savePrefix = None, useDN = False, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], xlabels = None, ylabels = None, xticks = None, yticks = None
         
         piirra_MeanSize(tyyppi = 'ice', ajanhetket = [6], korkeus = [700] )
@@ -1499,5 +1816,5 @@ print toc - tic
 ### finishing up     ###
 ### DO NOT CHANGE    ###
 ########################
-if piirra and not importOnly:
+if piirra and not importOnly and naytaPlotit:
     mdp.plot_lopetus()

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# #                    Mounted nzp          file    windprofile  pres0   par/serial   runNroBegin  runNroEnd
-# ./emulator_inputs.py True    200         $DESIGN  ideal        1017.8  parallel     1           90
+# #                         Mounted nzp    file    windprofile  pres0   par/serial   runNroBegin  runNroEnd thermolevel
+# python emulator_inputs.py True    200   $DESIGN  ideal        1017.8 serial        59           62        4
 """
 Created on Wed Dec 21 14:20:00 2016
 
@@ -408,12 +408,12 @@ def write_sound_in( input_vector ):
     
 #     plotting if mounted
     if ( mounted ):
-                    
+        LEGEND =  False
         markers=True
         z[0] = 0.
         initializeColors(7)
 
-        plottaa( potTemp, z, tit = case+' liq. pot. temp., pblh: ' + str( round(pblh,2) ) + ' ilt.: ' +str( round(invThi,2) ), xl = 'liquid potential temperature K', yl = 'height m', markers=markers, uusikuva = True )
+        plottaa( potTemp, z, tit = case+' liq. pot. temp., pblh: ' + str( round(pblh,2) ) + ' [m] invThi.: ' +str( round(invThi,2) ) + ' [m]', xl = 'liquid potential temperature [K]', yl = 'height [m]', markers=markers, uusikuva = True, LEGEND = LEGEND )
         plt.axhline( y = pblh )
 #        plt.axhline( y = pblh + invThi )
 #        plt.plot([tpot_pbl,tpot_pbl+tpot_inv], [pblh,pblh+invThi], color='r', marker='o')
@@ -423,7 +423,7 @@ def write_sound_in( input_vector ):
         plt.savefig( folder + case + '_0_'+ 'liquid_potential_temperature'  + '.png', bbox_inches='tight')    
         plt.close()
         
-        plottaa( wc, z, tit = case+' water mix. rat., pblh: ' + str( round(pblh,2) ) + ' ilt.: ' +str( round(invThi,2) ), xl =  'water mixing ratio g/kg', yl = 'height m', markers=markers, uusikuva = True )
+        plottaa( wc, z, tit = case+' '+ r'$H_{2}$' + ' mix. rat., pblh: ' + str( round(pblh,2) ) + ' [m] invThi.: ' +str( round(invThi,2) ) + ' [m]', xl =  'water mixing ratio [g/kg]', yl = 'height [m]', markers=markers, uusikuva = True, LEGEND = LEGEND )
         plt.axhline( y = pblh )
 #        plt.axhline( y = pblh + invThi )
 #        plt.plot([q_pbl,q_pbl-q_inv], [pblh,pblh+invThi], color='r', marker='o')
@@ -431,24 +431,24 @@ def write_sound_in( input_vector ):
         plt.savefig( folder + case + '_0_'+ 'water_mixing_ratio'  + '.png', bbox_inches='tight')    
         plt.close()
 
-        plottaa( rh, z, tit = case+' relative humidity', xl = 'relative humidity %', yl = 'height m', markers=markers, uusikuva = True )
+        plottaa( rh, z, tit = case+' relative humidity', xl = 'relative humidity [%]', yl = 'height [m]', markers=markers, uusikuva = True, LEGEND = LEGEND )
         plt.savefig( folder + case + '_'+ 'relative_humidity'  + '.png', bbox_inches='tight')    
         plt.close()
         
 
-        plottaa( drop, z, tit = case+' cloud droplet diameter', xl = r'cloud droplet diameter $ \mu m$', yl = 'height m', markers=markers, uusikuva = True )
+        plottaa( drop, z, tit = case+' cloud droplet diameter', xl = r'diameter [$\mu$]', yl = 'height [m]', markers=markers, uusikuva = True, LEGEND = LEGEND )
         plt.savefig( folder + case + '_'+ 'cloud_droplet_diameter'  + '.png', bbox_inches='tight')   
         plt.close()
 
-        plottaa( cloudwater, z, tit = case+' cloud water mixing ratio', xl = 'cloud water mixing ratio g/kg', yl = 'height m', markers=markers, uusikuva = True )
+        plottaa( cloudwater, z, tit = case+' cloud water mixing ratio', xl = 'cloud water mixing ratio [g/kg]', yl = 'height [m]', markers=markers, uusikuva = True, LEGEND = LEGEND )
         plt.savefig( folder + case + '_'+ 'cloud_water_mixing_ratio'  + '.png', bbox_inches='tight')         
         plt.close()
 
-        plottaa( wind, z, tit = case+' wind '+ windprofile, xl = 'wind m/s', yl = 'height m', markers=markers, uusikuva = True )
+        plottaa( wind, z, tit = case+' wind '+ windprofile, xl = 'wind [m/s]', yl = 'height [m]', markers=markers, uusikuva = True, LEGEND = LEGEND )
         plt.savefig( folder + case + '_'+ 'wind'  + '.png', bbox_inches='tight')
         plt.close()
 
-        plottaa( windshear, z[:-1], tit = case+' wind shear '+ windprofile, xl = 'wind shear '+ r'$s^{-1}$', yl = 'height m', markers=markers, uusikuva = True )
+        plottaa( windshear, z[:-1], tit = case+' wind shear '+ windprofile, xl = 'wind shear '+ r'[$s^{-1}$]', yl = 'height [m]', markers=markers, uusikuva = True, LEGEND = LEGEND )
         plt.savefig( folder + case + '_'+ 'windshear'  + '.png', bbox_inches='tight')
         plt.close()
 
@@ -524,7 +524,7 @@ def write_namelist( input_vector ):
 #              ' frqhis=1800.' +\
 #              ' nxpart=.false.' +\
 #
-
+#              ' div=3.e-6' +\
 #               ' Tspinup=10.'     
  #               ' timmax=20.'
 

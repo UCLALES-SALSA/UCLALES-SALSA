@@ -12,7 +12,7 @@ set -e
 
 cat > ${dir}/NAMELIST <<EOF
  &version
-  ver="v1.0.4"
+  ver="v1.0.8"
  /
 
  &model
@@ -75,7 +75,8 @@ ${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
   div = ${div:-1.5e-6}              ! Divergence for e.g. case_name = 'default'
   sfc_albedo = ${sfc_albedo:-0.7}
   radsounding = ${radsounding:-"'datafiles/ksaw.lay'"}
-  
+  RadPrecipBins = ${RadPrecipBins:-1}
+
   cntlat = ${cntlat:-71.32}
   strtim = ${strtim:-117.75}
   

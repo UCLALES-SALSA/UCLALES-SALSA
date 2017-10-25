@@ -253,7 +253,7 @@ contains
              km1=max(1,k-1)
              lwp(i,j)=lwp(i,j)+max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(km1)))
              flx(k,i,j)=fr1*exp(-1.*xka*lwp(i,j))
-             !if ( (rc(k,i,j) > 0.01e-3) .and. (rt(k,i,j) >= 0.008) ) ki=k !HUOMHUOM
+             if ( (rc(k,i,j) > 0.01e-3) .and. (rt(k,i,j) >= 0.008) ) ki=k !HUOMHUOM
           enddo
 
 

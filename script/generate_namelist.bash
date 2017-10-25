@@ -23,7 +23,7 @@ cat > ${dir}/NAMELIST <<EOF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
  &version
-  ver="v1.0.4"
+  ver="v1.0.8"
  /
 
  &model
@@ -74,6 +74,7 @@ cat > ${dir}/NAMELIST <<EOF
   div = ${div:-1.5e-6}              ! Divergence for e.g. case_name = 'default'
   sfc_albedo = ${sfc_albedo:-0.05}
   radsounding = ${radsounding:-"'datafiles/kmls.lay'"} 
+  RadPrecipBins = ${RadPrecipBins:-1}
 
 !  isfctyp = ${isfctyp:-2}
   sst = ${sst:-271.35}
