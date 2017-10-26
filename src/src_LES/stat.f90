@@ -29,7 +29,7 @@ module stat
   private
 
   integer, parameter :: nvar1 = 29,               &
-                        nv1sbulk = 62,            &
+                        nv1sbulk = 70,            &
                         nv1MB = 4,                &
                         nvar2 = 96,               &
                         nv2sbulk = 46,            &
@@ -1028,6 +1028,68 @@ contains
     END DO
 
   END SUBROUTINE ts_lvl4
+  ! -----------------------------------------------------------------------
+  ! subroutine ts_lvl5: computes and writes time sequence stats of Salsa variables --
+  !  Implemented by Jaakko Ahola 15/12/2016
+  !
+  !
+  SUBROUTINE ts_lvl5(n1,n2,n3,ri)
+    USE mo_submctl, only : in1a,fn2a,fn2b,nbins,fia,fsa,nice,nsnw,prlim
+    USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,dzt
+    USE class_componentIndex, ONLY : IsUsed
+
+    IMPLICIT NONE
+
+    integer, intent(in) :: n1,n2,n3
+    REAL, INTENT(in) :: ri(n1,n2,n3)
+
+    REAL :: a0(n1,n2,n3), a1(n1,n2,n3)
+    integer :: ii,ss
+    LOGICAL :: cond_ic(n1,n2,n3), cond_oc(n1,n2,n3)
+    CHARACTER(len=3), PARAMETER :: zspec(7) = (/'SO4','OC ','BC ','DU ','SS ','NH ','NO '/)
+
+
+    a0 = 0.; a1 = 0.
+    CALL bulkNumc('ice','a',a0)
+    CALL bulkNumc('ice','b',a1)
+    cond_ic = .FALSE.
+    cond_oc = .FALSE.
+    cond_ic(:,:,:) = ( a0(:,:,:) + a1(:,:,:) > prlim .AND. ri(:,:,:) > 1.e-5 ) !#icelimit should the latter limit be changed
+    cond_oc = .NOT. cond_ic
+
+    ssclr_b(1) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
+    a0 = 0.; a1 = 0.
+    CALL bulkNumc('aerosol','a',a0)
+    CALL bulkNumc('aerosol','b',a1)
+    ssclr_b(2) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
+    ssclr_b(3) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_oc)
+
+    ii = 4
+    DO ss = 1,7
+
+       IF (IsUsed(prtcl,zspec(ss))) THEN
+          a0 = 0.; a1 = 0.
+          CALL bulkMixrat(zspec(ss),'ice','a',a0)
+          CALL bulkMixrat(zspec(ss),'ice','b',a1)
+          ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
+          ii = ii + 1
+
+          a0 = 0.; a1 = 0.
+          CALL bulkMixrat(zspec(ss),'aerosol','a',a0)
+          CALL bulkMixrat(zspec(ss),'aerosol','b',a1)
+
+          ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
+          ii = ii + 1
+
+          ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_oc)
+          ii = ii + 1
+       ELSE
+          ii = ii + 3
+       END IF
+    END DO
+
+  END SUBROUTINE ts_lvl5
+
   !
   !---------------------------------------------------------------------
   ! SUBROUTINE ACCUM_STAT: Accumulates various statistics over an
