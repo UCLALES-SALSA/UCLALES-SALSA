@@ -50,6 +50,7 @@ CONTAINS
       USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim
       USE util, ONLY : maskactiv
       USE class_ComponentIndex, ONLY : GetNcomp
+      USE nudg, ONLY : init_nudg, useNudge
 
       IMPLICIT NONE
 
@@ -122,19 +123,25 @@ CONTAINS
      IF (level >= 4 .AND. (.NOT. salsa_b_bins)) &
         salsa_b_bins = ANY( a_naerop(:,:,:,in2b:fn2b) > nlim ) .OR. ANY( a_nicep(:,:,:,iib%cur:fib%cur) > prlim )
 
-        CALL sponge_init
-        CALL init_stat(time+dtl,filprf,expnme,nzp)
-        !
-        IF (mcflg) THEN
-           ! Juha:
-           ! Calculate some numbers for mass concervation experiments
-           mc_Vdom = deltax*deltay*deltaz*(nxp-4)*(nyp-4)*(nzp-1)
-           mc_Adom = deltax*deltay*(nxp-4)*(nyp-4)
-           mc_ApVdom = mc_Adom/mc_Vdom
-           ! Get the initial mass of atmospheric water
-           CALL acc_massbudged(nzp,nxp,nyp,0,dtlt,dzt,a_dn,     &
-                               rv=a_rp,rc=a_rc,prc=a_srp)
-        END IF ! mcflg
+     CALL sponge_init
+     CALL init_stat(time+dtl,filprf,expnme,nzp)
+
+     ! Initialize nudging profiles 
+     IF (useNudge) CALL init_nudg()
+       
+     !
+     IF (mcflg) THEN
+        ! Juha:
+        ! Calculate some numbers for mass concervation experiments
+        mc_Vdom = deltax*deltay*deltaz*(nxp-4)*(nyp-4)*(nzp-1)
+        mc_Adom = deltax*deltay*(nxp-4)*(nyp-4)
+        mc_ApVdom = mc_Adom/mc_Vdom
+        ! Get the initial mass of atmospheric water
+        CALL acc_massbudged(nzp,nxp,nyp,0,dtlt,dzt,a_dn,     &
+                            rv=a_rp,rc=a_rc,prc=a_srp)
+     END IF ! mcflg
+
+
       !
       ! write analysis and history files from restart if appropriate
       !

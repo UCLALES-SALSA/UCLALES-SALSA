@@ -20,7 +20,6 @@
 MODULE srfc
 
    INTEGER :: isfctyp = 0
-   !REAL    :: sst = 292.
    REAL    :: zrough =  0.1
    REAL    :: ubmin  =  0.20
    REAL    :: dthcon = 100.0
@@ -67,20 +66,19 @@ CONTAINS
    ! Juha Tonttila, FMI, 2014
    !
 
-   SUBROUTINE surface(sst)
+   SUBROUTINE surface()
 
       USE defs, ONLY: vonk, p00, rcp, g, cp, alvl, ep2
       USE grid, ONLY: nzp, nxp, nyp, a_up, a_vp, a_theta, a_rv, a_rp, zt, dzt, psrf, th00,  &
                       umean, vmean, a_ustar, a_tstar, a_rstar, uw_sfc, vw_sfc, ww_sfc,      &
                       wt_sfc, wq_sfc, dn0, level,dtl, a_sflx, a_rflx, precip, a_dn,         &
-                      W1,W2,W3, mc_ApVdom, dtlt
+                      W1,W2,W3, mc_ApVdom, dtlt,sst
       USE thrm, ONLY: rslf
       USE stat, ONLY: sfc_stat, sflg, mcflg, acc_massbudged
       USE mpi_interface, ONLY : nypg, nxpg, double_array_par_sum
 
 
       IMPLICIT NONE
-      REAL, OPTIONAL, INTENT (inout) :: sst
       REAL :: dtdz(nxp,nyp), drdz(nxp,nyp), usfc(nxp,nyp), vsfc(nxp,nyp),       &
               wspd(nxp,nyp), bfct(nxp,nyp)
       REAL :: rx(nzp,nxp,nyp)

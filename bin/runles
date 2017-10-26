@@ -15,7 +15,7 @@
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
 IsSeq=1 # 0 for mpi runs, 1 for sequential
 
-EXPNAME="OASIS_2014020916_lat24.197_lon54.496_CCN600_div6e-6_soundin1"  # Name of the experiment
+EXPNAME="test"  # Name of the experiment
 
 NPROCS=1          # Number of processors (for IsSeq==0)
 TWALL=5:00:00      # Required wallclock time for batch system
@@ -92,15 +92,18 @@ cat > NAMELIST <<EOF
   iradtyp = 3            
   case_name = 'default'   
   div = 6.00e-6             
-  sfc_albedo = 0.1
-  radsounding = 'datafiles/dsrt.lay'
-  dthcon = 6.1478
-  drtcon = -9.0333
+  dthcon = 0.0
+  drtcon = 0.0
   ubmin  = -0.25
   zrough = 0.5
   th00 = 289.
   umean =  0.1
   vmean = -0.1
+ /
+
+ &radiation
+  radsounding = 'datafiles/dsrt.lay'  
+  sfc_albedo = 0.1
  /
 
  &nudge

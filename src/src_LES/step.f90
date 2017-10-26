@@ -31,17 +31,7 @@ MODULE step
 
    REAL    :: time   =  0.
    REAL    :: strtim =  0.0
-   REAL    :: cntlat =  31.5 ! 30.0
    LOGICAL :: outflg = .TRUE.
-
-   ! Nudging options (nudge_*: 0=disabled, 1=soft, 2=hard), total nudging time (s), altitude range, and time constants (tau [s])
-   INTEGER :: nudge_theta = 0, & ! (liquid water) potential temperature, depending on the microphysical level
-              nudge_rv = 0, & ! Water vapor mixing ratio (maintain total water)
-              nudge_u = 0, nudge_v = 0, & ! Horizontal winds
-              nudge_ccn = 0 ! Sectional aerosol for levels 4 and 5 (maintain aerosol+cloud+ice)
-   REAL    :: nudge_time = 3600., nudge_zmin = -1.e10, nudge_zmax = 1.e10
-   REAL    :: tau_theta = 300., tau_rv = 300., tau_u = 300., tau_v = 300., tau_ccn = 300.
-   REAL, SAVE, ALLOCATABLE :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
 
 CONTAINS
    !
@@ -200,7 +190,7 @@ CONTAINS
                        a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                        a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                        a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl,             &
-                       sst, a_rsi, a_temp0
+                       a_rsi, a_temp0
 
 
       USE stat, ONLY : sflg, statistics
@@ -213,9 +203,6 @@ CONTAINS
       USE advl, ONLY : ladvect
       USE forc, ONLY : forcings
       USE util, ONLY : maskactiv !Juha: Included for SALSA
-      USE nudg, ONLY : nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, nudge_time, nudge_zmin, nudge_zmax, &
-                       tau_theta, tau_rv, tau_u, tau_v, tau_ccn, theta_ref, rv_ref, u_ref, v_ref, aero_ref, &
-                       nudging, nudge_any, nudge_any_2d, usenudge
 
       USE mo_salsa_driver, ONLY : run_SALSA
       USE class_ComponentIndex, ONLY : GetNcomp
@@ -258,7 +245,7 @@ CONTAINS
          CALL SALSA_diagnostics
       END IF
 
-      CALL surface(sst)
+      CALL surface()
 
       CALL diffuse
 
@@ -268,7 +255,7 @@ CONTAINS
 
          CALL thermo(level)
 
-         CALL forcings(xtime,cntlat,sst)
+         CALL forcings(xtime)
 
          IF (level >= 4) THEN
 
@@ -346,22 +333,6 @@ CONTAINS
       CALL update_sclrs
 
       CALL thermo(level)
-
-      ! Nudging time is independent of the spinup!
-      IF (usenudge) THEN
-         IF (time <= nudge_time .AND. (nudge_theta /= 0 .OR. nudge_rv /= 0 .OR. &
-            (level > 3 .AND. nudge_ccn /= 0) ) ) THEN
-
-            ! Reset tendencies
-            CALL tend0(.TRUE.)
-
-            CALL nudging(time)
-
-            CALL update_sclrs
-
-            CALL thermo(level)
-         END IF
-      END IF
 
       IF (level >= 4)  THEN
          CALL SALSA_diagnostics
@@ -692,7 +663,7 @@ CONTAINS
    SUBROUTINE corlos
 
       USE defs, ONLY : omega
-      USE grid, ONLY : a_uc, a_vc, a_ut, a_vt, nxp, nyp, nzp, u0, v0
+      USE grid, ONLY : a_uc, a_vc, a_ut, a_vt, nxp, nyp, nzp, u0, v0, cntlat
 
       LOGICAL, SAVE :: initialized = .FALSE.
       REAL, SAVE    :: fcor

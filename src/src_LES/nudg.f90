@@ -1,47 +1,28 @@
 MODULE nudg
-
+  USE grid, ONLY : level, dtlt, nxp, nyp, nzp, &
+                   zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, a_srs, &
+                   a_naerop, a_naerot, a_ncloudp, a_nicep, &
+                   a_tp, a_tt, a_up, a_ut, a_vp, a_vt
+  USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
    IMPLICIT NONE
 
    ! Nudging options (nudge_*: 0=disabled, 1=soft, 2=hard), total nudging time (s), altitude range, and time constants (tau [s])
-   LOGICAL :: useNudge = .FALSE. ! Master switch for nudging
-   INTEGER :: nudge_theta = 0, & ! (liquid water) potential temperature, depending on the microphysical level
-              nudge_rv = 0, & ! Water vapor mixing ratio (maintain total water)
-              nudge_u = 0, nudge_v = 0, & ! Horizontal winds
-              nudge_ccn = 0 ! Sectional aerosol for levels 4 and 5 (maintain aerosol+cloud+ice)
+   LOGICAL :: useNudge = .FALSE.           ! Master switch for nudging
+   INTEGER :: nudge_theta = 0, &           ! (liquid water) potential temperature, depending on the microphysical level
+              nudge_rv = 0, &              ! Water vapor mixing ratio (maintain total water)
+              nudge_u = 0, nudge_v = 0, &  ! Horizontal winds
+              nudge_ccn = 0                ! Sectional aerosol for levels 4 and 5 (maintain aerosol+cloud+ice)
    REAL    :: nudge_time = 3600., nudge_zmin = -1.e10, nudge_zmax = 1.e10
    REAL    :: tau_theta = 300., tau_rv = 300., tau_u = 300., tau_v = 300., tau_ccn = 300.
    REAL, SAVE, ALLOCATABLE :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
+   REAL, SAVE, ALLOCATABLE :: aero_target(:,:)
 
 CONTAINS
 
-   !
-   !----------------------------------------------------------------------
-   !
-   ! Nudging towards the initial state (temperature, water vapor,
-   ! horizontal winds and aerosol and/or cloud droplets).
-   !
-   ! TR 22.3.2017
-   !
+  SUBROUTINE init_nudg
+    IMPLICIT NONE
 
-   SUBROUTINE nudging(time)
-
-      USE grid, ONLY : level, dtlt, nxp, nyp, nzp, &
-                       zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, a_srs, &
-                       a_naerop, a_naerot, a_ncloudp, a_nicep, &
-                       a_tp, a_tt, a_up, a_ut, a_vp, a_vt
-      USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
-
-      IMPLICIT NONE
-      REAL, INTENT(IN) :: time
-      REAL, SAVE, ALLOCATABLE :: aero_target(:,:) ! Local
-      LOGICAL, SAVE :: init = .TRUE.
-
-      ! Nudging time is independent of the spin-up
-      IF (time > nudge_time) RETURN
-
-      ! Initialization
-      IF (init) THEN
-         ! (Liquid water) potential temperature: nudge towards th0(:)-th00
+         ! (Liquid water) potential temperature: nudge towards th0(:)-th00 ! Juha: ??
          IF (nudge_theta /= 0) THEN
             ALLOCATE(theta_ref(nzp))
             theta_ref(:) = a_tp(:,3,3)
@@ -83,10 +64,26 @@ CONTAINS
             aero_ref(:,in2a:fn2b) = aero_ref(:,in2a:fn2b)+a_ncloudp(:,3,3,1:ncld)
             IF (level == 5) aero_ref(:,in2a:fn2b) = aero_ref(:,in2a:fn2b)+a_nicep(:,3,3,1:nice)
          END IF
-         !
-         ! Initialized
-         init = .FALSE.
-      END IF
+
+  END SUBROUTINE init_nudg
+
+
+   !
+   !----------------------------------------------------------------------
+   !
+   ! Nudging towards the initial state (temperature, water vapor,
+   ! horizontal winds and aerosol and/or cloud droplets).
+   !
+   ! TR 22.3.2017
+   !
+
+   SUBROUTINE nudging(time)
+
+      IMPLICIT NONE
+      REAL, INTENT(IN) :: time
+
+      ! Nudging time is independent of the spin-up
+      IF (time > nudge_time) RETURN
 
       ! (Liquid water) potential temperature:
       IF (nudge_theta > 0) &

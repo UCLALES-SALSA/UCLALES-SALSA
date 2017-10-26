@@ -2705,7 +2705,7 @@ CONTAINS
             ! Turbulent Shear
             eddy_dis = 10.e-4 ! Values suggested by Sami - could be taken from the LES model?
 
-	         ztshear = SQRT(8.*pi*eddy_dis/(15.*vkin))*(0.5*(diam(1)+diam(2)))**3
+            ztshear = SQRT(8.*pi*eddy_dis/(15.*vkin))*(0.5*(diam(1)+diam(2)))**3
 
             zturbinert = pi*eddy_dis**(0.75) /(grav* SQRT(SQRT( vkin )))  &
                          *(0.5*(diam(1)+diam(2)))**2* ABS(termv(1)-termv(2))

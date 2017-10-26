@@ -91,21 +91,23 @@ CONTAINS
       USE sgsm, ONLY : csx, prndtl
       USE srfc, ONLY : isfctyp, zrough, ubmin, dthcon, drtcon
       USE step, ONLY : timmax, istpfl, corflg, outflg, frqanl, frqhis,          &
-                       strtim, radfrq, cntlat
+                       strtim, radfrq
       USE nudg, ONLY : nudge_time, nudge_zmin, nudge_zmax, &
                        nudge_theta, tau_theta, nudge_rv, tau_rv, nudge_u, tau_u, &
                        nudge_v, tau_v, nudge_ccn, tau_ccn, usenudge
       USE grid, ONLY : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
-                       dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
-                       filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
-                       Tspinup,sst, lbinanl
+                       dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,     &
+                       filprf, expnme, isgstyp, igrdtyp, iradtyp, nfpt, distim, runtype, CCN,        &
+                       Tspinup,sst, lbinanl, cntlat
       USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
                        zrand
       USE stat, ONLY : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
-      USE forc, ONLY : radsounding,    &     ! Juha: added for radiation background profile
-                       div, case_name, &     ! Divergence, forcing case name
-                       sfc_albedo,     &     ! Surface albedo
-                       useMcICA,RadConstPress,RadPrecipBins
+      USE forc, ONLY : div, case_name     ! Divergence, forcing case name
+      USE radiation_main, ONLY : radsounding,   &
+                                 sfc_albedo,    &
+                                 useMcICA,      &
+                                 RadConstPress, &
+                                 RadPrecipBins
       USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
       USE mpi_interface, ONLY : myid, appl_abort, ver, author
 
@@ -131,7 +133,8 @@ CONTAINS
          timmax , dtlong , istpfl , & ! timestep control
          runtype, hfilin , filprf , & ! type of run (INITIAL or HISTORY)
          frqhis , frqanl , outflg , & ! freq of history/anal writes, output flg
-         iradtyp, radfrq , strtim , & ! radiation type flag
+         strtim ,                   & ! Model start time
+         iradtyp,                   & ! Radiation type
          isfctyp, ubmin  , zrough , & ! surface parameterization type
          sst    , dthcon , drtcon , & ! SSTs, surface flx parameters
          isgstyp, csx    , prndtl , & ! SGS model type, parameters
@@ -141,12 +144,16 @@ CONTAINS
          umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
          usenudge,                  & ! master switch for nudging
          Tspinup, lbinanl,          & ! Length of spinup period in seconds
-         radsounding, div, case_name, & ! Name of the radiation sounding file, divergence for LEVEL 4
-         sfc_albedo,                  & ! Surface albedo
-         useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
-         RadConstPress,      & ! keep constant pressure levels (T/F),
-         RadPrecipBins,      & ! add precipitation bins cloud water (0, 1, 2, 3,...)
+         div, case_name, &  ! divergence for LEVEL 4
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
+
+      NAMELIST /radiation/         &
+         radfrq,          & ! radiation type flag RADFRQ NOT USED ANYWHERE, VARIABLE DECLARED IN STEP.F90
+         radsounding, sfc_albedo,  & ! Name of the radiation sounding file, surface albedo
+         useMcICA,                 & ! Use the Monte Carlo Independent Column Approximation method (T/F)
+         RadConstPress,            & ! keep constant pressure levels (T/F) 
+         RadPrecipBins               ! add precipitation bins cloud water (0, 1, 2, 3,...)
+
 
       NAMELIST /nudge/   &
          nudge_time,                & ! Total nudging time (independent of spin-up)

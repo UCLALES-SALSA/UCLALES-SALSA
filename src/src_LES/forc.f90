@@ -20,26 +20,27 @@
 MODULE forc
 
   USE defs, ONLY      : cp
-  USE radiation, ONLY : d4stream
   USE stat, ONLY      : sflg
+  USE radiation_main, ONLY : rad_interface, useMcICA, iradtyp
+  USE nudg, ONLY : useNudge, nudging
   IMPLICIT NONE
 
   ! these are now all namelist parameters
   CHARACTER (len=10) :: case_name = 'none'               
-  CHARACTER (len=50) :: radsounding = 'datafiles/dsrt.lay'  ! Juha: Added so the radiation background sounding can be given
-                                                            ! from the NAMELIST
-  REAL    :: sfc_albedo = 0.05
+
+
   REAL    :: div = 0.
-  LOGICAL :: useMcICA = .TRUE.
-  LOGICAL :: RadConstPress = .FALSE. ! Keep constant pressure levels
-  INTEGER :: RadPrecipBins = 0 ! Add precipitation bins to cloud water (for level 3 and up)
+
 
 CONTAINS
   !
   ! -------------------------------------------------------------------
-  ! Subroutine forcings:  calls the appropriate large-scale forcings
+  ! Subroutine forcings:  calls the appropriate large-scale forcings.
   !
-  SUBROUTINE forcings(time_in, cntlat, sst)
+  ! Contains: explicit and parameterized radiation calculations, nudging,
+  ! large-scale divergence effects and other case-specific forcings.
+  !
+  SUBROUTINE forcings(time_in)
 
     USE grid, ONLY: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc,     &
                     a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp,  &
@@ -47,14 +48,13 @@ CONTAINS
                     a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, &
                     a_fus, a_fds, a_fuir, a_fdir
 
-    USE mo_submctl, ONLY : nspec,nprc,ira,fra
-
     USE mpi_interface, ONLY : myid, appl_abort
 
-    REAL, OPTIONAL, INTENT (in) :: time_in, cntlat, sst
-
+    REAL,  INTENT (in) :: time_in
     REAL :: xka, fr0, fr1
-    REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
+
+    ! NOT FINISHED; PUT LARGE-SCALE FORCINGS/CASE-SPECIFIC STUFF IN THEIR OWN PACKAGES
+
 
     ! DIVERGENCE GIVEN FROM NAMELIST
     IF (trim(case_name) == 'atex') THEN
@@ -73,6 +73,13 @@ CONTAINS
         ! Full radiation calculations when saving data (stat/sflg=.TRUE. when saving)
         useMcICA = .NOT. sflg
     END IF
+
+    ! 
+    ! Nudging
+    ! ------------
+    !
+    IF (useNudge) CALL nudging(time_in)
+
 
     SELECT CASE(iradtyp)
     CASE (1)
@@ -105,61 +112,17 @@ CONTAINS
        IF (trim(case_name) == 'atex') CALL case_forcing(nzp, nxp, nyp,    &
                                                         zt, dzt, dzm, div, a_tp, a_rp, a_tt, a_rt)
     CASE (3)
-       ! Radiation + large-scale forcing
-       ! -------------------------------------
-       IF (present(time_in) .AND. present(cntlat) .AND. present(sst)) THEN
-
-          IF (level <= 3) THEN
-             znc(:,:,:) = CCN
-             zrc(:,:,:) = a_rc(:,:,:) ! Cloud water only
-             IF (level == 3 .AND. RadPrecipBins > 0) THEN ! Add precipitation (all or nothing)
-                znc(:,:,:) = znc(:,:,:) + a_npp(:,:,:)
-                zrc(:,:,:) = zrc(:,:,:) + a_rpp(:,:,:)
-             END IF
-             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                           dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
-                           a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
-                           useMcICA=useMcICA, ConstPrs=RadConstPress)
-
-          ELSE IF (level == 4) THEN
-             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) ! Cloud droplets
-             zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
-             IF (RadPrecipBins > 0) THEN ! Add precipitation bins
-                ! Water is the last species (nspec+1)
-                zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
-                znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
-             END IF
-             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                           dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
-                           a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
-                           useMcICA=useMcICA, ConstPrs=RadConstPress)
-
-          ELSE IF (level == 5) THEN
-             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) ! Cloud droplets
-             zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
-             IF (RadPrecipBins > 0) THEN ! Add precipitation bins
-                ! Water is the last species (nspec+1)
-                zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
-                znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
-             END IF
-             zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4) ! Ice
-             zri(:,:,:) = a_ri(:,:,:) ! Ice (no aerosol ice?)
-             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                           dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
-                           a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
-                           useMcICA=useMcICA, ConstPrs=RadConstPress)
-
-          END IF
-
-          IF ( case_name /= 'none') THEN
-             CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
-          END IF 
-
-       ELSE
-          IF (myid == 0) PRINT *, '  ABORTING: inproper CALL to radiation'
-          CALL appl_abort(0)
+       ! Radiation + large scale forcing
+       !----------------------------------
+       CALL rad_interface(time_in)
+       
+       IF ( case_name /= 'none') THEN
+          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
        END IF
+
     CASE (4)
+       ! ??
+       !---
        CALL bellon(nzp, nxp, nyp, a_rflx, a_sflx, zt, dzt, dzm, a_tt, a_tp,&
                    a_rt, a_rp, a_ut, a_up, a_vt, a_vp)
     END SELECT 

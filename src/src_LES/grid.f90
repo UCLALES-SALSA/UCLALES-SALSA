@@ -41,11 +41,12 @@ MODULE grid
    REAL    :: th00   = 288.       ! basic state temperature
 
    REAL    :: CCN = 150.e6
+   REAL    :: cntlat =  31.5      ! Latitude for radiation
 
    LOGICAL :: lbinanl = .FALSE.   ! Whether to write binned data to analysis files (takes a lot of space + mainly used for debugging)
+   INTEGER :: iradtyp
    INTEGER :: igrdtyp = 1         ! vertical grid type
    INTEGER :: isgstyp = 1         ! sgs model type
-   INTEGER :: iradtyp = 0         ! radiation model type
    INTEGER :: level   = 0         ! thermodynamic level
    INTEGER :: naddsc  = 0         ! number of additional scalars;
    INTEGER :: nsalsa  = 0         ! Number of tracers for SALSA
