@@ -205,7 +205,7 @@ end subroutine tstep_reset
                      minispinupCase01, minispinupCase02 !debugkebab
 
 
-    use stat, only : sflg, statistics, acc_massbudged
+    use stat, only : sflg, statistics
     use sgsm, only : diffuse
     use srfc, only : surface
     use thrm, only : thermo
@@ -217,7 +217,6 @@ end subroutine tstep_reset
     USE util, ONLY : maskactiv !Juha: Included for SALSA
 
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : nbins
     USE class_ComponentIndex, ONLY : GetNcomp
 
     logical, intent (out) :: cflflg
@@ -276,6 +275,9 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
        IF (level >= 4) THEN
 
           n4 = GetNcomp(prtcl) + 1 ! Aerosol components + water
+          CALL tend_constrain(n4)
+          call update_sclrs
+          CALL tend0(.TRUE.)
 
           ! Rate of change in absolute temperature (for some ice processes)
           if (time >= 1.) then
@@ -305,16 +307,14 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  zrm, prtcl, dtlt, dbg2, time, level,zt  )
-
+                  zrm, prtcl, dtlt, dbg2, time, level, zt  )
+             
           END IF !nxp==5 and nyp == 5
 
+          CALL tend_constrain(n4)
        END IF
 
     end if ! level
-
-    IF (level >= 4)  &
-         CALL tend_constrain(n4)
 
     call update_sclrs
 
@@ -335,10 +335,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
     call tend0(.TRUE.)
 
     ! Mask for cloud base activation
-    IF (level >= 4)  CALL maskactiv(zactmask,nxp,nyp,nzp,nbins,2,prtcl,a_rh,              &
-                                    rc = a_rc,pa_naerop = a_naerop, pa_maerop = a_maerop, &
-                                    pt = a_temp, w=a_wp, &
-                                    pa_ncloud= a_ncloudp(:,:,:,:) )
+    IF (level >= 4)  CALL maskactiv(zactmask,nxp,nyp,nzp,2,a_rh,rc=a_rc,w=a_wp)
     ! Get tendencies from cloud base activation
     IF (level >= 4) CALL newdroplet(zactmask)
 
@@ -384,12 +381,14 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
     CALL thermo(level)
 
+    IF (level >= 4)  THEN
+         CALL SALSA_diagnostics
+         call thermo(level)
+    ENDIF
+
     if (sflg) then
        call statistics (time+dtl)
     end if
-
-    IF (level >= 4) &
-       CALL SALSA_diagnostics
 
   end subroutine t_step
   !
@@ -983,11 +982,11 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                      a_gaerop,  &
                      a_rc, a_srp,a_snrp, binMixrat, prtcl,   &
                      a_rh, a_temp, a_ri,a_srs,a_snrs,a_rhi,                                      &
-                     a_nicep,a_micep,a_nsnowp,a_msnowp !! ice'n'snow
+                     a_nicep,a_micep,a_nsnowp,a_msnowp
     USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,              &
                                in1a,fn2a,fn2b,                        &
-                               nice,nsnw,iia,fia,iib,fib,isa,fsa,                    & !! ice'n'snow
-                               rhosu,rhooc,rhono,rhonh,rhoss,rhowa,rhoic,rhosn,      &  !! Jaakko: rhoic added
+                               nice,nsnw,iia,fia,iib,fib,isa,fsa,        &
+                               rhosu,rhowa,rhoic,rhosn,      &
                                msu,moc,mno,mnh,mss,mwa,avog,pi6,                     &
                                surfw0,surfi0, rg, nlim, prlim, pi, &
                                lscndgas
@@ -1437,7 +1436,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                    CALL binMixrat('aerosol','dry',ba,i,j,k,zvol)
                    zvol = zvol/rhosu
 
-                   ! Particles smaller then 0.1 nm diameter are set to zero
+                   ! Particles smaller then 0.1 nm diameter are set to zero 
                    zddry = (zvol/a_naerop(k,i,j,ba)/pi6)**(1./3.)
                    IF ( zddry < 1.e-10 ) THEN
                       ! Volatile species to the gas phase

@@ -44,7 +44,8 @@ contains
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc     &
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp  &
          , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
-         a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp
+         a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, &
+         a_fus, a_fds, a_fuir, a_fdir
 
     USE mo_submctl, ONLY : nspec,nprc,ira,fra
 
@@ -117,7 +118,7 @@ contains
              ENDIF
              call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                   dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, albedo, radsounding=radsounding, &
+                  a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
                   useMcICA=useMcICA, ConstPrs=RadConstPress)
 
           ELSE IF (level == 4) THEN
@@ -125,12 +126,12 @@ contains
              zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
              IF (RadPrecipBins>0) THEN ! Add precipitation bins
                 ! Water is the last species (nspec+1)
-                znc(:,:,:) = znc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
-                zrc(:,:,:) = zrc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
+                zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
+                znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
              ENDIF
              CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                   dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, albedo, radsounding=radsounding, &
+                  a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
                   useMcICA=useMcICA, ConstPrs=RadConstPress)
 
           ELSE IF (level == 5) THEN
@@ -138,14 +139,14 @@ contains
              zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
              IF (RadPrecipBins>0) THEN ! Add precipitation bins
                 ! Water is the last species (nspec+1)
-                znc(:,:,:) = znc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
-                zrc(:,:,:) = zrc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
+                zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
+                znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
              ENDIF
              zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4) ! Ice
              zri(:,:,:) = a_ri(:,:,:) ! Ice (no aerosol ice?)
              CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                   dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, albedo, ice=zri,nice=zni,radsounding=radsounding, &
+                  a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
                   useMcICA=useMcICA, ConstPrs=RadConstPress)
 
           END IF

@@ -1,4 +1,5 @@
 !----------------------------------------------------------------------------
+!----------------------------------------------------------------------------
 ! This file is part of UCLALES.
 !
 ! UCLALES is free software; you can redistribute it and/or modify
@@ -27,10 +28,10 @@ module stat
   implicit none
   private
 
-  integer, parameter :: nvar1 = 28,               &
-                        nv1sbulk = 70,            &
+  integer, parameter :: nvar1 = 29,               &
+                        nv1sbulk = 62,            &
                         nv1MB = 4,                &
-                        nvar2 = 92,               &
+                        nvar2 = 96,               &
                         nv2sbulk = 46,            &
                         nv2saa = 8, nv2sab = 8,   &
                         nv2sca = 8, nv2scb = 8,   &
@@ -64,9 +65,8 @@ module stat
        'vtke   ','sfcbflx','wmax   ','tsrf   ','ustar  ','shf_bar', & ! 7
        'lhf_bar','zi_bar ','lwp_bar','lwp_var','zc     ','zb     ', & !13
        'cfrac  ','lmax   ','albedo ','rwp_bar','prcp   ','pfrac  ', & !19
-       'CCN    ','nrain  ','nrcnt  ','nccnt  '/),                   & !25, total 28
+       'CCN    ','nrain  ','nrcnt  ','nccnt  ','prcp_bc'/),         & !25, total 29
 
-! ^ iwp_bar iwp_var needs to be implemented
        ! **** Bulk temporal statistics for SALSA ****
        s1SalsaBulk(nv1sbulk) = (/                                    &
        'Nc_ic  ','Na_int ','Na_oc  ',                                & !1
@@ -84,7 +84,7 @@ module stat
        'rmDUdr ','rmDUcl ','rmDUpr ','rmDUwt ','rmDUtt ',            & !43
        'rmSSdr ','rmSScl ','rmSSpr ','rmSSwt ','rmSStt ',            & !48
        'rmNH3dr','rmNH3cl','rmNH3pr','rmNH3wt','rmNH3tt',            & !53
-       'rmNO3dr','rmNO3cl','rmNO3pr','rmNO3wt','rmNO3tt',            & !58, total 62
+       'rmNO3dr','rmNO3cl','rmNO3pr','rmNO3wt','rmNO3tt',            & !58
        'rmSO4ic','rmOCic ','rmBCic ','rmDUic ','rmSSic ',            & !63
        'rmNH3ic','rmN03ic','rmH20ic'                                 & !68, total 70
        /),                                                           &
@@ -105,7 +105,7 @@ module stat
         'wr_cs1 ','cs2    ','cnt_cs2','w_cs2  ','tl_cs2 ','tv_cs2 ', & ! 73
         'rt_cs2 ','rl_cs2 ','wt_cs2 ','wv_cs2 ','wr_cs2 ','Nc     ', & ! 79
         'Nr     ','rr     ','precip ','evap   ','frc_prc','prc_prc', & ! 85
-        'frc_ran','hst_srf'/),                                       & ! 91, total 92
+        'frc_ran','hst_srf','sw_up  ','sw_down','lw_up  ','lw_down'/), & ! 91, total 96
 
         ! **** BULK PROFILE OUTPUT FOR SALSA ****
         s2SalsaBulk(nv2sbulk) = (/                                   &
@@ -147,7 +147,7 @@ module stat
         s1Total(nvar1+nv1sbulk),                                     &
         s2Total(nvar2+nv2sbulk+nv2saa+nv2sab+nv2sca+nv2scb+nv2sp)
 
-  character (len=7), save :: spec3(7)
+  character (len=3), save :: spec3(7)
 
 
   LOGICAL, save :: s2bool(nvar2+nv2sbulk+nv2saa+nv2sab+nv2sca+nv2scb+nv2sp)
@@ -481,7 +481,7 @@ contains
 
        IF (csflg .and. level>3) THEN
            ! Allocate array for level 4 removal rate column statistics
-           ! Total number of ouputs is 3 for warm (aerosol, cloud and precipitation)
+           ! Total number of outputs is 3 for warm (aerosol, cloud and precipitation)
            ! and 5 (add ice and snow) for each species including water
            IF (level==4) THEN
               ALLOCATE( scs_rm(3*(nvar_spec3+1),nxp,nyp) )
@@ -540,8 +540,8 @@ contains
 
     use grid, only : a_up, a_vp, a_wp, a_rc, a_theta           &
          , a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean            &
-         , vmean, dn0, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx               &
-         , a_sflx, albedo, a_srp, a_snrp, a_ri, a_ncloudp, a_nprecpp, xt, yt
+         , vmean, dn0, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx, a_sflx               &
+         , a_fus, a_fds, a_fuir, a_fdir, albedo, a_srp, a_snrp, a_ncloudp, xt, yt, a_ri
 
     real, intent (in) :: time
 
@@ -568,7 +568,8 @@ contains
     call accum_stat(nzp, nxp, nyp, a_up, a_vp, a_wp, a_tp, a_press, umean &
          ,vmean,th00)
     if (iradtyp == 3) then
-       call accum_rad(nzp, nxp, nyp, a_rflx, sflx=a_sflx, alb=albedo)
+       call accum_rad(nzp, nxp, nyp, a_rflx, sflx=a_sflx, sup=a_fus, sdwn=a_fds, &
+         irup=a_fuir, irdwn=a_fdir, alb=albedo)
     elseif (iradtyp > 0) then
        call accum_rad(nzp, nxp, nyp, a_rflx)
     end if
@@ -735,18 +736,18 @@ contains
         ENDIF
 
         ! Removal by sedimentation of aerosol
-        CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'dr') ! 'dr' should be for aerosol and 'ae' for water
+        CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//trim(nam)//'dr') ! 'dr' should be for aerosol and 'ae' for water
         i=i+1
 
         ! Removal by sedimentation of cloud droplets
-        CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'cl')
+        CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//trim(nam)//'cl')
         i=i+1
 
         ! Removal by precipitation
-        CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'pr')
+        CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//trim(nam)//'pr')
         i=i+1
 
-        IF (level>=5) THEN
+        IF (level>4) THEN
             ! Removal by sedimentation of ice particles
             CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'ic') ! debugkebab poistakommentti tästä
             i=i+1
@@ -810,7 +811,7 @@ contains
                 ! Rainy grid cell
                 rwp(i,j)=rwp(i,j)+rp(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
                 ! Volume weighted average of the RDNC
-                nrain(i,j)=ncld(i,j)+np(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+                nrain(i,j)=nrain(i,j)+np(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
                 rn=rn+dn0(k)*(zm(k)-zm(k-1))
                 ! Number of rainy pixels
                 nrainy(i,j)=nrainy(i,j)+1
@@ -1027,68 +1028,6 @@ contains
     END DO
 
   END SUBROUTINE ts_lvl4
-  ! -----------------------------------------------------------------------
-  ! subroutine ts_lvl5: computes and writes time sequence stats of Salsa variables --
-  !  Implemented by Jaakko Ahola 15/12/2016
-  !
-  !
-  SUBROUTINE ts_lvl5(n1,n2,n3,ri)
-    USE mo_submctl, only : in1a,fn2a,fn2b,nbins,fia,fsa,nice,nsnw,prlim
-    USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,dzt
-    USE class_componentIndex, ONLY : IsUsed
-
-    IMPLICIT NONE
-
-    integer, intent(in) :: n1,n2,n3
-    REAL, INTENT(in) :: ri(n1,n2,n3)
-
-    REAL :: a0(n1,n2,n3), a1(n1,n2,n3)
-    integer :: ii,ss
-    LOGICAL :: cond_ic(n1,n2,n3), cond_oc(n1,n2,n3)
-    CHARACTER(len=3), PARAMETER :: zspec(7) = (/'SO4','OC ','BC ','DU ','SS ','NH ','NO '/)
-
-
-    a0 = 0.; a1 = 0.
-    CALL bulkNumc('ice','a',a0)
-    CALL bulkNumc('ice','b',a1)
-    cond_ic = .FALSE.
-    cond_oc = .FALSE.
-    cond_ic(:,:,:) = ( a0(:,:,:) + a1(:,:,:) > prlim .AND. ri(:,:,:) > 1.e-5 ) !#icelimit should the latter limit be changed
-    cond_oc = .NOT. cond_ic
-
-    ssclr_b(1) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
-    a0 = 0.; a1 = 0.
-    CALL bulkNumc('aerosol','a',a0)
-    CALL bulkNumc('aerosol','b',a1)
-    ssclr_b(2) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
-    ssclr_b(3) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_oc)
-
-    ii = 4
-    DO ss = 1,7
-
-       IF (IsUsed(prtcl,zspec(ss))) THEN
-          a0 = 0.; a1 = 0.
-          CALL bulkMixrat(zspec(ss),'ice','a',a0)
-          CALL bulkMixrat(zspec(ss),'ice','b',a1)
-          ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
-          ii = ii + 1
-
-          a0 = 0.; a1 = 0.
-          CALL bulkMixrat(zspec(ss),'aerosol','a',a0)
-          CALL bulkMixrat(zspec(ss),'aerosol','b',a1)
-
-          ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
-          ii = ii + 1
-
-          ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_oc)
-          ii = ii + 1
-       ELSE
-          ii = ii + 3
-       END IF
-    END DO
-
-  END SUBROUTINE ts_lvl5
-
   !
   !---------------------------------------------------------------------
   ! SUBROUTINE ACCUM_STAT: Accumulates various statistics over an
@@ -1128,11 +1067,12 @@ contains
   ! SUBROUTINE ACCUM_STAT: Accumulates various statistics over an
   ! averaging period for radiation variables
   !
-  subroutine accum_rad(n1,n2,n3,rflx,sflx,alb)
+  subroutine accum_rad(n1,n2,n3,rflx,sflx,sup,sdwn,irup,irdwn,alb)
 
     integer, intent (in) :: n1,n2,n3
     real, intent (in)    :: rflx(n1,n2,n3)
     real, optional, intent (in) :: sflx(n1,n2,n3), alb(n2,n3)
+    real, optional, intent (in) :: sup(n1,n2,n3), sdwn(n1,n2,n3), irup(n1,n2,n3), irdwn(n1,n2,n3)
 
     integer :: k
     real    :: a1(n1),a2(n1)
@@ -1152,6 +1092,17 @@ contains
           svctr(k,58)=svctr(k,58) + a2(k)
        end do
        ssclr(21) = get_avg2dh(n2,n3,alb)
+    end if
+
+    if (present(sup)) then
+        call get_avg3(n1,n2,n3,sup,a1)
+        svctr(:,93)=svctr(:,93) + a1(:)
+        call get_avg3(n1,n2,n3,sdwn,a1)
+        svctr(:,94)=svctr(:,94) + a1(:)
+        call get_avg3(n1,n2,n3,irup,a1)
+        svctr(:,95)=svctr(:,95) + a1(:)
+        call get_avg3(n1,n2,n3,irdwn,a1)
+        svctr(:,96)=svctr(:,96) + a1(:)
     end if
 
   end subroutine accum_rad
@@ -1303,19 +1254,18 @@ contains
   !
   subroutine accum_lvl3(n1, n2, n3, dn0, zm, rc, rr, nr, rrate, CCN)
 
-    use defs, only : alvl
-
     integer, intent (in) :: n1,n2,n3
     real, intent (in)                      :: CCN
     real, intent (in), dimension(n1)       :: zm, dn0
     real, intent (in), dimension(n1,n2,n3) :: rc, rr, nr, rrate
 
     integer                :: k, i, j
-    real                   :: nrsum, nrcnt, rrsum, rrcnt
+    real                   :: nrsum, nrcnt, rrcnt, rrcb
     real                   :: rmax, rmin
     real, dimension(n1)    :: a1
     real, dimension(n2,n3) :: scr2
     REAL :: mask(n1,n2,n3), tmp(n1,n2,n3)
+    LOGICAL :: below
 
     !
     ! Average rain water mixing ratio
@@ -1375,11 +1325,13 @@ contains
     scr2(:,:) = 0.
     nrsum = 0.
     nrcnt = 0.
-    do k=2,n1
-       rrsum = 0.
-       rrcnt = 0.
-       do j=3,n3-2
-          do i=3,n2-2
+    rrcnt = 0.
+    rrcb = 0.
+    do j=3,n3-2
+       do i=3,n2-2
+          below=.TRUE.
+          do k=2,n1
+
              ! RWP
              scr2(i,j)=scr2(i,j)+rr(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
 
@@ -1389,21 +1341,26 @@ contains
                 nrcnt = nrcnt + 1.
              end if
 
-             ! Precipitating grid cell
-             if (rrate(k,i,j) > 3.65e-5) then
-                rrsum = rrsum + rrate(k,i,j)
-                rrcnt = rrcnt + 1.
-             end if
+             ! Surface precipitation for this column
+             if (k==2 .AND. rrate(k,i,j) > 3.65e-5) rrcnt = rrcnt + 1.
+
+             ! Precpitation at cloud base (no cloud = no precip.)
+             if (rc(k,i,j) > 1.e-5 .AND. below) then
+                ! Take precpitation from level k-1 (>=2), which is just below cloud base
+                rrcb = rrcb + rrate(max(2,k-1),i,j)
+                below=.FALSE.
+             ENDIF
           end do
        end do
-       if (k == 2 ) ssclr(24) = rrcnt/REAL( (n3-4)*(n2-4) )
     end do
+    ssclr(24) = rrcnt/REAL( (n3-4)*(n2-4) )
     ssclr(22) = get_avg2dh(n2,n3,scr2)
     scr2(:,:) = rrate(2,:,:)
     ssclr(23) = get_avg2dh(n2,n3,scr2)
     ssclr(25) = CCN
     IF (nrcnt>0.) ssclr(26) = nrsum/nrcnt
     ssclr(27) = nrcnt
+    ssclr(29) = rrcb/REAL( (n3-4)*(n2-4) )
 
   end subroutine accum_lvl3
 

@@ -44,14 +44,14 @@ module radiation
   contains
 
     subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn0, pi0, pi1, dzm, &
-         pip, tk, rv, rc, nc, tt, rflx, sflx, albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs)
+         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs)
       use mpi_interface, only: myid, pecount
       integer, intent (in) :: n1, n2, n3
       real, intent (in)    :: alat, time, sknt, sfc_albedo
       real, dimension (n1), intent (in)                 :: dn0, pi0, pi1, dzm
       real, dimension (n1,n2,n3), intent (in)           :: pip, tk, rv, rc, nc
       real, optional, dimension (n1,n2,n3), intent (in) :: rr, ice, nice, grp
-      real, dimension (n1,n2,n3), intent (inout)        :: tt, rflx, sflx
+      real, dimension (n1,n2,n3), intent (inout)        :: tt, rflx, sflx, afus, afds, afuir, afdir
       CHARACTER(len=50), OPTIONAL, INTENT(in)           :: radsounding
       LOGICAL, OPTIONAL, INTENT(in)                     :: useMcICA, ConstPrs
       real, intent (out)                                :: albedo(n2,n3)
@@ -130,7 +130,7 @@ module radiation
                 nv=nv-1
                 pp(nv-n1+2) = pres(n1)/100. - 0.5*(pres(n1-1)-pres(n1)) / 100. ! Update
 
-                WRITE(*,*) 'Warning (radiation/d4stream): ovelapping pressure levels observed (i,j)!',i,j
+                WRITE(*,*) 'Warning (radiation/d4stream): overlapping pressure levels observed (i,j)!',i,j
             endif
 
             do k=2,n1
@@ -195,6 +195,10 @@ module radiation
 
             do k=1,n1
                kk = nv1 - (k-1)
+               afus(k,i,j) = fus(kk)
+               afds(k,i,j) = fds(kk)
+               afuir(k,i,j) = fuir(kk)
+               afdir(k,i,j) = fdir(kk)
                sflx(k,i,j) = fus(kk)  - fds(kk)
                rflx(k,i,j) = sflx(k,i,j) + fuir(kk) - fdir(kk)
             end do

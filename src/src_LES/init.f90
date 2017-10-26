@@ -48,7 +48,7 @@ contains
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : nbins, in2b, fn2b, iib, fib, nlim, prlim ! Olis parempi jos ei tarttis
+    USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim
     USE util, ONLY : maskactiv
     USE class_ComponentIndex, ONLY : GetNcomp
 
@@ -77,7 +77,7 @@ contains
        IF (level >= 4) THEN
 
           ! Not needed when using interst. acivation?
-          CALL maskactiv(zactmask,nxp,nyp,nzp,nbins,1,prtcl,a_rh)
+          CALL maskactiv(zactmask,nxp,nyp,nzp,1,a_rh)
 
           n4 = GetNcomp(prtcl) + 1 ! Aerosol compoenents + water
 
@@ -162,7 +162,7 @@ contains
   !
   subroutine fldinit
 
-    use defs, only : alvl, cpr, cp, p00, R
+    use defs, only : alvl, cpr, cp, p00
     use sgsm, only : tkeinit
     use thrm, only : thermo, rslf
 
@@ -451,7 +451,7 @@ contains
   !
   !----------------------------------------------------------------------
   ! BASIC_STATE: This routine computes the basic state values
-  ! of pressure, density, moisture and temperature.  The basi!state
+  ! of pressure, density, moisture and temperature. The basic state
   ! temperature is assumed to be a the volume weighted average value of
   ! the sounding
   !
@@ -749,59 +749,6 @@ contains
     end do
 
   END SUBROUTINE SALSAInit
-  !-------------------------------------------
-  SUBROUTINE ActInit(b,bpar,pactmask)
-    USE mo_submctl, ONLY : ncld,nbins
-    USE class_componentIndex, ONLY : GetNcomp, GetIndex
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: b, bpar
-    LOGICAL, INTENT(in) :: pactmask(nzp,nxp,nyp)
-    REAL :: frac(nzp,nxp,nyp)
-    INTEGER :: m,mpar,nc,s
-
-    ! --------------------
-    ! Initial activation
-    ! --------------------
-    ! Get the number of activated droplets
-    a_ncloudp(:,:,:,b) = MERGE(a_nactd(:,:,:,b), 0., pactmask(:,:,:))
-
-    DO s = 1,GetNcomp(prtcl) ! Dry aerosol mass
-       m = (s-1)*ncld + b
-       a_mcloudp(:,:,:,m) = MERGE(a_vactd(:,:,:,m), 0., pactmask(:,:,:))
-    END DO
-
-    nc = GetIndex(prtcl,'H2O')
-    m = (nc-1)*ncld + b
-    mpar = (nc-1)*nbins + bpar
-    ! Water mass
-    a_mcloudp(:,:,:,m) = MERGE(a_vactd(:,:,:,m), 0., pactmask(:,:,:))
-
-    frac(:,:,:) = a_nactd(:,:,:,b)/MAX(a_ncloudp(:,:,:,b),1.)
-
-    ! Remove water from the vapor phase
-    a_rp(:,:,:) = a_rp(:,:,:) -    &
-         MERGE( a_vactd(:,:,:,m)-frac(:,:,:)*a_maerop(:,:,:,mpar), 0.,  &
-         pactmask(:,:,:))
-
-    ! Remove aerosol particles due to activation
-    a_naerop(:,:,:,bpar) = a_naerop(:,:,:,bpar) -   &
-         MERGE(a_nactd(:,:,:,b), 0., pactmask(:,:,:))
-
-    ! Water from aerosol phase
-    a_maerop(:,:,:,mpar) = a_maerop(:,:,:,mpar) -   &
-         MERGE(frac(:,:,:)*a_maerop(:,:,:,mpar), 0., pactmask(:,:,:))
-
-    ! Aerosol mass
-    DO s = 1,GetNcomp(prtcl)
-       m = (s-1)*ncld + b
-       mpar = (s-1)*nbins + bpar
-       a_maerop(:,:,:,mpar) = a_maerop(:,:,:,mpar) -  &
-            MERGE(a_vactd(:,:,:,m), 0., pactmask(:,:,:))
-    END DO
-
-  END SUBROUTINE ActInit
-    !------------------------------------------
 
   ! --------------------------------------------------------------------------------------------------
   ! Replacement for SUBROUTINE init_aero_sizedist (init.f90): initilize altitude-dependent aerosol
@@ -815,7 +762,7 @@ contains
     USE mo_salsa_sizedist, ONLY : size_distribution
     USE mo_salsa_driver, ONLY : aero
     USE mo_submctl, ONLY : pi6, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
-                               sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp,nspec,maxspec, &
+                               sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp,nspec, &
                                rhosu, rhooc, rhobc, rhodu, rhoss, rhono, rhonh
     USE mpi_interface, ONLY : myid
 

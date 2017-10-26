@@ -107,10 +107,7 @@ CONTAINS
          iia,fia,iib,fib,            &
          nice, nsnw,         &
          pi6,                        &
-         rhosu,rhooc,rhono,rhonh,    &
-         rhobc,rhodu,rhoss,rhowa,    &
-         rhoic,                      & ! density of ice  !ice'n'snow
-         rhosn,                      & ! density of snow
+         rhowa,rhoic,rhosn,          &
          nlim,prlim,                 &
          lscgaa, lscgcc, lscgca,     &
          lscgpp, lscgpa, lscgpc,     &
@@ -331,7 +328,7 @@ CONTAINS
                  DO nn = mm,nice
                     IF (pice(ii,jj,nn)%numc<prlim) CYCLE
                     zccii(mm,nn) = coagc(zdice(mm),zdice(nn),zmice(mm),zmice(nn),temppi,pressi,2)
-                    zccii(nn,mm) = zcccc(mm,nn)
+                    zccii(nn,mm) = zccii(mm,nn)
                  END DO
               END DO
            END IF
@@ -1130,7 +1127,6 @@ CONTAINS
 
     USE mo_submctl,    ONLY :   &
          pi,                        &
-         pi6,                       & ! pi/6
          in1a, in2a,                & ! size bin indices
          fn2b,                &
          t_section,                 & ! Data type for the cloud bin representation
@@ -1138,44 +1134,19 @@ CONTAINS
          nprc,                      &
          nice,                      & ! ice'n'snow
          nsnw,                      & ! ice'n'snow
-         avog,                      &
          nlim,                      &
          prlim,                     &
-         rhowa,                     & ! density of water (kg/m3)
-         rhoic,                     & ! density of ice (kg/m3)
-         rhosn,                     & ! density of snow (kg/m3)
-         rhosu,                     & ! density of sulphate (kg/m3)
-         rhooc,                     & ! density of organic carbon (kg/m3)
-         rhoss,                     & ! density of sea salt (kg/m3)
-         rhono,                     & ! density of nitric acid (kg/m3)
-         rhonh,                     & ! density of ammonia (kg/m3)
-         rhobc,                     &
-         rhodu,                      &
          boltz,                     & ! Boltzmann constant [J/K]
          rg,                        & ! molar gas constant [J/(mol K)]
          pstand,                    & ! standard pressure [Pa]
          msu,                       & ! molar mass of sulphate [kg/mol]
-         moc,                       & !       "       organic carbon
-         mss,                       & !       "       sea salt
-         mno,                       & !       "       nitrate
-         mnh,                       & !       "       ammonium
-         mbc,                       & !
-         mdu,                       &
-         mwa,                       & !               water
-         mair,                      & !       "       air
          mvsu, mvoc,                & ! molecular volumes of sulphate and OC [m3]
-         mvnh, mvno, mvwa,          & ! molecular volumes of HNO3 and NH3,H20 [m3]
          d_sa,                      & ! diameter of H2SO4 molecule [m]
-
-         epsoc,                     & ! soluble fraction of organics (scaled to sulphate)
          massacc,                   & ! mass accomodation coefficients in each bin
-         n3,                        & ! number of molecules in one 3 nm particle [1]
-         surfw0,                    & ! surface tension of water
-         surfi0                       ! surface tension of ice
+         n3                           ! number of molecules in one 3 nm particle [1]
 
     USE class_componentIndex, ONLY : ComponentIndex,IsUsed
 
-    USE mo_constants,      ONLY: g, avo, alv, rv, als
    IMPLICIT NONE
 
     !-- Input and output variables ----------
@@ -1537,7 +1508,7 @@ CONTAINS
                                nbins, ncld, nprc,    &
                                nice, nsnw,            &
                                rhowa, rhoic, rhosn,mwa, mair,     &
-                               surfw0,surfi0, rg,           &
+                               surfw0, rg,           &
                                pi, pi6, prlim, nlim,      &
                                massacc,avog,pstand,  &
                                in1a,in2a,  &
@@ -1608,7 +1579,7 @@ CONTAINS
     ! The new aerosol water content after equilibrium calculation
     zaelwc2(:,:) = SUM(paero(:,:,in1a:fn2b)%volc(8),DIM=3)*rhowa
 
-    prv(:,:) = prv(:,:) - ( zaelwc2(:,:) - zaelwc1(:,:) )*ppres(:,:)*mair/(rg*ptemp(:,:))
+    prv(:,:) = prv(:,:) - ( zaelwc2(:,:) - zaelwc1(:,:) )/( ppres(:,:)*mair/(rg*ptemp(:,:)) )
 
     adtc(:) = 0.
     zcwc = 0.; zcwint = 0.; zcwn = 0.
@@ -2237,8 +2208,6 @@ CONTAINS
     USE mo_submctl, ONLY : t_section,  &
                                rhosu, msu,   &
                                rhooc, moc,   &
-                               rhobc, mbc,   &
-                               rhodu, mdu,   &
                                rhoss, mss,   &
                                rhono, mno,   &
                                rhonh, mnh,   &
@@ -2273,8 +2242,6 @@ CONTAINS
     USE mo_submctl, ONLY : t_section,  &
                                rhosu, msu,   &
                                rhooc, moc,   &
-                               rhobc, mbc,   &
-                               rhodu, mdu,   &
                                rhoss, mss,   &
                                rhono, mno,   &
                                rhonh, mnh,   &
@@ -2381,12 +2348,12 @@ CONTAINS
     
     USE mo_submctl, ONLY : t_section,   &
                                rhosu,msu,   &
-                               rhooc,moc,   &
+                               rhooc,       &
                                rhoss,mss,   &
-                               rhono,mno,   &
-                               rhonh,mnh,   &
-                               rhowa,mwa,   &
-                               rg, nlim
+                               mno,         &
+                               mnh,         &
+                               rhowa,       &
+                               rg
     IMPLICIT NONE
 
     ! Calculates the saturation ratio for semivolatile species
@@ -2406,7 +2373,6 @@ CONTAINS
     REAL :: KllH2O, KllNH3, KglNH3, KglHNO3
 
     REAL, PARAMETER :: zt0 = 298.15    ! Reference temp
-    REAL, PARAMETER :: zatm = 101325.  ! Unit atm in Pa
 
     REAL, PARAMETER :: K01 = 1.01e-14,   &
                            K02 = 1.81e-5,    &
@@ -2588,7 +2554,7 @@ CONTAINS
   REAL FUNCTION coagc(diam1,diam2,mass1,mass2,temp,pres,kernel)
 
     USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav
-    USE mo_constants, ONLY : rd, amd
+    USE mo_constants, ONLY : rd
 
     IMPLICIT NONE
 

@@ -93,10 +93,8 @@ CONTAINS
 
          rhosu, msu,   & ! properties of compounds
          rhooc, moc,   &
-         rhobc, mbc,   &
          rhoss, mss,   &
-         rhono, mno,   &
-         rhonh, mnh
+         rhono, mno
 
     IMPLICIT NONE
 

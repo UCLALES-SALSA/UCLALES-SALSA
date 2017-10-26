@@ -124,7 +124,7 @@ CONTAINS
     ! Autoconversion (liquid)
     IF (lsauto) &
          CALL autoconv2(kproma,kbdim,klev, &
-                        pcloud, pprecp     )
+                        pcloud, pprecp, ptstep )
 
     ! Cloud activation
     IF (lsactiv )  &

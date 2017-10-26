@@ -101,7 +101,7 @@ contains
 !
 
   SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,rsi,rhi,srs)
-    USE defs, ONLY : R,Rm, cp, cpr, p00, alvl, alvi
+    USE defs, ONLY : R, cp, cpr, p00, alvl, alvi
     USE grid, ONLY : a_dn
     IMPLICIT NONE
 
@@ -137,19 +137,19 @@ contains
 
              ! Potential and absolute temperatures
              th(k,i,j) = thil + (alvl*( rc(k,i,j) + srp(k,i,j) ))/cp
-
-             if(level==5) then
-                th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp
-
-                rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))
-                rhi(k,i,j) = rv(k,i,j)/rsi(k,i,j)
-             end if
-
+			 
+             if(level==5) th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp
+			 
              tk(k,i,j) = th(k,i,j)*exner
 
              ! Saturation mixing ratio
              rs(k,i,j) = rslf(p(k,i,j),tk(k,i,j))
              rh(k,i,j) = rv(k,i,j)/rs(k,i,j)
+
+             if(level==5) then
+                rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))
+                rhi(k,i,j) = rv(k,i,j)/rsi(k,i,j)
+             end if
 
              ! True air density
              a_dn(k,i,j) = p(k,i,j)/(R*tk(k,i,j))

@@ -92,11 +92,11 @@ CONTAINS
   SUBROUTINE getSolute(kproma,kbdim,klev,paero,pns)
     USE mo_submctl, ONLY : t_section,nlim,       &
                                fn2b,            &
-                               rhosu, rhooc, rhobc,  &
-                               rhonh, rhono, rhodu,  &
-                               rhoss,                &
-                               msu, moc, mbc,        &
-                               mnh, mno, mdu,        &
+                               rhosu, rhooc,    &
+                               rhonh, rhono,    &
+                               rhoss,           &
+                               msu, moc,        &
+                               mnh, mno,        &
                                mss
     IMPLICIT NONE
 
@@ -700,7 +700,7 @@ CONTAINS
           END IF
 
           zvcstar = MAX( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vlolim )
-          zvcstar = MIN( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vhilim )
+          zvcstar = MIN( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vhilim ) 
 
           ! Loop over cloud droplet (and aerosol) bins
           DO cb = ica%cur,fcb%cur
@@ -753,7 +753,7 @@ CONTAINS
 
              Vip1 = MAX(Vlop1,MIN(Vip1,Vhip1))
              Vim1 = MAX(Vlom1,MIN(Vim1,Vhim1))
-
+             
 
              ! get density distribution values for
              dNim1 = Nim1/(Vhim1-Vlom1)
@@ -816,7 +816,7 @@ CONTAINS
   REAL FUNCTION intgN(ikk,icc,ilow,ihigh)
     ! Gets the integral over a (linear) number concentration distribution
     !
-
+    
     IMPLICIT NONE
     REAL, INTENT(in) :: ikk,icc,ilow,ihigh
     intgN = 0.5*ikk*MAX(ihigh**2 - ilow**2,0.) + icc*MAX(ihigh - ilow,0.)
@@ -825,7 +825,7 @@ CONTAINS
   REAL FUNCTION intgV(ikk,icc,ilow,ihigh)
     ! Gets the integral over a volume volume distribution based on a linear
     ! number concentration distribution
-
+    
     IMPLICIT NONE
     REAL, INTENT(in) :: ikk,icc,ilow,ihigh
     intgV = (1./3.)*ikk*MAX(ihigh**3 - ilow**3,0.) + 0.5*icc*MAX(ihigh**2 - ilow**2,0.)
@@ -834,30 +834,32 @@ CONTAINS
 
   !-----------------------------------------
   SUBROUTINE autoconv2(kproma,kbdim,klev,   &
-                      pcloud,pprecp         )
+                      pcloud,pprecp,ptstep)
   !
   ! Uses a more straightforward method for converting cloud droplets to drizzle.
   ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
   ! parameter and is set to 1.2 by default
   !
-
+    
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
                                nprc,        &
-                               rhowa,       &
                                pi6,         &
                                nlim, prlim
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kproma,kbdim,klev
+    REAL, INTENT(in) :: ptstep
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld)
     TYPE(t_section), INTENT(inout) :: pprecp(kbdim,klev,nprc)
 
     REAL :: Vrem, Nrem, Vtot, Ntot
     REAL :: dvg,dg
+    REAL :: tot
 
     REAL, PARAMETER :: zd0 = 50.e-6
     REAL, PARAMETER :: sigmag = 1.2
+    REAL, PARAMETER :: max_rate_autoc=1.0e10 ! Maximum autoconversion rate (#/m^3/s)
 
     INTEGER :: ii,jj,cc,ss
 
@@ -865,7 +867,9 @@ CONTAINS
     ! Do some fitting...
     DO jj = 1,klev
        DO ii = 1,kbdim
-          DO cc = 1,ncld
+          DO cc = ncld,1,-1 ! Start from the largest drops
+             ! Autoconversion rate can be limited
+             tot = 0.
 
              Ntot = pcloud(ii,jj,cc)%numc
              Vtot = SUM(pcloud(ii,jj,cc)%volc(:))
@@ -887,13 +891,15 @@ CONTAINS
                       pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + pcloud(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
                       pcloud(ii,jj,cc)%volc(ss) = pcloud(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
                    END DO
-
+                   
                    pprecp(ii,jj,1)%volc(8) = pprecp(ii,jj,1)%volc(8) + pcloud(ii,jj,cc)%volc(8)*(Vrem/Vtot)
                    pcloud(ii,jj,cc)%volc(8) = pcloud(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot))
 
                    pprecp(ii,jj,1)%numc = pprecp(ii,jj,1)%numc + Nrem
                    pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc - Nrem
 
+                   tot = tot + Nrem
+                   IF (tot > max_rate_autoc*ptstep) EXIT
                 END IF ! Nrem Vrem
 
              END IF ! Ntot Vtot
@@ -916,7 +922,7 @@ CONTAINS
                       pcloud,pice,paero,ppres, &
                       ptemp,prv,prs,ptstep )
 
-
+    
     USE mo_submctl, ONLY : t_section,   &
                                fn2b,   &
                                ncld,        &
@@ -924,10 +930,9 @@ CONTAINS
                                rhowa,       &
                                rhoic,       &
                                planck,      &
-                               pi6,         &
                                pi,          &
-                               nlim, prlim,eps, debug
-    USE mo_constants, ONLY : rd, alf, avo
+                               nlim, prlim
+    USE mo_constants, ONLY : rd, avo
 
     IMPLICIT NONE
 
@@ -942,9 +947,7 @@ CONTAINS
                                       pice(kbdim,klev,nice),  &
                                       paero(kbdim,klev,fn2b)
 
-
     INTEGER :: ii,jj,kk,ss
-    INTEGER :: hh
     REAL :: phf = 0., & ! probability of homogeneous freezing of a wet aerosol particle
                 rn, & !radius of the insoluble portion of the aerosol
                 rdry,qv,jcf
@@ -968,7 +971,7 @@ CONTAINS
 
               frac = MIN(1.,phf)
               IF (pcloud(ii,jj,kk)%numc*frac <prlim) CYCLE
-
+  
               DO ss = 1,7
                    pice(ii,jj,kk)%volc(ss) = max(0.,pice(ii,jj,kk)%volc(ss) + pcloud(ii,jj,kk)%volc(ss)*frac)
                    pcloud(ii,jj,kk)%volc(ss) = max(0.,pcloud(ii,jj,kk)%volc(ss) - pcloud(ii,jj,kk)%volc(ss)*frac)
@@ -994,7 +997,7 @@ CONTAINS
               Vtot = SUM(paero(ii,jj,kk)%volc(:))
               frac = MIN(1.,phf)
               IF (paero(ii,jj,kk)%numc*frac <prlim) CYCLE
-
+  
               DO ss = 1,7
                    pice(ii,jj,kk)%volc(ss) = max(0.,pice(ii,jj,kk)%volc(ss) + paero(ii,jj,kk)%volc(ss)*frac)
                    paero(ii,jj,kk)%volc(ss) = max(0.,paero(ii,jj,kk)%volc(ss) - paero(ii,jj,kk)%volc(ss)*frac)
@@ -1018,7 +1021,7 @@ CONTAINS
   !***********************************************
   SUBROUTINE ice_hom_nucl(kproma,kbdim,klev,   &
                       pcloud,pice,paero,ppres, &
-                      ptemp,prv,prs,ptstep )
+                      ptemp,prv,prs,ptstep ) 
 
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
@@ -1028,8 +1031,8 @@ CONTAINS
                                rhoic,       &
                                pi6,         &
                                pi,          &
-                               nlim, prlim,eps
-    USE mo_constants, ONLY : rd, alf, avo
+                               nlim, prlim
+    USE mo_constants, ONLY : rd, avo
 
     IMPLICIT NONE
 
@@ -1105,7 +1108,6 @@ CONTAINS
         END DO
     END DO
 
-
   END SUBROUTINE ice_hom_nucl
 
   !***********************************************
@@ -1127,7 +1129,7 @@ CONTAINS
                                pi,          &
                                nlim, prlim, &
                                debug
-    USE mo_constants, ONLY : rd, alf, avo
+    USE mo_constants, ONLY : rd, avo
 
     IMPLICIT NONE
 
@@ -1156,7 +1158,7 @@ CONTAINS
        DO jj = 1,klev
           ! Decreasing & sub-zero temperatures required
           if (ptt(ii,jj) > 0. .OR. ptemp(ii,jj)>273.15) cycle
-
+  
           Ts = 273.15-ptemp(ii,jj)
           Temp_tend = ptt(ii,jj)
 
@@ -1378,14 +1380,14 @@ CONTAINS
 
   REAL FUNCTION calc_JCF(rn,temp,ppres,prv,prs) ! heterogenous (condensation) freezing  !!check  [Mor05] eq. (26)
                       !the rate of germ formation per volume of solution
-
+        
         USE mo_submctl, ONLY : boltz, planck,pi
         REAL, INTENT(in) :: rn,  &
                               temp,ppres, prv,prs
         REAL :: c_1s, psi
         psi = 1.
         c_1s = 1.e19 !! 10**15 cm^-2 !! concentration of water molecules adsorbed on 1 cm^-2 of surface
-        calc_JCF= boltz*temp/planck*psi*c_1s*4.*pi*rn**2.*&
+        calc_JCF= boltz*temp/planck*psi*c_1s*4.*pi*rn**2*&
                   exp((-calc_act_energy(temp,'het')-calc_crit_energy(rn,prv,prs,temp))/(boltz*temp))
 
   END FUNCTION calc_JCF
@@ -1453,10 +1455,10 @@ CONTAINS
   ! ------------------------------------------------------------
 
   ! [KC00] eq. (2.9)
-  REAL FUNCTION calc_shapefactor(m,x) !! according to Khvorostyanov & Curry, Geophysical Research letters 27(24):4081-4084,
+  REAL FUNCTION calc_shapefactor(m,x) !! according to Khvorostyanov & Curry, Geophysical Research letters 27(24):4081-4084, 
                                       !december 2000  !!check
                                  !! as of referenced as [KC00]
-
+    
     REAL, INTENT(IN) :: m,x
     REAL :: psi,fii
     fii = (1.-2.*m*x+x**2)**(0.5)
@@ -1471,7 +1473,7 @@ CONTAINS
   ! ------------------------------------------------------------
 
   ! [KC00] eq. (2.6)
-  REAL FUNCTION calc_r_g(sigma_is,prv,prs,temp) !! calculate ice germ radius [KC00] !!huomhuom !! sigma_is #arvo
+  REAL FUNCTION calc_r_g(sigma_is,prv,prs,temp) !! calculate ice germ radius [KC00]
 
     USE mo_submctl, ONLY : rhoic,rg,mwa
     REAL, intent(in) :: sigma_is, prv, prs, temp
@@ -1482,7 +1484,7 @@ CONTAINS
     C = 1.7e10 !! 1.7*10^10 Pa == 1.7*10^11 dyn cm^-2
     epsi = 0.025 ! 2.5%
     temp00 = calc_temp00(temp)
-    calc_r_g = 2.*sigma_is/( rhoic*Late*log((temp00/temp)*(prv/prs)**GG) -C*epsi**2) !! huomhuom täydennä
+    calc_r_g = 2.*sigma_is/( rhoic*Late*log((temp00/temp)*(prv/prs)**GG) -C*epsi**2)
 
   END FUNCTION calc_r_g
 
@@ -1490,7 +1492,7 @@ CONTAINS
 
   ! [KS98] eq. (8)
   REAL FUNCTION calc_r_cr(temp) !! calculate ice embryo radius [KC00] !!check
-
+    
     USE mo_submctl, ONLY : rhoic,surfi0
     REAL, intent(in) :: temp
     REAL :: Late, temp00
@@ -1499,7 +1501,7 @@ CONTAINS
 
 
     temp00 = calc_temp00(temp)
-    calc_r_cr = 2*surfi0/( rhoic*Late*log(temp00/temp)) !! huomhuom täydennä
+    calc_r_cr = 2*surfi0/( rhoic*Late*log(temp00/temp))
 
   END FUNCTION calc_r_cr
 
@@ -1507,7 +1509,7 @@ CONTAINS
 
   ! Harri Kokkola pilvikurssi eq. (2.43)
   REAL FUNCTION calc_Lefm(temp) !! Latent heat of fusion !!check
-
+    
     REAL, intent(in) :: temp
     REAL :: Tc ! temperature in celsius degrees
     Tc = temp-273.15
@@ -1517,8 +1519,8 @@ CONTAINS
 
   ! ------------------------------------------------------------
 
-  REAL function calc_temp00(temp) !!freezing point depression !! huomhuom korjaa parametrit ja täydennä #arvo
-
+  REAL function calc_temp00(temp) !!freezing point depression
+    
     REAL, intent(in) :: temp
 
     calc_temp00 = 273.15
@@ -1555,10 +1557,7 @@ CONTAINS
                                       psnow(kbdim,klev,nsnw),  &
                                       pprecp(kbdim,klev,nprc)
 
-
     INTEGER :: ii,jj,kk,ss
-    INTEGER :: hh
-    REAL :: zrh
 
     DO ii = 1,kbdim
        DO jj = 1,klev
@@ -1608,7 +1607,7 @@ CONTAINS
   ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
   ! parameter and is set to 1.2 by default
   !
-
+    
     USE mo_submctl, ONLY : t_section,   &
                                nice,        &
                                nsnw,        &
@@ -1674,8 +1673,7 @@ CONTAINS
   ! -----------------------------------------------------------------
   !
   REAL FUNCTION cumlognorm(dg,sigmag,dpart)
-
-    USE mo_submctl, ONLY : pi
+    
     IMPLICIT NONE
     ! Cumulative lognormal function
     REAL, INTENT(in) :: dg
