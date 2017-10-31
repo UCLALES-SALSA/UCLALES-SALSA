@@ -1112,8 +1112,8 @@ CONTAINS
 
   !***********************************************
   !
-  ! heterogenous immersion nucleation according to Dieh & Wurzler 2006 JAS 61:2063-2072
-  ! as of referenced as [Mor05]
+  ! heterogenous immersion nucleation according to Dieh & Wurzler 2004 JAS 61:2063-2072
+  ! as of referenced as [DW04]
   !
   !***********************************************
   SUBROUTINE ice_immers_nucl(kproma,kbdim,klev,   &
@@ -1151,7 +1151,7 @@ CONTAINS
                 a_kiehl, B_kiehl, nucl_rate, &
                 Nicetot, Vicetot, Vinsolub,Temp_tend
 
-    B_kiehl=1.0e-6
+    B_kiehl=6.15e-8*1e6 ! kaolinite
     a_kiehl=1.0
 
     DO ii = 1,kbdim
@@ -1197,6 +1197,92 @@ CONTAINS
     END DO
 
   END SUBROUTINE ice_immers_nucl
+
+  !***********************************************
+  !
+  ! given hard coded conditions where the ice particle number concentration is kept over given limit #/kg
+  !
+  !***********************************************
+  SUBROUTINE ice_fixed_NC(kproma,  kbdim,  klev,   &
+                          pcloud,  pice,   ppres,  &
+                          ptemp,   prv,    prs,    &
+                          prsi,    ptstep, pdn, time     )
+
+
+    USE mo_submctl, ONLY : t_section,   &
+                               ica,fca,     &
+                               icb,fcb,     &
+                               ncld,        &
+                               iia,fia,     &
+                               iib,fib,     &
+                               nice,        &
+                               rhowa,       &
+                               rhoic,       &
+                               planck,      &
+                               pi6,         &
+                               pi,          &
+                               eps,         &
+                               nlim, prlim, fixinc
+
+    IMPLICIT NONE
+    INTEGER, INTENT(in) :: kbdim,kproma,klev
+    REAL, INTENT(in) :: ptstep, time  ! time step length
+
+    REAL, INTENT(in) :: ppres(kbdim,klev),  &
+                            ptemp(kbdim,klev),  &
+                            prv(kbdim,klev),    &
+                            prs(kbdim,klev),    &
+                            prsi(kbdim,klev),   &
+                            pdn(kbdim, klev)       ! air density
+    TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
+                                      pice(kbdim,klev,nice)
+
+    INTEGER :: ii,jj,kk,ss
+
+    REAL :: liqSupSat, iceSupSat, &
+            Ni, Ni0,  &
+            Nl,       &
+            sumLIQ, sumICE, iceTendecyNumber, liqToIceTendecyFrac
+
+
+    DO ii = 1,kbdim
+    DO jj = 1,klev
+
+        Ni0     = fixinc * pdn(ii,jj) ! target number concentration of ice (#/m^3)
+
+        liqSupSat = prv(ii,jj) /  prs(ii,jj)  - 1.0
+        iceSupSat = prv(ii,jj) / prsi(ii,jj)  - 1.0
+        sumLIQ    = sum( pcloud(ii,jj,:)%numc )
+        sumICE    = sum(   pice(ii,jj,:)%numc )
+
+        ! condition for ice nucleation
+        if ( icesupsat < 0.05 .OR.  sum( pcloud(ii,jj,:)%volc(8) )*rhowa*1000.0 < 0.001  ) cycle
+
+        if ( sumICE > Ni0 ) cycle
+
+        DO kk = nice,1,-1
+            IF( sumICE < Ni0 .AND. pcloud(ii,jj,kk)%numc > nlim) THEN
+                Nl = pcloud(ii,jj,kk)%numc
+                Ni = pice(ii,jj,kk)%numc
+
+                iceTendecyNumber = max( 0.0, min( Ni0 - Ni , pcloud(ii,jj,kk)%numc )  )
+
+                pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + iceTendecyNumber
+                sumICE = sumICE + iceTendecyNumber
+
+                liqToIceTendecyFrac   = MAX( 0.0, MIN( 1.0, iceTendecyNumber/pcloud(ii,jj,kk)%numc ) )
+                pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - iceTendecyNumber
+
+                DO ss = 1,8
+                      pice(ii,jj,kk)%volc(ss) =   pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceTendecyFrac )
+                    pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceTendecyFrac )
+                END DO
+            END IF
+        END DO
+    END DO
+    END DO
+
+  END SUBROUTINE ice_fixed_NC
 
   ! ------------------------------------------------------------
 

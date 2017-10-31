@@ -818,10 +818,10 @@ contains
 
        IF (level < 5 ) THEN
           salsabool(13:15) = .FALSE. ! ica, icb, snw
-          salsabool(27:29) = .FALSE.
+          salsabool(27:29) = .FALSE. ! f, i, s (total ice, ice & snow mixing ratio)
           salsabool(91:104) = .FALSE. ! aerosols in ice particles
-          salsabool(31) = .FALSE.
-          salsabool(52:62) = .FALSE.
+          salsabool(31) = .FALSE. ! S_RHI
+          salsabool(52:62) = .FALSE. ! S_Nic - S_Rwsba
        END IF
 
        IF (.NOT. IsUsed(prtcl,'SO4')) &
@@ -929,8 +929,8 @@ contains
     icntcla = (/nzp,nxp-4,nyp-4, fca%cur, 1/)
     icntclb = (/nzp,nxp-4,nyp-4, fcb%cur-fca%cur, 1/)
     icntpra = (/nzp,nxp-4,nyp-4, fra, 1/)
-    icntica = (/nzp,nxp-4,nyp-4, iia%cur, 1/)
-    icnticb = (/nzp,nxp-4,nyp-4, iib%cur-iia%cur, 1/)
+    icntica = (/nzp,nxp-4,nyp-4, fia%cur, 1/)
+    icnticb = (/nzp,nxp-4,nyp-4, fib%cur-fia%cur, 1/)
     icntsna = (/nzp,nxp-4,nyp-4, fsa, 1/)
     ibeg = (/1  ,1  ,1  ,nrec0/)
     ibegsd = (/1,1,1,1,nrec0/)
@@ -1309,7 +1309,7 @@ contains
              iret = nf90_inq_varid(ncid0,'S_Nibb',VarID)
              IF (iret==NF90_NOERR) &
                   iret = nf90_put_var(ncid0,VarID,a_nicep(:,i1:i2,j1:j2,iib%cur:fib%cur), &
-                  start=ibegsd,count=icntica)
+                  start=ibegsd,count=icnticb)
              
              ! Ice particle bin wet radius regime a
              CALL getBinRadius(nice,nspec+1,a_nicep,a_micep,prlim,a_Riwet)
@@ -1321,7 +1321,7 @@ contains
              iret = nf90_inq_varid(ncid0,'S_Rwibb',VarID)
              IF (iret==NF90_NOERR) &
                   iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,iib%cur:fib%cur), &
-                  start=ibegsd,count=icntica)
+                  start=ibegsd,count=icnticb)
              
              ! Snow size distribution
              iret = nf90_inq_varid(ncid0,'S_Nsba',VarID)

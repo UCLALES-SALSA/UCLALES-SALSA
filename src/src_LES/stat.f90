@@ -29,7 +29,7 @@ module stat
   private
 
   integer, parameter :: nvar1 = 29,               &
-                        nv1sbulk = 62,            &
+                        nv1sbulk = 70,            &
                         nv1MB = 4,                &
                         nvar2 = 96,               &
                         nv2sbulk = 46,            &
@@ -84,7 +84,9 @@ module stat
        'rmDUdr ','rmDUcl ','rmDUpr ','rmDUwt ','rmDUtt ',            & !43
        'rmSSdr ','rmSScl ','rmSSpr ','rmSSwt ','rmSStt ',            & !48
        'rmNH3dr','rmNH3cl','rmNH3pr','rmNH3wt','rmNH3tt',            & !53
-       'rmNO3dr','rmNO3cl','rmNO3pr','rmNO3wt','rmNO3tt'             & !58, total 62
+       'rmNO3dr','rmNO3cl','rmNO3pr','rmNO3wt','rmNO3tt',            & !58
+       'rmSO4ic','rmOCic ','rmBCic ','rmDUic ','rmSSic ',            & !63
+       'rmNH3ic','rmN03ic','rmH20ic'                                 & !68, total 70
        /),                                                           &
 
         s2(nvar2)=(/                                                 &
@@ -178,7 +180,7 @@ contains
 
     use grid, only : nxp, nyp, iradtyp, prtcl
     use mpi_interface, only : myid, ver, author, info
-    use mo_submctl, only : nprc, fn2a,fn2b,fca,fcb,fra
+    use mo_submctl, only : nprc, fn2a,fn2b,fca,fcb,fra,fia,fib,fsa
     USE class_ComponentIndex, ONLY : IsUsed
 
     character (len=80), intent (in) :: filprf, expnme
@@ -506,7 +508,7 @@ contains
     call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2, ver, author, info)
     ! Juha: Modified due to SALSA output
     call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp, inae_a=fn2a, inae_b=fn2b-fn2a, &
-                    incld_a=fca%cur, incld_b=fcb%cur-fca%cur, inprc=fra)
+                    incld_a=fca%cur, incld_b=fcb%cur-fca%cur, inice_a=fia%cur, inice_b=fib%cur-fia%cur, inprc=fra)
     if (myid == 0) print *, '   ...starting record: ', nrec2
 
 
@@ -539,7 +541,7 @@ contains
     use grid, only : a_up, a_vp, a_wp, a_rc, a_theta           &
          , a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean            &
          , vmean, dn0, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx, a_sflx               &
-         , a_fus, a_fds, a_fuir, a_fdir, albedo, a_srp, a_snrp, a_ncloudp, xt, yt
+         , a_fus, a_fds, a_fuir, a_fdir, albedo, a_srp, a_snrp, a_ncloudp, xt, yt, a_ri
 
     real, intent (in) :: time
 
@@ -586,6 +588,7 @@ contains
     IF ( level >=1 ) CALL ts_lvl1(nzp, nxp, nyp, dn0, zt, dzm, rxt)
     IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, a_rc, zt)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp, a_rc)
+    IF ( level >=5 ) CALL ts_lvl5(nzp, nxp, nyp, a_ri)
 
     call write_ts
 
@@ -746,11 +749,11 @@ contains
 
         IF (level>4) THEN
             ! Removal by sedimentation of ice particles
-            !CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//name//'ic')
+            CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//trim(nam)//'ic')
             i=i+1
 
             ! Removal by snow
-            !CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//nam//'sn')
+            CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//trim(nam)//'sn')
             i=i+1
         ENDIF
     ENDDO
@@ -1025,6 +1028,67 @@ contains
     END DO
 
   END SUBROUTINE ts_lvl4
+  !
+  ! -----------------------------------------------------------------------
+  ! subroutine ts_lvl5: computes and writes time sequence stats of Salsa variables --
+  !  Implemented by Jaakko Ahola 15/12/2016
+  !
+  SUBROUTINE ts_lvl5(n1,n2,n3,ri)
+    USE mo_submctl, only : in1a,fn2a,fn2b,nbins,fia,fsa,nice,nsnw,prlim
+    USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,dzt
+    USE class_componentIndex, ONLY : IsUsed
+
+    IMPLICIT NONE
+
+    integer, intent(in) :: n1,n2,n3
+    REAL, INTENT(in) :: ri(n1,n2,n3)
+
+    REAL :: a0(n1,n2,n3), a1(n1,n2,n3)
+    integer :: ii,ss
+    LOGICAL :: cond_ic(n1,n2,n3), cond_oc(n1,n2,n3)
+    CHARACTER(len=3), PARAMETER :: zspec(7) = (/'SO4','OC ','BC ','DU ','SS ','NH ','NO '/)
+
+
+    a0 = 0.; a1 = 0.
+    CALL bulkNumc('ice','a',a0)
+    CALL bulkNumc('ice','b',a1)
+    cond_ic = .FALSE.
+    cond_oc = .FALSE.
+    cond_ic(:,:,:) = ( a0(:,:,:) + a1(:,:,:) > prlim .AND. ri(:,:,:) > 1.e-5 ) !#icelimit should the latter limit be changed
+    cond_oc = .NOT. cond_ic
+
+    ssclr_b(1) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
+    a0 = 0.; a1 = 0.
+    CALL bulkNumc('aerosol','a',a0)
+    CALL bulkNumc('aerosol','b',a1)
+    ssclr_b(2) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
+    ssclr_b(3) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_oc)
+
+    ii = 4
+    DO ss = 1,7
+
+       IF (IsUsed(prtcl,zspec(ss))) THEN
+          a0 = 0.; a1 = 0.
+          CALL bulkMixrat(zspec(ss),'ice','a',a0)
+          CALL bulkMixrat(zspec(ss),'ice','b',a1)
+          ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
+          ii = ii + 1
+
+          a0 = 0.; a1 = 0.
+          CALL bulkMixrat(zspec(ss),'aerosol','a',a0)
+          CALL bulkMixrat(zspec(ss),'aerosol','b',a1)
+
+          ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
+          ii = ii + 1
+
+          ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_oc)
+          ii = ii + 1
+       ELSE
+          ii = ii + 3
+       END IF
+    END DO
+
+  END SUBROUTINE ts_lvl5
   !
   !---------------------------------------------------------------------
   ! SUBROUTINE ACCUM_STAT: Accumulates various statistics over an

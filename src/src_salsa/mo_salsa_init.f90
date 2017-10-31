@@ -372,7 +372,7 @@ CONTAINS
 
     REAL :: tmplolim(7), tmphilim(7)
 
-    ! Helper arrays to set up snow size bins
+    ! Helper arrays to set up ice size bins
     tmplolim = (/50.,55.,65., 100.,200.,500., 1000./)*1.e-6
     tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
 
@@ -535,6 +535,8 @@ CONTAINS
                                nlichom,               &
                                nlichet,               &
                                nlicimmers,            &
+                               nlfixinc,              &
+                               fixINC,                &
                                nlicmelt,              &
                                dmincld,nbin,reglim,   &
                                nice,nsnw,             &
@@ -573,6 +575,8 @@ CONTAINS
          nlichom,     & ! Switch for homogeneous ice nucleation
          nlichet,     & ! Switch for heterogeneous ice nucleation
          nlicimmers,  & ! Switch for ice nucleation by immersion
+         nlfixinc,    & ! Fix ice number concentration to be over given limit fixINC
+         fixINC,      & ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
          nlicmelt,    & ! Switch for ice'n'snow melting
          nbin,        & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
          nice,        & ! number of ice bins

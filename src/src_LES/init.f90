@@ -31,6 +31,7 @@ module init
        !          2 :temperature
   real, dimension(nns)  :: us,vs,ts,thds,ps,hs,rts,rss,tks,xs
   real                  :: zrand = 200.
+  real                  :: zrndamp = 0.2 ! the amplitude of pseudorandom fluctuations
   character  (len=80)   :: hfilin = 'test.'
 
 contains
@@ -244,7 +245,7 @@ contains
     k=1
     do while( zt(k+1) <= zrand .and. k+1 < nzp)
        k=k+1
-       xran(k) = 0.2*(zrand - zt(k))/zrand
+       xran(k) = zrndamp*(zrand - zt(k))/zrand
     end do
     call random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
 
@@ -269,7 +270,6 @@ contains
     !
     IF (level >= 4) THEN
        CALL aerosol_init
-       CALL liq_ice_init      ! This should be replaced by physical processing!
        CALL init_gas_tracers
     END IF
 
@@ -982,142 +982,6 @@ contains
 
   END SUBROUTINE aerosol_init
 
-
-!!!
-!!! initialize liquid and ice cloud particles ie. move particle fractions from aerosol bins to liquid cloud and ice particle bins
-!!!
-
- ! ---------- Juha: This should be replaced ASAP with a physical treatment. Do NOT use for liquid clouds.
-  SUBROUTINE liq_ice_init
-
-    !USE mo_salsa_driver, ONLY : aero
-    USE mo_submctl, ONLY : nbins, in2a,in2b,fn2a,fn2b,  &
-                               nspec, ncld, nice, initliqice, &
-                               liqFracA,iceFracA,liqFracB,iceFracB
-
-    IMPLICIT NONE
-
-    INTEGER :: i,j,k,bb,m
-    REAL :: zumA, zumB, zumCumIce, zumCumLiq, &
-            excessIce, excessLiq,excessFracIce,excessFracLiq
-
-    ! initialize liquid and ice only if it is determinded so in the namelist.salsa
-    IF(initliqice) THEN
-        IF(level==4) THEN
-            iceFracA = 0.0; iceFracB = 0.0;
-        END IF
-        !#cloudinit
-        DO k = 2,nzp  ! DONT PUT STUFF INSIDE THE GROUND
-           DO j = 1,nyp
-              DO i = 1,nxp
-                 IF (a_rh(k,i,j)<1.0  .or. a_temp(k,i,j) > 273.15) CYCLE
-                 zumA=sum(a_naerop(k,i,j,in2a:fn2a))
-                 zumB=sum(a_naerop(k,i,j,in2b:fn2b))
-
-                 zumCumIce = 0.0
-                 zumCumLiq = 0.0
-                 excessIce = 0.0
-                 excessFracIce = 1.0
-                 excessFracLiq = 1.0
-
-                 DO bb=fn2a,in2a,-1
-
-                    IF(a_temp(k,i,j) < 273.15 .and. zumCumIce<iceFracA*zumA .and. a_naerop(k,i,j,bb)>10e-10) THEN !initialize ice if it is cold enough
-
-                       excessIce =min(abs(zumCumIce-iceFracA*zumA),a_naerop(k,i,j,bb))
-                       a_nicep(k,i,j,bb-3) = a_nicep(k,i,j,bb-3) + excessIce
-                       zumCumIce = zumCumIce + excessIce
-
-                       excessFracIce = excessIce/a_naerop(k,i,j,bb)
-                       excessFracIce = MAX(0.0,MIN(1.0,excessFracIce))
-                       a_naerop(k,i,j,bb)=(1.0-excessFracIce)*a_naerop(k,i,j,bb)
-
-                       DO m=1,nspec
-                          a_micep(k,i,j,(m-1)*nice+bb-3) = &
-                             excessFracIce*a_maerop(k,i,j,(m-1)*nbins+bb)
-
-                          a_maerop(k,i,j,(m-1)*nbins+bb) = &
-                            (1.0-excessFracIce)*a_maerop(k,i,j,(m-1)*nbins+bb)
-                       END DO
-
-                    END IF
-
-                    IF (a_rh(k,i,j)>1.0 .and. zumCumLiq<liqFracA*zumA .and. a_naerop(k,i,j,bb)>10e-10) THEN
-
-                       excessLiq =min(abs(zumCumLiq-liqFracA*zumA),a_naerop(k,i,j,bb))
-                       a_ncloudp(k,i,j,bb-3) = a_ncloudp(k,i,j,bb-3) + excessLiq
-                       zumCumLiq = zumCumLiq + excessLiq
-
-                       excessFracLiq = excessLiq/a_naerop(k,i,j,bb)
-                       excessFracLiq = MAX(0.0,MIN(1.0,excessFracLiq))
-
-                       a_naerop(k,i,j,bb)=(1.0-excessFracLiq)*a_naerop(k,i,j,bb)
-
-                       DO m=1,nspec
-                          a_mcloudp(k,i,j,(m-1)*ncld+bb-3) = &
-                              excessFracLiq*a_maerop(k,i,j,(m-1)*nbins+bb)
-
-                          a_maerop(k,i,j,(m-1)*nbins+bb) = &
-                             (1.0-excessFracLiq)*a_maerop(k,i,j,(m-1)*nbins+bb)
-                       END DO
-
-                    END IF
-
-                 END DO ! fn2a
-
-                zumCumIce = 0.0
-                zumCumLiq = 0.0
-                excessFracIce = 1.0
-                excessFracLiq = 1.0
-                DO bb=fn2b,in2b,-1
-                   IF(a_temp(k,i,j) < 273.15 .and. zumCumIce<iceFracB*zumB  .and. a_naerop(k,i,j,bb)>10e-10) THEN !initialize ice if it is cold enough
-
-                      excessIce =min(abs(zumCumIce-iceFracB*zumB),a_naerop(k,i,j,bb))
-                      a_nicep(k,i,j,bb-3) = a_nicep(k,i,j,bb-3) + excessIce
-                      zumCumIce = zumCumIce + excessIce
-
-                      excessFracIce = excessIce/a_naerop(k,i,j,bb)
-                      excessFracIce = MAX(0.0,MIN(1.0,excessFracIce))
-
-                      a_naerop(k,i,j,bb)=(1.0-excessFracIce)*a_naerop(k,i,j,bb)
-
-                      DO m=1,nspec
-                         a_micep(k,i,j,(m-1)*nice+bb-3) = &
-                             excessFracIce*a_maerop(k,i,j,(m-1)*nbins+bb)
- 
-                         a_maerop(k,i,j,(m-1)*nbins+bb) = &
-                            (1.0-excessFracIce)*a_maerop(k,i,j,(m-1)*nbins+bb)
-                      END DO
-                   END IF
-
-                   IF (a_rh(k,i,j)>1.0 .and. zumCumLiq<liqFracB*zumB .and. a_naerop(k,i,j,bb)>10e-10) THEN
-
-                      excessLiq =min(abs(zumCumLiq-liqFracB*zumB),a_naerop(k,i,j,bb))
-                      a_ncloudp(k,i,j,bb-3) = a_ncloudp(k,i,j,bb-3) + excessLiq
-                      zumCumLiq = zumCumLiq + excessLiq
-
-                      excessFracLiq = excessLiq/a_naerop(k,i,j,bb)
-                      excessFracLiq = MAX(0.0,MIN(1.0,excessFracLiq))
-
-                      a_naerop(k,i,j,bb)=(1.0-excessFracLiq)*a_naerop(k,i,j,bb)
-
-                      DO m=1,nspec
-                         a_mcloudp(k,i,j,(m-1)*ncld+bb-3) = &
-                             excessFracLiq*a_maerop(k,i,j,(m-1)*nbins+bb)
-
-                         a_maerop(k,i,j,(m-1)*nbins+bb) = &
-                             (1.0-excessFracLiq)*a_maerop(k,i,j,(m-1)*nbins+bb)
-                      END DO
-
-                   END IF
-                END DO ! fn2b
-
-             END DO ! i
-          END DO ! j
-       END DO ! 
-    END IF
-
-END SUBROUTINE liq_ice_init
 
   !
   ! ----------------------------------------------------------

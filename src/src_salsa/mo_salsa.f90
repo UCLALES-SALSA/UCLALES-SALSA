@@ -20,13 +20,13 @@ CONTAINS
                    pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,    &
                    pc_nh3,   paero,    pcloud,  pprecp,     &
                    pice, psnow,                             &
-                   pactd,    pw,    prtcl, time,level      )
+                   pactd,    pw,    prtcl, time, level, pdn      )
 
     USE mo_salsa_dynamics, only : coagulation, condensation
     USE mo_salsa_update, ONLY : distr_update
     USE mo_salsa_cloud, only : cloud_activation, autoconv2, &
               ice_immers_nucl,ice_hom_nucl,ice_het_nucl,ice_melt, &
-              autosnow
+              autosnow, ice_fixed_NC
 
     USE mo_submctl, ONLY :      &
          fn2b,               & ! size section and composition indices
@@ -43,6 +43,7 @@ CONTAINS
          lsichom,                   &
          lsichet,                   &
          lsicimmers,                &
+         lsfixinc,                  &
          lsicmelt,                  &
          lsdistupdate,              &
          debug
@@ -64,7 +65,8 @@ CONTAINS
          ptemp(kbdim,klev),            & ! temperature at each grid point [K]
          ptt(kbdim,klev),              & ! temperature tendency
          ptstep,                       &   ! time step [s]
-         time                             ! time
+         time,                         & ! time
+         pdn(kbdim,klev)                 ! air density
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl
 
@@ -135,6 +137,13 @@ CONTAINS
                               pcloud,pice,ppres,            &
                               ptemp,ptt,prv,prs,ptstep,time )
 
+    ! Fixed ice number concentration
+    IF (lsfixinc) &
+          CALL  ice_fixed_NC(kproma,   kbdim,  klev,   &
+                             pcloud,   pice,   ppres,  &
+                             ptemp,    prv,    prs,    &
+                             prsi,     ptstep, pdn, time     )
+
     ! Homogenous nucleation Morrison et al. 2005 eq. (25)
     IF (lsichom) &
         CALL ice_hom_nucl(kproma,kbdim,klev,       &
@@ -146,7 +155,7 @@ CONTAINS
         CALL ice_het_nucl(kproma,kbdim,klev,       &
                           pcloud,pice,paero,ppres, &
                           ptemp,prv,prs,ptstep)
-    
+
     ! Melting of ice
     IF (lsicmelt) &
          CALL ice_melt(kproma,kbdim,klev,              &

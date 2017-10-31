@@ -49,6 +49,8 @@ MODULE mo_submctl
             nlichet,               &
             nlicimmers,            &
             nlicmelt,              &
+            nlfixinc,              &
+            fixINC,                &
             nldebug,               &
             lscoag,                &
             lscgaa,lscgcc,lscgpp,  &
@@ -67,7 +69,8 @@ MODULE mo_submctl
             lsichom,               &
             lsichet,               &
             lsicimmers,            &
-            lsicmelt
+            lsicmelt,              &
+            lsfixinc
 
   PUBLIC :: nspec, listspec, maxspec, nmod
   PUBLIC :: sigmag, dpg, n, volDistA, volDistB, nf2a
@@ -179,6 +182,8 @@ MODULE mo_submctl
                lsicimmers
     LOGICAL :: nlicmelt    = .TRUE., & ! ice melting
                lsicmelt
+    LOGICAL :: nlfixinc    = .TRUE., & ! Fix ice number concentration to be over given limit fixINC
+               lsfixinc
 
   LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
 
@@ -222,6 +227,8 @@ MODULE mo_submctl
   REAL :: volDistB(maxspec) = (/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
   ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
   REAL :: nf2a = 1.0
+
+  REAL :: fixINC = 1.0 ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
 
   ! Should not be necessary!
   LOGICAL :: initliqice = .FALSE. ! initialize ice and liquid cloud particles from aerosol bins

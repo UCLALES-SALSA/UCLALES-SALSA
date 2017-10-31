@@ -1695,7 +1695,7 @@ CONTAINS
 
                 ! Mass transfer according to Jacobson
                 zhlp1 = pice(ii,jj,cc)%numc*2.*pi*dwet*zdfh2o*zbeta
-                zhlp2 = mwa*zdfh2o*als*zwsatcd(cc)*zcwsurfcd(cc)/(zthcond*ptemp(ii,jj)) !! huomhuom als
+                zhlp2 = mwa*zdfh2o*als*zwsatid(cc)*zcwsurfid(cc)/(zthcond*ptemp(ii,jj))
                 zhlp3 = ( (als*mwa)/(rg*ptemp(ii,jj)) ) - 1. !! huomhuom als
 
                 zmtid(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
@@ -1856,7 +1856,7 @@ CONTAINS
                                SUM(zcwintsd(1:nsnw))
 
              ! Update "old" values for next cycle
-             zcwcae = zcwintae; zcwccd = zcwintcd; zcwcpd = zcwintpd
+             zcwcae = zcwintae; zcwccd = zcwintcd; zcwcpd = zcwintpd; zcwcid =zcwintid; zcwcsd = zcwintsd;
              zcwc = zcwint
 
              ttot = ttot + adt
@@ -1875,8 +1875,8 @@ CONTAINS
           paero(ii,jj,1:nbins)%volc(8) = max(0.,zcwnae(1:nbins)*mwa/rhowa)
           pcloud(ii,jj,1:ncld)%volc(8) = max(0.,zcwncd(1:ncld)*mwa/rhowa)
           pprecp(ii,jj,1:nprc)%volc(8) = max(0.,zcwnpd(1:nprc)*mwa/rhowa)
-          pice(ii,jj,1:nice)%volc(8) = max(0.,zcwnid(1:nice)*mwa/rhowa)
-          psnow(ii,jj,1:nsnw)%volc(8) = max(0.,zcwnsd(1:nsnw)*mwa/rhowa)
+          pice(ii,jj,1:nice)%volc(8) = max(0.,zcwnid(1:nice)*mwa/rhoic)
+          psnow(ii,jj,1:nsnw)%volc(8) = max(0.,zcwnsd(1:nsnw)*mwa/rhoic)
 
        END DO !kproma
 

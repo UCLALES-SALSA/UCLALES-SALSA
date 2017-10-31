@@ -78,7 +78,7 @@ IMPLICIT NONE
                                rhono, rhonh, rhoss, rhodu,   &
                                rhlim, lscndgas, nlim, prlim
     USE mo_salsa, ONLY : salsa
-    USE mo_salsa_properties, ONLY : equilibration, equilibration_cloud
+    USE mo_salsa_properties, ONLY : equilibration
     USE class_componentIndex, ONLY : ComponentIndex, GetIndex, GetNcomp, IsUsed
     IMPLICIT NONE
 
@@ -143,7 +143,7 @@ IMPLICIT NONE
 
     INTEGER :: jj,ii,kk,ss,str,end, nc,vc
     REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
-                in_w(kbdim,klev), in_rsi(kbdim,klev), in_tt(kbdim,klev)
+                in_w(kbdim,klev), in_rsi(kbdim,klev), in_tt(kbdim,klev), in_pdn(kbdim,klev)
     REAL :: rv_old(kbdim,klev)
 
     ! Number is always set, but mass can be uninitialized
@@ -173,6 +173,7 @@ IMPLICIT NONE
              in_p(1,1) = press(kk,ii,jj)
              in_t(1,1) = tk(kk,ii,jj)
              in_tt(1,1) = tt(kk,ii,jj)
+             in_pdn(1,1) = pdn(kk,ii,jj)
              in_rs(1,1) = rs(kk,ii,jj)
              in_rsi(1,1) = rsi(kk,ii,jj)
              in_w(1,1) = wp(kk,ii,jj)
@@ -493,10 +494,6 @@ IMPLICIT NONE
              If (prunmode == 1) CALL equilibration(kproma,kbdim,klev,   &
                                                     init_rh,in_t,aero,.TRUE.)
 
-             ! Juha: Should be removed when possible
-             If (prunmode == 1) CALL equilibration_cloud(kproma,kbdim,klev,   &
-                                                    in_rs,in_t,cloud,ice)
-
 
              ! Convert to #/m3
              zgso4(1,1) = pa_gaerop(kk,ii,jj,1)*pdn(kk,ii,jj)
@@ -514,7 +511,7 @@ IMPLICIT NONE
                         zgso4,  zgocnv, zgocsv, zghno3,        &
                         zgnh3,  aero,   cloud,  precp,         &
                         ice,    snow,                          &
-                        actd,   in_w,  prtcl, time, level)
+                        actd,   in_w,   prtcl, time, level, in_pdn)
 
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)
@@ -872,6 +869,7 @@ IMPLICIT NONE
                                nlichet,                &
                                nlicimmers,             &
                                nlicmelt,               &
+                               nlfixinc,               &
 
                                lscgia,lscgic,lscgii,   &
                                lscgip,lscgsa,lscgsc,   &
@@ -880,6 +878,7 @@ IMPLICIT NONE
                                lsichet,                &
                                lsicimmers,             &
                                lsicmelt,               &
+                               lsfixinc,               &
                                nldebug, debug
 
 
@@ -902,6 +901,8 @@ IMPLICIT NONE
           lsactiv     = nlactiv
           lsactbase   = .FALSE.
           lsactintst  = .TRUE.
+          lsicimmers  = .FALSE.
+          lsfixinc    = .FALSE.
           debug       = nldebug
 
        CASE(2)  ! Spinup period
@@ -917,6 +918,8 @@ IMPLICIT NONE
           lsactiv     = ( .TRUE.  .AND. nlactiv  )
           lsactbase   = ( .TRUE.  .AND. nlactbase )
           lsactintst  = ( .TRUE.  .AND. nlactintst )
+          lsicimmers  = .FALSE.
+          lsfixinc    = .FALSE.
           debug       = nldebug
 
        CASE(3)  ! Run
@@ -951,9 +954,10 @@ IMPLICIT NONE
           lsactbase   = nlactbase
           lsactintst  = nlactintst
 
-          lsichom     = nlichom
-          lsichet     = nlichet
-          lsicimmers  = nlicimmers
+          lsichom     = ( nlichom    .AND. ( .NOT. nlfixinc ) )
+          lsichet     = ( nlichet    .AND. ( .NOT. nlfixinc ) )
+          lsicimmers  = ( nlicimmers .AND. ( .NOT. nlfixinc ) )
+          lsfixinc    = nlfixinc
           lsicmelt    = nlicmelt
 
           debug       = nldebug
@@ -979,6 +983,7 @@ IMPLICIT NONE
           lsichom     = .false.
           lsichet     = .false.
           lsicimmers  = .false.
+          lsfixinc    = .false.
           lsicmelt    = .false.
 
     END IF !level
