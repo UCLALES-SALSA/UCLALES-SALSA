@@ -1792,6 +1792,8 @@ if ICE and not importOnly:
         
         piirra_domainProfiili( 'rflx', longName = tag + "Radiative cooling " + r'$W/m^{2}$', useDN = False, transpose = True, profiili = True, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.bwr, spinup = spinup, radCool = True, cloudBaseTop = True )
         
+        piirra_profiiliKehitys( 't',  variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Potential temperature', xlabel = r'$\theta$' + ' [K]', ylabel = 'z [m]', savePrefix = 'theta_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, asetaRajat = False )
+        
     if int(lvl)>= 5:
         piirra_aikasarjaPathXYZ( 'f', longName = 'Ice Water Path', savePrefix = 'iwp', xaxislabel = 'time [h]',xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel )
         mdp.plot_vertical( spinup )

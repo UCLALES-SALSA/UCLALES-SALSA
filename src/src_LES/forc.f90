@@ -273,7 +273,7 @@ contains
     !
     do k=2,n1-2
         ! calculate subsidence factor (wsub / dz)
-        sf(k) = -4.125e-3*min( 825.,zt(k) )*dzt(k)
+        sf(k) = -5.e-6*min( 825.,zt(k) )*dzt(k)
     end do
     !
     do j=3,n3-2

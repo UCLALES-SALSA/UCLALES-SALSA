@@ -25,7 +25,8 @@ elif [[ $jobflag == 'SBATCH' ]]; then ## CSC's Sisu machine values
     export root=/homeappl/home/${USER}/appl_taito/${model}
     export nodeNPU=24 # number of processing units in a node 
     export submitCMD=sbatch
-    export WTmax=72:00:00 #maximum value of wall time for small_long
+    export WTMAX=72:00:00 #maximum value of wall time for small_long
+    export outputPostfix=.out
 fi
 
 export salsa=${root}/src/src_salsa
@@ -181,6 +182,7 @@ function poistaturhat {
 #    00 (LES not ready  POSTPROS not ready )
 #    11 (LES     ready  POSTPROS     ready )
 #    22 (LES incomplete POSTPROS incomplete)
+#    13 (LES complete   POSTPROS incomplete)
 function tarkistastatus {
     simulation=$1
     outputname=$2
@@ -201,8 +203,8 @@ function tarkistastatus {
         break
     done
     
-    for f in ${folderROOT}/${simulation}/LES*; do
-        [ -e "$f" ] && last=$( cat "$(ls -rt ${folderROOT}/${simulation}/LES* | tail -n1)" | grep --ignore-case "model time" | tail -1 | cut -c40-46 ) || last=0
+    for f in ${folderROOT}/${simulation}/LES*${outputPostfix}; do
+        [ -e "$f" ] && last=$( cat "$(ls -rt ${folderROOT}/${simulation}/LES*${outputPostfix} | tail -n1)" | grep --ignore-case "model time" | tail -1 | cut -c40-46 ) || last=0
         break
     done
     

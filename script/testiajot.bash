@@ -33,6 +33,9 @@ dim1=${dim1:-false}
 dim2=${dim2:-false}
 dim3=${dim3:-false}
 
+# supercomputer related variable settings
+WT=${WT:-24:00:00} # walltime
+
 if [[ $dim1 == 'true' ]]; then
     interface=seq
 else
@@ -120,7 +123,7 @@ function submitting {
 	
 	## submit
 	
-    input=${bin}/${inputsubfolder} exe=${exe} modifyoutput='true' modifyoutputHistory=${modifyoutputHistory} COPY=${copyOUT} clean=${copyOUT} ownjobname=$ownjobnameSUB ${script}/submit_uclales-salsa.bash $nimi $nproc $jobflag
+    input=${bin}/${inputsubfolder} exe=${exe} modifyoutput='true' modifyoutputHistory=${modifyoutputHistory} COPY=${copyOUT} clean=${copyOUT} WT=${WT} ownjobname=$ownjobnameSUB ${script}/submit_uclales-salsa.bash $nimi $nproc $jobflag
 	
 	sleep 3s
     qstat -u $USER

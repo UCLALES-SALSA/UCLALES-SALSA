@@ -197,7 +197,7 @@ FINALPBS
 elif [ $jobflag == 'SBATCH' ] ; then
 
 
-    if [[ $nproc -gt 24 ]]; then
+    if [[ $nproc -gt 1 ]]; then
         QUEUE=parallel
     else
         QUEUE=serial    
@@ -224,6 +224,8 @@ export MPICH_ENV_DISPLAY=1
 set -e
 
 cd ${rundir}
+
+module load hdf5-par netcdf4
 
 srun ${exe}
 
