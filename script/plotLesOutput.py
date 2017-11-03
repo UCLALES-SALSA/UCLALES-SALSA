@@ -817,6 +817,14 @@ def piirra_aikasarjaPathXYZ( muuttuja, muunnosKerroin = 1.0, longName = None, sa
     for i in xrange(len(arguments)-1):
         uusikuva = True if i == 0 else  False
 
+        if EMUL:
+            if not EMULCASES:
+                case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
+            else:
+                case_indeksi = emulCaseIndexes[i]
+        else:
+            case_indeksi = i
+            
         muuttuja_data = mdp.read_Data( filenameNC[i], muuttuja )*muunnosKerroin
         time_data     = mdp.read_Data( filenameNC[i], 'time'   )
         dn0_data      = mdp.read_Data( filenameNC[i], 'dn0'    )
@@ -1524,6 +1532,12 @@ def animoi_path(muuttuja, muunnosKerroin = 1.0, transpose = False, longName = No
 # parameter settings 
 #
 ##############################
+aika_color      = truncate_colormap(  plt.cm.Blues, minval = 0.3)
+aikaPisteet     = xTicksSeconds
+aikaBAR         = varibaari( aikaPisteet,  aika_color)
+aikaTIT         = 'time [h]'
+cbvalT          =  xTicksSeconds
+cbvalTStr       = map(str, ticksHours)
 
 if EMUL and not importOnly:
     CFRAC = True
@@ -1595,7 +1609,7 @@ if EMUL and not importOnly:
     thickness_color = plt.cm.gist_rainbow #Paired Blues
     pblh_color      = plt.cm.cool
     num_pbl_color   = plt.cm.Wistia
-    aika_color      = truncate_colormap(  plt.cm.Blues, minval = 0.3)
+    
 
     for file in glob.glob("*.csv"):
         designbasename=file
@@ -1622,17 +1636,17 @@ if EMUL and not importOnly:
     cloudbase_design = ncfile.variables['cloudbase'][:]
     thickness_design = ncfile.variables['thickness'][:]
     
-    aikaPisteet      = xTicksSeconds
+
     
     ##########
     thickBAR = varibaari( thickness_design, thickness_color )
     pblhBAR  = varibaari( pblh_design,      pblh_color      )
     cdncBAR  = varibaari( num_pbl_design,    num_pbl_color   )
-    aikaBAR  = varibaari( aikaPisteet,  aika_color)
+
     thickTIT = 'cloud thickness'
     pblhTIT  = 'PBL height'
     cdncTIT  = 'CDNC #/kg'
-    aikaTIT  = 'time [h]'
+
     
     
     cbvalThick =  map( int, np.arange( myRound(min(thickness_design), 100),  myRound(max(thickness_design), 100), 100.) )  #map( int, np.arange( 0, myRound( max(thickness_design), 200 ), 200.) )
@@ -1644,8 +1658,7 @@ if EMUL and not importOnly:
     cbvalQ = map(int, np.arange( 0, max(num_pbl_design), 50.) )
     cbvalQStr = map( str, cbvalQ )
     
-    cbvalT    =  xTicksSeconds
-    cbvalTStr = map(str, ticksHours)
+
     
     
     zcTicks = [ 0, 0.5, 0.8, 0.85, 0.9, 0.95, 1, 1.05, 1.1, 1.15, 1.20, 1.25, 1.3, 1.35, 1.4]

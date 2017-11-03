@@ -45,7 +45,11 @@ contains
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp  &
          , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
          a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, &
-         a_fus, a_fds, a_fuir, a_fdir
+         a_fus, a_fds, a_fuir, a_fdir, &
+         a_naerop,                     &
+         a_naerot, a_ncloudt, a_nicet, a_nsnowt, &
+         a_maerop, a_mcloudp, a_micep, a_msnowp, &
+         a_maerot, a_mcloudt, a_micet, a_msnowt
 
     USE mo_submctl, ONLY : nspec,nprc,ira,fra
 
@@ -168,7 +172,9 @@ contains
        fr0 = 72.
        fr1 = 15.
        call isdac_gcss(nzp, nxp, nyp, xka, fr0, fr1, div, a_rc, dn0,     &
-               a_rflx, zt, zm, dzt, a_tt, a_tp, a_rt, a_rp)
+               a_rflx, zt, zm, dzt, a_tt, a_tp, a_rt, a_rp,              &
+               a_naerot, a_naerop, a_ncloudt, a_ncloudp,  a_nicet, a_nicep, a_nsnowt, a_nsnowp, &
+               a_maerot, a_maerop, a_mcloudt, a_mcloudp,  a_micet, a_micep, a_msnowt, a_msnowp )
 
     end select
 
@@ -233,14 +239,21 @@ contains
 
 
   subroutine isdac_gcss(n1,n2,n3,xka,fr0,fr1,div,rc,dn0,flx,zt,zm,dzt,   &
-       tt,tl,rtt,rt)
+                        tt,tl,rtt,rt,&
+                        nat, nap, nct, ncp, nit, nip, nst, nsp, &
+                        mat, map, mct, mcp, mit, mip, mst, msp)
 
-    integer, intent (in):: n1,n2, n3
-    real, intent (in)   :: xka, fr0, fr1, div
-    real, intent (in)   :: zt(n1),zm(n1),dzt(n1),dn0(n1),rc(n1,n2,n3),   &
-         tl(n1,n2,n3),rt(n1,n2,n3)
-    real, intent (inout):: tt(n1,n2,n3),rtt(n1,n2,n3)
-    real, intent (out)  :: flx(n1,n2,n3)
+    integer, intent (in)::  n1,n2, n3
+    real, intent (in)   ::  xka, fr0, fr1, div
+    real, intent (in)   ::  zt(n1),zm(n1),dzt(n1),dn0(n1),rc(n1,n2,n3), &
+                            tl(n1,n2,n3),rt(n1,n2,n3),                  &
+                            nap(n1,n2,n3), ncp(n1,n2,n3), nip(n1,n2,n3), nsp(n1,n2,n3), &
+                            map(n1,n2,n3), mcp(n1,n2,n3), mip(n1,n2,n3), msp(n1,n2,n3)
+    real, intent (inout)::  tt(n1,n2,n3),rtt(n1,n2,n3),  &
+                            nat(n1,n2,n3), nct(n1,n2,n3), nit(n1,n2,n3), nst(n1,n2,n3), &
+                            mat(n1,n2,n3), mct(n1,n2,n3), mit(n1,n2,n3), mst(n1,n2,n3)
+
+    real, intent (out)  ::  flx(n1,n2,n3)
 
     integer :: i, j, k, km1, kp1, ki
     real    :: lwp(n2,n3), fact
@@ -280,11 +293,21 @@ contains
         do i=3,n2-2
             do k=2,n1-2
                 !
-                ! Temperature and humidity advection due to subsidence
+                ! Advection due to subsidence  (precipitation neglected in isdac)
                 !
                 kp1 = k+1
-                tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
-                rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
+                tt(k,i,j)   =  tt(k,i,j) - (  tl(kp1,i,j) -  tl(k,i,j) )*sf(k) ! temperature
+                rtt(k,i,j)  = rtt(k,i,j) - (  rt(kp1,i,j) -  rt(k,i,j) )*sf(k) ! water vapor
+                ! mass
+                mat(k,i,j)  = mat(k,i,j) - ( map(kp1,i,j) - map(k,i,j) )*sf(k) ! aerosols
+                mct(k,i,j)  = mct(k,i,j) - ( mcp(kp1,i,j) - mcp(k,i,j) )*sf(k) ! cloud
+                mit(k,i,j)  = mit(k,i,j) - ( mip(kp1,i,j) - mip(k,i,j) )*sf(k) ! ice
+                mst(k,i,j)  = mst(k,i,j) - ( msp(kp1,i,j) - msp(k,i,j) )*sf(k) ! snow
+                ! numbers
+                nat(k,i,j)  = nat(k,i,j) - ( nap(kp1,i,j) - nap(k,i,j) )*sf(k) ! aerosols
+                nct(k,i,j)  = nct(k,i,j) - ( ncp(kp1,i,j) - ncp(k,i,j) )*sf(k) ! cloud
+                nit(k,i,j)  = nit(k,i,j) - ( nip(kp1,i,j) - nip(k,i,j) )*sf(k) ! ice
+                nst(k,i,j)  = nst(k,i,j) - ( nsp(kp1,i,j) - nsp(k,i,j) )*sf(k) ! snow
             enddo
         enddo
     enddo

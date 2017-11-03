@@ -89,7 +89,7 @@ contains
                         a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,          &
                         a_nicep,   a_nicet,   a_micep,   a_micet,            &
                         a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,           &
-                        a_ustar, precip, snowin, a_tt                )
+                        a_ustar, precip, snowin, a_tt,level                )
     end select
 
   end subroutine micro
@@ -515,7 +515,7 @@ contains
                          nprecpp,nprecpt,mprecpp,mprecpt,  &
                          nicep,  nicet,  micep,  micet,    &
                          nsnowp, nsnowt, msnowp, msnowt,   &
-                         ustar,rrate, srate, tlt          )
+                         ustar,rrate, srate, tlt, level          )
 
     USE mo_submctl, ONLY : nbins, ncld, nprc,           &
                                nice,  nsnw,                 &
@@ -524,7 +524,7 @@ contains
     USE class_ComponentIndex, ONLY : GetIndex, GetNcomp
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: n1,n2,n3,n4
+    INTEGER, INTENT(in) :: n1,n2,n3,n4, level
     REAL, INTENT(in) :: tstep,                    &
                         tk(n1,n2,n3),             &
                         th(n1,n2,n3),             &
@@ -659,11 +659,15 @@ contains
 
     END IF ! sed_cloud
 
-    IF (sed_ice .and.  (trim(case_name) /= 'isdac')  ) THEN
+    IF (sed_ice) THEN
 
-       CALL NumMassDivergence(n1,n2,n3,n4,nice,tk,a_dn,rhoic,nicep,micep,dzt,prlim,indiv,imdiv)
+       if ( trim(case_name) == 'isdac' ) then
+            CALL NumMassDivergenceISDAC(n1,n2,n3,n4,nice,tk,a_dn,rhoic,nicep,micep,dzt,prlim,indiv,imdiv)
+       else
+            CALL NumMassDivergence(n1,n2,n3,n4,nice,tk,a_dn,rhoic,nicep,micep,dzt,prlim,indiv,imdiv)
 
-       CALL NumMassDepositionSlow(n1,n2,n3,n4,nice,a_dn,rhoic,tk,ustar,nicep,micep,prlim,indep,imdep)
+            CALL NumMassDepositionSlow(n1,n2,n3,n4,nice,a_dn,rhoic,tk,ustar,nicep,micep,prlim,indep,imdep)
+       endif
 
        nicet = nicet - indiv
        nicet(2,:,:,:) = nicet(2,:,:,:) - indep
@@ -746,10 +750,12 @@ contains
        mctmp(:,:) = mctmp(:,:) + SUM(remcld(:,:,istr:iend),dim=3)
        istr = (ss-1)*nprc; iend = ss*nprc
        mctmp(:,:) = mctmp(:,:) + SUM(remprc(:,:,istr:iend),dim=3)
-       istr = (ss-1)*nice; iend = ss*nice
-       mctmp(:,:) = mctmp(:,:) + SUM(remice(:,:,istr:iend),dim=3)
-       istr = (ss-1)*nsnw; iend = ss*nsnw
-       mctmp(:,:) = mctmp(:,:) + SUM(remsnw(:,:,istr:iend),dim=3)
+       if (level == 5 ) then
+           istr = (ss-1)*nice; iend = ss*nice
+           mctmp(:,:) = mctmp(:,:) + SUM(remice(:,:,istr:iend),dim=3)
+           istr = (ss-1)*nsnw; iend = ss*nsnw
+           mctmp(:,:) = mctmp(:,:) + SUM(remsnw(:,:,istr:iend),dim=3)
+       endif
        CALL acc_massbudged(n1,n2,n3,3,tstep,dzt,a_dn,rdep=mctmp,ApVdom=mc_ApVdom)
     END IF !mcflg
     if (sflg) call updtst(n1,'prc',1,v1,1)
@@ -952,86 +958,95 @@ contains
 
   END SUBROUTINE NumMassDepositionSlow
 
-  SUBROUTINE NumMassDepositionISDAC(n1,n2,n3,n4,nn,adn,pdn,tk,ustar,numc,mass,clim,depflxn,depflxm)
+  !          NumMassDivergenceISDAC( n1, n2, n3, n4, nice,   tk, a_dn, rhoic, nicep, micep,  dzt, prlim,   indiv,   imdiv )
+  SUBROUTINE NumMassDivergenceISDAC( n1,n2,n3,n4,nn,tk,adn,pdn,numc,mass,dzt,clim,flxdivn,flxdivm )
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: n1,n2,n3,n4,nn
-    REAL, INTENT(in) :: adn(n1,n2,n3)
-    REAL, INTENT(in) :: pdn
-    REAL, INTENT(in) :: tk(n1,n2,n3)
-    REAL, INTENT(in) :: ustar(n2,n3)
-    REAL, INTENT(in) :: numc(n1,n2,n3,nn)
-    REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4)
-    REAL, INTENT(IN) :: clim                ! Concentration limit
-    REAL, INTENT(OUT) :: depflxn(n2,n3,nn), depflxm(n2,n3,nn*n4)
+    INTEGER, INTENT(in) :: n1,n2,n3,n4       ! Grid numbers, number of chemical species
+    INTEGER, INTENT(in) :: nn                ! Number of bins
+    REAL, INTENT(in) :: tk(n1,n2,n3)         ! Absolute temprature
+    REAL, INTENT(in) :: adn(n1,n2,n3)        ! Air density
+    REAL, INTENT(in) :: pdn                  ! Particle density
+    REAL, INTENT(in) :: numc(n1,n2,n3,nn)    ! Particle number concentration
+    REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4) ! Particle mass mixing ratio
+    REAL, INTENT(in) :: dzt(n1)              ! Inverse of grid level thickness
+    REAL, INTENT(IN) :: clim                 ! Concentration limit
+    REAL, INTENT(OUT) :: flxdivm(n1,n2,n3,nn*n4)
+    REAL, INTENT(OUT) :: flxdivn(n1,n2,n3,nn)
 
-    INTEGER :: i,j,k,bin
-    INTEGER :: ss,bs
+    INTEGER :: i,j,k,kp1
+    INTEGER :: bin,ss,bs
 
-    real, parameter :: A = 1.249 ! fundamentals of atm. modelling pg509
-    real, parameter :: B = 0.42
-    real, parameter :: C = 0.87
-    real, parameter :: M = 4.8096e-26 ! average mass of one air molecule, eq2.3 fundamentals of atm.
-                                      ! modelling [kg molec-1]
 
-    REAL :: GG
-    REAL :: St, Sc, Kn
-    REAL :: lambda      ! Mean free path
-    REAL :: mdiff       ! Particle diffusivity
-    REAL :: avis,kvis   ! Air viscosity, kinematic viscosity
-    REAL :: va          ! Thermal speed of air molecule
-    REAL :: vc,vd       ! Particle fall speed, deposition velocity
-    REAL :: rt
+    REAL, PARAMETER :: bc = 1./3.
+    REAL, PARAMETER :: bv = 0.5
+    REAL :: av
+    REAL :: C
+    REAL :: D
 
-    REAL :: rflm(nn,n4), rfln(nn), prvolc(n4), rwet
 
-    depflxm = 0.
-    depflxn = 0.
+    REAL :: vc                    ! fall speed
 
-    ! Fix level to lowest above ground level
-    k = 2
-
+    REAL :: rflm(n1,nn,n4), rfln(n1,nn), prvolc(n4), dwet
+    flxdivm = 0.
+    flxdivn = 0.
+!    bc      = 1./3.
     DO j = 3,n3-2
        DO i = 3,n2-2
-
 
           rflm = 0.
           rfln = 0.
 
-          DO bin = 1,nn
-             IF (numc(k,i,j,bin) < clim) CYCLE
+          DO k=n1-1,2,-1
+             kp1 = k+1
 
-             ! Calculate wet size
-             !   n4 = number of active species
-             !   bin = size bin
-             prvolc(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-             rwet=calc_wet_radius(n4,numc(k,i,j,bin),prvolc)
+             ! Fluxes
+             !------------------
+             ! -- Calculate the *corrections* for small particles
+             DO bin = 1,nn
+                IF (numc(k,i,j,bin)<clim) CYCLE
 
+                ! Calculate wet size
+                !   n4 = number of active species
+                !   bin = size bin
 
-             ! Terminal velocity
-             vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG)
+                !prvolc(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
+                !dwet=calc_wet_radius(n4,numc(k,i,j,bin),prvolc)
+                C = 0.09*mass(k,i,j,bin)**bc
+                D = pi*C
+                av = 12.*mass(k,i,j,bin)**(1-bv)
 
-             ! Particle diffusitivity  (15.29) in jacobson book
-             mdiff = (kb*tk(k,i,j)*GG)/(6.0*pi*avis*rwet)
+                ! Terminal velocity
+                !vc = av * dwet**bv
+                vc = av*D**bv
+                ! Flux for the particle mass
+                IF ( k > 2 ) THEN
+                   DO ss = 1,n4
+                      bs = (ss-1)*nn + bin
+                      rflm(k,bin,ss) = -mass(k,i,j,bs)*vc
+                   END DO
+                END IF
 
+                ! Flux for the particle number
+                IF ( k > 2 ) rfln(k,bin) = -numc(k,i,j,bin)*vc
 
-
-             DO ss = 1,n4
-                bs = (ss-1)*nn + bin
-                rflm(bin,ss) = -mass(k,i,j,bs)*vd
-                depflxm(i,j,bs) = -rflm(bin,ss)*dzt(k)
              END DO
 
-             rfln(bin) = -numc(k,i,j,bin)*vd
+             DO bin = 1,nn
+                DO ss = 1,n4
+                   bs = (ss-1)*nn + bin
+                   flxdivm(k,i,j,bs) = (rflm(kp1,bin,ss)-rflm(k,bin,ss))*dzt(k)
+                END DO
+             END DO
 
-          END DO ! bin
+             flxdivn(k,i,j,:) = (rfln(kp1,:)-rfln(k,:))*dzt(k)
 
-          depflxn(i,j,:) = -rfln(:)*dzt(k)
+          END DO ! k
 
        END DO ! i
     END DO ! j
 
-  END SUBROUTINE NumMassDepositionISDAC
+  END SUBROUTINE NumMassDivergenceISDAC
 
 
   !------------------------------------------------------------------

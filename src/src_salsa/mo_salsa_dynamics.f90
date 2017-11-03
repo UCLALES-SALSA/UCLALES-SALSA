@@ -943,7 +943,7 @@ CONTAINS
     ENDDO
 
  END SUBROUTINE CalcWetDia
- 
+
 
   ! fxm: calculated for empty bins too
   ! fxm: same diffusion coefficients and mean free paths used for sulphuric acid
@@ -1031,7 +1031,7 @@ CONTAINS
          fn2b,                      &
          ncld,nprc,                  &
          nice,nsnw,                 &
-         lscndgas,                  & 
+         lscndgas,                  &
          nlcndh2oae, nlcndh2ocl, nlcndh2oic, & ! Condensation to aerosols, clouds and ice particles
          nsnucl                     ! nucleation
 
@@ -1503,7 +1503,7 @@ CONTAINS
                        pice, psnow,                 &
                        ptemp,  ppres,  prs,prsi, prv,    &
                        ptstep)
-    
+
     USE mo_submctl, ONLY : t_section,            &
                                nbins, ncld, nprc,    &
                                nice, nsnw,            &
@@ -1550,7 +1550,7 @@ CONTAINS
     REAL :: zbeta,zknud,zmfph2o
     REAL :: zact, zhlp1,zhlp2,zhlp3
     REAL :: adt,adtc(nbins),ttot
-    REAL :: dwet
+    REAL :: dwet, cap
     REAL :: zrh(kbdim,klev)
 
     REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
@@ -1675,15 +1675,19 @@ CONTAINS
           zcwsurfid(:) = 0.
           DO cc = 1,nice
              IF (pice(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
-                ! Wet diameter
-                dwet=( SUM(pice(ii,jj,cc)%volc(:))/pice(ii,jj,cc)%numc/pi6 )**(1./3.)
 
-                ! Activity + Kelvin effect
-                zact = acth2o(pice(ii,jj,cc))
-                zkelvinid(cc) = exp( 4.*surfw0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                ! Capacitance (m) as defined for ISDAC
+                cap = 0.09*( SUM(pice(ii,jj,cc)%volc(:))/pice(ii,jj,cc)%numc*rhoic )**(1./3.)
 
-                ! Saturation mole concentration over flat surface
-                zcwsurfid(cc) = prsi(ii,jj)*rhoair/mwa
+                ! Maximum particle dimension ~ dwet (ISDAC)
+                dwet=pi*cap
+
+                ! Activity + Kelvin effect - unity (ISDAC)
+                zact = 1.0
+                zkelvinid(cc) = 1.0
+
+                 ! Saturation mole concentration over flat surface
+                 zcwsurfid(cc) = prsi(ii,jj)*rhoair/mwa
 
                 ! Equilibrium saturation ratio
                 zwsatid(cc) = zact*zkelvinid(cc)
@@ -1694,11 +1698,11 @@ CONTAINS
                      (3.)*(zknud+zknud**2))
 
                 ! Mass transfer according to Jacobson
-                zhlp1 = pice(ii,jj,cc)%numc*2.*pi*dwet*zdfh2o*zbeta
-                zhlp2 = mwa*zdfh2o*als*zwsatid(cc)*zcwsurfid(cc)/(zthcond*ptemp(ii,jj)) !! huomhuom als
-                zhlp3 = ( (als*mwa)/(rg*ptemp(ii,jj)) ) - 1. !! huomhuom als
+                zhlp1 = pice(ii,jj,cc)%numc*2.*pi*(2.*cap)*zdfh2o*zbeta
+                zhlp2 = mwa*zdfh2o*als*zwsatid(cc)*zcwsurfid(cc)/(zthcond*ptemp(ii,jj))
+                zhlp3 = ( (als*mwa)/(rg*ptemp(ii,jj)) ) - 1.
 
-                zmtid(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
+                 zmtid(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
 
              END IF
           END DO
@@ -1922,7 +1926,7 @@ CONTAINS
 
   SUBROUTINE gpparthno3(kproma,kbdim,klev,krow,ppres,ptemp,paero,pcloud,    &
                         pprecp,pghno3,pgnh3,prv,prs,pbeta,ptstep)
-    
+
     USE mo_submctl, ONLY : t_section,           &
                                nbins, ncld, nprc,   &
                                surfw0, mvno, mvnh, boltz, &
@@ -2204,7 +2208,7 @@ CONTAINS
   ! ---------------------------------------------------------------
 
   REAL FUNCTION acthno3(ppart,pgamma,pchno3p)
-    
+
     USE mo_submctl, ONLY : t_section,  &
                                rhosu, msu,   &
                                rhooc, moc,   &
@@ -2238,7 +2242,7 @@ CONTAINS
   END FUNCTION acthno3
   ! -------------------------------------------------------
   REAL FUNCTION actnh3(ppart,pgamma,pcnh3p)
-    
+
     USE mo_submctl, ONLY : t_section,  &
                                rhosu, msu,   &
                                rhooc, moc,   &
@@ -2275,7 +2279,7 @@ CONTAINS
   ! ------------------------------------------------------------------
   SUBROUTINE NONHEquil(nb,prh,ptemp,ppart,pcgno3eq,pcgnh3eq,      &
                        pgammano,pgammanh,pgammanh4hso2,pgammahhso4,pmols)
-    
+
     USE mo_submctl, ONLY : t_section,    &
                                rhosu,msu,    &
                                rhoss,mss,    &
@@ -2345,7 +2349,7 @@ CONTAINS
   SUBROUTINE SVsat(nb,ptemp,ppart,pachno3,pacnh3,pacnh4hso2,   &
                    pachhso4,pchno3eq,pchno3,pcnh3,pkelhno3,    &
                    pkelnh3,psathno3,psatnh3,pmols,plim         )
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                rhosu,msu,   &
                                rhooc,       &
@@ -2473,7 +2477,7 @@ CONTAINS
   ! ------------------------------------------------------------------
 
   FUNCTION GetTstep(nb,zcg,zcs,zmt,zconst) RESULT(tscale)
-    
+
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: nb
@@ -2505,7 +2509,7 @@ CONTAINS
     !
     ! J. Tonttila, FMI, 03/2014
     !-----------------------------------------------------------------
-    
+
     IMPLICIT NONE
 
     REAL, INTENT(in) :: ptemp

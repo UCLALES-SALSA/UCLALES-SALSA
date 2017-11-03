@@ -700,7 +700,7 @@ CONTAINS
           END IF
 
           zvcstar = MAX( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vlolim )
-          zvcstar = MIN( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vhilim ) 
+          zvcstar = MIN( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vhilim )
 
           ! Loop over cloud droplet (and aerosol) bins
           DO cb = ica%cur,fcb%cur
@@ -753,7 +753,7 @@ CONTAINS
 
              Vip1 = MAX(Vlop1,MIN(Vip1,Vhip1))
              Vim1 = MAX(Vlom1,MIN(Vim1,Vhim1))
-             
+
 
              ! get density distribution values for
              dNim1 = Nim1/(Vhim1-Vlom1)
@@ -816,7 +816,7 @@ CONTAINS
   REAL FUNCTION intgN(ikk,icc,ilow,ihigh)
     ! Gets the integral over a (linear) number concentration distribution
     !
-    
+
     IMPLICIT NONE
     REAL, INTENT(in) :: ikk,icc,ilow,ihigh
     intgN = 0.5*ikk*MAX(ihigh**2 - ilow**2,0.) + icc*MAX(ihigh - ilow,0.)
@@ -825,7 +825,7 @@ CONTAINS
   REAL FUNCTION intgV(ikk,icc,ilow,ihigh)
     ! Gets the integral over a volume volume distribution based on a linear
     ! number concentration distribution
-    
+
     IMPLICIT NONE
     REAL, INTENT(in) :: ikk,icc,ilow,ihigh
     intgV = (1./3.)*ikk*MAX(ihigh**3 - ilow**3,0.) + 0.5*icc*MAX(ihigh**2 - ilow**2,0.)
@@ -840,7 +840,7 @@ CONTAINS
   ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
   ! parameter and is set to 1.2 by default
   !
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
                                nprc,        &
@@ -891,7 +891,7 @@ CONTAINS
                       pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + pcloud(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
                       pcloud(ii,jj,cc)%volc(ss) = pcloud(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
                    END DO
-                   
+
                    pprecp(ii,jj,1)%volc(8) = pprecp(ii,jj,1)%volc(8) + pcloud(ii,jj,cc)%volc(8)*(Vrem/Vtot)
                    pcloud(ii,jj,cc)%volc(8) = pcloud(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot))
 
@@ -922,7 +922,7 @@ CONTAINS
                       pcloud,pice,paero,ppres, &
                       ptemp,prv,prs,ptstep )
 
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                fn2b,   &
                                ncld,        &
@@ -971,7 +971,7 @@ CONTAINS
 
               frac = MIN(1.,phf)
               IF (pcloud(ii,jj,kk)%numc*frac <prlim) CYCLE
-  
+
               DO ss = 1,7
                    pice(ii,jj,kk)%volc(ss) = max(0.,pice(ii,jj,kk)%volc(ss) + pcloud(ii,jj,kk)%volc(ss)*frac)
                    pcloud(ii,jj,kk)%volc(ss) = max(0.,pcloud(ii,jj,kk)%volc(ss) - pcloud(ii,jj,kk)%volc(ss)*frac)
@@ -997,7 +997,7 @@ CONTAINS
               Vtot = SUM(paero(ii,jj,kk)%volc(:))
               frac = MIN(1.,phf)
               IF (paero(ii,jj,kk)%numc*frac <prlim) CYCLE
-  
+
               DO ss = 1,7
                    pice(ii,jj,kk)%volc(ss) = max(0.,pice(ii,jj,kk)%volc(ss) + paero(ii,jj,kk)%volc(ss)*frac)
                    paero(ii,jj,kk)%volc(ss) = max(0.,paero(ii,jj,kk)%volc(ss) - paero(ii,jj,kk)%volc(ss)*frac)
@@ -1021,7 +1021,7 @@ CONTAINS
   !***********************************************
   SUBROUTINE ice_hom_nucl(kproma,kbdim,klev,   &
                       pcloud,pice,paero,ppres, &
-                      ptemp,prv,prs,ptstep ) 
+                      ptemp,prv,prs,ptstep )
 
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
@@ -1158,7 +1158,7 @@ CONTAINS
        DO jj = 1,klev
           ! Decreasing & sub-zero temperatures required
           if (ptt(ii,jj) > 0. .OR. ptemp(ii,jj)>273.15) cycle
-  
+
           Ts = 273.15-ptemp(ii,jj)
           Temp_tend = ptt(ii,jj)
 
@@ -1273,7 +1273,7 @@ CONTAINS
 
   END SUBROUTINE ice_basic_nucl
 
-!! in given hard coded conditions keep the ice particle number concentration over given limit #/kg
+!! in given hard coded conditions keep the ice particle number concentration over given limit #/L
   SUBROUTINE ice_fixed_NC(kproma,  kbdim,  klev,   &
                           pcloud,  pice,   ppres,  &
                           ptemp,   prv,    prs,    &
@@ -1318,7 +1318,7 @@ CONTAINS
 
 
 
-    DO ii = 1,kproma
+    DO ii = 1,kbdim
     DO jj = 1,klev
 
         Ni0     = fixinc * 1000.0 * pdn(ii,jj) ! target number concentration of ice
@@ -1352,16 +1352,16 @@ CONTAINS
 !write(*,*) 'jäätä ei ole tarpeeksi'
 !write(*,*) ' '
         DO kk = nice,1,-1
-            IF( sumICE < Ni0 ) THEN
+            IF( sumICE < Ni0 .AND. pcloud(ii,jj,kk)%numc > nlim ) THEN
                 Nl = pcloud(ii,jj,kk)%numc
                 Ni = pice(ii,jj,kk)%numc
 
-                iceTendecyNumber = max( 0.0, min( Ni0 - Ni , pcloud(ii,jj,kk)%numc )  ) ! division by two means nudging towards the fixed value
+                iceTendecyNumber = max( 0.0, min( Ni0 - Ni , pcloud(ii,jj,kk)%numc )  )
 !write (*,*) 'iceTendencyNumber ', iceTendecyNumber
                 pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + iceTendecyNumber
                 sumICE = sumICE + iceTendecyNumber
 
-                liqToIceTendecyFrac   = MAX( 0.0, MIN( 1.0, iceTendecyNumber /  max( pcloud(ii,jj,kk)%numc, eps) ) )
+                liqToIceTendecyFrac   = MAX( 0.0, MIN( 1.0, iceTendecyNumber /pcloud(ii,jj,kk)%numc ) )
                 pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - iceTendecyNumber
 
                 DO ss = 1,8
@@ -1380,7 +1380,7 @@ CONTAINS
 
   REAL FUNCTION calc_JCF(rn,temp,ppres,prv,prs) ! heterogenous (condensation) freezing  !!check  [Mor05] eq. (26)
                       !the rate of germ formation per volume of solution
-        
+
         USE mo_submctl, ONLY : boltz, planck,pi
         REAL, INTENT(in) :: rn,  &
                               temp,ppres, prv,prs
@@ -1455,10 +1455,10 @@ CONTAINS
   ! ------------------------------------------------------------
 
   ! [KC00] eq. (2.9)
-  REAL FUNCTION calc_shapefactor(m,x) !! according to Khvorostyanov & Curry, Geophysical Research letters 27(24):4081-4084, 
+  REAL FUNCTION calc_shapefactor(m,x) !! according to Khvorostyanov & Curry, Geophysical Research letters 27(24):4081-4084,
                                       !december 2000  !!check
                                  !! as of referenced as [KC00]
-    
+
     REAL, INTENT(IN) :: m,x
     REAL :: psi,fii
     fii = (1.-2.*m*x+x**2)**(0.5)
@@ -1492,7 +1492,7 @@ CONTAINS
 
   ! [KS98] eq. (8)
   REAL FUNCTION calc_r_cr(temp) !! calculate ice embryo radius [KC00] !!check
-    
+
     USE mo_submctl, ONLY : rhoic,surfi0
     REAL, intent(in) :: temp
     REAL :: Late, temp00
@@ -1509,7 +1509,7 @@ CONTAINS
 
   ! Harri Kokkola pilvikurssi eq. (2.43)
   REAL FUNCTION calc_Lefm(temp) !! Latent heat of fusion !!check
-    
+
     REAL, intent(in) :: temp
     REAL :: Tc ! temperature in celsius degrees
     Tc = temp-273.15
@@ -1520,7 +1520,7 @@ CONTAINS
   ! ------------------------------------------------------------
 
   REAL function calc_temp00(temp) !!freezing point depression
-    
+
     REAL, intent(in) :: temp
 
     calc_temp00 = 273.15
@@ -1607,7 +1607,7 @@ CONTAINS
   ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
   ! parameter and is set to 1.2 by default
   !
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                nice,        &
                                nsnw,        &
@@ -1673,7 +1673,7 @@ CONTAINS
   ! -----------------------------------------------------------------
   !
   REAL FUNCTION cumlognorm(dg,sigmag,dpart)
-    
+
     IMPLICIT NONE
     ! Cumulative lognormal function
     REAL, INTENT(in) :: dg

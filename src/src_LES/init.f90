@@ -20,7 +20,7 @@
 module init
 
   use grid
-
+  use forc, only : case_name
   integer, parameter    :: nns = 500
   integer               :: ns
   integer               :: iseed = 0
@@ -250,7 +250,7 @@ contains
     end do
     call random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
 
-    if (associated(a_rp)) then
+    if (associated(a_rp) .and. trim(case_name) /= 'isdac') then
        k=1
        do while( zt(k+1) <= zrand .and. k+1 < nzp)
           k=k+1

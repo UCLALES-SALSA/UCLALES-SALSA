@@ -308,7 +308,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
                   zrm, prtcl, dtlt, dbg2, time, level, zt  )
-             
+
           END IF !nxp==5 and nyp == 5
 
           CALL tend_constrain(n4)
@@ -544,7 +544,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                     C_nudge = 0.
 
                 ELSEIF ( zt(kk) >= Z1 .and. zt(kk) <= Z2 ) THEN
-                    C_nudge = (1./3600.)*( 1-COS( pi*(zt(kk) - Z1 )/(Z2-Z1) ) )/2.
+                    C_nudge = (1./3600.)*( 1.-COS( pi*(zt(kk) - Z1 )/(Z2-Z1) ) )/2.
 
                 ELSEIF ( zt(kk) > Z2 ) THEN
                     C_nudge = 1./3600.
@@ -552,7 +552,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
             ELSEIF ( tau == 2.) THEN ! horizontal winds
                 IF ( zt(kk)  <= ZUV ) THEN
-                    C_nudge = (1./7200.)*( 1-COS( pi*zt(kk)/ZUV ) )/2.
+                    C_nudge = (1./7200.)*( 1.-COS( pi*zt(kk)/ZUV ) )/2.
                 ELSEIF ( zt(kk) > ZUV ) THEN
                     C_nudge = 1./7200.
                 ENDIF
@@ -1436,7 +1436,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                    CALL binMixrat('aerosol','dry',ba,i,j,k,zvol)
                    zvol = zvol/rhosu
 
-                   ! Particles smaller then 0.1 nm diameter are set to zero 
+                   ! Particles smaller then 0.1 nm diameter are set to zero
                    zddry = (zvol/a_naerop(k,i,j,ba)/pi6)**(1./3.)
                    IF ( zddry < 1.e-10 ) THEN
                       ! Volatile species to the gas phase

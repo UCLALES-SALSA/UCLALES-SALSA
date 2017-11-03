@@ -141,7 +141,7 @@ ${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
 ${jaakkoNL}   nlicbasic   = ${nlicbasic:-.FALSE.}
    
 ${jaakkoNL}   nlfixinc   = ${nlfixinc:-.TRUE.}      ! Fix ice number concentration to be over given limit fixINC
-${jaakkoNL}   fixINC     = ${fixINC:-1.0}         ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
+${jaakkoNL}   fixINC     = ${fixINC:-1.0}         ! fixed ice number concentration #/L, nlfixinc should be set to true inorder to have this working
 
    rhlim = ${rhlim:-1.2}          ! RH limit for SALSA during initialization and spinup
 
