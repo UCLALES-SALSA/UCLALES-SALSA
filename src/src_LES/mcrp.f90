@@ -980,7 +980,6 @@ contains
 
     REAL, PARAMETER :: bc = 1./3.
     REAL, PARAMETER :: bv = 0.5
-    REAL :: av
     REAL :: C
     REAL :: D
 
@@ -1014,11 +1013,10 @@ contains
                 !dwet=calc_wet_radius(n4,numc(k,i,j,bin),prvolc)
                 C = 0.09*mass(k,i,j,bin)**bc
                 D = pi*C
-                av = 12.*mass(k,i,j,bin)**(1-bv)
 
                 ! Terminal velocity
                 !vc = av * dwet**bv
-                vc = av*D**bv
+                vc = 12.*D**bv
                 ! Flux for the particle mass
                 IF ( k > 2 ) THEN
                    DO ss = 1,n4
