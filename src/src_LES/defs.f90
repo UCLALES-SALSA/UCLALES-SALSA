@@ -30,7 +30,7 @@ module defs
   real, parameter :: cv     = cp-R
   real, parameter :: rcp    = R/cp
   real, parameter :: cpr    = cp/R
-  real, parameter :: g      = 9.8
+  real, parameter :: g      = 9.81
   real, parameter :: p00    = 1.e+05
   real, parameter :: p00i   = 1./p00
   real, parameter :: omega  = 7.292e-05

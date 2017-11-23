@@ -60,7 +60,7 @@ contains
 
     call define_parm
 
-    IF (level >= 4) CALL define_salsa ! Read SALSA namelist etc.
+    IF (level >= 4) CALL define_salsa(level) ! Read SALSA namelist etc.
 
     IF (level >= 4) CALL salsa_initialize ! All salsa variables are now initialized
 
@@ -104,7 +104,7 @@ contains
     USE forc, ONLY : radsounding, &        ! Juha: added for radiation background profile
                      div, case_name, &     ! Divergence, forcing case name
                      sfc_albedo, &         ! Surface albedo
-                     useMcICA,RadConstPress,RadPrecipBins
+                     useMcICA,RadConstPress,RadPrecipBins,RadSnowBins
     USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, appl_abort, ver, author
 
@@ -149,7 +149,8 @@ contains
          sfc_albedo,                  & ! Surface albedo
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
          RadConstPress,      & ! keep constant pressure levels (T/F),
-         RadPrecipBins,      & ! add precipitation bins cloud water (0, 1, 2, 3,...)
+         RadPrecipBins,      & ! add precipitation bins to cloud water (0, 1, 2, 3,...)
+         RadSnowBins,      & ! add snow bins to cloud ice (0, 1, 2, 3,...)
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
 
     namelist /version/  &

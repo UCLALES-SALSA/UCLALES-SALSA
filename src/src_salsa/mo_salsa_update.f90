@@ -15,7 +15,7 @@ MODULE mo_salsa_update
 
 CONTAINS
 
-  SUBROUTINE distr_update(kproma, kbdim, klev, &
+  SUBROUTINE distr_update(kbdim, klev, &
                           paero, pcloud, pprecp, &
                           pice, psnow, level )
 
@@ -26,7 +26,6 @@ CONTAINS
 
     !-- Input and output variables ----------
     INTEGER, INTENT(IN) ::          &
-         kproma,                    & ! number of horiz. grid points 
          kbdim,                     & ! dimension for arrays 
          klev                         ! number of vertical levels
 
@@ -329,7 +328,7 @@ CONTAINS
           END DO !within_bins
 
 
-        IF(level < 5 ) CYCLE ! skip ice and snow distr. updates if thermodynamical level doesn't include ice microphysics
+          IF(level < 5 ) CYCLE ! skip ice and snow distr. updates if thermodynamical level doesn't include ice microphysics
 
           ! ------------------------------------------------------------------------
           ! ************* ICE PARTICLES  **************
@@ -345,7 +344,7 @@ CONTAINS
 
                 IF ( pice(ii,jj,kk)%numc > prlim .AND. sum(pice(ii,jj,kk)%volc(1:7)) > 1.e-30 ) THEN
 
-                   ! Don't convert cloud or rain droplets to anything else here. !!huomhuom
+                   ! Don't convert ice to anything else here.
                    zvpart = sum(pice(ii,jj,kk)%volc(1:7))/pice(ii,jj,kk)%numc
 
                    !-- volume ratio of the size bin
@@ -357,7 +356,7 @@ CONTAINS
                    !-- particle volume at the high end of the bin
                    zVihi = zVrat * zVilo
 
-                   !-- Decreasing droplets
+                   !-- Decreasing size
                    IF ( zvpart < pi6*pice(ii,jj,kk)%vlolim .AND.  &
                         (kk /= iia%cur .AND. kk /= iib%cur)    ) THEN
 
@@ -370,10 +369,9 @@ CONTAINS
                       !-- Index for the smaller bin
                       mm = kk - 1
 
-                   !-- Increasing droplets
+                   !-- Increasing size
                    ELSE IF ( zvpart > pi6*pice(ii,jj,kk)%dmid**3 .AND.  &
                         (kk /= fia%cur .AND. kk /= fib%cur)    ) THEN !#mod
-                    ! Increasing droplets
 
                       !-- volume in the grown bin which exceeds the bin upper limit
                       zVexc = 0.5*(zVihi + pice(ii,jj,kk)%vhilim)
@@ -391,7 +389,7 @@ CONTAINS
                    !-- volume fraction to be moved
 
                    zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
-                   IF(zvfrac < 0.) STOP 'Error cloud volc 0'
+                   IF(zvfrac < 0.) STOP 'Error ice volc 0'
 
                    !-- volume
                    pice(ii,jj,mm)%volc(:) = pice(ii,jj,mm)%volc(:)     &
@@ -427,7 +425,7 @@ CONTAINS
           ! Everything else the same as with cloud
           ! droplets & aerosols, except that the snow
           ! bins are organized according to the wet
-          ! diameter. !!huomhuom onko näin?
+          ! diameter.
           ! ------------------------------------------------------------------------
 
           within_bins = .FALSE.
@@ -463,7 +461,7 @@ CONTAINS
 
                       !-- Number fraction to be moved to the smaller bin
                       znfrac = min(1.,(psnow(ii,jj,kk)%vlolim-zVilo) / (zVihi-zVilo))
-                      IF (znfrac < 0.) STOP 'Error, numc precp 0'
+                      IF (znfrac < 0.) STOP 'Error, numc snow 0'
 
                       !-- Index for the smaller bin
                       mm = kk - 1

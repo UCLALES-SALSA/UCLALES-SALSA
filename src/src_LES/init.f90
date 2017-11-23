@@ -55,12 +55,9 @@ contains
     implicit none
 
     ! Local variables for SALSA basic state
-    REAL :: zwp(nzp,nxp,nyp), ztkt(nzp,nxp,nyp)
-    LOGICAL :: zactmask(nzp,nxp,nyp)
+    REAL :: zwp(nzp,nxp,nyp)
     INTEGER :: n4
     
-    ztkt = 0.
-
     ! Set vertical velocity as 0.5 m/s to intialize cloud microphysical properties with
     ! SALSA
     zwp(:,:,:) = 0.5
@@ -76,29 +73,26 @@ contains
        ! spin-up period to set up aerosol and cloud fields.
        IF (level >= 4) THEN
 
-          ! Not needed when using interst. acivation?
-          CALL maskactiv(zactmask,nxp,nyp,nzp,1,a_rh)
-
           n4 = GetNcomp(prtcl) + 1 ! Aerosol compoenents + water
 
           IF ( nxp == 5 .and. nyp == 5 ) THEN
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtlt, .false., 0., level   )
+                  1, prtcl, dtlt, level   )
           ELSE
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtlt, .false., 0., level   )
+                  1, prtcl, dtlt, level   )
 
           END IF
           CALL SALSAInit
@@ -720,7 +714,7 @@ contains
              a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtlt*a_gaerot(k,i,j,:), 0. )
              a_rp(k,i,j) = a_rp(k,i,j) + dtlt*a_rt(k,i,j)
 
-            IF(level < 5) cycle
+             IF(level < 5) cycle
 
              a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtlt*a_nicet(k,i,j,:), 0. )
              a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtlt*a_nsnowt(k,i,j,:), 0. )
@@ -868,7 +862,7 @@ contains
        ! Convert to SI
        n = n*1.e6
        dpg = dpg*1.e-6
-       CALL size_distribution(1,1,1, n, dpg, sigmag, nsect)
+       CALL size_distribution(1,1, n, dpg, sigmag, nsect)
        DO ss = 1,nbins
           pndist(:,ss) = nsect(1,1,ss)
        END DO
@@ -880,7 +874,7 @@ contains
     !
     ! Initialize concentrations
     ! ----------------------------------------------------------
-    DO k = 2,nzp  ! DONT PUT STUFF INSIDE THE GROUND
+    DO k = 1,nzp
        DO j = 1,nyp
           DO i = 1,nxp
 
@@ -1124,7 +1118,7 @@ contains
     ! Get the binned size distribution
     znsect = 0.
     DO k = 1,nc_levs
-       CALL size_distribution(1,1,1,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
+       CALL size_distribution(1,1,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
        znsect(k,:) = nsect(1,1,:)
     END DO
 
