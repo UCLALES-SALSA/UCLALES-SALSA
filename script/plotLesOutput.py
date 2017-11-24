@@ -41,6 +41,8 @@ else:
     if len(tag)>0:
         tag = tag + ' '
         saveTag = tag.replace(" ","_")
+        if not LVLprint:
+            saveTag=saveTag[:-1]
     else:
         saveTag = ''
 
@@ -854,7 +856,8 @@ def piirra_aikasarjaPathXYZ( muuttuja, muunnosKerroin = 1.0, longName = None, sa
     if xlabels is None:
         xlabels = map( str, xticksHours)
     
-    
+    print 'xticks', xticks
+    print 'xlabels', xlabels
     ax.set_xticks( xticks )
     ax.set_xticklabels( xlabels )
     
@@ -1341,10 +1344,13 @@ def piirra_MeanSize( tyyppi = 'ice', bini='a', ajanhetket = [0], korkeus = [0], 
         #plt.savefig( picturefolder + savePrefix+ '_' + saveTag + LVLprintSave + '.png')
 
 #############################        
-def piirra_domainMeanProfiili( muuttuja, muunnosKerroin = 1.0, ajanhetket = [0], useDN = True, profiili = False, xAxisL = '', color = 'k', savePrefix = None    ):
+def piirra_domainMeanProfiili( muuttuja, nimi = None, muunnosKerroin = 1.0, ajanhetket = [0], useDN = True, profiili = False, xAxisL = '', color = 'k', savePrefix = None    ):
         
     minimi  = None
     maksimi = None
+    
+    if nimi is None:
+        nimi = muuttuja
     
     for i in xrange(len(arguments)-1):
         uusikuva = True if i == 0 else  False
@@ -1363,9 +1369,13 @@ def piirra_domainMeanProfiili( muuttuja, muunnosKerroin = 1.0, ajanhetket = [0],
         
         Tslize = map( int, np.arange( min(aikaindeksit), max(aikaindeksit)+0.5 ) )
         
-        TslizeSTR = r'$t_0$' + ' = ' + str( time[ min(aikaindeksit) ]/3600. ) 
+        TslizeSTR = r'$t_{0} = $' + str( round( time[ min(aikaindeksit) ]/3600.,1) ) + ' h'
         if len(aikaindeksit)>0:
-            TslizeSTR += ' ' + r'$t_1$' + ' = ' + str( time[ max(aikaindeksit) ]/3600. )
+            TslizeSTR += ' to ' + r'$t_{1} = $' + str( round( time[ max(aikaindeksit) ]/3600.,1) ) + ' h'
+            
+            TslizeSTR = 'from ' + TslizeSTR
+        else:
+            TslizeSTR = 'at ' + TslizeSTR
         print TslizeSTR
         ###############################
         
@@ -1377,7 +1387,7 @@ def piirra_domainMeanProfiili( muuttuja, muunnosKerroin = 1.0, ajanhetket = [0],
         
         dataSlizeMean = np.mean( np.mean( dataSlize, axis = 0), axis = 0)
         
-        tit = muuttuja + ' ' + TslizeSTR
+        tit = nimi + ' ' + TslizeSTR
         
         if maksimi is not None:
             maksimi = max( maksimi,  np.max(dataSlizeMean) )
@@ -1391,14 +1401,23 @@ def piirra_domainMeanProfiili( muuttuja, muunnosKerroin = 1.0, ajanhetket = [0],
         
         dataSlizeMean = np.asmatrix(dataSlizeMean)
         
-        mdp.plottaa( dataSlizeMean, zt, tit , xl = xAxisL, yl='height [m]', changeColor=True, tightXAxis=True, tightYAxis = True, markers=False, LEGEND=True, omavari = color, scatter=False, uusikuva=uusikuva )       
+        if EMUL:
+            if customLabels:
+                label = labelArray[i]
+            else:    
+                label = str(case_indeksi+1)
+        else:
+            label = labelArray[i]       
+        print 'dataSlize', dataSlizeMean.A1
+        fig, ax = mdp.plottaa( dataSlizeMean.A1, zt.A1, tit , xl = xAxisL, yl='height [m]', changeColor=True, tightXAxis=True, tightYAxis = True, markers=False, LEGEND=True, label = label, omavari = color, scatter=False, uusikuva=uusikuva )       
+        ax.title.set_fontsize(35)
         mdp.plot_setXlim( minimi, maksimi, extendBelowZero = False, A = 0.05 )
     
     if savePrefix is None:
         savePrefix = 'domainMeanProfiili'
     
     if saveFig:
-        plt.savefig( picturefolder + savePrefix+ '_' + saveTag + LVLprintSave + '.png')
+        plt.savefig( picturefolder + savePrefix+ '_' + muuttuja + '_' + saveTag + LVLprintSave + '.png')
 
 def animoi_path(muuttuja, muunnosKerroin = 1.0, transpose = False, longName = None , savePrefix = None, useDN = False, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], xlabels = None, ylabels = None, xticks = None, yticks = None, variKartta = plt.cm.Blues, profiili = False, spinup = None ):        
     
@@ -1772,10 +1791,11 @@ if ICE and not importOnly:
     cbvalLIQ    = np.arange(0, 0.241, 0.04)
     cbvalLIQStr = map(str, cbvalLIQ)
 
-    if tag[:-1]=='ice1':
+    if tag[:-1] == 'ice1':
         cbvalICE    = np.arange( 0, 0.51, 0.05) # np.arange(0, 1.4, 0.1)
     else:
         cbvalICE    =  np.arange(0, 1.41, 0.1)
+        
     cbvalICEStr = map(str, cbvalICE)
     
     cbvalLIQPATH = np.arange(0, 61, 5)
@@ -1785,7 +1805,7 @@ if ICE and not importOnly:
     
     if int(lvl)>=4:
     
-        piirra_aikasarjaPathXYZ( 'l', longName = 'Liquid Water Path', savePrefix = 'lwp', xaxislabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel )
+        #piirra_aikasarjaPathXYZ( 'l', longName = 'Liquid Water Path', savePrefix = 'lwp', xaxislabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel )
         #mdp.plot_vertical( spinup )
         #plt.xticks( ticksHours, xLabelsHours )
         
@@ -1797,9 +1817,9 @@ if ICE and not importOnly:
         
         #animoi_path( 'l', muunnosKerroin = 1000., longName = tag + "Liquid water path  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQPATH, colorBarTickNames = cbvalLIQPATHStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.Reds, spinup = spinup )
         
-        #piirra_MeanSize(tyyppi = 'cloud', ajanhetket = [6], korkeus = [700], color = 'r')
+        piirra_MeanSize(tyyppi = 'cloud', ajanhetket = [6], korkeus = [700], color = 'r')
         
-        #piirra_domainMeanProfiili( 'S_Nc',  muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
+        piirra_domainMeanProfiili( 'S_Nc',nimi = 'Cloud number concentration averaged',  muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
         
         #piirra_domainProfiili( 'w_2', longName = tag + "vertical velocity squared " + r'$m^{2}/s^{-2}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.RdPu, profiili = True, spinup = spinup )
         
@@ -1821,8 +1841,8 @@ if ICE and not importOnly:
         piirra_MeanSize(tyyppi = 'ice', ajanhetket = [6], korkeus = [700] )
         piirra_MeanSize(tyyppi = 'ice', ajanhetket = [6], korkeus = [400] )
         piirra_MeanSize(tyyppi = 'ice', ajanhetket = [6], korkeus = [200] )
-        piirra_domainMeanProfiili( 'S_Nic',  muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
-        piirra_domainMeanProfiili( 'S_Rwia', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$D [{\mu}m]$', color = icevari )   
+        piirra_domainMeanProfiili( 'S_Nic',  nimi = 'Ice number concentration averaged', muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
+        piirra_domainMeanProfiili( 'S_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$D [{\mu}m]$', color = icevari )   
 
 
 toc = time.clock()

@@ -17,7 +17,7 @@ export ibrixrootfolder=/ibrix/arch/ClimRes/${USER}/
 if [[ $jobflag == 'PBS' ]]; then
     export outputroot=/lustre/tmp/${USER}/${model}/
     export root=/home/users/${USER}/${model}
-    export nodeNPU=20  # number of processing units in a node
+    export nodeNPU=28  # number of processing units in a node
     export submitCMD=qsub
 
 elif [[ $jobflag == 'SBATCH' ]]; then ## CSC's Sisu machine values
@@ -119,6 +119,53 @@ function postprosessoi {
     
     echo ' '
     echo 'Submittoitu postprosessointiin'
+
+}
+
+function postprosessoiinteractive {
+    
+    echo ' '
+    simulation=$1
+    outputname=$2
+
+    
+    ncsub=${ncsub:-true}
+    pssub=${pssub:-true}
+    tssub=${tssub:-true}
+    
+    
+    # if outputname doesn't exist set it to be same as simulation
+    if [[ -z $outputname ]]; then
+        outputname=${simulation} 
+    fi
+    
+    # if scriptfolder doesn't exist set it to be the default
+    if [[ -z $scriptfolder ]]; then
+        scriptfolder=${script}
+    fi
+    
+
+    
+    if [[ $ncsub == "true" ]]; then
+        echo ' '
+        echo 'Nyt postprosessoidaan nc'
+        python ${scriptfolder}/${scriptname} ${outputroot}/${simulation}/${outputname}
+    fi
+    
+    if [[ $pssub == "true" ]]; then
+        echo ' '
+        echo 'Nyt postprosessoidaan ps'
+        python ${scriptfolder}/${scriptname} ${outputroot}/${simulation}/${outputname}.ps
+    fi
+    
+    if [[ $tssub == "true" ]]; then    
+        echo ' '
+        echo 'Nyt postprosessoidaan ts'
+        python ${scriptfolder}/${scriptname} ${outputroot}/${simulation}/${outputname}.ts
+    fi
+    
+    echo ' '
+    echo 'Postprosessoitu'
 
 }
 
