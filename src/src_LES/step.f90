@@ -205,12 +205,10 @@ CONTAINS
       USE util, ONLY : maskactiv !Juha: Included for SALSA
 
       USE mo_salsa_driver, ONLY : run_SALSA
-      USE class_ComponentIndex, ONLY : GetNcomp
 
       LOGICAL, INTENT (out)      :: cflflg
       REAL(KIND=8), INTENT (out) :: cflmax
 
-      REAL :: xtime
 
       LOGICAL :: zactmask(nzp,nxp,nyp)
       REAL    :: zwp(nzp,nxp,nyp), &  !! FOR SINGLE-COLUMN RUNS
@@ -221,7 +219,6 @@ CONTAINS
 
       zwp = 0.5
 
-      xtime = time/86400. + strtim
       cflflg = .FALSE.
 
       ! The runmode parameter zrm is used by SALSA only
@@ -255,11 +252,11 @@ CONTAINS
 
          CALL thermo(level)
 
-         CALL forcings(xtime)
+         CALL forcings(time,strtim)
 
          IF (level >= 4) THEN
 
-            n4 = GetNcomp(prtcl) + 1 ! Aerosol components + water
+            n4 = prtcl%getNComp() ! Aerosol components + water
 
             CALL tend_constrain(n4)
             CALL update_sclrs
@@ -746,8 +743,6 @@ CONTAINS
                              msu,moc,mno,mnh,mss,mwa,avog,pi6,                     &
                              surfw0,surfi0, rg, nlim, prlim, pi, &
                              lscndgas
-      USE class_ComponentIndex, ONLY : GetIndex, GetNcomp, IsUsed
-
 
       IMPLICIT NONE
 
@@ -774,7 +769,7 @@ CONTAINS
       a_micep = MAX(0.,a_micep)
       a_msnowp = MAX(0.,a_msnowp)
 
-      nn = GetNcomp(prtcl)+1 ! total number of species
+      nn = prtcl%getNComp() ! total number of species
 
       ! Critical radius for cloud droplets and precipitation
       DO j = 3, nyp-2
@@ -811,28 +806,28 @@ CONTAINS
                   IF (a_ncloudp(k,i,j,c) > nlim .AND. a_rh(k,i,j) < 0.999) THEN
                      ! Moles of solute
                      ns = 0.
-                     IF (IsUsed(prtcl,'SO4')) THEN
-                        s = GetIndex(prtcl,'SO4')
+                     IF (prtcl%isUsed('SO4')) THEN
+                        s = prtcl%getIndex('SO4')
                         str = (s-1)*ncld + c
                         ns = ns + 3.*a_mcloudp(k,i,j,str)/msu
                      END IF
-                     IF (IsUsed(prtcl,'OC')) THEN
-                        s = GetIndex(prtcl,'OC')
+                     IF (prtcl%isUsed('OC')) THEN
+                        s = prtcl%getIndex('OC')
                         str = (s-1)*ncld + c
                         ns = ns + a_mcloudp(k,i,j,str)/moc
                      END IF
-                     IF (IsUsed(prtcl,'NO')) THEN
-                        s = GetIndex(prtcl,'NO')
+                     IF (prtcl%isUsed('NO')) THEN
+                        s = prtcl%getIndex('NO')
                         str = (s-1)*ncld + c
                         ns = ns + a_mcloudp(k,i,j,str)/mno
                      END IF
-                     IF (IsUsed(prtcl,'NH')) THEN
-                        s = GetIndex(prtcl,'NH')
+                     IF (prtcl%isUsed('NH')) THEN
+                        s = prtcl%getIndex('NH')
                         str = (s-1)*ncld + c
                         ns = ns + a_mcloudp(k,i,j,str)/mnh
                      END IF
-                     IF (IsUsed(prtcl,'SS')) THEN
-                        s = GetIndex(prtcl,'SS')
+                     IF (prtcl%isUsed('SS')) THEN
+                        s = prtcl%getIndex('SS')
                         str = (s-1)*ncld + c
                         ns = ns + 2.*a_mcloudp(k,i,j,str)/mss
                      END IF
@@ -861,28 +856,28 @@ CONTAINS
                   IF (a_nprecpp(k,i,j,c) > prlim .AND. a_rh(k,i,j) < 0.999) THEN
                      ! Moles of solute
                      ns = 0.
-                     IF (IsUsed(prtcl,'SO4')) THEN
-                        s = GetIndex(prtcl,'SO4')
+                     IF (prtcl%isUsed('SO4')) THEN
+                        s = prtcl%getIndex('SO4')
                         str = (s-1)*nprc + c
                         ns = ns + 3.*a_mprecpp(k,i,j,str)/msu
                      END IF
-                     IF (IsUsed(prtcl,'OC')) THEN
-                        s = GetIndex(prtcl,'OC')
+                     IF (prtcl%isUsed('OC')) THEN
+                        s = prtcl%getIndex('OC')
                         str = (s-1)*nprc + c
                         ns = ns + a_mprecpp(k,i,j,str)/moc
                      END IF
-                     IF (IsUsed(prtcl,'NO')) THEN
-                        s = GetIndex(prtcl,'NO')
+                     IF (prtcl%isUsed('NO')) THEN
+                        s = prtcl%getIndex('NO')
                         str = (s-1)*nprc + c
                         ns = ns + a_mprecpp(k,i,j,str)/mno
                      END IF
-                     IF (IsUsed(prtcl,'NH')) THEN
-                        s = GetIndex(prtcl,'NH')
+                     IF (prtcl%isUsed('NH')) THEN
+                        s = prtcl%getIndex('NH')
                         str = (s-1)*nprc + c
                         ns = ns + a_mprecpp(k,i,j,str)/mnh
                      END IF
-                     IF (IsUsed(prtcl,'SS')) THEN
-                        s = GetIndex(prtcl,'SS')
+                     IF (prtcl%isUsed('SS')) THEN
+                        s = prtcl%getIndex('SS')
                         str = (s-1)*nprc + c
                         ns = ns + a_mprecpp(k,i,j,str)/mss
                      END IF
@@ -915,28 +910,28 @@ CONTAINS
                   IF (a_nicep(k,i,j,c) > prlim .AND. a_rhi(k,i,j) < 0.999) THEN
                      ! Moles of solute
                      ns = 0.
-                     IF (IsUsed(prtcl,'SO4')) THEN
-                        s = GetIndex(prtcl,'SO4')
+                     IF (prtcl%isUsed('SO4')) THEN
+                        s = prtcl%getIndex('SO4')
                         str = (s-1)*nice + c
                         ns = ns + 3.*a_micep(k,i,j,str)/msu
                      END IF
-                     IF (IsUsed(prtcl,'OC')) THEN
-                        s = GetIndex(prtcl,'OC')
+                     IF (prtcl%isUsed('OC')) THEN
+                        s = prtcl%getIndex('OC')
                         str = (s-1)*nice + c
                         ns = ns + a_micep(k,i,j,str)/moc
                      END IF
-                     IF (IsUsed(prtcl,'NO')) THEN
-                        s = GetIndex(prtcl,'NO')
+                     IF (prtcl%isUsed('NO')) THEN
+                        s = prtcl%getIndex('NO')
                         str = (s-1)*nice + c
                         ns = ns + a_micep(k,i,j,str)/mno
                      END IF
-                     IF (IsUsed(prtcl,'NH')) THEN
-                        s = GetIndex(prtcl,'NH')
+                     IF (prtcl%isUsed('NH')) THEN
+                        s = prtcl%getIndex('NH')
                         str = (s-1)*nice + c
                         ns = ns + a_micep(k,i,j,str)/mnh
                      END IF
-                     IF (IsUsed(prtcl,'SS')) THEN
-                        s = GetIndex(prtcl,'SS')
+                     IF (prtcl%isUsed('SS')) THEN
+                        s = prtcl%getIndex('SS')
                         str = (s-1)*nice + c
                         ns = ns + 2.*a_micep(k,i,j,str)/mss
                      END IF
@@ -965,28 +960,28 @@ CONTAINS
                   IF (a_nsnowp(k,i,j,c) > prlim .AND. a_rhi(k,i,j) < 0.999) THEN
                      ! Moles of solute
                      ns = 0.
-                     IF (IsUsed(prtcl,'SO4')) THEN
-                        s = GetIndex(prtcl,'SO4')
+                     IF (prtcl%isUsed('SO4')) THEN
+                        s = prtcl%getIndex('SO4')
                         str = (s-1)*nsnw + c
                         ns = ns + 3.*a_msnowp(k,i,j,str)/msu
                      END IF
-                     IF (IsUsed(prtcl,'OC')) THEN
-                        s = GetIndex(prtcl,'OC')
+                     IF (prtcl%isUsed('OC')) THEN
+                        s = prtcl%getIndex('OC')
                         str = (s-1)*nsnw + c
                         ns = ns + a_msnowp(k,i,j,str)/moc
                      END IF
-                     IF (IsUsed(prtcl,'NO')) THEN
-                        s = GetIndex(prtcl,'NO')
+                     IF (prtcl%isUsed('NO')) THEN
+                        s = prtcl%getIndex('NO')
                         str = (s-1)*nsnw + c
                         ns = ns + a_msnowp(k,i,j,str)/mno
                      END IF
-                     IF (IsUsed(prtcl,'NH')) THEN
-                        s = GetIndex(prtcl,'NH')
+                     IF (prtcl%isUsed('NH')) THEN
+                        s = prtcl%getIndex('NH')
                         str = (s-1)*nsnw + c
                         ns = ns + a_msnowp(k,i,j,str)/mnh
                      END IF
-                     IF (IsUsed(prtcl,'SS')) THEN
-                        s = GetIndex(prtcl,'SS')
+                     IF (prtcl%isUsed('SS')) THEN
+                        s = prtcl%getIndex('SS')
                         str = (s-1)*nsnw + c
                         ns = ns + a_msnowp(k,i,j,str)/mss
                      END IF
@@ -1197,23 +1192,23 @@ CONTAINS
                      zddry = (zvol/a_naerop(k,i,j,ba)/pi6)**(1./3.)
                      IF ( zddry < 1.e-10 ) THEN
                         ! Volatile species to the gas phase
-                        IF (IsUsed(prtcl,'SO4') .AND. lscndgas) THEN
-                           nc = GetIndex(prtcl,'SO4')
+                        IF (prtcl%isUsed('SO4') .AND. lscndgas) THEN
+                           nc = prtcl%getIndex('SO4')
                            s = (nc-1)*nbins + ba
                            a_gaerop(k,i,j,1) = a_gaerop(k,i,j,1) + a_maerop(k,i,j,s) / msu * avog
                         END IF
-                        IF (IsUsed(prtcl,'OC') .AND. lscndgas) THEN
-                           nc = GetIndex(prtcl,'OC')
+                        IF (prtcl%isUsed('OC') .AND. lscndgas) THEN
+                           nc = prtcl%getIndex('OC')
                            s = (nc-1)*nbins + ba
                            a_gaerop(k,i,j,5) = a_gaerop(k,i,j,5) + a_maerop(k,i,j,s) / moc * avog
                         END IF
-                        IF (IsUsed(prtcl,'NO') .AND. lscndgas) THEN
-                           nc = GetIndex(prtcl,'NO')
+                        IF (prtcl%isUsed('NO') .AND. lscndgas) THEN
+                           nc = prtcl%getIndex('NO')
                            s = (nc-1)*nbins + ba
                            a_gaerop(k,i,j,2) = a_gaerop(k,i,j,2) + a_maerop(k,i,j,s) / mno * avog
                         END IF
-                        IF (IsUsed(prtcl,'NH') .AND. lscndgas) THEN
-                           nc = GetIndex(prtcl,'NH')
+                        IF (prtcl%isUsed('NH') .AND. lscndgas) THEN
+                           nc = prtcl%getIndex('NH')
                            s = (nc-1)*nbins + ba
                            a_gaerop(k,i,j,3) = a_gaerop(k,i,j,3) + a_maerop(k,i,j,s) / mnh * avog
                         END IF
@@ -1235,7 +1230,7 @@ CONTAINS
       !!!!!!!!!!!!!!!!!!!!!!!
 
       ! Liquid water content
-      nc = GetIndex(prtcl,'H2O')
+      nc = prtcl%getIndex('H2O')
       ! Aerosols, regimes a and b
       str = (nc-1)*nbins + in1a
       end = (nc-1)*nbins + fn2b

@@ -156,175 +156,171 @@ CONTAINS
               ammonium_chloride_eq_frac, sodium_sulphate_eq_frac, sodium_nitrate_eq_frac,&
               sodium_chloride_eq_frac, nitric_acid_eq_frac, RH, Temp
 
-	real::hno3_w, hcl_w, h2so4_w, nh42so4_w, nh4no3_w, nh4cl_w,&
-		&na2so4_w, nano3_w, nacl_w, water_total, h_out, hso4_out, so4_out
+      real::hno3_w, hcl_w, h2so4_w, nh42so4_w, nh4no3_w, nh4cl_w,&
+            na2so4_w, nano3_w, nacl_w, water_total, h_out, hso4_out, so4_out
 		
 
-	real::nh43hso42_w, nh4hso4_w, na3hso42_w, nahso4_w
+      real::nh43hso42_w, nh4hso4_w, na3hso42_w, nahso4_w
 
-	real::hno3_water, hcl_water, h2so4_water, nh42so4_water, nh4no3_water, nh4cl_water,&
-		&na2so4_water, nano3_water, nacl_water, nh43hso42_water, nh4hso4_water, na3hso42_water, nahso4_water
+      real::hno3_water, hcl_water, h2so4_water, nh42so4_water, nh4no3_water, nh4cl_water,&
+            na2so4_water, nano3_water, nacl_water, nh43hso42_water, nh4hso4_water, na3hso42_water, nahso4_water
+      
+      real::nNa, nNH4, nSulf, Xt, fNa, fNH4
+      
+      
+      integer::binary_case, full_complexity
+      
+      real::binary_hno3
+      
+      real::HCL_hno3, H2SO4_hno3, NH42SO4_hno3, NH4NO3_hno3, NH4Cl_hno3,&
+            Na2SO4_hno3, NaNO3_hno3, NaCl_hno3
 
-	real::nNa, nNH4, nSulf, Xt, fNa, fNH4
+      real::Ln_HNO3_act, gamma_hno3, Press_HNO3, K_hno3
+      
+      real::binary_hcl
+      
+      real::HNO3_hcl, H2SO4_hcl, NH42SO4_hcl, NH4NO3_hcl, NH4Cl_hcl,&
+            Na2SO4_hcl, NaNO3_hcl, NaCl_hcl
 
+      real::Ln_HCl_act, gamma_hcl, Press_HCl
+      
+      real::HNO3_nh3, HCl_nh3, H2SO4_nh3, NH42SO4_nh3, NH4NO3_nh3, NH4Cl_nh3,&
+            Na2SO4_nh3, NaNO3_nh3, NaCl_nh3
 
-	integer::binary_case, full_complexity
+      real::Ln_NH3_act, gamma_nh3, Press_NH3
 
-	real::binary_hno3
+      real::K_hcl
 
-	real::HCL_hno3, H2SO4_hno3, NH42SO4_hno3, NH4NO3_hno3, NH4Cl_hno3,&
-		&Na2SO4_hno3, NaNO3_hno3, NaCl_hno3
+      real::Kh, Knh4, Kw, molality_ratio_nh3
 
-	real::Ln_HNO3_act, gamma_hno3, Press_HNO3, K_hno3
+      !----variables used in calculating bisulphate dissociation----
 
-	real::binary_hcl
+      real::binary_hhso4
+      
+      real::HNO3_hhso4, HCL_hhso4, NH42SO4_hhso4, NH4NO3_hhso4, NH4Cl_hhso4,&
+            Na2SO4_hhso4, NaNO3_hhso4, NaCl_hhso4
 
-	real::HNO3_hcl, H2SO4_hcl, NH42SO4_hcl, NH4NO3_hcl, NH4Cl_hcl,&
-		&Na2SO4_hcl, NaNO3_hcl, NaCl_hcl
+      real::Ln_hhso4_act, gamma_hhso4
+      
+      real::binary_h2so4
+      
+      real::HNO3_h2so4, HCl_h2so4, NH42SO4_h2so4, NH4NO3_h2so4, NH4Cl_h2so4,&
+            Na2SO4_h2so4, NaNO3_h2so4, NaCl_h2so4
 
-	real::Ln_HCl_act, gamma_hcl, Press_HCl
+      real::Ln_h2so4_act, gamma_h2so4
 
-	real::HNO3_nh3, HCl_nh3, H2SO4_nh3, NH42SO4_nh3, NH4NO3_nh3, NH4Cl_nh3,&
-		&Na2SO4_nh3, NaNO3_nh3, NaCl_nh3
+      real::act_product, a, b, c, root1, root2
 
-	real::Ln_NH3_act, gamma_nh3, Press_NH3
+      real::h_real, hso4_real, so4_real
 
-	real::K_hcl
+      real::Mol_frac_hno3,Mol_frac_hcl,Mol_frac_h2so4,Mol_frac_nh42so4,Mol_frac_nh4no3,&
+            Mol_frac_nh4cl,Mol_frac_na2so4,Mol_frac_nano3,Mol_frac_nacl
 
-    real::Kh, Knh4, Kw, molality_ratio_nh3
+      real::Mol_frac_nh43hso42, Mol_frac_nh4hso4, Mol_frac_na3hso42, Mol_frac_nahso4
 
-	!----variables used in calculating bisulphate dissociation----
+      real:: henrys_temp_dep
 
-    real::binary_hhso4
+      !---new nh3 variables---
+      real::binary_nh4hso4,HNO3_nh4hso4,HCL_nh4hso4,H2SO4_nh4hso4,NH42SO4_nh4hso4,&
+            NH4NO3_nh4hso4,NH4Cl_nh4hso4,Na2SO4_nh4hso4,NaNO3_nh4hso4,NaCl_nh4hso4
+      real::Ln_NH4HSO4_act,gamma_nh4hso4
 
-    real::HNO3_hhso4, HCL_hhso4, NH42SO4_hhso4, NH4NO3_hhso4, NH4Cl_hhso4,&
-		&Na2SO4_hhso4, NaNO3_hhso4, NaCl_hhso4
+      !----------------------------------------------------------------------------------
+      !
+      !VALUE INITIALISATION
+      henrys_temp_dep = (1/temp - 1/298d0)
 
-	real::Ln_hhso4_act, gamma_hhso4
+      HCL_hno3=1.0d0;H2SO4_hno3=1.0d0;NH42SO4_hno3=1.0d0;NH4NO3_hno3=1.0d0;NH4Cl_hno3=1.0d0;
+      Na2SO4_hno3=1.0d0;NaNO3_hno3=1.0d0;NaCl_hno3=1.0d0;
+      HNO3_hcl=1.0d0;H2SO4_hcl=1.0d0;NH42SO4_hcl=1.0d0;NH4NO3_hcl=1.0d0;NH4Cl_hcl=1.0d0;
+      Na2SO4_hcl=1.0d0;NaNO3_hcl=1.0d0;NaCl_hcl=1.0d0;
+      HNO3_nh3=1.0d0;HCl_nh3=1.0d0;H2SO4_nh3=1.0d0;NH42SO4_nh3=1.0d0;NH4NO3_nh3=1.0d0;
+      NH4Cl_nh3=1.0d0;Na2SO4_nh3=1.0d0;NaNO3_nh3=1.0d0;NaCl_nh3=1.0d0;
+      HNO3_hhso4=1.0d0;HCL_hhso4=1.0d0;NH42SO4_hhso4=1.0d0;NH4NO3_hhso4=1.0d0;NH4Cl_hhso4=1.0d0;
+      Na2SO4_hhso4=1.0d0;NaNO3_hhso4=1.0d0;NaCl_hhso4=1.0d0
+      HNO3_h2so4=1.0d0;HCl_h2so4=1.0d0;NH42SO4_h2so4=1.0d0;NH4NO3_h2so4=1.0d0;NH4Cl_h2so4=1.0d0;
+      Na2SO4_h2so4=1.0d0;NaNO3_h2so4=1.0d0;NaCl_h2so4=1.0d0;
+      !--new nh3 variables--
+      HNO3_nh4hso4=1.0d0;HCL_nh4hso4=1.0d0;H2SO4_nh4hso4=1.0d0;NH42SO4_nh4hso4=1.0d0;
+      NH4NO3_nh4hso4=1.0d0;NH4Cl_nh4hso4=1.0d0;Na2SO4_nh4hso4=1.0d0;NaNO3_nh4hso4=1.0d0;NaCl_nh4hso4=1.0d0;
+      
+      
+      ! Juha: added
+      mols_out = 0.d0
+      
+      Press_HNO3=0.0d0
+      Press_HCl=0.0d0
+      Press_NH3=0.0d0  !Initialising vapour pressure over the multicomponent particle
+      gamma_out = 1d0  ! i.e. don't alter the ideal mixing ratios if there's nothing there.
+      
+      !------------------------------------------------------------------------
+      !
+      !1)-COMPOSITION DEFINITIONS
+      !
+      ! a)Inorganic ion pairing	
+      !  pair cations and anions into solutes according to Clegg et al (2001)
+      
+      charge_sum=ions(1)+ions(2)+ions(3)+2.0d0*ions(4)+ions(5)+ions(6)+ions(7)
+      nitric_acid=0.0d0;hydrochloric_acid=0.0d0;sulphuric_acid=0.0d0
+      ammonium_sulphate=0.0d0;ammonium_nitrate=0.0d0;ammonium_chloride=0.0d0
+      sodium_sulphate=0.0d0;sodium_nitrate=0.0d0;sodium_chloride=0.0d0
+      nitric_acid=(2.0d0*ions(1)*ions(6)*((1.0d0/1.0d0)**0.5))/(charge_sum)
+      hydrochloric_acid=(2.0d0*ions(1)*ions(7)*((1.0d0/1.0d0)**0.5))/(charge_sum)
+      sulphuric_acid=(2.0d0*ions(1)*ions(4)*((2.0d0/2.0d0)**0.5))/(charge_sum)
+      ammonium_sulphate=(2.0d0*ions(2)*ions(4)*((2.0d0/2.0d0)**0.5))/(charge_sum)  
+      ammonium_nitrate=(2.0d0*ions(2)*ions(6)*((1.0d0/1.0d0)**0.5))/(charge_sum)   
+      ammonium_chloride=(2.0d0*ions(2)*ions(7)*((1.0d0/1.0d0)**0.5))/(charge_sum) 
+      sodium_sulphate=(2.0d0*ions(3)*ions(4)*((2.0d0/2.0d0)**0.5))/(charge_sum) 
+      sodium_nitrate=(2.0d0*ions(3)*ions(6)*((1.0d0/1.0d0)**0.5))/(charge_sum)  
+      sodium_chloride=(2.0d0*ions(3)*ions(7)*((1.0d0/1.0d0)**0.5))/(charge_sum)
+      
+      ! b) - Inorganic equivalent fractions
 
-	real::binary_h2so4
-
-	real::HNO3_h2so4, HCl_h2so4, NH42SO4_h2so4, NH4NO3_h2so4, NH4Cl_h2so4,&
-		&Na2SO4_h2so4, NaNO3_h2so4, NaCl_h2so4
-
-	real::Ln_h2so4_act, gamma_h2so4
-
-	real::act_product, a, b, c, root1, root2
-
-    real::h_real, hso4_real, so4_real
-
-	real::Mol_frac_hno3,Mol_frac_hcl,Mol_frac_h2so4,Mol_frac_nh42so4,Mol_frac_nh4no3,&
-	&Mol_frac_nh4cl,Mol_frac_na2so4,Mol_frac_nano3,Mol_frac_nacl
-
-
-	real::Mol_frac_nh43hso42, Mol_frac_nh4hso4, Mol_frac_na3hso42, Mol_frac_nahso4
-
-
-	real:: henrys_temp_dep
-
-    !---new nh3 variables---
-    real::binary_nh4hso4,HNO3_nh4hso4,HCL_nh4hso4,H2SO4_nh4hso4,NH42SO4_nh4hso4,&
-	&NH4NO3_nh4hso4,NH4Cl_nh4hso4,Na2SO4_nh4hso4,NaNO3_nh4hso4,NaCl_nh4hso4
-	real::Ln_NH4HSO4_act,gamma_nh4hso4
-
-	!----------------------------------------------------------------------------------
-	!
-	!VALUE INITIALISATION
-	henrys_temp_dep = (1/temp - 1/298d0)
-
-	HCL_hno3=1.0d0;H2SO4_hno3=1.0d0;NH42SO4_hno3=1.0d0;NH4NO3_hno3=1.0d0;NH4Cl_hno3=1.0d0;
-	Na2SO4_hno3=1.0d0;NaNO3_hno3=1.0d0;NaCl_hno3=1.0d0;
-	HNO3_hcl=1.0d0;H2SO4_hcl=1.0d0;NH42SO4_hcl=1.0d0;NH4NO3_hcl=1.0d0;NH4Cl_hcl=1.0d0;
-	Na2SO4_hcl=1.0d0;NaNO3_hcl=1.0d0;NaCl_hcl=1.0d0;
-	HNO3_nh3=1.0d0;HCl_nh3=1.0d0;H2SO4_nh3=1.0d0;NH42SO4_nh3=1.0d0;NH4NO3_nh3=1.0d0;
-	NH4Cl_nh3=1.0d0;Na2SO4_nh3=1.0d0;NaNO3_nh3=1.0d0;NaCl_nh3=1.0d0;
-	HNO3_hhso4=1.0d0;HCL_hhso4=1.0d0;NH42SO4_hhso4=1.0d0;NH4NO3_hhso4=1.0d0;NH4Cl_hhso4=1.0d0;
-	Na2SO4_hhso4=1.0d0;NaNO3_hhso4=1.0d0;NaCl_hhso4=1.0d0
-	HNO3_h2so4=1.0d0;HCl_h2so4=1.0d0;NH42SO4_h2so4=1.0d0;NH4NO3_h2so4=1.0d0;NH4Cl_h2so4=1.0d0;
-	Na2SO4_h2so4=1.0d0;NaNO3_h2so4=1.0d0;NaCl_h2so4=1.0d0;
-	!--new nh3 variables--
-	HNO3_nh4hso4=1.0d0;HCL_nh4hso4=1.0d0;H2SO4_nh4hso4=1.0d0;NH42SO4_nh4hso4=1.0d0;
-	NH4NO3_nh4hso4=1.0d0;NH4Cl_nh4hso4=1.0d0;Na2SO4_nh4hso4=1.0d0;NaNO3_nh4hso4=1.0d0;NaCl_nh4hso4=1.0d0;
-
-
-    ! Juha: added
-    mols_out = 0.d0
-
-    Press_HNO3=0.0d0
-    Press_HCl=0.0d0
-    Press_NH3=0.0d0							!Initialising vapour pressure over the multicomponent
-											!particle
-	
-	gamma_out = 1d0			! i.e. don't alter the ideal mixing ratios if there's nothing there.
-
-   !------------------------------------------------------------------------
-   !
-   !1)-COMPOSITION DEFINITIONS
-   !
-   ! a)Inorganic ion pairing	
-   !  pair cations and anions into solutes according to Clegg et al (2001)
-
-	charge_sum=ions(1)+ions(2)+ions(3)+2.0d0*ions(4)+ions(5)+ions(6)+ions(7)
-	nitric_acid=0.0d0;hydrochloric_acid=0.0d0;sulphuric_acid=0.0d0
-    ammonium_sulphate=0.0d0;ammonium_nitrate=0.0d0;ammonium_chloride=0.0d0
-    sodium_sulphate=0.0d0;sodium_nitrate=0.0d0;sodium_chloride=0.0d0
-	nitric_acid=(2.0d0*ions(1)*ions(6)*((1.0d0/1.0d0)**0.5))/(charge_sum)
-	hydrochloric_acid=(2.0d0*ions(1)*ions(7)*((1.0d0/1.0d0)**0.5))/(charge_sum)
-	sulphuric_acid=(2.0d0*ions(1)*ions(4)*((2.0d0/2.0d0)**0.5))/(charge_sum)
-	ammonium_sulphate=(2.0d0*ions(2)*ions(4)*((2.0d0/2.0d0)**0.5))/(charge_sum)  
-	ammonium_nitrate=(2.0d0*ions(2)*ions(6)*((1.0d0/1.0d0)**0.5))/(charge_sum)   
-	ammonium_chloride=(2.0d0*ions(2)*ions(7)*((1.0d0/1.0d0)**0.5))/(charge_sum) 
-	sodium_sulphate=(2.0d0*ions(3)*ions(4)*((2.0d0/2.0d0)**0.5))/(charge_sum) 
-	sodium_nitrate=(2.0d0*ions(3)*ions(6)*((1.0d0/1.0d0)**0.5))/(charge_sum)  
-	sodium_chloride=(2.0d0*ions(3)*ions(7)*((1.0d0/1.0d0)**0.5))/(charge_sum)
-
-   ! b) - Inorganic equivalent fractions
-
-	solutes=0.0d0
-	solutes=3.0d0*sulphuric_acid+2.0d0*hydrochloric_acid+2.0d0*nitric_acid+3.0d0*ammonium_sulphate+&
-		&2.0d0*ammonium_nitrate+2.0d0*ammonium_chloride+3.0d0*sodium_sulphate+2.0d0*sodium_nitrate+&
-		&2.0d0*sodium_chloride
-
-	nitric_acid_eq_frac=2.0d0*nitric_acid/(solutes)
-	hydrochloric_acid_eq_frac=2.0d0*hydrochloric_acid/(solutes)
-	sulphuric_acid_eq_frac=3.0d0*sulphuric_acid/(solutes)
-	ammonium_sulphate_eq_frac=3.0d0*ammonium_sulphate/(solutes)
-	ammonium_nitrate_eq_frac=2.0d0*ammonium_nitrate/(solutes)
-	ammonium_chloride_eq_frac=2.0d0*ammonium_chloride/(solutes)
-	sodium_sulphate_eq_frac=3.0d0*sodium_sulphate/(solutes)
-	sodium_nitrate_eq_frac=2.0d0*sodium_nitrate/(solutes)
-	sodium_chloride_eq_frac=2.0d0*sodium_chloride/(solutes)
-
-
-	!--inorganic ion molalities
-
-    ions_mol(:)=0.0d0
-	ions_mol(1)=ions(1)/(water_total*18.01528d-3)  !H
-	ions_mol(2)=ions(2)/(water_total*18.01528d-3)  !NH4
-	ions_mol(3)=ions(3)/(water_total*18.01528d-3)  !Na
-	ions_mol(4)=ions(4)/(water_total*18.01528d-3)  !SO4
-	ions_mol(5)=ions(5)/(water_total*18.01528d-3)  !HSO4
-	ions_mol(6)=ions(6)/(water_total*18.01528d-3)  !NO3
-	ions_mol(7)=ions(7)/(water_total*18.01528d-3)  !Cl
-
-   !***
-   !At this point we may need to introduce a method for prescribing H+ when
-   !there is no 'real' value for H+..i.e. in the sulphate poor domain
-   !this will give a value for
-   !-solve quadratic proposed by Zaveri et al 2005
-
-
-
-
-	!-----------------------------------------------------------------------------------------
-	!
-	!3) BISULPHATE ION DISSOCIATION
-	!
-	!Note: the flags "binary_case" and "full_complexity" are not used in this prototype
-	!They are used for simplification of the fit expressions when using limited composition regions
-	!
-	!--this section of code calculates the bisulphate ion concentration
-
+      solutes=0.0d0
+      solutes=3.0d0*sulphuric_acid+2.0d0*hydrochloric_acid+2.0d0*nitric_acid+3.0d0*ammonium_sulphate+&
+           &2.0d0*ammonium_nitrate+2.0d0*ammonium_chloride+3.0d0*sodium_sulphate+2.0d0*sodium_nitrate+&
+           &2.0d0*sodium_chloride
+      
+      nitric_acid_eq_frac=2.0d0*nitric_acid/(solutes)
+      hydrochloric_acid_eq_frac=2.0d0*hydrochloric_acid/(solutes)
+      sulphuric_acid_eq_frac=3.0d0*sulphuric_acid/(solutes)
+      ammonium_sulphate_eq_frac=3.0d0*ammonium_sulphate/(solutes)
+      ammonium_nitrate_eq_frac=2.0d0*ammonium_nitrate/(solutes)
+      ammonium_chloride_eq_frac=2.0d0*ammonium_chloride/(solutes)
+      sodium_sulphate_eq_frac=3.0d0*sodium_sulphate/(solutes)
+      sodium_nitrate_eq_frac=2.0d0*sodium_nitrate/(solutes)
+      sodium_chloride_eq_frac=2.0d0*sodium_chloride/(solutes)
+      
+      
+      !--inorganic ion molalities
+      
+      ions_mol(:)=0.0d0
+      ions_mol(1)=ions(1)/(water_total*18.01528d-3)  !H
+      ions_mol(2)=ions(2)/(water_total*18.01528d-3)  !NH4
+      ions_mol(3)=ions(3)/(water_total*18.01528d-3)  !Na
+      ions_mol(4)=ions(4)/(water_total*18.01528d-3)  !SO4
+      ions_mol(5)=ions(5)/(water_total*18.01528d-3)  !HSO4
+      ions_mol(6)=ions(6)/(water_total*18.01528d-3)  !NO3
+      ions_mol(7)=ions(7)/(water_total*18.01528d-3)  !Cl
+      
+      !***
+      !At this point we may need to introduce a method for prescribing H+ when
+      !there is no 'real' value for H+..i.e. in the sulphate poor domain
+      !this will give a value for
+      !-solve quadratic proposed by Zaveri et al 2005
+      
+      
+      
+      
+      !-----------------------------------------------------------------------------------------
+      !
+      !3) BISULPHATE ION DISSOCIATION
+      !
+      !Note: the flags "binary_case" and "full_complexity" are not used in this prototype
+      !They are used for simplification of the fit expressions when using limited composition regions
+      !
+      !--this section of code calculates the bisulphate ion concentration
+      
       IF (ions(1) > 0.0 .AND. ions(4) > 0.0) THEN
 
          !----------HHSO4-------------

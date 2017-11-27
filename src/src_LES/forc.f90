@@ -19,10 +19,17 @@
 !
 MODULE forc
 
+  USE grid, ONLY: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, lnudging, lemission,  &
+                  a_rc, a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp,  &
+                  a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
+                  a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, &
+                  a_fus, a_fds, a_fuir, a_fdir
+  USE mpi_interface, ONLY : myid, appl_abort
   USE defs, ONLY      : cp
   USE stat, ONLY      : sflg
   USE radiation_main, ONLY : rad_interface, useMcICA, iradtyp
-  USE nudg, ONLY : useNudge, nudging
+  USE nudg, ONLY : nudging
+  USE emission_main, ONLY : aerosol_emission
   IMPLICIT NONE
 
   ! these are now all namelist parameters
@@ -40,21 +47,17 @@ CONTAINS
   ! Contains: explicit and parameterized radiation calculations, nudging,
   ! large-scale divergence effects and other case-specific forcings.
   !
-  SUBROUTINE forcings(time_in)
+  SUBROUTINE forcings(time,strtim)
 
-    USE grid, ONLY: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc,     &
-                    a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp,  &
-                    a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
-                    a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, &
-                    a_fus, a_fds, a_fuir, a_fdir
 
-    USE mpi_interface, ONLY : myid, appl_abort
 
-    REAL,  INTENT (in) :: time_in
+    REAL,  INTENT (in) :: time, strtim
     REAL :: xka, fr0, fr1
+    REAL :: hourtime
 
     ! NOT FINISHED; PUT LARGE-SCALE FORCINGS/CASE-SPECIFIC STUFF IN THEIR OWN PACKAGES
 
+    hourtime = time/86400. + strtim
 
     ! DIVERGENCE GIVEN FROM NAMELIST
     IF (trim(case_name) == 'atex') THEN
@@ -78,8 +81,9 @@ CONTAINS
     ! Nudging
     ! ------------
     !
-    IF (useNudge) CALL nudging(time_in)
+    IF (lnudging) CALL nudging(time)
 
+    IF (lemission .AND. level >= 4) CALL aerosol_emission(time)
 
     SELECT CASE(iradtyp)
     CASE (1)
@@ -114,7 +118,7 @@ CONTAINS
     CASE (3)
        ! Radiation + large scale forcing
        !----------------------------------
-       CALL rad_interface(time_in)
+       CALL rad_interface(hourtime)
        
        IF ( case_name /= 'none') THEN
           CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)

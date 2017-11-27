@@ -13,7 +13,6 @@ MODULE radiation_main
                    albedo, prtcl, level
 
   USE mo_submctl, ONLY : nprc,ira,fra
-  USE class_ComponentIndex, ONLY : getNComp
   USE radiation, ONLY : d4stream
   IMPLICIT NONE
   
@@ -29,12 +28,12 @@ MODULE radiation_main
     SUBROUTINE rad_interface(time_in)
       IMPLICIT NONE
       
-      REAL, INTENT(in) :: time_in
+      REAL, INTENT(in) :: time_in  ! Time in hours
       
       INTEGER :: nspec
       REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
       
-      nspec = getNcomp(prtcl)
+      nspec = prtcl%getNComp()-1  ! Excluding water
       
       ! Radiation
       ! -------------

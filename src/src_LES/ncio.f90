@@ -20,13 +20,13 @@ CONTAINS
     INTEGER, INTENT(out)            :: ncid
     INTEGER, INTENT(out)            :: nrec
     REAL, INTENT (in)               :: time
-    CHARACTER (len=80), INTENT (in) :: fname, ename
+    CHARACTER (len=*), INTENT (in) :: fname, ename
     CHARACTER(LEN=80) :: version, author, info
 
     REAL, ALLOCATABLE :: xtimes(:)
 
     CHARACTER (len=8)  :: date
-    CHARACTER (len=88) :: lfname
+    CHARACTER (len=200) :: lfname
     INTEGER :: iret, ncall, VarID, RecordDimID
     LOGICAL :: exans
 

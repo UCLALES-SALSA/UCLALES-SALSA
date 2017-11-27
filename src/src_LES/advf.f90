@@ -107,7 +107,6 @@ CONTAINS
                      a_ncloudt, a_mcloudt,  &
                      a_nactd,  a_vactd,  a_rt,      &
                      prtcl
-    USE class_ComponentIndex, ONLY : GetNcomp, GetIndex
     IMPLICIT NONE
 
     LOGICAL, INTENT(in) :: pactmask(nzp,nxp,nyp)
@@ -146,7 +145,7 @@ CONTAINS
                                     MERGE( dn(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
           ! Change in dry ccn/aerosol mass
-          DO ss = 1, GetNcomp(prtcl)
+          DO ss = 1, prtcl%getNcomp()-1
 
              mm = (ss-1)*ncld + bb
              mmpar = (ss-1)*nbins + bbpar
@@ -174,7 +173,7 @@ CONTAINS
           ! as the number concentration....
           frac(:,:) = a_nactd(kk,:,:,bb)/MAX(a_naerop(kk,:,:,bbpar),1.)
 
-          nc = GetIndex(prtcl,'H2O')
+          nc = prtcl%getIndex('H2O')
           mm = (nc-1)*ncld + bb
           mmpar = (nc-1)*nbins + bbpar
 
@@ -198,7 +197,7 @@ CONTAINS
     ! the points defined by the activation mask (0 elsewhere)
     DO bb = ica%cur, fca%cur
        a_nactd(:,:,:,bb) = MERGE(a_nactd(:,:,:,bb),0.,pactmask(:,:,:))
-       DO ss = 1, GetNcomp(prtcl) + 1
+       DO ss = 1, prtcl%getNComp()
           mm = (ss-1)*ncld + bb
           a_vactd(:,:,:,mm) = MERGE(a_vactd(:,:,:,mm),0.,pactmask(:,:,:))
        END DO

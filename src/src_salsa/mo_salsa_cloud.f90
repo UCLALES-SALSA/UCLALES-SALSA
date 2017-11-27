@@ -160,17 +160,17 @@ CONTAINS
       ! Note: insoluble species are not properly accounted for
       !
 
-      USE mo_submctl, ONLY :     &
-         rg,                             & ! molar gas constant [J/(mol K)]
-         surfw0,                       & ! surface tension of water [J/m2]
-         nlim,                           & ! lowest possible particle conc. in a bin [#/m3]
-         rhowa, mwa,                & ! Density and molar mass of water
-         pi,                             &
-         cpa, mair,                    & ! Air properties
-         in1a,in2b,fn2a, fn2b,      & ! size regime bin indices
-         t_section,                    & ! Data type for cloud/rain drops
-         grav,                      & ! Standard acceleration due to gravity
-         ncld                               ! Total number of cloud bins
+      USE mo_submctl, ONLY :         &
+         rg,                         & ! molar gas constant [J/(mol K)]
+         surfw0,                     & ! surface tension of water [J/m2]
+         nlim,                       & ! lowest possible particle conc. in a bin [#/m3]
+         rhowa, mwa,                 & ! Density and molar mass of water
+         pi,                         &
+         cpa, mair,                  & ! Air properties
+         in1a,in2b,fn2a, fn2b,       & ! size regime bin indices
+         t_section,                  & ! Data type for cloud/rain drops
+         grav,                       & ! Standard acceleration due to gravity
+         ncld                          ! Total number of cloud bins
 
       IMPLICIT NONE
 
@@ -186,7 +186,7 @@ CONTAINS
          w(kbdim,klev)
 
       TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld),  &
-	                                    paero(kbdim,klev,fn2b)
+                                        paero(kbdim,klev,fn2b)
 
       ! Properties of newly activate particles
       TYPE(t_section), INTENT(out) :: pactd(kbdim,klev,ncld)

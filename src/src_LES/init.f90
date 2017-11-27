@@ -49,8 +49,8 @@ CONTAINS
       USE mo_salsa_driver, ONLY : run_SALSA
       USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim
       USE util, ONLY : maskactiv
-      USE class_ComponentIndex, ONLY : GetNcomp
-      USE nudg, ONLY : init_nudg, useNudge
+      USE nudg, ONLY : init_nudg
+      USE emission_main, ONLY : init_emission
 
       IMPLICIT NONE
 
@@ -79,7 +79,7 @@ CONTAINS
             ! Not needed when using interst. acivation?
             CALL maskactiv(zactmask,nxp,nyp,nzp,1,a_rh)
 
-            n4 = GetNcomp(prtcl) + 1 ! Aerosol compoenents + water
+            n4 = prtcl%getNComp()
 
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
@@ -126,8 +126,15 @@ CONTAINS
      CALL sponge_init
      CALL init_stat(time+dtl,filprf,expnme,nzp)
 
-     ! Initialize nudging profiles 
-     IF (useNudge) CALL init_nudg()
+     !
+     ! Initialize nudging profiles
+     ! ----------------------------
+     IF (lnudging) CALL init_nudg()
+
+     !
+     ! Initialize aerosol emissions
+     ! -----------------------------
+     IF (lemission .AND. level >= 4) CALL init_emission()
        
      !
      IF (mcflg) THEN
@@ -725,7 +732,6 @@ CONTAINS
  !
  SUBROUTINE SALSAInit
     USE mo_submctl, ONLY : ncld,nbins,nice
-    USE class_componentIndex, ONLY : GetIndex
     IMPLICIT NONE
     INTEGER :: k,i,j,bb,nc
 
@@ -751,7 +757,7 @@ CONTAINS
        END DO
     END DO
 
-   nc = GetIndex(prtcl,'H2O')
+   nc = prtcl%getIndex('H2O')
    ! Activation + diagnostic array initialization
    ! Clouds and aerosols
    a_rc(:,:,:) = 0.
@@ -778,8 +784,6 @@ CONTAINS
  ! Tomi Raatikainen, FMI, 29.2.2016
  !
  SUBROUTINE aerosol_init
-
-    USE class_componentIndex, ONLY : getIndex,IsUsed
     USE mo_salsa_sizedist, ONLY : size_distribution
     USE mo_salsa_driver, ONLY : aero
     USE mo_submctl, ONLY : pi6, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
@@ -817,32 +821,32 @@ CONTAINS
 
     ! Indices (-1 = not used)
     i = 0
-    IF (IsUsed(prtcl,'SO4')) THEN
-       iso4 = GetIndex(prtcl,'SO4')
+    IF (prtcl%isUsed('SO4')) THEN
+       iso4 = prtcl%getIndex('SO4')
        i = i+1
     END IF
-    IF (IsUsed(prtcl,'OC')) THEN
-       ioc = GetIndex(prtcl, 'OC')
+    IF (prtcl%isUsed('OC')) THEN
+       ioc = prtcl%getIndex('OC')
        i = i+1
     END IF
-    IF (IsUsed(prtcl,'BC')) THEN
-       ibc = GetIndex(prtcl,'BC')
+    IF (prtcl%isUsed('BC')) THEN
+       ibc = prtcl%getIndex('BC')
        i = i+1
     END IF
-    IF (IsUsed(prtcl,'DU')) THEN
-       idu = GetIndex(prtcl,'DU')
+    IF (prtcl%isUsed('DU')) THEN
+       idu = prtcl%getIndex('DU')
        i = i+1
     END IF
-    IF (IsUsed(prtcl,'SS')) THEN
-       iss = GetIndex(prtcl,'SS')
+    IF (prtcl%isUsed('SS')) THEN
+       iss = prtcl%getIndex('SS')
        i = i+1
     END IF
-    IF (IsUsed(prtcl,'NO')) THEN
-       ino = GetIndex(prtcl,'NO')
+    IF (prtcl%isUsed('NO')) THEN
+       ino = prtcl%getIndex('NO')
        i = i+1
     END IF
-    IF (IsUsed(prtcl,'NH')) THEN
-       inh = GetIndex(prtcl,'NH')
+    IF (prtcl%isUsed('NH')) THEN
+       inh = prtcl%getIndex('NH')
        i = i+1
     END IF
 

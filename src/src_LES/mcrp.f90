@@ -66,13 +66,12 @@ CONTAINS
    ! MICRO: sets up call to microphysics
    !
    SUBROUTINE micro(level)
-      USE class_componentIndex, ONLY : GetNcomp
       INTEGER, INTENT (in) :: level
       INTEGER :: nn
 
       SELECT CASE (level)
          CASE(2)
-            IF (droplet_sedim)  &
+            IF (sed_cloud)  &
                CALL sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
          CASE(3)
             CALL mcrph(nzp,nxp,nyp,dn0,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,   &
@@ -81,7 +80,7 @@ CONTAINS
             IF (level < 5) THEN
                sed_ice = .FALSE.; sed_snow = .FALSE.
             END IF
-            nn = GetNcomp(prtcl)+1
+            nn = prtcl%getNComp()
             CALL sedim_SALSA(nzp,nxp,nyp,nn,dtlt, a_temp, a_theta,                &
                              a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
                              a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
@@ -143,9 +142,9 @@ CONTAINS
          END DO
       END DO
 
-      CALL sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
+      IF (sed_precp) CALL sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
 
-      IF (droplet_sedim) CALL sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
+      IF (sed_cloud) CALL sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
 
    END SUBROUTINE mcrph
    !
@@ -519,7 +518,6 @@ CONTAINS
                              nice,  nsnw,                 &
                              nlim,prlim,  &
                              rhowa,rhoic
-      USE class_ComponentIndex, ONLY : GetIndex, GetNcomp
       IMPLICIT NONE
 
       INTEGER, INTENT(in) :: n1,n2,n3,n4
@@ -615,7 +613,7 @@ CONTAINS
          remaer(:,:,:) = amdep(:,:,:)
 
          ! Account for changes in liquid water pot temperature
-         nc = GetIndex(prtcl,'H2O')
+         nc = prtcl%getIndex('H2O')
          istr = (nc-1)*nbins+1
          iend = nc*nbins
          DO j = 3, n3-2
@@ -643,7 +641,7 @@ CONTAINS
          remcld(:,:,:) = cmdep(:,:,:)
 
          ! Account for changes in liquid water pot temperature
-         nc = GetIndex(prtcl,'H2O')
+         nc = prtcl%getIndex('H2O')
          istr = (nc-1)*ncld+1
          iend = nc*ncld
          DO j = 3, n3-2
@@ -671,7 +669,7 @@ CONTAINS
          remice(:,:,:) = imdep(:,:,:)
 
          ! Account for changes in liquid water pot temperature
-         nc = GetIndex(prtcl,'H2O')
+         nc = prtcl%getIndex('H2O')
          istr = (nc-1)*nice+1
          iend = nc*nice
          DO j = 3, n3-2
@@ -698,7 +696,7 @@ CONTAINS
 
          IF (sflg) v1(:) = v1(:) + SUM(SUM(rrate(:,:,:),DIM=3),DIM=2)*xnpts
 
-         nc = GetIndex(prtcl,'H2O')
+         nc = prtcl%getIndex('H2O')
          istr = (nc-1)*nprc + 1
          iend = nc*nprc
 
@@ -724,7 +722,7 @@ CONTAINS
 
          IF (sflg) v1(:) = v1(:) + SUM(SUM(srate(:,:,:),DIM=3),DIM=2)*xnpts
 
-         nc = GetIndex(prtcl,'H2O')
+         nc = prtcl%getIndex('H2O')
          istr = (nc-1)*nsnw + 1
          iend = nc*nsnw
          DO j = 3, n3-2
@@ -741,7 +739,7 @@ CONTAINS
       IF (mcflg) THEN
          ! For mass conservation statistics
          mctmp(:,:) = 0.
-         ss = getIndex(prtcl,'H2O')
+         ss = prtcl%getIndex('H2O')
          istr = (ss-1)*nbins; iend = ss*nbins
          mctmp(:,:) = mctmp(:,:) + SUM(remaer(:,:,istr:iend),dim=3)
          istr = (ss-1)*ncld; iend = ss*ncld

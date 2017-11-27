@@ -90,16 +90,16 @@ CONTAINS
       USE util, ONLY : fftinix,fftiniy
       USE sgsm, ONLY : csx, prndtl
       USE srfc, ONLY : isfctyp, zrough, ubmin, dthcon, drtcon
-      USE step, ONLY : timmax, istpfl, corflg, outflg, frqanl, frqhis,          &
+      USE step, ONLY : timmax, istpfl, corflg, outflg, frqanl, frqhis,                    &
                        strtim, radfrq
-      USE nudg, ONLY : nudge_time, nudge_zmin, nudge_zmax, &
-                       nudge_theta, tau_theta, nudge_rv, tau_rv, nudge_u, tau_u, &
-                       nudge_v, tau_v, nudge_ccn, tau_ccn, usenudge
-      USE grid, ONLY : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
-                       dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,     &
-                       filprf, expnme, isgstyp, igrdtyp, iradtyp, nfpt, distim, runtype, CCN,        &
-                       Tspinup,sst, lbinanl, cntlat
-      USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
+      USE nudg, ONLY : nudge_time, nudge_zmin, nudge_zmax,                                &
+                       ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
+      USE emission_main, ONLY : eseed, esrfc
+      USE grid, ONLY : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
+                       dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
+                       filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
+                       nfpt, distim, runtype, CCN, Tspinup,sst, lbinanl, cntlat
+      USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                        zrand
       USE stat, ONLY : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
       USE forc, ONLY : div, case_name     ! Divergence, forcing case name
@@ -142,27 +142,30 @@ CONTAINS
          hs     , ps     , ts    ,  & ! sounding heights, pressure, temperature
          us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
          umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
-         usenudge,                  & ! master switch for nudging
+         lnudging, lemission,       & ! master switch for nudging, aerosol emissions
          Tspinup, lbinanl,          & ! Length of spinup period in seconds
-         div, case_name, &  ! divergence for LEVEL 4
+         div, case_name, &            ! divergence for LEVEL 4
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
 
       NAMELIST /radiation/         &
-         radfrq,          & ! radiation type flag RADFRQ NOT USED ANYWHERE, VARIABLE DECLARED IN STEP.F90
+         radfrq,                   & ! radiation type flag RADFRQ NOT USED ANYWHERE, VARIABLE DECLARED IN STEP.F90
          radsounding, sfc_albedo,  & ! Name of the radiation sounding file, surface albedo
          useMcICA,                 & ! Use the Monte Carlo Independent Column Approximation method (T/F)
          RadConstPress,            & ! keep constant pressure levels (T/F) 
          RadPrecipBins               ! add precipitation bins cloud water (0, 1, 2, 3,...)
 
-
       NAMELIST /nudge/   &
-         nudge_time,                & ! Total nudging time (independent of spin-up)
-         nudge_zmin, nudge_zmax,    & ! Altitude (m) range for nudging
-         nudge_theta, tau_theta,    & ! Temperature nudging
-         nudge_rv, tau_rv,   & ! Water vapor mixing ratio nudging
-         nudge_u, tau_u, nudge_v, tau_v,  & ! Horozontal wind nudging
-         nudge_ccn, tau_ccn    ! Aerosol number concentration nudging
+         nudge_time,                       & ! Total nudging time (independent of spin-up)
+         nudge_zmin, nudge_zmax,           & ! Altitude (m) range for nudging
+         ndg_theta,                        & ! Temperature nudging
+         ndg_rv,                           & ! Water vapor mixing ratio nudging
+         ndg_u,                            & ! wind nudging
+         ndg_v,                            & ! Horizontal wind nudging
+         ndg_aero                             ! Aerosol number concentration nudging
 
+      NAMELIST /emission/ &              
+         eseed,                            & ! Artificial cloud seeding emission config
+         esrfc                               ! Surface emission config
 
       NAMELIST /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author
@@ -184,6 +187,8 @@ CONTAINS
       READ  (1, nml=model) 
       REWIND(1)
       READ  (1, nml=nudge) 
+      REWIND(1)
+      READ  (1, nml=emission)
       REWIND(1)
       READ  (1, nml=version) 
       CLOSE(1)

@@ -76,7 +76,7 @@ CONTAINS
                              rhlim, lscndgas, nlim, prlim
       USE mo_salsa, ONLY : salsa
       USE mo_salsa_properties, ONLY  : equilibration, equilibration_cloud
-      USE class_componentIndex, ONLY : ComponentIndex, GetIndex, GetNcomp, IsUsed
+      USE classComponentIndex, ONLY : ComponentIndex
       IMPLICIT NONE
 
       INTEGER, INTENT(in) :: pnx,pny,pnz,n4                       ! dimensions: x,y,z,number of chemical species
@@ -142,7 +142,7 @@ CONTAINS
       REAL :: rv_old(kbdim,klev)
 
       ! Number is always set, but mass can be uninitialized
-      DO ss = 1, GetNcomp(prtcl)+1
+      DO ss = 1, prtcl%getNComp()
          actd(:,:,:)%volc(ss) = 0.
          aero(:,:,:)%volc(ss) = 0.
          cloud(:,:,:)%volc(ss) = 0.
@@ -181,8 +181,8 @@ CONTAINS
                rv_old(1,1) = in_rv(1,1)
        
                ! Set volume concentrations
-               IF (IsUsed(prtcl,'SO4')) THEN
-                  nc = GetIndex(prtcl,'SO4')
+               IF (prtcl%isUsed('SO4')) THEN
+                  nc = prtcl%getIndex('SO4')
                   vc = 1
                   str = (nc-1)*nbins+1
                   end = nc*nbins
@@ -211,8 +211,8 @@ CONTAINS
 
                END IF
 
-               IF (IsUsed(prtcl,'OC')) THEN
-                  nc = GetIndex(prtcl,'OC')
+               IF (prtcl%isUsed('OC')) THEN
+                  nc = prtcl%getIndex('OC')
                   vc = 2
                   str = (nc-1)*nbins+1
                   end = nc*nbins
@@ -241,8 +241,8 @@ CONTAINS
 
                END IF
 
-               IF (IsUsed(prtcl,'BC')) THEN
-                  nc = GetIndex(prtcl,'BC')
+               IF (prtcl%isUsed('BC')) THEN
+                  nc = prtcl%getIndex('BC')
                   vc = 3
                   str = (nc-1)*nbins+1
                   end = nc*nbins
@@ -271,8 +271,8 @@ CONTAINS
 
                END IF
 
-               IF (IsUsed(prtcl,'DU')) THEN
-                  nc = GetIndex(prtcl,'DU')
+               IF (prtcl%isUsed('DU')) THEN
+                  nc = prtcl%getIndex('DU')
                   vc = 4
                   str = (nc-1)*nbins+1
                   end = nc*nbins
@@ -301,8 +301,8 @@ CONTAINS
 
                END IF
 
-               IF (IsUsed(prtcl,'SS')) THEN
-                  nc = GetIndex(prtcl,'SS')
+               IF (prtcl%isUsed('SS')) THEN
+                  nc = prtcl%getIndex('SS')
                   vc = 5
                   str = (nc-1)*nbins+1
                   end = nc*nbins
@@ -331,8 +331,8 @@ CONTAINS
 
                END IF
 
-               IF (IsUsed(prtcl,'NO')) THEN
-                  nc = GetIndex(prtcl,'NO')
+               IF (prtcl%isUsed('NO')) THEN
+                  nc = prtcl%getIndex('NO')
                   vc = 6
                   str = (nc-1)*nbins+1
                   end = nc*nbins
@@ -361,8 +361,8 @@ CONTAINS
 
                END IF
 
-               IF (IsUsed(prtcl,'NH')) THEN
-                  nc = GetIndex(prtcl,'NH')
+               IF (prtcl%isUsed('NH')) THEN
+                  nc = prtcl%getIndex('NH')
                   vc = 7
                   str = (nc-1)*nbins+1
                   end = nc*nbins
@@ -393,7 +393,7 @@ CONTAINS
 
                ! Water (always used)
                ! -----------------------------
-               nc = GetIndex(prtcl,'H2O')
+               nc = prtcl%getIndex('H2O')
                vc = 8
                str = (nc-1)*nbins+1
                end = nc*nbins
@@ -525,8 +525,8 @@ CONTAINS
                ! Activated droplets
                pa_nactd(kk,ii,jj,1:ncld) = actd(1,1,1:ncld)%numc/pdn(kk,ii,jj)
 
-               IF (IsUsed(prtcl,'SO4')) THEN
-                  nc = GetIndex(prtcl,'SO4')
+               IF (prtcl%isUsed('SO4')) THEN
+                  nc = prtcl%getIndex('SO4')
                   vc = 1
                   ! Aerosol bins
                   str = (nc-1)*nbins+1
@@ -564,8 +564,8 @@ CONTAINS
                   pa_vactd(kk,ii,jj,str:end) = actd(1,1,1:ncld)%volc(vc)*rhosu/pdn(kk,ii,jj)
                END IF
 
-               IF (IsUsed(prtcl,'OC')) THEN
-                  nc = GetIndex(prtcl,'OC')
+               IF (prtcl%isUsed('OC')) THEN
+                  nc = prtcl%getIndex('OC')
                   vc = 2
                   ! Aerosol bins
                   str = (nc-1)*nbins+1
@@ -603,8 +603,8 @@ CONTAINS
                   pa_vactd(kk,ii,jj,str:end) = actd(1,1,1:ncld)%volc(vc)*rhooc/pdn(kk,ii,jj)
                END IF
 
-               IF (IsUsed(prtcl,'BC')) THEN
-                  nc = GetIndex(prtcl,'BC')
+               IF (prtcl%isUsed('BC')) THEN
+                  nc = prtcl%getIndex('BC')
                   vc = 3
                   ! Aerosol bins
                   str = (nc-1)*nbins+1
@@ -642,8 +642,8 @@ CONTAINS
                   pa_vactd(kk,ii,jj,str:end) = actd(1,1,1:ncld)%volc(vc)*rhobc/pdn(kk,ii,jj)
                END IF
 
-               IF (IsUsed(prtcl,'DU')) THEN
-                  nc = GetIndex(prtcl,'DU')
+               IF (prtcl%isUsed('DU')) THEN
+                  nc = prtcl%getIndex('DU')
                   vc = 4
                   ! Aerosol bins
                   str = (nc-1)*nbins+1
@@ -681,8 +681,8 @@ CONTAINS
                   pa_vactd(kk,ii,jj,str:end) = actd(1,1,1:ncld)%volc(vc)*rhodu/pdn(kk,ii,jj)
                END IF
 
-               IF (IsUsed(prtcl,'SS')) THEN
-                  nc = GetIndex(prtcl,'SS')
+               IF (prtcl%isUsed('SS')) THEN
+                  nc = prtcl%getIndex('SS')
                   vc = 5
                   ! Aerosol bins
                   str = (nc-1)*nbins+1
@@ -720,8 +720,8 @@ CONTAINS
                   pa_vactd(kk,ii,jj,str:end) = actd(1,1,1:ncld)%volc(vc)*rhoss/pdn(kk,ii,jj)
                END IF
 
-               IF (IsUsed(prtcl,'NO')) THEN
-                  nc = GetIndex(prtcl,'NO')
+               IF (prtcl%isUsed('NO')) THEN
+                  nc = prtcl%getIndex('NO')
                   vc = 6
                   ! Aerosol bins
                   str = (nc-1)*nbins+1
@@ -759,8 +759,8 @@ CONTAINS
                   pa_vactd(kk,ii,jj,str:end) = actd(1,1,1:ncld)%volc(vc)*rhono/pdn(kk,ii,jj)
                END IF
 
-               IF (IsUsed(prtcl,'NH')) THEN
-                  nc = GetIndex(prtcl,'NH')
+               IF (prtcl%isUsed('NH')) THEN
+                  nc = prtcl%getIndex('NH')
                   vc = 7
                   ! Aerosol bins
                   str = (nc-1)*nbins+1
@@ -800,7 +800,7 @@ CONTAINS
 
                ! Water (always used)
                ! ---------------------------------------
-               nc = GetIndex(prtcl,'H2O')
+               nc = prtcl%getIndex('H2O')
                vc = 8
                ! Aerosol bins
                str = (nc-1)*nbins+1

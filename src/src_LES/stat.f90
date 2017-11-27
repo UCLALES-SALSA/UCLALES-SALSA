@@ -179,14 +179,13 @@ CONTAINS
       USE grid, ONLY          : nxp, nyp, iradtyp, prtcl
       USE mpi_interface, ONLY : myid, ver, author, info
       USE mo_submctl, ONLY    : nprc, fn2a,fn2b,fca,fcb,fra
-      USE class_ComponentIndex, ONLY : IsUsed
 
-      CHARACTER (len=80), INTENT (in) :: filprf, expnme
+      CHARACTER (len=200), INTENT (in) :: filprf, expnme
       INTEGER, INTENT (in)            :: nzp
       REAL, INTENT (in)               :: time
 
       INTEGER :: i,e
-      CHARACTER (len=80) :: fname
+      CHARACTER (len=200) :: fname
 
       ALLOCATE (wtv_sgs(nzp),wtv_res(nzp),wrl_sgs(nzp))
       ALLOCATE (tke_res(nzp),tke_sgs(nzp),tke0(nzp),thvar(nzp))
@@ -294,7 +293,7 @@ CONTAINS
 
          nvar_spec3 = 0
 
-         IF (IsUsed(prtcl,'SO4')) THEN
+         IF (prtcl%isUsed('SO4')) THEN
 
             i = nvar1+4; e = nvar1+6
             s1bool(i:e) = .TRUE.
@@ -317,7 +316,7 @@ CONTAINS
             nvar_spec3 = nvar_spec3 +1
             spec3(nvar_spec3) = 'SO4'
          END IF
-         IF (IsUsed(prtcl,'OC')) THEN
+         IF (prtcl%isUsed('OC')) THEN
 
             i = nvar1+7; e = nvar1+9
             s1bool(i:e) = .TRUE.
@@ -340,7 +339,7 @@ CONTAINS
             nvar_spec3 = nvar_spec3 +1
             spec3(nvar_spec3) = 'OC'
          END IF
-         IF (IsUsed(prtcl,'BC')) THEN
+         IF (prtcl%isUsed('BC')) THEN
 
             i = nvar1+10; e = nvar1+12
             s1bool(i:e) = .TRUE.
@@ -363,7 +362,7 @@ CONTAINS
             nvar_spec3 = nvar_spec3 +1
             spec3(nvar_spec3) = 'BC'
          END IF
-         IF (IsUsed(prtcl,'DU')) THEN
+         IF (prtcl%isUsed('DU')) THEN
 
             i = nvar1+13; e = nvar1 + 15
             s1bool(i:e) = .TRUE.
@@ -386,7 +385,7 @@ CONTAINS
             nvar_spec3 = nvar_spec3 +1
             spec3(nvar_spec3) = 'DU'
          END IF
-         IF (IsUsed(prtcl,'SS')) THEN
+         IF (prtcl%isUsed('SS')) THEN
 
             i = nvar1+16; e = nvar1+18
             s1bool(i:e) = .TRUE.
@@ -409,7 +408,7 @@ CONTAINS
             nvar_spec3 = nvar_spec3 +1
             spec3(nvar_spec3) = 'SS'
          END IF
-         IF (IsUsed(prtcl,'NH')) THEN
+         IF (prtcl%isUsed('NH')) THEN
 
             i = nvar1+19; e = nvar1+21
             s1bool(i:e) = .TRUE.
@@ -432,7 +431,7 @@ CONTAINS
             nvar_spec3 = nvar_spec3 +1
             spec3(nvar_spec3) = 'NH'
          END IF
-         IF (IsUsed(prtcl,'NO')) THEN
+         IF (prtcl%isUsed('NO')) THEN
 
             i = nvar1+22; e = nvar1+24
             s1bool(i:e) = .TRUE.
@@ -980,7 +979,6 @@ CONTAINS
    SUBROUTINE ts_lvl4(n1,n2,n3,rc)
       USE mo_submctl, ONLY : nlim
       USE grid, ONLY       : prtcl, bulkNumc, bulkMixrat,dzt
-      USE class_componentIndex, ONLY : IsUsed
 
       IMPLICIT NONE
 
@@ -1006,7 +1004,7 @@ CONTAINS
       ii = 4
       DO ss = 1, 7
 
-         IF (IsUsed(prtcl,zspec(ss))) THEN
+         IF (prtcl%isUsed(zspec(ss))) THEN
             CALL bulkMixrat(zspec(ss),'cloud','a',a0)
             CALL bulkMixrat(zspec(ss),'cloud','b',a1)
             ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
@@ -1381,7 +1379,6 @@ CONTAINS
       USE grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                        a_rc, a_srp, a_rp, a_rh, prtcl,    &
                        a_naerop, a_ncloudp, a_nprecpp, a_tp
-      USE class_ComponentIndex, ONLY : IsUsed
 
       IMPLICIT NONE
 
@@ -1485,7 +1482,7 @@ CONTAINS
          ! -------------------------------------------
          ii = 16
          DO ss = 1, 7
-            IF (IsUsed(prtcl,zspec(ss))) THEN
+            IF (prtcl%isUsed(zspec(ss))) THEN
                ! Total mass mixing ratios
                CALL bulkMixrat(zspec(ss),'aerosol','a',a1)
                CALL bulkMixrat(zspec(ss),'aerosol','b',a12)
@@ -2183,7 +2180,6 @@ CONTAINS
    SUBROUTINE acc_removal(n2,n3,n4,raer,rcld,rprc,rice,rsnw)
       USE grid, ONLY : prtcl
       USE mo_submctl, ONLY : nbins, ncld, nprc, nice,  nsnw
-      USE class_componentIndex, ONLY : IsUsed, GetIndex
       IMPLICIT NONE
 
       INTEGER, INTENT(in)        :: n2,n3,n4                     ! Grid dimensions
@@ -2203,7 +2199,7 @@ CONTAINS
       INTEGER :: end,str
 
       ! Removal of water first
-      si = GetIndex(prtcl,'H2O')
+      si = prtcl%getIndex('H2O')
       ! Aerosols
       zavg = 0.
       tt = 25
@@ -2246,9 +2242,9 @@ CONTAINS
 
       DO ss = 1, 7
 
-         IF ( IsUsed(prtcl,zspec(ss)) ) THEN
+         IF ( prtcl%isUsed(zspec(ss)) ) THEN
 
-            si = GetIndex(prtcl,zspec(ss))
+            si = prtcl%getIndex(zspec(ss))
 
             ! Dry removal
             zavg = 0.

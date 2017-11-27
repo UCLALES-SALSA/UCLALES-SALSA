@@ -19,11 +19,14 @@
 !
 MODULE grid
 
-   USE ncio, ONLY : open_nc, define_nc
-
-   USE class_componentIndex, ONLY : componentIndex
+   USE ncio!, ONLY : open_nc, define_nc
+   ! Deprecated
+   USE classComponentIndex, ONLY : ComponentIndex
 
    IMPLICIT NONE
+   
+   CHARACTER(len=10), PARAMETER :: global_name = "grid"
+
    !
    INTEGER :: nxp = 132           ! number of x points
    INTEGER :: nyp = 132           ! number of y points
@@ -44,6 +47,9 @@ MODULE grid
    REAL    :: cntlat =  31.5      ! Latitude for radiation
 
    LOGICAL :: lbinanl = .FALSE.   ! Whether to write binned data to analysis files (takes a lot of space + mainly used for debugging)
+   LOGICAL :: lnudging = .FALSE.  ! Master switch for nudging scheme
+   LOGICAL :: lemission = .FALSE. ! Master switch for aerosol emission
+
    INTEGER :: iradtyp
    INTEGER :: igrdtyp = 1         ! vertical grid type
    INTEGER :: isgstyp = 1         ! sgs model type
@@ -60,15 +66,15 @@ MODULE grid
 
 
    CHARACTER (len=7), ALLOCATABLE, SAVE :: sanal(:)
-   CHARACTER (len=80) :: expnme = 'Default' ! Experiment name
-   CHARACTER (len=80) :: filprf = 'x'       ! File Prefix
+   CHARACTER (len=200) :: expnme = 'Default' ! Experiment name
+   CHARACTER (len=200) :: filprf = 'x'       ! File Prefix
    CHARACTER (len=7)  :: runtype = 'INITIAL'! Run Type SELECTion
 
    REAL               :: Tspinup = 7200.    ! Spinup period in seconds (added by Juha)
 
 
    CHARACTER (len=7),  PRIVATE :: v_snm = 'sxx    '
-   CHARACTER (len=80), PRIVATE :: fname
+   CHARACTER (len=200), PRIVATE :: fname
 
    INTEGER, PRIVATE, SAVE  ::  nrec0, nvar0, nbase=15
 
@@ -129,6 +135,7 @@ MODULE grid
    ! Some stuff for tendency formulation
    REAL, ALLOCATABLE :: a_vactd(:,:,:,:), a_nactd(:,:,:,:)
 
+   ! DEPRECATED
    ! Particle component index tables
    TYPE(componentIndex) :: prtcl ! Contains "getIndex" which gives the index for a given
                                 ! aerosol component name, i.e. 1:SO4, 2:OC, 3:BC, 4:DU,
@@ -204,13 +211,13 @@ CONTAINS
       USE mpi_interface, ONLY : myid
       USE mo_submctl, ONLY : nbins,ncld,nprc,  & ! Number of aerosol and hydrometeor size bins for SALSA
                              nice,nsnw,        & ! number of ice and snow size bins for SALSA
+                             spec,             & ! Holds aerosol species parameters and indices
+                             ! ALL BELOW DEPRECATED
                              nspec, maxspec, listspec, &
                              rhosu,rhooc,rhobc,rhono,rhonh,rhoss,rhodu,rhowa,  &
                              msu,moc,mbc,mno,mnh,mss,mdu,mwa
 
-      USE class_ComponentIndex, ONLY : ComponentIndexConstructor,  &
-         GetNcomp, IsUsed
-
+      CHARACTER(len=20), PARAMETER :: name = "define_vars"
       INTEGER :: memsize
       INTEGER :: zz
       INTEGER :: nc
@@ -220,10 +227,10 @@ CONTAINS
 
       IF (level >= 4) THEN
          ! Create index tables for different aerosol components (can be fetched by name using getIndex)
-         CALL ComponentIndexConstructor(prtcl, nspec, maxspec, listspec)
-         nc = GetNcomp(prtcl)
+         prtcl = ComponentIndex(nspec,maxspec,listspec) ! DEPRECATED
+         nc = spec%getNSpec()
 
-         nsalsa = (nc+2)*nbins + (nc+2)*ncld + (nc+2)*nprc + (nc+2)*nice + (nc+2)*nsnw + 5
+         nsalsa = (nc+1)*nbins + (nc+1)*ncld + (nc+1)*nprc + (nc+1)*nice + (nc+1)*nsnw + 5
 
       END IF
 
@@ -323,11 +330,12 @@ CONTAINS
       !---------------------------------------------------
       ELSE IF (level >= 4) THEN
 
-         nc = GetNcomp(prtcl) ! number of aerosol components used. For allocations + 1 for water.
+         ! DEPRECATED & NOT NECESSARY
+         !nc = prtcl%getNComp() ! number of aerosol components used. 
 
          ALLOCATE (a_rc(nzp,nxp,nyp), a_srp(nzp,nxp,nyp), a_snrp(nzp,nxp,nyp),     &
                    a_rh(nzp,nxp,nyp),a_dn(nzp,nxp,nyp),                            &
-                   a_nactd(nzp,nxp,nyp,ncld), a_vactd(nzp,nxp,nyp,(nc+1)*ncld)  )
+                   a_nactd(nzp,nxp,nyp,ncld), a_vactd(nzp,nxp,nyp,nc*ncld)  )
 
          a_rc(:,:,:) = 0.
          a_srp(:,:,:) = 0.
@@ -371,26 +379,26 @@ CONTAINS
          a_naerot => a_sclrt(:,:,:,zz+1:zz+nbins)
 
          zz = zz+nbins
-         a_maerop => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nbins)
-         a_maerot => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nbins)
+         a_maerop => a_sclrp(:,:,:,zz+1:zz+nc*nbins)
+         a_maerot => a_sclrt(:,:,:,zz+1:zz+nc*nbins)
 
-         zz = zz+(nc+1)*nbins
+         zz = zz+nc*nbins
          a_ncloudp => a_sclrp(:,:,:,zz+1:zz+ncld)
          a_ncloudt => a_sclrt(:,:,:,zz+1:zz+ncld)
 
          zz = zz+ncld
-         a_mcloudp => a_sclrp(:,:,:,zz+1:zz+(nc+1)*ncld)
-         a_mcloudt => a_sclrt(:,:,:,zz+1:zz+(nc+1)*ncld)
+         a_mcloudp => a_sclrp(:,:,:,zz+1:zz+nc*ncld)
+         a_mcloudt => a_sclrt(:,:,:,zz+1:zz+nc*ncld)
 
-         zz = zz+(nc+1)*ncld
+         zz = zz+nc*ncld
          a_nprecpp => a_sclrp(:,:,:,zz+1:zz+nprc)
          a_nprecpt => a_sclrt(:,:,:,zz+1:zz+nprc)
 
          zz = zz+nprc
-         a_mprecpp => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nprc)
-         a_mprecpt => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nprc)
+         a_mprecpp => a_sclrp(:,:,:,zz+1:zz+nc*nprc)
+         a_mprecpt => a_sclrt(:,:,:,zz+1:zz+nc*nprc)
 
-         zz = zz+(nc+1)*nprc
+         zz = zz+nc*nprc
          a_gaerop => a_sclrp(:,:,:,zz+1:zz+5)
          a_gaerot => a_sclrt(:,:,:,zz+1:zz+5)
 
@@ -401,61 +409,63 @@ CONTAINS
 
          zz = zz+nice
 
-         a_micep => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nice)
-         a_micet => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nice)
+         a_micep => a_sclrp(:,:,:,zz+1:zz+nc*nice)
+         a_micet => a_sclrt(:,:,:,zz+1:zz+nc*nice)
 
-         zz = zz+(nc+1)*nice
+         zz = zz+nc*nice
 
          a_nsnowp => a_sclrp(:,:,:,zz+1:zz+nsnw)
          a_nsnowt => a_sclrt(:,:,:,zz+1:zz+nsnw)
 
          zz = zz+nsnw
 
-         a_msnowp => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nsnw)
-         a_msnowt => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nsnw)
+         a_msnowp => a_sclrp(:,:,:,zz+1:zz+nc*nsnw)
+         a_msnowt => a_sclrt(:,:,:,zz+1:zz+nc*nsnw)
 
-         zz = zz+(nc+1)*nsnw
+         zz = zz+nc*nsnw
+
+         ! DEPRECATED!!
          ! Density, molecular weight, dissociation factor and molar volume arrays for the used species
          !   1:SO4, 2:OC, 3:BC, 4:DU, 5:SS, 6:NO, 7:NH, 8:H2O
-         ALLOCATE ( dens(nc+1), mws(nc+1), diss(nc+1), mvol(nc+1) )
+         ALLOCATE ( dens(nc), mws(nc), diss(nc), mvol(nc) )
          zz = 0
-         IF (IsUsed(prtcl,'SO4')) THEN
+         IF (prtcl%IsUsed('SO4')) THEN
             zz = zz+1
             dens(zz) = rhosu
             diss(zz) = 3.  ! H2SO4
             mws(zz) = msu
          END IF
-         IF (IsUsed(prtcl,'OC')) THEN
+         IF (prtcl%IsUsed('OC')) THEN
             zz = zz+1
             dens(zz) = rhooc
             diss(zz) = 1.
             mws(zz) = moc
          END IF
-         IF (IsUsed(prtcl,'BC')) THEN
+         IF (prtcl%IsUsed('BC')) THEN
             zz = zz+1
             dens(zz) = rhobc
             diss(zz) = 0.  ! Insoluble
             mws(zz) = mbc
          END IF
-         IF (IsUsed(prtcl,'DU')) THEN
+         IF (prtcl%IsUsed('DU')) THEN
             zz = zz+1
             dens(zz) = rhodu
             diss(zz) = 0.  ! Insoluble
             mws(zz) = mdu
          END IF
-         IF (IsUsed(prtcl,'SS')) THEN
+         IF (prtcl%IsUsed('SS')) THEN
             zz = zz+1
             dens(zz) = rhoss
             diss(zz) = 2.  ! NaCl
             mws(zz) = mss
          END IF
-         IF (IsUsed(prtcl,'NO')) THEN
+         IF (prtcl%IsUsed('NO')) THEN
             zz = zz+1
             dens(zz) = rhono
             diss(zz) = 1.  ! NO3- ??
             mws(zz) = mno
          END IF
-         IF (IsUsed(prtcl,'NH')) THEN
+         IF (prtcl%IsUsed('NH')) THEN
             zz = zz+1
             dens(zz) = rhonh
             diss(zz) = 1.  ! NH4+ ??
@@ -467,7 +477,7 @@ CONTAINS
          diss(zz) = 1.
          mws(zz) = mwa
 
-         IF (zz /= nc+1) THEN
+         IF (zz /= nc) THEN
             WRITE(*,*) 'Physical properties not found for all species!'
             STOP
          END IF
@@ -520,6 +530,7 @@ CONTAINS
       USE mpi_interface, ONLY : xoffset, yoffset, wrxid, wryid, nxpg, nypg,   &
                                 appl_abort, myid
 
+      CHARACTER(len=20), PARAMETER :: name = "define_grid"
       INTEGER :: i,j,k,kmax,nchby
       REAL    :: dzrfm,dz,zb,dzmin
       REAL    :: zmnvc(-1:nzp+1)
@@ -750,7 +761,8 @@ CONTAINS
       USE mpi_interface, ONLY : myid, ver, author, info
       USE mo_submctl, ONLY : fn2a,fn2b,fca,fcb,fra, &
                              fia,fib,fsa
-      USE class_ComponentIndex, ONLY : IsUsed
+      
+      CHARACTER(len=20), PARAMETER :: name = "init_anal"
       INTEGER, PARAMETER :: nnames = 24
       INTEGER, PARAMETER :: salsa_nn = 104
       CHARACTER (len=7), SAVE :: sbase(nnames) =  (/ &
@@ -859,25 +871,25 @@ CONTAINS
             salsabool(52:62) = .FALSE.
          END IF
 
-         IF (.NOT. IsUsed(prtcl,'SO4')) &
+         IF (.NOT. prtcl%IsUsed('SO4')) &
             salsabool((/ 63, 70, 77, 84, 91,  98 /)) = .FALSE.
 
-         IF (.NOT. IsUsed(prtcl,'NH'))  &
+         IF (.NOT. prtcl%IsUsed('NH'))  &
             salsabool((/ 64, 71, 78, 85, 92,  99 /)) = .FALSE.
 
-         IF (.NOT. IsUsed(prtcl,'NO'))  &
+         IF (.NOT. prtcl%IsUsed('NO'))  &
             salsabool((/ 65, 72, 79, 86, 93,  100 /)) = .FALSE.
 
-         IF (.NOT. IsUsed(prtcl,'OC'))  &
+         IF (.NOT. prtcl%IsUsed('OC'))  &
             salsabool((/ 66, 73, 80, 87, 94,  101 /)) = .FALSE.
 
-         IF (.NOT. IsUsed(prtcl,'BC'))  &
+         IF (.NOT. prtcl%IsUsed('BC'))  &
             salsabool((/ 67, 74, 81, 88, 95,  102 /)) = .FALSE.
 
-         IF (.NOT. IsUsed(prtcl,'DU'))  &
+         IF (.NOT. prtcl%IsUsed('DU'))  &
             salsabool((/ 68, 75, 82, 89, 96,  103 /)) = .FALSE.
 
-         IF (.NOT. IsUsed(prtcl,'SS'))  &
+         IF (.NOT. prtcl%IsUsed('SS'))  &
             salsabool((/ 69, 76, 83, 90, 97,  104 /)) = .FALSE.
 
             ! b-bins are not always saved
@@ -922,11 +934,12 @@ CONTAINS
    ! Subroutine close_anal:  Closes netcdf anal file
    !
    INTEGER FUNCTION close_anal()
+     USE netcdf
+     
+     CHARACTER(len=20), PARAMETER :: name = "close_anal"
 
-      USE netcdf
-
-      close_anal = nf90_close(ncid0)
-
+     close_anal = nf90_close(ncid0)
+      
    END FUNCTION close_anal
    !
    ! ----------------------------------------------------------------------
@@ -939,7 +952,6 @@ CONTAINS
    SUBROUTINE write_anal(time)
       USE netcdf
       USE mpi_interface, ONLY : myid, appl_abort
-      USE class_ComponentIndex, ONLY : IsUsed
       USE mo_submctl, ONLY : in1a,fn2a,in2b,fn2b,            &
                              ica,fca,icb,fcb,ira,fra,        &
                              iia,fia,iib,fib,isa,fsa,        &
@@ -948,6 +960,8 @@ CONTAINS
                              nspec, nbins, ncld, nice, nprc, nsnw
 
       REAL, INTENT (in) :: time
+
+      CHARACTER(len=20), PARAMETER :: name = "write_anal"
 
       INTEGER :: iret, VarID, nn, n
       INTEGER :: ibeg(4), icnt(4), i1, i2, j1, j2
@@ -1380,7 +1394,7 @@ CONTAINS
                                 count=icnt)
 
             ! Mass mixing ratios
-            IF (IsUsed(prtcl,'SO4')) THEN
+            IF (prtcl%IsUsed('SO4')) THEN
 
                ! --Sulphate (aerosol, regime A)
                CALL bulkMixrat('SO4','aerosol','a',zvar(:,:,:))
@@ -1425,7 +1439,7 @@ CONTAINS
 
             END IF
 
-            IF (IsUSed(prtcl,'NH')) THEN
+            IF (prtcl%IsUsed('NH')) THEN
 
                !-- Ammonium (aerosol, regime A)
                CALL bulkMixrat('NH','aerosol','a',zvar(:,:,:))
@@ -1470,7 +1484,7 @@ CONTAINS
 
             END IF
 
-            IF (IsUsed(prtcl,'NO')) THEN
+            IF (prtcl%IsUsed('NO')) THEN
 
                !-- Nitrate (aerosol, regime A)
                CALL bulkMixrat('NO','aerosol','a',zvar(:,:,:))
@@ -1515,7 +1529,7 @@ CONTAINS
           
             END IF
 
-            IF (IsUsed(prtcl,'OC')) THEN
+            IF (prtcl%IsUsed('OC')) THEN
         
                !-- Organic Carbon (aerosol, regime A)
                CALL bulkMixrat('OC','aerosol','a',zvar(:,:,:))
@@ -1560,7 +1574,7 @@ CONTAINS
 
             END IF
        
-            IF (IsUsed(prtcl,'BC')) THEN
+            IF (prtcl%IsUsed('BC')) THEN
 
                !-- Black Carbon (aerosol, regime A)
                CALL bulkMixrat('BC','aerosol','a',zvar(:,:,:))
@@ -1605,7 +1619,7 @@ CONTAINS
 
             END IF
 
-            IF (IsUsed(prtcl,'DU')) THEN
+            IF (prtcl%IsUsed('DU')) THEN
 
                !-- Dust (aerosol, regime A)
                CALL bulkMixrat('DU','aerosol','a',zvar(:,:,:))
@@ -1650,7 +1664,7 @@ CONTAINS
 
             END IF
        
-            IF (IsUsed(prtcl,'SS')) THEN
+            IF (prtcl%IsUsed('SS')) THEN
 
                !-- Sea Salt (aerosol, regime A)
                CALL bulkMixrat('SS','aerosol','a',zvar(:,:,:))
@@ -1717,6 +1731,8 @@ CONTAINS
 
       INTEGER, INTENT (in) :: htype
       REAL, INTENT (in)    :: time
+
+      CHARACTER(len=20), PARAMETER :: name = "write_hist"
 
       CHARACTER (len=80) :: hname
 
@@ -1792,6 +1808,8 @@ CONTAINS
 
       CHARACTER(len=80), INTENT(in) :: hfilin
       REAL, INTENT(out)             :: time
+
+      CHARACTER(len=20), PARAMETER :: name = "read_hist"
 
       CHARACTER (len=80) :: hname
       INTEGER :: n, nxpx, nypx, nzpx, nsclx, iradx, isgsx, lvlx
@@ -1893,6 +1911,8 @@ CONTAINS
 
       INTEGER, INTENT(in) :: iscnum
 
+      CHARACTER(len=20), PARAMETER :: name = "newsclr"
+
       a_sp => a_sclrp(:,:,:,iscnum)
       a_st => a_sclrt(:,:,:,iscnum)
 
@@ -1916,8 +1936,6 @@ CONTAINS
                              in1a,in2b,         &
                              fn2a,fn2b
 
-      USE class_ComponentIndex, ONLY : GetIndex, IsUsed
-
       CHARACTER(len=*), INTENT(in) :: icomp  ! This should be either:
                                              ! SO4,OC,NO,NH,BC,DU,SS,H2O.
 
@@ -1927,12 +1945,14 @@ CONTAINS
 
       REAL, INTENT(out) :: mixrat(nzp,nxp,nyp)
 
+      CHARACTER(len=20), PARAMETER :: name = "bulkMixrat"
+
       INTEGER :: istr,iend,mm
 
       mixrat = 0.
 
       ! Determine multipliers
-      mm = GetIndex(prtcl,icomp)
+      mm = prtcl%getIndex(icomp)
 
       ! Given in kg/kg
       SELECT CASE(ipart)
@@ -1989,7 +2009,6 @@ CONTAINS
    ! Juha Tonttila, FMI, 2015
    SUBROUTINE binSpecMixrat(ipart,icomp,ibin,mixr)
       USE mo_submctl, ONLY : ncld, nbins, nprc, nice, nsnw
-      USE class_componentIndex, ONLY : GetIndex
 
       CHARACTER(len=*), INTENT(in) :: icomp  ! This should be either:
                                              ! SO4,OC,NO,NH,BC,DU,SS,H2O.
@@ -2000,10 +2019,12 @@ CONTAINS
 
       REAL, INTENT(out)   :: mixr(nzp,nxp,nyp)
 
+      CHARACTER(len=20), PARAMETER :: name = "binSpecMixrat"
+
       INTEGER :: mm
 
       ! Determine multipliers
-      mm = GetIndex(prtcl,icomp)
+      mm = prtcl%getIndex(icomp)
 
       SELECT CASE(ipart)
          CASE('aerosol')
@@ -2029,7 +2050,6 @@ CONTAINS
    ! Tomi Raatikainen, FMI, 2016
    SUBROUTINE binMixrat(ipart,itype,ibin,ii,jj,kk,sumc)
       USE mo_submctl, ONLY : ncld,nbins,nprc,nice,nsnw
-      USE class_ComponentIndex, ONLY : GetNcomp
       IMPLICIT NONE
 
       CHARACTER(len=*), INTENT(in) :: ipart
@@ -2037,13 +2057,14 @@ CONTAINS
       INTEGER, INTENT(in) :: ibin,ii,jj,kk
       REAL, INTENT(out) :: sumc
 
+      CHARACTER(len=20), PARAMETER :: name = "binMixrat"
+
       INTEGER :: iend
 
-      ! Number of components-1
       IF (itype == 'dry') THEN
-         iend = GetNcomp(prtcl)-1 ! dry CASE
+         iend = prtcl%GetNcomp()-2 ! dry CASE
       ELSE IF (itype == 'wet') THEN
-         iend = GetNcomp(prtcl) ! wet CASE
+         iend = prtcl%GetNcomp()-1 ! wet CASE
       ELSE
          STOP 'Error in binMixrat!'
       END IF
@@ -2080,6 +2101,9 @@ CONTAINS
       CHARACTER(len=*), INTENT(in) :: ipart
       CHARACTER(LEN=*), INTENT(in) :: itype
       REAL, INTENT(out) :: numc(nzp,nxp,nyp)
+      
+      CHARACTER(len=20), PARAMETER :: name = "bulkNumc"
+
       INTEGER :: istr,iend
 
       istr = 0
@@ -2155,6 +2179,8 @@ CONTAINS
       CHARACTER(len=*), INTENT(in) :: ipart
       CHARACTER(len=*), INTENT(in) :: itype
       REAL, INTENT(out) :: rad(nzp,nxp,nyp)
+
+      CHARACTER(len=20), PARAMETER :: name = "meanRadius"
 
       INTEGER :: istr,iend
 
@@ -2243,6 +2269,8 @@ CONTAINS
       REAL, INTENT(in) :: numlim
       REAL, INTENT(out) :: zrad(nzp,nxp,nyp)
 
+      CHARACTER(len=20), PARAMETER :: name = "getRadius"
+
       INTEGER :: k,i,j,bin
       REAL :: tot, rwet, tmp(n4)
 
@@ -2282,6 +2310,8 @@ CONTAINS
       REAL, INTENT(in)  :: mass(nzp,nxp,nyp,nn*n4)
       REAL, INTENT(in)  :: numlim
       REAL, INTENT(out) :: zrad(nzp,nxp,nyp,nn)
+      
+      CHARACTER(len=20), PARAMETER :: name = "getBinRadius"
 
       INTEGER :: k,i,j,bin
       REAL :: tmp(n4)
@@ -2313,6 +2343,8 @@ CONTAINS
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: n
       REAL, INTENT(IN)    :: numc, mass(n)
+
+      CHARACTER(len=20), PARAMETER :: name = "calc_wet_radius"
 
       calc_wet_radius = 0.
 

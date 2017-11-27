@@ -57,7 +57,7 @@ CONTAINS
    !
    !---------------------------------------------------------------------
 
-   SUBROUTINE set_sizebins()
+   SUBROUTINE set_aerobins()
 
       USE mo_submctl, ONLY : &
          pi6,         & ! pi/6
@@ -163,9 +163,8 @@ CONTAINS
       DO cc = 1, nbins
          aerobins(cc) = (aero(1,1,cc)%vlolim/pi6)**(1./3.)
       END DO
-      aerobins = 0.5*aerobins ! to radius
 
-   END SUBROUTINE set_sizebins
+   END SUBROUTINE set_aerobins
 
    !--------------------------------------------------------------------------
    !
@@ -324,12 +323,10 @@ CONTAINS
       DO bb = 1, ncld
          cloudbins(bb) = (cloud(1,1,bb)%vlolim/pi6)**(1./3.)
       END DO
-      cloudbins = 0.5*cloudbins ! To radius
       ALLOCATE(precpbins(nprc))
       DO bb = 1, nprc
          precpbins(bb) = (precp(1,1,bb)%vlolim/pi6)**(1./3.)
       END DO
-      precpbins = 0.5*precpbins ! To radius
 
    END SUBROUTINE set_cloudbins
 
@@ -493,12 +490,10 @@ CONTAINS
       DO bb = 1, nice
          icebins(bb) = (ice(1,1,bb)%vlolim/pi6)**(1./3.)
       END DO
-      icebins = 0.5*icebins ! To radius
       ALLOCATE(snowbins(nsnw))
       DO bb = 1, nsnw
          snowbins(bb) = (snow(1,1,bb)%vlolim/pi6)**(1./3.)
       END DO
-      snowbins = 0.5*snowbins ! To radius
 
    END SUBROUTINE set_icebins
 
@@ -641,11 +636,11 @@ CONTAINS
 
       !
       !-------------------------------------------------------------------------------
-
+      USE classSpecies
       USE mo_submctl, ONLY : nbin, nbin2, nbin3,     &
                              in1a,fn1a,in2a,fn2a,in2b,fn2b,  &
-                             nbins, &
-                             massacc
+                             nbins, massacc, spec,           &
+                             nspec, listspec
 
       IMPLICIT NONE
 
@@ -670,13 +665,15 @@ CONTAINS
       ALLOCATE(massacc(nbins))
 
       massacc = 1.
+      
+      ! Initialize pointers to names of aerosol species
+      spec = Species(nspec,listspec)
 
-
-      ! -- Aerosol tracers are allocated in *set_sizebins*
+      ! -- Aerosol tracers are allocated in *set_aerobins*
       ! -- Hydrometeor tracer in *set_cloudbins*
 
       ! --3) Call other initialization routines
-      CALL set_sizebins()
+      CALL set_aerobins()
 
       CALL set_cloudbins()
 

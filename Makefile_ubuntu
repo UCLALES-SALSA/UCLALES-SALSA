@@ -1,6 +1,6 @@
 ###############################################################
 #
-# Llocation of code (in $ROOT) and location where model is to be built $BIN
+# Location of code (in $ROOT) and location where model is to be built $BIN
 #
 ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BIN       = $(ROOT)/bin
@@ -13,8 +13,9 @@ SRC_UTIL    =$(SRC)/src_util
 SRC_LES     =$(SRC)/src_LES
 SRC_SALSA   =$(SRC)/src_salsa
 SRC_RAD     =$(SRC)/src_rad
+SRC_EMIS    =$(SRC)/src_emission
 
-VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC_RAD):$(SRC)
+VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC_RAD):$(SRC_EMIS):$(SRC)
 
 ECHO    = /bin/echo
 RM      = /bin/rm -f
@@ -23,15 +24,17 @@ ARCHIVE = ar rs
 RANLIB =:
 SEQFFLAGS = -I$(SRC)
 MPIFFLAGS = -I$(SRC)
+MPI = /usr
+MPILIB = '-L$(MPI)/lib -lmpich'
+MPIINC = -I$(MPI)/include/mpich
 NCDF = /usr
-NCDFLIB = '-L$(NCDF)/lib -lnetcdf -lnetcdff'
+NCDFLIB = -L$(NCDF)/lib -lnetcdf -lnetcdff
 NCDFINC = -I$(NCDF)/include
-LIBS = $(NCDFLIB)
-F90 = f95
-MPIF90 = f95
-FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} -std=f2008 #-fbounds-check  -g -fcheck=all  -Wall -Wtabs -fbacktrace -ffpe-trap=invalid,zero,overflow
+LIBS = '$(NCDFLIB) $(MPILIB)'
+F90 = gfortran
+MPIF90 = gfortran
+FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} $(MPIINC) -std=f2008 #-fbounds-check  -g -fcheck=all  -Wall -Wtabs -fbacktrace -ffpe-trap=invalid,zero,overflow
 F77FLAGS = -O2 #-fbounds-check  -ffpe-trap=invalid,zero,overflow
-
 
 LES_OUT_MPI=$(BIN)/les.mpi
 
@@ -46,18 +49,20 @@ seq: $(LES_OUT_SEQ)
 mpi: $(LES_OUT_MPI)
 
 $(LES_OUT_SEQ): 
-	cd $(SRC); $(MAKE) LES_ARC=seq \
-	FFLAGS='$(FFLAGS) $(SEQFFLAGS)' F90=$(F90) \
-	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_SEQ) \
+	cd $(SRC); $(MAKE) LES_ARC=seq                     \
+	FFLAGS='$(FFLAGS) $(SEQFFLAGS)' F90=$(F90)         \
+	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_SEQ)          \
 	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) SRCLES=$(SRC_LES) \
-	SRCSALSA=$(SRC_SALSA) SRCRAD=$(SRC_RAD)
-
+	SRCSALSA=$(SRC_SALSA) SRCRAD=$(SRC_RAD)            \
+	SRCEMIS=$(SRC_EMIS)
+ 
 $(LES_OUT_MPI):
-	cd $(SRC); $(MAKE) LES_ARC=mpi \
-	FFLAGS='$(FFLAGS) $(MPIFFLAGS)' F90=$(MPIF90)  \
-	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_MPI) \
+	cd $(SRC); $(MAKE) LES_ARC=mpi                     \
+	FFLAGS='$(FFLAGS) $(MPIFFLAGS)' F90=$(MPIF90)      \
+	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_MPI)          \
 	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) SRCLES=$(SRC_LES) \
-	SRCSALSA=$(SRC_SALSA) SRCRAD=$(SRC_RAD)
+	SRCSALSA=$(SRC_SALSA) SRCRAD=$(SRC_RAD)            \
+	SRCEMIS=$(SRC_EMIS)
 
 .PHONY: $(LES_OUT_SEQ) 
 .PHONY: $(LES_OUT_MPI)

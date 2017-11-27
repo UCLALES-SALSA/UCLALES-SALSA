@@ -569,6 +569,70 @@ CONTAINS
      
    END SUBROUTINE maskactiv
 
+   ! ----------------------
+
+   FUNCTION closest(array,val)
+     ! Find the index of "array" with value closest to "val"
+     IMPLICIT NONE
+     INTEGER :: closest
+     REAL, INTENT(in) :: array(:)
+     REAL, INTENT(in) :: val
+
+     INTEGER :: NN, N
+     LOGICAL, ALLOCATABLE :: comp(:)
+
+     NN = SIZE(array)
+     N = smaller(array,val)
+     
+     IF ( N < NN .AND.                                 &
+          ( ABS(array(N)-val) > ABS(array(N+1)-val) ) )  &
+        N = N + 1
+  
+     closest = MAX(MIN(N,NN),1)
+
+   END FUNCTION closest
+
+   FUNCTION smaller(array,val)
+     ! Find out how many elements of "array" have value smaller than "val"
+     IMPLICIT NONE
+     INTEGER :: smaller
+     REAL, INTENT(in) :: array(:)
+     REAL, INTENT(in) :: val
+
+     INTEGER :: NN,N
+     LOGICAL, ALLOCATABLE :: comp(:)
+
+     NN = SIZE(array)
+
+     ALLOCATE(comp(NN))
+     
+     comp = .FALSE.
+     comp(:) = (array(:) < val)
+
+     N = COUNT(comp)
+     smaller = MAX(MIN(N,NN),1)
+
+   END FUNCTION smaller
+
+   ! ------------------------------
+   
+   !
+   ! --------------------------------------------------------------------------- 
+   ! For Level >= 4: Returns the index for mass mixing ratio in the prognostic
+   ! tracer arrays for a given SALSA size bin and a given aerosol species (or 
+   ! water)
+   ! Input arguments: nbtot = total number of bins
+   !                  nb    = number of the bin for which the index is fetched
+   !                  nm    = index of the aerosol species (use classSpecies for this)
+   !
+   INTEGER FUNCTION getMassIndex(nbtot,nb,nm)
+     IMPLICIT NONE
+     INTEGER, INTENT(in) :: nbtot, nb, nm
+
+     getMassIndex = (nm-1)*nbtot+nb
+
+   END FUNCTION getMassIndex
+
 
 
 END MODULE util

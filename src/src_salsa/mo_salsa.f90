@@ -48,7 +48,7 @@ CONTAINS
          lsdistupdate,              &
          debug
 
-      USE class_componentIndex, ONLY : ComponentIndex
+      USE classComponentIndex, ONLY : ComponentIndex
 
       IMPLICIT NONE
 

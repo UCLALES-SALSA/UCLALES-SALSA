@@ -409,6 +409,7 @@ CONTAINS
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !-- 3) New particle and volume concentrations after coagulation -------------
 
+
             ! Aerosols in regime 1a
             ! --------------------------------
             DO kk = in1a, fn1a
@@ -573,6 +574,7 @@ CONTAINS
                                                             0.5*ptstep*zcc(kk,kk)*paero(ii,jj,kk)%numc)
 
             END DO
+
 
             ! Cloud droplets, regime a
             ! ------------------------------------------------
@@ -747,6 +749,9 @@ CONTAINS
                                            0.5*ptstep*zccpp(cc,cc)*pprecp(ii,jj,cc)%numc ) )
 
             END DO
+
+
+
 
             ! Ice particles, regime a
             ! ------------------------------------------------
@@ -1045,8 +1050,7 @@ CONTAINS
          nlcndh2oae, nlcndh2ocl, nlcndh2oic, & ! Condensation to aerosols, clouds and ice particles
          nsnucl                     ! nucleation
 
-      USE class_componentIndex, ONLY : ComponentIndex,IsUsed
-
+      USE classComponentIndex, ONLY : ComponentIndex
       IMPLICIT NONE
 
       !-- Input and output variables ----------
@@ -1155,8 +1159,7 @@ CONTAINS
          massacc,                   & ! mass accomodation coefficients in each bin
          n3                           ! number of molecules in one 3 nm particle [1]
 
-      USE class_componentIndex, ONLY : ComponentIndex,IsUsed
-
+      USE classComponentIndex, ONLY : ComponentIndex
       IMPLICIT NONE
 
       !-- Input and output variables ----------
@@ -1346,7 +1349,7 @@ CONTAINS
             !--- 5.1) Organic vapours ------------------------
 
             !---- 5.1.1) Non-volatile organic compound: condenses onto all bins
-            IF(pcocnv(ii,jj) > 1.e-10 .AND. zcs_tot > 1.e-30 .AND. IsUsed(prtcl,'OC')) THEN
+            IF(pcocnv(ii,jj) > 1.e-10 .AND. zcs_tot > 1.e-30 .AND. prtcl%isUsed('OC')) THEN
 
                zn_vs_c = 0.
 
@@ -1406,7 +1409,7 @@ CONTAINS
                        sum(zcolrateia(1:nice))  +  &       ! and ice particles
                        sum(zcolratesa(1:nsnw))             ! and snow particles
 
-            IF(pcocsv(ii,jj) > 1.e-10 .AND. zcs_ocsv > 1.e-30 .AND. IsUsed(prtcl,'OC')) THEN
+            IF(pcocsv(ii,jj) > 1.e-10 .AND. zcs_ocsv > 1.e-30 .AND. prtcl%isUsed('OC')) THEN
 
 
                zcvap_new3 = pcocsv(ii,jj)/(1.+ptstep*zcs_ocsv)   ! new gas phase concentration [#/m3]
@@ -1439,7 +1442,7 @@ CONTAINS
 
 
             ! ---- 5.2) Sulphate -------------------------------------------
-            IF(pcsa(ii,jj) > 1.e-10 .AND. zcs_tot > 1.e-30 .AND. IsUsed(prtcl,'SO4')) THEN
+            IF(pcsa(ii,jj) > 1.e-10 .AND. zcs_tot > 1.e-30 .AND. prtcl%isUsed('SO4')) THEN
 
                !-- Ratio of mass transfer between nucleation and condensation
 
@@ -1793,7 +1796,7 @@ CONTAINS
             ttot = 0.
             adtc = 0.
 
-            zcwintae = zcwcae; zcwintcd = zcwccd; zcwintpd = zcwcpd; zcwintid = zcwcid; zcwintsd = zcwcsd
+             zcwintae = zcwcae; zcwintcd = zcwccd; zcwintpd = zcwcpd; zcwintid = zcwcid; zcwintsd = zcwcsd
 
             ! Substepping loop
             ! ---------------------------------
@@ -1815,6 +1818,7 @@ CONTAINS
 
                IF ( ANY(paero(ii,jj,:)%numc > nlim) .AND. zrh(ii,jj) > 0.98 ) THEN
                   DO cc = nstr, nbins
+
                      zcwintae(cc) = zcwcae(cc) + min(max(adt*zmtae(cc)*(zcwint - zwsatae(cc)*zcwsurfae(cc)), &
                                                      -0.02*zcwcae(cc)),0.05*zcwcae(cc))
                      zwsatae(cc) = acth2o(paero(ii,jj,cc),zcwintae(cc))*zkelvin(cc)
@@ -1848,6 +1852,7 @@ CONTAINS
                      zwsatsd(cc) = zkelvinsd(cc)
                   END DO
                END IF
+
                zcwintae(nstr:nbins) = MAX(zcwintae(nstr:nbins),0.)
                zcwintcd(1:ncld) = MAX(zcwintcd(1:ncld),0.)
                zcwintpd(1:nprc) = MAX(zcwintpd(1:nprc),0.)
@@ -1861,7 +1866,7 @@ CONTAINS
                         SUM(zcwintid(1:nice))  - &
                         SUM(zcwintsd(1:nsnw))
 
-               ! Update "old" values for next CYCLE
+               ! Update "old" values for next cycle
                zcwcae = zcwintae; zcwccd = zcwintcd; zcwcpd = zcwintpd
                zcwc = zcwint
 
@@ -1870,11 +1875,11 @@ CONTAINS
             END DO ! ADT
 
             zcwn = zcwint
-            zcwnae = zcwintae
-            zcwncd = zcwintcd
-            zcwnpd = zcwintpd
-            zcwnid = zcwintid
-            zcwnsd = zcwintsd
+            zcwnae(1:nbins) = zcwintae(1:nbins)
+            zcwncd(1:ncld) = zcwintcd(1:ncld)
+            zcwnpd(1:nprc) = zcwintpd(1:nprc)
+            zcwnid(1:nice) = zcwintid(1:nice)
+            zcwnsd(1:nsnw) = zcwintsd(1:nsnw)
 
             prv(ii,jj) = zcwn*mwa/rhoair
 
@@ -1919,7 +1924,11 @@ CONTAINS
       END IF
 
       ! Assume activity coefficient of 1 for water...
-      acth2o = MAX(0.1,znw/max(eps,(znw+zns)))
+      !IF (znw < 1.e-10) THEN
+      !   acth2o = 1.0
+      !ELSE
+         acth2o = MAX(0.1,znw/max(eps,(znw+zns)))
+      !END IF 
    END FUNCTION acth2o
 
    !
