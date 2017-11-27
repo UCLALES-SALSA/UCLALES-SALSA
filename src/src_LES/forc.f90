@@ -33,6 +33,7 @@ module forc
   LOGICAL :: useMcICA = .TRUE.
   LOGICAL :: RadConstPress = .FALSE. ! Keep constant pressure levels
   INTEGER :: RadPrecipBins = 0 ! Add precipitation bins to cloud water (for level 3 and up)
+  INTEGER :: RadSnowBins = 0 ! Add snow bins to cloud ice (for level 5 and up)
 
 contains
   !
@@ -44,20 +45,20 @@ contains
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc     &
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp  &
          , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
-         a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, &
+         a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, a_msnowp, &
          a_fus, a_fds, a_fuir, a_fdir, &
          a_naerop,                     &
          a_naerot, a_ncloudt, a_nicet, a_nsnowt, &
          a_maerop, a_mcloudp, a_micep, a_msnowp, &
          a_maerot, a_mcloudt, a_micet, a_msnowt
 
-    USE mo_submctl, ONLY : nspec,nprc,ira,fra
+    USE mo_submctl, ONLY : nspec,nprc,ira,fra,nsnw,isa,fsa
 
     use mpi_interface, only : myid, appl_abort
 
     real, optional, intent (in) :: time_in, cntlat, sst
 
-    real :: xka, fr0, fr1, xref1, xref2
+    real :: xka, fr0, fr1
     REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
 
     ! DIVERGENCE GIVEN FROM NAMELIST
@@ -80,7 +81,7 @@ contains
 
     select case(iradtyp)
     case (1)
-       ! No radiation, just large-scale forcing.
+       ! No radiation, just large-scale forcing. 
        ! Note, there's a slight discrepancy between lev 1-3 and lev 4 with a_rp
        ! (total water vs vapour): it perhaps doesn't make sence to change the
        ! tendency of condesated water due to subsidence in level4 and for level
@@ -99,7 +100,7 @@ contains
        END IF
 
        select case(level)
-       case(1)
+       case(1) 
           call smoke_rad(nzp, nxp, nyp, dn0, a_rflx, zm, dzt,a_tt,a_rp)
        case(2)
           call gcss_rad(nzp, nxp, nyp, xka, fr0, fr1, div, a_rc, dn0,     &
@@ -148,6 +149,11 @@ contains
              ENDIF
              zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4) ! Ice
              zri(:,:,:) = a_ri(:,:,:) ! Ice (no aerosol ice?)
+             IF (RadSnowBins>0) THEN ! Add snow bins
+                ! Water is the last species (nspec+1)
+                zri(:,:,:) = zri(:,:,:) + SUM(a_msnowp(:,:,:,nspec*nsnw+isa:nspec*nsnw+min(RadSnowBins,fsa)),DIM=4)
+                zni(:,:,:) = zni(:,:,:) + SUM(a_nsnowp(:,:,:,isa:min(RadSnowBins,fsa)),DIM=4)
+             ENDIF
              CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                   dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
                   a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
@@ -157,7 +163,7 @@ contains
 
           IF ( case_name /= 'none') THEN
              CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
-          END IF
+          END IF 
 
        else
           if (myid == 0) print *, '  ABORTING: inproper call to radiation'

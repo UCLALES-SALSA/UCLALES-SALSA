@@ -20,8 +20,7 @@
 module srfc
 
   integer :: isfctyp = 0
-  !real    :: sst = 292.
-  real    :: zrough =  0.1
+  real    :: zrough =  0.1 ! Note: either in cm or m depending on isfctyp
   real    :: ubmin  =  0.20
   real    :: dthcon = 100.0
   real    :: drtcon = 0.0
@@ -53,7 +52,7 @@ module srfc
 contains
   !
   ! --------------------------------------------------------------------------
-  ! SURFACE: Calculates surface fluxes using an algorithm chosen by ISFCLYR
+  ! SURFACE: Calcualtes surface fluxes using an algorithm chosen by ISFCLYR
   ! and fills the appropriate 2D arrays
   !
   !     default: specified thermo-fluxes (drtcon, dthcon)
@@ -96,7 +95,7 @@ contains
     real    :: zs, bflx, ffact, sst1, bflx1, Vbulk, Vzt, usum
     real (kind=8) :: bfl(2), bfg(2)
 
-    REAL :: mctmp(nxp,nyp) ! Helper for mass concervation statistics
+    REAL :: mctmp(nxp,nyp) ! Helper for mass concenrvation statistics
 
     ! Added by Juha
     SELECT CASE(level)
@@ -116,7 +115,7 @@ contains
           do i=3,nxp-2
              dtdz(i,j)=dthcon
              drdz(i,j)=drtcon
-             bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2) ! TR: is this needed?
+             bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2)
           end do
        end do
        zs = zt(2)/zrough
@@ -310,10 +309,8 @@ contains
         call sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar  &
              ,uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
 
-        !       write(*,*) ww_sfc(3,10),a_ustar(3,10),'sflx'
-
-           sst1 = sst1-(total_rw+total_la+total_se+((lambda*C_heat*7.27d-5/(2.0))**0.5*(SST1-280.0)))&
-                /(2.0e-2*C_heat+(lambda*C_heat/(2.0*7.27d-5))**0.5)*dtl
+           sst1 = sst1-(total_rw+total_la+total_se+((lambda*C_heat*7.27e-5/(2.0))**0.5*(SST1-280.0)))&
+                /(2.0e-2*C_heat+(lambda*C_heat/(2.0*7.27e-5))**0.5)*dtl
 
            sst = sst1
     !

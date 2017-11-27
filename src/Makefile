@@ -17,7 +17,7 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 \
           mo_salsa_sizedist.f90 mo_salsa_dynamics.f90 \
           mo_salsa.f90 mo_salsa_driver.f90 mo_salsa_init.f90  \
           mo_salsa_nucleation.f90 mo_salsa_properties.f90 \
-          mo_constants.f90 mo_submctl.f90 \
+          mo_submctl.f90 \
           defs.f90 $(seqmpi) rad_solver.f90 rad_corkds.f90 LES.f90 \
           rad_cldwtr.f90 rad_d4strm.f90 rad_driver.f90 \
           ncio.f90 util.f90 grid.f90 stat.f90 thrm.f90 forc.f90 advf.f90 \
@@ -75,17 +75,15 @@ rad_d4strm.o: defs.o rad_solver.o \
 rad_driver.o: defs.o rad_d4strm.o $(seqmpi:.f90=.o)
 $(seqmpi:.f90=.o):
 mo_salsa_driver.o: mo_submctl.o mo_salsa.o class_componentIndex.o
-mo_constants.o:
-mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o \
-                 mo_constants.o
+mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o
 mo_submctl.o: 
-mo_salsa_cloud.o: mo_constants.o mo_submctl.o
+mo_salsa_cloud.o: mo_submctl.o
 mo_salsa_sizedist.o: mo_salsa_driver.o mo_submctl.o 
 mo_salsa.o: mo_submctl.o mo_salsa_properties.o \
             mo_salsa_dynamics.o mo_salsa_update.o mo_salsa_cloud.o \
             class_componentIndex.o
 mo_salsa_dynamics.o: mo_submctl.o mo_salsa_nucleation.o \
-                     mo_constants.o mo_salsa_properties.o aerosol_thermodynamics.o \
+                     mo_salsa_properties.o aerosol_thermodynamics.o \
                      class_componentIndex.o
 mo_salsa_nucleation.o: mo_submctl.o 
 mo_salsa_properties.o: mo_submctl.o

@@ -59,10 +59,7 @@ contains
     case (3)
        call satadjst3(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0, &
                       pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp)
-    case (4)
-       CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
-                      a_temp,a_press,a_rsl,a_rh,a_rc,a_srp)
-    case (5)
+    case (4:5)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
                       a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_rsi,a_rhi,a_srs)
     end select
@@ -108,7 +105,7 @@ contains
     INTEGER, INTENT(in) :: level,n1,n2,n3
     REAL, INTENT(in) :: rv(n1,n2,n3),   &     ! Water vapour mixing ratio
                         pp(n1,n2,n3),   &     ! Exner function
-                        tl(n1,n2,n3)          ! liquid potential temp
+                        tl(n1,n2,n3)          ! (Ice-)liquid water potential temp
     REAL, INTENT(in) :: th00
     REAL, INTENT(in) :: pi0(n1),pi1(n1)
     REAL, INTENT(IN) :: rc(n1,n2,n3),  &  ! Total cloud condensate mix rat
@@ -118,9 +115,9 @@ contains
                          th(n1,n2,n3),  &     ! Potential temperature
                          tk(n1,n2,n3),  &     ! Absolute temperature
                          p(n1,n2,n3)           ! Air pressure
-    REAL, OPTIONAL, INTENT(IN) :: ri(n1,n2,n3),  &  ! Total ice condensate mix rat
-                         srs(n1,n2,n3)      ! Snow mix rat
-    REAL, OPTIONAL, INTENT(OUT) :: rsi(n1,n2,n3), & ! Saturation mix rat over ice
+    REAL, INTENT(IN) :: ri(n1,n2,n3),  &  ! Total ice mixing rat (level 5 only)
+                         srs(n1,n2,n3)      ! Total snow mix rat
+    REAL, INTENT(OUT) :: rsi(n1,n2,n3), & ! Saturation mixing rat over ice (level 5 only)
                          rhi(n1,n2,n3)      ! relative humidity over ice
     REAL :: exner
     INTEGER :: k,i,j
@@ -136,9 +133,10 @@ contains
              thil = tl(k,i,j)+th00
 
              ! Potential and absolute temperatures
-             th(k,i,j) = thil + (alvl*( rc(k,i,j) + srp(k,i,j) ))/cp
-			 
-             if(level==5) th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp
+
+             th(k,i,j) = thil + (alvl*( rc(k,i,j) + srp(k,i,j) ))/cp/exner
+
+             if(level==5) th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp/exner
 			 
              tk(k,i,j) = th(k,i,j)*exner
 
@@ -328,8 +326,6 @@ contains
   real ::  esl, x
 
   x=min(max(-80.,t-273.16),50.)
-
-  ! esl=612.2*exp(17.67*x/(t-29.65))
   esl=c0+x*(c1+x*(c2+x*(c3+x*(c4+x*(c5+x*(c6+x*(c7+x*c8)))))))
   rslf=.622*esl/(p-esl)
 
@@ -360,13 +356,13 @@ contains
 ! FLL_TKRS: Updates scratch arrays with temperature and saturation mixing
 ! ratio
 !
-  subroutine fll_tkrs(n1,n2,n3,th,pp,pi0,pi1,dn0,th00,tk,rs)
+  subroutine fll_tkrs(n1,n2,n3,th,pp,pi0,pi1,tk,rs)
 
-  use defs, only : cp, R
+  use defs, only : cp, cpr, p00
 
   integer, intent (in) :: n1,n2,n3
   real, intent (in)    :: th(n1,n2,n3), pp(n1,n2,n3)
-  real, intent (in)    :: pi0(n1), pi1(n1), dn0(n1), th00
+  real, intent (in)    :: pi0(n1), pi1(n1)
   real, intent (out)   :: tk(n1,n2,n3)
   real, optional, intent (out)   :: rs(n1,n2,n3)
 
@@ -378,7 +374,7 @@ contains
       do k=1,n1
         exner=(pi0(k)+pi1(k)+pp(k,i,j))/cp
         tk(k,i,j)=th(k,i,j)*exner
-        if (present(rs)) rs(k,i,j)=rslf(R*exner*th00*dn0(k),tk(k,i,j))
+        if (present(rs)) rs(k,i,j)=rslf( p00*exner**cpr ,tk(k,i,j))
       end do
     end do
   end do
@@ -386,7 +382,7 @@ contains
   end subroutine fll_tkrs
 !
 ! -------------------------------------------------------------------------
-! BRUVAIS:  Calcuates the brunt-vaisaila frequency in accordance with the
+! BRUVAIS:  Calculates the brunt-vaisaila frequency in accordance with the
 ! thermodynamic level
 !
 ! Modified for level 4,
@@ -404,10 +400,6 @@ contains
   integer :: i, k, j, kp1
   real    :: c1, c2, c3, tvk, tvkp1, rtbar, rsbar, aa, bb
 
-  c1=(1.+ep*alvl/R/th00)/ep
-  c2=ep*alvl*alvl/(R*cp*th00*th00)
-  c3=alvl/(cp*th00)
-
   do j=3,n3-2
      do i=3,n2-2
         do k=1,n1-1
@@ -423,6 +415,9 @@ contains
               rsbar=0.5*(rs(k,i,j)+rs(k+1,i,j))
               kp1=min(n1-1,k+1)
               if (rt(k,i,j) > rs(k,i,j) .and. rt(kp1,i,j) > rs(kp1,i,j)) then
+                 c1=(1.+ep*alvl/R/th(k,i,j))/ep
+                 c2=ep*alvl*alvl/(R*cp*th(k,i,j)*th(k,i,j))
+                 c3=alvl/(cp*th(k,i,j))
                  aa=(1. - rtbar + rsbar*c1)/(1. + c2*rsbar)
                  bb=(c3*aa - 1.)
               else
@@ -436,6 +431,9 @@ contains
               rsbar=0.5*(rs(k,i,j)+rs(k+1,i,j))
               kp1=min(n1-1,k+2)
               if (rt(k,i,j) > rs(k,i,j) .and. rt(kp1,i,j) > rs(kp1,i,j)) then
+                 c1=(1.+ep*alvl/R/th(k,i,j))/ep
+                 c2=ep*alvl*alvl/(R*cp*th(k,i,j)*th(k,i,j))
+                 c3=alvl/(cp*th(k,i,j))
                  aa=(1. - rtbar + rsbar*c1)/(1. + c2*rsbar)
                  bb=(c3*aa - 1.)
               else

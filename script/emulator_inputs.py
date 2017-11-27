@@ -38,6 +38,8 @@ global rootfolder
 global designfilu
 global tag
 
+designfilu = ''
+
 def bool_convert(s):
     if s=="True":
         r = True
@@ -49,38 +51,38 @@ def bool_convert(s):
 
 mounted = True
 
+
 if __name__ == "__main__":
 
     if ( len(sys.argv) > 2):
         print "Mounted:", sys.argv[1], "nzp:",sys.argv[2], "filu:", sys.argv[3], "windprofile:",  sys.argv[4], "pres0:", sys.argv[5], "runmode:", sys.argv[6], "runNroBegin:", sys.argv[7], "runNroEnd:",  sys.argv[8], "level:",  sys.argv[9]
         mounted = bool_convert( sys.argv[1] )
 
-      
+    home= os.environ["HOME"]
+    ibrix = os.environ["IBRIXMOUNT"]
+    les = os.environ["LES"]
+    
+    lesroot    = les + '/'
+    designroot = ibrix + '/DESIGN/'
+    
+    cwd = os.getcwd()
+    
+    os.chdir(designroot)
+    
+    tag =subprocess.check_output("git describe --tags | tr -dc '[:alnum:].'", shell=True)
+    rootfolder = lesroot + 'bin/case_emulator_DESIGN_' + tag + '/'
+    for file in glob.glob("*.csv"):
+        designbasename=file
+    
+    os.chdir(cwd)
+    
+    designfilu = designroot + designbasename
+
 if mounted:
     import matplotlib.pyplot as plt
     from ModDataPros import plottaa
     from plot_profiles import PlotProfiles
     from ModDataPros import initializeColors
-
-home= os.environ["HOME"]
-ibrix = os.environ["IBRIXMOUNT"]
-les = os.environ["LES"]
-
-lesroot    = les + '/'
-designroot = ibrix + '/DESIGN/'
-
-cwd = os.getcwd()
-
-os.chdir(designroot)
-
-tag =subprocess.check_output("git describe --tags | tr -dc '[:alnum:].'", shell=True)
-rootfolder = lesroot + 'bin/case_emulator_DESIGN_' + tag + '/'
-for file in glob.glob("*.csv"):
-    designbasename=file
-
-os.chdir(cwd)
-
-designfilu = designroot + designbasename
 
 #if (len(sys.argv) > 1):
 #    for i in sys.argv[1:]:

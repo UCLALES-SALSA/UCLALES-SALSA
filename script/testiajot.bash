@@ -51,7 +51,7 @@ RUNTYPE='"INITIAL"'
 LVL=${LVL:-5}
 isoT=${isoT:-28800.}
 pikkuT=${pikkuT:-7200.}
-ice=${ice:-1.0} # ice #/kg
+ice=${ice:-1000.0} # ice #/m^3
 
 
 if [[ -n $hfilebase ]]; then
@@ -248,7 +248,7 @@ function main {
 
 
 if [[ $LVL == 5 ]]; then
-    icePF=_INC${ice}
+    icePF=_INC${ice:0:1}
 fi
 
 if [[ -n $testinumero ]]; then

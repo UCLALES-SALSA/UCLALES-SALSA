@@ -15,7 +15,7 @@ MODULE mo_salsa
 
 CONTAINS
 
-  SUBROUTINE salsa(kproma,   kbdim,    klev,    krow,       &
+  SUBROUTINE salsa(kbdim,    klev,                          &
                    ppres,    prv,      prs,     prsi,       &
                    ptemp,    ptt,      ptstep,              &
                    pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,    &
@@ -26,29 +26,24 @@ CONTAINS
     USE mo_salsa_dynamics, only : coagulation, condensation
     USE mo_salsa_update, ONLY : distr_update
     USE mo_salsa_cloud, only : cloud_activation, autoconv2, &
-              ice_immers_nucl,ice_hom_nucl,ice_het_nucl,ice_melt, &
-              autosnow, ice_basic_nucl, ice_fixed_NC
+        autosnow,ice_fixed_NC, ice_nucl_driver,ice_melt
 
     USE mo_submctl, ONLY :      &
          fn2b,               & ! size section and composition indices
          t_section,                 & ! For cloud bins
          ncld,                      &
          nprc,                      &
-         nice,                      & ! ice
-         nsnw,                      & ! snow
+         nice,                      &
+         nsnw,                      &
          lscoag,                    &
          lscnd,                     &
          lsauto,                    &
          lsautosnow,                &
          lsactiv,                   &
-         lsichom,                   &
-         lsichet,                   &
-         lsicimmers,                &
-         lsicbasic,                 &
+         lsicenucl,                 &
          lsfixinc,                  &
          lsicmelt,                  &
-         lsdistupdate,              &
-         debug
+         lsdistupdate
 
     USE class_componentIndex, ONLY : ComponentIndex
 
@@ -56,11 +51,8 @@ CONTAINS
 
     !-- Input parameters and variables --------------------------------------------------
     INTEGER, INTENT(in) ::          &
-         kproma,                    & ! number of horiz. grid points in a slab (='kproma')
          kbdim,                     & ! dimension for arrays (='kbdim')
-         klev,                      & ! number of vertical levels (='klev')
-         krow                         ! local latitude index
-
+         klev                        ! number of vertical levels (='klev')
 
     REAL, INTENT(in) ::            &
          ppres(kbdim,klev),            & ! atmospheric pressure at each grid point [Pa]
@@ -102,19 +94,17 @@ CONTAINS
 
     INTEGER :: zpbl(kbdim)            ! Planetary boundary layer top level
 
-    IF (debug) WRITE(*,*) 'start salsa'
-
     zpbl(:)=1
 
     ! Coagulation
     IF (lscoag) &
-       CALL coagulation(kproma, kbdim,  klev,                   &
+       CALL coagulation(kbdim,  klev,                   &
                         paero,  pcloud, pprecp, pice, psnow,    &
                         ptstep, ptemp,  ppres                   )
 
     ! Condensation
     IF (lscnd) &
-       CALL condensation(kproma,  kbdim,    klev,     krow,     &
+       CALL condensation(kbdim,    klev,     &
                          paero,   pcloud,   pprecp,             &
                          pice,    psnow,                        &
                          pc_h2so4, pc_ocnv, pc_ocsv,  pc_hno3,  &
@@ -123,63 +113,42 @@ CONTAINS
 
     ! Autoconversion (liquid)
     IF (lsauto) &
-         CALL autoconv2(kproma,kbdim,klev, &
+         CALL autoconv2(kbdim,klev, &
                         pcloud, pprecp, ptstep )
 
     ! Cloud activation
     IF (lsactiv )  &
-         CALL cloud_activation(kproma, kbdim, klev,   &
+         CALL cloud_activation(kbdim, klev,   &
                                ptemp,  ppres, prv,    &
                                prs,    pw,    paero,  &
                                pcloud, pactd          )
 
-    ! Immersion freezing
-    IF (lsicimmers) &
-         CALL ice_immers_nucl(kproma,  kbdim,  klev,   &
-                              pcloud,  pice,   ppres,  &
-                              ptemp,   ptt,    prv,    &
-                              prs,     ptstep, time    )
-
-    ! Basic freezing !testfunction
-    IF (lsicbasic) &
-         CALL ice_basic_nucl(kproma,   kbdim,  klev,   &
-                             pcloud,   pice,   ppres,  &
-                             ptemp,    prv,    prs,    &
-                             ptstep                    )
-
     ! Fixed ice number concentration
     IF (lsfixinc) &
-          CALL  ice_fixed_NC(kproma,   kbdim,  klev,   &
-                             pcloud,   pice,   ppres,  &
-                             ptemp,    prv,    prs,    &
-                             prsi,     ptstep, pdn, time     )
+          CALL  ice_fixed_NC(kbdim,  klev,   &
+                             pcloud,   pice,   &
+                             prv,    prsi,    &
+                             pdn     )
 
-    ! Homogenous nucleation Morrison et al. 2005 eq. (25)
-    IF (lsichom) &
-        CALL ice_hom_nucl(kproma,kbdim,klev,       &
-                          pcloud,pice,paero,ppres, &
-                          ptemp,prv,prs,ptstep)
+    ! Ice nucleation
+    IF (lsicenucl) &
+        CALL ice_nucl_driver(kbdim,klev,       &
+                          paero,pcloud,pprecp,pice,psnow, &
+                          ptemp,prv,prsi,ptstep)
 
-    !! heterogenous nucleation Morrison et al. 2005 eq. (27)
-    IF (lsichet) &
-        CALL ice_het_nucl(kproma,kbdim,klev,       &
-                          pcloud,pice,paero,ppres, &
-                          ptemp,prv,prs,ptstep)
-
-    ! Melting of ice
+    ! Melting of ice and snow
     IF (lsicmelt) &
-         CALL ice_melt(kproma,kbdim,klev,              &
-                       pcloud,pice,pprecp,psnow,ppres, &
-                       ptemp,prv,prs,ptstep)
+         CALL ice_melt(kbdim,klev,              &
+                       pcloud,pice,pprecp,psnow,ptemp)
 
-    ! Snow formation ~ autoconversion for ice
+    ! Snow formation ~ autoconversion from ice
     IF (lsautosnow) &
-         CALL autosnow(kproma,kbdim,klev, &
+         CALL autosnow(kbdim,klev, &
                        pice, psnow        )
 
     ! Size distribution bin update
     IF (lsdistupdate ) &
-         CALL distr_update(kproma, kbdim, klev,     &
+         CALL distr_update(kbdim, klev,     &
                            paero,  pcloud, pprecp,  &
                            pice, psnow, level       )
 

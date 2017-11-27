@@ -134,14 +134,12 @@ ${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
    nlactbase   = ${nlactbase:-.FALSE.}  ! --Switch for parameterized cloud base activation
    nlactintst  = ${nlactintst:-.TRUE.}  ! --Switch for interstitial activation based on host model Smax
 
-   nlichom     = ${nlichom:-.FALSE.}     ! Switch for homogeneous ice nucleation
-   nlichet     = ${nlichet:-.FALSE.}     ! Switch for heterogeneous ice nucleation
-   nlicimmers  = ${nlicimmers:-.FALSE.}   ! Switch for ice nucleation by immersion
-   nlicmelt    = ${nlicmelt:-.FALSE.}    ! Switch for ice'n' snow melting
-${jaakkoNL}   nlicbasic   = ${nlicbasic:-.FALSE.}
    
-${jaakkoNL}   nlfixinc   = ${nlfixinc:-.TRUE.}      ! Fix ice number concentration to be over given limit fixINC
-${jaakkoNL}   fixINC     = ${fixINC:-1.0}         ! fixed ice number concentration #/L, nlfixinc should be set to true inorder to have this working
+   nlicmelt    = ${nlicmelt:-.FALSE.}    ! Switch for ice'n' snow melting
+   nlicenucl   = ${nlicenucl:-.FALSE.}   ! Switch for ice nucleation
+   
+   nlfixinc   = ${nlfixinc:-.TRUE.}      ! Fix ice number concentration to be over given limit fixINC
+   fixINC     = ${fixINC:-1000.0}         ! fixed ice number concentration #/m^3, nlfixinc should be set to true inorder to have this working
 
    rhlim = ${rhlim:-1.2}          ! RH limit for SALSA during initialization and spinup
 

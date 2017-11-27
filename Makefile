@@ -10,7 +10,7 @@
 #  $(LIBS)	libraries for netcdf4 and hdf5
 #
 # example use: make mpi COMP=taitointel RUNTYPE=debug
-#
+#	default values: COMP=intel RUNTYPE=fast
 
 ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BIN       = $(ROOT)/bin
