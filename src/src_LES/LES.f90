@@ -100,14 +100,15 @@ CONTAINS
                        filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
                        nfpt, distim, runtype, CCN, Tspinup,sst, lbinanl, cntlat
       USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
-                       zrand
+                       zrand, zrndamp
       USE stat, ONLY : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
       USE forc, ONLY : div, case_name     ! Divergence, forcing case name
       USE radiation_main, ONLY : radsounding,   &
                                  sfc_albedo,    &
                                  useMcICA,      &
                                  RadConstPress, &
-                                 RadPrecipBins
+                                 RadPrecipBins, &
+	                             RadSnowBins
       USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
       USE mpi_interface, ONLY : myid, appl_abort, ver, author
 
@@ -126,7 +127,7 @@ CONTAINS
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          level  , CCN    , & ! Microphysical model Number of CCN per kg of air
-         iseed  , zrand  , & ! random seed
+         iseed  , zrand  , zrndamp, & ! random seed
          nxp    , nyp    , nzp   ,  & ! number of x, y, z points
          deltax , deltay , deltaz , & ! delta x, y, z (meters)
          dzrat  , dzmax  , igrdtyp, & ! stretched grid parameters
@@ -152,7 +153,8 @@ CONTAINS
          radsounding, sfc_albedo,  & ! Name of the radiation sounding file, surface albedo
          useMcICA,                 & ! Use the Monte Carlo Independent Column Approximation method (T/F)
          RadConstPress,            & ! keep constant pressure levels (T/F) 
-         RadPrecipBins               ! add precipitation bins cloud water (0, 1, 2, 3,...)
+         RadPrecipBins,            & ! add precipitation bins cloud water (0, 1, 2, 3,...)
+	     RadSnowBins
 
       NAMELIST /nudge/   &
          nudge_time,                       & ! Total nudging time (independent of spin-up)
@@ -169,7 +171,6 @@ CONTAINS
 
       NAMELIST /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author
-
 
       ps = 0.
       ts = th00

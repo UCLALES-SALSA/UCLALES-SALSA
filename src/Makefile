@@ -84,6 +84,7 @@ rad_driver.o: defs.o rad_d4strm.o $(seqmpi:.f90=.o)
 $(seqmpi:.f90=.o):
 
 classComponentIndex.o: 
+exceptionHandling.o:
 
 mo_salsa_driver.o: mo_submctl.o mo_salsa.o classComponentIndex.o
 mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o classSpecies.o
@@ -99,10 +100,8 @@ mo_salsa_dynamics.o: mo_submctl.o mo_salsa_nucleation.o \
 mo_salsa_nucleation.o: mo_submctl.o 
 mo_salsa_properties.o: mo_submctl.o
 mo_salsa_update.o: mo_submctl.o 
-classSpecies.o:
-exceptionHandling.o:
 aerosol_thermodynamics.o:
-
+classSpecies.o:
 
 
 

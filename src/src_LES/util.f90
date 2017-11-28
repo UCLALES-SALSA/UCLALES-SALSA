@@ -93,9 +93,7 @@ CONTAINS
             w(1,i,j)     = 0.
          END DO
       END DO
-
       IF (vel_bc == 'noslip') THEN
-
          DO j = 1, n3
             DO i = 1, n2
                u(1,i,j)  = -u(2,i,j)
@@ -104,9 +102,7 @@ CONTAINS
                v(n1,i,j) = -v(n1-1,i,j)
             END DO
          END DO
-
       ELSE
-
          DO j = 1, n3
             DO i = 1, n2
                u(1,i,j)  =  u(2,i,j)
@@ -115,7 +111,6 @@ CONTAINS
                v(n1,i,j) = v(n1-1,i,j)
             END DO
          END DO
-
       END IF
 
    END SUBROUTINE velset
@@ -528,12 +523,11 @@ CONTAINS
          CASE(2)
 
             ! Normal opperation
-       
+      
             IF ( .NOT. (present(rc) )) STOP 'maskactiv: invalid arguments'
 
             ! Mask grid points just below cloud or where new cloud is expected to form
             !
-
        
             cldmask(:,:,:) = ( rc(:,:,:) >= 1.e-5 )
 
@@ -568,8 +562,6 @@ CONTAINS
       END SELECT
      
    END SUBROUTINE maskactiv
-
-   ! ----------------------
 
    FUNCTION closest(array,val)
      ! Find the index of "array" with value closest to "val"

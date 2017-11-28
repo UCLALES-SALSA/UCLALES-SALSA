@@ -33,8 +33,8 @@ NCDFINC = -I$(NCDF)/include
 LIBS = '$(NCDFLIB) $(MPILIB)'
 F90 = gfortran
 MPIF90 = gfortran
-FFLAGS = -O2 ${NCDFINC} $(MPIINC) -fdefault-real-8 -std=f2008 #-fbounds-check  -g -fcheck=all  -Wall -Wtabs -fbacktrace -ffpe-trap=invalid,zero,overflow
-F77FLAGS = -O2 #-fbounds-check  -ffpe-trap=invalid,zero,overflow
+FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} $(MPIINC) -std=f2008 
+F77FLAGS = -O2 
 
 LES_OUT_MPI=$(BIN)/les.mpi
 
@@ -55,7 +55,7 @@ $(LES_OUT_SEQ):
 	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) SRCLES=$(SRC_LES) \
 	SRCSALSA=$(SRC_SALSA) SRCRAD=$(SRC_RAD)            \
 	SRCEMIS=$(SRC_EMIS)
-
+ 
 $(LES_OUT_MPI):
 	cd $(SRC); $(MAKE) LES_ARC=mpi                     \
 	FFLAGS='$(FFLAGS) $(MPIFFLAGS)' F90=$(MPIF90)      \

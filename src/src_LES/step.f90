@@ -192,7 +192,6 @@ CONTAINS
                        a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl,             &
                        a_rsi, a_temp0
 
-
       USE stat, ONLY : sflg, statistics
       USE sgsm, ONLY : diffuse
       USE srfc, ONLY : surface
@@ -209,10 +208,8 @@ CONTAINS
       LOGICAL, INTENT (out)      :: cflflg
       REAL(KIND=8), INTENT (out) :: cflmax
 
-
       LOGICAL :: zactmask(nzp,nxp,nyp)
-      REAL    :: zwp(nzp,nxp,nyp), &  !! FOR SINGLE-COLUMN RUNS
-                 ztkt(nzp,nxp,nyp)
+      REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
       INTEGER :: zrm
 
       INTEGER :: n4
@@ -224,7 +221,6 @@ CONTAINS
       ! The runmode parameter zrm is used by SALSA only
       zrm = 3
       IF ( time < Tspinup ) zrm = 2
-
 
       ! Reset ALL tendencies here.
       !----------------------------------------------------------------
@@ -264,7 +260,6 @@ CONTAINS
 
             ! Rate of change in absolute temperature (for some ice processes)
             IF (time >= 1.) THEN
-               ztkt = a_temp-a_temp0
                a_temp0 = a_temp
             ELSE IF (time == 0.) THEN
                a_temp0 = a_temp
@@ -273,24 +268,24 @@ CONTAINS
 
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                ! 1D -runs
-               CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &
+               CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_tempa_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &
                               a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                               a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                               a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
                               a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              zrm, prtcl, dtlt, time, level  )
+                              zrm, prtcl, dtlt, level  )
             ELSE
                !! for 2D or 3D runs
-               CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
+               CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
                               a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                               a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                               a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
                               a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              zrm, prtcl, dtlt, time, level  )
+                              zrm, prtcl, dtlt, level  )
              
             END IF !nxp==5 and nyp == 5
 
@@ -394,7 +389,7 @@ CONTAINS
                        a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,   &
                        a_nicep,  a_nicet, a_nsnowp, a_nsnowt,                            & ! ice'n'snow
                        a_micep,  a_micet, a_msnowp, a_msnowt,                            & ! ice'n'snow
-                       dtlt, nxp,nyp,nzp
+                       dtlt, nxp,nyp,nzp, level
       USE mo_submctl, ONLY : nbins, ncld, nprc, &
                              nice, nsnw          !ice'n'snow
 
@@ -453,8 +448,9 @@ CONTAINS
 
                END DO
 
-               ! ice particles
-               DO cc = 1, nice
+             ! ice particles
+             IF (level<5) CYCLE
+             DO cc = 1,nice
 
                   IF ( a_nicep(kk,ii,jj,cc)+a_nicet(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
@@ -475,7 +471,7 @@ CONTAINS
 
                      a_nsnowt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nsnowp(kk,ii,jj,cc))/dtlt,a_nsnowt(kk,ii,jj,cc))
                      DO ni = 1, nn
-                        a_msnowt(kk,ii,jj,(ni-1)*nprc+cc) = MAX( ((1.e-10-1.0)*a_msnowp(kk,ii,jj,(ni-1)*nsnw+cc))/dtlt,  &
+                        a_msnowt(kk,ii,jj,(ni-1)*nsnw+cc) = MAX( ((1.e-10-1.0)*a_msnowp(kk,ii,jj,(ni-1)*nsnw+cc))/dtlt,  &
                                                                 a_msnowt(kk,ii,jj,(ni-1)*nsnw+cc) )
                      END DO
 
@@ -585,18 +581,21 @@ CONTAINS
    SUBROUTINE buoyancy
 
       USE grid, ONLY : a_uc, a_vc, a_wc, a_wt, a_rv, a_rc, a_theta, &
-                       a_rp, nxp, nyp, nzp, dzm, th00, level, pi1
+                       a_rp, a_srp, a_ri, a_srs, nxp, nyp, nzp, dzm, th00, level, pi1
       USE stat, ONLY : sflg, comp_tke
       USE util, ONLY : ae1mm
       USE thrm, ONLY : update_pi1
 
-      REAL, DIMENSION (nzp) :: awtbar, a_tmp1(nzp,nxp,nyp)
+      REAL :: awtbar(nzp), a_tmp1(nzp,nxp,nyp), rv(nzp,nxp,nyp), rc(nzp,nxp,nyp)
 
       IF (level < 4) THEN
-         CALL boyanc(nzp,nxp,nyp,level,a_wt,a_theta,a_rp,th00,a_tmp1,a_rv)
+       rv = a_rv ! Water vapor
+       rc = a_rp - a_rv ! Total condensate (cloud + precipitation)
       ELSE IF (level >= 4) THEN
-         CALL boyanc(nzp,nxp,nyp,level,a_wt,a_theta,a_rp,th00,a_tmp1,a_rc)
+       rv = a_rp ! Water vapor
+       rc = a_rc + a_srp + a_ri + a_srs ! Total condensed water (aerosol+cloud+precipitation+ice+snow)
       END IF
+    call boyanc(nzp,nxp,nyp,a_wt,a_theta,rv,th00,a_tmp1,rc)
 
       CALL ae1mm(nzp,nxp,nyp,a_wt,awtbar)
       CALL update_pi1(nzp,awtbar,pi1)
@@ -608,15 +607,15 @@ CONTAINS
    ! ----------------------------------------------------------------------
    ! Subroutine boyanc:
    !
-   SUBROUTINE boyanc(n1,n2,n3,level,wt,th,rt,th00,scr,rx)
+   SUBROUTINE boyanc(n1,n2,n3,wt,th,rv,th00,scr,rc)
 
       USE defs, ONLY : g, ep2
 
       INTEGER, INTENT(in) :: n1,n2,n3,level
       REAL, INTENT(in)    :: th00,th(n1,n2,n3),  &
-                             rt(n1,n2,n3)  ! This is total water mix rat for level < 4
-                                           ! and water vapour mix rat for level = 4
-      REAL, INTENT(in)    :: rx(n1,n2,n3)  ! This should be water vapour mix rat for level < 4
+                             rv(n1,n2,n3)  ! water vapor
+                                      
+      REAL, INTENT(in)    :: rc(n1,n2,n3)  ! Total condensed water (aerosol, cloud, rain, ice and snow) mixing ratio
                                            ! and cloud liquid water mix rat for level = 4 (including rain??)
       REAL, INTENT(inout) :: wt(n1,n2,n3)
       REAL, INTENT(out)   :: scr(n1,n2,n3)
@@ -626,29 +625,17 @@ CONTAINS
 
       gover2 = 0.5*g
 
-      DO j = 3, n3-2
-         DO i = 3, n2-2
-            IF (level >= 2 .AND. level < 4) THEN
-               DO k = 1, n1
-                  scr(k,i,j) = gover2*((th(k,i,j)*(1.+ep2*rx(k,i,j))-th00)       &
-                                      /th00-(rt(k,i,j)-rx(k,i,j)))
-               END DO
-            ELSE IF (level >= 4) THEN
-               DO k = 1, n1
-                  scr(k,i,j) = gover2*((th(k,i,j)*(1.+ep2*rt(k,i,j))-th00)       &
-                                      /th00-(rx(k,i,j)))
-               END DO
-            ELSE
-               DO k = 1, n1
-                  scr(k,i,j) = gover2*(th(k,i,j)/th00-1.)
-               END DO
-            END IF
+    do j=3,n3-2
+       do i=3,n2-2
+          do k=1,n1
+             scr(k,i,j)=gover2*((th(k,i,j)*(1.+ep2*rv(k,i,j))-th00)/th00-rc(k,i,j))
+          end do
 
-            DO k = 2, n1-2
-               wt(k,i,j) = wt(k,i,j)+scr(k,i,j)+scr(k+1,i,j)
-            END DO
-         END DO
-      END DO
+          do k=2,n1-2
+             wt(k,i,j)=wt(k,i,j)+scr(k,i,j)+scr(k+1,i,j)
+          end do
+       end do
+    end do
 
    END SUBROUTINE boyanc
    !
@@ -733,28 +720,25 @@ CONTAINS
    SUBROUTINE SALSA_diagnostics
       USE grid, ONLY : nxp,nyp,nzp,    &
                        a_naerop,a_maerop,a_ncloudp,a_mcloudp,a_nprecpp,a_mprecpp,a_gaerop, &
-                       a_rc, a_srp,a_snrp, binMixrat, prtcl,   &
+                       a_rc, a_srp,a_snrp, prtcl,   &
                        a_rh, a_temp, a_ri,a_srs,a_snrs,a_rhi,                                      &
-                       a_nicep,a_micep,a_nsnowp,a_msnowp
+                       a_nicep,a_micep,a_nsnowp,a_msnowp, diss, mws, dens, level
       USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,              &
                              in1a,fn2a,fn2b,                        &
                              nice,nsnw,iia,fia,iib,fib,isa,fsa,                    &
                              rhosu,rhowa,rhoic,rhosn,      &
                              msu,moc,mno,mnh,mss,mwa,avog,pi6,                     &
-                             surfw0,surfi0, rg, nlim, prlim, pi, &
+                             surfw0, rg, nlim, prlim, pi, &
                              lscndgas
 
       IMPLICIT NONE
 
-      INTEGER :: i,j,k,bc,ba,s,sc,sa,str,end,nc,c,nn,iba
+      INTEGER :: i,j,k,bc,ba,s,sc,sa,str,end,nc,nn,iba
 
-      REAL :: zvol,zvola,zvolnew
-      REAL, PARAMETER :: rempty = 1.e-10
-      REAL :: zdh2o,zddry
-      REAL :: ns, bb, aa ! Number of moles, Raoult effect, Kelvin effect; For calculating the critical radius
-      REAL :: cdcld(nzp,nxp,nyp,ncld),cdprc(nzp,nxp,nyp,nprc),  & ! Critical diameter for cloud droplets and precipitation
-         cdice(nzp,nxp,nyp,nice),cdsnw(nzp,nxp,nyp,nsnw)   ! Critical diameter for cloud droplets and precipitation
-      REAL :: vsum
+    REAL :: zvol, zvola, zvolnew
+    REAL :: zdh2o
+    REAL :: ns, bb, aa ! Number of moles, Raoult effect, Kelvin effect; For calculating the critical radius
+    REAL :: cdcld,cdprc ! Critical diameter for cloud droplets and precipitation
 
       ! Remove negative values
       a_naerop = MAX(0.,a_naerop)
@@ -771,459 +755,272 @@ CONTAINS
 
       nn = prtcl%getNComp() ! total number of species
 
-      ! Critical radius for cloud droplets and precipitation
-      DO j = 3, nyp-2
-         DO i = 3, nxp-2
-            DO k = 1, nzp
-               ! Aerosols
-               DO c = 1, nbins
-                  vsum = 0.
-                  DO s = 1, nn
-                     vsum = vsum + a_maerop(k,i,j,(s-1)*nbins+c)
-                  END DO
-                  IF (a_naerop(k,i,j,c) > 0. .AND. vsum == 0.) THEN
-                     a_naerop(k,i,j,c) = 0.
-                     DO s = 1, nn
-                        a_maerop(k,i,j,(s-1)*nbins+c) = 0.
-                     END DO
-                  END IF
-               END DO
+    ! Remove particles that have number but not mass
+    DO j = 3,nyp-2
+       DO i = 3,nxp-2
+          DO k = 1,nzp
+             ! Aerosols
+             DO bc = 1,nbins
+                IF (a_naerop(k,i,j,bc) > 0. .AND. SUM(a_maerop(k,i,j,bc:(nn-1)*nbins+bc:nbins)) <= 0.) THEN
+                   a_naerop(k,i,j,bc) = 0.
+                   a_maerop(k,i,j,bc:(nn-1)*nbins+bc:nbins) = 0.
+                END IF
+             END DO
 
-               ! Clouds
-               DO c = 1, ncld
-                  vsum = 0.
-                  DO s = 1, nn
-                     vsum = vsum + a_mcloudp(k,i,j,(s-1)*ncld+c)
-                  END DO
-                  IF (a_ncloudp(k,i,j,c) > 0. .AND. vsum == 0.) THEN
-                     a_ncloudp(k,i,j,c) = 0.
-                     DO s = 1, nn
-                        a_mcloudp(k,i,j,(s-1)*ncld+c) = 0.
-                     END DO
-                  END IF
+             ! Clouds
+             DO bc = 1,ncld
+                IF (a_ncloudp(k,i,j,bc) > 0. .AND. SUM(a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld)) <= 0.) THEN
+                   a_ncloudp(k,i,j,bc) = 0.
+                   a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld) = 0.
+                END IF
+             END DO ! ncld
 
-                  ! Critical radius -----------------
-                  IF (a_ncloudp(k,i,j,c) > nlim .AND. a_rh(k,i,j) < 0.999) THEN
-                     ! Moles of solute
-                     ns = 0.
-                     IF (prtcl%isUsed('SO4')) THEN
-                        s = prtcl%getIndex('SO4')
-                        str = (s-1)*ncld + c
-                        ns = ns + 3.*a_mcloudp(k,i,j,str)/msu
-                     END IF
-                     IF (prtcl%isUsed('OC')) THEN
-                        s = prtcl%getIndex('OC')
-                        str = (s-1)*ncld + c
-                        ns = ns + a_mcloudp(k,i,j,str)/moc
-                     END IF
-                     IF (prtcl%isUsed('NO')) THEN
-                        s = prtcl%getIndex('NO')
-                        str = (s-1)*ncld + c
-                        ns = ns + a_mcloudp(k,i,j,str)/mno
-                     END IF
-                     IF (prtcl%isUsed('NH')) THEN
-                        s = prtcl%getIndex('NH')
-                        str = (s-1)*ncld + c
-                        ns = ns + a_mcloudp(k,i,j,str)/mnh
-                     END IF
-                     IF (prtcl%isUsed('SS')) THEN
-                        s = prtcl%getIndex('SS')
-                        str = (s-1)*ncld + c
-                        ns = ns + 2.*a_mcloudp(k,i,j,str)/mss
-                     END IF
-                     ns = ns/a_ncloudp(k,i,j,c)
+             ! Precipitation
+             DO bc = 1,nprc
+                IF (a_nprecpp(k,i,j,bc) > 0. .AND. a_mprecpp(k,i,j,(nn-1)*nprc+bc) <= 0.) THEN
+                   a_nprecpp(k,i,j,bc) = 0.
+                   a_mprecpp(k,i,j,bc:(nn-1)*nprc+bc:nprc) = 0.
+                END IF
+             END DO ! nprc
 
-                     bb = 6.*mwa*ns/(pi*rhowa)
-                     aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
-                     cdcld(k,i,j,c) = SQRT(3.*bb/aa)
-                  ELSE
-                     cdcld(k,i,j,c) = rempty
-                  END IF ! nlim
-                  ! -----------------------------------
+             ! Ice
+             IF (level<5) CYCLE
+             DO bc = 1,nice
+                IF (a_nicep(k,i,j,bc) > 0. .AND. SUM(a_micep(k,i,j,bc:(nn-1)*nice+bc:nice)) <= 0.) THEN
+                   a_nicep(k,i,j,bc) = 0.
+                   a_micep(k,i,j,bc:(nn-1)*nice+bc:nice) = 0.
+                END IF
+             END DO ! ncld
 
-               END DO ! ncld
+             ! Snow
+             DO bc = 1,nsnw
+                IF (a_nsnowp(k,i,j,bc) > 0. .AND. a_msnowp(k,i,j,(nn-1)*nsnw+bc) <= 0.) THEN
+                   a_nsnowp(k,i,j,bc) = 0.
+                   a_msnowp(k,i,j,bc:(nn-1)*nsnw+bc:nsnw) = 0.
+                END IF
+             END DO ! nsnw
 
-               ! Precipitation
-               DO c = 1, nprc
-                  IF (a_nprecpp(k,i,j,c) > 0. .AND. a_mprecpp(k,i,j,(nn-1)*nprc+c) == 0.) THEN
-                     a_nprecpp(k,i,j,c) = 0.
-                     DO s = 1, nn
-                        a_mprecpp(k,i,j,(s-1)*nprc+c) = 0.
-                     END DO
-                  END IF
+          END DO !k
+       END DO !i
+    END DO !j
 
-                  ! Critical radius -----------------
-                  IF (a_nprecpp(k,i,j,c) > prlim .AND. a_rh(k,i,j) < 0.999) THEN
-                     ! Moles of solute
-                     ns = 0.
-                     IF (prtcl%isUsed('SO4')) THEN
-                        s = prtcl%getIndex('SO4')
-                        str = (s-1)*nprc + c
-                        ns = ns + 3.*a_mprecpp(k,i,j,str)/msu
-                     END IF
-                     IF (prtcl%isUsed('OC')) THEN
-                        s = prtcl%getIndex('OC')
-                        str = (s-1)*nprc + c
-                        ns = ns + a_mprecpp(k,i,j,str)/moc
-                     END IF
-                     IF (prtcl%isUsed('NO')) THEN
-                        s = prtcl%getIndex('NO')
-                        str = (s-1)*nprc + c
-                        ns = ns + a_mprecpp(k,i,j,str)/mno
-                     END IF
-                     IF (prtcl%isUsed('NH')) THEN
-                        s = prtcl%getIndex('NH')
-                        str = (s-1)*nprc + c
-                        ns = ns + a_mprecpp(k,i,j,str)/mnh
-                     END IF
-                     IF (prtcl%isUsed('SS')) THEN
-                        s = prtcl%getIndex('SS')
-                        str = (s-1)*nprc + c
-                        ns = ns + a_mprecpp(k,i,j,str)/mss
-                     END IF
-                     ns = ns/a_nprecpp(k,i,j,c)
+   ! Ghost species
+    DO j = 3,nyp-2
+       DO i = 3,nxp-2
+          DO k = 1,nzp
 
-                     bb = 6.*mwa*ns/(pi*rhowa)
-                     aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
-                     cdprc(k,i,j,c) = SQRT(3.*bb/aa)
-                  ELSE
-                     cdprc(k,i,j,c) = rempty
-                  END IF !prlim
-                  ! -----------------------------------
+             ! Loop over cloud droplet bins
+             DO bc = ica%cur,fcb%cur
 
-               END DO ! nprc
+                IF ( a_ncloudp(k,i,j,bc) > nlim .AND. a_rh(k,i,j)<0.999) THEN
 
-               ! Ice
-               DO c = 1, nice
-                  vsum = 0.
-                  DO s = 1, nn
-                     vsum = vsum + a_micep(k,i,j,(s-1)*nice+c)
-                  END DO
-                  IF (a_nicep(k,i,j,c) > 0. .AND. vsum == 0.) THEN
-                     a_nicep(k,i,j,c) = 0.
-                     DO s = 1, nn
-                        a_micep(k,i,j,(s-1)*nice+c) = 0.
-                     END DO
-                  END IF
+                   ! Critical radius
+                   ns = SUM( diss(1:nn-1)*a_mcloudp(k,i,j,bc:(nn-2)*ncld+bc:ncld)/mws(1:nn-1) )/a_ncloudp(k,i,j,bc)
+                   bb = 6.*mwa*ns/(pi*rhowa)
+                   aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
+                   cdcld = SQRT(3.*bb/aa)
 
-                  ! Critical radius -----------------
-                  IF (a_nicep(k,i,j,c) > prlim .AND. a_rhi(k,i,j) < 0.999) THEN
-                     ! Moles of solute
-                     ns = 0.
-                     IF (prtcl%isUsed('SO4')) THEN
-                        s = prtcl%getIndex('SO4')
-                        str = (s-1)*nice + c
-                        ns = ns + 3.*a_micep(k,i,j,str)/msu
-                     END IF
-                     IF (prtcl%isUsed('OC')) THEN
-                        s = prtcl%getIndex('OC')
-                        str = (s-1)*nice + c
-                        ns = ns + a_micep(k,i,j,str)/moc
-                     END IF
-                     IF (prtcl%isUsed('NO')) THEN
-                        s = prtcl%getIndex('NO')
-                        str = (s-1)*nice + c
-                        ns = ns + a_micep(k,i,j,str)/mno
-                     END IF
-                     IF (prtcl%isUsed('NH')) THEN
-                        s = prtcl%getIndex('NH')
-                        str = (s-1)*nice + c
-                        ns = ns + a_micep(k,i,j,str)/mnh
-                     END IF
-                     IF (prtcl%isUsed('SS')) THEN
-                        s = prtcl%getIndex('SS')
-                        str = (s-1)*nice + c
-                        ns = ns + 2.*a_micep(k,i,j,str)/mss
-                     END IF
-                     ns = ns/a_nicep(k,i,j,c)
+                   ! Wet radius
+                   zvol = SUM( a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld)/dens(1:nn) )/a_ncloudp(k,i,j,bc)
+                   zdh2o = (zvol/pi6)**(1./3.)
 
-                     bb = 3.*mwa*ns/(4.*pi*rhoic)
-                     aa = 4.*mwa*surfi0/(rg*rhoic*a_temp(k,i,j))
-                     cdice(k,i,j,c) = max(rempty,SQRT(3.*bb/aa))
-                  ELSE
-                     cdice(k,i,j,c) = rempty
-                  END IF ! nlim
-                  ! -----------------------------------
+                   ! Lose the droplets if smaller than 0.2*(critical size) or 2 um
+                   IF ( zdh2o < MAX(0.2*cdcld,2.e-6) ) THEN
+                      IF (bc<=fca%cur) THEN
+                          ba = ica%par + (bc-ica%cur) ! Index for parallel aerosol bin
+                      ELSE
+                          ba = icb%par + (bc-icb%cur) ! Index for parallel aerosol bin
+                      ENDIF
+                      ! Move the number of particles from cloud to aerosol bins
+                      a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_ncloudp(k,i,j,bc)
+                      a_ncloudp(k,i,j,bc) = 0.
 
-               END DO ! nice
+                      ! Move ccn material back to aerosol regime (including water)
+                      DO s = 1,nn
+                         sc = (s-1)*ncld + bc
+                         sa = (s-1)*nbins + ba
+                         a_maerop(k,i,j,sa) = a_maerop(k,i,j,sa) + a_mcloudp(k,i,j,sc)
+                         a_mcloudp(k,i,j,sc) = 0.
+                      END DO
 
-               ! Snow
-               DO c = 1, nsnw
-                  IF (a_nsnowp(k,i,j,c) > 0. .AND. a_msnowp(k,i,j,(nn-1)*nsnw+c) == 0.) THEN
-                     a_nsnowp(k,i,j,c) = 0.
-                     DO s = 1, nn
-                        a_msnowp(k,i,j,(s-1)*nsnw+c) = 0.
-                     END DO
-                  END IF
+                   END IF ! critical radius
 
-                  ! Critical radius -----------------
-                  IF (a_nsnowp(k,i,j,c) > prlim .AND. a_rhi(k,i,j) < 0.999) THEN
-                     ! Moles of solute
-                     ns = 0.
-                     IF (prtcl%isUsed('SO4')) THEN
-                        s = prtcl%getIndex('SO4')
-                        str = (s-1)*nsnw + c
-                        ns = ns + 3.*a_msnowp(k,i,j,str)/msu
-                     END IF
-                     IF (prtcl%isUsed('OC')) THEN
-                        s = prtcl%getIndex('OC')
-                        str = (s-1)*nsnw + c
-                        ns = ns + a_msnowp(k,i,j,str)/moc
-                     END IF
-                     IF (prtcl%isUsed('NO')) THEN
-                        s = prtcl%getIndex('NO')
-                        str = (s-1)*nsnw + c
-                        ns = ns + a_msnowp(k,i,j,str)/mno
-                     END IF
-                     IF (prtcl%isUsed('NH')) THEN
-                        s = prtcl%getIndex('NH')
-                        str = (s-1)*nsnw + c
-                        ns = ns + a_msnowp(k,i,j,str)/mnh
-                     END IF
-                     IF (prtcl%isUsed('SS')) THEN
-                        s = prtcl%getIndex('SS')
-                        str = (s-1)*nsnw + c
-                        ns = ns + a_msnowp(k,i,j,str)/mss
-                     END IF
-                     ns = ns/a_nsnowp(k,i,j,c)
+                END IF  ! blim
 
-                     bb = 3.*mwa*ns/(4.*pi*rhoic)
-                     aa = 4.*mwa*surfi0/(rg*rhoic*a_temp(k,i,j))
-                     cdsnw(k,i,j,c) = max(rempty,SQRT(3.*bb/aa))
-                  ELSE
-                     cdsnw(k,i,j,c) = rempty
-                  END IF !prlim
-                  ! -----------------------------------
+             END DO ! bc
 
-               END DO ! nsnw
+             ! Loop over precipitation bins
+             DO bc = ira,fra
 
-            END DO !k
-         END DO !i
-      END DO !j
+                IF ( a_nprecpp(k,i,j,bc) > prlim .AND. a_rh(k,i,j)<0.999 ) THEN
 
-      ! Ghost species, particle radiae and diagnostic stracers
-      DO j = 3, nyp-2
-         DO i = 3, nxp-2
-            DO k = 1, nzp
+                   ! Critical radius
+                   ns = SUM( diss(1:nn-1)*a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc)/mws(1:nn-1) )/a_nprecpp(k,i,j,bc)
+                   bb = 6.*mwa*ns/(pi*rhowa)
+                   aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
+                   cdprc = SQRT(3.*bb/aa)
 
-               !!!!!!!!!!!!!!!!!!!!!!!
-               ! Ghost species
-               !!!!!!!!!!!!!!!!!!!!!!!
+                   ! Wet radius
+                   zvol = SUM( a_mprecpp(k,i,j,bc:(nn-1)*nprc+bc:nprc)/dens(1:nn) )/a_nprecpp(k,i,j,bc)
+                   zdh2o = (zvol/pi6)**(1./3.)
 
-               ! Loop over cloud droplet bins
-               DO bc = ica%cur, fcb%cur
+                   ! Lose the droplets if smaller than 0.02*critical radius or 2 um
+                   IF ( zdh2o < MAX(0.02*cdprc,2.e-6)  ) THEN
+                      ! Move evaporating rain drops to a soluble aerosol bin with
+                      ! the closest match in dry particle mass. Ain't perfect but
+                      ! the bin update subroutine in SALSA will take care of the rest.
+                      zvol = SUM( a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc) )/a_nprecpp(k,i,j,bc) ! Dry mass
 
-                  IF ( a_ncloudp(k,i,j,bc) > nlim .AND. a_rh(k,i,j) < 0.999) THEN
+                      ba=0
+                      zvola=-1.
+                      DO iba=in1a,fn2a
+                        IF (a_naerop(k,i,j,iba)>nlim) THEN
+                            zvolnew = SUM( a_maerop(k,i,j,iba:(nn-2)*nbins+iba:nbins) )/a_naerop(k,i,j,iba) ! Dry mass
+                            IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
+                                ! New closest match
+                                ba=iba
+                                zvola=zvolnew
+                            ENDIF
+                         ENDIF
+                      ENDDO
+                      if (ba==0) STOP 'FAIL: no sink for evaporating rain drops'
 
-                     CALL binMixrat('cloud','wet',bc,i,j,k,zvol)
-                     zvol = zvol/rhowa
-                     zdh2o = (zvol/a_ncloudp(k,i,j,bc)/pi6)**(1./3.)
+                      ! Move the number of particles from cloud to aerosol bins
+                      a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nprecpp(k,i,j,bc)
+                      a_nprecpp(k,i,j,bc) = 0.
 
-                     ! Loose the droplets if smaller than the critical size
-                     IF ( zdh2o < MAX(0.2*cdcld(k,i,j,bc),2.e-6) ) THEN
-                        IF (bc <= fca%cur) THEN
-                           ba = ica%par + (bc-ica%cur) ! Index for parallel aerosol bin
-                        ELSE
-                           ba = icb%par + (bc-icb%cur) ! Index for parallel aerosol bin
-                        END IF
-                        ! Move the number of particles from cloud to aerosol bins
-                        a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_ncloudp(k,i,j,bc)
-                        a_ncloudp(k,i,j,bc) = 0.
+                      ! Move ccn material back to aerosol regime (including water)
+                      DO s = 1,nn
+                         sc = (s-1)*nprc + bc
+                         sa = (s-1)*nbins + ba
+                         a_maerop(k,i,j,sa) = a_maerop(k,i,j,sa) + a_mprecpp(k,i,j,sc)
+                         a_mprecpp(k,i,j,sc) = 0.
+                      END DO
 
-                        ! Move ccn material back to aerosol regime (including water)
-                        DO s = 1, nn
-                           sc = (s-1)*ncld + bc
-                           sa = (s-1)*nbins + ba
-                           a_maerop(k,i,j,sa) = a_maerop(k,i,j,sa) + a_mcloudp(k,i,j,sc)
-                           a_mcloudp(k,i,j,sc) = 0.
-                        END DO
+                   END IF ! Critical radius
 
-                     END IF ! critical radius
+                END IF ! prlim
 
-                  END IF  ! blim
+             END DO ! bc
 
-               END DO ! bc
+             ! Loop over ice bins
+             DO bc = iia%cur,fib%cur
 
-               ! Loop over precipitation bins
-               DO bc = ira, fra
+                IF ( a_nicep(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 ) THEN
 
-                  IF ( a_nprecpp(k,i,j,bc) > prlim .AND. a_rh(k,i,j) < 0.999 ) THEN
+                   ! Ice and snow don't have a critical size, but lose particles when water content becomes low enough
 
-                     CALL binMixrat('precp','wet',bc,i,j,k,zvol)
-                     zvol = zvol/rhowa
-                     zdh2o = (zvol/a_nprecpp(k,i,j,bc)/pi6)**(1./3.)
+                   ! Lose ice when dry to total mass ratio is more than 0.5
+                   zvol = SUM( a_micep(k,i,j,bc:(nn-2)*nice+bc:nice) )/SUM( a_micep(k,i,j,bc:(nn-1)*nice+bc:nice) )
+                   IF ( zvol>0.5 ) THEN
+                      IF (bc<=fia%cur) THEN
+                         ba = iia%par + (bc-iia%cur) ! Index for parallel aerosol bin
+                      ELSE
+                         ba = iib%par + (bc-iib%cur) ! Index for parallel aerosol bin
+                      ENDIF
 
-                     ! Loose the droplets if smaller than critical radius
-                     IF ( zdh2o < MAX(0.02*cdprc(k,i,j,bc),2.e-6)  ) THEN
+                      ! Move the number of particles from ice to aerosol bins
+                      a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
+                      a_nicep(k,i,j,bc) = 0.
 
-                        ! Move evaporating rain drops to a soluble aerosol bin with
-                        ! the closest match in dry particle mass. Ain't perfect but
-                        ! the bin update subroutine in SALSA will take care of the rest.
-                        CALL binMixrat('precp','dry',bc,i,j,k,zvol)
+                      ! Move mass material back to aerosol regime (including water)
+                      DO s = 1,nn
+                         sc = (s-1)*nice + bc
+                         sa = (s-1)*nbins + ba
+                         a_maerop(k,i,j,sa) = a_maerop(k,i,j,sa) + a_micep(k,i,j,sc)
+                         a_micep(k,i,j,sc) = 0.
+                      END DO
+                   END IF
 
-                        zvol = zvol/a_nprecpp(k,i,j,bc)
+                END IF  ! prlim
 
-                        ba = 0
-                        zvola = -1.
-                        DO iba = in1a, fn2a
-                           IF (a_naerop(k,i,j,iba) > nlim) THEN
-                              CALL binMixrat('aerosol','dry',iba,i,j,k,zvolnew)
-                              zvolnew = zvolnew/a_naerop(k,i,j,iba)
-                              IF (abs(zvolnew-zvol) < abs(zvola-zvol)) THEN
-                                 ! New closest match
-                                 ba = iba
-                                 zvola = zvolnew
-                              END IF
-                           END IF
-                        END DO
-                        IF (ba == 0) STOP 'FAIL: no sink for evaporating rain drops'
+             END DO ! bc
 
-                        ! Move the number of particles from cloud to aerosol bins
-                        a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nprecpp(k,i,j,bc)
-                        a_nprecpp(k,i,j,bc) = 0.
+             ! Loop over snow bins
+             DO bc = isa,fsa
 
-                        ! Move ccn material back to aerosol regime (including water)
-                        DO s = 1, nn
-                           sc = (s-1)*nprc + bc
-                           sa = (s-1)*nbins + ba
-                           a_maerop(k,i,j,sa) = a_maerop(k,i,j,sa) + a_mprecpp(k,i,j,sc)
-                           a_mprecpp(k,i,j,sc) = 0.
-                        END DO
+                IF ( a_nsnowp(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 ) THEN
 
-                     END IF ! Critical radius
+                   ! Lose snow when dry to total mass ratio is more than 0.5
+                   zvol = SUM( a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw) )/SUM( a_msnowp(k,i,j,bc:(nn-1)*nsnw+bc:nsnw) )
+                   IF ( zvol>0.5 ) THEN
+                      ! Move evaporating snow to a soluble aerosol bin with
+                      ! the closest match in dry particle mass. Ain't perfect but
+                      ! the bin update subroutine in SALSA will take care of the rest.
+                      zvol = SUM( a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw) ) ! Dry mass
+                      zvol=zvol/a_nsnowp(k,i,j,bc)
 
-                  END IF ! prlim
+                      ba=0
+                      zvola=-1.
+                      DO iba=in1a,fn2a
+                         IF (a_naerop(k,i,j,iba)>nlim) THEN
+                            zvolnew = SUM( a_maerop(k,i,j,iba:(nn-2)*nbins+iba:nbins) ) ! Dry mass
+                            zvolnew=zvolnew/a_naerop(k,i,j,iba)
+                            IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
+                                ! New closest match
+                                ba=iba
+                                zvola=zvolnew
+                            ENDIF
+                         ENDIF
+                      ENDDO
+                      if (ba==0) STOP 'FAIL: no sink for evaporating snow'
 
-               END DO ! bc
+                      ! Move the number of particles from cloud to aerosol bins
+                      a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nsnowp(k,i,j,bc)
+                      a_nsnowp(k,i,j,bc) = 0.
 
-               ! Loop over ice bins
-               DO bc = iia%cur, fib%cur
+                      ! Move ccn material back to aerosol regime (including water)
+                      DO s = 1,nn
+                         sc = (s-1)*nsnw + bc
+                         sa = (s-1)*nbins + ba
+                         a_maerop(k,i,j,sa) = a_maerop(k,i,j,sa) + a_msnowp(k,i,j,sc)
+                         a_msnowp(k,i,j,sc) = 0.
+                      END DO
+                   END IF
 
-                  IF ( a_nicep(k,i,j,bc) > prlim .AND. a_rhi(k,i,j) < 0.999 ) THEN
+                END IF ! prlim
 
-                     CALL binMixrat('ice','wet',bc,i,j,k,zvol)
-                     zvol = zvol/rhoic
-                     zdh2o = (zvol/a_nicep(k,i,j,bc)/pi6)**(1./3.)
+             END DO ! bc
 
-                     ! Loose the droplets if smaller than the critical size !! ice'n'snow
-                     IF ( zdh2o < MAX(0.2*cdice(k,i,j,bc),2.e-6) ) THEN
-                        IF (bc <= fia%cur) THEN
-                           ba = iia%par + (bc-iia%cur) ! Index for parallel aerosol bin
-                        ELSE
-                           ba = iib%par + (bc-iib%cur) ! Index for parallel aerosol bin
-                        END IF
+             ! Loop over aerosol bins
+             DO ba = 1,nbins
+                IF (a_naerop(k,i,j,ba) > nlim) THEN
+                   zvol = SUM( a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins)/dens(1:nn-1) )/a_naerop(k,i,j,ba) ! Dry volume
 
-                        ! Move the number of particles from cloud to aerosol bins
-                        a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
-                        a_nicep(k,i,j,bc) = 0.
+                   ! Particles smaller then 0.1 nm diameter are set to zero 
+                   IF ( zvol < pi6*1.e-10**3 ) THEN
+                      ! Volatile species to the gas phase
+                      IF (prtcl%isUsed('SO4') .AND. lscndgas) THEN
+                         nc = prtcl%getIndex('SO4')
+                         s = (nc-1)*nbins + ba
+                         a_gaerop(k,i,j,1) = a_gaerop(k,i,j,1) + a_maerop(k,i,j,s) / msu * avog
+                      END IF
+                      IF (prtcl%isUsed('OC') .AND. lscndgas) THEN
+                         nc = prtcl%getIndex('OC')
+                         s = (nc-1)*nbins + ba
+                         a_gaerop(k,i,j,5) = a_gaerop(k,i,j,5) + a_maerop(k,i,j,s) / moc * avog
+                      END IF
+                      IF (prtcl%isUsed('NO') .AND. lscndgas) THEN
+                         nc = prtcl%getIndex('NO')
+                         s = (nc-1)*nbins + ba
+                         a_gaerop(k,i,j,2) = a_gaerop(k,i,j,2) + a_maerop(k,i,j,s) / mno * avog
+                      END IF
+                      IF (prtcl%isUsed('NH') .AND. lscndgas) THEN
+                         nc = prtcl%getIndex('NH')
+                         s = (nc-1)*nbins + ba
+                         a_gaerop(k,i,j,3) = a_gaerop(k,i,j,3) + a_maerop(k,i,j,s) / mnh * avog
+                      END IF
 
-                        ! Move ccn material back to aerosol regime (including water)
-                        DO s = 1, nn
-                           sc = (s-1)*nice + bc
-                           sa = (s-1)*nbins + ba
-                           a_maerop(k,i,j,sa) = a_maerop(k,i,j,sa) + a_micep(k,i,j,sc)
-                           a_micep(k,i,j,sc) = 0.
-                        END DO
+                      ! Mass and number to zero (insolube species and water are lost)
+                      a_maerop(k,i,j,ba:(nn-1)*nbins+ba:nbins) = 0.
+                      a_naerop(k,i,j,ba) = 0.
+                   END IF
+                END IF
+             END DO
 
-                     END IF ! critical radius
-
-                  END IF  ! prlim
-
-               END DO ! bc
-
-               ! Loop over snow bins
-               DO bc = isa, fsa
-
-                  IF ( a_nsnowp(k,i,j,bc) > prlim .AND. a_rhi(k,i,j) < 0.999 ) THEN
-
-                     CALL binMixrat('snow','wet',bc,i,j,k,zvol)
-                     zvol = zvol/rhosn
-                     zdh2o = (zvol/a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
-
-                     ! Loose the droplets if smaller than critical radius !! a_rhi ice'n'snow
-                     IF ( zdh2o < MAX(0.02*cdsnw(k,i,j,bc),2.e-6) ) THEN
-
-                        ! Move evaporating snow drops to a soluble aerosol bin with
-                        ! the closest match in dry particle mass. Ain't perfect but
-                        ! the bin update subroutine in SALSA will take care of the rest.
-                        CALL binMixrat('snow','dry',bc,i,j,k,zvol)
-                        zvol = zvol/a_nsnowp(k,i,j,bc)
-
-                        ba = 0
-                        zvola = -1.
-                        DO iba = in1a, fn2a
-                           IF (a_naerop(k,i,j,iba) > nlim) THEN
-                              CALL binMixrat('aerosol','dry',iba,i,j,k,zvolnew)
-                              zvolnew = zvolnew/a_naerop(k,i,j,iba)
-                              IF (abs(zvolnew-zvol) < abs(zvola-zvol)) THEN
-                                 ! New closest match
-                                 ba = iba
-                                 zvola = zvolnew
-                              END IF
-                           END IF
-                        END DO
-                        IF (ba == 0) STOP 'FAIL: no sink for evaporating snow'
-
-                        ! Move the number of particles from cloud to aerosol bins
-                        a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nsnowp(k,i,j,bc)
-                        a_nsnowp(k,i,j,bc) = 0.
-
-                        ! Move ccn material back to aerosol regime (including water)
-                        DO s = 1, nn
-                           sc = (s-1)*nsnw + bc
-                           sa = (s-1)*nbins + ba
-                           a_maerop(k,i,j,sa) = a_maerop(k,i,j,sa) + a_msnowp(k,i,j,sc)
-                           a_msnowp(k,i,j,sc) = 0.
-                        END DO
-
-                     END IF ! Critical radius
-
-                  END IF ! prlim
-
-               END DO ! bc
-
-               ! Loop over aerosol bins
-               DO ba = 1, nbins
-                  IF (a_naerop(k,i,j,ba) > nlim) THEN
-                     CALL binMixrat('aerosol','dry',ba,i,j,k,zvol)
-                     zvol = zvol/rhosu
-
-                     ! Particles smaller than 0.1 nm diameter are set to zero
-                     zddry = (zvol/a_naerop(k,i,j,ba)/pi6)**(1./3.)
-                     IF ( zddry < 1.e-10 ) THEN
-                        ! Volatile species to the gas phase
-                        IF (prtcl%isUsed('SO4') .AND. lscndgas) THEN
-                           nc = prtcl%getIndex('SO4')
-                           s = (nc-1)*nbins + ba
-                           a_gaerop(k,i,j,1) = a_gaerop(k,i,j,1) + a_maerop(k,i,j,s) / msu * avog
-                        END IF
-                        IF (prtcl%isUsed('OC') .AND. lscndgas) THEN
-                           nc = prtcl%getIndex('OC')
-                           s = (nc-1)*nbins + ba
-                           a_gaerop(k,i,j,5) = a_gaerop(k,i,j,5) + a_maerop(k,i,j,s) / moc * avog
-                        END IF
-                        IF (prtcl%isUsed('NO') .AND. lscndgas) THEN
-                           nc = prtcl%getIndex('NO')
-                           s = (nc-1)*nbins + ba
-                           a_gaerop(k,i,j,2) = a_gaerop(k,i,j,2) + a_maerop(k,i,j,s) / mno * avog
-                        END IF
-                        IF (prtcl%isUsed('NH') .AND. lscndgas) THEN
-                           nc = prtcl%getIndex('NH')
-                           s = (nc-1)*nbins + ba
-                           a_gaerop(k,i,j,3) = a_gaerop(k,i,j,3) + a_maerop(k,i,j,s) / mnh * avog
-                        END IF
-
-                        ! Mass and number to zero (insolube species and water are lost)
-                        a_maerop(k,i,j,ba:(nn-1)*nbins+ba:nbins) = 0.
-                        a_naerop(k,i,j,ba) = 0.
-                        zvol = 0.
-                     END IF
-                  END IF
-               END DO
-
-            END DO   ! k
-         END DO   ! i
-      END DO   ! j
+          END DO   ! k
+       END DO   ! i
+    END DO   ! j
 
       !!!!!!!!!!!!!!!!!!!!!!!
       ! Update diagnostic tracers

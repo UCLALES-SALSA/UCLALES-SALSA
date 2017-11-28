@@ -20,7 +20,7 @@
 MODULE srfc
 
    INTEGER :: isfctyp = 0
-   REAL    :: zrough =  0.1
+   REAL    :: zrough =  0.1   !!!!! CHECK THAT IN METERS EVERYWHERE!!
    REAL    :: ubmin  =  0.20
    REAL    :: dthcon = 100.0
    REAL    :: drtcon = 0.0
@@ -307,8 +307,6 @@ CONTAINS
                           a_rstar)
             CALL sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar,  &
                          uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
-
-            !       WRITE(*,*) ww_sfc(3,10),a_ustar(3,10),'sflx'
 
             sst1 = sst1-(total_rw+total_la+total_se+( sqrt(lambda*C_heat*7.27e-5/(2.0)) *(SST1-280.0)))&
                    /(2.0e-2*C_heat+ sqrt( lambda*C_heat/(2.0*7.27e-5)) )*dtl

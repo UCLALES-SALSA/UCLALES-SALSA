@@ -78,7 +78,7 @@ CONTAINS
   SUBROUTINE diffuse
 
     USE grid, ONLY : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt,    &
-                     a_rv, a_rc, a_rp, a_tp, a_tt, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta,  &
+                     a_rv, a_rc, a_rp, a_ri, a_srp, a_tp, a_tt, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta,  &
                      a_temp, a_rsl, nscl, nxp, nyp,    &
                      nzp, zm, dxi, dyi, dzt, dzm, dtlt, dtlv , th00, dn0,  &
                      pi0, pi1, newsclr, level, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc, &
@@ -99,7 +99,7 @@ CONTAINS
           rxt = a_rp
        CASE(4,5)
           rx = a_rp
-          rxt = a_rp + a_rc
+          rxt = a_rp + a_rc + a_ri + a_srp
     END SELECT
 
 
@@ -108,7 +108,7 @@ CONTAINS
     ! ----------
     ! Calculate Deformation and stability for SGS calculations
     !
-    CALL fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,dn0,th00,a_temp,rs=a_rsl)
+    CALL fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,a_temp,rs=a_rsl)
 
     CALL bruvais(nzp,nxp,nyp,level,a_theta,a_tp,rxt,a_rsl,a_tmp3,dzm,th00)
 
@@ -183,7 +183,6 @@ CONTAINS
           CALL diffsclr(nzp,nxp,nyp,dtlt,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2,   &
                         a_sp,a_tmp2,a_st,a_tmp1)
        END IF
-
        IF (sflg) THEN
           CALL get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
           CALL updtst(nzp,'sgs',n,sz1,1)
@@ -192,7 +191,6 @@ CONTAINS
           IF (associated(a_sp,a_rp))                          &
              CALL sgsflxs(nzp,nxp,nyp,level,a_tmp3,rx,a_theta,a_tmp1,'rt')
        END IF
-
        CALL cyclics(nzp,nxp,nyp,a_st,req)
        CALL cyclicc(nzp,nxp,nyp,a_st,req)
     END DO
@@ -331,7 +329,6 @@ CONTAINS
           tke_sgs(k) = sz1(k)/(delta*pi*(csx*0.18))**2
           sz1(k) = 1./sqrt(1./(delta*csx)**2+1./(zm(k)*vonk+0.001)**2)
        END DO
-
        CALL updtst(n1,'sgs',-1,tke_sgs,1)  ! sgs tke
        CALL updtst(n1,'sgs',-5,sz1,1)      ! mixing length
        CALL updtst(n1,'sgs',-6,sz1,1)      ! dissipation lengthscale
