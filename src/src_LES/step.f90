@@ -1086,7 +1086,7 @@ end subroutine tstep_reset
                       ENDDO
                       if (ba==0) STOP 'FAIL: no sink for evaporating rain drops'
 
-                      ! Move the number of particles from cloud to aerosol bins
+                      ! Move the number of particles from precipitation to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nprecpp(k,i,j,bc)
                       a_nprecpp(k,i,j,bc) = 0.
 

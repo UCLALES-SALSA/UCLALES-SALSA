@@ -73,8 +73,8 @@ contains
     read (66, '(300(6E12.4,/))') realVars(1:mb+1)
     do ib = 1, mb
        band(ib)%llimit = realVars(ib) 
+       band(ib)%rlimit = realVars(ib+1)
     end do 
-    band(mb)%rlimit =  realVars(mb+1)
     read (66, '(300(6E12.4,/))') realVars(1:mb)
     do ib = 1, mb
        band(ib)%power = realVars(ib) 
@@ -82,7 +82,6 @@ contains
 
     mbs = 0
     do ib=1,mb-1
-       band(ib)%rlimit = band(ib+1)%llimit
        band(ib)%center =(band(ib)%rlimit+band(ib)%llimit)*0.5
        if (band(ib)%power > 0.) mbs = mbs + 1
     end do

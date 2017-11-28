@@ -603,10 +603,6 @@ contains
        if (itype==0) ncinfo = 'Liquid water potential temperature'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
-    case('thil')
-       if (itype==0) ncinfo = 'Ice-Liquid water potential temperature'
-       if (itype==1) ncinfo = 'K'
-       if (itype==2) ncinfo = 'tttt'
     case('theta')
        if (itype==0) ncinfo = 'Potential temperature'
        if (itype==1) ncinfo = 'K'
@@ -778,10 +774,6 @@ contains
     case('nrcnt')
        if (itype==0) ncinfo = 'Rain cell counts'
        if (itype==1) ncinfo = '#'
-       if (itype==2) ncinfo = 'time'
-    case('nsnow')
-       if (itype==0) ncinfo = 'Conditionally sampled snow number mixing ratio'
-       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('nscnt')
        if (itype==0) ncinfo = 'Snow cell counts'

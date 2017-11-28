@@ -1030,15 +1030,15 @@ CONTAINS
          ptemp(kbdim,klev),         & ! ambient temperature [K]
          ppres(kbdim,klev),         & ! ambient pressure [Pa]
          ptstep,                    & ! timestep [s]
-         prs(kbdim,klev),           & ! Water vapor saturation mixing ratio
-         prsi(kbdim,klev)              ! Saturation mixing ratio    [kg/m3]
+         prs(kbdim,klev),           & ! Water vapor saturation mixing ratio [kg/kg]
+         prsi(kbdim,klev)              ! Water vapor saturation mixing ratio over ice [kg/kg]
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl  ! Keeps track which substances are used
 
     INTEGER :: ppbl(kbdim)           ! Planetary boundary layer top level
 
     REAL, INTENT(INOUT) ::     &
-         prv(kbdim,klev),          & ! Water vapor mixing ratio
+         prv(kbdim,klev),          & ! Water vapor mixing ratio [kg/kg]
          pcsa(kbdim,klev),         & ! sulphuric acid concentration [#/m3]
          pcocnv(kbdim,klev),       & ! non-volatile organic concentration [#/m3]
          pcocsv(kbdim,klev),       & ! semivolatile organic concentration [#/m3]
@@ -1730,7 +1730,7 @@ CONTAINS
           ! -- Aerosols: ------------------------------------------------------------------------------------
           zmtae(:) = 0.
           zcwsurfae(:) = 0.
-          DO cc = 1,nbins
+          DO cc = nstr,nbins
              IF (paero(ii,jj,cc)%numc > nlim .AND. zrh(ii,jj) > 0.98 .AND. lscndh2oae) THEN
                 ! Wet diameter
                 dwet=( SUM(paero(ii,jj,cc)%volc(:))/paero(ii,jj,cc)%numc/pi6 )**(1./3.)
@@ -1764,7 +1764,7 @@ CONTAINS
 
           ! Current mole concentrations
           zcwc = prv(ii,jj)*rhoair/mwa
-          zcwcae(1:nbins) = paero(ii,jj,1:nbins)%volc(8)*rhowa/mwa
+          zcwcae(nstr:nbins) = paero(ii,jj,nstr:nbins)%volc(8)*rhowa/mwa
           zcwccd(1:ncld) = pcloud(ii,jj,1:ncld)%volc(8)*rhowa/mwa
           zcwcpd(1:nprc) = pprecp(ii,jj,1:nprc)%volc(8)*rhowa/mwa
           zcwcid(1:nice) = pice(ii,jj,1:nice)%volc(8)*rhoic/mwa
@@ -1839,8 +1839,8 @@ CONTAINS
              zcwintid(1:nice) = MAX(zcwintid(1:nice),0.)
              zcwintsd(1:nsnw) = MAX(zcwintsd(1:nsnw),0.)
 
-             ! Updae vapor concentration for consistency
-             zcwint = zcwtot - SUM(zcwintae(1:nbins)) - &
+             ! Update vapor concentration for consistency
+             zcwint = zcwtot - SUM(zcwintae(nstr:nbins)) - &
                                SUM(zcwintcd(1:ncld))  - &
                                SUM(zcwintpd(1:nprc))  - &
                                SUM(zcwintid(1:nice))  - &
@@ -1863,7 +1863,7 @@ CONTAINS
 
           prv(ii,jj) = zcwn*mwa/rhoair
 
-          paero(ii,jj,1:nbins)%volc(8) = max(0.,zcwnae(1:nbins)*mwa/rhowa)
+          paero(ii,jj,nstr:nbins)%volc(8) = max(0.,zcwnae(nstr:nbins)*mwa/rhowa)
           pcloud(ii,jj,1:ncld)%volc(8) = max(0.,zcwncd(1:ncld)*mwa/rhowa)
           pprecp(ii,jj,1:nprc)%volc(8) = max(0.,zcwnpd(1:nprc)*mwa/rhowa)
           pice(ii,jj,1:nice)%volc(8) = max(0.,zcwnid(1:nice)*mwa/rhoic)
