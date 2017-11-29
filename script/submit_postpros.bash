@@ -120,7 +120,8 @@ cat > ${dir}/runpostpros${postfix}.sh <<FINALPBS
 #PBS -m ae
 
 source /etc/profile
-module load Python/2.7.10
+#module load Python/2.7.10
+export PATH="/lustre/tmp/aholaj/anaconda2/bin:$PATH"
 
 cd ${dir}
 

@@ -96,8 +96,9 @@ def deltazvanha( pblh, nzp ):
    
     return deltaz, nzp
 
-def deltaz( pblh, nzp_orig ):
-    dz = max( 1., min( 20. , round( max( 1.3333 * pblh, pblh + 500.) / float(nzp_orig) ) ) )
+def deltaz( pblh, nzp_orig, nftp = 10 ):
+    # nftp = sponge layer
+    dz = max( 1., min( 20. , round( max( 1.4 * pblh, pblh + 500.) / float(nzp_orig) ) ) )
 
     if ( dz < 10.0 ):
         deltaz = 10.0
@@ -105,23 +106,65 @@ def deltaz( pblh, nzp_orig ):
     else:
         deltaz = dz
         nzp = nzp_orig
+    
+    modeltop = (nzp-1.5)*deltaz
+    nzp = nzp + nftp
+    
+    dzmax = pblh + (modeltop-pblh)*2./3.
 
-    return deltaz, nzp
+    return deltaz, nzp, dzmax
     
-def define_z( pblh, deltaz, nzp ):
+def define_z( pblh, deltaz, nzp, dzmax, dzrat = 1.0 ):
 #z = [ 100., 200., 500.,790.,795.,800.,850.,900.,950.,1000.,1050.,1100.,1150.,1200.,1250.,1300.,1350.,1400.,1450.,1500.,1550.,1600.,1650.,1700.,1750.,1800.,1850.,1900.,1950.,2000.]
+    from math import sqrt
+    zt = np.zeros(nzp)
+    zm = np.zeros(nzp)
+    zmnvc = np.zeros(nzp+3)
+    dzmin = deltaz
+        
+    ############
+    zt[0] = -deltaz/2
+    zm[0] = 0.
+    zm[1] = deltaz
+    zb    = dzmax + 100.
     
-    zt = []    
+    if (dzrat < 0. ):
+        dzmin = -float(int(dzrat))
+        dzrat =  dzrat+dzmin-1
+        kmax = int(np.log(deltaz/dzmin)/np.log(abs(dzrat)))
+        zb=dzmax-100.
+        for k in xrange(1,kmax+1):
+           zb = zb-dzmin*abs(dzrat)**k
+     
+    dz = deltaz
+    for k in xrange(3,nzp+1):
+        if(zm[k-2] > zb and zm[k-2] < dzmax):
+           dz = max( dzmin, dz/abs(dzrat) )
+        elif ( zm[k-2] >= dzmax):
+           dz = dz*abs(dzrat)
+        zm[k-1] = zm[k-2]+dz
+
+     
+    for k in xrange(nzp):
+        zmnvc[k+2]=zm[k]
     
-    zt.append(-deltaz/2.)
+    print zmnvc
+    zmnvc[1]  = -(np.power(zmnvc[3]-zmnvc[2],2)/(zmnvc[4])-zmnvc[3])
     
-    for i in xrange(nzp-1):
-        zt.append(zt[i]+deltaz)
+    zmnvc[0]  = zmnvc[1] - np.power(zmnvc[2]-zmnvc[1], 2 ) /( zmnvc[3]-zmnvc[2])
+    zmnvc[-1] = zmnvc[-2]+np.power(zmnvc[-2]-zmnvc[-3],2)/(zmnvc[-3]-zmnvc[-4])
+#     zmnvc(nzp+1)=zmnvc(nzp)+(zmnvc(nzp)-zmnvc(nzp-1))**2              &
+#                  /(zmnvc(nzp-1)-zmnvc(nzp-2))
+    print zmnvc
+    for k in xrange(nzp): #1, nzp
+        print k
+        dzrfm = sqrt(sqrt((zmnvc[k+3]-zmnvc[k+2]) /(zmnvc[k+1]-zmnvc[k])))
+        zt[k] = zmnvc[k+1]+(zmnvc[k+2]-zmnvc[k+1])/(1.+dzrfm)
+
+    zm = round(zm, 3)
+    zt = round(zt, 3)
     
-    if (pblh > zt[-1]):
-        sys.exit("MODEL HEIGHT NOT ABOVE PBLH")
-    
-    return zt
+    return zt,zm
 
 def tot_wat_mix_rat_LIN(  z, pblh, q_pbl, q_inv, invThi = 50. ):
     if ( z < pblh ):
@@ -563,11 +606,12 @@ def main( nzp_orig=200, filu = designfilu, windprofile = 'ideal', pres0 = 1017.8
     
     
     # define resolutions and nzp's    
-    dz = np.zeros(len(case))
-    nzp = np.zeros(len(case))
+    dz    = np.zeros(len(case))
+    nzp   = np.zeros(len(case))
+    dzmax = np.zeros(len(case))
     q_pbl = np.zeros(len(case))    
     for k in xrange( A, B ):
-        dz[k], nzp[k] = deltaz( pblh[k], nzp_orig )
+        dz[k], nzp[k], dzmax[k] = deltaz( pblh[k], nzp_orig )
         q_pbl[k]      = solve_rw( pres0*100., tpot_pbl[k], clw_max[k]*0.001, pblh[k] )*1000.
         if (q_pbl[k] < 0. ):
             sys.exit('q_pbl NEGATIVE VALUE')
