@@ -187,7 +187,7 @@ set -e
 
 cd ${rundir}
 
-aprun -n ${nproc} ${exe} | tee ${PBS_JOBNAME:-interactive}.${PBS_JOBID:-help}
+aprun -n ${nproc} ${rundir}/${exe} | tee ${PBS_JOBNAME:-interactive}.${PBS_JOBID:-help}
 
 exit
 
