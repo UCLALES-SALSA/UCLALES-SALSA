@@ -249,6 +249,8 @@ function main {
 
 if [[ $LVL == 5 ]]; then
     icePF=_ice${ice:0:1}
+else
+    icePF=_ice0
 fi
 
 if [[ -n $testinumero ]]; then
