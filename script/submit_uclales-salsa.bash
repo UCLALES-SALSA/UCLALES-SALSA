@@ -187,7 +187,7 @@ set -e
 
 cd ${rundir}
 
-aprun -n ${nproc} ${rundir}/${exe} | tee ${PBS_JOBNAME:-interactive}.${PBS_JOBID:-help}
+aprun -n ${nproc} ./${exe} | tee ${PBS_JOBNAME:-interactive}.${PBS_JOBID:-help}
 
 exit
 
@@ -227,7 +227,7 @@ cd ${rundir}
 
 module load hdf5-par netcdf4
 
-srun ${exe}
+srun ./${exe}
 
 exit
 
@@ -236,13 +236,10 @@ FINALSBATCH
 fi
 ###########################################
 
-# Goto rundir
-cd ${rundir}
-
 # Make initial submit
 if [ $submit == 'true' ]; then
     echo 'Submit to job scheduler'
-    ${submitCMD} runles.sh
+    ${submitCMD} ${rundir}/runles.sh
 fi
 
 

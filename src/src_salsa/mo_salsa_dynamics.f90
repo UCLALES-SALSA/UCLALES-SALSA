@@ -1651,12 +1651,9 @@ CONTAINS
           zcwsurfid(:) = 0.
           DO cc = 1,nice
              IF (pice(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
-                ! Dimension
-                CALL CalcDimension(1,pice(ii,jj,cc),prlim,dw,4)
-                dwet=dw(1)
 
                 ! Capacitance (m) as defined for ISDAC
-                cap = 0.09*dwet
+                cap = 0.09*( SUM(pice(ii,jj,cc)%volc(:))/pice(ii,jj,cc)%numc*rhoic )**(1./3.)
 
                 ! Activity + Kelvin effect - edit when needed
                 !   Can be calculated just like for sperical homogenous particle or just ignored,
