@@ -1131,7 +1131,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                       ENDDO
                       if (ba==0) STOP 'FAIL: no sink for evaporating rain drops'
 
-                      ! Move the number of particles from cloud to aerosol bins
+                      ! Move the number of particles from precipitation to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nprecpp(k,i,j,bc)
                       a_nprecpp(k,i,j,bc) = 0.
 

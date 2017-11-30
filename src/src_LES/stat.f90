@@ -1057,7 +1057,6 @@ contains
     REAL :: a0(n1,n2,n3), a1(n1,n2,n3)
     integer :: ii,ss
     LOGICAL :: cond_ic(n1,n2,n3), cond_oc(n1,n2,n3)
-    CHARACTER(len=3), PARAMETER :: zspec(7) = (/'SO4','OC ','BC ','DU ','SS ','NH ','NO '/)
 
     CALL bulkNumc('cloud','a',a0)
     CALL bulkNumc('cloud','b',a1)
@@ -1186,7 +1185,6 @@ contains
     ssclr_lvl5(32) = get_avg2dh(n2,n3,scr2)
 
   END SUBROUTINE ts_lvl5
-
   !
   !---------------------------------------------------------------------
   ! SUBROUTINE ACCUM_STAT: Accumulates various statistics over an

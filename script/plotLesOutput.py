@@ -1404,9 +1404,9 @@ def piirra_domainMeanProfiili( muuttuja, nimi = None, muunnosKerroin = 1.0, ajan
             label = labelArray[i]       
 
         fig, ax = mdp.plottaa( dataSlizeMean.A1, zt.A1, tit , xl = xAxisL, yl='height [m]', changeColor=True, tightXAxis=True, tightYAxis = True, markers=False, LEGEND=True, label = label, omavari = color, scatter=False, uusikuva=uusikuva )       
-        ax.title.set_fontsize(35)
-        mdp.plot_setXlim( minimi, maksimi, extendBelowZero = False, A = 0.05 )
-    
+    ax.title.set_fontsize(35)
+    mdp.plot_setXlim( minimi, maksimi, extendBelowZero = False, A = 0.05 )
+
     if savePrefix is None:
         savePrefix = 'domainMeanProfiili'
     

@@ -625,10 +625,10 @@ def aikasarjaTulostus( data, aika = 0, tulostus = False, piirra = False, uusikuv
       
   uusikuva = ( piirra and uusikuva )
   
-  if uusikuva:
-      aikasarjaTulostus.fig, aikasarjaTulostus.ax = plot_alustus()
+  #if uusikuva:
+      #aikasarjaTulostus.fig, aikasarjaTulostus.ax = plot_alustus()
       
-  plottaa( aika, data, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari, label = label )
+  aikasarjaTulostus.fig, aikasarjaTulostus.ax = plottaa( aika, data, nimi, xnimi, ynimi, changeColor = changeColor, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari, label = label, uusikuva = uusikuva )
 
   return aikasarjaTulostus.fig, aikasarjaTulostus.ax
 
@@ -836,8 +836,7 @@ def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, current
   if (log):
     plt.xscale('log')
 
-  if uusikuva:
-    return plottaa.fig, plottaa.ax
+  return plottaa.fig, plottaa.ax
     
 #y = zt_data[1:]
 #c = next(colorpool)

@@ -172,15 +172,15 @@ IMPLICIT NONE
              in_t(1,1) = tk(kk,ii,jj)
              in_tt(1,1) = ( tk(kk+1,ii,jj) - tk(kk,ii,jj)) / (zt(kk+1) -zt (kk))*wp(kk,ii,jj)
              in_pdn(1,1) = pdn(kk,ii,jj)
-             in_rs(1,1) = rs(kk,ii,jj)*pdn(kk,ii,jj)
-             in_rsi(1,1) = rsi(kk,ii,jj)*pdn(kk,ii,jj)
+             in_rs(1,1) = rs(kk,ii,jj)
+             in_rsi(1,1) = rsi(kk,ii,jj)
              in_w(1,1) = wp(kk,ii,jj)
 
              ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
              IF (prunmode < 3) THEN
-                in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)*pdn(kk,ii,jj)
+                in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)
              ELSE
-                in_rv(1,1) = rv(kk,ii,jj)*pdn(kk,ii,jj)
+                in_rv(1,1) = rv(kk,ii,jj)
              END IF
              rv_old(1,1) = in_rv(1,1)
                 
@@ -818,7 +818,7 @@ IMPLICIT NONE
 
              ! Tendency of water vapour mixing ratio
              rt(kk,ii,jj) = rt(kk,ii,jj) + &
-                  ( in_rv(1,1) - rv_old(1,1) )/pdn(kk,ii,jj)/tstep
+                  ( in_rv(1,1) - rv_old(1,1) )/tstep
 
           END DO ! kk
        END DO ! ii

@@ -439,6 +439,8 @@ CONTAINS
           zdcstar = 2.*paa/( 3.*( (prv(ii,jj)/prs(ii,jj))-1. ) )
           zvcstar = pi6*zdcstar**3
 
+          ! For insolubles zdstar = paa/(prv(ii,jj)/prs(ii,jj)-1.)
+
           ! Loop over cloud droplet (and aerosol) bins
           DO cb = ica%cur, fcb%cur
              IF (cb<=fca%cur) THEN
@@ -919,7 +921,7 @@ CONTAINS
 
   SUBROUTINE ice_nucl_driver(kbdim,klev,   &
                       paero,pcloud,pprecp,pice,psnow, &
-                      ptemp,prv,prsi,ptstep )
+                      ptemp,ppres,prv,prsi,ptstep )
 
     USE mo_submctl, ONLY : t_section,   &
                                fn2b,   &
@@ -936,6 +938,7 @@ CONTAINS
     INTEGER, INTENT(in) :: kbdim,klev
     REAL, INTENT(in) :: ptstep
     REAL, INTENT(in) :: ptemp(kbdim,klev),  &
+                            ppres(kbdim,klev),  &
                             prv(kbdim,klev),    &
                             prsi(kbdim,klev)
 
@@ -945,8 +948,8 @@ CONTAINS
                                       pice(kbdim,klev,nice), &
                                       psnow(kbdim,klev,nsnw)
 
-    INTEGER :: ii,jj,kk,ss
-    REAL :: pf, jf, Sw, Si, rn, rw, frac
+    INTEGER :: ii,jj,kk,ss,ba
+    REAL :: pf, jf, Sw, Si, rn, rw, frac, pw, zvol, zvola, zvolnew
     LOGICAL :: isdry
 
     ! Flags (adjust with the nucleation parameters):
@@ -987,9 +990,34 @@ CONTAINS
               frac = MIN(1.,pf)
               IF (pprecp(ii,jj,kk)%numc*frac <prlim) CYCLE
 
-              STOP 'Precipition is freezing (not implemented)!'
-              ! Move to snow bins or ice bins? And which bins?
+              ! Move to ice bin with closest matching dry volume. Ain't perfect but
+              ! the bin update subroutine in SALSA will take care of the rest.
+              zvol = SUM( pprecp(ii,jj,kk)%volc(1:7) ) ! Dry volume
 
+              ba=0
+              zvola=-1.
+              DO ss=1,nice
+                IF (pice(kk,ii,ss)%numc>prlim) THEN
+                    zvolnew = SUM( pice(ii,jj,ss)%volc(1:7) ) ! Dry volume
+                    IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
+                        ! New closest match
+                        ba=ss
+                        zvola=zvolnew
+                    ENDIF
+                ENDIF
+              ENDDO
+              if (ba==0) STOP 'FAIL: no target ice for freezing rain drops'
+
+              DO ss = 1,7
+                   pice(ii,jj,ba)%volc(ss) = max(0.,pice(ii,jj,ba)%volc(ss) + pprecp(ii,jj,kk)%volc(ss)*frac)
+                   pprecp(ii,jj,kk)%volc(ss) = max(0.,pprecp(ii,jj,kk)%volc(ss) - pprecp(ii,jj,kk)%volc(ss)*frac)
+              END DO
+              ss=8
+              pice(ii,jj,ba)%volc(ss) = max(0.,pice(ii,jj,ba)%volc(ss) + pprecp(ii,jj,kk)%volc(ss)*frac*rhowa/rhoic)
+              pprecp(ii,jj,kk)%volc(ss) = max(0.,pprecp(ii,jj,kk)%volc(ss) - pprecp(ii,jj,kk)%volc(ss)*frac)
+
+              pice(ii,jj,ba)%numc = max(0.,pice(ii,jj,ba)%numc + pprecp(ii,jj,kk)%numc*frac)
+              pprecp(ii,jj,kk)%numc = max(0.,pprecp(ii,jj,kk)%numc-pprecp(ii,jj,kk)%numc*frac)
             end do
 
             ! Cloud droplets
@@ -1008,7 +1036,8 @@ CONTAINS
               IF (isdry .AND. ice_dep) THEN
                 ! Deposition freezing
                 Si=prv(ii,jj)/prsi(ii,jj)
-                jf = calc_Jdep(rn,ptemp(ii,jj),Si,prv(ii,jj))
+                pw=prv(ii,jj)*ppres(ii,jj)/(0.622-prv(ii,jj))
+                jf = calc_Jdep(rn,ptemp(ii,jj),Si,pw)
                 pf = 1. - exp( -jf*ptstep )
               ELSEIF (rn>1.e-10 .AND. ice_imm) THEN
                 ! Immersion and condensation freezing
@@ -1053,7 +1082,8 @@ CONTAINS
               IF (isdry .AND. ice_dep) THEN
                 ! Deposition freezing
                 Si=prv(ii,jj)/prsi(ii,jj)
-                jf = calc_Jdep(rn,ptemp(ii,jj),Si,prv(ii,jj))
+                pw=prv(ii,jj)*ppres(ii,jj)/(0.622-prv(ii,jj))
+                jf = calc_Jdep(rn,ptemp(ii,jj),Si,pw)
                 pf = 1. - exp( -jf*ptstep )
               ELSEIF (rn>1.e-10 .AND. ice_imm) THEN
                 ! Immersion and condensation freezing
@@ -1280,12 +1310,12 @@ CONTAINS
     DO jj = 1,klev
 
         iceSupSat = prv(ii,jj) / prsi(ii,jj)  - 1.0 ! ice supersaturation
-        rc_tot = sum( pcloud(ii,jj,:)%volc(8) )*rhowa ! cloud water mixing ratio (kg/kg)
+        rc_tot = sum( pcloud(ii,jj,:)%volc(8) )*rhowa/pdn(ii,jj) ! cloud water mixing ratio (kg/kg)
 
         ! conditions for ice nucleation
         if ( icesupsat < 0.05 .OR. rc_tot < 0.001e-3  ) cycle
 
-        ! target number concentration of ice, converted to #/kg
+        ! target number concentration of ice, converted to #/m^3
         Ni0     = fixinc * pdn(ii,jj)
 
         ! current ice number concentration (#/m^3)

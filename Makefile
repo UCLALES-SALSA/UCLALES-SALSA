@@ -146,12 +146,12 @@ ifeq ($(COMP),intel)
 
 	ifeq ($(RUNTYPE),fast)
 		# Optimized
-		FFLAGS		= -O2 -march=native -real-size 64 -convert big_endian
-		F77FLAGS	= -O2 -march=native -real-size 64 -convert big_endian
+		FFLAGS		= -O2 -msse2 -real-size 64 -fp-model precise -convert big_endian
+		F77FLAGS	= -O2 -msse2 -real-size 64 -fp-model precise -convert big_endian
 	else
 		# Debug
-		FFLAGS		= -O2 -march=native -fp-model source -fp-model precise -g -traceback -convert big_endian -integer-size 32 -real-size 64 -check bounds -fpe0
-		F77FLAGS	= -O2 -march=native -fp-model source -fp-model precise -g -traceback -convert big_endian -integer-size 32 -real-size 64 -check bounds -fpe0
+		FFLAGS		= -O2 -msse2 -fp-model source -fp-model precise -g -traceback -convert big_endian -real-size 64 -check bounds -fpe0
+		F77FLAGS	= -O2 -msse2 -fp-model source -fp-model precise -g -traceback -convert big_endian -real-size 64 -check bounds -fpe0
 	endif
 endif
 # -------------------------------------------------------
