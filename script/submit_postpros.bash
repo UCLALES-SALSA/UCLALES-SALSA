@@ -154,7 +154,7 @@ FINALSBATCH
 
 fi
 
-
+cd ${dir}
 # Make initial submit
 chmod +x runpostpros${postfix}.sh ${scriptname} postpros${postfix}.sh
 echo 'Submit to job scheduler'
