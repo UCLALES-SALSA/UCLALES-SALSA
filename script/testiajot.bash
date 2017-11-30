@@ -248,7 +248,7 @@ function main {
 
 
 if [[ $LVL == 5 ]]; then
-    icePF=_INC${ice:0:1}
+    icePF=_ice${ice:0:1}
 fi
 
 if [[ -n $testinumero ]]; then
