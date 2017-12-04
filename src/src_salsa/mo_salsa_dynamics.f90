@@ -1484,7 +1484,7 @@ CONTAINS
                                nbins, ncld, nprc,    &
                                nice, nsnw,            &
                                rhowa, rhoic, rhosn,mwa, mair,     &
-                               surfw0, rg,           &
+                               surfw0, surfi0, rg,           &
                                pi, pi6, prlim, nlim,      &
                                massacc,avog,  &
                                in1a,in2a,  &
@@ -1664,7 +1664,7 @@ CONTAINS
                 !   Ice may not be that far from a sphere, but most particles are large and at least
                 !   growing particles are covered by a layer of pure ice.
                 zact = 1.0 !acth2o(pice(ii,jj,cc))
-                zkelvinid(cc) = 1.0 ! exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                zkelvinid(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
 
                 ! Saturation mole concentration over flat surface
                 zcwsurfid(cc) = prsi(ii,jj)*rhoair/mwa
@@ -1704,7 +1704,7 @@ CONTAINS
                 !   because these are not known for solid, irregular and non-homogenous particles.
                 !   Especially snow is typically highly irregular (e.g. dendrite).
                 zact = 1.0 !acth2o(psnow(ii,jj,cc))
-                zkelvinsd(cc) = 1.0 !exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                zkelvinsd(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
 
                 ! Saturation mole concentrations over flat surface
                 zcwsurfsd(cc) = prsi(ii,jj)*rhoair/mwa

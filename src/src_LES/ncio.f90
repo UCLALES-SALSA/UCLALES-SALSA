@@ -1567,7 +1567,7 @@ contains
     case('S_Rwibb')
        if (itype==0) ncinfo = 'SALSA bin ice radius, regime b'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'ttttica'
+       if (itype==2) ncinfo = 'tttticb'
     case('S_Ns')
        if (itype==0) ncinfo = 'SALSA sdnc'
        if (itype==1) ncinfo = 'kg^-1'
