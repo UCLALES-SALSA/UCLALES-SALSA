@@ -1507,8 +1507,6 @@ CONTAINS
 
     REAL :: zkelvin(nbins), zkelvincd(ncld), zkelvinpd(nprc), &  ! Kelvin effects
                 zkelvinid(nice), zkelvinsd(nsnw)                      ! Kelvin effects ice'n'snow
-    REAL :: zka(nbins), zkacd(ncld), zkapd(nprc),        &  ! Activity coefficients
-                zkaid(nice), zkasd(nsnw)                        ! Activity coefficients ! ice'n'snow
     REAL :: zcwsurfae(nbins), zcwsurfcd(ncld), zcwsurfpd(nprc), & ! Surface mole concentrations
                 zcwsurfid(nice), zcwsurfsd(nsnw)                 ! surface mole concentrations ice'n'snow
     REAL :: zmtae(nbins), zmtcd(ncld), zmtpd(nprc),      & ! Mass transfer coefficients
@@ -1525,7 +1523,7 @@ CONTAINS
     REAL :: zdfh2o, zthcond,rhoair
     REAL :: zbeta,zknud,zmfph2o
     REAL :: zact, zhlp1,zhlp2,zhlp3
-    REAL :: adt,adtc(nbins),ttot
+    REAL :: adt,ttot
     REAL :: dwet, dw(1), cap
     REAL :: zrh(kbdim,klev)
 
@@ -1557,7 +1555,6 @@ CONTAINS
 
     prv(:,:) = prv(:,:) - ( zaelwc2(:,:) - zaelwc1(:,:) )/( ppres(:,:)*mair/(rg*ptemp(:,:)) )
 
-    adtc(:) = 0.
     zcwc = 0.; zcwint = 0.; zcwn = 0.
     zcwcae = 0.; zcwccd = 0.; zcwcpd = 0.; zcwcid = 0.; zcwcsd = 0.;
     zcwintae = 0.; zcwintcd = 0.; zcwintpd = 0.; zcwintid = 0.; zcwintsd = 0.
@@ -1578,7 +1575,6 @@ CONTAINS
 
           ! -- Water vapour (Follows the analytical predictor method by Jacobson 2005)
           zkelvinpd = 1.; zkelvincd = 1.; zkelvin = 1.; zkelvinid = 1.; zkelvinsd = 1.
-          zka = 1.; zkacd = 1.; zkapd = 1.; zkaid = 1.; zkasd = 1. ! Assume activity coefficients as 1 for now.
 
           ! Cloud droplets --------------------------------------------------------------------------------
           zmtcd(:) = 0.
@@ -1776,7 +1772,6 @@ CONTAINS
                           SUM(zcwcid) + &
                           SUM(zcwcsd)
           ttot = 0.
-          adtc = 0.
 
           zcwintae = zcwcae; zcwintcd = zcwccd; zcwintpd = zcwcpd; zcwintid = zcwcid; zcwintsd = zcwcsd
 

@@ -141,7 +141,7 @@ CONTAINS
     ! Snow formation ~ autoconversion from ice
     IF (lsautosnow) &
          CALL autosnow(kbdim,klev, &
-                       pice, psnow        )
+                       pice, psnow, ptstep )
 
     ! Size distribution bin update
     IF (lsdistupdate ) &

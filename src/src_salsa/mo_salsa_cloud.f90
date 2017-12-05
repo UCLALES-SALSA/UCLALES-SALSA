@@ -1417,29 +1417,33 @@ CONTAINS
 
 
   SUBROUTINE autosnow(kbdim,klev,   &
-                      pice,psnow         )
+                      pice,psnow,ptstep )
   !
-  ! Uses a more straightforward method for converting cloud droplets to drizzle.
-  ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
+  ! Uses a more straightforward method for converting ice to snow.
+  ! Assume a lognormal ice distribution for each bin. Sigma_g is an adjustable
   ! parameter and is set to 1.2 by default
   !
     
     USE mo_submctl, ONLY : t_section,   &
                                nice,        &
                                nsnw,        &
+                               pi6,         &
                                rhosn, rhoic,       &
                                prlim
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kbdim,klev
+    REAL, INTENT(in) :: ptstep
     TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice)
     TYPE(t_section), INTENT(inout) :: psnow(kbdim,klev,nsnw)
 
     REAL :: Vrem, Nrem, Vtot, Ntot
     REAL :: dvg,dg
+    REAL :: tot
 
     REAL, PARAMETER :: zd0 = 250.e-6  ! Adjustable
     REAL, PARAMETER :: sigmag = 1.2   ! Adjustable
+    REAL, PARAMETER :: max_rate_autoc=1.0e10 ! Maximum autoconversion rate (#/m^3/s)
 
     INTEGER :: ii,jj,cc,ss
 
@@ -1448,32 +1452,35 @@ CONTAINS
     DO jj = 1,klev
        DO ii = 1,kbdim
           DO cc = 1,nice
+             ! Autoconversion rate can be limited
+             tot = 0.
 
              Ntot = pice(ii,jj,cc)%numc
              Vtot = SUM(pice(ii,jj,cc)%volc(:))
 
              IF ( Ntot > prlim .AND. Vtot > 0. ) THEN
                 ! Volume geometric mean diameter
-                dvg = pice(ii,jj,cc)%dwet*EXP( (3.*LOG(sigmag)**2)/2. )
+                dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(sigmag)**2)/2. )
                 dg = dvg*EXP( -3.*LOG(sigmag)**2 )
 
                 Vrem = Max(0., Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) ) )
                 Nrem = Max(0., Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )  )
 
                 IF ( Vrem > 0. .AND. Nrem > prlim) THEN
-                   ! Put the mass and number to the first snow bin and remover from cloud droplets
 
+                   ! Put the mass and number to the first snow bin and remover from ice
                    DO ss = 1,7
-                      psnow(ii,jj,cc)%volc(ss) = max(0., psnow(ii,jj,cc)%volc(ss) + pice(ii,jj,cc)%volc(ss)*Nrem/Ntot)
-                      pice(ii,jj,cc)%volc(ss) = max(0., pice(ii,jj,cc)%volc(ss)*(1. - Nrem/Ntot))
+                      psnow(ii,jj,cc)%volc(ss) = psnow(ii,jj,cc)%volc(ss) + pice(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
+                      pice(ii,jj,cc)%volc(ss) = pice(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
                     END DO
-                    ! From ice to snow volume
-                    psnow(ii,jj,cc)%volc(8) = max(0., psnow(ii,jj,cc)%volc(8) + pice(ii,jj,cc)%volc(8)*Nrem/Ntot*rhoic/rhosn)
-                    pice(ii,jj,cc)%volc(8) = max(0., pice(ii,jj,cc)%volc(8)*(1. - Nrem/Ntot))
+                    psnow(ii,jj,cc)%volc(8) = psnow(ii,jj,cc)%volc(8) + pice(ii,jj,cc)%volc(8)*(Vrem/Vtot)*rhoic/rhosn
+                    pice(ii,jj,cc)%volc(8) = pice(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot))
 
-                    psnow(ii,jj,cc)%numc = max( 0., psnow(ii,jj,cc)%numc + pice(ii,jj,cc)%numc*Nrem/Ntot )
-                    pice(ii,jj,cc)%numc = max(0., pice(ii,jj,cc)%numc*(1. - Nrem/Ntot) )
+                    psnow(ii,jj,cc)%numc = psnow(ii,jj,cc)%numc + Nrem
+                    pice(ii,jj,cc)%numc = pice(ii,jj,cc)%numc - Nrem
 
+                    tot = tot + Nrem
+                    IF (tot > max_rate_autoc*ptstep) EXIT
                 END IF ! Nrem Vrem
 
              END IF ! Ntot Vtot
