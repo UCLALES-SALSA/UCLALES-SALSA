@@ -126,7 +126,7 @@ source /etc/profile
 
 cd ${dir}
 
-aprun -n1 -N1 -d${nodeNPU} ./postpros${postfix}.sh | tee ${PBS_JOBNAME:-post_interactive${postfix}}.${PBS_JOBID:-help}
+aprun -n1 -N1 -d${nodeNPU} ./postpros${postfix}.sh | tee ${dir}/${PBS_JOBNAME:-post_interactive${postfix}}.${PBS_JOBID:-help}
 
 exit
 FINALPBS

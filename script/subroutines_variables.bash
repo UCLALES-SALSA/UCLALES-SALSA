@@ -249,10 +249,13 @@ function tarkistastatus {
         [ -e "$f" ] && timmax=$( cat ${folderROOT}/${simulation}/NAMELIST | grep timmax | cut -c11-30 | tr -d .) || timmax=100000000
         break
     done
-    
+    apulast=0
+    last=0
     for f in ${folderROOT}/${simulation}/LES*${outputPostfix}; do
-        [ -e "$f" ] && last=$( cat "$(ls -rt ${folderROOT}/${simulation}/LES*${outputPostfix} | tail -n1)" | grep --ignore-case "model time" | tail -1 | cut -c40-46 ) || last=0
-        break
+        [ -e "$f" ] && apulast=$( cat "$(ls -rt ${folderROOT}/${simulation}/LES*${outputPostfix} | tail -n1)" | grep --ignore-case "model time" | tail -1 | cut -c40-46 ) || last=0
+        if [[ $apulast -ge last ]]; then
+            last=$apulast
+        fi
     done
     
     if [[ $last -ge $((timmax-1)) ]]; then

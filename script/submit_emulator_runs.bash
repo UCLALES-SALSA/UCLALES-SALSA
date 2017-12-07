@@ -265,13 +265,10 @@ cd ${emulatoroutputroot}
 chmod +x  control_multiple_emulator_run.sh
 
 if [ $submit == 'true' ]; then
+
     echo 'Submit emulator controller to job scheduler'
-    if [ $jobflag == 'PBS' ] ; then
-        qsub control_multiple_emulator_run.sh
-        qstat -u $USER
-    elif [ $jobflag == 'SBATCH' ] ; then
-        sbatch control_multiple_emulator_run.sh
-    fi
+    ${submitCMD} ${emulatoroutputroot}/control_multiple_emulator_run.sh
+
 else
     echo "NOT submitting"
 fi

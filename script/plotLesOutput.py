@@ -990,7 +990,7 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
         muuttuja_data  = np.multiply( mdp.read_Data( tiedostonimi[i], muuttuja ), muunnosKerroin)
 
         if useDN:
-            dn00            = np.power( mdp.read_Data( filenameNC[i], 'dn0'    ), -1 ) 
+            dn00            = np.power( mdp.read_Data( filenamePS[i], 'dn0'    ), -1 ) 
             muuttuja_data = np.multiply ( muuttuja_data, dn00 )
     
         if profiili:
@@ -1345,13 +1345,18 @@ def piirra_domainMeanProfiili( muuttuja, nimi = None, muunnosKerroin = 1.0, ajan
     
     if nimi is None:
         nimi = muuttuja
+        
+    if profiili:
+        tiedostonimi = filenamePS
+    else:
+        tiedostonimi = filenameNC        
     
     for i in xrange(len(arguments)-1):
         uusikuva = True if i == 0 else  False
-        data  = np.multiply( mdp.read_Data( filenameNC[i], muuttuja), muunnosKerroin )
-        zt    = np.asmatrix( mdp.read_Data( filenameNC[i], 'zt') )
+        data  = np.multiply( mdp.read_Data( tiedostonimi[i], muuttuja), muunnosKerroin )
+        zt    = np.asmatrix( mdp.read_Data( tiedostonimi[i], 'zt') )
         if useDN:
-            dn00   = np.power( mdp.read_Data( filenameNC[i], 'dn0'    ), -1 ) 
+            dn00   = np.power( mdp.read_Data( tiedostonimi[i], 'dn0'    ), -1 ) 
             data = np.multiply ( data, dn00 )
         
         
@@ -1373,13 +1378,18 @@ def piirra_domainMeanProfiili( muuttuja, nimi = None, muunnosKerroin = 1.0, ajan
         print TslizeSTR
         ###############################
         
-        
-        dataSlize  = data[ Tslize,  :, :, : ]
+        if profiili:
+            dataSlize  = data[ Tslize,   : ]
+        else:
+            dataSlize  = data[ Tslize,  :, :, : ]
         
         if len(Tslize)>1:
             dataSlize = np.mean( dataSlize, axis = 0 )
         
-        dataSlizeMean = np.mean( np.mean( dataSlize, axis = 0), axis = 0)
+        if profiili:
+            dataSlizeMean = dataSlize
+        else:
+            dataSlizeMean = np.mean( np.mean( dataSlize, axis = 0), axis = 0)
         
         tit = nimi + ' ' + TslizeSTR
         
@@ -1565,7 +1575,7 @@ if EMUL and not importOnly:
     WMAX  = True
     RAD   = True
     
-    refColorbarSwitch = False
+    refColorbarSwitch = True
     askChangeOfVariable = False
     
     
@@ -1746,15 +1756,15 @@ if EMUL and not importOnly:
         mdp.plot_suljetus(naytaPlotit)
 
     if TDIFF:
-        piirra_profiilisettii( 'theta', variKartta = pblh_color, variRefVektori = pblh_design, colorBar = pblhBAR, colorBarTickValues = cbvalPblh, colorBarTickNames = cbvalPblhStr, longName =  r'$\theta$' + ' relative change 0h - '+str((ajanhetket/3600.)) + 'h', xlabel = r'$\frac{\theta_{t=2h}}{\theta_{t=0h}}-1$', ylabel = 'z/pblh', ymin = 0.0, ymax = 1.01, xmin = -0.05, xmax = 0.025, savePrefix = 't_diff', ajanhetket = ajanhetket, tit = pblhTIT, rajaKerros = pblh_design, relative = True, nollaArvo = tpot_pbl_design, omaVari = refColorbarSwitch )
+        piirra_profiilisettii( 't', variKartta = pblh_color, variRefVektori = pblh_design, colorBar = pblhBAR, colorBarTickValues = cbvalPblh, colorBarTickNames = cbvalPblhStr, longName =  r'$\theta$' + ' relative change 0h - '+str((ajanhetket/3600.)) + 'h', xlabel = r'$\frac{\theta_{t=2h}}{\theta_{t=0h}}-1$', ylabel = 'z/pblh', ymin = 0.0, ymax = 1.01, xmin = -0.05, xmax = 0.025, savePrefix = 't_diff', ajanhetket = ajanhetket, tit = pblhTIT, rajaKerros = pblh_design, relative = True, nollaArvo = tpot_pbl_design, omaVari = refColorbarSwitch )
         
         mdp.plot_suljetus(naytaPlotit)
         
-        piirra_profiiliKehitys( 'theta',  variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Potential temperature', xlabel = r'$\theta$' + ' [K]', ylabel = 'z [m]', savePrefix = 'theta_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, rajaKerros = pblh_design, asetaRajat = False, paksuus = thickness_design )
+        piirra_profiiliKehitys( 't',  variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Potential temperature', xlabel = r'$\theta$' + ' [K]', ylabel = 'z [m]', savePrefix = 'theta_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, rajaKerros = pblh_design, asetaRajat = False, paksuus = thickness_design )
         
         mdp.plot_suljetus(naytaPlotit)
         
-        piirra_profiiliKehitys( 'theta',  variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Absolute temperature', xlabel = 'theta' + ' [K]', ylabel = 'z [m]', savePrefix = 'temp_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, rajaKerros = pblh_design, asetaRajat = False, paksuus = thickness_design, tempConversion = True )
+        piirra_profiiliKehitys( 't',  variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Absolute temperature', xlabel = 'theta' + ' [K]', ylabel = 'z [m]', savePrefix = 'temp_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, rajaKerros = pblh_design, asetaRajat = False, paksuus = thickness_design, tempConversion = True )
         
         mdp.plot_suljetus(naytaPlotit)
         
@@ -1781,7 +1791,7 @@ if ICE and not importOnly:
     ylabels    = map(str, korkeustikit )
     
     profiiliVariLIQ = [ '#000099', '#00ccff', '#00e600', '#f9f906', '#ff9900', '#ff0000' ]
-    profiiliVariICE = [ '#000099', '#00ccff', '#29a385', '#00e600', '#f9f906', '#f9f906', '#ff9900', '#ff0000', '#990000', '#660000' ]
+    profiiliVariICE = [ '#000099', '#00ccff', '#29a385', '#00e600', '#c8e600', '#f9f906', '#ff9900', '#ff0000', '#990000', '#660000' ]
     cbvalLIQ    = np.arange(0, 0.241, 0.04)
     cbvalLIQStr = map(str, cbvalLIQ)
 
@@ -1808,13 +1818,27 @@ if ICE and not importOnly:
         #mdp.plot_vertical( spinup )
         #plt.xticks( ticksHours, xLabelsHours )
         
-        piirra_domainProfiili( 'l', muunnosKerroin = 1000., longName = "Liquid water mixing ratio  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQ, colorBarTickNames = cbvalLIQStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = profiiliVariLIQ, spinup = spinup )
+        
+        
+        #piirra_domainProfiili( 'l', muunnosKerroin = 1000., longName = "Liquid water mixing ratio  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQ, colorBarTickNames = cbvalLIQStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = profiiliVariLIQ, spinup = spinup )
+        
+        piirra_domainProfiili( 'P_rl', muunnosKerroin = 1000., longName = "Liquid water mixing ratio  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQ, colorBarTickNames = cbvalLIQStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = profiiliVariLIQ, spinup = spinup, profiili = True ) # variKartta = profiiliVariLIQ
+        
+        
         
         #animoi_path( 'l', muunnosKerroin = 1000., longName = "Liquid water path  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQPATH, colorBarTickNames = cbvalLIQPATHStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.Reds, spinup = spinup )
         
-        piirra_MeanSize(tyyppi = 'cloud', ajanhetket = [6], korkeus = [700], color = 'r')
+        #piirra_MeanSize(tyyppi = 'cloud', ajanhetket = [6], korkeus = [700], color = 'r')
         
-        piirra_domainMeanProfiili( 'S_Nc',nimi = 'Cloud number concentration averaged',  muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
+        
+        
+        
+        #piirra_domainMeanProfiili( 'S_Nc',nimi = 'Cloud number concentration averaged',  muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
+        
+        piirra_domainMeanProfiili( 'P_Nca',nimi = 'Cloud number concentration averaged',  muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = True, xAxisL = r'$N [L^{-1}]$', color = icevari )
+        
+        
+        
         
         #piirra_domainProfiili( 'w_2', longName = "vertical velocity squared " + r'$m^{2}/s^{-2}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.RdPu, profiili = True, spinup = spinup )
         
@@ -1830,18 +1854,24 @@ if ICE and not importOnly:
         piirra_aikasarjasettii( muuttuja = 'iwp_bar', muunnosKerroin = 1000.0, longName = 'IWP', ylabel = 'IWP g/m^2', ymin = 0.0,  savePrefix = 'iwpTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel  )
     
 
-        piirra_domainProfiili( 'i', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup  )
+        #piirra_domainProfiili( 'i', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup  )
+        
+        piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE
+        
+        
         
         #animoi_path( 'f', muunnosKerroin = 1000., longName = tag + "Ice water path  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQPATH, colorBarTickNames = cbvalLIQPATHStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.Blues, spinup = spinup )
         ## muuttuja, muunnosKerroin = 1.0, transpose = False, longName = None , savePrefix = None, useDN = False, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], xlabels = None, ylabels = None, xticks = None, yticks = None
         
-        piirra_MeanSize(tyyppi = 'ice', ajanhetket = [6], korkeus = [700] )
-        piirra_MeanSize(tyyppi = 'ice', ajanhetket = [6], korkeus = [400] )
-        piirra_MeanSize(tyyppi = 'ice', ajanhetket = [6], korkeus = [200] )
-        piirra_domainMeanProfiili( 'S_Ni',  nimi = 'Ice number concentration averaged', muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
-        piirra_domainMeanProfiili( 'S_Ni',  nimi = 'Ice number concentration averaged', muunnosKerroin=1./1000., ajanhetket = [3,6], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
-        piirra_domainMeanProfiili( 'S_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$D [{\mu}m]$', color = icevari )   
+        #piirra_MeanSize(tyyppi = 'ice', ajanhetket = [6], korkeus = [700] )
+        #piirra_MeanSize(tyyppi = 'ice', ajanhetket = [6], korkeus = [400] )
+        #piirra_MeanSize(tyyppi = 'ice', ajanhetket = [6], korkeus = [200] )
+        #piirra_domainMeanProfiili( 'S_Ni',   nimi = 'Ice number concentration averaged',   muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
+        ##piirra_domainMeanProfiili( 'S_Ni',   nimi = 'Ice number concentration averaged',   muunnosKerroin=1./1000., ajanhetket = [3,6], useDN = True, profiili = False, xAxisL = r'$N [L^{-1}]$', color = icevari )
+        #piirra_domainMeanProfiili( 'S_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$D [{\mu}m]$', color = icevari )   
 
+        piirra_domainMeanProfiili( 'P_Nia',  nimi = 'Ice number concentration averaged',   muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = True, xAxisL = r'$N [L^{-1}]$', color = icevari )
+        piirra_domainMeanProfiili( 'P_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = True, profiili = True, xAxisL = r'$D [{\mu}m]$', color = icevari )   
 
 toc = time.clock()
 print toc - tic

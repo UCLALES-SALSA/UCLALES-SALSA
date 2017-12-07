@@ -187,8 +187,7 @@ set -e
 
 cd ${rundir}
 
-aprun -n ${nproc} ./${exe} | tee ${PBS_JOBNAME:-interactive}.${PBS_JOBID:-help}
-
+aprun -n ${nproc} ./${exe} | tee ${rundir}/${jobname}.${PBS_JOBID:-help} # ${PBS_JOBNAME:-interactive}.${PBS_JOBID:-help}
 exit
 
 FINALPBS

@@ -1484,7 +1484,7 @@ CONTAINS
                                nbins, ncld, nprc,    &
                                nice, nsnw,            &
                                rhowa, rhoic, rhosn,mwa, mair,     &
-                               surfw0, rg,           &
+                               surfw0, surfi0, rg,           &
                                pi, pi6, prlim, nlim,      &
                                massacc,avog,  &
                                in1a,in2a,  &
@@ -1655,13 +1655,22 @@ CONTAINS
                 ! Capacitance (m) as defined for ISDAC
                 cap = 0.09*( SUM(pice(ii,jj,cc)%volc(:))/pice(ii,jj,cc)%numc*rhoic )**(1./3.)
 
+                ! Maximum particle dimension ~ dwet (ISDAC)
+                dwet=pi*cap
+
+
+!                ! Activity + Kelvin effect - unity (ISDAC)
+                zact = 1.0
+                zkelvinid(cc) = 1.0
+
+
                 ! Activity + Kelvin effect - edit when needed
                 !   Can be calculated just like for sperical homogenous particle or just ignored,
                 !   because these are not known for solid, irregular and non-homogenous particles.
                 !   Ice may not be that far from a sphere, but most particles are large and at least
                 !   growing particles are covered by a layer of pure ice.
-                zact = 1.0 !acth2o(pice(ii,jj,cc))
-                zkelvinid(cc) = 1.0 ! exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                !zact = 1.0 !acth2o(pice(ii,jj,cc))
+                !zkelvinid(cc) =  exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
 
                 ! Saturation mole concentration over flat surface
                 zcwsurfid(cc) = prsi(ii,jj)*rhoair/mwa

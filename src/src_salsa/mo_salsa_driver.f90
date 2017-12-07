@@ -933,6 +933,11 @@ IMPLICIT NONE
           lscoag      = .FALSE.
           lsauto      = .FALSE.
           lsautosnow  = .FALSE.
+          ! ice processes off
+          lscndh2oic  = .false.
+          lsicenucl   = .false.
+          lsfixinc    = .false.
+          lsicmelt    = .false.
 
 
        CASE(4)  ! after minispinup

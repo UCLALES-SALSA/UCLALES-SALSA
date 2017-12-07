@@ -366,7 +366,7 @@ def reduce_full(infile,imax,jmax,var_list):
 	def set_values(out,inp,pointer):
 		if len(pointer)==1:
 			# Vector
-			out[pointer:pointer+len(inp)]=inp
+			out[pointer[0]:pointer[0]+len(inp)]=inp
 		elif len(pointer)==2:
 			# 2D
 			out[pointer[0]:pointer[0]+inp.shape[0],pointer[1]:pointer[1]+inp.shape[1]]=inp
@@ -419,7 +419,7 @@ def reduce_full(infile,imax,jmax,var_list):
 	# a) Dimensions
 	# Generate a map based on dimensions
 	indices=numpy.empty([len(dim_list),imax,jmax], dtype=int)
-	sizes=numpy.zeros(len(dim_list))
+	sizes=numpy.zeros(len(dim_list),dtype=int)
 	k=0
 	print 'Creating dimensions...'
 	for name in dim_list:
