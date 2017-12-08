@@ -2511,7 +2511,7 @@ CONTAINS
   !-------------------------------------------------
   REAL FUNCTION coagc(diam1,diam2,mass1,mass2,temp,pres,kernel,flag1,flag2)
 
-    USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd, terminal_vel
+    USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rda, terminal_vel
 
     IMPLICIT NONE
 
@@ -2629,7 +2629,7 @@ CONTAINS
              lrg = 1; sml = 2
           END IF
 
-          zrhoa = pres/(rd*temp)   ! Density of air
+          zrhoa = pres/(rda*temp)   ! Density of air
           zrhop = mpart/(pi6*diam**3)             ! Density of particles
           vkin = visc/zrhoa   ! Kinematic viscosity of air [m2 s-1]
 

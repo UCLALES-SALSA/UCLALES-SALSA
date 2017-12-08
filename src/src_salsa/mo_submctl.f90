@@ -14,7 +14,7 @@ MODULE mo_submctl
   PUBLIC :: in1a,in2a,in2b,fn1a,fn2a,fn2b,nbins
   PUBLIC :: nbin,reglim,nlim,prlim,nreg
   PUBLIC :: pi, pi6, rg, avog, planck, boltz, cpa, mair, grav, eps
-  PUBLIC :: rd, rv, alv, als
+  PUBLIC :: rda, alv, als
   PUBLIC :: rhosu,rhooc, rhobc,rhoss, rhodu, rhowa, rhonh, rhono, rhoic,rhosn
   PUBLIC :: msu,mdu,mno,mnh,n3,massacc,d_sa,pstand,mss,mbc,moc,epsoc,mwa,ions,&
             mvsu,mvoc,mvss,surfw0,surfi0,mvwa,mvno,mvnh
@@ -276,8 +276,8 @@ MODULE mo_submctl
    rg     = 8.314,        & ! molar gas constant (J/(mol K))
    pi     = 3.1415927,    & ! self explanatory
    pi6    = 0.5235988,    & ! pi/6
-   cpa    = 1010.,        & ! specific heat of dry air, constant P (J/kg/K)
-   mair   = 28.97e-3,     & ! molar mass of air (mol/kg)
+   cpa    = 1005.,        & ! specific heat of dry air, constant P (J/kg/K)
+   mair   = 28.967e-3,     & ! molar mass of air (mol/kg)
    deltav = 1.096e-7,     & ! vapor jump length (m)
    deltaT = 2.16e-7,      & ! thermal jump length (m)
    alphaT = 0.96,         & ! thermal accomodation coefficient
@@ -285,8 +285,7 @@ MODULE mo_submctl
    eps    = epsilon(1.0)       ! epsilon
 
   REAL, PARAMETER ::   &
-   rd    = 287.04,     & ! gas constant for dry air (J/K/kg)
-   rv    = 461.5,      & ! gas constant for water vapour (J/K/kg)
+   rda   = 287.04,     & ! gas constant for dry air (J/K/kg)
    alv    = 2.5e6,   & ! latent heat for vaporisation (J/kg)
    als    = 2.834e6      ! latent heat for sublimation (J/kg)
 

@@ -505,20 +505,14 @@ contains
 
     SELECT CASE(level)
        CASE(1,2,3)
-          rxt = a_rp ! Total water (vapor + condensed water) = q
-          rxl = a_rc ! Total liquid water (aerosol+cloud+precipitation)
+          rxt = a_rp ! Total water (vapor + condensed water and ice) = q
+          rxl = a_rc-a_rpp ! Cloud water (+aerosol), but no precipitation or ice
           rxv = a_rv ! Water vapor
-          xrpp = a_rpp
-          xnpp = a_npp
-       CASE(4)
-          rxt = a_rp + a_rc + a_srp
-          rxl = a_rc + a_srp
-          rxv = a_rp
-          xrpp = a_srp
-          xnpp = a_snrp
-       CASE(5)
+          xrpp = a_rpp ! Rain water
+          xnpp = a_npp ! Rain number
+       CASE(4,5)
           rxt = a_rp + a_rc + a_srp + a_ri + a_srs
-          rxl = a_rc + a_srp + a_ri + a_srs
+          rxl = a_rc
           rxv = a_rp
           xrpp = a_srp
           xnpp = a_snrp
@@ -1165,7 +1159,7 @@ contains
                 ssclr_lvl5(14) = ssclr_lvl5(14) + 1.
              end if
              !
-             ! Ice-water path
+             ! Ice-water path (without snow)
              scr(i,j)=scr(i,j)+ri(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
              !
              ! Snow-water path
@@ -1211,7 +1205,7 @@ contains
     do k=1,n1
        svctr(k,10)=svctr(k,10) + a1(k) + um
        svctr(k,11)=svctr(k,11) + b1(k) + vm
-       svctr(k,12)=svctr(k,12) + c1(k) + th00
+       svctr(k,12)=svctr(k,12) + c1(k)
        svctr(k,13)=svctr(k,13) + d1(k)
        svctr(k,17)=svctr(k,17) + thvar(k)
        svctr(k,18)=svctr(k,18) + a3(k)
@@ -1321,7 +1315,7 @@ contains
     !
     ! do some conditional sampling statistics: cloud, cloud-core
     !
-    tv(:,:,:) = th(:,:,:)*(1.+ep2*rv(:,:,:) - rl(:,:,:)) ! Virtual potential temperature (K)
+    tv(:,:,:) = th(:,:,:)*(1.+ep2*rv(:,:,:) - (rt(:,:,:)-rv(:,:,:))) ! Virtual potential temperature (K)
     call get_avg3(n1,n2,n3,tv,tvbar)
     !
     xy1=0.
@@ -1390,7 +1384,7 @@ contains
     svctr(:,83)=svctr(:,83)+a1(:)
 
     !
-    ! liquid water path
+    ! liquid water path (without precipitation)
     !
     do j=3,n3-2
        do i=3,n2-2
