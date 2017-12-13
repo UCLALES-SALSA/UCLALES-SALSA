@@ -463,16 +463,16 @@ CONTAINS
                                nlactiv,               &
                                nlactintst,            &
                                nlactbase,            &
-                               nlicenucl,               &
+                               nlicenucl,             &
                                nlfixinc,              &
                                fixINC,                &
                                nlicmelt,              &
-                               nbin,reglim,   &
+                               nbin,reglim,           &
                                nice,nsnw,             &
                                nspec,listspec,        &
                                volDistA, volDistB,    &
                                nf2a, isdtyp,          &
-                               sigmag,dpg,n,  &
+                               sigmag,dpg,n,          &
                                rhlim
 
     IMPLICIT NONE
@@ -498,7 +498,7 @@ CONTAINS
          nlcgss,      & ! Collision-coalescence between snow particles
          nlcnd,       & ! Switch for condensation subroutine
          nlcndgas,    & ! Condensation of precursor gases
-         nlicenucl,     & ! Switch for ice nucleation
+         nlicenucl,   & ! Switch for ice nucleation
          nlfixinc,    & ! Fix ice number concentration to be over given limit fixINC
          fixINC,      & ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
          nlicmelt,    & ! Switch for ice'n'snow melting
@@ -537,8 +537,8 @@ CONTAINS
     CLOSE(11)
 
 
-    ! if thermodynamical level is 4, set all ice process switches to false
-    IF(level == 4) THEN
+    ! if thermodynamical level is less than 5, set all ice process switches to false
+    IF(level < 5) THEN
           nlcgia      = .false.
           nlcgic      = .false.
           nlcgii      = .false.
@@ -553,7 +553,7 @@ CONTAINS
 
           nlautosnow  = .false.
 
-          nlicenucl    = .false.
+          nlicenucl   = .false.
           nlfixinc    = .false.
           nlicmelt    = .false.
     END IF !level

@@ -15,7 +15,7 @@ MODULE mo_salsa_update
 
 CONTAINS
 
-  SUBROUTINE distr_update(kbdim, klev, &
+  SUBROUTINE distr_update(kproma, kbdim, klev, &
                           paero, pcloud, pprecp, &
                           pice, psnow, level )
 
@@ -26,6 +26,7 @@ CONTAINS
 
     !-- Input and output variables ----------
     INTEGER, INTENT(IN) ::          &
+         kproma,                    & ! number of horiz. grid points 
          kbdim,                     & ! dimension for arrays 
          klev                         ! number of vertical levels
 

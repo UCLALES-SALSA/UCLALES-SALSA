@@ -590,7 +590,7 @@ end subroutine tstep_reset
 
     USE grid, ONLY : a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,   &
                      a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,   &
-                     a_nicep,  a_nicet, a_nsnowp, a_nsnowt, a_micep,  a_micet, a_msnowp, a_msnowt,  &
+                     a_nicep, a_nicet, a_nsnowp, a_nsnowt, a_micep, a_micet, a_msnowp, a_msnowt,  &
                      dtlt, nxp,nyp,nzp,level
     USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw
 
@@ -957,7 +957,7 @@ end subroutine tstep_reset
 
     nn = GetNcomp(prtcl)+1 ! total number of species
 
-    ! Remove particles that have number but not mass
+    ! Remove particles that have number but no mass
     DO j = 3,nyp-2
        DO i = 3,nxp-2
           DO k = 1,nzp

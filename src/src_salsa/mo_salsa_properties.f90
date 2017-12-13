@@ -69,7 +69,7 @@ CONTAINS
   ! Juha Tonttila (FMI) 2014
   !---------------------------------------------------------------------
 
-  SUBROUTINE equilibration(kbdim, klev,    &
+  SUBROUTINE equilibration(kproma, kbdim, klev,    &
                            prh, ptemp, paero, init )
 
     USE mo_submctl, ONLY : &
@@ -100,6 +100,7 @@ CONTAINS
 
     !-- input variables -------------
     INTEGER, INTENT(in) ::          &
+         kproma,                    & ! number of horiz. grid kproma 
          kbdim,                     & ! dimension for arrays 
          klev                         ! number of vertical levels 
 

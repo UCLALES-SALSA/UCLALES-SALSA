@@ -59,7 +59,7 @@ MODULE mo_submctl
             lsautosnow,            &
             lsactiv,lsactbase,     &
             lsactintst,            &
-            lsicenucl,              &
+            lsicenucl,             &
             lsicmelt,              &
             lsfixinc
 
@@ -157,9 +157,9 @@ MODULE mo_submctl
                lsautosnow
     LOGICAL :: nlactiv     = .TRUE.,   & ! Cloud droplet activation master switch
                lsactiv
-    LOGICAL :: nlactintst  = .TRUE.,  & ! Switch for interstitial activation: Use particle wet size determined by
+    LOGICAL :: nlactintst  = .TRUE.,   & ! Switch for interstitial activation: Use particle wet size determined by
                lsactintst                ! codensation equations and supersaturation directly from the host model
-    LOGICAL :: nlactbase   = .FALSE.,   & ! Switch for cloud base activation: Use the regular parameterized method
+    LOGICAL :: nlactbase   = .FALSE.,  & ! Switch for cloud base activation: Use the regular parameterized method
                lsactbase                 ! for maximum supersaturation and cloud activation.
 
 
@@ -277,7 +277,7 @@ MODULE mo_submctl
    pi     = 3.1415927,    & ! self explanatory
    pi6    = 0.5235988,    & ! pi/6
    cpa    = 1005.,        & ! specific heat of dry air, constant P (J/kg/K)
-   mair   = 28.967e-3,     & ! molar mass of air (mol/kg)
+   mair   = 28.967e-3,    & ! molar mass of air (mol/kg)
    deltav = 1.096e-7,     & ! vapor jump length (m)
    deltaT = 2.16e-7,      & ! thermal jump length (m)
    alphaT = 0.96,         & ! thermal accomodation coefficient
@@ -286,7 +286,7 @@ MODULE mo_submctl
 
   REAL, PARAMETER ::   &
    rda   = 287.04,     & ! gas constant for dry air (J/K/kg)
-   alv    = 2.5e6,   & ! latent heat for vaporisation (J/kg)
+   alv    = 2.5e6,     & ! latent heat for vaporisation (J/kg)
    als    = 2.834e6      ! latent heat for sublimation (J/kg)
 
   REAL, PARAMETER ::     & ! molar mass [kg/mol]
@@ -414,7 +414,7 @@ contains
   END SUBROUTINE CalcDimension
 
   !********************************************************************
-  ! Function for calculating equilibrium water saturation ratio at droplet surface based on Köhler theory
+  ! Function for calculating equilibrium water saturation ratio at droplet surface based on Kohler theory
   !
   REAL FUNCTION calc_Sw_eq(part,T)
     TYPE(t_section), INTENT(in) :: part ! Any particle

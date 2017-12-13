@@ -862,7 +862,7 @@ contains
        ! Convert to SI
        n = n*1.e6
        dpg = dpg*1.e-6
-       CALL size_distribution(1,1, n, dpg, sigmag, nsect)
+       CALL size_distribution(1,1,1, n, dpg, sigmag, nsect)
        DO ss = 1,nbins
           pndist(:,ss) = nsect(1,1,ss)
        END DO
@@ -1118,7 +1118,7 @@ contains
     ! Get the binned size distribution
     znsect = 0.
     DO k = 1,nc_levs
-       CALL size_distribution(1,1,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
+       CALL size_distribution(1,1,1,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
        znsect(k,:) = nsect(1,1,:)
     END DO
 
@@ -1160,7 +1160,6 @@ contains
 
     INTEGER :: j,i,k
 
-    ! Nääkin voisi lukea tiedostosta
     ! Taken as molecules/kg
     DO j = 1,nyp
        DO i = 1,nxp

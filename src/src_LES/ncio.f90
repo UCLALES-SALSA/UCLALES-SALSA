@@ -623,6 +623,10 @@ contains
        if (itype==0) ncinfo = 'Rain-water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
+    case('f')
+       if (itype==0) ncinfo = 'Total ice mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
     case('i')
        if (itype==0) ncinfo = 'Ice mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'

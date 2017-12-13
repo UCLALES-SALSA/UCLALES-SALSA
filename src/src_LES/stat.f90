@@ -76,28 +76,28 @@ module stat
        'CCN    ','nrain  ','nrcnt  ','nccnt  ','prcp_bc'/),         & !25
 
        ! **** Bulk temporal statistics for SALSA ****
-       s1SalsaBulk(nv1sbulk) = (/                                    &
-       'Nc_ic  ','Na_int ','Na_oc  ',                                & !1
-       'SO4_ic ','SO4_int','SO4_oc ',                                & !4
-       'OC_ic  ','OC_int ','OC_oc  ',                                & !7
-       'BC_ic  ','BC_int ','BC_oc  ',                                & !10
-       'DU_ic  ','DU_int ','DU_oc  ',                                & !13
-       'SS_ic  ','SS_int ','SS_oc  ',                                & !16
-       'NO_ic  ','NO_int ','NO_oc  ',                                & !19
-       'NH_ic  ','NH_int ','NH_oc  ',                                & !22
-       'rmSO4dr','rmSO4cl','rmSO4pr',  & !25
-       'rmOCdr ','rmOCcl ','rmOCpr ',  & !28
-       'rmBCdr ','rmBCcl ','rmBCpr ', & !31
-       'rmDUdr ','rmDUcl ','rmDUpr ',  & !34
-       'rmSSdr ','rmSScl ','rmSSpr ',  & !37
+       s1SalsaBulk(nv1sbulk) = (/       &
+       'Nc_ic  ','Na_int ','Na_oc  ',   & !1
+       'SO4_ic ','SO4_int','SO4_oc ',   & !4
+       'OC_ic  ','OC_int ','OC_oc  ',   & !7
+       'BC_ic  ','BC_int ','BC_oc  ',   & !10
+       'DU_ic  ','DU_int ','DU_oc  ',   & !13
+       'SS_ic  ','SS_int ','SS_oc  ',   & !16
+       'NO_ic  ','NO_int ','NO_oc  ',   & !19
+       'NH_ic  ','NH_int ','NH_oc  ',   & !22
+       'rmSO4dr','rmSO4cl','rmSO4pr',   & !25
+       'rmOCdr ','rmOCcl ','rmOCpr ',   & !28
+       'rmBCdr ','rmBCcl ','rmBCpr ',   & !31
+       'rmDUdr ','rmDUcl ','rmDUpr ',   & !34
+       'rmSSdr ','rmSScl ','rmSSpr ',   & !37
        'rmNOdr ','rmNOcl ','rmNOpr ',   & !40
-       'rmNHdr ','rmNHcl ','rmNHpr ',  & !43
+       'rmNHdr ','rmNHcl ','rmNHpr ',   & !43
        'rmH2Oae','rmH2Ocl','rmH2Opr'/), & !46-48
 
        s1_lvl5(nv1_lvl5) = (/  &
        'Ni_ic  ','Ni_ii  ','Ni_is  ','Ns_ic  ','Ns_ii  ','Ns_is  ', & ! 1-6
        'Ri_ii  ','iwp_bar','imax   ','nicnt  ', & ! 7-10
-       'Rs_is  '  ,'swp_bar','smax   ','nscnt  ', & ! 11-14
+       'Rs_is  ','swp_bar','smax   ','nscnt  ', & ! 11-14
        'rmSO4ic','rmSO4sn','rmOCic ','rmOCsn ', & ! 15-18
        'rmBCic ','rmBCsn ','rmDUic ','rmDUsn ', & ! 19-22
        'rmNOic ','rmNOsn ','rmNHic ','rmNHsn ', & ! 23-26
@@ -125,27 +125,27 @@ module stat
         ! **** BULK PROFILE OUTPUT FOR SALSA ****
         s2SalsaBulk(nv2sbulk) = (/                                   &
         'aea    ','aeb    ','cla    ','clb    ','prc    ',           & !1
-        'P_Naa  ','P_Nab  ','P_Nca  ','P_Ncb  ','P_Np   ',       & !6
-        'P_Rwaa ','P_Rwab ','P_Rwca ','P_Rwcb ','P_Rwp  ',   & !11
-        'P_cSO4a','P_cSO4c','P_cSO4p',  & !16
-        'P_cOCa ','P_cOCc ','P_cOCp ',      & !19
-        'P_cBCa ','P_cBCc ','P_cBCp ',       & !22
-        'P_cDUa ','P_cDUc ','P_cDUp ',      & !25
-        'P_cSSa ','P_cSSc ','P_cSSp ',         & !28
-        'P_cNOa ','P_cNOc ','P_cNOp ',      & !31
-        'P_cNHa ','P_cNHc ','P_cNHp ',     & !34
-        'P_cH2Oa','P_cH2Oc','P_cH2Op',     & !37
-        'P_rl   ','P_rr   ','P_rv   ','P_RH   ',                        & !40
-        'P_Na_c ','P_Nc_c ','P_Np_c ','P_cfrac', 'P_clw_c','P_thl_c'/),    & !44-49
+        'P_Naa  ','P_Nab  ','P_Nca  ','P_Ncb  ','P_Np   ',           & !6
+        'P_Rwaa ','P_Rwab ','P_Rwca ','P_Rwcb ','P_Rwp  ',           & !11
+        'P_cSO4a','P_cSO4c','P_cSO4p',                               & !16
+        'P_cOCa ','P_cOCc ','P_cOCp ',                               & !19
+        'P_cBCa ','P_cBCc ','P_cBCp ',                               & !22
+        'P_cDUa ','P_cDUc ','P_cDUp ',                               & !25
+        'P_cSSa ','P_cSSc ','P_cSSp ',                               & !28
+        'P_cNOa ','P_cNOc ','P_cNOp ',                               & !31
+        'P_cNHa ','P_cNHc ','P_cNHp ',                               & !34
+        'P_cH2Oa','P_cH2Oc','P_cH2Op',                               & !37
+        'P_rl   ','P_rr   ','P_rv   ','P_RH   ',                     & !40
+        'P_Na_c ','P_Nc_c ','P_Np_c ','P_cfrac', 'P_clw_c','P_thl_c'/), & !44-49
 
         s2_lvl5(nv2_lvl5) = (/ &
-        'ica    ','icb    ','snw    ',           & ! 1-3
+        'ica    ','icb    ','snw    ', & ! 1-3
         'P_Nia  ','P_Nib  ','P_Ns   ','P_Rwia ','P_Rwib ','P_Rws  ', & ! 4-9
         'P_cSO4i','P_cSO4s','P_cOCi ','P_cOCs ', & ! 10-13
         'P_cBCi ','P_cBCs ','P_cDUi ','P_cDUs ', & ! 14-17
         'P_cSSi ','P_cSSs ','P_cNOi ','P_cNOs ', & ! 18-21
         'P_cNHi ','P_cNHs ','P_cH2Oi','P_cH2Os', & ! 22-25
-        'P_ri   ','P_rs   ', 'P_RHi  ','srate  '/),    & ! 26-29
+        'P_ri   ','P_rs   ', 'P_RHi  ','srate  '/), & ! 26-29
 
         ! **** BINNED PROFILE OUTPUT FOR SALSA ****
         ! **** Aerosols
@@ -170,15 +170,15 @@ module stat
         'P_DUpb ','P_SSpb ','P_NOpb ','P_NHpb '/),                   &
 
         ! **** Ice
-        s2Icea(nv2sia) = (/                                        &
+        s2Icea(nv2sia) = (/                                          &
         'P_Niba ','P_SO4ia','P_OCia ','P_BCia ',                     &
         'P_DUia ','P_SSia ','P_NOia ','P_NHia '/),                   &
-        s2Iceb(nv2sib) = (/                                        &
+        s2Iceb(nv2sib) = (/                                          &
         'P_Nibb ','P_SO4ib','P_OCib ','P_BCib ',                     &
         'P_DUib ','P_SSib ','P_NOib ','P_NHib '/),                   &
 
         ! **** Snow
-        s2Snow(nv2ss) = (/                                         &
+        s2Snow(nv2ss) = (/                                           &
         'P_Nsb  ','P_SO4sb','P_OCsb ','P_BCsb ',                     &
         'P_DUsb ','P_SSsb ','P_NOsb ','P_NHsb '/),                   &
 
@@ -305,7 +305,7 @@ contains
        ALLOCATE ( ssclr_b(nv1sbulk), svctr_b(nzp,nv2sbulk))
        ALLOCATE ( svctr_aa(nzp,fn2a,nv2saa), svctr_ab(nzp,fn2b-fn2a,nv2sab),          &
                   svctr_ca(nzp,fca%cur,nv2sca), svctr_cb(nzp,fcb%cur-fca%cur,nv2scb), &
-                  svctr_p(nzp,nprc,nv2sp)  )
+                  svctr_p(nzp,nprc,nv2sp)   )
        svctr(:,:) = 0.
        ssclr(:) = 0.
        svctr_b(:,:) = 0.
@@ -446,7 +446,6 @@ contains
        END IF
     END IF ! If level >=4
 
-
     fname =  trim(filprf)//'.ts'
     if(myid == 0) print                                                  &
          "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
@@ -525,7 +524,7 @@ contains
     ! profile statistics
     !
     call accum_stat(nzp, nxp, nyp, a_up, a_vp, a_wp, a_theta, a_press, umean &
-         ,vmean,th00)
+         ,vmean)
     if (iradtyp == 3) then
        call accum_rad(nzp, nxp, nyp, a_rflx, sflx=a_sflx, sup=a_fus, sdwn=a_fds, &
          irup=a_fuir, irdwn=a_fdir, alb=albedo)
@@ -582,8 +581,8 @@ contains
             rnt = CCN
             xrpp = a_rpp
             xnpp = a_npp
-        ELSEif (level>=4) THEN
-            ! Levels 4 warm clouds
+        ELSEif (level==4 .OR. level==5) THEN
+            ! Levels 4 and 5
             rxt = a_rc
             rnt = SUM(a_ncloudp,DIM=4)
             xrpp = a_srp
@@ -1184,11 +1183,11 @@ contains
   ! SUBROUTINE ACCUM_STAT: Accumulates various statistics over an
   ! averaging period for base (level 0) version of model
   !
-  subroutine accum_stat(n1,n2,n3,u,v,w,t,p,um,vm,th00)
+  subroutine accum_stat(n1,n2,n3,u,v,w,t,p,um,vm)
 
     integer, intent (in) :: n1,n2,n3
     real, dimension (n1,n2,n3), intent (in)    :: u, v, w, t, p
-    real, intent (in)           :: um, vm, th00
+    real, intent (in)           :: um, vm
 
     integer :: k
     real    :: a1(n1), b1(n1), c1(n1), d1(n1), a3(n1), b3(n1), tmp(n1)

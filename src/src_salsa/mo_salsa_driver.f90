@@ -17,8 +17,10 @@ IMPLICIT NONE
   ! JT: Variables from SALSA
   ! --------------------------------------------
   ! grid points for SALSA
+  INTEGER, PARAMETER :: kproma = 1
   INTEGER, PARAMETER :: kbdim = 1
   INTEGER, PARAMETER :: klev = 1
+  INTEGER, PARAMETER :: krow = 1
 
   REAL, PARAMETER :: init_rh(kbdim,klev) = 0.3
 
@@ -485,7 +487,7 @@ IMPLICIT NONE
 
 
              ! If this is an initialization call, calculate the equilibrium particle
-             If (prunmode == 1) CALL equilibration(kbdim,klev,   &
+             If (prunmode == 1) CALL equilibration(kproma,kbdim,klev,   &
                                                     init_rh,in_t,aero,.TRUE.)
 
 
@@ -499,13 +501,13 @@ IMPLICIT NONE
              ! ***************************************!
              !                Run SALSA               !
              ! ***************************************!
-             CALL salsa(kbdim,  klev,          &
+             CALL salsa(kproma, kbdim,  klev,   krow,          &
                         in_p,   in_rv,  in_rs,  in_rsi,        &
-                        in_t,  tstep,                          &
+                        in_t,   tstep,                         &
                         zgso4,  zgocnv, zgocsv, zghno3,        &
                         zgnh3,  aero,   cloud,  precp,         &
                         ice,    snow,                          &
-                        actd,   in_w,   prtcl, level, in_pdn)
+                        actd,   in_w,   prtcl,  level, in_pdn)
 
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)
@@ -812,7 +814,9 @@ IMPLICIT NONE
                   ( zgocsv(1,1)/pdn(kk,ii,jj) - pa_gaerop(kk,ii,jj,5) )/tstep
              ENDIF
 
-             ! Tendency of water vapour mixing ratio
+
+             ! Tendency of water vapour mixing ratio is obtained from the change in RH during SALSA run.
+             ! Assumes no temperature change during SALSA run.
              rt(kk,ii,jj) = rt(kk,ii,jj) + &
                   ( in_rv(1,1) - rv_old(1,1) )/tstep
 
@@ -857,14 +861,14 @@ IMPLICIT NONE
                                nlcgip,nlcgsa,nlcgsc,   &
                                nlcgsi,nlcgsp,nlcgss,   &
                                nlcnd,                  &
-                               nlicenucl,               &
+                               nlicenucl,              &
                                nlicmelt,               &
                                nlfixinc,               &
 
                                lscgia,lscgic,lscgii,   &
                                lscgip,lscgsa,lscgsc,   &
                                lscgsi,lscgsp,lscgss,   &
-                               lsicenucl,                &
+                               lsicenucl,              &
                                lsicmelt,               &
                                lsfixinc
 

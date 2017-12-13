@@ -150,7 +150,7 @@ contains
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
          RadConstPress,      & ! keep constant pressure levels (T/F),
          RadPrecipBins,      & ! add precipitation bins to cloud water (0, 1, 2, 3,...)
-         RadSnowBins,      & ! add snow bins to cloud ice (0, 1, 2, 3,...)
+         RadSnowBins,        & ! add snow bins to cloud ice (0, 1, 2, 3,...)
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
 
     namelist /version/  &
