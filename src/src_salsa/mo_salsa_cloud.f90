@@ -916,7 +916,7 @@ CONTAINS
 
    SUBROUTINE ice_nucl_driver(kbdim,klev,   &
                               paero,pcloud,pprecp,pice,psnow, &
-                              ptemp,prv,prsi,ptstep )
+                              ptemp,ppres,prv,prsi,ptstep )
 
      USE mo_submctl, ONLY : t_section,   &
                                fn2b,   &
@@ -933,6 +933,7 @@ CONTAINS
      INTEGER, INTENT(in) :: kbdim,klev
      REAL, INTENT(in) :: ptstep
      REAL, INTENT(in) :: ptemp(kbdim,klev),  &
+                         ppres(kbdim,klev),  &
                          prv(kbdim,klev),    &
                          prsi(kbdim,klev)
 
@@ -942,8 +943,8 @@ CONTAINS
                                        pice(kbdim,klev,nice), &
                                        psnow(kbdim,klev,nsnw)
 
-     INTEGER :: ii,jj,kk,ss
-     REAL :: pf, jf, Sw, Si, rn, rw, frac
+     INTEGER :: ii,jj,kk,ss,ba
+     REAL :: pf, jf, Sw, Si, rn, rw, frac, pw, zvol, zvola, zvolnew
      LOGICAL :: isdry
 
      ! Flags (adjust with the nucleation parameters):
@@ -984,9 +985,34 @@ CONTAINS
               frac = MIN(1.,pf)
               IF (pprecp(ii,jj,kk)%numc*frac <prlim) CYCLE
 
-              STOP 'Precipition is freezing (not implemented)!'
-              ! Move to snow bins or ice bins? And which bins?
+              ! Move to ice bin with closest matching dry volume. Ain't perfect but
+              ! the bin update subroutine in SALSA will take care of the rest.
+              zvol = SUM( pprecp(ii,jj,kk)%volc(1:7) ) ! Dry volume
 
+              ba=0
+              zvola=-1.
+              DO ss=1,nice
+                IF (pice(kk,ii,ss)%numc>prlim) THEN
+                    zvolnew = SUM( pice(ii,jj,ss)%volc(1:7) ) ! Dry volume
+                    IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
+                        ! New closest match
+                        ba=ss
+                        zvola=zvolnew
+                    ENDIF
+                ENDIF
+              ENDDO
+              if (ba==0) STOP 'FAIL: no target ice for freezing rain drops'
+
+              DO ss = 1,7
+                   pice(ii,jj,ba)%volc(ss) = max(0.,pice(ii,jj,ba)%volc(ss) + pprecp(ii,jj,kk)%volc(ss)*frac)
+                   pprecp(ii,jj,kk)%volc(ss) = max(0.,pprecp(ii,jj,kk)%volc(ss) - pprecp(ii,jj,kk)%volc(ss)*frac)
+              END DO
+              ss=8
+              pice(ii,jj,ba)%volc(ss) = max(0.,pice(ii,jj,ba)%volc(ss) + pprecp(ii,jj,kk)%volc(ss)*frac*rhowa/rhoic)
+              pprecp(ii,jj,kk)%volc(ss) = max(0.,pprecp(ii,jj,kk)%volc(ss) - pprecp(ii,jj,kk)%volc(ss)*frac)
+
+              pice(ii,jj,ba)%numc = max(0.,pice(ii,jj,ba)%numc + pprecp(ii,jj,kk)%numc*frac)
+              pprecp(ii,jj,kk)%numc = max(0.,pprecp(ii,jj,kk)%numc-pprecp(ii,jj,kk)%numc*frac)
            END DO
 
            ! Cloud droplets
@@ -1005,7 +1031,8 @@ CONTAINS
               IF (isdry .AND. ice_dep) THEN
                  ! Deposition freezing
                  Si=prv(ii,jj)/prsi(ii,jj)
-                 jf = calc_Jdep(rn,ptemp(ii,jj),Si,prv(ii,jj))
+                 pw=prv(ii,jj)*ppres(ii,jj)/(0.622-prv(ii,jj))
+                 jf = calc_Jdep(rn,ptemp(ii,jj),Si,pw)
                  pf = 1. - exp( -jf*ptstep )
               ELSE IF (rn>1.e-10 .AND. ice_imm) THEN
                  ! Immersion and condensation freezing
@@ -1050,7 +1077,8 @@ CONTAINS
               IF (isdry .AND. ice_dep) THEN
                  ! Deposition freezing
                  Si=prv(ii,jj)/prsi(ii,jj)
-                 jf = calc_Jdep(rn,ptemp(ii,jj),Si,prv(ii,jj))
+                 pw=prv(ii,jj)*ppres(ii,jj)/(0.622-prv(ii,jj))
+                 jf = calc_Jdep(rn,ptemp(ii,jj),Si,pw)
                  pf = 1. - exp( -jf*ptstep )
               ELSE IF (rn>1.e-10 .AND. ice_imm) THEN
                  ! Immersion and condensation freezing
@@ -1269,12 +1297,12 @@ CONTAINS
         DO jj = 1,klev
 
            iceSupSat = prv(ii,jj) / prsi(ii,jj)  - 1.0 ! ice supersaturation
-           rc_tot = sum( pcloud(ii,jj,:)%volc(8) )*rhowa ! cloud water mixing ratio (kg/kg)
+           rc_tot = sum( pcloud(ii,jj,:)%volc(8) )*rhowa/pdn(ii,jj) ! cloud water mixing ratio (kg/kg)
 
            ! conditions for ice nucleation
            IF ( icesupsat < 0.05 .OR. rc_tot < 0.001e-3  ) CYCLE
 
-           ! target number concentration of ice, converted to kg/m^3
+           ! target number concentration of ice, converted to #/m^3
            Ni0     = fixinc * pdn(ii,jj)
 
            ! current ice number concentration (#/m^3)
@@ -1371,10 +1399,10 @@ CONTAINS
    END SUBROUTINE ice_melt
 
    SUBROUTINE autosnow(kbdim,klev,   &
-                       pice,psnow         )
+                       pice,psnow,ptstep )
    !
-   ! Uses a more straightforward method for converting cloud droplets to drizzle.
-   ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
+   ! Uses a more straightforward method for converting ice to snow.
+   ! Assume a lognormal ice distribution for each bin. Sigma_g is an adjustable
    ! parameter and is set to 1.2 by default
    !
     
@@ -1391,9 +1419,11 @@ CONTAINS
 
      REAL :: Vrem, Nrem, Vtot, Ntot
      REAL :: dvg,dg
+     REAL :: tot
 
      REAL, PARAMETER :: zd0 = 250.e-6  ! Adjustable
      REAL, PARAMETER :: sigmag = 1.2   ! Adjustable
+     REAL, PARAMETER :: max_rate_autoc=1.0e10 ! Maximum autoconversion rate (#/m^3/s)
 
      INTEGER :: ii,jj,cc,ss
 
@@ -1402,32 +1432,35 @@ CONTAINS
      DO jj = 1,klev
         DO ii = 1,kbdim
            DO cc = 1,nice
+              ! Autoconversion rate can be limited
+              tot = 0.
 
               Ntot = pice(ii,jj,cc)%numc
               Vtot = SUM(pice(ii,jj,cc)%volc(:))
 
               IF ( Ntot > prlim .AND. Vtot > 0. ) THEN
                  ! Volume geometric mean diameter
-                 dvg = pice(ii,jj,cc)%dwet*EXP( (3.*LOG(sigmag)**2)/2. )
+                 dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(sigmag)**2)/2. )
                  dg = dvg*EXP( -3.*LOG(sigmag)**2 )
 
                  Vrem = Max(0., Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) ) )
                  Nrem = Max(0., Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )  )
 
                  IF ( Vrem > 0. .AND. Nrem > prlim) THEN
-                    ! Put the mass and number to the first snow bin and remover from cloud droplets
+                    ! Put the mass and number to the first snow bin and remover from ice
 
                     DO ss = 1,7
-                       psnow(ii,jj,cc)%volc(ss) = max(0., psnow(ii,jj,cc)%volc(ss) + pice(ii,jj,cc)%volc(ss)*Nrem/Ntot)
-                       pice(ii,jj,cc)%volc(ss) = max(0., pice(ii,jj,cc)%volc(ss)*(1. - Nrem/Ntot))
+                       psnow(ii,jj,cc)%volc(ss) = psnow(ii,jj,cc)%volc(ss) + pice(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
+                       pice(ii,jj,cc)%volc(ss) = pice(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
                     END DO
-                    ! From ice to snow volume
-                    psnow(ii,jj,cc)%volc(8) = max(0., psnow(ii,jj,cc)%volc(8) + pice(ii,jj,cc)%volc(8)*Nrem/Ntot*rhoic/rhosn)
-                    pice(ii,jj,cc)%volc(8) = max(0., pice(ii,jj,cc)%volc(8)*(1. - Nrem/Ntot))
+                    psnow(ii,jj,cc)%volc(8) = psnow(ii,jj,cc)%volc(8) + pice(ii,jj,cc)%volc(8)*(Vrem/Vtot)*rhoic/rhosn
+                    pice(ii,jj,cc)%volc(8) = pice(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot)
 
-                    psnow(ii,jj,cc)%numc = max( 0., psnow(ii,jj,cc)%numc + pice(ii,jj,cc)%numc*Nrem/Ntot )
-                    pice(ii,jj,cc)%numc = max(0., pice(ii,jj,cc)%numc*(1. - Nrem/Ntot) )
+                    psnow(ii,jj,cc)%numc = psnow(ii,jj,cc)%numc + Nrem
+                    pice(ii,jj,cc)%numc = pice(ii,jj,cc)%numc - Nrem
 
+                    tot = tot + Nrem
+                    IF (tot > max_rate_autoc*ptstep) EXIT
                  END IF ! Nrem Vrem
 
               END IF ! Ntot Vtot

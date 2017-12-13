@@ -504,20 +504,14 @@ CONTAINS
 
     SELECT CASE(level)
        CASE(1,2,3)
-          rxt = a_rp ! Total water (vapor + condensed water) = q
-          rxl = a_rc ! Total liquid water (aerosol+cloud+precipitation)
+          rxt = a_rp ! Total water (vapor + condensed water and ice) = q
+          rxl = a_rc-a_rpp ! Cloud water (+aerosol), but no precipitation or ice
           rxv = a_rv ! Water vapor
-          xrpp = a_rpp
-          xnpp = a_npp
-       CASE(4)
-          rxt = a_rp + a_rc + a_srp
-          rxl = a_rc + a_srp
-          rxv = a_rp
-          xrpp = a_srp
-          xnpp = a_snrp
-       CASE(5)
+          xrpp = a_rpp ! Rain water
+          xnpp = a_npp ! Rain number
+       CASE(4,5)
           rxt = a_rp + a_rc + a_srp + a_ri + a_srs
-          rxl = a_rc + a_srp + a_ri + a_srs
+          rxl = a_rc
           rxv = a_rp
           xrpp = a_srp
           xnpp = a_snrp
@@ -530,7 +524,7 @@ CONTAINS
       ! profile statistics
       !
       CALL accum_stat(nzp, nxp, nyp, a_up, a_vp, a_wp, a_theta, a_press, umean, &
-                      vmean,th00)
+                      vmean)
       IF (iradtyp == 3) THEN
          CALL accum_rad(nzp, nxp, nyp, a_rflx, sflx=a_sflx, sup=a_fus, sdwn=a_fds, &
                         irup=a_fuir, irdwn=a_fdir, alb=albedo)
@@ -1192,11 +1186,11 @@ CONTAINS
    ! Subroutine ACCUM_STAT: Accumulates various statistics over an
    ! averaging period for base (level 0) version of model
    !
-   SUBROUTINE accum_stat(n1,n2,n3,u,v,w,t,p,um,vm,th00)
+   SUBROUTINE accum_stat(n1,n2,n3,u,v,w,t,p,um,vm)
 
       INTEGER, INTENT (in) :: n1,n2,n3
       REAL, DIMENSION (n1,n2,n3), INTENT (in) :: u, v, w, t, p
-      REAL, INTENT (in) :: um, vm, th00
+      REAL, INTENT (in) :: um, vm
 
       INTEGER :: k
       REAL    :: a1(n1), b1(n1), c1(n1), d1(n1), a3(n1), b3(n1), tmp(n1)
@@ -1213,7 +1207,7 @@ CONTAINS
       DO k = 1, n1
          svctr(k,10) = svctr(k,10) + a1(k) + um
          svctr(k,11) = svctr(k,11) + b1(k) + vm
-         svctr(k,12) = svctr(k,12) + c1(k) !+ th00 ; Changed t == a_theta
+         svctr(k,12) = svctr(k,12) + c1(k)
          svctr(k,13) = svctr(k,13) + d1(k)
          svctr(k,17) = svctr(k,17) + thvar(k)
          svctr(k,18) = svctr(k,18) + a3(k)
@@ -1323,7 +1317,7 @@ CONTAINS
       !
       ! Do some conditional sampling statistics: cloud, cloud-core
       !
-      tv(:,:,:) = th(:,:,:)*(1. + ep2*rv(:,:,:) - rl(:,:,:))
+      tv(:,:,:) = th(:,:,:)*(1.+ep2*rv(:,:,:) - (rt(:,:,:)-rv(:,:,:))) ! Virtual potential temperature (K)
       CALL get_avg3(n1,n2,n3,tv,tvbar)
       !
       xy1 = 0.

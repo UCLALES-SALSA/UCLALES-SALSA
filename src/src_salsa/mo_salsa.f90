@@ -135,7 +135,7 @@ CONTAINS
       IF (lsicenucl) &
          CALL ice_nucl_driver(kbdim,klev,       &
                               paero,pcloud,pprecp,pice,psnow, &
-                              ptemp,prv,prsi,ptstep)
+                              ptemp,ppres,prv,prsi,ptstep)
 
       ! Melting of ice and snow
       IF (lsicmelt) &
@@ -145,7 +145,7 @@ CONTAINS
       ! Snow formation ~ autoconversion from ice
       IF (lsautosnow) &
          CALL autosnow(kbdim,klev, &
-                       pice, psnow        )
+                       pice, psnow, ptstep )
 
       ! Size distribution bin update
       IF (lsdistupdate ) &
