@@ -47,7 +47,7 @@ MODULE grid
    REAL    :: cntlat =  31.5      ! Latitude for radiation
 
    LOGICAL :: lbinanl = .FALSE.   ! Whether to write binned data to analysis files (takes a lot of space + mainly used for debugging)
-   LOGICAL           :: lbinprof = .TRUE.   ! The same for profile statistics
+   LOGICAL :: lbinprof = .TRUE.   ! The same for profile statistics
    LOGICAL :: lnudging = .FALSE.  ! Master switch for nudging scheme
    LOGICAL :: lemission = .FALSE. ! Master switch for aerosol emission
 
@@ -175,7 +175,7 @@ MODULE grid
    !
    REAL, ALLOCATABLE, DIMENSION (:,:,:) :: a_rflx, a_sflx, &
                                            a_fus, a_fds, a_fuir, a_fdir, &
-                                           a_temp, a_temp0 ! store temperatures of previous timestep
+                                           a_temp
    !
    !
    REAL, ALLOCATABLE :: a_ustar(:,:)
@@ -235,7 +235,8 @@ CONTAINS
          prtcl = ComponentIndex(nspec,maxspec,listspec) ! DEPRECATED
          nc = spec%getNSpec()
 
-         nsalsa = (nc+1)*nbins + (nc+1)*ncld + (nc+1)*nprc + (nc+1)*nice + (nc+1)*nsnw + 5
+         nsalsa = (nc+1)*nbins + (nc+1)*ncld + (nc+1)*nprc+5
+         IF (level>=5) nsalsa = nsalsa + (nc+1)*nice + (nc+1)*nsnw
 
       END IF
 
@@ -284,9 +285,8 @@ CONTAINS
          memsize = memsize + nxyzp + nxyp + 4*nxyp
       END IF
 
-      ALLOCATE (a_temp(nzp,nxp,nyp),a_temp0(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp))
+      ALLOCATE (a_temp(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp))
       a_temp(:,:,:) = 0.
-      a_temp0(:,:,:) = 0.
       a_rsl(:,:,:) = 0.
       memsize = memsize + nxyzp*3
 
@@ -349,7 +349,7 @@ CONTAINS
          memsize = memsize + 4*nxyzp + 3*nbins*nxyzp + 3*ncld*nxyzp + nxyzp*(nc+1)*ncld + 2*nprc*nxyzp
 
          ALLOCATE ( a_ri(nzp,nxp,nyp), a_rsi(nzp,nxp,nyp), a_rhi(nzp,nxp,nyp),      &
-                    a_srs(nzp,nxp,nyp), a_snrs(nzp,nxp,nyp)  )  ! ice'n'snow
+                    a_srs(nzp,nxp,nyp), a_snrs(nzp,nxp,nyp)  )
          a_ri(:,:,:) = 0.
          a_rsi(:,:,:) = 0.
          a_rhi(:,:,:) = 0.
@@ -406,21 +406,21 @@ CONTAINS
 
          ! Level 5
          IF (level>=5) THEN      ! Level 5
+            zz = zz+5
             a_nicep => a_sclrp(:,:,:,zz+1:zz+nice)
             a_nicet => a_sclrt(:,:,:,zz+1:zz+nice)
+
             zz = zz+nice
+            a_micep => a_sclrp(:,:,:,zz+1:zz+nc*nice)
+            a_micet => a_sclrt(:,:,:,zz+1:zz+nc*nice)
 
-            a_micep => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nice)
-            a_micet => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nice)
-            zz = zz+(nc+1)*nice
-
+            zz = zz+nc*nice
             a_nsnowp => a_sclrp(:,:,:,zz+1:zz+nsnw)
             a_nsnowt => a_sclrt(:,:,:,zz+1:zz+nsnw)
-            zz = zz+nsnw
 
-            a_msnowp => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nsnw)
-            a_msnowt => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nsnw)
-            zz = zz+(nc+1)*nsnw
+            zz = zz+nsnw
+            a_msnowp => a_sclrp(:,:,:,zz+1:zz+nc*nsnw)
+            a_msnowt => a_sclrt(:,:,:,zz+1:zz+nc*nsnw)
          ELSE
             ! Ice not included so allocate zero arrays for ice pointers
             ALLOCATE (tmp_icep(nzp,nxp,nyp,(nc+1)*MAX(nice,nsnw)), &
@@ -429,18 +429,18 @@ CONTAINS
             tmp_icet =0.
             a_nicep => tmp_icep(:,:,:,1:nice)
             a_nicet => tmp_icet(:,:,:,1:nice)
-            a_micep => tmp_icep(:,:,:,1:(nc+1)*nice)
-            a_micet => tmp_icet(:,:,:,1:(nc+1)*nice)
+            a_micep => tmp_icep(:,:,:,1:nc*nice)
+            a_micet => tmp_icet(:,:,:,1:nc*nice)
             a_nsnowp => tmp_icep(:,:,:,1:nsnw)
             a_nsnowt => tmp_icet(:,:,:,1:nsnw)
-            a_msnowp => tmp_icep(:,:,:,1:(nc+1)*nsnw)
-            a_msnowt => tmp_icet(:,:,:,1:(nc+1)*nsnw)
+            a_msnowp => tmp_icep(:,:,:,1:nc*nsnw)
+            a_msnowt => tmp_icet(:,:,:,1:nc*nsnw)
          ENDIF
 
          ! DEPRECATED!!
          ! Density, molecular weight, dissociation factor and molar volume arrays for the used species
          !   1:SO4, 2:OC, 3:BC, 4:DU, 5:SS, 6:NO, 7:NH, 8:H2O
-         ALLOCATE ( dens(nc), mws(nc), diss(nc))
+         ALLOCATE ( dens(nc), mws(nc), diss(nc), dens_ice(nc), dens_snow(nc))
          zz = 0
          IF (prtcl%IsUsed('SO4')) THEN
             zz = zz+1
@@ -839,10 +839,11 @@ CONTAINS
          IF (level < 5 ) THEN
             salsabool(13:15) = .FALSE. ! ica, icb, snw
             salsabool(27:29) = .FALSE. ! f, i, s (total ice, ice & snow mixing ratio)
-            salsabool(91:104) = .FALSE. ! aerosols in ice particles
-            salsabool(31) = .FALSE.
-            salsabool(52:62) = .FALSE.
+            salsabool(91:104) = .FALSE. ! aerosols in ice
+            salsabool(31) = .FALSE. ! S_RHI
+            salsabool(52:62) = .FALSE. ! S_Nic - S_Rwsba
          END IF
+         salsabool(27) = .FALSE. ! Total ice disabled
 
          IF (.NOT. prtcl%IsUsed('SO4')) &
             salsabool((/ 63, 70, 77, 84, 91,  98 /)) = .FALSE.
@@ -952,8 +953,8 @@ CONTAINS
       icntcla = (/nzp,nxp-4,nyp-4, fca%cur, 1/)
       icntclb = (/nzp,nxp-4,nyp-4, fcb%cur-fca%cur, 1/)
       icntpra = (/nzp,nxp-4,nyp-4, fra, 1/)
-      icntica = (/nzp,nxp-4,nyp-4, iia%cur, 1/)
-      icnticb = (/nzp,nxp-4,nyp-4, iib%cur-iia%cur, 1/)
+      icntica = (/nzp,nxp-4,nyp-4, fia%cur, 1/)
+      icnticb = (/nzp,nxp-4,nyp-4, fib%cur-fia%cur, 1/)
       icntsna = (/nzp,nxp-4,nyp-4, fsa, 1/)
       ibeg = (/1  ,1  ,1  ,nrec0/)
       ibegsd = (/1,1,1,1,nrec0/)
@@ -1119,8 +1120,8 @@ CONTAINS
             zvar(:,:,:) = a_rp(:,:,:) + &   ! Water vapor
                           a_rc(:,:,:) + &   ! Liquid water
                           a_srp(:,:,:)+ &   ! Rain
-                         a_ri(:,:,:) + & ! Ice water (level 5)
-                         a_srs(:,:,:)      ! Snow water (level 5)
+                          a_ri(:,:,:) + &   ! Ice water (level 5)
+                          a_srs(:,:,:)      ! Snow water (level 5)
             iret = nf90_inq_varid(ncid0,'q',VarID)
             iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                                 count=icnt)
@@ -2007,52 +2008,6 @@ CONTAINS
       END SELECT
 
    END SUBROUTINE binSpecMixrat
-
-   !
-   ! ----------------------------------------------
-   ! Subroutine binMixrat: Calculate the total dry or wet
-   ! Mass concentration for individual bins
-   !
-   ! Juha Tonttila, FMI, 2015
-   ! Tomi Raatikainen, FMI, 2016
-   SUBROUTINE binMixrat(ipart,itype,ibin,ii,jj,kk,sumc)
-      USE mo_submctl, ONLY : ncld,nbins,nprc,nice,nsnw
-      IMPLICIT NONE
-
-      CHARACTER(len=*), INTENT(in) :: ipart
-      CHARACTER(len=*), INTENT(in) :: itype
-      INTEGER, INTENT(in) :: ibin,ii,jj,kk
-      REAL, INTENT(out) :: sumc
-
-      CHARACTER(len=20), PARAMETER :: name = "binMixrat"
-
-      INTEGER :: iend
-
-      IF (itype == 'dry') THEN
-         iend = prtcl%GetNcomp()-2 ! dry CASE
-      ELSE IF (itype == 'wet') THEN
-         iend = prtcl%GetNcomp()-1 ! wet CASE
-      ELSE
-         STOP 'Error in binMixrat!'
-      END IF
-
-      SELECT CASE(ipart)
-         CASE('aerosol')
-            sumc = SUM( a_maerop(kk,ii,jj,ibin:iend*nbins+ibin:nbins) )
-         CASE('cloud')
-            sumc = SUM( a_mcloudp(kk,ii,jj,ibin:iend*ncld+ibin:ncld) )
-         CASE('precp')
-            sumc = SUM( a_mprecpp(kk,ii,jj,ibin:iend*nprc+ibin:nprc) )
-         CASE('ice')
-            sumc = SUM( a_micep(kk,ii,jj,ibin:iend*nice+ibin:nice) )
-         CASE('snow')
-            sumc = SUM( a_msnowp(kk,ii,jj,ibin:iend*nsnw+ibin:nsnw) )
-         CASE DEFAULT
-            STOP 'bin mixrat error'
-      END SELECT
-
-   END SUBROUTINE binMixrat
-
    !
    ! ----------------------------------------------
    ! Subroutine bulkNumc: Calculate the total number

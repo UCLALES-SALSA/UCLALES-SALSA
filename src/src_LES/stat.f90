@@ -82,22 +82,22 @@ MODULE stat
       'CCN    ','nrain  ','nrcnt  ','nccnt  ','prcp_bc'/),         & !25
 
        ! **** Bulk temporal statistics for SALSA ****
-       s1SalsaBulk(nv1sbulk) = (/                                    &
-       'Nc_ic  ','Na_int ','Na_oc  ',                                & !1
-       'SO4_ic ','SO4_int','SO4_oc ',                                & !4
-       'OC_ic  ','OC_int ','OC_oc  ',                                & !7
-       'BC_ic  ','BC_int ','BC_oc  ',                                & !10
-       'DU_ic  ','DU_int ','DU_oc  ',                                & !13
-       'SS_ic  ','SS_int ','SS_oc  ',                                & !16
-       'NO_ic  ','NO_int ','NO_oc  ',                                & !19
-       'NH_ic  ','NH_int ','NH_oc  ',                                & !22
-       'rmSO4dr','rmSO4cl','rmSO4pr',  & !25
-       'rmOCdr ','rmOCcl ','rmOCpr ',  & !28
-       'rmBCdr ','rmBCcl ','rmBCpr ', & !31
-       'rmDUdr ','rmDUcl ','rmDUpr ',  & !34
-       'rmSSdr ','rmSScl ','rmSSpr ',  & !37
+       s1SalsaBulk(nv1sbulk) = (/       &
+       'Nc_ic  ','Na_int ','Na_oc  ',   & !1
+       'SO4_ic ','SO4_int','SO4_oc ',   & !4
+       'OC_ic  ','OC_int ','OC_oc  ',   & !7
+       'BC_ic  ','BC_int ','BC_oc  ',   & !10
+       'DU_ic  ','DU_int ','DU_oc  ',   & !13
+       'SS_ic  ','SS_int ','SS_oc  ',   & !16
+       'NO_ic  ','NO_int ','NO_oc  ',   & !19
+       'NH_ic  ','NH_int ','NH_oc  ',   & !22
+       'rmSO4dr','rmSO4cl','rmSO4pr',   & !25
+       'rmOCdr ','rmOCcl ','rmOCpr ',   & !28
+       'rmBCdr ','rmBCcl ','rmBCpr ',   & !31
+       'rmDUdr ','rmDUcl ','rmDUpr ',   & !34
+       'rmSSdr ','rmSScl ','rmSSpr ',   & !37
        'rmNOdr ','rmNOcl ','rmNOpr ',   & !40
-       'rmNHdr ','rmNHcl ','rmNHpr ',  & !43
+       'rmNHdr ','rmNHcl ','rmNHpr ',   & !43
        'rmH2Oae','rmH2Ocl','rmH2Opr'/), & !46-48
 
        s1_lvl5(nv1_lvl5) = (/  &
@@ -369,7 +369,7 @@ CONTAINS
 
          nspec = 0
          DO e=1,8 ! With water, which is false for "IsUsed"!
-            IF (.NOT.IsUsed(prtcl,zspec(e)) .AND. (e<8)) CYCLE
+            IF (.NOT.prtcl%isUsed(zspec(e)) .AND. (e<8)) CYCLE
 
             ! List of active species (including water, which is the last species)
             nspec = nspec+1
@@ -492,7 +492,7 @@ CONTAINS
    ! Jaakko Ahola, FMI, 2016
    SUBROUTINE statistics(time)
 
-      USE grid, ONLY : a_up, a_vp, a_wp, a_rc, a_theta, a_rv                                     &
+      USE grid, ONLY : a_up, a_vp, a_wp, a_rc, a_theta, a_rv,                                    &
                        a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean,    &
                        vmean, dn0, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx, a_sflx,       &
                        a_fus, a_fds, a_fuir, a_fdir, albedo, a_srp, a_snrp, a_ncloudp, xt, yt, a_ri, a_nicep, a_srs, a_snrs, snowin
@@ -1096,7 +1096,6 @@ CONTAINS
   SUBROUTINE ts_lvl5(n1,n2,n3,dn0,zm,rc,ri,rs,srate)
     USE mo_submctl, only : nlim,prlim
     USE grid, ONLY : bulkNumc, bulkMixrat,meanRadius,dzt
-    USE class_componentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
 
@@ -1760,7 +1759,6 @@ CONTAINS
      USE mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,prlim
      USE grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                       a_ri, a_srs, a_rhi, prtcl, a_nicep, a_nsnowp
-     USE class_ComponentIndex, ONLY : IsUsed
 
      IMPLICIT NONE
 

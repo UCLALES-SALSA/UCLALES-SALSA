@@ -21,7 +21,7 @@ CONTAINS
                     pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,    &
                     pc_nh3,   paero,    pcloud,  pprecp,     &
                     pice,     psnow,                         &
-                    pactd,    pw,       prtcl, level,  pdn )
+                    pactd,    pw,       prtcl, level )
 
       USE mo_salsa_dynamics, only : coagulation, condensation
       USE mo_salsa_update, ONLY : distr_update
@@ -33,8 +33,8 @@ CONTAINS
          t_section,                 & ! For cloud bins
          ncld,                      &
          nprc,                      &
-         nice,                      & ! ice
-         nsnw,                      & ! snow
+         nice,                      &
+         nsnw,                      &
          lscoag,                    &
          lscnd,                     &
          lsauto,                    &
@@ -60,8 +60,7 @@ CONTAINS
       REAL, INTENT(in) ::            &
          ppres(kbdim,klev),            & ! atmospheric pressure at each grid point [Pa]
          ptemp(kbdim,klev),            & ! temperature at each grid point [K]
-         ptstep,                       &   ! time step [s]
-	     pdn(kbdim,klev)                 ! air density; Is it worth it to bring it here since it's easy to calculate? -Juha
+         ptstep                            ! time step [s]
 
       TYPE(ComponentIndex), INTENT(in) :: prtcl
 
@@ -75,9 +74,9 @@ CONTAINS
          pc_nh3  (kbdim,klev),      & ! ammonia
          pc_ocnv (kbdim,klev),      & ! nonvolatile organic compound
          pc_ocsv (kbdim,klev),      & ! semivolatile organic compound
-         prv(kbdim,klev),           & ! Water vapour mixing ratio  [kg/m3]
-         prs(kbdim,klev),           & ! Saturation mixing ratio    [kg/m3]
-         prsi(kbdim,klev)              ! Saturation mixing ratio over ice   [kg/m3]
+         prv(kbdim,klev),           & ! Water vapour mixing ratio  [kg/kg]
+         prs(kbdim,klev),           & ! Saturation mixing ratio    [kg/kg]
+         prsi(kbdim,klev)             ! Saturation mixing ratio over ice   [kg/kg]
 
       TYPE(t_section), INTENT(inout) :: &
          pcloud(kbdim,klev,ncld),     &
@@ -126,25 +125,24 @@ CONTAINS
 
       ! Fixed ice number concentration
       IF (lsfixinc) &
-         CALL  ice_fixed_NC(kbdim,  klev,   &
-                            pcloud,   pice,   &
-                            prv,    prsi,    &
-                            pdn     )
+         CALL  ice_fixed_NC(kproma,kbdim,klev, &
+                            pcloud,pice, &
+                            ptemp,ppres,prv,prsi)
 
       ! Ice nucleation
       IF (lsicenucl) &
-         CALL ice_nucl_driver(kbdim,klev,       &
+         CALL ice_nucl_driver(kproma,kbdim,klev,   &
                               paero,pcloud,pprecp,pice,psnow, &
                               ptemp,ppres,prv,prsi,ptstep)
 
       ! Melting of ice and snow
       IF (lsicmelt) &
-         CALL ice_melt(kbdim,klev,              &
+         CALL ice_melt(kproma,kbdim,klev, &
                        pcloud,pice,pprecp,psnow,ptemp)
 
       ! Snow formation ~ autoconversion from ice
       IF (lsautosnow) &
-         CALL autosnow(kbdim,klev, &
+         CALL autosnow(kproma,kbdim,klev, &
                        pice, psnow, ptstep )
 
       ! Size distribution bin update

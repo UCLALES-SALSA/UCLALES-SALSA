@@ -78,11 +78,11 @@ MODULE mo_submctl
              lscnd
   LOGICAL :: nlcndgas   = .FALSE., & ! Condensation of precursor gases
              lscndgas
-  LOGICAL :: nlcndh2ocl = .TRUE., & ! Condensation of water vapour on clouds (drizzle)
+  LOGICAL :: nlcndh2ocl = .TRUE., & ! Condensation of water vapour on clouds and precipitation
              lscndh2ocl
   LOGICAL :: nlcndh2oae = .TRUE., & ! Condensation of water vapour on aerosol particles (FALSE -> equilibrium calc.)
              lscndh2oae
-  LOGICAL :: nlcndh2oic = .TRUE., & ! Condensation of water vapour on ice particles
+  LOGICAL :: nlcndh2oic = .TRUE., & ! Condensation of water vapour on ice and snow
              lscndh2oic
 
   LOGICAL :: nlauto      = .TRUE.,   & ! Autoconversion of cloud droplets (needs activation)
@@ -209,8 +209,8 @@ MODULE mo_submctl
    rg     = 8.314,        & ! molar gas constant (J/(mol K))
    pi     = 3.1415927,    & ! self explanatory
    pi6    = 0.5235988,    & ! pi/6
-   cpa    = 1010.,        & ! specific heat of dry air, constant P (J/kg/K)
-   mair   = 28.97e-3,     & ! molar mass of air (mol/kg)
+   cpa    = 1005.,        & ! specific heat of dry air, constant P (J/kg/K)
+   mair   = 28.967e-3,    & ! molar mass of air (mol/kg)
    deltav = 1.096e-7,     & ! vapor jump length (m)
    deltaT = 2.16e-7,      & ! thermal jump length (m)
    alphaT = 0.96,         & ! thermal accomodation coefficient
@@ -218,8 +218,7 @@ MODULE mo_submctl
    eps    = epsilon(1.0)       ! epsilon
 
   REAL, PARAMETER ::   &
-   rd    = 287.04,     & ! gas constant for dry air (J/K/kg)
-   rv    = 461.5,      & ! gas constant for water vapour (J/K/kg)
+   rda   = 287.04,     & ! gas constant for dry air (J/K/kg)
    alv    = 2.5e6,   & ! latent heat for vaporisation (J/kg)
    als    = 2.834e6      ! latent heat for sublimation (J/kg)
 
@@ -245,6 +244,7 @@ MODULE mo_submctl
        rhowa = 1000.,         & ! water
        rhoic = 917.,          & ! ice
        rhosn = 300.,          & ! snow
+       rhoas = 1770.,         & ! ammoniums sulphate ((NH4)2SO4)
        !
        ! volume of molecule [kg/#]
        mvsu = msu/avog/rhosu,    & ! sulphate

@@ -92,35 +92,35 @@ CONTAINS
       REAL, INTENT(in)    :: pdn(pnz,pnx,pny)             ! Air density (for normalizing concentrations)
 
       REAL, INTENT(in)    :: pa_naerop(pnz,pnx,pny,nbins),        & ! aerosol number concentration (# kg-1)
-                             pa_maerop(pnz,pnx,pny,n4*nbins),     & ! aerosol volume concentration (m3 kg-1)
+                             pa_maerop(pnz,pnx,pny,n4*nbins),     & ! aerosol mass concentration (kg kg-1)
                              pa_ncloudp(pnz,pnx,pny,ncld),        & ! Cloud droplet number concentration (# kg-1)
-                             pa_mcloudp(pnz,pnx,pny,n4*ncld),     & ! Cloud droplet volume concentration (m3 kg-1)
+                             pa_mcloudp(pnz,pnx,pny,n4*ncld),     & ! Cloud droplet mass concentration (kg kg-1)
                              pa_nprecpp(pnz,pnx,pny,nprc),        & ! Rain drop number concentration (# kg-1)
-                             pa_mprecpp(pnz,pnx,pny,n4*nprc),     & ! Rain drop volume concentration (m3 kg-1)
+                             pa_mprecpp(pnz,pnx,pny,n4*nprc),     & ! Rain drop mass concentration (kg kg-1)
                              pa_nicep(pnz,pnx,pny,nice),          & ! ice number concentration (# kg-1)
-                             pa_micep(pnz,pnx,pny,n4*nice),       & ! ice volume concentration (m3 kg-1)
-                             pa_nsnowp(pnz,pnx,pny,nsnw),         & ! snow precipitation number concentration (# kg-1)
-                             pa_msnowp(pnz,pnx,pny,n4*nsnw)           ! snow precipitation volume concentration (m3 kg-1)
+                             pa_micep(pnz,pnx,pny,n4*nice),       & ! ice mass concentration (kg kg-1)
+                             pa_nsnowp(pnz,pnx,pny,nsnw),         & ! snow number concentration (# kg-1)
+                             pa_msnowp(pnz,pnx,pny,n4*nsnw)        ! snow mass concentration (kg kg-1)
 
       REAL, INTENT(in)    :: pa_gaerop(pnz,pnx,pny,5)         ! Gaseous tracers [# kg]
 
       INTEGER, INTENT(in) :: prunmode                      ! 1: Initialization call
                                                            ! 2: Spinup period call
-                                                           ! 3: Regular runtime call'
+                                                           ! 3: Regular runtime call
       INTEGER, INTENT(in) :: level                         ! thermodynamical level
 
       TYPE(ComponentIndex), INTENT(in) :: prtcl ! Object containing the indices of different aerosol components for mass arrays
 
       REAL, INTENT(inout) :: pa_naerot(pnz,pnx,pny,nbins),      & ! Aerosol number tendency
-                             pa_maerot(pnz,pnx,pny,n4*nbins),   & ! Aerosol volume tendency
+                             pa_maerot(pnz,pnx,pny,n4*nbins),   & ! Aerosol mass tendency
                              pa_ncloudt(pnz,pnx,pny,ncld),      & ! Cloud droplet number tendency
-                             pa_mcloudt(pnz,pnx,pny,n4*ncld),   & ! Cloud droplet volume tendency
+                             pa_mcloudt(pnz,pnx,pny,n4*ncld),   & ! Cloud droplet mass tendency
                              pa_nprecpt(pnz,pnx,pny,nprc),      & ! Rain drop number tendency
-                             pa_mprecpt(pnz,pnx,pny,n4*nprc),   &  ! Rain drop volume tendency
+                             pa_mprecpt(pnz,pnx,pny,n4*nprc),   &  ! Rain drop mass tendency
                              pa_nicet(pnz,pnx,pny,nice),        & ! Ice particle number tendency
-                             pa_micet(pnz,pnx,pny,n4*nice),     & ! Ice particle volume tendency
+                             pa_micet(pnz,pnx,pny,n4*nice),     & ! Ice particle mass tendency
                              pa_nsnowt(pnz,pnx,pny,nsnw),       & ! snow flake number tendency
-                             pa_msnowt(pnz,pnx,pny,n4*nsnw)         ! snow flake volume tendecy
+                             pa_msnowt(pnz,pnx,pny,n4*nsnw)     ! snow flake mass tendecy
 
       REAL, INTENT(inout) :: pa_gaerot(pnz,pnx,pny,5)         ! Gaseous tracer tendency
       REAL, INTENT(inout) :: rt(pnz,pnx,pny)                  ! Water vapour tendency
@@ -137,7 +137,7 @@ CONTAINS
 
       INTEGER :: jj,ii,kk,ss,str,end, nc,vc
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
-              in_w(kbdim,klev), in_rsi(kbdim,klev), in_pdn(kbdim,klev)
+              in_w(kbdim,klev), in_rsi(kbdim,klev)
       REAL :: rv_old(kbdim,klev)
 
       ! Number is always set, but mass can be uninitialized
@@ -166,7 +166,6 @@ CONTAINS
                ! Set inputs
                in_p(1,1) = press(kk,ii,jj)
                in_t(1,1) = tk(kk,ii,jj)
-               in_pdn(1,1) = pdn(kk,ii,jj)
                in_rs(1,1) = rs(kk,ii,jj)
                in_rsi(1,1) = rsi(kk,ii,jj)
                in_w(1,1) = wp(kk,ii,jj)
@@ -502,7 +501,7 @@ CONTAINS
                           zgso4,  zgocnv, zgocsv, zghno3,        &
                           zgnh3,  aero,   cloud,  precp,         &
                           ice,    snow,                          &
-                          actd,   in_w,  prtcl, level, in_pdn   )
+                          actd,   in_w,  prtcl, level  )
 
                ! Calculate tendencies (convert back to #/kg or kg/kg)
                pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &

@@ -1,6 +1,6 @@
 !----------------------------------------------------------------------------
 ! This file is part of UCLALES.
-!testi
+!
 ! UCLALES is free software; you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation; either version 3 of the License, or
@@ -190,7 +190,7 @@ CONTAINS
                        a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                        a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                        a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl,             &
-                       a_rsi, a_temp0
+                       a_rsi
 
       USE stat, ONLY : sflg, statistics
       USE sgsm, ONLY : diffuse
@@ -258,17 +258,9 @@ CONTAINS
             CALL update_sclrs
             CALL tend0(.TRUE.)
 
-            ! Rate of change in absolute temperature (for some ice processes)
-            IF (time >= 1.) THEN
-               a_temp0 = a_temp
-            ELSE IF (time == 0.) THEN
-               a_temp0 = a_temp
-               ztkt = 0.
-            END IF
-
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                ! 1D -runs
-               CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_tempa_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &
+               CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &
                               a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                               a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                               a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -595,7 +587,7 @@ CONTAINS
        rv = a_rp ! Water vapor
        rc = a_rc + a_srp + a_ri + a_srs ! Total condensed water (aerosol+cloud+precipitation+ice+snow)
       END IF
-    call boyanc(nzp,nxp,nyp,a_wt,a_theta,rv,th00,a_tmp1,rc)
+      call boyanc(nzp,nxp,nyp,a_wt,a_theta,rv,th00,a_tmp1,rc)
 
       CALL ae1mm(nzp,nxp,nyp,a_wt,awtbar)
       CALL update_pi1(nzp,awtbar,pi1)
@@ -611,12 +603,10 @@ CONTAINS
 
       USE defs, ONLY : g, ep2
 
-      INTEGER, INTENT(in) :: n1,n2,n3,level
+      INTEGER, INTENT(in) :: n1,n2,n3
       REAL, INTENT(in)    :: th00,th(n1,n2,n3),  &
-                             rv(n1,n2,n3)  ! water vapor
-                                      
-      REAL, INTENT(in)    :: rc(n1,n2,n3)  ! Total condensed water (aerosol, cloud, rain, ice and snow) mixing ratio
-                                           ! and cloud liquid water mix rat for level = 4 (including rain??)
+                           rv(n1,n2,n3), &  ! Total water vapour mixing ratio
+                           rc(n1,n2,n3)     ! Total condensed water (aerosol, cloud, rain, ice and snow) mixing ratio
       REAL, INTENT(inout) :: wt(n1,n2,n3)
       REAL, INTENT(out)   :: scr(n1,n2,n3)
 
@@ -625,8 +615,8 @@ CONTAINS
 
       gover2 = 0.5*g
 
-    do j=3,n3-2
-       do i=3,n2-2
+      do j=3,n3-2
+        do i=3,n2-2
           do k=1,n1
              scr(k,i,j)=gover2*((th(k,i,j)*(1.+ep2*rv(k,i,j))-th00)/th00-rc(k,i,j))
           end do
@@ -634,8 +624,8 @@ CONTAINS
           do k=2,n1-2
              wt(k,i,j)=wt(k,i,j)+scr(k,i,j)+scr(k+1,i,j)
           end do
-       end do
-    end do
+        end do
+      end do
 
    END SUBROUTINE boyanc
    !
@@ -885,7 +875,7 @@ CONTAINS
                       ENDDO
                       if (ba==0) STOP 'FAIL: no sink for evaporating rain drops'
 
-                      ! Move the number of particles from cloud to aerosol bins
+                      ! Move the number of particles from precipitation to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nprecpp(k,i,j,bc)
                       a_nprecpp(k,i,j,bc) = 0.
 
@@ -965,7 +955,7 @@ CONTAINS
                       ENDDO
                       if (ba==0) STOP 'FAIL: no sink for evaporating snow'
 
-                      ! Move the number of particles from cloud to aerosol bins
+                      ! Move the number of particles from snow to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nsnowp(k,i,j,bc)
                       a_nsnowp(k,i,j,bc) = 0.
 

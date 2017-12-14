@@ -60,7 +60,7 @@ CONTAINS
 
       CALL define_parm
 
-      IF (level >= 4) CALL define_salsa ! Read SALSA namelist etc.
+      IF (level >= 4) CALL define_salsa(level) ! Read SALSA namelist etc.
 
       IF (level >= 4) CALL salsa_initialize ! All salsa variables are now initialized
 
@@ -154,7 +154,7 @@ CONTAINS
          useMcICA,                 & ! Use the Monte Carlo Independent Column Approximation method (T/F)
          RadConstPress,            & ! keep constant pressure levels (T/F) 
          RadPrecipBins,            & ! add precipitation bins cloud water (0, 1, 2, 3,...)
-	     RadSnowBins
+	     RadSnowBins              ! add snow bins to cloud ice (0, 1, 2, 3,...)
 
       NAMELIST /nudge/   &
          nudge_time,                       & ! Total nudging time (independent of spin-up)
@@ -185,11 +185,15 @@ CONTAINS
       !
       OPEN  (1,status='old',file='NAMELIST')
       REWIND(1)
-      READ  (1, nml=model) 
-      REWIND(1)
-      READ  (1, nml=nudge) 
-      REWIND(1)
-      READ  (1, nml=emission)
+      READ  (1, nml=model)
+      IF (lnudging) THEN
+        REWIND(1)
+        READ  (1, nml=nudge)
+      ENDIF
+      IF (lemission) THEN
+        REWIND(1)
+        READ  (1, nml=emission)
+      ENDIF
       REWIND(1)
       READ  (1, nml=version) 
       CLOSE(1)

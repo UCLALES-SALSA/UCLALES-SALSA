@@ -914,7 +914,7 @@ CONTAINS
    !   PK97  Pruppacher and Klett, Microphysics of Clouds and Precipitation, 1997
    !***********************************************
 
-   SUBROUTINE ice_nucl_driver(kbdim,klev,   &
+   SUBROUTINE ice_nucl_driver(kproma,kbdim,klev,   &
                               paero,pcloud,pprecp,pice,psnow, &
                               ptemp,ppres,prv,prsi,ptstep )
 
@@ -930,7 +930,7 @@ CONTAINS
 
      IMPLICIT NONE
 
-     INTEGER, INTENT(in) :: kbdim,klev
+     INTEGER, INTENT(in) :: kproma,kbdim,klev
      REAL, INTENT(in) :: ptstep
      REAL, INTENT(in) :: ptemp(kbdim,klev),  &
                          ppres(kbdim,klev),  &
@@ -1267,43 +1267,45 @@ CONTAINS
    ! Ice given hard coded conditions where the ice particle number concentration is kept over given limit #/kg
    !
    !***********************************************
-   SUBROUTINE ice_fixed_NC(kbdim,  klev,   &
-                           pcloud,  pice,   &
-                           prv,  prsi,    &
-                           pdn    )
+   SUBROUTINE ice_fixed_NC(kproma, kbdim,  klev,   &
+                           pcloud, pice,   &
+                           ptemp, ppres, prv, prsi)
 
      USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
                                nice,        &
                                rhowa,       &
+                               rda,         &
                                nlim, fixinc
 
      IMPLICIT NONE
-     INTEGER, INTENT(in) :: kbdim,klev
+     INTEGER, INTENT(in) :: kproma,kbdim,klev
 
      REAL, INTENT(in) :: &
+                            ptemp(kbdim,klev),    &
+                            ppres(kbdim,klev),    &
                             prv(kbdim,klev),    &
-                            prsi(kbdim,klev),   &
-                            pdn(kbdim, klev)       ! air density
+                            prsi(kbdim,klev)
      TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
                                        pice(kbdim,klev,nice)
 
      INTEGER :: ii,jj,kk,ss
 
-     REAL :: iceSupSat, rc_tot, Ni0,  &
+     REAL :: pdn, iceSupSat, rc_tot, Ni0,  &
              sumICE, iceTendecyNumber, liqToIceTendecyFrac
 
      DO ii = 1,kbdim
         DO jj = 1,klev
+           pdn=ppres(ii,jj)/(rda*ptemp(ii,jj)) ! Air density (kg/m^3)
 
            iceSupSat = prv(ii,jj) / prsi(ii,jj)  - 1.0 ! ice supersaturation
-           rc_tot = sum( pcloud(ii,jj,:)%volc(8) )*rhowa/pdn(ii,jj) ! cloud water mixing ratio (kg/kg)
+           rc_tot = sum( pcloud(ii,jj,:)%volc(8) )*rhowa/pdn ! cloud water mixing ratio (kg/kg)
 
            ! conditions for ice nucleation
            IF ( icesupsat < 0.05 .OR. rc_tot < 0.001e-3  ) CYCLE
 
            ! target number concentration of ice, converted to #/m^3
-           Ni0     = fixinc * pdn(ii,jj)
+           Ni0     = fixinc * pdn
 
            ! current ice number concentration (#/m^3)
            sumICE    = SUM(   pice(ii,jj,:)%numc )
@@ -1334,7 +1336,7 @@ CONTAINS
 
    ! ------------------------------------------------------------
 
-   SUBROUTINE ice_melt(kbdim,klev,   &
+   SUBROUTINE ice_melt(kproma,kbdim,klev,   &
                        pcloud,pice,pprecp,psnow, &
                        ptemp )
 
@@ -1348,7 +1350,7 @@ CONTAINS
 
      IMPLICIT NONE
 
-     INTEGER, INTENT(in) :: kbdim,klev
+     INTEGER, INTENT(in) :: kproma,kbdim,klev
      REAL, INTENT(in) :: ptemp(kbdim,klev)
 
      TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
@@ -1398,7 +1400,7 @@ CONTAINS
 
    END SUBROUTINE ice_melt
 
-   SUBROUTINE autosnow(kbdim,klev,   &
+   SUBROUTINE autosnow(kproma,kbdim,klev,   &
                        pice,psnow,ptstep )
    !
    ! Uses a more straightforward method for converting ice to snow.
@@ -1409,11 +1411,13 @@ CONTAINS
      USE mo_submctl, ONLY : t_section,   &
                                nice,        &
                                nsnw,        &
+                               pi6,         &
                                rhosn, rhoic,       &
                                prlim
      IMPLICIT NONE
 
-     INTEGER, INTENT(in) :: kbdim,klev
+     INTEGER, INTENT(in) :: kproma,kbdim,klev
+     REAL, INTENT(in) :: ptstep
      TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice)
      TYPE(t_section), INTENT(inout) :: psnow(kbdim,klev,nsnw)
 
@@ -1454,7 +1458,7 @@ CONTAINS
                        pice(ii,jj,cc)%volc(ss) = pice(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
                     END DO
                     psnow(ii,jj,cc)%volc(8) = psnow(ii,jj,cc)%volc(8) + pice(ii,jj,cc)%volc(8)*(Vrem/Vtot)*rhoic/rhosn
-                    pice(ii,jj,cc)%volc(8) = pice(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot)
+                    pice(ii,jj,cc)%volc(8) = pice(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot))
 
                     psnow(ii,jj,cc)%numc = psnow(ii,jj,cc)%numc + Nrem
                     pice(ii,jj,cc)%numc = pice(ii,jj,cc)%numc - Nrem

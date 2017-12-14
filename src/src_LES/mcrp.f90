@@ -31,6 +31,7 @@ MODULE mcrp
                     snowin,    prtcl, calc_eff_radius
    USE thrm, ONLY : thermo
    USE stat, ONLY : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
+   USE mo_submctl, ONLY : terminal_vel
    IMPLICIT NONE
 
    LOGICAL, PARAMETER :: droplet_sedim = .FALSE., khairoutdinov = .FALSE.
@@ -545,17 +546,17 @@ CONTAINS
       REAL :: prnt(n1,n2,n3,nprc), prvt(n1,n2,n3,n4*nprc)     ! Number and mass tendencies due to fallout
       REAL :: srnt(n1,n2,n3,nsnw), srvt(n1,n2,n3,n4*nsnw)     ! Number and mass tendencies due to fallout
 
-      ! PArticle removal arrays, given in kg/(m2 s)
+      ! Particle mass removal arrays, given in kg/(m2 s)
       REAL :: remaer(n2,n3,n4*nbins),   &
               remcld(n2,n3,n4*ncld),    &
               remprc(n2,n3,n4*nprc),    &
               remice(n2,n3,n4*nice),    &
               remsnw(n2,n3,n4*nsnw)
 
-    ! Particle number removal arrays
-    REAL :: andep(n2,n3,nbins),     &
-            cndep(n2,n3,ncld),      &
-            indep(n2,n3,nice)
+      ! Particle number removal arrays
+      REAL :: andep(n2,n3,nbins),     &
+              cndep(n2,n3,ncld),      &
+              indep(n2,n3,nice)
 
       REAL :: mctmp(n2,n3) ! Helper for mass conservation calculations
 
@@ -637,7 +638,7 @@ CONTAINS
       ! ---------------------------------------------------------
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
       IF (sed_precp) THEN
-         CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,rowt,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate)
+         CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,rowt,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate,3)
 
          nprecpt(:,:,:,:) = nprecpt(:,:,:,:) + prnt(:,:,:,:)/tstep
          mprecpt(:,:,:,:) = mprecpt(:,:,:,:) + prvt(:,:,:,:)/tstep
