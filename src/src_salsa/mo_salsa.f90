@@ -20,7 +20,7 @@ CONTAINS
                    pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,    &
                    pc_nh3,   paero,    pcloud,  pprecp,     &
                    pice, psnow,                             &
-                   pactd,    pw,    prtcl, level, pdn      )
+                   pactd,    pw,    prtcl, level )
 
     USE mo_salsa_dynamics, only : coagulation, condensation
     USE mo_salsa_update, ONLY : distr_update
@@ -59,8 +59,7 @@ CONTAINS
     REAL, INTENT(in) ::            &
          ppres(kbdim,klev),            & ! atmospheric pressure at each grid point [Pa]
          ptemp(kbdim,klev),            & ! temperature at each grid point [K]
-         ptstep,                       & ! time step [s]
-         pdn(kbdim,klev)                 ! air density
+         ptstep                          ! time step [s]
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl
 
@@ -127,8 +126,7 @@ CONTAINS
     IF (lsfixinc) &
           CALL  ice_fixed_NC(kproma, kbdim, klev,   &
                              pcloud,   pice,   &
-                             prv,    prsi,    &
-                             pdn     )
+                             ptemp,  ppres,  prv,  prsi)
 
     ! Ice nucleation
     IF (lsicenucl) &

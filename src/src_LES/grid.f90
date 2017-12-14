@@ -164,7 +164,7 @@ module grid
   !
   real, allocatable, dimension (:,:,:) :: a_rflx, a_sflx, &
        a_fus, a_fds, a_fuir, a_fdir, &
-       a_temp, a_temp0 ! store temperatures of previous timestep
+       a_temp
   !
   !
   real, allocatable :: a_ustar(:,:)
@@ -273,9 +273,8 @@ contains
        memsize = memsize + nxyzp + nxyp + 4*nxyp
     end if
 
-    allocate (a_temp(nzp,nxp,nyp),a_temp0(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp))
+    allocate (a_temp(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp))
     a_temp(:,:,:) = 0.
-    a_temp0(:,:,:) = 0.
     a_rsl(:,:,:) = 0.
     memsize = memsize + nxyzp*3
 

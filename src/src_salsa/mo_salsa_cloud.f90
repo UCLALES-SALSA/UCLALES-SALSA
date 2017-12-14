@@ -1282,43 +1282,45 @@ CONTAINS
   !***********************************************
   SUBROUTINE ice_fixed_NC(kproma, kbdim,  klev,   &
                           pcloud,  pice,   &
-                          prv,  prsi,    &
-                          pdn    )
+                          ptemp,  ppres,  prv,  prsi)
 
 
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
                                nice,        &
                                rhowa,       &
+                               rda,         &
                                nlim, fixinc
 
     IMPLICIT NONE
     INTEGER, INTENT(in) :: kproma,kbdim,klev
 
     REAL, INTENT(in) :: &
+                            ptemp(kbdim,klev),    &
+                            ppres(kbdim,klev),    &
                             prv(kbdim,klev),    &
-                            prsi(kbdim,klev),   &
-                            pdn(kbdim, klev)       ! air density
+                            prsi(kbdim,klev)
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
                                       pice(kbdim,klev,nice)
 
     INTEGER :: ii,jj,kk,ss
 
-    REAL :: iceSupSat, rc_tot, Ni0,  &
+    REAL :: pdn, iceSupSat, rc_tot, Ni0,  &
             sumICE, iceTendecyNumber, liqToIceTendecyFrac
 
 
     DO ii = 1,kbdim
     DO jj = 1,klev
+        pdn=ppres(ii,jj)/(rda*ptemp(ii,jj)) ! Air density (kg/m^3)
 
         iceSupSat = prv(ii,jj) / prsi(ii,jj)  - 1.0 ! ice supersaturation
-        rc_tot = sum( pcloud(ii,jj,:)%volc(8) )*rhowa/pdn(ii,jj) ! cloud water mixing ratio (kg/kg)
+        rc_tot = sum( pcloud(ii,jj,:)%volc(8) )*rhowa/pdn ! cloud water mixing ratio (kg/kg)
 
         ! conditions for ice nucleation
         if ( icesupsat < 0.05 .OR. rc_tot < 0.001e-3  ) cycle
 
         ! target number concentration of ice, converted to #/m^3
-        Ni0     = fixinc * pdn(ii,jj)
+        Ni0     = fixinc * pdn
 
         ! current ice number concentration (#/m^3)
         sumICE    = sum(   pice(ii,jj,:)%numc )

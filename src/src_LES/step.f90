@@ -200,7 +200,7 @@ end subroutine tstep_reset
                      a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                      a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl,    &
-                     sst, a_rsi, a_temp0
+                     sst, a_rsi
 
 
     use stat, only : sflg, statistics
@@ -272,13 +272,6 @@ end subroutine tstep_reset
           CALL tend_constrain(n4)
           call update_sclrs
           CALL tend0(.TRUE.)
-
-          ! Rate of change in absolute temperature (for some ice processes)
-          if (time >= 1.) then
-             a_temp0 = a_temp
-          else if (time == 0.) then
-             a_temp0 = a_temp
-          end if
 
           IF ( nxp ==5 .and. nyp == 5 ) THEN
              ! 1D -runs
@@ -1166,7 +1159,7 @@ end subroutine tstep_reset
                       ENDDO
                       if (ba==0) STOP 'FAIL: no sink for evaporating snow'
 
-                      ! Move the number of particles from cloud to aerosol bins
+                      ! Move the number of particles from snow to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nsnowp(k,i,j,bc)
                       a_nsnowp(k,i,j,bc) = 0.
 

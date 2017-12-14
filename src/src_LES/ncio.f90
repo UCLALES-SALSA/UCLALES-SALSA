@@ -2147,7 +2147,7 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztcla'
     case('P_OCca')
-       if (itype==0) ncinfo = 'MAss mixing ratio of Oc in cloud bins A'
+       if (itype==0) ncinfo = 'Mass mixing ratio of OC in cloud bins A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztcla'
     case('P_BCca')
@@ -2243,7 +2243,7 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztica'
     case('P_OCia')
-       if (itype==0) ncinfo = 'MAss mixing ratio of Oc in ice bins A'
+       if (itype==0) ncinfo = 'Mass mixing ratio of OC in ice bins A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztica'
     case('P_BCia')
