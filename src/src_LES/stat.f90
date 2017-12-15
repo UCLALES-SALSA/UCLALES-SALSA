@@ -991,7 +991,7 @@ contains
     real, intent(in)    :: dn0(n1),zt(n1),dzm(n1)
 
     ssclr(13) = ssclr(13)*alvl*(dn0(1)+dn0(2))*0.5
-    ssclr(14) = get_zi(n1, n2, n3, 1, q, dzm, zt, 0.5e-3)
+    ssclr(14) = get_zi(n1, n2, n3, 2, q, dzm, zt, 0.5e-3)
 
   end subroutine ts_lvl1
   !

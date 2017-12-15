@@ -293,7 +293,6 @@ end subroutine tstep_reset
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
                   zrm, prtcl, dtlt, level  )
-             
           END IF !nxp==5 and nyp == 5
 
           CALL tend_constrain(n4)

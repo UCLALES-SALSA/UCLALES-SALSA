@@ -1101,7 +1101,7 @@ CONTAINS
 
               frac = MIN(1.,pf)
               IF (paero(ii,jj,kk)%numc*frac <prlim) CYCLE
-  
+
               DO ss = 1,7
                    pice(ii,jj,kk)%volc(ss) = max(0.,pice(ii,jj,kk)%volc(ss) + paero(ii,jj,kk)%volc(ss)*frac)
                    paero(ii,jj,kk)%volc(ss) = max(0.,paero(ii,jj,kk)%volc(ss) - paero(ii,jj,kk)%volc(ss)*frac)
