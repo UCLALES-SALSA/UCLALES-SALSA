@@ -1180,7 +1180,7 @@ end subroutine tstep_reset
                 IF (a_naerop(k,i,j,ba) > nlim) THEN
                    zvol = SUM( a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins)/dens(1:nn-1) )/a_naerop(k,i,j,ba) ! Dry volume
 
-                   ! Particles smaller then 0.1 nm diameter are set to zero 
+                   ! Particles smaller than 0.1 nm diameter are set to zero
                    IF ( zvol < pi6*1.e-10**3 ) THEN
                       ! Volatile species to the gas phase
                       IF (IsUsed(prtcl,'SO4') .AND. lscndgas) THEN

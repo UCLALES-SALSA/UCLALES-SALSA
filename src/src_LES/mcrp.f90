@@ -721,7 +721,7 @@ contains
     REAL, INTENT(in) :: tk(n1,n2,n3)         ! Absolute temprature
     REAL, INTENT(in) :: adn(n1,n2,n3)        ! Air density
     REAL, INTENT(in) :: pdn                  ! Particle density
-    REAL, INTENT(in) :: ustar(n2,n3)    !
+    REAL, INTENT(in) :: ustar(n2,n3)         ! Friction velocity
     REAL, INTENT(in) :: numc(n1,n2,n3,nn)    ! Particle number concentration
     REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4) ! Particle mass mixing ratio
     REAL, INTENT(in) :: dzt(n1)              ! Inverse of grid level thickness

@@ -878,7 +878,7 @@ contains
           sn=0.
           do k=2,n1
              IF (ni(k,i,j) > prlim .AND. ri(k,i,j) > 1.e-15) THEN
-                ! Icy grid
+                ! Icy grid cell
                 iwp(i,j)=iwp(i,j)+ri(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
                 ! Volume weighted average of the ice number concentration
                 nice(i,j)=nice(i,j)+ni(k,i,j)*dn0(k)*(zm(k)-zm(k-1))

@@ -94,16 +94,16 @@ IMPLICIT NONE
 
     REAL, INTENT(in)    :: pdn(pnz,pnx,pny)             ! Air density (for normalizing concentrations)
 
-    REAL, INTENT(in)    :: pa_naerop(pnz,pnx,pny,nbins),        & ! aerosol number concentration (# kg-1)
-                               pa_maerop(pnz,pnx,pny,n4*nbins),     & ! aerosol mass concentration (kg kg-1)
+    REAL, INTENT(in)    :: pa_naerop(pnz,pnx,pny,nbins),        & ! Aerosol number concentration (# kg-1)
+                               pa_maerop(pnz,pnx,pny,n4*nbins),     & ! Aerosol mass concentration (kg kg-1)
                                pa_ncloudp(pnz,pnx,pny,ncld),        & ! Cloud droplet number concentration (# kg-1)
                                pa_mcloudp(pnz,pnx,pny,n4*ncld),     & ! Cloud droplet mass concentration (kg kg-1)
                                pa_nprecpp(pnz,pnx,pny,nprc),        & ! Rain drop number concentration (# kg-1)
                                pa_mprecpp(pnz,pnx,pny,n4*nprc),     & ! Rain drop mass concentration (kg kg-1)
-                               pa_nicep(pnz,pnx,pny,nice),          & ! ice number concentration (# kg-1)
-                               pa_micep(pnz,pnx,pny,n4*nice),       & ! ice mass concentration (kg kg-1)
-                               pa_nsnowp(pnz,pnx,pny,nsnw),         & ! snow number concentration (# kg-1)
-                               pa_msnowp(pnz,pnx,pny,n4*nsnw)         ! snow mass concentration (kg kg-1)
+                               pa_nicep(pnz,pnx,pny,nice),          & ! Ice number concentration (# kg-1)
+                               pa_micep(pnz,pnx,pny,n4*nice),       & ! Ice mass concentration (kg kg-1)
+                               pa_nsnowp(pnz,pnx,pny,nsnw),         & ! Snow number concentration (# kg-1)
+                               pa_msnowp(pnz,pnx,pny,n4*nsnw)         ! Snow mass concentration (kg kg-1)
 
     REAL, INTENT(in)    :: pa_gaerop(pnz,pnx,pny,5)         ! Gaseous tracers [# kg]
 
@@ -122,8 +122,8 @@ IMPLICIT NONE
                                  pa_mprecpt(pnz,pnx,pny,n4*nprc),   & ! Rain drop mass tendency
                                  pa_nicet(pnz,pnx,pny,nice),        & ! Ice number tendency
                                  pa_micet(pnz,pnx,pny,n4*nice),     & ! Ice mass tendency
-                                 pa_nsnowt(pnz,pnx,pny,nsnw),       & ! snow number tendency
-                                 pa_msnowt(pnz,pnx,pny,n4*nsnw)       ! snow mass tendecy
+                                 pa_nsnowt(pnz,pnx,pny,nsnw),       & ! Snow number tendency
+                                 pa_msnowt(pnz,pnx,pny,n4*nsnw)       ! Snow mass tendency
 
     REAL, INTENT(inout)   :: pa_gaerot(pnz,pnx,pny,5)         ! Gaseous tracer tendency
     REAL, INTENT(inout)   :: rt(pnz,pnx,pny)                  ! Water vapour tendency
