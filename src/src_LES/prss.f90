@@ -74,8 +74,6 @@ contains
     !
     call asselin(2)
     call velocity_bcs
-    call get_diverg(nzp,nxp,nyp,ix,iy,s1,a_up,a_vp,a_wp,dn0,dzt,dxi,dyi,  &
-            dtlt,mxdiv)
 
     if (sflg) then
        call get_diverg(nzp,nxp,nyp,ix,iy,s1,a_up,a_vp,a_wp,dn0,dzt,dxi,dyi,  &

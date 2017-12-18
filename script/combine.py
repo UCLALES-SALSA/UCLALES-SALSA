@@ -51,12 +51,12 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 	# a) Averages - when the ouput should be the average over model domain
 	#	Note: this is the 'default' method
 	# b) Maximums - when the output should be the maximum over all model grid cells
-	maxnms = ['zc','cfl','maxdiv','wmax','lmax']
+	maxnms = ['zc','cfl','maxdiv','wmax','lmax','imax','smax']
 	# c) Minimum - when the output should be the minimum over all model grid cells
 	minnms = ['zb']
 	# d) Sums - when the output is the sum over model grid cells
 	#	Note: the output really depends on the number of grid cells!
-	sumnms = ['nrcnt','nccnt','cnt_cs1','cnt_cs2']
+	sumnms = ['nrcnt','nccnt','cnt_cs1','cnt_cs2','nicnt','nscnt']
 	# e) Weighted averages (weights must be specified below) - needed for conditional averages
 	#	Note: weight ~ conditinal coverage
 	weighted = []
@@ -366,7 +366,7 @@ def reduce_full(infile,imax,jmax,var_list):
 	def set_values(out,inp,pointer):
 		if len(pointer)==1:
 			# Vector
-			out[pointer:pointer+len(inp)]=inp
+			out[pointer[0]:pointer[0]+len(inp)]=inp
 		elif len(pointer)==2:
 			# 2D
 			out[pointer[0]:pointer[0]+inp.shape[0],pointer[1]:pointer[1]+inp.shape[1]]=inp
@@ -419,7 +419,7 @@ def reduce_full(infile,imax,jmax,var_list):
 	# a) Dimensions
 	# Generate a map based on dimensions
 	indices=numpy.empty([len(dim_list),imax,jmax], dtype=int)
-	sizes=numpy.zeros(len(dim_list))
+	sizes=numpy.zeros(len(dim_list),dtype=int)
 	k=0
 	print 'Creating dimensions...'
 	for name in dim_list:

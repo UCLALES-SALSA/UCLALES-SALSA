@@ -60,7 +60,7 @@ contains
 
     call define_parm
 
-    IF (level >= 4) CALL define_salsa ! Read SALSA namelist etc.
+    IF (level >= 4) CALL define_salsa(level) ! Read SALSA namelist etc.
 
     IF (level >= 4) CALL salsa_initialize ! All salsa variables are now initialized
 
@@ -99,12 +99,12 @@ contains
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
          Tspinup,sst, lbinanl
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
-         zrand
+         zrand, zrndamp
     use stat, only : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
     USE forc, ONLY : radsounding, &        ! Juha: added for radiation background profile
                      div, case_name, &     ! Divergence, forcing case name
                      sfc_albedo, &         ! Surface albedo
-                     useMcICA,RadConstPress,RadPrecipBins
+                     useMcICA,RadConstPress,RadPrecipBins,RadSnowBins
     USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, appl_abort, ver, author
 
@@ -123,7 +123,7 @@ contains
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          level  , CCN    , & ! Microphysical model Number of CCN per kg of air
-         iseed  , zrand  , & ! random seed
+         iseed  , zrand  , zrndamp, & ! random seed
          nxp    , nyp    , nzp   ,  & ! number of x, y, z points
          deltax , deltay , deltaz , & ! delta x, y, z (meters)
          dzrat  , dzmax  , igrdtyp, & ! stretched grid parameters
@@ -149,7 +149,8 @@ contains
          sfc_albedo,                  & ! Surface albedo
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
          RadConstPress,      & ! keep constant pressure levels (T/F),
-         RadPrecipBins,      & ! add precipitation bins cloud water (0, 1, 2, 3,...)
+         RadPrecipBins,      & ! add precipitation bins to cloud water (0, 1, 2, 3,...)
+         RadSnowBins,        & ! add snow bins to cloud ice (0, 1, 2, 3,...)
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
 
     namelist /version/  &

@@ -66,7 +66,6 @@ CONTAINS
          in1a, fn1a,  & ! size regime bin indices: 1a
          in2a, fn2a,  & !     - " -       2a
          in2b, fn2b,  & !     - " -       2b
-         nbin2, nbin3,& !
          nbins,  &
          aerobins
 
@@ -78,8 +77,11 @@ CONTAINS
 
     !-- local variables ----------
     INTEGER :: ii, jj,cc,dd,vv ! loop indices
-
+    INTEGER :: nbin2, nbin3
     REAL ::  ratio ! ratio of regime upper and lower diameter
+
+    nbin2 = 4
+    nbin3 = nbin(2) - nbin2
 
     ! -------------------------
     ! Allocate aerosol tracers
@@ -185,10 +187,8 @@ CONTAINS
                                fca,fcb,         &
                                ira,fra,         &
                                ncld,nprc,        &
-                               ncldbin,         &
-                               dmincld,         &
-                               in1a,fn2a,       &
-                               in2b,fn2b,       &
+                               in2a,fn2a,       &
+                               fn2b,       &
                                cloudbins,       &
                                precpbins
     USE mo_salsa_driver, ONLY : kbdim, klev, &
@@ -196,14 +196,7 @@ CONTAINS
 
     IMPLICIT NONE
 
-    INTEGER :: ii,jj,cc,bb
-
-    ! For cloud bins
-    REAL :: zvoldiff(fn2a)
-    INTEGER :: zindex(fn2a)
-    INTEGER :: imin, nba,nbb
-    INTEGER :: armin(1)
-    LOGICAL :: l_min(fn2a)
+    INTEGER :: ii,jj,cc,bb,nba,nbb
 
     REAL :: tmplolim(7), tmphilim(7)
 
@@ -211,40 +204,19 @@ CONTAINS
     tmplolim = (/50.,55.,65.,100.,200.,500.,1000./)*1.e-6
     tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
 
-    ! For setting cloud droplet bins
-    DO ii = in1a,fn2a
-       zindex(ii) = ii
-    END DO
+    ! Cloud bins are parallel with the 2a and 2b aerosol bins
 
-    ! Determine the smallest full aerosol bin with which the smallest cloud droplet bin will coincide
-    zvoldiff(in1a:fn2a) = ABS(aero(1,1,in1a:fn2a)%vlolim - pi6*dmincld**3)
-    l_min = ( zvoldiff(in1a:fn2a) == MINVAL(zvoldiff(in1a:fn2a)) )
-    IF (COUNT(l_min) /= 1) STOP 'Initialization error! Try changing the cloud droplet bin lower bound slightly'
-    armin = PACK(zindex,l_min)
-    imin = armin(1)
-    IF (aero(1,1,imin)%vlolim < pi6*dmincld**3) imin=imin+1
-    IF (imin < in1a .OR. imin > fn2a) STOP 'Invalid first cloud bin'
-
-    ! Number of cloud bins in regime a (soluble nuclei)
-    nba = fn2a-imin+1
-    ! Number of cloud bins in regime b (insoluble nuclei)
-    IF (aero(1,1,imin)%dmid > aero(1,1,in2b)%dmid) THEN
-       ! All cloud bins are within regime 2
-       nbb = nba
-    ELSE
-       ! The smallest regime a cloud bins go to regime 1
-       nbb = fn2b-fn2a
-    END IF
-
-    ncldbin(1) = nba
-    ncldbin(2) = nbb
+    ! Number of cloud bins in regime a
+    nba = fn2a-in2a+1
+    ! Number of cloud bins in regime b
+    nbb = nba
 
     ! Reset cloud bin indices accordingly. The two components give the cloud regime index,
     ! and the aerosol bin index with which they are parallel
-    ica%cur = 1;                      ica%par = imin
-    fca%cur = ica%cur + ncldbin(1)-1; fca%par = ica%par + ncldbin(1)-1
-    icb%cur = fca%cur + 1;            icb%par = fn2b - ncldbin(2) + 1
-    fcb%cur = icb%cur + ncldbin(2)-1; fcb%par = icb%par + ncldbin(2)-1
+    ica%cur = 1;                      ica%par = in2a
+    fca%cur = ica%cur + nba-1; fca%par = ica%par + nba-1
+    icb%cur = fca%cur + 1;            icb%par = fn2b - nbb + 1
+    fcb%cur = icb%cur + nbb-1; fcb%par = icb%par + nbb-1
 
     ncld = fcb%cur
 
@@ -290,7 +262,6 @@ CONTAINS
           END DO
           cloud(ii,jj,ica%cur:fcb%cur)%numc = 0.
           cloud(ii,jj,ica%cur:fcb%cur)%core = 0.
-          cloud(ii,jj,ica%cur:fcb%cur)%veqh2o = 0.
 
           ! ---------------------------------------------------------------------------------------
           ! Set the precipitation properties; unlike aerosol and cloud bins, the size distribution
@@ -312,7 +283,6 @@ CONTAINS
              END DO
              precp(ii,jj,bb)%numc = 0.
              precp(ii,jj,bb)%core = 0.
-             precp(ii,jj,bb)%veqh2o = 0.
 
           END DO
 
@@ -350,10 +320,8 @@ CONTAINS
                                fia,fib,         &
                                isa,fsa,         &
                                nice,nsnw,        &
-                               nicebin,         &
-                               dminice,         &
-                               in1a,fn2a,       &
-                               in2b,fn2b,       &
+                               in2a,fn2a,       &
+                               fn2b,       &
                                icebins,         &
                                snowbins
     USE mo_salsa_driver, ONLY : kbdim, klev, &
@@ -361,14 +329,7 @@ CONTAINS
 
     IMPLICIT NONE
 
-    INTEGER :: ii,jj,cc,bb
-
-    ! For ice bins
-    REAL :: zvoldiff(fn2a)
-    INTEGER :: zindex(fn2a)
-    INTEGER :: imin, nba,nbb
-    INTEGER :: armin(1)
-    LOGICAL :: l_min(fn2a)
+    INTEGER :: ii,jj,cc,bb,nba,nbb
 
     REAL :: tmplolim(7), tmphilim(7)
 
@@ -376,40 +337,17 @@ CONTAINS
     tmplolim = (/50.,55.,65., 100.,200.,500., 1000./)*1.e-6
     tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
 
-    ! For setting ice particle bins
-    DO ii = in1a,fn2a
-       zindex(ii) = ii
-    END DO
-
-    ! Determine the smallest full aerosol bin with which the smallest ice particle bin will coincide
-    zvoldiff(in1a:fn2a) = ABS(aero(1,1,in1a:fn2a)%vlolim - pi6*dminice**3)
-    l_min = ( zvoldiff(in1a:fn2a) == MINVAL(zvoldiff(in1a:fn2a)) )
-    IF (COUNT(l_min) /= 1) STOP 'Initialization error! Try changing the ice particle bin lower bound slightly'
-    armin = PACK(zindex,l_min)
-    imin = armin(1)
-    IF (aero(1,1,imin)%vlolim < pi6*dminice**3) imin=imin+1
-    IF (imin < in1a .OR. imin > fn2a) STOP 'Invalid first ice bin'
-
     ! Number of ice bins in regime a (soluble nuclei)
-    nba = fn2a-imin+1
-    ! Number of cloud bins in regime b (insoluble nuclei) !!huomhuom insoluble
-    IF (aero(1,1,imin)%dmid > aero(1,1,in2b)%dmid) THEN
-       ! All cloud bins are within regime 2
-       nbb = nba
-    ELSE
-       ! The smallest regime a cloud bins go to regime 1
-       nbb = fn2b-fn2a
-    END IF
-
-    nicebin(1) = nba
-    nicebin(2) = nbb
+    nba = fn2a-in2a+1
+    ! Number of cloud bins in regime b (insoluble nuclei)
+    nbb = nba
 
     ! Reset ice bin indices accordingly. The two components give the cloud regime index,
     ! and the aerosol bin index with which they are parallel
-    iia%cur = 1;                       iia%par = imin
-    fia%cur = iia%cur + nicebin(1)-1;  fia%par = iia%par + nicebin(1)-1
-    iib%cur = fia%cur + 1;             iib%par = fn2b - nicebin(2) + 1
-    fib%cur = iib%cur + nicebin(2)-1;  fib%par = iib%par + nicebin(2)-1
+    iia%cur = 1;                       iia%par = in2a
+    fia%cur = iia%cur + nba-1;  fia%par = iia%par + nba-1
+    iib%cur = fia%cur + 1;             iib%par = fn2b - nbb + 1
+    fib%cur = iib%cur + nbb-1;  fib%par = iib%par + nbb-1
 
     nice = fib%cur
 
@@ -426,10 +364,9 @@ CONTAINS
        DO ii = 1,kbdim
 
           ! -------------------------------------------------
-          ! Set iceproperties (parallel to aerosol bins) !!!huomhuom tehdäänkö jäälle myös näin?
+          ! Set iceproperties (parallel to aerosol bins)
           ! -------------------------------------------------
           ice(ii,jj,iia%cur:fia%cur)%vhilim = aero(ii,jj,iia%par:fia%par)%vhilim
-
           ice(ii,jj,iib%cur:fib%cur)%vhilim = aero(ii,jj,iib%par:fib%par)%vhilim
 
           ice(ii,jj,iia%cur:fia%cur)%vlolim = aero(ii,jj,iia%par:fia%par)%vlolim
@@ -444,24 +381,19 @@ CONTAINS
           ice(ii,jj,iia%cur:fia%cur)%dmid = aero(ii,jj,iia%par:fia%par)%dmid
           ice(ii,jj,iib%cur:fib%cur)%dmid = aero(ii,jj,iib%par:fib%par)%dmid
 
-          ! Initialize the droplet diameter ("wet diameter") as the dry
-          ! mid diameter of the nucleus to avoid problems later. !!huomhuom mitä tehdään jäälle
+          ! Initialize the "wet" diameter as the dry mid diameter of the nucleus
           ice(ii,jj,iia%cur:fib%cur)%dwet = ice(ii,jj,iia%cur:fib%cur)%dmid
 
           ! Initialize the volume and number concentrations for ice.
-          ! First "real" values are only obtained upon the first calculation
-          ! of the cloud droplet activation. !! huomhuom
-
           DO cc = 1,8
              ice(ii,jj,iia%cur:fib%cur)%volc(cc) = 0.
           END DO
           ice(ii,jj,iia%cur:fib%cur)%numc = 0.
           ice(ii,jj,iia%cur:fib%cur)%core = 0.
-          ice(ii,jj,iia%cur:fib%cur)%veqh2o = 0.
 
           ! ---------------------------------------------------------------------------------------
           ! Set the snow properties; unlike aerosol and cloud bins, the size distribution
-          ! goes according to the *wet* radius !!huomhuom minkä säteen mukaan menee?
+          ! goes according to the "wet" radius
           ! ---------------------------------------------------------------------------------------
 
           DO bb = isa,fsa
@@ -481,7 +413,6 @@ CONTAINS
              END DO
              snow(ii,jj,bb)%numc = 0.
              snow(ii,jj,bb)%core = 0.
-             snow(ii,jj,bb)%veqh2o = 0.
 
           END DO
 
@@ -516,7 +447,7 @@ CONTAINS
   ! Juha Tonttila (FMI) 2014
   !
   !----------------------------------------------------------------------
-  SUBROUTINE define_salsa()
+  SUBROUTINE define_salsa(level)
 
     USE mo_submctl, ONLY : nlcoag,                &
                                nlcgaa,nlcgcc,nlcgpp,  &
@@ -532,26 +463,23 @@ CONTAINS
                                nlactiv,               &
                                nlactintst,            &
                                nlactbase,            &
-                               nlichom,               &
-                               nlichet,               &
-                               nlicimmers,            &
+                               nlicenucl,             &
+                               nlfixinc,              &
+                               fixINC,                &
                                nlicmelt,              &
-                               dmincld,nbin,reglim,   &
+                               nbin,reglim,           &
                                nice,nsnw,             &
                                nspec,listspec,        &
                                volDistA, volDistB,    &
-                               initliqice,            &
-                               liqFracA, iceFracA,    &
-                               liqFracB, iceFracB,    &
                                nf2a, isdtyp,          &
-                               sigmag,dpg,n,nldebug,  &
+                               sigmag,dpg,n,          &
                                rhlim
 
     IMPLICIT NONE
 
+    INTEGER, INTENT(in) :: level
 
     NAMELIST /salsa/  &
-         nldebug,     & ! switch for debug printing
          nlcoag,      & ! Coagulation master switch
          nlcgaa,      & ! Coagulation between aerosols
          nlcgcc,      & ! Collision-coalescence between cloud droplets
@@ -570,9 +498,9 @@ CONTAINS
          nlcgss,      & ! Collision-coalescence between snow particles
          nlcnd,       & ! Switch for condensation subroutine
          nlcndgas,    & ! Condensation of precursor gases
-         nlichom,     & ! Switch for homogeneous ice nucleation
-         nlichet,     & ! Switch for heterogeneous ice nucleation
-         nlicimmers,  & ! Switch for ice nucleation by immersion
+         nlicenucl,   & ! Switch for ice nucleation
+         nlfixinc,    & ! Fix ice number concentration to be over given limit fixINC
+         fixINC,      & ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
          nlicmelt,    & ! Switch for ice'n'snow melting
          nbin,        & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
          nice,        & ! number of ice bins
@@ -588,11 +516,6 @@ CONTAINS
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          reglim,        & ! Low/high diameter limits of the 2 aerosol size regimes (1d table with length 4)
          nbin,          & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
-         dmincld,       & ! Minimum hydrometeor bin diameter: the lower limit of the smallest hydrometeor bin
-                          ! is set at or above. For now this is also the only way to control the number of
-                          ! hydrometeor bins as they are assumed fully parallel with the aerosol bins.
-                          ! Implementing different bin limits for hydromets than aerosols would require
-                          ! somewhat extensive modification of the microphysical SALSA dynamics calculations
          nspec,         & ! Number of aerosol species used in the model
          listspec,      & ! List of strings specifying the names of the aerosol species that are active.
                           ! Must be an array of length 7, with empty strings for unused stuff.
@@ -601,14 +524,6 @@ CONTAINS
          volDistB,      & ! Same as above but for b-bins
          nf2a,          & ! Number fraction of particles allocated to a-bins in regime 2. b-bins will get 1-nf2a
 
-         ! ------------
-         ! -- Juha: These should eventually be replaced with physical processing !!!! Dont use for liquid clouds!
-         initliqice,  & ! initialize ice and liquid cloud particles from aerosol bins
-         liqFracA,      & ! fraction of aerosols that are activated to liquid cloud droplets in A bins
-         iceFracA,      & ! fraction of aerosols that are activated to ice cloud particles in A bins
-         liqFracB,      & ! fraction of aerosols that are activated to liquid cloud droplets  in B bins
-         iceFracB,      & ! fraction of aerosols that are activated to    ice cloud particles in B bins
-         ! ---------------------------------------------------------------------------------------------------
          rhlim,         & ! Upper limit RH/100 for sals during initialization and spinup 
 
          sigmag,        & ! Stdev for the 7 initial lognormal modes
@@ -620,6 +535,28 @@ CONTAINS
     OPEN(11,STATUS='old',FILE='NAMELIST')
     READ(11,NML=salsa)
     CLOSE(11)
+
+
+    ! if thermodynamical level is less than 5, set all ice process switches to false
+    IF(level < 5) THEN
+          nlcgia      = .false.
+          nlcgic      = .false.
+          nlcgii      = .false.
+          nlcgip      = .false.
+          nlcgsa      = .false.
+          nlcgsc      = .false.
+          nlcgsi      = .false.
+          nlcgsp      = .false.
+          nlcgss      = .false.
+
+          nlcndh2oic  = .false.
+
+          nlautosnow  = .false.
+
+          nlicenucl   = .false.
+          nlfixinc    = .false.
+          nlicmelt    = .false.
+    END IF !level
 
   END SUBROUTINE define_salsa
 
@@ -642,7 +579,7 @@ CONTAINS
     !
     !-------------------------------------------------------------------------------
 
-    USE mo_submctl, ONLY : nbin, nbin2, nbin3,     &
+    USE mo_submctl, ONLY : nbin,     &
                                in1a,fn1a,in2a,fn2a,in2b,fn2b,  &
                                nbins, &
                                massacc
@@ -652,8 +589,6 @@ CONTAINS
     ! Remember to call 'define_salsa' for namelist paramers before calling this subroutine!
 
     ! --1) Set derived indices
-    nbin2 = 4
-    nbin3 = nbin(2) - nbin2
 
     in1a = 1
     in2a = in1a + nbin(1)

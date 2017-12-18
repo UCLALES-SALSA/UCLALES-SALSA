@@ -159,7 +159,7 @@ contains
           iret = nf90_def_dim(ncID, 'icb', inice_b, icbID)
        END IF
        IF (PRESENT(insnw)) THEN
-          iret = nf90_def_dim(ncID, 'snow', insnw, snowID)
+          iret = nf90_def_dim(ncID, 'snw', insnw, snowID)
        END IF
 
        dim_tt = (/ztID,timeID/)
@@ -195,11 +195,11 @@ contains
        dim_ttztaea = (/ztID,aeaID,timeID/)
        dim_ttztaeb = (/ztID,aebID,timeID/)
        dim_ttztcla = (/ztID,claID,timeID/)
-       dim_ttztclb = (/ztID,clbId,timeID/)
+       dim_ttztclb = (/ztID,clbID,timeID/)
        dim_ttztprc = (/ztID,prcID,timeID/)
        ! Jaakko
        dim_ttztica = (/ztID,icaID,timeID/)
-       dim_ttzticb = (/ztID,icbId,timeID/)
+       dim_ttzticb = (/ztID,icbID,timeID/)
        dim_ttztsnw = (/ztID,snowID,timeID/)
 
        do n=1,nVar
@@ -234,7 +234,7 @@ contains
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,icaID   ,VarID)
           case ('icb')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,icbID   ,VarID)
-          case ('snow')
+          case ('snw')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,snowID   ,VarID)
           !Juha added
           case ('ttttaea')
@@ -289,6 +289,12 @@ contains
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttclb,VarID)
           case ('ttprc')
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttprc,VarID)
+          case ('ttica')
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttica,VarID)
+          case ('tticb')
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tticb,VarID)
+          case ('ttsnw')
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttsnw,VarID)
           case ('ttztaea')
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztaea,VarID)
           case ('ttztaeb')
@@ -299,6 +305,12 @@ contains
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztclb,VarID)
           case ('ttztprc')
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztprc,VarID)
+          case ('ttztica')
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztica,VarID)
+          case ('ttzticb')
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttzticb,VarID)
+          case ('ttztsnw')
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztsnw,VarID)
           case default
              if (myid == 0) print *, '  ABORTING: NCIO: Bad dimensional information ',trim(ncinfo(2,sx(n)))
              call appl_abort(0)
@@ -332,7 +344,7 @@ contains
   subroutine define_nc_cs(ncID, nRec, n2, n3, level, rad_level, spec_list, nspec )
     integer, intent (in) :: ncID, n2, n3, level, rad_level, nspec
     integer, intent (inout) :: nRec ! nRec=0 means new files
-    CHARACTER(LEN=3), intent (in) :: spec_list(nspec) ! SALSA species (e.g. SO4, Org,...)
+    CHARACTER(LEN=3), intent (in) :: spec_list(nspec) ! SALSA species (e.g. SO4, Org,..., H2O)
 
     integer, save :: timeID=0, xtID=0, ytID=0
     integer, save :: dim_ttt(3)
@@ -409,18 +421,6 @@ contains
 
        IF (level>=4) THEN
           ! Aerosol and water removal
-           iret=nf90_def_var(ncID,'rmH2Odr',NF90_FLOAT,dim_ttt,VarID)
-           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'rmH2Odr'))
-           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'rmH2Odr'))
-
-           iret=nf90_def_var(ncID,'rmH2Ocl',NF90_FLOAT,dim_ttt,VarID)
-           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'rmH2Ocl'))
-           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'rmH2Ocl'))
-
-           iret=nf90_def_var(ncID,'rmH2Opr',NF90_FLOAT,dim_ttt,VarID)
-           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'rmH2Opr'))
-           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'rmH2Opr'))
-
            DO ss = 1,nspec
               nam='rm'//trim(spec_list(ss))//'dr'
               iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
@@ -437,7 +437,49 @@ contains
               iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
               iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
            END DO
-       ELSEIF (level==3) THEN
+       ENDIF
+
+       IF (level>=5) THEN
+           ! Ice and snow
+           iret=nf90_def_var(ncID,'iwp',NF90_FLOAT,dim_ttt,VarID)
+           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'iwp'))
+           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'iwp'))
+
+           iret=nf90_def_var(ncID,'swp',NF90_FLOAT,dim_ttt,VarID)
+           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'swp'))
+           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'swp'))
+
+           iret=nf90_def_var(ncID,'Ni',NF90_FLOAT,dim_ttt,VarID)
+           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'Ni'))
+           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'Ni'))
+
+           iret=nf90_def_var(ncID,'Ns',NF90_FLOAT,dim_ttt,VarID)
+           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'Ns'))
+           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'Ns'))
+
+           iret=nf90_def_var(ncID,'nicnt',NF90_INT,dim_ttt,VarID)
+           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'nicnt'))
+           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'nicnt'))
+
+           iret=nf90_def_var(ncID,'nscnt',NF90_INT,dim_ttt,VarID)
+           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'nscnt'))
+           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'nscnt'))
+
+           ! Aerosol and water removal with ice and snow
+           DO ss = 1,nspec
+              nam='rm'//trim(spec_list(ss))//'ic'
+              iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
+              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
+              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
+
+              nam='rm'//trim(spec_list(ss))//'sn'
+              iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
+              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
+              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
+           END DO
+       ENDIF
+
+       IF (level==3) THEN
            ! Surface precipitation for levels 3
            iret=nf90_def_var(ncID,'prcp',NF90_FLOAT,dim_ttt,VarID)
            iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'prcp'))
@@ -521,17 +563,17 @@ contains
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'prc'
     case('ica')
-       if (itype==0) ncinfo = 'Ice cloud droplet size bins, regime a'
+       if (itype==0) ncinfo = 'Ice size bins, regime a'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'ica'
     case('icb')
-       if (itype==0) ncinfo = 'Ice cloud droplet size bins, regime b'
+       if (itype==0) ncinfo = 'Ice size bins, regime b'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'icb'
     case('snw')
        if (itype==0) ncinfo = 'Snow size bins'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'snow'
+       if (itype==2) ncinfo = 'snw'
     !----
     case('u0')
        if (itype==0) ncinfo = 'Geostrophic zonal wind'
@@ -557,7 +599,7 @@ contains
        if (itype==0) ncinfo = 'Vertical velocity'
        if (itype==1) ncinfo = 'm/s'
        if (itype==2) ncinfo = 'ttmt'
-    case('t')
+    case('thl')
        if (itype==0) ncinfo = 'Liquid water potential temperature'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
@@ -650,7 +692,7 @@ contains
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'time'
     case('zi_bar')
-       if (itype==0) ncinfo = 'Height of maximum scalar gradient'
+       if (itype==0) ncinfo = 'Height of maximum total water mixing ratio gradient'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'time'
     case('lwp_bar','lwp')
@@ -660,6 +702,14 @@ contains
     case('lwp_var')
        if (itype==0) ncinfo = 'Liquid-water path variance'
        if (itype==1) ncinfo = 'kg^2/m^4'
+       if (itype==2) ncinfo = 'time'
+    case('iwp_bar','iwp')
+       if (itype==0) ncinfo = 'Ice-water path'
+       if (itype==1) ncinfo = 'kg/m^2'
+       if (itype==2) ncinfo = 'time'
+    case('iwp_var')
+       if (itype==0) ncinfo = 'Ice-water path variance'
+       if (itype==1) ncinfo = 'kg/m^2'
        if (itype==2) ncinfo = 'time'
     case('zc')
        if (itype==0) ncinfo = 'Cloud-top height'
@@ -677,6 +727,14 @@ contains
        if (itype==0) ncinfo = 'Maximum liquid water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
+    case('imax')
+       if (itype==0) ncinfo = 'Maximum ice water mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('smax')
+       if (itype==0) ncinfo = 'Maximum snow water mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
     case('albedo')
        if (itype==0) ncinfo = 'Reflected (TOA) shortwave radiation'
        if (itype==1) ncinfo = '-'
@@ -685,8 +743,16 @@ contains
        if (itype==0) ncinfo = 'Rain-water path'
        if (itype==1) ncinfo = 'kg/m^2'
        if (itype==2) ncinfo = 'time'
+    case('swp_bar','swp')
+       if (itype==0) ncinfo = 'Snow-water path'
+       if (itype==1) ncinfo = 'kg/m^2'
+       if (itype==2) ncinfo = 'time'
     case('prcp')
        if (itype==0) ncinfo = 'Surface precipitation rate'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'time'
+    case('sprcp')
+       if (itype==0) ncinfo = 'Surface snow precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'time'
     case('prcp_bc')
@@ -695,6 +761,10 @@ contains
        if (itype==2) ncinfo = 'time'
     case('pfrac')
        if (itype==0) ncinfo = 'Surface precipitation fraction'
+       if (itype==1) ncinfo = '-'
+       if (itype==2) ncinfo = 'time'
+    case('sfrac')
+       if (itype==0) ncinfo = 'Surface snow precipitation fraction'
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'time'
     case('CCN')
@@ -709,8 +779,16 @@ contains
        if (itype==0) ncinfo = 'Rain cell counts'
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'time'
+    case('nscnt')
+       if (itype==0) ncinfo = 'Snow cell counts'
+       if (itype==1) ncinfo = '#'
+       if (itype==2) ncinfo = 'time'
     case('nccnt')
        if (itype==0) ncinfo = 'Cloud cell counts'
+       if (itype==1) ncinfo = '#'
+       if (itype==2) ncinfo = 'time'
+    case('nicnt')
+       if (itype==0) ncinfo = 'Ice cell counts'
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'time'
     !
@@ -727,6 +805,38 @@ contains
     case('Na_int')
        if (itype==0) ncinfo = 'In-cloud interstitial aerosol number concentration'
        if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Ni_ic')
+       if (itype==0) ncinfo = 'Ice number concentration in liquid clouds'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Ni_ii')
+       if (itype==0) ncinfo = 'Ice number concentration in icy regions'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Ni_is')
+       if (itype==0) ncinfo = 'Ice number concentration in snowy regions'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Ns_ic')
+       if (itype==0) ncinfo = 'Snow number concentration in liquid clouds'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Ns_ii')
+       if (itype==0) ncinfo = 'Snow number concentration in icy regions'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Ns_is')
+       if (itype==0) ncinfo = 'Snow number concentration in snowy regions'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Ri_ii')
+       if (itype==0) ncinfo = 'Mean ice radius in icy regions'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('Rs_is')
+       if (itype==0) ncinfo = 'Mean snow radius in snowy regions'
+       if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'time'
     case('SO4_ic')
        if (itype==0) ncinfo = 'Cloud droplet SO4 mass mixing ratio'
@@ -788,27 +898,27 @@ contains
        if (itype==0) ncinfo = 'SS mass mixing ratio in interstitial particles'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
-    case('NH3_ic')
+    case('NH_ic')
        if (itype==0) ncinfo = 'Cloud droplet mass mixing ratio of NH3'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
-    case('NH3_oc')
+    case('NH_oc')
        if (itype==0) ncinfo = 'Aerosol NH3 mass mixing ratio outside clouds'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
-    case('NH3_int')
+    case('NH_int')
        if (itype==0) ncinfo = 'NH3 mass mixing ratio in interstitial particles'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
-    case('NO3_ic')
+    case('NO_ic')
        if (itype==0) ncinfo = 'Cloud droplet mass mixing ratio of NO3'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
-    case('NO3_oc')
+    case('NO_oc')
        if (itype==0) ncinfo = 'Aerosol NO3 mass mixing ratio outside clouds'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
-    case('NO3_int')
+    case('NO_int')
        if (itype==0) ncinfo = 'NO3 mass mixing ratio in interstitial particles'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
@@ -824,6 +934,14 @@ contains
        if (itype==0) ncinfo = 'Deposition of water with rain'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
+    case('rmH2Oic')
+       if (itype==0) ncinfo = 'Deposition of water with ice'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmH2Osn')
+       if (itype==0) ncinfo = 'Deposition of water with snow'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
     case('rmSO4dr')
        if (itype==0) ncinfo = 'Aerosol deposition of SO4'
        if (itype==1) ncinfo = 'kg/m^2/s'
@@ -834,6 +952,14 @@ contains
        if (itype==2) ncinfo = 'time'
     case('rmSO4pr')
        if (itype==0) ncinfo = 'Precipitation deposition of SO4'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmSO4ic')
+       if (itype==0) ncinfo = 'Deposition of SO4 with ice'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmSO4sn')
+       if (itype==0) ncinfo = 'Deposition of SO4 with snow'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmSO4wt')
@@ -856,6 +982,14 @@ contains
        if (itype==0) ncinfo = 'Precipitation deposition of OC'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
+    case('rmOCic')
+       if (itype==0) ncinfo = 'Deposition of OC with ice'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmOCsn')
+       if (itype==0) ncinfo = 'Deposition of OC with snow'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
     case('rmOCwt')
        if (itype==0) ncinfo = 'Total wet deposition of OC'
        if (itype==1) ncinfo = 'kg/m^2/s'
@@ -874,6 +1008,14 @@ contains
        if (itype==2) ncinfo = 'time'
     case('rmBCpr')
        if (itype==0) ncinfo = 'Precipitation deposition of BC'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmBCic')
+       if (itype==0) ncinfo = 'Deposition of BC with ice'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmBCsn')
+       if (itype==0) ncinfo = 'Deposition of BC with snow'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
     case('rmBCwt')
@@ -896,6 +1038,14 @@ contains
        if (itype==0) ncinfo = 'Precipitation deposition of DU'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
+    case('rmDUic')
+       if (itype==0) ncinfo = 'Deposition of DU with ice'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmDUsn')
+       if (itype==0) ncinfo = 'Deposition of DU with snow'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
     case('rmDUwt')
        if (itype==0) ncinfo = 'Total wet deposition of DU'
        if (itype==1) ncinfo = 'kg/m^2/s'
@@ -916,6 +1066,14 @@ contains
        if (itype==0) ncinfo = 'Precipitation deposition of SS'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
+    case('rmSSic')
+       if (itype==0) ncinfo = 'Deposition of SS with ice'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmSSsn')
+       if (itype==0) ncinfo = 'Deposition of SS with snow'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
     case('rmSSwt')
        if (itype==0) ncinfo = 'Total wet deposition of SS'
        if (itype==1) ncinfo = 'kg/m^2/s'
@@ -924,43 +1082,59 @@ contains
        if (itype==0) ncinfo = 'Total deposition of SS'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
-    case('rmNH3dr')
+    case('rmNHdr')
        if (itype==0) ncinfo = 'Aerosol deposition of NH3'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
-    case('rmNH3cl')
+    case('rmNHcl')
        if (itype==0) ncinfo = 'Cloud deposition of NH3'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
-    case('rmNH3pr')
+    case('rmNHpr')
        if (itype==0) ncinfo = 'Precipitation deposition of NH3'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
-    case('rmNH3wt')
+    case('rmNHic')
+       if (itype==0) ncinfo = 'Deposition of NH3 with ice'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmNHsn')
+       if (itype==0) ncinfo = 'Deposition of NH3 with snow'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmNHwt')
        if (itype==0) ncinfo = 'Total wet deposition of NH3'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
-    case('rmNH3tt')
+    case('rmNHtt')
        if (itype==0) ncinfo = 'Total deposition of NH3'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
-    case('rmNO3dr')
+    case('rmNOdr')
        if (itype==0) ncinfo = 'Aerosol deposition of NO3'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
-    case('rmNO3cl')
+    case('rmNOcl')
        if (itype==0) ncinfo = 'Cloud deposition of NO3'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
-    case('rmNO3pr')
+    case('rmNOpr')
        if (itype==0) ncinfo = 'Precipitation deposition of NO3'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
-    case('rmNO3wt')
+    case('rmNOic')
+       if (itype==0) ncinfo = 'Deposition of NO3 with ice'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmNOsn')
+       if (itype==0) ncinfo = 'Deposition of NO3 with snow'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('rmNOwt')
        if (itype==0) ncinfo = 'Total wet deposition of NO3'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
-    case('rmNO3tt')
+    case('rmNOtt')
        if (itype==0) ncinfo = 'Total deposition of NO3'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
@@ -989,16 +1163,16 @@ contains
        if (itype==0) ncinfo = 'Second raw moment of w wind'
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
-    case('t_2')
-       if (itype==0) ncinfo = 'Variance of theta_l'
+    case('theta_2')
+       if (itype==0) ncinfo = 'Variance of theta'
        if (itype==1) ncinfo = 'K^2'
        if (itype==2) ncinfo = 'tttt'
     case('w_3')
        if (itype==0) ncinfo = 'Third raw moment of w wind'
        if (itype==1) ncinfo = 'm^3/s^3'
        if (itype==2) ncinfo = 'ttmt'
-    case('t_3')
-       if (itype==0) ncinfo = 'Third moment of theta_l'
+    case('theta_3')
+       if (itype==0) ncinfo = 'Third moment of theta'
        if (itype==1) ncinfo = 'K^3'
        if (itype==2) ncinfo = 'tttt'
     case('tot_tw')
@@ -1195,35 +1369,35 @@ contains
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'tttt'
     case('w_cs1')
-       if (itype==0) ncinfo = 'Conditional average of w over cs1'
+       if (itype==0) ncinfo = 'Average of w over cs1'
        if (itype==1) ncinfo = 'm/s'
        if (itype==2) ncinfo = 'ttmt'
-    case('tl_cs1')
-       if (itype==0) ncinfo = 'Conditional average of theta_l over cs1'
+    case('t_cs1 ')
+       if (itype==0) ncinfo = 'Average of t over cs1'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'ttmt'
     case('tv_cs1')
-       if (itype==0) ncinfo = 'Conditional average of theta_v over cs1'
+       if (itype==0) ncinfo = 'Average of theta_v over cs1'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
     case('rt_cs1')
-       if (itype==0) ncinfo = 'Conditional average of rt over cs1'
+       if (itype==0) ncinfo = 'Average of total water over cs1'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('rl_cs1')
-       if (itype==0) ncinfo = 'Conditional average of rl over cs1'
+    case('rc_cs1')
+       if (itype==0) ncinfo = 'Average of total condensate over cs1'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('wt_cs1')
-       if (itype==0) ncinfo = 'Covariance of wtheta_l flux and cs1'
+       if (itype==0) ncinfo = 'Average of vertical t flux over cs1'
        if (itype==1) ncinfo = 'K*m/s'
        if (itype==2) ncinfo = 'ttmt'
-    case('wv_cs1')
-       if (itype==0) ncinfo = 'Covariance of wtheta_v flux and cs1'
+    case('wtv_cs1')
+       if (itype==0) ncinfo = 'Average of vertical theta_v flux over cs1'
        if (itype==1) ncinfo = 'K*m/s'
        if (itype==2) ncinfo = 'ttmt'
-    case('wr_cs1')
-       if (itype==0) ncinfo = 'Covariance of wr_t flux and cs1'
+    case('wrt_cs1')
+       if (itype==0) ncinfo = 'Average of vertical total water flux over cs1'
        if (itype==1) ncinfo = 'kg/kg*m/s'
        if (itype==2) ncinfo = 'ttmt'
     case('cs2')
@@ -1235,35 +1409,35 @@ contains
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'tttt'
     case('w_cs2')
-       if (itype==0) ncinfo = 'Conditional average of w over cs2'
+       if (itype==0) ncinfo = 'Average of w over cs2'
        if (itype==1) ncinfo = 'm/s'
        if (itype==2) ncinfo = 'ttmt'
-    case('tl_cs2')
-       if (itype==0) ncinfo = 'Conditional average of theta_l over cs2'
+    case('t_cs2')
+       if (itype==0) ncinfo = 'Average of t over cs2'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
     case('tv_cs2')
-       if (itype==0) ncinfo = 'Conditional average of theta_v over cs2'
+       if (itype==0) ncinfo = 'Average of theta_v over cs2'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
     case('rt_cs2')
-       if (itype==0) ncinfo = 'Conditional average of rt over cs2'
+       if (itype==0) ncinfo = 'Average of total water over cs2'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('rl_cs2')
-       if (itype==0) ncinfo = 'Conditional average of rl over cs2'
+    case('rc_cs2')
+       if (itype==0) ncinfo = 'Average of total condensate over cs2'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('wt_cs2')
-       if (itype==0) ncinfo = 'Covariance of wtheta_l flux and cs2'
+       if (itype==0) ncinfo = 'Average of vertical t flux over cs2'
        if (itype==1) ncinfo = 'K*m/s'
        if (itype==2) ncinfo = 'ttmt'
-    case('wv_cs2')
-       if (itype==0) ncinfo = 'Covariance of wtheta_v flux and cs2'
+    case('wtv_cs2')
+       if (itype==0) ncinfo = 'Average of vertical theta_v flux over cs2'
        if (itype==1) ncinfo = 'K*m/s'
        if (itype==2) ncinfo = 'ttmt'
-    case('wr_cs2')
-       if (itype==0) ncinfo = 'Covariance of wr_t flux and cs2'
+    case('wrt_cs2')
+       if (itype==0) ncinfo = 'Average of vertical total water flux over cs2'
        if (itype==1) ncinfo = 'kg/kg*m/s'
        if (itype==2) ncinfo = 'ttmt'
     case('Nc')
@@ -1274,12 +1448,24 @@ contains
        if (itype==0) ncinfo = 'Rain drop number concentration'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
+    case('Ni')
+       if (itype==0) ncinfo = 'Ice number concentration'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttt'
+    case('Ns')
+       if (itype==0) ncinfo = 'Snow number concentration'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttt'
     case('rr')
        if (itype==0) ncinfo = 'Rain water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('precip')
+    case('rrate')
        if (itype==0) ncinfo = 'Precipitation Flux (positive downward)'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'ttmt'
+    case('srate')
+       if (itype==0) ncinfo = 'Snow deposition flux (positive downward)'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('evap')
@@ -1350,56 +1536,56 @@ contains
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttttprc'
     case('S_Rwpa')
-       if (itype==0) ncinfo = 'SALSA number mean radius of precipitation particles'
+       if (itype==0) ncinfo = 'SALSA number mean radius of precipitation'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttt'
     case('S_Rwpba')
-       if (itype==0) ncinfo = 'SALSA bin precipitation particle radius'
+       if (itype==0) ncinfo = 'SALSA bin precipitation radius'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'ttttprc'
 
-    case('S_Nic')
+    case('S_Ni')
        if (itype==0) ncinfo = 'SALSA ice nuclei'
-       if (itype==1) ncinfo = 'm^-3'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('S_Niba')
-       if (itype==0) ncinfo = 'SALSA ice particle size distribution, regime a'
-       if (itype==1) ncinfo = 'm^-3'
+       if (itype==0) ncinfo = 'SALSA ice size distribution, regime a'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttttica'
     case('S_Nibb')
-       if (itype==0) ncinfo = 'SALSA ice particle size distribution, regime b'
-       if (itype==1) ncinfo = 'm^-3'
+       if (itype==0) ncinfo = 'SALSA ice size distribution, regime b'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttttica'
     case('S_Rwia')
-       if (itype==0) ncinfo = 'SALSA number mean radius of ice particles, regime a'
+       if (itype==0) ncinfo = 'SALSA number mean radius of ice, regime a'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttt'
     case('S_Rwib')
-       if (itype==0) ncinfo = 'SALSA number mean radius of ice particles, regime b'
+       if (itype==0) ncinfo = 'SALSA number mean radius of ice, regime b'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttt'
     case('S_Rwiba')
-       if (itype==0) ncinfo = 'SALSA bin ice particle radius, regime a'
+       if (itype==0) ncinfo = 'SALSA bin ice radius, regime a'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'ttttcla'
+       if (itype==2) ncinfo = 'ttttica'
     case('S_Rwibb')
-       if (itype==0) ncinfo = 'SALSA bin ice particle radius, regime b'
+       if (itype==0) ncinfo = 'SALSA bin ice radius, regime b'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'ttttcla'
+       if (itype==2) ncinfo = 'tttticb'
     case('S_Ns')
        if (itype==0) ncinfo = 'SALSA sdnc'
-       if (itype==1) ncinfo = 'm^-3'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('S_Nsba')
        if (itype==0) ncinfo = 'SALSA snow size distribution'
-       if (itype==1) ncinfo = 'm^-3'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttttsnw'
     case('S_Rwsa')
-       if (itype==0) ncinfo = 'SALSA number mean radius of snow particles'
+       if (itype==0) ncinfo = 'SALSA number mean radius of snow'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttt'
     case('S_Rwsba')
-       if (itype==0) ncinfo = 'SALSA bin snow particle radius'
+       if (itype==0) ncinfo = 'SALSA bin snow radius'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'ttttsnw'
 
@@ -1448,19 +1634,19 @@ contains
        if (itype==0) ncinfo = 'SALSA aerosol mass concentration of SO4, regime B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_aNH3a')
+    case('S_aNHa')
        if (itype==0) ncinfo = 'SALSA aerosol mass concentration of NH3, regime A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_aNH3b')
+    case('S_aNHb')
        if (itype==0) ncinfo = 'SALSA aerosol mass concentration of NH3, regime B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_aNO3a')
+    case('S_aNOa')
        if (itype==0) ncinfo = 'SALSA aerosol mass concentration of NO3, regime A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_aNO3b')
+    case('S_aNOb')
        if (itype==0) ncinfo = 'SALSA aerosol mass concentration of NO3, regime B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
@@ -1504,19 +1690,19 @@ contains
        if (itype==0) ncinfo = 'SALSA CCN mass concentration of SO4, regime B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_cNH3a')
+    case('S_cNHa')
        if (itype==0) ncinfo = 'SALSA CCN mass concentration of NH3, regime A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_cNH3b')
+    case('S_cNHb')
        if (itype==0) ncinfo = 'SALSA CCN mass concentration of NH3, regime B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_cNO3a')
+    case('S_cNOa')
        if (itype==0) ncinfo = 'SALSA CCN mass concentration of NO3, regime A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_cNO3b')
+    case('S_cNOb')
        if (itype==0) ncinfo = 'SALSA CCN mass concentration of NO3, regime B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
@@ -1560,19 +1746,19 @@ contains
        if (itype==0) ncinfo = 'SALSA IN mass concentration of SO4, regime B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_iNH3a')
+    case('S_iNHa')
        if (itype==0) ncinfo = 'SALSA IN mass concentration of NH3, regime A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_iNH3b')
+    case('S_iNHb')
        if (itype==0) ncinfo = 'SALSA IN mass concentration of NH3, regime B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_iNO3a')
+    case('S_iNOa')
        if (itype==0) ncinfo = 'SALSA IN mass concentration of NO3, regime A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('S_iNO3b')
+    case('S_iNOb')
        if (itype==0) ncinfo = 'SALSA IN mass concentration of NO3, regime B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
@@ -1632,6 +1818,18 @@ contains
        if (itype==0) ncinfo = 'SALSA rdnc'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
+    case('P_Nia')
+       if (itype==0) ncinfo = 'SALSA ice number concentration in regime A'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_Nib')
+       if (itype==0) ncinfo = 'SALSA ice number concentration in regime B'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_Ns')
+       if (itype==0) ncinfo = 'SALSA snow number concentration'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttt'
     case('P_Rwaa')
        if (itype==0) ncinfo = 'SALSA mean aerosol wet radius, regime A'
        if (itype==1) ncinfo = 'm'
@@ -1653,11 +1851,15 @@ contains
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttt'
     case('P_Rwia')
-       if (itype==0) ncinfo = 'SALSA mean ice particle radius, regime a'
+       if (itype==0) ncinfo = 'SALSA mean ice radius, regime a'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttt'
     case('P_Rwib')
-       if (itype==0) ncinfo = 'SALSA mean ice particle radius, regime b'
+       if (itype==0) ncinfo = 'SALSA mean ice radius, regime b'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_Rws')
+       if (itype==0) ncinfo = 'SALSA mean snow radius'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttt'
     case('P_cSO4a')
@@ -1672,6 +1874,14 @@ contains
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of SO4 in drizzle drops'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
+    case('P_cSO4i')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of SO4 in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cSO4s')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of SO4 in snow'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
     case('P_cOCa')
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of OC in aerosols'
        if (itype==1) ncinfo = 'kg/kg'
@@ -1682,6 +1892,14 @@ contains
        if (itype==2) ncinfo = 'tttt'
     case('P_cOCp')
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of OC in drizzle drops'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cOCi')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of OC in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cOCs')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of OC in snow'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('P_cBCa')
@@ -1696,6 +1914,14 @@ contains
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of BC in drizzle drops'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
+    case('P_cBCi')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of BC in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cBCs')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of BC in snow'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
     case('P_cDUa')
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of DU in aerosols'
        if (itype==1) ncinfo = 'kg/kg'
@@ -1706,6 +1932,14 @@ contains
        if (itype==2) ncinfo = 'tttt'
     case('P_cDUp')
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of DU in drizzle drops'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cDUi')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of DU in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cDUs')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of DU in snow'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('P_cSSa')
@@ -1720,44 +1954,100 @@ contains
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of SS in drizzle drops'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('P_cNH3a')
+    case('P_cSSi')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of SS in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cSSs')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of SS in snow'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cNHa')
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of NH3 in aerosols'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('P_cNH3c')
+    case('P_cNHc')
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of NH3 in cloud droplets'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('P_cNH3p')
+    case('P_cNHp')
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of NH3 in drizzle drops'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('P_cNO3a')
+    case('P_cNHi')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of NH3 in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cNHs')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of NH3 in snow'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cNOa')
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of NO3 in aerosols'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('P_cNO3c')
-       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of NO3 in drizzle drops'
-       if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
-    case('P_cNO3p')
+    case('P_cNOc')
        if (itype==0) ncinfo = 'SALSA total mass mixing ratio of NO3 in cloud droplets'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
+    case('P_cNOp')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of NO3 in drizzle drops'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cNOi')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of NO3 in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cNOs')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of NO3 in snow'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cH2Oa')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of H2O in aerosols'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cH2Oc')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of H2O in cloud droplets'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cH2Op')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of H2O in drizzle drops'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cH2Oi')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of H2O in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_cH2Os')
+       if (itype==0) ncinfo = 'SALSA total mass mixing ratio of H2O in snow'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
     case('P_rl')
-       if (itype==0) ncinfo = 'Level 4 cloud water mixing ratio'
+       if (itype==0) ncinfo = 'Cloud water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('P_rr')
-       if (itype==0) ncinfo = 'Level 4 precipitation mixing ratio'
+       if (itype==0) ncinfo = 'Precipitation mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_ri')
+       if (itype==0) ncinfo = 'Ice water mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_rs')
+       if (itype==0) ncinfo = 'Snow water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('P_rv')
-       if (itype==0) ncinfo = 'Level 4 water vapor mixing ratio'
+       if (itype==0) ncinfo = 'Water vapor mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('P_RH')
-       if (itype==0) ncinfo = 'Level 4 relative humidity'
+       if (itype==0) ncinfo = 'Relative humidity'
+       if (itype==1) ncinfo = '%'
+       if (itype==2) ncinfo = 'tttt'
+    case('P_RHi')
+       if (itype==0) ncinfo = 'Relative humidity over ice'
        if (itype==1) ncinfo = '%'
        if (itype==2) ncinfo = 'tttt'
     case('P_Na_c')
@@ -1808,11 +2098,11 @@ contains
        if (itype==0) ncinfo = 'Mass mixing ratio of SS in aerosol bins A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztaea'
-    case('P_NH3aa')
+    case('P_NHaa')
        if (itype==0) ncinfo = 'Mass mixing ratio of NH3 in aerosol bins A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztaea'
-    case('P_NO3aa')
+    case('P_NOaa')
        if (itype==0) ncinfo = 'Mass mixing ratio of NO3 in aerosol bins A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztaea'
@@ -1840,11 +2130,11 @@ contains
        if (itype==0) ncinfo = 'Mass mixing ratio of SS in aerosol bins B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztaeb'
-    case('P_NH3ab')
+    case('P_NHab')
        if (itype==0) ncinfo = 'Mass mixing ratio of NH3 in aerosol bins B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztaeb'
-    case('P_NO3ab')
+    case('P_NOab')
        if (itype==0) ncinfo = 'Mass mixing ratio of NO3 in aerosol bins B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztaeb'
@@ -1857,7 +2147,7 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztcla'
     case('P_OCca')
-       if (itype==0) ncinfo = 'MAss mixing ratio of Oc in cloud bins A'
+       if (itype==0) ncinfo = 'Mass mixing ratio of OC in cloud bins A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztcla'
     case('P_BCca')
@@ -1872,11 +2162,11 @@ contains
        if (itype==0) ncinfo = 'Mass mixing ratio of SS in cloud bins A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztcla'
-    case('P_NH3ca')
+    case('P_NHca')
        if (itype==0) ncinfo = 'Mass mixing ratio of NH3 in cloud bins A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztcla'
-    case('P_NO3ca')
+    case('P_NOca')
        if (itype==0) ncinfo = 'Mass mixing ratio of NO3 in cloud bins A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztcla'
@@ -1904,16 +2194,16 @@ contains
        if (itype==0) ncinfo = 'Mass mixing ratio of SS in cloud bins B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztclb'
-    case('P_NH3cb')
+    case('P_NHcb')
        if (itype==0) ncinfo = 'Mass mixing ratio of NH3 in cloud bins B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztclb'
-    case('P_NO3cb')
+    case('P_NOcb')
        if (itype==0) ncinfo = 'Mass mixing ratio of NO3 in cloud bins B'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztclb'
     case('P_Npb')
-       if (itype==0) ncinfo = 'Number concentration of drizzle particles'
+       if (itype==0) ncinfo = 'Number concentration of drizzle'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttztprc'
     case('P_SO4pb')
@@ -1936,14 +2226,110 @@ contains
        if (itype==0) ncinfo = 'Mass mixing ratio of SS in drizzle bins'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztprc'
-    case('P_NH3pb')
+    case('P_NHpb')
        if (itype==0) ncinfo = 'Mass mixing ratio of NH3 in drizzle bins'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztprc'
-    case('P_NO3pb')
+    case('P_NOpb')
        if (itype==0) ncinfo = 'Mass mixing ratio of NO3 in drizzle bins'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztprc'
+    case('P_Niba')
+       if (itype==0) ncinfo = 'Ice number concentration in size bins A'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'ttztica'
+    case('P_SO4ia')
+       if (itype==0) ncinfo = 'Mass mixing ratio of SO4 in ice bins A'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztica'
+    case('P_OCia')
+       if (itype==0) ncinfo = 'Mass mixing ratio of OC in ice bins A'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztica'
+    case('P_BCia')
+       if (itype==0) ncinfo = 'Mass mixing ratio of BC in ice bins A'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztica'
+    case('P_DUia')
+       if (itype==0) ncinfo = 'Mass mixing ratio of DU in ice bins A'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztica'
+    case('P_SSia')
+       if (itype==0) ncinfo = 'Mass mixing ratio of SS in ice bins A'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztica'
+    case('P_NHia')
+       if (itype==0) ncinfo = 'Mass mixing ratio of NH3 in ice bins A'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztica'
+    case('P_NOia')
+       if (itype==0) ncinfo = 'Mass mixing ratio of NO3 in ice bins A'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztica'
+    case('P_Nibb')
+       if (itype==0) ncinfo = 'Ice number concentration in size bins B'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'ttzticb'
+    case('P_SO4ib')
+       if (itype==0) ncinfo = 'Mass mixing ratio of SO4 in ice bins B'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttzticb'
+    case('P_OCib')
+       if (itype==0) ncinfo = 'Mass mixing ratio of OC in ice bins B'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttzticb'
+    case('P_BCib')
+       if (itype==0) ncinfo = 'Mass mixing ratio of BC in ice bins B'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttzticb'
+    case('P_DUib')
+       if (itype==0) ncinfo = 'Mass mixing ratio of DU in ice bins B'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttzticb'
+    case('P_SSib')
+       if (itype==0) ncinfo = 'Mass mixing ratio of SS in ice bins B'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttzticb'
+    case('P_NHib')
+       if (itype==0) ncinfo = 'Mass mixing ratio of NH3 in ice bins B'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttzticb'
+    case('P_NOib')
+       if (itype==0) ncinfo = 'Mass mixing ratio of NO3 in ice bins B'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttzticb'
+    case('P_Nsb')
+       if (itype==0) ncinfo = 'Number concentration of snow'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'ttztsnw'
+    case('P_SO4sb')
+       if (itype==0) ncinfo = 'Mass mixing ratio of SO4 in snow bins'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztsnw'
+    case('P_OCsb')
+       if (itype==0) ncinfo = 'Mass mixing ratio of OC in snow bins'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztsnw'
+    case('P_BCsb')
+       if (itype==0) ncinfo = 'Mass mixing ratio of BC in snow bins'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztsnw'
+    case('P_DUsb')
+       if (itype==0) ncinfo = 'Mass mixing ratio of DU in snow bins'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztsnw'
+    case('P_SSsb')
+       if (itype==0) ncinfo = 'Mass mixing ratio of SS in snow bins'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztsnw'
+    case('P_NHsb')
+       if (itype==0) ncinfo = 'Mass mixing ratio of NH3 in snow bins'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztsnw'
+    case('P_NOsb')
+       if (itype==0) ncinfo = 'Mass mixing ratio of NO3 in snow bins'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'ttztsnw'
     ! -----
     case default
        if (myid==0) print *, 'ABORTING: ncinfo: variable not found ',trim(short_name)
