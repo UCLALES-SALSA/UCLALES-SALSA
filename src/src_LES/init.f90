@@ -874,7 +874,7 @@ contains
     !
     ! Initialize concentrations
     ! ----------------------------------------------------------
-    DO k = 1,nzp
+    DO k = 2,nzp
        DO j = 1,nyp
           DO i = 1,nxp
 
@@ -905,6 +905,8 @@ contains
           END DO ! i
        END DO ! j
     END DO ! k
+    a_naerop(1,:,:,:) = a_naerop(2,:,:,:)
+    a_maerop(1,:,:,:) = a_maerop(2,:,:,:)
 
     !
     ! c) Aerosol mass concentrations

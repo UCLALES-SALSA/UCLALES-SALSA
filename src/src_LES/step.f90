@@ -1116,7 +1116,7 @@ end subroutine tstep_reset
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
                       a_nicep(k,i,j,bc) = 0.
 
-                      ! Move mass material back to aerosol regime (including water)
+                      ! Move mass to aerosol (including water)
                       DO s = 1,nn
                          sc = (s-1)*nice + bc
                          sa = (s-1)*nbins + ba
@@ -1162,7 +1162,7 @@ end subroutine tstep_reset
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nsnowp(k,i,j,bc)
                       a_nsnowp(k,i,j,bc) = 0.
 
-                      ! Move ccn material back to aerosol regime (including water)
+                      ! Move mass to aerosol (including water)
                       DO s = 1,nn
                          sc = (s-1)*nsnw + bc
                          sa = (s-1)*nbins + ba

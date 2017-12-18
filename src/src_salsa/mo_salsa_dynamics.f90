@@ -186,7 +186,7 @@ CONTAINS
     !-- 2) Updating coagulation coefficients -------------------------------------
 
      DO jj = 1,klev      ! vertical grid
-        DO ii = 1,kbdim ! number of vertical klev
+        DO ii = 1,kbdim ! dimension for arrays
            ! Which species are included
            any_cloud = ANY(pcloud(ii,jj,:)%numc > nlim)
            any_precp = ANY(pprecp(ii,jj,:)%numc > prlim)
