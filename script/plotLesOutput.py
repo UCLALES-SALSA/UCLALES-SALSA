@@ -971,7 +971,8 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
 
     norm = None
     
-
+    maxi = None
+    mini = None
 
     for i in xrange(len(arguments)-1):
         if EMUL:
@@ -1002,6 +1003,18 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
         if transpose:
             muuttuja_meanProfile = np.rot90(muuttuja_meanProfile)  #zip(*muuttuja_meanProfile[::-1])#muuttuja_meanProfile.T
         
+        if maxi is not None:
+            maxi = max( maxi,  np.max(muuttuja_meanProfile) )
+        else:
+            maxi = np.max(muuttuja_meanProfile)
+        
+        if mini is not None:
+            mini = min( mini,  np.min(muuttuja_meanProfile) )
+        else:
+            mini = np.min(muuttuja_meanProfile)
+        
+        
+        print 'muuttuja', muuttuja, 'mini', mini, 'maxi', maxi
         if radCool:
             for pp in xrange(np.shape(muuttuja_meanProfile)[0]):
                 for rr in xrange(1, np.shape(muuttuja_meanProfile)[1]):
@@ -1031,13 +1044,14 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
             nega = np.arange( max(-10, mini), 0., 1. )
             kokonaisluvut = map(int, np.arange( int(mini/baseN)*baseN, int(maxi/baseN)*baseN, baseN  ))
             colorBarTickValues = map(int, np.concatenate((np.asarray([int(mini)]), nega, kokonaisluvut, posi, np.asarray([int(maxi)]) )) )
-            
+         
+        print 'colorbartickvalues', colorBarTickValues 
         if isinstance( variKartta, list):
             variKartta   = colors.ListedColormap(variKartta)
             bounds = colorBarTickValues
             norm   = colors.BoundaryNorm(bounds, variKartta.N)
         
-        cax = ax.imshow( muuttuja_meanProfile, interpolation='nearest', cmap=variKartta, aspect=asp, norm = norm ) 
+        cax = ax.imshow( muuttuja_meanProfile, interpolation='nearest', cmap=variKartta, vmin= min(colorBarTickValues), vmax=max(colorBarTickValues), aspect=asp, norm = norm ) 
         
         
         
@@ -1119,7 +1133,7 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
         #Add colorbar, make sure to specify tick locations to match desired ticklabels
         #cbar = plt.colorbar(cax,fraction=0.046, pad=0.04, ticks = colorBarTickValues)
         #cbar = fig.colorbar(cax, ticks = colorBarTickValues) # , cax=cax1
-        cbar = fig.colorbar(cax, ax=ax, shrink=.9, pad=.03, aspect=10, ticks = colorBarTickValues, norm = norm)
+        cbar = fig.colorbar(cax, ax=ax, shrink=.383, pad=.03, aspect=10, ticks = colorBarTickValues, norm = norm)#,fraction=0.046, pad=0.04
         
         if colorBarTickNames is None:
             colorBarTickNames = map( str, colorBarTickValues)
@@ -1131,8 +1145,8 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
 
         spinupIND = np.argmin( np.abs( ajat - spinup ) )
         mdp.plot_vertical( spinupIND )
-        plt.ylabel('z(m)')
-        plt.xlabel('Time(h)')
+        plt.ylabel('z [m]')
+        plt.xlabel('time [h]')
         plt.tight_layout()
         
         
@@ -1148,7 +1162,7 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
                 valitagi = str(case_indeksi+1)
             plt.plot(0,0, label = valitagi)
             plt.legend(bbox_to_anchor=(0., 1.13, 1., .102), loc=3, ncol=6, fancybox = True, shadow = True , mode="expand" )
-            plt.savefig( picturefolder + savePrefix + '_' + valitagi + '_' + saveTag + LVLprintSave + '.png')
+            plt.savefig( picturefolder + savePrefix + '_' + muuttuja + '_' + valitagi + '_' + saveTag + LVLprintSave + '.png')
 
 
         if cloudBaseTop:
@@ -1710,7 +1724,7 @@ if EMUL and not importOnly:
         mdp.plot_suljetus(naytaPlotit)
         
     if PRCP:
-        piirra_aikasarjasettii( muuttuja = prcp,     muunnosKerroin = sadekerroin, variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'Surface precipitation',       ylabel = 'Precipitation W/m^2', variKartta = thickness_color, ymin = 0.0, savePrefix = 'prcp', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds, omaVari = refColorbarSwitch, askChangeOfVariable = askChangeOfVariable )
+        piirra_aikasarjasettii( muuttuja = prcp,     muunnosKerroin = sadekerroin, variRefVektori = thickness_design, colorBar =  thickBAR, colorBarTickValues = cbvalThick, colorBarTickNames = cbvalThickStr, longName = 'Surface precipitation',       ylabel = 'Precipitation [' + r'$W/m^2$' + ']', variKartta = thickness_color, ymin = 0.0, savePrefix = 'prcp', tit = thickTIT, spinup = spinup, xlabels = xLabelsHours, xticks = xTicksSeconds, omaVari = refColorbarSwitch, askChangeOfVariable = askChangeOfVariable )
         
         mdp.plot_suljetus(naytaPlotit)
         
@@ -1807,6 +1821,12 @@ if ICE and not importOnly:
     
     piilotaOsaXlabel = True
     
+    cbvalDiam = np.arange(0,800, 75)
+    cbvalDiamStr = np.arange(0,800, 75)
+    
+    diamVari = profiiliVariICE #[plt.cm.tab20(3),plt.cm.tab20(2),plt.cm.tab20c(1), plt.cm.tab20c(0),plt.cm.tab20c(7),plt.cm.tab20c(6),plt.cm.tab20c(5),plt.cm.tab20c(4),plt.cm.tab20c(11),plt.cm.tab20c(10),plt.cm.tab20c(9),plt.cm.tab20c(8) ]
+    
+    
     
     if int(lvl)>=4:
     
@@ -1814,9 +1834,13 @@ if ICE and not importOnly:
         #mdp.plot_vertical( spinup )
         #plt.xticks( ticksHours, xLabelsHours )
         
-        piirra_aikasarjasettii( muuttuja = 'lwp_bar', muunnosKerroin = 1000.0, longName = 'LWP', ylabel = 'LWP g/m^2', ymin = 0.0,  savePrefix = 'lwpTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel  )
+        piirra_aikasarjasettii( muuttuja = 'lwp_bar', muunnosKerroin = 1000.0, longName = 'Liquid water path', ylabel = 'path ' + r'[$g/m^2$]', ymin = 0.0,  savePrefix = 'lwpTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel  )
         #mdp.plot_vertical( spinup )
         #plt.xticks( ticksHours, xLabelsHours )
+        
+        #piirra_aikasarjasettii( muuttuja = 'shf_bar',  longName = 'Sensible heat flux', ylabel = 'W/m^2', ymin = 0.0,  savePrefix = 'heat_flux_sensible', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel  )
+        
+        #piirra_aikasarjasettii( muuttuja = 'lhf_bar',  longName = 'Latent heat flux', ylabel = 'W/m^2', ymin = 0.0,  savePrefix = 'heat_flux_latent', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel  )
         
         
         
@@ -1846,19 +1870,21 @@ if ICE and not importOnly:
         
         piirra_profiiliKehitys( 'theta',  variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Potential temperature', xlabel = r'$\theta$' + ' [K]', ylabel = 'z [m]', savePrefix = 'theta_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, asetaRajat = False )
         
+        piirra_aikasarjasettii( muuttuja = 'rmH2Opr',     muunnosKerroin = 2.5e+06,  longName = "Removal of water by sedimentation of rain",       ylabel = 'flux ' + r'[$W/m^2$]', ymin = 0.0,  savePrefix = 'depRain', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel  )
+        
     if int(lvl)>= 5:
         #piirra_aikasarjaPathXYZ( 'i', longName = 'Ice Water Path', savePrefix = 'iwp', xaxislabel = 'time [h]',xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel )
         #mdp.plot_vertical( spinup )
         #plt.xticks( ticksHours, xLabelsHours )
         
-        piirra_aikasarjasettii( muuttuja = 'iwp_bar', muunnosKerroin = 1000.0, longName = 'IWP', ylabel = 'IWP g/m^2', ymin = 0.0,  savePrefix = 'iwpTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel  )
+        piirra_aikasarjasettii( muuttuja = 'iwp_bar', muunnosKerroin = 1000.0, longName = 'Ice water path', ylabel = 'path ' + r'[$g/m^2$]', ymin = 0.0,  savePrefix = 'iwpTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel  )
     
 
         #piirra_domainProfiili( 'i', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup  )
         
-        piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE
+        piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = np.arange(0.,7.1, 1), colorBarTickNames = map( str, map(int, np.arange(0.,7.1, 1))), xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Blues, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE
         
-        
+        #piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Blues, spinup = spinup, profiili = True  )
         
         #animoi_path( 'f', muunnosKerroin = 1000., longName = tag + "Ice water path  " + r'$g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalLIQPATH, colorBarTickNames = cbvalLIQPATHStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.Blues, spinup = spinup )
         ## muuttuja, muunnosKerroin = 1.0, transpose = False, longName = None , savePrefix = None, useDN = False, colorBarTickValues = [0,1], colorBarTickNames = ['0','1'], xlabels = None, ylabels = None, xticks = None, yticks = None
@@ -1871,8 +1897,16 @@ if ICE and not importOnly:
         #piirra_domainMeanProfiili( 'S_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = True, profiili = False, xAxisL = r'$D [{\mu}m]$', color = icevari )   
 
         piirra_domainMeanProfiili( 'P_Nia',  nimi = 'Ice number concentration averaged',   muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = True, xAxisL = r'$N [L^{-1}]$', color = icevari )
-        piirra_domainMeanProfiili( 'P_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = True, profiili = True, xAxisL = r'$D [{\mu}m]$', color = icevari )   
+        
+        piirra_domainMeanProfiili( 'P_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = False, profiili = True, xAxisL = r'$D [{\mu}m]$', color = icevari )   
 
+        piirra_domainProfiili( 'P_Rwia', muunnosKerroin = 2.e6, longName = 'Ice particle mean diameter '+r'$[{\mu}m]$', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, spinup = spinup, profiili = True, colorBarTickValues = cbvalDiam, colorBarTickNames = cbvalDiamStr, variKartta = diamVari  )
+        
+        piirra_domainProfiili( 'theta', longName = 'Potential temperature', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Reds, spinup = spinup, profiili = False  )
+        #piirra_domainProfiili( 'thl', longName = 'Liquid water potential temperature', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Reds, spinup = spinup, profiili = True  )
+        #piirra_domainProfiili( 'thil', longName = 'Ice-Liquid water potential temperature', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Reds, spinup = spinup, profiili = True  )
+        
+        piirra_aikasarjasettii( muuttuja = 'rmH2Oic',     muunnosKerroin = 2.5e+06,  longName = 'Removal of water by sedimentation of ice',       ylabel = 'flux ' + r'[$W/m^2$]', ymin = 0.0,  savePrefix = 'depIce', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel  )
 toc = time.clock()
 print toc - tic
 ########################
