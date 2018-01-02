@@ -105,7 +105,7 @@ contains
     INTEGER, INTENT(in) :: level,n1,n2,n3
     REAL, INTENT(in) :: rv(n1,n2,n3),   &     ! Water vapour mixing ratio
                         pp(n1,n2,n3),   &     ! Exner function
-                        tl(n1,n2,n3)          ! (Ice-)liquid water potential temp
+                        tl(n1,n2,n3)          ! liquid potential temp
     REAL, INTENT(in) :: th00
     REAL, INTENT(in) :: pi0(n1),pi1(n1)
     REAL, INTENT(IN) :: rc(n1,n2,n3),  &  ! Total cloud condensate mix rat
@@ -137,7 +137,7 @@ contains
              th(k,i,j) = thil + (alvl*( rc(k,i,j) + srp(k,i,j) ))/cp/exner
 
              if(level==5) th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp/exner
-			 
+
              tk(k,i,j) = th(k,i,j)*exner
 
              ! Saturation mixing ratio

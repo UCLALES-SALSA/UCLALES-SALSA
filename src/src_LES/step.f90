@@ -635,7 +635,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
     USE grid, ONLY : a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,   &
                      a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,   &
-                     a_nicep,  a_nicet, a_nsnowp, a_nsnowt, a_micep,  a_micet, a_msnowp, a_msnowt,  &
+                     a_nicep, a_nicet, a_nsnowp, a_nsnowt, a_micep, a_micet, a_msnowp, a_msnowt,  &
                      dtlt, nxp,nyp,nzp,level
     USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw
 
@@ -1002,7 +1002,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
     nn = GetNcomp(prtcl)+1 ! total number of species
 
-    ! Remove particles that have number but not mass
+    ! Remove particles that have number but no mass
     DO j = 3,nyp-2
        DO i = 3,nxp-2
           DO k = 1,nzp
@@ -1169,7 +1169,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
                       a_nicep(k,i,j,bc) = 0.
 
-                      ! Move mass material back to aerosol regime (including water)
+                      ! Move mass to aerosol (including water)
                       DO s = 1,nn
                          sc = (s-1)*nice + bc
                          sa = (s-1)*nbins + ba
@@ -1211,11 +1211,11 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                       ENDDO
                       if (ba==0) STOP 'FAIL: no sink for evaporating snow'
 
-                      ! Move the number of particles from cloud to aerosol bins
+                      ! Move the number of particles from snow to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nsnowp(k,i,j,bc)
                       a_nsnowp(k,i,j,bc) = 0.
 
-                      ! Move ccn material back to aerosol regime (including water)
+                      ! Move mass to aerosol (including water)
                       DO s = 1,nn
                          sc = (s-1)*nsnw + bc
                          sa = (s-1)*nbins + ba
@@ -1233,7 +1233,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                 IF (a_naerop(k,i,j,ba) > nlim) THEN
                    zvol = SUM( a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins)/dens(1:nn-1) )/a_naerop(k,i,j,ba) ! Dry volume
 
-                   ! Particles smaller then 0.1 nm diameter are set to zero 
+                   ! Particles smaller than 0.1 nm diameter are set to zero
                    IF ( zvol < pi6*1.e-10**3 ) THEN
                       ! Volatile species to the gas phase
                       IF (IsUsed(prtcl,'SO4') .AND. lscndgas) THEN

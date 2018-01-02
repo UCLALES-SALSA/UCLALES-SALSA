@@ -17,8 +17,10 @@ IMPLICIT NONE
   ! JT: Variables from SALSA
   ! --------------------------------------------
   ! grid points for SALSA
+  INTEGER, PARAMETER :: kproma = 1
   INTEGER, PARAMETER :: kbdim = 1
   INTEGER, PARAMETER :: klev = 1
+  INTEGER, PARAMETER :: krow = 1
 
   REAL, PARAMETER :: init_rh(kbdim,klev) = 0.3
 
@@ -94,16 +96,16 @@ IMPLICIT NONE
 
     REAL, INTENT(in)    :: pdn(pnz,pnx,pny)             ! Air density (for normalizing concentrations)
 
-    REAL, INTENT(in)    :: pa_naerop(pnz,pnx,pny,nbins),        & ! aerosol number concentration (# kg-1)
-                               pa_maerop(pnz,pnx,pny,n4*nbins),     & ! aerosol mass concentration (kg kg-1)
+    REAL, INTENT(in)    :: pa_naerop(pnz,pnx,pny,nbins),        & ! Aerosol number concentration (# kg-1)
+                               pa_maerop(pnz,pnx,pny,n4*nbins),     & ! Aerosol mass concentration (kg kg-1)
                                pa_ncloudp(pnz,pnx,pny,ncld),        & ! Cloud droplet number concentration (# kg-1)
                                pa_mcloudp(pnz,pnx,pny,n4*ncld),     & ! Cloud droplet mass concentration (kg kg-1)
                                pa_nprecpp(pnz,pnx,pny,nprc),        & ! Rain drop number concentration (# kg-1)
                                pa_mprecpp(pnz,pnx,pny,n4*nprc),     & ! Rain drop mass concentration (kg kg-1)
-                               pa_nicep(pnz,pnx,pny,nice),          & ! ice number concentration (# kg-1)
-                               pa_micep(pnz,pnx,pny,n4*nice),       & ! ice mass concentration (kg kg-1)
-                               pa_nsnowp(pnz,pnx,pny,nsnw),         & ! snow number concentration (# kg-1)
-                               pa_msnowp(pnz,pnx,pny,n4*nsnw)         ! snow mass concentration (kg kg-1)
+                               pa_nicep(pnz,pnx,pny,nice),          & ! Ice number concentration (# kg-1)
+                               pa_micep(pnz,pnx,pny,n4*nice),       & ! Ice mass concentration (kg kg-1)
+                               pa_nsnowp(pnz,pnx,pny,nsnw),         & ! Snow number concentration (# kg-1)
+                               pa_msnowp(pnz,pnx,pny,n4*nsnw)         ! Snow mass concentration (kg kg-1)
 
     REAL, INTENT(in)    :: pa_gaerop(pnz,pnx,pny,5)         ! Gaseous tracers [# kg]
 
@@ -111,7 +113,6 @@ IMPLICIT NONE
                                                          ! 2: Spinup period call
                                                          ! 3: Regular runtime call
     INTEGER, INTENT(in) :: level                         ! thermodynamical level
-
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl ! Object containing the indices of different aerosol components for mass arrays
 
@@ -123,8 +124,8 @@ IMPLICIT NONE
                                  pa_mprecpt(pnz,pnx,pny,n4*nprc),   & ! Rain drop mass tendency
                                  pa_nicet(pnz,pnx,pny,nice),        & ! Ice number tendency
                                  pa_micet(pnz,pnx,pny,n4*nice),     & ! Ice mass tendency
-                                 pa_nsnowt(pnz,pnx,pny,nsnw),       & ! snow number tendency
-                                 pa_msnowt(pnz,pnx,pny,n4*nsnw)       ! snow mass tendecy
+                                 pa_nsnowt(pnz,pnx,pny,nsnw),       & ! Snow number tendency
+                                 pa_msnowt(pnz,pnx,pny,n4*nsnw)       ! Snow mass tendency
 
     REAL, INTENT(inout)   :: pa_gaerot(pnz,pnx,pny,5)         ! Gaseous tracer tendency
     REAL, INTENT(inout)   :: rt(pnz,pnx,pny)                  ! Water vapour tendency
@@ -489,7 +490,7 @@ IMPLICIT NONE
 
 
              ! If this is an initialization call, calculate the equilibrium particle
-             If (prunmode == 1) CALL equilibration(kbdim,klev,   &
+             If (prunmode == 1) CALL equilibration(kproma,kbdim,klev,   &
                                                     init_rh,in_t,aero,.TRUE.)
 
 
@@ -503,7 +504,7 @@ IMPLICIT NONE
              ! ***************************************!
              !                Run SALSA               !
              ! ***************************************!
-             CALL salsa(kbdim,  klev,          &
+             CALL salsa(kproma, kbdim,  klev,   krow,          &
                         in_p,   in_rv,  in_rs,  in_rsi,        &
                         in_t,  in_tt, tstep,                         &
                         zgso4,  zgocnv, zgocsv, zghno3,        &
@@ -816,7 +817,9 @@ IMPLICIT NONE
                   ( zgocsv(1,1)/pdn(kk,ii,jj) - pa_gaerop(kk,ii,jj,5) )/tstep
              ENDIF
 
-             ! Tendency of water vapour mixing ratio
+
+             ! Tendency of water vapour mixing ratio is obtained from the change in RH during SALSA run.
+             ! Assumes no temperature change during SALSA run.
              rt(kk,ii,jj) = rt(kk,ii,jj) + &
                   ( in_rv(1,1) - rv_old(1,1) )/tstep
 
@@ -861,14 +864,14 @@ IMPLICIT NONE
                                nlcgip,nlcgsa,nlcgsc,   &
                                nlcgsi,nlcgsp,nlcgss,   &
                                nlcnd,                  &
-                               nlicenucl,               &
+                               nlicenucl,              &
                                nlicmelt,               &
                                nlfixinc,               &
 
                                lscgia,lscgic,lscgii,   &
                                lscgip,lscgsa,lscgsc,   &
                                lscgsi,lscgsp,lscgss,   &
-                               lsicenucl,                &
+                               lsicenucl,              &
                                lsicmelt,               &
                                lsfixinc
 
@@ -1074,8 +1077,6 @@ IMPLICIT NONE
 
 
     END SELECT
-
-
 
   END SUBROUTINE set_SALSA_runtime
 

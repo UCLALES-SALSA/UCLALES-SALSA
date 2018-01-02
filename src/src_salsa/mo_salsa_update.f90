@@ -15,7 +15,7 @@ MODULE mo_salsa_update
 
 CONTAINS
 
-  SUBROUTINE distr_update(kbdim, klev, &
+  SUBROUTINE distr_update(kproma, kbdim, klev, &
                           paero, pcloud, pprecp, &
                           pice, psnow, level )
 
@@ -26,6 +26,7 @@ CONTAINS
 
     !-- Input and output variables ----------
     INTEGER, INTENT(IN) ::          &
+         kproma,                    & ! number of horiz. grid points 
          kbdim,                     & ! dimension for arrays 
          klev                         ! number of vertical levels
 
@@ -328,7 +329,7 @@ CONTAINS
           END DO !within_bins
 
 
-        IF(level < 5 ) CYCLE ! skip ice and snow distr. updates if thermodynamical level doesn't include ice microphysics
+          IF(level < 5 ) CYCLE ! skip ice and snow distr. updates if thermodynamical level doesn't include ice microphysics
 
           ! ------------------------------------------------------------------------
           ! ************* ICE PARTICLES  **************

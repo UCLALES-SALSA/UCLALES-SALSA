@@ -603,10 +603,6 @@ contains
        if (itype==0) ncinfo = 'Liquid water potential temperature'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
-    case('thil')
-       if (itype==0) ncinfo = 'Ice-Liquid water potential temperature'
-       if (itype==1) ncinfo = 'K'
-       if (itype==2) ncinfo = 'tttt'
     case('theta')
        if (itype==0) ncinfo = 'Potential temperature'
        if (itype==1) ncinfo = 'K'
@@ -625,6 +621,10 @@ contains
        if (itype==2) ncinfo = 'tttt'
     case('r')
        if (itype==0) ncinfo = 'Rain-water mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('f')
+       if (itype==0) ncinfo = 'Total ice mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('i')
@@ -778,10 +778,6 @@ contains
     case('nrcnt')
        if (itype==0) ncinfo = 'Rain cell counts'
        if (itype==1) ncinfo = '#'
-       if (itype==2) ncinfo = 'time'
-    case('nsnow')
-       if (itype==0) ncinfo = 'Conditionally sampled snow number mixing ratio'
-       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('nscnt')
        if (itype==0) ncinfo = 'Snow cell counts'
@@ -1575,7 +1571,7 @@ contains
     case('S_Rwibb')
        if (itype==0) ncinfo = 'SALSA bin ice radius, regime b'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'ttttica'
+       if (itype==2) ncinfo = 'tttticb'
     case('S_Ns')
        if (itype==0) ncinfo = 'SALSA sdnc'
        if (itype==1) ncinfo = 'kg^-1'
@@ -2151,7 +2147,7 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztcla'
     case('P_OCca')
-       if (itype==0) ncinfo = 'MAss mixing ratio of Oc in cloud bins A'
+       if (itype==0) ncinfo = 'Mass mixing ratio of OC in cloud bins A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztcla'
     case('P_BCca')
@@ -2247,7 +2243,7 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztica'
     case('P_OCia')
-       if (itype==0) ncinfo = 'Mass mixing ratio of Oc in ice bins A'
+       if (itype==0) ncinfo = 'Mass mixing ratio of OC in ice bins A'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztica'
     case('P_BCia')

@@ -216,7 +216,6 @@ contains
     USE class_ComponentIndex, ONLY : ComponentIndexConstructor,  &
                                      GetNcomp, IsUsed
 
-
     integer :: memsize
     INTEGER :: zz
     INTEGER :: nc
@@ -228,6 +227,7 @@ contains
        ! Create index tables for different aerosol components (can be fetched by name using getIndex)
        CALL ComponentIndexConstructor(prtcl, nspec, maxspec, listspec)
        nc = GetNcomp(prtcl)
+
        nsalsa = (nc+2)*nbins + (nc+2)*ncld + (nc+2)*nprc+5
        IF (level>=5) nsalsa = nsalsa + (nc+2)*nice + (nc+2)*nsnw
 
@@ -375,48 +375,47 @@ contains
        zz = nscl-nsalsa
        a_naerop => a_sclrp(:,:,:,zz+1:zz+nbins)
        a_naerot => a_sclrt(:,:,:,zz+1:zz+nbins)
-       zz = zz+nbins
 
+       zz = zz+nbins
        a_maerop => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nbins)
        a_maerot => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nbins)
-       zz = zz+(nc+1)*nbins
 
+       zz = zz+(nc+1)*nbins
        a_ncloudp => a_sclrp(:,:,:,zz+1:zz+ncld)
        a_ncloudt => a_sclrt(:,:,:,zz+1:zz+ncld)
-       zz = zz+ncld
 
+       zz = zz+ncld
        a_mcloudp => a_sclrp(:,:,:,zz+1:zz+(nc+1)*ncld)
        a_mcloudt => a_sclrt(:,:,:,zz+1:zz+(nc+1)*ncld)
-       zz = zz+(nc+1)*ncld
 
+       zz = zz+(nc+1)*ncld
        a_nprecpp => a_sclrp(:,:,:,zz+1:zz+nprc)
        a_nprecpt => a_sclrt(:,:,:,zz+1:zz+nprc)
-       zz = zz+nprc
 
+       zz = zz+nprc
        a_mprecpp => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nprc)
        a_mprecpt => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nprc)
-       zz = zz+(nc+1)*nprc
 
+       zz = zz+(nc+1)*nprc
        a_gaerop => a_sclrp(:,:,:,zz+1:zz+5)
        a_gaerot => a_sclrt(:,:,:,zz+1:zz+5)
-       zz = zz+5
 
        IF (level>=5) THEN      ! Level 5
+          zz = zz+5
           a_nicep => a_sclrp(:,:,:,zz+1:zz+nice)
           a_nicet => a_sclrt(:,:,:,zz+1:zz+nice)
-          zz = zz+nice
 
+          zz = zz+nice
           a_micep => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nice)
           a_micet => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nice)
-          zz = zz+(nc+1)*nice
 
+          zz = zz+(nc+1)*nice
           a_nsnowp => a_sclrp(:,:,:,zz+1:zz+nsnw)
           a_nsnowt => a_sclrt(:,:,:,zz+1:zz+nsnw)
-          zz = zz+nsnw
 
+          zz = zz+nsnw
           a_msnowp => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nsnw)
           a_msnowt => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nsnw)
-          zz = zz+(nc+1)*nsnw
        ELSE
           ! Ice not included so allocate zero arrays for ice pointers
           ALLOCATE (tmp_icep(nzp,nxp,nyp,(nc+1)*MAX(nice,nsnw)), &
@@ -890,14 +889,12 @@ contains
     ELSE IF (level == 4 .AND. lbinanl) THEN
        call define_nc( ncid0, nrec0, nvar0, sanal, n1=nzp, n2=nxp-4, n3=nyp-4,  &
                        inae_a=fn2a, inae_b=fn2b-fn2a, incld_a=fca%cur,          &
-                       incld_b=fcb%cur-fca%cur, inprc=fra	                &
-                                		                                )
+                       incld_b=fcb%cur-fca%cur, inprc=fra )
     ELSE IF (level == 5 .AND. lbinanl) THEN
         call define_nc( ncid0, nrec0, nvar0, sanal, n1=nzp, n2=nxp-4, n3=nyp-4,  &
                         inae_a=fn2a,  inae_b =fn2b-fn2a, incld_a=fca%cur,        &
                         incld_b=fcb%cur-fca%cur, inprc=fra, inice_a=fia%cur,     &
-                        inice_b=fib%cur-fia%cur, insnw=fsa                       &
-							                         )
+                        inice_b=fib%cur-fia%cur, insnw=fsa )
     END IF
     if (myid == 0) print *,'   ...starting record: ', nrec0
 
@@ -1877,8 +1874,7 @@ contains
   ! -----------------------------------
   ! Subroutine bulkMixrat: Find and calculate
   ! the total mixing ratio of a given compound
-  ! in aerosol particles or hydrometeors - this
-  ! function is for outputs only
+  ! in aerosol particles or hydrometeors
   !
   ! Juha Tonttila, FMI, 2015
   ! Jaakko Ahola, FMI, 2015
@@ -1960,7 +1956,7 @@ contains
   ! ----------------------------------------------
   ! Subroutine binSpecMixrat: Calculate the mixing
   ! ratio of selected aerosol species in individual
-  ! bins - this function is for outputs only
+  ! bins.
   !
   ! Juha Tonttila, FMI, 2015
   SUBROUTINE binSpecMixrat(ipart,icomp,ibin,mixr)
@@ -1998,8 +1994,7 @@ contains
   !
   ! ----------------------------------------------
   ! Subroutine bulkNumc: Calculate the total number
-  ! concentration of particles of given type - this
-  ! function is for outputs only
+  ! concentration of particles of given type
   !
   ! Juha Tonttila, FMI, 2015
   !
@@ -2072,7 +2067,7 @@ contains
   !
   ! -------------------------------------------------
   ! SUBROUTINE meanRadius
-  ! Gets the mean wet (water=nspec+1) radius for particles - this function is for outputs only
+  ! Gets the mean wet (water=nspec+1) radius for particles.
   !
   SUBROUTINE meanRadius(ipart,itype,rad)
     USE mo_submctl, ONLY : nbins,ncld,nprc,               &
@@ -2202,7 +2197,7 @@ contains
   !
   ! ---------------------------------------------------
   ! SUBROUTINE getBinRadius
-  ! Calculates wet radius for each bin in the whole domain - this function is for outputs only
+  ! Calculates wet radius for each bin in the whole domain
   SUBROUTINE getBinRadius(nn,n4,numc,mass,numlim,zrad,flag)
     USE mo_submctl, ONLY : pi6
     IMPLICIT NONE
@@ -2240,7 +2235,7 @@ contains
   ! - Aerosol, cloud and rain are spherical
   ! - Snow and ice can be irregular and their densities can be size-dependent
   !
-  ! Edit this function when needed (also update CalcDimension in mo_submctlf90)
+  ! Edit this function when needed (also update CalcDimension in mo_submctl.f90)
   !
   ! Correct dimension is needed for irregular particles (e.g. ice and snow) for calculating fall speed (deposition and coagulation)
   ! and capacitance (condensation). Otherwise compact spherical structure can be expected,

@@ -162,7 +162,7 @@ if not importOnly:
 
 
 
-    ajanhetket = 3*3600. #7200.
+    ajanhetket = 2*3600. #7200.
 
     spinup = mdp.read_NamelistValue( os.path.dirname(os.path.realpath(arguments[1]))+"/NAMELIST" ,var = 'Tspinup' )
     tmax   = mdp.read_NamelistValue( os.path.dirname(os.path.realpath(arguments[1]))+"/NAMELIST" ,var = 'timmax'  )
@@ -333,7 +333,9 @@ def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefV
         color = colorMap(skal)
         
         if omaVari:
-            omaVari = color
+            omavari = color
+        else:
+            omavari = omaVari
 
         if maksInd is not None:
             if np.max(muuttuja_Tdata) > maksimi: # maksimia ei ole viela tassa kohtaa paivitetty
@@ -374,7 +376,7 @@ def piirra_aikasarjasettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefV
             nimi = longName + ' ' + tag
             label = labelArray[i]
         
-        fig, ax = mdp.aikasarjaTulostus( muuttuja_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = xlabel, ynimi = ylabel, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omaVari, label = label )
+        fig, ax = mdp.aikasarjaTulostus( muuttuja_Tdata, time_data,  tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = xlabel, ynimi = ylabel, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari, label = label )
         #######################
     #print 'muuttuja', muuttuja, 'indeksi min', minInd, 'arvo min', minimi, 'indeksi max', maksInd, 'arvo max', maksimi
     
@@ -495,12 +497,16 @@ def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVe
             aikaP = np.argmin( np.abs(ajanhetket - time_data) )
         
         if aikaP > np.shape(muuttuja_data)[0] -1:
-            print 'VAROITUS: indeksi liian iso, skipataan - ', 'aikaP indeksi:', aikaP, 'muuttuja_data viimeinen indeksi:',  np.shape(muuttuja_data)[0] -1, 'muuttuja', muuttuja
+            #print 'VAROITUS: indeksi liian iso, skipataan - ', 'aikaP indeksi:', aikaP, 'muuttuja_data viimeinen indeksi:',  np.shape(muuttuja_data)[0] -1, 'muuttuja', muuttuja
+            if aikaP - (np.shape(muuttuja_data)[0] -1) > 1:
+                print 'VAROITUS: indeksi liian iso, skipataanko, koska ero viimeiseen indeksiin on >1 : ', aikaP - (np.shape(muuttuja_data)[0] -1) , 'aikaP indeksi:', aikaP, 'muuttuja_data viimeinen indeksi:',  np.shape(muuttuja_data)[0] -1, 'muuttuja', muuttuja
+                ippu = 'Do you want use the last index ' + str(aikaP) + ' (yes/no): '
+                lastIND = raw_input( ippu ) in kylla
+                if not lastIND:
+                    continue
+            # asetetaan aikaP viimeiseksi indeksiksi
             aikaP = np.shape(muuttuja_data)[0] -1
-            ippu = 'Do you want use the last index ' + str(aikaP) + ' (yes/no): '
-            lastIND = raw_input( ippu ) in kylla
-            if not lastIND:
-                continue
+            
             
 
 
@@ -556,7 +562,9 @@ def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVe
         color = colorMap(skal)
         
         if omaVari:
-            omaVari = color
+            omavari = color
+        else:
+            omavari = omaVari
         
         if EMUL:
             nimi = longName + ' ' + tag + LVLprintFig
@@ -567,7 +575,7 @@ def piirra_profiilisettii( muuttuja, variKartta = plt.cm.gist_rainbow, variRefVe
         else:
             nimi = longName + ' ' + tag
             label = labelArray[i]
-        fig, ax = mdp.profiiliTulostus( p_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = xlabel, ynimi = ylabel, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omaVari, label = label, loc = 3 )
+        fig, ax = mdp.profiiliTulostus( p_difference, aikaPisteet = 0, korkeus = fracZ, tulostus = tulostus, piirra = piirra, uusikuva = uusikuva, nimi = nimi, xnimi = xlabel, ynimi = ylabel, tightXAxis=tightXAxis, LEGEND=LEGEND, omavari = omavari, label = label, loc = 3 )
 
         ####################
     # tikkien fonttikoko
@@ -660,18 +668,22 @@ def piirra_profiiliKehitys(  muuttuja, variKartta = plt.cm.gist_rainbow, colorBa
             
             aikaP = np.argmin( np.abs(aikaPisteet[t] - time_data) )
             
+                
             if aikaP > np.shape(muuttuja_data)[0] -1:
-                if i == 0:
-                    print ' '
-                print 'VAROITUS: indeksi liian iso, skipataan - ', 'aikaP indeksi:', aikaP, 'muuttuja_data viimeinen indeksi:',  np.shape(muuttuja_data)[0] -1, 'muuttuja', muuttuja
+                #print 'VAROITUS: indeksi liian iso, skipataan - ', 'aikaP indeksi:', aikaP, 'muuttuja_data viimeinen indeksi:',  np.shape(muuttuja_data)[0] -1, 'muuttuja', muuttuja
+                if aikaP - (np.shape(muuttuja_data)[0] -1) > 1:
+                    if i == 0:
+                        print ' '
+                    print 'VAROITUS: indeksi liian iso, skipataanko, koska ero viimeiseen indeksiin on >1 : ', aikaP - (np.shape(muuttuja_data)[0] -1) , 'aikaP indeksi:', aikaP, 'muuttuja_data viimeinen indeksi:',  np.shape(muuttuja_data)[0] -1, 'muuttuja', muuttuja
+                    ippu = 'Do you want use the last index ' + str(aikaP) + ' (yes/no): '
+                    if lastIND is None:
+                        lastIND = raw_input( ippu ) in kylla
+                        if not lastIND:
+                            continue
+                # asetetaan aikaP viimeiseksi indeksiksi
                 aikaP = np.shape(muuttuja_data)[0] -1
-                ippu = 'Do you want use the last index for all cases ' + str(aikaP) + ' (yes/no): '
-                
-                if lastIND is None:
-                    lastIND = raw_input( ippu ) in kylla
-                    if not lastIND:
-                        continue
-                
+            
+            
             
             ##### pbl height
             #if rajaKerros is None:
@@ -878,7 +890,7 @@ def piirra_aikasarjaPathXYZ( muuttuja, muunnosKerroin = 1.0, longName = None, sa
 
 
 ##########################
-def piirra_maksimiKeissit( muuttuja, muunnosKerroin = 1.0, longName = 'pitka nimi', xlabel = 'case', ylabel = 'ylabel', savePrefix = None, askChangeOfVariable = False):
+def piirra_maksimiKeissit( muuttuja, muunnosKerroin = 1.0, longName = 'pitka nimi', xlabel = 'case', ylabel = 'ylabel', savePrefix = None, askChangeOfVariable = False, ajanhetket = None ):
     lista = np.zeros( cases )
     xTikit = np.zeros( cases ) 
 
@@ -918,12 +930,17 @@ def piirra_maksimiKeissit( muuttuja, muunnosKerroin = 1.0, longName = 'pitka nim
             aikaP = 0
         
         if aikaP > np.shape(muuttuja_Tdata)[0] -1:
-            print 'VAROITUS: indeksi liian iso skipataan', 'aikaP', aikaP, 'np.shape(muuttuja_Tdata)[0]', np.shape(muuttuja_Tdata)[0], 'muuttuja', muuttuja
+            #print 'VAROITUS: indeksi liian iso, skipataan - ', 'aikaP indeksi:', aikaP, 'muuttuja_Tdata viimeinen indeksi:',  np.shape(muuttuja_Tdata)[0] -1, 'muuttuja', muuttuja
+            if aikaP - (np.shape(muuttuja_Tdata)[0] -1) > 1:
+                print 'VAROITUS: indeksi liian iso, skipataanko, koska ero viimeiseen indeksiin on >1 : ', aikaP - (np.shape(muuttuja_Tdata)[0] -1) , 'aikaP indeksi:', aikaP, 'muuttuja_Tdata viimeinen indeksi:',  np.shape(muuttuja_Tdata)[0] -1, 'muuttuja', muuttuja
+                ippu = 'Do you want use the last index ' + str(aikaP) + ' (yes/no): '
+                lastIND = raw_input( ippu ) in kylla
+                if not lastIND:
+                    continue
+            # asetetaan aikaP viimeiseksi indeksiksi
             aikaP = np.shape(muuttuja_Tdata)[0] -1
-            ippu = 'Do you want use the last index ' + str(aikaP) + ' (yes/no): '
-            lastIND = raw_input( ippu ) in kylla
-            if not lastIND:
-                continue
+            
+            
             
         #print 'np.shape(lista)', np.shape(lista), 'case_indeksi',i, 'aikaP', aikaP, 'np.shape(muuttuja_Tdata)[0]', np.shape(muuttuja_Tdata)[0], 'muuttuja', muuttuja
         
@@ -1728,7 +1745,7 @@ if EMUL and not importOnly:
         
         mdp.plot_suljetus(naytaPlotit)
         
-        piirra_maksimiKeissit( muuttuja = prcp, muunnosKerroin = sadekerroin, longName = 'Maximum precipitation after '+str(int(ajanhetket/3600.))+'h', ylabel = 'precipitation W/m^2',      savePrefix = 'prcp_max', askChangeOfVariable = askChangeOfVariable )
+        piirra_maksimiKeissit( muuttuja = prcp, muunnosKerroin = sadekerroin, longName = 'Maximum precipitation after '+str(int(ajanhetket/3600.))+'h', ylabel = 'precipitation W/m^2',      savePrefix = 'prcp_max', askChangeOfVariable = askChangeOfVariable, ajanhetket = ajanhetket )
         
         mdp.plot_suljetus(naytaPlotit)
     
@@ -1737,7 +1754,7 @@ if EMUL and not importOnly:
         
         mdp.plot_suljetus(naytaPlotit)
         
-        piirra_maksimiKeissit( maksimiSensible, longName = "Maximum sensible heat",                                       ylabel = 'Sensible heat flux W/m^2', savePrefix = 'heat_flx_sensible_max' ) 
+        piirra_maksimiKeissit( maksimiSensible, longName = "Maximum sensible heat",                                       ylabel = 'Sensible heat flux W/m^2', savePrefix = 'heat_flx_sensible_max', ajanhetket = ajanhetket ) 
         
         mdp.plot_suljetus(naytaPlotit)
         
@@ -1746,7 +1763,7 @@ if EMUL and not importOnly:
         
         mdp.plot_suljetus(naytaPlotit)
         
-        piirra_maksimiKeissit( maksimiLatent,   longName = "Maximum latent heat",                                         ylabel = 'Latent heat flux W/m^2',   savePrefix = 'heat_flx_latent_max' ) 
+        piirra_maksimiKeissit( maksimiLatent,   longName = "Maximum latent heat",                                         ylabel = 'Latent heat flux W/m^2',   savePrefix = 'heat_flx_latent_max', ajanhetket = ajanhetket ) 
         
         mdp.plot_suljetus(naytaPlotit)
         

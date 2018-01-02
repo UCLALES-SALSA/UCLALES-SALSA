@@ -2,7 +2,7 @@ MODULE mo_salsa_sizedist
 
 CONTAINS
 
-  SUBROUTINE size_distribution(kbdim, klev, &
+  SUBROUTINE size_distribution(kproma, kbdim, klev, &
        n, dpg, sigmag, naero)
 
     USE mo_submctl, ONLY :      &
@@ -17,6 +17,7 @@ CONTAINS
     INTEGER, PARAMETER :: nmod = 7
 
     INTEGER, INTENT(IN) ::          &
+         kproma,                    & ! number of horiz. grid points
          kbdim,                     & ! dimension for arrays
          klev                         ! number of vertical levels
 

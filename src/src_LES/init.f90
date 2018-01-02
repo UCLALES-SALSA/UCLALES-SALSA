@@ -243,7 +243,6 @@ contains
     do while( zt(k+1) <= zrand .and. k+1 < nzp)
        k=k+1
        xran(k) = zrndamp*(zrand - zt(k))/zrand
-
     end do
     call random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
 
@@ -866,7 +865,7 @@ contains
        ! Convert to SI
        n = n*1.e6
        dpg = dpg*1.e-6
-       CALL size_distribution(1,1, n, dpg, sigmag, nsect)
+       CALL size_distribution(1,1,1, n, dpg, sigmag, nsect)
        DO ss = 1,nbins
           pndist(:,ss) = nsect(1,1,ss)
        END DO
@@ -878,7 +877,7 @@ contains
     !
     ! Initialize concentrations
     ! ----------------------------------------------------------
-    DO k = 1,nzp
+    DO k = 2,nzp
        DO j = 1,nyp
           DO i = 1,nxp
 
@@ -909,6 +908,8 @@ contains
           END DO ! i
        END DO ! j
     END DO ! k
+    a_naerop(1,:,:,:) = a_naerop(2,:,:,:)
+    a_maerop(1,:,:,:) = a_maerop(2,:,:,:)
 
     !
     ! c) Aerosol mass concentrations
@@ -1122,7 +1123,7 @@ contains
     ! Get the binned size distribution
     znsect = 0.
     DO k = 1,nc_levs
-       CALL size_distribution(1,1,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
+       CALL size_distribution(1,1,1,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
        znsect(k,:) = nsect(1,1,:)
     END DO
 
@@ -1164,7 +1165,6 @@ contains
 
     INTEGER :: j,i,k
 
-    ! Nääkin voisi lukea tiedostosta
     ! Taken as molecules/kg
     DO j = 1,nyp
        DO i = 1,nxp

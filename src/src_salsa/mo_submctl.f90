@@ -14,7 +14,7 @@ MODULE mo_submctl
   PUBLIC :: in1a,in2a,in2b,fn1a,fn2a,fn2b,nbins
   PUBLIC :: nbin,reglim,nlim,prlim,nreg
   PUBLIC :: pi, pi6, rg, avog, planck, boltz, cpa, mair, grav, eps
-  PUBLIC :: rd, rv, alv, als
+  PUBLIC :: rda, alv, als
   PUBLIC :: rhosu,rhooc, rhobc,rhoss, rhodu, rhowa, rhonh, rhono, rhoic,rhosn
   PUBLIC :: msu,mdu,mno,mnh,n3,massacc,d_sa,pstand,mss,mbc,moc,epsoc,mwa,ions,&
             mvsu,mvoc,mvss,surfw0,surfi0,mvwa,mvno,mvnh
@@ -59,7 +59,7 @@ MODULE mo_submctl
             lsautosnow,            &
             lsactiv,lsactbase,     &
             lsactintst,            &
-            lsicenucl,              &
+            lsicenucl,             &
             lsicmelt,              &
             lsfixinc
 
@@ -157,9 +157,9 @@ MODULE mo_submctl
                lsautosnow
     LOGICAL :: nlactiv     = .TRUE.,   & ! Cloud droplet activation master switch
                lsactiv
-    LOGICAL :: nlactintst  = .TRUE.,  & ! Switch for interstitial activation: Use particle wet size determined by
+    LOGICAL :: nlactintst  = .TRUE.,   & ! Switch for interstitial activation: Use particle wet size determined by
                lsactintst                ! codensation equations and supersaturation directly from the host model
-    LOGICAL :: nlactbase   = .FALSE.,   & ! Switch for cloud base activation: Use the regular parameterized method
+    LOGICAL :: nlactbase   = .FALSE.,  & ! Switch for cloud base activation: Use the regular parameterized method
                lsactbase                 ! for maximum supersaturation and cloud activation.
 
 
@@ -213,7 +213,7 @@ MODULE mo_submctl
   ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
   REAL :: nf2a = 1.0
 
-  REAL :: fixINC = 1000.0 ! fixed ice number concentration #/m^3, nlfixinc should be set to true inorder to have this working
+  REAL :: fixINC = 1000.0 ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
 
   INTEGER :: isdtyp = 0  ! Type of input aerosol size distribution: 0 - Uniform
                          !                                          1 - Read vertical profile of the mode
@@ -276,8 +276,8 @@ MODULE mo_submctl
    rg     = 8.314,        & ! molar gas constant (J/(mol K))
    pi     = 3.1415927,    & ! self explanatory
    pi6    = 0.5235988,    & ! pi/6
-   cpa    = 1010.,        & ! specific heat of dry air, constant P (J/kg/K)
-   mair   = 28.97e-3,     & ! molar mass of air (mol/kg)
+   cpa    = 1005.,        & ! specific heat of dry air, constant P (J/kg/K)
+   mair   = 28.967e-3,    & ! molar mass of air (mol/kg)
    deltav = 1.096e-7,     & ! vapor jump length (m)
    deltaT = 2.16e-7,      & ! thermal jump length (m)
    alphaT = 0.96,         & ! thermal accomodation coefficient
@@ -285,9 +285,8 @@ MODULE mo_submctl
    eps    = epsilon(1.0)       ! epsilon
 
   REAL, PARAMETER ::   &
-   rd    = 287.04,     & ! gas constant for dry air (J/K/kg)
-   rv    = 461.5,      & ! gas constant for water vapour (J/K/kg)
-   alv    = 2.5e6,   & ! latent heat for vaporisation (J/kg)
+   rda   = 287.04,     & ! gas constant for dry air (J/K/kg)
+   alv    = 2.5e6,     & ! latent heat for vaporisation (J/kg)
    als    = 2.834e6      ! latent heat for sublimation (J/kg)
 
   REAL, PARAMETER ::     & ! molar mass [kg/mol]
@@ -415,7 +414,7 @@ contains
   END SUBROUTINE CalcDimension
 
   !********************************************************************
-  ! Function for calculating equilibrium water saturation ratio at droplet surface based on Köhler theory
+  ! Function for calculating equilibrium water saturation ratio at droplet surface based on Kohler theory
   !
   REAL FUNCTION calc_Sw_eq(part,T)
     TYPE(t_section), INTENT(in) :: part ! Any particle

@@ -37,7 +37,7 @@ contains
     use stat, only : sflg, updtst, acc_tend
     use util, only : get_avg3
 
-    real ::  v1da(nzp), v1db(nzp), v1dc(nzp), v1dd(nzp), v1de(nzp), &
+    real ::  v1da(nzp), v1db(nzp), v1dc(nzp), v1dd(nzp), v1de(nzp), v1st(nzp), &
          a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
     !
     ! prepare density weights for use vertical advection
@@ -54,8 +54,8 @@ contains
     call ladvyu(nzp,nxp,nyp,a_uc,a_ut,a_vc,a_tmp2,dyi)
     call ladvzu(nzp,nxp,nyp,a_uc,a_ut,a_tmp1,a_tmp2,v1da)
     if (sflg) then
-       call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-       call updtst(nzp,'adv',-1,v1da,1)
+       call get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
+       call updtst(nzp,'adv',-1,v1st,1)
     end if
     !
     ! advection of v by (u,v,w) all at current timelevel.  also when flag
@@ -65,8 +65,8 @@ contains
     call ladvyv(nzp,nxp,nyp,a_vc,a_vt,a_tmp2,dyi)
     call ladvzv(nzp,nxp,nyp,a_vc,a_vt,a_tmp1,a_tmp2,v1da)
     if (sflg) then
-       call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-       call updtst(nzp,'adv',-2,v1da,1)
+       call get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
+       call updtst(nzp,'adv',-2,v1st,1)
     end if
     !
     ! advection of w by (u,v,w) all at current timelevel.  also when flag
@@ -77,8 +77,8 @@ contains
     call ladvzw(nzp,nxp,nyp,a_wc,a_wt,a_tmp1,a_tmp2,v1db)
 
     if (sflg) then
-       call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-       call updtst(nzp,'adv',-3,v1da,1)
+       call get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
+       call updtst(nzp,'adv',-3,v1st,1)
     end if
 
     if (sflg) call acc_tend(nzp,nxp,nyp,a_uc,a_vc,a_wc,a_ut,a_vt,a_wt,        &

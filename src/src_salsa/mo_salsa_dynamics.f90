@@ -18,7 +18,7 @@ CONTAINS
   ! AL_note: Diagnostic variables of cond and nucl mass
   !********************************************************************
   !
-  ! subroutine COAGULATION(kbdim,klev, &
+  ! subroutine COAGULATION(kproma,kbdim,klev, &
   !       pnaero,pvols,pdwet, &
   !       pcore, ptstep)
   !
@@ -93,7 +93,7 @@ CONTAINS
   !---------------------------------------------------------------------
 
 
-  SUBROUTINE coagulation(kbdim,  klev,    &
+  SUBROUTINE coagulation(kproma, kbdim,  klev,    &
                          paero,  pcloud, pprecp, pice, psnow,  &
                          ptstep, ptemp,  ppres     )
 
@@ -120,6 +120,7 @@ CONTAINS
 
     !-- Input and output variables -------------
     INTEGER, INTENT(IN) ::          &
+         kproma,                    & ! number of horiz. grid kproma
          kbdim,                     & ! dimension for arrays
          klev                         ! number of vertical klev
 
@@ -162,8 +163,8 @@ CONTAINS
     REAL :: &
          zmpart(fn2b),   & ! approximate mass of aerosol [kg]
          zmcloud(ncld),  & ! approximate mass of cloud droplets [kg]
-         zmprecp(nprc), & ! Approximate mass for rain drops [kg]
-         zmice(nice),     & ! approximate mass for ice [kg]
+         zmprecp(nprc),  & ! approximate mass for rain drops [kg]
+         zmice(nice),    & ! approximate mass for ice [kg]
          zmsnow(nsnw),   & ! approximate mass for snow [kg]
          zdpart(fn2b),   & ! diameter of aerosol [m]
          zdcloud(ncld),  & ! diameter of cloud droplets [m]
@@ -185,7 +186,7 @@ CONTAINS
     !-- 2) Updating coagulation coefficients -------------------------------------
 
      DO jj = 1,klev      ! vertical grid
-        DO ii = 1,kbdim ! number of vertical klev
+        DO ii = 1,kbdim ! dimension for arrays
            ! Which species are included
            any_cloud = ANY(pcloud(ii,jj,:)%numc > nlim)
            any_precp = ANY(pprecp(ii,jj,:)%numc > prlim)
@@ -570,7 +571,7 @@ CONTAINS
 
               ! corresponding index for regime b cloud droplets
               kk = MAX(cc-fca%cur+ncld,icb%cur) ! Regime a has more bins than b:
-                                                     ! Set this at minimum to beginnign of b.
+                                                     ! Set this at minimum to beginning of b.
 
               ! Droplets lost by those with larger nucleus in regime a
               DO ll = cc+1,fca%cur
@@ -743,7 +744,7 @@ CONTAINS
               zplusterm(:) = 0.
 
               ! corresponding index for regime b ice
-              kk = MAX(cc-fia%cur+nice,iib%cur) ! Regime a can have more bins than b:
+              kk = MAX(cc-fia%cur+nice,iib%cur) ! Regime a has more bins than b:
                                                      ! Set this at minimum to beginning of b.
 
               ! Particles lost by those with larger nucleus in regime a
@@ -932,7 +933,7 @@ CONTAINS
   !      and organic vapours (average values? 'real' values for each?)
   !********************************************************************
   !
-  ! subroutine CONDENSATION(kbdim,  klev,        &
+  ! subroutine CONDENSATION(kproma, kbdim,  klev,        &
   !                         pnaero, pvols,  pdwet, plwc, &
   !                         pcsa,   pcocnv, pcocsv,      &
   !                         ptemp,  ppres,  ptstep)
@@ -998,7 +999,7 @@ CONTAINS
   !
   !---------------------------------------------------------------
 
-  SUBROUTINE condensation(kbdim,  klev,      &
+  SUBROUTINE condensation(kproma,  kbdim,  klev,   krow,      &
                           paero,   pcloud, pprecp,            &
                           pice,    psnow,                     &
                           pcsa,                               &
@@ -1023,15 +1024,17 @@ CONTAINS
 
     !-- Input and output variables ----------
     INTEGER, INTENT(IN) ::          &
+         kproma,                    & ! number of horiz. grid kproma
          kbdim,                     & ! dimension for arrays
-         klev                         ! number of vertical levels
+         klev,                      & ! number of vertical klev
+         krow
 
     REAL, INTENT(IN) ::         &
          ptemp(kbdim,klev),         & ! ambient temperature [K]
          ppres(kbdim,klev),         & ! ambient pressure [Pa]
          ptstep,                    & ! timestep [s]
          prs(kbdim,klev),           & ! Water vapor saturation mixing ratio [kg/kg]
-         prsi(kbdim,klev)              ! Water vapor saturation mixing ratio over ice [kg/kg]
+         prsi(kbdim,klev)             ! Water vapor saturation mixing ratio over ice [kg/kg]
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl  ! Keeps track which substances are used
 
@@ -1066,13 +1069,13 @@ CONTAINS
     !------------------------------------------------------------------------------
 
     ! Nucleation
-    IF (nsnucl > 0) CALL nucleation(1,1,kbdim,  klev,   &
+    IF (nsnucl > 0) CALL nucleation(kproma, kbdim,  klev,   krow,   &
                                     paero,  ptemp,  zrh,    ppres,  &
                                     pcsa,   pcocnv, ptstep, zj3n3,  &
                                     zxsa,   zxocnv, ppbl            )
 
     ! Condensation of H2SO4 and organic vapors
-    IF (lscndgas) CALL condgas(kbdim,  klev,      &
+    IF (lscndgas) CALL condgas(kproma,  kbdim,  klev,   krow,      &
                           paero,   pcloud, pprecp,            &
                           pice,    psnow,                     &
                           pcsa, pcocnv, pcocsv, pchno3, pcnh3,     &
@@ -1081,14 +1084,14 @@ CONTAINS
 
     ! Condensation of water vapour
     IF (nlcndh2ocl .OR. nlcndh2oae .OR. nlcndh2oic) &
-        CALL gpparth2o(kbdim,klev,  &
+        CALL gpparth2o(kproma,kbdim,klev,krow,  &
                    paero, pcloud, pprecp,   &
                    pice, psnow,             &
                    ptemp,ppres,prs,prsi,prv,     &
                    ptstep)
 
     ! HNO3/NH3 - currently disabled
-    !CALL gpparthno3(kbdim,klev,ppres,ptemp,paero,pcloud,   &
+    !CALL gpparthno3(kproma,kbdim,klev,krow,ppres,ptemp,paero,pcloud,   &
     !                pprecp,pchno3,pcnh3,prv,prs,zbeta,ptstep           )
 
   END SUBROUTINE condensation
@@ -1097,7 +1100,7 @@ CONTAINS
 ! ----------------------------------------------------------------------------------------------------------
 !
 
-  SUBROUTINE condgas(kbdim,  klev,      &
+  SUBROUTINE condgas(kproma,  kbdim,  klev,   krow,      &
                           paero,   pcloud, pprecp,            &
                           pice,    psnow,                     &
                           pcsa,                               &
@@ -1131,8 +1134,10 @@ CONTAINS
 
     !-- Input and output variables ----------
     INTEGER, INTENT(IN) ::          &
+         kproma,                    & ! number of horiz. grid kproma
          kbdim,                     & ! dimension for arrays
-         klev                       ! number of vertical klev
+         klev,                      & ! number of vertical klev
+         krow
 
     REAL, INTENT(IN) ::         &
          ptemp(kbdim,klev),         & ! ambient temperature [K]
@@ -1474,7 +1479,7 @@ CONTAINS
 ! ----------------------------------------------------------------------------------------------------------
 !
 
-  SUBROUTINE gpparth2o(kbdim,  klev,  &
+  SUBROUTINE gpparth2o(kproma, kbdim,  klev, krow,  &
                        paero,  pcloud, pprecp,      &
                        pice, psnow,                 &
                        ptemp,  ppres,  prs,prsi, prv,    &
@@ -1494,7 +1499,7 @@ CONTAINS
     USE mo_salsa_properties, ONLY : equilibration
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: kbdim,klev
+    INTEGER, INTENT(in) :: kproma,kbdim,klev,krow
     REAL, INTENT(in) :: ptstep
     REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev)
     TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,nbins),  &
@@ -1507,8 +1512,6 @@ CONTAINS
 
     REAL :: zkelvin(nbins), zkelvincd(ncld), zkelvinpd(nprc), &  ! Kelvin effects
                 zkelvinid(nice), zkelvinsd(nsnw)                      ! Kelvin effects ice'n'snow
-    REAL :: zka(nbins), zkacd(ncld), zkapd(nprc),        &  ! Activity coefficients
-                zkaid(nice), zkasd(nsnw)                        ! Activity coefficients ! ice'n'snow
     REAL :: zcwsurfae(nbins), zcwsurfcd(ncld), zcwsurfpd(nprc), & ! Surface mole concentrations
                 zcwsurfid(nice), zcwsurfsd(nsnw)                 ! surface mole concentrations ice'n'snow
     REAL :: zmtae(nbins), zmtcd(ncld), zmtpd(nprc),      & ! Mass transfer coefficients
@@ -1525,7 +1528,7 @@ CONTAINS
     REAL :: zdfh2o, zthcond,rhoair
     REAL :: zbeta,zknud,zmfph2o
     REAL :: zact, zhlp1,zhlp2,zhlp3
-    REAL :: adt,adtc(nbins),ttot
+    REAL :: adt,ttot
     REAL :: dwet, dw(1), cap
     REAL :: zrh(kbdim,klev)
 
@@ -1545,11 +1548,11 @@ CONTAINS
     zaelwc1(:,:) = SUM(paero(:,:,in1a:fn2b)%volc(8),DIM=3)*rhowa
 
     ! For 1a bins do the equilibrium calculation
-    CALL equilibration(kbdim,klev,      &
+    CALL equilibration(kproma,kbdim,klev,      &
                        zrh,ptemp,paero,.FALSE. )
 
     ! If RH < 98 % OR dynamic condensation for aerosols switched off, do equilibrium for all bins
-    IF (zrh(1,1) < 0.98 .OR. .NOT. lscndh2oae)  CALL equilibration(kbdim,klev,      &
+    IF (zrh(1,1) < 0.98 .OR. .NOT. lscndh2oae)  CALL equilibration(kproma,kbdim,klev,      &
                                                                       zrh,ptemp,paero,.TRUE. )
 
     ! The new aerosol water content after equilibrium calculation
@@ -1557,7 +1560,6 @@ CONTAINS
 
     prv(:,:) = prv(:,:) - ( zaelwc2(:,:) - zaelwc1(:,:) )/( ppres(:,:)*mair/(rg*ptemp(:,:)) )
 
-    adtc(:) = 0.
     zcwc = 0.; zcwint = 0.; zcwn = 0.
     zcwcae = 0.; zcwccd = 0.; zcwcpd = 0.; zcwcid = 0.; zcwcsd = 0.;
     zcwintae = 0.; zcwintcd = 0.; zcwintpd = 0.; zcwintid = 0.; zcwintsd = 0.
@@ -1566,6 +1568,11 @@ CONTAINS
 
     DO jj = 1,klev
        DO ii = 1,kbdim
+          IF ( .NOT. ( &
+                (ANY(pcloud(ii,jj,:)%numc > nlim) .OR. ANY(pprecp(ii,jj,:)%numc > prlim) .AND. lscndh2ocl) .OR. &
+                (ANY(pice(ii,jj,:)%numc > prlim) .OR. ANY(psnow(ii,jj,:)%numc > prlim) .AND. lscndh2oic) .OR. &
+                (ANY(paero(ii,jj,:)%numc > nlim) .AND. zrh(ii,jj) > 0.98 .AND. lscndh2oae) &
+                ) ) CYCLE
 
           rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
 
@@ -1578,7 +1585,6 @@ CONTAINS
 
           ! -- Water vapour (Follows the analytical predictor method by Jacobson 2005)
           zkelvinpd = 1.; zkelvincd = 1.; zkelvin = 1.; zkelvinid = 1.; zkelvinsd = 1.
-          zka = 1.; zkacd = 1.; zkapd = 1.; zkaid = 1.; zkasd = 1. ! Assume activity coefficients as 1 for now.
 
           ! Cloud droplets --------------------------------------------------------------------------------
           zmtcd(:) = 0.
@@ -1710,7 +1716,7 @@ CONTAINS
                 !   because these are not known for solid, irregular and non-homogenous particles.
                 !   Especially snow is typically highly irregular (e.g. dendrite).
                 zact = 1.0 !acth2o(psnow(ii,jj,cc))
-                zkelvinsd(cc) = 1.0 !exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                zkelvinsd(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
 
                 ! Saturation mole concentrations over flat surface
                 zcwsurfsd(cc) = prsi(ii,jj)*rhoair/mwa
@@ -1736,7 +1742,7 @@ CONTAINS
           ! -- Aerosols: ------------------------------------------------------------------------------------
           zmtae(:) = 0.
           zcwsurfae(:) = 0.
-          DO cc = nstr,nbins
+          DO cc = 1,nbins
              IF (paero(ii,jj,cc)%numc > nlim .AND. zrh(ii,jj) > 0.98 .AND. lscndh2oae) THEN
                 ! Wet diameter
                 dwet=( SUM(paero(ii,jj,cc)%volc(:))/paero(ii,jj,cc)%numc/pi6 )**(1./3.)
@@ -1770,7 +1776,7 @@ CONTAINS
 
           ! Current mole concentrations
           zcwc = prv(ii,jj)*rhoair/mwa
-          zcwcae(nstr:nbins) = paero(ii,jj,nstr:nbins)%volc(8)*rhowa/mwa
+          zcwcae(1:nbins) = paero(ii,jj,1:nbins)%volc(8)*rhowa/mwa
           zcwccd(1:ncld) = pcloud(ii,jj,1:ncld)%volc(8)*rhowa/mwa
           zcwcpd(1:nprc) = pprecp(ii,jj,1:nprc)%volc(8)*rhowa/mwa
           zcwcid(1:nice) = pice(ii,jj,1:nice)%volc(8)*rhoic/mwa
@@ -1782,7 +1788,6 @@ CONTAINS
                           SUM(zcwcid) + &
                           SUM(zcwcsd)
           ttot = 0.
-          adtc = 0.
 
           zcwintae = zcwcae; zcwintcd = zcwccd; zcwintpd = zcwcpd; zcwintid = zcwcid; zcwintsd = zcwcsd
 
@@ -1846,7 +1851,7 @@ CONTAINS
              zcwintsd(1:nsnw) = MAX(zcwintsd(1:nsnw),0.)
 
              ! Update vapor concentration for consistency
-             zcwint = zcwtot - SUM(zcwintae(nstr:nbins)) - &
+             zcwint = zcwtot - SUM(zcwintae(1:nbins)) - &
                                SUM(zcwintcd(1:ncld))  - &
                                SUM(zcwintpd(1:nprc))  - &
                                SUM(zcwintid(1:nice))  - &
@@ -1869,7 +1874,7 @@ CONTAINS
 
           prv(ii,jj) = zcwn*mwa/rhoair
 
-          paero(ii,jj,nstr:nbins)%volc(8) = max(0.,zcwnae(nstr:nbins)*mwa/rhowa)
+          paero(ii,jj,1:nbins)%volc(8) = max(0.,zcwnae(1:nbins)*mwa/rhowa)
           pcloud(ii,jj,1:ncld)%volc(8) = max(0.,zcwncd(1:ncld)*mwa/rhowa)
           pprecp(ii,jj,1:nprc)%volc(8) = max(0.,zcwnpd(1:nprc)*mwa/rhowa)
           pice(ii,jj,1:nice)%volc(8) = max(0.,zcwnid(1:nice)*mwa/rhoic)
@@ -1917,7 +1922,7 @@ CONTAINS
 ! ----------------------------------------------------------------------------------------------------------
 !
 
-  SUBROUTINE gpparthno3(kbdim,klev,ppres,ptemp,paero,pcloud,    &
+  SUBROUTINE gpparthno3(kproma,kbdim,klev,krow,ppres,ptemp,paero,pcloud,    &
                         pprecp,pghno3,pgnh3,prv,prs,pbeta,ptstep)
     
     USE mo_submctl, ONLY : t_section,           &
@@ -1931,7 +1936,7 @@ CONTAINS
 
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: kbdim,klev
+    INTEGER, INTENT(in) :: kproma,kbdim,klev,krow
     REAL, INTENT(in) :: ptstep
     REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev)
     REAL, INTENT(in) :: prv(kbdim,klev),prs(kbdim,klev)
@@ -2341,7 +2346,7 @@ CONTAINS
   SUBROUTINE SVsat(nb,ptemp,ppart,pachno3,pacnh3,pacnh4hso2,   &
                    pachhso4,pchno3eq,pchno3,pcnh3,pkelhno3,    &
                    pkelnh3,psathno3,psatnh3,pmols,plim         )
-
+    
     USE mo_submctl, ONLY : t_section,   &
                                rhosu,msu,   &
                                rhooc,       &
@@ -2522,7 +2527,7 @@ CONTAINS
   !-------------------------------------------------
   REAL FUNCTION coagc(diam1,diam2,mass1,mass2,temp,pres,kernel,flag1,flag2)
 
-    USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd, terminal_vel
+    USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rda, terminal_vel
 
     IMPLICIT NONE
 
@@ -2535,9 +2540,11 @@ CONTAINS
          temp,   &   ! ambient temperature [K]
          pres        ! ambient pressure [fxm]
 
-    INTEGER, INTENT(in) :: kernel, & ! Select the type of kernel: 1 - aerosol-aerosol coagulation (the original version)
+    INTEGER, INTENT(in) :: kernel ! Select the type of kernel: 1 - aerosol-aerosol coagulation (the original version)
                                   !                            2 - hydrometeor-aerosol or hydrometeor-hydrometeor coagulation
-                flag1,flag2
+
+    INTEGER, INTENT(in) :: flag1,flag2 ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
+
     !-- Output variables ---------
 
     !-- Local variables ----------
@@ -2640,7 +2647,7 @@ CONTAINS
              lrg = 1; sml = 2
           END IF
 
-          zrhoa = pres/(rd*temp)   ! Density of air
+          zrhoa = pres/(rda*temp)   ! Density of air
           zrhop = mpart/(pi6*diam**3)             ! Density of particles
           vkin = visc/zrhoa   ! Kinematic viscosity of air [m2 s-1]
 
