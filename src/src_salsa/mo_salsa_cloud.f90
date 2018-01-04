@@ -1269,7 +1269,9 @@ CONTAINS
 
   !***********************************************
   !
-  ! Ice given hard coded conditions where the ice particle number concentration is kept over given limit #/kg
+  ! Prescribed ice number concentration for cloudy regions (rc>0.001 g/kg) where ice
+  ! supersaturation is at least 5%. Ice number concentration is increased towards the
+  ! target concentration (fixinc, #/kg) by converting the largest cloud droplets to ice.
   !
   !***********************************************
   SUBROUTINE ice_fixed_NC(kproma, kbdim,  klev,   &
@@ -1281,8 +1283,10 @@ CONTAINS
                                ncld,        &
                                nice,        &
                                rhowa,       &
+                               rhoic,       &
                                rda,         &
-                               nlim, fixinc
+                               nlim,        &
+                               fixinc   ! Target ice number concentration (#/kg)
 
     IMPLICIT NONE
     INTEGER, INTENT(in) :: kproma,kbdim,klev
@@ -1298,7 +1302,7 @@ CONTAINS
     INTEGER :: ii,jj,kk,ss
 
     REAL :: pdn, iceSupSat, rc_tot, Ni0,  &
-            sumICE, iceTendecyNumber, liqToIceTendecyFrac
+            sumICE, iceTendecyNumber, liqToIceFrac
 
 
     DO ii = 1,kbdim
@@ -1327,13 +1331,16 @@ CONTAINS
                 pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + iceTendecyNumber
                 sumICE = sumICE + iceTendecyNumber
 
-                liqToIceTendecyFrac   = MAX( 0.0, MIN( 1.0, iceTendecyNumber/pcloud(ii,jj,kk)%numc ) )
+                liqToIceFrac   = MAX( 0.0, MIN( 1.0, iceTendecyNumber/pcloud(ii,jj,kk)%numc ) )
                 pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - iceTendecyNumber
 
-                DO ss = 1,8
-                      pice(ii,jj,kk)%volc(ss) =   pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceTendecyFrac )
-                    pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceTendecyFrac )
+                DO ss = 1,7
+                    pice(ii,jj,kk)%volc(ss) = pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
+                    pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
                 END DO
+                ss=8 ! Water
+                pice(ii,jj,kk)%volc(ss) = pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac*rhowa/rhoic )
+                pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
             END IF
         END DO
     END DO
@@ -1378,7 +1385,7 @@ CONTAINS
           if (ptemp(ii,jj) <= 273.15 ) cycle
 
           DO kk = 1,nice
-              ! Ice => cloud water
+              ! Ice => cloud water (parallel bin)
               IF (pice(ii,jj,kk)%numc<prlim) CYCLE
               DO ss = 1,7
                   pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) + pice(ii,jj,kk)%volc(ss)
@@ -1396,14 +1403,14 @@ CONTAINS
               ! Snow => precipitation (bin 1)
               IF (psnow(ii,jj,kk)%numc<prlim) CYCLE
               DO ss = 1,7
-                  pprecp(ii,jj,kk)%volc(ss) = pprecp(ii,jj,kk)%volc(ss) + psnow(ii,jj,kk)%volc(ss)
+                  pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + psnow(ii,jj,kk)%volc(ss)
                   psnow(ii,jj,kk)%volc(ss) = 0.
               END DO
               ss=8 ! Water
-              pprecp(ii,jj,kk)%volc(ss) = pprecp(ii,jj,kk)%volc(ss) + psnow(ii,jj,kk)%volc(ss)*rhosn/rhowa
+              pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + psnow(ii,jj,kk)%volc(ss)*rhosn/rhowa
               psnow(ii,jj,kk)%volc(ss) = 0.
 
-              pprecp(ii,jj,kk)%numc = pprecp(ii,jj,kk)%numc + psnow(ii,jj,kk)%numc
+              pprecp(ii,jj,1)%numc = pprecp(ii,jj,1)%numc + psnow(ii,jj,kk)%numc
               psnow(ii,jj,kk)%numc = 0.
             END DO
        END DO

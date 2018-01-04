@@ -31,7 +31,9 @@ module init
        !          2 :temperature
   real, dimension(nns)  :: us,vs,ts,thds,ps,hs,rts,rss,tks,xs
   real                  :: zrand = 200.
-  real                  :: zrndamp = 0.2 ! the amplitude of pseudorandom fluctuations
+  real                  :: zrndamp = 0.2 ! the amplitude of random temperature fluctuations
+  real                  :: zrndampq = 5.0e-5 ! the amplitude of random humidity fluctuations
+  logical               :: zrandnorm = .FALSE. ! normalize the data after inserting random fluctuations
   character  (len=80)   :: hfilin = 'test.'
 
 contains
@@ -241,15 +243,15 @@ contains
        k=k+1
        xran(k) = zrndamp*(zrand - zt(k))/zrand
     end do
-    call random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
+    call random_pert(nzp,nxp,nyp,zt,a_tp,xran,k,'temperature')
 
     if (associated(a_rp)) then
        k=1
        do while( zt(k+1) <= zrand .and. k+1 < nzp)
           k=k+1
-          xran(k) = 5.0e-5*(zrand - zt(k))/zrand
+          xran(k) = zrndampq*(zrand - zt(k))/zrand
        end do
-       call random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
+       call random_pert(nzp,nxp,nyp,zt,a_rp,xran,k,'humidity')
     end if
 
     a_wp=0.
@@ -619,7 +621,7 @@ contains
   ! RANDOM_PERT: initialize field between k=2 and kmx with a
   ! random perturbation of specified magnitude
   !
-  subroutine random_pert(n1,n2,n3,zt,fld,xmag,kmx)
+  subroutine random_pert(n1,n2,n3,zt,fld,xmag,kmx,target_name)
 
     use mpi_interface, only :  nypg,nxpg,myid,wrxid,wryid,xoffset,yoffset, &
          double_scalar_par_sum
@@ -630,8 +632,9 @@ contains
     integer, intent(in) :: n1,n2,n3,kmx
     real, intent(inout) :: fld(n1,n2,n3)
     real, intent(in)    :: zt(n1),xmag(n1)
+    character(len=*), intent(in) :: target_name
 
-    real (kind=8) :: rand(3:n2-2,3:n3-2),  xx, xxl
+    real (kind=8) :: rand(3:n2-2,3:n3-2),  xx, xxl, tot
     real (kind=8), allocatable :: rand_temp(:,:)
 
     integer, dimension (:), allocatable :: seed
@@ -650,6 +653,7 @@ contains
     n2g = nxpg
     n3g = nypg
 
+    tot =0.
     do k=2,kmx
        allocate (rand_temp(3:n2g-2,3:n3g-2))
        call random_number(rand_temp)
@@ -661,19 +665,23 @@ contains
        do j=3,n3-2
           do i=3,n2-2
              fld(k,i,j) = fld(k,i,j) + rand(i,j)*xmag(k)
+             xx = xx + rand(i,j)*xmag(k)
           end do
        end do
 
        xxl = xx
        call double_scalar_par_sum(xxl,xx)
        xx = xx/real((n2g-4)*(n3g-4))
-       fld(k,:,:)= fld(k,:,:) - xx
+       IF (zrandnorm) fld(k,:,:)= fld(k,:,:) - xx
+
+       tot = tot + xx/(kmx-1) ! Average perturbation
     end do
 
     if(myid == 0) then
        print *
        print *,'-------------------------------------------------'
-       print 600,zt(kmx),rand(3,3),xx
+       print *,' Inserting random '//target_name//' perturbations'
+       print 600,zt(kmx),rand(3,3),tot
        print *,'-------------------------------------------------'
     endif
 
@@ -681,7 +689,7 @@ contains
 
     return
 
-600 format(2x,'Inserting random temperature perturbations',    &
+600 format( &
          /3x,'Below: ',F7.2,' meters;',                        &
          /3x,'with test value of: ',E12.5,                     &
          /3x,'and a magnitude of: ',E12.5)
