@@ -16,23 +16,20 @@ export ibrixrootfolder=/ibrix/arch/ClimRes/${USER}/
 
 if [[ $jobflag == 'PBS' ]]; then
     export outputroot=/lustre/tmp/${USER}/${model}/
-    export root=/home/users/${USER}/${model}
     export nodeNPU=28  # number of processing units in a node
     export submitCMD=qsub
 
 elif [[ $jobflag == 'SBATCH' ]]; then ## CSC's Sisu machine values
     export outputroot=/wrk/${USER}/${model}
-    export root=/homeappl/home/${USER}/appl_taito/${model}
     export nodeNPU=24 # number of processing units in a node 
     export submitCMD=sbatch
     export WTMAX=72:00:00 #maximum value of wall time for small_long
     export outputPostfix=.out
 fi
 
-export salsa=${root}/src/src_salsa
-export les=${root}/src/src_LES
-export bin=${root}/bin
-export script=${root}/script
+export salsa=${LES}/src/src_salsa
+export les=${LES}/src/src_LES
+export bin=${LES}/bin
 
 
 function odota {
@@ -91,7 +88,7 @@ function postprosessoi {
     
     # if scriptfolder doesn't exist set it to be the default
     if [[ -z $scriptfolder ]]; then
-        scriptfolder=${script}
+        scriptfolder=${SCRIPT}
     fi
     
     # if jobnamepostfix doesn't exist set it to be the default
@@ -127,6 +124,7 @@ function postprosessoiinteractive {
     echo ' '
     simulation=$1
     outputname=$2
+    folderROOT=$3
 
     
     ncsub=${ncsub:-true}
@@ -141,27 +139,31 @@ function postprosessoiinteractive {
     
     # if scriptfolder doesn't exist set it to be the default
     if [[ -z $scriptfolder ]]; then
-        scriptfolder=${script}
+        scriptfolder=${SCRIPT}
     fi
+
     
+    if [[ -z $folderROOT ]]; then
+        folderROOT=$outputroot
+    fi
 
     
     if [[ $ncsub == "true" ]]; then
         echo ' '
         echo 'Nyt postprosessoidaan nc'
-        python ${scriptfolder}/${scriptname} ${outputroot}/${simulation}/${outputname}
+        python ${scriptfolder}/${scriptname} ${folderROOT}/${simulation}/${outputname}
     fi
     
     if [[ $pssub == "true" ]]; then
         echo ' '
         echo 'Nyt postprosessoidaan ps'
-        python ${scriptfolder}/${scriptname} ${outputroot}/${simulation}/${outputname}.ps
+        python ${scriptfolder}/${scriptname} ${folderROOT}/${simulation}/${outputname}.ps
     fi
     
     if [[ $tssub == "true" ]]; then    
         echo ' '
         echo 'Nyt postprosessoidaan ts'
-        python ${scriptfolder}/${scriptname} ${outputroot}/${simulation}/${outputname}.ts
+        python ${scriptfolder}/${scriptname} ${folderROOT}/${simulation}/${outputname}.ts
     fi
     
     echo ' '

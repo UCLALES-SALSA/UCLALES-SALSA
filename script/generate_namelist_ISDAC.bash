@@ -60,7 +60,7 @@ ${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
   istpfl  = ${istpfl:-1}
   lbinanl = ${lbinanl:-.true.}
   frqanl = ${frqanl:-120.}
-  corflg = ${corflg:-.false.}
+  corflg = ${corflg:-.true.}
   ipsflg = ${ipsflg:-1}
   itsflg = ${itsflg:-1}
   strtim = ${strtim:-180.0}
@@ -87,7 +87,7 @@ ${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
   dthcon = ${dthcon:-0.} ! heat flux
   drtcon = ${drtcon:-0.}  ! latent
 
-  ubmin  = ${ubmin:--0.25}
+  ubmin  = ${ubmin:-0.25}
   zrough = ${zrough:-4.E-4}
   th00 = ${th00:-267.}
   umean =  ${umean:--7.0}

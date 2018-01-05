@@ -234,7 +234,7 @@ FINALSBATCH
 
 fi
 ###########################################
-
+cd ${rundir}
 # Make initial submit
 if [ $submit == 'true' ]; then
     echo 'Submit to job scheduler'

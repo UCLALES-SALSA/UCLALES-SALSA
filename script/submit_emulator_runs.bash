@@ -140,13 +140,13 @@ echo ' '              >> ${emulatoroutputroot}/log
 ###                                    ###
 ##########################################
 
-cp ${script}/subroutines_variables.bash ${emulatoroutputroot}/
-cp ${script}/emulator_runs_parallel.bash ${emulatoroutputroot}/
-cp ${script}/submit_uclales-salsa.bash   ${emulatoroutputroot}/
-cp ${script}/submit_postpros.bash        ${emulatoroutputroot}/
-cp ${script}/nodestats.py                ${emulatoroutputroot}/
+cp ${SCRIPT}/subroutines_variables.bash ${emulatoroutputroot}/
+cp ${SCRIPT}/emulator_runs_parallel.bash ${emulatoroutputroot}/
+cp ${SCRIPT}/submit_uclales-salsa.bash   ${emulatoroutputroot}/
+cp ${SCRIPT}/submit_postpros.bash        ${emulatoroutputroot}/
+cp ${SCRIPT}/nodestats.py                ${emulatoroutputroot}/
 
-cp ${script}/${scriptname}               ${emulatoroutputroot}/
+cp ${SCRIPT}/${scriptname}               ${emulatoroutputroot}/
 
 statusValmiit=0
 statusVainLESValmis=0

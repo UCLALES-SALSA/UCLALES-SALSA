@@ -855,21 +855,15 @@ CONTAINS
 
     REAL :: Vrem, Nrem, Vtot, Ntot
     REAL :: dvg,dg
-    REAL :: tot
 
     REAL, PARAMETER :: zd0 = 50.e-6
     REAL, PARAMETER :: sigmag = 1.2
-    REAL, PARAMETER :: max_rate_autoc=1.0e10 ! Maximum autoconversion rate (#/m^3/s)
 
     INTEGER :: ii,jj,cc,ss
 
-    ! Find the cloud bins where the mean droplet diameter is above 50 um
-    ! Do some fitting...
     DO jj = 1,klev
        DO ii = 1,kbdim
-          DO cc = ncld,1,-1 ! Start from the largest drops
-             ! Autoconversion rate can be limited
-             tot = 0.
+          DO cc = 1,ncld
 
              Ntot = pcloud(ii,jj,cc)%numc
              Vtot = SUM(pcloud(ii,jj,cc)%volc(:))
@@ -898,8 +892,6 @@ CONTAINS
                    pprecp(ii,jj,1)%numc = pprecp(ii,jj,1)%numc + Nrem
                    pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc - Nrem
 
-                   tot = tot + Nrem
-                   IF (tot > max_rate_autoc*ptstep) EXIT
                 END IF ! Nrem Vrem
 
              END IF ! Ntot Vtot
@@ -1277,7 +1269,9 @@ CONTAINS
 
   !***********************************************
   !
-  ! Ice given hard coded conditions where the ice particle number concentration is kept over given limit #/kg
+  ! Prescribed ice number concentration for cloudy regions (rc>0.001 g/kg) where ice
+  ! supersaturation is at least 5%. Ice number concentration is increased towards the
+  ! target concentration (fixinc, #/kg) by converting the largest cloud droplets to ice.
   !
   !***********************************************
   SUBROUTINE ice_fixed_NC(kproma, kbdim,  klev,   &
@@ -1289,8 +1283,10 @@ CONTAINS
                                ncld,        &
                                nice,        &
                                rhowa,       &
+                               rhoic,       &
                                rda,         &
-                               nlim, fixinc
+                               nlim,        &
+                               fixinc   ! Target ice number concentration (#/kg)
 
     IMPLICIT NONE
     INTEGER, INTENT(in) :: kproma,kbdim,klev
@@ -1306,7 +1302,7 @@ CONTAINS
     INTEGER :: ii,jj,kk,ss
 
     REAL :: pdn, iceSupSat, rc_tot, Ni0,  &
-            sumICE, iceTendecyNumber, liqToIceTendecyFrac
+            sumICE, iceTendecyNumber, liqToIceFrac
 
 
     DO ii = 1,kbdim
@@ -1335,13 +1331,16 @@ CONTAINS
                 pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + iceTendecyNumber
                 sumICE = sumICE + iceTendecyNumber
 
-                liqToIceTendecyFrac   = MAX( 0.0, MIN( 1.0, iceTendecyNumber/pcloud(ii,jj,kk)%numc ) )
+                liqToIceFrac   = MAX( 0.0, MIN( 1.0, iceTendecyNumber/pcloud(ii,jj,kk)%numc ) )
                 pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - iceTendecyNumber
 
-                DO ss = 1,8
-                      pice(ii,jj,kk)%volc(ss) =   pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceTendecyFrac )
-                    pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceTendecyFrac )
+                DO ss = 1,7
+                    pice(ii,jj,kk)%volc(ss) = pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
+                    pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
                 END DO
+                ss=8 ! Water
+                pice(ii,jj,kk)%volc(ss) = pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac*rhowa/rhoic )
+                pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
             END IF
         END DO
     END DO
@@ -1386,7 +1385,7 @@ CONTAINS
           if (ptemp(ii,jj) <= 273.15 ) cycle
 
           DO kk = 1,nice
-              ! Ice => cloud water
+              ! Ice => cloud water (parallel bin)
               IF (pice(ii,jj,kk)%numc<prlim) CYCLE
               DO ss = 1,7
                   pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) + pice(ii,jj,kk)%volc(ss)
@@ -1404,14 +1403,14 @@ CONTAINS
               ! Snow => precipitation (bin 1)
               IF (psnow(ii,jj,kk)%numc<prlim) CYCLE
               DO ss = 1,7
-                  pprecp(ii,jj,kk)%volc(ss) = pprecp(ii,jj,kk)%volc(ss) + psnow(ii,jj,kk)%volc(ss)
+                  pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + psnow(ii,jj,kk)%volc(ss)
                   psnow(ii,jj,kk)%volc(ss) = 0.
               END DO
               ss=8 ! Water
-              pprecp(ii,jj,kk)%volc(ss) = pprecp(ii,jj,kk)%volc(ss) + psnow(ii,jj,kk)%volc(ss)*rhosn/rhowa
+              pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + psnow(ii,jj,kk)%volc(ss)*rhosn/rhowa
               psnow(ii,jj,kk)%volc(ss) = 0.
 
-              pprecp(ii,jj,kk)%numc = pprecp(ii,jj,kk)%numc + psnow(ii,jj,kk)%numc
+              pprecp(ii,jj,1)%numc = pprecp(ii,jj,1)%numc + psnow(ii,jj,kk)%numc
               psnow(ii,jj,kk)%numc = 0.
             END DO
        END DO
@@ -1443,48 +1442,42 @@ CONTAINS
 
     REAL :: Vrem, Nrem, Vtot, Ntot
     REAL :: dvg,dg
-    REAL :: tot
 
-    REAL, PARAMETER :: zd0 = 250.e-6  ! Adjustable
-    REAL, PARAMETER :: sigmag = 1.2   ! Adjustable
-    REAL, PARAMETER :: max_rate_autoc=1.0e10 ! Maximum autoconversion rate (#/m^3/s)
+    REAL, PARAMETER :: zd0 = 250.e-6
+    REAL, PARAMETER :: sigmag = 1.2
 
     INTEGER :: ii,jj,cc,ss
 
-    ! Find the ice particle bins where the mean droplet diameter is above 250 um
-    ! Do some fitting...
     DO jj = 1,klev
        DO ii = 1,kbdim
           DO cc = 1,nice
-             ! Autoconversion rate can be limited
-             tot = 0.
 
              Ntot = pice(ii,jj,cc)%numc
              Vtot = SUM(pice(ii,jj,cc)%volc(:))
 
              IF ( Ntot > prlim .AND. Vtot > 0. ) THEN
+
                 ! Volume geometric mean diameter
                 dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(sigmag)**2)/2. )
                 dg = dvg*EXP( -3.*LOG(sigmag)**2 )
 
-                Vrem = Max(0., Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) ) )
-                Nrem = Max(0., Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )  )
+                Vrem = Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) )
+                Nrem = Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )
 
                 IF ( Vrem > 0. .AND. Nrem > prlim) THEN
 
-                   ! Put the mass and number to the first snow bin and remover from ice
+                   ! Put the mass and number to the first snow bin and remove from ice
                    DO ss = 1,7
-                      psnow(ii,jj,cc)%volc(ss) = psnow(ii,jj,cc)%volc(ss) + pice(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
+                      psnow(ii,jj,1)%volc(ss) = psnow(ii,jj,1)%volc(ss) + pice(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
                       pice(ii,jj,cc)%volc(ss) = pice(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
-                    END DO
-                    psnow(ii,jj,cc)%volc(8) = psnow(ii,jj,cc)%volc(8) + pice(ii,jj,cc)%volc(8)*(Vrem/Vtot)*rhoic/rhosn
-                    pice(ii,jj,cc)%volc(8) = pice(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot))
+                   END DO
 
-                    psnow(ii,jj,cc)%numc = psnow(ii,jj,cc)%numc + Nrem
-                    pice(ii,jj,cc)%numc = pice(ii,jj,cc)%numc - Nrem
+                   psnow(ii,jj,1)%volc(8) = psnow(ii,jj,1)%volc(8) + pice(ii,jj,cc)%volc(8)*(Vrem/Vtot)*rhoic/rhosn
+                   pice(ii,jj,cc)%volc(8) = pice(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot))
 
-                    tot = tot + Nrem
-                    IF (tot > max_rate_autoc*ptstep) EXIT
+                   psnow(ii,jj,1)%numc = psnow(ii,jj,1)%numc + Nrem
+                   pice(ii,jj,cc)%numc = pice(ii,jj,cc)%numc - Nrem
+
                 END IF ! Nrem Vrem
 
              END IF ! Ntot Vtot

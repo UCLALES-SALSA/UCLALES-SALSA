@@ -555,9 +555,12 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                 ELSEIF ( zt(kk) > ZUV ) THEN
                     C_nudge = 1./7200.
                 ENDIF
+            ELSE
+                ! Unknown
+                STOP 'Unknown ISDAC nudging option!'
             ENDIF
 
-            at(kk,:,:)=at(kk,:,:)-C_nudge*(ap(kk,:,:)-trgt(kk))/dt
+            at(kk,:,:)=at(kk,:,:)-C_nudge*(avg(kk)-trgt(kk))
 
         ENDDO
     ELSE

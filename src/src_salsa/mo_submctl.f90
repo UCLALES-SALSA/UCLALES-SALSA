@@ -309,7 +309,7 @@ MODULE mo_submctl
    rhoss = 2165.,         & ! sea salt (NaCl)
    rhodu = 2650.,         & ! mineral dust
    rhowa = 1000.,         & ! water
-   rhoic = 917.,          & ! ice
+   rhoic = 44.2*6/3.1415927,          & ! ice 917.
    rhosn = 300.,          & ! snow
                                !
                                ! volume of molecule [kg/#]
