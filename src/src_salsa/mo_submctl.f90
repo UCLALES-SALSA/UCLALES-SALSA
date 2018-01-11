@@ -435,7 +435,9 @@ contains
     dwet=(SUM(part%volc(:))/part%numc/pi6)**(1./3.)
 
     ! Equilibrium saturation ratio = xw*exp(4*sigma*v_w/(R*T*Dwet))
-    calc_Sw_eq=part%volc(8)*rhowa/mwa/(3.*part%volc(1)*rhosu/msu+part%volc(2)*rhooc/moc+ &
+    !   Note: for dry insoluble particles this is just exp(4*sigma*v_w/(R*T*Dwet)), but
+    !   this function return zero; eps was just added to avoid divide-by-zero errors.
+    calc_Sw_eq=part%volc(8)*rhowa/mwa/(eps+3.*part%volc(1)*rhosu/msu+part%volc(2)*rhooc/moc+ &
             2.*part%volc(5)*rhoss/mss+part%volc(6)*rhonh/mnh+part%volc(7)*rhono/mno+part%volc(8)*rhowa/mwa)* &
             exp(4.*surfw0*mwa/(rg*T*rhowa*dwet))
 

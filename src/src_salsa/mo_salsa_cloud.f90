@@ -437,11 +437,14 @@ CONTAINS
 
           paa = 4.*mwa*surfw0/(rg*rhowa*temp(ii,jj)) ! Kelvin effect [m]
 
-          ! Determine Dstar == critical diameter corresponding to the host model S
+          ! Determine Dstar == critical droplet diameter corresponding to the host model S
           zdcstar = 2.*paa/( 3.*( (prv(ii,jj)/prs(ii,jj))-1. ) )
           zvcstar = pi6*zdcstar**3
 
-          ! For insolubles zdstar = paa/(prv(ii,jj)/prs(ii,jj)-1.)
+          ! Note: this is valid for dilute droplets, which includes all particles containing soluble
+          ! substances. Critical droplet diameter for a completely insoluble particle is
+          !   zdstar = paa/(prv(ii,jj)/prs(ii,jj)-1.)
+          ! but dry particles should not be moved to cloud bins!
 
           ! Loop over cloud droplet (and aerosol) bins
           DO cb = ica%cur, fcb%cur
@@ -454,7 +457,8 @@ CONTAINS
              ENDIF
              pactd(cb)%numc = 0.d0
              pactd(cb)%volc(:) =0.d0
-             IF ( paero(ii,jj,ab)%numc < nlim) CYCLE
+             ! Dry particles are not activated (volume 1e-25 m^3 is less than that in an aqueous 1 nm droplet)
+             IF ( paero(ii,jj,ab)%numc < nlim .OR. paero(ii,jj,ab)%volc(8)<paero(ii,jj,ab)%numc*1.e-25 ) CYCLE
              intrange = .FALSE.
 
              ! Define some parameters
@@ -1079,11 +1083,11 @@ CONTAINS
                 pw=prv(ii,jj)*ppres(ii,jj)/(0.622-prv(ii,jj))
                 jf = calc_Jdep(rn,ptemp(ii,jj),Si,pw)
                 pf = 1. - exp( -jf*ptstep )
-              ELSEIF (rn>1.e-10 .AND. ice_imm) THEN
+              ELSEIF (rn>1.e-10 .AND. .NOT.isdry .AND. ice_imm) THEN
                 ! Immersion and condensation freezing
                 jf = calc_Jcf(rn,ptemp(ii,jj),Sw)
                 pf = 1. - exp( -jf*ptstep )
-              ELSEIF (rn<1.e-10 .AND. ice_hom) THEN
+              ELSEIF (rn<1.e-10 .AND. .NOT.isdry .AND. ice_hom) THEN
                 ! Homogeneous freezing
                 jf = calc_Jhf(ptemp(ii,jj),Sw)
                 pf = 1. - exp( -jf*4./3.*pi*(rw**3-rn**3)*ptstep )
@@ -1226,7 +1230,7 @@ CONTAINS
 
 
   REAL FUNCTION calc_Jhf(temp,Sw)
-    ! Homogeneous freezing based on Khovosrotyanov and Sassen, Geophys. Res. Lett., 25, 3155-3158, 1998 [KS98]
+    ! Homogeneous freezing based on Khvorostyanov and Sassen, Geophys. Res. Lett., 25, 3155-3158, 1998 [KS98]
     ! - Must have an aqueous phase
     ! - Important for low temperatures (<243 K)
     !

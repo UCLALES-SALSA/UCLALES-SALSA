@@ -282,7 +282,7 @@ end subroutine tstep_reset
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  zrm, prtcl, dtlt, level  )
+                  zrm, prtcl, dtlt, time, level  )
           ELSE
              !! for 2D or 3D runs
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
@@ -292,7 +292,7 @@ end subroutine tstep_reset
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  zrm, prtcl, dtlt, level  )
+                  zrm, prtcl, dtlt, time, level  )
           END IF !nxp==5 and nyp == 5
 
           CALL tend_constrain(n4)
@@ -918,7 +918,7 @@ end subroutine tstep_reset
     USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,              &
                                in1a,fn2a,fn2b,                        &
                                nice,nsnw,iia,fia,iib,fib,isa,fsa,        &
-                               rhosu,rhowa,rhoic,rhosn,      &
+                               rhosu,rhowa,      &
                                msu,moc,mno,mnh,mwa,avog,pi6,                     &
                                surfw0, rg, nlim, prlim, pi, &
                                lscndgas

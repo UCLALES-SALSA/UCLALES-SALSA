@@ -791,6 +791,14 @@ contains
        if (itype==0) ncinfo = 'Ice cell counts'
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'time'
+    case('SS_max')
+       if (itype==0) ncinfo = 'Maximum supersaturation'
+       if (itype==1) ncinfo = '%'
+       if (itype==2) ncinfo = 'time'
+    case('SSi_max')
+       if (itype==0) ncinfo = 'Maximum supersaturation over ice'
+       if (itype==1) ncinfo = '%'
+       if (itype==2) ncinfo = 'time'
     !
     !
     ! SALSA temporal statistics

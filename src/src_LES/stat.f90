@@ -29,9 +29,9 @@ module stat
   private
 
   integer, parameter :: nvar1 = 29,               &
-                        nv1sbulk = 48,            &
+                        nv1sbulk = 49,            &
                         nv1MB = 4,                &
-                        nv1_lvl5 = 32,            &
+                        nv1_lvl5 = 33,            &
                         nvar2 = 96,               &
                         nv2sbulk = 49,            &
                         nv2_lvl5 = 29, &
@@ -92,7 +92,8 @@ module stat
        'rmSSdr ','rmSScl ','rmSSpr ',   & !37
        'rmNOdr ','rmNOcl ','rmNOpr ',   & !40
        'rmNHdr ','rmNHcl ','rmNHpr ',   & !43
-       'rmH2Oae','rmH2Ocl','rmH2Opr'/), & !46-48
+       'rmH2Oae','rmH2Ocl','rmH2Opr',   & !46
+       'SS_max '/), & !49
 
        s1_lvl5(nv1_lvl5) = (/  &
        'Ni_ic  ','Ni_ii  ','Ni_is  ','Ns_ic  ','Ns_ii  ','Ns_is  ', & ! 1-6
@@ -102,7 +103,7 @@ module stat
        'rmBCic ','rmBCsn ','rmDUic ','rmDUsn ', & ! 19-22
        'rmNOic ','rmNOsn ','rmNHic ','rmNHsn ', & ! 23-26
        'rmSSic ','rmSSsn ','rmH2Oic','rmH2Osn', & ! 27-30
-       'sfrac  ','sprcp  '/), & ! 31-32
+       'sfrac  ','sprcp  ','SSi_max'/), & ! 31-33
 
         s2(nvar2)=(/                                                 &
         'time   ','zt     ','zm     ','dn0    ','u0     ','v0     ', & ! 1
@@ -338,7 +339,7 @@ contains
        s2bool(nvar2+1:nvar2+15) = .TRUE. ! Bin dimensions, number concentrations and radius
        IF (level>=5) THEN
           s1bool(nvar1+nv1sbulk+1:nvar1+nv1sbulk+14) = .TRUE.
-          s1bool(nvar1+nv1sbulk+31:nvar1+nv1sbulk+32) = .TRUE.
+          s1bool(nvar1+nv1sbulk+31:nvar1+nv1sbulk+33) = .TRUE.
           s2bool(nvar2+nv2sbulk+1:nvar2+nv2sbulk+9) = .TRUE.
           s2bool(nvar2+nv2sbulk+26:nvar2+nv2sbulk+29) = .TRUE.
        ENDIF
@@ -414,6 +415,8 @@ contains
              s2bool(i) = lbinprof
           ENDIF
        ENDDO
+
+       s1bool(nvar1+49)=.TRUE.  ! Maximum supersaturation
 
        s2bool(nvar2+40:nvar2+43) = .TRUE.     ! Water mixing ratios
 
@@ -1039,7 +1042,7 @@ contains
   !
   SUBROUTINE ts_lvl4(n1,n2,n3,rc)
     use mo_submctl, only : nlim
-    USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,dzt
+    USE grid, ONLY : prtcl, bulkNumc, bulkMixrat, dzt, a_rh
     USE class_componentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
@@ -1084,6 +1087,8 @@ contains
        END IF
     END DO
 
+    ssclr_b(49) = (MAXVAL(a_rh(2:n1,3:n2-2,3:n3-2))-1.0)*100.
+
   END SUBROUTINE ts_lvl4
   !
   ! -----------------------------------------------------------------------
@@ -1092,7 +1097,7 @@ contains
   !
   SUBROUTINE ts_lvl5(n1,n2,n3,dn0,zm,rc,ri,rs,srate)
     USE mo_submctl, only : nlim,prlim
-    USE grid, ONLY : bulkNumc, bulkMixrat,meanRadius,dzt
+    USE grid, ONLY : bulkNumc, bulkMixrat,meanRadius, dzt, a_rhi
     USE class_componentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
@@ -1176,6 +1181,8 @@ contains
     ssclr_lvl5(31) = REAL(sscnt)/REAL( (n3-4)*(n2-4) )
     scr2(:,:) = srate(2,:,:)
     ssclr_lvl5(32) = get_avg2dh(n2,n3,scr2)
+    !
+    ssclr_lvl5(33) = (MAXVAL(a_rhi(2:n1,3:n2-2,3:n3-2))-1.0)*100. ! max(SSi)
 
   END SUBROUTINE ts_lvl5
   !

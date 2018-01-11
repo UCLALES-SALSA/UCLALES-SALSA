@@ -69,7 +69,7 @@ IMPLICIT NONE
                        pa_nicep,   pa_nicet,   pa_micep,   pa_micet,    &
                        pa_nsnowp,  pa_nsnowt,  pa_msnowp,  pa_msnowt,   &
                        pa_nactd,   pa_vactd,   pa_gaerop,  pa_gaerot,   &
-                       prunmode, prtcl, tstep, level)
+                       prunmode, prtcl, tstep, time, level)
 
     USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
                                nice,nsnw,             &
@@ -83,7 +83,7 @@ IMPLICIT NONE
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: pnx,pny,pnz,n4                       ! Dimensions: x,y,z,number of chemical species  
-    REAL, INTENT(in)    :: tstep                      ! Model timestep length
+    REAL, INTENT(in)    :: tstep, time                      ! Model timestep length and time
 
     REAL, INTENT(in)    :: press(pnz,pnx,pny), &            ! Pressure (Pa)
                                tk(pnz,pnx,pny),    &            ! Temperature (K)
@@ -175,7 +175,14 @@ IMPLICIT NONE
 
              ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
              IF (prunmode < 3) THEN
-                in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)
+                IF (rhlim>2.0) THEN
+                    ! Time-dependent water vapor mixing ratio limit: initially limited to saturation and exponential
+                    ! relaxation towards current mixing ratio. Here rhlim is the relaxation time [s].
+                    in_rv(1,1) = MIN( rv(kk,ii,jj), rv(kk,ii,jj)+(rs(kk,ii,jj)-rv(kk,ii,jj))*exp(-time/rhlim) )
+                ELSE
+                    ! Constant water vapor mixing ratio limit. Here rhlim is the maximum saturation ratio.
+                    in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)
+                ENDIF
              ELSE
                 in_rv(1,1) = rv(kk,ii,jj)
              END IF
