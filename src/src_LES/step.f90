@@ -536,31 +536,37 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                 at(kk,:,:)=at(kk,:,:)-(ap(kk,:,:)-trgt(kk))/max(tau,dt)
         ENDDO
     ELSEIF (iopt==3) THEN ! ISDAC nudging
+        ! Soft nudging
+        CALL get_avg3(nzp,nxp,nyp,ap,avg)
+        
         DO kk = 1,nzp
-            IF ( tau == 1. ) THEN ! theta / q_t
+            IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) THEN
+                IF ( tau == 1. ) THEN ! theta / q_t
 
-                IF ( zt(kk)< Z1 ) THEN
-                    C_nudge = 0.
+                    IF ( zt(kk)< Z1 ) THEN
+                        C_nudge = 0.
 
-                ELSEIF ( zt(kk) >= Z1 .and. zt(kk) <= Z2 ) THEN
-                    C_nudge = (1./3600.)*( 1.-COS( pi*(zt(kk) - Z1 )/(Z2-Z1) ) )/2.
+                    ELSEIF ( zt(kk) >= Z1 .and. zt(kk) <= Z2 ) THEN
+                        C_nudge = (1./3600.)*( 1.-COS( pi*(zt(kk) - Z1 )/(Z2-Z1) ) )/2.
 
-                ELSEIF ( zt(kk) > Z2 ) THEN
-                    C_nudge = 1./3600.
+                    ELSEIF ( zt(kk) > Z2 ) THEN
+                        C_nudge = 1./3600.
+                    ENDIF
+
+                ELSEIF ( tau == 2.) THEN ! horizontal winds
+                    IF ( zt(kk)  <= ZUV ) THEN
+                        C_nudge = (1./7200.)*( 1.-COS( pi*zt(kk)/ZUV ) )/2.
+                    ELSEIF ( zt(kk) > ZUV ) THEN
+                        C_nudge = 1./7200.
+                    ENDIF
+                ELSE
+                    ! Unknown
+                    STOP 'Unknown ISDAC nudging option!'
                 ENDIF
 
-            ELSEIF ( tau == 2.) THEN ! horizontal winds
-                IF ( zt(kk)  <= ZUV ) THEN
-                    C_nudge = (1./7200.)*( 1.-COS( pi*zt(kk)/ZUV ) )/2.
-                ELSEIF ( zt(kk) > ZUV ) THEN
-                    C_nudge = 1./7200.
-                ENDIF
-            ELSE
-                ! Unknown
-                STOP 'Unknown ISDAC nudging option!'
+                at(kk,:,:)=at(kk,:,:)-C_nudge*(avg(kk)-trgt(kk))
+                
             ENDIF
-
-            at(kk,:,:)=at(kk,:,:)-C_nudge*(avg(kk)-trgt(kk))
 
         ENDDO
     ELSE
