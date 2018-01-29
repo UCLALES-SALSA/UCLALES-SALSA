@@ -262,10 +262,12 @@ contains
     real, intent (out)  ::  flx(n1,n2,n3)
 
     integer :: i, j, k, km1, kp1, ki
-    real    :: lwp(n2,n3), fact
+    real    :: lwp(n2,n3)
     real, dimension (n1) :: sf
 
     lwp=0.
+    flx=0.
+    sf=0.
     do j=3,n3-2
        do i=3,n2-2
           ki = n1

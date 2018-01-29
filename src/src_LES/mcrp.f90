@@ -626,7 +626,7 @@ contains
        if ( trim(case_name) == 'isdac' ) then
             CALL DepositionISDAC(n1,n2,n3,n4,nice,tk,a_dn,rhoic,nicep,micep,dzt,prlim,indiv,imdiv, indep, remice)
        else
-            CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,rhoic,ustar,nicep,micep,dzt,nlim,indiv,imdiv,indep,remice,4)
+            CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,rhoic,ustar,nicep,micep,dzt,prlim,indiv,imdiv,indep,remice,4)
        endif
 
        nicet = nicet - indiv 
@@ -838,7 +838,7 @@ contains
     REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4) ! Particle mass mixing ratio
     REAL, INTENT(in) :: dzt(n1)              ! Inverse of grid level thickness
     REAL, INTENT(IN) :: clim                 ! Concentration limit
-    REAL, INTENT(OUT) :: flxdivm(n1,n2,n3,nn*n4), flxdivn(n1,n2,n3,nn) ! Mass and number divergency
+    REAL, INTENT(OUT) :: flxdivm(n1,n2,n3,nn*n4), flxdivn(n1,n2,n3,nn) ! Mass and number divergence
     REAL, INTENT(OUT) :: depflxn(n2,n3,nn), depflxm(n2,n3,nn*n4) ! Mass and number deposition fluxes to the surface
 
 
@@ -857,6 +857,8 @@ contains
     REAL :: rflm(n1,nn*n4), rfln(n1,nn)
     flxdivm = 0.
     flxdivn = 0.
+    depflxm = 0.
+    depflxn = 0.
 
     DO j = 3,n3-2
        DO i = 3,n2-2

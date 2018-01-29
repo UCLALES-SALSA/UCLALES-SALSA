@@ -663,6 +663,15 @@ def profiiliTulostus( data, aikaPisteet = 0, korkeus=0,label = None, tulostus = 
           
 
   return profiiliTulostus.fig, profiiliTulostus.ax
+####################################
+###                              ###
+### convert None string to empty ###
+###                              ###
+####################################
+def xstr(s):
+    if s is None:
+        return ''
+    return str(s)
 
 ########################################
 ### colorPool object class           ###
@@ -703,7 +712,16 @@ def initializeColors(colorNRO=6):
 ###                                  ###
 ########################################   
 def plot_vertical( x, vari = 'k', viivatyyli = '--' ):
-    plt.axvline(x, color = vari , linestyle = viivatyyli)
+    plt.axvline( x, color = vari , linestyle = viivatyyli )
+
+
+########################################
+### add a horizontal line            ###
+###                                  ###
+########################################   
+def plot_horizontal( y, vari = 'k', viivatyyli = '--' ):
+    plt.axhline( y, color = vari , linestyle = viivatyyli )
+
 
 
 ########################################
