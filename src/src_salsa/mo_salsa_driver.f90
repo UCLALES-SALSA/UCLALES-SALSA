@@ -869,14 +869,12 @@ IMPLICIT NONE
                                nlcnd,                  &
                                nlicenucl,              &
                                nlicmelt,               &
-                               nlfixinc,               &
 
                                lscgia,lscgic,lscgii,   &
                                lscgip,lscgsa,lscgsc,   &
                                lscgsi,lscgsp,lscgss,   &
                                lsicenucl,              &
-                               lsicmelt,               &
-                               lsfixinc
+                               lsicmelt
 
     IMPLICIT NONE
 
@@ -914,8 +912,7 @@ IMPLICIT NONE
     lsactbase   = nlactbase
     lsactintst  = nlactintst
 
-    lsicenucl  = ( nlicenucl .AND. ( .NOT. nlfixinc ) )
-    lsfixinc    = nlfixinc
+    lsicenucl  = nlicenucl
     lsicmelt    = nlicmelt
 
 
@@ -931,7 +928,6 @@ IMPLICIT NONE
           lsactbase   = .FALSE.
           lsactintst  = nlactintst
           lsicenucl  = .FALSE.
-          lsfixinc    = .FALSE.
           lsicmelt    = .FALSE.
 
        CASE(2)  ! Spinup period

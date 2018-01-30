@@ -51,7 +51,6 @@ contains
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
     USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim
-    USE util, ONLY : maskactiv
     USE class_ComponentIndex, ONLY : GetNcomp
 
     implicit none

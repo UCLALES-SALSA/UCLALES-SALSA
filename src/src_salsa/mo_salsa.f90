@@ -40,9 +40,9 @@ CONTAINS
          lsautosnow,                &
          lsactiv,                   &
          lsicenucl,                 &
-         lsfixinc,                  &
          lsicmelt,                  &
-         lsdistupdate
+         lsdistupdate,              &
+         fixinc, ice_hom, ice_imm, ice_dep
 
     USE class_componentIndex, ONLY : ComponentIndex
 
@@ -113,7 +113,7 @@ CONTAINS
     ! Autoconversion (liquid)
     IF (lsauto) &
          CALL autoconv2(kproma,kbdim,klev, &
-                        pcloud, pprecp, ptstep )
+                        pcloud, pprecp )
 
     ! Cloud activation
     IF (lsactiv )  &
@@ -122,17 +122,18 @@ CONTAINS
                                prs,    pw,    paero,  &
                                pcloud, pactd          )
 
-    ! Fixed ice number concentration
-    IF (lsfixinc) &
-          CALL  ice_fixed_NC(kproma, kbdim, klev,   &
+    ! Ice nucleation
+    IF (lsicenucl .AND. fixinc>0.) THEN
+        ! Fixed ice number concentration
+        CALL  ice_fixed_NC(kproma, kbdim, klev,   &
                              pcloud,   pice,   &
                              ptemp,  ppres,  prv,  prsi)
-
-    ! Ice nucleation
-    IF (lsicenucl) &
+    ELSEIF (lsicenucl .AND. (ice_hom .OR. ice_imm .OR. ice_dep)) THEN
+        ! Modelled ice nucleation
         CALL ice_nucl_driver(kproma,kbdim,klev,   &
-                          paero,pcloud,pprecp,pice,psnow, &
-                          ptemp,ppres,prv,prsi,ptstep)
+                          paero,pcloud,pprecp,pice, &
+                          ptemp,prv,prs,prsi,ptstep)
+    ENDIF
 
     ! Melting of ice and snow
     IF (lsicmelt) &
@@ -142,7 +143,7 @@ CONTAINS
     ! Snow formation ~ autoconversion from ice
     IF (lsautosnow) &
          CALL autosnow(kproma,kbdim,klev, &
-                       pice, psnow, ptstep )
+                       pice, psnow )
 
     ! Size distribution bin update
     IF (lsdistupdate ) &

@@ -1903,7 +1903,10 @@ contains
     ! Given in kg/kg
     SELECT CASE(ipart)
        CASE('aerosol')
-          IF (itype == 'a') THEN
+          IF (itype == 'ab') THEN
+             istr = (mm-1)*nbins + in1a
+             iend = (mm-1)*nbins + fn2b
+          ELSEIF (itype == 'a') THEN
              istr = (mm-1)*nbins + in1a
              iend = (mm-1)*nbins + fn2a
           ELSE IF (itype == 'b') THEN
@@ -1914,7 +1917,10 @@ contains
           END IF
           mixrat(:,:,:) = SUM(a_maerop(:,:,:,istr:iend),DIM=4)
        CASE('cloud')
-          IF (itype == 'a') THEN
+          IF (itype == 'ab') THEN
+             istr = (mm-1)*ncld + ica%cur
+             iend = (mm-1)*ncld + fcb%cur
+          ELSEIF (itype == 'a') THEN
              istr = (mm-1)*ncld + ica%cur
              iend = (mm-1)*ncld + fca%cur
           ELSE IF (itype == 'b') THEN
@@ -1929,7 +1935,10 @@ contains
           iend = (mm-1)*nprc + fra
           mixrat(:,:,:) = SUM(a_mprecpp(:,:,:,istr:iend),DIM=4)
        CASE('ice')
-          IF (itype == 'a') THEN
+          IF (itype == 'ab') THEN
+             istr = (mm-1)*nice + iia%cur
+             iend = (mm-1)*nice + fib%cur
+          ELSEIF (itype == 'a') THEN
              istr = (mm-1)*nice + iia%cur
              iend = (mm-1)*nice + fia%cur
           ELSE IF (itype == 'b') THEN

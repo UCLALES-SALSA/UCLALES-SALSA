@@ -622,7 +622,7 @@ contains
 
     IF (sed_ice) THEN
 
-       CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,rhoic,ustar,nicep,micep,dzt,nlim,indiv,imdiv,indep,remice,4)
+       CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,rhoic,ustar,nicep,micep,dzt,prlim,indiv,imdiv,indep,remice,4)
 
        nicet = nicet - indiv 
        micet = micet - imdiv 

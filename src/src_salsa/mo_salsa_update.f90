@@ -458,7 +458,7 @@ CONTAINS
                    IF ( zvpart < zvdec .AND. kk /= ira ) THEN
 
                       !-- Volume in the decreased bin which is below the bin lower limit
-                      zVexc = 0.5*(zVilo + pprecp(ii,jj,kk)%vlolim)
+                      zVexc = 0.5*(zVilo + psnow(ii,jj,kk)%vlolim)
 
                       !-- Number fraction to be moved to the smaller bin
                       znfrac = min(1.,(psnow(ii,jj,kk)%vlolim-zVilo) / (zVihi-zVilo))
