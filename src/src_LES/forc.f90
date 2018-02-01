@@ -292,33 +292,33 @@ contains
     ! ISDAC
     ! ---------
     !
-    do k=2,n1-2
-        ! calculate subsidence factor (wsub / dz)
-        sf(k) = -5.e-6*min( 825.,zt(k) )*dzt(k)
-    end do
-    !
-    do j=3,n3-2
-        do i=3,n2-2
-            do k=2,n1-2
-                !
-                ! Advection due to subsidence  (precipitation neglected in isdac)
-                !
-                kp1 = k+1
-                tt(k,i,j)   =  tt(k,i,j) - (  tl(kp1,i,j) -  tl(k,i,j) )*sf(k) ! temperature
-                rtt(k,i,j)  = rtt(k,i,j) - (  rt(kp1,i,j) -  rt(k,i,j) )*sf(k) ! water vapor
-                ! mass
-                mat(k,i,j)  = mat(k,i,j) - ( map(kp1,i,j) - map(k,i,j) )*sf(k) ! aerosols
-                mct(k,i,j)  = mct(k,i,j) - ( mcp(kp1,i,j) - mcp(k,i,j) )*sf(k) ! cloud
-                mit(k,i,j)  = mit(k,i,j) - ( mip(kp1,i,j) - mip(k,i,j) )*sf(k) ! ice
-                mst(k,i,j)  = mst(k,i,j) - ( msp(kp1,i,j) - msp(k,i,j) )*sf(k) ! snow
-                ! numbers
-                nat(k,i,j)  = nat(k,i,j) - ( nap(kp1,i,j) - nap(k,i,j) )*sf(k) ! aerosols
-                nct(k,i,j)  = nct(k,i,j) - ( ncp(kp1,i,j) - ncp(k,i,j) )*sf(k) ! cloud
-                nit(k,i,j)  = nit(k,i,j) - ( nip(kp1,i,j) - nip(k,i,j) )*sf(k) ! ice
-                nst(k,i,j)  = nst(k,i,j) - ( nsp(kp1,i,j) - nsp(k,i,j) )*sf(k) ! snow
-            enddo
-        enddo
-    enddo
+!     do k=2,n1-2
+!         ! calculate subsidence factor (wsub / dz)
+!         sf(k) = -5.e-6*min( 825.,zt(k) )*dzt(k)
+!     end do
+!     !
+!     do j=3,n3-2
+!         do i=3,n2-2
+!             do k=2,n1-2
+!                 !
+!                 ! Advection due to subsidence  (precipitation neglected in isdac)
+!                 !
+!                 kp1 = k+1
+!                 tt(k,i,j)   =  tt(k,i,j) - (  tl(kp1,i,j) -  tl(k,i,j) )*sf(k) ! temperature
+!                 rtt(k,i,j)  = rtt(k,i,j) - (  rt(kp1,i,j) -  rt(k,i,j) )*sf(k) ! water vapor
+!                 ! mass
+!                 mat(k,i,j)  = mat(k,i,j) - ( map(kp1,i,j) - map(k,i,j) )*sf(k) ! aerosols
+!                 mct(k,i,j)  = mct(k,i,j) - ( mcp(kp1,i,j) - mcp(k,i,j) )*sf(k) ! cloud
+!                 mit(k,i,j)  = mit(k,i,j) - ( mip(kp1,i,j) - mip(k,i,j) )*sf(k) ! ice
+!                 mst(k,i,j)  = mst(k,i,j) - ( msp(kp1,i,j) - msp(k,i,j) )*sf(k) ! snow
+!                 ! numbers
+!                 nat(k,i,j)  = nat(k,i,j) - ( nap(kp1,i,j) - nap(k,i,j) )*sf(k) ! aerosols
+!                 nct(k,i,j)  = nct(k,i,j) - ( ncp(kp1,i,j) - ncp(k,i,j) )*sf(k) ! cloud
+!                 nit(k,i,j)  = nit(k,i,j) - ( nip(kp1,i,j) - nip(k,i,j) )*sf(k) ! ice
+!                 nst(k,i,j)  = nst(k,i,j) - ( nsp(kp1,i,j) - nsp(k,i,j) )*sf(k) ! snow
+!             enddo
+!         enddo
+!     enddo
         !
 
   end subroutine isdac_gcss
