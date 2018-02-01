@@ -52,6 +52,7 @@ LVL=${LVL:-5}
 isoT=${isoT:-28800.}
 pikkuT=${pikkuT:-7200.}
 ice=${ice:-1000.0} # ice #/m^3
+sound_in=${sound_in:-sound_in}
 
 
 if [[ -n $hfilebase ]]; then
@@ -88,7 +89,7 @@ function copy {
     cp ${bin}/${exe} ${outputroot}/${nimi}/
     cp ${bin}/datafiles/* ${datadir}/
     
-    cp ${bin}/${inputsubfolder}/sound_in ${outputroot}/${nimi}/
+    cp ${bin}/${inputsubfolder}/${sound_in} ${outputroot}/${nimi}/sound_in
 #    cp ${input}/NAMELIST ${rundir}/
 
 #   copy hfilin file

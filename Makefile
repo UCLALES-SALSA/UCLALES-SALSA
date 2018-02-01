@@ -15,7 +15,9 @@
 ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BIN       = $(ROOT)/bin
 ARCH      := $(shell uname)
-VERS      := $(shell git symbolic-ref --short -q HEAD)
+BRANCH    := $(shell git symbolic-ref --short -q HEAD)
+TAG       := $(shell git describe --tags)
+HASH      := $(shell git rev-parse --short HEAD)
 
 #
 # Generic Variables
@@ -156,9 +158,9 @@ ifeq ($(COMP),intel)
 endif
 # -------------------------------------------------------
 
-LES_OUT_MPI=$(BIN)/les.mpi.$(VERS).$(COMP).$(RUNTYPE)
+LES_OUT_MPI=$(BIN)/les.mpi.$(BRANCH).$(TAG).$(HASH).$(COMP).$(RUNTYPE)
 
-LES_OUT_SEQ=$(BIN)/les.seq.$(VERS).$(COMP).$(RUNTYPE)
+LES_OUT_SEQ=$(BIN)/les.seq.$(BRANCH).$(TAG).$(HASH).$(COMP).$(RUNTYPE)
 
 default: mpi
 

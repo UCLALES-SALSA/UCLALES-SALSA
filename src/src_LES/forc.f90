@@ -266,8 +266,8 @@ contains
     real, dimension (n1) :: sf
 
     lwp=0.
-    flx=0.
-    sf=0.
+    !flx=0.
+    !sf=0.
     do j=3,n3-2
        do i=3,n2-2
           ki = n1
