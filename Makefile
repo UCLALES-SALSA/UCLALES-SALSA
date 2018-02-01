@@ -44,7 +44,7 @@ $(info $$COMP is [${COMP}])
 $(info $$RUNTYPE is [${RUNTYPE}])
 # Ubuntu -------------------------------------------------
 ifeq ($(COMP),ubuntu)
-	F90 = f95
+	F90 = gfortran
 
 	NCDF		= /usr
 	NCDFLIB		= '-L$(NCDF)/lib -lnetcdff -lnetcdf'
