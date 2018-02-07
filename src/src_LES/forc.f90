@@ -177,7 +177,12 @@ contains
        xka = 170.
        fr0 = 72.
        fr1 = 15.
-       call isdac_gcss(nzp, nxp, nyp, xka, fr0, fr1, div, a_rc, dn0,     &
+       zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
+       IF (RadPrecipBins>0) THEN ! Add precipitation bins
+                ! Water is the last species (nspec+1)
+                zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
+       ENDIF
+       call isdac_gcss(nzp, nxp, nyp, xka, fr0, fr1, div, zrc, dn0,     &
                a_rflx, zt, zm, dzt, a_tt, a_tp, a_rt, a_rp,              &
                a_naerot, a_naerop, a_ncloudt, a_ncloudp,  a_nprecpt, a_nprecpp, a_nicet, a_nicep, a_nsnowt, a_nsnowp, &
                a_maerot, a_maerop, a_mcloudt, a_mcloudp,  a_mprecpt, a_mprecpp, a_micet, a_micep, a_msnowt, a_msnowp )
@@ -261,21 +266,34 @@ contains
 
     real, intent (out)  ::  flx(n1,n2,n3)
 
-    integer :: i, j, k, km1, kp1, ki
+    integer :: i, j, k, km1, kp1
     real    :: lwp(n2,n3)
     real, dimension (n1) :: sf
+
+    logical :: exist
+
+
+    inquire(file="tt.txt", exist=exist)
+
+    if (exist) then
+
+        open(12, file="tt.txt", status="old", position="append", action="write")
+
+    else
+
+        open(12, file="tt.txt", status="new", action="write")
+
+    end if
 
     lwp=0.
     flx=0.
     sf=0.
     do j=3,n3-2
        do i=3,n2-2
-          ki = n1
           do k=1,n1
              km1=max(1,k-1)
              lwp(i,j)=lwp(i,j)+max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(km1)))
              flx(k,i,j)=fr1*exp(-1.*xka*lwp(i,j))
-             if ( (rc(k,i,j) > 0.01e-3) .and. (rt(k,i,j) >= 0.008) ) ki=k !HUOMHUOM
           enddo
 
 
@@ -285,10 +303,19 @@ contains
              flx(k,i,j)=flx(k,i,j)+fr0*exp(-1.*xka*lwp(i,j))
 
              tt(k,i,j) =tt(k,i,j)-(flx(k,i,j)-flx(km1,i,j))*dzt(k)/(dn0(k)*cp)
+             
           enddo
-
+            
       enddo
     enddo
+    
+    
+    write(12,*) 'forc max tt', maxval(tt), 'max tt loc', maxloc(tt,1)
+    write(12,*) 'forc max tt', minval(tt), 'min tt loc', minloc(tt,1)
+    
+    write(12,*) ' '
+
+    !close(12)
     ! ISDAC
     ! ---------
     !
@@ -322,7 +349,14 @@ contains
         enddo
     enddo
         !
+    write(12,*) 'sub max tt', maxval(tt), 'max tt loc', maxloc(tt,1)
+    write(12,*) 'sub max tt', minval(tt), 'min tt loc', minloc(tt,1)
+    
+    write(12,*) ' '
 
+    close(12)
+   
+        
   end subroutine isdac_gcss
   !
   ! -------------------------------------------------------------------

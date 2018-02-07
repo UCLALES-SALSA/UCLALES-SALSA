@@ -17,7 +17,6 @@ BIN       = $(ROOT)/bin
 ARCH      := $(shell uname)
 BRANCH    := $(shell git symbolic-ref --short -q HEAD)
 TAG       := $(shell git describe --tags)
-HASH      := $(shell git rev-parse --short HEAD)
 
 #
 # Generic Variables
@@ -158,9 +157,9 @@ ifeq ($(COMP),intel)
 endif
 # -------------------------------------------------------
 
-LES_OUT_MPI=$(BIN)/les.mpi.$(BRANCH).$(TAG).$(HASH).$(COMP).$(RUNTYPE)
+LES_OUT_MPI=$(BIN)/les.mpi.$(BRANCH).$(TAG).$(COMP).$(RUNTYPE)
 
-LES_OUT_SEQ=$(BIN)/les.seq.$(BRANCH).$(TAG).$(HASH).$(COMP).$(RUNTYPE)
+LES_OUT_SEQ=$(BIN)/les.seq.$(BRANCH).$(TAG).$(COMP).$(RUNTYPE)
 
 default: mpi
 
