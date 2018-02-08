@@ -725,7 +725,7 @@ contains
     REAL, INTENT(in) :: numc(n1,n2,n3,nn)    ! Particle number concentration
     REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4) ! Particle mass mixing ratio
     REAL, INTENT(in) :: dzt(n1)              ! Inverse of grid level thickness
-    REAL, INTENT(IN) :: clim                ! Concentration limit
+    REAL, INTENT(IN) :: clim                ! Concentration limit (#/m^3)
     INTEGER, INTENT(IN) :: flag         ! An option for identifying aerosol, cloud, precipitation, ice and snow
     REAL, INTENT(OUT) :: flxdivm(n1,n2,n3,nn*n4), flxdivn(n1,n2,n3,nn) ! Mass and number divergence
     REAL, INTENT(OUT) :: depflxn(n2,n3,nn), depflxm(n2,n3,nn*n4) ! Mass and number deposition fluxes to the surface
@@ -772,7 +772,7 @@ contains
              !------------------
              ! -- Calculate the *corrections* for small particles
              DO bin = 1,nn
-                IF (numc(k,i,j,bin)<clim) CYCLE
+                IF (numc(k,i,j,bin)*adn(k,i,j)<clim) CYCLE
 
                 ! Calculate wet size
                 !   n4 = number of active species
@@ -832,7 +832,7 @@ contains
     REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4)
     REAL, INTENT(in) :: tstep
     REAL, INTENT(in) :: dzt(n1)
-    REAL, INTENT(IN) :: clim                ! Concentration limit
+    REAL, INTENT(IN) :: clim                ! Concentration limit (#/m^3)
     INTEGER, INTENT(IN) :: flag         ! An option for identifying aerosol, cloud, precipitation, ice and snow
     REAL, INTENT(out) :: prnt(n1,n2,n3,nn), prvt(n1,n2,n3,nn*n4)     ! Number and mass tendencies due to fallout
     REAL, INTENT(out) :: remprc(n2,n3,nn*n4)
@@ -885,7 +885,7 @@ contains
 
              ! Precipitation bin loop
              DO bin = 1,nn
-                IF (numc(k,i,j,bin) < clim) CYCLE
+                IF (numc(k,i,j,bin)*adn(k,i,j) < clim) CYCLE
 
                 ! Calculate wet size
                 !   n4 = number of active species

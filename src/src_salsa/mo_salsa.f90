@@ -123,7 +123,7 @@ CONTAINS
                                pcloud, pactd          )
 
     ! Ice nucleation
-    IF (lsicenucl .AND. fixinc>0.) THEN
+    IF (lsicenucl .AND. fixinc>=0.) THEN
         ! Fixed ice number concentration
         CALL  ice_fixed_NC(kproma, kbdim, klev,   &
                              pcloud,   pice,   &

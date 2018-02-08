@@ -859,7 +859,6 @@ contains
   subroutine set_cs_cold(n1,n2,n3,ri,ni,rs,ns,dn0,zm,xt,yt,time)
 
     use netcdf
-    USE mo_submctl, only : prlim
 
     integer, intent(in) :: n1,n2,n3
     real, intent(in)    :: ri(n1,n2,n3),ni(n1,n2,n3),rs(n1,n2,n3),ns(n1,n2,n3)
@@ -885,7 +884,7 @@ contains
           ice=0.
           sn=0.
           do k=2,n1
-             IF (ni(k,i,j) > prlim .AND. ri(k,i,j) > 1.e-15) THEN
+             IF (icemask(k,i,j)) THEN
                 ! Icy grid cell
                 iwp(i,j)=iwp(i,j)+ri(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
                 ! Volume weighted average of the ice number concentration
@@ -894,7 +893,7 @@ contains
                 ! Number of icy pixels
                 nicy(i,j)=nicy(i,j)+1
              END IF
-             if (ns(k,i,j) > prlim .AND. rs(k,i,j) > 1.e-20) then
+             if (snowmask(k,i,j)) then
                 ! Snowy grid cell
                 swp(i,j)=swp(i,j)+rs(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
                 ! Volume weighted average of the snow number concentration
@@ -1053,7 +1052,7 @@ contains
   !  Some rewriting and adjusting by Juha Tonttila
   !
   SUBROUTINE ts_lvl4(n1,n2,n3)
-    use mo_submctl, only : nlim
+    use mo_submctl, only : nlim ! Note: #/m^3, but close enough to #/kg for statistics
     USE grid, ONLY : prtcl, bulkNumc, bulkMixrat, meanradius, dzt, a_rh
     USE class_componentIndex, ONLY : IsUsed
 
@@ -1125,7 +1124,7 @@ contains
   !  Implemented by Jaakko Ahola 15/12/2016
   !
   SUBROUTINE ts_lvl5(n1,n2,n3)
-    USE mo_submctl, only : nlim,prlim
+    USE mo_submctl, only : prlim ! Note: #/m^3, but close enough to #/kg for statistics
     USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,meanRadius, dzt, &
         dn0, zm, a_ri, a_srs, snowin, a_rhi
     USE class_componentIndex, ONLY : IsUsed
@@ -1557,7 +1556,7 @@ contains
   subroutine accum_lvl4(n1,n2,n3)
     use mo_submctl, only : in1a,in2b,fn2a,fn2b, &
                                ica,fca,icb,fcb,ira,fra, &
-                               nprc,nlim,prlim
+                               nprc,nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                      a_rc, a_srp, a_rp, a_rh, prtcl,    &
                      a_naerop, a_ncloudp, a_nprecpp
@@ -1728,7 +1727,7 @@ contains
   ! on level 5 variables.
   !
   subroutine accum_lvl5(n1,n2,n3)
-    use mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,prlim
+    use mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,prlim ! Note: prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                      a_ri, a_srs, a_rhi, prtcl, a_nicep, a_nsnowp, snowin
     USE class_ComponentIndex, ONLY : IsUsed

@@ -2160,7 +2160,6 @@ contains
   contains
 
    SUBROUTINE getRadius(zstr,zend,nn,n4,numc,mass,numlim,zrad,flag)
-    USE mo_submctl, ONLY : pi6
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: nn, n4 ! Number of bins (nn) and aerosol species (n4)
@@ -2202,7 +2201,6 @@ contains
   ! SUBROUTINE getBinRadius
   ! Calculates wet radius for each bin in the whole domain
   SUBROUTINE getBinRadius(nn,n4,numc,mass,numlim,zrad,flag)
-    USE mo_submctl, ONLY : pi6
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: nn, n4 ! Number of bins (nn) and aerosol species (n4)

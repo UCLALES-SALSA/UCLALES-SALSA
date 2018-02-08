@@ -277,7 +277,7 @@ MODULE mo_submctl
 
 
   REAL, PARAMETER :: &
-   nlim = 1.,  & ! Number conc. limit (#/kg) for aerosol and cloud droplets 
+   nlim = 1.,  & ! Number conc. limit (#/m3) for aerosol and cloud droplets
    prlim = 1.e-6 ! The same for precipitation and ice species for which concentrations are normally much lower [#/m3]
 
 
@@ -360,34 +360,55 @@ contains
     !   3   BC     0
     !   4   DU    0
     !   5   SS     2
-    !   6   NH    1
-    !   7   NO    1
+    !   6   NO    1
+    !   7   NH    1
     !   8   H2O
 
     ! Wet diameter
     dwet=(SUM(part%volc(:))/part%numc/pi6)**(1./3.)
 
     ! Equilibrium saturation ratio = xw*exp(4*sigma*v_w/(R*T*Dwet))
-    IF (part%volc(8)>1e-25*part%numc) THEN
+    IF (part%volc(8)>1e-28*part%numc) THEN
         ! An aqueous droplet
         calc_Sw_eq=part%volc(8)*rhowa/mwa/(3.*part%volc(1)*rhosu/msu+part%volc(2)*rhooc/moc+ &
-            2.*part%volc(5)*rhoss/mss+part%volc(6)*rhonh/mnh+part%volc(7)*rhono/mno+part%volc(8)*rhowa/mwa)* &
+            2.*part%volc(5)*rhoss/mss+part%volc(6)*rhono/mno+part%volc(7)*rhonh/mnh+part%volc(8)*rhowa/mwa)* &
             exp(4.*surfw0*mwa/(rg*T*rhowa*dwet))
-    ELSEIF (part%volc(1)+part%volc(2)+part%volc(5)+part%volc(6)+part%volc(7)>1e-25*part%numc) THEN
+    ELSEIF (part%volc(1)+part%volc(2)+part%volc(5)+part%volc(6)+part%volc(7)>1e-28*part%numc) THEN
         ! Dry particle with soluble substances: allow complete dissolution (the same equation as for aqueous droplets)
         calc_Sw_eq=part%volc(8)*rhowa/mwa/(3.*part%volc(1)*rhosu/msu+part%volc(2)*rhooc/moc+ &
-            2.*part%volc(5)*rhoss/mss+part%volc(6)*rhonh/mnh+part%volc(7)*rhono/mno+part%volc(8)*rhowa/mwa)* &
+            2.*part%volc(5)*rhoss/mss+part%volc(6)*rhono/mno+part%volc(7)*rhonh/mnh+part%volc(8)*rhowa/mwa)* &
             exp(4.*surfw0*mwa/(rg*T*rhowa*dwet))
-    ELSEIF (part%volc(3)+part%volc(4)>1e-25*part%numc) THEN
+    ELSEIF (part%volc(3)+part%volc(4)>1e-28*part%numc) THEN
         ! Dry insoluble particle: xw = 1 even with trace amounts of water
         calc_Sw_eq=exp(4.*surfw0*mwa/(rg*T*rhowa*dwet))
     ELSE
         ! Just add eps to avoid divide by zero
         calc_Sw_eq=part%volc(8)*rhowa/mwa/(eps+3.*part%volc(1)*rhosu/msu+part%volc(2)*rhooc/moc+ &
-            2.*part%volc(5)*rhoss/mss+part%volc(6)*rhonh/mnh+part%volc(7)*rhono/mno+part%volc(8)*rhowa/mwa)* &
+            2.*part%volc(5)*rhoss/mss+part%volc(6)*rhono/mno+part%volc(7)*rhonh/mnh+part%volc(8)*rhowa/mwa)* &
             exp(4.*surfw0*mwa/(rg*T*rhowa*dwet))
     ENDIF
 
   END FUNCTIOn calc_Sw_eq
+
+  ! Function for calculating Pearson's correlation coefficient for two vectors
+  REAL FUNCTION calc_correlation(x,y,n)
+    INTEGER :: n
+    REAL :: x(n), y(n)
+    REAL :: sx, sy, sx2, sy2, sxy
+    INTEGER :: i
+    sx=0.; sy=0.; sx2=0.; sy2=0.; sxy=0.
+    DO i=1,n
+        sx=sx+x(i)
+        sy=sy+y(i)
+        sx2=sx2+x(i)**2
+        sy2=sy2+y(i)**2
+        sxy=x(i)*y(i)
+    ENDDO
+    IF (sx2*n-sx**2<eps .OR. sy2*n-sy**2<eps) THEN
+        calc_correlation = 0.
+    ELSE
+        calc_correlation = ( sxy*n-sx*sy )/( SQRT(sx2*n-sx**2)*SQRT(sy2*n-sy**2) )
+    ENDIF
+  END FUNCTION calc_correlation
 
 END MODULE mo_submctl

@@ -149,10 +149,10 @@ CONTAINS
 
           ! Initialize the wet diameter with the bin dry diameter to avoid numerical proplems later
           aero(ii,jj,:)%dwet = aero(ii,jj,:)%dmid
+          aero(ii,jj,:)%core = pi6*aero(ii,jj,:)%dmid**3
 
           ! Set volume and number concentrations to zero
           aero(ii,jj,:)%numc = 0.
-          aero(ii,jj,:)%core = 0.
           DO vv=1,8
              aero(ii,jj,:)%volc(vv) = 0.
           END DO
@@ -196,7 +196,7 @@ CONTAINS
 
     IMPLICIT NONE
 
-    INTEGER :: ii,jj,cc,bb,nba,nbb
+    INTEGER :: ii,jj,cc,nba,nbb
 
     REAL :: tmplolim(7), tmphilim(7)
 
@@ -252,53 +252,45 @@ CONTAINS
 
           ! Initialize the droplet diameter ("wet diameter") as the dry
           ! mid diameter of the nucleus to avoid problems later.
-          cloud(ii,jj,ica%cur:fcb%cur)%dwet = cloud(ii,jj,ica%cur:fcb%cur)%dmid
+          cloud(ii,jj,:)%dwet = cloud(ii,jj,:)%dmid
+          cloud(ii,jj,:)%core = pi6*cloud(ii,jj,:)%dmid**3
 
           ! Initialize the volume and number concentrations for clouds.
           ! First "real" values are only obtained upon the first calculation
           ! of the cloud droplet activation.
           DO cc = 1,8
-             cloud(ii,jj,ica%cur:fcb%cur)%volc(cc) = 0.
+             cloud(ii,jj,:)%volc(cc) = 0.
           END DO
-          cloud(ii,jj,ica%cur:fcb%cur)%numc = 0.
-          cloud(ii,jj,ica%cur:fcb%cur)%core = 0.
+          cloud(ii,jj,:)%numc = 0.
 
           ! ---------------------------------------------------------------------------------------
           ! Set the precipitation properties; unlike aerosol and cloud bins, the size distribution
           ! goes according to the *wet* radius
           ! ---------------------------------------------------------------------------------------
-          DO bb = ira,fra
-             precp(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3
-             precp(ii,jj,bb)%vlolim = pi6*tmplolim(bb)**3
-             precp(ii,jj,bb)%dmid = ( (precp(ii,jj,bb)%vlolim + precp(ii,jj,bb)%vhilim) /  &
-                                      (2.*pi6) )**(1./3.)
-             precp(ii,jj,bb)%vratiohi = precp(ii,jj,bb)%vhilim / ( pi6*precp(ii,jj,bb)%dmid**3 )
-             precp(ii,jj,bb)%vratiolo = precp(ii,jj,bb)%vlolim / ( pi6*precp(ii,jj,bb)%dmid**3 )
+          precp(ii,jj,:)%vhilim = pi6*tmphilim(:)**3
+          precp(ii,jj,:)%vlolim = pi6*tmplolim(:)**3
+          precp(ii,jj,:)%dmid = ( (precp(ii,jj,:)%vlolim + precp(ii,jj,:)%vhilim) / (2.*pi6) )**(1./3.)
+          precp(ii,jj,:)%vratiohi = precp(ii,jj,:)%vhilim / ( pi6*precp(ii,jj,:)%dmid**3 )
+          precp(ii,jj,:)%vratiolo = precp(ii,jj,:)%vlolim / ( pi6*precp(ii,jj,:)%dmid**3 )
 
-             ! Initialize the wet diameter as the bin mid diameter
-             precp(ii,jj,bb)%dwet = precp(ii,jj,bb)%dmid
+          ! Initialize the wet diameter as the bin mid diameter
+          precp(ii,jj,:)%dwet = precp(ii,jj,:)%dmid
+          precp(ii,jj,:)%core = pi6*precp(ii,jj,:)%dmid**3
 
-             DO cc = 1,8
-                precp(ii,jj,bb)%volc(cc) = 0.
-             END DO
-             precp(ii,jj,bb)%numc = 0.
-             precp(ii,jj,bb)%core = 0.
-
+          DO cc = 1,8
+             precp(ii,jj,:)%volc(cc) = 0.
           END DO
+          precp(ii,jj,:)%numc = 0.
 
        END DO
     END DO
 
     ! Save bin limits to be delivered e.g. to host model if needed
     ALLOCATE(cloudbins(ncld))
-    DO bb = 1,ncld
-       cloudbins(bb) = (cloud(1,1,bb)%vlolim/pi6)**(1./3.)
-    END DO
+    cloudbins(:) = (cloud(1,1,:)%vlolim/pi6)**(1./3.)
     cloudbins = 0.5*cloudbins ! To radius
     ALLOCATE(precpbins(nprc))
-    DO bb = 1,nprc
-       precpbins(bb) = (precp(1,1,bb)%vlolim/pi6)**(1./3.)
-    END DO
+    precpbins(:) = (precp(1,1,:)%vlolim/pi6)**(1./3.)
     precpbins = 0.5*precpbins ! To radius
 
   END SUBROUTINE set_cloudbins
@@ -329,7 +321,7 @@ CONTAINS
 
     IMPLICIT NONE
 
-    INTEGER :: ii,jj,cc,bb,nba,nbb
+    INTEGER :: ii,jj,cc,nba,nbb
 
     REAL :: tmplolim(7), tmphilim(7)
 
@@ -382,53 +374,44 @@ CONTAINS
           ice(ii,jj,iib%cur:fib%cur)%dmid = aero(ii,jj,iib%par:fib%par)%dmid
 
           ! Initialize the "wet" diameter as the dry mid diameter of the nucleus
-          ice(ii,jj,iia%cur:fib%cur)%dwet = ice(ii,jj,iia%cur:fib%cur)%dmid
+          ice(ii,jj,:)%dwet = ice(ii,jj,:)%dmid
+          ice(ii,jj,:)%core = pi6*ice(ii,jj,:)%dmid**3
 
           ! Initialize the volume and number concentrations for ice.
           DO cc = 1,8
-             ice(ii,jj,iia%cur:fib%cur)%volc(cc) = 0.
+             ice(ii,jj,:)%volc(cc) = 0.
           END DO
-          ice(ii,jj,iia%cur:fib%cur)%numc = 0.
-          ice(ii,jj,iia%cur:fib%cur)%core = 0.
+          ice(ii,jj,:)%numc = 0.
 
           ! ---------------------------------------------------------------------------------------
           ! Set the snow properties; unlike aerosol and cloud bins, the size distribution
           ! goes according to the "wet" radius
           ! ---------------------------------------------------------------------------------------
 
-          DO bb = isa,fsa
+          snow(ii,jj,:)%vhilim = pi6*tmphilim(:)**3
+          snow(ii,jj,:)%vlolim = pi6*tmplolim(:)**3
+          snow(ii,jj,:)%dmid = ( (snow(ii,jj,:)%vlolim + snow(ii,jj,:)%vhilim) / (2.*pi6) )**(1./3.)
+          snow(ii,jj,:)%vratiohi = snow(ii,jj,:)%vhilim / ( pi6*snow(ii,jj,:)%dmid**3 )
+          snow(ii,jj,:)%vratiolo = snow(ii,jj,:)%vlolim / ( pi6*snow(ii,jj,:)%dmid**3 )
 
-             snow(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3
-             snow(ii,jj,bb)%vlolim = pi6*tmplolim(bb)**3
-             snow(ii,jj,bb)%dmid = ( (snow(ii,jj,bb)%vlolim + snow(ii,jj,bb)%vhilim) /  &
-                                      (2.*pi6) )**(1./3.)
-             snow(ii,jj,bb)%vratiohi = snow(ii,jj,bb)%vhilim / ( pi6*snow(ii,jj,bb)%dmid**3 )
-             snow(ii,jj,bb)%vratiolo = snow(ii,jj,bb)%vlolim / ( pi6*snow(ii,jj,bb)%dmid**3 )
+          ! Initialize the wet diameter as the bin mid diameter
+          snow(ii,jj,:)%dwet = snow(ii,jj,:)%dmid
+          snow(ii,jj,:)%core = pi6*snow(ii,jj,:)%dmid**3
 
-             ! Initialize the wet diameter as the bin mid diameter
-             snow(ii,jj,bb)%dwet = snow(ii,jj,bb)%dmid
-
-             DO cc = 1,8
-                snow(ii,jj,bb)%volc(cc) = 0.
-             END DO
-             snow(ii,jj,bb)%numc = 0.
-             snow(ii,jj,bb)%core = 0.
-
+          DO cc = 1,8
+             snow(ii,jj,:)%volc(cc) = 0.
           END DO
+          snow(ii,jj,:)%numc = 0.
 
        END DO
     END DO
 
     ! Save bin limits to be delivered e.g. to host model if needed
     ALLOCATE(icebins(nice))
-    DO bb = 1,nice
-       icebins(bb) = (ice(1,1,bb)%vlolim/pi6)**(1./3.)
-    END DO
+    icebins(:) = (ice(1,1,:)%vlolim/pi6)**(1./3.)
     icebins = 0.5*icebins ! To radius
     ALLOCATE(snowbins(nsnw))
-    DO bb = 1,nsnw
-       snowbins(bb) = (snow(1,1,bb)%vlolim/pi6)**(1./3.)
-    END DO
+    snowbins(:) = (snow(1,1,:)%vlolim/pi6)**(1./3.)
     snowbins = 0.5*snowbins ! To radius
 
   END SUBROUTINE set_icebins

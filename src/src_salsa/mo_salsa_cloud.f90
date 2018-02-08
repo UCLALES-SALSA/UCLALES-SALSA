@@ -442,9 +442,10 @@ CONTAINS
           zvcstar = pi6*zdcstar**3
 
           ! Note: this is valid for dilute droplets, which include all particles containing soluble
-          ! substances. Critical droplet diameter for a completely insoluble particle is
+          ! substances. Critical droplet diameter for a completely insoluble particle (DU or BC) is
           !   zdstar = paa/(prv(ii,jj)/prs(ii,jj)-1.)
-          ! but dry particles should not be moved to cloud bins!
+          ! but dry particles should not be moved to cloud bins. Otherwise just assume that there
+          ! is enough soluble material so that the current approach is valid.
 
           ! Loop over cloud droplet (and aerosol) bins
           DO cb = ica%cur, fcb%cur
@@ -457,8 +458,8 @@ CONTAINS
              ENDIF
              pactd(cb)%numc = 0.d0
              pactd(cb)%volc(:) =0.d0
-             ! Dry particles are not activated (volume 1e-25 m^3 is less than that in an aqueous 1 nm droplet)
-             IF ( paero(ii,jj,ab)%numc < nlim .OR. paero(ii,jj,ab)%volc(8)<paero(ii,jj,ab)%numc*1e-25 ) CYCLE
+             ! Dry particles are not activated (volume 1e-28 m^3 is less than that in a 1 nm droplet)
+             IF ( paero(ii,jj,ab)%numc < nlim .OR. paero(ii,jj,ab)%volc(8)<paero(ii,jj,ab)%numc*1e-28 ) CYCLE
              intrange = .FALSE.
 
              ! Define some parameters
@@ -919,9 +920,10 @@ CONTAINS
                                in2a, fn2b,  &
                                ncld, nprc, nice,  &
                                rhowa, rhoic,  &
-                               pi, rda, nlim, prlim, &
+                               pi, nlim, prlim, &
                                calc_Sw_eq, &
-                               ice_hom, ice_imm, ice_dep
+                               ice_hom, ice_imm, ice_dep, &
+                               calc_correlation
 
     IMPLICIT NONE
 
@@ -1111,25 +1113,6 @@ CONTAINS
 
     END DO
     END DO
-
-  CONTAINS
-
-    ! Function for calculating Pearson's correlation coefficient for two vectors
-    REAL FUNCTION calc_correlation(x,y,n)
-        INTEGER :: n
-        REAL :: x(n), y(n)
-        REAL :: sx, sy, sx2, sy2, sxy
-        INTEGER :: i
-        sx=0.; sy=0.; sx2=0.; sy2=0.; sxy=0.
-        DO i=1,n
-            sx=sx+x(i)
-            sy=sy+y(i)
-            sx2=sx2+x(i)**2
-            sy2=sy2+y(i)**2
-            sxy=x(i)*y(i)
-        ENDDO
-        calc_correlation = ( sxy*n-sx*sy )/( SQRT(sx2*n-sx**2)*SQRT(sy2*n-sy**2) )
-    END FUNCTION calc_correlation
 
   END SUBROUTINE ice_nucl_driver
 
