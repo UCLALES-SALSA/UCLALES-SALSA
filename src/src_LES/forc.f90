@@ -304,16 +304,25 @@ contains
 
              tt(k,i,j) =tt(k,i,j)-(flx(k,i,j)-flx(km1,i,j))*dzt(k)/(dn0(k)*cp)
              
+             
+             
           enddo
+          
             
       enddo
     enddo
     
-    
-    write(12,*) 'forc max tt', maxval(tt), 'max tt loc', maxloc(tt,1)
-    write(12,*) 'forc max tt', minval(tt), 'min tt loc', minloc(tt,1)
-    
-    write(12,*) ' '
+    do k=1,n1-1
+        if ( tl(k+1,3,3) < tl(k,3,3) ) then
+            write(12,*) 'forc'
+            write(12,*) 'k', k
+            write(12,*) 'tl(k+1)', 273+tl(k+1,3,3), 'tl(k)', 273+tl(k,3,3)
+            write(12,*) 'tt(k+1)', tt(k+1,3,3), 'tt(k)', tt(k,3,3)
+            !write(12,*) 'forc max tt', maxval(tt), 'max tt loc', maxloc(tt,1)
+            !write(12,*) 'forc max tt', minval(tt), 'min tt loc', minloc(tt,1)
+            write(12,*) ' '
+         endif
+    enddo
 
     !close(12)
     ! ISDAC
@@ -349,10 +358,17 @@ contains
         enddo
     enddo
         !
-    write(12,*) 'sub max tt', maxval(tt), 'max tt loc', maxloc(tt,1)
-    write(12,*) 'sub max tt', minval(tt), 'min tt loc', minloc(tt,1)
-    
-    write(12,*) ' '
+    do k=1,n1-1
+        if ( tl(k+1,3,3) < tl(k,3,3) ) then
+            write(12,*) 'subsidence'
+            write(12,*) 'k', k
+            write(12,*) 'tl(k+1)', 273+tl(k+1,3,3), 'tl(k)', 273+tl(k,3,3)
+            write(12,*) 'tt(k+1)', tt(k+1,3,3), 'tt(k)', tt(k,3,3)
+            !write(12,*) 'subs max tt', maxval(tt), 'max tt loc', maxloc(tt,1)
+            !write(12,*) 'subs max tt', minval(tt), 'min tt loc', minloc(tt,1)
+            write(12,*) ' '
+         endif
+    enddo
 
     close(12)
    
