@@ -563,9 +563,6 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                     ! Unknown
                     STOP 'Unknown ISDAC nudging option!'
                 ENDIF
-                write(*,*) 'nudging'
-                write(*,*) 'at', at(kk,3,3), 'C_nudge', C_nudge, 'avg', avg(kk), 'trgt', trgt(kk)
-                write(*,*) ' '
                 at(kk,:,:)=at(kk,:,:)-C_nudge*(avg(kk)-trgt(kk))
                 
             ENDIF
