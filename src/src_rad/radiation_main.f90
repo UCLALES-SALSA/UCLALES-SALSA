@@ -1,4 +1,4 @@
- 
+
 MODULE radiation_main
   USE grid, ONLY : iradtyp, nxp, nyp, nzp, dzt,       &
                    dn0, pi0, pi1, sst, cntlat, CCN,   &
@@ -6,13 +6,14 @@ MODULE radiation_main
                    a_rv, a_rp, a_rc, a_ri,            &
                    a_npp, a_rpp,                      &
                    a_ncloudp, a_nprecpp, a_mprecpp,   &
+                   a_nicep, a_nsnowp, a_msnowp,       &
                    a_nicep,                           &
                    a_rflx, a_sflx,                    &
                    a_fus, a_fds,                      &
                    a_fuir, a_fdir,                    &
-                   albedo, prtcl, level
+                   albedo, level
 
-  USE mo_submctl, ONLY : nprc,ira,fra
+  USE mo_submctl, ONLY : nprc,nsnw,ira,fra,isa,fsa,spec
   USE radiation, ONLY : d4stream
   IMPLICIT NONE
   
@@ -20,6 +21,7 @@ MODULE radiation_main
   LOGICAL :: useMcICA = .TRUE.
   LOGICAL :: RadConstPress = .FALSE. ! Keep constant pressure levels
   INTEGER :: RadPrecipBins = 0 ! Add precipitation bins to cloud water (for level 3 and up)
+  INTEGER :: RadSnowBins = 0 ! Add snow bins to cloud ice (for level 5 and up)
   CHARACTER (len=50) :: radsounding = 'datafiles/dsrt.lay'  ! Juha: Added so the radiation background sounding can be given
                                                             ! from the NAMELIST
   
@@ -33,7 +35,7 @@ MODULE radiation_main
       INTEGER :: nspec
       REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
       
-      nspec = prtcl%getNComp()-1  ! Excluding water
+      nspec = spec%getNSpec()-1  ! Excluding water
       
       ! Radiation
       ! -------------
@@ -82,10 +84,16 @@ MODULE radiation_main
          END IF
          zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4) ! Ice
          zri(:,:,:) = a_ri(:,:,:) ! Ice (no aerosol ice?)
+         IF (RadSnowBins>0) THEN ! Add snow bins
+            ! Water is the last species (nspec+1)
+            zri(:,:,:) = zri(:,:,:) + SUM(a_msnowp(:,:,:,nspec*nsnw+isa:nspec*nsnw+min(RadSnowBins,fsa)),DIM=4)
+            zni(:,:,:) = zni(:,:,:) + SUM(a_nsnowp(:,:,:,isa:min(RadSnowBins,fsa)),DIM=4)
+         END IF
          CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                        dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
                        a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
                        useMcICA=useMcICA, ConstPrs=RadConstPress)
+
       END IF
 
 

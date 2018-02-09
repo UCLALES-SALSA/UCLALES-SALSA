@@ -1,5 +1,6 @@
 MODULE mo_submctl
   USE classSpecies, ONLY : Species, maxspec
+  USE classSection
   IMPLICIT NONE
 
   ! I'd say nothing here needs to be PRIVATE so remoed PRIVATE and PUBLIC attributes (PUBLIC is default).
@@ -7,25 +8,6 @@ MODULE mo_submctl
   
   ! Datatype used to store information about the binned size distributions of aerosols,cloud,drizzle and ice
   ! ---------------------------------------------------------------------------------------------------------
-  TYPE t_section
-     REAL :: vhilim,     & ! bin volume at the high limit
-          vlolim,     & ! - '' - at the low limit
-          vratiohi,   & ! volume ratio between the center and high limit
-          vratiolo,   & ! - '' - and the low limit
-          dmid,       & ! bin middle diameter
-          !******************************************************
-          ! ^ Do NOT change the stuff above after initialization !
-          !******************************************************
-          dwet,       & ! Wet diameter or mean droplet diameter
-          
-          volc(8),    & ! Volume concentrations of aerosol species + water
-          ! Since most of the stuff in SALSA is hard coded, these
-          ! *have to be* in the order: 1:SO4, 2:OC, 3:BC, 4:DU, 5:SS, 6:NO, 7:NH, 8:H2O
-          
-          numc,       & ! Number concentration of particles/droplets
-          core          ! Volume of dry particle
-  END TYPE t_section
-  ! ---------------------------------------------------------------------------------------------------
   
   TYPE t_parallelbin
      ! Map bin indices between parallel size distributions
@@ -33,6 +15,16 @@ MODULE mo_submctl
      INTEGER :: par  ! Index for corresponding parallel distribution
   END TYPE t_parallelbin
   
+
+  ! Particle type specific pointers to "allSALSA" master array defined in mo_salsa_driver.
+  ! Pointer association is done in mo_salsa_init. These should be accessed by importin mo_submctl,
+  ! not by dummy arguments.
+  TYPE(Section), POINTER :: aero(:,:,:)  => NULL(),   &
+                            cloud(:,:,:) => NULL(),  &
+                            precp(:,:,:) => NULL(),  &
+                            ice(:,:,:)   => NULL(),    &
+                            snow(:,:,:)  => NULL()
+
   
   !Switches for SALSA aerosol microphysical processes
 
@@ -136,7 +128,7 @@ MODULE mo_submctl
   REAL :: rhlim = 1.20
   
   ! Define which aerosol species used and initial size distributions
-  TYPE(Species) :: spec  ! Must be initialized in mo_salsa_init (pointer associations). Holds aerosol species indices and properties
+  TYPE(Species), TARGET :: spec  ! Must be initialized in mo_salsa_init (pointer associations). Holds aerosol species indices and properties
   INTEGER :: nspec = 1
   CHARACTER(len=3) :: listspec(maxspec) = (/'SO4','   ','   ','   ','   ','   ','   '/)
   
@@ -194,6 +186,8 @@ MODULE mo_submctl
   INTEGER             ::   nice   ! Total number of ice bins
   INTEGER             ::   nsnw   ! Total number of snow bins
     
+  INTEGER :: ntotal ! Total number of bins accross all active particle types
+
   REAL, ALLOCATABLE :: aerobins(:),  &  ! These are just to deliver information about the bin diameters if the
                        cloudbins(:), &  ! host model needs it (lower limits).
                        precpbins(:), &
@@ -209,7 +203,7 @@ MODULE mo_submctl
    rg     = 8.314,        & ! molar gas constant (J/(mol K))
    pi     = 3.1415927,    & ! self explanatory
    pi6    = 0.5235988,    & ! pi/6
-   cpa    = 1010.,        & ! specific heat of dry air, constant P (J/kg/K)
+   cpa    = 1005.,        & ! specific heat of dry air, constant P (J/kg/K)
    mair   = 28.97e-3,     & ! molar mass of air (mol/kg)
    deltav = 1.096e-7,     & ! vapor jump length (m)
    deltaT = 2.16e-7,      & ! thermal jump length (m)
@@ -334,7 +328,7 @@ MODULE mo_submctl
   SUBROUTINE CalcDimension(n,ppart,lim,dia,flag)
     IMPLICIT NONE
     INTEGER, INTENT(in) :: n
-    TYPE(t_section), INTENT(in) :: ppart(n)
+    TYPE(Section), INTENT(in) :: ppart(n)
     REAL, INTENT(IN) :: lim
     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
     REAL, INTENT(OUT) :: dia(n)
@@ -352,7 +346,7 @@ MODULE mo_submctl
   ! Function for calculating equilibrium water saturation ratio at droplet surface based on Köhler theory
   !
   REAL FUNCTION calc_Sw_eq(part,T)
-    TYPE(t_section), INTENT(in) :: part ! Any particle
+    TYPE(Section), INTENT(in) :: part ! Any particle
     REAL, INTENT(IN) :: T ! Absolute temperature (K)
     REAL :: dwet
 
@@ -367,12 +361,17 @@ MODULE mo_submctl
     !   8   H2O
 
     ! Wet diameter
-    dwet=(SUM(part%volc(:))/part%numc/pi6)**(1./3.)
+    dwet = (SUM(part%volc(:))/part%numc/pi6)**(1./3.)
 
     ! Equilibrium saturation ratio = xw*exp(4*sigma*v_w/(R*T*Dwet))
-    calc_Sw_eq=part%volc(8)*rhowa/mwa/(3.*part%volc(1)*rhosu/msu+part%volc(2)*rhooc/moc+ &
-            2.*part%volc(5)*rhoss/mss+part%volc(6)*rhonh/mnh+part%volc(7)*rhono/mno+part%volc(8)*rhowa/mwa)* &
-            exp(4.*surfw0*mwa/(rg*T*rhowa*dwet))
+    calc_Sw_eq = part%volc(8)*spec%rhowa/spec%mwa /  &
+                       (3.*part%volc(1)*spec%rhosu/spec%msu +   &
+                           part%volc(2)*spec%rhooc/spec%moc +   &
+                        2.*part%volc(5)*spec%rhoss/spec%mss +   &
+                           part%volc(6)*spec%rhonh/spec%mnh +   &
+                           part%volc(7)*spec%rhono/spec%mno +   &
+                           part%volc(8)*spec%rhowa/spec%mwa) *  &
+                       exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
 
   END FUNCTIOn calc_Sw_eq
 

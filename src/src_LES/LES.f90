@@ -60,7 +60,7 @@ CONTAINS
 
       CALL define_parm
 
-      IF (level >= 4) CALL define_salsa ! Read SALSA namelist etc.
+      IF (level >= 4) CALL define_salsa(level) ! Read SALSA namelist etc.
 
       IF (level >= 4) CALL salsa_initialize ! All salsa variables are now initialized
 
@@ -94,7 +94,7 @@ CONTAINS
                        strtim, radfrq
       USE nudg, ONLY : nudge_time, nudge_zmin, nudge_zmax,                                &
                        ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
-      USE emission_main, ONLY : eseed, esrfc
+      USE emission_main, ONLY : emitModes, nEmissionModes
       USE grid, ONLY : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                        dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                        filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
@@ -108,7 +108,7 @@ CONTAINS
                                  useMcICA,      &
                                  RadConstPress, &
                                  RadPrecipBins, &
-	                             RadSnowBins
+	                         RadSnowBins
       USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
       USE mpi_interface, ONLY : myid, appl_abort, ver, author
 
@@ -166,8 +166,8 @@ CONTAINS
          ndg_aero                             ! Aerosol number concentration nudging
 
       NAMELIST /emission/ &              
-         eseed,                            & ! Artificial cloud seeding emission config
-         esrfc                               ! Surface emission config
+         nEmissionModes,      & ! Number of emission profiles to be used (max 5)
+         emitModes              ! Emission configs
 
       NAMELIST /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author

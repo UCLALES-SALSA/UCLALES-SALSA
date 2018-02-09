@@ -71,31 +71,25 @@ CONTAINS
    !---------------------------------------------------------------------
 
    SUBROUTINE equilibration(kproma, kbdim, klev,    &
-                            prh, ptemp, paero, init )
+                            prh, ptemp, init )
 
       USE mo_submctl, ONLY : &
-         t_section,    &
+         aero,         &
+         spec,         &
          pi6,          & ! pi/6
          in1a, fn1a,   &
          in2a,         &
          fn2b,         &
+         nbins,        &
          boltz,        & ! Boltzmann constant [J/K]
          nlim,         & ! lowest possible particle conc. in a bin [#/m3]
     
-                         ! molar masses [kg/mol]
-         mwa,          & ! water
-                         ! molecular volumes [m3]
          mvsu,         & ! sulphate 
                          ! density [kg/m3]
          rhowa,        & ! water
          
          surfw0,       & ! surface tension of water [J/m2]
-         epsoc,        & ! fxm
-
-         rhosu, msu,   & ! properties of compounds
-         rhooc, moc,   &
-         rhoss, mss,   &
-         rhono, mno
+         epsoc!,       !& ! fxm
 
       IMPLICIT NONE
 
@@ -112,13 +106,8 @@ CONTAINS
       LOGICAL, INTENT(in) :: init  ! TRUE: Initialization call
                                    ! FALSE: Normal runtime: update water content only for 1a
 
-      !-- output variables -------------
-      TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,fn2b)
-
-
-
       !-- local variables --------------
-      INTEGER :: ii, jj, kk             ! loop indices
+      INTEGER :: ii, jj, kk, cc, dd             ! loop indices
       INTEGER :: count
 
       REAL ::      &
@@ -132,6 +121,43 @@ CONTAINS
       REAL :: zcore,  &
               zdwet
 
+      ! Quick n dirty method of screenings which compounds are used
+      ! It is most likely possible to implement a better solution. These are initialized 
+      ! right below and used in the subsequent calculations...
+      INTEGER :: nspc
+      !CHARACTER(len=*), PARAMETER :: nms1(5) = ['SO4','OC ','NO ','NH ','SS '],    &
+      !                               nms2(3) = ['SO4','OC ','NO '],          &
+      !                               nms3(4) = ['SO4','OC ','NO ','SS ']
+      REAL :: zvolc(kbdim,klev,nbins,7) ! Local vol concentrations to accommodate hard-coded parts...
+      INTEGER :: massindx(7)
+      INTEGER :: iwa
+
+      ! This list has to be compiled because there is old hard-coded stuff that depends on the order of the compounds.
+      ! You can do this more cleanly, but it requires rewriting the whole module...
+      massindx = 0
+      IF (spec%isUsed("SO4")) massindx(1) = spec%getIndex("SO4")
+      IF (spec%isUsed("OC"))  massindx(2) = spec%getIndex("OC")
+      IF (spec%isUsed("BC"))  massindx(3) = spec%getIndex("BC")
+      IF (spec%isUsed("DU"))  massindx(4) = spec%getIndex("DU")
+      IF (spec%isUsed("SS"))  massindx(5) = spec%getIndex("SS")
+      IF (spec%isUsed("NO"))  massindx(6) = spec%getIndex("NO")
+      IF (spec%isUsed("NH"))  massindx(7) = spec%getIndex("NH")
+      nspc = spec%getNSpec()
+
+      zvolc = 0.
+      DO cc = 1,5   ! Loop over massindx-array
+         DO kk = in1a,fn2b
+            DO jj = 1,klev
+               DO ii = 1,kbdim
+                  dd = massindx(cc)
+                  IF ( dd /= 0 ) THEN   ! If the compound is used, if not, zvolc(...,cc) will remain 0
+                     zvolc(ii,jj,kk,cc) = aero(ii,jj,kk)%volc(dd)
+                  END IF 
+               END DO
+            END DO
+         END DO
+      END DO
+         
 
       zcore = 0.
       zvpart(:) = 0.
@@ -150,17 +176,16 @@ CONTAINS
                zbinmol = 0.
                zdold = 1.
 
-               IF ((paero(ii,jj,kk)%numc > nlim)) THEN
+               IF ((aero(ii,jj,kk)%numc > nlim)) THEN
 
                   !-- volume of sulphate and OC in one particle [fxm]
                   !   + NO/NH
-
-                  zvpart(1:2) = paero(ii,jj,kk)%volc(1:2)/paero(ii,jj,kk)%numc
-                  zvpart(6:7) = paero(ii,jj,kk)%volc(6:7)/paero(ii,jj,kk)%numc ! NO + NH
-                
+                  zvpart(1:2) = zvolc(ii,jj,kk,1:2)/aero(ii,jj,kk)%numc
+                  zvpart(6:7) = zvolc(ii,jj,kk,6:7)/aero(ii,jj,kk)%numc
+                  
                   !-- total volume of one dry particle [fxm]
                   zcore = sum(zvpart(1:2))
-                  zdwet = paero(ii,jj,kk)%dwet
+                  zdwet = aero(ii,jj,kk)%dwet
                 
                   ! Relative Humidity:
                   zrh = prh(ii,jj)
@@ -181,7 +206,7 @@ CONTAINS
                         - 3.1543839e+2 * zaw**3   &
                         + 6.770824e+1  * zaw**4 
 
-                     zbinmol(2) = 1./(zaw*mwa)-1./mwa ! organic carbon
+                     zbinmol(2) = 1./(zaw*spec%mwa)-1./spec%mwa ! organic carbon
 
                      zbinmol(6) =                      & ! nitric acid
                         + 2.306844303e+1          &
@@ -197,14 +222,14 @@ CONTAINS
                      ! Calculate the liquid water content (kg/m3-air) using ZSR
                      ! (see e.g. equation (9.98) in Seinfeld and Pandis (1998))
                      !
-                     zlwc = (paero(ii,jj,kk)%volc(1)*(rhosu/msu))/zbinmol(1)       + &
-                            epsoc * paero(ii,jj,kk)%volc(2)*(rhooc/moc)/zbinmol(2) + &
-                            (paero(ii,jj,kk)%volc(6)*(rhono/mno))/zbinmol(6)
+                     zlwc = (zvolc(ii,jj,kk,1)*(spec%rhosu/spec%msu))/zbinmol(1)       + &
+                            epsoc*zvolc(ii,jj,kk,2)*(spec%rhooc/spec%moc)/zbinmol(2) + &
+                            (zvolc(ii,jj,kk,6)*(spec%rhono/spec%mno))/zbinmol(6)
                    
                      !-- particle wet radius [m]
-                     zdwet = (zlwc/paero(ii,jj,kk)%numc/rhowa/pi6 + &
-                              (SUM(zvpart(6:7))/pi6)**(1./3.) +     &
-                              zcore/pi6)**(1./3.)
+                     zdwet = ( zlwc/aero(ii,jj,kk)%numc/rhowa/pi6 + &
+                               SUM(zvpart(6:7))/pi6               + &
+                               zcore/pi6                          )**(1./3.)
 
                      zke = exp(2.*surfw0*mvsu/(boltz*ptemp(ii,jj)*zdwet))
                      !-- Kelvin effect
@@ -216,12 +241,13 @@ CONTAINS
 
                   ! Instead of lwc, use the volume concentration of water from now on
                   ! (easy to convert...)
-                  paero(ii,jj,kk)%volc(8) = zlwc/rhowa
+                  iwa = spec%getIndex("H2O")
+                  aero(ii,jj,kk)%volc(iwa) = zlwc/spec%rhowa
                 
                   ! If this is initialization, update the core and wet diameter
                   IF (init) THEN
-                     paero(ii,jj,kk)%dwet = zdwet
-                     paero(ii,jj,kk)%core = zcore
+                     aero(ii,jj,kk)%dwet = zdwet
+                     aero(ii,jj,kk)%core = zcore
                   END IF
 
 
@@ -229,8 +255,8 @@ CONTAINS
                   ! If initialization
                   !-- 1.2) empty bins given bin average values -----------------
                   IF (init) THEN
-                     paero(ii,jj,kk)%dwet = paero(ii,jj,kk)%dmid
-                     paero(ii,jj,kk)%core = pi6*paero(ii,jj,kk)%dmid**3
+                     aero(ii,jj,kk)%dwet = aero(ii,jj,kk)%dmid
+                     aero(ii,jj,kk)%core = pi6*aero(ii,jj,kk)%dmid**3
                   END IF
                END IF
             END DO
@@ -255,15 +281,15 @@ CONTAINS
                   zdold = 1.
 
                   !-- 1) particle properties calculated for non-empty bins ---------
-                  IF ((paero(ii,jj,kk)%numc > nlim)) THEN
+                  IF ((aero(ii,jj,kk)%numc > nlim)) THEN
 
                      !-- volume in one particle [fxm]
                      zvpart = 0.
-                     zvpart(1:7) = paero(ii,jj,kk)%volc(1:7)/paero(ii,jj,kk)%numc
+                     zvpart(1:7) = zvolc(ii,jj,kk,1:7)/aero(ii,jj,kk)%numc
                    
                      !-- total volume of one dry particle [fxm]
                      zcore = sum(zvpart(1:5))
-                     zdwet = paero(ii,jj,kk)%dwet
+                     zdwet = aero(ii,jj,kk)%dwet
 
                      ! Relative Humidity:
                      zrh = prh(ii,jj)
@@ -284,7 +310,7 @@ CONTAINS
                            - 3.1543839e+2 * zaw**3  &
                            + 6.770824e+1  * zaw**4 
                       
-                        zbinmol(2) = 1./(zaw*mwa)-1./mwa ! organic carbon
+                        zbinmol(2) = 1./(zaw*spec%mwa)-1./spec%mwa ! organic carbon
 
                         zbinmol(6) =                      & ! nitric acid
                            + 2.306844303e+1          &
@@ -304,15 +330,15 @@ CONTAINS
                            + 4.153689e+1  * zaw**4 
                       
                         !-- calculate the liquid water content (kg/m3-air)
-                        zlwc = (paero(ii,jj,kk)%volc(1)*(rhosu/msu))/zbinmol(1) +                 &
-                               epsoc * (paero(ii,jj,kk)%volc(2)*(rhooc/moc))/zbinmol(2) +         &
-                               (paero(ii,jj,kk)%volc(6)*(rhono/mno))/zbinmol(6)         +         &
-                               (paero(ii,jj,kk)%volc(5)*(rhoss/mss))/zbinmol(5)
+                        zlwc = (zvolc(ii,jj,kk,1)*(spec%rhosu/spec%msu))/zbinmol(1) +                 &
+                               epsoc * (zvolc(ii,jj,kk,2)*(spec%rhooc/spec%moc))/zbinmol(2) +         &
+                               (zvolc(ii,jj,kk,6)*(spec%rhono/spec%mno))/zbinmol(6)         +         &
+                               (zvolc(ii,jj,kk,5)*(spec%rhoss/spec%mss))/zbinmol(5)
                       
                         !-- particle wet radius [m]
-                        zdwet = (zlwc/paero(ii,jj,kk)%numc/rhowa/pi6 +  &
-                                 (SUM(zvpart(6:7))/pi6)**(1./3.) + &
-                                 zcore/pi6)**(1./3.)
+                        zdwet = ( zlwc/aero(ii,jj,kk)%numc/rhowa/pi6 +  &
+                                  SUM(zvpart(6:7))/pi6               +  &
+                                  zcore/pi6                          )**(1./3.)
 
                         !-- Kelvin effect
                         zke = exp(2.*surfw0*mvsu/(boltz*ptemp(ii,jj)*zdwet))
@@ -324,14 +350,15 @@ CONTAINS
 
                      ! Liquid water content; instead of LWC use the volume concentration
                      !plwc(ii,jj,kk)=zlwc
-                     paero(ii,jj,kk)%volc(8) = zlwc/rhowa
-                     paero(ii,jj,kk)%dwet = zdwet
-                     paero(ii,jj,kk)%core = zcore
+                     iwa = spec%getIndex("H2O")
+                     aero(ii,jj,kk)%volc(iwa) = zlwc/spec%rhowa
+                     aero(ii,jj,kk)%dwet = zdwet
+                     aero(ii,jj,kk)%core = zcore
 
                   ELSE
                      !-- 2.2) empty bins given bin average values -------------------------
-                     paero(ii,jj,kk)%dwet = paero(ii,jj,kk)%dmid
-                     paero(ii,jj,kk)%core = pi6*paero(ii,jj,kk)%dmid**3
+                     aero(ii,jj,kk)%dwet = aero(ii,jj,kk)%dmid
+                     aero(ii,jj,kk)%core = pi6*aero(ii,jj,kk)%dmid**3
                   END IF
                 
                END DO

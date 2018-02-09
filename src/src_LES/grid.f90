@@ -20,8 +20,8 @@
 MODULE grid
 
    USE ncio!, ONLY : open_nc, define_nc
-   ! Deprecated
-   USE classComponentIndex, ONLY : ComponentIndex
+   USE mo_submctl, ONLY : spec
+
 
    IMPLICIT NONE
    
@@ -47,7 +47,7 @@ MODULE grid
    REAL    :: cntlat =  31.5      ! Latitude for radiation
 
    LOGICAL :: lbinanl = .FALSE.   ! Whether to write binned data to analysis files (takes a lot of space + mainly used for debugging)
-   LOGICAL           :: lbinprof = .TRUE.   ! The same for profile statistics
+   LOGICAL :: lbinprof = .TRUE.   ! The same for profile statistics
    LOGICAL :: lnudging = .FALSE.  ! Master switch for nudging scheme
    LOGICAL :: lemission = .FALSE. ! Master switch for aerosol emission
 
@@ -138,16 +138,6 @@ MODULE grid
    ! Some stuff for tendency formulation
    REAL, ALLOCATABLE :: a_vactd(:,:,:,:), a_nactd(:,:,:,:)
 
-   ! DEPRECATED
-   ! Particle component index tables
-   TYPE(componentIndex) :: prtcl ! Contains "getIndex" which gives the index for a given
-                                ! aerosol component name, i.e. 1:SO4, 2:OC, 3:BC, 4:DU,
-                                ! 5:SS, 6:NO, 7:NH, 8:H2O
-
-   ! DEPRECATED
-   ! Physical properties for the selected aerosol components
-   REAL, ALLOCATABLE :: dens(:), mws(:), diss(:), dens_ice(:), dens_snow(:)
-
    !---------------------------------------------------------------------------
 
    REAL, ALLOCATABLE, TARGET :: a_sclrp(:,:,:,:),a_sclrt(:,:,:,:)
@@ -215,12 +205,7 @@ CONTAINS
 
       USE mpi_interface, ONLY : myid
       USE mo_submctl, ONLY : nbins,ncld,nprc,  & ! Number of aerosol and hydrometeor size bins for SALSA
-                             nice,nsnw,        & ! number of ice and snow size bins for SALSA
-                             spec,             & ! Holds aerosol species parameters and indices
-                             ! ALL BELOW DEPRECATED
-                             nspec, maxspec, listspec, &
-                             rhosu,rhooc,rhobc,rhono,rhonh,rhoss,rhodu,rhowa,rhoic,rhosn,  &
-                             msu,moc,mbc,mno,mnh,mss,mdu,mwa
+                             nice,nsnw           ! number of ice and snow size bins for SALSA
 
       CHARACTER(len=20), PARAMETER :: name = "define_vars"
       INTEGER :: memsize
@@ -231,12 +216,9 @@ CONTAINS
       !            Aerosol bins + Cloud bins + gas compound tracers
 
       IF (level >= 4) THEN
-         ! Create index tables for different aerosol components (can be fetched by name using getIndex)
-         prtcl = ComponentIndex(nspec,maxspec,listspec) ! DEPRECATED
          nc = spec%getNSpec()
-
-         nsalsa = (nc+1)*nbins + (nc+1)*ncld + (nc+1)*nprc + (nc+1)*nice + (nc+1)*nsnw + 5
-
+         nsalsa = (nc+1)*nbins + (nc+1)*ncld + (nc+1)*nprc + 5
+	     IF (level == 5) nsalsa = nsalsa + (nc+1)*nice + (nc+1)*nsnw 
       END IF
 
       ! Juha: Stuff that's allocated for all configurations
@@ -406,21 +388,21 @@ CONTAINS
 
          ! Level 5
          IF (level>=5) THEN      ! Level 5
+            zz = zz+5
             a_nicep => a_sclrp(:,:,:,zz+1:zz+nice)
             a_nicet => a_sclrt(:,:,:,zz+1:zz+nice)
+
             zz = zz+nice
+            a_micep => a_sclrp(:,:,:,zz+1:zz+nc*nice)
+            a_micet => a_sclrt(:,:,:,zz+1:zz+nc*nice)
 
-            a_micep => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nice)
-            a_micet => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nice)
-            zz = zz+(nc+1)*nice
-
+            zz = zz+nc*nice
             a_nsnowp => a_sclrp(:,:,:,zz+1:zz+nsnw)
             a_nsnowt => a_sclrt(:,:,:,zz+1:zz+nsnw)
-            zz = zz+nsnw
 
-            a_msnowp => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nsnw)
-            a_msnowt => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nsnw)
-            zz = zz+(nc+1)*nsnw
+            zz = zz+nsnw
+            a_msnowp => a_sclrp(:,:,:,zz+1:zz+nc*nsnw)
+            a_msnowt => a_sclrt(:,:,:,zz+1:zz+nc*nsnw)
          ELSE
             ! Ice not included so allocate zero arrays for ice pointers
             ALLOCATE (tmp_icep(nzp,nxp,nyp,(nc+1)*MAX(nice,nsnw)), &
@@ -429,75 +411,14 @@ CONTAINS
             tmp_icet =0.
             a_nicep => tmp_icep(:,:,:,1:nice)
             a_nicet => tmp_icet(:,:,:,1:nice)
-            a_micep => tmp_icep(:,:,:,1:(nc+1)*nice)
-            a_micet => tmp_icet(:,:,:,1:(nc+1)*nice)
+            a_micep => tmp_icep(:,:,:,1:nc*nice)
+            a_micet => tmp_icet(:,:,:,1:nc*nice)
             a_nsnowp => tmp_icep(:,:,:,1:nsnw)
             a_nsnowt => tmp_icet(:,:,:,1:nsnw)
-            a_msnowp => tmp_icep(:,:,:,1:(nc+1)*nsnw)
-            a_msnowt => tmp_icet(:,:,:,1:(nc+1)*nsnw)
+            a_msnowp => tmp_icep(:,:,:,1:nc*nsnw)
+            a_msnowt => tmp_icet(:,:,:,1:nc*nsnw)
          ENDIF
 
-         ! DEPRECATED!!
-         ! Density, molecular weight, dissociation factor and molar volume arrays for the used species
-         !   1:SO4, 2:OC, 3:BC, 4:DU, 5:SS, 6:NO, 7:NH, 8:H2O
-         ALLOCATE ( dens(nc), mws(nc), diss(nc))
-         zz = 0
-         IF (prtcl%IsUsed('SO4')) THEN
-            zz = zz+1
-            dens(zz) = rhosu
-            diss(zz) = 3.  ! H2SO4
-            mws(zz) = msu
-         END IF
-         IF (prtcl%IsUsed('OC')) THEN
-            zz = zz+1
-            dens(zz) = rhooc
-            diss(zz) = 1.
-            mws(zz) = moc
-         END IF
-         IF (prtcl%IsUsed('BC')) THEN
-            zz = zz+1
-            dens(zz) = rhobc
-            diss(zz) = 0.  ! Insoluble
-            mws(zz) = mbc
-         END IF
-         IF (prtcl%IsUsed('DU')) THEN
-            zz = zz+1
-            dens(zz) = rhodu
-            diss(zz) = 0.  ! Insoluble
-            mws(zz) = mdu
-         END IF
-         IF (prtcl%IsUsed('SS')) THEN
-            zz = zz+1
-            dens(zz) = rhoss
-            diss(zz) = 2.  ! NaCl
-            mws(zz) = mss
-         END IF
-         IF (prtcl%IsUsed('NO')) THEN
-            zz = zz+1
-            dens(zz) = rhono
-            diss(zz) = 1.  ! NO3- ??
-            mws(zz) = mno
-         END IF
-         IF (prtcl%IsUsed('NH')) THEN
-            zz = zz+1
-            dens(zz) = rhonh
-            diss(zz) = 1.  ! NH4+ ??
-            mws(zz) = mnh
-         END IF
-         ! Water is always there
-         zz = zz+1
-         dens(zz) = rhowa
-         diss(zz) = 1.
-         mws(zz) = mwa
-
-        ! .. but sometimes it is frozen
-        dens_ice=dens; dens_ice(zz)=rhoic
-        dens_snow=dens; dens_snow(zz)=rhosn
-
-         IF (zz /= nc) THEN
-            WRITE(*,*) 'Physical properties not found for all species!'
-            STOP
-         END IF
 
       END IF ! level
 
@@ -843,26 +764,27 @@ CONTAINS
             salsabool(31) = .FALSE.
             salsabool(52:62) = .FALSE.
          END IF
+         salsabool(27) = .FALSE. ! Total ice disabled
 
-         IF (.NOT. prtcl%IsUsed('SO4')) &
+         IF (.NOT. spec%IsUsed('SO4')) &
             salsabool((/ 63, 70, 77, 84, 91,  98 /)) = .FALSE.
 
-         IF (.NOT. prtcl%IsUsed('NH'))  &
+         IF (.NOT. spec%IsUsed('NH'))  &
             salsabool((/ 64, 71, 78, 85, 92,  99 /)) = .FALSE.
 
-         IF (.NOT. prtcl%IsUsed('NO'))  &
+         IF (.NOT. spec%IsUsed('NO'))  &
             salsabool((/ 65, 72, 79, 86, 93,  100 /)) = .FALSE.
 
-         IF (.NOT. prtcl%IsUsed('OC'))  &
+         IF (.NOT. spec%IsUsed('OC'))  &
             salsabool((/ 66, 73, 80, 87, 94,  101 /)) = .FALSE.
 
-         IF (.NOT. prtcl%IsUsed('BC'))  &
+         IF (.NOT. spec%IsUsed('BC'))  &
             salsabool((/ 67, 74, 81, 88, 95,  102 /)) = .FALSE.
 
-         IF (.NOT. prtcl%IsUsed('DU'))  &
+         IF (.NOT. spec%IsUsed('DU'))  &
             salsabool((/ 68, 75, 82, 89, 96,  103 /)) = .FALSE.
 
-         IF (.NOT. prtcl%IsUsed('SS'))  &
+         IF (.NOT. spec%IsUsed('SS'))  &
             salsabool((/ 69, 76, 83, 90, 97,  104 /)) = .FALSE.
 
             ! b-bins are not always saved
@@ -931,7 +853,7 @@ CONTAINS
                              iia,fia,iib,fib,isa,fsa,        &
                              aerobins, cloudbins, precpbins, &
                              icebins, snowbins, nlim, prlim, &
-                             nspec, nbins, ncld, nice, nprc, nsnw
+                             nbins, ncld, nice, nprc, nsnw
 
       REAL, INTENT (in) :: time
 
@@ -946,14 +868,18 @@ CONTAINS
       REAL :: a_Rawet(nzp,nxp,nyp,nbins), a_Rcwet(nzp,nxp,nyp,ncld),a_Rpwet(nzp,nxp,nyp,nprc), &
               a_Riwet(nzp,nxp,nyp,nice),a_Rswet(nzp,nxp,nyp,nsnw)
 
+      INTEGER :: nspec
+
+      nspec = spec%getNSpec()
+
       icnt = (/nzp, nxp-4, nyp-4, 1/)
       icntaea = (/nzp,nxp-4,nyp-4, fn2a, 1 /)
       icntaeb = (/nzp,nxp-4,nyp-4, fn2b-fn2a, 1/)
       icntcla = (/nzp,nxp-4,nyp-4, fca%cur, 1/)
       icntclb = (/nzp,nxp-4,nyp-4, fcb%cur-fca%cur, 1/)
       icntpra = (/nzp,nxp-4,nyp-4, fra, 1/)
-      icntica = (/nzp,nxp-4,nyp-4, iia%cur, 1/)
-      icnticb = (/nzp,nxp-4,nyp-4, iib%cur-iia%cur, 1/)
+      icntica = (/nzp,nxp-4,nyp-4, fia%cur, 1/)
+      icnticb = (/nzp,nxp-4,nyp-4, fib%cur-fia%cur, 1/)
       icntsna = (/nzp,nxp-4,nyp-4, fsa, 1/)
       ibeg = (/1  ,1  ,1  ,nrec0/)
       ibegsd = (/1,1,1,1,nrec0/)
@@ -1119,8 +1045,8 @@ CONTAINS
             zvar(:,:,:) = a_rp(:,:,:) + &   ! Water vapor
                           a_rc(:,:,:) + &   ! Liquid water
                           a_srp(:,:,:)+ &   ! Rain
-                         a_ri(:,:,:) + & ! Ice water (level 5)
-                         a_srs(:,:,:)      ! Snow water (level 5)
+                          a_ri(:,:,:) + &   ! Ice water (level 5)
+                          a_srs(:,:,:)      ! Snow water (level 5)
             iret = nf90_inq_varid(ncid0,'q',VarID)
             iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                                 count=icnt)
@@ -1188,7 +1114,7 @@ CONTAINS
        
             IF (lbinanl) THEN
                ! Cloud droplet bin wet radius (regime A)
-               CALL getBinRadius(ncld,nspec+1,a_ncloudp,a_mcloudp,nlim,a_Rcwet,2)
+               CALL getBinRadius(ncld,nspec,a_ncloudp,a_mcloudp,nlim,a_Rcwet,2)
                iret = nf90_inq_varid(ncid0,'S_Rwcba',VarID)
                iret = nf90_put_var(ncid0,VarID,a_Rcwet(:,i1:i2,j1:j2,ica%cur:fca%cur), &
                                    start=ibegsd,count=icntcla)
@@ -1221,7 +1147,7 @@ CONTAINS
        
             IF (lbinanl) THEN
                ! Rain drop bin wet radius
-               CALL getBinRadius(nprc,nspec+1,a_nprecpp,a_mprecpp,prlim,a_Rpwet,3)
+               CALL getBinRadius(nprc,nspec,a_nprecpp,a_mprecpp,prlim,a_Rpwet,3)
                iret = nf90_inq_varid(ncid0,'S_Rwpba',VarID)
                iret = nf90_put_var(ncid0,VarID,a_Rpwet(:,i1:i2,j1:j2,ira:fra),  &
                                    start=ibegsd,count=icntpra)
@@ -1268,7 +1194,7 @@ CONTAINS
        
             IF (lbinanl) THEN
                ! Aerosol bin wet radius (regime A)
-               CALL getBinRadius(nbins,nspec+1,a_naerop,a_maerop,nlim,a_Rawet,1)
+               CALL getBinRadius(nbins,nspec,a_naerop,a_maerop,nlim,a_Rawet,1)
                iret = nf90_inq_varid(ncid0,'S_Rwaba',VarID)
                iret = nf90_put_var(ncid0,VarID,a_Rawet(:,i1:i2,j1:j2,in1a:fn2a),  &
                                    start=ibegsd,count=icntaea)
@@ -1328,7 +1254,7 @@ CONTAINS
                                       start=ibegsd,count=icnticb)
              
                   ! Ice bin radius regime a
-                  CALL getBinRadius(nice,nspec+1,a_nicep,a_micep,prlim,a_Riwet,4)
+                  CALL getBinRadius(nice,nspec,a_nicep,a_micep,prlim,a_Riwet,4)
                   iret = nf90_inq_varid(ncid0,'S_Rwiba',VarID)
                   iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,iia%cur:fia%cur), &
                                       start=ibegsd,count=icntica)
@@ -1345,7 +1271,7 @@ CONTAINS
                                       start=ibegsd,count=icntsna)
              
                   ! Snow bin radius
-                  CALL getBinRadius(nsnw,nspec+1,a_nsnowp,a_msnowp,prlim,a_Rswet,5)
+                  CALL getBinRadius(nsnw,nspec,a_nsnowp,a_msnowp,prlim,a_Rswet,5)
                   iret = nf90_inq_varid(ncid0,'S_Rwsba',VarID)
                   iret = nf90_put_var(ncid0,VarID,a_Rswet(:,i1:i2,j1:j2,isa:fsa),  &
                                       start=ibegsd,count=icntsna)
@@ -1361,7 +1287,7 @@ CONTAINS
                                 count=icnt)
 
             ! Mass mixing ratios
-            IF (prtcl%IsUsed('SO4')) THEN
+            IF (spec%IsUsed('SO4')) THEN
 
                ! --Sulphate (aerosol, regime A)
                CALL bulkMixrat('SO4','aerosol','a',zvar(:,:,:))
@@ -1406,7 +1332,7 @@ CONTAINS
 
             END IF
 
-            IF (prtcl%IsUsed('NH')) THEN
+            IF (spec%IsUsed('NH')) THEN
 
                !-- Ammonium (aerosol, regime A)
                CALL bulkMixrat('NH','aerosol','a',zvar(:,:,:))
@@ -1451,7 +1377,7 @@ CONTAINS
 
             END IF
 
-            IF (prtcl%IsUsed('NO')) THEN
+            IF (spec%IsUsed('NO')) THEN
 
                !-- Nitrate (aerosol, regime A)
                CALL bulkMixrat('NO','aerosol','a',zvar(:,:,:))
@@ -1496,7 +1422,7 @@ CONTAINS
           
             END IF
 
-            IF (prtcl%IsUsed('OC')) THEN
+            IF (spec%IsUsed('OC')) THEN
         
                !-- Organic Carbon (aerosol, regime A)
                CALL bulkMixrat('OC','aerosol','a',zvar(:,:,:))
@@ -1541,7 +1467,7 @@ CONTAINS
 
             END IF
        
-            IF (prtcl%IsUsed('BC')) THEN
+            IF (spec%IsUsed('BC')) THEN
 
                !-- Black Carbon (aerosol, regime A)
                CALL bulkMixrat('BC','aerosol','a',zvar(:,:,:))
@@ -1586,7 +1512,7 @@ CONTAINS
 
             END IF
 
-            IF (prtcl%IsUsed('DU')) THEN
+            IF (spec%IsUsed('DU')) THEN
 
                !-- Dust (aerosol, regime A)
                CALL bulkMixrat('DU','aerosol','a',zvar(:,:,:))
@@ -1631,7 +1557,7 @@ CONTAINS
 
             END IF
        
-            IF (prtcl%IsUsed('SS')) THEN
+            IF (spec%IsUsed('SS')) THEN
 
                !-- Sea Salt (aerosol, regime A)
                CALL bulkMixrat('SS','aerosol','a',zvar(:,:,:))
@@ -1894,6 +1820,7 @@ CONTAINS
    ! Juha Tonttila, FMI, 2015
    ! Jaakko Ahola, FMI, 2015
    SUBROUTINE bulkMixrat(icomp,ipart,itype,mixrat)
+
       USE mo_submctl, ONLY : ncld,nbins,nprc,   &
                              ica,fca,icb,fcb,   &
                              ira,fra,           &
@@ -1902,6 +1829,7 @@ CONTAINS
                              isa,fsa,           &
                              in1a,in2b,         &
                              fn2a,fn2b
+      USE util, ONLY : getMassIndex
 
       CHARACTER(len=*), INTENT(in) :: icomp  ! This should be either:
                                              ! SO4,OC,NO,NH,BC,DU,SS,H2O.
@@ -1919,50 +1847,50 @@ CONTAINS
       mixrat = 0.
 
       ! Determine multiplier
-      mm = prtcl%getIndex(icomp)
+      mm = spec%getIndex(icomp)
 
       ! Given in kg/kg
       SELECT CASE(ipart)
          CASE('aerosol')
             IF (itype == 'a') THEN
-               istr = (mm-1)*nbins + in1a
-               iend = (mm-1)*nbins + fn2a
+               istr = getMassIndex(nbins,in1a,mm)
+               iend = getMassIndex(nbins,fn2a,mm)  
             ELSE IF (itype == 'b') THEN
-               istr = (mm-1)*nbins + in2b
-               iend = (mm-1)*nbins + fn2b
+               istr = getMassIndex(nbins,in2b,mm)
+               iend = getMassIndex(nbins,fn2b,mm)
             ELSE
                STOP 'bulkMixrat: Invalid aerosol bin regime SELECTion'
             END IF
             mixrat(:,:,:) = SUM(a_maerop(:,:,:,istr:iend),DIM=4)
          CASE('cloud')
             IF (itype == 'a') THEN
-               istr = (mm-1)*ncld + ica%cur
-               iend = (mm-1)*ncld + fca%cur
+               istr = getMassIndex(ncld,ica%cur,mm)  
+               iend = getMassIndex(ncld,fca%cur,mm)
             ELSE IF (itype == 'b') THEN
-               istr = (mm-1)*ncld + icb%cur
-               iend = (mm-1)*ncld + fcb%cur
+               istr = getMassIndex(ncld,icb%cur,mm)
+               iend = getMassIndex(ncld,fcb%cur,mm)
             ELSE
                STOP 'bulkMixrat: Invalid cloud bin regime SELECTion'
             END IF
             mixrat(:,:,:) = SUM(a_mcloudp(:,:,:,istr:iend),DIM=4)
          CASE('precp')
-            istr = (mm-1)*nprc + ira
-            iend = (mm-1)*nprc + fra
+            istr = getMassIndex(nprc,ira,mm)
+            iend = getMassIndex(nprc,fra,mm)
             mixrat(:,:,:) = SUM(a_mprecpp(:,:,:,istr:iend),DIM=4)
          CASE('ice')
             IF (itype == 'a') THEN
-               istr = (mm-1)*nice + iia%cur
-               iend = (mm-1)*nice + fia%cur
+               istr = getMassIndex(nice,iia%cur,mm)
+               iend = getMassIndex(nice,fia%cur,mm)
             ELSE IF (itype == 'b') THEN
-               istr = (mm-1)*nice + iib%cur
-               iend = (mm-1)*nice + fib%cur
+               istr = getMassIndex(nice,iib%cur,mm)
+               iend = getMassIndex(nice,fib%cur,mm)
             ELSE
                STOP 'bulkMixrat: Invalid ice bin regime SELECTion'
             END IF
             mixrat(:,:,:) = SUM(a_micep(:,:,:,istr:iend),DIM=4)
          CASE('snow')
-            istr = (mm-1)*nsnw + isa
-            iend = (mm-1)*nsnw + fsa
+            istr = getMassIndex(nsnw,isa,mm)
+            iend = getMassIndex(nsnw,fsa,mm)
             mixrat(:,:,:) = SUM(a_msnowp(:,:,:,istr:iend),DIM=4)
       END SELECT
 
@@ -1976,6 +1904,7 @@ CONTAINS
    ! Juha Tonttila, FMI, 2015
    SUBROUTINE binSpecMixrat(ipart,icomp,ibin,mixr)
       USE mo_submctl, ONLY : ncld, nbins, nprc, nice, nsnw
+      USE util, ONLY : getMassIndex
 
       CHARACTER(len=*), INTENT(in) :: icomp  ! This should be either:
                                              ! SO4,OC,NO,NH,BC,DU,SS,H2O.
@@ -1991,23 +1920,22 @@ CONTAINS
       INTEGER :: mm
 
       ! Determine multipliers
-      mm = prtcl%getIndex(icomp)
+      mm = spec%getIndex(icomp)
 
       SELECT CASE(ipart)
          CASE('aerosol')
-            mixr(:,:,:) = a_maerop(:,:,:,(mm-1)*nbins+ibin)
+            mixr(:,:,:) = a_maerop(:,:,:,getMassIndex(nbins,ibin,mm))
          CASE('cloud')
-            mixr(:,:,:) = a_mcloudp(:,:,:,(mm-1)*ncld+ibin)
+            mixr(:,:,:) = a_mcloudp(:,:,:,getMassIndex(ncld,ibin,mm))
          CASE('precp')
-            mixr(:,:,:) = a_mprecpp(:,:,:,(mm-1)*nprc+ibin)
+            mixr(:,:,:) = a_mprecpp(:,:,:,getMassIndex(nprc,ibin,mm))
          CASE('ice')
-            mixr(:,:,:) = a_micep(:,:,:,(mm-1)*nice+ibin)
+            mixr(:,:,:) = a_micep(:,:,:,getMassIndex(nice,ibin,mm))
          CASE('snow')
-            mixr(:,:,:) = a_msnowp(:,:,:,(mm-1)*nsnw+ibin)
+            mixr(:,:,:) = a_msnowp(:,:,:,getMassIndex(nsnw,ibin,mm))
       END SELECT
 
    END SUBROUTINE binSpecMixrat
-
    !
    ! ----------------------------------------------
    ! Subroutine binMixrat: Calculate the total dry or wet
@@ -2029,9 +1957,9 @@ CONTAINS
       INTEGER :: iend
 
       IF (itype == 'dry') THEN
-         iend = prtcl%GetNcomp()-2 ! dry CASE
+         iend = spec%GetNSpec()-2 ! dry CASE
       ELSE IF (itype == 'wet') THEN
-         iend = prtcl%GetNcomp()-1 ! wet CASE
+         iend = spec%GetNSpec()-1 ! wet CASE
       ELSE
          STOP 'Error in binMixrat!'
       END IF
@@ -2134,20 +2062,24 @@ CONTAINS
    ! Gets the mean wet (water=nspec+1) radius for particles - this function is for outputs only
    !
    SUBROUTINE meanRadius(ipart,itype,rad)
-     USE mo_submctl, ONLY : nbins,ncld,nprc,               &
+     USE mo_submctl, ONLY : spec,nbins,ncld,nprc,               &
                             nice,nsnw,                     &
                             ica,fca,icb,fcb,ira,fra,       &
                             iia,fia,iib,fib,isa,fsa,       &
                             in1a,fn2a,in2b,fn2b, &
-                            nlim,prlim,nspec
+                            nlim,prlim
      IMPLICIT NONE
-     
+
      CHARACTER(len=*), INTENT(in) :: ipart
      CHARACTER(len=*), INTENT(in) :: itype
      REAL, INTENT(out) :: rad(nzp,nxp,nyp)
-     
+     CHARACTER(len=20), PARAMETER :: name = "meanRadius"
+
      INTEGER :: istr,iend
-     
+	 INTEGER :: nspec
+
+	 nspec = spec%getNSpec()
+
      rad = 0.
      
      SELECT CASE(ipart)
@@ -2166,7 +2098,7 @@ CONTAINS
            STOP 'meanRadius: Invalid bin regime selection (aerosol)'
         END IF
         
-        CALL getRadius(istr,iend,nbins,nspec+1,a_naerop,a_maerop,nlim,rad,1)
+        CALL getRadius(istr,iend,nbins,nspec,a_naerop,a_maerop,nlim,rad,1)
         
      CASE('cloud')
         
@@ -2183,14 +2115,14 @@ CONTAINS
            STOP 'meanRadius: Invalid bin regime selection (cloud)'
         END IF
         
-        CALL getRadius(istr,iend,ncld,nspec+1,a_ncloudp,a_mcloudp,nlim,rad,2)
+        CALL getRadius(istr,iend,ncld,nspec,a_ncloudp,a_mcloudp,nlim,rad,2)
         
      CASE('precp')
         
         istr = ira
         iend = fra
         
-        CALL getRadius(istr,iend,nprc,nspec+1,a_nprecpp,a_mprecpp,prlim,rad,3)
+        CALL getRadius(istr,iend,nprc,nspec,a_nprecpp,a_mprecpp,prlim,rad,3)
         
      CASE('ice')
         
@@ -2207,14 +2139,14 @@ CONTAINS
            STOP 'meanRadius: Invalid bin regime selection (ice)'
         END IF
         
-        CALL getRadius(istr,iend,nice,nspec+1,a_nicep,a_micep,prlim,rad,4)
+        CALL getRadius(istr,iend,nice,nspec,a_nicep,a_micep,prlim,rad,4)
         
      CASE('snow')
         
         istr = isa
         iend = fsa
         
-        CALL getRadius(istr,iend,nsnw,nspec+1,a_nsnowp,a_msnowp,prlim,rad,5)
+        CALL getRadius(istr,iend,nsnw,nspec,a_nsnowp,a_msnowp,prlim,rad,5)
         
      END SELECT
      
@@ -2289,7 +2221,7 @@ CONTAINS
            END DO
         END DO
      END DO
-     
+
    END SUBROUTINE getBinRadius
    
 
@@ -2312,22 +2244,22 @@ CONTAINS
      REAL, INTENT(IN) :: numc, mass(n)
      
      calc_eff_radius=0.
-     
+
      ! Don't calculate if very low number concentration
      IF (numc<1e-15) RETURN
      
-    IF (flag==4) THEN   ! Ice
-       ! Spherical ice
-       calc_eff_radius=0.5*( SUM(mass(:)/dens_ice(:))/numc/pi6)**(1./3.)
-    ELSEIF (flag==5) THEN   ! Snow
-       ! Spherical snow
-       calc_eff_radius=0.5*( SUM(mass(:)/dens_snow(:))/numc/pi6)**(1./3.)
-    ELSE
-       ! Radius from total volume of a spherical particle or aqueous droplet
-       calc_eff_radius=0.5*( SUM(mass(:)/dens(:))/numc/pi6)**(1./3.)
-    ENDIF
-    
-  END FUNCTION calc_eff_radius
-  !********************************************************************
+     IF (flag==4) THEN   ! Ice
+        ! Spherical ice
+        calc_eff_radius=0.5*( SUM(mass(:)/spec%rhoice(:))/numc/pi6)**(1./3.)
+     ELSE IF (flag==5) THEN   ! Snow
+        ! Spherical snow
+        calc_eff_radius=0.5*( SUM(mass(:)/spec%rhosnow(:))/numc/pi6)**(1./3.)
+     ELSE
+        ! Radius from total volume of a spherical particle or aqueous droplet
+        calc_eff_radius=0.5*( SUM(mass(:)/spec%rholiq(:))/numc/pi6)**(1./3.)
+     ENDIF
+     
+   END FUNCTION calc_eff_radius
+   !********************************************************************
 END MODULE grid
 

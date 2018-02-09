@@ -13,6 +13,61 @@ MODULE mo_salsa_init
 
 CONTAINS
 
+  !----------------------------------------------------------------------------------
+  ! Subroutine set_masterbins: This will allocate the master array "allSALSA"
+  !                            that holds size distributions and bin parameters
+  !                            for all particle types. Arrays "aero", "cloud" etc.
+  !                            are pointers associated with segments of allSALSA
+  !                            to allow  easy access to specific particle types.
+  !
+  ! Juha Tonttila, FMI, 2017
+  !-----------------------------
+
+  SUBROUTINE set_masterbins(dumaero, dumcloud, dumprecp, dumice, dumsnow)
+    USE classSection
+    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw, ntotal, aero, cloud, precp, ice, snow, spec
+    USE mo_salsa_driver, ONLY : kbdim, klev, allSALSA
+    TYPE(Section), INTENT(in) :: dumaero(:,:,:), dumcloud(:,:,:),  &
+                                 dumprecp(:,:,:), dumice(:,:,:),   &
+                                 dumsnow(:,:,:)
+
+    INTEGER :: lo,hi
+    INTEGER :: nn,ii,jjj,nspec
+
+    nspec = spec%getNSpec()
+    ntotal = nbins+ncld+nprc+nice+nsnw
+
+    ! Allocate the combined particle size distribution array
+    ALLOCATE(allSALSA(kbdim,klev,ntotal))
+    allSALSA(:,:,:) = Section()
+
+    ! Associate pointers for specific particle types
+    lo = 1; hi = nbins
+    aero => allSALSA(:,:,lo:hi)
+    
+    lo = lo + nbins; hi = hi + ncld
+    cloud => allSALSA(:,:,lo:hi)
+
+    lo = lo + ncld; hi = hi + nprc
+    precp => allSALSA(:,:,lo:hi)
+
+    lo = lo + nprc; hi = hi + nice
+    ice => allSALSA(:,:,lo:hi)
+
+    lo = lo + nice; hi = hi + nsnw
+    snow => allSALSA(:,:,lo:hi)
+ 
+    ! Copy the dummy size distributions to actual size dists.
+    aero = dumaero
+    cloud = dumcloud
+    precp = dumprecp
+    ice = dumice
+    snow = dumsnow
+
+  END SUBROUTINE set_masterbins
+
+
+
    ! fxm: when dpmid is used for calculating coagulation coefficients
    ! (only?), would it make more sense to use approximate wet radii
    ! e.g. for sea salt particles?
@@ -57,117 +112,117 @@ CONTAINS
    !
    !---------------------------------------------------------------------
 
-   SUBROUTINE set_aerobins()
+   SUBROUTINE set_aerobins(dumaero)
+     
+     USE classSection
+     USE mo_submctl, ONLY : &
+          spec,        &
+          pi6,         & ! pi/6
+          reglim,      & ! diameter limits for size regimes [m]
+          nbin,        & ! number of size bins in each (sub)regime
+          in1a, fn1a,  & ! size regime bin indices: 1a
+          in2a, fn2a,  & !     - " -       2a
+          in2b, fn2b,  & !     - " -       2b
+          nbins,  &
+          aerobins
 
-      USE mo_submctl, ONLY : &
-         pi6,         & ! pi/6
-         reglim,      & ! diameter limits for size regimes [m]
-         nbin,        & ! number of size bins in each (sub)regime
-         in1a, fn1a,  & ! size regime bin indices: 1a
-         in2a, fn2a,  & !     - " -       2a
-         in2b, fn2b,  & !     - " -       2b
-         nbins,  &
-         aerobins
+     USE mo_salsa_driver, ONLY : &
+          kbdim,klev
+     
+     IMPLICIT NONE
 
-      USE mo_salsa_driver, ONLY : &
-         kbdim,klev,  &
-         aero
+     TYPE(Section), INTENT(out), ALLOCATABLE :: dumaero(:,:,:)
 
-      IMPLICIT NONE
+     !-- local variables ----------
+     INTEGER :: ii, jj,cc,dd,vv ! loop indices
+     INTEGER :: nbin2, nbin3
+     REAL ::  ratio ! ratio of regime upper and lower diameter
+     INTEGER :: nspec
 
-    !-- local variables ----------
-    INTEGER :: ii, jj,cc,dd,vv ! loop indices
-    INTEGER :: nbin2, nbin3
-    REAL ::  ratio ! ratio of regime upper and lower diameter
+     nspec = spec%getNSpec()
 
-    nbin2 = 4
-    nbin3 = nbin(2) - nbin2
+     nbin2 = 4
+     nbin3 = nbin(2) - nbin2
 
-      ! -------------------------
-      ! Allocate aerosol tracers
-      !--------------------------
-      ALLOCATE(aero(kbdim,klev,nbins))
-
-      ! Juha: Corrected some bugs with the section volume definitions
-      !-------------------------------------------------------------------------------
-
-      DO jj = 1, klev
-         DO ii = 1, kbdim
-
-            !-- 1) size regime 1: --------------------------------------
-            !  - minimum & maximum *dry* volumes [fxm]
-            !  - bin mid *dry* diameter [m]
-            ratio = reglim(2)/reglim(1)   ! section spacing
-
-            DO cc = in1a, fn1a
-               aero(ii,jj,cc)%vlolim = pi6*(reglim(1)*ratio**(REAL(cc-1)/nbin(1)))**3
-               aero(ii,jj,cc)%vhilim = pi6*(reglim(1)*ratio**(REAL(cc)/nbin(1)))**3
-               aero(ii,jj,cc)%dmid = ( (aero(ii,jj,cc)%vhilim + aero(ii,jj,cc)%vlolim) /  &
-                                      (2.*pi6) )**(1./3.)
-               aero(ii,jj,cc)%vratiohi = aero(ii,jj,cc)%vhilim/(pi6*aero(ii,jj,cc)%dmid**3)
-               aero(ii,jj,cc)%vratiolo = aero(ii,jj,cc)%vlolim/(pi6*aero(ii,jj,cc)%dmid**3)
-            END DO
-
-            !-- 2) size regime 2: --------------------------------------
-            !  - minimum & maximum *dry* volumes [fxm]
-            !  - bin mid *dry* diameter [m]
-
-            !-- 2.1) first for subregime 2a
-            ratio = reglim(3)/reglim(2)   ! section spacing
-
-            DO dd = in2a, in2a+nbin2-1
-               cc = dd - in2a
-               aero(ii,jj,dd)%vlolim = pi6*(reglim(2)*ratio**(REAL(cc)/nbin2))**3
-               aero(ii,jj,dd)%vhilim = pi6*(reglim(2)*ratio**(REAL(cc+1)/nbin2))**3
-               aero(ii,jj,dd)%dmid   = ( (aero(ii,jj,dd)%vhilim + aero(ii,jj,dd)%vlolim) /  &
-                                       (2.*pi6) )**(1./3.)
-               aero(ii,jj,dd)%vratiohi = aero(ii,jj,dd)%vhilim/(pi6*aero(ii,jj,dd)%dmid**3)
-               aero(ii,jj,dd)%vratiolo = aero(ii,jj,dd)%vlolim/(pi6*aero(ii,jj,dd)%dmid**3)
-            END DO
-
-            !-- 3) size regime 3: --------------------------------------
-            !  - bin mid *dry* diameter [m]
-            ratio = reglim(4)/reglim(3)   ! section spacing
-
-            DO dd = in2a+nbin2, fn2a
-               cc = dd - (fn2a-(nbin3-1))
-
-               aero(ii,jj,dd)%vlolim = pi6*(reglim(3)*ratio**(REAL(cc)/nbin3))**3
-               aero(ii,jj,dd)%vhilim = pi6*(reglim(3)*ratio**(REAL(cc+1)/nbin3))**3
-               aero(ii,jj,dd)%dmid = ( (aero(ii,jj,dd)%vhilim + aero(ii,jj,dd)%vlolim) /  &
-                                      (2.*pi6) )**(1./3.)
-               aero(ii,jj,dd)%vratiohi = aero(ii,jj,dd)%vhilim/(pi6*aero(ii,jj,dd)%dmid**3)
-               aero(ii,jj,dd)%vratiolo = aero(ii,jj,dd)%vlolim/(pi6*aero(ii,jj,dd)%dmid**3)
-            END DO
-
-            !-- 2.2) same values for subregime 2b
-            aero(ii,jj,in2b:fn2b)%vlolim = aero(ii,jj,in2a:fn2a)%vlolim
-            aero(ii,jj,in2b:fn2b)%vhilim = aero(ii,jj,in2a:fn2a)%vhilim
-            aero(ii,jj,in2b:fn2b)%dmid = aero(ii,jj,in2a:fn2a)%dmid
-            aero(ii,jj,in2b:fn2b)%vratiohi = aero(ii,jj,in2a:fn2a)%vratiohi
-            aero(ii,jj,in2b:fn2b)%vratiolo = aero(ii,jj,in2a:fn2a)%vratiolo
-
-            ! Initialize the wet diameter with the bin dry diameter to avoid numerical proplems later
-            aero(ii,jj,:)%dwet = aero(ii,jj,:)%dmid
-
-            ! Set volume and number concentrations to zero
-            aero(ii,jj,:)%numc = 0.
-            aero(ii,jj,:)%core = 0.
-            DO vv = 1, 8
-               aero(ii,jj,:)%volc(vv) = 0.
-            END DO
-
-         END DO !ii
-      END DO !!jj
-
-      ! Save bin limits to be delivered e.g. to host model if needed
-      ALLOCATE(aerobins(nbins))
-      DO cc = 1, nbins
-         aerobins(cc) = (aero(1,1,cc)%vlolim/pi6)**(1./3.)
-      END DO
-
+     ! -------------------------------------------------
+     ! Allocate and initialize the dummy aerosol tracers
+     !--------------------------------------------------
+     ALLOCATE(dumaero(kbdim,klev,nbins))
+     dumaero(:,:,:) = Section()
+     
+     DO jj = 1, klev
+        DO ii = 1, kbdim
+           
+           ! Phase of water for this particle category (assume liquid)
+           dumaero(ii,jj,:)%phase=1
+           
+           !-- 1) size regime 1: --------------------------------------
+           !  - minimum & maximum *dry* volumes [fxm]
+           !  - bin mid *dry* diameter [m]
+           ratio = reglim(2)/reglim(1)   ! section spacing
+           
+           DO cc = in1a, fn1a
+              dumaero(ii,jj,cc)%vlolim = pi6*(reglim(1)*ratio**(REAL(cc-1)/nbin(1)))**3
+              dumaero(ii,jj,cc)%vhilim = pi6*(reglim(1)*ratio**(REAL(cc)/nbin(1)))**3
+              dumaero(ii,jj,cc)%dmid = ( (dumaero(ii,jj,cc)%vhilim + dumaero(ii,jj,cc)%vlolim) /  &
+                   (2.*pi6) )**(1./3.)
+              dumaero(ii,jj,cc)%vratiohi = dumaero(ii,jj,cc)%vhilim/(pi6*dumaero(ii,jj,cc)%dmid**3)
+              dumaero(ii,jj,cc)%vratiolo = dumaero(ii,jj,cc)%vlolim/(pi6*dumaero(ii,jj,cc)%dmid**3)
+           END DO
+           
+           !-- 2) size regime 2: --------------------------------------
+           !  - minimum & maximum *dry* volumes [fxm]
+           !  - bin mid *dry* diameter [m]
+           
+           !-- 2.1) first for subregime 2a
+           ratio = reglim(3)/reglim(2)   ! section spacing
+           
+           DO dd = in2a, in2a+nbin2-1
+              cc = dd - in2a
+              dumaero(ii,jj,dd)%vlolim = pi6*(reglim(2)*ratio**(REAL(cc)/nbin2))**3
+              dumaero(ii,jj,dd)%vhilim = pi6*(reglim(2)*ratio**(REAL(cc+1)/nbin2))**3
+              dumaero(ii,jj,dd)%dmid   = ( (dumaero(ii,jj,dd)%vhilim + dumaero(ii,jj,dd)%vlolim) /  &
+                   (2.*pi6) )**(1./3.)
+              dumaero(ii,jj,dd)%vratiohi = dumaero(ii,jj,dd)%vhilim/(pi6*dumaero(ii,jj,dd)%dmid**3)
+              dumaero(ii,jj,dd)%vratiolo = dumaero(ii,jj,dd)%vlolim/(pi6*dumaero(ii,jj,dd)%dmid**3)
+           END DO
+           
+           !-- 3) size regime 3: --------------------------------------
+           !  - bin mid *dry* diameter [m]
+           ratio = reglim(4)/reglim(3)   ! section spacing
+           
+           DO dd = in2a+nbin2, fn2a
+              cc = dd - (fn2a-(nbin3-1))
+              
+              dumaero(ii,jj,dd)%vlolim = pi6*(reglim(3)*ratio**(REAL(cc)/nbin3))**3
+              dumaero(ii,jj,dd)%vhilim = pi6*(reglim(3)*ratio**(REAL(cc+1)/nbin3))**3
+              dumaero(ii,jj,dd)%dmid = ( (dumaero(ii,jj,dd)%vhilim + dumaero(ii,jj,dd)%vlolim) /  &
+                   (2.*pi6) )**(1./3.)
+              dumaero(ii,jj,dd)%vratiohi = dumaero(ii,jj,dd)%vhilim/(pi6*dumaero(ii,jj,dd)%dmid**3)
+              dumaero(ii,jj,dd)%vratiolo = dumaero(ii,jj,dd)%vlolim/(pi6*dumaero(ii,jj,dd)%dmid**3)
+           END DO
+           
+           !-- 2.2) same values for subregime 2b
+           dumaero(ii,jj,in2b:fn2b)%vlolim = dumaero(ii,jj,in2a:fn2a)%vlolim
+           dumaero(ii,jj,in2b:fn2b)%vhilim = dumaero(ii,jj,in2a:fn2a)%vhilim
+           dumaero(ii,jj,in2b:fn2b)%dmid = dumaero(ii,jj,in2a:fn2a)%dmid
+           dumaero(ii,jj,in2b:fn2b)%vratiohi = dumaero(ii,jj,in2a:fn2a)%vratiohi
+           dumaero(ii,jj,in2b:fn2b)%vratiolo = dumaero(ii,jj,in2a:fn2a)%vratiolo
+           
+           ! Initialize the wet diameter with the bin dry diameter to avoid numerical proplems later
+           dumaero(ii,jj,:)%dwet = dumaero(ii,jj,:)%dmid
+           
+        END DO !ii
+     END DO !!jj
+     
+     ! Save bin limits to be delivered e.g. to host model if needed
+     ALLOCATE(aerobins(nbins))
+     DO cc = 1, nbins
+        aerobins(cc) = (dumaero(1,1,cc)%vlolim/pi6)**(1./3.)
+     END DO
+     
    END SUBROUTINE set_aerobins
-
+   
    !--------------------------------------------------------------------------
    !
    ! *******************************
@@ -180,24 +235,31 @@ CONTAINS
    !
    !---------------------------------------------------------------------------
 
-   SUBROUTINE set_cloudbins()
-     USE mo_submctl, ONLY : pi6,             &
-                            ica,icb,         &
-                            fca,fcb,         &
-                            ira,fra,         &
-                            ncld,nprc,        &
-                            in2a,fn2a,       &
-                            fn2b,       &
-                            cloudbins,       &
-                            precpbins
-     USE mo_salsa_driver, ONLY : kbdim, klev, &
-                                 cloud,precp,aero
-
+   SUBROUTINE set_cloudbins(dumaero,dumcloud,dumprecp)
+     USE classSection
+     USE mo_submctl, ONLY : spec, pi6,       &
+          ica,icb,         &
+          fca,fcb,         &
+          ira,fra,         &
+          nbins,ncld,nprc,        &
+          in2a,fn2a,       &
+          fn2b,       &
+          cloudbins,       &
+          precpbins
+     USE mo_salsa_driver, ONLY : kbdim, klev
+     
      IMPLICIT NONE
+     
+     TYPE(Section), INTENT(in) :: dumaero(kbdim,klev,nbins)
+     TYPE(Section), INTENT(out), ALLOCATABLE :: dumcloud(:,:,:), dumprecp(:,:,:)
 
      INTEGER :: ii,jj,cc,bb,nba,nbb
 
      REAL :: tmplolim(7), tmphilim(7)
+     
+     INTEGER :: nspec
+
+     nspec = spec%getNSpec()
 
      ! Helper arrays to set up precipitation size bins
      tmplolim = (/50.,55.,65.,100.,200.,500.,1000./)*1.e-6
@@ -226,62 +288,53 @@ CONTAINS
       ! ----------------------------------------
       ! Allocate cloud and precipitation arrays
       ! ----------------------------------------
-      ALLOCATE(cloud(kbdim,klev,ncld), precp(kbdim,klev,nprc))
+      ALLOCATE(dumcloud(kbdim,klev,ncld), dumprecp(kbdim,klev,nprc))
+      dumcloud(:,:,:) = Section()
+      dumprecp(:,:,:) = Section()
 
       DO jj = 1, klev
          DO ii = 1, kbdim
 
+            ! Phase of water for these particle categories (assume liquid)
+            dumcloud(ii,jj,:)%phase = 1
+            dumprecp(ii,jj,:)%phase = 1
+
             ! -------------------------------------------------
             ! Set cloud properties (parallel to aerosol bins)
             ! -------------------------------------------------
-            cloud(ii,jj,ica%cur:fca%cur)%vhilim = aero(ii,jj,ica%par:fca%par)%vhilim
-            cloud(ii,jj,icb%cur:fcb%cur)%vhilim = aero(ii,jj,icb%par:fcb%par)%vhilim
+            dumcloud(ii,jj,ica%cur:fca%cur)%vhilim = dumaero(ii,jj,ica%par:fca%par)%vhilim
+            dumcloud(ii,jj,icb%cur:fcb%cur)%vhilim = dumaero(ii,jj,icb%par:fcb%par)%vhilim
 
-            cloud(ii,jj,ica%cur:fca%cur)%vlolim = aero(ii,jj,ica%par:fca%par)%vlolim
-            cloud(ii,jj,icb%cur:fcb%cur)%vlolim = aero(ii,jj,icb%par:fcb%par)%vlolim
+            dumcloud(ii,jj,ica%cur:fca%cur)%vlolim = dumaero(ii,jj,ica%par:fca%par)%vlolim
+            dumcloud(ii,jj,icb%cur:fcb%cur)%vlolim = dumaero(ii,jj,icb%par:fcb%par)%vlolim
 
-            cloud(ii,jj,ica%cur:fca%cur)%vratiohi = aero(ii,jj,ica%par:fca%par)%vratiohi
-            cloud(ii,jj,icb%cur:fcb%cur)%vratiohi = aero(ii,jj,icb%par:fcb%par)%vratiohi
+            dumcloud(ii,jj,ica%cur:fca%cur)%vratiohi = dumaero(ii,jj,ica%par:fca%par)%vratiohi
+            dumcloud(ii,jj,icb%cur:fcb%cur)%vratiohi = dumaero(ii,jj,icb%par:fcb%par)%vratiohi
 
-            cloud(ii,jj,ica%cur:fca%cur)%vratiolo = aero(ii,jj,ica%par:fca%par)%vratiolo
-            cloud(ii,jj,icb%cur:fcb%cur)%vratiolo = aero(ii,jj,icb%par:fcb%par)%vratiolo
+            dumcloud(ii,jj,ica%cur:fca%cur)%vratiolo = dumaero(ii,jj,ica%par:fca%par)%vratiolo
+            dumcloud(ii,jj,icb%cur:fcb%cur)%vratiolo = dumaero(ii,jj,icb%par:fcb%par)%vratiolo
 
-            cloud(ii,jj,ica%cur:fca%cur)%dmid = aero(ii,jj,ica%par:fca%par)%dmid
-            cloud(ii,jj,icb%cur:fcb%cur)%dmid = aero(ii,jj,icb%par:fcb%par)%dmid
+            dumcloud(ii,jj,ica%cur:fca%cur)%dmid = dumaero(ii,jj,ica%par:fca%par)%dmid
+            dumcloud(ii,jj,icb%cur:fcb%cur)%dmid = dumaero(ii,jj,icb%par:fcb%par)%dmid
 
             ! Initialize the droplet diameter ("wet diameter") as the dry
             ! mid diameter of the nucleus to avoid problems later.
-            cloud(ii,jj,ica%cur:fcb%cur)%dwet = cloud(ii,jj,ica%cur:fcb%cur)%dmid
-
-            ! Initialize the volume and number concentrations for clouds.
-            ! First "real" values are only obtained upon the first calculation
-            ! of the cloud droplet activation.
-            DO cc = 1, 8
-               cloud(ii,jj,ica%cur:fcb%cur)%volc(cc) = 0.
-            END DO
-            cloud(ii,jj,ica%cur:fcb%cur)%numc = 0.
-            cloud(ii,jj,ica%cur:fcb%cur)%core = 0.
+            dumcloud(ii,jj,ica%cur:fcb%cur)%dwet = dumcloud(ii,jj,ica%cur:fcb%cur)%dmid
 
             ! ---------------------------------------------------------------------------------------
             ! Set the precipitation properties; unlike aerosol and cloud bins, the size distribution
             ! goes according to the *wet* radius
             ! ---------------------------------------------------------------------------------------
             DO bb = ira, fra
-               precp(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3
-               precp(ii,jj,bb)%vlolim = pi6*tmplolim(bb)**3
-               precp(ii,jj,bb)%dmid = ( (precp(ii,jj,bb)%vlolim + precp(ii,jj,bb)%vhilim) /  &
+               dumprecp(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3
+               dumprecp(ii,jj,bb)%vlolim = pi6*tmplolim(bb)**3
+               dumprecp(ii,jj,bb)%dmid = ( (dumprecp(ii,jj,bb)%vlolim + dumprecp(ii,jj,bb)%vhilim) /  &
                                        (2.*pi6) )**(1./3.)
-               precp(ii,jj,bb)%vratiohi = precp(ii,jj,bb)%vhilim / ( pi6*precp(ii,jj,bb)%dmid**3 )
-               precp(ii,jj,bb)%vratiolo = precp(ii,jj,bb)%vlolim / ( pi6*precp(ii,jj,bb)%dmid**3 )
+               dumprecp(ii,jj,bb)%vratiohi = dumprecp(ii,jj,bb)%vhilim / ( pi6*dumprecp(ii,jj,bb)%dmid**3 )
+               dumprecp(ii,jj,bb)%vratiolo = dumprecp(ii,jj,bb)%vlolim / ( pi6*dumprecp(ii,jj,bb)%dmid**3 )
 
                ! Initialize the wet diameter as the bin mid diameter
-               precp(ii,jj,bb)%dwet = precp(ii,jj,bb)%dmid
-
-               DO cc = 1, 8
-                  precp(ii,jj,bb)%volc(cc) = 0.
-               END DO
-               precp(ii,jj,bb)%numc = 0.
-               precp(ii,jj,bb)%core = 0.
+               dumprecp(ii,jj,bb)%dwet = dumprecp(ii,jj,bb)%dmid
 
             END DO
 
@@ -291,11 +344,11 @@ CONTAINS
       ! Save bin limits to be delivered e.g. to host model if needed
       ALLOCATE(cloudbins(ncld))
       DO bb = 1, ncld
-         cloudbins(bb) = (cloud(1,1,bb)%vlolim/pi6)**(1./3.)
+         cloudbins(bb) = (dumcloud(1,1,bb)%vlolim/pi6)**(1./3.)
       END DO
       ALLOCATE(precpbins(nprc))
       DO bb = 1, nprc
-         precpbins(bb) = (precp(1,1,bb)%vlolim/pi6)**(1./3.)
+         precpbins(bb) = (dumprecp(1,1,bb)%vlolim/pi6)**(1./3.)
       END DO
 
    END SUBROUTINE set_cloudbins
@@ -311,123 +364,123 @@ CONTAINS
    ! Jaakko Ahola (FMI) 2015
    !
    !---------------------------------------------------------------------------
-   SUBROUTINE set_icebins()
-      USE mo_submctl, ONLY : pi6,             &
-                             iia,iib,         &
-                             fia,fib,         &
-                             isa,fsa,         &
-                             nice,nsnw,       &
-                             in2a,fn2a,       &
-                             fn2b,       &
-                             icebins,         &
-                             snowbins
-      USE mo_salsa_driver, ONLY : kbdim, klev, &
-                                  ice,snow,aero
+   SUBROUTINE set_icebins(dumaero,dumice,dumsnow)
+     USE classSection
+     USE mo_submctl, ONLY : spec, pi6,             &
+          iia,iib,         &
+          fia,fib,         &
+          isa,fsa,         &
+          nice,nsnw,nbins,       &
+          in2a,fn2a,       &
+          fn2b,       &
+          icebins,         &
+          snowbins
+     USE mo_salsa_driver, ONLY : kbdim, klev
+     
+     IMPLICIT NONE
+     
+     TYPE(Section), INTENT(in) :: dumaero(kbdim,klev,nbins)
+     TYPE(Section), INTENT(out), ALLOCATABLE :: dumice(:,:,:), dumsnow(:,:,:)
+     
+     INTEGER :: ii,jj,cc,bb,nba,nbb
+     
+     REAL :: tmplolim(7), tmphilim(7)
 
-      IMPLICIT NONE
+     INTEGER :: nspec
+     
+     nspec = spec%getNSpec()
 
-      INTEGER :: ii,jj,cc,bb,nba,nbb
-
-      REAL :: tmplolim(7), tmphilim(7)
-
-      ! Helper arrays to set up snow size bins
-      tmplolim = (/50.,55.,65., 100.,200.,500., 1000./)*1.e-6
-      tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
-
-      ! Number of ice bins in regime a (soluble nuclei)
-      nba = fn2a-in2a+1
-      ! Number of cloud bins in regime b (insoluble nuclei)
-      nbb = nba
-
-      ! Reset ice bin indices accordingly. The two components give the cloud regime index,
-      ! and the aerosol bin index with which they are parallel
-      iia%cur = 1;                       iia%par = in2a
-      fia%cur = iia%cur + nba-1;  fia%par = iia%par + nba-1
-      iib%cur = fia%cur + 1;             iib%par = fn2b - nbb + 1
-      fib%cur = iib%cur + nbb-1;  fib%par = iib%par + nbb-1
-
-      nice = fib%cur
-
-      ! snow bins
-      isa = 1; fsa = 7;
-      nsnw = fsa
-
-      ! ----------------------------------------
-      ! Allocate ice arrays
-      ! ----------------------------------------
-      ALLOCATE(ice(kbdim,klev,nice), snow(kbdim,klev,nsnw))
-
-      DO jj = 1, klev
-         DO ii = 1, kbdim
-
-            ! -------------------------------------------------
-            ! Set iceproperties (parallel to aerosol bins) 
-            ! -------------------------------------------------
-            ice(ii,jj,iia%cur:fia%cur)%vhilim = aero(ii,jj,iia%par:fia%par)%vhilim
-            ice(ii,jj,iib%cur:fib%cur)%vhilim = aero(ii,jj,iib%par:fib%par)%vhilim
-
-            ice(ii,jj,iia%cur:fia%cur)%vlolim = aero(ii,jj,iia%par:fia%par)%vlolim
-            ice(ii,jj,iib%cur:fib%cur)%vlolim = aero(ii,jj,iib%par:fib%par)%vlolim
-
-            ice(ii,jj,iia%cur:fia%cur)%vratiohi = aero(ii,jj,iia%par:fia%par)%vratiohi
-            ice(ii,jj,iib%cur:fib%cur)%vratiohi = aero(ii,jj,iib%par:fib%par)%vratiohi
-
-            ice(ii,jj,iia%cur:fia%cur)%vratiolo = aero(ii,jj,iia%par:fia%par)%vratiolo
-            ice(ii,jj,iib%cur:fib%cur)%vratiolo = aero(ii,jj,iib%par:fib%par)%vratiolo
-
-            ice(ii,jj,iia%cur:fia%cur)%dmid = aero(ii,jj,iia%par:fia%par)%dmid
-            ice(ii,jj,iib%cur:fib%cur)%dmid = aero(ii,jj,iib%par:fib%par)%dmid
-
-            ! Initialize the "wet" diameter as the dry mid diameter of the nucleus
-            ice(ii,jj,iia%cur:fib%cur)%dwet = ice(ii,jj,iia%cur:fib%cur)%dmid
-
-            ! Initialize the volume and number concentrations for ice.
-            DO cc = 1, 8
-               ice(ii,jj,iia%cur:fib%cur)%volc(cc) = 0.
-            END DO
-            ice(ii,jj,iia%cur:fib%cur)%numc = 0.
-            ice(ii,jj,iia%cur:fib%cur)%core = 0.
-
-            ! ---------------------------------------------------------------------------------------
-            ! Set the snow properties; unlike aerosol and cloud bins, the size distribution
-            ! goes according to the *wet* radius !!
-            ! ---------------------------------------------------------------------------------------
-
-            DO bb = isa, fsa
-
-               snow(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3
-               snow(ii,jj,bb)%vlolim = pi6*tmplolim(bb)**3
-               snow(ii,jj,bb)%dmid = ( (snow(ii,jj,bb)%vlolim + snow(ii,jj,bb)%vhilim) /  &
-                                      (2.*pi6) )**(1./3.)
-               snow(ii,jj,bb)%vratiohi = snow(ii,jj,bb)%vhilim / ( pi6*snow(ii,jj,bb)%dmid**3 )
-               snow(ii,jj,bb)%vratiolo = snow(ii,jj,bb)%vlolim / ( pi6*snow(ii,jj,bb)%dmid**3 )
-
-               ! Initialize the wet diameter as the bin mid diameter
-               snow(ii,jj,bb)%dwet = snow(ii,jj,bb)%dmid
-
-               DO cc = 1, 8
-                  snow(ii,jj,bb)%volc(cc) = 0.
-               END DO
-               snow(ii,jj,bb)%numc = 0.
-               snow(ii,jj,bb)%core = 0.
-
-            END DO
-
-         END DO
-      END DO
-
-      ! Save bin limits to be delivered e.g. to host model if needed
-      ALLOCATE(icebins(nice))
-      DO bb = 1, nice
-         icebins(bb) = (ice(1,1,bb)%vlolim/pi6)**(1./3.)
-      END DO
-      ALLOCATE(snowbins(nsnw))
-      DO bb = 1, nsnw
-         snowbins(bb) = (snow(1,1,bb)%vlolim/pi6)**(1./3.)
-      END DO
-
+     ! Helper arrays to set up snow size bins
+     tmplolim = (/50.,55.,65., 100.,200.,500., 1000./)*1.e-6
+     tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
+     
+     ! Number of ice bins in regime a (soluble nuclei)
+     nba = fn2a-in2a+1
+     ! Number of cloud bins in regime b (insoluble nuclei)
+     nbb = nba
+     
+     ! Reset ice bin indices accordingly. The two components give the cloud regime index,
+     ! and the aerosol bin index with which they are parallel
+     iia%cur = 1;                       iia%par = in2a
+     fia%cur = iia%cur + nba-1;  fia%par = iia%par + nba-1
+     iib%cur = fia%cur + 1;             iib%par = fn2b - nbb + 1
+     fib%cur = iib%cur + nbb-1;  fib%par = iib%par + nbb-1
+     
+     nice = fib%cur
+     
+     ! snow bins
+     isa = 1; fsa = 7;
+     nsnw = fsa
+     
+     ! ----------------------------------------
+     ! Allocate ice arrays
+     ! ----------------------------------------
+     ALLOCATE(dumice(kbdim,klev,nice), dumsnow(kbdim,klev,nsnw))
+     dumice(:,:,:) = Section()
+     dumsnow(:,:,:) = Section()
+     
+     DO jj = 1, klev
+        DO ii = 1, kbdim
+           
+           ! Phase of water for these particle categories (assume ice)
+           dumice(ii,jj,:)%phase = 2 
+           dumsnow(ii,jj,:)%phase = 3
+           
+           ! -------------------------------------------------
+           ! Set iceproperties (parallel to aerosol bins) 
+           ! -------------------------------------------------
+           dumice(ii,jj,iia%cur:fia%cur)%vhilim = dumaero(ii,jj,iia%par:fia%par)%vhilim
+           dumice(ii,jj,iib%cur:fib%cur)%vhilim = dumaero(ii,jj,iib%par:fib%par)%vhilim
+           
+           dumice(ii,jj,iia%cur:fia%cur)%vlolim = dumaero(ii,jj,iia%par:fia%par)%vlolim
+           dumice(ii,jj,iib%cur:fib%cur)%vlolim = dumaero(ii,jj,iib%par:fib%par)%vlolim
+           
+           dumice(ii,jj,iia%cur:fia%cur)%vratiohi = dumaero(ii,jj,iia%par:fia%par)%vratiohi
+           dumice(ii,jj,iib%cur:fib%cur)%vratiohi = dumaero(ii,jj,iib%par:fib%par)%vratiohi
+           
+           dumice(ii,jj,iia%cur:fia%cur)%vratiolo = dumaero(ii,jj,iia%par:fia%par)%vratiolo
+           dumice(ii,jj,iib%cur:fib%cur)%vratiolo = dumaero(ii,jj,iib%par:fib%par)%vratiolo
+           
+           dumice(ii,jj,iia%cur:fia%cur)%dmid = dumaero(ii,jj,iia%par:fia%par)%dmid
+           dumice(ii,jj,iib%cur:fib%cur)%dmid = dumaero(ii,jj,iib%par:fib%par)%dmid
+           
+           ! Initialize the "wet" diameter as the dry mid diameter of the nucleus
+           dumice(ii,jj,iia%cur:fib%cur)%dwet = dumice(ii,jj,iia%cur:fib%cur)%dmid
+           
+           ! ---------------------------------------------------------------------------------------
+           ! Set the snow properties; unlike aerosol and cloud bins, the size distribution
+           ! goes according to the *wet* radius !!
+           ! ---------------------------------------------------------------------------------------
+           
+           DO bb = isa, fsa
+              
+              dumsnow(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3
+              dumsnow(ii,jj,bb)%vlolim = pi6*tmplolim(bb)**3
+              dumsnow(ii,jj,bb)%dmid = ( (dumsnow(ii,jj,bb)%vlolim + dumsnow(ii,jj,bb)%vhilim) /  &
+                   (2.*pi6) )**(1./3.)
+              dumsnow(ii,jj,bb)%vratiohi = dumsnow(ii,jj,bb)%vhilim / ( pi6*dumsnow(ii,jj,bb)%dmid**3 )
+              dumsnow(ii,jj,bb)%vratiolo = dumsnow(ii,jj,bb)%vlolim / ( pi6*dumsnow(ii,jj,bb)%dmid**3 )
+              
+              ! Initialize the wet diameter as the bin mid diameter
+              dumsnow(ii,jj,bb)%dwet = dumsnow(ii,jj,bb)%dmid
+              
+           END DO
+           
+        END DO
+     END DO
+     
+     ! Save bin limits to be delivered e.g. to host model if needed
+     ALLOCATE(icebins(nice))
+     DO bb = 1, nice
+        icebins(bb) = (dumice(1,1,bb)%vlolim/pi6)**(1./3.)
+     END DO
+     ALLOCATE(snowbins(nsnw))
+     DO bb = 1, nsnw
+        snowbins(bb) = (dumsnow(1,1,bb)%vlolim/pi6)**(1./3.)
+     END DO
+     
    END SUBROUTINE set_icebins
-
+   
    !----------------------------------------------------------------------
    !
    ! *************************
@@ -569,12 +622,18 @@ CONTAINS
       !
       !-------------------------------------------------------------------------------
       USE classSpecies
+      USE classSection
       USE mo_submctl, ONLY : nbin,      &
                              in1a,fn1a,in2a,fn2a,in2b,fn2b,  &
                              nbins, massacc, spec,           &
                              nspec, listspec
 
       IMPLICIT NONE
+
+      ! Dummy size distributions just for setting everything up!!
+      ! May not be the smartest or the fastest way, but revise later... 
+      TYPE(Section), ALLOCATABLE :: dumaero(:,:,:), dumcloud(:,:,:), dumprecp(:,:,:), &
+                                      dumice(:,:,:), dumsnow(:,:,:)
 
       ! Remember to call 'define_salsa' for namelist paramers before calling this subroutine!
 
@@ -602,11 +661,19 @@ CONTAINS
       ! -- Hydrometeor tracer in *set_cloudbins*
 
       ! --3) Call other initialization routines
-      CALL set_aerobins()
+      CALL set_aerobins(dumaero)
 
-      CALL set_cloudbins()
+      CALL set_cloudbins(dumaero, dumcloud, dumprecp)
 
-      CALL set_icebins()
+      CALL set_icebins(dumaero, dumice, dumsnow)
+
+      CALL set_masterbins(dumaero, dumcloud, dumprecp, dumice, dumsnow)
+
+      IF ( ALLOCATED(dumaero) ) DEALLOCATE(dumaero)
+      IF ( ALLOCATED(dumcloud)) DEALLOCATE(dumcloud)
+      IF ( ALLOCATED(dumprecp)) DEALLOCATE(dumprecp)
+      IF ( ALLOCATED(dumice)) DEALLOCATE(dumice)
+      IF ( ALLOCATED(dumsnow)) DEALLOCATE(dumsnow)
 
    END SUBROUTINE salsa_initialize
 

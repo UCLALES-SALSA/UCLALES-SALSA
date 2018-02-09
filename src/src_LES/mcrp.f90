@@ -28,9 +28,11 @@ MODULE mcrp
                     a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt, mc_ApVdom,                   &
                     a_nicep,   a_nicet,   a_micep,   a_micet,                                &
                     a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
-                    snowin,    prtcl, calc_eff_radius
+                    snowin,    calc_eff_radius
    USE thrm, ONLY : thermo
    USE stat, ONLY : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
+   USE mo_submctl, ONLY : spec, terminal_vel
+   USE util, ONLY : getMassIndex
    IMPLICIT NONE
 
    LOGICAL, PARAMETER :: droplet_sedim = .FALSE., khairoutdinov = .FALSE.
@@ -80,7 +82,7 @@ CONTAINS
             IF (level < 5) THEN
                sed_ice = .FALSE.; sed_snow = .FALSE.
             END IF
-            nn = prtcl%getNComp()
+            nn = spec%getNSpec()
             CALL sedim_SALSA(nzp,nxp,nyp,nn,dtlt, a_temp, a_theta,                &
                              a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
                              a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
@@ -579,9 +581,9 @@ CONTAINS
        maerot = maerot - amdiv
 
        ! Account for changes in liquid water pot temperature
-       nc = prtcl%getIndex('H2O')
-       istr = (nc-1)*nbins+1
-       iend = nc*nbins
+       nc = spec%getIndex('H2O')
+       istr = getMassIndex(nbins,1,nc)
+       iend = getMassIndex(nbins,nbins,nc)
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
@@ -594,15 +596,15 @@ CONTAINS
 
       IF (sed_cloud) THEN
 
-       CALL DepositionSlow(n1,n2,n3,n4,ncld,tk,a_dn,rhowa,ustar,ncloudp,mcloudp,dzt,nlim,cndiv,cmdiv,cndep,remcld,2)
+       CALL DepositionSlow(n1,n2,n3,n4,ncld,tk,a_dn,spec%rhowa,ustar,ncloudp,mcloudp,dzt,nlim,cndiv,cmdiv,cndep,remcld,2)
 
        ncloudt = ncloudt - cndiv
        mcloudt = mcloudt - cmdiv
 
        ! Account for changes in liquid water pot temperature
-       nc = prtcl%getIndex('H2O')
-       istr = (nc-1)*ncld+1
-       iend = nc*ncld
+       nc = spec%getIndex('H2O')
+       istr = getMassIndex(ncld,1,nc)
+       iend = getMassIndex(ncld,ncld,nc)
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
@@ -615,15 +617,15 @@ CONTAINS
 
       IF (sed_ice) THEN
 
-       CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,rhoic,ustar,nicep,micep,dzt,nlim,indiv,imdiv,indep,remice,4)
+       CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,spec%rhoic,ustar,nicep,micep,dzt,nlim,indiv,imdiv,indep,remice,4)
 
        nicet = nicet - indiv 
        micet = micet - imdiv 
 
        ! Account for changes in liquid water pot temperature
-       nc = prtcl%getIndex('H2O')
-       istr = (nc-1)*nice+1
-       iend = nc*nice
+       nc = spec%getIndex('H2O')
+       istr = getMassIndex(nice,1,nc)
+       iend = getMassIndex(nice,nice,nc)
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
@@ -637,7 +639,7 @@ CONTAINS
       ! ---------------------------------------------------------
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
       IF (sed_precp) THEN
-         CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,rowt,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate)
+         CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,spec%rhowa,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate,3)
 
          nprecpt(:,:,:,:) = nprecpt(:,:,:,:) + prnt(:,:,:,:)/tstep
          mprecpt(:,:,:,:) = mprecpt(:,:,:,:) + prvt(:,:,:,:)/tstep
@@ -645,9 +647,9 @@ CONTAINS
          ! Convert mass flux to heat flux (W/m^2)
          rrate(:,:,:) = rrate(:,:,:)*alvl
 
-         nc = prtcl%getIndex('H2O')
-         istr = (nc-1)*nprc + 1
-         iend = nc*nprc
+         nc = spec%getIndex('H2O')
+         istr = getMassIndex(nprc,1,nc)
+         iend = getMassIndex(nprc,nprc,nc)
          DO j = 3, n3-2
             DO i = 3, n2-2
                DO k = 1, n1-1
@@ -659,7 +661,7 @@ CONTAINS
     
 
       IF (sed_snow) THEN
-         CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,rowt,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate,5)
+         CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,spec%rhosn,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate,5)
            
          nsnowt(:,:,:,:) = nsnowt(:,:,:,:) + srnt(:,:,:,:)/tstep
          msnowt(:,:,:,:) = msnowt(:,:,:,:) + srvt(:,:,:,:)/tstep
@@ -667,9 +669,9 @@ CONTAINS
          ! Convert mass flux to heat flux (W/m^2)
          rrate(:,:,:) = rrate(:,:,:)*alvi
 
-         nc = prtcl%getIndex('H2O')
-         istr = (nc-1)*nsnw + 1
-         iend = nc*nsnw
+         nc = spec%getIndex('H2O')
+         istr = getMassIndex(nsnw,1,nc)
+         iend = getMassIndex(nsnw,nsnw,nc)
          DO j = 3, n3-2
             DO i = 3, n2-2
                DO k = 1, n1-1
@@ -682,16 +684,16 @@ CONTAINS
       IF (mcflg) THEN
          ! For mass conservation statistics
          mctmp(:,:) = 0.
-         ss = prtcl%getIndex('H2O')
-         istr = (ss-1)*nbins; iend = ss*nbins
+         ss = spec%getIndex('H2O')
+         istr = getMassIndex(nbins,1,ss); iend = getMassIndex(nbins,nbins,ss)
          mctmp(:,:) = mctmp(:,:) + SUM(remaer(:,:,istr:iend),dim=3)
-         istr = (ss-1)*ncld; iend = ss*ncld
+         istr = getMassIndex(ncld,1,ss); iend = getMassIndex(ncld,ncld,ss)
          mctmp(:,:) = mctmp(:,:) + SUM(remcld(:,:,istr:iend),dim=3)
-         istr = (ss-1)*nprc; iend = ss*nprc
+         istr = getMassIndex(nprc,1,ss); iend = getMassIndex(nprc,nprc,ss)
          mctmp(:,:) = mctmp(:,:) + SUM(remprc(:,:,istr:iend),dim=3)
-         istr = (ss-1)*nice; iend = ss*nice
+         istr = getMassIndex(nice,1,ss); iend = getMassIndex(nice,nice,ss)
          mctmp(:,:) = mctmp(:,:) + SUM(remice(:,:,istr:iend),dim=3)
-         istr = (ss-1)*nsnw; iend = ss*nsnw
+         istr = getMassIndex(nsnw,1,ss); iend = getMassIndex(nsnw,nsnw,ss)
          mctmp(:,:) = mctmp(:,:) + SUM(remsnw(:,:,istr:iend),dim=3)
          CALL acc_massbudged(n1,n2,n3,3,tstep,dzt,a_dn,rdep=mctmp,ApVdom=mc_ApVdom)
       END IF !mcflg

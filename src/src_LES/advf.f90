@@ -100,13 +100,12 @@ CONTAINS
   ! and aerosols due to cloud activation.
   !
   SUBROUTINE newdroplet(pactmask)
-    USE mo_submctl, ONLY : ncld,nbins,ica,fca,eps
+    USE mo_submctl, ONLY : ncld,nbins,ica,fca,eps,spec
     USE grid, ONLY : nxp,nyp,nzp,dzt,            &
                      a_wp,a_wc,  &
                      a_naerop, a_naerot, a_maerop, a_maerot,  &
                      a_ncloudt, a_mcloudt,  &
-                     a_nactd,  a_vactd,  a_rt,      &
-                     prtcl
+                     a_nactd,  a_vactd,  a_rt
     IMPLICIT NONE
 
     LOGICAL, INTENT(in) :: pactmask(nzp,nxp,nyp)
@@ -145,7 +144,7 @@ CONTAINS
                                     MERGE( dn(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
           ! Change in dry ccn/aerosol mass
-          DO ss = 1, prtcl%getNcomp()-1
+          DO ss = 1, spec%getNSpec()-1
 
              mm = (ss-1)*ncld + bb
              mmpar = (ss-1)*nbins + bbpar
@@ -173,7 +172,7 @@ CONTAINS
           ! as the number concentration....
           frac(:,:) = a_nactd(kk,:,:,bb)/MAX(a_naerop(kk,:,:,bbpar),1.)
 
-          nc = prtcl%getIndex('H2O')
+          nc = spec%getIndex('H2O')
           mm = (nc-1)*ncld + bb
           mmpar = (nc-1)*nbins + bbpar
 
@@ -197,7 +196,7 @@ CONTAINS
     ! the points defined by the activation mask (0 elsewhere)
     DO bb = ica%cur, fca%cur
        a_nactd(:,:,:,bb) = MERGE(a_nactd(:,:,:,bb),0.,pactmask(:,:,:))
-       DO ss = 1, prtcl%getNComp()
+       DO ss = 1, spec%getNSpec()
           mm = (ss-1)*ncld + bb
           a_vactd(:,:,:,mm) = MERGE(a_vactd(:,:,:,mm),0.,pactmask(:,:,:))
        END DO

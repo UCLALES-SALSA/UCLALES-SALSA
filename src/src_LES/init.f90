@@ -48,7 +48,7 @@ CONTAINS
       USE mpi_interface, ONLY : appl_abort, myid
       USE thrm, ONLY : thermo
       USE mo_salsa_driver, ONLY : run_SALSA
-      USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim
+      USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim, spec
       USE util, ONLY : maskactiv
       USE nudg, ONLY : init_nudg
       USE emission_main, ONLY : init_emission
@@ -74,7 +74,7 @@ CONTAINS
          ! spin-up period to set up aerosol and cloud fields.
          IF (level >= 4) THEN
 
-            n4 = prtcl%getNComp()
+            n4 = spec%getNSpec()
 
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
@@ -84,7 +84,7 @@ CONTAINS
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
                               a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              1, prtcl, dtlt, level   )
+                              1, dtlt, level   )
             ELSE
                CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
                               a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
@@ -93,7 +93,7 @@ CONTAINS
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
                               a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              1, prtcl, dtlt, level   )
+                              1, dtlt, level   )
 
             END IF
             CALL SALSAInit
@@ -170,11 +170,15 @@ CONTAINS
       USE defs, ONLY : alvl, cpr, cp, p00
       USE sgsm, ONLY : tkeinit
       USE thrm, ONLY : thermo, rslf
+      USE mo_submctl, ONLY : spec
 
       IMPLICIT NONE
 
       INTEGER :: i,j,k
       REAL    :: exner, pres, tk, rc, xran(nzp)
+      INTEGER :: nspec
+
+      nspec = spec%getNSpec()
 
       CALL htint(ns,ts,hs,nzp,th0,zt)
 
@@ -274,7 +278,7 @@ CONTAINS
       ! Initialize aerosol size distributions
       !
       IF (level >= 4) THEN
-         CALL aerosol_init
+         CALL aerosol_init(nspec)
          CALL init_gas_tracers
       END IF
 
@@ -718,6 +722,7 @@ CONTAINS
  !
  SUBROUTINE SALSAInit
     USE mo_submctl, ONLY : ncld,nbins,nice
+    USE util, ONLY : getMassIndex
     IMPLICIT NONE
     INTEGER :: k,i,j,bb,nc
 
@@ -743,21 +748,21 @@ CONTAINS
        END DO
     END DO
 
-   nc = prtcl%getIndex('H2O')
+   nc = spec%getIndex('H2O')
    ! Activation + diagnostic array initialization
    ! Clouds and aerosols
    a_rc(:,:,:) = 0.
     DO bb = 1, ncld
-       a_rc(:,:,:) = a_rc(:,:,:) + a_mcloudp(:,:,:,(nc-1)*ncld+bb)
+       a_rc(:,:,:) = a_rc(:,:,:) + a_mcloudp(:,:,:,getMassIndex(ncld,bb,nc))
     END DO
     DO bb = 1, nbins
-       a_rc(:,:,:) = a_rc(:,:,:) + a_maerop(:,:,:,(nc-1)*nbins+bb)
+       a_rc(:,:,:) = a_rc(:,:,:) + a_maerop(:,:,:,getMassIndex(nbins,bb,nc))
     END DO
 
     ! Ice
     a_ri(:,:,:) = 0.
     DO bb = 1, nice
-       a_ri(:,:,:) = a_ri(:,:,:) + a_micep(:,:,:,(nc-1)*nice + bb)
+       a_ri(:,:,:) = a_ri(:,:,:) + a_micep(:,:,:,getMassIndex(nice,bb,nc))
     END DO
 
  END SUBROUTINE SALSAInit
@@ -768,16 +773,17 @@ CONTAINS
  !
  ! Tomi Raatikainen, FMI, 29.2.2016
  !
- SUBROUTINE aerosol_init
+ SUBROUTINE aerosol_init(nspec)
 
     USE mo_salsa_sizedist, ONLY : size_distribution
-    USE mo_salsa_driver, ONLY : aero
-    USE mo_submctl, ONLY : pi6, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
-                           sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp,nspec, &
-                           rhosu, rhooc, rhobc, rhodu, rhoss, rhono, rhonh
+    USE mo_submctl, ONLY : aero, pi6, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
+                           sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp
     USE mpi_interface, ONLY : myid
+    USE util, ONLY : getMassIndex
 
     IMPLICIT NONE
+    INTEGER, INTENT(in) :: nspec
+
     REAL :: core(nbins), nsect(1,1,nbins)             ! Size of the bin mid aerosol particle, local aerosol size dist
     REAL :: pndist(nzp,nbins)                         ! Aerosol size dist as a function of height
     REAL :: pvf2a(nzp,nspec), pvf2b(nzp,nspec)        ! Mass distributions of aerosol species for a and b-bins
@@ -807,37 +813,40 @@ CONTAINS
 
     ! Indices (-1 = not used)
     i = 0
-    IF (prtcl%isUsed('SO4')) THEN
-       iso4 = prtcl%getIndex('SO4')
+    IF (spec%isUsed('SO4')) THEN
+       iso4 = spec%getIndex('SO4')
        i = i+1
     END IF
-    IF (prtcl%isUsed('OC')) THEN
-       ioc = prtcl%getIndex('OC')
+    IF (spec%isUsed('OC')) THEN
+       ioc = spec%getIndex('OC')
        i = i+1
     END IF
-    IF (prtcl%isUsed('BC')) THEN
-       ibc = prtcl%getIndex('BC')
+    IF (spec%isUsed('BC')) THEN
+       ibc = spec%getIndex('BC')
        i = i+1
     END IF
-    IF (prtcl%isUsed('DU')) THEN
-       idu = prtcl%getIndex('DU')
+    IF (spec%isUsed('DU')) THEN
+       idu = spec%getIndex('DU')
        i = i+1
     END IF
-    IF (prtcl%isUsed('SS')) THEN
-       iss = prtcl%getIndex('SS')
+    IF (spec%isUsed('SS')) THEN
+       iss = spec%getIndex('SS')
        i = i+1
     END IF
-    IF (prtcl%isUsed('NO')) THEN
-       ino = prtcl%getIndex('NO')
+    IF (spec%isUsed('NO')) THEN
+       ino = spec%getIndex('NO')
        i = i+1
     END IF
-    IF (prtcl%isUsed('NH')) THEN
-       inh = prtcl%getIndex('NH')
+    IF (spec%isUsed('NH')) THEN
+       inh = spec%getIndex('NH')
        i = i+1
     END IF
 
     ! All species must be known
-    IF (i /= nspec) STOP 'Unknown aerosol species given in the initialization!'
+    IF (i /= nspec-1) THEN
+       WRITE(*,*) i,nspec
+       STOP 'Unknown aerosol species given in the initialization!'
+    END IF
 
     !
     ! Altitude dependent size distributions and compositions.
@@ -845,20 +854,20 @@ CONTAINS
     ! ---------------------------------------------------------------------------------------------------
     IF (isdtyp == 1) THEN
 
-       CALL READ_AERO_INPUT(iso4,ioc,pndist,pvfOC1a,pvf2a,pvf2b,pnf2a)
+       CALL READ_AERO_INPUT(pndist,pvfOC1a,pvf2a,pvf2b,pnf2a)
 
     !
     ! Uniform profiles based on namelist parameters
     ! ---------------------------------------------------------------------------------------------------
     ELSE IF (isdtyp == 0) THEN
 
-       IF (ioc > 0 .AND. iso4 > 0) THEN
+       IF (spec%isUsed("OC") .AND. spec%isUsed("SO4")) THEN
           ! Both are there, so use the given "massDistrA"
-          pvfOC1a(:) = volDistA(ioc)/(volDistA(ioc)+volDistA(iso4)) ! Normalize
-       ELSE IF (ioc > 0) THEN
+          pvfOC1a(:) = volDistA(spec%getIndex("OC"))/(volDistA(spec%getIndex("OC"))+volDistA(spec%getIndex("SO4"))) ! Normalize
+       ELSE IF (spec%isUsed("OC")) THEN
           ! Pure OC
           pvfOC1a(:) = 1.0
-       ELSE IF (iso4 > 0) THEN
+       ELSE IF (spec%isUSed("SO4")) THEN
           ! Pure SO4
           pvfOC1a(:) = 0.0
        ELSE
@@ -866,7 +875,7 @@ CONTAINS
        END IF
 
        ! Mass fractions for species in a and b-bins
-       DO ss = 1, nspec
+       DO ss = 1, spec%getNSpec()
           pvf2a(:,ss) = volDistA(ss)
           pvf2b(:,ss) = volDistB(ss)
        END DO
@@ -910,14 +919,14 @@ CONTAINS
              ! b) Aerosol mass concentrations
              ! bin regime 1, done here separately because of the SO4/OC convention
              ! SO4
-             IF (iso4 > 0) THEN
-                ss = (iso4-1)*nbins + in1a; ee = (iso4-1)*nbins + fn1a
-                a_maerop(k,i,j,ss:ee) = max(0.0,1.0-pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhosu
+             IF (spec%isUsed("SO4")) THEN
+                ss = getMassIndex(nbins,in1a,spec%getIndex("SO4")); ee = getMassIndex(nbins,fn1a,spec%getIndex("SO4"))
+                a_maerop(k,i,j,ss:ee) = max(0.0,1.0-pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*spec%rhosu
              END IF
              ! OC
-             IF (ioc > 0) THEN
-                ss = (ioc-1)*nbins + in1a; ee = (ioc-1)*nbins + fn1a
-                a_maerop(k,i,j,ss:ee) = max(0.0,pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhooc
+             IF (spec%isUsed("OC")) THEN
+                ss = getMassIndex(nbins,in1a,spec%getIndex("OC")); ee = getMassIndex(nbins,fn1a,spec%getIndex("OC"))
+                a_maerop(k,i,j,ss:ee) = max(0.0,pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*spec%rhooc
              END IF
 
           END DO ! i
@@ -927,45 +936,13 @@ CONTAINS
     !
     ! c) Aerosol mass concentrations
     ! bin regime 2
+
     IF (nreg > 1) THEN
-
-       ! 1: SO4
-       IF (iso4 > 0) THEN
-          CALL setAeroMass(iso4,pvf2a,pvf2b,pnf2a,pndist,core,rhosu)
-       END IF
-
-       ! 2: OC
-       IF (ioc > 0) THEN
-          CALL setAeroMass(ioc,pvf2a,pvf2b,pnf2a,pndist,core,rhooc)
-       END IF
-
-       ! 3: BC
-       IF (ibc > 0) THEN
-          CALL setAeroMass(ibc,pvf2a,pvf2b,pnf2a,pndist,core,rhobc)
-       END IF
-
-       ! 4: DU
-       IF (idu > 0) THEN
-          CALL setAeroMass(idu,pvf2a,pvf2b,pnf2a,pndist,core,rhodu)
-       END IF
-
-       ! 5: SS
-       IF (iss > 0) THEN
-          CALL setAeroMass(iss,pvf2a,pvf2b,pnf2a,pndist,core,rhoss)
-       END IF
-
-       ! 6: NO3
-       IF (ino > 0) THEN
-          CALL setAeroMass(ino,pvf2a,pvf2b,pnf2a,pndist,core,rhono)
-       END IF
-
-       ! 7: NH3
-       IF (inh > 0) THEN
-          CALL setAeroMass(inh,pvf2a,pvf2b,pnf2a,pndist,core,rhonh)
-       END IF
-
+       DO ss = 1,spec%getNSpec('dry')
+          CALL setAeroMass(nspec,spec%ind(ss),pvf2a,pvf2b,pnf2a,pndist,core,spec%rholiq(ss))
+       END DO
     END IF
-
+       
     ! Put out some info about the initial state
     ! ---------------------------------------------------------------------------------------------------------------------
     IF (myid == 0)                   WRITE(*,*) ''
@@ -999,10 +976,13 @@ CONTAINS
  ! Sets the mass concentrations to aerosol arrays in 2a and 2b
  !
  !
- SUBROUTINE setAeroMass(ispec,ppvf2a,ppvf2b,ppnf2a,ppndist,pcore,prho)
-    USE mo_submctl, ONLY : nbins, in2a,fn2a,in2b,fn2b, nspec
+ SUBROUTINE setAeroMass(nspec,ispec,ppvf2a,ppvf2b,ppnf2a,ppndist,pcore,prho)
+    USE mo_submctl, ONLY : nbins, in2a,fn2a,in2b,fn2b
+    USE util, ONLY : getMassIndex
+    
     IMPLICIT NONE
-
+    
+    INTEGER, INTENT(in) :: nspec                             ! Total number of active species
     INTEGER, INTENT(in) :: ispec                             ! Aerosol species index
     REAL, INTENT(in) :: ppvf2a(nzp,nspec), ppvf2b(nzp,nspec) ! Mass distributions for a and b bins
     REAL, INTENT(in) :: ppnf2a(nzp)                          ! Number fraction for 2a
@@ -1017,12 +997,12 @@ CONTAINS
        DO j = 1, nyp
           DO i = 1, nxp
              ! 2a
-             ss = (ispec-1)*nbins + in2a; ee = (ispec-1)*nbins + fn2a
+             ss = getMassIndex(nbins,in2a,ispec); ee = getMassIndex(nbins,fn2a,ispec)
              a_maerop(k,i,j,ss:ee) =      &
                 max( 0.0,ppvf2a(k,ispec) )*ppnf2a(k) * &
                 ppndist(k,in2a:fn2a)*pcore(in2a:fn2a)*prho
              ! 2b
-             ss = (ispec-1)*nbins + in2b; ee = (ispec-1)*nbins + fn2b
+             ss = getMassIndex(nbins,in2b,ispec); ee = getMassIndex(nbins,fn2b,ispec)
              a_maerop(k,i,j,ss:ee) =      &
                 max( 0.0,ppvf2b(k,ispec) )*(1.0-ppnf2a(k)) * &
                 ppndist(k,in2a:fn2a)*pcore(in2a:fn2a)*prho
@@ -1036,7 +1016,7 @@ CONTAINS
  ! Reads vertical profiles of aerosol size distribution parameters, aerosol species volume fractions and
  ! number concentration fractions between a and b bins
  !
- SUBROUTINE READ_AERO_INPUT(piso4,pioc,ppndist,ppvfOC1a,ppvf2a,ppvf2b,ppnf2a)
+ SUBROUTINE READ_AERO_INPUT(ppndist,ppvfOC1a,ppvf2a,ppvf2b,ppnf2a)
     USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
     USE mo_submctl, ONLY : nbins,  &
                            nspec, maxspec, nmod
@@ -1044,7 +1024,6 @@ CONTAINS
     USE mpi_interface, ONLY : appl_abort, myid
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: piso4,pioc
     REAL, INTENT(out) :: ppndist(nzp,nbins)                   ! Aerosol size dist as a function of height
     REAL, INTENT(out) :: ppvf2a(nzp,nspec), ppvf2b(nzp,nspec) ! Volume distributions of aerosol species for a and b-bins
     REAL, INTENT(out) :: ppnf2a(nzp)                          ! Number fraction for bins 2a
@@ -1149,13 +1128,13 @@ CONTAINS
  ! Since 1a bins by SALSA convention can only contain SO4 or OC,
  ! get renormalized mass fractions.
  ! --------------------------------------------------------------
- IF (pioc > 0 .AND. piso4 > 0) THEN
+ IF (spec%isUsed("OC") .AND. spec%isUsed("SO4")) THEN
     ! Both are there, so use the given "massDistrA"
-    ppvfOC1a(:) = ppvf2a(:,pioc)/(ppvf2a(:,pioc)+ppvf2a(:,piso4)) ! Normalize
- ELSE IF (pioc > 0) THEN
+    ppvfOC1a(:) = ppvf2a(:,spec%getIndex("OC"))/(ppvf2a(:,spec%getIndex("OC"))+ppvf2a(:,spec%getIndex("SO4"))) ! Normalize
+ ELSE IF (spec%isUsed("OC")) THEN
     ! Pure OC
     ppvfOC1a(:) = 1.0
- ELSE IF (piso4 > 0) THEN
+ ELSE IF (spec%isUsed("SO4")) THEN
     ! Pure SO4
     ppvfOC1a(:) = 0.0
  ELSE

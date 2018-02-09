@@ -70,14 +70,14 @@ CONTAINS
   !---------------------------------------------------------------------
 
   SUBROUTINE nucleation(kproma, kbdim,  klev,   krow,   &
-                        paero,  ptemp,  prh,    ppres,  &
+                        ptemp,  prh,    ppres,  &
                         pcsa,   pcocnv, ptstep, pj3n3,  &
                         pxsa,   pxocnv, ppbl            )
 
     !USE mo_aero_mem_salsa, ONLY: d_jnuc,d_j3 !ALN002
 
     USE mo_submctl,   ONLY:  &
-         t_section,              &
+         aero,                  &
          act_coeff,              &
          nj3,                    &
          nsnucl,                 &
@@ -116,9 +116,6 @@ CONTAINS
 
     REAL, INTENT(INOUT) ::    &
          pj3n3(kbdim,klev,2)        ! change in concentration [#/m3]
-
-    TYPE(t_section), INTENT(inout) :: &
-         paero(kbdim,klev,fn2b)
 
 
     REAL, INTENT(OUT) ::      &
@@ -417,14 +414,14 @@ CONTAINS
           zmfp   = 3.*zdfvap*sqrt(pi*msu/(8.*rg*ptemp(ii,jj)))       ! mean free path [m]
 
           !--- transitional regime correction factor
-          zknud = 2.*zmfp/(paero(ii,jj,:)%dwet+d_sa)     ! Knudsen number
+          zknud = 2.*zmfp/(aero(ii,jj,:)%dwet+d_sa)     ! Knudsen number
           ! correction factor according to
           ! Fuchs and Sutugin (1971), In: Hidy et al. (ed.)
           ! Topics in current aerosol research, Pergamon.
           zbeta = (zknud + 1.)/ &
                   (0.377*zknud+1.+4./(3.*massacc)*(zknud+zknud**2))   !(4)
           !--- condensational sink [#/m2]
-          zcsink = sum(paero(ii,jj,:)%dwet*zbeta*paero(ii,jj,:)%numc)                    !(3)
+          zcsink = sum(aero(ii,jj,:)%dwet*zbeta*aero(ii,jj,:)%numc)                    !(3)
 
           !---------------------------------------------------------------------------------
           ! Parameterized formation rate of detectable 3 nm particles
@@ -446,8 +443,8 @@ CONTAINS
              IF(zcsink < 1.e-30) THEN
                 zeta = 0.
              ELSE
-                zdmean = 1./sum(paero(ii,jj,:)%numc)* &       ! mean diameter of backgroud population [nm]
-                  sum(paero(ii,jj,:)%numc*paero(ii,jj,:)%dwet)*1.e9
+                zdmean = 1./sum(aero(ii,jj,:)%numc)* &       ! mean diameter of backgroud population [nm]
+                  sum(aero(ii,jj,:)%numc*aero(ii,jj,:)%dwet)*1.e9
 
                 zgamma = 0.23*(zdcrit(ii,jj)*1.e9)**0.2 &! fxm: can we use simple version of zgamma given in Kerminen et al.?
                          *(zdmean/150.)**0.048 &
@@ -478,12 +475,12 @@ CONTAINS
              ! zR2 = pdwet(ii,jj,:)/2.      ! zR2  [m] a vector... (!)
 
              ! Sum of the radii, R12 = R1 + zR2         ! (m)
-             zRc2 = zdcrit(ii,jj)/2. + paero(ii,jj,:)%dwet/2. ! [m]
-             zRx2 = reglim(1)/2. + paero(ii,jj,:)%dwet/2.  ! [m]
+             zRc2 = zdcrit(ii,jj)/2. + aero(ii,jj,:)%dwet/2. ! [m]
+             zRx2 = reglim(1)/2. + aero(ii,jj,:)%dwet/2.  ! [m]
 
              zm_c = 4./3.*pi*(zdcrit(ii,jj)/2.)**3*rhosu!(rhosu*pxsa+rhooc*pxocnv)    ! [kg] particle mass assumed to be only H2SO4
              zm_x = 4./3.*pi*(reglim(1)/2.)**3*rhosu!(rhosu*pxsa+rhooc*pxocnv)       ! [kg]
-             zm_2 = 4./3.*pi*(paero(ii,jj,:)%dwet/2.)**3*rhosu!(rhosu*pxsa+rhooc*pxocnv)   ! [kg]
+             zm_2 = 4./3.*pi*(aero(ii,jj,:)%dwet/2.)**3*rhosu!(rhosu*pxsa+rhooc*pxocnv)   ! [kg]
 
              zcv_c = SQRT(8.*boltz*ptemp(ii,jj)/(pi*zm_c))     ! [m/s]
              zcv_x = SQRT(8.*boltz*ptemp(ii,jj)/(pi*zm_x))     ! [m/s]
@@ -494,7 +491,7 @@ CONTAINS
 
              zknud_c = 2.*zmfp/zdcrit(ii,jj) !Knudsen number
              zknud_x = 2.*zmfp/reglim(1)
-             zknud_2 = 2.*zmfp/paero(ii,jj,:)%dwet
+             zknud_2 = 2.*zmfp/aero(ii,jj,:)%dwet
 
              zCc_c = 1.+zknud_c*(1.142+0.558*exp(-0.999/zknud_c)) ! Cunningham correction factor, [1]
              zCc_x = 1.+zknud_x*(1.142+0.558*exp(-0.999/zknud_x))
@@ -505,7 +502,7 @@ CONTAINS
 
              zDc_c = boltz*ptemp(ii,jj)*zCc_c/(3.*pi*zmyy*zdcrit(ii,jj))  ! D1, Diffusion coefficient of zdcrit-particle, [m2/s]
              zDc_x = boltz*ptemp(ii,jj)*zCc_x/(3.*pi*zmyy*reglim(1))     ! D1, Diffusion coefficient of dx-particle
-             zDc_2 = boltz*ptemp(ii,jj)*zCc_2/(3*pi*zmyy*paero(ii,jj,:)%dwet)
+             zDc_2 = boltz*ptemp(ii,jj)*zCc_2/(3*pi*zmyy*aero(ii,jj,:)%dwet)
              zDc_c2 = zDc_c+zDc_2                                ! D12
              zDc_x2 = zDc_x+zDc_2                                ! D12
 
@@ -533,8 +530,8 @@ CONTAINS
              zK_c2 = 4.*pi*zRc2*zDc_c2/(zRc2/(zRc2+zsigma_c2)+4.*zDc_c2/(zcv_c2*zRc2)) ![m*m2/s]
              zK_x2 = 4.*pi*zRx2*zDc_x2/(zRx2/(zRx2+zsigma_x2)+4.*zDc_x2/(zcv_x2*zRx2))
 
-             zCoagS_c= MAX(1.e-20, sum(zK_c2*paero(ii,jj,:)%numc))  ![1/s]       Coagulation sink for critical cluster
-             zCoagS_x= MAX(1.e-20, sum(zK_x2*paero(ii,jj,:)%numc))  !            Coagulation sink for 3 nm cluster
+             zCoagS_c= MAX(1.e-20, sum(zK_c2*aero(ii,jj,:)%numc))  ![1/s]       Coagulation sink for critical cluster
+             zCoagS_x= MAX(1.e-20, sum(zK_x2*aero(ii,jj,:)%numc))  !            Coagulation sink for 3 nm cluster
 
              zm_para = LOG(zCoagS_x/zCoagS_c)/LOG(reglim(1)/zdcrit(ii,jj))
              !-End of m-parater----------------------------------------------------------------------

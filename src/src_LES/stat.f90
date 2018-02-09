@@ -19,16 +19,15 @@
 !----------------------------------------------------------------------------
 !
 
-!!! COMPONENT INDEKSIT, NSPECIT SUN MUUT AIVAN SEKASIN
-
 
 
 MODULE stat
 
+   USE mo_submctl, ONLY : spec
    USE ncio, ONLY : open_nc, define_nc, define_nc_cs
-   USE grid, ONLY : level, lbinprof
+   USE grid, ONLY : level, lbinprof   ! IT WOULD BE BEST TO IMPORT EVERYTHING NEEDED HERE ONCE AND USE THAT FOR THE WHOLE MODULE
    USE util, ONLY : get_avg3, get_cor3, get_var3, get_avg_ts, &
-                    get_avg2dh, get_3rd3
+                    get_avg2dh, get_3rd3, getMassIndex
 
    IMPLICIT NONE
    PRIVATE
@@ -50,8 +49,8 @@ MODULE stat
   ! All SALSA species
   CHARACTER(len=3), PARAMETER :: zspec(8) = (/'SO4','OC ','BC ','DU ','SS ','NO ','NH ','H2O'/)
   ! Active SALSA species
-  character (len=3), save :: actspec(8)
-  integer, save      :: nspec=0
+  !character (len=3), save :: actspec(8)
+  !integer, save      :: nspec=0
 
    INTEGER, SAVE      :: nrec1, nrec2, nrec3, ncid1, ncid2, ncid3, nv1=nvar1, nv2 = nvar2
    REAL, SAVE         :: fsttm, lsttm, nsmp = 0
@@ -223,9 +222,9 @@ CONTAINS
    !
    SUBROUTINE init_stat(time, filprf, expnme, nzp)
 
-      USE grid, ONLY          : nxp, nyp, iradtyp, prtcl
+      USE grid, ONLY          : nxp, nyp, iradtyp
       USE mpi_interface, ONLY : myid, ver, author, info
-      USE mo_submctl, ONLY    : nprc, fn2a,fn2b,fca,fcb,fra,fia,fib,fsa
+      USE mo_submctl, ONLY    : nprc, fn2a,fn2b,fca,fcb,fra,fia,fib,fsa,spec
 
       CHARACTER (len=200), INTENT (in) :: filprf, expnme
       INTEGER, INTENT (in)            :: nzp
@@ -233,6 +232,10 @@ CONTAINS
 
       INTEGER :: i,e
       CHARACTER (len=200) :: fname
+
+      INTEGER :: nspec
+
+      nspec = spec%getNSpec()
 
       ALLOCATE (wtv_sgs(nzp),wtv_res(nzp),wrl_sgs(nzp))
       ALLOCATE (tke_res(nzp),tke_sgs(nzp),tke0(nzp),thvar(nzp))
@@ -367,16 +370,11 @@ CONTAINS
             s2bool(i) = lbinprof
          END IF
 
-         nspec = 0
-         DO e=1,8 ! With water, which is false for "IsUsed"!
-            IF (.NOT.IsUsed(prtcl,zspec(e)) .AND. (e<8)) CYCLE
-
-            ! List of active species (including water, which is the last species)
-            nspec = nspec+1
-            actspec(nspec)=zspec(e)
+         !nspec = 0
+         DO e=1,spec%getNSpec() ! With water, which is false for "IsUsed"!
 
             ! CDNC, interstitial and outside cloud concentrations (level 4)
-            IF (e<8) THEN
+            IF (spec%getIndex("H2O") /= e) THEN
                i=nvar1+4+(e-1)*3
                s1bool(i:i+2)=.TRUE.
             END IF
@@ -398,7 +396,7 @@ CONTAINS
                s2bool(i:i+1) = .TRUE.
             END IF
             ! Bin number concentrations
-            IF (e==8) CYCLE ! Not for water
+            IF (spec%getIndex("H2O") == e) CYCLE ! Not for water
             i = nvar2+nv2sbulk+nv2_lvl5+1+e
             s2bool(i) = lbinprof
             i = i+nv2saa
@@ -472,7 +470,7 @@ CONTAINS
          fname =  TRIM(filprf)//'.cs'
          IF(myid == 0) PRINT "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
          CALL open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid3, nrec3, ver, author, info)
-         IF (ncid3>=0) CALL define_nc_cs(ncid3, nrec3, nxp-4, nyp-4, level, iradtyp, actspec(1:nspec), nspec)
+         IF (ncid3>=0) CALL define_nc_cs(ncid3, nrec3, nxp-4, nyp-4, level, iradtyp, spec%names, nspec)
          IF (myid == 0) PRINT *, '   ...starting record: ', nrec3
       END IF
 
@@ -492,7 +490,7 @@ CONTAINS
    ! Jaakko Ahola, FMI, 2016
    SUBROUTINE statistics(time)
 
-      USE grid, ONLY : a_up, a_vp, a_wp, a_rc, a_theta, a_rv                                     &
+      USE grid, ONLY : a_up, a_vp, a_wp, a_rc, a_theta, a_rv,                                     &
                        a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean,    &
                        vmean, dn0, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx, a_sflx,       &
                        a_fus, a_fds, a_fuir, a_fdir, albedo, a_srp, a_snrp, a_ncloudp, xt, yt, a_ri, a_nicep, a_srs, a_snrs, snowin
@@ -504,20 +502,14 @@ CONTAINS
 
     SELECT CASE(level)
        CASE(1,2,3)
-          rxt = a_rp ! Total water (vapor + condensed water) = q
-          rxl = a_rc ! Total liquid water (aerosol+cloud+precipitation)
+          rxt = a_rp ! Total water (vapor + condensed water and ice) = q
+          rxl = a_rc-a_rpp ! Cloud water (+aerosol), but no precipitation or ice
           rxv = a_rv ! Water vapor
-          xrpp = a_rpp
-          xnpp = a_npp
-       CASE(4)
-          rxt = a_rp + a_rc + a_srp
-          rxl = a_rc + a_srp
-          rxv = a_rp
-          xrpp = a_srp
-          xnpp = a_snrp
-       CASE(5)
+          xrpp = a_rpp ! Rain water
+          xnpp = a_npp ! Rain number
+       CASE(4,5)
           rxt = a_rp + a_rc + a_srp + a_ri + a_srs
-          rxl = a_rc + a_srp + a_ri + a_srs
+          rxl = a_rc
           rxv = a_rp
           xrpp = a_srp
           xnpp = a_snrp
@@ -530,7 +522,7 @@ CONTAINS
       ! profile statistics
       !
       CALL accum_stat(nzp, nxp, nyp, a_up, a_vp, a_wp, a_theta, a_press, umean, &
-                      vmean,th00)
+                      vmean)
       IF (iradtyp == 3) THEN
          CALL accum_rad(nzp, nxp, nyp, a_rflx, sflx=a_sflx, sup=a_fus, sdwn=a_fds, &
                         irup=a_fuir, irdwn=a_fdir, alb=albedo)
@@ -651,35 +643,35 @@ CONTAINS
 
       ! Calculate all removal fluxes and save those to scs_rm for later use
       i = 1
-      DO si = 1,nspec
+      DO si = 1,spec%getNSpec()
          ! Removal by sedimentation of aerosol
-         str = (si-1)*nbins+1
-         END = si*nbins
+         str = getMassIndex(nbins,1,si)
+         END = getMassIndex(nbins,nbins,si)
          scs_rm(i,:,:) = SUM(raer(:,:,str:end),DIM=3)
          i = i+1
 
          ! Removal by sedimentation of cloud droplets
-         str = (si-1)*ncld+1
-         END = si*ncld
+         str = getMassIndex(ncld,1,si) 
+         END = getMassIndex(ncld,ncld,si)
          scs_rm(i,:,:) = SUM(rcld(:,:,str:end),DIM=3)
          i = i+1
 
          ! Removal by precipitation
-         str = (si-1)*nprc+1
-         END = si*nprc
+         str = getMassIndex(nprc,1,si)
+         END = getMassIndex(nprc,nprc,si)
          scs_rm(i,:,:) = SUM(rprc(:,:,str:end),DIM=3)
          i = i+1
 
          IF (level > 4) THEN
             ! Removal by sedimentation of ice particles
-            str = (si-1)*nice+1
-            END = si*nice
+            str = getMassIndex(nice,1,si)
+            END = getMassIndex(nice,nice,si)
             scs_rm(i,:,:) = SUM(rice(:,:,str:end),DIM=3)
             i = i+1
 
             ! Removal by snow
-            str = (si-1)*nsnw+1
-            END = si*nsnw
+            str = getMassIndex(nsnw,1,si)
+            END = getMassIndex(nsnw,nsnw,si)
             scs_rm(i,:,:) = SUM(rsnw(:,:,str:end),DIM=3)
             i = i+1
          END IF
@@ -699,20 +691,20 @@ CONTAINS
 
       IF (.NOT. csflg) RETURN
 
-    ! Save all previously calculated removal fluxes
-    !   Note: fluxes not calculated during spinup, so saving zeros
-    i=1
-    DO si = 1,nspec
-        nam=actspec(si)
-
+      ! Save all previously calculated removal fluxes
+      !   Note: fluxes not calculated during spinup, so saving zeros
+      i=1
+      DO si = 1,spec%getNSpec()
+         nam=spec%names(si)
+         
          ! Removal by sedimentation of aerosol
          CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//trim(nam)//'dr') ! 'dr' should be for aerosol and 'ae' for water
          i = i+1
-
+         
          ! Removal by sedimentation of cloud droplets
          CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//trim(nam)//'cl')
          i = i+1
-
+         
          ! Removal by precipitation
          CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//trim(nam)//'pr')
          i = i+1
@@ -732,7 +724,7 @@ CONTAINS
    !
    ! Calculate warm cloud statistics
    SUBROUTINE set_cs_warm(n1,n2,n3,rc,nc,rp,np,th,dn0,zm,zt,dzm,xt,yt,time)
-
+     ! Since "grid" is already imported in this module, why use dummy arguments for th, dn0,zm,zt,... etc?
       USE netcdf
 
       INTEGER, INTENT(in) :: n1,n2,n3
@@ -1047,8 +1039,8 @@ CONTAINS
    !  Some rewriting and adjusting by Juha Tonttila
    !
    SUBROUTINE ts_lvl4(n1,n2,n3,rc)
-      USE mo_submctl, ONLY : nlim
-      USE grid, ONLY       : prtcl, bulkNumc, bulkMixrat,dzt
+      USE mo_submctl, ONLY : nlim,spec
+      USE grid, ONLY       : bulkNumc, bulkMixrat,dzt
 
       IMPLICIT NONE
 
@@ -1058,6 +1050,10 @@ CONTAINS
       REAL    :: a0(n1,n2,n3), a1(n1,n2,n3)
       INTEGER :: ii,ss
       LOGICAL :: cond_ic(n1,n2,n3), cond_oc(n1,n2,n3)
+
+      INTEGER :: ndry
+
+      ndry = spec%getNSpec(type='dry')
 
       CALL bulkNumc('cloud','a',a0)
       CALL bulkNumc('cloud','b',a1)
@@ -1071,9 +1067,10 @@ CONTAINS
       ssclr_b(3) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_oc)
 
       ii = 4
-      DO ss = 1, 7      ! REMOVE HARD CODED INDICES!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! HUOM KAIKKI NAMA TAULUKOT PITÄÄ MIETTIÄ JOTENKIN UUSIKS ETTÄ VOI LUUPATA VAIN KAYTETTYJEN YLI KÄYTTÄEN classSpec.f90
+      DO ss = 1, 7
 
-         IF (prtcl%isUsed(zspec(ss))) THEN
+         IF (spec%isUsed(zspec(ss))) THEN
             CALL bulkMixrat(zspec(ss),'cloud','a',a0)
             CALL bulkMixrat(zspec(ss),'cloud','b',a1)
             ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cond_ic)
@@ -1102,7 +1099,6 @@ CONTAINS
   SUBROUTINE ts_lvl5(n1,n2,n3,dn0,zm,rc,ri,rs,srate)
     USE mo_submctl, only : nlim,prlim
     USE grid, ONLY : bulkNumc, bulkMixrat,meanRadius,dzt
-    USE class_componentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
 
@@ -1192,11 +1188,11 @@ CONTAINS
    ! Subroutine ACCUM_STAT: Accumulates various statistics over an
    ! averaging period for base (level 0) version of model
    !
-   SUBROUTINE accum_stat(n1,n2,n3,u,v,w,t,p,um,vm,th00)
+   SUBROUTINE accum_stat(n1,n2,n3,u,v,w,t,p,um,vm)
 
       INTEGER, INTENT (in) :: n1,n2,n3
       REAL, DIMENSION (n1,n2,n3), INTENT (in) :: u, v, w, t, p
-      REAL, INTENT (in) :: um, vm, th00
+      REAL, INTENT (in) :: um, vm
 
       INTEGER :: k
       REAL    :: a1(n1), b1(n1), c1(n1), d1(n1), a3(n1), b3(n1), tmp(n1)
@@ -1213,7 +1209,7 @@ CONTAINS
       DO k = 1, n1
          svctr(k,10) = svctr(k,10) + a1(k) + um
          svctr(k,11) = svctr(k,11) + b1(k) + vm
-         svctr(k,12) = svctr(k,12) + c1(k) !+ th00 ; Changed t == a_theta
+         svctr(k,12) = svctr(k,12) + c1(k)
          svctr(k,13) = svctr(k,13) + d1(k)
          svctr(k,17) = svctr(k,17) + thvar(k)
          svctr(k,18) = svctr(k,18) + a3(k)
@@ -1535,9 +1531,9 @@ CONTAINS
    SUBROUTINE accum_lvl4(n1,n2,n3)
       USE mo_submctl, ONLY : in1a,in2b,fn2a,fn2b,     &
                              ica,fca,icb,fcb,ira,fra, &
-                             nprc,nlim,prlim
+                             nprc,nlim,prlim,spec
       USE grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
-                       a_rc, a_srp, a_rp, a_rh, prtcl,    &
+                       a_rc, a_srp, a_rp, a_rh,    &
                        a_naerop, a_ncloudp, a_nprecpp, a_tp
 
       IMPLICIT NONE
@@ -1639,8 +1635,8 @@ CONTAINS
          ! Species mixing ratios
          ! -------------------------------------------
          ii = 16
-         DO ss = 1, 8
-            IF (ss==8 .OR. prtcl%isUsed(zspec(ss))) THEN
+         DO ss = 1, 8  !!!!!! TAAS: MUUTA NIIN ETTA VOI KAYTTAA FIKSUSTI classSpec.f90
+            IF (ss==8 .OR. spec%isUsed(zspec(ss))) THEN
                ! Total mass mixing ratios
                CALL bulkMixrat(zspec(ss),'aerosol','a',a1)
                CALL bulkMixrat(zspec(ss),'aerosol','b',a12)
@@ -1658,7 +1654,7 @@ CONTAINS
                svctr_b(:,ii:ii+2) = svctr_b(:,ii:ii+2) + a2(:,1:3)
 
                ! Binned mixing ratios
-			   IF (lbinprof .AND. ss < 8) THEN
+               IF (lbinprof .AND. ss < 8) THEN
                   DO bb = in1a, fn2a
                      CALL binSpecMixrat('aerosol',zspec(ss),bb,a1) ! z,x,y-field for bin bb
                      CALL get_avg3(n1,n2,n3,a1,a3_a(:,bb))         ! average profile for bin bb for species ss
@@ -1763,10 +1759,9 @@ CONTAINS
    ! on level 5 variables.
    !
    subroutine accum_lvl5(n1,n2,n3,srate)
-     USE mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,prlim
+     USE mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,prlim, spec
      USE grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
-                      a_ri, a_srs, a_rhi, prtcl, a_nicep, a_nsnowp
-     USE class_ComponentIndex, ONLY : IsUsed
+                      a_ri, a_srs, a_rhi, a_nicep, a_nsnowp
 
      IMPLICIT NONE
 
@@ -1839,7 +1834,7 @@ CONTAINS
      ! -------------------------------------------
      ii=10 ! 'P_cSO4i'
      DO ss = 1,8  ! Including water
-        IF (prtcl%isUsed(zspec(ss)) .OR. (ss==8)) THEN
+        IF (spec%isUsed(zspec(ss)) .OR. (ss==8)) THEN
            ! Total mass mixing ratios
 
            ! In-ice
@@ -2539,8 +2534,7 @@ CONTAINS
    ! -------------------------------------------------------------------------
    !
    SUBROUTINE acc_removal(n2,n3,n4,raer,rcld,rprc,rice,rsnw)
-      USE grid, ONLY : prtcl
-      USE mo_submctl, ONLY : nbins, ncld, nprc, nice,  nsnw
+      USE mo_submctl, ONLY : nbins, ncld, nprc, nice,  nsnw, spec
       IMPLICIT NONE
 
       INTEGER, INTENT(in)        :: n2,n3,n4                     ! Grid dimensions
@@ -2557,30 +2551,30 @@ CONTAINS
       INTEGER :: end,str
 
       DO ss = 1,8
-         IF ( .NOT. prtcl%isUsed(zspec(ss)) .AND. (ss<8) ) CYCLE
+         IF ( .NOT. spec%isUsed(zspec(ss)) .AND. (ss<8) ) CYCLE
 
-         si = prtcl%getIndex(zspec(ss))
+         si = spec%getIndex(zspec(ss))
 
          ! Index to ssclr_b and s1SalsaBulk
          tt = 25 +(ss-1)*3
 
          ! Removal by sedimentation of aerosol
-         str = (si-1)*nbins+1
-         end = si*nbins
+         str = getMassIndex(nbins,1,si)
+         end = getMassIndex(nbins,nbins,si)
          zavg = get_avg2dh( n2,n3,SUM(raer(:,:,str:end),DIM=3) )
          ssclr_b(tt) = ssclr_b(tt) + zavg
          tt=tt+1
 
          ! Removal by sedimentation of cloud droplets
-         str = (si-1)*ncld+1
-         end = si*ncld
+         str = getMassIndex(ncld,1,si)
+         end = getMassIndex(ncld,ncld,si)
          zavg = get_avg2dh( n2,n3,SUM(rcld(:,:,str:end),DIM=3) )
          ssclr_b(tt) = ssclr_b(tt) + zavg
          tt=tt+1
 
          ! Removal by precipitation
-         str = (si-1)*nprc+1
-         end = si*nprc
+         str = getMassIndex(nprc,1,si)
+         end = getMassIndex(nprc,nprc,si)
          zavg = get_avg2dh( n2,n3,SUM(rprc(:,:,str:end),DIM=3) )
          ssclr_b(tt) = ssclr_b(tt) + zavg
          tt=tt+1
@@ -2591,15 +2585,15 @@ CONTAINS
          tt = 15 +(ss-1)*2
 
          ! Removal by sedimentation of ice particles
-         str = (si-1)*nice+1
-         end = si*nice
+         str = getMassIndex(nice,1,si)
+         end = getMassIndex(nice,nice,si)
          zavg = get_avg2dh( n2,n3,SUM(rice(:,:,str:end),DIM=3) )
          ssclr_lvl5(tt) = ssclr_lvl5(tt) + zavg
          tt=tt+1
 
          ! Removal by snow
-         str = (si-1)*nsnw+1
-         end = si*nsnw
+         str = getMassIndex(nsnw,1,si)
+         end = getMassIndex(nsnw,nsnw,si)
          zavg = get_avg2dh( n2,n3,SUM(rsnw(:,:,str:end),DIM=3) )
          ssclr_lvl5(tt) = ssclr_lvl5(tt) + zavg
 

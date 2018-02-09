@@ -129,14 +129,32 @@ cat > NAMELIST <<EOF
  ! With lemission = .TRUE. and level >= 4
  &emission
 
-  ! NOTE: for extended type parameters, the name of the parent class has to be there in between (e.g. Emit).
-  ! This is a known bug in gfortran at least up to version 4.8.4.
+  nEmissionModes = 2
 
-  eseed%Emit%lemit = .TRUE.
-  eseed%Emit%regime = 2
-  eseed%Emit%species = 'SS'
-  eseed%Emit%start_time = 1000.
-  eseed%Emit%end_time = 15000.
+  emitModes(1)%emitType = 2
+  emitModes(1)%regime = 1
+  emitModes(1)%start_time = 10.
+  emitModes(1)%end_time = 11.
+  emitModes(1)%species = "SS"
+  emitModes(1)%emitHeightMin = 800.
+  emitModes(1)%emitHeightMax = 1000.
+  emitModes(1)%emitSizeDistType = 2
+  emitModes(1)%emitDiam = 2.0e-6
+  emitModes(1)%emitNum = 1.e6
+  emitModes(1)%emitSigma = 1.3
+
+  emitModes(2)%emitType = 2
+  emitModes(2)%regime = 2
+  emitModes(2)%start_time = 15.
+  emitModes(2)%end_time = 16.
+  emitModes(2)%species = "SS"
+  emitModes(2)%emitHeightMin = 800.
+  emitModes(2)%emitHeightMax = 1000.
+  emitModes(2)%emitSizeDistType = 2
+  emitModes(2)%emitDiam = 8.0e-6
+  emitModes(2)%emitNum = 1.e5
+  emitModes(2)%emitSigma = 2.
+
 
  /
 
@@ -171,9 +189,9 @@ cat > NAMELIST <<EOF
    nlactbase   = .FALSE.  ! --Switch for parameterized cloud base activation
    nlactintst  = .TRUE.  ! --Switch for interstitial activation based on host model Smax
 
-   nlichom     = .FALSE.     ! Switch for homogeneous ice nucleation
-   nlichet     = .FALSE.     ! Switch for heterogeneous ice nucleation
-   nlicimmers  = .FALSE.   ! Switch for ice nucleation by immersion
+   !nlichom     = .FALSE.     ! Switch for homogeneous ice nucleation
+   !nlichet     = .FALSE.     ! Switch for heterogeneous ice nucleation
+   !nlicimmers  = .FALSE.   ! Switch for ice nucleation by immersion
    nlicmelt    = .FALSE.    ! Switch for ice'n' snow melting
 
    rhlim = 1.2          ! RH limit for SALSA during initialization and spinup
@@ -201,13 +219,13 @@ cat > job.sh <<EOF
 #! /bin/sh
 #PBS -N ${EXPNAME}
 #PBS -l mppwidth=${NPROCS}
-#PBS -l mppnppn=20
+#PBS -l mppnppn=28
 #PBS -l walltime=${TWALL}
 
 export MPICH_ENV_DISPLAY=1
 cd \$PBS_O_WORKDIR
 
-aprun -n ${NPROCS} les.mpi | tee uclales-salsa.output
+aprun -n ${NPROCS} ./les.mpi | tee uclales-salsa.output
 
 set -ex
 

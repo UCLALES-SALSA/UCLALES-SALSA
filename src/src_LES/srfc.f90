@@ -20,7 +20,7 @@
 MODULE srfc
 
    INTEGER :: isfctyp = 0
-   REAL    :: zrough =  0.1   !!!!! CHECK THAT IN METERS EVERYWHERE!!
+   REAL    :: zrough =  0.1e-3   !!!!! CHECK THAT IN METERS EVERYWHERE!!
    REAL    :: ubmin  =  0.20
    REAL    :: dthcon = 100.0
    REAL    :: drtcon = 0.0
@@ -114,7 +114,7 @@ CONTAINS
                DO i = 3, nxp-2
                   dtdz(i,j) = dthcon
                   drdz(i,j) = drtcon
-                  bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2) ! TR: is this needed?
+                  bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2)
                END DO
             END DO
             zs = zt(2)/zrough
