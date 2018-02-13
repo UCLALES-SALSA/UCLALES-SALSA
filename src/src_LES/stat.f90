@@ -2505,9 +2505,9 @@ contains
     IMPLICIT NONE
 
     INTEGER, INTENT(in)           :: n2,n3,n4                     ! Grid dimensions
-    REAL, INTENT(in)              :: raer(n2,n3,n4*nbins)        ! Array containing the binned 2d-field
-    REAL, OPTIONAL, INTENT(in)    :: rcld(n2,n3,n4*ncld), &
-                                     rprc(n2,n3,n4*nprc), &     ! 2 optional arrays for calculating total removals
+    REAL, INTENT(in)              :: raer(n2,n3,n4*nbins), &      ! Arrays containing the binned 2d-fields
+                                     rcld(n2,n3,n4*ncld), &
+                                     rprc(n2,n3,n4*nprc), &
                                      rice(n2,n3,n4*nice), &
                                      rsnw(n2,n3,n4*nsnw)
 

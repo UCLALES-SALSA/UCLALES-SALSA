@@ -419,10 +419,8 @@ end subroutine tstep_reset
         !                            + ice (a_ri) + snow (a_srs)
         IF (nudge_rv/=0)  THEN
             ALLOCATE(rv_ref(nzp))
-            IF (level==5) THEN
+            IF (level>3) THEN
                 rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)+a_ri(:,3,3)+a_srs(:,3,3)
-            ELSEIF (level==4) THEN
-                rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)
             ELSE ! Levels 0-3
                 rv_ref(:)=a_rp(:,3,3) ! This includes all, so no need to add a_rpp(:,3,3)
             ENDIF
@@ -461,8 +459,8 @@ end subroutine tstep_reset
     ! Water vapor
     IF (nudge_rv>0) THEN
         IF (level>3) THEN
-            ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain)
-            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+            ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain [+ ice + snow])
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp+a_ri+a_srs,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
         ELSE
             ! Nudge total water (a_rp) based on total + rain
             CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rpp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)

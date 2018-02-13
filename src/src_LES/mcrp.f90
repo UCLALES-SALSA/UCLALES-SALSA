@@ -511,7 +511,7 @@ contains
     USE mo_submctl, ONLY : nbins, ncld, nprc,           &
                                nice,  nsnw,                 &
                                nlim,prlim,  &
-                               rhowa,rhoic
+                               rhowa,rhoic,rhosn
     USE class_ComponentIndex, ONLY : GetIndex, GetNcomp
     IMPLICIT NONE
 
@@ -551,21 +551,21 @@ contains
     REAL :: prnt(n1,n2,n3,nprc), prvt(n1,n2,n3,n4*nprc)  ! Rain number and mass tendencies due to fallout
     REAL :: srnt(n1,n2,n3,nsnw), srvt(n1,n2,n3,n4*nsnw)  ! Snow number and mass tendencies due to fallout
 
-    ! Particle mass removal arrays, given in kg/(m2 s)
+    ! Particle mass removal arrays (kg/m^2/s)
     REAL :: remaer(n2,n3,n4*nbins),   &
             remcld(n2,n3,n4*ncld),    &
             remprc(n2,n3,n4*nprc),    &
             remice(n2,n3,n4*nice),    &
             remsnw(n2,n3,n4*nsnw)
 
-    ! Particle number removal arrays
+    ! Particle number removal arrays (#/m^2/s)
     REAL :: andep(n2,n3,nbins),     &
             cndep(n2,n3,ncld),      &
             indep(n2,n3,nice)
 
     REAL :: mctmp(n2,n3) ! Helper for mass conservation calculations
 
-    ! Divergence fields
+    ! Divergence fields (kg/kg/s and #/kg/s)
     REAL :: amdiv(n1,n2,n3,n4*nbins),    &
             cmdiv(n1,n2,n3,n4*ncld),     &
             imdiv(n1,n2,n3,n4*nice)
@@ -574,6 +574,7 @@ contains
             indiv(n1,n2,n3,nice)
 
 
+    andep = 0.; cndep = 0.; indep = 0.
     remaer = 0.; remcld = 0.; remprc = 0.; remice = 0.; remsnw = 0.
 
     ! Sedimentation for slow (non-precipitating) particles
@@ -645,7 +646,7 @@ contains
     ! ---------------------------------------------------------
     ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
     IF (sed_precp) THEN
-       CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,rowt,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate,3)
+       CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,rhowa,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate,3)
 
        nprecpt(:,:,:,:) = nprecpt(:,:,:,:) + prnt(:,:,:,:)/tstep
        mprecpt(:,:,:,:) = mprecpt(:,:,:,:) + prvt(:,:,:,:)/tstep
@@ -666,7 +667,7 @@ contains
     END IF
 
     IF (sed_snow) THEN
-       CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,rowt,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate,5)
+       CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,rhosn,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate,5)
 
        nsnowt(:,:,:,:) = nsnowt(:,:,:,:) + srnt(:,:,:,:)/tstep
        msnowt(:,:,:,:) = msnowt(:,:,:,:) + srvt(:,:,:,:)/tstep
@@ -811,8 +812,8 @@ contains
 
           ! Deposition flux to surface
           k=2
-          depflxm(i,j,:) = -rflm(k,:)*dzt(k)
-          depflxn(i,j,:) = -rfln(k,:)*dzt(k)
+          depflxm(i,j,:) = -rflm(k,:)*adn(k,i,j) ! kg/m^2/s
+          depflxn(i,j,:) = -rfln(k,:)*adn(k,i,j) ! #/m^2/s
 
        END DO ! i
     END DO ! j
