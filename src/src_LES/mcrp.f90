@@ -876,7 +876,7 @@ contains
                 IF (numc(k,i,j,bin)<clim) CYCLE
 
 
-                C = 0.09*mass(k,i,j,bin)**bc
+                C = 0.09*sum(mass(k,i,j, bin:(n4-1)*nn + bin:nn ))**bc
                 D = pi*C
 
                 ! Terminal velocity

@@ -148,7 +148,12 @@ global jarjestys
 
 if __name__ == "__main__":
     if saveFig:
-        picturefolder='./pictures/'
+        
+        kuvavaliliite = raw_input("Give custom picturefolder tag: ")
+        if len(kuvavaliliite) > 0:
+            kuvavaliliite = '_' + kuvavaliliite
+            
+        picturefolder='./pictures' + kuvavaliliite + '/'
         if not os.path.exists( picturefolder ):
             os.makedirs( picturefolder )
 
@@ -2146,7 +2151,7 @@ if ICE:
         
         #piirra_domainProfiili( 'w_2', longName = "vertical velocity squared " + r'$m^{2}/s^{-2}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.RdPu, profiili = True, spinup = spinup )
         
-        piirra_domainProfiili( 'rflx', longName = "Radiative cooling " + r'$W/m^{2}$', useDN = False, transpose = True, profiili = True, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.bwr, spinup = spinup, radCool = True, cloudBaseTop = True )
+        #piirra_domainProfiili( 'rflx', longName = "Radiative cooling " + r'$W/m^{2}$', useDN = False, transpose = True, profiili = True, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.bwr, spinup = spinup, radCool = True, cloudBaseTop = True )
         
         piirra_profiiliKehitys( 'theta',  variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Potential temperature', xlabel = r'$\theta$' + ' [K]', ylabel = 'z [m]', savePrefix = 'theta_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, asetaRajat = False )
         
@@ -2168,7 +2173,7 @@ if ICE:
 
         #piirra_domainProfiili( 'i', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup  )
         
-        piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = np.arange(0.,7.1, 1), colorBarTickNames = map( str, map(int, np.arange(0.,7.1, 1))), xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE
+        piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE, colorBarTickValues = cbvalICE
         
         #piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Blues, spinup = spinup, profiili = True  )
         
