@@ -684,7 +684,7 @@ class colorPool:
         if colorNumber > 7:
             self.colors    = cycle( [colorMap(i) for i in np.linspace(0, 0.95, colorNumber)] )
         else:
-            self.colors = cycle( ['r','k','b','g','c','m','y'][:colorNumber] )
+            self.colors = cycle( ['r','b','k','g','c','m','y'][:colorNumber] )
 
         self.currentColor = next(self.colors)
 

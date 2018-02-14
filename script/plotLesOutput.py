@@ -2111,6 +2111,8 @@ if ICE:
     
     diamVari = profiiliVariICE #[plt.cm.tab20(3),plt.cm.tab20(2),plt.cm.tab20c(1), plt.cm.tab20c(0),plt.cm.tab20c(7),plt.cm.tab20c(6),plt.cm.tab20c(5),plt.cm.tab20c(4),plt.cm.tab20c(11),plt.cm.tab20c(10),plt.cm.tab20c(9),plt.cm.tab20c(8) ]
     
+    if len(arguments)-1>1:
+        icevari = False
     
     
     if int(lvl)>=4:
