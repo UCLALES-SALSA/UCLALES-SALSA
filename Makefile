@@ -121,8 +121,8 @@ ifeq ($(COMP),taitointel)
 
 	ifeq ($(RUNTYPE),fast)
 		# Optimized
-		FFLAGS		= -O2 -march=native -real-size 64 -convert big_endian -fpe0
-		F77FLAGS	= -O2 -march=native -real-size 64 -convert big_endian -fpe0
+		FFLAGS		= -O2 -march=native -real-size 64 -fp-model precise -convert big_endian -fpe0
+		F77FLAGS	= -O2 -march=native -real-size 64 -fp-model precise -convert big_endian -fpe0
 	else
 		# Debug
 		FFLAGS		= -O2 -march=native -real-size 64 -convert big_endian -fpe0 -fp-model source -fp-model precise -g -traceback -integer-size 32 -check bounds
