@@ -69,95 +69,91 @@ MODULE emission_main
     INTEGER :: nprof
     INTEGER :: mb1,mb12,mb2,mb22,nc1,nc2
     REAL :: core(nbins), naero(1,1,nbins)
-    TYPE(EmitConfig), POINTER :: emd => NULL()
-    TYPE(EmitSizeDist), POINTER :: edt => NULL()
 
     DO nprof = 1,nEmissionModes
 
-       ! Use pointers for individual emission configuration and data instances to clean up the code
-       emd => emitModes(nprof)
-       edt => emitData(nprof)
+       ASSOCIATE(emd => emitModes(nprof), edt => emitData(nprof))
+
+         WRITE(*,*) ''
+         WRITE(*,*) '------------------------------------'
+         WRITE(*,*) TRIM(name)//': INITIALIZING EMISSION PROFILE NO ',nprof
+         
+         ! The aerosol species specified for emission MUST also be active in SALSA configuration
+         IF ( .NOT. spec%isUsed(emd%species) ) THEN
+            CALL errorMessage(global_name, name, &
+                 'Attempt to emit <'//TRIM(emd%species)//'> but the compound '// &
+                 'is not set to be used in the SALSA namelist.')
+            STOP
+         END IF
+         
+         ! Initialize the emission size distribution arrays
+         ALLOCATE( edt%numc(nbins), edt%mass(nbins*spec%getNSpec()) )
+         edt%numc(:) = 0.; edt%mass(:) = 0.
+         
+         IF (emd%emitType == 1) THEN       ! Parameterized sea salt emissions
+            
+            WRITE(*,*) 'SEA SALT EMISSIONS; NO INITIALIZATION IMPLEMENTED (NOR NEEDED?)'
+            edt%numc(:) = 0.; edt%mass(:) = 0. ! i.e. do nothing
+            
+         ELSE IF (emd%emitType == 2) THEN  ! Artificial emission
+            
+            ! Index limits for the regimes
+            CALL regime_limits(emd%regime,st,en)
+            
+            IF (emd%emitSizeDistType == 1 ) THEN ! Monochromatic aerosol
+               
+               ! Determine the destination bin of the monochromatic emission from the
+               ! specified diameter
+               ibin = smaller(aerobins(st:en),emd%emitDiam) - 1
+               
+               ! Get bin indices for emitted mass tendencies (in addition to specified species, put also
+               ! some water due to current limitations in condensation in mo_salsa_dynamics. Review this later!)
+               CALL bin_indices(nprof,nbins,st,en,   &
+                                nc1, nc2, mb1, mb2,  &
+                                mb12, mb22, ibin=ibin)
+               
+               ! Place the emission number and mass concentrations to the emission data instance
+               edt%numc(st+ibin) = emd%emitNum
+               edt%mass(mb1) = emd%emitNum *   &
+                    (pi6*emd%emitDiam**3)*spec%rholiq(nc1)
+               ! Small amount of water due the condensation issue
+               edt%mass(mb2) = 0.001 * edt%mass(mb1)
+               
+            ELSE IF (emd%emitSizeDistType == 2 ) THEN! Lognormal mode
+               
+               ! Consider specified emitNum and emitDiam as lognormal mode values. Also emitSigma needs to be specified here
+               
+               ! First, get the core volume of single particle in each aerosol bin based on the bin mean diameter
+               core(:) = pi6 * aero(1,1,:)%dmid**3
+               
+               ! Get the binned size distribution (brackets used because size_distribution expects arrays for mode values)
+               CALL size_distribution(1,1,1,1,[emd%emitNum],    &
+                                              [emd%emitDiam],   &
+                                              [emd%emitSigma],  &
+                                               naero)
+               !naero = 1.
+
+               ! -- Get the indices for emitted species and water.
+               CALL bin_indices(nprof,nbins,st,en,  &
+                                nc1, nc2, mb1, mb2, &
+                                mb12, mb22          )
+               
+               ! Set the emission number and mass concentrations to the emission data instance
+               edt%numc(st:en) = naero(1,1,st:en)
+               edt%mass(mb1:mb12) = naero(1,1,st:en)*core(st:en)*spec%rholiq(nc1)
+               ! Small amount of water
+               edt%mass(mb2:mb22) = 0.001 * edt%mass(mb1:mb12)
+               
+            END IF
+            
+         END IF
        
-       WRITE(*,*) ''
-       WRITE(*,*) '------------------------------------'
-       WRITE(*,*) TRIM(name)//': INITIALIZING EMISSION PROFILE NO ',nprof
-
-       ! The aerosol species specified for emission MUST also be active in SALSA configuration
-       IF ( .NOT. spec%isUsed(emd%species) ) THEN
-          CALL errorMessage(global_name, name, &
-               'Attempt to emit <'//TRIM(emd%species)//'> but the compound '// &
-               'is not set to be used in the SALSA namelist.')
-          STOP
-       END IF
-
-       ! Initialize the emission size distribution arrays
-       ALLOCATE( edt%numc(nbins), edt%mass(nbins*spec%getNSpec()) )
-       edt%numc(:) = 0.; edt%mass(:) = 0.
-
-       IF (emd%emitType == 1) THEN       ! Parameterized sea salt emissions
-
-          WRITE(*,*) 'SEA SALT EMISSIONS; NO INITIALIZATION IMPLEMENTED (NOR NEEDED?)'
-          edt%numc(:) = 0.; edt%mass(:) = 0. ! i.e. do nothing
-
-       ELSE IF (emd%emitType == 2) THEN  ! Artificial emission
-          
-          ! Index limits for the regimes
-          CALL regime_limits(emd%regime,st,en)
-
-          IF (emd%emitSizeDistType == 1 ) THEN ! Monochromatic aerosol
-             
-             ! Determine the destination bin of the monochromatic emission from the
-             ! specified diameter
-             ibin = smaller(aerobins(st:en),emd%emitDiam) - 1
-
-             ! Get bin indices for emitted mass tendencies (in addition to specified species, put also
-             ! some water due to current limitations in condensation in mo_salsa_dynamics. Review this later!)
-             CALL bin_indices(nprof,nbins,st,en,   &
-                              nc1, nc2, mb1, mb2,  &
-                              mb12, mb22, ibin=ibin)
-             
-             ! Place the emission number and mass concentrations to the emission data instance
-             edt%numc(st+ibin) = emd%emitNum
-             edt%mass(mb1) = emd%emitNum *   &
-                  (pi6*emd%emitDiam**3)*spec%rholiq(nc1)
-             ! Small amount of water due the condensation issue
-             edt%mass(mb2) = 0.001 * edt%mass(mb1)
-
-          ELSE IF (emd%emitSizeDistType == 2 ) THEN! Lognormal mode
-
-             ! Consider specified emitNum and emitDiam as lognormal mode values. Also emitSigma needs to be specified here
-
-             ! First, get the core volume of single particle in each aerosol bin based on the bin mean diameter
-             core(:) = pi6 * aero(1,1,:)%dmid**3
-
-             ! Get the binned size distribution (brackets used because size_distribution expects arrays for mode values)
-             CALL size_distribution(1,1,1,[emd%emitNum],    &
-                                          [emd%emitDiam],   &
-                                          [emd%emitSigma],  &
-                                          naero)
-
-             ! -- Get the indices for emitted species and water.
-             CALL bin_indices(nprof,nbins,st,en,  &
-                              nc1, nc2, mb1, mb2, &
-                              mb12, mb22          )
-
-             ! Set the emission number and mass concentrations to the emission data instance
-             edt%numc(st:en) = naero(1,1,st:en)
-             edt%mass(mb1:mb12) = naero(1,1,st:en)*core(st:en)*spec%rholiq(nc1)
-             ! Small amount of water
-             edt%mass(mb2:mb22) = 0.001 * edt%mass(mb1:mb12)
-
-          END IF
-
-       END IF 
+         ! Set up the emission levels. This will preferentially use the level indices, except if they're not given by the namelist
+         CALL init_emission_heights(emd)
        
-       ! Set up the emission levels. This will preferentially use the level indices, except if they're not given by the namelist
-       CALL init_emission_heights(emd)
-       
+       END ASSOCIATE
+
     END DO
-
-    emd => NULL()
-    edt => NULL()
 
     WRITE(*,*) '-------------------------------------'
     WRITE(*,*) ''
@@ -269,6 +265,10 @@ MODULE emission_main
     nc_emit  = spec%getIndex(emitModes(nprof)%species)
     nc_h2o  = spec%getIndex("H2O")
 
+    WRITE(*,*) name,'---------------------------------'
+    WRITE(*,*) nc_emit, nc_h2o
+    WRITE(*,*) '--------------------------------------'
+
     IF ( PRESENT(ibin) ) THEN
        mb_emit_1 = getMassIndex(nbins,st+ibin,nc_emit)
        mb_h2o_1 = getMassIndex(nbins,st+ibin,nc_h2o)       
@@ -297,24 +297,14 @@ MODULE emission_main
     REAL, INTENT(in) :: time_in   ! time in seconds
     LOGICAL :: condition
     INTEGER :: pr
-    TYPE(EmitConfig), POINTER :: emd
-    TYPE(EmitSizeDist), POINTER   :: edt
 
-    !WRITE(*,*) '======================================'
-    !WRITE(*,*) 'CALCULATING EMISSIONS'
-    !WRITE(*,*) '======================================'
-
-    emd => NULL()
-    edt => NULL()
     ! Loop over all specified emission profiles
     DO pr = 1,nEmissionModes
-       emd => emitModes(pr)
-       edt => emitData(pr)
-       condition = getCondition(emd,time_in)
-       IF (condition .AND. emd%emitType == 2) CALL custom_emission(edt,emd)
+       ASSOCIATE(emd => emitModes(pr), edt => emitData(pr))
+         condition = getCondition(emd,time_in)
+         IF (condition .AND. emd%emitType == 2) CALL custom_emission(edt,emd)
+       END ASSOCIATE
     END DO
-    emd => NULL()
-    edt => NULL()
 
   END SUBROUTINE aerosol_emission
 

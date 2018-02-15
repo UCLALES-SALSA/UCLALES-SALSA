@@ -198,7 +198,7 @@ CONTAINS
          CALL nudge_any(nxp,nyp,nzp,zt,a_vp,dtlt,time,    &
                         ndg_v,v_ref,a_vt)
 
-      ! Aerosol !!!!!!!!!!!!!!!!!!!!!!!!! MUUTA
+      ! Aerosol 
       IF (level > 3 .AND. ndg_aero%nudgetype > 0) THEN
          ! Target aerosol concentration = total(t=0)-cloud(t)-ice(t)
          aero_target(:,:) = aero_ref(:,:)

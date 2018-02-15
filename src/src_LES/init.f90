@@ -776,7 +776,7 @@ CONTAINS
  SUBROUTINE aerosol_init(nspec)
 
     USE mo_salsa_sizedist, ONLY : size_distribution
-    USE mo_submctl, ONLY : aero, pi6, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
+    USE mo_submctl, ONLY : aero, pi6, nmod, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
                            sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp
     USE mpi_interface, ONLY : myid
     USE util, ONLY : getMassIndex
@@ -889,7 +889,7 @@ CONTAINS
        ! Convert to SI
        n = n*1.e6
        dpg = dpg*1.e-6
-       CALL size_distribution(1,1,1, n, dpg, sigmag, nsect)
+       CALL size_distribution(1,1,1, nmod, n, dpg, sigmag, nsect)
        DO ss = 1, nbins
           pndist(:,ss) = nsect(1,1,ss)
        END DO
@@ -1114,7 +1114,7 @@ CONTAINS
  ! Get the binned size distribution
  znsect = 0.
  DO k = 1, nc_levs
-    CALL size_distribution(1,1,1,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
+    CALL size_distribution(1,1,1,nmod,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
     znsect(k,:) = nsect(1,1,:)
  END DO
 

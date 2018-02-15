@@ -67,10 +67,6 @@ CONTAINS
 
       USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
                              nice,nsnw,ntotal,                    &
-                             !rhoic,rhosn,                  &
-                             !rhowa, rhosu, rhobc, rhooc,   &
-                             !rhono, rhonh, rhoss, rhodu,   &
-                             !rhlim, lscndgas, nlim, prlim, &
                              aero, cloud, precp, ice, snow  ! The specific particle types are here for convenience, where needed.
       USE mo_salsa, ONLY : salsa
       USE mo_salsa_properties, ONLY  : equilibration
@@ -127,35 +123,21 @@ CONTAINS
       TYPE(Section) :: actd(kbdim,klev,ncld) ! Activated droplets - for interfacing with SALSA
 
       ! Helper arrays for calculating the rates of change
-      TYPE(Section) :: aero_old(1,1,nbins), cloud_old(1,1,ncld), precp_old(1,1,nprc), ice_old(1,1,nice), snow_old(1,1,nsnw)
+      TYPE(Section) :: aero_old(kbdim,klev,nbins), cloud_old(kbdim,klev,ncld),    &
+                       precp_old(kbdim,klev,nprc), ice_old(kbdim,klev,nice),      &
+                       snow_old(1,1,nsnw)
 
       INTEGER :: jj,ii,kk,ss,str,end, nc,vc, ndry
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
               in_w(kbdim,klev), in_rsi(kbdim,klev), in_pdn(kbdim,klev)
       REAL :: rv_old(kbdim,klev)
 
-      actd(:,:,:) = Section()
-      aero_old(:,:,:) = Section()
-      cloud_old(:,:,:) = Section()
-      precp_old(:,:,:) = Section()
-      ice_old(:,:,:) = Section()
-      snow_old(:,:,:) = Section()
-
-      ! Not needed?
-      ! Number is always set, but mass can be uninitialized
-      !DO ss = 1, spec%getNSpec()
-      !   actd(:,:,:)%volc(ss) = 0.
-      !   aero(:,:,:)%volc(ss) = 0.
-      !   cloud(:,:,:)%volc(ss) = 0.
-      !   precp(:,:,:)%volc(ss) = 0.
-      !   ice(:,:,:)%volc(ss) = 0.
-      !   snow(:,:,:)%volc(ss) = 0.
-      !   aero_old(:,:,:)%volc(ss) = 0.
-      !   cloud_old(:,:,:)%volc(ss) = 0.
-      !   precp_old(:,:,:)%volc(ss) = 0.
-      !   ice_old(:,:,:)%volc(ss) = 0.
-      !   snow_old(:,:,:)%volc(ss) = 0.
-      !END DO
+      actd(:,:,:) = Section(1)
+      aero_old(:,:,:) = Section(1)
+      cloud_old(:,:,:) = Section(1)
+      precp_old(:,:,:) = Section(1)
+      ice_old(:,:,:) = Section(2)
+      snow_old(:,:,:) = Section(3)
 
       ! Set the SALSA runtime config 
       CALL set_salsa_runtime(prunmode)

@@ -3,7 +3,7 @@ MODULE mo_salsa_sizedist
 
 CONTAINS
 
-   SUBROUTINE size_distribution( kproma, kbdim, klev, &
+   SUBROUTINE size_distribution( kproma, kbdim, klev, nmod, &
                                  n, dpg, sigmag, naero)
 
       USE mo_submctl, ONLY :      &
@@ -16,7 +16,8 @@ CONTAINS
       USE mo_salsa_driver, ONLY : aero ! This is needed for size bins spacings
       IMPLICIT NONE
 
-      INTEGER, PARAMETER :: nmod = 7
+      !INTEGER, PARAMETER :: nmod = 7
+      INTEGER, INTENT(in) :: nmod
 
       INTEGER, INTENT(IN) ::      &
          kproma,                    & ! number of horiz. grid points

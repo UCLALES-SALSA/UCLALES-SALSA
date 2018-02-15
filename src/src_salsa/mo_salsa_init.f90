@@ -25,7 +25,7 @@ CONTAINS
 
   SUBROUTINE set_masterbins(dumaero, dumcloud, dumprecp, dumice, dumsnow)
     USE classSection
-    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw, ntotal, aero, cloud, precp, ice, snow, spec
+    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw, ntotal, aero, cloud, precp, ice, snow, liquid, frozen, spec
     USE mo_salsa_driver, ONLY : kbdim, klev, allSALSA
     TYPE(Section), INTENT(in) :: dumaero(:,:,:), dumcloud(:,:,:),  &
                                  dumprecp(:,:,:), dumice(:,:,:),   &
@@ -39,24 +39,40 @@ CONTAINS
 
     ! Allocate the combined particle size distribution array
     ALLOCATE(allSALSA(kbdim,klev,ntotal))
-    allSALSA(:,:,:) = Section()
+    allSALSA(:,:,:) = Section(0)
 
     ! Associate pointers for specific particle types
-    lo = 1; hi = nbins
+    lo = 1 
+    hi = nbins
     aero => allSALSA(:,:,lo:hi)
     
-    lo = lo + nbins; hi = hi + ncld
+    lo = hi + 1 
+    hi = hi + ncld
     cloud => allSALSA(:,:,lo:hi)
 
-    lo = lo + ncld; hi = hi + nprc
+    lo = hi + 1 
+    hi = hi + nprc
     precp => allSALSA(:,:,lo:hi)
 
-    lo = lo + nprc; hi = hi + nice
+    lo = hi + 1 
+    hi = hi + nice
     ice => allSALSA(:,:,lo:hi)
 
-    lo = lo + nice; hi = hi + nsnw
+    lo = hi + 1 
+    hi = hi + nsnw
     snow => allSALSA(:,:,lo:hi)
  
+    ! Associate some (potentially helpful) subcollections 
+    ! (note: for this it is necessary to have all the particles containing liquid water consecutively, and then ice containing particles
+    !  consecutively so that the indexing works)
+    lo = 1
+    hi = nbins + ncld + nprc
+    liquid => allSALSA(:,:,lo:hi)
+    
+    lo = nbins + ncld + nprc + 1
+    hi = nbins + ncld + nprc + nice + nsnw
+    frozen => allSALSA(:,:,lo:hi)
+
     ! Copy the dummy size distributions to actual size dists.
     aero = dumaero
     cloud = dumcloud
@@ -148,13 +164,10 @@ CONTAINS
      ! Allocate and initialize the dummy aerosol tracers
      !--------------------------------------------------
      ALLOCATE(dumaero(kbdim,klev,nbins))
-     dumaero(:,:,:) = Section()
+     dumaero(:,:,:) = Section(1)
      
      DO jj = 1, klev
         DO ii = 1, kbdim
-           
-           ! Phase of water for this particle category (assume liquid)
-           dumaero(ii,jj,:)%phase=1
            
            !-- 1) size regime 1: --------------------------------------
            !  - minimum & maximum *dry* volumes [fxm]
@@ -289,15 +302,11 @@ CONTAINS
       ! Allocate cloud and precipitation arrays
       ! ----------------------------------------
       ALLOCATE(dumcloud(kbdim,klev,ncld), dumprecp(kbdim,klev,nprc))
-      dumcloud(:,:,:) = Section()
-      dumprecp(:,:,:) = Section()
+      dumcloud(:,:,:) = Section(1)
+      dumprecp(:,:,:) = Section(1)
 
       DO jj = 1, klev
          DO ii = 1, kbdim
-
-            ! Phase of water for these particle categories (assume liquid)
-            dumcloud(ii,jj,:)%phase = 1
-            dumprecp(ii,jj,:)%phase = 1
 
             ! -------------------------------------------------
             ! Set cloud properties (parallel to aerosol bins)
@@ -416,15 +425,11 @@ CONTAINS
      ! Allocate ice arrays
      ! ----------------------------------------
      ALLOCATE(dumice(kbdim,klev,nice), dumsnow(kbdim,klev,nsnw))
-     dumice(:,:,:) = Section()
-     dumsnow(:,:,:) = Section()
+     dumice(:,:,:) = Section(2)
+     dumsnow(:,:,:) = Section(3)
      
      DO jj = 1, klev
         DO ii = 1, kbdim
-           
-           ! Phase of water for these particle categories (assume ice)
-           dumice(ii,jj,:)%phase = 2 
-           dumsnow(ii,jj,:)%phase = 3
            
            ! -------------------------------------------------
            ! Set iceproperties (parallel to aerosol bins) 

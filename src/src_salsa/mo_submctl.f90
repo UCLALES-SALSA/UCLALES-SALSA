@@ -23,7 +23,10 @@ MODULE mo_submctl
                             cloud(:,:,:) => NULL(),  &
                             precp(:,:,:) => NULL(),  &
                             ice(:,:,:)   => NULL(),    &
-                            snow(:,:,:)  => NULL()
+                            snow(:,:,:)  => NULL(),   &
+                            liquid(:,:,:) => NULL(),  &
+                            frozen(:,:,:) => NULL()
+
 
   
   !Switches for SALSA aerosol microphysical processes

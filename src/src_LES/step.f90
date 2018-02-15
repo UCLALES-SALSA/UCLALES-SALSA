@@ -574,29 +574,29 @@ CONTAINS
    ! Subroutine buoyancy:
    !
    SUBROUTINE buoyancy
-
-      USE grid, ONLY : a_uc, a_vc, a_wc, a_wt, a_rv, a_rc, a_theta, &
-                       a_rp, a_srp, a_ri, a_srs, nxp, nyp, nzp, dzm, th00, level, pi1
-      USE stat, ONLY : sflg, comp_tke
-      USE util, ONLY : ae1mm
-      USE thrm, ONLY : update_pi1
-
-      REAL :: awtbar(nzp), a_tmp1(nzp,nxp,nyp), rv(nzp,nxp,nyp), rc(nzp,nxp,nyp)
-
-      IF (level < 4) THEN
-       rv = a_rv ! Water vapor
-       rc = a_rp - a_rv ! Total condensate (cloud + precipitation)
-      ELSE IF (level >= 4) THEN
-       rv = a_rp ! Water vapor
-       rc = a_rc + a_srp + a_ri + a_srs ! Total condensed water (aerosol+cloud+precipitation+ice+snow)
-      END IF
-    call boyanc(nzp,nxp,nyp,a_wt,a_theta,rv,th00,a_tmp1,rc)
-
-      CALL ae1mm(nzp,nxp,nyp,a_wt,awtbar)
-      CALL update_pi1(nzp,awtbar,pi1)
-
-      IF (sflg)  CALL comp_tke(nzp,nxp,nyp,dzm,th00,a_uc,a_vc,a_wc,a_tmp1)
-
+     
+     USE grid, ONLY : a_uc, a_vc, a_wc, a_wt, a_rv, a_rc, a_theta, &
+          a_rp, a_srp, a_ri, a_srs, nxp, nyp, nzp, dzm, th00, level, pi1
+     USE stat, ONLY : sflg, comp_tke
+     USE util, ONLY : ae1mm
+     USE thrm, ONLY : update_pi1
+     
+     REAL :: awtbar(nzp), a_tmp1(nzp,nxp,nyp), rv(nzp,nxp,nyp), rc(nzp,nxp,nyp)
+     
+     IF (level < 4) THEN
+        rv = a_rv ! Water vapor
+        rc = a_rp - a_rv ! Total condensate (cloud + precipitation)
+     ELSE IF (level >= 4) THEN
+        rv = a_rp ! Water vapor
+        rc = a_rc + a_srp + a_ri + a_srs ! Total condensed water (aerosol+cloud+precipitation+ice+snow)
+     END IF
+     call boyanc(nzp,nxp,nyp,a_wt,a_theta,rv,th00,a_tmp1,rc)
+     
+     CALL ae1mm(nzp,nxp,nyp,a_wt,awtbar)
+     CALL update_pi1(nzp,awtbar,pi1)
+     
+     IF (sflg)  CALL comp_tke(nzp,nxp,nyp,dzm,th00,a_uc,a_vc,a_wc,a_tmp1)
+     
    END SUBROUTINE buoyancy
    !
    ! ----------------------------------------------------------------------
@@ -724,8 +724,6 @@ CONTAINS
       USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,              &
                              in1a,fn2a,fn2b,                        &
                              nice,nsnw,iia,fia,iib,fib,isa,fsa,                    &
-                             !rhosu,rhowa,rhoic,rhosn,      &
-                             !msu,moc,mno,mnh,mss,mwa,avog,pi6,                     &
                              spec, surfw0, rg, nlim, prlim, pi, &
                              lscndgas, pi6, avog
 

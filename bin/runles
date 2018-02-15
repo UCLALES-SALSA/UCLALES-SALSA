@@ -13,21 +13,21 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
+IsSeq=2 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
-EXPNAME="Cu_const_pbl_24.197_54.496_SSb_Tnudge"  # Name of the experiment
+EXPNAME="production_version"  # Name of the experiment
 
-NPROCS=1          # Number of processors (for IsSeq==0)
+NPROCS=2          # Number of processors (for IsSeq==0)
 TWALL=5:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
 NYP=50              # Number of points in Y-direction (including "halo" points)
-NZP=100              # Number of points in Z-direction
+NZP=150              # Number of points in Z-direction
 DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=3600.        # Length of the spinup period (seconds)
+Tspinup=300.        # Length of the spinup period (seconds)
 Texp=43200.         # Length of the experiment (seconds)
 LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
@@ -192,7 +192,7 @@ cat > NAMELIST <<EOF
    !nlichom     = .FALSE.     ! Switch for homogeneous ice nucleation
    !nlichet     = .FALSE.     ! Switch for heterogeneous ice nucleation
    !nlicimmers  = .FALSE.   ! Switch for ice nucleation by immersion
-   nlicmelt    = .FALSE.    ! Switch for ice'n' snow melting
+   !nlicmelt    = .FALSE.    ! Switch for ice'n' snow melting
 
    rhlim = 1.2          ! RH limit for SALSA during initialization and spinup
 
@@ -205,7 +205,7 @@ cat > NAMELIST <<EOF
 
    sigmag = 1.2, 1.7, 2.0, 2.0, 2.0, 2.0, 2.0  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpg = 0.022, 0.12, 0.2, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   n = 225., 95., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3
+   n = 400., 300., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3
  
  /
 

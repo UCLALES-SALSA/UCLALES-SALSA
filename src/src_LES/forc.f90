@@ -83,6 +83,10 @@ CONTAINS
     !
     IF (lnudging) CALL nudging(time)
 
+    !
+    ! Aerosol emissions
+    ! --------------------
+    !
     IF (lemission .AND. level >= 4) CALL aerosol_emission(time)
 
     SELECT CASE(iradtyp)
