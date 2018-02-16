@@ -261,14 +261,6 @@ CONTAINS
             CALL update_sclrs
             CALL tend0(.TRUE.)
 
-            ! Rate of change in absolute temperature (for some ice processes)
-            IF (time >= 1.) THEN
-               a_temp0 = a_temp
-            ELSE IF (time == 0.) THEN
-               a_temp0 = a_temp
-               ztkt = 0.
-            END IF
-
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                ! 1D -runs
                CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &

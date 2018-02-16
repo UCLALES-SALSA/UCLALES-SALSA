@@ -353,28 +353,25 @@ MODULE mo_submctl
     REAL, INTENT(IN) :: T ! Absolute temperature (K)
     REAL :: dwet
 
-    !   #  Name Diss
-    !   1   SO4   3
-    !   2   OC     1
-    !   3   BC     0
-    !   4   DU    0
-    !   5   SS     2
-    !   6   NH    1
-    !   7   NO    1
-    !   8   H2O
+    REAL :: znw,zns ! Moles of water and soluble material
+    INTEGER :: iwa, ndry ! Index for water, number of "dry" species
+    INTEGER :: i
+
+    iwa = spec%getIndex("H2O")
+    ndry = spec%getNSpec(type="dry")
 
     ! Wet diameter
     dwet = (SUM(part%volc(:))/part%numc/pi6)**(1./3.)
 
     ! Equilibrium saturation ratio = xw*exp(4*sigma*v_w/(R*T*Dwet))
-    calc_Sw_eq = part%volc(8)*spec%rhowa/spec%mwa /  &
-                       (3.*part%volc(1)*spec%rhosu/spec%msu +   &
-                           part%volc(2)*spec%rhooc/spec%moc +   &
-                        2.*part%volc(5)*spec%rhoss/spec%mss +   &
-                           part%volc(6)*spec%rhonh/spec%mnh +   &
-                           part%volc(7)*spec%rhono/spec%mno +   &
-                           part%volc(8)*spec%rhowa/spec%mwa) *  &
-                       exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
+    
+    znw = part%volc(iwa)*spec%rhowa/spec%mwa
+    zns = 0.
+    DO i = 1,ndry
+       zns = zns + spec%diss(i)*part%volc(i)*spec%rholiq(i)/spec%MM(i)
+    END DO
+
+    calc_Sw_eq = (znw/(zns+znw))/exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
 
   END FUNCTIOn calc_Sw_eq
 

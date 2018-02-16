@@ -1209,10 +1209,10 @@ CONTAINS
          zn_vs_c,                    & ! ratio of nucleation of all mass transfer in the smallest bin
          zxocnv(kbdim,klev)
 
-      INTEGER :: ico, iso4
+      INTEGER :: ioc, iso4
 
 
-      ico = spec%getIndex("OC",notFoundValue = 0)
+      ioc = spec%getIndex("OC",notFoundValue = 0)
       iso4 = spec%getIndex("SO4",notFoundValue = 0)
 
       zj3n3 = 0.
@@ -1683,7 +1683,7 @@ CONTAINS
                      !   Ice may not be that far from a sphere, but most particles are large and at least
                      !   growing particles are covered by a layer of pure ice.
                      zact = 1.0 != acth2o(ice(ii,jj,cc))
-                     zkelvinid(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                     zkelvinid(cc) = exp( 4.*surfi0*spec%mwa / (rg*ptemp(ii,jj)*spec%rhowa*dwet) )
                      
                      ! Saturation mole concentration over flat surface
                      zcwsurfid(cc) = prsi(ii,jj)*rhoair/spec%mwa
@@ -1721,7 +1721,7 @@ CONTAINS
                      !   because these are not known for solid, irregular and non-homogenous particles.
                      !   Especially snow is typically highly irregular (e.g. dendrite).
                      zact = 1.0 !acth2o(snow(ii,jj,cc))
-                     zkelvinsd(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                     zkelvinsd(cc) = exp( 4.*surfi0*spec%mwa / (rg*ptemp(ii,jj)*spec%rhowa*dwet) )
                      
                      ! Saturation mole concentrations over flat surface
                      zcwsurfsd(cc) = prsi(ii,jj)*rhoair/spec%mwa
@@ -1934,7 +1934,6 @@ CONTAINS
 
       ! Assume activity coefficient of 1 for water...
       acth2o = MAX(0.1,znw/max(eps,(znw+zns)))
-   END FUNCTION acth2o
 
       zrho => NULL()
 
