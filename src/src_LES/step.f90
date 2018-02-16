@@ -585,7 +585,7 @@ CONTAINS
      
      IF (level < 4) THEN
         rv = a_rv ! Water vapor
-        rc = a_rp - a_rv ! Total condensate (cloud + precipitation)
+        rc = a_rp - a_rv + a_srp ! Total condensate (cloud + precipitation)
      ELSE IF (level >= 4) THEN
         rv = a_rp ! Water vapor
         rc = a_rc + a_srp + a_ri + a_srs ! Total condensed water (aerosol+cloud+precipitation+ice+snow)
@@ -611,7 +611,7 @@ CONTAINS
                              rv(n1,n2,n3)  ! water vapor
                                       
       REAL, INTENT(in)    :: rc(n1,n2,n3)  ! Total condensed water (aerosol, cloud, rain, ice and snow) mixing ratio
-                                           ! and cloud liquid water mix rat for level = 4 (including rain??)
+
       REAL, INTENT(inout) :: wt(n1,n2,n3)
       REAL, INTENT(out)   :: scr(n1,n2,n3)
 
@@ -913,8 +913,7 @@ CONTAINS
                    CALL binMixrat("ice","dry",bc,i,j,k,zdrms)
                    CALL binMixrat("ice","wet",bc,i,j,k,zwams)
                    zvol = zdrms/zwams
-                   !zvol = SUM( a_micep(k,i,j,bc:getMassIndex(nice,bc,nn-1):nice) ) / &
-                   !     SUM( a_micep(k,i,j,bc:getMassIndex(nice,bc,nn):nice) )
+
                    IF ( zvol>0.5 ) THEN
                       IF (bc<=fia%cur) THEN
                          ba = iia%par + (bc-iia%cur) ! Index for parallel aerosol bin
@@ -948,7 +947,7 @@ CONTAINS
                    CALL binMixrat("snow","dry",bc,i,j,k,zdrms)
                    CALL binMixrat("snow","wet",bc,i,j,k,zwams)
                    zvol = zdrms/zwams
-                   !zvol = SUM( a_msnowp(k,i,j,bc:getMassIndex(nsnw,bc,nn-1):nsnw) )/SUM( a_msnowp(k,i,j,bc:getMassIndex(nsnw,bc,nn):nsnw) )
+
                    IF ( zvol>0.5 ) THEN
                       ! Move evaporating snow to a soluble aerosol bin with
                       ! the closest match in dry particle mass. Ain't perfect but
