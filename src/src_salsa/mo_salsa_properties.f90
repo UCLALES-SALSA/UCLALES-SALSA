@@ -314,8 +314,7 @@ CONTAINS
                    
                    !-- particle wet radius [m] 
                    zdwet = (zlwc/paero(ii,jj,kk)%numc/rhowa/pi6 + &
-                        (SUM(zvpart(6:7))/pi6)**(1./3.) + &
-                        zcore/pi6)**(1./3.)
+                        SUM(zvpart(6:7))/pi6 + zcore/pi6)**(1./3.)
 
                    zke = exp(2.*surfw0*mvsu/(boltz*ptemp(ii,jj)*zdwet))
                    !-- Kelvin effect 
@@ -422,8 +421,7 @@ CONTAINS
                       
                       !-- particle wet radius [m] 
                       zdwet = (zlwc/paero(ii,jj,kk)%numc/rhowa/pi6 +  &
-                           (SUM(zvpart(6:7))/pi6)**(1./3.) + &
-                           zcore/pi6)**(1./3.)
+                           SUM(zvpart(6:7))/pi6 + zcore/pi6)**(1./3.)
 
                       !-- Kelvin effect 
                       zke = exp(2.*surfw0*mvsu/(boltz*ptemp(ii,jj)*zdwet))
