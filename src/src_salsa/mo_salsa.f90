@@ -32,9 +32,9 @@ CONTAINS
          fn2b,                      & ! size section and composition indices
          ncld,                      &
          nprc,                      &
-         nice,                      & ! ice
-         nsnw,                      & ! snow
-         ntotal,                    & ! all
+         nice,                      &
+         nsnw,                      & 
+         ntotal,                    &
          lscoag,                    &
          lscnd,                     &
          lsauto,                    &
@@ -60,7 +60,6 @@ CONTAINS
          ptemp(kbdim,klev),            & ! temperature at each grid point [K]
          ptstep                          ! time step [s]
 
-
       REAL, INTENT(in) ::            & ! Vertical velocity
          pw(kbdim,klev)
 
@@ -71,9 +70,9 @@ CONTAINS
          pc_nh3  (kbdim,klev),      & ! ammonia
          pc_ocnv (kbdim,klev),      & ! nonvolatile organic compound
          pc_ocsv (kbdim,klev),      & ! semivolatile organic compound
-         prv(kbdim,klev),           & ! Water vapour mixing ratio  [kg/m3]
-         prs(kbdim,klev),           & ! Saturation mixing ratio    [kg/m3]
-         prsi(kbdim,klev)              ! Saturation mixing ratio over ice   [kg/m3]
+         prv(kbdim,klev),           & ! Water vapour mixing ratio  [kg/kg]
+         prs(kbdim,klev),           & ! Saturation mixing ratio    [kg/kg]
+         prsi(kbdim,klev)             ! Saturation mixing ratio over ice   [kg/kg]
 
       TYPE(Section), INTENT(inout) :: &
          allSALSA(kbdim,klev,ntotal)

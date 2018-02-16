@@ -43,6 +43,6 @@ MODULE defs
   REAL, PARAMETER :: SolarConstant  = 1.365d+3
   REAL, PARAMETER :: mair   = 28.967 ! molar mass of air
   REAL, PARAMETER :: pi     = 3.14159265358979323846264338327
-  REAL, PARAMETER :: kb     = 1.3806e-23 !Boltzman constant
+  REAL, PARAMETER :: kb     = 1.3807e-23 !Boltzman constant
 
 END MODULE defs

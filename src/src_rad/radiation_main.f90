@@ -7,7 +7,6 @@ MODULE radiation_main
                    a_npp, a_rpp,                      &
                    a_ncloudp, a_nprecpp, a_mprecpp,   &
                    a_nicep, a_nsnowp, a_msnowp,       &
-                   a_nicep,                           &
                    a_rflx, a_sflx,                    &
                    a_fus, a_fds,                      &
                    a_fuir, a_fdir,                    &
@@ -93,7 +92,6 @@ MODULE radiation_main
                        dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
                        a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
                        useMcICA=useMcICA, ConstPrs=RadConstPress)
-
       END IF
 
 

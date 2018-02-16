@@ -1,6 +1,6 @@
 !----------------------------------------------------------------------------
 ! This file is part of UCLALES.
-!testi
+!
 ! UCLALES is free software; you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by
 ! the Free Software Foundation; either version 3 of the License, or
@@ -260,6 +260,14 @@ CONTAINS
             CALL tend_constrain(n4)
             CALL update_sclrs
             CALL tend0(.TRUE.)
+
+            ! Rate of change in absolute temperature (for some ice processes)
+            IF (time >= 1.) THEN
+               a_temp0 = a_temp
+            ELSE IF (time == 0.) THEN
+               a_temp0 = a_temp
+               ztkt = 0.
+            END IF
 
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                ! 1D -runs
@@ -906,7 +914,9 @@ CONTAINS
              DO bc = iia%cur,fib%cur
 
                 IF ( a_nicep(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 ) THEN
+
                    ! Ice and snow don't have a critical size, but lose particles when water content becomes low enough
+
                    ! Lose ice when dry to total mass ratio is more than 0.5
                    CALL binMixrat("ice","dry",bc,i,j,k,zdrms)
                    CALL binMixrat("ice","wet",bc,i,j,k,zwams)
@@ -919,9 +929,11 @@ CONTAINS
                       ELSE
                          ba = iib%par + (bc-iib%cur) ! Index for parallel aerosol bin
                       ENDIF
+
                       ! Move the number of particles from ice to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
                       a_nicep(k,i,j,bc) = 0.
+
                       ! Move mass material back to aerosol regime (including water)
                       DO s = 1,nn
                          sc = getMassIndex(nice,bc,s)
@@ -939,6 +951,7 @@ CONTAINS
              DO bc = isa,fsa
 
                 IF ( a_nsnowp(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 ) THEN
+
                    ! Lose snow when dry to total mass ratio is more than 0.5
                    CALL binMixrat("snow","dry",bc,i,j,k,zdrms)
                    CALL binMixrat("snow","wet",bc,i,j,k,zwams)
@@ -965,6 +978,7 @@ CONTAINS
                          ENDIF
                       ENDDO
                       if (ba==0) STOP 'FAIL: no sink for evaporating snow'
+
                       ! Move the number of particles from cloud to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nsnowp(k,i,j,bc)
                       a_nsnowp(k,i,j,bc) = 0.
@@ -977,6 +991,7 @@ CONTAINS
                          a_msnowp(k,i,j,sc) = 0.
                       END DO
                    END IF
+
                 END IF ! prlim
 
              END DO ! bc

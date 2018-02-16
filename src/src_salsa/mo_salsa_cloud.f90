@@ -631,16 +631,6 @@ CONTAINS
                
             END ASSOCIATE
 
-
-            !aero(ii,jj,ica%par:fcb%par)%numc =   &
-            !   MAX(0., aero(ii,jj,ica%par:fcb%par)%numc - pactd(ica%cur:fcb%cur)%numc)
-            !cloud(ii,jj,ica%cur:fcb%cur)%numc = cloud(ii,jj,ica%cur:fcb%cur)%numc + pactd(ica%cur:fcb%cur)%numc
-            !DO ss = 1, 8
-            !   aero(ii,jj,ica%par:fcb%par)%volc(ss) =  &
-            !      MAX(0., aero(ii,jj,ica%par:fcb%par)%volc(ss) - pactd(ica%cur:fcb%cur)%volc(ss))
-            !   cloud(ii,jj,ica%cur:fcb%cur)%volc(ss) = cloud(ii,jj,ica%cur:fcb%cur)%volc(ss) + pactd(ica%cur:fcb%cur)%volc(ss)
-            !END DO
-
          END DO ! ii
 
       END DO ! jj
@@ -1020,21 +1010,45 @@ CONTAINS
                     pf = 0.
                  ENDIF
 
-                 frac = MIN(1.,pf)
-                 IF (precp(ii,jj,kk)%numc*frac <prlim) CYCLE
-                 
-                 STOP 'Precipition is freezing (not implemented)!'
-                 ! Move to snow bins or ice bins? And which bins?
-                 
+              frac = MIN(1.,pf)
+              IF (pprecp(ii,jj,kk)%numc*frac <prlim) CYCLE
+
+              ! Move to ice bin with closest matching dry volume. Ain't perfect but
+              ! the bin update subroutine in SALSA will take care of the rest.
+              zvol = SUM( pprecp(ii,jj,kk)%volc(1:nspec-1) ) ! Dry volume
+
+              ba=0
+              zvola=-1.
+              DO ss=1,nice
+                IF (pice(kk,ii,ss)%numc>prlim) THEN
+                    zvolnew = SUM( pice(ii,jj,ss)%volc(1:nspec-1) ) ! Dry volume
+                    IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
+                        ! New closest match
+                        ba=ss
+                        zvola=zvolnew
+                    ENDIF
+                ENDIF
+              ENDDO
+              if (ba==0) STOP 'FAIL: no target ice for freezing rain drops'
+
+              DO ss = 1,nspec-1
+                   pice(ii,jj,ba)%volc(ss) = max(0.,pice(ii,jj,ba)%volc(ss) + pprecp(ii,jj,kk)%volc(ss)*frac)
+                   pprecp(ii,jj,kk)%volc(ss) = max(0.,pprecp(ii,jj,kk)%volc(ss) - pprecp(ii,jj,kk)%volc(ss)*frac)
               END DO
-           END IF ! precip_ice
+              ss=iwa
+              pice(ii,jj,ba)%volc(ss) = max(0.,pice(ii,jj,ba)%volc(ss) + pprecp(ii,jj,kk)%volc(ss)*frac*spec%rhowa/spec%rhoic)
+              pprecp(ii,jj,kk)%volc(ss) = max(0.,pprecp(ii,jj,kk)%volc(ss) - pprecp(ii,jj,kk)%volc(ss)*frac)
+
+              pice(ii,jj,ba)%numc = max(0.,pice(ii,jj,ba)%numc + pprecp(ii,jj,kk)%numc*frac)
+              pprecp(ii,jj,kk)%numc = max(0.,pprecp(ii,jj,kk)%numc-pprecp(ii,jj,kk)%numc*frac)
+           END DO
 
            ! Cloud droplets
            IF (cloud_ice) THEN
               DO kk = 1,ncld
                  IF (cloud(ii,jj,kk)%numc<nlim) CYCLE
 
-                 ! Get the insoluble volume concentration
+                   ! Get the insoluble volume concentration
                  zinsol = 0.
                  zinsol = zinsol + MERGE(cloud(ii,jj,kk)%volc(ibc), 0., ibc > 0)
                  zinsol = zinsol + MERGE(cloud(ii,jj,kk)%volc(idu), 0., idu > 0)                 
@@ -1303,6 +1317,7 @@ CONTAINS
                                rhowa,       &
                                rd,         &
                                nlim, fixinc
+
      IMPLICIT NONE
      INTEGER, INTENT(in) :: kproma,kbdim,klev
 

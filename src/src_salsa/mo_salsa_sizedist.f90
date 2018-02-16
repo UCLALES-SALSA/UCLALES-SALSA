@@ -7,7 +7,6 @@ CONTAINS
                                  n, dpg, sigmag, naero)
 
       USE mo_submctl, ONLY :      &
-         nreg,                      &
          pi6,                       &
          pi,                        &
          in1a,                      &

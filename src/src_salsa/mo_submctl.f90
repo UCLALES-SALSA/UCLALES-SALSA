@@ -73,11 +73,11 @@ MODULE mo_submctl
              lscnd
   LOGICAL :: nlcndgas   = .FALSE., & ! Condensation of precursor gases
              lscndgas
-  LOGICAL :: nlcndh2ocl = .TRUE., & ! Condensation of water vapour on clouds (drizzle)
+  LOGICAL :: nlcndh2ocl = .TRUE., & ! Condensation of water vapour on clouds and precipitation
              lscndh2ocl
   LOGICAL :: nlcndh2oae = .TRUE., & ! Condensation of water vapour on aerosol particles (FALSE -> equilibrium calc.)
              lscndh2oae
-  LOGICAL :: nlcndh2oic = .TRUE., & ! Condensation of water vapour on ice particles
+  LOGICAL :: nlcndh2oic = .TRUE., & ! Condensation of water vapour on ice and snow
              lscndh2oic
 
   LOGICAL :: nlauto      = .TRUE.,   & ! Autoconversion of cloud droplets (needs activation)

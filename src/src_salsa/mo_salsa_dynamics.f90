@@ -109,7 +109,6 @@ CONTAINS
          iia,fia,iib,fib,            &
          nice, nsnw,                 &
          ntotal,                     &
-         !rhowa,rhoic,rhosn,          &
          spec,                       &
          pi6,                        &
          nlim,prlim,                 &
@@ -170,8 +169,8 @@ CONTAINS
          zdpart(fn2b),   & ! diameter of particles [m]
          zdcloud(ncld),  &   ! diameter of cloud droplets [m]
          zdprecp(nprc),  & ! diameter for rain drops [m]
-         zdice(nice),     & ! diameter for ice particles [m] !!
-         zdsnow(nsnw)     ! diameter for snow particles [m] !!
+         zdice(nice),    & ! diameter for ice [m]
+         zdsnow(nsnw)      ! diameter for snow [m]
 
       REAL :: temppi,pressi
 
@@ -760,7 +759,7 @@ CONTAINS
 
                ! corresponding index for regime b ice
                kk = MAX(cc-fia%cur+nice, iib%cur) ! Regime a has more bins than b:
-                                                      ! Set this at minimum to beginnign of b.
+                                                      ! Set this at minimum to beginning of b.
 
                ! Particles lost by those with larger nucleus in regime a
                DO ll = cc+1, fia%cur
@@ -824,7 +823,7 @@ CONTAINS
                zminusterm = 0.
                zplusterm(:) = 0.
 
-               ! corresponding index for regime a cloud droplets
+               ! corresponding index for regime a
                kk = cc - nice + fia%cur
 
                ! Particles lost by those with larger nucleus in regime b
@@ -1050,7 +1049,7 @@ CONTAINS
       INTEGER :: ppbl(kbdim)           ! Planetary boundary layer top level
 
       REAL, INTENT(INOUT) ::     &
-         prv(kbdim,klev),          & ! Water vapor mixing ratio
+         prv(kbdim,klev),          & ! Water vapor mixing ratio [kg/kg]
          pcsa(kbdim,klev),         & ! sulphuric acid concentration [#/m3]
          pcocnv(kbdim,klev),       & ! non-volatile organic concentration [#/m3]
          pcocsv(kbdim,klev),       & ! semivolatile organic concentration [#/m3]
@@ -1111,15 +1110,14 @@ CONTAINS
          fn2b,                      &
          ncld,                      &
          nprc,                      &
-         nice,                      & ! ice'n'snow
-         nsnw,                      & ! ice'n'snow
+         nice,                      &
+         nsnw,                      &
          ntotal,                    &
          nlim,                      &
          prlim,                     &
          boltz,                     & ! Boltzmann constant [J/K]
          rg,                        & ! molar gas constant [J/(mol K)]
          pstand,                    & ! standard pressure [Pa]
-         !msu,                       & ! molar mass of sulphate [kg/mol]
          mvsu, mvoc,                & ! molecular volumes of sulphate and OC [m3]
          spec,                      &
          aero,cloud,precp,ice,snow, &
@@ -1457,7 +1455,7 @@ CONTAINS
 
             END IF
 
-         END DO ! kproma
+         END DO ! kbdim
 
       END DO ! klev
 
@@ -1476,10 +1474,9 @@ CONTAINS
       USE mo_submctl, ONLY : nbins, ncld, nprc,    &
                              nice, nsnw, ntotal,            &
                              spec,                           &
-                             !rhowa, rhoic, rhosn,mwa, mair,     &
                              mair,                         &
                              aero,cloud,precp,ice,snow,   &
-                             surfw0, rg,           &
+                             surfw0, surfi0, rg,           &
                              pi, pi6, prlim, nlim,      &
                              massacc, avog,  &
                              in1a, in2a,  &
@@ -1515,7 +1512,7 @@ CONTAINS
       REAL :: zdfh2o, zthcond,rhoair
       REAL :: zbeta,zknud,zmfph2o
       REAL :: zact, zhlp1,zhlp2,zhlp3
-      REAL :: adt,adtc(nbins),ttot
+      REAL :: adt,ttot
       REAL :: dwet, cap
       REAL :: zrh(kbdim,klev)
       REAL :: dwice(nice), dwsnow(nsnw)
@@ -1551,7 +1548,6 @@ CONTAINS
 
       prv(:,:) = prv(:,:) - ( zaelwc2(:,:) - zaelwc1(:,:) )/(ppres(:,:)*mair/(rg*ptemp(:,:)))
 
-      adtc(:) = 0.
       zcwc = 0.; zcwint = 0.; zcwn = 0.
       zcwcae = 0.; zcwccd = 0.; zcwcpd = 0.; zcwcid = 0.; zcwcsd = 0.;
       zcwintae = 0.; zcwintcd = 0.; zcwintpd = 0.; zcwintid = 0.; zcwintsd = 0.
@@ -1560,13 +1556,12 @@ CONTAINS
 
       DO jj = 1, klev
          DO ii = 1, kbdim
-
-            
-            !IF ( .NOT. ( &
-            !    (ANY(cloud(ii,jj,:)%numc > nlim) .OR. ANY(precp(ii,jj,:)%numc > prlim) .AND. lscndh2ocl) .OR. &
-            !    (ANY(ice(ii,jj,:)%numc > prlim) .OR. ANY(snow(ii,jj,:)%numc > prlim) .AND. lscndh2oic) .OR. &
-            !    (ANY(aero(ii,jj,:)%numc > nlim) .AND. zrh(ii,jj) > 0.98 .AND. lscndh2oae) &
-            !    ) ) CYCLE
+			! Necessary?
+            IF ( .NOT. ( &
+                (ANY(cloud(ii,jj,:)%numc > nlim) .OR. ANY(precp(ii,jj,:)%numc > prlim) .AND. lscndh2ocl) .OR. &
+                (ANY(ice(ii,jj,:)%numc > prlim) .OR. ANY(snow(ii,jj,:)%numc > prlim) .AND. lscndh2oic) .OR. &
+                (ANY(aero(ii,jj,:)%numc > nlim) .AND. zrh(ii,jj) > 0.98 .AND. lscndh2oae) &
+                ) ) CYCLE
 
             rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
 
@@ -1671,7 +1666,7 @@ CONTAINS
                      !   Ice may not be that far from a sphere, but most particles are large and at least
                      !   growing particles are covered by a layer of pure ice.
                      zact = 1.0 != acth2o(ice(ii,jj,cc))
-                     zkelvinid(cc) = 1.0 !exp( 4.*surfw0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                     zkelvinid(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
                      
                      ! Saturation mole concentration over flat surface
                      zcwsurfid(cc) = prsi(ii,jj)*rhoair/spec%mwa
@@ -1709,7 +1704,7 @@ CONTAINS
                      !   because these are not known for solid, irregular and non-homogenous particles.
                      !   Especially snow is typically highly irregular (e.g. dendrite).
                      zact = 1.0 !acth2o(snow(ii,jj,cc))
-                     zkelvinsd(cc) = 1.0 !exp( 4.*surfw0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                     zkelvinsd(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
                      
                      ! Saturation mole concentrations over flat surface
                      zcwsurfsd(cc) = prsi(ii,jj)*rhoair/spec%mwa
@@ -1734,7 +1729,6 @@ CONTAINS
             END IF ! level == 5
 
             ! -- Aerosols: ------------------------------------------------------------------------------------
-
             DO cc = 1, nbins
                IF (aero(ii,jj,cc)%numc > nlim .AND. zrh(ii,jj) > 0.98 .AND. lscndh2oae) THEN
                   ! Wet diameter
@@ -1782,7 +1776,6 @@ CONTAINS
                      SUM(zcwcid) + &
                      SUM(zcwcsd)
             ttot = 0.
-            adtc = 0.
 
              zcwintae = zcwcae; zcwintcd = zcwccd; zcwintpd = zcwcpd; zcwintid = zcwcid; zcwintsd = zcwcsd
 
@@ -1913,8 +1906,6 @@ CONTAINS
 
       zns = 0.
       DO nn = 1,ndry  ! Leaves out water and non-soluble species (zero dissociation factor)
-         !! compound index in the mass array
-         !ss = spec%getIndex(nn)
          zns = zns + spec%diss(nn)*ppart%volc(nn)*zrho(nn)/spec%MM(nn)
       END DO 
 
@@ -1926,6 +1917,7 @@ CONTAINS
 
       ! Assume activity coefficient of 1 for water...
       acth2o = MAX(0.1,znw/max(eps,(znw+zns)))
+   END FUNCTION acth2o
 
       zrho => NULL()
 
@@ -2001,9 +1993,9 @@ CONTAINS
          temp,   &   ! ambient temperature [K]
          pres        ! ambient pressure [fxm]
 
-      INTEGER, INTENT(in) :: kernel,  & ! select the type of kernel: 1 - aerosol-aerosol coagulation (the original version)
+      INTEGER, INTENT(in) :: kernel ! select the type of kernel: 1 - aerosol-aerosol coagulation (the original version)
                                         !                            2 - hydrometeor-aerosol or hydrometeor-hydrometeor coagulation
-                             flag1, flag2
+      INTEGER, INTENT(in) :: flag1,flag2 ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
 
       !-- Output variables ---------
 
@@ -2016,7 +2008,7 @@ CONTAINS
          mdiam,    &   ! mean diameter of colliding particles [m]
          fmdist,   &   ! distance of flux matching [m]
          eddy_dis, &   ! Eddy dissipation time
-         zecoll,   &   ! Collition efficiency for graviational collection
+         zecoll,   &   ! Collision efficiency for graviational collection
          zev,      &   !
          zea,      &
          zbrown,   &   ! Components for coagulation kernel; Brownian

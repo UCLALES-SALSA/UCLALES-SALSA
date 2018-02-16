@@ -19,6 +19,8 @@
 !----------------------------------------------------------------------------
 !
 
+!!! COMPONENT INDEKSIT, NSPECIT SUN MUUT AIVAN SEKASIN
+
 
 
 MODULE stat
@@ -1099,6 +1101,7 @@ CONTAINS
   SUBROUTINE ts_lvl5(n1,n2,n3,dn0,zm,rc,ri,rs,srate)
     USE mo_submctl, only : nlim,prlim
     USE grid, ONLY : bulkNumc, bulkMixrat,meanRadius,dzt
+    USE class_componentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
 

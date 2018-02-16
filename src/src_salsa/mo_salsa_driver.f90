@@ -85,15 +85,15 @@ CONTAINS
       REAL, INTENT(in)    :: pdn(pnz,pnx,pny)             ! Air density (for normalizing concentrations)
 
       REAL, INTENT(in)    :: pa_naerop(pnz,pnx,pny,nbins),        & ! aerosol number concentration (# kg-1)
-                             pa_maerop(pnz,pnx,pny,n4*nbins),     & ! aerosol volume concentration (m3 kg-1)
+                             pa_maerop(pnz,pnx,pny,n4*nbins),     & ! aerosol mass concentration (kg kg-1)
                              pa_ncloudp(pnz,pnx,pny,ncld),        & ! Cloud droplet number concentration (# kg-1)
-                             pa_mcloudp(pnz,pnx,pny,n4*ncld),     & ! Cloud droplet volume concentration (m3 kg-1)
+                             pa_mcloudp(pnz,pnx,pny,n4*ncld),     & ! Cloud droplet mass concentration (kg kg-1)
                              pa_nprecpp(pnz,pnx,pny,nprc),        & ! Rain drop number concentration (# kg-1)
-                             pa_mprecpp(pnz,pnx,pny,n4*nprc),     & ! Rain drop volume concentration (m3 kg-1)
+                             pa_mprecpp(pnz,pnx,pny,n4*nprc),     & ! Rain drop mass concentration (kg kg-1)
                              pa_nicep(pnz,pnx,pny,nice),          & ! ice number concentration (# kg-1)
-                             pa_micep(pnz,pnx,pny,n4*nice),       & ! ice volume concentration (m3 kg-1)
-                             pa_nsnowp(pnz,pnx,pny,nsnw),         & ! snow precipitation number concentration (# kg-1)
-                             pa_msnowp(pnz,pnx,pny,n4*nsnw)           ! snow precipitation volume concentration (m3 kg-1)
+                             pa_micep(pnz,pnx,pny,n4*nice),       & ! ice mass concentration (kg kg-1)
+                             pa_nsnowp(pnz,pnx,pny,nsnw),         & ! snow number concentration (# kg-1)
+                             pa_msnowp(pnz,pnx,pny,n4*nsnw)        ! snow mass concentration (kg kg-1)
 
       REAL, INTENT(in)    :: pa_gaerop(pnz,pnx,pny,5)         ! Gaseous tracers [# kg]
 
@@ -103,15 +103,15 @@ CONTAINS
       INTEGER, INTENT(in) :: level                         ! thermodynamical level
 
       REAL, INTENT(inout) :: pa_naerot(pnz,pnx,pny,nbins),      & ! Aerosol number tendency
-                             pa_maerot(pnz,pnx,pny,n4*nbins),   & ! Aerosol volume tendency
+                             pa_maerot(pnz,pnx,pny,n4*nbins),   & ! Aerosol mass tendency
                              pa_ncloudt(pnz,pnx,pny,ncld),      & ! Cloud droplet number tendency
-                             pa_mcloudt(pnz,pnx,pny,n4*ncld),   & ! Cloud droplet volume tendency
+                             pa_mcloudt(pnz,pnx,pny,n4*ncld),   & ! Cloud droplet mass tendency
                              pa_nprecpt(pnz,pnx,pny,nprc),      & ! Rain drop number tendency
-                             pa_mprecpt(pnz,pnx,pny,n4*nprc),   &  ! Rain drop volume tendency
+                             pa_mprecpt(pnz,pnx,pny,n4*nprc),   &  ! Rain drop mass tendency
                              pa_nicet(pnz,pnx,pny,nice),        & ! Ice particle number tendency
-                             pa_micet(pnz,pnx,pny,n4*nice),     & ! Ice particle volume tendency
+                             pa_micet(pnz,pnx,pny,n4*nice),     & ! Ice particle mass tendency
                              pa_nsnowt(pnz,pnx,pny,nsnw),       & ! snow flake number tendency
-                             pa_msnowt(pnz,pnx,pny,n4*nsnw)         ! snow flake volume tendecy
+                             pa_msnowt(pnz,pnx,pny,n4*nsnw)     ! snow flake mass tendecy
 
       REAL, INTENT(inout) :: pa_gaerot(pnz,pnx,pny,5)         ! Gaseous tracer tendency
       REAL, INTENT(inout) :: rt(pnz,pnx,pny)                  ! Water vapour tendency
@@ -125,11 +125,11 @@ CONTAINS
       ! Helper arrays for calculating the rates of change
       TYPE(Section) :: aero_old(kbdim,klev,nbins), cloud_old(kbdim,klev,ncld),    &
                        precp_old(kbdim,klev,nprc), ice_old(kbdim,klev,nice),      &
-                       snow_old(1,1,nsnw)
+                       snow_old(kbdim,klev,nsnw)
 
       INTEGER :: jj,ii,kk,ss,str,end, nc,vc, ndry
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
-              in_w(kbdim,klev), in_rsi(kbdim,klev), in_pdn(kbdim,klev)
+              in_w(kbdim,klev), in_rsi(kbdim,klev)
       REAL :: rv_old(kbdim,klev)
 
       actd(:,:,:) = Section(1)
