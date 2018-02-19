@@ -585,7 +585,7 @@ CONTAINS
      
      IF (level < 4) THEN
         rv = a_rv ! Water vapor
-        rc = a_rp - a_rv + a_srp ! Total condensate (cloud + precipitation)
+        rc = a_rp - a_rv ! Total condensate (cloud + precipitation)
      ELSE IF (level >= 4) THEN
         rv = a_rp ! Water vapor
         rc = a_rc + a_srp + a_ri + a_srs ! Total condensed water (aerosol+cloud+precipitation+ice+snow)
