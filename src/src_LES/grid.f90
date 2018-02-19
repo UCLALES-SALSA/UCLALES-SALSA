@@ -135,6 +135,9 @@ MODULE grid
    ! -- Gas compound tracers
    REAL, POINTER :: a_gaerop(:,:,:,:), a_gaerot(:,:,:,:)
 
+   ! -- Pointer to ALL SALSA tracers
+   REAL, POINTER :: a_salsap(:,:,:,:), a_salsat(:,:,:,:)
+
    ! Some stuff for tendency formulation
    REAL, ALLOCATABLE :: a_vactd(:,:,:,:), a_nactd(:,:,:,:)
 
@@ -211,6 +214,7 @@ CONTAINS
       INTEGER :: memsize
       INTEGER :: zz
       INTEGER :: nc
+      INTEGER :: st_salsa,en_salsa ! start and end indices for SALSA tracers
 
       ! Juha: Number of prognostic tracers for SALSA
       !            Aerosol bins + Cloud bins + gas compound tracers
@@ -339,7 +343,7 @@ CONTAINS
          a_snrs(:,:,:) = 0.
          memsize = memsize + 5*nxyzp + 2*nice*nxyzp + 2*nsnw*nxyzp
 
-         ! Total number of prognostic scalars: temp + total water + SALSA + tke(?)
+         ! Total number of prognostic scalars: temp + total water + tke(isgstyp>1) + SALSA
          nscl = 2 + nsalsa
          IF (isgstyp > 1) nscl = nscl+1
 
@@ -358,6 +362,8 @@ CONTAINS
          END IF
 
          !JT: Set the pointers for prognostic SALSA variables (levels 4 & 5)
+         st_salsa = nscl-nsalsa+1
+         en_salsa = nscl
          zz = nscl-nsalsa
          a_naerop => a_sclrp(:,:,:,zz+1:zz+nbins)
          a_naerot => a_sclrt(:,:,:,zz+1:zz+nbins)
@@ -418,6 +424,10 @@ CONTAINS
             a_msnowp => tmp_icep(:,:,:,1:nc*nsnw)
             a_msnowt => tmp_icet(:,:,:,1:nc*nsnw)
          ENDIF
+
+         ! Associate an easy access to all SALSA tracers at the same time
+         a_salsap => a_sclrp(:,:,:,st_salsa:en_salsa)
+         a_salsat => a_sclrt(:,:,:,st_salsa:en_salsa)
 
 
       END IF ! level

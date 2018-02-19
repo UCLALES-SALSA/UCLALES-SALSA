@@ -19,10 +19,10 @@
 !
 MODULE forc
 
-  USE grid, ONLY: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, lnudging, lemission,  &
+  USE grid, ONLY: nxp, nyp, nzp, nsalsa, zm, zt, dzt, dzm, dn0, iradtyp, lnudging, lemission,  &
                   a_rc, a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp,  &
                   a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
-                  a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, &
+                  a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, a_salsap, a_salsat, &
                   a_fus, a_fds, a_fuir, a_fdir
   USE mpi_interface, ONLY : myid, appl_abort
   USE defs, ONLY      : cp
@@ -232,7 +232,9 @@ CONTAINS
   ! -------------------------------------------------------------------
   ! Subroutine case_forcing: adjusts tendencies according to a specified
   ! large scale forcing.  Normally CASE (run) specific.
-  !
+  ! 
+  ! BTW: None of the arguments in the subroutine call are really necessary, since they are all imported 
+  !      globally to this module.
   SUBROUTINE case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,tl,rt,tt,rtt)
 
     USE mpi_interface, ONLY : pecount, double_scalar_par_sum,myid, appl_abort
@@ -244,7 +246,7 @@ CONTAINS
     REAL, DIMENSION (n1,n2,n3), INTENT (in)    :: tl, rt
     REAL, DIMENSION (n1,n2,n3), INTENT (inout) :: tt, rtt
 
-    INTEGER :: i,j,k,kp1
+    INTEGER :: i,j,k,kp1,b
     REAL, DIMENSION (n1) :: sf
     REAL, PARAMETER :: zmx_sub = 2260. ! originally 2260.
 
@@ -253,21 +255,38 @@ CONTAINS
 
     zig = 0.0; zil = 0.0; zibar = 0.0
     kp1 = 0
+    sf(:) = -zdiv*zt(:)*dzt(:)
     SELECT CASE (trim(case_name))
     CASE('default')
        !
        ! User specified divergence used as a simple large scle forcing for moisture and temperature fields
+       ! + also aerosol for level > 4
        ! -------------------------------------------------------------------------------------------------
        !
        DO j = 3, n3-2
           DO i = 3, n2-2
              DO k = 2, n1-1
                 kp1 = k+1
-                tt(k,i,j) = tt(k,i,j) + zdiv*zt(k)*(tl(kp1,i,j)-tl(k,i,j))*dzt(k)
-                rtt(k,i,j) = rtt(k,i,j) + zdiv*zt(k)*(rt(kp1,i,j)-rt(k,i,j))*dzt(k)
+                tt(k,i,j) = tt(k,i,j) - (tl(kp1,i,j)-tl(k,i,j))*sf(k)
+                rtt(k,i,j) = rtt(k,i,j) - (rt(kp1,i,j)-rt(k,i,j))*sf(k)
              END DO
           END DO
        END DO
+
+       ! Some additional stuff needed for SALSA. a_salsa array has all the necessary tracers
+       ! and its association depends already on level, so no need to any extra checks here.
+       IF (level > 4) THEN
+          DO b = 1,nsalsa
+             DO j = 3,n3-2
+                DO i = 3,n2-2
+                   DO k = 2,n1-1
+                      kp1 = k+1
+                      a_salsat(k,i,j,b) = a_salsat(k,i,j,b) - (a_salsap(kp1,i,j,b) - a_salsap(k,i,j,b))*sf(k) 
+                   END DO
+                END DO
+             END DO
+          END DO
+       END IF
 
     CASE('rico')
        !

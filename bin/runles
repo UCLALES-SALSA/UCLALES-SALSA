@@ -13,11 +13,11 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
+IsSeq=2 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
 EXPNAME="production_version"  # Name of the experiment
 
-NPROCS=1          # Number of processors (for IsSeq==0)
+NPROCS=2          # Number of processors (for IsSeq==0)
 TWALL=5:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
