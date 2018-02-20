@@ -98,7 +98,7 @@ cat > ${dir}/NAMELIST <<EOF
    nlcndh2oae  = ${nlcndh2oae:-.TRUE.}  ! --Condensation of water on aerosols (if FALSE, equilibrium assumed)
    nlcndh2ocl  = ${nlcndh2ocl:-.TRUE.}  ! --Condensation of water on cloud droplets (and drizzle)
    nlcndh2oic  = ${nlcndh2oic:-.TRUE.}  ! --Condensation of water on ice particles
-   nlauto      = ${nlauto:-.TRUE.}  ! Master autoconversion switch
+   nlauto      = ${nlauto:-.FALSE.}  ! Master autoconversion switch
    nlautosnow  = ${nlautosnow:-.FALSE.} ! Master snow autoconversion switch
    nlactiv     = ${nlactiv:-.TRUE.}  ! Master cloud activation switch
    nlactbase   = ${nlactbase:-.FALSE.}  ! --Switch for parameterized cloud base activation
