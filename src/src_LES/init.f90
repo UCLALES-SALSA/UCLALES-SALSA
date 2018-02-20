@@ -77,7 +77,7 @@ contains
        ! spin-up period to set up aerosol and cloud fields.
        IF (level >= 4) THEN
 
-          n4 = GetNcomp(prtcl) + 1 ! Aerosol compoenents + water
+          n4 = GetNcomp(prtcl) + 1 ! Aerosol components + water
 
           IF ( nxp == 5 .and. nyp == 5 ) THEN
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &

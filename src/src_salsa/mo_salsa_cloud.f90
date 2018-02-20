@@ -1316,7 +1316,7 @@ CONTAINS
         if ( icesupsat < 0.05 .OR. rc_tot < 0.001e-3  ) cycle
 
         ! target number concentration of ice, converted to #/m^3
-        Ni0     = fixinc * pdn
+        Ni0     = fixinc * 1000.
 
         ! current ice number concentration (#/m^3)
         sumICE    = sum(   pice(ii,jj,:)%numc )

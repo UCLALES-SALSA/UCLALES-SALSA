@@ -51,7 +51,7 @@ RUNTYPE='"INITIAL"'
 LVL=${LVL:-5}
 isoT=${isoT:-28800.}
 pikkuT=${pikkuT:-7200.}
-ice=${ice:-1000.0} # ice #/m^3
+ice=${ice:-1.0} # ice #/L
 sound_in=${sound_in:-sound_in}
 
 

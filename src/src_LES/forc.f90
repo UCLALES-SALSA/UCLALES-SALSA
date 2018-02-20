@@ -52,7 +52,7 @@ contains
          a_maerop, a_mcloudp, a_mprecpt, a_micep, a_msnowp, &
          a_maerot, a_mcloudt, a_micet, a_msnowt
 
-    USE mo_submctl, ONLY : nspec,nprc,ira,fra,nsnw,isa,fsa
+    USE mo_submctl, ONLY : nspec,nprc,ira,fra,nsnw,isa,fsa, nbins, ncld, nice
 
     use mpi_interface, only : myid, appl_abort
 
@@ -182,7 +182,9 @@ contains
                 ! Water is the last species (nspec+1)
                 zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
        ENDIF
-       call isdac_gcss(nzp, nxp, nyp, xka, fr0, fr1, div, zrc, dn0,     &
+
+       
+       call isdac_gcss(nzp, nxp, nyp, nspec+1, nbins, ncld, nprc, nice, nsnw, xka, fr0, fr1, div, zrc, dn0,     &
                a_rflx, zt, zm, dzt, a_tt, a_tp, a_rt, a_rp,              &
                a_naerot, a_naerop, a_ncloudt, a_ncloudp,  a_nprecpt, a_nprecpp, a_nicet, a_nicep, a_nsnowt, a_nsnowp, &
                a_maerot, a_maerop, a_mcloudt, a_mcloudp,  a_mprecpt, a_mprecpp, a_micet, a_micep, a_msnowt, a_msnowp )
@@ -249,20 +251,20 @@ contains
   end subroutine gcss_rad
 
 
-  subroutine isdac_gcss(n1,n2,n3,xka,fr0,fr1,div,rc,dn0,flx,zt,zm,dzt,   &
+  subroutine isdac_gcss(n1,n2,n3,nspW, na, nc, np, ni, ns, xka,fr0,fr1,div,rc,dn0,flx,zt,zm,dzt,   &
                         tt,tl,rtt,rt,&
                         nat, nap, nct, ncp, npt, npp, nit, nip, nst, nsp, &
                         mat, map, mct, mcp, mpt, mpp, mit, mip, mst, msp)
 
-    integer, intent (in)::  n1,n2, n3
+    integer, intent (in)::  n1,n2, n3, nspW, na, nc, np, ni, ns
     real, intent (in)   ::  xka, fr0, fr1, div
     real, intent (in)   ::  zt(n1),zm(n1),dzt(n1),dn0(n1),rc(n1,n2,n3), &
                             tl(n1,n2,n3),rt(n1,n2,n3),                  &
-                            nap(n1,n2,n3), ncp(n1,n2,n3), npp(n1,n2,n3), nip(n1,n2,n3), nsp(n1,n2,n3), &
-                            map(n1,n2,n3), mcp(n1,n2,n3), mpp(n1,n2,n3), mip(n1,n2,n3), msp(n1,n2,n3)
+                            nap(n1, n2, n3, nspW*na), ncp(n1, n2, n3, nspW*nc), npp(n1, n2, n3, nspW*np), nip(n1, n2, n3, nspW*ni), nsp(n1, n2, n3, nspW*ns), &
+                            map(n1, n2, n3, nspW*na), mcp(n1, n2, n3, nspW*nc), mpp(n1, n2, n3, nspW*np), mip(n1, n2, n3, nspW*ni), msp(n1, n2, n3, nspW*ns)
     real, intent (inout)::  tt(n1,n2,n3),rtt(n1,n2,n3),  &
-                            nat(n1,n2,n3), nct(n1,n2,n3), npt(n1,n2,n3), nit(n1,n2,n3), nst(n1,n2,n3), &
-                            mat(n1,n2,n3), mct(n1,n2,n3), mpt(n1,n2,n3), mit(n1,n2,n3), mst(n1,n2,n3)
+                            nat(n1, n2, n3, nspW*na), nct(n1, n2, n3, nspW*nc), npt(n1, n2, n3, nspW*np), nit(n1, n2, n3, nspW*ni), nst(n1, n2, n3, nspW*ns), &
+                            mat(n1, n2, n3, nspW*na), mct(n1, n2, n3, nspW*nc), mpt(n1, n2, n3, nspW*np), mit(n1, n2, n3, nspW*ni), mst(n1, n2, n3, nspW*ns)
 
     real, intent (out)  ::  flx(n1,n2,n3)
 
@@ -311,17 +313,17 @@ contains
                 tt(k,i,j)   =  tt(k,i,j) - (  tl(kp1,i,j) -  tl(k,i,j) )*sf(k) ! temperature
                 rtt(k,i,j)  = rtt(k,i,j) - (  rt(kp1,i,j) -  rt(k,i,j) )*sf(k) ! water vapor
                 ! mass
-                mat(k,i,j)  = mat(k,i,j) - ( map(kp1,i,j) - map(k,i,j) )*sf(k) ! aerosols
-                mct(k,i,j)  = mct(k,i,j) - ( mcp(kp1,i,j) - mcp(k,i,j) )*sf(k) ! cloud
-                mpt(k,i,j)  = mpt(k,i,j) - ( mpp(kp1,i,j) - mpp(k,i,j) )*sf(k) ! precipitation
-                mit(k,i,j)  = mit(k,i,j) - ( mip(kp1,i,j) - mip(k,i,j) )*sf(k) ! ice
-                mst(k,i,j)  = mst(k,i,j) - ( msp(kp1,i,j) - msp(k,i,j) )*sf(k) ! snow
+                mat(k,i,j,:)  = mat(k,i,j,:) - ( map(k,i,j,:) - map(k,i,j,:) )*sf(k) ! aerosols
+                mct(k,i,j,:)  = mct(k,i,j,:) - ( mcp(k,i,j,:) - mcp(k,i,j,:) )*sf(k) ! cloud
+                mpt(k,i,j,:)  = mpt(k,i,j,:) - ( mpp(k,i,j,:) - mpp(k,i,j,:) )*sf(k) ! precipitation
+                mit(k,i,j,:)  = mit(k,i,j,:) - ( mip(k,i,j,:) - mip(k,i,j,:) )*sf(k) ! ice
+                mst(k,i,j,:)  = mst(k,i,j,:) - ( msp(k,i,j,:) - msp(k,i,j,:) )*sf(k) ! snow
                 ! numbers
-                nat(k,i,j)  = nat(k,i,j) - ( nap(kp1,i,j) - nap(k,i,j) )*sf(k) ! aerosols
-                nct(k,i,j)  = nct(k,i,j) - ( ncp(kp1,i,j) - ncp(k,i,j) )*sf(k) ! cloud
-                npt(k,i,j)  = npt(k,i,j) - ( npp(kp1,i,j) - npp(k,i,j) )*sf(k) ! precipitation
-                nit(k,i,j)  = nit(k,i,j) - ( nip(kp1,i,j) - nip(k,i,j) )*sf(k) ! ice
-                nst(k,i,j)  = nst(k,i,j) - ( nsp(kp1,i,j) - nsp(k,i,j) )*sf(k) ! snow
+                nat(k,i,j,:)  = nat(k,i,j,:) - ( nap(k,i,j,:) - nap(k,i,j,:) )*sf(k) ! aerosols
+                nct(k,i,j,:)  = nct(k,i,j,:) - ( ncp(k,i,j,:) - ncp(k,i,j,:) )*sf(k) ! cloud
+                npt(k,i,j,:)  = npt(k,i,j,:) - ( npp(k,i,j,:) - npp(k,i,j,:) )*sf(k) ! precipitation
+                nit(k,i,j,:)  = nit(k,i,j,:) - ( nip(k,i,j,:) - nip(k,i,j,:) )*sf(k) ! ice
+                nst(k,i,j,:)  = nst(k,i,j,:) - ( nsp(k,i,j,:) - nsp(k,i,j,:) )*sf(k) ! snow
             enddo
         enddo
     enddo
