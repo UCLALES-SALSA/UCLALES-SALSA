@@ -12,12 +12,12 @@
 # example use: make mpi COMP=taitointel RUNTYPE=debug
 #	default values: COMP=intel RUNTYPE=fast
 
-ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-BIN       = $(ROOT)/bin
+ROOT      := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+BIN        = $(ROOT)/bin
 ARCH      := $(shell uname)
 BRANCH    := $(shell git symbolic-ref --short -q HEAD)
 TAG       := $(shell git describe --tags)
-
+STATUS    := $(shell git status -s)
 #
 # Generic Variables
 #
@@ -39,8 +39,14 @@ ifndef $(RUNTYPE)
 	RUNTYPE=fast
 endif
 
+ifneq ($(STATUS),)
+	UNCOMM=.uncommitted
+endif
+
 $(info $$COMP is [${COMP}])
 $(info $$RUNTYPE is [${RUNTYPE}])
+$(info $$UNCOMM is [${UNCOMM}])
+$(info $$STATUS is [${STATUS}])
 # Ubuntu -------------------------------------------------
 ifeq ($(COMP),ubuntu)
 	F90 = gfortran
@@ -157,9 +163,9 @@ ifeq ($(COMP),intel)
 endif
 # -------------------------------------------------------
 
-LES_OUT_MPI=$(BIN)/les.mpi.$(BRANCH).$(TAG).$(COMP).$(RUNTYPE)
+LES_OUT_MPI=$(BIN)/les.mpi.$(BRANCH).$(TAG)$(UNCOMM).$(COMP).$(RUNTYPE)
 
-LES_OUT_SEQ=$(BIN)/les.seq.$(BRANCH).$(TAG).$(COMP).$(RUNTYPE)
+LES_OUT_SEQ=$(BIN)/les.seq.$(BRANCH).$(TAG)$(UNCOMM).$(COMP).$(RUNTYPE)
 
 default: mpi
 

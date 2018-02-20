@@ -92,21 +92,51 @@ rm -rf ${dir}/post_* ${dir}/*pros.sh ${dir}/${scriptname}
 echo kopioidaan skripti
 cp ${scriptfolder}/${scriptname} ${dir}/
 echo kopiointi suoritettu
-### first script
-cat > ${dir}/postpros${postfix}.sh <<EOF
+
+##########################
+###		       ###
+### first script       ###
+###		       ###
+##########################
+
+if [ $jobflag == 'PBS' ] ; then
+
+cat > ${dir}/postpros${postfix}.sh <<EOFPBS
 #!/bin/bash
 
 set -e
 
 cd ${dir}
 
-export PATH="/lustre/tmp/aholaj/anaconda2/bin:$PATH"
+export PATH="${LUSTRE}/anaconda2/bin:$PATH"
 
 python ${scriptname} $input
 
-EOF
+EOFPBS
 
-### second script
+elif [ $jobflag == 'SBATCH' ] ; then
+
+cat > ${dir}/postpros${postfix}.sh <<EOFSBATCH
+#!/bin/bash
+
+set -e
+
+cd ${dir}
+
+
+export PATH=${USERAPPL}/miniconda2/bin:$PATH"
+
+python ${scriptname} $input
+
+EOFSBATCH
+
+fi
+
+##########################
+###			           ###
+### second script      ###
+###		               ###
+##########################
 
 if [ $jobflag == 'PBS' ] ; then
 
@@ -122,7 +152,6 @@ cat > ${dir}/runpostpros${postfix}.sh <<FINALPBS
 #PBS -m ae
 
 source /etc/profile
-#module load Python/2.7.10
 
 cd ${dir}
 
@@ -138,8 +167,8 @@ cat > ${dir}/runpostpros${postfix}.sh <<FINALSBATCH
 #SBATCH -J ${jobname}
 #SBATCH -n 1
 #SBATCH -t ${WT}
-#SBATCH --output=postpro_${input}-%j.out
-#SBATCH --error=postpro_${input}-%j.err
+#SBATCH --output=${input}_postpros-%j.out
+#SBATCH --error=${input}_postpros-%j.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=${email}
 #SBATCH -p serial

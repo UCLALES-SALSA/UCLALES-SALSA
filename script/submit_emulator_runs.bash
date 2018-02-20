@@ -234,7 +234,7 @@ cat > ${emulatoroutputroot}/control_multiple_emulator_run.sh <<FINALSBATCH
 #SBATCH --error=emulator_${1}-%j.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=${email}
-#SBATCH -p ${QUEUE}
+#SBATCH -p serial
 
 cd ${emulatoroutputroot}
 

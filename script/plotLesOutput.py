@@ -1704,7 +1704,7 @@ def piirra_domainMeanScatter( muuttujaX, muuttujaY, muuttujaYY = None, muunnosKe
             
         print 'case', filenameTS[i], 'muuttujaX', muuttujaX, 'dataSlizeMeanX', dataSlizeMeanX, 'dataSlizeMeanY', dataSlizeMeanY, 'color', color
         
-        fig, ax = mdp.plottaa( dataSlizeMeanX, dataSlizeMeanY, tit , xl = xaxislabel, yl = yaxislabel, changeColor=changeColor, tightXAxis=True, tightYAxis = True, LEGEND=False, omavari = color, scatter=True, uusikuva=uusikuva )       
+        fig, ax = mdp.plottaa( dataSlizeMeanX, dataSlizeMeanY, a = 20, b = 20, tit = tit , xl = xaxislabel, yl = yaxislabel, changeColor=changeColor, tightXAxis=True, tightYAxis = True, LEGEND=False, omavari = color, scatter=True, uusikuva=uusikuva, marker= '+', markersize = 90 )       
 
         ax.title.set_fontsize(35)
         

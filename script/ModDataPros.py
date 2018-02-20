@@ -728,13 +728,13 @@ def plot_horizontal( y, vari = 'k', viivatyyli = '--' ):
 ### initialize a new figure          ###
 ###                                  ###
 ########################################   
-def plot_alustus():
+def plot_alustus(a=24,b=15):
   #plt.figure( figsize=(20,10) )
   
   #manager = plt.get_current_fig_manager()
   #manager.window.showMaximized()
   
-  fig = plt.figure( figsize = (24,15) )
+  fig = plt.figure( figsize = (a,b) )
   ax  = fig.add_subplot(1,1,1)
 
   
@@ -802,9 +802,9 @@ def plot_setXlim( minimiX, maksimiX, extendBelowZero = True, A = 0.05 ):
 ### plot data                        ###
 ###                                  ###
 ########################################
-def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, currentColor = 'b', changeColor=True, tightXAxis=False, tightYAxis = False, markers=False, LEGEND=True, omavari = False, scatter=False, uusikuva = False, gridi = True, loc = 3 ):
+def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, currentColor = 'b', changeColor=True, tightXAxis=False, tightYAxis = False, markers=False, LEGEND=True, omavari = False, scatter=False, uusikuva = False, gridi = True, loc = 3, markersize = 10, marker = 'o', a = 24, b=15, ):
   if uusikuva:
-      plottaa.fig, plottaa.ax = plot_alustus()
+      plottaa.fig, plottaa.ax = plot_alustus(a,b)
 
   global color
   if  label is None:
@@ -821,11 +821,12 @@ def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, current
 
 
   if markers and not scatter:
-      plt.plot( x, y, color = currentColor, label=label, linestyle='-', marker='o' )
+      
+      plt.plot( x, y, color = currentColor, label=label, linestyle='-', marker=marker, markersize = markersize )
   elif not markers and not scatter:
       plt.plot( x, y, color = currentColor, label=label)
   elif scatter:
-      plt.scatter( x, y, color = currentColor, label=label)
+      plt.scatter( x, y, color = currentColor, label=label, s=markersize**2, marker = marker)
   
   if LEGEND:
       if loc == 2: # right side
