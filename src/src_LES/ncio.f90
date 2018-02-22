@@ -791,11 +791,27 @@ contains
        if (itype==0) ncinfo = 'Ice cell counts'
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'time'
+    case('SS_max')
+       if (itype==0) ncinfo = 'Maximum supersaturation'
+       if (itype==1) ncinfo = '%'
+       if (itype==2) ncinfo = 'time'
+    case('SSi_max')
+       if (itype==0) ncinfo = 'Maximum supersaturation over ice'
+       if (itype==1) ncinfo = '%'
+       if (itype==2) ncinfo = 'time'
     !
     !
     ! SALSA temporal statistics
     case('Nc_ic')
        if (itype==0) ncinfo = 'In-cloud CDNC'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Nca_ica')
+       if (itype==0) ncinfo = 'In-cloud CDNC (a bins)'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Ncb_icb')
+       if (itype==0) ncinfo = 'In-cloud CDNC (b bins)'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('Na_oc')
@@ -806,12 +822,28 @@ contains
        if (itype==0) ncinfo = 'In-cloud interstitial aerosol number concentration'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
+    case('Naa_int')
+       if (itype==0) ncinfo = 'In-cloud interstitial aerosol number concentration (a bins)'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Nab_int')
+       if (itype==0) ncinfo = 'In-cloud interstitial aerosol number concentration (b bins)'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
     case('Ni_ic')
        if (itype==0) ncinfo = 'Ice number concentration in liquid clouds'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('Ni_ii')
        if (itype==0) ncinfo = 'Ice number concentration in icy regions'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Nia_iia')
+       if (itype==0) ncinfo = 'Ice number concentration in icy regions (a bins)'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'time'
+    case('Nib_iib')
+       if (itype==0) ncinfo = 'Ice number concentration in icy regions (b bins)'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('Ni_is')
@@ -830,8 +862,40 @@ contains
        if (itype==0) ncinfo = 'Snow number concentration in snowy regions'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
+    case('Ra_int')
+       if (itype==0) ncinfo = 'Mean interstitial aerosol wet radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('Raa_int')
+       if (itype==0) ncinfo = 'Mean interstitial aerosol wet radius (a bins)'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('Rab_int')
+       if (itype==0) ncinfo = 'Mean interstitial aerosol wet radius (b bins)'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('Rc_ic')
+       if (itype==0) ncinfo = 'Mean cloud droplet radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('Rca_ica')
+       if (itype==0) ncinfo = 'Mean cloud droplet radius (a bins)'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('Rcb_icb')
+       if (itype==0) ncinfo = 'Mean cloud droplet radius (b bins)'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
     case('Ri_ii')
-       if (itype==0) ncinfo = 'Mean ice radius in icy regions'
+       if (itype==0) ncinfo = 'Mean ice radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('Ria_iia')
+       if (itype==0) ncinfo = 'Mean ice radius (a bins)'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('Rib_iib')
+       if (itype==0) ncinfo = 'Mean ice radius (b bins)'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'time'
     case('Rs_is')
@@ -847,7 +911,15 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
     case('SO4_int')
-       if (itype==0) ncinfo = 'SO4 mass mixing ratio in intersitial aerosols'
+       if (itype==0) ncinfo = 'SO4 mass mixing ratio in interstitial aerosols'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('SO4_ii')
+       if (itype==0) ncinfo = 'SO4 mass mixing ratio in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('SO4_is')
+       if (itype==0) ncinfo = 'SO4 mass mixing ratio in snow'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
     case('OC_ic')
@@ -862,6 +934,14 @@ contains
        if (itype==0) ncinfo = 'OC mass mixing ratio in interstitial aerosols'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
+    case('OC_ii')
+       if (itype==0) ncinfo = 'OC mass mixing ratio in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('OC_is')
+       if (itype==0) ncinfo = 'OC mass mixing ratio in snow'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
     case('BC_ic')
        if (itype==0) ncinfo = 'Cloud droplet BC mass mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
@@ -872,6 +952,14 @@ contains
        if (itype==2) ncinfo = 'time'
     case('BC_int')
        if (itype==0) ncinfo = 'BC mass mixing ratio in interstitial aerosols'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('BC_ii')
+       if (itype==0) ncinfo = 'BC mass mixing ratio in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('BC_is')
+       if (itype==0) ncinfo = 'BC mass mixing ratio in snow'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
     case('DU_ic')
@@ -886,6 +974,14 @@ contains
        if (itype==0) ncinfo = 'DU mass mixing ration in interstitial aerosols'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
+    case('DU_ii')
+       if (itype==0) ncinfo = 'DU mass mixing ration in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('DU_is')
+       if (itype==0) ncinfo = 'DU mass mixing ration in snow'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
     case('SS_ic')
        if (itype==0) ncinfo = 'Cloud droplet mass mixing ratio of SS'
        if (itype==1) ncinfo = 'kg/kg'
@@ -896,6 +992,14 @@ contains
        if (itype==2) ncinfo = 'time'
     case('SS_int')
        if (itype==0) ncinfo = 'SS mass mixing ratio in interstitial particles'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('SS_ii')
+       if (itype==0) ncinfo = 'SS mass mixing ratio in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('SS_is')
+       if (itype==0) ncinfo = 'SS mass mixing ratio in snow'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
     case('NH_ic')
@@ -910,6 +1014,14 @@ contains
        if (itype==0) ncinfo = 'NH3 mass mixing ratio in interstitial particles'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
+    case('NH_ii')
+       if (itype==0) ncinfo = 'NH3 mass mixing ratio in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('NH_is')
+       if (itype==0) ncinfo = 'NH3 mass mixing ratio in snow'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
     case('NO_ic')
        if (itype==0) ncinfo = 'Cloud droplet mass mixing ratio of NO3'
        if (itype==1) ncinfo = 'kg/kg'
@@ -920,6 +1032,30 @@ contains
        if (itype==2) ncinfo = 'time'
     case('NO_int')
        if (itype==0) ncinfo = 'NO3 mass mixing ratio in interstitial particles'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('NO_ii')
+       if (itype==0) ncinfo = 'NO3 mass mixing ratio in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('NO_is')
+       if (itype==0) ncinfo = 'NO3 mass mixing ratio in snow'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('H2O_ic')
+       if (itype==0) ncinfo = 'Cloud droplet mass mixing ratio of H2O'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('H2O_int')
+       if (itype==0) ncinfo = 'H2O mass mixing ratio in interstitial particles'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('H2O_ii')
+       if (itype==0) ncinfo = 'H2O mass mixing ratio in ice'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
+    case('H2O_is')
+       if (itype==0) ncinfo = 'H2O mass mixing ratio in snow'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
     case('rmH2Oae','rmH2Odr')

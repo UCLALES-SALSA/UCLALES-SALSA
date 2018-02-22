@@ -36,8 +36,8 @@ module defs
   real, parameter :: omega  = 7.292e-05
   real, parameter :: alvl   = 2.5e+06  ! latent heat of vaporization
   real, parameter :: alvi   = 2.834e+06 ! latent heat of sublimation
-  real, parameter :: rowt   = 1.e+3
-  real, parameter :: roice  = 0.9e+3
+  real, parameter :: rowt   = 1.e+3 ! Radiation and level 3 microphysics
+  real, parameter :: roice  = 0.9e+3 ! Radiation only
   real, parameter :: vonk   = 0.40
   real, parameter :: stefan = 5.6696e-8
   real, parameter :: SolarConstant  = 1.365d+3

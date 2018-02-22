@@ -191,7 +191,7 @@ end subroutine tstep_reset
   !
   subroutine t_step(cflflg,cflmax)
 
-    use grid, only : level, dtl, dtlt, Tspinup, zt,                                        &
+    use grid, only : level, dtl, dtlt, Tspinup,                                         &
                      ! Added parameters for interfacing with SALSA
                      nxp, nyp, nzp, a_press, a_temp, a_rsl,                       &
                      a_rc, a_wp, a_rp, a_rt, a_rh,                                  &
@@ -200,9 +200,7 @@ end subroutine tstep_reset
                      a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                      a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl,    &
-                     sst, a_rsi, a_temp0,      &
-                     minispinup01, minispinup02, & !debugkebab
-                     minispinupCase01, minispinupCase02 !debugkebab
+                     sst, a_rsi
 
 
     use stat, only : sflg, statistics
@@ -225,8 +223,7 @@ end subroutine tstep_reset
     real :: xtime
 
     LOGICAL :: zactmask(nzp,nxp,nyp)
-    REAL :: zwp(nzp,nxp,nyp), &  !! FOR SINGLE-COLUMN RUNS
-            ztkt(nzp,nxp,nyp)
+    REAL :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
     INTEGER :: zrm
 
     INTEGER :: n4
@@ -240,8 +237,6 @@ end subroutine tstep_reset
     zrm = 3
     IF ( time < Tspinup ) zrm = 2
 
-if (time > Tspinup + minispinup01 ) zrm = minispinupCase01 !! all processes off !debugkebab
-if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'cloud testing runmode parameter !minispinup !debugkebab
 
     ! Reset ALL tendencies here.
     !----------------------------------------------------------------
@@ -278,36 +273,26 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
           call update_sclrs
           CALL tend0(.TRUE.)
 
-          ! Rate of change in absolute temperature (for some ice processes)
-          if (time >= 1.) then
-             ztkt = a_temp-a_temp0
-             a_temp0 = a_temp
-          else if (time == 0.) then
-             a_temp0 = a_temp
-             ztkt = 0.
-          end if
-
           IF ( nxp ==5 .and. nyp == 5 ) THEN
              ! 1D -runs
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  zrm, prtcl, dtlt, time, level,zt  )
+                  zrm, prtcl, dtlt, time, level  )
           ELSE
              !! for 2D or 3D runs
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  zrm, prtcl, dtlt,  time, level, zt  )
-
+                  zrm, prtcl, dtlt, time, level  )
           END IF !nxp==5 and nyp == 5
 
           CALL tend_constrain(n4)
@@ -353,6 +338,12 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
         ! Reset tendencies
         call tend0(.TRUE.)
+
+        ! Update diagnostic tracers
+        IF (level >= 4)  THEN
+             CALL SALSA_diagnostics
+             call thermo(level)
+        ENDIF
 
         CALL nudging(time)
 
@@ -428,10 +419,8 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
         !                            + ice (a_ri) + snow (a_srs)
         IF (nudge_rv/=0)  THEN
             ALLOCATE(rv_ref(nzp))
-            IF (level==5) THEN
+            IF (level>3) THEN
                 rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)+a_ri(:,3,3)+a_srs(:,3,3)
-            ELSEIF (level==4) THEN
-                rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)
             ELSE ! Levels 0-3
                 rv_ref(:)=a_rp(:,3,3) ! This includes all, so no need to add a_rpp(:,3,3)
             ENDIF
@@ -470,8 +459,8 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
     ! Water vapor
     IF (nudge_rv>0) THEN
         IF (level>3) THEN
-            ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain)
-            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+            ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain [+ ice + snow])
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp+a_ri+a_srs,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
         ELSE
             ! Nudge total water (a_rp) based on total + rain
             CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rpp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
@@ -974,26 +963,22 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                      a_naerop,a_maerop,a_ncloudp,a_mcloudp,a_nprecpp,a_mprecpp,      &
                      a_gaerop,  &
                      a_rc, a_srp,a_snrp, prtcl,   &
-                     a_rh, a_temp, a_ri,a_srs,a_snrs,a_rhi,                                      &
-                     a_nicep,a_micep,a_nsnowp,a_msnowp, diss, mws, dens, level
+                     a_rh, a_temp, a_ri,a_srs,a_snrs,a_rhi, a_dn,                                &
+                     a_nicep,a_micep,a_nsnowp,a_msnowp, diss, mws, dens, dens_ice, dens_snow, level
     USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,              &
-                               in1a,fn2a,fn2b,                        &
+                               in1a,in2a,fn2a,in2b,fn2b,                        &
                                nice,nsnw,iia,fia,iib,fib,isa,fsa,        &
-                               rhosu,rhowa,rhoic,rhosn,      &
-                               msu,moc,mno,mnh,mwa,avog,pi6,                     &
+                               msu,moc,mno,mnh,avog,pi6,                     &
                                surfw0, rg, nlim, prlim, pi, &
-                               lscndgas
+                               lscndgas, aerobins, calc_correlation
     USE class_ComponentIndex, ONLY : GetIndex, GetNcomp, IsUsed
-
 
     IMPLICIT NONE
 
-    INTEGER :: i,j,k,bc,ba,s,sc,sa,str,end,nc,nn,iba
+    INTEGER :: i,j,k,bc,ba,bb,s,sc,sa,str,end,nc,nn,iba
 
-    REAL :: zvol, zvola, zvolnew
-    REAL :: zdh2o
-    REAL :: ns, bb, aa ! Number of moles, Raoult effect, Kelvin effect; For calculating the critical radius
-    REAL :: cdcld,cdprc ! Critical diameter for cloud droplets and precipitation
+    REAL :: zvol, ra, rb
+    REAL :: ns, cd
 
     ! Remove negative values
     a_naerop = MAX(0.,a_naerop)
@@ -1010,13 +995,15 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
     nn = GetNcomp(prtcl)+1 ! total number of species
 
-    ! Remove particles that have number but no mass
+    ! Remove particles that have number but no mass. Also remove particles that have
+    ! insignificant concentration indicated by nlim and prlim (note: #/m^3)
     DO j = 3,nyp-2
        DO i = 3,nxp-2
           DO k = 1,nzp
              ! Aerosols
              DO bc = 1,nbins
-                IF (a_naerop(k,i,j,bc) > 0. .AND. SUM(a_maerop(k,i,j,bc:(nn-1)*nbins+bc:nbins)) <= 0.) THEN
+                IF (a_naerop(k,i,j,bc) > 0. .AND. SUM(a_maerop(k,i,j,bc:(nn-1)*nbins+bc:nbins)) <= 0. .OR. &
+                        a_naerop(k,i,j,bc)*a_dn(k,i,j) < nlim) THEN
                    a_naerop(k,i,j,bc) = 0.
                    a_maerop(k,i,j,bc:(nn-1)*nbins+bc:nbins) = 0.
                 END IF
@@ -1024,7 +1011,8 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
              ! Clouds
              DO bc = 1,ncld
-                IF (a_ncloudp(k,i,j,bc) > 0. .AND. SUM(a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld)) <= 0.) THEN
+                IF (a_ncloudp(k,i,j,bc) > 0. .AND. SUM(a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld)) <= 0. .OR. &
+                        a_ncloudp(k,i,j,bc)*a_dn(k,i,j) < nlim) THEN
                    a_ncloudp(k,i,j,bc) = 0.
                    a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld) = 0.
                 END IF
@@ -1032,7 +1020,8 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
              ! Precipitation
              DO bc = 1,nprc
-                IF (a_nprecpp(k,i,j,bc) > 0. .AND. a_mprecpp(k,i,j,(nn-1)*nprc+bc) <= 0.) THEN
+                IF (a_nprecpp(k,i,j,bc) > 0. .AND. a_mprecpp(k,i,j,(nn-1)*nprc+bc) <= 0. .OR. &
+                        a_nprecpp(k,i,j,bc)*a_dn(k,i,j) < prlim) THEN
                    a_nprecpp(k,i,j,bc) = 0.
                    a_mprecpp(k,i,j,bc:(nn-1)*nprc+bc:nprc) = 0.
                 END IF
@@ -1041,7 +1030,8 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
              ! Ice
              IF (level<5) CYCLE
              DO bc = 1,nice
-                IF (a_nicep(k,i,j,bc) > 0. .AND. SUM(a_micep(k,i,j,bc:(nn-1)*nice+bc:nice)) <= 0.) THEN
+                IF (a_nicep(k,i,j,bc) > 0. .AND. SUM(a_micep(k,i,j,bc:(nn-1)*nice+bc:nice)) <= 0. .OR. &
+                        a_nicep(k,i,j,bc)*a_dn(k,i,j) < prlim ) THEN
                    a_nicep(k,i,j,bc) = 0.
                    a_micep(k,i,j,bc:(nn-1)*nice+bc:nice) = 0.
                 END IF
@@ -1049,7 +1039,8 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
              ! Snow
              DO bc = 1,nsnw
-                IF (a_nsnowp(k,i,j,bc) > 0. .AND. a_msnowp(k,i,j,(nn-1)*nsnw+bc) <= 0.) THEN
+                IF (a_nsnowp(k,i,j,bc) > 0. .AND. a_msnowp(k,i,j,(nn-1)*nsnw+bc) <= 0. .OR. &
+                        a_nsnowp(k,i,j,bc)*a_dn(k,i,j) < prlim) THEN
                    a_nsnowp(k,i,j,bc) = 0.
                    a_msnowp(k,i,j,bc:(nn-1)*nsnw+bc:nsnw) = 0.
                 END IF
@@ -1066,20 +1057,17 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
              ! Loop over cloud droplet bins
              DO bc = ica%cur,fcb%cur
 
-                IF ( a_ncloudp(k,i,j,bc) > nlim .AND. a_rh(k,i,j)<0.999) THEN
-
-                   ! Critical radius
+                IF ( a_ncloudp(k,i,j,bc)*a_dn(k,i,j) > nlim .AND. a_rh(k,i,j)<0.999 .AND. &
+                        a_mcloudp(k,i,j,(nn-1)*ncld+bc)<1e-5 ) THEN
+                   ! Critical diameter (assuming soluble CCN)
                    ns = SUM( diss(1:nn-1)*a_mcloudp(k,i,j,bc:(nn-2)*ncld+bc:ncld)/mws(1:nn-1) )/a_ncloudp(k,i,j,bc)
-                   bb = 6.*mwa*ns/(pi*rhowa)
-                   aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
-                   cdcld = SQRT(3.*bb/aa)
+                   cd = 3.*SQRT(ns*rg*a_temp(k,i,j)/(2.*pi*surfw0))
 
-                   ! Wet radius
-                   zvol = SUM( a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld)/dens(1:nn) )/a_ncloudp(k,i,j,bc)
-                   zdh2o = (zvol/pi6)**(1./3.)
+                   ! Wet diameter
+                   zvol = (SUM( a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld)/dens(1:nn) )/a_ncloudp(k,i,j,bc)/pi6)**(1./3.)
 
-                   ! Lose the droplets if smaller than 0.2*(critical size) or 2 um
-                   IF ( zdh2o < MAX(0.2*cdcld,2.e-6) ) THEN
+                   ! Lose the droplets if smaller than 0.2*critical diameter or 2 um or if there is no water
+                   IF ( zvol < MAX(0.2*cd,2.e-6) .OR. a_mcloudp(k,i,j,(nn-1)*ncld+bc)<1e-25*a_ncloudp(k,i,j,bc) ) THEN
                       IF (bc<=fca%cur) THEN
                           ba = ica%par + (bc-ica%cur) ! Index for parallel aerosol bin
                       ELSE
@@ -1096,8 +1084,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                          a_maerop(k,i,j,sa) = a_maerop(k,i,j,sa) + a_mcloudp(k,i,j,sc)
                          a_mcloudp(k,i,j,sc) = 0.
                       END DO
-
-                   END IF ! critical radius
+                   END IF ! critical diameter
 
                 END IF  ! blim
 
@@ -1106,38 +1093,41 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
              ! Loop over precipitation bins
              DO bc = ira,fra
 
-                IF ( a_nprecpp(k,i,j,bc) > prlim .AND. a_rh(k,i,j)<0.999 ) THEN
-
-                   ! Critical radius
+                IF ( a_nprecpp(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rh(k,i,j)<0.999 .AND. &
+                        a_mprecpp(k,i,j,(nn-1)*nprc+bc)<1e-6 ) THEN
+                   ! Critical diameter
                    ns = SUM( diss(1:nn-1)*a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc)/mws(1:nn-1) )/a_nprecpp(k,i,j,bc)
-                   bb = 6.*mwa*ns/(pi*rhowa)
-                   aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
-                   cdprc = SQRT(3.*bb/aa)
+                   cd = 3.*SQRT(ns*rg*a_temp(k,i,j)/(2.*pi*surfw0))
 
-                   ! Wet radius
-                   zvol = SUM( a_mprecpp(k,i,j,bc:(nn-1)*nprc+bc:nprc)/dens(1:nn) )/a_nprecpp(k,i,j,bc)
-                   zdh2o = (zvol/pi6)**(1./3.)
+                   ! Wet diameter
+                   zvol = (SUM( a_mprecpp(k,i,j,bc:(nn-1)*nprc+bc:nprc)/dens(1:nn) )/a_nprecpp(k,i,j,bc)/pi6)**(1./3.)
 
-                   ! Lose the droplets if smaller than 0.02*critical radius or 2 um
-                   IF ( zdh2o < MAX(0.02*cdprc,2.e-6)  ) THEN
-                      ! Move evaporating rain drops to a soluble aerosol bin with
-                      ! the closest match in dry particle mass. Ain't perfect but
-                      ! the bin update subroutine in SALSA will take care of the rest.
-                      zvol = SUM( a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc) )/a_nprecpp(k,i,j,bc) ! Dry mass
+                   ! Lose the droplets if smaller than 0.02*critical diameter or 2 um or if there is no water
+                   IF ( zvol < MAX(0.02*cd,2.e-6) .OR. a_mprecpp(k,i,j,(nn-1)*nprc+bc)<1e-25*a_nprecpp(k,i,j,bc) ) THEN
 
-                      ba=0
-                      zvola=-1.
-                      DO iba=in1a,fn2a
-                        IF (a_naerop(k,i,j,iba)>nlim) THEN
-                            zvolnew = SUM( a_maerop(k,i,j,iba:(nn-2)*nbins+iba:nbins) )/a_naerop(k,i,j,iba) ! Dry mass
-                            IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
-                                ! New closest match
-                                ba=iba
-                                zvola=zvolnew
-                            ENDIF
-                         ENDIF
+                      ! Move evaporating precipitation to aerosol bin based on dry radius and chemical composition
+
+                      ! 1) Find the closest matching bin based on dry particle radius (a and b bins)
+                      cd = 0.5*(SUM( a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc)/dens(1:nn-1) )/a_nprecpp(k,i,j,bc)/pi6)**(1./3.) ! Dry radius
+                      ba=in2a ! Ignore 1a and note that "aerobins" contains the lower limit of bin dry radius
+                      DO WHILE (cd>=aerobins(ba+1) .AND. ba<fn2a)
+                         ba=ba+1
                       ENDDO
-                      if (ba==0) STOP 'FAIL: no sink for evaporating rain drops'
+                      ! Corresponding b bin is ba+(fn2a-fn1a)=ba+fn2a-(in2a-1)=ba+fn2a-in2a+1
+                      bb=ba+fn2a-in2a+1
+                      ! 2) Select a or b bin
+                      IF (a_naerop(k,i,j,bb)*a_dn(k,i,j)<=nlim) THEN
+                         ! Empty b bin so select a
+                         !ba = ba
+                      ELSEIF (a_naerop(k,i,j,ba)*a_dn(k,i,j)<=nlim) THEN
+                         ! Empty a bin so select b
+                         ba = bb
+                      ELSE
+                         ! Both are present - find bin based on compositional similarity
+                         ra = calc_correlation(a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins),a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc),7)
+                         rb = calc_correlation(a_maerop(k,i,j,bb:(nn-2)*nbins+bb:nbins),a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc),7)
+                         IF (ra<rb) ba = bb
+                      ENDIF
 
                       ! Move the number of particles from precipitation to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nprecpp(k,i,j,bc)
@@ -1151,7 +1141,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
                          a_mprecpp(k,i,j,sc) = 0.
                       END DO
 
-                   END IF ! Critical radius
+                   END IF ! Critical diameter
 
                 END IF ! prlim
 
@@ -1160,19 +1150,20 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
              ! Loop over ice bins
              DO bc = iia%cur,fib%cur
 
-                IF ( a_nicep(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 ) THEN
+                IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. a_micep(k,i,j,(nn-1)*nice+bc)<1e-15 ) THEN
+                   ! Diameter (assuming constant ice density)
+                   cd = (SUM( a_micep(k,i,j,bc:(nn-1)*nice+bc:nice)/dens_ice(1:nn) )/a_nicep(k,i,j,bc)/pi6)**(1./3.)
 
-                   ! Ice and snow don't have a critical size, but lose particles when water content becomes low enough
-
-                   ! Lose ice when dry to total mass ratio is more than 0.5
+                   ! Dry to total mass ratio
                    zvol = SUM( a_micep(k,i,j,bc:(nn-2)*nice+bc:nice) )/SUM( a_micep(k,i,j,bc:(nn-1)*nice+bc:nice) )
-                   IF ( zvol>0.5 ) THEN
+
+                   ! Ice and snow don't have a critical size, but lose particles smaller than 2e-6 m and particles which dry to total mass ratio is more than 0.5
+                   IF ( zvol>0.5 .OR. cd<2e-6 ) THEN
                       IF (bc<=fia%cur) THEN
                          ba = iia%par + (bc-iia%cur) ! Index for parallel aerosol bin
                       ELSE
                          ba = iib%par + (bc-iib%cur) ! Index for parallel aerosol bin
                       ENDIF
-
                       ! Move the number of particles from ice to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
                       a_nicep(k,i,j,bc) = 0.
@@ -1193,31 +1184,40 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
              ! Loop over snow bins
              DO bc = isa,fsa
 
-                IF ( a_nsnowp(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 ) THEN
+                IF ( a_nsnowp(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. &
+                        a_msnowp(k,i,j,(nn-1)*nsnw+bc)<1e-20 ) THEN
+                   ! Diameter (assuming constant snow density)
+                   cd = (SUM( a_msnowp(k,i,j,bc:(nn-1)*nsnw+bc:nsnw)/dens_snow(1:nn) )/a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
 
-                   ! Lose snow when dry to total mass ratio is more than 0.5
+                   ! Dry to total mass ratio
                    zvol = SUM( a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw) )/SUM( a_msnowp(k,i,j,bc:(nn-1)*nsnw+bc:nsnw) )
-                   IF ( zvol>0.5 ) THEN
-                      ! Move evaporating snow to a soluble aerosol bin with
-                      ! the closest match in dry particle mass. Ain't perfect but
-                      ! the bin update subroutine in SALSA will take care of the rest.
-                      zvol = SUM( a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw) ) ! Dry mass
-                      zvol=zvol/a_nsnowp(k,i,j,bc)
 
-                      ba=0
-                      zvola=-1.
-                      DO iba=in1a,fn2a
-                         IF (a_naerop(k,i,j,iba)>nlim) THEN
-                            zvolnew = SUM( a_maerop(k,i,j,iba:(nn-2)*nbins+iba:nbins) ) ! Dry mass
-                            zvolnew=zvolnew/a_naerop(k,i,j,iba)
-                            IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
-                                ! New closest match
-                                ba=iba
-                                zvola=zvolnew
-                            ENDIF
-                         ENDIF
+                   ! Lose particles smaller than 2e-6 m and particles which dry to total mass ratio is more than 0.5
+                   IF ( zvol>0.5  .OR. cd<2e-6 ) THEN
+
+                      ! Move evaporating snow to aerosol bin based on dry radius and chemical composition
+
+                      ! 1) Find the closest matching bin based on dry particle radius (a and b bins)
+                      cd = 0.5*(SUM( a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw)/dens(1:nn-1) )/a_nsnowp(k,i,j,bc)/pi6)**(1./3.) ! Dry radius
+                      ba=in2a ! Ignore 1a and note that aerobins contains the lower limit of bin dry radius
+                      DO WHILE (cd>=aerobins(ba+1) .AND. ba<fn2a)
+                         ba=ba+1
                       ENDDO
-                      if (ba==0) STOP 'FAIL: no sink for evaporating snow'
+                      ! Corresponding b bin is ba+(fn2a-fn1a)=ba+fn2a-(in2a-1)=ba+fn2a-in2a+1
+                      bb=ba+fn2a-in2a+1
+                      ! 2) Select a or b bin
+                      IF (a_naerop(k,i,j,bb)*a_dn(k,i,j)<=nlim) THEN
+                         ! Empty b bin so select a
+                         !ba = ba
+                      ELSEIF (a_naerop(k,i,j,ba)*a_dn(k,i,j)<=nlim) THEN
+                         ! Empty a bin so select b
+                         ba = bb
+                      ELSE
+                         ! Both are present - find bin based on compositional similarity
+                         ra = calc_correlation(a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins),a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw),7)
+                         rb = calc_correlation(a_maerop(k,i,j,bb:(nn-2)*nbins+bb:nbins),a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw),7)
+                         IF (ra<rb) ba = bb
+                      ENDIF
 
                       ! Move the number of particles from snow to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nsnowp(k,i,j,bc)
@@ -1238,7 +1238,7 @@ if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'clo
 
              ! Loop over aerosol bins
              DO ba = 1,nbins
-                IF (a_naerop(k,i,j,ba) > nlim) THEN
+                IF (a_naerop(k,i,j,ba)*a_dn(k,i,j) > nlim) THEN
                    zvol = SUM( a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins)/dens(1:nn-1) )/a_naerop(k,i,j,ba) ! Dry volume
 
                    ! Particles smaller than 0.1 nm diameter are set to zero

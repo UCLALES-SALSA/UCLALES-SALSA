@@ -512,7 +512,7 @@ contains
     USE mo_submctl, ONLY : nbins, ncld, nprc,           &
                                nice,  nsnw,                 &
                                nlim,prlim,  &
-                               rhowa,rhoic
+                               rhowa,rhoic,rhosn
     USE class_ComponentIndex, ONLY : GetIndex, GetNcomp
     IMPLICIT NONE
 
@@ -552,21 +552,21 @@ contains
     REAL :: prnt(n1,n2,n3,nprc), prvt(n1,n2,n3,n4*nprc)  ! Rain number and mass tendencies due to fallout
     REAL :: srnt(n1,n2,n3,nsnw), srvt(n1,n2,n3,n4*nsnw)  ! Snow number and mass tendencies due to fallout
 
-    ! Particle mass removal arrays, given in kg/(m2 s)
+    ! Particle mass removal arrays (kg/m^2/s)
     REAL :: remaer(n2,n3,n4*nbins),   &
             remcld(n2,n3,n4*ncld),    &
             remprc(n2,n3,n4*nprc),    &
             remice(n2,n3,n4*nice),    &
             remsnw(n2,n3,n4*nsnw)
 
-    ! Particle number removal arrays
+    ! Particle number removal arrays (#/m^2/s)
     REAL :: andep(n2,n3,nbins),     &
             cndep(n2,n3,ncld),      &
             indep(n2,n3,nice)
 
     REAL :: mctmp(n2,n3) ! Helper for mass conservation calculations
 
-    ! Divergence fields
+    ! Divergence fields (kg/kg/s and #/kg/s)
     REAL :: amdiv(n1,n2,n3,n4*nbins),    &
             cmdiv(n1,n2,n3,n4*ncld),     &
             imdiv(n1,n2,n3,n4*nice)
@@ -575,6 +575,7 @@ contains
             indiv(n1,n2,n3,nice)
 
 
+    andep = 0.; cndep = 0.; indep = 0.
     remaer = 0.; remcld = 0.; remprc = 0.; remice = 0.; remsnw = 0.
 
     ! Sedimentation for slow (non-precipitating) particles
@@ -650,7 +651,7 @@ contains
     ! ---------------------------------------------------------
     ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
     IF (sed_precp) THEN
-       CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,rowt,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate,3)
+       CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,rhowa,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate,3)
 
        nprecpt(:,:,:,:) = nprecpt(:,:,:,:) + prnt(:,:,:,:)/tstep
        mprecpt(:,:,:,:) = mprecpt(:,:,:,:) + prvt(:,:,:,:)/tstep
@@ -671,7 +672,7 @@ contains
     END IF
 
     IF (sed_snow) THEN
-       CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,rowt,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate,5)
+       CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,rhosn,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate,5)
 
        nsnowt(:,:,:,:) = nsnowt(:,:,:,:) + srnt(:,:,:,:)/tstep
        msnowt(:,:,:,:) = msnowt(:,:,:,:) + srvt(:,:,:,:)/tstep
@@ -732,7 +733,7 @@ contains
     REAL, INTENT(in) :: numc(n1,n2,n3,nn)    ! Particle number concentration
     REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4) ! Particle mass mixing ratio
     REAL, INTENT(in) :: dzt(n1)              ! Inverse of grid level thickness
-    REAL, INTENT(IN) :: clim                ! Concentration limit
+    REAL, INTENT(IN) :: clim                ! Concentration limit (#/m^3)
     INTEGER, INTENT(IN) :: flag         ! An option for identifying aerosol, cloud, precipitation, ice and snow
     REAL, INTENT(OUT) :: flxdivm(n1,n2,n3,nn*n4), flxdivn(n1,n2,n3,nn) ! Mass and number divergence
     REAL, INTENT(OUT) :: depflxn(n2,n3,nn), depflxm(n2,n3,nn*n4) ! Mass and number deposition fluxes to the surface
@@ -779,7 +780,7 @@ contains
              !------------------
              ! -- Calculate the *corrections* for small particles
              DO bin = 1,nn
-                IF (numc(k,i,j,bin)<clim) CYCLE
+                IF (numc(k,i,j,bin)*adn(k,i,j)<clim) CYCLE
 
                 ! Calculate wet size
                 !   n4 = number of active species
@@ -818,8 +819,8 @@ contains
 
           ! Deposition flux to surface
           k=2
-          depflxm(i,j,:) = -rflm(k,:)*dzt(k)
-          depflxn(i,j,:) = -rfln(k,:)*dzt(k)
+          depflxm(i,j,:) = -rflm(k,:)*adn(k,i,j) ! kg/m^2/s
+          depflxn(i,j,:) = -rfln(k,:)*adn(k,i,j) ! #/m^2/s
 
        END DO ! i
     END DO ! j
@@ -873,7 +874,7 @@ contains
              !------------------
              ! -- Calculate the *corrections* for small particles
              DO bin = 1,nn
-                IF (numc(k,i,j,bin)<clim) CYCLE
+                IF (numc(k,i,j,bin)*adn(k,i,j)<clim) CYCLE
 
 
                 C = 0.09*sum(mass(k,i,j, bin:(n4-1)*nn + bin:nn ))**bc
@@ -899,8 +900,8 @@ contains
 
           ! Deposition flux to surface
           k=2
-          depflxm(i,j,:) = -rflm(k,:)*dzt(k)
-          depflxn(i,j,:) = -rfln(k,:)*dzt(k)
+          depflxm(i,j,:) = -rflm(k,:)*adn(k,i,j)
+          depflxn(i,j,:) = -rfln(k,:)*adn(k,i,j)
 
        END DO ! i
     END DO ! j
@@ -919,7 +920,7 @@ contains
     REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4)
     REAL, INTENT(in) :: tstep
     REAL, INTENT(in) :: dzt(n1)
-    REAL, INTENT(IN) :: clim                ! Concentration limit
+    REAL, INTENT(IN) :: clim                ! Concentration limit (#/m^3)
     INTEGER, INTENT(IN) :: flag         ! An option for identifying aerosol, cloud, precipitation, ice and snow
     REAL, INTENT(out) :: prnt(n1,n2,n3,nn), prvt(n1,n2,n3,nn*n4)     ! Number and mass tendencies due to fallout
     REAL, INTENT(out) :: remprc(n2,n3,nn*n4)

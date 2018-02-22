@@ -1,75 +1,5 @@
-
 MODULE mo_submctl
-
-
   IMPLICIT NONE
-
-  PRIVATE
-
-  PUBLIC :: lsdistupdate,nsnucl
-
-  !SALSA:
-  PUBLIC :: act_coeff,nj3
-
-  PUBLIC :: in1a,in2a,in2b,fn1a,fn2a,fn2b,nbins
-  PUBLIC :: nbin,reglim,nlim,prlim,nreg
-  PUBLIC :: pi, pi6, rg, avog, planck, boltz, cpa, mair, grav, eps
-  PUBLIC :: rda, alv, als
-  PUBLIC :: rhosu,rhooc, rhobc,rhoss, rhodu, rhowa, rhonh, rhono, rhoic,rhosn
-  PUBLIC :: msu,mdu,mno,mnh,n3,massacc,d_sa,pstand,mss,mbc,moc,epsoc,mwa,ions,&
-            mvsu,mvoc,mvss,surfw0,surfi0,mvwa,mvno,mvnh
-
-  PUBLIC :: t_section,t_parallelbin
-  PUBLIC :: ica,fca,icb,fcb,ira,fra,ncld,nprc
-
-  PUBLIC :: aerobins, cloudbins, precpbins, icebins, snowbins
-
-  PUBLIC :: iia,fia,iib,fib,isa,fsa,nice,nsnw
-
-
-  PUBLIC :: nlcoag,                &
-            nlcgaa,nlcgcc,nlcgpp,  &
-            nlcgca,nlcgpa,nlcgpc,  &
-            nlcgia,nlcgic,nlcgii,  &
-            nlcgip,nlcgsa,nlcgsc,  &
-            nlcgsi,nlcgsp,nlcgss,  &
-            nlcnd,                 &
-            nlcndgas,              &
-            nlcndh2oae,nlcndh2ocl, &
-            nlcndh2oic,            &
-            nlauto,                &
-            nlautosnow,            &
-            nlactiv,nlactbase,     &
-            nlactintst,            &
-            nlicenucl,             &
-            nlicmelt,              &
-            nlfixinc,              &
-            fixINC,                &
-            lscoag,                &
-            lscgaa,lscgcc,lscgpp,  &
-            lscgca,lscgpa,lscgpc,  &
-            lscgia,lscgic,lscgii,  &
-            lscgip,lscgsa,lscgsc,  &
-            lscgsi,lscgsp,lscgss,  &
-            lscnd,                 &
-            lscndgas,              &
-            lscndh2oae,lscndh2ocl, &
-            lscndh2oic,            &
-            lsauto,                &
-            lsautosnow,            &
-            lsactiv,lsactbase,     &
-            lsactintst,            &
-            lsicenucl,             &
-            lsicmelt,              &
-            lsfixinc
-
-  PUBLIC :: nspec, listspec, maxspec, nmod
-  PUBLIC :: sigmag, dpg, n, volDistA, volDistB, nf2a
-  PUBLIC :: rhlim
-  PUBLIC :: isdtyp
-
-  PUBLIC :: terminal_vel, CalcDimension, calc_Sw_eq
-
 
   ! Datatype used to store information about the binned size distributions of aerosols,cloud,drizzle and ice
   ! ---------------------------------------------------------------------------------------------------------
@@ -163,12 +93,10 @@ MODULE mo_submctl
                lsactbase                 ! for maximum supersaturation and cloud activation.
 
 
-    LOGICAL :: nlicenucl   = .FALSE., & ! ice nucleation
+    LOGICAL :: nlicenucl   = .FALSE., & ! ice nucleation master switch
                lsicenucl
     LOGICAL :: nlicmelt    = .FALSE., & ! ice melting
                lsicmelt
-    LOGICAL :: nlfixinc    = .FALSE., & ! Fix ice number concentration to be over given limit fixINC
-               lsfixinc
 
   LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
 
@@ -213,7 +141,12 @@ MODULE mo_submctl
   ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
   REAL :: nf2a = 1.0
 
-  REAL :: fixINC = 1000.0 ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
+  ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
+  ! a) Constant ice number concentration (fixinc > 0 #/L) is maintained by converting cloud droplets to ice
+  REAL :: fixinc = -1.0 ! Default = disabled
+  ! b) Modelled ice nucleation
+  LOGICAL :: ice_hom = .FALSE., ice_imm=.FALSE., ice_dep=.FALSE. ! Available ice nucleation modes
+
 
   INTEGER :: isdtyp = 0  ! Type of input aerosol size distribution: 0 - Uniform
                          !                                          1 - Read vertical profile of the mode
@@ -344,7 +277,7 @@ MODULE mo_submctl
 
 
   REAL, PARAMETER :: &
-   nlim = 1.,  & ! Number conc. limit (#/kg) for aerosol and cloud droplets 
+   nlim = 1.,  & ! Number conc. limit (#/m3) for aerosol and cloud droplets
    prlim = 1.e-6 ! The same for precipitation and ice species for which concentrations are normally much lower [#/m3]
 
 
@@ -427,18 +360,55 @@ contains
     !   3   BC     0
     !   4   DU    0
     !   5   SS     2
-    !   6   NH    1
-    !   7   NO    1
+    !   6   NO    1
+    !   7   NH    1
     !   8   H2O
 
     ! Wet diameter
     dwet=(SUM(part%volc(:))/part%numc/pi6)**(1./3.)
 
     ! Equilibrium saturation ratio = xw*exp(4*sigma*v_w/(R*T*Dwet))
-    calc_Sw_eq=part%volc(8)*rhowa/mwa/(3.*part%volc(1)*rhosu/msu+part%volc(2)*rhooc/moc+ &
-            2.*part%volc(5)*rhoss/mss+part%volc(6)*rhonh/mnh+part%volc(7)*rhono/mno+part%volc(8)*rhowa/mwa)* &
+    IF (part%volc(8)>1e-28*part%numc) THEN
+        ! An aqueous droplet
+        calc_Sw_eq=part%volc(8)*rhowa/mwa/(3.*part%volc(1)*rhosu/msu+part%volc(2)*rhooc/moc+ &
+            2.*part%volc(5)*rhoss/mss+part%volc(6)*rhono/mno+part%volc(7)*rhonh/mnh+part%volc(8)*rhowa/mwa)* &
             exp(4.*surfw0*mwa/(rg*T*rhowa*dwet))
+    ELSEIF (part%volc(1)+part%volc(2)+part%volc(5)+part%volc(6)+part%volc(7)>1e-28*part%numc) THEN
+        ! Dry particle with soluble substances: allow complete dissolution (the same equation as for aqueous droplets)
+        calc_Sw_eq=part%volc(8)*rhowa/mwa/(3.*part%volc(1)*rhosu/msu+part%volc(2)*rhooc/moc+ &
+            2.*part%volc(5)*rhoss/mss+part%volc(6)*rhono/mno+part%volc(7)*rhonh/mnh+part%volc(8)*rhowa/mwa)* &
+            exp(4.*surfw0*mwa/(rg*T*rhowa*dwet))
+    ELSEIF (part%volc(3)+part%volc(4)>1e-28*part%numc) THEN
+        ! Dry insoluble particle: xw = 1 even with trace amounts of water
+        calc_Sw_eq=exp(4.*surfw0*mwa/(rg*T*rhowa*dwet))
+    ELSE
+        ! Just add eps to avoid divide by zero
+        calc_Sw_eq=part%volc(8)*rhowa/mwa/(eps+3.*part%volc(1)*rhosu/msu+part%volc(2)*rhooc/moc+ &
+            2.*part%volc(5)*rhoss/mss+part%volc(6)*rhono/mno+part%volc(7)*rhonh/mnh+part%volc(8)*rhowa/mwa)* &
+            exp(4.*surfw0*mwa/(rg*T*rhowa*dwet))
+    ENDIF
 
   END FUNCTIOn calc_Sw_eq
+
+  ! Function for calculating Pearson's correlation coefficient for two vectors
+  REAL FUNCTION calc_correlation(x,y,n)
+    INTEGER :: n
+    REAL :: x(n), y(n)
+    REAL :: sx, sy, sx2, sy2, sxy
+    INTEGER :: i
+    sx=0.; sy=0.; sx2=0.; sy2=0.; sxy=0.
+    DO i=1,n
+        sx=sx+x(i)
+        sy=sy+y(i)
+        sx2=sx2+x(i)**2
+        sy2=sy2+y(i)**2
+        sxy=x(i)*y(i)
+    ENDDO
+    IF (sx2*n-sx**2<eps .OR. sy2*n-sy**2<eps) THEN
+        calc_correlation = 0.
+    ELSE
+        calc_correlation = ( sxy*n-sx*sy )/( SQRT(sx2*n-sx**2)*SQRT(sy2*n-sy**2) )
+    ENDIF
+  END FUNCTION calc_correlation
 
 END MODULE mo_submctl

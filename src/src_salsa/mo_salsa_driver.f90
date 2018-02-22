@@ -62,14 +62,14 @@ IMPLICIT NONE
   ! Juha Tonttila, FMI, 2014
   ! Jaakko Ahola, FMI, 2016
   !
-  SUBROUTINE run_SALSA(pnx, pny, pnz, n4, press, tk, tt, rv, rt, rs, rsi, wp, pdn,   &
+  SUBROUTINE run_SALSA(pnx, pny, pnz, n4, press, tk, rv, rt, rs, rsi, wp, pdn,   &
                        pa_naerop,  pa_naerot,  pa_maerop,  pa_maerot,   &
                        pa_ncloudp, pa_ncloudt, pa_mcloudp, pa_mcloudt,  &
                        pa_nprecpp, pa_nprecpt, pa_mprecpp, pa_mprecpt,  &
                        pa_nicep,   pa_nicet,   pa_micep,   pa_micet,    &
                        pa_nsnowp,  pa_nsnowt,  pa_msnowp,  pa_msnowt,   &
                        pa_nactd,   pa_vactd,   pa_gaerop,  pa_gaerot,   &
-                       prunmode, prtcl, tstep, time, level, zt)
+                       prunmode, prtcl, tstep, time, level)
 
     USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
                                nice,nsnw,             &
@@ -83,16 +83,14 @@ IMPLICIT NONE
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: pnx,pny,pnz,n4                       ! Dimensions: x,y,z,number of chemical species  
-    REAL, INTENT(in)    :: tstep, time                      ! Model timestep length
+    REAL, INTENT(in)    :: tstep, time                      ! Model timestep length and time
 
     REAL, INTENT(in)    :: press(pnz,pnx,pny), &            ! Pressure (Pa)
                                tk(pnz,pnx,pny),    &            ! Temperature (K)
-                               tt(pnz,pnx,pny),    &            ! Temperature tendency
                                rv(pnz,pnx,pny),    &            ! Water vapor mixing ratio
                                rs(pnz,pnx,pny),    &            ! Water vapour saturation mixing ratio
                                rsi(pnz,pnx,pny),   &            ! Water vapour saturation mixing ratio over ice
-                               wp(pnz,pnx,pny),    &            ! Vertical velocity (m s-1)
-                               zt(pnz)                          ! grid heights
+                               wp(pnz,pnx,pny)                  ! Vertical velocity (m s-1)
 
     REAL, INTENT(in)    :: pdn(pnz,pnx,pny)             ! Air density (for normalizing concentrations)
 
@@ -142,7 +140,7 @@ IMPLICIT NONE
 
     INTEGER :: jj,ii,kk,ss,str,end, nc,vc
     REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
-                in_w(kbdim,klev), in_rsi(kbdim,klev), in_tt(kbdim,klev), in_pdn(kbdim,klev)
+                in_w(kbdim,klev), in_rsi(kbdim,klev)
     REAL :: rv_old(kbdim,klev)
 
     ! Number is always set, but mass can be uninitialized
@@ -171,15 +169,20 @@ IMPLICIT NONE
              ! Set inputs
              in_p(1,1) = press(kk,ii,jj)
              in_t(1,1) = tk(kk,ii,jj)
-             in_tt(1,1) = ( tk(kk+1,ii,jj) - tk(kk,ii,jj)) / (zt(kk+1) -zt (kk))*wp(kk,ii,jj)
-             in_pdn(1,1) = pdn(kk,ii,jj)
              in_rs(1,1) = rs(kk,ii,jj)
              in_rsi(1,1) = rsi(kk,ii,jj)
              in_w(1,1) = wp(kk,ii,jj)
 
              ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
              IF (prunmode < 3) THEN
-                in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)
+                IF (rhlim>2.0) THEN
+                    ! Time-dependent water vapor mixing ratio limit: initially limited to saturation and exponential
+                    ! relaxation towards current mixing ratio. Here rhlim is the relaxation time [s].
+                    in_rv(1,1) = MIN( rv(kk,ii,jj), rv(kk,ii,jj)+(rs(kk,ii,jj)-rv(kk,ii,jj))*exp(-time/rhlim) )
+                ELSE
+                    ! Constant water vapor mixing ratio limit. Here rhlim is the maximum saturation ratio.
+                    in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)
+                ENDIF
              ELSE
                 in_rv(1,1) = rv(kk,ii,jj)
              END IF
@@ -506,11 +509,11 @@ IMPLICIT NONE
              ! ***************************************!
              CALL salsa(kproma, kbdim,  klev,   krow,          &
                         in_p,   in_rv,  in_rs,  in_rsi,        &
-                        in_t,  in_tt, tstep,                         &
+                        in_t,   tstep,                         &
                         zgso4,  zgocnv, zgocsv, zghno3,        &
                         zgnh3,  aero,   cloud,  precp,         &
                         ice,    snow,                          &
-                        actd,   in_w,   prtcl, time, level, in_pdn)
+                        actd,   in_w,   prtcl,  level )
 
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)
@@ -866,14 +869,12 @@ IMPLICIT NONE
                                nlcnd,                  &
                                nlicenucl,              &
                                nlicmelt,               &
-                               nlfixinc,               &
 
                                lscgia,lscgic,lscgii,   &
                                lscgip,lscgsa,lscgsc,   &
                                lscgsi,lscgsp,lscgss,   &
                                lsicenucl,              &
-                               lsicmelt,               &
-                               lsfixinc
+                               lsicmelt
 
     IMPLICIT NONE
 
@@ -911,8 +912,7 @@ IMPLICIT NONE
     lsactbase   = nlactbase
     lsactintst  = nlactintst
 
-    lsicenucl  = ( nlicenucl .AND. ( .NOT. nlfixinc ) )
-    lsfixinc    = nlfixinc
+    lsicenucl  = nlicenucl
     lsicmelt    = nlicmelt
 
 
@@ -928,7 +928,6 @@ IMPLICIT NONE
           lsactbase   = .FALSE.
           lsactintst  = nlactintst
           lsicenucl  = .FALSE.
-          lsfixinc    = .FALSE.
           lsicmelt    = .FALSE.
 
        CASE(2)  ! Spinup period
@@ -939,142 +938,7 @@ IMPLICIT NONE
           ! ice processes off
           lscndh2oic  = .false.
           lsicenucl   = .false.
-          lsfixinc    = .false.
           lsicmelt    = .false.
-
-
-       CASE(4)  ! after minispinup
-                ! self_coagulation only
-                ! distupdate ON
-
-          lscoag      = .TRUE. !true
-          lscgaa      = .TRUE. !true
-          lscgcc      = .TRUE. !true
-          lscgpp      = .TRUE. !true
-          lscgca      = .false.
-          lscgpa      = .false.
-          lscgpc      = .false.
-          lscgia      = .false.
-          lscgic      = .false.
-          lscgii      = .TRUE. !true
-          lscgip      = .false.
-          lscgsa      = .false.
-          lscgsc      = .false.
-          lscgsi      = .false.
-          lscgsp      = .false.
-          lscgss      = .TRUE. !true
-          lscnd       = .false.
-          lscndgas    = .false.
-          lscndh2oae  = .false.
-          lscndh2ocl  = .false.
-          lsauto      = .false.
-          lsautosnow  = .false.
-          lsactiv     = .false.
-          lsactintst  = .false.
-          lsicenucl   = .FALSE.
-          lsfixinc    = .false.
-          lsicmelt    = .false.
-
-
-       CASE(5)  ! after minispinup
-                ! condensation only
-                ! distupdate ON
-
-          lscoag      = .false.
-          lscgaa      = .false.
-          lscgcc      = .false.
-          lscgpp      = .false.
-          lscgca      = .false.
-          lscgpa      = .false.
-          lscgpc      = .false.
-          lscgia      = .false.
-          lscgic      = .false.
-          lscgii      = .false.
-          lscgip      = .false.
-          lscgsa      = .false.
-          lscgsc      = .false.
-          lscgsi      = .false.
-          lscgsp      = .false.
-          lscgss      = .false.
-          lscnd       = .TRUE. !true
-          lscndgas    = .false.
-          lscndh2oae  = .false.
-          lscndh2ocl  = .TRUE. !true
-          lscndh2oic  = .TRUE. !true
-          lsauto      = .false.
-          lsautosnow  = .false.
-          lsactiv     = .false.
-          lsactintst  = .false.
-          lsicenucl   = .FALSE.
-          lsfixinc    = .false.
-          lsicmelt    = .false.
-
-
-
-
-       CASE(8)  ! after minispinup
-                ! fixed INC only
-                ! distupdate ON
-
-          lscoag      = .false.
-          lscgaa      = .false.
-          lscgcc      = .false.
-          lscgpp      = .false.
-          lscgca      = .false.
-          lscgpa      = .false.
-          lscgpc      = .false.
-          lscgia      = .false.
-          lscgic      = .false.
-          lscgii      = .false.
-          lscgip      = .false.
-          lscgsa      = .false.
-          lscgsc      = .false.
-          lscgsi      = .false.
-          lscgsp      = .false.
-          lscgss      = .false.
-          lscnd       = .false.
-          lscndgas    = .false.
-          lscndh2oae  = .false.
-          lscndh2ocl  = .false.
-          lsauto      = .false.
-          lsautosnow  = .false.
-          lsactiv     = .false.
-          lsactintst  = .false.
-          lsicenucl  = .FALSE.
-          lsfixinc    = .TRUE. !true
-          lsicmelt    = .false.
-          
-
-       CASE(0)  ! all off
-
-          lscoag      = .false.
-          lscgaa      = .false.
-          lscgcc      = .false.
-          lscgpp      = .false.
-          lscgca      = .false.
-          lscgpa      = .false.
-          lscgpc      = .false.
-          lscgia      = .false.
-          lscgic      = .false.
-          lscgii      = .false.
-          lscgip      = .false.
-          lscgsa      = .false.
-          lscgsc      = .false.
-          lscgsi      = .false.
-          lscgsp      = .false.
-          lscgss      = .false.
-          lscnd       = .false.
-          lscndgas    = .false.
-          lscndh2oae  = .false.
-          lscndh2ocl  = .false.
-          lsauto      = .false.
-          lsautosnow  = .false.
-          lsactiv     = .false.
-          lsactintst  = .false.
-          lsicenucl  = .FALSE.
-          lsfixinc    = .false.
-          lsicmelt    = .false.
-
 
     END SELECT
 

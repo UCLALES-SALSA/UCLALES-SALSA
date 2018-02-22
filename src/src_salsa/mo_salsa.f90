@@ -17,11 +17,11 @@ CONTAINS
 
   SUBROUTINE salsa(kproma,   kbdim,    klev,    krow,       &
                    ppres,    prv,      prs,     prsi,       &
-                   ptemp,    ptt,      ptstep,              &
+                   ptemp, ptstep,                           &
                    pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,    &
                    pc_nh3,   paero,    pcloud,  pprecp,     &
                    pice, psnow,                             &
-                   pactd,    pw,    prtcl, time, level, pdn      )
+                   pactd,    pw,    prtcl, level )
 
     USE mo_salsa_dynamics, only : coagulation, condensation
     USE mo_salsa_update, ONLY : distr_update
@@ -41,9 +41,9 @@ CONTAINS
          lsautosnow,                &
          lsactiv,                   &
          lsicenucl,                 &
-         lsfixinc,                  &
          lsicmelt,                  &
-         lsdistupdate
+         lsdistupdate,              &
+         fixinc, ice_hom, ice_imm, ice_dep
 
     USE class_componentIndex, ONLY : ComponentIndex
 
@@ -60,10 +60,7 @@ CONTAINS
     REAL, INTENT(in) ::            &
          ppres(kbdim,klev),            & ! atmospheric pressure at each grid point [Pa]
          ptemp(kbdim,klev),            & ! temperature at each grid point [K]
-         ptt(kbdim,klev),              & ! temperature tendency
-         ptstep,                       & ! time step [s]
-         time,                         & ! time
-         pdn(kbdim,klev)                 ! air density
+         ptstep                          ! time step [s]
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl
 
@@ -117,7 +114,7 @@ CONTAINS
     ! Autoconversion (liquid)
     IF (lsauto) &
          CALL autoconv2(kproma,kbdim,klev, &
-                        pcloud, pprecp, ptstep )
+                        pcloud, pprecp )
 
     ! Cloud activation
     IF (lsactiv )  &
@@ -126,17 +123,18 @@ CONTAINS
                                prs,    pw,    paero,  &
                                pcloud, pactd          )
 
-    ! Fixed ice number concentration
-    IF (lsfixinc) &
-          CALL  ice_fixed_NC(kproma, kbdim, klev,   &
+    ! Ice nucleation
+    IF (lsicenucl .AND. fixinc>=0.) THEN
+        ! Fixed ice number concentration
+        CALL  ice_fixed_NC(kproma, kbdim, klev,   &
                              pcloud,   pice,   &
                              ptemp,  ppres,  prv,  prsi)
-
-    ! Ice nucleation
-    IF (lsicenucl) &
+    ELSEIF (lsicenucl .AND. (ice_hom .OR. ice_imm .OR. ice_dep)) THEN
+        ! Modelled ice nucleation
         CALL ice_nucl_driver(kproma,kbdim,klev,   &
-                          paero,pcloud,pprecp,pice,psnow, &
-                          ptemp,ppres,prv,prsi,ptstep)
+                          paero,pcloud,pprecp,pice, &
+                          ptemp,prv,prs,prsi,ptstep)
+    ENDIF
 
     ! Melting of ice and snow
     IF (lsicmelt) &
@@ -146,7 +144,7 @@ CONTAINS
     ! Snow formation ~ autoconversion from ice
     IF (lsautosnow) &
          CALL autosnow(kproma,kbdim,klev, &
-                       pice, psnow, ptstep )
+                       pice, psnow )
 
     ! Size distribution bin update
     IF (lsdistupdate ) &

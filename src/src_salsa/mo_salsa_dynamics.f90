@@ -1520,11 +1520,11 @@ CONTAINS
                 zwsatid(nice), zwsatsd(nsnw)                      ! ice'n'snow
     REAL :: zcwtot                                        ! Total water mole concentration
     REAL :: zcwc, zcwn, zcwint                            ! Current and new water vapour mole concentrations
-    REAL :: zcwcae(nbins), zcwnae(nbins), zcwintae(nbins) ! Current and new water mole concentrations in aerosols
-    REAL :: zcwccd(ncld), zcwncd(ncld), zcwintcd(ncld)    !     -  ''  -     in cloud droplets
-    REAL :: zcwcpd(nprc), zcwnpd(nprc), zcwintpd(nprc)    !     -  ''  -     in rain drops
-    REAL :: zcwcid(nice), zcwnid(nice), zcwintid(nice)    !     -  ''  -     in ice particles
-    REAL :: zcwcsd(nsnw), zcwnsd(nsnw), zcwintsd(nsnw)    !     -  ''  -     in snow particles
+    REAL :: zcwcae(nbins), zcwintae(nbins) ! Current and new water mole concentrations in aerosols
+    REAL :: zcwccd(ncld), zcwintcd(ncld)   !     -  ''  -     in cloud droplets
+    REAL :: zcwcpd(nprc), zcwintpd(nprc)   !     -  ''  -     in rain drops
+    REAL :: zcwcid(nice), zcwintid(nice)   !     -  ''  -     in ice particles
+    REAL :: zcwcsd(nsnw), zcwintsd(nsnw)   !     -  ''  -     in snow particles
     REAL :: zdfh2o, zthcond,rhoair
     REAL :: zbeta,zknud,zmfph2o
     REAL :: zact, zhlp1,zhlp2,zhlp3
@@ -1536,9 +1536,8 @@ CONTAINS
 
     INTEGER :: nstr
     INTEGER :: ii,jj,cc
+    LOGICAL aero_eq, any_aero, any_cloud, any_prec, any_ice, any_snow
 
-
-    zhlp1 = 0.
     zrh(:,:) = prv(:,:)/prs(:,:)
 
     ! Calculate the condensation only for 2a/2b aerosol bins
@@ -1547,13 +1546,10 @@ CONTAINS
     ! Save the current aerosol water content
     zaelwc1(:,:) = SUM(paero(:,:,in1a:fn2b)%volc(8),DIM=3)*rhowa
 
-    ! For 1a bins do the equilibrium calculation
-    CALL equilibration(kproma,kbdim,klev,      &
-                       zrh,ptemp,paero,.FALSE. )
-
-    ! If RH < 98 % OR dynamic condensation for aerosols switched off, do equilibrium for all bins
-    IF (zrh(1,1) < 0.98 .OR. .NOT. lscndh2oae)  CALL equilibration(kproma,kbdim,klev,      &
-                                                                      zrh,ptemp,paero,.TRUE. )
+    ! If RH < 98 % or dynamic condensation for aerosol is switched off,
+    ! do equilibrium for all aerosol bins, but otherwise just 1a.
+    aero_eq = zrh(1,1) < 0.98 .OR. .NOT. lscndh2oae ! Equilibrium for 2a and 2b?
+    CALL equilibration(kproma,kbdim,klev,zrh,ptemp,paero,aero_eq)
 
     ! The new aerosol water content after equilibrium calculation
     zaelwc2(:,:) = SUM(paero(:,:,in1a:fn2b)%volc(8),DIM=3)*rhowa
@@ -1563,15 +1559,21 @@ CONTAINS
     zcwc = 0.; zcwint = 0.; zcwn = 0.
     zcwcae = 0.; zcwccd = 0.; zcwcpd = 0.; zcwcid = 0.; zcwcsd = 0.;
     zcwintae = 0.; zcwintcd = 0.; zcwintpd = 0.; zcwintid = 0.; zcwintsd = 0.
-    zcwnae = 0.; zcwncd = 0.; zcwnpd = 0.; zcwnid = 0.; zcwnsd = 0.
     zwsatae = 0.; zwsatcd = 0.; zwsatpd = 0.; zwsatid = 0.; zwsatsd = 0.
 
     DO jj = 1,klev
        DO ii = 1,kbdim
+
+          any_aero = ANY(paero(ii,jj,:)%numc > nlim)
+          any_cloud = ANY(pcloud(ii,jj,:)%numc > nlim)
+          any_prec = ANY(pprecp(ii,jj,:)%numc > prlim)
+          any_ice = ANY(pice(ii,jj,:)%numc > prlim)
+          any_snow = ANY(psnow(ii,jj,:)%numc > prlim)
+
           IF ( .NOT. ( &
-                (ANY(pcloud(ii,jj,:)%numc > nlim) .OR. ANY(pprecp(ii,jj,:)%numc > prlim) .AND. lscndh2ocl) .OR. &
-                (ANY(pice(ii,jj,:)%numc > prlim) .OR. ANY(psnow(ii,jj,:)%numc > prlim) .AND. lscndh2oic) .OR. &
-                (ANY(paero(ii,jj,:)%numc > nlim) .AND. zrh(ii,jj) > 0.98 .AND. lscndh2oae) &
+                ((any_cloud .OR. any_prec) .AND. lscndh2ocl) .OR. &
+                ((any_ice .OR. any_snow) .AND. lscndh2oic) .OR. &
+                (any_aero .AND. .NOT.aero_eq) &
                 ) ) CYCLE
 
           rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
@@ -1675,8 +1677,8 @@ CONTAINS
                 !   because these are not known for solid, irregular and non-homogenous particles.
                 !   Ice may not be that far from a sphere, but most particles are large and at least
                 !   growing particles are covered by a layer of pure ice.
-                !zact = 1.0 !acth2o(pice(ii,jj,cc))
-                !zkelvinid(cc) =  exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                !zact = 1.0 ! Note: acth2o does not work for ice or snow!
+                !zkelvinid(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
 
                 ! Saturation mole concentration over flat surface
                 zcwsurfid(cc) = prsi(ii,jj)*rhoair/mwa
@@ -1715,7 +1717,7 @@ CONTAINS
                 !   Can be calculated just like for sperical homogenous particle or just ignored,
                 !   because these are not known for solid, irregular and non-homogenous particles.
                 !   Especially snow is typically highly irregular (e.g. dendrite).
-                zact = 1.0 !acth2o(psnow(ii,jj,cc))
+                zact = 1.0 ! Note: acth2o does not work for ice or snow!
                 zkelvinsd(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
 
                 ! Saturation mole concentrations over flat surface
@@ -1742,8 +1744,8 @@ CONTAINS
           ! -- Aerosols: ------------------------------------------------------------------------------------
           zmtae(:) = 0.
           zcwsurfae(:) = 0.
-          DO cc = 1,nbins
-             IF (paero(ii,jj,cc)%numc > nlim .AND. zrh(ii,jj) > 0.98 .AND. lscndh2oae) THEN
+          DO cc = nstr,nbins
+             IF (paero(ii,jj,cc)%numc > nlim .AND. .NOT.aero_eq) THEN
                 ! Wet diameter
                 dwet=( SUM(paero(ii,jj,cc)%volc(:))/paero(ii,jj,cc)%numc/pi6 )**(1./3.)
 
@@ -1793,10 +1795,10 @@ CONTAINS
 
           ! Substepping loop
           ! ---------------------------------
-          zcwint = 0.
           DO WHILE (ttot < ptstep)
 
              adt=2.e-2
+
              ! New vapor concentration
              zhlp1 = zcwc + adt * ( SUM(zmtae(nstr:nbins)*zwsatae(nstr:nbins)*zcwsurfae(nstr:nbins))  + &
                                     SUM(zmtcd(1:ncld)*zwsatcd(1:ncld)*zcwsurfcd(1:ncld))              + &
@@ -1809,46 +1811,46 @@ CONTAINS
              zcwint = zhlp1/zhlp2
              zcwint = MIN(zcwint,zcwtot)
 
-             IF ( ANY(paero(ii,jj,:)%numc > nlim) .AND. zrh(ii,jj) > 0.98 ) THEN
+             IF ( any_aero .AND. .NOT.aero_eq ) THEN
                 DO cc = nstr,nbins
                    zcwintae(cc) = zcwcae(cc) + min(max(adt*zmtae(cc)*(zcwint - zwsatae(cc)*zcwsurfae(cc)), &
                         -0.02*zcwcae(cc)),0.05*zcwcae(cc))
                    zwsatae(cc) = acth2o(paero(ii,jj,cc),zcwintae(cc))*zkelvin(cc)
                 END DO
+                zcwintae(nstr:nbins) = MAX(zcwintae(nstr:nbins),0.)
              END IF
-             IF ( ANY(pcloud(ii,jj,:)%numc > nlim) ) THEN
+             IF ( any_cloud ) THEN
                 DO cc = 1,ncld
                    zcwintcd(cc) = zcwccd(cc) + min(max(adt*zmtcd(cc)*(zcwint - zwsatcd(cc)*zcwsurfcd(cc)), &
                         -0.02*zcwccd(cc)),0.05*zcwccd(cc))
                    zwsatcd(cc) = acth2o(pcloud(ii,jj,cc),zcwintcd(cc))*zkelvincd(cc)
                 END DO
+                zcwintcd(1:ncld) = MAX(zcwintcd(1:ncld),0.)
              END IF
-             IF ( ANY(pprecp(ii,jj,:)%numc > prlim) ) THEN
+             IF ( any_prec ) THEN
                 DO cc = 1,nprc
                    zcwintpd(cc) = zcwcpd(cc) + min(max(adt*zmtpd(cc)*(zcwint - zwsatpd(cc)*zcwsurfpd(cc)), &
                         -0.02*zcwcpd(cc)),0.05*zcwcpd(cc))
                    zwsatpd(cc) = acth2o(pprecp(ii,jj,cc),zcwintpd(cc))*zkelvinpd(cc)
                 END DO
+                zcwintpd(1:nprc) = MAX(zcwintpd(1:nprc),0.)
              END IF
-             IF (ANY(pice(ii,jj,:)%numc > prlim) ) THEN
+             IF ( any_ice ) THEN
                 DO cc = 1,nice
                    zcwintid(cc) = zcwcid(cc) + min(max(adt*zmtid(cc)*(zcwint - zwsatid(cc)*zcwsurfid(cc)), &
                         -0.02*zcwcid(cc)),0.05*zcwcid(cc))
                    zwsatid(cc) = zkelvinid(cc)
                 END DO
+                zcwintid(1:nice) = MAX(zcwintid(1:nice),0.)
              END IF
-             IF (ANY(psnow(ii,jj,:)%numc > prlim) ) THEN
+             IF ( any_snow ) THEN
                 DO cc = 1,nsnw
                    zcwintsd(cc) = zcwcsd(cc) + min(max(adt*zmtsd(cc)*(zcwint - zwsatsd(cc)*zcwsurfsd(cc)),&
                         -0.02*zcwcsd(cc)),0.05*zcwcsd(cc))
                    zwsatsd(cc) = zkelvinsd(cc)
                 END DO
+                zcwintsd(1:nsnw) = MAX(zcwintsd(1:nsnw),0.)
              END IF
-             zcwintae(nstr:nbins) = MAX(zcwintae(nstr:nbins),0.)
-             zcwintcd(1:ncld) = MAX(zcwintcd(1:ncld),0.)
-             zcwintpd(1:nprc) = MAX(zcwintpd(1:nprc),0.)
-             zcwintid(1:nice) = MAX(zcwintid(1:nice),0.)
-             zcwintsd(1:nsnw) = MAX(zcwintsd(1:nsnw),0.)
 
              ! Update vapor concentration for consistency
              zcwint = zcwtot - SUM(zcwintae(1:nbins)) - &
@@ -1865,20 +1867,13 @@ CONTAINS
 
           END DO ! ADT
 
-          zcwn = zcwint
-          zcwnae = zcwintae
-          zcwncd = zcwintcd
-          zcwnpd = zcwintpd
-          zcwnid = zcwintid
-          zcwnsd = zcwintsd
+          prv(ii,jj) = zcwint*mwa/rhoair
 
-          prv(ii,jj) = zcwn*mwa/rhoair
-
-          paero(ii,jj,1:nbins)%volc(8) = max(0.,zcwnae(1:nbins)*mwa/rhowa)
-          pcloud(ii,jj,1:ncld)%volc(8) = max(0.,zcwncd(1:ncld)*mwa/rhowa)
-          pprecp(ii,jj,1:nprc)%volc(8) = max(0.,zcwnpd(1:nprc)*mwa/rhowa)
-          pice(ii,jj,1:nice)%volc(8) = max(0.,zcwnid(1:nice)*mwa/rhoic)
-          psnow(ii,jj,1:nsnw)%volc(8) = max(0.,zcwnsd(1:nsnw)*mwa/rhosn)
+          paero(ii,jj,1:nbins)%volc(8) = max(0.,zcwintae(1:nbins)*mwa/rhowa)
+          pcloud(ii,jj,1:ncld)%volc(8) = max(0.,zcwintcd(1:ncld)*mwa/rhowa)
+          pprecp(ii,jj,1:nprc)%volc(8) = max(0.,zcwintpd(1:nprc)*mwa/rhowa)
+          pice(ii,jj,1:nice)%volc(8) = max(0.,zcwintid(1:nice)*mwa/rhoic)
+          psnow(ii,jj,1:nsnw)%volc(8) = max(0.,zcwintsd(1:nsnw)*mwa/rhosn)
 
        END DO !kbdim
 
@@ -1911,10 +1906,10 @@ CONTAINS
     IF (PRESENT(pcw)) THEN
        znw = pcw
     ELSE
-       znw = ppart%volc(8)*rhowa/mwa
+       znw = ppart%volc(8)*rhowa/mwa ! This is not valid for ice and snow!
     END IF
 
-    ! Assume activity coefficient of 1 for water...
+    ! Assume activity coefficient of 1 for water and that there is always some soluble material
     acth2o = MAX(0.1,znw/max(eps,(znw+zns)))
   END FUNCTION acth2o
 
@@ -2205,7 +2200,7 @@ CONTAINS
   ! ---------------------------------------------------------------
 
   REAL FUNCTION acthno3(ppart,pgamma,pchno3p)
-
+    
     USE mo_submctl, ONLY : t_section,  &
                                rhosu, msu,   &
                                rhooc, moc,   &

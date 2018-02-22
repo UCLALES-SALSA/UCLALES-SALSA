@@ -51,17 +51,14 @@ contains
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
     USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim
-    USE util, ONLY : maskactiv
     USE class_ComponentIndex, ONLY : GetNcomp
 
     implicit none
 
     ! Local variables for SALSA basic state
-    REAL :: zwp(nzp,nxp,nyp), ztkt(nzp,nxp,nyp)
+    REAL :: zwp(nzp,nxp,nyp)
     INTEGER :: n4
-
-    ztkt = 0.
-
+    
     ! Set vertical velocity as 0.5 m/s to intialize cloud microphysical properties with
     ! SALSA
     zwp(:,:,:) = 0.5
@@ -80,27 +77,27 @@ contains
           n4 = GetNcomp(prtcl) + 1 ! Aerosol components + water
 
           IF ( nxp == 5 .and. nyp == 5 ) THEN
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtlt,  0., level,zt   )
+                  1, prtcl, dtlt, 0., level   )
           ELSE
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,ztkt,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
+             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtlt,  0., level,zt   )
+                  1, prtcl, dtlt, 0., level   )
 
           END IF
           CALL SALSAInit
-
+          
 
        END IF !level >= 4
 

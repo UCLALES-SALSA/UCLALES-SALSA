@@ -66,11 +66,6 @@ module grid
   character (len=7) :: runtype = 'INITIAL'! Run Type Selection
 
   REAL              :: Tspinup = 7200.    ! Spinup period in seconds (added by Juha)
-  real              :: minispinup01 = 0. ! testing purposes !debugkebab ! default value is just normal run
-  real              :: minispinup02 = 0. ! testing purposes !debugkebab ! default value is just normal run
-  integer           :: minispinupCase01 = 3. ! testing purposes !debugkebab ! default value is just normal run
-  integer           :: minispinupCase02 = 3. ! testing purposes !debugkebab ! default value is just normal run
-
 
 
   character (len=7),  private :: v_snm='sxx    '
@@ -169,7 +164,7 @@ module grid
   !
   real, allocatable, dimension (:,:,:) :: a_rflx, a_sflx, &
        a_fus, a_fds, a_fuir, a_fdir, &
-       a_temp, a_temp0 ! store temperatures of previous timestep
+       a_temp
   !
   !
   real, allocatable :: a_ustar(:,:)
@@ -278,9 +273,8 @@ contains
        memsize = memsize + nxyzp + nxyp + 4*nxyp
     end if
 
-    allocate (a_temp(nzp,nxp,nyp),a_temp0(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp))
+    allocate (a_temp(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp))
     a_temp(:,:,:) = 0.
-    a_temp0(:,:,:) = 0.
     a_rsl(:,:,:) = 0.
     memsize = memsize + nxyzp*3
 
@@ -1909,7 +1903,10 @@ contains
     ! Given in kg/kg
     SELECT CASE(ipart)
        CASE('aerosol')
-          IF (itype == 'a') THEN
+          IF (itype == 'ab') THEN
+             istr = (mm-1)*nbins + in1a
+             iend = (mm-1)*nbins + fn2b
+          ELSEIF (itype == 'a') THEN
              istr = (mm-1)*nbins + in1a
              iend = (mm-1)*nbins + fn2a
           ELSE IF (itype == 'b') THEN
@@ -1920,7 +1917,10 @@ contains
           END IF
           mixrat(:,:,:) = SUM(a_maerop(:,:,:,istr:iend),DIM=4)
        CASE('cloud')
-          IF (itype == 'a') THEN
+          IF (itype == 'ab') THEN
+             istr = (mm-1)*ncld + ica%cur
+             iend = (mm-1)*ncld + fcb%cur
+          ELSEIF (itype == 'a') THEN
              istr = (mm-1)*ncld + ica%cur
              iend = (mm-1)*ncld + fca%cur
           ELSE IF (itype == 'b') THEN
@@ -1935,7 +1935,10 @@ contains
           iend = (mm-1)*nprc + fra
           mixrat(:,:,:) = SUM(a_mprecpp(:,:,:,istr:iend),DIM=4)
        CASE('ice')
-          IF (itype == 'a') THEN
+          IF (itype == 'ab') THEN
+             istr = (mm-1)*nice + iia%cur
+             iend = (mm-1)*nice + fib%cur
+          ELSEIF (itype == 'a') THEN
              istr = (mm-1)*nice + iia%cur
              iend = (mm-1)*nice + fia%cur
           ELSE IF (itype == 'b') THEN
@@ -2157,7 +2160,6 @@ contains
   contains
 
    SUBROUTINE getRadius(zstr,zend,nn,n4,numc,mass,numlim,zrad,flag)
-    USE mo_submctl, ONLY : pi6
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: nn, n4 ! Number of bins (nn) and aerosol species (n4)
@@ -2199,7 +2201,6 @@ contains
   ! SUBROUTINE getBinRadius
   ! Calculates wet radius for each bin in the whole domain
   SUBROUTINE getBinRadius(nn,n4,numc,mass,numlim,zrad,flag)
-    USE mo_submctl, ONLY : pi6
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: nn, n4 ! Number of bins (nn) and aerosol species (n4)
