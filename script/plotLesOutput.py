@@ -2090,12 +2090,12 @@ if ICE:
     ylabels    = map(str, korkeustikit )
     
     profiiliVariLIQ = [ '#000099', '#00ccff', '#00e600', '#f9f906', '#ff9900', '#ff0000' ]
-    profiiliVariICE = [ '#000099', '#00ccff', '#29a385', '#00e600', '#c8e600', '#f9f906', '#ff9900', '#ff0000', '#990000', '#660000' ]
+    profiiliVariICE = [ '#000099', '#00ccff', '#29a385', '#00e600', '#c8e600', '#f9f906', '#ff9900', '#ff0000' ] # , '#990000', '#660000'
     cbvalLIQ    = np.arange(0, 0.241, 0.04)
     cbvalLIQStr = map(str, cbvalLIQ)
 
     if tag[:-1] == 'ice1':
-        cbvalICE    = np.arange( 0, 0.51, 0.05) # np.arange(0, 1.4, 0.1)
+        cbvalICE    = np.arange( 0, 0.41, 0.05) # np.arange(0, 1.4, 0.1)
     else:
         cbvalICE    =  np.arange(0, 1.41, 0.1)
         
@@ -2161,7 +2161,7 @@ if ICE:
         
         piirra_aikasarjasettii( muuttuja = 'Nc_ic', muunnosKerroin = 1.e-6, longName = 'in-cloud CDNC', ylabel = '[#/mg]', ymin = 0.0,  savePrefix = 'cdncTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel, legenda = True  )
         
-        piirra_domainProfiili( 'theta', longName = 'Potential temperature', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Reds, spinup = spinup, profiili = False  )
+        piirra_domainProfiili( 'theta', longName = 'Potential temperature', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Reds, spinup = spinup, profiili = True  )
 
         #piirra_domainProfiili( 'thl', longName = 'Liquid water potential temperature', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Reds, spinup = spinup, profiili = True  )
         

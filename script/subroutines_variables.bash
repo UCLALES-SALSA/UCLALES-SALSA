@@ -287,9 +287,9 @@ function tarkistastatus {
 
     	    if [[ $PPtime -ge $((timmax-1)) ]]; then
 	        postpros=1
-	    else
-	        postpros=2
-	    fi
+            else
+                postpros=2
+            fi
 	    #for f in ${folderROOT}/${simulation}/${outputname}*.0*0*.nc; do # jos postprosessoituja filuja on, mutta prossufiluja on edelleen olemassa niin postprosessoidaan uusiks ja lessi on tosiaan valmis; muutoin ollaan valmiita
             #    [ -e "$f" ] && postpros=2 || postpros=1
             #    break

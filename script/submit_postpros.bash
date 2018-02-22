@@ -124,7 +124,7 @@ set -e
 cd ${dir}
 
 
-export PATH=${USERAPPL}/miniconda2/bin:$PATH"
+export PATH="${USERAPPL}/miniconda2/bin:$PATH"
 
 python ${scriptname} $input
 
