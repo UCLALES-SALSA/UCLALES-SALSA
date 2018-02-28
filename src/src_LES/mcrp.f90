@@ -20,7 +20,7 @@
 module mcrp
 
   use defs, only : alvl, alvi, rowt, pi, Rm, cp, kb, g, vonk
-  use grid, only : dtlt, dzt, nxp, nyp, nzp,a_pexnr, a_rp, a_tp, th00, CCN,     &
+  use grid, only : dtlt, dzt, nxp, nyp, nzp,a_pexnr, a_rp, a_tp, CCN,     &
        dn0, pi0, a_rt, a_tt, a_rpp, a_rpt, a_npp, a_npt, a_rv, a_rc, a_theta,   &
        a_press, a_temp, a_rsl, precip, a_dn, a_ustar,                  &
        a_naerop,  a_naerot,  a_maerop,  a_maerot,                               &
@@ -34,7 +34,7 @@ module mcrp
   USE mo_submctl, ONLY : terminal_vel
   implicit none
 
-  logical, parameter :: droplet_sedim = .False., khairoutdinov = .False.
+  logical, parameter :: khairoutdinov = .False.
 
   LOGICAL :: sed_aero = .TRUE.,  &
              sed_cloud = .TRUE., &
@@ -73,7 +73,7 @@ contains
 
     select case (level)
     case(2)
-       if (droplet_sedim)  &
+       if (sed_cloud)  &
             call sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
     case(3)
        call mcrph(nzp,nxp,nyp,dn0,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,   &
@@ -144,9 +144,9 @@ contains
        end do
     end do
 
-    call sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
+    if (sed_precp) call sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
 
-    if (droplet_sedim) call sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
+    if (sed_cloud) call sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
 
   end subroutine mcrph
   !

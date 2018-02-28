@@ -407,7 +407,7 @@ end subroutine tstep_reset
 
     ! Initialization
     IF (init) THEN
-        ! (Liquid water) potential temperature: nudge towards th0(:)-th00
+        ! (Liquid water) potential temperature: nudge towards initial theta
         IF (nudge_theta/=0) THEN
             ALLOCATE(theta_ref(nzp))
             theta_ref(:)=a_tp(:,3,3)
@@ -462,8 +462,8 @@ end subroutine tstep_reset
             ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain [+ ice + snow])
             CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp+a_ri+a_srs,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
         ELSE
-            ! Nudge total water (a_rp) based on total + rain
-            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rpp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+            ! Nudge total water (a_rp) based on total water
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
         ENDIF
     ENDIF
 

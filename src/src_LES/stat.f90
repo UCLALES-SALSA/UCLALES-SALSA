@@ -511,7 +511,7 @@ contains
     REAL :: xrpp(nzp,nxp,nyp), xnpp(nzp,nxp,nyp)
 
     SELECT CASE(level)
-       CASE(1,2,3)
+       CASE (3)
           rxt = a_rp ! Total water (vapor + condensed water and ice) = q
           rxl = a_rc-a_rpp ! Cloud water (+aerosol), but no precipitation or ice
           rxv = a_rv ! Water vapor
@@ -523,6 +523,12 @@ contains
           rxv = a_rp
           xrpp = a_srp
           xnpp = a_snrp
+       CASE DEFAULT
+          rxt = a_rp
+          rxl = a_rc
+          rxv = a_rv
+          xrpp = 0.
+          xnpp = 0.
     END SELECT
 
     if (nsmp == 0.) fsttm = time
