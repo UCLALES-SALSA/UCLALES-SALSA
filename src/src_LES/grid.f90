@@ -218,11 +218,11 @@ CONTAINS
 
       ! Juha: Number of prognostic tracers for SALSA
       !            Aerosol bins + Cloud bins + gas compound tracers
-
+      
       IF (level >= 4) THEN
          nc = spec%getNSpec()
          nsalsa = (nc+1)*nbins + (nc+1)*ncld + (nc+1)*nprc + 5
-	     IF (level == 5) nsalsa = nsalsa + (nc+1)*nice + (nc+1)*nsnw 
+         IF (level == 5) nsalsa = nsalsa + (nc+1)*nice + (nc+1)*nsnw 
       END IF
 
       ! Juha: Stuff that's allocated for all configurations
@@ -2079,17 +2079,17 @@ CONTAINS
                             in1a,fn2a,in2b,fn2b, &
                             nlim,prlim
      IMPLICIT NONE
-
+     
      CHARACTER(len=*), INTENT(in) :: ipart
      CHARACTER(len=*), INTENT(in) :: itype
      REAL, INTENT(out) :: rad(nzp,nxp,nyp)
      CHARACTER(len=20), PARAMETER :: name = "meanRadius"
-
+     
      INTEGER :: istr,iend
-	 INTEGER :: nspec
-
-	 nspec = spec%getNSpec()
-
+     INTEGER :: nspec
+     
+     nspec = spec%getNSpec()
+     
      rad = 0.
      
      SELECT CASE(ipart)

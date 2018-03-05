@@ -118,12 +118,10 @@ CONTAINS
 
      CALL sponge_init
      CALL init_stat(time+dtl,filprf,expnme,nzp)
-
      !
      ! Initialize nudging profiles
      ! ----------------------------
      IF (lnudging) CALL init_nudg()
-
      !
      ! Initialize aerosol emissions
      ! -----------------------------
@@ -685,6 +683,7 @@ CONTAINS
        DO j = 3, n3-2
           DO i = 3, n2-2
              fld(k,i,j) = fld(k,i,j) + rand(i,j)*xmag(k)
+             xx = xx + rand(i,j)*xmag(k)
           END DO
        END DO
 

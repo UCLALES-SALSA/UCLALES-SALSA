@@ -352,14 +352,12 @@ CONTAINS
                              nlcnd,                  &
                              nlicenucl,               &
                              nlicmelt,               &
-                             nlfixinc,               &
 
                              lscgia,lscgic,lscgii,   &
                              lscgip,lscgsa,lscgsc,   &
                              lscgsi,lscgsp,lscgss,   &
                              lsicenucl,                &
-                             lsicmelt,               &
-                             lsfixinc
+                             lsicmelt
 
       IMPLICIT NONE
 
@@ -397,8 +395,7 @@ CONTAINS
       lsactbase   = nlactbase
       lsactintst  = nlactintst
 
-      lsicenucl  = ( nlicenucl .AND. ( .NOT. nlfixinc ) )
-      lsfixinc    = nlfixinc
+      lsicenucl   = nlicenucl 
       lsicmelt    = nlicmelt
 
       ! Adjustments for initialization and spinup
@@ -413,7 +410,6 @@ CONTAINS
             lsactbase   = .FALSE.
             lsactintst  = nlactintst
             lsicenucl  = .FALSE.
-            lsfixinc    = .FALSE.
             lsicmelt    = .FALSE.
 
          CASE(2)  ! Spinup period

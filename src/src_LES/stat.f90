@@ -537,7 +537,7 @@ CONTAINS
       IF (level >= 3) CALL accum_lvl3(nzp, nxp, nyp, dn0, zm, rxl, xrpp,  &
                                      xnpp, precip, CCN                    )
       IF (level >= 4) CALL accum_lvl4(nzp, nxp, nyp)
-	  IF (level >= 5) CALL accum_lvl5(nzp,nxp,nyp,snowin)
+      IF (level >= 5) CALL accum_lvl5(nzp,nxp,nyp,snowin)
       !
       ! scalar statistics
       !
@@ -546,16 +546,16 @@ CONTAINS
       IF ( level >= 2 ) CALL ts_lvl2(nzp, nxp, nyp, rxl, zt)
       IF ( level >= 4 ) CALL ts_lvl4(nzp, nxp, nyp, a_rc)
       IF ( level >= 5 ) CALL ts_lvl5(nzp, nxp, nyp, dn0, zt, a_rc, a_ri, a_srs, snowin)
-
+      
       CALL write_ts
-
+      
       !
       ! Column statistics
       !
       IF (csflg) THEN
          ! Radiation
          IF (iradtyp == 3) CALL set_cs_any(nxp,nyp,albedo,'albedo')
-
+         
          ! Deposition statistics
          IF (level == 3) THEN
             CALL set_cs_any(nxp,nyp,precip(2,:,:),'prcp')
@@ -1607,12 +1607,12 @@ CONTAINS
       CALL get_avg3(n1,n2,n3,a1,a2(:,5),cond=drizzmask)
 
       svctr_b(:,11:15) = svctr_b(:,11:15) + a2(:,1:5)
-
+      
       ! Bin number concentrations
       ! -------------------------------------------
-	  IF (lbinprof) THEN
+      IF (lbinprof) THEN
          DO bb = in1a, fn2a
-             CALL get_avg3(n1,n2,n3,a_naerop(:,:,:,bb),a3_a(:,bb))
+            CALL get_avg3(n1,n2,n3,a_naerop(:,:,:,bb),a3_a(:,bb))
          END DO
          DO bb = in2b, fn2b
             CALL get_avg3(n1,n2,n3,a_naerop(:,:,:,bb),a3_b(:,bb-fn2a))
@@ -1626,89 +1626,89 @@ CONTAINS
          DO bb = ira, fra
             CALL get_avg3(n1,n2,n3,a_nprecpp(:,:,:,bb),a5(:,bb))
          END DO
-
+         
          svctr_aa(:,:,1) = svctr_aa(:,:,1) + a3_a(:,:)
          svctr_ab(:,:,1) = svctr_ab(:,:,1) + a3_b(:,:)
          svctr_ca(:,:,1) = svctr_ca(:,:,1) + a4_a(:,:)
          svctr_cb(:,:,1) = svctr_cb(:,:,1) + a4_b(:,:)
          svctr_p(:,:,1) = svctr_p(:,:,1) + a5(:,:)
-	  END IF
-
-         ! Species mixing ratios
-         ! -------------------------------------------
-         ii = 16
-         DO ss = 1, 8  !!!!!! TAAS: MUUTA NIIN ETTA VOI KAYTTAA FIKSUSTI classSpec.f90
-            IF (ss==8 .OR. spec%isUsed(zspec(ss))) THEN
-               ! Total mass mixing ratios
-               CALL bulkMixrat(zspec(ss),'aerosol','a',a1)
-               CALL bulkMixrat(zspec(ss),'aerosol','b',a12)
-               CALL get_avg3(n1,n2,n3,a1+a12,a2(:,1))
-
-               ! In-cloud
-               CALL bulkMixrat(zspec(ss),'cloud','a',a1)
-               CALL bulkMixrat(zspec(ss),'cloud','b',a12)
-               CALL get_avg3(n1,n2,n3,a1+a12,a2(:,2),cond=cloudmask)
-
-               ! In-drizzle
-               CALL bulkMixrat(zspec(ss),'precp','a',a1)
-               CALL get_avg3(n1,n2,n3,a1,a2(:,3),cond=drizzmask)
-
-               svctr_b(:,ii:ii+2) = svctr_b(:,ii:ii+2) + a2(:,1:3)
-
-               ! Binned mixing ratios
-               IF (lbinprof .AND. ss < 8) THEN
-                  DO bb = in1a, fn2a
-                     CALL binSpecMixrat('aerosol',zspec(ss),bb,a1) ! z,x,y-field for bin bb
-                     CALL get_avg3(n1,n2,n3,a1,a3_a(:,bb))         ! average profile for bin bb for species ss
-                  END DO
-                  DO bb = in2b, fn2b
-                     CALL binSpecMixrat('aerosol',zspec(ss),bb,a1) ! z,x,y-field for bin bb
-                     CALL get_avg3(n1,n2,n3,a1,a3_b(:,bb-fn2a))    ! average profile for bin bb for species ss
-                  END DO
-
-                  DO bb = ica%cur, fca%cur
-                     CALL binSpecMixrat('cloud',zspec(ss),bb,a1)  ! z,x,y-field for bin bb
-                     CaLL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=cloudmask)        ! average profile for bin bb for species ss
-                  END DO
-                  DO bb = icb%cur, fcb%cur
-                     CALL binSpecMixrat('cloud',zspec(ss),bb,a1)  ! z,x,y-field for bin bb
-                     CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fca%cur),cond=cloudmask)! average profile for bin bb for species ss
-                  END DO
-
+      END IF
+      
+      ! Species mixing ratios
+      ! -------------------------------------------
+      ii = 16
+      DO ss = 1, 8  !!!!!! TAAS: MUUTA NIIN ETTA VOI KAYTTAA FIKSUSTI classSpec.f90
+         IF (ss==8 .OR. spec%isUsed(zspec(ss))) THEN
+            ! Total mass mixing ratios
+            CALL bulkMixrat(zspec(ss),'aerosol','a',a1)
+            CALL bulkMixrat(zspec(ss),'aerosol','b',a12)
+            CALL get_avg3(n1,n2,n3,a1+a12,a2(:,1))
+            
+            ! In-cloud
+            CALL bulkMixrat(zspec(ss),'cloud','a',a1)
+            CALL bulkMixrat(zspec(ss),'cloud','b',a12)
+            CALL get_avg3(n1,n2,n3,a1+a12,a2(:,2),cond=cloudmask)
+            
+            ! In-drizzle
+            CALL bulkMixrat(zspec(ss),'precp','a',a1)
+            CALL get_avg3(n1,n2,n3,a1,a2(:,3),cond=drizzmask)
+            
+            svctr_b(:,ii:ii+2) = svctr_b(:,ii:ii+2) + a2(:,1:3)
+            
+            ! Binned mixing ratios
+            IF (lbinprof .AND. ss < 8) THEN
+               DO bb = in1a, fn2a
+                  CALL binSpecMixrat('aerosol',zspec(ss),bb,a1) ! z,x,y-field for bin bb
+                  CALL get_avg3(n1,n2,n3,a1,a3_a(:,bb))         ! average profile for bin bb for species ss
+               END DO
+               DO bb = in2b, fn2b
+                  CALL binSpecMixrat('aerosol',zspec(ss),bb,a1) ! z,x,y-field for bin bb
+                  CALL get_avg3(n1,n2,n3,a1,a3_b(:,bb-fn2a))    ! average profile for bin bb for species ss
+               END DO
+               
+               DO bb = ica%cur, fca%cur
+                  CALL binSpecMixrat('cloud',zspec(ss),bb,a1)  ! z,x,y-field for bin bb
+                  CaLL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=cloudmask)        ! average profile for bin bb for species ss
+               END DO
+               DO bb = icb%cur, fcb%cur
+                  CALL binSpecMixrat('cloud',zspec(ss),bb,a1)  ! z,x,y-field for bin bb
+                  CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fca%cur),cond=cloudmask)! average profile for bin bb for species ss
+               END DO
+               
                ! Binned mixing ratios
                DO bb = 1, nprc
                   CALL binSpecMixrat('precp',zspec(ss),bb,a1)  ! z,x,y-field for bin bb
                   CALL get_avg3(n1,n2,n3,a1,a5(:,bb),cond=drizzmask)          ! average profile for bin bb for species ss
                END DO
-
+               
                svctr_aa(:,:,ss+1) = svctr_aa(:,:,ss+1) + a3_a(:,:)
                svctr_ab(:,:,ss+1) = svctr_ab(:,:,ss+1) + a3_b(:,:)
                svctr_ca(:,:,ss+1) = svctr_ca(:,:,ss+1) + a4_a(:,:)
                svctr_cb(:,:,ss+1) = svctr_cb(:,:,ss+1) + a4_b(:,:)
                svctr_p(:,:,ss+1)  = svctr_p(:,:,ss+1)  + a5(:,:)
-			END IF
-
+            END IF
+            
          END IF ! IsUsed
-
+         
          ii = ii + 3
-
+         
       END DO ! ss
-
+      
       ! Liquid water mixing ratio
       CALL get_avg3(n1,n2,n3,a_rc,a2(:,1))
-
+      
       ! Precipitation mixing ratio
       CALL get_avg3(n1,n2,n3,a_srp,a2(:,2))
-
+      
       ! Water vapor mixing ratio
       CALL get_avg3(n1,n2,n3,a_rp,a2(:,3))
-
+      
       ! Relative humidity
       CALL get_avg3(n1,n2,n3,a_rh,a2(:,4))
       a2(:,4) = a2(:,4)*100.0 ! RH in %
-
+      
       svctr_b(:,40:43) = svctr_b(:,40:43) + a2(:,1:4)
-
+      
       ! Stats for cloudy columns
       !   Cloudy column: LWC > 1e-5 kg/kg and CDNC>nlim anywhere in a column
       IF (cloudy_col_stats) THEN
@@ -1824,14 +1824,14 @@ CONTAINS
            CALL get_avg3(n1,n2,n3,a_nicep(:,:,:,bb),a4_b(:,bb-fia%cur))
         END DO
         DO bb = isa,fsa           
-	       CALL get_avg3(n1,n2,n3,a_nsnowp(:,:,:,bb),a5(:,bb))
+           CALL get_avg3(n1,n2,n3,a_nsnowp(:,:,:,bb),a5(:,bb))
         END DO
-
+        
         svctr_ia(:,:,1) = svctr_ia(:,:,1) + a4_a(:,:)
         svctr_ib(:,:,1) = svctr_ib(:,:,1) + a4_b(:,:)
         svctr_s(:,:,1) = svctr_s(:,:,1) + a5(:,:)
      END IF
-
+     
      ! Species mixing ratios
      ! -------------------------------------------
      ii=10 ! 'P_cSO4i'
@@ -2055,7 +2055,7 @@ CONTAINS
       USE netcdf
       USE defs, ONLY : alvl, cp
       USE mo_submctl, ONLY : in1a,in2b,fn2a,fn2b,fca,ica,fcb,icb,fra,ira, &
-	                         iia, fia, iib, fib, isa, fsa, &
+                             iia, fia, iib, fib, isa, fsa, &
                              aerobins,cloudbins,precpbins,icebins,snowbins
 
       INTEGER, INTENT (in) :: n1

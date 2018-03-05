@@ -515,8 +515,8 @@ CONTAINS
                              nlactintst,            &
                              nlactbase,             &
                              nlicenucl,               &
-                             nlfixinc,              &
                              fixINC,                &
+                             ice_hom, ice_imm, ice_dep, &
                              nlicmelt,              &
                              nbin,reglim,   &
                              nice,nsnw,             &
@@ -550,8 +550,10 @@ CONTAINS
          nlcnd,       & ! Switch for condensation subroutine
          nlcndgas,    & ! Condensation of precursor gases
          nlicenucl,     & ! Switch for ice nucleation
-         nlfixinc,    & ! Fix ice number concentration to be over given limit fixINC
          fixINC,      & ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
+         ice_hom,     & ! Switch for homogeneous ice nucleation
+         ice_imm,     & ! .. for immersio freezing
+         ice_dep,     & ! .. for deposition freezing
          nlicmelt,    & ! Switch for ice'n'snow melting
          nbin,        & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
          nice,        & ! number of ice bins
@@ -604,7 +606,6 @@ CONTAINS
             nlautosnow  = .false.
 
             nlicenucl    = .false.
-            nlfixinc    = .false.
             nlicmelt    = .false.
       END IF !level
 

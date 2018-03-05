@@ -712,8 +712,6 @@ CONTAINS
    ! Juha Tonttila, FMI, 2014
    ! Tomi Raatikainen, FMI, 2016
 
-   ! NOTE: THIS WOULD BE MUCH FASTER IF THE ARRAY SLICES WERE TAKEN FROM THE FIRST DIMENSIONS, NOT THE LAST
-
    SUBROUTINE SALSA_diagnostics
       USE grid, ONLY : nxp,nyp,nzp,    &
                        a_naerop,a_maerop,a_ncloudp,a_mcloudp,a_nprecpp,a_mprecpp,a_gaerop, &
@@ -722,18 +720,21 @@ CONTAINS
                        a_nicep,a_micep,a_nsnowp,a_msnowp, level,   &
                        binMixrat
       USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,              &
-                             in1a,fn2a,fn2b,                        &
+                             in1a,in2a,fn2a,fn2b,                        &
                              nice,nsnw,iia,fia,iib,fib,isa,fsa,                    &
                              spec, surfw0, rg, nlim, prlim, pi, &
-                             lscndgas, pi6, avog
+                             lscndgas, pi6, avog,                                  &
+                             aerobins,calc_correlation
 
       IMPLICIT NONE
 
-      INTEGER :: i,j,k,bc,ba,s,sc,sa,str,end,nc,nn,iba
+      INTEGER :: i,j,k,bb,bc,ba,s,sc,sa,str,end,nc,nn,iba,cd
+
+      REAL :: ra, rb
 
     REAL :: zvol, zvola, zvolnew
     REAL :: zdh2o
-    REAL :: ns, bb, aa ! Number of moles, Raoult effect, Kelvin effect; For calculating the critical radius
+    REAL :: ns, zbb, zaa ! Number of moles, Raoult effect, Kelvin effect; For calculating the critical radius
     REAL :: cdcld,cdprc ! Critical diameter for cloud droplets and precipitation
     REAL :: zdrms, zwams
 
@@ -809,26 +810,29 @@ CONTAINS
              ! Loop over cloud droplet bins
              DO bc = ica%cur,fcb%cur
 
-                IF ( a_ncloudp(k,i,j,bc) > nlim .AND. a_rh(k,i,j)<0.999) THEN
+                IF ( a_ncloudp(k,i,j,bc) > nlim .AND. a_rh(k,i,j)<0.999 .AND.   &
+                     a_mcloudp(k,i,j,getMassIndex(ncld,bc,nn)) < 1.e-5  ) THEN
 
-                   ! Critical radius
+                   ! Critical diameter
                    ns = SUM( spec%diss(1:nn-1)*a_mcloudp(k,i,j,bc:getMassIndex(ncld,bc,nn-1):ncld)/spec%MM(1:nn-1) ) / &
                         a_ncloudp(k,i,j,bc)
-                   bb = 6.*spec%mwa*ns/(pi*spec%rhowa)
-                   aa = 4.*spec%mwa*surfw0/(rg*spec%rhowa*a_temp(k,i,j))
-                   cdcld = SQRT(3.*bb/aa)
+                   zbb = 6.*spec%mwa*ns/(pi*spec%rhowa)
+                   zaa = 4.*spec%mwa*surfw0/(rg*spec%rhowa*a_temp(k,i,j))
+                   cdcld = SQRT(3.*zbb/zaa)
 
-                   ! Wet radius
+                   ! Wet diameter
                    zvol = SUM( a_mcloudp(k,i,j,bc:getMassIndex(ncld,bc,nn):ncld)/spec%rholiq(1:nn) )/a_ncloudp(k,i,j,bc)
                    zdh2o = (zvol/pi6)**(1./3.)
 
                    ! Lose the droplets if smaller than 0.2*(critical size) or 2 um
-                   IF ( zdh2o < MAX(0.2*cdcld,2.e-6) ) THEN
+                   IF ( zdh2o < MAX(0.2*cdcld,2.e-6) .OR.     &
+                        a_mcloudp(k,i,j,getMassIndex(ncld,bc,nn)) < 1.e-25*a_ncloudp(k,i,j,bc) )  THEN
+
                       IF (bc<=fca%cur) THEN
                           ba = ica%par + (bc-ica%cur) ! Index for parallel aerosol bin
                       ELSE
                           ba = icb%par + (bc-icb%cur) ! Index for parallel aerosol bin
-                      ENDIF
+                      END IF
                       ! Move the number of particles from cloud to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_ncloudp(k,i,j,bc)
                       a_ncloudp(k,i,j,bc) = 0.
@@ -841,7 +845,7 @@ CONTAINS
                          a_mcloudp(k,i,j,sc) = 0.
                       END DO
 
-                   END IF ! critical radius
+                   END IF ! critical diameter
 
                 END IF  ! blim
 
@@ -850,39 +854,56 @@ CONTAINS
              ! Loop over precipitation bins
              DO bc = ira,fra
 
-                IF ( a_nprecpp(k,i,j,bc) > prlim .AND. a_rh(k,i,j)<0.999 ) THEN
+                IF ( a_nprecpp(k,i,j,bc) > prlim .AND. a_rh(k,i,j)<0.999 .AND.  &
+                     a_mprecpp(k,i,j,getMassIndex(nprc,bc,nn)) < 1.e-6 ) THEN
 
                    ! Critical radius
                    ns = SUM( spec%diss(1:nn-1)*a_mprecpp(k,i,j,bc:getMassIndex(nprc,bc,nn-1):nprc)/spec%MM(1:nn-1) ) / &
                         a_nprecpp(k,i,j,bc)
-                   bb = 6.*spec%mwa*ns/(pi*spec%rhowa)
-                   aa = 4.*spec%mwa*surfw0/(rg*spec%rhowa*a_temp(k,i,j))
-                   cdprc = SQRT(3.*bb/aa)
+                   zbb = 6.*spec%mwa*ns/(pi*spec%rhowa)
+                   zaa = 4.*spec%mwa*surfw0/(rg*spec%rhowa*a_temp(k,i,j))
+                   cdprc = SQRT(3.*zbb/zaa)
 
                    ! Wet radius
                    zvol = SUM( a_mprecpp(k,i,j,bc:getMassIndex(nprc,bc,nn):nprc)/spec%rholiq(1:nn) )/a_nprecpp(k,i,j,bc)
                    zdh2o = (zvol/pi6)**(1./3.)
 
                    ! Lose the droplets if smaller than 0.02*critical radius or 2 um
-                   IF ( zdh2o < MAX(0.02*cdprc,2.e-6)  ) THEN
+                   IF ( zdh2o < MAX(0.02*cdprc,2.e-6) .OR.   &
+                        a_mprecpp(k,i,j,getMassIndex(nprc,bc,nn))<1e-25*a_nprecpp(k,i,j,bc) ) THEN
                       ! Move evaporating rain drops to a soluble aerosol bin with
                       ! the closest match in dry particle mass. Ain't perfect but
                       ! the bin update subroutine in SALSA will take care of the rest.
                       zvol = SUM( a_mprecpp(k,i,j,bc:getMassIndex(nprc,bc,nn-1):nprc) )/a_nprecpp(k,i,j,bc) ! Dry mass
 
-                      ba=0
-                      zvola=-1.
-                      DO iba=in1a,fn2a
-                        IF (a_naerop(k,i,j,iba)>nlim) THEN
-                            zvolnew = SUM( a_maerop(k,i,j,iba:getMassIndex(nbins,iba,nn-1):nbins) )/a_naerop(k,i,j,iba) ! Dry mass
-                            IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
-                                ! New closest match
-                                ba=iba
-                                zvola=zvolnew
-                            ENDIF
-                         ENDIF
-                      ENDDO
-                      if (ba==0) STOP 'FAIL: no sink for evaporating rain drops'
+                      ! 1) Find the closest matching bin based on dry particle diameter (a and b bins)
+                      cd = SUM( a_mprecpp(k,i,j,bc:getMassIndex(nprc,bc,nn-1):nprc)/spec%rholiq(1:nn-1) ) / &
+                           a_nprecpp(k,i,j,bc) ! Dry radius
+                      cd = (cd/pi6)**(1./3.)
+                      ba=in2a !Ignore 1a and note that "aerobins" contains the lower limit of bin dry diameter
+                      DO WHILE (cd>=aerobins(ba+1) .AND. ba<fn2a)
+                         ba=ba+1
+                      END DO
+                      ! Corresponding b bin is ba+(fn2a-fn1a)=ba+fn2a-(in2a-1)=ba+fn2a-in2a+1
+                      bb=ba+fn2a-in2a+1
+                      ! 2) Select a or b bin
+                      IF (a_naerop(k,i,j,bb) <= nlim) THEN
+                         ! Empty b bin so select a
+                         !ba = ba
+                      ELSE IF (a_naerop(k,i,j,ba) <= nlim) THEN
+                         ! Empty a bin so select b
+                         ba = bb
+                      ELSE
+                         ! Both are present - find bin based on compositional similarity
+                         ra = calc_correlation(a_maerop(k,i,j,ba:getMassIndex(nbins,ba,nn-1):nbins),  &
+                                               a_mprecpp(k,i,j,bc:getMassIndex(nprc,bc,nn-1):nprc),   &
+                                               nn-1)
+
+                         rb = calc_correlation(a_maerop(k,i,j,bb:getMassIndex(nbins,bb,nn-1):nbins),  &
+                                               a_mprecpp(k,i,j,bc:getMassIndex(nprc,bc,nn-1):nprc),   &
+                                               nn-1)
+                         IF (ra<rb) ba = bb
+                      END IF                     
 
                       ! Move the number of particles from cloud to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nprecpp(k,i,j,bc)
@@ -905,21 +926,27 @@ CONTAINS
              ! Loop over ice bins
              DO bc = iia%cur,fib%cur
 
-                IF ( a_nicep(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 ) THEN
+                IF ( a_nicep(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 .AND.   &
+                     a_micep(k,i,j,getMassIndex(nice,bc,nn)) < 1.e-15 ) THEN
 
-                   ! Ice and snow don't have a critical size, but lose particles when water content becomes low enough
+                   ! Ice and snow don't have a critical size, but lose particles when water content becomes low enough or size is < 2e-6m
+                   
+                   ! Diameter
+                   cd = SUM( a_micep(k,i,j,bc:getMassIndex(nice,bc,nn):nice)/spec%rhoice(1:nn) ) / &
+                        a_nicep(k,i,j,bc)
+                   cd = (cd/pi6)**(1./3.)
 
                    ! Lose ice when dry to total mass ratio is more than 0.5
                    CALL binMixrat("ice","dry",bc,i,j,k,zdrms)
                    CALL binMixrat("ice","wet",bc,i,j,k,zwams)
                    zvol = zdrms/zwams
 
-                   IF ( zvol>0.5 ) THEN
+                   IF ( zvol>0.5 .OR. cd < 2.e-6 ) THEN
                       IF (bc<=fia%cur) THEN
                          ba = iia%par + (bc-iia%cur) ! Index for parallel aerosol bin
                       ELSE
                          ba = iib%par + (bc-iib%cur) ! Index for parallel aerosol bin
-                      ENDIF
+                      END IF
 
                       ! Move the number of particles from ice to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
@@ -941,34 +968,51 @@ CONTAINS
              ! Loop over snow bins
              DO bc = isa,fsa
 
-                IF ( a_nsnowp(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 ) THEN
+                IF ( a_nsnowp(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 .AND.  &
+                     a_msnowp(k,i,j,getMassIndex(nsnw,bc,nn)) < 1.e-20 ) THEN
 
-                   ! Lose snow when dry to total mass ratio is more than 0.5
+                   cd = SUM( a_msnowp(k,i,j,bc:getMassIndex(nsnw,bc,nn):nsnw)/spec%rhosnow(1:nn) ) / &
+                        a_nsnowp(k,i,j,bc)
+                   cd = (cd/pi6)**(1./3.)
+
+                   ! Lose snow when dry to total mass ratio is more than 0.5 or diameter < 2.e-6m
                    CALL binMixrat("snow","dry",bc,i,j,k,zdrms)
                    CALL binMixrat("snow","wet",bc,i,j,k,zwams)
                    zvol = zdrms/zwams
 
-                   IF ( zvol>0.5 ) THEN
-                      ! Move evaporating snow to a soluble aerosol bin with
-                      ! the closest match in dry particle mass. Ain't perfect but
-                      ! the bin update subroutine in SALSA will take care of the rest.
-                      zvol = SUM( a_msnowp(k,i,j,bc:getMassIndex(nsnw,bc,nn-1):nsnw) ) ! Dry mass
-                      zvol=zvol/a_nsnowp(k,i,j,bc)
+                   IF ( zvol>0.5 .OR. cd < 2.e-6) THEN
+ 
+                      ! Move evaporating snow to aerosol bin based on dry radius and chemical composition
 
-                      ba=0
-                      zvola=-1.
-                      DO iba=in1a,fn2a
-                         IF (a_naerop(k,i,j,iba)>nlim) THEN
-                            zvolnew = SUM( a_maerop(k,i,j,iba:getMassIndex(nbins,iba,nn-1):nbins) ) ! Dry mass
-                            zvolnew=zvolnew/a_naerop(k,i,j,iba)
-                            IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
-                                ! New closest match
-                                ba=iba
-                                zvola=zvolnew
-                            ENDIF
-                         ENDIF
-                      ENDDO
-                      if (ba==0) STOP 'FAIL: no sink for evaporating snow'
+                      ! 1) Find the closest matching bin based on dry particle diameter (a and b bins)
+                      cd = SUM( a_msnowp(k,i,j,bc:getMassIndex(nsnw,bc,nn-1):nsnw)/spec%rhosnow(1:nn-1) ) / &
+                           a_nsnowp(k,i,j,bc)
+                      cd = (cd/pi6)**(1./3.)
+                      
+                      ba=in2a ! Ignore 1a and note that aerobins contains the lower limit of bin dry radius
+                      DO WHILE (cd>=aerobins(ba+1) .AND. ba<fn2a)
+                         ba=ba+1
+                      END DO
+                      ! Corresponding b bin is ba+(fn2a-fn1a)=ba+fn2a-(in2a-1)=ba+fn2a-in2a+1
+                      bb=ba+fn2a-in2a+1
+                      ! 2) Select a or b bin
+                      IF (a_naerop(k,i,j,bb) <= nlim) THEN
+                         ! Empty b bin so select a
+                         !ba = ba
+                      ELSE IF (a_naerop(k,i,j,ba) <= nlim) THEN
+                         ! Empty a bin so select b
+                         ba = bb
+                      ELSE
+                         ! Both are present - find bin based on compositional similarity
+                         ra = calc_correlation(a_maerop(k,i,j,ba:getMassIndex(nbins,ba,nn-1):nbins),  &
+                                               a_msnowp(k,i,j,bc:getMassIndex(nsnw,bc,nn-1):nsnw),    &
+                                               nn-1)
+                         rb = calc_correlation(a_maerop(k,i,j,bb:getMassIndex(nbins,bb,nn-1):nbins),  &
+                                               a_msnowp(k,i,j,bc:getMassIndex(nsnw,bc,nn-1):nsnw),    &
+                                               nn-1)
+                         IF (ra<rb) ba = bb
+                      END IF
+
 
                       ! Move the number of particles from cloud to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nsnowp(k,i,j,bc)
@@ -990,7 +1034,8 @@ CONTAINS
              ! Loop over aerosol bins
              DO ba = 1,nbins
                 IF (a_naerop(k,i,j,ba) > nlim) THEN
-                   zvol = SUM( a_maerop(k,i,j,ba:getMassIndex(nbins,ba,nn-1):nbins)/spec%rholiq(1:nn-1) )/a_naerop(k,i,j,ba) ! Dry volume
+                   zvol = SUM( a_maerop(k,i,j,ba:getMassIndex(nbins,ba,nn-1):nbins)/spec%rholiq(1:nn-1) )/ &
+                          a_naerop(k,i,j,ba) ! Dry volume
 
                    ! Particles smaller then 0.1 nm diameter are set to zero 
                    IF ( zvol < pi6*1.e-10**3 ) THEN

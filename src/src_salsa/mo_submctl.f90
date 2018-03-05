@@ -95,8 +95,6 @@ MODULE mo_submctl
              lsicenucl
   LOGICAL :: nlicmelt    = .FALSE., & ! ice melting   
              lsicmelt
-  LOGICAL :: nlfixinc    = .FALSE., & ! Fix ice number concentration to be over given limit fixINC
-             lsfixinc
 
   LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
 
@@ -141,7 +139,14 @@ MODULE mo_submctl
   ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
   REAL :: nf2a = 1.0
 
-  REAL :: fixINC = 1.0 ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
+  ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
+  ! a) Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
+  REAL :: fixinc = -1.0 ! Default = disabled
+  ! b) Modelled ice nucleation || Juha: These could be placed with the other switches. Also, would 
+  !                               do the fixed thing with the condition nlicenucl = false and fixinc > 0.,
+  !                               otherwise physical nucleation.
+  LOGICAL :: ice_hom = .FALSE., ice_imm=.FALSE., ice_dep=.FALSE. ! Available ice nucleation modes
+
 
   INTEGER :: isdtyp = 0  ! Type of input aerosol size distribution: 0 - Uniform
                          !                                          1 - Read vertical profile of the mode
@@ -280,7 +285,7 @@ MODULE mo_submctl
    prlim = 1.e-6 ! The same for precipitation and ice species for which concentrations are normally much lower [#/m3]
 
 
- CONTAINS
+CONTAINS
   !********************************************************************
   ! Function for calculating terminal velocities for different particle types and size ranges.
   !     Tomi Raatikainen (2.5.2017)
@@ -291,33 +296,33 @@ MODULE mo_submctl
     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
     ! Constants
     REAL, PARAMETER :: rhoa_ref = 1.225 ! reference air density (kg/m^3)
-
+    
     IF (flag==4) THEN   ! Ice
-        ! Ice crystal terminal fall speed from Ovchinnikov et al. (2014)
-        !       Dimension D = 2*radius
-        terminal_vel = 12.0*sqrt(2.0*radius)
+       ! Ice crystal terminal fall speed from Ovchinnikov et al. (2014)
+       !       Dimension D = 2*radius
+       terminal_vel = 12.0*sqrt(2.0*radius)
     ELSE IF (flag==5) THEN   ! Snow
-        ! The same for snow
-        !       Dimension D = 2*radius
-        terminal_vel = 12.0*sqrt(2.0*radius)
+       ! The same for snow
+       !       Dimension D = 2*radius
+       terminal_vel = 12.0*sqrt(2.0*radius)
     ELSE
-        ! Aerosol and cloud and rain droplets
-        IF (radius<40.0e-6) THEN
-            ! Stokes law with Cunningham slip correction factor
-            terminal_vel = (4.*radius**2)*(rhop-rhoa)*grav*beta/(18.*visc) ![m s-1]
-        ELSE IF (radius<0.6e-3) THEN
-            ! Droplets from 40 um to 0.6 mm: linear dependence on particle radius and a correction for reduced pressure
-            !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
-            terminal_vel = 8.e3*radius*sqrt(rhoa_ref/rhoa)
-        ELSE
-            ! Droplets larger than 0.6 mm: square root dependence on particle radius and a correction for reduced pressure
-            !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
-            ! Note: this is valid up to 2 mm or 9 m/s (at 1000 mbar), where droplets start to break
-            terminal_vel = 2.01e2*sqrt( min(radius,2.0e-3)*rhoa_ref/rhoa)
-        END IF
+       ! Aerosol and cloud and rain droplets
+       IF (radius<40.0e-6) THEN
+          ! Stokes law with Cunningham slip correction factor
+          terminal_vel = (4.*radius**2)*(rhop-rhoa)*grav*beta/(18.*visc) ![m s-1]
+       ELSE IF (radius<0.6e-3) THEN
+          ! Droplets from 40 um to 0.6 mm: linear dependence on particle radius and a correction for reduced pressure
+          !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
+          terminal_vel = 8.e3*radius*sqrt(rhoa_ref/rhoa)
+       ELSE
+          ! Droplets larger than 0.6 mm: square root dependence on particle radius and a correction for reduced pressure
+          !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
+          ! Note: this is valid up to 2 mm or 9 m/s (at 1000 mbar), where droplets start to break
+          terminal_vel = 2.01e2*sqrt( min(radius,2.0e-3)*rhoa_ref/rhoa)
+       END IF
     END IF
   END FUNCTION terminal_vel
-
+  
   !********************************************************************
   ! Function for calculating dimension (or wet diameter) for any particle type
   ! - Aerosol, cloud and rain are spherical
@@ -336,15 +341,15 @@ MODULE mo_submctl
     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
     REAL, INTENT(OUT) :: dia(n)
     INTEGER i
-
+    
     dia(:) = 2.e-10
     DO i=1,n
-        IF (ppart(i)%numc>lim) &
+       IF (ppart(i)%numc>lim) &
             dia(i)=(SUM(ppart(i)%volc(:))/ppart(i)%numc/pi6)**(1./3.)
     END DO
-
+    
   END SUBROUTINE CalcDimension
-
+  
   !********************************************************************
   ! Function for calculating equilibrium water saturation ratio at droplet surface based on Köhler theory
   !
@@ -352,27 +357,65 @@ MODULE mo_submctl
     TYPE(Section), INTENT(in) :: part ! Any particle
     REAL, INTENT(IN) :: T ! Absolute temperature (K)
     REAL :: dwet
-
+    
     REAL :: znw,zns ! Moles of water and soluble material
+    REAL :: zvw, zvs, zvtot ! Volume concentrations of water and soluble material and total dry
     INTEGER :: iwa, ndry ! Index for water, number of "dry" species
     INTEGER :: i
-
+    
     iwa = spec%getIndex("H2O")
     ndry = spec%getNSpec(type="dry")
-
+    
     ! Wet diameter
     dwet = (SUM(part%volc(:))/part%numc/pi6)**(1./3.)
-
+    
     ! Equilibrium saturation ratio = xw*exp(4*sigma*v_w/(R*T*Dwet))
     
     znw = part%volc(iwa)*spec%rhowa/spec%mwa
+    zvw = part%volc(iwa)*spec%rhowa/spec%mwa
     zns = 0.
+    zvs = 0.
+    zvtot = 0.
     DO i = 1,ndry
        zns = zns + spec%diss(i)*part%volc(i)*spec%rholiq(i)/spec%MM(i)
+       zvs = zvs + MIN(1.,spec%diss(i)) * part%volc(i) ! Use "diss" here just to select the soluble species
+       zvtot = zvtot + part%volc(i)
     END DO
-
-    calc_Sw_eq = (znw/(zns+znw))/exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
-
+    
+    ! Combine the two cases from original code since they're exactly the same??
+    IF (zvw > 1.e-28*part%numc .OR. zvs > 1.e-28*part%numc) THEN	
+       ! Aqueous droplet OR dry partially soluble particle
+       calc_Sw_eq = (znw/(zns+znw)) * exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
+    ELSE IF (zvtot-zvs > 1.e-28*part%numc) THEN
+       ! Dry insoluble particle
+       calc_Sw_eq = exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
+    ELSE
+       ! Just add eps to avoid divide by zero
+       calc_Sw_eq = (znw/(eps+zns+znw)) * exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
+    END IF
+    
   END FUNCTIOn calc_Sw_eq
-
+  
+  
+  ! Function for calculating Pearson's correlation coefficient for two vectors
+  REAL FUNCTION calc_correlation(x,y,n)
+    INTEGER :: n
+    REAL :: x(n), y(n)
+    REAL :: sx, sy, sx2, sy2, sxy
+    INTEGER :: i
+    sx=0.; sy=0.; sx2=0.; sy2=0.; sxy=0.
+    DO i=1,n
+       sx=sx+x(i)
+       sy=sy+y(i)
+       sx2=sx2+x(i)**2
+       sy2=sy2+y(i)**2
+       sxy=x(i)*y(i)
+    ENDDO
+    IF (sx2*n-sx**2<eps .OR. sy2*n-sy**2<eps) THEN
+       calc_correlation = 0.
+    ELSE
+       calc_correlation = ( sxy*n-sx*sy )/( SQRT(sx2*n-sx**2)*SQRT(sy2*n-sy**2) )
+    ENDIF
+  END FUNCTION calc_correlation
+  
 END MODULE mo_submctl
