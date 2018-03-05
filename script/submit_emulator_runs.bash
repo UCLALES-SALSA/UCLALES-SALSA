@@ -229,12 +229,12 @@ cat > ${emulatoroutputroot}/control_multiple_emulator_run.sh <<FINALSBATCH
 #!/bin/sh
 #SBATCH -J EMULATOR
 #SBATCH -n 1
-#SBATCH -t ${WT}
+#SBATCH -t 336:00:00 # longrun limit = 14 days
 #SBATCH --output=emulator_${1}-%j.out
 #SBATCH --error=emulator_${1}-%j.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=${email}
-#SBATCH -p serial
+#SBATCH -p longrun
 
 cd ${emulatoroutputroot}
 
