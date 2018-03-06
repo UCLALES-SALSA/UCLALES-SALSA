@@ -34,6 +34,8 @@ MODULE init
    REAL                  :: zrndamp = 0.2 ! the amplitude of pseudorandom fluctuations
    CHARACTER  (len=80)   :: hfilin = 'test.'
 
+   INTEGER               :: mixinit_type = 1 ! Switch for how to initialize mixing: 1) random perturbations, 2) warm bubble
+
 CONTAINS
    !
    ! ----------------------------------------------------------------------
@@ -283,6 +285,8 @@ CONTAINS
       a_uc = a_up
       a_vc = a_vp
       a_wc = a_wp
+
+
 
       RETURN
    END SUBROUTINE fldinit
