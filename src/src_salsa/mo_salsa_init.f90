@@ -627,7 +627,7 @@ CONTAINS
 
       !
       !-------------------------------------------------------------------------------
-      USE classSpecies
+      USE classSpecies, ONLY : Species
       USE classSection
       USE mo_submctl, ONLY : nbin,      &
                              in1a,fn1a,in2a,fn2a,in2b,fn2b,  &

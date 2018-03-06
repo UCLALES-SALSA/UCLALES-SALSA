@@ -15,21 +15,21 @@
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
 IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
-EXPNAME="production_version"  # Name of the experiment
+EXPNAME="jung3rdAug"  # Name of the experiment
 
-NPROCS=2          # Number of processors (for IsSeq==0)
-TWALL=5:00:00      # Required wallclock time for batch system
+NPROCS=144          # Number of processors (for IsSeq==0)
+TWALL=8:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=50              # Number of points in Y-direction (including "halo" points)
+NYP=100              # Number of points in Y-direction (including "halo" points)
 NZP=70              # Number of points in Z-direction
 DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=300.        # Length of the spinup period (seconds)
-Texp=43200.         # Length of the experiment (seconds)
-LEVEL=3             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+Tspinup=3600.        # Length of the spinup period (seconds)
+Texp=28800.         # Length of the experiment (seconds)
+LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
 
 
@@ -79,7 +79,7 @@ cat > NAMELIST <<EOF
   hfilin = '${EXPNAME}.h.rst'
   ssam_intvl = 120.           ! Interval for statistical output
   savg_intvl = 120.           ! Averaging interval for stat output
-  frqanl = 60.                ! Interval for full domain output
+  frqanl = 30.                ! Interval for full domain output
   lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
   salsa_b_bins = .TRUE.
   mcflg = .FALSE.             ! Do mass conservation statistics
@@ -91,26 +91,26 @@ cat > NAMELIST <<EOF
   itsflg = 1                  ! Flag for temperature type in input sounding
   ipsflg = 1                  ! - '' - for pressure
   lnudging = .FALSE.           ! Master swtich for nudging scheme
-  lemission = .FALSE.          ! Master switch for aerosol emissions  
+  lemission = .TRUE.          ! Master switch for aerosol emissions  
   iradtyp = 3                 ! Radiation/large scale forcing
-  strtim = 45.4               ! Start time
+  strtim = 215.3               ! Start time
   case_name = 'default'       ! Case name for large-scale forcing schemes
-  div = 3.00e-6               ! Large-scale divergence
-  dthcon = 0.0                ! Sensible heat flux
-  drtcon = 10.0               ! Latent heat flux
-  sst = 290.5                 ! Surface temperature
+  div = 3.75e-6               ! Large-scale divergence
+  dthcon = 16.0                ! Sensible heat flux
+  drtcon = 93.0               ! Latent heat flux
+  sst = 288.                 ! Surface temperature
   zrough = 0.001                ! Roughness length
   ubmin = -0.25
   th00 = 289.                 ! Reference temperature
-  umean =  0.1                
-  vmean = -0.1
+  umean =  10.0                
+  vmean =  0.
  /
 
  ! With iradtyp = 3
  &radiation
 
-  radsounding = 'datafiles/dsrt.lay'  
-  sfc_albedo = 0.3
+  radsounding = 'datafiles/ksas.lay'  
+  sfc_albedo = 0.2
 
  /
 
@@ -132,29 +132,28 @@ cat > NAMELIST <<EOF
   nEmissionModes = 2
 
   emitModes(1)%emitType = 2
-  emitModes(1)%regime = 1
-  emitModes(1)%start_time = 10.
-  emitModes(1)%end_time = 11.
+  emitModes(1)%regime = 2
+  emitModes(1)%start_time = 7200.
+  emitModes(1)%end_time = 7201.
   emitModes(1)%species = "SS"
-  emitModes(1)%emitHeightMin = 800.
-  emitModes(1)%emitHeightMax = 1000.
+  emitModes(1)%emitHeightMin = 600.
+  emitModes(1)%emitHeightMax = 650.
   emitModes(1)%emitSizeDistType = 2
-  emitModes(1)%emitDiam = 2.0e-6
-  emitModes(1)%emitNum = 1.e6
-  emitModes(1)%emitSigma = 1.3
+  emitModes(1)%emitDiam = 1.1e-6
+  emitModes(1)%emitNum = 0.5e4
+  emitModes(1)%emitSigma = 1.5
 
   emitModes(2)%emitType = 2
   emitModes(2)%regime = 2
-  emitModes(2)%start_time = 15.
-  emitModes(2)%end_time = 16.
+  emitModes(2)%start_time = 7200.
+  emitModes(2)%end_time = 7201.
   emitModes(2)%species = "SS"
-  emitModes(2)%emitHeightMin = 800.
-  emitModes(2)%emitHeightMax = 1000.
+  emitModes(2)%emitHeightMin = 600.
+  emitModes(2)%emitHeightMax = 650.
   emitModes(2)%emitSizeDistType = 2
-  emitModes(2)%emitDiam = 8.0e-6
-  emitModes(2)%emitNum = 1.e5
+  emitModes(2)%emitDiam = 4.0e-6
+  emitModes(2)%emitNum = 0.6e4
   emitModes(2)%emitSigma = 2.
-
 
  /
 
@@ -189,23 +188,23 @@ cat > NAMELIST <<EOF
    nlactbase   = .FALSE.  ! --Switch for parameterized cloud base activation
    nlactintst  = .TRUE.  ! --Switch for interstitial activation based on host model Smax
 
-   nlicenucl   = .TRUE.
+   nlicenucl   = .FALSE.
    ice_hom     = .FALSE.
-   ice_imm     = .TRUE.
-   ice_dep     = .TRUE.
+   ice_imm     = .FALSE.
+   ice_dep     = .FALSE.
 
    rhlim = 1.2          ! RH limit for SALSA during initialization and spinup
 
    isdtyp = 0
    nspec = 2
-   listspec = 'SO4','DU','','','','',''
-   volDistA = 0.7, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0   
+   listspec = 'SO4','SS','','','','',''
+   volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0   
    volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    nf2a = 1.0
 
    sigmag = 1.2, 1.7, 2.0, 2.0, 2.0, 2.0, 2.0  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpg = 0.022, 0.12, 0.2, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   n = 400., 300., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3
+   n = 400., 400., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3
  
  /
 

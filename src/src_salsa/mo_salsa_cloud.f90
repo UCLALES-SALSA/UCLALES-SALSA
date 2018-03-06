@@ -1361,7 +1361,7 @@ CONTAINS
     INTEGER :: ii,jj,kk,ss
     
     REAL :: pdn, iceSupSat, rc_tot, Ni0,  &
-         sumICE, iceTendecyNumber, liqToIceTendecyFrac,   &
+         sumICE, iceTendecyNumber,    &
          liqToIceFrac
     
     INTEGER :: iwa, nspec
@@ -1402,8 +1402,8 @@ CONTAINS
                 cloud(ii,jj,kk)%numc = cloud(ii,jj,kk)%numc - iceTendecyNumber
                 
                 DO ss = 1,nspec-1
-                   ice(ii,jj,kk)%volc(ss) =   ice(ii,jj,kk)%volc(ss) + max(0., cloud(ii,jj,kk)%volc(ss)*liqToIceTendecyFrac )
-                   cloud(ii,jj,kk)%volc(ss) = cloud(ii,jj,kk)%volc(ss) - max(0., cloud(ii,jj,kk)%volc(ss)*liqToIceTendecyFrac )              
+                   ice(ii,jj,kk)%volc(ss) =   ice(ii,jj,kk)%volc(ss) + max(0., cloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
+                   cloud(ii,jj,kk)%volc(ss) = cloud(ii,jj,kk)%volc(ss) - max(0., cloud(ii,jj,kk)%volc(ss)*liqToIceFrac )              
                 END DO
                 ice(ii,jj,kk)%volc(iwa) = ice(ii,jj,kk)%volc(iwa) +   &
                      MAX(0., cloud(ii,jj,kk)%volc(iwa)*liqToIceFrac*spec%rhowa/spec%rhoic)
