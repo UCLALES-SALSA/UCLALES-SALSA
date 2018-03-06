@@ -39,7 +39,7 @@ MODULE radiation
                               plwc(:), piwc(:), prwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:)
 
   INTEGER :: k,i,j, npts
-  REAL    :: ee, u0, day, time, alat, zz
+  REAL    :: ee, u0, day, zz !time, alat, Juha: Time and alat given as argument already! Potential bug, hopefully harmless.
 
   CONTAINS
 
@@ -48,7 +48,7 @@ MODULE radiation
                         albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs)
       USE mpi_interface, ONLY : myid, pecount
       INTEGER, INTENT (in) :: n1, n2, n3
-      REAL, INTENT (in)    :: alat, time, sknt, sfc_albedo
+      REAL, INTENT (in)    :: alat, time, sknt, sfc_albedo  ! Time in decimal days
       REAL, DIMENSION (n1), INTENT (in)                 :: dn0, pi0, pi1, dzm
       REAL, DIMENSION (n1,n2,n3), INTENT (in)           :: pip, tk, rv, rc, nc
       REAL, OPTIONAL, DIMENSION (n1,n2,n3), INTENT (in) :: rr, ice, nice, grp

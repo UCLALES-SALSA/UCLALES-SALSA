@@ -29,7 +29,7 @@ MODULE radiation_main
     SUBROUTINE rad_interface(time_in)
       IMPLICIT NONE
       
-      REAL, INTENT(in) :: time_in  ! Time in hours
+      REAL, INTENT(in) :: time_in  ! Time, decimal days
       
       INTEGER :: nspec
       REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)

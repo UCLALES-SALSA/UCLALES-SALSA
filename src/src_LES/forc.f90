@@ -51,13 +51,13 @@ CONTAINS
 
 
 
-    REAL,  INTENT (in) :: time, strtim
+    REAL,  INTENT (in) :: time, strtim  ! time in seconds (since model start), strtim in decimal days
     REAL :: xka, fr0, fr1
-    REAL :: hourtime
+    REAL :: time_decday
 
     ! NOT FINISHED; PUT LARGE-SCALE FORCINGS/CASE-SPECIFIC STUFF IN THEIR OWN PACKAGES
 
-    hourtime = time/86400. + strtim
+    time_decday = time/86400. + strtim
 
     ! DIVERGENCE GIVEN FROM NAMELIST
     IF (trim(case_name) == 'atex') THEN
@@ -122,7 +122,7 @@ CONTAINS
     CASE (3)
        ! Radiation + large scale forcing
        !----------------------------------
-       CALL rad_interface(hourtime)
+       CALL rad_interface(time_decday)
        
        IF ( case_name /= 'none') THEN
           CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)

@@ -33,7 +33,7 @@ MODULE step
   REAL    :: radfrq =  0.
   
   REAL    :: time   =  0.
-  REAL    :: strtim =  0.0
+  REAL    :: strtim =  0.0    ! In decimal days, 0.5 mid-day
   LOGICAL :: outflg = .TRUE.
   
 CONTAINS
