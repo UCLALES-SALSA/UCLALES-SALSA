@@ -40,6 +40,8 @@ CONTAINS
       INTEGER :: count
       INTEGER :: zndry,znwet
 
+      TYPE(Section) :: testi(nprc)
+
       zndry = spec%getNSpec(type="dry")
       znwet = spec%getNSpec(type="wet")
 
@@ -136,7 +138,15 @@ CONTAINS
                END DO ! - kk
 
                count = count + 1
-               IF (count > 100) STOP 'Error: Aerosol bin update not converged'
+               IF (count > 100)  THEN
+                  WRITE(*,*) "Aerosol bin update not converged"
+                  WRITE(*,*) "NUMC", aero(ii,jj,:)%numc
+                  DO kk = 1,nbins
+                     WRITE(*,*) "VOLC", aero(ii,jj,kk)%volc(:)
+                  END DO
+                  STOP
+               END IF
+                  
 
             END DO ! - within bins
 
@@ -227,7 +237,15 @@ CONTAINS
                END DO !kk
 
                count = count + 1
-               IF (count > 100) STOP 'Error: Cloud bin update not converged'
+
+               IF (count > 100)  THEN
+                  WRITE(*,*) "Cloud bin update not converged"
+                  WRITE(*,*) "NUMC", cloud(ii,jj,:)%numc
+                  DO kk = 1,ncld
+                     WRITE(*,*) "VOLC", cloud(ii,jj,kk)%volc(:)
+                  END DO
+                  STOP
+               END IF
 
             END DO !within_bins
 
@@ -242,10 +260,12 @@ CONTAINS
           
             within_bins = .FALSE.
             count = 0
+            testi = precp(ii,jj,:)
+            IF (.FALSE.) THEN
             DO WHILE (.NOT. within_bins)
                within_bins = .TRUE.
 
-               ! -- Juha: now the same for cloud bins
+               ! -- Juha: now the same for precp bins
                DO kk = nprc, ira, -1
                   mm = 0
                   IF ( precp(ii,jj,kk)%numc > prlim ) THEN
@@ -270,7 +290,7 @@ CONTAINS
 
                         !-- Volume in the decreased bin which is below the bin lower limit
                         zVexc = 0.5*(zVilo + precp(ii,jj,kk)%vlolim)
-                      
+                     
                         !-- Number fraction to be moved to the smaller bin
                         znfrac = min(1.,(precp(ii,jj,kk)%vlolim-zVilo) / (zVihi-zVilo))
                         IF (znfrac < 0.) STOP 'Error, numc precp 0'
@@ -286,7 +306,6 @@ CONTAINS
 
                         !-- number fraction to be moved to the larger bin
                         znfrac = min(.99,(zVihi-precp(ii,jj,kk)%vhilim) / (zVihi-zVilo))
-                        IF (znfrac < 0.) STOP 'Error, numc precp 0, INC'
 
                         !-- Index for the larger bin
                         mm = kk + 1
@@ -324,9 +343,20 @@ CONTAINS
                END DO !kk
 
                count = count + 1
-               IF (count > 100) STOP 'Error: precipitation bin update not converged'
+
+               IF (count > 100)  THEN
+                  WRITE(*,*) "Precip bin update not converged"
+                  WRITE(*,*) "NUMC", precp(ii,jj,:)%numc
+                  WRITE(*,*) "NUMC VANHA", testi(:)%numc
+                  DO kk = 1,nprc
+                     WRITE(*,*) "VOLC", precp(ii,jj,kk)%volc(:)
+                     WRITE(*,*) "VOLC VANHA",testi(kk)%volc(:)
+                  END DO
+                  STOP
+               END IF
 
             END DO !within_bins
+            END IF !false
 
 
             IF(level < 5 ) CYCLE ! skip ice and snow distr. updates if thermodynamical level doesn't include ice microphysics
@@ -416,7 +446,14 @@ CONTAINS
                END DO !kk
 
                count = count + 1
-               IF (count > 100) STOP 'Error: Ice bin update not converged'
+               IF (count > 100)  THEN
+                  WRITE(*,*) "Ice bin update not converged"
+                  WRITE(*,*) "NUMC", ice(ii,jj,:)%numc
+                  DO kk = 1,nice
+                     WRITE(*,*) "VOLC", ice(ii,jj,kk)%volc(:)
+                  END DO
+                  STOP
+               END IF
 
             END DO !within_bins
 
@@ -512,7 +549,15 @@ CONTAINS
                END DO !kk
 
                count = count + 1
-               IF (count > 100) STOP 'Error: snow bin update not converged'
+
+               IF (count > 100)  THEN
+                  WRITE(*,*) "Snow bin update not converged"
+                  WRITE(*,*) "NUMC", snow(ii,jj,:)%numc
+                  DO kk = 1,nsnw
+                     WRITE(*,*) "VOLC", snow(ii,jj,kk)%volc(:)
+                  END DO
+                  STOP
+               END IF
 
             END DO !within_bins
 

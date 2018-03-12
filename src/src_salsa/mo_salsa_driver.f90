@@ -127,10 +127,13 @@ CONTAINS
                        precp_old(kbdim,klev,nprc), ice_old(kbdim,klev,nice),      &
                        snow_old(kbdim,klev,nsnw)
 
-      INTEGER :: jj,ii,kk,ss,str,end, nc,vc, ndry
+      INTEGER :: jj,ii,kk,ss,str,end, nc,vc, ndry, nwet
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
               in_w(kbdim,klev), in_rsi(kbdim,klev)
       REAL :: rv_old(kbdim,klev)
+
+      ndry = spec%getNSpec(type="dry")
+      nwet = spec%getNSpec(type="wet")
 
       actd(:,:,:) = Section(1)
       aero_old(:,:,:) = Section(1)
@@ -164,7 +167,7 @@ CONTAINS
        
                ! Update volume concentrations
                ! ---------------------------------------------------------------------------------------------------
-               DO nc = 1,spec%getNSpec()
+               DO nc = 1,nwet
                   str = getMassIndex(nbins,1,nc)
                   end = getMassIndex(nbins,nbins,nc)
                   aero(1,1,1:nbins)%volc(nc) =  pa_maerop(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nc)
@@ -198,12 +201,11 @@ CONTAINS
                END IF
 
                ! Need the number of dry species below
-               ndry = spec%getNSpec(type="dry")
                DO ss = 1,ntotal
                   ! For simplicity use prlim here? Doesn't matter so much in this part whether it's prlim or nlim?
                   IF (allSALSA(1,1,ss)%numc > prlim) THEN
                      allSALSA(1,1,ss)%core = SUM(allSALSA(1,1,ss)%volc(1:ndry))/allSALSA(1,1,ss)%numc
-                     allSALSA(1,1,ss)%dwet = (SUM(allSALSA(1,1,ss)%volc(:))/allSALSA(1,1,ss)%numc/pi6 )**(1./3.)
+                     allSALSA(1,1,ss)%dwet = (SUM(allSALSA(1,1,ss)%volc(1:nwet))/allSALSA(1,1,ss)%numc/pi6 )**(1./3.)
                   ELSE
                      allSALSA(1,1,ss)%dwet = allSALSA(1,1,ss)%dmid
                      allSALSA(1,1,ss)%core = pi6*(allSALSA(1,1,ss)%dmid)**3
@@ -256,7 +258,7 @@ CONTAINS
 
 
                ! Get mass tendencies
-               DO nc = 1,spec%getNSpec()
+               DO nc = 1,nwet
                   
                   str = getMassIndex(nbins,1,nc)
                   end = getMassIndex(nbins,nbins,nc)

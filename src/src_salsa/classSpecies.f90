@@ -443,6 +443,8 @@ MODULE classSpecies
             switch = .TRUE.
          ELSE IF (type == 'dry') THEN
             switch = .FALSE.
+         ELSE
+            STOP "getNSpec: Bad type option"
          END IF
       ELSE
          switch = .TRUE.

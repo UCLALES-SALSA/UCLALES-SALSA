@@ -515,6 +515,8 @@ CONTAINS
                              nlactintst,            &
                              nlactbase,             &
                              nlicenucl,               &
+                             lsdistupdate,          &
+                             lscheckarrays,         &
                              fixINC,                &
                              ice_hom, ice_imm, ice_dep, &
                              nlicmelt,              &
@@ -566,6 +568,8 @@ CONTAINS
          nlactiv,       & ! Master switch for cloud droplet activation
          nlactbase,     & ! Switch for parameterized cloud base activation
          nlactintst,    & ! Switch for interstitial activation based on particle growth and host model S
+         lsdistupdate,  & ! Switch for size dsitribution update
+         lscheckarrays, & ! Switch for runnin the array check routine in mo_salsa
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          reglim,        & ! Low/high diameter limits of the 2 aerosol size regimes (1d table with length 4)
          nbin,          & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)

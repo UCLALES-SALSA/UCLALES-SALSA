@@ -108,7 +108,7 @@ CONTAINS
                                  useMcICA,      &
                                  RadConstPress, &
                                  RadPrecipBins, &
-	                         RadSnowBins
+                                 RadSnowBins
       USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
       USE mpi_interface, ONLY : myid, appl_abort, ver, author
       
@@ -185,7 +185,9 @@ CONTAINS
       !
       OPEN  (1,status='old',file='NAMELIST')
       REWIND(1)
-      READ  (1, nml=model)
+      READ (1, nml=model)
+      REWIND(1)
+      READ (1, nml=radiation)
       IF (lnudging) THEN
         REWIND(1)
         READ  (1, nml=nudge)

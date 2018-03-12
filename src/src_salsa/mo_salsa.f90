@@ -44,6 +44,7 @@ MODULE mo_salsa
           lsicenucl,                 &
           lsicmelt,                  &
           lsdistupdate,              &
+          lscheckarrays,             &
           ice_hom, ice_imm, ice_dep
 
      IMPLICIT NONE
@@ -94,6 +95,8 @@ MODULE mo_salsa
                             allSALSA,    &
                             ptstep, ptemp,  ppres   )
 
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"COAG")
+
      ! Condensation
      IF (lscnd) &
           CALL condensation(kproma, kbdim,    klev,     krow,          &
@@ -102,10 +105,14 @@ MODULE mo_salsa
                             pc_nh3, prv, prs, prsi, ptemp, ppres,  &
                             ptstep, zpbl                    )
 
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"CONDENSATION")
+
      ! Autoconversion (liquid)
      IF (lsauto) &
           CALL autoconv2(kproma,kbdim,klev, &
                          ptstep   )
+
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"AUTOCONV")
 
      ! Cloud activation
      IF (lsactiv )  &
@@ -113,6 +120,8 @@ MODULE mo_salsa
                                 ptemp,  ppres, prv,    &
                                 prs,    pw           , &
                                 pactd          )
+
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"ACTIVATION")
 
      ! Ice nucleation
      IF (lsicenucl) THEN
@@ -127,20 +136,70 @@ MODULE mo_salsa
         END IF
      END IF
 
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"ICENUC")
+
      ! Melting of ice and snow
      IF (lsicmelt) &
           CALL ice_melt(kproma,kbdim,klev,              &
                         ptemp)
 
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"ICEMELT")
+
      ! Snow formation ~ autoconversion from ice
      IF (lsautosnow) &
           CALL autosnow(kproma,kbdim,klev)
+
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"AUTOSNOW")
 
      ! Size distribution bin update
      IF (lsdistupdate ) &
           CALL distr_update(kproma, kbdim, klev,     &
                             allSALSA, level       )
 
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"DISTUPDATE")
+
    END SUBROUTINE salsa
+
+   ! -------------------------------
+
+   SUBROUTINE check_arrays(kbdim,klev,ntotal,array,position)
+     USE classSection, ONLY : Section
+     IMPLICIT NONE
+     ! Check that particle arrays remain positive and
+     ! check for NANs
+     INTEGER, INTENT(in) :: kbdim,klev,ntotal
+     CHARACTER(len=*), INTENT(in) :: position
+     TYPE(Section), INTENT(in) :: array(kbdim,klev,ntotal)
+     
+     INTEGER :: ii,jj,nn
+
+     DO jj = 1,klev
+        DO ii = 1,kbdim
+           DO nn = 1,ntotal
+              IF ( array(ii,jj,nn)%numc < 0. .OR.  &
+                   ANY( array(ii,jj,nn)%volc(:) < 0. ) ) THEN
+
+                 WRITE(*,*) 'SALSA: NEGATIVE CONCENTRATIONS, BIN ',nn
+                 WRITE(*,*) 'NUMC', array(ii,jj,nn)%numc
+                 WRITE(*,*) 'VOLC', array(ii,jj,nn)%volc(:)
+                 WRITE(*,*) 'At '//TRIM(position)
+
+              END IF
+
+              IF ( array(ii,jj,nn)%numc /= array(ii,jj,nn)%numc  .OR.  &
+                   ANY( array(ii,jj,nn)%volc(:) /= array(ii,jj,nn)%volc(:) ) ) THEN
+
+                   WRITE(*,*) 'SALSA: NAN CONCENTRATIONS, BIN ',nn
+                   WRITE(*,*) 'NUMC', array(ii,jj,nn)%numc
+                   WRITE(*,*) 'VOLC', array(ii,jj,nn)%volc(:)
+                   WRITE(*,*) 'At '//TRIM(position)
+                   
+              END IF
+           END DO
+        END DO
+     END DO
+
+   END SUBROUTINE check_arrays
+
 
 END MODULE mo_salsa

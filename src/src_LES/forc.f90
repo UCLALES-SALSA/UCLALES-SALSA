@@ -275,7 +275,7 @@ CONTAINS
 
        ! Some additional stuff needed for SALSA. a_salsa array has all the necessary tracers
        ! and its association depends already on level, so no need to any extra checks here.
-       IF (level > 4) THEN
+       IF (level >= 4) THEN
           DO b = 1,nsalsa
              DO j = 3,n3-2
                 DO i = 3,n2-2

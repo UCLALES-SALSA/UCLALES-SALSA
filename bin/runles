@@ -27,7 +27,7 @@ DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=3600.        # Length of the spinup period (seconds)
+Tspinup=100.        # Length of the spinup period (seconds)
 Texp=28800.         # Length of the experiment (seconds)
 LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
@@ -91,7 +91,7 @@ cat > NAMELIST <<EOF
   itsflg = 1                  ! Flag for temperature type in input sounding
   ipsflg = 1                  ! - '' - for pressure
   lnudging = .FALSE.           ! Master swtich for nudging scheme
-  lemission = .TRUE.          ! Master switch for aerosol emissions  
+  lemission = .FALSE.          ! Master switch for aerosol emissions  
   iradtyp = 3                 ! Radiation/large scale forcing
   strtim = 215.3               ! Start time
   case_name = 'default'       ! Case name for large-scale forcing schemes
@@ -192,6 +192,8 @@ cat > NAMELIST <<EOF
    ice_hom     = .FALSE.
    ice_imm     = .FALSE.
    ice_dep     = .FALSE.
+
+   lscheckarrays = .TRUE.
 
    rhlim = 1.2          ! RH limit for SALSA during initialization and spinup
 

@@ -86,7 +86,6 @@ CONTAINS
     
          mvsu,         & ! sulphate 
                          ! density [kg/m3]
-         rhowa,        & ! water
          
          surfw0,       & ! surface tension of water [J/m2]
          epsoc!,       !& ! fxm
@@ -227,7 +226,7 @@ CONTAINS
                             (zvolc(ii,jj,kk,6)*(spec%rhono/spec%mno))/zbinmol(6)
                    
                      !-- particle wet radius [m]
-                     zdwet = ( zlwc/aero(ii,jj,kk)%numc/rhowa/pi6 + &
+                     zdwet = ( zlwc/aero(ii,jj,kk)%numc/spec%rhowa/pi6 + &
                                SUM(zvpart(6:7))/pi6               + &
                                zcore/pi6                          )**(1./3.)
 
@@ -336,7 +335,7 @@ CONTAINS
                                (zvolc(ii,jj,kk,5)*(spec%rhoss/spec%mss))/zbinmol(5)
                       
                         !-- particle wet radius [m]
-                        zdwet = ( zlwc/aero(ii,jj,kk)%numc/rhowa/pi6 +  &
+                        zdwet = ( zlwc/aero(ii,jj,kk)%numc/spec%rhowa/pi6 +  &
                                   SUM(zvpart(6:7))/pi6               +  &
                                   zcore/pi6                          )**(1./3.)
 

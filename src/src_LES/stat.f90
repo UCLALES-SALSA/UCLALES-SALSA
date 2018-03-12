@@ -1306,7 +1306,9 @@ CONTAINS
       INTEGER                   :: k, i, j, kp1
       REAL, DIMENSION(n1)       :: a1, a2, a3, tvbar
       REAL, DIMENSION(n1,n2,n3) :: scr, xy1, xy2, tw, tvw, rtw
+      REAL, DIMENSION(n2,n3) :: scr2d
       LOGICAL :: cond(n1,n2,n3)
+
 
       !
       ! liquid water statistics
@@ -1391,17 +1393,18 @@ CONTAINS
       !
       ! liquid water path
       !
+      scr2d(:,:) = 0. 
       DO j = 3, n3-2
          DO i = 3, n2-2
-            scr(1,i,j) = 0.
+            scr2d(i,j) = 0.
             DO k = 2, n1
-               scr(1,i,j) = scr(1,i,j)+rl(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+               scr2d(i,j) = scr2d(i,j)+rl(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
             END DO
          END DO
       END DO
-      ssclr(15)  = get_avg2dh(n2,n3,scr(1,:,:))
-      scr(1,:,:) = (scr(1,:,:)-ssclr(15))**2
-      ssclr(16)  = get_avg2dh(n2,n3,scr(1,:,:))
+      ssclr(15)  = get_avg2dh(n2,n3,scr2d(:,:))
+      scr2d(:,:) = (scr2d(:,:)-ssclr(15))**2
+      ssclr(16)  = get_avg2dh(n2,n3,scr2d(:,:))
 
    END SUBROUTINE accum_lvl2
    !

@@ -33,8 +33,8 @@ NCDFINC =
 LIBS = 
 F90 = ftn
 MPIF90 = ftn
-FFLAGS = -O2 -s real64
-F77FLAGS = -O2 #-O1 -fbounds-check  
+FFLAGS = -O2 -s real64 # -R bcps
+F77FLAGS = -O2 
 
 LES_OUT_MPI=$(BIN)/les.mpi
 

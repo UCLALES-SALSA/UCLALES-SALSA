@@ -98,6 +98,8 @@ MODULE mo_submctl
 
   LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
 
+  LOGICAL :: lscheckarrays = .FALSE.
+
   ! 1) Switches for aerosol microphysical processes ------------------------
   INTEGER, PARAMETER :: nmod = 7
 

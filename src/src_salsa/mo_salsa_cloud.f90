@@ -396,9 +396,9 @@ CONTAINS
     REAL, INTENT(in) :: temp(kbdim,klev)  ! Absolute temperature
     
     TYPE(Section), TARGET :: pactd(ncld) ! Local variable
-    
+
     REAL :: paa        ! Coefficient for Kelvin effect
-    
+
     REAL :: zdcstar, zvcstar  ! Critical diameter/volume corresponding to S_LES
     REAL :: zactvol           ! Total volume of the activated particles
     
@@ -869,9 +869,10 @@ CONTAINS
     REAL, PARAMETER :: max_rate_autoc=1.0e10 ! Maximum autoconversion rate (#/m^3/s)
     
     INTEGER :: ii,jj,cc,ss
-    INTEGER :: nspec, iwa
+    INTEGER :: nwet, ndry, iwa
     
-    nspec = spec%getNSpec()
+    nwet = spec%getNSpec(type='wet')
+    ndry = spec%getNSpec(type='dry')
     iwa = spec%getIndex("H2O")
         
     ! Find the cloud bins where the mean droplet diameter is above 50 um
@@ -883,7 +884,7 @@ CONTAINS
              tot = 0.
              
              Ntot = cloud(ii,jj,cc)%numc
-             Vtot = SUM(cloud(ii,jj,cc)%volc(1:nspec))
+             Vtot = SUM(cloud(ii,jj,cc)%volc(1:nwet))
              
              IF ( Ntot > nlim .AND. Vtot > 0. ) THEN
                 
@@ -898,7 +899,7 @@ CONTAINS
                    
                    ! Put the mass and number to the first precipitation bin and remove from
                    ! cloud droplets
-                   DO ss = 1, nspec-1
+                   DO ss = 1, ndry
                       precp(ii,jj,1)%volc(ss) = precp(ii,jj,1)%volc(ss) + cloud(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
                       cloud(ii,jj,cc)%volc(ss) = cloud(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
                    END DO
@@ -938,7 +939,6 @@ CONTAINS
        ptemp,prv,prs,prsi,ptstep )
     
     USE mo_submctl, ONLY : in2a,fn2b, ncld, nprc, nice,    &
-         !rhowa, rhoic,              &
          pi, nlim, prlim,           &
          calc_Sw_eq,                &
          ice_hom, ice_imm, ice_dep,  &
