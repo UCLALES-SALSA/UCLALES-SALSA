@@ -100,7 +100,8 @@ CONTAINS
                        filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
                        nfpt, distim, runtype, CCN, Tspinup,sst, lbinanl, cntlat
       USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
-                       zrand, zrndamp
+                       zrand, zrndamp, init_type
+      USE warm_bubble, ONLY : bubble_center, bubble_diameter, bubble_temp_ampl
       USE stat, ONLY : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
       USE forc, ONLY : div, case_name     ! Divergence, forcing case name
       USE radiation_main, ONLY : radsounding,   &
@@ -127,7 +128,6 @@ CONTAINS
            corflg , cntlat , & ! coriolis flag
            nfpt   , distim , & ! rayleigh friction points, dissipation time
            level  , CCN    , & ! Microphysical model Number of CCN per kg of air
-           iseed  , zrand  , zrndamp, & ! random seed
            nxp    , nyp    , nzp   ,  & ! number of x, y, z points
            deltax , deltay , deltaz , & ! delta x, y, z (meters)
            dzrat  , dzmax  , igrdtyp, & ! stretched grid parameters
@@ -139,16 +139,23 @@ CONTAINS
            isfctyp, ubmin  , zrough , & ! surface parameterization type
            sst    , dthcon , drtcon , & ! SSTs, surface flx parameters
            isgstyp, csx    , prndtl , & ! SGS model type, parameters
-           ipsflg , itsflg ,          & ! sounding flags
-           hs     , ps     , ts    ,  & ! sounding heights, pressure, temperature
-           us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
-           umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
            lnudging, lemission,       & ! master switch for nudging, aerosol emissions
            Tspinup, lbinanl,          & ! Length of spinup period in seconds
            div, case_name, &            ! divergence for LEVEL 4
            sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
-      
-      NAMELIST /radiation/         &
+
+      NAMELIST /initialization/      &
+           init_type,                & ! Type of initialization: 1: random perturbations, 2: warm bubble
+           bubble_center,            & ! Center coordinates for warm bubble (z,x,y) 
+           bubble_diameter,          & ! Diameter for warm bubble (z,x,y)   
+           bubble_temp_ampl,         & ! Temperature amplitude for the warm bubble, assume sinusoidal
+           ipsflg, itsflg,           & ! sounding flags
+           hs, ps, ts,               & ! sounding heights, pressure, temperature
+           us, vs, rts,              & ! sounding E/W winds, water vapor
+           umean, vmean, th00,       & ! gallilean E/W wind, basic state
+           iseed, zrand, zrndamp       ! random seed
+
+      NAMELIST /radiation/           &
            radfrq,                   & ! radiation type flag RADFRQ NOT USED ANYWHERE, VARIABLE DECLARED IN STEP.F90
            radsounding, sfc_albedo,  & ! Name of the radiation sounding file, surface albedo
            useMcICA,                 & ! Use the Monte Carlo Independent Column Approximation method (T/F)
@@ -186,6 +193,8 @@ CONTAINS
       OPEN  (1,status='old',file='NAMELIST')
       REWIND(1)
       READ  (1, nml=model)
+      REWIND(1)
+      READ  (1, nml=initialization)
       IF (lnudging) THEN
         REWIND(1)
         READ  (1, nml=nudge)

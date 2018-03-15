@@ -34,7 +34,7 @@ MODULE init
    REAL                  :: zrndamp = 0.2 ! the amplitude of pseudorandom fluctuations
    CHARACTER  (len=80)   :: hfilin = 'test.'
 
-   INTEGER               :: mixinit_type = 1 ! Switch for how to initialize mixing: 1) random perturbations, 2) warm bubble
+   INTEGER               :: init_type = 1 ! Switch for how to initialize mixing: 1) random perturbations, 2) warm bubble
 
 CONTAINS
    !
@@ -171,17 +171,18 @@ CONTAINS
       USE sgsm, ONLY : tkeinit
       USE thrm, ONLY : thermo, rslf
       USE mo_submctl, ONLY : spec
+      USE init_warm_bubble, ONLY : warm_bubble
 
       IMPLICIT NONE
 
       INTEGER :: i,j,k
       REAL    :: exner, pres, tk, rc, xran(nzp)
       INTEGER :: nspec
-
+      
       nspec = spec%getNSpec()
-
+      
       CALL htint(ns,ts,hs,nzp,th0,zt)
-
+      
       DO j = 1, nyp
          DO i = 1, nxp
             a_ustar(i,j) = 0.
@@ -198,37 +199,10 @@ CONTAINS
 
       ! Juha: Added SELECT-CASE for level 4
       SELECT CASE(level)
-         CASE(1,2,3)
-            IF ( allocated (a_rv)) a_rv = a_rp
-
-            IF ( allocated (a_rc)) THEN
-               DO j = 1, nyp
-                  DO i = 1, nxp
-                     DO k = 1, nzp
-                        exner = (pi0(k)+pi1(k))/cp
-                        pres  = p00 * (exner)**cpr
-                        IF (itsflg == 0) THEN
-                           tk = th0(k)*exner
-                           rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
-                           a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
-                           a_rv(k,i,j) = a_rp(k,i,j)-rc
-                        END IF
-                        IF (itsflg == 2) THEN
-                           tk = th0(k)
-                           a_theta(k,i,j) = tk/exner
-                           rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
-                           a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
-                           a_rv(k,i,j) = a_rp(k,i,j)-rc
-                        END IF
-                     END DO
-                  END DO
-               END DO
-            END IF
-
-         CASE(4,5)
-            ! Condensation will be calculated by the initial call of SALSA, so use the
-            ! saturation adjustment method to estimate the amount of liquid water,
-            ! which is needed for theta_l
+      CASE(1,2,3)
+         IF ( allocated (a_rv)) a_rv = a_rp
+         
+         IF ( allocated (a_rc)) THEN
             DO j = 1, nyp
                DO i = 1, nxp
                   DO k = 1, nzp
@@ -238,33 +212,66 @@ CONTAINS
                         tk = th0(k)*exner
                         rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
                         a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
+                        a_rv(k,i,j) = a_rp(k,i,j)-rc
                      END IF
                      IF (itsflg == 2) THEN
                         tk = th0(k)
                         a_theta(k,i,j) = tk/exner
                         rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
                         a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
+                        a_rv(k,i,j) = a_rp(k,i,j)-rc
                      END IF
-                  END DO !k
-               END DO !i
-            END DO !j
-
+                  END DO
+               END DO
+            END DO
+         END IF
+         
+      CASE(4,5)
+         ! Condensation will be calculated by the initial call of SALSA, so use the
+         ! saturation adjustment method to estimate the amount of liquid water,
+         ! which is needed for theta_l
+         DO j = 1, nyp
+            DO i = 1, nxp
+               DO k = 1, nzp
+                  exner = (pi0(k)+pi1(k))/cp
+                  pres  = p00 * (exner)**cpr
+                  IF (itsflg == 0) THEN
+                     tk = th0(k)*exner
+                     rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
+                     a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
+                  END IF
+                  IF (itsflg == 2) THEN
+                     tk = th0(k)
+                     a_theta(k,i,j) = tk/exner
+                     rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
+                     a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
+                  END IF
+               END DO !k
+            END DO !i
+         END DO !j
+         
       END SELECT
-
-      k = 1
-      DO WHILE( zt(k+1) <= zrand .AND. k+1 < nzp)
-         k = k+1
-         xran(k) = zrndamp*(zrand - zt(k))/zrand
-      END DO
-      CALL random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
-
-      IF (associated(a_rp)) THEN
+      
+      IF (init_type == 1) THEN
+         ! Initialize with random perturbations
          k = 1
          DO WHILE( zt(k+1) <= zrand .AND. k+1 < nzp)
             k = k+1
-            xran(k) = 5.0e-5*(zrand - zt(k))/zrand
+            xran(k) = zrndamp*(zrand - zt(k))/zrand
          END DO
-         CALL random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
+         CALL random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
+         
+         IF (associated(a_rp)) THEN
+            k = 1
+            DO WHILE( zt(k+1) <= zrand .AND. k+1 < nzp)
+               k = k+1
+               xran(k) = 5.0e-5*(zrand - zt(k))/zrand
+            END DO
+            CALL random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
+         END IF
+      ELSE IF (init_type == 2) THEN
+         ! Initialize with warm bubble (for convection)
+         CALL warm_bubble()
       END IF
 
       a_wp = 0.
@@ -285,8 +292,6 @@ CONTAINS
       a_uc = a_up
       a_vc = a_vp
       a_wc = a_wp
-
-
 
       RETURN
    END SUBROUTINE fldinit
