@@ -2,14 +2,12 @@
 shopt -s nullglob
 plotScriptName=plotLesOutput.py
 
-plotScriptMount=${LES}/script/${plotScriptName}
-plotScriptSync=${SOFTA}/${plotScriptName}
+plotScript=${LES}/script/${plotScriptName}
 
-if  [ -f $plotScriptMount ]; then
-    scr="python $plotScriptMount "
+if  [ -f $plotScript ]; then
+    scr="python $plotScript "
 
-elif [ -f $plotScriptSync ]; then
-    scr="python $plotScriptSync "
+
 else
     echo 'skripti ei ole olemassa'
     exit

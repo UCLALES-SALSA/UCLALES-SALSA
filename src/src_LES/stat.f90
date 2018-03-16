@@ -2093,7 +2093,7 @@ contains
        END IF
        IF (level >= 5) THEN
           iret = nf90_inq_varid(ncid2,s2_lvl5(1),VarID)
-          iret = nf90_put_var(ncid2,VarID,cloudbins(iia%cur:fia%cur),start=(/nrec2/))
+          iret = nf90_put_var(ncid2,VarID,icebins(iia%cur:fia%cur),start=(/nrec2/))
           iret = nf90_inq_varid(ncid2,s2_lvl5(2),VarID)
           IF (iret == NF90_NOERR) iret = nf90_put_var(ncid2,VarID,icebins(iib%cur:fib%cur),start=(/nrec2/))
           iret = nf90_inq_varid(ncid2,s2_lvl5(3),VarID)

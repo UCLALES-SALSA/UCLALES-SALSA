@@ -55,7 +55,7 @@ cat > ${dir}/NAMELIST <<EOF
   istpfl  = ${istpfl:-1}
   lbinanl = ${lbinanl:-.true.}
   frqanl = ${frqanl:-120.}
-  corflg = ${corflg:-.true.}
+  corflg = ${corflg:-.false.}
   ipsflg = ${ipsflg:-1}
   itsflg = ${itsflg:-1}
   sed_aero = ${sed_aero:-.FALSE.}

@@ -175,6 +175,9 @@ if __name__ == "__main__":
 
     spinup = mdp.read_NamelistValue( os.path.dirname(os.path.realpath(arguments[1]))+"/NAMELIST" ,var = 'Tspinup' )
     tmax   = mdp.read_NamelistValue( os.path.dirname(os.path.realpath(arguments[1]))+"/NAMELIST" ,var = 'timmax'  )
+    
+    slaissaaXY   = max( mdp.read_NamelistValue( os.path.dirname(os.path.realpath(arguments[1]))+"/NAMELIST" ,var = 'nxp'  ), mdp.read_NamelistValue( os.path.dirname(os.path.realpath(arguments[1]))+"/NAMELIST" ,var = 'nyp'  ))
+
 
     ticksHours  = np.arange(0., tmax/3600. + 0.1, 0.5)
     xLabelsHours = map(str, ticksHours )
@@ -1112,7 +1115,7 @@ def piirra_binijakauma( muuttuja, muunnosKerroin = 1.0, longName = None, savePre
         
 
 #######################
-def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, longName = None , savePrefix = None, useDN = False, colorBarTickValues = None, colorBarTickNames = None, xlabels = None, ylabels = None, xticks = None, yticks = None, variKartta = plt.cm.Blues, profiili = False, radCool = False, cloudBaseTop = False, spinup = None ):
+def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, longName = None , savePrefix = None, useDN = False, colorBarTickValues = None, colorBarTickNames = None, xlabels = None, ylabels = None, xticks = None, yticks = None, variKartta = plt.cm.Blues, profiili = False, radCool = False, cloudBaseTop = False, spinup = None, testi = False, sliceXbeg = None, sliceXend = None, sliceYbeg = None, sliceYend = None ):
     
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     from matplotlib import colors
@@ -1131,6 +1134,17 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
     
     maxi = None
     mini = None
+    
+    slices = ((sliceXbeg is not None) or (sliceXend is not None) or (sliceYbeg is not None) or (sliceYend is not None)) # slices
+    print 'slices', slices
+    if (sliceXbeg is not None) and (sliceXend is None):
+        sliceXend = sliceXbeg
+    if (sliceXbeg is None) and (sliceXend is not None):
+        sliceXbeg = sliceXend    
+    if (sliceXbeg is not None) and (sliceXend is None):
+        sliceXend = sliceXbeg
+    if (sliceXbeg is None) and (sliceXend is not None):
+        sliceXbeg = sliceXend
 
     for i in xrange(len(arguments)-1):
         if EMUL:
@@ -1149,14 +1163,21 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
         muuttuja_data  = np.multiply( mdp.read_Data( tiedostonimi[i], muuttuja ), muunnosKerroin)
 
         if useDN:
-            dn00            = np.power( mdp.read_Data( filenamePS[i], 'dn0'    ), -1 ) 
-            muuttuja_data = np.multiply ( muuttuja_data, dn00 )
+            dn0           = np.power( mdp.read_Data( filenamePS[i], 'dn0' ))
+            muuttuja_data = np.multiply( muuttuja_data, dn0 )
     
         if profiili:
             muuttuja_meanProfile = muuttuja_data
-        else:
+        elif not profiili:
             muuttuja_meanProfile = np.mean( np.mean( muuttuja_data, axis = 1), axis = 1)
+        elif not profiili and slices:
+            muuttuja_meanProfile = np.mean( muuttuja_data[:,sliceYbeg:sliceYend+1,sliceXbeg:sliceXend+1,:], axis = 1)
             
+        
+        if testi:
+            muuttuja_meanProfile = np.where(mdp.read_Data( tiedostonimi[i], 'P_rl' )*1000. > 0.001, muuttuja_meanProfile, 0.)
+            muuttuja_meanProfile = np.where(mdp.read_Data( tiedostonimi[i], 'P_RHi' ) > 1.05, muuttuja_meanProfile, 0.)
+            #muuttuja_meanProfile = np.where(muuttuja_meanProfile < 1.05, muuttuja_meanProfile, 0.)
         
         if transpose:
             muuttuja_meanProfile = np.rot90(muuttuja_meanProfile)  #zip(*muuttuja_meanProfile[::-1])#muuttuja_meanProfile.T
@@ -1204,7 +1225,7 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
                 kokonaisluvut = map(int, np.arange( int(mini/baseN)*baseN, int(maxi/baseN)*baseN, baseN  ))
                 colorBarTickValues = map(int, np.concatenate((np.asarray([int(mini)]), nega, kokonaisluvut, posi, np.asarray([int(maxi)]) )) )
             else:
-                colorBarTickValues = map(int, np.arange( int(mini), int(maxi), 1  ))
+                colorBarTickValues =map(int, np.arange( int(mini/baseN)*baseN, int(maxi/baseN)*baseN+baseN, baseN  ))# map(int, np.arange( int(mini), int(maxi), 1  ))
 
          
         print 'colorbartickvalues', colorBarTickValues 
@@ -1324,9 +1345,21 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
                 valitagi = str(case_indeksi+1)
             plt.plot(0,0, label = valitagi)
             plt.legend(bbox_to_anchor=(0., 1.13, 1., .102), loc=3, ncol=6, fancybox = True, shadow = True , mode="expand" )
-            plt.savefig( picturefolder + savePrefix + '_' + muuttuja + '_' + valitagi + '_' + saveTag + LVLprintSave + '.png')
+            
+            if slices:
+                kuvakansio = picturefolder + savePrefix + '_slices/'
+                
+                if not os.path.exists( picturefolder ):
+                    os.makedirs( picturefolder )
+            
+                savePrefix = savePrefix + mdp.xstr(sliceXbeg) + mdp.xstr(sliceXend) + mdp.xstr(sliceYbeg) + mdp.xstr(sliceYend)
+                
+            else:
+            	kuvakansio = picturefolder
+            
+            plt.savefig( kuvakansio + savePrefix + '_' + muuttuja + '_' + valitagi + '_' + saveTag + LVLprintSave + '.png')
 
-
+            
         if cloudBaseTop:
             top  = mdp.read_Data( filenameTS[i], 'zc'   )
             base = mdp.read_Data( filenameTS[i], 'zb'   )
@@ -1374,8 +1407,8 @@ def piirra_hiukkausjakauma( tyyppi = 'ice', bini='a', ajanhetket = [0], korkeus 
         #SizBin = mdp.read_Data( filenameNC[i], SizBin_name)
         
         if useDN:
-            dn00   = np.power( mdp.read_Data( filenameNC[i], 'dn0'    ), -1 ) 
-            NumBin = np.multiply ( NumBin, dn00 )
+            dn0    = mdp.read_Data( filenameNC[i], 'dn0' )
+            NumBin = np.multiply( NumBin, dn0 )
         
         ######### aika slaissaus
         time = mdp.read_Data( filenameNC[i], 'time')
@@ -1454,8 +1487,8 @@ def piirra_MeanSize( tyyppi = 'ice', bini='a', ajanhetket = [0], korkeus = [0], 
 
         
         if useDN:
-            dn00   = np.power( mdp.read_Data( filenameNC[i], 'dn0'    ), -1 ) 
-            Num = np.multiply ( Num, dn00 )
+            dn0 = mdp.read_Data( filenameNC[i], 'dn0' )
+            Num = np.multiply( Num, dn0 )
             
         ######### aika slaissaus
         time = mdp.read_Data( filenameNC[i], 'time')
@@ -1532,8 +1565,8 @@ def piirra_domainMeanProfiili( muuttuja, nimi = None, muunnosKerroin = 1.0, ajan
         data  = np.multiply( mdp.read_Data( tiedostonimi[i], muuttuja), muunnosKerroin )
         zt    = np.asmatrix( mdp.read_Data( tiedostonimi[i], 'zt') )
         if useDN:
-            dn00   = np.power( mdp.read_Data( tiedostonimi[i], 'dn0'    ), -1 ) 
-            data = np.multiply ( data, dn00 )
+            dn0 = mdp.read_Data( tiedostonimi[i], 'dn0' )
+            data = np.multiply( data, dn0 )
         
         
         ######### aika slaissaus
@@ -1638,12 +1671,12 @@ def piirra_domainMeanScatter( muuttujaX, muuttujaY, muuttujaYY = None, muunnosKe
         
         #zt    = np.asmatrix( mdp.read_Data( tiedostonimi[i], 'zt') )
         if useDNX:
-            dn00  = np.power( mdp.read_Data( filenameTS[i], 'dn0'    ), -1 ) 
-            dataX = np.multiply ( dataX, dn00 )
+            dn0  = mdp.read_Data( filenameTS[i], 'dn0' )
+            dataX = np.multiply( dataX, dn0 )
         
         if useDNY:
-            dn00  = np.power( mdp.read_Data( filenameTS[i], 'dn0'    ), -1 ) 
-            dataY = np.multiply ( dataY, dn00 )
+            dn0   = mdp.read_Data( filenameTS[i], 'dn0' )
+            dataY = np.multiply( dataY, dn0 )
         
         
         ######### aika slaissaus
@@ -2106,8 +2139,8 @@ if ICE:
     
     piilotaOsaXlabel = True
     
-    cbvalDiam = np.arange(0,800, 75)
-    cbvalDiamStr = np.arange(0,800, 75)
+    cbvalDiam = np.arange(0,600, 75)
+    cbvalDiamStr = map(str,cbvalDiam)
     
     diamVari = profiiliVariICE #[plt.cm.tab20(3),plt.cm.tab20(2),plt.cm.tab20c(1), plt.cm.tab20c(0),plt.cm.tab20c(7),plt.cm.tab20c(6),plt.cm.tab20c(5),plt.cm.tab20c(4),plt.cm.tab20c(11),plt.cm.tab20c(10),plt.cm.tab20c(9),plt.cm.tab20c(8) ]
     
@@ -2155,15 +2188,17 @@ if ICE:
         
         #piirra_domainProfiili( 'rflx', longName = "Radiative cooling " + r'$W/m^{2}$', useDN = False, transpose = True, profiili = True, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit,  variKartta = plt.cm.bwr, spinup = spinup, radCool = True, cloudBaseTop = True )
         
-        piirra_profiiliKehitys( 'theta',  variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Potential temperature', xlabel = r'$\theta$' + ' [K]', ylabel = 'z [m]', savePrefix = 'theta_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, asetaRajat = False )
+        #piirra_profiiliKehitys( 'theta',  variKartta = aika_color, colorBar = aikaBAR, colorBarTickValues = cbvalT, colorBarTickNames = cbvalTStr, longName =  'Potential temperature', xlabel = r'$\theta$' + ' [K]', ylabel = 'z [m]', savePrefix = 'theta_evol', aikaPisteet = aikaPisteet, tit = aikaTIT, asetaRajat = False )
         
-        piirra_aikasarjasettii( muuttuja = 'rmH2Opr',     muunnosKerroin = 2.5e+06,  longName = "Removal of water by sedimentation of rain",       ylabel = 'flux ' + r'[$W/m^2$]', ymin = 0.0,  savePrefix = 'depRain', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel, legenda = True  )
+        #piirra_aikasarjasettii( muuttuja = 'rmH2Opr',     muunnosKerroin = 2.5e+06,  longName = "Removal of water by sedimentation of rain",       ylabel = 'flux ' + r'[$W/m^2$]', ymin = 0.0,  savePrefix = 'depRain', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel, legenda = True  )
         
         piirra_aikasarjasettii( muuttuja = 'Nc_ic', muunnosKerroin = 1.e-6, longName = 'in-cloud CDNC', ylabel = '[#/mg]', ymin = 0.0,  savePrefix = 'cdncTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel, legenda = True  )
         
         piirra_domainProfiili( 'theta', longName = 'Potential temperature', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Reds, spinup = spinup, profiili = True  )
 
         #piirra_domainProfiili( 'thl', longName = 'Liquid water potential temperature', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Reds, spinup = spinup, profiili = True  )
+        
+        piirra_aikasarjasettii( muuttuja = 'vtke', muunnosKerroin = 1.0, longName = 'Vertical integral of total TKE', ylabel = '[kg/s]', ymin = 0.0,  savePrefix = 'vtkeTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel, legenda = True  )
         
     if int(lvl)>= 5:
         #piirra_aikasarjaPathXYZ( 'i', longName = 'Ice Water Path', savePrefix = 'iwp', xaxislabel = 'time [h]',xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel )
@@ -2175,7 +2210,12 @@ if ICE:
 
         #piirra_domainProfiili( 'i', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup  )
         
-        piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE, colorBarTickValues = cbvalICE
+        piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE, colorBarTickValues = cbvalICE plt.cm.Blues
+        
+        piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,4), longName = 'Ice mixing ratio ' + r'$10^{4}g/kg^{-1}$', useDN = False, transpose = True, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Blues, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE, colorBarTickValues = cbvalICE plt.cm.Blues
+        
+        nic = np.arange(0, 1.41, 0.2)
+        piirra_domainProfiili( 'P_Nia', muunnosKerroin = 1.e-3, longName = 'Ice number concentration ', useDN = False, transpose = True, colorBarTickValues = nic, colorBarTickNames = map(str,nic), xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE, colorBarTickValues = cbvalICE 
         
         #piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Blues, spinup = spinup, profiili = True  )
         
@@ -2209,8 +2249,17 @@ if ICE:
         piirra_domainMeanScatter(muuttujaX = 'zb', muuttujaY = 'zc', muuttujaYY = 'zb', muunnosKerroinX = 1., muunnosKerroinY = 1.0, muunnosKerroinYY = -1.0, nimi = None, ajanhetket = [6,8], xaxislabel = r'Z cld base [m]', yaxislabel = 'CLD depth [m]', savePrefix = None, minimiX =  400, maksimiX = 750, minimiY  = 0., maksimiY = 500 )
         
         piirra_domainMeanScatter(muuttujaX = 'zc', muuttujaY = 'zc', muuttujaYY = 'zb', muunnosKerroinX = 1., muunnosKerroinY = 1.0, muunnosKerroinYY = -1.0, nimi = None, ajanhetket = [6,8], xaxislabel = r'Z cld top [m]', yaxislabel = 'CLD depth [m]', savePrefix = None, minimiX =  700, maksimiX = 900, minimiY  = 0., maksimiY = 500 )
-
+    
+    if int(lvl) == -1:
+        nic = np.arange(0, 1.41, 0.2)
         
+        piirra_domainProfiili( 'P_Nia', muunnosKerroin = 1.e-3, longName = 'Ice number concentration ', useDN = True, transpose = True, colorBarTickValues = nic, colorBarTickNames = map(str,nic), xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE, colorBarTickValues = cbvalICE
+    
+
+        nyp = mdp.read_NamelistValue( os.path.dirname(os.path.realpath(arguments[1]))+"/NAMELIST" ,var = 'nyp'  )-4
+        
+        for slaissi in xrange(0,nyp):
+            piirra_domainProfiili( 'S_Ni', muunnosKerroin = 1.e-3, longName = 'Ice number concentration ', useDN = True, transpose = True, colorBarTickValues = nic, colorBarTickNames = map(str,nic), xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = False, sliceYbeg = slaissi, sliceXend = slaissi+1, savePrefix = 'NicSlices'  ) 
         
 toc = time.clock()
 print toc - tic
