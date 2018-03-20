@@ -1,6 +1,7 @@
 MODULE mo_submctl
   USE classSpecies, ONLY : Species, maxspec
   USE classSection
+  USE classProcessSwitch, ONLY : ProcessSwitch
   IMPLICIT NONE
 
   ! I'd say nothing here needs to be PRIVATE so remoed PRIVATE and PUBLIC attributes (PUBLIC is default).
@@ -26,75 +27,48 @@ MODULE mo_submctl
                             snow(:,:,:)  => NULL(),   &
                             liquid(:,:,:) => NULL(),  &
                             frozen(:,:,:) => NULL()
-
-
   
   !Switches for SALSA aerosol microphysical processes
 
   ! Process switches: nl* is read from the NAMELIST and NOT changed during runtime.
   !                   ls* is the switch actually used and will get the value of nl*
   !                   except for special circumstances such as spinup period etc.
-  
-  LOGICAL :: nlcoag  = .TRUE., & ! Coagulation master switch
-             lscoag
-  LOGICAL :: nlcgaa  = .TRUE., & ! Coagulation between aerosols
-             lscgaa
-  LOGICAL :: nlcgcc  = .TRUE., & ! Collision-coalescence between cloud droplets
-             lscgcc
-  LOGICAL :: nlcgca  = .TRUE., & ! Cloud collection of aerosols
-             lscgca
-  LOGICAL :: nlcgpc  = .TRUE., & ! Collection of cloud droplets by rain
-             lscgpc
-  LOGICAL :: nlcgpa  = .TRUE., & ! Collection of aerosols by rain
-             lscgpa
-  LOGICAL :: nlcgpp  = .TRUE., & ! Collision between rain drops
-             lscgpp
+  INTEGER, PARAMETER :: Nmaster = 7
+  TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)  ! Array for master switches. The specific master switches are pointers to this array
+  TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation
+  TYPE(ProcessSwitch), POINTER :: lscnd => NULL()      ! Condensation
+  TYPE(ProcessSwitch), POINTER :: lsauto => NULL()     ! Autoconversion
+  TYPE(ProcessSwitch), POINTER :: lsautosnow => NULL() ! Autoconversion of snow (need to revise)
+  TYPE(ProcessSwitch), POINTER :: lsactiv => NULL()    ! Cloud activation
+  TYPE(ProcessSwitch), POINTER :: lsicenucl => NULL()  ! Ice nucleation
+  TYPE(ProcessSwitch), POINTER :: lsicemelt => NULL()  ! Melting of ice
 
-  LOGICAL :: nlcgia  = .TRUE., & ! Ice collection of aerosols
-             lscgia
-  LOGICAL :: nlcgic  = .TRUE., & ! Collection of cloud droplet by ice particles
-             lscgic
-  LOGICAL :: nlcgii  = .TRUE., & ! Collision-coalescence between ice particles
-             lscgii
-  LOGICAL :: nlcgip  = .TRUE., & ! Collection of precipitation by ice particles
-             lscgip
-  LOGICAL :: nlcgsa  = .TRUE., & ! Collection of aerosols by snow              
-             lscgsa
-  LOGICAL :: nlcgsc  = .TRUE., & ! Collection of cloud droplets by snow
-             lscgsc
-  LOGICAL :: nlcgsi  = .TRUE., & ! Collection of ice by snow
-             lscgsi
-  LOGICAL :: nlcgsp  = .TRUE., & ! Collection of precipitation by snow
-             lscgsp
-  LOGICAL :: nlcgss  = .TRUE., & ! Collision-coalescence between snow particles
-             lscgss
+  ! Collision subprocesses
+  LOGICAL :: lscgaa  = .TRUE.  ! Coagulation between aerosols
+  LOGICAL :: lscgcc  = .TRUE.  ! Collision-coalescence between cloud droplets
+  LOGICAL :: lscgca  = .TRUE.  ! Cloud collection of aerosols
+  LOGICAL :: lscgpc  = .TRUE.  ! Collection of cloud droplets by rain
+  LOGICAL :: lscgpa  = .TRUE.  ! Collection of aerosols by rain
+  LOGICAL :: lscgpp  = .TRUE.  ! Collision between rain drops
+  LOGICAL :: lscgia  = .TRUE.  ! Ice collection of aerosols
+  LOGICAL :: lscgic  = .TRUE.  ! Collection of cloud droplet by ice particles
+  LOGICAL :: lscgii  = .TRUE.  ! Collision-coalescence between ice particles
+  LOGICAL :: lscgip  = .TRUE.  ! Collection of precipitation by ice particles
+  LOGICAL :: lscgsa  = .TRUE.  ! Collection of aerosols by snow              
+  LOGICAL :: lscgsc  = .TRUE.  ! Collection of cloud droplets by snow
+  LOGICAL :: lscgsi  = .TRUE.  ! Collection of ice by snow
+  LOGICAL :: lscgsp  = .TRUE.  ! Collection of precipitation by snow
+  LOGICAL :: lscgss  = .TRUE.  ! Collision-coalescence between snow particles
 
-  LOGICAL :: nlcnd      = .TRUE., & ! Condensation
-             lscnd
-  LOGICAL :: nlcndgas   = .FALSE., & ! Condensation of precursor gases
-             lscndgas
-  LOGICAL :: nlcndh2ocl = .TRUE., & ! Condensation of water vapour on clouds and precipitation
-             lscndh2ocl
-  LOGICAL :: nlcndh2oae = .TRUE., & ! Condensation of water vapour on aerosol particles (FALSE -> equilibrium calc.)
-             lscndh2oae
-  LOGICAL :: nlcndh2oic = .TRUE., & ! Condensation of water vapour on ice and snow
-             lscndh2oic
+  ! Condensation subprocesses
+  LOGICAL :: lscndgas   = .FALSE. ! Condensation of precursor gases
+  LOGICAL :: lscndh2ocl = .TRUE.  ! Condensation of water vapour on clouds and precipitation
+  LOGICAL :: lscndh2oae = .TRUE.  ! Condensation of water vapour on aerosol particles (FALSE -> equilibrium calc.)
+  LOGICAL :: lscndh2oic = .TRUE.  ! Condensation of water vapour on ice and snow
 
-  LOGICAL :: nlauto      = .TRUE.,   & ! Autoconversion of cloud droplets (needs activation)
-             lsauto
-  LOGICAL :: nlautosnow  = .TRUE.,   & ! Autoconversion of ice particles to snow (needs activation)
-             lsautosnow
-  LOGICAL :: nlactiv     = .TRUE.,   & ! Cloud droplet activation
-             lsactiv
-  LOGICAL :: nlactintst  = .TRUE.,   & ! Switch for interstitial activation: use particle wet size determined by
-             lsactintst                ! codensation equations and supersaturation directly from the host model
-  LOGICAL :: nlactbase   = .FALSE.,   & ! Switch for cloud base activation: use the regular parameterized method
-             lsactbase                 ! for maximum supersaturation and cloud activation.
-
-  LOGICAL :: nlicenucl   = .FALSE., & ! ice nucleation
-             lsicenucl
-  LOGICAL :: nlicmelt    = .FALSE., & ! ice melting   
-             lsicmelt
+  ! Activation schemes
+  LOGICAL :: lsactintst  = .TRUE.   ! Switch for interstitial activation: use particle wet size determined by
+  LOGICAL :: lsactbase   = .FALSE.  ! Switch for cloud base activation: use the regular parameterized method
 
   LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
 

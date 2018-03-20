@@ -999,8 +999,8 @@ CONTAINS
                 
                 ! Get the insoluble volume concentration
                 zinsol = 0.
-                zinsol = zinsol + MERGE(precp(ii,jj,kk)%volc(ibc), 0., ibc > 0)
-                zinsol = zinsol + MERGE(precp(ii,jj,kk)%volc(idu), 0., idu > 0)
+                IF ( ibc > 0 ) zinsol = zinsol + precp(ii,jj,kk)%volc(ibc)
+                IF ( idu > 0 ) zinsol = zinsol + precp(ii,jj,kk)%volc(idu)
                 
                 ! Radius of the insoluble portion of the droplet
                 rn = MAX(0., (3.*zinsol/precp(ii,jj,kk)%numc/4./pi)**(1./3.) )
@@ -1069,8 +1069,8 @@ CONTAINS
                 
                 ! Get the insoluble volume concentration
                 zinsol = 0.
-                zinsol = zinsol + MERGE(cloud(ii,jj,kk)%volc(ibc), 0., ibc > 0)
-                zinsol = zinsol + MERGE(cloud(ii,jj,kk)%volc(idu), 0., idu > 0)                 
+                IF (ibc > 0) zinsol = zinsol + cloud(ii,jj,kk)%volc(ibc)
+                IF (idu > 0) zinsol = zinsol + cloud(ii,jj,kk)%volc(idu)
                 
                 ! Radius of the insoluble portion of the droplet
                 rn = MAX(0., (3.*zinsol/cloud(ii,jj,kk)%numc/4./pi)**(1./3.) )
@@ -1116,8 +1116,8 @@ CONTAINS
                 
                 ! Get the insoluble volume concentration
                 zinsol = 0.
-                zinsol = zinsol + MERGE(aero(ii,jj,kk)%volc(ibc), 0., ibc > 0)
-                zinsol = zinsol + MERGE(aero(ii,jj,kk)%volc(idu), 0., idu > 0)      
+                IF (ibc > 0) zinsol = zinsol + aero(ii,jj,kk)%volc(ibc)
+                IF (idu > 0) zinsol = zinsol + aero(ii,jj,kk)%volc(idu)
                 
                 ! Radius of the insoluble portion of the droplet
                 rn = MAX(0., (3.*zinsol/aero(ii,jj,kk)%numc/4./pi)**(1./3.) )

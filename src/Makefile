@@ -1,13 +1,11 @@
 .SUFFIXES : .f .o .a .f90
 
-
-
 VPATH = $(SRCUTIL):   \
 	$(SRCLES):    \
 	$(SRCSALSA):  \
 	$(SRCRAD):    \
-	$(SRCEMIS)  
-
+	$(SRCEMIS):   \
+	$(SRCSHARED)  
 
 ifneq (,$(findstring mpi,$(LES_ARC)))
 	seqmpi = mpi_interface.f90
@@ -20,7 +18,7 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 \
           mo_salsa.f90 mo_salsa_driver.f90 mo_salsa_init.f90  \
           mo_salsa_nucleation.f90 mo_salsa_properties.f90 \
           mo_submctl.f90 aerosol_thermodynamics.f90       \
-	  classSpecies.f90 classSection.f90 \
+	  classSpecies.f90 classSection.f90 classProcessSwitch.f90 \
           defs.f90 $(seqmpi) LES.f90 ncio.f90 util.f90 grid.f90 stat.f90 \
 	  thrm.f90 forc.f90 advf.f90 advl.f90 srfc.f90 prss.f90 sgsm.f90 \
 	  mcrp.f90 step.f90 init.f90 nudg.f90 \
@@ -88,9 +86,9 @@ $(seqmpi:.f90=.o):
 exceptionHandling.o:
 
 mo_salsa_driver.o: mo_submctl.o mo_salsa.o mo_salsa_properties.o \
-	           classSection.o util.o
-mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o classSpecies.o classSection.o
-mo_submctl.o: classSpecies.o classSection.o
+	           classSection.o util.o classProcessSwitch.o
+mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o classSpecies.o classSection.o classProcessSwitch.o
+mo_submctl.o: classSpecies.o classSection.o classProcessSwitch.o
 mo_salsa_cloud.o: mo_submctl.o classSection.o
 mo_salsa_sizedist.o: mo_salsa_driver.o mo_submctl.o 
 mo_salsa.o: mo_submctl.o mo_salsa_dynamics.o mo_salsa_update.o \
@@ -104,5 +102,6 @@ mo_salsa_update.o: mo_submctl.o classSection.o
 aerosol_thermodynamics.o:
 classSpecies.o:
 classSection.o:
+classProcessSwitch.o: 
 
 

@@ -14,8 +14,10 @@ SRC_LES     =$(SRC)/src_LES
 SRC_SALSA   =$(SRC)/src_salsa
 SRC_RAD     =$(SRC)/src_rad
 SRC_EMIS    =$(SRC)/src_emission
+SRC_SHARED  =$(SRC)/src_shared
 
-VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC_RAD):$(SRC_EMIS):$(SRC)
+VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC_RAD):  \
+	$(SRC_EMIS):$(SRC_SHARED):$(SRC)
 
 ECHO    = /bin/echo
 RM      = /bin/rm -f
@@ -54,7 +56,7 @@ $(LES_OUT_SEQ):
 	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_SEQ)          \
 	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) SRCLES=$(SRC_LES) \
 	SRCSALSA=$(SRC_SALSA) SRCRAD=$(SRC_RAD)            \
-	SRCEMIS=$(SRC_EMIS)
+	SRCEMIS=$(SRC_EMIS) SRCSHARED=$(SRC_SHARED)
  
 $(LES_OUT_MPI):
 	cd $(SRC); $(MAKE) LES_ARC=mpi                     \
@@ -62,7 +64,7 @@ $(LES_OUT_MPI):
 	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_MPI)          \
 	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) SRCLES=$(SRC_LES) \
 	SRCSALSA=$(SRC_SALSA) SRCRAD=$(SRC_RAD)            \
-	SRCEMIS=$(SRC_EMIS)
+	SRCEMIS=$(SRC_EMIS) SRCSHARED=$(SRC_SHARED)
 
 .PHONY: $(LES_OUT_SEQ) 
 .PHONY: $(LES_OUT_MPI)

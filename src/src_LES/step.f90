@@ -270,7 +270,7 @@ CONTAINS
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
                               a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              zrm, dtlt, level  )
+                              zrm, dtlt, time, level  )
             ELSE
                !! for 2D or 3D runs
                CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
@@ -280,7 +280,7 @@ CONTAINS
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
                               a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              zrm, dtlt, level  )
+                              zrm, dtlt, time, level  )
              
             END IF !nxp==5 and nyp == 5
 

@@ -84,7 +84,7 @@ CONTAINS
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
                               a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              1, dtlt, level   )
+                              1, dtlt, time, level   )
             ELSE
                CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
                               a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
@@ -93,7 +93,7 @@ CONTAINS
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
                               a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              1, dtlt, level   )
+                              1, dtlt, time, level   )
 
             END IF
             CALL SALSAInit

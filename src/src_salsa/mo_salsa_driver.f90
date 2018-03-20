@@ -63,7 +63,7 @@ CONTAINS
                         pa_nicep,   pa_nicet,   pa_micep,   pa_micet,    &
                         pa_nsnowp,  pa_nsnowt,  pa_msnowp,  pa_msnowt,   &
                         pa_nactd,   pa_vactd,   pa_gaerop,  pa_gaerot,   &
-                        prunmode, tstep, level)
+                        prunmode, tstep, time, level)
 
       USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
                              nice,nsnw,ntotal,                    &
@@ -74,6 +74,10 @@ CONTAINS
 
       INTEGER, INTENT(in) :: pnx,pny,pnz,n4                       ! dimensions: x,y,z,number of chemical species
       REAL, INTENT(in)    :: tstep                                ! Model timestep length
+      REAL, INTENT(in)    :: time
+      
+      INTEGER, INTENT(in) :: prunmode                         ! 1: initialization call
+                                                              ! 2: Regular runtime
 
       REAL, INTENT(in)    :: press(pnz,pnx,pny), &            ! Pressure (Pa)
                              tk(pnz,pnx,pny),    &            ! Temperature (K)
@@ -97,9 +101,7 @@ CONTAINS
 
       REAL, INTENT(in)    :: pa_gaerop(pnz,pnx,pny,5)         ! Gaseous tracers [# kg]
 
-      INTEGER, INTENT(in) :: prunmode                      ! 1: Initialization call
-                                                           ! 2: Spinup period call
-                                                           ! 3: Regular runtime call'
+
       INTEGER, INTENT(in) :: level                         ! thermodynamical level
 
       REAL, INTENT(inout) :: pa_naerot(pnz,pnx,pny,nbins),      & ! Aerosol number tendency
@@ -143,7 +145,7 @@ CONTAINS
       snow_old(:,:,:) = Section(3)
 
       ! Set the SALSA runtime config 
-      CALL set_salsa_runtime(prunmode)
+      CALL set_salsa_runtime(time)
 
       ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of kg/kg (multiplied by pdn/divided by substance density)
       DO jj = 3, pny-2
@@ -320,109 +322,123 @@ CONTAINS
    !
    !---------------------------------------------------------------
    ! SET_SALSA_RUNTIME
-   ! Set LOGICAL switches according to the host model state and
-   ! user-specified NAMELIST options.
+   ! Set the master process %state:s based on the values of %switch and %delay
    !
    ! Juha Tonttila, FMI, 2014
    !
-   SUBROUTINE set_SALSA_runtime(prunmode)
-      USE mo_submctl, ONLY : nlcoag,                 &
-                             nlcgaa,nlcgcc,nlcgpp,   &
-                             nlcgca,nlcgpa,nlcgpc,   &
-                             nlcnd,                  &
-                             nlcndgas,               &
-                             nlcndh2oae, nlcndh2ocl, &
-                             nlcndh2oic,             &
-                             nlauto,nlautosnow,      &
-                             nlactiv,                &
-                             nlactbase,nlactintst,   &
+   SUBROUTINE set_SALSA_runtime(time)
+     USE mo_submctl, ONLY : Nmaster, lsmaster
+     IMPLICIT NONE
+     REAL, INTENT(in) :: time
+     INTEGER :: i
 
-                             lscoag,                 &
-                             lscgaa,lscgcc,lscgpp,   &
-                             lscgca,lscgpa,lscgpc,   &
-                             lscnd,                  &
-                             lscndgas,               &
-                             lscndh2oae, lscndh2ocl, &
-                             lscndh2oic,             &
-                             lsauto,lsautosnow,      &
-                             lsactiv,                &
-                             lsactbase,lsactintst,   &
+     DO i = 1,Nmaster
+        IF( lsmaster(i)%switch .AND. time > lsmaster(i)%delay ) lsmaster%state = .TRUE.
+     END DO
 
-                             nlcgia,nlcgic,nlcgii,   &
-                             nlcgip,nlcgsa,nlcgsc,   &
-                             nlcgsi,nlcgsp,nlcgss,   &
-                             nlcnd,                  &
-                             nlicenucl,               &
-                             nlicmelt,               &
 
-                             lscgia,lscgic,lscgii,   &
-                             lscgip,lscgsa,lscgsc,   &
-                             lscgsi,lscgsp,lscgss,   &
-                             lsicenucl,                &
-                             lsicmelt
-
-      IMPLICIT NONE
-
-      INTEGER, INTENT(in) :: prunmode
-
-      ! Apply runtime settings
-
-      lscoag      = nlcoag
-      lscgaa      = nlcgaa
-      lscgcc      = nlcgcc
-      lscgpp      = nlcgpp
-      lscgca      = nlcgca
-      lscgpa      = nlcgpa
-      lscgpc      = nlcgpc
-      lscgia      = nlcgia
-      lscgic      = nlcgic
-      lscgii      = nlcgii
-      lscgip      = nlcgip
-      lscgsa      = nlcgsa
-      lscgsc      = nlcgsc
-      lscgsi      = nlcgsi
-      lscgsp      = nlcgsp
-      lscgss      = nlcgss
-
-      lscnd       = nlcnd
-      lscndgas    = nlcndgas
-      lscndh2oae  = nlcndh2oae
-      lscndh2ocl  = nlcndh2ocl
-      lscndh2oic  = nlcndh2oic
-
-      lsauto      = nlauto
-      lsautosnow  = nlautosnow
-
-      lsactiv     = nlactiv
-      lsactbase   = nlactbase
-      lsactintst  = nlactintst
-
-      lsicenucl   = nlicenucl 
-      lsicmelt    = nlicmelt
-
-      ! Adjustments for initialization and spinup
-
-      SELECT CASE(prunmode)
-
-         CASE(1) ! Initialization
-
-            lscoag      = .FALSE.
-            lsauto      = .FALSE.
-            lsautosnow  = .FALSE.
-            lsactbase   = .FALSE.
-            lsactintst  = nlactintst
-            lsicenucl  = .FALSE.
-            lsicmelt    = .FALSE.
-
-         CASE(2)  ! Spinup period
-
-            lscoag      = .FALSE.
-            lsauto      = .FALSE.
-            lsautosnow  = .FALSE.
-
-      END SELECT
 
    END SUBROUTINE set_SALSA_runtime
+
+
+   !SUBROUTINE set_SALSA_runtime(prunmode)
+   !   USE mo_submctl, ONLY : nlcoag,                 &
+   !                          nlcgaa,nlcgcc,nlcgpp,   &
+   !                          nlcgca,nlcgpa,nlcgpc,   &
+   !                          nlcnd,                  &
+   !                          nlcndgas,               &
+   !                          nlcndh2oae, nlcndh2ocl, &
+   !                          nlcndh2oic,             &
+   !                          nlauto,nlautosnow,      &
+   !                          nlactiv,                &
+   !                          nlactbase,nlactintst,   &!
+ 
+   !                          lscoag,                 &
+   !                          lscgaa,lscgcc,lscgpp,   &
+   !                          lscgca,lscgpa,lscgpc,   &
+   !                          lscnd,                  &
+   !                          lscndgas,               &
+   !                          lscndh2oae, lscndh2ocl, &
+   !                          lscndh2oic,             &
+   !                          lsauto,lsautosnow,      &
+   !                          lsactiv,                &
+   !                          lsactbase,lsactintst,   &
+
+   !                          nlcgia,nlcgic,nlcgii,   &
+   !                          nlcgip,nlcgsa,nlcgsc,   &
+   !                          nlcgsi,nlcgsp,nlcgss,   &
+   !                          nlcnd,                  &
+   !                          nlicenucl,               &
+   !                          nlicmelt,               &
+
+   !                          lscgia,lscgic,lscgii,   &
+   !                          lscgip,lscgsa,lscgsc,   &
+   !                          lscgsi,lscgsp,lscgss,   &
+   !                          lsicenucl,                &
+   !                          lsicmelt
+
+   !   IMPLICIT NONE
+
+   !   INTEGER, INTENT(in) :: prunmode
+
+   !   ! Apply runtime settings
+
+   !   lscoag      = nlcoag
+   !   lscgaa      = nlcgaa
+   !   lscgcc      = nlcgcc
+   !   lscgpp      = nlcgpp
+   !   lscgca      = nlcgca
+   !   lscgpa      = nlcgpa
+   !   lscgpc      = nlcgpc
+   !   lscgia      = nlcgia
+   !   lscgic      = nlcgic
+   !   lscgii      = nlcgii
+   !   lscgip      = nlcgip
+   !   lscgsa      = nlcgsa
+   !   lscgsc      = nlcgsc
+   !   lscgsi      = nlcgsi
+   !   lscgsp      = nlcgsp
+   !   lscgss      = nlcgss
+
+   !   lscnd       = nlcnd
+   !   lscndgas    = nlcndgas
+   !   lscndh2oae  = nlcndh2oae
+   !   lscndh2ocl  = nlcndh2ocl
+   !   lscndh2oic  = nlcndh2oic
+
+   !   lsauto      = nlauto
+   !   lsautosnow  = nlautosnow
+
+   !   lsactiv     = nlactiv
+   !   lsactbase   = nlactbase
+   !   lsactintst  = nlactintst
+
+   !   lsicenucl   = nlicenucl 
+   !   lsicmelt    = nlicmelt
+
+   !   ! Adjustments for initialization and spinup
+
+   !   SELECT CASE(prunmode)
+
+   !      CASE(1) ! Initialization
+
+   !         lscoag      = .FALSE.
+   !         lsauto      = .FALSE.
+   !         lsautosnow  = .FALSE.
+   !         lsactbase   = .FALSE.
+   !         lsactintst  = nlactintst
+   !         lsicenucl  = .FALSE.
+   !         lsicmelt    = .FALSE.
+
+   !      CASE(2)  ! Spinup period
+
+   !         lscoag      = .FALSE.
+   !         lsauto      = .FALSE.
+   !         lsautosnow  = .FALSE.
+
+   !   END SELECT
+
+   !END SUBROUTINE set_SALSA_runtime
 
 
 END MODULE mo_salsa_driver

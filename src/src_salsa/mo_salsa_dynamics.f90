@@ -1039,7 +1039,7 @@ CONTAINS
          nbins,ncld,nprc,                 &
          nice,nsnw,ntotal,           &
          lscndgas,                  & 
-         nlcndh2oae, nlcndh2ocl, nlcndh2oic, & ! Condensation to aerosols, clouds and ice particles
+         lscndh2oae, lscndh2ocl, lscndh2oic, & ! Condensation to aerosols, clouds and ice particles
          aero,cloud,precp,ice,snow,    &
          spec,                         &
          nsnucl                     ! nucleation
@@ -1099,7 +1099,7 @@ CONTAINS
                                  zxsa, ptemp,  ppres, ptstep )
 
       ! Condensation of water vapour
-      IF (nlcndh2ocl .OR. nlcndh2oae .OR. nlcndh2oic) &
+      IF (lscndh2ocl .OR. lscndh2oae .OR. lscndh2oic) &
          CALL gpparth2o(kproma, kbdim, klev, krow,  &
                         level,allSALSA,                       &
                         ptemp, ppres, prs, prsi, prv,     &

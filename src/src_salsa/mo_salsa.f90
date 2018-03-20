@@ -42,7 +42,7 @@ MODULE mo_salsa
           lsautosnow,                &
           lsactiv,                   &
           lsicenucl,                 &
-          lsicmelt,                  &
+          lsicemelt,                  &
           lsdistupdate,              &
           lscheckarrays,             &
           ice_hom, ice_imm, ice_dep
@@ -90,7 +90,7 @@ MODULE mo_salsa
      zpbl(:) = 1
      
      ! Coagulation
-     IF (lscoag) &
+     IF (lscoag%state) &
           CALL coagulation( kproma, kbdim,  klev,                   &
                             allSALSA,    &
                             ptstep, ptemp,  ppres   )
@@ -98,7 +98,7 @@ MODULE mo_salsa
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"COAG")
 
      ! Condensation
-     IF (lscnd) &
+     IF (lscnd%state) &
           CALL condensation(kproma, kbdim,    klev,     krow,          &
                             level, allSALSA,                    &
                             pc_h2so4, pc_ocnv, pc_ocsv,  pc_hno3,  &
@@ -108,14 +108,14 @@ MODULE mo_salsa
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"CONDENSATION")
 
      ! Autoconversion (liquid)
-     IF (lsauto) &
+     IF (lsauto%state) &
           CALL autoconv2(kproma,kbdim,klev, &
                          ptstep   )
 
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"AUTOCONV")
 
      ! Cloud activation
-     IF (lsactiv )  &
+     IF (lsactiv%state )  &
           CALL cloud_activation(kproma, kbdim, klev,   &
                                 ptemp,  ppres, prv,    &
                                 prs,    pw           , &
@@ -124,7 +124,7 @@ MODULE mo_salsa
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"ACTIVATION")
 
      ! Ice nucleation
-     IF (lsicenucl) THEN
+     IF (lsicenucl%state) THEN
         IF (fixinc>0. .AND. .NOT. ANY([ice_hom,ice_imm,ice_dep])) THEN
            ! Fixed ice number concentration
            CALL  ice_fixed_NC(kproma, kbdim, klev,   &
@@ -139,14 +139,14 @@ MODULE mo_salsa
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"ICENUC")
 
      ! Melting of ice and snow
-     IF (lsicmelt) &
+     IF (lsicemelt%state) &
           CALL ice_melt(kproma,kbdim,klev,              &
                         ptemp)
 
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"ICEMELT")
 
      ! Snow formation ~ autoconversion from ice
-     IF (lsautosnow) &
+     IF (lsautosnow%state) &
           CALL autosnow(kproma,kbdim,klev)
 
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"AUTOSNOW")

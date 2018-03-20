@@ -500,26 +500,32 @@ CONTAINS
    !----------------------------------------------------------------------
    SUBROUTINE define_salsa(level)
 
-      USE mo_submctl, ONLY : nlcoag,                &
-                             nlcgaa,nlcgcc,nlcgpp,  &
-                             nlcgca,nlcgpa,nlcgpc,  &
-                             nlcgia,nlcgic,nlcgii,  &
-                             nlcgip,nlcgsa,nlcgsc,  &
-                             nlcgsi,nlcgsp,nlcgss,  &
-                             nlcnd,                 &
-                             nlcndgas,              &
-                             nlcndh2oae,nlcndh2ocl, &
-                             nlcndh2oic,            &
-                             nlauto,nlautosnow,     &
-                             nlactiv,               &
-                             nlactintst,            &
-                             nlactbase,             &
-                             nlicenucl,               &
+      USE mo_submctl, ONLY : lscoag,                &
+                             lscnd,                 &
+                             lsauto,                &
+                             lsautosnow,            &
+                             lsactiv,               &
+                             lsicenucl,             &
+                             lsicemelt,             &
+
+                             lscgaa,lscgcc,lscgpp,  &
+                             lscgca,lscgpa,lscgpc,  &
+                             lscgia,lscgic,lscgii,  &
+                             lscgip,lscgsa,lscgsc,  &
+                             lscgsi,lscgsp,lscgss,  &
+
+                             lscndgas,              &
+                             lscndh2oae,lscndh2ocl, &
+                             lscndh2oic,            &
+
+                             lsactintst,            &
+                             lsactbase,             &
+
                              lsdistupdate,          &
                              lscheckarrays,         &
                              fixINC,                &
                              ice_hom, ice_imm, ice_dep, &
-                             nlicmelt,              &
+
                              nbin,reglim,   &
                              nice,nsnw,             &
                              nspec,listspec,        &
@@ -532,44 +538,53 @@ CONTAINS
 
     INTEGER, INTENT(in) :: level
 
-      NAMELIST /salsa/  &
-         nlcoag,      & ! Coagulation master switch
-         nlcgaa,      & ! Coagulation between aerosols
-         nlcgcc,      & ! Collision-coalescence between cloud droplets
-         nlcgpp,      & ! Collisions between rain drops
-         nlcgca,      & ! Cloud collection of aerosols
-         nlcgpa,      & ! Collection of aerosols by precip
-         nlcgpc,      & ! Collection of cloud droplets by rain
-         nlcgia,      & ! Ice collection of aerosols
-         nlcgic,      & ! Collection of cloud droplets by ice particles
-         nlcgii,      & ! Collision-coalescence between ice particles
-         nlcgip,      & ! Collection of precipitation by ice particles
-         nlcgsa,      & ! Collection of aerosols by snow
-         nlcgsc,      & ! Collection of cloud droplets by snow
-         nlcgsi,      & ! Collection of ice by snow
-         nlcgsp,      & ! Collection of precipitation by snow
-         nlcgss,      & ! Collision-coalescence between snow particles
-         nlcnd,       & ! Switch for condensation subroutine
-         nlcndgas,    & ! Condensation of precursor gases
-         nlicenucl,     & ! Switch for ice nucleation
-         fixINC,      & ! fixed ice number concentration #/kg, nlfixinc should be set to true inorder to have this working
+    NAMELIST /salsa/  &
+         ! Master process switches
+         lscoag,      &
+         lscnd,       &
+         lsauto,      &
+         lsautosnow,  &
+         lsactiv,     &
+         lsicenucl,   &
+         lsicemelt,   &
+
+         ! Subprocess switches
+         lscgaa,      & ! Coagulation between aerosols
+         lscgcc,      & ! Collision-coalescence between cloud droplets
+         lscgpp,      & ! Collisions between rain drops
+         lscgca,      & ! Cloud collection of aerosols
+         lscgpa,      & ! Collection of aerosols by precip
+         lscgpc,      & ! Collection of cloud droplets by rain
+         lscgia,      & ! Ice collection of aerosols
+         lscgic,      & ! Collection of cloud droplets by ice particles
+         lscgii,      & ! Collision-coalescence between ice particles
+         lscgip,      & ! Collection of precipitation by ice particles
+         lscgsa,      & ! Collection of aerosols by snow
+         lscgsc,      & ! Collection of cloud droplets by snow
+         lscgsi,      & ! Collection of ice by snow
+         lscgsp,      & ! Collection of precipitation by snow
+         lscgss,      & ! Collision-coalescence between snow particles
+
+         lscndgas,    & ! Condensation of precursor gases
+         lscndh2ocl,    & ! Condensation of water vapour on clouds (drizzle)
+         lscndh2oic,    & ! Condensation of water vapour on ice particles ! ice'n'snow
+         lscndh2oae,    & ! Condensation of water vapour on aerosols (FALSE -> equilibrium calc.)
+
+         fixINC,      & ! fixed ice number concentration #/kg
          ice_hom,     & ! Switch for homogeneous ice nucleation
          ice_imm,     & ! .. for immersio freezing
          ice_dep,     & ! .. for deposition freezing
-         nlicmelt,    & ! Switch for ice'n'snow melting
+
          nbin,        & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
          nice,        & ! number of ice bins
          nsnw,        & ! number of snow bins
-         nlcndh2ocl,    & ! Condensation of water vapour on clouds (drizzle)
-         nlcndh2oic,    & ! Condensation of water vapour on ice particles ! ice'n'snow
-         nlcndh2oae,    & ! Condensation of water vapour on aerosols (FALSE -> equilibrium calc.)
-         nlauto,        & ! Switch for autoconversion of cloud droplets to drizzle and rain
-         nlautosnow,    & ! Switch for autoconversion of ice particles to snowing
-         nlactiv,       & ! Master switch for cloud droplet activation
-         nlactbase,     & ! Switch for parameterized cloud base activation
-         nlactintst,    & ! Switch for interstitial activation based on particle growth and host model S
+
+         lsactbase,     & ! Switch for parameterized cloud base activation
+         lsactintst,    & ! Switch for interstitial activation based on particle growth and host model S
+
          lsdistupdate,  & ! Switch for size dsitribution update
          lscheckarrays, & ! Switch for runnin the array check routine in mo_salsa
+
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          reglim,        & ! Low/high diameter limits of the 2 aerosol size regimes (1d table with length 4)
          nbin,          & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
@@ -588,6 +603,8 @@ CONTAINS
          n                ! Number concentration for the 7 initial lognormal modes
 
 
+      ! Associate master switch pointers before reading NAMELIST
+      CALL associate_master_switches()
 
       OPEN(11,STATUS='old',FILE='NAMELIST')
       READ(11,NML=salsa)
@@ -595,25 +612,59 @@ CONTAINS
 
       ! if thermodynamical level is 4, set all ice process switches to false
       IF(level == 4) THEN
-            nlcgia      = .false.
-            nlcgic      = .false.
-            nlcgii      = .false.
-            nlcgip      = .false.
-            nlcgsa      = .false.
-            nlcgsc      = .false.
-            nlcgsi      = .false.
-            nlcgsp      = .false.
-            nlcgss      = .false.
+            lscgia      = .false.
+            lscgic      = .false.
+            lscgii      = .false.
+            lscgip      = .false.
+            lscgsa      = .false.
+            lscgsc      = .false.
+            lscgsi      = .false.
+            lscgsp      = .false.
+            lscgss      = .false.
 
-            nlcndh2oic  = .false.
+            lscndh2oic  = .false.
 
-            nlautosnow  = .false.
+            lsautosnow%switch = .FALSE.
+            lsicenucl%switch = .FALSE.
+            lsicemelt%switch = .FALSE.
 
-            nlicenucl    = .false.
-            nlicmelt    = .false.
       END IF !level
 
    END SUBROUTINE define_salsa
+
+   ! -----------------------------
+   ! 
+   ! ***********************************
+   ! SUBROUTINE associate_master_switches
+   ! Associate master switch pointers
+   !
+   SUBROUTINE associate_master_switches
+     USE classProcessSwitch, ONLY : ProcessSwitch
+     USE mo_submctl, ONLY : Nmaster, lsmaster, lscoag, lscnd, lsauto,  &
+                            lsautosnow, lsactiv, lsicenucl,   &
+                            lsicemelt
+     IMPLICIT NONE
+     
+     INTEGER :: i
+
+     ! Initialize the values
+     DO i = 1,Nmaster
+        lsmaster(i) = ProcessSwitch()
+     END DO
+
+     ! Associate pointers
+     lscoag => lsmaster(1)
+     lscnd => lsmaster(2)
+     lsauto => lsmaster(3)
+     lsautosnow => lsmaster(4)
+     lsactiv => lsmaster(5)
+     lsicenucl => lsmaster(6)
+     lsicemelt => lsmaster(7)
+
+
+   END SUBROUTINE associate_master_switches
+   
+
 
    !-------------------------------------------------------------------------------
    !
