@@ -141,11 +141,21 @@ MODULE mo_submctl
   ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
   REAL :: nf2a = 1.0
 
+  ! Cloud to rain autoconversion parameters
+  REAL :: autoc_rain_zd0 = 50.e-6 ! Cloud-rain diameter limit
+  REAL :: autoc_rain_sigmag = 1.2 ! Assumed log-normal cloud drop size distribution width
+
+  ! Ice to snow autoconversion parameters
+  REAL :: autoc_snow_zd0 = 250.e-6 ! Ice-snow diameter limit
+  REAL :: autoc_snow_sigmag = 1.2 ! Assumed log-normal ice particle size distribution width
+
   ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
   ! a) Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
   REAL :: fixinc = -1.0 ! Default = disabled
   ! b) Modelled ice nucleation
   LOGICAL :: ice_hom = .FALSE., ice_imm=.FALSE., ice_dep=.FALSE. ! Available ice nucleation modes
+  ! c) Start time (s) for ice formation
+  REAL :: icenucl_tstart = 0. ! Default: right after initialization
 
 
   INTEGER :: isdtyp = 0  ! Type of input aerosol size distribution: 0 - Uniform

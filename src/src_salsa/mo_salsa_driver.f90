@@ -159,7 +159,7 @@ IMPLICIT NONE
     END DO
 
     ! Set the SALSA runtime config
-    CALL set_salsa_runtime(prunmode)
+    CALL set_salsa_runtime(prunmode,time)
 
     ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of kg/kg (multiplied by pdn/divided by substance density)
     DO jj = 3,pny-2
@@ -840,7 +840,7 @@ IMPLICIT NONE
   !
   ! Juha Tonttila, FMI, 2014
   !
-  SUBROUTINE set_SALSA_runtime(prunmode)
+  SUBROUTINE set_SALSA_runtime(prunmode,time)
     USE mo_submctl, ONLY : nlcoag,                 &
                                nlcgaa,nlcgcc,nlcgpp,   &
                                nlcgca,nlcgpa,nlcgpc,   &
@@ -869,6 +869,7 @@ IMPLICIT NONE
                                nlcnd,                  &
                                nlicenucl,              &
                                nlicmelt,               &
+                               icenucl_tstart, &
 
                                lscgia,lscgic,lscgii,   &
                                lscgip,lscgsa,lscgsc,   &
@@ -879,6 +880,7 @@ IMPLICIT NONE
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: prunmode
+    REAL, INTENT(in) :: time
 
     ! Apply runtime settings
 
@@ -937,6 +939,13 @@ IMPLICIT NONE
           lsautosnow  = .FALSE.
 
     END SELECT
+
+    ! Ice formation has an additional spinup time (no ice formation => no autoconversion or melting)
+    IF (time<icenucl_tstart) THEN
+          lsicenucl  = .FALSE.
+          lsautosnow = .FALSE.
+          lsicmelt   = .FALSE.
+    ENDIF
 
   END SUBROUTINE set_SALSA_runtime
 

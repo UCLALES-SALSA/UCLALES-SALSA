@@ -443,12 +443,15 @@ CONTAINS
                                nlcndh2oae,nlcndh2ocl, &
                                nlcndh2oic,            &
                                nlauto,nlautosnow,     &
+                               autoc_rain_zd0, autoc_rain_sigmag, &
+                               autoc_snow_zd0, autoc_snow_sigmag, &
                                nlactiv,               &
                                nlactintst,            &
                                nlactbase,            &
                                nlicenucl,             &
                                fixinc,                &
                                ice_hom, ice_imm, ice_dep, &
+                               icenucl_tstart,        &
                                nlicmelt,              &
                                nbin,reglim,           &
                                nice,nsnw,             &
@@ -486,6 +489,7 @@ CONTAINS
          ice_hom,     & ! If fixinc is not set or it is not positive, ice nucleation can be modelled based on homogeneous, ...
          ice_imm,     & ! immersion and/or ...
          ice_dep,     & ! deposition freezing mechanisms
+         icenucl_tstart, & ! Start time (s) for ice formation
          nlicmelt,    & ! Switch for ice'n'snow melting
          nbin,        & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
          nice,        & ! number of ice bins
@@ -495,6 +499,8 @@ CONTAINS
          nlcndh2oae,    & ! Condensation of water vapour on aerosols (FALSE -> equilibrium calc.)
          nlauto,        & ! Switch for autoconversion of cloud droplets to drizzle and rain
          nlautosnow,    & ! Switch for autoconversion of ice particles to snowing
+         autoc_rain_zd0, autoc_rain_sigmag, & ! Cloud to rain autoconversion parameters
+         autoc_snow_zd0, autoc_snow_sigmag, & ! Ice to snow autoconversion parameters
          nlactiv,       & ! Master switch for cloud droplet activation
          nlactbase,     & ! Switch for parameterized cloud base activation
          nlactintst,    & ! Switch for interstitial activation based on particle growth and host model S

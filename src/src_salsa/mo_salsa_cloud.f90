@@ -850,7 +850,8 @@ CONTAINS
                                ncld,        &
                                nprc,        &
                                pi6,         &
-                               nlim, prlim
+                               nlim, prlim, &
+                               autoc_rain_zd0, autoc_rain_sigmag
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kproma,kbdim,klev
@@ -859,10 +860,6 @@ CONTAINS
 
     REAL :: Vrem, Nrem, Vtot, Ntot
     REAL :: dvg,dg
-
-    REAL, PARAMETER :: zd0 = 50.e-6
-    REAL, PARAMETER :: sigmag = 1.2
-
     INTEGER :: ii,jj,cc,ss
 
     DO jj = 1,klev
@@ -875,11 +872,11 @@ CONTAINS
              IF ( Ntot > nlim .AND. Vtot > 0. ) THEN
 
                 ! Volume geometric mean diameter
-                dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(sigmag)**2)/2. )
-                dg = dvg*EXP( -3.*LOG(sigmag)**2 )
+                dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(autoc_rain_sigmag)**2)/2. )
+                dg = dvg*EXP( -3.*LOG(autoc_rain_sigmag)**2 )
 
-                Vrem = Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) )
-                Nrem = Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )
+                Vrem = Vtot*( 1. - cumlognorm(dvg,autoc_rain_sigmag,autoc_rain_zd0) )
+                Nrem = Ntot*( 1. - cumlognorm(dg,autoc_rain_sigmag,autoc_rain_zd0) )
 
                 IF ( Vrem > 0. .AND. Nrem > prlim) THEN
 
@@ -1449,7 +1446,8 @@ CONTAINS
                                nsnw,        &
                                pi6,         &
                                rhosn, rhoic,       &
-                               prlim
+                               prlim,       &
+                               autoc_snow_zd0, autoc_snow_sigmag
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kproma,kbdim,klev
@@ -1458,10 +1456,6 @@ CONTAINS
 
     REAL :: Vrem, Nrem, Vtot, Ntot
     REAL :: dvg,dg
-
-    REAL, PARAMETER :: zd0 = 250.e-6
-    REAL, PARAMETER :: sigmag = 1.2
-
     INTEGER :: ii,jj,cc,ss
 
     DO jj = 1,klev
@@ -1474,11 +1468,11 @@ CONTAINS
              IF ( Ntot > prlim .AND. Vtot > 0. ) THEN
 
                 ! Volume geometric mean diameter
-                dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(sigmag)**2)/2. )
-                dg = dvg*EXP( -3.*LOG(sigmag)**2 )
+                dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(autoc_snow_sigmag)**2)/2. )
+                dg = dvg*EXP( -3.*LOG(autoc_snow_sigmag)**2 )
 
-                Vrem = Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) )
-                Nrem = Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )
+                Vrem = Vtot*( 1. - cumlognorm(dvg,autoc_snow_sigmag,autoc_snow_zd0) )
+                Nrem = Ntot*( 1. - cumlognorm(dg,autoc_snow_sigmag,autoc_snow_zd0) )
 
                 IF ( Vrem > 0. .AND. Nrem > prlim) THEN
 
