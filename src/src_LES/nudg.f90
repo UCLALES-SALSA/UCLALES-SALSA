@@ -11,6 +11,8 @@ MODULE nudg
    TYPE t_nudge
       REAL :: tau_min = 300.      ! Minimum and maximum tau for changing relaxation time schemes (tau_type = 1-3)
       REAL :: tau_max = 300.
+      LOGICAL :: tau_max_continue = .FALSE. ! Continue nudging with tau_max after the actual nudging time period?
+                                            ! Valid for tau_type = 1-3
       INTEGER :: tau_type = 0     ! 0: constant, 1: linear increase,   
                                   ! 2: negative exponential increase, 3: positive exponential increase
       INTEGER :: nudgetype = 0     ! Nudging options (nudge_*: 0=disabled, 1=soft, 2=hard)
@@ -59,8 +61,9 @@ CONTAINS
         REAL, INTENT(in) :: tt
         CHARACTER(len=50), PARAMETER :: name = "f_tau/linear"
         REAL :: linear
-        REAL :: hlp
-        hlp = tt*(SELF%tau_max - SELF%tau_min)/nudge_time
+        REAL :: hlp,ttloc
+        ttloc = MIN(tt,nudge_time) ! If tt > nudge_time and you end here, then tau_max_continue == TRUE
+        hlp = ttloc*(SELF%tau_max - SELF%tau_min)/nudge_time
         linear = MAX(SELF%tau_min + hlp, global_tau_min)
       END FUNCTION linear
 
@@ -70,8 +73,10 @@ CONTAINS
         REAL :: negative_exponential
         REAL :: hlp, hlp2
         REAL, PARAMETER :: z = -1.0067837
+        REAL :: ttloc
+        ttloc = MIN(tt,nudge_time) ! If tt > nudge_time and you end here, then tau_max_continue == TRUE
         hlp = (SELF%tau_max - SELF%tau_min) * z
-        hlp2 = EXP(-5.*tt/nudge_time) - 1.
+        hlp2 = EXP(-5.*ttloc/nudge_time) - 1.
         negative_exponential = MAX(SELF%tau_min + hlp*hlp2, global_tau_min)
       END FUNCTION negative_exponential
 
@@ -81,8 +86,10 @@ CONTAINS
         REAL :: positive_exponential
         REAL :: hlp, hlp2
         REAL, PARAMETER :: z = 0.0067837
+        REAL :: ttloc
+        ttloc = MIN(tt,nudge_time) ! If tt > nudge_time and you end here, then tau_max_continue == TRUE
         hlp = (SELF%tau_max - SELF%tau_min) * z
-        hlp2 = EXP(5.*tt/nudge_time) - 1.
+        hlp2 = EXP(5.*ttloc/nudge_time) - 1.
         positive_exponential = MAX(SELF%tau_min + hlp*hlp2, global_tau_min)
       END FUNCTION positive_exponential 
         
@@ -168,47 +175,43 @@ CONTAINS
       REAL, INTENT(IN) :: time
       CHARACTER(len=50), PARAMETER :: name = "nudging"
       
-
-      ! Nudging time is independent of the spin-up
-      IF (time > nudge_time) RETURN
-
       ! (Liquid water) potential temperature:
-      IF (ndg_theta%nudgetype > 0) &
-         CALL nudge_any(nxp,nyp,nzp,zt,a_tp,dtlt,time,   &
-                        ndg_theta,theta_ref,a_tt)
-
+      IF ( ndg_theta%nudgetype > 0 ) &
+           CALL nudge_any(nxp,nyp,nzp,zt,a_tp,dtlt,time,   &
+           ndg_theta,theta_ref,a_tt)
+      
       ! Water vapor
-      IF (ndg_rv%nudgetype > 0) THEN
+      IF ( ndg_rv%nudgetype > 0 ) THEN
          IF (level > 3) THEN
             ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain)
             CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp,dtlt,time,   &
-                           ndg_rv,rv_ref,a_rt)
+                 ndg_rv,rv_ref,a_rt)
          ELSE
             ! Nudge total water (a_rp) based on total + rain
             CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rpp,dtlt,time,   &
-                           ndg_rv,rv_ref,a_rt)
+                 ndg_rv,rv_ref,a_rt)
          END IF
       END IF
-
+      
       ! Horizontal winds
-      IF (ndg_u%nudgetype > 0) &
-         CALL nudge_any(nxp,nyp,nzp,zt,a_up,dtlt,time,    &
-                        ndg_u,u_ref,a_ut)
-      IF (ndg_v%nudgetype > 0) &
-         CALL nudge_any(nxp,nyp,nzp,zt,a_vp,dtlt,time,    &
-                        ndg_v,v_ref,a_vt)
-
+      IF ( ndg_u%nudgetype > 0 ) &
+           CALL nudge_any(nxp,nyp,nzp,zt,a_up,dtlt,time,    &
+           ndg_u,u_ref,a_ut)
+      IF ( ndg_v%nudgetype > 0 ) &
+           CALL nudge_any(nxp,nyp,nzp,zt,a_vp,dtlt,time,    &
+           ndg_v,v_ref,a_vt)
+      
       ! Aerosol 
-      IF (level > 3 .AND. ndg_aero%nudgetype > 0) THEN
+      IF (level > 3 .AND. ndg_aero%nudgetype > 0 ) THEN
          ! Target aerosol concentration = total(t=0)-cloud(t)-ice(t)
          aero_target(:,:) = aero_ref(:,:)
          aero_target(:,in2a:fn2b) = aero_target(:,in2a:fn2b) - a_ncloudp(:,3,3,1:ncld)
          IF (level == 5) aero_target(:,in2a:fn2b) = aero_target(:,in2a:fn2b) - a_nicep(:,3,3,1:nice)
          ! Apply to sectional data
          CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,a_naerop,dtlt,time,   &
-                           ndg_aero,aero_target,a_naerot)
+              ndg_aero,aero_target,a_naerot)
       END IF
-
+      
    END SUBROUTINE nudging
 
 
@@ -228,91 +231,106 @@ CONTAINS
       REAL    :: diff1d(nz)
       
       LOGICAL :: nudgelev(nz)
+      LOGICAL :: master_condition
 
-      nudgelev(:) = ( nudge_zmin <= zt(:) .AND. zt(:) <= nudge_zmax )
-      tauloc = ndg_var%f_tau(time)
-      !
-      IF (ndg_var%nudgetype == 1) THEN
-         ! Soft nudging
-         CALL get_avg3(nz,nx,ny,ap,avg)
+      master_condition = ( time < nudge_time .OR.   &
+                           ndg_var%tau_max_continue )
 
-         diff1d(:) = MERGE( (avg(:)-trgt(:))/max(tauloc,dt), 0., nudgelev )
-         DO jj = 1,ny
-            DO ii = 1,nx
-               at(:,ii,jj) = at(:,ii,jj) - diff1d(:)
+      IF ( master_condition ) THEN
+
+         nudgelev(:) = ( nudge_zmin <= zt(:) .AND. zt(:) <= nudge_zmax )
+         tauloc = ndg_var%f_tau(time)
+         !
+         IF (ndg_var%nudgetype == 1) THEN
+            ! Soft nudging
+            CALL get_avg3(nz,nx,ny,ap,avg)
+            
+            diff1d(:) = MERGE( (avg(:)-trgt(:))/max(tauloc,dt), 0., nudgelev )
+            DO jj = 1,ny
+               DO ii = 1,nx
+                  at(:,ii,jj) = at(:,ii,jj) - diff1d(:)
+               END DO
             END DO
-         END DO
-
-      ELSE IF (ndg_var%nudgetype == 2) THEN
-         ! Hard nudging
-         DO jj = 1,ny
-            DO ii = 1,nx
-               diff1d(:) = MERGE( (ap(:,ii,jj)-trgt(:))/max(tauloc,dt), 0., nudgelev )
-               at(:,ii,jj) = at(:,ii,jj) - diff1d(:)
+            
+         ELSE IF (ndg_var%nudgetype == 2) THEN
+            ! Hard nudging
+            DO jj = 1,ny
+               DO ii = 1,nx
+                  diff1d(:) = MERGE( (ap(:,ii,jj)-trgt(:))/max(tauloc,dt), 0., nudgelev )
+                  at(:,ii,jj) = at(:,ii,jj) - diff1d(:)
+               END DO
             END DO
-         END DO
+            
+         ELSE
+            ! Unknown
+            WRITE(*,*)'Unknown nudging option!'
+            STOP
+         END IF
+         !
+      END IF  ! master
 
-      ELSE
-         ! Unknown
-         WRITE(*,*)'Unknown nudging option!'
-         STOP
-      END IF
-     !
    END SUBROUTINE nudge_any
 
    !
    ! Nudging for any 4D field based on 2D target
    SUBROUTINE nudge_any_2d(nx,ny,nz,nb,zt,ap,dt,time,ndg_var,trgt,at)
-      USE util, ONLY : get_avg3
-      IMPLICIT NONE
-      INTEGER, INTENT(in)               :: nx,ny,nz,nb
-      REAL, INTENT(in)                  :: zt(nz), ap(nz,nx,ny,nb)
-      REAL, INTENT(in)                  :: dt, time
-      TYPE(t_nudge), INTENT(in)         :: ndg_var
-      REAL, INTENT(in)                  :: trgt(nzp,nbins)
-      REAL, INTENT(inout)               :: at(nz,nx,ny,nb)
-      CHARACTER(len=50), PARAMETER      :: name = "nudge_any_2d"
-      INTEGER :: ii, jj,kk, nn
-      REAL    :: avg(nz)
-
-      REAL :: diff1d(nz)
-      REAL :: tauloc
-
-      LOGICAL :: nudgelev(nz)
-
-      nudgelev(:) = ( nudge_zmin <= zt(:) .AND. zt(:) <= nudge_zmax )
-      tauloc = ndg_var%f_tau(time)
-      !
-      IF (ndg_var%nudgetype == 1) THEN
-         ! Soft nudging
-         DO nn = 1, nb
-            CALL get_avg3(nz,nx,ny,ap(:,:,:,nn),avg)
-            DO jj = 1,ny
-               DO ii = 1,nx
-                  diff1d(:) = (avg(:)-trgt(:,nn))/max(tauloc,dt)
-                  at(:,ii,jj,nn) = at(:,ii,jj,nn) - diff1d(:)
-               END DO
-            END DO
-         END DO
-
-      ELSE IF (ndg_var%nudgetype == 2) THEN
-         ! Hard nudging
-         DO nn = 1, nb            
-            DO jj = 1,ny
-               DO ii = 1,nx
-                  diff1d(:) = (ap(:,ii,jj,nn)-trgt(:,nn))/max(tauloc,dt)
-                  at(:,ii,jj,nn) = at(:,ii,jj,nn) - diff1d(:)
-               END DO
-            END DO
-         END DO
-
-      ELSE
-         ! Unknown
-         WRITE(*,*)'Unknown nudging option!'
-         STOP
-      END IF
+     USE util, ONLY : get_avg3
+     IMPLICIT NONE
+     INTEGER, INTENT(in)               :: nx,ny,nz,nb
+     REAL, INTENT(in)                  :: zt(nz), ap(nz,nx,ny,nb)
+     REAL, INTENT(in)                  :: dt, time
+     TYPE(t_nudge), INTENT(in)         :: ndg_var
+     REAL, INTENT(in)                  :: trgt(nzp,nbins)
+     REAL, INTENT(inout)               :: at(nz,nx,ny,nb)
+     CHARACTER(len=50), PARAMETER      :: name = "nudge_any_2d"
+     INTEGER :: ii, jj,kk, nn
+     REAL    :: avg(nz)
+     
+     REAL :: diff1d(nz)
+     REAL :: tauloc
+     
+     LOGICAL :: nudgelev(nz)
+     LOGICAL :: master_condition
+     
+     master_condition = ( time < nudge_time .OR.   &
+                          ndg_var%tau_max_continue )
+     
+     IF ( master_condition ) THEN
+        
+        nudgelev(:) = ( nudge_zmin <= zt(:) .AND. zt(:) <= nudge_zmax )
+        tauloc = ndg_var%f_tau(time)
+        !
+        IF (ndg_var%nudgetype == 1) THEN
+           ! Soft nudging
+           DO nn = 1, nb
+              CALL get_avg3(nz,nx,ny,ap(:,:,:,nn),avg)
+              DO jj = 1,ny
+                 DO ii = 1,nx
+                    diff1d(:) = (avg(:)-trgt(:,nn))/max(tauloc,dt)
+                    at(:,ii,jj,nn) = at(:,ii,jj,nn) - diff1d(:)
+                 END DO
+              END DO
+           END DO
+           
+        ELSE IF (ndg_var%nudgetype == 2) THEN
+           ! Hard nudging
+           DO nn = 1, nb            
+              DO jj = 1,ny
+                 DO ii = 1,nx
+                    diff1d(:) = (ap(:,ii,jj,nn)-trgt(:,nn))/max(tauloc,dt)
+                    at(:,ii,jj,nn) = at(:,ii,jj,nn) - diff1d(:)
+                 END DO
+              END DO
+           END DO
+           
+        ELSE
+           ! Unknown
+           WRITE(*,*)'Unknown nudging option!'
+           STOP
+        END IF
+        
+     END IF ! master
      
    END SUBROUTINE nudge_any_2d
-
-
+   
 END MODULE nudg
