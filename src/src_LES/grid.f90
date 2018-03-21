@@ -1862,7 +1862,10 @@ CONTAINS
       ! Given in kg/kg
       SELECT CASE(ipart)
          CASE('aerosol')
-            IF (itype == 'a') THEN
+            IF (itype == 'ab') THEN
+               istr = getMassIndex(nbins,in1a,mm)   
+               iend = getMassIndex(nbins,fn2b,mm)    
+            ELSE IF (itype == 'a') THEN
                istr = getMassIndex(nbins,in1a,mm)
                iend = getMassIndex(nbins,fn2a,mm)  
             ELSE IF (itype == 'b') THEN
@@ -1873,7 +1876,10 @@ CONTAINS
             END IF
             mixrat(:,:,:) = SUM(a_maerop(:,:,:,istr:iend),DIM=4)
          CASE('cloud')
-            IF (itype == 'a') THEN
+            IF (itype == 'ab') THEN
+               istr = getMassIndex(ncld,ica%cur,mm)
+               iend = getMassIndex(ncld,fcb%cur,mm)
+            ELSE IF (itype == 'a') THEN
                istr = getMassIndex(ncld,ica%cur,mm)  
                iend = getMassIndex(ncld,fca%cur,mm)
             ELSE IF (itype == 'b') THEN
@@ -1888,7 +1894,10 @@ CONTAINS
             iend = getMassIndex(nprc,fra,mm)
             mixrat(:,:,:) = SUM(a_mprecpp(:,:,:,istr:iend),DIM=4)
          CASE('ice')
-            IF (itype == 'a') THEN
+            IF (itype == 'ab') THEN
+               istr = getMassIndex(nice,iia%cur,mm)
+               iend = getMassIndex(nice,fib%cur,mm)
+            ELSE IF (itype == 'a') THEN
                istr = getMassIndex(nice,iia%cur,mm)
                iend = getMassIndex(nice,fia%cur,mm)
             ELSE IF (itype == 'b') THEN

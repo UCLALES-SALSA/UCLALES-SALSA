@@ -775,10 +775,6 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Conditionally sampled rain number mixing ratio'
           IF (itype == 1) ncinfo = 'kg^-1'
           IF (itype == 2) ncinfo = 'time'
-       CASE('nsnow')
-          IF (itype == 0) ncinfo = 'Conditionally sampled snow number mixing ratio'
-          IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'time'
        CASE('nrcnt')
           IF (itype == 0) ncinfo = 'Rain cell counts'
           IF (itype == 1) ncinfo = '#'
@@ -795,6 +791,14 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Ice cell counts'
           IF (itype == 1) ncinfo = '#'
           IF (itype == 2) ncinfo = 'time'
+       CASE('SS_max')
+          IF (itype==0) ncinfo = 'Maximum supersaturation'
+          IF (itype==1) ncinfo = '%'
+          IF (itype==2) ncinfo = 'time'
+       CASE('SSi_max')
+          IF (itype==0) ncinfo = 'Maximum supersaturation over ice'
+          IF (itype==1) ncinfo = '%'
+          IF (itype==2) ncinfo = 'time'
        !
        !
        ! SALSA temporal statistics
@@ -802,6 +806,14 @@ CONTAINS
           IF (itype == 0) ncinfo = 'In-cloud CDNC'
           IF (itype == 1) ncinfo = 'kg^-1'
           IF (itype == 2) ncinfo = 'time'
+       CASE('Nca_ica')
+          IF (itype==0) ncinfo = 'In-cloud CDNC (a bins)'
+          IF (itype==1) ncinfo = 'kg^-1'
+          IF (itype==2) ncinfo = 'time'
+       CASE('Ncb_icb')
+          IF (itype==0) ncinfo = 'In-cloud CDNC (b bins)'
+          IF (itype==1) ncinfo = 'kg^-1'
+          IF (itype==2) ncinfo = 'time'
        CASE('Na_oc')
           IF (itype == 0) ncinfo = 'Aerosol number concentration outside clouds'
           IF (itype == 1) ncinfo = 'kg^-1'
@@ -810,6 +822,14 @@ CONTAINS
           IF (itype == 0) ncinfo = 'In-cloud interstitial aerosol number concentration'
           IF (itype == 1) ncinfo = 'kg^-1'
           IF (itype == 2) ncinfo = 'time'
+       CASE('Naa_int')
+          IF (itype==0) ncinfo = 'In-cloud interstitial aerosol number concentration (a bins)'
+          IF (itype==1) ncinfo = 'kg^-1'
+          IF (itype==2) ncinfo = 'time'
+       CASE('Nab_int')
+          IF (itype==0) ncinfo = 'In-cloud interstitial aerosol number concentration (b bins)'
+          IF (itype==1) ncinfo = 'kg^-1'
+          IF (itype==2) ncinfo = 'time'
        CASE('Ni_ic')
           IF (itype == 0) ncinfo = 'Ice number concentration in liquid clouds'
           IF (itype == 1) ncinfo = 'kg^-1'
@@ -818,6 +838,14 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Ice number concentration in icy regions'
           IF (itype == 1) ncinfo = 'kg^-1'
           IF (itype == 2) ncinfo = 'time'
+       CASE('Nia_iia')
+          IF (itype==0) ncinfo = 'Ice number concentration in icy regions (a bins)'
+          IF (itype==1) ncinfo = 'kg^-1'
+          IF (itype==2) ncinfo = 'time'
+       CASE('Nib_iib')
+          IF (itype==0) ncinfo = 'Ice number concentration in icy regions (b bins)'
+          IF (itype==1) ncinfo = 'kg^-1'
+          IF (itype==2) ncinfo = 'time'
        CASE('Ni_is')
           IF (itype == 0) ncinfo = 'Ice number concentration in snowy regions'
           IF (itype == 1) ncinfo = 'kg^-1'
@@ -834,10 +862,42 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Snow number concentration in snowy regions'
           IF (itype == 1) ncinfo = 'kg^-1'
           IF (itype == 2) ncinfo = 'time'
+       CASE('Ra_int')
+          IF (itype==0) ncinfo = 'Mean interstitial aerosol wet radius'
+          IF (itype==1) ncinfo = 'm'
+          IF (itype==2) ncinfo = 'time'
+       CASE('Raa_int')
+          IF (itype==0) ncinfo = 'Mean interstitial aerosol wet radius (a bins)'
+          IF (itype==1) ncinfo = 'm'
+          IF (itype==2) ncinfo = 'time'
+       CASE('Rab_int')
+          IF (itype==0) ncinfo = 'Mean interstitial aerosol wet radius (b bins)'
+          IF (itype==1) ncinfo = 'm'
+          IF (itype==2) ncinfo = 'time'
+       CASE('Rc_ic')
+          IF (itype==0) ncinfo = 'Mean cloud droplet radius'
+          IF (itype==1) ncinfo = 'm'
+          IF (itype==2) ncinfo = 'time'
+       CASE('Rca_ica')
+          IF (itype==0) ncinfo = 'Mean cloud droplet radius (a bins)'
+          IF (itype==1) ncinfo = 'm'
+          IF (itype==2) ncinfo = 'time'
+       CASE('Rcb_icb')
+          IF (itype==0) ncinfo = 'Mean cloud droplet radius (b bins)'
+          IF (itype==1) ncinfo = 'm'
+          IF (itype==2) ncinfo = 'time'
        CASE('Ri_ii')
           IF (itype == 0) ncinfo = 'Mean ice radius in icy regions'
           IF (itype == 1) ncinfo = 'm'
           IF (itype == 2) ncinfo = 'time'
+       CASE('Ria_iia')
+          IF (itype==0) ncinfo = 'Mean ice radius (a bins)'
+          IF (itype==1) ncinfo = 'm'
+          IF (itype==2) ncinfo = 'time'
+       CASE('Rib_iib')
+          IF (itype==0) ncinfo = 'Mean ice radius (b bins)'
+          IF (itype==1) ncinfo = 'm'
+          IF (itype==2) ncinfo = 'time'
        CASE('Rs_is')
           IF (itype == 0) ncinfo = 'Mean snow radius in snowy regions'
           IF (itype == 1) ncinfo = 'm'
@@ -854,6 +914,14 @@ CONTAINS
           IF (itype == 0) ncinfo = 'SO4 mass mixing ratio in intersitial aerosols'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'time'
+       CASE('SO4_ii')
+          IF (itype==0) ncinfo = 'SO4 mass mixing ratio in ice'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
+       CASE('SO4_is')
+          IF (itype==0) ncinfo = 'SO4 mass mixing ratio in snow'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
        CASE('OC_ic')
           IF (itype == 0) ncinfo = 'Cloud droplet OC mass mixing ratio'
           IF (itype == 1) ncinfo = 'kg/kg'
@@ -866,6 +934,14 @@ CONTAINS
           IF (itype == 0) ncinfo = 'OC mass mixing ratio in interstitial aerosols'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'time'
+       CASE('OC_ii')
+          IF (itype==0) ncinfo = 'OC mass mixing ratio in ice'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
+       CASE('OC_is')
+          IF (itype==0) ncinfo = 'OC mass mixing ratio in snow'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
        CASE('BC_ic')
           IF (itype == 0) ncinfo = 'Cloud droplet BC mass mixing ratio'
           IF (itype == 1) ncinfo = 'kg/kg'
@@ -878,6 +954,14 @@ CONTAINS
           IF (itype == 0) ncinfo = 'BC mass mixing ratio in interstitial aerosols'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'time'
+       CASE('BC_ii')
+          IF (itype==0) ncinfo = 'BC mass mixing ratio in ice'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
+       CASE('BC_is')
+          IF (itype==0) ncinfo = 'BC mass mixing ratio in snow'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
        CASE('DU_ic')
           IF (itype == 0) ncinfo = 'Cloud droplet DU mass mixing ratio'
           IF (itype == 1) ncinfo = 'kg/kg'
@@ -890,6 +974,14 @@ CONTAINS
           IF (itype == 0) ncinfo = 'DU mass mixing ration in interstitial aerosols'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'time'
+       CASE('DU_ii')
+          IF (itype==0) ncinfo = 'DU mass mixing ration in ice'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
+       CASE('DU_is')
+          IF (itype==0) ncinfo = 'DU mass mixing ration in snow'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
        CASE('SS_ic')
           IF (itype == 0) ncinfo = 'Cloud droplet mass mixing ratio of SS'
           IF (itype == 1) ncinfo = 'kg/kg'
@@ -902,6 +994,14 @@ CONTAINS
           IF (itype == 0) ncinfo = 'SS mass mixing ratio in interstitial particles'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'time'
+       CASE('SS_ii')
+          IF (itype==0) ncinfo = 'SS mass mixing ratio in ice'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
+       CASE('SS_is')
+          IF (itype==0) ncinfo = 'SS mass mixing ratio in snow'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
        CASE('NH_ic')
           IF (itype == 0) ncinfo = 'Cloud droplet mass mixing ratio of NH3'
           IF (itype == 1) ncinfo = 'kg/kg'
@@ -914,6 +1014,14 @@ CONTAINS
           IF (itype == 0) ncinfo = 'NH3 mass mixing ratio in interstitial particles'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'time'
+       CASE('NH_ii')
+          IF (itype==0) ncinfo = 'NH3 mass mixing ratio in ice'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
+       CASE('NH_is')
+          IF (itype==0) ncinfo = 'NH3 mass mixing ratio in snow'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
        CASE('NO_ic')
           IF (itype == 0) ncinfo = 'Cloud droplet mass mixing ratio of NO3'
           IF (itype == 1) ncinfo = 'kg/kg'
@@ -926,6 +1034,30 @@ CONTAINS
           IF (itype == 0) ncinfo = 'NO3 mass mixing ratio in interstitial particles'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'time'
+       CASE('NO_ii')
+          IF (itype==0) ncinfo = 'NO3 mass mixing ratio in ice'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
+       CASE('NO_is')
+          IF (itype==0) ncinfo = 'NO3 mass mixing ratio in snow'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
+       CASE('H2O_ic')
+          IF (itype==0) ncinfo = 'Cloud droplet mass mixing ratio of H2O'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
+       CASE('H2O_int')
+          IF (itype==0) ncinfo = 'H2O mass mixing ratio in interstitial particles'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
+       CASE('H2O_ii')
+          IF (itype==0) ncinfo = 'H2O mass mixing ratio in ice'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
+       CASE('H2O_is')
+          IF (itype==0) ncinfo = 'H2O mass mixing ratio in snow'
+          IF (itype==1) ncinfo = 'kg/kg'
+          IF (itype==2) ncinfo = 'time'
        CASE('rmH2Oae','rmH2Odr')
           IF (itype == 0) ncinfo = 'Deposition of H2O with aerosols'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
