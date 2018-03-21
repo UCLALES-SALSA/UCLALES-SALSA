@@ -35,7 +35,7 @@ NCDFINC = -I$(NCDF)/include
 LIBS = '$(NCDFLIB) $(MPILIB)'
 F90 = gfortran
 MPIF90 = gfortran
-FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} $(MPIINC) -std=f2008 -fbounds-check  -g -fcheck=all   -fbacktrace -ffpe-trap=invalid,zero,overflow
+FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} $(MPIINC) -std=f2008 #-fbounds-check  -g -fcheck=all   -fbacktrace -ffpe-trap=invalid,zero,overflow
 F77FLAGS = -O2 
 
 LES_OUT_MPI=$(BIN)/les.mpi

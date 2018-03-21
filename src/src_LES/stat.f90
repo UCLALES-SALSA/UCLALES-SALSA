@@ -373,7 +373,7 @@ CONTAINS
          END IF
 
          !nspec = 0
-         DO e=1,spec%getNSpec() ! With water, which is false for "IsUsed"!
+         DO e=1,spec%getNSpec() ! With water
 
             ! CDNC, interstitial and outside cloud concentrations (level 4)
             IF (spec%getIndex("H2O") /= e) THEN
