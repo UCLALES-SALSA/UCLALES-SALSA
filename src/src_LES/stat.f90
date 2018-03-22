@@ -228,7 +228,7 @@ CONTAINS
 
       USE grid, ONLY          : nxp, nyp, iradtyp
       USE mpi_interface, ONLY : myid, ver, author, info
-      USE mo_submctl, ONLY    : nprc, fn2a,fn2b,fca,fcb,fra,fia,fib,fsa,spec
+      USE mo_submctl, ONLY    : nprc, nsnw, fn2a,fn2b,fca,fcb,fra,fia,fib,fsa,spec
 
       CHARACTER (len=200), INTENT (in) :: filprf, expnme
       INTEGER, INTENT (in)            :: nzp
