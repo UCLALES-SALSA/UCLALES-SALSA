@@ -2129,8 +2129,10 @@ if ICE:
 
     if tag[:-1] == 'ice1':
         cbvalICE    = np.arange( 0, 0.41, 0.05) # np.arange(0, 1.4, 0.1)
+        nicLKM = 1.41
     else:
         cbvalICE    =  np.arange(0, 1.41, 0.1)
+        nicLKM = 4.41
         
     cbvalICEStr = map(str, cbvalICE)
     
@@ -2194,7 +2196,7 @@ if ICE:
         
         piirra_aikasarjasettii( muuttuja = 'Nc_ic', muunnosKerroin = 1.e-6, longName = 'in-cloud CDNC', ylabel = '[#/mg]', ymin = 0.0,  savePrefix = 'cdncTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel, legenda = True  )
         
-        piirra_domainProfiili( 'theta', longName = 'Potential temperature', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Reds, spinup = spinup, profiili = True  )
+        #piirra_domainProfiili( 'theta', longName = 'Potential temperature', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Reds, spinup = spinup, profiili = True  )
 
         #piirra_domainProfiili( 'thl', longName = 'Liquid water potential temperature', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Reds, spinup = spinup, profiili = True  )
         
@@ -2212,9 +2214,9 @@ if ICE:
         
         piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE, colorBarTickValues = cbvalICE plt.cm.Blues
         
-        piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,4), longName = 'Ice mixing ratio ' + r'$10^{4}g/kg^{-1}$', useDN = False, transpose = True, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Blues, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE, colorBarTickValues = cbvalICE plt.cm.Blues
+        #piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,4), longName = 'Ice mixing ratio ' + r'$10^{4}g/kg^{-1}$', useDN = False, transpose = True, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Blues, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE, colorBarTickValues = cbvalICE plt.cm.Blues
         
-        nic = np.arange(0, 1.41, 0.2)
+        nic = np.arange(0, nicLKM, 0.2)
         piirra_domainProfiili( 'P_Nia', muunnosKerroin = 1.e-3, longName = 'Ice number concentration ', useDN = False, transpose = True, colorBarTickValues = nic, colorBarTickNames = map(str,nic), xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = True  ) #variKartta = profiiliVariICE, colorBarTickValues = cbvalICE 
         
         #piirra_domainProfiili( 'P_ri', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = plt.cm.Blues, spinup = spinup, profiili = True  )
@@ -2233,6 +2235,8 @@ if ICE:
         
         piirra_domainMeanProfiili( 'P_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = False, profiili = True, xAxisL = r'[${\mu}m$]', color = icevari )   
 
+        piirra_domainMeanProfiili( 'P_ri',  nimi = 'Ice mixing ratio averaged',   muunnosKerroin=1000., ajanhetket = [6,8], useDN = False, profiili = True, xAxisL = r'[g/kg]', color = icevari )
+        
         piirra_domainProfiili( 'P_Rwia', muunnosKerroin = 2.e6, longName = 'Ice particle mean diameter '+r'[${\mu}m$]', useDN = False, transpose = True,  xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, spinup = spinup, profiili = True, colorBarTickValues = cbvalDiam, colorBarTickNames = cbvalDiamStr, variKartta = diamVari  )
         
         
@@ -2260,6 +2264,57 @@ if ICE:
         
         for slaissi in xrange(0,nyp):
             piirra_domainProfiili( 'S_Ni', muunnosKerroin = 1.e-3, longName = 'Ice number concentration ', useDN = True, transpose = True, colorBarTickValues = nic, colorBarTickNames = map(str,nic), xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = False, sliceYbeg = slaissi, sliceXend = slaissi+1, savePrefix = 'NicSlices'  ) 
+    
+    if int(lvl) == -2:
+        from scipy.interpolate import interp1d
+        
+        zin = int(raw_input("Anna z [m]: "))
+        th = int(raw_input("Anna t [h]: "))
+
+        dn0_data     = mdp.read_Data( filenameNC[0], 'dn0'     )
+        time_data    = mdp.read_Data( filenameNC[0], 'time'    )
+        zt_data      = mdp.read_Data( filenameNC[0], 'zt'      )
+        S_Rwiba_data = mdp.read_Data( filenameNC[0], 'S_Rwiba' )
+        S_Niba_data  = mdp.read_Data( filenameNC[0], 'S_Niba'  )
+
+        t =  np.argmin(np.abs(th*3600-time_data))
+        z =  np.argmin(np.abs(zin-zt_data))
+        
+        
+        
+        xsize = np.shape(S_Rwiba_data)[3]
+        ysize = np.shape(S_Rwiba_data)[4]
+        
+        S_Rwiba_data = np.multiply( S_Rwiba_data[t,:,:,:z], 2.e3 )
+        S_Niba_data  = np.multiply( S_Niba_data[t,:,:,:z], dn0_data[z] )
+        
+        
+        S_Rwiba_data = S_Rwiba_data.flatten()
+        S_Niba_data  = S_Niba_data.flatten()
+        
+        jarj = np.argsort(S_Rwiba_data)
+        
+        S_Rwiba_data = np.sort(S_Rwiba_data)
+        koko = np.shape(S_Niba_data)
+        apu = np.zeros(koko)
+        
+        for kkk in xrange(koko[0]):
+            apu = S_Niba_data[ jarj[0,kkk] ]
+        
+        S_Niba_data = apu
+        xnew = np.linspace(min(S_Rwiba_data),max(S_Rwiba_data), 100, endpoint = True)
+        
+        finter  = interp1d(S_Rwiba_data, S_Niba_data)
+        
+        newfig = True
+        mdp.initializeColors(xsize*ysize)
+        for x in xrange(xsize):
+            for y in xrange(ysize):
+                mdp.plottaa(S_Rwiba_data, S_Niba_data, uusikuva = newfig, scatter = True, LEGEND = False)
+        
+                newfig = False
+        mdp.plottaa(xnew, finter(xnew), uusikuva = newfig, omavari='k', scatter = True, LEGEND = False)        
+        
         
 toc = time.clock()
 print toc - tic

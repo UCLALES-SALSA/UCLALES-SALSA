@@ -325,7 +325,7 @@ CONTAINS
 
     REAL :: tmplolim(7), tmphilim(7)
 
-    ! Helper arrays to set up snow size bins
+    ! Helper arrays to set up ice size bins
     tmplolim = (/50.,55.,65., 100.,200.,500., 1000./)*1.e-6
     tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
 

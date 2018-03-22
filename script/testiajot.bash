@@ -261,13 +261,13 @@ fi
 # 1D
 if [[ ${dim1} == 'true' ]]; then
     echo 1D
-    fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_1D${testinumero} jaakkoNL=${jaakkoNL}     nyp=5 nxp=5 postfix=LVL${LVL}_1D${icePF}${testinumero}  main case_isdac 1 $exe # seq.${vers}.${compiler}
+    fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_1D${testinumero} jaakkoNL=${jaakkoNL}     nyp=${nyp:-5} nxp=${nxp:-5} postfix=LVL${LVL}_1D${icePF}${testinumero}  main case_isdac 1 $exe # seq.${vers}.${compiler}
 fi
 
 # 2D
 if [[ ${dim2} == 'true' ]]; then
     echo 2D
-    fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_2D${testinumero} jaakkoNL=${jaakkoNL}           nxp=5 postfix=LVL${LVL}_2D${icePF}${testinumero}  main case_isdac 8 $exe # mpi.${vers}.${compiler}
+    fixINC=$ice timmax=$isoT Tspinup=$pikkuT runtype=$RUNTYPE hfilin="'"${hfilebase}"'" level=$LVL ownjobnameMAIN=${LVL}_2D${testinumero} jaakkoNL=${jaakkoNL}           nxp=${nxp:-5} postfix=LVL${LVL}_2D${icePF}${testinumero}  main case_isdac 8 $exe # mpi.${vers}.${compiler}
 fi
 
 # 3D
