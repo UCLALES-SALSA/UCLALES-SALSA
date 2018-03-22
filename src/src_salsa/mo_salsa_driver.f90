@@ -77,7 +77,8 @@ CONTAINS
       REAL, INTENT(in)    :: time
       
       INTEGER, INTENT(in) :: prunmode                         ! 1: initialization call
-                                                              ! 2: Regular runtime
+                                                              ! 2: Spinup (not important here)
+                                                              ! 3: regular runtime (not important here)
 
       REAL, INTENT(in)    :: press(pnz,pnx,pny), &            ! Pressure (Pa)
                              tk(pnz,pnx,pny),    &            ! Temperature (K)
