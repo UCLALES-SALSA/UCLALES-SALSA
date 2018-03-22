@@ -1,0 +1,31 @@
+
+MODULE classProcessSwitch
+  IMPLICIT NONE
+
+  TYPE ProcessSwitch
+     LOGICAL :: switch = .FALSE. ! True or False
+     REAL    :: delay = 0.   ! delay time for the process to switch
+     
+     LOGICAL :: state = .FALSE.  ! This gives the current state of the switch and this should be used
+                        ! in the code
+
+  END TYPE ProcessSwitch
+
+  INTERFACE ProcessSwitch
+     PROCEDURE cnstr
+  END INTERFACE ProcessSwitch
+
+  CONTAINS
+
+    FUNCTION cnstr()
+      IMPLICIT NONE
+      CLASS(ProcessSwitch) :: cnstr
+      
+      cnstr%switch = .FALSE.
+      cnstr%delay = 0.
+      
+      cnstr%state = .FALSE.
+
+    END FUNCTION cnstr
+
+END MODULE classProcessSwitch

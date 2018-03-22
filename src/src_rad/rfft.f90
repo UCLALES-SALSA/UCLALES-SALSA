@@ -167,7 +167,6 @@
 !c ------------------------------------- Schwartztraubers routines
 !c
       SUBROUTINE CFFTB (N,C,WSAVE)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       C(*), WSAVE(*)
       IF (N .EQ. 1) RETURN
       IW1 = N+N+1
@@ -177,7 +176,6 @@
       END
 
       SUBROUTINE CFFTB1 (N,C,CH,WA,IFAC)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       CH(*)      ,C(*)       ,WA(*)      ,IFAC(*)
       NF = IFAC(2)
       NA = 0
@@ -240,7 +238,6 @@
       END
 
       SUBROUTINE CFFTF (N,C,WSAVE)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       C(*)       ,WSAVE(*)
       IF (N .EQ. 1) RETURN
       IW1 = N+N+1
@@ -250,7 +247,6 @@
       END
 
       SUBROUTINE CFFTF1 (N,C,CH,WA,IFAC)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       CH(*)      ,C(*)       ,WA(*)      ,IFAC(*)
       NF = IFAC(2)
       NA = 0
@@ -312,7 +308,6 @@
       RETURN
       END
       SUBROUTINE CFFTI (N,WSAVE)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       WSAVE(*)
       IF (N .EQ. 1) RETURN
       IW1 = N+N+1
@@ -321,7 +316,6 @@
       RETURN
       END
       SUBROUTINE CFFTI1 (N,WA,IFAC)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       WA(*)      ,IFAC(*)    ,NTRYH(4)
       DATA NTRYH(1),NTRYH(2),NTRYH(3),NTRYH(4)/3,4,2,5/
       NL = N
@@ -382,7 +376,6 @@
       RETURN
       END
       SUBROUTINE PASSB (NAC,IDO,IP,L1,IDL1,CC,C1,C2,CH,CH2,WA)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       CH(IDO,L1,IP)          ,CC(IDO,IP,L1)          , &
                       C1(IDO,L1,IP)          ,WA(*)      ,C2(IDL1,IP), &
                       CH2(IDL1,IP)
@@ -499,7 +492,6 @@
       RETURN
       END
       SUBROUTINE PASSB2 (IDO,L1,CC,CH,WA1)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       CC(IDO,2,L1)           ,CH(IDO,L1,2)           , &
                       WA1(*)
       IF (IDO .GT. 2) GO TO 102
@@ -523,8 +515,6 @@
       RETURN
       END
       SUBROUTINE PASSB3 (IDO,L1,CC,CH,WA1,WA2)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
-
       DIMENSION       CC(IDO,3,L1)           ,CH(IDO,L1,3)           , &
                       WA1(*)     ,WA2(*)
       DATA TAUR,TAUI /-.5,.866025403784439/
@@ -567,7 +557,6 @@
       RETURN
       END
       SUBROUTINE PASSB4 (IDO,L1,CC,CH,WA1,WA2,WA3)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       CC(IDO,4,L1)           ,CH(IDO,L1,4)           , &
                       WA1(*)     ,WA2(*)     ,WA3(*)
       IF (IDO .NE. 2) GO TO 102
@@ -619,7 +608,6 @@
       RETURN
       END
       SUBROUTINE PASSB5 (IDO,L1,CC,CH,WA1,WA2,WA3,WA4)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       CC(IDO,5,L1)           ,CH(IDO,L1,5)           , &
                       WA1(*)     ,WA2(*)     ,WA3(*)     ,WA4(*)
       DATA TR11,TI11,TR12,TI12 /.309016994374947,.951056516295154, &
@@ -695,7 +683,6 @@
       RETURN
       END
       SUBROUTINE PASSF (NAC,IDO,IP,L1,IDL1,CC,C1,C2,CH,CH2,WA)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       CH(IDO,L1,IP)          ,CC(IDO,IP,L1)          , &
                       C1(IDO,L1,IP)          ,WA(*)      ,C2(IDL1,IP), &
                       CH2(IDL1,IP)
@@ -812,7 +799,6 @@
       RETURN
       END
       SUBROUTINE PASSF2 (IDO,L1,CC,CH,WA1)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       CC(IDO,2,L1)           ,CH(IDO,L1,2)           , &
                       WA1(*)
       IF (IDO .GT. 2) GO TO 102
@@ -836,7 +822,6 @@
       RETURN
       END
       SUBROUTINE PASSF3 (IDO,L1,CC,CH,WA1,WA2)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       CC(IDO,3,L1)           ,CH(IDO,L1,3)           , &
                       WA1(*)     ,WA2(*)
       DATA TAUR,TAUI /-.5,-.866025403784439/
@@ -879,7 +864,6 @@
       RETURN
       END
       SUBROUTINE PASSF4 (IDO,L1,CC,CH,WA1,WA2,WA3)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       CC(IDO,4,L1)           ,CH(IDO,L1,4)           , &
                       WA1(*)     ,WA2(*)     ,WA3(*)
       IF (IDO .NE. 2) GO TO 102
@@ -931,7 +915,6 @@
       RETURN
       END
       SUBROUTINE PASSF5 (IDO,L1,CC,CH,WA1,WA2,WA3,WA4)
-      IMPLICIT REAL(A-H,O-z), INTEGER(I-N)
       DIMENSION       CC(IDO,5,L1)           ,CH(IDO,L1,5)           , &
                       WA1(*)     ,WA2(*)     ,WA3(*)     ,WA4(*)
       DATA TR11,TI11,TR12,TI12 /.309016994374947,-.951056516295154, &

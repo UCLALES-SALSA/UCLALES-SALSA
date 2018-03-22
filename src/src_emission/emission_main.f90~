@@ -1,0 +1,221 @@
+MODULE emission_main
+  USE mo_seasalt_emission
+  USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, aerobins, spec
+  USE grid, ONLY: deltax, deltay, dzt, zt,  & ! Note dzt is inverse of the distance
+                  nxp,nyp,nzp,              &
+                  a_up, a_vp, a_dn,      &
+                  a_maerot, a_naerot, prtcl
+  USE util, ONLY: smaller, closest, getMassIndex
+
+
+  IMPLICIT NONE
+
+  CHARACTER(len=50), PARAMETER :: global_name = "emission_main"
+
+  !
+  ! -------------------------------------
+  ! Setup for general aerosol emissions
+  !
+  TYPE Emit
+     ! Collection of switches for seeding procedures
+     LOGICAL          :: lemit = .FALSE.                    ! Master switch
+     INTEGER          :: regime = 1                         ! Destination bin regime for emitted aerosol. 1: A, 2: B
+     CHARACTER(len=3) :: species = 'SS '                    ! Which aerosol species to emit (must conform to names in src_salsa/classSpecies)
+     REAL             :: start_time = 0.,  &                ! Start time for emission (s)
+                         end_time = 86400.                  ! End time for emission (s)
+  END TYPE Emit 
+  
+  !
+  ! --------------------------------------------
+  ! Extension for artificial airborne emissions
+  !
+  TYPE, EXTENDS(Emit) :: EmitAirborne
+     REAL             :: height_min = 1000.,  &       ! Min height of airborne emissions (m)
+                         height_max = 1000.           ! Max height (m)
+     REAL             :: emitDiam = 10.e-6,    &       ! Assumed (dry )diameter of the particles (monodisperse)
+                         emitNum  = 10000.              ! Number consentration of particles emitted per second #/m3/s
+     INTEGER          :: dest_bin = -999              ! Destination bin: if not specified by NAMELIST (=-999), determine the bin by emitDiam
+                                                      ! at initialization. IF this is specified, dest_bin will override emitDiam
+     INTEGER          :: dest_lev_min = -999          ! Same deal with the destination level as with bins
+     INTEGER          :: dest_lev_max = -999
+  END TYPE EmitAirborne
+  
+  TYPE(EmitAirborne) :: eseed
+  TYPE(Emit)         :: esrfc
+
+  CONTAINS
+
+  SUBROUTINE init_emission
+    IMPLICIT NONE
+
+    CHARACTER(len=50), PARAMETER :: name = "init_emission"
+
+    INTEGER :: ibin
+    INTEGER :: ilev
+    INTEGER :: st,en
+    INTEGER :: maxv
+
+    IF ( eseed%lemit ) THEN
+
+       IF ( eseed%regime == 1 ) THEN
+          st = in1a
+          en = fn2a
+       ELSE IF ( eseed%regime == 2 ) THEN
+          st = in2b
+          en = fn2b
+       END IF
+
+       IF ( eseed%dest_bin == -999 ) THEN
+          ! Determine destination bin from the diameter
+          ibin = smaller(aerobins(st:en),eseed%emitDiam)
+          eseed%dest_bin = st + (ibin-1)
+       END IF
+
+       IF ( eseed%dest_lev_min == -999 .AND. eseed%dest_lev_max == -999) THEN
+          ilev = closest(zt,eseed%height_min)
+          eseed%dest_lev_min = ilev
+          ilev = closest(zt,eseed%height_max)
+          eseed%dest_lev_max = ilev
+       ELSE IF (eseed%dest_lev_min > 0 .OR. eseed%dest_lev_max > 0) THEN
+          maxv = MAX(eseed%dest_lev_min, eseed%dest_lev_max)
+          IF (eseed%dest_lev_min == -999) eseed%dest_lev_min = maxv
+          IF (eseed%dest_lev_max == -999) eseed%dest_lev_max = maxv
+       END IF
+          
+    END IF
+
+  END SUBROUTINE init_emission
+
+
+  !
+  ! -------------------------------------------------------------------
+  ! subroutine aerosol_emission:  calls methods to calculate emitted
+  !                               aerosols from ground/sea
+  !  
+  ! Adapted from the original code by Antti Kukkurainen
+  ! Juha Tonttila, FMI, 2017
+  !
+  SUBROUTINE aerosol_emission(time_in)
+    IMPLICIT NONE
+    REAL, INTENT(in) :: time_in   ! time in seconds
+    CHARACTER(len=50), PARAMETER :: name = "aerosol_emission"
+    LOGICAL :: condition
+
+    condition = getCondition(esrfc,time_in)
+    IF (condition) CALL surface_emission
+     
+    condition = getCondition(eseed,time_in)
+    IF (condition) CALL cloud_seeding
+
+  END SUBROUTINE aerosol_emission
+
+  !
+  ! ---------------------------------------------------------------
+  ! Simulates the emission of seasalt particles from
+  ! an ocean surface as a function of the 10-m wind
+  ! speed.
+  !
+  SUBROUTINE surface_emission()
+    IMPLICIT NONE
+
+    CHARACTER(len=50), PARAMETER :: name = "surface_emission"
+    
+    REAL :: mass_flux(1,nbins) !mass flux at given radius
+    REAL :: numb_flux(1,nbins)        !number flux at given radius
+    REAL :: pseaice(1) = 0            !sea ice fraction
+    REAL :: velo10m_salsa(1,1)        !wind speed
+
+    INTEGER :: nc, st, en, ii, jj
+    INTEGER :: in, fn
+    
+    ! Surface seasalt emissions possible only if sea salt aerosol is used
+    IF (prtcl%isUsed(spec%nss)) THEN
+       nc=prtcl%getIndex(spec%nss)
+       
+       IF (esrfc%regime == 1) THEN
+          in = in1a
+          fn = fn2a
+       ELSE IF (esrfc%regime == 2) THEN
+          in = in2b
+          fn = fn2b
+       END IF
+       st=(nc-1)*nbins+in
+       en=(nc-1)*nbins+fn
+       
+       DO jj=3,nyp-2
+          DO ii=3,nxp-2
+             
+             velo10m_salsa = SQRT(a_up(2,ii,jj)**2 + a_vp(2,ii,jj)**2)
+             
+             CALL seasalt_emissions_lsce_salsa(1, 1, 1, pseaice, velo10m_salsa, mass_flux, numb_flux)
+             
+             !number of particles + more particles per unit of time * scaling factor [#/kg]
+             a_naerot(2,ii,jj,in:fn) = a_naerot(2,ii,jj,in:fn) + numb_flux(1,in:fn)*(dzt(2)/a_dn(2,ii,jj)) 
+             !mass + more mass per unit of time * scaling factor [kg/kg]
+             a_maerot(2,ii,jj,st:en) = a_maerot(2,ii,jj,st:en) + mass_flux(1,in:fn)*(dzt(2)/a_dn(2,ii,jj)) 
+             
+          END DO
+       END DO
+       
+    END IF
+    
+  END SUBROUTINE surface_emission
+
+  !
+  ! ----------------------------------------------------------------
+  ! Simulates artificial aerosol emission from an aircraft.
+  ! This can be described as a (moving?) point source or as
+  ! a simplified, domain wide emission at a specified height
+  ! level (either fixed altitude or relative to cloud layer).
+  !
+  SUBROUTINE cloud_seeding()
+    IMPLICIT NONE
+    
+    CHARACTER(len=50), PARAMETER :: name = "cloud_seeding"
+
+    INTEGER :: bb
+    INTEGER :: k1,k2
+    INTEGER :: mb,mb2,nc
+    CHARACTER(len=30) :: emit_spec
+
+    k1 = eseed%dest_lev_min
+    k2 = eseed%dest_lev_max
+    bb = eseed%dest_bin
+    emit_spec = eseed%species
+    IF ( .NOT. spec%isUsed(emit_spec) ) THEN
+       WRITE(*,*) 'emission_main: cloud_seeding: Attempt to emit '//TRIM(emit_spec)// &
+                  ' but the compound is not set to be used in the SALSA namelist.'
+       STOP
+    END IF
+    
+    nc = spec%getIndex(emit_spec) ! Index for emitted species
+    mb = getMassIndex(nbins,bb,nc)
+    mb2 = getMassIndex(nbins,bb,spec%getIndex("H2O"))
+
+    a_naerot(k1:k2,:,:,bb) = a_naerot(k1:k2,:,:,bb) + eseed%emitNum
+    a_maerot(k1:k2,:,:,mb) = a_maerot(k1:k2,:,:,mb) + eseed%emitNum * (pi6*eseed%emitDiam**3)*spec%getRho(nc)
+    ! This (non-zero water content in emitted aerosol) is needed because of the current restrictions in SALSA's condensation routine.
+    a_maerot(k1:k2,:,:,mb2) = a_maerot(k1:k2,:,:,mb2) + 0.001*eseed%emitNum * (pi6*eseed%emitDiam**3)*spec%getRho(nc)
+
+  END SUBROUTINE cloud_seeding
+  
+  ! ----------------------------------------------------------
+
+  FUNCTION getCondition(config,time)
+    IMPLICIT NONE
+    LOGICAL :: getCondition
+    CLASS(Emit), INTENT(in) :: config
+    REAL, INTENT(in) :: time
+    CHARACTER(len=50), PARAMETER :: name = "getCondition"
+
+    getCondition = (                                  &
+                    config%lemit                .AND. &
+                    config%start_time < time    .AND. &
+                    config%end_time > time            &
+                   )   
+
+  END FUNCTION getCondition
+  
+
+
+END MODULE emission_main
