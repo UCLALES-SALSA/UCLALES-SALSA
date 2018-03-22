@@ -332,7 +332,7 @@ CONTAINS
        IF (level >=5 ) THEN
            ALLOCATE( ssclr_lvl5(nv1_lvl5), svctr_lvl5(nzp,nv2_lvl5) )
            ALLOCATE( svctr_ia(nzp,fia%cur,nv2sia), svctr_ib(nzp,fib%cur-fia%cur,nv2sib), &
-                  svctr_s(nzp,nprc,nv2ss) )
+                  svctr_s(nzp,nsnw,nv2ss) )
            ssclr_lvl5(:) = 0.
            svctr_lvl5(:,:) = 0.
            svctr_ia(:,:,:) = 0.; svctr_ib(:,:,:) = 0.
@@ -667,26 +667,26 @@ CONTAINS
 
          ! Removal by sedimentation of cloud droplets
          str = getMassIndex(ncld,1,sii) 
-         END = getMassIndex(ncld,ncld,sii)
+         end = getMassIndex(ncld,ncld,sii)
          scs_rm(i,:,:) = SUM(rcld(:,:,str:end),DIM=3)
          i = i+1
 
          ! Removal by precipitation
          str = getMassIndex(nprc,1,sii)
-         END = getMassIndex(nprc,nprc,sii)
+         end = getMassIndex(nprc,nprc,sii)
          scs_rm(i,:,:) = SUM(rprc(:,:,str:end),DIM=3)
          i = i+1
 
          IF (level > 4) THEN
             ! Removal by sedimentation of ice particles
             str = getMassIndex(nice,1,sii)
-            END = getMassIndex(nice,nice,sii)
+            end = getMassIndex(nice,nice,sii)
             scs_rm(i,:,:) = SUM(rice(:,:,str:end),DIM=3)
             i = i+1
 
             ! Removal by snow
             str = getMassIndex(nsnw,1,sii)
-            END = getMassIndex(nsnw,nsnw,sii)
+            end = getMassIndex(nsnw,nsnw,sii)
             scs_rm(i,:,:) = SUM(rsnw(:,:,str:end),DIM=3)
             i = i+1
          END IF
