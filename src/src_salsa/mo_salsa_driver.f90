@@ -145,6 +145,11 @@ CONTAINS
       ice_old(:,:,:) = Section(2)
       snow_old(:,:,:) = Section(3)
 
+      str = getMassIndex(nprc,1,nwet)
+      end = getMassIndex(nprc,nprc,nwet)
+      !WRITE(*,*) 'ENNEN', SUM(pa_mprecpp(30,3,3,str:end))
+      !WRITE(*,*) 'ENNEN', pa_nprecpp(30,3,3,1:nprc)
+
       ! Set the SALSA runtime config 
       CALL set_salsa_runtime(time)
 
@@ -182,7 +187,9 @@ CONTAINS
                   str = getMassIndex(nprc,1,nc)
                   end = getMassIndex(nprc,nprc,nc)
                   precp(1,1,1:nprc)%volc(nc) = pa_mprecpp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nc)
+                  !WRITE(*,*) pdn(kk,ii,jj), spec%rholiq(nc), nc, nwet
                   
+
                   str = getMassIndex(nice,1,nc)
                   end = getMassIndex(nice,nice,nc)
                   ice(1,1,1:nice)%volc(nc) = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhoice(nc)
@@ -226,6 +233,9 @@ CONTAINS
                If (prunmode == 1) CALL equilibration(kproma,kbdim,klev,   &
                                                      init_rh,in_t,.TRUE.)
 
+               !WRITE(*,*) 'ENNEN NUMERO',SUM(precp(1,1,1:nprc)%numc)
+               !WRITE(*,*) 'ENNEN MASSSA',SUM(precp(1,1,1:nprc)%volc(nwet))
+
                ! Convert to #/m3
                zgso4(1,1) = pa_gaerop(kk,ii,jj,1)*pdn(kk,ii,jj)
                zghno3(1,1) = pa_gaerop(kk,ii,jj,2)*pdn(kk,ii,jj)
@@ -244,6 +254,8 @@ CONTAINS
                           actd,   in_w, level               )
 
 
+               !WRITE(*,*) 'JALKEEN NUMERO',SUM(precp(1,1,1:nprc)%numc)
+               !WRITE(*,*) 'JALKEEN MASSSA',SUM(precp(1,1,1:nprc)%volc(nwet))
 
                ! Calculate tendencies (convert back to #/kg or kg/kg)
                pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &
@@ -317,6 +329,10 @@ CONTAINS
             END DO ! kk
          END DO ! ii
       END DO ! jj
+
+      !WRITE(*,*) 'JALKEEN', SUM(pa_mprecpp(30,3,3,str:end))
+      !WRITE(*,*) 'JALKEEN', pa_nprecpp(30,3,3,1:nprc)
+
 
    END SUBROUTINE run_SALSA
 

@@ -40,8 +40,6 @@ CONTAINS
       INTEGER :: count
       INTEGER :: zndry,znwet
 
-      TYPE(Section) :: testi(nprc)
-
       zndry = spec%getNSpec(type="dry")
       znwet = spec%getNSpec(type="wet")
 
@@ -138,15 +136,8 @@ CONTAINS
                END DO ! - kk
 
                count = count + 1
-               IF (count > 100)  THEN
-                  WRITE(*,*) "Aerosol bin update not converged"
-                  WRITE(*,*) "NUMC", aero(ii,jj,:)%numc
-                  DO kk = 1,nbins
-                     WRITE(*,*) "VOLC", aero(ii,jj,kk)%volc(:)
-                  END DO
-                  STOP
-               END IF
-                  
+               IF (count > 100)  STOP  "Aerosol bin update not converged"
+
 
             END DO ! - within bins
 
@@ -238,14 +229,8 @@ CONTAINS
 
                count = count + 1
 
-               IF (count > 100)  THEN
-                  WRITE(*,*) "Cloud bin update not converged"
-                  WRITE(*,*) "NUMC", cloud(ii,jj,:)%numc
-                  DO kk = 1,ncld
-                     WRITE(*,*) "VOLC", cloud(ii,jj,kk)%volc(:)
-                  END DO
-                  STOP
-               END IF
+               IF (count > 100)  STOP "Cloud bin update not converged"
+
 
             END DO !within_bins
 
@@ -260,8 +245,6 @@ CONTAINS
           
             within_bins = .FALSE.
             count = 0
-            testi = precp(ii,jj,:)
-            IF (.FALSE.) THEN
             DO WHILE (.NOT. within_bins)
                within_bins = .TRUE.
 
@@ -344,20 +327,9 @@ CONTAINS
 
                count = count + 1
 
-               IF (count > 100)  THEN
-                  WRITE(*,*) "Precip bin update not converged"
-                  WRITE(*,*) "NUMC", precp(ii,jj,:)%numc
-                  WRITE(*,*) "NUMC VANHA", testi(:)%numc
-                  DO kk = 1,nprc
-                     WRITE(*,*) "VOLC", precp(ii,jj,kk)%volc(:)
-                     WRITE(*,*) "VOLC VANHA",testi(kk)%volc(:)
-                  END DO
-                  STOP
-               END IF
+               IF (count > 100)  STOP "Precip bin update not converged"
 
             END DO !within_bins
-            END IF !false
-
 
             IF(level < 5 ) CYCLE ! skip ice and snow distr. updates if thermodynamical level doesn't include ice microphysics
 
@@ -446,14 +418,7 @@ CONTAINS
                END DO !kk
 
                count = count + 1
-               IF (count > 100)  THEN
-                  WRITE(*,*) "Ice bin update not converged"
-                  WRITE(*,*) "NUMC", ice(ii,jj,:)%numc
-                  DO kk = 1,nice
-                     WRITE(*,*) "VOLC", ice(ii,jj,kk)%volc(:)
-                  END DO
-                  STOP
-               END IF
+               IF (count > 100)  STOP "Ice bin update not converged"
 
             END DO !within_bins
 
@@ -550,14 +515,8 @@ CONTAINS
 
                count = count + 1
 
-               IF (count > 100)  THEN
-                  WRITE(*,*) "Snow bin update not converged"
-                  WRITE(*,*) "NUMC", snow(ii,jj,:)%numc
-                  DO kk = 1,nsnw
-                     WRITE(*,*) "VOLC", snow(ii,jj,kk)%volc(:)
-                  END DO
-                  STOP
-               END IF
+               IF (count > 100)  STOP  "Snow bin update not converged"
+
 
             END DO !within_bins
 
