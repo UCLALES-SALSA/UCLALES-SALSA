@@ -334,7 +334,7 @@ CONTAINS
      INTEGER :: i
 
      DO i = 1,Nmaster
-        IF( lsmaster(i)%switch .AND. time > lsmaster(i)%delay ) lsmaster%state = .TRUE.
+        IF( lsmaster(i)%switch .AND. time > lsmaster(i)%delay ) lsmaster(i)%state = .TRUE.
      END DO
 
 

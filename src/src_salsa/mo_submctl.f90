@@ -30,9 +30,6 @@ MODULE mo_submctl
   
   !Switches for SALSA aerosol microphysical processes
 
-  ! Process switches: nl* is read from the NAMELIST and NOT changed during runtime.
-  !                   ls* is the switch actually used and will get the value of nl*
-  !                   except for special circumstances such as spinup period etc.
   INTEGER, PARAMETER :: Nmaster = 7
   TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)  ! Array for master switches. The specific master switches are pointers to this array
   TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation
