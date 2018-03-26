@@ -970,7 +970,7 @@ IMPLICIT NONE
           lsactiv     = .false.
           lsactintst  = .false.
           lsicenucl   = .FALSE.
-          lsfixinc    = .false.
+          lsicenucl    = .false.
           lsicmelt    = .false.
 
 
@@ -1004,7 +1004,6 @@ IMPLICIT NONE
           lsactiv     = .false.
           lsactintst  = .false.
           lsicenucl   = .FALSE.
-          lsfixinc    = .false.
           lsicmelt    = .false.
 
 
@@ -1043,7 +1042,6 @@ IMPLICIT NONE
           lsactiv     = .false.
           lsactintst  = .false.
           lsicenucl  = .FALSE.
-          lsfixinc    = .false.
           lsicmelt    = .false.
 
 
