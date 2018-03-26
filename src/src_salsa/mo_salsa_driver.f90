@@ -940,6 +940,113 @@ IMPLICIT NONE
           lsicenucl   = .false.
           lsicmelt    = .false.
 
+
+       CASE(4)  ! after minispinup
+                ! self_coagulation only
+                ! distupdate ON
+
+          lscoag      = .TRUE. !true
+          lscgaa      = .TRUE. !true
+          lscgcc      = .TRUE. !true
+          lscgpp      = .TRUE. !true
+          lscgca      = .false.
+          lscgpa      = .false.
+          lscgpc      = .false.
+          lscgia      = .false.
+          lscgic      = .false.
+          lscgii      = .TRUE. !true
+          lscgip      = .false.
+          lscgsa      = .false.
+          lscgsc      = .false.
+          lscgsi      = .false.
+          lscgsp      = .false.
+          lscgss      = .TRUE. !true
+          lscnd       = .false.
+          lscndgas    = .false.
+          lscndh2oae  = .false.
+          lscndh2ocl  = .false.
+          lsauto      = .false.
+          lsautosnow  = .false.
+          lsactiv     = .false.
+          lsactintst  = .false.
+          lsicenucl   = .FALSE.
+          lsfixinc    = .false.
+          lsicmelt    = .false.
+
+
+       CASE(5)  ! after minispinup
+                ! condensation only
+                ! distupdate ON
+
+          lscoag      = .false.
+          lscgaa      = .false.
+          lscgcc      = .false.
+          lscgpp      = .false.
+          lscgca      = .false.
+          lscgpa      = .false.
+          lscgpc      = .false.
+          lscgia      = .false.
+          lscgic      = .false.
+          lscgii      = .false.
+          lscgip      = .false.
+          lscgsa      = .false.
+          lscgsc      = .false.
+          lscgsi      = .false.
+          lscgsp      = .false.
+          lscgss      = .false.
+          lscnd       = .TRUE. !true
+          lscndgas    = .false.
+          lscndh2oae  = .false.
+          lscndh2ocl  = .TRUE. !true
+          lscndh2oic  = .TRUE. !true
+          lsauto      = .false.
+          lsautosnow  = .false.
+          lsactiv     = .false.
+          lsactintst  = .false.
+          lsicenucl   = .FALSE.
+          lsfixinc    = .false.
+          lsicmelt    = .false.
+
+
+
+
+       CASE(8)  ! after minispinup
+                ! fixed INC OFF
+
+	lsicenucl     = .false.
+          
+
+       CASE(0)  ! all off
+
+          lscoag      = .false.
+          lscgaa      = .false.
+          lscgcc      = .false.
+          lscgpp      = .false.
+          lscgca      = .false.
+          lscgpa      = .false.
+          lscgpc      = .false.
+          lscgia      = .false.
+          lscgic      = .false.
+          lscgii      = .false.
+          lscgip      = .false.
+          lscgsa      = .false.
+          lscgsc      = .false.
+          lscgsi      = .false.
+          lscgsp      = .false.
+          lscgss      = .false.
+          lscnd       = .false.
+          lscndgas    = .false.
+          lscndh2oae  = .false.
+          lscndh2ocl  = .false.
+          lsauto      = .false.
+          lsautosnow  = .false.
+          lsactiv     = .false.
+          lsactintst  = .false.
+          lsicenucl  = .FALSE.
+          lsfixinc    = .false.
+          lsicmelt    = .false.
+
+
     END SELECT
 
   END SUBROUTINE set_SALSA_runtime

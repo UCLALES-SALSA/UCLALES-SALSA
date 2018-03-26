@@ -30,6 +30,11 @@ cat > ${dir}/NAMELIST <<EOF
   timmax = ${timmax:-28800.}
   Tspinup = ${Tspinup:-7200.}
 
+${jaakkoNL}  minispinup01 = ${minispinup01:-0.}
+${jaakkoNL}  minispinup02 = ${minispinup02:-0.}
+${jaakkoNL}  minispinupCase01 = ${minispinupCase01:-3}
+${jaakkoNL}  minispinupCase02 = ${minispinupCase02:-3}
+
   nudge_time  = ${nudge_time:-28800.}
 
   nudge_theta = ${nudge_theta:-3}

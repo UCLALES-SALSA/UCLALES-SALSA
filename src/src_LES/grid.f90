@@ -66,6 +66,11 @@ module grid
   character (len=7) :: runtype = 'INITIAL'! Run Type Selection
 
   REAL              :: Tspinup = 7200.    ! Spinup period in seconds (added by Juha)
+  real              :: minispinup01 = 0. ! testing purposes !debugkebab ! default value is just normal run
+  real              :: minispinup02 = 0. ! testing purposes !debugkebab ! default value is just normal run
+  integer           :: minispinupCase01 = 3. ! testing purposes !debugkebab ! default value is just normal run
+  integer           :: minispinupCase02 = 3. ! testing purposes !debugkebab ! default value is just normal run
+
 
 
   character (len=7),  private :: v_snm='sxx    '

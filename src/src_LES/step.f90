@@ -200,7 +200,9 @@ end subroutine tstep_reset
                      a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                      a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl,    &
-                     sst, a_rsi
+                     sst, a_rsi, &
+                     minispinup01, minispinup02, & !debugkebab
+                     minispinupCase01, minispinupCase02 !debugkebab
 
 
     use stat, only : sflg, statistics
@@ -237,6 +239,8 @@ end subroutine tstep_reset
     zrm = 3
     IF ( time < Tspinup ) zrm = 2
 
+if (time > Tspinup + minispinup01 ) zrm = minispinupCase01 !! all processes off !debugkebab
+if (time > Tspinup + minispinup02 ) zrm = minispinupCase02 !! huomhuom ice'n'cloud testing runmode parameter !minispinup !debugkebab
 
     ! Reset ALL tendencies here.
     !----------------------------------------------------------------
