@@ -1150,20 +1150,41 @@ end subroutine tstep_reset
              ! Loop over ice bins
              DO bc = iia%cur,fib%cur
 
-                IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. a_micep(k,i,j,(nn-1)*nice+bc)<1e-15 ) THEN
+                IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. &
+                        a_micep(k,i,j,(nn-1)*nice+bc)<1e-15 ) THEN
                    ! Diameter (assuming constant ice density)
                    cd = (SUM( a_micep(k,i,j,bc:(nn-1)*nice+bc:nice)/dens_ice(1:nn) )/a_nicep(k,i,j,bc)/pi6)**(1./3.)
 
                    ! Dry to total mass ratio
                    zvol = SUM( a_micep(k,i,j,bc:(nn-2)*nice+bc:nice) )/SUM( a_micep(k,i,j,bc:(nn-1)*nice+bc:nice) )
 
-                   ! Ice and snow don't have a critical size, but lose particles smaller than 2e-6 m and particles which dry to total mass ratio is more than 0.5
-                   IF ( zvol>0.5 .OR. cd<2e-6 ) THEN
-                      IF (bc<=fia%cur) THEN
-                         ba = iia%par + (bc-iia%cur) ! Index for parallel aerosol bin
+                   ! Lose particles smaller than 2e-6 m and particles which dry to total mass ratio is more than 0.5
+                   IF ( zvol>0.5  .OR. cd<2e-6 ) THEN
+
+                      ! Move evaporating ice to aerosol bin based on dry radius and chemical composition
+
+                      ! 1) Find the closest matching bin based on dry particle radius (a and b bins)
+                      cd = 0.5*(SUM( a_micep(k,i,j,bc:(nn-2)*nice+bc:nice)/dens(1:nn-1) )/a_nicep(k,i,j,bc)/pi6)**(1./3.) ! Dry radius
+                      ba=in2a ! Ignore 1a and note that aerobins contains the lower limit of bin dry radius
+                      DO WHILE (cd>=aerobins(ba+1) .AND. ba<fn2a)
+                         ba=ba+1
+                      ENDDO
+                      ! Corresponding b bin is ba+(fn2a-fn1a)=ba+fn2a-(in2a-1)=ba+fn2a-in2a+1
+                      bb=ba+fn2a-in2a+1
+                      ! 2) Select a or b bin
+                      IF (a_naerop(k,i,j,bb)*a_dn(k,i,j)<=nlim) THEN
+                         ! Empty b bin so select a
+                         !ba = ba
+                      ELSEIF (a_naerop(k,i,j,ba)*a_dn(k,i,j)<=nlim) THEN
+                         ! Empty a bin so select b
+                         ba = bb
                       ELSE
-                         ba = iib%par + (bc-iib%cur) ! Index for parallel aerosol bin
+                         ! Both are present - find bin based on compositional similarity
+                         ra = calc_correlation(a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins),a_micep(k,i,j,bc:(nn-2)*nice+bc:nice),7)
+                         rb = calc_correlation(a_maerop(k,i,j,bb:(nn-2)*nbins+bb:nbins),a_micep(k,i,j,bc:(nn-2)*nice+bc:nice),7)
+                         IF (ra<rb) ba = bb
                       ENDIF
+
                       ! Move the number of particles from ice to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
                       a_nicep(k,i,j,bc) = 0.
@@ -1177,7 +1198,7 @@ end subroutine tstep_reset
                       END DO
                    END IF
 
-                END IF  ! prlim
+                END IF ! prlim
 
              END DO ! bc
 

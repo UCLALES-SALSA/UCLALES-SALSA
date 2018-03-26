@@ -2280,40 +2280,41 @@ if ICE:
         t =  np.argmin(np.abs(th*3600-time_data))
         z =  np.argmin(np.abs(zin-zt_data))
         
+        ysize = np.shape(S_Rwiba_data)[2]
+        xsize = np.shape(S_Rwiba_data)[3]        
+        
+        S_Rwiba_data = S_Rwiba_data[t,:,:,:,z]* 2.e3
+        S_Niba_data  = S_Niba_data[t,:,:,:,z]* dn0_data[z]
         
         
-        xsize = np.shape(S_Rwiba_data)[3]
-        ysize = np.shape(S_Rwiba_data)[4]
-        
-        S_Rwiba_data = np.multiply( S_Rwiba_data[t,:,:,:z], 2.e3 )
-        S_Niba_data  = np.multiply( S_Niba_data[t,:,:,:z], dn0_data[z] )
-        
-        
-        S_Rwiba_data = S_Rwiba_data.flatten()
-        S_Niba_data  = S_Niba_data.flatten()
-        
-        jarj = np.argsort(S_Rwiba_data)
-        
-        S_Rwiba_data = np.sort(S_Rwiba_data)
-        koko = np.shape(S_Niba_data)
+        S_Rwiba_data_flatten = S_Rwiba_data.flatten()
+        S_Niba_data_flatten  = S_Niba_data.flatten()
+        print 'koot slize', np.shape(S_Rwiba_data), np.shape(S_Niba_data), xsize, ysize
+        jarj = np.argsort(S_Rwiba_data_flatten)
+        #print 'koot f', np.shape(S_Rwiba_data_flatten), np.shape(S_Niba_data_flatten), np.shape(jarj), jarj[0]
+        S_Rwiba_data_flatten = np.sort(S_Rwiba_data_flatten)
+        koko = np.shape(S_Niba_data_flatten)
         apu = np.zeros(koko)
         
         for kkk in xrange(koko[0]):
-            apu = S_Niba_data[ jarj[0,kkk] ]
+            apu[kkk] = S_Niba_data_flatten[ jarj[kkk] ]
         
-        S_Niba_data = apu
-        xnew = np.linspace(min(S_Rwiba_data),max(S_Rwiba_data), 100, endpoint = True)
+        S_Niba_data_flatten = apu
+
+        xnew = np.linspace(min(S_Rwiba_data_flatten),max(S_Rwiba_data_flatten), 1000, endpoint = True)
         
-        finter  = interp1d(S_Rwiba_data, S_Niba_data)
+        finter  = interp1d(S_Rwiba_data_flatten, S_Niba_data_flatten)
+        
+        
         
         newfig = True
         mdp.initializeColors(xsize*ysize)
         for x in xrange(xsize):
             for y in xrange(ysize):
-                mdp.plottaa(S_Rwiba_data, S_Niba_data, uusikuva = newfig, scatter = True, LEGEND = False)
+                mdp.plottaa(S_Rwiba_data[:,y,x], S_Niba_data[:,y,x], uusikuva = newfig, scatter = True, LEGEND = False)
         
                 newfig = False
-        mdp.plottaa(xnew, finter(xnew), uusikuva = newfig, omavari='k', scatter = True, LEGEND = False)        
+        mdp.plottaa(xnew, finter(xnew), uusikuva = newfig, omavari='k', LEGEND = False)        
         
         
 toc = time.clock()
