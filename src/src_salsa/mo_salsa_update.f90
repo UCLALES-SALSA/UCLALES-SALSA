@@ -340,12 +340,13 @@ CONTAINS
           DO WHILE (.NOT. within_bins)
              within_bins = .TRUE.
 
-
              DO kk = nice,iia%cur,-1
                 mm = 0
-                IF ( pice(ii,jj,kk)%numc > prlim ) THEN
 
-                   zvpart = sum(pice(ii,jj,kk)%volc(1:8))/pice(ii,jj,kk)%numc
+                IF ( pice(ii,jj,kk)%numc > prlim .AND. sum(pice(ii,jj,kk)%volc(1:7)) > 1.e-30 ) THEN
+
+                   ! Don't convert ice to anything else here.
+                   zvpart = sum(pice(ii,jj,kk)%volc(1:7))/pice(ii,jj,kk)%numc
 
                    !-- volume ratio of the size bin
                    zVrat = pice(ii,jj,kk)%vhilim/pice(ii,jj,kk)%vlolim
@@ -356,32 +357,28 @@ CONTAINS
                    !-- particle volume at the high end of the bin
                    zVihi = zVrat * zVilo
 
-                   ! Calculate the threshold particle volume for decreasing
-                   zvdec = (pi6*pice(ii,jj,kk)%dmid**3) - &
-                           0.2*((pi6*pice(ii,jj,kk)%dmid**3) - pice(ii,jj,kk)%vlolim)
-
-                   !-- Decreasing droplets - This is now more critical since we are following the wet diameter!!!
-                   IF ( zvpart < zvdec .AND. kk /= iib%cur ) THEN
+                   !-- Decreasing size
+                   IF ( zvpart < pi6*pice(ii,jj,kk)%vlolim .AND.  &
+                        (kk /= iia%cur .AND. kk /= iib%cur)    ) THEN
 
                       !-- Volume in the decreased bin which is below the bin lower limit
                       zVexc = 0.5*(zVilo + pice(ii,jj,kk)%vlolim)
 
                       !-- Number fraction to be moved to the smaller bin
                       znfrac = min(1.,(pice(ii,jj,kk)%vlolim-zVilo) / (zVihi-zVilo))
-                      IF (znfrac < 0.) STOP 'Error, numc ice 0'
 
                       !-- Index for the smaller bin
                       mm = kk - 1
 
-                   !-- Increasing droplets
-                   ELSE IF ( zvpart > pi6*pice(ii,jj,kk)%dmid**3 .AND. kk /= fib%cur )  THEN  ! Increasing droplets
+                   !-- Increasing size
+                   ELSE IF ( zvpart > pi6*pice(ii,jj,kk)%dmid**3 .AND.  &
+                        (kk /= fia%cur .AND. kk /= fib%cur)    ) THEN !#mod
 
                       !-- volume in the grown bin which exceeds the bin upper limit
                       zVexc = 0.5*(zVihi + pice(ii,jj,kk)%vhilim)
 
                       !-- number fraction to be moved to the larger bin
-                      znfrac = min(.99,(zVihi-pice(ii,jj,kk)%vhilim) / (zVihi-zVilo))
-                      IF (znfrac < 0.) STOP 'Error, ice numc 0'
+                      znfrac = min(1.,(zVihi-pice(ii,jj,kk)%vhilim) / (zVihi-zVilo))
 
                       !-- Index for the larger bin
                       mm = kk + 1
@@ -391,8 +388,9 @@ CONTAINS
                    END IF
 
                    !-- volume fraction to be moved
+
                    zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
-                   IF(zvfrac < 0.) STOP 'Error: ice volc 0'
+                   IF(zvfrac < 0.) STOP 'Error ice volc 0'
 
                    !-- volume
                    pice(ii,jj,mm)%volc(:) = pice(ii,jj,mm)%volc(:)     &
@@ -410,8 +408,8 @@ CONTAINS
 
                 END IF !nlim
 
-                IF ( pice(ii,jj,kk)%numc > prlim ) THEN
-                   zvpart = sum(pice(ii,jj,kk)%volc(:))/pice(ii,jj,kk)%numc
+                IF ( pice(ii,jj,kk)%numc > prlim .AND.  sum(pice(ii,jj,kk)%volc(1:7)) > 1.e-30 ) THEN
+                   zvpart = sum(pice(ii,jj,kk)%volc(1:7))/pice(ii,jj,kk)%numc ! Note: dry volume
                    within_bins = (pice(ii,jj,kk)%vlolim<zvpart .AND. zvpart<pice(ii,jj,kk)%vhilim)
                 END IF
 
@@ -421,7 +419,6 @@ CONTAINS
              IF (count > 100) STOP 'Error: Ice bin update not converged'
 
           END DO !within_bins
-
 
 
           ! ------------------------------------------------------------------------
@@ -458,7 +455,7 @@ CONTAINS
                            0.2*((pi6*psnow(ii,jj,kk)%dmid**3) - psnow(ii,jj,kk)%vlolim)
 
                    !-- Decreasing droplets - This is now more critical since we are following the wet diameter!!!
-                   IF ( zvpart < zvdec .AND. kk /= isa ) THEN
+                   IF ( zvpart < zvdec .AND. kk /= ira ) THEN
 
                       !-- Volume in the decreased bin which is below the bin lower limit
                       zVexc = 0.5*(zVilo + psnow(ii,jj,kk)%vlolim)
