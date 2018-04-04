@@ -326,8 +326,8 @@ CONTAINS
     REAL :: tmplolim(7), tmphilim(7)
 
     ! Helper arrays to set up ice size bins
-    tmplolim = (/40.,80.,160., 240.,320.,400., 500./)*1.e-6 !tmplolim = (/10.,20.,40., 80.,160.,320., 640./)*1.e-6
-    tmphilim = (/80.,160.,240., 320.,400.,500., 1000./)*1.e-6 !tmphilim = (/20.,40.,80.,160.,320.,640.,1280./)*1.e-6
+    tmplolim = (/50.,55.,65., 100.,200.,500., 1000./)*1.e-6
+    tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
 
     ! Number of ice bins in regime a (soluble nuclei)
     nba = fn2a-in2a+1
