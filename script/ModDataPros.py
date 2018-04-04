@@ -679,10 +679,16 @@ def xstr(s):
 ########################################  
 class colorPool:
     
-    def __init__( self, colorNumber ):
+    def __init__( self, colorNumber, shuffling = False ):
         colorMap = plt.cm.gist_ncar
         if colorNumber > 7:
-            self.colors    = cycle( [colorMap(i) for i in np.linspace(0, 0.95, colorNumber)] )
+            
+            listing = [colorMap(i) for i in np.linspace(0, 0.95, colorNumber)]
+            
+            if shuffling:
+                np.random.shuffle(listing)
+                
+            self.colors    = cycle( listing )
         else:
             self.colors = cycle( ['r','b','k','g','c','m','y'][:colorNumber] )
 
@@ -701,9 +707,9 @@ class colorPool:
 ### drawn                            ###
 ########################################  
 
-def initializeColors(colorNRO=6):
+def initializeColors(colorNRO=6, shuffling = False):
   global colorChoice
-  colorChoice = colorPool(colorNRO)
+  colorChoice = colorPool(colorNRO, shuffling)
 
   return colorChoice
 

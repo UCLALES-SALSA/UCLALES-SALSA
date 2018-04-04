@@ -1136,7 +1136,7 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
     mini = None
     
     slices = ((sliceXbeg is not None) or (sliceXend is not None) or (sliceYbeg is not None) or (sliceYend is not None)) # slices
-    print 'slices', slices
+    
     if (sliceXbeg is not None) and (sliceXend is None):
         sliceXend = sliceXbeg
     if (sliceXbeg is None) and (sliceXend is not None):
@@ -1228,7 +1228,7 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
                 colorBarTickValues =map(int, np.arange( int(mini/baseN)*baseN, int(maxi/baseN)*baseN+baseN, baseN  ))# map(int, np.arange( int(mini), int(maxi), 1  ))
 
          
-        print 'colorbartickvalues', colorBarTickValues 
+        #print 'colorbartickvalues', colorBarTickValues 
         if isinstance( variKartta, list):
             variKartta   = colors.ListedColormap(variKartta)
             bounds = colorBarTickValues
@@ -1382,8 +1382,147 @@ def piirra_domainProfiili( muuttuja, muunnosKerroin = 1.0, transpose = False, lo
             #mdp.plottaa( aika, top, uusikuva = True  )
             #mdp.plottaa( aika, base )
             
-
+###################################################################
+def piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', muunnosKerroinR = 2.e3, korkeusH = None, aikaT = None, xlabel = 'Diameter [mm]', ylabel='#', asetaRajat = True, xmax = None, ymax = None, savePrefix = None, legenda = True, interplo = True, sekoita = True, xCustSize = None, yCustSize = None ):
+    from scipy.interpolate import interp1d
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from sklearn.tree import DecisionTreeRegressor
+    from sklearn.ensemble import AdaBoostRegressor
+    from random import shuffle
+    from math import ceil
     
+    if korkeusH is None:
+        korkeusH = int(raw_input("Anna z [m]: "))
+    if aikaT is None:
+        aikaT = int(raw_input("Anna t [h]: "))
+        
+    for i in xrange(len(arguments)-1):
+        uusikuva = True
+        
+        if EMUL:
+            if not EMULCASES:
+                case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
+            else:
+                case_indeksi = emulCaseIndexes[i]
+        else:
+            case_indeksi = i
+            
+        dn0_data     = mdp.read_Data( filenameNC[i], 'dn0'     )
+        time_data    = mdp.read_Data( filenameNC[i], 'time'    )
+        zt_data      = mdp.read_Data( filenameNC[i], 'zt'      )
+        
+        Radius_data = mdp.read_Data( filenameNC[i], muuttujaR )
+        Number_data = mdp.read_Data( filenameNC[i], muuttujaN  )
+        
+        t =  np.argmin(np.abs(aikaT*3600-time_data))
+        z =  np.argmin(np.abs(korkeusH-zt_data))
+                
+        
+        maksimi = np.max( Number_data )
+
+        ysize = np.shape(Radius_data)[2]
+        xsize = np.shape(Radius_data)[3]
+        
+        Diameter_data = Radius_data[t,:,:,:,z]* muunnosKerroinR
+        Number_data  = Number_data[t,:,:,:,z]* dn0_data[z]
+        
+        
+        Diameter_data_flatten = Diameter_data.flatten()
+        Number_data_flatten  = Number_data.flatten()
+        
+        jarj = np.argsort(Diameter_data_flatten)
+        
+        Diameter_data_flatten = np.reshape( np.sort(Diameter_data_flatten) , (-1,1) )
+        koko =  np.shape(Number_data_flatten)
+        apu = np.zeros(koko)
+        
+        for kkk in xrange(koko[0]):
+            apu[kkk] = Number_data_flatten[ jarj[kkk] ]
+        
+        Number_data_flatten = np.reshape(apu, (-1,1))
+        
+        ### decision tree regression
+        xnew = np.linspace(np.min(Diameter_data_flatten),np.max(Diameter_data_flatten), 1000, endpoint = True)[:,np.newaxis]
+        
+        rng = np.random.RandomState(1)
+        regr_2 = AdaBoostRegressor(DecisionTreeRegressor(max_depth=4),n_estimators=500, random_state=rng)
+        regr_2.fit(Diameter_data_flatten, Number_data_flatten)
+        y_2 = regr_2.predict(xnew)
+        ### end decision tree regression
+        
+        
+            
+        #if customLabels:
+                #label = labelArray[i]
+         #else:    
+                #label = str(case_indeksi+1)
+        #else:
+        
+        label = labelArray[i]
+        
+        tit = typename + ' size distribution, slize t = ' + str(time_data[t]/3600.) + ' [h], h = ' + str(zt_data[z]) + ' [m] ' + label
+        
+        if xCustSize is None:
+            xlist = range(xsize)
+        else:
+            a = xCustSize/2
+            b = xCustSize - a
+            xlist = map(int, np.arange( ceil(int(xsize/2)-a+.1), ceil(int(xsize/2)+b+.1),1))
+        
+        if yCustSize is None:
+            ylist = range(ysize)
+        else:
+            a = yCustSize/2
+            b = yCustSize - a
+            ylist = map(int, np.arange( ceil(int(ysize/2)-a+.1), ceil(int(ysize/2)+b+.1),1))
+            
+        print 'kokojakauma x ja y indeksit', xlist, ylist    
+        mdp.initializeColors(len(xlist)*len(ylist), shuffling = sekoita)
+        
+        
+        
+        for x in xlist:
+            for y in ylist:
+                fig , ax = mdp.plottaa(Diameter_data[:,y,x], Number_data[:,y,x],xl=xlabel, yl=ylabel, tit = tit, uusikuva = uusikuva, scatter = True, LEGEND = False, tightXAxis = True, tightYAxis = True, gridi = False)
+                uusikuva = False
+        if interplo:
+            mdp.plottaa(xnew, y_2,xl=xlabel, yl=ylabel, tit = tit, uusikuva = uusikuva, omavari='k', LEGEND = False)
+        
+        # jos ymin ja ymax arvoja ei ole ennalta annettu, niin kaytetaan kuvan raja-arvoina laskettuja arvoja
+        if ymax is None:
+            ymax = maksimi
+        
+        if xmax is None:
+            xmax = np.max(Diameter_data_flatten)
+        
+        if ( asetaRajat ):
+            plt.ylim( 0., 1.1*ymax )
+            plt.xlim( 0., xmax )
+        
+        oikeatXtikit = np.arange( 0, xmax+0.01,  0.2)
+        
+        ax.set_xticklabels( map(str, oikeatXtikit ))
+        ax.set_xticks( oikeatXtikit )
+        
+        j = 0
+        for label in ax.xaxis.get_ticklabels():
+            #if np.mod(j,4) != 0:
+            if j==0:
+                label.set_visible(False)
+            j+=1
+            
+        
+        
+            
+        if savePrefix is None:  
+            savePrefix = typename + '_size_distribution_'+str(time_data[t]/3600.) + 'h_' + str(zt_data[z]) + 'm'
+
+        if saveFig:
+            plt.savefig( picturefolder + savePrefix + '_' + saveTag + LVLprintSave + '.png')
+
+
+   
 ###########################
 #### NEEDS REVISION BIG TIME (INTERPOLATION)
 ######################
@@ -1547,7 +1686,7 @@ def piirra_MeanSize( tyyppi = 'ice', bini='a', ajanhetket = [0], korkeus = [0], 
         #plt.savefig( picturefolder + savePrefix+ '_' + saveTag + LVLprintSave + '.png')
 
 #############################        
-def piirra_domainMeanProfiili( muuttuja, nimi = None, muunnosKerroin = 1.0, ajanhetket = [0], useDN = True, profiili = False, xAxisL = '', color = 'k', savePrefix = None    ):
+def piirra_domainMeanProfiili( muuttuja, muuttujaPainotus =  'S_Niba', muuttujaPainotusPotenssi =  'S_Rwiba', nimi = None, muunnosKerroin = 1.0, ajanhetket = [0], useDN = True, profiili = False, binidata = False, xAxisL = '', color = 'k', savePrefix = None, akselit = False, xmax = None   ):
         
     minimi  = None
     maksimi = None
@@ -1557,15 +1696,16 @@ def piirra_domainMeanProfiili( muuttuja, nimi = None, muunnosKerroin = 1.0, ajan
         
     if profiili:
         tiedostonimi = filenamePS
-    else:
+    elif (not profiili)  or binidata:
         tiedostonimi = filenameNC        
     
     for i in xrange(len(arguments)-1):
         uusikuva = True if i == 0 else  False
         data  = np.multiply( mdp.read_Data( tiedostonimi[i], muuttuja), muunnosKerroin )
         zt    = np.asmatrix( mdp.read_Data( tiedostonimi[i], 'zt') )
+        
+        dn0 = mdp.read_Data( tiedostonimi[i], 'dn0' )
         if useDN:
-            dn0 = mdp.read_Data( tiedostonimi[i], 'dn0' )
             data = np.multiply( data, dn0 )
         
         
@@ -1584,20 +1724,36 @@ def piirra_domainMeanProfiili( muuttuja, nimi = None, muunnosKerroin = 1.0, ajan
             TslizeSTR = 'from ' + TslizeSTR
         else:
             TslizeSTR = 'at ' + TslizeSTR
-        print TslizeSTR
+        #print TslizeSTR
         ###############################
         
         if profiili:
             dataSlize  = data[ Tslize,   : ]
-        else:
-            dataSlize  = data[ Tslize,  :, :, : ]
+        elif binidata:
+            dataSlize  = data[ Tslize, :, :, :, : ]
+        elif not profiili:
+            dataSlize  = data[ Tslize, :, :, : ]
         
         if len(Tslize)>1:
             dataSlize = np.mean( dataSlize, axis = 0 )
         
         if profiili:
             dataSlizeMean = dataSlize
-        else:
+        elif binidata:
+            from math import pi
+            rho = 44.2*6./pi
+            painotus =  np.multiply( mdp.read_Data( tiedostonimi[i], muuttujaPainotus), np.multiply( np.power(mdp.read_Data( tiedostonimi[i], muuttujaPainotusPotenssi ),3), dn0*44.2) )  
+            painotusSlize = painotus[ Tslize, :, :, :, : ]
+            if len(Tslize)>1:
+                painotusSlize = np.mean( painotusSlize, axis = 0 )
+                
+            nimittaja = np.sum( np.sum( np.sum(painotusSlize, axis = 0), axis= 0), axis=0 )
+            nimittaja = np.where( nimittaja > 0.,  np.power(nimittaja, -1), 0.)
+            
+            osoittaja = np.sum( np.sum( np.sum(np.multiply(dataSlize, painotusSlize), axis = 0), axis= 0), axis=0 )
+            
+            dataSlizeMean = np.multiply( osoittaja, nimittaja)
+        elif not profiili:
             dataSlizeMean = np.mean( np.mean( dataSlize, axis = 0), axis = 0)
         
         tit = nimi + ' ' + TslizeSTR
@@ -1625,7 +1781,15 @@ def piirra_domainMeanProfiili( muuttuja, nimi = None, muunnosKerroin = 1.0, ajan
         fig, ax = mdp.plottaa( dataSlizeMean.A1, zt.A1, tit , xl = xAxisL, yl='height [m]', changeColor=True, tightXAxis=True, tightYAxis = True, markers=False, LEGEND=True, label = label, omavari = color, scatter=False, uusikuva=uusikuva )       
     ax.title.set_fontsize(35)
     mdp.plot_setXlim( minimi, maksimi, extendBelowZero = False, A = 0.05 )
-
+    
+    if akselit or (xmax is not None):
+        if xmax is None:
+            xmax = np.max(dataSlizeMean)
+        
+        oikeatXtikit = map(int, np.arange( 0, xmax+0.01,  50))
+        ax.set_xticklabels( map(str, oikeatXtikit ))
+        ax.set_xticks( oikeatXtikit )
+        
     if savePrefix is None:
         savePrefix = 'domainMeanProfiili'
     
@@ -2208,7 +2372,7 @@ if ICE:
         #plt.xticks( ticksHours, xLabelsHours )
         
         piirra_aikasarjasettii( muuttuja = 'iwp_bar', muunnosKerroin = 1000.0, longName = 'Ice water path', ylabel = 'path ' + r'[$g/m^2$]', ymin = 0.0,  savePrefix = 'iwpTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel, legenda = True  )
-    
+        piirra_aikasarjasettii( muuttuja = 'swp_bar', muunnosKerroin = 1000.0, longName = 'Ice water path', ylabel = 'path ' + r'[$g/m^2$]', ymin = 0.0,  savePrefix = 'iwpTS', omaVari = False, xlabel = 'time [h]', spinup = spinup, piilotaOsaXlabel = piilotaOsaXlabel, legenda = True  )
 
         #piirra_domainProfiili( 'i', muunnosKerroin = 1000.*np.power(10.,2), longName = 'Ice mixing ratio ' + r'$10^{2}g/kg^{-1}$', useDN = False, transpose = True, colorBarTickValues = cbvalICE, colorBarTickNames = cbvalICEStr, xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup  )
         
@@ -2234,6 +2398,10 @@ if ICE:
         piirra_domainMeanProfiili( 'P_Nia',  nimi = 'Ice number concentration averaged',   muunnosKerroin=1./1000., ajanhetket = [6,8], useDN = True, profiili = True, xAxisL = r'[#$/L$]', color = icevari )
         
         piirra_domainMeanProfiili( 'P_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = False, profiili = True, xAxisL = r'[${\mu}m$]', color = icevari )   
+        
+        piirra_domainMeanProfiili( 'S_Rwiba', nimi = 'Ice particle mass mean diameter averaged testi', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = False, binidata = True, xAxisL = r'[${\mu}m$]', color = icevari, savePrefix = 'domainMassMeanProfiili_salsa' )
+        
+        #piirra_domainMeanProfiili( 'S_Rwiba', nimi = 'Ice particle mean diameter averaged testi', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = False, binidata = True, xAxisL = r'[${\mu}m$]', color = icevari, savePrefix = 'domainMeanProfiili_salsa' )
 
         piirra_domainMeanProfiili( 'P_ri',  nimi = 'Ice mixing ratio averaged',   muunnosKerroin=1000., ajanhetket = [6,8], useDN = False, profiili = True, xAxisL = r'[g/kg]', color = icevari )
         
@@ -2266,55 +2434,88 @@ if ICE:
             piirra_domainProfiili( 'S_Ni', muunnosKerroin = 1.e-3, longName = 'Ice number concentration ', useDN = True, transpose = True, colorBarTickValues = nic, colorBarTickNames = map(str,nic), xlabels = xLabelsHours, ylabels = ylabels, xticks = ticksHours, yticks = korkeustikit, variKartta = profiiliVariICE, spinup = spinup, profiili = False, sliceYbeg = slaissi, sliceXend = slaissi+1, savePrefix = 'NicSlices'  ) 
     
     if int(lvl) == -2:
-        from scipy.interpolate import interp1d
         
-        zin = int(raw_input("Anna z [m]: "))
-        th = int(raw_input("Anna t [h]: "))
+        piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 700, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2
+        piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 400, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2
+        piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 200, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2
+        
+        #from scipy.interpolate import interp1d
+        #import numpy as np
+        #import matplotlib.pyplot as plt
+        #from sklearn.tree import DecisionTreeRegressor
+        #from sklearn.ensemble import AdaBoostRegressor
+        #from random import shuffle
+        #zin = int(raw_input("Anna z [m]: "))
+        #th = int(raw_input("Anna t [h]: "))
 
-        dn0_data     = mdp.read_Data( filenameNC[0], 'dn0'     )
-        time_data    = mdp.read_Data( filenameNC[0], 'time'    )
-        zt_data      = mdp.read_Data( filenameNC[0], 'zt'      )
-        S_Rwiba_data = mdp.read_Data( filenameNC[0], 'S_Rwiba' )
-        S_Niba_data  = mdp.read_Data( filenameNC[0], 'S_Niba'  )
+        #dn0_data     = mdp.read_Data( filenameNC[0], 'dn0'     )
+        #time_data    = mdp.read_Data( filenameNC[0], 'time'    )
+        #zt_data      = mdp.read_Data( filenameNC[0], 'zt'      )
+        #S_Rwiba_data = mdp.read_Data( filenameNC[0], 'S_Rwiba' )
+        #S_Niba_data  = mdp.read_Data( filenameNC[0], 'S_Niba'  )
 
-        t =  np.argmin(np.abs(th*3600-time_data))
-        z =  np.argmin(np.abs(zin-zt_data))
+        #t =  np.argmin(np.abs(th*3600-time_data))
+        #z =  np.argmin(np.abs(zin-zt_data))
         
-        ysize = np.shape(S_Rwiba_data)[2]
-        xsize = np.shape(S_Rwiba_data)[3]        
+        #ysize = np.shape(S_Rwiba_data)[2]
+        #xsize = np.shape(S_Rwiba_data)[3]        
         
-        S_Rwiba_data = S_Rwiba_data[t,:,:,:,z]* 2.e3
-        S_Niba_data  = S_Niba_data[t,:,:,:,z]* dn0_data[z]
+        #S_Rwiba_data = S_Rwiba_data[t,:,:,:,z]* 2.e3
+        #S_Niba_data  = S_Niba_data[t,:,:,:,z]* dn0_data[z]
         
         
-        S_Rwiba_data_flatten = S_Rwiba_data.flatten()
-        S_Niba_data_flatten  = S_Niba_data.flatten()
-        print 'koot slize', np.shape(S_Rwiba_data), np.shape(S_Niba_data), xsize, ysize
-        jarj = np.argsort(S_Rwiba_data_flatten)
-        #print 'koot f', np.shape(S_Rwiba_data_flatten), np.shape(S_Niba_data_flatten), np.shape(jarj), jarj[0]
-        S_Rwiba_data_flatten = np.sort(S_Rwiba_data_flatten)
-        koko = np.shape(S_Niba_data_flatten)
-        apu = np.zeros(koko)
+        #S_Rwiba_data_flatten = S_Rwiba_data.flatten()
+        #S_Niba_data_flatten  = S_Niba_data.flatten()
+        #print 'koot slize', np.shape(S_Rwiba_data), np.shape(S_Niba_data), xsize, ysize 
+        #jarj = np.argsort(S_Rwiba_data_flatten)
+        #print 'koot fa', np.shape(S_Rwiba_data_flatten), np.shape(S_Niba_data_flatten)
+        #S_Rwiba_data_flatten = np.reshape( np.sort(S_Rwiba_data_flatten) , (-1,1) )
+        #koko =  np.shape(S_Niba_data_flatten)
+        #apu = np.zeros(koko)
         
-        for kkk in xrange(koko[0]):
-            apu[kkk] = S_Niba_data_flatten[ jarj[kkk] ]
+        #for kkk in xrange(koko[0]):
+            #apu[kkk] = S_Niba_data_flatten[ jarj[kkk] ]
         
-        S_Niba_data_flatten = apu
+        #S_Niba_data_flatten = np.reshape(apu, (-1,1))
 
-        xnew = np.linspace(min(S_Rwiba_data_flatten),max(S_Rwiba_data_flatten), 1000, endpoint = True)
+        #xnew = np.linspace(np.min(S_Rwiba_data_flatten),np.max(S_Rwiba_data_flatten), 1000, endpoint = True)[:,np.newaxis]
+        #print 'koot fb', np.shape(S_Rwiba_data_flatten), np.shape(S_Niba_data_flatten), np.shape(xnew)
+        ##finter  = interp1d(S_Rwiba_data_flatten, S_Niba_data_flatten)
         
-        finter  = interp1d(S_Rwiba_data_flatten, S_Niba_data_flatten)
+        ### decision tree regression
+        #rng = np.random.RandomState(1)
+        #regr_2 = AdaBoostRegressor(DecisionTreeRegressor(max_depth=4),n_estimators=500, random_state=rng)
+        #regr_2.fit(S_Rwiba_data_flatten, S_Niba_data_flatten)
+        #y_2 = regr_2.predict(xnew)
+        
+        #mdp.initializeColors(xsize*ysize, shuffling = True) 
+        ##colorMap = plt.cm.gist_ncar
+        ##colorlist = [colorMap(i) for i in np.linspace(0, 0.95, xsize*ysize)]
+        ##xx = range(xsize)
+        ##yy = range(ysize)
+        ##shuffle(xx)
+        ##shuffle(yy)
+        
+        ##aa = np.zeros((xsize*ysize,2))
+        ##kk=0;
+        ##for i in xrange(xsize):
+            ##for j in xrange(ysize):
+                ##aa[kk] =  [xx[i], yy[j]]
+                ##kk+=1
+        
+        ##np.random.shuffle(aa)
+        
+        #newfig = True
+        #for x in xrange(xsize):
+            #for y in xrange(ysize):
+                #mdp.plottaa(S_Rwiba_data[:,y,x], S_Niba_data[:,y,x], uusikuva = newfig, scatter = True, LEGEND = False, tightXAxis = True, tightYAxis = True)
+                #newfig = False
+        #mdp.plottaa(xnew, y_2, uusikuva = newfig, omavari='k', LEGEND = False)        
+    if int(lvl) == -3:
+        piirra_domainMeanProfiili( 'P_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = False, profiili = True, xAxisL = r'[${\mu}m$]', color = icevari, xmax=450 )   
         
         
-        
-        newfig = True
-        mdp.initializeColors(xsize*ysize)
-        for x in xrange(xsize):
-            for y in xrange(ysize):
-                mdp.plottaa(S_Rwiba_data[:,y,x], S_Niba_data[:,y,x], uusikuva = newfig, scatter = True, LEGEND = False)
-        
-                newfig = False
-        mdp.plottaa(xnew, finter(xnew), uusikuva = newfig, omavari='k', LEGEND = False)        
+        piirra_domainMeanProfiili( 'S_Rwiba', nimi = 'Ice particle mass mean diameter averaged testi', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = False, binidata = True, xAxisL = r'[${\mu}m$]', color = icevari, savePrefix = 'domainMassMeanProfiili_salsa' )
         
         
 toc = time.clock()
