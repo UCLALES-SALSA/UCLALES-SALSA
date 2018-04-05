@@ -1506,20 +1506,20 @@ def piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 
         ax.set_xticks( oikeatXtikit )
         
         j = 0
-        for label in ax.xaxis.get_ticklabels():
+        for xxlabel in ax.xaxis.get_ticklabels():
             #if np.mod(j,4) != 0:
             if j==0:
-                label.set_visible(False)
+                xxlabel.set_visible(False)
             j+=1
             
         
         
             
         if savePrefix is None:  
-            savePrefix = typename + '_size_distribution_'+str(time_data[t]/3600.) + 'h_' + str(zt_data[z]) + 'm'
+            savePrefix = typename+ '_size_distribution_'
 
         if saveFig:
-            plt.savefig( picturefolder + savePrefix + '_' + saveTag + LVLprintSave + '.png')
+            plt.savefig( picturefolder + savePrefix  + label + '_' + saveTag+ '_'+ str(time_data[t]/3600.) + 'h_' + str(zt_data[z]) + 'm' + LVLprintSave + '.png')
 
 
    
@@ -2438,85 +2438,16 @@ if ICE:
         piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 700, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2
         piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 400, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2
         piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 200, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2
-        
-        #from scipy.interpolate import interp1d
-        #import numpy as np
-        #import matplotlib.pyplot as plt
-        #from sklearn.tree import DecisionTreeRegressor
-        #from sklearn.ensemble import AdaBoostRegressor
-        #from random import shuffle
-        #zin = int(raw_input("Anna z [m]: "))
-        #th = int(raw_input("Anna t [h]: "))
 
-        #dn0_data     = mdp.read_Data( filenameNC[0], 'dn0'     )
-        #time_data    = mdp.read_Data( filenameNC[0], 'time'    )
-        #zt_data      = mdp.read_Data( filenameNC[0], 'zt'      )
-        #S_Rwiba_data = mdp.read_Data( filenameNC[0], 'S_Rwiba' )
-        #S_Niba_data  = mdp.read_Data( filenameNC[0], 'S_Niba'  )
-
-        #t =  np.argmin(np.abs(th*3600-time_data))
-        #z =  np.argmin(np.abs(zin-zt_data))
-        
-        #ysize = np.shape(S_Rwiba_data)[2]
-        #xsize = np.shape(S_Rwiba_data)[3]        
-        
-        #S_Rwiba_data = S_Rwiba_data[t,:,:,:,z]* 2.e3
-        #S_Niba_data  = S_Niba_data[t,:,:,:,z]* dn0_data[z]
-        
-        
-        #S_Rwiba_data_flatten = S_Rwiba_data.flatten()
-        #S_Niba_data_flatten  = S_Niba_data.flatten()
-        #print 'koot slize', np.shape(S_Rwiba_data), np.shape(S_Niba_data), xsize, ysize 
-        #jarj = np.argsort(S_Rwiba_data_flatten)
-        #print 'koot fa', np.shape(S_Rwiba_data_flatten), np.shape(S_Niba_data_flatten)
-        #S_Rwiba_data_flatten = np.reshape( np.sort(S_Rwiba_data_flatten) , (-1,1) )
-        #koko =  np.shape(S_Niba_data_flatten)
-        #apu = np.zeros(koko)
-        
-        #for kkk in xrange(koko[0]):
-            #apu[kkk] = S_Niba_data_flatten[ jarj[kkk] ]
-        
-        #S_Niba_data_flatten = np.reshape(apu, (-1,1))
-
-        #xnew = np.linspace(np.min(S_Rwiba_data_flatten),np.max(S_Rwiba_data_flatten), 1000, endpoint = True)[:,np.newaxis]
-        #print 'koot fb', np.shape(S_Rwiba_data_flatten), np.shape(S_Niba_data_flatten), np.shape(xnew)
-        ##finter  = interp1d(S_Rwiba_data_flatten, S_Niba_data_flatten)
-        
-        ### decision tree regression
-        #rng = np.random.RandomState(1)
-        #regr_2 = AdaBoostRegressor(DecisionTreeRegressor(max_depth=4),n_estimators=500, random_state=rng)
-        #regr_2.fit(S_Rwiba_data_flatten, S_Niba_data_flatten)
-        #y_2 = regr_2.predict(xnew)
-        
-        #mdp.initializeColors(xsize*ysize, shuffling = True) 
-        ##colorMap = plt.cm.gist_ncar
-        ##colorlist = [colorMap(i) for i in np.linspace(0, 0.95, xsize*ysize)]
-        ##xx = range(xsize)
-        ##yy = range(ysize)
-        ##shuffle(xx)
-        ##shuffle(yy)
-        
-        ##aa = np.zeros((xsize*ysize,2))
-        ##kk=0;
-        ##for i in xrange(xsize):
-            ##for j in xrange(ysize):
-                ##aa[kk] =  [xx[i], yy[j]]
-                ##kk+=1
-        
-        ##np.random.shuffle(aa)
-        
-        #newfig = True
-        #for x in xrange(xsize):
-            #for y in xrange(ysize):
-                #mdp.plottaa(S_Rwiba_data[:,y,x], S_Niba_data[:,y,x], uusikuva = newfig, scatter = True, LEGEND = False, tightXAxis = True, tightYAxis = True)
-                #newfig = False
-        #mdp.plottaa(xnew, y_2, uusikuva = newfig, omavari='k', LEGEND = False)        
     if int(lvl) == -3:
-        piirra_domainMeanProfiili( 'P_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = False, profiili = True, xAxisL = r'[${\mu}m$]', color = icevari, xmax=450 )   
-        
-        
+        piirra_domainMeanProfiili( 'P_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = False, profiili = True, xAxisL = r'[${\mu}m$]', color = icevari, xmax=450 )           
         piirra_domainMeanProfiili( 'S_Rwiba', nimi = 'Ice particle mass mean diameter averaged testi', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = False, binidata = True, xAxisL = r'[${\mu}m$]', color = icevari, savePrefix = 'domainMassMeanProfiili_salsa' )
         
+    if int(lvl) == -4:
+        
+        piirra_kokojakauma( muuttujaR = 'S_Rwsba', muuttujaN = 'S_Nsba', typename = 'Snow', korkeusH = 700, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2
+        piirra_kokojakauma( muuttujaR = 'S_Rwsba', muuttujaN = 'S_Nsba', typename = 'Snow', korkeusH = 400, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2
+        piirra_kokojakauma( muuttujaR = 'S_Rwsba', muuttujaN = 'S_Nsba', typename = 'Snow', korkeusH = 200, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2        
         
 toc = time.clock()
 print toc - tic
