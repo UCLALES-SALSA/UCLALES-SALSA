@@ -1340,7 +1340,7 @@ CONTAINS
 
         if ( sumICE > Ni0 ) cycle
 
-        DO kk = nice,1,-1 ! Assuming nice=ncld
+        DO kk = 1,nice ! Assuming nice=ncld
             IF( sumICE < Ni0 .AND. pcloud(ii,jj,kk)%numc > nlim) THEN
 
                 iceTendecyNumber = max( 0.0, min( Ni0 - pice(ii,jj,kk)%numc , pcloud(ii,jj,kk)%numc )  )
