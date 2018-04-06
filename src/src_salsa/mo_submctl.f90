@@ -161,7 +161,7 @@ MODULE mo_submctl
 
   REAL ::                       &
    reglim(nreg+2) =                            & ! low/high diameter limits
-    (/ 3.e-9, 5.e-8, 7.e-7, 1.e-6 /) ! of main size regimes [m]
+    (/ 3.e-9, 5.e-8, 7.e-7, 1.e-5 /) ! of main size regimes [m]
 
    INTEGER :: &
    nbin(nreg) = (/ 3, 7 /)   ! number of bins in each main regime 
