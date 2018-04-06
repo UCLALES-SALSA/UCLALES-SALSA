@@ -293,8 +293,6 @@ CONTAINS
 
       CALL update_sclrs
 
-      !WRITE(*,*) 'UPDATE JALKEEN',  a_nprecpp(30,3,3,1:nprc)
-
       !-------------------------------------------
       ! "Deposition" timestep
       ! -- Reset only scalar tendencies
@@ -329,8 +327,6 @@ CONTAINS
          CALL SALSA_diagnostics
          CALL thermo(level)
       END IF
-
-      !WRITE(*,*) 'SALSA diag JALKEEN',  a_nprecpp(30,3,3,1:nprc)
 
       CALL corlos
 

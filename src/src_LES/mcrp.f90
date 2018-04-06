@@ -667,7 +667,7 @@ CONTAINS
          msnowt(:,:,:,:) = msnowt(:,:,:,:) + srvt(:,:,:,:)/tstep
 
          ! Convert mass flux to heat flux (W/m^2)
-         rrate(:,:,:) = rrate(:,:,:)*alvi
+         srate(:,:,:) = srate(:,:,:)*alvi
 
          nc = spec%getIndex('H2O')
          istr = getMassIndex(nsnw,1,nc)
