@@ -70,10 +70,7 @@ MODULE grid
    CHARACTER (len=200) :: expnme = 'Default' ! Experiment name
    CHARACTER (len=200) :: filprf = 'x'       ! File Prefix
    CHARACTER (len=7)  :: runtype = 'INITIAL'! Run Type SELECTion
-
-   REAL               :: Tspinup = 7200.    ! Spinup period in seconds (added by Juha)
-
-
+   
    CHARACTER (len=7),  PRIVATE :: v_snm = 'sxx    '
    CHARACTER (len=200), PRIVATE :: fname
 

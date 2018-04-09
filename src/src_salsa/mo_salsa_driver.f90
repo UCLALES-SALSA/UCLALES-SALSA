@@ -63,7 +63,7 @@ CONTAINS
                         pa_nicep,   pa_nicet,   pa_micep,   pa_micet,    &
                         pa_nsnowp,  pa_nsnowt,  pa_msnowp,  pa_msnowt,   &
                         pa_nactd,   pa_vactd,   pa_gaerop,  pa_gaerot,   &
-                        prunmode, tstep, time, level)
+                        tstep, time, level, initialize)
 
       USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
                              nice,nsnw,ntotal,                    &
@@ -76,9 +76,7 @@ CONTAINS
       REAL, INTENT(in)    :: tstep                                ! Model timestep length
       REAL, INTENT(in)    :: time
       
-      INTEGER, INTENT(in) :: prunmode                         ! 1: initialization call
-                                                              ! 2: Spinup (not important here)
-                                                              ! 3: regular runtime (not important here)
+      LOGICAL, INTENT(in) :: initialize                      
 
       REAL, INTENT(in)    :: press(pnz,pnx,pny), &            ! Pressure (Pa)
                              tk(pnz,pnx,pny),    &            ! Temperature (K)
@@ -147,8 +145,6 @@ CONTAINS
 
       str = getMassIndex(nprc,1,nwet)
       end = getMassIndex(nprc,nprc,nwet)
-      !WRITE(*,*) 'ENNEN', SUM(pa_mprecpp(30,3,3,str:end))
-      !WRITE(*,*) 'ENNEN', pa_nprecpp(30,3,3,1:nprc)
 
       ! Set the SALSA runtime config 
       CALL set_salsa_runtime(time)
@@ -166,10 +162,10 @@ CONTAINS
                in_w(1,1) = wp(kk,ii,jj)
 
                ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
-               IF (prunmode < 3) THEN
-                  in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)
-               ELSE
+               IF ( lsfreeRH%state ) THEN
                   in_rv(1,1) = rv(kk,ii,jj)
+               ELSE
+                  in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)
                END IF
                rv_old(1,1) = in_rv(1,1)
        
@@ -187,8 +183,6 @@ CONTAINS
                   str = getMassIndex(nprc,1,nc)
                   end = getMassIndex(nprc,nprc,nc)
                   precp(1,1,1:nprc)%volc(nc) = pa_mprecpp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nc)
-                  !WRITE(*,*) pdn(kk,ii,jj), spec%rholiq(nc), nc, nwet
-                  
 
                   str = getMassIndex(nice,1,nc)
                   end = getMassIndex(nice,nice,nc)
@@ -230,11 +224,8 @@ CONTAINS
                END IF
         
                ! If this is an initialization call, calculate the equilibrium particle
-               If (prunmode == 1) CALL equilibration(kproma,kbdim,klev,   &
+               If (initialize) CALL equilibration(kproma,kbdim,klev,   &
                                                      init_rh,in_t,.TRUE.)
-
-               !WRITE(*,*) 'ENNEN NUMERO',SUM(precp(1,1,1:nprc)%numc)
-               !WRITE(*,*) 'ENNEN MASSSA',SUM(precp(1,1,1:nprc)%volc(nwet))
 
                ! Convert to #/m3
                zgso4(1,1) = pa_gaerop(kk,ii,jj,1)*pdn(kk,ii,jj)
@@ -252,10 +243,6 @@ CONTAINS
                           zgso4,  zgocnv, zgocsv, zghno3,   &
                           zgnh3,  allSALSA,                 &
                           actd,   in_w, level               )
-
-
-               !WRITE(*,*) 'JALKEEN NUMERO',SUM(precp(1,1,1:nprc)%numc)
-               !WRITE(*,*) 'JALKEEN MASSSA',SUM(precp(1,1,1:nprc)%volc(nwet))
 
                ! Calculate tendencies (convert back to #/kg or kg/kg)
                pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &
@@ -330,10 +317,6 @@ CONTAINS
          END DO ! ii
       END DO ! jj
 
-      !WRITE(*,*) 'JALKEEN', SUM(pa_mprecpp(30,3,3,str:end))
-      !WRITE(*,*) 'JALKEEN', pa_nprecpp(30,3,3,1:nprc)
-
-
    END SUBROUTINE run_SALSA
 
    !
@@ -344,7 +327,7 @@ CONTAINS
    ! Juha Tonttila, FMI, 2014
    !
    SUBROUTINE set_SALSA_runtime(time)
-     USE mo_submctl, ONLY : Nmaster, lsmaster
+     USE mo_submctl, ONLY : Nmaster, lsmaster, lsfreeRH
      IMPLICIT NONE
      REAL, INTENT(in) :: time
      INTEGER :: i
@@ -352,6 +335,9 @@ CONTAINS
      DO i = 1,Nmaster
         IF( lsmaster(i)%switch .AND. time > lsmaster(i)%delay ) lsmaster(i)%state = .TRUE.
      END DO
+
+     ! Some other switches
+     IF ( lsfreeRH%switch .AND. time > lsfreeRH%delay ) lsfreeRH%state = .TRUE.
 
 
 

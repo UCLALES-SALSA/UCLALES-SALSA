@@ -71,6 +71,13 @@ MODULE mo_submctl
 
   LOGICAL :: lscheckarrays = .FALSE.
 
+  TYPE(ProcessSwitch) :: lsfreeRH   ! If FALSE, use RH constrained by *rhlim* for SALSA processes. Otherwise use the predicted value.
+                                    ! If lsfreeRH%delay > 0, the constrain is active until that time.
+  ! RH Limit: used for initialization and spinup within SALSA to limit the water vapour mixing ratio.
+  ! Prevents unrealistically high RH in cloud activation and condensation procedures that is often assigned
+  ! in the LES input files to immediately generate cloud. Given in %/100.
+  REAL :: rhlim = 1.20
+
   ! 1) Switches for aerosol microphysical processes ------------------------
   INTEGER, PARAMETER :: nmod = 7
 
@@ -95,11 +102,6 @@ MODULE mo_submctl
                                   ! 2 = coagulational sink (Lehtinen et al. 2007)
                                   ! 3 = coagS+self-coagulation (Anttila et al. 2010)
   REAL :: act_coeff = 1.e-7  ! activation coefficient
-
-  ! RH Limit: used for initialization and spinup within SALSA to limit the water vapour mixing ratio.
-  ! Prevents unrealistically high RH in cloud activation and condensation procedures that is often assigned
-  ! in the LES input files to immediately generate cloud. Given in %/100.
-  REAL :: rhlim = 1.20
   
   ! Define which aerosol species used and initial size distributions
   TYPE(Species), TARGET :: spec  ! Must be initialized in mo_salsa_init (pointer associations). Holds aerosol species indices and properties

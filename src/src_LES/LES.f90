@@ -98,7 +98,7 @@ CONTAINS
       USE grid, ONLY : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                        dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                        filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
-                       nfpt, distim, runtype, CCN, Tspinup,sst, lbinanl, cntlat
+                       nfpt, distim, runtype, CCN, sst, lbinanl, cntlat
       USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                        zrand, zrndamp
       USE stat, ONLY : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
@@ -109,7 +109,8 @@ CONTAINS
                                  RadConstPress, &
                                  RadPrecipBins, &
                                  RadSnowBins
-      USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
+      USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, init_mcrp_switches, &
+                       bulk_autoc
       USE mpi_interface, ONLY : myid, appl_abort, ver, author
       
       IMPLICIT NONE
@@ -144,10 +145,11 @@ CONTAINS
            us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
            umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
            lnudging, lemission,       & ! master switch for nudging, aerosol emissions
-           Tspinup, lbinanl,          & ! Length of spinup period in seconds
+           lbinanl,          &          ! 
            div, case_name, &            ! divergence for LEVEL 4
-           sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
-      
+           sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow,  & ! Sedimentation (T/F)
+           bulk_autoc                                            ! autoconversion (and accretion) switch for level < 4 
+
       NAMELIST /radiation/         &
            radfrq,                   & ! radiation type flag RADFRQ NOT USED ANYWHERE, VARIABLE DECLARED IN STEP.F90
            radsounding, sfc_albedo,  & ! Name of the radiation sounding file, surface albedo
@@ -180,6 +182,13 @@ CONTAINS
       !
       fftinix = 1
       fftiniy = 1
+
+      !
+      ! Initialize some process switches (mcrp...etc). Need to be done here, before reading the NAMELIST!
+      ! -------------------------------------------------------------------------------------------------
+      CALL init_mcrp_switches()
+
+
       !
       ! read namelist from specified file
       !
@@ -209,7 +218,7 @@ CONTAINS
          ELSE
             WRITE(*,600) expnme, timmax
          END IF
-         IF (outflg) WRITE(*,602) filprf, frqhis, frqanl, Tspinup
+         IF (outflg) WRITE(*,602) filprf, frqhis, frqanl
          !
          ! Do some cursory error checking in namelist variables
          !

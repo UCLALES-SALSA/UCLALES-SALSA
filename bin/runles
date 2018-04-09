@@ -21,15 +21,15 @@ NPROCS=2          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=40              # Number of points in Y-direction (including "halo" points)
+NYP=60              # Number of points in Y-direction (including "halo" points)
 NZP=70              # Number of points in Z-direction
 DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=100.        # Length of the spinup period (seconds)
+Tspinup=1800.        # Length of the spinup period (seconds)
 Texp=28800.         # Length of the experiment (seconds)
-LEVEL=5             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
 
 
@@ -70,7 +70,6 @@ cat > NAMELIST <<EOF
   dtlong = ${DT}              ! Max. timestep
   distim = 100.               ! Timescale for the dissipation in sponge layer
   timmax = ${Texp}            ! Length of the simulation
-  Tspinup = ${Tspinup}        ! Length of the spinup period
   runtype = "INITIAL"         ! INITIAL or HISTORY (restart) run
   CCN = 600.e6                ! 
   corflg = .false.            ! Apply coriolis force
@@ -79,15 +78,21 @@ cat > NAMELIST <<EOF
   hfilin = '${EXPNAME}.h.rst'
   ssam_intvl = 120.           ! Interval for statistical output
   savg_intvl = 120.           ! Averaging interval for stat output
-  frqanl = 30.                ! Interval for full domain output
+  frqanl = 60.                ! Interval for full domain output
   lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
   salsa_b_bins = .TRUE.
   mcflg = .FALSE.             ! Do mass conservation statistics
-  sed_aero = .FALSE.          ! Calculate sedimentation of aerosol particles
-  sed_cloud = .TRUE.          ! - '' - cloud droplets
-  sed_precp = .TRUE.          ! precipitation
-  sed_ice = .TRUE.            ! ice particles
-  sed_snow = .TRUE.           ! snow flakes/precipitating ice
+
+  sed_aero%switch = .FALSE.          ! Calculate sedimentation of aerosol particles
+  sed_cloud%switch = .TRUE.          ! - '' - cloud droplets
+  sed_cloud%delay = ${Tspinup}
+  sed_precp%switch = .TRUE.          ! precipitation
+  sed_precp%delay = ${Tspinup}  
+  sed_ice%switch = .FALSE.            ! ice particles
+  sed_snow%switch = .FALSE.           ! snow flakes/precipitating ice
+  bulk_autoc%switch = .TRUE.
+  bulk_autoc%delay = ${Tspinup}      ! Autoconversion switch for level = 1-3
+
   itsflg = 1                  ! Flag for temperature type in input sounding
   ipsflg = 1                  ! - '' - for pressure
   lnudging = .TRUE.           ! Master swtich for nudging scheme
@@ -98,11 +103,11 @@ cat > NAMELIST <<EOF
   div = 3.75e-6               ! Large-scale divergence
   dthcon = 16.0                ! Sensible heat flux
   drtcon = 93.0               ! Latent heat flux
-  sst = 263.                 ! Surface temperature
+  sst = 287.                 ! Surface temperature
   zrough = 0.001                ! Roughness length
   ubmin = -0.25
-  th00 = 263.                 ! Reference temperature
-  umean =  10.0                
+  th00 = 288.                 ! Reference temperature
+  umean =  0.0                
   vmean =  0.
  /
 
@@ -117,13 +122,13 @@ cat > NAMELIST <<EOF
  ! With lnudging = .TRUE.
  &nudge
 
-  nudge_time = 1000.          ! Overall time for nudging from the start of the simulation
+  nudge_time = 7200.          ! Overall time for nudging from the start of the simulation
 
   ndg_theta%nudgetype = 1
   ndg_theta%tau_type = 2      ! Type of relaxation time (0:constant, 1-3: increasing)
   ndg_theta%tau_min = 300.    ! Min relaxation time (with tau_type=1-3 and constant tau)
-  ndg_theta%tau_max = 900.   ! Max relaxation time (with tau_type=1-3)
-  ndg_theta%tau_max_continue = .TRUE.
+  ndg_theta%tau_max = 3600.   ! Max relaxation time (with tau_type=1-3)
+  ndg_theta%tau_max_continue = .FALSE.
 
  /
 
@@ -171,11 +176,11 @@ cat > NAMELIST <<EOF
 
    lsactiv%switch = .TRUE.
 
-   lsicenucl%switch = .TRUE.
+   lsicenucl%switch = .FALSE.
 
    lsautosnow%switch = .FALSE.
 
-   lsicemelt%switch = .TRUE.
+   lsicemelt%switch = .FALSE.
 
    lscgcc = .TRUE.       ! Self-collection of cloud droplets
    lscgpp = .TRUE.       ! Self-collection of rain drops
@@ -205,20 +210,22 @@ cat > NAMELIST <<EOF
    ice_imm     = .TRUE.
    ice_dep     = .TRUE.
 
-   lscheckarrays = .TRUE.
+   lscheckarrays = .FALSE.
 
-   rhlim = 1.2          ! RH limit for SALSA during initialization and spinup
+   lsfreeRH%switch = .TRUE.
+   lsfreeRH%delay = ${Tspinup}
+   rhlim = 1.001          ! RH limit for SALSA during initialization and spinup
 
    isdtyp = 0
    nspec = 2
-   listspec = 'SO4','DU','','','','',''
-   volDistA = 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0   
+   listspec = 'SO4','SS','','','','',''
+   volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0   
    volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    nf2a = 1.0
 
    sigmag = 1.2, 1.7, 2.0, 2.0, 2.0, 2.0, 2.0  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpg = 0.022, 0.12, 0.2, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   n = 400., 400., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3
+   n = 400., 200., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3
  
  /
 
