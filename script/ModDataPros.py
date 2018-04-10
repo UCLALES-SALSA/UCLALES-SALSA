@@ -734,17 +734,19 @@ def plot_horizontal( y, vari = 'k', viivatyyli = '--' ):
 ### initialize a new figure          ###
 ###                                  ###
 ########################################   
-def plot_alustus(a=24,b=15):
-  #plt.figure( figsize=(20,10) )
-  
-  #manager = plt.get_current_fig_manager()
-  #manager.window.showMaximized()
-  
-  fig = plt.figure( figsize = (a,b) )
-  ax  = fig.add_subplot(1,1,1)
+def plot_alustus(a=24,b=15, uusifig = True, uusisub = True, sub_i = 1, sub_j = 1, sub_k = 1, figuuri = None):
+    
+  if uusifig:
+    plot_alustus.fig = plt.figure( figsize = (a,b) )
+  if uusisub:
+    if figuuri is None:
+        kuva = plot_alustus.fig
+    else:
+        kuva = figuuri
+    plot_alustus.ax  = kuva.add_subplot( sub_i, sub_j, sub_k )
 
   
-  return fig, ax
+  return kuva, plot_alustus.ax
 
   
 ########################################
@@ -808,10 +810,12 @@ def plot_setXlim( minimiX, maksimiX, extendBelowZero = True, A = 0.05 ):
 ### plot data                        ###
 ###                                  ###
 ########################################
-def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, currentColor = 'b', changeColor=True, tightXAxis=False, tightYAxis = False, markers=False, LEGEND=True, omavari = False, scatter=False, uusikuva = False, gridi = True, loc = 3, markersize = 10, marker = 'o', a = 24, b=15, ):
+def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, currentColor = 'b', changeColor=True, tightXAxis=False, tightYAxis = False, markers=False, LEGEND=True, omavari = False, scatter=False, uusikuva = False, gridi = True, loc = 3, markersize = 10, marker = 'o', a = 24, b=15, sub_i = 1, sub_j = 1, sub_k = 1, uusifig = True, uusisub = True, figuuri = None):
+    
+  
   if uusikuva:
-      plottaa.fig, plottaa.ax = plot_alustus(a,b)
-
+      plottaa.fig, plottaa.ax = plot_alustus(a=a,b=b, uusifig = uusifig, uusisub = uusisub, sub_i = sub_i, sub_j = sub_j, sub_k = sub_k, figuuri = figuuri )
+  
   global color
   if  label is None:
       label = tit
@@ -830,7 +834,7 @@ def plottaa( x, y, tit = ' ', xl = ' ', yl = ' ', label=None, log=False, current
       
       plt.plot( x, y, color = currentColor, label=label, linestyle='-', marker=marker, markersize = markersize )
   elif not markers and not scatter:
-      plt.plot( x, y, color = currentColor, label=label)
+      plt.plot( x, y, color = currentColor, label=label) # default
   elif scatter:
       plt.scatter( x, y, color = currentColor, label=label, s=markersize**2, marker = marker)
   

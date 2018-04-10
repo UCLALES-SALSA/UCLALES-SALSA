@@ -1396,10 +1396,16 @@ def piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 
         korkeusH = int(raw_input("Anna z [m]: "))
     if aikaT is None:
         aikaT = int(raw_input("Anna t [h]: "))
-        
+    
+    
+    
+    LKM = len(arguments)-1
+    #fig , ax = mdp.plot_alustus(a=24,b=15*LKM, sub_i = 1, sub_j = LKM, )
+    #uusifig = True
+    figuuri = None
     for i in xrange(len(arguments)-1):
-        uusikuva = True
         
+        uusikuva = True
         if EMUL:
             if not EMULCASES:
                 case_indeksi = int(filenameNC[i].split("/")[-2][-2:])-1
@@ -1461,8 +1467,8 @@ def piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 
         
         label = labelArray[i]
         
-        tit = typename + ' size distribution, slize t = ' + str(time_data[t]/3600.) + ' [h], h = ' + str(zt_data[z]) + ' [m] ' + label
-        
+        #tit = typename + ' size distribution, slize t = ' + str(round(time_data[t]/3600.,1)) + ' [h], h = ' + str(zt_data[z]) + ' [m] ' + label
+        tit ='slize t = ' + str(round(time_data[t]/3600.,1)) + ' [h], h = ' + str(zt_data[z]) + ' [m] ' + label
         if xCustSize is None:
             xlist = range(xsize)
         else:
@@ -1480,14 +1486,42 @@ def piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 
         print 'kokojakauma x ja y indeksit', xlist, ylist    
         mdp.initializeColors(len(xlist)*len(ylist), shuffling = sekoita)
         
-        
-        
+        oikeatXtikit = np.arange( 0, xmax+0.01,  0.2)
         for x in xlist:
             for y in ylist:
-                fig , ax = mdp.plottaa(Diameter_data[:,y,x], Number_data[:,y,x],xl=xlabel, yl=ylabel, tit = tit, uusikuva = uusikuva, scatter = True, LEGEND = False, tightXAxis = True, tightYAxis = True, gridi = False)
-                uusikuva = False
+                if figuuri is None:
+                    uusifig = True
+                else:
+                    uusifig = False
+                    ylabel = ' '
+                
+                fig, ax =  mdp.plottaa(Diameter_data[:,y,x], Number_data[:,y,x],xl=xlabel, yl=ylabel, tit = ' ', uusikuva = uusikuva, scatter = True, LEGEND = False, tightXAxis = True, tightYAxis = True, gridi = False, sub_i = 1, sub_j = LKM, sub_k = i+1, figuuri = None, uusisub = True, uusifig = uusifig )
+                
+                figuuri = fig
+                ax.title.set_text(tit)
+                ax.title.set_fontsize(22)
+                
+                
+                ax.set_xticklabels( map(str, oikeatXtikit ))
+                ax.set_xticks( oikeatXtikit )
+                
+                j = 0
+                for xxlabel in ax.xaxis.get_ticklabels():
+                    if np.mod(j-1,4) != 0 or j == 0:
+                    #if j==0:
+                        xxlabel.set_visible(False)
+                    j+=1
+                xxlabel.set_visible(True)
+                if i > 0:
+                    for yylabel in ax.yaxis.get_ticklabels():
+                        yylabel.set_visible(False)
+                    
+                
         if interplo:
-            mdp.plottaa(xnew, y_2,xl=xlabel, yl=ylabel, tit = tit, uusikuva = uusikuva, omavari='k', LEGEND = False)
+            mdp.plottaa(xnew, y_2,xl=xlabel, yl=ylabel, tit = ' ', uusikuva = uusikuva, omavari='k', LEGEND = False, sub_i = 1, sub_j = LKM, sub_k = i+1)
+        
+        figuuri.suptitle( typename + ' size distribution') #, fontsize=45
+
         
         # jos ymin ja ymax arvoja ei ole ennalta annettu, niin kaytetaan kuvan raja-arvoina laskettuja arvoja
         if ymax is None:
@@ -1500,26 +1534,20 @@ def piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 
             plt.ylim( 0., 1.1*ymax )
             plt.xlim( 0., xmax )
         
-        oikeatXtikit = np.arange( 0, xmax+0.01,  0.2)
-        
-        ax.set_xticklabels( map(str, oikeatXtikit ))
-        ax.set_xticks( oikeatXtikit )
-        
-        j = 0
-        for xxlabel in ax.xaxis.get_ticklabels():
-            #if np.mod(j,4) != 0:
-            if j==0:
-                xxlabel.set_visible(False)
-            j+=1
-            
         
         
-            
-        if savePrefix is None:  
-            savePrefix = typename+ '_size_distribution_'
 
-        if saveFig:
-            plt.savefig( picturefolder + savePrefix  + label + '_' + saveTag+ '_'+ str(time_data[t]/3600.) + 'h_' + str(zt_data[z]) + 'm' + LVLprintSave + '.png')
+        
+        
+            
+        
+        
+            
+    if savePrefix is None:  
+        savePrefix = typename+ '_size_distribution'
+
+    if saveFig:
+        plt.savefig( picturefolder + savePrefix  + '_' + saveTag+ '_'+ str(round(time_data[t]/3600.,1)) + 'h_' + str(zt_data[z]) + 'm' + LVLprintSave + '.png')
 
 
    
@@ -2435,9 +2463,9 @@ if ICE:
     
     if int(lvl) == -2:
         
-        piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 700, aikaT = 6, ymax = 11000, xmax = 1.6, xCustSize = 2, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2
-        piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 400, aikaT = 6, ymax = 11000, xmax = 1.6, xCustSize = 2, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2
-        piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 200, aikaT = 6, ymax = 11000, xmax = 1.6, xCustSize = 2, yCustSize = 2, sekoita = False, interplo = False ) # , yCustSize = 2
+        piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 700, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , xCustSize = 2
+        piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 400, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , xCustSize = 2
+        piirra_kokojakauma( muuttujaR = 'S_Rwiba', muuttujaN = 'S_Niba', typename = 'Ice', korkeusH = 200, aikaT = 6, ymax = 11000, xmax = 1.6, yCustSize = 2, sekoita = False, interplo = False ) # , xCustSize = 2
 
     if int(lvl) == -3:
         piirra_domainMeanProfiili( 'P_Rwia', nimi = 'Ice particle mean diameter averaged', muunnosKerroin=2.e6  ,   ajanhetket = [6,8], useDN = False, profiili = True, xAxisL = r'[${\mu}m$]', color = icevari, xmax=450 )           

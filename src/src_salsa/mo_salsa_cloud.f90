@@ -1319,7 +1319,7 @@ CONTAINS
     INTEGER :: ii,jj,kk,ss
 
     REAL :: pdn, iceSupSat, rc_tot, Ni0,  &
-            sumICE, iceTendecyNumber, liqToIceFrac
+            sumICE, iceTendecyNumber, liqToIceFrac, sumLIQ, liqToIceFracVOL
 
 
     DO ii = 1,kbdim
@@ -1337,28 +1337,36 @@ CONTAINS
 
         ! current ice number concentration (#/m^3)
         sumICE    = sum(   pice(ii,jj,:)%numc )
+        
+        ! current cloud number concentration (#/m^3)
+        sumLIQ    = sum(   pcloud(ii,jj,:)%numc )
 
-        if ( sumICE > Ni0 ) cycle
-
-        DO kk = 1,nice ! Assuming nice=ncld
-            IF( sumICE < Ni0 .AND. pcloud(ii,jj,kk)%numc > nlim) THEN
-
-                iceTendecyNumber = max( 0.0, min( Ni0 - pice(ii,jj,kk)%numc , pcloud(ii,jj,kk)%numc )  )
-
+        DO WHILE ( sumICE < Ni0 )
+        
+            liqToIceFrac = (Ni0 - sumICE)/sumLIQ
+            
+            DO kk = nice,1,-1
+                IF (pcloud(ii,jj,kk)%numc < nlim ) cycle
+                
+                iceTendecyNumber =   + max( 0.0, min( 1.0, liqToIceFrac))*pcloud(ii,jj,kk)%numc
                 pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + iceTendecyNumber
-                sumICE = sumICE + iceTendecyNumber
-
-                liqToIceFrac   = MAX( 0.0, MIN( 1.0, iceTendecyNumber/pcloud(ii,jj,kk)%numc ) )
                 pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - iceTendecyNumber
-
+                
+                
+                
+                liqToIceFracVOL   = MAX( 0.0, MIN( 1.0, iceTendecyNumber/pcloud(ii,jj,kk)%numc ) )
+                pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - iceTendecyNumber
+ 
                 DO ss = 1,7
-                    pice(ii,jj,kk)%volc(ss) = pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
-                    pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
+                    pice(ii,jj,kk)%volc(ss) = pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFracVOL )
+                    pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFracVOL )
                 END DO
                 ss=8 ! Water
-                pice(ii,jj,kk)%volc(ss) = pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac*rhowa/rhoic )
-                pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
-            END IF
+                pice(ii,jj,kk)%volc(ss) = pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFracVOL*rhowa/rhoic )
+                pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFracVOL )
+            END DO
+            
+            sumICE    = sum(   pice(ii,jj,:)%numc )
         END DO
     END DO
     END DO
