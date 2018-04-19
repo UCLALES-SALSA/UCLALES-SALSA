@@ -51,12 +51,12 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 	# a) Averages - when the ouput should be the average over model domain
 	#	Note: this is the 'default' method
 	# b) Maximums - when the output should be the maximum over all model grid cells
-	maxnms = ['zc','cfl','maxdiv','wmax','lmax']
+	maxnms = ['zc','cfl','maxdiv','wmax','lmax','imax','smax']
 	# c) Minimum - when the output should be the minimum over all model grid cells
 	minnms = ['zb']
 	# d) Sums - when the output is the sum over model grid cells
 	#	Note: the output really depends on the number of grid cells!
-	sumnms = ['nrcnt','nccnt','cnt_cs1','cnt_cs2']
+	sumnms = ['nrcnt','nccnt','cnt_cs1','cnt_cs2','nicnt','nscnt']
 	# e) Weighted averages (weights must be specified below) - needed for conditional averages
 	#	Note: weight ~ conditinal coverage
 	weighted = []

@@ -12,7 +12,7 @@ set -e
 
 cat > ${dir}/NAMELIST <<EOF
  &version
-  ver="v1.0.8"
+  ver="${ver}"
  /
 
  &model

@@ -10,6 +10,19 @@ set -e
 ###                    ###
 ##########################
 
+########### version
+command -v git 2>&1 >/dev/null
+if [ $? -eq 0 ]; then
+    ver=`git describe --tags 2>&1`
+    if [ $? -ne 0 ]; then
+        echo "Ignore possible error, git just doesn't find a version tag - using default value"
+        ver=vx.x.x
+    fi
+else
+    ver=latest
+fi
+########### end version
+
 cat > ${dir}/NAMELIST <<EOF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! DESIGN VERSION ${design}
@@ -23,7 +36,7 @@ cat > ${dir}/NAMELIST <<EOF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
  &version
-  ver="v1.0.8"
+  ver="${ver}"
  /
 
  &model

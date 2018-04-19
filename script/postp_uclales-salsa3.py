@@ -6,7 +6,7 @@ def openr(filepref,ff):
 def openw(filepref):
     import netCDF4 as nc
     fname = '%s.nc' % (filepref)
-    return nc.Dataset(fname,'w')
+    return nc.Dataset(fname,'w',format='NETCDF3_CLASSIC')
 
 def opena(filepref):
     import netCDF4 as nc
