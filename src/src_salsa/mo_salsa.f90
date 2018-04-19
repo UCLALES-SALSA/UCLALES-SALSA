@@ -21,7 +21,7 @@ CONTAINS
                    pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,    &
                    pc_nh3,   paero,    pcloud,  pprecp,     &
                    pice, psnow,                             &
-                   pactd,    pw,    prtcl, level )
+                   pactd,    pw,    prtcl, level, pdn )
 
     USE mo_salsa_dynamics, only : coagulation, condensation
     USE mo_salsa_update, ONLY : distr_update
@@ -76,7 +76,8 @@ CONTAINS
          pc_ocsv (kbdim,klev),      & ! semivolatile organic compound
          prv(kbdim,klev),           & ! Water vapour mixing ratio  [kg/kg]
          prs(kbdim,klev),           & ! Saturation mixing ratio    [kg/kg]
-         prsi(kbdim,klev)             ! Saturation mixing ratio over ice   [kg/kg]
+         prsi(kbdim,klev),          & ! Saturation mixing ratio over ice   [kg/kg]
+         pdn(kbdim,klev)             ! air density
 
     TYPE(t_section), INTENT(inout) :: &
          pcloud(kbdim,klev,ncld),     &
@@ -109,7 +110,7 @@ CONTAINS
                          pice,    psnow,                        &
                          pc_h2so4, pc_ocnv, pc_ocsv,  pc_hno3,  &
                          pc_nh3, prv, prs, prsi, ptemp, ppres,  &
-                         ptstep, zpbl, prtcl                    )
+                         ptstep, zpbl, prtcl, pdn                    )
 
     ! Autoconversion (liquid)
     IF (lsauto) &

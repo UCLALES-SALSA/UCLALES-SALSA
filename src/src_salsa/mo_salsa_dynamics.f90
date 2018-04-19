@@ -1005,7 +1005,7 @@ CONTAINS
                           pcsa,                               &
                           pcocnv,  pcocsv, pchno3, pcnh3,     &
                           prv,prs, prsi,ptemp,  ppres,  ptstep,    &
-                          ppbl,    prtcl)
+                          ppbl,    prtcl, pdn)
 
     USE mo_salsa_nucleation
 
@@ -1034,7 +1034,8 @@ CONTAINS
          ppres(kbdim,klev),         & ! ambient pressure [Pa]
          ptstep,                    & ! timestep [s]
          prs(kbdim,klev),           & ! Water vapor saturation mixing ratio [kg/kg]
-         prsi(kbdim,klev)             ! Water vapor saturation mixing ratio over ice [kg/kg]
+         prsi(kbdim,klev),          & ! Water vapor saturation mixing ratio over ice [kg/kg]
+         pdn(kbdim,klev)
 
     TYPE(ComponentIndex), INTENT(in) :: prtcl  ! Keeps track which substances are used
 
@@ -1088,7 +1089,7 @@ CONTAINS
                    paero, pcloud, pprecp,   &
                    pice, psnow,             &
                    ptemp,ppres,prs,prsi,prv,     &
-                   ptstep)
+                   ptstep, pdn,prtcl)
 
     ! HNO3/NH3 - currently disabled
     !CALL gpparthno3(kproma,kbdim,klev,krow,ppres,ptemp,paero,pcloud,   &
@@ -1483,7 +1484,7 @@ CONTAINS
                        paero,  pcloud, pprecp,      &
                        pice, psnow,                 &
                        ptemp,  ppres,  prs,prsi, prv,    &
-                       ptstep)
+                       ptstep,pdn,prtcl)
     
     USE mo_submctl, ONLY : t_section,            &
                                nbins, ncld, nprc,    &
@@ -1495,13 +1496,14 @@ CONTAINS
                                in1a,in2a,  &
                                fn2b,            &
                                lscndh2oae, lscndh2ocl, lscndh2oic, &
-                               alv, als, CalcDimension
+                               alv, als, CalcDimension, rhosu, rhooc, rhobc, rhodu, rhoss, rhono, rhonh
     USE mo_salsa_properties, ONLY : equilibration
+    USE class_componentIndex, ONLY : ComponentIndex,IsUsed
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kproma,kbdim,klev,krow
     REAL, INTENT(in) :: ptstep
-    REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev)
+    REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev), pdn(kbdim,klev)
     TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,nbins),  &
                                       pcloud(kbdim,klev,ncld),  &
                                       pprecp(kbdim,klev,nprc),  &
@@ -1509,7 +1511,8 @@ CONTAINS
                                       psnow(kbdim,klev,nsnw)      ! ice'n'snow
 
     REAL, INTENT(inout) :: prv(kbdim,klev)
-
+    TYPE(ComponentIndex), INTENT(in) :: prtcl  ! Keeps track which substances are used
+    
     REAL :: zkelvin(nbins), zkelvincd(ncld), zkelvinpd(nprc), &  ! Kelvin effects
                 zkelvinid(nice), zkelvinsd(nsnw)                      ! Kelvin effects ice'n'snow
     REAL :: zcwsurfae(nbins), zcwsurfcd(ncld), zcwsurfpd(nprc), & ! Surface mole concentrations
@@ -1532,11 +1535,13 @@ CONTAINS
     REAL :: dwet, dw(1), cap
     REAL :: zrh(kbdim,klev)
 
-    REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
+    REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev), massa
 
     INTEGER :: nstr
-    INTEGER :: ii,jj,cc
+    INTEGER :: ii,jj,cc, dd
     LOGICAL aero_eq, any_aero, any_cloud, any_prec, any_ice, any_snow
+    
+    
 
     zrh(:,:) = prv(:,:)/prs(:,:)
 
@@ -1659,9 +1664,40 @@ CONTAINS
           zcwsurfid(:) = 0.
           DO cc = 1,nice
              IF (pice(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
-
-                ! Capacitance (m) as defined for ISDAC
-                cap = 0.09*( SUM(pice(ii,jj,cc)%volc(:))/pice(ii,jj,cc)%numc*rhoic )**(1./3.)
+                  massa = 0.
+                  if(IsUsed(prtcl,'SO4')) THEN
+                        dd = 1
+                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhosu
+                  endif
+                  if(IsUsed(prtcl,'OC')) THEN
+                        dd = 2
+                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhooc
+                  endif
+                  if(IsUsed(prtcl,'BC')) THEN
+                        dd = 3
+                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhobc
+                  endif
+                  if(IsUsed(prtcl,'DU')) THEN
+                        dd = 4
+                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhodu
+                  endif
+                  if(IsUsed(prtcl,'SS')) THEN
+                        dd = 5
+                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhoss
+                  endif
+                  if(IsUsed(prtcl,'NO')) THEN
+                        dd = 6
+                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhosu
+                  endif
+                  if(IsUsed(prtcl,'NH')) THEN
+                        dd = 7
+                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhosu
+                  endif
+                  
+                  massa = massa + pice(ii,jj,cc)%volc(8)*rhoic
+                  
+                  cap = 0.09*massa**(1./3.) ! Capacitance (m) as defined for ISDAC
+                
 
                 ! Maximum particle dimension ~ dwet (ISDAC)
                 dwet=pi*cap

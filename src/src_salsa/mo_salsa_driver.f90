@@ -140,7 +140,7 @@ IMPLICIT NONE
 
     INTEGER :: jj,ii,kk,ss,str,end, nc,vc
     REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
-                in_w(kbdim,klev), in_rsi(kbdim,klev)
+                in_w(kbdim,klev), in_rsi(kbdim,klev), in_pdn(kbdim,klev)
     REAL :: rv_old(kbdim,klev)
 
     ! Number is always set, but mass can be uninitialized
@@ -172,6 +172,7 @@ IMPLICIT NONE
              in_rs(1,1) = rs(kk,ii,jj)
              in_rsi(1,1) = rsi(kk,ii,jj)
              in_w(1,1) = wp(kk,ii,jj)
+             in_pdn(1,1)=pdn(kk,ii,jj)
 
              ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
              IF (prunmode < 3) THEN
@@ -513,7 +514,7 @@ IMPLICIT NONE
                         zgso4,  zgocnv, zgocsv, zghno3,        &
                         zgnh3,  aero,   cloud,  precp,         &
                         ice,    snow,                          &
-                        actd,   in_w,   prtcl,  level )
+                        actd,   in_w,   prtcl,  level, in_pdn )
 
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)
