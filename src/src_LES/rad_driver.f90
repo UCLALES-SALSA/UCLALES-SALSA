@@ -71,7 +71,16 @@ module radiation
          IF (.TRUE.) THEN
             ! Works well with the LES model
             p0(1:n1) = 0.01*pres(1:n1)
-            call setup_les(background,n1,nv1,nv,p0,tk(n1,3,3),rv(n1,3,3))
+            IF ( background == 'auto' ) THEN
+                ! Automatic profile generation
+                !   - Upper atmosphere (P > 179 hPa) from dsrt.lay
+                !   - log-log or lin-log interpolation between LES and the upper atmosphere
+                !   - Boundary layer ozone concentration fixed to 50 ppt
+                call setup_auto(n1,nv,p0,tk(n1,3,3),rv(n1,3,3),50e-9)
+                nv1 = n1+1 ! Total number of scalars (cell centers)
+            ELSE
+                call setup_les(background,n1,nv1,nv,p0,tk(n1,3,3),rv(n1,3,3))
+            ENDIF
          ELSE
             p0(n1) = (p00*(pi0(n1)/cp)**cpr) / 100.
             p0(n1-1) = (p00*(pi0(n1-1)/cp)**cpr) / 100.
@@ -332,11 +341,11 @@ module radiation
   !
   ! ---------------------------------------------------------------------------
   ! This version of setup is modified for LES simulations
-  !    - Always using background soundings and LES data
-  !    - Separate LES and background profiles
-  !    - Weighting of the backgound towards smooth transition at the interface
+  ! - Using radiation background soundings above LES domain
+  ! - Linear interpolation between LES and radiation background
+  ! - Temperature profile is forced to be decreasing above LES domain to avoid radiative warming
   !
-  ! Tomi Raatikainen, 22.12.2016
+  ! Tomi Raatikainen, 19.4.2018
   !
   subroutine setup_les(background,n1,nv1,nv,zp,ttop,qtop)
     use mpi_interface, only: myid
@@ -350,7 +359,7 @@ module radiation
     real, allocatable  :: sp(:), st(:), sh(:), so(:), sl(:)
 
     integer :: k, ind, ns, nb, nt
-    real    :: ptop, dp, Tsurf
+    real    :: ptop, dp, dt, Tsurf
 
     ! Read backgroud profiles (p [hPa], T [K], q [kg/kg], O3 [-] and an unused concentration)
     open ( unit = 08, file = background, status = 'old' )
@@ -377,6 +386,14 @@ module radiation
         IF (k==ns+1) EXIT
     END DO
     nb=k-1 ! Background soundings from 1 to k (nb points)
+    !
+    ! Temperature should decrease when moving from LES to radiation domain
+    !   - Even a low temperature decrease (e.g. 1 K) is enough to avoid radiative warming of the LES domain
+    dt=1.
+    DO WHILE (st(nb) > ttop-dt)
+        nb=nb-1
+        IF (nb==0) EXIT
+    END DO
 
     ! Add layers between LES and soundings (mind the gap!)
     nt=0 ! Transition regime
@@ -410,12 +427,12 @@ module radiation
         ! Interpolated levels between pp(nb) and ptop
         DO k=1,nt
             pp(nb+k)=pp(nb+k-1)-(pp(nb)-ptop)/REAL(nt+1)
-            ! Interpolate between LES model top and the lowest sounding
+            ! Interpolate between LES model top and the lowest sounding (nb)
             !   y=y0+(y1-y0)(p1-p0)*(p-p0)
-            ind = getindex(sp,ns,pp(nb+k)) ! Typically ind=nb
-            pt(nb+k)=ttop+(st(ind)-ttop)/(sp(ind)-ptop)*(pp(nb+k)-ptop)
-            ph(nb+k)=qtop+(sh(ind)-qtop)/(sp(ind)-ptop)*(pp(nb+k)-ptop)
-            ! Interpolate ozone using background soundings
+            pt(nb+k)=ttop+(st(nb)-ttop)/(sp(nb)-ptop)*(pp(nb+k)-ptop)
+            ph(nb+k)=qtop+(sh(nb)-qtop)/(sp(nb)-ptop)*(pp(nb+k)-ptop)
+            ! Interpolate ozone using complete background soundings
+            ind = getindex(sp,ns,pp(nb+k))
             po(nb+k)=so(ind+1)+(so(ind)-so(ind+1))/(sp(ind)-sp(ind+1))*(pp(nb+k)-sp(ind+1))
         ENDDO
     ENDIF
@@ -455,6 +472,127 @@ module radiation
     ENDIF
 
   end subroutine setup_les
+  !
+  ! This version of setup is modified for LES simulations
+  !    - Upper atmosphere (P > 179 hPa) from dsrt.lay (included here)
+  !   - log-log or lin-log interpolation between LES and the upper atmosphere
+  !
+  ! Tomi Raatikainen, 19.4.2018
+  !
+  subroutine setup_auto(n1,nv,zp,ttop,qtop,otop)
+    use mpi_interface, only: myid
+    implicit none
+
+    integer, intent (in) :: n1  ! LES nzp
+    real, intent (in) :: zp(n1) ! LES pressure grid
+    real, intent (in) :: ttop, qtop, otop ! T (K), q (kg/kg) and [O3] (-) at the LES column top
+    integer, intent (out):: nv
+
+    INTEGER, PARAMETER :: nb =22
+    real  :: sp(nb), st(nb), sh(nb), so(nb)
+
+    integer :: nv1, k, ind, nt
+    real    :: ptop, dp, dt, Tsurf, sl
+
+    ! The first 22 values from dsrt.lay (the same as in esrt, hsrt, kmls and zh2o)
+    !   p [hPa], T [K], q [kg/kg], O3 [-]
+    sp = (/0.0709261, 0.13172, 0.253308, 0.48635, 0.952436, 1.76302, &
+        3.33353, 6.5252, 13.172, 27.6612, 32.2207, 37.5908, 43.6702, 50.9655, &
+        59.4766, 69.5076, 81.261, 95.041, 111.05, 129.997, 152.998, 179.038/)
+    st = (/218, 231, 245, 260, 276, 270, 258, 245, 234, 224, 223, 222, 220, 219, &
+        218, 217, 216, 216, 216, 216, 216, 216/)
+    sh = (/4.32191e-07, 4.19289e-07, 4.24899e-07, 4.12278e-07, &
+        4.59606e-07, 4.38849e-07, 4.08538e-07, 3.84971e-07, &
+        3.57941e-07, 3.69835e-06, 3.66955e-06, 3.78973e-06, &
+        3.69566e-06, 3.7091e-06, 3.69444e-06, 3.70354e-06, &
+        3.71384e-06, 3.76013e-06, 3.72031e-06, 3.58904e-06, &
+        3.74612e-06, 5.42635e-06/)
+    so = (/6.9344e-07, 9.23243e-07, 1.2789e-06, 1.7038e-06, 2.6004e-06, &
+        4.05764e-06, 6.29702e-06, 6.78494e-06 ,6.76637e-06, 6.4506e-06, &
+        5.84206e-06, 5.48301e-06, 4.83796e-06, 4.14682e-06, 3.32304e-06, &
+        2.66922e-06, 1.9921e-06, 1.46976e-06, 1.0866e-06, 8.09878e-07, &
+        6.7769e-07, 4.90333e-07/)
+
+    ! The highest LES domain pressure
+    ptop=zp(n1)
+
+    ! Interpolation between the lowest sounding and LES model top
+    !   T=a+b*ln(P)
+    !   ln(r)=a+b*ln(P)
+    !   ln(o)=a+b*ln(P)
+    ! Resolution at least dln(P)=0.12 (from the radiation soundings)
+    dp=max( 0.12, log(zp(n1-1)/zp(n1)) )
+
+    ! New layers between current soundings and LES model top
+    nt=FLOOR( log(ptop/sp(nb))/dp )
+
+    IF (nt<1 .AND. myid==0) THEN
+        WRITE(*,*) ptop, sp(nb), dp, nt
+        STOP 'Error in generating radiation profiles!'
+    ENDIF
+
+    ! Include complete LES grid (n1 points), soundings (nb points) and the transition regime (nt points)
+    nv1 = n1+nb+nt  ! Total number of pressure points (cell interfaces)
+    nv = nv1-1   ! Total number of scalars (cell centers)
+
+    ! Sounding and LES data
+    allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
+
+    IF (nb>0) THEN
+        ! Levels above LES domain: copy background soundings
+        pp(1:nb) = sp(1:nb)
+        pt(1:nb) = st(1:nb)
+        ph(1:nb) = sh(1:nb)
+        po(1:nb) = so(1:nb)
+    ENDIF
+
+    IF (nt>0) THEN
+        ! Interpolated levels between pp(nb) and ptop
+        DO k=1,nt
+            ! Logarithmic pressure grid
+            pp(nb+k)=pp(nb+k-1)*exp(dp) !-(pp(nb)-ptop)/REAL(nt+1)
+            ! Interpolate between LES model top and the lowest sounding (nb)
+            pt(nb+k)=ttop+(st(nb)-ttop)/log(sp(nb)/ptop)*log(pp(nb+k)/ptop)
+            ph(nb+k)=exp(log(qtop)+log(sh(nb)/qtop)/log(sp(nb)/ptop)*log(pp(nb+k)/ptop))
+            po(nb+k)=exp(log(otop)+log(so(nb)/otop)/log(sp(nb)/ptop)*log(pp(nb+k)/ptop))
+        ENDDO
+    ENDIF
+
+    ! Within the LES domain
+    !  a) pressure, temperature and humidity will be obtained from the LES
+    !  b) set the ozone to a constant value
+    IF (nb+nt>0) po(nb+nt+1:nv) = otop
+
+    ! Print information about sounding
+    IF (myid==0) THEN
+        WRITE(*,'(/,/,20A)') '-------------------------------------------------'
+        WRITE(*,'(/2x,20A,/)') 'Reading Background Sounding: '//trim(background)
+        WRITE(*,'(/2x,A7,4A10)') 'Source','p (hPa)','T (K)','q (g/kg)','O3 (ppm)'
+
+        ! Calculate LES pressure levels ([zp]=hPa) and T and q for cell centers
+        pp(nv-n1+2) = zp(n1)/100. - 0.5*(zp(n1-1)-zp(n1))
+        do k=2,n1
+             pp(nv-(k-2)+1) = 0.5*(zp(k-1)+zp(k))
+        ENDDO
+
+        DO k=1,nv
+            IF (k<=nb .AND. nb>0) THEN
+                ! Data from backgound soundings
+                WRITE(*,'(2x,A7,2F10.2,2F10.3)') 'Backgr',pp(k),pt(k),ph(k)*1.e3,po(k)*1.e6
+            ELSEIF (k<=nb+nt .AND. nt>0) THEN
+                ! Interpolation
+                WRITE(*,'(2x,A7,2F10.2,2F10.3)') 'Interp',pp(k),pt(k),ph(k)*1.e3,po(k)*1.e6
+            ELSEIF (k==nb+nt+1) THEN
+                ! The highest LES layer - other layers not yet available
+                WRITE(*,'(2x,A7,2F10.2,2F10.3)') 'LES',ptop,ttop,qtop*1.e3,po(k)*1.e6
+                WRITE(*,'(2x,A7,4A10)') 'LES','...','...','...','...'
+            ENDIF
+        ENDDO
+        WRITE(*,*) ' '
+    ENDIF
+
+  end subroutine setup_auto
   ! ---------------------------------------------------------------------------
   !  locate the index closest to a value
   !
