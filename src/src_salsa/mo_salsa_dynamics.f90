@@ -1671,41 +1671,41 @@ CONTAINS
           zcwsurfid(:) = 0.
           DO cc = 1,nice
              IF (pice(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
-                  massa = 0.
-                  if(IsUsed(prtcl,'SO4')) THEN
-                        dd = 1
-                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhosu
-                  endif
-                  if(IsUsed(prtcl,'OC')) THEN
-                        dd = 2
-                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhooc
-                  endif
-                  if(IsUsed(prtcl,'BC')) THEN
-                        dd = 3
-                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhobc
-                  endif
-                  if(IsUsed(prtcl,'DU')) THEN
-                        dd = 4
-                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhodu
-                  endif
-                  if(IsUsed(prtcl,'SS')) THEN
-                        dd = 5
-                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhoss
-                  endif
-                  if(IsUsed(prtcl,'NO')) THEN
-                        dd = 6
-                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhosu
-                  endif
-                  if(IsUsed(prtcl,'NH')) THEN
-                        dd = 7
-                        massa = massa +pice(ii,jj,cc)%volc(dd)*rhosu
-                  endif
-                  
-                  massa = massa + pice(ii,jj,cc)%volc(8)*rhoic
-                  massa = massa/pice(ii,jj,cc)%numc ! massa per kappale
-                  
-                  cap = 0.09*massa**(1./3.) ! Capacitance (m) as defined for ISDAC
+                massa = 0.
+                if(IsUsed(prtcl,'SO4')) THEN
+                    dd = 1
+                    massa = massa +pice(ii,jj,cc)%volc(dd)*rhosu
+                endif
+                if(IsUsed(prtcl,'OC')) THEN
+                    dd = 2
+                    massa = massa +pice(ii,jj,cc)%volc(dd)*rhooc
+                endif
+                if(IsUsed(prtcl,'BC')) THEN
+                    dd = 3
+                    massa = massa +pice(ii,jj,cc)%volc(dd)*rhobc
+                endif
+                if(IsUsed(prtcl,'DU')) THEN
+                    dd = 4
+                    massa = massa +pice(ii,jj,cc)%volc(dd)*rhodu
+                endif
+                if(IsUsed(prtcl,'SS')) THEN
+                    dd = 5
+                    massa = massa +pice(ii,jj,cc)%volc(dd)*rhoss
+                endif
+                if(IsUsed(prtcl,'NO')) THEN
+                    dd = 6
+                    massa = massa +pice(ii,jj,cc)%volc(dd)*rhosu
+                endif
+                if(IsUsed(prtcl,'NH')) THEN
+                    dd = 7
+                    massa = massa +pice(ii,jj,cc)%volc(dd)*rhosu
+                endif
                 
+                massa = massa + pice(ii,jj,cc)%volc(8)*rhoic
+                massa = massa/pice(ii,jj,cc)%numc ! massa per kappale
+                
+                cap = 0.09*massa**(1./3.) ! Capacitance (m) as defined for ISDAC
+            
 
                 ! Maximum particle dimension ~ dwet (ISDAC)
                 dwet=pi*cap
