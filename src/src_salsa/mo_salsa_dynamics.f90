@@ -1702,6 +1702,7 @@ CONTAINS
                   endif
                   
                   massa = massa + pice(ii,jj,cc)%volc(8)*rhoic
+                  massa = massa/pice(ii,jj,cc)%numc ! massa per kappale
                   
                   cap = 0.09*massa**(1./3.) ! Capacitance (m) as defined for ISDAC
                 
