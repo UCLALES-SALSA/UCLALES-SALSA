@@ -1713,7 +1713,7 @@ CONTAINS
 
 !                ! Activity + Kelvin effect - unity (ISDAC)
                 zact = 1.0
-                zkelvinid(cc) = 1.0
+                !zkelvinid(cc) = 1.0
 
 
                 ! Activity + Kelvin effect - edit when needed
@@ -1722,7 +1722,7 @@ CONTAINS
                 !   Ice may not be that far from a sphere, but most particles are large and at least
                 !   growing particles are covered by a layer of pure ice.
                 !zact = 1.0 ! Note: acth2o does not work for ice or snow!
-                !zkelvinid(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                zkelvinid(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
 
                 ! Saturation mole concentration over flat surface
                 zcwsurfid(cc) = prsi(ii,jj)*rhoair/mwa
