@@ -129,7 +129,7 @@ MODULE classSpecies
 
      ! Subset arrays for soluble and insoluble compounds. If none are used of either category, length 1 is allocated for the arrays and zeros are used to initialize. 
      ! Thus be carefull when using these, check with N(in)soluble!
-     INTEGER                       :: Nsoluble = 0, Ninsoluble = 0                                         ! Number of active soluble and insolubl compounds            
+     INTEGER                       :: Nsoluble = 0, Ninsoluble = 0                                 ! Number of active soluble and insolubl compounds            
      CHARACTER(len=3), ALLOCATABLE :: names_soluble(:), names_insoluble(:)                         ! Names of active soluble and insoluble compounds (Length 1 empty string if non used)
      INTEGER,          ALLOCATABLE :: ind_soluble(:), ind_insoluble(:)                             ! Indices of soluble/insoluble
      REAL,             ALLOCATABLE :: MM_soluble(:), MM_insoluble(:)                               ! Molar masses
