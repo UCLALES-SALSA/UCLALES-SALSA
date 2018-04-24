@@ -192,6 +192,10 @@ MODULE mo_submctl
    alphac = 1.0,          & ! condensation coefficient
    eps    = epsilon(1.0)       ! epsilon
 
+
+
+
+
   REAL, PARAMETER ::   &
    rd    = 287.04,     & ! gas constant for dry air (J/K/kg)
    rv    = 461.5,      & ! gas constant for water vapour (J/K/kg)

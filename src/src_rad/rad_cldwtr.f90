@@ -20,16 +20,29 @@
 MODULE cldwtr
 
   USE defs, ONLY : nv, mb
+  USE mpi_interface, only : appl_abort, myid, broadcast
+
   IMPLICIT NONE
   INTEGER, SAVE :: nsizes
   LOGICAL, SAVE :: Initialized = .FALSE.
   LOGICAL, SAVE :: iceInitialized = .FALSE.
   LOGICAL, SAVE :: grpInitialized = .FALSE.
+  LOGICAL, SAVE :: aeroInitialized = .FALSE.
   INTEGER, SAVE :: mbs,mbir
 
   REAL, ALLOCATABLE :: re(:), fl(:), bz(:,:), wz(:,:), gz(:,:)
   REAL, ALLOCATABLE :: ap(:,:), bp(:,:), cps(:,:,:), dps(:,:), cpir(:,:)
   REAL, ALLOCATABLE :: bg(:), wgf(:), gg(:)
+
+  ! Juha:
+  ! Lookup table variables for aerosol optical properties for radiation calculations
+  ! Real and imaginary parts of refractive indices, size parameter, extinction crossection, asymmetry parameter and omega???
+  REAL, ALLOCATABLE, TARGET :: aer_nre_LW(:), aer_nim_LW(:), aer_alpha_LW(:),   &
+                       aer_sigma_LW(:,:,:), aer_asym_LW(:,:,:), aer_omega_LW(:,:,:)
+  REAL, ALLOCATABLE, TARGET :: aer_nre_SW(:), aer_nim_SW(:), aer_alpha_SW(:),   &
+                       aer_sigma_SW(:,:,:), aer_asym_SW(:,:,:), aer_omega_SW(:,:,:)
+  ! /Juha
+
   REAL :: gwc
 
 CONTAINS
@@ -146,6 +159,68 @@ CONTAINS
     grpInitialized = .TRUE.
 
   END SUBROUTINE init_cldgrp
+
+  !
+  !---------------------------------------------------------------
+  ! ReadAeroRadInput
+  !
+  SUBROUTINE init_aerorad
+    IMPLICIT NONE
+
+    INTEGER :: k,i,j
+    CHARACTER(len=34) :: filename
+
+    ! Shortwave tables
+    filename = "datafiles/lut_uclales_salsa_sw.nc"
+    CALL init_aerorad_lookuptables(filename, aer_nre_SW, aer_nim_SW, aer_alpha_SW,  &
+                                   aer_sigma_SW, aer_asym_SW, aer_omega_SW          )
+    
+    ! Longwave tables
+    filename = "datafiles/lut_uclales_salsa_lw.nc"
+    CALL init_aerorad_lookuptables(filename, aer_nre_LW, aer_nim_LW, aer_alpha_LW,  &
+                                   aer_sigma_LW, aer_asym_LW, aer_omega_LW          )
+
+    aeroInitialized = .TRUE.
+
+  END SUBROUTINE init_aerorad
+
+  SUBROUTINE init_aerorad_lookuptables(filename, zaer_nre, zaer_nim, zaer_alpha, &
+                                       zaer_sigma, zaer_asym, zaer_omega         )
+    USE mo_aerorad_lut, ONLY : init_aerorad_lut
+    IMPLICIT NONE
+
+    CHARACTER(len=*), INTENT(in) :: filename
+    REAL, ALLOCATABLE, INTENT(out) :: zaer_nre(:), zaer_nim(:), zaer_alpha(:)
+    REAL, ALLOCATABLE, INTENT(out) :: zaer_sigma(:,:,:), zaer_asym(:,:,:), zaer_omega(:,:,:)
+
+    INTEGER :: Nalpha, Nim, Nre
+
+    IF (myid == 0) THEN
+       CALL init_aerorad_lut(filename, Nalpha, Nim, Nre,        &
+                             zaer_nre, zaer_nim, zaer_alpha,    &
+                             zaer_sigma, zaer_asym, zaer_omega  )
+    END IF
+
+    !If it's an mpi run, broadcast to all processors
+    CALL broadcast(Nalpha,0)
+    CALL broadcast(Nim,0)
+    CALL broadcast(Nre,0)
+
+    IF (myid /= 0) ALLOCATE(zaer_nre(Nre),               &
+                            zaer_nim(Nim),               &
+                            zaer_alpha(Nalpha),          &
+                            zaer_sigma(Nre,Nim,Nalpha),  &
+                            zaer_asym(Nre,Nim,Nalpha),   &
+                            zaer_omega(Nre,Nim,Nalpha))
+
+    CALL broadcast((/Nre/),0,zaer_nre)
+    CALL broadcast((/Nim/),0,zaer_nim)
+    CALL broadcast((/Nalpha/),0,zaer_alpha)
+    CALL broadcast((/Nre,Nim,Nalpha/),0,zaer_sigma)
+    CALL broadcast((/Nre,Nim,Nalpha/),0,zaer_asym)
+    CALL broadcast((/Nre,Nim,Nalpha/),0,zaer_omega)
+
+  END SUBROUTINE init_aerorad_lookuptables
 
   ! -----------------------------------------------------------------------
   ! Subroutine cloud_water:  calculates the optical depth (tw), single 
@@ -332,6 +407,208 @@ CONTAINS
     END DO
 
   END SUBROUTINE cloud_grp
+
+  ! Calculates the optical depth (taer), single scattering albedo (waer) and phase function (wwaer(4)) for given
+  ! binned aerosol mass and number concentration arrays using lookup tables for optical properties.
+  SUBROUTINE aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer)
+    USE ckd, ONLY : band, center, IsSolar
+    USE util, ONLY : getMassIndex
+    USE mo_salsa_optical_properties, ONLY : aerRefrIBands_SW, aerRefrIBands_LW,  &
+                                            riReSW, riImSW, riReLW, riImLW
+    USE mo_submctl, ONLY : pi6,nlim,spec
+    IMPLICIT NONE
+
+    INTEGER, INTENT(in) :: ib, nbins, nspec
+    ! FIND BETTER WAY TO HANDLE THE INDICES FOR THESE
+    REAL, INTENT(in) :: maerobin(nv,nspec*nbins), naerobin(nv,nbins) !maerobin(:,:), naerobin(:,:)
+    REAL, INTENT(in) :: dz(nv)
+    REAL, INTENT(out) :: taer(nv), waer(nv), wwaer(nv,4)   ! optical depth, single scattering albedo, phase function
+
+
+    REAL :: lambda_r   ! Center wavenumber for current band 1/cm
+    REAL :: Dpart      ! Particle diameter
+
+    REAL            :: volc(nspec,nbins)                         ! Corresponding particle volume concentrations for each bin (0 if not used)
+    REAL            :: voltot(nbins)                                 ! Total particle volume for each bin                          
+    !REAL            :: Dtot(nbins)                                   ! Particle diameters for each bin
+
+    ! Refractive index for each chemical (closest to current band from tables in submctl)
+    REAL              :: refrRe_all(nspec), refrIm_all(nspec)
+    REAL              :: volmean_refrRe, volmean_refrIm ! Volume mean refractive index for single bin
+    !REAL              :: naerotot                       ! Total number of aerosol particles
+
+    ! Size parameter for given wavelength and size bin
+    REAL            :: sizeparam
+
+    ! Binned optical properties; These will be integrated and normalized for final results
+    REAL            :: taer_bin(nv,nbins), waer_bin(nv,nbins), wwaer_bin(nv,nbins,4)
+    
+    ! Lookup table: Indices in refractive index vectors and sizeparameter vector
+    INTEGER         :: i_re, i_im, i_alpha
+
+    INTEGER :: refi_ind  ! index for the vector with refractive indices for each wavelength
+
+    ! Bunch of other idices (for loops)
+    INTEGER :: ss,kk,nc, istr,iend
+    INTEGER :: bb
+
+    REAL :: TH = 1.e-10
+    
+    REAL, POINTER :: aer_nre(:) => NULL(), aer_nim(:) => NULL(),          &
+                     aer_alpha(:) => NULL(), aer_sigma(:,:,:) => NULL(),  &
+                     aer_asym(:,:,:) => NULL(), aer_omega(:,:,:) => NULL()
+
+    IF (.NOT. aeroInitialized) STOP "TERMINATING: Aerosol for radiation not initialized"
+ 
+    taer = 0.
+    waer = 0.
+    wwaer = 0.
+    taer_bin = 0.
+    waer_bin = 0.
+    wwaer_bin = 0.
+
+    lambda_r = center(band(ib))
+    IF (1./lambda_r > aerRefrIbands_SW(1)) THEN
+
+       !WRITE(*,*) 'LAMBDA LW:::::::::::::::: ', 1./lambda_r
+       ! Get the refractive indices from the LW tables for the current band
+       refi_ind = getClosest(aerRefrIbands_LW,1./lambda_r)
+       refrRe_all(:) = riReLW(:,refi_ind)
+       refrIm_all(:) = riImLW(:,refi_ind)
+
+       aer_nre => aer_nre_LW(:)
+       aer_nim => aer_nim_LW(:)
+       aer_alpha => aer_alpha_LW(:)
+       aer_sigma => aer_sigma_LW(:,:,:)
+       aer_asym => aer_asym_LW(:,:,:)
+       aer_omega => aer_omega_LW(:,:,:)
+
+    ELSE
+       !WRITE(*,*) 'LAMBDA SW:::::::::::::::: ', 1./lambda_r
+       ! Get the refractive indices from the SW tables fr the current band
+       refi_ind = getClosest(aerRefrIbands_SW,1./lambda_r)
+       refrRe_all(:) = riReSW(:,refi_ind)
+       refrIm_all(:) = riImSW(:,refi_ind)
+
+       aer_nre => aer_nre_SW(:)
+       aer_nim => aer_nim_SW(:)
+       aer_alpha => aer_alpha_SW(:)
+       aer_sigma => aer_sigma_SW(:,:,:)
+       aer_asym => aer_asym_SW(:,:,:)
+       aer_omega => aer_omega_SW(:,:,:)
+       
+    END IF
+     
+    ! Loop over levels
+    DO kk = 2,nv-1
+
+       volc = 0.
+
+       ! Loop over chemical species
+       DO ss = 1,nspec
+
+          ! Mass bin indices
+          istr = getMassIndex(nbins,1,ss)
+          iend = getMassIndex(nbins,nbins,ss)
+          ! Volumes for each species, 0 if not used or if nothing present
+             volc(ss,1:nbins) = MERGE( (maerobin(kk,istr:iend))/spec%rholiq(ss), &
+                                        0.,                                                            &
+                                        (naerobin(kk,1:nbins) > nlim )                                 )
+       END DO
+
+       voltot(1:nbins) = SUM(volc(1:nspec,1:nbins),DIM=1)
+       !naerotot = SUM(naerobin(kk,:))
+       
+       ! loop over bins
+       DO bb = 1,nbins
+
+          ! Check if empty bin
+          IF (naerobin(kk,bb) < nlim .OR. voltot(bb) < 1.e-30) CYCLE
+          
+          ! Volume mean refractive indices in current bin
+          volmean_refrRe = SUM(volc(1:nspec,bb)*refrRe_all(1:nspec))/voltot(bb)
+          volmean_refrIm = SUM(volc(1:nspec,bb)*refrIm_all(1:nspec))/voltot(bb)
+          ! size parameter in current bin
+          sizeparam = 1.e2*((voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.))*lambda_r
+         
+          ! Corresponding lookup table indices
+          i_re = getClosest(aer_nre,volmean_refrRe)
+          i_im = getClosest(aer_nim,volmean_refrIm)
+          i_alpha = getClosest(aer_alpha,sizeparam)
+
+          ! Binned optical properties
+          ! Optical depth             
+          taer_bin(kk,bb) = 1.e-6*naerobin(kk,bb) * aer_sigma(i_re,i_im,i_alpha) * dz(kk)*1.e2
+          taer_bin(kk,bb) = MERGE(taer_bin(kk,bb), 0., taer_bin(kk,bb) > TH)
+          IF (taer_bin(kk,bb) > 1.) THEN
+             WRITE(*,*) bb, i_re, i_im, i_alpha, volmean_refrRe, aer_nre(i_re), 1.e-6*naerobin(kk,bb),  &
+                        aer_sigma(i_re,i_im,i_alpha), taer_bin(kk,bb)
+          END IF
+
+          ! Single scattering albedo
+          waer_bin(kk,bb) = taer_bin(kk,bb) * aer_omega(i_re,i_im,i_alpha)
+
+          ! Phase function moments
+          wwaer_bin(kk,bb,1) = taer_bin(kk,bb) * 3.*aer_asym(i_re,i_im,i_alpha) 
+
+          wwaer_bin(kk,bb,2) = taer_bin(kk,bb) * 5.*aer_asym(i_re,i_im,i_alpha)**2
+
+          wwaer_bin(kk,bb,3) = taer_bin(kk,bb) * 7.*aer_asym(i_re,i_im,i_alpha)**3
+
+          wwaer_bin(kk,bb,4) = taer_bin(kk,bb) * 9.*aer_asym(i_re,i_im,i_alpha)**4
+
+       END DO
+
+       ! Integrate and normalize
+       taer(kk) = SUM(taer_bin(kk,1:nbins))
+ 
+       IF (taer(kk) < TH) THEN
+          ! Avoid normalization by zero
+          taer(kk) = 0.
+          waer(kk) = 0.
+          wwaer(kk,1:4) = 0.
+       ELSE
+          waer(kk) = SUM(waer_bin(kk,1:nbins))/taer(kk)
+          wwaer(kk,1:4) = SUM(wwaer_bin(kk,1:nbins,1:4),DIM=1)/taer(kk)
+       END IF
+
+    END DO
+
+    aer_nre => NULL()
+    aer_nim => NULL()
+    aer_alpha => NULL()
+    aer_sigma => NULL()
+    aer_asym => NULL()
+    aer_omega => NULL()
+
+  END SUBROUTINE aero_rad
+
+  INTEGER FUNCTION getClosest(array,val)
+    IMPLICIT NONE
+     REAL, INTENT(in) :: array(:)
+     REAL, INTENT(in) :: val
+
+     INTEGER :: Ntot, N
+     LOGICAL, ALLOCATABLE :: smaller(:)
+
+     !WRITE(*,*) array
+     !WRITE(*,*) val
+
+     Ntot = SIZE(array(:))
+     ALLOCATE(smaller(Ntot))
+
+     smaller = .FALSE.
+     smaller = ( array(:) < val )
+
+     N = COUNT(smaller)
+     N = MAX(N,1)
+
+     IF ( N < Ntot ) THEN
+        IF ( ABS(array(N)-val) > ABS(array(N+1)-val) ) N = N + 1
+     END IF
+
+     getClosest = N
+  END FUNCTION getClosest
 
   ! ---------------------------------------------------------------------------
   ! linear interpolation between two points, returns indicies of the

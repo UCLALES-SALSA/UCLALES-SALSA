@@ -240,7 +240,7 @@ CONTAINS
 	! This too? -Juha
       !y = 0.
       !IF( (t1-t0)/u0 < 300)  y = exp ( -   ( t1 - t0 ) / u0 ) !Stop denormal AZ
-      y = exp ( -   ( t1 - t0 ) / u0 )
+      y = exp ( - ( t1 - t0 ) / u0 )
       fw = 0.5 * f0
       DO i = 1, 4
          IF ( solar ) THEN
@@ -264,7 +264,6 @@ CONTAINS
          j = 5 - i
          a1(i,j) = 1.0
       END DO
-
       dt = t1 - t0
 	! Again? -Juha
       !x = 0.
@@ -273,7 +272,6 @@ CONTAINS
       !IF (fk2*dt < 300) y = exp ( - fk2 * dt )
       x = exp ( - fk1 * dt )
       y = exp ( - fk2 * dt )
-
       aa(1,4,1) = y
       aa(2,3,1) = x
       aa(3,2,1) = 1.0
@@ -299,19 +297,16 @@ CONTAINS
       REAL, DIMENSION (nv), INTENT(in)  :: t, w, w1, w2, w3, u0, f0
       REAL, DIMENSION (nv), INTENT(out) :: fk1, fk2
       REAL, INTENT(out)                 :: a4(4,4,nv), g4(4,nv), z4(4,nv)
-
       INTEGER :: i, j, k, m18, m28, n4, kf, j1, j2, j3, i1
       INTEGER :: i2, i3, i8, m2, m1
       REAL    :: fu(4,4), wu(4), ab(13,4*nv), bx(4*nv), xx(4*nv)
       REAL    :: aa(4,4,2), zz(4,2), a1(4,4), z1(4), fw1, fw2, wn, v1, v2, v3
-
       n4 = 4*nv
       DO i = 1, n4
          DO j = 1, 13
             ab(j,i) = 0.0
          END DO
       END DO
-
       wn = w(1)
       IF ( wn <= 1.0e-4 ) THEN
          CALL coefft0(solar,0.0,t(1),u0(1),f0(1),aa,zz,a1,z1,fk1(1),fk2(1))
@@ -320,14 +315,12 @@ CONTAINS
          CALL coefft(solar,wn,w1(1),w2(1),w3(1),0.0,t(1),u0(1),f0(1), &
                      aa,zz,a1,z1,fk1(1),fk2(1))
       END IF
-
       DO  i = 1, 4
          z4(i,1) = z1(i)
          DO  j = 1, 4
             a4(i,j,1) = a1(i,j)
          END DO
       END DO
-
       DO  i = 1, 2
          bx(i) = - zz(i+2,1)
          i8 = i + 8
@@ -335,16 +328,15 @@ CONTAINS
             ab(i8-j,j) = aa(i+2,j,1)
          END DO
       END DO
-
       DO i = 1, 4
          wu(i) = zz(i,2)
          DO j = 1, 4
             fu(i,j) = aa(i,j,2)
          END DO
       END DO
-
       DO k = 2, nv
          wn = w(k)
+         !WRITE(*,*) k
          IF ( w(k) <= 1.0e-4 ) THEN
             CALL coefft0(solar,t(k-1),t(k),u0(k),f0(k),aa,zz,a1,z1,fk1(k),fk2(k))
          ELSE
@@ -352,14 +344,12 @@ CONTAINS
             CALL coefft(solar,wn,w1(k),w2(k),w3(k),t(k-1),t(k),u0(k),f0(k),  &
                         aa,zz,a1,z1,fk1(k),fk2(k))
          END IF
-
          DO  i = 1, 4
             z4(i,k) = z1(i)
             DO  j = 1, 4
                a4(i,j,k) = a1(i,j)
             END DO
          END DO
-
          kf = k + k + k + k
          i1 = kf - 5
          i2 = i1 + 3
@@ -381,7 +371,6 @@ CONTAINS
                ab(i8-j,j) = - aa(i3,j3,1)
             END DO
          END DO
-
          DO  i = 1, 4
             wu(i) = zz(i,2)
             DO j = 1, 4
@@ -389,7 +378,6 @@ CONTAINS
             END DO
          END DO
       END DO
-
       IF ( solar ) THEN
          v1 = 0.2113247 * asbs
          v2 = 0.7886753 * asbs
@@ -401,7 +389,6 @@ CONTAINS
          v2 = 0.7886753 * ( 1.0 - ee )
          v3 = asbs
       END IF
-
       m1 = n4 - 1
       m2 = n4
       m18 = m1 + 8
@@ -417,9 +404,7 @@ CONTAINS
          ab(m18-j1,j1) = fu(1,j) - fw1 - fw2
          ab(m28-j1,j1) = fu(2,j) - fw1 - fw2
       END DO
-
       CALL qcfel (ab, bx, xx)
-
       DO k = 1, nv
          j = k + k + k + k - 4
          DO i = 1, 4
@@ -713,7 +698,6 @@ CONTAINS
             !IF (y1/u0a(kk) < 300) xy =  exp ( - y1 / u0a(kk) ) !AZ
             xy =  exp ( - y1 / u0a(kk) )
          END IF
-
          IF (kk > 1) tkm1 = t(kk)
 
          DO  jj = 1, 4

@@ -675,6 +675,9 @@ CONTAINS
    ! SALSA initializations. Modified and rewritten for more dynamic control
    ! and LES implementation.
    !
+   ! define_salsa **MUST** be called before salsa_initialize so that the 
+   ! NAMELIST-parameters will have an effect.
+   !
    ! Juha Tonttila (FMI) 2014
    !
    !-------------------------------------------------------------------------------
@@ -688,6 +691,7 @@ CONTAINS
                              in1a,fn1a,in2a,fn2a,in2b,fn2b,  &
                              nbins, massacc, spec,           &
                              nspec, listspec
+      USE mo_salsa_optical_properties, ONLY : initialize_optical_properties
 
       IMPLICIT NONE
 
@@ -695,8 +699,6 @@ CONTAINS
       ! May not be the smartest or the fastest way, but revise later... 
       TYPE(Section), ALLOCATABLE :: dumaero(:,:,:), dumcloud(:,:,:), dumprecp(:,:,:), &
                                       dumice(:,:,:), dumsnow(:,:,:)
-
-      ! Remember to call 'define_salsa' for namelist paramers before calling this subroutine!
 
       ! --1) Set derived indices
       in1a = 1
@@ -715,8 +717,12 @@ CONTAINS
 
       massacc = 1.
       
-      ! Initialize pointers to names of aerosol species
+      ! Initialize and sort pointers to aerosol properties according to the order in which the species are given in the NAMELIST
       spec = Species(nspec,listspec)
+
+      ! Initialize aerosol optical properties - uses settings from "spec"
+      CALL initialize_optical_properties()
+
 
       ! -- Aerosol tracers are allocated in *set_aerobins*
       ! -- Hydrometeor tracer in *set_cloudbins*

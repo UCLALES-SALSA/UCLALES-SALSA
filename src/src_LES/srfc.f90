@@ -48,6 +48,12 @@ MODULE srfc
 
 ! <--- Sami added
 
+! Juha moved/added
+  ! for isfctyp == 5:
+  REAL :: C_heat = 2.e6                 ! Surface heat capacity
+  REAL :: deepSoilTemp = 280.            ! Assumed deep soil layer temperature
+  LOGICAL :: lConstSoilWater = .FALSE.   ! Keep the value(s) of surface water content constant (as specified in NAMELIST)
+  LOGICAL :: lConstSoilHeatCap = .FALSE. ! Keep the value of surface heat capacity constant (as specified in NAMELIST)
 
 CONTAINS
    !
@@ -85,7 +91,7 @@ CONTAINS
 
 
       REAL :: total_sw, total_rw, total_la, total_se, total_pre  ! Sami added
-      REAL :: C_heat,lambda ! Sami added
+      REAL :: lambda ! Sami added
       REAL :: K1,K2,K3,Kmean1,Kmean2,fii_1,fii_2,fii_3,Q3,Q12,Q23,ff1  ! Sami added
 
 
@@ -229,12 +235,10 @@ CONTAINS
             total_se = 0.0
             total_pre = 0.0
             ffact = 1.
-
             !, a_rflx, precip
             !
             !   Calculate mean energy fluxes(Mean for each proceccors)
             !
-
             DO j = 3, nyp-2
                DO i = 3, nxp-2
                   total_sw = total_sw+a_sflx(2,i,j)
@@ -251,16 +255,16 @@ CONTAINS
             total_se  = total_se/REAL((nxp-4)*(nyp-4))
             total_pre = total_pre/REAL((nxp-4)*(nyp-4))
 
+        ! From energy fluxes calculate new sirface temperature
+        sst1 =sst
+        IF (.NOT. lConstSoilHeatCap) THEN
+           C_heat = 1.29e3*(840.+4187.*thetaS1*W1) ! Eq 33
+        END IF
 
-            ! From energy fluxes calculate new sirface temperature
-            sst1 = sst
-            C_heat = 1.29e3*(840+4187*thetaS1*W1) ! Eq 33
-            lambda = 1.5e-7*C_heat
-            !       WRITE(*,*)  sst,total_rw
+        lambda=1.5e-7*C_heat
 
-            !459    FORMAT(8001(E15.6))
-            ! Determine moisture at different depths in the ground
-            !
+        ! Determine moisture at different depths in the ground
+        !
 
             K1 = K_s1*W1**(2.*B1+3.)
             K2 = K_s1*W2**(2.*B1+3.)
@@ -277,9 +281,11 @@ CONTAINS
             Q12 = Kmean1*2.*( (fii_1-fii_2)/(D1+D2)+1.0)
             Q23 = Kmean2*2.*( (fii_2-fii_3)/(D2+D3)+1.0)
 
-            W1 = W1+1./(thetaS1*D1)*(-Q12-((total_la+total_pre)/((0.5*(dn0(1)+dn0(2))*alvl)/ffact))/(thetaS1*1000))*dtl
-            W2 = W2+1./(thetaS2*D2)*(Q12-Q23)*dtl
-            W3 = W3+1./(thetaS3*D3)*(Q23-Q3)*dtl
+            IF (.NOT. lConstSoilWater) THEN
+               W1 = W1+1./(thetaS1*D1)*(-Q12-((total_la+total_pre)/((0.5*(dn0(1)+dn0(2))*alvl)/ffact))/(thetaS1*1000))*dtl
+               W2 = W2+1./(thetaS2*D2)*(Q12-Q23)*dtl
+               W3 = W3+1./(thetaS3*D3)*(Q23-Q3)*dtl
+            END IF
             !
             !  Following is copied from CASE (2). No idea if this is valid or not..
             !
@@ -308,8 +314,8 @@ CONTAINS
             CALL sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar,  &
                          uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
 
-            sst1 = sst1-(total_rw+total_la+total_se+( sqrt(lambda*C_heat*7.27e-5/(2.0)) *(SST1-280.0)))&
-                   /(2.0e-2*C_heat+ sqrt( lambda*C_heat/(2.0*7.27e-5)) )*dtl
+           sst1 = sst1-(total_rw+total_la+total_se+( SQRT(lambda*C_heat*7.27e-5/(2.0)) *(SST1-deepSoilTemp)))&
+                /(2.0e-2*C_heat+ SQRT( lambda*C_heat/(2.0*7.27e-5)) )*dtl
 
             sst = sst1
          !

@@ -13,7 +13,7 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=2 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
+IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
 EXPNAME="jung3rdAug"  # Name of the experiment
 
@@ -21,15 +21,15 @@ NPROCS=2          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=40              # Number of points in Y-direction (including "halo" points)
+NYP=100              # Number of points in Y-direction (including "halo" points)
 NZP=70              # Number of points in Z-direction
 DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=100.        # Length of the spinup period (seconds)
-Texp=28800.         # Length of the experiment (seconds)
-LEVEL=5             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+Tspinup=300.        # Length of the spinup period (seconds)
+Texp=43200.         # Length of the experiment (seconds)
+LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
 
 
@@ -51,7 +51,6 @@ fi
 
 # Create namelists
 cat > NAMELIST <<EOF
-
  &version
   ver="${ver}"
  /
@@ -77,8 +76,8 @@ cat > NAMELIST <<EOF
   prndtl = -0.3333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
   hfilin = '${EXPNAME}.h.rst'
-  ssam_intvl = 120.           ! Interval for statistical output
-  savg_intvl = 120.           ! Averaging interval for stat output
+  ssam_intvl = 10.           ! Interval for statistical output
+  savg_intvl = 10.           ! Averaging interval for stat output
   frqanl = 30.                ! Interval for full domain output
   lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
   salsa_b_bins = .TRUE.
@@ -93,36 +92,45 @@ cat > NAMELIST <<EOF
   lnudging = .TRUE.           ! Master swtich for nudging scheme
   lemission = .FALSE.          ! Master switch for aerosol emissions  
   iradtyp = 3                 ! Radiation/large scale forcing
-  strtim = 215.3               ! Start time
+  strtim = 215.5               ! Start time
   case_name = 'default'       ! Case name for large-scale forcing schemes
   div = 3.75e-6               ! Large-scale divergence
-  dthcon = 16.0                ! Sensible heat flux
-  drtcon = 93.0               ! Latent heat flux
-  sst = 263.                 ! Surface temperature
-  zrough = 0.001                ! Roughness length
-  ubmin = -0.25
-  th00 = 263.                 ! Reference temperature
+  th00 = 288.                 ! Reference temperature
   umean =  10.0                
   vmean =  0.
  /
 
- ! With iradtyp = 3
- &radiation
+&surface
+  isfctyp           = 0
+  zrough            = 0.001
+  ubmin             = -0.25
+  sst               = 288.
+  dthcon            = 16.
+  drtcon            = 93.
+  C_heat            = 2.e6
+  deepSoilTemp      = 288.
+  W1                = 0.9
+  W2                = 0.9
+  W3                = 0.9
+  lConstSoilWater   = .TRUE.
+  lConstSoilHeatCap = .TRUE. 
+/
 
+&radiation
   radsounding = 'datafiles/ksaw.lay'  
   sfc_albedo = 0.2
-
- /
+  laerorad = .TRUE. 
+/
 
  ! With lnudging = .TRUE.
  &nudge
 
-  nudge_time = 1000.          ! Overall time for nudging from the start of the simulation
+  nudge_time = 7200.          ! Overall time for nudging from the start of the simulation
 
   ndg_theta%nudgetype = 1
   ndg_theta%tau_type = 2      ! Type of relaxation time (0:constant, 1-3: increasing)
-  ndg_theta%tau_min = 300.    ! Min relaxation time (with tau_type=1-3 and constant tau)
-  ndg_theta%tau_max = 900.   ! Max relaxation time (with tau_type=1-3)
+  ndg_theta%tau_min = 60.    ! Min relaxation time (with tau_type=1-3 and constant tau)
+  ndg_theta%tau_max = 3600.   ! Max relaxation time (with tau_type=1-3)
   ndg_theta%tau_max_continue = .TRUE.
 
  /
@@ -171,11 +179,11 @@ cat > NAMELIST <<EOF
 
    lsactiv%switch = .TRUE.
 
-   lsicenucl%switch = .TRUE.
+   lsicenucl%switch = .FALSE.
 
    lsautosnow%switch = .FALSE.
 
-   lsicemelt%switch = .TRUE.
+   lsicemelt%switch = .FALSE.
 
    lscgcc = .TRUE.       ! Self-collection of cloud droplets
    lscgpp = .TRUE.       ! Self-collection of rain drops
@@ -201,18 +209,18 @@ cat > NAMELIST <<EOF
    lsactbase   = .FALSE.  ! --Switch for parameterized cloud base activation
    lsactintst  = .TRUE.  ! --Switch for interstitial activation based on host model Smax
 
-   ice_hom     = .TRUE.
-   ice_imm     = .TRUE.
-   ice_dep     = .TRUE.
+   ice_hom     = .FALSE.
+   ice_imm     = .FALSE.
+   ice_dep     = .FALSE.
 
-   lscheckarrays = .TRUE.
+   lscheckarrays = .FALSE.
 
-   rhlim = 1.2          ! RH limit for SALSA during initialization and spinup
+   rhlim = 1.0001          ! RH limit for SALSA during initialization and spinup
 
    isdtyp = 0
-   nspec = 2
-   listspec = 'SO4','DU','','','','',''
-   volDistA = 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0   
+   nspec = 1
+   listspec = 'SO4','','','','','',''
+   volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0   
    volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    nf2a = 1.0
 

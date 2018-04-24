@@ -144,11 +144,9 @@ CONTAINS
          END DO
 
          IF (.NOT. check) STOP 'TERMINATING: Gases do not span bands'
-
          band(ib)%ngases = ii
          ALLOCATE(band(ib)%gas_id(ii))
          band(ib)%gas_id(:) = gasesinband(1:ii)
-
          IF (band(ib)%power < epsilon(1.)) THEN
             bllmx = max(band(ib)%llimit, bllmx)
             brlmn = min(band(ib)%rlimit, brlmn)
@@ -161,7 +159,6 @@ CONTAINS
       ! Make separate solar and IR spectra
       !
       ALLOCATE(solar_bands(mbs), ir_bands(mbir))
-
       i = 1; j = 1
       DO ib = 1, mb
          IF(isSolar(band(ib))) THEN

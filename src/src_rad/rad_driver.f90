@@ -24,8 +24,9 @@ MODULE radiation
   ! Juha Tonttila, FMI
 
 
-  USE defs, ONLY       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv, SolarConstant
+  USE defs, ONLY       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv, SolarConstant, R
   USE fuliou, ONLY     : rad, set_random_offset, minSolarZenithCosForVis
+  USE mo_submctl, ONLY : nbins,spec
   IMPLICIT NONE
 
   CHARACTER (len=50) :: background = 'datafiles/dsrt.lay'
@@ -36,32 +37,36 @@ MODULE radiation
 
   LOGICAL, SAVE     :: first_time = .TRUE.
   REAL, ALLOCATABLE, SAVE ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
-                              plwc(:), piwc(:), prwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:)
-
+                              plwc(:), piwc(:), prwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:), &
+                              maerobin(:,:), naerobin(:,:)
   INTEGER :: k,i,j, npts
   REAL    :: ee, u0, day, zz !time, alat, Juha: Time and alat given as argument already! Potential bug, hopefully harmless.
 
   CONTAINS
 
-    SUBROUTINE d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn0, pi0, pi1, dzm, &
+    SUBROUTINE d4stream(n1, n2, n3, nspec, alat, time, sknt, sfc_albedo, dn0, pi0, pi1, dzm, &
                         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, &
-                        albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs)
+                        albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs, maerop, naerop)
       USE mpi_interface, ONLY : myid, pecount
-      INTEGER, INTENT (in) :: n1, n2, n3
+      INTEGER, INTENT (in) :: n1, n2, n3, nspec
       REAL, INTENT (in)    :: alat, time, sknt, sfc_albedo  ! Time in decimal days
       REAL, DIMENSION (n1), INTENT (in)                 :: dn0, pi0, pi1, dzm
       REAL, DIMENSION (n1,n2,n3), INTENT (in)           :: pip, tk, rv, rc, nc
       REAL, OPTIONAL, DIMENSION (n1,n2,n3), INTENT (in) :: rr, ice, nice, grp
+      REAL, OPTIONAL, INTENT(in)                        :: maerop(n1,n2,n3,nspec*nbins),   & 
+                                                           naerop(n1,n2,n3,nbins)
       REAL, DIMENSION (n1,n2,n3), INTENT (inout)        :: tt, rflx, sflx, afus, afds, afuir, afdir
       CHARACTER(len=50), OPTIONAL, INTENT(in)           :: radsounding
       LOGICAL, OPTIONAL, INTENT(in)                     :: useMcICA, ConstPrs
+      !! NEED TO FIND A BETTER WAY WITH THESE INDICES BECAUSE THEY'RE ALL OVER THE PLACE NOW: 
+
       REAL, INTENT (out)                                :: albedo(n2,n3)
 
       INTEGER :: kk
       REAL    :: xfact, prw, pri, p0(n1)
       REAL    :: eps                        !Added to prevent division by zero, not entirely sure what the best value is - Aleksi
 
-      eps = 1e-25
+      eps = 1.e-25
 
       IF (present(radsounding)) background = radsounding
       IF (present(useMcICA)) McICA = useMcICA
@@ -70,17 +75,11 @@ MODULE radiation
       IF (first_time) THEN
          ! Possible to use constant LES pressure levels (fixed during the first call)
          ALLOCATE(exner(n1), pres(n1))
-                  exner(1:n1) = (pi0(1:n1)+pi1(1:n1))/cp
-                  pres(1:n1) = p00*( exner(1:n1) )**cpr
-         IF (.TRUE.) THEN
-            ! Works well with the LES model
-            p0(1:n1) = 0.01*pres(1:n1)
-            CALL setup_les(background,n1,nv1,nv,p0,tk(n1,3,3),rv(n1,3,3))
-         ELSE
-            p0(n1) = (p00*(pi0(n1)/cp)**cpr) / 100.
-            p0(n1-1) = (p00*(pi0(n1-1)/cp)**cpr) / 100.
-            CALL setup(background,n1,npts,nv1,nv,p0)
-         END IF
+         exner(1:n1) = (pi0(1:n1)+pi1(1:n1))/cp
+         pres(1:n1) = p00*( exner(1:n1) )**cpr
+         ! Works well with the LES model
+         p0(1:n1) = 0.01*pres(1:n1)
+         CALL setup_les(background,n1,nv1,nv,p0,tk(n1,3,3),rv(n1,3,3))
          first_time = .FALSE.
          IF (allocated(pre))   pre(:) = 0.
          IF (allocated(pde))   pde(:) = 0.
@@ -89,6 +88,10 @@ MODULE radiation
          IF (allocated(plwc)) plwc(:) = 0.
          IF (allocated(pgwc)) pgwc(:) = 0.
       END IF
+
+      IF (allocated(maerobin)) maerobin(:,:) = 0.
+      IF (allocated(naerobin)) naerobin(:,:) = 0.
+
       !
       ! initialize surface albedo, emissivity and skin temperature.
       !
@@ -177,26 +180,86 @@ MODULE radiation
                   pgwc(kk) = 1000.*dn0(k)*grp(k,i,j)
                END IF
 
+               ! Aerosol ! convert from /kg to /m3
+               IF ( PRESENT(maerop) .AND. PRESENT(naerop) ) THEN
+                  !maerobin(kk,1:nspec*nbins) = maerop(k,i,j,1:nspec*nbins)!1.e-15
+                  !naerobin(kk,1:nbins) = naerop(k,i,j,1:nbins)!100000.
+                  !WRITE(*,*) k, maerobin(kk,:)
+                  !IF ( ANY(naerop(k,i,j,1:nbins) < 1.e-10 .AND. maerop(k,i,j,1:nbins) > 1.e-30) .OR. &
+                  !     ANY(naerop(k,i,j,1:nbins) > 1.e-10 .AND. maerop(k,i,j,1:nbins) < 1.e-30)) &
+                  !     WRITE(*,*) 'HEP', naerop(k,i,j,1:nbins), maerop(k,i,j,1:nbins), k
+                  !IF ( ANY(naerop(k,i,j,1:nbins) < 1.e-10 .AND. maerop(k,i,j,nbins+1:2*nbins) > 1.e-30) .OR. &
+                  !     ANY(naerop(k,i,j,1:nbins) > 1.e-10 .AND. maerop(k,i,j,nbins+1:2*nbins) < 1.e-30)) &
+                  !     WRITE(*,*) 'HEP2', naerop(k,i,j,1:nbins), maerop(k,i,j,nbins+1:2*nbins), k
+                  !WRITE(*,*) 'number', naerop(k,i,j,1:6)
+                  !WRITE(*,*) 'so4', pres(k), R, tk(k,i,j), pres(k)/(R*tk(k,i,j))
+                  !WRITE(*,*) 'H2O' ,maerop(k,i,j,nbins+1:nbins+6)
+                  !WRITE(*,*) ""
+                  maerobin(kk,:) = maerop(k,i,j,:)*pres(k)/(R*tk(k,i,j))
+                  naerobin(kk,:) = naerop(k,i,j,:)*pres(k)/(R*tk(k,i,j))
+                  !WRITE(*,*) kk+1
+                  !WRITE(*,*) "BIN3", naerobin(kk+1,3), maerobin(kk+1,3), maerobin(kk+1,nbins+3)
+                  !WRITE(*,*) "BIN4", naerobin(kk+1,4), maerobin(kk+1,4), maerobin(kk+1,nbins+4)
+
+                  !WRITE(*,*) kk
+                  !WRITE(*,*) "BIN3", naerobin(kk,3), maerobin(kk,3), maerobin(kk,nbins+3)
+                  !WRITE(*,*) "BIN4", naerobin(kk,4), maerobin(kk,4), maerobin(kk,nbins+4)
+                  !WRITE(*,*)""
+
+                  !WHERE(naerobin(kk,:) < 1.)
+                  !   naerobin(kk,:) = 0.
+                  !   maerobin(kk,1:nbins) = 0.
+                  !   maerobin(kk,nbins+1:2*nbins) = 0.
+                  !END WHERE
+
+               END IF
+
             END DO
 
-            IF (present(ice) .AND. present(rr) .AND. present(grp)) THEN
-                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                          fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, prwc=prwc, pgwc=pgwc)
-            ELSE IF (present(ice) .AND. present(grp)) THEN
-                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                          fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, pgwc=pgwc)
-            ELSE IF (present(ice) .AND. present(rr)) THEN
-                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                          fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, prwc=prwc)
-            ELSE IF (present(ice)) THEN
-                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                          fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde)
-            ELSE IF (present(rr)) THEN
-                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                          fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, prwc=prwc)
+            !kk = 39
+            !WRITE(*,*) kk
+            !WRITE(*,*) "BIN3", naerobin(kk,3), maerobin(kk,3), maerobin(kk,nbins+3)
+            !WRITE(*,*) "BIN4", naerobin(kk,4), maerobin(kk,4), maerobin(kk,nbins+4)
+            !WRITE(*,*)""
+            !DO k = 1,39
+            !   maerobin(k,:) = maerobin(40,:)
+            !   naerobin(k,:) = naerobin(40,:)
+            !END DO
+
+
+
+            ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            ! REMEMBER TO ADD AEROSOL TO OTHER OPTIONS AS WELL 
+            ! MAYBE BETTER TO DO SOME REFACTORING FIRST...
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+            !IF (PRESENT(ice).AND.PRESENT(rr).AND.PRESENT(grp)) THEN
+            !   CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+            !             fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
+            !             piwc=piwc, pde=pde, prwc=prwc, pgwc=pgwc)
+            !ELSE IF (PRESENT(ice).AND.PRESENT(grp)) THEN
+            !   CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+            !             fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
+            !             piwc=piwc, pde=pde, pgwc=pgwc)
+            !ELSE IF (PRESENT(ice).AND.PRESENT(rr)) THEN
+            !   CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+            !             fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
+            !             piwc=piwc, pde=pde, prwc=prwc)
+            IF (PRESENT(ice)) THEN
+               CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                         fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
+                         piwc=piwc, pde=pde)
+            !ELSE IF (PRESENT(rr)) THEN
+            !   CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+            !             fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
+            !             prwc=prwc)
+            ELSE IF (PRESENT(maerop) .AND. PRESENT(naerop)) THEN
+               CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                         fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
+                         maerobin=maerobin, naerobin=naerobin )
             ELSE
-                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                          fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre)
+               CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                         fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre)
             END IF
 
             DO k = 1, n1
@@ -240,102 +303,7 @@ MODULE radiation
   ! the original sounding using p0 as this does not depend on time and thus
   ! allows us to recompute the same background matching after a history start
   !
-  SUBROUTINE setup(background,n1,npts,nv1,nv,zp)
 
-    CHARACTER (len=19), INTENT (in) :: background
-    INTEGER, INTENT (in)  :: n1
-    INTEGER, INTENT (out) :: npts,nv1,nv
-    REAL, INTENT (in)     :: zp(n1)
-
-    REAL, ALLOCATABLE  :: sp(:), st(:), sh(:), so(:), sl(:)
-
-    INTEGER :: k, ns, norig, index
-    LOGICAL :: blend
-    REAL    :: pa, pb, ptop, ptest, test, dp1, dp2, dp3, Tsurf
-
-    OPEN( unit = 08, file = background, status = 'old' )
-    PRINT *, 'Reading Background Sounding: ',background
-    READ(08,*) Tsurf, ns
-    ALLOCATE ( sp(ns), st(ns), sh(ns), so(ns), sl(ns))
-    DO k = 1, ns
-       READ( 08, *) sp(k), st(k), sh(k), so(k), sl(k)
-    END DO
-    CLOSE(08)
-
-    !
-    ! identify what part, if any, of background sounding to use
-    !
-    ptop = zp(n1)
-    IF (sp(2) < ptop) THEN
-       pa = sp(1)
-       pb = sp(2)
-       k  = 3
-       DO WHILE (sp(k) < ptop .AND. k < ns)
-          pa = pb
-          pb = sp(k)
-          k  = k+1
-       END DO
-       k = k-1           ! identify first level above top of input
-       blend = .TRUE.
-    ELSE
-       blend = .FALSE.
-    END IF
-    !
-    ! if blend is true then the free atmosphere above the sounding will be
-    ! specified based on the specified background climatology, here the
-    ! pressure levels for this part of the sounding are determined
-    !
-    IF (blend) THEN
-       dp1 = pb-pa
-       dp2 = ptop - pb
-       dp3 = zp(n1-1) - zp(n1)
-       IF (dp1 > 2.*dp2) k = k-1 ! first level is too close, blend from prev
-       npts  = k
-       norig = k
-       ptest = sp(k)
-       test = ptop-ptest
-       DO WHILE (test > 2*dp3)
-          ptest = (ptest+ptop)*0.5
-          test  = ptop-ptest
-          npts  = npts + 1
-       END DO
-       nv1 = npts + n1
-    ELSE
-       nv1 = n1
-    END IF
-    nv = nv1-1
-    !
-    ! Allocate the arrays for the sounding data to be used in the radiation
-    ! profile and then fill them first with the sounding data, by afill, then
-    ! by interpolating the background profile at pressures less than the
-    ! pressure at the top of the sounding
-    !
-    ALLOCATE (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1))
-    ALLOCATE (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv))
-
-    IF (blend) THEN
-       pp(1:norig) = sp(1:norig)
-       pt(1:norig) = st(1:norig)
-       ph(1:norig) = sh(1:norig)
-       po(1:norig) = so(1:norig)
-
-      DO k = norig+1, npts
-          pp(k) = (ptop + pp(k-1))*0.5
-          index = getindex(sp,ns,pp(k))
-          pt(k) =  intrpl(sp(index),st(index),sp(index+1),st(index+1),pp(k))
-          ph(k) =  intrpl(sp(index),sh(index),sp(index+1),sh(index+1),pp(k))
-          po(k) =  intrpl(sp(index),so(index),sp(index+1),so(index+1),pp(k))
-       END DO
-       !
-       ! set the ozone constant below the reference profile
-       !
-       DO k = npts+1, nv
-          po(k) = po(npts)
-       END DO
-    END IF
-
-  END SUBROUTINE setup
-  !
   ! ---------------------------------------------------------------------------
   ! This version of setup is modified for LES simulations
   !    - Always using background soundings and LES data
@@ -357,6 +325,11 @@ MODULE radiation
 
     INTEGER :: k, ind, ns, nb, nt
     REAL    :: ptop, dp, Tsurf
+    INTEGER :: nspec
+    
+    nspec = spec%getNSpec()
+    nspec = MAX(1,nspec) ! If SALSA is not used, nspec would be 0 and that might cause an error in the allocation 
+                         ! (which is done regardles if SALSA is used, to keep it simple)
 
     ! Read backgroud profiles (p [hPa], T [K], q [kg/kg], O3 [-] and an unused concentration)
     OPEN( unit = 08, file = background, status = 'old' )
@@ -402,7 +375,8 @@ MODULE radiation
     !
     ALLOCATE (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
     ALLOCATE (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
-
+    ALLOCATE(maerobin(nv,nspec*nbins),naerobin(nv,nbins))
+    
     po = 0.
     IF (nb > 0) THEN
         ! Levels above LES domain: copy background soundings

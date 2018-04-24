@@ -87,9 +87,10 @@ CONTAINS
    !
    SUBROUTINE define_parm
 
-      USE util, ONLY : fftinix,fftiniy
-      USE sgsm, ONLY : csx, prndtl
-      USE srfc, ONLY : isfctyp, zrough, ubmin, dthcon, drtcon
+    USE util, ONLY : fftinix,fftiniy
+    USE sgsm, ONLY : csx, prndtl
+    USE srfc, ONLY : isfctyp, zrough, ubmin, dthcon, drtcon, C_heat,          &
+                     deepSoilTemp, lConstSoilWater, lConstSoilHeatCap
       USE step, ONLY : timmax, istpfl, corflg, outflg, frqanl, frqhis,                    &
                        strtim, radfrq
       USE nudg, ONLY : nudge_time, nudge_zmin, nudge_zmax,                                &
@@ -98,7 +99,8 @@ CONTAINS
       USE grid, ONLY : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                        dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                        filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
-                       nfpt, distim, runtype, CCN, Tspinup,sst, lbinanl, cntlat
+                       nfpt, distim, runtype, CCN, Tspinup,sst,W1,W2,W3, lbinanl, &
+                       cntlat
       USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                        zrand, zrndamp
       USE stat, ONLY : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
@@ -106,6 +108,7 @@ CONTAINS
       USE radiation_main, ONLY : radsounding,   &
                                  sfc_albedo,    &
                                  useMcICA,      &
+                                 laerorad,      &
                                  RadConstPress, &
                                  RadPrecipBins, &
                                  RadSnowBins
@@ -136,8 +139,6 @@ CONTAINS
            frqhis , frqanl , outflg , & ! freq of history/anal writes, output flg
            strtim ,                   & ! Model start time
            iradtyp,                   & ! Radiation type
-           isfctyp, ubmin  , zrough , & ! surface parameterization type
-           sst    , dthcon , drtcon , & ! SSTs, surface flx parameters
            isgstyp, csx    , prndtl , & ! SGS model type, parameters
            ipsflg , itsflg ,          & ! sounding flags
            hs     , ps     , ts    ,  & ! sounding heights, pressure, temperature
@@ -151,6 +152,7 @@ CONTAINS
       NAMELIST /radiation/         &
            radfrq,                   & ! radiation type flag RADFRQ NOT USED ANYWHERE, VARIABLE DECLARED IN STEP.F90
            radsounding, sfc_albedo,  & ! Name of the radiation sounding file, surface albedo
+           laerorad,                 &
            useMcICA,                 & ! Use the Monte Carlo Independent Column Approximation method (T/F)
            RadConstPress,            & ! keep constant pressure levels (T/F) 
            RadPrecipBins,            & ! add precipitation bins cloud water (0, 1, 2, 3,...)
@@ -169,6 +171,21 @@ CONTAINS
            nEmissionModes,      & ! Number of emission profiles to be used (max 5)
            emitModes              ! Emission configs
       
+      NAMELIST /surface/      &
+           isfctyp,           &   ! Surface parameterization type
+           zrough,            &   ! roughness length
+           ubmin,             &   !
+           sst,               &   ! Surface temperature
+           dthcon,            &   ! Sensible heat flux
+           drtcon,            &   ! Latent heat flux 
+           C_heat,            &   ! Soil heat capacity (Only with isfctyp=5)
+           deepSoilTemp,      &   ! Deep soil temperature (Only with isfctyp=5)
+           W1,                &   ! Soil water contents
+           W2,                &  
+           W3,                &
+           lConstSoilWater,   &   ! Keep soil water content(s) constant? (Only with isfctyp=5)
+           lConstSoilHeatCap      ! Keep soil heat capacity con
+
       NAMELIST /version/  &
            ver, author        ! Information about UCLALES-SALSA version and author
       
@@ -188,18 +205,20 @@ CONTAINS
       READ (1, nml=model)
       REWIND(1)
       READ (1, nml=radiation)
+      REWIND(1)
+      READ (1, nml=surface)
       IF (lnudging) THEN
-        REWIND(1)
-        READ  (1, nml=nudge)
+         REWIND(1)
+         READ  (1, nml=nudge)
       ENDIF
       IF (lemission) THEN
-        REWIND(1)
-        READ  (1, nml=emission)
+         REWIND(1)
+         READ  (1, nml=emission)
       ENDIF
       REWIND(1)
       READ  (1, nml=version) 
       CLOSE(1)
-
+      
       !
       ! write file variable control to standard output
       !
@@ -213,17 +232,21 @@ CONTAINS
          !
          ! Do some cursory error checking in namelist variables
          !
-
-         IF (min(nxp,nyp) < 5) THEN
+         IF (laerorad .AND. level < 4) THEN 
+            IF (myid ==0) WRITE(*,*) "WARNING: laerorad=TRUE valid only for level >= 4, setting to FALSE"
+            laerorad = .FALSE.
+         END IF
+         
+         IF (MIN(nxp,nyp) < 5) THEN
             IF (myid == 0) PRINT *, '  ABORTING: min(nxp,nyp) must be > 4.'
             CALL appl_abort(0)
          END IF
-
+         
          IF (nzp < 3 ) THEN
             IF (myid == 0) PRINT *, '  ABORTING: nzp must be > 2 '
             CALL appl_abort(0)
          END IF
-
+         
          IF (cntlat < -90. .OR. cntlat > 90.) THEN
             IF (myid == 0) PRINT *, '  ABORTING: central latitude out of bounds.'
             CALL appl_abort(0)
