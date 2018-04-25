@@ -777,6 +777,7 @@ CONTAINS
                 Kn = lambda/rwet
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
                 vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG,flag)
+                
 
                 IF (k==2) THEN ! The level just above surface
                     ! Particle diffusitivity  (15.29) in jacobson book

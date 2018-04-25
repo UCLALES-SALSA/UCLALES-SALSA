@@ -378,7 +378,6 @@ CONTAINS
     ! 3. Formulate the slopes for number concentration
     ! 4. Use the Dry limits from (2) as the integration limits if they are defined
     !
-    ! Note: insoluble species are not properly accounted for
     !
     USE classSection
     USE mo_submctl, ONLY :     &
@@ -642,8 +641,8 @@ CONTAINS
           
           ! Make things cleaner
           ASSOCIATE(zaer => aero(ii,jj,ica%par:fcb%par),  &
-               zcld => cloud(ii,jj,ica%cur:fcb%cur), &
-               zact => pactd(ica%cur:fcb%cur)  )
+                    zcld => cloud(ii,jj,ica%cur:fcb%cur), &
+                    zact => pactd(ica%cur:fcb%cur)        )
             
             ! Apply the number and mass activated to aerosol and cloud bins 
             DO cb = 1, fcb%cur - ica%cur + 1
