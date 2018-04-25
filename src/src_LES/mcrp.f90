@@ -186,7 +186,7 @@ contains
                 Dp = ( Xp / prw )**(1./3.)
 
                 G = 1. / (1. / (dn0(k)*rs(k,i,j)*Dv) + &
-                     alvl*(alvl/(Rm*tk(k,i,j))-1.) / (Kt*tk(k,i,j)))
+                     calc_alvl(tk(k,i,j))*(calc_alvl(tk(k,i,j))/(Rm*tk(k,i,j))-1.) / (Kt*tk(k,i,j)))
                 S = rv(k,i,j)/rs(k,i,j) - 1.
 
                 if (S < 0) then
@@ -435,11 +435,11 @@ contains
               flxdiv = (rfl(kp1)-rfl(k))*dzt(k)/dn0(k)
               rpt(k,i,j) =rpt(k,i,j)-flxdiv
               rtt(k,i,j) =rtt(k,i,j)-flxdiv
-              tlt(k,i,j) =tlt(k,i,j)+flxdiv*(alvl/cp)*th(k,i,j)/tk(k,i,j)
+              tlt(k,i,j) =tlt(k,i,j)+flxdiv*(calc_alvl(tk(k,i,j))/cp)*th(k,i,j)/tk(k,i,j)
 
               npt(k,i,j) = npt(k,i,j)-(nfl(kp1)-nfl(k))*dzt(k)/dn0(k)
 
-              rrate(k,i,j)    = -rfl(k)/dn0(k) * alvl*0.5*(dn0(k)+dn0(kp1))
+              rrate(k,i,j)    = -rfl(k)/dn0(k) * calc_alvl(tk(k,i,j))*0.5*(dn0(k)+dn0(kp1))
 
            end do
         end do
@@ -482,7 +482,7 @@ contains
              kp1=k+1
              flxdiv = (rfl(kp1)-rfl(k))*dzt(k)
              rtt(k,i,j) = rtt(k,i,j)-flxdiv
-             tlt(k,i,j) = tlt(k,i,j)+flxdiv*(alvl/cp)*th(k,i,j)/tk(k,i,j)
+             tlt(k,i,j) = tlt(k,i,j)+flxdiv*(calc_alvl(tk(k,i,j))/cp)*th(k,i,j)/tk(k,i,j)
              rrate(k,i,j) = -rfl(k)
           end do
        end do
@@ -594,7 +594,7 @@ contains
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
-                tlt(k,i,j) = tlt(k,i,j) + SUM(amdiv(k,i,j,istr:iend))*(alvl/cp)*th(k,i,j)/tk(k,i,j)
+                tlt(k,i,j) = tlt(k,i,j) + SUM(amdiv(k,i,j,istr:iend))*(calc_alvl(tk(k,i,j))/cp)*th(k,i,j)/tk(k,i,j)
              END DO
           END DO
        END DO
@@ -615,7 +615,7 @@ contains
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
-                tlt(k,i,j) = tlt(k,i,j) + SUM(cmdiv(k,i,j,istr:iend))*(alvl/cp)*th(k,i,j)/tk(k,i,j)
+                tlt(k,i,j) = tlt(k,i,j) + SUM(cmdiv(k,i,j,istr:iend))*(calc_alvl(tk(k,i,j))/cp)*th(k,i,j)/tk(k,i,j)
              END DO
           END DO
        END DO
@@ -640,7 +640,7 @@ contains
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
-                tlt(k,i,j) = tlt(k,i,j) + SUM(imdiv(k,i,j,istr:iend))*(alvi/cp)*th(k,i,j)/tk(k,i,j)
+                tlt(k,i,j) = tlt(k,i,j) + SUM(imdiv(k,i,j,istr:iend))*(calc_alvi(tk(k,i,j))/cp)*th(k,i,j)/tk(k,i,j)
              END DO
           END DO
        END DO
@@ -665,7 +665,7 @@ contains
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 1,n1-1
-                tlt(k,i,j) = tlt(k,i,j) - SUM(prvt(k,i,j,istr:iend))/tstep*(alvl/cp)*th(k,i,j)/tk(k,i,j)
+                tlt(k,i,j) = tlt(k,i,j) - SUM(prvt(k,i,j,istr:iend))/tstep*(calc_alvl(tk(k,i,j))/cp)*th(k,i,j)/tk(k,i,j)
              END DO
           END DO
        END DO
@@ -1065,5 +1065,25 @@ contains
 
   END SUBROUTINE DepositionFast
 
+  REAL FUNCTION calc_alvl(temp) ! latent heat of vaporization
+    IMPLICIT NONE
+    REAL, INTENT(IN) :: temp ! ambient temperature [K]
+    
+    
+    calc_alvl = 2.501e6-2370.*(temp-273.15)
+    
+    
+  END FUNCTION calc_alvl
+  
+  REAL FUNCTION calc_alvi(temp) ! latent heat of sublimation
+    IMPLICIT NONE
+    REAL, INTENT(IN) :: temp ! ambient temperature [K]
+    REAL :: tempC
+    tempC= (temp-273.15)
+    
+    calc_alvi = 2.83458e6-tempC*(340.+10.46*tempC)
+    
+    
+  END FUNCTION calc_alvi
 
 end module mcrp

@@ -1540,8 +1540,6 @@ CONTAINS
     INTEGER :: nstr
     INTEGER :: ii,jj,cc, dd
     LOGICAL aero_eq, any_aero, any_cloud, any_prec, any_ice, any_snow
-    
-    
 
     zrh(:,:) = prv(:,:)/prs(:,:)
 
@@ -1702,7 +1700,7 @@ CONTAINS
                 endif
                 
                 massa = massa + pice(ii,jj,cc)%volc(8)*rhoic
-                massa = massa/pice(ii,jj,cc)%numc/pdn(ii,jj) ! massa per kappale
+                massa = massa/pice(ii,jj,cc)%numc ! massa per kappale
                 
                 cap = 0.09*massa**(1./3.) ! Capacitance (m) as defined for ISDAC
             
@@ -1713,7 +1711,7 @@ CONTAINS
 
 !                ! Activity + Kelvin effect - unity (ISDAC)
                 zact = 1.0
-                !zkelvinid(cc) = 1.0
+                zkelvinid(cc) = 1.0
 
 
                 ! Activity + Kelvin effect - edit when needed
@@ -1722,7 +1720,7 @@ CONTAINS
                 !   Ice may not be that far from a sphere, but most particles are large and at least
                 !   growing particles are covered by a layer of pure ice.
                 !zact = 1.0 ! Note: acth2o does not work for ice or snow!
-                zkelvinid(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                !zkelvinid(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
 
                 ! Saturation mole concentration over flat surface
                 zcwsurfid(cc) = prsi(ii,jj)*rhoair/mwa
