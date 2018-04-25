@@ -395,6 +395,7 @@ CONTAINS
             CALL gases (solar_bands(ib), ig, pp, pt, ph, po, tg )
             CALL combineOpticalProperties(tau, w, pf, tg)
             
+            !WRITE(*,*) SUM(taer(:))
             !
             ! Solver expects cumulative optical depth
             !

@@ -452,7 +452,7 @@ CONTAINS
     INTEGER :: ss,kk,nc, istr,iend
     INTEGER :: bb
 
-    REAL :: TH = 1.e-10
+    REAL :: TH = 1.e-30
     
     REAL, POINTER :: aer_nre(:) => NULL(), aer_nim(:) => NULL(),          &
                      aer_alpha(:) => NULL(), aer_sigma(:,:,:) => NULL(),  &
@@ -500,7 +500,7 @@ CONTAINS
     END IF
      
     ! Loop over levels
-    DO kk = 2,nv-1
+    DO kk = 1,nv
 
        volc = 0.
 
@@ -538,12 +538,13 @@ CONTAINS
 
           ! Binned optical properties
           ! Optical depth             
-          taer_bin(kk,bb) = 1.e-6*naerobin(kk,bb) * aer_sigma(i_re,i_im,i_alpha) * dz(kk)*1.e2
-          taer_bin(kk,bb) = MERGE(taer_bin(kk,bb), 0., taer_bin(kk,bb) > TH)
-          IF (taer_bin(kk,bb) > 1.) THEN
-             WRITE(*,*) bb, i_re, i_im, i_alpha, volmean_refrRe, aer_nre(i_re), 1.e-6*naerobin(kk,bb),  &
-                        aer_sigma(i_re,i_im,i_alpha), taer_bin(kk,bb)
-          END IF
+          !taer_bin(kk,bb) = 1.e-6*naerobin(kk,bb) * aer_sigma(i_re,i_im,i_alpha) * dz(kk)*1.e2
+          taer_bin(kk,bb) = voltot(bb) * aer_sigma(i_re,i_im,i_alpha) * dz(kk)*1.e2
+          !taer_bin(kk,bb) = MERGE(taer_bin(kk,bb), 0., taer_bin(kk,bb) > TH)
+          !IF ( 1./lambda_r < 5.e-4 .AND. (voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.) > 2.e-5 ) THEN
+          !   WRITE(*,*) bb, (voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.), i_re, i_im, i_alpha, &
+          !              aer_nre(i_re), (1./lambda_r)*1.e-2, taer_bin(kk,bb)
+          !END IF
 
           ! Single scattering albedo
           waer_bin(kk,bb) = taer_bin(kk,bb) * aer_omega(i_re,i_im,i_alpha)
@@ -573,6 +574,9 @@ CONTAINS
        END IF
 
     END DO
+
+    !write(*,*) SUM(taer(:))
+
 
     aer_nre => NULL()
     aer_nim => NULL()
