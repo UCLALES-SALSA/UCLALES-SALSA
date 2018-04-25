@@ -378,7 +378,6 @@ CONTAINS
     ! 3. Formulate the slopes for number concentration
     ! 4. Use the Dry limits from (2) as the integration limits if they are defined
     !
-    ! Note: insoluble species are not properly accounted for
     !
     USE classSection
     USE mo_submctl, ONLY :     &
@@ -397,37 +396,41 @@ CONTAINS
     
     TYPE(Section), TARGET :: pactd(ncld) ! Local variable
 
-    REAL :: paa        ! Coefficient for Kelvin effect
+    REAL, PARAMETER :: THvol = 1.e-28 ! m^3, less than the volume of a 1 nm particle
 
-    REAL :: zdcstar, zvcstar  ! Critical diameter/volume corresponding to S_LES
-    REAL :: zactvol           ! Total volume of the activated particles
+    REAL :: zkelvin               ! Coefficient for Kelvin effect
+
+    REAL :: zdcstar, zvcstar      ! Critical diameter/volume corresponding to Smax_LES
+    REAL :: vol_sol, vol_insol  ! Total mass of soluble and insoluble material within a bin
+
+    REAL :: zactvol               ! Total volume of the activated particles
     
-    REAL :: Nact, Vact(8)        ! Helper variables for transferring the activated particles
-    !             The size is hardcoded as 8, since it's the same in the mass arrays. Not all of them are used 
-    !             and it should be fixed at some point so that there's no unnecessary space.
+    REAL :: Nact, Vact(8)         ! Helper variables for transferring the activated particles
+                                  ! The size is hardcoded as 8, since it's the same in the mass arrays. Not all of them are used 
+                                  ! and it should be fixed at some point so that there's no unnecessary space.
     
-    REAL :: Nmid, Nim1, Nip1     ! Bin number concentrations in current and adjacent bins
-    REAL :: dNmid, dNim1, dNip1  ! Density function value of the number distribution for current and adjacent bins
+    REAL :: Nmid, Nim1, Nip1      ! Bin number concentrations in current and adjacent bins
+    REAL :: dNmid, dNim1, dNip1   ! Density function value of the number distribution for current and adjacent bins
     
-    REAL :: Vmid, Vim1, Vip1     ! Dry particle volume in the middle of the bin
-    REAL :: Vlo, Vhi             ! Dry particle volume scaled to bin edges
-    REAL :: Vlom1, Vhim1         ! - '' - For adjacent bins
-    REAL :: Vlop1, Vhip1         !
+    REAL :: Vmid, Vim1, Vip1      ! Dry particle volume in the middle of the bin
+    REAL :: Vlo, Vhi              ! Dry particle volume scaled to bin edges
+    REAL :: Vlom1, Vhim1          ! - '' - For adjacent bins
+    REAL :: Vlop1, Vhip1          !
     
-    REAL :: Vwmid, Vwim1, Vwip1  ! Wet particle volume in the middle of the bin
-    REAL :: Vwlo, Vwhi           ! Wet particle volume at bin edges
+    REAL :: Vwmid, Vwim1, Vwip1   ! Wet particle volume in the middle of the bin
+    REAL :: Vwlo, Vwhi            ! Wet particle volume at bin edges
     
-    REAL :: zs1, zs2          ! Slopes for number concetration distributions within bins
+    REAL :: zs1, zs2              ! Slopes for number concetration distributions within bins
     
-    REAL :: N01, N02          ! Origin values for number distribution slopes
-    REAL :: V01, V02          ! Origin values for wet particle volume slopes
-    REAL :: Nnorm, Vnorm      ! Normalization factors for number and volume integrals
+    REAL :: N01, N02              ! Origin values for number distribution slopes
+    REAL :: V01, V02              ! Origin values for wet particle volume slopes
+    REAL :: Nnorm, Vnorm          ! Normalization factors for number and volume integrals
     
-    REAL    :: vcut, vint1, vint2  ! cut volume, integration limit volumes
-    LOGICAL :: intrange(4)         ! Logical table for integration ranges depending on the shape of the wet size profile:
-                                   ! [Vlo -- vint1][vint1 -- Vmid][Vmid -- vint2][vint1 -- Vhi]
+    REAL    :: vcut, vint1, vint2 ! cut volume, integration limit volumes
+    LOGICAL :: intrange(4)        ! Logical table for integration ranges depending on the shape of the wet size profile, i.e. masks the ranges that can activate:
+                                  ! [Vlo -- vint1][vint1 -- Vmid][Vmid -- vint2][vint1 -- Vhi]
     INTEGER :: cb, ab, ii, jj, ss
-    
+    INTEGER :: isol
     INTEGER :: ndry, nwet, iwa
     
     ndry = spec%getNSpec(type="dry")
@@ -436,12 +439,12 @@ CONTAINS
 
     DO jj = 1, klev
        DO ii = 1, kbdim
-          IF ( prv(ii,jj)/prs(ii,jj) <= 1.000 ) CYCLE
+          IF ( prv(ii,jj)/prs(ii,jj) <= 0.99 ) CYCLE  ! Allow activation in slightly less than 100% RH, which should theoretically be possible for some special circumstances
           
-          paa = 4.*spec%mwa*surfw0/(rg*spec%rhowa*temp(ii,jj)) ! Kelvin effect [m]
+          zkelvin = 4.*spec%mwa*surfw0/(rg*spec%rhowa*temp(ii,jj)) ! Kelvin effect [m]
             
           ! Determine Dstar == critical diameter corresponding to the host model S
-          zdcstar = 2.*paa/( 3.*( (prv(ii,jj)/prs(ii,jj))-1. ) )
+          zdcstar = 2.*zkelvin/( 3.*( (prv(ii,jj)/prs(ii,jj))-1. ) )
           zvcstar = pi6*zdcstar**3
           
           ! Loop over cloud droplet (and aerosol) bins
@@ -453,18 +456,36 @@ CONTAINS
                 ! b-bins
                 ab = icb%par + (cb-icb%cur)
              END IF
-             pactd(cb)%numc = 0.d0
-             pactd(cb)%volc(1:nwet) =0.d0
-             ! Dry particles are not activated (volume 1e-28 m^3 is less than that in a 1 nm droplet)
-             IF ( aero(ii,jj,ab)%numc < nlim .OR. aero(ii,jj,ab)%volc(iwa) < aero(ii,jj,ab)%numc*1e-28 ) CYCLE
+             pactd(cb)%numc = 0.
+             pactd(cb)%volc(1:nwet) =0.
+
+             ! Determine the total mass of soluble and insoluble material in the current aerosol bin
+             vol_sol = 0.
+             vol_insol = 0.
+             IF ( spec%Nsoluble >= 1 ) THEN ! If this isn't true, we should not be here in the first place...               
+                DO isol = 1,spec%Nsoluble
+                   vol_sol = vol_sol + aero(ii,jj,ab)%volc( spec%ind_soluble(isol) )
+                END DO
+             END IF
+             IF ( spec%Ninsoluble >= 1 ) THEN
+                DO isol = 1,spec%Ninsoluble
+                   vol_insol = vol_insol + aero(ii,jj,ab)%volc( spec%ind_insoluble(isol) )
+                END DO
+             END IF
+
+             IF ( aero(ii,jj,ab)%numc < nlim) CYCLE                            ! Must have a reasonable number of particles
+             IF ( vol_sol < aero(ii,jj,ab)%numc*THvol) CYCLE                   ! Must have at least some soluble material in the particles
+             IF ( aero(ii,jj,ab)%volc(iwa) < aero(ii,jj,ab)%numc*THvol ) CYCLE ! Must not be totally dry
+             
+             ! Initialize the integration range mask for current bin
              intrange = .FALSE.
              
              ! Define some parameters
-             Nmid = aero(ii,jj,ab)%numc     ! Number concentration at the current bin center
+             Nmid = aero(ii,jj,ab)%numc                     ! Number concentration at the current bin center
              Vwmid = SUM(aero(ii,jj,ab)%volc(1:nwet))/Nmid  ! Wet volume at the current bin center
-             Vmid = SUM(aero(ii,jj,ab)%volc(1:ndry))/Nmid ! Dry volume at the current bin center
-             Vlo = Vmid*aero(ii,jj,ab)%vratiolo        ! Dry vol at low limit
-             Vhi = Vmid*aero(ii,jj,ab)%vratiohi        ! Dry vol at high limit
+             Vmid = SUM(aero(ii,jj,ab)%volc(1:ndry))/Nmid   ! Dry volume at the current bin center
+             Vlo = Vmid*aero(ii,jj,ab)%vratiolo             ! Dry vol at low limit
+             Vhi = Vmid*aero(ii,jj,ab)%vratiohi             ! Dry vol at high limit
              
              ! Number concentrations and volumes at adjacent bins (check for sizedistribution boundaries)
              IF (ab == in1a .OR. ab == in2b) THEN
@@ -620,8 +641,8 @@ CONTAINS
           
           ! Make things cleaner
           ASSOCIATE(zaer => aero(ii,jj,ica%par:fcb%par),  &
-               zcld => cloud(ii,jj,ica%cur:fcb%cur), &
-               zact => pactd(ica%cur:fcb%cur)  )
+                    zcld => cloud(ii,jj,ica%cur:fcb%cur), &
+                    zact => pactd(ica%cur:fcb%cur)        )
             
             ! Apply the number and mass activated to aerosol and cloud bins 
             DO cb = 1, fcb%cur - ica%cur + 1
