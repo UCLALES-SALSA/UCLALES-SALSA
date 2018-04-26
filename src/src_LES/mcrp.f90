@@ -575,7 +575,8 @@ CONTAINS
       !-------------------------------------------------------
       IF (sed_aero) THEN
 
-       CALL DepositionSlow(n1,n2,n3,n4,nbins,tk,a_dn,1500.,ustar,naerop,maerop,dzt,nlim,andiv,amdiv,andep,remaer,1)
+       CALL DepositionSlow(n1,n2,n3,n4,nbins,tk,a_dn,1500.,ustar,naerop,maerop, &
+                           dzt,tstep,nlim,andiv,amdiv,andep,remaer,1            )
 
        naerot = naerot - andiv
        maerot = maerot - amdiv
@@ -596,7 +597,8 @@ CONTAINS
 
       IF (sed_cloud) THEN
 
-       CALL DepositionSlow(n1,n2,n3,n4,ncld,tk,a_dn,spec%rhowa,ustar,ncloudp,mcloudp,dzt,nlim,cndiv,cmdiv,cndep,remcld,2)
+       CALL DepositionSlow(n1,n2,n3,n4,ncld,tk,a_dn,spec%rhowa,ustar,ncloudp,mcloudp, &
+                           dzt,tstep,nlim,cndiv,cmdiv,cndep,remcld,2                  )
 
        ncloudt = ncloudt - cndiv
        mcloudt = mcloudt - cmdiv
@@ -617,7 +619,8 @@ CONTAINS
 
       IF (sed_ice) THEN
 
-       CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,spec%rhoic,ustar,nicep,micep,dzt,nlim,indiv,imdiv,indep,remice,4)
+       CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,spec%rhoic,ustar,nicep,micep, &
+                           dzt,tstep,nlim,indiv,imdiv,indep,remice,4              )
 
        nicet = nicet - indiv 
        micet = micet - imdiv 
@@ -706,7 +709,7 @@ CONTAINS
 
 
 
-  SUBROUTINE DepositionSlow(n1,n2,n3,n4,nn,tk,adn,pdn,ustar,numc,mass,dzt,clim,flxdivn,flxdivm,depflxn,depflxm,flag)
+  SUBROUTINE DepositionSlow(n1,n2,n3,n4,nn,tk,adn,pdn,ustar,numc,mass,dzt,dt,clim,flxdivn,flxdivm,depflxn,depflxm,flag)
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,n4       ! Grid numbers, number of chemical species
@@ -718,6 +721,7 @@ CONTAINS
     REAL, INTENT(in) :: numc(n1,n2,n3,nn)    ! Particle number concentration
     REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4) ! Particle mass mixing ratio
     REAL, INTENT(in) :: dzt(n1)              ! Inverse of grid level thickness
+    REAL, INTENT(in) :: dt                   ! timestep
     REAL, INTENT(IN) :: clim                ! Concentration limit
     INTEGER, INTENT(IN) :: flag         ! An option for identifying aerosol, cloud, precipitation, ice and snow
     REAL, INTENT(OUT) :: flxdivm(n1,n2,n3,nn*n4), flxdivn(n1,n2,n3,nn) ! Mass and number divergency
@@ -777,7 +781,13 @@ CONTAINS
                 Kn = lambda/rwet
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
                 vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG,flag)
-                
+
+
+                ! This algorithm breaks down if the fall velocity is large enough to make the fall 
+                ! distance greater than the grid level thickness (mainly an issue with very high 
+                ! vertical resolutions). As a simple solution, limit the fall velocity based on grid 
+                ! box thickness and timestep (should not cause any further issues).
+                vc = MIN( vc, MIN(0.5*(1./dzt(k))/dt, 2.0) )
 
                 IF (k==2) THEN ! The level just above surface
                     ! Particle diffusitivity  (15.29) in jacobson book
