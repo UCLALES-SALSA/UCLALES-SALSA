@@ -957,13 +957,13 @@ CONTAINS
   !***********************************************
   
   SUBROUTINE ice_nucl_driver(kproma,kbdim,klev,   &
-       ptemp,prv,prs,prsi,ptstep )
+                             ptemp,prv,prs,prsi,ptstep )
     
     USE mo_submctl, ONLY : in2a,fn2b, ncld, nprc, nice,    &
-         pi, nlim, prlim,           &
-         calc_Sw_eq,                &
-         ice_hom, ice_imm, ice_dep,  &
-         calc_correlation
+                           pi, nlim, prlim,           &
+                           ice_hom, ice_imm, ice_dep
+    USE mo_particle_external_properties, ONLY : calc_Sw_eq
+    USE util, ONLY : calc_correlation
     
     IMPLICIT NONE
     

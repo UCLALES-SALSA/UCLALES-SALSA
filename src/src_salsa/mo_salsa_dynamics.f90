@@ -116,8 +116,8 @@ CONTAINS
          lscgpp, lscgpa, lscgpc,     &
          lscgia, lscgic, lscgii, lscgip, &
          lscgsa, lscgsc, lscgsi, lscgsp, lscgss, &
-         CalcDimension,              &
          aero, cloud, precp, ice, snow
+      USE mo_particle_external_properties, ONLY : CalcDimension
 
       IMPLICIT NONE
 
@@ -1501,7 +1501,8 @@ CONTAINS
                              in1a, in2a,  &
                              fn2b,            &
                              lscndh2oae, lscndh2ocl, lscndh2oic, &
-                             alv, als, CalcDimension
+                             alv, als 
+      USE mo_particle_external_properties, ONLY : CalcDimension
       USE mo_salsa_properties, ONLY : equilibration
       IMPLICIT NONE
 
@@ -1982,7 +1983,8 @@ CONTAINS
    !-------------------------------------------------
    REAL FUNCTION coagc(diam1,diam2,mass1,mass2,temp,pres,kernel,flag1,flag2)
 
-      USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd, terminal_vel
+      USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd 
+      USE mo_particle_external_properties, ONLY : terminal_vel
 
       IMPLICIT NONE
 

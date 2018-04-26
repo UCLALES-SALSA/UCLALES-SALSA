@@ -31,7 +31,8 @@ MODULE mcrp
                     snowin,    calc_eff_radius
    USE thrm, ONLY : thermo
    USE stat, ONLY : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
-   USE mo_submctl, ONLY : spec, terminal_vel
+   USE mo_submctl, ONLY : spec 
+   USE mo_particle_external_properties, ONLY : terminal_vel
    USE util, ONLY : getMassIndex
    IMPLICIT NONE
 

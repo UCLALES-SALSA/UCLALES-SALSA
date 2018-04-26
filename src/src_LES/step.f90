@@ -20,7 +20,7 @@
 MODULE step
 
   USE mo_submctl, ONLY : spec
-  USE util, ONLY : getMassIndex
+  USE util, ONLY : getMassIndex, calc_correlation 
   
   IMPLICIT NONE
   
@@ -726,8 +726,7 @@ CONTAINS
                              nice,nsnw,iia,fia,iib,fib,isa,fsa,                    &
                              spec, surfw0, rg, nlim, prlim, pi, &
                              lscndgas, pi6, avog,                                  &
-                             aerobins,calc_correlation
-
+                             aerobins
       IMPLICIT NONE
 
       INTEGER :: i,j,k,bb,bc,ba,s,sc,sa,str,end,nc,nn,iba,cd

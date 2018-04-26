@@ -25,7 +25,7 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 \
           rfft.f90 rad_solver.f90 rad_corkds.f90 rad_cldwtr.f90 \
 	  rad_d4strm.f90 rad_driver.f90 radiation_main.f90 emission_main.f90 \
 	  mo_seasalt_emission.f90 exceptionHandling.f90 mo_aerorad_lut.f90  \
-	  mo_salsa_optical_properties.f90
+	  mo_salsa_optical_properties.f90 mo_particle_external_properties.f90
 SRCSF77 = 
 
 
@@ -62,7 +62,7 @@ advl.o: grid.o stat.o util.o
 srfc.o: grid.o stat.o defs.o thrm.o $(seqmpi:.f90=.o)
 prss.o: grid.o stat.o defs.o util.o $(seqmpi:.f90=.o)
 sgsm.o: grid.o stat.o defs.o util.o thrm.o $(seqmpi:.f90=.o)
-mcrp.o: grid.o stat.o defs.o thrm.o mo_submctl.o util.o
+mcrp.o: grid.o stat.o defs.o thrm.o mo_submctl.o util.o mo_particle_external_properties.o
 step.o: grid.o stat.o util.o defs.o thrm.o sgsm.o srfc.o  \
         mcrp.o prss.o advf.o advl.o forc.o $(seqmpi:.f90=.o) \
         mo_salsa_driver.o mo_submctl.o 
@@ -73,7 +73,7 @@ nudg.o: grid.o mo_submctl.o util.o
 emission_main.o: mo_seasalt_emission.o mo_submctl.o grid.o util.o exceptionHandling.o \
 	         mo_salsa_sizedist.o mo_salsa_driver.o 
 mo_seasalt_emission.o: mo_submctl.o
-
+mo_particle_external_properties.o: mo_submctl.o classSection.o
 rfft.o:
 radiation_main.o: grid.o rad_driver.o mo_submctl.o 
 rad_solver.o: defs.o
@@ -92,13 +92,13 @@ mo_salsa_driver.o: mo_submctl.o mo_salsa.o mo_salsa_properties.o \
 mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o mo_salsa_optical_properties.o \
 	         classSpecies.o classSection.o classProcessSwitch.o
 mo_submctl.o: classSpecies.o classSection.o classProcessSwitch.o
-mo_salsa_cloud.o: mo_submctl.o classSection.o
+mo_salsa_cloud.o: mo_submctl.o classSection.o mo_particle_external_properties.o util.o
 mo_salsa_sizedist.o: mo_salsa_driver.o mo_submctl.o 
 mo_salsa.o: mo_submctl.o mo_salsa_dynamics.o mo_salsa_update.o \
 	    mo_salsa_cloud.o classSection.o
 mo_salsa_dynamics.o: mo_submctl.o mo_salsa_nucleation.o \
                      mo_salsa_properties.o aerosol_thermodynamics.o \
-                     classSection.o
+                     classSection.o mo_particle_external_properties.o 
 mo_salsa_nucleation.o: mo_submctl.o 
 mo_salsa_properties.o: mo_submctl.o
 mo_salsa_optical_properties.o: classSpecies.o mo_submctl.o
