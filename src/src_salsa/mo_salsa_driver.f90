@@ -869,7 +869,7 @@ IMPLICIT NONE
                                nlcnd,                  &
                                nlicenucl,              &
                                nlicmelt,               &
-                               icenucl_tstart, &
+                               icenucl_tstart,         &
 
                                lscgia,lscgic,lscgii,   &
                                lscgip,lscgsa,lscgsc,   &

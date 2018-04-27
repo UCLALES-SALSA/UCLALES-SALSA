@@ -76,8 +76,7 @@ module radiation
                 !   - Upper atmosphere (P > 179 hPa) from dsrt.lay
                 !   - log-log or lin-log interpolation between LES and the upper atmosphere
                 !   - Boundary layer ozone concentration fixed to 50 ppt
-                call setup_auto(n1,nv,p0,tk(n1,3,3),rv(n1,3,3),50e-9)
-                nv1 = n1+1 ! Total number of scalars (cell centers)
+                call setup_auto(n1,nv1,nv,p0,tk(n1,3,3),rv(n1,3,3),50e-9)
             ELSE
                 call setup_les(background,n1,nv1,nv,p0,tk(n1,3,3),rv(n1,3,3))
             ENDIF
@@ -341,11 +340,11 @@ module radiation
   !
   ! ---------------------------------------------------------------------------
   ! This version of setup is modified for LES simulations
-  ! - Using radiation background soundings above LES domain
-  ! - Linear interpolation between LES and radiation background
-  ! - Temperature profile is forced to be decreasing above LES domain to avoid radiative warming
+  !    - Always using background soundings and LES data
+  !    - Separate LES and background profiles
+  !    - Weighting of the backgound towards smooth transition at the interface
   !
-  ! Tomi Raatikainen, 19.4.2018
+  ! Tomi Raatikainen, 22.12.2016
   !
   subroutine setup_les(background,n1,nv1,nv,zp,ttop,qtop)
     use mpi_interface, only: myid
@@ -359,7 +358,7 @@ module radiation
     real, allocatable  :: sp(:), st(:), sh(:), so(:), sl(:)
 
     integer :: k, ind, ns, nb, nt
-    real    :: ptop, dp, dt, Tsurf
+    real    :: ptop, dp, Tsurf
 
     ! Read backgroud profiles (p [hPa], T [K], q [kg/kg], O3 [-] and an unused concentration)
     open ( unit = 08, file = background, status = 'old' )
@@ -386,14 +385,6 @@ module radiation
         IF (k==ns+1) EXIT
     END DO
     nb=k-1 ! Background soundings from 1 to k (nb points)
-    !
-    ! Temperature should decrease when moving from LES to radiation domain
-    !   - Even a low temperature decrease (e.g. 1 K) is enough to avoid radiative warming of the LES domain
-    dt=1.
-    DO WHILE (st(nb) > ttop-dt)
-        nb=nb-1
-        IF (nb==0) EXIT
-    END DO
 
     ! Add layers between LES and soundings (mind the gap!)
     nt=0 ! Transition regime
@@ -427,12 +418,12 @@ module radiation
         ! Interpolated levels between pp(nb) and ptop
         DO k=1,nt
             pp(nb+k)=pp(nb+k-1)-(pp(nb)-ptop)/REAL(nt+1)
-            ! Interpolate between LES model top and the lowest sounding (nb)
+            ! Interpolate between LES model top and the lowest sounding
             !   y=y0+(y1-y0)(p1-p0)*(p-p0)
-            pt(nb+k)=ttop+(st(nb)-ttop)/(sp(nb)-ptop)*(pp(nb+k)-ptop)
-            ph(nb+k)=qtop+(sh(nb)-qtop)/(sp(nb)-ptop)*(pp(nb+k)-ptop)
-            ! Interpolate ozone using complete background soundings
-            ind = getindex(sp,ns,pp(nb+k))
+            ind = getindex(sp,ns,pp(nb+k)) ! Typically ind=nb
+            pt(nb+k)=ttop+(st(ind)-ttop)/(sp(ind)-ptop)*(pp(nb+k)-ptop)
+            ph(nb+k)=qtop+(sh(ind)-qtop)/(sp(ind)-ptop)*(pp(nb+k)-ptop)
+            ! Interpolate ozone using background soundings
             po(nb+k)=so(ind+1)+(so(ind)-so(ind+1))/(sp(ind)-sp(ind+1))*(pp(nb+k)-sp(ind+1))
         ENDDO
     ENDIF
@@ -473,26 +464,27 @@ module radiation
 
   end subroutine setup_les
   !
+  ! ---------------------------------------------------------------------------
   ! This version of setup is modified for LES simulations
-  !    - Upper atmosphere (P > 179 hPa) from dsrt.lay (included here)
-  !   - log-log or lin-log interpolation between LES and the upper atmosphere
+  ! - Upper atmosphere (P > 179 hPa) from dsrt.lay (included here)
+  ! - log-log or lin-log interpolation between LES and the upper atmosphere
   !
   ! Tomi Raatikainen, 19.4.2018
   !
-  subroutine setup_auto(n1,nv,zp,ttop,qtop,otop)
+  subroutine setup_auto(n1,nv1,nv,zp,ttop,qtop,otop)
     use mpi_interface, only: myid
     implicit none
 
     integer, intent (in) :: n1  ! LES nzp
     real, intent (in) :: zp(n1) ! LES pressure grid
     real, intent (in) :: ttop, qtop, otop ! T (K), q (kg/kg) and [O3] (-) at the LES column top
-    integer, intent (out):: nv
+    integer, intent (out):: nv1,nv
 
     INTEGER, PARAMETER :: nb =22
     real  :: sp(nb), st(nb), sh(nb), so(nb)
 
-    integer :: nv1, k, ind, nt
-    real    :: ptop, dp, dt, Tsurf, sl
+    integer :: k, nt
+    real    :: ptop, dp
 
     ! The first 22 values from dsrt.lay (the same as in esrt, hsrt, kmls and zh2o)
     !   p [hPa], T [K], q [kg/kg], O3 [-]
@@ -593,6 +585,7 @@ module radiation
     ENDIF
 
   end subroutine setup_auto
+  !
   ! ---------------------------------------------------------------------------
   !  locate the index closest to a value
   !

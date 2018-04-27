@@ -748,7 +748,7 @@ contains
     REAL :: mdiff                ! Particle diffusivity
     REAL :: rt, Sc, St
 
-    REAL :: rflm(n1,nn*n4), rfln(n1,nn), prvolc(n4), rwet
+    REAL :: rflm(n1,nn*n4), rfln(n1,nn), pmass(n4), rwet
     flxdivm = 0.
     flxdivn = 0.
     depflxm = 0.
@@ -778,8 +778,8 @@ contains
                 ! Calculate wet size
                 !   n4 = number of active species
                 !   bin = size bin
-                prvolc(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-                rwet=calc_eff_radius(n4,numc(k,i,j,bin),prvolc,flag)
+                pmass(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
+                rwet=calc_eff_radius(n4,numc(k,i,j,bin),pmass,flag)
 
                 ! Terminal velocity
                 Kn = lambda/rwet
@@ -860,7 +860,7 @@ contains
     REAL :: prnchg(n1,nn), prvchg(n1,nn,n4) ! Instantaneous changes in precipitation number and mass (volume)
     REAL :: rwet
  
-    REAL :: prnumc, prvolc(n4)  ! Instantaneous source number and mass
+    REAL :: prnumc, pmass(n4)  ! Instantaneous source number and mass
     INTEGER :: kf, ni,fi
     LOGICAL :: prcdep  ! Deposition flag
 
@@ -891,8 +891,8 @@ contains
                 ! Calculate wet size
                 !   n4 = number of active species
                 !   bin = size bin
-                prvolc(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-                rwet=calc_eff_radius(n4,numc(k,i,j,bin),prvolc,flag)
+                pmass(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
+                rwet=calc_eff_radius(n4,numc(k,i,j,bin),pmass,flag)
 
                 ! Terminal velocity
                 Kn = lambda/rwet
@@ -934,15 +934,15 @@ contains
                 prnumc = numc(k,i,j,bin)
                 prnchg(k,bin) = prnchg(k,bin) - prnumc
                 DO ni = 1,n4
-                   prvolc(ni) = mass(k,i,j,(ni-1)*nn+bin)
-                   prvchg(k,bin,ni) = prvchg(k,bin,ni) - prvolc(ni)
+                   pmass(ni) = mass(k,i,j,(ni-1)*nn+bin)
+                   prvchg(k,bin,ni) = prvchg(k,bin,ni) - pmass(ni)
                 END DO ! ni
 
                 ! Removal statistics
                 IF (prcdep) THEN
                    DO ni=1,n4
                       remprc(i,j,(ni-1)*nn+bin) = remprc(i,j,(ni-1)*nn+bin) +    &
-                           prvolc(ni)*adn(k,i,j)*vc
+                           pmass(ni)*adn(k,i,j)*vc
                    END DO
                 ENDIF ! prcdep
 
@@ -950,14 +950,14 @@ contains
                 IF (fdos*dzt(kf) > 0.5) THEN  ! Reduce numerical diffusion
                    prnchg(kf-1,bin) = prnchg(kf-1,bin) + prnumc
                    DO ni = 1,n4
-                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + prvolc(ni)
+                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + pmass(ni)
                    END DO
                 ELSE
                    prnchg(kf-1,bin) = prnchg(kf-1,bin) + ( fdos*dzt(kf) )*prnumc
                    prnchg(kf,bin) = prnchg(kf,bin) + ( 1. - fdos*dzt(kf) )*prnumc
                    DO ni = 1,n4
-                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + ( fdos*dzt(kf) )*prvolc(ni)
-                      prvchg(kf,bin,ni) = prvchg(kf,bin,ni) + ( 1. - fdos*dzt(kf) )*prvolc(ni)
+                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + ( fdos*dzt(kf) )*pmass(ni)
+                      prvchg(kf,bin,ni) = prvchg(kf,bin,ni) + ( 1. - fdos*dzt(kf) )*pmass(ni)
                    END DO
                 END IF ! diffusion
              
