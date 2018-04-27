@@ -244,7 +244,6 @@ CONTAINS
          !
          DO k = 2, nv
            tau(k) = tau(k) + tau(k - 1)
-           !WRITE(*,*) 'IR',k,taer(k),waer(k),wwaer(k,:)
          END DO
          CALL qft (.FALSE., ee, 0., 0., bf, tau, w, pf(:, 1), pf(:, 2),      &
                    pf(:, 3), pf(:, 4), fu1, fd1)
