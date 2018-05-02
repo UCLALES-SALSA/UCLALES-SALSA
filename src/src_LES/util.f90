@@ -570,17 +570,26 @@ CONTAINS
      REAL, INTENT(in) :: array(:)
      REAL, INTENT(in) :: val
 
-     INTEGER :: NN, N
-     LOGICAL, ALLOCATABLE :: comp(:)
+     REAL, ALLOCATABLE :: diff(:)
+     REAL :: mindiff
 
-     NN = SIZE(array)
-     N = smaller(array,val)
+     INTEGER :: NN, i
      
-     IF ( N < NN .AND.                                 &
-          ( ABS(array(N)-val) > ABS(array(N+1)-val) ) )  &
-        N = N + 1
-  
-     closest = MAX(MIN(N,NN),1)
+     NN = SIZE(array)
+     ALLOCATE(diff(NN))
+
+     diff = ABS(array-val)
+     mindiff = MINVAL(diff)
+
+     DO i = 1,NN
+        IF (diff(i) == mindiff) THEN
+           closest = i
+           EXIT
+        END IF
+     END DO
+     
+     closest = MAX(MIN(closest,NN),1)
+     DEALLOCATE(diff)
 
    END FUNCTION closest
 

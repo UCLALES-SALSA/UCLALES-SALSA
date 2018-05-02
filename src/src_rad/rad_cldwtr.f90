@@ -19,7 +19,7 @@
 !
 MODULE cldwtr
 
-  USE defs, ONLY : nv, mb
+  USE defs, ONLY : nv, mb,pi
   USE mpi_interface, only : appl_abort, myid, broadcast
 
   IMPLICIT NONE
@@ -412,7 +412,7 @@ CONTAINS
   ! binned aerosol mass and number concentration arrays using lookup tables for optical properties.
   SUBROUTINE aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer)
     USE ckd, ONLY : band, center, IsSolar
-    USE util, ONLY : getMassIndex
+    USE util, ONLY : getMassIndex,closest
     USE mo_salsa_optical_properties, ONLY : aerRefrIBands_SW, aerRefrIBands_LW,  &
                                             riReSW, riImSW, riReLW, riImLW
     USE mo_submctl, ONLY : pi6,nlim,spec
@@ -472,7 +472,8 @@ CONTAINS
 
        !WRITE(*,*) 'LAMBDA LW:::::::::::::::: ', 1./lambda_r
        ! Get the refractive indices from the LW tables for the current band
-       refi_ind = getClosest(aerRefrIbands_LW,1./lambda_r)
+       refi_ind = closest(aerRefrIbands_LW,1./lambda_r)
+
        refrRe_all(:) = riReLW(:,refi_ind)
        refrIm_all(:) = riImLW(:,refi_ind)
 
@@ -486,7 +487,8 @@ CONTAINS
     ELSE
        !WRITE(*,*) 'LAMBDA SW:::::::::::::::: ', 1./lambda_r
        ! Get the refractive indices from the SW tables fr the current band
-       refi_ind = getClosest(aerRefrIbands_SW,1./lambda_r)
+       refi_ind = closest(aerRefrIbands_SW,1./lambda_r)
+
        refrRe_all(:) = riReSW(:,refi_ind)
        refrIm_all(:) = riImSW(:,refi_ind)
 
@@ -503,6 +505,7 @@ CONTAINS
     DO kk = 1,nv
 
        volc = 0.
+       voltot = 0.
 
        ! Loop over chemical species
        DO ss = 1,nspec
@@ -511,9 +514,9 @@ CONTAINS
           istr = getMassIndex(nbins,1,ss)
           iend = getMassIndex(nbins,nbins,ss)
           ! Volumes for each species, 0 if not used or if nothing present
-             volc(ss,1:nbins) = MERGE( (maerobin(kk,istr:iend))/spec%rholiq(ss), &
-                                        0.,                                                            &
-                                        (naerobin(kk,1:nbins) > nlim )                                 )
+          volc(ss,1:nbins) = MERGE( (maerobin(kk,istr:iend))/spec%rholiq(ss), &
+                                    0.,                                       &
+                                    (naerobin(kk,1:nbins) > nlim )            )
        END DO
 
        voltot(1:nbins) = SUM(volc(1:nspec,1:nbins),DIM=1)
@@ -529,22 +532,57 @@ CONTAINS
           volmean_refrRe = SUM(volc(1:nspec,bb)*refrRe_all(1:nspec))/voltot(bb)
           volmean_refrIm = SUM(volc(1:nspec,bb)*refrIm_all(1:nspec))/voltot(bb)
           ! size parameter in current bin
-          sizeparam = 1.e2*((voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.))*lambda_r
+          sizeparam = 1.e2*lambda_r*((voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.))
          
           ! Corresponding lookup table indices
-          i_re = getClosest(aer_nre,volmean_refrRe)
-          i_im = getClosest(aer_nim,volmean_refrIm)
-          i_alpha = getClosest(aer_alpha,sizeparam)
+          i_re = closest(aer_nre,volmean_refrRe)
+          i_im = closest(aer_nim,volmean_refrIm)
+          i_alpha = closest(aer_alpha,sizeparam)
+
+          !WRITE(*,*) kk,bb,i_re, i_im,i_alpha, 1./lambda_r, aerRefrIbands_SW(1)
+
+          !IF (i_re == 1) THEN
+          !   WRITE(*,*) kk,bb,volc(1,bb),volc(2,bb),((voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.)), &
+          !              1.e-6*naerobin(kk,bb), volmean_refrRe
+          !END IF
 
           ! Binned optical properties
           ! Optical depth             
-          !taer_bin(kk,bb) = 1.e-6*naerobin(kk,bb) * aer_sigma(i_re,i_im,i_alpha) * dz(kk)*1.e2
-          taer_bin(kk,bb) = voltot(bb) * aer_sigma(i_re,i_im,i_alpha) * dz(kk)*1.e2
+          taer_bin(kk,bb) = 1.e-6*naerobin(kk,bb) * aer_sigma(i_re,i_im,i_alpha) * dz(kk)*1.e2
+
+          !IF (taer_bin(kk,bb) > 1.) WRITE(*,*) kk, refi_ind, taer_bin(kk,bb), (voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.)
+
+          !IF ( 1./lambda_r <= aerRefrIbands_SW(1) .AND. refi_ind == 10 .AND. taer_bin(kk,bb) > 1.) THEN
+          !IF ( 1./lambda_r <= aerRefrIbands_SW(1) .AND. taer_bin(kk,bb) > 1.) THEN
+          !   WRITE(*,*) i_re, i_im, i_alpha, refi_ind,volmean_refrRe, volmean_refrIm, sizeparam
+          !   WRITE(*,*) aer_sigma(i_re,i_im,i_alpha), naerobin(kk,bb)*1.e-6, taer_bin(kk,bb), &
+          !              1.e2*((voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.)), 1./lambda_r, &
+          !              aerRefrIbands_SW(refi_ind)
+          !   !WRITE(*,*) aer_sigma(79,120,150)
+          !   WRITE(*,*)
+          !END IF
+
+
+          !taer_bin(kk,bb) = voltot(bb) * aer_sigma(i_re,i_im,i_alpha) * dz(kk)*1.e2
+          !taer_bin(kk,bb) = dz(kk)*1.e2*aer_sigma(i_re,i_im,i_alpha)
           !taer_bin(kk,bb) = MERGE(taer_bin(kk,bb), 0., taer_bin(kk,bb) > TH)
           !IF ( 1./lambda_r < 5.e-4 .AND. (voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.) > 2.e-5 ) THEN
           !   WRITE(*,*) bb, (voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.), i_re, i_im, i_alpha, &
           !              aer_nre(i_re), (1./lambda_r)*1.e-2, taer_bin(kk,bb)
           !END IF
+          !IF ( (voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.) > 2.e-5 .AND. &
+          !     1./lambda_r < aerRefrIbands_SW(1) .AND.                 &
+          !     refi_ind == 10 ) &
+          !WRITE(*,*) 4.*aer_sigma(i_re,i_im,i_alpha)/ & 
+          !     (pi*((voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.))**2)
+          !WRITE(*,*) taer_bin(kk,bb)
+          !IF( 1./lambda_r < aerRefrIbands_SW(1) .AND.                 &
+          !    refi_ind == 10 ) THEN
+          !    WRITE(*,*) 1.e-6*naerobin(kk,bb)*aer_sigma(i_re,i_im,i_alpha)
+              !WRITE(*,*) "min", MINVAL(aer_asym), MINVAL(aer_omega), MINVAL(aer_sigma)
+              !WRITE(*,*) "max", MAXVAL(aer_asym), MAXVAL(aer_omega), MAXVAL(aer_sigma), MAXVAL(aer_alpha)
+          !END IF
+
 
           ! Single scattering albedo
           waer_bin(kk,bb) = taer_bin(kk,bb) * aer_omega(i_re,i_im,i_alpha)
@@ -586,33 +624,6 @@ CONTAINS
     aer_omega => NULL()
 
   END SUBROUTINE aero_rad
-
-  INTEGER FUNCTION getClosest(array,val)
-    IMPLICIT NONE
-     REAL, INTENT(in) :: array(:)
-     REAL, INTENT(in) :: val
-
-     INTEGER :: Ntot, N
-     LOGICAL, ALLOCATABLE :: smaller(:)
-
-     !WRITE(*,*) array
-     !WRITE(*,*) val
-
-     Ntot = SIZE(array(:))
-     ALLOCATE(smaller(Ntot))
-
-     smaller = .FALSE.
-     smaller = ( array(:) < val )
-
-     N = COUNT(smaller)
-     N = MAX(N,1)
-
-     IF ( N < Ntot ) THEN
-        IF ( ABS(array(N)-val) > ABS(array(N+1)-val) ) N = N + 1
-     END IF
-
-     getClosest = N
-  END FUNCTION getClosest
 
   ! ---------------------------------------------------------------------------
   ! linear interpolation between two points, returns indicies of the

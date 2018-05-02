@@ -178,7 +178,7 @@ cat > NAMELIST <<EOF
    lsauto%switch = .TRUE.
    lsauto%delay = ${Tspinup}
 
-   lsactiv%switch = .FALSE.
+   lsactiv%switch = .TRUE.
 
    lsicenucl%switch = .FALSE.
 
@@ -216,7 +216,7 @@ cat > NAMELIST <<EOF
 
    lscheckarrays = .FALSE.
 
-   rhlim = 1.001          ! RH limit for SALSA during initialization and spinup
+   rhlim = 1.0001          ! RH limit for SALSA during initialization and spinup
 
    isdtyp = 0
    nspec = 1
@@ -227,7 +227,7 @@ cat > NAMELIST <<EOF
 
    sigmag = 1.2, 1.7, 2.0, 2.0, 2.0, 2.0, 2.0  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpg = 0.022, 0.12, 0.2, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   n = 400., 1500., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3
+   n = 400., 400., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3
  
  /
 

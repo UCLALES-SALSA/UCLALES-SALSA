@@ -420,9 +420,12 @@ CONTAINS
       ! in the spectral region 0.2 - 4.0 um., thus scale solar fluxes by
       ! fuq1
       !
+      !WRITE(*,*) "EKA", fds(90), fus(90), tau(90)
+
       fuq1 = ss / totalpower
       fds(:)  = fds(:)*fuq1
       fus(:)  = fus(:)*fuq1
+      !WRITE(*,*) "TOKA", fds(90), fus(90), tau(90)
     END IF 
   END SUBROUTINE rad_vis
   ! ----------------------------------------------------------------------

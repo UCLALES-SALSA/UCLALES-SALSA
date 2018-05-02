@@ -26,7 +26,7 @@ MODULE radiation
 
   USE defs, ONLY       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv, SolarConstant, R
   USE fuliou, ONLY     : rad, set_random_offset, minSolarZenithCosForVis
-  USE mo_submctl, ONLY : nbins,spec
+  USE mo_submctl, ONLY : nbins,spec,pi6
   IMPLICIT NONE
 
   CHARACTER (len=50) :: background = 'datafiles/dsrt.lay'
@@ -201,10 +201,14 @@ MODULE radiation
                   !WRITE(*,*) "BIN3", naerobin(kk+1,3), maerobin(kk+1,3), maerobin(kk+1,nbins+3)
                   !WRITE(*,*) "BIN4", naerobin(kk+1,4), maerobin(kk+1,4), maerobin(kk+1,nbins+4)
 
-                  !WRITE(*,*) kk
-                  !WRITE(*,*) "BIN3", naerobin(kk,3), maerobin(kk,3), maerobin(kk,nbins+3)
-                  !WRITE(*,*) "BIN4", naerobin(kk,4), maerobin(kk,4), maerobin(kk,nbins+4)
-                  !WRITE(*,*)""
+                  !IF ( ANY( (maerobin(kk,1:10)/1830./max(naerobin(kk,1:10),1.e-3)/pi6) &
+                  !     **(1./3.) > 5.e-6 ) ) THEN
+                  !   WRITE(*,*) kk
+                  !   WRITE(*,*) "N", naerobin(kk,1:10)
+                  !   WRITE(*,*) "M", maerobin(kk,1:10)
+                  !   WRITE(*,*) "D",(maerobin(kk,1:10)/1830./max(naerobin(kk,1:10),1.e-3)/pi6)**(1./3.) 
+                  !   WRITE(*,*)""
+                  !END IF
 
                   !WHERE(naerobin(kk,:) < 1.)
                   !   naerobin(kk,:) = 0.
