@@ -2196,7 +2196,7 @@ CONTAINS
                    IF (numc(k,i,j,bin)>numlim) THEN
                       tot=tot+numc(k,i,j,bin)
                       tmp(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-                      rwet=rwet+calc_eff_radius(n4,numc(k,i,j,bin),tmp,flag)*numc(k,i,j,bin)
+                      rwet=rwet+0.5*calcDiamLES(n4,numc(k,i,j,bin),tmp,flag)*numc(k,i,j,bin)
                    ENDIF
                 ENDDO
                 IF (tot>numlim) THEN
@@ -2234,7 +2234,7 @@ CONTAINS
               DO bin = 1,nn
                  IF (numc(k,i,j,bin)>numlim) THEN
                     tmp(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-                    zrad(k,i,j,bin)=calc_eff_radius(n4,numc(k,i,j,bin),tmp,flag)
+                    zrad(k,i,j,bin)=0.5*calcDiamLES(n4,numc(k,i,j,bin),tmp,flag)
                  ENDIF
               END DO
            END DO
@@ -2244,41 +2244,5 @@ CONTAINS
    END SUBROUTINE getBinRadius
    
 
-   !********************************************************************
-   !
-   ! Function for calculating effective (wet) radius for any particle type
-   ! - Aerosol, cloud and rain are spherical
-   ! - Snow and ice can be irregular and their densities can be size-dependent
-   !
-   ! Edit this function when needed (also update CalcDimension in mo_submctlf90)
-   !
-   ! Correct dimension is needed for irregular particles (e.g. ice and snow) for calculating fall speed (deposition and coagulation)
-   ! and capacitance (condensation). Otherwise compact spherical structure can be expected,
-   !
-   REAL FUNCTION calc_eff_radius(n,numc,mass,flag)
-     USE mo_submctl, ONLY : pi6
-     IMPLICIT NONE
-     INTEGER, INTENT(IN) :: n ! Number of species
-     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
-     REAL, INTENT(IN) :: numc, mass(n)
-     
-     calc_eff_radius=0.
-
-     ! Don't calculate if very low number concentration
-     IF (numc<1e-15) RETURN
-     
-     IF (flag==4) THEN   ! Ice
-        ! Spherical ice
-        calc_eff_radius=0.5*( SUM(mass(:)/spec%rhoice(:))/numc/pi6)**(1./3.)
-     ELSE IF (flag==5) THEN   ! Snow
-        ! Spherical snow
-        calc_eff_radius=0.5*( SUM(mass(:)/spec%rhosnow(:))/numc/pi6)**(1./3.)
-     ELSE
-        ! Radius from total volume of a spherical particle or aqueous droplet
-        calc_eff_radius=0.5*( SUM(mass(:)/spec%rholiq(:))/numc/pi6)**(1./3.)
-     ENDIF
-     
-   END FUNCTION calc_eff_radius
-   !********************************************************************
 END MODULE grid
 

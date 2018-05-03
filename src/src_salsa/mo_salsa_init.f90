@@ -692,6 +692,8 @@ CONTAINS
                              nbins, massacc, spec,           &
                              nspec, listspec
       USE mo_salsa_optical_properties, ONLY : initialize_optical_properties
+      USE mo_salsa_coagulation, ONLY : initialize_coagulation_kernels
+      USE mo_salsa_driver, ONLY : kbdim, klev
 
       IMPLICIT NONE
 
@@ -720,10 +722,6 @@ CONTAINS
       ! Initialize and sort pointers to aerosol properties according to the order in which the species are given in the NAMELIST
       spec = Species(nspec,listspec)
 
-      ! Initialize aerosol optical properties - uses settings from "spec"
-      CALL initialize_optical_properties()
-
-
       ! -- Aerosol tracers are allocated in *set_aerobins*
       ! -- Hydrometeor tracer in *set_cloudbins*
 
@@ -735,6 +733,13 @@ CONTAINS
       CALL set_icebins(dumaero, dumice, dumsnow)
 
       CALL set_masterbins(dumaero, dumcloud, dumprecp, dumice, dumsnow)
+
+      ! Initialize aerosol optical properties - uses settings from "spec"
+      CALL initialize_optical_properties()
+      
+      ! Initialize the coagulation kernel arrays
+      CALL initialize_coagulation_kernels(kbdim,klev)
+
 
       IF ( ALLOCATED(dumaero) ) DEALLOCATE(dumaero)
       IF ( ALLOCATED(dumcloud)) DEALLOCATE(dumcloud)
