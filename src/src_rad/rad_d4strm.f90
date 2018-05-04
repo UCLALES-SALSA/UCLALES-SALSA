@@ -208,6 +208,7 @@ CONTAINS
          ig1 = 1
          ig2 = kg(ir_bands(ib))
       END IF
+      !WRITE(*,*) 'HEP IR', 1./center(band(ib+size(solar_bands)))
       !
       ! Water vapor continuum optical depth
       !
@@ -225,7 +226,6 @@ CONTAINS
         CALL cloud_grp(ib + size(solar_bands), pgwc, dz, tgr, wgr, wwgr)
         CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr, wwgr)
       END IF 
-      
       IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
          CALL aero_rad(ib + size(solar_bands), nbins, nspec, maerobin, naerobin, &
                        dz, taer, waer, wwaer)
@@ -333,6 +333,12 @@ CONTAINS
     fus(:) = 0.0
     bf(:)  = 0.0
     
+    !WRITE(*,*) 'HEP'
+    !WRITE(*,*) '1', 1./center(solar_bands)
+    !WRITE(*,*) '2',1./center(ir_bands)
+    !WRITE(*,*) '3',1./center(band)
+
+
     IF(u0 > minSolarZenithCosForVis) THEN
       CALL thicks(pp, pt, ph, dz) 
   
@@ -359,6 +365,8 @@ CONTAINS
            ig2 = kg(solar_bands(ib))
          END IF
   
+         !WRITE(*,*) 'HEP SW', 1./center(band(ib))
+
          !
          ! Rayleigh scattering
          !

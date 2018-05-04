@@ -420,7 +420,7 @@ CONTAINS
 
     INTEGER, INTENT(in) :: ib, nbins, nspec
     ! FIND BETTER WAY TO HANDLE THE INDICES FOR THESE
-    REAL, INTENT(in) :: maerobin(nv,nspec*nbins), naerobin(nv,nbins) !maerobin(:,:), naerobin(:,:)
+    REAL, INTENT(in) :: maerobin(nv,nspec*nbins), naerobin(nv,nbins) 
     REAL, INTENT(in) :: dz(nv)
     REAL, INTENT(out) :: taer(nv), waer(nv), wwaer(nv,4)   ! optical depth, single scattering albedo, phase function
 
@@ -430,7 +430,6 @@ CONTAINS
 
     REAL            :: volc(nspec,nbins)                         ! Corresponding particle volume concentrations for each bin (0 if not used)
     REAL            :: voltot(nbins)                                 ! Total particle volume for each bin                          
-    !REAL            :: Dtot(nbins)                                   ! Particle diameters for each bin
 
     ! Refractive index for each chemical (closest to current band from tables in submctl)
     REAL              :: refrRe_all(nspec), refrIm_all(nspec)
@@ -454,6 +453,8 @@ CONTAINS
 
     REAL :: TH = 1.e-30
     
+    LOGICAL :: issw
+
     REAL, POINTER :: aer_nre(:) => NULL(), aer_nim(:) => NULL(),          &
                      aer_alpha(:) => NULL(), aer_sigma(:,:,:) => NULL(),  &
                      aer_asym(:,:,:) => NULL(), aer_omega(:,:,:) => NULL()
@@ -469,8 +470,6 @@ CONTAINS
 
     lambda_r = center(band(ib))
     IF (1./lambda_r > aerRefrIbands_SW(1)) THEN
-
-       !WRITE(*,*) 'LAMBDA LW:::::::::::::::: ', 1./lambda_r
        ! Get the refractive indices from the LW tables for the current band
        refi_ind = closest(aerRefrIbands_LW,1./lambda_r)
 
@@ -485,7 +484,6 @@ CONTAINS
        aer_omega => aer_omega_LW(:,:,:)
 
     ELSE
-       !WRITE(*,*) 'LAMBDA SW:::::::::::::::: ', 1./lambda_r
        ! Get the refractive indices from the SW tables fr the current band
        refi_ind = closest(aerRefrIbands_SW,1./lambda_r)
 
@@ -500,7 +498,7 @@ CONTAINS
        aer_omega => aer_omega_SW(:,:,:)
        
     END IF
-     
+
     ! Loop over levels
     DO kk = 1,nv
 
@@ -520,7 +518,6 @@ CONTAINS
        END DO
 
        voltot(1:nbins) = SUM(volc(1:nspec,1:nbins),DIM=1)
-       !naerotot = SUM(naerobin(kk,:))
        
        ! loop over bins
        DO bb = 1,nbins
@@ -531,70 +528,30 @@ CONTAINS
           ! Volume mean refractive indices in current bin
           volmean_refrRe = SUM(volc(1:nspec,bb)*refrRe_all(1:nspec))/voltot(bb)
           volmean_refrIm = SUM(volc(1:nspec,bb)*refrIm_all(1:nspec))/voltot(bb)
+             
           ! size parameter in current bin
-          sizeparam = 1.e2*lambda_r*((voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.))
-         
+          sizeparam = 1.e2*lambda_r*(((voltot(bb)/naerobin(kk,bb))/pi6)**(1./3.))
+        
           ! Corresponding lookup table indices
           i_re = closest(aer_nre,volmean_refrRe)
           i_im = closest(aer_nim,volmean_refrIm)
           i_alpha = closest(aer_alpha,sizeparam)
 
-          !WRITE(*,*) kk,bb,i_re, i_im,i_alpha, 1./lambda_r, aerRefrIbands_SW(1)
-
-          !IF (i_re == 1) THEN
-          !   WRITE(*,*) kk,bb,volc(1,bb),volc(2,bb),((voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.)), &
-          !              1.e-6*naerobin(kk,bb), volmean_refrRe
-          !END IF
-
           ! Binned optical properties
           ! Optical depth             
-          taer_bin(kk,bb) = 1.e-6*naerobin(kk,bb) * aer_sigma(i_re,i_im,i_alpha) * dz(kk)*1.e2
-
-          !IF (taer_bin(kk,bb) > 1.) WRITE(*,*) kk, refi_ind, taer_bin(kk,bb), (voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.)
-
-          !IF ( 1./lambda_r <= aerRefrIbands_SW(1) .AND. refi_ind == 10 .AND. taer_bin(kk,bb) > 1.) THEN
-          !IF ( 1./lambda_r <= aerRefrIbands_SW(1) .AND. taer_bin(kk,bb) > 1.) THEN
-          !   WRITE(*,*) i_re, i_im, i_alpha, refi_ind,volmean_refrRe, volmean_refrIm, sizeparam
-          !   WRITE(*,*) aer_sigma(i_re,i_im,i_alpha), naerobin(kk,bb)*1.e-6, taer_bin(kk,bb), &
-          !              1.e2*((voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.)), 1./lambda_r, &
-          !              aerRefrIbands_SW(refi_ind)
-          !   !WRITE(*,*) aer_sigma(79,120,150)
-          !   WRITE(*,*)
-          !END IF
-
-
-          !taer_bin(kk,bb) = voltot(bb) * aer_sigma(i_re,i_im,i_alpha) * dz(kk)*1.e2
-          !taer_bin(kk,bb) = dz(kk)*1.e2*aer_sigma(i_re,i_im,i_alpha)
-          !taer_bin(kk,bb) = MERGE(taer_bin(kk,bb), 0., taer_bin(kk,bb) > TH)
-          !IF ( 1./lambda_r < 5.e-4 .AND. (voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.) > 2.e-5 ) THEN
-          !   WRITE(*,*) bb, (voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.), i_re, i_im, i_alpha, &
-          !              aer_nre(i_re), (1./lambda_r)*1.e-2, taer_bin(kk,bb)
-          !END IF
-          !IF ( (voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.) > 2.e-5 .AND. &
-          !     1./lambda_r < aerRefrIbands_SW(1) .AND.                 &
-          !     refi_ind == 10 ) &
-          !WRITE(*,*) 4.*aer_sigma(i_re,i_im,i_alpha)/ & 
-          !     (pi*((voltot(bb)/naerobin(kk,bb)/pi6)**(1./3.))**2)
-          !WRITE(*,*) taer_bin(kk,bb)
-          !IF( 1./lambda_r < aerRefrIbands_SW(1) .AND.                 &
-          !    refi_ind == 10 ) THEN
-          !    WRITE(*,*) 1.e-6*naerobin(kk,bb)*aer_sigma(i_re,i_im,i_alpha)
-              !WRITE(*,*) "min", MINVAL(aer_asym), MINVAL(aer_omega), MINVAL(aer_sigma)
-              !WRITE(*,*) "max", MAXVAL(aer_asym), MAXVAL(aer_omega), MAXVAL(aer_sigma), MAXVAL(aer_alpha)
-          !END IF
-
+          taer_bin(kk,bb) = 1.e-6*naerobin(kk,bb) * dz(kk)*1.e2 * aer_sigma(i_re,i_im,i_alpha) * (1./lambda_r)**2
 
           ! Single scattering albedo
           waer_bin(kk,bb) = taer_bin(kk,bb) * aer_omega(i_re,i_im,i_alpha)
 
           ! Phase function moments
-          wwaer_bin(kk,bb,1) = taer_bin(kk,bb) * 3.*aer_asym(i_re,i_im,i_alpha) 
+          wwaer_bin(kk,bb,1) = waer_bin(kk,bb) * 3.*aer_asym(i_re,i_im,i_alpha) 
 
-          wwaer_bin(kk,bb,2) = taer_bin(kk,bb) * 5.*aer_asym(i_re,i_im,i_alpha)**2
+          wwaer_bin(kk,bb,2) = waer_bin(kk,bb) * 5.*aer_asym(i_re,i_im,i_alpha)**2
 
-          wwaer_bin(kk,bb,3) = taer_bin(kk,bb) * 7.*aer_asym(i_re,i_im,i_alpha)**3
+          wwaer_bin(kk,bb,3) = waer_bin(kk,bb) * 7.*aer_asym(i_re,i_im,i_alpha)**3
 
-          wwaer_bin(kk,bb,4) = taer_bin(kk,bb) * 9.*aer_asym(i_re,i_im,i_alpha)**4
+          wwaer_bin(kk,bb,4) = waer_bin(kk,bb) * 9.*aer_asym(i_re,i_im,i_alpha)**4
 
        END DO
 
@@ -608,13 +565,10 @@ CONTAINS
           wwaer(kk,1:4) = 0.
        ELSE
           waer(kk) = SUM(waer_bin(kk,1:nbins))/taer(kk)
-          wwaer(kk,1:4) = SUM(wwaer_bin(kk,1:nbins,1:4),DIM=1)/taer(kk)
+          wwaer(kk,1:4) = SUM(wwaer_bin(kk,1:nbins,1:4),DIM=1)/waer(kk)
        END IF
 
     END DO
-
-    !write(*,*) SUM(taer(:))
-
 
     aer_nre => NULL()
     aer_nim => NULL()

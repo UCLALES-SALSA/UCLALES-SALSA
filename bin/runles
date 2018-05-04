@@ -20,7 +20,7 @@ EXPNAME="jung3rdAug"  # Name of the experiment
 NPROCS=2          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
-NXP=5               # Number of points in X-direction (including "halo" points)
+NXP=40               # Number of points in X-direction (including "halo" points)
 NYP=5              # Number of points in Y-direction (including "halo" points)
 NZP=70              # Number of points in Z-direction
 DX=50.              # Resolution in X-direction (meters)
@@ -120,7 +120,7 @@ cat > NAMELIST <<EOF
   radsounding = 'datafiles/ksaw.lay'  
   sfc_albedo = 0.2
   laerorad = .TRUE. 
-  useMcICA = .FALSE.
+  useMcICA = .TRUE.
 /
 
  ! With lnudging = .TRUE.
@@ -216,7 +216,7 @@ cat > NAMELIST <<EOF
 
    lscheckarrays = .FALSE.
 
-   rhlim = 1.0001          ! RH limit for SALSA during initialization and spinup
+   rhlim = 1.005          ! RH limit for SALSA during initialization and spinup
 
    isdtyp = 0
    nspec = 1

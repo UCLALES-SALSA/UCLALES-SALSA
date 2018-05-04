@@ -182,55 +182,11 @@ MODULE radiation
 
                ! Aerosol ! convert from /kg to /m3
                IF ( PRESENT(maerop) .AND. PRESENT(naerop) ) THEN
-                  !maerobin(kk,1:nspec*nbins) = maerop(k,i,j,1:nspec*nbins)!1.e-15
-                  !naerobin(kk,1:nbins) = naerop(k,i,j,1:nbins)!100000.
-                  !WRITE(*,*) k, maerobin(kk,:)
-                  !IF ( ANY(naerop(k,i,j,1:nbins) < 1.e-10 .AND. maerop(k,i,j,1:nbins) > 1.e-30) .OR. &
-                  !     ANY(naerop(k,i,j,1:nbins) > 1.e-10 .AND. maerop(k,i,j,1:nbins) < 1.e-30)) &
-                  !     WRITE(*,*) 'HEP', naerop(k,i,j,1:nbins), maerop(k,i,j,1:nbins), k
-                  !IF ( ANY(naerop(k,i,j,1:nbins) < 1.e-10 .AND. maerop(k,i,j,nbins+1:2*nbins) > 1.e-30) .OR. &
-                  !     ANY(naerop(k,i,j,1:nbins) > 1.e-10 .AND. maerop(k,i,j,nbins+1:2*nbins) < 1.e-30)) &
-                  !     WRITE(*,*) 'HEP2', naerop(k,i,j,1:nbins), maerop(k,i,j,nbins+1:2*nbins), k
-                  !WRITE(*,*) 'number', naerop(k,i,j,1:6)
-                  !WRITE(*,*) 'so4', pres(k), R, tk(k,i,j), pres(k)/(R*tk(k,i,j))
-                  !WRITE(*,*) 'H2O' ,maerop(k,i,j,nbins+1:nbins+6)
-                  !WRITE(*,*) ""
                   maerobin(kk,:) = maerop(k,i,j,:)*pres(k)/(R*tk(k,i,j))
                   naerobin(kk,:) = naerop(k,i,j,:)*pres(k)/(R*tk(k,i,j))
-                  !WRITE(*,*) kk+1
-                  !WRITE(*,*) "BIN3", naerobin(kk+1,3), maerobin(kk+1,3), maerobin(kk+1,nbins+3)
-                  !WRITE(*,*) "BIN4", naerobin(kk+1,4), maerobin(kk+1,4), maerobin(kk+1,nbins+4)
-
-                  !IF ( ANY( (maerobin(kk,1:10)/1830./max(naerobin(kk,1:10),1.e-3)/pi6) &
-                  !     **(1./3.) > 5.e-6 ) ) THEN
-                  !   WRITE(*,*) kk
-                  !   WRITE(*,*) "N", naerobin(kk,1:10)
-                  !   WRITE(*,*) "M", maerobin(kk,1:10)
-                  !   WRITE(*,*) "D",(maerobin(kk,1:10)/1830./max(naerobin(kk,1:10),1.e-3)/pi6)**(1./3.) 
-                  !   WRITE(*,*)""
-                  !END IF
-
-                  !WHERE(naerobin(kk,:) < 1.)
-                  !   naerobin(kk,:) = 0.
-                  !   maerobin(kk,1:nbins) = 0.
-                  !   maerobin(kk,nbins+1:2*nbins) = 0.
-                  !END WHERE
-
                END IF
 
             END DO
-
-            !kk = 39
-            !WRITE(*,*) kk
-            !WRITE(*,*) "BIN3", naerobin(kk,3), maerobin(kk,3), maerobin(kk,nbins+3)
-            !WRITE(*,*) "BIN4", naerobin(kk,4), maerobin(kk,4), maerobin(kk,nbins+4)
-            !WRITE(*,*)""
-            !DO k = 1,39
-            !   maerobin(k,:) = maerobin(40,:)
-            !   naerobin(k,:) = naerobin(40,:)
-            !END DO
-
-
 
             ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! REMEMBER TO ADD AEROSOL TO OTHER OPTIONS AS WELL 
