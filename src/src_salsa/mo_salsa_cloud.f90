@@ -1316,7 +1316,7 @@ CONTAINS
     INTEGER :: ii,jj,kk,ss
 
     REAL :: pdn, iceSupSat, rc_tot, Ni0,  &
-            sumICE, iceTendecyNumber, liqToIceFrac
+            sumICE, iceTendecyNumber, liqToIceFrac, frac
 
 
     DO ii = 1,kbdim
@@ -1337,10 +1337,19 @@ CONTAINS
 
         if ( sumICE > Ni0 ) cycle
 
+        ! Approach #1: activate ice starting from the largest cloud bin
+
+        ! Approach #2: activate a fraction from all cloud bins
+        !frac = max(0.0, min(1.0, (Ni0-sumICE)/SUM(pcloud(ii,jj,:)%numc)))
+
         DO kk = nice,1,-1 ! Assuming nice=ncld
             IF( sumICE < Ni0 .AND. pcloud(ii,jj,kk)%numc > nlim) THEN
 
+                ! Approach #1: activate ice starting from the largest cloud bin
                 iceTendecyNumber = max( 0.0, min( Ni0 - pice(ii,jj,kk)%numc , pcloud(ii,jj,kk)%numc )  )
+
+                ! Approach #2: activate a fraction from all cloud bins
+                !iceTendecyNumber = frac*pcloud(ii,jj,kk)%numc
 
                 pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + iceTendecyNumber
                 sumICE = sumICE + iceTendecyNumber

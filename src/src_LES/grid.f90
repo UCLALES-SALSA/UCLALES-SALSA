@@ -500,8 +500,11 @@ contains
        memsize = memsize + nxyzp
     end if
 
-    allocate(snowin(nzp,nxp,nyp))
-    memsize = memsize + nxyzp
+    if (level >= 5) then
+       allocate(snowin(nzp,nxp,nyp))
+       snowin = 0.
+       memsize = memsize + nxyzp
+    end if
 
     a_ustar(:,:) = 0.
     a_tstar(:,:) = 0.
