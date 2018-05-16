@@ -53,6 +53,8 @@ MODULE mo_submctl
   LOGICAL :: lscgsp  = .TRUE.  ! Collection of precipitation by snow
   LOGICAL :: lscgss  = .TRUE.  ! Collision-coalescence between snow particles
 
+  LOGICAL :: lscollectGCCN = .FALSE. ! Special switch for treating cloud collection of large aerosols. See mo_salsa_coagulation_processes.f90
+
   ! Condensation subprocesses
   LOGICAL :: lscndgas   = .FALSE. ! Condensation of precursor gases
   LOGICAL :: lscndh2ocl = .TRUE.  ! Condensation of water vapour on clouds and precipitation
@@ -99,7 +101,7 @@ MODULE mo_submctl
   
   ! Define which aerosol species used and initial size distributions
   TYPE(Species), TARGET :: spec  ! Must be initialized in mo_salsa_init (pointer associations). Holds aerosol species indices and properties
-  INTEGER :: nspec = 1
+  INTEGER :: nspec_dry = 1
   CHARACTER(len=3) :: listspec(maxspec) = (/'SO4','   ','   ','   ','   ','   ','   '/)
   
   ! Volume fractions between aerosol species for A and B-bins

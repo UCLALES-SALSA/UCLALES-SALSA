@@ -2172,6 +2172,7 @@ CONTAINS
    CONTAINS
      
      SUBROUTINE getRadius(zstr,zend,nn,n4,numc,mass,numlim,zrad,flag)
+       USE mo_particle_external_properties, ONLY : calcDiamLES
        USE mo_submctl, ONLY : pi6
        IMPLICIT NONE
        
@@ -2214,6 +2215,7 @@ CONTAINS
    ! SUBROUTINE getBinRadius
    ! Calculates wet radius for each bin in the whole domain - this function is for outputs only
    SUBROUTINE getBinRadius(nn,n4,numc,mass,numlim,zrad,flag)
+     USE mo_particle_external_properties, ONLY : calcDiamLES
      USE mo_submctl, ONLY : pi6
      IMPLICIT NONE
      

@@ -962,7 +962,7 @@ CONTAINS
     USE mo_submctl, ONLY : in2a,fn2b, ncld, nprc, nice,    &
                            pi, nlim, prlim,           &
                            ice_hom, ice_imm, ice_dep
-    USE mo_particle_external_properties, ONLY : calc_Sw_eq
+    USE mo_particle_external_properties, ONLY : calcSweq
     USE util, ONLY : calc_correlation
     
     IMPLICIT NONE
@@ -1028,7 +1028,7 @@ CONTAINS
                 ! Droplet radius
                 rw = (3.*sum(precp(ii,jj,kk)%volc(1:nspec))/precp(ii,jj,kk)%numc/4./pi)**(1./3.)
                 ! Equilibrium saturation ratio
-                Sw_eq = calc_Sw_eq(precp(ii,jj,kk),ptemp(ii,jj))
+                Sw_eq = calcSweq(precp(ii,jj,kk),ptemp(ii,jj))
                 
                 ! Immersion freezing
                 pf_imm = 0.
@@ -1098,7 +1098,7 @@ CONTAINS
                 ! Droplet radius
                 rw = (3.*sum(cloud(ii,jj,kk)%volc(1:nspec))/cloud(ii,jj,kk)%numc/4./pi)**(1./3.)
                 ! Equilibrium saturation ratio
-                Sw_eq = calc_Sw_eq(cloud(ii,jj,kk),ptemp(ii,jj))
+                Sw_eq = calcSweq(cloud(ii,jj,kk),ptemp(ii,jj))
                 
                 ! Immersion freezing
                 pf_imm = 0.
@@ -1145,7 +1145,7 @@ CONTAINS
                 ! Droplet radius
                 rw = (3.*sum(aero(ii,jj,kk)%volc(1:nspec))/aero(ii,jj,kk)%numc/4./pi)**(1./3.)
                 ! Equilibrium saturation ratio
-                Sw_eq = calc_Sw_eq(aero(ii,jj,kk),ptemp(ii,jj))
+                Sw_eq = calcSweq(aero(ii,jj,kk),ptemp(ii,jj))
                 ! Is it dry?
                 isdry = (aero(ii,jj,kk)%volc(iwa)<1e-20)
                 

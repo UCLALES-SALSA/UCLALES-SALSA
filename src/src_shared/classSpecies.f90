@@ -234,7 +234,7 @@ MODULE classSpecies
                 cnstr%rholiqNative(cnstr%Nused),  cnstr%rholiq(cnstr%Nused),    &
                 cnstr%rhoiceNative(cnstr%Nused),  cnstr%rhoice(cnstr%Nused),    &
                 cnstr%rhosnowNative(cnstr%Nused), cnstr%rhosnow(cnstr%Nused),   &
-                cnstr%rhos(3,cnstrNused),                                       &
+                cnstr%rhos(3,cnstr%Nused),                                       &
                 cnstr%dissNative(cnstr%Nused),    cnstr%diss(cnstr%Nused)       )
 
       ! Truncate the property lists in the order given by the global field "allNames"

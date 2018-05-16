@@ -25,7 +25,7 @@ MODULE mo_particle_external_properties
          ! Aerosol and cloud and rain droplets
          IF (diam<80.0e-6) THEN
             ! Stokes law with Cunningham slip correction factor
-            terminal_vel = (d**2)*(rhop-rhoa)*grav*beta/(18.*visc) !(4.*radius**2)*(rhop-rhoa)*grav*beta/(18.*visc) ![m s-1]
+            terminal_vel = (diam**2)*(rhop-rhoa)*grav*beta/(18.*visc) !(4.*radius**2)*(rhop-rhoa)*grav*beta/(18.*visc) ![m s-1]
          ELSE IF (diam<1.2e-3) THEN
             ! Droplets from 40 um to 0.6 mm: linear dependence on particle radius and a correction for reduced pressure
             !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
@@ -65,7 +65,7 @@ MODULE mo_particle_external_properties
       REAL, INTENT(IN) :: lim
       INTEGER, INTENT(IN) :: flag ! Parameter for identifying liquid (1), ice (2) and snow (3) particle phases
       REAL, INTENT(OUT) :: dia(n)
-      INTEGER i
+      INTEGER :: i
       
       dia(:) = 2.e-10
       DO i=1,n
@@ -143,13 +143,13 @@ MODULE mo_particle_external_properties
       ! Combine the two cases from original code since they're exactly the same??
       IF (zvw > 1.e-28*part%numc .OR. zvs > 1.e-28*part%numc) THEN
          ! Aqueous droplet OR dry partially soluble particle
-         calc_Sw_eq = (znw/(zns+znw)) * exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
+         calcSweq = (znw/(zns+znw)) * exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
       ELSE IF (zvtot-zvs > 1.e-28*part%numc) THEN
          ! Dry insoluble particle
-         calc_Sw_eq = exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
+         calcSweq = exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
       ELSE
          ! Just add eps to avoid divide by zero
-         calc_Sw_eq = (znw/(eps+zns+znw)) * exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
+         calcSweq = (znw/(eps+zns+znw)) * exp(4.*surfw0*spec%mwa/(rg*T*spec%rhowa*dwet))
       END IF
       
     END FUNCTIOn calcSweq

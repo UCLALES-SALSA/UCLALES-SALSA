@@ -513,6 +513,7 @@ CONTAINS
                              lscgia,lscgic,lscgii,  &
                              lscgip,lscgsa,lscgsc,  &
                              lscgsi,lscgsp,lscgss,  &
+                             lscollectGCCN,         &
 
                              lscndgas,              &
                              lscndh2oae,lscndh2ocl, &
@@ -528,7 +529,7 @@ CONTAINS
 
                              nbin,reglim,   &
                              nice,nsnw,             &
-                             nspec,listspec,        &
+                             nspec_dry,listspec,        &
                              volDistA, volDistB,    &
                              nf2a, isdtyp,          &
                              sigmag,dpg,n,  &
@@ -564,6 +565,7 @@ CONTAINS
          lscgsi,      & ! Collection of ice by snow
          lscgsp,      & ! Collection of precipitation by snow
          lscgss,      & ! Collision-coalescence between snow particles
+         lscollectGCCN, &
 
          lscndgas,    & ! Condensation of precursor gases
          lscndh2ocl,    & ! Condensation of water vapour on clouds (drizzle)
@@ -588,7 +590,7 @@ CONTAINS
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          reglim,        & ! Low/high diameter limits of the 2 aerosol size regimes (1d table with length 4)
          nbin,          & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
-         nspec,         & ! Number of aerosol species used in the model
+         nspec_dry,     & ! Number of aerosol species used in the model
          listspec,      & ! List of strings specifying the names of the aerosol species that are active.
                           ! Must be an array of length 7, with empty strings for unused stuff.
          volDistA,      & ! Initial relative contribution [0-1] of each species to particle volume in a-bins. Must be
@@ -690,9 +692,10 @@ CONTAINS
       USE mo_submctl, ONLY : nbin,      &
                              in1a,fn1a,in2a,fn2a,in2b,fn2b,  &
                              nbins, massacc, spec,           &
-                             nspec, listspec
+                             nspec_dry, listspec
       USE mo_salsa_optical_properties, ONLY : initialize_optical_properties
-      USE mo_salsa_coagulation, ONLY : initialize_coagulation_kernels
+      USE mo_salsa_coagulation_kernels, ONLY : initialize_coagulation_kernels
+      USE mo_salsa_coagulation_processes, ONLY : initialize_coagulation_processes
       USE mo_salsa_driver, ONLY : kbdim, klev
 
       IMPLICIT NONE
@@ -701,6 +704,7 @@ CONTAINS
       ! May not be the smartest or the fastest way, but revise later... 
       TYPE(Section), ALLOCATABLE :: dumaero(:,:,:), dumcloud(:,:,:), dumprecp(:,:,:), &
                                       dumice(:,:,:), dumsnow(:,:,:)
+      INTEGER :: nspec
 
       ! --1) Set derived indices
       in1a = 1
@@ -720,7 +724,7 @@ CONTAINS
       massacc = 1.
       
       ! Initialize and sort pointers to aerosol properties according to the order in which the species are given in the NAMELIST
-      spec = Species(nspec,listspec)
+      spec = Species(nspec_dry,listspec)
 
       ! -- Aerosol tracers are allocated in *set_aerobins*
       ! -- Hydrometeor tracer in *set_cloudbins*
@@ -737,8 +741,10 @@ CONTAINS
       ! Initialize aerosol optical properties - uses settings from "spec"
       CALL initialize_optical_properties()
       
-      ! Initialize the coagulation kernel arrays
+      ! Initialize the coagulation kernel arrays and sink/source term arrays for processes
+      nspec = spec%getNSpec()
       CALL initialize_coagulation_kernels(kbdim,klev)
+      CALL initialize_coagulation_processes(kbdim,klev,nspec)
 
 
       IF ( ALLOCATED(dumaero) ) DEALLOCATE(dumaero)
