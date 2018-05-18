@@ -1,4 +1,5 @@
 MODULE mo_salsa_coagulation_processes
+
   USE mo_submctl, ONLY : in1a,fn1a,in2a,fn2a,in2b,fn2b,   &
                          ica,fca,icb,fcb,iia,fia,iib,fib, &
                          nbins,ncld,nprc,nice,nsnw,       &
@@ -38,13 +39,19 @@ MODULE mo_salsa_coagulation_processes
   SUBROUTINE coag_aero(kbdim,klev,tstep,    &
                        zccaa,zccca,zccpa,zccia,zccsa)
     
+    ! Here, the aerosol particles are also allowed to collect cloud droplets, if they
+    ! have a smaller dry ccn diameter. While this technically implies an artificial 
+    ! deactivation (of a very small number) of cloud droplets, it preserves the mass also in the
+    ! presense of giant ccn particles, which have been seen to cause problems with the more
+    ! intuitive approach, where cloud droplets collect aerosol, but not the other way around.
+
     INTEGER, INTENT(in) :: kbdim,klev
     REAL, INTENT(in) :: tstep
     REAL, INTENT(in) :: zccaa(kbdim,klev,nbins,nbins),zccca(kbdim,klev,nbins,ncld),  &
                         zccpa(kbdim,klev,nbins,nprc),zccia(kbdim,klev,nbins,nice),   &
                         zccsa(kbdim,klev,nbins,nsnw)
 
-    INTEGER :: index_2a,index_2b
+    INTEGER :: index_2a,index_2b,index_cld
     INTEGER :: ii,jj,kk
 
     INTEGER :: nspec
@@ -65,16 +72,23 @@ MODULE mo_salsa_coagulation_processes
        IF (lscgaa) &
             CALL accumulateSink(kbdim,klev,zccaa,kk,kk+1,fn2b,aero,nbins,nbins,zminusterm)
 
-       ! Particles lost by cloud collection
-       IF (lscgca) &
-            CALL accumulateSink(kbdim,klev,zccca,kk,1,ncld,cloud,nbins,ncld,zminusterm)
+       ! Particles lost by cloud collection (cloud bins a) by larger cloud bins
+       IF (lscgca) THEN
+          ! Cloud bins a
+          index_cld = MAX(kk - ica%par + ica%cur, ica%cur)
+          CALL accumulateSink(kbdim,klev,zccca,kk,index_cld,fca%cur,cloud,nbins,ncld,zminusterm)
+          ! Cloud bins b
+          index_cld = MAX(fca%cur + kk - icb%par + icb%cur, icb%cur)
+          CALL accumulateSink(kbdim,klev,zccca,kk,index_cld,fcb%cur,cloud,nbins,ncld,zminusterm)
+       END IF
 
        ! particles lost by rain collection
        IF (lscgpa) &
             CALL accumulateSink(kbdim,klev,zccpa,kk,1,nprc,precp,nbins,nprc,zminusterm)
 
        ! particles lost by ice collection
-       CALL accumulateSink(kbdim,klev,zccia,kk,1,nice,ice,nbins,nice,zminusterm)
+       IF (lscgia) &
+            CALL accumulateSink(kbdim,klev,zccia,kk,1,nice,ice,nbins,nice,zminusterm)
 
        ! particles lost by snow collection
        IF (lscgsa) &
@@ -82,12 +96,20 @@ MODULE mo_salsa_coagulation_processes
 
        ! Particle volume gained from smaller particles in regime 1a
        IF (kk > in1a .AND. lscgaa) &
-          CALL accumulateSource(kbdim,klev,nspec,zccaa,kk,in1a,kk-1,aero,nbins,nbins,zplusterm)
+            CALL accumulateSource(kbdim,klev,nspec,zccaa,kk,in1a,kk-1,aero,nbins,nbins,zplusterm)
 
-
+       ! Particles gained from cloud droplets with smaller dry ccn diameter (usually not relevant for the smallest particles but
+       ! the possibility included for generity)
+       IF (lscgca) THEN
+          IF (kk > ica%par) THEN
+             ! Get the corresponding cloud index minus 1
+             index_cld = kk-ica%par
+             CALL accumulateSourceReverse(kbdim,klev,nspec,zccca,kk,ica%cur,index_cld,cloud,nbins,ncld,zplusterm)
+          END IF 
+       END IF
+      
        DO jj = 1,klev
           DO ii = 1,kbdim
-             !WRITE(*,*) ii,jj,nspec
              !-- Volume and number concentrations after coagulation update [fxm]
              aero(ii,jj,kk)%volc(1:nspec) = ( aero(ii,jj,kk)%volc(1:nspec)+tstep*zplusterm(1:nspec,ii,jj) * &
                   aero(ii,jj,kk)%numc ) / (1. + tstep*zminusterm(ii,jj))
@@ -118,13 +140,19 @@ MODULE mo_salsa_coagulation_processes
        IF (lscgaa) &
             CALL accumulateSink(kbdim,klev,zccaa,kk,index_2b+1,fn2b,aero,nbins,nbins,zminusterm)
        
-       ! Particles lost by cloud collection
-       IF (lscgca) &
-            CALL accumulateSink(kbdim,klev,zccca,kk,1,ncld,cloud,nbins,ncld,zminusterm)
-       
+       ! Particles lost by cloud collection by larger or equal cloud bins
+       IF (lscgca) THEN
+          ! cloud bins a
+          index_cld = MAX(kk - ica%par + ica%cur, ica%cur)
+          CALL accumulateSink(kbdim,klev,zccca,kk,index_cld,fca%cur,cloud,nbins,ncld,zminusterm)
+          ! cloud bins b
+          index_cld = MAX(index_2b - icb%par + icb%cur, icb%cur)
+          CALL accumulateSink(kbdim,klev,zccca,kk,index_cld,fcb%cur,cloud,nbins,ncld,zminusterm)
+       END IF
+
        ! Particles lost by collection by rain
        IF (lscgpa) &
-       CALL accumulateSink(kbdim,klev,zccpa,kk,1,nprc,precp,nbins,nprc,zminusterm)
+            CALL accumulateSink(kbdim,klev,zccpa,kk,1,nprc,precp,nbins,nprc,zminusterm)
        
        ! particles lost by ice collection
        IF (lscgia) &
@@ -142,6 +170,20 @@ MODULE mo_salsa_coagulation_processes
        IF (lscgaa) &
             CALL accumulateSource(kbdim,klev,nspec,zccaa,kk,in2b,index_2b,aero,nbins,nbins,zplusterm)
 
+       ! Particles gained from cloud droplets with smaller dry ccn diameter
+       IF (lscgca) THEN
+          IF ( kk > ica%par ) THEN
+             ! Get the corresponding cloud index minus 1
+             index_cld = MAX(kk - ica%par + ica%cur - 1, ica%cur)
+             CALL accumulateSourceReverse(kbdim,klev,nspec,zccca,kk,ica%cur,index_cld,cloud,nbins,ncld,zplusterm)
+          END IF
+          IF ( index_2b > icb%par ) THEN
+             ! Get the corresponding cloud index minus 1
+             index_cld = MAX(index_2b - icb%par + icb%cur - 1, icb%cur)
+             CALL accumulateSourceReverse(kbdim,klev,nspec,zccca,kk,icb%cur,index_cld,cloud,nbins,ncld,zplusterm)
+          END IF
+       END IF
+       
        DO jj = 1,klev
           DO ii = 1,kbdim
              !-- Volume and number concentrations after coagulation update [fxm]
@@ -174,9 +216,15 @@ MODULE mo_salsa_coagulation_processes
        IF (lscgaa) &
             CALL accumulateSink(kbdim,klev,zccaa,kk,index_2a,fn2a,aero,nbins,nbins,zminusterm)
        
-       ! Particles lost by cloud collection
-       IF (lscgca) &
-            CALL accumulateSink(kbdim,klev,zccca,kk,1,ncld,cloud,nbins,ncld,zminusterm)
+       ! Particles lost by cloud collection by larger cloud bins
+       IF (lscgca) THEN
+          ! Cloud bins a
+          index_cld = MAX( index_2a - ica%par + ica%cur, ica%cur )
+          CALL accumulateSink(kbdim,klev,zccca,kk,index_cld,fca%cur,cloud,nbins,ncld,zminusterm)
+          ! Cloud bins b
+          index_cld = MAX( kk - icb%par + icb%cur, icb%cur )
+          CALL accumulateSink(kbdim,klev,zccca,kk,index_cld,fcb%cur,cloud,nbins,ncld,zminusterm)
+       END IF
 
        ! Particles lost by collection by rain
        IF (lscgpa) &
@@ -197,6 +245,21 @@ MODULE mo_salsa_coagulation_processes
        ! Particle volume gained from smaller particles in 2b
        IF (lscgaa) &
             CALL accumulateSource(kbdim,klev,nspec,zccaa,kk,in2b,kk-1,aero,nbins,nbins,zplusterm)
+
+       ! Particle volume gained from smaller cloud bins
+       IF (lscgca) THEN
+          IF ( index_2a > ica%par ) THEN
+             ! Get the corresponding cloud index minus 1
+             index_cld = MAX( index_2a - ica%par + ica%cur - 1, ica%cur )
+             CALL accumulateSourceReverse(kbdim,klev,nspec,zccca,kk,ica%cur,index_cld,cloud,nbins,ncld,zplusterm)
+          END IF
+          IF ( kk > icb%par ) THEN
+             ! Get the corresponding cloud index minus 1
+             index_cld = MAX( kk - icb%par + icb%cur - 1, icb%cur )
+             CALL accumulateSourceReverse(kbdim,klev,nspec,zccca,kk,icb%cur,index_cld,cloud,nbins,ncld,zplusterm)
+          END IF
+
+       END IF
 
        DO jj = 1,klev
           DO ii = 1,kbdim
@@ -225,18 +288,11 @@ MODULE mo_salsa_coagulation_processes
                         zccpc(kbdim,klev,ncld,nprc),zccic(kbdim,klev,ncld,nice),   &
                         zccsc(kbdim,klev,ncld,nsnw)
 
-    INTEGER :: ii,jj,kk,cc
+    INTEGER :: ii,jj,kk,index_a, index_b,index_aero
     INTEGER :: nspec
     nspec = spec%getNSpec()
     
     ! Cloud bins a
-
-    ! Do the giant CCN collection first, if so specified
-    IF (lscollectGCCN) THEN
-       zplustermGiantCCN = 0.
-       CALL accumulateSourceGiantCCN(kbdim,klev,nspec,zccca,in1a,fn2b,cloud,aero,ncld,nbins,zplustermGiantCCN)
-    END IF
-
 
     DO kk = ica%cur, fca%cur
        IF (ALL(cloud(:,:,kk)%numc < nlim)) CYCLE
@@ -245,8 +301,18 @@ MODULE mo_salsa_coagulation_processes
        zplusterm(:,:,:) = 0.
        
        ! corresponding index for regime b cloud droplets
-       cc = MAX(kk-fca%cur+ncld,icb%cur) ! Regime a has more bins than b:
-                                         ! Set this at minimum to beginnign of b.
+       index_b = MAX(kk-fca%cur+ncld,icb%cur) ! If regime a has more bins than b:
+                                              ! Set this at minimum to beginnign of b.
+
+       ! Droplets lost to larger aerosol bins
+       IF (lscgca) THEN
+          ! Aerosol bins a, parallel aerosol bin plus 1
+          index_aero = ica%par + kk
+          CALL accumulateSinkReverse(kbdim,klev,zccca,kk,index_aero,fn2a,aero,ncld,nbins,zminusterm)
+          ! Aerosol bins b, aerosol bin plus 1
+          index_aero = icb%par + (index_b-fca%cur)
+          CALL accumulateSinkReverse(kbdim,klev,zccca,kk,index_aero,fn2b,aero,ncld,nbins,zminusterm)
+       END IF
 
        ! Droplets lost by those with larger nucleus in regime a
        IF (lscgcc) &
@@ -254,7 +320,7 @@ MODULE mo_salsa_coagulation_processes
        
        ! Droplets lost by those with larger nucleus in regime b
        IF (lscgcc) &
-            CALL accumulateSink(kbdim,klev,zcccc,kk,cc+1,fcb%cur,cloud,ncld,ncld,zminusterm)
+            CALL accumulateSink(kbdim,klev,zcccc,kk,index_b+1,fcb%cur,cloud,ncld,ncld,zminusterm)
        
        ! Droplets lost by collection by rain drops
        IF (lscgpc) &
@@ -268,26 +334,23 @@ MODULE mo_salsa_coagulation_processes
        IF (lscgsc) &
             CALL accumulateSink(kbdim,klev,zccsc,kk,1,nsnw,snow,ncld,nsnw,zminusterm)
        
-       ! Volume gained from cloud collection of aerosols (regular approach)
-       IF (lscgca .AND. .NOT. lscollectGCCN) &
-            CALL accumulateSource(kbdim,klev,nspec,zccca,kk,in1a,fn2b,aero,ncld,nbins,zplusterm)
+       ! Volume gained from cloud collection of smaller and equal aerosol bins
+       IF (lscgca) THEN
+          ! corresponding index aerosol a
+          index_aero = ica%par + (kk - ica%cur)
+          CALL accumulateSource(kbdim,klev,nspec,zccca,kk,in1a,index_aero,aero,ncld,nbins,zplusterm)
+          ! corresponding index aerosol b
+          index_aero = icb%par + (index_b - icb%cur)
+          CALL accumulateSource(kbdim,klev,nspec,zccca,kk,in2b,index_aero,aero,ncld,nbins,zplusterm)
+       END IF 
           
-       ! Volume gained from cloud collection of aerosols (the "GCCN" approach)
-       IF (lscgca .AND. lscollectGCCN) THEN
-          DO jj = 1,klev
-             DO ii = 1,kbdim
-                zplusterm(1:nspec,ii,jj) = zplusterm(1:nspec,ii,jj) + zplustermGiantCCN(1:nspec,ii,jj,kk)
-             END DO
-          END DO
-       END IF
-
        ! Volume gained from smaller droplets in a
        IF (lscgcc) &
             CALL accumulateSource(kbdim,klev,nspec,zcccc,kk,ica%cur,kk-1,cloud,ncld,ncld,zplusterm)
 
        ! Volume gained from smaller or equal droplets in b
        IF (lscgcc) &
-            CALL accumulateSource(kbdim,klev,nspec,zcccc,kk,icb%cur,cc,cloud,ncld,ncld,zplusterm)
+            CALL accumulateSource(kbdim,klev,nspec,zcccc,kk,icb%cur,index_b,cloud,ncld,ncld,zplusterm)
 
        DO jj = 1,klev
           DO ii = 1,kbdim
@@ -312,7 +375,17 @@ MODULE mo_salsa_coagulation_processes
        zplusterm(:,:,:) = 0.
                
        ! corresponding index for regime a cloud droplets
-       cc = kk - ncld + fca%cur
+       index_a = kk - ncld + fca%cur
+
+       ! Droplets lost to larger aerosol bins
+       IF (lscgca) THEN
+          ! Aerosol bins a, parallel aerosol bin plus 1
+          index_aero = ica%par + index_a
+          CALL accumulateSinkReverse(kbdim,klev,zccca,kk,index_aero,fn2a,aero,ncld,nbins,zminusterm)
+          ! Aerosol bins b, aerosol bin plus 1
+          index_aero = icb%par + (kk-fca%cur)
+          CALL accumulateSinkReverse(kbdim,klev,zccca,kk,index_aero,fn2b,aero,ncld,nbins,zminusterm)
+       END IF
        
        ! Droplets lost by those with larger nucleus in regime b
        IF (lscgcc) &
@@ -320,7 +393,7 @@ MODULE mo_salsa_coagulation_processes
        
        ! Droplets lost by those with larger nucleus in regime a
        IF (lscgcc) &
-            CALL accumulateSink(kbdim,klev,zcccc,kk,cc+1,fca%cur,cloud,ncld,ncld,zminusterm)
+            CALL accumulateSink(kbdim,klev,zcccc,kk,index_a+1,fca%cur,cloud,ncld,ncld,zminusterm)
        
        ! Droplets lost by collection by rain drops
        IF (lscgpc) &
@@ -334,26 +407,23 @@ MODULE mo_salsa_coagulation_processes
        IF (lscgsc) &
             CALL accumulateSink(kbdim,klev,zccsc,kk,1,nsnw,snow,ncld,nsnw,zminusterm)
        
-       ! Volume gained from cloud collection of aerosols (regular approach)
-       IF (lscgca .AND. .NOT. lscollectGCCN) &
-            CALL accumulateSource(kbdim,klev,nspec,zccca,kk,in1a,fn2b,aero,ncld,nbins,zplusterm)
+       ! Volume gained from cloud collection of smaller and equal aerosol bins
+       IF (lscgca) THEN
+          ! corresponding index aerosol a
+          index_aero = ica%par + (index_a - ica%cur)
+          CALL accumulateSource(kbdim,klev,nspec,zccca,kk,in1a,index_aero,aero,ncld,nbins,zplusterm)
+          ! corresponding index aerosol b
+          index_aero = icb%par + (kk - icb%cur)
+          CALL accumulateSource(kbdim,klev,nspec,zccca,kk,in2b,index_aero,aero,ncld,nbins,zplusterm)
+       END IF 
        
-       ! Volume gained from cloud collection of aerosols (the "GCCN" approach)
-       IF (lscgca .AND. lscollectGCCN) THEN
-          DO jj = 1,klev
-             DO ii = 1,kbdim
-                zplusterm(1:nspec,ii,jj) = zplusterm(1:nspec,ii,jj) + zplustermGiantCCN(1:nspec,ii,jj,kk)
-             END DO
-          END DO
-       END IF
-
        ! Volume gained from smaller droplets in b
        IF (lscgcc) &
             CALL accumulateSource(kbdim,klev,nspec,zcccc,kk,icb%cur,kk-1,cloud,ncld,ncld,zplusterm)
        
        ! Volume gained from smaller or equal droplets in a
        IF (lscgcc) &
-            CALL accumulateSource(kbdim,klev,nspec,zcccc,kk,ica%cur,cc,cloud,ncld,ncld,zplusterm)
+            CALL accumulateSource(kbdim,klev,nspec,zcccc,kk,ica%cur,index_a,cloud,ncld,ncld,zplusterm)
        
        DO jj = 1,klev
           DO ii = 1,kbdim
@@ -655,12 +725,11 @@ MODULE mo_salsa_coagulation_processes
 
   END SUBROUTINE coag_snow
 
-  !
   SUBROUTINE accumulateSink(kbdim,klev,ck,itrgt,istr,iend,part,nbtrgt,nbpart,sink)
 
     INTEGER, INTENT(in) :: kbdim,klev,istr,iend,itrgt
     INTEGER, INTENT(in) :: nbtrgt,nbpart
-    REAL, INTENT(in) :: ck(kbdim,klev,nbtrgt,nbpart) ! Check that the assumed size array works!
+    REAL, INTENT(in) :: ck(kbdim,klev,nbtrgt,nbpart) 
     TYPE(Section), INTENT(in) :: part(kbdim,klev,nbpart)
     REAL, INTENT(inout) :: sink(kbdim,klev)
     
@@ -675,6 +744,27 @@ MODULE mo_salsa_coagulation_processes
     END DO
     
   END SUBROUTINE accumulateSink
+
+  ! ------------------------------------------------
+  SUBROUTINE accumulateSinkReverse(kbdim,klev,ck,itrgt,istr,iend,part,nbtrgt,nbpart,sink)
+
+    INTEGER, INTENT(in) :: kbdim,klev,istr,iend,itrgt
+    INTEGER, INTENT(in) :: nbtrgt,nbpart
+    REAL, INTENT(in) :: ck(kbdim,klev,nbpart,nbtrgt)
+    TYPE(Section), INTENT(in) :: part(kbdim,klev,nbpart)
+    REAL, INTENT(inout) :: sink(kbdim,klev)
+
+    INTEGER :: ll,ii,jj
+    
+    DO ll = istr,iend
+       DO jj = 1,klev
+          DO ii = 1,kbdim
+             sink(ii,jj) = sink(ii,jj) + ck(ii,jj,ll,itrgt)*part(ii,jj,ll)%numc
+          END DO
+       END DO
+    END DO
+      
+  END SUBROUTINE accumulateSinkReverse
 
   ! ------------------------------------------------
 
@@ -714,45 +804,33 @@ MODULE mo_salsa_coagulation_processes
   !
   ! The selection between this and the basic approach is given by the switch lscollectGCCN
   !
-  SUBROUTINE accumulateSourceGiantCCN(kbdim,klev,nspec,ck,istr,iend,trgt,part,nbtrgt,nbpart,source)
-    
+  SUBROUTINE accumulateSourceReverse(kbdim,klev,nspec,ck,itrgt,istr,iend,part,nbtrgt,nbpart,source)
+    ! 
+    ! ---------------------------------------------------------------------------------------------------
+    ! This is meant for collection processes operating in a "reverse" direction in terms of the general
+    ! collision process hierarchy. This is specifically designed for treating the collection processes
+    ! between aerosol and cloud droplets, which use identical size bins based on dry particle size.
+    !
     INTEGER, INTENT(in) :: kbdim,klev,nspec
-    INTEGER, INTENT(in) :: istr,iend
+    INTEGER, INTENT(in) :: istr,iend,itrgt
     INTEGER, INTENT(in) :: nbtrgt,nbpart  ! Number of bins in the target category and the coagulating category
-    REAL, INTENT(in) :: ck(kbdim,klev,nbpart,nbtrgt)
-    TYPE(Section), INTENT(in) :: part(kbdim,klev,nbpart), trgt(kbdim,klev,nbtrgt)
-    REAL, INTENT(inout) :: source(nspec,kbdim,klev,nbtrgt)
+    REAL, INTENT(in) :: ck(kbdim,klev,nbtrgt,nbpart)
+    TYPE(Section), INTENT(in) :: part(kbdim,klev,nbpart)
+    REAL, INTENT(inout) :: source(nspec,kbdim,klev)
 
     INTEGER :: iae_cld, ll, jj, ii, cc
     REAL :: contr(nspec)
 
-    source(:,:,:,:) = 0.
-
-    DO cc = 1,nbtrgt
-       DO ll = istr,iend ! Aerosolibinit
-          DO jj = 1,klev
-             DO ii = 1,kbdim
-                
-                ! Get the contribution of current bins to the collection process
-                contr(:) = 0.
-                contr(1:nspec) = ck(ii,jj,ll,cc)*part(ii,jj,ll)%volc(1:nspec)
-             
-                IF ( part(ii,jj,ll)%dmid > trgt(ii,jj,cc)%dmid ) THEN
-                   ! The aerosol bin is larger than cloud bin -> move the contribution 
-                   ! to the cloud bin corresponding to the larger aerosol bin
-                   iae_cld = ll - ica%par + 1
-                   source(1:nspec,ii,jj,iae_cld) = source(1:nspec,ii,jj,iae_cld) + contr(1:nspec)                
-                ELSE
-                   ! Just do the normal procedure
-                   source(1:nspec,ii,jj,cc) = source(1:nspec,ii,jj,cc) + contr(1:nspec)
-                END IF
-
-             END DO          
-          END DO       
-       END DO    
+    source(:,:,:) = 0.
+    DO ll = istr,iend
+       DO jj = 1,klev
+          DO ii = 1,kbdim
+             source(1:nspec,ii,jj) = source(1:nspec,ii,jj) + ck(ii,jj,itrgt,ll)*part(ii,jj,ll)%volc(1:nspec)
+          END DO
+       END DO
     END DO
 
-  END SUBROUTINE accumulateSourceGiantCCN
+  END SUBROUTINE accumulateSourceReverse
 
   ! -------------------------------------------------
 
