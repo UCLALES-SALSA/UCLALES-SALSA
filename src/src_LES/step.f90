@@ -56,8 +56,8 @@ contains
     use mpi_interface, only : myid, double_scalar_par_max
 
     use grid, only : dtl, dzt, zt, zm, nzp, dn0, u0, v0, a_up, a_vp, a_wp, &
-         a_uc, a_vc, a_wc, write_hist, write_anal, close_anal, dtlt,  &
-         dtlv, dtlong, nzp, nyp, nxp, level,                          &
+         a_uc, a_vc, a_wc, write_hist, write_anal, close_anal, &
+         dtlong, nzp, nyp, nxp, level,                          &
          ! For mass budged
          a_rp, a_rc, a_srp, a_dn
 
@@ -65,13 +65,11 @@ contains
          write_massbudged
     use thrm, only : thermo
 
-    logical, parameter :: StopOnCFLViolation = .False.
-    real, parameter :: cfl_upper = 0.50, cfl_lower = 0.30
+    real, parameter :: cfl_upper = 0.5
 
-    real    :: t1,t2,tplsdt,begtime
+    real    :: t1,t2,tplsdt,begtime,dt_prev
     REAL(kind=8) :: cflmax,gcflmax
     integer :: istp, iret
-    logical :: cflflg
     !
     ! Timestep loop for program
     !
@@ -87,19 +85,15 @@ contains
        sflg = (min(mod(tplsdt,ssam_intvl),mod(tplsdt,savg_intvl)) < dtl  &
             .or. tplsdt >= timmax  .or. tplsdt < 2.*dtl)
 
-       call t_step(cflflg,cflmax)
+       call t_step
 
        time  = time + dtl
 
+       call cfl(cflmax)
        call double_scalar_par_max(cflmax,gcflmax)
        cflmax = gcflmax
-
-       if (cflmax > cfl_upper .or. cflmax < cfl_lower) then
-          call tstep_reset(nzp,nxp,nyp,a_up,a_vp,a_wp,a_uc,a_vc,a_wc,     &
-               dtl,dtlong,cflmax,cfl_upper,cfl_lower)
-          dtlv=2.*dtl
-          dtlt=dtl
-       end if
+       dt_prev = dtl
+       dtl = min(dtlong,dtl*cfl_upper/(cflmax+epsilon(1.)))
 
        !
        ! output control
@@ -115,11 +109,6 @@ contains
        if ((mod(tplsdt,frqanl) < dtl .or. time >= timmax) .and. outflg) then
           call thermo(level)
           call write_anal(time)
-       end if
-
-       if (cflflg) then
-          cflflg=.False.
-          if (StopOnCFLViolation) call write_hist(-1,time)
        end if
 
        if(myid == 0) then
@@ -138,7 +127,7 @@ contains
        !
        ! Juha:
        ! Get the final statistics of atmospheric water for mass budged
-       CALL acc_massbudged(nzp,nxp,nyp,1,dtlt,dzt,a_dn,    &
+       CALL acc_massbudged(nzp,nxp,nyp,1,dtl,dzt,a_dn,    &
             rv=a_rp,rc=a_rc,prc=a_srp)
 
        CALL write_massbudged
@@ -152,46 +141,13 @@ contains
   end subroutine stepper
   !
   !----------------------------------------------------------------------
-  ! subroutine tstep_reset: Called to adjust current velocity and reset
-  ! timestep based on cfl limits
-  !
-  subroutine tstep_reset(n1,n2,n3,up,vp,wp,uc,vc,wc,dtl,dtmx,cfl,c1,c2)
-
-  integer, intent (in) :: n1,n2,n3
-  real, intent (in)    :: up(n1,n2,n3),vp(n1,n2,n3),wp(n1,n2,n3),dtmx,c1,c2
-  REAL(kind=8), INTENT (IN) :: cfl
-  real, intent (inout) :: uc(n1,n2,n3),vc(n1,n2,n3),wc(n1,n2,n3),dtl
-
-  integer :: i,j,k
-  real    :: cbar, dtl_old
-
-  cbar = (c1+c2)*0.5
-  dtl_old = dtl
-
-  if (cfl > c1) dtl = min(dtmx,dtl*cbar/c1)
-  if (cfl < c2) dtl = min(dtmx,dtl*cbar/c2)
-
-  do j=1,n3
-     do i=1,n2
-        do k=1,n1
-           uc(k,i,j) = up(k,i,j) + (uc(k,i,j)-up(k,i,j))*dtl/dtl_old
-           vc(k,i,j) = vp(k,i,j) + (vc(k,i,j)-vp(k,i,j))*dtl/dtl_old
-           wc(k,i,j) = wp(k,i,j) + (wc(k,i,j)-wp(k,i,j))*dtl/dtl_old
-        end do
-     end do
-  end do
-
-end subroutine tstep_reset
-
-  !
-  !----------------------------------------------------------------------
   ! subroutine t_step: Called by driver to timestep through the LES
   ! routines.  Within many subroutines, data is accumulated during
   ! the course of a timestep for the purposes of statistical analysis.
   !
-  subroutine t_step(cflflg,cflmax)
+  subroutine t_step()
 
-    use grid, only : level, dtl, dtlt, Tspinup,                                         &
+    use grid, only : level, dtl, Tspinup,                                         &
                      ! Added parameters for interfacing with SALSA
                      nxp, nyp, nzp, a_press, a_temp, a_rsl,                       &
                      a_rc, a_wp, a_rp, a_rt, a_rh,                                  &
@@ -201,7 +157,6 @@ end subroutine tstep_reset
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                      a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl,    &
                      sst, a_rsi
-
 
     use stat, only : sflg, statistics
     use sgsm, only : diffuse
@@ -217,9 +172,6 @@ end subroutine tstep_reset
     USE mo_salsa_driver, ONLY : run_SALSA
     USE class_ComponentIndex, ONLY : GetNcomp
 
-    logical, intent (out) :: cflflg
-    real(KIND=8), intent (out)    :: cflmax
-
     real :: xtime
 
     LOGICAL :: zactmask(nzp,nxp,nyp)
@@ -231,12 +183,10 @@ end subroutine tstep_reset
     zwp = 0.5
 
     xtime = time/86400. + strtim
-    cflflg = .false.
 
     ! The runmode parameter zrm is used by SALSA only
     zrm = 3
     IF ( time < Tspinup ) zrm = 2
-
 
     ! Reset ALL tendencies here.
     !----------------------------------------------------------------
@@ -282,7 +232,7 @@ end subroutine tstep_reset
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  zrm, prtcl, dtlt, time, level  )
+                  zrm, prtcl, dtl, time, level  )
           ELSE
              !! for 2D or 3D runs
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
@@ -292,7 +242,7 @@ end subroutine tstep_reset
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  zrm, prtcl, dtlt, time, level  )
+                  zrm, prtcl, dtl, time, level  )
           END IF !nxp==5 and nyp == 5
 
           CALL tend_constrain(n4)
@@ -367,8 +317,6 @@ end subroutine tstep_reset
 
     call poisson
 
-    call cfl (cflflg, cflmax)
-
     CALL thermo(level)
 
     IF (level >= 4)  THEN
@@ -391,7 +339,7 @@ end subroutine tstep_reset
   !
   SUBROUTINE nudging(time)
 
-    use grid, only : level, dtlt, nxp, nyp, nzp, &
+    use grid, only : level, dtl, nxp, nyp, nzp, &
                 zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, a_srs, &
                 a_naerop, a_naerot, a_ncloudp, a_nicep, &
                 a_tp, a_tt, a_up, a_ut, a_vp, a_vt
@@ -454,24 +402,24 @@ end subroutine tstep_reset
 
     ! (Liquid water) potential temperature:
     IF (nudge_theta>0) &
-        CALL nudge_any(nxp,nyp,nzp,zt,a_tp,a_tt,theta_ref,dtlt,tau_theta,nudge_theta)
+        CALL nudge_any(nxp,nyp,nzp,zt,a_tp,a_tt,theta_ref,dtl,tau_theta,nudge_theta)
 
     ! Water vapor
     IF (nudge_rv>0) THEN
         IF (level>3) THEN
             ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain [+ ice + snow])
-            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp+a_ri+a_srs,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp+a_ri+a_srs,a_rt,rv_ref,dtl,tau_rv,nudge_rv)
         ELSE
             ! Nudge total water (a_rp) based on total water
-            CALL nudge_any(nxp,nyp,nzp,zt,a_rp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp,a_rt,rv_ref,dtl,tau_rv,nudge_rv)
         ENDIF
     ENDIF
 
     ! Horizontal winds
     IF (nudge_u>0) &
-         CALL nudge_any(nxp,nyp,nzp,zt,a_up,a_ut,u_ref,dtlt,tau_u,nudge_u)
+         CALL nudge_any(nxp,nyp,nzp,zt,a_up,a_ut,u_ref,dtl,tau_u,nudge_u)
     IF (nudge_v>0) &
-        CALL nudge_any(nxp,nyp,nzp,zt,a_vp,a_vt,v_ref,dtlt,tau_v,nudge_v)
+        CALL nudge_any(nxp,nyp,nzp,zt,a_vp,a_vt,v_ref,dtl,tau_v,nudge_v)
 
     ! Aerosol
     IF (level>3 .AND. nudge_ccn/=0) THEN
@@ -480,7 +428,7 @@ end subroutine tstep_reset
         aero_target(:,in2a:fn2b)=aero_target(:,in2a:fn2b)-a_ncloudp(:,3,3,1:ncld)
         IF (level==5) aero_target(:,in2a:fn2b)=aero_target(:,in2a:fn2b)-a_nicep(:,3,3,1:nice)
         ! Apply to sectional data
-        CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,a_naerop,a_naerot,aero_target,dtlt,tau_ccn,nudge_ccn)
+        CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,a_naerop,a_naerot,aero_target,dtl,tau_ccn,nudge_ccn)
     ENDIF
 
   END SUBROUTINE nudging
@@ -587,7 +535,7 @@ end subroutine tstep_reset
     USE grid, ONLY : a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,   &
                      a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,   &
                      a_nicep, a_nicet, a_nsnowp, a_nsnowt, a_micep, a_micet, a_msnowp, a_msnowt,  &
-                     dtlt, nxp,nyp,nzp,level
+                     dtl, nxp,nyp,nzp,level
     USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw
 
     INTEGER, INTENT(in) :: nn
@@ -603,11 +551,11 @@ end subroutine tstep_reset
              ! Aerosols
              DO cc = 1,nbins
 
-                IF ( a_naerop(kk,ii,jj,cc)+a_naerot(kk,ii,jj,cc)*dtlt < 0. ) THEN
+                IF ( a_naerop(kk,ii,jj,cc)+a_naerot(kk,ii,jj,cc)*dtl < 0. ) THEN
 
-                   a_naerot(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_naerop(kk,ii,jj,cc))/dtlt,a_naerot(kk,ii,jj,cc))
+                   a_naerot(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_naerop(kk,ii,jj,cc))/dtl,a_naerot(kk,ii,jj,cc))
                    DO ni = 1,nn
-                      a_maerot(kk,ii,jj,(ni-1)*nbins+cc) = MAX( ((1.e-10-1.0)*a_maerop(kk,ii,jj,(ni-1)*nbins+cc))/dtlt,  &
+                      a_maerot(kk,ii,jj,(ni-1)*nbins+cc) = MAX( ((1.e-10-1.0)*a_maerop(kk,ii,jj,(ni-1)*nbins+cc))/dtl,  &
                                                                a_maerot(kk,ii,jj,(ni-1)*nbins+cc) )
                    END DO
 
@@ -618,11 +566,11 @@ end subroutine tstep_reset
              ! Cloud droplets
              DO cc = 1,ncld
 
-                IF ( a_ncloudp(kk,ii,jj,cc)+a_ncloudt(kk,ii,jj,cc)*dtlt < 0. ) THEN
+                IF ( a_ncloudp(kk,ii,jj,cc)+a_ncloudt(kk,ii,jj,cc)*dtl < 0. ) THEN
 
-                   a_ncloudt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_ncloudp(kk,ii,jj,cc))/dtlt,a_ncloudt(kk,ii,jj,cc))
+                   a_ncloudt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_ncloudp(kk,ii,jj,cc))/dtl,a_ncloudt(kk,ii,jj,cc))
                    DO ni = 1,nn
-                      a_mcloudt(kk,ii,jj,(ni-1)*ncld+cc) = MAX( ((1.e-10-1.0)*a_mcloudp(kk,ii,jj,(ni-1)*ncld+cc))/dtlt,  &
+                      a_mcloudt(kk,ii,jj,(ni-1)*ncld+cc) = MAX( ((1.e-10-1.0)*a_mcloudp(kk,ii,jj,(ni-1)*ncld+cc))/dtl,  &
                                                                a_mcloudt(kk,ii,jj,(ni-1)*ncld+cc) )
                    END DO
 
@@ -633,11 +581,11 @@ end subroutine tstep_reset
              ! Precipitation
              DO cc = 1,nprc
 
-                IF ( a_nprecpp(kk,ii,jj,cc)+a_nprecpt(kk,ii,jj,cc)*dtlt < 0. ) THEN
+                IF ( a_nprecpp(kk,ii,jj,cc)+a_nprecpt(kk,ii,jj,cc)*dtl < 0. ) THEN
 
-                   a_nprecpt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nprecpp(kk,ii,jj,cc))/dtlt,a_nprecpt(kk,ii,jj,cc))
+                   a_nprecpt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nprecpp(kk,ii,jj,cc))/dtl,a_nprecpt(kk,ii,jj,cc))
                    DO ni = 1,nn
-                      a_mprecpt(kk,ii,jj,(ni-1)*nprc+cc) = MAX( ((1.e-10-1.0)*a_mprecpp(kk,ii,jj,(ni-1)*nprc+cc))/dtlt,  &
+                      a_mprecpt(kk,ii,jj,(ni-1)*nprc+cc) = MAX( ((1.e-10-1.0)*a_mprecpp(kk,ii,jj,(ni-1)*nprc+cc))/dtl,  &
                                                                a_mprecpt(kk,ii,jj,(ni-1)*nprc+cc) )
                    END DO
 
@@ -649,11 +597,11 @@ end subroutine tstep_reset
              IF (level<5) CYCLE
              DO cc = 1,nice
 
-                IF ( a_nicep(kk,ii,jj,cc)+a_nicet(kk,ii,jj,cc)*dtlt < 0. ) THEN
+                IF ( a_nicep(kk,ii,jj,cc)+a_nicet(kk,ii,jj,cc)*dtl < 0. ) THEN
 
-                   a_nicet(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nicep(kk,ii,jj,cc))/dtlt,a_nicet(kk,ii,jj,cc))
+                   a_nicet(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nicep(kk,ii,jj,cc))/dtl,a_nicet(kk,ii,jj,cc))
                    DO ni = 1,nn
-                      a_micet(kk,ii,jj,(ni-1)*ncld+cc) = MAX( ((1.e-10-1.0)*a_micep(kk,ii,jj,(ni-1)*nice+cc))/dtlt,  &
+                      a_micet(kk,ii,jj,(ni-1)*ncld+cc) = MAX( ((1.e-10-1.0)*a_micep(kk,ii,jj,(ni-1)*nice+cc))/dtl,  &
                                                                a_micet(kk,ii,jj,(ni-1)*nice+cc) )
                    END DO
 
@@ -664,11 +612,11 @@ end subroutine tstep_reset
              ! Snow
              DO cc = 1,nsnw
 
-                IF ( a_nsnowp(kk,ii,jj,cc)+a_nsnowt(kk,ii,jj,cc)*dtlt < 0. ) THEN
+                IF ( a_nsnowp(kk,ii,jj,cc)+a_nsnowt(kk,ii,jj,cc)*dtl < 0. ) THEN
 
-                   a_nsnowt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nsnowp(kk,ii,jj,cc))/dtlt,a_nsnowt(kk,ii,jj,cc))
+                   a_nsnowt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nsnowp(kk,ii,jj,cc))/dtl,a_nsnowt(kk,ii,jj,cc))
                    DO ni = 1,nn
-                      a_msnowt(kk,ii,jj,(ni-1)*nsnw+cc) = MAX( ((1.e-10-1.0)*a_msnowp(kk,ii,jj,(ni-1)*nsnw+cc))/dtlt,  &
+                      a_msnowt(kk,ii,jj,(ni-1)*nsnw+cc) = MAX( ((1.e-10-1.0)*a_msnowp(kk,ii,jj,(ni-1)*nsnw+cc))/dtl,  &
                                                                a_msnowt(kk,ii,jj,(ni-1)*nsnw+cc) )
                    END DO
 
@@ -687,26 +635,23 @@ end subroutine tstep_reset
   !----------------------------------------------------------------------
   ! Subroutine cfl: Driver for calling CFL computation subroutine
   !
-  subroutine cfl(cflflg,cflmax)
+  subroutine cfl(cflmax)
 
-    use grid, only : a_up,a_vp,a_wp,nxp,nyp,nzp,dxi,dyi,dzt,dtlt
+    use grid, only : a_up,a_vp,a_wp,nxp,nyp,nzp,dxi,dyi,dzt,dtl
     use stat, only : fill_scalar
 
-    logical, intent(out) :: cflflg
     real(KIND=8), intent (out)   :: cflmax
     real, parameter :: cflnum=0.95
 
-    cflmax =  cfll(nzp,nxp,nyp,a_up,a_vp,a_wp,dxi,dyi,dzt,dtlt)
+    cflmax =  cfll(nzp,nxp,nyp,a_up,a_vp,a_wp,dxi,dyi,dzt,dtl)
 
-    cflflg = (cflmax > cflnum)
-    if (cflflg) print *, 'Warning CFL Violation :', cflmax
+    if (cflmax > cflnum) print *, 'Warning CFL Violation :', cflmax
     call fill_scalar(1,REAL(cflmax))
 
   end subroutine cfl
   !
   !----------------------------------------------------------------------
-  ! Subroutine cfll: Checks CFL criteria, brings down the model if the
-  ! maximum thershold is exceeded
+  ! Subroutine cfll: Gets the peak CFL number
   !
   real(KIND=8) function cfll(n1,n2,n3,u,v,w,dxi,dyi,dzt,dtlt)
 
@@ -734,7 +679,7 @@ end subroutine tstep_reset
   subroutine update_sclrs
 
     use grid, only : a_sp, a_st, a_qp, nscl, nxyzp, nxp, nyp, nzp, dzt, &
-         dtlt, newsclr, isgstyp
+         dtl, newsclr, isgstyp
     use sgsm, only : tkeinit
     use util, only : sclrset
 
@@ -742,7 +687,7 @@ end subroutine tstep_reset
 
     do n=1,nscl
        call newsclr(n)
-       call update(nzp,nxp,nyp,a_sp,a_st,dtlt)
+       call update(nzp,nxp,nyp,a_sp,a_st,dtl)
        call sclrset('mixd',nzp,nxp,nyp,a_sp,dzt)
     end do
 

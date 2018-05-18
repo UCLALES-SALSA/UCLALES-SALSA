@@ -32,7 +32,7 @@ contains
   !
   subroutine fadvect
     use grid, only : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, newsclr  &
-         , nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt  &
+         , nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtl  &
          , dzt, dzm, zt, dxi, dyi, level, isgstyp
     use stat, only      : sflg, updtst
     use util, only      : get_avg3
@@ -46,7 +46,7 @@ contains
     if (sflg .and. level > 1) then
        a_tmp1=a_rc
        call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.false.)
-       call mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtlt,.false.)
+       call mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtl,.false.)
        call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
        call updtst(nzp,'adv',0,v1da,1)
     end if
@@ -68,19 +68,19 @@ contains
        end if
 
        call add_vel(nzp,nxp,nyp,a_tmp2,a_vp,a_vc,iw)
-       call mamaos_y(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dyi,dtlt)
+       call mamaos_y(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dyi,dtl)
 
        call add_vel(nzp,nxp,nyp,a_tmp2,a_up,a_uc,iw)
-       call mamaos_x(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dxi,dtlt)
+       call mamaos_x(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dxi,dtl)
 
        call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,iw)
-       call mamaos(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dzt,dzm,dn0,dtlt,iw)
+       call mamaos(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dzt,dzm,dn0,dtl,iw)
        if (sflg) then
           call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
           call updtst(nzp,'adv',n,v1da,1)
        end if
 
-       call advtnd(nzp,nxp,nyp,a_sp,a_tmp1,a_st,dtlt)
+       call advtnd(nzp,nxp,nyp,a_sp,a_tmp1,a_st,dtl)
       ELSEIF (sflg) THEN
        ! Averages & statistics even for zeros (might be non-zero elsewhere)
        a_tmp2(:,:,:)=0.
@@ -320,7 +320,7 @@ contains
           !
           do k = 1, n1-1
              gamma = -sign(1.,cfl(k))
-             if (scp0(k+1,i,j)-scp0(k,i,j) /= 0.0 .AND.scp0(k+1,i,j)+scp0(k,i,j).GT.1.e-40) then
+             if (abs(scp0(k+1,i,j)-scp0(k,i,j)) > spacing(scp0(k,i,j))) then
                 k2 = max(1,k+gamma)
                 k1 = min(n1,k+gamma+1)
                 r(k) = (scp0(k1,i,j) - scp0(k2,i,j)) / (scp0(k+1,i,j) - scp0(k,i,j))

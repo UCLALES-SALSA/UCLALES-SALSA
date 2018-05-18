@@ -23,7 +23,7 @@ module util
   implicit none
 
   integer, save :: fftinix=0, fftiniy=0
-  character (len=6), parameter :: vel_bc = 'frslip'
+  logical, parameter  :: noslip = .false.
 
 contains
   ! ----------------------------------------------------------------------
@@ -93,7 +93,7 @@ contains
           w(1,i,j)     = 0.
        enddo
     enddo
-    if (vel_bc == 'noslip') then
+    if (noslip) then
        do j=1,n3
           do i=1,n2
              u(1,i,j)  = -u(2,i,j)

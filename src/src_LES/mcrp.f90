@@ -20,7 +20,7 @@
 module mcrp
 
   use defs, only : alvl, alvi, rowt, pi, Rm, cp, kb, g, vonk
-  use grid, only : dtlt, dzt, nxp, nyp, nzp,a_pexnr, a_rp, a_tp, CCN,     &
+  use grid, only : dtl, dzt, nxp, nyp, nzp,a_pexnr, a_rp, a_tp, CCN,     &
        dn0, pi0, a_rt, a_tt, a_rpp, a_rpt, a_npp, a_npt, a_rv, a_rc, a_theta,   &
        a_press, a_temp, a_rsl, precip, a_dn, a_ustar,                  &
        a_naerop,  a_naerot,  a_maerop,  a_maerot,                               &
@@ -83,7 +83,7 @@ contains
             sed_ice = .FALSE.; sed_snow = .FALSE.
        ENDIF
        nn = GetNcomp(prtcl)+1
-       CALL sedim_SALSA(nzp,nxp,nyp,nn, dtlt, a_temp, a_theta,               &
+       CALL sedim_SALSA(nzp,nxp,nyp,nn, dtl, a_temp, a_theta,                &
                         a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
                         a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
                         a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,          &
@@ -134,8 +134,8 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1-1
-             rp(k,i,j) = rp(k,i,j) + max(-rp(k,i,j)/dtlt,rpt(k,i,j))*dtlt
-             np(k,i,j) = np(k,i,j) + max(-np(k,i,j)/dtlt,npt(k,i,j))*dtlt
+             rp(k,i,j) = rp(k,i,j) + max(-rp(k,i,j)/dtl,rpt(k,i,j))*dtl
+             np(k,i,j) = np(k,i,j) + max(-np(k,i,j)/dtl,npt(k,i,j))*dtl
              rpt(k,i,j)= 0.
              npt(k,i,j)= 0.
              rp(k,i,j) = max(0., rp(k,i,j))
@@ -144,7 +144,7 @@ contains
        end do
     end do
 
-    if (sed_precp) call sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
+    if (sed_precp) call sedim_rd(n1,n2,n3,dtl,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
 
     if (sed_cloud) call sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
 
@@ -475,7 +475,7 @@ contains
              Xc = rc(k,i,j) / (CCN+eps0)
              Dc = ( Xc / prw )**(1./3.)
              Dc = MIN(MAX(Dc,D_min),D_bnd)
-             vc = min(c*(Dc*0.5)**2 * exp(4.5*(log(sgg))**2),1./(dzt(k)*dtlt))
+             vc = min(c*(Dc*0.5)**2 * exp(4.5*(log(sgg))**2),1./(dzt(k)*dtl))
              rfl(k) = - rc(k,i,j) * vc
              !
              kp1=k+1

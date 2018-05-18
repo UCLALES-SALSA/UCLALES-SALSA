@@ -20,7 +20,7 @@
 module srfc
 
   integer :: isfctyp = 0
-  real    :: zrough =  0.1 ! Note: either in cm or m depending on isfctyp
+  real    :: zrough =  0.001
   real    :: ubmin  =  0.20
   real    :: dthcon = 100.0
   real    :: drtcon = 0.0
@@ -52,13 +52,14 @@ module srfc
 contains
   !
   ! --------------------------------------------------------------------------
-  ! SURFACE: Calcualtes surface fluxes using an algorithm chosen by ISFCLYR
+  ! SURFACE: Calculates surface fluxes using an algorithm chosen by ISFCTYP
   ! and fills the appropriate 2D arrays
   !
   !     default: specified thermo-fluxes (drtcon, dthcon)
-  !     isfclyr=1: specified surface layer gradients (drtcon, dthcon)
-  !     isfclyr=2: fixed lower boundary of water at certain sst
-  !     isfclyr=3: bulk aerodynamic law with coefficeints (drtcon, dthcon)
+  !     isfctyp=1: specified surface layer gradients (drtcon, dthcon)
+  !     isfctyp=2: fixed lower boundary of water at certain sst
+  !     isfctyp=3: bulk aerodynamic law with coefficients (drtcon, dthcon)
+  !     isfctyp=4: regulate surface temperature to yield a constant surface buoyancy flux
   !
   ! Modified for level 4: a_rv replaced by a local variable rx, which has
   ! values a_rv if level < 4, and a_rp if level == 4 (i.e. water vapour mixrat in both cases)
@@ -71,8 +72,8 @@ contains
     use defs, only: vonk, p00, rcp, g, cp, alvl, ep2
     use grid, only: nzp, nxp, nyp, a_up, a_vp, a_theta, a_rv, a_rp, zt, dzt, psrf, th00  &
          , umean, vmean, a_ustar, a_tstar, a_rstar, uw_sfc, vw_sfc, ww_sfc    &
-         , wt_sfc, wq_sfc, dn0, level,dtl, a_sflx, a_rflx, precip, a_dn,  &
-        W1,W2,W3, mc_ApVdom, dtlt
+         , wt_sfc, wq_sfc, obl, dn0, level,dtl, a_sflx, a_rflx, precip, a_dn,  &
+        W1,W2,W3, mc_ApVdom
     use thrm, only: rslf
     use stat, only: sfc_stat, sflg, mcflg, acc_massbudged
     use mpi_interface, only : nypg, nxpg, double_array_par_sum
@@ -106,9 +107,10 @@ contains
     END SELECT
 
     select case(isfctyp)
-       !
-       ! set surface gradients
-       !
+    !
+    ! use prescribed surface gradients dthcon, drton from NAMELIST
+    ! use then similarity theory to compute the fluxes
+    !
     case(1)
        call get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up,a_vp,umean,vmean)
        do j=3,nyp-2
@@ -118,15 +120,15 @@ contains
              bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2)
           end do
        end do
-       zs = zt(2)/zrough
+       zs = zrough
        call srfcscls(nxp,nyp,zt(2),zs,th00,wspd,dtdz,drdz,a_ustar,a_tstar     &
-            ,a_rstar)
+            ,a_rstar,obl)
        call sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar  &
             ,uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
-
-       !
-       ! get fluxes from profiles
-       !
+    !
+    ! use prescribed SST and assume qsurf=qsat (i.e. ocean) to compute
+    ! gradients. Then use similarity theory to predict the fluxes.
+    !
     case(2)
        call get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up,a_vp,umean,vmean)
        usum = 0.
@@ -139,17 +141,17 @@ contains
           end do
        end do
        usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
-       zs = (zrough/100.)
+       zs = zrough
        if (zrough <= 0.) zs = max(0.0001,(0.016/g)*usum**2)
        call srfcscls(nxp,nyp,zt(2),zs,th00,wspd,dtdz,drdz,a_ustar,a_tstar     &
-            ,a_rstar)
+            ,a_rstar,obl)
        call sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar  &
             ,uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
-       !
-       ! get fluxes from bulk formulae with coefficients given by dthcon and
-       ! drtcon
-       !
-   case(3)
+    !
+    ! drtcon (wq=Ch*u*dth, Garrat p.55) and using prescribed sst
+    ! and qsurf=qsat (ocean); note that here zrough is not the roughness
+    !
+    case(3)
        call get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up,a_vp,umean,vmean)
        do j=3,nyp-2
           do i=3,nxp-2
@@ -167,10 +169,10 @@ contains
        end do
        call sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar  &
             ,uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
-       !
-       ! fix surface temperature to yield a constant surface buoyancy flux
-       !
-   case(4)
+    !
+    ! fix surface temperature to yield a constant surface buoyancy flux dthcon
+    !
+    case(4)
 
        Vzt   = 10.* (log(zt(2)/zrough)/log(10./zrough))
        Vbulk = Vzt * (vonk/log(zt(2)/zrough))**2
@@ -214,16 +216,13 @@ contains
              a_tstar(i,j) = wt_sfc(i,j)/a_ustar(i,j)
           end do
        end do
+    !
+    !Sami addition: Calculate surface fluxes from energy budget
+    ! This is based on Acs et al: A coupled soil moisture and surface
+    ! temperature prediction model, Journal of applied meteorology, 30, 1991
+    !
+    case(5)
 
-  case(5)
-
-       !
-       !Sami addition: Calculate surface fluxes from energy budget
-       !
-       !
-       ! This is based on Acs et al: A coupled soil moisture and surface
-       ! temperature prediction model, Journal of applied meteorology, 30, 1991
-       !
        total_sw = 0.0
        total_rw = 0.0
        total_la = 0.0
@@ -231,7 +230,6 @@ contains
        total_pre = 0.0
        ffact = 1.
 
-       !, a_rflx, precip
        !
        !   Calculate mean energy fluxes(Mean for each proceccors)
        !
@@ -239,7 +237,6 @@ contains
         do j=3,nyp-2
            do i=3,nxp-2
               total_sw = total_sw+a_sflx(2,i,j)
-              !       write(*,*) a_rflx(:,:,:)
               total_rw = total_rw + a_rflx(2,i,j)
               total_la = total_la + wq_sfc(i,j)*(0.5*(dn0(1)+dn0(2))*alvl)/ffact
               total_se = total_se + wt_sfc(i,j)*(0.5*(dn0(1)+dn0(2))*cp)/ffact
@@ -257,9 +254,7 @@ contains
         sst1 =sst
         C_heat = 1.29e3*(840+4187*thetaS1*W1) ! Eq 33
         lambda=1.5e-7*C_heat
-        !       write(*,*)  sst,total_rw
 
-        !459    FORMAT(8001(E15.6))
         ! Determine moisture at different depths in the ground
         !
 
@@ -302,10 +297,10 @@ contains
            end do
         end do
         usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
-        zs = (zrough/100.)
+        zs = zrough
         if (zrough <= 0.) zs = max(0.0001,(0.016/g)*usum**2)
         call srfcscls(nxp,nyp,zt(2),zs,th00,wspd,dtdz,drdz,a_ustar,a_tstar     &
-             ,a_rstar)
+             ,a_rstar,obl)
         call sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar  &
              ,uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
 
@@ -315,7 +310,7 @@ contains
            sst = sst1
     !
     ! fix thermodynamic fluxes at surface given values in energetic
-    ! units and calculate  momentum fluxes from winds
+    ! units and calculate momentum fluxes from similarity theory
     !
     case default
        ffact = 1.
@@ -365,7 +360,7 @@ contains
        !
        ! Juha: Take moisture flux to mass budged statistics
        mctmp(:,:) = wq_sfc(:,:)*(0.5*(a_dn(1,:,:)+a_dn(2,:,:)))
-       CALL acc_massbudged(nzp,nxp,nyp,2,dtlt,dzt,a_dn,       &
+       CALL acc_massbudged(nzp,nxp,nyp,2,dtl,dzt,a_dn,       &
             revap=mctmp,ApVdom=mc_ApVdom)
        !
        !
@@ -474,16 +469,24 @@ contains
   !
   ! Code writen March, 1999 by Bjorn Stevens
   !
-  subroutine srfcscls(n2,n3,z,z0,th00,u,dth,drt,ustar,tstar,rstar)
+  subroutine srfcscls(n2,n3,z,z0,th00,u,dth,drt,ustar,tstar,rstar,obl)
 
     use defs, only : vonk, g, ep2
+    use grid, only: runtype
 
     implicit none
 
+    ! MALTE
+    !real, parameter     :: ah   =  4.7   ! stability function parameter
+    !real, parameter     :: bh   = 15.0   !   "          "         "
+    !real, parameter     :: am   =  4.7   !   "          "         "
+    !real, parameter     :: bm   = 15.0   !   "          "         "
+    ! Original
     real, parameter     :: ah   =  7.8   ! stability function parameter
     real, parameter     :: bh   = 12.0   !   "          "         "
     real, parameter     :: am   =  4.8   !   "          "         "
     real, parameter     :: bm   = 19.3   !   "          "         "
+    !
     real, parameter     :: pr   = 0.74   ! prandlt number
     real, parameter     :: eps  = 1.e-10 ! non-zero, small number
 
@@ -497,61 +500,96 @@ contains
     real, intent(inout) :: ustar(n2,n3)  ! scale velocity
     real, intent(inout) :: tstar(n2,n3)  ! scale temperature
     real, intent(inout) :: rstar(n2,n3)  ! scale value of qt
+    real, intent(inout) :: obl(n2,n3)    ! Obukhov Length
 
     logical, save :: first_call=.True.
     integer :: i,j,iterate
-    real    :: lnz, klnz, betg, cnst1, cnst2
-    real    :: x, y, psi1, psi2, zeta, lmo, dtv
+    real    :: lnz, klnz, betg
+    real    :: x, psi1, psi2, Lold, Ldif, zeff, zeta, lmo, dtv
+    logical    :: exititer
 
     lnz   = log(z/z0)
     klnz  = vonk/lnz
     betg  = th00/g
-    cnst2 = -log(2.)
-    cnst1 = 3.14159/2. + 3.*cnst2
 
     do j=3,n3-2
        do i=3,n2-2
           dtv = dth(i,j) + ep2*th00*drt(i,j)
+
           !
-          ! stable case
+          ! Neutral case
           !
-          if (dtv > 0.) then
-             x     = (betg*u(i,j)**2)/dtv
-             y     = (am - 0.5*x)/lnz
-             x     = (x*ah - am**2)/(lnz**2)
-             lmo   = -y + sqrt(x+y**2)
-             zeta  = z/lmo
-             ustar(i,j) =  vonk*u(i,j)  /(lnz + am*zeta)
-             tstar(i,j) = (vonk*dtv/(lnz + ah*zeta))/pr
-             !
-             ! Neutral case
-             !
-          elseif (dtv == 0.) then
-             ustar =  vonk*u(i,j)  /lnz
-             tstar =  vonk*dtv/(pr*lnz)
-             !
-             ! ustable case, start iterations from values at previous tstep,
-             ! unless the sign has changed or if it is the first call, then
-             ! use neutral values.
-             !
+          if (dtv == 0.) then
+             ustar(i,j) = u(i,j)*klnz
+             tstar(i,j) = dtv*klnz/pr
+             lmo        = -1.e10
+
+          !
+          ! start iterations from values at previous tstep,
+          ! unless the sign has changed or if it is the first call, then
+          ! use neutral values.
+          !
           else
-             if (first_call .or. tstar(i,j)*dtv <= 0.) then
+             if ((runtype=='INITIAL' .and. first_call) .or. (tstar(i,j)*dtv <= 0.)) then
                 ustar(i,j) = u(i,j)*klnz
-                tstar(i,j) = (dtv*klnz/pr)
+                tstar(i,j) = dtv*klnz/pr
+                lmo        = -1.e10
              end if
 
-             do iterate = 1,3
+             if(ustar(i,j) == 0) ustar(i,j) = 0.1
+
+             Lold  = 1e9
+             Ldif  = 1e9
+             iterate  = 0
+             exititer = .false.
+
+             do while(abs(Ldif)>0.1)
                 lmo   = betg*ustar(i,j)**2/(vonk*tstar(i,j))
-                zeta  = z/lmo
-                x     = sqrt( sqrt( 1.0 - bm*zeta ) )
-                psi1  = 2.*log(1.0+x) + log(1.0+x*x) - 2.*atan(x) + cnst1
-                y     = sqrt(1.0 - bh*zeta)
-                psi2  = log(1.0 + y) + cnst2
-                ustar(i,j) = u(i,j)*vonk/(lnz - psi1)
-                tstar(i,j) = (dtv*vonk/pr)/(lnz - psi2)
+                Ldif       = lmo - Lold
+                Lold       = lmo
+
+                if ((dtv < 0) .and. (lmo > -0.001)) lmo = -0.001999
+                if ((dtv > 0) .and. (lmo < +0.001)) lmo = +0.001777
+
+                ! BvS : Following ECMWF, limit z/L for very stable conditions
+                if(z/lmo > 5.) then
+                   zeff = lmo * 5.
+                   exititer = .true.
+                else
+                   zeff = z
+                end if
+
+                zeta  = zeff/lmo
+                if(zeta <= 0) then
+                    x     = (1.0 - bm*zeta )**0.25
+                    psi1  = 3.14159265/2.- 2.*atan(x) + 2.*log((1.+x)/2.) + log((1.+x**2)/2.)
+                    x     =  (1.0 - bh*zeta)**0.25
+                    psi2  = 2.*log( (1. + x**2)/2. )
+                ELSE
+                    psi1  = - am*zeta
+                    psi2  = - ah*zeta
+                END IF
+
+                ustar(i,j) = u(i,j)*vonk/(log(zeff/z0) - psi1)
+                if(ustar(i,j)<0.) ustar(i,j) = 0.1
+                tstar(i,j) = (dtv*vonk/pr)/(log(zeff/z0) - psi2)
+
+                if(exititer) then
+                   lmo        = zeff/5.
+                   exit
+                end if
+
+                iterate = iterate + 1
+
+                ! Limit L for day/night transitions
+                if(lmo > 1e6)  lmo = 1e6
+                if(lmo < -1e6) lmo = -1e6
+
+                if(iterate>10000) stop 'Obukh. length not converged!'
              end do
           end if
 
+          obl(i,j) = lmo
           rstar(i,j) = tstar(i,j)*drt(i,j)/(dtv + eps)
           tstar(i,j) = tstar(i,j)*dth(i,j)/(dtv + eps)
        end do

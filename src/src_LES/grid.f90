@@ -35,12 +35,12 @@ module grid
   real              :: deltax = 35.        ! dx for basic grid
   real              :: deltay = 35.        ! dy for basic grid
   real              :: deltaz = 17.5       ! dz for basic grid
-  real              :: dzrat  = 1.02       ! grid stretching ratio
+  real              :: dzrat  = 1.0        ! grid stretching ratio
   real              :: dzmax  = 1200.      ! height to start grid-stretching
   real              :: dtlong = 10.0       ! long timestep
   real              :: th00   = 288.       ! basic state temperature
 
-  real              :: CCN = 150.e6
+  real              :: CCN = 150.e6        ! Number of CCN per kg
 
   LOGICAL           :: lbinanl = .FALSE.   ! Whether to write binned data to analysis files (takes a lot of space + mainly used for debugging)
   LOGICAL           :: lbinprof = .TRUE.   ! The same for profile statistics
@@ -74,7 +74,7 @@ module grid
   integer, private, save  ::  nrec0, nvar0, nbase=15
 
   integer           :: nz, nxyzp, nxyp
-  real              :: dxi, dyi, dtl, dtlv, dtlt, umean, vmean, psrf
+  real              :: dxi, dyi, dtl, umean, vmean, psrf
   real, allocatable :: xt(:), xm(:), yt(:), ym(:), zt(:), zm(:), dzt(:), dzm(:)
   real, allocatable :: u0(:), v0(:), pi0(:), pi1(:), th0(:), dn0(:), rt0(:)
   real, allocatable :: spng_wfct(:), spng_tfct(:)
@@ -175,6 +175,7 @@ module grid
   real, allocatable :: ww_sfc(:,:)
   real, allocatable :: wt_sfc(:,:)
   real, allocatable :: wq_sfc(:,:)
+  real, allocatable :: obl(:,:)
   real, allocatable :: precip(:,:,:), snowin(:,:,:), albedo(:,:)
 
   ! Juha:
@@ -494,6 +495,7 @@ contains
     allocate (a_ustar(nxp,nyp),a_tstar(nxp,nyp),a_rstar(nxp,nyp))
     allocate (uw_sfc(nxp,nyp),vw_sfc(nxp,nyp),ww_sfc(nxp,nyp))
     allocate (wt_sfc(nxp,nyp),wq_sfc(nxp,nyp))
+    allocate (obl(nxp,nyp))
     if (level >= 3) then
        allocate(precip(nzp,nxp,nyp))
        precip = 0.
@@ -514,6 +516,7 @@ contains
     ww_sfc(:,:)  = 0.
     wt_sfc(:,:) = 0.
     wq_sfc(:,:) = 0.
+    obl(:,:) = 0.
     umean = 0.
     vmean = 0.
 
@@ -549,7 +552,7 @@ contains
     nxyp   = nxp*nyp
 
     nz= nzp-1
-
+    dzmin = 0.
     dxi=1./deltax
     dyi=1./deltay
     allocate(wsavex(4*nxpg+100),wsavey(4*nypg+100))
@@ -599,12 +602,12 @@ contains
   case(2)
      zm(1) = 0.
      nchby = nzp-3
-     do k=1,nzp-1
+     do k=1,nzp-2
         zm(k+1) = cos( ((2.*nchby - 1. - 2.*(k-1))*2.*asin(1.))/(2.*nchby))
         zm(k+1) = (zm(k+1)+1.)*dzmax/2.
      end do
      zm(nzp-1) = dzmax
-     zm(nzp)   = dzmax + zm(2)*zm(2)/(zm(3)-zm(2))
+     zm(nzp)   = dzmax + (zm(nzp-1)-zm(nzp-2))
      !
      ! define zm array for grid 1 from deltaz and dzrat, if dzrat is
      ! negative compress grid so that dzmin is the grid spacing in a 100m
@@ -703,8 +706,6 @@ contains
   ! set timesteps
   !
   dtl=dtlong
-  dtlv=2.*dtl
-  dtlt=dtl
   !
   if(myid == 0) then
      write(6,fm1)
@@ -1842,13 +1843,13 @@ contains
        if (umx /= umean) then
           if (myid == 0) print "('  umean changed  -  ',2f8.2)",umean,umx
           a_up = a_up + umx - umean
+          u0 = u0 + umx - umean
        end if
        if (vmx /= vmean) then
           if (myid == 0) print "('  vmean changed  -  ',2f8.2)",vmean,vmx
           a_vp = a_vp + vmx - vmean
+          v0 = v0 +vmx - vmean
        end if
-       dtlv=2.*dtl
-       dtlt=dtl
 
     end if
 

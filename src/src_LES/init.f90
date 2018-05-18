@@ -84,7 +84,7 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtlt, 0., level   )
+                  1, prtcl, dtl, 0., level   )
           ELSE
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
@@ -93,7 +93,7 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtlt, 0., level   )
+                  1, prtcl, dtl, 0., level   )
 
           END IF
           CALL SALSAInit
@@ -128,7 +128,7 @@ contains
        mc_Adom = deltax*deltay*(nxp-4)*(nyp-4)
        mc_ApVdom = mc_Adom/mc_Vdom
        ! Get the initial mass of atmospheric water
-       CALL acc_massbudged(nzp,nxp,nyp,0,dtlt,dzt,a_dn,     &
+       CALL acc_massbudged(nzp,nxp,nyp,0,dtl,dzt,a_dn,     &
             rv=a_rp,rc=a_rc,prc=a_srp)
     END IF ! mcflg
     !
@@ -339,9 +339,6 @@ contains
        close (1)
     end if
 100 continue
-
-    zold1 = 0.
-    zold2 = 0.
 
     ns=1
     do while (ps(ns) /= 0. .and. ns <= nns)
@@ -607,9 +604,6 @@ contains
 
     call read_hist(time, hfilin)
 
-    dtlv=2.*dtl
-    dtlt=dtl
-
     if(myid == 0) &
          print "(//' ',49('-')/,' ',/,' History read from: ',A60)",hfilin
 
@@ -712,21 +706,21 @@ contains
     DO j=1,nyp
        DO i=1,nxp
           DO k=1,nzp ! Apply tendencies
-             a_naerop(k,i,j,:) = MAX( a_naerop(k,i,j,:) + dtlt*a_naerot(k,i,j,:), 0. )
-             a_ncloudp(k,i,j,:) = MAX( a_ncloudp(k,i,j,:) + dtlt*a_ncloudt(k,i,j,:), 0. )
-             a_nprecpp(k,i,j,:) = MAX( a_nprecpp(k,i,j,:) + dtlt*a_nprecpt(k,i,j,:), 0. )
-             a_maerop(k,i,j,:)  = MAX( a_maerop(k,i,j,:)  + dtlt*a_maerot(k,i,j,:), 0. )
-             a_mcloudp(k,i,j,:) = MAX( a_mcloudp(k,i,j,:) + dtlt*a_mcloudt(k,i,j,:), 0. )
-             a_mprecpp(k,i,j,:) = MAX( a_mprecpp(k,i,j,:) + dtlt*a_mprecpt(k,i,j,:), 0. )
-             a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtlt*a_gaerot(k,i,j,:), 0. )
-             a_rp(k,i,j) = a_rp(k,i,j) + dtlt*a_rt(k,i,j)
+             a_naerop(k,i,j,:) = MAX( a_naerop(k,i,j,:)   + dtl*a_naerot(k,i,j,:), 0. )
+             a_ncloudp(k,i,j,:) = MAX( a_ncloudp(k,i,j,:) + dtl*a_ncloudt(k,i,j,:), 0. )
+             a_nprecpp(k,i,j,:) = MAX( a_nprecpp(k,i,j,:) + dtl*a_nprecpt(k,i,j,:), 0. )
+             a_maerop(k,i,j,:)  = MAX( a_maerop(k,i,j,:)  + dtl*a_maerot(k,i,j,:), 0. )
+             a_mcloudp(k,i,j,:) = MAX( a_mcloudp(k,i,j,:) + dtl*a_mcloudt(k,i,j,:), 0. )
+             a_mprecpp(k,i,j,:) = MAX( a_mprecpp(k,i,j,:) + dtl*a_mprecpt(k,i,j,:), 0. )
+             a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtl*a_gaerot(k,i,j,:), 0. )
+             a_rp(k,i,j) = a_rp(k,i,j) + dtl*a_rt(k,i,j)
 
              IF(level < 5) cycle
 
-             a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtlt*a_nicet(k,i,j,:), 0. )
-             a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtlt*a_nsnowt(k,i,j,:), 0. )
-             a_micep(k,i,j,:)   = MAX( a_micep(k,i,j,:)   + dtlt*a_micet(k,i,j,:), 0. )
-             a_msnowp(k,i,j,:)  = MAX( a_msnowp(k,i,j,:)  + dtlt*a_msnowt(k,i,j,:), 0. )
+             a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtl*a_nicet(k,i,j,:), 0. )
+             a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtl*a_nsnowt(k,i,j,:), 0. )
+             a_micep(k,i,j,:)   = MAX( a_micep(k,i,j,:)   + dtl*a_micet(k,i,j,:), 0. )
+             a_msnowp(k,i,j,:)  = MAX( a_msnowp(k,i,j,:)  + dtl*a_msnowt(k,i,j,:), 0. )
           END DO
        END DO
     END DO
