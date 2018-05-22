@@ -8,14 +8,12 @@ MODULE mo_salsa_coagulation_processes
                          spec,                            &
                          lscgaa, lscgcc, lscgpp, lscgii, lscgss,        &
                          lscgca, lscgpa, lscgpc, lscgia, lscgic,        &
-                         lscgip, lscgsa, lscgsc, lscgsp, lscgsi,        &
-                         lscollectGCCN
+                         lscgip, lscgsa, lscgsc, lscgsp, lscgsi
   USE classSection, ONLY : Section
   IMPLICIT NONE
  
   REAL, ALLOCATABLE :: zminusterm(:,:)
   REAL, ALLOCATABLE :: zplusterm(:,:,:)            ! shape == number of active aerosol species, kbdim,klev
-  REAL, ALLOCATABLE :: zplustermGiantCCN(:,:,:,:)  ! shape == number of active species, kbdim,klev,number of cloud bins
  
   CONTAINS
     
@@ -25,11 +23,6 @@ MODULE mo_salsa_coagulation_processes
     ALLOCATE(zplusterm(nn,kbdim,klev),   &
              zminusterm(kbdim,klev))
 
-    IF (lscollectGCCN) &
-         ALLOCATE(zplustermGiantCCN(nn,kbdim,klev,ncld))
-
-
-
   END SUBROUTINE initialize_coagulation_processes
 
   !
@@ -38,7 +31,7 @@ MODULE mo_salsa_coagulation_processes
   !
   SUBROUTINE coag_aero(kbdim,klev,tstep,    &
                        zccaa,zccca,zccpa,zccia,zccsa)
-    
+
     ! Here, the aerosol particles are also allowed to collect cloud droplets, if they
     ! have a smaller dry ccn diameter. While this technically implies an artificial 
     ! deactivation (of a very small number) of cloud droplets, it preserves the mass also in the
@@ -56,9 +49,6 @@ MODULE mo_salsa_coagulation_processes
 
     INTEGER :: nspec
     nspec = spec%getNSpec()
-
-
-    !WRITE(*,*) kbdim,klev,nspec
  
     ! Aerosols in regime 1a
     ! --------------------------------
@@ -121,6 +111,7 @@ MODULE mo_salsa_coagulation_processes
 
     END DO
     
+    IF (.FALSE.) THEN
     ! Aerosols in regime 2a
     ! ---------------------------------
     DO kk = in2a, fn2a
@@ -272,7 +263,8 @@ MODULE mo_salsa_coagulation_processes
           END DO
        END DO
     END DO
-    
+    END IF
+
   END SUBROUTINE coag_aero
 
   !

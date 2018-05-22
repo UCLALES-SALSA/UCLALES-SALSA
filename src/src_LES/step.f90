@@ -729,7 +729,9 @@ CONTAINS
                              aerobins
       IMPLICIT NONE
 
-      INTEGER :: i,j,k,bb,bc,ba,s,sc,sa,str,end,nc,nn,iba,cd
+      INTEGER :: i,j,k,bb,bc,ba,s,sc,sa,str,end,nc,nn,iba
+
+      REAL :: cd
 
       REAL :: ra, rb
 
@@ -811,7 +813,7 @@ CONTAINS
              ! Loop over cloud droplet bins
              DO bc = ica%cur,fcb%cur
 
-                IF ( a_ncloudp(k,i,j,bc) > nlim .AND. & !a_rh(k,i,j)<0.999 .AND.   &
+                IF ( a_ncloudp(k,i,j,bc) > nlim .AND. a_rh(k,i,j)<0.999 .AND.   &
                      a_mcloudp(k,i,j,getMassIndex(ncld,bc,nn)) < 1.e-5  ) THEN
 
                    ! Critical diameter
@@ -826,7 +828,7 @@ CONTAINS
                    zdh2o = (zvol/pi6)**(1./3.)
 
                    ! Lose the droplets if smaller than 0.2*(critical size) or 2 um
-                   IF ( zdh2o < MAX(0.5*cdcld,2.e-6) .OR.     &
+                   IF ( zdh2o < MAX(0.2*cdcld,2.e-6) .OR.     &
                         a_mcloudp(k,i,j,getMassIndex(ncld,bc,nn)) < 1.e-25*a_ncloudp(k,i,j,bc) )  THEN
 
                       IF (bc<=fca%cur) THEN

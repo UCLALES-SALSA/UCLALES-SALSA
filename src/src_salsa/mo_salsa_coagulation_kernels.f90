@@ -80,7 +80,6 @@ MODULE mo_salsa_coagulation_kernels
     
     ! Collision-coalescence between cloud droplets
     IF (lscgcc .AND. any_cloud) THEN
-       !WRITE(*,*) 'HEPPPP' 
          CALL build_coagulation_kernels(kbdim,klev,temp,pres,           &
                                         ncld,nlim,cloud,500.e-6,        &
                                         ncld,nlim,cloud,500.e-6,        &
@@ -216,21 +215,21 @@ MODULE mo_salsa_coagulation_kernels
           CALL calcDiamSALSA(nb1,part1(ii,jj,1:nb1),nlim1,diam1,phase1)
           diam1 = MIN(diam1,dlim1)
           mass1 = 0.
-          !mass1(1:nb1) = spec%rhos(phase1,nspec)*pi6*diam1**3
-          DO bb = 1,nb1
-             IF (part1(ii,jj,bb)%numc < nlim1) CYCLE
-             mass1(bb) = SUM((part1(ii,jj,bb)%volc(1:nspec)*spec%rhos(phase1,1:nspec)/part1(ii,jj,bb)%numc))
-          END DO
+          mass1(1:nb1) = spec%rhos(phase1,nspec)*pi6*diam1**3
+          !DO bb = 1,nb1
+          !   IF (part1(ii,jj,bb)%numc < nlim1) CYCLE
+          !   mass1(bb) = SUM((part1(ii,jj,bb)%volc(1:nspec)*spec%rhos(phase1,1:nspec)/part1(ii,jj,bb)%numc))
+          !END DO
           
           phase2 = part2(ii,jj,1)%phase
           CALL calcDiamSALSA(nb2,part2(ii,jj,1:nb2),nlim2,diam2,phase2)
           diam2 = MIN(diam2,dlim2)
           mass2 = 0.
-          !mass2(1:nb2) = spec%rhos(phase2,nspec)*pi6*diam2**3
-          DO bb = 1,nb2
-             IF (part2(ii,jj,bb)%numc < nlim2) CYCLE
-             mass2(bb) = SUM((part2(ii,jj,bb)%volc(1:nspec)*spec%rhos(phase2,1:nspec)/part2(ii,jj,bb)%numc))
-          END DO
+          mass2(1:nb2) = spec%rhos(phase2,nspec)*pi6*diam2**3
+          !DO bb = 1,nb2
+          !   IF (part2(ii,jj,bb)%numc < nlim2) CYCLE
+          !   mass2(bb) = SUM((part2(ii,jj,bb)%volc(1:nspec)*spec%rhos(phase2,1:nspec)/part2(ii,jj,bb)%numc))
+          !END DO
           
           DO mm = 1, nb1         ! smaller colliding particle
              IF (part1(ii,jj,mm)%numc < nlim1) CYCLE

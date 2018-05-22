@@ -513,7 +513,6 @@ CONTAINS
                              lscgia,lscgic,lscgii,  &
                              lscgip,lscgsa,lscgsc,  &
                              lscgsi,lscgsp,lscgss,  &
-                             lscollectGCCN,         &
 
                              lscndgas,              &
                              lscndh2oae,lscndh2ocl, &
@@ -565,7 +564,6 @@ CONTAINS
          lscgsi,      & ! Collection of ice by snow
          lscgsp,      & ! Collection of precipitation by snow
          lscgss,      & ! Collision-coalescence between snow particles
-         lscollectGCCN, &
 
          lscndgas,    & ! Condensation of precursor gases
          lscndh2ocl,    & ! Condensation of water vapour on clouds (drizzle)

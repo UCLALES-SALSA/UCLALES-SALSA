@@ -13,21 +13,21 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
+IsSeq=2 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
 EXPNAME="jung3rdAug"  # Name of the experiment
 
 NPROCS=2          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
-NXP=40               # Number of points in X-direction (including "halo" points)
-NYP=5              # Number of points in Y-direction (including "halo" points)
+NXP=16               # Number of points in X-direction (including "halo" points)
+NYP=16              # Number of points in Y-direction (including "halo" points)
 NZP=70              # Number of points in Z-direction
 DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=1800.        # Length of the spinup period (seconds)
+Tspinup=100.        # Length of the spinup period (seconds)
 Texp=43200.         # Length of the experiment (seconds)
 LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
@@ -189,7 +189,7 @@ cat > NAMELIST <<EOF
    lscgcc = .TRUE.       ! Self-collection of cloud droplets
    lscgpp = .TRUE.       ! Self-collection of rain drops
    lscgpc = .TRUE.       ! Rain collection of cloud droplets
-   lscgaa = .FALSE.      ! Aerosol coagulation
+   lscgaa = .TRUE.      ! Aerosol coagulation
    lscgca = .TRUE.       ! Cloud collection of aerosols
    lscgpa = .TRUE.       ! Rain collection of aerosols
    lscgia = .FALSE.       ! Ice collection of aerosols
@@ -201,7 +201,7 @@ cat > NAMELIST <<EOF
    lscgsi = .FALSE.       ! Snow collection of ice particles
    lscgsp = .FALSE.       ! Snow collection of rain drops
    lscgss = .FALSE.       ! Self-collection of snow
-   lscollectGCCN = .TRUE.
+
 
    lscndgas    = .FALSE.  ! --Aerosol precursor gas codensation
    lscndh2oae  = .TRUE.  ! --Condensation of water on aerosols (if FALSE, equilibrium assumed)

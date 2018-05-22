@@ -65,12 +65,14 @@ MODULE mo_particle_external_properties
       REAL, INTENT(IN) :: lim
       INTEGER, INTENT(IN) :: flag ! Parameter for identifying liquid (1), ice (2) and snow (3) particle phases
       REAL, INTENT(OUT) :: dia(n)
-      INTEGER :: i
+      INTEGER :: i,nspec
+
+      nspec = spec%getNSpec()
       
       dia(:) = 2.e-10
       DO i=1,n
          IF (ppart(i)%numc>lim) &
-              dia(i)=(SUM(ppart(i)%volc(:))/ppart(i)%numc/pi6)**(1./3.)
+              dia(i)=(SUM(ppart(i)%volc(1:nspec))/ppart(i)%numc/pi6)**(1./3.)
       END DO
       
     END SUBROUTINE calcDiamSALSA
