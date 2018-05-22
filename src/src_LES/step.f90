@@ -730,7 +730,8 @@ CONTAINS
 
       IMPLICIT NONE
 
-      INTEGER :: i,j,k,bb,bc,ba,s,sc,sa,str,end,nc,nn,iba,cd
+      INTEGER :: i,j,k,bb,bc,ba,s,sc,sa,str,end,nc,nn,iba
+      REAL :: cd
 
       REAL :: ra, rb
 

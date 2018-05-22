@@ -225,7 +225,7 @@ CONTAINS
       REAL, INTENT(in)                  :: trgt(nzp)
       REAL, INTENT(inout)               :: at(nz,nx,ny)
       CHARACTER(len=50), PARAMETER      :: name = "nudge_any"
-      INTEGER :: kk,ii,jj
+      INTEGER :: ii,jj
       REAL    :: avg(nz)
       REAL    :: tauloc
       REAL    :: diff1d(nz)
@@ -283,7 +283,7 @@ CONTAINS
      REAL, INTENT(in)                  :: trgt(nzp,nbins)
      REAL, INTENT(inout)               :: at(nz,nx,ny,nb)
      CHARACTER(len=50), PARAMETER      :: name = "nudge_any_2d"
-     INTEGER :: ii, jj,kk, nn
+     INTEGER :: ii, jj,nn
      REAL    :: avg(nz)
      
      REAL :: diff1d(nz)
