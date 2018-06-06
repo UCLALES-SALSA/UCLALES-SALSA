@@ -216,6 +216,8 @@ CONTAINS
       INTEGER :: nc
       INTEGER :: st_salsa,en_salsa ! start and end indices for SALSA tracers
 
+
+      nc = 0
       ! Juha: Number of prognostic tracers for SALSA
       !            Aerosol bins + Cloud bins + gas compound tracers
       
@@ -553,6 +555,7 @@ CONTAINS
             ! ration |dzrat| above dzmax
             !
          CASE(1)
+            dzmin=0.
             zm(1) = 0.
             zm(2) = deltaz
             zb = dzmax+100.

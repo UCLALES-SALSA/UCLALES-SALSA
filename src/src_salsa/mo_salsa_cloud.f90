@@ -30,7 +30,7 @@ CONTAINS
                               rs,     w,     pactd          )
 
     USE classSection
-    USE mo_submctl, ONLY : fn2b, ncld, &
+    USE mo_submctl, ONLY : ncld, &
          lsactintst, lsactbase
     
     IMPLICIT NONE
@@ -102,7 +102,7 @@ CONTAINS
     REAL, INTENT(OUT) :: pns(kbdim,klev,fn2b)
     
     REAL :: diss,rho,mm
-    INTEGER :: ii,jj,kk,nn,ss
+    INTEGER :: ii,jj,kk,nn
     
     pns = 0.
     
@@ -872,8 +872,8 @@ CONTAINS
     ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
     ! parameter and is set to 1.2 by default
     !
-    USE mo_submctl, ONLY : ncld,        &
-                           nprc,        &
+    USE mo_submctl, ONLY :  ncld,        &
+                           !nprc,        &
                            pi6,         &
                            nlim, prlim
     IMPLICIT NONE
@@ -1441,7 +1441,7 @@ CONTAINS
   SUBROUTINE ice_melt(kproma,kbdim,klev,   &
        ptemp )
     
-    USE mo_submctl, ONLY :    ncld,        &
+    USE mo_submctl, ONLY :    &!ncld,        &
          nice,        &
          nsnw,        &
          nprc,        &
@@ -1511,7 +1511,7 @@ CONTAINS
     !
     
     USE mo_submctl, ONLY : nice,        &
-         nsnw,        &
+         !nsnw,        &
          pi6,         &
          prlim
     IMPLICIT NONE

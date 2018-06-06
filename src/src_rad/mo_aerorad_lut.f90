@@ -56,11 +56,8 @@ CONTAINS
     !variable ids
     INTEGER :: &
          n_im_vid, n_re_vid, alpha_vid, &
-         sigma_vid, asym_vid, omega_vid, pf180_vid
+         sigma_vid, asym_vid, omega_vid
 
-
-    !loop indices
-    INTEGER :: i,j,k
 
 
     !opening the file

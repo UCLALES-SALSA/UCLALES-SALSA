@@ -203,8 +203,6 @@ MODULE classSpecies
       INTEGER, INTENT(in) :: nlist                     ! Number of aerosol species to be used
       CHARACTER(len=3), INTENT(in) :: listcomp(maxspec)  ! Names of the aerosol species to be used
       
-      INTEGER :: nalloc
-
       INTEGER :: i,c
 
       ! Define which compounds are used based on namelist-salsa information
@@ -490,6 +488,7 @@ MODULE classSpecies
       INTEGER, INTENT(in) :: nn
       INTEGER, INTENT(in), OPTIONAL :: wat ! Density of water differes according to phase: 
                                            ! 1: liquid, 2: ice, 3:snow. 1 is the default      
+      getRhoByIndex = 0.
       IF ( PRESENT(wat) ) THEN
          IF (wat == 1) THEN
             getRhoByIndex = SELF%rholiq(nn)

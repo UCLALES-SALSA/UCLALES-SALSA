@@ -94,37 +94,26 @@ CONTAINS
    !---------------------------------------------------------------------
 
 
-   SUBROUTINE coagulation(kproma,kbdim,  klev,    &
-                          allSALSA,  &
-                          ptstep, ptemp,  ppres    )
+   SUBROUTINE coagulation(kproma,kbdim,klev, &
+                          allSALSA,ptstep,   &
+                          ptemp,ppres        )
 
-      USE classSection
-      USE mo_submctl, ONLY:        &
-         t_parallelbin,   & ! Datatypes for the cloud bin representation
-         in1a, fn1a,                 & ! size bin indices
-         in2a, fn2a,                 &
-         in2b, fn2b,                 &
-         ica,fca,icb,fcb,            &
-         ncld, nprc,                 &
-         iia,fia,iib,fib,            &
-         nice, nsnw,                 &
-         ntotal,                     &
-         spec,                       &
-         pi6,                        &
-         nlim,prlim,                 &
-         lscgaa, lscgcc, lscgca,     &
-         lscgpp, lscgpa, lscgpc,     &
-         lscgia, lscgic, lscgii, lscgip, &
-         lscgsa, lscgsc, lscgsi, lscgsp, lscgss, &
-         aero, cloud, precp, ice, snow
-      USE mo_salsa_coagulation_kernels, ONLY : update_coagulation_kernels,         &
-                                               zccaa, zcccc, zccca, zccpc, zccpa,  &
-                                               zccpp, zccia, zccic, zccii, zccip,  &
-                                               zccsa, zccsc, zccsi, zccsp, zccss
+      USE classSection, ONLY : Section
+      USE mo_submctl, ONLY: nlim,prlim,ntotal,     &
+                            nbins,ncld,nprc,nice,  &
+                            nsnw,spec,             &
+                            aero, cloud,           &
+                            precp, ice,            &
+                            snow,                  &
+                            lscgaa, lscgcc, lscgpp, lscgii, lscgss,  &
+                            lscgca, lscgpa, lscgia, lscgsa,          &
+                            lscgpc, lscgic, lscgsc,                  &
+                            lscgip, lscgsp,                          &
+                            lscgsi
 
-      USE mo_salsa_coagulation_processes, ONLY : coag_aero, coag_cloud,    &
-                                                 coag_precp, coag_ice,     &
-                                                 coag_snow
+      USE mo_salsa_coagulation_kernels
+
+      USE mo_salsa_coagulation_processes
 
       IMPLICIT NONE
 
@@ -143,33 +132,26 @@ CONTAINS
          ptemp(kbdim,klev),         &
          ppres(kbdim,klev)
       !-- Local variables ------------------------
-      INTEGER ::                      &
-         ii,jj,kk,ll,mm,nn,cc!,      & ! loop indices
-         !index_2a, index_2b        ! corresponding bin in regime 2a/2b
-	 
+
+      INTEGER :: nspec
+
       LOGICAL :: any_aero, any_cloud, any_precp, any_ice, any_snow
-
-      !REAL :: &
-      !   zmpart(fn2b),   & ! approximate mass of particles [kg]
-      !   zmcloud(ncld),  &    ! approximate mass of cloud droplets [kg]
-      !   zmprecp(nprc),  & ! Approximate mass for rain drops [kg]
-      !   zmice(nice),     & ! approximate mass for ice particles [kg] 
-      !   zmsnow(nsnw), &  ! approximate mass for snow particles [kg] 
-      !   zdpart(fn2b),   & ! diameter of particles [m]
-      !   zdcloud(ncld),  &   ! diameter of cloud droplets [m]
-      !   zdprecp(nprc),  & ! diameter for rain drops [m]
-      !   zdice(nice),    & ! diameter for ice [m]
-      !   zdsnow(nsnw)      ! diameter for snow [m]
-
-      !REAL :: temppi,pressi
-            
-      !INTEGER :: nspec, ndry, iwa  ! Total number of compounds, number of dry compounds (shoudl be total-1) and index of water
       
-      !nspec = spec%getNSpec(type="wet")
-      !ndry = spec%getNSpec(type="dry")
-      !iwa = spec%getIndex("H2O")
-      
-      
+      REAL :: zccaa(kbdim,klev,nbins,nbins),    & ! updated coagulation coefficients [m3/s]
+              zcccc(kbdim,klev,ncld,ncld),      & ! - '' - for collision-coalescence between cloud droplets [m3/s]
+              zccca(kbdim,klev,nbins,ncld),     & ! - '' - for cloud collection of aerosols [m3/s]
+              zccpc(kbdim,klev,ncld,nprc),      & ! - '' - for collection of cloud droplets by precip [m3/s]
+              zccpa(kbdim,klev,nbins,nprc),     & ! - '' - for collection of aerosols by precip
+              zccpp(kbdim,klev,nprc,nprc),      & ! - '' - for collision-coalescence between precip particles 
+              zccia(kbdim,klev,nbins,nice),     & ! - '' - for collection of aerosols by ice 
+              zccic(kbdim,klev,ncld,nice),      & ! - '' - for collection of cloud particles droplets by ice 
+              zccii(kbdim,klev,nice,nice),      & ! - '' - for aggregation between ice 
+              zccip(kbdim,klev,nprc,nice),      & ! - '' - for collection of precip by ice
+              zccsa(kbdim,klev,nbins,nsnw),     & ! - '' - for collection of aerosols by snow 
+              zccsc(kbdim,klev,ncld,nsnw),      & ! - '' - for collection of cloud droples by snow 
+              zccsi(kbdim,klev,nice,nsnw),      & ! - '' - for collection of ice by snow 
+              zccsp(kbdim,klev,nprc,nsnw),      & ! - '' - for collection of precip by snow 
+              zccss(kbdim,klev,nsnw,nsnw)         ! - '' - for aggregation between snow
       !-----------------------------------------------------------------------------
       !-- 1) Coagulation to coarse mode calculated in a simplified way: ------------
       !      CoagSink ~ Dp in continuum regime, thus we calculate
@@ -178,32 +160,34 @@ CONTAINS
       
       !-- 2) Updating coagulation coefficients -------------------------------------
       
-      CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp)
+      nspec = spec%getNSpec()
 
-      any_aero = ANY(aero(:,:,:)%numc > nlim)
-      any_cloud = ANY(cloud(:,:,:)%numc > nlim)
-      any_precp = ANY(precp(:,:,:)%numc > prlim)
-      any_ice = ANY(ice(:,:,:)%numc > prlim)
-      any_snow = ANY(snow(:,:,:)%numc > prlim)
+      CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp,    &
+                                      zccaa, zcccc, zccca, zccpc, zccpa,  &
+                                      zccpp, zccia, zccic, zccii, zccip,  &
+                                      zccsa, zccsc, zccsi, zccsp, zccss)
+
+      any_aero = ANY( aero(:,:,:)%numc > aero(:,:,:)%nlim ) .AND. &
+                 ANY( [lscgaa,lscgca,lscgpa,lscgia,lscgsa] )
+      any_cloud = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim ) .AND. &
+                  ANY( [lscgcc,lscgca,lscgpc,lscgic,lscgsc] ) 
+      any_precp = ANY( precp(:,:,:)%numc > precp(:,:,:)%nlim ) .AND. &
+                  ANY( [lscgpp,lscgpa,lscgpc,lscgip,lscgsp])
+      any_ice = ANY( ice(:,:,:)%numc > ice(:,:,:)%nlim ) .AND. &
+                ANY( [lscgii,lscgia,lscgic,lscgip,lscgsi] )
+      any_snow = ANY( snow(:,:,:)%numc > snow(:,:,:)%nlim ) .AND. &
+                 ANY( [lscgss,lscgsa,lscgsc,lscgsp,lscgsi] )
       
-      !WRITE(*,*) zcccc(1,1,:,:)
-
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !-- 3) New particle and volume concentrations after coagulation -------------
-      IF (any_precp) &
-           CALL coag_precp(kbdim,klev,ptstep,zccpp,zccpa,zccpc,zccip,zccsp)
-
       IF (any_aero) &
-           CALL coag_aero(kbdim,klev,ptstep,zccaa,zccca,zccpa,zccia,zccsa)
-      
+           CALL coag_aero(kbdim,klev,nspec,ptstep,zccaa,zccca,zccpa,zccia,zccsa)
+
       IF (any_cloud) &
-           CALL coag_cloud(kbdim,klev,ptstep,zcccc,zccca,zccpc,zccic,zccsc)
-      
-      IF (any_ice) &
-           CALL coag_ice(kbdim,klev,ptstep,zccii,zccia,zccic,zccip,zccsi)
-      
-      IF (any_snow) &
-           CALL coag_snow(kbdim,klev,ptstep,zccss,zccsa,zccsc,zccsp,zccsi)
+           CALL coag_cloud(kbdim,klev,nspec,ptstep,zcccc,zccca,zccpc,zccic,zccsc)
+
+      IF (any_precp) &
+           CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip,zccsp)
 
    END SUBROUTINE coagulation
 
@@ -289,13 +273,14 @@ CONTAINS
       USE mo_salsa_nucleation
       USE classSection
       USE mo_submctl, ONLY :      &
-         fn2b,                      &
-         nbins,ncld,nprc,                 &
-         nice,nsnw,ntotal,           &
+         !fn2b,                      &
+         !nbins,ncld,nprc,                 &
+         !nice,nsnw,
+         ntotal,           &
          lscndgas,                  & 
          lscndh2oae, lscndh2ocl, lscndh2oic, & ! Condensation to aerosols, clouds and ice particles
-         aero,cloud,precp,ice,snow,    &
-         spec,                         &
+         !aero,cloud,precp,ice,snow,    &
+         !spec,                         &
          nsnucl                     ! nucleation
 
       IMPLICIT NONE
@@ -795,6 +780,7 @@ CONTAINS
 
       INTEGER :: nstr
       INTEGER :: ii,jj,cc
+      INTEGER :: counter
 
       INTEGER :: iwa,nspec
 
@@ -925,7 +911,7 @@ CONTAINS
 
             ! Ice particles --------------------------------------------------------------------------------
             ! Dimension
-            CALL calcDiamSALSA(nice,ice(ii,jj,:),prlim,dwice,2)
+            CALL calcDiamSALSA(nice,ice(ii,jj,:),dwice)
             DO cc = 1, nice
                IF (ice(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
                   dwet=dwice(cc)
@@ -964,7 +950,7 @@ CONTAINS
             
             ! Snow particles --------------------------------------------------------------------------------
             ! Dimension
-            CALL CalcDiamSALSA(nsnw,snow(ii,jj,:),prlim,dwsnow,2)
+            CALL CalcDiamSALSA(nsnw,snow(ii,jj,:),dwsnow)
             DO cc = 1, nsnw
                IF (snow(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
                   dwet=dwsnow(cc)
@@ -1054,6 +1040,7 @@ CONTAINS
             ! Substepping loop
             ! ---------------------------------
             zcwint = 0.
+            counter = 0
             DO WHILE (ttot < ptstep)
 
                adt = 2.e-2
@@ -1124,6 +1111,9 @@ CONTAINS
 
                ttot = ttot + adt
 
+               counter = counter + 1
+               IF (counter > 100) WRITE(*,*) "CONDENSATION SUBSTEPING: SOMETHING'S WRONG"
+
             END DO ! ADT
 
             zcwn = zcwint
@@ -1157,8 +1147,7 @@ CONTAINS
       REAL, INTENT(in), OPTIONAL  :: pcw
 
       REAL :: zns, znw
-      INTEGER :: ndry, iwa, nn, ss
-      CHARACTER(len=3) :: snam
+      INTEGER :: ndry, iwa, nn
       
       ndry = spec%getNSpec(type="dry")
       iwa = spec%getIndex("H2O")

@@ -63,9 +63,7 @@ MODULE emission_main
     CHARACTER(len=50), PARAMETER :: name = "init_emission"
 
     INTEGER :: ibin
-    INTEGER :: ilev
     INTEGER :: st,en
-    INTEGER :: maxv
     INTEGER :: nprof
     INTEGER :: mb1,mb12,mb2,mb22,nc1,nc2
     REAL :: core(nbins), naero(1,1,nbins)
@@ -377,8 +375,7 @@ MODULE emission_main
     TYPE(EmitSizeDist), INTENT(in) :: edt  ! Emission data instance
     TYPE(EmitConfig), INTENT(in) :: emd   ! Emission configuration instance
 
-    INTEGER :: k,i,j,bb,ss,mm
-    CHARACTER(len=30) :: emit_spec
+    INTEGER :: i,j,bb,ss,mm
 
     WRITE(*,*) '========================'
     WRITE(*,*) 'CALCULATING EMISSIONS'

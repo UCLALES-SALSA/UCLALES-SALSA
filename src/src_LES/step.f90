@@ -206,8 +206,6 @@ CONTAINS
       USE forc, ONLY : forcings
       USE util, ONLY : maskactiv !Juha: Included for SALSA
 
-      USE mo_submctl, ONLY : nprc
-
       USE mo_salsa_driver, ONLY : run_SALSA
 
       LOGICAL, INTENT (out)      :: cflflg
@@ -729,13 +727,13 @@ CONTAINS
                              aerobins
       IMPLICIT NONE
 
-      INTEGER :: i,j,k,bb,bc,ba,s,sc,sa,str,end,nc,nn,iba
+      INTEGER :: i,j,k,bb,bc,ba,s,sc,sa,str,end,nc,nn
 
       REAL :: cd
 
       REAL :: ra, rb
 
-    REAL :: zvol, zvola, zvolnew
+    REAL :: zvol
     REAL :: zdh2o
     REAL :: ns, zbb, zaa ! Number of moles, Raoult effect, Kelvin effect; For calculating the critical radius
     REAL :: cdcld,cdprc ! Critical diameter for cloud droplets and precipitation

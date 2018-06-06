@@ -29,11 +29,7 @@ MODULE mo_salsa
                                 autosnow,ice_fixed_NC, ice_nucl_driver,ice_melt
      
      USE mo_submctl, ONLY :      &
-          fn2b,                      & ! size section and composition indices
           ncld,                      &
-          nprc,                      &
-          nice,                      &
-          nsnw,                      & 
           ntotal,                    &
           fixinc,                    &
           lscoag,                    &

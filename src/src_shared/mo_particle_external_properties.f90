@@ -17,11 +17,13 @@ MODULE mo_particle_external_properties
       IMPLICIT NONE
       REAL, INTENT(in) :: diam, rhop ! Particle diameter and density
       REAL, INTENT(in) :: rhoa, visc, beta ! Air density, viscocity and Cunningham correction factor
-      INTEGER, INTENT(IN) :: flag ! Parameter for identifying liquid (1), ice (2) and snow(3)
+      INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4) and snow(5)
       ! Constants
       REAL, PARAMETER :: rhoa_ref = 1.225 ! reference air density (kg/m^3)
       
-      IF(flag == 1) THEN
+
+      terminal_vel = 0.
+      IF( ANY(flag == [1,2,3])) THEN
          ! Aerosol and cloud and rain droplets
          IF (diam<80.0e-6) THEN
             ! Stokes law with Cunningham slip correction factor
@@ -36,21 +38,18 @@ MODULE mo_particle_external_properties
             ! Note: this is valid up to 2 mm or 9 m/s (at 1000 mbar), where droplets start to break
             terminal_vel = 2.01e2*SQRT( MIN(diam/2.,2.0e-3)*rhoa_ref/rhoa ) !2.01e2*SQRT( MIN(radius,2.0e-3)*rhoa_ref/rhoa)
          END IF
-      ELSE IF (flag==2) THEN   ! Ice
+      ELSE IF (flag==4) THEN   ! Ice
          ! Ice crystal terminal fall speed from Ovchinnikov et al. (2014)
          terminal_vel = 12.0*SQRT(diam)
-      ELSE IF (flag==3) THEN   ! Snow
+      ELSE IF (flag==5) THEN   ! Snow
          ! The same for snow
          terminal_vel = 12.0*SQRT(diam)
       END IF
 
     END FUNCTION terminal_vel
     
-
-    
-    
     !!!!!!!!!!! THEN DIAMETER CALCULATIONS BELOW COULD BE PUT UNDER A COMMON INTERFACE TO FACILITATE DIFFERENT DATATYPES!!!!!
-    !
+    ! 
     ! Function for calculating dimension (or wet diameter) for any particle type
     ! - Aerosol, cloud and rain are spherical
     ! - Snow and ice can be irregular and their densities can be size-dependent
@@ -58,20 +57,18 @@ MODULE mo_particle_external_properties
     ! Correct dimension is needed for irregular particles (e.g. ice and snow) for calculating fall speed (deposition and coagulation)
     ! and capacitance (condensation). Otherwise compact spherical structure can be expected,
     !
-    SUBROUTINE calcDiamSALSA(n,ppart,lim,dia,flag)
+    SUBROUTINE calcDiamSALSA(n,ppart,dia)
       IMPLICIT NONE
       INTEGER, INTENT(in) :: n
       TYPE(Section), INTENT(in) :: ppart(n)
-      REAL, INTENT(IN) :: lim
-      INTEGER, INTENT(IN) :: flag ! Parameter for identifying liquid (1), ice (2) and snow (3) particle phases
       REAL, INTENT(OUT) :: dia(n)
       INTEGER :: i,nspec
 
       nspec = spec%getNSpec()
       
-      dia(:) = 2.e-10
+      dia(:) = 10.e-9
       DO i=1,n
-         IF (ppart(i)%numc>lim) &
+         IF (ppart(i)%numc > ppart(i)%nlim) &
               dia(i)=(SUM(ppart(i)%volc(1:nspec))/ppart(i)%numc/pi6)**(1./3.)
       END DO
       
@@ -89,7 +86,7 @@ MODULE mo_particle_external_properties
       USE mo_submctl, ONLY : pi6
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: n ! Number of species
-      INTEGER, INTENT(IN) :: flag ! Parameter for identifying liquid (1), ice (2) and snow(3) particle phases
+      INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4) and snow(5) particle phases
       REAL, INTENT(IN) :: numc, mass(n)
       
       calcDiamLES=0.

@@ -12,7 +12,7 @@ MODULE mo_submctl
      INTEGER :: cur  ! Index for current distribution
      INTEGER :: par  ! Index for corresponding parallel distribution
   END TYPE t_parallelbin
-  
+       
   ! Particle type specific pointers to "allSALSA" master array defined in mo_salsa_driver.
   ! Pointer association is done in mo_salsa_init. These should be accessed by importin mo_submctl,
   ! not by dummy arguments.
@@ -24,6 +24,10 @@ MODULE mo_submctl
                             liquid(:,:,:) => NULL(),  &
                             frozen(:,:,:) => NULL()
   
+   ! Star and end indices for different particle types in the allSALSA array
+   INTEGER :: iaero, faero, icloud, fcloud, iprecp, fprecp, iice, fice, isnow, fsnow
+
+
   !Switches for SALSA aerosol microphysical processes
 
   INTEGER, PARAMETER :: Nmaster = 7
@@ -170,6 +174,15 @@ MODULE mo_submctl
                        precpbins(:), &
                        icebins(:), &
                        snowbins(:)
+
+  ! Diameter limits for particles in meters. These should be used when creating
+  ! classSection instances
+  REAL, PARAMETER :: dlaero = 30.e-6,   &
+                     dlcloud = 100.e-6, &
+                     dlprecp = 2.e-3,   &
+                     dlice   = 2.e-3,   &
+                     dlsnow  = 10.e-3
+
     
   REAL, PARAMETER ::     &
    avog   = 6.0221e+23,   & ! Avogadro number (#/mol)

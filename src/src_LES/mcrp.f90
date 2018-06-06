@@ -599,7 +599,7 @@ CONTAINS
       IF (sed_cloud) THEN
 
        CALL DepositionSlow(n1,n2,n3,n4,ncld,tk,a_dn,spec%rhowa,ustar,ncloudp,mcloudp, &
-                           dzt,tstep,nlim,cndiv,cmdiv,cndep,remcld,1                  )
+                           dzt,tstep,nlim,cndiv,cmdiv,cndep,remcld,2                  )
 
        ncloudt = ncloudt - cndiv
        mcloudt = mcloudt - cmdiv
@@ -621,7 +621,7 @@ CONTAINS
       IF (sed_ice) THEN
 
        CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,spec%rhoic,ustar,nicep,micep, &
-                           dzt,tstep,nlim,indiv,imdiv,indep,remice,2              )
+                           dzt,tstep,nlim,indiv,imdiv,indep,remice,4              )
 
        nicet = nicet - indiv 
        micet = micet - imdiv 
@@ -643,7 +643,7 @@ CONTAINS
       ! ---------------------------------------------------------
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
       IF (sed_precp) THEN
-         CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,spec%rhowa,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate,1)
+         CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,spec%rhowa,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate,3)
 
          nprecpt(:,:,:,:) = nprecpt(:,:,:,:) + prnt(:,:,:,:)/tstep
          mprecpt(:,:,:,:) = mprecpt(:,:,:,:) + prvt(:,:,:,:)/tstep
@@ -665,7 +665,7 @@ CONTAINS
     
 
       IF (sed_snow) THEN
-         CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,spec%rhosn,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate,3)
+         CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,spec%rhosn,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate,5)
            
          nsnowt(:,:,:,:) = nsnowt(:,:,:,:) + srnt(:,:,:,:)/tstep
          msnowt(:,:,:,:) = msnowt(:,:,:,:) + srvt(:,:,:,:)/tstep
