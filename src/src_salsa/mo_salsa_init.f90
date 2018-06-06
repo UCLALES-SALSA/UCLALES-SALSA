@@ -25,43 +25,52 @@ CONTAINS
 
   SUBROUTINE set_masterbins(dumaero, dumcloud, dumprecp, dumice, dumsnow)
     USE classSection
-    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw, ntotal, aero, cloud, precp, ice, snow, liquid, frozen, spec
+    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw, ntotal,                   &
+                           iaero, faero, icloud, fcloud, iprecp, fprecp,            &
+                           iice, fice, isnow, fsnow,                                &                             
+                           aero, cloud, precp, ice, snow,                 &
+                           liquid, frozen, spec, nlim, prlim, dlaero
     USE mo_salsa_driver, ONLY : kbdim, klev, allSALSA
     TYPE(Section), INTENT(in) :: dumaero(:,:,:), dumcloud(:,:,:),  &
                                  dumprecp(:,:,:), dumice(:,:,:),   &
                                  dumsnow(:,:,:)
 
     INTEGER :: lo,hi
-    INTEGER :: nn,ii,jjj,nspec
+    INTEGER :: nspec
 
     nspec = spec%getNSpec()
     ntotal = nbins+ncld+nprc+nice+nsnw
 
     ! Allocate the combined particle size distribution array
     ALLOCATE(allSALSA(kbdim,klev,ntotal))
-    allSALSA(:,:,:) = Section(0)
+    allSALSA(:,:,:) = Section(0,nlim,dlaero)
 
     ! Associate pointers for specific particle types
     lo = 1 
     hi = nbins
     aero => allSALSA(:,:,lo:hi)
-    
+    iaero = lo; faero = hi
+
     lo = hi + 1 
     hi = hi + ncld
     cloud => allSALSA(:,:,lo:hi)
+    icloud = lo; fcloud = hi
 
     lo = hi + 1 
     hi = hi + nprc
     precp => allSALSA(:,:,lo:hi)
+    iprecp = lo; fprecp = hi
 
     lo = hi + 1 
     hi = hi + nice
     ice => allSALSA(:,:,lo:hi)
+    iice = lo; fice = hi
 
     lo = hi + 1 
     hi = hi + nsnw
     snow => allSALSA(:,:,lo:hi)
- 
+    isnow = lo; fsnow = hi
+
     ! Associate some (potentially helpful) subcollections 
     ! (note: for this it is necessary to have all the particles containing liquid water consecutively, and then ice containing particles
     !  consecutively so that the indexing works)
@@ -139,8 +148,8 @@ CONTAINS
           in1a, fn1a,  & ! size regime bin indices: 1a
           in2a, fn2a,  & !     - " -       2a
           in2b, fn2b,  & !     - " -       2b
-          nbins,  &
-          aerobins
+          nbins, nlim,  &
+          aerobins, dlaero
 
      USE mo_salsa_driver, ONLY : &
           kbdim,klev
@@ -150,7 +159,7 @@ CONTAINS
      TYPE(Section), INTENT(out), ALLOCATABLE :: dumaero(:,:,:)
 
      !-- local variables ----------
-     INTEGER :: ii, jj,cc,dd,vv ! loop indices
+     INTEGER :: ii, jj,cc,dd ! loop indices
      INTEGER :: nbin2, nbin3
      REAL ::  ratio ! ratio of regime upper and lower diameter
      INTEGER :: nspec
@@ -164,7 +173,7 @@ CONTAINS
      ! Allocate and initialize the dummy aerosol tracers
      !--------------------------------------------------
      ALLOCATE(dumaero(kbdim,klev,nbins))
-     dumaero(:,:,:) = Section(1)
+     dumaero(:,:,:) = Section(1,nlim,dlaero)
      
      DO jj = 1, klev
         DO ii = 1, kbdim
@@ -206,8 +215,8 @@ CONTAINS
            
            DO dd = in2a+nbin2, fn2a
               cc = dd - (fn2a-(nbin3-1))
-              
-              dumaero(ii,jj,dd)%vlolim = pi6*(reglim(3)*ratio**(REAL(cc)/nbin3))**3
+               
+             dumaero(ii,jj,dd)%vlolim = pi6*(reglim(3)*ratio**(REAL(cc)/nbin3))**3
               dumaero(ii,jj,dd)%vhilim = pi6*(reglim(3)*ratio**(REAL(cc+1)/nbin3))**3
               dumaero(ii,jj,dd)%dmid = ( (dumaero(ii,jj,dd)%vhilim + dumaero(ii,jj,dd)%vlolim) /  &
                    (2.*pi6) )**(1./3.)
@@ -250,15 +259,15 @@ CONTAINS
 
    SUBROUTINE set_cloudbins(dumaero,dumcloud,dumprecp)
      USE classSection
-     USE mo_submctl, ONLY : spec, pi6,       &
+     USE mo_submctl, ONLY : spec, pi6, nlim, prlim,      &
           ica,icb,         &
           fca,fcb,         &
           ira,fra,         &
           nbins,ncld,nprc,        &
           in2a,fn2a,       &
           fn2b,       &
-          cloudbins,       &
-          precpbins
+          cloudbins, dlcloud,       &
+          precpbins, dlprecp
      USE mo_salsa_driver, ONLY : kbdim, klev
      
      IMPLICIT NONE
@@ -266,7 +275,7 @@ CONTAINS
      TYPE(Section), INTENT(in) :: dumaero(kbdim,klev,nbins)
      TYPE(Section), INTENT(out), ALLOCATABLE :: dumcloud(:,:,:), dumprecp(:,:,:)
 
-     INTEGER :: ii,jj,cc,bb,nba,nbb
+     INTEGER :: ii,jj,bb,nba,nbb
 
      REAL :: tmplolim(7), tmphilim(7)
      
@@ -302,8 +311,8 @@ CONTAINS
       ! Allocate cloud and precipitation arrays
       ! ----------------------------------------
       ALLOCATE(dumcloud(kbdim,klev,ncld), dumprecp(kbdim,klev,nprc))
-      dumcloud(:,:,:) = Section(1)
-      dumprecp(:,:,:) = Section(1)
+      dumcloud(:,:,:) = Section(2,nlim,dlcloud)
+      dumprecp(:,:,:) = Section(3,prlim,dlprecp)
 
       DO jj = 1, klev
          DO ii = 1, kbdim
@@ -375,15 +384,15 @@ CONTAINS
    !---------------------------------------------------------------------------
    SUBROUTINE set_icebins(dumaero,dumice,dumsnow)
      USE classSection
-     USE mo_submctl, ONLY : spec, pi6,             &
+     USE mo_submctl, ONLY : spec, pi6, prlim,            &
           iia,iib,         &
           fia,fib,         &
           isa,fsa,         &
           nice,nsnw,nbins,       &
           in2a,fn2a,       &
           fn2b,       &
-          icebins,         &
-          snowbins
+          icebins, dlice,         &
+          snowbins, dlsnow
      USE mo_salsa_driver, ONLY : kbdim, klev
      
      IMPLICIT NONE
@@ -391,7 +400,7 @@ CONTAINS
      TYPE(Section), INTENT(in) :: dumaero(kbdim,klev,nbins)
      TYPE(Section), INTENT(out), ALLOCATABLE :: dumice(:,:,:), dumsnow(:,:,:)
      
-     INTEGER :: ii,jj,cc,bb,nba,nbb
+     INTEGER :: ii,jj,bb,nba,nbb
      
      REAL :: tmplolim(7), tmphilim(7)
 
@@ -425,8 +434,8 @@ CONTAINS
      ! Allocate ice arrays
      ! ----------------------------------------
      ALLOCATE(dumice(kbdim,klev,nice), dumsnow(kbdim,klev,nsnw))
-     dumice(:,:,:) = Section(2)
-     dumsnow(:,:,:) = Section(3)
+     dumice(:,:,:) = Section(4,prlim,dlice)
+     dumsnow(:,:,:) = Section(5,prlim,dlsnow)
      
      DO jj = 1, klev
         DO ii = 1, kbdim
@@ -528,7 +537,7 @@ CONTAINS
 
                              nbin,reglim,   &
                              nice,nsnw,             &
-                             nspec,listspec,        &
+                             nspec_dry,listspec,        &
                              volDistA, volDistB,    &
                              nf2a, isdtyp,          &
                              sigmag,dpg,n,  &
@@ -588,7 +597,7 @@ CONTAINS
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          reglim,        & ! Low/high diameter limits of the 2 aerosol size regimes (1d table with length 4)
          nbin,          & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
-         nspec,         & ! Number of aerosol species used in the model
+         nspec_dry,     & ! Number of aerosol species used in the model
          listspec,      & ! List of strings specifying the names of the aerosol species that are active.
                           ! Must be an array of length 7, with empty strings for unused stuff.
          volDistA,      & ! Initial relative contribution [0-1] of each species to particle volume in a-bins. Must be
@@ -690,8 +699,11 @@ CONTAINS
       USE mo_submctl, ONLY : nbin,      &
                              in1a,fn1a,in2a,fn2a,in2b,fn2b,  &
                              nbins, massacc, spec,           &
-                             nspec, listspec
+                             nspec_dry, listspec
       USE mo_salsa_optical_properties, ONLY : initialize_optical_properties
+      !USE mo_salsa_coagulation_kernels, ONLY : initialize_coagulation_kernels
+      !USE mo_salsa_coagulation_processes, ONLY : initialize_coagulation_processes
+      USE mo_salsa_driver, ONLY : kbdim, klev
 
       IMPLICIT NONE
 
@@ -699,6 +711,7 @@ CONTAINS
       ! May not be the smartest or the fastest way, but revise later... 
       TYPE(Section), ALLOCATABLE :: dumaero(:,:,:), dumcloud(:,:,:), dumprecp(:,:,:), &
                                       dumice(:,:,:), dumsnow(:,:,:)
+      INTEGER :: nspec
 
       ! --1) Set derived indices
       in1a = 1
@@ -718,11 +731,7 @@ CONTAINS
       massacc = 1.
       
       ! Initialize and sort pointers to aerosol properties according to the order in which the species are given in the NAMELIST
-      spec = Species(nspec,listspec)
-
-      ! Initialize aerosol optical properties - uses settings from "spec"
-      CALL initialize_optical_properties()
-
+      spec = Species(nspec_dry,listspec)
 
       ! -- Aerosol tracers are allocated in *set_aerobins*
       ! -- Hydrometeor tracer in *set_cloudbins*
@@ -735,6 +744,15 @@ CONTAINS
       CALL set_icebins(dumaero, dumice, dumsnow)
 
       CALL set_masterbins(dumaero, dumcloud, dumprecp, dumice, dumsnow)
+
+      ! Initialize aerosol optical properties - uses settings from "spec"
+      CALL initialize_optical_properties()
+      
+      ! Initialize the coagulation kernel arrays and sink/source term arrays for processes
+      nspec = spec%getNSpec()
+      !CALL initialize_coagulation_kernels(kbdim,klev)
+      !CALL initialize_coagulation_processes(kbdim,klev,nspec)
+
 
       IF ( ALLOCATED(dumaero) ) DEALLOCATE(dumaero)
       IF ( ALLOCATED(dumcloud)) DEALLOCATE(dumcloud)

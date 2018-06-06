@@ -234,7 +234,12 @@ CONTAINS
                      !-- Kelvin effect
                    
                      count = count + 1
-                     IF (count > 1000) STOP 'SALSA equilibration (regime 1): no convergence!!'
+                     IF (count > 100) THEN 
+                        WRITE(*,*) 'equilibration ERROR'
+                        WRITE(*,*) 'numc', aero(ii,jj,kk)%numc
+                        WRITE(*,*) 'volc', aero(ii,jj,kk)%volc(:)
+                        STOP 'SALSA equilibration (regime 1): no convergence!!'
+                     END IF
 
                   END DO
 
@@ -343,8 +348,13 @@ CONTAINS
                         zke = exp(2.*surfw0*mvsu/(boltz*ptemp(ii,jj)*zdwet))
 
                         count = count + 1
-                        IF (count > 1000) STOP 'SALSA equilibration (regime 2): no convergence!!'
-                      
+                        IF (count > 100) THEN
+                           WRITE(*,*) 'equilibration ERROR'
+                           WRITE(*,*) 'numc', aero(ii,jj,kk)%numc
+                           WRITE(*,*) 'volc', aero(ii,jj,kk)%volc(:)
+                           STOP 'SALSA equilibration (regime 2): no convergence!!'
+                        END IF
+
                      END DO
 
                      ! Liquid water content; instead of LWC use the volume concentration

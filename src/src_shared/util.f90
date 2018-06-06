@@ -570,26 +570,17 @@ CONTAINS
      REAL, INTENT(in) :: array(:)
      REAL, INTENT(in) :: val
 
-     REAL, ALLOCATABLE :: diff(:)
-     REAL :: mindiff
+     INTEGER :: NN, N
+     LOGICAL, ALLOCATABLE :: comp(:)
 
-     INTEGER :: NN, i
-     
      NN = SIZE(array)
-     ALLOCATE(diff(NN))
-
-     diff = ABS(array-val)
-     mindiff = MINVAL(diff)
-
-     DO i = 1,NN
-        IF (diff(i) == mindiff) THEN
-           closest = i
-           EXIT
-        END IF
-     END DO
+     N = smaller(array,val)
      
-     closest = MAX(MIN(closest,NN),1)
-     DEALLOCATE(diff)
+     IF ( N < NN .AND.                                 &
+          ( ABS(array(N)-val) > ABS(array(N+1)-val) ) )  &
+        N = N + 1
+  
+     closest = MAX(MIN(N,NN),1)
 
    END FUNCTION closest
 
@@ -635,5 +626,27 @@ CONTAINS
    END FUNCTION getMassIndex
 
 
+   ! Function for calculating Pearson's correlation coefficient for two vectors
+   REAL FUNCTION calc_correlation(x,y,n)
+     INTEGER, INTENT(in) :: n
+     REAL, INTENT(in) :: x(n), y(n)
+     REAL :: sx, sy, sx2, sy2, sxy
+     INTEGER :: i
+     REAL, PARAMETER :: eps = EPSILON(1.0)
+     sx=0.; sy=0.; sx2=0.; sy2=0.; sxy=0.
+     DO i=1,n
+        sx=sx+x(i)
+        sy=sy+y(i)
+        sx2=sx2+x(i)**2
+        sy2=sy2+y(i)**2
+        sxy=x(i)*y(i)
+     END DO
+     IF (sx2*n-sx**2<eps .OR. sy2*n-sy**2<eps) THEN
+        calc_correlation = 0.
+     ELSE
+        calc_correlation = ( sxy*n-sx*sy )/( SQRT(sx2*n-sx**2)*SQRT(sy2*n-sy**2) )
+     END IF
+   END FUNCTION calc_correlation
+   
 
 END MODULE util

@@ -30,7 +30,7 @@ CONTAINS
                               rs,     w,     pactd          )
 
     USE classSection
-    USE mo_submctl, ONLY : fn2b, ncld, &
+    USE mo_submctl, ONLY : ncld, &
          lsactintst, lsactbase
     
     IMPLICIT NONE
@@ -102,7 +102,7 @@ CONTAINS
     REAL, INTENT(OUT) :: pns(kbdim,klev,fn2b)
     
     REAL :: diss,rho,mm
-    INTEGER :: ii,jj,kk,nn,ss
+    INTEGER :: ii,jj,kk,nn
     
     pns = 0.
     
@@ -872,8 +872,8 @@ CONTAINS
     ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
     ! parameter and is set to 1.2 by default
     !
-    USE mo_submctl, ONLY : ncld,        &
-                           nprc,        &
+    USE mo_submctl, ONLY :  ncld,        &
+                           !nprc,        &
                            pi6,         &
                            nlim, prlim
     IMPLICIT NONE
@@ -957,13 +957,13 @@ CONTAINS
   !***********************************************
   
   SUBROUTINE ice_nucl_driver(kproma,kbdim,klev,   &
-       ptemp,prv,prs,prsi,ptstep )
+                             ptemp,prv,prs,prsi,ptstep )
     
     USE mo_submctl, ONLY : in2a,fn2b, ncld, nprc, nice,    &
-         pi, nlim, prlim,           &
-         calc_Sw_eq,                &
-         ice_hom, ice_imm, ice_dep,  &
-         calc_correlation
+                           pi, nlim, prlim,           &
+                           ice_hom, ice_imm, ice_dep
+    USE mo_particle_external_properties, ONLY : calcSweq
+    USE util, ONLY : calc_correlation
     
     IMPLICIT NONE
     
@@ -1028,7 +1028,7 @@ CONTAINS
                 ! Droplet radius
                 rw = (3.*sum(precp(ii,jj,kk)%volc(1:nspec))/precp(ii,jj,kk)%numc/4./pi)**(1./3.)
                 ! Equilibrium saturation ratio
-                Sw_eq = calc_Sw_eq(precp(ii,jj,kk),ptemp(ii,jj))
+                Sw_eq = calcSweq(precp(ii,jj,kk),ptemp(ii,jj))
                 
                 ! Immersion freezing
                 pf_imm = 0.
@@ -1098,7 +1098,7 @@ CONTAINS
                 ! Droplet radius
                 rw = (3.*sum(cloud(ii,jj,kk)%volc(1:nspec))/cloud(ii,jj,kk)%numc/4./pi)**(1./3.)
                 ! Equilibrium saturation ratio
-                Sw_eq = calc_Sw_eq(cloud(ii,jj,kk),ptemp(ii,jj))
+                Sw_eq = calcSweq(cloud(ii,jj,kk),ptemp(ii,jj))
                 
                 ! Immersion freezing
                 pf_imm = 0.
@@ -1145,7 +1145,7 @@ CONTAINS
                 ! Droplet radius
                 rw = (3.*sum(aero(ii,jj,kk)%volc(1:nspec))/aero(ii,jj,kk)%numc/4./pi)**(1./3.)
                 ! Equilibrium saturation ratio
-                Sw_eq = calc_Sw_eq(aero(ii,jj,kk),ptemp(ii,jj))
+                Sw_eq = calcSweq(aero(ii,jj,kk),ptemp(ii,jj))
                 ! Is it dry?
                 isdry = (aero(ii,jj,kk)%volc(iwa)<1e-20)
                 
@@ -1441,7 +1441,7 @@ CONTAINS
   SUBROUTINE ice_melt(kproma,kbdim,klev,   &
        ptemp )
     
-    USE mo_submctl, ONLY :    ncld,        &
+    USE mo_submctl, ONLY :    &!ncld,        &
          nice,        &
          nsnw,        &
          nprc,        &
@@ -1511,7 +1511,7 @@ CONTAINS
     !
     
     USE mo_submctl, ONLY : nice,        &
-         nsnw,        &
+         !nsnw,        &
          pi6,         &
          prlim
     IMPLICIT NONE

@@ -125,6 +125,7 @@ MODULE classSpecies
      REAL            , ALLOCATABLE :: MMNative(:), MM(:)                                           ! Molar masses
      REAL            , ALLOCATABLE :: rholiqNative(:), rhoiceNative(:), rhosnowNative(:),   &      ! densities
                                       rholiq(:), rhoice(:), rhosnow(:)
+     REAL            , ALLOCATABLE :: rhos(:,:)                                                    ! 2d density array holding all the variants (shape (3,Nused)) 
      REAL            , ALLOCATABLE :: dissNative(:), diss(:)                                       ! Dissociation factors
 
      ! Subset arrays for soluble and insoluble compounds. If none are used of either category, length 1 is allocated for the arrays and zeros are used to initialize. 
@@ -202,8 +203,6 @@ MODULE classSpecies
       INTEGER, INTENT(in) :: nlist                     ! Number of aerosol species to be used
       CHARACTER(len=3), INTENT(in) :: listcomp(maxspec)  ! Names of the aerosol species to be used
       
-      INTEGER :: nalloc
-
       INTEGER :: i,c
 
       ! Define which compounds are used based on namelist-salsa information
@@ -233,6 +232,7 @@ MODULE classSpecies
                 cnstr%rholiqNative(cnstr%Nused),  cnstr%rholiq(cnstr%Nused),    &
                 cnstr%rhoiceNative(cnstr%Nused),  cnstr%rhoice(cnstr%Nused),    &
                 cnstr%rhosnowNative(cnstr%Nused), cnstr%rhosnow(cnstr%Nused),   &
+                cnstr%rhos(3,cnstr%Nused),                                       &
                 cnstr%dissNative(cnstr%Nused),    cnstr%diss(cnstr%Nused)       )
 
       ! Truncate the property lists in the order given by the global field "allNames"
@@ -305,6 +305,7 @@ MODULE classSpecies
       SELF%rholiq(:) = 0.
       SELF%rhoice(:) = 0.
       SELF%rhosnow(:) = 0.
+      SELF%rhos(:,:) = 0.
       SELF%names(:) = '   '
       SELF%diss(:) = 0.
       SELF%MM(:) = 0.
@@ -318,6 +319,12 @@ MODULE classSpecies
          SELF%MM(jj) = SELF%MMNative(ii)
          SELF%ind(jj) = SELF%indNative(ii) ! This is of course trivial but can be used to check everything's ok
       END DO
+      
+      ! Collect all the density variants in a unified array
+      SELF%rhos(1,:) = SELF%rholiq(:)
+      SELF%rhos(2,:) = SELF%rhoice(:)
+      SELF%rhos(3,:) = SELF%rhosnow(:)
+
 
     END SUBROUTINE sortProperties
 
@@ -481,6 +488,7 @@ MODULE classSpecies
       INTEGER, INTENT(in) :: nn
       INTEGER, INTENT(in), OPTIONAL :: wat ! Density of water differes according to phase: 
                                            ! 1: liquid, 2: ice, 3:snow. 1 is the default      
+      getRhoByIndex = 0.
       IF ( PRESENT(wat) ) THEN
          IF (wat == 1) THEN
             getRhoByIndex = SELF%rholiq(nn)

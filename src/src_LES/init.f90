@@ -276,7 +276,7 @@ CONTAINS
       ! Initialize aerosol size distributions
       !
       IF (level >= 4) THEN
-         CALL aerosol_init(nspec)
+         CALL aerosol_init()
          CALL init_gas_tracers
       END IF
 
@@ -772,20 +772,18 @@ CONTAINS
  !
  ! Tomi Raatikainen, FMI, 29.2.2016
  !
- SUBROUTINE aerosol_init(nspec)
+ SUBROUTINE aerosol_init()
 
     USE mo_salsa_sizedist, ONLY : size_distribution
-    USE mo_submctl, ONLY : aero, pi6, nmod, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
+    USE mo_submctl, ONLY : aero, pi6, nmod, nbins, nspec_dry, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
                            sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp
     USE mpi_interface, ONLY : myid
     USE util, ONLY : getMassIndex
 
     IMPLICIT NONE
-    INTEGER, INTENT(in) :: nspec
-
     REAL :: core(nbins), nsect(1,1,nbins)             ! Size of the bin mid aerosol particle, local aerosol size dist
     REAL :: pndist(nzp,nbins)                         ! Aerosol size dist as a function of height
-    REAL :: pvf2a(nzp,nspec), pvf2b(nzp,nspec)        ! Mass distributions of aerosol species for a and b-bins
+    REAL :: pvf2a(nzp,nspec_dry), pvf2b(nzp,nspec_dry)        ! Mass distributions of aerosol species for a and b-bins
     REAL :: pnf2a(nzp)                                ! Number fraction for bins 2a
     REAL :: pvfOC1a(nzp)                              ! Mass distribution between SO4 and OC in 1a
     INTEGER :: ss,ee,i,j,k
@@ -842,8 +840,8 @@ CONTAINS
     END IF
 
     ! All species must be known
-    IF (i /= nspec-1) THEN
-       WRITE(*,*) i,nspec
+    IF (i /= nspec_dry) THEN
+       WRITE(*,*) i,nspec_dry
        STOP 'Unknown aerosol species given in the initialization!'
     END IF
 
@@ -874,7 +872,7 @@ CONTAINS
        END IF
 
        ! Mass fractions for species in a and b-bins
-       DO ss = 1, spec%getNSpec()
+       DO ss = 1,nspec_dry
           pvf2a(:,ss) = volDistA(ss)
           pvf2b(:,ss) = volDistB(ss)
        END DO
@@ -937,8 +935,8 @@ CONTAINS
     ! bin regime 2
 
     IF (nreg > 1) THEN
-       DO ss = 1,spec%getNSpec('dry')
-          CALL setAeroMass(nspec,spec%ind(ss),pvf2a,pvf2b,pnf2a,pndist,core,spec%rholiq(ss))
+       DO ss = 1,nspec_dry
+          CALL setAeroMass(spec%ind(ss),pvf2a,pvf2b,pnf2a,pndist,core,spec%rholiq(ss))
        END DO
     END IF
        
@@ -975,15 +973,14 @@ CONTAINS
  ! Sets the mass concentrations to aerosol arrays in 2a and 2b
  !
  !
- SUBROUTINE setAeroMass(nspec,ispec,ppvf2a,ppvf2b,ppnf2a,ppndist,pcore,prho)
-    USE mo_submctl, ONLY : nbins, in2a,fn2a,in2b,fn2b
+ SUBROUTINE setAeroMass(ispec,ppvf2a,ppvf2b,ppnf2a,ppndist,pcore,prho)
+    USE mo_submctl, ONLY : nbins, in2a,fn2a,in2b,fn2b,nspec_dry
     USE util, ONLY : getMassIndex
     
     IMPLICIT NONE
     
-    INTEGER, INTENT(in) :: nspec                             ! Total number of active species
     INTEGER, INTENT(in) :: ispec                             ! Aerosol species index
-    REAL, INTENT(in) :: ppvf2a(nzp,nspec), ppvf2b(nzp,nspec) ! Mass distributions for a and b bins
+    REAL, INTENT(in) :: ppvf2a(nzp,nspec_dry), ppvf2b(nzp,nspec_dry) ! Mass distributions for a and b bins
     REAL, INTENT(in) :: ppnf2a(nzp)                          ! Number fraction for 2a
     REAL, INTENT(in) :: ppndist(nzp,nbins)                   ! Aerosol size distribution
     REAL, INTENT(in) :: pcore(nbins)                         ! Aerosol bin mid core volume
@@ -1018,13 +1015,13 @@ CONTAINS
  SUBROUTINE READ_AERO_INPUT(ppndist,ppvfOC1a,ppvf2a,ppvf2b,ppnf2a)
     USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
     USE mo_submctl, ONLY : nbins,  &
-                           nspec, maxspec, nmod
+                           nspec_dry, maxspec, nmod
     USE mo_salsa_sizedist, ONLY : size_distribution
     USE mpi_interface, ONLY : appl_abort, myid
     IMPLICIT NONE
 
     REAL, INTENT(out) :: ppndist(nzp,nbins)                   ! Aerosol size dist as a function of height
-    REAL, INTENT(out) :: ppvf2a(nzp,nspec), ppvf2b(nzp,nspec) ! Volume distributions of aerosol species for a and b-bins
+    REAL, INTENT(out) :: ppvf2a(nzp,nspec_dry), ppvf2b(nzp,nspec_dry) ! Volume distributions of aerosol species for a and b-bins
     REAL, INTENT(out) :: ppnf2a(nzp)                          ! Number fraction for bins 2a
     REAL, INTENT(out) :: ppvfOC1a(nzp)                        ! Volume distribution between SO4 and OC in 1a
 
@@ -1065,7 +1062,7 @@ CONTAINS
               zdpg(nc_levs,nmod),          &
         ! Couple of helper arrays
               znsect(nc_levs,nbins),       &
-              helper(nc_levs,nspec)        )
+              helper(nc_levs,nspec_dry)        )
 
     zlevs = 0.; zvolDistA = 0.; zvolDistB = 0.; znf2a = 0.; zn = 0.; zsigmag = 0.
     zdpg = 0.; znsect = 0.; helper = 0.
@@ -1086,8 +1083,8 @@ CONTAINS
        OPEN(11,file='aerosol_in',status='old',form='formatted')
        DO i = 1, nc_levs
           READ(11,*,end=100) zlevs(i)
-          READ(11,*,end=100) (zvolDistA(i,k),k=1,nspec) ! Note: reads just "nspec" values from the current line
-          READ(11,*,end=100) (zvolDistB(i,k),k=1,nspec) ! -||-
+          READ(11,*,end=100) (zvolDistA(i,k),k=1,nspec_dry) ! Note: reads just "nspec_dry" values from the current line
+          READ(11,*,end=100) (zvolDistB(i,k),k=1,nspec_dry) ! -||-
           READ(11,*,end=100) (zn(i,k),k=1,nmod)
           READ(11,*,end=100) (zdpg(i,k),k=1,nmod)
           READ(11,*,end=100) (zsigmag(i,k),k=1,nmod)
@@ -1119,8 +1116,8 @@ CONTAINS
 
  ! Interpolate the input variables to model levels
  ! ------------------------------------------------
- CALL htint2d(nc_levs,zvolDistA(1:nc_levs,1:nspec),zlevs(1:nc_levs),nzp,ppvf2a,zt,nspec)
- CALL htint2d(nc_levs,zvolDistB(1:nc_levs,1:nspec),zlevs(1:nc_levs),nzp,ppvf2b,zt,nspec)
+ CALL htint2d(nc_levs,zvolDistA(1:nc_levs,1:nspec_dry),zlevs(1:nc_levs),nzp,ppvf2a,zt,nspec_dry)
+ CALL htint2d(nc_levs,zvolDistB(1:nc_levs,1:nspec_dry),zlevs(1:nc_levs),nzp,ppvf2b,zt,nspec_dry)
  CALL htint2d(nc_levs,znsect(1:nc_levs,:),zlevs(1:nc_levs),nzp,ppndist,zt,nbins)
  CALL htint(nc_levs,znf2a(1:nc_levs),zlevs(1:nc_levs),nzp,ppnf2a,zt)
 

@@ -1,5 +1,5 @@
 MODULE mo_salsa_driver
-  USE classSection
+  USE classSection, ONLY : Section
   USE util, ONLY : getMassIndex !!! IS it good to import this here??? The function is anyway handy here too.
   USE mo_submctl
   IMPLICIT NONE
@@ -22,10 +22,10 @@ MODULE mo_salsa_driver
    INTEGER, PARAMETER :: klev = 1
    INTEGER, PARAMETER :: krow = 1
 
-   REAL, PARAMETER    :: init_rh(kbdim,klev) = 0.3
-
-   ! -- Local hydrometeor properties. All the setup and pointer associations will be done in mo_aero_init
+   ! All particle properties for SALSA. All the setup and pointer associations will be done in mo_aero_init
    TYPE(Section), ALLOCATABLE, TARGET :: allSALSA(:,:,:)   ! Parent array holding all particle and hydrometeor types consecutively 
+
+   REAL, PARAMETER    :: init_rh(kbdim,klev) = 0.3
 
    ! -- Local gas compound tracers [# m-3]
    REAL :: zgso4(kbdim,klev),   &
@@ -65,9 +65,6 @@ CONTAINS
                         pa_nactd,   pa_vactd,   pa_gaerop,  pa_gaerot,   &
                         prunmode, tstep, time, level)
 
-      USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
-                             nice,nsnw,ntotal,                    &
-                             aero, cloud, precp, ice, snow  ! The specific particle types are here for convenience, where needed.
       USE mo_salsa, ONLY : salsa
       USE mo_salsa_properties, ONLY  : equilibration
       IMPLICIT NONE
@@ -130,7 +127,7 @@ CONTAINS
                        precp_old(kbdim,klev,nprc), ice_old(kbdim,klev,nice),      &
                        snow_old(kbdim,klev,nsnw)
 
-      INTEGER :: jj,ii,kk,ss,str,end, nc,vc, ndry, nwet
+      INTEGER :: jj,ii,kk,ss,str,end, nc, ndry, nwet
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
               in_w(kbdim,klev), in_rsi(kbdim,klev)
       REAL :: rv_old(kbdim,klev)
@@ -138,12 +135,12 @@ CONTAINS
       ndry = spec%getNSpec(type="dry")
       nwet = spec%getNSpec(type="wet")
 
-      actd(:,:,:) = Section(1)
-      aero_old(:,:,:) = Section(1)
-      cloud_old(:,:,:) = Section(1)
-      precp_old(:,:,:) = Section(1)
-      ice_old(:,:,:) = Section(2)
-      snow_old(:,:,:) = Section(3)
+      actd(:,:,:) = Section(2,nlim,dlcloud)
+      aero_old(:,:,:) = Section(1,nlim,dlaero)
+      cloud_old(:,:,:) = Section(2,nlim,dlcloud)
+      precp_old(:,:,:) = Section(3,prlim,dlprecp)
+      ice_old(:,:,:) = Section(4,prlim,dlice)
+      snow_old(:,:,:) = Section(5,prlim,dlsnow)
 
       str = getMassIndex(nprc,1,nwet)
       end = getMassIndex(nprc,nprc,nwet)
@@ -233,9 +230,6 @@ CONTAINS
                If (prunmode == 1) CALL equilibration(kproma,kbdim,klev,   &
                                                      init_rh,in_t,.TRUE.)
 
-               !WRITE(*,*) 'ENNEN NUMERO',SUM(precp(1,1,1:nprc)%numc)
-               !WRITE(*,*) 'ENNEN MASSSA',SUM(precp(1,1,1:nprc)%volc(nwet))
-
                ! Convert to #/m3
                zgso4(1,1) = pa_gaerop(kk,ii,jj,1)*pdn(kk,ii,jj)
                zghno3(1,1) = pa_gaerop(kk,ii,jj,2)*pdn(kk,ii,jj)
@@ -248,14 +242,9 @@ CONTAINS
                ! ***************************************!
                CALL salsa(kproma, kbdim,  klev,   krow,     &
                           in_p,   in_rv,  in_rs,  in_rsi,   &
-                          in_t,   tstep,                    &
-                          zgso4,  zgocnv, zgocsv, zghno3,   &
-                          zgnh3,  allSALSA,                 &
+                          in_t,   tstep,  zgso4,  zgocnv,   &
+                          zgocsv, zghno3, zgnh3,  allSALSA, &
                           actd,   in_w, level               )
-
-
-               !WRITE(*,*) 'JALKEEN NUMERO',SUM(precp(1,1,1:nprc)%numc)
-               !WRITE(*,*) 'JALKEEN MASSSA',SUM(precp(1,1,1:nprc)%volc(nwet))
 
                ! Calculate tendencies (convert back to #/kg or kg/kg)
                pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &

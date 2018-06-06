@@ -28,10 +28,11 @@ MODULE mcrp
                     a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt, mc_ApVdom,                   &
                     a_nicep,   a_nicet,   a_micep,   a_micet,                                &
                     a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
-                    snowin,    calc_eff_radius
+                    snowin
    USE thrm, ONLY : thermo
    USE stat, ONLY : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
-   USE mo_submctl, ONLY : spec, terminal_vel
+   USE mo_submctl, ONLY : spec 
+   USE mo_particle_external_properties, ONLY : calcDiamLES, terminal_vel
    USE util, ONLY : getMassIndex
    IMPLICIT NONE
 
@@ -723,7 +724,7 @@ CONTAINS
     REAL, INTENT(in) :: dzt(n1)              ! Inverse of grid level thickness
     REAL, INTENT(in) :: dt                   ! timestep
     REAL, INTENT(IN) :: clim                ! Concentration limit
-    INTEGER, INTENT(IN) :: flag         ! An option for identifying aerosol, cloud, precipitation, ice and snow
+    INTEGER, INTENT(IN) :: flag         ! An option for identifying liquid, ice and snow particle phases
     REAL, INTENT(OUT) :: flxdivm(n1,n2,n3,nn*n4), flxdivn(n1,n2,n3,nn) ! Mass and number divergency
     REAL, INTENT(OUT) :: depflxn(n2,n3,nn), depflxm(n2,n3,nn*n4) ! Mass and number deposition fluxes to the surface
 
@@ -744,7 +745,7 @@ CONTAINS
     REAL :: mdiff                ! Particle diffusivity
     REAL :: rt, Sc, St
 
-    REAL :: rflm(n1,nn*n4), rfln(n1,nn), pmass(n4), rwet
+    REAL :: rflm(n1,nn*n4), rfln(n1,nn), pmass(n4), dwet
     flxdivm = 0.
     flxdivn = 0.
     depflxm = 0.
@@ -775,12 +776,12 @@ CONTAINS
                 !   n4 = number of active species
                 !   bin = size bin
                 pmass(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-                rwet=calc_eff_radius(n4,numc(k,i,j,bin),pmass,flag)
+                dwet=calcDiamLES(n4,numc(k,i,j,bin),pmass,flag)
 
                 ! Terminal velocity
-                Kn = lambda/rwet
+                Kn = 2.*lambda/dwet!lambda/rwet
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
-                vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG,flag)
+                vc = terminal_vel(dwet,pdn,adn(k,i,j),avis,GG,flag)
 
 
                 ! This algorithm breaks down if the fall velocity is large enough to make the fall 
@@ -791,7 +792,7 @@ CONTAINS
 
                 IF (k==2) THEN ! The level just above surface
                     ! Particle diffusitivity  (15.29) in jacobson book
-                    mdiff = (kb*tk(k,i,j)*GG)/(6.0*pi*avis*rwet)
+                    mdiff = (kb*tk(k,i,j)*GG)/(3.0*pi*avis*dwet) !(kb*tk(k,i,j)*GG)/(6.0*pi*avis*rwet)
                     Sc = kvis/mdiff
                     St = vc*ustar(i,j)**2.0/g*kvis
                     if (St<0.01) St=0.01
@@ -837,7 +838,7 @@ CONTAINS
     REAL, INTENT(in) :: tstep
     REAL, INTENT(in) :: dzt(n1)
     REAL, INTENT(IN) :: clim                ! Concentration limit
-    INTEGER, INTENT(IN) :: flag         ! An option for identifying aerosol, cloud, precipitation, ice and snow
+    INTEGER, INTENT(IN) :: flag         ! An option for identifying liquid, ice and snow particle phases
     REAL, INTENT(out) :: prnt(n1,n2,n3,nn), prvt(n1,n2,n3,nn*n4)     ! Number and mass tendencies due to fallout
     REAL, INTENT(out) :: remprc(n2,n3,nn*n4)
     REAL, INTENT(out) :: rate(n1,n2,n3) ! Rain rate (kg/s/m^2)
@@ -861,7 +862,7 @@ CONTAINS
     ! For precipitation:
     REAL :: fd,fdmax,fdos ! Fall distance for rain drops, max fall distance, overshoot from nearest grid level
     REAL :: prnchg(n1,nn), prvchg(n1,nn,n4) ! Instantaneous changes in precipitation number and mass (volume)
-    REAL :: rwet
+    REAL :: dwet
  
     REAL :: prnumc, pmass(n4)  ! Instantaneous source number and mass
     INTEGER :: kf, ni,fi
@@ -895,12 +896,12 @@ CONTAINS
                 !   n4 = number of active species
                 !   bin = size bin
                 pmass(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-                rwet=calc_eff_radius(n4,numc(k,i,j,bin),pmass,flag)
+                dwet=calcDiamLES(n4,numc(k,i,j,bin),pmass,flag)
 
                 ! Terminal velocity
-                Kn = lambda/rwet
+                Kn = 2.*lambda/dwet!lambda/rwet
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
-                vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG,flag)
+                vc = terminal_vel(dwet,pdn,adn(k,i,j),avis,GG,flag)
 
                 ! Rain rate statistics: removal of water from the current bin is accounted for
                 ! Water is the last (n4) species and rain rate is given here kg/s/m^2
