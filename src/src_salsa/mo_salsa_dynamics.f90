@@ -741,7 +741,6 @@ CONTAINS
                              fn2b,            &
                              lscndh2oae, lscndh2ocl, lscndh2oic, &
                              alv, als 
-      USE mo_particle_external_properties, ONLY : calcDiamSALSA
       USE mo_salsa_properties, ONLY : equilibration
       IMPLICIT NONE
 
@@ -849,9 +848,10 @@ CONTAINS
             ! Cloud droplets --------------------------------------------------------------------------------
             DO cc = 1, ncld
                IF (cloud(ii,jj,cc)%numc > nlim .AND. lscndh2ocl) THEN
-
                   ! Wet diameter
-                  dwet = ( SUM(cloud(ii,jj,cc)%volc(1:nspec))/cloud(ii,jj,cc)%numc/pi6 )**(1./3.)
+                  CALL cloud(ii,jj,cc)%updateDiameter(limit=.TRUE.)
+                  !dwet = ( SUM(cloud(ii,jj,cc)%volc(1:nspec))/cloud(ii,jj,cc)%numc/pi6 )**(1./3.)
+                  dwet = cloud(ii,jj,cc)%dwet
 
                   ! Activity + Kelvin effect
                   zact = acth2o(cloud(ii,jj,cc))
@@ -882,7 +882,9 @@ CONTAINS
             DO cc = 1, nprc
                IF (precp(ii,jj,cc)%numc > prlim .AND. lscndh2ocl) THEN
                   ! Wet diameter
-                  dwet = ( SUM(precp(ii,jj,cc)%volc(1:nspec))/precp(ii,jj,cc)%numc/pi6 )**(1./3.)
+                  CALL precp(ii,jj,cc)%updateDiameter(limit=.TRUE.)
+                  !dwet = ( SUM(precp(ii,jj,cc)%volc(1:nspec))/precp(ii,jj,cc)%numc/pi6 )**(1./3.)
+                  dwet = precp(ii,jj,cc)%dwet
 
                   ! Activity + Kelvin effect
                   zact = acth2o(precp(ii,jj,cc))
@@ -910,12 +912,12 @@ CONTAINS
             END DO
 
             ! Ice particles --------------------------------------------------------------------------------
-            ! Dimension
-            CALL calcDiamSALSA(nice,ice(ii,jj,:),dwice)
             DO cc = 1, nice
                IF (ice(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
-                  dwet=dwice(cc)
-                     
+                  !dwet=dwice(cc)
+                  CALL ice(ii,jj,cc)%updateDiameter(limit=.TRUE.)
+                  dwet = ice(ii,jj,cc)%dwet
+                  
                   ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
                   cap=0.5*dwet
                      
@@ -949,12 +951,12 @@ CONTAINS
             END DO
             
             ! Snow particles --------------------------------------------------------------------------------
-            ! Dimension
-            CALL CalcDiamSALSA(nsnw,snow(ii,jj,:),dwsnow)
             DO cc = 1, nsnw
                IF (snow(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
-                  dwet=dwsnow(cc)
-                  
+                  !dwet=dwsnow(cc)
+                  CALL snow(ii,jj,cc)%updateDiameter(limit=.TRUE.)
+                  dwet = snow(ii,jj,cc)%dwet
+
                   ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
                   cap=0.5*dwet
                   
@@ -990,7 +992,9 @@ CONTAINS
             DO cc = 1, nbins
                IF (aero(ii,jj,cc)%numc > nlim .AND. zrh(ii,jj) > 0.98 .AND. lscndh2oae) THEN
                   ! Wet diameter
-                  dwet = ( SUM(aero(ii,jj,cc)%volc(1:nspec))/aero(ii,jj,cc)%numc/pi6 )**(1./3.)
+                  CALL aero(ii,jj,cc)%updateDiameter(limit=.TRUE.)
+                  !dwet = ( SUM(aero(ii,jj,cc)%volc(1:nspec))/aero(ii,jj,cc)%numc/pi6 )**(1./3.)
+                  dwet = aero(ii,jj,cc)%dwet
 
                   ! Water activity + Kelvin effect
                   zact = acth2o(aero(ii,jj,cc))

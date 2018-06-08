@@ -324,7 +324,7 @@ CONTAINS
           ! calculate the ratio of slopes
           !
           DO k = 1, n1-1
-             gamma = -sign(1.,cfl(k))
+             gamma = INT(-(sign(1.,cfl(k))))
              IF (scp0(k+1,i,j)-scp0(k,i,j) /= 0.0 .AND. scp0(k+1,i,j)+scp0(k,i,j) > 1.e-40) THEN
                 k2 = max(1,k+gamma)
                 k1 = min(n1,k+gamma+1)

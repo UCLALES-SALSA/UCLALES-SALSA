@@ -48,31 +48,7 @@ MODULE mo_particle_external_properties
 
     END FUNCTION terminal_vel
     
-    !!!!!!!!!!! THEN DIAMETER CALCULATIONS BELOW COULD BE PUT UNDER A COMMON INTERFACE TO FACILITATE DIFFERENT DATATYPES!!!!!
-    ! 
-    ! Function for calculating dimension (or wet diameter) for any particle type
-    ! - Aerosol, cloud and rain are spherical
-    ! - Snow and ice can be irregular and their densities can be size-dependent
-    !
-    ! Correct dimension is needed for irregular particles (e.g. ice and snow) for calculating fall speed (deposition and coagulation)
-    ! and capacitance (condensation). Otherwise compact spherical structure can be expected,
-    !
-    SUBROUTINE calcDiamSALSA(n,ppart,dia)
-      IMPLICIT NONE
-      INTEGER, INTENT(in) :: n
-      TYPE(Section), INTENT(in) :: ppart(n)
-      REAL, INTENT(OUT) :: dia(n)
-      INTEGER :: i,nspec
 
-      nspec = spec%getNSpec()
-      
-      dia(:) = 10.e-9
-      DO i=1,n
-         IF (ppart(i)%numc > ppart(i)%nlim) &
-              dia(i)=(SUM(ppart(i)%volc(1:nspec))/ppart(i)%numc/pi6)**(1./3.)
-      END DO
-      
-    END SUBROUTINE calcDiamSALSA
     
     !
     ! Function for calculating effective (wet) radius for any particle type

@@ -144,8 +144,6 @@ CONTAINS
 
       str = getMassIndex(nprc,1,nwet)
       end = getMassIndex(nprc,nprc,nwet)
-      !WRITE(*,*) 'ENNEN', SUM(pa_mprecpp(30,3,3,str:end))
-      !WRITE(*,*) 'ENNEN', pa_nprecpp(30,3,3,1:nprc)
 
       ! Set the SALSA runtime config 
       CALL set_salsa_runtime(time)
@@ -184,8 +182,6 @@ CONTAINS
                   str = getMassIndex(nprc,1,nc)
                   end = getMassIndex(nprc,nprc,nc)
                   precp(1,1,1:nprc)%volc(nc) = pa_mprecpp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nc)
-                  !WRITE(*,*) pdn(kk,ii,jj), spec%rholiq(nc), nc, nwet
-                  
 
                   str = getMassIndex(nice,1,nc)
                   end = getMassIndex(nice,nice,nc)
@@ -318,10 +314,6 @@ CONTAINS
             END DO ! kk
          END DO ! ii
       END DO ! jj
-
-      !WRITE(*,*) 'JALKEEN', SUM(pa_mprecpp(30,3,3,str:end))
-      !WRITE(*,*) 'JALKEEN', pa_nprecpp(30,3,3,1:nprc)
-
 
    END SUBROUTINE run_SALSA
 

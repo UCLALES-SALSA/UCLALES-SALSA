@@ -27,9 +27,7 @@ MODULE mo_submctl
    ! Star and end indices for different particle types in the allSALSA array
    INTEGER :: iaero, faero, icloud, fcloud, iprecp, fprecp, iice, fice, isnow, fsnow
 
-
   !Switches for SALSA aerosol microphysical processes
-
   INTEGER, PARAMETER :: Nmaster = 7
   TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)  ! Array for master switches. The specific master switches are pointers to this array
   TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation

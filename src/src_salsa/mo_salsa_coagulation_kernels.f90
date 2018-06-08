@@ -10,7 +10,6 @@ MODULE mo_salsa_coagulation_kernels
                          lscgpc, lscgic, lscgsc,                  &
                          lscgip, lscgsp,                          &
                          lscgsi
-  USE mo_particle_external_properties,  ONLY : calcDiamSALSA
   USE classSection, ONLY : Section
   IMPLICIT NONE
 
@@ -115,7 +114,7 @@ MODULE mo_salsa_coagulation_kernels
 
     SUBROUTINE buildKernelSelf( kbdim,klev,nb1,part1,ptemp,ppres,zcc )
       INTEGER, INTENT(in) :: kbdim,klev,nb1
-      TYPE(Section), INTENT(in) :: part1(kbdim,klev,nb1)
+      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1)
       REAL, INTENT(in) :: ptemp(kbdim,klev),ppres(kbdim,klev)
       REAL, INTENT(inout) :: zcc(kbdim,klev,nb1,nb1)
 
@@ -131,17 +130,18 @@ MODULE mo_salsa_coagulation_kernels
             
             ASSOCIATE ( pp1 => part1(ii,jj,1:nb1) )
 
-              CALL calcDiamSALSA(nb1,pp1(1:nb1),zdiam)
-              zdiam(1:nb1) = MIN(zdiam(1:nb1), pp1(1:nb1)%dlim)
-              zmass(1:nb1) = spec%rhowa*pi6*zdiam(1:nb1)**3
+              DO mm = 1,nb1
+                 CALL pp1(mm)%updateDiameter(limit=.TRUE.)
+              END DO
+              zmass(1:nb1) = spec%rhowa*pi6*pp1(1:nb1)%dwet**3
               
               DO mm = 1, nb1         ! smaller colliding particle
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
                  DO nn = mm, nb1            ! larger colliding particle
                     IF (pp1(nn)%numc < pp1(nn)%nlim) CYCLE
-                    zcc(ii,jj,mm,nn) = coagc(zdiam(mm),zdiam(nn),zmass(mm),zmass(nn),    &
-                                             ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,  &
-                                             pp1(nn)%phase                               )
+                    zcc(ii,jj,mm,nn) = coagc(pp1(mm)%dwet,pp1(nn)%dwet,zmass(mm),zmass(nn),    &
+                                             ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,        &
+                                             pp1(nn)%phase                                     )
                     zcc(ii,jj,nn,mm) = zcc(ii,jj,mm,nn)
                  END DO
               END DO
@@ -159,7 +159,7 @@ MODULE mo_salsa_coagulation_kernels
       ! Always the "smaller" particle indices first
       INTEGER, INTENT(in) :: kbdim,klev
       INTEGER, INTENT(in) :: nb1, nb2
-      TYPE(Section), INTENT(in) :: part1(kbdim,klev,nb1), part2(kbdim,klev,nb2)
+      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1), part2(kbdim,klev,nb2)
       REAL, INTENT(in)    :: ptemp(kbdim,klev),ppres(kbdim,klev)
       REAL, INTENT(inout)   :: zcc(kbdim,klev,nb1,nb2)
       
@@ -175,20 +175,23 @@ MODULE mo_salsa_coagulation_kernels
             
             ASSOCIATE ( pp1 => part1(ii,jj,1:nb1), pp2 => part2(ii,jj,1:nb2) )
 
-              CALL calcDiamSALSA(nb1,pp1(1:nb1),zdiam1)
-              CALL calcDiamSALSA(nb2,pp2(1:nb2),zdiam2)
-              zdiam1(1:nb1) = MIN(zdiam1(1:nb1), pp1(1:nb1)%dlim)
-              zdiam2(1:nb2) = MIN(zdiam2(1:nb2), pp2(1:nb2)%dlim)
-              zmass1(1:nb1) = spec%rhowa*pi6*zdiam1(1:nb1)**3
-              zmass2(1:nb2) = spec%rhowa*pi6*zdiam2(1:nb2)**3
+              ! Update wet diameters
+              DO mm = 1,nb1
+                 CALL pp1(mm)%updateDiameter(limit=.TRUE.)
+              END DO
+              DO nn = 1,nb2
+                 CALL pp2(nn)%updateDiameter(limit=.TRUE.)
+              END DO
+              zmass1(1:nb1) = spec%rhowa*pi6*pp1(1:nb1)%dwet**3
+              zmass2(1:nb2) = spec%rhowa*pi6*pp2(1:nb2)%dwet**3
               
               DO mm = 1,nb1
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
                  DO nn = 1,nb2
                     IF (pp2(nn)%numc < pp2(nn)%nlim) CYCLE
-                    zcc(ii,jj,mm,nn) = coagc(zdiam1(mm),zdiam2(nn),zmass1(mm),zmass2(nn),   &
-                                             ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,     &
-                                             pp2(nn)%phase                                  )
+                    zcc(ii,jj,mm,nn) = coagc(pp1(mm)%dwet,pp2(nn)%dwet,zmass1(mm),zmass2(nn),   &
+                                             ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,         &
+                                             pp2(nn)%phase                                      )
                  END DO
               END DO
               
