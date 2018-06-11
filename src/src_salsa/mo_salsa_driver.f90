@@ -139,13 +139,13 @@ CONTAINS
       aero_old(:,:,:) = Section(1,nlim,dlaero)
       cloud_old(:,:,:) = Section(2,nlim,dlcloud)
       precp_old(:,:,:) = Section(3,prlim,dlprecp)
-      ice_old(:,:,:) = Section(4,prlim,dlice)
-      snow_old(:,:,:) = Section(5,prlim,dlsnow)
+      IF (level == 5) THEN
+         ice_old(:,:,:) = Section(4,prlim,dlice)
+         snow_old(:,:,:) = Section(5,prlim,dlsnow)
+      END IF
 
       str = getMassIndex(nprc,1,nwet)
       end = getMassIndex(nprc,nprc,nwet)
-      !WRITE(*,*) 'ENNEN', SUM(pa_mprecpp(30,3,3,str:end))
-      !WRITE(*,*) 'ENNEN', pa_nprecpp(30,3,3,1:nprc)
 
       ! Set the SALSA runtime config 
       CALL set_salsa_runtime(time)
@@ -184,16 +184,19 @@ CONTAINS
                   str = getMassIndex(nprc,1,nc)
                   end = getMassIndex(nprc,nprc,nc)
                   precp(1,1,1:nprc)%volc(nc) = pa_mprecpp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nc)
-                  !WRITE(*,*) pdn(kk,ii,jj), spec%rholiq(nc), nc, nwet
-                  
 
-                  str = getMassIndex(nice,1,nc)
-                  end = getMassIndex(nice,nice,nc)
-                  ice(1,1,1:nice)%volc(nc) = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhoice(nc)
+                  IF (level == 5) THEN
+                     str = getMassIndex(nice,1,nc)
+                     end = getMassIndex(nice,nice,nc)
+                     ice(1,1,1:nice)%volc(nc) = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhoice(nc)
 
-                  str = getMassIndex(nsnw,1,nc)
-                  end = getMassIndex(nsnw,nsnw,nc)
-                  snow(1,1,1:nsnw)%volc(nc) = pa_msnowp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhosnow(nc)
+                     str = getMassIndex(nsnw,1,nc)
+                     end = getMassIndex(nsnw,nsnw,nc)
+                     snow(1,1,1:nsnw)%volc(nc) = pa_msnowp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhosnow(nc)
+                  ELSE
+                     ice(1,1,1:nice)%volc(nc) = 0.
+                     snow(1,1,1:nsnw)%volc(nc) = 0.
+                  END IF
                END DO
                ! -------------------------------
                
@@ -205,6 +208,9 @@ CONTAINS
                IF (level > 4) THEN
                   ice(1,1,1:nice)%numc = pa_nicep(kk,ii,jj,1:nice)*pdn(kk,ii,jj)
                   snow(1,1,1:nsnw)%numc = pa_nsnowp(kk,ii,jj,1:nsnw)*pdn(kk,ii,jj)
+               ELSE
+                  ice(1,1,1:nice)%numc = 0.
+                  snow(1,1,1:nsnw)%numc = 0.
                END IF
 
                ! Need the number of dry species below
@@ -253,10 +259,14 @@ CONTAINS
                     ( cloud(1,1,1:ncld)%numc - cloud_old(1,1,1:ncld)%numc )/pdn(kk,ii,jj)/tstep
                pa_nprecpt(kk,ii,jj,1:nprc) = pa_nprecpt(kk,ii,jj,1:nprc) + &
                     ( precp(1,1,1:nprc)%numc - precp_old(1,1,1:nprc)%numc )/pdn(kk,ii,jj)/tstep
-               pa_nicet(kk,ii,jj,1:nice) = pa_nicet(kk,ii,jj,1:nice) + &
-                    ( ice(1,1,1:nice)%numc - ice_old(1,1,1:nice)%numc )/pdn(kk,ii,jj)/tstep
-               pa_nsnowt(kk,ii,jj,1:nsnw) = pa_nsnowt(kk,ii,jj,1:nsnw) + &
-                    ( snow(1,1,1:nsnw)%numc - snow_old(1,1,1:nsnw)%numc )/pdn(kk,ii,jj)/tstep
+
+               IF ( level == 5 ) THEN 
+                  pa_nicet(kk,ii,jj,1:nice) = pa_nicet(kk,ii,jj,1:nice) + &
+                       ( ice(1,1,1:nice)%numc - ice_old(1,1,1:nice)%numc )/pdn(kk,ii,jj)/tstep
+                  pa_nsnowt(kk,ii,jj,1:nsnw) = pa_nsnowt(kk,ii,jj,1:nsnw) + &
+                       ( snow(1,1,1:nsnw)%numc - snow_old(1,1,1:nsnw)%numc )/pdn(kk,ii,jj)/tstep
+               END IF
+
                ! Activated droplets
                pa_nactd(kk,ii,jj,1:ncld) = actd(1,1,1:ncld)%numc/pdn(kk,ii,jj)
 
@@ -282,15 +292,18 @@ CONTAINS
                   pa_mprecpt(kk,ii,jj,str:end) = pa_mprecpt(kk,ii,jj,str:end) + &
                        ( precp(1,1,1:nprc)%volc(nc) - precp_old(1,1,1:nprc)%volc(nc) )*spec%rholiq(nc)/pdn(kk,ii,jj)/tstep
 
-                  str = getMassIndex(nice,1,nc)
-                  end = getMassIndex(nice,nice,nc)
-                  pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
-                       ( ice(1,1,1:nice)%volc(nc) - ice_old(1,1,1:nice)%volc(nc) )*spec%rhoice(nc)/pdn(kk,ii,jj)/tstep
 
-                  str = getMassIndex(nsnw,1,nc)
-                  end = getMassIndex(nsnw,nsnw,nc)
-                  pa_msnowt(kk,ii,jj,str:end) = pa_msnowt(kk,ii,jj,str:end) + &
-                       ( snow(1,1,1:nsnw)%volc(nc) - snow_old(1,1,1:nsnw)%volc(nc) )*spec%rhosnow(nc)/pdn(kk,ii,jj)/tstep
+                  IF ( level == 5 ) THEN
+                     str = getMassIndex(nice,1,nc)
+                     end = getMassIndex(nice,nice,nc)
+                     pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
+                          ( ice(1,1,1:nice)%volc(nc) - ice_old(1,1,1:nice)%volc(nc) )*spec%rhoice(nc)/pdn(kk,ii,jj)/tstep
+
+                     str = getMassIndex(nsnw,1,nc)
+                     end = getMassIndex(nsnw,nsnw,nc)
+                     pa_msnowt(kk,ii,jj,str:end) = pa_msnowt(kk,ii,jj,str:end) + &
+                          ( snow(1,1,1:nsnw)%volc(nc) - snow_old(1,1,1:nsnw)%volc(nc) )*spec%rhosnow(nc)/pdn(kk,ii,jj)/tstep
+                  END IF
 
                END DO
 
@@ -318,10 +331,6 @@ CONTAINS
             END DO ! kk
          END DO ! ii
       END DO ! jj
-
-      !WRITE(*,*) 'JALKEEN', SUM(pa_mprecpp(30,3,3,str:end))
-      !WRITE(*,*) 'JALKEEN', pa_nprecpp(30,3,3,1:nprc)
-
 
    END SUBROUTINE run_SALSA
 

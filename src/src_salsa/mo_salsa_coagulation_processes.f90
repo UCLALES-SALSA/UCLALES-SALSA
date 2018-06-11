@@ -19,7 +19,6 @@ MODULE mo_salsa_coagulation_processes
     !
     ! Aerosol coagulation
     ! -----------------------
-    !
     SUBROUTINE coag_aero(kbdim,klev,nspec,ptstep,zccaa,zccca,zccpa,zccia,zccsa)
       
       INTEGER, INTENT(in) :: kbdim,klev,nspec

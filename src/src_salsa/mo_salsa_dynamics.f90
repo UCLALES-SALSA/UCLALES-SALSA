@@ -156,6 +156,12 @@ CONTAINS
       !-- 1) Coagulation to coarse mode calculated in a simplified way: ------------
       !      CoagSink ~ Dp in continuum regime, thus we calculate
       !      'effective' number concentration of coarse particles
+
+      zccaa(:,:,:,:) = 0.; zcccc(:,:,:,:) = 0.; zccca(:,:,:,:) = 0.; zccpc(:,:,:,:) = 0.
+      zccpa(:,:,:,:) = 0.; zccpp(:,:,:,:) = 0.; zccia(:,:,:,:) = 0.; zccic(:,:,:,:) = 0.
+      zccii(:,:,:,:) = 0.; zccip(:,:,:,:) = 0.; zccsa(:,:,:,:) = 0.; zccsc(:,:,:,:) = 0.
+      zccsi(:,:,:,:) = 0.; zccsp(:,:,:,:) = 0.; zccss(:,:,:,:) = 0.
+ 
       
       
       !-- 2) Updating coagulation coefficients -------------------------------------

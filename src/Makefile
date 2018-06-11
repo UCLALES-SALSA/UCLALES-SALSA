@@ -49,9 +49,10 @@ $(OUT): $(OBJS)
 # --------------------
 #
 LES.o: grid.o init.o step.o $(seqmpi:.f90=.o) util.o sgsm.o srfc.o \
-       stat.o forc.o mo_salsa_init.o nudg.o emission_main.o radiation_main.o
+       stat.o forc.o mo_salsa_init.o nudg.o emission_main.o radiation_main.o \
+       mo_salsa_driver.o
 ncio.o: $(seqmpi:.f90=.o)
-util.o: $(seqmpi:.f90=.o) 
+util.o: $(seqmpi:.f90=.o) rfft.o
 defs.o:
 grid.o: ncio.o $(seqmpi:.f90=.o) mo_submctl.o util.o 
 stat.o: ncio.o grid.o util.o defs.o mo_submctl.o $(seqmpi:.f90=.o)

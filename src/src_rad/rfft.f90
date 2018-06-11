@@ -1,18 +1,18 @@
-!c test
-!c---------------------------------------------------------------------
-!c SUBROUTINE FFT2DC: This routine computes the two dimensional 
-!c transform of a complex cubic array of square N and length NZ.
-!c FFT's are done for each square level for k=2->NZ inclusive.  The 
-!c first level is used as a scratch array for storing the transpose
-!c matrix for the second half of the transform.  The code uses
-!c Swartztrauber's fft routines.  ISGN=1 implies the backward 
-!c transform otherwise the forward transform is carried out, 
-!c normalization is done only on the backward transform
-!c
+!
+!---------------------------------------------------------------------
+! SUBROUTINE FFT2DC: This routine computes the two dimensional
+! transform of a complex cubic array of square N and length NZ.
+! FFT's are done for each square level for k=2->NZ inclusive.  The
+! first level is used as a scratch array for storing the transpose
+! matrix for the second half of the transform.  The code uses
+! Swartztrauber's fft routines.  ISGN=1 implies the backward
+! transform otherwise the forward transform is carried out,
+! normalization is done only on the backward transform
+!
       SUBROUTINE FFT2DC_ALT(N,NZ,A,WSAVE,ISGN)
-!c 
-!C In this alternate method we leave A in the transposed array space
-!c
+!
+! In this alternate method we leave A in the transposed array space
+!
       IMPLICIT NONE
       INTEGER N,NZ,ISGN,I,J,K
       REAL WSAVE(4*N+15),FACT
@@ -51,7 +51,7 @@
             DO J=1,N
                CALL CFFTB(N,A(1,J,1),WSAVE)
             ENDDO
-            
+
             DO I=1,N
                DO J=1,N
                   A(I,J,K)=A(I,J,1)*FACT
@@ -61,18 +61,18 @@
       ENDIF
 
       RETURN
-      END 
-!c
-!c---------------------------------------------------------------------
-!c SUBROUTINE FFT2DC: This routine computes the two dimensional 
-!c transform of a complex cubic array of square N and length NZ.
-!c FFT's are done for each square level for k=2->NZ inclusive.  The 
-!c first level is used as a scratch array for storing the transpose
-!c matrix for the second half of the transform.  The code uses
-!c Swartztrauber's fft routines.  ISGN=1 implies the backward 
-!c transform otherwise the forward transform is carried out, 
-!c normalization is done only on the backward transform
-!c
+      END
+!
+!---------------------------------------------------------------------
+! SUBROUTINE FFT2DC: This routine computes the two dimensional
+! transform of a complex cubic array of square N and length NZ.
+! FFT's are done for each square level for k=2->NZ inclusive.  The
+! first level is used as a scratch array for storing the transpose
+! matrix for the second half of the transform.  The code uses
+! Swartztrauber's fft routines.  ISGN=1 implies the backward
+! transform otherwise the forward transform is carried out,
+! normalization is done only on the backward transform
+!
       SUBROUTINE FFT2DC(N,NZ,A,WSAVE,ISGN)
 
       IMPLICIT NONE
@@ -86,7 +86,7 @@
             DO J=1,N
                CALL CFFTF(N,A(1,J,K),WSAVE)
             ENDDO
-         
+
             DO I=1,N
                DO J=1,N
                   A(I,J,1)=A(J,I,K) !transpose
@@ -125,16 +125,16 @@
       ENDIF
 
       RETURN
-      END 
-!c
-!c---------------------------------------------------------------------
-!c SUBROUTINE FFT1DC: This routine computes the fourier transform of 
-!c a complex N element vector defined at NZ levels, for levels 2 --> NZ
-!c inclusive. FFT's are done using Swartztrauber's fft routines.  
-!c ISGN=1 implies the backward transform, otherwise the forward
-!c transform is carried out, normalization is done only on the backward
-!c transform
-!c
+      END
+!
+!---------------------------------------------------------------------
+! SUBROUTINE FFT1DC: This routine computes the fourier transform of
+! a complex N element vector defined at NZ levels, for levels 2 --> NZ
+! inclusive. FFT's are done using Swartztrauber's fft routines.
+! ISGN=1 implies the backward transform, otherwise the forward
+! transform is carried out, normalization is done only on the backward
+! transform
+!
       SUBROUTINE FFT1DC(N,NZ,A,WSAVE,ISGN,FFTINI)
 
       IMPLICIT NONE
@@ -163,9 +163,9 @@
 
       RETURN
       END
-!c
-!c ------------------------------------- Schwartztraubers routines
-!c
+!
+! ------------------------------------- Schwartztraubers routines
+!
       SUBROUTINE CFFTB (N,C,WSAVE)
       DIMENSION       C(*), WSAVE(*)
       IF (N .EQ. 1) RETURN
@@ -376,15 +376,15 @@
       RETURN
       END
       SUBROUTINE PASSB (NAC,IDO,IP,L1,IDL1,CC,C1,C2,CH,CH2,WA)
-      DIMENSION       CH(IDO,L1,IP)          ,CC(IDO,IP,L1)          , &
-                      C1(IDO,L1,IP)          ,WA(*)      ,C2(IDL1,IP), &
-                      CH2(IDL1,IP)
+      DIMENSION       CH(IDO,L1,IP)          ,CC(IDO,IP,L1)          ,  &
+                    C1(IDO,L1,IP)          ,WA(*)      ,C2(IDL1,IP),  &
+                    CH2(IDL1,IP)
       IDOT = IDO/2
       NT = IP*IDL1
       IPP2 = IP+2
       IPPH = (IP+1)/2
       IDP = IP*IDO
-!C
+!
       IF (IDO .LT. L1) GO TO 106
       DO 103 J=2,IPPH
          JC = IPP2-J
@@ -492,8 +492,8 @@
       RETURN
       END
       SUBROUTINE PASSB2 (IDO,L1,CC,CH,WA1)
-      DIMENSION       CC(IDO,2,L1)           ,CH(IDO,L1,2)           , &
-                      WA1(*)
+      DIMENSION       CC(IDO,2,L1)           ,CH(IDO,L1,2)           ,  &
+                     WA1(*)
       IF (IDO .GT. 2) GO TO 102
       DO 101 K=1,L1
          CH(1,K,1) = CC(1,1,K)+CC(1,2,K)
@@ -516,7 +516,7 @@
       END
       SUBROUTINE PASSB3 (IDO,L1,CC,CH,WA1,WA2)
       DIMENSION       CC(IDO,3,L1)           ,CH(IDO,L1,3)           , &
-                      WA1(*)     ,WA2(*)
+                     WA1(*)     ,WA2(*)
       DATA TAUR,TAUI /-.5,.866025403784439/
       IF (IDO .NE. 2) GO TO 102
       DO 101 K=1,L1
@@ -558,7 +558,7 @@
       END
       SUBROUTINE PASSB4 (IDO,L1,CC,CH,WA1,WA2,WA3)
       DIMENSION       CC(IDO,4,L1)           ,CH(IDO,L1,4)           , &
-                      WA1(*)     ,WA2(*)     ,WA3(*)
+                     WA1(*)     ,WA2(*)     ,WA3(*)
       IF (IDO .NE. 2) GO TO 102
       DO 101 K=1,L1
          TI1 = CC(2,1,K)-CC(2,3,K)
@@ -608,10 +608,9 @@
       RETURN
       END
       SUBROUTINE PASSB5 (IDO,L1,CC,CH,WA1,WA2,WA3,WA4)
-      DIMENSION       CC(IDO,5,L1)           ,CH(IDO,L1,5)           , &
-                      WA1(*)     ,WA2(*)     ,WA3(*)     ,WA4(*)
-      DATA TR11,TI11,TR12,TI12 /.309016994374947,.951056516295154, &
-      -.809016994374947,.587785252292473/
+      DIMENSION       CC(IDO,5,L1)           ,CH(IDO,L1,5)           ,   &
+                WA1(*)     ,WA2(*)     ,WA3(*)     ,WA4(*)
+      DATA TR11,TI11,TR12,TI12 /.309016994374947,.951056516295154,-.809016994374947,.587785252292473/
       IF (IDO .NE. 2) GO TO 102
       DO 101 K=1,L1
          TI5 = CC(2,2,K)-CC(2,5,K)
@@ -684,14 +683,14 @@
       END
       SUBROUTINE PASSF (NAC,IDO,IP,L1,IDL1,CC,C1,C2,CH,CH2,WA)
       DIMENSION       CH(IDO,L1,IP)          ,CC(IDO,IP,L1)          , &
-                      C1(IDO,L1,IP)          ,WA(*)      ,C2(IDL1,IP), &
-                      CH2(IDL1,IP)
+                     C1(IDO,L1,IP)          ,WA(*)      ,C2(IDL1,IP),  &
+                     CH2(IDL1,IP)
       IDOT = IDO/2
       NT = IP*IDL1
       IPP2 = IP+2
       IPPH = (IP+1)/2
       IDP = IP*IDO
-!C
+!
       IF (IDO .LT. L1) GO TO 106
       DO 103 J=2,IPPH
          JC = IPP2-J
@@ -800,7 +799,7 @@
       END
       SUBROUTINE PASSF2 (IDO,L1,CC,CH,WA1)
       DIMENSION       CC(IDO,2,L1)           ,CH(IDO,L1,2)           , &
-                      WA1(*)
+                     WA1(*)
       IF (IDO .GT. 2) GO TO 102
       DO 101 K=1,L1
          CH(1,K,1) = CC(1,1,K)+CC(1,2,K)
@@ -823,7 +822,7 @@
       END
       SUBROUTINE PASSF3 (IDO,L1,CC,CH,WA1,WA2)
       DIMENSION       CC(IDO,3,L1)           ,CH(IDO,L1,3)           , &
-                      WA1(*)     ,WA2(*)
+                     WA1(*)     ,WA2(*)
       DATA TAUR,TAUI /-.5,-.866025403784439/
       IF (IDO .NE. 2) GO TO 102
       DO 101 K=1,L1
@@ -865,7 +864,7 @@
       END
       SUBROUTINE PASSF4 (IDO,L1,CC,CH,WA1,WA2,WA3)
       DIMENSION       CC(IDO,4,L1)           ,CH(IDO,L1,4)           , &
-                      WA1(*)     ,WA2(*)     ,WA3(*)
+                     WA1(*)     ,WA2(*)     ,WA3(*)
       IF (IDO .NE. 2) GO TO 102
       DO 101 K=1,L1
          TI1 = CC(2,1,K)-CC(2,3,K)
@@ -916,9 +915,8 @@
       END
       SUBROUTINE PASSF5 (IDO,L1,CC,CH,WA1,WA2,WA3,WA4)
       DIMENSION       CC(IDO,5,L1)           ,CH(IDO,L1,5)           , &
-                      WA1(*)     ,WA2(*)     ,WA3(*)     ,WA4(*)
-      DATA TR11,TI11,TR12,TI12 /.309016994374947,-.951056516295154, &
-      -.809016994374947,-.587785252292473/
+                     WA1(*)     ,WA2(*)     ,WA3(*)     ,WA4(*)
+      DATA TR11,TI11,TR12,TI12 /.309016994374947,-.951056516295154,-.809016994374947,-.587785252292473/
       IF (IDO .NE. 2) GO TO 102
       DO 101 K=1,L1
          TI5 = CC(2,2,K)-CC(2,5,K)
@@ -988,4 +986,4 @@
   103    CONTINUE
   104 CONTINUE
       RETURN
-      END
+END

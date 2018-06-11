@@ -112,7 +112,6 @@ MODULE mo_salsa_coagulation_kernels
     END SUBROUTINE update_coagulation_kernels
 
     ! ----------------------
-
     SUBROUTINE buildKernelSelf( kbdim,klev,nb1,part1,ptemp,ppres,zcc )
       INTEGER, INTENT(in) :: kbdim,klev,nb1
       TYPE(Section), INTENT(in) :: part1(kbdim,klev,nb1)
