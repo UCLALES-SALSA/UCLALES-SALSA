@@ -13,14 +13,14 @@
 
 MODULE mo_salsa_update
    USE classSection
+   USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow
    IMPLICIT NONE
 
 CONTAINS
 
-   SUBROUTINE distr_update(kproma, kbdim, klev, allSALSA, level )
+   SUBROUTINE distr_update(kproma, kbdim, klev, level )
       USE mo_submctl
     
-
       IMPLICIT NONE
 
       !-- Input and output variables ----------
@@ -28,9 +28,7 @@ CONTAINS
          kproma,                    & ! number of horiz. grid points 
          kbdim,                     & ! dimension for arrays
          klev                         ! number of vertical levels
-      
-      TYPE(Section), INTENT(inout) :: allSALSA(kbdim,klev,ntotal)
-
+     
       INTEGER, INTENT(in) :: level                         ! thermodynamical level
 
       !-- Local variables ----------------------

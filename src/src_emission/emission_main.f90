@@ -1,7 +1,8 @@
 MODULE emission_main
   USE mo_seasalt_emission
 
-  USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, aerobins, aero, spec, pi6
+  USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, aerobins, spec, pi6
+  USE mo_salsa_types, ONLY : aero
 
   USE mo_salsa_sizedist, ONLY : size_distribution  ! Could this be packaged somehow differently?
 

@@ -51,7 +51,7 @@ CONTAINS
 
       ! Added for SALSA
       USE mo_salsa_init, ONLY : define_salsa, salsa_initialize
-      USE mo_salsa_driver, ONLY : allSALSA
+      USE mo_salsa_types, ONLY : allSALSA
 
       IMPLICIT NONE
 

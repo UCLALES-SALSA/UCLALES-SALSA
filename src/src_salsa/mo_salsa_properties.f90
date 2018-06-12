@@ -73,8 +73,9 @@ CONTAINS
    SUBROUTINE equilibration(kproma, kbdim, klev,    &
                             prh, ptemp, init )
 
+     USE mo_salsa_types, ONLY : aero
       USE mo_submctl, ONLY : &
-         aero,         &
+         !aero,         &
          spec,         &
          pi6,          & ! pi/6
          in1a, fn1a,   &
