@@ -1,6 +1,5 @@
 MODULE mo_submctl
   USE classSpecies, ONLY : Species, maxspec
-  USE classSection
   USE classProcessSwitch, ONLY : ProcessSwitch
   IMPLICIT NONE
 
@@ -13,21 +12,6 @@ MODULE mo_submctl
      INTEGER :: par  ! Index for corresponding parallel distribution
   END TYPE t_parallelbin
        
-  ! Particle type specific pointers to "allSALSA" master array defined in mo_salsa_driver.
-  ! Pointer association is done in mo_salsa_init. These should be accessed by importin mo_submctl,
-  ! not by dummy arguments.
-  TYPE(Section), POINTER :: aero(:,:,:)  => NULL(),   &
-                            cloud(:,:,:) => NULL(),  &
-                            precp(:,:,:) => NULL(),  &
-                            ice(:,:,:)   => NULL(),    &
-                            snow(:,:,:)  => NULL(),   &
-                            liquid(:,:,:) => NULL(),  &
-                            frozen(:,:,:) => NULL()
-  
-   ! Star and end indices for different particle types in the allSALSA array
-   INTEGER :: iaero, faero, icloud, fcloud, iprecp, fprecp, iice, fice, isnow, fsnow
-
-
   !Switches for SALSA aerosol microphysical processes
 
   INTEGER, PARAMETER :: Nmaster = 7

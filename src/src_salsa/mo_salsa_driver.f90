@@ -1,6 +1,7 @@
 MODULE mo_salsa_driver
   USE classSection, ONLY : Section
   USE util, ONLY : getMassIndex !!! IS it good to import this here??? The function is anyway handy here too.
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow, allSALSA
   USE mo_submctl
   IMPLICIT NONE
 
@@ -21,9 +22,6 @@ MODULE mo_salsa_driver
    INTEGER, PARAMETER :: kbdim = 1
    INTEGER, PARAMETER :: klev = 1
    INTEGER, PARAMETER :: krow = 1
-
-   ! All particle properties for SALSA. All the setup and pointer associations will be done in mo_aero_init
-   TYPE(Section), ALLOCATABLE, TARGET :: allSALSA(:,:,:)   ! Parent array holding all particle and hydrometeor types consecutively 
 
    REAL, PARAMETER    :: init_rh(kbdim,klev) = 0.3
 
@@ -249,8 +247,8 @@ CONTAINS
                CALL salsa(kproma, kbdim,  klev,   krow,     &
                           in_p,   in_rv,  in_rs,  in_rsi,   &
                           in_t,   tstep,  zgso4,  zgocnv,   &
-                          zgocsv, zghno3, zgnh3,  allSALSA, &
-                          actd,   in_w, level               )
+                          zgocsv, zghno3, zgnh3,  actd,     &
+                          in_w,   level                     )
 
                ! Calculate tendencies (convert back to #/kg or kg/kg)
                pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &
@@ -269,7 +267,6 @@ CONTAINS
 
                ! Activated droplets
                pa_nactd(kk,ii,jj,1:ncld) = actd(1,1,1:ncld)%numc/pdn(kk,ii,jj)
-
 
                ! Get mass tendencies
                DO nc = 1,nwet
@@ -291,7 +288,6 @@ CONTAINS
                   end = getMassIndex(nprc,nprc,nc)
                   pa_mprecpt(kk,ii,jj,str:end) = pa_mprecpt(kk,ii,jj,str:end) + &
                        ( precp(1,1,1:nprc)%volc(nc) - precp_old(1,1,1:nprc)%volc(nc) )*spec%rholiq(nc)/pdn(kk,ii,jj)/tstep
-
 
                   IF ( level == 5 ) THEN
                      str = getMassIndex(nice,1,nc)

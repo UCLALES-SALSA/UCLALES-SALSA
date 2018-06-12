@@ -35,9 +35,10 @@ NCDFINC =
 LIBS = 
 F90 = ftn
 MPIF90 = ftn
-#FFLAGS = -O2 -s real64 # -R bcps
-FFLAGS = -O2 -fdefault-real-8 -std=f2008 -fbounds-check
-F77FLAGS = -O2
+FFLAGS = -O2 -s real64 -Onoomp -h flex_mp=strict # -R bcps   # CRAY
+#FFLAGS = -O2 -fp-model precise -real-size 64                 # INTEL
+#FFLAGS = -O2 -fdefault-real-8 -std=f2008 -fbounds-check      # GCA
+F77FLAGS = $(FFLAGS)
 
 LES_OUT_MPI=$(BIN)/les.mpi
 

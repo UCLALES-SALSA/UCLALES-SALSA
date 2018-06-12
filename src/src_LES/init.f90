@@ -778,7 +778,8 @@ CONTAINS
  SUBROUTINE aerosol_init()
 
     USE mo_salsa_sizedist, ONLY : size_distribution
-    USE mo_submctl, ONLY : aero, pi6, nmod, nbins, nspec_dry, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
+    USE mo_salsa_types, ONLY : aero
+    USE mo_submctl, ONLY : pi6, nmod, nbins, nspec_dry, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
                            sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp
     USE mpi_interface, ONLY : myid
     USE util, ONLY : getMassIndex

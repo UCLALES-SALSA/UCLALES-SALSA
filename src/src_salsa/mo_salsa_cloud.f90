@@ -1,6 +1,6 @@
 MODULE mo_salsa_cloud
-  USE mo_submctl, ONLY : aero, cloud, precp, ice, snow,   &
-                         spec
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow
+  USE mo_submctl, ONLY : spec
   IMPLICIT NONE
 
   !*********************************************************
@@ -29,7 +29,7 @@ CONTAINS
                               temp,   pres,  rv,     &
                               rs,     w,     pactd          )
 
-    USE classSection
+    USE classSection, ONLY : Section
     USE mo_submctl, ONLY : ncld, &
          lsactintst, lsactbase
     

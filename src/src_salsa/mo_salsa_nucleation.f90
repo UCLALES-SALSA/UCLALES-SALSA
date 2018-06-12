@@ -76,8 +76,9 @@ CONTAINS
 
     !USE mo_aero_mem_salsa, ONLY: d_jnuc,d_j3 !ALN002
 
+    USE mo_salsa_types, ONLY : aero
     USE mo_submctl,   ONLY:  &
-         aero,                  &
+         !aero,                  &
          act_coeff,              &
          nj3,                    &
          nsnucl,                 &

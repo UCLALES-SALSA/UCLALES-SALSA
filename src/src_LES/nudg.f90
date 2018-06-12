@@ -35,13 +35,14 @@ CONTAINS
   ! Procedures bound to t_nudge
   ! ------------------------------
   !  
-  FUNCTION f_tau(SELF,t)
+  REAL FUNCTION f_tau(SELF,t)
     IMPLICIT NONE
     CLASS(t_nudge) :: SELF
     REAL, INTENT(in) :: t
-    REAL :: f_tau
 
     CHARACTER(len=50), PARAMETER :: name = "f_tau"
+
+    f_tau = 0.
 
     SELECT CASE(SELF%tau_type)
        CASE(0)

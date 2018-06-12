@@ -1,9 +1,10 @@
 MODULE mo_salsa_coagulation_processes
-  USE mo_submctl, ONLY : aero, in1a, fn1a, in2a, fn2a, in2b, fn2b, nbins,  &
-                         cloud, ica, fca, icb, fcb, ncld,                  &
-                         precp, nprc,                                      &
-                         ice, iia, fia, iib, fib, nice,                    &
-                         snow, nsnw,                              &
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow
+  USE mo_submctl, ONLY : in1a, fn1a, in2a, fn2a, in2b, fn2b, nbins,  &
+                         ica, fca, icb, fcb, ncld,                  &
+                         nprc,                                      &
+                         iia, fia, iib, fib, nice,                    &
+                         nsnw,                              &
                          lscgaa, lscgcc, lscgpp, lscgii, lscgss,  &
                          lscgca, lscgpa, lscgia, lscgsa,          &
                          lscgpc, lscgic, lscgsc,                  &
@@ -12,7 +13,6 @@ MODULE mo_salsa_coagulation_processes
                          spec
   USE classSection, ONLY : Section
   IMPLICIT NONE
-
 
   CONTAINS
 
@@ -576,7 +576,7 @@ MODULE mo_salsa_coagulation_processes
          ! Volume gained from aerosol
          IF (lscgsa) &
               CALL accumulateSourcePhaseChange(kbdim,klev,nsnw,nbins,ndry,iwa,kk,in1a,fn2b,  &
-                                               rhosn,rhowa,zccss,aero,zplusterm)
+                                               rhosn,rhowa,zccsa,aero,zplusterm)
          
          ! Volume gained from cloud droplets
          IF (lscgsc) &
@@ -602,8 +602,6 @@ MODULE mo_salsa_coagulation_processes
       END DO
      
     END SUBROUTINE coag_snow
-
-
 
     ! -----------------------------------------------------------------
 
