@@ -446,26 +446,16 @@ MODULE classSpecies
       CLASS(Species), INTENT(in) :: SELF
       CHARACTER(len=3), INTENT(in), OPTIONAL :: type
 
-      LOGICAL :: switch
-
       IF (PRESENT(type)) THEN
          IF (type == 'wet') THEN
-            switch = .TRUE.
+            getNSpec = SELF%Nused
          ELSE IF (type == 'dry') THEN
-            switch = .FALSE.
+            getNSpec = SELF%Nused - 1
          ELSE
             STOP "getNSpec: Bad type option"
          END IF
       ELSE
-         switch = .TRUE.
-      END IF
-
-      IF (switch) THEN
-         ! include water
          getNSpec = SELF%Nused
-      ELSE
-         ! Include only aerosol
-         getNSpec = SELF%Nused - 1
       END IF
         
     END FUNCTION getNSpec

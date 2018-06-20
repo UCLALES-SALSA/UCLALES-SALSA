@@ -1,6 +1,7 @@
 MODULE mo_salsa_driver
   USE classSection, ONLY : Section
   USE util, ONLY : getMassIndex !!! IS it good to import this here??? The function is anyway handy here too.
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow, allSALSA
   USE mo_submctl
   IMPLICIT NONE
 
@@ -21,9 +22,6 @@ MODULE mo_salsa_driver
    INTEGER, PARAMETER :: kbdim = 1
    INTEGER, PARAMETER :: klev = 1
    INTEGER, PARAMETER :: krow = 1
-
-   ! All particle properties for SALSA. All the setup and pointer associations will be done in mo_aero_init
-   TYPE(Section), ALLOCATABLE, TARGET :: allSALSA(:,:,:)   ! Parent array holding all particle and hydrometeor types consecutively 
 
    REAL, PARAMETER    :: init_rh(kbdim,klev) = 0.3
 
@@ -93,7 +91,7 @@ CONTAINS
                              pa_nprecpp(pnz,pnx,pny,nprc),        & ! Rain drop number concentration (# kg-1)
                              pa_mprecpp(pnz,pnx,pny,n4*nprc),     & ! Rain drop mass concentration (kg kg-1)
                              pa_nicep(pnz,pnx,pny,nice),          & ! ice number concentration (# kg-1)
-                             pa_micep(pnz,pnx,pny,n4*nice),       & ! ice mass concentration (kg kg-1)
+                             pa_micep(pnz,pnx,pny,(n4+1)*nice),       & ! ice mass concentration (kg kg-1)
                              pa_nsnowp(pnz,pnx,pny,nsnw),         & ! snow number concentration (# kg-1)
                              pa_msnowp(pnz,pnx,pny,n4*nsnw)        ! snow mass concentration (kg kg-1)
 
@@ -109,7 +107,7 @@ CONTAINS
                              pa_nprecpt(pnz,pnx,pny,nprc),      & ! Rain drop number tendency
                              pa_mprecpt(pnz,pnx,pny,n4*nprc),   &  ! Rain drop mass tendency
                              pa_nicet(pnz,pnx,pny,nice),        & ! Ice particle number tendency
-                             pa_micet(pnz,pnx,pny,n4*nice),     & ! Ice particle mass tendency
+                             pa_micet(pnz,pnx,pny,(n4+1)*nice),     & ! Ice particle mass tendency
                              pa_nsnowt(pnz,pnx,pny,nsnw),       & ! snow flake number tendency
                              pa_msnowt(pnz,pnx,pny,n4*nsnw)     ! snow flake mass tendecy
 
@@ -139,8 +137,10 @@ CONTAINS
       aero_old(:,:,:) = Section(1,nlim,dlaero)
       cloud_old(:,:,:) = Section(2,nlim,dlcloud)
       precp_old(:,:,:) = Section(3,prlim,dlprecp)
-      ice_old(:,:,:) = Section(4,prlim,dlice)
-      snow_old(:,:,:) = Section(5,prlim,dlsnow)
+      IF (level == 5) THEN
+         ice_old(:,:,:) = Section(4,prlim,dlice)
+         snow_old(:,:,:) = Section(5,prlim,dlsnow)
+      END IF
 
       str = getMassIndex(nprc,1,nwet)
       end = getMassIndex(nprc,nprc,nwet)
@@ -183,14 +183,26 @@ CONTAINS
                   end = getMassIndex(nprc,nprc,nc)
                   precp(1,1,1:nprc)%volc(nc) = pa_mprecpp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nc)
 
-                  str = getMassIndex(nice,1,nc)
-                  end = getMassIndex(nice,nice,nc)
-                  ice(1,1,1:nice)%volc(nc) = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhoice(nc)
-
-                  str = getMassIndex(nsnw,1,nc)
-                  end = getMassIndex(nsnw,nsnw,nc)
-                  snow(1,1,1:nsnw)%volc(nc) = pa_msnowp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhosnow(nc)
+                  IF (level == 5) THEN
+                     str = getMassIndex(nice,1,nc)
+                     end = getMassIndex(nice,nice,nc)
+                     ice(1,1,1:nice)%volc(nc) = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhoice(nc)
+                     
+                     str = getMassIndex(nsnw,1,nc)
+                     end = getMassIndex(nsnw,nsnw,nc)
+                     snow(1,1,1:nsnw)%volc(nc) = pa_msnowp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhosnow(nc)
+                  ELSE
+                     ice(1,1,1:nice)%volc(nc) = 0.
+                     snow(1,1,1:nsnw)%volc(nc) = 0.
+                  END IF
                END DO
+               ! RIME FOR ICE
+               IF (level == 5) THEN
+                  str = getMassIndex(nice,1,nwet+1)
+                  end = getMassIndex(nice,nice,nwet+1) ! PITÄIS PÄIVITTÄÄ JÄÄN KESKITIHEYS EKA JA KÄYTTÄÄ SITÄ MYÖS PRISTINE JÄÄLLE
+                  ice(1,1,1:nice)%vrime = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhori
+               END IF
+
                ! -------------------------------
                
                ! Update number concentrations and particle sizes
@@ -201,6 +213,9 @@ CONTAINS
                IF (level > 4) THEN
                   ice(1,1,1:nice)%numc = pa_nicep(kk,ii,jj,1:nice)*pdn(kk,ii,jj)
                   snow(1,1,1:nsnw)%numc = pa_nsnowp(kk,ii,jj,1:nsnw)*pdn(kk,ii,jj)
+               ELSE
+                  ice(1,1,1:nice)%numc = 0.
+                  snow(1,1,1:nsnw)%numc = 0.
                END IF
 
                ! Need the number of dry species below
@@ -218,7 +233,7 @@ CONTAINS
                
                ! Take a copy of current concentrations to convert to tendencies after SALSA call
                aero_old = aero; cloud_old = cloud; precp_old = precp
-               IF (level > 4) THEN
+               IF (level == 5) THEN
                   ice_old = ice; snow_old = snow
                END IF
         
@@ -239,8 +254,8 @@ CONTAINS
                CALL salsa(kproma, kbdim,  klev,   krow,     &
                           in_p,   in_rv,  in_rs,  in_rsi,   &
                           in_t,   tstep,  zgso4,  zgocnv,   &
-                          zgocsv, zghno3, zgnh3,  allSALSA, &
-                          actd,   in_w, level               )
+                          zgocsv, zghno3, zgnh3,  actd,     &
+                          in_w,   level                     )
 
                ! Calculate tendencies (convert back to #/kg or kg/kg)
                pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &
@@ -249,13 +264,16 @@ CONTAINS
                     ( cloud(1,1,1:ncld)%numc - cloud_old(1,1,1:ncld)%numc )/pdn(kk,ii,jj)/tstep
                pa_nprecpt(kk,ii,jj,1:nprc) = pa_nprecpt(kk,ii,jj,1:nprc) + &
                     ( precp(1,1,1:nprc)%numc - precp_old(1,1,1:nprc)%numc )/pdn(kk,ii,jj)/tstep
-               pa_nicet(kk,ii,jj,1:nice) = pa_nicet(kk,ii,jj,1:nice) + &
-                    ( ice(1,1,1:nice)%numc - ice_old(1,1,1:nice)%numc )/pdn(kk,ii,jj)/tstep
-               pa_nsnowt(kk,ii,jj,1:nsnw) = pa_nsnowt(kk,ii,jj,1:nsnw) + &
-                    ( snow(1,1,1:nsnw)%numc - snow_old(1,1,1:nsnw)%numc )/pdn(kk,ii,jj)/tstep
+
+               IF ( level == 5 ) THEN 
+                  pa_nicet(kk,ii,jj,1:nice) = pa_nicet(kk,ii,jj,1:nice) + &
+                       ( ice(1,1,1:nice)%numc - ice_old(1,1,1:nice)%numc )/pdn(kk,ii,jj)/tstep
+                  pa_nsnowt(kk,ii,jj,1:nsnw) = pa_nsnowt(kk,ii,jj,1:nsnw) + &
+                       ( snow(1,1,1:nsnw)%numc - snow_old(1,1,1:nsnw)%numc )/pdn(kk,ii,jj)/tstep
+               END IF
+
                ! Activated droplets
                pa_nactd(kk,ii,jj,1:ncld) = actd(1,1,1:ncld)%numc/pdn(kk,ii,jj)
-
 
                ! Get mass tendencies
                DO nc = 1,nwet
@@ -278,17 +296,28 @@ CONTAINS
                   pa_mprecpt(kk,ii,jj,str:end) = pa_mprecpt(kk,ii,jj,str:end) + &
                        ( precp(1,1,1:nprc)%volc(nc) - precp_old(1,1,1:nprc)%volc(nc) )*spec%rholiq(nc)/pdn(kk,ii,jj)/tstep
 
-                  str = getMassIndex(nice,1,nc)
-                  end = getMassIndex(nice,nice,nc)
-                  pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
-                       ( ice(1,1,1:nice)%volc(nc) - ice_old(1,1,1:nice)%volc(nc) )*spec%rhoice(nc)/pdn(kk,ii,jj)/tstep
+                  IF ( level == 5 ) THEN
+                     str = getMassIndex(nice,1,nc)
+                     end = getMassIndex(nice,nice,nc)
+                     pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
+                          ( ice(1,1,1:nice)%volc(nc)*ice(1,1,1:nice)%rhomean -   &
+                            ice_old(1,1,1:nice)%volc(nc)*ice(1,1,1:nice)%rhomean )/pdn(kk,ii,jj)/tstep  
 
-                  str = getMassIndex(nsnw,1,nc)
-                  end = getMassIndex(nsnw,nsnw,nc)
-                  pa_msnowt(kk,ii,jj,str:end) = pa_msnowt(kk,ii,jj,str:end) + &
-                       ( snow(1,1,1:nsnw)%volc(nc) - snow_old(1,1,1:nsnw)%volc(nc) )*spec%rhosnow(nc)/pdn(kk,ii,jj)/tstep
+                     str = getMassIndex(nsnw,1,nc)
+                     end = getMassIndex(nsnw,nsnw,nc)
+                     pa_msnowt(kk,ii,jj,str:end) = pa_msnowt(kk,ii,jj,str:end) + &
+                          ( snow(1,1,1:nsnw)%volc(nc) - snow_old(1,1,1:nsnw)%volc(nc) )*spec%rhosnow(nc)/pdn(kk,ii,jj)/tstep
+                  END IF
 
                END DO
+
+               ! Rimed ice
+               IF ( level == 5 ) THEN
+                  str = getMassIndex(nice,1,nwet+1)
+                  end = getMassIndex(nice,nice,nwet+1)
+                  pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
+                       ( ice(1,1,1:nice)%vrime - ice_old(1,1,1:nice)%vrime )*spec%rhori/pdn(kk,ii,jj)/tstep
+               END IF
 
                IF (lscndgas) THEN
                   pa_gaerot(kk,ii,jj,1) = pa_gaerot(kk,ii,jj,1) + &

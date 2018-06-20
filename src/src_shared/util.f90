@@ -648,5 +648,24 @@ CONTAINS
      END IF
    END FUNCTION calc_correlation
    
+  !
+  ! -----------------------------------------------------------------
+  !
+  REAL FUNCTION cumlognorm(dg,sigmag,dpart)
+    
+    IMPLICIT NONE
+    ! Cumulative lognormal function
+    REAL, INTENT(in) :: dg
+    REAL, INTENT(in) :: sigmag
+    REAL, INTENT(in) :: dpart
+    
+    REAL :: hlp1,hlp2
+    
+    hlp1 = ( LOG(dpart) - LOG(dg) )
+    hlp2 = SQRT(2.)*LOG(sigmag)
+    cumlognorm = 0.5 + 0.5*ERF( hlp1/hlp2 )
+    
+  END FUNCTION cumlognorm
+
 
 END MODULE util

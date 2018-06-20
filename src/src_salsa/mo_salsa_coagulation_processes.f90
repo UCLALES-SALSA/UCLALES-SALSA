@@ -1,9 +1,10 @@
 MODULE mo_salsa_coagulation_processes
-  USE mo_submctl, ONLY : aero, in1a, fn1a, in2a, fn2a, in2b, fn2b, nbins,  &
-                         cloud, ica, fca, icb, fcb, ncld,                  &
-                         precp, nprc,                                      &
-                         ice, iia, fia, iib, fib, nice,                    &
-                         snow, nsnw,                              &
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow
+  USE mo_submctl, ONLY : in1a, fn1a, in2a, fn2a, in2b, fn2b, nbins,  &
+                         ica, fca, icb, fcb, ncld,                  &
+                         nprc,                                      &
+                         iia, fia, iib, fib, nice,                    &
+                         nsnw,                              &
                          lscgaa, lscgcc, lscgpp, lscgii, lscgss,  &
                          lscgca, lscgpa, lscgia, lscgsa,          &
                          lscgpc, lscgic, lscgsc,                  &
@@ -13,13 +14,11 @@ MODULE mo_salsa_coagulation_processes
   USE classSection, ONLY : Section
   IMPLICIT NONE
 
-
   CONTAINS
 
     !
     ! Aerosol coagulation
     ! -----------------------
-    !
     SUBROUTINE coag_aero(kbdim,klev,nspec,ptstep,zccaa,zccca,zccpa,zccia,zccsa)
       
       INTEGER, INTENT(in) :: kbdim,klev,nspec
@@ -447,7 +446,6 @@ MODULE mo_salsa_coagulation_processes
          zminusterm(:,:) = 0.
          zplusterm(:,:,:) = 0.
          
-
          ! Corresponding index for ice in regime b
          index_b = iib%cur + (kk-iia%cur)
          
@@ -587,7 +585,7 @@ MODULE mo_salsa_coagulation_processes
          ! Volume gained from aerosol
          IF (lscgsa) &
               CALL accumulateSourcePhaseChange(kbdim,klev,nsnw,nbins,ndry,iwa,kk,in1a,fn2b,  &
-                                               rhosn,rhowa,zccss,aero,zplusterm)
+                                               rhosn,rhowa,zccsa,aero,zplusterm)
          
          ! Volume gained from cloud droplets
          IF (lscgsc) &
@@ -668,7 +666,7 @@ MODULE mo_salsa_coagulation_processes
 
             ! Apply the changes in ice. To account for the density variabilities, convert to mass concentrations using the particles' 
             ! mean ice density for the total ice bulk volume and bulk rime density for the rime volume
-            mtrgt_t = part(ii,jj,itrgt)%volc(nspec)*part(ii,jj,itrgt)%rhoimean
+            mtrgt_t = part(ii,jj,itrgt)%volc(iwa)*part(ii,jj,itrgt)%rhomean
             mtrgt_r = part(ii,jj,itrgt)%vrime*rhorime
 
             ! Check
@@ -688,10 +686,10 @@ MODULE mo_salsa_coagulation_processes
             
             ! Convert back to volume concentrations
             part(ii,jj,itrgt)%vrime = mtrgt_r/rhorime
-            part(ii,jj,itrgt)%volc(nspec) = ( (mtrgt_t-mtrgt_r)/rhoic ) + ( mtrgt_r/rhorime )
+            part(ii,jj,itrgt)%volc(iwa) = ( (mtrgt_t-mtrgt_r)/rhoic ) + ( mtrgt_r/rhorime )
 
             ! Update the mean particle density
-            CALL part(ii,jj,itrgt)%updateRhomean(rhoic,rhorime,iwa)
+            CALL part(ii,jj,itrgt)%updateRhomean()
 
             ! Apply the sink term for number concentration
             part(ii,jj,itrgt)%numc = part(ii,jj,itrgt)%numc / ( 1. + ptstep*sink(ii,jj) )
@@ -900,7 +898,7 @@ MODULE mo_salsa_coagulation_processes
          DO jj = 1,klev
             DO ii = 1,kbdim
                source(1:ndry,ii,jj) = source(1:ndry,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:ndry)
-               source(iwa,ii,jj) = source(iwa,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*coll(ii,jj,ll)%rhoimean/rhotrgt
+               source(iwa,ii,jj) = source(iwa,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*coll(ii,jj,ll)%rhomean/rhotrgt
                source_rime(ii,jj) = source_rime(ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%vrime*rhorime/rhotrgt
             END DO
          END DO

@@ -452,7 +452,7 @@ CONTAINS
                   IF ( a_nicep(kk,ii,jj,cc)+a_nicet(kk,ii,jj,cc)*dtlt < 0. ) THEN
 
                      a_nicet(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nicep(kk,ii,jj,cc))/dtlt,a_nicet(kk,ii,jj,cc))
-                     DO ni = 1, nn
+                     DO ni = 1, nn + 1 ! nn + 1 for RIME
                         a_micet(kk,ii,jj,(ni-1)*ncld+cc) = MAX( ((1.e-10-1.0)*a_micep(kk,ii,jj,(ni-1)*nice+cc))/dtlt,  &
                                                                a_micet(kk,ii,jj,(ni-1)*nice+cc) )
                      END DO
@@ -787,9 +787,9 @@ CONTAINS
              ! Ice
              IF (level<5) CYCLE
              DO bc = 1,nice
-                IF (a_nicep(k,i,j,bc) > 0. .AND. SUM(a_micep(k,i,j,bc:getMassIndex(nice,bc,nn):nice)) <= 0.) THEN
-                   a_nicep(k,i,j,bc) = 0.
-                   a_micep(k,i,j,bc:getMassIndex(nice,bc,nn):nice) = 0.
+                IF (a_nicep(k,i,j,bc) > 0. .AND. SUM(a_micep(k,i,j,bc:getMassIndex(nice,bc,nn):nice)) <= 0.) THEN  ! Not RIME here because its a subset of total ice 
+                   a_nicep(k,i,j,bc) = 0. 
+                   a_micep(k,i,j,bc:getMassIndex(nice,bc,nn):nice) = 0.   ! No RIME here because total ice
                 END IF
              END DO ! ncld
 
@@ -930,12 +930,12 @@ CONTAINS
              DO bc = iia%cur,fib%cur
 
                 IF ( a_nicep(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 .AND.   &
-                     a_micep(k,i,j,getMassIndex(nice,bc,nn)) < 1.e-15 ) THEN
+                     a_micep(k,i,j,getMassIndex(nice,bc,nn)) < 1.e-15 ) THEN     ! No RIME here because total ice
 
                    ! Ice and snow don't have a critical size, but lose particles when water content becomes low enough or size is < 2e-6m
                    
                    ! Diameter
-                   cd = SUM( a_micep(k,i,j,bc:getMassIndex(nice,bc,nn):nice)/spec%rhoice(1:nn) ) / &
+                   cd = SUM( a_micep(k,i,j,bc:getMassIndex(nice,bc,nn):nice)/spec%rhoice(1:nn) ) / &   ! SHOULD TAKE RIME INTO ACCOUNT
                         a_nicep(k,i,j,bc)
                    cd = (cd/pi6)**(1./3.)
 
@@ -962,6 +962,10 @@ CONTAINS
                          a_maerop(k,i,j,sa) = a_maerop(k,i,j,sa) + a_micep(k,i,j,sc)
                          a_micep(k,i,j,sc) = 0.
                       END DO
+                      ! REMOVE ALSO RIME MATERIAL; MASS MOVED ALREADY TO AEROSOLS WITH TOTAL ICE
+                      s = nn+1
+                      sc = getMassIndex(nice,bc,s)
+                      a_micep(k,i,j,sc) = 0.
                    END IF
 
                 END IF  ! prlim

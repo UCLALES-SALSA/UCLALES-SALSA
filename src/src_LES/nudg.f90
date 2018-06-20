@@ -39,7 +39,6 @@ CONTAINS
     IMPLICIT NONE
     CLASS(t_nudge) :: SELF
     REAL, INTENT(in) :: t
-    !REAL :: f_tau
 
     CHARACTER(len=50), PARAMETER :: name = "f_tau"
 

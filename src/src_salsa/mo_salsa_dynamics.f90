@@ -94,17 +94,11 @@ CONTAINS
    !---------------------------------------------------------------------
 
 
-   SUBROUTINE coagulation(kproma,kbdim,klev, &
-                          allSALSA,ptstep,   &
-                          ptemp,ppres        )
+   SUBROUTINE coagulation(kproma,kbdim,klev,   &
+                          ptstep,ptemp,ppres   )
 
-      USE classSection, ONLY : Section
-      USE mo_submctl, ONLY: nlim,prlim,ntotal,     &
-                            nbins,ncld,nprc,nice,  &
-                            nsnw,spec,             &
-                            aero, cloud,           &
-                            precp, ice,            &
-                            snow,                  &
+     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow
+      USE mo_submctl, ONLY: ntotal,nbins,ncld,nprc,nice,nsnw,spec,   &
                             lscgaa, lscgcc, lscgpp, lscgii, lscgss,  &
                             lscgca, lscgpa, lscgia, lscgsa,          &
                             lscgpc, lscgic, lscgsc,                  &
@@ -123,9 +117,6 @@ CONTAINS
          kproma,                    & ! number of horiz. grid kproma
          kbdim,                     & ! dimension for arrays
          klev                         ! number of vertical klev
-
-      TYPE(Section), INTENT(inout) :: &
-         allSALSA(kbdim,klev,ntotal)  ! Size distributions for all particle types
 
       REAL, INTENT(IN) ::         &
          ptstep,                    & ! time step [s]
@@ -156,8 +147,12 @@ CONTAINS
       !-- 1) Coagulation to coarse mode calculated in a simplified way: ------------
       !      CoagSink ~ Dp in continuum regime, thus we calculate
       !      'effective' number concentration of coarse particles
-      
-      
+
+      zccaa(:,:,:,:) = 0.; zcccc(:,:,:,:) = 0.; zccca(:,:,:,:) = 0.; zccpc(:,:,:,:) = 0.
+      zccpa(:,:,:,:) = 0.; zccpp(:,:,:,:) = 0.; zccia(:,:,:,:) = 0.; zccic(:,:,:,:) = 0.
+      zccii(:,:,:,:) = 0.; zccip(:,:,:,:) = 0.; zccsa(:,:,:,:) = 0.; zccsc(:,:,:,:) = 0.
+      zccsi(:,:,:,:) = 0.; zccsp(:,:,:,:) = 0.; zccss(:,:,:,:) = 0.
+ 
       !-- 2) Updating coagulation coefficients -------------------------------------
       
       nspec = spec%getNSpec()
@@ -263,24 +258,15 @@ CONTAINS
    !
    !---------------------------------------------------------------
 
-   SUBROUTINE condensation(kproma,  kbdim,  klev,   krow,      &
-                           level,allSALSA,                           &
-                           pcsa,                               &
-                           pcocnv,  pcocsv, pchno3, pcnh3,     &
-                           prv,prs, prsi,ptemp,  ppres,  ptstep,    &
-                           ppbl)
+   SUBROUTINE condensation(kproma,  kbdim,  klev,    krow,      &
+                           level,   pcsa,   pcocnv,  pcocsv,    &
+                           pchno3,  pcnh3,  prv,prs, prsi,      &
+                           ptemp,   ppres,  ptstep,  ppbl       )
 
       USE mo_salsa_nucleation
-      USE classSection
       USE mo_submctl, ONLY :      &
-         !fn2b,                      &
-         !nbins,ncld,nprc,                 &
-         !nice,nsnw,
-         ntotal,           &
          lscndgas,                  & 
          lscndh2oae, lscndh2ocl, lscndh2oic, & ! Condensation to aerosols, clouds and ice particles
-         !aero,cloud,precp,ice,snow,    &
-         !spec,                         &
          nsnucl                     ! nucleation
 
       IMPLICIT NONE
@@ -310,9 +296,6 @@ CONTAINS
          pchno3(kbdim,klev),       & ! nitric acid concentration [#/m3]
          pcnh3(kbdim,klev)           ! ammonia concentration [#/m3]
 
-      TYPE(Section), INTENT(inout) :: &
-           allSALSA(kbdim,klev,ntotal)
-
       REAL :: zj3n3(kbdim,klev,2),        & ! Formation massrate of molecules in nucleation, [molec/m3s].  (kbdim,klev,1) for H2SO4 and (kbdim,klev,2) for Organic vapor
               zxsa(kbdim,klev),           & ! ratio of sulphuric acid and organic vapor in 3nm particles
               zxocnv(kbdim,klev),         &
@@ -333,16 +316,14 @@ CONTAINS
 
       ! Condensation of H2SO4 and organic vapors
       IF (lscndgas) CALL condgas(kproma,  kbdim,  klev,    krow,      &
-                                 allSALSA,                            &
                                  pcsa, pcocnv, pcocsv,     &
                                  zxsa, ptemp,  ppres, ptstep )
 
       ! Condensation of water vapour
       IF (lscndh2ocl .OR. lscndh2oae .OR. lscndh2oic) &
-         CALL gpparth2o(kproma, kbdim, klev, krow,  &
-                        level,allSALSA,                       &
-                        ptemp, ppres, prs, prsi, prv,     &
-                        ptstep)
+         CALL gpparth2o(kproma, kbdim, klev,  krow,  &
+                        level,  ptemp, ppres, prs,   &
+                        prsi,   prv,   ptstep        )
 
    END SUBROUTINE condensation
 
@@ -351,12 +332,10 @@ CONTAINS
    !
 
    SUBROUTINE condgas(kproma,  kbdim,  klev,    krow,      &
-                      allSALSA,                           &
-                      pcsa,                               &
-                      pcocnv,  pcocsv,      &
-                      zxsa,ptemp,  ppres,  ptstep )
+                      pcsa,    pcocnv, pcocsv,  zxsa,      &
+                      ptemp,   ppres,  ptstep              )
 
-      USE classSection
+     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow, allSALSA
       USE mo_submctl, ONLY :      &
          pi,                        &
          in1a, in2a,                & ! size bin indices
@@ -373,7 +352,6 @@ CONTAINS
          pstand,                    & ! standard pressure [Pa]
          mvsu, mvoc,                & ! molecular volumes of sulphate and OC [m3]
          spec,                      &
-         aero,cloud,precp,ice,snow, &
          d_sa,                      & ! diameter of H2SO4 molecule [m]
          massacc,                   & ! mass accomodation coefficients in each bin
          n3                           ! number of molecules in one 3 nm particle [1]
@@ -397,10 +375,6 @@ CONTAINS
          pcocnv(kbdim,klev),       & ! non-volatile organic concentration [#/m3]
          pcocsv(kbdim,klev),       & ! semivolatile organic concentration [#/m3]
          zxsa(kbdim,klev)            ! ratio of sulphuric acid and organic vapor in 3nm particles
-
-      TYPE(Section), INTENT(inout) :: &
-           allSALSA(kbdim,klev,ntotal)
-
 
       !-- Local variables ----------------------
       INTEGER :: ii, jj    ! loop indices
@@ -723,32 +697,29 @@ CONTAINS
    ! ----------------------------------------------------------------------------------------------------------
    !
 
-   SUBROUTINE gpparth2o(kproma, kbdim,  klev, krow,  &
-                        level,allSALSA,               &
-                        ptemp,  ppres,  prs,prsi, prv,    &
-                        ptstep)
+   SUBROUTINE gpparth2o(kproma, kbdim,  klev,  krow,     &
+                        level,  ptemp,  ppres,           & 
+                        prs,    prsi,   prv,   ptstep    )
     
-      USE classSection
-      USE mo_submctl, ONLY : nbins, ncld, nprc,    &
-                             nice, nsnw, ntotal,            &
-                             spec,                           &
-                             mair,                         &
-                             aero,cloud,precp,ice,snow,   &
-                             surfw0, surfi0, rg,           &
-                             pi, pi6, prlim, nlim,      &
-                             massacc, avog,  &
-                             in1a, in2a,  &
-                             fn2b,            &
-                             lscndh2oae, lscndh2ocl, lscndh2oic, &
-                             alv, als 
-      USE mo_salsa_properties, ONLY : equilibration
-      IMPLICIT NONE
+     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow, allSALSA
+     USE mo_submctl, ONLY : nbins, ncld, nprc,    &
+          nice, nsnw, ntotal,            &
+          spec,                           &
+          mair,                         &
+          surfw0, surfi0, rg,           &
+          pi, pi6, prlim, nlim,      &
+          massacc, avog,  &
+          in1a, in2a,  &
+          fn2b,            &
+          lscndh2oae, lscndh2ocl, lscndh2oic, &
+          alv, als 
+     USE mo_salsa_properties, ONLY : equilibration
+     IMPLICIT NONE
 
       INTEGER, INTENT(in) :: kproma,kbdim,klev,krow
       INTEGER, INTENT(in) :: level
       REAL, INTENT(in) :: ptstep
       REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev)
-      TYPE(Section), INTENT(inout) :: allSALSA(kbdim,klev,ntotal)
 
       REAL, INTENT(inout) :: prv(kbdim,klev)
 
@@ -845,12 +816,16 @@ CONTAINS
             zmtae(:) = 0.
             zcwsurfae(:) = 0.
 
+            ! Update particle diameters
+            DO cc = 1,ntotal
+               CALL allSALSA(ii,jj,cc)%updateDiameter(limit=.TRUE.)
+            END DO
+
+
             ! Cloud droplets --------------------------------------------------------------------------------
             DO cc = 1, ncld
                IF (cloud(ii,jj,cc)%numc > nlim .AND. lscndh2ocl) THEN
                   ! Wet diameter
-                  CALL cloud(ii,jj,cc)%updateDiameter(limit=.TRUE.)
-                  !dwet = ( SUM(cloud(ii,jj,cc)%volc(1:nspec))/cloud(ii,jj,cc)%numc/pi6 )**(1./3.)
                   dwet = cloud(ii,jj,cc)%dwet
 
                   ! Activity + Kelvin effect
@@ -882,8 +857,6 @@ CONTAINS
             DO cc = 1, nprc
                IF (precp(ii,jj,cc)%numc > prlim .AND. lscndh2ocl) THEN
                   ! Wet diameter
-                  CALL precp(ii,jj,cc)%updateDiameter(limit=.TRUE.)
-                  !dwet = ( SUM(precp(ii,jj,cc)%volc(1:nspec))/precp(ii,jj,cc)%numc/pi6 )**(1./3.)
                   dwet = precp(ii,jj,cc)%dwet
 
                   ! Activity + Kelvin effect
@@ -914,8 +887,7 @@ CONTAINS
             ! Ice particles --------------------------------------------------------------------------------
             DO cc = 1, nice
                IF (ice(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
-                  !dwet=dwice(cc)
-                  CALL ice(ii,jj,cc)%updateDiameter(limit=.TRUE.)
+                  ! Wet diameter
                   dwet = ice(ii,jj,cc)%dwet
                   
                   ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
@@ -953,8 +925,7 @@ CONTAINS
             ! Snow particles --------------------------------------------------------------------------------
             DO cc = 1, nsnw
                IF (snow(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
-                  !dwet=dwsnow(cc)
-                  CALL snow(ii,jj,cc)%updateDiameter(limit=.TRUE.)
+                  ! Wet diameter
                   dwet = snow(ii,jj,cc)%dwet
 
                   ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
@@ -992,8 +963,6 @@ CONTAINS
             DO cc = 1, nbins
                IF (aero(ii,jj,cc)%numc > nlim .AND. zrh(ii,jj) > 0.98 .AND. lscndh2oae) THEN
                   ! Wet diameter
-                  CALL aero(ii,jj,cc)%updateDiameter(limit=.TRUE.)
-                  !dwet = ( SUM(aero(ii,jj,cc)%volc(1:nspec))/aero(ii,jj,cc)%numc/pi6 )**(1./3.)
                   dwet = aero(ii,jj,cc)%dwet
 
                   ! Water activity + Kelvin effect
@@ -1135,6 +1104,11 @@ CONTAINS
             ice(ii,jj,1:nice)%volc(iwa) = max(0.,zcwnid(1:nice)*spec%mwa/spec%rhoic)
             snow(ii,jj,1:nsnw)%volc(iwa) = max(0.,zcwnsd(1:nsnw)*spec%mwa/spec%rhosn)
 
+            DO cc = 1,ntotal
+               IF (allSALSA(ii,jj,cc)%numc > allSALSA(ii,jj,cc)%nlim) &
+                    CALL allSALSA(ii,jj,cc)%updateRhomean()
+            END DO
+            
          END DO !kproma
 
       END DO ! klev
@@ -1143,7 +1117,7 @@ CONTAINS
    !-------------------------------------------------------
    REAL FUNCTION acth2o(ppart,pcw)
 
-      USE classSection
+      USE classSection, ONLY : Section
       USE mo_submctl, ONLY : eps, spec
       IMPLICIT NONE
 
@@ -1209,195 +1183,5 @@ CONTAINS
       psat = psat*100.
 
    END FUNCTION satvaph2o
-   !
-   ! --------------------------------------------------------------------------------------------------------------
-   !
-
-   !------------------------------------------------
-   !
-   ! ***************
-   ! Function coagc
-   ! ***************
-   !
-   ! Calculation of coagulation coefficients.
-   ! Extended version of the function originally
-   ! found in mo_salsa_init. This is now placed
-   ! here to avoid cyclic dependencies between
-   ! MODULEs upon coupling with UCLALES.
-   !
-   ! J. Tonttila, FMI, 05/2014
-   !
-   !-------------------------------------------------
-   REAL FUNCTION coagc(diam1,diam2,mass1,mass2,temp,pres,kernel,flag1,flag2)
-
-      USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd 
-      USE mo_particle_external_properties, ONLY : terminal_vel
-
-      IMPLICIT NONE
-
-      !-- Input variables ----------
-      REAL, INTENT(IN) :: &
-         diam1,  &   ! diameters of colliding particles [m]
-         diam2,  &   !
-         mass1,  &   ! masses -"- [kg]
-         mass2,  &
-         temp,   &   ! ambient temperature [K]
-         pres        ! ambient pressure [fxm]
-
-      INTEGER, INTENT(in) :: kernel ! select the type of kernel: 1 - aerosol-aerosol coagulation (the original version)
-                                        !                            2 - hydrometeor-aerosol or hydrometeor-hydrometeor coagulation
-      INTEGER, INTENT(in) :: flag1,flag2 ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
-
-      !-- Output variables ---------
-
-      !-- Local variables ----------
-      REAL ::  &
-         visc,     &   ! viscosity of air [kg/(m s)]
-         vkin,     &   ! Kinematic viscosity of air [m2 s-1]
-         zrhoa,    &   ! Density of air [kg m-3]
-         mfp,      &   ! mean free path of air molecules [m]
-         mdiam,    &   ! mean diameter of colliding particles [m]
-         fmdist,   &   ! distance of flux matching [m]
-         eddy_dis, &   ! Eddy dissipation time
-         zecoll,   &   ! Collision efficiency for graviational collection
-         zev,      &   !
-         zea,      &
-         zbrown,   &   ! Components for coagulation kernel; Brownian
-         zbrconv,  &   !                                    Convective diffusion enhancement
-         zgrav,    &   !                                    Gravitational collection
-         ztshear,  &   ! turbulent shear
-         zturbinert    ! turbulent inertia
-
-      REAL, DIMENSION (2) :: &
-         diam,   &   ! diameters of particles [m]
-         mpart,  &   ! masses of particles [kg]
-         knud,   &   ! particle knudsen number [1]
-         beta,   &   ! Cunningham correction factor [1]
-         zrhop,  &   ! Particle density [kg m-3]
-         dfpart, &   ! particle diffusion coefficient [m2/s]
-         mtvel,  &   ! particle mean thermal velocity [m/s]
-         termv,  &   ! Particle terminal velocity
-         omega,  &   !
-         tva,    &   ! temporary variable [m]
-         flux        ! flux in continuum and free molec. regime [m/s]
-
-      REAL ::  &
-         schm(2), &   ! Schmidt nubmer
-         reyn(2), &    ! Reynolds number
-         stok             ! Stokes number
-      INTEGER :: lrg,sml
-
-      zbrown = 0.
-      zbrconv = 0.
-      zgrav = 0.
-      zev = 0.
-      coagc = 0.
-
-      !-------------------------------------------------------------------------------
-
-      !-- 0) Initializing particle and ambient air variables --------------------
-      diam  = (/ diam1, diam2 /)       ! particle diameters [m]
-      mpart = (/ mass1, mass2 /)       ! particle masses [kg]
-
-      visc = (7.44523e-3*SQRT(temp**3))/(5093.*(temp+110.4)) ! viscosity of air [kg/(m s)]
-
-      mfp = (1.656e-10*temp+1.828e-8)*pstand/pres ! mean free path of air [m]
-
-      !-- 2) Slip correction factor for small particles -------------------------
-
-      knud = 2.*mfp/diam                                    ! Knudsen number
-      beta = 1.+knud*(1.142+0.558*exp(-0.999/knud))! Cunningham correction factor
-      ! (Allen and Raabe, Aerosol Sci. Tech. 4, 269)
-
-      !-- 3) Particle properties ------------------------------------------------
-
-      dfpart = beta*boltz*temp/(3.*pi*visc*diam)  ! diffusion coefficient [m2/s]
-      mtvel  = sqrt((8.*boltz*temp)/(pi*mpart))    ! mean thermal velocity [m/s]
-      omega  = 8.*dfpart/(pi*mtvel)
-
-      mdiam = 0.5*(diam(1)+diam(2))               ! mean diameter [m]
-
-      !-- 4) Calculation of fluxes and flux matching ----------------------------
-
-      flux(1) = 4.*pi*mdiam*( dfpart(1)+dfpart(2) )    ! flux in continuum regime [m3/s]
-      flux(2) = pi*sqrt((mtvel(1)**2)+(mtvel(2)**2))*(mdiam**2) !  -"- in free molec. regime [m3/s]
-
-      tva(1) = ((mdiam+omega(1))**3 - &              ! temporary variable [m]
-                (mdiam**2+omega(1)**2)* &
-                sqrt((mdiam**2+omega(1)**2)))/ &
-               (3.*mdiam*omega(1)) - mdiam
-
-      tva(2) = ((mdiam+omega(2))**3 - &              ! temporary variable [m]
-                (mdiam**2+omega(2)**2)* &
-                sqrt((mdiam**2+omega(2)**2)))/ &
-               (3.*mdiam*omega(2)) - mdiam
-
-      fmdist = sqrt(tva(1)**2+tva(2)**2)             ! flux matching distance [m]
-
-      SELECT CASE(kernel)
-         CASE(1)
-
-            ! Aerosol-Aerosol coagulation - like the f version
-            !-- 5) Coagulation coefficient [m3/s] -------------------------------------
-            coagc = flux(1) / (mdiam/(mdiam+fmdist) + flux(1)/flux(2))
-
-         CASE(2)
-
-            ! Which particle is larger?
-            sml = 1; lrg = 2
-            IF (diam(1) >= diam(2)) THEN
-               lrg = 1; sml = 2
-            END IF
-
-            zrhoa = pres/(rd*temp)   ! Density of air
-            zrhop = mpart/(pi6*diam**3)             ! Density of particles
-            vkin  = visc/zrhoa   ! Kinematic viscosity of air [m2 s-1]
-
-            termv(1) = terminal_vel(diam(1)/2.,zrhop(1),zrhoa,visc,beta(1),flag1)
-            termv(2) = terminal_vel(diam(2)/2.,zrhop(2),zrhoa,visc,beta(2),flag2)
-
-            ! Reynolds number
-            reyn = diam*termv/vkin
-            ! Schmidt number for the smaller particle
-            schm = vkin/dfpart
-            ! Stokes number
-            stok = 2.*termv(sml)*ABS(termv(1) - termv(2))/( diam(lrg)*grav )
-
-            !Brownian component
-            zbrown = flux(1) / (mdiam/(mdiam+fmdist) + flux(1)/flux(2))
-
-            ! Convective enhancement
-            IF (reyn(lrg) <= 1.) THEN
-               zbrconv = 0.45*zbrown*( (reyn(lrg)*schm(sml))**(1./3.) )
-            ELSE IF (reyn(lrg) > 1.) THEN
-               zbrconv = 0.45*zbrown*SQRT(reyn(lrg))*( schm(sml)**(1./3.) )
-            END IF
-
-            ! Turbulent Shear
-            eddy_dis = 10.e-4 ! Values suggested by Sami - could be taken from the LES model?
-            ztshear = SQRT(8.*pi*eddy_dis/(15.*vkin))*(0.5*(diam(1)+diam(2)))**3
-            zturbinert = pi*eddy_dis**(0.75) /(grav* SQRT(SQRT( vkin )))  &
-                         *(0.5*(diam(1)+diam(2)))**2* ABS(termv(1)-termv(2))
-
-            ! gravitational collection
-            zea = stok**2/( stok + 0.5 )**2
-            IF (stok > 1.214) THEN
-               zev = 0.75*LOG(2.*stok)/(stok - 1.214)
-               zev = (1. + zev)**(-2)
-            ELSE IF (stok <= 1.214) THEN
-               zev = 0.
-            END IF
-
-            zecoll = (60.*zev + zea*reyn(lrg))/(60. + reyn(lrg))
-            zgrav = zecoll * pi * mdiam**2
-            zgrav = zgrav * ABS(termv(1)-termv(2))
-
-            ! Total coagulation kernel
-            coagc = zbrown  + zbrconv + SQRT(zgrav**2+ ztshear**2+ zturbinert**2)
-
-      END SELECT
-
-   END FUNCTION coagc
-
-
+ 
 END MODULE mo_salsa_dynamics

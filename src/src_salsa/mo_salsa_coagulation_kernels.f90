@@ -1,10 +1,9 @@
 MODULE mo_salsa_coagulation_kernels
-  USE mo_submctl, ONLY : aero, nbins, iaero, faero,     &
-                         cloud, ncld, icloud, fcloud,   &
-                         precp, nprc, iprecp, fprecp,   &
-                         ice, nice, iice, fice,         &
-                         snow, nsnw, isnow, fsnow,      &
-                         ntotal, spec, pi6,             &
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow,    &
+                             iaero, faero, icloud, fcloud, iprecp, fprecp,  &
+                             iice, fice, isnow, fsnow
+  USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw,   &
+                         spec, pi6,             &
                          lscgaa, lscgcc, lscgpp, lscgii, lscgss,  &
                          lscgca, lscgpa, lscgia, lscgsa,          &
                          lscgpc, lscgic, lscgsc,                  &
@@ -111,7 +110,6 @@ MODULE mo_salsa_coagulation_kernels
     END SUBROUTINE update_coagulation_kernels
 
     ! ----------------------
-
     SUBROUTINE buildKernelSelf( kbdim,klev,nb1,part1,ptemp,ppres,zcc )
       INTEGER, INTENT(in) :: kbdim,klev,nb1
       TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1)

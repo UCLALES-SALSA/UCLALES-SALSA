@@ -27,9 +27,9 @@ DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=100.        # Length of the spinup period (seconds)
+Tspinup=50.        # Length of the spinup period (seconds)
 Texp=43200.         # Length of the experiment (seconds)
-LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+LEVEL=5             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
 
 
@@ -95,7 +95,7 @@ cat > NAMELIST <<EOF
   strtim = 215.5               ! Start time
   case_name = 'default'       ! Case name for large-scale forcing schemes
   div = 3.75e-6               ! Large-scale divergence
-  th00 = 288.                 ! Reference temperature
+  th00 = 263.                 ! Reference temperature
   umean =  0.0                
   vmean =  0.
  /
@@ -104,11 +104,11 @@ cat > NAMELIST <<EOF
   isfctyp           = 0
   zrough            = 0.001
   ubmin             = -0.25
-  sst               = 288.
+  sst               = 263.
   dthcon            = 0.
   drtcon            = 0.
   C_heat            = 2.e6
-  deepSoilTemp      = 288.
+  deepSoilTemp      = 263.
   W1                = 0.9
   W2                = 0.9
   W3                = 0.9
@@ -180,11 +180,12 @@ cat > NAMELIST <<EOF
 
    lsactiv%switch = .TRUE.
 
-   lsicenucl%switch = .FALSE.
+   lsicenucl%switch = .TRUE.
+   lsicenucl%delay = 100.
 
    lsautosnow%switch = .FALSE.
 
-   lsicemelt%switch = .FALSE.
+   lsicemelt%switch = .TRUE.
 
    lscgcc = .TRUE.       ! Self-collection of cloud droplets
    lscgpp = .TRUE.       ! Self-collection of rain drops
@@ -192,10 +193,10 @@ cat > NAMELIST <<EOF
    lscgaa = .TRUE.      ! Aerosol coagulation
    lscgca = .TRUE.       ! Cloud collection of aerosols
    lscgpa = .TRUE.       ! Rain collection of aerosols
-   lscgia = .FALSE.       ! Ice collection of aerosols
-   lscgic = .FALSE.       ! Ice collection of cloud droplets
-   lscgii = .FALSE.       ! Self-collection of ice
-   lscgip = .FALSE.       ! Ice collection of rain drops
+   lscgia = .TRUE.       ! Ice collection of aerosols
+   lscgic = .TRUE.       ! Ice collection of cloud droplets
+   lscgii = .TRUE.       ! Self-collection of ice
+   lscgip = .TRUE.       ! Ice collection of rain drops
    lscgsa = .FALSE.       ! Snow collection of aerosols
    lscgsc = .FALSE.       ! Snow collection of cloud droplets
    lscgsi = .FALSE.       ! Snow collection of ice particles
@@ -211,18 +212,18 @@ cat > NAMELIST <<EOF
    lsactbase   = .FALSE.  ! --Switch for parameterized cloud base activation
    lsactintst  = .TRUE.  ! --Switch for interstitial activation based on host model Smax
 
-   ice_hom     = .FALSE.
-   ice_imm     = .FALSE.
-   ice_dep     = .FALSE.
+   ice_hom     = .TRUE.
+   ice_imm     = .TRUE.
+   ice_dep     = .TRUE.
 
    lscheckarrays = .FALSE.
 
    rhlim = 1.2          ! RH limit for SALSA during initialization and spinup
 
    isdtyp = 0
-   nspec_dry = 1
-   listspec = 'SO4','','','','','',''
-   volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0   
+   nspec_dry = 2
+   listspec = 'SO4','DU','','','','',''
+   volDistA = 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0   
    volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    nf2a = 1.0
 

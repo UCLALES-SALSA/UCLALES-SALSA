@@ -725,9 +725,9 @@ CONTAINS
     IMPLICIT NONE
     INTEGER :: k,i,j,bb,nc
 
-    DO j = 1, nyp
-       DO i = 1, nxp
-          DO k = 1, nzp ! Apply tendencies
+    DO j = 3, nyp-2
+       DO i = 3, nxp-2
+          DO k = 2, nzp ! Apply tendencies
              a_naerop(k,i,j,:)  = MAX( a_naerop(k,i,j,:)  + dtlt*a_naerot(k,i,j,:), 0. )
              a_ncloudp(k,i,j,:) = MAX( a_ncloudp(k,i,j,:) + dtlt*a_ncloudt(k,i,j,:), 0. )
              a_nprecpp(k,i,j,:) = MAX( a_nprecpp(k,i,j,:) + dtlt*a_nprecpt(k,i,j,:), 0. )
@@ -737,33 +737,36 @@ CONTAINS
              a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtlt*a_gaerot(k,i,j,:), 0. )
              a_rp(k,i,j) = a_rp(k,i,j) + dtlt*a_rt(k,i,j)
 
-             IF(level < 5) CYCLE
+             IF(level == 5) THEN 
+                a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtlt*a_nicet(k,i,j,:), 0. )
+                a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtlt*a_nsnowt(k,i,j,:), 0. )
+                a_micep(k,i,j,:)   = MAX( a_micep(k,i,j,:)   + dtlt*a_micet(k,i,j,:), 0. )
+                a_msnowp(k,i,j,:)  = MAX( a_msnowp(k,i,j,:)  + dtlt*a_msnowt(k,i,j,:), 0. )
+             END IF
 
-             a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtlt*a_nicet(k,i,j,:), 0. )
-             a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtlt*a_nsnowt(k,i,j,:), 0. )
-             a_micep(k,i,j,:)   = MAX( a_micep(k,i,j,:)   + dtlt*a_micet(k,i,j,:), 0. )
-             a_msnowp(k,i,j,:)  = MAX( a_msnowp(k,i,j,:)  + dtlt*a_msnowt(k,i,j,:), 0. )
           END DO
        END DO
     END DO
 
-   nc = spec%getIndex('H2O')
-   ! Activation + diagnostic array initialization
-   ! Clouds and aerosols
-   a_rc(:,:,:) = 0.
+    nc = spec%getIndex('H2O')
+    ! Activation + diagnostic array initialization
+    ! Clouds and aerosols
+    a_rc(:,:,:) = 0.
     DO bb = 1, ncld
        a_rc(:,:,:) = a_rc(:,:,:) + a_mcloudp(:,:,:,getMassIndex(ncld,bb,nc))
     END DO
     DO bb = 1, nbins
        a_rc(:,:,:) = a_rc(:,:,:) + a_maerop(:,:,:,getMassIndex(nbins,bb,nc))
     END DO
-
+    
     ! Ice
-    a_ri(:,:,:) = 0.
-    DO bb = 1, nice
-       a_ri(:,:,:) = a_ri(:,:,:) + a_micep(:,:,:,getMassIndex(nice,bb,nc))
-    END DO
-
+    IF ( level == 5 ) THEN
+       a_ri(:,:,:) = 0.
+       DO bb = 1, nice
+          a_ri(:,:,:) = a_ri(:,:,:) + a_micep(:,:,:,getMassIndex(nice,bb,nc))
+       END DO
+    END IF
+    
  END SUBROUTINE SALSAInit
 
  ! --------------------------------------------------------------------------------------------------
@@ -775,7 +778,8 @@ CONTAINS
  SUBROUTINE aerosol_init()
 
     USE mo_salsa_sizedist, ONLY : size_distribution
-    USE mo_submctl, ONLY : aero, pi6, nmod, nbins, nspec_dry, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
+    USE mo_salsa_types, ONLY : aero
+    USE mo_submctl, ONLY : pi6, nmod, nbins, nspec_dry, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
                            sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp
     USE mpi_interface, ONLY : myid
     USE util, ONLY : getMassIndex
@@ -798,6 +802,7 @@ CONTAINS
        "(3F10.2,14ES12.3))"
     !
     ! Bin mean aerosol particle volume
+    core = 0.
     core(1:nbins) = pi6 * aero(1,1,1:nbins)%dmid**3
 
     ! Set concentrations to zero
@@ -884,6 +889,7 @@ CONTAINS
        ! Using distribution parameters (n, dpg and sigmag) from the SALSA namelist
        !
        ! Convert to SI
+       nsect = 0.
        n = n*1.e6
        dpg = dpg*1.e-6
        CALL size_distribution(1,1,1, nmod, n, dpg, sigmag, nsect)
@@ -899,8 +905,8 @@ CONTAINS
     ! Initialize concentrations
     ! ----------------------------------------------------------
     DO k = 2, nzp  ! DONT PUT STUFF INSIDE THE GROUND
-       DO j = 1, nyp
-          DO i = 1, nxp
+       DO j = 3, nyp-2
+          DO i = 3, nxp-2
 
              ! a) Number concentrations
              ! Region 1
@@ -990,8 +996,8 @@ CONTAINS
     INTEGER :: i,j,k
 
     DO k = 2, nzp ! DONT PUT STUFF INSIDE THE GROUND
-       DO j = 1, nyp
-          DO i = 1, nxp
+       DO j = 3, nyp-2
+          DO i = 3, nxp-2
              ! 2a
              ss = getMassIndex(nbins,in2a,ispec); ee = getMassIndex(nbins,fn2a,ispec)
              a_maerop(k,i,j,ss:ee) =      &

@@ -324,8 +324,8 @@ CONTAINS
           ! calculate the ratio of slopes
           !
           DO k = 1, n1-1
-             gamma = INT(-(sign(1.,cfl(k))))
-             IF (scp0(k+1,i,j)-scp0(k,i,j) /= 0.0 .AND. scp0(k+1,i,j)+scp0(k,i,j) > 1.e-40) THEN
+             gamma = -INT(sign(1.,cfl(k)))
+             IF (ABS(scp0(k+1,i,j)-scp0(k,i,j)) > SPACING(scp0(k,i,j)) ) THEN !.AND. scp0(k+1,i,j)-scp0(k,i,j) > 1.e-40) THEN
                 k2 = max(1,k+gamma)
                 k1 = min(n1,k+gamma+1)
                 r(k) = (scp0(k1,i,j) - scp0(k2,i,j)) / (scp0(k+1,i,j) - scp0(k,i,j))
@@ -419,11 +419,11 @@ CONTAINS
           !
        DO k = 2, n1-1
           DO i = 2, n2-2
-             gamma = int(-sign(1.,cfl(i,k)))
-             IF (abs(scr(i,k) - scp0(k,i,j)) > spacing(scr(i,k))) THEN
+             gamma = INT(-sign(1.,cfl(i,k)))
+             IF (abs(scr(i,k) - scp0(k,i,j)) > SPACING(scr(i,k))) THEN
                 i2 = i+gamma
                 i1 = i+gamma+1
-                r(i,k) = (scp0(k,i1,j)-scp0(k,i2,j))/(scr(i,k)-scp0(k,i,j)+spacing(scr(i,k)))
+                r(i,k) = (scp0(k,i1,j)-scp0(k,i2,j))/(scr(i,k)-scp0(k,i,j))
              ELSE
                 r(i,k) = 0.
              END IF
@@ -498,8 +498,8 @@ CONTAINS
           !
        DO k = 2, n1-1
           DO j = 2, n3-2
-             gamma = int(-sign(1.,cfl(j,k)))
-             IF (abs(scr(j,k) - scp0(k,i,j)) > spacing(scr(j,k)) .AND. scr(j,k)+scp0(k,i,j) > 1e-40) THEN
+             gamma = INT(-sign(1.,cfl(j,k)))
+             IF (ABS(scr(j,k) - scp0(k,i,j)) > SPACING(scr(j,k)) ) THEN
                 j2 = j+gamma
                 j1 = j+gamma+1
                 r(j,k) = (scp0(k,i,j1)-scp0(k,i,j2))/(scr(j,k)-scp0(k,i,j))

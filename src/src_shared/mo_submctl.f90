@@ -1,6 +1,5 @@
 MODULE mo_submctl
   USE classSpecies, ONLY : Species, maxspec
-  USE classSection
   USE classProcessSwitch, ONLY : ProcessSwitch
   IMPLICIT NONE
 
@@ -13,21 +12,8 @@ MODULE mo_submctl
      INTEGER :: par  ! Index for corresponding parallel distribution
   END TYPE t_parallelbin
        
-  ! Particle type specific pointers to "allSALSA" master array defined in mo_salsa_driver.
-  ! Pointer association is done in mo_salsa_init. These should be accessed by importin mo_submctl,
-  ! not by dummy arguments.
-  TYPE(Section), POINTER :: aero(:,:,:)  => NULL(),   &
-                            cloud(:,:,:) => NULL(),  &
-                            precp(:,:,:) => NULL(),  &
-                            ice(:,:,:)   => NULL(),    &
-                            snow(:,:,:)  => NULL(),   &
-                            liquid(:,:,:) => NULL(),  &
-                            frozen(:,:,:) => NULL()
-  
-   ! Star and end indices for different particle types in the allSALSA array
-   INTEGER :: iaero, faero, icloud, fcloud, iprecp, fprecp, iice, fice, isnow, fsnow
-
   !Switches for SALSA aerosol microphysical processes
+
   INTEGER, PARAMETER :: Nmaster = 7
   TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)  ! Array for master switches. The specific master switches are pointers to this array
   TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation
@@ -165,7 +151,9 @@ MODULE mo_submctl
   INTEGER             ::   nice   ! Total number of ice bins
   INTEGER             ::   nsnw   ! Total number of snow bins
     
-  INTEGER :: ntotal ! Total number of bins accross all active particle types
+  INTEGER :: ntotal  ! Total number of bins across all active particle types
+  INTEGER :: nliquid ! Total number of bins across liquid particle types
+  INTEGER :: nfrozen ! Total number of bins across frozen particle types
 
   REAL, ALLOCATABLE :: aerobins(:),  &  ! These are just to deliver information about the bin diameters if the
                        cloudbins(:), &  ! host model needs it (lower limits).

@@ -8,9 +8,26 @@
 !*                                                              *
 !****************************************************************
 MODULE mo_salsa_init
+  USE classSection, ONLY : Section
+  USE classSpecies, ONLY : Species
 
-   IMPLICIT NONE
+  USE mo_submctl, ONLY : reglim,nbin,in1a,fn1a,in2a,fn2a,in2b,fn2b,           &
+                         ica,fca,icb,fcb,ira,fra,iia,fia,iib,fib,isa,fsa,     &  
+                         nbins, ncld, nprc, nice, nsnw, ntotal, nliquid, nfrozen,              &
+                         dlaero, dlcloud, dlprecp, dlice, dlsnow,             &
+                         aerobins,cloudbins,precpbins,icebins,snowbins,       &
+                         spec, nspec_dry, listspec, nlim, prlim, massacc, pi6 
 
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow, allSALSA, frozen, liquid,        &
+                             iaero, faero, icloud, fcloud, iprecp, fprecp,    &
+                             iice, fice, isnow, fsnow                      
+
+  USE mo_salsa_driver, ONLY : kbdim,klev
+                             
+  USE mo_salsa_optical_properties, ONLY : initialize_optical_properties
+
+  IMPLICIT NONE
+   
 CONTAINS
 
   !----------------------------------------------------------------------------------
@@ -24,16 +41,9 @@ CONTAINS
   !-----------------------------
 
   SUBROUTINE set_masterbins(dumaero, dumcloud, dumprecp, dumice, dumsnow)
-    USE classSection
-    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw, ntotal,                   &
-                           iaero, faero, icloud, fcloud, iprecp, fprecp,            &
-                           iice, fice, isnow, fsnow,                                &                             
-                           aero, cloud, precp, ice, snow,                 &
-                           liquid, frozen, spec, nlim, prlim, dlaero
-    USE mo_salsa_driver, ONLY : kbdim, klev, allSALSA
-    TYPE(Section), INTENT(in) :: dumaero(:,:,:), dumcloud(:,:,:),  &
-                                 dumprecp(:,:,:), dumice(:,:,:),   &
-                                 dumsnow(:,:,:)
+    TYPE(Section), INTENT(in) :: dumaero(kbdim,klev,nbins), dumcloud(kbdim,klev,ncld),  &
+                                 dumprecp(kbdim,klev,nprc), dumice(kbdim,klev,nice),   &
+                                 dumsnow(kbdim,klev,nsnw)
 
     INTEGER :: lo,hi
     INTEGER :: nspec
@@ -77,10 +87,12 @@ CONTAINS
     lo = 1
     hi = nbins + ncld + nprc
     liquid => allSALSA(:,:,lo:hi)
-    
+    nliquid = hi - (lo-1)
+
     lo = nbins + ncld + nprc + 1
     hi = nbins + ncld + nprc + nice + nsnw
     frozen => allSALSA(:,:,lo:hi)
+    nfrozen = hi - (lo-1)
 
     ! Copy the dummy size distributions to actual size dists.
     aero = dumaero
@@ -138,22 +150,6 @@ CONTAINS
    !---------------------------------------------------------------------
 
    SUBROUTINE set_aerobins(dumaero)
-     
-     USE classSection
-     USE mo_submctl, ONLY : &
-          spec,        &
-          pi6,         & ! pi/6
-          reglim,      & ! diameter limits for size regimes [m]
-          nbin,        & ! number of size bins in each (sub)regime
-          in1a, fn1a,  & ! size regime bin indices: 1a
-          in2a, fn2a,  & !     - " -       2a
-          in2b, fn2b,  & !     - " -       2b
-          nbins, nlim,  &
-          aerobins, dlaero
-
-     USE mo_salsa_driver, ONLY : &
-          kbdim,klev
-     
      IMPLICIT NONE
 
      TYPE(Section), INTENT(out), ALLOCATABLE :: dumaero(:,:,:)
@@ -173,8 +169,14 @@ CONTAINS
      ! Allocate and initialize the dummy aerosol tracers
      !--------------------------------------------------
      ALLOCATE(dumaero(kbdim,klev,nbins))
-     dumaero(:,:,:) = Section(1,nlim,dlaero)
-     
+     DO jj = 1,klev
+        DO ii = 1,kbdim
+           DO cc = 1,nbins
+              dumaero(ii,jj,cc) = Section(1,nlim,dlaero)
+           END DO
+        END DO
+     END DO
+
      DO jj = 1, klev
         DO ii = 1, kbdim
            
@@ -258,18 +260,6 @@ CONTAINS
    !---------------------------------------------------------------------------
 
    SUBROUTINE set_cloudbins(dumaero,dumcloud,dumprecp)
-     USE classSection
-     USE mo_submctl, ONLY : spec, pi6, nlim, prlim,      &
-          ica,icb,         &
-          fca,fcb,         &
-          ira,fra,         &
-          nbins,ncld,nprc,        &
-          in2a,fn2a,       &
-          fn2b,       &
-          cloudbins, dlcloud,       &
-          precpbins, dlprecp
-     USE mo_salsa_driver, ONLY : kbdim, klev
-     
      IMPLICIT NONE
      
      TYPE(Section), INTENT(in) :: dumaero(kbdim,klev,nbins)
@@ -296,9 +286,9 @@ CONTAINS
 
       ! Reset cloud bin indices accordingly. The two components give the cloud regime index,
       ! and the aerosol bin index with which they are parallel
-      ica%cur = 1;                      ica%par = in2a
+      ica%cur = 1;               ica%par = in2a
       fca%cur = ica%cur + nba-1; fca%par = ica%par + nba-1
-      icb%cur = fca%cur + 1;            icb%par = fn2b - nbb + 1
+      icb%cur = fca%cur + 1;     icb%par = fn2b - nbb + 1
       fcb%cur = icb%cur + nbb-1; fcb%par = icb%par + nbb-1
 
       ncld = fcb%cur
@@ -311,8 +301,16 @@ CONTAINS
       ! Allocate cloud and precipitation arrays
       ! ----------------------------------------
       ALLOCATE(dumcloud(kbdim,klev,ncld), dumprecp(kbdim,klev,nprc))
-      dumcloud(:,:,:) = Section(2,nlim,dlcloud)
-      dumprecp(:,:,:) = Section(3,prlim,dlprecp)
+      DO jj = 1,klev
+         DO ii = 1,kbdim
+            DO bb = 1,ncld
+               dumcloud(ii,jj,bb) = Section(2,nlim,dlcloud)
+            END DO
+            DO bb = 1,nprc
+               dumprecp(ii,jj,bb) = Section(3,prlim,dlprecp)
+            END DO
+         END DO
+      END DO
 
       DO jj = 1, klev
          DO ii = 1, kbdim
@@ -382,19 +380,7 @@ CONTAINS
    ! Jaakko Ahola (FMI) 2015
    !
    !---------------------------------------------------------------------------
-   SUBROUTINE set_icebins(dumaero,dumice,dumsnow)
-     USE classSection
-     USE mo_submctl, ONLY : spec, pi6, prlim,            &
-          iia,iib,         &
-          fia,fib,         &
-          isa,fsa,         &
-          nice,nsnw,nbins,       &
-          in2a,fn2a,       &
-          fn2b,       &
-          icebins, dlice,         &
-          snowbins, dlsnow
-     USE mo_salsa_driver, ONLY : kbdim, klev
-     
+   SUBROUTINE set_icebins(dumaero,dumice,dumsnow)     
      IMPLICIT NONE
      
      TYPE(Section), INTENT(in) :: dumaero(kbdim,klev,nbins)
@@ -419,9 +405,9 @@ CONTAINS
      
      ! Reset ice bin indices accordingly. The two components give the cloud regime index,
      ! and the aerosol bin index with which they are parallel
-     iia%cur = 1;                       iia%par = in2a
+     iia%cur = 1;                iia%par = in2a
      fia%cur = iia%cur + nba-1;  fia%par = iia%par + nba-1
-     iib%cur = fia%cur + 1;             iib%par = fn2b - nbb + 1
+     iib%cur = fia%cur + 1;      iib%par = fn2b - nbb + 1
      fib%cur = iib%cur + nbb-1;  fib%par = iib%par + nbb-1
      
      nice = fib%cur
@@ -434,9 +420,17 @@ CONTAINS
      ! Allocate ice arrays
      ! ----------------------------------------
      ALLOCATE(dumice(kbdim,klev,nice), dumsnow(kbdim,klev,nsnw))
-     dumice(:,:,:) = Section(4,prlim,dlice)
-     dumsnow(:,:,:) = Section(5,prlim,dlsnow)
-     
+     DO jj = 1,klev
+        DO ii = 1,kbdim
+           DO bb = 1,nice
+              dumice(ii,jj,bb) = Section(4,prlim,dlice)
+           END DO
+           DO bb = 1,nsnw
+              dumsnow(ii,jj,bb) = Section(5,prlim,dlsnow)
+           END DO
+        END DO
+     END DO
+
      DO jj = 1, klev
         DO ii = 1, kbdim
            
@@ -694,16 +688,7 @@ CONTAINS
 
       !
       !-------------------------------------------------------------------------------
-      USE classSpecies, ONLY : Species
-      USE classSection
-      USE mo_submctl, ONLY : nbin,      &
-                             in1a,fn1a,in2a,fn2a,in2b,fn2b,  &
-                             nbins, massacc, spec,           &
-                             nspec_dry, listspec
-      USE mo_salsa_optical_properties, ONLY : initialize_optical_properties
-      !USE mo_salsa_coagulation_kernels, ONLY : initialize_coagulation_kernels
-      !USE mo_salsa_coagulation_processes, ONLY : initialize_coagulation_processes
-      USE mo_salsa_driver, ONLY : kbdim, klev
+
 
       IMPLICIT NONE
 

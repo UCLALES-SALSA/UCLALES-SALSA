@@ -1,10 +1,6 @@
 MODULE classSection
+  USE mo_submctl, ONLY : pi6, spec
   IMPLICIT NONE
-
-  REAL, PARAMETER, PRIVATE :: pi6 = 0.5235988  
-  ! Copied from mo_submctl to avoid cyclic dependencies. Some rearranging needed to avoid this situation
-  ! ALSO/RELATED: classSection dependency of mo_submctl should be removed to stuff could be imported from there to here as well!!!!
-
 
   TYPE Section
      REAL :: vhilim,     & ! bin volume at the high limit
@@ -16,7 +12,8 @@ MODULE classSection
              ! ^ Do NOT change the stuff above after initialization !
              !******************************************************
              dwet,       & ! Wet diameter or mean droplet diameter
-             ddry,       & ! Dry diameter
+             ddry,       & ! Dry diameter (actual)
+             dins,       & ! Diameter of the insoluble part (if present)
              numc,       & ! Number concentration of particles/droplets
              core          ! Volume of dry particle
      
@@ -24,9 +21,9 @@ MODULE classSection
                          ! Only used compouds are given values. 
                          ! For technical reasons this cannot be allocatable at least for now....
 
-     REAL :: rhoimean     ! The mean ice density for frozen particles. Takes into account only the bulk ice composition
+     REAL :: rhomean     ! The mean ice density for frozen particles. Takes into account only the bulk ice composition
 
-     REAL :: rhoieff      ! Effective ice density. This should take into account non-spherical shape as well as the 
+     REAL :: rhoeff      ! Effective ice density. This should take into account non-spherical shape as well as the 
                           ! bulk ice composition
 
 
@@ -62,7 +59,7 @@ MODULE classSection
 
       cnstr%vhilim = 0.; cnstr%vlolim = 0.
       cnstr%vratiohi = 0; cnstr%vratiolo = 0.
-      cnstr%dmid = 0.; cnstr%dwet = 0.
+      cnstr%dmid = 0.; cnstr%dwet = 0.; cnstr%dins = 0.
       cnstr%numc = 0.; cnstr%core = 0.
       cnstr%volc(:) = 0.
       !cnstr%virimebulk = 0.
@@ -71,6 +68,8 @@ MODULE classSection
       cnstr%phase = iphase
       cnstr%nlim = inlim
       cnstr%dlim = idlim
+      cnstr%rhomean = 0.
+      cnstr%rhoeff = 0.
 
     END FUNCTION cnstr
 
@@ -82,37 +81,89 @@ MODULE classSection
     ! Correct dimension is needed for irregular particles (e.g. ice and snow) for calculating fall speed (deposition and coagulation)
     ! and capacitance (condensation). Otherwise compact spherical structure can be expected,
     !
-    SUBROUTINE updateDiameter(SELF,limit)
+    ! This should be modified to account for the particle shape as well.
+    !
+    SUBROUTINE updateDiameter(SELF,limit,type)
       CLASS(Section), INTENT(inout) :: SELF
       LOGICAL,INTENT(in) :: limit  ! True -> constrain the result wet diameter by dlim
+      CHARACTER(len=3), INTENT(in), OPTIONAL :: type  ! "dry" or "wet" or "ins" (insoluble). Default is "wet"
 
-      SELF%dwet = 3.e-9
-      IF (SELF%numc > SELF%nlim) &
-           SELF%dwet=(SUM(SELF%volc(:))/SELF%numc/pi6)**(1./3.)
-
-      IF (limit) SELF%dwet = MIN(SELF%dwet,SELF%dlim)
+      CHARACTER(len=3) :: swtyp
+      INTEGER :: nwet, ndry
+      REAL :: hlp
       
+
+      nwet = spec%getNSpec(type="wet")
+      ndry = spec%getNspec(type="dry")
+      
+
+
+
+
+      IF ( .NOT. PRESENT(type) ) THEN
+         swtyp = "wet"
+      ELSE
+         swtyp = type
+      END IF
+       
+      IF (SELF%numc > SELF%nlim) THEN
+         IF (swtyp == "wet") THEN
+            SELF%dwet = 1.e-10
+            SELF%dwet = (SUM(SELF%volc(1:nwet))/SELF%numc/pi6)**(1./3.)
+         END IF
+
+         IF (swtyp == "dry") THEN
+            SELF%ddry = 1.e-10
+            SELF%ddry = (SUM(SELF%volc(1:ndry))/SELF%numc/pi6)**(1./3.)
+         END IF
+
+         IF (swtyp == "ins" .AND. ALL( spec%ind_insoluble(:) > 0 )) THEN ! If there is any insoluble active, all the indices sohuld be > 0
+            SELF%dins = 1.e-10
+            SELF%dins = ( SUM(SELF%volc(spec%ind_insoluble))/SELF%numc/pi6 )**(1./3.)
+         END IF
+
+      END IF
+
+      IF (limit) THEN
+         IF (swtyp == "wet") &
+              SELF%dwet = MIN(SELF%dwet,SELF%dlim)
+         IF (swtyp == "dry") &
+              SELF%ddry = MIN(SELF%ddry,SELF%dlim)
+         IF (swtyp == "ins") &
+              SELF%dins = MIN(SELF%dins,SELF%dlim)
+      END IF
+
     END SUBROUTINE updateDiameter
 
     ! 
     ! Subroutine updateRhoeff
-    ! Updates the effective density of the particle
+    !
+    ! updateRhomean just gets the bulk mass weighted mean ice density
+    ! for partially rimed particles. Another subroutine should be added
+    ! where the particle shape is also taken into account for getting
+    ! the true effective density (once implemented, the effective
+    ! density is the one that should be used for fall velocities etc)
+    !
     ! -------------------------------------------------
     !
-    SUBROUTINE updateRhomean(SELF, rhoic, rhori, iwa)
+    SUBROUTINE updateRhomean(SELF)
       CLASS(Section), INTENT(inout) :: SELF
-      REAL, INTENT(in) :: rhoic, rhori  ! THESE COULD BE REMOVED IF CLASSSECTION dependency in mo_submctl would be removed!! Could then just import spec
-      INTEGER, INTENT(in) :: iwa   ! The same for this one
-
       REAL :: mass_p, mass_r, mass_t
 
-      ! convert to masses -> get the mass mean density
+      INTEGER :: iwa
       
-      mass_p = rhoic*(SELF%volc(iwa) - SELF%vrime)
-      mass_r = rhori*SELF%vrime
-      mass_t = mass_p + mass_r
+      iwa = spec%getIndex("H2O")
 
-      SELF%rhoimean = (mass_p*rhoic + mass_r*rhori)/mass_t
+      ! convert to masses -> get the mass mean density
+      IF (SELF%phase > 3) THEN
+         ! Just for ice
+         mass_p = spec%rhoic*(SELF%volc(iwa) - SELF%vrime)
+         mass_r = spec%rhori*SELF%vrime
+         mass_t = mass_p + mass_r
+         SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/mass_t
+      ELSE
+         SELF%rhomean = spec%rhowa
+      END IF
 
     END SUBROUTINE updateRhomean
 

@@ -114,7 +114,7 @@ MODULE grid
    ! -- Each size bin/species will be treated as a separate tracer.
    ! -- NOTE: Volume concentration arrays are reduced to 4 dims.
    !          The 4th dim contains all the size bins sequentially for
-   !          each aerosol species  + water
+   !          each aerosol species  + water + for ice now also rimed ice
    !
    !          Gas tracers are contained sequentially in dimension
    !          4 as: 1. SO4, 2. HNO3, 3. NH3, 4. OCNV, 5. OCSV
@@ -224,7 +224,7 @@ CONTAINS
       IF (level >= 4) THEN
          nc = spec%getNSpec()
          nsalsa = (nc+1)*nbins + (nc+1)*ncld + (nc+1)*nprc + 5
-         IF (level == 5) nsalsa = nsalsa + (nc+1)*nice + (nc+1)*nsnw 
+         IF (level == 5) nsalsa = nsalsa + (nc+1+1)*nice + (nc+1)*nsnw ! (nc+1+1)*nice for RIMED ICE 
       END IF
 
       ! Juha: Stuff that's allocated for all configurations
@@ -401,10 +401,10 @@ CONTAINS
             a_nicet => a_sclrt(:,:,:,zz+1:zz+nice)
 
             zz = zz+nice
-            a_micep => a_sclrp(:,:,:,zz+1:zz+nc*nice)
-            a_micet => a_sclrt(:,:,:,zz+1:zz+nc*nice)
+            a_micep => a_sclrp(:,:,:,zz+1:zz+(nc+1)*nice)  ! nc + 1 due to rimed ice
+            a_micet => a_sclrt(:,:,:,zz+1:zz+(nc+1)*nice)  ! nc + 1 due to rimed ice
 
-            zz = zz+nc*nice
+            zz = zz+(nc+1)*nice
             a_nsnowp => a_sclrp(:,:,:,zz+1:zz+nsnw)
             a_nsnowt => a_sclrt(:,:,:,zz+1:zz+nsnw)
 
@@ -413,8 +413,8 @@ CONTAINS
             a_msnowt => a_sclrt(:,:,:,zz+1:zz+nc*nsnw)
          ELSE
             ! Ice not included so allocate zero arrays for ice pointers
-            ALLOCATE (tmp_icep(nzp,nxp,nyp,(nc+1)*MAX(nice,nsnw)), &
-                      tmp_icet(nzp,nxp,nyp,(nc+1)*MAX(nice,nsnw)))
+            ALLOCATE (tmp_icep(nzp,nxp,nyp,nc*MAX(nice,nsnw)), &
+                      tmp_icet(nzp,nxp,nyp,nc*MAX(nice,nsnw)))
             tmp_icep =0.
             tmp_icet =0.
             a_nicep => tmp_icep(:,:,:,1:nice)

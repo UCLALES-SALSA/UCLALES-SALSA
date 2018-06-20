@@ -70,7 +70,7 @@ CONTAINS
    !
    SUBROUTINE micro(level)
       INTEGER, INTENT (in) :: level
-      INTEGER :: nn
+      INTEGER :: nspec
 
       SELECT CASE (level)
          CASE(2)
@@ -83,8 +83,9 @@ CONTAINS
             IF (level < 5) THEN
                sed_ice = .FALSE.; sed_snow = .FALSE.
             END IF
-            nn = spec%getNSpec()
-            CALL sedim_SALSA(nzp,nxp,nyp,nn,dtlt, a_temp, a_theta,                &
+            nspec = spec%getNSpec()
+ 
+            CALL sedim_SALSA(nzp,nxp,nyp,nspec,dtlt, a_temp, a_theta,                &
                              a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
                              a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
                              a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,          &
@@ -524,7 +525,7 @@ CONTAINS
                           nprecpp(n1,n2,n3,nprc),    &
                           mprecpp(n1,n2,n3,n4*nprc), &
                           nicep(n1,n2,n3,nice),      &
-                          micep(n1,n2,n3,n4*nice),   &
+                          micep(n1,n2,n3,(n4+1)*nice),   &  ! n4+1 because of RIME
                           nsnowp(n1,n2,n3,nsnw),     &
                           msnowp(n1,n2,n3,n4*nsnw)
 
@@ -535,7 +536,7 @@ CONTAINS
                              nprecpt(n1,n2,n3,nprc),    &
                              mprecpt(n1,n2,n3,n4*nprc), &
                              nicet(n1,n2,n3,nice),      &
-                             micet(n1,n2,n3,n4*nice),   &
+                             micet(n1,n2,n3,(n4+1)*nice),   & ! n4+1 because of RIME
                              nsnowt(n1,n2,n3,nsnw),     &
                              msnowt(n1,n2,n3,n4*nsnw),  &
                              tlt(n1,n2,n3),             & ! Liquid water pot temp tendency
@@ -552,7 +553,7 @@ CONTAINS
       REAL :: remaer(n2,n3,n4*nbins),   &
               remcld(n2,n3,n4*ncld),    &
               remprc(n2,n3,n4*nprc),    &
-              remice(n2,n3,n4*nice),    &
+              remice(n2,n3,(n4+1)*nice),    &  ! n4 + 1 because of RIME
               remsnw(n2,n3,n4*nsnw)
 
     ! Particle number removal arrays
@@ -565,7 +566,7 @@ CONTAINS
       ! Divergence fields
       REAL :: amdiv(n1,n2,n3,n4*nbins),    &
               cmdiv(n1,n2,n3,n4*ncld),     &
-              imdiv(n1,n2,n3,n4*nice)
+              imdiv(n1,n2,n3,(n4+1)*nice)     ! n4 + 1 because of RIME
       REAL :: andiv(n1,n2,n3,nbins),       &
               cndiv(n1,n2,n3,ncld),        &
               indiv(n1,n2,n3,nice)
@@ -620,7 +621,7 @@ CONTAINS
 
       IF (sed_ice) THEN
 
-       CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,spec%rhoic,ustar,nicep,micep, &
+       CALL DepositionSlow(n1,n2,n3,n4+1,nice,tk,a_dn,spec%rhoic,ustar,nicep,micep, &    ! n4 + 1 for RIME
                            dzt,tstep,nlim,indiv,imdiv,indep,remice,4              )
 
        nicet = nicet - indiv 
@@ -702,8 +703,8 @@ CONTAINS
          CALL acc_massbudged(n1,n2,n3,3,tstep,dzt,a_dn,rdep=mctmp,ApVdom=mc_ApVdom)
       END IF !mcflg
       ! Aerosol removal statistics
-      IF (sflg) CALL acc_removal(n2,n3,n4,remaer,remcld,remprc,remice,remsnw)
-      IF (sflg) CALL cs_rem_set(n2,n3,n4,remaer,remcld,remprc,remice,remsnw)
+      IF (sflg) CALL acc_removal(n2,n3,n4,remaer,remcld,remprc,remice(:,:,1:n4*nice),remsnw) ! Dont include rime here yet!!
+      IF (sflg) CALL cs_rem_set(n2,n3,n4,remaer,remcld,remprc,remice(:,:,1:n4*nice),remsnw)
 
    END SUBROUTINE !sedim_SALSA
  ! -----------------------------------------------------------------
@@ -724,7 +725,7 @@ CONTAINS
     REAL, INTENT(in) :: dzt(n1)              ! Inverse of grid level thickness
     REAL, INTENT(in) :: dt                   ! timestep
     REAL, INTENT(IN) :: clim                ! Concentration limit
-    INTEGER, INTENT(IN) :: flag         ! An option for identifying liquid, ice and snow particle phases
+    INTEGER, INTENT(IN) :: flag         ! An option for identifying aerosol, cloud, precp, ice and snow particle phases
     REAL, INTENT(OUT) :: flxdivm(n1,n2,n3,nn*n4), flxdivn(n1,n2,n3,nn) ! Mass and number divergency
     REAL, INTENT(OUT) :: depflxn(n2,n3,nn), depflxm(n2,n3,nn*n4) ! Mass and number deposition fluxes to the surface
 
@@ -745,12 +746,12 @@ CONTAINS
     REAL :: mdiff                ! Particle diffusivity
     REAL :: rt, Sc, St
 
-    REAL :: rflm(n1,nn*n4), rfln(n1,nn), pmass(n4), dwet
+    REAL :: rflm(n1,nn*n4), rfln(n1,nn), pmass(n4), pmnorime(n4-1), dwet
     flxdivm = 0.
     flxdivn = 0.
     depflxm = 0.
     depflxn = 0.
-
+    
     DO j = 3,n3-2
        DO i = 3,n2-2
 
@@ -772,11 +773,19 @@ CONTAINS
              DO bin = 1,nn
                 IF (numc(k,i,j,bin)<clim) CYCLE
 
+
                 ! Calculate wet size
                 !   n4 = number of active species
                 !   bin = size bin
+                ! Juha: For ice (flag == 4), n4 includes rime, so use
+                ! n4-1 to calculate wet radius (i.e. dont take rime twice)
                 pmass(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-                dwet=calcDiamLES(n4,numc(k,i,j,bin),pmass,flag)
+                IF ( flag == 4) THEN
+                   pmnorime(:) = pmass(1:n4-1)
+                   dwet=calcDiamLES(n4-1,numc(k,i,j,bin),pmnorime,flag)
+                ELSE
+                   dwet=calcDiamLES(n4,numc(k,i,j,bin),pmass,flag)                    
+                END IF
 
                 ! Terminal velocity
                 Kn = 2.*lambda/dwet!lambda/rwet
@@ -864,7 +873,7 @@ CONTAINS
     REAL :: prnchg(n1,nn), prvchg(n1,nn,n4) ! Instantaneous changes in precipitation number and mass (volume)
     REAL :: dwet
  
-    REAL :: prnumc, pmass(n4)  ! Instantaneous source number and mass
+    REAL :: prnumc, pmass(n4), pmnorime(n4-1)  ! Instantaneous source number and mass
     INTEGER :: kf, ni,fi
     LOGICAL :: prcdep  ! Deposition flag
 
@@ -895,9 +904,16 @@ CONTAINS
                 ! Calculate wet size
                 !   n4 = number of active species
                 !   bin = size bin
+                ! Juha: For ice (flag == 4), n4 includes rime, so use
+                ! n4-1 to calculate wet radius (i.e. dont take rime twice)
                 pmass(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-                dwet=calcDiamLES(n4,numc(k,i,j,bin),pmass,flag)
-
+                IF ( flag == 4) THEN
+                   pmnorime(:) = pmass(1:n4-1)
+                   dwet=calcDiamLES(n4-1,numc(k,i,j,bin),pmnorime,flag)
+                ELSE
+                   dwet=calcDiamLES(n4,numc(k,i,j,bin),pmass,flag)                    
+                END IF
+                
                 ! Terminal velocity
                 Kn = 2.*lambda/dwet!lambda/rwet
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
@@ -905,8 +921,13 @@ CONTAINS
 
                 ! Rain rate statistics: removal of water from the current bin is accounted for
                 ! Water is the last (n4) species and rain rate is given here kg/s/m^2
-                rate(k,i,j)=rate(k,i,j)+mass(k,i,j,(n4-1)*nn+bin)*adn(k,i,j)*vc
-
+                ! Juha: For ice, the total water is n4-1, because n4 is rimed ice!!
+                IF (flag == 4) THEN
+                   rate(k,i,j)=rate(k,i,j)+mass(k,i,j,(n4-2)*nn+bin)*adn(k,i,j)*vc
+                ELSE
+                   rate(k,i,j)=rate(k,i,j)+mass(k,i,j,(n4-1)*nn+bin)*adn(k,i,j)*vc
+                END IF
+                   
                 ! Determine output flux for current level: Find the closest level to which the
                 ! current drop parcel can fall within 1 timestep. If the lowest atmospheric level
                 ! is reached, the drops are sedimented.
@@ -944,7 +965,7 @@ CONTAINS
 
                 ! Removal statistics
                 IF (prcdep) THEN
-                   DO ni=1,n4
+                   DO ni=1,n4 
                       remprc(i,j,(ni-1)*nn+bin) = remprc(i,j,(ni-1)*nn+bin) +    &
                            pmass(ni)*adn(k,i,j)*vc
                    END DO
