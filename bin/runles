@@ -13,15 +13,15 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=2 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
+IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
 EXPNAME="jung3rdAug"  # Name of the experiment
 
 NPROCS=2          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
-NXP=14               # Number of points in X-direction (including "halo" points)
-NYP=14              # Number of points in Y-direction (including "halo" points)
+NXP=5               # Number of points in X-direction (including "halo" points)
+NYP=5              # Number of points in Y-direction (including "halo" points)
 NZP=70              # Number of points in Z-direction
 DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
@@ -177,8 +177,10 @@ cat > NAMELIST <<EOF
 
    lsauto%switch = .TRUE.
    lsauto%delay = ${Tspinup}
+   lsauto%mode = 1    ! 1: precip formation based on coagulation, 2: parameterized autoconversion
 
    lsactiv%switch = .TRUE.
+   lsactiv%mode = 1   ! 1: aerosol growth based activation, 2: parameterized cloud base activation
 
    lsicenucl%switch = .FALSE.
 
@@ -208,14 +210,16 @@ cat > NAMELIST <<EOF
    lscndh2ocl  = .TRUE.  ! --Condensation of water on cloud droplets (and drizzle)
    lscndh2oic  = .TRUE.  ! --Condensation of water on ice particles
 
-   lsactbase   = .FALSE.  ! --Switch for parameterized cloud base activation
-   lsactintst  = .TRUE.  ! --Switch for interstitial activation based on host model Smax
-
    ice_hom     = .FALSE.
    ice_imm     = .FALSE.
    ice_dep     = .FALSE.
 
    lscheckarrays = .FALSE.
+
+   ! Precipitation bin layout parameters
+   bloPrc%nbins     = 20        ! Number of bins
+   bloPrc%dlo       = 20.e-6    ! Lower limit of the smallest bin
+   bloPrc%vol_ratio = 2.        ! Volume ratio between bins
 
    rhlim = 1.2          ! RH limit for SALSA during initialization and spinup
 

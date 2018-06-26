@@ -143,6 +143,10 @@ CONTAINS
               zccsi(kbdim,klev,nice,nsnw),      & ! - '' - for collection of ice by snow 
               zccsp(kbdim,klev,nprc,nsnw),      & ! - '' - for collection of precip by snow 
               zccss(kbdim,klev,nsnw,nsnw)         ! - '' - for aggregation between snow
+
+      REAL :: sum_eka, sum_vika, sum_eka_cld, sum_vika_cld, sum_eka_prc, sum_vika_prc
+      INTEGER :: ii,jj,kk
+
       !-----------------------------------------------------------------------------
       !-- 1) Coagulation to coarse mode calculated in a simplified way: ------------
       !      CoagSink ~ Dp in continuum regime, thus we calculate
@@ -152,12 +156,41 @@ CONTAINS
       zccpa(:,:,:,:) = 0.; zccpp(:,:,:,:) = 0.; zccia(:,:,:,:) = 0.; zccic(:,:,:,:) = 0.
       zccii(:,:,:,:) = 0.; zccip(:,:,:,:) = 0.; zccsa(:,:,:,:) = 0.; zccsc(:,:,:,:) = 0.
       zccsi(:,:,:,:) = 0.; zccsp(:,:,:,:) = 0.; zccss(:,:,:,:) = 0.
- 
-      
-      
+            
       !-- 2) Updating coagulation coefficients -------------------------------------
-      
       nspec = spec%getNSpec()
+
+      ! Sum up mass from aerosol, clouds and precip
+      !sum_eka = 0.
+      !sum_eka_cld = 0.
+      !sum_eka_prc = 0.
+      !DO kk = 1,nbins
+      !   DO jj = 1,klev
+      !      DO ii = 1,kbdim
+      !         sum_eka = sum_eka + aero(ii,jj,kk)%volc(nspec)
+      !      END DO
+      !   END DO
+      !END DO
+      !DO kk = 1,ncld
+      !   DO jj = 1,klev
+      !      DO ii = 1,kbdim
+      !         sum_eka = sum_eka + cloud(ii,jj,kk)%volc(nspec)
+      !         sum_eka_cld = sum_eka_cld + cloud(ii,jj,kk)%volc(nspec)
+      !      END DO
+      !   END DO
+      !END DO      
+      !DO kk = 1,nprc
+      !   DO jj = 1,klev
+      !      DO ii = 1,kbdim
+      !         sum_eka = sum_eka + precp(ii,jj,kk)%volc(nspec)
+      !         sum_eka_prc = sum_eka_prc + precp(ii,jj,kk)%volc(nspec)
+      !      END DO
+      !   END DO
+      !END DO               
+      !WRITE(*,*) '1,total',sum_eka
+      !WRITE(*,*) '1,cld', sum_eka_cld
+      !WRITE(*,*) '1,prc', sum_eka_prc
+
 
       CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp,    &
                                       zccaa, zcccc, zccca, zccpc, zccpa,  &
@@ -177,14 +210,52 @@ CONTAINS
       
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !-- 3) New particle and volume concentrations after coagulation -------------
+      IF (any_precp) &
+           CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip,zccsp)
+
       IF (any_aero) &
            CALL coag_aero(kbdim,klev,nspec,ptstep,zccaa,zccca,zccpa,zccia,zccsa)
 
       IF (any_cloud) &
            CALL coag_cloud(kbdim,klev,nspec,ptstep,zcccc,zccca,zccpc,zccic,zccsc)
 
-      IF (any_precp) &
-           CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip,zccsp)
+      !sum_vika = 0.
+      !sum_vika_cld = 0.
+      !sum_vika_prc = 0.
+      !DO kk = 1,nbins
+      !   DO jj = 1,klev
+      !      DO ii = 1,kbdim
+      !         sum_vika = sum_vika + aero(ii,jj,kk)%volc(nspec)
+      !      END DO
+      !   END DO
+      !END DO
+      !DO kk = 1,ncld
+      !   DO jj = 1,klev
+      !      DO ii = 1,kbdim
+      !         sum_vika = sum_vika + cloud(ii,jj,kk)%volc(nspec)
+      !         sum_vika_cld = sum_vika_cld + cloud(ii,jj,kk)%volc(nspec)
+      !      END DO
+      !   END DO
+      !END DO      
+      !DO kk = 1,nprc
+      !   DO jj = 1,klev
+      !      DO ii = 1,kbdim
+      !         sum_vika = sum_vika + precp(ii,jj,kk)%volc(nspec)
+      !         sum_vika_prc = sum_vika_prc + precp(ii,jj,kk)%volc(nspec)
+      !      END DO
+      !   END DO
+      !END DO               
+      !WRITE(*,*) '2 total',sum_vika
+      !WRITE(*,*) '2 cld', sum_vika_cld
+      !WRITE(*,*) '2 prc', sum_vika_prc
+      !IF (sum_eka > 0.) &
+      !     WRITE(*,*) 'total abs', sum_vika-sum_eka
+      !IF (sum_eka_cld > 0.) &
+      !     WRITE(*,*) 'cld abs', sum_vika_cld - sum_eka_cld
+      !IF (sum_eka_prc > 0.) &
+      !     WRITE(*,*) 'prc abs', sum_vika_prc - sum_eka_prc
+      !WRITE(*,*)
+
 
    END SUBROUTINE coagulation
 
