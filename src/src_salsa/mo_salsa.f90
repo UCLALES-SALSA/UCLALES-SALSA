@@ -99,7 +99,7 @@ MODULE mo_salsa
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"CONDENSATION")
 
      ! Autoconversion (liquid)
-     IF (lsauto%state) &
+     IF (lsauto%state .AND. lsauto%mode == 2) &
           CALL autoconv2(kproma,kbdim,klev, ptstep)
 
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"AUTOCONV")

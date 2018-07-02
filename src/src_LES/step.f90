@@ -247,8 +247,6 @@ CONTAINS
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
 
       INTEGER :: n4
-
-      LOGICAL :: f1st_hist_stp = .TRUE.
       
       CALL set_LES_runtime(time)
 

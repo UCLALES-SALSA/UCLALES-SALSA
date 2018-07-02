@@ -143,6 +143,9 @@ CONTAINS
               zccsi(kbdim,klev,nice,nsnw),      & ! - '' - for collection of ice by snow 
               zccsp(kbdim,klev,nprc,nsnw),      & ! - '' - for collection of precip by snow 
               zccss(kbdim,klev,nsnw,nsnw)         ! - '' - for aggregation between snow
+
+      INTEGER :: ii,jj,kk
+
       !-----------------------------------------------------------------------------
       !-- 1) Coagulation to coarse mode calculated in a simplified way: ------------
       !      CoagSink ~ Dp in continuum regime, thus we calculate
@@ -152,12 +155,10 @@ CONTAINS
       zccpa(:,:,:,:) = 0.; zccpp(:,:,:,:) = 0.; zccia(:,:,:,:) = 0.; zccic(:,:,:,:) = 0.
       zccii(:,:,:,:) = 0.; zccip(:,:,:,:) = 0.; zccsa(:,:,:,:) = 0.; zccsc(:,:,:,:) = 0.
       zccsi(:,:,:,:) = 0.; zccsp(:,:,:,:) = 0.; zccss(:,:,:,:) = 0.
- 
-      
-      
+            
       !-- 2) Updating coagulation coefficients -------------------------------------
-      
       nspec = spec%getNSpec()
+
 
       CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp,    &
                                       zccaa, zcccc, zccca, zccpc, zccpa,  &
@@ -177,14 +178,14 @@ CONTAINS
       
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !-- 3) New particle and volume concentrations after coagulation -------------
+      IF (any_precp) &
+           CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip,zccsp)
+
       IF (any_aero) &
            CALL coag_aero(kbdim,klev,nspec,ptstep,zccaa,zccca,zccpa,zccia,zccsa)
 
       IF (any_cloud) &
            CALL coag_cloud(kbdim,klev,nspec,ptstep,zcccc,zccca,zccpc,zccic,zccsc)
-
-      IF (any_precp) &
-           CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip,zccsp)
 
    END SUBROUTINE coagulation
 
