@@ -70,15 +70,16 @@ cat > NAMELIST <<EOF
   dtlong = ${DT}              ! Max. timestep
   distim = 100.               ! Timescale for the dissipation in sponge layer
   timmax = ${Texp}            ! Length of the simulation
-  runtype = "INITIAL"         ! INITIAL or HISTORY (restart) run
+  runtype = "HISTORY"         ! INITIAL or HISTORY (restart) run
   CCN = 600.e6                ! 
   corflg = .false.            ! Apply coriolis force
   prndtl = -0.3333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
-  hfilin = '${EXPNAME}.h.rst'
-  ssam_intvl = 120.           ! Interval for statistical output
-  savg_intvl = 120.           ! Averaging interval for stat output
-  frqanl = 30.                ! Interval for full domain output
+  hfilin = '${EXPNAME}.000120s' ! History file name
+  ssam_intvl = 20.           ! Interval for statistical output
+  savg_intvl = 20.           ! Averaging interval for stat output
+  frqanl = 20.                ! Interval for full domain output
+  frqhis = 60.
   lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
   salsa_b_bins = .TRUE.
   mcflg = .FALSE.             ! Do mass conservation statistics
@@ -97,7 +98,7 @@ cat > NAMELIST <<EOF
   ipsflg = 1                  ! - '' - for pressure
   lnudging = .TRUE.           ! Master swtich for nudging scheme
   lemission = .FALSE.          ! Master switch for aerosol emissions  
-  iradtyp = 3                 ! Radiation/large scale forcing
+  iradtyp = 1                 ! Radiation/large scale forcing
   strtim = 215.3               ! Start time
   case_name = 'default'       ! Case name for large-scale forcing schemes
   div = 3.75e-6               ! Large-scale divergence
@@ -123,7 +124,7 @@ cat > NAMELIST <<EOF
 /
 
 &radiation
-  radsounding = 'datafiles/ksaw.lay'  
+  radsounding = 'datafiles/ksas.lay'  
   sfc_albedo = 0.2
   laerorad = .FALSE. 
   useMcICA = .TRUE.

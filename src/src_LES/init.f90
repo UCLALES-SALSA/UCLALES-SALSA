@@ -52,6 +52,7 @@ CONTAINS
       USE util, ONLY : maskactiv
       USE nudg, ONLY : init_nudg
       USE emission_main, ONLY : init_emission
+      USE constrain_SALSA, ONLY : SALSA_diagnostics
 
       IMPLICIT NONE
 
@@ -121,7 +122,8 @@ CONTAINS
      !
      ! Initialize nudging profiles
      ! ----------------------------
-     IF (lnudging) CALL init_nudg()
+     !Ali, for history run parmeters of init_nudg are read from history file
+     IF ((runtype == 'INITIAL') .AND. (lnudging)) CALL init_nudg()
      !
      ! Initialize aerosol emissions
      ! -----------------------------
@@ -138,6 +140,12 @@ CONTAINS
         CALL acc_massbudged(nzp,nxp,nyp,0,dtlt,dzt,a_dn,     &
                             rv=a_rp,rc=a_rc,prc=a_srp)
      END IF ! mcflg
+
+     ! Diagnostic calculations that should take place (with SALSA) both for INITIAL and HISTORY
+     IF ( (level >= 4) ) THEN
+        CALL thermo(level)
+        CALL SALSA_diagnostics
+     END IF
 
       !
       ! write analysis and history files from restart if appropriate
@@ -905,8 +913,8 @@ CONTAINS
     ! Initialize concentrations
     ! ----------------------------------------------------------
     DO k = 2, nzp  ! DONT PUT STUFF INSIDE THE GROUND
-       DO j = 3, nyp-2
-          DO i = 3, nxp-2
+       DO j = 1, nyp
+          DO i = 1, nxp
 
              ! a) Number concentrations
              ! Region 1
@@ -996,8 +1004,8 @@ CONTAINS
     INTEGER :: i,j,k
 
     DO k = 2, nzp ! DONT PUT STUFF INSIDE THE GROUND
-       DO j = 3, nyp-2
-          DO i = 3, nxp-2
+       DO j = 1, nyp
+          DO i = 1, nxp
              ! 2a
              ss = getMassIndex(nbins,in2a,ispec); ee = getMassIndex(nbins,fn2a,ispec)
              a_maerop(k,i,j,ss:ee) =      &
