@@ -236,8 +236,6 @@ CONTAINS
       USE forc, ONLY : forcings
       USE util, ONLY : maskactiv !Juha: Included for SALSA
 
-      USE mo_submctl, ONLY : nprc
-
       USE mo_salsa_driver, ONLY : run_SALSA
 
       LOGICAL, INTENT (out)      :: cflflg
@@ -245,7 +243,6 @@ CONTAINS
 
       LOGICAL :: zactmask(nzp,nxp,nyp)
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
-      INTEGER :: zrm  ! runmode for SALSA
 
       INTEGER :: n4
       

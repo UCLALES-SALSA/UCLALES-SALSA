@@ -13,7 +13,7 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=2 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
+IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
 EXPNAME="jung3rdAug"  # Name of the experiment
 
@@ -227,7 +227,7 @@ cat > NAMELIST <<EOF
    rhlim = 1.001          ! RH limit for SALSA during initialization and spinup
 
    isdtyp = 0
-   nspec = 2
+   nspec_dry = 2
    listspec = 'SO4','DU','','','','',''
    volDistA = 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0   
    volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0

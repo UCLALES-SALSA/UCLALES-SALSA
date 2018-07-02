@@ -99,7 +99,7 @@ CONTAINS
       USE grid, ONLY : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                        dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                        filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
-                       nfpt, distim, runtype, CCN, Tspinup,sst,W1,W2,W3, lbinanl, &
+                       nfpt, distim, runtype, CCN,sst,W1,W2,W3, lbinanl, &
                        cntlat
       USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                        zrand, zrndamp
@@ -155,6 +155,7 @@ CONTAINS
            radfrq,                   & ! radiation type flag RADFRQ NOT USED ANYWHERE, VARIABLE DECLARED IN STEP.F90
            radsounding, sfc_albedo,  & ! Name of the radiation sounding file, surface albedo
            useMcICA,                 & ! Use the Monte Carlo Independent Column Approximation method (T/F)
+           laerorad,                 & ! Use the binned aerosol data for radiation (with SALSA)
            RadConstPress,            & ! keep constant pressure levels (T/F) 
            RadPrecipBins,            & ! add precipitation bins cloud water (0, 1, 2, 3,...)
            RadSnowBins              ! add snow bins to cloud ice (0, 1, 2, 3,...)
