@@ -22,7 +22,7 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 \
 	  classSpecies.f90 classSection.f90 classProcessSwitch.f90 \
           defs.f90 $(seqmpi) LES.f90 ncio.f90 util.f90 grid.f90 stat.f90 \
 	  thrm.f90 forc.f90 advf.f90 advl.f90 srfc.f90 prss.f90 sgsm.f90 \
-	  mcrp.f90 step.f90 init.f90 nudg.f90 nudg_defs.f90 \
+	  mcrp.f90 step.f90 init.f90 nudg.f90 nudg_defs.f90 constrain_SALSA.f90 \
           rfft.f90 rad_solver.f90 rad_corkds.f90 rad_cldwtr.f90 \
 	  rad_d4strm.f90 rad_driver.f90 radiation_main.f90 emission_main.f90 \
 	  mo_seasalt_emission.f90 exceptionHandling.f90 mo_aerorad_lut.f90 \
@@ -67,12 +67,14 @@ sgsm.o: grid.o stat.o defs.o util.o thrm.o $(seqmpi:.f90=.o)
 mcrp.o: grid.o stat.o defs.o thrm.o mo_submctl.o util.o mo_particle_external_properties.o
 step.o: grid.o stat.o util.o defs.o thrm.o sgsm.o srfc.o  \
         mcrp.o prss.o advf.o advl.o forc.o $(seqmpi:.f90=.o) \
-        mo_salsa_driver.o mo_submctl.o 
+        mo_salsa_driver.o mo_submctl.o constrain_SALSA.o
 init.o: grid.o stat.o util.o defs.o step.o sgsm.o thrm.o  \
 	$(seqmpi:.f90=.o) mo_salsa_sizedist.o mo_submctl.o \
-	mo_salsa_types.o mo_salsa_driver.o mo_submctl.o ncio.o nudg.o emission_main.o 
+	mo_salsa_types.o mo_salsa_driver.o mo_submctl.o     \
+	ncio.o nudg.o emission_main.o constrain_SALSA.o 
 nudg.o: grid.o mo_submctl.o util.o nudg_defs.o
 nudg_defs.o:
+constrain_salsa.o: grid.o mo_submctl.o util.o
 emission_main.o: mo_seasalt_emission.o mo_submctl.o grid.o util.o exceptionHandling.o \
 	         mo_salsa_sizedist.o mo_salsa_driver.o mo_salsa_types.o
 mo_seasalt_emission.o: mo_submctl.o

@@ -52,6 +52,7 @@ CONTAINS
       USE util, ONLY : maskactiv
       USE nudg, ONLY : init_nudg
       USE emission_main, ONLY : init_emission
+      USE constrain_SALSA, ONLY : SALSA_diagnostics
 
       IMPLICIT NONE
 
@@ -139,6 +140,12 @@ CONTAINS
         CALL acc_massbudged(nzp,nxp,nyp,0,dtlt,dzt,a_dn,     &
                             rv=a_rp,rc=a_rc,prc=a_srp)
      END IF ! mcflg
+
+     ! Diagnostic calculations that should take place (with SALSA) both for INITIAL and HISTORY
+     IF ( (level >= 4) ) THEN
+        CALL thermo(level)
+        CALL SALSA_diagnostics
+     END IF
 
       !
       ! write analysis and history files from restart if appropriate

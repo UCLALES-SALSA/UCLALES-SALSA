@@ -98,7 +98,7 @@ cat > NAMELIST <<EOF
   ipsflg = 1                  ! - '' - for pressure
   lnudging = .TRUE.           ! Master swtich for nudging scheme
   lemission = .FALSE.          ! Master switch for aerosol emissions  
-  iradtyp = 3                 ! Radiation/large scale forcing
+  iradtyp = 1                 ! Radiation/large scale forcing
   strtim = 215.3               ! Start time
   case_name = 'default'       ! Case name for large-scale forcing schemes
   div = 3.75e-6               ! Large-scale divergence
