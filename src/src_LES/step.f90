@@ -245,6 +245,8 @@ CONTAINS
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
 
       INTEGER :: n4
+
+      LOGICAL :: f1st_hist_stp = .TRUE.
       
       CALL set_LES_runtime(time)
 
@@ -263,9 +265,13 @@ CONTAINS
          a_nactd = 0.
       END IF
 
-      IF (level >= 4 .AND. time < 1.) THEN
-         CALL thermo(level)
-         CALL SALSA_diagnostics
+      !Ali
+      !thermo and SALSA_diagnostics must be called also in th first step of
+      !a histroy tun 
+      IF ( (level >= 4) .AND. ( (time < 1.) .OR. (f1st_hist_stp) ) ) THEN
+        CALL thermo(level)
+        CALL SALSA_diagnostics
+        f1st_hist_stp = .FALSE.
       END IF
 
       CALL surface()

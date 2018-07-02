@@ -93,8 +93,8 @@ CONTAINS
                      deepSoilTemp, lConstSoilWater, lConstSoilHeatCap
       USE step, ONLY : timmax, istpfl, corflg, outflg, frqanl, frqhis,                    &
                        strtim, radfrq
-      USE nudg, ONLY : nudge_time, nudge_zmin, nudge_zmax,                                &
-                       ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
+      USE nudg_defs, ONLY : nudge_time, nudge_zmin, nudge_zmax,                                &
+                            ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
       USE emission_main, ONLY : emitModes, nEmissionModes
       USE grid, ONLY : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                        dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
