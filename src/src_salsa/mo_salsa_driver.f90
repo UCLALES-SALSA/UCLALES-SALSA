@@ -61,7 +61,7 @@ CONTAINS
                         pa_nicep,   pa_nicet,   pa_micep,   pa_micet,    &
                         pa_nsnowp,  pa_nsnowt,  pa_msnowp,  pa_msnowt,   &
                         pa_nactd,   pa_vactd,   pa_gaerop,  pa_gaerot,   &
-                        prunmode, tstep, time, level)
+                        tstep, time, level, initialize)
 
       USE mo_salsa, ONLY : salsa
       USE mo_salsa_properties, ONLY  : equilibration
@@ -71,9 +71,7 @@ CONTAINS
       REAL, INTENT(in)    :: tstep                                ! Model timestep length
       REAL, INTENT(in)    :: time
       
-      INTEGER, INTENT(in) :: prunmode                         ! 1: initialization call
-                                                              ! 2: Spinup (not important here)
-                                                              ! 3: regular runtime (not important here)
+      LOGICAL, INTENT(in) :: initialize                      
 
       REAL, INTENT(in)    :: press(pnz,pnx,pny), &            ! Pressure (Pa)
                              tk(pnz,pnx,pny),    &            ! Temperature (K)
@@ -125,7 +123,7 @@ CONTAINS
                        precp_old(kbdim,klev,nprc), ice_old(kbdim,klev,nice),      &
                        snow_old(kbdim,klev,nsnw)
 
-      INTEGER :: jj,ii,kk,ss,str,end, nc, ndry, nwet
+      INTEGER :: jj,ii,kk,ss,str,end, nc,vc, ndry, nwet
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
               in_w(kbdim,klev), in_rsi(kbdim,klev)
       REAL :: rv_old(kbdim,klev)
@@ -161,10 +159,10 @@ CONTAINS
                in_w(1,1) = wp(kk,ii,jj)
 
                ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
-               IF (prunmode < 3) THEN
-                  in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)
-               ELSE
+               IF ( lsfreeRH%state ) THEN
                   in_rv(1,1) = rv(kk,ii,jj)
+               ELSE
+                  in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)
                END IF
                rv_old(1,1) = in_rv(1,1)
        
@@ -231,7 +229,7 @@ CONTAINS
                END IF
         
                ! If this is an initialization call, calculate the equilibrium particle
-               If (prunmode == 1) CALL equilibration(kproma,kbdim,klev,   &
+               If (initialize) CALL equilibration(kproma,kbdim,klev,   &
                                                      init_rh,in_t,.TRUE.)
 
                ! Convert to #/m3
@@ -338,7 +336,7 @@ CONTAINS
    ! Juha Tonttila, FMI, 2014
    !
    SUBROUTINE set_SALSA_runtime(time)
-     USE mo_submctl, ONLY : Nmaster, lsmaster
+     USE mo_submctl, ONLY : Nmaster, lsmaster, lsfreeRH
      IMPLICIT NONE
      REAL, INTENT(in) :: time
      INTEGER :: i
@@ -346,6 +344,9 @@ CONTAINS
      DO i = 1,Nmaster
         IF( lsmaster(i)%switch .AND. time > lsmaster(i)%delay ) lsmaster(i)%state = .TRUE.
      END DO
+
+     ! Some other switches
+     IF ( lsfreeRH%switch .AND. time > lsfreeRH%delay ) lsfreeRH%state = .TRUE.
 
 
 

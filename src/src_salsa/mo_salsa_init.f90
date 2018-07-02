@@ -533,7 +533,7 @@ CONTAINS
                              volDistA, volDistB,    &
                              nf2a, isdtyp,          &
                              sigmag,dpg,n,  &
-                             rhlim
+                             lsfreeRH,rhlim
 
       IMPLICIT NONE
 
@@ -597,6 +597,7 @@ CONTAINS
          volDistB,      & ! Same as above but for b-bins
          nf2a,          & ! Number fraction of particles allocated to a-bins in regime 2. b-bins will get 1-nf2a
 
+         lsfreeRH,      & ! Switch for using rhlim
          rhlim,         & ! Upper limit RH/100 for sals during initialization and spinup 
 
          sigmag,        & ! Stdev for the 7 initial lognormal modes
@@ -643,7 +644,7 @@ CONTAINS
      USE classProcessSwitch, ONLY : ProcessSwitch
      USE mo_submctl, ONLY : Nmaster, lsmaster, lscoag, lscnd, lsauto,  &
                             lsautosnow, lsactiv, lsicenucl,   &
-                            lsicemelt
+                            lsicemelt, lsfreeRH
      IMPLICIT NONE
      
      INTEGER :: i
@@ -662,6 +663,8 @@ CONTAINS
      lsicenucl => lsmaster(6)
      lsicemelt => lsmaster(7)
 
+     ! Use this to initialize also some other switches
+     lsfreeRH = ProcessSwitch()
 
    END SUBROUTINE associate_master_switches
    

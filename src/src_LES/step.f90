@@ -176,6 +176,36 @@ CONTAINS
 
    END SUBROUTINE tstep_reset
 
+   ! 
+   !----------------------------------------------------------------------
+   ! Subroutine set_LES_runtime: Set the status of process switches e.g.
+   ! if they have a defined spinup time etc.
+   !
+   SUBROUTINE set_LES_runtime(time)
+     USE mcrp, ONLY : sed_aero,   &
+                      sed_cloud,  &
+                      sed_precp,  &
+                      sed_ice,    &
+                      sed_snow,   &
+                      bulk_autoc
+     USE grid, ONLY : level
+     IMPLICIT NONE
+
+     REAL, INTENT(in) :: time
+
+     IF ( sed_aero%switch .AND. time > sed_aero%delay ) sed_aero%state = .TRUE.
+     IF ( sed_cloud%switch .AND. time > sed_cloud%delay ) sed_cloud%state = .TRUE.
+     IF ( sed_precp%switch .AND. time > sed_precp%delay ) sed_precp%state = .TRUE.
+     IF ( sed_ice%switch .AND. time > sed_ice%delay ) sed_ice%state = .TRUE.
+     IF ( sed_snow%switch .AND. time > sed_snow%delay ) sed_snow%state = .TRUE.
+     IF ( bulk_autoc%switch .AND. time > bulk_autoc%delay ) bulk_autoc%state = .TRUE.
+     IF (level < 5) THEN
+        sed_ice%state = .FALSE.
+        sed_snow%state = .FALSE.
+     END IF
+
+   END SUBROUTINE set_LES_runtime
+
    !
    !----------------------------------------------------------------------
    ! Subroutine t_step: Called by driver to timestep through the LES
@@ -184,7 +214,7 @@ CONTAINS
    !
    SUBROUTINE t_step(cflflg,cflmax)
 
-      USE grid, ONLY : level, dtl, dtlt, Tspinup,                                         &
+      USE grid, ONLY : level, dtl, dtlt,                                         &
                        ! Added parameters for interfacing with SALSA
                        nxp, nyp, nzp, a_press, a_temp, a_rsl,                             &
                        a_rc, a_wp, a_rp, a_rt, a_rh,                                      &
@@ -215,17 +245,15 @@ CONTAINS
 
       LOGICAL :: zactmask(nzp,nxp,nyp)
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
-      INTEGER :: zrm
+      INTEGER :: zrm  ! runmode for SALSA
 
       INTEGER :: n4
+      
+      CALL set_LES_runtime(time)
 
-      zwp = 0.5
+      zwp = 0.5  ! single column run vertical velocity
 
       cflflg = .FALSE.
-
-      ! The runmode parameter zrm is used by SALSA only
-      zrm = 3
-      IF ( time < Tspinup ) zrm = 2
 
       ! Reset ALL tendencies here.
       !----------------------------------------------------------------
@@ -272,7 +300,7 @@ CONTAINS
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
                               a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              zrm, dtlt, time, level  )
+                              dtlt, time, level, .FALSE.)
             ELSE
                !! for 2D or 3D runs
                CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
@@ -282,7 +310,7 @@ CONTAINS
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
                               a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              zrm, dtlt, time, level  )
+                              dtlt, time, level, .FALSE.)
              
             END IF !nxp==5 and nyp == 5
 
@@ -299,7 +327,7 @@ CONTAINS
       CALL tend0(.TRUE.)
 
       ! Dont perform sedimentation or level 3 autoconversion during spinup
-      IF (zrm == 3) CALL micro(level)
+      CALL micro(level)
 
       IF (level >= 4) CALL tend_constrain(n4)
       CALL update_sclrs

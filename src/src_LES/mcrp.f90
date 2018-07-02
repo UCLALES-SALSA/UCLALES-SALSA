@@ -34,15 +34,17 @@ MODULE mcrp
    USE mo_submctl, ONLY : spec 
    USE mo_particle_external_properties, ONLY : calcDiamLES, terminal_vel
    USE util, ONLY : getMassIndex
+   USE classProcessSwitch, ONLY : ProcessSwitch
    IMPLICIT NONE
-
-   LOGICAL, PARAMETER :: droplet_sedim = .FALSE., khairoutdinov = .FALSE.
-
-   LOGICAL :: sed_aero = .TRUE.,  &
-              sed_cloud = .TRUE., &
-              sed_precp = .TRUE., &
-              sed_ice = .TRUE.,   &
-              sed_snow = .TRUE.
+   
+   LOGICAL, PARAMETER :: khairoutdinov = .FALSE.
+   
+   TYPE(ProcessSwitch) :: sed_aero,  &
+                          sed_cloud, &
+                          sed_precp, &
+                          sed_ice,   &
+                          sed_snow, &
+                          bulk_autoc
    !
    ! drop sizes definition is based on vanZanten (2005)
    ! cloud droplets' diameter: 2-50 e-6 m
@@ -51,104 +53,120 @@ MODULE mcrp
    REAL, PARAMETER :: eps0 = 1e-20       ! small number
    REAL, PARAMETER :: eps1 = 1e-9        ! small number
    REAL, PARAMETER :: rho_0 = 1.21       ! air density at surface
-
+   
    REAL, PARAMETER :: D_min = 2.e-6      ! minimum diameter of cloud droplets
    REAL, PARAMETER :: D_bnd = 80.e-6     ! precip/cloud diameter boundary
    REAL, PARAMETER :: D_max = 1.e-3      ! maximum diameter of prcp drops
-
+   
    REAL, PARAMETER :: X_min = (D_min**3)*rowt*pi/6. ! min cld mass
    REAL, PARAMETER :: X_bnd = (D_bnd**3)*rowt*pi/6. ! precip/cld bound mass
    REAL, PARAMETER :: X_max = (D_max**3)*rowt*pi/6. ! max prcp mass
-
+   
    REAL, PARAMETER :: prw = pi * rowt / 6.
+   
+ CONTAINS
+   
+   !
+   ! ---------------------------------------------------------------------
+   ! init_micro: initialize the sedimentation switches
+   ! 
+   SUBROUTINE init_mcrp_switches
+     IMPLICIT NONE
 
-CONTAINS
+     ! Defaults are FALSE
+     sed_aero = ProcessSwitch()
+     sed_cloud = ProcessSwitch()
+     sed_precp = ProcessSwitch()
+     sed_ice = ProcessSwitch()
+     sed_snow = ProcessSwitch()
+     bulk_autoc = ProcessSwitch()
 
+   END SUBROUTINE init_mcrp_switches
+   
    !
    ! ---------------------------------------------------------------------
    ! MICRO: sets up call to microphysics
    !
    SUBROUTINE micro(level)
-      INTEGER, INTENT (in) :: level
-      INTEGER :: nn
-
-      SELECT CASE (level)
-         CASE(2)
-            IF (sed_cloud)  &
-               CALL sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
-         CASE(3)
-            CALL mcrph(nzp,nxp,nyp,dn0,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,   &
-                       a_npp,precip,a_rt,a_tt,a_rpt,a_npt)
-         CASE(4,5)
-            IF (level < 5) THEN
-               sed_ice = .FALSE.; sed_snow = .FALSE.
-            END IF
-            nn = spec%getNSpec()
-            CALL sedim_SALSA(nzp,nxp,nyp,nn,dtlt, a_temp, a_theta,                &
-                             a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
-                             a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
-                             a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,          &
-                             a_nicep,   a_nicet,   a_micep,   a_micet,            &
-                             a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,           &
-                             a_ustar, precip, snowin, a_tt                )
-      END SELECT
-
+     INTEGER, INTENT (in) :: level
+     INTEGER :: nn
+     
+     SELECT CASE (level)
+     CASE(2)
+        IF (sed_cloud%state)  &
+             CALL sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
+     CASE(3)
+        CALL mcrph(nzp,nxp,nyp,dn0,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,   &
+             a_npp,precip,a_rt,a_tt,a_rpt,a_npt)
+     CASE(4,5)
+        nn = spec%getNSpec()
+        CALL sedim_SALSA(nzp,nxp,nyp,nn,dtlt, a_temp, a_theta,                &
+                         a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
+                         a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
+                         a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,          &
+                         a_nicep,   a_nicet,   a_micep,   a_micet,            &
+                         a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,           &
+                         a_ustar, precip, snowin, a_tt                )
+     END SELECT
+     
    END SUBROUTINE micro
-
+   
    !
    ! ---------------------------------------------------------------------
    ! MCRPH: calls microphysical parameterization
    !
    SUBROUTINE mcrph(n1,n2,n3,dn0,th,tk,rv,rs,rc,rp,np,rrate,         &
                     rtt,tlt,rpt,npt)
-
-      INTEGER, INTENT (in) :: n1,n2,n3
-      REAL, DIMENSION(n1,n2,n3), INTENT (in)    :: th, tk, rv, rs
-      REAL, DIMENSION(n1)      , INTENT (in)    :: dn0
-      REAL, DIMENSION(n1,n2,n3), INTENT (inout) :: rc, rtt, tlt, rpt, npt, np, rp
-      REAL, INTENT (out)                        :: rrate(n1,n2,n3)
-
-      INTEGER :: i, j, k
-
-      !
-      ! Microphysics following Seifert Beheng (2001, 2005)
-      ! note that the order below is important as the rc array is
-      ! redefined in cld_dgn below and is assumed to be cloud water
-      ! after that and total condensate priort to that
-      !
-
-      DO j = 3, n3-2
-         DO i = 3, n2-2
-            DO k = 1, n1
-               rp(k,i,j) = max(0., rp(k,i,j))
-               np(k,i,j) = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
-            END DO
-         END DO
-      END DO
-
-      CALL wtr_dff_SB(n1,n2,n3,dn0,rp,np,rc,rs,rv,tk,rpt,npt)
-
-      CALL auto_SB(n1,n2,n3,dn0,rc,rp,rpt,npt)
-
-      CALL accr_SB(n1,n2,n3,dn0,rc,rp,np,rpt,npt)
-
-      DO j = 3, n3-2
-         DO i = 3, n2-2
-            DO k = 2, n1-1
-               rp(k,i,j)  = rp(k,i,j) + max(-rp(k,i,j)/dtlt,rpt(k,i,j))*dtlt
-               np(k,i,j)  = np(k,i,j) + max(-np(k,i,j)/dtlt,npt(k,i,j))*dtlt
-               rpt(k,i,j) = 0.
-               npt(k,i,j) = 0.
-               rp(k,i,j)  = max(0., rp(k,i,j))
-               np(k,i,j)  = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
-            END DO
-         END DO
-      END DO
-
-      IF (sed_precp) CALL sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
-
-      IF (sed_cloud) CALL sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
-
+     
+     INTEGER, INTENT (in) :: n1,n2,n3
+     REAL, DIMENSION(n1,n2,n3), INTENT (in)    :: th, tk, rv, rs
+     REAL, DIMENSION(n1)      , INTENT (in)    :: dn0
+     REAL, DIMENSION(n1,n2,n3), INTENT (inout) :: rc, rtt, tlt, rpt, npt, np, rp
+     REAL, INTENT (out)                        :: rrate(n1,n2,n3)
+     
+     INTEGER :: i, j, k
+     
+     !
+     ! Microphysics following Seifert Beheng (2001, 2005)
+     ! note that the order below is important as the rc array is
+     ! redefined in cld_dgn below and is assumed to be cloud water
+     ! after that and total condensate priort to that
+     !
+     
+     DO j = 3, n3-2
+        DO i = 3, n2-2
+           DO k = 1, n1
+              rp(k,i,j) = max(0., rp(k,i,j))
+              np(k,i,j) = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
+           END DO
+        END DO
+     END DO
+     
+     CALL wtr_dff_SB(n1,n2,n3,dn0,rp,np,rc,rs,rv,tk,rpt,npt)
+     
+     IF (bulk_autoc%state) THEN
+        CALL auto_SB(n1,n2,n3,dn0,rc,rp,rpt,npt)
+        
+        CALL accr_SB(n1,n2,n3,dn0,rc,rp,np,rpt,npt)
+     END IF
+        
+     DO j = 3, n3-2
+        DO i = 3, n2-2
+           DO k = 2, n1-1
+              rp(k,i,j)  = rp(k,i,j) + max(-rp(k,i,j)/dtlt,rpt(k,i,j))*dtlt
+              np(k,i,j)  = np(k,i,j) + max(-np(k,i,j)/dtlt,npt(k,i,j))*dtlt
+              rpt(k,i,j) = 0.
+              npt(k,i,j) = 0.
+              rp(k,i,j)  = max(0., rp(k,i,j))
+              np(k,i,j)  = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
+           END DO
+        END DO
+     END DO
+     
+     IF (sed_precp%state) CALL sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
+     
+     IF (sed_cloud%state) CALL sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
+     
    END SUBROUTINE mcrph
    !
    ! ---------------------------------------------------------------------
@@ -157,53 +175,53 @@ CONTAINS
    ! cloud water.
    !
    SUBROUTINE wtr_dff_SB(n1,n2,n3,dn0,rp,np,rl,rs,rv,tk,rpt,npt)
-
-      INTEGER, INTENT (in) :: n1,n2,n3
-      REAL, INTENT (in)    :: tk(n1,n2,n3), np(n1,n2,n3), rp(n1,n2,n3),        &
-                              rs(n1,n2,n3),rv(n1,n2,n3), dn0(n1)
-      REAL, INTENT (inout) :: rpt(n1,n2,n3), npt(n1,n2,n3), rl(n1,n2,n3)
-
-      REAL, PARAMETER    :: Kt = 2.5e-2    ! conductivity of heat [J/(sKm)]
-      REAL, PARAMETER    :: Dv = 3.e-5     ! diffusivity of water vapor [m2/s]
-
-      INTEGER             :: i, j, k
-      REAL                :: Xp, Dp, G, S, cerpt, cenpt, xnpts
-      REAL, DIMENSION(n1) :: v1
-
-      IF(sflg) THEN
-         xnpts = 1./((n3-4)*(n2-4))
-         DO k = 1, n1
-            v1(k) = 0.
-         END DO
-      END IF
-
-      DO j = 3, n3-2
-         DO i = 3, n2-2
-            DO k = 2, n1
-               IF (rp(k,i,j) > rl(k,i,j)) THEN
-                  Xp = rp(k,i,j)/ (np(k,i,j)+eps0)
-                  Xp = MIN(MAX(Xp,X_bnd),X_max)
-                  Dp = ( Xp / prw )**(1./3.)
-
-                  G = 1. / (1. / (dn0(k)*rs(k,i,j)*Dv) + &
+     
+     INTEGER, INTENT (in) :: n1,n2,n3
+     REAL, INTENT (in)    :: tk(n1,n2,n3), np(n1,n2,n3), rp(n1,n2,n3),        &
+          rs(n1,n2,n3),rv(n1,n2,n3), dn0(n1)
+     REAL, INTENT (inout) :: rpt(n1,n2,n3), npt(n1,n2,n3), rl(n1,n2,n3)
+     
+     REAL, PARAMETER    :: Kt = 2.5e-2    ! conductivity of heat [J/(sKm)]
+     REAL, PARAMETER    :: Dv = 3.e-5     ! diffusivity of water vapor [m2/s]
+     
+     INTEGER             :: i, j, k
+     REAL                :: Xp, Dp, G, S, cerpt, cenpt, xnpts
+     REAL, DIMENSION(n1) :: v1
+     
+     IF(sflg) THEN
+        xnpts = 1./((n3-4)*(n2-4))
+        DO k = 1, n1
+           v1(k) = 0.
+        END DO
+     END IF
+     
+     DO j = 3, n3-2
+        DO i = 3, n2-2
+           DO k = 2, n1
+              IF (rp(k,i,j) > rl(k,i,j)) THEN
+                 Xp = rp(k,i,j)/ (np(k,i,j)+eps0)
+                 Xp = MIN(MAX(Xp,X_bnd),X_max)
+                 Dp = ( Xp / prw )**(1./3.)
+                 
+                 G = 1. / (1. / (dn0(k)*rs(k,i,j)*Dv) + &
                       alvl*(alvl/(Rm*tk(k,i,j))-1.) / (Kt*tk(k,i,j)))
-                  S = rv(k,i,j)/rs(k,i,j) - 1.
-
-                  IF (S < 0) THEN
-                     cerpt = 2. * pi * Dp * G * S * np(k,i,j)
-                     cenpt = cerpt * np(k,i,j) / rp(k,i,j)
-                     rpt(k,i,j) = rpt(k,i,j) + cerpt
-                     npt(k,i,j) = npt(k,i,j) + cenpt
-                     IF (sflg) v1(k) = v1(k) + cerpt * xnpts
-                  END IF
-               END IF
-               rl(k,i,j) = max(0.,rl(k,i,j) - rp(k,i,j))
-            END DO
-         END DO
-      END DO
-
-      IF (sflg) CALL updtst(n1,'prc',2,v1,1)
-
+                 S = rv(k,i,j)/rs(k,i,j) - 1.
+                 
+                 IF (S < 0) THEN
+                    cerpt = 2. * pi * Dp * G * S * np(k,i,j)
+                    cenpt = cerpt * np(k,i,j) / rp(k,i,j)
+                    rpt(k,i,j) = rpt(k,i,j) + cerpt
+                    npt(k,i,j) = npt(k,i,j) + cenpt
+                    IF (sflg) v1(k) = v1(k) + cerpt * xnpts
+                 END IF
+              END IF
+              rl(k,i,j) = max(0.,rl(k,i,j) - rp(k,i,j))
+           END DO
+        END DO
+     END DO
+     
+     IF (sflg) CALL updtst(n1,'prc',2,v1,1)
+     
    END SUBROUTINE wtr_dff_SB
    !
    ! ---------------------------------------------------------------------
@@ -214,57 +232,57 @@ CONTAINS
    ! one would get a gamma dist in drop diam -> faster rain formation.
    !
    SUBROUTINE auto_SB(n1,n2,n3,dn0,rc,rp,rpt,npt)
-
-      INTEGER, INTENT (in) :: n1,n2,n3
-      REAL, INTENT (in)    :: dn0(n1), rc(n1,n2,n3), rp(n1,n2,n3)
-      REAL, INTENT (inout) :: rpt(n1,n2,n3), npt(n1,n2,n3)
-
-      REAL, PARAMETER :: nu_c = 0            ! width parameter of cloud DSD
-      REAL, PARAMETER :: k_c  = 9.44e+9      ! Long-Kernel
-      REAL, PARAMETER :: k_1  = 6.e+2        ! Parameter for phi function
-      REAL, PARAMETER :: k_2  = 0.68         ! Parameter for phi function
-
-      REAL, PARAMETER :: Cau = 4.1e-15 ! autoconv. coefficient in KK param.
-      REAL, PARAMETER :: Eau = 5.67    ! autoconv. exponent in KK param.
-      REAL, PARAMETER :: mmt = 1.e+6   ! transformation from m to \mu m
-
-      INTEGER :: i, j, k
-      REAL    :: k_au, Xc, Dc, au, tau, phi
-
-      k_au = k_c / (20.*X_bnd) * (nu_c+2.)*(nu_c+4.)/(nu_c+1.)**2
-
-      DO j = 3, n3-2
-         DO i = 3, n2-2
-            DO k = 2, n1-1
-               Xc = rc(k,i,j)/(CCN+eps0)
-               IF (Xc > 0.) THEN
-                  Xc = MIN(MAX(Xc,X_min),X_bnd)
-                  au = k_au * dn0(k) * rc(k,i,j)**2 * Xc**2
-                  !
-                  ! small threshold that should not influence the result
-                  !
-                  IF (rc(k,i,j) > 1.e-6) THEN
-                     tau = 1.0-rc(k,i,j)/(rc(k,i,j)+rp(k,i,j)+eps0)
-                     tau = MIN(MAX(tau,eps0),0.9)
-                     phi = k_1 * tau**k_2 * (1.0 - tau**k_2)**3
-                     au  = au * (1.0 + phi/(1.0 - tau)**2)
-                  END IF
-                  !
-                  ! Khairoutdinov and Kogan
-                  !
-                  IF (khairoutdinov) THEN
-                     Dc = ( Xc / prw )**(1./3.)
-                     au = Cau * (Dc * mmt / 2.)**Eau
-                  END IF
-
-                  rpt(k,i,j) = rpt(k,i,j) + au
-                  npt(k,i,j) = npt(k,i,j) + au/X_bnd
-                  !
-               END IF
-            END DO
-         END DO
-      END DO
-
+     
+     INTEGER, INTENT (in) :: n1,n2,n3
+     REAL, INTENT (in)    :: dn0(n1), rc(n1,n2,n3), rp(n1,n2,n3)
+     REAL, INTENT (inout) :: rpt(n1,n2,n3), npt(n1,n2,n3)
+     
+     REAL, PARAMETER :: nu_c = 0            ! width parameter of cloud DSD
+     REAL, PARAMETER :: k_c  = 9.44e+9      ! Long-Kernel
+     REAL, PARAMETER :: k_1  = 6.e+2        ! Parameter for phi function
+     REAL, PARAMETER :: k_2  = 0.68         ! Parameter for phi function
+     
+     REAL, PARAMETER :: Cau = 4.1e-15 ! autoconv. coefficient in KK param.
+     REAL, PARAMETER :: Eau = 5.67    ! autoconv. exponent in KK param.
+     REAL, PARAMETER :: mmt = 1.e+6   ! transformation from m to \mu m
+     
+     INTEGER :: i, j, k
+     REAL    :: k_au, Xc, Dc, au, tau, phi
+     
+     k_au = k_c / (20.*X_bnd) * (nu_c+2.)*(nu_c+4.)/(nu_c+1.)**2
+     
+     DO j = 3, n3-2
+        DO i = 3, n2-2
+           DO k = 2, n1-1
+              Xc = rc(k,i,j)/(CCN+eps0)
+              IF (Xc > 0.) THEN
+                 Xc = MIN(MAX(Xc,X_min),X_bnd)
+                 au = k_au * dn0(k) * rc(k,i,j)**2 * Xc**2
+                 !
+                 ! small threshold that should not influence the result
+                 !
+                 IF (rc(k,i,j) > 1.e-6) THEN
+                    tau = 1.0-rc(k,i,j)/(rc(k,i,j)+rp(k,i,j)+eps0)
+                    tau = MIN(MAX(tau,eps0),0.9)
+                    phi = k_1 * tau**k_2 * (1.0 - tau**k_2)**3
+                    au  = au * (1.0 + phi/(1.0 - tau)**2)
+                 END IF
+                 !
+                 ! Khairoutdinov and Kogan
+                 !
+                 IF (khairoutdinov) THEN
+                    Dc = ( Xc / prw )**(1./3.)
+                    au = Cau * (Dc * mmt / 2.)**Eau
+                 END IF
+                 
+                 rpt(k,i,j) = rpt(k,i,j) + au
+                 npt(k,i,j) = npt(k,i,j) + au/X_bnd
+                 !
+              END IF
+           END DO
+        END DO
+     END DO
+     
    END SUBROUTINE auto_SB
    !
    ! ---------------------------------------------------------------------
@@ -274,41 +292,41 @@ CONTAINS
    ! Khairoutdinov and Kogan
    !
    SUBROUTINE accr_SB(n1,n2,n3,dn0,rc,rp,np,rpt,npt)
-
-      INTEGER, INTENT (in) :: n1,n2,n3
-      REAL, INTENT (in)    :: rc(n1,n2,n3), rp(n1,n2,n3), np(n1,n2,n3), dn0(n1)
-      REAL, INTENT (inout) :: rpt(n1,n2,n3),npt(n1,n2,n3)
-
-      REAL, PARAMETER :: k_r = 5.78
-      REAL, PARAMETER :: k_1 = 5.e-4
-      REAL, PARAMETER :: Cac = 67.     ! accretion coefficient in KK param.
-      REAL, PARAMETER :: Eac = 1.15    ! accretion exponent in KK param.
-
-      INTEGER :: i, j, k
-      REAL    :: tau, phi, ac, sc
-
-      DO j = 3, n3-2
-         DO i = 3, n2-2
-            DO k = 2, n1-1
-               IF (rc(k,i,j) > 0. .AND. rp(k,i,j) > 0.) THEN
-                  tau = 1.0-rc(k,i,j)/(rc(k,i,j)+rp(k,i,j)+eps0)
-                  tau = MIN(MAX(tau,eps0),1.)
-                  phi = (tau/(tau+k_1))**4
-                  ac  = k_r * rc(k,i,j) * rp(k,i,j) * phi * sqrt(rho_0*dn0(k))
-                  !
-                  ! Khairoutdinov and Kogan
-                  !
-                  !ac = Cac * (rc(k,i,j) * rp(k,i,j))**Eac
-                  !
-                  rpt(k,i,j) = rpt(k,i,j) + ac
-
-               END IF
-               sc = k_r * np(k,i,j) * rp(k,i,j) * sqrt(rho_0*dn0(k))
-               npt(k,i,j) = npt(k,i,j) - sc
-            END DO
-         END DO
-      END DO
-
+     
+     INTEGER, INTENT (in) :: n1,n2,n3
+     REAL, INTENT (in)    :: rc(n1,n2,n3), rp(n1,n2,n3), np(n1,n2,n3), dn0(n1)
+     REAL, INTENT (inout) :: rpt(n1,n2,n3),npt(n1,n2,n3)
+     
+     REAL, PARAMETER :: k_r = 5.78
+     REAL, PARAMETER :: k_1 = 5.e-4
+     REAL, PARAMETER :: Cac = 67.     ! accretion coefficient in KK param.
+     REAL, PARAMETER :: Eac = 1.15    ! accretion exponent in KK param.
+     
+     INTEGER :: i, j, k
+     REAL    :: tau, phi, ac, sc
+     
+     DO j = 3, n3-2
+        DO i = 3, n2-2
+           DO k = 2, n1-1
+              IF (rc(k,i,j) > 0. .AND. rp(k,i,j) > 0.) THEN
+                 tau = 1.0-rc(k,i,j)/(rc(k,i,j)+rp(k,i,j)+eps0)
+                 tau = MIN(MAX(tau,eps0),1.)
+                 phi = (tau/(tau+k_1))**4
+                 ac  = k_r * rc(k,i,j) * rp(k,i,j) * phi * sqrt(rho_0*dn0(k))
+                 !
+                 ! Khairoutdinov and Kogan
+                 !
+                 !ac = Cac * (rc(k,i,j) * rp(k,i,j))**Eac
+                 !
+                 rpt(k,i,j) = rpt(k,i,j) + ac
+                 
+              END IF
+              sc = k_r * np(k,i,j) * rp(k,i,j) * sqrt(rho_0*dn0(k))
+              npt(k,i,j) = npt(k,i,j) - sc
+           END DO
+        END DO
+     END DO
+     
    END SUBROUTINE accr_SB
    !
    ! ---------------------------------------------------------------------
@@ -319,132 +337,132 @@ CONTAINS
    ! distribution
    !
    SUBROUTINE sedim_rd(n1,n2,n3,dt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
-
-      INTEGER, INTENT (in)                      :: n1,n2,n3
-      REAL, INTENT (in)                         :: dt
-      REAL, INTENT (in),    DIMENSION(n1)       :: dn0
-      REAL, INTENT (in),    DIMENSION(n1,n2,n3) :: rp, np, th, tk
-      REAL, INTENT (out),   DIMENSION(n1,n2,n3) :: rrate
-      REAL, INTENT (inout), DIMENSION(n1,n2,n3) :: rtt, tlt, rpt, npt
-
-      REAL, PARAMETER :: a2 = 9.65       ! in SI [m/s]
-      REAL, PARAMETER :: c2 = 6e2        ! in SI [1/m]
-      REAL, PARAMETER :: Dv = 25.0e-6    ! in SI [m/s]
-      REAL, PARAMETER :: cmur1 = 10.0    ! mu-Dm-relation for rain following
-      REAL, PARAMETER :: cmur2 = 1.20e+3 ! Milbrandt&Yau 2005, JAS, but with
-      REAL, PARAMETER :: cmur3 = 1.5e-3  ! revised constants
-      REAL, PARAMETER :: aq = 6.0e3
-      REAL, PARAMETER :: bq = -0.2
-      REAL, PARAMETER :: an = 3.5e3
-      REAL, PARAMETER :: bn = -0.1
-
-
-      INTEGER :: i, j, k, kp1, kk, km1
-      REAL    :: b2, Xp, Dp, Dm, mu, flxdiv, tot,sk, mini, maxi, cc, zz, xnpts
-      REAL, DIMENSION(n1) :: nslope,rslope,dn,dr, rfl, nfl, vn, vr, cn, cr, v1
-
-      b2 = a2*exp(c2*Dv)
-
-      DO j = 3, n3-2
-         DO i = 3, n2-2
-
-            nfl(n1) = 0.
-            rfl(n1) = 0.
-            DO k = n1-1, 2, -1
-               Xp = rp(k,i,j) / (np(k,i,j)+eps0)
-               Xp = MIN(MAX(Xp,X_bnd),X_max)
-               !
-               ! Adjust Dm and mu-Dm and Dp=1/lambda following Milbrandt & Yau
-               !
-               Dm = ( 6. / (rowt*pi) * Xp )**(1./3.)
-               mu = cmur1*(1.+tanh(cmur2*(Dm-cmur3)))
-               Dp = (Dm**3/((mu+3.)*(mu+2.)*(mu+1.)))**(1./3.)
-
-               vn(k) = sqrt(dn0(k)/1.2)*(a2 - b2*(1.+c2*Dp)**(-(1.+mu)))
-               vr(k) = sqrt(dn0(k)/1.2)*(a2 - b2*(1.+c2*Dp)**(-(4.+mu)))
-               !
-               ! Set fall speeds following Khairoutdinov and Kogan
-
-               IF (khairoutdinov) THEN
-                  vn(k) = max(0.,an * Dp + bn)
-                  vr(k) = max(0.,aq * Dp + bq)
-               END IF
-
-            END DO
-
-            DO k = 2, n1-1
-               kp1 = min(k+1,n1-1)
-               km1 = max(k,2)
-               cn(k) = 0.25*(vn(kp1)+2.*vn(k)+vn(km1))*dzt(k)*dt
-               cr(k) = 0.25*(vr(kp1)+2.*vr(k)+vr(km1))*dzt(k)*dt
-            END DO
-
-            !...piecewise linear method: get slopes
-            DO k = n1-1, 2, -1
-               dn(k) = np(k+1,i,j)-np(k,i,j)
-               dr(k) = rp(k+1,i,j)-rp(k,i,j)
-            END DO
-            dn(1)  = dn(2)
-            dn(n1) = dn(n1-1)
-            dr(1)  = dr(2)
-            dr(n1) = dr(n1-1)
-            DO k = n1-1, 2, -1
-               !...slope with monotone limiter for np
-               sk = 0.5 * (dn(k-1) + dn(k))
-               mini = min(np(k-1,i,j),np(k,i,j),np(k+1,i,j))
-               maxi = max(np(k-1,i,j),np(k,i,j),np(k+1,i,j))
-               nslope(k) = 0.5 * sign(1.,sk)*min(abs(sk), 2.*(np(k,i,j)-mini), &
-                  &                              2.*(maxi-np(k,i,j)))
-               !...slope with monotone limiter for rp
-               sk = 0.5 * (dr(k-1) + dr(k))
-               mini = min(rp(k-1,i,j),rp(k,i,j),rp(k+1,i,j))
-               maxi = max(rp(k-1,i,j),rp(k,i,j),rp(k+1,i,j))
-               rslope(k) = 0.5 * sign(1.,sk)*min(abs(sk), 2.*(rp(k,i,j)-mini), &
-                  &                              2.*(maxi-rp(k,i,j)))
-            END DO
-
-            rfl(n1-1) = 0.
-            nfl(n1-1) = 0.
-            DO k = n1-2, 2, -1
-
-               kk = k
-               tot = 0.0
-               zz  = 0.0
-               cc  = min(1.,cn(k))
-               DO WHILE (cc > 0 .AND. kk <= n1-1)
-                  tot = tot + dn0(kk)*(np(kk,i,j)+nslope(kk)*(1.-cc))*cc/dzt(kk)
-                  zz  = zz + 1./dzt(kk)
-                  kk  = kk + 1
-                  cc  = min(1.,cn(kk) - zz*dzt(kk))
-               END DO
-               nfl(k) = -tot /dt
-
-               kk = k
-               tot = 0.0
-               zz  = 0.0
-               cc  = min(1.,cr(k))
-               DO WHILE (cc > 0 .AND. kk <= n1-1)
-                  tot = tot + dn0(kk)*(rp(kk,i,j)+rslope(kk)*(1.-cc))*cc/dzt(kk)
-                  zz  = zz + 1./dzt(kk)
-                  kk  = kk + 1
-                  cc  = min(1.,cr(kk) - zz*dzt(kk))
-               END DO
-               rfl(k) = -tot /dt
-
-               kp1 = k+1
-               flxdiv = (rfl(kp1)-rfl(k))*dzt(k)/dn0(k)
-               rpt(k,i,j) =rpt(k,i,j)-flxdiv
-               rtt(k,i,j) =rtt(k,i,j)-flxdiv
-               tlt(k,i,j) =tlt(k,i,j)+flxdiv*(alvl/cp)*th(k,i,j)/tk(k,i,j)
-
-               npt(k,i,j) = npt(k,i,j)-(nfl(kp1)-nfl(k))*dzt(k)/dn0(k)
-
-               rrate(k,i,j) = -rfl(k)/dn0(k) * alvl*0.5*(dn0(k)+dn0(kp1))
-
-            END DO
-         END DO
-      END DO
-
+     
+     INTEGER, INTENT (in)                      :: n1,n2,n3
+     REAL, INTENT (in)                         :: dt
+     REAL, INTENT (in),    DIMENSION(n1)       :: dn0
+     REAL, INTENT (in),    DIMENSION(n1,n2,n3) :: rp, np, th, tk
+     REAL, INTENT (out),   DIMENSION(n1,n2,n3) :: rrate
+     REAL, INTENT (inout), DIMENSION(n1,n2,n3) :: rtt, tlt, rpt, npt
+     
+     REAL, PARAMETER :: a2 = 9.65       ! in SI [m/s]
+     REAL, PARAMETER :: c2 = 6e2        ! in SI [1/m]
+     REAL, PARAMETER :: Dv = 25.0e-6    ! in SI [m/s]
+     REAL, PARAMETER :: cmur1 = 10.0    ! mu-Dm-relation for rain following
+     REAL, PARAMETER :: cmur2 = 1.20e+3 ! Milbrandt&Yau 2005, JAS, but with
+     REAL, PARAMETER :: cmur3 = 1.5e-3  ! revised constants
+     REAL, PARAMETER :: aq = 6.0e3
+     REAL, PARAMETER :: bq = -0.2
+     REAL, PARAMETER :: an = 3.5e3
+     REAL, PARAMETER :: bn = -0.1
+     
+     
+     INTEGER :: i, j, k, kp1, kk, km1
+     REAL    :: b2, Xp, Dp, Dm, mu, flxdiv, tot,sk, mini, maxi, cc, zz, xnpts
+     REAL, DIMENSION(n1) :: nslope,rslope,dn,dr, rfl, nfl, vn, vr, cn, cr, v1
+     
+     b2 = a2*exp(c2*Dv)
+     
+     DO j = 3, n3-2
+        DO i = 3, n2-2
+           
+           nfl(n1) = 0.
+           rfl(n1) = 0.
+           DO k = n1-1, 2, -1
+              Xp = rp(k,i,j) / (np(k,i,j)+eps0)
+              Xp = MIN(MAX(Xp,X_bnd),X_max)
+              !
+              ! Adjust Dm and mu-Dm and Dp=1/lambda following Milbrandt & Yau
+              !
+              Dm = ( 6. / (rowt*pi) * Xp )**(1./3.)
+              mu = cmur1*(1.+tanh(cmur2*(Dm-cmur3)))
+              Dp = (Dm**3/((mu+3.)*(mu+2.)*(mu+1.)))**(1./3.)
+              
+              vn(k) = sqrt(dn0(k)/1.2)*(a2 - b2*(1.+c2*Dp)**(-(1.+mu)))
+              vr(k) = sqrt(dn0(k)/1.2)*(a2 - b2*(1.+c2*Dp)**(-(4.+mu)))
+              !
+              ! Set fall speeds following Khairoutdinov and Kogan
+              
+              IF (khairoutdinov) THEN
+                 vn(k) = max(0.,an * Dp + bn)
+                 vr(k) = max(0.,aq * Dp + bq)
+              END IF
+              
+           END DO
+           
+           DO k = 2, n1-1
+              kp1 = min(k+1,n1-1)
+              km1 = max(k,2)
+              cn(k) = 0.25*(vn(kp1)+2.*vn(k)+vn(km1))*dzt(k)*dt
+              cr(k) = 0.25*(vr(kp1)+2.*vr(k)+vr(km1))*dzt(k)*dt
+           END DO
+           
+           !...piecewise linear method: get slopes
+           DO k = n1-1, 2, -1
+              dn(k) = np(k+1,i,j)-np(k,i,j)
+              dr(k) = rp(k+1,i,j)-rp(k,i,j)
+           END DO
+           dn(1)  = dn(2)
+           dn(n1) = dn(n1-1)
+           dr(1)  = dr(2)
+           dr(n1) = dr(n1-1)
+           DO k = n1-1, 2, -1
+              !...slope with monotone limiter for np
+              sk = 0.5 * (dn(k-1) + dn(k))
+              mini = min(np(k-1,i,j),np(k,i,j),np(k+1,i,j))
+              maxi = max(np(k-1,i,j),np(k,i,j),np(k+1,i,j))
+              nslope(k) = 0.5 * sign(1.,sk)*min(abs(sk), 2.*(np(k,i,j)-mini), &
+                   &                              2.*(maxi-np(k,i,j)))
+              !...slope with monotone limiter for rp
+              sk = 0.5 * (dr(k-1) + dr(k))
+              mini = min(rp(k-1,i,j),rp(k,i,j),rp(k+1,i,j))
+              maxi = max(rp(k-1,i,j),rp(k,i,j),rp(k+1,i,j))
+              rslope(k) = 0.5 * sign(1.,sk)*min(abs(sk), 2.*(rp(k,i,j)-mini), &
+                   &                              2.*(maxi-rp(k,i,j)))
+           END DO
+           
+           rfl(n1-1) = 0.
+           nfl(n1-1) = 0.
+           DO k = n1-2, 2, -1
+              
+              kk = k
+              tot = 0.0
+              zz  = 0.0
+              cc  = min(1.,cn(k))
+              DO WHILE (cc > 0 .AND. kk <= n1-1)
+                 tot = tot + dn0(kk)*(np(kk,i,j)+nslope(kk)*(1.-cc))*cc/dzt(kk)
+                 zz  = zz + 1./dzt(kk)
+                 kk  = kk + 1
+                 cc  = min(1.,cn(kk) - zz*dzt(kk))
+              END DO
+              nfl(k) = -tot /dt
+              
+              kk = k
+              tot = 0.0
+              zz  = 0.0
+              cc  = min(1.,cr(k))
+              DO WHILE (cc > 0 .AND. kk <= n1-1)
+                 tot = tot + dn0(kk)*(rp(kk,i,j)+rslope(kk)*(1.-cc))*cc/dzt(kk)
+                 zz  = zz + 1./dzt(kk)
+                 kk  = kk + 1
+                 cc  = min(1.,cr(kk) - zz*dzt(kk))
+              END DO
+              rfl(k) = -tot /dt
+              
+              kp1 = k+1
+              flxdiv = (rfl(kp1)-rfl(k))*dzt(k)/dn0(k)
+              rpt(k,i,j) =rpt(k,i,j)-flxdiv
+              rtt(k,i,j) =rtt(k,i,j)-flxdiv
+              tlt(k,i,j) =tlt(k,i,j)+flxdiv*(alvl/cp)*th(k,i,j)/tk(k,i,j)
+              
+              npt(k,i,j) = npt(k,i,j)-(nfl(kp1)-nfl(k))*dzt(k)/dn0(k)
+              
+              rrate(k,i,j) = -rfl(k)/dn0(k) * alvl*0.5*(dn0(k)+dn0(kp1))
+              
+           END DO
+        END DO
+     END DO
+     
    END SUBROUTINE sedim_rd
    !
    ! ---------------------------------------------------------------------
@@ -452,43 +470,43 @@ CONTAINS
    ! on the evolution of r_t and theta_l assuming a log-normal distribution
    !
    SUBROUTINE sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
-
-      INTEGER, INTENT (in):: n1,n2,n3
-      REAL, INTENT (in),   DIMENSION(n1,n2,n3) :: th,tk,rc
-      REAL, INTENT (out),  DIMENSION(n1,n2,n3) :: rrate
-      REAL, INTENT (inout),DIMENSION(n1,n2,n3) :: rtt,tlt
-
-      REAL, PARAMETER :: c = 1.19e8 ! Stokes fall velocity coef [m^-1 s^-1]
-      REAL, PARAMETER :: sgg = 1.2  ! geometric standard dev of cloud droplets
-
-      INTEGER :: i, j, k, kp1
-      REAL    :: Dc, Xc, vc, flxdiv
-      REAL    :: rfl(n1)
-
-      !
-      ! calculate the precipitation flux and its effect on r_t and theta_l
-      !
-      DO j = 3, n3-2
-         DO i = 3, n2-2
-            rfl(n1) = 0.
-            DO k = n1-1, 2, -1
-               Xc = rc(k,i,j) / (CCN+eps0)
-               Dc = ( Xc / prw )**((1./3.))
-               Dc = MIN(MAX(Dc,D_min),D_bnd)
-               vc = min(c*(Dc*0.5)**2 * exp(4.5*(log(sgg))**2),1./(dzt(k)*dtlt))
-               rfl(k) = - rc(k,i,j) * vc
-               !
-               kp1 = k+1
-               flxdiv = (rfl(kp1)-rfl(k))*dzt(k)
-               rtt(k,i,j) = rtt(k,i,j)-flxdiv
-               tlt(k,i,j) = tlt(k,i,j)+flxdiv*(alvl/cp)*th(k,i,j)/tk(k,i,j)
-               rrate(k,i,j) = -rfl(k)
-            END DO
-         END DO
-      END DO
-
+     
+     INTEGER, INTENT (in):: n1,n2,n3
+     REAL, INTENT (in),   DIMENSION(n1,n2,n3) :: th,tk,rc
+     REAL, INTENT (out),  DIMENSION(n1,n2,n3) :: rrate
+     REAL, INTENT (inout),DIMENSION(n1,n2,n3) :: rtt,tlt
+     
+     REAL, PARAMETER :: c = 1.19e8 ! Stokes fall velocity coef [m^-1 s^-1]
+     REAL, PARAMETER :: sgg = 1.2  ! geometric standard dev of cloud droplets
+     
+     INTEGER :: i, j, k, kp1
+     REAL    :: Dc, Xc, vc, flxdiv
+     REAL    :: rfl(n1)
+     
+     !
+     ! calculate the precipitation flux and its effect on r_t and theta_l
+     !
+     DO j = 3, n3-2
+        DO i = 3, n2-2
+           rfl(n1) = 0.
+           DO k = n1-1, 2, -1
+              Xc = rc(k,i,j) / (CCN+eps0)
+              Dc = ( Xc / prw )**((1./3.))
+              Dc = MIN(MAX(Dc,D_min),D_bnd)
+              vc = min(c*(Dc*0.5)**2 * exp(4.5*(log(sgg))**2),1./(dzt(k)*dtlt))
+              rfl(k) = - rc(k,i,j) * vc
+              !
+              kp1 = k+1
+              flxdiv = (rfl(kp1)-rfl(k))*dzt(k)
+              rtt(k,i,j) = rtt(k,i,j)-flxdiv
+              tlt(k,i,j) = tlt(k,i,j)+flxdiv*(alvl/cp)*th(k,i,j)/tk(k,i,j)
+              rrate(k,i,j) = -rfl(k)
+           END DO
+        END DO
+     END DO
+     
    END SUBROUTINE sedim_cd
-
+   
    ! ---------------------------------------------------------------------
    ! SEDIM_AERO: calculates the salsa particles sedimentation and dry deposition flux  (.. Zubair) !
    !
@@ -497,7 +515,7 @@ CONTAINS
    ! Juha: Rain is now treated completely separately (20151013)
    !
    ! Jaakko: Modified for the use of ice and snow bins
-
+   
    SUBROUTINE sedim_SALSA(n1,n2,n3,n4,tstep,tk,th,          &
                           naerop, naerot, maerop, maerot,   &
                           ncloudp,ncloudt,mcloudp,mcloudt,  &
@@ -574,7 +592,7 @@ CONTAINS
 
       ! Sedimentation for slow (non-precipitating) particles
       !-------------------------------------------------------
-      IF (sed_aero) THEN
+      IF (sed_aero%state) THEN
 
        CALL DepositionSlow(n1,n2,n3,n4,nbins,tk,a_dn,1500.,ustar,naerop,maerop, &
                            dzt,tstep,nlim,andiv,amdiv,andep,remaer,1            )
@@ -596,7 +614,7 @@ CONTAINS
 
       END IF ! sed_aero
 
-      IF (sed_cloud) THEN
+      IF (sed_cloud%state) THEN
 
        CALL DepositionSlow(n1,n2,n3,n4,ncld,tk,a_dn,spec%rhowa,ustar,ncloudp,mcloudp, &
                            dzt,tstep,nlim,cndiv,cmdiv,cndep,remcld,2                  )
@@ -618,7 +636,7 @@ CONTAINS
 
       END IF ! sed_cloud
 
-      IF (sed_ice) THEN
+      IF (sed_ice%state) THEN
 
        CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,spec%rhoic,ustar,nicep,micep, &
                            dzt,tstep,nlim,indiv,imdiv,indep,remice,4              )
@@ -642,7 +660,7 @@ CONTAINS
 
       ! ---------------------------------------------------------
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
-      IF (sed_precp) THEN
+      IF (sed_precp%state) THEN
          CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,spec%rhowa,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate,3)
 
          nprecpt(:,:,:,:) = nprecpt(:,:,:,:) + prnt(:,:,:,:)/tstep
@@ -664,7 +682,7 @@ CONTAINS
       END IF
     
 
-      IF (sed_snow) THEN
+      IF (sed_snow%state) THEN
          CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,spec%rhosn,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate,5)
            
          nsnowt(:,:,:,:) = nsnowt(:,:,:,:) + srnt(:,:,:,:)/tstep

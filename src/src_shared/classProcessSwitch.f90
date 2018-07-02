@@ -4,10 +4,12 @@ MODULE classProcessSwitch
 
   TYPE ProcessSwitch
      LOGICAL :: switch = .FALSE. ! True or False
-     REAL    :: delay = 0.   ! delay time for the process to switch
+     REAL    :: delay = 0.       ! delay time for the process to switch
      
      LOGICAL :: state = .FALSE.  ! This gives the current state of the switch and this should be used
-                        ! in the code
+                                 ! in the code
+
+     ! Everything defaults as FALSE!
 
   END TYPE ProcessSwitch
 
