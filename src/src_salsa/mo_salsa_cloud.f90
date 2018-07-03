@@ -37,6 +37,7 @@ CONTAINS
                               rs,     w,     pactd          )
 
     USE classSection, ONLY : Section
+    USE mo_submctl, ONLY : lsactiv
     
     IMPLICIT NONE
     
@@ -76,7 +77,7 @@ CONTAINS
     ! -------------------------------------
     ! Interstitial activation
     ! -------------------------------------
-    IF ( lsactintst ) THEN
+    IF ( lsactiv%mode == 1 ) THEN
        
        CALL actInterst(kproma,kbdim,klev,rv,rs,temp)
        
@@ -85,7 +86,7 @@ CONTAINS
     ! -----------------------------------
     ! Activation at cloud base
     ! -----------------------------------
-    IF ( lsactbase ) THEN
+    IF ( lsactiv%mode == 2 ) THEN
        
        CALL ActCloudBase(kproma,kbdim,klev,pres,temp,w,pactd)
        

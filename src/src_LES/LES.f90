@@ -51,7 +51,6 @@ CONTAINS
 
       ! Added for SALSA
       USE mo_salsa_init, ONLY : define_salsa, salsa_initialize
-      USE mo_salsa_types, ONLY : allSALSA
 
       IMPLICIT NONE
 
@@ -94,13 +93,13 @@ CONTAINS
                      deepSoilTemp, lConstSoilWater, lConstSoilHeatCap
       USE step, ONLY : timmax, istpfl, corflg, outflg, frqanl, frqhis,                    &
                        strtim, radfrq
-      USE nudg, ONLY : nudge_time, nudge_zmin, nudge_zmax,                                &
-                       ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
+      USE nudg_defs, ONLY : nudge_time, nudge_zmin, nudge_zmax,                                &
+                            ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
       USE emission_main, ONLY : emitModes, nEmissionModes
       USE grid, ONLY : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                        dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                        filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
-                       nfpt, distim, runtype, CCN, Tspinup,sst,W1,W2,W3, lbinanl, &
+                       nfpt, distim, runtype, CCN,sst,W1,W2,W3, lbinanl, &
                        cntlat
       USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                        zrand, zrndamp
@@ -113,7 +112,8 @@ CONTAINS
                                  RadConstPress, &
                                  RadPrecipBins, &
                                  RadSnowBins
-      USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
+      USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, init_mcrp_switches, &
+                       bulk_autoc
       USE mpi_interface, ONLY : myid, appl_abort, ver, author
       
       IMPLICIT NONE
@@ -146,15 +146,16 @@ CONTAINS
            us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
            umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
            lnudging, lemission,       & ! master switch for nudging, aerosol emissions
-           Tspinup, lbinanl,          & ! Length of spinup period in seconds
+           lbinanl,          &          ! 
            div, case_name, &            ! divergence for LEVEL 4
-           sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow ! Sedimentation (T/F)
-      
+           sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow,  & ! Sedimentation (T/F)
+           bulk_autoc                                            ! autoconversion (and accretion) switch for level < 4 
+
       NAMELIST /radiation/         &
            radfrq,                   & ! radiation type flag RADFRQ NOT USED ANYWHERE, VARIABLE DECLARED IN STEP.F90
            radsounding, sfc_albedo,  & ! Name of the radiation sounding file, surface albedo
-           laerorad,                 &
            useMcICA,                 & ! Use the Monte Carlo Independent Column Approximation method (T/F)
+           laerorad,                 & ! Use the binned aerosol data for radiation (with SALSA)
            RadConstPress,            & ! keep constant pressure levels (T/F) 
            RadPrecipBins,            & ! add precipitation bins cloud water (0, 1, 2, 3,...)
            RadSnowBins              ! add snow bins to cloud ice (0, 1, 2, 3,...)
@@ -198,6 +199,13 @@ CONTAINS
       !
       fftinix = 1
       fftiniy = 1
+
+      !
+      ! Initialize some process switches (mcrp...etc). Need to be done here, before reading the NAMELIST!
+      ! -------------------------------------------------------------------------------------------------
+      CALL init_mcrp_switches()
+
+
       !
       ! read namelist from specified file
       !
@@ -209,17 +217,17 @@ CONTAINS
       REWIND(1)
       READ (1, nml=surface)
       IF (lnudging) THEN
-         REWIND(1)
-         READ  (1, nml=nudge)
+        REWIND(1)
+        READ  (1, nml=nudge)
       ENDIF
       IF (lemission) THEN
-         REWIND(1)
-         READ  (1, nml=emission)
+        REWIND(1)
+        READ  (1, nml=emission)
       ENDIF
       REWIND(1)
       READ  (1, nml=version) 
       CLOSE(1)
-      
+
       !
       ! write file variable control to standard output
       !
@@ -229,7 +237,7 @@ CONTAINS
          ELSE
             WRITE(*,600) expnme, timmax
          END IF
-         IF (outflg) WRITE(*,602) filprf, frqhis, frqanl, Tspinup
+         IF (outflg) WRITE(*,602) filprf, frqhis, frqanl
          !
          ! Do some cursory error checking in namelist variables
          !
@@ -242,12 +250,12 @@ CONTAINS
             IF (myid == 0) PRINT *, '  ABORTING: min(nxp,nyp) must be > 4.'
             CALL appl_abort(0)
          END IF
-         
+
          IF (nzp < 3 ) THEN
             IF (myid == 0) PRINT *, '  ABORTING: nzp must be > 2 '
             CALL appl_abort(0)
          END IF
-         
+
          IF (cntlat < -90. .OR. cntlat > 90.) THEN
             IF (myid == 0) PRINT *, '  ABORTING: central latitude out of bounds.'
             CALL appl_abort(0)

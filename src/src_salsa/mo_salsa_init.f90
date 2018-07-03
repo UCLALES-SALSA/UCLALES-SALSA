@@ -267,106 +267,106 @@ CONTAINS
 
      INTEGER :: ii,jj,bb,nba,nbb
 
-     REAL :: tmplolim(7), tmphilim(7)
+     REAL, ALLOCATABLE :: tmplolim(:), tmphilim(:)
      
      INTEGER :: nspec
 
      nspec = spec%getNSpec()
-
-     ! Helper arrays to set up precipitation size bins
-     tmplolim = (/50.,55.,65.,100.,200.,500.,1000./)*1.e-6
-     tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
-
+     nprc = bloPrc%nbins
+     
+     ! Bin diameter limits for precipitation bins
+     CALL buildBinLimits(bloPrc, tmplolim, tmphilim)
+     
      ! Cloud bins are parallel with the 2a and 2b aerosol bins
 
      ! Number of cloud bins in regime a
      nba = fn2a-in2a+1
      ! Number of cloud bins in regime b
      nbb = nba
-
-      ! Reset cloud bin indices accordingly. The two components give the cloud regime index,
-      ! and the aerosol bin index with which they are parallel
-      ica%cur = 1;               ica%par = in2a
-      fca%cur = ica%cur + nba-1; fca%par = ica%par + nba-1
-      icb%cur = fca%cur + 1;     icb%par = fn2b - nbb + 1
-      fcb%cur = icb%cur + nbb-1; fcb%par = icb%par + nbb-1
-
-      ncld = fcb%cur
-
-      ! Rain/drizzle bins
-      ira = 1; fra = 7;
-      nprc = fra
-
-      ! ----------------------------------------
-      ! Allocate cloud and precipitation arrays
-      ! ----------------------------------------
-      ALLOCATE(dumcloud(kbdim,klev,ncld), dumprecp(kbdim,klev,nprc))
-      DO jj = 1,klev
-         DO ii = 1,kbdim
-            DO bb = 1,ncld
-               dumcloud(ii,jj,bb) = Section(2,nlim,dlcloud)
-            END DO
-            DO bb = 1,nprc
-               dumprecp(ii,jj,bb) = Section(3,prlim,dlprecp)
-            END DO
-         END DO
-      END DO
-
-      DO jj = 1, klev
-         DO ii = 1, kbdim
-
-            ! -------------------------------------------------
-            ! Set cloud properties (parallel to aerosol bins)
-            ! -------------------------------------------------
-            dumcloud(ii,jj,ica%cur:fca%cur)%vhilim = dumaero(ii,jj,ica%par:fca%par)%vhilim
-            dumcloud(ii,jj,icb%cur:fcb%cur)%vhilim = dumaero(ii,jj,icb%par:fcb%par)%vhilim
-
-            dumcloud(ii,jj,ica%cur:fca%cur)%vlolim = dumaero(ii,jj,ica%par:fca%par)%vlolim
-            dumcloud(ii,jj,icb%cur:fcb%cur)%vlolim = dumaero(ii,jj,icb%par:fcb%par)%vlolim
-
-            dumcloud(ii,jj,ica%cur:fca%cur)%vratiohi = dumaero(ii,jj,ica%par:fca%par)%vratiohi
-            dumcloud(ii,jj,icb%cur:fcb%cur)%vratiohi = dumaero(ii,jj,icb%par:fcb%par)%vratiohi
-
-            dumcloud(ii,jj,ica%cur:fca%cur)%vratiolo = dumaero(ii,jj,ica%par:fca%par)%vratiolo
-            dumcloud(ii,jj,icb%cur:fcb%cur)%vratiolo = dumaero(ii,jj,icb%par:fcb%par)%vratiolo
-
-            dumcloud(ii,jj,ica%cur:fca%cur)%dmid = dumaero(ii,jj,ica%par:fca%par)%dmid
-            dumcloud(ii,jj,icb%cur:fcb%cur)%dmid = dumaero(ii,jj,icb%par:fcb%par)%dmid
-
-            ! Initialize the droplet diameter ("wet diameter") as the dry
-            ! mid diameter of the nucleus to avoid problems later.
-            dumcloud(ii,jj,ica%cur:fcb%cur)%dwet = dumcloud(ii,jj,ica%cur:fcb%cur)%dmid
-
-            ! ---------------------------------------------------------------------------------------
-            ! Set the precipitation properties; unlike aerosol and cloud bins, the size distribution
-            ! goes according to the *wet* radius
-            ! ---------------------------------------------------------------------------------------
-            DO bb = ira, fra
-               dumprecp(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3
-               dumprecp(ii,jj,bb)%vlolim = pi6*tmplolim(bb)**3
-               dumprecp(ii,jj,bb)%dmid = ( (dumprecp(ii,jj,bb)%vlolim + dumprecp(ii,jj,bb)%vhilim) /  &
-                                       (2.*pi6) )**(1./3.)
-               dumprecp(ii,jj,bb)%vratiohi = dumprecp(ii,jj,bb)%vhilim / ( pi6*dumprecp(ii,jj,bb)%dmid**3 )
-               dumprecp(ii,jj,bb)%vratiolo = dumprecp(ii,jj,bb)%vlolim / ( pi6*dumprecp(ii,jj,bb)%dmid**3 )
-
-               ! Initialize the wet diameter as the bin mid diameter
-               dumprecp(ii,jj,bb)%dwet = dumprecp(ii,jj,bb)%dmid
-
-            END DO
-
-         END DO
-      END DO
-
-      ! Save bin limits to be delivered e.g. to host model if needed
-      ALLOCATE(cloudbins(ncld))
-      DO bb = 1, ncld
-         cloudbins(bb) = (dumcloud(1,1,bb)%vlolim/pi6)**(1./3.)
-      END DO
-      ALLOCATE(precpbins(nprc))
-      DO bb = 1, nprc
-         precpbins(bb) = (dumprecp(1,1,bb)%vlolim/pi6)**(1./3.)
-      END DO
-
+     
+     ! Reset cloud bin indices accordingly. The two components give the cloud regime index,
+     ! and the aerosol bin index with which they are parallel
+     ica%cur = 1;               ica%par = in2a
+     fca%cur = ica%cur + nba-1; fca%par = ica%par + nba-1
+     icb%cur = fca%cur + 1;     icb%par = fn2b - nbb + 1
+     fcb%cur = icb%cur + nbb-1; fcb%par = icb%par + nbb-1
+     
+     ncld = fcb%cur
+     
+     ! Rain/drizzle bins
+     ira = 1; fra = nprc;
+     
+     
+     ! ----------------------------------------
+     ! Allocate cloud and precipitation arrays
+     ! ----------------------------------------
+     ALLOCATE(dumcloud(kbdim,klev,ncld), dumprecp(kbdim,klev,nprc))
+     DO jj = 1,klev
+        DO ii = 1,kbdim
+           DO bb = 1,ncld
+              dumcloud(ii,jj,bb) = Section(2,nlim,dlcloud)
+           END DO
+           DO bb = 1,nprc
+              dumprecp(ii,jj,bb) = Section(3,prlim,dlprecp)
+           END DO
+        END DO
+     END DO
+     
+     DO jj = 1, klev
+        DO ii = 1, kbdim
+           
+           ! -------------------------------------------------
+           ! Set cloud properties (parallel to aerosol bins)
+           ! -------------------------------------------------
+           dumcloud(ii,jj,ica%cur:fca%cur)%vhilim = dumaero(ii,jj,ica%par:fca%par)%vhilim
+           dumcloud(ii,jj,icb%cur:fcb%cur)%vhilim = dumaero(ii,jj,icb%par:fcb%par)%vhilim
+           
+           dumcloud(ii,jj,ica%cur:fca%cur)%vlolim = dumaero(ii,jj,ica%par:fca%par)%vlolim
+           dumcloud(ii,jj,icb%cur:fcb%cur)%vlolim = dumaero(ii,jj,icb%par:fcb%par)%vlolim
+           
+           dumcloud(ii,jj,ica%cur:fca%cur)%vratiohi = dumaero(ii,jj,ica%par:fca%par)%vratiohi
+           dumcloud(ii,jj,icb%cur:fcb%cur)%vratiohi = dumaero(ii,jj,icb%par:fcb%par)%vratiohi
+           
+           dumcloud(ii,jj,ica%cur:fca%cur)%vratiolo = dumaero(ii,jj,ica%par:fca%par)%vratiolo
+           dumcloud(ii,jj,icb%cur:fcb%cur)%vratiolo = dumaero(ii,jj,icb%par:fcb%par)%vratiolo
+           
+           dumcloud(ii,jj,ica%cur:fca%cur)%dmid = dumaero(ii,jj,ica%par:fca%par)%dmid
+           dumcloud(ii,jj,icb%cur:fcb%cur)%dmid = dumaero(ii,jj,icb%par:fcb%par)%dmid
+           
+           ! Initialize the droplet diameter ("wet diameter") as the dry
+           ! mid diameter of the nucleus to avoid problems later.
+           dumcloud(ii,jj,ica%cur:fcb%cur)%dwet = dumcloud(ii,jj,ica%cur:fcb%cur)%dmid
+           
+           ! ---------------------------------------------------------------------------------------
+           ! Set the precipitation properties; unlike aerosol and cloud bins, the size distribution
+           ! goes according to the *wet* radius
+           ! ---------------------------------------------------------------------------------------
+           DO bb = ira, fra
+              dumprecp(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3
+              dumprecp(ii,jj,bb)%vlolim = pi6*tmplolim(bb)**3
+              dumprecp(ii,jj,bb)%dmid = ( (dumprecp(ii,jj,bb)%vlolim + dumprecp(ii,jj,bb)%vhilim) /  &
+                   (2.*pi6) )**(1./3.)
+              dumprecp(ii,jj,bb)%vratiohi = dumprecp(ii,jj,bb)%vhilim / ( pi6*dumprecp(ii,jj,bb)%dmid**3 )
+              dumprecp(ii,jj,bb)%vratiolo = dumprecp(ii,jj,bb)%vlolim / ( pi6*dumprecp(ii,jj,bb)%dmid**3 )
+              
+              ! Initialize the wet diameter as the bin mid diameter
+              dumprecp(ii,jj,bb)%dwet = dumprecp(ii,jj,bb)%dmid
+              
+           END DO
+           
+        END DO
+     END DO
+     
+     ! Save bin limits to be delivered e.g. to host model if needed
+     ALLOCATE(cloudbins(ncld))
+     DO bb = 1, ncld
+        cloudbins(bb) = (dumcloud(1,1,bb)%vlolim/pi6)**(1./3.)
+     END DO
+     ALLOCATE(precpbins(nprc))
+     DO bb = 1, nprc
+        precpbins(bb) = (dumprecp(1,1,bb)%vlolim/pi6)**(1./3.)
+     END DO
+     
    END SUBROUTINE set_cloudbins
 
    !--------------------------------------------------------------------------
@@ -489,6 +489,32 @@ CONTAINS
      
    END SUBROUTINE set_icebins
    
+   ! ---------------------------------------------------
+   
+   SUBROUTINE buildBinLimits(blo, dlolim, dhilim)
+     USE classBinLayout, ONLY : BinLayout
+     TYPE(BinLayout), INTENT(in) :: blo   ! Bin layout instance
+     REAL, ALLOCATABLE, INTENT(out) :: dlolim(:), dhilim(:)   ! Vectors for the low and upper limit diameters
+
+     INTEGER :: N,ii
+     REAL :: first, ratio
+
+     N = blo%nbins
+     ALLOCATE(dlolim(N), dhilim(N))
+     dlolim = 0.; dhilim = 0.
+
+     first = blo%dlo
+     ratio = blo%vol_ratio
+     dlolim(1) = first
+     dhilim(1) = first*( ratio**(1./3.) )
+     DO ii = 2,N
+        dlolim(ii) = dlolim(ii-1)*( ratio**(1./3.) )
+        dhilim(ii) = dlolim(ii)*( ratio**(1./3.) )
+     END DO
+     
+   END SUBROUTINE buildBinLimits
+
+
    !----------------------------------------------------------------------
    !
    ! *************************
@@ -517,25 +543,23 @@ CONTAINS
                              lscgip,lscgsa,lscgsc,  &
                              lscgsi,lscgsp,lscgss,  &
 
-                             lscndgas,              &
-                             lscndh2oae,lscndh2ocl, &
-                             lscndh2oic,            &
-
-                             lsactintst,            &
-                             lsactbase,             &
+                             lscndgas,                    &
+                             lscndh2oae,lscndh2ocl,       &
+                             lscndh2oic,                  &
 
                              lsdistupdate,          &
                              lscheckarrays,         &
                              fixINC,                &
                              ice_hom, ice_imm, ice_dep, &
 
-                             nbin,reglim,   &
-                             nice,nsnw,             &
-                             nspec_dry,listspec,        &
-                             volDistA, volDistB,    &
-                             nf2a, isdtyp,          &
-                             sigmag,dpg,n,  &
-                             rhlim
+                             bloPrc,                      &                            
+                             nbin,reglim,                 &
+                             nice,nsnw,                   &
+                             nspec_dry,listspec,          &
+                             volDistA, volDistB,          &
+                             nf2a, isdtyp,                &
+                             sigmag,dpg,n,                &
+                             lsfreeRH,rhlim
 
       IMPLICIT NONE
 
@@ -545,9 +569,9 @@ CONTAINS
          ! Master process switches
          lscoag,      &
          lscnd,       &
-         lsauto,      &
+         lsauto,      &     ! mode 1: parameterized simple autoconversion, mode 2: more elaborate precipitation formation based on coagulation
          lsautosnow,  &
-         lsactiv,     &
+         lsactiv,     &     ! mode 1: Aerosol growth-based activation, mode 2: Parameterized cloud base activation 
          lsicenucl,   &
          lsicemelt,   &
 
@@ -573,21 +597,20 @@ CONTAINS
          lscndh2oic,    & ! Condensation of water vapour on ice particles ! ice'n'snow
          lscndh2oae,    & ! Condensation of water vapour on aerosols (FALSE -> equilibrium calc.)
 
+         lsdistupdate,  & ! Switch for size dsitribution update
+         lscheckarrays, & ! Switch for runnin the array check routine in mo_salsa
+
          fixINC,      & ! fixed ice number concentration #/kg
          ice_hom,     & ! Switch for homogeneous ice nucleation
          ice_imm,     & ! .. for immersio freezing
          ice_dep,     & ! .. for deposition freezing
 
          nbin,        & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
-         nice,        & ! number of ice bins
-         nsnw,        & ! number of snow bins
-
-         lsactbase,     & ! Switch for parameterized cloud base activation
-         lsactintst,    & ! Switch for interstitial activation based on particle growth and host model S
-
-         lsdistupdate,  & ! Switch for size dsitribution update
-         lscheckarrays, & ! Switch for runnin the array check routine in mo_salsa
-
+         nice,        & ! number of ice bins  DONT USE YET, WILL NOT WORK
+         nsnw,        & ! number of snow bins DONT USE YET, WILL NOT WORK
+         
+         bloPrc,      & ! Precipitation bin definitions
+         
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          reglim,        & ! Low/high diameter limits of the 2 aerosol size regimes (1d table with length 4)
          nbin,          & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
@@ -599,6 +622,7 @@ CONTAINS
          volDistB,      & ! Same as above but for b-bins
          nf2a,          & ! Number fraction of particles allocated to a-bins in regime 2. b-bins will get 1-nf2a
 
+         lsfreeRH,      & ! Switch for using rhlim
          rhlim,         & ! Upper limit RH/100 for sals during initialization and spinup 
 
          sigmag,        & ! Stdev for the 7 initial lognormal modes
@@ -608,7 +632,11 @@ CONTAINS
 
       ! Associate master switch pointers before reading NAMELIST
       CALL associate_master_switches()
+      
+      ! Set default values to BinLayout objects
+      CALL setDefaultBinLayouts()
 
+      ! Read the NAMELIST
       OPEN(11,STATUS='old',FILE='NAMELIST')
       READ(11,NML=salsa)
       CLOSE(11)
@@ -645,7 +673,7 @@ CONTAINS
      USE classProcessSwitch, ONLY : ProcessSwitch
      USE mo_submctl, ONLY : Nmaster, lsmaster, lscoag, lscnd, lsauto,  &
                             lsautosnow, lsactiv, lsicenucl,   &
-                            lsicemelt
+                            lsicemelt, lsfreeRH
      IMPLICIT NONE
      
      INTEGER :: i
@@ -664,10 +692,20 @@ CONTAINS
      lsicenucl => lsmaster(6)
      lsicemelt => lsmaster(7)
 
+     ! Use this to initialize also some other switches
+     lsfreeRH = ProcessSwitch()
 
    END SUBROUTINE associate_master_switches
    
+   SUBROUTINE setDefaultBinLayouts
+     USE mo_submctl, ONLY : bloPrc
+     USE classBinLayout, ONLY : BinLayout
+     IMPLICIT NONE
 
+     bloPrc = BinLayout(20,20.e-6,2.)
+    
+   END SUBROUTINE setDefaultBinLayouts
+   
 
    !-------------------------------------------------------------------------------
    !

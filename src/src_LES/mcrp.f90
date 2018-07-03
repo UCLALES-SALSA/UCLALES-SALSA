@@ -34,15 +34,17 @@ MODULE mcrp
    USE mo_submctl, ONLY : spec 
    USE mo_particle_external_properties, ONLY : calcDiamLES, terminal_vel
    USE util, ONLY : getMassIndex
+   USE classProcessSwitch, ONLY : ProcessSwitch
    IMPLICIT NONE
-
-   LOGICAL, PARAMETER :: droplet_sedim = .FALSE., khairoutdinov = .FALSE.
-
-   LOGICAL :: sed_aero = .TRUE.,  &
-              sed_cloud = .TRUE., &
-              sed_precp = .TRUE., &
-              sed_ice = .TRUE.,   &
-              sed_snow = .TRUE.
+   
+   LOGICAL, PARAMETER :: khairoutdinov = .FALSE.
+   
+   TYPE(ProcessSwitch) :: sed_aero,  &
+                          sed_cloud, &
+                          sed_precp, &
+                          sed_ice,   &
+                          sed_snow, &
+                          bulk_autoc
    !
    ! drop sizes definition is based on vanZanten (2005)
    ! cloud droplets' diameter: 2-50 e-6 m
@@ -61,9 +63,26 @@ MODULE mcrp
    REAL, PARAMETER :: X_max = (D_max**3)*rowt*pi/6. ! max prcp mass
 
    REAL, PARAMETER :: prw = pi * rowt / 6.
+   
+ CONTAINS
+   
+   !
+   ! ---------------------------------------------------------------------
+   ! init_micro: initialize the sedimentation switches
+   ! 
+   SUBROUTINE init_mcrp_switches
+     IMPLICIT NONE
 
-CONTAINS
+     ! Defaults are FALSE
+     sed_aero = ProcessSwitch()
+     sed_cloud = ProcessSwitch()
+     sed_precp = ProcessSwitch()
+     sed_ice = ProcessSwitch()
+     sed_snow = ProcessSwitch()
+     bulk_autoc = ProcessSwitch()
 
+   END SUBROUTINE init_mcrp_switches
+   
    !
    ! ---------------------------------------------------------------------
    ! MICRO: sets up call to microphysics
@@ -74,18 +93,14 @@ CONTAINS
 
       SELECT CASE (level)
          CASE(2)
-            IF (sed_cloud)  &
+            IF (sed_cloud%state)  &
                CALL sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
          CASE(3)
             CALL mcrph(nzp,nxp,nyp,dn0,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,   &
                        a_npp,precip,a_rt,a_tt,a_rpt,a_npt)
          CASE(4,5)
-            IF (level < 5) THEN
-               sed_ice = .FALSE.; sed_snow = .FALSE.
-            END IF
             nspec = spec%getNSpec()
- 
-            CALL sedim_SALSA(nzp,nxp,nyp,nspec,dtlt, a_temp, a_theta,                &
+            CALL sedim_SALSA(nzp,nxp,nyp,nn,dtlt, a_temp, a_theta,                &
                              a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
                              a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
                              a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,          &
@@ -102,54 +117,56 @@ CONTAINS
    !
    SUBROUTINE mcrph(n1,n2,n3,dn0,th,tk,rv,rs,rc,rp,np,rrate,         &
                     rtt,tlt,rpt,npt)
-
-      INTEGER, INTENT (in) :: n1,n2,n3
-      REAL, DIMENSION(n1,n2,n3), INTENT (in)    :: th, tk, rv, rs
-      REAL, DIMENSION(n1)      , INTENT (in)    :: dn0
-      REAL, DIMENSION(n1,n2,n3), INTENT (inout) :: rc, rtt, tlt, rpt, npt, np, rp
-      REAL, INTENT (out)                        :: rrate(n1,n2,n3)
-
-      INTEGER :: i, j, k
-
-      !
-      ! Microphysics following Seifert Beheng (2001, 2005)
-      ! note that the order below is important as the rc array is
-      ! redefined in cld_dgn below and is assumed to be cloud water
-      ! after that and total condensate priort to that
-      !
-
-      DO j = 3, n3-2
-         DO i = 3, n2-2
-            DO k = 1, n1
-               rp(k,i,j) = max(0., rp(k,i,j))
-               np(k,i,j) = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
-            END DO
-         END DO
-      END DO
-
-      CALL wtr_dff_SB(n1,n2,n3,dn0,rp,np,rc,rs,rv,tk,rpt,npt)
-
-      CALL auto_SB(n1,n2,n3,dn0,rc,rp,rpt,npt)
-
-      CALL accr_SB(n1,n2,n3,dn0,rc,rp,np,rpt,npt)
-
-      DO j = 3, n3-2
-         DO i = 3, n2-2
-            DO k = 2, n1-1
-               rp(k,i,j)  = rp(k,i,j) + max(-rp(k,i,j)/dtlt,rpt(k,i,j))*dtlt
-               np(k,i,j)  = np(k,i,j) + max(-np(k,i,j)/dtlt,npt(k,i,j))*dtlt
-               rpt(k,i,j) = 0.
-               npt(k,i,j) = 0.
-               rp(k,i,j)  = max(0., rp(k,i,j))
-               np(k,i,j)  = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
-            END DO
-         END DO
-      END DO
-
-      IF (sed_precp) CALL sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
-
-      IF (sed_cloud) CALL sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
-
+     
+     INTEGER, INTENT (in) :: n1,n2,n3
+     REAL, DIMENSION(n1,n2,n3), INTENT (in)    :: th, tk, rv, rs
+     REAL, DIMENSION(n1)      , INTENT (in)    :: dn0
+     REAL, DIMENSION(n1,n2,n3), INTENT (inout) :: rc, rtt, tlt, rpt, npt, np, rp
+     REAL, INTENT (out)                        :: rrate(n1,n2,n3)
+     
+     INTEGER :: i, j, k
+     
+     !
+     ! Microphysics following Seifert Beheng (2001, 2005)
+     ! note that the order below is important as the rc array is
+     ! redefined in cld_dgn below and is assumed to be cloud water
+     ! after that and total condensate priort to that
+     !
+     
+     DO j = 3, n3-2
+        DO i = 3, n2-2
+           DO k = 1, n1
+              rp(k,i,j) = max(0., rp(k,i,j))
+              np(k,i,j) = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
+           END DO
+        END DO
+     END DO
+     
+     CALL wtr_dff_SB(n1,n2,n3,dn0,rp,np,rc,rs,rv,tk,rpt,npt)
+     
+     IF (bulk_autoc%state) THEN
+        CALL auto_SB(n1,n2,n3,dn0,rc,rp,rpt,npt)
+        
+        CALL accr_SB(n1,n2,n3,dn0,rc,rp,np,rpt,npt)
+     END IF
+        
+     DO j = 3, n3-2
+        DO i = 3, n2-2
+           DO k = 2, n1-1
+              rp(k,i,j)  = rp(k,i,j) + max(-rp(k,i,j)/dtlt,rpt(k,i,j))*dtlt
+              np(k,i,j)  = np(k,i,j) + max(-np(k,i,j)/dtlt,npt(k,i,j))*dtlt
+              rpt(k,i,j) = 0.
+              npt(k,i,j) = 0.
+              rp(k,i,j)  = max(0., rp(k,i,j))
+              np(k,i,j)  = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
+           END DO
+        END DO
+     END DO
+     
+     IF (sed_precp%state) CALL sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
+     
+     IF (sed_cloud%state) CALL sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
+     
    END SUBROUTINE mcrph
    !
    ! ---------------------------------------------------------------------
@@ -575,7 +592,7 @@ CONTAINS
 
       ! Sedimentation for slow (non-precipitating) particles
       !-------------------------------------------------------
-      IF (sed_aero) THEN
+      IF (sed_aero%state) THEN
 
        CALL DepositionSlow(n1,n2,n3,n4,nbins,tk,a_dn,1500.,ustar,naerop,maerop, &
                            dzt,tstep,nlim,andiv,amdiv,andep,remaer,1            )
@@ -597,7 +614,7 @@ CONTAINS
 
       END IF ! sed_aero
 
-      IF (sed_cloud) THEN
+      IF (sed_cloud%state) THEN
 
        CALL DepositionSlow(n1,n2,n3,n4,ncld,tk,a_dn,spec%rhowa,ustar,ncloudp,mcloudp, &
                            dzt,tstep,nlim,cndiv,cmdiv,cndep,remcld,2                  )
@@ -619,7 +636,7 @@ CONTAINS
 
       END IF ! sed_cloud
 
-      IF (sed_ice) THEN
+      IF (sed_ice%state) THEN
 
        CALL DepositionSlow(n1,n2,n3,n4+1,nice,tk,a_dn,spec%rhoic,ustar,nicep,micep, &    ! n4 + 1 for RIME
                            dzt,tstep,nlim,indiv,imdiv,indep,remice,4              )
@@ -643,7 +660,7 @@ CONTAINS
 
       ! ---------------------------------------------------------
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
-      IF (sed_precp) THEN
+      IF (sed_precp%state) THEN
          CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,spec%rhowa,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate,3)
 
          nprecpt(:,:,:,:) = nprecpt(:,:,:,:) + prnt(:,:,:,:)/tstep
@@ -665,7 +682,7 @@ CONTAINS
       END IF
     
 
-      IF (sed_snow) THEN
+      IF (sed_snow%state) THEN
          CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,spec%rhosn,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate,5)
            
          nsnowt(:,:,:,:) = nsnowt(:,:,:,:) + srnt(:,:,:,:)/tstep
@@ -751,7 +768,7 @@ CONTAINS
     flxdivn = 0.
     depflxm = 0.
     depflxn = 0.
-    
+
     DO j = 3,n3-2
        DO i = 3,n2-2
 
@@ -772,7 +789,6 @@ CONTAINS
              ! -- Calculate the *corrections* for small particles
              DO bin = 1,nn
                 IF (numc(k,i,j,bin)<clim) CYCLE
-
 
                 ! Calculate wet size
                 !   n4 = number of active species
@@ -965,7 +981,7 @@ CONTAINS
 
                 ! Removal statistics
                 IF (prcdep) THEN
-                   DO ni=1,n4 
+                   DO ni=1,n4
                       remprc(i,j,(ni-1)*nn+bin) = remprc(i,j,(ni-1)*nn+bin) +    &
                            pmass(ni)*adn(k,i,j)*vc
                    END DO

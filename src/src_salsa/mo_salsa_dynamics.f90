@@ -175,14 +175,14 @@ CONTAINS
       
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !-- 3) New particle and volume concentrations after coagulation -------------
+      IF (any_precp) &
+           CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip,zccsp)
+
       IF (any_aero) &
            CALL coag_aero(kbdim,klev,nspec,ptstep,zccaa,zccca,zccpa,zccia,zccsa)
 
       IF (any_cloud) &
            CALL coag_cloud(kbdim,klev,nspec,ptstep,zcccc,zccca,zccpc,zccic,zccsc)
-
-      IF (any_precp) &
-           CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip,zccsp)
 
    END SUBROUTINE coagulation
 

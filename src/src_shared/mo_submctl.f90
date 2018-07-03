@@ -1,6 +1,7 @@
 MODULE mo_submctl
   USE classSpecies, ONLY : Species, maxspec
   USE classProcessSwitch, ONLY : ProcessSwitch
+  USE classBinLayout, ONLY : BinLayout
   IMPLICIT NONE
 
   ! I'd say nothing here needs to be PRIVATE so removed explicit PRIVATE and PUBLIC attributes (PUBLIC is default).
@@ -18,9 +19,9 @@ MODULE mo_submctl
   TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)  ! Array for master switches. The specific master switches are pointers to this array
   TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation
   TYPE(ProcessSwitch), POINTER :: lscnd => NULL()      ! Condensation
-  TYPE(ProcessSwitch), POINTER :: lsauto => NULL()     ! Autoconversion
+  TYPE(ProcessSwitch), POINTER :: lsauto => NULL()     ! Autoconversion, mode = 1: parameterized simple autoconversion, mode = 2: coagulation based precip formation
   TYPE(ProcessSwitch), POINTER :: lsautosnow => NULL() ! Autoconversion of snow (need to revise)
-  TYPE(ProcessSwitch), POINTER :: lsactiv => NULL()    ! Cloud activation
+  TYPE(ProcessSwitch), POINTER :: lsactiv => NULL()    ! Cloud activation, mode = 1: aerosol growth based activation, mode = 2: parameterized cloud base activation
   TYPE(ProcessSwitch), POINTER :: lsicenucl => NULL()  ! Ice nucleation
   TYPE(ProcessSwitch), POINTER :: lsicemelt => NULL()  ! Melting of ice
 
@@ -47,13 +48,16 @@ MODULE mo_submctl
   LOGICAL :: lscndh2oae = .TRUE.  ! Condensation of water vapour on aerosol particles (FALSE -> equilibrium calc.)
   LOGICAL :: lscndh2oic = .TRUE.  ! Condensation of water vapour on ice and snow
 
-  ! Activation schemes
-  LOGICAL :: lsactintst  = .TRUE.   ! Switch for interstitial activation: use particle wet size determined by
-  LOGICAL :: lsactbase   = .FALSE.  ! Switch for cloud base activation: use the regular parameterized method
-
   LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
 
   LOGICAL :: lscheckarrays = .FALSE.
+
+  TYPE(ProcessSwitch) :: lsfreeRH   ! If FALSE, use RH constrained by *rhlim* for SALSA processes. Otherwise use the predicted value.
+                                    ! If lsfreeRH%delay > 0, the constrain is active until that time.
+  ! RH Limit: used for initialization and spinup within SALSA to limit the water vapour mixing ratio.
+  ! Prevents unrealistically high RH in cloud activation and condensation procedures that is often assigned
+  ! in the LES input files to immediately generate cloud. Given in %/100.
+  REAL :: rhlim = 1.20
 
   ! 1) Switches for aerosol microphysical processes ------------------------
   INTEGER, PARAMETER :: nmod = 7
@@ -79,11 +83,6 @@ MODULE mo_submctl
                                   ! 2 = coagulational sink (Lehtinen et al. 2007)
                                   ! 3 = coagS+self-coagulation (Anttila et al. 2010)
   REAL :: act_coeff = 1.e-7  ! activation coefficient
-
-  ! RH Limit: used for initialization and spinup within SALSA to limit the water vapour mixing ratio.
-  ! Prevents unrealistically high RH in cloud activation and condensation procedures that is often assigned
-  ! in the LES input files to immediately generate cloud. Given in %/100.
-  REAL :: rhlim = 1.20
   
   ! Define which aerosol species used and initial size distributions
   TYPE(Species), TARGET :: spec  ! Must be initialized in mo_salsa_init (pointer associations). Holds aerosol species indices and properties
@@ -140,7 +139,9 @@ MODULE mo_submctl
                            fcb    ! cloud droplets (last, regime b)
   INTEGER             ::   ira,fra! Rain/drizzle bin indices
   INTEGER             ::   ncld   ! Total number of cloud bins
-  INTEGER             ::   nprc   ! Total number of precipitation bins
+  INTEGER             ::   nprc
+
+  TYPE(BinLayout)     :: bloPrc   ! Precipitation bin definitions
   
   ! Jaakko: ice bins:
   TYPE(t_parallelbin) ::   iia, & ! ice particles (first, regime a)
