@@ -44,7 +44,7 @@ contains
   !
   subroutine initialize
 
-    use step, only : time, outflg
+    use step, only : time, outflg, salsa_diagnostics
     use stat, only : init_stat, mcflg, acc_massbudged, salsa_b_bins
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
@@ -75,6 +75,10 @@ contains
        IF (level >= 4) THEN
 
           n4 = GetNcomp(prtcl) + 1 ! Aerosol components + water
+
+          ! Update diagnostic SALSA tracers
+          CALL thermo(level)
+          CALL SALSA_diagnostics
 
           IF ( nxp == 5 .and. nyp == 5 ) THEN
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
@@ -108,13 +112,19 @@ contains
                   melt_ri=melt_ri, melt_ni=melt_ni, melt_rs=melt_rs, melt_ns=melt_ns)
           END IF
           CALL SALSAInit
-          
+          CALL thermo(level)
 
        END IF !level >= 4
 
     else if (runtype == 'HISTORY') then
        if (isgstyp == 2) call tkeinit(nxyzp,a_qp)
        call hstart
+       ! Update diagnostic SALSA tracers
+       IF (level >= 4) THEN
+          CALL SALSAInit
+          CALL thermo(level)
+          CALL SALSA_diagnostics
+       END IF
     else
        if (myid == 0) print *,'  ABORTING:  Invalid Runtype'
        call appl_abort(0)
@@ -709,10 +719,11 @@ contains
   ! Juha Tonttila, FMI, 2014
   !
   SUBROUTINE SALSAInit
-    USE mo_submctl, ONLY : ncld,nbins,nice
+    USE mo_submctl, ONLY : nbins,ncld,nprc,nice,nsnw, &
+               in1a,fn2b,ica,fcb,ira,fra,iia,fib,isa,fsa
     USE class_componentIndex, ONLY : GetIndex
     IMPLICIT NONE
-    INTEGER :: k,i,j,bb,nc
+    INTEGER :: k,i,j,bb,nc,str,end
 
     DO j=1,nyp
        DO i=1,nxp
@@ -736,22 +747,33 @@ contains
        END DO
     END DO
 
-    nc = GetIndex(prtcl,'H2O')
-    ! Activation + diagnostic array initialization
-    ! Clouds and aerosols
-    a_rc(:,:,:) = 0.
-    DO bb = 1, ncld
-       a_rc(:,:,:) = a_rc(:,:,:) + a_mcloudp(:,:,:,(nc-1)*ncld+bb)
-    END DO
-    DO bb = 1,nbins
-       a_rc(:,:,:) = a_rc(:,:,:) + a_maerop(:,:,:,(nc-1)*nbins+bb)
-    END DO
+    ! Update diagnostic tracers
 
-    ! Ice
-    a_ri(:,:,:) = 0.
-    do bb = 1,nice
-        a_ri(:,:,:) = a_ri(:,:,:) + a_micep(:,:,:,(nc-1)*nice + bb)
-    end do
+    ! Liquid water content
+    nc = GetIndex(prtcl,'H2O')
+    ! Aerosols, regimes a and b
+    str = (nc-1)*nbins + in1a
+    end = (nc-1)*nbins + fn2b
+    a_rc(:,:,:) = SUM(a_maerop(:,:,:,str:end),DIM=4)
+    ! Clouds, regime a and b
+    str = (nc-1)*ncld+ica%cur
+    end = (nc-1)*ncld+fcb%cur
+    a_rc(:,:,:) = a_rc(:,:,:) + SUM(a_mcloudp(:,:,:,str:end),DIM=4)
+    ! Precipitation
+    str = (nc-1)*nprc+ira
+    end = (nc-1)*nprc+fra
+    a_srp(:,:,:) = SUM(a_mprecpp(:,:,:,str:end),DIM=4)
+    a_snrp(:,:,:) = SUM(a_nprecpp(:,:,:,ira:fra),DIM=4)
+
+    ! ice, regimes a and b
+    str = (nc-1)*nice+iia%cur
+    end = (nc-1)*nice+fib%cur
+    a_ri(:,:,:) = SUM(a_micep(:,:,:,str:end),DIM=4)
+    ! Snow
+    str = (nc-1)*nsnw+isa
+    end = (nc-1)*nsnw+fsa
+    a_srs(:,:,:) = SUM(a_msnowp(:,:,:,str:end),DIM=4)
+    a_snrs(:,:,:) = SUM(a_nsnowp(:,:,:,isa:fsa),DIM=4)
 
   END SUBROUTINE SALSAInit
 

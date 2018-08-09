@@ -28,13 +28,13 @@ module stat
   implicit none
   private
 
-  integer, parameter :: nvar1 = 29,               &
+  integer, parameter :: nvar1 = 35,               &
                         nv1_lvl4 = 72,            &
                         nv1MB = 4,                &
-                        nv1_lvl5 = 67,            &
+                        nv1_lvl5 = 68,            &
                         nvar2 = 96,               &
-                        nv2_lvl4 = 43,            &
-                        nv2_lvl5 = 29, &
+                        nv2_lvl4 = 44,            &
+                        nv2_lvl5 = 31,            &
                         nv2saa = 8, nv2sab = 8,   &
                         nv2sca = 8, nv2scb = 8,   &
                         nv2sp = 8, &
@@ -73,7 +73,8 @@ module stat
        'vtke   ','sfcbflx','wmax   ','tsrf   ','ustar  ','shf_bar', & ! 7
        'lhf_bar','zi_bar ','lwp_bar','lwp_var','zc     ','zb     ', & !13
        'cfrac  ','lmax   ','albedo ','rwp_bar','prcp   ','pfrac  ', & !19
-       'CCN    ','nrain  ','nrcnt  ','nccnt  ','prcp_bc'/),         & !25
+       'CCN    ','nrain  ','nrcnt  ','nccnt  ','prcp_bc','zcmn   ', & !25
+       'zbmn   ','tkeint ','thl_int','wvp_bar','wvp_var'/),         & !31
 
        ! **** Bulk temporal statistics for SALSA ****
        s1_lvl4(nv1_lvl4) = (/       &
@@ -114,13 +115,13 @@ module stat
        'cond_ri','cond_rs','auto_rs','auto_ns',   & ! 54-57
        'nucl_ri','nucl_ni','melt_ri','melt_ni',   & ! 58-61
        'melt_rs','melt_ns','sedi_ri','sedi_ni',   & ! 62-65
-       'sedi_rs','sedi_ns'/),                     & ! 66-67
+       'sedi_rs','sedi_ns','thi_int'/),           & ! 66-68
 
         s2(nvar2)=(/                                                 &
         'time   ','zt     ','zm     ','dn0    ','u0     ','v0     ', & ! 1
-        'fsttm  ','lsttm  ','nsmp   ','u      ','v      ','theta  ', & ! 7
-        'p      ','u_2    ','v_2    ','w_2    ','theta_2','w_3    ', & ! 13
-        'theta_3','tot_tw ','sfs_tw ','tot_uw ','sfs_uw ','tot_vw ', & ! 19
+        'fsttm  ','lsttm  ','nsmp   ','u      ','v      ','thl    ', & ! 7
+        'p      ','u_2    ','v_2    ','w_2    ','thl_2  ','w_3    ', & ! 13
+        'thl_3  ','tot_tw ','sfs_tw ','tot_uw ','sfs_uw ','tot_vw ', & ! 19
         'sfs_vw ','tot_ww ','sfs_ww ','km     ','kh     ','lmbd   ', & ! 25
         'lmbde  ','sfs_tke','sfs_boy','sfs_shr','boy_prd','shr_prd', & ! 31
         'trans  ','diss   ','dff_u  ','dff_v  ','dff_w  ','adv_u  ', & ! 37
@@ -128,9 +129,9 @@ module stat
         'storage','q      ','q_2    ','q_3    ','tot_qw ','sfs_qw ', & ! 49
         'rflx   ','rflx2  ','sflx   ','sflx2  ','l      ','l_2    ', & ! 55
         'l_3    ','tot_lw ','sed_lw ','cs1    ','cnt_cs1','w_cs1  ', & ! 61
-        't_cs1  ','tv_cs1 ','rt_cs1 ','rc_cs1 ','wt_cs1 ','wtv_cs1', & ! 67
-        'wrt_cs1','cs2    ','cnt_cs2','w_cs2  ','t_cs2  ','tv_cs2 ', & ! 73
-        'rt_cs2 ','rc_cs2 ','wt_cs2 ','wtv_cs2','wrt_cs2','Nc     ', & ! 79
+        'tl_cs1 ','tv_cs1 ','rt_cs1 ','rc_cs1 ','wtl_cs1','wtv_cs1', & ! 67
+        'wrt_cs1','cs2    ','cnt_cs2','w_cs2  ','tl_cs2 ','tv_cs2 ', & ! 73
+        'rt_cs2 ','rc_cs2 ','wtl_cs2','wtv_cs2','wrt_cs2','Nc     ', & ! 79
         'Nr     ','rr     ','rrate  ','evap   ','frc_prc','prc_prc', & ! 85
         'frc_ran','hst_srf','sw_up  ','sw_down','lw_up  ','lw_down'/), & ! 91, total 96
 
@@ -147,7 +148,7 @@ module stat
         'P_cNOa ','P_cNOc ','P_cNOp ',                               & !31
         'P_cNHa ','P_cNHc ','P_cNHp ',                               & !34
         'P_cH2Oa','P_cH2Oc','P_cH2Op',                               & !37
-        'P_rl   ','P_rr   ','P_rv   ','P_RH   '/),                   & !40-43
+        'P_rl   ','P_rr   ','P_rv   ','P_RH   ','crate  '/),         & !40-44
 
         s2_lvl5(nv2_lvl5) = (/ &
         'ica    ','icb    ','snw    ', & ! 1-3
@@ -156,7 +157,7 @@ module stat
         'P_cBCi ','P_cBCs ','P_cDUi ','P_cDUs ', & ! 14-17
         'P_cSSi ','P_cSSs ','P_cNOi ','P_cNOs ', & ! 18-21
         'P_cNHi ','P_cNHs ','P_cH2Oi','P_cH2Os', & ! 22-25
-        'P_ri   ','P_rs   ', 'P_RHi  ','srate  '/), & ! 26-29
+        'P_ri   ','P_rs   ', 'P_RHi  ','irate  ','srate  ','thi    '/), & ! 26-31
 
         ! **** BINNED PROFILE OUTPUT FOR SALSA ****
         ! **** Aerosols
@@ -233,7 +234,7 @@ contains
 
     use grid, only : nxp, nyp, iradtyp, prtcl
     use mpi_interface, only : myid, ver, author, info
-    use mo_submctl, only : nprc, fn2a,fn2b,fca,fcb,fra,fia,fib,fsa
+    use mo_submctl, only : nprc,nsnw,fn2a,fn2b,fca,fcb,fra,fia,fib,fsa
     USE class_ComponentIndex, ONLY : IsUsed
 
     character (len=80), intent (in) :: filprf, expnme
@@ -336,7 +337,7 @@ contains
        IF (level >=5 ) THEN
            ALLOCATE( ssclr_lvl5(nv1_lvl5), svctr_lvl5(nzp,nv2_lvl5) )
            ALLOCATE( svctr_ia(nzp,fia%cur,nv2sia), svctr_ib(nzp,fib%cur-fia%cur,nv2sib), &
-                  svctr_s(nzp,nprc,nv2ss) )
+                  svctr_s(nzp,nsnw,nv2ss) )
            ssclr_lvl5(:) = 0.
            svctr_lvl5(:,:) = 0.
            svctr_ia(:,:,:) = 0.; svctr_ib(:,:,:) = 0.
@@ -354,8 +355,9 @@ contains
        s2bool(nvar2+1:nvar2+15) = .TRUE. ! Bin dimensions, number concentrations and radius
        IF (level>=5) THEN
           s1bool(nvar1+nv1_lvl4+1:nvar1+nv1_lvl4+17) = .TRUE.
+          s1bool(nvar1+nv1_lvl4+68) = .TRUE.
           s2bool(nvar2+nv2_lvl4+1:nvar2+nv2_lvl4+9) = .TRUE.
-          s2bool(nvar2+nv2_lvl4+26:nvar2+nv2_lvl4+29) = .TRUE.
+          s2bool(nvar2+nv2_lvl4+26:nvar2+nv2_lvl4+31) = .TRUE.
        ENDIF
        ! Bin number concentrations
        i = nvar2+nv2_lvl4+nv2_lvl5+1  ! binned
@@ -434,12 +436,12 @@ contains
 
        s1bool(nvar1+53)=.TRUE.  ! Maximum supersaturation
 
-       s2bool(nvar2+40:nvar2+43) = .TRUE.     ! Water mixing ratios and RH
+       s2bool(nvar2+40:nvar2+44) = .TRUE.     ! Water mixing ratios, RH and cloud droplet sedimentation flux
 
        ! Microphysicsal process rate statistics
        IF (salsa_rate_stats) THEN
-          s1bool(nvar1+54:nvar1+nv1_lvl4)=.TRUE.
-          IF (level>=5) s1bool(nvar1+nv1_lvl4+50:nvar1+nv1_lvl4+nv1_lvl5)=.TRUE.
+          s1bool(nvar1+54:nvar1+72)=.TRUE.
+          IF (level>=5) s1bool(nvar1+nv1_lvl4+50:nvar1+nv1_lvl4+67)=.TRUE.
        ENDIF
 
        ! b-bins are not always saved
@@ -515,15 +517,16 @@ contains
   ! Jaakko Ahola, FMI, 2016
   subroutine statistics(time)
 
-    use grid, only : a_up, a_vp, a_wp, a_rc, a_theta, a_rv           &
+    use grid, only : a_up, a_vp, a_wp, a_rc, a_theta, a_temp, a_rv           &
          , a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean            &
          , vmean, dn0, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx, a_sflx               &
          , a_fus, a_fds, a_fuir, a_fdir, albedo, a_srp, a_snrp, a_ncloudp, xt, yt, a_ri, a_nicep, a_srs, a_snrs
+    USE defs, ONLY : cp, alvi
 
     real, intent (in) :: time
 
     real :: rxt(nzp,nxp,nyp), rxl(nzp,nxp,nyp), rxv(nzp,nxp,nyp), rnt(nzp,nxp,nyp)
-    REAL :: xrpp(nzp,nxp,nyp), xnpp(nzp,nxp,nyp)
+    REAL :: xrpp(nzp,nxp,nyp), xnpp(nzp,nxp,nyp), thl(nzp,nxp,nyp)
 
     SELECT CASE(level)
        CASE (3)
@@ -532,18 +535,28 @@ contains
           rxv = a_rv ! Water vapor
           xrpp = a_rpp ! Rain water
           xnpp = a_npp ! Rain number
-       CASE(4,5)
+          thl = a_tp ! Liquid water potential temperature
+       CASE(4)
+          rxt = a_rp + a_rc + a_srp
+          rxl = a_rc
+          rxv = a_rp
+          xrpp = a_srp
+          xnpp = a_snrp
+          thl = a_tp
+       CASE(5)
           rxt = a_rp + a_rc + a_srp + a_ri + a_srs
           rxl = a_rc
           rxv = a_rp
           xrpp = a_srp
           xnpp = a_snrp
+          thl = a_tp + (a_theta/a_temp)*alvi/cp*(a_ri + a_srs)
        CASE DEFAULT
           rxt = a_rp
           rxl = a_rc
           rxv = a_rv
           xrpp = 0.
           xnpp = 0.
+          thl = a_tp
     END SELECT
 
     if (nsmp == 0.) fsttm = time
@@ -552,8 +565,8 @@ contains
     !
     ! profile statistics
     !
-    call accum_stat(nzp, nxp, nyp, a_up, a_vp, a_wp, a_theta, a_press, umean &
-         ,vmean)
+    call accum_stat(nzp, nxp, nyp, a_up, a_vp, a_wp, thl, a_press, umean &
+         ,vmean, th00)
     if (iradtyp == 3) then
        call accum_rad(nzp, nxp, nyp, a_rflx, sflx=a_sflx, sup=a_fus, sdwn=a_fds, &
          irup=a_fuir, irdwn=a_fdir, alb=albedo)
@@ -562,7 +575,7 @@ contains
     end if
     if (level >=1) call accum_lvl1(nzp, nxp, nyp, rxt)
     if (level >=2) call accum_lvl2(nzp, nxp, nyp, th00, a_wp,        &
-                                   a_theta, a_tp, rxv, rxl, rxt   )
+                                   a_theta, thl, rxv, rxl, rxt   )
     if (level >=3) call accum_lvl3(nzp, nxp, nyp, dn0, zm, rxl, xrpp,  &
                                    xnpp, precip, CCN                    )
     if (level >=4)  call accum_lvl4(nzp, nxp, nyp)
@@ -570,9 +583,9 @@ contains
     !
     ! scalar statistics
     !
-    call set_ts(nzp, nxp, nyp, a_wp, a_theta, dn0, zt,zm,dzt,dzm,th00,time)
+    call set_ts(nzp, nxp, nyp, a_wp, a_theta, thl, dn0, zt,zm,dzt,dzm,th00,time)
     IF ( level >=1 ) CALL ts_lvl1(nzp, nxp, nyp, dn0, zt, dzm, rxt)
-    IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, dn0, zm, zt, rxl)
+    IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, dn0, zm, zt, rxl, rxv)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp)
     IF ( level >=5 ) CALL ts_lvl5(nzp, nxp, nyp)
 
@@ -974,16 +987,16 @@ contains
   ! -----------------------------------------------------------------------
   ! subroutine set_ts: computes and writes time sequence stats
   !
-  subroutine set_ts(n1,n2,n3,w,th,dn0,zt,zm,dzt,dzm,th00,time)
+  subroutine set_ts(n1,n2,n3,w,th,t,dn0,zt,zm,dzt,dzm,th00,time)
 
     use defs, only : cp
 
     integer, intent(in) :: n1,n2,n3
-    real, intent(in)    :: w(n1,n2,n3),th(n1,n2,n3)
+    real, intent(in)    :: w(n1,n2,n3),th(n1,n2,n3),t(n1,n2,n3)
     real, intent(in)    :: dn0(n1),zt(n1),zm(n1),dzt(n1),dzm(n1),th00,time
 
-    integer :: k
-    real    :: bf(n1)
+    integer :: i, j, k
+    real    :: bf(n1), scr(n2,n3)
 
     ssclr(1) = time
     ssclr(4) = get_zi(n1, n2, n3, 2, th, dzm, zt, 1.)   ! maximum gradient
@@ -992,9 +1005,11 @@ contains
     ! buoyancy flux statistics
     !
     ssclr(7) = 0.
+    ssclr(32) = 0.
     do k = 2,n1-2
        bf(k) = wtv_res(k) + wtv_sgs(k)
        ssclr(7) = ssclr(7) + (tke_res(k)+tke_sgs(k))*dn0(k)/dzt(k)
+       ssclr(32) = ssclr(32) + (tke_res(k)+tke_sgs(k))/dzt(k)
        svctr(k,33) = svctr(k,33) + wtv_sgs(k)*9.8/th00
     end do
     ssclr(6) = get_zi(n1, n2, n3, 4, th, bf, zm, 1.) ! minimum buoyancy flux
@@ -1003,6 +1018,16 @@ contains
     ssclr(9) = maxval(w)
 
     ssclr(12) = ssclr(12)*cp*(dn0(1)+dn0(2))*0.5
+
+    scr(:,:) = 0.
+    do j=3,n3-2
+       do i=3,n2-2
+          do k=2,n1
+             scr(i,j)=scr(i,j)+(t(k,i,j)+th00)*(zm(k)-zm(k-1))
+          enddo
+       end do
+    end do
+    ssclr(33) = get_avg2dh(n2,n3,scr)
 
   end subroutine set_ts
   !
@@ -1026,42 +1051,66 @@ contains
   ! -----------------------------------------------------------------------
   ! subroutine ts_lvl2: computes and writes time sequence stats
   !
-  subroutine ts_lvl2(n1,n2,n3,dn0,zm,zt,rc)
+  subroutine ts_lvl2(n1,n2,n3,dn0,zm,zt,rc,rv)
 
     integer, intent(in) :: n1,n2,n3
-    real, intent(in) :: dn0(n1), zm(n1), zt(n1), rc(n1,n2,n3)
+    real, intent(in) :: dn0(n1), zm(n1), zt(n1), rc(n1,n2,n3), rv(n1,n2,n3)
 
     integer :: k,i,j
-    real    :: cpnt, unit, scr(n2,n3)
+    real    :: cpnt, unit, scr(n2,n3), scr2(n2,n3), ct_tmp, cb_tmp
 
     ssclr(18)  = zt(n1)
     ssclr(19)  = 0.
     ssclr(20)  = 0.
     ssclr(28)  = 0.
+    ssclr(30)  = 0.
+    ssclr(31)  = 0.
 
     unit = 1./real((n2-4)*(n3-4))
     scr(:,:) = 0.   ! LWP
+    scr2(:,:) = 0.  ! WVP (water vapor path)
     do j=3,n3-2
        do i=3,n2-2
           cpnt  = 0.
+          ct_tmp =0.
+          cb_tmp =zt(n1)
           do k=2,n1
              if (rc(k,i,j) > 1.e-5) then
                 ssclr(17) = max(ssclr(17),zt(k))
                 ssclr(18) = min(ssclr(18),zt(k))
+                ct_tmp = max(ct_tmp,zt(k))
+                cb_tmp = min(cb_tmp,zt(k))
                 cpnt = unit
                 ssclr(20) = max(ssclr(20), rc(k,i,j))
                 ssclr(28) = ssclr(28) + 1.
              end if
              scr(i,j)=scr(i,j)+rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+             scr2(i,j)=scr2(i,j)+rv(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
           end do
           ssclr(19) = ssclr(19) + cpnt
+          if (cpnt>0.) then
+             ssclr(30) = ssclr(30)+ct_tmp
+             ssclr(31) = ssclr(31)+cb_tmp
+          end if
        end do
     end do
+    if (ssclr(19)>0.) then
+       ssclr(30) =ssclr(30)/ssclr(19)*unit
+       ssclr(31) =ssclr(31)/ssclr(19)*unit
+    else
+       ssclr(30) =-999.
+       ssclr(31) =-999.
+    end if
 
     ! liquid water path (without precipitation)
     ssclr(15) = get_avg2dh(n2,n3,scr)
     scr(:,:)=(scr(:,:)-ssclr(15))**2 ! For LWP variance
     ssclr(16) = get_avg2dh(n2,n3,scr)
+
+    ! water vapor path
+    ssclr(34) = get_avg2dh(n2,n3,scr2)
+    scr2(:,:)=(scr2(:,:)-ssclr(34))**2 ! For WVP variance
+    ssclr(35) = get_avg2dh(n2,n3,scr2)
 
     if (ssclr(18) == zt(n1)) ssclr(18) = -999.
 
@@ -1181,7 +1230,7 @@ contains
   SUBROUTINE ts_lvl5(n1,n2,n3)
     USE mo_submctl, only : prlim ! Note: #/m^3, but close enough to #/kg for statistics
     USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,meanRadius, dzt, &
-        dn0, zm, a_ri, a_srs, snowin, a_rhi, &
+        dn0, zm, a_ri, a_srs, snowin, a_rhi, a_tp, th00, &
         coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
         nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns, sedi_ri, sedi_ni, sedi_rs, sedi_ns
     USE class_componentIndex, ONLY : IsUsed
@@ -1191,7 +1240,7 @@ contains
     integer, intent(in) :: n1,n2,n3
 
     REAL :: a0(n1,n2,n3), a1(n1,n2,n3), a2(n1,n2,n3)
-    REAL :: scr(n2,n3), scr2(n2,n3)
+    REAL :: scr(n2,n3), scr2(n2,n3), scr3(n2,n3)
     REAL :: fact
     integer :: i, j, k, ii, ss, sscnt
     LOGICAL :: mask(n1,n2,n3)
@@ -1225,6 +1274,7 @@ contains
     ssclr_lvl5(13:14) = 0.
     scr = 0.   ! IWP
     scr2 = 0.   ! SWP
+    scr3 = 0.   ! Integrated ice-liquid water potential temperature
     sscnt = 0
     do j=3,n3-2
        do i=3,n2-2
@@ -1243,6 +1293,9 @@ contains
              !
              ! Snow-water path
              scr2(i,j)=scr2(i,j)+a_srs(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+             !
+             ! Integrated ice-liquid water potential temperature
+             scr3(i,j)=scr3(i,j)+(a_tp(k,i,j)+th00)*(zm(k)-zm(k-1))
           end do
           !
           ! Surface snow rate
@@ -1256,6 +1309,8 @@ contains
     ssclr_lvl5(15) = REAL(sscnt)/REAL( (n3-4)*(n2-4) )
     scr2(:,:) = snowin(2,:,:)
     ssclr_lvl5(16) = get_avg2dh(n2,n3,scr2)
+    !
+    ssclr_lvl5(68) = get_avg2dh(n2,n3,scr3)
     !
     ! Maximum supersaturation over ice
     ssclr_lvl5(17) = (MAXVAL(a_rhi(2:n1,3:n2-2,3:n3-2))-1.0)*100.
@@ -1315,11 +1370,11 @@ contains
   ! SUBROUTINE ACCUM_STAT: Accumulates various statistics over an
   ! averaging period for base (level 0) version of model
   !
-  subroutine accum_stat(n1,n2,n3,u,v,w,t,p,um,vm)
+  subroutine accum_stat(n1,n2,n3,u,v,w,t,p,um,vm,th00)
 
     integer, intent (in) :: n1,n2,n3
     real, dimension (n1,n2,n3), intent (in)    :: u, v, w, t, p
-    real, intent (in)           :: um, vm
+    real, intent (in)           :: um, vm, th00
 
     integer :: k
     real    :: a1(n1), b1(n1), c1(n1), d1(n1), a3(n1), b3(n1), tmp(n1)
@@ -1336,7 +1391,7 @@ contains
     do k=1,n1
        svctr(k,10)=svctr(k,10) + a1(k) + um
        svctr(k,11)=svctr(k,11) + b1(k) + vm
-       svctr(k,12)=svctr(k,12) + c1(k)
+       svctr(k,12)=svctr(k,12) + c1(k) + th00
        svctr(k,13)=svctr(k,13) + d1(k)
        svctr(k,17)=svctr(k,17) + thvar(k)
        svctr(k,18)=svctr(k,18) + a3(k)
@@ -1445,7 +1500,7 @@ contains
     !
     ! do some conditional sampling statistics: cloud, cloud-core
     !
-    tv(:,:,:) = th(:,:,:)*(1.+ep2*rv(:,:,:) - (rt(:,:,:)-rv(:,:,:))) ! Virtual potential temperature (K)
+    tv(:,:,:) = th(:,:,:)*(1.+ep2*rt(:,:,:) - rl(:,:,:))
     call get_avg3(n1,n2,n3,tv,tvbar)
     !
     xy1=0.
@@ -1647,7 +1702,7 @@ contains
                                nprc,nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                      a_rc, a_srp, a_rp, a_rh, prtcl,    &
-                     a_naerop, a_ncloudp, a_nprecpp
+                     a_naerop, a_ncloudp, a_nprecpp, cldin
     USE class_ComponentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
@@ -1806,7 +1861,10 @@ contains
     CALL get_avg3(n1,n2,n3,a_rh,a2(:,4))
     a2(:,4)=a2(:,4)*100.0 ! RH in %
 
-    svctr_b(:,40:43) = svctr_b(:,40:43) + a2(:,1:4)
+    ! Cloud water deposition flux
+    call get_avg3(n1,n2,n3,cldin,a2(:,5))
+
+    svctr_b(:,40:44) = svctr_b(:,40:44) + a2(:,1:5)
 
   end subroutine accum_lvl4
 
@@ -1817,7 +1875,7 @@ contains
   subroutine accum_lvl5(n1,n2,n3)
     use mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,prlim ! Note: prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
-                     a_ri, a_srs, a_rhi, prtcl, a_nicep, a_nsnowp, snowin
+                     a_ri, a_srs, a_rhi, prtcl, a_nicep, a_nsnowp, icein, snowin, a_tp, th00
     USE class_ComponentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
@@ -1942,9 +2000,17 @@ contains
 
     svctr_lvl5(:,26:28) = svctr_lvl5(:,26:28) + a2(:,1:3)
 
+    ! Ice deposition flux
+    call get_avg3(n1,n2,n3,icein,a2(:,1))
+
     ! Snow deposition flux
-    call get_avg3(n1,n2,n3,snowin,a2(:,1))
-    svctr_lvl5(:,29)=svctr(:,29)+a2(:,1)
+    call get_avg3(n1,n2,n3,snowin,a2(:,2))
+
+    ! Ice-liquid water potential temperature
+    call get_avg3(n1,n2,n3,a_tp,a2(:,3))
+    a2(:,3) = a2(:,3) + th00
+
+    svctr_lvl5(:,29:31)=svctr_lvl5(:,29:31)+a2(:,1:3)
 
   end subroutine accum_lvl5
 

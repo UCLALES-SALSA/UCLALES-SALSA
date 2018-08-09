@@ -83,6 +83,7 @@ contains
          , nzp, zm, dxi, dyi, dzt, dzm, dtl, th00, dn0  &
          , pi0, pi1, newsclr, level, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc &
          , wq_sfc
+    USE defs, ONLY : cp, alvi
 
     use util, only         : get_avg3
     use mpi_interface, only: cyclics, cyclicc
@@ -91,18 +92,24 @@ contains
     integer :: n
     REAL :: rx(nzp,nxp,nyp), rxt(nzp,nxp,nyp), a_tmp1(nzp,nxp,nyp), &
         a_tmp2(nzp,nxp,nyp), a_tmp3(nzp,nxp,nyp), a_tmp4(nzp,nxp,nyp), &
-        a_tmp5(nzp,nxp,nyp), a_tmp6(nzp,nxp,nyp)
+        a_tmp5(nzp,nxp,nyp), a_tmp6(nzp,nxp,nyp), thl(nzp,nxp,nyp)
     REAL :: dtlv
 
     dtlv=2.*dtl
 
     SELECT CASE(level)
        CASE(1,2,3)
-          rx = a_rv
-          rxt = a_rp
-       CASE(4,5)
+          rx = a_rv ! Water vapor
+          rxt = a_rp ! Water vapor + condensed water
+          thl = a_tp ! Liquid water potential temperature
+       CASE(4)
           rx = a_rp
-          rxt = a_rp + a_rc + a_ri + a_srp + a_srs
+          rxt = a_rp + a_rc + a_srp
+          thl = a_tp
+       CASE(5)
+          rx = a_rp
+          rxt = a_rp + a_rc + a_srp + a_ri + a_srs
+          thl = a_tp + (a_theta/a_temp)*alvi/cp*(a_ri + a_srs)
     END SELECT
 
 
@@ -113,7 +120,7 @@ contains
     !
     call fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,a_temp,rs=a_rsl)
 
-    call bruvais(nzp,nxp,nyp,level,a_theta,a_tp,rxt,a_rsl,a_tmp3,dzm,th00)
+    call bruvais(nzp,nxp,nyp,level,a_theta,thl,rxt,a_rsl,a_tmp3,dzm,th00)
 
     !
     ! the a_ut, a_wt, a_ut arrays are first used when the diffusive tendencies

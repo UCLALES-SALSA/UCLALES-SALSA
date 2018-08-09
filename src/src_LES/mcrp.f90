@@ -20,7 +20,7 @@
 module mcrp
 
   use defs, only : alvl, alvi, rowt, pi, Rm, cp, kb, g, vonk
-  use grid, only : dtl, dzt, nxp, nyp, nzp,a_pexnr, a_rp, a_tp, CCN,     &
+  use grid, only : dtl, dzt, nxp, nyp, nzp,a_pexnr, a_rp, CCN,     &
        dn0, pi0, a_rt, a_tt, a_rpp, a_rpt, a_npp, a_npt, a_rv, a_rc, a_theta,   &
        a_press, a_temp, a_rsl, precip, a_dn, a_ustar,                  &
        a_naerop,  a_naerot,  a_maerop,  a_maerot,                               &
@@ -28,7 +28,7 @@ module mcrp
        a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt, mc_ApVdom,         &
        a_nicep,   a_nicet,   a_micep,   a_micet,                                &
        a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
-       snowin,    prtcl, calc_eff_radius, &
+       aerin, cldin, icein, snowin, prtcl, calc_eff_radius, &
        sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
        sedi_ri, sedi_ni, sedi_rs, sedi_ns
   use thrm, only : thermo
@@ -105,7 +105,7 @@ contains
                         a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,          &
                         a_nicep,   a_nicet,   a_micep,   a_micet,            &
                         a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,           &
-                        a_ustar, precip, snowin, a_tt                )
+                        a_ustar, aerin, cldin, precip, icein, snowin, a_tt  )
 
        sedi_ra(:,:,:)=SUM(a_maerot(:,:,:,(nn-1)*nbins+1:nn*nbins),DIM=4)-sedi_ra(:,:,:)
        sedi_na(:,:,:)=SUM(a_naerot,DIM=4)-sedi_na(:,:,:)
@@ -533,7 +533,7 @@ contains
                          nprecpp,nprecpt,mprecpp,mprecpt,  &
                          nicep,  nicet,  micep,  micet,    &
                          nsnowp, nsnowt, msnowp, msnowt,   &
-                         ustar,rrate, srate, tlt          )
+                         ustar, arate, crate, rrate, irate, srate, tlt )
 
     USE mo_submctl, ONLY : nbins, ncld, nprc,           &
                                nice,  nsnw,                 &
@@ -568,8 +568,11 @@ contains
                            nsnowt(n1,n2,n3,nsnw),    &
                            msnowt(n1,n2,n3,n4*nsnw), &
                            tlt(n1,n2,n3),             & ! Liquid water pot temp tendency
+                           arate(n1,n2,n3),           & ! Water sedimentation fluxes (W/m^2)
+                           crate(n1,n2,n3),           &
                            rrate(n1,n2,n3),           &
-                           srate(n1,n2,n3)              ! snowing rate
+                           irate(n1,n2,n3),           &
+                           srate(n1,n2,n3)
 
     INTEGER :: i,j,k,istr,iend
 
@@ -583,10 +586,14 @@ contains
             remice(n2,n3,n4*nice),    &
             remsnw(n2,n3,n4*nsnw)
 
-    ! Particle number removal arrays (#/m^2/s)
-    REAL :: andep(n2,n3,nbins),     &
-            cndep(n2,n3,ncld),      &
-            indep(n2,n3,nice)
+    ! Particle number flux arrays (#/m^2/s)
+    REAL :: andep(n1,n2,n3,nbins),    &
+            cndep(n1,n2,n3,ncld),     &
+            indep(n1,n2,n3,nice)
+    ! Particle mass flux arrays (kg/m^2/s)
+    REAL :: amdep(n1,n2,n3,n4*nbins), &
+            cmdep(n1,n2,n3,n4*ncld),  &
+            imdep(n1,n2,n3,n4*nice)
 
     REAL :: mctmp(n2,n3) ! Helper for mass conservation calculations
 
@@ -606,7 +613,8 @@ contains
     !-------------------------------------------------------
     IF (sed_aero) THEN
 
-       CALL DepositionSlow(n1,n2,n3,n4,nbins,tk,a_dn,1500.,ustar,naerop,maerop,dzt,nlim,andiv,amdiv,andep,remaer,1)
+       CALL DepositionSlow(n1,n2,n3,n4,nbins,tk,a_dn,1500.,ustar,naerop,maerop,dzt,tstep,nlim,andiv,amdiv,andep,amdep,1)
+       remaer(:,:,:) = amdep(2,:,:,:)
 
        naerot = naerot - andiv
        maerot = maerot - amdiv
@@ -622,11 +630,15 @@ contains
           END DO
        END DO
 
+       ! Convert water mass flux to heat flux (W/m^2)
+       arate(:,:,:)=SUM(amdep(:,:,:,istr:iend),4)*alvl
+
     END IF ! sed_aero
 
     IF (sed_cloud) THEN
 
-       CALL DepositionSlow(n1,n2,n3,n4,ncld,tk,a_dn,rhowa,ustar,ncloudp,mcloudp,dzt,nlim,cndiv,cmdiv,cndep,remcld,2)
+       CALL DepositionSlow(n1,n2,n3,n4,ncld,tk,a_dn,rhowa,ustar,ncloudp,mcloudp,dzt,tstep,nlim,cndiv,cmdiv,cndep,cmdep,2)
+       remcld(:,:,:) = cmdep(2,:,:,:)
 
        ncloudt = ncloudt - cndiv
        mcloudt = mcloudt - cmdiv
@@ -642,11 +654,15 @@ contains
           END DO
        END DO
 
+       ! Convert water mass flux to heat flux (W/m^2)
+       crate(:,:,:)=SUM(cmdep(:,:,:,istr:iend),4)*alvl
+
     END IF ! sed_cloud
 
     IF (sed_ice) THEN
 
-       CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,rhoic,ustar,nicep,micep,dzt,prlim,indiv,imdiv,indep,remice,4)
+       CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,rhoic,ustar,nicep,micep,dzt,tstep,prlim,indiv,imdiv,indep,imdep,4)
+       remice(:,:,:) = imdep(2,:,:,:)
 
        nicet = nicet - indiv 
        micet = micet - imdiv 
@@ -661,6 +677,9 @@ contains
              END DO
           END DO
        END DO
+
+       ! Convert water mass flux to heat flux (W/m^2)
+       irate(:,:,:)=SUM(imdep(:,:,:,istr:iend),4)*alvi
 
     END IF ! sed_ice
 
@@ -733,7 +752,7 @@ contains
 
 
 
-  SUBROUTINE DepositionSlow(n1,n2,n3,n4,nn,tk,adn,pdn,ustar,numc,mass,dzt,clim,flxdivn,flxdivm,depflxn,depflxm,flag)
+  SUBROUTINE DepositionSlow(n1,n2,n3,n4,nn,tk,adn,pdn,ustar,numc,mass,dzt,dt,clim,flxdivn,flxdivm,depflxn,depflxm,flag)
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,n4       ! Grid numbers, number of chemical species
@@ -745,10 +764,11 @@ contains
     REAL, INTENT(in) :: numc(n1,n2,n3,nn)    ! Particle number concentration
     REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4) ! Particle mass mixing ratio
     REAL, INTENT(in) :: dzt(n1)              ! Inverse of grid level thickness
+    REAL, INTENT(in) :: dt                   ! timestep
     REAL, INTENT(IN) :: clim                ! Concentration limit (#/m^3)
     INTEGER, INTENT(IN) :: flag         ! An option for identifying aerosol, cloud, precipitation, ice and snow
     REAL, INTENT(OUT) :: flxdivm(n1,n2,n3,nn*n4), flxdivn(n1,n2,n3,nn) ! Mass and number divergence
-    REAL, INTENT(OUT) :: depflxn(n2,n3,nn), depflxm(n2,n3,nn*n4) ! Mass and number deposition fluxes to the surface
+    REAL, INTENT(OUT) :: depflxm(n1,n2,n3,nn*n4), depflxn(n1,n2,n3,nn) ! Mass and number deposition fluxes
 
     INTEGER :: i,j,k,kp1
     INTEGER :: bin,bs
@@ -805,6 +825,12 @@ contains
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
                 vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG,flag)
 
+                ! This algorithm breaks down if the fall velocity is large enough to make the fall
+                ! distance greater than the grid level thickness (mainly an issue with very high
+                ! vertical resolutions). As a simple solution, limit the fall velocity based on grid
+                ! box thickness and timestep (should not cause any further issues).
+                vc = MIN( vc, MIN(0.5*(1./dzt(k))/dt, 2.0) )
+
                 IF (k==2) THEN ! The level just above surface
                     ! Particle diffusitivity  (15.29) in jacobson book
                     mdiff = (kb*tk(k,i,j)*GG)/(6.0*pi*avis*rwet)
@@ -827,12 +853,11 @@ contains
              flxdivm(k,i,j,:) = (rflm(kp1,:)-rflm(k,:))*dzt(k)
              flxdivn(k,i,j,:) = (rfln(kp1,:)-rfln(k,:))*dzt(k)
 
-          END DO ! k
+             ! Deposition fluxes
+             depflxm(k,i,j,:) = -rflm(k,:)*adn(k,i,j) ! kg/m^2/s
+             depflxn(k,i,j,:) = -rfln(k,:)*adn(k,i,j) ! #/m^2/s
 
-          ! Deposition flux to surface
-          k=2
-          depflxm(i,j,:) = -rflm(k,:)*adn(k,i,j) ! kg/m^2/s
-          depflxn(i,j,:) = -rfln(k,:)*adn(k,i,j) ! #/m^2/s
+          END DO ! k
 
        END DO ! i
     END DO ! j

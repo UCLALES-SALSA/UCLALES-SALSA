@@ -91,13 +91,13 @@ contains
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon
     use step, only : timmax, istpfl, corflg, outflg, frqanl, frqhis,          &
-         strtim, radfrq, cntlat, nudge_time, nudge_zmin, nudge_zmax, &
-         nudge_theta, tau_theta, nudge_rv, tau_rv, nudge_u, tau_u, &
-         nudge_v, tau_v, nudge_ccn, tau_ccn
+         strtim, radfrq, cntlat
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
-         Tspinup,sst, lbinanl
+         Tspinup,sst, lbinanl, nudge_time, nudge_zmin, nudge_zmax, &
+         nudge_theta, tau_theta, nudge_rv, tau_rv, nudge_u, tau_u, &
+         nudge_v, tau_v, nudge_ccn, tau_ccn
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
     use stat, only : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, salsa_rate_stats

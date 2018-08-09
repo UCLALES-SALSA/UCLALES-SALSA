@@ -599,6 +599,10 @@ contains
        if (itype==0) ncinfo = 'Vertical velocity'
        if (itype==1) ncinfo = 'm/s'
        if (itype==2) ncinfo = 'ttmt'
+    case('thi')
+       if (itype==0) ncinfo = 'Ice-liquid water potential temperature'
+       if (itype==1) ncinfo = 'K'
+       if (itype==2) ncinfo = 'tttt'
     case('thl')
        if (itype==0) ncinfo = 'Liquid water potential temperature'
        if (itype==1) ncinfo = 'K'
@@ -667,6 +671,10 @@ contains
        if (itype==0) ncinfo = 'Vertical integral of total TKE'
        if (itype==1) ncinfo = 'kg/s'
        if (itype==2) ncinfo = 'time'
+    case('tkeint')
+       if (itype==0) ncinfo = 'Vertical integral of total TKE non-weighted'
+       if (itype==1) ncinfo = 'm3/s2'
+       if (itype==2) ncinfo = 'time'
     case('sfcbflx')
        if (itype==0) ncinfo = 'Surface Buoyancy Flux'
        if (itype==1) ncinfo = 'm/s^2'
@@ -695,6 +703,14 @@ contains
        if (itype==0) ncinfo = 'Height of maximum total water mixing ratio gradient'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'time'
+    case('wvp_bar')
+       if (itype==0) ncinfo = 'Water vapor path'
+       if (itype==1) ncinfo = 'kg/m^2'
+       if (itype==2) ncinfo = 'time'
+    case('wvp_var')
+       if (itype==0) ncinfo = 'Water vapor path variance'
+       if (itype==1) ncinfo = 'kg^2/m^4'
+       if (itype==2) ncinfo = 'time'
     case('lwp_bar','lwp')
        if (itype==0) ncinfo = 'Liquid-water path'
        if (itype==1) ncinfo = 'kg/m^2'
@@ -717,6 +733,14 @@ contains
        if (itype==2) ncinfo = 'time'
     case('zb')
        if (itype==0) ncinfo = 'Cloud-base height'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('zcmn')
+       if (itype==0) ncinfo = 'Mean cloud-top height'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('zbmn')
+       if (itype==0) ncinfo = 'Mean cloud-base height'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'time'
     case('cfrac')
@@ -798,6 +822,14 @@ contains
     case('SSi_max')
        if (itype==0) ncinfo = 'Maximum supersaturation over ice'
        if (itype==1) ncinfo = '%'
+       if (itype==2) ncinfo = 'time'
+    case('thl_int')
+       if (itype==0) ncinfo = 'Integrated liquid water potential temperature'
+       if (itype==1) ncinfo = 'Km'
+       if (itype==2) ncinfo = 'time'
+    case('thi_int')
+       if (itype==0) ncinfo = 'Integrated ice-liquid water potential temperature'
+       if (itype==1) ncinfo = 'Km'
        if (itype==2) ncinfo = 'time'
     !
     !
@@ -1451,12 +1483,28 @@ contains
        if (itype==0) ncinfo = 'Variance of theta'
        if (itype==1) ncinfo = 'K^2'
        if (itype==2) ncinfo = 'tttt'
+    case('thl_2')
+       if (itype==0) ncinfo = 'Variance of liquid water potential temperature'
+       if (itype==1) ncinfo = 'K^2'
+       if (itype==2) ncinfo = 'tttt'
+    case('thi_2')
+       if (itype==0) ncinfo = 'Variance of ice-liquid water potential temperature'
+       if (itype==1) ncinfo = 'K^2'
+       if (itype==2) ncinfo = 'tttt'
     case('w_3')
        if (itype==0) ncinfo = 'Third raw moment of w wind'
        if (itype==1) ncinfo = 'm^3/s^3'
        if (itype==2) ncinfo = 'ttmt'
     case('theta_3')
        if (itype==0) ncinfo = 'Third moment of theta'
+       if (itype==1) ncinfo = 'K^3'
+       if (itype==2) ncinfo = 'tttt'
+    case('thl_3')
+       if (itype==0) ncinfo = 'Third moment of liquid water potential temperature'
+       if (itype==1) ncinfo = 'K^3'
+       if (itype==2) ncinfo = 'tttt'
+    case('thi_3')
+       if (itype==0) ncinfo = 'Third moment of ice-liquid water potential temperature'
        if (itype==1) ncinfo = 'K^3'
        if (itype==2) ncinfo = 'tttt'
     case('tot_tw')
@@ -1656,8 +1704,8 @@ contains
        if (itype==0) ncinfo = 'Average of w over cs1'
        if (itype==1) ncinfo = 'm/s'
        if (itype==2) ncinfo = 'ttmt'
-    case('t_cs1 ')
-       if (itype==0) ncinfo = 'Average of t over cs1'
+    case('tl_cs1')
+       if (itype==0) ncinfo = 'Average of theta_l over cs1'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'ttmt'
     case('tv_cs1')
@@ -1672,8 +1720,8 @@ contains
        if (itype==0) ncinfo = 'Average of total condensate over cs1'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('wt_cs1')
-       if (itype==0) ncinfo = 'Average of vertical t flux over cs1'
+    case('wtl_cs1')
+       if (itype==0) ncinfo = 'Average of vertical theta_l flux over cs1'
        if (itype==1) ncinfo = 'K*m/s'
        if (itype==2) ncinfo = 'ttmt'
     case('wtv_cs1')
@@ -1696,8 +1744,8 @@ contains
        if (itype==0) ncinfo = 'Average of w over cs2'
        if (itype==1) ncinfo = 'm/s'
        if (itype==2) ncinfo = 'ttmt'
-    case('t_cs2')
-       if (itype==0) ncinfo = 'Average of t over cs2'
+    case('tl_cs2')
+       if (itype==0) ncinfo = 'Average of theta_l over cs2'
        if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
     case('tv_cs2')
@@ -1712,8 +1760,8 @@ contains
        if (itype==0) ncinfo = 'Average of total condensate over cs2'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('wt_cs2')
-       if (itype==0) ncinfo = 'Average of vertical t flux over cs2'
+    case('wtl_cs2')
+       if (itype==0) ncinfo = 'Average of vertical theta_l flux over cs2'
        if (itype==1) ncinfo = 'K*m/s'
        if (itype==2) ncinfo = 'ttmt'
     case('wtv_cs2')
@@ -1745,11 +1793,19 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('rrate')
-       if (itype==0) ncinfo = 'Precipitation Flux (positive downward)'
+       if (itype==0) ncinfo = 'Rain water deposition flux'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'ttmt'
+    case('crate')
+       if (itype==0) ncinfo = 'Cloud water deposition flux'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'ttmt'
+    case('irate')
+       if (itype==0) ncinfo = 'Ice water deposition flux'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('srate')
-       if (itype==0) ncinfo = 'Snow deposition flux (positive downward)'
+       if (itype==0) ncinfo = 'Snow water deposition flux'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('evap')
@@ -2333,30 +2389,6 @@ contains
     case('P_RHi')
        if (itype==0) ncinfo = 'Relative humidity over ice'
        if (itype==1) ncinfo = '%'
-       if (itype==2) ncinfo = 'tttt'
-    case('P_Na_c')
-       if (itype==0) ncinfo = 'Aerosol number concentration in cloudy columns'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('P_Nc_c')
-       if (itype==0) ncinfo = 'Cloud droplet number concentration in cloudy columns'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('P_Np_c')
-       if (itype==0) ncinfo = 'Rain drop number concentration in cloudy columns'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('P_cfrac')
-       if (itype==0) ncinfo = 'Fraction of cloudy columns'
-       if (itype==1) ncinfo = ''
-       if (itype==2) ncinfo = 'tttt'
-    case('P_clw_c')
-       if (itype==0) ncinfo = 'Cloud liquid water in cloudy columns'
-       if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
-    case('P_thl_c')
-       if (itype==0) ncinfo = 'Liquid water potential temperature in cloudy columns'
-       if (itype==1) ncinfo = 'K'
        if (itype==2) ncinfo = 'tttt'
     case('P_Naba')
        if (itype==0) ncinfo = 'Aerosol number concentration in size bins A'

@@ -59,6 +59,15 @@ module grid
   real            :: W3 = 0.9
 
 
+  ! Nudging options (nudge_*: 0=disabled, 1=soft, 2=hard), total nudging time (s), altitude range, and time constants (tau [s])
+  INTEGER :: nudge_theta=0, & ! (liquid water) potential temperature, depending on the microphysical level
+    nudge_rv=0, & ! Water vapor mixing ratio (maintain total water)
+    nudge_u=0, nudge_v=0, & ! Horizontal winds
+    nudge_ccn=0 ! Sectional aerosol for levels 4 and 5 (maintain aerosol+cloud+ice)
+  REAL :: nudge_time=3600., nudge_zmin=-1.e10, nudge_zmax=1.e10
+  REAL :: tau_theta=300., tau_rv=300., tau_u=300., tau_v=300., tau_ccn=300.
+  real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
+  LOGICAL, SAVE :: nudge_init=.TRUE.
 
   character (len=7), allocatable, save :: sanal(:)
   character (len=80):: expnme = 'Default' ! Experiment name
@@ -176,7 +185,7 @@ module grid
   real, allocatable :: wt_sfc(:,:)
   real, allocatable :: wq_sfc(:,:)
   real, allocatable :: obl(:,:)
-  real, allocatable :: precip(:,:,:), snowin(:,:,:), albedo(:,:)
+  real, allocatable :: aerin(:,:,:), cldin(:,:,:), precip(:,:,:), icein(:,:,:), snowin(:,:,:), albedo(:,:)
 
   ! Juha:
   ! Diagnostic variables needed to track mass conservation (of water).
@@ -526,10 +535,18 @@ contains
        memsize = memsize + nxyzp
     end if
 
+    if (level >= 4) then
+       allocate(aerin(nzp,nxp,nyp), cldin(nzp,nxp,nyp))
+       aerin = 0.
+       cldin = 0.
+       memsize = memsize + nxyzp*2
+    end if
+
     if (level >= 5) then
-       allocate(snowin(nzp,nxp,nyp))
+       allocate(icein(nzp,nxp,nyp),snowin(nzp,nxp,nyp))
+       icein = 0.
        snowin = 0.
-       memsize = memsize + nxyzp
+       memsize = memsize + nxyzp*2
     end if
 
     a_ustar(:,:) = 0.
@@ -1763,6 +1780,12 @@ contains
     if ( allocated(a_rv)   ) write(10) a_rv
     if ( allocated(a_rc)   ) write(10) a_rc
     if ( allocated(a_rflx) ) write(10) a_rflx
+
+    IF (nudge_theta/=0) write(10) theta_ref
+    IF (nudge_rv/=0) write(10) rv_ref
+    IF (nudge_u/=0) write(10) u_ref
+    IF (nudge_v/=0) write(10) v_ref
+    IF (level>3 .AND. nudge_ccn/=0) write(10) aero_ref
     close(10)
 
     if (myid == 0 .and. htype < 0) then
@@ -1783,6 +1806,7 @@ contains
   subroutine read_hist(time, hfilin)
 
     use mpi_interface, only : appl_abort, myid, wrxid, wryid
+    USE mo_submctl, ONLY : nbins
 
     character(len=80), intent(in) :: hfilin
     real, intent(out)             :: time
@@ -1855,6 +1879,28 @@ contains
              read (10)
           end if
        end if
+
+       IF (nudge_theta/=0) THEN
+          ALLOCATE(theta_ref(nzp))
+          READ(10) theta_ref
+       end if
+       IF (nudge_rv/=0) THEN
+          ALLOCATE(rv_ref(nzp))
+          READ(10) rv_ref
+       end if
+       IF (nudge_u/=0) THEN
+          ALLOCATE(u_ref(nzp))
+          READ(10) u_ref
+       end if
+       IF (nudge_v/=0) THEN
+          ALLOCATE(v_ref(nzp))
+          READ(10) v_ref
+       end if
+       IF (level>3 .AND. nudge_ccn/=0) THEN
+          ALLOCATE(aero_ref(nzp,nbins))
+          READ(10) aero_ref
+       end if
+       nudge_init=.FALSE.
 
        close(10)
        !

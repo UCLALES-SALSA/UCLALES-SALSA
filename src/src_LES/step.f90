@@ -34,14 +34,6 @@ module step
   real    :: cntlat =  31.5 ! 30.0
   logical :: outflg = .true.
 
-  ! Nudging options (nudge_*: 0=disabled, 1=soft, 2=hard), total nudging time (s), altitude range, and time constants (tau [s])
-  INTEGER :: nudge_theta=0, & ! (liquid water) potential temperature, depending on the microphysical level
-    nudge_rv=0, & ! Water vapor mixing ratio (maintain total water)
-    nudge_u=0, nudge_v=0, & ! Horizontal winds
-    nudge_ccn=0 ! Sectional aerosol for levels 4 and 5 (maintain aerosol+cloud+ice)
-  REAL :: nudge_time=3600., nudge_zmin=-1.e10, nudge_zmax=1.e10
-  REAL :: tau_theta=300., tau_rv=300., tau_u=300., tau_v=300., tau_ccn=300.
-  real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
 
 contains
   !
@@ -55,8 +47,8 @@ contains
 
     use mpi_interface, only : myid, double_scalar_par_max
 
-    use grid, only : dtl, dzt, zt, zm, nzp, dn0, u0, v0, a_up, a_vp, a_wp, &
-         a_uc, a_vc, a_wc, write_hist, write_anal, close_anal, &
+    use grid, only : dtl, dzt, zt, zm, nzp, dn0, u0, v0, &
+         write_hist, write_anal, close_anal, &
          dtlong, nzp, nyp, nxp, level,                          &
          ! For mass budged
          a_rp, a_rc, a_srp, a_dn
@@ -155,7 +147,8 @@ contains
                      a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,    &
                      a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
-                     a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl, sst, a_rsi, &
+                     a_gaerop, a_gaerot, a_dn, a_nactd, a_vactd, prtcl, sst, a_rsi,     &
+                     nudge_time, nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
                      coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, coag_ri, coag_ni, coag_rs, coag_ns, &
                      cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, auto_rr, auto_nr, auto_rs, auto_ns, &
                      cact_rc, cact_nc, nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns
@@ -199,11 +192,6 @@ contains
     IF (level >= 4) THEN
        a_vactd = 0.
        a_nactd = 0.
-    END IF
-
-    IF (level >= 4 .AND. time < 1.) THEN
-       CALL thermo(level)
-       CALL SALSA_diagnostics
     END IF
 
     call surface(sst)
@@ -298,7 +286,7 @@ contains
 
     ! Nudging time is independent of the spinup!
      IF (time<=nudge_time .AND. (nudge_theta/=0 .OR. nudge_rv/=0 .OR. &
-            (level>3 .AND. nudge_ccn/=0) ) ) THEN
+            nudge_u/=0 .OR. nudge_v/=0 .OR. (level>3 .AND. nudge_ccn/=0) ) ) THEN
 
         ! Reset tendencies
         call tend0(.TRUE.)
@@ -356,19 +344,22 @@ contains
     use grid, only : level, dtl, nxp, nyp, nzp, &
                 zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, a_srs, &
                 a_naerop, a_naerot, a_ncloudp, a_nicep, &
-                a_tp, a_tt, a_up, a_ut, a_vp, a_vt
+                a_tp, a_tt, a_up, a_ut, a_vp, a_vt, &
+                nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
+                tau_theta, tau_rv, tau_u, tau_v, tau_ccn, &
+                theta_ref, rv_ref, u_ref, v_ref, aero_ref, &
+                nudge_time, nudge_init
     USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
 
     IMPLICIT NONE
     REAL, INTENT(IN) :: time
-    REAL, SAVE, ALLOCATABLE :: aero_target(:,:) ! Local
-    LOGICAL, SAVE :: init=.TRUE.
+    REAL :: aero_target(nzp,nbins)
 
     ! Nudging time is independent of the spin-up
     IF (time>nudge_time) RETURN
 
     ! Initialization
-    IF (init) THEN
+    IF (nudge_init) THEN
         ! (Liquid water) potential temperature: nudge towards initial theta
         IF (nudge_theta/=0) THEN
             ALLOCATE(theta_ref(nzp))
@@ -404,14 +395,14 @@ contains
         ! and their concentrations are low.
         IF (level>3 .AND. nudge_ccn/=0) THEN
             ! Nudge aerosol based on the total number (aerosol+cloud+ice)
-            ALLOCATE(aero_ref(nzp,nbins),aero_target(nzp,nbins))
+            ALLOCATE(aero_ref(nzp,nbins))
             aero_ref(:,:)=a_naerop(:,3,3,:)
             aero_ref(:,in2a:fn2b)=aero_ref(:,in2a:fn2b)+a_ncloudp(:,3,3,1:ncld)
             IF (level==5) aero_ref(:,in2a:fn2b)=aero_ref(:,in2a:fn2b)+a_nicep(:,3,3,1:nice)
         ENDIF
         !
         ! Initialized
-        init=.FALSE.
+        nudge_init=.FALSE.
     ENDIF
 
     ! (Liquid water) potential temperature:
@@ -450,6 +441,7 @@ contains
   ! Nudging for any 3D field based on 1D target
   SUBROUTINE nudge_any(nxp,nyp,nzp,zt,ap,at,trgt,dt,tau,iopt)
     USE util, ONLY : get_avg3
+    use grid, only : nudge_zmin, nudge_zmax
     IMPLICIT NONE
     INTEGER :: nxp,nyp,nzp
     REAL :: zt(nzp), ap(nzp,nxp,nyp), at(nzp,nxp,nyp)
@@ -483,6 +475,7 @@ contains
   ! Nudging for any 4D field based on 2D target
   SUBROUTINE nudge_any_2d(nxp,nyp,nzp,nb,zt,ap,at,trgt,dt,tau,iopt)
     USE util, ONLY : get_avg3
+    use grid, only : nudge_zmin, nudge_zmax
     IMPLICIT NONE
     INTEGER :: nxp,nyp,nzp,nb
     REAL :: zt(nzp), ap(nzp,nxp,nyp,nb), at(nzp,nxp,nyp,nb)
@@ -888,7 +881,7 @@ contains
 
     IMPLICIT NONE
 
-    INTEGER :: i,j,k,bc,ba,bb,s,sc,sa,str,end,nc,nn,iba
+    INTEGER :: i,j,k,bc,ba,bb,s,sc,sa,str,end,nc,nn
 
     REAL :: zvol, ra, rb
     REAL :: ns, cd
