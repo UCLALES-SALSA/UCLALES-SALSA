@@ -28,7 +28,9 @@ module mcrp
        a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt, mc_ApVdom,         &
        a_nicep,   a_nicet,   a_micep,   a_micet,                                &
        a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
-       snowin,    prtcl, calc_eff_radius
+       snowin,    prtcl, calc_eff_radius, &
+       sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
+       sedi_ri, sedi_ni, sedi_rs, sedi_ns
   use thrm, only : thermo
   use stat, only : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
   USE mo_submctl, ONLY : terminal_vel
@@ -68,6 +70,7 @@ contains
   !
   subroutine micro(level)
     USE class_componentIndex, ONLY : GetNcomp
+    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw
     integer, intent (in) :: level
     INTEGER :: nn
 
@@ -82,7 +85,20 @@ contains
        IF (level < 5) THEN
             sed_ice = .FALSE.; sed_snow = .FALSE.
        ENDIF
-       nn = GetNcomp(prtcl)+1
+       nn = GetNcomp(prtcl)+1 ! Total number of species = index for water
+
+       ! Sedimentation is described with water mass (kg/kg/s) and particle number (#/kg/s) divergence fields
+       sedi_ra(:,:,:)=SUM(a_maerot(:,:,:,(nn-1)*nbins+1:nn*nbins),DIM=4)
+       sedi_na(:,:,:)=SUM(a_naerot,DIM=4)
+       sedi_rc(:,:,:)=SUM(a_mcloudt(:,:,:,(nn-1)*ncld+1:nn*ncld),DIM=4)
+       sedi_nc(:,:,:)=SUM(a_ncloudt,DIM=4)
+       sedi_rr(:,:,:)=SUM(a_mprecpt(:,:,:,(nn-1)*nprc+1:nn*nprc),DIM=4)
+       sedi_nr(:,:,:)=SUM(a_nprecpt,DIM=4)
+       sedi_ri(:,:,:)=SUM(a_micet(:,:,:,(nn-1)*nice+1:nn*nice),DIM=4)
+       sedi_ni(:,:,:)=SUM(a_nicet,DIM=4)
+       sedi_rs(:,:,:)=SUM(a_msnowt(:,:,:,(nn-1)*nsnw+1:nn*nsnw),DIM=4)
+       sedi_ns(:,:,:)=SUM(a_nsnowt,DIM=4)
+
        CALL sedim_SALSA(nzp,nxp,nyp,nn, dtl, a_temp, a_theta,                &
                         a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
                         a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
@@ -90,6 +106,17 @@ contains
                         a_nicep,   a_nicet,   a_micep,   a_micet,            &
                         a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,           &
                         a_ustar, precip, snowin, a_tt                )
+
+       sedi_ra(:,:,:)=SUM(a_maerot(:,:,:,(nn-1)*nbins+1:nn*nbins),DIM=4)-sedi_ra(:,:,:)
+       sedi_na(:,:,:)=SUM(a_naerot,DIM=4)-sedi_na(:,:,:)
+       sedi_rc(:,:,:)=SUM(a_mcloudt(:,:,:,(nn-1)*ncld+1:nn*ncld),DIM=4)-sedi_rc(:,:,:)
+       sedi_nc(:,:,:)=SUM(a_ncloudt,DIM=4)-sedi_nc(:,:,:)
+       sedi_rr(:,:,:)=SUM(a_mprecpt(:,:,:,(nn-1)*nprc+1:nn*nprc),DIM=4)-sedi_rr(:,:,:)
+       sedi_nr(:,:,:)=SUM(a_nprecpt,DIM=4)-sedi_nr(:,:,:)
+       sedi_ri(:,:,:)=SUM(a_micet(:,:,:,(nn-1)*nice+1:nn*nice),DIM=4)-sedi_ri(:,:,:)
+       sedi_ni(:,:,:)=SUM(a_nicet,DIM=4)-sedi_ni(:,:,:)
+       sedi_rs(:,:,:)=SUM(a_msnowt(:,:,:,(nn-1)*nsnw+1:nn*nsnw),DIM=4)-sedi_rs(:,:,:)
+       sedi_ns(:,:,:)=SUM(a_nsnowt,DIM=4)-sedi_ns(:,:,:)
     end select
 
   end subroutine micro
@@ -512,7 +539,6 @@ contains
                                nice,  nsnw,                 &
                                nlim,prlim,  &
                                rhowa,rhoic,rhosn
-    USE class_ComponentIndex, ONLY : GetIndex, GetNcomp
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,n4
@@ -545,8 +571,7 @@ contains
                            rrate(n1,n2,n3),           &
                            srate(n1,n2,n3)              ! snowing rate
 
-    INTEGER :: ss
-    INTEGER :: i,j,k,nc,istr,iend
+    INTEGER :: i,j,k,istr,iend
 
     REAL :: prnt(n1,n2,n3,nprc), prvt(n1,n2,n3,n4*nprc)  ! Rain number and mass tendencies due to fallout
     REAL :: srnt(n1,n2,n3,nsnw), srvt(n1,n2,n3,n4*nsnw)  ! Snow number and mass tendencies due to fallout
@@ -587,9 +612,8 @@ contains
        maerot = maerot - amdiv
 
        ! Account for changes in liquid water pot temperature
-       nc = GetIndex(prtcl,'H2O')
-       istr = (nc-1)*nbins+1
-       iend = nc*nbins
+       istr = (n4-1)*nbins+1
+       iend = n4*nbins
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
@@ -608,9 +632,8 @@ contains
        mcloudt = mcloudt - cmdiv
 
        ! Account for changes in liquid water pot temperature
-       nc = GetIndex(prtcl,'H2O')
-       istr = (nc-1)*ncld+1
-       iend = nc*ncld
+       istr = (n4-1)*ncld+1
+       iend = n4*ncld
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
@@ -629,9 +652,8 @@ contains
        micet = micet - imdiv 
 
        ! Account for changes in liquid water pot temperature
-       nc = GetIndex(prtcl,'H2O')
-       istr = (nc-1)*nice+1
-       iend = nc*nice
+       istr = (n4-1)*nice+1
+       iend = n4*nice
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
@@ -654,9 +676,8 @@ contains
        ! Convert mass flux to heat flux (W/m^2)
        rrate(:,:,:)=rrate(:,:,:)*alvl
 
-       nc = GetIndex(prtcl,'H2O')
-       istr = (nc-1)*nprc + 1
-       iend = nc*nprc
+       istr = (n4-1)*nprc + 1
+       iend = n4*nprc
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 1,n1-1
@@ -675,9 +696,8 @@ contains
        ! Convert mass flux to heat flux (W/m^2)
        srate(:,:,:)=srate(:,:,:)*alvi
 
-       nc = GetIndex(prtcl,'H2O')
-       istr = (nc-1)*nsnw + 1
-       iend = nc*nsnw
+       istr = (n4-1)*nsnw + 1
+       iend = n4*nsnw
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 1,n1-1
@@ -690,16 +710,15 @@ contains
     IF (mcflg) THEN
        ! For mass conservation statistics
        mctmp(:,:) = 0.
-       ss = getIndex(prtcl,'H2O')
-       istr = (ss-1)*nbins; iend = ss*nbins
+       istr = (n4-1)*nbins; iend = n4*nbins
        mctmp(:,:) = mctmp(:,:) + SUM(remaer(:,:,istr:iend),dim=3)
-       istr = (ss-1)*ncld; iend = ss*ncld
+       istr = (n4-1)*ncld; iend = n4*ncld
        mctmp(:,:) = mctmp(:,:) + SUM(remcld(:,:,istr:iend),dim=3)
-       istr = (ss-1)*nprc; iend = ss*nprc
+       istr = (n4-1)*nprc; iend = n4*nprc
        mctmp(:,:) = mctmp(:,:) + SUM(remprc(:,:,istr:iend),dim=3)
-       istr = (ss-1)*nice; iend = ss*nice
+       istr = (n4-1)*nice; iend = n4*nice
        mctmp(:,:) = mctmp(:,:) + SUM(remice(:,:,istr:iend),dim=3)
-       istr = (ss-1)*nsnw; iend = ss*nsnw
+       istr = (n4-1)*nsnw; iend = n4*nsnw
        mctmp(:,:) = mctmp(:,:) + SUM(remsnw(:,:,istr:iend),dim=3)
        CALL acc_massbudged(n1,n2,n3,3,tstep,dzt,a_dn,rdep=mctmp,ApVdom=mc_ApVdom)
     END IF !mcflg

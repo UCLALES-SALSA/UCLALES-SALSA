@@ -29,9 +29,9 @@ module stat
   private
 
   integer, parameter :: nvar1 = 29,               &
-                        nv1_lvl4 = 53,            &
+                        nv1_lvl4 = 72,            &
                         nv1MB = 4,                &
-                        nv1_lvl5 = 49,            &
+                        nv1_lvl5 = 67,            &
                         nvar2 = 96,               &
                         nv2_lvl4 = 43,            &
                         nv2_lvl5 = 29, &
@@ -55,6 +55,7 @@ module stat
   LOGICAL            :: mcflg = .FALSE.
   LOGICAL            :: csflg = .FALSE.
   LOGICAL            :: salsa_b_bins = .FALSE.
+  LOGICAL            :: salsa_rate_stats = .FALSE.
   real               :: ssam_intvl = 30.   ! statistical sampling interval
   real               :: savg_intvl = 1800. ! statistical averaging interval
 
@@ -90,7 +91,10 @@ module stat
        'rmNOdr ','rmNOcl ','rmNOpr ',   & !44
        'rmNHdr ','rmNHcl ','rmNHpr ',   & !47
        'rmH2Oae','rmH2Ocl','rmH2Opr',   & !50
-       'SS_max '/), & !53
+       'SS_max ',                       & !53
+       'coag_ra','coag_na','coag_rc','coag_nc','coag_rr','coag_nr',   & !54
+       'cond_ra','cond_rc','cond_rr','auto_rr','auto_nr','act_rc ','act_nc ',   & !60
+       'sedi_ra','sedi_na','sedi_rc','sedi_nc','sedi_rr','sedi_nr'/), & !67-72
 
        s1_lvl5(nv1_lvl5) = (/  &
        'Ni_ii  ','Ri_ii  ','Nia_iia','Ria_iia','Nib_iib','Rib_iib', & ! 1-6
@@ -105,7 +109,12 @@ module stat
        'rmSO4ic','rmSO4sn','rmOCic ','rmOCsn ',   & ! 34-37
        'rmBCic ','rmBCsn ','rmDUic ','rmDUsn ',   & ! 38-41
        'rmSSic ','rmSSsn ','rmNOic ','rmNOsn ',   & ! 42-45
-       'rmNHic ','rmNHsn ','rmH2Oic','rmH2Osn'/), & ! 46-49
+       'rmNHic ','rmNHsn ','rmH2Oic','rmH2Osn',   & ! 46-49
+       'coag_ri','coag_ni','coag_rs','coag_ns',   & ! 50-53
+       'cond_ri','cond_rs','auto_rs','auto_ns',   & ! 54-57
+       'nucl_ri','nucl_ni','melt_ri','melt_ni',   & ! 58-61
+       'melt_rs','melt_ns','sedi_ri','sedi_ni',   & ! 62-65
+       'sedi_rs','sedi_ns'/),                     & ! 66-67
 
         s2(nvar2)=(/                                                 &
         'time   ','zt     ','zm     ','dn0    ','u0     ','v0     ', & ! 1
@@ -210,7 +219,7 @@ module stat
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
        acc_tend, updtst, sfc_stat, close_stat, fill_scalar, tke_sgs, sgsflxs,&
        sgs_vel, comp_tke, get_zi, acc_removal, cs_rem_set, acc_massbudged, write_massbudged, mcflg, csflg, &
-       salsa_b_bins
+       salsa_b_bins, salsa_rate_stats
 
 contains
   !
@@ -426,6 +435,12 @@ contains
        s1bool(nvar1+53)=.TRUE.  ! Maximum supersaturation
 
        s2bool(nvar2+40:nvar2+43) = .TRUE.     ! Water mixing ratios and RH
+
+       ! Microphysicsal process rate statistics
+       IF (salsa_rate_stats) THEN
+          s1bool(nvar1+54:nvar1+nv1_lvl4)=.TRUE.
+          IF (level>=5) s1bool(nvar1+nv1_lvl4+50:nvar1+nv1_lvl4+nv1_lvl5)=.TRUE.
+       ENDIF
 
        ! b-bins are not always saved
        IF (.not. salsa_b_bins) THEN
@@ -1059,15 +1074,17 @@ contains
   !
   SUBROUTINE ts_lvl4(n1,n2,n3)
     use mo_submctl, only : nlim ! Note: #/m^3, but close enough to #/kg for statistics
-    USE grid, ONLY : prtcl, bulkNumc, bulkMixrat, meanradius, dzt, a_rh
+    USE grid, ONLY : prtcl, bulkNumc, bulkMixrat, meanradius, dzt, a_rh, zm, dn0, &
+        coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, cond_ra, cond_rc, cond_rr, &
+        auto_rr, auto_nr, cact_rc, cact_nc, sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr
     USE class_componentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
 
     integer, intent(in) :: n1,n2,n3
 
-    REAL :: a0(n1,n2,n3), a1(n1,n2,n3), a2(n1,n2,n3)
-    integer :: ii,ss
+    REAL :: a0(n1,n2,n3), a1(n1,n2,n3), a2(n1,n2,n3), fact
+    integer :: ii,ss, i, j, k
     LOGICAL :: mask(n1,n2,n3)
 
     ! Clouds; combined and a and b separately for a and b regions, respectively
@@ -1123,6 +1140,38 @@ contains
     ! Maximum supersaturation
     ssclr_b(53) = (MAXVAL(a_rh(2:n1,3:n2-2,3:n3-2))-1.0)*100.
 
+    ! Process rate statistics
+    IF (salsa_rate_stats) THEN
+        ! Integrate over vertical dimension and take average
+        ssclr_b(54:72) = 0.
+        do j=3,n3-2
+            do i=3,n2-2
+                do k=2,n1
+                    fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
+                    ssclr_b(54) = ssclr_b(54) + coag_ra(k,i,j)*fact
+                    ssclr_b(55) = ssclr_b(55) + coag_na(k,i,j)*fact
+                    ssclr_b(56) = ssclr_b(56) + coag_rc(k,i,j)*fact
+                    ssclr_b(57) = ssclr_b(57) + coag_nc(k,i,j)*fact
+                    ssclr_b(58) = ssclr_b(58) + coag_rr(k,i,j)*fact
+                    ssclr_b(59) = ssclr_b(59) + coag_nr(k,i,j)*fact
+                    ssclr_b(60) = ssclr_b(60) + cond_ra(k,i,j)*fact
+                    ssclr_b(61) = ssclr_b(61) + cond_rc(k,i,j)*fact
+                    ssclr_b(62) = ssclr_b(62) + cond_rr(k,i,j)*fact
+                    ssclr_b(63) = ssclr_b(63) + auto_rr(k,i,j)*fact
+                    ssclr_b(64) = ssclr_b(64) + auto_nr(k,i,j)*fact
+                    ssclr_b(65) = ssclr_b(65) + cact_rc(k,i,j)*fact
+                    ssclr_b(66) = ssclr_b(66) + cact_nc(k,i,j)*fact
+                    ssclr_b(67) = ssclr_b(67) + sedi_ra(k,i,j)*fact
+                    ssclr_b(68) = ssclr_b(68) + sedi_na(k,i,j)*fact
+                    ssclr_b(69) = ssclr_b(69) + sedi_rc(k,i,j)*fact
+                    ssclr_b(70) = ssclr_b(70) + sedi_nc(k,i,j)*fact
+                    ssclr_b(71) = ssclr_b(71) + sedi_rr(k,i,j)*fact
+                    ssclr_b(72) = ssclr_b(72) + sedi_nr(k,i,j)*fact
+                END DO
+            END DO
+        END DO
+    ENDIF
+
   END SUBROUTINE ts_lvl4
   !
   ! -----------------------------------------------------------------------
@@ -1132,7 +1181,9 @@ contains
   SUBROUTINE ts_lvl5(n1,n2,n3)
     USE mo_submctl, only : prlim ! Note: #/m^3, but close enough to #/kg for statistics
     USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,meanRadius, dzt, &
-        dn0, zm, a_ri, a_srs, snowin, a_rhi
+        dn0, zm, a_ri, a_srs, snowin, a_rhi, &
+        coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
+        nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns, sedi_ri, sedi_ni, sedi_rs, sedi_ns
     USE class_componentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
@@ -1141,8 +1192,8 @@ contains
 
     REAL :: a0(n1,n2,n3), a1(n1,n2,n3), a2(n1,n2,n3)
     REAL :: scr(n2,n3), scr2(n2,n3)
-    REAL :: sscnt
-    integer :: i, j, k, ii, ss
+    REAL :: fact
+    integer :: i, j, k, ii, ss, sscnt
     LOGICAL :: mask(n1,n2,n3)
 
     ! Ice; combined and a and b separately for a and b regions, respectively
@@ -1226,6 +1277,37 @@ contains
     END DO
 
     ! Removal statistics elsewhere ..
+
+    ! Process rate statistics
+    IF (salsa_rate_stats) THEN
+        ! Integrate over vertical dimension and take average
+        ssclr_lvl5(50:67) = 0.
+        do j=3,n3-2
+            do i=3,n2-2
+                do k=2,n1
+                    fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
+                    ssclr_lvl5(50) = ssclr_lvl5(50) + coag_ri(k,i,j)*fact
+                    ssclr_lvl5(51) = ssclr_lvl5(51) + coag_ni(k,i,j)*fact
+                    ssclr_lvl5(52) = ssclr_lvl5(52) + coag_rs(k,i,j)*fact
+                    ssclr_lvl5(53) = ssclr_lvl5(53) + coag_ns(k,i,j)*fact
+                    ssclr_lvl5(54) = ssclr_lvl5(54) + cond_ri(k,i,j)*fact
+                    ssclr_lvl5(55) = ssclr_lvl5(55) + cond_rs(k,i,j)*fact
+                    ssclr_lvl5(56) = ssclr_lvl5(56) + auto_rs(k,i,j)*fact
+                    ssclr_lvl5(57) = ssclr_lvl5(57) + auto_ns(k,i,j)*fact
+                    ssclr_lvl5(58) = ssclr_lvl5(58) + nucl_ri(k,i,j)*fact
+                    ssclr_lvl5(59) = ssclr_lvl5(59) + nucl_ni(k,i,j)*fact
+                    ssclr_lvl5(60) = ssclr_lvl5(60) + melt_ri(k,i,j)*fact
+                    ssclr_lvl5(61) = ssclr_lvl5(61) + melt_ni(k,i,j)*fact
+                    ssclr_lvl5(62) = ssclr_lvl5(62) + melt_rs(k,i,j)*fact
+                    ssclr_lvl5(63) = ssclr_lvl5(63) + melt_ns(k,i,j)*fact
+                    ssclr_lvl5(64) = ssclr_lvl5(64) + sedi_ri(k,i,j)*fact
+                    ssclr_lvl5(65) = ssclr_lvl5(65) + sedi_ni(k,i,j)*fact
+                    ssclr_lvl5(66) = ssclr_lvl5(66) + sedi_rs(k,i,j)*fact
+                    ssclr_lvl5(67) = ssclr_lvl5(67) + sedi_ns(k,i,j)*fact
+                END DO
+            END DO
+        END DO
+    ENDIF
 
   END SUBROUTINE ts_lvl5
   !

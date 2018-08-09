@@ -84,7 +84,13 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtl, 0., level   )
+                  1, prtcl, dtl, 0., level,  &
+                  coag_ra=coag_ra, coag_na=coag_na, coag_rc=coag_rc, coag_nc=coag_nc, coag_rr=coag_rr, &
+                  coag_nr=coag_nr, coag_ri=coag_ri, coag_ni=coag_ni, coag_rs=coag_rs, coag_ns=coag_ns, &
+                  cond_ra=cond_ra, cond_rc=cond_rc, cond_rr=cond_rr, cond_ri=cond_ri, cond_rs=cond_rs, &
+                  auto_rr=auto_rr, auto_nr=auto_nr, auto_rs=auto_rs, auto_ns=auto_ns, &
+                  cact_rc=cact_rc, cact_nc=cact_nc, nucl_ri=nucl_ri, nucl_ni=nucl_ni, &
+                  melt_ri=melt_ri, melt_ni=melt_ni, melt_rs=melt_rs, melt_ns=melt_ns)
           ELSE
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
@@ -93,8 +99,13 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtl, 0., level   )
-
+                  1, prtcl, dtl, 0., level,  &
+                  coag_ra=coag_ra, coag_na=coag_na, coag_rc=coag_rc, coag_nc=coag_nc, coag_rr=coag_rr, &
+                  coag_nr=coag_nr, coag_ri=coag_ri, coag_ni=coag_ni, coag_rs=coag_rs, coag_ns=coag_ns, &
+                  cond_ra=cond_ra, cond_rc=cond_rc, cond_rr=cond_rr, cond_ri=cond_ri, cond_rs=cond_rs, &
+                  auto_rr=auto_rr, auto_nr=auto_nr, auto_rs=auto_rs, auto_ns=auto_ns, &
+                  cact_rc=cact_rc, cact_nc=cact_nc, nucl_ri=nucl_ri, nucl_ni=nucl_ni, &
+                  melt_ri=melt_ri, melt_ni=melt_ni, melt_rs=melt_rs, melt_ns=melt_ns)
           END IF
           CALL SALSAInit
           

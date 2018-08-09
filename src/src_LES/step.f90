@@ -155,8 +155,10 @@ contains
                      a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,    &
                      a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
-                     a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl,    &
-                     sst, a_rsi
+                     a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl, sst, a_rsi, &
+                     coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, coag_ri, coag_ni, coag_rs, coag_ns, &
+                     cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, auto_rr, auto_nr, auto_rs, auto_ns, &
+                     cact_rc, cact_nc, nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns
 
     use stat, only : sflg, statistics
     use sgsm, only : diffuse
@@ -232,7 +234,13 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  zrm, prtcl, dtl, time, level  )
+                  zrm, prtcl, dtl, time, level,  &
+                  coag_ra=coag_ra, coag_na=coag_na, coag_rc=coag_rc, coag_nc=coag_nc, coag_rr=coag_rr, &
+                  coag_nr=coag_nr, coag_ri=coag_ri, coag_ni=coag_ni, coag_rs=coag_rs, coag_ns=coag_ns, &
+                  cond_ra=cond_ra, cond_rc=cond_rc, cond_rr=cond_rr, cond_ri=cond_ri, cond_rs=cond_rs, &
+                  auto_rr=auto_rr, auto_nr=auto_nr, auto_rs=auto_rs, auto_ns=auto_ns, &
+                  cact_rc=cact_rc, cact_nc=cact_nc, nucl_ri=nucl_ri, nucl_ni=nucl_ni, &
+                  melt_ri=melt_ri, melt_ni=melt_ni, melt_rs=melt_rs, melt_ns=melt_ns)
           ELSE
              !! for 2D or 3D runs
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
@@ -242,7 +250,13 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  zrm, prtcl, dtl, time, level  )
+                  zrm, prtcl, dtl, time, level,  &
+                  coag_ra=coag_ra, coag_na=coag_na, coag_rc=coag_rc, coag_nc=coag_nc, coag_rr=coag_rr, &
+                  coag_nr=coag_nr, coag_ri=coag_ri, coag_ni=coag_ni, coag_rs=coag_rs, coag_ns=coag_ns, &
+                  cond_ra=cond_ra, cond_rc=cond_rc, cond_rr=cond_rr, cond_ri=cond_ri, cond_rs=cond_rs, &
+                  auto_rr=auto_rr, auto_nr=auto_nr, auto_rs=auto_rs, auto_ns=auto_ns, &
+                  cact_rc=cact_rc, cact_nc=cact_nc, nucl_ri=nucl_ri, nucl_ni=nucl_ni, &
+                  melt_ri=melt_ri, melt_ni=melt_ni, melt_rs=melt_rs, melt_ns=melt_ns)
           END IF !nxp==5 and nyp == 5
 
           CALL tend_constrain(n4)
@@ -1001,8 +1015,8 @@ contains
                    ! Wet diameter
                    zvol = (SUM( a_mprecpp(k,i,j,bc:(nn-1)*nprc+bc:nprc)/dens(1:nn) )/a_nprecpp(k,i,j,bc)/pi6)**(1./3.)
 
-                   ! Lose the droplets if smaller than 0.02*critical diameter or 2 um or if there is no water
-                   IF ( zvol < MAX(0.02*cd,2.e-6) .OR. a_mprecpp(k,i,j,(nn-1)*nprc+bc)<1e-25*a_nprecpp(k,i,j,bc) ) THEN
+                   ! Lose the droplets if smaller than 0.02*critical diameter or 20 um or if there is no water
+                   IF ( zvol < MAX(0.02*cd,20.e-6) .OR. a_mprecpp(k,i,j,(nn-1)*nprc+bc)<1e-25*a_nprecpp(k,i,j,bc) ) THEN
 
                       ! Move evaporating precipitation to aerosol bin based on dry radius and chemical composition
 
@@ -1091,8 +1105,8 @@ contains
                    ! Dry to total mass ratio
                    zvol = SUM( a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw) )/SUM( a_msnowp(k,i,j,bc:(nn-1)*nsnw+bc:nsnw) )
 
-                   ! Lose particles smaller than 2e-6 m and particles which dry to total mass ratio is more than 0.5
-                   IF ( zvol>0.5  .OR. cd<2e-6 ) THEN
+                   ! Lose particles smaller than 20e-6 m and particles which dry to total mass ratio is more than 0.5
+                   IF ( zvol>0.5  .OR. cd<20.e-6 ) THEN
 
                       ! Move evaporating snow to aerosol bin based on dry radius and chemical composition
 

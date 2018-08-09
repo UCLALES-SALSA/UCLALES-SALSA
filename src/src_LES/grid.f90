@@ -189,6 +189,17 @@ module grid
   REAL :: mc_Adom           ! Domain surface area
   REAL :: mc_ApVdom         ! Volume/Area
 
+  ! Statistics for level 4 and 5 microphysics
+  REAL, dimension(:,:,:), allocatable :: &
+            coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
+            coag_ri, coag_ni, coag_rs, coag_ns, &
+            cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
+            auto_rr, auto_nr, auto_rs, auto_ns, &
+            cact_rc, cact_nc, nucl_ri, nucl_ni, &
+            melt_ri, melt_ni, melt_rs, melt_ns, &
+            sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
+            sedi_ri, sedi_ni, sedi_rs, sedi_ns
+
   !
   integer :: nscl = 1
   integer, save :: ncid0,ncid_s
@@ -426,6 +437,19 @@ contains
           a_msnowp => tmp_icep(:,:,:,1:(nc+1)*nsnw)
           a_msnowt => tmp_icet(:,:,:,1:(nc+1)*nsnw)
        ENDIF
+
+       ! Allocate arrays for level 4 and 5 process rate statistics
+       allocate ( coag_ra(nzp,nxp,nyp), coag_na(nzp,nxp,nyp), coag_rc(nzp,nxp,nyp), coag_nc(nzp,nxp,nyp), &
+          coag_rr(nzp,nxp,nyp), coag_nr(nzp,nxp,nyp), &
+          coag_ri(nzp,nxp,nyp), coag_ni(nzp,nxp,nyp), coag_rs(nzp,nxp,nyp), coag_ns(nzp,nxp,nyp), &
+          cond_ra(nzp,nxp,nyp), cond_rc(nzp,nxp,nyp), cond_rr(nzp,nxp,nyp), cond_ri(nzp,nxp,nyp), cond_rs(nzp,nxp,nyp), &
+          auto_rr(nzp,nxp,nyp), auto_nr(nzp,nxp,nyp), auto_rs(nzp,nxp,nyp), auto_ns(nzp,nxp,nyp), &
+          cact_rc(nzp,nxp,nyp), cact_nc(nzp,nxp,nyp), nucl_ri(nzp,nxp,nyp), nucl_ni(nzp,nxp,nyp), &
+          melt_ri(nzp,nxp,nyp), melt_ni(nzp,nxp,nyp), melt_rs(nzp,nxp,nyp), melt_ns(nzp,nxp,nyp), &
+          sedi_ra(nzp,nxp,nyp), sedi_na(nzp,nxp,nyp), sedi_rc(nzp,nxp,nyp), sedi_nc(nzp,nxp,nyp), &
+          sedi_rr(nzp,nxp,nyp), sedi_nr(nzp,nxp,nyp), &
+          sedi_ri(nzp,nxp,nyp), sedi_ni(nzp,nxp,nyp), sedi_rs(nzp,nxp,nyp), sedi_ns(nzp,nxp,nyp) )
+        memsize = memsize + nxyzp*37
 
         ! Density, molecular weight, dissociation factor and molar volume arrays for the used species
         !   1:SO4, 2:OC, 3:BC, 4:DU, 5:SS, 6:NO, 7:NH, 8:H2O
