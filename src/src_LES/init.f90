@@ -44,13 +44,13 @@ contains
   !
   subroutine initialize
 
-    use step, only : time, outflg, salsa_diagnostics
-    use stat, only : init_stat, mcflg, acc_massbudged, salsa_b_bins
+    use step, only : time, outflg, salsa_diag_update
+    use stat, only : init_stat, mcflg, acc_massbudged
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim
+    USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim, stat_b_bins
     USE class_ComponentIndex, ONLY : GetNcomp
 
     implicit none
@@ -77,8 +77,8 @@ contains
           n4 = GetNcomp(prtcl) + 1 ! Aerosol components + water
 
           ! Update diagnostic SALSA tracers
+          CALL SALSA_diag_update
           CALL thermo(level)
-          CALL SALSA_diagnostics
 
           IF ( nxp == 5 .and. nyp == 5 ) THEN
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
@@ -89,12 +89,12 @@ contains
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
                   1, prtcl, dtl, 0., level,  &
-                  coag_ra=coag_ra, coag_na=coag_na, coag_rc=coag_rc, coag_nc=coag_nc, coag_rr=coag_rr, &
-                  coag_nr=coag_nr, coag_ri=coag_ri, coag_ni=coag_ni, coag_rs=coag_rs, coag_ns=coag_ns, &
-                  cond_ra=cond_ra, cond_rc=cond_rc, cond_rr=cond_rr, cond_ri=cond_ri, cond_rs=cond_rs, &
-                  auto_rr=auto_rr, auto_nr=auto_nr, auto_rs=auto_rs, auto_ns=auto_ns, &
-                  cact_rc=cact_rc, cact_nc=cact_nc, nucl_ri=nucl_ri, nucl_ni=nucl_ni, &
-                  melt_ri=melt_ri, melt_ni=melt_ni, melt_rs=melt_rs, melt_ns=melt_ns)
+                  coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
+                  coag_ri, coag_ni, coag_rs, coag_ns, &
+                  cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
+                  auto_rr, auto_nr, auto_rs, auto_ns, &
+                  cact_rc, cact_nc, nucl_ri, nucl_ni, &
+                  melt_ri, melt_ni, melt_rs, melt_ns)
           ELSE
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
@@ -104,14 +104,15 @@ contains
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
                   1, prtcl, dtl, 0., level,  &
-                  coag_ra=coag_ra, coag_na=coag_na, coag_rc=coag_rc, coag_nc=coag_nc, coag_rr=coag_rr, &
-                  coag_nr=coag_nr, coag_ri=coag_ri, coag_ni=coag_ni, coag_rs=coag_rs, coag_ns=coag_ns, &
-                  cond_ra=cond_ra, cond_rc=cond_rc, cond_rr=cond_rr, cond_ri=cond_ri, cond_rs=cond_rs, &
-                  auto_rr=auto_rr, auto_nr=auto_nr, auto_rs=auto_rs, auto_ns=auto_ns, &
-                  cact_rc=cact_rc, cact_nc=cact_nc, nucl_ri=nucl_ri, nucl_ni=nucl_ni, &
-                  melt_ri=melt_ri, melt_ni=melt_ni, melt_rs=melt_rs, melt_ns=melt_ns)
+                  coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
+                  coag_ri, coag_ni, coag_rs, coag_ns, &
+                  cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
+                  auto_rr, auto_nr, auto_rs, auto_ns, &
+                  cact_rc, cact_nc, nucl_ri, nucl_ni, &
+                  melt_ri, melt_ni, melt_rs, melt_ns)
           END IF
           CALL SALSAInit
+          CALL SALSA_diag_update
           CALL thermo(level)
 
        END IF !level >= 4
@@ -122,8 +123,8 @@ contains
        ! Update diagnostic SALSA tracers
        IF (level >= 4) THEN
           CALL SALSAInit
+          CALL SALSA_diag_update
           CALL thermo(level)
-          CALL SALSA_diagnostics
        END IF
     else
        if (myid == 0) print *,'  ABORTING:  Invalid Runtype'
@@ -133,11 +134,11 @@ contains
 
     ! When SALSA b-bin outputs are needed?
     !   -level >= 4
-    !   -outputs are forced (salsa_b_bins=.true.)
+    !   -outputs are forced (stat_b_bins=.true.)
     !   -b-bins initialized with non-zero concentration
     !   -nucleation set to produce particles to b bins (currently only a bins)
-    IF (level >= 4 .and. (.not. salsa_b_bins)) &
-       salsa_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim ) .OR. any( a_nicep(:,:,:,iib%cur:fib%cur)>prlim )
+    IF (level >= 4 .and. (.not. stat_b_bins)) &
+       stat_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim ) .OR. any( a_nicep(:,:,:,iib%cur:fib%cur)>prlim )
 
     call sponge_init
     call init_stat(time+dtl,filprf,expnme,nzp)
@@ -158,11 +159,11 @@ contains
     if (outflg) then
        if (runtype == 'INITIAL') then
           call write_hist(1, time)
-          call init_anal(time,salsa_b_bins)
+          call init_anal(time,stat_b_bins)
           call thermo(level)
           call write_anal(time)
        else
-          call init_anal(time+dtl,salsa_b_bins)
+          call init_anal(time+dtl,stat_b_bins)
           call write_hist(0, time)
        end if
     end if !outflg
@@ -723,7 +724,7 @@ contains
                in1a,fn2b,ica,fcb,ira,fra,iia,fib,isa,fsa
     USE class_componentIndex, ONLY : GetIndex
     IMPLICIT NONE
-    INTEGER :: k,i,j,bb,nc,str,end
+    INTEGER :: k,i,j,nc,str,end
 
     DO j=1,nyp
        DO i=1,nxp
@@ -746,34 +747,6 @@ contains
           END DO
        END DO
     END DO
-
-    ! Update diagnostic tracers
-
-    ! Liquid water content
-    nc = GetIndex(prtcl,'H2O')
-    ! Aerosols, regimes a and b
-    str = (nc-1)*nbins + in1a
-    end = (nc-1)*nbins + fn2b
-    a_rc(:,:,:) = SUM(a_maerop(:,:,:,str:end),DIM=4)
-    ! Clouds, regime a and b
-    str = (nc-1)*ncld+ica%cur
-    end = (nc-1)*ncld+fcb%cur
-    a_rc(:,:,:) = a_rc(:,:,:) + SUM(a_mcloudp(:,:,:,str:end),DIM=4)
-    ! Precipitation
-    str = (nc-1)*nprc+ira
-    end = (nc-1)*nprc+fra
-    a_srp(:,:,:) = SUM(a_mprecpp(:,:,:,str:end),DIM=4)
-    a_snrp(:,:,:) = SUM(a_nprecpp(:,:,:,ira:fra),DIM=4)
-
-    ! ice, regimes a and b
-    str = (nc-1)*nice+iia%cur
-    end = (nc-1)*nice+fib%cur
-    a_ri(:,:,:) = SUM(a_micep(:,:,:,str:end),DIM=4)
-    ! Snow
-    str = (nc-1)*nsnw+isa
-    end = (nc-1)*nsnw+fsa
-    a_srs(:,:,:) = SUM(a_msnowp(:,:,:,str:end),DIM=4)
-    a_snrs(:,:,:) = SUM(a_nsnowp(:,:,:,isa:fsa),DIM=4)
 
   END SUBROUTINE SALSAInit
 

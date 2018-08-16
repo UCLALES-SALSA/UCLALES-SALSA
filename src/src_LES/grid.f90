@@ -207,7 +207,9 @@ module grid
             cact_rc, cact_nc, nucl_ri, nucl_ni, &
             melt_ri, melt_ni, melt_rs, melt_ns, &
             sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
-            sedi_ri, sedi_ni, sedi_rs, sedi_ns
+            sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
+            diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr, &
+            diag_ri, diag_ni, diag_rs, diag_ns
 
   !
   integer :: nscl = 1
@@ -447,8 +449,8 @@ contains
           a_msnowt => tmp_icet(:,:,:,1:(nc+1)*nsnw)
        ENDIF
 
-       ! Allocate arrays for level 4 and 5 process rate statistics
-       allocate ( coag_ra(nzp,nxp,nyp), coag_na(nzp,nxp,nyp), coag_rc(nzp,nxp,nyp), coag_nc(nzp,nxp,nyp), &
+        ! Allocate arrays for level 4 and 5 process rate statistics
+        allocate ( coag_ra(nzp,nxp,nyp), coag_na(nzp,nxp,nyp), coag_rc(nzp,nxp,nyp), coag_nc(nzp,nxp,nyp), &
           coag_rr(nzp,nxp,nyp), coag_nr(nzp,nxp,nyp), &
           coag_ri(nzp,nxp,nyp), coag_ni(nzp,nxp,nyp), coag_rs(nzp,nxp,nyp), coag_ns(nzp,nxp,nyp), &
           cond_ra(nzp,nxp,nyp), cond_rc(nzp,nxp,nyp), cond_rr(nzp,nxp,nyp), cond_ri(nzp,nxp,nyp), cond_rs(nzp,nxp,nyp), &
@@ -457,8 +459,21 @@ contains
           melt_ri(nzp,nxp,nyp), melt_ni(nzp,nxp,nyp), melt_rs(nzp,nxp,nyp), melt_ns(nzp,nxp,nyp), &
           sedi_ra(nzp,nxp,nyp), sedi_na(nzp,nxp,nyp), sedi_rc(nzp,nxp,nyp), sedi_nc(nzp,nxp,nyp), &
           sedi_rr(nzp,nxp,nyp), sedi_nr(nzp,nxp,nyp), &
-          sedi_ri(nzp,nxp,nyp), sedi_ni(nzp,nxp,nyp), sedi_rs(nzp,nxp,nyp), sedi_ns(nzp,nxp,nyp) )
-        memsize = memsize + nxyzp*37
+          sedi_ri(nzp,nxp,nyp), sedi_ni(nzp,nxp,nyp), sedi_rs(nzp,nxp,nyp), sedi_ns(nzp,nxp,nyp), &
+          diag_ra(nzp,nxp,nyp), diag_na(nzp,nxp,nyp), diag_rc(nzp,nxp,nyp), diag_nc(nzp,nxp,nyp), &
+          diag_rr(nzp,nxp,nyp), diag_nr(nzp,nxp,nyp), &
+          diag_ri(nzp,nxp,nyp), diag_ni(nzp,nxp,nyp), diag_rs(nzp,nxp,nyp), diag_ns(nzp,nxp,nyp) )
+        coag_ra=0.; coag_na=0.; coag_rc=0.;coag_nc=0.; coag_rr=0.; coag_nr=0.
+        coag_ri=0.; coag_ni=0.; coag_rs=0.; coag_ns=0.
+        cond_ra=0.; cond_rc=0.; cond_rr=0.; cond_ri=0.; cond_rs=0.
+        auto_rr=0.; auto_nr=0.; auto_rs=0.; auto_ns=0.
+        cact_rc=0.; cact_nc=0.; nucl_ri=0.; nucl_ni=0.
+        melt_ri=0.; melt_ni=0.; melt_rs=0.; melt_ns=0.
+        sedi_ra=0.; sedi_na=0.; sedi_rc=0.; sedi_nc=0.; sedi_rr=0.; sedi_nr=0.
+        sedi_ri=0.; sedi_ni=0.; sedi_rs=0.; sedi_ns=0.
+        diag_ra=0.; diag_na=0.; diag_rc=0.; diag_nc=0.; diag_rr=0.; diag_nr=0.
+        diag_ri=0.; diag_ni=0.; diag_rs=0.; diag_ns=0.
+        memsize = memsize + nxyzp*47
 
         ! Density, molecular weight, dissociation factor and molar volume arrays for the used species
         !   1:SO4, 2:OC, 3:BC, 4:DU, 5:SS, 6:NO, 7:NH, 8:H2O

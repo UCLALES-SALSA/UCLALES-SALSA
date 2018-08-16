@@ -453,6 +453,7 @@ CONTAINS
                                ice_hom, ice_imm, ice_dep, &
                                icenucl_tstart,        &
                                nlicmelt,              &
+                               stat_b_bins, stat_micro_ts, &
                                nbin,reglim,           &
                                nice,nsnw,             &
                                nspec,listspec,        &
@@ -504,6 +505,9 @@ CONTAINS
          nlactiv,       & ! Master switch for cloud droplet activation
          nlactbase,     & ! Switch for parameterized cloud base activation
          nlactintst,    & ! Switch for interstitial activation based on particle growth and host model S
+         stat_b_bins,   & ! Save statistics about SALSA b-bins
+         stat_micro_ts, & ! Save statistics (*.ts) about microphysical process rates
+
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          reglim,        & ! Low/high diameter limits of the 2 aerosol size regimes (1d table with length 4)
          nbin,          & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)

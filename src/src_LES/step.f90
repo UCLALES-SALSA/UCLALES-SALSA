@@ -223,12 +223,12 @@ contains
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
                   zrm, prtcl, dtl, time, level,  &
-                  coag_ra=coag_ra, coag_na=coag_na, coag_rc=coag_rc, coag_nc=coag_nc, coag_rr=coag_rr, &
-                  coag_nr=coag_nr, coag_ri=coag_ri, coag_ni=coag_ni, coag_rs=coag_rs, coag_ns=coag_ns, &
-                  cond_ra=cond_ra, cond_rc=cond_rc, cond_rr=cond_rr, cond_ri=cond_ri, cond_rs=cond_rs, &
-                  auto_rr=auto_rr, auto_nr=auto_nr, auto_rs=auto_rs, auto_ns=auto_ns, &
-                  cact_rc=cact_rc, cact_nc=cact_nc, nucl_ri=nucl_ri, nucl_ni=nucl_ni, &
-                  melt_ri=melt_ri, melt_ni=melt_ni, melt_rs=melt_rs, melt_ns=melt_ns)
+                  coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
+                  coag_ri, coag_ni, coag_rs, coag_ns, &
+                  cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
+                  auto_rr, auto_nr, auto_rs, auto_ns, &
+                  cact_rc, cact_nc, nucl_ri, nucl_ni, &
+                  melt_ri, melt_ni, melt_rs, melt_ns)
           ELSE
              !! for 2D or 3D runs
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
@@ -239,12 +239,12 @@ contains
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
                   zrm, prtcl, dtl, time, level,  &
-                  coag_ra=coag_ra, coag_na=coag_na, coag_rc=coag_rc, coag_nc=coag_nc, coag_rr=coag_rr, &
-                  coag_nr=coag_nr, coag_ri=coag_ri, coag_ni=coag_ni, coag_rs=coag_rs, coag_ns=coag_ns, &
-                  cond_ra=cond_ra, cond_rc=cond_rc, cond_rr=cond_rr, cond_ri=cond_ri, cond_rs=cond_rs, &
-                  auto_rr=auto_rr, auto_nr=auto_nr, auto_rs=auto_rs, auto_ns=auto_ns, &
-                  cact_rc=cact_rc, cact_nc=cact_nc, nucl_ri=nucl_ri, nucl_ni=nucl_ni, &
-                  melt_ri=melt_ri, melt_ni=melt_ni, melt_rs=melt_rs, melt_ns=melt_ns)
+                  coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
+                  coag_ri, coag_ni, coag_rs, coag_ns, &
+                  cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
+                  auto_rr, auto_nr, auto_rs, auto_ns, &
+                  cact_rc, cact_nc, nucl_ri, nucl_ni, &
+                  melt_ri, melt_ni, melt_rs, melt_ns)
           END IF !nxp==5 and nyp == 5
 
           CALL tend_constrain(n4)
@@ -293,7 +293,7 @@ contains
 
         ! Update diagnostic tracers
         IF (level >= 4)  THEN
-             CALL SALSA_diagnostics
+             CALL SALSA_diag_update
              call thermo(level)
         ENDIF
 
@@ -305,7 +305,7 @@ contains
     ENDIF
 
     IF (level >= 4)  THEN
-         CALL SALSA_diagnostics
+         CALL SALSA_diagnostics(.true.)
          call thermo(level)
     ENDIF
 
@@ -322,7 +322,7 @@ contains
     CALL thermo(level)
 
     IF (level >= 4)  THEN
-         CALL SALSA_diagnostics
+         CALL SALSA_diagnostics(.false.)
          call thermo(level)
     ENDIF
 
@@ -864,15 +864,13 @@ contains
   ! Juha Tonttila, FMI, 2014
   ! Tomi Raatikainen, FMI, 2016
 
-  SUBROUTINE SALSA_diagnostics
+  SUBROUTINE SALSA_diagnostics(reset_stats)
     USE grid, ONLY : nxp,nyp,nzp,    &
                      a_naerop,a_maerop,a_ncloudp,a_mcloudp,a_nprecpp,a_mprecpp,      &
-                     a_gaerop,  &
-                     a_rc, a_srp,a_snrp, prtcl,   &
-                     a_rh, a_temp, a_ri,a_srs,a_snrs,a_rhi, a_dn,                                &
-                     a_nicep,a_micep,a_nsnowp,a_msnowp, diss, mws, dens, dens_ice, dens_snow, level
-    USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,              &
-                               in1a,in2a,fn2a,in2b,fn2b,                        &
+                     a_gaerop, prtcl, a_rh, a_temp, a_rhi, a_dn,                     &
+                     a_nicep,a_micep,a_nsnowp,a_msnowp, diss, mws, dens, dens_ice, dens_snow, level, &
+                     dtl, diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr, diag_ri, diag_ni, diag_rs, diag_ns
+    USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,in2a,fn2a,    &
                                nice,nsnw,iia,fia,iib,fib,isa,fsa,        &
                                msu,moc,mno,mnh,avog,pi6,                     &
                                surfw0, rg, nlim, prlim, pi, &
@@ -881,10 +879,36 @@ contains
 
     IMPLICIT NONE
 
-    INTEGER :: i,j,k,bc,ba,bb,s,sc,sa,str,end,nc,nn
+    LOGICAL :: reset_stats
+
+    INTEGER :: i,j,k,bc,ba,bb,s,sc,sa,nc,nn
 
     REAL :: zvol, ra, rb
     REAL :: ns, cd
+    REAL, DIMENSION(nzp,nxp,nyp) :: tmp_ra, tmp_na, tmp_rc, tmp_nc, tmp_rr, tmp_nr, tmp_ri, tmp_ni, tmp_rs, tmp_ns
+
+    nn = GetNcomp(prtcl)+1 ! total number of species
+
+    ! Change in concentrations due to diagnostics (e.g. release of cloud/rain/ice/snow into aerosol,
+    ! cleaning particles without mass or negligible number concentration)
+    tmp_ra(:,:,:)=SUM(a_maerop(:,:,:,(nn-1)*nbins+1:nn*nbins),DIM=4)
+    tmp_na(:,:,:)=SUM(a_naerop,DIM=4)
+    tmp_rc(:,:,:)=SUM(a_mcloudp(:,:,:,(nn-1)*ncld+1:nn*ncld),DIM=4)
+    tmp_nc(:,:,:)=SUM(a_ncloudp,DIM=4)
+    tmp_rr(:,:,:)=SUM(a_mprecpp(:,:,:,(nn-1)*nprc+1:nn*nprc),DIM=4)
+    tmp_nr(:,:,:)=SUM(a_nprecpp,DIM=4)
+    tmp_ri(:,:,:)=SUM(a_micep(:,:,:,(nn-1)*nice+1:nn*nice),DIM=4)
+    tmp_ni(:,:,:)=SUM(a_nicep,DIM=4)
+    tmp_rs(:,:,:)=SUM(a_msnowp(:,:,:,(nn-1)*nsnw+1:nn*nsnw),DIM=4)
+    tmp_ns(:,:,:)=SUM(a_nsnowp,DIM=4)
+    IF (reset_stats) THEN ! Reset outputs (there are two SALSA_diagnostics calls during one time step)
+        diag_ra=0.; diag_na=0.
+        diag_rc=0.; diag_nc=0.
+        diag_rr=0.; diag_nr=0.
+        diag_ri=0.; diag_ni=0.
+        diag_rs=0.; diag_ns=0.
+    ENDIF
+
 
     ! Remove negative values
     a_naerop = MAX(0.,a_naerop)
@@ -898,8 +922,6 @@ contains
     a_nsnowp = MAX(0.,a_nsnowp)
     a_micep = MAX(0.,a_micep)
     a_msnowp = MAX(0.,a_msnowp)
-
-    nn = GetNcomp(prtcl)+1 ! total number of species
 
     ! Remove particles that have number but no mass. Also remove particles that have
     ! insignificant concentration indicated by nlim and prlim (note: #/m^3)
@@ -1008,8 +1030,8 @@ contains
                    ! Wet diameter
                    zvol = (SUM( a_mprecpp(k,i,j,bc:(nn-1)*nprc+bc:nprc)/dens(1:nn) )/a_nprecpp(k,i,j,bc)/pi6)**(1./3.)
 
-                   ! Lose the droplets if smaller than 0.02*critical diameter or 20 um or if there is no water
-                   IF ( zvol < MAX(0.02*cd,20.e-6) .OR. a_mprecpp(k,i,j,(nn-1)*nprc+bc)<1e-25*a_nprecpp(k,i,j,bc) ) THEN
+                   ! Lose the droplets if smaller than 0.02*critical diameter or 2 um or if there is no water
+                   IF ( zvol < MAX(0.02*cd,2.e-6) .OR. a_mprecpp(k,i,j,(nn-1)*nprc+bc)<1e-25*a_nprecpp(k,i,j,bc) ) THEN
 
                       ! Move evaporating precipitation to aerosol bin based on dry radius and chemical composition
 
@@ -1098,8 +1120,8 @@ contains
                    ! Dry to total mass ratio
                    zvol = SUM( a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw) )/SUM( a_msnowp(k,i,j,bc:(nn-1)*nsnw+bc:nsnw) )
 
-                   ! Lose particles smaller than 20e-6 m and particles which dry to total mass ratio is more than 0.5
-                   IF ( zvol>0.5  .OR. cd<20.e-6 ) THEN
+                   ! Lose particles smaller than 2e-6 m and particles which dry to total mass ratio is more than 0.5
+                   IF ( zvol>0.5  .OR. cd<2.e-6 ) THEN
 
                       ! Move evaporating snow to aerosol bin based on dry radius and chemical composition
 
@@ -1182,10 +1204,35 @@ contains
        END DO   ! i
     END DO   ! j
 
+    diag_ra(:,:,:)=diag_ra(:,:,:)+( SUM(a_maerop(:,:,:,(nn-1)*nbins+1:nn*nbins),DIM=4)-tmp_ra(:,:,:) )/dtl
+    diag_na(:,:,:)=diag_na(:,:,:)+( SUM(a_naerop,DIM=4)-tmp_na(:,:,:) )/dtl
+    diag_rc(:,:,:)=diag_rc(:,:,:)+( SUM(a_mcloudp(:,:,:,(nn-1)*ncld+1:nn*ncld),DIM=4)-tmp_rc(:,:,:) )/dtl
+    diag_nc(:,:,:)=diag_nc(:,:,:)+( SUM(a_ncloudp,DIM=4)-tmp_nc(:,:,:) )/dtl
+    diag_rr(:,:,:)=diag_rr(:,:,:)+( SUM(a_mprecpp(:,:,:,(nn-1)*nprc+1:nn*nprc),DIM=4)-tmp_rr(:,:,:) )/dtl
+    diag_nr(:,:,:)=diag_nr(:,:,:)+( SUM(a_nprecpp,DIM=4)-tmp_nr(:,:,:) )/dtl
+    diag_ri(:,:,:)=diag_ri(:,:,:)+( SUM(a_micep(:,:,:,(nn-1)*nice+1:nn*nice),DIM=4)-tmp_ri(:,:,:) )/dtl
+    diag_ni(:,:,:)=diag_ni(:,:,:)+( SUM(a_nicep,DIM=4)-tmp_ni(:,:,:) )/dtl
+    diag_rs(:,:,:)=diag_rs(:,:,:)+( SUM(a_msnowp(:,:,:,(nn-1)*nsnw+1:nn*nsnw),DIM=4)-tmp_rs(:,:,:) )/dtl
+    diag_ns(:,:,:)=diag_ns(:,:,:)+( SUM(a_nsnowp,DIM=4)-tmp_ns(:,:,:) )/dtl
 
     !!!!!!!!!!!!!!!!!!!!!!!
     ! Update diagnostic tracers
     !!!!!!!!!!!!!!!!!!!!!!!
+
+    CALL SALSA_diag_update
+
+  END SUBROUTINE SALSA_diagnostics
+
+  !
+  ! ---------------------------------------------------------------------
+  ! SALSA_diag_update: Update diagnostic concentration tracers
+
+  SUBROUTINE SALSA_diag_update
+    USE class_ComponentIndex, ONLY : GetIndex
+    USE grid, ONLY : a_maerop,a_mcloudp,a_mprecpp,a_nprecpp, &
+            a_micep,a_msnowp,a_nsnowp, a_rc, a_srp,a_snrp, a_ri,a_srs,a_snrs,prtcl
+    USE mo_submctl, ONLY : nbins,in1a,fn2b,ncld,ica,fcb,nprc,ira,fra,nice,iia,fib,nsnw,isa,fsa
+    INTEGER :: nc, str, end
 
     ! Liquid water content
     nc = GetIndex(prtcl,'H2O')
@@ -1213,7 +1260,7 @@ contains
     a_srs(:,:,:) = SUM(a_msnowp(:,:,:,str:end),DIM=4)
     a_snrs(:,:,:) = SUM(a_nsnowp(:,:,:,isa:fsa),DIM=4)
 
-  END SUBROUTINE SALSA_diagnostics
+  END SUBROUTINE SALSA_diag_update
 
 
 end module step

@@ -138,7 +138,7 @@ IMPLICIT NONE
                                                          ! actual tendency due to new droplet formation.
     REAL, INTENT(out)   :: pa_nactd(pnz,pnx,pny,ncld)   ! Same for number concentration
 
-    REAL, OPTIONAL, DIMENSION(pnz,pnx,pny), INTENT(OUT) :: & ! Statistics
+    REAL, DIMENSION(pnz,pnx,pny), INTENT(OUT) :: & ! Statistics
                        coag_ra, coag_na, coag_rc, coag_nc, coag_rr, &
                        coag_nr, coag_ri, coag_ni, coag_rs, coag_ns, &
                        cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
@@ -543,33 +543,33 @@ IMPLICIT NONE
 
              ! Output statistics (mixing ratios from m^3/m^3 to kg/kg and concentrations from 1/m^3 to 1/kg;
              ! also converted to rates by dividing by the time step)
-             IF (present(coag_ra)) coag_ra(kk,ii,jj)=out_coag_va(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             IF (present(coag_na)) coag_na(kk,ii,jj)=out_coag_na(1,1)/pdn(kk,ii,jj)/tstep
-             IF (present(coag_rc)) coag_rc(kk,ii,jj)=out_coag_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             IF (present(coag_nc)) coag_nc(kk,ii,jj)=out_coag_nc(1,1)/pdn(kk,ii,jj)/tstep
-             IF (present(coag_rr)) coag_rr(kk,ii,jj)=out_coag_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             IF (present(coag_nr)) coag_nr(kk,ii,jj)=out_coag_nr(1,1)/pdn(kk,ii,jj)/tstep
-             IF (present(coag_ri)) coag_ri(kk,ii,jj)=out_coag_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
-             IF (present(coag_ni)) coag_ni(kk,ii,jj)=out_coag_ni(1,1)/pdn(kk,ii,jj)/tstep
-             IF (present(coag_rs)) coag_rs(kk,ii,jj)=out_coag_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
-             IF (present(coag_ns)) coag_ns(kk,ii,jj)=out_coag_ns(1,1)/pdn(kk,ii,jj)/tstep
-             IF (present(cond_ra)) cond_ra(kk,ii,jj)=out_cond_va(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             IF (present(cond_rc)) cond_rc(kk,ii,jj)=out_cond_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             IF (present(cond_rr)) cond_rr(kk,ii,jj)=out_cond_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             IF (present(cond_ri)) cond_ri(kk,ii,jj)=out_cond_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
-             IF (present(cond_rs)) cond_rs(kk,ii,jj)=out_cond_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
-             IF (present(auto_rr)) auto_rr(kk,ii,jj)=out_auto_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             IF (present(auto_nr)) auto_nr(kk,ii,jj)=out_auto_nr(1,1)/pdn(kk,ii,jj)/tstep
-             IF (present(auto_rs)) auto_rs(kk,ii,jj)=out_auto_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
-             IF (present(auto_ns)) auto_ns(kk,ii,jj)=out_auto_ns(1,1)/pdn(kk,ii,jj)/tstep
-             IF (present(cact_rc)) cact_rc(kk,ii,jj)=out_cact_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             IF (present(cact_nc)) cact_nc(kk,ii,jj)=out_cact_nc(1,1)/pdn(kk,ii,jj)/tstep
-             IF (present(nucl_ri)) nucl_ri(kk,ii,jj)=out_nucl_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
-             IF (present(nucl_ni)) nucl_ni(kk,ii,jj)=out_nucl_ni(1,1)/pdn(kk,ii,jj)/tstep
-             IF (present(melt_ri)) melt_ri(kk,ii,jj)=out_melt_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
-             IF (present(melt_ni)) melt_ni(kk,ii,jj)=out_melt_ni(1,1)/pdn(kk,ii,jj)/tstep
-             IF (present(melt_rs)) melt_rs(kk,ii,jj)=out_melt_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
-             IF (present(melt_ns)) melt_ns(kk,ii,jj)=out_melt_ns(1,1)/pdn(kk,ii,jj)/tstep
+             coag_ra(kk,ii,jj)=out_coag_va(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             coag_na(kk,ii,jj)=out_coag_na(1,1)/pdn(kk,ii,jj)/tstep
+             coag_rc(kk,ii,jj)=out_coag_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             coag_nc(kk,ii,jj)=out_coag_nc(1,1)/pdn(kk,ii,jj)/tstep
+             coag_rr(kk,ii,jj)=out_coag_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             coag_nr(kk,ii,jj)=out_coag_nr(1,1)/pdn(kk,ii,jj)/tstep
+             coag_ri(kk,ii,jj)=out_coag_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
+             coag_ni(kk,ii,jj)=out_coag_ni(1,1)/pdn(kk,ii,jj)/tstep
+             coag_rs(kk,ii,jj)=out_coag_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
+             coag_ns(kk,ii,jj)=out_coag_ns(1,1)/pdn(kk,ii,jj)/tstep
+             cond_ra(kk,ii,jj)=out_cond_va(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             cond_rc(kk,ii,jj)=out_cond_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             cond_rr(kk,ii,jj)=out_cond_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             cond_ri(kk,ii,jj)=out_cond_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
+             cond_rs(kk,ii,jj)=out_cond_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
+             auto_rr(kk,ii,jj)=out_auto_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             auto_nr(kk,ii,jj)=out_auto_nr(1,1)/pdn(kk,ii,jj)/tstep
+             auto_rs(kk,ii,jj)=out_auto_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
+             auto_ns(kk,ii,jj)=out_auto_ns(1,1)/pdn(kk,ii,jj)/tstep
+             cact_rc(kk,ii,jj)=out_cact_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             cact_nc(kk,ii,jj)=out_cact_nc(1,1)/pdn(kk,ii,jj)/tstep
+             nucl_ri(kk,ii,jj)=out_nucl_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
+             nucl_ni(kk,ii,jj)=out_nucl_ni(1,1)/pdn(kk,ii,jj)/tstep
+             melt_ri(kk,ii,jj)=out_melt_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
+             melt_ni(kk,ii,jj)=out_melt_ni(1,1)/pdn(kk,ii,jj)/tstep
+             melt_rs(kk,ii,jj)=out_melt_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
+             melt_ns(kk,ii,jj)=out_melt_ns(1,1)/pdn(kk,ii,jj)/tstep
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)
              pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &

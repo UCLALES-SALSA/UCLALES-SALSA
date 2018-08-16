@@ -109,7 +109,7 @@ contains
        CASE(5)
           rx = a_rp
           rxt = a_rp + a_rc + a_srp + a_ri + a_srs
-          thl = a_tp + (a_theta/a_temp)*alvi/cp*(a_ri + a_srs)
+          WHERE(a_temp>0.) thl = a_tp + (a_theta/a_temp)*alvi/cp*(a_ri + a_srs)
     END SELECT
 
 

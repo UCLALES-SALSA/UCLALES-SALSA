@@ -29,9 +29,9 @@ module stat
   private
 
   integer, parameter :: nvar1 = 35,               &
-                        nv1_lvl4 = 72,            &
+                        nv1_lvl4 = 78,            &
                         nv1MB = 4,                &
-                        nv1_lvl5 = 68,            &
+                        nv1_lvl5 = 72,            &
                         nvar2 = 96,               &
                         nv2_lvl4 = 44,            &
                         nv2_lvl5 = 31,            &
@@ -54,8 +54,6 @@ module stat
   logical            :: sflg = .false.
   LOGICAL            :: mcflg = .FALSE.
   LOGICAL            :: csflg = .FALSE.
-  LOGICAL            :: salsa_b_bins = .FALSE.
-  LOGICAL            :: salsa_rate_stats = .FALSE.
   real               :: ssam_intvl = 30.   ! statistical sampling interval
   real               :: savg_intvl = 1800. ! statistical averaging interval
 
@@ -95,7 +93,8 @@ module stat
        'SS_max ',                       & !53
        'coag_ra','coag_na','coag_rc','coag_nc','coag_rr','coag_nr',   & !54
        'cond_ra','cond_rc','cond_rr','auto_rr','auto_nr','act_rc ','act_nc ',   & !60
-       'sedi_ra','sedi_na','sedi_rc','sedi_nc','sedi_rr','sedi_nr'/), & !67-72
+       'sedi_ra','sedi_na','sedi_rc','sedi_nc','sedi_rr','sedi_nr',   & !67
+       'diag_ra','diag_na','diag_rc','diag_nc','diag_rr','diag_nr'/), & !73-78
 
        s1_lvl5(nv1_lvl5) = (/  &
        'Ni_ii  ','Ri_ii  ','Nia_iia','Ria_iia','Nib_iib','Rib_iib', & ! 1-6
@@ -115,7 +114,8 @@ module stat
        'cond_ri','cond_rs','auto_rs','auto_ns',   & ! 54-57
        'nucl_ri','nucl_ni','melt_ri','melt_ni',   & ! 58-61
        'melt_rs','melt_ns','sedi_ri','sedi_ni',   & ! 62-65
-       'sedi_rs','sedi_ns','thi_int'/),           & ! 66-68
+       'sedi_rs','sedi_ns','diag_ri','diag_ni',   & ! 66-69
+       'diag_rs','diag_ns','thi_int'/),           & ! 70-72
 
         s2(nvar2)=(/                                                 &
         'time   ','zt     ','zm     ','dn0    ','u0     ','v0     ', & ! 1
@@ -219,8 +219,7 @@ module stat
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
        acc_tend, updtst, sfc_stat, close_stat, fill_scalar, tke_sgs, sgsflxs,&
-       sgs_vel, comp_tke, get_zi, acc_removal, cs_rem_set, acc_massbudged, write_massbudged, mcflg, csflg, &
-       salsa_b_bins, salsa_rate_stats
+       sgs_vel, comp_tke, get_zi, acc_removal, cs_rem_set, acc_massbudged, write_massbudged, mcflg, csflg
 
 contains
   !
@@ -234,7 +233,8 @@ contains
 
     use grid, only : nxp, nyp, iradtyp, prtcl
     use mpi_interface, only : myid, ver, author, info
-    use mo_submctl, only : nprc,nsnw,fn2a,fn2b,fca,fcb,fra,fia,fib,fsa
+    use mo_submctl, only : nprc,nsnw,fn2a,fn2b,fca,fcb,fra,fia,fib,fsa,stat_b_bins, &
+        stat_micro_ts,nlcoag, nlcnd, nlauto, nlautosnow, nlactiv, nlicenucl, nlicmelt
     USE class_ComponentIndex, ONLY : IsUsed
 
     character (len=80), intent (in) :: filprf, expnme
@@ -355,7 +355,7 @@ contains
        s2bool(nvar2+1:nvar2+15) = .TRUE. ! Bin dimensions, number concentrations and radius
        IF (level>=5) THEN
           s1bool(nvar1+nv1_lvl4+1:nvar1+nv1_lvl4+17) = .TRUE.
-          s1bool(nvar1+nv1_lvl4+68) = .TRUE.
+          s1bool(nvar1+nv1_lvl4+72) = .TRUE.
           s2bool(nvar2+nv2_lvl4+1:nvar2+nv2_lvl4+9) = .TRUE.
           s2bool(nvar2+nv2_lvl4+26:nvar2+nv2_lvl4+31) = .TRUE.
        ENDIF
@@ -363,18 +363,18 @@ contains
        i = nvar2+nv2_lvl4+nv2_lvl5+1  ! binned
        s2bool(i) = lbinprof
        i = i+nv2saa
-       s2bool(i) = lbinprof .AND. salsa_b_bins
+       s2bool(i) = lbinprof .AND. stat_b_bins
        i = i+nv2sab
        s2bool(i) = lbinprof
        i = i+nv2sca
-       s2bool(i) = lbinprof .AND. salsa_b_bins
+       s2bool(i) = lbinprof .AND. stat_b_bins
        i =i+nv2scb
        s2bool(i) = lbinprof
        IF (level>=5) THEN
             i = i+nv2sp
             s2bool(i) = lbinprof
             i = i + nv2sia
-            s2bool(i) = lbinprof .AND. salsa_b_bins
+            s2bool(i) = lbinprof .AND. stat_b_bins
             i = i + nv2sib
             s2bool(i) = lbinprof
        ENDIF
@@ -417,18 +417,18 @@ contains
           i = nvar2+nv2_lvl4+nv2_lvl5+1+e
           s2bool(i) = lbinprof
           i = i+nv2saa
-          s2bool(i) = lbinprof .AND. salsa_b_bins
+          s2bool(i) = lbinprof .AND. stat_b_bins
           i = i+nv2sab
           s2bool(i) = lbinprof
           i = i+nv2sca
-          s2bool(i) = lbinprof .AND. salsa_b_bins
+          s2bool(i) = lbinprof .AND. stat_b_bins
           i = i+nv2scb
           s2bool(i) = lbinprof
           IF (level>=5) THEN
              i = i+nv2sp
              s2bool(i) = lbinprof
              i = i + nv2sia
-             s2bool(i) = lbinprof .AND. salsa_b_bins
+             s2bool(i) = lbinprof .AND. stat_b_bins
              i = i + nv2sib
              s2bool(i) = lbinprof
           ENDIF
@@ -439,13 +439,26 @@ contains
        s2bool(nvar2+40:nvar2+44) = .TRUE.     ! Water mixing ratios, RH and cloud droplet sedimentation flux
 
        ! Microphysicsal process rate statistics
-       IF (salsa_rate_stats) THEN
-          s1bool(nvar1+54:nvar1+72)=.TRUE.
-          IF (level>=5) s1bool(nvar1+nv1_lvl4+50:nvar1+nv1_lvl4+67)=.TRUE.
+       IF (stat_micro_ts) THEN
+          s1bool(nvar1+54:nvar1+59) = nlcoag  ! Coagulation
+          s1bool(nvar1+60:nvar1+62) = nlcnd   ! Condensation
+          s1bool(nvar1+63:nvar1+64) = nlauto  ! Autoconversion
+          s1bool(nvar1+65:nvar1+66) = nlactiv ! Cloud acticvation
+          s1bool(nvar1+67:nvar1+72) = .TRUE.  ! Sedimentation (mcrp: sed_aero, sed_cloud, sed_precp)
+          s1bool(nvar1+73:nvar1+78) = .TRUE.   ! SALSA_diagnostics
+          IF (level>=5) THEN
+            s1bool(nvar1+nv1_lvl4+50:nvar1+nv1_lvl4+53) = nlcoag
+            s1bool(nvar1+nv1_lvl4+54:nvar1+nv1_lvl4+55) = nlcnd
+            s1bool(nvar1+nv1_lvl4+56:nvar1+nv1_lvl4+57) = nlautosnow
+            s1bool(nvar1+nv1_lvl4+58:nvar1+nv1_lvl4+59) = nlicenucl
+            s1bool(nvar1+nv1_lvl4+60:nvar1+nv1_lvl4+63) = nlicmelt
+            s1bool(nvar1+nv1_lvl4+64:nvar1+nv1_lvl4+67) = .TRUE. ! sed_ice, sed_snow
+            s1bool(nvar1+nv1_lvl4+68:nvar1+nv1_lvl4+71) = .TRUE.
+          ENDIF
        ENDIF
 
        ! b-bins are not always saved
-       IF (.not. salsa_b_bins) THEN
+       IF (.not. stat_b_bins) THEN
           ! Concentrations and sizes
           s1bool(nvar1+3:nvar1+6) = .FALSE.
           s1bool(nvar1+9:nvar1+12) = .FALSE.
@@ -549,7 +562,7 @@ contains
           rxv = a_rp
           xrpp = a_srp
           xnpp = a_snrp
-          thl = a_tp + (a_theta/a_temp)*alvi/cp*(a_ri + a_srs)
+          WHERE(a_temp>0) thl = a_tp + (a_theta/a_temp)*alvi/cp*(a_ri + a_srs)
        CASE DEFAULT
           rxt = a_rp
           rxl = a_rc
@@ -1122,10 +1135,11 @@ contains
   !  Some rewriting and adjusting by Juha Tonttila
   !
   SUBROUTINE ts_lvl4(n1,n2,n3)
-    use mo_submctl, only : nlim ! Note: #/m^3, but close enough to #/kg for statistics
-    USE grid, ONLY : prtcl, bulkNumc, bulkMixrat, meanradius, dzt, a_rh, zm, dn0, &
+    use mo_submctl, only : stat_micro_ts, nlim ! Note: #/m^3, but close enough to #/kg for statistics
+    USE grid, ONLY : prtcl, bulkNumc, bulkMixrat, meanradius, dzt, a_rh, zm, a_dn, dn0, &
         coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, cond_ra, cond_rc, cond_rr, &
-        auto_rr, auto_nr, cact_rc, cact_nc, sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr
+        auto_rr, auto_nr, cact_rc, cact_nc, sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
+        diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr
     USE class_componentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
@@ -1190,13 +1204,14 @@ contains
     ssclr_b(53) = (MAXVAL(a_rh(2:n1,3:n2-2,3:n3-2))-1.0)*100.
 
     ! Process rate statistics
-    IF (salsa_rate_stats) THEN
+    IF (stat_micro_ts) THEN
         ! Integrate over vertical dimension and take average
-        ssclr_b(54:72) = 0.
+        ssclr_b(54:78) = 0.
         do j=3,n3-2
             do i=3,n2-2
                 do k=2,n1
-                    fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
+                    !fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
+                    fact = a_dn(k,i,j)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
                     ssclr_b(54) = ssclr_b(54) + coag_ra(k,i,j)*fact
                     ssclr_b(55) = ssclr_b(55) + coag_na(k,i,j)*fact
                     ssclr_b(56) = ssclr_b(56) + coag_rc(k,i,j)*fact
@@ -1216,6 +1231,12 @@ contains
                     ssclr_b(70) = ssclr_b(70) + sedi_nc(k,i,j)*fact
                     ssclr_b(71) = ssclr_b(71) + sedi_rr(k,i,j)*fact
                     ssclr_b(72) = ssclr_b(72) + sedi_nr(k,i,j)*fact
+                    ssclr_b(73) = ssclr_b(73) + diag_ra(k,i,j)*fact
+                    ssclr_b(74) = ssclr_b(74) + diag_na(k,i,j)*fact
+                    ssclr_b(75) = ssclr_b(75) + diag_rc(k,i,j)*fact
+                    ssclr_b(76) = ssclr_b(76) + diag_nc(k,i,j)*fact
+                    ssclr_b(77) = ssclr_b(77) + diag_rr(k,i,j)*fact
+                    ssclr_b(78) = ssclr_b(78) + diag_nr(k,i,j)*fact
                 END DO
             END DO
         END DO
@@ -1228,11 +1249,12 @@ contains
   !  Implemented by Jaakko Ahola 15/12/2016
   !
   SUBROUTINE ts_lvl5(n1,n2,n3)
-    USE mo_submctl, only : prlim ! Note: #/m^3, but close enough to #/kg for statistics
+    USE mo_submctl, only : stat_micro_ts, prlim ! Note: #/m^3, but close enough to #/kg for statistics
     USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,meanRadius, dzt, &
-        dn0, zm, a_ri, a_srs, snowin, a_rhi, a_tp, th00, &
+        a_dn, dn0, zm, a_ri, a_srs, snowin, a_rhi, a_tp, th00, &
         coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
-        nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns, sedi_ri, sedi_ni, sedi_rs, sedi_ns
+        nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns, sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
+        diag_ri, diag_ni, diag_rs, diag_ns
     USE class_componentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
@@ -1310,7 +1332,7 @@ contains
     scr2(:,:) = snowin(2,:,:)
     ssclr_lvl5(16) = get_avg2dh(n2,n3,scr2)
     !
-    ssclr_lvl5(68) = get_avg2dh(n2,n3,scr3)
+    ssclr_lvl5(72) = get_avg2dh(n2,n3,scr3)
     !
     ! Maximum supersaturation over ice
     ssclr_lvl5(17) = (MAXVAL(a_rhi(2:n1,3:n2-2,3:n3-2))-1.0)*100.
@@ -1334,13 +1356,14 @@ contains
     ! Removal statistics elsewhere ..
 
     ! Process rate statistics
-    IF (salsa_rate_stats) THEN
+    IF (stat_micro_ts) THEN
         ! Integrate over vertical dimension and take average
         ssclr_lvl5(50:67) = 0.
         do j=3,n3-2
             do i=3,n2-2
                 do k=2,n1
-                    fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
+                    !fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
+                    fact = a_dn(k,i,j)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
                     ssclr_lvl5(50) = ssclr_lvl5(50) + coag_ri(k,i,j)*fact
                     ssclr_lvl5(51) = ssclr_lvl5(51) + coag_ni(k,i,j)*fact
                     ssclr_lvl5(52) = ssclr_lvl5(52) + coag_rs(k,i,j)*fact
@@ -1359,6 +1382,10 @@ contains
                     ssclr_lvl5(65) = ssclr_lvl5(65) + sedi_ni(k,i,j)*fact
                     ssclr_lvl5(66) = ssclr_lvl5(66) + sedi_rs(k,i,j)*fact
                     ssclr_lvl5(67) = ssclr_lvl5(67) + sedi_ns(k,i,j)*fact
+                    ssclr_lvl5(68) = ssclr_lvl5(68) + diag_ri(k,i,j)*fact
+                    ssclr_lvl5(69) = ssclr_lvl5(69) + diag_ni(k,i,j)*fact
+                    ssclr_lvl5(70) = ssclr_lvl5(70) + diag_rs(k,i,j)*fact
+                    ssclr_lvl5(71) = ssclr_lvl5(71) + diag_ns(k,i,j)*fact
                 END DO
             END DO
         END DO

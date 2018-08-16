@@ -1454,6 +1454,47 @@ contains
        if (itype==0) ncinfo = 'Change in snow number concentration due to sedimentation'
        if (itype==1) ncinfo = '#/m^2/s'
        if (itype==2) ncinfo = 'time'
+    case('diag_ra')
+       if (itype==0) ncinfo = 'Change in aerosol water due to diagnostics'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('diag_na')
+       if (itype==0) ncinfo = 'Change in aerosol number concentration due to diagnostics'
+       if (itype==1) ncinfo = '#/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('diag_rc')
+       if (itype==0) ncinfo = 'Change in cloud water due to diagnostics'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('diag_nc')
+       if (itype==0) ncinfo = 'Change in cloud number concentration due to diagnostics'
+       if (itype==1) ncinfo = '#/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('diag_rr')
+       if (itype==0) ncinfo = 'Change in rain water due to diagnostics'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('diag_nr')
+       if (itype==0) ncinfo = 'Change in rain number concentration due to diagnostics'
+       if (itype==1) ncinfo = '#/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('diag_ri')
+       if (itype==0) ncinfo = 'Change in ice water due to diagnostics'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('diag_ni')
+       if (itype==0) ncinfo = 'Change in ice number concentration due to diagnostics'
+       if (itype==1) ncinfo = '#/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('diag_rs')
+       if (itype==0) ncinfo = 'Change in snow water due to diagnostics'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('diag_ns')
+       if (itype==0) ncinfo = 'Change in snow number concentration due to diagnostics'
+       if (itype==1) ncinfo = '#/m^2/s'
+       if (itype==2) ncinfo = 'time'
+
     ! // SALSA temporal
     case('fsttm')
        if (itype==0) ncinfo = 'First sample time'

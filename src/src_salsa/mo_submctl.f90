@@ -157,6 +157,9 @@ MODULE mo_submctl
   ! c) Start time (s) for ice formation
   REAL :: icenucl_tstart = 0. ! Default: right after initialization
 
+  ! Flags controlling outputs
+  LOGICAL :: stat_b_bins = .FALSE. ! Save statistics about SALSA b-bins
+  LOGICAL :: stat_micro_ts = .FALSE. ! Save statistics (*.ts) about microphysical process rates
 
   INTEGER :: isdtyp = 0  ! Type of input aerosol size distribution: 0 - Uniform
                          !                                          1 - Read vertical profile of the mode
