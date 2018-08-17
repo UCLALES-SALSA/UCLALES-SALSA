@@ -255,6 +255,19 @@ contains
           case ('ttttsnw')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttsnw,VarID)
           ! ---
+          case ('default')
+            ! Default variables - cell centers
+            IF (PRESENT(n2) .AND. PRESENT(n3)) THEN
+                ! 4D outputs
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttt,VarID)
+            ELSEIF (PRESENT(n1)) THEN
+                ! Profiles
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tt,VarID)
+            ELSE
+                ! Time series
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,timeID  ,VarID)
+            ENDIF
+          ! ---
           case ('tttt')
              if (present(n2) .and. present(n3)) then
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttt,VarID)
@@ -1309,191 +1322,191 @@ contains
     case('coag_ra')
        if (itype==0) ncinfo = 'Change in aerosol water due to coagulation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('coag_na')
        if (itype==0) ncinfo = 'Change in aerosol number concentration due to coagulation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('coag_rc')
        if (itype==0) ncinfo = 'Change in cloud water due to coagulation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('coag_nc')
        if (itype==0) ncinfo = 'Change in cloud number concentration due to coagulation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('coag_rr')
        if (itype==0) ncinfo = 'Change in rain water due to coagulation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('coag_nr')
        if (itype==0) ncinfo = 'Change in rain number concentration due to coagulation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('coag_ri')
        if (itype==0) ncinfo = 'Change in ice water due to coagulation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('coag_ni')
        if (itype==0) ncinfo = 'Change in ice number concentration due to coagulation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('coag_rs')
        if (itype==0) ncinfo = 'Change in snow water due to coagulation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('coag_ns')
        if (itype==0) ncinfo = 'Change in snow number concentration due to coagulation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('cond_ra')
        if (itype==0) ncinfo = 'Change in aerosol water due to condensation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('cond_rc')
        if (itype==0) ncinfo = 'Change in cloud water due to condensation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('cond_rr')
        if (itype==0) ncinfo = 'Change in rain water due to condensation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('cond_ri')
        if (itype==0) ncinfo = 'Change in ice water due to condensation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('cond_rs')
        if (itype==0) ncinfo = 'Change in snow water due to condensation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('auto_rr')
        if (itype==0) ncinfo = 'Change in rain water due to autoconversion'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('auto_nr')
        if (itype==0) ncinfo = 'Change in rain number concentration due to autoconversion'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('auto_rs')
        if (itype==0) ncinfo = 'Change in snow water due to autoconversion'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('auto_ns')
        if (itype==0) ncinfo = 'Change in snow number concentration due to autoconversion'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('act_rc')
        if (itype==0) ncinfo = 'Change in cloud water due to activation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('act_nc')
        if (itype==0) ncinfo = 'Change in cloud number concentration due to activation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('nucl_ri')
        if (itype==0) ncinfo = 'Change in ice water due to nucleation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('nucl_ni')
        if (itype==0) ncinfo = 'Change in ice number concentration due to nucleation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('melt_ri')
        if (itype==0) ncinfo = 'Change in ice water due to melting'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('melt_ni')
        if (itype==0) ncinfo = 'Change in ice number concentration due to melting'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('melt_rs')
        if (itype==0) ncinfo = 'Change in snow water due to melting'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('melt_ns')
        if (itype==0) ncinfo = 'Change in snow number concentration due to melting'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('sedi_ra')
        if (itype==0) ncinfo = 'Change in aerosol water due to sedimentation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('sedi_na')
        if (itype==0) ncinfo = 'Change in aerosol number concentration due to sedimentation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('sedi_rc')
        if (itype==0) ncinfo = 'Change in cloud water due to sedimentation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('sedi_nc')
        if (itype==0) ncinfo = 'Change in cloud number concentration due to sedimentation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('sedi_rr')
        if (itype==0) ncinfo = 'Change in rain water due to sedimentation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('sedi_nr')
        if (itype==0) ncinfo = 'Change in rain number concentration due to sedimentation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('sedi_ri')
        if (itype==0) ncinfo = 'Change in ice water due to sedimentation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('sedi_ni')
        if (itype==0) ncinfo = 'Change in ice number concentration due to sedimentation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('sedi_rs')
        if (itype==0) ncinfo = 'Change in snow water due to sedimentation'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('sedi_ns')
        if (itype==0) ncinfo = 'Change in snow number concentration due to sedimentation'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('diag_ra')
        if (itype==0) ncinfo = 'Change in aerosol water due to diagnostics'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('diag_na')
        if (itype==0) ncinfo = 'Change in aerosol number concentration due to diagnostics'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('diag_rc')
        if (itype==0) ncinfo = 'Change in cloud water due to diagnostics'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('diag_nc')
        if (itype==0) ncinfo = 'Change in cloud number concentration due to diagnostics'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('diag_rr')
        if (itype==0) ncinfo = 'Change in rain water due to diagnostics'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('diag_nr')
        if (itype==0) ncinfo = 'Change in rain number concentration due to diagnostics'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('diag_ri')
        if (itype==0) ncinfo = 'Change in ice water due to diagnostics'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('diag_ni')
        if (itype==0) ncinfo = 'Change in ice number concentration due to diagnostics'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('diag_rs')
        if (itype==0) ncinfo = 'Change in snow water due to diagnostics'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
     case('diag_ns')
        if (itype==0) ncinfo = 'Change in snow number concentration due to diagnostics'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
+       if (itype==2) ncinfo = 'default'
 
     ! // SALSA temporal
     case('fsttm')
