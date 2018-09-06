@@ -923,7 +923,7 @@ MODULE mo_salsa_coagulation_processes
          DO jj = 1,klev
             DO ii = 1,kbdim
                ! The estimated diameter of the droplets after collision
-                D_new = (cloud(ii,jj,nbtrgt)%dwet**3 + cloud(ii,jj,ll)%dwet**3)**(1./3.)
+                D_new = (cloud(ii,jj,itrgt)%dwet**3 + cloud(ii,jj,ll)%dwet**3)**(1./3.)
 
                 ! Check out to which precip bin this belogs (if any)
                 trgt_prc = 0
