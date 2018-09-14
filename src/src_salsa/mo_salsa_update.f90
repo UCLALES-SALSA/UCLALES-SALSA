@@ -60,11 +60,8 @@ CONTAINS
              within_bins = .TRUE.
 
              DO kk = fn2b-1,in1a,-1
-                mm = 0
-                IF (paero(ii,jj,kk)%numc > nlim) THEN
 
-                   zvpart = 0.
-                   zvfrac = 0.
+                IF (paero(ii,jj,kk)%numc > nlim) THEN
 
                    IF (kk == fn2a) CYCLE 
 
@@ -104,12 +101,15 @@ CONTAINS
 
                    !-- number fraction to be moved to the larger bin
                    znfrac = min(1.,(zVihi-paero(ii,jj,kk)%vhilim) / (zVihi - zVilo))
-          
+
+                   !-- ignore irrelevant changes
+                   IF (ABS(znfrac * paero(ii,jj,kk)%numc) < nlim) CYCLE
+
                    !-- volume fraction to be moved to the larger bin
                    !zvfrac = znfrac * zVexc / (1./2.*(zVihi+zVilo))
-                   zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
+                   !zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
 
-                   IF(zvfrac < 0.) STOP 'Error aerosol 0'
+                   IF(znfrac < 0.) STOP 'Error aerosol 0'
                    !-- update bin
                    mm = kk+1
                    !-- volume
@@ -130,7 +130,7 @@ CONTAINS
 
                 IF ( paero(ii,jj,kk)%numc > nlim ) THEN
                    zvpart = sum(paero(ii,jj,kk)%volc(1:7))/paero(ii,jj,kk)%numc  ! Note: dry volume
-                   within_bins = (paero(ii,jj,kk)%vlolim<zvpart .AND. zvpart<paero(ii,jj,kk)%vhilim)
+                   within_bins = within_bins .AND. paero(ii,jj,kk)%vlolim<zvpart .AND. zvpart<paero(ii,jj,kk)%vhilim
                 END IF
 
              END DO ! - kk
@@ -150,9 +150,8 @@ CONTAINS
              within_bins = .TRUE.
 
              DO kk = ncld,ica%cur,-1
-                mm = 0
 
-                IF ( pcloud(ii,jj,kk)%numc > nlim .AND. sum(pcloud(ii,jj,kk)%volc(1:7)) > 1.e-30 ) THEN
+                IF ( pcloud(ii,jj,kk)%numc > nlim ) THEN
                 
                    ! Don't convert cloud or rain droplets to anything else here.
                    zvpart = sum(pcloud(ii,jj,kk)%volc(1:7))/pcloud(ii,jj,kk)%numc
@@ -167,7 +166,7 @@ CONTAINS
                    zVihi = zVrat * zVilo
 
                    !-- Decreasing droplets
-                   IF ( zvpart < pi6*pcloud(ii,jj,kk)%vlolim .AND.  &
+                   IF ( zvpart < pcloud(ii,jj,kk)%vlolim .AND.  &
                         (kk /= ica%cur .AND. kk /= icb%cur)    ) THEN 
 
                       !-- Volume in the decreased bin which is below the bin lower limit
@@ -196,6 +195,9 @@ CONTAINS
                       CYCLE
                    END IF
 
+                   !-- ignore irrelevant changes
+                   IF (ABS(znfrac * pcloud(ii,jj,kk)%numc) < nlim) CYCLE
+
                    !-- volume fraction to be moved 
                    !zvfrac = znfrac * zVexc / (0.5*(zVihi+zVilo))
                    !zvfrac = min(zvfrac,1.)
@@ -219,9 +221,9 @@ CONTAINS
               
                 END IF !nlim
                 
-                IF ( pcloud(ii,jj,kk)%numc > nlim .AND.  sum(pcloud(ii,jj,kk)%volc(1:7)) > 1.e-30 ) THEN
+                IF ( pcloud(ii,jj,kk)%numc > nlim ) THEN
                    zvpart = sum(pcloud(ii,jj,kk)%volc(1:7))/pcloud(ii,jj,kk)%numc ! Note: dry volume
-                   within_bins = (pcloud(ii,jj,kk)%vlolim<zvpart .AND. zvpart<pcloud(ii,jj,kk)%vhilim)
+                   within_bins = within_bins .AND. pcloud(ii,jj,kk)%vlolim<zvpart .AND. zvpart<pcloud(ii,jj,kk)%vhilim
                 END IF
 
              END DO !kk
@@ -247,7 +249,7 @@ CONTAINS
 
              ! -- Juha: now the same for cloud bins
              DO kk = nprc,ira,-1
-                mm = 0
+
                 IF ( pprecp(ii,jj,kk)%numc > prlim ) THEN
                 
                    zvpart = sum(pprecp(ii,jj,kk)%volc(1:8))/pprecp(ii,jj,kk)%numc
@@ -295,6 +297,9 @@ CONTAINS
                       CYCLE
                    END IF
 
+                   !-- ignore irrelevant changes
+                   IF (ABS(znfrac * pprecp(ii,jj,kk)%numc) < prlim) CYCLE
+
                    !-- volume fraction to be moved 
                    !zvfrac = min(0.99,znfrac * zVexc / (0.5*(zVihi+zVilo)))
                    zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
@@ -318,7 +323,7 @@ CONTAINS
                 
                 IF ( pprecp(ii,jj,kk)%numc > prlim ) THEN
                    zvpart = sum(pprecp(ii,jj,kk)%volc(1:8))/pprecp(ii,jj,kk)%numc ! Note: droplet volume
-                   within_bins = (pprecp(ii,jj,kk)%vlolim<zvpart .AND. zvpart<pprecp(ii,jj,kk)%vhilim )
+                   within_bins = within_bins .AND. pprecp(ii,jj,kk)%vlolim<zvpart .AND. zvpart<pprecp(ii,jj,kk)%vhilim
                 END IF
 
              END DO !kk
@@ -341,9 +346,8 @@ CONTAINS
              within_bins = .TRUE.
 
              DO kk = nice,iia%cur,-1
-                mm = 0
 
-                IF ( pice(ii,jj,kk)%numc > prlim .AND. sum(pice(ii,jj,kk)%volc(1:7)) > 1.e-30 ) THEN
+                IF ( pice(ii,jj,kk)%numc > prlim ) THEN
 
                    ! Don't convert ice to anything else here.
                    zvpart = sum(pice(ii,jj,kk)%volc(1:7))/pice(ii,jj,kk)%numc
@@ -358,7 +362,7 @@ CONTAINS
                    zVihi = zVrat * zVilo
 
                    !-- Decreasing size
-                   IF ( zvpart < pi6*pice(ii,jj,kk)%vlolim .AND.  &
+                   IF ( zvpart < pice(ii,jj,kk)%vlolim .AND.  &
                         (kk /= iia%cur .AND. kk /= iib%cur)    ) THEN
 
                       !-- Volume in the decreased bin which is below the bin lower limit
@@ -387,8 +391,10 @@ CONTAINS
                       CYCLE
                    END IF
 
-                   !-- volume fraction to be moved
+                   !-- ignore irrelevant changes
+                   IF (ABS(znfrac * pice(ii,jj,kk)%numc) < prlim) CYCLE
 
+                   !-- volume fraction to be moved
                    zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
                    IF(zvfrac < 0.) STOP 'Error ice volc 0'
 
@@ -408,9 +414,9 @@ CONTAINS
 
                 END IF !nlim
 
-                IF ( pice(ii,jj,kk)%numc > prlim .AND.  sum(pice(ii,jj,kk)%volc(1:7)) > 1.e-30 ) THEN
+                IF ( pice(ii,jj,kk)%numc > prlim ) THEN
                    zvpart = sum(pice(ii,jj,kk)%volc(1:7))/pice(ii,jj,kk)%numc ! Note: dry volume
-                   within_bins = (pice(ii,jj,kk)%vlolim<zvpart .AND. zvpart<pice(ii,jj,kk)%vhilim)
+                   within_bins = within_bins .AND. pice(ii,jj,kk)%vlolim<zvpart .AND. zvpart<pice(ii,jj,kk)%vhilim
                 END IF
 
              END DO !kk
@@ -434,9 +440,8 @@ CONTAINS
           DO WHILE (.NOT. within_bins)
              within_bins = .TRUE.
 
-
              DO kk = nsnw,isa,-1
-                mm = 0
+
                 IF ( psnow(ii,jj,kk)%numc > prlim ) THEN
 
                    zvpart = sum(psnow(ii,jj,kk)%volc(1:8))/psnow(ii,jj,kk)%numc
@@ -484,6 +489,9 @@ CONTAINS
                       CYCLE
                    END IF
 
+                   !-- ignore irrelevant changes
+                   IF (ABS(znfrac * psnow(ii,jj,kk)%numc) < prlim) CYCLE
+
                    !-- volume fraction to be moved
                    zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
                    IF(zvfrac < 0.) STOP 'Error: snow volc 0'
@@ -506,7 +514,7 @@ CONTAINS
 
                 IF ( psnow(ii,jj,kk)%numc > prlim ) THEN
                    zvpart = sum(psnow(ii,jj,kk)%volc(:))/psnow(ii,jj,kk)%numc
-                   within_bins = (psnow(ii,jj,kk)%vlolim<zvpart .AND. zvpart<psnow(ii,jj,kk)%vhilim)
+                   within_bins = within_bins .AND. psnow(ii,jj,kk)%vlolim<zvpart .AND. zvpart<psnow(ii,jj,kk)%vhilim
                 END IF
 
              END DO !kk
