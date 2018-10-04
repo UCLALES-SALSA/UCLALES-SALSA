@@ -39,7 +39,6 @@ module radiation
        plwc(:), piwc(:), prwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:)
 
   integer :: k,i,j, npts
-  real    :: ee, u0, day, time, alat, zz
 
   contains
 
@@ -57,7 +56,7 @@ module radiation
       real, intent (out)                                :: albedo(n2,n3)
 
       integer :: kk
-      real    :: xfact, prw, pri, p0(n1)
+      real    :: ee, u0, xfact, prw, pri, p0(n1)
 
       IF (PRESENT(radsounding)) background = radsounding
       IF (PRESENT(useMcICA)) McICA = useMcICA

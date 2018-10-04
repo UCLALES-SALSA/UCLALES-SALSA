@@ -49,7 +49,7 @@ contains
 
     use grid, only : dtl, dzt, zt, zm, nzp, dn0, u0, v0, &
          write_hist, write_anal, close_anal, &
-         dtlong, nzp, nyp, nxp, level,                          &
+         dtlong, nzp, nyp, nxp, level, &
          ! For mass budged
          a_rp, a_rc, a_srp, a_dn
 
@@ -148,7 +148,7 @@ contains
                      a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                      a_gaerop, a_gaerot, a_dn, a_nactd, a_vactd, prtcl, sst, a_rsi,     &
-                     nudge_time, nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
+                     nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
                      coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, coag_ri, coag_ni, coag_rs, coag_ns, &
                      cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, auto_rr, auto_nr, auto_rs, auto_ns, &
                      cact_rc, cact_nc, nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns
@@ -284,9 +284,9 @@ contains
 
     CALL thermo(level)
 
-    ! Nudging time is independent of the spinup!
-     IF (time<=nudge_time .AND. (nudge_theta/=0 .OR. nudge_rv/=0 .OR. &
-            nudge_u/=0 .OR. nudge_v/=0 .OR. (level>3 .AND. nudge_ccn/=0) ) ) THEN
+    ! Nudging
+     IF (nudge_theta/=0 .OR. nudge_rv/=0 .OR. nudge_u/=0 .OR. &
+            nudge_v/=0 .OR. (level>3 .AND. nudge_ccn/=0) ) THEN
 
         ! Reset tendencies
         call tend0(.TRUE.)
@@ -345,18 +345,17 @@ contains
                 zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, a_srs, &
                 a_naerop, a_naerot, a_ncloudp, a_nicep, &
                 a_tp, a_tt, a_up, a_ut, a_vp, a_vt, &
-                nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
-                tau_theta, tau_rv, tau_u, tau_v, tau_ccn, &
-                theta_ref, rv_ref, u_ref, v_ref, aero_ref, &
-                nudge_time, nudge_init
+                nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
+                nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau, &
+                nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau, &
+                nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau, &
+                nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, &
+                theta_ref, rv_ref, u_ref, v_ref, aero_ref, nudge_init
     USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
 
     IMPLICIT NONE
     REAL, INTENT(IN) :: time
-    REAL :: aero_target(nzp,nbins)
-
-    ! Nudging time is independent of the spin-up
-    IF (time>nudge_time) RETURN
+    REAL :: aero_target(nzp,nxp,nyp,nbins)
 
     ! Initialization
     IF (nudge_init) THEN
@@ -389,10 +388,8 @@ contains
             v_ref(:)=a_vp(:,3,3)
         ENDIF
         !
-        ! Aerosol concentration for level 4. Nudge aerosol concentration based on
-        ! total CCN = aerosol + cloud droplets + ice (a_nicep). Precipitation and snow
-        ! are not included, because these cannot be related to a specific aerosol bin
-        ! and their concentrations are low.
+        ! Nudge level 4 and 5 aerosol concentration based on total CCN = aerosol + cloud droplets + ice.
+        ! Precipitation and snow are not included, because these cannot be related to a specific aerosol bin.
         IF (level>3 .AND. nudge_ccn/=0) THEN
             ! Nudge aerosol based on the total number (aerosol+cloud+ice)
             ALLOCATE(aero_ref(nzp,nbins))
@@ -407,105 +404,103 @@ contains
 
     ! (Liquid water) potential temperature:
     IF (nudge_theta>0) &
-        CALL nudge_any(nxp,nyp,nzp,zt,a_tp,a_tt,theta_ref,dtl,tau_theta,nudge_theta)
+        CALL nudge_any(nxp,nyp,nzp,zt,a_tp,a_tt,theta_ref,dtl,time,nudge_theta, &
+            nudge_theta_time,nudge_theta_zmin,nudge_theta_zmax,nudge_theta_tau)
 
     ! Water vapor
     IF (nudge_rv>0) THEN
         IF (level>3) THEN
             ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain [+ ice + snow])
-            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp+a_ri+a_srs,a_rt,rv_ref,dtl,tau_rv,nudge_rv)
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp+a_ri+a_srs,a_rt,rv_ref,dtl,time,nudge_rv, &
+                nudge_rv_time,nudge_rv_zmin,nudge_rv_zmax,nudge_rv_tau)
         ELSE
             ! Nudge total water (a_rp) based on total water
-            CALL nudge_any(nxp,nyp,nzp,zt,a_rp,a_rt,rv_ref,dtl,tau_rv,nudge_rv)
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp,a_rt,rv_ref,dtl,time,nudge_rv, &
+                nudge_rv_time,nudge_rv_zmin,nudge_rv_zmax,nudge_rv_tau)
         ENDIF
     ENDIF
 
     ! Horizontal winds
     IF (nudge_u>0) &
-         CALL nudge_any(nxp,nyp,nzp,zt,a_up,a_ut,u_ref,dtl,tau_u,nudge_u)
+         CALL nudge_any(nxp,nyp,nzp,zt,a_up,a_ut,u_ref,dtl,time,nudge_u, &
+            nudge_u_time,nudge_u_zmin,nudge_u_zmax,nudge_u_tau)
     IF (nudge_v>0) &
-        CALL nudge_any(nxp,nyp,nzp,zt,a_vp,a_vt,v_ref,dtl,tau_v,nudge_v)
+        CALL nudge_any(nxp,nyp,nzp,zt,a_vp,a_vt,v_ref,dtl,time,nudge_v, &
+            nudge_v_time,nudge_v_zmin,nudge_v_zmax,nudge_v_tau)
 
     ! Aerosol
     IF (level>3 .AND. nudge_ccn/=0) THEN
-        ! Target aerosol concentration = total(t=0)-cloud(t)-ice(t)
-        aero_target(:,:)=aero_ref(:,:)
-        aero_target(:,in2a:fn2b)=aero_target(:,in2a:fn2b)-a_ncloudp(:,3,3,1:ncld)
-        IF (level==5) aero_target(:,in2a:fn2b)=aero_target(:,in2a:fn2b)-a_nicep(:,3,3,1:nice)
+        ! Target aerosol concentration = aerosol(t)+cloud(t)+ice(t)
+        aero_target(:,:,:,:)=a_naerop(:,:,:,:)
+        aero_target(:,:,:,in2a:fn2b)=aero_target(:,:,:,in2a:fn2b)+a_ncloudp(:,:,:,1:ncld)
+        IF (level==5) aero_target(:,:,:,in2a:fn2b)=aero_target(:,:,:,in2a:fn2b)-a_nicep(:,:,:,1:nice)
         ! Apply to sectional data
-        CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,a_naerop,a_naerot,aero_target,dtl,tau_ccn,nudge_ccn)
+        CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,aero_target,a_naerot,aero_ref,dtl,time,nudge_ccn, &
+            nudge_ccn_time,nudge_ccn_zmin,nudge_ccn_zmax,nudge_ccn_tau)
     ENDIF
 
   END SUBROUTINE nudging
   !
   ! Nudging for any 3D field based on 1D target
-  SUBROUTINE nudge_any(nxp,nyp,nzp,zt,ap,at,trgt,dt,tau,iopt)
+  SUBROUTINE nudge_any(nxp,nyp,nzp,zt,ap,at,trgt,dt,time,iopt,tref,zmin,zmax,tau)
     USE util, ONLY : get_avg3
-    use grid, only : nudge_zmin, nudge_zmax
     IMPLICIT NONE
     INTEGER :: nxp,nyp,nzp
     REAL :: zt(nzp), ap(nzp,nxp,nyp), at(nzp,nxp,nyp)
-    REAL :: dt
+    REAL :: dt, time
     REAL :: trgt(nzp)
-    REAL :: tau
+    REAL :: tref,zmin,zmax,tau
     INTEGER :: iopt
     INTEGER :: kk
     REAL :: avg(nzp)
     !
-    IF (iopt==1) THEN
-        ! Soft nudging
+    IF (iopt==1 .AND. time<=tref) THEN
+        ! Soft nudging with fixed nudging constant (tau [s]), and the time parameter gives the maximum nudging time
         CALL get_avg3(nzp,nxp,nyp,ap,avg)
         DO kk = 1,nzp
-            IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+            IF (zmin<=zt(kk) .AND. zt(kk)<=zmax) &
                 at(kk,:,:)=at(kk,:,:)-(avg(kk)-trgt(kk))/max(tau,dt)
         ENDDO
-    ELSEIF (iopt==2) THEN
-        ! Hard nudging
+    ELSEIF (iopt==2 .AND. time<=tref) THEN
+        ! Hard nudging with fixed nudging constant (tau [s]), and the time parameter gives the maximum nudging time
         DO kk = 1,nzp
-            IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+            IF (zmin<=zt(kk) .AND. zt(kk)<=zmax) &
                 at(kk,:,:)=at(kk,:,:)-(ap(kk,:,:)-trgt(kk))/max(tau,dt)
         ENDDO
-    ELSE
-        ! Unknown
-        STOP 'Unknown nudging option!'
     ENDIF
     !
   END SUBROUTINE nudge_any
   !
   ! Nudging for any 4D field based on 2D target
-  SUBROUTINE nudge_any_2d(nxp,nyp,nzp,nb,zt,ap,at,trgt,dt,tau,iopt)
+  SUBROUTINE nudge_any_2d(nxp,nyp,nzp,nb,zt,ap,at,trgt,dt,time,iopt,tref,zmin,zmax,tau)
     USE util, ONLY : get_avg3
-    use grid, only : nudge_zmin, nudge_zmax
     IMPLICIT NONE
     INTEGER :: nxp,nyp,nzp,nb
     REAL :: zt(nzp), ap(nzp,nxp,nyp,nb), at(nzp,nxp,nyp,nb)
-    REAL :: dt
+    REAL :: dt, time
     REAL :: trgt(nzp,nb)
-    REAL :: tau
+    REAL :: tref,zmin,zmax,tau
     INTEGER :: iopt
     INTEGER :: ii, kk
     REAL :: avg(nzp)
     !
-    IF (iopt==1) THEN
-        ! Soft nudging
+    IF (iopt==1 .AND. time<=tref) THEN
+        ! Soft nudging with fixed nudging constant (tau [s]), and the time parameter gives the maximum nudging time
         DO ii=1,nb
             CALL get_avg3(nzp,nxp,nyp,ap(:,:,:,ii),avg)
             DO kk = 1,nzp
-                IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+                IF (zmin<=zt(kk) .AND. zt(kk)<=zmax) &
                     at(kk,:,:,ii)=at(kk,:,:,ii)-(avg(kk)-trgt(kk,ii))/max(tau,dt)
             ENDDO
         ENDDO
-    ELSEIF (iopt==2) THEN
-        ! Hard nudging
+    ELSEIF (iopt==2 .AND. time<=tref) THEN
+        ! Hard nudging with fixed nudging constant (tau [s]), and the time parameter gives the maximum nudging time
         DO ii=1,nb
             DO kk = 1,nzp
-                IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+                IF (zmin<=zt(kk) .AND. zt(kk)<=zmax) &
                     at(kk,:,:,ii)=at(kk,:,:,ii)-(ap(kk,:,:,ii)-trgt(kk,ii))/max(tau,dt)
             ENDDO
         ENDDO
-    ELSE
-        ! Unknown
-        STOP 'Unknown nudging option!'
     ENDIF
     !
   END SUBROUTINE nudge_any_2d

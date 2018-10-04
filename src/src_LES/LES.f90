@@ -95,9 +95,12 @@ contains
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
-         Tspinup,sst, lbinanl, nudge_time, nudge_zmin, nudge_zmax, &
-         nudge_theta, tau_theta, nudge_rv, tau_rv, nudge_u, tau_u, &
-         nudge_v, tau_v, nudge_ccn, tau_ccn
+         Tspinup, sst, lbinanl, lbinprof, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, &
+         nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
+         nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau,  &
+         nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau,  &
+         nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau,  &
+         nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
     use stat, only : ssam_intvl, savg_intvl, mcflg, csflg
@@ -105,7 +108,6 @@ contains
                      div, case_name, &     ! Divergence, forcing case name
                      sfc_albedo, &         ! Surface albedo
                      useMcICA,RadConstPress,RadPrecipBins,RadSnowBins
-    USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, appl_abort, ver, author
 
     implicit none
@@ -136,13 +138,12 @@ contains
          hs     , ps     , ts    ,  & ! sounding heights, pressure, temperature
          us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
          umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
-         Tspinup, lbinanl,          & ! Length of spinup period in seconds
-         nudge_time,                & ! Total nudging time (independent of spin-up)
-         nudge_zmin, nudge_zmax, & ! Altitude (m) range for nudging
-         nudge_theta, tau_theta,   & ! Temperature nudging
-         nudge_rv, tau_rv,   & ! Water vapor mixing ratio nudging
-         nudge_u, tau_u, nudge_v, tau_v,  & ! Horozontal wind nudging
-         nudge_ccn, tau_ccn,   & ! Aerosol number concentration nudging
+         Tspinup, lbinanl, lbinprof, & ! Length of spinup period in seconds
+         nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, & ! Temperature nudging
+         nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau, & ! Water vapor mixing ratio nudging
+         nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau, & ! Horizontal wind nudging
+         nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau, & ! Horizontal wind nudging
+         nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, & ! Aerosol number concentration nudging
          radsounding, div, case_name, & ! Name of the radiation sounding file, divergence for LEVEL 4
          sfc_albedo,                  & ! Surface albedo
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)

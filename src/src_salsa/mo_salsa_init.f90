@@ -454,7 +454,7 @@ CONTAINS
                                icenucl_tstart,        &
                                nlicmelt,              &
                                stat_b_bins,          &
-                               stat_micro_ts, stat_micro_ps, &
+                               stat_micro, stat_micro_ts, stat_micro_ps, &
                                nbin,reglim,           &
                                nice,nsnw,             &
                                nspec,listspec,        &
@@ -507,6 +507,7 @@ CONTAINS
          nlactbase,     & ! Switch for parameterized cloud base activation
          nlactintst,    & ! Switch for interstitial activation based on particle growth and host model S
          stat_b_bins,   & ! Save statistics about SALSA b-bins
+         stat_micro,    & ! Save statistics about microphysical process rates
          stat_micro_ts, & ! Save statistics (*.ts) about microphysical process rates
          stat_micro_ps, & ! Save statistics (*.ps) about microphysical process rates
 

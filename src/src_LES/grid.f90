@@ -58,14 +58,26 @@ module grid
   real            :: W2 = 0.9
   real            :: W3 = 0.9
 
+  LOGICAL :: sed_aero = .TRUE.,  &
+             sed_cloud = .TRUE., &
+             sed_precp = .TRUE., &
+             sed_ice = .TRUE., &
+             sed_snow = .TRUE.
 
-  ! Nudging options (nudge_*: 0=disabled, 1=soft, 2=hard), total nudging time (s), altitude range, and time constants (tau [s])
+  ! Nudging options
+  !   1 = soft nudging with fixed nudging constant applied only for the specified time period
+  !   2 = hard nudging with the same settings
+  !   else = no nudging
   INTEGER :: nudge_theta=0, & ! (liquid water) potential temperature, depending on the microphysical level
     nudge_rv=0, & ! Water vapor mixing ratio (maintain total water)
     nudge_u=0, nudge_v=0, & ! Horizontal winds
     nudge_ccn=0 ! Sectional aerosol for levels 4 and 5 (maintain aerosol+cloud+ice)
-  REAL :: nudge_time=3600., nudge_zmin=-1.e10, nudge_zmax=1.e10
-  REAL :: tau_theta=300., tau_rv=300., tau_u=300., tau_v=300., tau_ccn=300.
+  ! Parameters related to time, altitude range and and the nudging coefficient
+  REAL :: nudge_theta_time=3600., nudge_theta_zmin=-1.e10, nudge_theta_zmax=1.e10, nudge_theta_tau=300.
+  REAL :: nudge_rv_time=3600., nudge_rv_zmin=-1.e10, nudge_rv_zmax=1.e10, nudge_rv_tau=300.
+  REAL :: nudge_u_time=3600., nudge_u_zmin=-1.e10, nudge_u_zmax=1.e10, nudge_u_tau=300.
+  REAL :: nudge_v_time=3600., nudge_v_zmin=-1.e10, nudge_v_zmax=1.e10, nudge_v_tau=300.
+  REAL :: nudge_ccn_time=3600., nudge_ccn_zmin=-1.e10, nudge_ccn_zmax=1.e10, nudge_ccn_tau=300.
   real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
   LOGICAL, SAVE :: nudge_init=.TRUE.
 
@@ -786,17 +798,18 @@ contains
 
     use mpi_interface, only :myid, ver, author, info
     USE mo_submctl, ONLY : fn2a,fn2b,fca,fcb,fra, &
-                               fia,fib,fsa
+                fia,fib,fsa,nlactbase,stat_micro, &
+                nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt
     USE class_ComponentIndex, ONLY : IsUsed
     integer, parameter :: nnames = 21
-    integer, parameter :: salsa_nn = 104
+    integer, parameter :: salsa_nn = 104, salsa_nr=47
     character (len=7), save :: sbase(nnames) =  (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     '   ,& ! 1
          'ym     ','u0     ','v0     ','dn0    ','u      ','v      '   ,& ! 7
          'w      ','theta  ','p      ','q      ','l      ','r      '   ,& ! 13
          'n      ','stke   ','rflx   '/)                                  ! 19 total 21
     ! Added for SALSA
-    character(len=7), save :: salsa_sbase(salsa_nn) = (/ &
+    character(len=7), save :: salsa_sbase(salsa_nn+salsa_nr) = (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     ',  &  ! 1 
          'ym     ','aea    ','aeb    ','cla    ','clb    ','prc    ',  &  ! 7
          'ica    ','icb    ','snw    ','u0     ','v0     ','dn0    ',  &  ! 13
@@ -814,10 +827,18 @@ contains
          'S_cSO4b','S_cNHb ','S_cNOb ','S_cOCb ','S_cBCb ','S_cDUb ',  &  ! 84
          'S_cSSb ','S_iSO4a','S_iNHa ','S_iNOa ','S_iOCa ','S_iBCa ',  &  ! 90
          'S_iDUa ','S_iSSa ','S_iSO4b','S_iNHb ','S_iNOb ','S_iOCb ',  &  ! 96
-         'S_iBCb ','S_iDUb ','S_iSSb ' /)
-         ! total 104
+         'S_iBCb ','S_iDUb ','S_iSSb ',  &         ! total 104
+         'coag_ra','coag_na','coag_rc','coag_nc','coag_rr','coag_nr', & ! 1-6
+         'cond_ra','cond_rc','cond_rr','auto_rr','auto_nr','act_rc ','act_nc ', & ! 7-13
+         'sedi_ra','sedi_na','sedi_rc','sedi_nc','sedi_rr','sedi_nr', & ! 14-19
+         'diag_ra','diag_na','diag_rc','diag_nc','diag_rr','diag_nr', & ! 20-25
+         'coag_ri','coag_ni','coag_rs','coag_ns', & ! 26-29
+         'cond_ri','cond_rs','auto_rs','auto_ns','nucl_ri','nucl_ni', & ! 30-35
+         'sedi_ri','sedi_ni','sedi_rs','sedi_ns', & !36-39
+         'diag_ri','diag_ni','diag_rs','diag_ns', & ! 40-43
+         'melt_ri','melt_ni','melt_rs','melt_ns'/) ! 44-47
 
-    LOGICAL, SAVE :: salsabool(salsa_nn)
+    LOGICAL, SAVE :: salsabool(salsa_nn+salsa_nr), tmp(salsa_nr)
 
     real, intent (in) :: time
     LOGICAL, INTENT (IN) :: salsa_b_bins
@@ -895,6 +916,7 @@ contains
           salsabool(52:62) = .FALSE. ! S_Nic - S_Rwsba
        END IF
        salsabool(27) = .FALSE. ! Total ice disabled
+       salsabool(32) = nlactbase ! Save the number of activated particles when using cloud base activation
 
        IF (.NOT. IsUsed(prtcl,'SO4')) &
             salsabool((/ 63, 70, 77, 84, 91,  98 /)) = .FALSE.
@@ -924,6 +946,30 @@ contains
             salsabool(84:90)=.FALSE.    ! Cloud species
             salsabool(98:104)=.FALSE.   ! Ice species
         ENDIF
+
+        ! Microphysicsal process rate statistics
+        tmp(:)= .FALSE.
+        IF (stat_micro) THEN
+            tmp(1:6) = nlcoag    ! Coagulation
+            tmp(7:9) = nlcnd     ! Condensation
+            tmp(10:11) = nlauto  ! Autoconversion
+            tmp(12:13) = nlactiv ! Cloud activation
+            tmp(14:15) = sed_aero  ! Aerosol sedimentation
+            tmp(16:17) = sed_cloud ! Cloud sedimentation
+            tmp(18:19) = sed_precp ! Rain sedimentation
+            tmp(20:25) = .FALSE.  ! SALSA_diagnostics
+            IF (level>=5) THEN
+                tmp(26:29) = nlcoag
+                tmp(30:31) = nlcnd
+                tmp(32:33) = nlautosnow
+                tmp(34:35) = nlicenucl
+                tmp(36:37) = sed_ice
+                tmp(38:39) = sed_snow
+                tmp(40:43) = .FALSE.  ! SALSA_diagnostics
+                tmp(44:47) = nlicmelt ! Melting
+            ENDIF
+        ENDIF
+        salsabool(salsa_nn+1:salsa_nn+47) = tmp(1:47)
 
        nvar0 = COUNT(salsabool) + naddsc
        ALLOCATE(sanal(nvar0))
@@ -982,7 +1028,8 @@ contains
                                iia,fia,iib,fib,isa,fsa,       &
                                aerobins, cloudbins, precpbins, &
                                icebins, snowbins, nlim, prlim, &
-                               nspec, nbins, ncld, nice, nprc, nsnw
+                               nspec, nbins, ncld, nice, nprc, nsnw, &
+                               stat_micro
 
     real, intent (in) :: time
 
@@ -1402,10 +1449,12 @@ contains
        END IF !level 5
 
        ! Number of newly activated
-       zvar(:,:,:) = SUM(a_nactd(:,:,:,:), DIM=4)
        iret = nf90_inq_varid(ncid0,'S_Nact',VarID)
-       iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
-            count=icnt)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_nactd(:,:,:,:), DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+               count=icnt)
+       END IF
 
        ! Mass mixing ratios
        IF (IsUsed(prtcl,'SO4')) THEN
@@ -1723,6 +1772,110 @@ contains
 
        END IF
        
+       ! Process rate statistics
+       IF (stat_micro) THEN
+          ! Coagulation (10)
+          iret = nf90_inq_varid(ncid0,'coag_ra',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,coag_ra(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'coag_na',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,coag_na(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'coag_rc',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,coag_rc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'coag_nc',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,coag_nc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'coag_rr',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,coag_rr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'coag_nr',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,coag_nr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'coag_ri',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,coag_ri(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'coag_ni',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,coag_ni(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'coag_rs',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,coag_rs(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'coag_ns',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,coag_ns(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          ! Condensation (5)
+          iret = nf90_inq_varid(ncid0,'cond_ra',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,cond_ra(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'cond_rc',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,cond_rc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'cond_rr',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,cond_rr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'cond_ri',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,cond_ri(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'cond_rs',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,cond_rs(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          ! Sedimentation (10)
+          iret = nf90_inq_varid(ncid0,'sedi_ra',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,sedi_ra(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'sedi_na',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,sedi_na(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'sedi_rc',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,sedi_rc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'sedi_nc',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,sedi_nc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'sedi_rr',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,sedi_rr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'sedi_nr',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,sedi_nr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'sedi_ri',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,sedi_ri(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'sedi_ni',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,sedi_ni(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'sedi_rs',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,sedi_rs(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'sedi_ns',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,sedi_ns(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          ! Activation, ice nucleation and autoconversion (8)
+          iret = nf90_inq_varid(ncid0,'act_rc',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,cact_rc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'act_nc',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,cact_nc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'auto_rr',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,auto_rr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'auto_nr',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,auto_nr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'nucl_ri',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,nucl_ri(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'nucl_ni',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,nucl_ni(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'auto_rs',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,auto_rs(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'auto_ns',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,auto_ns(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          ! Diagnostics (10)
+          iret = nf90_inq_varid(ncid0,'diag_ra',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,diag_ra(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'diag_na',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,diag_na(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'diag_rc',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,diag_rc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'diag_nc',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,diag_nc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'diag_rr',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,diag_rr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'diag_nr',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,diag_nr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'diag_ri',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,diag_ri(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'diag_ni',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,diag_ni(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'diag_rs',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,diag_rs(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'diag_ns',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,diag_ns(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          ! Melting (4)
+          iret = nf90_inq_varid(ncid0,'melt_ri',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,melt_ri(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'melt_ni',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,melt_ni(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'melt_rs',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,melt_rs(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+          iret = nf90_inq_varid(ncid0,'melt_ns',VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,melt_ns(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       END IF
+
     END IF
 
     if (myid==0) print "(//' ',12('-'),'   Record ',I3,' to: ',A60)",    &

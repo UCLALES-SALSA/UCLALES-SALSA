@@ -30,18 +30,14 @@ module mcrp
        a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
        aerin, cldin, icein, snowin, prtcl, calc_eff_radius, &
        sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
-       sedi_ri, sedi_ni, sedi_rs, sedi_ns
+       sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
+       sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
   use stat, only : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
   USE mo_submctl, ONLY : terminal_vel
   implicit none
 
   logical, parameter :: khairoutdinov = .False.
 
-  LOGICAL :: sed_aero = .TRUE.,  &
-             sed_cloud = .TRUE., &
-             sed_precp = .TRUE., &
-             sed_ice = .TRUE., &
-             sed_snow = .TRUE.
   !
   ! drop sizes definition is based on vanZanten (2005)
   ! cloud droplets' diameter: 2-50 e-6 m

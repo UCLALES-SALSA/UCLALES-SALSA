@@ -118,22 +118,25 @@ contains
     !--
 
     character (len=7) :: xnm
-    integer :: iret, n, VarID
-
+    integer :: iret, n, VarID, dims
 
     if (nRec == 0) then
        iret = nf90_def_dim(ncID, 'time', NF90_UNLIMITED, timeID)
+       dims = 0
        if (present(n1)) then
           iret = nf90_def_dim(ncID, 'zt', n1, ztID)
           iret = nf90_def_dim(ncID, 'zm', n1, zmID)
+          dims = 1
        end if
        if (present(n2)) then
           iret = nf90_def_dim(ncID, 'xt', n2, xtID)
           iret = nf90_def_dim(ncID, 'xm', n2, xmID)
+          dims = 3
        end if
        if (present(n3)) then
           iret = nf90_def_dim(ncID, 'yt', n3, ytID)
           iret = nf90_def_dim(ncID, 'ym', n3, ymID)
+          dims = 3
        end if
        ! If this is analysis file, dont write binned output by default!
        ! --------------------------------------------------------------
@@ -203,7 +206,7 @@ contains
        dim_ttztsnw = (/ztID,snowID,timeID/)
 
        do n=1,nVar
-          select case(trim(ncinfo(2,sx(n))))
+          select case(trim(ncinfo(2,sx(n),dimensions=dims)))
           case ('time')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,timeID  ,VarID)
           case ('zt')
@@ -254,19 +257,6 @@ contains
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttticb,VarID)
           case ('ttttsnw')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttsnw,VarID)
-          ! ---
-          case ('default')
-            ! Default variables - cell centers
-            IF (PRESENT(n2) .AND. PRESENT(n3)) THEN
-                ! 4D outputs
-                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttt,VarID)
-            ELSEIF (PRESENT(n1)) THEN
-                ! Profiles
-                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tt,VarID)
-            ELSE
-                ! Time series
-                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,timeID  ,VarID)
-            ENDIF
           ! ---
           case ('tttt')
              if (present(n2) .and. present(n3)) then
@@ -325,11 +315,11 @@ contains
           case ('ttztsnw')
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztsnw,VarID)
           case default
-             if (myid == 0) print *, '  ABORTING: NCIO: Bad dimensional information ',trim(ncinfo(2,sx(n)))
+             if (myid == 0) print *, '  ABORTING: NCIO: Bad dimensional information ',trim(ncinfo(2,sx(n),dimensions=dims))
              call appl_abort(0)
           end select
-          iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,sx(n)))
-          iret=nf90_put_att(ncID,VarID,'units'   ,ncinfo(1,sx(n)))
+          iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,sx(n),dimensions=dims))
+          iret=nf90_put_att(ncID,VarID,'units'   ,ncinfo(1,sx(n),dimensions=dims))
        end do
        iret  = nf90_enddef(ncID)
        iret  = nf90_sync(ncID)
@@ -510,14 +500,20 @@ contains
   ! Subroutine nc_info: Gets long_name, units and dimension info given a
   ! short name.
   !
-  character (len=80) function ncinfo(itype,short_name)
+  character (len=80) function ncinfo(itype,short_name,dimensions)
 
     character (len=40) :: v_lnm ='scalar xx mixing ratio                  '
 
     integer, intent (in) :: itype
     character (len=*), intent (in) :: short_name
+    integer, optional, intent (in) :: dimensions
 
     integer :: scalar_number
+    INTEGER :: dims
+
+    ! Number of dimensions in addition to time (0=*.ts.nc, 1=*.ps.nc, 3=*.nc)
+    dims = 1
+    IF (PRESENT(dimensions)) dims = dimensions
 
     select case (trim(short_name))
     case ('sxx')
@@ -1319,194 +1315,6 @@ contains
        if (itype==0) ncinfo = 'Total deposition of NO3'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
-    case('coag_ra')
-       if (itype==0) ncinfo = 'Change in aerosol water due to coagulation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('coag_na')
-       if (itype==0) ncinfo = 'Change in aerosol number concentration due to coagulation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('coag_rc')
-       if (itype==0) ncinfo = 'Change in cloud water due to coagulation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('coag_nc')
-       if (itype==0) ncinfo = 'Change in cloud number concentration due to coagulation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('coag_rr')
-       if (itype==0) ncinfo = 'Change in rain water due to coagulation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('coag_nr')
-       if (itype==0) ncinfo = 'Change in rain number concentration due to coagulation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('coag_ri')
-       if (itype==0) ncinfo = 'Change in ice water due to coagulation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('coag_ni')
-       if (itype==0) ncinfo = 'Change in ice number concentration due to coagulation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('coag_rs')
-       if (itype==0) ncinfo = 'Change in snow water due to coagulation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('coag_ns')
-       if (itype==0) ncinfo = 'Change in snow number concentration due to coagulation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('cond_ra')
-       if (itype==0) ncinfo = 'Change in aerosol water due to condensation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('cond_rc')
-       if (itype==0) ncinfo = 'Change in cloud water due to condensation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('cond_rr')
-       if (itype==0) ncinfo = 'Change in rain water due to condensation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('cond_ri')
-       if (itype==0) ncinfo = 'Change in ice water due to condensation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('cond_rs')
-       if (itype==0) ncinfo = 'Change in snow water due to condensation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('auto_rr')
-       if (itype==0) ncinfo = 'Change in rain water due to autoconversion'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('auto_nr')
-       if (itype==0) ncinfo = 'Change in rain number concentration due to autoconversion'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('auto_rs')
-       if (itype==0) ncinfo = 'Change in snow water due to autoconversion'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('auto_ns')
-       if (itype==0) ncinfo = 'Change in snow number concentration due to autoconversion'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('act_rc')
-       if (itype==0) ncinfo = 'Change in cloud water due to activation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('act_nc')
-       if (itype==0) ncinfo = 'Change in cloud number concentration due to activation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('nucl_ri')
-       if (itype==0) ncinfo = 'Change in ice water due to nucleation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('nucl_ni')
-       if (itype==0) ncinfo = 'Change in ice number concentration due to nucleation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('melt_ri')
-       if (itype==0) ncinfo = 'Change in ice water due to melting'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('melt_ni')
-       if (itype==0) ncinfo = 'Change in ice number concentration due to melting'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('melt_rs')
-       if (itype==0) ncinfo = 'Change in snow water due to melting'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('melt_ns')
-       if (itype==0) ncinfo = 'Change in snow number concentration due to melting'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('sedi_ra')
-       if (itype==0) ncinfo = 'Change in aerosol water due to sedimentation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('sedi_na')
-       if (itype==0) ncinfo = 'Change in aerosol number concentration due to sedimentation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('sedi_rc')
-       if (itype==0) ncinfo = 'Change in cloud water due to sedimentation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('sedi_nc')
-       if (itype==0) ncinfo = 'Change in cloud number concentration due to sedimentation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('sedi_rr')
-       if (itype==0) ncinfo = 'Change in rain water due to sedimentation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('sedi_nr')
-       if (itype==0) ncinfo = 'Change in rain number concentration due to sedimentation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('sedi_ri')
-       if (itype==0) ncinfo = 'Change in ice water due to sedimentation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('sedi_ni')
-       if (itype==0) ncinfo = 'Change in ice number concentration due to sedimentation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('sedi_rs')
-       if (itype==0) ncinfo = 'Change in snow water due to sedimentation'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('sedi_ns')
-       if (itype==0) ncinfo = 'Change in snow number concentration due to sedimentation'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('diag_ra')
-       if (itype==0) ncinfo = 'Change in aerosol water due to diagnostics'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('diag_na')
-       if (itype==0) ncinfo = 'Change in aerosol number concentration due to diagnostics'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('diag_rc')
-       if (itype==0) ncinfo = 'Change in cloud water due to diagnostics'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('diag_nc')
-       if (itype==0) ncinfo = 'Change in cloud number concentration due to diagnostics'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('diag_rr')
-       if (itype==0) ncinfo = 'Change in rain water due to diagnostics'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('diag_nr')
-       if (itype==0) ncinfo = 'Change in rain number concentration due to diagnostics'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('diag_ri')
-       if (itype==0) ncinfo = 'Change in ice water due to diagnostics'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('diag_ni')
-       if (itype==0) ncinfo = 'Change in ice number concentration due to diagnostics'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('diag_rs')
-       if (itype==0) ncinfo = 'Change in snow water due to diagnostics'
-       if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'default'
-    case('diag_ns')
-       if (itype==0) ncinfo = 'Change in snow number concentration due to diagnostics'
-       if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'default'
 
     ! // SALSA temporal
     case('fsttm')
@@ -2702,11 +2510,162 @@ contains
        if (itype==2) ncinfo = 'ttztsnw'
     ! -----
     case default
-       if (myid==0) print *, 'ABORTING: ncinfo: variable not found ',trim(short_name)
-       call appl_abort(0)
+       ! Automatically generated microphysical process rate statistics
+       ncinfo=TRIM( get_rate_info(itype,trim(short_name),dims) )
+       IF (LEN(TRIM(ncinfo))<1) THEN
+          if (myid==0) print *, 'ABORTING: ncinfo: variable not found ',trim(short_name)
+          call appl_abort(0)
+       END IF
     end select
 
   end function ncinfo
+
+  !
+  ! ----------------------------------------------------------------------
+  ! Function that determines information related to microphysics process rate statistics.
+  ! These have the same variable name for all outputs, but the units can be different.
+  !
+  ! 1) Units
+  !     *.ts.nc: average column integrated rate of change
+  !     *.ps.nc: average rate of change per volume
+  !     *.nc: rate of change
+  ! 2) Examples of names
+  !     diag_ri     Change in ice water mixing ratio due to diagnostics
+  !     diag_ni     Change in ice water number concentration due to diagnostics
+  !     r=mixing ratio, n=number concentration, i=ice
+  !
+  character (len=80) function get_rate_info(itype,short_name,dims)
+    implicit none
+    integer, intent (in) :: itype, dims
+    character (len=*), intent (in) :: short_name
+
+    character (len=20) :: pros, spec
+    integer :: i
+    logical :: numc
+
+    IF (LEN(TRIM(short_name))<6 .OR. INDEX(short_name,'_')==0) THEN
+        get_rate_info=''
+        RETURN
+    ENDIF
+
+    ! Which process
+    IF ('coag_'==short_name(1:5)) THEN
+        pros='coagulation'
+    ELSEIF ('cond_'==short_name(1:5)) THEN
+        pros='condensation'
+    ELSEIF ('auto_'==short_name(1:5)) THEN
+        pros='autoconversion'
+    ELSEIF ('act_'==short_name(1:4)) THEN
+        pros='activation'
+    ELSEIF ('nucl_'==short_name(1:5)) THEN
+        pros='nucleation'
+    ELSEIF ('mult_'==short_name(1:5)) THEN
+        pros='melting'
+    ELSEIF ('sedi_'==short_name(1:5)) THEN
+        pros='sedimentation'
+    ELSEIF ('diag_'==short_name(1:5)) THEN
+        pros='diagnostics'
+    ELSE
+        get_rate_info=''
+        RETURN
+    ENDIF
+
+    ! Number concentration (n) or water mixing ratio (r)
+    i=LEN(TRIM(short_name))-1
+    select case (short_name(i:i))
+    CASE('n')
+        numc=.TRUE.
+    CASE('r')
+        numc=.FALSE.
+    case default
+        get_rate_info=''
+        RETURN
+    end select
+
+    ! Species (a, c, r, i or s)
+    i=i+1
+    select case (short_name(i:i))
+    CASE('a')
+        spec='aerosol'
+    CASE('c')
+        spec='cloud'
+    CASE('r')
+        spec='rain'
+    CASE('i')
+        spec='ice'
+    CASE('s')
+        spec='snow'
+    case default
+        get_rate_info=''
+        RETURN
+    end select
+
+    ! Valid microphysical process identified, formulate the output
+    if (itype==0) THEN
+        ! Long name
+        IF (dims==0) THEN
+            ! Integrated number concentration or mixing ratio (#/m^2/s or kg/m^2/s)
+            IF (numc) THEN
+                get_rate_info='Change in column '//TRIM(spec)//' number due to '//TRIM(pros)
+            ELSE
+                get_rate_info='Change in column '//TRIM(spec)//' water due to '//TRIM(pros)
+            ENDIF
+        ELSEIF (dims==1 .OR. dims==3) THEN
+            ! Profiles give the average rate per volume (#/m^3/s or kg/m^3/s), so just different unit
+            ! 3D data in original units (#/kg/s or kg/kg/s)
+            IF (numc) THEN
+                get_rate_info='Change in '//TRIM(spec)//' number concentration due to '//TRIM(pros)
+            ELSE
+                get_rate_info='Change in '//TRIM(spec)//' water mixing ratio due to '//TRIM(pros)
+            ENDIF
+        ELSE
+            get_rate_info = ''
+        ENDIF
+    ELSEIF (itype==1) THEN
+        ! Unit
+        IF (dims==0) THEN
+            ! Integrated number concentration or mixing ratio (#/m^2/s or kg/m^2/s)
+            IF (numc) THEN
+                get_rate_info = '#/m^2/s'
+            ELSE
+                get_rate_info = 'kg/m^2/s'
+            ENDIF
+        ELSEIF (dims==1) THEN
+            ! Profiles give the average rate per volume (#/m^3/s or kg/m^3/s)
+            IF (numc) THEN
+                get_rate_info = '#/m^3/s'
+            ELSE
+                get_rate_info = 'kg/m^3/s'
+            ENDIF
+        ELSEIF (dims==3) THEN
+            ! 3D data in original units (#/kg/s or kg/kg/s)
+            IF (numc) THEN
+                get_rate_info = '#/kg/s'
+            ELSE
+                get_rate_info = 'kg/kg/s'
+            ENDIF
+        ELSE
+            get_rate_info = ''
+        ENDIF
+    ELSEIF (itype==2) THEN
+        ! NetCDF dimensions
+        IF (dims==0) THEN
+            ! Time series
+            get_rate_info = 'time'
+        ELSEIF (dims==1) THEN
+            ! Profiles
+            get_rate_info = 'tttt'
+        ELSEIF (dims==3) THEN
+            ! 3D outputs
+            get_rate_info = 'tttt'
+        ELSE
+            get_rate_info = ''
+        ENDIF
+    ELSE
+        get_rate_info = ''
+    ENDIF
+
+  END function get_rate_info
 
   !
   ! ----------------------------------------------------------------------

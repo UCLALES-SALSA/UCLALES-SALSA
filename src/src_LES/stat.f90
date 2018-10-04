@@ -236,10 +236,10 @@ contains
   !
   subroutine init_stat(time, filprf, expnme, nzp)
 
-    use grid, only : nxp, nyp, iradtyp, prtcl
+    use grid, only : nxp, nyp, iradtyp, prtcl, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, ver, author, info
     use mo_submctl, only : nprc,nsnw,fn2a,fn2b,fca,fcb,fra,fia,fib,fsa,stat_b_bins, &
-        stat_micro_ts,stat_micro_ps,nlcoag, nlcnd, nlauto, nlautosnow, nlactiv, nlicenucl, nlicmelt
+        stat_micro_ts,stat_micro_ps,nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt
     USE class_ComponentIndex, ONLY : IsUsed
 
     character (len=80), intent (in) :: filprf, expnme
@@ -379,15 +379,18 @@ contains
           tmp(1:6) = nlcoag    ! Coagulation
           tmp(7:9) = nlcnd     ! Condensation
           tmp(10:11) = nlauto  ! Autoconversion
-          tmp(12:13) = nlactiv ! Cloud acticvation
-          tmp(14:19) = .TRUE.  ! Sedimentation (mcrp: sed_aero, sed_cloud, sed_precp)
+          tmp(12:13) = nlactiv ! Cloud activation
+          tmp(14:15) = sed_aero  ! Aerosol sedimentation
+          tmp(16:17) = sed_cloud ! Cloud sedimentation
+          tmp(18:19) = sed_precp ! Rain sedimentation
           tmp(20:25) = .TRUE.  ! SALSA_diagnostics
           IF (level>=5) THEN
             tmp(26:29) = nlcoag
             tmp(30:31) = nlcnd
             tmp(32:33) = nlautosnow
             tmp(34:35) = nlicenucl
-            tmp(36:39) = .TRUE.   ! sed_ice, sed_snow
+            tmp(36:37) = sed_ice
+            tmp(38:39) = sed_snow
             tmp(40:43) = .TRUE.   ! SALSA_diagnostics
             tmp(44:47) = nlicmelt ! Melting
           ENDIF
@@ -1922,8 +1925,9 @@ contains
         do j=3,n3-2
             do i=3,n2-2
                 do k=2,n1
-                    !fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
-                    fact = a_dn(k,i,j)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
+                    !fact = dn0(k)/REAL( (n3-4)*(n2-4) )
+                    fact = a_dn(k,i,j)/REAL( (n3-4)*(n2-4) )
+                    !fact = 1.0/REAL( (n3-4)*(n2-4) )
                     svctr_rate(k,1) = svctr_rate(k,1) + coag_ra(k,i,j)*fact
                     svctr_rate(k,2) = svctr_rate(k,2) + coag_na(k,i,j)*fact
                     svctr_rate(k,3) = svctr_rate(k,3) + coag_rc(k,i,j)*fact
@@ -2111,8 +2115,9 @@ contains
         do j=3,n3-2
             do i=3,n2-2
                 do k=2,n1
-                    !fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
-                    fact = a_dn(k,i,j)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
+                    !fact = dn0(k)/REAL( (n3-4)*(n2-4) )
+                    fact = a_dn(k,i,j)/REAL( (n3-4)*(n2-4) )
+                    !fact = 1.0/REAL( (n3-4)*(n2-4) )
                     svctr_rate(k,26) = svctr_rate(k,26) + coag_ri(k,i,j)*fact
                     svctr_rate(k,27) = svctr_rate(k,27) + coag_ni(k,i,j)*fact
                     svctr_rate(k,28) = svctr_rate(k,28) + coag_rs(k,i,j)*fact
