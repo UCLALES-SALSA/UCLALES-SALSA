@@ -20,7 +20,7 @@
 module sgsm
 
   use stat, only : sflg, updtst, acc_tend, sgsflxs, sgs_vel
-  use util, only : tridiff, vel_bc
+  use util, only : tridiff, noslip
   implicit none
 !
 ! setting the prandtl number to a value less than zero enforces an exponential
@@ -78,11 +78,12 @@ contains
   subroutine diffuse
 
     use grid, only : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt    &
-         , a_rv, a_rc, a_rp, a_ri, a_srp, a_tp, a_tt, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta  &
+         , a_rv, a_rc, a_rp, a_ri, a_srp, a_srs, a_tp, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta  &
          , a_temp, a_rsl, nscl, nxp, nyp    &
-         , nzp, zm, dxi, dyi, dzt, dzm, dtlt, dtlv , th00, dn0  &
+         , nzp, zm, dxi, dyi, dzt, dzm, dtl, th00, dn0  &
          , pi0, pi1, newsclr, level, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc &
          , wq_sfc
+    USE defs, ONLY : cp, alvi
 
     use util, only         : get_avg3
     use mpi_interface, only: cyclics, cyclicc
@@ -91,15 +92,24 @@ contains
     integer :: n
     REAL :: rx(nzp,nxp,nyp), rxt(nzp,nxp,nyp), a_tmp1(nzp,nxp,nyp), &
         a_tmp2(nzp,nxp,nyp), a_tmp3(nzp,nxp,nyp), a_tmp4(nzp,nxp,nyp), &
-        a_tmp5(nzp,nxp,nyp), a_tmp6(nzp,nxp,nyp)
+        a_tmp5(nzp,nxp,nyp), a_tmp6(nzp,nxp,nyp), thl(nzp,nxp,nyp)
+    REAL :: dtlv
+
+    dtlv=2.*dtl
 
     SELECT CASE(level)
        CASE(1,2,3)
-          rx = a_rv
-          rxt = a_rp
-       CASE(4,5)
+          rx = a_rv ! Water vapor
+          rxt = a_rp ! Water vapor + condensed water
+          thl = a_tp ! Liquid water potential temperature
+       CASE(4)
           rx = a_rp
-          rxt = a_rp + a_rc + a_ri + a_srp
+          rxt = a_rp + a_rc + a_srp
+          thl = a_tp
+       CASE(5)
+          rx = a_rp
+          rxt = a_rp + a_rc + a_srp + a_ri + a_srs
+          WHERE(a_temp>0.) thl = a_tp + (a_theta/a_temp)*alvi/cp*(a_ri + a_srs)
     END SELECT
 
 
@@ -110,7 +120,7 @@ contains
     !
     call fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,a_temp,rs=a_rsl)
 
-    call bruvais(nzp,nxp,nyp,level,a_theta,a_tp,rxt,a_rsl,a_tmp3,dzm,th00)
+    call bruvais(nzp,nxp,nyp,level,a_theta,thl,rxt,a_rsl,a_tmp3,dzm,th00)
 
     !
     ! the a_ut, a_wt, a_ut arrays are first used when the diffusive tendencies
@@ -125,12 +135,12 @@ contains
     !
     select case (isgstyp)
     case (1)
-       call smagor(nzp,nxp,nyp,sflg,dxi,dn0,a_tmp3,a_tmp2,a_tmp1,zm)
+       call smagor(nzp,nxp,nyp,sflg,dxi,dyi,dn0,a_tmp3,a_tmp2,a_tmp1,zm)
     case (2)
        call deardf(nzp,nxp,nyp,sflg,dxi,zm,dn0,a_qp,a_qt,a_tmp3,a_tmp2,a_tmp1)
 
        call solv_tke(nzp,nxp,nyp,a_tmp3,a_tmp1,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi  &
-            ,dtlt)
+            ,dtl)
     end select
     !
     ! Diffuse momentum
@@ -165,30 +175,28 @@ contains
     !
     ! Diffuse scalars
     !
-    a_tt=0.
     do n=1,nscl
        call newsclr(n)
        sxy1=0.
        sxy2=0.
        if ( associated(a_tp,a_sp) ) sxy1=wt_sfc
-       if ( associated(a_tp,a_sp) ) sxy2=wt_sfc
        if ( associated(a_rp,a_sp) ) sxy1=wq_sfc
 
        if (sflg) a_tmp1=0.
        if ( isgstyp <= 1) then
-          call diffsclr(nzp,nxp,nyp,dtlt,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
+          call diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
                ,a_sp,a_tmp2,a_st,a_tmp1)
        else if ( .not.associated(a_qp,a_sp) ) then
-          call diffsclr(nzp,nxp,nyp,dtlt,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
+          call diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
                ,a_sp,a_tmp2,a_st,a_tmp1)
        end if
        if (sflg) then
           call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
           call updtst(nzp,'sgs',n,sz1,1)
           if (associated(a_sp,a_tp))                                          &
-             call sgsflxs(nzp,nxp,nyp,level,a_tmp3,rx,a_theta,a_tmp1,'tl')
+             call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'tl')
           if (associated(a_sp,a_rp))                          &
-             call sgsflxs(nzp,nxp,nyp,level,a_tmp3,rx,a_theta,a_tmp1,'rt')
+             call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'rt')
        endif
        call cyclics(nzp,nxp,nyp,a_st,req)
        call cyclicc(nzp,nxp,nyp,a_st,req)
@@ -232,16 +240,15 @@ contains
              s22(k,i,j)= 2.*(v(k,i,j)-v(k,i,jm))*dy
              szx3(k,i) = 2.*(w(k,i,j)-w(max(1,k-1),i,j))*dzt(k)
              s12(k,i,j)= (u(k,i,jp)-u(k,i,j))*dy + (v(k,ip,j)-v(k,i,j))*dx
+             szx1(k,i) = 0.333333*(szx2(k,i)+s22(k,i,j)+szx3(k,i))
           enddo
           szx3(1,i)  = 0.
           szx3(n1,i) = 0.
 
           do k=1,n1-1
-             szx1(k,i) = 0.333333*(szx2(k,i)+s22(k,i,j)+szx3(k,i))
              szx4(k,i) =(u(k+1,i,j)-u(k,i,j))*dzm(k)+(w(k,ip,j)-w(k,i,j))*dx
              s23(k,i,j)=(v(k+1,i,j)-v(k,i,j))*dzm(k)+(w(k,i,jp)-w(k,i,j))*dy
           end do
-          szx1(n1,i) = 0.333333*(szx2(n1,i)+s22(n1,i,j)+szx3(n1,i))
        end do
        !
        ! average to a w-point
@@ -280,7 +287,7 @@ contains
   ! timsteps, SGS energy, dissipation, viscosity, diffusivity and
   ! lengthscales are stored.
   !
-  subroutine smagor(n1,n2,n3,sflg,dxi,dn0,ri,kh,km,zm)
+  subroutine smagor(n1,n2,n3,sflg,dxi,dyi,dn0,ri,kh,km,zm)
 
     use defs, only          : pi, vonk
     use stat, only          : tke_sgs
@@ -291,26 +298,36 @@ contains
 
     logical, intent(in) :: sflg
     integer, intent(in) :: n1,n2,n3
-    real, intent(in)    :: dxi,zm(n1),dn0(n1)
+    real, intent(in)    :: dxi,dyi,zm(n1),dn0(n1)
     real, intent(inout) :: ri(n1,n2,n3),kh(n1,n2,n3)
     real, intent(out)   :: km(n1,n2,n3)
 
-    real    :: delta,pr,yplus
+    real    :: delta,pr
 
     pr    = abs(prndtl)
 
     delta = 1./dxi
-    delta = (zm(2)/dxi/dxi)**0.333333333
+    delta = (zm(2)/dxi/dyi)**0.333333333
 
     do j=3,n3-2
        do i=3,n2-2
-          do k=1,n1-1
-             yplus = max(zm(2),min(zm(k),(zm(n1-1)-zm(k))))
+          do k=2,n1-1
              ri(k,i,j) = max( -1., ri(k,i,j)/(kh(k,i,j) + 1.e-12) )
-             km(k,i,j) = sqrt(max(0.,kh(k,i,j)*(1.-ri(k,i,j)/pr))) &
-                  *0.5*(dn0(k)+dn0(k+1))/(1./(delta*csx)**2+1./(yplus*vonk)**2)
+             !
+             ! variable km represents what is commonly known as Km, the eddy viscosity
+             ! variable kh represents strain rate factor S^2 (dummy variable)
+             !
+             km(k,i,j) = sqrt(max(0.,kh(k,i,j))) * sqrt(max(0.,(1.-ri(k,i,j)/pr))) &
+                  *0.5*(dn0(k)+dn0(k+1))/(1./(delta*csx)**2+1./(zm(k)*vonk)**2)
+             !
+             ! after kh is multiplied with the factor (1-ri/pr), the product of kh
+             ! and km represents the dissipation rate epsilon
+             !
+             kh(k,i,j) = kh(k,i,j) *(1.-(ri(k,i,j)/pr))
           enddo
+          kh(1,i,j)    = kh(2,i,j)
           kh(n1,i,j)   = kh(n1-1,i,j)
+          km(1,i,j)    = km(2,i,j)
           km(n1,i,j)   = km(n1-1,i,j)
        enddo
     enddo
@@ -321,10 +338,20 @@ contains
 
     if (sflg) then
        call get_cor3(n1,n2,n3,km,km,sz1)
+       !
+       ! The product km and kh represent the local dissipation rate
+       !
        call get_cor3(n1,n2,n3,km,kh,sz2)
        call updtst(n1,'sgs',-2,sz2,1)      ! dissipation
        do k=1,n1
-          tke_sgs(k) = sz1(k)/(delta*pi*(csx*0.18))**2
+          !
+          ! the factor 1/pi^2 probably represents the ratio of the constants
+          ! Cm/Ce that appears in the definition of TKE, the factor csx^2
+          ! will cancel out with the csx^2 that appears in the numerator of
+          ! variable sz1 which corresponds to Km^2.
+          !
+          !tke_sgs(k) = sz1(k)/(delta*pi*(csx*0.18))**2 ! Original UCLALES-SALSA
+          tke_sgs(k) = sz1(k)/(delta*pi*(csx**2))**2
           sz1(k) = 1./sqrt(1./(delta*csx)**2+1./(zm(k)*vonk+0.001)**2)
        end do
        call updtst(n1,'sgs',-1,tke_sgs,1) ! sgs tke
@@ -335,6 +362,9 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1
+            !
+            ! What is known as the 'physical' eddy diffusivity, Kh, is yet calculated from Km
+            !
             kh(k,i,j) = km(k,i,j)/pr
             if (prndtl < 0.) then
                kh(k,i,j) = kh(k,i,j) * exp(zm(k)/(-100.))
@@ -554,8 +584,7 @@ contains
     real, intent(in)    :: sflx(n2,n3),tflx(n2,n3)
     real, intent(in)    :: dn0(n1),dzm(n1),dzt(n1),dxi,dyi,dt
 
-    real, intent(inout) :: flx(n1)
-    real, intent(out)   :: tnd(n1,n2,n3)
+    real, intent(inout) :: flx(n1), tnd(n1,n2,n3)
 
     dti   = 1.0/dt
     do k=1,n1
@@ -570,21 +599,20 @@ contains
        do i=3,n2-2
           indh=indh+1
           sz8(1)=dzm(1)*(km(1,i,j)+km(1,i+1,j))
-          sz7(n1-1)  =.5*tflx(i,j)*(dn0(n1)+dn0(n1-1))
           sz7(1)     =.5*sflx(i,j)*(dn0(1)+dn0(2))
           do k=2,n1-1
-             if (k < n1-1)  sz7(k)= (-(w(k,i+1,j)-w(k,i,j))*dxi) &
-                                    *0.5*(km(k,i,j)+km(k,i+1,j))
              sz8(k)=dzm(k)*(km(k,i,j)+km(k,i+1,j))
+             sz7(k)=(-(w(k,i+1,j)-w(k,i,j))*dxi)*0.5*(km(k,i,j)+km(k,i+1,j))
              sxz4(indh,k)=u(k,i,j)*dn0(k) + dt*dzt(k)*(sz7(k-1)-sz7(k))
              sxz3(indh,k)=-0.5*dt*dzt(k)*sz8(k)
              sxz2(indh,k)=-0.5*dt*dzt(k)*sz8(k-1)
              sxz1(indh,k)=dn0(k)-sxz2(indh,k)-sxz3(indh,k)
           end do
+          sz7(n1-1)  =.5*tflx(i,j)*(dn0(n1)+dn0(n1-1))
           !
           ! Boundary conditions
           !
-          if (vel_bc == 'noslip') then
+          if (noslip) then
              sxz1(indh,2)    = dn0(2)-2.*sxz2(indh,2)-sxz3(indh,2)
              sxz1(indh,n1-1) = dn0(n1-1)-sxz2(indh,n1-1)-2.*sxz3(indh,n1-1)
           else
@@ -618,8 +646,8 @@ contains
           indh=indh+1
           tnd(1,i,j) = 0.
           do k=2,n1-1
-             tnd(k,i,j)=dti*(sxz1(indh,k)-u(k,i,j))-((szx5(k,i+1)-szx5(k,i))  &
-                  *dxi + (sij(k,i,j)-sij(k,i,j-1))*dyi)/dn0(k)
+             tnd(k,i,j)=tnd(k,i,j) + dti*(sxz1(indh,k)-u(k,i,j)) - &
+                  ((szx5(k,i+1)-szx5(k,i))*dxi + (sij(k,i,j)-sij(k,i,j-1))*dyi)/dn0(k)
 
              if (k < n1-1) flx(k)= flx(k)-dzm(k)*(km(k,i,j)+km(k,i+1,j))      &
                   *(sxz1(indh,k+1)-sxz1(indh,k))*.5
@@ -644,8 +672,7 @@ contains
     real, intent(in)    :: sii(n1,n2,n3),sij(n1,n2,n3)
     real, intent(in)    :: km(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
 
-    real, intent(inout) :: flx(n1)
-    real, intent(out)   :: tnd(n1,n2,n3)
+    real, intent(inout) :: flx(n1), tnd(n1,n2,n3)
 
     dti = 1.0/dt
     do k=1,n1
@@ -659,21 +686,20 @@ contains
        do i=3,n2-2
           indh=indh+1
           sz8(1)=dzm(1)*(km(1,i,j)+km(1,i,j+1))
-          sz7(n1-1)  =.5*(tflx(i,j))*(dn0(n1)+dn0(n1-1))
           sz7(1)     =.5*(sflx(i,j))*(dn0(1)+dn0(2))
           do k=2,n1-1
-             if (k < n1-1) sz7(k) = (-(w(k,i,j+1)-w(k,i,j))*dyi) &
-                                    *0.5*(km(k,i,j)+km(k,i,j+1))
              sz8(k)=dzm(k)*(km(k,i,j)+km(k,i,j+1))
+             sz7(k)=(-(w(k,i,j+1)-w(k,i,j))*dyi)*0.5*(km(k,i,j)+km(k,i,j+1))
              sxz4(indh,k)=v(k,i,j)*dn0(k) + dt*dzt(k)*(sz7(k-1)-sz7(k))
              sxz3(indh,k)=-0.5*dt*dzt(k)*sz8(k)
              sxz2(indh,k)=-0.5*dt*dzt(k)*sz8(k-1)
              sxz1(indh,k)=dn0(k)-sxz2(indh,k)-sxz3(indh,k)
           end do
+          sz7(n1-1)  =.5*(tflx(i,j))*(dn0(n1)+dn0(n1-1))
           !
           ! Boundary conditions
           !
-          if (vel_bc == 'noslip') then
+          if (noslip) then
              sxz1(indh,2)    = dn0(2)-2.*sxz2(indh,2)-sxz3(indh,2)
              sxz1(indh,n1-1) = dn0(n1-1)-sxz2(indh,n1-1)-2.*sxz3(indh,n1-1)
           else
@@ -697,8 +723,8 @@ contains
           indh=indh+1
           tnd(1,i,j) = 0.
           do k=2,n1-1
-             tnd(k,i,j)=dti*(sxz1(indh,k)-v(k,i,j))-((sii(k,i,j+1)-sii(k,i,j))&
-                  *dyi+(sij(k,i,j)-sij(k,i-1,j))*dxi)/dn0(k)
+             tnd(k,i,j)=tnd(k,i,j) + dti*(sxz1(indh,k)-v(k,i,j)) - &
+                  ((sii(k,i,j+1)-sii(k,i,j))*dyi+(sij(k,i,j)-sij(k,i-1,j))*dxi)/dn0(k)
              if (k < n1-1) flx(k)= flx(k)-dzm(k)*(km(k,i,j)+km(k,i,j+1))      &
                   *(sxz1(indh,k+1)-sxz1(indh,k))*.5
           enddo
@@ -721,8 +747,7 @@ contains
     real, intent(in)    :: sflx(n2,n3),tflx(n2,n3)
     real, intent(in)    :: dn0(n1),dzm(n1),dzt(n1),dxi,dyi,dt
 
-    real, intent(inout) :: flx(n1)
-    real, intent(out)   :: tnd(n1,n2,n3)
+    real, intent(inout) :: flx(n1), tnd(n1,n2,n3)
 
     integer :: kp1,im1,jm1
 
@@ -730,14 +755,6 @@ contains
     do k=1,n1
        sz8(k)  = 0.
        flx(k)  = 0.
-    end do
-
-    do j=1,n3
-       do i=1,n2
-          do k=1,n1
-             tnd(k,i,j) = 0.
-          end do
-       end do
     end do
 
     sxz1(:,:) = 0.0
@@ -786,8 +803,8 @@ contains
           im1 = max(i-1,2)
           jm1 = max(j-1,2)
           do k=2,n1-2
-             tnd(k,i,j)=dti*(sxz1(indh,k)-w(k,i,j))-((szx5(k,i)-szx5(k,im1))  &
-                  *dxi + (s23(k,i,j)-s23(k,i,jm1))*dyi)/((dn0(k)+dn0(k+1))*.5)
+             tnd(k,i,j)=tnd(k,i,j) + dti*(sxz1(indh,k)-w(k,i,j)) - &
+                  ((szx5(k,i)-szx5(k,im1))*dxi + (s23(k,i,j)-s23(k,i,jm1))*dyi)/((dn0(k)+dn0(k+1))*.5)
              flx(k) = flx(k)-dzt(k)*(km(k,i,j)+km(k+1,i,j))*0.5               &
                   *(sxz1(indh,k)-sxz1(indh,k-1))
           enddo
@@ -808,7 +825,7 @@ contains
     real, intent(in)    :: sflx(n2,n3),tflx(n2,n3),dn0(n1)
     real, intent(in)    :: dxi,dyi,dzm(n1),dzt(n1),dtlt
 
-    real, intent(out)   :: flx(n1,n2,n3),sct(n1,n2,n3)
+    real, intent(inout) :: flx(n1,n2,n3),sct(n1,n2,n3)
     !
     ! compute vertical diffusion matrix coefficients for scalars,
     ! Coefficients need only be calculated once and can be used repeatedly
@@ -856,7 +873,7 @@ contains
           flx(n1,i,j)  =0.
           indh=indh+1
           do k=2,n1-1
-             sct(k,i,j)=dti*(sxz5(indh,k)-scp(k,i,j))                       &
+             sct(k,i,j)=sct(k,i,j) + dti*(sxz5(indh,k)-scp(k,i,j))            &
                   -((szx1(k,i)-szx1(k,i-1))                                   &
                   *dxi + (-(scp(k,i,j+1)-scp(k,i,j))*dyi*0.25*(xkh(k,i,j)     &
                   +xkh(k,i,j+1)+xkh(k-1,i,j)+xkh(k-1,i,j+1))+(scp(k,i,j)      &

@@ -69,7 +69,13 @@ IMPLICIT NONE
                        pa_nicep,   pa_nicet,   pa_micep,   pa_micet,    &
                        pa_nsnowp,  pa_nsnowt,  pa_msnowp,  pa_msnowt,   &
                        pa_nactd,   pa_vactd,   pa_gaerop,  pa_gaerot,   &
-                       prunmode, prtcl, tstep, level)
+                       prunmode, prtcl, tstep, time, level,             &
+                       coag_ra, coag_na, coag_rc, coag_nc, coag_rr,     &
+                       coag_nr, coag_ri, coag_ni, coag_rs, coag_ns,     &
+                       cond_ra, cond_rc, cond_rr, cond_ri, cond_rs,     &
+                       auto_rr, auto_nr, auto_rs, auto_ns,              &
+                       cact_rc, cact_nc, nucl_ri, nucl_ni,              &
+                       melt_ri, melt_ni, melt_rs, melt_ns)
 
     USE mo_submctl, ONLY : nbins,ncld,nprc,pi6,          &
                                nice,nsnw,             &
@@ -83,7 +89,7 @@ IMPLICIT NONE
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: pnx,pny,pnz,n4                       ! Dimensions: x,y,z,number of chemical species  
-    REAL, INTENT(in)    :: tstep                      ! Model timestep length
+    REAL, INTENT(in)    :: tstep, time                      ! Model timestep length and time
 
     REAL, INTENT(in)    :: press(pnz,pnx,pny), &            ! Pressure (Pa)
                                tk(pnz,pnx,pny),    &            ! Temperature (K)
@@ -132,6 +138,14 @@ IMPLICIT NONE
                                                          ! actual tendency due to new droplet formation.
     REAL, INTENT(out)   :: pa_nactd(pnz,pnx,pny,ncld)   ! Same for number concentration
 
+    REAL, DIMENSION(pnz,pnx,pny), INTENT(OUT) :: & ! Statistics
+                       coag_ra, coag_na, coag_rc, coag_nc, coag_rr, &
+                       coag_nr, coag_ri, coag_ni, coag_rs, coag_ns, &
+                       cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
+                       auto_rr, auto_nr, auto_rs, auto_ns, &
+                       cact_rc, cact_nc, nucl_ri, nucl_ni, &
+                       melt_ri, melt_ni, melt_rs, melt_ns
+
     TYPE(t_section) :: actd(kbdim,klev,ncld) ! Activated droplets - for interfacing with SALSA
 
     ! Helper arrays for calculating the rates of change
@@ -139,8 +153,13 @@ IMPLICIT NONE
        ice_old(1,1,nice), snow_old(1,1,nsnw)
 
     INTEGER :: jj,ii,kk,ss,str,end, nc,vc
-    REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
-                in_w(kbdim,klev), in_rsi(kbdim,klev)
+    REAL, DIMENSION(kbdim,klev) :: in_p, in_t, in_rv, in_rs, in_w, in_rsi, &
+                out_coag_va, out_coag_na, out_coag_vc, out_coag_nc, out_coag_vr, &
+                out_coag_nr, out_coag_vi, out_coag_ni, out_coag_vs, out_coag_ns, &
+                out_cond_va, out_cond_vc, out_cond_vr, out_cond_vi, out_cond_vs, &
+                out_auto_vr, out_auto_nr, out_auto_vs, out_auto_ns, &
+                out_cact_vc, out_cact_nc, out_nucl_vi, out_nucl_ni, &
+                out_melt_vi, out_melt_ni, out_melt_vs, out_melt_ns
     REAL :: rv_old(kbdim,klev)
 
     ! Number is always set, but mass can be uninitialized
@@ -159,7 +178,7 @@ IMPLICIT NONE
     END DO
 
     ! Set the SALSA runtime config
-    CALL set_salsa_runtime(prunmode)
+    CALL set_salsa_runtime(prunmode,time)
 
     ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of kg/kg (multiplied by pdn/divided by substance density)
     DO jj = 3,pny-2
@@ -175,7 +194,14 @@ IMPLICIT NONE
 
              ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
              IF (prunmode < 3) THEN
-                in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)
+                IF (rhlim>2.0) THEN
+                    ! Time-dependent water vapor mixing ratio limit: initially limited to saturation and exponential
+                    ! relaxation towards current mixing ratio. Here rhlim is the relaxation time [s].
+                    in_rv(1,1) = MIN( rv(kk,ii,jj), rv(kk,ii,jj)+(rs(kk,ii,jj)-rv(kk,ii,jj))*exp(-time/rhlim) )
+                ELSE
+                    ! Constant water vapor mixing ratio limit. Here rhlim is the maximum saturation ratio.
+                    in_rv(1,1) = MIN(rv(kk,ii,jj), rs(kk,ii,jj)*rhlim)
+                ENDIF
              ELSE
                 in_rv(1,1) = rv(kk,ii,jj)
              END IF
@@ -506,8 +532,44 @@ IMPLICIT NONE
                         zgso4,  zgocnv, zgocsv, zghno3,        &
                         zgnh3,  aero,   cloud,  precp,         &
                         ice,    snow,                          &
-                        actd,   in_w,   prtcl,  level )
+                        actd,   in_w,   prtcl,  level,         &
+                        out_coag_va, out_coag_na, out_coag_vc, out_coag_nc, out_coag_vr, &
+                        out_coag_nr, out_coag_vi, out_coag_ni, out_coag_vs, out_coag_ns, &
+                        out_cond_va, out_cond_vc, out_cond_vr, out_cond_vi, out_cond_vs, &
+                        out_auto_vr, out_auto_nr, out_auto_vs, out_auto_ns, &
+                        out_cact_vc, out_cact_nc, out_nucl_vi, out_nucl_ni, &
+                        out_melt_vi, out_melt_ni, out_melt_vs, out_melt_ns)
 
+
+             ! Output statistics (mixing ratios from m^3/m^3 to kg/kg and concentrations from 1/m^3 to 1/kg;
+             ! also converted to rates by dividing by the time step)
+             coag_ra(kk,ii,jj)=out_coag_va(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             coag_na(kk,ii,jj)=out_coag_na(1,1)/pdn(kk,ii,jj)/tstep
+             coag_rc(kk,ii,jj)=out_coag_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             coag_nc(kk,ii,jj)=out_coag_nc(1,1)/pdn(kk,ii,jj)/tstep
+             coag_rr(kk,ii,jj)=out_coag_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             coag_nr(kk,ii,jj)=out_coag_nr(1,1)/pdn(kk,ii,jj)/tstep
+             coag_ri(kk,ii,jj)=out_coag_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
+             coag_ni(kk,ii,jj)=out_coag_ni(1,1)/pdn(kk,ii,jj)/tstep
+             coag_rs(kk,ii,jj)=out_coag_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
+             coag_ns(kk,ii,jj)=out_coag_ns(1,1)/pdn(kk,ii,jj)/tstep
+             cond_ra(kk,ii,jj)=out_cond_va(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             cond_rc(kk,ii,jj)=out_cond_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             cond_rr(kk,ii,jj)=out_cond_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             cond_ri(kk,ii,jj)=out_cond_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
+             cond_rs(kk,ii,jj)=out_cond_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
+             auto_rr(kk,ii,jj)=out_auto_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             auto_nr(kk,ii,jj)=out_auto_nr(1,1)/pdn(kk,ii,jj)/tstep
+             auto_rs(kk,ii,jj)=out_auto_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
+             auto_ns(kk,ii,jj)=out_auto_ns(1,1)/pdn(kk,ii,jj)/tstep
+             cact_rc(kk,ii,jj)=out_cact_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
+             cact_nc(kk,ii,jj)=out_cact_nc(1,1)/pdn(kk,ii,jj)/tstep
+             nucl_ri(kk,ii,jj)=out_nucl_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
+             nucl_ni(kk,ii,jj)=out_nucl_ni(1,1)/pdn(kk,ii,jj)/tstep
+             melt_ri(kk,ii,jj)=out_melt_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
+             melt_ni(kk,ii,jj)=out_melt_ni(1,1)/pdn(kk,ii,jj)/tstep
+             melt_rs(kk,ii,jj)=out_melt_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
+             melt_ns(kk,ii,jj)=out_melt_ns(1,1)/pdn(kk,ii,jj)/tstep
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)
              pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &
@@ -833,7 +895,7 @@ IMPLICIT NONE
   !
   ! Juha Tonttila, FMI, 2014
   !
-  SUBROUTINE set_SALSA_runtime(prunmode)
+  SUBROUTINE set_SALSA_runtime(prunmode,time)
     USE mo_submctl, ONLY : nlcoag,                 &
                                nlcgaa,nlcgcc,nlcgpp,   &
                                nlcgca,nlcgpa,nlcgpc,   &
@@ -862,18 +924,18 @@ IMPLICIT NONE
                                nlcnd,                  &
                                nlicenucl,              &
                                nlicmelt,               &
-                               nlfixinc,               &
+                               icenucl_tstart,         &
 
                                lscgia,lscgic,lscgii,   &
                                lscgip,lscgsa,lscgsc,   &
                                lscgsi,lscgsp,lscgss,   &
                                lsicenucl,              &
-                               lsicmelt,               &
-                               lsfixinc
+                               lsicmelt
 
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: prunmode
+    REAL, INTENT(in) :: time
 
     ! Apply runtime settings
 
@@ -907,8 +969,7 @@ IMPLICIT NONE
     lsactbase   = nlactbase
     lsactintst  = nlactintst
 
-    lsicenucl  = ( nlicenucl .AND. ( .NOT. nlfixinc ) )
-    lsfixinc    = nlfixinc
+    lsicenucl  = nlicenucl
     lsicmelt    = nlicmelt
 
 
@@ -924,7 +985,6 @@ IMPLICIT NONE
           lsactbase   = .FALSE.
           lsactintst  = nlactintst
           lsicenucl  = .FALSE.
-          lsfixinc    = .FALSE.
           lsicmelt    = .FALSE.
 
        CASE(2)  ! Spinup period
@@ -934,6 +994,13 @@ IMPLICIT NONE
           lsautosnow  = .FALSE.
 
     END SELECT
+
+    ! Ice formation has an additional spinup time (no ice formation => no autoconversion or melting)
+    IF (time<icenucl_tstart) THEN
+          lsicenucl  = .FALSE.
+          lsautosnow = .FALSE.
+          lsicmelt   = .FALSE.
+    ENDIF
 
   END SUBROUTINE set_SALSA_runtime
 

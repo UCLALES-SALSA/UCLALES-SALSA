@@ -34,7 +34,7 @@ contains
 !
   subroutine poisson
 
-    use grid, only : nxp, nyp, nzp, dtlt, dxi, dyi, dzm, dzt, a_up,       &
+    use grid, only : nxp, nyp, nzp, dtl, dxi, dyi, dzm, dzt, a_up,       &
          a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt, a_press, a_pexnr,&
          th00, dn0, wsavex, wsavey
     use stat, only : fill_scalar, sflg
@@ -56,13 +56,13 @@ contains
     !
 
     call asselin(1)
-    call apl_tnd(nzp,nxp,nyp,a_up,a_vp,a_wp,a_ut,a_vt,a_wt,dtlt)
+    call apl_tnd(nzp,nxp,nyp,a_up,a_vp,a_wp,a_ut,a_vt,a_wt,dtl)
     !
     ! ------
     ! Pressure Solve
     !
     call poiss(nzp,nxp,nyp,ix,iy,a_up,a_vp,a_wp,a_pexnr,a_press,dn0,th00,dzt &
-         ,dzm,dxi,dyi,dtlt,s1,wsavex,wsavey)
+         ,dzm,dxi,dyi,dtl,s1,wsavex,wsavey)
     call ae1mm(nzp,nxp,nyp,a_wp,awpbar)
     !
     ! -------
@@ -77,7 +77,7 @@ contains
 
     if (sflg) then
        call get_diverg(nzp,nxp,nyp,ix,iy,s1,a_up,a_vp,a_wp,dn0,dzt,dxi,dyi,  &
-            dtlt,mxdiv)
+            dtl,mxdiv)
        call fill_scalar(2,mxdiv)
        call prs_cor(nzp,nxp,nyp,a_pexnr,a_up,a_vp,a_wp,dzm,dxi,dyi,th00)
        call chk_tsplt(nzp,nxp,nyp,a_up,a_vp,a_wp,a_uc,a_vc,a_wc)

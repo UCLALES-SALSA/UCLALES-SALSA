@@ -34,14 +34,6 @@ module step
   real    :: cntlat =  31.5 ! 30.0
   logical :: outflg = .true.
 
-  ! Nudging options (nudge_*: 0=disabled, 1=soft, 2=hard), total nudging time (s), altitude range, and time constants (tau [s])
-  INTEGER :: nudge_theta=0, & ! (liquid water) potential temperature, depending on the microphysical level
-    nudge_rv=0, & ! Water vapor mixing ratio (maintain total water)
-    nudge_u=0, nudge_v=0, & ! Horizontal winds
-    nudge_ccn=0 ! Sectional aerosol for levels 4 and 5 (maintain aerosol+cloud+ice)
-  REAL :: nudge_time=3600., nudge_zmin=-1.e10, nudge_zmax=1.e10
-  REAL :: tau_theta=300., tau_rv=300., tau_u=300., tau_v=300., tau_ccn=300.
-  real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
 
 contains
   !
@@ -55,9 +47,9 @@ contains
 
     use mpi_interface, only : myid, double_scalar_par_max
 
-    use grid, only : dtl, dzt, zt, zm, nzp, dn0, u0, v0, a_up, a_vp, a_wp, &
-         a_uc, a_vc, a_wc, write_hist, write_anal, close_anal, dtlt,  &
-         dtlv, dtlong, nzp, nyp, nxp, level,                          &
+    use grid, only : dtl, dzt, zt, zm, nzp, dn0, u0, v0, &
+         write_hist, write_anal, close_anal, &
+         dtlong, nzp, nyp, nxp, level, &
          ! For mass budged
          a_rp, a_rc, a_srp, a_dn
 
@@ -65,13 +57,11 @@ contains
          write_massbudged
     use thrm, only : thermo
 
-    logical, parameter :: StopOnCFLViolation = .False.
-    real, parameter :: cfl_upper = 0.50, cfl_lower = 0.30
+    real, parameter :: cfl_upper = 0.5
 
-    real    :: t1,t2,tplsdt,begtime
+    real    :: t1,t2,tplsdt,begtime,dt_prev
     REAL(kind=8) :: cflmax,gcflmax
     integer :: istp, iret
-    logical :: cflflg
     !
     ! Timestep loop for program
     !
@@ -87,19 +77,15 @@ contains
        sflg = (min(mod(tplsdt,ssam_intvl),mod(tplsdt,savg_intvl)) < dtl  &
             .or. tplsdt >= timmax  .or. tplsdt < 2.*dtl)
 
-       call t_step(cflflg,cflmax)
+       call t_step
 
        time  = time + dtl
 
+       call cfl(cflmax)
        call double_scalar_par_max(cflmax,gcflmax)
        cflmax = gcflmax
-
-       if (cflmax > cfl_upper .or. cflmax < cfl_lower) then
-          call tstep_reset(nzp,nxp,nyp,a_up,a_vp,a_wp,a_uc,a_vc,a_wc,     &
-               dtl,dtlong,cflmax,cfl_upper,cfl_lower)
-          dtlv=2.*dtl
-          dtlt=dtl
-       end if
+       dt_prev = dtl
+       dtl = min(dtlong,dtl*cfl_upper/(cflmax+epsilon(1.)))
 
        !
        ! output control
@@ -115,11 +101,6 @@ contains
        if ((mod(tplsdt,frqanl) < dtl .or. time >= timmax) .and. outflg) then
           call thermo(level)
           call write_anal(time)
-       end if
-
-       if (cflflg) then
-          cflflg=.False.
-          if (StopOnCFLViolation) call write_hist(-1,time)
        end if
 
        if(myid == 0) then
@@ -138,7 +119,7 @@ contains
        !
        ! Juha:
        ! Get the final statistics of atmospheric water for mass budged
-       CALL acc_massbudged(nzp,nxp,nyp,1,dtlt,dzt,a_dn,    &
+       CALL acc_massbudged(nzp,nxp,nyp,1,dtl,dzt,a_dn,    &
             rv=a_rp,rc=a_rc,prc=a_srp)
 
        CALL write_massbudged
@@ -152,46 +133,13 @@ contains
   end subroutine stepper
   !
   !----------------------------------------------------------------------
-  ! subroutine tstep_reset: Called to adjust current velocity and reset
-  ! timestep based on cfl limits
-  !
-  subroutine tstep_reset(n1,n2,n3,up,vp,wp,uc,vc,wc,dtl,dtmx,cfl,c1,c2)
-
-  integer, intent (in) :: n1,n2,n3
-  real, intent (in)    :: up(n1,n2,n3),vp(n1,n2,n3),wp(n1,n2,n3),dtmx,c1,c2
-  REAL(kind=8), INTENT (IN) :: cfl
-  real, intent (inout) :: uc(n1,n2,n3),vc(n1,n2,n3),wc(n1,n2,n3),dtl
-
-  integer :: i,j,k
-  real    :: cbar, dtl_old
-
-  cbar = (c1+c2)*0.5
-  dtl_old = dtl
-
-  if (cfl > c1) dtl = min(dtmx,dtl*cbar/c1)
-  if (cfl < c2) dtl = min(dtmx,dtl*cbar/c2)
-
-  do j=1,n3
-     do i=1,n2
-        do k=1,n1
-           uc(k,i,j) = up(k,i,j) + (uc(k,i,j)-up(k,i,j))*dtl/dtl_old
-           vc(k,i,j) = vp(k,i,j) + (vc(k,i,j)-vp(k,i,j))*dtl/dtl_old
-           wc(k,i,j) = wp(k,i,j) + (wc(k,i,j)-wp(k,i,j))*dtl/dtl_old
-        end do
-     end do
-  end do
-
-end subroutine tstep_reset
-
-  !
-  !----------------------------------------------------------------------
   ! subroutine t_step: Called by driver to timestep through the LES
   ! routines.  Within many subroutines, data is accumulated during
   ! the course of a timestep for the purposes of statistical analysis.
   !
-  subroutine t_step(cflflg,cflmax)
+  subroutine t_step()
 
-    use grid, only : level, dtl, dtlt, Tspinup,                                         &
+    use grid, only : level, dtl, Tspinup,                                         &
                      ! Added parameters for interfacing with SALSA
                      nxp, nyp, nzp, a_press, a_temp, a_rsl,                       &
                      a_rc, a_wp, a_rp, a_rt, a_rh,                                  &
@@ -199,9 +147,11 @@ end subroutine tstep_reset
                      a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,    &
                      a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
-                     a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,   prtcl,    &
-                     sst, a_rsi
-
+                     a_gaerop, a_gaerot, a_dn, a_nactd, a_vactd, prtcl, sst, a_rsi,     &
+                     nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
+                     coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, coag_ri, coag_ni, coag_rs, coag_ns, &
+                     cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, auto_rr, auto_nr, auto_rs, auto_ns, &
+                     cact_rc, cact_nc, nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns
 
     use stat, only : sflg, statistics
     use sgsm, only : diffuse
@@ -217,9 +167,6 @@ end subroutine tstep_reset
     USE mo_salsa_driver, ONLY : run_SALSA
     USE class_ComponentIndex, ONLY : GetNcomp
 
-    logical, intent (out) :: cflflg
-    real(KIND=8), intent (out)    :: cflmax
-
     real :: xtime
 
     LOGICAL :: zactmask(nzp,nxp,nyp)
@@ -231,12 +178,10 @@ end subroutine tstep_reset
     zwp = 0.5
 
     xtime = time/86400. + strtim
-    cflflg = .false.
 
     ! The runmode parameter zrm is used by SALSA only
     zrm = 3
     IF ( time < Tspinup ) zrm = 2
-
 
     ! Reset ALL tendencies here.
     !----------------------------------------------------------------
@@ -247,11 +192,6 @@ end subroutine tstep_reset
     IF (level >= 4) THEN
        a_vactd = 0.
        a_nactd = 0.
-    END IF
-
-    IF (level >= 4 .AND. time < 1.) THEN
-       CALL thermo(level)
-       CALL SALSA_diagnostics
     END IF
 
     call surface(sst)
@@ -282,7 +222,13 @@ end subroutine tstep_reset
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  zrm, prtcl, dtlt, level  )
+                  zrm, prtcl, dtl, time, level,  &
+                  coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
+                  coag_ri, coag_ni, coag_rs, coag_ns, &
+                  cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
+                  auto_rr, auto_nr, auto_rs, auto_ns, &
+                  cact_rc, cact_nc, nucl_ri, nucl_ni, &
+                  melt_ri, melt_ni, melt_rs, melt_ns)
           ELSE
              !! for 2D or 3D runs
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
@@ -292,7 +238,13 @@ end subroutine tstep_reset
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  zrm, prtcl, dtlt, level  )
+                  zrm, prtcl, dtl, time, level,  &
+                  coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
+                  coag_ri, coag_ni, coag_rs, coag_ns, &
+                  cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
+                  auto_rr, auto_nr, auto_rs, auto_ns, &
+                  cact_rc, cact_nc, nucl_ri, nucl_ni, &
+                  melt_ri, melt_ni, melt_rs, melt_ns)
           END IF !nxp==5 and nyp == 5
 
           CALL tend_constrain(n4)
@@ -332,12 +284,18 @@ end subroutine tstep_reset
 
     CALL thermo(level)
 
-    ! Nudging time is independent of the spinup!
-     IF (time<=nudge_time .AND. (nudge_theta/=0 .OR. nudge_rv/=0 .OR. &
-            (level>3 .AND. nudge_ccn/=0) ) ) THEN
+    ! Nudging
+     IF (nudge_theta/=0 .OR. nudge_rv/=0 .OR. nudge_u/=0 .OR. &
+            nudge_v/=0 .OR. (level>3 .AND. nudge_ccn/=0) ) THEN
 
         ! Reset tendencies
         call tend0(.TRUE.)
+
+        ! Update diagnostic tracers
+        IF (level >= 4)  THEN
+             CALL SALSA_diag_update
+             call thermo(level)
+        ENDIF
 
         CALL nudging(time)
 
@@ -347,7 +305,7 @@ end subroutine tstep_reset
     ENDIF
 
     IF (level >= 4)  THEN
-         CALL SALSA_diagnostics
+         CALL SALSA_diagnostics(.true.)
          call thermo(level)
     ENDIF
 
@@ -361,12 +319,10 @@ end subroutine tstep_reset
 
     call poisson
 
-    call cfl (cflflg, cflmax)
-
     CALL thermo(level)
 
     IF (level >= 4)  THEN
-         CALL SALSA_diagnostics
+         CALL SALSA_diagnostics(.false.)
          call thermo(level)
     ENDIF
 
@@ -385,23 +341,25 @@ end subroutine tstep_reset
   !
   SUBROUTINE nudging(time)
 
-    use grid, only : level, dtlt, nxp, nyp, nzp, &
+    use grid, only : level, dtl, nxp, nyp, nzp, &
                 zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, a_srs, &
                 a_naerop, a_naerot, a_ncloudp, a_nicep, &
-                a_tp, a_tt, a_up, a_ut, a_vp, a_vt
+                a_tp, a_tt, a_up, a_ut, a_vp, a_vt, &
+                nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
+                nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau, &
+                nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau, &
+                nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau, &
+                nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, &
+                theta_ref, rv_ref, u_ref, v_ref, aero_ref, nudge_init
     USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
 
     IMPLICIT NONE
     REAL, INTENT(IN) :: time
-    REAL, SAVE, ALLOCATABLE :: aero_target(:,:) ! Local
-    LOGICAL, SAVE :: init=.TRUE.
-
-    ! Nudging time is independent of the spin-up
-    IF (time>nudge_time) RETURN
+    REAL :: aero_target(nzp,nxp,nyp,nbins)
 
     ! Initialization
-    IF (init) THEN
-        ! (Liquid water) potential temperature: nudge towards th0(:)-th00
+    IF (nudge_init) THEN
+        ! (Liquid water) potential temperature: nudge towards initial theta
         IF (nudge_theta/=0) THEN
             ALLOCATE(theta_ref(nzp))
             theta_ref(:)=a_tp(:,3,3)
@@ -413,10 +371,8 @@ end subroutine tstep_reset
         !                            + ice (a_ri) + snow (a_srs)
         IF (nudge_rv/=0)  THEN
             ALLOCATE(rv_ref(nzp))
-            IF (level==5) THEN
+            IF (level>3) THEN
                 rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)+a_ri(:,3,3)+a_srs(:,3,3)
-            ELSEIF (level==4) THEN
-                rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)
             ELSE ! Levels 0-3
                 rv_ref(:)=a_rp(:,3,3) ! This includes all, so no need to add a_rpp(:,3,3)
             ENDIF
@@ -432,121 +388,119 @@ end subroutine tstep_reset
             v_ref(:)=a_vp(:,3,3)
         ENDIF
         !
-        ! Aerosol concentration for level 4. Nudge aerosol concentration based on
-        ! total CCN = aerosol + cloud droplets + ice (a_nicep). Precipitation and snow
-        ! are not included, because these cannot be related to a specific aerosol bin
-        ! and their concentrations are low.
+        ! Nudge level 4 and 5 aerosol concentration based on total CCN = aerosol + cloud droplets + ice.
+        ! Precipitation and snow are not included, because these cannot be related to a specific aerosol bin.
         IF (level>3 .AND. nudge_ccn/=0) THEN
             ! Nudge aerosol based on the total number (aerosol+cloud+ice)
-            ALLOCATE(aero_ref(nzp,nbins),aero_target(nzp,nbins))
+            ALLOCATE(aero_ref(nzp,nbins))
             aero_ref(:,:)=a_naerop(:,3,3,:)
             aero_ref(:,in2a:fn2b)=aero_ref(:,in2a:fn2b)+a_ncloudp(:,3,3,1:ncld)
             IF (level==5) aero_ref(:,in2a:fn2b)=aero_ref(:,in2a:fn2b)+a_nicep(:,3,3,1:nice)
         ENDIF
         !
         ! Initialized
-        init=.FALSE.
+        nudge_init=.FALSE.
     ENDIF
 
     ! (Liquid water) potential temperature:
     IF (nudge_theta>0) &
-        CALL nudge_any(nxp,nyp,nzp,zt,a_tp,a_tt,theta_ref,dtlt,tau_theta,nudge_theta)
+        CALL nudge_any(nxp,nyp,nzp,zt,a_tp,a_tt,theta_ref,dtl,time,nudge_theta, &
+            nudge_theta_time,nudge_theta_zmin,nudge_theta_zmax,nudge_theta_tau)
 
     ! Water vapor
     IF (nudge_rv>0) THEN
         IF (level>3) THEN
-            ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain)
-            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+            ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain [+ ice + snow])
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp+a_ri+a_srs,a_rt,rv_ref,dtl,time,nudge_rv, &
+                nudge_rv_time,nudge_rv_zmin,nudge_rv_zmax,nudge_rv_tau)
         ELSE
-            ! Nudge total water (a_rp) based on total + rain
-            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rpp,a_rt,rv_ref,dtlt,tau_rv,nudge_rv)
+            ! Nudge total water (a_rp) based on total water
+            CALL nudge_any(nxp,nyp,nzp,zt,a_rp,a_rt,rv_ref,dtl,time,nudge_rv, &
+                nudge_rv_time,nudge_rv_zmin,nudge_rv_zmax,nudge_rv_tau)
         ENDIF
     ENDIF
 
     ! Horizontal winds
     IF (nudge_u>0) &
-         CALL nudge_any(nxp,nyp,nzp,zt,a_up,a_ut,u_ref,dtlt,tau_u,nudge_u)
+         CALL nudge_any(nxp,nyp,nzp,zt,a_up,a_ut,u_ref,dtl,time,nudge_u, &
+            nudge_u_time,nudge_u_zmin,nudge_u_zmax,nudge_u_tau)
     IF (nudge_v>0) &
-        CALL nudge_any(nxp,nyp,nzp,zt,a_vp,a_vt,v_ref,dtlt,tau_v,nudge_v)
+        CALL nudge_any(nxp,nyp,nzp,zt,a_vp,a_vt,v_ref,dtl,time,nudge_v, &
+            nudge_v_time,nudge_v_zmin,nudge_v_zmax,nudge_v_tau)
 
     ! Aerosol
     IF (level>3 .AND. nudge_ccn/=0) THEN
-        ! Target aerosol concentration = total(t=0)-cloud(t)-ice(t)
-        aero_target(:,:)=aero_ref(:,:)
-        aero_target(:,in2a:fn2b)=aero_target(:,in2a:fn2b)-a_ncloudp(:,3,3,1:ncld)
-        IF (level==5) aero_target(:,in2a:fn2b)=aero_target(:,in2a:fn2b)-a_nicep(:,3,3,1:nice)
+        ! Target aerosol concentration = aerosol(t)+cloud(t)+ice(t)
+        aero_target(:,:,:,:)=a_naerop(:,:,:,:)
+        aero_target(:,:,:,in2a:fn2b)=aero_target(:,:,:,in2a:fn2b)+a_ncloudp(:,:,:,1:ncld)
+        IF (level==5) aero_target(:,:,:,in2a:fn2b)=aero_target(:,:,:,in2a:fn2b)-a_nicep(:,:,:,1:nice)
         ! Apply to sectional data
-        CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,a_naerop,a_naerot,aero_target,dtlt,tau_ccn,nudge_ccn)
+        CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,aero_target,a_naerot,aero_ref,dtl,time,nudge_ccn, &
+            nudge_ccn_time,nudge_ccn_zmin,nudge_ccn_zmax,nudge_ccn_tau)
     ENDIF
 
   END SUBROUTINE nudging
   !
   ! Nudging for any 3D field based on 1D target
-  SUBROUTINE nudge_any(nxp,nyp,nzp,zt,ap,at,trgt,dt,tau,iopt)
+  SUBROUTINE nudge_any(nxp,nyp,nzp,zt,ap,at,trgt,dt,time,iopt,tref,zmin,zmax,tau)
     USE util, ONLY : get_avg3
     IMPLICIT NONE
     INTEGER :: nxp,nyp,nzp
     REAL :: zt(nzp), ap(nzp,nxp,nyp), at(nzp,nxp,nyp)
-    REAL :: dt
+    REAL :: dt, time
     REAL :: trgt(nzp)
-    REAL :: tau
+    REAL :: tref,zmin,zmax,tau
     INTEGER :: iopt
     INTEGER :: kk
     REAL :: avg(nzp)
     !
-    IF (iopt==1) THEN
-        ! Soft nudging
+    IF (iopt==1 .AND. time<=tref) THEN
+        ! Soft nudging with fixed nudging constant (tau [s]), and the time parameter gives the maximum nudging time
         CALL get_avg3(nzp,nxp,nyp,ap,avg)
         DO kk = 1,nzp
-            IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+            IF (zmin<=zt(kk) .AND. zt(kk)<=zmax) &
                 at(kk,:,:)=at(kk,:,:)-(avg(kk)-trgt(kk))/max(tau,dt)
         ENDDO
-    ELSEIF (iopt==2) THEN
-        ! Hard nudging
+    ELSEIF (iopt==2 .AND. time<=tref) THEN
+        ! Hard nudging with fixed nudging constant (tau [s]), and the time parameter gives the maximum nudging time
         DO kk = 1,nzp
-            IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+            IF (zmin<=zt(kk) .AND. zt(kk)<=zmax) &
                 at(kk,:,:)=at(kk,:,:)-(ap(kk,:,:)-trgt(kk))/max(tau,dt)
         ENDDO
-    ELSE
-        ! Unknown
-        STOP 'Unknown nudging option!'
     ENDIF
     !
   END SUBROUTINE nudge_any
   !
   ! Nudging for any 4D field based on 2D target
-  SUBROUTINE nudge_any_2d(nxp,nyp,nzp,nb,zt,ap,at,trgt,dt,tau,iopt)
+  SUBROUTINE nudge_any_2d(nxp,nyp,nzp,nb,zt,ap,at,trgt,dt,time,iopt,tref,zmin,zmax,tau)
     USE util, ONLY : get_avg3
     IMPLICIT NONE
     INTEGER :: nxp,nyp,nzp,nb
     REAL :: zt(nzp), ap(nzp,nxp,nyp,nb), at(nzp,nxp,nyp,nb)
-    REAL :: dt
+    REAL :: dt, time
     REAL :: trgt(nzp,nb)
-    REAL :: tau
+    REAL :: tref,zmin,zmax,tau
     INTEGER :: iopt
     INTEGER :: ii, kk
     REAL :: avg(nzp)
     !
-    IF (iopt==1) THEN
-        ! Soft nudging
+    IF (iopt==1 .AND. time<=tref) THEN
+        ! Soft nudging with fixed nudging constant (tau [s]), and the time parameter gives the maximum nudging time
         DO ii=1,nb
             CALL get_avg3(nzp,nxp,nyp,ap(:,:,:,ii),avg)
             DO kk = 1,nzp
-                IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+                IF (zmin<=zt(kk) .AND. zt(kk)<=zmax) &
                     at(kk,:,:,ii)=at(kk,:,:,ii)-(avg(kk)-trgt(kk,ii))/max(tau,dt)
             ENDDO
         ENDDO
-    ELSEIF (iopt==2) THEN
-        ! Hard nudging
+    ELSEIF (iopt==2 .AND. time<=tref) THEN
+        ! Hard nudging with fixed nudging constant (tau [s]), and the time parameter gives the maximum nudging time
         DO ii=1,nb
             DO kk = 1,nzp
-                IF (nudge_zmin<=zt(kk) .AND. zt(kk)<=nudge_zmax) &
+                IF (zmin<=zt(kk) .AND. zt(kk)<=zmax) &
                     at(kk,:,:,ii)=at(kk,:,:,ii)-(ap(kk,:,:,ii)-trgt(kk,ii))/max(tau,dt)
             ENDDO
         ENDDO
-    ELSE
-        ! Unknown
-        STOP 'Unknown nudging option!'
     ENDIF
     !
   END SUBROUTINE nudge_any_2d
@@ -583,7 +537,7 @@ end subroutine tstep_reset
     USE grid, ONLY : a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,   &
                      a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,   &
                      a_nicep, a_nicet, a_nsnowp, a_nsnowt, a_micep, a_micet, a_msnowp, a_msnowt,  &
-                     dtlt, nxp,nyp,nzp,level
+                     dtl, nxp,nyp,nzp,level
     USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw
 
     INTEGER, INTENT(in) :: nn
@@ -599,11 +553,11 @@ end subroutine tstep_reset
              ! Aerosols
              DO cc = 1,nbins
 
-                IF ( a_naerop(kk,ii,jj,cc)+a_naerot(kk,ii,jj,cc)*dtlt < 0. ) THEN
+                IF ( a_naerop(kk,ii,jj,cc)+a_naerot(kk,ii,jj,cc)*dtl < 0. ) THEN
 
-                   a_naerot(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_naerop(kk,ii,jj,cc))/dtlt,a_naerot(kk,ii,jj,cc))
+                   a_naerot(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_naerop(kk,ii,jj,cc))/dtl,a_naerot(kk,ii,jj,cc))
                    DO ni = 1,nn
-                      a_maerot(kk,ii,jj,(ni-1)*nbins+cc) = MAX( ((1.e-10-1.0)*a_maerop(kk,ii,jj,(ni-1)*nbins+cc))/dtlt,  &
+                      a_maerot(kk,ii,jj,(ni-1)*nbins+cc) = MAX( ((1.e-10-1.0)*a_maerop(kk,ii,jj,(ni-1)*nbins+cc))/dtl,  &
                                                                a_maerot(kk,ii,jj,(ni-1)*nbins+cc) )
                    END DO
 
@@ -614,11 +568,11 @@ end subroutine tstep_reset
              ! Cloud droplets
              DO cc = 1,ncld
 
-                IF ( a_ncloudp(kk,ii,jj,cc)+a_ncloudt(kk,ii,jj,cc)*dtlt < 0. ) THEN
+                IF ( a_ncloudp(kk,ii,jj,cc)+a_ncloudt(kk,ii,jj,cc)*dtl < 0. ) THEN
 
-                   a_ncloudt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_ncloudp(kk,ii,jj,cc))/dtlt,a_ncloudt(kk,ii,jj,cc))
+                   a_ncloudt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_ncloudp(kk,ii,jj,cc))/dtl,a_ncloudt(kk,ii,jj,cc))
                    DO ni = 1,nn
-                      a_mcloudt(kk,ii,jj,(ni-1)*ncld+cc) = MAX( ((1.e-10-1.0)*a_mcloudp(kk,ii,jj,(ni-1)*ncld+cc))/dtlt,  &
+                      a_mcloudt(kk,ii,jj,(ni-1)*ncld+cc) = MAX( ((1.e-10-1.0)*a_mcloudp(kk,ii,jj,(ni-1)*ncld+cc))/dtl,  &
                                                                a_mcloudt(kk,ii,jj,(ni-1)*ncld+cc) )
                    END DO
 
@@ -629,11 +583,11 @@ end subroutine tstep_reset
              ! Precipitation
              DO cc = 1,nprc
 
-                IF ( a_nprecpp(kk,ii,jj,cc)+a_nprecpt(kk,ii,jj,cc)*dtlt < 0. ) THEN
+                IF ( a_nprecpp(kk,ii,jj,cc)+a_nprecpt(kk,ii,jj,cc)*dtl < 0. ) THEN
 
-                   a_nprecpt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nprecpp(kk,ii,jj,cc))/dtlt,a_nprecpt(kk,ii,jj,cc))
+                   a_nprecpt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nprecpp(kk,ii,jj,cc))/dtl,a_nprecpt(kk,ii,jj,cc))
                    DO ni = 1,nn
-                      a_mprecpt(kk,ii,jj,(ni-1)*nprc+cc) = MAX( ((1.e-10-1.0)*a_mprecpp(kk,ii,jj,(ni-1)*nprc+cc))/dtlt,  &
+                      a_mprecpt(kk,ii,jj,(ni-1)*nprc+cc) = MAX( ((1.e-10-1.0)*a_mprecpp(kk,ii,jj,(ni-1)*nprc+cc))/dtl,  &
                                                                a_mprecpt(kk,ii,jj,(ni-1)*nprc+cc) )
                    END DO
 
@@ -645,11 +599,11 @@ end subroutine tstep_reset
              IF (level<5) CYCLE
              DO cc = 1,nice
 
-                IF ( a_nicep(kk,ii,jj,cc)+a_nicet(kk,ii,jj,cc)*dtlt < 0. ) THEN
+                IF ( a_nicep(kk,ii,jj,cc)+a_nicet(kk,ii,jj,cc)*dtl < 0. ) THEN
 
-                   a_nicet(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nicep(kk,ii,jj,cc))/dtlt,a_nicet(kk,ii,jj,cc))
+                   a_nicet(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nicep(kk,ii,jj,cc))/dtl,a_nicet(kk,ii,jj,cc))
                    DO ni = 1,nn
-                      a_micet(kk,ii,jj,(ni-1)*ncld+cc) = MAX( ((1.e-10-1.0)*a_micep(kk,ii,jj,(ni-1)*nice+cc))/dtlt,  &
+                      a_micet(kk,ii,jj,(ni-1)*ncld+cc) = MAX( ((1.e-10-1.0)*a_micep(kk,ii,jj,(ni-1)*nice+cc))/dtl,  &
                                                                a_micet(kk,ii,jj,(ni-1)*nice+cc) )
                    END DO
 
@@ -660,11 +614,11 @@ end subroutine tstep_reset
              ! Snow
              DO cc = 1,nsnw
 
-                IF ( a_nsnowp(kk,ii,jj,cc)+a_nsnowt(kk,ii,jj,cc)*dtlt < 0. ) THEN
+                IF ( a_nsnowp(kk,ii,jj,cc)+a_nsnowt(kk,ii,jj,cc)*dtl < 0. ) THEN
 
-                   a_nsnowt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nsnowp(kk,ii,jj,cc))/dtlt,a_nsnowt(kk,ii,jj,cc))
+                   a_nsnowt(kk,ii,jj,cc) = MAX(((1.e-10-1.0)*a_nsnowp(kk,ii,jj,cc))/dtl,a_nsnowt(kk,ii,jj,cc))
                    DO ni = 1,nn
-                      a_msnowt(kk,ii,jj,(ni-1)*nsnw+cc) = MAX( ((1.e-10-1.0)*a_msnowp(kk,ii,jj,(ni-1)*nsnw+cc))/dtlt,  &
+                      a_msnowt(kk,ii,jj,(ni-1)*nsnw+cc) = MAX( ((1.e-10-1.0)*a_msnowp(kk,ii,jj,(ni-1)*nsnw+cc))/dtl,  &
                                                                a_msnowt(kk,ii,jj,(ni-1)*nsnw+cc) )
                    END DO
 
@@ -683,26 +637,23 @@ end subroutine tstep_reset
   !----------------------------------------------------------------------
   ! Subroutine cfl: Driver for calling CFL computation subroutine
   !
-  subroutine cfl(cflflg,cflmax)
+  subroutine cfl(cflmax)
 
-    use grid, only : a_up,a_vp,a_wp,nxp,nyp,nzp,dxi,dyi,dzt,dtlt
+    use grid, only : a_up,a_vp,a_wp,nxp,nyp,nzp,dxi,dyi,dzt,dtl
     use stat, only : fill_scalar
 
-    logical, intent(out) :: cflflg
     real(KIND=8), intent (out)   :: cflmax
     real, parameter :: cflnum=0.95
 
-    cflmax =  cfll(nzp,nxp,nyp,a_up,a_vp,a_wp,dxi,dyi,dzt,dtlt)
+    cflmax =  cfll(nzp,nxp,nyp,a_up,a_vp,a_wp,dxi,dyi,dzt,dtl)
 
-    cflflg = (cflmax > cflnum)
-    if (cflflg) print *, 'Warning CFL Violation :', cflmax
+    if (cflmax > cflnum) print *, 'Warning CFL Violation :', cflmax
     call fill_scalar(1,REAL(cflmax))
 
   end subroutine cfl
   !
   !----------------------------------------------------------------------
-  ! Subroutine cfll: Checks CFL criteria, brings down the model if the
-  ! maximum thershold is exceeded
+  ! Subroutine cfll: Gets the peak CFL number
   !
   real(KIND=8) function cfll(n1,n2,n3,u,v,w,dxi,dyi,dzt,dtlt)
 
@@ -730,7 +681,7 @@ end subroutine tstep_reset
   subroutine update_sclrs
 
     use grid, only : a_sp, a_st, a_qp, nscl, nxyzp, nxp, nyp, nzp, dzt, &
-         dtlt, newsclr, isgstyp
+         dtl, newsclr, isgstyp
     use sgsm, only : tkeinit
     use util, only : sclrset
 
@@ -738,7 +689,7 @@ end subroutine tstep_reset
 
     do n=1,nscl
        call newsclr(n)
-       call update(nzp,nxp,nyp,a_sp,a_st,dtlt)
+       call update(nzp,nxp,nyp,a_sp,a_st,dtl)
        call sclrset('mixd',nzp,nxp,nyp,a_sp,dzt)
     end do
 
@@ -908,31 +859,51 @@ end subroutine tstep_reset
   ! Juha Tonttila, FMI, 2014
   ! Tomi Raatikainen, FMI, 2016
 
-  SUBROUTINE SALSA_diagnostics
+  SUBROUTINE SALSA_diagnostics(reset_stats)
     USE grid, ONLY : nxp,nyp,nzp,    &
                      a_naerop,a_maerop,a_ncloudp,a_mcloudp,a_nprecpp,a_mprecpp,      &
-                     a_gaerop,  &
-                     a_rc, a_srp,a_snrp, prtcl,   &
-                     a_rh, a_temp, a_ri,a_srs,a_snrs,a_rhi,                                      &
-                     a_nicep,a_micep,a_nsnowp,a_msnowp, diss, mws, dens, level
-    USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,              &
-                               in1a,fn2a,fn2b,                        &
+                     a_gaerop, prtcl, a_rh, a_temp, a_rhi, a_dn,                     &
+                     a_nicep,a_micep,a_nsnowp,a_msnowp, diss, mws, dens, dens_ice, dens_snow, level, &
+                     dtl, diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr, diag_ri, diag_ni, diag_rs, diag_ns
+    USE mo_submctl, ONLY : nbins,ncld,nprc,ica,fca,icb,fcb,ira,fra,in2a,fn2a,    &
                                nice,nsnw,iia,fia,iib,fib,isa,fsa,        &
-                               rhosu,rhowa,rhoic,rhosn,      &
-                               msu,moc,mno,mnh,mwa,avog,pi6,                     &
+                               msu,moc,mno,mnh,avog,pi6,                     &
                                surfw0, rg, nlim, prlim, pi, &
-                               lscndgas
+                               lscndgas, aerobins, calc_correlation
     USE class_ComponentIndex, ONLY : GetIndex, GetNcomp, IsUsed
-
 
     IMPLICIT NONE
 
-    INTEGER :: i,j,k,bc,ba,s,sc,sa,str,end,nc,nn,iba
+    LOGICAL :: reset_stats
 
-    REAL :: zvol, zvola, zvolnew
-    REAL :: zdh2o
-    REAL :: ns, bb, aa ! Number of moles, Raoult effect, Kelvin effect; For calculating the critical radius
-    REAL :: cdcld,cdprc ! Critical diameter for cloud droplets and precipitation
+    INTEGER :: i,j,k,bc,ba,bb,s,sc,sa,nc,nn
+
+    REAL :: zvol, ra, rb
+    REAL :: ns, cd
+    REAL, DIMENSION(nzp,nxp,nyp) :: tmp_ra, tmp_na, tmp_rc, tmp_nc, tmp_rr, tmp_nr, tmp_ri, tmp_ni, tmp_rs, tmp_ns
+
+    nn = GetNcomp(prtcl)+1 ! total number of species
+
+    ! Change in concentrations due to diagnostics (e.g. release of cloud/rain/ice/snow into aerosol,
+    ! cleaning particles without mass or negligible number concentration)
+    tmp_ra(:,:,:)=SUM(a_maerop(:,:,:,(nn-1)*nbins+1:nn*nbins),DIM=4)
+    tmp_na(:,:,:)=SUM(a_naerop,DIM=4)
+    tmp_rc(:,:,:)=SUM(a_mcloudp(:,:,:,(nn-1)*ncld+1:nn*ncld),DIM=4)
+    tmp_nc(:,:,:)=SUM(a_ncloudp,DIM=4)
+    tmp_rr(:,:,:)=SUM(a_mprecpp(:,:,:,(nn-1)*nprc+1:nn*nprc),DIM=4)
+    tmp_nr(:,:,:)=SUM(a_nprecpp,DIM=4)
+    tmp_ri(:,:,:)=SUM(a_micep(:,:,:,(nn-1)*nice+1:nn*nice),DIM=4)
+    tmp_ni(:,:,:)=SUM(a_nicep,DIM=4)
+    tmp_rs(:,:,:)=SUM(a_msnowp(:,:,:,(nn-1)*nsnw+1:nn*nsnw),DIM=4)
+    tmp_ns(:,:,:)=SUM(a_nsnowp,DIM=4)
+    IF (reset_stats) THEN ! Reset outputs (there are two SALSA_diagnostics calls during one time step)
+        diag_ra=0.; diag_na=0.
+        diag_rc=0.; diag_nc=0.
+        diag_rr=0.; diag_nr=0.
+        diag_ri=0.; diag_ni=0.
+        diag_rs=0.; diag_ns=0.
+    ENDIF
+
 
     ! Remove negative values
     a_naerop = MAX(0.,a_naerop)
@@ -947,15 +918,15 @@ end subroutine tstep_reset
     a_micep = MAX(0.,a_micep)
     a_msnowp = MAX(0.,a_msnowp)
 
-    nn = GetNcomp(prtcl)+1 ! total number of species
-
-    ! Remove particles that have number but no mass
+    ! Remove particles that have number but no mass. Also remove particles that have
+    ! insignificant concentration indicated by nlim and prlim (note: #/m^3)
     DO j = 3,nyp-2
        DO i = 3,nxp-2
           DO k = 1,nzp
              ! Aerosols
              DO bc = 1,nbins
-                IF (a_naerop(k,i,j,bc) > 0. .AND. SUM(a_maerop(k,i,j,bc:(nn-1)*nbins+bc:nbins)) <= 0.) THEN
+                IF (a_naerop(k,i,j,bc) > 0. .AND. SUM(a_maerop(k,i,j,bc:(nn-1)*nbins+bc:nbins)) <= 0. .OR. &
+                        a_naerop(k,i,j,bc)*a_dn(k,i,j) < nlim) THEN
                    a_naerop(k,i,j,bc) = 0.
                    a_maerop(k,i,j,bc:(nn-1)*nbins+bc:nbins) = 0.
                 END IF
@@ -963,7 +934,8 @@ end subroutine tstep_reset
 
              ! Clouds
              DO bc = 1,ncld
-                IF (a_ncloudp(k,i,j,bc) > 0. .AND. SUM(a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld)) <= 0.) THEN
+                IF (a_ncloudp(k,i,j,bc) > 0. .AND. SUM(a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld)) <= 0. .OR. &
+                        a_ncloudp(k,i,j,bc)*a_dn(k,i,j) < nlim) THEN
                    a_ncloudp(k,i,j,bc) = 0.
                    a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld) = 0.
                 END IF
@@ -971,7 +943,8 @@ end subroutine tstep_reset
 
              ! Precipitation
              DO bc = 1,nprc
-                IF (a_nprecpp(k,i,j,bc) > 0. .AND. a_mprecpp(k,i,j,(nn-1)*nprc+bc) <= 0.) THEN
+                IF (a_nprecpp(k,i,j,bc) > 0. .AND. a_mprecpp(k,i,j,(nn-1)*nprc+bc) <= 0. .OR. &
+                        a_nprecpp(k,i,j,bc)*a_dn(k,i,j) < prlim) THEN
                    a_nprecpp(k,i,j,bc) = 0.
                    a_mprecpp(k,i,j,bc:(nn-1)*nprc+bc:nprc) = 0.
                 END IF
@@ -980,7 +953,8 @@ end subroutine tstep_reset
              ! Ice
              IF (level<5) CYCLE
              DO bc = 1,nice
-                IF (a_nicep(k,i,j,bc) > 0. .AND. SUM(a_micep(k,i,j,bc:(nn-1)*nice+bc:nice)) <= 0.) THEN
+                IF (a_nicep(k,i,j,bc) > 0. .AND. SUM(a_micep(k,i,j,bc:(nn-1)*nice+bc:nice)) <= 0. .OR. &
+                        a_nicep(k,i,j,bc)*a_dn(k,i,j) < prlim ) THEN
                    a_nicep(k,i,j,bc) = 0.
                    a_micep(k,i,j,bc:(nn-1)*nice+bc:nice) = 0.
                 END IF
@@ -988,7 +962,8 @@ end subroutine tstep_reset
 
              ! Snow
              DO bc = 1,nsnw
-                IF (a_nsnowp(k,i,j,bc) > 0. .AND. a_msnowp(k,i,j,(nn-1)*nsnw+bc) <= 0.) THEN
+                IF (a_nsnowp(k,i,j,bc) > 0. .AND. a_msnowp(k,i,j,(nn-1)*nsnw+bc) <= 0. .OR. &
+                        a_nsnowp(k,i,j,bc)*a_dn(k,i,j) < prlim) THEN
                    a_nsnowp(k,i,j,bc) = 0.
                    a_msnowp(k,i,j,bc:(nn-1)*nsnw+bc:nsnw) = 0.
                 END IF
@@ -1005,20 +980,17 @@ end subroutine tstep_reset
              ! Loop over cloud droplet bins
              DO bc = ica%cur,fcb%cur
 
-                IF ( a_ncloudp(k,i,j,bc) > nlim .AND. a_rh(k,i,j)<0.999) THEN
-
-                   ! Critical radius
+                IF ( a_ncloudp(k,i,j,bc)*a_dn(k,i,j) > nlim .AND. a_rh(k,i,j)<0.999 .AND. &
+                        a_mcloudp(k,i,j,(nn-1)*ncld+bc)<1e-5 ) THEN
+                   ! Critical diameter (assuming soluble CCN)
                    ns = SUM( diss(1:nn-1)*a_mcloudp(k,i,j,bc:(nn-2)*ncld+bc:ncld)/mws(1:nn-1) )/a_ncloudp(k,i,j,bc)
-                   bb = 6.*mwa*ns/(pi*rhowa)
-                   aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
-                   cdcld = SQRT(3.*bb/aa)
+                   cd = 3.*SQRT(ns*rg*a_temp(k,i,j)/(2.*pi*surfw0))
 
-                   ! Wet radius
-                   zvol = SUM( a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld)/dens(1:nn) )/a_ncloudp(k,i,j,bc)
-                   zdh2o = (zvol/pi6)**(1./3.)
+                   ! Wet diameter
+                   zvol = (SUM( a_mcloudp(k,i,j,bc:(nn-1)*ncld+bc:ncld)/dens(1:nn) )/a_ncloudp(k,i,j,bc)/pi6)**(1./3.)
 
-                   ! Lose the droplets if smaller than 0.2*(critical size) or 2 um
-                   IF ( zdh2o < MAX(0.2*cdcld,2.e-6) ) THEN
+                   ! Lose the droplets if smaller than 0.2*critical diameter or 2 um or if there is no water
+                   IF ( zvol < MAX(0.2*cd,2.e-6) .OR. a_mcloudp(k,i,j,(nn-1)*ncld+bc)<1e-25*a_ncloudp(k,i,j,bc) ) THEN
                       IF (bc<=fca%cur) THEN
                           ba = ica%par + (bc-ica%cur) ! Index for parallel aerosol bin
                       ELSE
@@ -1035,8 +1007,7 @@ end subroutine tstep_reset
                          a_maerop(k,i,j,sa) = a_maerop(k,i,j,sa) + a_mcloudp(k,i,j,sc)
                          a_mcloudp(k,i,j,sc) = 0.
                       END DO
-
-                   END IF ! critical radius
+                   END IF ! critical diameter
 
                 END IF  ! blim
 
@@ -1045,38 +1016,41 @@ end subroutine tstep_reset
              ! Loop over precipitation bins
              DO bc = ira,fra
 
-                IF ( a_nprecpp(k,i,j,bc) > prlim .AND. a_rh(k,i,j)<0.999 ) THEN
-
-                   ! Critical radius
+                IF ( a_nprecpp(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rh(k,i,j)<0.999 .AND. &
+                        a_mprecpp(k,i,j,(nn-1)*nprc+bc)<1e-6 ) THEN
+                   ! Critical diameter
                    ns = SUM( diss(1:nn-1)*a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc)/mws(1:nn-1) )/a_nprecpp(k,i,j,bc)
-                   bb = 6.*mwa*ns/(pi*rhowa)
-                   aa = 4.*mwa*surfw0/(rg*rhowa*a_temp(k,i,j))
-                   cdprc = SQRT(3.*bb/aa)
+                   cd = 3.*SQRT(ns*rg*a_temp(k,i,j)/(2.*pi*surfw0))
 
-                   ! Wet radius
-                   zvol = SUM( a_mprecpp(k,i,j,bc:(nn-1)*nprc+bc:nprc)/dens(1:nn) )/a_nprecpp(k,i,j,bc)
-                   zdh2o = (zvol/pi6)**(1./3.)
+                   ! Wet diameter
+                   zvol = (SUM( a_mprecpp(k,i,j,bc:(nn-1)*nprc+bc:nprc)/dens(1:nn) )/a_nprecpp(k,i,j,bc)/pi6)**(1./3.)
 
-                   ! Lose the droplets if smaller than 0.02*critical radius or 2 um
-                   IF ( zdh2o < MAX(0.02*cdprc,2.e-6)  ) THEN
-                      ! Move evaporating rain drops to a soluble aerosol bin with
-                      ! the closest match in dry particle mass. Ain't perfect but
-                      ! the bin update subroutine in SALSA will take care of the rest.
-                      zvol = SUM( a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc) )/a_nprecpp(k,i,j,bc) ! Dry mass
+                   ! Lose the droplets if smaller than 0.02*critical diameter or 2 um or if there is no water
+                   IF ( zvol < MAX(0.02*cd,2.e-6) .OR. a_mprecpp(k,i,j,(nn-1)*nprc+bc)<1e-25*a_nprecpp(k,i,j,bc) ) THEN
 
-                      ba=0
-                      zvola=-1.
-                      DO iba=in1a,fn2a
-                        IF (a_naerop(k,i,j,iba)>nlim) THEN
-                            zvolnew = SUM( a_maerop(k,i,j,iba:(nn-2)*nbins+iba:nbins) )/a_naerop(k,i,j,iba) ! Dry mass
-                            IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
-                                ! New closest match
-                                ba=iba
-                                zvola=zvolnew
-                            ENDIF
-                         ENDIF
+                      ! Move evaporating precipitation to aerosol bin based on dry radius and chemical composition
+
+                      ! 1) Find the closest matching bin based on dry particle radius (a and b bins)
+                      cd = 0.5*(SUM( a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc)/dens(1:nn-1) )/a_nprecpp(k,i,j,bc)/pi6)**(1./3.) ! Dry radius
+                      ba=in2a ! Ignore 1a and note that "aerobins" contains the lower limit of bin dry radius
+                      DO WHILE (cd>=aerobins(ba+1) .AND. ba<fn2a)
+                         ba=ba+1
                       ENDDO
-                      if (ba==0) STOP 'FAIL: no sink for evaporating rain drops'
+                      ! Corresponding b bin is ba+(fn2a-fn1a)=ba+fn2a-(in2a-1)=ba+fn2a-in2a+1
+                      bb=ba+fn2a-in2a+1
+                      ! 2) Select a or b bin
+                      IF (a_naerop(k,i,j,bb)*a_dn(k,i,j)<=nlim) THEN
+                         ! Empty b bin so select a
+                         !ba = ba
+                      ELSEIF (a_naerop(k,i,j,ba)*a_dn(k,i,j)<=nlim) THEN
+                         ! Empty a bin so select b
+                         ba = bb
+                      ELSE
+                         ! Both are present - find bin based on compositional similarity
+                         ra = calc_correlation(a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins),a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc),7)
+                         rb = calc_correlation(a_maerop(k,i,j,bb:(nn-2)*nbins+bb:nbins),a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc),7)
+                         IF (ra<rb) ba = bb
+                      ENDIF
 
                       ! Move the number of particles from precipitation to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nprecpp(k,i,j,bc)
@@ -1090,7 +1064,7 @@ end subroutine tstep_reset
                          a_mprecpp(k,i,j,sc) = 0.
                       END DO
 
-                   END IF ! Critical radius
+                   END IF ! Critical diameter
 
                 END IF ! prlim
 
@@ -1099,19 +1073,20 @@ end subroutine tstep_reset
              ! Loop over ice bins
              DO bc = iia%cur,fib%cur
 
-                IF ( a_nicep(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 ) THEN
+                IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. a_micep(k,i,j,(nn-1)*nice+bc)<1e-15 ) THEN
+                   ! Diameter (assuming constant ice density)
+                   cd = (SUM( a_micep(k,i,j,bc:(nn-1)*nice+bc:nice)/dens_ice(1:nn) )/a_nicep(k,i,j,bc)/pi6)**(1./3.)
 
-                   ! Ice and snow don't have a critical size, but lose particles when water content becomes low enough
-
-                   ! Lose ice when dry to total mass ratio is more than 0.5
+                   ! Dry to total mass ratio
                    zvol = SUM( a_micep(k,i,j,bc:(nn-2)*nice+bc:nice) )/SUM( a_micep(k,i,j,bc:(nn-1)*nice+bc:nice) )
-                   IF ( zvol>0.5 ) THEN
+
+                   ! Ice and snow don't have a critical size, but lose particles smaller than 2e-6 m and particles which dry to total mass ratio is more than 0.5
+                   IF ( zvol>0.5 .OR. cd<2e-6 ) THEN
                       IF (bc<=fia%cur) THEN
                          ba = iia%par + (bc-iia%cur) ! Index for parallel aerosol bin
                       ELSE
                          ba = iib%par + (bc-iib%cur) ! Index for parallel aerosol bin
                       ENDIF
-
                       ! Move the number of particles from ice to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
                       a_nicep(k,i,j,bc) = 0.
@@ -1132,31 +1107,40 @@ end subroutine tstep_reset
              ! Loop over snow bins
              DO bc = isa,fsa
 
-                IF ( a_nsnowp(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 ) THEN
+                IF ( a_nsnowp(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. &
+                        a_msnowp(k,i,j,(nn-1)*nsnw+bc)<1e-20 ) THEN
+                   ! Diameter (assuming constant snow density)
+                   cd = (SUM( a_msnowp(k,i,j,bc:(nn-1)*nsnw+bc:nsnw)/dens_snow(1:nn) )/a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
 
-                   ! Lose snow when dry to total mass ratio is more than 0.5
+                   ! Dry to total mass ratio
                    zvol = SUM( a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw) )/SUM( a_msnowp(k,i,j,bc:(nn-1)*nsnw+bc:nsnw) )
-                   IF ( zvol>0.5 ) THEN
-                      ! Move evaporating snow to a soluble aerosol bin with
-                      ! the closest match in dry particle mass. Ain't perfect but
-                      ! the bin update subroutine in SALSA will take care of the rest.
-                      zvol = SUM( a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw) ) ! Dry mass
-                      zvol=zvol/a_nsnowp(k,i,j,bc)
 
-                      ba=0
-                      zvola=-1.
-                      DO iba=in1a,fn2a
-                         IF (a_naerop(k,i,j,iba)>nlim) THEN
-                            zvolnew = SUM( a_maerop(k,i,j,iba:(nn-2)*nbins+iba:nbins) ) ! Dry mass
-                            zvolnew=zvolnew/a_naerop(k,i,j,iba)
-                            IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
-                                ! New closest match
-                                ba=iba
-                                zvola=zvolnew
-                            ENDIF
-                         ENDIF
+                   ! Lose particles smaller than 2e-6 m and particles which dry to total mass ratio is more than 0.5
+                   IF ( zvol>0.5  .OR. cd<2.e-6 ) THEN
+
+                      ! Move evaporating snow to aerosol bin based on dry radius and chemical composition
+
+                      ! 1) Find the closest matching bin based on dry particle radius (a and b bins)
+                      cd = 0.5*(SUM( a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw)/dens(1:nn-1) )/a_nsnowp(k,i,j,bc)/pi6)**(1./3.) ! Dry radius
+                      ba=in2a ! Ignore 1a and note that aerobins contains the lower limit of bin dry radius
+                      DO WHILE (cd>=aerobins(ba+1) .AND. ba<fn2a)
+                         ba=ba+1
                       ENDDO
-                      if (ba==0) STOP 'FAIL: no sink for evaporating snow'
+                      ! Corresponding b bin is ba+(fn2a-fn1a)=ba+fn2a-(in2a-1)=ba+fn2a-in2a+1
+                      bb=ba+fn2a-in2a+1
+                      ! 2) Select a or b bin
+                      IF (a_naerop(k,i,j,bb)*a_dn(k,i,j)<=nlim) THEN
+                         ! Empty b bin so select a
+                         !ba = ba
+                      ELSEIF (a_naerop(k,i,j,ba)*a_dn(k,i,j)<=nlim) THEN
+                         ! Empty a bin so select b
+                         ba = bb
+                      ELSE
+                         ! Both are present - find bin based on compositional similarity
+                         ra = calc_correlation(a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins),a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw),7)
+                         rb = calc_correlation(a_maerop(k,i,j,bb:(nn-2)*nbins+bb:nbins),a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw),7)
+                         IF (ra<rb) ba = bb
+                      ENDIF
 
                       ! Move the number of particles from snow to aerosol bins
                       a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nsnowp(k,i,j,bc)
@@ -1177,7 +1161,7 @@ end subroutine tstep_reset
 
              ! Loop over aerosol bins
              DO ba = 1,nbins
-                IF (a_naerop(k,i,j,ba) > nlim) THEN
+                IF (a_naerop(k,i,j,ba)*a_dn(k,i,j) > nlim) THEN
                    zvol = SUM( a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins)/dens(1:nn-1) )/a_naerop(k,i,j,ba) ! Dry volume
 
                    ! Particles smaller than 0.1 nm diameter are set to zero
@@ -1215,10 +1199,35 @@ end subroutine tstep_reset
        END DO   ! i
     END DO   ! j
 
+    diag_ra(:,:,:)=diag_ra(:,:,:)+( SUM(a_maerop(:,:,:,(nn-1)*nbins+1:nn*nbins),DIM=4)-tmp_ra(:,:,:) )/dtl
+    diag_na(:,:,:)=diag_na(:,:,:)+( SUM(a_naerop,DIM=4)-tmp_na(:,:,:) )/dtl
+    diag_rc(:,:,:)=diag_rc(:,:,:)+( SUM(a_mcloudp(:,:,:,(nn-1)*ncld+1:nn*ncld),DIM=4)-tmp_rc(:,:,:) )/dtl
+    diag_nc(:,:,:)=diag_nc(:,:,:)+( SUM(a_ncloudp,DIM=4)-tmp_nc(:,:,:) )/dtl
+    diag_rr(:,:,:)=diag_rr(:,:,:)+( SUM(a_mprecpp(:,:,:,(nn-1)*nprc+1:nn*nprc),DIM=4)-tmp_rr(:,:,:) )/dtl
+    diag_nr(:,:,:)=diag_nr(:,:,:)+( SUM(a_nprecpp,DIM=4)-tmp_nr(:,:,:) )/dtl
+    diag_ri(:,:,:)=diag_ri(:,:,:)+( SUM(a_micep(:,:,:,(nn-1)*nice+1:nn*nice),DIM=4)-tmp_ri(:,:,:) )/dtl
+    diag_ni(:,:,:)=diag_ni(:,:,:)+( SUM(a_nicep,DIM=4)-tmp_ni(:,:,:) )/dtl
+    diag_rs(:,:,:)=diag_rs(:,:,:)+( SUM(a_msnowp(:,:,:,(nn-1)*nsnw+1:nn*nsnw),DIM=4)-tmp_rs(:,:,:) )/dtl
+    diag_ns(:,:,:)=diag_ns(:,:,:)+( SUM(a_nsnowp,DIM=4)-tmp_ns(:,:,:) )/dtl
 
     !!!!!!!!!!!!!!!!!!!!!!!
     ! Update diagnostic tracers
     !!!!!!!!!!!!!!!!!!!!!!!
+
+    CALL SALSA_diag_update
+
+  END SUBROUTINE SALSA_diagnostics
+
+  !
+  ! ---------------------------------------------------------------------
+  ! SALSA_diag_update: Update diagnostic concentration tracers
+
+  SUBROUTINE SALSA_diag_update
+    USE class_ComponentIndex, ONLY : GetIndex
+    USE grid, ONLY : a_maerop,a_mcloudp,a_mprecpp,a_nprecpp, &
+            a_micep,a_msnowp,a_nsnowp, a_rc, a_srp,a_snrp, a_ri,a_srs,a_snrs,prtcl
+    USE mo_submctl, ONLY : nbins,in1a,fn2b,ncld,ica,fcb,nprc,ira,fra,nice,iia,fib,nsnw,isa,fsa
+    INTEGER :: nc, str, end
 
     ! Liquid water content
     nc = GetIndex(prtcl,'H2O')
@@ -1246,7 +1255,7 @@ end subroutine tstep_reset
     a_srs(:,:,:) = SUM(a_msnowp(:,:,:,str:end),DIM=4)
     a_snrs(:,:,:) = SUM(a_nsnowp(:,:,:,isa:fsa),DIM=4)
 
-  END SUBROUTINE SALSA_diagnostics
+  END SUBROUTINE SALSA_diag_update
 
 
 end module step

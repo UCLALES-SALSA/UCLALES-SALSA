@@ -58,7 +58,7 @@ advl.o: grid.o stat.o util.o
 srfc.o: grid.o stat.o defs.o thrm.o $(seqmpi:.f90=.o)
 prss.o: grid.o stat.o defs.o util.o $(seqmpi:.f90=.o)
 sgsm.o: grid.o stat.o defs.o util.o thrm.o $(seqmpi:.f90=.o)
-mcrp.o: grid.o stat.o defs.o thrm.o mo_submctl.o class_componentIndex.o
+mcrp.o: grid.o stat.o defs.o mo_submctl.o class_componentIndex.o
 step.o: grid.o stat.o util.o defs.o thrm.o sgsm.o srfc.o  \
         mcrp.o prss.o advf.o advl.o forc.o $(seqmpi:.f90=.o) \
         mo_salsa_driver.o mo_submctl.o class_componentIndex.o

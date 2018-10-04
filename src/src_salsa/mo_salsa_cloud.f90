@@ -437,11 +437,15 @@ CONTAINS
 
           paa = 4.*mwa*surfw0/(rg*rhowa*temp(ii,jj)) ! Kelvin effect [m]
 
-          ! Determine Dstar == critical diameter corresponding to the host model S
+          ! Determine Dstar == critical droplet diameter corresponding to the host model S
           zdcstar = 2.*paa/( 3.*( (prv(ii,jj)/prs(ii,jj))-1. ) )
           zvcstar = pi6*zdcstar**3
 
-          ! For insolubles zdstar = paa/(prv(ii,jj)/prs(ii,jj)-1.)
+          ! Note: this is valid for dilute droplets, which include all particles containing soluble
+          ! substances. Critical droplet diameter for a completely insoluble particle (DU or BC) is
+          !   zdstar = paa/(prv(ii,jj)/prs(ii,jj)-1.)
+          ! but dry particles should not be moved to cloud bins. Otherwise just assume that there
+          ! is enough soluble material so that the current approach is valid.
 
           ! Loop over cloud droplet (and aerosol) bins
           DO cb = ica%cur, fcb%cur
@@ -454,7 +458,8 @@ CONTAINS
              ENDIF
              pactd(cb)%numc = 0.d0
              pactd(cb)%volc(:) =0.d0
-             IF ( paero(ii,jj,ab)%numc < nlim) CYCLE
+             ! Dry particles are not activated (volume 1e-28 m^3 is less than that in a 1 nm droplet)
+             IF ( paero(ii,jj,ab)%numc < nlim .OR. paero(ii,jj,ab)%volc(8)<paero(ii,jj,ab)%numc*1e-28 ) CYCLE
              intrange = .FALSE.
 
              ! Define some parameters
@@ -834,7 +839,7 @@ CONTAINS
 
   !-----------------------------------------
   SUBROUTINE autoconv2(kproma,kbdim,klev,   &
-                      pcloud,pprecp,ptstep)
+                      pcloud,pprecp)
   !
   ! Uses a more straightforward method for converting cloud droplets to drizzle.
   ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
@@ -845,20 +850,16 @@ CONTAINS
                                ncld,        &
                                nprc,        &
                                pi6,         &
-                               nlim, prlim
+                               nlim, prlim, &
+                               autoc_rain_zd0, autoc_rain_sigmag
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kproma,kbdim,klev
-    REAL, INTENT(in) :: ptstep
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld)
     TYPE(t_section), INTENT(inout) :: pprecp(kbdim,klev,nprc)
 
     REAL :: Vrem, Nrem, Vtot, Ntot
     REAL :: dvg,dg
-
-    REAL, PARAMETER :: zd0 = 50.e-6
-    REAL, PARAMETER :: sigmag = 1.2
-
     INTEGER :: ii,jj,cc,ss
 
     DO jj = 1,klev
@@ -871,11 +872,11 @@ CONTAINS
              IF ( Ntot > nlim .AND. Vtot > 0. ) THEN
 
                 ! Volume geometric mean diameter
-                dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(sigmag)**2)/2. )
-                dg = dvg*EXP( -3.*LOG(sigmag)**2 )
+                dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(autoc_rain_sigmag)**2)/2. )
+                dg = dvg*EXP( -3.*LOG(autoc_rain_sigmag)**2 )
 
-                Vrem = Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) )
-                Nrem = Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )
+                Vrem = Vtot*( 1. - cumlognorm(dvg,autoc_rain_sigmag,autoc_rain_zd0) )
+                Nrem = Ntot*( 1. - cumlognorm(dg,autoc_rain_sigmag,autoc_rain_zd0) )
 
                 IF ( Vrem > 0. .AND. Nrem > prlim) THEN
 
@@ -906,366 +907,379 @@ CONTAINS
 
   !***********************************************
   ! Ice nucleation
-  ! Sources
-  !   Mor05   Morrison et al. (Journal of Aerosol Science, 62, 1665-1677, 2005)
-  !   KC00    Khvorostyanov and Curry (Geophysical Research letters, 27, 4081-4084, 2000)
-  !   KS98  Khvorostyanov and Sassen (Geophysical Research letters, 25, 3155-3158, 1998)
-  !   PK97  Pruppacher and Klett, Microphysics of Clouds and Precipitation, 1997
   !***********************************************
 
   SUBROUTINE ice_nucl_driver(kproma,kbdim,klev,   &
-                      paero,pcloud,pprecp,pice,psnow, &
-                      ptemp,ppres,prv,prsi,ptstep )
+                      paero,pcloud,pprecp,pice, &
+                      ptemp,prv,prs,prsi,ptstep)
 
     USE mo_submctl, ONLY : t_section,   &
-                               fn2b,   &
-                               ncld,        &
-                               nice,        &
-                               rhowa,       &
-                               rhoic,       &
-                               pi,          &
-                               nlim, prlim, &
-                               calc_Sw_eq, nprc, nsnw
+                               in2a, fn2b,  &
+                               ncld, nprc, nice,  &
+                               rhowa, rhoic,  &
+                               pi, nlim, prlim, &
+                               calc_Sw_eq, &
+                               ice_hom, ice_imm, ice_dep, &
+                               calc_correlation
 
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kproma,kbdim,klev
     REAL, INTENT(in) :: ptstep
     REAL, INTENT(in) :: ptemp(kbdim,klev),  &
-                            ppres(kbdim,klev),  &
                             prv(kbdim,klev),    &
+                            prs(kbdim,klev),    &
                             prsi(kbdim,klev)
 
     TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,fn2b), &
                                       pcloud(kbdim,klev,ncld), &
                                       pprecp(kbdim,klev,nprc), &
-                                      pice(kbdim,klev,nice), &
-                                      psnow(kbdim,klev,nsnw)
+                                      pice(kbdim,klev,nice)
 
-    INTEGER :: ii,jj,kk,ss,ba
-    REAL :: pf, jf, Sw, Si, rn, rw, frac, pw, zvol, zvola, zvolnew
-    LOGICAL :: isdry
+    ! Which species are allowed to freeze
+    LOGICAL, PARAMETER :: ice_aerosol = .TRUE., ice_cloud = .TRUE., ice_precip = .TRUE.
+    ! Maximum temperature (K) for homogeneous nucleation
+    REAL, PARAMETER :: tmax_homog=243.15
 
-    ! Flags (adjust with the nucleation parameters):
-    !   Which species can nucleate ice
-    LOGICAL :: aerosol_ice = .FALSE., cloud_ice = .TRUE., precip_ice = .TRUE.
-    !   Which nucleation modes are used (contact freezing not implemented)
-    LOGICAL :: ice_hom = .TRUE., ice_imm=.TRUE., ice_dep=.FALSE.
-    !   Other options
-    !REAL :: tmax_homog=243.15 ! Maximum temperature for homogenous nucleation
+    INTEGER :: ii,jj,kk,ss,bb
+    REAL :: pf_imm, pf_dep, pf_hom, jf
+    REAL :: Sw_eq, Si, rn, rw, frac, zvol, ra, rb
+
+    ! Ice nucleation modes
+    ! 1) Homogeneous freezing: possible for any aqueous droplet with or without insoluble species (DU or BC)
+    ! 2) Immersion freezing: possible for aqueous droplets that have an insoluble core (DU or BC)
+    ! 3) Deposition freezing: possible for dry insoluble aerosol at sub-saturated conditions (RH < 100%)
+    ! 4) Contact freezing: not implemented, because most INPs are immersed in liquid droplets
+    ! 5) Condensation freezing: not implemented, because these droplets can freeze during the modelled condensational growth
 
     DO ii = 1,kbdim
-        DO jj = 1,klev
-            if (ptemp(ii,jj) > 273.15) cycle
+    DO jj = 1,klev
+        if (ptemp(ii,jj) > 273.15) cycle
 
-            ! Precipitation
-            DO kk = 1,nprc
-              IF (pprecp(ii,jj,kk)%numc<prlim .OR. .NOT.precip_ice) CYCLE
+        ! Precipitation
+        ! ------------
+        ! Always aqueous, so homogeneous and immersion freezing modes are possible
+        DO kk = 1,nprc
+            IF (pprecp(ii,jj,kk)%numc<prlim .OR. .NOT.ice_precip) CYCLE
 
-              ! Radius of the insoluble portion of the droplet
-              rn = MAX(0., (3.*sum(pprecp(ii,jj,kk)%volc(3:4))/pprecp(ii,jj,kk)%numc/4./pi)**(1./3.) )
-              ! Droplet radius
-              rw = (3.*sum(pprecp(ii,jj,kk)%volc(:))/pprecp(ii,jj,kk)%numc/4./pi)**(1./3.)
-              ! Equilibrium saturation ratio
-              Sw = calc_Sw_eq(pprecp(ii,jj,kk),ptemp(ii,jj))
+            ! Radius of the insoluble portion of the droplet
+            rn = MAX(0., (3.*sum(pprecp(ii,jj,kk)%volc(3:4))/pprecp(ii,jj,kk)%numc/4./pi)**(1./3.) )
+            ! Droplet radius
+            rw = (3.*sum(pprecp(ii,jj,kk)%volc(:))/pprecp(ii,jj,kk)%numc/4./pi)**(1./3.)
+            ! Equilibrium saturation ratio
+            Sw_eq = calc_Sw_eq(pprecp(ii,jj,kk),ptemp(ii,jj))
 
-              IF (rn>1.e-10 .AND. ice_imm) THEN
-                ! Immersion and condensation freezing
-                jf = calc_Jcf(rn,ptemp(ii,jj),Sw)
-                pf = 1. - exp( -jf*ptstep )
-              ELSEIF (rn<1.e-10 .AND. ice_hom) THEN
+            ! Immersion freezing
+            pf_imm = 0.
+            IF (rn>1e-10 .AND. ice_imm) THEN
+                jf = calc_Jhet(rn,ptemp(ii,jj),Sw_eq)
+                pf_imm = 1. - exp( -jf*ptstep )
+            ENDIF
+
+            ! Homogeneous freezing
+            pf_hom = 0.
+            IF (rw-rn>1e-10 .AND. ptemp(ii,jj)<tmax_homog .AND. ice_hom) THEN
+                jf = calc_Jhf(ptemp(ii,jj),Sw_eq)
+                pf_hom = 1. - exp( -jf*4./3.*pi*(rw**3-rn**3)*ptstep )
+            ENDIF
+
+            frac = MIN(1.,pf_imm+pf_hom-pf_imm*pf_hom)
+            IF (pprecp(ii,jj,kk)%numc*frac <prlim) CYCLE
+
+            ! Move to ice bin with closest matching bin dry volume (%core) and select a or b bin based on composition (%volc(1:7)).
+            ! Ain't perfect but the bin update subroutine in SALSA will take care of the rest.
+            zvol = SUM( pprecp(ii,jj,kk)%volc(1:7) )/pprecp(ii,jj,kk)%numc ! Dry volume
+
+            ! 1) Find the closest matching bin dry volume
+            bb=1
+            DO ss=2,nice/2 ! a and b bins have the same core sizes
+                IF (abs(pice(ii,jj,ss)%core-zvol)<abs(pice(ii,jj,bb)%core-zvol)) bb=ss
+            ENDDO
+            ! 2) Select a or b bin
+            IF (pice(ii,jj,bb+nice/2)%numc<=prlim) THEN
+                ! Empty b bin so select a
+                !bb = bb
+            ELSEIF (pice(ii,jj,bb)%numc<=prlim) THEN
+                ! Empty a bin so select b
+                bb = bb + nice/2
+            ELSE
+                ! Both are present - find bin based on compositional similarity
+                ra = calc_correlation(pice(ii,jj,bb)%volc(1:7),pprecp(ii,jj,kk)%volc(1:7),7)
+                rb = calc_correlation(pice(ii,jj,bb+nice/2)%volc(1:7),pprecp(ii,jj,kk)%volc(1:7),7)
+                IF (ra<rb) bb = bb + nice/2
+            ENDIF
+
+            pice(ii,jj,bb)%volc(1:7) = max(0.,pice(ii,jj,bb)%volc(1:7) + pprecp(ii,jj,kk)%volc(1:7)*frac)
+            pprecp(ii,jj,kk)%volc(1:7) = max(0.,pprecp(ii,jj,kk)%volc(1:7) - pprecp(ii,jj,kk)%volc(1:7)*frac)
+            pice(ii,jj,bb)%volc(8) = max(0.,pice(ii,jj,bb)%volc(8) + pprecp(ii,jj,kk)%volc(8)*frac*rhowa/rhoic)
+            pprecp(ii,jj,kk)%volc(8) = max(0.,pprecp(ii,jj,kk)%volc(8) - pprecp(ii,jj,kk)%volc(8)*frac)
+
+            pice(ii,jj,bb)%numc = max(0.,pice(ii,jj,bb)%numc + pprecp(ii,jj,kk)%numc*frac)
+            pprecp(ii,jj,kk)%numc = max(0.,pprecp(ii,jj,kk)%numc-pprecp(ii,jj,kk)%numc*frac)
+
+        end do
+
+
+        ! Cloud droplets
+        ! --------------
+        ! Always aqueous, so homogeneous and immersion freezing modes are possible
+        DO kk = 1,ncld
+            IF (pcloud(ii,jj,kk)%numc<nlim .OR. .NOT.ice_cloud) CYCLE
+
+            ! Radius of the insoluble portion of the droplet
+            rn = MAX(0., (3.*sum(pcloud(ii,jj,kk)%volc(3:4))/pcloud(ii,jj,kk)%numc/4./pi)**(1./3.) )
+            ! Droplet radius
+            rw = (3.*sum(pcloud(ii,jj,kk)%volc(:))/pcloud(ii,jj,kk)%numc/4./pi)**(1./3.)
+            ! Equilibrium saturation ratio
+            Sw_eq = calc_Sw_eq(pcloud(ii,jj,kk),ptemp(ii,jj))
+
+            ! Immersion freezing
+            pf_imm = 0.
+            IF (rn>1e-10 .AND. ice_imm) THEN
+                jf = calc_Jhet(rn,ptemp(ii,jj),Sw_eq)
+                pf_imm = 1. - exp( -jf*ptstep )
+            ENDIF
+
+            ! Homogeneous freezing
+            pf_hom = 0.
+            IF (rw-rn>1e-10 .AND. ptemp(ii,jj)<tmax_homog .AND. ice_hom) THEN
+                jf = calc_Jhf(ptemp(ii,jj),Sw_eq)
+                pf_hom = 1. - exp( -jf*4./3.*pi*(rw**3-rn**3)*ptstep )
+            ENDIF
+
+            frac = MIN(1.,pf_imm+pf_hom-pf_imm*pf_hom)
+            IF (pcloud(ii,jj,kk)%numc*frac <prlim) CYCLE
+
+            ! Move to the parallel ice bin
+            pice(ii,jj,kk)%volc(1:7) = max(0.,pice(ii,jj,kk)%volc(1:7) + pcloud(ii,jj,kk)%volc(1:7)*frac)
+            pcloud(ii,jj,kk)%volc(1:7) = max(0.,pcloud(ii,jj,kk)%volc(1:7) - pcloud(ii,jj,kk)%volc(1:7)*frac)
+            pice(ii,jj,kk)%volc(8) = max(0.,pice(ii,jj,kk)%volc(8) + pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhoic)
+            pcloud(ii,jj,kk)%volc(8) = max(0.,pcloud(ii,jj,kk)%volc(8) - pcloud(ii,jj,kk)%volc(8)*frac)
+
+            pice(ii,jj,kk)%numc = max(0.,pice(ii,jj,kk)%numc + pcloud(ii,jj,kk)%numc*frac)
+            pcloud(ii,jj,kk)%numc = max(0.,pcloud(ii,jj,kk)%numc-pcloud(ii,jj,kk)%numc*frac)
+        END DO
+
+
+        ! Aerosol
+        ! -------
+        ! Insoluble particles are possible, so all freezing modes are possible
+        DO kk = in2a, fn2b
+            IF (paero(ii,jj,kk)%numc<nlim .OR. .NOT.ice_aerosol) CYCLE
+
+            ! Radius of the insoluble portion of the droplet
+            rn = MAX(0., (3.*sum(paero(ii,jj,kk)%volc(3:4))/paero(ii,jj,kk)%numc/4./pi)**(1./3.) )
+            ! Droplet radius
+            rw = (3.*sum(paero(ii,jj,kk)%volc(:))/paero(ii,jj,kk)%numc/4./pi)**(1./3.)
+            ! Equilibrium saturation ratio
+            Sw_eq = calc_Sw_eq(paero(ii,jj,kk),ptemp(ii,jj))
+
+            ! Immersion (aqueous aerosol) or deposition (dry insoluble aerosol) freezing
+            pf_imm = 0.
+            pf_dep = 0.
+            IF (rn>1e-10 .AND. rw-rn>1e-10 .AND. ice_imm) THEN
+                jf = calc_Jhet(rn,ptemp(ii,jj),Sw_eq)
+                pf_imm = 1. - exp( -jf*ptstep )
+            ELSEIF (rn>1e-10 .AND. rw-rn<1e-10 .AND. prv(ii,jj)/prs(ii,jj)<1.0 .AND. ice_dep) THEN
+                Si=prv(ii,jj)/prsi(ii,jj) ! Water vapor saturation ratio over ice
+                jf = calc_Jdep(rn,ptemp(ii,jj),Si)
+                pf_dep = 1. - exp( -jf*ptstep )
+            ENDIF
+
+            ! Homogeneous freezing
+            pf_hom = 0.
+            IF (rw-rn>1e-10 .AND. ptemp(ii,jj)<tmax_homog .AND. ice_hom) THEN
                 ! Homogeneous freezing
-                jf = calc_Jhf(ptemp(ii,jj),Sw)
-                pf = 1. - exp( -jf*4./3.*pi*(rw**3-rn**3)*ptstep )
-              ELSE
-                pf = 0.
-              ENDIF
+                jf = calc_Jhf(ptemp(ii,jj),Sw_eq)
+                pf_hom = 1. - exp( -jf*4./3.*pi*(rw**3-rn**3)*ptstep )
+            ENDIF
 
-              frac = MIN(1.,pf)
-              IF (pprecp(ii,jj,kk)%numc*frac <prlim) CYCLE
+            frac = MIN(1.,pf_imm+pf_hom+pf_dep-(pf_imm+pf_dep)*pf_hom)
+            IF (paero(ii,jj,kk)%numc*frac <prlim) CYCLE
 
-              ! Move to ice bin with closest matching dry volume. Ain't perfect but
-              ! the bin update subroutine in SALSA will take care of the rest.
-              zvol = SUM( pprecp(ii,jj,kk)%volc(1:7) ) ! Dry volume
+            ! Move to the parallel ice bin
+            bb = kk-in2a+1
+            pice(ii,jj,bb)%volc(1:7) = max(0.,pice(ii,jj,bb)%volc(1:7) + paero(ii,jj,kk)%volc(1:7)*frac)
+            paero(ii,jj,kk)%volc(1:7) = max(0.,paero(ii,jj,kk)%volc(1:7) - paero(ii,jj,kk)%volc(1:7)*frac)
+            pice(ii,jj,bb)%volc(8) = max(0.,pice(ii,jj,bb)%volc(8) + paero(ii,jj,kk)%volc(8)*frac*rhowa/rhoic)
+            paero(ii,jj,kk)%volc(8) = max(0.,paero(ii,jj,kk)%volc(8) - paero(ii,jj,kk)%volc(8)*frac)
 
-              ba=0
-              zvola=-1.
-              DO ss=1,nice
-                IF (pice(kk,ii,ss)%numc>prlim) THEN
-                    zvolnew = SUM( pice(ii,jj,ss)%volc(1:7) ) ! Dry volume
-                    IF (abs(zvolnew-zvol)<abs(zvola-zvol)) THEN
-                        ! New closest match
-                        ba=ss
-                        zvola=zvolnew
-                    ENDIF
-                ENDIF
-              ENDDO
-              if (ba==0) STOP 'FAIL: no target ice for freezing rain drops'
+            pice(ii,jj,bb)%numc = max(0.,pice(ii,jj,bb)%numc + paero(ii,jj,kk)%numc*frac)
+            paero(ii,jj,kk)%numc = max(0.,paero(ii,jj,kk)%numc-paero(ii,jj,kk)%numc*frac)
+        END DO
 
-              DO ss = 1,7
-                   pice(ii,jj,ba)%volc(ss) = max(0.,pice(ii,jj,ba)%volc(ss) + pprecp(ii,jj,kk)%volc(ss)*frac)
-                   pprecp(ii,jj,kk)%volc(ss) = max(0.,pprecp(ii,jj,kk)%volc(ss) - pprecp(ii,jj,kk)%volc(ss)*frac)
-              END DO
-              ss=8
-              pice(ii,jj,ba)%volc(ss) = max(0.,pice(ii,jj,ba)%volc(ss) + pprecp(ii,jj,kk)%volc(ss)*frac*rhowa/rhoic)
-              pprecp(ii,jj,kk)%volc(ss) = max(0.,pprecp(ii,jj,kk)%volc(ss) - pprecp(ii,jj,kk)%volc(ss)*frac)
-
-              pice(ii,jj,ba)%numc = max(0.,pice(ii,jj,ba)%numc + pprecp(ii,jj,kk)%numc*frac)
-              pprecp(ii,jj,kk)%numc = max(0.,pprecp(ii,jj,kk)%numc-pprecp(ii,jj,kk)%numc*frac)
-            end do
-
-            ! Cloud droplets
-            DO kk = 1,ncld
-              IF (pcloud(ii,jj,kk)%numc<nlim .OR. .NOT.cloud_ice) CYCLE
-
-              ! Radius of the insoluble portion of the droplet
-              rn = MAX(0., (3.*sum(pcloud(ii,jj,kk)%volc(3:4))/pcloud(ii,jj,kk)%numc/4./pi)**(1./3.) )
-              ! Droplet radius
-              rw = (3.*sum(pcloud(ii,jj,kk)%volc(:))/pcloud(ii,jj,kk)%numc/4./pi)**(1./3.)
-              ! Equilibrium saturation ratio
-              Sw = calc_Sw_eq(pcloud(ii,jj,kk),ptemp(ii,jj))
-              ! Is it dry?
-              isdry = (pcloud(ii,jj,kk)%volc(8)<1e-20)
-
-              IF (isdry .AND. ice_dep) THEN
-                ! Deposition freezing
-                Si=prv(ii,jj)/prsi(ii,jj)
-                pw=prv(ii,jj)*ppres(ii,jj)/(0.622-prv(ii,jj))
-                jf = calc_Jdep(rn,ptemp(ii,jj),Si,pw)
-                pf = 1. - exp( -jf*ptstep )
-              ELSEIF (rn>1.e-10 .AND. ice_imm) THEN
-                ! Immersion and condensation freezing
-                jf = calc_Jcf(rn,ptemp(ii,jj),Sw)
-                pf = 1. - exp( -jf*ptstep )
-              ELSEIF (rn<1.e-10 .AND. ice_hom) THEN
-                ! Homogeneous freezing
-                jf = calc_Jhf(ptemp(ii,jj),Sw)
-                pf = 1. - exp( -jf*4./3.*pi*(rw**3-rn**3)*ptstep )
-              ELSE
-                pf = 0.
-              ENDIF
-
-              frac = MIN(1.,pf)
-              IF (pcloud(ii,jj,kk)%numc*frac <prlim) CYCLE
-  
-              DO ss = 1,7
-                   pice(ii,jj,kk)%volc(ss) = max(0.,pice(ii,jj,kk)%volc(ss) + pcloud(ii,jj,kk)%volc(ss)*frac)
-                   pcloud(ii,jj,kk)%volc(ss) = max(0.,pcloud(ii,jj,kk)%volc(ss) - pcloud(ii,jj,kk)%volc(ss)*frac)
-              END DO
-              ss=8
-              pice(ii,jj,kk)%volc(ss) = max(0.,pice(ii,jj,kk)%volc(ss) + pcloud(ii,jj,kk)%volc(ss)*frac*rhowa/rhoic)
-              pcloud(ii,jj,kk)%volc(ss) = max(0.,pcloud(ii,jj,kk)%volc(ss) - pcloud(ii,jj,kk)%volc(ss)*frac)
-
-              pice(ii,jj,kk)%numc = max(0.,pice(ii,jj,kk)%numc + pcloud(ii,jj,kk)%numc*frac)
-              pcloud(ii,jj,kk)%numc = max(0.,pcloud(ii,jj,kk)%numc-pcloud(ii,jj,kk)%numc*frac)
-            END DO
-
-            ! Aerosol
-            DO kk = 1, fn2b
-              IF (paero(ii,jj,kk)%numc<nlim .OR. .NOT.aerosol_ice) CYCLE
-
-              ! Radius of the insoluble portion of the droplet
-              rn = MAX(0., (3.*sum(paero(ii,jj,kk)%volc(3:4))/paero(ii,jj,kk)%numc/4./pi)**(1./3.) )
-              ! Droplet radius
-              rw = (3.*sum(paero(ii,jj,kk)%volc(:))/paero(ii,jj,kk)%numc/4./pi)**(1./3.)
-              ! Equilibrium saturation ratio
-              Sw = calc_Sw_eq(paero(ii,jj,kk),ptemp(ii,jj))
-              ! Is it dry?
-              isdry = (paero(ii,jj,kk)%volc(8)<1e-20)
-
-              IF (isdry .AND. ice_dep) THEN
-                ! Deposition freezing
-                Si=prv(ii,jj)/prsi(ii,jj)
-                pw=prv(ii,jj)*ppres(ii,jj)/(0.622-prv(ii,jj))
-                jf = calc_Jdep(rn,ptemp(ii,jj),Si,pw)
-                pf = 1. - exp( -jf*ptstep )
-              ELSEIF (rn>1.e-10 .AND. ice_imm) THEN
-                ! Immersion and condensation freezing
-                jf = calc_Jcf(rn,ptemp(ii,jj),Sw)
-                pf = 1. - exp( -jf*ptstep )
-              ELSEIF (rn<1.e-10 .AND. ice_hom) THEN
-                ! Homogeneous freezing
-                jf = calc_Jhf(ptemp(ii,jj),Sw)
-                pf = 1. - exp( -jf*4./3.*pi*(rw**3-rn**3)*ptstep )
-              ELSE
-                pf = 0.
-              ENDIF
-
-              frac = MIN(1.,pf)
-              IF (paero(ii,jj,kk)%numc*frac <prlim) CYCLE
-
-              DO ss = 1,7
-                   pice(ii,jj,kk)%volc(ss) = max(0.,pice(ii,jj,kk)%volc(ss) + paero(ii,jj,kk)%volc(ss)*frac)
-                   paero(ii,jj,kk)%volc(ss) = max(0.,paero(ii,jj,kk)%volc(ss) - paero(ii,jj,kk)%volc(ss)*frac)
-              END DO
-              ss=8
-              pice(ii,jj,kk)%volc(ss) = max(0.,pice(ii,jj,kk)%volc(ss) + paero(ii,jj,kk)%volc(ss)*frac*rhowa/rhoic)
-              paero(ii,jj,kk)%volc(ss) = max(0.,paero(ii,jj,kk)%volc(ss) - paero(ii,jj,kk)%volc(ss)*frac)
-
-              pice(ii,jj,kk)%numc = max(0.,pice(ii,jj,kk)%numc + paero(ii,jj,kk)%numc*frac)
-              paero(ii,jj,kk)%numc = max(0.,paero(ii,jj,kk)%numc-paero(ii,jj,kk)%numc*frac)
-            END DO
-       END DO
+    END DO
     END DO
 
   END SUBROUTINE ice_nucl_driver
 
 
-  REAL FUNCTION calc_Jcf(rn,temp,Sw)
-    ! The rate of germ formation (#/s) through condensation (or immersion) freezing
-    !   Khvorostyanov and Curry, Geophys. Res. Lett., 27, 4081-4084, 2000 [KC00]
-    ! - "Freezing" mode includes condensation, contact and immersion freezing modes
-    USE mo_submctl, ONLY : boltz, planck, pi, rg, mwa, surfw0, avog
+  !
+  ! Ice nucleation based on Khvorostyanov and Curry, Geophys. Res. Lett., 27, 4081-4084, 2000 [KC00] and
+  ! Khvorostyanov and Sassen, Geophys. Res. Lett., 25, 3155-3158, 1998 [KS98]
+  !
+
+  REAL FUNCTION calc_Jhet(rn,temp,Sw)
+    ! The rate of germ formation (#/s) through heterogeneous freezing following
+    ! Khvorostyanov and Curry, Geophys. Res. Lett., 27, 4081-4084, 2000 [KC00]
+    ! Additional parameters from
+    ! Khvorostyanov and Curry, J. Atmos. Sci., 61, 2676-2691, 2004 [KC04]
+    ! Khvorostyanov and Sassen, Geophys. Res. Lett., 25, 3155-3158, 1998 [KS98]
+    ! Jeffery and Austin, J. Geophys. Res., 102, 25269-25279, 1997
+    ! Li et al., J. Geophys. Res., 118, 11213-11227, 2013
+    ! - Here heterogeneos freezing includes just immersion freezing mode
+    USE mo_submctl, ONLY : boltz, planck, pi, rg, mwa, avog
     IMPLICIT NONE
     REAL, INTENT(in) :: rn,temp,Sw
 
-    REAL :: Tc, sigma_is, Lefm, act_energy, GG, r_g, x, fii, fpsi, sf, crit_energy
-    REAL, PARAMETER :: & ! More or less constant parameters
-            epsi = 0., & ! Elastic strain produced in ice embryo by the insoluble substrate (set to zero)
+    REAL :: Tc, act_energy, Lefm, GG, sigma_is, r_g, sf, crit_energy
+    REAL, PARAMETER :: & ! Constants
             C = 1.7e10, & ! Constant (1.7e11 dyn cm^-2 = 1.7e11*1e-5/1e-4 N m^-2 = 1.7e10 N m^-2)
-            mis = 0.5, & ! Cosine of the contact angle (wettability parameter) at the solution-ice interface (adjustable)
-            alpha = 0.0, & ! Relative area of active sites (adjustable)
             rho_ice = 900., & ! Density of ice (kg/m^3)
             c_1s = 1e19, & ! The concentration of water molecules adsorbed on 1 m^2 a surface (#/m^2)
             T0 = 273.15 ! 0 C in Kelvins
+    REAL, PARAMETER :: & ! Case-dependent parameters
+            epsi = 0., & ! Elastic strain produced in ice embryo by the insoluble substrate
+            alpha = 0.0, & ! Relative area of active sites
+            mis = 0.5 ! Cosine of the contact angle
+
+    calc_Jhet = 0.
+
+    ! Must have a core
+    IF (rn<1e-10) RETURN
 
     Tc = temp-T0 ! Temperature in Celsius
 
-    IF (rn<1e-10) THEN
-        ! Homogenous freezing not considered here
-        calc_Jcf = 0.
-        RETURN
-    ENDIF
+    ! Activation energy (case-dependent)
+    !   Eq. 15 in Jeffery and Austin (1997) and parameters for p=1 bar (Table 2) - used in KC04
+    act_energy = rg*temp*(347./(temp-177.)-log(4.14/349.))/avog
+    !   Khvorostyanov and Sassen (1998) for T < -30 C - used in KC00
+    !act_energy = 0.694e-19 * (1.+ 0.027*(Tc+30.))
+    !   Eq. 2 in Li et al. (2013)
+    !IF (Tc<=-30.0) THEN
+    !    act_energy = 0.694e-19 * (1.+ 0.027*(Tc+30.))
+    !ELSE
+    !    act_energy = 5.55*exp(-8.423e-3*Tc+6.384e-4*Tc**2+7.891e-6*Tc**3)/avog*4.1868e3
+    !ENDIF
 
-    ! Activation energy at the solution-ice interface
-    IF (Tc<=-30.0) THEN
-        !  KS98, when T < -30 C, homogenous nucleation (erg = 1e-7 J)
-        act_energy = 0.694e-19 * (1.+ 0.027*(Tc+30.))
-    ELSE
-        ! Li et al. (JGR, 118, 11213-11227, doi:0.1002/jgrd.50861, 2013)
-        act_energy = 5.55*exp(-8.423e-3*Tc+6.384e-4*Tc**2+7.891e-6*Tc**3)/avog*4.1868e3
-    ENDIF
-
-    ! Critical energy of germ formation (eq. 2.10 in KC00)
+    ! Critical energy of germ formation
     ! a) Ice germ radius (eq. 2.6 in KC00)
-    Lefm = (79.7+0.708*Tc-2.5e-3*Tc**2)*4.1868e3 ! Effective latent heat of melting (eq. 6 in KS98; cal/g=4.1868e3 J/kg)
+    Lefm = (79.7+0.708*Tc-2.5e-3*Tc**2)*4.1868e3 ! Effective latent heat of melting (eq. 6 in KS98)
     GG = rg*temp/mwa/Lefm ! Eq 2.7 in KC00
-    sigma_is = 28e-3+0.25e-3*Tc ! Surface tension of ice at the ice-solution interface (from KS98)
+    IF ( (T0/temp)*Sw**GG<1.0001 ) RETURN
+    sigma_is = 28e-3+0.25e-3*Tc ! Surface tension between ice and solution (from KS98)
     r_g = 2.*sigma_is/( rho_ice*Lefm*log((T0/temp)*Sw**GG)-C*epsi**2)
-    IF (r_g<=0. .OR. (T0/temp)*Sw**GG<1.0001) THEN
-        ! Must be positive
-        calc_JCF = 0.
-        RETURN
-    ENDIF
-    ! b) Shape factor (eq 2.9 in KC00)
-    x = rn/r_g
-    fii = sqrt(1.-2.*mis*x+x**2)
-    fpsi = (x-mis)/fii
-    sf = 0.5* (1. + ( ( 1.-mis*x)/fii)**3 + (2.-3.*fpsi+fpsi**3)*x**3 + 3.*mis*(fpsi-1.)*x**2)
-    ! Critical energy (eq. 2.10)
+    IF (r_g<=1e-10) RETURN
+    ! b) Shape factor (eq. 2.9 in KC00)
+    sf=calc_het_sf(rn/r_g,mis)
+    ! c) Critical energy (eq. 2.10 in KC00)
     crit_energy = 4.*pi/3.*sigma_is*r_g**2*sf-alpha*(1-mis)*rn**2
 
     ! Eq 2.1 in KC00
-    calc_JCF= boltz*temp/planck*c_1s*4.*pi*rn**2*exp((-act_energy-crit_energy)/(boltz*temp))
+    calc_Jhet= boltz*temp/planck*c_1s*4.*pi*rn**2*exp((-act_energy-crit_energy)/(boltz*temp))
 
-  END FUNCTION calc_JCF
+  END FUNCTION calc_Jhet
 
 
-  REAL FUNCTION calc_Jdep(rn,temp,Si,pw)
-    ! The rate of germ formation (#/s) through deposition freezing
-    !   Hoose et al., J. Atmos. Sci., 67, 2483-2503, 2010
-    ! See also:
-    !   Chen et al., Atmos. Chem. Phys., 8, 7431-7449, 2008
-    !   Khvorostyanov and Curry, Geophys. Res. Lett., 27, 4081-4084, 2000 [KC00]
-    ! - Requires solid surface and supersaturation
-    !
-    USE mo_submctl, ONLY : boltz, planck, pi, rg, mwa, rhowa, surfw0, avog
+  REAL FUNCTION calc_Jdep(rn,temp,Si)
+    ! The rate of germ formation (#/s) through deposition freezing following
+    ! Khvorostyanov and Curry, Geophys. Res. Lett., 27, 4081-4084, 2000 [KC00]
+    ! Additional parameters from
+    ! Hoose et al., J. Atmos. Sci., 67, 2483-2503, 2010 [Ho10]
+    USE mo_submctl, ONLY : boltz, pi, rg, mwa
     IMPLICIT NONE
-    REAL, INTENT(in) :: rn,temp,Si,pw
-    REAL :: Tc, act_energy, sigma_iv, vw, mw, r_g , x, fii, fpsi, sf, crit_energy
-    REAL, PARAMETER :: & ! More or less constant parameters
-            mis = 0.5, & ! Cosine of the contact angle (wettability parameter) at the solution-ice interface (adjustable)
-            T0 = 273.15, & ! 0 C in Kelvins
-            vs = 1e13 ! Frequency of vibration of water vapor molecule adsorbed on solid substrate (1/s)
+    REAL, INTENT(in) :: rn,temp,Si
+
+    REAL :: Tc, act_energy, sigma_iv, r_g, sf, crit_energy
+    REAL, PARAMETER :: & ! Constants
+            C = 1.7e10, & ! Constant (1.7e11 dyn cm^-2 = 1.7e11*1e-5/1e-4 N m^-2 = 1.7e10 N m^-2)
+            rho_ice = 900., & ! Density of ice (kg/m^3)
+            T0 = 273.15 ! 0 C in Kelvins
+    REAL, PARAMETER :: & ! Case-dependent parameters
+            epsi = 0., & ! Elastic strain produced in ice embryo by the insoluble substrate
+            mis = 0.5 ! Cosine of the contact angle
+
+    calc_Jdep = 0.
+
+    ! Must have a core and supersaturation over ice
+    IF (rn<1e-10 .OR. Si<1.0001) RETURN
 
     Tc = temp-T0 ! Temperature in Celsius
 
-    IF (rn<=0. .OR. Si<=1.0001) THEN
-        ! A core is required and supersaturaturation over ice
-        calc_Jdep = 0.
-        RETURN
-    ENDIF
-
-     ! Activation energy for deposition nucleation
+    ! Activation energy (case-dependent)
+    !   Set to zero in KC00
     act_energy = 0.
 
-    ! Critical energy of germ formation (eq. 2.12 in KC00)
-    ! a) Ice germ radius (eq. 2.12 in KC00)
-    sigma_iv = ( (76.1-0.155*Tc) + (28.5+0.25*Tc) )*1e-3 ! Hoose et al. (2010)
-    vw = mwa/rhowa ! Volume of mole of water (m^3/mol)
-    mw = mwa/avog ! Mass of water molecule (kg)
-    r_g = 2.*vw*sigma_iv/( rg*temp*log(Si) ) ! Eq. 8 (Hoose et al., 2010)
-    IF (r_g<=0.) THEN
-        ! Must be positive
-        calc_Jdep = 0.
-        RETURN
-    ENDIF
-    ! b) Shape factor (eq 2.9 in KC00 or Eq 2 in Hoose et al.)
-    x = rn/r_g
-    fii = sqrt(1.-2.*mis*x+x**2)
-    fpsi = (x-mis)/fii
-    sf = 0.5* (1. + ( ( 1.-mis*x)/fii)**3 + (2.-3.*fpsi+fpsi**3)*x**3 + 3.*mis*(fpsi-1.)*x**2)
-    ! Critical energy
+    ! Critical energy of germ formation
+    ! a) Ice germ radius (based on eq. 2.12 in KC00)
+    sigma_iv = ( (76.1-0.155*Tc) + (28.5+0.25*Tc) )*1e-3 ! Surface tension between ice and vapor (from Ho10)
+    r_g = 2.*sigma_iv/( rg*rho_ice/mwa*temp*log(Si)-C*epsi**2)   ! R_v=R*rho_ice/M_ice
+    IF (r_g<=1e-10) RETURN
+    ! b) Shape factor (eq. 2.9 in KC00)
+    sf=calc_het_sf(rn/r_g,mis)
+    ! c) Critical energy (eq. 2.12 in KC00)
     crit_energy = 4.*pi/3.*sigma_iv*r_g**2*sf
 
-    ! Eqs 1 and 10
-    calc_Jdep= (pw**2*vw/(mw*boltz*temp*vs)*sqrt(sigma_iv/boltz/temp))*rn**2*sqrt(sf)*exp((-act_energy-crit_energy)/(boltz*temp))
+    ! Eq 2.13 in KC00
+    !   The pre-exponential factor (kineticc oefficient) is about (1e26 cm^-2)*rn**2
+    calc_Jdep = 1e30*rn**2*exp((-act_energy-crit_energy)/(boltz*temp))
 
   END FUNCTION calc_Jdep
 
 
-
   REAL FUNCTION calc_Jhf(temp,Sw)
-    ! Homogeneous freezing based on Khovosrotyanov and Sassen, Geophys. Res. Lett., 25, 3155-3158, 1998 [KS98]
-    ! - Must have an aqueous phase
-    ! - Important for low temperatures (<243 K)
-    !
+    ! Homogeneous freezing based on Khvorostyanov and Sassen, Geophys. Res. Lett., 25, 3155-3158, 1998 [KS98]
     USE mo_submctl, ONLY : boltz, planck, pi, mwa, rhowa, rg
     IMPLICIT NONE
     REAL, intent(in) :: temp, Sw ! Temperature (K) and water vapor saturation ratio
+
     REAL :: Tc, act_energy, Lefm, GG, sigma_is, r_g, crit_energy
-    REAL, PARAMETER :: &
-        Nc=5.85e16, & ! The number of water molecules contacting unit area of ice germ (#/m^2) [from KC00]
-        T0 = 273.15, & ! 0 C in Kelvins
-        rho_ice = 900. ! Density of ice (kg/m^3)
+    REAL, PARAMETER :: & ! Constants
+            Nc=5.85e16, & ! The number of water molecules contacting unit area of ice germ (#/m^2) [from KC00]
+            rho_ice = 900., & ! Density of ice (kg/m^3)
+            T0 = 273.15 ! 0 C in Kelvins
+
+    calc_Jhf = 0.
 
     Tc = temp-T0 ! Temperature in Celsius
 
-    ! Activation energy at the solution-ice interface (erg = 1e-7 J)
+    ! Activation energy (case-dependent)
+    !   Khvorostyanov and Sassen (1998) for T < -30 C
     act_energy = 0.694e-19 * (1.+ 0.027*(Tc+30.))
 
-    ! Critical energy of germ formation (eq. 9b in KS98)
-    ! a) Ice germ radius (eq. 9a in KS98)
-    Lefm = (79.7+0.708*Tc-2.5e-3*Tc**2)*4.1868e3 ! Effective latent heat of melting (eq. 6 in KS98; cal/g=4.1868e3 J/kg)
+    ! Critical energy of germ formation
+    ! a) Ice germ radius (eq. 9a)
+    Lefm = (79.7+0.708*Tc-2.5e-3*Tc**2)*4.1868e3 ! Effective latent heat of melting (eq. 6)
     GG = rg*temp/Lefm/mwa
-    sigma_is = 28e-3+0.25e-3*Tc ! Surface tension of ice at the ice-solution interface (from KS98)
+    IF ( (T0/temp)*Sw**GG<1.0001 ) RETURN
+    sigma_is = 28e-3+0.25e-3*Tc ! Surface tension between ice and solution
     r_g = 2.*sigma_is/( rho_ice*Lefm*log((T0/temp)*Sw**GG) )
-    IF (r_g<=0. .OR. (T0/temp)*Sw**GG<1.0001) THEN
-        ! Critical size must be positive
-        calc_Jhf = 0.
-        RETURN
-    ENDIF
-    ! Critical energy
+    IF (r_g<=1e-10) RETURN
+    ! c) Critical energy (eq. 9b)
     crit_energy = 4.*pi/3.*sigma_is*r_g**2
 
-    ! Eq. 1 in KS98
-    calc_Jhf = 2.0*Nc*(rhowa/rho_ice)*boltz*temp/planck*sqrt(sigma_is/boltz/temp)*exp((-crit_energy-act_energy)/(boltz*temp))
-
-    ! Nucleation rate [m^-3 s^-1] is for droplet liquid volume, so freezing propability is 1-exp( -J*V*tstep), where V=4/3*pi*(rwet**3-rdry**3)
+    ! Eq. 1
+    calc_Jhf = 2.0*Nc*(rhowa*boltz*temp/rho_ice/planck)*sqrt(sigma_is/boltz/temp)*exp((-crit_energy-act_energy)/(boltz*temp))
 
   END FUNCTION calc_Jhf
 
 
+  REAL function calc_het_sf(x,mis)
+    ! Calculate shape factor for heterogeneous ice nucleation.
+    !   Khvorostyanov and Curry, J. Atmos. Sci., 61, 2676-2691, 2004
+    REAL :: x ! x=r_core/r_crit
+    REAL :: mis ! Cosine of the contact angle
+    REAL :: fii, fpsi
+    !
+    IF (x>100.) THEN
+        ! Problems with numerical accuracy when x>>1; x=100 seems to be good limit for using the limiting value
+        calc_het_sf = (mis**3-3*mis+2)/4
+    ELSE
+        fii = sqrt(1.-2.*mis*x+x**2)
+        fpsi = (x-mis)/fii
+        calc_het_sf = 0.5* (1. + ( ( 1.-mis*x)/fii)**3 + (2.-3.*fpsi+fpsi**3)*x**3 + 3.*mis*(fpsi-1.)*x**2)
+    ENDIF
+  END function calc_het_sf
 
   !***********************************************
   !
@@ -1302,7 +1316,7 @@ CONTAINS
     INTEGER :: ii,jj,kk,ss
 
     REAL :: pdn, iceSupSat, rc_tot, Ni0,  &
-            sumICE, iceTendecyNumber, liqToIceFrac
+            sumICE, iceTendecyNumber, liqToIceFrac, frac
 
 
     DO ii = 1,kbdim
@@ -1323,10 +1337,19 @@ CONTAINS
 
         if ( sumICE > Ni0 ) cycle
 
+        ! Approach #1: activate ice starting from the largest cloud bin
+
+        ! Approach #2: activate a fraction from all cloud bins
+        !frac = max(0.0, min(1.0, (Ni0-sumICE)/SUM(pcloud(ii,jj,:)%numc)))
+
         DO kk = nice,1,-1 ! Assuming nice=ncld
             IF( sumICE < Ni0 .AND. pcloud(ii,jj,kk)%numc > nlim) THEN
 
+                ! Approach #1: activate ice starting from the largest cloud bin
                 iceTendecyNumber = max( 0.0, min( Ni0 - pice(ii,jj,kk)%numc , pcloud(ii,jj,kk)%numc )  )
+
+                ! Approach #2: activate a fraction from all cloud bins
+                !iceTendecyNumber = frac*pcloud(ii,jj,kk)%numc
 
                 pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc   + iceTendecyNumber
                 sumICE = sumICE + iceTendecyNumber
@@ -1420,7 +1443,7 @@ CONTAINS
 
 
   SUBROUTINE autosnow(kproma,kbdim,klev,   &
-                      pice,psnow,ptstep )
+                      pice,psnow)
   !
   ! Uses a more straightforward method for converting ice to snow.
   ! Assume a lognormal ice distribution for each bin. Sigma_g is an adjustable
@@ -1432,20 +1455,16 @@ CONTAINS
                                nsnw,        &
                                pi6,         &
                                rhosn, rhoic,       &
-                               prlim
+                               prlim,       &
+                               autoc_snow_zd0, autoc_snow_sigmag
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kproma,kbdim,klev
-    REAL, INTENT(in) :: ptstep
     TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice)
     TYPE(t_section), INTENT(inout) :: psnow(kbdim,klev,nsnw)
 
     REAL :: Vrem, Nrem, Vtot, Ntot
     REAL :: dvg,dg
-
-    REAL, PARAMETER :: zd0 = 250.e-6
-    REAL, PARAMETER :: sigmag = 1.2
-
     INTEGER :: ii,jj,cc,ss
 
     DO jj = 1,klev
@@ -1458,11 +1477,11 @@ CONTAINS
              IF ( Ntot > prlim .AND. Vtot > 0. ) THEN
 
                 ! Volume geometric mean diameter
-                dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(sigmag)**2)/2. )
-                dg = dvg*EXP( -3.*LOG(sigmag)**2 )
+                dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(autoc_snow_sigmag)**2)/2. )
+                dg = dvg*EXP( -3.*LOG(autoc_snow_sigmag)**2 )
 
-                Vrem = Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) )
-                Nrem = Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )
+                Vrem = Vtot*( 1. - cumlognorm(dvg,autoc_snow_sigmag,autoc_snow_zd0) )
+                Nrem = Ntot*( 1. - cumlognorm(dg,autoc_snow_sigmag,autoc_snow_zd0) )
 
                 IF ( Vrem > 0. .AND. Nrem > prlim) THEN
 

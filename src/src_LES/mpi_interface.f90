@@ -120,7 +120,7 @@ contains
        if( (nyp-4)/nyprocs.lt.5 .or. nxpart) then
           nyprocs=int(sqrt(real(pecount)))
           nxprocs=pecount/nyprocs
-          do while (nyprocs*nxprocs .ne. pecount)
+          do while (nyprocs*nxprocs .ne. pecount .and. mod(nxprocs,nxp-4) == 0 .and. mod(nyprocs,nyp-4) == 0)
              nyprocs=nyprocs+1
              nxprocs=pecount/nyprocs
           end do
@@ -155,7 +155,7 @@ contains
           nxprocs=int(sqrt(real(pecount)))
           nyprocs=pecount/nxprocs
 
-          do while (nyprocs*nxprocs .ne. pecount)
+          do while (nyprocs*nxprocs .ne. pecount .and. mod(nxprocs,nxp-4) == 0 .and. mod(nyprocs,nyp-4) == 0)
              nxprocs=nxprocs+1
              nyprocs=pecount/nxprocs
           end do

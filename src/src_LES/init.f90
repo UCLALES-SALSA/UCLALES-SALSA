@@ -44,14 +44,13 @@ contains
   !
   subroutine initialize
 
-    use step, only : time, outflg
-    use stat, only : init_stat, mcflg, acc_massbudged, salsa_b_bins
+    use step, only : time, outflg, salsa_diag_update
+    use stat, only : init_stat, mcflg, acc_massbudged
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim
-    USE util, ONLY : maskactiv
+    USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim, stat_b_bins
     USE class_ComponentIndex, ONLY : GetNcomp
 
     implicit none
@@ -75,7 +74,11 @@ contains
        ! spin-up period to set up aerosol and cloud fields.
        IF (level >= 4) THEN
 
-          n4 = GetNcomp(prtcl) + 1 ! Aerosol compoenents + water
+          n4 = GetNcomp(prtcl) + 1 ! Aerosol components + water
+
+          ! Update diagnostic SALSA tracers
+          CALL SALSA_diag_update
+          CALL thermo(level)
 
           IF ( nxp == 5 .and. nyp == 5 ) THEN
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
@@ -85,7 +88,13 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtlt, level   )
+                  1, prtcl, dtl, 0., level,  &
+                  coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
+                  coag_ri, coag_ni, coag_rs, coag_ns, &
+                  cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
+                  auto_rr, auto_nr, auto_rs, auto_ns, &
+                  cact_rc, cact_nc, nucl_ri, nucl_ni, &
+                  melt_ri, melt_ni, melt_rs, melt_ns)
           ELSE
              CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
@@ -94,17 +103,29 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtlt, level   )
-
+                  1, prtcl, dtl, 0., level,  &
+                  coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
+                  coag_ri, coag_ni, coag_rs, coag_ns, &
+                  cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
+                  auto_rr, auto_nr, auto_rs, auto_ns, &
+                  cact_rc, cact_nc, nucl_ri, nucl_ni, &
+                  melt_ri, melt_ni, melt_rs, melt_ns)
           END IF
           CALL SALSAInit
-          
+          CALL SALSA_diag_update
+          CALL thermo(level)
 
        END IF !level >= 4
 
     else if (runtype == 'HISTORY') then
        if (isgstyp == 2) call tkeinit(nxyzp,a_qp)
        call hstart
+       ! Update diagnostic SALSA tracers
+       IF (level >= 4) THEN
+          CALL SALSAInit
+          CALL SALSA_diag_update
+          CALL thermo(level)
+       END IF
     else
        if (myid == 0) print *,'  ABORTING:  Invalid Runtype'
        call appl_abort(0)
@@ -113,11 +134,11 @@ contains
 
     ! When SALSA b-bin outputs are needed?
     !   -level >= 4
-    !   -outputs are forced (salsa_b_bins=.true.)
+    !   -outputs are forced (stat_b_bins=.true.)
     !   -b-bins initialized with non-zero concentration
     !   -nucleation set to produce particles to b bins (currently only a bins)
-    IF (level >= 4 .and. (.not. salsa_b_bins)) &
-       salsa_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim ) .OR. any( a_nicep(:,:,:,iib%cur:fib%cur)>prlim )
+    IF (level >= 4 .and. (.not. stat_b_bins)) &
+       stat_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim ) .OR. any( a_nicep(:,:,:,iib%cur:fib%cur)>prlim )
 
     call sponge_init
     call init_stat(time+dtl,filprf,expnme,nzp)
@@ -129,7 +150,7 @@ contains
        mc_Adom = deltax*deltay*(nxp-4)*(nyp-4)
        mc_ApVdom = mc_Adom/mc_Vdom
        ! Get the initial mass of atmospheric water
-       CALL acc_massbudged(nzp,nxp,nyp,0,dtlt,dzt,a_dn,     &
+       CALL acc_massbudged(nzp,nxp,nyp,0,dtl,dzt,a_dn,     &
             rv=a_rp,rc=a_rc,prc=a_srp)
     END IF ! mcflg
     !
@@ -138,11 +159,11 @@ contains
     if (outflg) then
        if (runtype == 'INITIAL') then
           call write_hist(1, time)
-          call init_anal(time,salsa_b_bins)
+          call init_anal(time,stat_b_bins)
           call thermo(level)
           call write_anal(time)
        else
-          call init_anal(time+dtl,salsa_b_bins)
+          call init_anal(time+dtl,stat_b_bins)
           call write_hist(0, time)
        end if
     end if !outflg
@@ -340,9 +361,6 @@ contains
        close (1)
     end if
 100 continue
-
-    zold1 = 0.
-    zold2 = 0.
 
     ns=1
     do while (ps(ns) /= 0. .and. ns <= nns)
@@ -608,9 +626,6 @@ contains
 
     call read_hist(time, hfilin)
 
-    dtlv=2.*dtl
-    dtlt=dtl
-
     if(myid == 0) &
          print "(//' ',49('-')/,' ',/,' History read from: ',A60)",hfilin
 
@@ -705,49 +720,33 @@ contains
   ! Juha Tonttila, FMI, 2014
   !
   SUBROUTINE SALSAInit
-    USE mo_submctl, ONLY : ncld,nbins,nice
+    USE mo_submctl, ONLY : nbins,ncld,nprc,nice,nsnw, &
+               in1a,fn2b,ica,fcb,ira,fra,iia,fib,isa,fsa
     USE class_componentIndex, ONLY : GetIndex
     IMPLICIT NONE
-    INTEGER :: k,i,j,bb,nc
+    INTEGER :: k,i,j,nc,str,end
 
     DO j=1,nyp
        DO i=1,nxp
           DO k=1,nzp ! Apply tendencies
-             a_naerop(k,i,j,:) = MAX( a_naerop(k,i,j,:) + dtlt*a_naerot(k,i,j,:), 0. )
-             a_ncloudp(k,i,j,:) = MAX( a_ncloudp(k,i,j,:) + dtlt*a_ncloudt(k,i,j,:), 0. )
-             a_nprecpp(k,i,j,:) = MAX( a_nprecpp(k,i,j,:) + dtlt*a_nprecpt(k,i,j,:), 0. )
-             a_maerop(k,i,j,:)  = MAX( a_maerop(k,i,j,:)  + dtlt*a_maerot(k,i,j,:), 0. )
-             a_mcloudp(k,i,j,:) = MAX( a_mcloudp(k,i,j,:) + dtlt*a_mcloudt(k,i,j,:), 0. )
-             a_mprecpp(k,i,j,:) = MAX( a_mprecpp(k,i,j,:) + dtlt*a_mprecpt(k,i,j,:), 0. )
-             a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtlt*a_gaerot(k,i,j,:), 0. )
-             a_rp(k,i,j) = a_rp(k,i,j) + dtlt*a_rt(k,i,j)
+             a_naerop(k,i,j,:) = MAX( a_naerop(k,i,j,:)   + dtl*a_naerot(k,i,j,:), 0. )
+             a_ncloudp(k,i,j,:) = MAX( a_ncloudp(k,i,j,:) + dtl*a_ncloudt(k,i,j,:), 0. )
+             a_nprecpp(k,i,j,:) = MAX( a_nprecpp(k,i,j,:) + dtl*a_nprecpt(k,i,j,:), 0. )
+             a_maerop(k,i,j,:)  = MAX( a_maerop(k,i,j,:)  + dtl*a_maerot(k,i,j,:), 0. )
+             a_mcloudp(k,i,j,:) = MAX( a_mcloudp(k,i,j,:) + dtl*a_mcloudt(k,i,j,:), 0. )
+             a_mprecpp(k,i,j,:) = MAX( a_mprecpp(k,i,j,:) + dtl*a_mprecpt(k,i,j,:), 0. )
+             a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtl*a_gaerot(k,i,j,:), 0. )
+             a_rp(k,i,j) = a_rp(k,i,j) + dtl*a_rt(k,i,j)
 
              IF(level < 5) cycle
 
-             a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtlt*a_nicet(k,i,j,:), 0. )
-             a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtlt*a_nsnowt(k,i,j,:), 0. )
-             a_micep(k,i,j,:)   = MAX( a_micep(k,i,j,:)   + dtlt*a_micet(k,i,j,:), 0. )
-             a_msnowp(k,i,j,:)  = MAX( a_msnowp(k,i,j,:)  + dtlt*a_msnowt(k,i,j,:), 0. )
+             a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtl*a_nicet(k,i,j,:), 0. )
+             a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtl*a_nsnowt(k,i,j,:), 0. )
+             a_micep(k,i,j,:)   = MAX( a_micep(k,i,j,:)   + dtl*a_micet(k,i,j,:), 0. )
+             a_msnowp(k,i,j,:)  = MAX( a_msnowp(k,i,j,:)  + dtl*a_msnowt(k,i,j,:), 0. )
           END DO
        END DO
     END DO
-
-    nc = GetIndex(prtcl,'H2O')
-    ! Activation + diagnostic array initialization
-    ! Clouds and aerosols
-    a_rc(:,:,:) = 0.
-    DO bb = 1, ncld
-       a_rc(:,:,:) = a_rc(:,:,:) + a_mcloudp(:,:,:,(nc-1)*ncld+bb)
-    END DO
-    DO bb = 1,nbins
-       a_rc(:,:,:) = a_rc(:,:,:) + a_maerop(:,:,:,(nc-1)*nbins+bb)
-    END DO
-
-    ! Ice
-    a_ri(:,:,:) = 0.
-    do bb = 1,nice
-        a_ri(:,:,:) = a_ri(:,:,:) + a_micep(:,:,:,(nc-1)*nice + bb)
-    end do
 
   END SUBROUTINE SALSAInit
 

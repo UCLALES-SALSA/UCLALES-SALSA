@@ -20,7 +20,7 @@
 module mcrp
 
   use defs, only : alvl, alvi, rowt, pi, Rm, cp, kb, g, vonk
-  use grid, only : dtlt, dzt, nxp, nyp, nzp,a_pexnr, a_rp, a_tp, th00, CCN,     &
+  use grid, only : dtl, dzt, nxp, nyp, nzp,a_pexnr, a_rp, CCN,     &
        dn0, pi0, a_rt, a_tt, a_rpp, a_rpt, a_npp, a_npt, a_rv, a_rc, a_theta,   &
        a_press, a_temp, a_rsl, precip, a_dn, a_ustar,                  &
        a_naerop,  a_naerot,  a_maerop,  a_maerot,                               &
@@ -28,19 +28,16 @@ module mcrp
        a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt, mc_ApVdom,         &
        a_nicep,   a_nicet,   a_micep,   a_micet,                                &
        a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
-       snowin,    prtcl, calc_eff_radius
-  use thrm, only : thermo
+       aerin, cldin, icein, snowin, prtcl, calc_eff_radius, &
+       sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
+       sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
+       sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
   use stat, only : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
   USE mo_submctl, ONLY : terminal_vel
   implicit none
 
-  logical, parameter :: droplet_sedim = .False., khairoutdinov = .False.
+  logical, parameter :: khairoutdinov = .False.
 
-  LOGICAL :: sed_aero = .TRUE.,  &
-             sed_cloud = .TRUE., &
-             sed_precp = .TRUE., &
-             sed_ice = .TRUE., &
-             sed_snow = .TRUE.
   !
   ! drop sizes definition is based on vanZanten (2005)
   ! cloud droplets' diameter: 2-50 e-6 m
@@ -68,12 +65,13 @@ contains
   !
   subroutine micro(level)
     USE class_componentIndex, ONLY : GetNcomp
+    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw
     integer, intent (in) :: level
     INTEGER :: nn
 
     select case (level)
     case(2)
-       if (droplet_sedim)  &
+       if (sed_cloud)  &
             call sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
     case(3)
        call mcrph(nzp,nxp,nyp,dn0,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,   &
@@ -82,14 +80,38 @@ contains
        IF (level < 5) THEN
             sed_ice = .FALSE.; sed_snow = .FALSE.
        ENDIF
-       nn = GetNcomp(prtcl)+1
-       CALL sedim_SALSA(nzp,nxp,nyp,nn, dtlt, a_temp, a_theta,               &
+       nn = GetNcomp(prtcl)+1 ! Total number of species = index for water
+
+       ! Sedimentation is described with water mass (kg/kg/s) and particle number (#/kg/s) divergence fields
+       sedi_ra(:,:,:)=SUM(a_maerot(:,:,:,(nn-1)*nbins+1:nn*nbins),DIM=4)
+       sedi_na(:,:,:)=SUM(a_naerot,DIM=4)
+       sedi_rc(:,:,:)=SUM(a_mcloudt(:,:,:,(nn-1)*ncld+1:nn*ncld),DIM=4)
+       sedi_nc(:,:,:)=SUM(a_ncloudt,DIM=4)
+       sedi_rr(:,:,:)=SUM(a_mprecpt(:,:,:,(nn-1)*nprc+1:nn*nprc),DIM=4)
+       sedi_nr(:,:,:)=SUM(a_nprecpt,DIM=4)
+       sedi_ri(:,:,:)=SUM(a_micet(:,:,:,(nn-1)*nice+1:nn*nice),DIM=4)
+       sedi_ni(:,:,:)=SUM(a_nicet,DIM=4)
+       sedi_rs(:,:,:)=SUM(a_msnowt(:,:,:,(nn-1)*nsnw+1:nn*nsnw),DIM=4)
+       sedi_ns(:,:,:)=SUM(a_nsnowt,DIM=4)
+
+       CALL sedim_SALSA(nzp,nxp,nyp,nn, dtl, a_temp, a_theta,                &
                         a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
                         a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
                         a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,          &
                         a_nicep,   a_nicet,   a_micep,   a_micet,            &
                         a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,           &
-                        a_ustar, precip, snowin, a_tt                )
+                        a_ustar, aerin, cldin, precip, icein, snowin, a_tt  )
+
+       sedi_ra(:,:,:)=SUM(a_maerot(:,:,:,(nn-1)*nbins+1:nn*nbins),DIM=4)-sedi_ra(:,:,:)
+       sedi_na(:,:,:)=SUM(a_naerot,DIM=4)-sedi_na(:,:,:)
+       sedi_rc(:,:,:)=SUM(a_mcloudt(:,:,:,(nn-1)*ncld+1:nn*ncld),DIM=4)-sedi_rc(:,:,:)
+       sedi_nc(:,:,:)=SUM(a_ncloudt,DIM=4)-sedi_nc(:,:,:)
+       sedi_rr(:,:,:)=SUM(a_mprecpt(:,:,:,(nn-1)*nprc+1:nn*nprc),DIM=4)-sedi_rr(:,:,:)
+       sedi_nr(:,:,:)=SUM(a_nprecpt,DIM=4)-sedi_nr(:,:,:)
+       sedi_ri(:,:,:)=SUM(a_micet(:,:,:,(nn-1)*nice+1:nn*nice),DIM=4)-sedi_ri(:,:,:)
+       sedi_ni(:,:,:)=SUM(a_nicet,DIM=4)-sedi_ni(:,:,:)
+       sedi_rs(:,:,:)=SUM(a_msnowt(:,:,:,(nn-1)*nsnw+1:nn*nsnw),DIM=4)-sedi_rs(:,:,:)
+       sedi_ns(:,:,:)=SUM(a_nsnowt,DIM=4)-sedi_ns(:,:,:)
     end select
 
   end subroutine micro
@@ -134,8 +156,8 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1-1
-             rp(k,i,j) = rp(k,i,j) + max(-rp(k,i,j)/dtlt,rpt(k,i,j))*dtlt
-             np(k,i,j) = np(k,i,j) + max(-np(k,i,j)/dtlt,npt(k,i,j))*dtlt
+             rp(k,i,j) = rp(k,i,j) + max(-rp(k,i,j)/dtl,rpt(k,i,j))*dtl
+             np(k,i,j) = np(k,i,j) + max(-np(k,i,j)/dtl,npt(k,i,j))*dtl
              rpt(k,i,j)= 0.
              npt(k,i,j)= 0.
              rp(k,i,j) = max(0., rp(k,i,j))
@@ -144,9 +166,9 @@ contains
        end do
     end do
 
-    call sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
+    if (sed_precp) call sedim_rd(n1,n2,n3,dtl,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
 
-    if (droplet_sedim) call sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
+    if (sed_cloud) call sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
 
   end subroutine mcrph
   !
@@ -475,7 +497,7 @@ contains
              Xc = rc(k,i,j) / (CCN+eps0)
              Dc = ( Xc / prw )**(1./3.)
              Dc = MIN(MAX(Dc,D_min),D_bnd)
-             vc = min(c*(Dc*0.5)**2 * exp(4.5*(log(sgg))**2),1./(dzt(k)*dtlt))
+             vc = min(c*(Dc*0.5)**2 * exp(4.5*(log(sgg))**2),1./(dzt(k)*dtl))
              rfl(k) = - rc(k,i,j) * vc
              !
              kp1=k+1
@@ -506,13 +528,12 @@ contains
                          nprecpp,nprecpt,mprecpp,mprecpt,  &
                          nicep,  nicet,  micep,  micet,    &
                          nsnowp, nsnowt, msnowp, msnowt,   &
-                         ustar,rrate, srate, tlt          )
+                         ustar, arate, crate, rrate, irate, srate, tlt )
 
     USE mo_submctl, ONLY : nbins, ncld, nprc,           &
                                nice,  nsnw,                 &
                                nlim,prlim,  &
-                               rhowa,rhoic
-    USE class_ComponentIndex, ONLY : GetIndex, GetNcomp
+                               rhowa,rhoic,rhosn
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,n4
@@ -542,36 +563,46 @@ contains
                            nsnowt(n1,n2,n3,nsnw),    &
                            msnowt(n1,n2,n3,n4*nsnw), &
                            tlt(n1,n2,n3),             & ! Liquid water pot temp tendency
+                           arate(n1,n2,n3),           & ! Water sedimentation fluxes (W/m^2)
+                           crate(n1,n2,n3),           &
                            rrate(n1,n2,n3),           &
-                           srate(n1,n2,n3)              ! snowing rate
+                           irate(n1,n2,n3),           &
+                           srate(n1,n2,n3)
 
-    INTEGER :: ss
-    INTEGER :: i,j,k,nc,istr,iend
+    INTEGER :: i,j,k,istr,iend
 
-    REAL :: prnt(n1,n2,n3,nprc), prvt(n1,n2,n3,n4*nprc)  ! Rain number and mass tendencies due to fallout
-    REAL :: srnt(n1,n2,n3,nsnw), srvt(n1,n2,n3,n4*nsnw)  ! Snow number and mass tendencies due to fallout
-
-    ! Particle mass removal arrays, given in kg/(m2 s)
+    ! Particle mass removal arrays (kg/m^2/s)
     REAL :: remaer(n2,n3,n4*nbins),   &
             remcld(n2,n3,n4*ncld),    &
             remprc(n2,n3,n4*nprc),    &
             remice(n2,n3,n4*nice),    &
             remsnw(n2,n3,n4*nsnw)
 
-    ! Particle number removal arrays
-    REAL :: andep(n2,n3,nbins),     &
-            cndep(n2,n3,ncld),      &
-            indep(n2,n3,nice)
+    ! Particle number (#/m^2/s) and mass (kg/m^2/s) flux arrays
+    REAL :: andep(n1,n2,n3,nbins),    &
+            cndep(n1,n2,n3,ncld),     &
+            indep(n1,n2,n3,nice),     &
+            rndep(n1,n2,n3,nprc),     &
+            sndep(n1,n2,n3,nsnw)
+    REAL :: amdep(n1,n2,n3,n4*nbins), &
+            cmdep(n1,n2,n3,n4*ncld),  &
+            imdep(n1,n2,n3,n4*nice),  &
+            rmdep(n1,n2,n3,n4*nprc),  &
+            smdep(n1,n2,n3,n4*nsnw)
 
-    REAL :: mctmp(n2,n3) ! Helper for mass conservation calculations
-
-    ! Divergence fields
+    ! Divergence fields (kg/kg/s and #/kg/s)
     REAL :: amdiv(n1,n2,n3,n4*nbins),    &
             cmdiv(n1,n2,n3,n4*ncld),     &
-            imdiv(n1,n2,n3,n4*nice)
+            imdiv(n1,n2,n3,n4*nice),     &
+            rmdiv(n1,n2,n3,n4*nprc),     &
+            smdiv(n1,n2,n3,n4*nsnw)
     REAL :: andiv(n1,n2,n3,nbins),       &
             cndiv(n1,n2,n3,ncld),        &
-            indiv(n1,n2,n3,nice)
+            indiv(n1,n2,n3,nice),        &
+            rndiv(n1,n2,n3,nprc),        &
+            sndiv(n1,n2,n3,nsnw)
+
+    REAL :: mctmp(n2,n3) ! Helper for mass conservation calculations
 
 
     remaer = 0.; remcld = 0.; remprc = 0.; remice = 0.; remsnw = 0.
@@ -579,126 +610,122 @@ contains
     ! Sedimentation for slow (non-precipitating) particles
     !-------------------------------------------------------
     IF (sed_aero) THEN
+       CALL DepositionAny(n1,n2,n3,n4,nbins,tk,a_dn,1500.,ustar,naerop,maerop,dzt,tstep,nlim,andiv,amdiv,andep,amdep,1)
+       remaer(:,:,:) = amdep(2,:,:,:)
 
-       CALL DepositionSlow(n1,n2,n3,n4,nbins,tk,a_dn,1500.,ustar,naerop,maerop,dzt,nlim,andiv,amdiv,andep,remaer,1)
-
-       naerot = naerot - andiv
-       maerot = maerot - amdiv
-
-       ! Account for changes in liquid water pot temperature
-       nc = GetIndex(prtcl,'H2O')
-       istr = (nc-1)*nbins+1
-       iend = nc*nbins
+       istr = (n4-1)*nbins+1
+       iend = n4*nbins
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
+                naerot(k,i,j,:) = naerot(k,i,j,:) - andiv(k,i,j,:)
+                maerot(k,i,j,:) = maerot(k,i,j,:) - amdiv(k,i,j,:)
+                ! Account for changes in liquid water pot temperature
                 tlt(k,i,j) = tlt(k,i,j) + SUM(amdiv(k,i,j,istr:iend))*(alvl/cp)*th(k,i,j)/tk(k,i,j)
              END DO
           END DO
        END DO
 
+       ! Convert water mass flux to heat flux (W/m^2)
+       arate(:,:,:)=SUM(amdep(:,:,:,istr:iend),4)*alvl
     END IF ! sed_aero
 
     IF (sed_cloud) THEN
+       CALL DepositionAny(n1,n2,n3,n4,ncld,tk,a_dn,rhowa,ustar,ncloudp,mcloudp,dzt,tstep,nlim,cndiv,cmdiv,cndep,cmdep,2)
+       remcld(:,:,:) = cmdep(2,:,:,:)
 
-       CALL DepositionSlow(n1,n2,n3,n4,ncld,tk,a_dn,rhowa,ustar,ncloudp,mcloudp,dzt,nlim,cndiv,cmdiv,cndep,remcld,2)
-
-       ncloudt = ncloudt - cndiv
-       mcloudt = mcloudt - cmdiv
-
-       ! Account for changes in liquid water pot temperature
-       nc = GetIndex(prtcl,'H2O')
-       istr = (nc-1)*ncld+1
-       iend = nc*ncld
+       istr = (n4-1)*ncld+1
+       iend = n4*ncld
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
+                ncloudt(k,i,j,:) = ncloudt(k,i,j,:) - cndiv(k,i,j,:)
+                mcloudt(k,i,j,:) = mcloudt(k,i,j,:) - cmdiv(k,i,j,:)
+                ! Account for changes in liquid water pot temperature
                 tlt(k,i,j) = tlt(k,i,j) + SUM(cmdiv(k,i,j,istr:iend))*(alvl/cp)*th(k,i,j)/tk(k,i,j)
              END DO
           END DO
        END DO
 
+       ! Convert water mass flux to heat flux (W/m^2)
+       crate(:,:,:)=SUM(cmdep(:,:,:,istr:iend),4)*alvl
     END IF ! sed_cloud
 
     IF (sed_ice) THEN
+       CALL DepositionAny(n1,n2,n3,n4,nice,tk,a_dn,rhoic,ustar,nicep,micep,dzt,tstep,prlim,indiv,imdiv,indep,imdep,4)
+       remice(:,:,:) = imdep(2,:,:,:)
 
-       CALL DepositionSlow(n1,n2,n3,n4,nice,tk,a_dn,rhoic,ustar,nicep,micep,dzt,nlim,indiv,imdiv,indep,remice,4)
-
-       nicet = nicet - indiv 
-       micet = micet - imdiv 
-
-       ! Account for changes in liquid water pot temperature
-       nc = GetIndex(prtcl,'H2O')
-       istr = (nc-1)*nice+1
-       iend = nc*nice
+       istr = (n4-1)*nice+1
+       iend = n4*nice
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
+                nicet(k,i,j,:) = nicet(k,i,j,:) - indiv(k,i,j,:)
+                micet(k,i,j,:) = micet(k,i,j,:) - imdiv(k,i,j,:)
+                ! Account for changes in ice-liquid water pot temperature
                 tlt(k,i,j) = tlt(k,i,j) + SUM(imdiv(k,i,j,istr:iend))*(alvi/cp)*th(k,i,j)/tk(k,i,j)
              END DO
           END DO
        END DO
 
+       ! Convert water mass flux to heat flux (W/m^2)
+       irate(:,:,:)=SUM(imdep(:,:,:,istr:iend),4)*alvi
     END IF ! sed_ice
 
-
-    ! ---------------------------------------------------------
-    ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
     IF (sed_precp) THEN
-       CALL DepositionFast(n1,n2,n3,n4,nprc,tk,a_dn,rowt,nprecpp,mprecpp,tstep,dzt,prnt,prvt,remprc,prlim,rrate,3)
+       CALL DepositionAny(n1,n2,n3,n4,nprc,tk,a_dn,rhowa,ustar,nprecpp,mprecpp,dzt,tstep,prlim,rndiv,rmdiv,rndep,rmdep,3)
+       remprc(:,:,:) = rmdep(2,:,:,:)
 
-       nprecpt(:,:,:,:) = nprecpt(:,:,:,:) + prnt(:,:,:,:)/tstep
-       mprecpt(:,:,:,:) = mprecpt(:,:,:,:) + prvt(:,:,:,:)/tstep
-
-       ! Convert mass flux to heat flux (W/m^2)
-       rrate(:,:,:)=rrate(:,:,:)*alvl
-
-       nc = GetIndex(prtcl,'H2O')
-       istr = (nc-1)*nprc + 1
-       iend = nc*nprc
+       istr = (n4-1)*nprc + 1
+       iend = n4*nprc
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 1,n1-1
-                tlt(k,i,j) = tlt(k,i,j) - SUM(prvt(k,i,j,istr:iend))/tstep*(alvl/cp)*th(k,i,j)/tk(k,i,j)
+                nprecpt(k,i,j,:) = nprecpt(k,i,j,:) - rndiv(k,i,j,:)
+                mprecpt(k,i,j,:) = mprecpt(k,i,j,:) -rmdiv(k,i,j,:)
+                ! Account for changes in liquid water pot temperature
+                tlt(k,i,j) = tlt(k,i,j) + SUM(rmdiv(k,i,j,istr:iend))*(alvl/cp)*th(k,i,j)/tk(k,i,j)
              END DO
           END DO
        END DO
+
+       ! Convert water mass flux to heat flux (W/m^2)
+       rrate(:,:,:)=SUM(rmdep(:,:,:,istr:iend),4)*alvl
     END IF
 
     IF (sed_snow) THEN
-       CALL DepositionFast(n1,n2,n3,n4,nsnw,tk,a_dn,rowt,nsnowp,msnowp,tstep,dzt,srnt,srvt,remsnw,prlim,srate,5)
+       CALL DepositionAny(n1,n2,n3,n4,nsnw,tk,a_dn,rhosn,ustar,nsnowp,msnowp,dzt,tstep,prlim,sndiv,smdiv,sndep,smdep,5)
+       remsnw(:,:,:) = smdep(2,:,:,:)
 
-       nsnowt(:,:,:,:) = nsnowt(:,:,:,:) + srnt(:,:,:,:)/tstep
-       msnowt(:,:,:,:) = msnowt(:,:,:,:) + srvt(:,:,:,:)/tstep
-
-       ! Convert mass flux to heat flux (W/m^2)
-       srate(:,:,:)=srate(:,:,:)*alvi
-
-       nc = GetIndex(prtcl,'H2O')
-       istr = (nc-1)*nsnw + 1
-       iend = nc*nsnw
+       istr = (n4-1)*nsnw + 1
+       iend = n4*nsnw
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 1,n1-1
-                tlt(k,i,j) = tlt(k,i,j) - SUM(srvt(k,i,j,istr:iend))/tstep*(alvi/cp)*th(k,i,j)/tk(k,i,j)
+                nsnowt(k,i,j,:) = nsnowt(k,i,j,:) - sndiv(k,i,j,:)
+                msnowt(k,i,j,:) = msnowt(k,i,j,:) - smdiv(k,i,j,:)
+                ! Account for changes in ice-liquid water pot temperature
+                tlt(k,i,j) = tlt(k,i,j) + SUM(smdiv(k,i,j,istr:iend))*(alvi/cp)*th(k,i,j)/tk(k,i,j)
              END DO
           END DO
        END DO
+
+       ! Convert water mass flux to heat flux (W/m^2)
+       srate(:,:,:)=SUM(smdep(:,:,:,istr:iend),4)*alvi
     END IF
 
     IF (mcflg) THEN
        ! For mass conservation statistics
        mctmp(:,:) = 0.
-       ss = getIndex(prtcl,'H2O')
-       istr = (ss-1)*nbins; iend = ss*nbins
+       istr = (n4-1)*nbins; iend = n4*nbins
        mctmp(:,:) = mctmp(:,:) + SUM(remaer(:,:,istr:iend),dim=3)
-       istr = (ss-1)*ncld; iend = ss*ncld
+       istr = (n4-1)*ncld; iend = n4*ncld
        mctmp(:,:) = mctmp(:,:) + SUM(remcld(:,:,istr:iend),dim=3)
-       istr = (ss-1)*nprc; iend = ss*nprc
+       istr = (n4-1)*nprc; iend = n4*nprc
        mctmp(:,:) = mctmp(:,:) + SUM(remprc(:,:,istr:iend),dim=3)
-       istr = (ss-1)*nice; iend = ss*nice
+       istr = (n4-1)*nice; iend = n4*nice
        mctmp(:,:) = mctmp(:,:) + SUM(remice(:,:,istr:iend),dim=3)
-       istr = (ss-1)*nsnw; iend = ss*nsnw
+       istr = (n4-1)*nsnw; iend = n4*nsnw
        mctmp(:,:) = mctmp(:,:) + SUM(remsnw(:,:,istr:iend),dim=3)
        CALL acc_massbudged(n1,n2,n3,3,tstep,dzt,a_dn,rdep=mctmp,ApVdom=mc_ApVdom)
     END IF !mcflg
@@ -711,9 +738,7 @@ contains
 
   ! -----------------------------------------------------------------
 
-
-
-  SUBROUTINE DepositionSlow(n1,n2,n3,n4,nn,tk,adn,pdn,ustar,numc,mass,dzt,clim,flxdivn,flxdivm,depflxn,depflxm,flag)
+  SUBROUTINE DepositionAny(n1,n2,n3,n4,nn,tk,adn,pdn,ustar,numc,mass,dzt,dt,clim,flxdivn,flxdivm,depflxn,depflxm,flag)
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,n4       ! Grid numbers, number of chemical species
@@ -725,12 +750,13 @@ contains
     REAL, INTENT(in) :: numc(n1,n2,n3,nn)    ! Particle number concentration
     REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4) ! Particle mass mixing ratio
     REAL, INTENT(in) :: dzt(n1)              ! Inverse of grid level thickness
-    REAL, INTENT(IN) :: clim                ! Concentration limit
+    REAL, INTENT(in) :: dt                   ! timestep
+    REAL, INTENT(IN) :: clim                ! Concentration limit (#/m^3)
     INTEGER, INTENT(IN) :: flag         ! An option for identifying aerosol, cloud, precipitation, ice and snow
     REAL, INTENT(OUT) :: flxdivm(n1,n2,n3,nn*n4), flxdivn(n1,n2,n3,nn) ! Mass and number divergence
-    REAL, INTENT(OUT) :: depflxn(n2,n3,nn), depflxm(n2,n3,nn*n4) ! Mass and number deposition fluxes to the surface
+    REAL, INTENT(OUT) :: depflxm(n1,n2,n3,nn*n4), depflxn(n1,n2,n3,nn) ! Mass and number deposition fluxes
 
-    INTEGER :: i,j,k,kp1
+    INTEGER :: i,j,k,kk
     INTEGER :: bin,bs
 
     real, parameter :: M = 4.8096e-26 ! average mass of one air molecule, eq2.3 fundamentals of atm.
@@ -747,7 +773,7 @@ contains
     REAL :: mdiff                ! Particle diffusivity
     REAL :: rt, Sc, St
 
-    REAL :: rflm(n1,nn*n4), rfln(n1,nn), prvolc(n4), rwet
+    REAL :: pmass(n4), rwet, fd, frac
     flxdivm = 0.
     flxdivn = 0.
     depflxm = 0.
@@ -755,12 +781,7 @@ contains
 
     DO j = 3,n3-2
        DO i = 3,n2-2
-
-          rflm = 0.
-          rfln = 0.
-          
           DO k=n1-1,2,-1
-             kp1 = k+1
 
              ! atm modelling Eq.4.54
              avis=1.8325e-5*(416.16/(tk(k,i,j)+120.0))*(tk(k,i,j)/296.16)**1.5
@@ -770,15 +791,14 @@ contains
 
              ! Fluxes
              !------------------
-             ! -- Calculate the *corrections* for small particles
              DO bin = 1,nn
-                IF (numc(k,i,j,bin)<clim) CYCLE
+                IF (numc(k,i,j,bin)*adn(k,i,j)<clim) CYCLE
 
                 ! Calculate wet size
                 !   n4 = number of active species
                 !   bin = size bin
-                prvolc(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-                rwet=calc_eff_radius(n4,numc(k,i,j,bin),prvolc,flag)
+                pmass(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
+                rwet=calc_eff_radius(n4,numc(k,i,j,bin),pmass,flag)
 
                 ! Terminal velocity
                 Kn = lambda/rwet
@@ -795,187 +815,38 @@ contains
                     vc = (1./rt) + vc
                 ENDIF
 
-                ! Flux for the particle mass
-                DO bs = bin, (n4-1)*nn + bin, nn
-                    rflm(k,bs) = -mass(k,i,j,bs)*vc
-                END DO
+                kk = k ! current interface - start from the first below current bin
+                fd = vc*dt ! distance from the current interface to the leading edge of the falling particles
+                DO WHILE ( fd > 0. .AND. kk > 1 )
+                    ! Fraction of grid cell k passing through interface kk is fd*dzt(k), where nagtive values mean that the
+                    ! interface is not reached (fd<0 ignored) and values larger than one mean that all particles fall through.
+                    ! Absolute particle number flux per unit area and time is obtained by multiplying concentrations by
+                    ! rho_air*dz/dt.
+                    frac = MIN(1., fd*dzt(k) )*adn(k,i,j)/dzt(k)/dt ! kg/m^2/s
 
-                ! Flux for the particle number
-                 rfln(k,bin) = -numc(k,i,j,bin)*vc
+                    ! Flux for the particle mass (positive down)
+                    DO bs = bin, (n4-1)*nn + bin, nn
+                        depflxm(kk,i,j,bs) = depflxm(kk,i,j,bs) + mass(k,i,j,bs)*frac ! kg/m^2/s
+                    END DO
+                    ! Flux for the particle number
+                    depflxn(kk,i,j,bin) = depflxn(kk,i,j,bin) + numc(k,i,j,bin)*frac ! #/m^2/s
+
+                    ! The next interface
+                    kk=kk-1
+                    fd = fd - 1./dzt(kk)
+                ENDDO
              END DO
 
-             flxdivm(k,i,j,:) = (rflm(kp1,:)-rflm(k,:))*dzt(k)
-             flxdivn(k,i,j,:) = (rfln(kp1,:)-rfln(k,:))*dzt(k)
+             ! Divergency (here positive values mean decreasing mass)
+             !  dc/dt=(dn/dt)/(rho*A*dz)=(dn_out/A/dt-dn_in/A/dt)/rho/dz
+             flxdivm(k,i,j,:) = (depflxm(k,i,j,:)-depflxm(k+1,i,j,:))*dzt(k)/adn(k,i,j) ! kg/kg/s
+             flxdivn(k,i,j,:) = (depflxn(k,i,j,:)-depflxn(k+1,i,j,:))*dzt(k)/adn(k,i,j) ! #/kg/s
 
           END DO ! k
-
-          ! Deposition flux to surface
-          k=2
-          depflxm(i,j,:) = -rflm(k,:)*dzt(k)
-          depflxn(i,j,:) = -rfln(k,:)*dzt(k)
-
        END DO ! i
     END DO ! j
 
-  END SUBROUTINE DepositionSlow
-
-
-  !------------------------------------------------------------------
-  SUBROUTINE DepositionFast(n1,n2,n3,n4,nn,tk,adn,pdn,numc,mass,tstep,dzt,prnt,prvt,remprc,clim,rate,flag)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: n1,n2,n3,n4,nn
-    REAL, INTENT(in) :: tk(n1,n2,n3)
-    REAL, INTENT(in) :: adn(n1,n2,n3)
-    REAL, INTENT(in) :: pdn
-    REAL, INTENT(in) :: numc(n1,n2,n3,nn)
-    REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4)
-    REAL, INTENT(in) :: tstep
-    REAL, INTENT(in) :: dzt(n1)
-    REAL, INTENT(IN) :: clim                ! Concentration limit
-    INTEGER, INTENT(IN) :: flag         ! An option for identifying aerosol, cloud, precipitation, ice and snow
-    REAL, INTENT(out) :: prnt(n1,n2,n3,nn), prvt(n1,n2,n3,nn*n4)     ! Number and mass tendencies due to fallout
-    REAL, INTENT(out) :: remprc(n2,n3,nn*n4)
-    REAL, INTENT(out) :: rate(n1,n2,n3) ! Rain rate (kg/s/m^2)
-
-    INTEGER :: k,i,j,bin
-    INTEGER :: istr,iend
-
-    real, parameter :: A = 1.249 ! fundamentals of atm. modelling pg509
-    real, parameter :: B = 0.42
-    real, parameter :: C = 0.87
-    real, parameter :: M = 4.8096e-26 ! average mass of one air molecule, eq2.3 fundamentals of atm.
-                                      ! modelling [kg molec-1]
-
-    REAL :: GG
-    REAL :: Kn
-    REAL :: lambda      ! Mean free path
-    REAL :: avis,kvis   ! Air viscosity, kinematic viscosity
-    REAL :: va          ! Thermal speed of air molecule
-    REAL :: vc
-
-    ! For precipitation:
-    REAL :: fd,fdmax,fdos ! Fall distance for rain drops, max fall distance, overshoot from nearest grid level
-    REAL :: prnchg(n1,nn), prvchg(n1,nn,n4) ! Instantaneous changes in precipitation number and mass (volume)
-    REAL :: rwet
- 
-    REAL :: prnumc, prvolc(n4)  ! Instantaneous source number and mass
-    INTEGER :: kf, ni,fi
-    LOGICAL :: prcdep  ! Deposition flag
-
-    remprc(:,:,:) = 0.
-    rate(:,:,:) = 0.
-    prnt(:,:,:,:) = 0.
-    prvt(:,:,:,:) = 0.
-
-    DO j = 3,n3-2
-       
-       DO i = 3,n2-2
-
-          prnchg = 0.
-          prvchg = 0.
-          
-          DO k=n1-1,2,-1
-          
-             ! atm modelling Eq.4.54
-             avis = 1.8325e-5*(416.16/(tk(k,i,j)+120.0))*(tk(k,i,j)/296.16)**1.5
-             kvis = avis/adn(k,i,j) !actual density ???
-             va = sqrt(8.*kb*tk(k,i,j)/(pi*M)) ! thermal speed of air molecule
-             lambda = 2.*avis/(adn(k,i,j)*va) !mean free path
-
-             ! Precipitation bin loop
-             DO bin = 1,nn
-                IF (numc(k,i,j,bin) < clim) CYCLE
-
-                ! Calculate wet size
-                !   n4 = number of active species
-                !   bin = size bin
-                prvolc(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-                rwet=calc_eff_radius(n4,numc(k,i,j,bin),prvolc,flag)
-
-                ! Terminal velocity
-                Kn = lambda/rwet
-                GG = 1.+ Kn*(A+B*exp(-C/Kn))
-                vc = terminal_vel(rwet,pdn,adn(k,i,j),avis,GG,flag)
-
-                ! Rain rate statistics: removal of water from the current bin is accounted for
-                ! Water is the last (n4) species and rain rate is given here kg/s/m^2
-                rate(k,i,j)=rate(k,i,j)+mass(k,i,j,(n4-1)*nn+bin)*adn(k,i,j)*vc
-
-                ! Determine output flux for current level: Find the closest level to which the
-                ! current drop parcel can fall within 1 timestep. If the lowest atmospheric level
-                ! is reached, the drops are sedimented.
-                
-                ! Maximum fall distance:
-                fdmax = tstep*vc
-             
-                fd = 0.
-                fi = 0
-                prcdep = .FALSE. ! deposition flag
-                DO WHILE ( fd < fdmax )
-                   fd = fd + ( 1./dzt(k-fi) )
-                   fi = fi + 1
-                   ! Check if sedimentation occurs for current parcel
-                   IF (k-fi <= 1) THEN
-                      prcdep = .TRUE.
-                      EXIT
-                   END IF
-                END DO
-                ! Back up one level
-                fi = fi-1
-                kf = k - fi
-                fd = fd - ( 1./dzt(kf) )
-             
-                ! How much the actual fall distance overshoots below the layer kf
-                fdos = MIN(MAX(fdmax-fd,0.),1./dzt(kf))
-             
-                ! Remove the drops from the original level
-                prnumc = numc(k,i,j,bin)
-                prnchg(k,bin) = prnchg(k,bin) - prnumc
-                DO ni = 1,n4
-                   prvolc(ni) = mass(k,i,j,(ni-1)*nn+bin)
-                   prvchg(k,bin,ni) = prvchg(k,bin,ni) - prvolc(ni)
-                END DO ! ni
-
-                ! Removal statistics
-                IF (prcdep) THEN
-                   DO ni=1,n4
-                      remprc(i,j,(ni-1)*nn+bin) = remprc(i,j,(ni-1)*nn+bin) +    &
-                           prvolc(ni)*adn(k,i,j)*vc
-                   END DO
-                ENDIF ! prcdep
-
-                ! Put the drops to new positions (may be partially the original grid cell as well!)
-                IF (fdos*dzt(kf) > 0.5) THEN  ! Reduce numerical diffusion
-                   prnchg(kf-1,bin) = prnchg(kf-1,bin) + prnumc
-                   DO ni = 1,n4
-                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + prvolc(ni)
-                   END DO
-                ELSE
-                   prnchg(kf-1,bin) = prnchg(kf-1,bin) + ( fdos*dzt(kf) )*prnumc
-                   prnchg(kf,bin) = prnchg(kf,bin) + ( 1. - fdos*dzt(kf) )*prnumc
-                   DO ni = 1,n4
-                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + ( fdos*dzt(kf) )*prvolc(ni)
-                      prvchg(kf,bin,ni) = prvchg(kf,bin,ni) + ( 1. - fdos*dzt(kf) )*prvolc(ni)
-                   END DO
-                END IF ! diffusion
-             
-             END DO !bin
-          
-          END DO ! k
-
-          prnt(:,i,j,:) = prnt(:,i,j,:) + prnchg(:,:)
-          DO ni = 1,n4
-             istr = (ni-1)*nn+1
-             iend = ni*nn
-             prvt(:,i,j,istr:iend) = prvt(:,i,j,istr:iend) + prvchg(:,:,ni)
-          END DO !ni
-
-       END DO ! i
-
-    END DO ! j
-
-  END SUBROUTINE DepositionFast
+  END SUBROUTINE DepositionAny
 
 
 end module mcrp

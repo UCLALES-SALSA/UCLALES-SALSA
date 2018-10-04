@@ -272,6 +272,9 @@ contains
 
     use mpi_interface, only : pecount, double_scalar_par_sum,myid, appl_abort
     use stat, only : get_zi
+    USE grid, ONLY : a_ncloudp, a_nprecpp, a_mprecpp, a_nicep, a_nsnowp, a_msnowp, &
+         a_naerop, a_naerot, a_ncloudt, a_nicet, a_nsnowt, a_maerop, a_mcloudp, a_micep,  &
+         a_maerot, a_mcloudt, a_micet, a_msnowt, a_nprecpt, a_mprecpt, level
 
     integer, intent (in):: n1,n2, n3
     real, dimension (n1), intent (in)          :: zt, dzt, dzm
@@ -294,12 +297,28 @@ contains
        ! User specified divergence used as a simple large scle forcing for moisture and temperature fields
        ! -------------------------------------------------------------------------------------------------
        !
+       sf(:)=-zdiv*zt(:)*dzt(:)
        DO j=3,n3-2
           DO i=3,n2-2
              DO k=2,n1-1
                 kp1 = k+1
-                tt(k,i,j) = tt(k,i,j) + zdiv*zt(k)*(tl(kp1,i,j)-tl(k,i,j))*dzt(k)
-                rtt(k,i,j) = rtt(k,i,j) + zdiv*zt(k)*(rt(kp1,i,j)-rt(k,i,j))*dzt(k)
+                tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
+                rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
+
+                IF (level>=4) THEN
+                  a_maerot(k,i,j,:) = a_maerot(k,i,j,:) - ( a_maerop(kp1,i,j,:) - a_maerop(k,i,j,:) )*sf(k)
+                  a_mcloudt(k,i,j,:) = a_mcloudt(k,i,j,:) - ( a_mcloudp(kp1,i,j,:) - a_mcloudp(k,i,j,:) )*sf(k)
+                  a_mprecpt(k,i,j,:) = a_mprecpt(k,i,j,:) - ( a_mprecpp(kp1,i,j,:) - a_mprecpp(k,i,j,:) )*sf(k)
+                  a_naerot(k,i,j,:) = a_naerot(k,i,j,:) - ( a_naerop(kp1,i,j,:) - a_naerop(k,i,j,:) )*sf(k)
+                  a_ncloudt(k,i,j,:) = a_ncloudt(k,i,j,:) - ( a_ncloudp(kp1,i,j,:) - a_ncloudp(k,i,j,:) )*sf(k)
+                  a_nprecpt(k,i,j,:) = a_nprecpt(k,i,j,:) - ( a_nprecpp(kp1,i,j,:) - a_nprecpp(k,i,j,:) )*sf(k)
+                ENDIF
+                IF (level>=5) THEN
+                  a_micet(k,i,j,:) = a_micet(k,i,j,:) - ( a_micep(kp1,i,j,:) - a_micep(k,i,j,:) )*sf(k)
+                  a_msnowt(k,i,j,:) = a_msnowt(k,i,j,:) - ( a_msnowp(kp1,i,j,:) - a_msnowp(k,i,j,:) )*sf(k)
+                  a_nicet(k,i,j,:) = a_nicet(k,i,j,:) - ( a_nicep(kp1,i,j,:) - a_nicep(k,i,j,:) )*sf(k)
+                  a_nsnowt(k,i,j,:) = a_nsnowt(k,i,j,:) - ( a_nsnowp(kp1,i,j,:) - a_nsnowp(k,i,j,:) )*sf(k)
+                ENDIF
              END DO
           END DO
        END DO
