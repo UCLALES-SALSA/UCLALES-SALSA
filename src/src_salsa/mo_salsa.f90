@@ -6,6 +6,7 @@ MODULE mo_salsa
   USE mo_salsa_cloud_ice, ONLY : autosnow,ice_fixed_NC, ice_nucl_driver,ice_melt
   
   USE mo_submctl, ONLY :      &
+       spec, &
        ncld,                      &
        ntotal,                    &
        fixinc,                    &
@@ -19,7 +20,7 @@ MODULE mo_salsa
        lsdistupdate,              &
        lscheckarrays,             &
        ice_hom, ice_imm, ice_dep
-  USE mo_salsa_types, ONLY : allSALSA
+  USE mo_salsa_types, ONLY : allSALSA,ice
   
   IMPLICIT NONE
 
@@ -75,27 +76,36 @@ MODULE mo_salsa
           pactd(kbdim,klev,ncld)
      
      INTEGER, INTENT(in) :: level                         ! thermodynamical level
+
+     INTEGER :: nspec
+     
      
      !-- Local variables ------------------------------------------------------------------
      
      INTEGER :: zpbl(kbdim)            ! Planetary boundary layer top level
      
      zpbl(:) = 1
+
+     nspec = spec%getNSpec()
      
      ! Coagulation
      IF (lscoag%state) &
           CALL coagulation( kproma, kbdim,  klev,                   &
                             ptstep, ptemp,  ppres   )
 
+     IF (ANY(ice(:,:,:)%volc(nspec) < ice(:,:,:)%vrime)) WRITE(*,*)  'ice test 1'
+     
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"COAG")
 
      ! Condensation
      IF (lscnd%state) &
-          CALL condensation(kproma,  kbdim,    klev,     krow,          &
-                            level,   pc_h2so4, pc_ocnv,  pc_ocsv,       &
-                            pc_hno3, pc_nh3,   prv,      prs,           &
-                            prsi,    ptemp,    ppres,    ptstep,  zpbl  )
+          CALL condensation(kproma,   kbdim,    klev,     krow,      &
+                            pc_h2so4, pc_ocnv,  pc_ocsv,  pc_hno3,   &
+                            pc_nh3,   prv,      prs,      prsi,      &
+                            ptemp,    ppres,    ptstep,   zpbl       )
 
+     IF (ANY(ice(:,:,:)%volc(nspec) < ice(:,:,:)%vrime)) WRITE(*,*)  'ice test 2'
+     
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"CONDENSATION")
 
      ! Autoconversion (liquid)
@@ -125,13 +135,9 @@ MODULE mo_salsa
         END IF
      END IF
 
+     IF (ANY(ice(:,:,:)%volc(nspec) < ice(:,:,:)%vrime)) WRITE(*,*)  'ice test 3'
+     
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"ICENUC")
-
-     ! Melting of ice and snow
-     IF (lsicemelt%state) &
-          CALL ice_melt(kproma,kbdim,klev,ptemp)
-
-     IF (lscheckarrays) CALL check_arrays(kbdim,klev,"ICEMELT")
 
      ! Snow formation ~ autoconversion from ice
      IF (lsautosnow%state) &
@@ -139,10 +145,19 @@ MODULE mo_salsa
 
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"AUTOSNOW")
 
+     ! Melting of ice and snow
+     IF (lsicemelt%state) &
+          CALL ice_melt(kproma,kbdim,klev,ptemp)
+
+     IF (ANY(ice(:,:,:)%volc(nspec) < ice(:,:,:)%vrime)) WRITE(*,*)  'ice test 4'
+     
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,"ICEMELT")
+     
      ! Size distribution bin update
      IF (lsdistupdate ) &
           CALL distr_update(kproma, kbdim, klev, level)
-
+     IF (ANY(ice(:,:,:)%volc(nspec) < ice(:,:,:)%vrime)) WRITE(*,*)  'ice test 5'
+     
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"DISTUPDATE")
 
    END SUBROUTINE salsa

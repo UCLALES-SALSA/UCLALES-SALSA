@@ -86,20 +86,14 @@ MODULE classSection
     SUBROUTINE updateDiameter(SELF,limit,type)
       CLASS(Section), INTENT(inout) :: SELF
       LOGICAL,INTENT(in) :: limit  ! True -> constrain the result wet diameter by dlim
-      CHARACTER(len=3), INTENT(in), OPTIONAL :: type  ! "dry" or "wet" or "ins" (insoluble). Default is "wet"
+      CHARACTER(len=3), INTENT(in), OPTIONAL :: type  ! "dry" or "wet", "ins" (insoluble) or "all". Default is "wet"
 
       CHARACTER(len=3) :: swtyp
       INTEGER :: nwet, ndry
-      REAL :: hlp
-      
 
       nwet = spec%getNSpec(type="wet")
       ndry = spec%getNspec(type="dry")
       
-
-
-
-
       IF ( .NOT. PRESENT(type) ) THEN
          swtyp = "wet"
       ELSE
@@ -107,36 +101,41 @@ MODULE classSection
       END IF
        
       IF (SELF%numc > SELF%nlim) THEN
-         IF (swtyp == "wet") THEN
+         IF (ANY(swtyp == ["wet","all"])) THEN
             SELF%dwet = 1.e-10
             SELF%dwet = (SUM(SELF%volc(1:nwet))/SELF%numc/pi6)**(1./3.)
          END IF
 
-         IF (swtyp == "dry") THEN
+         IF (ANY(swtyp == ["dry","all"])) THEN
             SELF%ddry = 1.e-10
             SELF%ddry = (SUM(SELF%volc(1:ndry))/SELF%numc/pi6)**(1./3.)
          END IF
 
-         IF (swtyp == "ins" .AND. ALL( spec%ind_insoluble(:) > 0 )) THEN ! If there is any insoluble active, all the indices sohuld be > 0
+         IF (ANY(swtyp == ["ins","all"]) .AND. ALL( spec%ind_insoluble(:) > 0 )) THEN ! If there is any insoluble active, all the indices sohuld be > 0
             SELF%dins = 1.e-10
             SELF%dins = ( SUM(SELF%volc(spec%ind_insoluble))/SELF%numc/pi6 )**(1./3.)
          END IF
+      ELSE
+         IF (ANY(swtyp == ["wet","all"])) SELF%dwet = SELF%dmid
 
+         IF (ANY(swtyp == ["dry","all"])) SELF%ddry = SELF%dmid
+
+         IF (ANY(swtyp == ["ins","all"])) SELF%dins = SELF%dmid
       END IF
 
       IF (limit) THEN
-         IF (swtyp == "wet") &
+         IF (ANY(swtyp == ["wet","all"])) &
               SELF%dwet = MIN(SELF%dwet,SELF%dlim)
-         IF (swtyp == "dry") &
+         IF (ANY(swtyp == ["dry","all"])) &
               SELF%ddry = MIN(SELF%ddry,SELF%dlim)
-         IF (swtyp == "ins") &
+         IF (ANY(swtyp == ["ins","all"])) &
               SELF%dins = MIN(SELF%dins,SELF%dlim)
       END IF
 
     END SUBROUTINE updateDiameter
 
     ! 
-    ! Subroutine updateRhoeff
+    ! Subroutine updateRhomean
     !
     ! updateRhomean just gets the bulk mass weighted mean ice density
     ! for partially rimed particles. Another subroutine should be added
@@ -154,18 +153,40 @@ MODULE classSection
       
       iwa = spec%getIndex("H2O")
 
+      SELF%rhomean = spec%rhoic
+      
       ! convert to masses -> get the mass mean density
       IF (SELF%phase > 3) THEN
-         ! Just for ice
-         mass_p = spec%rhoic*(SELF%volc(iwa) - SELF%vrime)
-         mass_r = spec%rhori*SELF%vrime
-         mass_t = mass_p + mass_r
-         SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/mass_t
+         IF (SELF%numc > SELF%nlim) THEN
+            mass_p = spec%rhoic*(SELF%volc(iwa) - SELF%vrime)
+            IF (mass_p < 0.) THEN
+               !WRITE(*,*) "classSection: WARNING: Pristine ice mass < 0, setting to 0 ", mass_p
+               mass_p = 0.
+            END IF
+            mass_r = spec%rhori*SELF%vrime
+            mass_t = mass_p + mass_r
+            SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/mass_t
+         ELSE
+            SELF%rhomean = spec%rhoic
+         END IF
       ELSE
          SELF%rhomean = spec%rhowa
       END IF
 
     END SUBROUTINE updateRhomean
+
+    !
+    ! Subroutine addRimedVol
+    !
+    ! Addition of rimed ice volume to a particle e.g. from ice-precip collection
+    ! is not straightforward because of it's effect on the bulk ice mean density.
+    ! The contributions must first be converted into mass and go from there...
+    !
+    !
+    !SUBROUTINE addRimedVol(SELF, addvol)
+    !  CLASS(Section)
+
+    !END SUBROUTINE addRimedVol
 
 
 

@@ -247,7 +247,6 @@ MODULE mo_salsa_coagulation_processes
       REAL :: zvolsink_slf(nspec,kbdim,klev)
       REAL :: zvol_prc(nspec,kbdim,klev,nprc)
       REAL :: znum_prc(kbdim,klev,nprc)
-      REAL :: zdia(ncld)  ! Gonna be deprecated
       ! ---
 
       INTEGER :: index_aero_a, index_aero_b
@@ -256,11 +255,10 @@ MODULE mo_salsa_coagulation_processes
 
       ! Update the cloud droplet diameters as they are needed later; THIS CAN BE DONE IN A CLEANER WAY IN SUBSEQUENT VERSIONS
       IF (lsauto%state .AND. lsauto%mode == 1) THEN
-         DO jj = 1,klev
-            DO ii = 1,kbdim
-               CALL calcDiamSALSA(ncld,cloud(ii,jj,:),zdia)
-               DO kk = 1,ncld
-                  cloud(ii,jj,kk)%dwet = MIN(zdia(kk),cloud(ii,jj,kk)%dlim)
+         DO kk = 1,ncld
+            DO jj = 1,klev
+               DO ii = 1,kbdim
+                  CALL cloud(ii,jj,kk)%updateDiameter(.TRUE.)
                END DO
             END DO
          END DO
@@ -505,7 +503,7 @@ MODULE mo_salsa_coagulation_processes
       INTEGER :: kk, index_b, index_a
       REAL :: zplusterm(nspec,kbdim,klev), zplus_rime(kbdim,klev), zminusterm(kbdim,klev), zminus_self(kbdim,klev) 
       INTEGER :: nwet,ndry,iwa
-      REAL :: rhowa,rhoic,rhorime,rhomean
+      REAL :: rhowa,rhoic,rhorime
 
       nwet = spec%getNSpec(type="wet")
       ndry = spec%getNSpec(type="dry")
@@ -520,6 +518,7 @@ MODULE mo_salsa_coagulation_processes
          zminusterm(:,:) = 0.
          zminus_self(:,:) = 0.
          zplusterm(:,:,:) = 0.
+         zplus_rime(:,:) = 0.
 
          ! Corresponding index for ice in regime b
          index_b = iib%cur + (kk-iia%cur)
@@ -546,12 +545,12 @@ MODULE mo_salsa_coagulation_processes
          ! Volume gained from cloud collection. Produces rimed ice
          IF (lscgic) &
               CALL accumulateSourceRime(kbdim,klev,nice,ncld,ndry,iwa,kk,ica%cur,fcb%cur, &
-                                        rhoic,rhowa,zccic,cloud,zplusterm,zplus_rime      )
+                                        rhorime,rhowa,zccic,cloud,zplusterm,zplus_rime      )
 
          ! Volume gained from precip collection. Produces rimed ice
          IF (lscgip) &
               CALL accumulateSourceRime(kbdim,klev,nice,nprc,ndry,iwa,kk,1,nprc,     &
-                                        rhoic,rhowa,zccip,precp,zplusterm,zplus_rime )
+                                        rhorime,rhowa,zccip,precp,zplusterm,zplus_rime )
 
          ! Volume gained from smaller ice particles.
          IF (lscgii .AND. kk > iia%cur) THEN
@@ -574,6 +573,7 @@ MODULE mo_salsa_coagulation_processes
          zminusterm(:,:) = 0.
          zminus_self(:,:) = 0.
          zplusterm(:,:,:) = 0.
+         zplus_rime(:,:) = 0.
 
          ! Corresponding index for ice in regime b
          index_a = iia%cur + (kk-iib%cur)
@@ -599,12 +599,12 @@ MODULE mo_salsa_coagulation_processes
          ! Volume gained from cloud collection. Produce rimed ice
          IF (lscgic) &
               CALL accumulateSourceRime(kbdim,klev,nice,ncld,ndry,iwa,kk,ica%cur,fcb%cur,   &
-                                        rhoic,rhowa,zccic,cloud,zplusterm,zplus_rime        )
+                                        rhorime,rhowa,zccic,cloud,zplusterm,zplus_rime        )
 
          ! Volume gained from precip collection. Produce rimed ice
          IF (lscgip) &
               CALL accumulateSourceRime(kbdim,klev,nice,nprc,ndry,iwa,kk,1,nprc,  &
-                                        rhoic,rhowa,zccip,precp,zplusterm,zplus_rime)
+                                        rhorime,rhowa,zccip,precp,zplusterm,zplus_rime)
 
          ! Volume gained from smaller ice particles
          IF (lscgii .AND. kk > iib%cur) THEN
@@ -727,6 +727,9 @@ MODULE mo_salsa_coagulation_processes
 
       REAL :: mtrgt_t, mtrgt_r, mtot, mrime ! The ice mass in target particle, the mass source term for total ice
                                             ! and rimed ice
+
+      TYPE(Section) :: before
+
       INTEGER :: ii,jj
       INTEGER :: iwa
       
@@ -735,41 +738,40 @@ MODULE mo_salsa_coagulation_processes
       DO jj = 1,klev
          DO ii = 1,kbdim
 
+            before = part(ii,jj,itrgt)
+
             ! Apply the change due to coagulation to the dry components. Standard procedure
             part(ii,jj,itrgt)%volc(1:ndry) =                &
                  ( part(ii,jj,itrgt)%volc(1:ndry) +          &
                    ptstep*source(1:ndry,ii,jj)*part(ii,jj,itrgt)%numc ) /  &
                  ( 1. + ptstep*sink(ii,jj) )
 
-            ! Apply the changes in ice. To account for the density variabilities, convert to mass concentrations using the particles' 
-            ! mean ice density for the total ice bulk volume and bulk rime density for the rime volume
-            mtrgt_t = part(ii,jj,itrgt)%volc(iwa)*part(ii,jj,itrgt)%rhomean
-            mtrgt_r = part(ii,jj,itrgt)%vrime*rhorime
-
-            ! Check
-            IF ( mtrgt_t < mtrgt_r) WRITE(*,*) 'applyCoagIce: Particle rime larger than total!!!'
-
-            ! The source terms have been calculated using bulk pristine ice density also for rime, so it's straightforward to convert to mass.
-            ! The correct densities are applied when calculating the final contribution to the result volume concentrations
-            mtot = source(nspec,ii,jj)*rhoic
-            mrime = source_rime(ii,jj)*rhoic
             
-            ! Check
-            IF (mtot < mrime) WRITE(*,*) 'applyCoagIce: Source rime larger than total!!!!'
+            IF ( ANY([source(iwa,ii,jj),source_rime(ii,jj)] > 1.e-100) .AND.   &
+                 source(iwa,ii,jj) < 0.5*source_rime(ii,jj))  &
+                 WRITE(*,*) 'COAG VAARIN', source(iwa,ii,jj), source_rime(ii,jj)
 
-            ! Apply the coagulation sources on particle mass concentrations
-            mtrgt_t = ( mtrgt_t + ptstep*mtot*part(ii,jj,itrgt)%numc ) / ( 1. + ptstep*sink(ii,jj) )
-            mtrgt_r = ( mtrgt_r + ptstep*mrime*part(ii,jj,itrgt)%numc ) / ( 1. + ptstep*sink(ii,jj) )
-            
-            ! Convert back to volume concentrations
-            part(ii,jj,itrgt)%vrime = mtrgt_r/rhorime
-            part(ii,jj,itrgt)%volc(iwa) = ( (mtrgt_t-mtrgt_r)/rhoic ) + ( mtrgt_r/rhorime )
 
-            ! Update the mean particle density
-            CALL part(ii,jj,itrgt)%updateRhomean()
+            ! Apply the coagulation sources and sinks of particle volume concentrations
+            part(ii,jj,itrgt)%vrime = ( part(ii,jj,itrgt)%vrime +     &
+                                        ptstep*source_rime(ii,jj)*part(ii,jj,itrgt)%numc ) / &
+                                      ( 1. + ptstep*sink(ii,jj) )
+            part(ii,jj,itrgt)%volc(iwa) = ( part(ii,jj,itrgt)%volc(iwa) +  &
+                                            ptstep*source(nspec,ii,jj)*part(ii,jj,itrgt)%numc ) / &
+                                          ( 1. + ptstep*sink(ii,jj) )
 
             ! Apply the sink term for number concentration
             part(ii,jj,itrgt)%numc = part(ii,jj,itrgt)%numc / ( 1. + ptstep*(sink(ii,jj) + sink_self(ii,jj)) )
+
+            IF ( ANY(1.e-30 < [part(ii,jj,itrgt)%volc(iwa),part(ii,jj,itrgt)%vrime]) .AND. &
+                 part(ii,jj,itrgt)%volc(iwa) < 0.5*part(ii,jj,itrgt)%vrime ) &
+                 WRITE(*,*) 'applyCoagIce: Particle rime larger than total!!!', &
+                            part(ii,jj,itrgt)%volc(iwa),  part(ii,jj,itrgt)%vrime,  &
+                            before%volc(iwa), before%vrime
+
+
+            ! Update the mean particle density
+            CALL part(ii,jj,itrgt)%updateRhomean()
 
          END DO
       END DO
@@ -1015,15 +1017,13 @@ MODULE mo_salsa_coagulation_processes
          DO jj = 1,klev
             DO ii = 1,kbdim
                source(1:ndry,ii,jj) = source(1:ndry,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:ndry)
-               source(iwa,ii,jj) = source(iwa,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*coll(ii,jj,ll)%rhomean/rhotrgt
-               source_rime(ii,jj) = source_rime(ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%vrime*rhorime/rhotrgt
+               source(iwa,ii,jj) = source(iwa,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)   !*coll(ii,jj,ll)%rhomean/rhotrgt
+               source_rime(ii,jj) = source_rime(ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%vrime     !*rhorime/rhotrgt
             END DO
          END DO
       END DO
 
     END SUBROUTINE accumulateSourceIce
-
-
 
 
     ! Category specific processes
@@ -1050,7 +1050,6 @@ MODULE mo_salsa_coagulation_processes
       REAL :: D_new
       INTEGER :: trgt_prc
       INTEGER :: ii,jj,ll
-      REAL :: xx
       LOGICAL :: selfcoll
 
       selfcoll = .FALSE.
@@ -1063,7 +1062,7 @@ MODULE mo_salsa_coagulation_processes
          DO jj = 1,klev
             DO ii = 1,kbdim
                ! The estimated diameter of the droplets after collision
-                D_new = (cloud(ii,jj,nbtrgt)%dwet**3 + cloud(ii,jj,ll)%dwet**3)**(1./3.)
+                D_new = (cloud(ii,jj,itrgt)%dwet**3 + cloud(ii,jj,ll)%dwet**3)**(1./3.)
 
                 ! Check out to which precip bin this belogs (if any)
                 trgt_prc = 0

@@ -4,9 +4,7 @@ MODULE mo_salsa_cloud
                            in1a,in2a,in2b,fn2a,fn2b,   &
                            ica,icb,fca,fcb,            &
                            pi, pi6, grav, rg,          &
-                           surfw0, cpa, mair,          &
-                           nlim, prlim,                &
-                           lsactintst, lsactbase
+                           surfw0, cpa, mair
     USE util, ONLY : cumlognorm
   IMPLICIT NONE
 
@@ -118,7 +116,7 @@ CONTAINS
           !-- subranges 1a, 2a and 2b
           
           DO kk = 1, fn2b
-             IF (aero(ii,jj,kk)%numc > nlim) THEN
+             IF (aero(ii,jj,kk)%numc > aero(ii,jj,kk)%nlim) THEN
                 
                 !-- number of moles of solute in one particle [mol]
                 !   BC and dust are insoluble - ignored
@@ -261,7 +259,7 @@ CONTAINS
           ntot = SUM(aero(ii,jj,in1a:fn2b)%numc)
           sum1 = SUM(aero(ii,jj,in1a:fn2b)%numc/scrit(in1a:fn2b)**(2./3.))
           
-          IF(ntot < nlim) CYCLE
+          IF(ntot < aero(ii,jj,1)%nlim) CYCLE
           V = w(ii,jj)
           
           !-- latent heat of evaporation [J/kg]
@@ -314,7 +312,7 @@ CONTAINS
           
           DO kk = in1a, fn2b
              
-             IF (aero(ii,jj,kk)%numc < nlim) CYCLE
+             IF (aero(ii,jj,kk)%numc < aero(ii,jj,kk)%nlim) CYCLE
              
              !-- moles of solute in particle at the upper bound of the bin
              nshi = ns(ii,jj,kk)*aero(ii,jj,kk)%vratiohi
@@ -428,7 +426,7 @@ CONTAINS
 
     DO jj = 1, klev
        DO ii = 1, kbdim
-          IF ( prv(ii,jj)/prs(ii,jj) <= 0.99 ) CYCLE  ! Allow activation in slightly less than 100% RH, which should theoretically be possible for some special circumstances
+          IF ( prv(ii,jj)/prs(ii,jj) <= 1.000 ) CYCLE  ! Allow activation in slightly less than 100% RH, which should theoretically be possible for some special circumstances
           
           zkelvin = 4.*spec%mwa*surfw0/(rg*spec%rhowa*temp(ii,jj)) ! Kelvin effect [m]
             
@@ -462,7 +460,7 @@ CONTAINS
                 END DO
              END IF
 
-             IF ( aero(ii,jj,ab)%numc < nlim) CYCLE                            ! Must have a reasonable number of particles
+             IF ( aero(ii,jj,ab)%numc < aero(ii,jj,ab)%nlim) CYCLE                            ! Must have a reasonable number of particles
              IF ( vol_sol < aero(ii,jj,ab)%numc*THvol) CYCLE                   ! Must have at least some soluble material in the particles
              IF ( aero(ii,jj,ab)%volc(iwa) < aero(ii,jj,ab)%numc*THvol ) CYCLE ! Must not be totally dry
              
@@ -478,14 +476,14 @@ CONTAINS
              
              ! Number concentrations and volumes at adjacent bins (check for sizedistribution boundaries)
              IF (ab == in1a .OR. ab == in2b) THEN
-                Nim1 = nlim
+                Nim1 = aero(ii,jj,ab)%nlim
                 Vim1 = Vlo/2.
                 Vlom1 = 0.
                 Vhim1 = Vlo
                 Vwim1 = Vwmid/3.
              ELSE
                 Nim1 = aero(ii,jj,ab-1)%numc
-                IF (Nim1 > nlim) THEN
+                IF (Nim1 > aero(ii,jj,ab-1)%nlim) THEN
                    Vim1 = SUM(aero(ii,jj,ab-1)%volc(1:ndry))/Nim1
                    Vwim1 = SUM(aero(ii,jj,ab-1)%volc(1:nwet))/Nim1
                 ELSE
@@ -496,14 +494,14 @@ CONTAINS
                 Vhim1 = Vim1*aero(ii,jj,ab-1)%vratiohi
              END IF
              IF (ab == fn2a .OR. ab == fn2b ) THEN
-                Nip1 = nlim
+                Nip1 = aero(ii,jj,ab)%nlim
                 Vip1 = Vhi + 0.5*(Vhi-Vlo)
                 Vlop1 = Vhi
                 Vhip1 = Vhi + (Vhi-Vlo)
                 Vwip1 = Vhip1
              ELSE
                 Nip1 = aero(ii,jj,ab+1)%numc
-                IF (Nip1 > nlim) THEN
+                IF (Nip1 > aero(ii,jj,ab+1)%nlim) THEN
                    Vip1 = SUM(aero(ii,jj,ab+1)%volc(1:ndry))/Nip1
                    Vwip1 = SUM(aero(ii,jj,ab+1)%volc(1:nwet))/Nip1
                 ELSE
@@ -699,10 +697,11 @@ CONTAINS
           
           zvcstar = 0.
           
-          IF ( aero(ii,jj,pbcrita(ii,jj))%numc < nlim ) THEN
+          IF ( aero(ii,jj,pbcrita(ii,jj))%numc < aero(ii,jj,pbcrita(ii,jj))%nlim ) THEN
              Vmid = pi6*aero(ii,jj,pbcrita(ii,jj))%dmid**3
           ELSE
-             Vmid = SUM( aero(ii,jj,pbcrita(ii,jj))%volc(1:ndry) )/MAX(nlim,aero(ii,jj,pbcrita(ii,jj))%numc)
+             Vmid = SUM( aero(ii,jj,pbcrita(ii,jj))%volc(1:ndry) )/MAX(aero(ii,jj,pbcrita(ii,jj))%nlim, &
+                                                                       aero(ii,jj,pbcrita(ii,jj))%numc)
           END IF
           Vhi = aero(ii,jj,pbcrita(ii,jj))%vhilim
           Vlo = aero(ii,jj,pbcrita(ii,jj))%vlolim
@@ -731,24 +730,24 @@ CONTAINS
                 ab = icb%par + (cb-icb%cur)
              END IF
              
-             IF ( aero(ii,jj,ab)%numc < nlim) CYCLE
+             IF ( aero(ii,jj,ab)%numc < aero(ii,jj,ab)%nlim) CYCLE
              
              ! Formulate a slope for Wet particle size within bins and integrate over
              ! the particles larger than zvcstar
              
-             Nmid = MAX(aero(ii,jj,ab)%numc, nlim)
+             Nmid = MAX(aero(ii,jj,ab)%numc, aero(ii,jj,ab)%nlim)
              Vmid = SUM(aero(ii,jj,ab)%volc(1:ndry))/Nmid ! Dry bin mid volume
              Vlo = aero(ii,jj,ab)%vlolim      ! Mid dry volume scaled to bin low limit (this is mostly an educated guess... )
              Vhi = aero(ii,jj,ab)%vhilim      ! Same for high limit
              
              IF (ab == in1a .OR. ab == in2b) THEN
-                Nim1 = nlim
+                Nim1 = aero(ii,jj,ab)%nlim
                 Vim1 = Vlo/2.
                 Vlom1 = 0.
                 Vhim1 = Vlo
              ELSE
-                Nim1 = MAX(aero(ii,jj,ab-1)%numc, nlim)
-                IF (Nim1 > nlim) THEN
+                Nim1 = MAX(aero(ii,jj,ab-1)%numc, aero(ii,jj,ab-1)%nlim)
+                IF (Nim1 > aero(ii,jj,ab-1)%nlim) THEN
                    Vim1 = SUM(aero(ii,jj,ab-1)%volc(1:ndry))/Nim1
                 ELSE
                    Vim1 = pi6*aero(ii,jj,ab-1)%dmid**3
@@ -757,13 +756,13 @@ CONTAINS
                 Vhim1 = aero(ii,jj,ab-1)%vhilim
              END IF
              IF (ab == fn2a .OR. ab == fn2b) THEN
-                Nip1 = nlim
+                Nip1 = aero(ii,jj,ab)%nlim
                 Vip1 = Vhi + 0.5*(Vhi-Vlo)
                 Vlop1 = Vhi
                 Vhip1 = Vhi + (Vhi-Vlo)
              ELSE
-                Nip1 = MAX(aero(ii,jj,ab+1)%numc, nlim)
-                IF (Nip1 > nlim) THEN
+                Nip1 = MAX(aero(ii,jj,ab+1)%numc, aero(ii,jj,ab+1)%nlim)
+                IF (Nip1 > aero(ii,jj,ab+1)%nlim) THEN
                    Vip1 = SUM(aero(ii,jj,ab+1)%volc(1:ndry))/Nip1
                 ELSE
                    Vip1 = pi6*aero(ii,jj,ab+1)%dmid**3
@@ -892,7 +891,7 @@ CONTAINS
              Ntot = cloud(ii,jj,cc)%numc
              Vtot = SUM(cloud(ii,jj,cc)%volc(1:nwet))
              
-             IF ( Ntot > nlim .AND. Vtot > 0. ) THEN
+             IF ( Ntot > cloud(ii,jj,cc)%nlim .AND. Vtot > 0. ) THEN
                 
                 ! Volume geometric mean diameter
                 dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(sigmag)**2)/2. )
@@ -901,7 +900,7 @@ CONTAINS
                 Vrem = Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) )
                 Nrem = Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )
                 
-                IF ( Vrem > 0. .AND. Nrem > prlim) THEN
+                IF ( Vrem > 0. .AND. Nrem > precp(ii,jj,1)%nlim) THEN
                    
                    ! Put the mass and number to the first precipitation bin and remove from
                    ! cloud droplets

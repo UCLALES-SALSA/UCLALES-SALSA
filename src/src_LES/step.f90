@@ -19,7 +19,7 @@
 !
 MODULE step
 
-  USE mo_submctl, ONLY : spec
+  USE mo_submctl, ONLY : spec, nice
   USE util, ONLY : getMassIndex, calc_correlation 
   
   IMPLICIT NONE
@@ -206,6 +206,100 @@ CONTAINS
 
    END SUBROUTINE set_LES_runtime
 
+   ! DEBUGGING
+   SUBROUTINE checkIce(ii)
+     USE grid, ONLY : a_micep,nxp, nyp, nzp
+     USE util, ONLY : getMassIndex
+     IMPLICIT NONE
+
+     INTEGER, INTENT(in) :: ii
+
+     INTEGER :: i,j,k
+     
+     INTEGER :: bc, mi, mi2, nspec
+
+     nspec = spec%getNSpec()
+
+     DO bc = 1,nice
+        mi = getMassIndex(nice,bc,nspec)
+        mi2 = getMassIndex(nice,bc,nspec+1)
+        DO j = 1,nyp
+           DO i = 1,nxp
+              DO k = 1,nzp-1
+                 IF ( ( a_micep(k,i,j,mi) < a_micep(k,i,j,mi2) .OR. a_micep(k,i,j,mi) < -1.e-30 ) .AND.  &
+                      ABS(a_micep(k,i,j,mi)) > 1.e-30 .AND. ABS(a_micep(k,i,j,mi)) > 1.e-30 ) &
+                      WRITE(*,*) "STEP rimed > total ",ii, k,i,j,a_micep(k,i,j,mi), a_micep(k,i,j,mi2)
+              END DO
+           END DO
+        END DO                 
+     END DO
+     
+   END SUBROUTINE checkIce
+
+   !
+   !
+
+   SUBROUTINE separateIceSpecies(reverse)
+     USE grid, ONLY : a_micep, nxp,nyp,nzp
+     USE util, ONLY : getMassIndex
+     IMPLICIT NONE
+
+     LOGICAL, INTENT(in) :: reverse
+
+     INTEGER :: bc,mi,mi2,nspec,k,i,j
+
+     nspec = spec%getNSpec()
+         
+     ! The default configuration for ice mass tracers is that
+     ! the primary tracer is total ice mass, and the secondary
+     ! tracer is rimed ice (as a subset for total ice). However,
+     ! this may cause problems in advection, so for that, use this
+     ! subroutine to separate the tracers to pristine ice and rimed
+     ! ice through a simple subtraction and substitution.
+     ! If reverse == .FALSE., do the opposite to return back to the
+     ! default configuration.
+
+     ! Make sure to do these transitions only after the scalar update and
+     ! zeroing tendencies!!
+
+     IF (reverse) THEN
+        ! Get back to the total ice - rime layout
+        DO bc = 1,nice
+           mi = getMassIndex(nice,bc,nspec)
+           mi2 = getMassIndex(nice,bc,nspec+1)        
+           a_micep(:,:,:,mi) = a_micep(:,:,:,mi) + a_micep(:,:,:,mi2)        
+        END DO
+     ELSE
+        ! Convert to pristine ice - rime layout
+        DO bc = 1,nice
+           mi = getMassIndex(nice,bc,nspec)
+           mi2 = getMassIndex(nice,bc,nspec+1)
+           a_micep(:,:,:,mi) = a_micep(:,:,:,mi) - a_micep(:,:,:,mi2)
+           IF ( ANY(a_micep(:,:,:,mi) < 0.) ) THEN
+
+
+              ! Check if severe negative numbers
+              IF ( ANY(a_micep(:,:,:,mi) < -1.e-30) ) THEN
+                 DO j = 1,nyp
+                    DO i = 1,nxp
+                       DO k = 1,nzp-1
+                          IF (a_micep(k,i,j,mi) < 0.) WRITE(*,*) "SEPARATE ICE SPECIES ERROR", a_micep(k,i,j,mi),k,i,j
+                       END DO
+                    END DO
+                 END DO
+              END IF
+
+              a_micep(:,:,:,mi) = MAX(a_micep(:,:,:,mi),0.)
+              a_micep(:,:,:,mi2) = MAX(a_micep(:,:,:,mi2),0.)
+              
+           END IF
+                       
+        END DO
+     END IF
+
+   END SUBROUTINE separateIceSpecies
+   
+   
    !
    !----------------------------------------------------------------------
    ! Subroutine t_step: Called by driver to timestep through the LES
@@ -246,6 +340,8 @@ CONTAINS
       LOGICAL :: zactmask(nzp,nxp,nyp)
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
 
+      INTEGER :: mi, mi2
+
       INTEGER :: n4
       
       CALL set_LES_runtime(time)
@@ -281,9 +377,13 @@ CONTAINS
 
             n4 = spec%getNSpec() ! Aerosol components + water
 
+            CALL checkIce(1)
+
             CALL tend_constrain(n4)
             CALL update_sclrs
             CALL tend0(.TRUE.)
+
+            CALL checkIce(2)
 
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                ! 1D -runs
@@ -307,7 +407,7 @@ CONTAINS
                               dtlt, time, level, .FALSE.)
              
             END IF !nxp==5 and nyp == 5
-
+            
             CALL tend_constrain(n4)
          END IF
 
@@ -315,16 +415,25 @@ CONTAINS
 
       CALL update_sclrs
 
+      CALL checkIce(3)
+
       !-------------------------------------------
       ! "Deposition" timestep
       ! -- Reset only scalar tendencies
       CALL tend0(.TRUE.)
 
-      ! Dont perform sedimentation or level 3 autoconversion during spinup
+      IF (level >= 4)  THEN
+         CALL SALSA_diagnostics(1)
+         CALL thermo(level)
+      END IF
+
+      ! Dont perform sedimentation or level 3 autoconversion during spinup (internal switches implemented)
       CALL micro(level)
 
       IF (level >= 4) CALL tend_constrain(n4)
       CALL update_sclrs
+
+      CALL checkIce(4)
 
       !-------------------------------------------
       ! "Advection" timestep
@@ -332,10 +441,12 @@ CONTAINS
       CALL tend0(.TRUE.)
 
       ! Mask for cloud base activation
-      IF (level >= 4) CALL maskactiv(zactmask,nxp,nyp,nzp,2,a_rh,rc=a_rc,w=a_wp)
+      !IF (level >= 4) CALL maskactiv(zactmask,nxp,nyp,nzp,2,a_rh,rc=a_rc,w=a_wp)
       ! Get tendencies from cloud base activation
-      IF (level >= 4) CALL newdroplet(zactmask)
+      !IF (level >= 4) CALL newdroplet(zactmask)
 
+      CALL separateIceSpecies(reverse=.FALSE.)
+      
       CALL fadvect
 
       IF (level >= 4)  &
@@ -343,10 +454,14 @@ CONTAINS
 
       CALL update_sclrs
 
+      CALL separateIceSpecies(reverse=.TRUE.)
+      
+      CALL checkIce(5)
+
       CALL thermo(level)
 
       IF (level >= 4)  THEN
-         CALL SALSA_diagnostics
+         CALL SALSA_diagnostics(2)
          CALL thermo(level)
       END IF
 
@@ -365,7 +480,7 @@ CONTAINS
       CALL thermo(level)
 
       IF (level >= 4)  THEN
-         CALL SALSA_diagnostics
+         CALL SALSA_diagnostics(3)
          call thermo(level)
       ENDIF
 
@@ -519,34 +634,34 @@ CONTAINS
    !
    SUBROUTINE boyanc(n1,n2,n3,wt,th,rv,th00,scr,rc)
 
-      USE defs, ONLY : g, ep2
+     USE defs, ONLY : g, ep2
 
-      INTEGER, INTENT(in) :: n1,n2,n3
-      REAL, INTENT(in)    :: th00,th(n1,n2,n3),  &
-                             rv(n1,n2,n3)  ! water vapor
+     INTEGER, INTENT(in) :: n1,n2,n3
+     REAL, INTENT(in)    :: th00,th(n1,n2,n3),  &
+                            rv(n1,n2,n3)  ! water vapor
                                       
-      REAL, INTENT(in)    :: rc(n1,n2,n3)  ! Total condensed water (aerosol, cloud, rain, ice and snow) mixing ratio
+     REAL, INTENT(in)    :: rc(n1,n2,n3)  ! Total condensed water (aerosol, cloud, rain, ice and snow) mixing ratio
 
-      REAL, INTENT(inout) :: wt(n1,n2,n3)
-      REAL, INTENT(out)   :: scr(n1,n2,n3)
+     REAL, INTENT(inout) :: wt(n1,n2,n3)
+     REAL, INTENT(out)   :: scr(n1,n2,n3)
 
-      INTEGER :: k, i, j
-      REAL    :: gover2
+     INTEGER :: k, i, j
+     REAL    :: gover2
+     
+     gover2 = 0.5*g
 
-      gover2 = 0.5*g
-
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
-             scr(k,i,j)=gover2*((th(k,i,j)*(1.+ep2*rv(k,i,j))-th00)/th00-rc(k,i,j))
-          end do
-
-          do k=2,n1-2
-             wt(k,i,j)=wt(k,i,j)+scr(k,i,j)+scr(k+1,i,j)
-          end do
-       end do
-    end do
-
+     do j=3,n3-2
+        do i=3,n2-2
+           do k=1,n1
+              scr(k,i,j)=gover2*((th(k,i,j)*(1.+ep2*rv(k,i,j))-th00)/th00-rc(k,i,j))
+           end do
+           
+           do k=2,n1-2
+              wt(k,i,j)=wt(k,i,j)+scr(k,i,j)+scr(k+1,i,j)
+           end do
+        end do
+     end do
+     
    END SUBROUTINE boyanc
    !
    ! ----------------------------------------------------------------------

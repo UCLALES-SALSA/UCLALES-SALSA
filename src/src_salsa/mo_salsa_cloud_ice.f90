@@ -70,6 +70,18 @@ MODULE mo_salsa_cloud_ice
     idu = spec%getIndex("DU",notFoundValue=0)
     iwa = spec%getIndex("H2O")
 
+
+    DO kk = 1,nice
+       DO jj = 1,klev
+          DO ii = 1,kproma
+             IF ( ANY([ice(ii,jj,kk)%volc(iwa),ice(ii,jj,kk)%vrime] > 1.e-30) .AND.  &
+                  ice(ii,jj,kk)%numc > ice(ii,jj,kk)%nlim                     .AND.  &
+                  ice(ii,jj,kk)%volc(iwa) < 0.5*ice(ii,jj,kk)%vrime                      )  &
+                  WRITE(*,*) 'ENNEN',ice(ii,jj,kk)%volc(iwa), ice(ii,jj,kk)%vrime
+          END DO
+       END DO
+    END DO
+
     ! Loop over liquid phase bins
     DO kk = 1,nliquid 
        DO ii = 1,kbdim
@@ -77,31 +89,23 @@ MODULE mo_salsa_cloud_ice
              IF (ptemp(ii,jj) > 273.15) CYCLE
              IF (liquid(ii,jj,kk)%numc < liquid(ii,jj,kk)%nlim) CYCLE
 
-             !WRITE(*,*) 'ice 1'
-
              ! Get the insoluble volume concentration
              zinsol = 0.
              IF ( ibc > 0 ) zinsol = zinsol + liquid(ii,jj,kk)%volc(ibc)
              IF ( idu > 0 ) zinsol = zinsol + liquid(ii,jj,kk)%volc(idu)
 
-             !WRITE(*,*) 'ICE 2', zinsol
-
              ! Wet diameter and the diameter of the insoluble part
-             CALL liquid(ii,jj,kk)%updateDiameter(limit=.TRUE.,type="ins")
-             CALL liquid(ii,jj,kk)%updateDiameter(limit=.TRUE.,type="dry")
-             CALL liquid(ii,jj,kk)%updateDiameter(limit=.TRUE.,type="wet")
+             CALL liquid(ii,jj,kk)%updateDiameter(limit=.TRUE.,type="all")
              dins = liquid(ii,jj,kk)%dins
              ddry = liquid(ii,jj,kk)%ddry
              dwet = liquid(ii,jj,kk)%dwet
              
              ! Equilibrium saturation ratio
              Sw_eq = calcSweq(liquid(ii,jj,kk),ptemp(ii,jj))
-             !WRITE(*,*) 'ICE 3', dins, ddry, dwet, Sw_eq, liquid(ii,jj,kk)%dins
              
              ! Immersion freezing (similar for all categories)
              pf_imm = 0.
              IF (dins > dmin .AND. ice_imm) THEN
-                !WRITE(*,*) 'ICE IMMERSION'
                 jf = calc_Jhet(dins,ptemp(ii,jj),Sw_eq)
                 pf_imm = 1. - EXP( -jf*ptstep )
              END IF
@@ -110,7 +114,6 @@ MODULE mo_salsa_cloud_ice
              pf_dep = 0.
              IF (dins > dmin .AND. dwet-dins < dmin .AND. prv(ii,jj)/prs(ii,jj)<1.0 .AND. &
                  liquid(ii,jj,kk)%phase == 1 .AND. ice_dep                      ) THEN
-
                 Si = prv(ii,jj)/prsi(ii,jj) ! Water vapor saturation ratio over ice
                 jf = calc_Jdep(dins,ptemp(ii,jj),Si)
                 pf_dep = 1. - exp( -jf*ptstep )
@@ -126,8 +129,6 @@ MODULE mo_salsa_cloud_ice
              
              frac = MAX(0., MIN(1.,pf_imm+pf_hom+pf_dep-(pf_imm+pf_dep)*pf_hom))
 
-             !WRITE(*,*) 'ICE FRAC', frac
-
              ! Determine the parallel ice bin
              bb = getIceBin(kk,ddry,liquid(ii,jj,kk)%phase)
 
@@ -139,6 +140,19 @@ MODULE mo_salsa_cloud_ice
           END DO !ii
        END DO !jj
     END DO
+
+    DO kk = 1,nice
+       DO jj = 1,klev
+          DO ii = 1,kproma
+             IF ( ANY([ice(ii,jj,kk)%volc(iwa),ice(ii,jj,kk)%vrime] > 1.e-30) .AND.  &
+                  ice(ii,jj,kk)%numc > ice(ii,jj,kk)%nlim                     .AND.  &
+                  ice(ii,jj,kk)%volc(iwa) < 0.5*ice(ii,jj,kk)%vrime                      )  &
+                  WRITE(*,*) 'JALKEEN',ice(ii,jj,kk)%volc(iwa), ice(ii,jj,kk)%vrime
+          END DO
+       END DO
+    END DO
+       
+
 
   END SUBROUTINE ice_nucl_driver
   
@@ -392,9 +406,7 @@ MODULE mo_salsa_cloud_ice
   
   SUBROUTINE ice_melt(kproma,kbdim,klev,   &
        ptemp )
-    
-
-    
+        
     IMPLICIT NONE
     
     INTEGER, INTENT(in) :: kproma,kbdim,klev
@@ -420,15 +432,16 @@ MODULE mo_salsa_cloud_ice
              ! Ice => cloud water
              IF (ice(ii,jj,kk)%numc<prlim) CYCLE
              DO ss = 1,nspec-1
-                cloud(ii,jj,kk)%volc(ss) = cloud(ii,jj,kk)%volc(ss) + ice(ii,jj,kk)%volc(ss)
-                ice(ii,jj,kk)%volc(ss) = 0.
+                cloud(ii,jj,kk)%volc(ss) = cloud(ii,jj,kk)%volc(ss) + 0.999*ice(ii,jj,kk)%volc(ss)
+                ice(ii,jj,kk)%volc(ss) = 0.001*ice(ii,jj,kk)%volc(ss)
              END DO
              ! Water
-             cloud(ii,jj,kk)%volc(iwa) = cloud(ii,jj,kk)%volc(iwa) + ice(ii,jj,kk)%volc(iwa)*spec%rhoic/spec%rhowa
-             ice(ii,jj,kk)%volc(iwa) = 0.
+             cloud(ii,jj,kk)%volc(iwa) = cloud(ii,jj,kk)%volc(iwa) + 0.999*ice(ii,jj,kk)%volc(iwa)*ice(ii,jj,kk)%rhomean/spec%rhowa
+             ice(ii,jj,kk)%volc(iwa) = 0.001*ice(ii,jj,kk)%volc(iwa)
+             ice(ii,jj,kk)%vrime = 0.001*ice(ii,jj,kk)%vrime
              
-             cloud(ii,jj,kk)%numc = cloud(ii,jj,kk)%numc + ice(ii,jj,kk)%numc
-             ice(ii,jj,kk)%numc = 0.
+             cloud(ii,jj,kk)%numc = cloud(ii,jj,kk)%numc + 0.999*ice(ii,jj,kk)%numc
+             ice(ii,jj,kk)%numc = 0.001*ice(ii,jj,kk)%numc
           END DO
           
           DO kk =1,nsnw
@@ -528,7 +541,7 @@ MODULE mo_salsa_cloud_ice
     
     vol = pi6*lddry**3
     
-    IF ( ANY(phase == [1,2] )) THEN
+    IF ( ANY(phase == [1,2]) ) THEN
        ASSOCIATE( hilim => ice(1,1,iia%cur:fia%cur)%vhilim )
          
          ii = COUNT( (vol < hilim) )

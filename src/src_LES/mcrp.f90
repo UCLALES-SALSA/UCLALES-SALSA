@@ -100,7 +100,7 @@ MODULE mcrp
                        a_npp,precip,a_rt,a_tt,a_rpt,a_npt)
          CASE(4,5)
             nspec = spec%getNSpec()
-            CALL sedim_SALSA(nzp,nxp,nyp,nn,dtlt, a_temp, a_theta,                &
+            CALL sedim_SALSA(nzp,nxp,nyp,nspec,dtlt, a_temp, a_theta,                &
                              a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
                              a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
                              a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,          &
@@ -797,6 +797,10 @@ MODULE mcrp
                 ! n4-1 to calculate wet radius (i.e. dont take rime twice)
                 pmass(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
                 IF ( flag == 4) THEN
+                   IF ( ANY(pmass < 0.) .OR. numc(k,i,j,bin) < 0.) WRITE(*,*) '< 0', k,i,j,bin, pmass, numc(k,i,j,bin)
+                   IF ( ANY(pmass /= pmass) .OR. numc(k,i,j,bin) /= numc(k,i,j,bin) ) WRITE(*,*) 'nan ',  k,i,j,bin, pmass, &
+                                                                                                 numc(k,i,j,bin)
+
                    pmnorime(:) = pmass(1:n4-1)
                    dwet=calcDiamLES(n4-1,numc(k,i,j,bin),pmnorime,flag)
                 ELSE
@@ -807,7 +811,6 @@ MODULE mcrp
                 Kn = 2.*lambda/dwet!lambda/rwet
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
                 vc = terminal_vel(dwet,pdn,adn(k,i,j),avis,GG,flag)
-
 
                 ! This algorithm breaks down if the fall velocity is large enough to make the fall 
                 ! distance greater than the grid level thickness (mainly an issue with very high 
@@ -827,15 +830,15 @@ MODULE mcrp
 
                 ! Flux for the particle mass
                 DO bs = bin, (n4-1)*nn + bin, nn
-                    rflm(k,bs) = -mass(k,i,j,bs)*vc
+                   rflm(k,bs) = -mass(k,i,j,bs)*vc
                 END DO
 
                 ! Flux for the particle number
                  rfln(k,bin) = -numc(k,i,j,bin)*vc
              END DO
 
-             flxdivm(k,i,j,:) = (rflm(kp1,:)-rflm(k,:))*dzt(k)
-             flxdivn(k,i,j,:) = (rfln(kp1,:)-rfln(k,:))*dzt(k)
+             flxdivm(k,i,j,:) = (rflm(kp1,:)*adn(kp1,i,j)-rflm(k,:)*adn(k,i,j))*dzt(k)/adn(k,i,j)
+             flxdivn(k,i,j,:) = (rfln(kp1,:)*adn(kp1,i,j)-rfln(k,:)*adn(k,i,j))*dzt(k)/adn(k,i,j)
 
           END DO ! k
 

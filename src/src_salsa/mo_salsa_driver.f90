@@ -123,10 +123,13 @@ CONTAINS
                        precp_old(kbdim,klev,nprc), ice_old(kbdim,klev,nice),      &
                        snow_old(kbdim,klev,nsnw)
 
-      INTEGER :: jj,ii,kk,ss,str,end, nc,vc, ndry, nwet
+      INTEGER :: jj,ii,kk,ss,str,end,str2,end2, nc, ndry, nwet
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
               in_w(kbdim,klev), in_rsi(kbdim,klev)
       REAL :: rv_old(kbdim,klev)
+
+      REAL :: mrim(nice), mprist(nice), mrim_old(nice), mprist_old(nice)
+
 
       ndry = spec%getNSpec(type="dry")
       nwet = spec%getNSpec(type="wet")
@@ -140,8 +143,6 @@ CONTAINS
          snow_old(:,:,:) = Section(5,prlim,dlsnow)
       END IF
 
-      str = getMassIndex(nprc,1,nwet)
-      end = getMassIndex(nprc,nprc,nwet)
 
       ! Set the SALSA runtime config 
       CALL set_salsa_runtime(time)
@@ -168,7 +169,8 @@ CONTAINS
        
                ! Update volume concentrations
                ! ---------------------------------------------------------------------------------------------------
-               DO nc = 1,nwet
+               ! Dry volumes
+               DO nc = 1,ndry
                   str = getMassIndex(nbins,1,nc)
                   end = getMassIndex(nbins,nbins,nc)
                   aero(1,1,1:nbins)%volc(nc) =  pa_maerop(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nc)
@@ -182,8 +184,8 @@ CONTAINS
                   precp(1,1,1:nprc)%volc(nc) = pa_mprecpp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nc)
 
                   IF (level == 5) THEN
-                     str = getMassIndex(nice,1,nc)
-                     end = getMassIndex(nice,nice,nc)
+                     str = getMassIndex(nice,1,nc) 
+                     end = getMassIndex(nice,nice,nc)                     
                      ice(1,1,1:nice)%volc(nc) = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhoice(nc)
                      
                      str = getMassIndex(nsnw,1,nc)
@@ -194,11 +196,51 @@ CONTAINS
                      snow(1,1,1:nsnw)%volc(nc) = 0.
                   END IF
                END DO
-               ! RIME FOR ICE
+
+               ! Water/ice
+               str = getMassIndex(nbins,1,nwet)
+               end = getMassIndex(nbins,nbins,nwet)
+               aero(1,1,1:nbins)%volc(nwet) =  pa_maerop(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nwet)
+
+               str = getMassIndex(ncld,1,nwet)
+               end = getMassIndex(ncld,ncld,nwet)
+               cloud(1,1,1:ncld)%volc(nwet) = pa_mcloudp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nwet)
+            
+               str = getMassIndex(nprc,1,nwet)
+               end = getMassIndex(nprc,nprc,nwet)
+               precp(1,1,1:nprc)%volc(nwet) = pa_mprecpp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nwet)
+
                IF (level == 5) THEN
-                  str = getMassIndex(nice,1,nwet+1)
-                  end = getMassIndex(nice,nice,nwet+1) ! PITÄIS PÄIVITTÄÄ JÄÄN KESKITIHEYS EKA JA KÄYTTÄÄ SITÄ MYÖS PRISTINE JÄÄLLE
-                  ice(1,1,1:nice)%vrime = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhori
+                  str = getMassIndex(nsnw,1,nwet)
+                  end = getMassIndex(nsnw,nsnw,nwet)
+                  snow(1,1,1:nsnw)%volc(nwet) = pa_msnowp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rhosnow(nwet)
+
+                  ! Ice and rimed ice
+                  str = getMassIndex(nice,1,nwet)    ! Total ice
+                  end = getMassIndex(nice,nice,nwet)
+                  str2 = getMassIndex(nice,1,nwet+1) ! Rimed ice
+                  end2 = getMassIndex(nice,nice,nwet+1)
+
+                  mrim = 0.; mprist = 0.
+                  mrim(1:nice) = pa_micep(kk,ii,jj,str2:end2)
+                  mprist(1:nice) = pa_micep(kk,ii,jj,str:end) - mrim(1:nice)
+                  !IF (ANY(mprist < 0.)) THEN
+                     !IF (ANY(mprist < -1.e-10 .AND. pa_nicep(kk,ii,jj,1:nice) > 1.-6)) THEN
+                     !   WRITE(*,*) 'SALSA driver WARNING: mprist < 0, setting MAX(0, mprist)'
+                     !   WRITE(*,*) 'mrpist', mprist
+                     !   WRITE(*,*) 'mrime', mrim
+                     !   WRITE(*,*) 'NUMBER', pa_nicep(kk,ii,jj,1:nice)
+                     !   WRITE(*,*) '----------------------------'
+                     !END IF
+                        
+                  !   mprist = MAX(0., mprist)
+                  !END IF
+                  ice(1,1,1:nice)%volc(nwet) = pdn(kk,ii,jj) * ( (mprist/spec%rhoic) + (mrim/spec%rhori) )
+                  ice(1,1,1:nice)%vrime = pdn(kk,ii,jj) * (mrim/spec%rhori)
+
+               ELSE
+                  ice(1,1,1:nice)%volc(nwet) = 0.
+                  snow(1,1,1:nsnw)%volc(nwet) = 0.
                END IF
 
                ! -------------------------------
@@ -216,14 +258,15 @@ CONTAINS
                   snow(1,1,1:nsnw)%numc = 0.
                END IF
 
-               ! Need the number of dry species below
                DO ss = 1,ntotal
+                  CALL allSALSA(1,1,ss)%updateDiameter(.TRUE.,type="all")
+                  CALL allSALSA(1,1,ss)%updateRhomean()
                   ! For simplicity use prlim here? Doesn't matter so much in this part whether it's prlim or nlim?
                   IF (allSALSA(1,1,ss)%numc > prlim) THEN
                      allSALSA(1,1,ss)%core = SUM(allSALSA(1,1,ss)%volc(1:ndry))/allSALSA(1,1,ss)%numc
-                     allSALSA(1,1,ss)%dwet = (SUM(allSALSA(1,1,ss)%volc(1:nwet))/allSALSA(1,1,ss)%numc/pi6 )**(1./3.)
+                     !allSALSA(1,1,ss)%dwet = (SUM(allSALSA(1,1,ss)%volc(1:nwet))/allSALSA(1,1,ss)%numc/pi6 )**(1./3.)
                   ELSE
-                     allSALSA(1,1,ss)%dwet = allSALSA(1,1,ss)%dmid
+                     !allSALSA(1,1,ss)%dwet = allSALSA(1,1,ss)%dmid
                      allSALSA(1,1,ss)%core = pi6*(allSALSA(1,1,ss)%dmid)**3
                   END IF 
                END DO
@@ -273,6 +316,11 @@ CONTAINS
                ! Activated droplets
                pa_nactd(kk,ii,jj,1:ncld) = actd(1,1,1:ncld)%numc/pdn(kk,ii,jj)
 
+               ! Make sure the mean densities (mainly for ice) are properly updated
+               DO ss = 1,ntotal
+                  CALL allSALSA(1,1,ss)%updateRhomean()
+               END DO
+
                ! Get mass tendencies
                DO nc = 1,nwet
                   
@@ -295,11 +343,11 @@ CONTAINS
                        ( precp(1,1,1:nprc)%volc(nc) - precp_old(1,1,1:nprc)%volc(nc) )*spec%rholiq(nc)/pdn(kk,ii,jj)/tstep
 
                   IF ( level == 5 ) THEN
-                     str = getMassIndex(nice,1,nc)
-                     end = getMassIndex(nice,nice,nc)
-                     pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
-                          ( ice(1,1,1:nice)%volc(nc)*ice(1,1,1:nice)%rhomean -   &
-                            ice_old(1,1,1:nice)%volc(nc)*ice(1,1,1:nice)%rhomean )/pdn(kk,ii,jj)/tstep  
+                  !   str = getMassIndex(nice,1,nc)
+                  !   end = getMassIndex(nice,nice,nc)
+                  !   pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
+                  !        ( ice(1,1,1:nice)%volc(nc)*ice(1,1,1:nice)%rhomean -   &
+                  !          ice_old(1,1,1:nice)%volc(nc)*ice_old(1,1,1:nice)%rhomean )/pdn(kk,ii,jj)/tstep  
 
                      str = getMassIndex(nsnw,1,nc)
                      end = getMassIndex(nsnw,nsnw,nc)
@@ -309,12 +357,67 @@ CONTAINS
 
                END DO
 
-               ! Rimed ice
+
+               ! ice and rimed ice
                IF ( level == 5 ) THEN
-                  str = getMassIndex(nice,1,nwet+1)
-                  end = getMassIndex(nice,nice,nwet+1)
+
+                  ! Dry species
+                  DO nc = 1,ndry
+                     str = getMassIndex(nice,1,nc)
+                     end = getMassIndex(nice,nice,nc)
+                     pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
+                          ( ice(1,1,1:nice)%volc(nc) - ice_old(1,1,1:nice)%volc(nc) )*spec%rhoice(nc)/pdn(kk,ii,jj)/tstep 
+                  END DO
+
+                  str = getMassIndex(nice,1,nwet)
+                  end = getMassIndex(nice,nice,nwet)
+                  str2 = getMassIndex(nice,1,nwet+1)
+                  end2 = getMassIndex(nice,nice,nwet+1)
+
+                  mprist_old(1:nice) =( ice_old(1,1,1:nice)%volc(nwet) - ice_old(1,1,1:nice)%vrime ) *  &
+                       spec%rhoic/pdn(kk,ii,jj)
+                  !pa_micep(kk,ii,jj,str:end) - pa_micep(kk,ii,jj,str2:end2)
+
+                  !( ice_old(1,1,1:nice)%volc(nwet) - ice_old(1,1,1:nice)%vrime ) *  &
+                       !spec%rhoic/pdn(kk,ii,jj)
+                  mprist(1:nice) = (ice(1,1,1:nice)%volc(nwet) - ice(1,1,1:nice)%vrime) * &
+                       spec%rhoic/pdn(kk,ii,jj)
+                  
+                  mrim_old(1:nice) =ice_old(1,1,1:nice)%vrime * spec%rhori/pdn(kk,ii,jj)
+                  !pa_micep(kk,ii,jj,str2:end2)
+                 !ice_old(1,1,1:nice)%vrime * spec%rhori/pdn(kk,ii,jj)
+                  mrim(1:nice) = ice(1,1,1:nice)%vrime * spec%rhori/pdn(kk,ii,jj)
+
+                  IF ( ANY(mrim < 0. .OR. mprist < 0. .OR. mrim_old < 0. .OR. mprist_old < 0.)) THEN
+                     WRITE(*,*) 'SALSA driver'
+                     WRITE(*,*) 'mrim', mrim
+                     WRITE(*,*) 'mprist', mprist
+                     WRITE(*,*) 'mrim_old', mrim_old
+                     WRITE(*,*) 'mprist_old', mprist_old
+                     WRITE(*,*) kk,ii,jj
+                     WRITE(*,*) '-----------------'
+                  END IF
+
+                  ! ONKO TASSA NYT JOKU PIELESSA
                   pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
-                       ( ice(1,1,1:nice)%vrime - ice_old(1,1,1:nice)%vrime )*spec%rhori/pdn(kk,ii,jj)/tstep
+                       ( (mprist + mrim) - (mprist_old + mrim_old) )/tstep
+                  pa_micet(kk,ii,jj,str2:end2) = pa_micet(kk,ii,jj,str2:end2) + (mrim - mrim_old)/tstep
+
+                  IF ( ANY( pa_micep(kk,ii,jj,str:end) + pa_micet(kk,ii,jj,str:end)*tstep < -1.e-30 ) ) THEN
+                     WRITE(*,*) 'SALSA driver 2',kk,ii,jj, tstep
+                     WRITE(*,*) 'mrim', mrim
+                     WRITE(*,*) 'mrim_old', mrim_old
+                     WRITE(*,*) 'mprist', mprist
+                     WRITE(*,*) 'mprist_old', mprist_old
+                     WRITE(*,*) 'micep', pa_micep(kk,ii,jj,str:end)
+                     WRITE(*,*) 'micep rime', pa_micep(kk,ii,jj,str2:end2)
+                     WRITE(*,*) 'micet', pa_micet(kk,ii,jj,str:end)*tstep
+                     WRITE(*,*) 'micet rime', pa_micet(kk,ii,jj,str2:end2)*tstep
+                     WRITE(*,*) 'micet uus',  ( (mprist - mprist_old) + (mrim - mrim_old) )
+                     
+                  END IF
+
+                  
                END IF
 
                IF (lscndgas) THEN

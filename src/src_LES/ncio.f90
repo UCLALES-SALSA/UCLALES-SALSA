@@ -631,6 +631,10 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Ice mixing ratio'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'tttt'
+       CASE('iri')
+          IF (itype == 0) ncinfo = 'Rimed ice mixing ratio'
+          IF (itype == 1) ncinfo = 'kg/kg'
+          IF (itype == 2) ncinfo = 'tttt'
        CASE('s')
           IF (itype == 0) ncinfo = 'Snow mixing ratio'
           IF (itype == 1) ncinfo = 'kg/kg'

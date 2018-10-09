@@ -22,8 +22,8 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 \
 	  classSpecies.f90 classSection.f90 classProcessSwitch.f90 classBinLayout.f90 \
           defs.f90 $(seqmpi) LES.f90 ncio.f90 util.f90 grid.f90 stat.f90 \
 	  thrm.f90 forc.f90 advf.f90 advl.f90 srfc.f90 prss.f90 sgsm.f90 \
-	  mcrp.f90 step.f90 init.f90 nudg.f90 nudg_defs.f90 constrain_SALSA.f90 \
-          rfft.f90 rad_solver.f90 rad_corkds.f90 rad_cldwtr.f90 \
+	  mcrp.f90 step.f90 init.f90 init_warm_bubble.f90 nudg.f90 nudg_defs.f90 \
+	  constrain_SALSA.f90 rfft.f90 rad_solver.f90 rad_corkds.f90 rad_cldwtr.f90 \
 	  rad_d4strm.f90 rad_driver.f90 radiation_main.f90 emission_main.f90 \
 	  mo_seasalt_emission.f90 exceptionHandling.f90 mo_aerorad_lut.f90 \
 	  mo_salsa_optical_properties.f90 mo_particle_external_properties.f90
@@ -50,7 +50,7 @@ $(OUT): $(OBJS)
 #
 LES.o: grid.o init.o step.o $(seqmpi:.f90=.o) util.o sgsm.o srfc.o \
        stat.o forc.o mo_salsa_init.o nudg.o emission_main.o radiation_main.o \
-       mo_salsa_types.o nudg_defs.o
+       mo_salsa_types.o nudg_defs.o init_warm_bubble.o
 ncio.o: $(seqmpi:.f90=.o)
 util.o: $(seqmpi:.f90=.o) rfft.o
 defs.o:
@@ -71,7 +71,9 @@ step.o: grid.o stat.o util.o defs.o thrm.o sgsm.o srfc.o  \
 init.o: grid.o stat.o util.o defs.o step.o sgsm.o thrm.o  \
 	$(seqmpi:.f90=.o) mo_salsa_sizedist.o mo_submctl.o \
 	mo_salsa_types.o mo_salsa_driver.o mo_submctl.o     \
-	ncio.o nudg.o emission_main.o constrain_SALSA.o 
+	ncio.o nudg.o emission_main.o constrain_SALSA.o      \
+	init_warm_bubble.o
+init_warm_bubble.o: defs.o grid.o
 nudg.o: grid.o mo_submctl.o util.o nudg_defs.o
 nudg_defs.o:
 constrain_salsa.o: grid.o mo_submctl.o util.o
@@ -97,7 +99,7 @@ mo_salsa_driver.o: mo_salsa_types.o mo_submctl.o mo_salsa.o mo_salsa_properties.
 mo_salsa_init.o: mo_salsa_types.o mo_submctl.o mo_salsa_driver.o mo_salsa_optical_properties.o \
 	         classSpecies.o classSection.o classProcessSwitch.o classBinLayout.o          \
 	         mo_salsa_coagulation_kernels.o mo_salsa_coagulation_processes.o
-mo_submctl.o: classSpecies.o classSection.o classProcessSwitch.o classBinLayout.o
+mo_submctl.o: classSpecies.o classProcessSwitch.o classBinLayout.o
 mo_salsa_cloud.o: mo_salsa_types.o mo_submctl.o classSection.o mo_particle_external_properties.o util.o
 mo_salsa_cloud_ice.o: mo_submctl.o mo_salsa_types.o mo_particle_external_properties.o util.o
 mo_salsa_sizedist.o: mo_salsa_driver.o mo_submctl.o 

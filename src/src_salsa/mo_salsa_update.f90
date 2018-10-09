@@ -166,7 +166,7 @@ CONTAINS
                      zVihi = zVrat * zVilo
 
                      !-- Decreasing droplets
-                     IF ( zvpart < pi6*cloud(ii,jj,kk)%vlolim .AND.  &
+                     IF ( zvpart < cloud(ii,jj,kk)%vlolim .AND.  &
                          (kk /= ica%cur .AND. kk /= icb%cur)    ) THEN
 
                         !-- Volume in the decreased bin which is below the bin lower limit
@@ -358,7 +358,7 @@ CONTAINS
                      zVihi = zVrat * zVilo
 
                      !-- Decreasing size
-                     IF ( zvpart < pi6*ice(ii,jj,kk)%vlolim .AND.  &
+                     IF ( zvpart < ice(ii,jj,kk)%vlolim .AND.  &
                          (kk /= iia%cur .AND. kk /= iib%cur)    ) THEN
 
                         !-- Volume in the decreased bin which is below the bin lower limit
@@ -398,6 +398,14 @@ CONTAINS
 
                      ice(ii,jj,kk)%volc(1:znwet) = ice(ii,jj,kk)%volc(1:znwet)     &
                                               - zvfrac*ice(ii,jj,kk)%volc(1:znwet)
+                     
+                     !-- Remember rimed ice!
+                     ice(ii,jj,mm)%vrime = ice(ii,jj,mm)%vrime  &
+                                              + zvfrac*ice(ii,jj,kk)%vrime
+
+                     ice(ii,jj,kk)%vrime = ice(ii,jj,kk)%vrime  &
+                                              - zvfrac*ice(ii,jj,kk)%vrime
+
 
                      !-- number
                      ice(ii,jj,mm)%numc = ice(ii,jj,mm)%numc    &

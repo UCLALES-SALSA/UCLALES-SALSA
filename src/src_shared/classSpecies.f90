@@ -94,12 +94,12 @@ MODULE classSpecies
   ! -------------------------------------------------------------------------------------------------------------------------
   ! Master arrays. These contain all the available information for the model. 
   ! The order of the parameters in the vectors below is consistent. The last three: liq,ice,snow
-  CHARACTER(len=3), TARGET, PRIVATE   :: allNames(maxspec+1)  = ['SO4','OC ','BC ','DU ','SS ','NO ','NH ','H2O']  ! Names of all possible compounds.
+  CHARACTER(len=3), TARGET, PRIVATE   :: allNames(maxspec+1)  = ['SO4','OC ','BC ','DU ','SS ','NO ','NH ','H2O']          ! Names of all possible compounds.
   CHARACTER(len=3), TARGET, PRIVATE   :: allNamesInsoluble(maxins) = ['BC ','DU ']                                       ! Names of all possible insoluble compounds
   CHARACTER(len=3), TARGET, PRIVATE   :: allNamesSoluble(maxsol)   = ['SO4','OC ','SS ','NO ','NH ']                     ! Names of all possible soluble compounds
   REAL, TARGET, PRIVATE               :: allMM(maxspec+1)   = [98.08e-3, 150.e-3, 12.e-3, 100.e-3,    &                 
-                                                               58.44e-3, 62.01e-3, 18.04e-3, 18.016e-3]           ! Molecular masses 
-  REAL, TARGET, PRIVATE               :: allRho(maxspec+1)  = [1830., 2000., 2000., 2650., 2165., 1479., 1530., 1000.] ! Densities
+                                                               58.44e-3, 62.01e-3, 18.04e-3, 18.016e-3]                  ! Molecular masses 
+  REAL, TARGET, PRIVATE               :: allRho(maxspec+1)  = [1830., 2000., 2000., 2650., 2165., 1479., 1530., 1000.]   ! Densities
   REAL, TARGET, PRIVATE               :: allDiss(maxspec+1) = [3., 1., 0., 0., 2., 1., 1., 1.]                           ! Dissociation factors
   REAL, TARGET, PRIVATE               :: auxrhoic = 917.                                                                     ! Bulk density of ice
   REAL, TARGET, PRIVATE               :: auxrhorime = 900.                                                                   ! Bulk density of rimed ice

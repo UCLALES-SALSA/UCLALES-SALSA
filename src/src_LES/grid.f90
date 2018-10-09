@@ -149,10 +149,11 @@ MODULE grid
    REAL, ALLOCATABLE :: a_press(:,:,:)  ! pressure (hpa)
    REAL, ALLOCATABLE :: a_rc(:,:,:)     ! Total cloud water
    REAL, ALLOCATABLE :: a_ri(:,:,:)     ! Total ice cloud content
+   REAL, ALLOCATABLE :: a_riri(:,:,:)   ! Total rimed ice content LEVEL 5
    REAL, ALLOCATABLE :: a_rv(:,:,:)     ! water vapor (used only for levels < 4!)
-   REAL, ALLOCATABLE :: a_srp(:,:,:)    ! Total rain water for use with LEVEL 4 
-   REAL, ALLOCATABLE :: a_snrp(:,:,:)   ! Total number of rain drops for use with LEVEL 4 
-   REAL, ALLOCATABLE :: a_srs(:,:,:)    ! Total snow for use with SALSA
+   REAL, ALLOCATABLE :: a_srp(:,:,:)    ! Total rain water for use with LEVEL >4 
+   REAL, ALLOCATABLE :: a_snrp(:,:,:)   ! Total number of rain drops for use with LEVEL >4 
+   REAL, ALLOCATABLE :: a_srs(:,:,:)    ! Total snow for use with SALSA, LEVEL 5
    REAL, ALLOCATABLE :: a_snrs(:,:,:)   ! Total number of snow particles for use with LEVEL 5 
    REAL, ALLOCATABLE :: a_rh(:,:,:)     ! Relative humidity
    REAL, ALLOCATABLE :: a_rsl(:,:,:)     ! water saturation vapor mixing ratio
@@ -333,16 +334,17 @@ CONTAINS
          a_vactd(:,:,:,:) = 0.
          memsize = memsize + 4*nxyzp + 3*nbins*nxyzp + 3*ncld*nxyzp + nxyzp*(nc+1)*ncld + 2*nprc*nxyzp
 
-         ALLOCATE ( a_ri(nzp,nxp,nyp), a_rsi(nzp,nxp,nyp), a_rhi(nzp,nxp,nyp),      &
-                    a_srs(nzp,nxp,nyp), a_snrs(nzp,nxp,nyp)  )  ! ice'n'snow
+         ALLOCATE ( a_ri(nzp,nxp,nyp), a_riri(nzp,nxp,nyp), a_rsi(nzp,nxp,nyp),    &
+                    a_rhi(nzp,nxp,nyp), a_srs(nzp,nxp,nyp), a_snrs(nzp,nxp,nyp)  )  ! ice'n'snow
          a_ri(:,:,:) = 0.
+         a_riri(:,:,:) = 0.
          a_rsi(:,:,:) = 0.
          a_rhi(:,:,:) = 0.
          a_srs(:,:,:) = 0.
          a_snrs(:,:,:) = 0.
-         memsize = memsize + 5*nxyzp + 2*nice*nxyzp + 2*nsnw*nxyzp
+         memsize = memsize + 6*nxyzp + 2*nice*nxyzp + 2*nsnw*nxyzp
 
-         ! Total number of prognostic scalars: temp + total water + tke(isgstyp>1) + SALSA
+         ! Total number of prognostic scalars: temp + water vapor + tke(isgstyp>1) + SALSA
          nscl = 2 + nsalsa
          IF (isgstyp > 1) nscl = nscl+1
 
@@ -410,14 +412,14 @@ CONTAINS
             a_msnowt => a_sclrt(:,:,:,zz+1:zz+nc*nsnw)
          ELSE
             ! Ice not included so allocate zero arrays for ice pointers
-            ALLOCATE (tmp_icep(nzp,nxp,nyp,nc*MAX(nice,nsnw)), &
-                      tmp_icet(nzp,nxp,nyp,nc*MAX(nice,nsnw)))
+            ALLOCATE (tmp_icep(nzp,nxp,nyp,(nc+1)*MAX(nice,nsnw)), &
+                      tmp_icet(nzp,nxp,nyp,(nc+1)*MAX(nice,nsnw)))
             tmp_icep =0.
             tmp_icet =0.
             a_nicep => tmp_icep(:,:,:,1:nice)
             a_nicet => tmp_icet(:,:,:,1:nice)
-            a_micep => tmp_icep(:,:,:,1:nc*nice)
-            a_micet => tmp_icet(:,:,:,1:nc*nice)
+            a_micep => tmp_icep(:,:,:,1:(nc+1)*nice)
+            a_micet => tmp_icet(:,:,:,1:(nc+1)*nice)
             a_nsnowp => tmp_icep(:,:,:,1:nsnw)
             a_nsnowt => tmp_icet(:,:,:,1:nsnw)
             a_msnowp => tmp_icep(:,:,:,1:nc*nsnw)
@@ -669,7 +671,7 @@ CONTAINS
       
       CHARACTER(len=20), PARAMETER :: name = "init_anal"
       INTEGER, PARAMETER :: nnames = 21
-      INTEGER, PARAMETER :: salsa_nn = 104
+      INTEGER, PARAMETER :: salsa_nn = 105
       CHARACTER (len=7), SAVE :: sbase(nnames) =  (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     '   ,& ! 1
          'ym     ','u0     ','v0     ','dn0    ','u      ','v      '   ,& ! 7
@@ -681,21 +683,21 @@ CONTAINS
          'ym     ','aea    ','aeb    ','cla    ','clb    ','prc    ',  &  ! 7
          'ica    ','icb    ','snw    ','u0     ','v0     ','dn0    ',  &  ! 13
          'u      ','v      ','w      ','theta  ','p      ','q      ',  &  ! 19
-         'l      ','r      ','f      ','i      ','s      ',         &  ! 25
-         'S_RH   ','S_RHI  ','S_Nact ','S_Na   ','S_Naba ','S_Rwaa ',  &  ! 30
-         'S_Rwaba','S_Nb   ','S_Nabb ','S_Rwab ','S_Rwabb','S_Nc   ',  &  ! 36
-         'S_Ncba ','S_Ncbb ','S_Rwca ','S_Rwcb ','S_Rwcba','S_Rwcbb',  &  ! 42
-         'S_Np   ','S_Npba ','S_Rwpa ','S_Rwpba','S_Ni   ','S_Niba ',  &  ! 48
-         'S_Nibb ','S_Rwia ','S_Rwib ','S_Rwiba','S_Rwibb','S_Ns   ',  &  ! 54
-         'S_Nsba ','S_Rwsa ','S_Rwsba','S_aSO4a','S_aNHa ','S_aNOa ',  &  ! 60
-         'S_aOCa ','S_aBCa ','S_aDUa ','S_aSSa ','S_aSO4b','S_aNHb ',  &  ! 66
-         'S_aNOb ','S_aOCb ','S_aBCb ','S_aDUb ','S_aSSb ','S_cSO4a',  &  ! 72
-         'S_cNHa ','S_cNOa ','S_cOCa ','S_cBCa ','S_cDUa ','S_cSSa ',  &  ! 78
-         'S_cSO4b','S_cNHb ','S_cNOb ','S_cOCb ','S_cBCb ','S_cDUb ',  &  ! 84
-         'S_cSSb ','S_iSO4a','S_iNHa ','S_iNOa ','S_iOCa ','S_iBCa ',  &  ! 90
-         'S_iDUa ','S_iSSa ','S_iSO4b','S_iNHb ','S_iNOb ','S_iOCb ',  &  ! 96
+         'l      ','r      ','f      ','i      ','iri    ','s      ',  &  ! 25
+         'S_RH   ','S_RHI  ','S_Nact ','S_Na   ','S_Naba ','S_Rwaa ',  &  ! 31
+         'S_Rwaba','S_Nb   ','S_Nabb ','S_Rwab ','S_Rwabb','S_Nc   ',  &  ! 37
+         'S_Ncba ','S_Ncbb ','S_Rwca ','S_Rwcb ','S_Rwcba','S_Rwcbb',  &  ! 43
+         'S_Np   ','S_Npba ','S_Rwpa ','S_Rwpba','S_Ni   ','S_Niba ',  &  ! 49
+         'S_Nibb ','S_Rwia ','S_Rwib ','S_Rwiba','S_Rwibb','S_Ns   ',  &  ! 55
+         'S_Nsba ','S_Rwsa ','S_Rwsba','S_aSO4a','S_aNHa ','S_aNOa ',  &  ! 61
+         'S_aOCa ','S_aBCa ','S_aDUa ','S_aSSa ','S_aSO4b','S_aNHb ',  &  ! 67
+         'S_aNOb ','S_aOCb ','S_aBCb ','S_aDUb ','S_aSSb ','S_cSO4a',  &  ! 73
+         'S_cNHa ','S_cNOa ','S_cOCa ','S_cBCa ','S_cDUa ','S_cSSa ',  &  ! 79
+         'S_cSO4b','S_cNHb ','S_cNOb ','S_cOCb ','S_cBCb ','S_cDUb ',  &  ! 85
+         'S_cSSb ','S_iSO4a','S_iNHa ','S_iNOa ','S_iOCa ','S_iBCa ',  &  ! 91
+         'S_iDUa ','S_iSSa ','S_iSO4b','S_iNHb ','S_iNOb ','S_iOCb ',  &  ! 97
          'S_iBCb ','S_iDUb ','S_iSSb ' /)
-           ! total 104
+           ! total 105
 
       LOGICAL, SAVE :: salsabool(salsa_nn)
 
@@ -764,45 +766,45 @@ CONTAINS
          salsabool(:) = .TRUE.
          IF (.NOT. lbinanl) THEN
             salsabool(8:15) = .FALSE.
-            salsabool((/34,36,38,40,42,43,46,47,49,51,53,54,57,58,60,62/)) = .FALSE.
+            salsabool((/35,37,39,41,43,44,47,48,50,52,54,55,58,59,61,63/)) = .FALSE.
          END IF
 
          IF (level < 5 ) THEN
             salsabool(13:15) = .FALSE. ! ica, icb, snw
-            salsabool(27:29) = .FALSE. ! f, i, s (total ice, ice & snow mixing ratio)
-            salsabool(91:104) = .FALSE. ! aerosols in ice particles
-            salsabool(31) = .FALSE.
-            salsabool(52:62) = .FALSE.
+            salsabool(27:30) = .FALSE. ! f, i, iri, s (total ice, ice, rimed ice & snow mixing ratio)
+            salsabool(92:105) = .FALSE. ! aerosols in ice particles
+            salsabool(32) = .FALSE.
+            salsabool(53:63) = .FALSE.
          END IF
          salsabool(27) = .FALSE. ! Total ice disabled
 
          IF (.NOT. spec%IsUsed('SO4')) &
-            salsabool((/ 63, 70, 77, 84, 91,  98 /)) = .FALSE.
-
-         IF (.NOT. spec%IsUsed('NH'))  &
             salsabool((/ 64, 71, 78, 85, 92,  99 /)) = .FALSE.
 
-         IF (.NOT. spec%IsUsed('NO'))  &
+         IF (.NOT. spec%IsUsed('NH'))  &
             salsabool((/ 65, 72, 79, 86, 93,  100 /)) = .FALSE.
 
-         IF (.NOT. spec%IsUsed('OC'))  &
+         IF (.NOT. spec%IsUsed('NO'))  &
             salsabool((/ 66, 73, 80, 87, 94,  101 /)) = .FALSE.
 
-         IF (.NOT. spec%IsUsed('BC'))  &
+         IF (.NOT. spec%IsUsed('OC'))  &
             salsabool((/ 67, 74, 81, 88, 95,  102 /)) = .FALSE.
 
-         IF (.NOT. spec%IsUsed('DU'))  &
+         IF (.NOT. spec%IsUsed('BC'))  &
             salsabool((/ 68, 75, 82, 89, 96,  103 /)) = .FALSE.
 
-         IF (.NOT. spec%IsUsed('SS'))  &
+         IF (.NOT. spec%IsUsed('DU'))  &
             salsabool((/ 69, 76, 83, 90, 97,  104 /)) = .FALSE.
+
+         IF (.NOT. spec%IsUsed('SS'))  &
+            salsabool((/ 70, 77, 84, 91, 98,  105 /)) = .FALSE.
 
             ! b-bins are not always saved
          IF (.NOT. salsa_b_bins) THEN
-             salsabool((/ 37, 38, 39, 40, 43, 45, 47, 54, 56, 58 /)) = .FALSE.
-             salsabool(70:76) = .FALSE.    ! Aerosol species
-             salsabool(84:90) = .FALSE.    ! Cloud species
-             salsabool(98:104) = .FALSE.   ! Ice species
+             salsabool((/ 38, 39, 40, 41, 44, 46, 48, 55, 57, 59 /)) = .FALSE.
+             salsabool(71:77) = .FALSE.    ! Aerosol species
+             salsabool(85:91) = .FALSE.    ! Cloud species
+             salsabool(99:105) = .FALSE.   ! Ice species
          END IF
 
          nvar0 = COUNT(salsabool) + naddsc
@@ -1080,6 +1082,12 @@ CONTAINS
                iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                                    count=icnt)
           
+               ! Rimed ice mixing ratio
+               zvar(:,:,:) = a_riri(:,:,:)
+               iret = nf90_inq_varid(ncid0,'iri',VarID)
+               iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
+                                   count=icnt)
+
                ! Snow mixing ratio
                zvar(:,:,:) = a_srs(:,:,:)
                iret = nf90_inq_varid(ncid0,'s',VarID)

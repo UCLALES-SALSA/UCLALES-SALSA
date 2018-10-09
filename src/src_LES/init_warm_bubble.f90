@@ -1,6 +1,6 @@
 MODULE init_warm_bubble
   USE defs, ONLY : pi, cp
-  USE grid, ONLY : nxp,nyp,nzp, xm,ym,zm,  &
+  USE grid, ONLY : nxp,nyp,nzp, xt,yt,zt,  &
                    a_tp, level, pi0, pi1
 
 
@@ -28,24 +28,33 @@ MODULE init_warm_bubble
       REAL :: coord(3)
       REAL :: exner
 
+      WRITE(*,*) '------------------------------'
+      WRITE(*,*) 'INITIALIZING WARM BUBBLE'
+      WRITE(*,*) '------------------------------'
+
+      coord = 0.
+
       DO j = 3,nyp-2
          DO i = 3,nxp-2
-            DO k = 1,nzp
+            DO k = 2,nzp
 
-               coord = [zm(k),xm(i),ym(j)]
+               coord = [zt(k),xt(i),yt(j)]
                total_dist_norm = SQRT( SUM( ((coord-bubble_center)/(0.5*bubble_diameter))**2 ) )
+
+               !IF ( k<10 ) WRITE(*,*) k,i,j,total_dist_norm, coord-bubble_center
 
                IF ( total_dist_norm < 1. ) THEN
                   
                   ! Add the temperature perturbation to the liquid potential temperature
                   ! (Just a straightforward addition, don't worry about the resulting decrease in RH?)
-                  
+                                    
                   exner = (pi0(k) + pi1(k))/cp
+                  !WRITE(*,*) k,i,j, exner, SIN( (1.-total_dist_norm)*0.5*pi ),zt(k)
                   a_tp(k,i,j) = a_tp(k,i,j) +   &
-                       SIN( (1.-total_dist_norm)*0.5*pi )*bubble_temp_ampl/exner
+                       SIN( (1.-total_dist_norm)*0.5*pi )*bubble_temp_ampl!/exner
 
                END IF 
-
+               
             END DO
          END DO
       END DO

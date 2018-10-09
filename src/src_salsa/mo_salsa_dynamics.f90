@@ -175,6 +175,12 @@ CONTAINS
       
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !-- 3) New particle and volume concentrations after coagulation -------------
+      IF (any_snow) &
+           CALL coag_snow(kbdim,klev,nspec,ptstep,zccss,zccsa,zccsc,zccsp,zccsi)
+
+      IF (any_ice) &
+           CALL coag_ice(kbdim,klev,nspec,ptstep,zccii,zccia,zccic,zccip,zccsi)
+
       IF (any_precp) &
            CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip,zccsp)
 
@@ -259,7 +265,7 @@ CONTAINS
    !---------------------------------------------------------------
 
    SUBROUTINE condensation(kproma,  kbdim,  klev,    krow,      &
-                           level,   pcsa,   pcocnv,  pcocsv,    &
+                           pcsa,   pcocnv,  pcocsv,    &
                            pchno3,  pcnh3,  prv,prs, prsi,      &
                            ptemp,   ppres,  ptstep,  ppbl       )
 
@@ -277,7 +283,6 @@ CONTAINS
          kbdim,                     & ! dimension for arrays
          klev,                      & ! number of vertical klev
          krow
-      INTEGER, INTENT(in) :: level
 
       REAL, INTENT(IN) ::         &
          ptemp(kbdim,klev),         & ! ambient temperature [K]
@@ -322,8 +327,8 @@ CONTAINS
       ! Condensation of water vapour
       IF (lscndh2ocl .OR. lscndh2oae .OR. lscndh2oic) &
          CALL gpparth2o(kproma, kbdim, klev,  krow,  &
-                        level,  ptemp, ppres, prs,   &
-                        prsi,   prv,   ptstep        )
+                        ptemp,  ppres, prs,   prsi,  &
+                        prv,   ptstep        )
 
    END SUBROUTINE condensation
 
@@ -335,7 +340,7 @@ CONTAINS
                       pcsa,    pcocnv, pcocsv,  zxsa,      &
                       ptemp,   ppres,  ptstep              )
 
-     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow, allSALSA
+     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow
       USE mo_submctl, ONLY :      &
          pi,                        &
          in1a, in2a,                & ! size bin indices
@@ -344,7 +349,6 @@ CONTAINS
          nprc,                      &
          nice,                      &
          nsnw,                      &
-         ntotal,                    &
          nlim,                      &
          prlim,                     &
          boltz,                     & ! Boltzmann constant [J/K]
@@ -698,8 +702,8 @@ CONTAINS
    !
 
    SUBROUTINE gpparth2o(kproma, kbdim,  klev,  krow,     &
-                        level,  ptemp,  ppres,           & 
-                        prs,    prsi,   prv,   ptstep    )
+                        ptemp,  ppres,  prs,   prsi,     &
+                        prv,   ptstep    )
     
      USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow, allSALSA
      USE mo_submctl, ONLY : nbins, ncld, nprc,    &
@@ -717,7 +721,6 @@ CONTAINS
      IMPLICIT NONE
 
       INTEGER, INTENT(in) :: kproma,kbdim,klev,krow
-      INTEGER, INTENT(in) :: level
       REAL, INTENT(in) :: ptstep
       REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev)
 
@@ -738,15 +741,20 @@ CONTAINS
       REAL :: zcwcpd(nprc), zcwnpd(nprc), zcwintpd(nprc)    !     -  ''  -     in rain drops
       REAL :: zcwcid(nice), zcwnid(nice), zcwintid(nice)    !     -  ''  -     in ice particles
       REAL :: zcwcsd(nsnw), zcwnsd(nsnw), zcwintsd(nsnw)    !     -  ''  -     in snow particles
+      
+      REAL :: zorgid(nice)                                  ! Original total ice mole concentration (not sure if this is really necessary,
+                                                            ! could just use the "current" value if it wasn't updated in the substepping loop)
+
       REAL :: zdfh2o, zthcond,rhoair
       REAL :: zbeta,zknud,zmfph2o
       REAL :: zact, zhlp1,zhlp2,zhlp3
       REAL :: adt,ttot
       REAL :: dwet, cap
       REAL :: zrh(kbdim,klev)
-      REAL :: dwice(nice), dwsnow(nsnw)
 
       REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
+
+      REAL :: dvice,dvfice ! volume change for ice (to account for rime in sublimation) and the corresponding volume fraction
 
       INTEGER :: nstr
       INTEGER :: ii,jj,cc
@@ -819,6 +827,7 @@ CONTAINS
             ! Update particle diameters
             DO cc = 1,ntotal
                CALL allSALSA(ii,jj,cc)%updateDiameter(limit=.TRUE.)
+               CALL allSALSA(ii,jj,cc)%updateRhomean()
             END DO
 
 
@@ -997,7 +1006,8 @@ CONTAINS
             zcwcae(1:nbins) = aero(ii,jj,1:nbins)%volc(iwa)*spec%rhowa/spec%mwa
             zcwccd(1:ncld) = cloud(ii,jj,1:ncld)%volc(iwa)*spec%rhowa/spec%mwa
             zcwcpd(1:nprc) = precp(ii,jj,1:nprc)%volc(iwa)*spec%rhowa/spec%mwa
-            zcwcid(1:nice) = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa
+            zcwcid(1:nice) = ice(ii,jj,1:nice)%volc(iwa)*ice(ii,jj,1:nice)%rhomean/spec%mwa   ! The total ice mass contains both pristine and rimed ice
+            zorgid = zcwcid  ! To store the original value...
             zcwcsd(1:nsnw) = snow(ii,jj,1:nsnw)%volc(iwa)*spec%rhosn/spec%mwa
 
 
@@ -1101,8 +1111,24 @@ CONTAINS
             aero(ii,jj,1:nbins)%volc(iwa) = max(0.,zcwnae(1:nbins)*spec%mwa/spec%rhowa)
             cloud(ii,jj,1:ncld)%volc(iwa) = max(0.,zcwncd(1:ncld)*spec%mwa/spec%rhowa)
             precp(ii,jj,1:nprc)%volc(iwa) = max(0.,zcwnpd(1:nprc)*spec%mwa/spec%rhowa)
-            ice(ii,jj,1:nice)%volc(iwa) = max(0.,zcwnid(1:nice)*spec%mwa/spec%rhoic)
             snow(ii,jj,1:nsnw)%volc(iwa) = max(0.,zcwnsd(1:nsnw)*spec%mwa/spec%rhosn)
+
+            ! For ice particles: If sublimation occurs, take the same fraction away from rime as from total ice 
+            ! If condensation occurs, the contribution will be pristine ice only.
+            DO cc = 1,nice
+               IF ( zorgid(cc) > zcwnid(cc) ) THEN
+                  ! sublimation
+                  dvice = (zcwnid(cc) - zorgid(cc))*spec%mwa/ice(ii,jj,cc)%rhomean
+                  dvfice = dvice/ice(ii,jj,cc)%volc(iwa)
+                  IF (dvfice > 0. .OR. dvfice < -1.) WRITE(*,*) 'RIME KONDENSAATIO VIRHE'
+                  ice(ii,jj,cc)%volc(iwa) = MAX(0.,zcwnid(cc)*spec%mwa/ice(ii,jj,cc)%rhomean) !ice(ii,jj,cc)%volc(iwa) * MAX( 0., 1. + dvfice )
+                  ice(ii,jj,cc)%vrime = MIN( ice(ii,jj,cc)%vrime * MAX( 0., 1. + dvfice ), ice(ii,jj,cc)%volc(iwa) )
+               ELSE IF ( zorgid(cc) < zcwnid(cc) ) THEN
+                  ! Condensation; produces pristine ice
+                  ice(ii,jj,cc)%volc(iwa) = ice(ii,jj,cc)%volc(iwa) + (zcwnid(cc) - zorgid(cc))*spec%mwa/spec%rhoic
+               END IF
+            END DO
+
 
             DO cc = 1,ntotal
                IF (allSALSA(ii,jj,cc)%numc > allSALSA(ii,jj,cc)%nlim) &

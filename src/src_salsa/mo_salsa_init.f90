@@ -13,7 +13,7 @@ MODULE mo_salsa_init
 
   USE mo_submctl, ONLY : reglim,nbin,in1a,fn1a,in2a,fn2a,in2b,fn2b,           &
                          ica,fca,icb,fcb,ira,fra,iia,fia,iib,fib,isa,fsa,     &  
-                         nbins, ncld, nprc, nice, nsnw, ntotal, nliquid, nfrozen,              &
+                         nbins, ncld, nprc, bloPrc, nice, nsnw, ntotal, nliquid, nfrozen,              &
                          dlaero, dlcloud, dlprecp, dlice, dlsnow,             &
                          aerobins,cloudbins,precpbins,icebins,snowbins,       &
                          spec, nspec_dry, listspec, nlim, prlim, massacc, pi6 

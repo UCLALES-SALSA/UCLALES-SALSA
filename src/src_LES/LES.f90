@@ -103,7 +103,7 @@ CONTAINS
                        cntlat
       USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                        zrand, zrndamp, init_type
-      USE warm_bubble, ONLY : bubble_center, bubble_diameter, bubble_temp_ampl
+      USE init_warm_bubble, ONLY : bubble_center, bubble_diameter, bubble_temp_ampl
       USE stat, ONLY : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
       USE forc, ONLY : div, case_name     ! Divergence, forcing case name
       USE radiation_main, ONLY : radsounding,   &

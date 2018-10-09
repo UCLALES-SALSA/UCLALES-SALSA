@@ -21,7 +21,7 @@ MODULE init
 
    USE grid
 
-   INTEGER, PARAMETER    :: nns = 500
+   INTEGER, PARAMETER    :: nns = 1500
    INTEGER               :: ns
    INTEGER               :: iseed = 0
    INTEGER               :: ipsflg = 1
@@ -72,7 +72,7 @@ CONTAINS
          CALL basic_state
          CALL fldinit ! Juha: aerosol size distributions are initialized here.
                       !       Also thermodynamics!
-
+         
          ! If SALSA is used, call SALSA with full configuration once before beginning
          ! spin-up period to set up aerosol and cloud fields.
          IF (level >= 4) THEN
@@ -102,7 +102,7 @@ CONTAINS
             CALL SALSAInit
 
          END IF !level >= 4
-
+         
       ELSE IF (runtype == 'HISTORY') THEN
          IF (isgstyp == 2) CALL tkeinit(nxyzp,a_qp)
          CALL hstart
@@ -146,10 +146,10 @@ CONTAINS
      ! Diagnostic calculations that should take place (with SALSA) both for INITIAL and HISTORY
      IF ( (level >= 4) ) THEN
         CALL thermo(level)
-        CALL SALSA_diagnostics
+        CALL SALSA_diagnostics(0)
      END IF
 
-      !
+     !
       ! write analysis and history files from restart if appropriate
       !
       IF (outflg) THEN
@@ -257,7 +257,7 @@ CONTAINS
                END DO !k
             END DO !i
          END DO !j
-         
+          
       END SELECT
       
       IF (init_type == 1) THEN
@@ -288,7 +288,7 @@ CONTAINS
       ! initialize thermodynamic fields
       !
       CALL thermo (level)
-
+      
       !
       ! Initialize aerosol size distributions
       !
@@ -328,7 +328,7 @@ CONTAINS
          IF(myid == 0) THEN
             PRINT "(//' ',49('-')/)"
             PRINT '(2X,A17)', 'Sponge Layer Init '
-            PRINT '(3X,A12,F6.1,A1)', 'Starting at ', zt(nzp-nfpt), 'm'
+            PRINT '(3X,A12,F8.1,A1)', 'Starting at ', zt(nzp-nfpt), 'm'
             PRINT '(3X,A18,F6.1,A1)', 'Minimum timescale ', 1/spng_wfct(nfpt),'s'
          END IF
       END IF
@@ -492,20 +492,19 @@ CONTAINS
 
     USE defs, ONLY : cp, rcp, cpr, r, g, p00, p00i, ep2
     USE mpi_interface, ONLY : myid
+    USE thrm, ONLY : rslf
 
     IMPLICIT NONE
 
     INTEGER :: k
-    REAL    :: v1da(nzp), v1db(nzp), v1dc(nzp), exner
+    REAL    :: v1da(nzp), v1db(nzp), v1dc(nzp), exner, zrh(nzp),ztk(nzp)
 
-    CHARACTER (len=305) :: fmt =  &
+    CHARACTER (len=328) :: fmt =  &
        "(/,' -------------------------------------------------',/,"     //&
        "'  Basic State: ',//,4X,'Z',6X,'U0',6X,'V0',6X,'DN0',6X,' P0'"   //&
-       ",6X,'PRESS',4X,'TH0',6X,'THV',5X,'RT0',/,3X,'(m)',5X,'(m/s)'"     //&
+       ",6X,'PRESS',4X,'TH0',6X,'THV',5X,'RT0','RH',/,3X,'(m)',5X,'(m/s)'"     //&
        ",3X,'(m/s)',2X,'(kg/m3)',2X,'(J/kgK)',4X,'(Pa)',5X,'(K)',5X"      //&
-       ",'(K)',4X,'(g/kg)',//,(1X,F7.1,2F8.2,F8.3,2F10.2,2F8.2,F7.2))"
-
-    !
+       ",'(K)',4X,'(g/kg)',4X,'1',4X,'K',//,(1X,F7.1,2F8.2,F8.3,2F10.2,2F8.2,F7.2,F7.2,F7.2))"
 
     CALL htint(ns,thds,hs,nzp,th0,zt)
     CALL htint(ns,us,hs,nzp,u0,zt)
@@ -564,8 +563,17 @@ CONTAINS
     v0(1) = v0(2)
     psrf  = ps(1)
 
+    ! Juha: For debugging
+    zrh = 0.
+    ztk = 0.
+    DO k = 1,nzp
+       exner = (pi0(k) + pi1(k))/cp
+       ztk(k) = th0(k)*(v1db(k)*p00i)**rcp
+       zrh(k) = 100.*rt0(k)/rslf(v1db(k),ztk(k))
+    END DO
+       
     IF(myid == 0) WRITE(*,fmt) (zt(k),u0(k),v0(k),dn0(k),v1da(k),v1db(k), &
-                                th0(k),v1dc(k),rt0(k)*1000.,k=1,nzp)
+                                th0(k),v1dc(k),rt0(k)*1000.,zrh(k),ztk(k),k=1,nzp)  ! rt0(k)*1000.
 
     RETURN
  END SUBROUTINE basic_state
