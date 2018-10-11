@@ -13,13 +13,14 @@
 #	One file and list if variables to be included in the outputs
 #		python combine.py rf01 l q t
 #
-# Last update: 13.4.2017 Tomi Raatikainen
+# Last updates:
+#    5.10.2018   Added compression to 4D data (zlib=True)
 #
 # Required modules
 #		Python 2.7.10
 #
 # Edit this tag when outputs are changed
-version='combine_1.0.0'
+version='combine_1.1.0'
 #
 import sys
 import os
@@ -527,7 +528,7 @@ def reduce_full(infile,imax,jmax,var_list):
 		#
 		# Create variable
 		#print 'creating',name,typ,dims,val.shape
-		id=ncid_dst.createVariable(name,typ,dims)
+		id=ncid_dst.createVariable(name,typ,dims,zlib=True)
 		id[:]=val
 		# Copy attributes
 		for att in var_info.keys(): setattr(id,att,var_info[att])

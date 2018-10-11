@@ -100,7 +100,14 @@ module radiation
       ! determine the solar geometery, as measured by u0, the cosine of the
       ! solar zenith angle
       !
-      u0 = zenith(alat,time)
+      IF (time<0.) THEN
+         ! ECLAIR modification: setting a large negative "strtim" means that "cntlat" is used as the zenith angle and
+         ! the time is ignored. Note that setting cntlat=90 means night, but values larger than that are not accepted.
+         ! Also, corflg must be false, because latitude is needed to calculate coriolis accelerations.
+         u0 = cos(alat*pi/180.)
+      ELSE
+         u0 = zenith(alat,time)
+      ENDIF
       !
       ! Avoid identical random numbers by adding an offset for each PU
       !     myid=0,1,2,...

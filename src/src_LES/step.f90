@@ -27,6 +27,7 @@ module step
 
   real    :: frqhis =  9000.
   real    :: frqanl =  3600.
+  real    :: anl_start = -1.
   real    :: radfrq =  0.
 
   real    :: time   =  0.
@@ -100,7 +101,7 @@ contains
 
        if ((mod(tplsdt,frqanl) < dtl .or. time >= timmax) .and. outflg) then
           call thermo(level)
-          call write_anal(time)
+          IF (time >= anl_start-0.5*dtl) call write_anal(time)
        end if
 
        if(myid == 0) then

@@ -31,6 +31,7 @@ module mcrp
        aerin, cldin, icein, snowin, prtcl, calc_eff_radius, &
        sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
        sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
+       coag_rr, coag_nr, cond_rr, cond_nr, auto_rr, auto_nr, diag_rr, diag_nr, &
        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
   use stat, only : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
   USE mo_submctl, ONLY : terminal_vel
@@ -130,6 +131,7 @@ contains
     real, intent (out)                        :: rrate(n1,n2,n3)
 
     integer :: i, j, k
+    real :: rp_old, np_old
 
     !
     ! Microphysics following Seifert Beheng (2001, 2005)
@@ -138,6 +140,9 @@ contains
     ! after that and total condensate priort to that
     !
 
+    ! Diagnostics (ignoring/avoiding negative values, and changes in number due to minimum and maximum volumes)
+    diag_rr(:,:,:)=rp(:,:,:)
+    diag_nr(:,:,:)=np(:,:,:)
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1
@@ -146,29 +151,61 @@ contains
           end do
        end do
     end do
+    diag_rr(:,:,:)=(rp(:,:,:)-diag_rr(:,:,:))/dtl
+    diag_nr(:,:,:)=(np(:,:,:)-diag_nr(:,:,:))/dtl
 
+    ! Condensation/evaporation
+    cond_rr(:,:,:)=rpt(:,:,:)
+    cond_nr(:,:,:)=npt(:,:,:) ! Level 3 only
     call wtr_dff_SB(n1,n2,n3,dn0,rp,np,rc,rs,rv,tk,rpt,npt)
+    cond_rr(:,:,:)=rpt(:,:,:)-cond_rr(:,:,:)
+    cond_nr(:,:,:)=npt(:,:,:)-cond_nr(:,:,:)
 
+    ! Autoconversion
+    auto_rr(:,:,:)=rpt(:,:,:)
+    auto_nr(:,:,:)=npt(:,:,:)
     call auto_SB(n1,n2,n3,dn0,rc,rp,rpt,npt)
+    auto_rr(:,:,:)=rpt(:,:,:)-auto_rr(:,:,:)
+    auto_nr(:,:,:)=npt(:,:,:)-auto_nr(:,:,:)
 
+    ! Accretion - coagulation
+    coag_rr(:,:,:)=rpt(:,:,:)
+    coag_nr(:,:,:)=npt(:,:,:)
     call accr_SB(n1,n2,n3,dn0,rc,rp,np,rpt,npt)
+    coag_rr(:,:,:)=rpt(:,:,:)-coag_rr(:,:,:)
+    coag_nr(:,:,:)=npt(:,:,:)-coag_nr(:,:,:)
 
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1-1
+             diag_rr(k,i,j)=diag_rr(k,i,j)-min(0.,rpt(k,i,j)+rp(k,i,j)/dtl)
+             diag_nr(k,i,j)=diag_nr(k,i,j)-min(0.,npt(k,i,j)+np(k,i,j)/dtl)
+             !
              rp(k,i,j) = rp(k,i,j) + max(-rp(k,i,j)/dtl,rpt(k,i,j))*dtl
              np(k,i,j) = np(k,i,j) + max(-np(k,i,j)/dtl,npt(k,i,j))*dtl
              rpt(k,i,j)= 0.
              npt(k,i,j)= 0.
+             rp_old=rp(k,i,j); np_old = np(k,i,j)
              rp(k,i,j) = max(0., rp(k,i,j))
              np(k,i,j) = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
+             !
+             diag_rr(k,i,j)=diag_rr(k,i,j)+(rp(k,i,j)-rp_old)/dtl
+             diag_nr(k,i,j)=diag_nr(k,i,j)+(np(k,i,j)-np_old)/dtl
           end do
        end do
     end do
 
+    ! Sedimentation
+    sedi_rr(:,:,:)=rpt(:,:,:)
+    sedi_nr(:,:,:)=npt(:,:,:)
+    rrate(:,:,:)=0.
     if (sed_precp) call sedim_rd(n1,n2,n3,dtl,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
+    sedi_rr(:,:,:)=rpt(:,:,:)-sedi_rr(:,:,:)
+    sedi_nr(:,:,:)=npt(:,:,:)-sedi_nr(:,:,:)
 
+    sedi_rc(:,:,:)=rtt(:,:,:)
     if (sed_cloud) call sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
+    sedi_rc(:,:,:)=sedi_rc(:,:,:)-rtt(:,:,:) ! rtt is total water, so an increase in rt means decrease in rc
 
   end subroutine mcrph
   !
@@ -345,7 +382,7 @@ contains
      real, intent (in)                         :: dt
      real, intent (in),    dimension(n1)       :: dn0
      real, intent (in),    dimension(n1,n2,n3) :: rp, np, th, tk
-     real, intent (out),   dimension(n1,n2,n3) :: rrate
+     real, intent (inout), dimension(n1,n2,n3) :: rrate
      real, intent (inout), dimension(n1,n2,n3) :: rtt, tlt, rpt, npt
 
      real, parameter :: a2 = 9.65       ! in SI [m/s]
@@ -460,7 +497,7 @@ contains
 
               npt(k,i,j) = npt(k,i,j)-(nfl(kp1)-nfl(k))*dzt(k)/dn0(k)
 
-              rrate(k,i,j)    = -rfl(k)/dn0(k) * alvl*0.5*(dn0(k)+dn0(kp1))
+              rrate(k,i,j) = rrate(k,i,j) -rfl(k)/dn0(k) * alvl*0.5*(dn0(k)+dn0(kp1))
 
            end do
         end do
@@ -477,7 +514,7 @@ contains
 
     integer, intent (in):: n1,n2,n3
     real, intent (in),   dimension(n1,n2,n3) :: th,tk,rc
-    real, intent (out),  dimension(n1,n2,n3) :: rrate
+    real, intent (inout),dimension(n1,n2,n3) :: rrate
     real, intent (inout),dimension(n1,n2,n3) :: rtt,tlt
 
     real, parameter :: c = 1.19e8 ! Stokes fall velocity coef [m^-1 s^-1]
@@ -504,7 +541,7 @@ contains
              flxdiv = (rfl(kp1)-rfl(k))*dzt(k)
              rtt(k,i,j) = rtt(k,i,j)-flxdiv
              tlt(k,i,j) = tlt(k,i,j)+flxdiv*(alvl/cp)*th(k,i,j)/tk(k,i,j)
-             rrate(k,i,j) = -rfl(k)
+             rrate(k,i,j) = rrate(k,i,j) -rfl(k) * alvl
           end do
        end do
     end do

@@ -64,6 +64,11 @@ module grid
              sed_ice = .TRUE., &
              sed_snow = .TRUE.
 
+  ! Save statistics about microphysical process rates
+  LOGICAL :: stat_micro = .FALSE.    ! Analysis files (*.nc)
+  LOGICAL :: stat_micro_ts = .FALSE. ! Profiles (*.ps.nc)
+  LOGICAL :: stat_micro_ps = .FALSE. ! Time series (*.ts.nc)
+
   ! Nudging options
   !   1 = soft nudging with fixed nudging constant applied only for the specified time period
   !   2 = hard nudging with the same settings
@@ -210,7 +215,7 @@ module grid
   REAL :: mc_Adom           ! Domain surface area
   REAL :: mc_ApVdom         ! Volume/Area
 
-  ! Statistics for level 4 and 5 microphysics
+  ! Statistics for level 3, 4 and 5 microphysics
   REAL, dimension(:,:,:), allocatable :: &
             coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
             coag_ri, coag_ni, coag_rs, coag_ns, &
@@ -221,7 +226,7 @@ module grid
             sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
             sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
             diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr, &
-            diag_ri, diag_ni, diag_rs, diag_ns
+            diag_ri, diag_ni, diag_rs, diag_ns, cond_nr
 
   !
   integer :: nscl = 1
@@ -353,6 +358,19 @@ contains
           a_qp=>a_sclrp(:,:,:,nscl - naddsc)
           a_qt=>a_sclrt(:,:,:,nscl - naddsc)
        end if
+
+       IF (level == 3) THEN
+          ! Allocate arrays for level 3 process rate statistics
+          allocate ( coag_rr(nzp,nxp,nyp), coag_nr(nzp,nxp,nyp), &
+             cond_rr(nzp,nxp,nyp), cond_nr(nzp,nxp,nyp), &
+             auto_rr(nzp,nxp,nyp), auto_nr(nzp,nxp,nyp), &
+             sedi_rc(nzp,nxp,nyp), sedi_rr(nzp,nxp,nyp), sedi_nr(nzp,nxp,nyp), &
+             diag_rr(nzp,nxp,nyp), diag_nr(nzp,nxp,nyp) )
+          coag_rr=0.; coag_nr=0.; cond_rr=0.; cond_nr=0.
+          auto_rr=0.; auto_nr=0.; sedi_rc=0.; sedi_rr=0.; sedi_nr=0.
+          diag_rr=0.; diag_nr=0.
+          memsize = memsize + nxyzp*11
+       END IF
 
     !Juha: Stuff that's allocated when SALSA is used
     !---------------------------------------------------
@@ -556,7 +574,7 @@ contains
     allocate (uw_sfc(nxp,nyp),vw_sfc(nxp,nyp),ww_sfc(nxp,nyp))
     allocate (wt_sfc(nxp,nyp),wq_sfc(nxp,nyp))
     allocate (obl(nxp,nyp))
-    if (level >= 3) then
+    if (level >= 2) then
        allocate(precip(nzp,nxp,nyp))
        precip = 0.
        memsize = memsize + nxyzp
@@ -798,16 +816,18 @@ contains
 
     use mpi_interface, only :myid, ver, author, info
     USE mo_submctl, ONLY : fn2a,fn2b,fca,fcb,fra, &
-                fia,fib,fsa,nlactbase,stat_micro, &
+                fia,fib,fsa,nlactbase, &
                 nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt
     USE class_ComponentIndex, ONLY : IsUsed
-    integer, parameter :: nnames = 21
+    integer, parameter :: nnames = 32
     integer, parameter :: salsa_nn = 104, salsa_nr=47
     character (len=7), save :: sbase(nnames) =  (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     '   ,& ! 1
          'ym     ','u0     ','v0     ','dn0    ','u      ','v      '   ,& ! 7
          'w      ','theta  ','p      ','q      ','l      ','r      '   ,& ! 13
-         'n      ','stke   ','rflx   '/)                                  ! 19 total 21
+         'n      ','stke   ','rflx   '                                 ,& ! 19 total 21
+         'coag_rr','coag_nr','cond_rr','cond_nr','auto_rr','auto_nr'   ,& ! 1-6
+         'sedi_rc','sedi_rr','sedi_nr','diag_rr','diag_nr'/)              ! 7-11
     ! Added for SALSA
     character(len=7), save :: salsa_sbase(salsa_nn+salsa_nr) = (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     ',  &  ! 1 
@@ -852,6 +872,7 @@ contains
        if (level == 3) nvar0 = nvar0+2
        if (isgstyp > 1) nvar0 = nvar0+1
        if (iradtyp > 1) nvar0 = nvar0+1
+       if (level == 3 .AND. stat_micro) nvar0 = nvar0+11
 
        allocate (sanal(nvar0))
        sanal(1:nbase) = sbase(1:nbase)
@@ -885,9 +906,14 @@ contains
           sanal(nvar0) = sbase(nbase+5)
        end if
 
-       if (iradtyp > 2) then
+       if (iradtyp > 1) then
           nvar0 = nvar0+1
           sanal(nvar0) = sbase(nbase+6)
+       end if
+
+       if (level == 3 .AND. stat_micro) then
+          sanal(nvar0+1:nvar0+11) = sbase(nbase+7:nbase+17)
+          nvar0 = nvar0+11
        end if
 
        nbeg = nvar0+1
@@ -907,6 +933,7 @@ contains
           salsabool(8:15) = .FALSE.
           salsabool((/34,36,38,40,42,43,46,47,49,51,53,54,57,58,60,62/)) = .FALSE.
        END IF
+       salsabool(30) = .FALSE. ! ECLAIR modification: reduce the number of 4D outputs
 
        IF (level < 5 ) THEN
           salsabool(13:15) = .FALSE. ! ica, icb, snw
@@ -958,6 +985,7 @@ contains
             tmp(16:17) = sed_cloud ! Cloud sedimentation
             tmp(18:19) = sed_precp ! Rain sedimentation
             tmp(20:25) = .FALSE.  ! SALSA_diagnostics
+            tmp(1:4) = .FALSE.; tmp(7:8) = .FALSE.; tmp(12:17) = .FALSE. ! ECLAIR modification: reduce the number of 4D outputs
             IF (level>=5) THEN
                 tmp(26:29) = nlcoag
                 tmp(30:31) = nlcnd
@@ -1028,8 +1056,7 @@ contains
                                iia,fia,iib,fib,isa,fsa,       &
                                aerobins, cloudbins, precpbins, &
                                icebins, snowbins, nlim, prlim, &
-                               nspec, nbins, ncld, nice, nprc, nsnw, &
-                               stat_micro
+                               nspec, nbins, ncld, nice, nprc, nsnw
 
     real, intent (in) :: time
 
@@ -1189,6 +1216,70 @@ contains
           iret = nf90_put_var(ncid0, VarID, a_rflx(:,i1:i2,j1:j2), start=ibeg, &
                count=icnt)
        end if
+
+       ! Process rate statistics
+       IF (level==3 .AND. stat_micro) THEN
+          ! Coagulation (2)
+          iret = nf90_inq_varid(ncid0,'coag_rr',VarID)
+          IF (iret==NF90_NOERR) THEN
+              iret = nf90_put_var(ncid0,VarID,coag_rr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+              nn = nn+1
+          END IF
+          iret = nf90_inq_varid(ncid0,'coag_nr',VarID)
+          IF (iret==NF90_NOERR) THEN
+              iret = nf90_put_var(ncid0,VarID,coag_nr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+              nn = nn+1
+          END IF
+          ! Condensation (2)
+          iret = nf90_inq_varid(ncid0,'cond_rr',VarID)
+          IF (iret==NF90_NOERR) THEN
+              iret = nf90_put_var(ncid0,VarID,cond_rr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+              nn = nn+1
+          END IF
+          iret = nf90_inq_varid(ncid0,'cond_nr',VarID)
+          IF (iret==NF90_NOERR) THEN
+              iret = nf90_put_var(ncid0,VarID,cond_nr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+              nn = nn+1
+          END IF
+          ! Sedimentation (3)
+          iret = nf90_inq_varid(ncid0,'sedi_rc',VarID)
+          IF (iret==NF90_NOERR) THEN
+              iret = nf90_put_var(ncid0,VarID,sedi_rc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+              nn = nn+1
+          END IF
+          iret = nf90_inq_varid(ncid0,'sedi_rr',VarID)
+          IF (iret==NF90_NOERR) THEN
+              iret = nf90_put_var(ncid0,VarID,sedi_rr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+              nn = nn+1
+          END IF
+          iret = nf90_inq_varid(ncid0,'sedi_nr',VarID)
+          IF (iret==NF90_NOERR) THEN
+              iret = nf90_put_var(ncid0,VarID,sedi_nr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+              nn = nn+1
+          END IF
+          ! Autoconversion (2)
+          iret = nf90_inq_varid(ncid0,'auto_rr',VarID)
+          IF (iret==NF90_NOERR) THEN
+              iret = nf90_put_var(ncid0,VarID,auto_rr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+              nn = nn+1
+          END IF
+          iret = nf90_inq_varid(ncid0,'auto_nr',VarID)
+          IF (iret==NF90_NOERR) THEN
+              iret = nf90_put_var(ncid0,VarID,auto_nr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+              nn = nn+1
+          END IF
+          ! Diagnostics (2)
+          iret = nf90_inq_varid(ncid0,'diag_rr',VarID)
+          IF (iret==NF90_NOERR) THEN
+              iret = nf90_put_var(ncid0,VarID,diag_rr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+              nn = nn+1
+          END IF
+          iret = nf90_inq_varid(ncid0,'diag_nr',VarID)
+          IF (iret==NF90_NOERR) THEN
+              iret = nf90_put_var(ncid0,VarID,diag_nr(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+              nn = nn+1
+          END IF
+       END IF
 
        if (nn /= nvar0) then
           if (myid == 0) print *, 'ABORTING:  Anal write error'
