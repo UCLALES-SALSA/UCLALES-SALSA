@@ -21,7 +21,7 @@
 module stat
 
   use ncio, only : open_nc, define_nc, define_nc_cs
-  use grid, only : level, lbinprof
+  use grid, only : level, lbinprof, stat_micro_ts, stat_micro_ps
   use util, only : get_avg3, get_cor3, get_var3, get_avg_ts, &
                    get_avg2dh, get_3rd3
 
@@ -35,6 +35,7 @@ module stat
                         nvar2 = 96,               &
                         nv2_lvl4 = 44,            &
                         nv2_lvl5 = 31,            &
+                        nv12_lvl3_rate = 11,      &
                         nv12_rate = 47,           &
                         nv2saa = 8, nv2sab = 8,   &
                         nv2sca = 8, nv2scb = 8,   &
@@ -151,6 +152,10 @@ module stat
         'P_cNHi ','P_cNHs ','P_cH2Oi','P_cH2Os', & ! 22-25
         'P_ri   ','P_rs   ', 'P_RHi  ','irate  ','srate  ','thi    '/), & ! 26-31
 
+        s12_lvl3_rate(nv12_lvl3_rate) = (/ &
+        'coag_rr','coag_nr','cond_rr','cond_nr','auto_rr','auto_nr', & ! 1-6
+        'sedi_rc','sedi_rr','sedi_nr','diag_rr','diag_nr'/), & ! 7-11
+
         s12_rate(nv12_rate) = (/ &
         'coag_ra','coag_na','coag_rc','coag_nc','coag_rr','coag_nr', & ! 1-6
         'cond_ra','cond_rc','cond_rr','auto_rr','auto_nr','act_rc ','act_nc ', & ! 7-13
@@ -239,7 +244,7 @@ contains
     use grid, only : nxp, nyp, iradtyp, prtcl, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, ver, author, info
     use mo_submctl, only : nprc,nsnw,fn2a,fn2b,fca,fcb,fra,fia,fib,fsa,stat_b_bins, &
-        stat_micro_ts,stat_micro_ps,nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt
+        nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt
     USE class_ComponentIndex, ONLY : IsUsed
 
     character (len=80), intent (in) :: filprf, expnme
@@ -324,6 +329,23 @@ contains
        IF (mcflg) massbdg(:) = 0.
        s1bool(1:nvar1) = .TRUE.
        s2bool(1:nvar2) = .TRUE.
+       ! Microphysicsal process rate statistics (both ts and ps)
+       ALLOCATE ( ssclr_rate(nv12_lvl3_rate), svctr_rate(nzp,nv12_lvl3_rate) )
+       ssclr_rate(:) = 0.
+       svctr_rate(:,:) = 0.
+       IF (level==3 .AND. (stat_micro_ts .OR. stat_micro_ps)) THEN
+          s1bool(nvar1+1:nvar1+6) = stat_micro_ts ! Coagulation, condensation and autoconversion
+          s2bool(nvar2+1:nvar2+6) = stat_micro_ps
+          s1bool(nvar1+7) = stat_micro_ts .AND. sed_cloud ! Cloud sedimentation
+          s2bool(nvar2+7) = stat_micro_ps .AND. sed_cloud
+          s1bool(nvar1+8:nvar1+9) = stat_micro_ts .AND. sed_precp ! Rain sedimentation
+          s2bool(nvar2+8:nvar2+9) = stat_micro_ps .AND. sed_precp
+          s1bool(nvar1+10:nvar1+11) = stat_micro_ts ! Diagnostics
+          s2bool(nvar2+10:nvar2+11) = stat_micro_ps
+          !
+          IF (stat_micro_ts) s1Total(nvar1+1:nvar1+nv12_lvl3_rate) = s12_lvl3_rate(1:nv12_lvl3_rate)
+          IF (stat_micro_ps) s2Total(nvar2+1:nvar2+nv12_lvl3_rate) = s12_lvl3_rate(1:nv12_lvl3_rate)
+       ENDIF
     ELSE IF ( level >= 4 ) THEN
        ! Additional arrays for SALSA
        ALLOCATE ( ssclr(nvar1), svctr(nzp,nvar2) )
@@ -1155,7 +1177,7 @@ contains
   !  Some rewriting and adjusting by Juha Tonttila
   !
   SUBROUTINE ts_lvl4(n1,n2,n3)
-    use mo_submctl, only : stat_micro_ts, nlim ! Note: #/m^3, but close enough to #/kg for statistics
+    use mo_submctl, only : nlim ! Note: #/m^3, but close enough to #/kg for statistics
     USE grid, ONLY : prtcl, bulkNumc, bulkMixrat, meanradius, dzt, a_rh, zm, a_dn, dn0, &
         coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, cond_ra, cond_rc, cond_rr, &
         auto_rr, auto_nr, cact_rc, cact_nc, sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
@@ -1269,7 +1291,7 @@ contains
   !  Implemented by Jaakko Ahola 15/12/2016
   !
   SUBROUTINE ts_lvl5(n1,n2,n3)
-    USE mo_submctl, only : stat_micro_ts, prlim ! Note: #/m^3, but close enough to #/kg for statistics
+    USE mo_submctl, only : prlim ! Note: #/m^3, but close enough to #/kg for statistics
     USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,meanRadius, dzt, &
         a_dn, dn0, zm, a_ri, a_srs, snowin, a_rhi, a_tp, th00, &
         coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
@@ -1623,6 +1645,10 @@ contains
   !
   subroutine accum_lvl3(n1, n2, n3, dn0, zm, rc, rr, nr, rrate, CCN)
 
+    use grid, ONLY : coag_rr, coag_nr, cond_rr, cond_nr, auto_rr, auto_nr, &
+                     sedi_rc, sedi_rr, sedi_nr, diag_rr, diag_nr
+    IMPLICIT NONE
+
     integer, intent (in) :: n1,n2,n3
     real, intent (in)                      :: CCN
     real, intent (in), dimension(n1)       :: zm, dn0
@@ -1633,7 +1659,7 @@ contains
     real                   :: rmax, rmin
     real, dimension(n1)    :: a1
     real, dimension(n2,n3) :: scr2
-    REAL :: mask(n1,n2,n3), tmp(n1,n2,n3)
+    REAL :: mask(n1,n2,n3), tmp(n1,n2,n3), fact
     LOGICAL :: below
 
     !
@@ -1694,6 +1720,30 @@ contains
     call get_avg3(n1,n2,n3,mask,a1,normalize=.FALSE.)
     svctr(:,92)=svctr(:,92)+a1(:)
 
+    ! Process rate statistics
+    IF (stat_micro_ps .AND. level==3) THEN
+        ! Take average over horizontal dimension
+        svctr_rate(:,1:11) = 0.
+        do j=3,n3-2
+            do i=3,n2-2
+                do k=2,n1
+                    fact = dn0(k)/REAL( (n3-4)*(n2-4) ) ! a_dn is for levels 4 and 5
+                    svctr_rate(k,1) = svctr_rate(k,1) + coag_rr(k,i,j)*fact
+                    svctr_rate(k,2) = svctr_rate(k,2) + coag_nr(k,i,j)*fact
+                    svctr_rate(k,3) = svctr_rate(k,3) + cond_rr(k,i,j)*fact
+                    svctr_rate(k,4) = svctr_rate(k,4) + cond_nr(k,i,j)*fact
+                    svctr_rate(k,5) = svctr_rate(k,5) + auto_rr(k,i,j)*fact
+                    svctr_rate(k,6) = svctr_rate(k,6) + auto_nr(k,i,j)*fact
+                    svctr_rate(k,7) = svctr_rate(k,7) + sedi_rc(k,i,j)*fact
+                    svctr_rate(k,8) = svctr_rate(k,8) + sedi_rr(k,i,j)*fact
+                    svctr_rate(k,9) = svctr_rate(k,9) + sedi_nr(k,i,j)*fact
+                    svctr_rate(k,10) = svctr_rate(k,10) + diag_rr(k,i,j)*fact
+                    svctr_rate(k,11) = svctr_rate(k,11) + diag_nr(k,i,j)*fact
+                END DO
+            END DO
+        END DO
+    ENDIF
+
     !
     ! Temporal statistics
     !
@@ -1737,6 +1787,30 @@ contains
     ssclr(27) = nrcnt
     ssclr(29) = rrcb/REAL( (n3-4)*(n2-4) )
 
+    ! Process rate statistics
+    IF (stat_micro_ts .AND. level==3) THEN
+        ! Integrate over vertical dimension and take average
+        ssclr_rate(1:11) = 0.
+        do j=3,n3-2
+            do i=3,n2-2
+                do k=2,n1
+                    fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) ) ! a_dn is for levels 4 and 5
+                    ssclr_rate(1) = ssclr_rate(1) + coag_rr(k,i,j)*fact
+                    ssclr_rate(2) = ssclr_rate(2) + coag_nr(k,i,j)*fact
+                    ssclr_rate(3) = ssclr_rate(3) + cond_rr(k,i,j)*fact
+                    ssclr_rate(4) = ssclr_rate(4) + cond_nr(k,i,j)*fact
+                    ssclr_rate(5) = ssclr_rate(5) + auto_rr(k,i,j)*fact
+                    ssclr_rate(6) = ssclr_rate(6) + auto_nr(k,i,j)*fact
+                    ssclr_rate(7) = ssclr_rate(7) + sedi_rc(k,i,j)*fact
+                    ssclr_rate(8) = ssclr_rate(8) + sedi_rr(k,i,j)*fact
+                    ssclr_rate(9) = ssclr_rate(9) + sedi_nr(k,i,j)*fact
+                    ssclr_rate(10) = ssclr_rate(10) + diag_rr(k,i,j)*fact
+                    ssclr_rate(11) = ssclr_rate(11) + diag_nr(k,i,j)*fact
+                END DO
+            END DO
+        END DO
+    ENDIF
+
   end subroutine accum_lvl3
 
   !---------------------------------------------------------------------
@@ -1746,7 +1820,7 @@ contains
   subroutine accum_lvl4(n1,n2,n3)
     use mo_submctl, only : in1a,in2b,fn2a,fn2b, &
                                ica,fca,icb,fcb,ira,fra, &
-                               nprc,stat_micro_ps,nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
+                               nprc,nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                      a_rc, a_srp, a_rp, a_rh, prtcl,    &
                      a_naerop, a_ncloudp, a_nprecpp, cldin, zm, a_dn, &
@@ -1965,7 +2039,7 @@ contains
   ! on level 5 variables.
   !
   subroutine accum_lvl5(n1,n2,n3)
-    use mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,stat_micro_ps,prlim ! Note: prlim in #/m^3, but close enough to #/kg for statistics
+    use mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,prlim ! Note: prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                      a_ri, a_srs, a_rhi, prtcl, a_nicep, a_nsnowp, icein, snowin, a_tp, th00, &
                      zm, a_dn, coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
@@ -2262,8 +2336,6 @@ contains
   subroutine write_ts
 
     use netcdf
-    USE grid, ONLY : level
-    USE mo_submctl, ONLY : stat_micro_ts
 
     integer :: iret, n, VarID
 
@@ -2291,9 +2363,16 @@ contains
        END DO
     END IF
 
-    IF (level >=4 .AND. stat_micro_ts) THEN
+    IF (level >= 4 .AND. stat_micro_ts) THEN
        DO n = 1,nv12_rate
           iret = nf90_inq_varid(ncid1, s12_rate(n), VarID)
+          IF (iret /= NF90_NOERR) CYCLE
+          iret = nf90_put_var(ncid1, VarID, ssclr_rate(n), start=(/nrec1/))
+          ssclr_rate(n) = 0.
+       END DO
+    ELSEIF (level == 3 .AND. stat_micro_ts) THEN
+       DO n = 1,nv12_lvl3_rate
+          iret = nf90_inq_varid(ncid1, s12_lvl3_rate(n), VarID)
           IF (iret /= NF90_NOERR) CYCLE
           iret = nf90_put_var(ncid1, VarID, ssclr_rate(n), start=(/nrec1/))
           ssclr_rate(n) = 0.
@@ -2315,8 +2394,7 @@ contains
     use defs, only : alvl, cp
     USE mo_submctl, ONLY : in1a,in2b,fn2a,fn2b,fca,ica,fcb,icb,fra,ira, &
                                iia, fia, iib, fib, isa, fsa, &
-                               aerobins,cloudbins,precpbins,icebins,snowbins, &
-                               stat_micro_ps
+                               aerobins,cloudbins,precpbins,icebins,snowbins
 
     integer, intent (in) :: n1
     real, intent (in)    :: time
@@ -2502,9 +2580,16 @@ contains
 
     END IF
 
-    IF (level >=4 .AND. stat_micro_ps) THEN
+    IF (level >= 4 .AND. stat_micro_ps) THEN
        DO n = 1,nv12_rate
           iret = nf90_inq_varid(ncid2, s12_rate(n), VarID)
+          IF (iret /= NF90_NOERR) CYCLE
+          iret = nf90_put_var(ncid2,VarID,svctr_rate(:,n), start=(/1,nrec2/),  &
+               count=(/n1,1/))
+       END DO
+    ELSEIF (level == 3 .AND. stat_micro_ps) THEN
+       DO n = 1,nv12_lvl3_rate
+          iret = nf90_inq_varid(ncid2, s12_lvl3_rate(n), VarID)
           IF (iret /= NF90_NOERR) CYCLE
           iret = nf90_put_var(ncid2,VarID,svctr_rate(:,n), start=(/1,nrec2/),  &
                count=(/n1,1/))

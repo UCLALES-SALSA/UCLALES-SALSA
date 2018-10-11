@@ -96,6 +96,7 @@ contains
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
          Tspinup, sst, lbinanl, lbinprof, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, &
+         stat_micro, stat_micro_ts, stat_micro_ps, &
          nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
          nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau,  &
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau,  &
@@ -139,6 +140,7 @@ contains
          us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
          umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
          Tspinup, lbinanl, lbinprof, & ! Length of spinup period in seconds
+         stat_micro, stat_micro_ts, stat_micro_ps, & ! Save statistics about microphysical process rates
          nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, & ! Temperature nudging
          nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau, & ! Water vapor mixing ratio nudging
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau, & ! Horizontal wind nudging

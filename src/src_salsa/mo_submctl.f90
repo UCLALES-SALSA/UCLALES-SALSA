@@ -159,9 +159,6 @@ MODULE mo_submctl
 
   ! Flags controlling outputs
   LOGICAL :: stat_b_bins = .FALSE. ! Save statistics about SALSA b-bins
-  LOGICAL :: stat_micro = .FALSE. ! Save statistics about microphysical process rates
-  LOGICAL :: stat_micro_ts = .FALSE. ! Save statistics (*.ts) about microphysical process rates
-  LOGICAL :: stat_micro_ps = .FALSE. ! Save statistics (*.ps) about microphysical process rates
 
   INTEGER :: isdtyp = 0  ! Type of input aerosol size distribution: 0 - Uniform
                          !                                          1 - Read vertical profile of the mode
