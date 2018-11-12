@@ -49,7 +49,7 @@ CONTAINS
     INTEGER :: nspec
 
     nspec = spec%getNSpec()
-    ntotal = nbins+ncld+nprc+nice ! +nsnw
+    ntotal = nbins+ncld+nprc+nice
 
     ! Allocate the combined particle size distribution array
     ALLOCATE(allSALSA(kbdim,klev,ntotal))

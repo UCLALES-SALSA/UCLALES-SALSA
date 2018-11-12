@@ -890,66 +890,66 @@ MODULE mo_salsa_coagulation_processes
          DO jj = 1,klev
             DO ii = 1,kbdim
                ! The estimated diameter of the droplets after collision
-                D_new = (cloud(ii,jj,itrgt)%dwet**3 + cloud(ii,jj,ll)%dwet**3)**(1./3.)
-
-                ! Check out to which precip bin this belogs (if any)
-                trgt_prc = 0
-                trgt_prc = COUNT( D_new > precpbins(:) )
-                
-                IF ( trgt_prc > 0) THEN
-
-                   ! The resulting droplets are large -> put the collision coalescence contribution to precipitation
-                   IF ( selfcoll ) THEN
-                      ! Self collection
-                      vol_prc(1:nspec,ii,jj,trgt_prc) = vol_prc(1:nspec,ii,jj,trgt_prc) +   &
-                           cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc*zcc(ii,jj,ll,itrgt) 
-
-                      num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) +        &
-                           (0.5*zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) 
-                   
-                   ELSE
-                      vol_prc(1:nspec,ii,jj,trgt_prc) = vol_prc(1:nspec,ii,jj,trgt_prc) +    &
-                           ( cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc +         &
-                             cloud(ii,jj,itrgt)%volc(1:nspec)*cloud(ii,jj,ll)%numc ) * zcc(ii,jj,ll,itrgt)
-
-                      num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) +        &
-                           (zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) 
-
-                   END IF
-                   
-                   IF ( selfcoll ) THEN
-                      ! Change in cloud droplet volume due to precip formation in self collection
-                      volsink_slf(1:nspec,ii,jj) = volsink_slf(1:nspec,ii,jj) +   &
-                           cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc*zcc(ii,jj,ll,itrgt)
-                      
-                      ! Contribution of precip formation due to self collection to the regular sink term
-                      sink(ii,jj) = sink(ii,jj) + zcc(ii,jj,ll,itrgt)*cloud(ii,jj,itrgt)%numc
-
-                   ELSE
-                      ! Precip formation consumes particles from the target cloud droplet bin also when not self collection, which is not accounted 
-                      ! for by the regular sink term accumulation
-                      sink(ii,jj) = sink(ii,jj) + zcc(ii,jj,itrgt,ll)*cloud(ii,jj,ll)%numc
-
-                   END IF
-
-                ELSE
-                   
-                   ! No precipitation formation -> regular approach
-                   IF ( selfcoll ) THEN
-                      ! Self collection
-                      sink(ii,jj) = sink(ii,jj) + 0.5*zcc(ii,jj,itrgt,ll)*cloud(ii,jj,ll)%numc
-                   ELSE
-                      ! Not self collection:                
-                      source(1:nspec,ii,jj) = source(1:nspec,ii,jj) + zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%volc(1:nspec)
-
-                   END IF
-
-                END IF
-
+               D_new = (cloud(ii,jj,itrgt)%dwet**3 + cloud(ii,jj,ll)%dwet**3)**(1./3.)
+               
+               ! Check out to which precip bin this belogs (if any)
+               trgt_prc = 0
+               trgt_prc = COUNT( D_new > precpbins(:) )
+               
+               IF ( trgt_prc > 0) THEN
+                  
+                  ! The resulting droplets are large -> put the collision coalescence contribution to precipitation
+                  IF ( selfcoll ) THEN
+                     ! Self collection
+                     vol_prc(1:nspec,ii,jj,trgt_prc) = vol_prc(1:nspec,ii,jj,trgt_prc) +   &
+                          cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc*zcc(ii,jj,ll,itrgt) 
+                     
+                     num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) +        &
+                          (0.5*zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) 
+                     
+                  ELSE
+                     vol_prc(1:nspec,ii,jj,trgt_prc) = vol_prc(1:nspec,ii,jj,trgt_prc) +    &
+                          ( cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc +         &
+                          cloud(ii,jj,itrgt)%volc(1:nspec)*cloud(ii,jj,ll)%numc ) * zcc(ii,jj,ll,itrgt)
+                     
+                     num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) +        &
+                          (zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) 
+                     
+                  END IF
+                  
+                  IF ( selfcoll ) THEN
+                     ! Change in cloud droplet volume due to precip formation in self collection
+                     volsink_slf(1:nspec,ii,jj) = volsink_slf(1:nspec,ii,jj) +   &
+                          cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc*zcc(ii,jj,ll,itrgt)
+                     
+                     ! Contribution of precip formation due to self collection to the regular sink term
+                     sink(ii,jj) = sink(ii,jj) + zcc(ii,jj,ll,itrgt)*cloud(ii,jj,itrgt)%numc
+                     
+                  ELSE
+                     ! Precip formation consumes particles from the target cloud droplet bin also when not self collection, which is not accounted 
+                     ! for by the regular sink term accumulation
+                     sink(ii,jj) = sink(ii,jj) + zcc(ii,jj,itrgt,ll)*cloud(ii,jj,ll)%numc
+                     
+                  END IF
+                  
+               ELSE
+                  
+                  ! No precipitation formation -> regular approach
+                  IF ( selfcoll ) THEN
+                     ! Self collection
+                     sink(ii,jj) = sink(ii,jj) + 0.5*zcc(ii,jj,itrgt,ll)*cloud(ii,jj,ll)%numc
+                  ELSE
+                     ! Not self collection:                
+                     source(1:nspec,ii,jj) = source(1:nspec,ii,jj) + zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%volc(1:nspec)
+                     
+                  END IF
+                  
+               END IF
+               
             END DO
          END DO
       END DO
-
+      
     END SUBROUTINE accumulatePrecipFormation
 
 END MODULE mo_salsa_coagulation_processes

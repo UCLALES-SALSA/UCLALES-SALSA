@@ -83,6 +83,8 @@ MODULE mo_salsa_coagulation_kernels
       REAL, INTENT(in) :: ptemp(kbdim,klev),ppres(kbdim,klev)
       REAL, INTENT(inout) :: zcc(kbdim,klev,nb1,nb1)
 
+      REAL :: zdiam_mm, zmass_mm
+      
       REAL :: zdiam(nb1), zmass(nb1)
 
       INTEGER :: mm,nn,ii,jj
@@ -101,10 +103,23 @@ MODULE mo_salsa_coagulation_kernels
               zmass(1:nb1) = spec%rhowa*pi6*pp1(1:nb1)%dwet**3
               
               DO mm = 1, nb1         ! smaller colliding particle
+                 
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
+                 
                  DO nn = mm, nb1            ! larger colliding particle
+
                     IF (pp1(nn)%numc < pp1(nn)%nlim) CYCLE
-                    zcc(ii,jj,mm,nn) = coagc(pp1(mm)%dwet,pp1(nn)%dwet,zmass(mm),zmass(nn),    &
+                    
+                    ! In case of self-coagulation, add a small size deviation to account a little bit for the variability inside the bins
+                    IF (mm == nn) THEN
+                       zmass_mm = zmass(mm)*0.7290 ! corresponds to 0.9*diameter 
+                       zdiam_mm = zdiam(mm)*0.9
+                    ELSE
+                       zmass_mm = zmass(mm)
+                       zdiam_mm = zdiam(mm)
+                    END IF
+                   
+                    zcc(ii,jj,mm,nn) = coagc(zdiam_mm,pp1(nn)%dwet,zmass_mm,zmass(nn),    &
                                              ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,        &
                                              pp1(nn)%phase                                     )
                     zcc(ii,jj,nn,mm) = zcc(ii,jj,mm,nn)

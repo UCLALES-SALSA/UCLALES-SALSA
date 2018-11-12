@@ -963,8 +963,7 @@ CONTAINS
          iret = nf90_put_var(ncid0, VarID, a_wp(:,i1:i2,j1:j2), start=ibeg,    &
                              count=icnt)
          iret = nf90_inq_varid(ncid0, 'theta', VarID)
-         !                                    POISTA: THETA
-         iret = nf90_put_var(ncid0, VarID, a_temp(:,i1:i2,j1:j2), start=ibeg, &
+         iret = nf90_put_var(ncid0, VarID, a_theta(:,i1:i2,j1:j2), start=ibeg, &
                              count=icnt)
          iret = nf90_inq_varid(ncid0, 'p', VarID)
          iret = nf90_put_var(ncid0, VarID, a_press(:,i1:i2,j1:j2), start=ibeg, &
@@ -1030,7 +1029,8 @@ CONTAINS
             zvar(:,:,:) = a_rp(:,:,:) + &   ! Water vapor
                           a_rc(:,:,:) + &   ! Liquid water
                           a_srp(:,:,:)+ &   ! Rain
-                          a_ri(:,:,:)       ! Ice water (level 5)
+                          a_ri(:,:,:) + &   ! Pristine ice
+                          a_riri(:,:,:)     ! rimed ice
             iret = nf90_inq_varid(ncid0,'q',VarID)
             iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                                 count=icnt)

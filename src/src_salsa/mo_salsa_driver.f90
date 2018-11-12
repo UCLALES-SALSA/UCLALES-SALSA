@@ -211,7 +211,7 @@ CONTAINS
                   mrim(1:nice) = pa_micep(kk,ii,jj,str2:end2)
                   mprist(1:nice) = pa_micep(kk,ii,jj,str:end)
 
-                  ice(1,1,1:nice)%volc(nwet) = pdn(kk,ii,jj) * ( (mprist/spec%rhoic) ) !+ (mrim/spec%rhori) )
+                  ice(1,1,1:nice)%volc(nwet) = pdn(kk,ii,jj) * ( (mprist/spec%rhoic) ) 
                   ice(1,1,1:nice)%vrime = pdn(kk,ii,jj) * (mrim/spec%rhori)
 
                ELSE
@@ -274,15 +274,6 @@ CONTAINS
                   CALL allSALSA(1,1,ss)%updateRhomean()
                END DO
 
-               DO ss = 1,nprc
-                  IF ( ANY(precp(1,1,ss)%volc(:) < 0.) ) WRITE(*,*) 'SALSA driver precp < 0'
-               END DO
-               DO ss = 1,ncld
-                  IF ( ANY(cloud(1,1,ss)%volc(:) < 0.) ) WRITE(*,*) 'SALSA driver cloud < 0'
-               END DO
-
-               IF (ANY(pa_mprecpt(kk,ii,jj,:) /= 0.00)) WRITE(*,*) 'SALSA DRIVER TENDENCY VAARIN'                  
-               
                ! Calculate tendencies (convert back to #/kg or kg/kg)
                pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &
                     ( aero(1,1,1:nbins)%numc - aero_old(1,1,1:nbins)%numc )/pdn(kk,ii,jj)/tstep

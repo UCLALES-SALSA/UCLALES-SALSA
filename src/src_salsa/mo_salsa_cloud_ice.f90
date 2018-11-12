@@ -392,9 +392,7 @@ MODULE mo_salsa_cloud_ice
 
     REAL :: dwet,rhomean
 
-    REAL, PARAMETER :: minD = 20.e-6 ! Minimum diameter for the resulting rain drop
     REAL :: liqvol
-    LOGICAL :: l_minD
 
     INTEGER :: ii,jj,kk,ss,bb
     INTEGER :: nspec, iwa
@@ -433,13 +431,10 @@ MODULE mo_salsa_cloud_ice
 
              ! Check that there is enough water for minimum droplet size
              liqvol = ( ice(ii,jj,kk)%volc(iwa)*spec%rhoic + ice(ii,jj,kk)%vrime*spec%rhori )/spec%rhowa
-             l_minD = ( liqvol > pi6*minD**3 )
-             
-             ! Only move number is there is sufficient mass and also require that the size of melt droplets fits this min
-             IF (l_minD) THEN
-                precp(ii,jj,bb)%numc = precp(ii,jj,bb)%numc + maxfrac*MIN(ice(ii,jj,kk)%numc, liqvol/(pi6*minD**3))
-                ice(ii,jj,kk)%numc = (1.-maxfrac)*ice(ii,jj,kk)%numc
-             END IF
+
+             precp(ii,jj,bb)%numc = precp(ii,jj,bb)%numc + maxfrac*ice(ii,jj,kk)%numc
+             ice(ii,jj,kk)%numc = (1.-maxfrac)*ice(ii,jj,kk)%numc
+
              
              precp(ii,jj,bb)%volc(iwa) = precp(ii,jj,bb)%volc(iwa) + maxfrac*liqvol                       
              ice(ii,jj,kk)%volc(iwa) = (1.-maxfrac)*ice(ii,jj,kk)%volc(iwa)

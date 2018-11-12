@@ -150,17 +150,10 @@ CONTAINS
              ! True air density
              a_dn(k,i,j) = p(k,i,j)/(R*tk(k,i,j))
 
-             IF (tk(k,i,j) < 273.0 .AND. rh(k,i,j) > rhi(k,i,j)) WRITE(*,*) 'rh > rhi', k,i,j,rh(k,i,j),rhi(k,i,j),tk(k,i,j), &
-                  p(k,i,j)
-             
-             IF (rh(k,i,j) > 1.1) WRITE(*,*) 'RH:::: ', k,i,j,rh(k,i,j),exner,th(k,i,j),tk(k,i,j),rc(k,i,j), &
-                  srp(k,i,j),ri(k,i,j),p(k,i,j)
-             
           END DO
        END DO
     END DO
     
-    !WRITE(*,*) 'TK::::::::::: ',tk(87,3,13)
     
   END SUBROUTINE SALSAthrm
 !
