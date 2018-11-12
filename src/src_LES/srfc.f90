@@ -80,7 +80,7 @@ CONTAINS
                       wt_sfc, wq_sfc, dn0, level,dtl, a_sflx, a_rflx, precip, a_dn,         &
                       W1,W2,W3, mc_ApVdom, dtlt,sst
       USE thrm, ONLY: rslf
-      USE stat, ONLY: sfc_stat, sflg, mcflg, acc_massbudged
+      !USE stat, ONLY: sfc_stat, sflg, mcflg, acc_massbudged
       USE mpi_interface, ONLY : nypg, nxpg, double_array_par_sum
 
 
@@ -366,16 +366,16 @@ CONTAINS
 
       END SELECT
 
-      IF ( mcflg ) THEN
-         !
-         ! Juha: Take moisture flux to mass budged statistics
-         mctmp(:,:) = wq_sfc(:,:)*(0.5*(a_dn(1,:,:)+a_dn(2,:,:)))
-         CALL acc_massbudged(nzp,nxp,nyp,2,dtlt,dzt,a_dn,       &
-                             revap=mctmp,ApVdom=mc_ApVdom)
-         !
-         !
-      END IF !mcflg
-      IF (sflg) CALL sfc_stat(nxp,nyp,wt_sfc,wq_sfc,a_ustar,sst)
+      !IF ( mcflg ) THEN
+      !   !
+      !   ! Juha: Take moisture flux to mass budged statistics
+      !   mctmp(:,:) = wq_sfc(:,:)*(0.5*(a_dn(1,:,:)+a_dn(2,:,:)))
+      !   CALL acc_massbudged(nzp,nxp,nyp,2,dtlt,dzt,a_dn,       &
+      !                       revap=mctmp,ApVdom=mc_ApVdom)
+      !   !
+      !   !
+      !END IF !mcflg
+      !IF (sflg) CALL sfc_stat(nxp,nyp,wt_sfc,wq_sfc,a_ustar,sst)
 
       RETURN
    END SUBROUTINE surface

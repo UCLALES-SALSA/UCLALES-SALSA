@@ -126,7 +126,7 @@ MODULE classSpecies
      REAL            , ALLOCATABLE :: MMNative(:), MM(:)                                           ! Molar masses
      REAL            , ALLOCATABLE :: rholiqNative(:), rhoiceNative(:), rhosnowNative(:),   &      ! densities
                                       rholiq(:), rhoice(:), rhosnow(:)
-     REAL            , ALLOCATABLE :: rhos(:,:)                                                    ! 2d density array holding all the variants (shape (3,Nused)) 
+     REAL            , ALLOCATABLE :: rhos(:,:)                                                    ! 2d density array holding all the variants (shape (2,Nused)) 
      REAL            , ALLOCATABLE :: dissNative(:), diss(:)                                       ! Dissociation factors
 
      ! Subset arrays for soluble and insoluble compounds. If none are used of either category, length 1 is allocated for the arrays and zeros are used to initialize. 
@@ -137,10 +137,8 @@ MODULE classSpecies
      REAL,             ALLOCATABLE :: MM_soluble(:), MM_insoluble(:)                               ! Molar masses
      REAL,             ALLOCATABLE :: rholiq_soluble(:),   &                                       ! Densities
                                       rhoice_soluble(:),   &
-                                      rhosnow_soluble(:),  &
                                       rholiq_insoluble(:), &
-                                      rhoice_insoluble(:), &
-                                      rhosnow_insoluble(:)
+                                      rhoice_insoluble(:)
      REAL,             ALLOCATABLE :: diss_soluble(:), diss_insoluble(:)                           ! Dissociation factors
 
      REAL    :: mas = 132.14e-3  ! Molar mass of ammonium sulphate
@@ -173,7 +171,6 @@ MODULE classSpecies
                       rhonh => NULL(), &
                       rhowa => NULL(), &
                       rhoic => NULL(), &
-                      rhosn => NULL(), &
                       rhori => NULL()
      
      CONTAINS
@@ -233,8 +230,7 @@ MODULE classSpecies
                 cnstr%MMNative(cnstr%Nused),      cnstr%MM(cnstr%Nused),        &
                 cnstr%rholiqNative(cnstr%Nused),  cnstr%rholiq(cnstr%Nused),    &
                 cnstr%rhoiceNative(cnstr%Nused),  cnstr%rhoice(cnstr%Nused),    &
-                cnstr%rhosnowNative(cnstr%Nused), cnstr%rhosnow(cnstr%Nused),   &
-                cnstr%rhos(3,cnstr%Nused),                                       &
+                cnstr%rhos(2,cnstr%Nused),                                       &
                 cnstr%dissNative(cnstr%Nused),    cnstr%diss(cnstr%Nused)       )
 
       ! Truncate the property lists in the order given by the global field "allNames"
@@ -244,12 +240,10 @@ MODULE classSpecies
       cnstr%MMNative = PACK(allMM, cnstr%used)
       cnstr%dissNative = PACK(allDiss, cnstr%used)
       cnstr%rholiqNative = PACK(allRho, cnstr%used)
-      ! First, use the same arrays for densities in ice and snow arrays
+      ! First, use the same arrays for densities in ice array
       cnstr%rhoiceNative = cnstr%rholiqNative
-      cnstr%rhosnowNative = cnstr%rholiqNative
       ! Second, replace the water densities with appropriate values
       cnstr%rhoiceNative(cnstr%Nused) = auxrhoic
-      cnstr%rhosnowNative(cnstr%Nused) = auxrhosn
       
       ! Make another set of truncated property lists, where the values are sorted to the same order
       ! as the compounds appear in the UCLALES-SALSA mass arrays
@@ -286,7 +280,6 @@ MODULE classSpecies
       cnstr%rhonh  => allRho(7)
       cnstr%rhowa  => allRho(8)
       cnstr%rhoic  => auxrhoic
-      cnstr%rhosn  => auxrhosn
       cnstr%rhori  => auxrhorime
 
     END FUNCTION cnstr
@@ -307,7 +300,6 @@ MODULE classSpecies
 
       SELF%rholiq(:) = 0.
       SELF%rhoice(:) = 0.
-      SELF%rhosnow(:) = 0.
       SELF%rhos(:,:) = 0.
       SELF%names(:) = '   '
       SELF%diss(:) = 0.
@@ -316,7 +308,6 @@ MODULE classSpecies
          jj = SELF%indNative(ii)  ! This is the index the compound number ii has in the mass arrays
          SELF%rholiq(jj) = SELF%rholiqNative(ii)
          SELF%rhoice(jj) = SELF%rhoiceNative(ii)
-         SELF%rhosnow(jj) = SELF%rhosnowNative(ii)
          SELF%names(jj) = SELF%namesNative(ii)
          SELF%diss(jj) = SELF%dissNative(ii)
          SELF%MM(jj) = SELF%MMNative(ii)
@@ -326,8 +317,6 @@ MODULE classSpecies
       ! Collect all the density variants in a unified array
       SELF%rhos(1,:) = SELF%rholiq(:)
       SELF%rhos(2,:) = SELF%rhoice(:)
-      SELF%rhos(3,:) = SELF%rhosnow(:)
-
 
     END SUBROUTINE sortProperties
 
@@ -361,10 +350,10 @@ MODULE classSpecies
       ins = MIN(1,SELF%Ninsoluble)
       sol = MIN(1,SELF%Nsoluble)
       ALLOCATE( SELF%names_soluble(sol), SELF%ind_soluble(sol), SELF%MM_soluble(sol),           &
-                SELF%rholiq_soluble(sol), SELF%rhoice_soluble(sol), SELF%rhosnow_soluble(sol),  &
+                SELF%rholiq_soluble(sol), SELF%rhoice_soluble(sol),  &
                 SELF%diss_soluble(sol)                                                          )
       ALLOCATE( SELF%names_insoluble(ins), SELF%ind_insoluble(ins), SELF%MM_insoluble(ins),           &
-                SELF%rholiq_insoluble(ins), SELF%rhoice_insoluble(ins), SELF%rhosnow_insoluble(ins),  &
+                SELF%rholiq_insoluble(ins), SELF%rhoice_insoluble(ins),  &
                 SELF%diss_insoluble(ins)                                                              )
 
       SELF%names_soluble = 'x'; SELF%names_insoluble = 'x'
@@ -372,7 +361,6 @@ MODULE classSpecies
       SELF%MM_soluble = 0.; SELF%MM_insoluble = 0.
       SELF%rholiq_soluble = 0.; SELF%rholiq_insoluble = 0.
       SELF%rhoice_soluble = 0.; SELF%rhoice_insoluble = 0.
-      SELF%rhosnow_soluble = 0.; SELF%rhosnow_insoluble = 0.
       SELF%diss_soluble = 0.; SELF%diss_insoluble = 0.
 
       IF ( SELF%Nsoluble > 0 ) THEN
@@ -392,7 +380,6 @@ MODULE classSpecies
       SELF%MM_soluble = PACK(SELF%MM,issol)
       SELF%rholiq_soluble = PACK(SELF%rholiq,issol)
       SELF%rhoice_soluble = PACK(SELF%rhoice,issol)
-      SELF%rhosnow_soluble = PACK(SELF%rhosnow,issol)
       SELF%diss_soluble = PACK(SELF%diss,issol)
 
       SELF%names_insoluble = PACK(SELF%names,isins)
@@ -400,7 +387,6 @@ MODULE classSpecies
       SELF%MM_insoluble = PACK(SELF%MM,isins)
       SELF%rholiq_insoluble = PACK(SELF%rholiq,isins)
       SELF%rhoice_insoluble = PACK(SELF%rhoice,isins)
-      SELF%rhosnow_insoluble = PACK(SELF%rhosnow,isins)
       SELF%diss_insoluble = PACK(SELF%diss,isins)
 
       DEALLOCATE(issol,isins)
@@ -487,8 +473,6 @@ MODULE classSpecies
             getRhoByIndex = SELF%rholiq(nn)
          ELSE IF (wat == 2) THEN
             getRhoByIndex = SELF%rhoice(nn)
-         ELSE IF (wat == 3 ) THEN
-            getRhoByIndex = SELF%rhosnow(nn)
          END IF
       ELSE IF ( .NOT. PRESENT(wat) ) THEN
          ! By default use liquid array
@@ -569,8 +553,6 @@ MODULE classSpecies
       getName = SELF%names(nn)
 
     END FUNCTION getName
-
-    
 
 
 END MODULE classSpecies

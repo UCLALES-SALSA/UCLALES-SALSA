@@ -1,11 +1,11 @@
 MODULE mo_salsa_cloud_ice
   USE classSection, ONLY : Section
-  USE mo_submctl, ONLY : in2a,fn2b, iia, fia, ncld, nprc, nice, nsnw, pi, pi6,    &
+  USE mo_submctl, ONLY : in2a,fn2b, ira,fra, iia, fia, ncld, nprc, nice, pi, pi6,    & 
        nliquid, nfrozen,                              &
-       nlim, prlim, ice_hom, ice_imm, ice_dep, rhowa, &
-       rhoic, rhosn, boltz, planck, rg, rd, avog,     &
+       nlim, prlim, ice_hom, ice_imm, ice_dep, &
+       boltz, planck, rg, rd, avog,     &
        fixinc, spec
-  USE mo_salsa_types, ONLY : aero, cloud, ice, precp, snow, liquid, frozen
+  USE mo_salsa_types, ONLY : aero, cloud, ice, precp, liquid, frozen
   USE mo_particle_external_properties, ONLY : calcSweq
   USE util, ONLY : calc_correlation, cumlognorm, closest
 
@@ -70,18 +70,6 @@ MODULE mo_salsa_cloud_ice
     idu = spec%getIndex("DU",notFoundValue=0)
     iwa = spec%getIndex("H2O")
 
-
-    DO kk = 1,nice
-       DO jj = 1,klev
-          DO ii = 1,kproma
-             IF ( ANY([ice(ii,jj,kk)%volc(iwa),ice(ii,jj,kk)%vrime] > 1.e-30) .AND.  &
-                  ice(ii,jj,kk)%numc > ice(ii,jj,kk)%nlim                     .AND.  &
-                  ice(ii,jj,kk)%volc(iwa) < 0.5*ice(ii,jj,kk)%vrime                      )  &
-                  WRITE(*,*) 'ENNEN',ice(ii,jj,kk)%volc(iwa), ice(ii,jj,kk)%vrime
-          END DO
-       END DO
-    END DO
-
     ! Loop over liquid phase bins
     DO kk = 1,nliquid 
        DO ii = 1,kbdim
@@ -112,47 +100,33 @@ MODULE mo_salsa_cloud_ice
 
              ! Deposition freezing
              pf_dep = 0.
-             IF (dins > dmin .AND. dwet-dins < dmin .AND. prv(ii,jj)/prs(ii,jj)<1.0 .AND. &
-                 liquid(ii,jj,kk)%phase == 1 .AND. ice_dep                      ) THEN
+             IF ( dins > dmin .AND. dwet-dins < dmin .AND. prv(ii,jj)/prs(ii,jj)<1.0 .AND. &
+                  liquid(ii,jj,kk)%phase == 1 .AND. ice_dep                           ) THEN
                 Si = prv(ii,jj)/prsi(ii,jj) ! Water vapor saturation ratio over ice
                 jf = calc_Jdep(dins,ptemp(ii,jj),Si)
-                pf_dep = 1. - exp( -jf*ptstep )
-
+                pf_dep = 1. - EXP( -jf*ptstep )
              END IF
              
              ! Homogeneous freezing
              pf_hom = 0.
              IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. ice_hom) THEN
                 jf = calc_Jhf(ptemp(ii,jj),Sw_eq)
-                pf_hom = 1. - exp( -jf*pi6*(dwet**3 - dins**3)*ptstep )
+                pf_hom = 1. - EXP( -jf*pi6*(dwet**3 - dins**3)*ptstep )
              END IF
              
-             frac = MAX(0., MIN(1.,pf_imm+pf_hom+pf_dep-(pf_imm+pf_dep)*pf_hom))
+             frac = MAX(0., MIN(0.99,pf_imm+pf_hom+pf_dep-(pf_imm+pf_dep)*pf_hom))
 
-             ! Determine the parallel ice bin
-             bb = getIceBin(kk,ddry,liquid(ii,jj,kk)%phase)
+             ! Determine the target ice bin
+             bb = getIceBin(dwet)
 
              CALL iceNucleation(ii,jj,bb,ndry,iwa,liquid(ii,jj,kk),frac)
 
-             IF (ice(ii,jj,bb)%numc > ice(ii,jj,bb)%nlim) &
-                  CALL ice(ii,jj,bb)%updateRhomean()
+             !IF (ice(ii,jj,bb)%numc > ice(ii,jj,bb)%nlim) &
+             CALL ice(ii,jj,bb)%updateRhomean()
 
           END DO !ii
        END DO !jj
     END DO
-
-    DO kk = 1,nice
-       DO jj = 1,klev
-          DO ii = 1,kproma
-             IF ( ANY([ice(ii,jj,kk)%volc(iwa),ice(ii,jj,kk)%vrime] > 1.e-30) .AND.  &
-                  ice(ii,jj,kk)%numc > ice(ii,jj,kk)%nlim                     .AND.  &
-                  ice(ii,jj,kk)%volc(iwa) < 0.5*ice(ii,jj,kk)%vrime                      )  &
-                  WRITE(*,*) 'JALKEEN',ice(ii,jj,kk)%volc(iwa), ice(ii,jj,kk)%vrime
-          END DO
-       END DO
-    END DO
-       
-
 
   END SUBROUTINE ice_nucl_driver
   
@@ -267,7 +241,7 @@ MODULE mo_salsa_cloud_ice
     
     ! Eq 2.13 in KC00
     !   The pre-exponential factor (kineticc oefficient) is about (1e26 cm^-2)*rn**2
-    calc_Jdep = (1./4.)*1e30*rn**2*exp((-act_energy-crit_energy)/(boltz*temp))  ! / 4 for diameter
+    calc_Jdep = (1./4.)*1.e30*rn**2*exp((-act_energy-crit_energy)/(boltz*temp))  ! / 4 for diameter
     
   END FUNCTION calc_Jdep
   
@@ -296,7 +270,7 @@ MODULE mo_salsa_cloud_ice
     Lefm = (79.7+0.708*Tc-2.5e-3*Tc**2)*4.1868e3 ! Effective latent heat of melting (eq. 6)
     GG = rg*temp/Lefm/spec%mwa
     IF ( (T0/temp)*Sw**GG<1.0001 ) RETURN
-    sigma_is = 28e-3+0.25e-3*Tc ! Surface tension between ice and solution
+    sigma_is = 28.e-3+0.25e-3*Tc ! Surface tension between ice and solution
     r_g = 2.*sigma_is/( rho_ice*Lefm*log((T0/temp)*Sw**GG) )
     IF (r_g<=1e-10) RETURN
     ! c) Critical energy (eq. 9b)
@@ -334,6 +308,8 @@ MODULE mo_salsa_cloud_ice
   SUBROUTINE ice_fixed_NC(kproma, kbdim,  klev,   &
        ptemp, ppres, prv,  prsi     )
     
+
+ !!!!!!!!!!!!!!!!!!!!!!!!! DOES NOT WORK ANYMORE AS IT IS, NEED TO UPDATE ARRAY INDICES IF THIS IS STILL REQUIRED
 
     
     IMPLICIT NONE
@@ -406,15 +382,24 @@ MODULE mo_salsa_cloud_ice
   
   SUBROUTINE ice_melt(kproma,kbdim,klev,   &
        ptemp )
-        
+
+    ! UPDATE INDICES
+    
     IMPLICIT NONE
     
     INTEGER, INTENT(in) :: kproma,kbdim,klev
     REAL, INTENT(in) :: ptemp(kbdim,klev)
-    
-    INTEGER :: ii,jj,kk,ss
-    
+
+    REAL :: dwet,rhomean
+
+    REAL, PARAMETER :: minD = 20.e-6 ! Minimum diameter for the resulting rain drop
+    REAL :: liqvol
+    LOGICAL :: l_minD
+
+    INTEGER :: ii,jj,kk,ss,bb
     INTEGER :: nspec, iwa
+
+    REAL, PARAMETER :: maxfrac = 0.999
     
     nspec = spec%getNSpec()
     iwa = spec%getIndex("H2O")
@@ -426,147 +411,81 @@ MODULE mo_salsa_cloud_ice
        DO jj = 1,klev
           ! Ice and snow melt when temperature above 273.15 K
           ! => should add the effect of freezing point depression
-          IF (ptemp(ii,jj) <= 273.15 ) CYCLE
+          IF (ptemp(ii,jj) < 273.15 ) CYCLE
           
           DO kk = 1,nice
-             ! Ice => cloud water
-             IF (ice(ii,jj,kk)%numc<prlim) CYCLE
-             DO ss = 1,nspec-1
-                cloud(ii,jj,kk)%volc(ss) = cloud(ii,jj,kk)%volc(ss) + 0.999*ice(ii,jj,kk)%volc(ss)
-                ice(ii,jj,kk)%volc(ss) = 0.001*ice(ii,jj,kk)%volc(ss)
-             END DO
-             ! Water
-             cloud(ii,jj,kk)%volc(iwa) = cloud(ii,jj,kk)%volc(iwa) + 0.999*ice(ii,jj,kk)%volc(iwa)*ice(ii,jj,kk)%rhomean/spec%rhowa
-             ice(ii,jj,kk)%volc(iwa) = 0.001*ice(ii,jj,kk)%volc(iwa)
-             ice(ii,jj,kk)%vrime = 0.001*ice(ii,jj,kk)%vrime
+             ! Ice => precipitating water?; Juha - not really sure what to assume here...
+             ! For now, use precip as target, since likely ice particles that survive to the
+             ! point where they are melted, they are probably fairly large....
+             IF (ice(ii,jj,kk)%numc < ice(ii,jj,kk)%nlim) CYCLE
              
-             cloud(ii,jj,kk)%numc = cloud(ii,jj,kk)%numc + 0.999*ice(ii,jj,kk)%numc
-             ice(ii,jj,kk)%numc = 0.001*ice(ii,jj,kk)%numc
-          END DO
-          
-          DO kk =1,nsnw
-             ! Snow => precipitation (bin 1)
-             IF (snow(ii,jj,kk)%numc<prlim) CYCLE
-             DO ss = 1,nspec-1
-                precp(ii,jj,1)%volc(ss) = precp(ii,jj,1)%volc(ss) + snow(ii,jj,kk)%volc(ss)
-                snow(ii,jj,kk)%volc(ss) = 0.
-             END DO
-             ! Water
-             precp(ii,jj,1)%volc(iwa) = precp(ii,jj,1)%volc(iwa) + snow(ii,jj,kk)%volc(iwa)*spec%rhosn/spec%rhowa
-             snow(ii,jj,kk)%volc(iwa) = 0.
+             ! Find The corresponding precip bin
+             CALL ice(ii,jj,kk)%updateDiameter(limit=.TRUE.,type="wet")
+             dwet = ice(ii,jj,kk)%dwet
+             CALL ice(ii,jj,kk)%updateRhomean()
+             rhomean = ice(ii,jj,kk)%rhomean
+             bb = getPrecipBin(dwet,rhomean)
              
-             precp(ii,jj,1)%numc = precp(ii,jj,1)%numc + snow(ii,jj,kk)%numc
-             snow(ii,jj,kk)%numc = 0.
+             DO ss = 1,nspec-1
+                precp(ii,jj,bb)%volc(ss) = precp(ii,jj,bb)%volc(ss) + maxfrac*ice(ii,jj,kk)%volc(ss)
+                ice(ii,jj,kk)%volc(ss) = (1.-maxfrac)*ice(ii,jj,kk)%volc(ss)
+             END DO
+
+             ! Check that there is enough water for minimum droplet size
+             liqvol = ( ice(ii,jj,kk)%volc(iwa)*spec%rhoic + ice(ii,jj,kk)%vrime*spec%rhori )/spec%rhowa
+             l_minD = ( liqvol > pi6*minD**3 )
+             
+             ! Only move number is there is sufficient mass and also require that the size of melt droplets fits this min
+             IF (l_minD) THEN
+                precp(ii,jj,bb)%numc = precp(ii,jj,bb)%numc + maxfrac*MIN(ice(ii,jj,kk)%numc, liqvol/(pi6*minD**3))
+                ice(ii,jj,kk)%numc = (1.-maxfrac)*ice(ii,jj,kk)%numc
+             END IF
+             
+             precp(ii,jj,bb)%volc(iwa) = precp(ii,jj,bb)%volc(iwa) + maxfrac*liqvol                       
+             ice(ii,jj,kk)%volc(iwa) = (1.-maxfrac)*ice(ii,jj,kk)%volc(iwa)
+             ice(ii,jj,kk)%vrime = (1.-maxfrac)*ice(ii,jj,kk)%vrime
+                
           END DO
+             
        END DO
     END DO
     
   END SUBROUTINE ice_melt
   
-  SUBROUTINE autosnow(kproma,kbdim,klev)
-    !
-    ! Uses a more straightforward method for converting cloud droplets to drizzle.
-    ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
-    ! parameter and is set to 1.2 by default
-    !
-    
-
-    IMPLICIT NONE
-    
-    INTEGER, INTENT(in) :: kproma,kbdim,klev
-    
-    REAL :: Vrem, Nrem, Vtot, Ntot
-    REAL :: dvg,dg
-    
-    REAL, PARAMETER :: zd0 = 250.e-6  ! Adjustable
-    REAL, PARAMETER :: sigmag = 1.2   ! Adjustable
-    !REAL, PARAMETER :: max_rate_autoc=1.0e10 ! Maximum autoconversion rate (#/m^3/s)
-    
-    INTEGER :: ii,jj,cc,ss
-    
-    INTEGER :: nspec, iwa
-    
-    nspec = spec%getNSpec()
-    iwa = spec%getIndex("H2O")
-    
-    ! Find the ice particle bins where the mean droplet diameter is above 250 um
-    ! Do some fitting...
-    DO jj = 1,klev
-       DO ii = 1,kbdim
-          DO cc = 1,nice
-             
-             Ntot = ice(ii,jj,cc)%numc
-             Vtot = SUM(ice(ii,jj,cc)%volc(1:nspec))
-             
-             IF ( Ntot > prlim .AND. Vtot > 0. ) THEN
-                ! Volume geometric mean diameter
-                dvg = ((Vtot/Ntot/pi6)**(1./3.))*EXP( (3.*LOG(sigmag)**2)/2. )
-                dg = dvg*EXP( -3.*LOG(sigmag)**2 )
-                
-                Vrem = Max(0., Vtot*( 1. - cumlognorm(dvg,sigmag,zd0) ) )
-                Nrem = Max(0., Ntot*( 1. - cumlognorm(dg,sigmag,zd0) )  )
-                
-                IF ( Vrem > 0. .AND. Nrem > prlim) THEN
-                   
-                   ! Put the mass and number to the first snow bin and remover from ice
-                   DO ss = 1,nspec-1
-                      snow(ii,jj,1)%volc(ss) = snow(ii,jj,1)%volc(ss) + ice(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
-                      ice(ii,jj,cc)%volc(ss) = ice(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
-                   END DO
-                   ! From ice to snow volume
-                   snow(ii,jj,1)%volc(iwa) = max(0., snow(ii,jj,1)%volc(iwa) + &
-                        ice(ii,jj,cc)%volc(iwa)*(Vrem/Vtot)*spec%rhoic/spec%rhosn)
-                   ice(ii,jj,cc)%volc(iwa) = max(0., ice(ii,jj,cc)%volc(iwa)*(1. - (Vrem/Vtot)))
-                   
-                   snow(ii,jj,1)%numc = snow(ii,jj,1)%numc + Nrem
-                   ice(ii,jj,cc)%numc = ice(ii,jj,cc)%numc - Nrem
-                   
-                END IF ! Nrem Vrem
-                
-             END IF ! Ntot Vtot
-             
-          END DO ! cc
-       END DO ! ii
-    END DO ! jj
-    
-  END SUBROUTINE autosnow
+  ! ------------------------------------------
   
-  INTEGER FUNCTION getIceBin(lbin,lddry,phase)
-    INTEGER, INTENT(in) :: lbin
-    REAL, INTENT(in)    :: lddry
-    INTEGER, INTENT(in) :: phase
-    
+  INTEGER FUNCTION getIceBin(ldwet)
+    REAL, INTENT(in)    :: ldwet
     REAL :: vol
     INTEGER :: ii
-    
-    vol = pi6*lddry**3
-    
-    IF ( ANY(phase == [1,2]) ) THEN
-       ASSOCIATE( hilim => ice(1,1,iia%cur:fia%cur)%vhilim )
-         
-         ii = COUNT( (vol < hilim) )
-         
-       END ASSOCIATE
-       
-    ELSE IF (phase == 3) THEN
-       
-       ! Move to ice bin with closest matching dry volume. Ain't perfect but
-       ! the bin update subroutine in SALSA will take care of the rest.
-       
-       ASSOCIATE(dmid => ice(1,1,iia%cur:fia%cur)%dmid)
-         ! 1) Find the closest matching bin dry diameter        
-         ii = closest(dmid,lddry)
-         
-         ! Keeping it simple, put everythin just to a-bins. In the near future, the
-         ! a/b bins for ice are going to be deprecated anyway.
-       END ASSOCIATE
-       
-    END IF
-    
-    getIceBin = MAX(1,ii)
+
+    ! Find the ice bin where a freezing liquid droplet of given diameter will presumably belong
+    ! -----------------------------------------------------------------------------------------
+    vol = pi6*ldwet**3
+    ! Correct for the the change in density (AS a first guess, just assume pristine ice density)
+    vol = vol*spec%rhowa/spec%rhoic
+    ii = COUNT( (ice(1,1,iia:fia)%vlolim < vol) )               
+    getIceBin = MIN(MAX(1,ii),nice)
 
   END FUNCTION getIceBin
+
+  INTEGER FUNCTION getPrecipBin(idwet,idens)
+    REAL, INTENT(in) :: idwet   ! This should be given as a spherical effective diameter
+    REAL, INTENT(in) :: idens   ! this should be the particle mean density (contribution by pristine and rimed ice)
+    REAL :: vol
+    INTEGER :: ii
+
+    ! Find the precip bin where a melting ice particle of given diameter and mean density will presumably belong
+    ! ------------------------------------------------------------------------------------------------------------
+    vol = pi6*idwet**3
+    ! Correct for the change in density
+    vol = vol*idens/spec%rhowa
+    ii = COUNT( (precp(1,1,ira:fra)%vlolim < vol) )
+    getPrecipBin = MIN(MAX(1,ii),nprc)
     
+  END FUNCTION getPrecipBin
+
+
   SUBROUTINE iceNucleation(ii,jj,iice,ndry,iwa,pliq,frac)
     INTEGER, INTENT(in) :: ii,jj,iice
     INTEGER, INTENT(in) :: iwa, ndry
@@ -588,7 +507,6 @@ MODULE mo_salsa_cloud_ice
        pliq%volc(iwa) = MAX(0., pliq%volc(iwa)*(1.-frac))
     ELSE IF (pliq%phase == 3) THEN
        ! Precip -> rimed ice
-       ice(ii,jj,iice)%volc(iwa) = MAX(0.,ice(ii,jj,iice)%volc(iwa) + pliq%volc(iwa)*frac*spec%rhowa/spec%rhori)
        ice(ii,jj,iice)%vrime = MAX(0.,ice(ii,jj,iice)%vrime + pliq%volc(iwa)*frac*spec%rhowa/spec%rhori)
        pliq%volc(iwa) = MAX(0., pliq%volc(iwa)*(1.-frac))
     END IF

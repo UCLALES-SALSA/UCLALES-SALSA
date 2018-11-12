@@ -35,7 +35,7 @@ MODULE classSection
      REAL :: vrime         ! The true volume concentration of rimed ice, taking into account particle shape
      !REAL :: viprist      ! The true volume concentration of pristine ice, taking into account the particle shape
 
-     INTEGER :: phase    ! Phase identifier, 1: aerosol 2: cloud droplet, 3: precip, 4: ice, 5: snow
+     INTEGER :: phase    ! Phase identifier, 1: aerosol 2: cloud droplet, 3: precip, 4: ice
      REAL    :: nlim     ! Lower limit for number concentration used in many calculations, depends on particle type
      REAL    :: dlim     ! Category specific diameter limit used e.g. in coagulation calculations
 
@@ -53,7 +53,7 @@ MODULE classSection
     
     FUNCTION cnstr(iphase, inlim, idlim)
       TYPE(Section) :: cnstr
-      INTEGER, INTENT(in) :: iphase ! Phase identifier: 1: aerosol, 2: cloud droplets, 3: precip, 4: ice, 5: snow
+      INTEGER, INTENT(in) :: iphase ! Phase identifier: 1: aerosol, 2: cloud droplets, 3: precip, 4: ice
       REAL, INTENT(in) :: inlim   ! Lower limit for number concentration depending on particle type
       REAL, INTENT(in) :: idlim
 
@@ -62,9 +62,7 @@ MODULE classSection
       cnstr%dmid = 0.; cnstr%dwet = 0.; cnstr%dins = 0.
       cnstr%numc = 0.; cnstr%core = 0.
       cnstr%volc(:) = 0.
-      !cnstr%virimebulk = 0.
       cnstr%vrime = 0.
-      !cnstr%viprist = 0.
       cnstr%phase = iphase
       cnstr%nlim = inlim
       cnstr%dlim = idlim
@@ -103,7 +101,8 @@ MODULE classSection
       IF (SELF%numc > SELF%nlim) THEN
          IF (ANY(swtyp == ["wet","all"])) THEN
             SELF%dwet = 1.e-10
-            SELF%dwet = (SUM(SELF%volc(1:nwet))/SELF%numc/pi6)**(1./3.)
+            ! Only ice will have vrime =/ 0
+            SELF%dwet = ( (SUM(SELF%volc(1:nwet))+SELF%vrime)/SELF%numc/pi6 )**(1./3.)
          END IF
 
          IF (ANY(swtyp == ["dry","all"])) THEN
@@ -155,14 +154,10 @@ MODULE classSection
 
       SELF%rhomean = spec%rhoic
       
-      ! convert to masses -> get the mass mean density
+      ! convert to masses -> get the mass mean density - this is needed for ice, for others it's always rhowa
       IF (SELF%phase > 3) THEN
          IF (SELF%numc > SELF%nlim) THEN
-            mass_p = spec%rhoic*(SELF%volc(iwa) - SELF%vrime)
-            IF (mass_p < 0.) THEN
-               !WRITE(*,*) "classSection: WARNING: Pristine ice mass < 0, setting to 0 ", mass_p
-               mass_p = 0.
-            END IF
+            mass_p = spec%rhoic*SELF%volc(iwa)
             mass_r = spec%rhori*SELF%vrime
             mass_t = mass_p + mass_r
             SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/mass_t

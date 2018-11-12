@@ -45,12 +45,12 @@ CONTAINS
    SUBROUTINE initialize
 
       USE step, ONLY : time, outflg
-      USE stat, ONLY : init_stat, mcflg, acc_massbudged, salsa_b_bins
+      !USE stat, ONLY : init_stat, mcflg, acc_massbudged, salsa_b_bins
       USE sgsm, ONLY : tkeinit
       USE mpi_interface, ONLY : appl_abort, myid
       USE thrm, ONLY : thermo
       USE mo_salsa_driver, ONLY : run_SALSA
-      USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim, spec
+      USE mo_submctl, ONLY : in2b, fn2b, nlim, prlim, spec
       USE util, ONLY : maskactiv
       USE nudg, ONLY : init_nudg
       USE emission_main, ONLY : init_emission
@@ -85,7 +85,6 @@ CONTAINS
                               a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                               a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
-                              a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
                               dtlt, time, level, .TRUE.)
             ELSE
@@ -94,7 +93,6 @@ CONTAINS
                               a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                               a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
-                              a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
                               dtlt, time, level, .TRUE.)
 
@@ -117,10 +115,10 @@ CONTAINS
      !   -b-bins initialized with non-zero concentration
      !   -nucleation set to produce particles to b bins (currently only a bins)
      IF (level >= 4 .AND. (.NOT. salsa_b_bins)) &
-        salsa_b_bins = ANY( a_naerop(:,:,:,in2b:fn2b) > nlim ) .OR. ANY( a_nicep(:,:,:,iib%cur:fib%cur) > prlim )
+        salsa_b_bins = ANY( a_naerop(:,:,:,in2b:fn2b) > nlim ) 
 
      CALL sponge_init
-     CALL init_stat(time+dtl,filprf,expnme,nzp)
+     !CALL init_stat(time+dtl,filprf,expnme,nzp)
      !
      ! Initialize nudging profiles
      ! ----------------------------
@@ -132,21 +130,22 @@ CONTAINS
      IF (lemission .AND. level >= 4) CALL init_emission()
 
      !
-     IF (mcflg) THEN
-        ! Juha:
-        ! Calculate some numbers for mass concervation experiments
-        mc_Vdom = deltax*deltay*deltaz*(nxp-4)*(nyp-4)*(nzp-1)
-        mc_Adom = deltax*deltay*(nxp-4)*(nyp-4)
-        mc_ApVdom = mc_Adom/mc_Vdom
-        ! Get the initial mass of atmospheric water
-        CALL acc_massbudged(nzp,nxp,nyp,0,dtlt,dzt,a_dn,     &
-                            rv=a_rp,rc=a_rc,prc=a_srp)
-     END IF ! mcflg
+     !IF (mcflg) THEN
+     !   ! Juha:
+     !   ! Calculate some numbers for mass concervation experiments
+     !   mc_Vdom = deltax*deltay*deltaz*(nxp-4)*(nyp-4)*(nzp-1)
+     !   mc_Adom = deltax*deltay*(nxp-4)*(nyp-4)
+     !   mc_ApVdom = mc_Adom/mc_Vdom
+     !   ! Get the initial mass of atmospheric water
+     !   CALL acc_massbudged(nzp,nxp,nyp,0,dtlt,dzt,a_dn,     &
+     !                       rv=a_rp,rc=a_rc,prc=a_srp)
+     !END IF ! mcflg
 
      ! Diagnostic calculations that should take place (with SALSA) both for INITIAL and HISTORY
      IF ( (level >= 4) ) THEN
+        !CALL thermo(level)
+        CALL SALSA_diagnostics(0,onlyDiag=.TRUE.)
         CALL thermo(level)
-        CALL SALSA_diagnostics(0)
      END IF
 
      !
@@ -764,9 +763,7 @@ CONTAINS
 
              IF(level == 5) THEN 
                 a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtlt*a_nicet(k,i,j,:), 0. )
-                a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtlt*a_nsnowt(k,i,j,:), 0. )
                 a_micep(k,i,j,:)   = MAX( a_micep(k,i,j,:)   + dtlt*a_micet(k,i,j,:), 0. )
-                a_msnowp(k,i,j,:)  = MAX( a_msnowp(k,i,j,:)  + dtlt*a_msnowt(k,i,j,:), 0. )
              END IF
 
           END DO
@@ -787,8 +784,10 @@ CONTAINS
     ! Ice
     IF ( level == 5 ) THEN
        a_ri(:,:,:) = 0.
+       a_riri(:,:,:) = 0.
        DO bb = 1, nice
           a_ri(:,:,:) = a_ri(:,:,:) + a_micep(:,:,:,getMassIndex(nice,bb,nc))
+          a_riri(:,:,:) = a_riri(:,:,:) + a_micep(:,:,:,getMassIndex(nice,bb,nc+1))
        END DO
     END IF
     

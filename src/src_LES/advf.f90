@@ -34,7 +34,7 @@ CONTAINS
     USE grid, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, newsclr,  &
                      nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt,  &
                      dzt, dzm, zt, dxi, dyi, level, isgstyp
-    USE stat, ONLY : sflg, updtst
+    !USE stat, ONLY : sflg, updtst
     USE util, ONLY : get_avg3
 
     REAL    :: v1da(nzp), a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
@@ -43,13 +43,13 @@ CONTAINS
     !
     ! diagnose liquid water flux
     !
-    IF (sflg .AND. level > 1) THEN
-       a_tmp1 = a_rc
-       CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.FALSE.)
-       CALL mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtlt,.FALSE.)
-       CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-       CALL updtst(nzp,'adv',0,v1da,1)
-    END IF
+    !IF (sflg .AND. level > 1) THEN
+    !   a_tmp1 = a_rc
+    !   CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.FALSE.)
+    !   CALL mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtlt,.FALSE.)
+    !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+    !   CALL updtst(nzp,'adv',0,v1da,1)
+    !END IF
     !
     ! loop through the scalar table, setting iscp and isct to the
     ! appropriate scalar pointer and do the advection, also add large
@@ -77,18 +77,18 @@ CONTAINS
          CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,iw)
          CALL mamaos(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dzt,dzm,dn0,dtlt,iw)
 
-         IF (sflg) THEN
-            CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-            CALL updtst(nzp,'adv',n,v1da,1)
-         END IF
+         !IF (sflg) THEN
+         !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+         !   CALL updtst(nzp,'adv',n,v1da,1)
+         !END IF
 
          CALL advtnd(nzp,nxp,nyp,a_sp,a_tmp1,a_st,dtlt)
 
-      ELSE IF (sflg) THEN
-         ! Averages & statistics even for zeros (might be non-zero elsewhere)
-         a_tmp2(:,:,:) = 0.
-         CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-         CALL updtst(nzp,'adv',n,v1da,1)
+      !ELSE IF (sflg) THEN
+      !   ! Averages & statistics even for zeros (might be non-zero elsewhere)
+      !   a_tmp2(:,:,:) = 0.
+      !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+      !   !CALL updtst(nzp,'adv',n,v1da,1)
       END IF
 
     END DO

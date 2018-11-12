@@ -17,7 +17,7 @@ MODULE mo_particle_external_properties
       IMPLICIT NONE
       REAL, INTENT(in) :: diam, rhop ! Particle diameter and density
       REAL, INTENT(in) :: rhoa, visc, beta ! Air density, viscocity and Cunningham correction factor
-      INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4) and snow(5)
+      INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4)
       ! Constants
       REAL, PARAMETER :: rhoa_ref = 1.225 ! reference air density (kg/m^3)
       
@@ -41,14 +41,9 @@ MODULE mo_particle_external_properties
       ELSE IF (flag==4) THEN   ! Ice
          ! Ice crystal terminal fall speed from Ovchinnikov et al. (2014)
          terminal_vel = 12.0*SQRT(diam)
-      ELSE IF (flag==5) THEN   ! Snow
-         ! The same for snow
-         terminal_vel = 12.0*SQRT(diam)
       END IF
 
     END FUNCTION terminal_vel
-    
-
     
     !
     ! Function for calculating effective (wet) radius for any particle type
@@ -62,7 +57,7 @@ MODULE mo_particle_external_properties
       USE mo_submctl, ONLY : pi6
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: n ! Number of species
-      INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4) and snow(5) particle phases
+      INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3) and ice (4) particle phases
       REAL, INTENT(IN) :: numc, mass(n)
       
       calcDiamLES=0.
@@ -72,13 +67,12 @@ MODULE mo_particle_external_properties
       
       IF (flag==4) THEN   ! Ice
          ! Spherical ice
-         calcDiamLES=( SUM(mass(:)/spec%rhoice(:))/numc/pi6)**(1./3.)
-      ELSE IF (flag==5) THEN   ! Snow
-         ! Spherical snow
-         calcDiamLES=( SUM(mass(:)/spec%rhosnow(:))/numc/pi6)**(1./3.)
+         calcDiamLES = SUM(mass(1:n-1)/spec%rhoice(1:n-1)) + &
+                       mass(n)/spec%rhori
+         calcDiamLES=( calcDiamLES/numc/pi6 )**(1./3.)
       ELSE
          ! Radius from total volume of a spherical particle or aqueous droplet
-         calcDiamLES=( SUM(mass(:)/spec%rholiq(:))/numc/pi6)**(1./3.)
+         calcDiamLES=( SUM(mass(1:n)/spec%rholiq(1:n))/numc/pi6)**(1./3.)
       ENDIF
       
     END FUNCTION calcDiamLES
@@ -105,7 +99,7 @@ MODULE mo_particle_external_properties
       ! Equilibrium saturation ratio = xw*exp(4*sigma*v_w/(R*T*Dwet))
       
       znw = part%volc(iwa)*spec%rhowa/spec%mwa
-      zvw = part%volc(iwa)*spec%rhowa/spec%mwa
+      zvw = part%volc(iwa)
       zns = 0.
       zvs = 0.
       zvtot = 0.

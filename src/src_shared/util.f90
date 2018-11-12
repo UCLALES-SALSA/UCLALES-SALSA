@@ -563,6 +563,8 @@ CONTAINS
      
    END SUBROUTINE maskactiv
 
+! -----------------------------------------------------------------------
+   
    FUNCTION closest(array,val)
      ! Find the index of "array" with value closest to "val"
      IMPLICIT NONE
@@ -634,7 +636,47 @@ CONTAINS
 
    END FUNCTION getMassIndex
 
+   !
+   !
+   
+   SUBROUTINE getBinMassArray(nb,ns,ib,mass,binmass)
+     IMPLICIT NONE
+     ! --------------------------------------------------
+     ! Get the mass array for a specific bin (length ns)
+     ! --------------------------------------------------
+     INTEGER, INTENT(in) :: ns,nb  ! number of species, number of bins
+     INTEGER, INTENT(in) :: ib     ! target bin
+     REAL, INTENT(in) :: mass(ns*nb)
 
+     REAL, INTENT(out) :: binmass(ns)
+
+     binmass(:) = 0.
+     binmass(1:ns) = mass(ib:(ns-1)*nb+ib:nb)
+     
+   END SUBROUTINE getBinMassArray
+
+   !
+   !
+
+   SUBROUTINE getBinTotalMass(nb,ns,ib,mass,totmass)
+     IMPLICIT NONE
+     ! ------------------------------------------------
+     ! Get the total mass inside a bin, simply a sum
+     ! ------------------------------------------------
+     INTEGER, INTENT(in) :: ns,nb   ! number of species, number of bins
+     INTEGER, INTENT(in) :: ib      ! target bin
+     REAL, INTENT(in) :: mass(ns*nb)
+
+     REAL, INTENT(out) :: totmass
+
+     totmass = 0.
+     totmass = SUM(mass(ib:(ns-1)*nb+ib:nb))
+     
+   END SUBROUTINE getbinTotalMass
+
+   !
+   !
+   
    ! Function for calculating Pearson's correlation coefficient for two vectors
    REAL FUNCTION calc_correlation(x,y,n)
      INTEGER, INTENT(in) :: n
@@ -676,5 +718,8 @@ CONTAINS
     
   END FUNCTION cumlognorm
 
-
+  !
+  !
+  !
+  
 END MODULE util

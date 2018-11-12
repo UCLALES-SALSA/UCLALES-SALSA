@@ -22,11 +22,12 @@ MODULE forc
   USE grid, ONLY: nxp, nyp, nzp, nsalsa, zm, zt, dzt, dzm, dn0, iradtyp, lnudging, lemission,  &
                   a_rc, a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp,  &
                   a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
-                  a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, a_salsap, a_salsat, &
+                  a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_salsap, a_salsat, &
                   a_fus, a_fds, a_fuir, a_fdir
   USE mpi_interface, ONLY : myid, appl_abort
+  USE util, ONLY : get_avg2dh
   USE defs, ONLY      : cp
-  USE stat, ONLY      : sflg
+  !USE stat, ONLY      : sflg
   USE radiation_main, ONLY : rad_interface, useMcICA, iradtyp
   USE nudg, ONLY : nudging
   USE emission_main, ONLY : aerosol_emission
@@ -35,9 +36,7 @@ MODULE forc
   ! these are now all namelist parameters
   CHARACTER (len=10) :: case_name = 'none'               
 
-
   REAL    :: div = 0.
-
 
 CONTAINS
   !
@@ -48,9 +47,7 @@ CONTAINS
   ! large-scale divergence effects and other case-specific forcings.
   !
   SUBROUTINE forcings(time,strtim)
-
-
-
+    
     REAL,  INTENT (in) :: time, strtim  ! time in seconds (since model start), strtim in decimal days
     REAL :: xka, fr0, fr1
     REAL :: time_decday
@@ -72,10 +69,10 @@ CONTAINS
        !div = 3.75e-6
     END IF
 
-    IF (trim(case_name) == 'ascos') THEN
-        ! Full radiation calculations when saving data (stat/sflg=.TRUE. when saving)
-        useMcICA = .NOT. sflg
-    END IF
+    !IF (trim(case_name) == 'ascos') THEN
+    !    ! Full radiation calculations when saving data (stat/sflg=.TRUE. when saving)
+    !    useMcICA = .NOT. sflg
+    !END IF
 
     ! 
     ! Nudging
@@ -238,7 +235,7 @@ CONTAINS
   SUBROUTINE case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,tl,rt,tt,rtt)
 
     USE mpi_interface, ONLY : pecount, double_scalar_par_sum,myid, appl_abort
-    USE stat, ONLY : get_zi
+    !USE stat, ONLY : get_zi
 
     INTEGER, INTENT (in) :: n1,n2, n3
     REAL, DIMENSION (n1), INTENT (in)          :: zt, dzt, dzm
@@ -509,5 +506,88 @@ CONTAINS
     END DO
 
   END SUBROUTINE bellon
- 
+
+  ! POISTA:: ::
+  ! THIS WAS IN STAT.F90
+   REAL FUNCTION get_zi (n1, n2, n3, itype, sx, xx, z, threshold)
+
+      INTEGER, INTENT (in) :: n1, n2, n3, itype
+      REAL, INTENT (in)    :: xx(n1), z(n1), sx(n1,n2,n3), threshold
+
+      INTEGER :: i, j, k, kk
+      REAL    :: zibar, sval, dmy, scr(n2,n3)
+
+      get_zi = -999.
+      SELECT CASE(itype)
+         CASE (1)
+            !
+            ! find level at which sx=threshold (xx is one over grid spacing)
+            !
+            zibar = 0.
+            DO j = 3, n3-2
+               DO i = 3, n2-2
+                  k = 2
+                  DO WHILE (k < n1-2 .AND. sx(k,i,j) > threshold)
+                     k = k+1
+                  END DO
+                  IF (k == n1-2) zibar = -999.
+                  IF (zibar /= -999.) zibar = zibar + z(k-1) +  &
+                                             (threshold - sx(k-1,i,j))/xx(k-1)     /  &
+                                             (sx(k,i,j) - sx(k-1,i,j) + epsilon(1.))
+               END DO
+            END DO
+            IF (zibar /= -999.) get_zi = zibar/REAL((n3-4)*(n2-4))
+
+         CASE(2)
+            !
+            ! find level of maximum gradient (xx is one over grid spacing)
+            !
+            scr = 0.
+            DO j = 3, n3-2
+               DO i = 3, n2-2
+                  sval = 0.
+                  DO k = 2, n1-5
+                     dmy = (sx(k+1,i,j)-sx(k,i,j))*xx(k)
+                     IF (dmy > sval) THEN
+                        sval = dmy
+                        scr(i,j) = z(k)
+                     END IF
+                  END DO
+               END DO
+            END DO
+            get_zi = get_avg2dh(n2,n3,scr)
+
+         CASE(3)
+            !
+            ! find level where xx is a maximum
+            !
+            sval = -huge(1.)
+            kk = 1
+            DO k = 2, n1
+               IF (xx(k) > sval) THEN
+                  kk = k
+                  sval = xx(k)
+               END IF
+            END DO
+            get_zi = z(kk)
+
+         CASE(4)
+            !
+            ! find level where xx is a minimum
+            !
+            sval = huge(1.)
+            kk = 1
+            DO k = 2, n1-2
+               IF (xx(k) < sval) THEN
+                  kk = k
+                  sval = xx(k)
+               END IF
+            END DO
+            get_zi = z(kk)
+      END SELECT
+
+   END FUNCTION get_zi
+
+
+  
 END MODULE forc

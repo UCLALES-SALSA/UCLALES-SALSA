@@ -81,14 +81,14 @@ CONTAINS
   !
   SUBROUTINE define_nc(ncID, nRec, nVar, sx, n1, n2, n3, &
                        inae_a,incld_a,inprc,             &
-                       inae_b,incld_b,inice_a,inice_b,insnw         )
+                       inae_b,incld_b,inice)!,insnw         )
 
     INTEGER, INTENT (in)           :: nVar, ncID
     INTEGER, OPTIONAL, INTENT (in) :: n1, n2, n3
     ! Juha: Added
     INTEGER, OPTIONAL, INTENT(in)  :: inae_a,incld_a,inprc, &
                                       inae_b,incld_b,       &
-                                      inice_a,inice_b,insnw
+                                      inice !_a,inice_b,insnw
     ! --
     INTEGER, INTENT (inout)        :: nRec
     CHARACTER (len=7), INTENT (in) :: sx(nVar)
@@ -99,22 +99,19 @@ CONTAINS
 
     ! Juha: added
     INTEGER, SAVE :: aeaID=0, claID=0, aebID=0, clbID=0, prcID=0,   &
-                     icaID=0, icbID=0,snowID=0,                     &
+                     iceID=0,                     &
                      dim_ttttaea(5) = 0, dim_ttttcla(5) = 0,    &
                      dim_ttttaeb(5) = 0, dim_ttttclb(5) = 0,    &
                      dim_ttttprc(5) = 0,                        &
-                     dim_ttttica(5) = 0, dim_tttticb(5) = 0,    &
-                     dim_ttttsnw(5) = 0,                        &
+                     dim_ttttice(5) = 0,  &
                      dim_ttaea(2) = 0, dim_ttcla(2) = 0,        &
                      dim_ttaeb(2) = 0, dim_ttclb(2) = 0,        &
                      dim_ttprc(2) = 0,                          &
-                     dim_ttica(2) = 0, dim_tticb(2) = 0,        &
-                     dim_ttsnw(2) = 0,                          &
+                     dim_ttice(2) = 0, &
                      dim_ttztaea(3) = 0, dim_ttztcla(3) = 0,    &
                      dim_ttztaeb(3) = 0, dim_ttztclb(3) = 0,    &
                      dim_ttztprc(3) = 0,                        &
-                     dim_ttztica(3) = 0, dim_ttzticb(3) = 0,    &
-                     dim_ttztsnw(3) = 0
+                     dim_ttztice(3) = 0
     !--
 
     CHARACTER (len=7) :: xnm
@@ -152,14 +149,8 @@ CONTAINS
        IF (present(inprc)) THEN
           iret = nf90_def_dim(ncID, 'prc', inprc, prcID)
        END IF
-       IF (present(inice_a)) THEN
-          iret = nf90_def_dim(ncID, 'ica', inice_a, icaID)
-       END IF
-       IF (present(inice_b)) THEN
-          iret = nf90_def_dim(ncID, 'icb', inice_b, icbID)
-       END IF
-       IF (present(insnw)) THEN
-          iret = nf90_def_dim(ncID, 'snw', insnw, snowID)
+       IF (present(inice)) THEN
+          iret = nf90_def_dim(ncID, 'ice', inice, iceID)
        END IF
 
        dim_tt = (/ztID,timeID/)
@@ -176,10 +167,8 @@ CONTAINS
        dim_ttttclb = (/ztID,xtID,ytID,clbID,timeID/)
        dim_ttttprc = (/ztID,xtID,ytID,prcID,timeID/)
 
-       ! Jaakko: ice & snow
-       dim_ttttica = (/ztID,xtID,ytID,icaID,timeID/)
-       dim_tttticb = (/ztID,xtID,ytID,icbID,timeID/)
-       dim_ttttsnw = (/ztID,xtID,ytID,snowID,timeID/)
+       ! Jaakko: ice
+       dim_ttttice = (/ztID,xtID,ytID,iceID,timeID/)
        ! ---
        ! Zubair: dimension environments for avegare size distribution variables per bin - ts files
        dim_ttaea = (/aeaID,timeID/)
@@ -188,9 +177,7 @@ CONTAINS
        dim_ttclb = (/clbID,timeID/)
        dim_ttprc = (/prcID,timeID/)
        ! Jaakko:
-       dim_ttica = (/icaID,timeID/)
-       dim_tticb = (/icbID,timeID/)
-       dim_ttsnw = (/snowID,timeID/)
+       dim_ttice = (/iceID,timeID/)
        ! Zubair: dimension environments for avegare size distribution variables per bin - ps files
        dim_ttztaea = (/ztID,aeaID,timeID/)
        dim_ttztaeb = (/ztID,aebID,timeID/)
@@ -198,9 +185,7 @@ CONTAINS
        dim_ttztclb = (/ztID,clbId,timeID/)
        dim_ttztprc = (/ztID,prcID,timeID/)
        ! Jaakko
-       dim_ttztica = (/ztID,icaID,timeID/)
-       dim_ttzticb = (/ztID,icbId,timeID/)
-       dim_ttztsnw = (/ztID,snowID,timeID/)
+       dim_ttztice = (/ztID,iceID,timeID/)
 
        DO n = 1, nVar
           SELECT CASE(trim(ncinfo(2,sx(n))))
@@ -230,12 +215,8 @@ CONTAINS
           CASE ('prc')
              iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,prcID   ,VarID)
           !Jaakko added for ice and snow
-          CASE ('ica')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,icaID   ,VarID)
-          CASE ('icb')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,icbID   ,VarID)
-          CASE ('snow')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,snowID   ,VarID)
+          CASE ('ice')
+             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,iceID   ,VarID)
           !Juha added
           CASE ('ttttaea')
              iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttaea,VarID)
@@ -248,12 +229,8 @@ CONTAINS
           CASE ('ttttprc')
              iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttprc,VarID)
           !Jaakko added
-          CASE ('ttttica')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttica,VarID)
-          CASE ('tttticb')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttticb,VarID)
-          CASE ('ttttsnw')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttsnw,VarID)
+          CASE ('ttttice')
+             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttice,VarID)
           ! ---
           CASE ('tttt')
              IF (present(n2) .AND. present(n3)) THEN
@@ -289,12 +266,8 @@ CONTAINS
              iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttclb,VarID)
           CASE ('ttprc')
              iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttprc,VarID)
-          CASE ('ttica')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttica,VarID)
-          CASE ('tticb')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tticb,VarID)
-          CASE ('ttsnw')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttsnw,VarID)
+          CASE ('ttice')
+             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttice,VarID)
           CASE ('ttztaea')
              iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztaea,VarID)
           CASE ('ttztaeb')
@@ -305,12 +278,8 @@ CONTAINS
              iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztclb,VarID)
           CASE ('ttztprc')
              iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztprc,VarID)
-          CASE ('ttztica')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztica,VarID)
-          CASE ('ttzticb')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttzticb,VarID)
-          CASE ('ttztsnw')
-             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztsnw,VarID)
+          CASE ('ttztice')
+             iret = nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztice,VarID)
           CASE DEFAULT
              IF (myid == 0) PRINT *, '  ABORTING: NCIO: Bad dimensional information ',trim(ncinfo(2,sx(n)))
              CALL appl_abort(0)
@@ -440,39 +409,22 @@ CONTAINS
        END IF
 
        IF (level>=5) THEN
-          ! Ice and snow
+          ! Ice 
           iret = nf90_def_var(ncID,'iwp',NF90_FLOAT,dim_ttt,VarID)
           iret = nf90_put_att(ncID,VarID,'longname',ncinfo(0,'iwp'))
           iret = nf90_put_att(ncID,VarID,'units',ncinfo(1,'iwp'))
-
-          iret = nf90_def_var(ncID,'swp',NF90_FLOAT,dim_ttt,VarID)
-          iret = nf90_put_att(ncID,VarID,'longname',ncinfo(0,'swp'))
-          iret = nf90_put_att(ncID,VarID,'units',ncinfo(1,'swp'))
 
           iret = nf90_def_var(ncID,'Ni',NF90_FLOAT,dim_ttt,VarID)
           iret = nf90_put_att(ncID,VarID,'longname',ncinfo(0,'Ni'))
           iret = nf90_put_att(ncID,VarID,'units',ncinfo(1,'Ni'))
 
-          iret = nf90_def_var(ncID,'Ns',NF90_FLOAT,dim_ttt,VarID)
-          iret = nf90_put_att(ncID,VarID,'longname',ncinfo(0,'Ns'))
-          iret = nf90_put_att(ncID,VarID,'units',ncinfo(1,'Ns'))
-
           iret = nf90_def_var(ncID,'nicnt',NF90_INT,dim_ttt,VarID)
           iret = nf90_put_att(ncID,VarID,'longname',ncinfo(0,'nicnt'))
           iret = nf90_put_att(ncID,VarID,'units',ncinfo(1,'nicnt'))
 
-          iret = nf90_def_var(ncID,'nscnt',NF90_INT,dim_ttt,VarID)
-          iret = nf90_put_att(ncID,VarID,'longname',ncinfo(0,'nscnt'))
-          iret = nf90_put_att(ncID,VarID,'units',ncinfo(1,'nscnt'))
-
-          ! Aerosol and water removal with ice and snow
+          ! Aerosol and water removal with ice
           DO ss = 1,nspec
              nam = 'rm'//trim(spec_list(ss))//'ic'
-             iret = nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
-             iret = nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
-             iret = nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
-
-             nam = 'rm'//trim(spec_list(ss))//'sn'
              iret = nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
              iret = nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
              iret = nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
@@ -562,18 +514,10 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Precipitation size bins'
           IF (itype == 1) ncinfo = 'm'
           IF (itype == 2) ncinfo = 'prc'
-       CASE('ica')
-          IF (itype == 0) ncinfo = 'Ice cloud droplet size bins, regime a'
+       CASE('ice')
+          IF (itype == 0) ncinfo = 'Ice particle size bins'
           IF (itype == 1) ncinfo = 'm'
-          IF (itype == 2) ncinfo = 'ica'
-       CASE('icb')
-          IF (itype == 0) ncinfo = 'Ice cloud droplet size bins, regime b'
-          IF (itype == 1) ncinfo = 'm'
-          IF (itype == 2) ncinfo = 'icb'
-       CASE('snw')
-          IF (itype == 0) ncinfo = 'Snow size bins'
-          IF (itype == 1) ncinfo = 'm'
-          IF (itype == 2) ncinfo = 'snow'
+          IF (itype == 2) ncinfo = 'ice'
        !----
        CASE('u0')
           IF (itype == 0) ncinfo = 'Geostrophic zonal wind'
@@ -633,10 +577,6 @@ CONTAINS
           IF (itype == 2) ncinfo = 'tttt'
        CASE('iri')
           IF (itype == 0) ncinfo = 'Rimed ice mixing ratio'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('s')
-          IF (itype == 0) ncinfo = 'Snow mixing ratio'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'tttt'
        CASE('n')
@@ -735,10 +675,6 @@ CONTAINS
           if (itype == 0) ncinfo = 'Maximum ice water mixing ratio'
           if (itype == 1) ncinfo = 'kg/kg'
           if (itype == 2) ncinfo = 'time'
-       case('smax')
-          if (itype == 0) ncinfo = 'Maximum snow water mixing ratio'
-          if (itype == 1) ncinfo = 'kg/kg'
-          if (itype == 2) ncinfo = 'time'
        CASE('albedo')
           IF (itype == 0) ncinfo = 'Reflected (TOA) shortwave radiation'
           IF (itype == 1) ncinfo = '-'
@@ -747,28 +683,16 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Rain-water path'
           IF (itype == 1) ncinfo = 'kg/m^2'
           IF (itype == 2) ncinfo = 'time'
-       case('swp_bar','swp')
-          if (itype == 0) ncinfo = 'Snow-water path'
-          if (itype == 1) ncinfo = 'kg/m^2'
-          if (itype == 2) ncinfo = 'time'
        CASE('prcp')
           IF (itype == 0) ncinfo = 'Surface precipitation rate'
           IF (itype == 1) ncinfo = 'W/m^2'
           IF (itype == 2) ncinfo = 'time'
-       case('sprcp')
-          if (itype == 0) ncinfo = 'Surface snow precipitation rate'
-          if (itype == 1) ncinfo = 'W/m^2'
-          if (itype == 2) ncinfo = 'time'
        CASE('prcp_bc')
           IF (itype == 0) ncinfo = 'Below cloud precipitation rate'
           IF (itype == 1) ncinfo = 'W/m^2'
           IF (itype == 2) ncinfo = 'time'
        CASE('pfrac')
           IF (itype == 0) ncinfo = 'Surface precipitation fraction'
-          IF (itype == 1) ncinfo = '-'
-          IF (itype == 2) ncinfo = 'time'
-       CASE('sfrac')
-          IF (itype == 0) ncinfo = 'Surface snow precipitation fraction'
           IF (itype == 1) ncinfo = '-'
           IF (itype == 2) ncinfo = 'time'
        CASE('CCN')
@@ -842,30 +766,6 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Ice number concentration in icy regions'
           IF (itype == 1) ncinfo = 'kg^-1'
           IF (itype == 2) ncinfo = 'time'
-       CASE('Nia_iia')
-          IF (itype==0) ncinfo = 'Ice number concentration in icy regions (a bins)'
-          IF (itype==1) ncinfo = 'kg^-1'
-          IF (itype==2) ncinfo = 'time'
-       CASE('Nib_iib')
-          IF (itype==0) ncinfo = 'Ice number concentration in icy regions (b bins)'
-          IF (itype==1) ncinfo = 'kg^-1'
-          IF (itype==2) ncinfo = 'time'
-       CASE('Ni_is')
-          IF (itype == 0) ncinfo = 'Ice number concentration in snowy regions'
-          IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'time'
-       CASE('Ns_ic')
-          IF (itype == 0) ncinfo = 'Snow number concentration in liquid clouds'
-          IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'time'
-       CASE('Ns_ii')
-          IF (itype == 0) ncinfo = 'Snow number concentration in icy regions'
-          IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'time'
-       CASE('Ns_is')
-          IF (itype == 0) ncinfo = 'Snow number concentration in snowy regions'
-          IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'time'
        CASE('Ra_int')
           IF (itype==0) ncinfo = 'Mean interstitial aerosol wet radius'
           IF (itype==1) ncinfo = 'm'
@@ -895,17 +795,9 @@ CONTAINS
           IF (itype == 1) ncinfo = 'm'
           IF (itype == 2) ncinfo = 'time'
        CASE('Ria_iia')
-          IF (itype==0) ncinfo = 'Mean ice radius (a bins)'
+          IF (itype==0) ncinfo = 'Mean ice radius (a binned)'
           IF (itype==1) ncinfo = 'm'
           IF (itype==2) ncinfo = 'time'
-       CASE('Rib_iib')
-          IF (itype==0) ncinfo = 'Mean ice radius (b bins)'
-          IF (itype==1) ncinfo = 'm'
-          IF (itype==2) ncinfo = 'time'
-       CASE('Rs_is')
-          IF (itype == 0) ncinfo = 'Mean snow radius in snowy regions'
-          IF (itype == 1) ncinfo = 'm'
-          IF (itype == 2) ncinfo = 'time'
        CASE('SO4_ic')
           IF (itype == 0) ncinfo = 'Cloud droplet SO4 mass mixing ratio'
           IF (itype == 1) ncinfo = 'kg/kg'
@@ -920,10 +812,6 @@ CONTAINS
           IF (itype == 2) ncinfo = 'time'
        CASE('SO4_ii')
           IF (itype==0) ncinfo = 'SO4 mass mixing ratio in ice'
-          IF (itype==1) ncinfo = 'kg/kg'
-          IF (itype==2) ncinfo = 'time'
-       CASE('SO4_is')
-          IF (itype==0) ncinfo = 'SO4 mass mixing ratio in snow'
           IF (itype==1) ncinfo = 'kg/kg'
           IF (itype==2) ncinfo = 'time'
        CASE('OC_ic')
@@ -942,10 +830,6 @@ CONTAINS
           IF (itype==0) ncinfo = 'OC mass mixing ratio in ice'
           IF (itype==1) ncinfo = 'kg/kg'
           IF (itype==2) ncinfo = 'time'
-       CASE('OC_is')
-          IF (itype==0) ncinfo = 'OC mass mixing ratio in snow'
-          IF (itype==1) ncinfo = 'kg/kg'
-          IF (itype==2) ncinfo = 'time'
        CASE('BC_ic')
           IF (itype == 0) ncinfo = 'Cloud droplet BC mass mixing ratio'
           IF (itype == 1) ncinfo = 'kg/kg'
@@ -960,10 +844,6 @@ CONTAINS
           IF (itype == 2) ncinfo = 'time'
        CASE('BC_ii')
           IF (itype==0) ncinfo = 'BC mass mixing ratio in ice'
-          IF (itype==1) ncinfo = 'kg/kg'
-          IF (itype==2) ncinfo = 'time'
-       CASE('BC_is')
-          IF (itype==0) ncinfo = 'BC mass mixing ratio in snow'
           IF (itype==1) ncinfo = 'kg/kg'
           IF (itype==2) ncinfo = 'time'
        CASE('DU_ic')
@@ -982,10 +862,6 @@ CONTAINS
           IF (itype==0) ncinfo = 'DU mass mixing ration in ice'
           IF (itype==1) ncinfo = 'kg/kg'
           IF (itype==2) ncinfo = 'time'
-       CASE('DU_is')
-          IF (itype==0) ncinfo = 'DU mass mixing ration in snow'
-          IF (itype==1) ncinfo = 'kg/kg'
-          IF (itype==2) ncinfo = 'time'
        CASE('SS_ic')
           IF (itype == 0) ncinfo = 'Cloud droplet mass mixing ratio of SS'
           IF (itype == 1) ncinfo = 'kg/kg'
@@ -1000,10 +876,6 @@ CONTAINS
           IF (itype == 2) ncinfo = 'time'
        CASE('SS_ii')
           IF (itype==0) ncinfo = 'SS mass mixing ratio in ice'
-          IF (itype==1) ncinfo = 'kg/kg'
-          IF (itype==2) ncinfo = 'time'
-       CASE('SS_is')
-          IF (itype==0) ncinfo = 'SS mass mixing ratio in snow'
           IF (itype==1) ncinfo = 'kg/kg'
           IF (itype==2) ncinfo = 'time'
        CASE('NH_ic')
@@ -1022,10 +894,6 @@ CONTAINS
           IF (itype==0) ncinfo = 'NH3 mass mixing ratio in ice'
           IF (itype==1) ncinfo = 'kg/kg'
           IF (itype==2) ncinfo = 'time'
-       CASE('NH_is')
-          IF (itype==0) ncinfo = 'NH3 mass mixing ratio in snow'
-          IF (itype==1) ncinfo = 'kg/kg'
-          IF (itype==2) ncinfo = 'time'
        CASE('NO_ic')
           IF (itype == 0) ncinfo = 'Cloud droplet mass mixing ratio of NO3'
           IF (itype == 1) ncinfo = 'kg/kg'
@@ -1042,10 +910,6 @@ CONTAINS
           IF (itype==0) ncinfo = 'NO3 mass mixing ratio in ice'
           IF (itype==1) ncinfo = 'kg/kg'
           IF (itype==2) ncinfo = 'time'
-       CASE('NO_is')
-          IF (itype==0) ncinfo = 'NO3 mass mixing ratio in snow'
-          IF (itype==1) ncinfo = 'kg/kg'
-          IF (itype==2) ncinfo = 'time'
        CASE('H2O_ic')
           IF (itype==0) ncinfo = 'Cloud droplet mass mixing ratio of H2O'
           IF (itype==1) ncinfo = 'kg/kg'
@@ -1056,10 +920,6 @@ CONTAINS
           IF (itype==2) ncinfo = 'time'
        CASE('H2O_ii')
           IF (itype==0) ncinfo = 'H2O mass mixing ratio in ice'
-          IF (itype==1) ncinfo = 'kg/kg'
-          IF (itype==2) ncinfo = 'time'
-       CASE('H2O_is')
-          IF (itype==0) ncinfo = 'H2O mass mixing ratio in snow'
           IF (itype==1) ncinfo = 'kg/kg'
           IF (itype==2) ncinfo = 'time'
        CASE('rmH2Oae','rmH2Odr')
@@ -1078,10 +938,6 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Deposition of water with ice'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
           IF (itype == 2) ncinfo = 'time'
-        CASE('rmH2Osn')
-          IF (itype == 0) ncinfo = 'Deposition of water with snow'
-          IF (itype == 1) ncinfo = 'kg/m^2/s'
-          IF (itype == 2) ncinfo = 'time'
        CASE('rmSO4dr')
           IF (itype == 0) ncinfo = 'Aerosol deposition of SO4'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
@@ -1096,10 +952,6 @@ CONTAINS
           IF (itype == 2) ncinfo = 'time'
        CASE('rmSO4ic')
           IF (itype == 0) ncinfo = 'Deposition of SO4 with ice'
-          IF (itype == 1) ncinfo = 'kg/m^2/s'
-          IF (itype == 2) ncinfo = 'time'
-       CASE('rmSO4sn')
-          IF (itype == 0) ncinfo = 'Deposition of SO4 with snow'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
           IF (itype == 2) ncinfo = 'time'
        CASE('rmSO4wt')
@@ -1126,10 +978,6 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Deposition of OC with ice'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
           IF (itype == 2) ncinfo = 'time'
-       CASE('rmOCsn')
-          IF (itype == 0) ncinfo = 'Deposition of OC with snow'
-          IF (itype == 1) ncinfo = 'kg/m^2/s'
-          IF (itype == 2) ncinfo = 'time'
        CASE('rmOCwt')
           IF (itype == 0) ncinfo = 'Total wet deposition of OC'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
@@ -1152,10 +1000,6 @@ CONTAINS
           IF (itype == 2) ncinfo = 'time'
        CASE('rmBCic')
           IF (itype == 0) ncinfo = 'Deposition of BC with ice'
-          IF (itype == 1) ncinfo = 'kg/m^2/s'
-          IF (itype == 2) ncinfo = 'time'
-       CASE('rmBCsn')
-          IF (itype == 0) ncinfo = 'Deposition of BC with snow'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
           IF (itype == 2) ncinfo = 'time'
        CASE('rmBCwt')
@@ -1182,10 +1026,6 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Deposition of DU with ice'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
           IF (itype == 2) ncinfo = 'time'
-       CASE('rmDUsn')
-          IF (itype == 0) ncinfo = 'Deposition of DU with snow'
-          IF (itype == 1) ncinfo = 'kg/m^2/s'
-          IF (itype == 2) ncinfo = 'time'
        CASE('rmDUwt')
           IF (itype == 0) ncinfo = 'Total wet deposition of DU'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
@@ -1208,10 +1048,6 @@ CONTAINS
           IF (itype == 2) ncinfo = 'time'
        CASE('rmSSic')
           IF (itype == 0) ncinfo = 'Deposition of SS with ice'
-          IF (itype == 1) ncinfo = 'kg/m^2/s'
-          IF (itype == 2) ncinfo = 'time'
-       CASE('rmSSsn')
-          IF (itype == 0) ncinfo = 'Deposition of SS with snow'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
           IF (itype == 2) ncinfo = 'time'
        CASE('rmSSwt')
@@ -1238,10 +1074,6 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Deposition of NH3 with ice'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
           IF (itype == 2) ncinfo = 'time'
-       CASE('rmNHsn')
-          IF (itype == 0) ncinfo = 'Deposition of NH3 with snow'
-          IF (itype == 1) ncinfo = 'kg/m^2/s'
-          IF (itype == 2) ncinfo = 'time'
        CASE('rmNHwt')
           IF (itype == 0) ncinfo = 'Total wet deposition of NH3'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
@@ -1264,10 +1096,6 @@ CONTAINS
           IF (itype == 2) ncinfo = 'time'
        CASE('rmNOic')
           IF (itype == 0) ncinfo = 'Deposition of NO3 with ice'
-          IF (itype == 1) ncinfo = 'kg/m^2/s'
-          IF (itype == 2) ncinfo = 'time'
-       CASE('rmNOsn')
-          IF (itype == 0) ncinfo = 'Deposition of NO3 with snow'
           IF (itype == 1) ncinfo = 'kg/m^2/s'
           IF (itype == 2) ncinfo = 'time'
        CASE('rmNOwt')
@@ -1591,10 +1419,6 @@ CONTAINS
           if (itype == 0) ncinfo = 'Ice number concentration'
           if (itype == 1) ncinfo = 'kg^-1'
           if (itype == 2) ncinfo = 'tttt'
-       case('Ns')
-          if (itype == 0) ncinfo = 'Snow number concentration'
-          if (itype == 1) ncinfo = 'kg^-1'
-          if (itype == 2) ncinfo = 'tttt'
        CASE('rr')
           IF (itype == 0) ncinfo = 'Rain water mixing ratio'
           IF (itype == 1) ncinfo = 'kg/kg'
@@ -1603,10 +1427,6 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Precipitation Flux (positive downward)'
           IF (itype == 1) ncinfo = 'W/m^2'
           IF (itype == 2) ncinfo = 'ttmt'
-       case('srate')
-          if (itype == 0) ncinfo = 'Snow deposition flux (positive downward)'
-          if (itype == 1) ncinfo = 'W/m^2'
-          if (itype == 2) ncinfo = 'ttmt'
        CASE('evap')
           IF (itype == 0) ncinfo = 'Net evap of rain-water'
           IF (itype == 1) ncinfo = 's^-1'
@@ -1690,11 +1510,11 @@ CONTAINS
        CASE('S_Niba')
           IF (itype == 0) ncinfo = 'SALSA ice size distribution, regime a'
           IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'ttttica'
+          IF (itype == 2) ncinfo = 'ttttice'
        CASE('S_Nibb')
           IF (itype == 0) ncinfo = 'SALSA ice size distribution, regime b'
           IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'ttttica'
+          IF (itype == 2) ncinfo = 'ttttice'
        CASE('S_Rwia')
           IF (itype == 0) ncinfo = 'SALSA number mean radius of ice particles, regime a'
           IF (itype == 1) ncinfo = 'm'
@@ -1706,28 +1526,11 @@ CONTAINS
        CASE('S_Rwiba')
           IF (itype == 0) ncinfo = 'SALSA bin ice particle radius, regime a'
           IF (itype == 1) ncinfo = 'm'
-          IF (itype == 2) ncinfo = 'ttttica'
+          IF (itype == 2) ncinfo = 'ttttice'
        CASE('S_Rwibb')
           IF (itype == 0) ncinfo = 'SALSA bin ice particle radius, regime b'
           IF (itype == 1) ncinfo = 'm'
           IF (itype == 2) ncinfo = 'tttticb'
-       CASE('S_Ns')
-          IF (itype == 0) ncinfo = 'SALSA sdnc'
-          IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_Nsba')
-          IF (itype == 0) ncinfo = 'SALSA snow size distribution'
-          IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'ttttsnw'
-       CASE('S_Rwsa')
-          IF (itype == 0) ncinfo = 'SALSA number mean radius of snow'
-          IF (itype == 1) ncinfo = 'm'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_Rwsba')
-          IF (itype == 0) ncinfo = 'SALSA bin snow radius'
-          IF (itype == 1) ncinfo = 'm'
-          IF (itype == 2) ncinfo = 'ttttsnw'
-
 
        CASE('S_Na')
           IF (itype == 0) ncinfo = 'SALSA total number of soluble aerosols, (regime A)'
@@ -1877,60 +1680,32 @@ CONTAINS
           IF (itype == 0) ncinfo = 'SALSA CCN mass concentration of SS, regime B'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iSO4a')
+       CASE('S_iSO4')
           IF (itype == 0) ncinfo = 'SALSA IN mass concentration of SO4, regime A'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iSO4b')
-          IF (itype == 0) ncinfo = 'SALSA IN mass concentration of SO4, regime B'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iNHa')
+       CASE('S_iNH')
           IF (itype == 0) ncinfo = 'SALSA IN mass concentration of NH3, regime A'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iNHb')
-          IF (itype == 0) ncinfo = 'SALSA IN mass concentration of NH3, regime B'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iNOa')
+       CASE('S_iNO')
           IF (itype == 0) ncinfo = 'SALSA IN mass concentration of NO3, regime A'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iNOb')
-          IF (itype == 0) ncinfo = 'SALSA IN mass concentration of NO3, regime B'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iOCa')
+       CASE('S_iOC')
           IF (itype == 0) ncinfo = 'SALSA IN mass concentration of OC, regime A'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iOCb')
-          IF (itype == 0) ncinfo = 'SALSA IN mass concentration of OC, regime B'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iBCa')
+       CASE('S_iBC')
           IF (itype == 0) ncinfo = 'SALSA IN mass concentration of BC, regime A'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iBCb')
-          IF (itype == 0) ncinfo = 'SALSA IN mass concentration of BC, regime B'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iDUa')
+       CASE('S_iDU')
           IF (itype == 0) ncinfo = 'SALSA IN mass concentration of DU, regime A'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iDUb')
-          IF (itype == 0) ncinfo = 'SALSA IN mass concentration of DU, regime B'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iSSa')
+       CASE('S_iSS')
           IF (itype == 0) ncinfo = 'SALSA IN mass concentration of SS, regime A'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('S_iSSb')
-          IF (itype == 0) ncinfo = 'SALSA IN mass concentration of SS, regime B'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'tttt'
 
@@ -1957,12 +1732,8 @@ CONTAINS
           IF (itype == 0) ncinfo = 'SALSA rdnc'
           IF (itype == 1) ncinfo = 'kg^-1'
           IF (itype == 2) ncinfo = 'tttt'
-       CASE('P_Nia')
+       CASE('P_Ni')
           IF (itype == 0) ncinfo = 'SALSA ice number concentration in regime A'
-          IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('P_Nib')
-          IF (itype == 0) ncinfo = 'SALSA ice number concentration in regime B'
           IF (itype == 1) ncinfo = 'kg^-1'
           IF (itype == 2) ncinfo = 'tttt'
        CASE('P_Ns')
@@ -1989,12 +1760,8 @@ CONTAINS
           IF (itype == 0) ncinfo = 'SALSA mean drizzle drop radius'
           IF (itype == 1) ncinfo = 'm'
           IF (itype == 2) ncinfo = 'tttt'
-       CASE('P_Rwia')
+       CASE('P_Rwi')
           IF (itype == 0) ncinfo = 'SALSA mean ice radius, regime a'
-          IF (itype == 1) ncinfo = 'm'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('P_Rwib')
-          IF (itype == 0) ncinfo = 'SALSA mean ice radius, regime b'
           IF (itype == 1) ncinfo = 'm'
           IF (itype == 2) ncinfo = 'tttt'
        case('P_Rws')
@@ -2171,10 +1938,6 @@ CONTAINS
           IF (itype == 2) ncinfo = 'tttt'
        CASE('P_ri')
           IF (itype == 0) ncinfo = 'Ice water mixing ratio'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'tttt'
-       CASE('P_rs')
-          IF (itype == 0) ncinfo = 'Snow water mixing ratio'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'tttt'
        CASE('P_rv')
@@ -2373,102 +2136,38 @@ CONTAINS
           IF (itype == 0) ncinfo = 'Mass mixing ratio of NO3 in drizzle bins'
           IF (itype == 1) ncinfo = 'kg/kg'
           IF (itype == 2) ncinfo = 'ttztprc'
-       CASE('P_Niba')
-          IF (itype == 0) ncinfo = 'Ice number concentration in size bins A'
+       CASE('P_Nib')
+          IF (itype == 0) ncinfo = 'Ice number concentration in size bins'
           IF (itype == 1) ncinfo = 'kg^-1'
           IF (itype == 2) ncinfo = 'ttztica'
-       CASE('P_SO4ia')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of SO4 in ice bins A'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztica'
-       CASE('P_OCia')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of Oc in ice bins A'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztica'
-       CASE('P_BCia')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of BC in ice bins A'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztica'
-       CASE('P_DUia')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of DU in ice bins A'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztica'
-       CASE('P_SSia')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of SS in ice bins A'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztica'
-       CASE('P_NHia')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of NH3 in ice bins A'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztica'
-       CASE('P_NOia')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of NO3 in ice bins A'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztica'
-       CASE('P_Nibb')
-          IF (itype == 0) ncinfo = 'Ice number concentration in size bins B'
-          IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'ttzticb'
        CASE('P_SO4ib')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of SO4 in ice bins B'
+          IF (itype == 0) ncinfo = 'Mass mixing ratio of SO4 in ice bins'
           IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttzticb'
+          IF (itype == 2) ncinfo = 'ttztica'
        CASE('P_OCib')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of OC in ice bins B'
+          IF (itype == 0) ncinfo = 'Mass mixing ratio of Oc in ice bins'
           IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttzticb'
+          IF (itype == 2) ncinfo = 'ttztica'
        CASE('P_BCib')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of BC in ice bins B'
+          IF (itype == 0) ncinfo = 'Mass mixing ratio of BC in ice bins'
           IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttzticb'
+          IF (itype == 2) ncinfo = 'ttztica'
        CASE('P_DUib')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of DU in ice bins B'
+          IF (itype == 0) ncinfo = 'Mass mixing ratio of DU in ice bins'
           IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttzticb'
+          IF (itype == 2) ncinfo = 'ttztica'
        CASE('P_SSib')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of SS in ice bins B'
+          IF (itype == 0) ncinfo = 'Mass mixing ratio of SS in ice bins'
           IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttzticb'
+          IF (itype == 2) ncinfo = 'ttztica'
        CASE('P_NHib')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of NH3 in ice bins B'
+          IF (itype == 0) ncinfo = 'Mass mixing ratio of NH3 in ice bins'
           IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttzticb'
+          IF (itype == 2) ncinfo = 'ttztica'
        CASE('P_NOib')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of NO3 in ice bins B'
+          IF (itype == 0) ncinfo = 'Mass mixing ratio of NO3 in ice bins'
           IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttzticb'
-       CASE('P_Nsb')
-          IF (itype == 0) ncinfo = 'Number concentration of snow'
-          IF (itype == 1) ncinfo = 'kg^-1'
-          IF (itype == 2) ncinfo = 'ttztsnw'
-       CASE('P_SO4sb')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of SO4 in snow bins'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztsnw'
-       CASE('P_OCsb')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of OC in snow bins'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztsnw'
-       CASE('P_BCsb')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of BC in snow bins'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztsnw'
-       CASE('P_DUsb')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of DU in snow bins'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztsnw'
-       CASE('P_SSsb')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of SS in snow bins'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztsnw'
-       CASE('P_NHsb')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of NH3 in snow bins'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztsnw'
-       CASE('P_NOsb')
-          IF (itype == 0) ncinfo = 'Mass mixing ratio of NO3 in snow bins'
-          IF (itype == 1) ncinfo = 'kg/kg'
-          IF (itype == 2) ncinfo = 'ttztsnw'
+          IF (itype == 2) ncinfo = 'ttztica'
        ! -----
        CASE DEFAULT
           IF (myid == 0) PRINT *, 'ABORTING: ncinfo: variable not found ',trim(short_name)

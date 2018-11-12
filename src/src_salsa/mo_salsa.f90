@@ -3,7 +3,8 @@ MODULE mo_salsa
   USE mo_salsa_dynamics, only : coagulation, condensation
   USE mo_salsa_update, ONLY : distr_update
   USE mo_salsa_cloud, only : cloud_activation, autoconv2
-  USE mo_salsa_cloud_ice, ONLY : autosnow,ice_fixed_NC, ice_nucl_driver,ice_melt
+  USE mo_salsa_cloud_ice, ONLY : &
+       ice_fixed_NC, ice_nucl_driver,ice_melt
   
   USE mo_submctl, ONLY :      &
        spec, &
@@ -13,7 +14,6 @@ MODULE mo_salsa
        lscoag,                    &
        lscnd,                     &
        lsauto,                    &
-       lsautosnow,                &
        lsactiv,                   &
        lsicenucl,                 &
        lsicemelt,                  &
@@ -79,7 +79,6 @@ MODULE mo_salsa
 
      INTEGER :: nspec
      
-     
      !-- Local variables ------------------------------------------------------------------
      
      INTEGER :: zpbl(kbdim)            ! Planetary boundary layer top level
@@ -92,8 +91,6 @@ MODULE mo_salsa
      IF (lscoag%state) &
           CALL coagulation( kproma, kbdim,  klev,                   &
                             ptstep, ptemp,  ppres   )
-
-     IF (ANY(ice(:,:,:)%volc(nspec) < ice(:,:,:)%vrime)) WRITE(*,*)  'ice test 1'
      
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"COAG")
 
@@ -104,23 +101,17 @@ MODULE mo_salsa
                             pc_nh3,   prv,      prs,      prsi,      &
                             ptemp,    ppres,    ptstep,   zpbl       )
 
-     IF (ANY(ice(:,:,:)%volc(nspec) < ice(:,:,:)%vrime)) WRITE(*,*)  'ice test 2'
-     
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"CONDENSATION")
 
      ! Autoconversion (liquid)
      IF (lsauto%state .AND. lsauto%mode == 2) &
           CALL autoconv2(kproma,kbdim,klev, ptstep)
 
-     IF (lscheckarrays) CALL check_arrays(kbdim,klev,"AUTOCONV")
-
      ! Cloud activation
      IF (lsactiv%state )  &
           CALL cloud_activation(kproma, kbdim, klev,   &
                                 ptemp,  ppres, prv,    &
                                 prs,    pw,    pactd   )
-
-     IF (lscheckarrays) CALL check_arrays(kbdim,klev,"ACTIVATION")
 
      ! Ice nucleation
      IF (lsicenucl%state) THEN
@@ -135,29 +126,18 @@ MODULE mo_salsa
         END IF
      END IF
 
-     IF (ANY(ice(:,:,:)%volc(nspec) < ice(:,:,:)%vrime)) WRITE(*,*)  'ice test 3'
-     
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"ICENUC")
-
-     ! Snow formation ~ autoconversion from ice
-     IF (lsautosnow%state) &
-          CALL autosnow(kproma,kbdim,klev)
-
-     IF (lscheckarrays) CALL check_arrays(kbdim,klev,"AUTOSNOW")
 
      ! Melting of ice and snow
      IF (lsicemelt%state) &
           CALL ice_melt(kproma,kbdim,klev,ptemp)
 
-     IF (ANY(ice(:,:,:)%volc(nspec) < ice(:,:,:)%vrime)) WRITE(*,*)  'ice test 4'
-     
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"ICEMELT")
      
      ! Size distribution bin update
      IF (lsdistupdate ) &
           CALL distr_update(kproma, kbdim, klev, level)
-     IF (ANY(ice(:,:,:)%volc(nspec) < ice(:,:,:)%vrime)) WRITE(*,*)  'ice test 5'
-     
+
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"DISTUPDATE")
 
    END SUBROUTINE salsa

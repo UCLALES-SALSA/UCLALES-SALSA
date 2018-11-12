@@ -1,14 +1,12 @@
 MODULE mo_salsa_coagulation_kernels
-  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow,    &
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, & 
                              iaero, faero, icloud, fcloud, iprecp, fprecp,  &
-                             iice, fice, isnow, fsnow
-  USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw,   &
-                         spec, pi6,             &
-                         lscgaa, lscgcc, lscgpp, lscgii, lscgss,  &
-                         lscgca, lscgpa, lscgia, lscgsa,          &
-                         lscgpc, lscgic, lscgsc,                  &
-                         lscgip, lscgsp,                          &
-                         lscgsi
+                             iice, fice
+  USE mo_submctl, ONLY : nbins, ncld, nprc, nice, spec, pi6,  &
+                         lscgaa, lscgcc, lscgpp, lscgii,      & 
+                         lscgca, lscgpa, lscgia,              & 
+                         lscgpc, lscgic,                      & 
+                         lscgip 
   USE classSection, ONLY : Section
   IMPLICIT NONE
 
@@ -16,8 +14,7 @@ MODULE mo_salsa_coagulation_kernels
   
     SUBROUTINE update_coagulation_kernels(kbdim,klev,ppres,ptemp,   &
                                           zccaa, zcccc, zccca, zccpc, zccpa,  &
-                                          zccpp, zccia, zccic, zccii, zccip,  &
-                                          zccsa, zccsc, zccsi, zccsp, zccss)
+                                          zccpp, zccia, zccic, zccii, zccip) 
 
       INTEGER, INTENT(in) :: kbdim,klev
       REAL, INTENT(in) :: ppres(kbdim,klev), ptemp(kbdim,klev)
@@ -25,11 +22,7 @@ MODULE mo_salsa_coagulation_kernels
                            zccca(kbdim,klev,nbins,ncld), zccpc(kbdim,klev,ncld,nprc),   &
                            zccpa(kbdim,klev,nbins,nprc), zccpp(kbdim,klev,nprc,nprc),   &
                            zccia(kbdim,klev,nbins,nice), zccic(kbdim,klev,ncld,nice),   &
-                           zccii(kbdim,klev,nice,nice), zccip(kbdim,klev,nprc,nice),    &
-                           zccsa(kbdim,klev,nbins,nsnw), zccsc(kbdim,klev,ncld,nsnw),   &
-                           zccsi(kbdim,klev,nice,nsnw), zccsp(kbdim,klev,nprc,nsnw),    &
-                           zccss(kbdim,klev,nsnw,nsnw)
-
+                           zccii(kbdim,klev,nice,nice), zccip(kbdim,klev,nprc,nice)
 
       ! Aero-aero
       zccaa(:,:,:,:) = 0.
@@ -51,11 +44,6 @@ MODULE mo_salsa_coagulation_kernels
       IF (lscgii) &
            CALL buildKernelSelf( kbdim,klev,nice,ice,ptemp,ppres,zccii )
 
-      ! snow-snow
-      zccss(:,:,:,:) = 0.
-      IF (lscgss) &
-           CALL buildKernelSelf( kbdim,klev,nsnw,snow,ptemp,ppres,zccss )
-
       ! Aero-cloud
       zccca(:,:,:,:) = 0.
       IF (lscgca) &
@@ -71,11 +59,6 @@ MODULE mo_salsa_coagulation_kernels
       IF (lscgia) &
            CALL buildKernel( kbdim,klev,nbins,aero,nice,ice,ptemp,ppres,zccia )
 
-      ! Aero-snow
-      zccsa(:,:,:,:) = 0.
-      IF (lscgsa) &
-           CALL buildKernel( kbdim,klev,nbins,aero,nsnw,snow,ptemp,ppres,zccsa )
-
       ! Cloud-precp
       zccpc(:,:,:,:) = 0.
       IF (lscgpc) &
@@ -86,26 +69,10 @@ MODULE mo_salsa_coagulation_kernels
       IF (lscgic) &
            CALL buildKernel( kbdim,klev,ncld,cloud,nice,ice,ptemp,ppres,zccic )
 
-      ! Cloud-snow
-      zccsc(:,:,:,:) = 0.
-      IF (lscgsc) &
-           CALL buildKernel( kbdim,klev,ncld,cloud,nsnw,snow,ptemp,ppres,zccsc )
-
       ! Precp-ice
       zccip(:,:,:,:) = 0.
       IF (lscgip) &
            CALL buildKernel( kbdim,klev,nprc,precp,nice,ice,ptemp,ppres,zccip )
-
-      ! Precp-snow
-      zccsp(:,:,:,:) = 0.
-      IF (lscgsp) &
-           CALL buildKernel( kbdim,klev,nprc,precp,nsnw,snow,ptemp,ppres,zccsp )
-
-      ! ice-snow
-      zccsi(:,:,:,:) = 0.
-      IF (lscgsi) &
-           CALL buildKernel( kbdim,klev,nice,ice,nsnw,snow,ptemp,ppres,zccsi ) 
-
             
     END SUBROUTINE update_coagulation_kernels
 

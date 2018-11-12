@@ -1,5 +1,5 @@
 MODULE mo_salsa_cloud
-    USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow
+    USE mo_salsa_types, ONLY : aero, cloud, precp
     USE mo_submctl, ONLY : nbins, ncld, spec,          &
                            in1a,in2a,in2b,fn2a,fn2b,   &
                            ica,icb,fca,fcb,            &

@@ -12,15 +12,16 @@ MODULE mo_salsa_init
   USE classSpecies, ONLY : Species
 
   USE mo_submctl, ONLY : reglim,nbin,in1a,fn1a,in2a,fn2a,in2b,fn2b,           &
-                         ica,fca,icb,fcb,ira,fra,iia,fia,iib,fib,isa,fsa,     &  
-                         nbins, ncld, nprc, bloPrc, nice, nsnw, ntotal, nliquid, nfrozen,              &
-                         dlaero, dlcloud, dlprecp, dlice, dlsnow,             &
-                         aerobins,cloudbins,precpbins,icebins,snowbins,       &
+                         ica,fca,icb,fcb,ira,fra,iia,fia, & 
+                         nbins, ncld, nprc, bloPrc, nice, bloIce, ntotal, nliquid, nfrozen,              &
+                         dlaero, dlcloud, dlprecp, dlice, & 
+                         aerobins,cloudbins,precpbins,icebins, & 
                          spec, nspec_dry, listspec, nlim, prlim, massacc, pi6 
 
-  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow, allSALSA, frozen, liquid,        &
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, &
+                             allSALSA, frozen, liquid,        &
                              iaero, faero, icloud, fcloud, iprecp, fprecp,    &
-                             iice, fice, isnow, fsnow                      
+                             iice, fice
 
   USE mo_salsa_driver, ONLY : kbdim,klev
                              
@@ -40,16 +41,15 @@ CONTAINS
   ! Juha Tonttila, FMI, 2017
   !-----------------------------
 
-  SUBROUTINE set_masterbins(dumaero, dumcloud, dumprecp, dumice, dumsnow)
+  SUBROUTINE set_masterbins(dumaero, dumcloud, dumprecp, dumice) 
     TYPE(Section), INTENT(in) :: dumaero(kbdim,klev,nbins), dumcloud(kbdim,klev,ncld),  &
-                                 dumprecp(kbdim,klev,nprc), dumice(kbdim,klev,nice),   &
-                                 dumsnow(kbdim,klev,nsnw)
+                                 dumprecp(kbdim,klev,nprc), dumice(kbdim,klev,nice)
 
     INTEGER :: lo,hi
     INTEGER :: nspec
 
     nspec = spec%getNSpec()
-    ntotal = nbins+ncld+nprc+nice+nsnw
+    ntotal = nbins+ncld+nprc+nice ! +nsnw
 
     ! Allocate the combined particle size distribution array
     ALLOCATE(allSALSA(kbdim,klev,ntotal))
@@ -76,11 +76,6 @@ CONTAINS
     ice => allSALSA(:,:,lo:hi)
     iice = lo; fice = hi
 
-    lo = hi + 1 
-    hi = hi + nsnw
-    snow => allSALSA(:,:,lo:hi)
-    isnow = lo; fsnow = hi
-
     ! Associate some (potentially helpful) subcollections 
     ! (note: for this it is necessary to have all the particles containing liquid water consecutively, and then ice containing particles
     !  consecutively so that the indexing works)
@@ -90,7 +85,7 @@ CONTAINS
     nliquid = hi - (lo-1)
 
     lo = nbins + ncld + nprc + 1
-    hi = nbins + ncld + nprc + nice + nsnw
+    hi = nbins + ncld + nprc + nice 
     frozen => allSALSA(:,:,lo:hi)
     nfrozen = hi - (lo-1)
 
@@ -99,7 +94,6 @@ CONTAINS
     cloud = dumcloud
     precp = dumprecp
     ice = dumice
-    snow = dumsnow
 
   END SUBROUTINE set_masterbins
 
@@ -380,98 +374,52 @@ CONTAINS
    ! Jaakko Ahola (FMI) 2015
    !
    !---------------------------------------------------------------------------
-   SUBROUTINE set_icebins(dumaero,dumice,dumsnow)     
+   SUBROUTINE set_icebins(dumaero,dumice)     
      IMPLICIT NONE
      
      TYPE(Section), INTENT(in) :: dumaero(kbdim,klev,nbins)
-     TYPE(Section), INTENT(out), ALLOCATABLE :: dumice(:,:,:), dumsnow(:,:,:)
+     TYPE(Section), INTENT(out), ALLOCATABLE :: dumice(:,:,:)
      
      INTEGER :: ii,jj,bb,nba,nbb
      
-     REAL :: tmplolim(7), tmphilim(7)
+     REAL, ALLOCATABLE :: tmplolim(:), tmphilim(:)
 
      INTEGER :: nspec
      
      nspec = spec%getNSpec()
 
-     ! Helper arrays to set up snow size bins
-     tmplolim = (/50.,55.,65., 100.,200.,500., 1000./)*1.e-6
-     tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
+     nice = bloIce%nbins
      
-     ! Number of ice bins in regime a (soluble nuclei)
-     nba = fn2a-in2a+1
-     ! Number of cloud bins in regime b (insoluble nuclei)
-     nbb = nba
-     
-     ! Reset ice bin indices accordingly. The two components give the cloud regime index,
-     ! and the aerosol bin index with which they are parallel
-     iia%cur = 1;                iia%par = in2a
-     fia%cur = iia%cur + nba-1;  fia%par = iia%par + nba-1
-     iib%cur = fia%cur + 1;      iib%par = fn2b - nbb + 1
-     fib%cur = iib%cur + nbb-1;  fib%par = iib%par + nbb-1
-     
-     nice = fib%cur
-     
-     ! snow bins
-     isa = 1; fsa = 7;
-     nsnw = fsa
+     ! Bin diameter limits for precipitation bins
+     CALL buildBinLimits(bloIce, tmplolim, tmphilim)
+
+     iia = 1; fia = nice
      
      ! ----------------------------------------
      ! Allocate ice arrays
      ! ----------------------------------------
-     ALLOCATE(dumice(kbdim,klev,nice), dumsnow(kbdim,klev,nsnw))
+     ALLOCATE(dumice(kbdim,klev,nice)) 
      DO jj = 1,klev
         DO ii = 1,kbdim
            DO bb = 1,nice
               dumice(ii,jj,bb) = Section(4,prlim,dlice)
-           END DO
-           DO bb = 1,nsnw
-              dumsnow(ii,jj,bb) = Section(5,prlim,dlsnow)
            END DO
         END DO
      END DO
 
      DO jj = 1, klev
         DO ii = 1, kbdim
-           
-           ! -------------------------------------------------
-           ! Set iceproperties (parallel to aerosol bins) 
-           ! -------------------------------------------------
-           dumice(ii,jj,iia%cur:fia%cur)%vhilim = dumaero(ii,jj,iia%par:fia%par)%vhilim
-           dumice(ii,jj,iib%cur:fib%cur)%vhilim = dumaero(ii,jj,iib%par:fib%par)%vhilim
-           
-           dumice(ii,jj,iia%cur:fia%cur)%vlolim = dumaero(ii,jj,iia%par:fia%par)%vlolim
-           dumice(ii,jj,iib%cur:fib%cur)%vlolim = dumaero(ii,jj,iib%par:fib%par)%vlolim
-           
-           dumice(ii,jj,iia%cur:fia%cur)%vratiohi = dumaero(ii,jj,iia%par:fia%par)%vratiohi
-           dumice(ii,jj,iib%cur:fib%cur)%vratiohi = dumaero(ii,jj,iib%par:fib%par)%vratiohi
-           
-           dumice(ii,jj,iia%cur:fia%cur)%vratiolo = dumaero(ii,jj,iia%par:fia%par)%vratiolo
-           dumice(ii,jj,iib%cur:fib%cur)%vratiolo = dumaero(ii,jj,iib%par:fib%par)%vratiolo
-           
-           dumice(ii,jj,iia%cur:fia%cur)%dmid = dumaero(ii,jj,iia%par:fia%par)%dmid
-           dumice(ii,jj,iib%cur:fib%cur)%dmid = dumaero(ii,jj,iib%par:fib%par)%dmid
-           
-           ! Initialize the "wet" diameter as the dry mid diameter of the nucleus
-           dumice(ii,jj,iia%cur:fib%cur)%dwet = dumice(ii,jj,iia%cur:fib%cur)%dmid
-           
-           ! ---------------------------------------------------------------------------------------
-           ! Set the snow properties; unlike aerosol and cloud bins, the size distribution
-           ! goes according to the *wet* radius !!
-           ! ---------------------------------------------------------------------------------------
-           
-           DO bb = isa, fsa
-              
-              dumsnow(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3
-              dumsnow(ii,jj,bb)%vlolim = pi6*tmplolim(bb)**3
-              dumsnow(ii,jj,bb)%dmid = ( (dumsnow(ii,jj,bb)%vlolim + dumsnow(ii,jj,bb)%vhilim) /  &
+
+           DO bb = iia, fia
+              dumice(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3
+              dumice(ii,jj,bb)%vlolim = pi6*tmplolim(bb)**3
+              dumice(ii,jj,bb)%dmid = ( (dumice(ii,jj,bb)%vlolim + dumice(ii,jj,bb)%vhilim) /  &
                    (2.*pi6) )**(1./3.)
-              dumsnow(ii,jj,bb)%vratiohi = dumsnow(ii,jj,bb)%vhilim / ( pi6*dumsnow(ii,jj,bb)%dmid**3 )
-              dumsnow(ii,jj,bb)%vratiolo = dumsnow(ii,jj,bb)%vlolim / ( pi6*dumsnow(ii,jj,bb)%dmid**3 )
+              dumice(ii,jj,bb)%vratiohi = dumice(ii,jj,bb)%vhilim / ( pi6*dumice(ii,jj,bb)%dmid**3 )
+              dumice(ii,jj,bb)%vratiolo = dumice(ii,jj,bb)%vlolim / ( pi6*dumice(ii,jj,bb)%dmid**3 )
               
               ! Initialize the wet diameter as the bin mid diameter
-              dumsnow(ii,jj,bb)%dwet = dumsnow(ii,jj,bb)%dmid
-              
+              dumice(ii,jj,bb)%dwet = dumice(ii,jj,bb)%dmid
            END DO
            
         END DO
@@ -481,10 +429,6 @@ CONTAINS
      ALLOCATE(icebins(nice))
      DO bb = 1, nice
         icebins(bb) = (dumice(1,1,bb)%vlolim/pi6)**(1./3.)
-     END DO
-     ALLOCATE(snowbins(nsnw))
-     DO bb = 1, nsnw
-        snowbins(bb) = (dumsnow(1,1,bb)%vlolim/pi6)**(1./3.)
      END DO
      
    END SUBROUTINE set_icebins
@@ -532,7 +476,6 @@ CONTAINS
       USE mo_submctl, ONLY : lscoag,                &
                              lscnd,                 &
                              lsauto,                &
-                             lsautosnow,            &
                              lsactiv,               &
                              lsicenucl,             &
                              lsicemelt,             &
@@ -540,8 +483,7 @@ CONTAINS
                              lscgaa,lscgcc,lscgpp,  &
                              lscgca,lscgpa,lscgpc,  &
                              lscgia,lscgic,lscgii,  &
-                             lscgip,lscgsa,lscgsc,  &
-                             lscgsi,lscgsp,lscgss,  &
+                             lscgip,  & 
 
                              lscndgas,                    &
                              lscndh2oae,lscndh2ocl,       &
@@ -554,7 +496,7 @@ CONTAINS
 
                              bloPrc,                      &                            
                              nbin,reglim,                 &
-                             nice,nsnw,                   &
+                             nice,                   &
                              nspec_dry,listspec,          &
                              volDistA, volDistB,          &
                              nf2a, isdtyp,                &
@@ -570,7 +512,6 @@ CONTAINS
          lscoag,      &
          lscnd,       &
          lsauto,      &     ! mode 1: parameterized simple autoconversion, mode 2: more elaborate precipitation formation based on coagulation
-         lsautosnow,  &
          lsactiv,     &     ! mode 1: Aerosol growth-based activation, mode 2: Parameterized cloud base activation 
          lsicenucl,   &
          lsicemelt,   &
@@ -586,11 +527,6 @@ CONTAINS
          lscgic,      & ! Collection of cloud droplets by ice particles
          lscgii,      & ! Collision-coalescence between ice particles
          lscgip,      & ! Collection of precipitation by ice particles
-         lscgsa,      & ! Collection of aerosols by snow
-         lscgsc,      & ! Collection of cloud droplets by snow
-         lscgsi,      & ! Collection of ice by snow
-         lscgsp,      & ! Collection of precipitation by snow
-         lscgss,      & ! Collision-coalescence between snow particles
 
          lscndgas,    & ! Condensation of precursor gases
          lscndh2ocl,    & ! Condensation of water vapour on clouds (drizzle)
@@ -604,12 +540,9 @@ CONTAINS
          ice_hom,     & ! Switch for homogeneous ice nucleation
          ice_imm,     & ! .. for immersio freezing
          ice_dep,     & ! .. for deposition freezing
-
-         nbin,        & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
-         nice,        & ! number of ice bins  DONT USE YET, WILL NOT WORK
-         nsnw,        & ! number of snow bins DONT USE YET, WILL NOT WORK
          
          bloPrc,      & ! Precipitation bin definitions
+         bloIce,      & ! Ice bin definitions
          
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          reglim,        & ! Low/high diameter limits of the 2 aerosol size regimes (1d table with length 4)
@@ -647,15 +580,9 @@ CONTAINS
             lscgic      = .false.
             lscgii      = .false.
             lscgip      = .false.
-            lscgsa      = .false.
-            lscgsc      = .false.
-            lscgsi      = .false.
-            lscgsp      = .false.
-            lscgss      = .false.
 
             lscndh2oic  = .false.
 
-            lsautosnow%switch = .FALSE.
             lsicenucl%switch = .FALSE.
             lsicemelt%switch = .FALSE.
 
@@ -672,7 +599,7 @@ CONTAINS
    SUBROUTINE associate_master_switches
      USE classProcessSwitch, ONLY : ProcessSwitch
      USE mo_submctl, ONLY : Nmaster, lsmaster, lscoag, lscnd, lsauto,  &
-                            lsautosnow, lsactiv, lsicenucl,   &
+                            lsactiv, lsicenucl,   &
                             lsicemelt, lsfreeRH
      IMPLICIT NONE
      
@@ -687,10 +614,9 @@ CONTAINS
      lscoag => lsmaster(1)
      lscnd => lsmaster(2)
      lsauto => lsmaster(3)
-     lsautosnow => lsmaster(4)
-     lsactiv => lsmaster(5)
-     lsicenucl => lsmaster(6)
-     lsicemelt => lsmaster(7)
+     lsactiv => lsmaster(4)
+     lsicenucl => lsmaster(5)
+     lsicemelt => lsmaster(6)
 
      ! Use this to initialize also some other switches
      lsfreeRH = ProcessSwitch()
@@ -698,12 +624,13 @@ CONTAINS
    END SUBROUTINE associate_master_switches
    
    SUBROUTINE setDefaultBinLayouts
-     USE mo_submctl, ONLY : bloPrc
+     USE mo_submctl, ONLY : bloPrc, bloIce
      USE classBinLayout, ONLY : BinLayout
      IMPLICIT NONE
 
      bloPrc = BinLayout(20,20.e-6,2.)
-    
+     bloIce = BinLayout(20,20.e-6,2.)
+     
    END SUBROUTINE setDefaultBinLayouts
    
 
@@ -726,14 +653,12 @@ CONTAINS
 
       !
       !-------------------------------------------------------------------------------
-
-
       IMPLICIT NONE
 
       ! Dummy size distributions just for setting everything up!!
       ! May not be the smartest or the fastest way, but revise later... 
       TYPE(Section), ALLOCATABLE :: dumaero(:,:,:), dumcloud(:,:,:), dumprecp(:,:,:), &
-                                      dumice(:,:,:), dumsnow(:,:,:)
+                                      dumice(:,:,:)
       INTEGER :: nspec
 
       ! --1) Set derived indices
@@ -764,24 +689,20 @@ CONTAINS
 
       CALL set_cloudbins(dumaero, dumcloud, dumprecp)
 
-      CALL set_icebins(dumaero, dumice, dumsnow)
+      CALL set_icebins(dumaero, dumice) 
 
-      CALL set_masterbins(dumaero, dumcloud, dumprecp, dumice, dumsnow)
+      CALL set_masterbins(dumaero, dumcloud, dumprecp, dumice) 
 
       ! Initialize aerosol optical properties - uses settings from "spec"
       CALL initialize_optical_properties()
       
       ! Initialize the coagulation kernel arrays and sink/source term arrays for processes
       nspec = spec%getNSpec()
-      !CALL initialize_coagulation_kernels(kbdim,klev)
-      !CALL initialize_coagulation_processes(kbdim,klev,nspec)
-
 
       IF ( ALLOCATED(dumaero) ) DEALLOCATE(dumaero)
       IF ( ALLOCATED(dumcloud)) DEALLOCATE(dumcloud)
       IF ( ALLOCATED(dumprecp)) DEALLOCATE(dumprecp)
       IF ( ALLOCATED(dumice)) DEALLOCATE(dumice)
-      IF ( ALLOCATED(dumsnow)) DEALLOCATE(dumsnow)
 
    END SUBROUTINE salsa_initialize
 

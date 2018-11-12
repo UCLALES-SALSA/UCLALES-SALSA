@@ -100,20 +100,19 @@ CONTAINS
                        dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                        filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
                        nfpt, distim, runtype, CCN,sst,W1,W2,W3, lbinanl, &
-                       cntlat
+                       cntlat, salsa_b_bins
       USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                        zrand, zrndamp, init_type
       USE init_warm_bubble, ONLY : bubble_center, bubble_diameter, bubble_temp_ampl
-      USE stat, ONLY : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
+      !USE stat, ONLY : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
       USE forc, ONLY : div, case_name     ! Divergence, forcing case name
       USE radiation_main, ONLY : radsounding,   &
                                  sfc_albedo,    &
                                  useMcICA,      &
                                  laerorad,      &
                                  RadConstPress, &
-                                 RadPrecipBins, &
-                                 RadSnowBins
-      USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, init_mcrp_switches, &
+                                 RadPrecipBins
+      USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, init_mcrp_switches, &
                        bulk_autoc
       USE mpi_interface, ONLY : myid, appl_abort, ver, author
       
@@ -123,12 +122,12 @@ CONTAINS
            expnme    ,       & ! experiment name
            nxpart    ,       & ! whether partition in x direction?
            naddsc    ,       & ! Number of additional scalars
-           savg_intvl,       & ! output statistics frequency
-           ssam_intvl,       & ! integral accumulate/ts print frequency
-           mcflg,            & ! Mass conservation stats flag
-           csflg,            & ! Column statistics flag
+           !savg_intvl,       & ! output statistics frequency
+           !ssam_intvl,       & ! integral accumulate/ts print frequency
+           !mcflg,            & ! Mass conservation stats flag
+           !csflg,            & ! Column statistics flag
            salsa_b_bins,     & ! b-bins output statistics flag
-           cloudy_col_stats, & ! Output column statistics for cloudy/clear column
+           !cloudy_col_stats, & ! Output column statistics for cloudy/clear column
            corflg , cntlat , & ! coriolis flag
            nfpt   , distim , & ! rayleigh friction points, dissipation time
            level  , CCN    , & ! Microphysical model Number of CCN per kg of air
@@ -145,7 +144,7 @@ CONTAINS
            lnudging, lemission,       & ! master switch for nudging, aerosol emissions
            lbinanl,          &          ! 
            div, case_name, &            ! divergence for LEVEL 4
-           sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow,  & ! Sedimentation (T/F)
+           sed_aero, sed_cloud, sed_precp, sed_ice,  & ! Sedimentation (T/F)
            bulk_autoc                                            ! autoconversion (and accretion) switch for level < 4 
 
       NAMELIST /initialization/      &
@@ -165,8 +164,7 @@ CONTAINS
            useMcICA,                 & ! Use the Monte Carlo Independent Column Approximation method (T/F)
            laerorad,                 & ! Use the binned aerosol data for radiation (with SALSA)
            RadConstPress,            & ! keep constant pressure levels (T/F) 
-           RadPrecipBins,            & ! add precipitation bins cloud water (0, 1, 2, 3,...)
-           RadSnowBins              ! add snow bins to cloud ice (0, 1, 2, 3,...)
+           RadPrecipBins               ! add precipitation bins cloud water (0, 1, 2, 3,...)
       
       NAMELIST /nudge/   &
            nudge_time,                       & ! Total nudging time (independent of spin-up)
