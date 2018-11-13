@@ -99,8 +99,10 @@ MODULE mo_salsa_coagulation_kernels
 
               DO mm = 1,nb1
                  CALL pp1(mm)%updateDiameter(limit=.TRUE.)
+	         CALL pp1(mm)%updateRhomean()
               END DO
-              zmass(1:nb1) = spec%rhowa*pi6*pp1(1:nb1)%dwet**3
+              zmass(1:nb1) = pp1(1:nb1)%rhomean*pi6*pp1(1:nb1)%dwet**3
+              zdiam(1:nb1) = pp1(1:nb1)%dwet
               
               DO mm = 1, nb1         ! smaller colliding particle
                  

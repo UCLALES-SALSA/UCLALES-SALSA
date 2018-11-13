@@ -228,7 +228,7 @@ cat > NAMELIST <<EOF
    ice_imm     = .TRUE.
    ice_dep     = .TRUE.
 
-   lscheckarrays = .FALSE.
+   lscheckarrays = .TRUE.
    lsdistupdate = .TRUE.
 
    ! Precipitation bin layout parameters
