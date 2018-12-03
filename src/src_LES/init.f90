@@ -804,15 +804,14 @@ CONTAINS
     USE mo_salsa_sizedist, ONLY : size_distribution
     USE mo_salsa_types, ONLY : aero
     USE mo_submctl, ONLY : pi6, nmod, nbins, nspec_dry, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
-                           sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp
+                           sigmagA, dpgA, nA, sigmagB, dpgB, nB, volDistA, volDistB, nreg,isdtyp
     USE mpi_interface, ONLY : myid
     USE util, ONLY : getMassIndex
 
     IMPLICIT NONE
-    REAL :: core(nbins), nsect(1,1,nbins)             ! Size of the bin mid aerosol particle, local aerosol size dist
+    REAL :: core(nbins), nsectA(1,1,nbins), nsectB(1,1,nbins)   ! Size of the bin mid aerosol particle, local aerosol size dist
     REAL :: pndist(nzp,nbins)                         ! Aerosol size dist as a function of height
     REAL :: pvf2a(nzp,nspec_dry), pvf2b(nzp,nspec_dry)        ! Mass distributions of aerosol species for a and b-bins
-    REAL :: pnf2a(nzp)                                ! Number fraction for bins 2a
     REAL :: pvfOC1a(nzp)                              ! Mass distribution between SO4 and OC in 1a
     INTEGER :: ss,ee,i,j,k
     INTEGER :: iso4 = -1, ioc = -1, ibc = -1, idu = -1, &
@@ -832,7 +831,7 @@ CONTAINS
     ! Set concentrations to zero
     pndist = 0.
     pvf2a = 0.; pvf2b = 0.
-    pnf2a = 0.; pvfOC1a = 0.
+    pvfOC1a = 0.
 
     a_maerop(:,:,:,:) = 0.0
     a_naerop(:,:,:,:) = 0.0
@@ -880,7 +879,7 @@ CONTAINS
     ! ---------------------------------------------------------------------------------------------------
     IF (isdtyp == 1) THEN
 
-       CALL READ_AERO_INPUT(pndist,pvfOC1a,pvf2a,pvf2b,pnf2a)
+       CALL READ_AERO_INPUT(pndist,pvfOC1a,pvf2a,pvf2b)
 
     !
     ! Uniform profiles based on namelist parameters
@@ -906,19 +905,21 @@ CONTAINS
           pvf2b(:,ss) = volDistB(ss)
        END DO
 
-       ! Number fraction for 2a
-       pnf2a(:) = nf2a
        !
        ! Uniform aerosol size distribution with height.
        ! Using distribution parameters (n, dpg and sigmag) from the SALSA namelist
        !
        ! Convert to SI
-       nsect = 0.
-       n = n*1.e6
-       dpg = dpg*1.e-6
-       CALL size_distribution(1,1,1, nmod, n, dpg, sigmag, nsect)
+       nsectA = 0.
+       nsectB = 0.
+       nA = nA*1.e6
+       nB = nB*1.e6
+       dpgA = dpgA*1.e-6
+       dpgB = dpgB*1.e-6 
+       CALL size_distribution(1,1,1, nmod, in1a, fn2a, nA, dpgA, sigmagA, nsectA)
+       CALL size_distribution(1,1,1, nmod, in2b, fn2b, nB, dpgB, sigmagB, nsectB)
        DO ss = 1, nbins
-          pndist(:,ss) = nsect(1,1,ss)
+          pndist(:,ss) = nsectA(1,1,ss) + nsectB(1,1,ss)
        END DO
 
     END IF
@@ -938,8 +939,8 @@ CONTAINS
 
              ! Region 2
              IF (nreg > 1) THEN
-                a_naerop(k,i,j,in2a:fn2a) = max(0.0,pnf2a(k))*pndist(k,in2a:fn2a)
-                a_naerop(k,i,j,in2b:fn2b) = max(0.0,1.0-pnf2a(k))*pndist(k,in2a:fn2a)
+                a_naerop(k,i,j,in2a:fn2a) = pndist(k,in2a:fn2a)
+                a_naerop(k,i,j,in2b:fn2b) = pndist(k,in2b:fn2b)
              END IF
 
              !
@@ -966,7 +967,7 @@ CONTAINS
 
     IF (nreg > 1) THEN
        DO ss = 1,nspec_dry
-          CALL setAeroMass(spec%ind(ss),pvf2a,pvf2b,pnf2a,pndist,core,spec%rholiq(ss))
+          CALL setAeroMass(spec%ind(ss),pvf2a,pvf2b,pndist,core,spec%rholiq(ss))
        END DO
     END IF
        
@@ -1003,7 +1004,7 @@ CONTAINS
  ! Sets the mass concentrations to aerosol arrays in 2a and 2b
  !
  !
- SUBROUTINE setAeroMass(ispec,ppvf2a,ppvf2b,ppnf2a,ppndist,pcore,prho)
+ SUBROUTINE setAeroMass(ispec,ppvf2a,ppvf2b,ppndist,pcore,prho)
     USE mo_submctl, ONLY : nbins, in2a,fn2a,in2b,fn2b,nspec_dry
     USE util, ONLY : getMassIndex
     
@@ -1011,7 +1012,6 @@ CONTAINS
     
     INTEGER, INTENT(in) :: ispec                             ! Aerosol species index
     REAL, INTENT(in) :: ppvf2a(nzp,nspec_dry), ppvf2b(nzp,nspec_dry) ! Mass distributions for a and b bins
-    REAL, INTENT(in) :: ppnf2a(nzp)                          ! Number fraction for 2a
     REAL, INTENT(in) :: ppndist(nzp,nbins)                   ! Aerosol size distribution
     REAL, INTENT(in) :: pcore(nbins)                         ! Aerosol bin mid core volume
     REAL, INTENT(in) :: prho                                 ! Aerosol density
@@ -1025,13 +1025,13 @@ CONTAINS
              ! 2a
              ss = getMassIndex(nbins,in2a,ispec); ee = getMassIndex(nbins,fn2a,ispec)
              a_maerop(k,i,j,ss:ee) =      &
-                max( 0.0,ppvf2a(k,ispec) )*ppnf2a(k) * &
+                max( 0.0,ppvf2a(k,ispec) ) * &
                 ppndist(k,in2a:fn2a)*pcore(in2a:fn2a)*prho
              ! 2b
              ss = getMassIndex(nbins,in2b,ispec); ee = getMassIndex(nbins,fn2b,ispec)
              a_maerop(k,i,j,ss:ee) =      &
-                max( 0.0,ppvf2b(k,ispec) )*(1.0-ppnf2a(k)) * &
-                ppndist(k,in2a:fn2a)*pcore(in2a:fn2a)*prho
+                max( 0.0,ppvf2b(k,ispec) ) * &
+                ppndist(k,in2b:fn2b)*pcore(in2b:fn2b)*prho
           END DO
        END DO
     END DO
@@ -1042,9 +1042,9 @@ CONTAINS
  ! Reads vertical profiles of aerosol size distribution parameters, aerosol species volume fractions and
  ! number concentration fractions between a and b bins
  !
- SUBROUTINE READ_AERO_INPUT(ppndist,ppvfOC1a,ppvf2a,ppvf2b,ppnf2a)
+ SUBROUTINE READ_AERO_INPUT(ppndist,ppvfOC1a,ppvf2a,ppvf2b)
     USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
-    USE mo_submctl, ONLY : nbins,  &
+    USE mo_submctl, ONLY : nbins, in1a, fn2a, in2b, fn2b,  &
                            nspec_dry, maxspec, nmod
     USE mo_salsa_sizedist, ONLY : size_distribution
     USE mpi_interface, ONLY : appl_abort, myid
@@ -1052,24 +1052,28 @@ CONTAINS
 
     REAL, INTENT(out) :: ppndist(nzp,nbins)                   ! Aerosol size dist as a function of height
     REAL, INTENT(out) :: ppvf2a(nzp,nspec_dry), ppvf2b(nzp,nspec_dry) ! Volume distributions of aerosol species for a and b-bins
-    REAL, INTENT(out) :: ppnf2a(nzp)                          ! Number fraction for bins 2a
     REAL, INTENT(out) :: ppvfOC1a(nzp)                        ! Volume distribution between SO4 and OC in 1a
 
-    REAL :: nsect(1,1,nbins)
+    REAL :: nsectA(1,1,nbins), nsectB(1,1,nbins)
 
     INTEGER :: ncid, k, i
     INTEGER :: nc_levs=500, nc_nspec, nc_nmod
+
+    REAL :: pndistA(nzp,nbins), pndistB(nzp,nbins)
 
     ! Stuff that will be read from the file
     REAL, ALLOCATABLE :: zlevs(:),        &  ! Levels in meters
                          zvolDistA(:,:),  &  ! Volume distribution of aerosol species in a and b bins
                          zvoldistB(:,:),  &  ! (Don't mess these with the ones in namelist.salsa -
                                              !  they are not used here!)
-                         znf2a(:),        &  ! Number fraction for bins 2a
-                         zn(:,:),         &  ! Aerosol mode number concentrations
-                         zsigmag(:,:),    &  ! Geometric standard deviations
-                         zdpg(:,:),       &  ! Mode mean diameters
-                         znsect(:,:),     &  ! Helper for binned number concentrations
+                         znA(:,:),         &  ! Aerosol mode number concentrations, regime A
+                         zsigmagA(:,:),    &  ! Geometric standard deviations, regime A
+                         zdpgA(:,:),       &  ! Mode mean diameters, regime A
+                         znB(:,:),         &  ! number concentration for regime B
+                         zsigmagB(:,:),    &  ! getometric std, regime B
+                         zdpgB(:,:),       &  ! Mode mean diameter, regime B
+                         znsectA(:,:),     &  ! Helper for binned number concentrations regime A
+                         znsectB(:,:),     &  ! - '' - regime B
                          helper(:,:)         ! nspec helper
     LOGICAL :: READ_NC
 
@@ -1086,26 +1090,31 @@ CONTAINS
     ALLOCATE( zlevs(nc_levs),              &
               zvolDistA(nc_levs,maxspec),  &
               zvolDistB(nc_levs,maxspec),  &
-              znf2a(nc_levs),              &
-              zn(nc_levs,nmod),            &
-              zsigmag(nc_levs,nmod),       &
-              zdpg(nc_levs,nmod),          &
+              znA(nc_levs,nmod),           &
+              zsigmagA(nc_levs,nmod),      &
+              zdpgA(nc_levs,nmod),         &
+              znB(nc_levs,nmod),           &
+              zsigmagB(nc_levs,nmod),      &
+              zdpgB(nc_levs,nmod),         &
         ! Couple of helper arrays
-              znsect(nc_levs,nbins),       &
-              helper(nc_levs,nspec_dry)        )
+              znsectA(nc_levs,nbins),      &
+              znsectB(nc_levs,nbins),      &
+              helper(nc_levs,nspec_dry)    )
 
-    zlevs = 0.; zvolDistA = 0.; zvolDistB = 0.; znf2a = 0.; zn = 0.; zsigmag = 0.
-    zdpg = 0.; znsect = 0.; helper = 0.
+    zlevs = 0.; zvolDistA = 0.; zvolDistB = 0.; znA = 0.; zsigmagA = 0.
+    zdpgA = 0.; znB = 0.; zsigmagB = 0.; zdpgB = 0.; znsectA = 0.; znsectB = 0.; helper = 0.
 
     IF (READ_NC) THEN
        ! Read the aerosol profile data
        CALL read_aero_nc_1d(ncid,'levs',nc_levs,zlevs)
        CALL read_aero_nc_2d(ncid,'volDistA',nc_levs,maxspec,zvolDistA)
        CALL read_aero_nc_2d(ncid,'volDistB',nc_levs,maxspec,zvolDistB)
-       CALL read_aero_nc_1d(ncid,'nf2a',nc_levs,znf2a)
-       CALL read_aero_nc_2d(ncid,'n',nc_levs,nmod,zn)
-       CALL read_aero_nc_2d(ncid,'dpg',nc_levs,nmod,zdpg)
-       CALL read_aero_nc_2d(ncid,'sigmag',nc_levs,nmod,zsigmag)
+       CALL read_aero_nc_2d(ncid,'nA',nc_levs,nmod,znA)
+       CALL read_aero_nc_2d(ncid,'nB',nc_levs,nmod,znB)
+       CALL read_aero_nc_2d(ncid,'dpgA',nc_levs,nmod,zdpgA)
+       CALL read_aero_nc_2d(ncid,'dpgB',nc_levs,nmod,zdpgB)
+       CALL read_aero_nc_2d(ncid,'sigmagA',nc_levs,nmod,zsigmagA)
+       CALL read_aero_nc_2d(ncid,'sigmagB',nc_levs,nmod,zsigmagB)
 
        CALL close_aero_nc(ncid)
     ELSE
@@ -1115,10 +1124,12 @@ CONTAINS
           READ(11,*,end=100) zlevs(i)
           READ(11,*,end=100) (zvolDistA(i,k),k=1,nspec_dry) ! Note: reads just "nspec_dry" values from the current line
           READ(11,*,end=100) (zvolDistB(i,k),k=1,nspec_dry) ! -||-
-          READ(11,*,end=100) (zn(i,k),k=1,nmod)
-          READ(11,*,end=100) (zdpg(i,k),k=1,nmod)
-          READ(11,*,end=100) (zsigmag(i,k),k=1,nmod)
-          READ(11,*,end=100) znf2a(i)
+          READ(11,*,end=100) (znA(i,k),k=1,nmod)
+          READ(11,*,end=100) (znB(i,k),k=1,nmod)
+          READ(11,*,end=100) (zdpgA(i,k),k=1,nmod)
+          READ(11,*,end=100) (zdpgB(i,k),k=1,nmod)
+          READ(11,*,end=100) (zsigmagA(i,k),k=1,nmod)
+          READ(11,*,end=100) (zsigmagB(i,k),k=1,nmod)
        END DO
 100 CONTINUE
     CLOSE(11)
@@ -1134,23 +1145,29 @@ CONTAINS
  END IF
 
  ! Convert to SI
- zn = zn*1.e6
- zdpg = zdpg*1.e-6
+ znA = znA*1.e6
+ znB = znB*1.e6
+ zdpgA = zdpgA*1.e-6
+ zdpgB = zdpgB*1.e-6
 
  ! Get the binned size distribution
- znsect = 0.
+ znsectA = 0.
+ znsectB = 0.
  DO k = 1, nc_levs
-    CALL size_distribution(1,1,1,nmod,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
-    znsect(k,:) = nsect(1,1,:)
+    CALL size_distribution(1,1,1,nmod,in1a,fn2a,znA(k,:),zdpgA(k,:),zsigmagA(k,:),nsectA)
+    CALL size_distribution(1,1,1,nmod,in2b,fn2b,znB(k,:),zdpgB(k,:),zsigmagB(k,:),nsectB)
+    znsectA(k,:) = nsectA(1,1,:)
+    znsectB(k,:) = nsectB(1,1,:)
  END DO
 
  ! Interpolate the input variables to model levels
  ! ------------------------------------------------
  CALL htint2d(nc_levs,zvolDistA(1:nc_levs,1:nspec_dry),zlevs(1:nc_levs),nzp,ppvf2a,zt,nspec_dry)
  CALL htint2d(nc_levs,zvolDistB(1:nc_levs,1:nspec_dry),zlevs(1:nc_levs),nzp,ppvf2b,zt,nspec_dry)
- CALL htint2d(nc_levs,znsect(1:nc_levs,:),zlevs(1:nc_levs),nzp,ppndist,zt,nbins)
- CALL htint(nc_levs,znf2a(1:nc_levs),zlevs(1:nc_levs),nzp,ppnf2a,zt)
-
+ CALL htint2d(nc_levs,znsectA(1:nc_levs,:),zlevs(1:nc_levs),nzp,pndistA,zt,nbins)
+ CALL htint2d(nc_levs,znsectB(1:nc_levs,:),zlevs(1:nc_levs),nzp,pndistB,zt,nbins)
+ ppndist = pndistA + pndistB
+ 
  ! Since 1a bins by SALSA convention can only contain SO4 or OC,
  ! get renormalized mass fractions.
  ! --------------------------------------------------------------
@@ -1167,7 +1184,7 @@ CONTAINS
     STOP 'Either OC or SO4 must be active for aerosol region 1a!'
  END IF
 
- DEALLOCATE( zlevs, zvolDistA, zvolDistB, znf2a, zn, zsigmag, zdpg, znsect, helper )
+ DEALLOCATE( zlevs, zvolDistA, zvolDistB, znA, znB, zsigmagA, zsigmagB, zdpgA, zdpgB, znsectA, znsectB, helper )
 
  END SUBROUTINE READ_AERO_INPUT
 

@@ -426,7 +426,7 @@ CONTAINS
 
     DO jj = 1, klev
        DO ii = 1, kbdim
-          IF ( prv(ii,jj)/prs(ii,jj) <= 1.000 ) CYCLE  ! Allow activation in slightly less than 100% RH, which should theoretically be possible for some special circumstances
+          IF ( prv(ii,jj)/prs(ii,jj) <= 1.000 ) CYCLE  
           
           zkelvin = 4.*spec%mwa*surfw0/(rg*spec%rhowa*temp(ii,jj)) ! Kelvin effect [m]
             

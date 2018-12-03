@@ -479,10 +479,10 @@ MODULE constrain_SALSA
 
   END SUBROUTINE SALSA_diagnostics
 
-
   !
   ! ----------------------------------------------------------------------
   !
+
   INTEGER FUNCTION findDry4Wet(nevap,mevap,nb,nsp,ib,iz,ix,iy,iphase)
     USE grid, ONLY : nzp,nxp,nyp
     USE mo_submctl, ONLY : in2a,fn2a,fn1a,nbins,pi6

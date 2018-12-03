@@ -489,18 +489,19 @@ CONTAINS
                              lscndh2oae,lscndh2ocl,       &
                              lscndh2oic,                  &
 
-                             lsdistupdate,          &
-                             lscheckarrays,         &
-                             fixINC,                &
-                             ice_hom, ice_imm, ice_dep, &
+                             lsdistupdate,                &
+                             lscheckarrays,               &
+                             fixINC,                      &
+                             ice_hom, ice_imm, ice_dep,   &
 
                              bloPrc,                      &                            
                              nbin,reglim,                 &
-                             nice,                   &
+                             nice,                        &
                              nspec_dry,listspec,          &
                              volDistA, volDistB,          &
-                             nf2a, isdtyp,                &
-                             sigmag,dpg,n,                &
+                             isdtyp,                      &
+                             sigmagA,dpgA,nA,             &
+                             sigmagB,dpgB,nB,             &
                              lsfreeRH,rhlim
 
       IMPLICIT NONE
@@ -553,15 +554,16 @@ CONTAINS
          volDistA,      & ! Initial relative contribution [0-1] of each species to particle volume in a-bins. Must be
                           ! an array of length 7, with zero for unused species.
          volDistB,      & ! Same as above but for b-bins
-         nf2a,          & ! Number fraction of particles allocated to a-bins in regime 2. b-bins will get 1-nf2a
-
          lsfreeRH,      & ! Switch for using rhlim
          rhlim,         & ! Upper limit RH/100 for sals during initialization and spinup 
 
-         sigmag,        & ! Stdev for the 7 initial lognormal modes
-         dpg,           & ! Mean diameter for the 7 initial lognormal modes
-         n                ! Number concentration for the 7 initial lognormal modes
-
+         sigmagA,        & ! Stdev for the 7 initial lognormal modes
+         dpgA,           & ! Mean diameter for the 7 initial lognormal modes
+         nA,             & ! Number concentration for the 7 initial lognormal modes
+         sigmagB,         &
+         dpgB,           &
+         nB
+         
 
       ! Associate master switch pointers before reading NAMELIST
       CALL associate_master_switches()

@@ -3,7 +3,7 @@ MODULE mo_salsa_sizedist
 
 CONTAINS
 
-   SUBROUTINE size_distribution( kproma, kbdim, klev, nmod, &
+   SUBROUTINE size_distribution( kproma, kbdim, klev, nmod, nstr, nend,  &
                                  n, dpg, sigmag, naero)
 
       USE mo_submctl, ONLY :      &
@@ -17,8 +17,9 @@ CONTAINS
 
       !INTEGER, PARAMETER :: nmod = 7
       INTEGER, INTENT(in) :: nmod
-
-      INTEGER, INTENT(IN) ::      &
+      INTEGER, INTENT(in) :: nstr, nend  ! Start and end bin indices
+      
+      INTEGER, INTENT(IN) ::      &          
          kproma,                    & ! number of horiz. grid points
          kbdim,                     & ! dimension for arrays
          klev                         ! number of vertical levels
@@ -44,14 +45,14 @@ CONTAINS
       DO jj = 1, klev    ! vertical grid
          DO ii = 1, kbdim ! horizontal grid
 
-            DO kk = in1a, fn2b
+            DO kk = nstr, nend
                naero(ii,jj,kk) = 0.0
 
                d1 = (aero(ii,jj,kk)%vlolim/pi6)**(1./3.)
                d2 = (aero(ii,jj,kk)%vhilim/pi6)**(1./3.)
                delta_d = (d2-d1)/10
                DO ib = 1, 10
-                  d1 = (aero(ii,jj,kk)%vlolim/pi6)**(1./3.)+(ib-1.)*delta_d
+                  d1 = (aero(ii,jj,kk)%vlolim/pi6)**(1./3.)+(REAL(ib)-1.)*delta_d
                   d2 = d1+delta_d
                   dmid = (d1+d2)/2
                   deltadp = log(d2/d1)

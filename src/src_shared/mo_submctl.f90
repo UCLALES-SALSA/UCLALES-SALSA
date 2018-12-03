@@ -77,7 +77,9 @@ MODULE mo_submctl
                                   ! 2 = coagulational sink (Lehtinen et al. 2007)
                                   ! 3 = coagS+self-coagulation (Anttila et al. 2010)
   REAL :: act_coeff = 1.e-7  ! activation coefficient
-  
+
+  ! SALSA size distribution definitions
+  ! ================================================================================================
   ! Define which aerosol species used and initial size distributions
   TYPE(Species), TARGET :: spec  ! Must be initialized in mo_salsa_init (pointer associations). Holds aerosol species indices and properties
   INTEGER :: nspec_dry = 1
@@ -86,9 +88,23 @@ MODULE mo_submctl
   ! Volume fractions between aerosol species for A and B-bins
   REAL :: volDistA(maxspec) = (/1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
   REAL :: volDistB(maxspec) = (/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
-  ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
-  REAL :: nf2a = 1.0
 
+  INTEGER :: isdtyp = 0  ! Type of input aerosol size distribution: 0 - Uniform
+                         !                                          1 - Read vertical profile of the mode
+                         !                                              number concentrations from an input file
+
+  ! Geometric standard deviation, mode mean diameter (um) and mode concentration in #/mg (~ #/cm3)
+  ! Separate for A and B regimes
+  REAL :: sigmagA(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/),               & 
+          dpgA(nmod) = (/0.03, 0.15, 0.2, 0.2, 0.2, 0.2, 0.2/),          & 
+          nA(nmod) = (/1600.,640.,0.,0.,0.,0.,0./)                  
+  REAL :: sigmagB(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/),                &
+          dpgB(nmod) = (/0.03,0.15,0.2,0.2,0.2,0.2,0.2/),                &
+          nB(nmod) = (/0.,0.,0.,0.,0.,0.,0./)
+  
+  ! ==================================================================================================
+  
+  
   ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
   ! a) Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
   REAL :: fixinc = -1.0 ! Default = disabled
@@ -96,15 +112,6 @@ MODULE mo_submctl
   !                               do the fixed thing with the condition nlicenucl = false and fixinc > 0.,
   !                               otherwise physical nucleation.
   LOGICAL :: ice_hom = .FALSE., ice_imm=.FALSE., ice_dep=.FALSE. ! Available ice nucleation modes
-
-
-  INTEGER :: isdtyp = 0  ! Type of input aerosol size distribution: 0 - Uniform
-                         !                                          1 - Read vertical profile of the mode
-                         !                                              number concentrations from an input file
-
-  REAL :: sigmag(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/),               & ! Stdev
-          dpg(nmod) = (/0.03, 0.15, 0.2, 0.2, 0.2, 0.2, 0.2/),    & ! Mode diam in um
-          n(nmod) = (/1600.,640.,0.,0.,0.,0.,0./)                   ! #/mg ~ #/cm3
 
   INTEGER, PARAMETER ::            &
        nreg = 2                          ! number of main size regimes

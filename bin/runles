@@ -108,8 +108,8 @@ cat > NAMELIST <<EOF
 &initialization
   init_type         = 2       ! 1: random perturbations, 2: warm bubble
   bubble_center     = 1000.,0.,0.
-  bubble_diameter   = 2000.,8000.,8000.
-  bubble_temp_ampl  = 4.
+  bubble_diameter   = 1500.,6000.,6000.
+  bubble_temp_ampl  = 1.5
   th00              = 300.    ! Reference temperature
   umean             = 0.                
   vmean             = 0.
@@ -248,15 +248,21 @@ cat > NAMELIST <<EOF
    isdtyp = 0
    nspec_dry = 2
    listspec = 'SO4','DU','','','','',''
-   volDistA = 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0   
-   volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-   nf2a = 1.0
 
-   sigmag = 1.2, 1.7, 1.5, 2.0, 2.0, 2.0, 2.0  ! Stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
-   dpg = 0.022, 0.12, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   n = 800., 800., 1., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
+   ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
+   volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+   ! The number of entries must comply with the max number of _modes_ (currently 7)  
+   sigmagA  = 1.55, 1.8, 1.5, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
+   dpgA     = 0.022, 0.1, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
+   nA       = 2200., 3000., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
+
+   ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
+   volDistB = 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0
+   ! The number of entries must comply with the max number of _modes_ (currently 7)
+   sigmagB  = 1.2, 1.7, 1.6, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform) 
+   dpgB     = 0.022, 0.12, 1.8, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
+   nB       = 0., 0., 40., 0., 0., 0., 0.             ! Mode number concentrations in #/cm^3 
 /
-
 
 EOF
 

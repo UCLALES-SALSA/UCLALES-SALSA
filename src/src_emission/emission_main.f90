@@ -126,10 +126,11 @@ MODULE emission_main
                core(:) = pi6 * aero(1,1,:)%dmid**3
                
                ! Get the binned size distribution (brackets used because size_distribution expects arrays for mode values)
-               CALL size_distribution(1,1,1,1,[emd%emitNum],    &
-                                              [emd%emitDiam],   &
-                                              [emd%emitSigma],  &
-                                               naero)
+               naero = 0.
+               CALL size_distribution(1,1,1,1,st,en,[emd%emitNum],    &
+                                                    [emd%emitDiam],   &
+                                                    [emd%emitSigma],  &
+                                                    naero)
                !naero = 1.
 
                ! -- Get the indices for emitted species and water.
