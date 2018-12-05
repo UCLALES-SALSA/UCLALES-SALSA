@@ -651,12 +651,14 @@ CONTAINS
    ! Juha Tonttila (FMI) 2014
    !
    !-------------------------------------------------------------------------------
-   SUBROUTINE salsa_initialize()
+   SUBROUTINE salsa_initialize(level)
 
       !
       !-------------------------------------------------------------------------------
       IMPLICIT NONE
 
+      INTEGER, INTENT(in) :: level
+      
       ! Dummy size distributions just for setting everything up!!
       ! May not be the smartest or the fastest way, but revise later... 
       TYPE(Section), ALLOCATABLE :: dumaero(:,:,:), dumcloud(:,:,:), dumprecp(:,:,:), &

@@ -444,7 +444,7 @@ CONTAINS
                 ab = icb%par + (cb-icb%cur)
              END IF
              pactd(cb)%numc = 0.
-             pactd(cb)%volc(1:nwet) =0.
+             pactd(cb)%volc(:) =0.
 
              ! Determine the total mass of soluble and insoluble material in the current aerosol bin
              vol_sol = 0.

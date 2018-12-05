@@ -1,18 +1,18 @@
 MODULE mo_particle_external_properties
   USE mo_submctl, ONLY : pi6, eps, rg, surfw0, grav, spec
-  USE classSection, ONLY : Section
+!  USE classSection, ONLY : Section POISTA SE CALCSWEQ
   IMPLICIT NONE
 
   ! This module contains a collection of function to calculate physical and thermodynamical particle properties,
   ! such as diameters, fall velocities, equilibirium saturation ratios at a droplet surface etc.
-  
-  
+    
   CONTAINS
   
     !
     ! Function for calculating terminal velocities for different particle types and size ranges.
     !     Tomi Raatikainen (2.5.2017)
-    !     - Changed from radius to diameter since ~the rest of the model as well as the calculations below take diameter anyway! -Juha
+    !     - Changed from radius to diameter since ~the rest of the model
+    !       as well as the calculations below take diameter anyway! -Juha
     REAL FUNCTION terminal_vel(diam,rhop,rhoa,visc,beta,flag)
       IMPLICIT NONE
       REAL, INTENT(in) :: diam, rhop ! Particle diameter and density
@@ -21,22 +21,21 @@ MODULE mo_particle_external_properties
       ! Constants
       REAL, PARAMETER :: rhoa_ref = 1.225 ! reference air density (kg/m^3)
       
-
       terminal_vel = 0.
       IF( ANY(flag == [1,2,3])) THEN
          ! Aerosol and cloud and rain droplets
          IF (diam<80.0e-6) THEN
             ! Stokes law with Cunningham slip correction factor
-            terminal_vel = (diam**2)*(rhop-rhoa)*grav*beta/(18.*visc) !(4.*radius**2)*(rhop-rhoa)*grav*beta/(18.*visc) ![m s-1]
+            terminal_vel = (diam**2)*(rhop-rhoa)*grav*beta/(18.*visc)  ![m s-1]
          ELSE IF (diam<1.2e-3) THEN
             ! Droplets from 40 um to 0.6 mm: linear dependence on particle radius and a correction for reduced pressure
             !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
-            terminal_vel = 4.e3*diam*SQRT(rhoa_ref/rhoa)!8.e3*radius*sqrt(rhoa_ref/rhoa)
+            terminal_vel = 4.e3*diam*SQRT(rhoa_ref/rhoa)
          ELSE
             ! Droplets larger than 0.6 mm: square root dependence on particle radius and a correction for reduced pressure
             !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
             ! Note: this is valid up to 2 mm or 9 m/s (at 1000 mbar), where droplets start to break
-            terminal_vel = 2.01e2*SQRT( MIN(diam/2.,2.0e-3)*rhoa_ref/rhoa ) !2.01e2*SQRT( MIN(radius,2.0e-3)*rhoa_ref/rhoa)
+            terminal_vel = 2.01e2*SQRT( MIN(diam/2.,2.0e-3)*rhoa_ref/rhoa )
          END IF
       ELSE IF (flag==4) THEN   ! Ice
          ! Ice crystal terminal fall speed from Ovchinnikov et al. (2014)
@@ -50,33 +49,78 @@ MODULE mo_particle_external_properties
     ! - Aerosol, cloud and rain are spherical
     ! - Snow and ice can be irregular and their densities can be size-dependent
     !
-    ! Correct dimension is needed for irregular particles (e.g. ice and snow) for calculating fall speed (deposition and coagulation)
-    ! and capacitance (condensation). Otherwise compact spherical structure can be expected,
+    ! Correct dimension is needed for irregular particles (e.g. ice) for calculating fall speed (deposition and coagulation)
+    ! and capacitance (condensation). Otherwise spherical assumed. This function is overloaded for LES and SALSA environments.
     !
-    REAL FUNCTION calcDiamLES(n,numc,mass,flag)
+    FUNCTION calcDiamLES(ns,nb,numc,mass,flag)
+      USE util, ONLY : getBinMassArray
       USE mo_submctl, ONLY : pi6
       IMPLICIT NONE
-      INTEGER, INTENT(IN) :: n ! Number of species
+      INTEGER, INTENT(IN) :: ns,nb ! Number of species, number of bins
       INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3) and ice (4) particle phases
-      REAL, INTENT(IN) :: numc, mass(n)
+      REAL, INTENT(IN) :: numc(nb), mass(ns*nb)
+      REAL :: calcDiamLES(nb)
+      
+      INTEGER :: b
+      REAL :: pmass(ns)
+      REAL :: dwet
       
       calcDiamLES=0.
-      
-      ! Don't calculate if very low number concentration
-      IF (numc<1e-15) RETURN
-      
-      IF (flag==4) THEN   ! Ice
-         ! Spherical ice
-         calcDiamLES = SUM(mass(1:n-1)/spec%rhoice(1:n-1)) + &
-                       mass(n)/spec%rhori
-         calcDiamLES=( calcDiamLES/numc/pi6 )**(1./3.)
-      ELSE
-         ! Radius from total volume of a spherical particle or aqueous droplet
-         calcDiamLES=( SUM(mass(1:n)/spec%rholiq(1:n))/numc/pi6)**(1./3.)
-      ENDIF
-      
+      DO b = 1,nb
+         ! Calculate wet size
+         CALL getBinMassArray(nb,ns,b,mass,pmass)
+         ! Don't calculate if very low number concentration
+         IF (numc(b)<1e-15) RETURN         
+         IF (flag==4) THEN   ! Ice
+            ! Spherical ice
+            calcDiamLES(b) = SUM(pmass(1:ns-1)/spec%rhoice(1:ns-1)) + &
+                 pmass(ns)/spec%rhori
+            calcDiamLES(b) = ( calcDiamLES(b)/numc(b)/pi6 )**(1./3.)
+         ELSE
+            ! Radius from total volume of a spherical particle or aqueous droplet
+            calcDiamLES(b) = ( SUM(pmass(1:ns)/spec%rholiq(1:ns))/numc(b)/pi6 )**(1./3.)
+         ENDIF         
+      END DO         
     END FUNCTION calcDiamLES
+    ! -------------------------------------------------
+    FUNCTION calcDiamSALSA(numc,volc,flag)
+      USE mo_submctl, ONLY : pi6,spec
+      IMPLICIT NONE
+      REAL, INTENT(in) :: numc
+      REAL, INTENT(in) :: volc(:)
+      INTEGER, INTENT(in) :: flag
+
+      calcDiamSALSA = 0.
+      IF (flag == 4) THEN
+         ! ICE particles
+
+      ELSE
+         ! Others
+         calcDiamSALSA = ( SUM(volc(:))/numc/pi6 )**(1./3.)
+      END IF
+      
+    END FUNCTION calcDiamSALSA
+
+
+
+
+    !
+    ! SUBROUTINE iceShape
+    ! 
+    SUBROUTINE iceShape()
+      USE mo_submctl, ONLY : pi6
+      IMPLICIT NONE
+
+      
+      
+      
+    END SUBROUTINE iceShape
     
+    
+
+
+
+    !PISTÄ TÄÄ JOHKI MUUALLE!!
     !
     ! Function for calculating equilibrium water saturation ratio at droplet surface based on Köhler theory
     !

@@ -50,7 +50,7 @@ MODULE mo_salsa_cloud_ice
 
     LOGICAL :: isdry
     
-    INTEGER :: ibc, idu, iwa, nspec, ndry
+    INTEGER :: ibc, idu, iwa, irim, nspec, ndry
     REAL :: zinsol
     
     ! Ice nucleation modes
@@ -62,13 +62,14 @@ MODULE mo_salsa_cloud_ice
     !          since at least in the boundary layer, there's practically never clean ice nuclei, which are 
     !          needed for this and higher up other processes likely dominate.
     
-    nspec = spec%getNSpec(type="wet")
+    nspec = spec%getNSpec(type="total")
     ndry = spec%getNSpec(type="dry")
     
     ! Mass (volume) array indices of BC, DU and water
     ibc = spec%getIndex("BC",notFoundValue=0)
     idu = spec%getIndex("DU",notFoundValue=0)
     iwa = spec%getIndex("H2O")
+    irim = spec%getIndex("rime")
 
     ! Loop over liquid phase bins
     DO kk = 1,nliquid 
@@ -119,7 +120,7 @@ MODULE mo_salsa_cloud_ice
              ! Determine the target ice bin
              bb = getIceBin(dwet)
 
-             CALL iceNucleation(ii,jj,bb,ndry,iwa,liquid(ii,jj,kk),frac)
+             CALL iceNucleation(ii,jj,bb,ndry,iwa,irim,liquid(ii,jj,kk),frac)
 
              !IF (ice(ii,jj,bb)%numc > ice(ii,jj,bb)%nlim) &
              CALL ice(ii,jj,bb)%updateRhomean()
@@ -330,7 +331,8 @@ MODULE mo_salsa_cloud_ice
     INTEGER :: iwa, nspec
     
     iwa = spec%getIndex("H2O")
-    nspec = spec%getNSpec()
+    nspec = spec%getNSpec(type="total")
+    ndry = spec%getNSpec(type="dry")
     
     DO ii = 1,kbdim
        DO jj = 1,klev
@@ -364,7 +366,7 @@ MODULE mo_salsa_cloud_ice
                 liqToIceFrac   = MAX( 0.0, MIN( 1.0, iceTendecyNumber/cloud(ii,jj,kk)%numc ) )
                 cloud(ii,jj,kk)%numc = cloud(ii,jj,kk)%numc - iceTendecyNumber
                 
-                DO ss = 1,nspec-1
+                DO ss = 1,ndry
                    ice(ii,jj,kk)%volc(ss) =   ice(ii,jj,kk)%volc(ss) + max(0., cloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
                    cloud(ii,jj,kk)%volc(ss) = cloud(ii,jj,kk)%volc(ss) - max(0., cloud(ii,jj,kk)%volc(ss)*liqToIceFrac )              
                 END DO
@@ -395,12 +397,14 @@ MODULE mo_salsa_cloud_ice
     REAL :: liqvol
 
     INTEGER :: ii,jj,kk,ss,bb
-    INTEGER :: nspec, iwa
+    INTEGER :: nspec, ndry, iwa, irim
 
     REAL, PARAMETER :: maxfrac = 0.999
     
-    nspec = spec%getNSpec()
+    nspec = spec%getNSpec(type="total")
+    ndry = spec%getNSpec(type="ndry")
     iwa = spec%getIndex("H2O")
+    irim = spec%getIndex("rime")
     
     ! JUHA: Should add some real parameterization for the freezing of ice? Instantaneous
     !       at 0 C probably not good at least for larger particles.
@@ -424,13 +428,12 @@ MODULE mo_salsa_cloud_ice
              rhomean = ice(ii,jj,kk)%rhomean
              bb = getPrecipBin(dwet,rhomean)
              
-             DO ss = 1,nspec-1
+             DO ss = 1,ndry
                 precp(ii,jj,bb)%volc(ss) = precp(ii,jj,bb)%volc(ss) + maxfrac*ice(ii,jj,kk)%volc(ss)
                 ice(ii,jj,kk)%volc(ss) = (1.-maxfrac)*ice(ii,jj,kk)%volc(ss)
              END DO
 
-             ! Check that there is enough water for minimum droplet size
-             liqvol = ( ice(ii,jj,kk)%volc(iwa)*spec%rhoic + ice(ii,jj,kk)%vrime*spec%rhori )/spec%rhowa
+             liqvol = ( ice(ii,jj,kk)%volc(iwa)*spec%rhoic + ice(ii,jj,kk)%volc(irim)*spec%rhori )/spec%rhowa
 
              precp(ii,jj,bb)%numc = precp(ii,jj,bb)%numc + maxfrac*ice(ii,jj,kk)%numc
              ice(ii,jj,kk)%numc = (1.-maxfrac)*ice(ii,jj,kk)%numc
@@ -438,8 +441,7 @@ MODULE mo_salsa_cloud_ice
              
              precp(ii,jj,bb)%volc(iwa) = precp(ii,jj,bb)%volc(iwa) + maxfrac*liqvol                       
              ice(ii,jj,kk)%volc(iwa) = (1.-maxfrac)*ice(ii,jj,kk)%volc(iwa)
-             ice(ii,jj,kk)%vrime = (1.-maxfrac)*ice(ii,jj,kk)%vrime
-                
+             ice(ii,jj,kk)%volc(irim) = (1.-maxfrac)*ice(ii,jj,kk)%volc(irim)                
           END DO
              
        END DO
@@ -481,9 +483,9 @@ MODULE mo_salsa_cloud_ice
   END FUNCTION getPrecipBin
 
 
-  SUBROUTINE iceNucleation(ii,jj,iice,ndry,iwa,pliq,frac)
+  SUBROUTINE iceNucleation(ii,jj,iice,ndry,iwa,irim,pliq,frac)
     INTEGER, INTENT(in) :: ii,jj,iice
-    INTEGER, INTENT(in) :: iwa, ndry
+    INTEGER, INTENT(in) :: iwa, irim, ndry
     TYPE(Section), INTENT(inout) :: pliq  ! Liquid particle properties
     REAL, INTENT(in)          :: frac  ! Fraction of nucleated particles from liquid phase
     
@@ -502,7 +504,7 @@ MODULE mo_salsa_cloud_ice
        pliq%volc(iwa) = MAX(0., pliq%volc(iwa)*(1.-frac))
     ELSE IF (pliq%phase == 3) THEN
        ! Precip -> rimed ice
-       ice(ii,jj,iice)%vrime = MAX(0.,ice(ii,jj,iice)%vrime + pliq%volc(iwa)*frac*spec%rhowa/spec%rhori)
+       ice(ii,jj,iice)%volc(irim) = MAX(0.,ice(ii,jj,iice)%volc(irim) + pliq%volc(iwa)*frac*spec%rhowa/spec%rhori)
        pliq%volc(iwa) = MAX(0., pliq%volc(iwa)*(1.-frac))
     END IF
     

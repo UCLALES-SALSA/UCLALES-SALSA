@@ -431,7 +431,7 @@ MODULE mo_salsa_coagulation_processes
 
          ! Collection by larger precip and self collection
          IF (lscgpp) THEN
-            IF ( kk < nprc) &
+            IF ( kk < nprc ) &
                  CALL accumulateSink(kbdim,klev,nprc,nprc,kk,kk+1,nprc,zccpp,precp,zminusterm)
 
             CALL accumulateSink(kbdim,klev,nprc,nprc,kk,kk,kk,zccpp,precp,zminus_self,multp=0.5)
@@ -466,19 +466,18 @@ MODULE mo_salsa_coagulation_processes
     ! 
     SUBROUTINE coag_ice(kbdim,klev,nspec,ptstep,zccii,zccia,zccic,zccip)
 
-      INTEGER, INTENT(in) :: kbdim,klev,nspec
+      INTEGER, INTENT(in) :: kbdim,klev,nspec   ! nspec should contain all compounds including unrimed and rimed ice!
       REAL, INTENT(in) :: ptstep
       REAL, INTENT(in) :: zccii(kbdim,klev,nice,nice), zccia(kbdim,klev,nbins,nice),    &
                           zccic(kbdim,klev,ncld,nice), zccip(kbdim,klev,nprc,nice)
 
       INTEGER :: kk, index_b, index_a
-      REAL :: zplusterm(nspec,kbdim,klev), zplus_rime(kbdim,klev), zminusterm(kbdim,klev), zminus_self(kbdim,klev) 
-      INTEGER :: nwet,ndry,iwa
+      REAL :: zplusterm(nspec,kbdim,klev), zminusterm(kbdim,klev), zminus_self(kbdim,klev) 
+      INTEGER :: iwa,irim
       REAL :: rhowa,rhoic,rhorime
 
-      nwet = spec%getNSpec(type="wet")
-      ndry = spec%getNSpec(type="dry")
       iwa = spec%getIndex("H2O")
+      irim = spec%getIndex("rime")
       rhowa = spec%rhowa
       rhoic = spec%rhoic
       rhorime = spec%rhori
@@ -489,7 +488,6 @@ MODULE mo_salsa_coagulation_processes
          zminusterm(:,:) = 0.
          zminus_self(:,:) = 0.
          zplusterm(:,:,:) = 0.
-         zplus_rime(:,:) = 0.
          
          ! Collection by larger ice and self coagulation
          IF (lscgii) THEN
@@ -501,29 +499,29 @@ MODULE mo_salsa_coagulation_processes
 
          ! Volume gained from aerosol collection. Assume this to produce pristine ice
          IF (lscgia) &
-              CALL accumulateSourcePhaseChange(kbdim,klev,nice,nbins,ndry,iwa,kk,in1a,fn2b,  &
+              CALL accumulateSourcePhaseChange(kbdim,klev,nice,nbins,nspec,iwa,iwa,kk,in1a,fn2b,  &
                                                rhoic,rhowa,zccia,aero,zplusterm)
 
          ! Volume gained from cloud collection. Produces rimed ice
          IF (lscgic) &
-              CALL accumulateSourceRime(kbdim,klev,nice,ncld,ndry,iwa,kk,ica%cur,fcb%cur, &
-                                        rhorime,rhowa,zccic,cloud,zplusterm,zplus_rime      )
+              CALL accumulateSourcePhaseChange(kbdim,klev,nice,ncld,nspec,irim,iwa,kk,ica%cur,fcb%cur, &
+                                               rhorime,rhowa,zccic,cloud,zplusterm)
 
          ! Volume gained from precip collection. Produces rimed ice
          IF (lscgip) &
-              CALL accumulateSourceRime(kbdim,klev,nice,nprc,ndry,iwa,kk,1,nprc,     &
-                                        rhorime,rhowa,zccip,precp,zplusterm,zplus_rime )
+              CALL accumulateSourcePhaseChange(kbdim,klev,nice,nprc,nspec,irim,iwa,kk,1,nprc,     &
+                                               rhorime,rhowa,zccip,precp,zplusterm)
 
          ! Volume gained from smaller ice particles.
          IF (lscgii .AND. kk > iia) THEN
-            CALL accumulateSourceIce(kbdim,klev,nice,nice,ndry,iwa,kk,iia,kk-1, &
-                                     rhoic,rhorime,zccii,ice,zplusterm,zplus_rime   )
+            CALL accumulateSourceIce(kbdim,klev,nice,nice,nspec,kk,iia,kk-1, &
+                                     zccii,ice,zplusterm)
          END IF
 
          !-- Volume and number concentrations after coagulation update. Use the Ice variant, which 
          !   calculates the volume mean densities etc correctly for the pristine and rimed ice contributions.
-         CALL applyCoagIce(kbdim,klev,nice,nspec,ndry,kk,ptstep,ice,      &
-                           rhoic,rhorime,zplusterm,zplus_rime,zminusterm,zminus_self  )
+         CALL applyCoagIce(kbdim,klev,nice,nspec,iwa,irim,kk,ptstep,ice,      &
+                           zplusterm,zminusterm,zminus_self  )
 
       END DO
 
@@ -553,32 +551,26 @@ MODULE mo_salsa_coagulation_processes
 
     END SUBROUTINE applyCoag
  ! ----------------------------------------
-    SUBROUTINE applyCoagIce(kbdim,klev,nb,nspec,ndry,itrgt,ptstep,part,rhoic,rhorime,  &
-                            source,source_rime,sink,sink_self)
+    SUBROUTINE applyCoagIce(kbdim,klev,nb,nspec,iwa,irim,itrgt,ptstep,part,  &
+                            source,sink,sink_self)
       ! --------------------------------------------------------------------------------------
       ! Note: The mass conversions and effective densities only account for the ice part.
       ! Not the dry aerosol!!! Is this a good enough approximation?
       ! --------------------------------------------------------------------------------------
-      INTEGER, INTENT(in) :: kbdim,klev,nb,nspec,ndry,itrgt
+      INTEGER, INTENT(in) :: kbdim,klev,nb,nspec,iwa,irim,itrgt  ! nspec should contain all compounds including both unrimed and rimed ice. Necessary for memory allocation of input arrays
       REAL, INTENT(in)    :: ptstep
       TYPE(Section), INTENT(inout) :: part(kbdim,klev,nb)
-      REAL, INTENT(in) :: rhoic, rhorime
-      REAL, INTENT(in) :: source(nspec,kbdim,klev), source_rime(kbdim,klev), sink(kbdim,klev), sink_self(kbdim,klev)
+      REAL, INTENT(in) :: source(nspec,kbdim,klev), sink(kbdim,klev), sink_self(kbdim,klev)
 
       REAL :: mtrgt_t, mtrgt_r, mtot, mrime ! The ice mass in target particle, the mass source term for total ice
                                             ! and rimed ice
-
-      TYPE(Section) :: before
-
       INTEGER :: ii,jj
-      INTEGER :: iwa
-      
-      iwa = spec%getIndex("H2O")
+      INTEGER :: iwa,irim,ndry
 
+      ndry = spec%getNSpec(type="dry")  ! Number of dry species
+      
       DO jj = 1,klev
          DO ii = 1,kbdim
-
-            before = part(ii,jj,itrgt)
 
             ! Apply the change due to coagulation to the dry components. Standard procedure
             part(ii,jj,itrgt)%volc(1:ndry) =                &
@@ -587,8 +579,8 @@ MODULE mo_salsa_coagulation_processes
                  ( 1. + ptstep*sink(ii,jj) )
 
             ! Apply the coagulation sources and sinks of particle volume concentrations
-            part(ii,jj,itrgt)%vrime = ( part(ii,jj,itrgt)%vrime +     &
-                                        ptstep*source_rime(ii,jj)*part(ii,jj,itrgt)%numc ) / &
+            part(ii,jj,itrgt)%volc(irim) = ( part(ii,jj,itrgt)%volc(irim) +     &
+                                        ptstep*source(irim,ii,jj)*part(ii,jj,itrgt)%numc ) / &
                                       ( 1. + ptstep*sink(ii,jj) )
             part(ii,jj,itrgt)%volc(iwa) = ( part(ii,jj,itrgt)%volc(iwa) +  &
                                             ptstep*source(iwa,ii,jj)*part(ii,jj,itrgt)%numc ) / &
@@ -758,7 +750,7 @@ MODULE mo_salsa_coagulation_processes
 
     END SUBROUTINE accumulateSourceReverse
     !----------
-    SUBROUTINE accumulateSourcePhaseChange(kbdim,klev,nbtrgt,nbcoll,ndry,iwa,itrgt,istr,iend,  &
+    SUBROUTINE accumulateSourcePhaseChange(kbdim,klev,nbtrgt,nbcoll,nspec,iice,iwa,itrgt,istr,iend,  &
                                            rhotrgt,rhocoll,zcc,coll,source)
       !
       ! The direct method, where the "larger" particle category collects the "smaller" category.
@@ -768,62 +760,34 @@ MODULE mo_salsa_coagulation_processes
       ! 
       INTEGER,INTENT(in) :: kbdim,klev
       INTEGER,INTENT(in) :: nbtrgt, nbcoll   ! Number of bins in the target and collectee categories
-      INTEGER,INTENT(in) :: ndry,iwa           ! Number of dry checmical compounds, index for water 
+      INTEGER,INTENT(in) :: nspec           ! Number of dry checmical compounds, including both unrimed and rimed ice 
+      INTEGER,INTENT(in) :: iice,iwa            ! Index of the formed ice type, index of liquid water
       INTEGER,INTENT(in) :: itrgt,istr,iend  ! Index of the target bin, start and end indices of the collectee bins
       REAL, INTENT(in)   :: zcc(kbdim,klev,nbcoll,nbtrgt)
       REAL, INTENT(in)   :: rhotrgt,rhocoll      ! Water densities for the target and collected categories 
                                                  ! (typically liquid and frozen, respectively).
       TYPE(Section), INTENT(in) :: coll(kbdim,klev,nbcoll) ! Collected particle properties
-      REAL, INTENT(inout) :: source(iwa,kbdim,klev)
+      REAL, INTENT(inout) :: source(nspec,kbdim,klev)
 
       INTEGER :: ll,ii,jj
+      INTEGER :: ndry
+
+      ndry = spec%getNSpec(type="dry")
 
       DO ll = istr,iend
          DO jj = 1,klev
             DO ii = 1,kbdim
                source(1:ndry,ii,jj) = source(1:ndry,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:ndry)
-               source(iwa,ii,jj) = source(iwa,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*rhocoll/rhotrgt 
+               source(iice,ii,jj) = source(iice,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*rhocoll/rhotrgt 
             END DO
          END DO
       END DO
 
     END SUBROUTINE accumulateSourcePhaseChange
+
     ! ------------------------------------------
 
-    SUBROUTINE accumulateSourceRime(kbdim,klev,nbtrgt,nbcoll,ndry,iwa,itrgt,istr,iend,rhotrgt,rhocoll,zcc,coll,source,source_rime)
-      !
-      ! Method for collection of cloud droplets and rain by ice particles which are source terms for rime formation, i.e. they will 
-      ! add to both total and rimed ice arrays. Otherwise the same direct method as with the rest.
-      !
-      ! Note on densities: Treat the volume source terms as bulk pristine ice for both the pristine and rime contributions. 
-      ! When the source term accumulation process has finished, apply the change to the ice particles using masses instead of
-      ! volume. When coverting particle properties and source terms to mass, the appropriate densities should be applied!!
-      ! The resulting volume concentration and effective particle density is then updated using the method in classSection
-      ! See the applyCoagIce-subroutine for details.
-      !
-      INTEGER, INTENT(in) :: kbdim,klev
-      INTEGER, INTENT(in) :: nbtrgt,nbcoll
-      INTEGER, INTENT(in) :: ndry, iwa
-      INTEGER, INTENT(in) :: itrgt,istr,iend
-      REAL, INTENT(in)    :: zcc(kbdim,klev,nbcoll,nbtrgt)   !  
-      REAL, INTENT(in)    :: rhotrgt, rhocoll     ! Densities of the target (~ice) and collected (~droplet) particles
-      TYPE(Section), INTENT(in) :: coll(kbdim,klev,nbcoll)
-      REAL, INTENT(inout) :: source(iwa,kbdim,klev), source_rime(kbdim,klev) ! Source term for all compounds and for rimed ice
-
-      INTEGER :: ll,ii,jj
-
-      DO ll = istr,iend
-         DO jj = 1,klev
-            DO ii = 1,kbdim
-               source(1:ndry,ii,jj) = source(1:ndry,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:ndry)
-               source_rime(ii,jj) = source_rime(ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*rhocoll/rhotrgt
-            END DO
-         END DO
-      END DO
-
-    END SUBROUTINE accumulateSourceRime
-    ! ------------------------------------------
-    SUBROUTINE accumulateSourceIce(kbdim,klev,nbtrgt,nbcoll,ndry,iwa,itrgt,istr,iend,rhotrgt,rhorime,zcc,coll,source,source_rime)
+    SUBROUTINE accumulateSourceIce(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,zcc,coll,source)
       !
       ! This subroutine is for collection between different sized ice bins. It's similar to accumulateSourceRime
       ! in every other aspect, except the rime contribution has to be taken from its dedicated field. All the source
@@ -832,21 +796,18 @@ MODULE mo_salsa_coagulation_processes
       !
       INTEGER, INTENT(in) :: kbdim,klev
       INTEGER, INTENT(in) :: nbtrgt,nbcoll
-      INTEGER, INTENT(in) :: ndry, iwa
+      INTEGER, INTENT(in) :: nspec    ! should contain all compounds including unrimed and rimed ice
       INTEGER, INTENT(in) :: itrgt,istr,iend
       REAL, INTENT(in)    :: zcc(kbdim,klev,nbcoll,nbtrgt)   !  
-      REAL, INTENT(in)    :: rhotrgt, rhorime     ! Densities of the target (~ice) and collected (~droplet) particles
       TYPE(Section), INTENT(in) :: coll(kbdim,klev,nbcoll)
-      REAL, INTENT(inout) :: source(iwa,kbdim,klev), source_rime(kbdim,klev) ! Source term for all compounds and for rimed ice
+      REAL, INTENT(inout) :: source(nspec,kbdim,klev) ! Source term for all compounds
 
       INTEGER :: ll,ii,jj
 
       DO ll = istr,iend
          DO jj = 1,klev
             DO ii = 1,kbdim
-               source(1:ndry,ii,jj) = source(1:ndry,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:ndry)
-               source(iwa,ii,jj) = source(iwa,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)   !*coll(ii,jj,ll)%rhomean/rhotrgt
-               source_rime(ii,jj) = source_rime(ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%vrime     !*rhorime/rhotrgt
+               source(1:nspec,ii,jj) = source(1:nspec,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec)
             END DO
          END DO
       END DO

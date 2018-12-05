@@ -7,18 +7,19 @@ MODULE classSection
              vlolim,     & ! - '' - at the low limit
              vratiohi,   & ! volume ratio between the center and high limit
              vratiolo,   & ! - '' - and the low limit
-             dmid,       & ! bin middle diameter
+             dmid,       & ! bin middle diameter (spherical equivalent)
              !******************************************************
              ! ^ Do NOT change the stuff above after initialization !
              !******************************************************
-             dwet,       & ! Wet diameter or mean droplet diameter
-             ddry,       & ! Dry diameter (actual)
+             dwet,       & ! Wet diameter or mean droplet diameter (Spherical equivalent)
+             ddry,       & ! Dry diameter (actual, not bin middle)
              dins,       & ! Diameter of the insoluble part (if present)
+             dnons,      & ! Diameter along the maximum dimension (only relevant for non-spherical ice)
              numc,       & ! Number concentration of particles/droplets
              core          ! Volume of dry particle
      
-     REAL :: volc(8)     ! Volume concentrations of aerosol species + water. These are taken as bulk volume.
-                         ! Only used compouds are given values. 
+     REAL :: volc(9)     ! Volume concentrations of aerosol species + water + rimed ice. These are taken as bulk volume.
+                         ! Only used compouds are given values (so the actual range of non-zero cells is given by spec&getNSpec). 
                          ! For technical reasons this cannot be allocatable at least for now....
 
      REAL :: rhomean     ! The mean ice density for frozen particles. Takes into account only the bulk ice composition
@@ -32,7 +33,7 @@ MODULE classSection
      !-----------------------------------------------------------
      !REAL :: virimebulk   ! Bulk volume concentration of rimed ice for frozen hydrometeors
 
-     REAL :: vrime         ! The true volume concentration of rimed ice, taking into account particle shape
+     !REAL :: vrime         ! The true volume concentration of rimed ice, taking into account particle shape
      !REAL :: viprist      ! The true volume concentration of pristine ice, taking into account the particle shape
 
      INTEGER :: phase    ! Phase identifier, 1: aerosol 2: cloud droplet, 3: precip, 4: ice
@@ -82,6 +83,7 @@ MODULE classSection
     ! This should be modified to account for the particle shape as well.
     !
     SUBROUTINE updateDiameter(SELF,limit,type)
+      USE mo_particle_external_properties, ONLY : calcDiamSALSA
       CLASS(Section), INTENT(inout) :: SELF
       LOGICAL,INTENT(in) :: limit  ! True -> constrain the result wet diameter by dlim
       CHARACTER(len=3), INTENT(in), OPTIONAL :: type  ! "dry" or "wet", "ins" (insoluble) or "all". Default is "wet"
@@ -102,7 +104,9 @@ MODULE classSection
          IF (ANY(swtyp == ["wet","all"])) THEN
             SELF%dwet = 1.e-10
             ! Only ice will have vrime =/ 0
-            SELF%dwet = ( (SUM(SELF%volc(1:nwet))+SELF%vrime)/SELF%numc/pi6 )**(1./3.)
+            SELF%dwet = calcDiamSALSA(SELF%numc,SELF%volc)
+
+            ( (SUM(SELF%volc(1:nwet))+SELF%vrime)/SELF%numc/pi6 )**(1./3.)
          END IF
 
          IF (ANY(swtyp == ["dry","all"])) THEN

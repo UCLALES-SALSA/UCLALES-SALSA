@@ -151,7 +151,7 @@ CONTAINS
  
       !-- 2) Updating coagulation coefficients -------------------------------------
       
-      nspec = spec%getNSpec()
+      nspec = spec%getNSpec(type="total")
 
       CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp,    &
                                       zccaa, zcccc, zccca, zccpc, zccpa,  &
@@ -729,12 +729,13 @@ CONTAINS
       INTEGER :: ii,jj,cc
       INTEGER :: counter
 
-      INTEGER :: iwa,nspec
+      INTEGER :: iwa,irim,nspec
 
       zrh(:,:) = prv(:,:)/prs(:,:)
       
       iwa = spec%getIndex("H2O")
-      nspec = spec%getNSpec()
+      irim = spec%getIndex("rime") ! zero if ice not used
+      nspec = spec%getNSpec(type="total")
 
       ! Calculate the condensation only for 2a/2b aerosol bins
       nstr = in2a
@@ -766,11 +767,12 @@ CONTAINS
 
             rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
 
+            ! Diffusion coef
             zdfh2o = ( 5./(16.*avog*rhoair*1.e-3*(3.11e-8)**2) ) * &
-               SQRT( rg*1e7*ptemp(ii,jj)*mair*1.e3*(spec%mwa+mair)*1.e3/( 2.*pi*spec%mwa*1.e3 ) )
+               SQRT( rg*1.e7*ptemp(ii,jj)*mair*1.e3*(spec%mwa+mair)*1.e3/( 2.*pi*spec%mwa*1.e3 ) )
             zdfh2o = zdfh2o*1.e-4
 
-            zmfph2o = 3.*zdfh2o*sqrt(pi*spec%mwa/(8.*rg*ptemp(ii,jj)))
+            zmfph2o = 3.*zdfh2o*sqrt(pi*spec%mwa/(8.*rg*ptemp(ii,jj))) ! mean free path
             zthcond = 0.023807 + 7.1128e-5*(ptemp(ii,jj) - 273.16) ! Thermal conductivity of air
 
             ! -- Water vapour (Follows the analytical predictor method by Jacobson 2005)
@@ -939,11 +941,15 @@ CONTAINS
 
             ! Treat the ice types as one mass during the condensation process.
             ! Further assumptions about compositional changes take place after substepping loop
-            zcwcit(1:nice) = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa + &
-                             ice(ii,jj,1:nice)%vrime*spec%rhori/spec%mwa     ! Total ice
+            zcwcit(1:nice) = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa
+            IF (spec%isUsed("rime")) &
+                 zcwcit(1:nice) = zcwcit(1:nice) + ice(ii,jj,1:nice)%volc(irim)*spec%rhori/spec%mwa
+            
             ! Store original values of pristine and rimed ice to preserve info about composition
+            zorgic = 0.; zorgri = 0.
             zorgic = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa
-            zorgri = ice(ii,jj,1:nice)%vrime*spec%rhori/spec%mwa
+            IF (spec%isUsed("rime")) &
+                 zorgri = ice(ii,jj,1:nice)%volc(irim)*spec%rhori/spec%mwa
             
             zcwtot = zcwc + SUM(zcwcae) + &
                             SUM(zcwccd) + &
@@ -1054,7 +1060,8 @@ CONTAINS
                   dvrime = ( zcwnit(cc)/(zorgic(cc)+zorgri(cc)) ) - 1.
                   dvrime = dvrime * zorgri(cc)
                   ice(ii,jj,cc)%volc(iwa) = ice(ii,jj,cc)%volc(iwa) + dvice*spec%mwa/spec%rhoic
-                  ice(ii,jj,cc)%vrime = ice(ii,jj,cc)%vrime + dvrime*spec%mwa/spec%rhori                  
+                  IF(spec%isUsed("rime")) &
+                       ice(ii,jj,cc)%volc(irim) = ice(ii,jj,cc)%volc(irim) + dvrime*spec%mwa/spec%rhori                  
                END IF
                   
             END DO
