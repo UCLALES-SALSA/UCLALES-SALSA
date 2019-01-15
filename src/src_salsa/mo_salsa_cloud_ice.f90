@@ -115,8 +115,7 @@ MODULE mo_salsa_cloud_ice
                 pf_hom = 1. - EXP( -jf*pi6*(dwet**3 - dins**3)*ptstep )
              END IF
 
-             ! POISTA KERROIN
-             frac = 1.e-5*MAX(0., MIN(0.99,pf_imm+pf_hom+pf_dep-(pf_imm+pf_dep)*pf_hom))
+             frac = MAX(0., MIN(0.99,pf_imm+pf_hom+pf_dep-(pf_imm+pf_dep)*pf_hom))
 
              ! Determine the target ice bin
              bb = getIceBin(dwet)

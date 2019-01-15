@@ -888,8 +888,8 @@ CONTAINS
                   !   Ice may not be that far from a sphere, but most particles are large and at least
                   !   growing particles are covered by a layer of pure ice.
                   zact = 1.0
-                  !POISTA - KELVIN EFEKTI KYTKETTY POIS
-                  zkelvinic(cc) = 1.0 !exp( 4.*surfi0*spec%mwa / (rg*ptemp(ii,jj)*spec%rhowa*dwet) )
+                  ! 
+                  zkelvinic(cc) = exp( 4.*surfi0*spec%mwa / (rg*ptemp(ii,jj)*spec%rhowa*dwet) )
                   
                   ! Saturation mole concentration over flat surface
                   zcwsurfic(cc) = prsi(ii,jj)*rhoair/spec%mwa
@@ -1014,7 +1014,7 @@ CONTAINS
                IF ( ANY(ice(ii,jj,:)%numc > ice(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, nice
                      zcwintit(cc) = zcwcit(cc) + MIN(MAX(adt*zmtic(cc)*(zcwint - zwsatic(cc)*zcwsurfic(cc)), &
-                          -0.02*zcwcit(cc)),0.5*zcwcit(cc)) ! POISTA isonnettu kasvurajaa
+                          -0.02*zcwcit(cc)),0.5*zcwcit(cc)) ! Note the increased limit for growth
                      zwsatic(cc) = zkelvinic(cc)
                   END DO
                END IF

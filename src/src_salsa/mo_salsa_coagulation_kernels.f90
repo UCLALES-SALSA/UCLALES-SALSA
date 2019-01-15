@@ -151,8 +151,6 @@ MODULE mo_salsa_coagulation_kernels
 
       INTEGER :: mm,nn,ii,jj
 
-      INTEGER :: cc ! POISTA
-      
       DO jj = 1,klev
          DO ii = 1,kbdim
             
@@ -176,17 +174,7 @@ MODULE mo_salsa_coagulation_kernels
               IF (pp1(1)%phase == 4) zdiam1(1:nb1) = pp1(1:nb1)%dnsp
                  
               zdiam2(1:nb2) = pp2(1:nb2)%dwet
-              ! POISTA YLIMAARAISET
-              IF (pp2(1)%phase == 4) THEN
-                 IF (ANY(pp2(:)%numc > pp2(:)%nlim)) THEN
-                    DO cc = 1,nb2
-                       IF (pp2(cc)%numc > pp2(cc)%nlim .AND. pp2(cc)%dwet /= pp2(cc)%dnsp) THEN
-                          WRITE(*,*) pp2(cc)%dwet, pp2(cc)%dnsp
-                       END IF
-                    END DO
-                 END IF                 
-                 zdiam2(1:nb2) = pp2(1:nb2)%dnsp
-              END IF
+              IF (pp2(1)%phase == 4) zdiam2(1:nb2) = pp2(1:nb2)%dnsp
                  
               DO mm = 1,nb1
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
