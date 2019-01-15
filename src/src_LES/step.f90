@@ -19,7 +19,7 @@
 !
 MODULE step
 
-  USE mo_submctl, ONLY : spec
+  USE mo_submctl, ONLY : spec, nice
   USE util, ONLY : getMassIndex, calc_correlation 
   
   IMPLICIT NONE
@@ -54,8 +54,8 @@ CONTAINS
                        ! For mass budged
                        a_rp, a_rc, a_srp, a_dn
 
-      USE stat, ONLY : sflg, savg_intvl, ssam_intvl, write_ps, close_stat, mcflg, acc_massbudged,  &
-                       write_massbudged
+      !USE stat, ONLY : sflg, savg_intvl, ssam_intvl, write_ps, close_stat, mcflg, acc_massbudged,  &
+      !                 write_massbudged
       USE thrm, ONLY : thermo
 
       LOGICAL, PARAMETER :: StopOnCFLViolation = .FALSE.
@@ -77,8 +77,8 @@ CONTAINS
 
          istp = istp+1
          tplsdt = time + dtl + 0.1*dtl
-         sflg = (min(mod(tplsdt,ssam_intvl),mod(tplsdt,savg_intvl)) < dtl  &
-            .OR. tplsdt >= timmax  .OR. tplsdt < 2.*dtl)
+         !sflg = (min(mod(tplsdt,ssam_intvl),mod(tplsdt,savg_intvl)) < dtl  &
+         !   .OR. tplsdt >= timmax  .OR. tplsdt < 2.*dtl)
 
          CALL t_step(cflflg,cflmax)
 
@@ -97,13 +97,13 @@ CONTAINS
          !
          ! output control
          !
-         IF (mod(tplsdt,savg_intvl) < dtl .OR. time >= timmax .OR. time == dtl)   &
-            CALL write_ps(nzp,dn0,u0,v0,zm,zt,time)
+         !IF (mod(tplsdt,savg_intvl) < dtl .OR. time >= timmax .OR. time == dtl)   &
+         !   CALL write_ps(nzp,dn0,u0,v0,zm,zt,time)
 
          IF ((mod(tplsdt,frqhis) < dtl .OR. time >= timmax) .AND. outflg)   &
             CALL write_hist(2, time)
-         IF (mod(tplsdt,savg_intvl) < dtl .OR. time >= timmax .OR. time == dtl)   &
-            CALL write_hist(1, time)
+         !IF (mod(tplsdt,savg_intvl) < dtl .OR. time >= timmax .OR. time == dtl)   &
+         !   CALL write_hist(1, time)
 
          IF ((mod(tplsdt,frqanl) < dtl .OR. time >= timmax) .AND. outflg) THEN
             CALL thermo(level)
@@ -127,20 +127,20 @@ CONTAINS
 
       END DO
 
-      IF (mcflg) THEN
+      !IF (mcflg) THEN
          !
          ! Juha:
          ! Get the final statistics of atmospheric water for mass budged
-         CALL acc_massbudged(nzp,nxp,nyp,1,dtlt,dzt,a_dn,    &
-                             rv=a_rp,rc=a_rc,prc=a_srp)
+         !CALL acc_massbudged(nzp,nxp,nyp,1,dtlt,dzt,a_dn,    &
+         !                    rv=a_rp,rc=a_rc,prc=a_srp)
 
-         CALL write_massbudged
+         !CALL write_massbudged
 
-      END IF ! mcflg
+      !END IF ! mcflg
 
       CALL write_hist(1, time)
       iret = close_anal()
-      iret = close_stat()
+      !iret = close_stat()
 
    END SUBROUTINE stepper
    !
@@ -186,7 +186,6 @@ CONTAINS
                       sed_cloud,  &
                       sed_precp,  &
                       sed_ice,    &
-                      sed_snow,   &
                       bulk_autoc
      USE grid, ONLY : level
      IMPLICIT NONE
@@ -197,11 +196,9 @@ CONTAINS
      IF ( sed_cloud%switch .AND. time > sed_cloud%delay ) sed_cloud%state = .TRUE.
      IF ( sed_precp%switch .AND. time > sed_precp%delay ) sed_precp%state = .TRUE.
      IF ( sed_ice%switch .AND. time > sed_ice%delay ) sed_ice%state = .TRUE.
-     IF ( sed_snow%switch .AND. time > sed_snow%delay ) sed_snow%state = .TRUE.
      IF ( bulk_autoc%switch .AND. time > bulk_autoc%delay ) bulk_autoc%state = .TRUE.
      IF (level < 5) THEN
         sed_ice%state = .FALSE.
-        sed_snow%state = .FALSE.
      END IF
 
    END SUBROUTINE set_LES_runtime
@@ -221,11 +218,10 @@ CONTAINS
                        a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,    &
                        a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,    &
                        a_nicep,  a_nicet,  a_micep,  a_micet,                             &
-                       a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                        a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,            &
-                       a_rsi
+                       a_rsi, a_salsap,nxp,nyp,nzp, a_salsat
 
-      USE stat, ONLY : sflg, statistics
+      !USE stat, ONLY : sflg, statistics
       USE sgsm, ONLY : diffuse
       USE srfc, ONLY : surface
       USE thrm, ONLY : thermo
@@ -238,7 +234,7 @@ CONTAINS
 
       USE mo_salsa_driver, ONLY : run_SALSA
 
-      USE constrain_SALSA, ONLY : tend_constrain, SALSA_diagnostics
+      USE constrain_SALSA, ONLY : tend_constrain, SALSA_diagnostics, tend_constrain2
 
       LOGICAL, INTENT (out)      :: cflflg
       REAL(KIND=8), INTENT (out) :: cflmax
@@ -246,7 +242,14 @@ CONTAINS
       LOGICAL :: zactmask(nzp,nxp,nyp)
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
 
-      INTEGER :: n4
+      INTEGER :: mi, mi2, i,j,k
+
+      INTEGER :: nspec
+
+      REAL :: temp_old(nzp,nxp,nyp)
+
+
+      temp_old = a_temp
       
       CALL set_LES_runtime(time)
 
@@ -271,85 +274,73 @@ CONTAINS
 
       CALL sponge(0)
 
-      IF (level >= 1) THEN
-
-         CALL thermo(level)
-
-         CALL forcings(time,strtim)
-
-         IF (level >= 4) THEN
-
-            n4 = spec%getNSpec() ! Aerosol components + water
-
-            CALL tend_constrain(n4)
-            CALL update_sclrs
-            CALL tend0(.TRUE.)
-
-            IF ( nxp == 5 .AND. nyp == 5 ) THEN
-               ! 1D -runs
-               CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &
-                              a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
-                              a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
-                              a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
-                              a_nicep,   a_nicet,   a_micep,   a_micet,    &
-                              a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
-                              a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              dtlt, time, level, .FALSE.)
-            ELSE
-               !! for 2D or 3D runs
-               CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
-                              a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
-                              a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
-                              a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
-                              a_nicep,   a_nicet,   a_micep,   a_micet,    &
-                              a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
-                              a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                              dtlt, time, level, .FALSE.)
-             
-            END IF !nxp==5 and nyp == 5
-
-            CALL tend_constrain(n4)
-         END IF
-
-      END IF ! level
+      IF (level >= 1) CALL forcings(time,strtim)
 
       CALL update_sclrs
-
-      !-------------------------------------------
-      ! "Deposition" timestep
-      ! -- Reset only scalar tendencies
       CALL tend0(.TRUE.)
-
-      ! Dont perform sedimentation or level 3 autoconversion during spinup
-      CALL micro(level)
-
-      IF (level >= 4) CALL tend_constrain(n4)
-      CALL update_sclrs
-
-      !-------------------------------------------
-      ! "Advection" timestep
-      ! -- Reset only scalar tendencies
-      CALL tend0(.TRUE.)
-
-      ! Mask for cloud base activation
-      IF (level >= 4) CALL maskactiv(zactmask,nxp,nyp,nzp,2,a_rh,rc=a_rc,w=a_wp)
-      ! Get tendencies from cloud base activation
-      IF (level >= 4) CALL newdroplet(zactmask)
-
-      CALL fadvect
-
-      IF (level >= 4)  &
-         CALL tend_constrain(n4)
-
-      CALL update_sclrs
-
       CALL thermo(level)
 
-      IF (level >= 4)  THEN
-         CALL SALSA_diagnostics
-         CALL thermo(level)
-      END IF
+      
+      ! SALSA timestep
+      ! -----------------------
+      IF (level >= 4) THEN
 
+         nspec = spec%getNSpec(type="wet") ! Aerosol components + water
+            
+         IF ( nxp == 5 .AND. nyp == 5 ) THEN
+            ! 1D -runs
+            CALL run_SALSA(nxp,nyp,nzp,nspec,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &
+                           a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
+                           a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
+                           a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
+                           a_nicep,   a_nicet,   a_micep,   a_micet,    &
+                           a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
+                           dtlt, time, level, .FALSE.)
+         ELSE
+            !! for 2D or 3D runs
+            CALL run_SALSA(nxp,nyp,nzp,nspec,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
+                           a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
+                           a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
+                           a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
+                           a_nicep,   a_nicet,   a_micep,   a_micet,    &
+                           a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
+                           dtlt, time, level, .FALSE.)
+             
+         END IF !nxp==5 and nyp == 5
+
+         CALL tend_constrain2()
+         CALL update_sclrs
+         CALL tend0(.TRUE.)
+         CALL SALSA_diagnostics(1)
+         CALL thermo(level)
+         
+      END IF ! level >= 4
+
+         
+      !-------------------------------------------
+      ! "Deposition" timestep
+      
+      ! Dont perform sedimentation or level 3 autoconversion during spinup (internal switches implemented)
+      CALL micro(level)
+
+      IF (level >= 4) CALL tend_constrain2() !tend_constrain(nspec)
+      CALL update_sclrs
+      CALL tend0(.TRUE.)
+      IF (level >= 4) CALL SALSA_diagnostics(2)
+      CALL thermo(level)
+      
+      
+      !-------------------------------------------
+      ! "Advection" timestep
+      CALL fadvect
+
+      IF (level >= 4) CALL tend_constrain2()
+      CALL update_sclrs
+      CALL tend0(.TRUE.)
+      IF (level >= 4) CALL SALSA_diagnostics(3)
+      CALL thermo(level)
+
+      
       CALL corlos
 
       CALL ladvect
@@ -362,16 +353,12 @@ CONTAINS
 
       CALL cfl (cflflg, cflmax)
 
+      IF (level >= 4) CALL SALSA_diagnostics(3)
       CALL thermo(level)
-
-      IF (level >= 4)  THEN
-         CALL SALSA_diagnostics
-         call thermo(level)
-      ENDIF
-
-      IF (sflg) THEN
-         CALL statistics (time+dtl)
-      END IF
+      
+      !IF (sflg) THEN
+      !   CALL statistics (time+dtl)
+      !END IF
 
    END SUBROUTINE t_step
    !
@@ -403,7 +390,7 @@ CONTAINS
    SUBROUTINE cfl(cflflg,cflmax)
 
       USE grid, ONLY : a_up,a_vp,a_wp,nxp,nyp,nzp,dxi,dyi,dzt,dtlt
-      USE stat, ONLY : fill_scalar
+      !USE stat, ONLY : fill_scalar
 
       LOGICAL, INTENT(out) :: cflflg
       REAL(KIND=8), INTENT (out)   :: cflmax
@@ -413,7 +400,7 @@ CONTAINS
 
       cflflg = (cflmax > cflnum)
       IF (cflflg) PRINT *, 'Warning CFL Violation :', cflmax
-      CALL fill_scalar(1,REAL(cflmax))
+      !CALL fill_scalar(1,REAL(cflmax))
 
    END SUBROUTINE cfl
    !
@@ -491,8 +478,8 @@ CONTAINS
    SUBROUTINE buoyancy
      
      USE grid, ONLY : a_uc, a_vc, a_wc, a_wt, a_rv, a_rc, a_theta, &
-          a_rp, a_srp, a_ri, a_srs, nxp, nyp, nzp, dzm, th00, level, pi1
-     USE stat, ONLY : sflg, comp_tke
+          a_rp, a_srp, a_ri, a_riri, nxp, nyp, nzp, dzm, th00, level, pi1
+     !USE stat, ONLY : sflg, comp_tke
      USE util, ONLY : ae1mm
      USE thrm, ONLY : update_pi1
      
@@ -503,14 +490,14 @@ CONTAINS
         rc = a_rp - a_rv ! Total condensate (cloud + precipitation)
      ELSE IF (level >= 4) THEN
         rv = a_rp ! Water vapor
-        rc = a_rc + a_srp + a_ri + a_srs ! Total condensed water (aerosol+cloud+precipitation+ice+snow)
+        rc = a_rc + a_srp + a_ri + a_riri ! Total condensed water (aerosol+cloud+precipitation+ice)
      END IF
      call boyanc(nzp,nxp,nyp,a_wt,a_theta,rv,th00,a_tmp1,rc)
      
      CALL ae1mm(nzp,nxp,nyp,a_wt,awtbar)
      CALL update_pi1(nzp,awtbar,pi1)
      
-     IF (sflg)  CALL comp_tke(nzp,nxp,nyp,dzm,th00,a_uc,a_vc,a_wc,a_tmp1)
+     !IF (sflg)  CALL comp_tke(nzp,nxp,nyp,dzm,th00,a_uc,a_vc,a_wc,a_tmp1)
      
    END SUBROUTINE buoyancy
    !
@@ -519,34 +506,34 @@ CONTAINS
    !
    SUBROUTINE boyanc(n1,n2,n3,wt,th,rv,th00,scr,rc)
 
-      USE defs, ONLY : g, ep2
+     USE defs, ONLY : g, ep2
 
-      INTEGER, INTENT(in) :: n1,n2,n3
-      REAL, INTENT(in)    :: th00,th(n1,n2,n3),  &
-                             rv(n1,n2,n3)  ! water vapor
+     INTEGER, INTENT(in) :: n1,n2,n3
+     REAL, INTENT(in)    :: th00,th(n1,n2,n3),  &
+                            rv(n1,n2,n3)  ! water vapor
                                       
-      REAL, INTENT(in)    :: rc(n1,n2,n3)  ! Total condensed water (aerosol, cloud, rain, ice and snow) mixing ratio
+     REAL, INTENT(in)    :: rc(n1,n2,n3)  ! Total condensed water (aerosol, cloud, rain, ice and snow) mixing ratio
 
-      REAL, INTENT(inout) :: wt(n1,n2,n3)
-      REAL, INTENT(out)   :: scr(n1,n2,n3)
+     REAL, INTENT(inout) :: wt(n1,n2,n3)
+     REAL, INTENT(out)   :: scr(n1,n2,n3)
 
-      INTEGER :: k, i, j
-      REAL    :: gover2
+     INTEGER :: k, i, j
+     REAL    :: gover2
+     
+     gover2 = 0.5*g
 
-      gover2 = 0.5*g
-
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
-             scr(k,i,j)=gover2*((th(k,i,j)*(1.+ep2*rv(k,i,j))-th00)/th00-rc(k,i,j))
-          end do
-
-          do k=2,n1-2
-             wt(k,i,j)=wt(k,i,j)+scr(k,i,j)+scr(k+1,i,j)
-          end do
-       end do
-    end do
-
+     do j=3,n3-2
+        do i=3,n2-2
+           do k=1,n1
+              scr(k,i,j)=gover2*((th(k,i,j)*(1.+ep2*rv(k,i,j))-th00)/th00-rc(k,i,j))
+           end do
+           
+           do k=2,n1-2
+              wt(k,i,j)=wt(k,i,j)+scr(k,i,j)+scr(k+1,i,j)
+           end do
+        end do
+     end do
+     
    END SUBROUTINE boyanc
    !
    ! ----------------------------------------------------------------------

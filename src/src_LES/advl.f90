@@ -34,7 +34,7 @@ CONTAINS
 
       USE grid, ONLY : a_uc, a_vc, a_wc, a_ut, a_vt, a_wt,      &
                        nxp, nyp, nzp, dzt, dzm, dxi, dyi, dn0
-      USE stat, ONLY : sflg, updtst, acc_tend
+      !USE stat, ONLY : sflg, updtst, acc_tend
       USE util, ONLY : get_avg3
 
       REAL :: v1da(nzp), v1db(nzp), v1dc(nzp), v1dd(nzp), v1de(nzp), v1st(nzp), &
@@ -42,8 +42,8 @@ CONTAINS
       !
       ! prepare density weights for use vertical advection
       !
-      IF (sflg) CALL acc_tend(nzp,nxp,nyp,a_uc,a_vc,a_wc,a_ut,a_vt,a_wt,        &
-                              v1dc,v1dd,v1de,1,'adv')
+      !IF (sflg) CALL acc_tend(nzp,nxp,nyp,a_uc,a_vc,a_wc,a_ut,a_vt,a_wt,        &
+      !                        v1dc,v1dd,v1de,1,'adv')
 
       CALL advl_prep(nzp,nxp,nyp,a_wc,a_tmp1,dn0,dzt,dzm,v1da,v1db)
       !
@@ -53,10 +53,10 @@ CONTAINS
       CALL ladvxu(nzp,nxp,nyp,a_uc,a_ut,a_tmp2,dxi)
       CALL ladvyu(nzp,nxp,nyp,a_uc,a_ut,a_vc,a_tmp2,dyi)
       CALL ladvzu(nzp,nxp,nyp,a_uc,a_ut,a_tmp1,a_tmp2,v1da)
-      IF (sflg) THEN
-         CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
-         CALL updtst(nzp,'adv',-1,v1st,1)
-      END IF
+      !IF (sflg) THEN
+      !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
+      !   CALL updtst(nzp,'adv',-1,v1st,1)
+      !END IF
       !
       ! advection of v by (u,v,w) all at current timelevel.  also when flag
       ! is set updated statistical array with uw flux derived from ladvzu
@@ -64,10 +64,10 @@ CONTAINS
       CALL ladvxv(nzp,nxp,nyp,a_uc,a_vc,a_vt,a_tmp2,dxi)
       CALL ladvyv(nzp,nxp,nyp,a_vc,a_vt,a_tmp2,dyi)
       CALL ladvzv(nzp,nxp,nyp,a_vc,a_vt,a_tmp1,a_tmp2,v1da)
-      IF (sflg) THEN
-         CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
-         CALL updtst(nzp,'adv',-2,v1st,1)
-      END IF
+      !IF (sflg) THEN
+      !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
+      !   CALL updtst(nzp,'adv',-2,v1st,1)
+      !END IF
       !
       ! advection of w by (u,v,w) all at current timelevel.  also when flag
       ! is set updated statistical array with uw flux derived from ladvzu
@@ -76,13 +76,13 @@ CONTAINS
       CALL ladvyw(nzp,nxp,nyp,a_vc,a_wc,a_wt,a_tmp2,dyi)
       CALL ladvzw(nzp,nxp,nyp,a_wc,a_wt,a_tmp1,a_tmp2,v1db)
 
-      IF (sflg) THEN
-         CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
-         CALL updtst(nzp,'adv',-3,v1st,1)
-      END IF
+      !IF (sflg) THEN
+      !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
+      !   CALL updtst(nzp,'adv',-3,v1st,1)
+      !END IF
 
-      IF (sflg) CALL acc_tend(nzp,nxp,nyp,a_uc,a_vc,a_wc,a_ut,a_vt,a_wt,        &
-                              v1dc,v1dd,v1de,2,'adv')
+      !IF (sflg) CALL acc_tend(nzp,nxp,nyp,a_uc,a_vc,a_wc,a_ut,a_vt,a_wt,        &
+      !                        v1dc,v1dd,v1de,2,'adv')
 
    END SUBROUTINE ladvect
    !

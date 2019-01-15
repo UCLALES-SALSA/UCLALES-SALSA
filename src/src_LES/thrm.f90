@@ -45,7 +45,7 @@ CONTAINS
 
     USE grid, ONLY : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_temp,  &
                      a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
-                     a_srp, a_ri, a_rsi, a_rhi, a_srs
+                     a_srp, a_ri, a_riri, a_rsi, a_rhi
 
     INTEGER, INTENT (in) :: level
 
@@ -61,7 +61,7 @@ CONTAINS
                       pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp)
     CASE (4:5)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
-                      a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_rsi,a_rhi,a_srs)
+                      a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_riri,a_rsi,a_rhi)
     END SELECT
 
   END SUBROUTINE thermo
@@ -97,7 +97,7 @@ CONTAINS
   !            in SALSA.
   !
 
-  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,rsi,rhi,srs)
+  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,riri,rsi,rhi)
     USE defs, ONLY : R, cp, cpr, p00, alvl, alvi
     USE grid, ONLY : a_dn
     IMPLICIT NONE
@@ -115,8 +115,8 @@ CONTAINS
                          th(n1,n2,n3),  &     ! Potential temperature
                          tk(n1,n2,n3),  &     ! Absolute temperature
                          p(n1,n2,n3)          ! Air pressure
-    REAL, INTENT(IN)  :: ri(n1,n2,n3),   &  ! Total ice condensate mix rat
-                         srs(n1,n2,n3)      ! Snow mix rat
+    REAL, INTENT(IN)  :: ri(n1,n2,n3)      ! Pristine ice condensate mix rat
+    REAL, INTENT(IN)  :: riri(n1,n2,n3)    ! Rimed ice condensate mix rat
     REAL, INTENT(OUT) :: rsi(n1,n2,n3), &  ! Saturation mix rat over ice
                          rhi(n1,n2,n3)     ! relative humidity over ice
     REAL    :: exner
@@ -134,7 +134,7 @@ CONTAINS
 
              ! Potential and absolute temperatures
              th(k,i,j) = thil + (alvl*( rc(k,i,j) + srp(k,i,j) ))/cp/exner
-             IF(level == 5) th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp/exner
+             IF(level == 5) th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j) + riri(k,i,j) ))/cp/exner
 
              tk(k,i,j) = th(k,i,j)*exner
 
@@ -153,7 +153,8 @@ CONTAINS
           END DO
        END DO
     END DO
-
+    
+    
   END SUBROUTINE SALSAthrm
 !
 ! -------------------------------------------------------------------------
@@ -344,7 +345,7 @@ CONTAINS
 
   REAL  :: esi, x
 
-  x = max(-80.,t-273.16)
+  x = MIN(MAX(-80.,t-273.16),0.)
   esi = c0+x*(c1+x*(c2+x*(c3+x*(c4+x*(c5+x*(c6+x*(c7+x*c8)))))))
   rsif = .622*esi/(p-esi)
 

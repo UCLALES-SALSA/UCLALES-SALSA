@@ -21,7 +21,7 @@ MODULE init
 
    USE grid
 
-   INTEGER, PARAMETER    :: nns = 500
+   INTEGER, PARAMETER    :: nns = 1500
    INTEGER               :: ns
    INTEGER               :: iseed = 0
    INTEGER               :: ipsflg = 1
@@ -34,6 +34,8 @@ MODULE init
    REAL                  :: zrndamp = 0.2 ! the amplitude of pseudorandom fluctuations
    CHARACTER  (len=80)   :: hfilin = 'test.'
 
+   INTEGER               :: init_type = 1 ! Switch for how to initialize mixing: 1) random perturbations, 2) warm bubble
+
 CONTAINS
    !
    ! ----------------------------------------------------------------------
@@ -43,12 +45,12 @@ CONTAINS
    SUBROUTINE initialize
 
       USE step, ONLY : time, outflg
-      USE stat, ONLY : init_stat, mcflg, acc_massbudged, salsa_b_bins
+      !USE stat, ONLY : init_stat, mcflg, acc_massbudged, salsa_b_bins
       USE sgsm, ONLY : tkeinit
       USE mpi_interface, ONLY : appl_abort, myid
       USE thrm, ONLY : thermo
       USE mo_salsa_driver, ONLY : run_SALSA
-      USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim, spec
+      USE mo_submctl, ONLY : in2b, fn2b, nlim, prlim, spec
       USE util, ONLY : maskactiv
       USE nudg, ONLY : init_nudg
       USE emission_main, ONLY : init_emission
@@ -70,12 +72,12 @@ CONTAINS
          CALL basic_state
          CALL fldinit ! Juha: aerosol size distributions are initialized here.
                       !       Also thermodynamics!
-
+         
          ! If SALSA is used, call SALSA with full configuration once before beginning
          ! spin-up period to set up aerosol and cloud fields.
          IF (level >= 4) THEN
 
-            n4 = spec%getNSpec()
+            n4 = spec%getNSpec(type="wet")
 
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
@@ -83,7 +85,6 @@ CONTAINS
                               a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                               a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
-                              a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
                               dtlt, time, level, .TRUE.)
             ELSE
@@ -92,7 +93,6 @@ CONTAINS
                               a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                               a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                               a_nicep,   a_nicet,   a_micep,   a_micet,    &
-                              a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                               a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
                               dtlt, time, level, .TRUE.)
 
@@ -100,7 +100,7 @@ CONTAINS
             CALL SALSAInit
 
          END IF !level >= 4
-
+         
       ELSE IF (runtype == 'HISTORY') THEN
          IF (isgstyp == 2) CALL tkeinit(nxyzp,a_qp)
          CALL hstart
@@ -115,10 +115,10 @@ CONTAINS
      !   -b-bins initialized with non-zero concentration
      !   -nucleation set to produce particles to b bins (currently only a bins)
      IF (level >= 4 .AND. (.NOT. salsa_b_bins)) &
-        salsa_b_bins = ANY( a_naerop(:,:,:,in2b:fn2b) > nlim ) .OR. ANY( a_nicep(:,:,:,iib%cur:fib%cur) > prlim )
+        salsa_b_bins = ANY( a_naerop(:,:,:,in2b:fn2b) > nlim ) 
 
      CALL sponge_init
-     CALL init_stat(time+dtl,filprf,expnme,nzp)
+     !CALL init_stat(time+dtl,filprf,expnme,nzp)
      !
      ! Initialize nudging profiles
      ! ----------------------------
@@ -130,24 +130,25 @@ CONTAINS
      IF (lemission .AND. level >= 4) CALL init_emission()
 
      !
-     IF (mcflg) THEN
-        ! Juha:
-        ! Calculate some numbers for mass concervation experiments
-        mc_Vdom = deltax*deltay*deltaz*(nxp-4)*(nyp-4)*(nzp-1)
-        mc_Adom = deltax*deltay*(nxp-4)*(nyp-4)
-        mc_ApVdom = mc_Adom/mc_Vdom
-        ! Get the initial mass of atmospheric water
-        CALL acc_massbudged(nzp,nxp,nyp,0,dtlt,dzt,a_dn,     &
-                            rv=a_rp,rc=a_rc,prc=a_srp)
-     END IF ! mcflg
+     !IF (mcflg) THEN
+     !   ! Juha:
+     !   ! Calculate some numbers for mass concervation experiments
+     !   mc_Vdom = deltax*deltay*deltaz*(nxp-4)*(nyp-4)*(nzp-1)
+     !   mc_Adom = deltax*deltay*(nxp-4)*(nyp-4)
+     !   mc_ApVdom = mc_Adom/mc_Vdom
+     !   ! Get the initial mass of atmospheric water
+     !   CALL acc_massbudged(nzp,nxp,nyp,0,dtlt,dzt,a_dn,     &
+     !                       rv=a_rp,rc=a_rc,prc=a_srp)
+     !END IF ! mcflg
 
      ! Diagnostic calculations that should take place (with SALSA) both for INITIAL and HISTORY
      IF ( (level >= 4) ) THEN
+        !CALL thermo(level)
+        CALL SALSA_diagnostics(0,onlyDiag=.TRUE.)
         CALL thermo(level)
-        CALL SALSA_diagnostics
      END IF
 
-      !
+     !
       ! write analysis and history files from restart if appropriate
       !
       IF (outflg) THEN
@@ -177,17 +178,16 @@ CONTAINS
       USE sgsm, ONLY : tkeinit
       USE thrm, ONLY : thermo, rslf
       USE mo_submctl, ONLY : spec
+      USE init_warm_bubble, ONLY : warm_bubble
 
       IMPLICIT NONE
 
       INTEGER :: i,j,k
       REAL    :: exner, pres, tk, rc, xran(nzp)
       INTEGER :: nspec
-
-      nspec = spec%getNSpec()
-
+      
       CALL htint(ns,ts,hs,nzp,th0,zt)
-
+      
       DO j = 1, nyp
          DO i = 1, nxp
             a_ustar(i,j) = 0.
@@ -204,37 +204,10 @@ CONTAINS
 
       ! Juha: Added SELECT-CASE for level 4
       SELECT CASE(level)
-         CASE(1,2,3)
-            IF ( allocated (a_rv)) a_rv = a_rp
-
-            IF ( allocated (a_rc)) THEN
-               DO j = 1, nyp
-                  DO i = 1, nxp
-                     DO k = 1, nzp
-                        exner = (pi0(k)+pi1(k))/cp
-                        pres  = p00 * (exner)**cpr
-                        IF (itsflg == 0) THEN
-                           tk = th0(k)*exner
-                           rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
-                           a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
-                           a_rv(k,i,j) = a_rp(k,i,j)-rc
-                        END IF
-                        IF (itsflg == 2) THEN
-                           tk = th0(k)
-                           a_theta(k,i,j) = tk/exner
-                           rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
-                           a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
-                           a_rv(k,i,j) = a_rp(k,i,j)-rc
-                        END IF
-                     END DO
-                  END DO
-               END DO
-            END IF
-
-         CASE(4,5)
-            ! Condensation will be calculated by the initial call of SALSA, so use the
-            ! saturation adjustment method to estimate the amount of liquid water,
-            ! which is needed for theta_l
+      CASE(1,2,3)
+         IF ( allocated (a_rv)) a_rv = a_rp
+         
+         IF ( allocated (a_rc)) THEN
             DO j = 1, nyp
                DO i = 1, nxp
                   DO k = 1, nzp
@@ -244,33 +217,66 @@ CONTAINS
                         tk = th0(k)*exner
                         rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
                         a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
+                        a_rv(k,i,j) = a_rp(k,i,j)-rc
                      END IF
                      IF (itsflg == 2) THEN
                         tk = th0(k)
                         a_theta(k,i,j) = tk/exner
                         rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
                         a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
+                        a_rv(k,i,j) = a_rp(k,i,j)-rc
                      END IF
-                  END DO !k
-               END DO !i
-            END DO !j
-
+                  END DO
+               END DO
+            END DO
+         END IF
+         
+      CASE(4,5)
+         ! Condensation will be calculated by the initial call of SALSA, so use the
+         ! saturation adjustment method to estimate the amount of liquid water,
+         ! which is needed for theta_l
+         DO j = 1, nyp
+            DO i = 1, nxp
+               DO k = 1, nzp
+                  exner = (pi0(k)+pi1(k))/cp
+                  pres  = p00 * (exner)**cpr
+                  IF (itsflg == 0) THEN
+                     tk = th0(k)*exner
+                     rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
+                     a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
+                  END IF
+                  IF (itsflg == 2) THEN
+                     tk = th0(k)
+                     a_theta(k,i,j) = tk/exner
+                     rc = max(0.,a_rp(k,i,j)-rslf(pres,tk))
+                     a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
+                  END IF
+               END DO !k
+            END DO !i
+         END DO !j
+          
       END SELECT
-
-      k = 1
-      DO WHILE( zt(k+1) <= zrand .AND. k+1 < nzp)
-         k = k+1
-         xran(k) = zrndamp*(zrand - zt(k))/zrand
-      END DO
-      CALL random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
-
-      IF (associated(a_rp)) THEN
+      
+      IF (init_type == 1) THEN
+         ! Initialize with random perturbations
          k = 1
          DO WHILE( zt(k+1) <= zrand .AND. k+1 < nzp)
             k = k+1
-            xran(k) = 5.0e-5*(zrand - zt(k))/zrand
+            xran(k) = zrndamp*(zrand - zt(k))/zrand
          END DO
-         CALL random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
+         CALL random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
+         
+         IF (associated(a_rp)) THEN
+            k = 1
+            DO WHILE( zt(k+1) <= zrand .AND. k+1 < nzp)
+               k = k+1
+               xran(k) = 5.0e-5*(zrand - zt(k))/zrand
+            END DO
+            CALL random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
+         END IF
+      ELSE IF (init_type == 2) THEN
+         ! Initialize with warm bubble (for convection)
+         CALL warm_bubble()
       END IF
 
       a_wp = 0.
@@ -279,7 +285,7 @@ CONTAINS
       ! initialize thermodynamic fields
       !
       CALL thermo (level)
-
+      
       !
       ! Initialize aerosol size distributions
       !
@@ -319,7 +325,7 @@ CONTAINS
          IF(myid == 0) THEN
             PRINT "(//' ',49('-')/)"
             PRINT '(2X,A17)', 'Sponge Layer Init '
-            PRINT '(3X,A12,F6.1,A1)', 'Starting at ', zt(nzp-nfpt), 'm'
+            PRINT '(3X,A12,F8.1,A1)', 'Starting at ', zt(nzp-nfpt), 'm'
             PRINT '(3X,A18,F6.1,A1)', 'Minimum timescale ', 1/spng_wfct(nfpt),'s'
          END IF
       END IF
@@ -483,20 +489,19 @@ CONTAINS
 
     USE defs, ONLY : cp, rcp, cpr, r, g, p00, p00i, ep2
     USE mpi_interface, ONLY : myid
+    USE thrm, ONLY : rslf
 
     IMPLICIT NONE
 
     INTEGER :: k
-    REAL    :: v1da(nzp), v1db(nzp), v1dc(nzp), exner
+    REAL    :: v1da(nzp), v1db(nzp), v1dc(nzp), exner, zrh(nzp),ztk(nzp)
 
-    CHARACTER (len=305) :: fmt =  &
+    CHARACTER (len=328) :: fmt =  &
        "(/,' -------------------------------------------------',/,"     //&
        "'  Basic State: ',//,4X,'Z',6X,'U0',6X,'V0',6X,'DN0',6X,' P0'"   //&
-       ",6X,'PRESS',4X,'TH0',6X,'THV',5X,'RT0',/,3X,'(m)',5X,'(m/s)'"     //&
+       ",6X,'PRESS',4X,'TH0',6X,'THV',5X,'RT0','RH',/,3X,'(m)',5X,'(m/s)'"     //&
        ",3X,'(m/s)',2X,'(kg/m3)',2X,'(J/kgK)',4X,'(Pa)',5X,'(K)',5X"      //&
-       ",'(K)',4X,'(g/kg)',//,(1X,F7.1,2F8.2,F8.3,2F10.2,2F8.2,F7.2))"
-
-    !
+       ",'(K)',4X,'(g/kg)',4X,'1',4X,'K',//,(1X,F7.1,2F8.2,F8.3,2F10.2,2F8.2,F7.2,F7.2,F7.2))"
 
     CALL htint(ns,thds,hs,nzp,th0,zt)
     CALL htint(ns,us,hs,nzp,u0,zt)
@@ -555,8 +560,17 @@ CONTAINS
     v0(1) = v0(2)
     psrf  = ps(1)
 
+    ! Juha: For debugging
+    zrh = 0.
+    ztk = 0.
+    DO k = 1,nzp
+       exner = (pi0(k) + pi1(k))/cp
+       ztk(k) = th0(k)*(v1db(k)*p00i)**rcp
+       zrh(k) = 100.*rt0(k)/rslf(v1db(k),ztk(k))
+    END DO
+       
     IF(myid == 0) WRITE(*,fmt) (zt(k),u0(k),v0(k),dn0(k),v1da(k),v1db(k), &
-                                th0(k),v1dc(k),rt0(k)*1000.,k=1,nzp)
+                                th0(k),v1dc(k),rt0(k)*1000.,zrh(k),ztk(k),k=1,nzp)  ! rt0(k)*1000.
 
     RETURN
  END SUBROUTINE basic_state
@@ -747,9 +761,7 @@ CONTAINS
 
              IF(level == 5) THEN 
                 a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtlt*a_nicet(k,i,j,:), 0. )
-                a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtlt*a_nsnowt(k,i,j,:), 0. )
                 a_micep(k,i,j,:)   = MAX( a_micep(k,i,j,:)   + dtlt*a_micet(k,i,j,:), 0. )
-                a_msnowp(k,i,j,:)  = MAX( a_msnowp(k,i,j,:)  + dtlt*a_msnowt(k,i,j,:), 0. )
              END IF
 
           END DO
@@ -770,8 +782,10 @@ CONTAINS
     ! Ice
     IF ( level == 5 ) THEN
        a_ri(:,:,:) = 0.
+       a_riri(:,:,:) = 0.
        DO bb = 1, nice
           a_ri(:,:,:) = a_ri(:,:,:) + a_micep(:,:,:,getMassIndex(nice,bb,nc))
+          a_riri(:,:,:) = a_riri(:,:,:) + a_micep(:,:,:,getMassIndex(nice,bb,nc+1))
        END DO
     END IF
     
@@ -788,15 +802,14 @@ CONTAINS
     USE mo_salsa_sizedist, ONLY : size_distribution
     USE mo_salsa_types, ONLY : aero
     USE mo_submctl, ONLY : pi6, nmod, nbins, nspec_dry, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
-                           sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp
+                           sigmagA, dpgA, nA, sigmagB, dpgB, nB, volDistA, volDistB, nreg,isdtyp
     USE mpi_interface, ONLY : myid
     USE util, ONLY : getMassIndex
 
     IMPLICIT NONE
-    REAL :: core(nbins), nsect(1,1,nbins)             ! Size of the bin mid aerosol particle, local aerosol size dist
+    REAL :: core(nbins), nsectA(1,1,nbins), nsectB(1,1,nbins)   ! Size of the bin mid aerosol particle, local aerosol size dist
     REAL :: pndist(nzp,nbins)                         ! Aerosol size dist as a function of height
     REAL :: pvf2a(nzp,nspec_dry), pvf2b(nzp,nspec_dry)        ! Mass distributions of aerosol species for a and b-bins
-    REAL :: pnf2a(nzp)                                ! Number fraction for bins 2a
     REAL :: pvfOC1a(nzp)                              ! Mass distribution between SO4 and OC in 1a
     INTEGER :: ss,ee,i,j,k
     INTEGER :: iso4 = -1, ioc = -1, ibc = -1, idu = -1, &
@@ -816,7 +829,7 @@ CONTAINS
     ! Set concentrations to zero
     pndist = 0.
     pvf2a = 0.; pvf2b = 0.
-    pnf2a = 0.; pvfOC1a = 0.
+    pvfOC1a = 0.
 
     a_maerop(:,:,:,:) = 0.0
     a_naerop(:,:,:,:) = 0.0
@@ -864,7 +877,7 @@ CONTAINS
     ! ---------------------------------------------------------------------------------------------------
     IF (isdtyp == 1) THEN
 
-       CALL READ_AERO_INPUT(pndist,pvfOC1a,pvf2a,pvf2b,pnf2a)
+       CALL READ_AERO_INPUT(pndist,pvfOC1a,pvf2a,pvf2b)
 
     !
     ! Uniform profiles based on namelist parameters
@@ -890,19 +903,21 @@ CONTAINS
           pvf2b(:,ss) = volDistB(ss)
        END DO
 
-       ! Number fraction for 2a
-       pnf2a(:) = nf2a
        !
        ! Uniform aerosol size distribution with height.
        ! Using distribution parameters (n, dpg and sigmag) from the SALSA namelist
        !
        ! Convert to SI
-       nsect = 0.
-       n = n*1.e6
-       dpg = dpg*1.e-6
-       CALL size_distribution(1,1,1, nmod, n, dpg, sigmag, nsect)
+       nsectA = 0.
+       nsectB = 0.
+       nA = nA*1.e6
+       nB = nB*1.e6
+       dpgA = dpgA*1.e-6
+       dpgB = dpgB*1.e-6 
+       CALL size_distribution(1,1,1, nmod, in1a, fn2a, nA, dpgA, sigmagA, nsectA)
+       CALL size_distribution(1,1,1, nmod, in2b, fn2b, nB, dpgB, sigmagB, nsectB)
        DO ss = 1, nbins
-          pndist(:,ss) = nsect(1,1,ss)
+          pndist(:,ss) = nsectA(1,1,ss) + nsectB(1,1,ss)
        END DO
 
     END IF
@@ -922,8 +937,8 @@ CONTAINS
 
              ! Region 2
              IF (nreg > 1) THEN
-                a_naerop(k,i,j,in2a:fn2a) = max(0.0,pnf2a(k))*pndist(k,in2a:fn2a)
-                a_naerop(k,i,j,in2b:fn2b) = max(0.0,1.0-pnf2a(k))*pndist(k,in2a:fn2a)
+                a_naerop(k,i,j,in2a:fn2a) = pndist(k,in2a:fn2a)
+                a_naerop(k,i,j,in2b:fn2b) = pndist(k,in2b:fn2b)
              END IF
 
              !
@@ -950,7 +965,7 @@ CONTAINS
 
     IF (nreg > 1) THEN
        DO ss = 1,nspec_dry
-          CALL setAeroMass(spec%ind(ss),pvf2a,pvf2b,pnf2a,pndist,core,spec%rholiq(ss))
+          CALL setAeroMass(spec%ind(ss),pvf2a,pvf2b,pndist,core,spec%rholiq(ss))
        END DO
     END IF
        
@@ -987,7 +1002,7 @@ CONTAINS
  ! Sets the mass concentrations to aerosol arrays in 2a and 2b
  !
  !
- SUBROUTINE setAeroMass(ispec,ppvf2a,ppvf2b,ppnf2a,ppndist,pcore,prho)
+ SUBROUTINE setAeroMass(ispec,ppvf2a,ppvf2b,ppndist,pcore,prho)
     USE mo_submctl, ONLY : nbins, in2a,fn2a,in2b,fn2b,nspec_dry
     USE util, ONLY : getMassIndex
     
@@ -995,7 +1010,6 @@ CONTAINS
     
     INTEGER, INTENT(in) :: ispec                             ! Aerosol species index
     REAL, INTENT(in) :: ppvf2a(nzp,nspec_dry), ppvf2b(nzp,nspec_dry) ! Mass distributions for a and b bins
-    REAL, INTENT(in) :: ppnf2a(nzp)                          ! Number fraction for 2a
     REAL, INTENT(in) :: ppndist(nzp,nbins)                   ! Aerosol size distribution
     REAL, INTENT(in) :: pcore(nbins)                         ! Aerosol bin mid core volume
     REAL, INTENT(in) :: prho                                 ! Aerosol density
@@ -1009,13 +1023,13 @@ CONTAINS
              ! 2a
              ss = getMassIndex(nbins,in2a,ispec); ee = getMassIndex(nbins,fn2a,ispec)
              a_maerop(k,i,j,ss:ee) =      &
-                max( 0.0,ppvf2a(k,ispec) )*ppnf2a(k) * &
+                max( 0.0,ppvf2a(k,ispec) ) * &
                 ppndist(k,in2a:fn2a)*pcore(in2a:fn2a)*prho
              ! 2b
              ss = getMassIndex(nbins,in2b,ispec); ee = getMassIndex(nbins,fn2b,ispec)
              a_maerop(k,i,j,ss:ee) =      &
-                max( 0.0,ppvf2b(k,ispec) )*(1.0-ppnf2a(k)) * &
-                ppndist(k,in2a:fn2a)*pcore(in2a:fn2a)*prho
+                max( 0.0,ppvf2b(k,ispec) ) * &
+                ppndist(k,in2b:fn2b)*pcore(in2b:fn2b)*prho
           END DO
        END DO
     END DO
@@ -1026,9 +1040,9 @@ CONTAINS
  ! Reads vertical profiles of aerosol size distribution parameters, aerosol species volume fractions and
  ! number concentration fractions between a and b bins
  !
- SUBROUTINE READ_AERO_INPUT(ppndist,ppvfOC1a,ppvf2a,ppvf2b,ppnf2a)
+ SUBROUTINE READ_AERO_INPUT(ppndist,ppvfOC1a,ppvf2a,ppvf2b)
     USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
-    USE mo_submctl, ONLY : nbins,  &
+    USE mo_submctl, ONLY : nbins, in1a, fn2a, in2b, fn2b,  &
                            nspec_dry, maxspec, nmod
     USE mo_salsa_sizedist, ONLY : size_distribution
     USE mpi_interface, ONLY : appl_abort, myid
@@ -1036,24 +1050,28 @@ CONTAINS
 
     REAL, INTENT(out) :: ppndist(nzp,nbins)                   ! Aerosol size dist as a function of height
     REAL, INTENT(out) :: ppvf2a(nzp,nspec_dry), ppvf2b(nzp,nspec_dry) ! Volume distributions of aerosol species for a and b-bins
-    REAL, INTENT(out) :: ppnf2a(nzp)                          ! Number fraction for bins 2a
     REAL, INTENT(out) :: ppvfOC1a(nzp)                        ! Volume distribution between SO4 and OC in 1a
 
-    REAL :: nsect(1,1,nbins)
+    REAL :: nsectA(1,1,nbins), nsectB(1,1,nbins)
 
     INTEGER :: ncid, k, i
     INTEGER :: nc_levs=500, nc_nspec, nc_nmod
+
+    REAL :: pndistA(nzp,nbins), pndistB(nzp,nbins)
 
     ! Stuff that will be read from the file
     REAL, ALLOCATABLE :: zlevs(:),        &  ! Levels in meters
                          zvolDistA(:,:),  &  ! Volume distribution of aerosol species in a and b bins
                          zvoldistB(:,:),  &  ! (Don't mess these with the ones in namelist.salsa -
                                              !  they are not used here!)
-                         znf2a(:),        &  ! Number fraction for bins 2a
-                         zn(:,:),         &  ! Aerosol mode number concentrations
-                         zsigmag(:,:),    &  ! Geometric standard deviations
-                         zdpg(:,:),       &  ! Mode mean diameters
-                         znsect(:,:),     &  ! Helper for binned number concentrations
+                         znA(:,:),         &  ! Aerosol mode number concentrations, regime A
+                         zsigmagA(:,:),    &  ! Geometric standard deviations, regime A
+                         zdpgA(:,:),       &  ! Mode mean diameters, regime A
+                         znB(:,:),         &  ! number concentration for regime B
+                         zsigmagB(:,:),    &  ! getometric std, regime B
+                         zdpgB(:,:),       &  ! Mode mean diameter, regime B
+                         znsectA(:,:),     &  ! Helper for binned number concentrations regime A
+                         znsectB(:,:),     &  ! - '' - regime B
                          helper(:,:)         ! nspec helper
     LOGICAL :: READ_NC
 
@@ -1070,26 +1088,31 @@ CONTAINS
     ALLOCATE( zlevs(nc_levs),              &
               zvolDistA(nc_levs,maxspec),  &
               zvolDistB(nc_levs,maxspec),  &
-              znf2a(nc_levs),              &
-              zn(nc_levs,nmod),            &
-              zsigmag(nc_levs,nmod),       &
-              zdpg(nc_levs,nmod),          &
+              znA(nc_levs,nmod),           &
+              zsigmagA(nc_levs,nmod),      &
+              zdpgA(nc_levs,nmod),         &
+              znB(nc_levs,nmod),           &
+              zsigmagB(nc_levs,nmod),      &
+              zdpgB(nc_levs,nmod),         &
         ! Couple of helper arrays
-              znsect(nc_levs,nbins),       &
-              helper(nc_levs,nspec_dry)        )
+              znsectA(nc_levs,nbins),      &
+              znsectB(nc_levs,nbins),      &
+              helper(nc_levs,nspec_dry)    )
 
-    zlevs = 0.; zvolDistA = 0.; zvolDistB = 0.; znf2a = 0.; zn = 0.; zsigmag = 0.
-    zdpg = 0.; znsect = 0.; helper = 0.
+    zlevs = 0.; zvolDistA = 0.; zvolDistB = 0.; znA = 0.; zsigmagA = 0.
+    zdpgA = 0.; znB = 0.; zsigmagB = 0.; zdpgB = 0.; znsectA = 0.; znsectB = 0.; helper = 0.
 
     IF (READ_NC) THEN
        ! Read the aerosol profile data
        CALL read_aero_nc_1d(ncid,'levs',nc_levs,zlevs)
        CALL read_aero_nc_2d(ncid,'volDistA',nc_levs,maxspec,zvolDistA)
        CALL read_aero_nc_2d(ncid,'volDistB',nc_levs,maxspec,zvolDistB)
-       CALL read_aero_nc_1d(ncid,'nf2a',nc_levs,znf2a)
-       CALL read_aero_nc_2d(ncid,'n',nc_levs,nmod,zn)
-       CALL read_aero_nc_2d(ncid,'dpg',nc_levs,nmod,zdpg)
-       CALL read_aero_nc_2d(ncid,'sigmag',nc_levs,nmod,zsigmag)
+       CALL read_aero_nc_2d(ncid,'nA',nc_levs,nmod,znA)
+       CALL read_aero_nc_2d(ncid,'nB',nc_levs,nmod,znB)
+       CALL read_aero_nc_2d(ncid,'dpgA',nc_levs,nmod,zdpgA)
+       CALL read_aero_nc_2d(ncid,'dpgB',nc_levs,nmod,zdpgB)
+       CALL read_aero_nc_2d(ncid,'sigmagA',nc_levs,nmod,zsigmagA)
+       CALL read_aero_nc_2d(ncid,'sigmagB',nc_levs,nmod,zsigmagB)
 
        CALL close_aero_nc(ncid)
     ELSE
@@ -1099,10 +1122,12 @@ CONTAINS
           READ(11,*,end=100) zlevs(i)
           READ(11,*,end=100) (zvolDistA(i,k),k=1,nspec_dry) ! Note: reads just "nspec_dry" values from the current line
           READ(11,*,end=100) (zvolDistB(i,k),k=1,nspec_dry) ! -||-
-          READ(11,*,end=100) (zn(i,k),k=1,nmod)
-          READ(11,*,end=100) (zdpg(i,k),k=1,nmod)
-          READ(11,*,end=100) (zsigmag(i,k),k=1,nmod)
-          READ(11,*,end=100) znf2a(i)
+          READ(11,*,end=100) (znA(i,k),k=1,nmod)
+          READ(11,*,end=100) (znB(i,k),k=1,nmod)
+          READ(11,*,end=100) (zdpgA(i,k),k=1,nmod)
+          READ(11,*,end=100) (zdpgB(i,k),k=1,nmod)
+          READ(11,*,end=100) (zsigmagA(i,k),k=1,nmod)
+          READ(11,*,end=100) (zsigmagB(i,k),k=1,nmod)
        END DO
 100 CONTINUE
     CLOSE(11)
@@ -1118,23 +1143,29 @@ CONTAINS
  END IF
 
  ! Convert to SI
- zn = zn*1.e6
- zdpg = zdpg*1.e-6
+ znA = znA*1.e6
+ znB = znB*1.e6
+ zdpgA = zdpgA*1.e-6
+ zdpgB = zdpgB*1.e-6
 
  ! Get the binned size distribution
- znsect = 0.
+ znsectA = 0.
+ znsectB = 0.
  DO k = 1, nc_levs
-    CALL size_distribution(1,1,1,nmod,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
-    znsect(k,:) = nsect(1,1,:)
+    CALL size_distribution(1,1,1,nmod,in1a,fn2a,znA(k,:),zdpgA(k,:),zsigmagA(k,:),nsectA)
+    CALL size_distribution(1,1,1,nmod,in2b,fn2b,znB(k,:),zdpgB(k,:),zsigmagB(k,:),nsectB)
+    znsectA(k,:) = nsectA(1,1,:)
+    znsectB(k,:) = nsectB(1,1,:)
  END DO
 
  ! Interpolate the input variables to model levels
  ! ------------------------------------------------
  CALL htint2d(nc_levs,zvolDistA(1:nc_levs,1:nspec_dry),zlevs(1:nc_levs),nzp,ppvf2a,zt,nspec_dry)
  CALL htint2d(nc_levs,zvolDistB(1:nc_levs,1:nspec_dry),zlevs(1:nc_levs),nzp,ppvf2b,zt,nspec_dry)
- CALL htint2d(nc_levs,znsect(1:nc_levs,:),zlevs(1:nc_levs),nzp,ppndist,zt,nbins)
- CALL htint(nc_levs,znf2a(1:nc_levs),zlevs(1:nc_levs),nzp,ppnf2a,zt)
-
+ CALL htint2d(nc_levs,znsectA(1:nc_levs,:),zlevs(1:nc_levs),nzp,pndistA,zt,nbins)
+ CALL htint2d(nc_levs,znsectB(1:nc_levs,:),zlevs(1:nc_levs),nzp,pndistB,zt,nbins)
+ ppndist = pndistA + pndistB
+ 
  ! Since 1a bins by SALSA convention can only contain SO4 or OC,
  ! get renormalized mass fractions.
  ! --------------------------------------------------------------
@@ -1151,7 +1182,7 @@ CONTAINS
     STOP 'Either OC or SO4 must be active for aerosol region 1a!'
  END IF
 
- DEALLOCATE( zlevs, zvolDistA, zvolDistB, znf2a, zn, zsigmag, zdpg, znsect, helper )
+ DEALLOCATE( zlevs, zvolDistA, zvolDistB, znA, znB, zsigmagA, zsigmagB, zdpgA, zdpgB, znsectA, znsectB, helper )
 
  END SUBROUTINE READ_AERO_INPUT
 

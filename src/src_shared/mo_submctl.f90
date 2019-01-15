@@ -15,12 +15,11 @@ MODULE mo_submctl
        
   !Switches for SALSA aerosol microphysical processes
 
-  INTEGER, PARAMETER :: Nmaster = 7
+  INTEGER, PARAMETER :: Nmaster = 6
   TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)  ! Array for master switches. The specific master switches are pointers to this array
   TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation
   TYPE(ProcessSwitch), POINTER :: lscnd => NULL()      ! Condensation
   TYPE(ProcessSwitch), POINTER :: lsauto => NULL()     ! Autoconversion, mode = 1: parameterized simple autoconversion, mode = 2: coagulation based precip formation
-  TYPE(ProcessSwitch), POINTER :: lsautosnow => NULL() ! Autoconversion of snow (need to revise)
   TYPE(ProcessSwitch), POINTER :: lsactiv => NULL()    ! Cloud activation, mode = 1: aerosol growth based activation, mode = 2: parameterized cloud base activation
   TYPE(ProcessSwitch), POINTER :: lsicenucl => NULL()  ! Ice nucleation
   TYPE(ProcessSwitch), POINTER :: lsicemelt => NULL()  ! Melting of ice
@@ -36,11 +35,6 @@ MODULE mo_submctl
   LOGICAL :: lscgic  = .TRUE.  ! Collection of cloud droplet by ice particles
   LOGICAL :: lscgii  = .TRUE.  ! Collision-coalescence between ice particles
   LOGICAL :: lscgip  = .TRUE.  ! Collection of precipitation by ice particles
-  LOGICAL :: lscgsa  = .TRUE.  ! Collection of aerosols by snow              
-  LOGICAL :: lscgsc  = .TRUE.  ! Collection of cloud droplets by snow
-  LOGICAL :: lscgsi  = .TRUE.  ! Collection of ice by snow
-  LOGICAL :: lscgsp  = .TRUE.  ! Collection of precipitation by snow
-  LOGICAL :: lscgss  = .TRUE.  ! Collision-coalescence between snow particles
 
   ! Condensation subprocesses
   LOGICAL :: lscndgas   = .FALSE. ! Condensation of precursor gases
@@ -83,7 +77,9 @@ MODULE mo_submctl
                                   ! 2 = coagulational sink (Lehtinen et al. 2007)
                                   ! 3 = coagS+self-coagulation (Anttila et al. 2010)
   REAL :: act_coeff = 1.e-7  ! activation coefficient
-  
+
+  ! SALSA size distribution definitions
+  ! ================================================================================================
   ! Define which aerosol species used and initial size distributions
   TYPE(Species), TARGET :: spec  ! Must be initialized in mo_salsa_init (pointer associations). Holds aerosol species indices and properties
   INTEGER :: nspec_dry = 1
@@ -92,9 +88,23 @@ MODULE mo_submctl
   ! Volume fractions between aerosol species for A and B-bins
   REAL :: volDistA(maxspec) = (/1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
   REAL :: volDistB(maxspec) = (/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
-  ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
-  REAL :: nf2a = 1.0
 
+  INTEGER :: isdtyp = 0  ! Type of input aerosol size distribution: 0 - Uniform
+                         !                                          1 - Read vertical profile of the mode
+                         !                                              number concentrations from an input file
+
+  ! Geometric standard deviation, mode mean diameter (um) and mode concentration in #/mg (~ #/cm3)
+  ! Separate for A and B regimes
+  REAL :: sigmagA(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/),               & 
+          dpgA(nmod) = (/0.03, 0.15, 0.2, 0.2, 0.2, 0.2, 0.2/),          & 
+          nA(nmod) = (/1600.,640.,0.,0.,0.,0.,0./)                  
+  REAL :: sigmagB(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/),                &
+          dpgB(nmod) = (/0.03,0.15,0.2,0.2,0.2,0.2,0.2/),                &
+          nB(nmod) = (/0.,0.,0.,0.,0.,0.,0./)
+  
+  ! ==================================================================================================
+  
+  
   ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
   ! a) Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
   REAL :: fixinc = -1.0 ! Default = disabled
@@ -102,15 +112,6 @@ MODULE mo_submctl
   !                               do the fixed thing with the condition nlicenucl = false and fixinc > 0.,
   !                               otherwise physical nucleation.
   LOGICAL :: ice_hom = .FALSE., ice_imm=.FALSE., ice_dep=.FALSE. ! Available ice nucleation modes
-
-
-  INTEGER :: isdtyp = 0  ! Type of input aerosol size distribution: 0 - Uniform
-                         !                                          1 - Read vertical profile of the mode
-                         !                                              number concentrations from an input file
-
-  REAL :: sigmag(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/),               & ! Stdev
-          dpg(nmod) = (/0.03, 0.15, 0.2, 0.2, 0.2, 0.2, 0.2/),    & ! Mode diam in um
-          n(nmod) = (/1600.,640.,0.,0.,0.,0.,0./)                   ! #/mg ~ #/cm3
 
   INTEGER, PARAMETER ::            &
        nreg = 2                          ! number of main size regimes
@@ -142,32 +143,29 @@ MODULE mo_submctl
   INTEGER             ::   nprc
 
   TYPE(BinLayout)     :: bloPrc   ! Precipitation bin definitions
+  TYPE(BinLayout)     :: bloIce   ! Ice bin definitions
   
   ! Jaakko: ice bins:
-  TYPE(t_parallelbin) ::   iia, & ! ice particles (first, regime a)
-                           fia, & ! ice particles (last, regime a)
-                           iib, & ! ice particles (first, regime b)
-                           fib    ! ice particles (last, regime b)
-  INTEGER             ::   isa,fsa! snow bin indices
-  INTEGER             ::   nice   ! Total number of ice bins
-  INTEGER             ::   nsnw   ! Total number of snow bins
+  INTEGER ::   iia, & ! ice particles, first
+               fia ! ice particles, last
+  INTEGER ::   nice   ! Total number of ice bins
     
-  INTEGER :: ntotal ! Total number of bins accross all active particle types
+  INTEGER :: ntotal  ! Total number of bins across all active particle types
+  INTEGER :: nliquid ! Total number of bins across liquid particle types
+  INTEGER :: nfrozen ! Total number of bins across frozen particle types
 
   REAL, ALLOCATABLE :: aerobins(:),  &  ! These are just to deliver information about the bin diameters if the
                        cloudbins(:), &  ! host model needs it (lower limits).
                        precpbins(:), &
-                       icebins(:), &
-                       snowbins(:)
+                       icebins(:)
+
 
   ! Diameter limits for particles in meters. These should be used when creating
   ! classSection instances
   REAL, PARAMETER :: dlaero = 30.e-6,   &
                      dlcloud = 100.e-6, &
                      dlprecp = 2.e-3,   &
-                     dlice   = 2.e-3,   &
-                     dlsnow  = 10.e-3
-
+                     dlice   = 2.e-3
     
   REAL, PARAMETER ::     &
    avog   = 6.0221e+23,   & ! Avogadro number (#/mol)
@@ -213,7 +211,6 @@ MODULE mo_submctl
        rhodu = 2650.,         & ! mineral dust
        rhowa = 1000.,         & ! water
        rhoic = 917.,          & ! ice
-       rhosn = 300.,          & ! snow
        !
        ! volume of molecule [kg/#]
        mvsu = msu/avog/rhosu,    & ! sulphate

@@ -563,25 +563,36 @@ CONTAINS
      
    END SUBROUTINE maskactiv
 
+! -----------------------------------------------------------------------
+   
    FUNCTION closest(array,val)
      ! Find the index of "array" with value closest to "val"
      IMPLICIT NONE
      INTEGER :: closest
      REAL, INTENT(in) :: array(:)
      REAL, INTENT(in) :: val
-
-     INTEGER :: NN, N
-     LOGICAL, ALLOCATABLE :: comp(:)
-
-     NN = SIZE(array)
-     N = smaller(array,val)
      
-     IF ( N < NN .AND.                                 &
-          ( ABS(array(N)-val) > ABS(array(N+1)-val) ) )  &
-        N = N + 1
-  
-     closest = MAX(MIN(N,NN),1)
-
+     REAL, ALLOCATABLE :: diff(:)
+     REAL :: mindiff
+     
+     INTEGER :: NN, i
+     
+     NN = SIZE(array)
+     ALLOCATE(diff(NN))
+     
+     diff = ABS(array-val)
+     mindiff = MINVAL(diff)
+     
+     DO i = 1,NN
+        IF (diff(i) == mindiff) THEN
+           closest = i
+           EXIT
+        END IF
+     END DO
+     
+     closest = MAX(MIN(closest,NN),1)
+     DEALLOCATE(diff)
+     
    END FUNCTION closest
 
    FUNCTION smaller(array,val)
@@ -625,7 +636,47 @@ CONTAINS
 
    END FUNCTION getMassIndex
 
+   !
+   !
+   
+   SUBROUTINE getBinMassArray(nb,ns,ib,mass,binmass)
+     IMPLICIT NONE
+     ! --------------------------------------------------
+     ! Get the mass array for a specific bin (length ns)
+     ! --------------------------------------------------
+     INTEGER, INTENT(in) :: ns,nb  ! number of species, number of bins
+     INTEGER, INTENT(in) :: ib     ! target bin
+     REAL, INTENT(in) :: mass(ns*nb)
 
+     REAL, INTENT(out) :: binmass(ns)
+
+     binmass(:) = 0.
+     binmass(1:ns) = mass(ib:(ns-1)*nb+ib:nb)
+     
+   END SUBROUTINE getBinMassArray
+
+   !
+   !
+
+   SUBROUTINE getBinTotalMass(nb,ns,ib,mass,totmass)
+     IMPLICIT NONE
+     ! ------------------------------------------------
+     ! Get the total mass inside a bin, simply a sum
+     ! ------------------------------------------------
+     INTEGER, INTENT(in) :: ns,nb   ! number of species, number of bins
+     INTEGER, INTENT(in) :: ib      ! target bin
+     REAL, INTENT(in) :: mass(ns*nb)
+
+     REAL, INTENT(out) :: totmass
+
+     totmass = 0.
+     totmass = SUM(mass(ib:(ns-1)*nb+ib:nb))
+     
+   END SUBROUTINE getbinTotalMass
+
+   !
+   !
+   
    ! Function for calculating Pearson's correlation coefficient for two vectors
    REAL FUNCTION calc_correlation(x,y,n)
      INTEGER, INTENT(in) :: n
@@ -648,5 +699,27 @@ CONTAINS
      END IF
    END FUNCTION calc_correlation
    
+  !
+  ! -----------------------------------------------------------------
+  !
+  REAL FUNCTION cumlognorm(dg,sigmag,dpart)
+    
+    IMPLICIT NONE
+    ! Cumulative lognormal function
+    REAL, INTENT(in) :: dg
+    REAL, INTENT(in) :: sigmag
+    REAL, INTENT(in) :: dpart
+    
+    REAL :: hlp1,hlp2
+    
+    hlp1 = ( LOG(dpart) - LOG(dg) )
+    hlp2 = SQRT(2.)*LOG(sigmag)
+    cumlognorm = 0.5 + 0.5*ERF( hlp1/hlp2 )
+    
+  END FUNCTION cumlognorm
 
+  !
+  !
+  !
+  
 END MODULE util

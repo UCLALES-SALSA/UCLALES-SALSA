@@ -1,6 +1,6 @@
 MODULE nudg
   USE grid, ONLY : level, dtlt, nxp, nyp, nzp, &
-                   zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, a_srs, &
+                   zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, &
                    a_naerop, a_naerot, a_ncloudp, a_nicep, &
                    a_tp, a_tt, a_up, a_ut, a_vp, a_vt
   USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
@@ -35,12 +35,12 @@ MODULE nudg
     ! Water vapor mixing ratio based on total water
     !   Levels 0-3: total = cloud water and water vapor (a_rp) + rain water (a_rpp)
     !   Levels 4-5: total = water vapor (a_rp) + condensate (a_rc) + rain water (a_srp)
-    !                            + ice (a_ri) + snow (a_srs)
+    !                            + ice (a_ri) 
     IF (ndg_rv%nudgetype > 0)  THEN
       !Ali, if it is not allocated during reading a history file 
       IF (.NOT.ALLOCATED(rv_ref) )  ALLOCATE(rv_ref(nzp))
        IF (level == 5) THEN
-          hlp1d = a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)+a_ri(:,3,3)+a_srs(:,3,3)
+          hlp1d = a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)+a_ri(:,3,3)
           rv_ref(:) = hlp1d(:)
        ELSE IF (level == 4) THEN
           hlp1d = a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)

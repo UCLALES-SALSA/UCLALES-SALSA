@@ -48,6 +48,8 @@ MODULE nudg_defs
 
     CHARACTER(len=50), PARAMETER :: name = "f_tau"
 
+    f_tau = 0.
+
     SELECT CASE(SELF%tau_type)
        CASE(0)
           ! For constant tau use always TAU_MIN

@@ -17,12 +17,11 @@ MODULE mo_salsa_types
                             cloud(:,:,:) => NULL(),  &
                             precp(:,:,:) => NULL(),  &
                             ice(:,:,:)   => NULL(),    &
-                            snow(:,:,:)  => NULL(),   &
                             liquid(:,:,:) => NULL(),  &
                             frozen(:,:,:) => NULL()
 
 
   ! Star and end indices for different particle types in the allSALSA array
-  INTEGER :: iaero, faero, icloud, fcloud, iprecp, fprecp, iice, fice, isnow, fsnow
+  INTEGER :: iaero, faero, icloud, fcloud, iprecp, fprecp, iice, fice
   
 END MODULE mo_salsa_types

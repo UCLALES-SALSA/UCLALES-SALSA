@@ -1,15 +1,12 @@
 MODULE mo_salsa_coagulation_kernels
-  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, snow,    &
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, & 
                              iaero, faero, icloud, fcloud, iprecp, fprecp,  &
-                             iice, fice, isnow, fsnow
-  USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw,   &
-                         spec, pi6,             &
-                         lscgaa, lscgcc, lscgpp, lscgii, lscgss,  &
-                         lscgca, lscgpa, lscgia, lscgsa,          &
-                         lscgpc, lscgic, lscgsc,                  &
-                         lscgip, lscgsp,                          &
-                         lscgsi
-  USE mo_particle_external_properties,  ONLY : calcDiamSALSA
+                             iice, fice
+  USE mo_submctl, ONLY : nbins, ncld, nprc, nice, spec, pi6,  &
+                         lscgaa, lscgcc, lscgpp, lscgii,      & 
+                         lscgca, lscgpa, lscgia,              & 
+                         lscgpc, lscgic,                      & 
+                         lscgip 
   USE classSection, ONLY : Section
   IMPLICIT NONE
 
@@ -17,8 +14,7 @@ MODULE mo_salsa_coagulation_kernels
   
     SUBROUTINE update_coagulation_kernels(kbdim,klev,ppres,ptemp,   &
                                           zccaa, zcccc, zccca, zccpc, zccpa,  &
-                                          zccpp, zccia, zccic, zccii, zccip,  &
-                                          zccsa, zccsc, zccsi, zccsp, zccss)
+                                          zccpp, zccia, zccic, zccii, zccip) 
 
       INTEGER, INTENT(in) :: kbdim,klev
       REAL, INTENT(in) :: ppres(kbdim,klev), ptemp(kbdim,klev)
@@ -26,11 +22,7 @@ MODULE mo_salsa_coagulation_kernels
                            zccca(kbdim,klev,nbins,ncld), zccpc(kbdim,klev,ncld,nprc),   &
                            zccpa(kbdim,klev,nbins,nprc), zccpp(kbdim,klev,nprc,nprc),   &
                            zccia(kbdim,klev,nbins,nice), zccic(kbdim,klev,ncld,nice),   &
-                           zccii(kbdim,klev,nice,nice), zccip(kbdim,klev,nprc,nice),    &
-                           zccsa(kbdim,klev,nbins,nsnw), zccsc(kbdim,klev,ncld,nsnw),   &
-                           zccsi(kbdim,klev,nice,nsnw), zccsp(kbdim,klev,nprc,nsnw),    &
-                           zccss(kbdim,klev,nsnw,nsnw)
-
+                           zccii(kbdim,klev,nice,nice), zccip(kbdim,klev,nprc,nice)
 
       ! Aero-aero
       zccaa(:,:,:,:) = 0.
@@ -52,11 +44,6 @@ MODULE mo_salsa_coagulation_kernels
       IF (lscgii) &
            CALL buildKernelSelf( kbdim,klev,nice,ice,ptemp,ppres,zccii )
 
-      ! snow-snow
-      zccss(:,:,:,:) = 0.
-      IF (lscgss) &
-           CALL buildKernelSelf( kbdim,klev,nsnw,snow,ptemp,ppres,zccss )
-
       ! Aero-cloud
       zccca(:,:,:,:) = 0.
       IF (lscgca) &
@@ -72,11 +59,6 @@ MODULE mo_salsa_coagulation_kernels
       IF (lscgia) &
            CALL buildKernel( kbdim,klev,nbins,aero,nice,ice,ptemp,ppres,zccia )
 
-      ! Aero-snow
-      zccsa(:,:,:,:) = 0.
-      IF (lscgsa) &
-           CALL buildKernel( kbdim,klev,nbins,aero,nsnw,snow,ptemp,ppres,zccsa )
-
       ! Cloud-precp
       zccpc(:,:,:,:) = 0.
       IF (lscgpc) &
@@ -87,36 +69,22 @@ MODULE mo_salsa_coagulation_kernels
       IF (lscgic) &
            CALL buildKernel( kbdim,klev,ncld,cloud,nice,ice,ptemp,ppres,zccic )
 
-      ! Cloud-snow
-      zccsc(:,:,:,:) = 0.
-      IF (lscgsc) &
-           CALL buildKernel( kbdim,klev,ncld,cloud,nsnw,snow,ptemp,ppres,zccsc )
-
       ! Precp-ice
       zccip(:,:,:,:) = 0.
       IF (lscgip) &
            CALL buildKernel( kbdim,klev,nprc,precp,nice,ice,ptemp,ppres,zccip )
-
-      ! Precp-snow
-      zccsp(:,:,:,:) = 0.
-      IF (lscgsp) &
-           CALL buildKernel( kbdim,klev,nprc,precp,nsnw,snow,ptemp,ppres,zccsp )
-
-      ! ice-snow
-      zccsi(:,:,:,:) = 0.
-      IF (lscgsi) &
-           CALL buildKernel( kbdim,klev,nice,ice,nsnw,snow,ptemp,ppres,zccsi ) 
-
             
     END SUBROUTINE update_coagulation_kernels
 
     ! ----------------------
     SUBROUTINE buildKernelSelf( kbdim,klev,nb1,part1,ptemp,ppres,zcc )
       INTEGER, INTENT(in) :: kbdim,klev,nb1
-      TYPE(Section), INTENT(in) :: part1(kbdim,klev,nb1)
+      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1)
       REAL, INTENT(in) :: ptemp(kbdim,klev),ppres(kbdim,klev)
       REAL, INTENT(inout) :: zcc(kbdim,klev,nb1,nb1)
 
+      REAL :: zdiam_mm, zmass_mm
+      
       REAL :: zdiam(nb1), zmass(nb1)
 
       INTEGER :: mm,nn,ii,jj
@@ -128,18 +96,36 @@ MODULE mo_salsa_coagulation_kernels
             zmass(:) = 0.
             
             ASSOCIATE ( pp1 => part1(ii,jj,1:nb1) )
+              
+              DO mm = 1,nb1
+                 CALL pp1(mm)%updateDiameter(limit=.TRUE.,type="all")
+                 CALL pp1(mm)%updateRhomean()
+              END DO
 
-              CALL calcDiamSALSA(nb1,pp1(1:nb1),zdiam)
-              zdiam(1:nb1) = MIN(zdiam(1:nb1), pp1(1:nb1)%dlim)
-              zmass(1:nb1) = spec%rhowa*pi6*zdiam(1:nb1)**3
+              zmass(1:nb1) = pp1(1:nb1)%rhomean*pi6*pp1(1:nb1)%dwet**3
+              zdiam(1:nb1) = pp1(1:nb1)%dwet
+              IF (pp1(1)%phase == 4) zdiam(1:nb1) = pp1(1:nb1)%dnsp ! for ice use nonspherical shape for the actual diameter
               
               DO mm = 1, nb1         ! smaller colliding particle
+                 
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
+                 
                  DO nn = mm, nb1            ! larger colliding particle
+
                     IF (pp1(nn)%numc < pp1(nn)%nlim) CYCLE
-                    zcc(ii,jj,mm,nn) = coagc(zdiam(mm),zdiam(nn),zmass(mm),zmass(nn),    &
-                                             ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,  &
-                                             pp1(nn)%phase                               )
+                    
+                    ! In case of self-coagulation, add a small size deviation to account a little bit for the variability inside the bins
+                    IF (mm == nn) THEN
+                       zmass_mm = zmass(mm)*0.7290 ! corresponds to 0.9*diameter 
+                       zdiam_mm = zdiam(mm)*0.9
+                    ELSE
+                       zmass_mm = zmass(mm)
+                       zdiam_mm = zdiam(mm)
+                    END IF
+                   
+                    zcc(ii,jj,mm,nn) = coagc(zdiam_mm,pp1(nn)%dwet,zmass_mm,zmass(nn),    &
+                                             ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,        &
+                                             pp1(nn)%phase                                     )
                     zcc(ii,jj,nn,mm) = zcc(ii,jj,mm,nn)
                  END DO
               END DO
@@ -157,13 +143,15 @@ MODULE mo_salsa_coagulation_kernels
       ! Always the "smaller" particle indices first
       INTEGER, INTENT(in) :: kbdim,klev
       INTEGER, INTENT(in) :: nb1, nb2
-      TYPE(Section), INTENT(in) :: part1(kbdim,klev,nb1), part2(kbdim,klev,nb2)
+      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1), part2(kbdim,klev,nb2)
       REAL, INTENT(in)    :: ptemp(kbdim,klev),ppres(kbdim,klev)
       REAL, INTENT(inout)   :: zcc(kbdim,klev,nb1,nb2)
       
       REAL :: zdiam1(nb1), zdiam2(nb2), zmass1(nb1), zmass2(nb2)
 
       INTEGER :: mm,nn,ii,jj
+
+      INTEGER :: cc ! POISTA
       
       DO jj = 1,klev
          DO ii = 1,kbdim
@@ -173,20 +161,40 @@ MODULE mo_salsa_coagulation_kernels
             
             ASSOCIATE ( pp1 => part1(ii,jj,1:nb1), pp2 => part2(ii,jj,1:nb2) )
 
-              CALL calcDiamSALSA(nb1,pp1(1:nb1),zdiam1)
-              CALL calcDiamSALSA(nb2,pp2(1:nb2),zdiam2)
-              zdiam1(1:nb1) = MIN(zdiam1(1:nb1), pp1(1:nb1)%dlim)
-              zdiam2(1:nb2) = MIN(zdiam2(1:nb2), pp2(1:nb2)%dlim)
-              zmass1(1:nb1) = spec%rhowa*pi6*zdiam1(1:nb1)**3
-              zmass2(1:nb2) = spec%rhowa*pi6*zdiam2(1:nb2)**3
-              
+              ! Update wet diameters
+              DO mm = 1,nb1
+                 CALL pp1(mm)%updateDiameter(limit=.TRUE.,type="all")
+                 CALL pp1(mm)%updateRhomean()
+              END DO
+              DO nn = 1,nb2
+                 CALL pp2(nn)%updateDiameter(limit=.TRUE.,type="all")
+                 CALL pp2(nn)%updateRhomean()
+              END DO
+              zmass1(1:nb1) = pp1(1:nb1)%rhomean*pi6*pp1(1:nb1)%dwet**3
+              zmass2(1:nb2) = pp2(1:nb2)%rhomean*pi6*pp2(1:nb2)%dwet**3
+              zdiam1(1:nb1) = pp1(1:nb1)%dwet
+              IF (pp1(1)%phase == 4) zdiam1(1:nb1) = pp1(1:nb1)%dnsp
+                 
+              zdiam2(1:nb2) = pp2(1:nb2)%dwet
+              ! POISTA YLIMAARAISET
+              IF (pp2(1)%phase == 4) THEN
+                 IF (ANY(pp2(:)%numc > pp2(:)%nlim)) THEN
+                    DO cc = 1,nb2
+                       IF (pp2(cc)%numc > pp2(cc)%nlim .AND. pp2(cc)%dwet /= pp2(cc)%dnsp) THEN
+                          WRITE(*,*) pp2(cc)%dwet, pp2(cc)%dnsp
+                       END IF
+                    END DO
+                 END IF                 
+                 zdiam2(1:nb2) = pp2(1:nb2)%dnsp
+              END IF
+                 
               DO mm = 1,nb1
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
                  DO nn = 1,nb2
                     IF (pp2(nn)%numc < pp2(nn)%nlim) CYCLE
                     zcc(ii,jj,mm,nn) = coagc(zdiam1(mm),zdiam2(nn),zmass1(mm),zmass2(nn),   &
-                                             ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,     &
-                                             pp2(nn)%phase                                  )
+                                             ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,         &
+                                             pp2(nn)%phase                                      )
                  END DO
               END DO
               
@@ -194,7 +202,6 @@ MODULE mo_salsa_coagulation_kernels
 
          END DO
       END DO
-
 
     END SUBROUTINE buildKernel
 
@@ -366,7 +373,7 @@ MODULE mo_salsa_coagulation_kernels
          zgrav = zgrav * ABS(termv(1)-termv(2))
          
          ! Total coagulation kernel
-         coagc = zbrown  + zbrconv + SQRT(zgrav**2+ ztshear**2+ zturbinert**2)
+         coagc = zbrown  + zbrconv + SQRT(zgrav**2 + ztshear**2 + zturbinert**2)
          
       END SELECT
       

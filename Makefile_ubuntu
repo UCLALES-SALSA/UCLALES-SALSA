@@ -27,7 +27,12 @@ RANLIB =:
 SEQFFLAGS = -I$(SRC)
 MPIFFLAGS = -I$(SRC)
 MPI = /usr
-MPILIB = -L$(MPI)/lib -lmpich
+
+# Linking the mpi has slightly changed for newer linux & library versions.
+# Try switching between the two if it does not work.
+#MPILIB = -L$(MPI)/lib -lmpich
+MPILIB = -L$(MPI)/lib -lmpichfort
+
 MPIINC = -I$(MPI)/include/mpich
 NCDF = /usr
 NCDFLIB = -L$(NCDF)/lib -lnetcdf -lnetcdff

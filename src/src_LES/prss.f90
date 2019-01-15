@@ -37,7 +37,7 @@ CONTAINS
       USE grid, ONLY : nxp, nyp, nzp, dtlt, dxi, dyi, dzm, dzt, a_up,                     &
                        a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt, a_press, a_pexnr,  &
                        th00, dn0, wsavex, wsavey
-      USE stat, ONLY : fill_scalar, sflg
+      !USE stat, ONLY : fill_scalar, sflg
       USE util, ONLY : ae1mm
 
       COMPLEX, ALLOCATABLE :: s1(:,:,:)
@@ -77,13 +77,13 @@ CONTAINS
       CALL get_diverg(nzp,nxp,nyp,ix,iy,s1,a_up,a_vp,a_wp,dn0,dzt,dxi,dyi,  &
                       dtlt,mxdiv)
 
-      IF (sflg) THEN
-         CALL get_diverg(nzp,nxp,nyp,ix,iy,s1,a_up,a_vp,a_wp,dn0,dzt,dxi,dyi,  &
-                         dtlt,mxdiv)
-         CALL fill_scalar(2,mxdiv)
-         CALL prs_cor(nzp,nxp,nyp,a_pexnr,a_up,a_vp,a_wp,dzm,dxi,dyi,th00)
-         CALL chk_tsplt(nzp,nxp,nyp,a_up,a_vp,a_wp,a_uc,a_vc,a_wc)
-      END IF
+      !IF (sflg) THEN
+      !   CALL get_diverg(nzp,nxp,nyp,ix,iy,s1,a_up,a_vp,a_wp,dn0,dzt,dxi,dyi,  &
+      !                   dtlt,mxdiv)
+      !   CALL fill_scalar(2,mxdiv)
+      !   CALL prs_cor(nzp,nxp,nyp,a_pexnr,a_up,a_vp,a_wp,dzm,dxi,dyi,th00)
+      !   CALL chk_tsplt(nzp,nxp,nyp,a_up,a_vp,a_wp,a_uc,a_vc,a_wc)
+      !END IF
       DEALLOCATE (s1)
 
    END SUBROUTINE poisson
@@ -334,7 +334,7 @@ CONTAINS
    !
    SUBROUTINE prs_cor(n1,n2,n3,p,u,v,w,dz,dx,dy,th00)
 
-      USE stat, ONLY : updtst
+      !USE stat, ONLY : updtst
       USE util, ONLY : get_cor
 
       INTEGER, INTENT (in) :: n1,n2,n3
@@ -369,9 +369,9 @@ CONTAINS
          v1db(k) = get_cor(1,n2,n3,1,vfld,pgy)
          v1dc(k) = get_cor(1,n2,n3,1,wfld,pgz)
       END DO
-      CALL updtst(n1,'prs',1,v1da,1)
-      CALL updtst(n1,'prs',2,v1db,1)
-      CALL updtst(n1,'prs',3,v1dc,1)
+      !CALL updtst(n1,'prs',1,v1da,1)
+      !CALL updtst(n1,'prs',2,v1db,1)
+      !CALL updtst(n1,'prs',3,v1dc,1)
 
    END SUBROUTINE prs_cor
    !

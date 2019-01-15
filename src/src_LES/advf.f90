@@ -34,7 +34,7 @@ CONTAINS
     USE grid, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, newsclr,  &
                      nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt,  &
                      dzt, dzm, zt, dxi, dyi, level, isgstyp
-    USE stat, ONLY : sflg, updtst
+    !USE stat, ONLY : sflg, updtst
     USE util, ONLY : get_avg3
 
     REAL    :: v1da(nzp), a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
@@ -43,13 +43,13 @@ CONTAINS
     !
     ! diagnose liquid water flux
     !
-    IF (sflg .AND. level > 1) THEN
-       a_tmp1 = a_rc
-       CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.FALSE.)
-       CALL mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtlt,.FALSE.)
-       CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-       CALL updtst(nzp,'adv',0,v1da,1)
-    END IF
+    !IF (sflg .AND. level > 1) THEN
+    !   a_tmp1 = a_rc
+    !   CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.FALSE.)
+    !   CALL mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtlt,.FALSE.)
+    !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+    !   CALL updtst(nzp,'adv',0,v1da,1)
+    !END IF
     !
     ! loop through the scalar table, setting iscp and isct to the
     ! appropriate scalar pointer and do the advection, also add large
@@ -77,18 +77,18 @@ CONTAINS
          CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,iw)
          CALL mamaos(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dzt,dzm,dn0,dtlt,iw)
 
-         IF (sflg) THEN
-            CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-            CALL updtst(nzp,'adv',n,v1da,1)
-         END IF
+         !IF (sflg) THEN
+         !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+         !   CALL updtst(nzp,'adv',n,v1da,1)
+         !END IF
 
          CALL advtnd(nzp,nxp,nyp,a_sp,a_tmp1,a_st,dtlt)
 
-      ELSE IF (sflg) THEN
-         ! Averages & statistics even for zeros (might be non-zero elsewhere)
-         a_tmp2(:,:,:) = 0.
-         CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-         CALL updtst(nzp,'adv',n,v1da,1)
+      !ELSE IF (sflg) THEN
+      !   ! Averages & statistics even for zeros (might be non-zero elsewhere)
+      !   a_tmp2(:,:,:) = 0.
+      !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+      !   !CALL updtst(nzp,'adv',n,v1da,1)
       END IF
 
     END DO
@@ -144,7 +144,7 @@ CONTAINS
                                     MERGE( dn(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
           ! Change in dry ccn/aerosol mass
-          DO ss = 1, spec%getNSpec()-1
+          DO ss = 1, spec%getNSpec(type="dry")
 
              mm = (ss-1)*ncld + bb
              mmpar = (ss-1)*nbins + bbpar
@@ -196,7 +196,7 @@ CONTAINS
     ! the points defined by the activation mask (0 elsewhere)
     DO bb = ica%cur, fca%cur
        a_nactd(:,:,:,bb) = MERGE(a_nactd(:,:,:,bb),0.,pactmask(:,:,:))
-       DO ss = 1, spec%getNSpec()
+       DO ss = 1, spec%getNSpec(type="wet")
           mm = (ss-1)*ncld + bb
           a_vactd(:,:,:,mm) = MERGE(a_vactd(:,:,:,mm),0.,pactmask(:,:,:))
        END DO
@@ -265,6 +265,8 @@ CONTAINS
        END DO
     END DO
 
+    !tnd(n1-1:n1,:,:) = 0.
+    
   END SUBROUTINE advtnd
   !
   !----------------------------------------------------------------------
@@ -292,6 +294,11 @@ CONTAINS
     REAL    :: wpdn(n1)      ! momentum: wp*density
     INTEGER :: i, j, k, kp1, k1, k2
     INTEGER :: gamma
+
+
+    r = 0.
+    C = 0.
+
     !
     ! initialize fields for use later
     !
@@ -325,7 +332,7 @@ CONTAINS
           !
           DO k = 1, n1-1
              gamma = -INT(sign(1.,cfl(k)))
-             IF (ABS(scp0(k+1,i,j)-scp0(k,i,j)) > SPACING(scp0(k,i,j)) ) THEN !.AND. scp0(k+1,i,j)-scp0(k,i,j) > 1.e-40) THEN
+             IF (ABS(scp0(k+1,i,j)-scp0(k,i,j)) > 1.e-40  ) THEN!> SPACING(scp0(k,i,j)) ) THEN !.AND. scp0(k+1,i,j)-scp0(k,i,j) > 1.e-40) THEN
                 k2 = max(1,k+gamma)
                 k1 = min(n1,k+gamma+1)
                 r(k) = (scp0(k1,i,j) - scp0(k2,i,j)) / (scp0(k+1,i,j) - scp0(k,i,j))
@@ -399,7 +406,9 @@ CONTAINS
     INTEGER :: i, j, k, i1, i2
     INTEGER :: gamma
     !
-
+    r = 0.
+    C = 0.
+    
     DO j = 3, n3-2
        !
        ! compute CFL and scr array for down-grid value of scalar
@@ -420,7 +429,7 @@ CONTAINS
        DO k = 2, n1-1
           DO i = 2, n2-2
              gamma = INT(-sign(1.,cfl(i,k)))
-             IF (abs(scr(i,k) - scp0(k,i,j)) > SPACING(scr(i,k))) THEN
+             IF (abs(scr(i,k) - scp0(k,i,j)) > 1.e-40 ) THEN !> SPACING(scr(i,k))) THEN
                 i2 = i+gamma
                 i1 = i+gamma+1
                 r(i,k) = (scp0(k,i1,j)-scp0(k,i2,j))/(scr(i,k)-scp0(k,i,j))
@@ -478,6 +487,8 @@ CONTAINS
     INTEGER :: i, j, k, j1, j2
     INTEGER :: gamma
     !
+    r = 0.
+    C = 0.
 
     DO i = 1, n2
        !
@@ -499,7 +510,7 @@ CONTAINS
        DO k = 2, n1-1
           DO j = 2, n3-2
              gamma = INT(-sign(1.,cfl(j,k)))
-             IF (ABS(scr(j,k) - scp0(k,i,j)) > SPACING(scr(j,k)) ) THEN
+             IF (ABS(scr(j,k) - scp0(k,i,j)) > 1.e-40 ) THEN !> SPACING(scr(j,k)) ) THEN
                 j2 = j+gamma
                 j1 = j+gamma+1
                 r(j,k) = (scp0(k,i,j1)-scp0(k,i,j2))/(scr(j,k)-scp0(k,i,j))
