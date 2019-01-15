@@ -220,7 +220,7 @@ CONTAINS
       !            Aerosol bins + Cloud bins + gas compound tracers
       
       IF (level >= 4) THEN
-         nc = spec%getNSpec()
+         nc = spec%getNSpec(type="wet")
          nsalsa = (nc+1)*nbins + (nc+1)*ncld + (nc+1)*nprc + 5
          IF (level == 5) nsalsa = nsalsa + (nc+1+1)*nice ! (nc+1+1)*nice for RIMED ICE 
       END IF
@@ -862,7 +862,7 @@ CONTAINS
 
       INTEGER :: nspec
 
-      nspec = spec%getNSpec()
+      nspec = spec%getNSpec(type="wet")
 
       icnt = (/nzp, nxp-4, nyp-4, 1/)
       icntaea = (/nzp,nxp-4,nyp-4, fn2a, 1 /)
@@ -1257,7 +1257,7 @@ CONTAINS
                IF (level == 5) THEN
                   ! --Sulphate (ice)
                   CALL bulkMixrat('SO4','ice','a',zvar(:,:,:))
-                  iret = nf90_inq_varid(ncid0,'S_iSO4a',VarID)
+                  iret = nf90_inq_varid(ncid0,'S_iSO4',VarID)
                   iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                                       count=icnt)
                END IF ! level 5
@@ -1295,7 +1295,7 @@ CONTAINS
                IF (level == 5) THEN
                   ! --Ammonium (ice)
                   CALL bulkMixrat('NH','ice','a',zvar(:,:,:))
-                  iret = nf90_inq_varid(ncid0,'S_iNHa',VarID)
+                  iret = nf90_inq_varid(ncid0,'S_iNH',VarID)
                   iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                                       count=icnt)
                END IF ! level 5
@@ -1333,7 +1333,7 @@ CONTAINS
                IF (level == 5) THEN
                   ! --Nitrate (ice)
                   CALL bulkMixrat('NO','ice','a',zvar(:,:,:))
-                  iret = nf90_inq_varid(ncid0,'S_iNOa',VarID)
+                  iret = nf90_inq_varid(ncid0,'S_iNO',VarID)
                   iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                                       count=icnt)
                END IF ! level 5
@@ -1371,7 +1371,7 @@ CONTAINS
                IF (level == 5) THEN
                   ! --Organic Carbon (ice)
                   CALL bulkMixrat('OC','ice','a',zvar(:,:,:))
-                  iret = nf90_inq_varid(ncid0,'S_iOCa',VarID)
+                  iret = nf90_inq_varid(ncid0,'S_iOC',VarID)
                   iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                                       count=icnt)             
                END IF ! level 5
@@ -1409,7 +1409,7 @@ CONTAINS
                IF (level == 5) THEN
                   ! --Black Carbon (ice)
                   CALL bulkMixrat('BC','ice','a',zvar(:,:,:))
-                  iret = nf90_inq_varid(ncid0,'S_iBCa',VarID)
+                  iret = nf90_inq_varid(ncid0,'S_iBC',VarID)
                   iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                                       count=icnt)
                END IF ! level 5
@@ -1447,7 +1447,7 @@ CONTAINS
                IF (level == 5) THEN
                   ! --Dust (ice)
                   CALL bulkMixrat('DU','ice','a',zvar(:,:,:))
-                  iret = nf90_inq_varid(ncid0,'S_iDUa',VarID)
+                  iret = nf90_inq_varid(ncid0,'S_iDU',VarID)
                   iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                                       count=icnt)
                END IF ! level 5
@@ -1485,7 +1485,7 @@ CONTAINS
                IF (level == 5) THEN
                   ! -- Sea Salt (ice)
                   CALL bulkMixrat('SS','ice','a',zvar(:,:,:))
-                  iret = nf90_inq_varid(ncid0,'S_iSSa',VarID)
+                  iret = nf90_inq_varid(ncid0,'S_iSS',VarID)
                   iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg, &
                                       count=icnt)
                END IF ! level 5
@@ -1931,9 +1931,9 @@ CONTAINS
       REAL, POINTER :: tmp(:) => NULL()
 
       IF (itype == 'dry') THEN
-         iend = spec%getNSpec()-1   ! dry CASE
+         iend = spec%getNSpec(type="dry")   ! dry CASE
       ELSE IF (itype == 'wet') THEN
-         iend = spec%getNSpec()   ! wet CASE
+         iend = spec%getNSpec(type="wet")   ! wet CASE
          IF (ipart == 'ice') &
               iend = iend+1   ! For ice, take also rime
       ELSE
@@ -2043,7 +2043,7 @@ CONTAINS
      INTEGER :: istr,iend
      INTEGER :: nspec
      
-     nspec = spec%getNSpec()
+     nspec = spec%getNSpec(type="wet")
      
      rad = 0.
      

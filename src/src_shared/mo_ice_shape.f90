@@ -1,5 +1,5 @@
 MODULE mo_ice_shape
-  USE mo_submctl, ONLY : spec
+  USE mo_submctl, ONLY : spec,pi6
   IMPLICIT NONE
  
   ! -----------------------------------------------
@@ -13,48 +13,40 @@ MODULE mo_ice_shape
   REAL, PARAMETER :: beta = 1.78
   
   CONTAINS
-
     !
     !
     !
     !
-    SUBROUTINE getDiameter(nb,mpri,mrim,numc)
-      INTEGER, INTENT(in) :: nb
-      REAL, INTENT(in) :: mpri(nb), mrim(nb)
-      REAL, INTENT(in) :: numc(nb)
-      REAL, INTENT(out) :: diam(nb)
+    FUNCTION getDiameter(mpri,mrim,numc)
+      REAL, INTENT(in) :: mpri, mrim
+      REAL, INTENT(in) :: numc
+      REAL :: getDiameter
       
-      INTEGER :: bb      
       REAL :: Mtot,     &
               Mth,      &
+              Dth,      &
               rho_b,    &
               Fr
       
-      diam(:) = 0.
+      getDiameter = 0.            
+      Mtot = ( mpri + mrim )/numc
+      Fr = mrim/(Mtot*numc)
+      rho_b = getBulkRho(Fr)
+      Dth = getDth(Fr,rho_b)
+      Mth = rho_b*pi6*Dth**3
       
-      ! Loop over bins
-      DO bb = 1,nb
-         Mtot = ( mpri(nb) + mrim(nb) )/numc(nb)
-         Fr = mrim(nb)/(Mtot*numc(nb))
-         rho_b = getBulkRho(Fr)
-         Mth = rho_b*pi6*getDth(Fr,rho_b)**3
-         
-         IF ( Mtot < Mth ) THEN
-            ! Small spherical particles
-            diam(nb) = D_spherical(rho_b,Mtot)
-
-         ELSE IF (Mtot >= Mth) THEN
-            IF ( Fr < 0.8 ) THEN
-               diam(nb) = D_nonsphericalIce(Fr,mass)
-            ELSE IF (Fr >= 0.8) THEN
-               diam(nb) = D_spherical(rho_b,Mtot)
-            END IF
-         END IF         
-      END DO
+      IF ( Mtot < Mth ) THEN
+         ! Small spherical particles
+         getDiameter = D_spherical(rho_b,Mtot)         
+      ELSE IF (Mtot >= Mth) THEN
+         IF ( Fr < 0.8 ) THEN
+            getDiameter = D_nonsphericalIce(Fr,Mtot)
+         ELSE IF (Fr >= 0.8) THEN
+            getDiameter = D_spherical(rho_b,Mtot)
+         END IF
+      END IF
       
-    END SUBROUTINE getDiameter
-
-      
+    END FUNCTION getDiameter      
     !
     !-------------------------------------------------------------
     ! Function getDth
@@ -87,7 +79,7 @@ MODULE mo_ice_shape
     !
     REAL FUNCTION getBulkRho(Fr)
       REAL, INTENT(in) :: Fr
-      bulkRho = Fr*spec%rhori + (1.-Fr)*spec%rhoic
+      getBulkRho = Fr*spec%rhori + (1.-Fr)*spec%rhoic
     END FUNCTION getBulkRho
     !
     !-------------------------------------------------------------

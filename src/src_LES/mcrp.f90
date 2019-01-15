@@ -91,7 +91,7 @@ MODULE mcrp
             CALL mcrph(nzp,nxp,nyp,dn0,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,   &
                        a_npp,precip,a_rt,a_tt,a_rpt,a_npt)
          CASE(4,5)
-            nspec = spec%getNSpec()
+            nspec = spec%getNSpec(type="wet")
             CALL sedim_SALSA(nzp,nxp,nyp,nspec,dtlt, a_temp, a_theta,                &
                              precip, frzprecip, a_tt                )
       END SELECT
@@ -557,7 +557,7 @@ MODULE mcrp
       !-------------------------------------------------------
       IF (sed_aero%state) THEN
 
-         CALL DepositionSlow(n1,n2,n3,nbins,nspec,tk,1500.,a_ustar,a_naerop,a_maerop, &
+         CALL DepositionSlow(n1,n2,n3,nbins,nspec,tk,a_ustar,a_naerop,a_maerop, &
                              tstep,andiv,amdiv,andep,remaer,1            )
 
          a_naerot = a_naerot - andiv
@@ -579,7 +579,7 @@ MODULE mcrp
       
       IF (sed_cloud%state) THEN
          
-         CALL DepositionSlow(n1,n2,n3,ncld,nspec,tk,spec%rhowa,a_ustar,a_ncloudp,a_mcloudp, &
+         CALL DepositionSlow(n1,n2,n3,ncld,nspec,tk,a_ustar,a_ncloudp,a_mcloudp, &
                              tstep,cndiv,cmdiv,cndep,remcld,2                  )
          
          a_ncloudt = a_ncloudt - cndiv
@@ -602,7 +602,7 @@ MODULE mcrp
       ! ---------------------------------------------------------
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
       IF (sed_precp%state) THEN
-         CALL DepositionFast(n1,n2,n3,nprc,nspec,tk,spec%rhowa,a_nprecpp,a_mprecpp,tstep,prnt,prmt,remprc,rrate,3)
+         CALL DepositionFast(n1,n2,n3,nprc,nspec,tk,a_nprecpp,a_mprecpp,tstep,prnt,prmt,remprc,rrate,3)
          
          a_nprecpt(:,:,:,:) = a_nprecpt(:,:,:,:) + prnt(:,:,:,:)/tstep
          a_mprecpt(:,:,:,:) = a_mprecpt(:,:,:,:) + prmt(:,:,:,:)/tstep
@@ -623,7 +623,7 @@ MODULE mcrp
       END IF
       
       IF (sed_ice%state) THEN                              ! Here we should have rhomean; atm not in LES side?
-         CALL DepositionFast(n1,n2,n3,nice,nspec+1,tk,spec%rhoic,a_nicep,a_micep,tstep,irnt,irmt,remice,irate,4)
+         CALL DepositionFast(n1,n2,n3,nice,nspec+1,tk,a_nicep,a_micep,tstep,irnt,irmt,remice,irate,4)
          
          a_nicet(:,:,:,:) = a_nicet(:,:,:,:) + irnt(:,:,:,:)/tstep
          a_micet(:,:,:,:) = a_micet(:,:,:,:) + irmt(:,:,:,:)/tstep
@@ -666,15 +666,14 @@ MODULE mcrp
 
 
 
-  SUBROUTINE DepositionSlow(n1,n2,n3,nb,ns,tk,pdn,ustar,numc,mass,dt,flxdivn,flxdivm,depflxn,depflxm,flag)
+  SUBROUTINE DepositionSlow(n1,n2,n3,nb,ns,tk,ustar,numc,mass,dt,flxdivn,flxdivm,depflxn,depflxm,flag)
     USE util, ONLY : getBinMassArray
-    USE mo_submctl, ONLY : nlim,prlim
+    USE mo_submctl, ONLY : nlim,prlim,pi6
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,ns       ! Grid numbers, number of chemical species (note that with ice the latter should contain also rime)
     INTEGER, INTENT(in) :: nb                ! Number of bins
     REAL, INTENT(in) :: tk(n1,n2,n3)         ! Absolute temprature
-    REAL, INTENT(in) :: pdn                  ! Particle density
     REAL, INTENT(in) :: ustar(n2,n3)    !
     REAL, INTENT(in) :: numc(n1,n2,n3,nb)    ! Particle number concentration
     REAL, INTENT(in) :: mass(n1,n2,n3,nb*ns) ! Particle mass mixing ratio
@@ -704,6 +703,7 @@ MODULE mcrp
     
     REAL :: zpm(nb*ns)  ! Bin mass array to clean things up
     REAL :: zpn(nb)     ! Bin number array to clean things up
+    REAL :: zdn         ! Particle density
     
     REAL :: clim ! concentration limit
 
@@ -738,17 +738,26 @@ MODULE mcrp
              zpm(:) = mass(k,i,j,:)
              zpn(:) = numc(k,i,j,:)
 
+             pmass = 0.
              DO bin = 1,nb
                 IF (zpn(bin)<clim) CYCLE
 
                 ! Calculate wet size
                 CALL getBinMassArray(nb,ns,bin,zpm,pmass)
-                dwet=calcDiamLES(ns,zpn(bin),pmass,flag)
+                IF (flag < 4) THEN
+                   dwet = calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.)   
+                ELSE
+                   dwet = calcDiamLES(ns,zpn(bin),pmass,flag,sph=.FALSE.) ! For ice, this will be the max diameter for non-spherical particles
+                END IF
+                   
+                ! Calculate the particle density based on dwet; note that for ice this will therefore be the "effective" density
+                ! for a sphere with dwet, and may thus be very low for non-spherical particles
+                zdn = SUM(pmass)/zpn(bin)/(pi6*dwet**3)
 
                 ! Terminal velocity
-                Kn = 2.*lambda/dwet!lambda/rwet
+                Kn = 2.*lambda/dwet      !lambda/rwet
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
-                vc = terminal_vel(dwet,pdn,a_dn(k,i,j),avis,GG,flag)
+                vc = terminal_vel(dwet,zdn,a_dn(k,i,j),avis,GG,flag)
 
                 ! This algorithm breaks down if the fall velocity is large enough to make the fall 
                 ! distance greater than the grid level thickness (mainly an issue with very high 
@@ -792,14 +801,13 @@ MODULE mcrp
 
 
   !------------------------------------------------------------------
-  SUBROUTINE DepositionFast(n1,n2,n3,nb,ns,tk,pdn,numc,mass,tstep,prnt,prvt,remprc,rate,flag)
+  SUBROUTINE DepositionFast(n1,n2,n3,nb,ns,tk,numc,mass,tstep,prnt,prvt,remprc,rate,flag)
     USE util, ONLY : getBinMassArray
-    USE mo_submctl, ONLY : nlim, prlim
+    USE mo_submctl, ONLY : nlim,prlim,pi6
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,ns,nb
     REAL, INTENT(in) :: tk(n1,n2,n3)
-    REAL, INTENT(in) :: pdn
     REAL, INTENT(in) :: numc(n1,n2,n3,nb)
     REAL, INTENT(in) :: mass(n1,n2,n3,nb*ns)
     REAL, INTENT(in) :: tstep
@@ -836,7 +844,7 @@ MODULE mcrp
     REAL :: clim  ! concentration limit
     
     REAL :: zpm(nb*ns), zpn(nb)  ! Bin mass and number arrays to clean things up
-
+    REAL :: zdn                  ! Particle density
     
     clim = nlim
     IF (ANY(flag == [3,4])) clim = prlim
@@ -865,19 +873,28 @@ MODULE mcrp
 
              zpm(:) = mass(k,i,j,:)
              zpn(:) = numc(k,i,j,:)
-             
+
+             pmass = 0.
              ! Precipitation bin loop
              DO bin = 1,nb
                 IF (zpn(bin) < clim) CYCLE
 
                 ! Calculate wet size
                 CALL getBinMassArray(nb,ns,bin,zpm,pmass)
-                dwet=calcDiamLES(ns,zpn(bin),pmass,flag)
+                IF (flag < 4) THEN
+                   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.)   
+                ELSE
+                   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.FALSE.) ! For non-spherical ice, this is the max diameter of the crystal
+                END IF
+                   
+                ! Calculate particle density based on dwet; for non-spherical ice this will get the "effective" density, which amy be
+                ! quite low for large non-spherical crystals
+                zdn = SUM(pmass)/zpn(bin)/(pi6*dwet**3)
                 
                 ! Terminal velocity
-                Kn = 2.*lambda/dwet!lambda/rwet
+                Kn = 2.*lambda/dwet   !lambda/rwet
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
-                vc = terminal_vel(dwet,pdn,a_dn(k,i,j),avis,GG,flag)
+                vc = terminal_vel(dwet,zdn,a_dn(k,i,j),avis,GG,flag)
 
                 ! Rain rate statistics: removal of water from the current bin is accounted for
                 ! Water is the last (nspec) species and rain rate is given here kg/s/m^2
@@ -894,7 +911,7 @@ MODULE mcrp
                 
                 ! Maximum fall distance:
                 fdmax = tstep*vc
-             
+                
                 fd = 0.
                 fi = 0
                 prcdep = .FALSE. ! deposition flag

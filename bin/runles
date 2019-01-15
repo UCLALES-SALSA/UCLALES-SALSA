@@ -21,10 +21,10 @@ NPROCS=2          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=50              # Number of points in Y-direction (including "halo" points)
-NZP=198              # Number of points in Z-direction
-DX=1000.              # Resolution in X-direction (meters)
-DY=1000.              # Resolution in Y-direction (meters)
+NYP=60              # Number of points in Y-direction (including "halo" points)
+NZP=150              # Number of points in Z-direction
+DX=500.              # Resolution in X-direction (meters)
+DY=500.              # Resolution in Y-direction (meters)
 DZ=100.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
 Tspinup=0.        # Length of the spinup period (seconds)
@@ -72,16 +72,16 @@ cat > NAMELIST <<EOF
   dtlong = ${DT}              ! Max. timestep
   distim = 100.               ! Timescale for the dissipation in sponge layer
   timmax = ${Texp}            ! Length of the simulation
-  runtype = "INITIAL"         ! INITIAL or HISTORY (restart) run
+  runtype = "HISTORY"         ! INITIAL or HISTORY (restart) run
   CCN = 600.e6                ! 
   corflg = .false.            ! Apply coriolis force
   prndtl = -0.3333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
-  hfilin = '${EXPNAME}.001500s' ! History file name
+  hfilin = '${EXPNAME}.001000s' ! History file name
   !ssam_intvl = 30.           ! Interval for statistical output
   !savg_intvl = 30.           ! Averaging interval for stat output
   frqanl = 30.                ! Interval for full domain output
-  frqhis = 1500.
+  frqhis = 1000.
   lbinanl = .TRUE.           ! Write binned microphysical output (with level >= 4)
   salsa_b_bins = .FALSE.
   !mcflg = .FALSE.             ! Do mass conservation statistics
@@ -100,7 +100,7 @@ cat > NAMELIST <<EOF
   iradtyp = 1                 ! Radiation/large scale forcing
   strtim = 215.5               ! Start time
   case_name = 'default'       ! Case name for large-scale forcing schemes
-  div = 3.75e-6               ! Large-scale divergence
+  div = 1.e-8               ! Large-scale divergence
 /
 
 ! -----------------------------------------------------------------------------------
@@ -254,14 +254,14 @@ cat > NAMELIST <<EOF
    ! The number of entries must comply with the max number of _modes_ (currently 7)  
    sigmagA  = 1.55, 1.8, 1.5, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpgA     = 0.022, 0.1, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nA       = 2200., 3000., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
+   nA       = 2200., 3000., 30., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
-   volDistB = 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0
+   volDistB = 0.2, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)
    sigmagB  = 1.2, 1.7, 1.6, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform) 
    dpgB     = 0.022, 0.12, 1.8, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nB       = 0., 0., 40., 0., 0., 0., 0.             ! Mode number concentrations in #/cm^3 
+   nB       = 0., 0., 1., 0., 0., 0., 0.             ! Mode number concentrations in #/cm^3 
 /
 
 EOF

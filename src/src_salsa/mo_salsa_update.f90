@@ -36,11 +36,12 @@ CONTAINS
       REAL    :: zvpart, znfrac, zvfrac, zVrat, zVilo, zVihi, zVexc, zvdec
       LOGICAL :: within_bins
       INTEGER :: count
-      INTEGER :: zndry,znwet
+      INTEGER :: zndry,znwet,znnsp
 
       zndry = spec%getNSpec(type="dry")
       znwet = spec%getNSpec(type="wet")
-
+      znnsp = spec%getNSpec(type="total")
+      
       zvpart = 0.
       zvfrac = 0.
 
@@ -179,7 +180,7 @@ CONTAINS
                         mm = kk - 1
 
                      !-- Increasing droplets !! #mergemod
-                     ELSE IF ( zvpart > pi6*cloud(ii,jj,kk)%dmid**3 .AND.  &
+                     ELSE IF ( zvpart > cloud(ii,jj,kk)%vhilim .AND.   & !pi6*cloud(ii,jj,kk)%dmid**3 .AND.  &
                               (kk /= fca%cur .AND. kk /= fcb%cur)     )  THEN  ! Increasing droplets
 
                         !-- volume in the grown bin which exceeds the bin upper limit
@@ -345,8 +346,7 @@ CONTAINS
                   IF ( ice(ii,jj,kk)%numc > ice(ii,jj,kk)%nlim ) THEN
 
                      ! Don't convert ice to anything else here. 
-                     zvpart = ( sum(ice(ii,jj,kk)%volc(1:znwet)) +  &
-                                ice(ii,jj,kk)%vrime                 ) / ice(ii,jj,kk)%numc
+                     zvpart = sum(ice(ii,jj,kk)%volc(1:znnsp)) / ice(ii,jj,kk)%numc
                      
                      !-- volume ratio of the size bin
                      zVrat = ice(ii,jj,kk)%vhilim/ice(ii,jj,kk)%vlolim
@@ -396,19 +396,12 @@ CONTAINS
                      IF(zvfrac < 0.) STOP 'Error ice volc 0'
                      
                      !-- volume
-                     ice(ii,jj,mm)%volc(1:znwet) = ice(ii,jj,mm)%volc(1:znwet)     &
-                          + zvfrac*ice(ii,jj,kk)%volc(1:znwet)
+                     ice(ii,jj,mm)%volc(1:znnsp) = ice(ii,jj,mm)%volc(1:znnsp)     &
+                          + zvfrac*ice(ii,jj,kk)%volc(1:znnsp)
                      
-                     ice(ii,jj,kk)%volc(1:znwet) = ice(ii,jj,kk)%volc(1:znwet)     &
-                          - zvfrac*ice(ii,jj,kk)%volc(1:znwet)
+                     ice(ii,jj,kk)%volc(1:znnsp) = ice(ii,jj,kk)%volc(1:znnsp)     &
+                          - zvfrac*ice(ii,jj,kk)%volc(1:znnsp)
                      
-                     !-- Remember rimed ice!
-                     ice(ii,jj,mm)%vrime = ice(ii,jj,mm)%vrime  &
-                          + zvfrac*ice(ii,jj,kk)%vrime
-                     
-                     ice(ii,jj,kk)%vrime = ice(ii,jj,kk)%vrime  &
-                          - zvfrac*ice(ii,jj,kk)%vrime
-                                          
                      !-- number
                      ice(ii,jj,mm)%numc = ice(ii,jj,mm)%numc    &
                           + znfrac*ice(ii,jj,kk)%numc
@@ -419,9 +412,8 @@ CONTAINS
                   END IF !nlim
 
                   IF ( ice(ii,jj,kk)%numc > ice(ii,jj,kk)%nlim .AND.   &
-                       sum(ice(ii,jj,kk)%volc(1:znwet))+ice(ii,jj,kk)%vrime > 1.e-30 ) THEN
-                     zvpart = ( sum(ice(ii,jj,kk)%volc(1:znwet)) +   &
-                                ice(ii,jj,kk)%vrime ) / ice(ii,jj,kk)%numc 
+                       sum(ice(ii,jj,kk)%volc(1:znnsp)) > 1.e-30 ) THEN
+                     zvpart = sum(ice(ii,jj,kk)%volc(1:znnsp)) / ice(ii,jj,kk)%numc 
                      within_bins = (ice(ii,jj,kk)%vlolim < zvpart .AND. zvpart < ice(ii,jj,kk)%vhilim)
                   END IF
 

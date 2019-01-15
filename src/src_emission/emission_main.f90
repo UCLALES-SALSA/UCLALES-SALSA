@@ -86,7 +86,7 @@ MODULE emission_main
          END IF
          
          ! Initialize the emission size distribution arrays
-         ALLOCATE( edt%numc(nbins), edt%mass(nbins*spec%getNSpec()) )
+         ALLOCATE( edt%numc(nbins), edt%mass(nbins*spec%getNSpec(type="wet")) )
          edt%numc(:) = 0.; edt%mass(:) = 0.
          
          IF (emd%emitType == 1) THEN       ! Parameterized sea salt emissions
@@ -390,7 +390,7 @@ MODULE emission_main
          DO j = 1,nyp
             DO i = 1,nxp
                a_naerot(k1:k2,i,j,bb) = a_naerot(k1:k2,i,j,bb) + edt%numc(bb)
-               DO ss = 1,spec%getNSpec()
+               DO ss = 1,spec%getNSpec(type="wet")
                   mm = getMassIndex(nbins,bb,ss)
                   a_maerot(k1:k2,i,j,mm) = a_maerot(k1:k2,i,j,mm) + edt%mass(mm)
                END DO

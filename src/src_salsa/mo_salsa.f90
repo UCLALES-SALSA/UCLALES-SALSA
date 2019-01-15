@@ -76,16 +76,12 @@ MODULE mo_salsa
           pactd(kbdim,klev,ncld)
      
      INTEGER, INTENT(in) :: level                         ! thermodynamical level
-
-     INTEGER :: nspec
      
      !-- Local variables ------------------------------------------------------------------
      
      INTEGER :: zpbl(kbdim)            ! Planetary boundary layer top level
      
      zpbl(:) = 1
-
-     nspec = spec%getNSpec()
      
      ! Coagulation
      IF (lscoag%state) &

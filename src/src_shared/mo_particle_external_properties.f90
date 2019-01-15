@@ -1,6 +1,6 @@
 MODULE mo_particle_external_properties
   USE mo_submctl, ONLY : pi6, eps, rg, surfw0, grav, spec
-!  USE classSection, ONLY : Section POISTA SE CALCSWEQ
+  USE classSection, ONLY : Section
   IMPLICIT NONE
 
   ! This module contains a collection of function to calculate physical and thermodynamical particle properties,
@@ -52,75 +52,45 @@ MODULE mo_particle_external_properties
     ! Correct dimension is needed for irregular particles (e.g. ice) for calculating fall speed (deposition and coagulation)
     ! and capacitance (condensation). Otherwise spherical assumed. This function is overloaded for LES and SALSA environments.
     !
-    FUNCTION calcDiamLES(ns,nb,numc,mass,flag)
+    FUNCTION calcDiamLES(ns,numc,mass,flag,sph)
       USE util, ONLY : getBinMassArray
+      USE mo_ice_shape, ONLY : getDiameter
       USE mo_submctl, ONLY : pi6
       IMPLICIT NONE
-      INTEGER, INTENT(IN) :: ns,nb ! Number of species, number of bins
+      INTEGER, INTENT(IN) :: ns ! Number of species
       INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3) and ice (4) particle phases
-      REAL, INTENT(IN) :: numc(nb), mass(ns*nb)
-      REAL :: calcDiamLES(nb)
+      REAL, INTENT(IN) :: numc, mass(ns)
+      LOGICAL, OPTIONAL, INTENT(in) :: sph
+      REAL :: calcDiamLES
       
-      INTEGER :: b
-      REAL :: pmass(ns)
-      REAL :: dwet
+      LOGICAL :: l_sph
+      
+      ! By default, calculate diameter assuming spherical particles (relevant for ice)
+      l_sph = .TRUE.
+      IF (PRESENT(sph)) l_sph = sph
       
       calcDiamLES=0.
-      DO b = 1,nb
-         ! Calculate wet size
-         CALL getBinMassArray(nb,ns,b,mass,pmass)
-         ! Don't calculate if very low number concentration
-         IF (numc(b)<1e-15) RETURN         
-         IF (flag==4) THEN   ! Ice
-            ! Spherical ice
-            calcDiamLES(b) = SUM(pmass(1:ns-1)/spec%rhoice(1:ns-1)) + &
-                 pmass(ns)/spec%rhori
-            calcDiamLES(b) = ( calcDiamLES(b)/numc(b)/pi6 )**(1./3.)
+
+      IF (numc < 1.e-15) RETURN
+            
+      IF (flag==4) THEN   ! Ice
+         IF (l_sph) THEN
+            ! Spherical equivalent for ice
+            calcDiamLES = ( SUM(mass(1:ns)/spec%rhoice(1:ns))/numc/pi6 )**(1./3.)
          ELSE
-            ! Radius from total volume of a spherical particle or aqueous droplet
-            calcDiamLES(b) = ( SUM(pmass(1:ns)/spec%rholiq(1:ns))/numc(b)/pi6 )**(1./3.)
-         ENDIF         
-      END DO         
-    END FUNCTION calcDiamLES
-    ! -------------------------------------------------
-    FUNCTION calcDiamSALSA(numc,volc,flag)
-      USE mo_submctl, ONLY : pi6,spec
-      IMPLICIT NONE
-      REAL, INTENT(in) :: numc
-      REAL, INTENT(in) :: volc(:)
-      INTEGER, INTENT(in) :: flag
-
-      calcDiamSALSA = 0.
-      IF (flag == 4) THEN
-         ! ICE particles
-
+            ! non-spherical ice
+            ! Get the effective ice diameter, i.e. the max diameter for non-spherical ice            
+            calcDiamLES = getDiameter( SUM(mass(1:ns-1)),mass(ns),numc )
+         END IF
       ELSE
-         ! Others
-         calcDiamSALSA = ( SUM(volc(:))/numc/pi6 )**(1./3.)
-      END IF
-      
-    END FUNCTION calcDiamSALSA
+         ! Radius from total volume of a spherical particle or aqueous droplet
+         calcDiamLES = ( SUM(mass(1:ns)/spec%rholiq(1:ns))/numc/pi6 )**(1./3.)
+      ENDIF
 
+    END FUNCTION calcDiamLES
 
+    ! -------------------------------------------------
 
-
-    !
-    ! SUBROUTINE iceShape
-    ! 
-    SUBROUTINE iceShape()
-      USE mo_submctl, ONLY : pi6
-      IMPLICIT NONE
-
-      
-      
-      
-    END SUBROUTINE iceShape
-    
-    
-
-
-
-    !PISTÄ TÄÄ JOHKI MUUALLE!!
     !
     ! Function for calculating equilibrium water saturation ratio at droplet surface based on Köhler theory
     !

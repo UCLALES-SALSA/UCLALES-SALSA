@@ -77,7 +77,7 @@ CONTAINS
          ! spin-up period to set up aerosol and cloud fields.
          IF (level >= 4) THEN
 
-            n4 = spec%getNSpec()
+            n4 = spec%getNSpec(type="wet")
 
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
@@ -185,8 +185,6 @@ CONTAINS
       INTEGER :: i,j,k
       REAL    :: exner, pres, tk, rc, xran(nzp)
       INTEGER :: nspec
-      
-      nspec = spec%getNSpec()
       
       CALL htint(ns,ts,hs,nzp,th0,zt)
       

@@ -216,7 +216,8 @@ CONTAINS
                   ice(1,1,1:nice)%volc(irim) = pdn(kk,ii,jj) * (mrim/spec%rhori)
 
                ELSE
-                  ice(1,1,1:nice)%volc(nwa:nrim) = 0.
+                  ice(1,1,1:nice)%volc(iwa) = 0.
+                  ice(1,1,1:nice)%volc(irim) = 0.
                END IF
 
                ! -------------------------------

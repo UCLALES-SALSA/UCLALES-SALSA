@@ -172,7 +172,7 @@ MODULE constrain_SALSA
 
      LOGICAL :: l_onlyDiag
      
-     nspec = spec%getNSpec() ! total number of species
+     nspec = spec%getNSpec(type="wet") ! Aerosol species + water. For rime add +1
 
      IF (PRESENT(onlyDiag)) THEN
         l_onlyDiag = onlyDiag
@@ -321,7 +321,7 @@ MODULE constrain_SALSA
                        IF ( zdh2o < MAX(0.1*cdprc,1.3e-5) .OR.   &
                             a_mprecpp(k,i,j,mi) < massTH*a_nprecpp(k,i,j,bc) ) THEN
                           
-                          ba = findDry4Wet(a_nprecpp,a_mprecpp,nprc,nspec,bc,k,i,j,3)
+                          ba = findDry4Wet(a_nprecpp,a_mprecpp,nprc,nspec,bc,k,i,j)
                           
                           ! Move the number of particles from cloud to aerosol bins
                           a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nprecpp(k,i,j,bc)
@@ -353,8 +353,7 @@ MODULE constrain_SALSA
                     mi = getMassIndex(nice,bc,nspec)     ! Pristine ice
                     mi2 = getMassIndex(nice,bc,nspec+1)  ! rimed ice
                     mice_tot = a_micep(k,i,j,mi) + a_micep(k,i,j,mi2)
-                    vice_tot = SUM(a_micep(k,i,j,bc:mi:nice)/spec%rhoice(1:nspec)) + &
-                         a_micep(k,i,j,mi2)/spec%rhori
+                    vice_tot = SUM(a_micep(k,i,j,bc:mi2:nice)/spec%rhoice(1:nspec+1))
                     
                     IF ( a_nicep(k,i,j,bc) > prlim .AND. a_rhi(k,i,j)<0.999 .AND.   &
                          mice_tot < 1.e-15 ) THEN
@@ -373,7 +372,7 @@ MODULE constrain_SALSA
                        IF ( zvol>0.5 .OR. cdice < 2.e-6 ) THEN
                           
                           ! Find the aerosol bin corresponding to the composition of the IN the current bin
-                          ba = findDry4Wet(a_nicep,a_micep,nice,nspec+1,bc,k,i,j,4)                     
+                          ba = findDry4Wet(a_nicep,a_micep,nice,nspec+1,bc,k,i,j)                     
                           
                           ! Move the number of particles from ice to aerosol bins
                           a_naerop(k,i,j,ba) = a_naerop(k,i,j,ba) + a_nicep(k,i,j,bc)
@@ -473,8 +472,9 @@ MODULE constrain_SALSA
     end = getMassIndex(nice,fia,nc)
     a_ri(:,:,:) = SUM(a_micep(:,:,:,str:end),DIM=4)
     ! Rimed ice
-    str = getMassIndex(nice,iia,nc+1)
-    end = getMassIndex(nice,fia,nc+1)
+    nc = spec%getIndex("rime")
+    str = getMassIndex(nice,iia,nc)
+    end = getMassIndex(nice,fia,nc)
     a_riri(:,:,:) = SUM(a_micep(:,:,:,str:end),DIM=4)
 
   END SUBROUTINE SALSA_diagnostics
@@ -483,13 +483,12 @@ MODULE constrain_SALSA
   ! ----------------------------------------------------------------------
   !
 
-  INTEGER FUNCTION findDry4Wet(nevap,mevap,nb,nsp,ib,iz,ix,iy,iphase)
+  INTEGER FUNCTION findDry4Wet(nevap,mevap,nb,nsp,ib,iz,ix,iy)
     USE grid, ONLY : nzp,nxp,nyp
     USE mo_submctl, ONLY : in2a,fn2a,fn1a,nbins,pi6
     USE util, ONLY :  calc_correlation, getMassIndex
     IMPLICIT NONE
     
-    INTEGER, INTENT(in) :: iphase    ! Evaporating particle phase: 3: precip, 4: ice 
     INTEGER, INTENT(in) :: nb,nsp  ! Number of bins and number of species in the evaporating particle class 
     INTEGER, INTENT(in) :: ib,iz,ix,iy  ! Current bin and grid indices
     REAL, INTENT(in) :: mevap(nzp,nxp,nyp,nb*nsp)
@@ -500,27 +499,19 @@ MODULE constrain_SALSA
     INTEGER :: ba,bb  ! Corresponding aerosol indices for regimes a and b
     REAL :: ra, rb ! Correlation coefficients for a and b aerosol bins
 
-    INTEGER :: nspec
+    INTEGER :: nwet,ndry
     
     ! This function finds a suitable aerosol bin for evaporating
     ! precipitation or ice bins
-
-    ! First, for the rest of the function, get the true nspec, i.e. without rime if evaporating species is ice. No change for precip
     
-    IF (iphase == 4) THEN
-       nspec = nsp-1
-    ELSE
-       nspec = nsp
-    END IF
+    ndry = spec%getNSpec(type="dry")
     
-    mi = getMassIndex(nb,ib,nspec)  ! Wet final mass index
-    mi2 = getMassIndex(nb,ib,nspec-1) ! Dry mass index
+    mi = getMassIndex(nb,ib,ndry)  ! Final dry mass index
                            
     ! 1) Find the closest matching bin based on dry particle diameter (a and b bins)
-    !    -- note that for ice the index is already corrected for rime. Also, spec%rholiq
-    !    -- for all evaporating categories is ok here, since the aerosol densities
-    !    -- are always the same
-    cd = SUM( mevap(iz,ix,iy,ib:mi2:nb)/spec%rholiq(1:nspec-1) ) / &
+    !    -- note that spec%rholiq for all evaporating categories is ok here,
+    !    -- since the aerosol densities are always the same
+    cd = SUM( mevap(iz,ix,iy,ib:mi:nb)/spec%rholiq(1:ndry) ) / &
               nevap(iz,ix,iy,ib)
     cd = (cd/pi6)**(1./3.) ! Dry diameter
     
@@ -538,18 +529,18 @@ MODULE constrain_SALSA
        ! Empty a bin so select b
        findDry4Wet = bb
     ELSE
-       mi = getMassIndex(nbins,ba,nspec-1) ! Index of the last dry species for current bin in aerosol regime a
-       mi2 = getMassIndex(nb,ib,nspec-1)   ! The same for the evaporating particle
+       mi = getMassIndex(nbins,ba,ndry) ! Index of the last dry species for current bin in aerosol regime a
+       mi2 = getMassIndex(nb,ib,ndry)   ! The same for the evaporating particle
        
        ! Both are present - find bin based on compositional similarity
        ra = calc_correlation(a_maerop(iz,ix,iy,ba:mi:nbins),  &
                              mevap(iz,ix,iy,ib:mi2:nb),   &
-                             nspec-1                       )
+                             ndry                       )
                          
-       mi = getMassIndex(nbins,bb,nspec-1) ! Index of the last dry species for current bin in aerosol regime b
+       mi = getMassIndex(nbins,bb,ndry) ! Index of the last dry species for current bin in aerosol regime b
        rb = calc_correlation(a_maerop(iz,ix,iy,bb:mi:nbins),  &
                              mevap(iz,ix,iy,ib:mi2:nb),   &
-                             nspec-1                       )
+                             ndry                       )
 
        findDry4Wet = ba
        IF (ra<rb) findDry4Wet = bb

@@ -565,7 +565,7 @@ MODULE mo_salsa_coagulation_processes
       REAL :: mtrgt_t, mtrgt_r, mtot, mrime ! The ice mass in target particle, the mass source term for total ice
                                             ! and rimed ice
       INTEGER :: ii,jj
-      INTEGER :: iwa,irim,ndry
+      INTEGER :: ndry
 
       ndry = spec%getNSpec(type="dry")  ! Number of dry species
       

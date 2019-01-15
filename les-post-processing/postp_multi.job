@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+#PBS -N postp_LES
+#PBS -l mppwidth=1
+#PBS -l mppnppn=1
+#PBS -l mppdepth=5
+#PBS -j oe
+#PBS -l walltime=01:00:00
+
+cd $PBS_O_WORKDIR
+
+aprun -cc numa_node -n1 -N1 -d5 ./multi_core.sh | tee postp_output
+wait

@@ -46,9 +46,7 @@ CONTAINS
                                  dumprecp(kbdim,klev,nprc), dumice(kbdim,klev,nice)
 
     INTEGER :: lo,hi
-    INTEGER :: nspec
 
-    nspec = spec%getNSpec()
     ntotal = nbins+ncld+nprc+nice
 
     ! Allocate the combined particle size distribution array
@@ -152,9 +150,6 @@ CONTAINS
      INTEGER :: ii, jj,cc,dd ! loop indices
      INTEGER :: nbin2, nbin3
      REAL ::  ratio ! ratio of regime upper and lower diameter
-     INTEGER :: nspec
-
-     nspec = spec%getNSpec()
 
      nbin2 = 4
      nbin3 = nbin(2) - nbin2
@@ -263,9 +258,6 @@ CONTAINS
 
      REAL, ALLOCATABLE :: tmplolim(:), tmphilim(:)
      
-     INTEGER :: nspec
-
-     nspec = spec%getNSpec()
      nprc = bloPrc%nbins
      
      ! Bin diameter limits for precipitation bins
@@ -383,10 +375,6 @@ CONTAINS
      INTEGER :: ii,jj,bb,nba,nbb
      
      REAL, ALLOCATABLE :: tmplolim(:), tmphilim(:)
-
-     INTEGER :: nspec
-     
-     nspec = spec%getNSpec()
 
      nice = bloIce%nbins
      
@@ -663,7 +651,6 @@ CONTAINS
       ! May not be the smartest or the fastest way, but revise later... 
       TYPE(Section), ALLOCATABLE :: dumaero(:,:,:), dumcloud(:,:,:), dumprecp(:,:,:), &
                                       dumice(:,:,:)
-      INTEGER :: nspec
 
       ! --1) Set derived indices
       in1a = 1
@@ -701,7 +688,6 @@ CONTAINS
       CALL initialize_optical_properties()
       
       ! Initialize the coagulation kernel arrays and sink/source term arrays for processes
-      nspec = spec%getNSpec()
 
       IF ( ALLOCATED(dumaero) ) DEALLOCATE(dumaero)
       IF ( ALLOCATED(dumcloud)) DEALLOCATE(dumcloud)

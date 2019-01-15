@@ -97,7 +97,7 @@ CONTAINS
    SUBROUTINE coagulation(kproma,kbdim,klev,   &
                           ptstep,ptemp,ppres   )
 
-     USE mo_salsa_types, ONLY : aero, cloud, precp, ice
+     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA
      USE mo_submctl, ONLY: ntotal,nbins,ncld,nprc,nice, &
                            spec,   &
                            lscgaa, lscgcc, lscgpp, lscgii, & 
@@ -126,6 +126,7 @@ CONTAINS
       !-- Local variables ------------------------
 
       INTEGER :: nspec
+      INTEGER :: ii,jj,bb
 
       LOGICAL :: any_aero, any_cloud, any_precp, any_ice!, any_snow
       
@@ -153,6 +154,16 @@ CONTAINS
       
       nspec = spec%getNSpec(type="total")
 
+      ! Since this is done here, it won't really be necessary in the subsequent coagulation routines
+      ! (its called at least in coagulation_kernels)
+      DO bb = 1,ntotal
+         DO jj = 1,klev
+            DO ii = 1,kproma
+               CALL allSALSA(ii,jj,bb)%updateDiameter(limit=.TRUE.,type="all")
+            END DO
+         END DO
+      END DO
+      
       CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp,    &
                                       zccaa, zcccc, zccca, zccpc, zccpa,  &
                                       zccpp, zccia, zccic, zccii, zccip)
@@ -734,7 +745,7 @@ CONTAINS
       zrh(:,:) = prv(:,:)/prs(:,:)
       
       iwa = spec%getIndex("H2O")
-      irim = spec%getIndex("rime") ! zero if ice not used
+      irim = spec%getIndex("rime")
       nspec = spec%getNSpec(type="total")
 
       ! Calculate the condensation only for 2a/2b aerosol bins
@@ -795,7 +806,7 @@ CONTAINS
 
             ! Update particle diameters
             DO cc = 1,ntotal
-               CALL allSALSA(ii,jj,cc)%updateDiameter(limit=.TRUE.,type="wet")
+               CALL allSALSA(ii,jj,cc)%updateDiameter(limit=.TRUE.,type="all")
                CALL allSALSA(ii,jj,cc)%updateRhomean()
             END DO
 
@@ -866,7 +877,7 @@ CONTAINS
             DO cc = 1, nice
                IF (ice(ii,jj,cc)%numc > ice(ii,jj,cc)%nlim .AND. lscndh2oic .AND. ptemp(ii,jj) < 273.15) THEN
                   ! Wet diameter
-                  dwet = ice(ii,jj,cc)%dwet
+                  dwet = ice(ii,jj,cc)%dnsp
                   
                   ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
                   cap=0.5*dwet
@@ -876,8 +887,9 @@ CONTAINS
                   !   because these are not known for solid, irregular and non-homogenous particles.
                   !   Ice may not be that far from a sphere, but most particles are large and at least
                   !   growing particles are covered by a layer of pure ice.
-                  zact = 1.0 
-                  zkelvinic(cc) = exp( 4.*surfi0*spec%mwa / (rg*ptemp(ii,jj)*spec%rhowa*dwet) )
+                  zact = 1.0
+                  !POISTA - KELVIN EFEKTI KYTKETTY POIS
+                  zkelvinic(cc) = 1.0 !exp( 4.*surfi0*spec%mwa / (rg*ptemp(ii,jj)*spec%rhowa*dwet) )
                   
                   ! Saturation mole concentration over flat surface
                   zcwsurfic(cc) = prsi(ii,jj)*rhoair/spec%mwa
@@ -1002,7 +1014,7 @@ CONTAINS
                IF ( ANY(ice(ii,jj,:)%numc > ice(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, nice
                      zcwintit(cc) = zcwcit(cc) + MIN(MAX(adt*zmtic(cc)*(zcwint - zwsatic(cc)*zcwsurfic(cc)), &
-                          -0.02*zcwcit(cc)),0.05*zcwcit(cc))
+                          -0.02*zcwcit(cc)),0.5*zcwcit(cc)) ! POISTA isonnettu kasvurajaa
                      zwsatic(cc) = zkelvinic(cc)
                   END DO
                END IF

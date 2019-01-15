@@ -114,8 +114,9 @@ MODULE mo_salsa_cloud_ice
                 jf = calc_Jhf(ptemp(ii,jj),Sw_eq)
                 pf_hom = 1. - EXP( -jf*pi6*(dwet**3 - dins**3)*ptstep )
              END IF
-             
-             frac = MAX(0., MIN(0.99,pf_imm+pf_hom+pf_dep-(pf_imm+pf_dep)*pf_hom))
+
+             ! POISTA KERROIN
+             frac = 1.e-5*MAX(0., MIN(0.99,pf_imm+pf_hom+pf_dep-(pf_imm+pf_dep)*pf_hom))
 
              ! Determine the target ice bin
              bb = getIceBin(dwet)
@@ -328,7 +329,7 @@ MODULE mo_salsa_cloud_ice
          sumICE, iceTendecyNumber,    &
          liqToIceFrac
     
-    INTEGER :: iwa, nspec
+    INTEGER :: iwa, nspec,ndry
     
     iwa = spec%getIndex("H2O")
     nspec = spec%getNSpec(type="total")
@@ -402,7 +403,7 @@ MODULE mo_salsa_cloud_ice
     REAL, PARAMETER :: maxfrac = 0.999
     
     nspec = spec%getNSpec(type="total")
-    ndry = spec%getNSpec(type="ndry")
+    ndry = spec%getNSpec(type="dry")
     iwa = spec%getIndex("H2O")
     irim = spec%getIndex("rime")
     
