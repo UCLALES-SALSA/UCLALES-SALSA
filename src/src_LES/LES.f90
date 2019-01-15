@@ -62,7 +62,7 @@ CONTAINS
 
       IF (level >= 4) CALL define_salsa(level) ! Read SALSA namelist etc.
 
-      IF (level >= 4) CALL salsa_initialize ! All salsa variables are now initialized
+      IF (level >= 4) CALL salsa_initialize(level) ! All salsa variables are now initialized
 
       CALL define_decomp(nxp, nyp, nxpart)
 

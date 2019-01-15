@@ -97,7 +97,7 @@ CONTAINS
    SUBROUTINE coagulation(kproma,kbdim,klev,   &
                           ptstep,ptemp,ppres   )
 
-     USE mo_salsa_types, ONLY : aero, cloud, precp, ice
+     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA
      USE mo_submctl, ONLY: ntotal,nbins,ncld,nprc,nice, &
                            spec,   &
                            lscgaa, lscgcc, lscgpp, lscgii, & 
@@ -126,6 +126,7 @@ CONTAINS
       !-- Local variables ------------------------
 
       INTEGER :: nspec
+      INTEGER :: ii,jj,bb
 
       LOGICAL :: any_aero, any_cloud, any_precp, any_ice!, any_snow
       
@@ -151,8 +152,18 @@ CONTAINS
  
       !-- 2) Updating coagulation coefficients -------------------------------------
       
-      nspec = spec%getNSpec()
+      nspec = spec%getNSpec(type="total")
 
+      ! Since this is done here, it won't really be necessary in the subsequent coagulation routines
+      ! (its called at least in coagulation_kernels)
+      DO bb = 1,ntotal
+         DO jj = 1,klev
+            DO ii = 1,kproma
+               CALL allSALSA(ii,jj,bb)%updateDiameter(limit=.TRUE.,type="all")
+            END DO
+         END DO
+      END DO
+      
       CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp,    &
                                       zccaa, zcccc, zccca, zccpc, zccpa,  &
                                       zccpp, zccia, zccic, zccii, zccip)
@@ -729,12 +740,13 @@ CONTAINS
       INTEGER :: ii,jj,cc
       INTEGER :: counter
 
-      INTEGER :: iwa,nspec
+      INTEGER :: iwa,irim,nspec
 
       zrh(:,:) = prv(:,:)/prs(:,:)
       
       iwa = spec%getIndex("H2O")
-      nspec = spec%getNSpec()
+      irim = spec%getIndex("rime")
+      nspec = spec%getNSpec(type="total")
 
       ! Calculate the condensation only for 2a/2b aerosol bins
       nstr = in2a
@@ -766,11 +778,12 @@ CONTAINS
 
             rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
 
+            ! Diffusion coef
             zdfh2o = ( 5./(16.*avog*rhoair*1.e-3*(3.11e-8)**2) ) * &
-               SQRT( rg*1e7*ptemp(ii,jj)*mair*1.e3*(spec%mwa+mair)*1.e3/( 2.*pi*spec%mwa*1.e3 ) )
+               SQRT( rg*1.e7*ptemp(ii,jj)*mair*1.e3*(spec%mwa+mair)*1.e3/( 2.*pi*spec%mwa*1.e3 ) )
             zdfh2o = zdfh2o*1.e-4
 
-            zmfph2o = 3.*zdfh2o*sqrt(pi*spec%mwa/(8.*rg*ptemp(ii,jj)))
+            zmfph2o = 3.*zdfh2o*sqrt(pi*spec%mwa/(8.*rg*ptemp(ii,jj))) ! mean free path
             zthcond = 0.023807 + 7.1128e-5*(ptemp(ii,jj) - 273.16) ! Thermal conductivity of air
 
             ! -- Water vapour (Follows the analytical predictor method by Jacobson 2005)
@@ -793,7 +806,7 @@ CONTAINS
 
             ! Update particle diameters
             DO cc = 1,ntotal
-               CALL allSALSA(ii,jj,cc)%updateDiameter(limit=.TRUE.,type="wet")
+               CALL allSALSA(ii,jj,cc)%updateDiameter(limit=.TRUE.,type="all")
                CALL allSALSA(ii,jj,cc)%updateRhomean()
             END DO
 
@@ -864,7 +877,7 @@ CONTAINS
             DO cc = 1, nice
                IF (ice(ii,jj,cc)%numc > ice(ii,jj,cc)%nlim .AND. lscndh2oic .AND. ptemp(ii,jj) < 273.15) THEN
                   ! Wet diameter
-                  dwet = ice(ii,jj,cc)%dwet
+                  dwet = ice(ii,jj,cc)%dnsp
                   
                   ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
                   cap=0.5*dwet
@@ -874,8 +887,9 @@ CONTAINS
                   !   because these are not known for solid, irregular and non-homogenous particles.
                   !   Ice may not be that far from a sphere, but most particles are large and at least
                   !   growing particles are covered by a layer of pure ice.
-                  zact = 1.0 
-                  zkelvinic(cc) = exp( 4.*surfi0*spec%mwa / (rg*ptemp(ii,jj)*spec%rhowa*dwet) )
+                  zact = 1.0
+                  !POISTA - KELVIN EFEKTI KYTKETTY POIS
+                  zkelvinic(cc) = 1.0 !exp( 4.*surfi0*spec%mwa / (rg*ptemp(ii,jj)*spec%rhowa*dwet) )
                   
                   ! Saturation mole concentration over flat surface
                   zcwsurfic(cc) = prsi(ii,jj)*rhoair/spec%mwa
@@ -939,11 +953,15 @@ CONTAINS
 
             ! Treat the ice types as one mass during the condensation process.
             ! Further assumptions about compositional changes take place after substepping loop
-            zcwcit(1:nice) = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa + &
-                             ice(ii,jj,1:nice)%vrime*spec%rhori/spec%mwa     ! Total ice
+            zcwcit(1:nice) = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa
+            IF (spec%isUsed("rime")) &
+                 zcwcit(1:nice) = zcwcit(1:nice) + ice(ii,jj,1:nice)%volc(irim)*spec%rhori/spec%mwa
+            
             ! Store original values of pristine and rimed ice to preserve info about composition
+            zorgic = 0.; zorgri = 0.
             zorgic = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa
-            zorgri = ice(ii,jj,1:nice)%vrime*spec%rhori/spec%mwa
+            IF (spec%isUsed("rime")) &
+                 zorgri = ice(ii,jj,1:nice)%volc(irim)*spec%rhori/spec%mwa
             
             zcwtot = zcwc + SUM(zcwcae) + &
                             SUM(zcwccd) + &
@@ -996,7 +1014,7 @@ CONTAINS
                IF ( ANY(ice(ii,jj,:)%numc > ice(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, nice
                      zcwintit(cc) = zcwcit(cc) + MIN(MAX(adt*zmtic(cc)*(zcwint - zwsatic(cc)*zcwsurfic(cc)), &
-                          -0.02*zcwcit(cc)),0.05*zcwcit(cc))
+                          -0.02*zcwcit(cc)),0.5*zcwcit(cc)) ! POISTA isonnettu kasvurajaa
                      zwsatic(cc) = zkelvinic(cc)
                   END DO
                END IF
@@ -1054,7 +1072,8 @@ CONTAINS
                   dvrime = ( zcwnit(cc)/(zorgic(cc)+zorgri(cc)) ) - 1.
                   dvrime = dvrime * zorgri(cc)
                   ice(ii,jj,cc)%volc(iwa) = ice(ii,jj,cc)%volc(iwa) + dvice*spec%mwa/spec%rhoic
-                  ice(ii,jj,cc)%vrime = ice(ii,jj,cc)%vrime + dvrime*spec%mwa/spec%rhori                  
+                  IF(spec%isUsed("rime")) &
+                       ice(ii,jj,cc)%volc(irim) = ice(ii,jj,cc)%volc(irim) + dvrime*spec%mwa/spec%rhori                  
                END IF
                   
             END DO

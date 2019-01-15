@@ -285,7 +285,7 @@ CONTAINS
       ! -----------------------
       IF (level >= 4) THEN
 
-         nspec = spec%getNSpec() ! Aerosol components + water
+         nspec = spec%getNSpec(type="wet") ! Aerosol components + water
             
          IF ( nxp == 5 .AND. nyp == 5 ) THEN
             ! 1D -runs

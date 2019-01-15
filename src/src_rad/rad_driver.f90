@@ -287,7 +287,7 @@ MODULE radiation
     REAL    :: ptop, dp, Tsurf
     INTEGER :: nspec
     
-    nspec = spec%getNSpec()
+    nspec = spec%getNSpec(type="wet")
     nspec = MAX(1,nspec) ! If SALSA is not used, nspec would be 0 and that might cause an error in the allocation 
                          ! (which is done regardles if SALSA is used, to keep it simple)
 

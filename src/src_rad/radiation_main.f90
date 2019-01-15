@@ -35,7 +35,7 @@ MODULE radiation_main
       INTEGER :: nspec
       REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
       
-      nspec = spec%getNSpec()  
+      nspec = spec%getNSpec(type="wet")  
       nspec = MAX(1,nspec) ! This is to avoid some problems with LEV3 even though not actually even used. 
                            ! Avoids the need for more switches
 

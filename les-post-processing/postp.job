@@ -3,10 +3,10 @@
 #PBS -N PostpLES
 #PBS -l mppwidth=1
 #PBS -l mppnppn=28
-#PBS -l walltime=01:00:00
+#PBS -l walltime=05:00:00
 
 cd $PBS_O_WORKDIR
 export LD_LIBRARY_PATH=/lustre/tmp/tonttila/anaconda2/lib
 
-aprun -n 1 python postp_UCLALES-SALSA.py -i Cu_const_pbl_SSb_Tnudge -v l,q,r | tee postp_output
+aprun -n 1 python postp_UCLALES-SALSA.py -i wk82modseed -o wk82modseed_postp_binned -v S_Naba,S_Nabb,S_Ncba,S_Ncbb,S_Npba,S_Niba,S_Rwcba,S_Rwcbb,S_Rwpba,S_Rwiba | tee postp_output
 

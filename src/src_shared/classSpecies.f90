@@ -94,16 +94,19 @@ MODULE classSpecies
   ! -------------------------------------------------------------------------------------------------------------------------
   ! Master arrays. These contain all the available information for the model. 
   ! The order of the parameters in the vectors below is consistent. The last three: liq,ice,snow
-  CHARACTER(len=3), TARGET, PRIVATE   :: allNames(maxspec+1)  = ['SO4','OC ','BC ','DU ','SS ','NO ','NH ','H2O']          ! Names of all possible compounds.
-  CHARACTER(len=3), TARGET, PRIVATE   :: allNamesInsoluble(maxins) = ['BC ','DU ']                                       ! Names of all possible insoluble compounds
-  CHARACTER(len=3), TARGET, PRIVATE   :: allNamesSoluble(maxsol)   = ['SO4','OC ','SS ','NO ','NH ']                     ! Names of all possible soluble compounds
-  REAL, TARGET, PRIVATE               :: allMM(maxspec+1)   = [98.08e-3, 150.e-3, 12.e-3, 100.e-3,    &                 
-                                                               58.44e-3, 62.01e-3, 18.04e-3, 18.016e-3]                  ! Molecular masses 
-  REAL, TARGET, PRIVATE               :: allRho(maxspec+1)  = [1830., 2000., 2000., 2650., 2165., 1479., 1530., 1000.]   ! Densities
-  REAL, TARGET, PRIVATE               :: allDiss(maxspec+1) = [1., 1., 0., 0., 2., 1., 1., 1.]                           ! Dissociation factors POISTA SULFAATILLE 3
-  REAL, TARGET, PRIVATE               :: auxrhoic = 917.                                                                     ! Bulk density of ice
-  REAL, TARGET, PRIVATE               :: auxrhorime = 900.                                                                   ! Bulk density of rimed ice
-  REAL, TARGET, PRIVATE               :: auxrhosn = 300.                                                                     ! Effective?? density of snow 
+  CHARACTER(len=4), TARGET, PRIVATE   :: allNames(maxspec+2)  = ['SO4 ','OC  ','BC  ','DU  ','SS  ',    &
+                                                                 'NO  ','NH  ','H2O ','rime']                        ! Names of all possible compounds.
+  CHARACTER(len=4), TARGET, PRIVATE   :: allNamesInsoluble(maxins) = ['BC ','DU ']                                   ! Names of all possible insoluble compounds
+  CHARACTER(len=4), TARGET, PRIVATE   :: allNamesSoluble(maxsol)   = ['SO4','OC ','SS ','NO ','NH ']                 ! Names of all possible soluble compounds
+  REAL, TARGET, PRIVATE               :: allMM(maxspec+2)   = [98.08e-3, 150.e-3, 12.e-3, 100.e-3,    &                 
+                                                               58.44e-3, 62.01e-3, 18.04e-3, 18.016e-3, 18.016e-3]   ! Molecular masses 
+  REAL, PARAMETER, PRIVATE    :: auxrhoic = 917.                                                   ! Bulk density of ice
+  REAL, PARAMETER, PRIVATE    :: auxrhorime = 400.                                                 ! Bulk density of rimed ice
+  REAL, TARGET, PRIVATE       :: t_auxrhoic = auxrhoic      ! workaround for pointer assignment - find a way to remove this
+  REAL, TARGET, PRIVATE       :: t_auxrhorime = auxrhorime  ! workaround for pointer assignment - find a way to remove this
+  REAL, TARGET, PRIVATE       :: allRho(maxspec+2)  = [1830., 2000., 2000., 2650., 2165., &
+                                                       1479., 1530., 1000., auxrhorime]            ! Densities
+  REAL, TARGET, PRIVATE       :: allDiss(maxspec+2) = [1., 1., 0., 0., 2., 1., 1., 1., 1.]         ! Dissociation factors POISTA SULFAATILLE 3
   ! -------------------------------------------------------------------------------------------------------------------------
 
   !
@@ -115,13 +118,13 @@ MODULE classSpecies
   TYPE Species
 
      ! The below arrays are compiled according to the configuration given in the SALSA namelist. Check out the constructor method for details
-     LOGICAL            :: used(maxspec+1) = [.FALSE.,.FALSE.,.FALSE.,.FALSE.,.FALSE.,.FALSE.,.FALSE.,.TRUE.]     ! Logical mask of active compounds
+     LOGICAL            :: used(maxspec+2) = [.FALSE.,.FALSE.,.FALSE.,.FALSE.,.FALSE.,.FALSE.,.FALSE.,.TRUE.,.TRUE.]     ! Logical mask of active compounds
      INTEGER            :: Nused = 0                                                                              ! Number of active compounds
-     INTEGER            :: allInd(maxspec+1) = [0,0,0,0,0,0,0,0]                                                  ! Indices of compounds in model mass arrays (0 if not active)
+     INTEGER            :: allInd(maxspec+2) = [0,0,0,0,0,0,0,0,0]                                                  ! Indices of compounds in model mass arrays (0 if not active)
 
      ! The suffix "Native" for arrays following the order of allNames. Non-"Native" follow the order in which the active compounds are given in SALSA namelist and therefore in model mass arrays.
      ! The lists are trucated to include only the active compound properties using the logical mask "used" and the Fortran intrinsic PACK.
-     CHARACTER(len=3), ALLOCATABLE :: namesNative(:), names(:)                                     ! Names of active compounds
+     CHARACTER(len=4), ALLOCATABLE :: namesNative(:), names(:)                                     ! Names of active compounds
      INTEGER         , ALLOCATABLE :: indNative(:), ind(:)                                         ! Indices in model mass arrays
      REAL            , ALLOCATABLE :: MMNative(:), MM(:)                                           ! Molar masses
      REAL            , ALLOCATABLE :: rholiqNative(:), rhoiceNative(:), rhosnowNative(:),   &      ! densities
@@ -132,10 +135,10 @@ MODULE classSpecies
      ! Subset arrays for soluble and insoluble compounds. If none are used of either category, length 1 is allocated for the arrays and zeros are used to initialize. 
      ! Thus be carefull when using these, check with N(in)soluble!
      INTEGER                       :: Nsoluble = 0, Ninsoluble = 0                                 ! Number of active soluble and insolubl compounds            
-     CHARACTER(len=3), ALLOCATABLE :: names_soluble(:), names_insoluble(:)                         ! Names of active soluble and insoluble compounds (Length 1 empty string if non used)
+     CHARACTER(len=4), ALLOCATABLE :: names_soluble(:), names_insoluble(:)                         ! Names of active soluble and insoluble compounds (Length 1 empty string if non used)
      INTEGER,          ALLOCATABLE :: ind_soluble(:), ind_insoluble(:)                             ! Indices of soluble/insoluble
      REAL,             ALLOCATABLE :: MM_soluble(:), MM_insoluble(:)                               ! Molar masses
-     REAL,             ALLOCATABLE :: rholiq_soluble(:),   &                                       ! Densities
+     REAL,             ALLOCATABLE :: rholiq_soluble(:),   &                                       ! Densities  EIKAI NAITA TARTTE ERIKSEEN VEDELLE JA JAALLE??
                                       rhoice_soluble(:),   &
                                       rholiq_insoluble(:), &
                                       rhoice_insoluble(:)
@@ -144,14 +147,15 @@ MODULE classSpecies
      REAL    :: mas = 132.14e-3  ! Molar mass of ammonium sulphate
      REAL    :: rhoas = 1770.    ! Density of ammonium sulphate
 
-     CHARACTER(len=3), POINTER :: nsu => NULL(), &
+     CHARACTER(len=4), POINTER :: nsu => NULL(), &
                                   noc => NULL(), &
                                   nbc => NULL(), &
                                   ndu => NULL(), &
                                   nss => NULL(), &
                                   nno => NULL(), &
                                   nnh => NULL(), &
-                                  nwa => NULL()
+                                  nwa => NULL(), &
+                                  nrim => NULL()
      
      REAL, POINTER :: msu => NULL(),   &
                       moc => NULL(),   &
@@ -160,7 +164,8 @@ MODULE classSpecies
                       mss => NULL(),   &
                       mno => NULL(),   &
                       mnh => NULL(),   &
-                      mwa => NULL()
+                      mwa => NULL(),   &
+                      mrim => NULL()
 
      REAL, POINTER :: rhosu => NULL(), &
                       rhooc => NULL(), &
@@ -214,16 +219,22 @@ MODULE classSpecies
             END IF
          END DO
       END DO
-
+      
       ! Number of active compounds.
-      ! +1 for water. Even though there are 3 water "species" (liq,ice,snow), they are in different arrays 
-      ! and each has only one of the water phases.
+      ! +1 for water which doubles as unrimed ice for frozen hydrometeors
       cnstr%Nused = nlist+1
-         
+      ! +1 for rimed ice in frozen hydrometeors. To keep things simple, this is allocated also for liquid hydrometeors, but left empty.
+      ! Since SALSA is called grid point by grid point, this does not have a notable effect on the models memory usage.
+      cnstr%Nused = nlist+2
+      
       ! Add this stuff for water, which is always used (and thus not specified in the namelist)
       cnstr%allInd(maxspec+1) = nlist+1
       cnstr%used(maxspec+1) = .TRUE.
- 
+      ! Stuff for also 'rime'
+      cnstr%allInd(maxspec+2) = nlist+2
+      cnstr%used(maxspec+2) = .TRUE.
+
+      
       ! Allocate the truncated property lists
       ALLOCATE( cnstr%namesNative(cnstr%Nused),   cnstr%names(cnstr%Nused),     &
                 cnstr%indNative(cnstr%Nused),     cnstr%ind(cnstr%Nused),       &
@@ -242,7 +253,7 @@ MODULE classSpecies
       cnstr%rholiqNative = PACK(allRho, cnstr%used)
       ! First, use the same arrays for densities in ice array
       cnstr%rhoiceNative = cnstr%rholiqNative
-      ! Second, replace the water densities with appropriate values
+      ! Second, replace the water densities with appropriate values. Rime density is already set.
       cnstr%rhoiceNative(cnstr%Nused) = auxrhoic
       
       ! Make another set of truncated property lists, where the values are sorted to the same order
@@ -261,7 +272,8 @@ MODULE classSpecies
       cnstr%nno  => allNames(6)
       cnstr%nnh  => allNames(7)
       cnstr%nwa  => allNames(8)
-
+      cnstr%nrim => allNames(9)
+      
       cnstr%msu  => allMM(1)
       cnstr%moc  => allMM(2)
       cnstr%mbc  => allMM(3)
@@ -269,7 +281,8 @@ MODULE classSpecies
       cnstr%mss  => allMM(5)
       cnstr%mno  => allMM(6)
       cnstr%mnh  => allMM(7)
-      cnstr%mwa => allMM(8)
+      cnstr%mwa  => allMM(8)
+      cnstr%mrim => allMM(9) 
 
       cnstr%rhosu  => allRho(1)
       cnstr%rhooc  => allRho(2)
@@ -279,8 +292,8 @@ MODULE classSpecies
       cnstr%rhono  => allRho(6)
       cnstr%rhonh  => allRho(7)
       cnstr%rhowa  => allRho(8)
-      cnstr%rhoic  => auxrhoic
-      cnstr%rhori  => auxrhorime
+      cnstr%rhoic  => t_auxrhoic
+      cnstr%rhori  => t_auxrhorime
 
     END FUNCTION cnstr
 
@@ -407,7 +420,6 @@ MODULE classSpecies
       INTEGER :: i
 
       IF ( SELF%isUsed(incomp) ) THEN
-
          i = 1
          DO WHILE ( (SELF%names(i) /= incomp) ) ! Note: using the sorted list of names! (-> SALSA mass array index)
             i = i + 1
@@ -430,15 +442,20 @@ MODULE classSpecies
     INTEGER FUNCTION getNSpec(SELF,type)
       IMPLICIT NONE
       CLASS(Species), INTENT(in) :: SELF
-      CHARACTER(len=3), INTENT(in), OPTIONAL :: type
+      CHARACTER(len=*), INTENT(in), OPTIONAL :: type
 
       IF (PRESENT(type)) THEN
-         IF (type == 'wet') THEN
+         IF (type == 'total') THEN
+            ! Everything including rime.
             getNSpec = SELF%Nused
-         ELSE IF (type == 'dry') THEN
+         ELSE IF (type == 'wet') THEN
+            ! Everything except rime
             getNSpec = SELF%Nused - 1
+         ELSE IF (type == 'dry') THEN
+            getNSpec = SELF%Nused - 2
          ELSE
-            STOP "getNSpec: Bad type option"
+            WRITE(*,*) "getNSpec: Bad type option",type
+            STOP
          END IF
       ELSE
          getNSpec = SELF%Nused
@@ -466,7 +483,7 @@ MODULE classSpecies
       CLASS(Species), INTENT(in) :: SELF
       INTEGER, INTENT(in) :: nn
       INTEGER, INTENT(in), OPTIONAL :: wat ! Density of water differes according to phase: 
-                                           ! 1: liquid, 2: ice, 3:snow. 1 is the default      
+                                           ! 1: liquid, 2: ice 1 is the default      
       getRhoByIndex = 0.
       IF ( PRESENT(wat) ) THEN
          IF (wat == 1) THEN
@@ -486,7 +503,7 @@ MODULE classSpecies
       CLASS(Species), INTENT(in) :: SELF
       CHARACTER(len=*), INTENT(in) :: nn
       INTEGER, INTENT(in), OPTIONAL :: wat ! Density of water differes according to phase: 
-                                           ! 1: liquid, 2: ice, 3:snow. 1 is the default
+                                           ! 1: liquid, 2: ice 1 is the default
       INTEGER :: ii
 
       ii = SELF%getIndex(nn)
@@ -542,7 +559,7 @@ MODULE classSpecies
 
     ! -----------------------------------------------
 
-    CHARACTER(len=3) FUNCTION getName(SELF,nn)
+    CHARACTER(len=4) FUNCTION getName(SELF,nn)
       IMPLICIT NONE
       ! -----------------------------------------------------------
       ! Gets species name by index from the subset of used species

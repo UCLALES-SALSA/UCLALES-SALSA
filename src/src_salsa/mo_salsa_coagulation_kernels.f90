@@ -96,13 +96,15 @@ MODULE mo_salsa_coagulation_kernels
             zmass(:) = 0.
             
             ASSOCIATE ( pp1 => part1(ii,jj,1:nb1) )
-
+              
               DO mm = 1,nb1
-                 CALL pp1(mm)%updateDiameter(limit=.TRUE.)
-	         CALL pp1(mm)%updateRhomean()
+                 CALL pp1(mm)%updateDiameter(limit=.TRUE.,type="all")
+                 CALL pp1(mm)%updateRhomean()
               END DO
+
               zmass(1:nb1) = pp1(1:nb1)%rhomean*pi6*pp1(1:nb1)%dwet**3
               zdiam(1:nb1) = pp1(1:nb1)%dwet
+              IF (pp1(1)%phase == 4) zdiam(1:nb1) = pp1(1:nb1)%dnsp ! for ice use nonspherical shape for the actual diameter
               
               DO mm = 1, nb1         ! smaller colliding particle
                  
@@ -148,6 +150,8 @@ MODULE mo_salsa_coagulation_kernels
       REAL :: zdiam1(nb1), zdiam2(nb2), zmass1(nb1), zmass2(nb2)
 
       INTEGER :: mm,nn,ii,jj
+
+      INTEGER :: cc ! POISTA
       
       DO jj = 1,klev
          DO ii = 1,kbdim
@@ -159,19 +163,36 @@ MODULE mo_salsa_coagulation_kernels
 
               ! Update wet diameters
               DO mm = 1,nb1
-                 CALL pp1(mm)%updateDiameter(limit=.TRUE.)
+                 CALL pp1(mm)%updateDiameter(limit=.TRUE.,type="all")
+                 CALL pp1(mm)%updateRhomean()
               END DO
               DO nn = 1,nb2
-                 CALL pp2(nn)%updateDiameter(limit=.TRUE.)
+                 CALL pp2(nn)%updateDiameter(limit=.TRUE.,type="all")
+                 CALL pp2(nn)%updateRhomean()
               END DO
-              zmass1(1:nb1) = spec%rhowa*pi6*pp1(1:nb1)%dwet**3
-              zmass2(1:nb2) = spec%rhowa*pi6*pp2(1:nb2)%dwet**3
-              
+              zmass1(1:nb1) = pp1(1:nb1)%rhomean*pi6*pp1(1:nb1)%dwet**3
+              zmass2(1:nb2) = pp2(1:nb2)%rhomean*pi6*pp2(1:nb2)%dwet**3
+              zdiam1(1:nb1) = pp1(1:nb1)%dwet
+              IF (pp1(1)%phase == 4) zdiam1(1:nb1) = pp1(1:nb1)%dnsp
+                 
+              zdiam2(1:nb2) = pp2(1:nb2)%dwet
+              ! POISTA YLIMAARAISET
+              IF (pp2(1)%phase == 4) THEN
+                 IF (ANY(pp2(:)%numc > pp2(:)%nlim)) THEN
+                    DO cc = 1,nb2
+                       IF (pp2(cc)%numc > pp2(cc)%nlim .AND. pp2(cc)%dwet /= pp2(cc)%dnsp) THEN
+                          WRITE(*,*) pp2(cc)%dwet, pp2(cc)%dnsp
+                       END IF
+                    END DO
+                 END IF                 
+                 zdiam2(1:nb2) = pp2(1:nb2)%dnsp
+              END IF
+                 
               DO mm = 1,nb1
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
                  DO nn = 1,nb2
                     IF (pp2(nn)%numc < pp2(nn)%nlim) CYCLE
-                    zcc(ii,jj,mm,nn) = coagc(pp1(mm)%dwet,pp2(nn)%dwet,zmass1(mm),zmass2(nn),   &
+                    zcc(ii,jj,mm,nn) = coagc(zdiam1(mm),zdiam2(nn),zmass1(mm),zmass2(nn),   &
                                              ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,         &
                                              pp2(nn)%phase                                      )
                  END DO
@@ -181,7 +202,6 @@ MODULE mo_salsa_coagulation_kernels
 
          END DO
       END DO
-
 
     END SUBROUTINE buildKernel
 
@@ -353,7 +373,7 @@ MODULE mo_salsa_coagulation_kernels
          zgrav = zgrav * ABS(termv(1)-termv(2))
          
          ! Total coagulation kernel
-         coagc = zbrown  + zbrconv + SQRT(zgrav**2+ ztshear**2+ zturbinert**2)
+         coagc = zbrown  + zbrconv + SQRT(zgrav**2 + ztshear**2 + zturbinert**2)
          
       END SELECT
       

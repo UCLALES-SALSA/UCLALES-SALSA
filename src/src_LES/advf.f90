@@ -144,7 +144,7 @@ CONTAINS
                                     MERGE( dn(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
           ! Change in dry ccn/aerosol mass
-          DO ss = 1, spec%getNSpec()-1
+          DO ss = 1, spec%getNSpec(type="dry")
 
              mm = (ss-1)*ncld + bb
              mmpar = (ss-1)*nbins + bbpar
@@ -196,7 +196,7 @@ CONTAINS
     ! the points defined by the activation mask (0 elsewhere)
     DO bb = ica%cur, fca%cur
        a_nactd(:,:,:,bb) = MERGE(a_nactd(:,:,:,bb),0.,pactmask(:,:,:))
-       DO ss = 1, spec%getNSpec()
+       DO ss = 1, spec%getNSpec(type="wet")
           mm = (ss-1)*ncld + bb
           a_vactd(:,:,:,mm) = MERGE(a_vactd(:,:,:,mm),0.,pactmask(:,:,:))
        END DO

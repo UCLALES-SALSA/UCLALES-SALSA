@@ -26,7 +26,8 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 \
 	  constrain_SALSA.f90 rfft.f90 rad_solver.f90 rad_corkds.f90 rad_cldwtr.f90 \
 	  rad_d4strm.f90 rad_driver.f90 radiation_main.f90 emission_main.f90 \
 	  mo_seasalt_emission.f90 exceptionHandling.f90 mo_aerorad_lut.f90 \
-	  mo_salsa_optical_properties.f90 mo_particle_external_properties.f90	
+	  mo_salsa_optical_properties.f90 mo_particle_external_properties.f90 \
+	  mo_ice_shape.f90
 SRCSF77 = 
 
 
@@ -81,7 +82,8 @@ constrain_salsa.o: grid.o mo_submctl.o util.o
 emission_main.o: mo_seasalt_emission.o mo_submctl.o grid.o util.o exceptionHandling.o \
 	         mo_salsa_sizedist.o mo_salsa_driver.o mo_salsa_types.o
 mo_seasalt_emission.o: mo_submctl.o
-mo_particle_external_properties.o: mo_submctl.o classSection.o
+mo_particle_external_properties.o: mo_submctl.o classSection.o util.o
+mo_ice_shape.o: mo_submctl.o
 rfft.o:
 radiation_main.o: grid.o rad_driver.o mo_submctl.o 
 rad_solver.o: defs.o
@@ -119,7 +121,7 @@ mo_salsa_update.o: mo_salsa_types.o mo_submctl.o classSection.o
 mo_salsa_types.o: classSection.o
 aerosol_thermodynamics.o:
 classSpecies.o:
-classSection.o: mo_submctl.o
+classSection.o: mo_submctl.o mo_ice_shape.o
 classProcessSwitch.o: 
 classBinLayout.o:
 

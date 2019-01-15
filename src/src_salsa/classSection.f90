@@ -7,33 +7,24 @@ MODULE classSection
              vlolim,     & ! - '' - at the low limit
              vratiohi,   & ! volume ratio between the center and high limit
              vratiolo,   & ! - '' - and the low limit
-             dmid,       & ! bin middle diameter
+             dmid,       & ! bin middle diameter (spherical equivalent)
              !******************************************************
              ! ^ Do NOT change the stuff above after initialization !
              !******************************************************
-             dwet,       & ! Wet diameter or mean droplet diameter
-             ddry,       & ! Dry diameter (actual)
+             dwet,       & ! Wet diameter or mean droplet diameter (Spherical equivalent)
+             ddry,       & ! Dry diameter (actual, not bin middle)
              dins,       & ! Diameter of the insoluble part (if present)
+             dnsp,       & ! Diameter along the maximum dimension (only relevant for non-spherical ice)
              numc,       & ! Number concentration of particles/droplets
              core          ! Volume of dry particle
      
-     REAL :: volc(8)     ! Volume concentrations of aerosol species + water. These are taken as bulk volume.
-                         ! Only used compouds are given values. 
+     REAL :: volc(9)     ! Volume concentrations of aerosol species + water + rimed ice. These are taken as bulk volume.
+                         ! Only used compouds are given values (so the actual range of non-zero cells is given by spec&getNSpec). 
                          ! For technical reasons this cannot be allocatable at least for now....
 
      REAL :: rhomean     ! The mean ice density for frozen particles. Takes into account only the bulk ice composition
-
      REAL :: rhoeff      ! Effective ice density. This should take into account non-spherical shape as well as the 
                           ! bulk ice composition
-
-
-
-     ! These are only used for frozen hydrometeors
-     !-----------------------------------------------------------
-     !REAL :: virimebulk   ! Bulk volume concentration of rimed ice for frozen hydrometeors
-
-     REAL :: vrime         ! The true volume concentration of rimed ice, taking into account particle shape
-     !REAL :: viprist      ! The true volume concentration of pristine ice, taking into account the particle shape
 
      INTEGER :: phase    ! Phase identifier, 1: aerosol 2: cloud droplet, 3: precip, 4: ice
      REAL    :: nlim     ! Lower limit for number concentration used in many calculations, depends on particle type
@@ -59,10 +50,10 @@ MODULE classSection
 
       cnstr%vhilim = 0.; cnstr%vlolim = 0.
       cnstr%vratiohi = 0; cnstr%vratiolo = 0.
-      cnstr%dmid = 0.; cnstr%dwet = 0.; cnstr%dins = 0.
+      cnstr%dmid = 0.; cnstr%dwet = 0.; cnstr%ddry = 0.
+      cnstr%dins = 0.; cnstr%dnsp = 0.
       cnstr%numc = 0.; cnstr%core = 0.
       cnstr%volc(:) = 0.
-      cnstr%vrime = 0.
       cnstr%phase = iphase
       cnstr%nlim = inlim
       cnstr%dlim = idlim
@@ -82,15 +73,18 @@ MODULE classSection
     ! This should be modified to account for the particle shape as well.
     !
     SUBROUTINE updateDiameter(SELF,limit,type)
+      USE mo_ice_shape, ONLY : getDiameter
       CLASS(Section), INTENT(inout) :: SELF
       LOGICAL,INTENT(in) :: limit  ! True -> constrain the result wet diameter by dlim
-      CHARACTER(len=3), INTENT(in), OPTIONAL :: type  ! "dry" or "wet", "ins" (insoluble) or "all". Default is "wet"
+      CHARACTER(len=3), INTENT(in), OPTIONAL :: type  ! "dry" or "wet", "ins" (insoluble), nsp (non-spherical) or "all". Default is "wet"
 
       CHARACTER(len=3) :: swtyp
-      INTEGER :: nwet, ndry
+      INTEGER :: nwet, ndry, nnsp
+      REAL :: mpri,mrim
 
       nwet = spec%getNSpec(type="wet")
       ndry = spec%getNspec(type="dry")
+      nnsp = spec%getNSpec(type='total')
       
       IF ( .NOT. PRESENT(type) ) THEN
          swtyp = "wet"
@@ -99,15 +93,24 @@ MODULE classSection
       END IF
        
       IF (SELF%numc > SELF%nlim) THEN
+         IF (ANY(swtyp == ["nsp","all"])) THEN
+            ! Non-spherical diameter - only relevant for ice. Make sure to not use with liquid categories, since ice densities are implicitly assumed
+            SELF%dnsp = 1.e-10
+            mpri = SUM(SELF%volc(1:nwet)*spec%rhoice(1:nwet))
+            mrim = SELF%volc(nnsp)*spec%rhori
+            SELF%dnsp = getDiameter( mpri,mrim,SELF%numc )
+         END IF
+         
          IF (ANY(swtyp == ["wet","all"])) THEN
+            ! Spherical diameter. Works for both liquid and frozen categories.
             SELF%dwet = 1.e-10
-            ! Only ice will have vrime =/ 0
-            SELF%dwet = ( (SUM(SELF%volc(1:nwet))+SELF%vrime)/SELF%numc/pi6 )**(1./3.)
+            SELF%dwet = ( SUM(SELF%volc(:))/SELF%numc/pi6 )**(1./3.)
          END IF
 
          IF (ANY(swtyp == ["dry","all"])) THEN
+            ! Dry (spherical) diameter of the aerosol/CCN, for both liquid and frozen categories
             SELF%ddry = 1.e-10
-            SELF%ddry = (SUM(SELF%volc(1:ndry))/SELF%numc/pi6)**(1./3.)
+            SELF%ddry = ( SUM(SELF%volc(1:ndry))/SELF%numc/pi6 )**(1./3.)
          END IF
 
          IF (ANY(swtyp == ["ins","all"]) .AND. ALL( spec%ind_insoluble(:) > 0 )) THEN ! If there is any insoluble active, all the indices sohuld be > 0
@@ -115,6 +118,8 @@ MODULE classSection
             SELF%dins = ( SUM(SELF%volc(spec%ind_insoluble))/SELF%numc/pi6 )**(1./3.)
          END IF
       ELSE
+         IF (ANY(swtyp == ["nsp","all"])) SELF%dnsp = SELF%dmid
+         
          IF (ANY(swtyp == ["wet","all"])) SELF%dwet = SELF%dmid
 
          IF (ANY(swtyp == ["dry","all"])) SELF%ddry = SELF%dmid
@@ -123,6 +128,8 @@ MODULE classSection
       END IF
 
       IF (limit) THEN
+         IF (ANY(swtyp == ["nsp","all"])) &
+              SELF%dnsp = MIN(SELF%dwet,SELF%dlim)
          IF (ANY(swtyp == ["wet","all"])) &
               SELF%dwet = MIN(SELF%dwet,SELF%dlim)
          IF (ANY(swtyp == ["dry","all"])) &
@@ -148,9 +155,10 @@ MODULE classSection
       CLASS(Section), INTENT(inout) :: SELF
       REAL :: mass_p, mass_r, mass_t
 
-      INTEGER :: iwa
+      INTEGER :: iwa,irim
       
       iwa = spec%getIndex("H2O")
+      irim = spec%getIndex("rime")
 
       SELF%rhomean = spec%rhoic
       
@@ -158,7 +166,7 @@ MODULE classSection
       IF (SELF%phase > 3) THEN
          IF (SELF%numc > SELF%nlim) THEN
             mass_p = spec%rhoic*SELF%volc(iwa)
-            mass_r = spec%rhori*SELF%vrime
+            mass_r = spec%rhori*SELF%volc(irim)
             mass_t = mass_p + mass_r
             SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/mass_t
          ELSE
@@ -169,21 +177,5 @@ MODULE classSection
       END IF
 
     END SUBROUTINE updateRhomean
-
-    !
-    ! Subroutine addRimedVol
-    !
-    ! Addition of rimed ice volume to a particle e.g. from ice-precip collection
-    ! is not straightforward because of it's effect on the bulk ice mean density.
-    ! The contributions must first be converted into mass and go from there...
-    !
-    !
-    !SUBROUTINE addRimedVol(SELF, addvol)
-    !  CLASS(Section)
-
-    !END SUBROUTINE addRimedVol
-
-
-
 
 END MODULE classSection

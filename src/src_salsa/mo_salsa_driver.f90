@@ -116,7 +116,7 @@ CONTAINS
       TYPE(Section) :: aero_old(kbdim,klev,nbins), cloud_old(kbdim,klev,ncld),    &
                        precp_old(kbdim,klev,nprc), ice_old(kbdim,klev,nice)
 
-      INTEGER :: jj,ii,kk,ss,str,end,str2,end2, nc, ndry, nwet
+      INTEGER :: jj,ii,kk,ss,str,end,str2,end2, nc, ndry, iwa, irim
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
               in_w(kbdim,klev), in_rsi(kbdim,klev)
       REAL :: rv_old(kbdim,klev)
@@ -125,7 +125,8 @@ CONTAINS
 
 
       ndry = spec%getNSpec(type="dry")
-      nwet = spec%getNSpec(type="wet")
+      iwa = spec%getIndex("H2O")    ! water/unrimed ice
+      irim = spec%getIndex("rime")  ! rimed ice; returns 0 if level<5 and rime not used
 
       actd(:,:,:) = Section(2,nlim,dlcloud)
       ! these are used as containers for the "previous" values
@@ -188,34 +189,35 @@ CONTAINS
                END DO
 
                ! Water/ice
-               str = getMassIndex(nbins,1,nwet)
-               end = getMassIndex(nbins,nbins,nwet)
-               aero(1,1,1:nbins)%volc(nwet) = pa_maerop(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nwet)
+               str = getMassIndex(nbins,1,iwa)
+               end = getMassIndex(nbins,nbins,iwa)
+               aero(1,1,1:nbins)%volc(iwa) = pa_maerop(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(iwa)
 
-               str = getMassIndex(ncld,1,nwet)
-               end = getMassIndex(ncld,ncld,nwet)
-               cloud(1,1,1:ncld)%volc(nwet) = pa_mcloudp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nwet)
+               str = getMassIndex(ncld,1,iwa)
+               end = getMassIndex(ncld,ncld,iwa)
+               cloud(1,1,1:ncld)%volc(iwa) = pa_mcloudp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(iwa)
             
-               str = getMassIndex(nprc,1,nwet)
-               end = getMassIndex(nprc,nprc,nwet)
-               precp(1,1,1:nprc)%volc(nwet) = pa_mprecpp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(nwet)
+               str = getMassIndex(nprc,1,iwa)
+               end = getMassIndex(nprc,nprc,iwa)
+               precp(1,1,1:nprc)%volc(iwa) = pa_mprecpp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/spec%rholiq(iwa)
 
                IF (level == 5) THEN
                   ! Ice and rimed ice
-                  str = getMassIndex(nice,1,nwet)    ! Pristine ice
-                  end = getMassIndex(nice,nice,nwet)
-                  str2 = getMassIndex(nice,1,nwet+1) ! Rimed ice
-                  end2 = getMassIndex(nice,nice,nwet+1)
+                  str = getMassIndex(nice,1,iwa)    ! Pristine ice
+                  end = getMassIndex(nice,nice,iwa)
+                  str2 = getMassIndex(nice,1,irim) ! Rimed ice
+                  end2 = getMassIndex(nice,nice,irim)
 
                   mrim = 0.; mprist = 0.
                   mrim(1:nice) = pa_micep(kk,ii,jj,str2:end2)
                   mprist(1:nice) = pa_micep(kk,ii,jj,str:end)
 
-                  ice(1,1,1:nice)%volc(nwet) = pdn(kk,ii,jj) * ( (mprist/spec%rhoic) ) 
-                  ice(1,1,1:nice)%vrime = pdn(kk,ii,jj) * (mrim/spec%rhori)
+                  ice(1,1,1:nice)%volc(iwa) = pdn(kk,ii,jj) * ( (mprist/spec%rhoic) ) 
+                  ice(1,1,1:nice)%volc(irim) = pdn(kk,ii,jj) * (mrim/spec%rhori)
 
                ELSE
-                  ice(1,1,1:nice)%volc(nwet) = 0.
+                  ice(1,1,1:nice)%volc(iwa) = 0.
+                  ice(1,1,1:nice)%volc(irim) = 0.
                END IF
 
                ! -------------------------------
@@ -290,8 +292,8 @@ CONTAINS
                ! Activated droplets
                pa_nactd(kk,ii,jj,1:ncld) = actd(1,1,1:ncld)%numc/pdn(kk,ii,jj)
 
-               ! Get mass tendencies
-               DO nc = 1,nwet
+               ! Get mass tendencies; loop over compounds
+               DO nc = 1,iwa
                   
                   str = getMassIndex(nbins,1,nc)
                   end = getMassIndex(nbins,nbins,nc)
@@ -324,20 +326,20 @@ CONTAINS
                           ( ice(1,1,1:nice)%volc(nc) - ice_old(1,1,1:nice)%volc(nc) )*spec%rhoice(nc)/pdn(kk,ii,jj)/tstep 
                   END DO
 
-                  str = getMassIndex(nice,1,nwet)
-                  end = getMassIndex(nice,nice,nwet)
-                  str2 = getMassIndex(nice,1,nwet+1)
-                  end2 = getMassIndex(nice,nice,nwet+1)
+                  str = getMassIndex(nice,1,iwa)
+                  end = getMassIndex(nice,nice,iwa)
+                  str2 = getMassIndex(nice,1,irim)
+                  end2 = getMassIndex(nice,nice,irim)
 
-                  mprist_old(1:nice) = ice_old(1,1,1:nice)%volc(nwet) * &
+                  mprist_old(1:nice) = ice_old(1,1,1:nice)%volc(iwa) * &
                        spec%rhoic/pdn(kk,ii,jj)
 
-                  mprist(1:nice) = ice(1,1,1:nice)%volc(nwet) * & 
+                  mprist(1:nice) = ice(1,1,1:nice)%volc(iwa) * & 
                        spec%rhoic/pdn(kk,ii,jj)
                   
-                  mrim_old(1:nice) = ice_old(1,1,1:nice)%vrime * spec%rhori/pdn(kk,ii,jj)
+                  mrim_old(1:nice) = ice_old(1,1,1:nice)%volc(irim) * spec%rhori/pdn(kk,ii,jj)
 
-                  mrim(1:nice) = ice(1,1,1:nice)%vrime * spec%rhori/pdn(kk,ii,jj)
+                  mrim(1:nice) = ice(1,1,1:nice)%volc(irim) * spec%rhori/pdn(kk,ii,jj)
 
                   pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + (mprist - mprist_old)/tstep
                   pa_micet(kk,ii,jj,str2:end2) = pa_micet(kk,ii,jj,str2:end2) + (mrim - mrim_old)/tstep
