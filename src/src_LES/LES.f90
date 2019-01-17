@@ -95,7 +95,7 @@ CONTAINS
                        strtim, radfrq
       USE nudg_defs, ONLY : nudge_time, nudge_zmin, nudge_zmax,                                &
                             ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
-      USE emission_main, ONLY : emitModes, nEmissionModes
+      USE emission_types, ONLY : emitModes, nEmissionModes
       USE grid, ONLY : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                        dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                        filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &

@@ -53,7 +53,7 @@ CONTAINS
       USE mo_submctl, ONLY : in2b, fn2b, nlim, prlim, spec
       USE util, ONLY : maskactiv
       USE nudg, ONLY : init_nudg
-      USE emission_main, ONLY : init_emission
+      USE emission_init, ONLY : init_emission
       USE constrain_SALSA, ONLY : SALSA_diagnostics
 
       IMPLICIT NONE

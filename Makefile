@@ -41,7 +41,6 @@ LIBS = '$(NCDFLIB) $(MPILIB)'
 F90 = gfortran
 MPIF90 = gfortran
 FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} $(MPIINC) -std=f2008 -fbounds-check  -g -fcheck=all -Wall -Wtabs  -fbacktrace -ffpe-trap=invalid,zero,overflow
-F77FLAGS = -O2 
 
 LES_OUT_MPI=$(BIN)/les.mpi
 
@@ -56,20 +55,20 @@ seq: $(LES_OUT_SEQ)
 mpi: $(LES_OUT_MPI)
 
 $(LES_OUT_SEQ): 
-	cd $(SRC); $(MAKE) LES_ARC=seq                     \
-	FFLAGS='$(FFLAGS) $(SEQFFLAGS)' F90=$(F90)         \
-	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_SEQ)          \
-	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) SRCLES=$(SRC_LES) \
-	SRCSALSA=$(SRC_SALSA) SRCRAD=$(SRC_RAD)            \
-	SRCEMIS=$(SRC_EMIS) SRCSHARED=$(SRC_SHARED)
- 
+	cd $(SRC); $(MAKE) LES_ARC=seq                      \
+	FFLAGS='$(FFLAGS) $(SEQFFLAGS)' F90=$(F90)          \
+	OUT=$(LES_OUT_SEQ) LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) \
+	SRCLES=$(SRC_LES) SRCSALSA=$(SRC_SALSA)             \
+	SRCRAD=$(SRC_RAD) SRCEMIS=$(SRC_EMIS)               \
+	SRCSHARED=$(SRC_SHARED)
+
 $(LES_OUT_MPI):
-	cd $(SRC); $(MAKE) LES_ARC=mpi                     \
-	FFLAGS='$(FFLAGS) $(MPIFFLAGS)' F90=$(MPIF90)      \
-	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_MPI)          \
-	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) SRCLES=$(SRC_LES) \
-	SRCSALSA=$(SRC_SALSA) SRCRAD=$(SRC_RAD)            \
-	SRCEMIS=$(SRC_EMIS) SRCSHARED=$(SRC_SHARED)
+	cd $(SRC); $(MAKE) LES_ARC=mpi                      \
+	FFLAGS='$(FFLAGS) $(MPIFFLAGS)' F90=$(MPIF90)       \
+	OUT=$(LES_OUT_MPI) LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) \
+	SRCLES=$(SRC_LES) SRCSALSA=$(SRC_SALSA)             \
+	SRCRAD=$(SRC_RAD) SRCEMIS=$(SRC_EMIS)               \
+	SRCSHARED=$(SRC_SHARED)
 
 .PHONY: $(LES_OUT_SEQ) 
 .PHONY: $(LES_OUT_MPI)

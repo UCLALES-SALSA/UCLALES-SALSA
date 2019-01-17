@@ -22,6 +22,13 @@ MODULE util
    USE mpi_interface, ONLY : cyclics, cyclicc
    IMPLICIT NONE
 
+   ! Dynamic allocator for real and integer 1D arrays
+   INTERFACE arr_resize
+      MODULE PROCEDURE arr_resize_int
+      MODULE PROCEDURE arr_resize_rel
+   END INTERFACE arr_resize
+
+   
    INTEGER, SAVE :: fftinix = 0, fftiniy = 0
    CHARACTER (len=6), PARAMETER :: vel_bc = 'frslip'
 
@@ -721,5 +728,49 @@ CONTAINS
   !
   !
   !
+
+  SUBROUTINE arr_resize_int(arr,newsize)
+    INTEGER, ALLOCATABLE, INTENT(inout) :: arr(:)
+    INTEGER, INTENT(inout) :: newsize
+    INTEGER, ALLOCATABLE  :: tmp_arr(:)
+    INTEGER :: oldsize
+    
+    oldsize = SIZE(arr)
+    ALLOCATE(tmp_arr(newsize))
+    
+    IF (oldsize >= newsize) THEN
+       tmp_arr = arr(1:newsize)
+       DEALLOCATE (arr)
+       CAll MOVE_ALLOC(tmp_arr,arr)
+    ELSE
+       tmp_arr(1:oldsize) = arr
+       DEALLOCATE (arr)
+       CAll MOVE_ALLOC(tmp_arr,arr)
+    END IF
+    
+  END SUBROUTINE arr_resize_int
+  
+  ! -----------------------------------------------------------------------------
+  
+  SUBROUTINE arr_resize_rel(arr,newsize)
+    REAL, ALLOCATABLE, INTENT(inout) :: arr(:)
+    INTEGER, INTENT(in) :: newsize
+    REAL, ALLOCATABLE  :: tmp_arr(:)
+    INTEGER :: oldsize
+    
+    oldsize = SIZE(arr)
+    ALLOCATE(tmp_arr(newsize))
+    
+    IF (oldsize >= newsize) THEN
+       tmp_arr = arr(1:newsize)
+       DEALLOCATE (arr)
+       CAll MOVE_ALLOC(tmp_arr,arr)
+    ELSE
+       tmp_arr(1:oldsize) = arr
+       DEALLOCATE (arr)
+       CAll MOVE_ALLOC(tmp_arr,arr)
+    END IF
+    
+  END SUBROUTINE arr_resize_rel
   
 END MODULE util

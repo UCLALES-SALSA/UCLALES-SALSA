@@ -21,7 +21,7 @@ NPROCS=2          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=60              # Number of points in Y-direction (including "halo" points)
+NYP=50              # Number of points in Y-direction (including "halo" points)
 NZP=150              # Number of points in Z-direction
 DX=500.              # Resolution in X-direction (meters)
 DY=500.              # Resolution in Y-direction (meters)
@@ -72,7 +72,7 @@ cat > NAMELIST <<EOF
   dtlong = ${DT}              ! Max. timestep
   distim = 100.               ! Timescale for the dissipation in sponge layer
   timmax = ${Texp}            ! Length of the simulation
-  runtype = "HISTORY"         ! INITIAL or HISTORY (restart) run
+  runtype = "INITIAL"         ! INITIAL or HISTORY (restart) run
   CCN = 600.e6                ! 
   corflg = .false.            ! Apply coriolis force
   prndtl = -0.3333333         !
@@ -160,7 +160,9 @@ cat > NAMELIST <<EOF
 
  ! With lemission = .TRUE. and level >= 4
 &emission
+
   nEmissionModes = 2
+
   emitModes(1)%emitType = 2
   emitModes(1)%regime = 2
   emitModes(1)%start_time = 7200.
@@ -184,6 +186,23 @@ cat > NAMELIST <<EOF
   emitModes(2)%emitDiam = 4.0e-6
   emitModes(2)%emitNum = 0.6e4
   emitModes(2)%emitSigma = 2.
+
+  emitModes(3)%emitType = 3
+  emitModes(1)%regime = 2
+  emitModes(1)%start_time = 21600.
+  emitModes(1)%end_time = 11000.
+  emitModes(1)%species = "SS"
+  emitModes(1)%emitHeightMin = 600.
+  emitModes(1)%emitHeightMax = 650.
+  emitModes(1)%emitSizeDistType = 2
+  emitModes(1)%emitDiam = 0.6e-6
+  emitModes(1)%emitNum = 10.5e6
+  emitModes(1)%emitSigma = 1.1
+  emitModes(1)%emitMap = 'datafiles/emitMap_1'
+  emitModes(1)%scS = 60.                        ! source velocity
+  emitModes(1)%z_expan_up = 3
+  emitModes(1)%z_expan_dw = 2
+
 /
 
 ! -----------------------------------------------------------------------------------------
@@ -228,7 +247,7 @@ cat > NAMELIST <<EOF
    ice_imm     = .TRUE.
    ice_dep     = .TRUE.
 
-   lscheckarrays = .TRUE.
+   lscheckarrays = .FALSE.
    lsdistupdate = .TRUE.
 
    ! Precipitation bin layout parameters
