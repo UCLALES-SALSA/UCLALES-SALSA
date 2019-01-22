@@ -20,7 +20,8 @@
 MODULE step
 
   USE mo_submctl, ONLY : spec, nice
-  USE util, ONLY : getMassIndex, calc_correlation 
+  USE util, ONLY : getMassIndex, calc_correlation
+  USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray3d
   
   IMPLICIT NONE
   
@@ -47,13 +48,13 @@ CONTAINS
    SUBROUTINE stepper
 
       USE mpi_interface, ONLY : myid, double_scalar_par_max
-
-      USE grid, ONLY : dtl, dzt, zt, zm, nzp, dn0, u0, v0, a_up, a_vp, a_wp, &
+      USE mo_aux_state, ONLY : dzt, zt, zm, dn0, u0, v0
+      USE mo_progn_state, ONLY : a_rp
+      USE mo_diag_state, ONLY : a_rc, a_srp, a_dn
+      USE grid, ONLY : dtl, nzp, a_up, a_vp, a_wp, &
                        a_uc, a_vc, a_wc, write_hist, write_anal, close_anal, dtlt,  &
-                       dtlv, dtlong, nzp, nyp, nxp, level,                          &
-                       ! For mass budged
-                       a_rp, a_rc, a_srp, a_dn
-
+                       dtlv, dtlong, nzp, nyp, nxp, level
+                       
       !USE stat, ONLY : sflg, savg_intvl, ssam_intvl, write_ps, close_stat, mcflg, acc_massbudged,  &
       !                 write_massbudged
       USE thrm, ONLY : thermo
@@ -211,15 +212,9 @@ CONTAINS
    !
    SUBROUTINE t_step(cflflg,cflmax)
 
-      USE grid, ONLY : level, dtl, dtlt,                                         &
-                       ! Added parameters for interfacing with SALSA
-                       nxp, nyp, nzp, a_press, a_temp, a_rsl,                             &
-                       a_rc, a_wp, a_rp, a_rt, a_rh,                                      &
-                       a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,    &
-                       a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,    &
-                       a_nicep,  a_nicet,  a_micep,  a_micet,                             &
-                       a_gaerop, a_gaerot, a_dn,  a_nactd,  a_vactd,            &
-                       a_rsi, a_salsap,nxp,nyp,nzp, a_salsat
+      USE grid, ONLY : level, dtl, dtlt,      &
+                       nxp, nyp, nzp, a_wp,a_nactd,  a_vactd,  &
+                       Prog, Diag
 
       !USE stat, ONLY : sflg, statistics
       USE sgsm, ONLY : diffuse
@@ -234,7 +229,7 @@ CONTAINS
 
       USE mo_salsa_driver, ONLY : run_SALSA
 
-      USE constrain_SALSA, ONLY : tend_constrain, SALSA_diagnostics, tend_constrain2
+      USE constrain_SALSA, ONLY : SALSA_diagnostics, tend_constrain2
 
       LOGICAL, INTENT (out)      :: cflflg
       REAL(KIND=8), INTENT (out) :: cflmax
@@ -245,11 +240,6 @@ CONTAINS
       INTEGER :: mi, mi2, i,j,k
 
       INTEGER :: nspec
-
-      REAL :: temp_old(nzp,nxp,nyp)
-
-
-      temp_old = a_temp
       
       CALL set_LES_runtime(time)
 
@@ -289,22 +279,14 @@ CONTAINS
             
          IF ( nxp == 5 .AND. nyp == 5 ) THEN
             ! 1D -runs
-            CALL run_SALSA(nxp,nyp,nzp,nspec,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn,  &
-                           a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
-                           a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
-                           a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
-                           a_nicep,   a_nicet,   a_micep,   a_micet,    &
-                           a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                           dtlt, time, level, .FALSE.)
+            CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,nspec,   &
+                           zwp,a_nactd,a_vactd,dtlt,      &
+                           time,level,.FALSE.             )
          ELSE
             !! for 2D or 3D runs
-            CALL run_SALSA(nxp,nyp,nzp,nspec,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn,  &
-                           a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
-                           a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
-                           a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
-                           a_nicep,   a_nicet,   a_micep,   a_micet,    &
-                           a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                           dtlt, time, level, .FALSE.)
+            CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,nspec,   &
+                           a_wp,a_nactd,a_vactd,dtlt,     &
+                           time,level,.FALSE.             )
              
          END IF !nxp==5 and nyp == 5
 
@@ -412,7 +394,8 @@ CONTAINS
 
       INTEGER, INTENT (in) :: n1, n2, n3
       REAL, DIMENSION (n1,n2,n3), INTENT (in) :: u, v, w
-      REAL, INTENT (in)    :: dxi,dyi,dzt(n1),dtlt
+      REAL, INTENT (in)    :: dxi,dyi,dtlt
+      TYPE(FloatArray1d), INTENT(in) :: dzt
 
       INTEGER :: i, j, k
       cfll = 0.
@@ -420,7 +403,7 @@ CONTAINS
          DO i = 3, n2-2
             DO k = 1, n1
                cfll = max(cfll, dtlt*2.* max(abs(u(k,i,j)*dxi),             &
-                      abs(v(k,i,j)*dyi), abs(w(k,i,j)*dzt(k))))
+                      abs(v(k,i,j)*dyi), abs(w(k,i,j)*dzt%d(k))))
             END DO
          END DO
       END DO
@@ -443,11 +426,11 @@ CONTAINS
       DO n = 1, nscl
          CALL newsclr(n)
          CALL update(nzp,nxp,nyp,a_sp,a_st,dtlt)
-         CALL sclrset('mixd',nzp,nxp,nyp,a_sp,dzt)
+         CALL sclrset('mixd',nzp,nxp,nyp,a_sp,dzt%d)
       END DO
 
       IF (isgstyp == 2) THEN
-         CALL tkeinit(nxyzp,a_qp)
+         CALL tkeinit(nxyzp,a_qp%d)
       END IF
 
    END SUBROUTINE update_sclrs
@@ -477,20 +460,25 @@ CONTAINS
    !
    SUBROUTINE buoyancy
      
-     USE grid, ONLY : a_uc, a_vc, a_wc, a_wt, a_rv, a_rc, a_theta, &
-          a_rp, a_srp, a_ri, a_riri, nxp, nyp, nzp, dzm, th00, level, pi1
+     USE grid, ONLY : a_uc, a_vc, a_wc, a_wt, nxp, nyp, nzp, th00, level
      !USE stat, ONLY : sflg, comp_tke
+     USE mo_diag_state, ONLY : a_rv, a_rc, a_theta, a_srp, a_ri, a_riri
+     USE mo_progn_state, ONLY : a_rp
+     USE mo_aux_state, ONLY : dzm, pi1
      USE util, ONLY : ae1mm
      USE thrm, ONLY : update_pi1
      
      REAL :: awtbar(nzp), a_tmp1(nzp,nxp,nyp), rv(nzp,nxp,nyp), rc(nzp,nxp,nyp)
      
      IF (level < 4) THEN
-        rv = a_rv ! Water vapor
-        rc = a_rp - a_rv ! Total condensate (cloud + precipitation)
-     ELSE IF (level >= 4) THEN
-        rv = a_rp ! Water vapor
-        rc = a_rc + a_srp + a_ri + a_riri ! Total condensed water (aerosol+cloud+precipitation+ice)
+        rv = a_rv%d ! Water vapor
+        rc = a_rp%d - a_rv%d ! Total condensate (cloud + precipitation)
+     ELSE IF (level == 4) THEN
+        rv = a_rp%d ! Water vapor
+        rc = a_rc%d + a_srp%d 
+     ELSE IF (level == 5) THEN
+        rv = a_rp%d
+        rc = a_rc%d + a_srp%d + a_ri%d + a_riri%d  ! Total condensed water (aerosol+cloud+precipitation+ice)
      END IF
      call boyanc(nzp,nxp,nyp,a_wt,a_theta,rv,th00,a_tmp1,rc)
      
@@ -509,9 +497,10 @@ CONTAINS
      USE defs, ONLY : g, ep2
 
      INTEGER, INTENT(in) :: n1,n2,n3
-     REAL, INTENT(in)    :: th00,th(n1,n2,n3),  &
-                            rv(n1,n2,n3)  ! water vapor
-                                      
+     REAL, INTENT(in)    :: th00
+     TYPE(FloatArray3d), INTENT(in) :: th
+
+     REAL, INTENT(in)    :: rv(n1,n2,n3)  ! water vapor                                      
      REAL, INTENT(in)    :: rc(n1,n2,n3)  ! Total condensed water (aerosol, cloud, rain, ice and snow) mixing ratio
 
      REAL, INTENT(inout) :: wt(n1,n2,n3)
@@ -525,7 +514,7 @@ CONTAINS
      do j=3,n3-2
         do i=3,n2-2
            do k=1,n1
-              scr(k,i,j)=gover2*((th(k,i,j)*(1.+ep2*rv(k,i,j))-th00)/th00-rc(k,i,j))
+              scr(k,i,j)=gover2*((th%d(k,i,j)*(1.+ep2*rv(k,i,j))-th00)/th00-rc(k,i,j))
            end do
            
            do k=2,n1-2
@@ -543,8 +532,9 @@ CONTAINS
    !
    SUBROUTINE corlos
 
-      USE defs, ONLY : omega
-      USE grid, ONLY : a_uc, a_vc, a_ut, a_vt, nxp, nyp, nzp, u0, v0, cntlat
+     USE defs, ONLY : omega
+     USE mo_aux_state, ONLY : u0, v0
+      USE grid, ONLY : a_uc, a_vc, a_ut, a_vt, nxp, nyp, nzp, cntlat
 
       LOGICAL, SAVE :: initialized = .FALSE.
       REAL, SAVE    :: fcor
@@ -556,9 +546,9 @@ CONTAINS
          DO j = 3, nyp-2
             DO i = 3, nxp-2
                DO k = 2, nzp
-                  a_ut(k,i,j) = a_ut(k,i,j) - fcor*(v0(k)-0.25*                   &
+                  a_ut(k,i,j) = a_ut(k,i,j) - fcor*(v0%d(k)-0.25*                   &
                                 (a_vc(k,i,j)+a_vc(k,i+1,j)+a_vc(k,i,j-1)+a_vc(k,i+1,j-1)))
-                  a_vt(k,i,j) = a_vt(k,i,j) + fcor*(u0(k)-0.25*                   &
+                  a_vt(k,i,j) = a_vt(k,i,j) + fcor*(u0%d(k)-0.25*                   &
                                 (a_uc(k,i,j)+a_uc(k,i-1,j)+a_uc(k,i,j+1)+a_uc(k,i-1,j+1)))
                END DO
             END DO
@@ -588,11 +578,11 @@ CONTAINS
                DO k = nzp-nfpt, nzp-1
                   kk = k+1-(nzp-nfpt)
                   IF (isponge == 0) THEN
-                     a_tt(k,i,j) = a_tt(k,i,j) - spng_tfct(kk)*                   &
-                                   (a_tp(k,i,j)-th0(k)+th00)
+                     a_tt%d(k,i,j) = a_tt%d(k,i,j) - spng_tfct(kk)*                   &
+                                   (a_tp%d(k,i,j)-th0%d(k)+th00)
                   ELSE
-                     a_ut(k,i,j) = a_ut(k,i,j) - spng_tfct(kk)*(a_up(k,i,j)-u0(k))
-                     a_vt(k,i,j) = a_vt(k,i,j) - spng_tfct(kk)*(a_vp(k,i,j)-v0(k))
+                     a_ut(k,i,j) = a_ut(k,i,j) - spng_tfct(kk)*(a_up(k,i,j)-u0%d(k))
+                     a_vt(k,i,j) = a_vt(k,i,j) - spng_tfct(kk)*(a_vp(k,i,j)-v0%d(k))
                      a_wt(k,i,j) = a_wt(k,i,j) - spng_wfct(kk)*(a_wp(k,i,j))
                   END IF
                END DO

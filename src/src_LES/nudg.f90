@@ -1,8 +1,10 @@
 MODULE nudg
-  USE grid, ONLY : level, dtlt, nxp, nyp, nzp, &
-                   zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, &
-                   a_naerop, a_naerot, a_ncloudp, a_nicep, &
-                   a_tp, a_tt, a_up, a_ut, a_vp, a_vt
+
+  USE mo_aux_state, ONLY : zt
+  USE mo_diag_state, ONLY : a_rc, a_srp, a_ri
+  USE mo_progn_state, ONLY : a_rp, a_rt, a_rpp, a_tp, a_tt,   &
+                             a_naerop, a_naerot, a_ncloudp, a_nicep
+  USE grid, ONLY : level, dtlt, nxp, nyp, nzp, a_up, a_ut, a_vp, a_vt
   USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
   USE nudg_defs 
   
@@ -29,7 +31,7 @@ MODULE nudg
     IF (ndg_theta%nudgetype > 0) THEN
        !Ali, if it is not allocated during reading a history file
        IF (.NOT.ALLOCATED(theta_ref) )  ALLOCATE(theta_ref(nzp))
-       theta_ref(:) = a_tp(:,3,3)
+       theta_ref(:) = a_tp%d(:,3,3)
     END IF
     !
     ! Water vapor mixing ratio based on total water
@@ -40,13 +42,13 @@ MODULE nudg
       !Ali, if it is not allocated during reading a history file 
       IF (.NOT.ALLOCATED(rv_ref) )  ALLOCATE(rv_ref(nzp))
        IF (level == 5) THEN
-          hlp1d = a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)+a_ri(:,3,3)
+          hlp1d = a_rp%d(:,3,3)+a_rc%d(:,3,3)+a_srp%d(:,3,3)+a_ri%d(:,3,3)
           rv_ref(:) = hlp1d(:)
        ELSE IF (level == 4) THEN
-          hlp1d = a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)
+          hlp1d = a_rp%d(:,3,3)+a_rc%d(:,3,3)+a_srp%d(:,3,3)
           rv_ref(:) = hlp1d(:)
        ELSE ! Levels 0-3
-          hlp1d = a_rp(:,3,3)+a_rpp(:,3,3)
+          hlp1d = a_rp%d(:,3,3)+a_rpp%d(:,3,3)
           rv_ref(:) = hlp1d(:)
        END IF
     END IF
@@ -72,9 +74,9 @@ MODULE nudg
       IF (.NOT.ALLOCATED(aero_ref) ) ALLOCATE(aero_ref(nzp,nbins))
       ALLOCATE(aero_target(nzp,nbins))
        ! Nudge aerosol based on the total number (aerosol+cloud+ice)
-       hlp2d = a_naerop(:,3,3,:)
-       hlp2d(:,in2a:fn2b) = hlp2d(:,in2a:fn2b) + a_ncloudp(:,3,3,1:ncld)
-       IF (level == 5) hlp2d(:,in2a:fn2b) = hlp2d(:,in2a:fn2b)+a_nicep(:,3,3,1:nice)
+       hlp2d = a_naerop%d(:,3,3,:)
+       hlp2d(:,in2a:fn2b) = hlp2d(:,in2a:fn2b) + a_ncloudp%d(:,3,3,1:ncld)
+       IF (level == 5) hlp2d(:,in2a:fn2b) = hlp2d(:,in2a:fn2b)+a_nicep%d(:,3,3,1:nice)
        
        aero_ref(:,:) = hlp2d(:,:)
     END IF
@@ -99,39 +101,39 @@ MODULE nudg
       
       ! (Liquid water) potential temperature:
       IF ( ndg_theta%nudgetype > 0 ) &
-           CALL nudge_any(nxp,nyp,nzp,zt,a_tp,dtlt,time,   &
-           ndg_theta,theta_ref,a_tt)
+           CALL nudge_any(nxp,nyp,nzp,zt%d,a_tp%d,dtlt,time,   &
+                          ndg_theta,theta_ref,a_tt%d)
       
       ! Water vapor
       IF ( ndg_rv%nudgetype > 0 ) THEN
          IF (level > 3) THEN
             ! Nudge water vapor (a_rp) based on total (vapor + cloud + rain)
-            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rc+a_srp,dtlt,time,   &
-                 ndg_rv,rv_ref,a_rt)
+            CALL nudge_any(nxp,nyp,nzp,zt%d,a_rp%d+a_rc%d+a_srp%d,dtlt,time,   &
+                           ndg_rv,rv_ref,a_rt%d)
          ELSE
             ! Nudge total water (a_rp) based on total + rain
-            CALL nudge_any(nxp,nyp,nzp,zt,a_rp+a_rpp,dtlt,time,   &
-                 ndg_rv,rv_ref,a_rt)
+            CALL nudge_any(nxp,nyp,nzp,zt%d,a_rp%d+a_rpp%d,dtlt,time,   &
+                           ndg_rv,rv_ref,a_rt%d)
          END IF
       END IF
       
       ! Horizontal winds
       IF ( ndg_u%nudgetype > 0 ) &
-           CALL nudge_any(nxp,nyp,nzp,zt,a_up,dtlt,time,    &
-           ndg_u,u_ref,a_ut)
+           CALL nudge_any(nxp,nyp,nzp,zt%d,a_up,dtlt,time,    &
+                          ndg_u,u_ref,a_ut)
       IF ( ndg_v%nudgetype > 0 ) &
-           CALL nudge_any(nxp,nyp,nzp,zt,a_vp,dtlt,time,    &
-           ndg_v,v_ref,a_vt)
+           CALL nudge_any(nxp,nyp,nzp,zt%d,a_vp,dtlt,time,    &
+                          ndg_v,v_ref,a_vt)
       
       ! Aerosol 
       IF (level > 3 .AND. ndg_aero%nudgetype > 0 ) THEN
          ! Target aerosol concentration = total(t=0)-cloud(t)-ice(t)
          aero_target(:,:) = aero_ref(:,:)
-         aero_target(:,in2a:fn2b) = aero_target(:,in2a:fn2b) - a_ncloudp(:,3,3,1:ncld)
-         IF (level == 5) aero_target(:,in2a:fn2b) = aero_target(:,in2a:fn2b) - a_nicep(:,3,3,1:nice)
+         aero_target(:,in2a:fn2b) = aero_target(:,in2a:fn2b) - a_ncloudp%d(:,3,3,1:ncld)
+         IF (level == 5) aero_target(:,in2a:fn2b) = aero_target(:,in2a:fn2b) - a_nicep%d(:,3,3,1:nice)
          ! Apply to sectional data
-         CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,a_naerop,dtlt,time,   &
-              ndg_aero,aero_target,a_naerot)
+         CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt%d,a_naerop%d,dtlt,time,   &
+                           ndg_aero,aero_target,a_naerot%d)
       END IF
       
    END SUBROUTINE nudging

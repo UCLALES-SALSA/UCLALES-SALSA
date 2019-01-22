@@ -19,6 +19,8 @@
 !
 MODULE srfc
 
+  USE mo_structured_datatypes
+  
    INTEGER :: isfctyp = 0
    REAL    :: zrough =  0.1e-3   !!!!! CHECK THAT IN METERS EVERYWHERE!!
    REAL    :: ubmin  =  0.20
@@ -74,11 +76,15 @@ CONTAINS
 
    SUBROUTINE surface()
 
-      USE defs, ONLY: vonk, p00, rcp, g, cp, alvl, ep2
-      USE grid, ONLY: nzp, nxp, nyp, a_up, a_vp, a_theta, a_rv, a_rp, zt, dzt, psrf, th00,  &
-                      umean, vmean, a_ustar, a_tstar, a_rstar, uw_sfc, vw_sfc, ww_sfc,      &
-                      wt_sfc, wq_sfc, dn0, level,dtl, a_sflx, a_rflx, precip, a_dn,         &
-                      W1,W2,W3, mc_ApVdom, dtlt,sst
+     USE defs, ONLY: vonk, p00, rcp, g, cp, alvl, ep2
+     USE mo_diag_state, ONLY : a_theta, a_rv, a_ustar, a_tstar, a_rstar,  &
+                               uw_sfc, vw_sfc, ww_sfc, wt_sfc, wq_sfc,    &
+                               a_sflx, a_rflx, precip, a_dn
+     USE mo_aux_state, ONLY : zt, dzt, dn0
+     USE mo_progn_state, ONLY : a_rp
+     USE grid, ONLY: nzp, nxp, nyp, a_up, a_vp,psrf, th00,  &
+                     umean, vmean, level, dtl, W1,W2,W3,    &
+                     mc_ApVdom, dtlt,sst
       USE thrm, ONLY: rslf
       !USE stat, ONLY: sfc_stat, sflg, mcflg, acc_massbudged
       USE mpi_interface, ONLY : nypg, nxpg, double_array_par_sum
@@ -105,9 +111,9 @@ CONTAINS
       ! Added by Juha
       SELECT CASE(level)
          CASE(1,2,3)
-            rx = a_rv
+            rx = a_rv%d
          CASE(4,5)
-            rx = a_rp
+            rx = a_rp%d
       END SELECT
 
       SELECT CASE(isfctyp)
@@ -120,11 +126,11 @@ CONTAINS
                DO i = 3, nxp-2
                   dtdz(i,j) = dthcon
                   drdz(i,j) = drtcon
-                  bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2)
+                  bfct(i,j) = g*zt%d(2)/(a_theta%d(2,i,j)*wspd(i,j)**2)
                END DO
             END DO
-            zs = zt(2)/zrough
-            CALL srfcscls(nxp,nyp,zt(2),zs,th00,wspd,dtdz,drdz,a_ustar,a_tstar,     &
+            zs = zt%d(2)/zrough
+            CALL srfcscls(nxp,nyp,zt%d(2),zs,th00,wspd,dtdz,drdz,a_ustar,a_tstar,     &
                           a_rstar)
             CALL sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar,  &
                          uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
@@ -137,16 +143,16 @@ CONTAINS
             usum = 0.
             DO j = 3, nyp-2
                DO i = 3, nxp-2
-                  dtdz(i,j) = a_theta(2,i,j) - sst*(p00/psrf)**rcp
+                  dtdz(i,j) = a_theta%d(2,i,j) - sst*(p00/psrf)**rcp
                   drdz(i,j) = rx(2,i,j) - rslf(psrf,sst) ! Juha: rx
-                  bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2)
-                  usum = usum + a_ustar(i,j)
+                  bfct(i,j) = g*zt%d(2)/(a_theta%d(2,i,j)*wspd(i,j)**2)
+                  usum = usum + a_ustar%d(i,j)
                END DO
             END DO
             usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
             zs = (zrough/100.)
             IF (zrough <= 0.) zs = max(0.0001,(0.016/g)*usum**2)
-            CALL srfcscls(nxp,nyp,zt(2),zs,th00,wspd,dtdz,drdz,a_ustar,a_tstar,     &
+            CALL srfcscls(nxp,nyp,zt%d(2),zs,th00,wspd,dtdz,drdz,a_ustar,a_tstar,     &
                           a_rstar)
             CALL sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar,  &
                          uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
@@ -158,16 +164,16 @@ CONTAINS
             CALL get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up,a_vp,umean,vmean)
             DO j = 3, nyp-2
                DO i = 3, nxp-2
-                  dtdz(i,j) = a_theta(2,i,j) - sst*(p00/psrf)**rcp
+                  dtdz(i,j) = a_theta%d(2,i,j) - sst*(p00/psrf)**rcp
                   drdz(i,j) = rx(2,i,j) - rslf(psrf,sst) ! Juha: rx
                   IF (ubmin > 0.) THEN
-                     a_ustar(i,j) = sqrt(zrough)* wspd(i,j)
+                     a_ustar%d(i,j) = sqrt(zrough)* wspd(i,j)
                   ELSE
-                     a_ustar(i,j) = abs(ubmin)
+                     a_ustar%d(i,j) = abs(ubmin)
                   END IF
-                  a_tstar(i,j) =  dthcon * wspd(i,j)*dtdz(i,j)/a_ustar(i,j)
-                  a_rstar(i,j) =  drtcon * wspd(i,j)*drdz(i,j)/a_ustar(i,j)
-                  bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2)
+                  a_tstar%d(i,j) =  dthcon * wspd(i,j)*dtdz(i,j)/a_ustar%d(i,j)
+                  a_rstar%d(i,j) =  drtcon * wspd(i,j)*drdz(i,j)/a_ustar%d(i,j)
+                  bfct(i,j) = g*zt%d(2)/(a_theta%d(2,i,j)*wspd(i,j)**2)
                END DO
             END DO
             CALL sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar,  &
@@ -177,13 +183,13 @@ CONTAINS
              !
          CASE(4)
 
-            Vzt   = 10.* (log(zt(2)/zrough)/log(10./zrough))
-            Vbulk = Vzt * (vonk/log(zt(2)/zrough))**2
+            Vzt   = 10.* (log(zt%d(2)/zrough)/log(10./zrough))
+            Vbulk = Vzt * (vonk/log(zt%d(2)/zrough))**2
 
             bfl(:) = 0.
             DO j = 3, nyp-2
                DO i = 3, nxp-2
-                  bfl(1) = bfl(1)+a_theta(2,i,j)
+                  bfl(1) = bfl(1)+a_theta%d(2,i,j)
                   bfl(2) = bfl(2)+rx(2,i,j) ! Juha: rx
                END DO
             END DO
@@ -195,28 +201,28 @@ CONTAINS
 
             DO iterate = 1, 5
                bflx  = ((sst -bfg(1)) + bfg(1)*ep2*(rslf(psrf,sst) -bfg(2))) &
-                        * 0.5*(dn0(1)+dn0(2))*cp*Vbulk
+                        * 0.5*(dn0%d(1)+dn0%d(2))*cp*Vbulk
                sst1 = sst + 0.1
                bflx1 = ((sst1-bfg(1)) + bfg(1)*ep2*(rslf(psrf,sst1)-bfg(2))) &
-                        * 0.5*(dn0(1)+dn0(2))*cp*Vbulk
+                        * 0.5*(dn0%d(1)+dn0%d(2))*cp*Vbulk
                sst  = sst + 0.1* (dthcon - bflx) / (bflx1-bflx)
             END DO
 
             DO j = 3, nyp-2
                DO i = 3, nxp-2
-                  wt_sfc(i,j) = Vbulk * (sst -a_theta(2,i,j))
-                  wq_sfc(i,j) = Vbulk * (rslf(psrf,sst) - rx(2,i,j)) ! Juha: rx
+                  wt_sfc%d(i,j) = Vbulk * (sst -a_theta%d(2,i,j))
+                  wq_sfc%d(i,j) = Vbulk * (rslf(psrf,sst) - rx(2,i,j)) ! Juha: rx
                   wspd(i,j)    = max(0.1,                                    &
                                  sqrt((a_up(2,i,j)+umean)**2+(a_vp(2,i,j)+vmean)**2))
-                  bflx         = wt_sfc(i,j)*g/bfg(1) + g*ep2*wq_sfc(i,j)
-                  a_ustar(i,j) = diag_ustar(zt(2),zrough,bflx,wspd(i,j))
-                  uw_sfc(i,j)  = -a_ustar(i,j)*a_ustar(i,j)                  &
+                  bflx         = wt_sfc%d(i,j)*g/bfg(1) + g*ep2*wq_sfc%d(i,j)
+                  a_ustar%d(i,j) = diag_ustar(zt%d(2),zrough,bflx,wspd(i,j))
+                  uw_sfc%d(i,j)  = -a_ustar%d(i,j)*a_ustar%d(i,j)                  &
                                  *(a_up(2,i,j)+umean)/wspd(i,j)
-                  vw_sfc(i,j)  = -a_ustar(i,j)*a_ustar(i,j)                  &
+                  vw_sfc%d(i,j)  = -a_ustar%d(i,j)*a_ustar%d(i,j)                  &
                                  *(a_vp(2,i,j)+vmean)/wspd(i,j)
-                  ww_sfc(i,j)  = 0.
-                  a_rstar(i,j) = wq_sfc(i,j)/a_ustar(i,j)
-                  a_tstar(i,j) = wt_sfc(i,j)/a_ustar(i,j)
+                  ww_sfc%d(i,j)  = 0.
+                  a_rstar%d(i,j) = wq_sfc%d(i,j)/a_ustar%d(i,j)
+                  a_tstar%d(i,j) = wt_sfc%d(i,j)/a_ustar%d(i,j)
                END DO
             END DO
 
@@ -241,12 +247,12 @@ CONTAINS
             !
             DO j = 3, nyp-2
                DO i = 3, nxp-2
-                  total_sw = total_sw+a_sflx(2,i,j)
+                  total_sw = total_sw+a_sflx%d(2,i,j)
                   !       WRITE(*,*) a_rflx(:,:,:)
-                  total_rw = total_rw + a_rflx(2,i,j)
-                  total_la = total_la + wq_sfc(i,j)*(0.5*(dn0(1)+dn0(2))*alvl)/ffact
-                  total_se = total_se + wt_sfc(i,j)*(0.5*(dn0(1)+dn0(2))*cp)/ffact
-                  total_pre=   total_pre +  precip(2,i,j)
+                  total_rw = total_rw + a_rflx%d(2,i,j)
+                  total_la = total_la + wq_sfc%d(i,j)*(0.5*(dn0%d(1)+dn0%d(2))*alvl)/ffact
+                  total_se = total_se + wt_sfc%d(i,j)*(0.5*(dn0%d(1)+dn0%d(2))*cp)/ffact
+                  total_pre=   total_pre +  precip%d(2,i,j)
                END DO
             END DO
             total_sw  = total_sw/REAL((nxp-4)*(nyp-4))
@@ -282,7 +288,7 @@ CONTAINS
             Q23 = Kmean2*2.*( (fii_2-fii_3)/(D2+D3)+1.0)
 
             IF (.NOT. lConstSoilWater) THEN
-               W1 = W1+1./(thetaS1*D1)*(-Q12-((total_la+total_pre)/((0.5*(dn0(1)+dn0(2))*alvl)/ffact))/(thetaS1*1000))*dtl
+               W1 = W1+1./(thetaS1*D1)*(-Q12-((total_la+total_pre)/((0.5*(dn0%d(1)+dn0%d(2))*alvl)/ffact))/(thetaS1*1000))*dtl
                W2 = W2+1./(thetaS2*D2)*(Q12-Q23)*dtl
                W3 = W3+1./(thetaS3*D3)*(Q23-Q3)*dtl
             END IF
@@ -295,21 +301,21 @@ CONTAINS
             DO j = 3, nyp-2
                DO i = 3, nxp-2
 
-                  dtdz(i,j) = a_theta(2,i,j) - sst1*(p00/psrf)**rcp
+                  dtdz(i,j) = a_theta%d(2,i,j) - sst1*(p00/psrf)**rcp
 
                   ff1 = 1.0
                   IF(W1 < 0.75) ff1 = W1/0.75
                   ! Flux of moisture is limited by water content.
-                  drdz(i,j) = a_rp(2,i,j) - ff1*rslf(psrf,min(sst1,280.))  !  a_rv changed to a_rp (by Zubair)
+                  drdz(i,j) = a_rp%d(2,i,j) - ff1*rslf(psrf,min(sst1,280.))  !  a_rv changed to a_rp (by Zubair)
                   !
-                  bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2)
-                  usum = usum + a_ustar(i,j)
+                  bfct(i,j) = g*zt%d(2)/(a_theta%d(2,i,j)*wspd(i,j)**2)
+                  usum = usum + a_ustar%d(i,j)
                END DO
             END DO
             usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
             zs = (zrough/100.)
             IF (zrough <= 0.) zs = max(0.0001,(0.016/g)*usum**2)
-            CALL srfcscls(nxp,nyp,zt(2),zs,th00,wspd,dtdz,drdz,a_ustar,a_tstar,     &
+            CALL srfcscls(nxp,nyp,zt%d(2),zs,th00,wspd,dtdz,drdz,a_ustar,a_tstar,     &
                           a_rstar)
             CALL sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar,  &
                          uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
@@ -324,14 +330,14 @@ CONTAINS
          !
          CASE DEFAULT
             ffact = 1.
-            wt_sfc(1,1)  = ffact* dthcon/(0.5*(dn0(1)+dn0(2))*cp)
-            wq_sfc(1,1)  = ffact* drtcon/(0.5*(dn0(1)+dn0(2))*alvl)
+            wt_sfc%d(1,1)  = ffact* dthcon/(0.5*(dn0%d(1)+dn0%d(2))*cp)
+            wq_sfc%d(1,1)  = ffact* drtcon/(0.5*(dn0%d(1)+dn0%d(2))*alvl)
 
             IF (zrough <= 0.) THEN
                usum = 0.
                DO j = 3, nyp-2
                   DO i = 3, nxp-2
-                     usum = usum + a_ustar(i,j)
+                     usum = usum + a_ustar%d(i,j)
                   END DO
                END DO
                usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
@@ -342,25 +348,25 @@ CONTAINS
 
             DO j = 3, nyp-2
                DO i = 3, nxp-2
-                  wt_sfc(i,j) = wt_sfc(1,1)
-                  wq_sfc(i,j) = wq_sfc(1,1)
+                  wt_sfc%d(i,j) = wt_sfc%d(1,1)
+                  wq_sfc%d(i,j) = wq_sfc%d(1,1)
 
                   wspd(i,j)   = max(0.1,                                    &
                                 sqrt((a_up(2,i,j)+umean)**2+(a_vp(2,i,j)+vmean)**2))
                   IF (ubmin > 0.) THEN
-                     bflx = g*wt_sfc(1,1)/th00
-                     IF (level >= 2) bflx = bflx + g*ep2*wq_sfc(i,j)
-                     a_ustar(i,j) = diag_ustar(zt(2),zs,bflx,wspd(i,j))
+                     bflx = g*wt_sfc%d(1,1)/th00
+                     IF (level >= 2) bflx = bflx + g*ep2*wq_sfc%d(i,j)
+                     a_ustar%d(i,j) = diag_ustar(zt%d(2),zs,bflx,wspd(i,j))
                   ELSE
-                     a_ustar(i,j) = abs(ubmin)
+                     a_ustar%d(i,j) = abs(ubmin)
                   END IF
 
-                  ffact = a_ustar(i,j)*a_ustar(i,j)/wspd(i,j)
-                  uw_sfc(i,j)  = -ffact*(a_up(2,i,j)+umean)
-                  vw_sfc(i,j)  = -ffact*(a_vp(2,i,j)+vmean)
-                  ww_sfc(i,j)  = 0.
-                  a_rstar(i,j) = wq_sfc(i,j)/a_ustar(i,j)
-                  a_tstar(i,j) = wt_sfc(i,j)/a_ustar(i,j)
+                  ffact = a_ustar%d(i,j)*a_ustar%d(i,j)/wspd(i,j)
+                  uw_sfc%d(i,j)  = -ffact*(a_up(2,i,j)+umean)
+                  vw_sfc%d(i,j)  = -ffact*(a_vp(2,i,j)+vmean)
+                  ww_sfc%d(i,j)  = 0.
+                  a_rstar%d(i,j) = wq_sfc%d(i,j)/a_ustar%d(i,j)
+                  a_tstar%d(i,j) = wt_sfc%d(i,j)/a_ustar%d(i,j)
                END DO
             END DO
 
@@ -499,9 +505,9 @@ CONTAINS
       REAL, INTENT(in)    :: u(n2,n3)      ! velocities at z
       REAL, INTENT(in)    :: dth(n2,n3)    ! theta (th(z) - th(z0))
       REAL, INTENT(in)    :: drt(n2,n3)    ! qt(z) - qt(z0)
-      REAL, INTENT(inout) :: ustar(n2,n3)  ! scale velocity
-      REAL, INTENT(inout) :: tstar(n2,n3)  ! scale temperature
-      REAL, INTENT(inout) :: rstar(n2,n3)  ! scale value of qt
+      TYPE(FloatArray2d), INTENT(inout) :: ustar  ! scale velocity
+      TYPE(FloatArray2d), INTENT(inout) :: tstar  ! scale temperature
+      TYPE(FloatArray2d), INTENT(inout) :: rstar  ! scale value of qt
 
       LOGICAL, SAVE :: first_call = .TRUE.
       INTEGER :: i,j,iterate
@@ -526,39 +532,39 @@ CONTAINS
                x     = (x*ah - am**2)/(lnz**2)
                lmo   = -y + sqrt(x+y**2)
                zeta  = z/lmo
-               ustar(i,j) =  vonk*u(i,j)  /(lnz + am*zeta)
-               tstar(i,j) = (vonk*dtv/(lnz + ah*zeta))/pr
+               ustar%d(i,j) =  vonk*u(i,j)  /(lnz + am*zeta)
+               tstar%d(i,j) = (vonk*dtv/(lnz + ah*zeta))/pr
                !
                ! Neutral case
                !
             ELSE IF (dtv == 0.) THEN
-               ustar = vonk*u(i,j)  /lnz
-               tstar = vonk*dtv/(pr*lnz)
+               ustar%d = vonk*u(i,j)  /lnz
+               tstar%d = vonk*dtv/(pr*lnz)
                !
                ! ustable case, start iterations from values at previous tstep,
                ! unless the sign has changed or if it is the first call, then
                ! use neutral values.
                !
             ELSE
-               IF (first_call .OR. tstar(i,j)*dtv <= 0.) THEN
-                  ustar(i,j) = u(i,j)*klnz
-                  tstar(i,j) = (dtv*klnz/pr)
+               IF (first_call .OR. tstar%d(i,j)*dtv <= 0.) THEN
+                  ustar%d(i,j) = u(i,j)*klnz
+                  tstar%d(i,j) = (dtv*klnz/pr)
                END IF
 
                DO iterate = 1, 3
-                  lmo  = betg*ustar(i,j)**2/(vonk*tstar(i,j))
+                  lmo  = betg*ustar%d(i,j)**2/(vonk*tstar%d(i,j))
                   zeta = z/lmo
                   x    = sqrt(sqrt( 1.0 - bm*zeta ) )
                   psi1 = 2.*log(1.0+x) + log(1.0+x*x) - 2.*atan(x) + cnst1
                   y    = sqrt(1.0 - bh*zeta)
                   psi2 = log(1.0 + y) + cnst2
-                  ustar(i,j) = u(i,j)*vonk/(lnz - psi1)
-                  tstar(i,j) = (dtv*vonk/pr)/(lnz - psi2)
+                  ustar%d(i,j) = u(i,j)*vonk/(lnz - psi1)
+                  tstar%d(i,j) = (dtv*vonk/pr)/(lnz - psi2)
                END DO
             END IF
 
-            rstar(i,j) = tstar(i,j)*drt(i,j)/(dtv + eps)
-            tstar(i,j) = tstar(i,j)*dth(i,j)/(dtv + eps)
+            rstar%d(i,j) = tstar%d(i,j)*drt(i,j)/(dtv + eps)
+            tstar%d(i,j) = tstar%d(i,j)*dth(i,j)/(dtv + eps)
          END DO
       END DO
 
@@ -577,8 +583,8 @@ CONTAINS
 
       INTEGER, INTENT(in) :: n2,n3
       REAL, INTENT(in)    :: ubar(n2,n3),u(n2,n3),v(n2,n3),xx(n2,n3),vk
-      REAL, INTENT(in)    :: us(n2,n3),ts(n2,n3),rs(n2,n3)
-      REAL, INTENT(out)   :: uw(n2,n3),vw(n2,n3),tw(n2,n3),rw(n2,n3),ww(n2,n3)
+      TYPE(FloatArray2d), INTENT(in)    :: us, ts, rs
+      TYPE(FloatArray2d), INTENT(out)   :: uw, vw, tw, rw, ww
 
       REAL :: x(n2,n3),y(n2,n3)
       INTEGER i,j
@@ -586,18 +592,18 @@ CONTAINS
       DO j = 3, n3-2
          DO i = 3, n2-2
 
-            uw(i,j) = -(u(i,j)/(ubar(i,j)+eps))*us(i,j)**2
-            vw(i,j) = -(v(i,j)/(ubar(i,j)+eps))*us(i,j)**2
-            tw(i,j) = -ts(i,j)*us(i,j)
-            rw(i,j) = -rs(i,j)*us(i,j)
+            uw%d(i,j) = -(u(i,j)/(ubar(i,j)+eps))*us%d(i,j)**2
+            vw%d(i,j) = -(v(i,j)/(ubar(i,j)+eps))*us%d(i,j)**2
+            tw%d(i,j) = -ts%d(i,j)*us%d(i,j)
+            rw%d(i,j) = -rs%d(i,j)*us%d(i,j)
 
-            x(i,j) = xx(i,j)*vk*ts(i,j)*(ubar(i,j)/us(i,j))**2
+            x(i,j) = xx(i,j)*vk*ts%d(i,j)*(ubar(i,j)/us%d(i,j))**2
             x(i,j) = x(i,j)*sqrt(sqrt(1.-15.*min(0.,x(i,j)))) &
                      /(1.0+cc*max(0.,x(i,j)))
             y(i,j) = sqrt((1.-2.86*x(i,j))/(1.+x(i,j)* &
                      (-5.39+x(i,j)*6.998 )))
-            ww(i,j)= (0.27*max(6.25*(1.-x(i,j))*y(i,j),eps)-&
-                      1.18*x(i,j)*y(i,j))*us(i,j)**2
+            ww%d(i,j)= (0.27*max(6.25*(1.-x(i,j))*y(i,j),eps)-&
+                      1.18*x(i,j)*y(i,j))*us%d(i,j)**2
          END DO
       END DO
       RETURN

@@ -18,7 +18,8 @@
 !----------------------------------------------------------------------------
 !
 MODULE advl
-
+  USE mo_structured_datatypes
+  
    IMPLICIT NONE
 
 CONTAINS
@@ -33,7 +34,8 @@ CONTAINS
    SUBROUTINE ladvect
 
       USE grid, ONLY : a_uc, a_vc, a_wc, a_ut, a_vt, a_wt,      &
-                       nxp, nyp, nzp, dzt, dzm, dxi, dyi, dn0
+           nxp, nyp, nzp, dxi, dyi
+      USE mo_aux_state, ONLY : dzt, dzm, dn0
       !USE stat, ONLY : sflg, updtst, acc_tend
       USE util, ONLY : get_avg3
 
@@ -384,16 +386,17 @@ CONTAINS
    !
    SUBROUTINE advl_prep(n1,n2,n3,w,wm,dn0,dzt,dzm,v1,v2)
 
-      INTEGER, INTENT (in) ::  n1,n2,n3
-      REAL, INTENT (in)    ::  w(n1,n2,n3),dn0(n1),dzt(n1),dzm(n1)
-      REAL, INTENT (out)   ::  wm(n1,n2,n3),v1(n1),v2(n1)
+      INTEGER, INTENT (in)           ::  n1,n2,n3
+      REAL, INTENT (in)              ::  w(n1,n2,n3)
+      TYPE(FloatArray1d), INTENT(in) ::  dn0,dzt,dzm
+      REAL, INTENT (out)             ::  wm(n1,n2,n3),v1(n1),v2(n1)
 
       INTEGER :: k
 
       DO k = 1, n1-1
-         wm(k,:,:) = w(k,:,:)*(dn0(k)+dn0(k+1))*.5
-         v1(k) = dzt(k)/dn0(k)
-         v2(k) = 2.*dzm(k)/(dn0(k)+dn0(k+1))
+         wm(k,:,:) = w(k,:,:)*(dn0%d(k)+dn0%d(k+1))*.5
+         v1(k) = dzt%d(k)/dn0%d(k)
+         v2(k) = 2.*dzm%d(k)/(dn0%d(k)+dn0%d(k+1))
       END DO
 
    END SUBROUTINE advl_prep

@@ -1,5 +1,6 @@
 MODULE mo_lagrangian_tracker
-  USE grid, ONLY : deltax, deltay, deltaz, xt,yt,zt
+  USE mo_aux_state, ONLY : xt,yt,zt
+  USE grid, ONLY : deltax, deltay, deltaz
   USE util, ONLY : arr_resize, closest
   IMPLICIT NONE
 
@@ -40,10 +41,10 @@ MODULE mo_lagrangian_tracker
     t_in = -999.
     t_out = t_in - 999.
     
-    xlim1 = MINVAL(xt) + 3*deltax2
-    xlim2 = MAXVAL(xt) - 3*deltax2
-    ylim1 = MINVAL(yt) + 3*deltay2
-    ylim2 = MAXVAL(yt) - 3*deltay2
+    xlim1 = MINVAL(xt%d) + 3*deltax2
+    xlim2 = MAXVAL(xt%d) - 3*deltax2
+    ylim1 = MINVAL(yt%d) + 3*deltay2
+    ylim2 = MAXVAL(yt%d) - 3*deltay2
         
     x_trac = xlim1 - 999.
     y_trac = ylim1 - 999.
@@ -179,17 +180,17 @@ MODULE mo_lagrangian_tracker
           END IF
           
           IF ((j == 1) .OR. ( ( x1 < (x_trac - eps) ).OR.( x1 > (x_trac + eps) ) )) THEN  
-             ix1 = closest(xt,x1)
+             ix1 = closest(xt%d,x1)
              ix(j) = ix1
           END IF
           
           IF ((j == 1) .OR. ( (y1 < (y_trac - eps) ).OR.( y1 > (y_trac + eps) ) )) THEN    
-             iy1 = closest(yt,y1)
+             iy1 = closest(yt%d,y1)
              iy(j) = iy1
           END IF
           
           IF ((j == 1) .OR. ( (z1 < (z_trac - eps) ).OR.( z1 > (z_trac + eps) ) )) THEN  
-             iz1 = closest(zt,z1)
+             iz1 = closest(zt%d,z1)
              iz(j) = iz1
           END IF
           
@@ -236,20 +237,20 @@ MODULE mo_lagrangian_tracker
                      .AND.(y(i) >= ylim1 + eps).AND.(y(i) <= ylim2 - eps)) THEN
                    
                    IF  (d_x > eps) THEN
-                      dx  = xt(ix(j)) - deltax2 - x(i-1) 
+                      dx  = xt%d(ix(j)) - deltax2 - x(i-1) 
                       dtx = dx/vx
                    ELSE IF (d_x < -eps) THEN
-                      dx  = xt(ix(j)) + deltax2 - x(i-1) 
+                      dx  = xt%d(ix(j)) + deltax2 - x(i-1) 
                       dtx = dx/vx
                    ELSE
                       dtx = -999.
                    END IF
                    
                    IF ( (d_y > eps) .AND. (y(i) >= y1) ) THEN
-                      dy  = yt(iy(j)) - deltay2 - y(i-1) 
+                      dy  = yt%d(iy(j)) - deltay2 - y(i-1) 
                       dty = dy/vy
                    ELSE IF ( (d_y < -eps) .AND. (y(i) <= y1) ) THEN
-                      dy  = yt(iy(j)) + deltay2 - y(i-1) 
+                      dy  = yt%d(iy(j)) + deltay2 - y(i-1) 
                       dty = dy/vy
                    ELSE 
                       dty = -999.
@@ -294,10 +295,10 @@ MODULE mo_lagrangian_tracker
           DO WHILE (sub_dt < dt)
              
              IF (dx2x1 > eps)  THEN
-                dx  = xt(ix(j)) + deltax2 - x_trac
+                dx  = xt%d(ix(j)) + deltax2 - x_trac
                 dtx = dx/vx
              ELSE IF (dx2x1 < -eps) THEN
-                dx  = xt(ix(j)) - deltax2 - x_trac
+                dx  = xt%d(ix(j)) - deltax2 - x_trac
                 dtx = dx/vx
              ELSE
                 dtx = -999.
@@ -306,10 +307,10 @@ MODULE mo_lagrangian_tracker
              END IF
              
              IF (dy2y1 > eps)  THEN
-                dy  = yt(iy(j)) + deltay2 - y_trac
+                dy  = yt%d(iy(j)) + deltay2 - y_trac
                 dty = dy/vy
              ELSE IF (dy2y1 < -eps) THEN
-                dy  = yt(iy(j)) - deltay2 - y_trac
+                dy  = yt%d(iy(j)) - deltay2 - y_trac
                 dty = dy/vy
              ELSE
                 dty = -999.
@@ -318,10 +319,10 @@ MODULE mo_lagrangian_tracker
              END IF
              
              IF (dz2z1 > eps)  THEN
-                dz  = zt(iz(j)) + deltaz2 - z_trac
+                dz  = zt%d(iz(j)) + deltaz2 - z_trac
                 dtz = dz/vz
              ELSE IF (dz2z1 < -eps) THEN
-                dz  = zt(iz(j)) - deltaz2 - z_trac
+                dz  = zt%d(iz(j)) - deltaz2 - z_trac
                 dtz = dz/vz
              ELSE
                 dtz = -999.

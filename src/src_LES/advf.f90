@@ -18,7 +18,8 @@
 !----------------------------------------------------------------------------
 !
 MODULE advf
-
+  USE mo_structured_datatypes
+  
   IMPLICIT NONE
 
   INTEGER :: lmtr = 1
@@ -31,7 +32,10 @@ CONTAINS
   ! times.
   !
   SUBROUTINE fadvect
-    USE grid, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, newsclr,  &
+    USE mo_diag_state, ONLY : a_rc
+    USE mo_progn_state, ONLY: a_qp
+    USE mo_aux_state, ONLY: dzt, dzm, zt
+    USE grid, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, newsclr,  &
                      nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt,  &
                      dzt, dzm, zt, dxi, dyi, level, isgstyp
     !USE stat, ONLY : sflg, updtst
@@ -62,7 +66,7 @@ CONTAINS
       IF ( ANY(a_sp /= 0.0 ) ) THEN ! TR added: no need to calculate advection for zero arrays
          a_tmp1 = a_sp
 
-         IF (isgstyp > 1 .AND. associated(a_qp,a_sp)) THEN
+         IF (isgstyp > 1 .AND. associated(a_qp%d,a_sp)) THEN
             iw = .TRUE.
          ELSE
             iw = .FALSE.
@@ -101,11 +105,12 @@ CONTAINS
   !
   SUBROUTINE newdroplet(pactmask)
     USE mo_submctl, ONLY : ncld,nbins,ica,fca,eps,spec
-    USE grid, ONLY : nxp,nyp,nzp,dzt,            &
-                     a_wp,a_wc,  &
-                     a_naerop, a_naerot, a_maerop, a_maerot,  &
-                     a_ncloudt, a_mcloudt,  &
-                     a_nactd,  a_vactd,  a_rt
+    USE grid, ONLY : nxp,nyp,nzp,   &
+                     a_wp,a_wc,a_nactd,a_vactd
+    USE mo_progn_state, ONLY : a_naerop, a_naerot, a_maerop, a_maerot,  &
+                               a_ncloudt, a_mcloudt, a_rt
+    USE mo_aux_state, ONLY : dzt
+    
     IMPLICIT NONE
 
     LOGICAL, INTENT(in) :: pactmask(nzp,nxp,nyp)
@@ -127,20 +132,20 @@ CONTAINS
 
           bbpar = ica%par + (bb-ica%cur)
 
-          dn(:,:) = zw(:,:)*a_nactd(kk,:,:,bb)*dzt(kk)
+          dn(:,:) = zw(:,:)*a_nactd(kk,:,:,bb)*dzt%d(kk)
 
           DO jj = 3, nyp-2
              DO ii = 3, nxp-2
-                fix_flux(ii,jj) = max(min(1.0,a_naerot(kp1,ii,jj,bbpar)/max(eps,dn(ii,jj))),0.8)
+                fix_flux(ii,jj) = max(min(1.0,a_naerot%d(kp1,ii,jj,bbpar)/max(eps,dn(ii,jj))),0.8)
              END DO
           END DO
 
           ! Add to cloud droplets
-          a_ncloudt(kp1,:,:,bb) = a_ncloudt(kp1,:,:,bb) +   &
+          a_ncloudt%d(kp1,:,:,bb) = a_ncloudt%d(kp1,:,:,bb) +   &
                                   MERGE( dn(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
           ! Remove from aerosols
-          a_naerot(kp1,:,:,bbpar) = a_naerot(kp1,:,:,bbpar) -   &
+          a_naerot%d(kp1,:,:,bbpar) = a_naerot%d(kp1,:,:,bbpar) -   &
                                     MERGE( dn(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
           ! Change in dry ccn/aerosol mass
@@ -149,20 +154,20 @@ CONTAINS
              mm = (ss-1)*ncld + bb
              mmpar = (ss-1)*nbins + bbpar
 
-             dv(:,:) = zw(:,:)*a_vactd(kk,:,:,mm)*dzt(kk)
+             dv(:,:) = zw(:,:)*a_vactd(kk,:,:,mm)*dzt%d(kk)
 
              DO jj = 3, nyp-2
                 DO ii = 3, nxp-2
-                   fix_flux(ii,jj) = max(min(1.0,a_maerot(kp1,ii,jj,mmpar)/max(eps,dv(ii,jj))),0.8)
+                   fix_flux(ii,jj) = max(min(1.0,a_maerot%d(kp1,ii,jj,mmpar)/max(eps,dv(ii,jj))),0.8)
                 END DO
              END DO
 
              ! Add to cloud droplets
-             a_mcloudt(kp1,:,:,mm) = a_mcloudt(kp1,:,:,mm) +   &
+             a_mcloudt%d(kp1,:,:,mm) = a_mcloudt%d(kp1,:,:,mm) +   &
                                      MERGE( dv(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
              ! Remove from aerosols
-             a_maerot(kp1,:,:,mmpar) = a_maerot(kp1,:,:,mmpar) -   &
+             a_maerot%d(kp1,:,:,mmpar) = a_maerot%d(kp1,:,:,mmpar) -   &
                                        MERGE( dv(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
           END DO ! ss
@@ -170,23 +175,29 @@ CONTAINS
           ! Change in water content
           ! Assume that existing condensate from aerosols bins is taken in the same relation
           ! as the number concentration....
-          frac(:,:) = a_nactd(kk,:,:,bb)/MAX(a_naerop(kk,:,:,bbpar),1.)
+          frac(:,:) = a_nactd(kk,:,:,bb)/MAX(a_naerop%d(kk,:,:,bbpar),1.)
 
           nc = spec%getIndex('H2O')
           mm = (nc-1)*ncld + bb
           mmpar = (nc-1)*nbins + bbpar
 
           ! Amount of water condensed from vapor
-          a_rt(kp1,:,:) = a_rt(kp1,:,:) -   &
-                          MERGE( fix_flux(:,:)*zw(:,:)*(a_vactd(kk,:,:,mm)-frac(:,:)*a_maerop(kk,:,:,mmpar))*dzt(kk), 0., &
-                                 pactmask(kk,:,:) )
+          a_rt%d(kp1,:,:) = a_rt%d(kp1,:,:) -   &
+               MERGE( fix_flux(:,:)*zw(:,:)*(a_vactd(kk,:,:,mm)-frac(:,:) * &
+                      a_maerop%d(kk,:,:,mmpar))*dzt%d(kk),                  &
+                      0., pactmask(kk,:,:) )
+          
           ! Add to cloud droplets
-          a_mcloudt(kp1,:,:,mm) = a_mcloudt(kp1,:,:,mm) +   &
-                                  MERGE( fix_flux(:,:)*zw(:,:)*a_vactd(kk,:,:,mm)*dzt(kk), 0., pactmask(kk,:,:) )
+          a_mcloudt%d(kp1,:,:,mm) = a_mcloudt%d(kp1,:,:,mm) +       &
+                                    MERGE( fix_flux(:,:)*zw(:,:) *  &
+                                    a_vactd(kk,:,:,mm)*dzt%d(kk),   &
+                                    0., pactmask(kk,:,:) )
 
           ! Remove from aerosols
-          a_maerot(kp1,:,:,mmpar) = a_maerot(kp1,:,:,mmpar) -   &
-                                    MERGE( fix_flux(:,:)*zw(:,:)*frac(:,:)*a_maerop(kk,:,:,mmpar)*dzt(kk), 0., pactmask(kk,:,:) )
+          a_maerot%d(kp1,:,:,mmpar) = a_maerot%d(kp1,:,:,mmpar) -               &
+                                      MERGE( fix_flux(:,:)*zw(:,:)*frac(:,:) *  &
+                                      a_maerop%d(kk,:,:,mmpar)*dzt%d(kk),       &
+                                      0., pactmask(kk,:,:) )
 
        END DO ! bb
 
@@ -276,14 +287,13 @@ CONTAINS
   ! July 21, 2003
   !
   SUBROUTINE mamaos(n1,n2,n3,wp,scp0,scp,dzt,dzm,dn0,dt,lwpt)
-
     USE mpi_interface, ONLY : myid, appl_abort
-    INTEGER, INTENT (in)    :: n1,n2,n3
-    REAL, INTENT (in)       :: scp0(n1,n2,n3)
-    REAL, INTENT (in)       :: dn0(n1),dzt(n1),dzm(n1)
-    REAL, INTENT (in)       :: dt
-    LOGICAL, INTENT (in)    :: lwpt
-    REAL, INTENT (inout)    :: wp(n1,n2,n3),scp(n1,n2,n3)
+    INTEGER, INTENT (in)            :: n1,n2,n3
+    REAL, INTENT (in)               :: scp0(n1,n2,n3)
+    TYPE(FloatArray1d), INTENT (in) :: dn0,dzt,dzm
+    REAL, INTENT (in)               :: dt
+    LOGICAL, INTENT (in)            :: lwpt
+    REAL, INTENT (inout)            :: wp(n1,n2,n3),scp(n1,n2,n3)
 
     REAL    :: density(n1)   ! averaged density
     REAL    :: dzt_local(n1) ! grid spacing for scalars
@@ -304,13 +314,13 @@ CONTAINS
     !
     DO k = 1, n1
        kp1 = min(k+1,n1)
-       density(k) = 0.5 * (dn0(k) + dn0(kp1))
+       density(k) = 0.5 * (dn0%d(k) + dn0%d(kp1))
        IF (lwpt) THEN
-          dzt_local(k) = dzm(k)
-          dzm_local(k) = dzt(kp1)
+          dzt_local(k) = dzm%d(k)
+          dzm_local(k) = dzt%d(kp1)
        ELSE
-          dzt_local(k) = dzt(k)
-          dzm_local(k) = dzm(k)
+          dzt_local(k) = dzt%d(k)
+          dzm_local(k) = dzm%d(k)
        END IF
     END DO
 
@@ -376,7 +386,7 @@ CONTAINS
           DO k = 2, n1-1
              scp(k,i,j) = scp(k,i,j) - ((wp(k,i,j)-wp(k-1,i,j)) -      &
                           scp0(k,i,j)*(wpdn(k)-wpdn(k-1))) *           &
-                          dt*dzt_local(k)/dn0(k)
+                          dt*dzt_local(k)/dn0%d(k)
           END DO
 
        END DO

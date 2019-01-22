@@ -13,7 +13,7 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=2 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
+IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
 EXPNAME="WK82"  # Name of the experiment
 
@@ -106,7 +106,7 @@ cat > NAMELIST <<EOF
 ! -----------------------------------------------------------------------------------
 
 &initialization
-  init_type         = 2       ! 1: random perturbations, 2: warm bubble
+  init_type         = 1       ! 1: random perturbations, 2: warm bubble
   bubble_center     = 1000.,0.,0.
   bubble_diameter   = 1500.,6000.,6000.
   bubble_temp_ampl  = 1.5
@@ -188,20 +188,20 @@ cat > NAMELIST <<EOF
   emitModes(2)%emitSigma = 2.
 
   emitModes(3)%emitType = 3
-  emitModes(1)%regime = 2
-  emitModes(1)%start_time = 21600.
-  emitModes(1)%end_time = 11000.
-  emitModes(1)%species = "SS"
-  emitModes(1)%emitHeightMin = 600.
-  emitModes(1)%emitHeightMax = 650.
-  emitModes(1)%emitSizeDistType = 2
-  emitModes(1)%emitDiam = 0.6e-6
-  emitModes(1)%emitNum = 10.5e6
-  emitModes(1)%emitSigma = 1.1
-  emitModes(1)%emitMap = 'datafiles/emitMap_1'
-  emitModes(1)%scS = 60.                        ! source velocity
-  emitModes(1)%z_expan_up = 3
-  emitModes(1)%z_expan_dw = 2
+  emitModes(3)%regime = 2
+  emitModes(3)%start_time = 21600.
+  emitModes(3)%end_time = 11000.
+  emitModes(3)%species = "SS"
+  emitModes(3)%emitHeightMin = 600.
+  emitModes(3)%emitHeightMax = 650.
+  emitModes(3)%emitSizeDistType = 2
+  emitModes(3)%emitDiam = 0.6e-6
+  emitModes(3)%emitNum = 10.5e6
+  emitModes(3)%emitSigma = 1.1
+  emitModes(3)%emitMap = 'datafiles/emitMap_1'
+  emitModes(3)%scS = 60.                        ! source velocity
+  emitModes(3)%z_expan_up = 3
+  emitModes(3)%z_expan_dw = 2
 
 /
 
