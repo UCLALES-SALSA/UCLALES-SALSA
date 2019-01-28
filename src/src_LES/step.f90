@@ -52,13 +52,14 @@ CONTAINS
       USE mo_progn_state, ONLY : a_rp
       USE mo_diag_state, ONLY : a_rc, a_srp, a_dn
       USE grid, ONLY : dtl, nzp, a_up, a_vp, a_wp, &
-                       a_uc, a_vc, a_wc, write_hist, write_anal, close_anal, dtlt,  &
+                       a_uc, a_vc, a_wc, write_hist, dtlt,  &
                        dtlv, dtlong, nzp, nyp, nxp, level
                        
       !USE stat, ONLY : sflg, savg_intvl, ssam_intvl, write_ps, close_stat, mcflg, acc_massbudged,  &
       !                 write_massbudged
       USE thrm, ONLY : thermo
-
+      USE mo_output, ONLY : write_main, close_main
+      
       LOGICAL, PARAMETER :: StopOnCFLViolation = .FALSE.
       REAL, PARAMETER :: cfl_upper = 0.50, cfl_lower = 0.30
 
@@ -108,7 +109,7 @@ CONTAINS
 
          IF ((mod(tplsdt,frqanl) < dtl .OR. time >= timmax) .AND. outflg) THEN
             CALL thermo(level)
-            CALL write_anal(time)
+            CALL write_main(time)
          END IF
 
          IF (cflflg) THEN
@@ -140,7 +141,7 @@ CONTAINS
       !END IF ! mcflg
 
       CALL write_hist(1, time)
-      iret = close_anal()
+      CALL close_main()
       !iret = close_stat()
 
    END SUBROUTINE stepper

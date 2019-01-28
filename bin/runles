@@ -80,10 +80,10 @@ cat > NAMELIST <<EOF
   hfilin = '${EXPNAME}.001000s' ! History file name
   !ssam_intvl = 30.           ! Interval for statistical output
   !savg_intvl = 30.           ! Averaging interval for stat output
-  frqanl = 30.                ! Interval for full domain output
+  frqanl = 5.                ! Interval for full domain output
   frqhis = 1000.
   lbinanl = .TRUE.           ! Write binned microphysical output (with level >= 4)
-  salsa_b_bins = .FALSE.
+  lsalsabbins = .FALSE.
   !mcflg = .FALSE.             ! Do mass conservation statistics
 
   sed_aero%switch = .TRUE.          ! Calculate sedimentation of aerosol particles
@@ -105,8 +105,15 @@ cat > NAMELIST <<EOF
 
 ! -----------------------------------------------------------------------------------
 
+&output
+varlist_main = 'temp','rp','Naa','Nab','Nca','aSO4a','rc','srp','ri','riri','Nia','Nib',
+               'naero'
+/
+
+! -----------------------------------------------------------------------------------
+
 &initialization
-  init_type         = 1       ! 1: random perturbations, 2: warm bubble
+  init_type         = 2       ! 1: random perturbations, 2: warm bubble
   bubble_center     = 1000.,0.,0.
   bubble_diameter   = 1500.,6000.,6000.
   bubble_temp_ampl  = 1.5

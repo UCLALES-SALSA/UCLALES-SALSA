@@ -156,9 +156,6 @@ CONTAINS
           END DO
        END DO
     END DO
-
-    WRITE(*,*) MINVAL(tk%d(2:n1,3:n2-2,3:n3-2)), MAXVAL(tk%d(2:n1,3:n2-2,3:n3-2))
-    
     
   END SUBROUTINE SALSAthrm
 !

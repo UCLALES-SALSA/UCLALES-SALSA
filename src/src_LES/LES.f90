@@ -87,34 +87,34 @@ CONTAINS
    !
    SUBROUTINE define_parm
 
-    USE util, ONLY : fftinix,fftiniy
-    USE sgsm, ONLY : csx, prndtl
-    USE srfc, ONLY : isfctyp, zrough, ubmin, dthcon, drtcon, C_heat,          &
-                     deepSoilTemp, lConstSoilWater, lConstSoilHeatCap
-    USE step, ONLY : timmax, istpfl, corflg, outflg, frqanl, frqhis,                    &
-         strtim, radfrq
-    USE nudg_defs, ONLY : nudge_time, nudge_zmin, nudge_zmax,                                &
-         ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
-    USE emission_types, ONLY : emitModes, nEmissionModes
-    USE grid, ONLY : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
-         dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
-         filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
-         nfpt, distim, runtype, CCN,sst,W1,W2,W3, lbinanl, &
-         cntlat, salsa_b_bins
-    USE init, ONLY : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
-         zrand, zrndamp, init_type
-    USE init_warm_bubble, ONLY : bubble_center, bubble_diameter, bubble_temp_ampl
-    !USE stat, ONLY : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
-    USE forc, ONLY : div, case_name     ! Divergence, forcing case name
-    USE radiation_main, ONLY : radsounding,   &
-         sfc_albedo,    &
-         useMcICA,      &
-         laerorad,      &
-         RadConstPress, &
-         RadPrecipBins
-    USE mcrp, ONLY : sed_aero, sed_cloud, sed_precp, sed_ice, init_mcrp_switches, &
-         bulk_autoc
-    USE mpi_interface, ONLY : myid, appl_abort, ver, author
+    USE util, ONLY              : fftinix,fftiniy
+    USE sgsm, ONLY              : csx, prndtl
+    USE srfc, ONLY              : isfctyp, zrough, ubmin, dthcon, drtcon, C_heat,          &
+                                  deepSoilTemp, lConstSoilWater, lConstSoilHeatCap
+    USE step, ONLY              : timmax, istpfl, corflg, outflg, frqanl, frqhis,                    &
+                                  strtim, radfrq
+    USE nudg_defs, ONLY         : nudge_time, nudge_zmin, nudge_zmax,                                &
+                                  ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
+    USE emission_types, ONLY    : emitModes, nEmissionModes
+    USE grid, ONLY              : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
+                                  dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
+                                  filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
+                                  nfpt, distim, runtype, CCN,sst,W1,W2,W3, lbinanl, &
+                                  cntlat, lsalsabbins, varlist_main, varlist_ps, varlist_ts
+    USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
+                                  zrand, zrndamp, init_type
+    USE init_warm_bubble, ONLY  : bubble_center, bubble_diameter, bubble_temp_ampl
+    !USE stat, ONLY             : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
+    USE forc, ONLY              : div, case_name     ! Divergence, forcing case name
+    USE radiation_main, ONLY    : radsounding,   &
+                                  sfc_albedo,    &
+                                  useMcICA,      &
+                                  laerorad,      &
+                                  RadConstPress, &
+                                  RadPrecipBins
+    USE mcrp, ONLY              : sed_aero, sed_cloud, sed_precp, sed_ice, init_mcrp_switches, &
+                                  bulk_autoc
+    USE mpi_interface, ONLY     : myid, appl_abort, ver, author
     
     IMPLICIT NONE
     
@@ -126,7 +126,7 @@ CONTAINS
          !ssam_intvl,       & ! integral accumulate/ts print frequency
          !mcflg,            & ! Mass conservation stats flag
          !csflg,            & ! Column statistics flag
-         salsa_b_bins,     & ! b-bins output statistics flag
+         lsalsabbins,     & ! b-bins output statistics flag
          !cloudy_col_stats, & ! Output column statistics for cloudy/clear column
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
@@ -194,6 +194,11 @@ CONTAINS
          lConstSoilWater,   &   ! Keep soil water content(s) constant? (Only with isfctyp=5)
          lConstSoilHeatCap      ! Keep soil heat capacity con
     
+    NAMELIST /output/  &
+         varlist_main,      &
+         varlist_ps,        &
+         varlist_ts
+
     NAMELIST /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author
     
@@ -205,6 +210,11 @@ CONTAINS
     !
     fftinix = 1
     fftiniy = 1
+
+    ! Initialize output lists
+    varlist_main = ''
+    varlist_ps = ''
+    varlist_ts = ''
     
     !
     ! Initialize some process switches (mcrp...etc). Need to be done here, before reading the NAMELIST!
@@ -232,6 +242,8 @@ CONTAINS
        REWIND(1)
        READ  (1, nml=emission)
     ENDIF
+    REWIND(1)
+    READ(1, nml=output)
     REWIND(1)
     READ  (1, nml=version) 
     CLOSE(1)

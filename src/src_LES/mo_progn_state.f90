@@ -4,6 +4,8 @@ MODULE mo_progn_state
   USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice
   IMPLICIT NONE
 
+  SAVE
+  
   ! prognostic scalar variables
   ! ===============================
   !
@@ -45,16 +47,18 @@ MODULE mo_progn_state
 
   CONTAINS
   
-    SUBROUTINE setPrognosticVariables(a_sclrp,a_sclrt,Prog,memsize,level,isgstyp,nzp,nxp,nyp,nscl)
+    SUBROUTINE setPrognosticVariables(a_sclrp,a_sclrt,Prog,outputlist,memsize,level,isgstyp,lbinanl,nzp,nxp,nyp,nscl)
       INTEGER, INTENT(in) :: level,isgstyp,nzp,nxp,nyp,nscl
+      LOGICAL, INTENT(in) :: lbinanl
       REAL, INTENT(in) :: a_sclrp(nzp,nxp,nyp,nscl), a_sclrt(nzp,nxp,nyp,nscl)
+      CHARACTER(len=10), INTENT(in) :: outputlist(:)
       TYPE(FieldArray), INTENT(inout) :: Prog
       INTEGER, INTENT(inout) :: memsize
  
       CLASS(*), POINTER :: pipeline_p, pipeline_t
 
       INTEGER :: iscl, nspec
-
+      
       IF (level >= 4) nspec = spec%getNSpec(type="wet")  ! Number of aerosol compounds used including water (but not rimed ice!!)
       
       iscl = 0
@@ -65,7 +69,7 @@ MODULE mo_progn_state
       pipeline_p => a_tp
       pipeline_t => a_tt
       CALL Prog%NewField( "theta_l","Liquid water potential temperature, deviation from the mean",    &
-                          "K", "tttt", .FALSE.,                                                       &
+                          "K", "tttt", ANY(outputlist == "theta_l"),                                  &
                           pipeline_p, in_t_data = pipeline_t,                                         &
                           in_group = "LES"                                                            &
                         )
@@ -76,7 +80,7 @@ MODULE mo_progn_state
       pipeline_p => a_rp
       pipeline_t => a_rt
       CALL Prog%NewField( "rp","Progostic water vapor (lev4+) or total water content(lev3-)",   &
-                          "kg/kg", "tttt", .FALSE.,                                             &
+                          "kg/kg", "tttt", ANY(outputlist == "rp"),                             &
                           pipeline_p, in_t_data = pipeline_t,                                   &
                           in_group = "LES"                                                      &
                         )
@@ -89,7 +93,7 @@ MODULE mo_progn_state
          pipeline_p => a_rpp
          pipeline_t => a_rpt
          CALL Prog%NewField( "rpp","Precipitation mixing ratio",               &
-                             "kg/kg", "tttt", .FALSE.,                         &
+                             "kg/kg", "tttt", ANY(outputlist == "rpp"),        &
                              pipeline_p, in_t_data = pipeline_t,               &
                              in_group = "LES"                                  &
                            )
@@ -99,10 +103,10 @@ MODULE mo_progn_state
          a_npt = FloatArray3D(a_sclrt(:,:,:,iscl),store=.FALSE.)
          pipeline_p => a_npp
          pipeline_t => a_npt
-         CALL Prog%NewField( "npp","Precipitation number",         &
-                             "#/kg", "tttt", .FALSE.,              &
-                             pipeline_p, in_t_data = pipeline_t,  &
-                             in_group = "LES"                      &
+         CALL Prog%NewField( "npp","Precipitation number",             &
+                             "#/kg", "tttt", ANY(outputlist == "npp"), &
+                             pipeline_p, in_t_data = pipeline_t,       &
+                             in_group = "LES"                          &
                            )                              
       END IF
                          
@@ -111,11 +115,11 @@ MODULE mo_progn_state
          a_qp = FloatArray3D(a_sclrp(:,:,:,iscl),store=.FALSE.)
          a_qt = FloatArray3D(a_sclrt(:,:,:,iscl),store=.FALSE.)
          pipeline_p => a_qp
-         pipeline_t => a_qt
-         CALL Prog%NewField( "qp","CHECK",                         &
-                             "CHECK", "tttt", .FALSE.,             &
-                             pipeline_p, in_t_data = pipeline_t,   &
-                             in_group = "LES"                      &
+         pipeline_t => a_qt 
+         CALL Prog%NewField( "qp","CHECK",                            &
+                             "CHECK", "tttt", ANY(outputlist == "qp"), &
+                             pipeline_p, in_t_data = pipeline_t,      &
+                             in_group = "LES"                         &
                            )    
 
       END IF
@@ -124,18 +128,16 @@ MODULE mo_progn_state
       ! SALSA Variables
       ! ------------------------------------------------------
       IF (level >= 4) THEN
-
-         WRITE(*,*) 'prg state', iscl, nbins, iscl+nbins-1
          
          iscl = iscl + 1
          a_naerop = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nbins-1),store=.FALSE.)
          a_naerot = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nbins-1),store=.FALSE.)
          pipeline_p => a_naerop
          pipeline_t => a_naerot
-         CALL Prog%NewField( "naero","Binned aerosol number concentration",    &
-                             "#/kg", "ttttaea", .FALSE.,                       &
-                             pipeline_p, in_t_data = pipeline_t,              &
-                             in_group = "SALSA_4d"                             &
+         CALL Prog%NewField( "naero","Binned aerosol number concentration",                  &
+                             "#/kg", "ttttaea", ( ANY(outputlist == "naero") .AND. lbinanl),  &
+                             pipeline_p, in_t_data = pipeline_t,                             &
+                             in_group = "SALSA_4d"                                           &
                            )    
          iscl = iscl + nbins-1
 
@@ -156,10 +158,10 @@ MODULE mo_progn_state
          a_ncloudt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+ncld-1),store=.FALSE.)
          pipeline_p => a_ncloudp
          pipeline_t => a_ncloudt
-         CALL Prog%NewField( "ncloud","Binned cloud number concentration",    &
-                             "#/kg", "ttttcld", .FALSE.,                      &
-                             pipeline_p, in_t_data = pipeline_t,              &
-                             in_group = "SALSA_4d"                            &
+         CALL Prog%NewField( "ncloud","Binned cloud number concentration",                    &
+                             "#/kg", "ttttcld", ( ANY(outputlist == "ncloud") .AND. lbinanl),  &
+                             pipeline_p, in_t_data = pipeline_t,                              &
+                             in_group = "SALSA_4d"                                            &
                            )    
          iscl = iscl + ncld-1
 
@@ -180,10 +182,10 @@ MODULE mo_progn_state
          a_nprecpt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nprc-1),store=.FALSE.)
          pipeline_p => a_nprecpp
          pipeline_t => a_nprecpt
-         CALL Prog%NewField( "nprecp","Binned precip number concentration",    &
-                             "#/kg", "ttttprc", .FALSE.,                       &
-                             pipeline_p, in_t_data = pipeline_t,               &
-                             in_group = "SALSA_4d"                             &
+         CALL Prog%NewField( "nprecp","Binned precip number concentration",                  &
+                             "#/kg", "ttttprc", ( ANY(outputlist == "nprecp") .AND. lbinanl), &
+                             pipeline_p, in_t_data = pipeline_t,                             &
+                             in_group = "SALSA_4d"                                           &
                            )                            
          iscl = iscl + nprc-1
 
@@ -219,10 +221,10 @@ MODULE mo_progn_state
          a_nicet = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nice-1),store=.FALSE.)
          pipeline_p => a_nicep
          pipeline_t => a_nicet
-         CALL Prog%NewField( "nice","Binned ice number concentration",    &
-                             "#/kg", "ttttice", .FALSE.,                  &
-                             pipeline_p, in_t_data = pipeline_t,          &
-                             in_group = "SALSA_4d"                        &
+         CALL Prog%NewField( "nice","Binned ice number concentration",                     &
+                             "#/kg", "ttttice", ( ANY(outputlist == "nice") .AND. lbinanl), &
+                             pipeline_p, in_t_data = pipeline_t,                           &
+                             in_group = "SALSA_4d"                                         &
                            )                            
          iscl = iscl + nice-1
 
@@ -240,6 +242,9 @@ MODULE mo_progn_state
          
       END IF
       
+
+      pipeline_p => NULL()
+      pipeline_t => NULL()
       
       
       

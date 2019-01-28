@@ -19,16 +19,18 @@
 !
 MODULE grid
   
-  USE ncio!, ONLY : open_nc, define_nc
   USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray2d, FloatArray3d, FloatArray4d
   USE classFieldArray, ONLY : FieldArray
   USE mo_diag_state
   USE mo_progn_state
   USE mo_aux_state
+  USE mo_derived_state
   USE mo_submctl, ONLY : spec, nbins
 
   
   IMPLICIT NONE
+
+  SAVE
   
   CHARACTER(len=10), PARAMETER :: global_name = "grid"
 
@@ -70,15 +72,17 @@ MODULE grid
   REAL    :: W2  = 0.9
   REAL    :: W3  = 0.9
   
-  LOGICAL            :: salsa_b_bins = .FALSE.  ! This is brought here temporarily from stat.f90 
-  CHARACTER (len=7), ALLOCATABLE, SAVE :: sanal(:)
-  CHARACTER (len=200) :: expnme = 'Default' ! Experiment name
-  CHARACTER (len=200) :: filprf = 'x'       ! File Prefix
+  LOGICAL            :: lsalsabbins = .FALSE.  ! This is brought here temporarily from stat.f90 
+  CHARACTER (len=150) :: expnme = 'Default' ! Experiment name
+  CHARACTER (len=150) :: filprf = 'x'       ! File Prefix
   CHARACTER (len=7)  :: runtype = 'INITIAL'! Run Type SELECTion
+
+  ! Output file list; given here instead of mo_output.f90 to avoid cyclic dependencies
+  CHARACTER(len=10) :: varlist_main(100),varlist_ps(100), varlist_ts(100)  ! 
+
   
   CHARACTER (len=7),  PRIVATE :: v_snm = 'sxx    '
-  CHARACTER (len=200), PRIVATE :: fname  
-  INTEGER, PRIVATE, SAVE  ::  nrec0, nvar0, nbase=15
+
 
   ! Grid definitions
   ! -----------------------------------------------------
@@ -120,7 +124,15 @@ MODULE grid
   ! ------------------------------------------------------------------------------------------------------------
 
   ! Auxiliary FieldArray instances for pre-selected groups
-  TYPE(FieldArray) :: SALSA_tracers_4d
+  TYPE(FieldArray) :: SALSA_tracers_4d  ! 4d SALSA tracers (size distributions and compositions)
+  TYPE(FieldArray) :: outProg           ! Contains variables from Prog assigned for output
+  TYPE(FieldArray) :: outDiag           ! Same for Diag
+  TYPE(FieldArray) :: Axes              ! Contains the grid and size distribution axis vectors
+  TYPE(FieldArray) :: outAxes           ! Subset from above assigned for output
+  TYPE(FieldArray) :: BasicState        ! Basic state profiles (no particles)
+  TYPE(FieldArray) :: outBasicState     ! Subset from above assigned for output
+  TYPE(FieldArray) :: outDerived        ! Derived variables - only for output, the data is only calculated using method onDemand
+  !
 
   
   ! Juha:
@@ -136,7 +148,7 @@ MODULE grid
   
   !
   INTEGER :: nscl = 1
-  INTEGER, SAVE :: ncid0,ncid_s
+  !INTEGER, SAVE :: ncid0,ncid_s
   !
   
 CONTAINS
@@ -173,7 +185,8 @@ CONTAINS
       END IF
 
       ! Initial condition vectors
-      CALL setInitialProfiles(nzp)
+      CALL setInitialProfiles(BasicState,nzp)
+      CALL BasicState%getByOutputstatus(outBasicState)
 
       memsize = 2*nxyzp ! complexarray in pressure solver
 
@@ -194,7 +207,7 @@ CONTAINS
       a_wt(:,:,:) = 0.
 
       ! Diagnostic scalars
-      CALL setDiagnosticVariables(Diag,memsize,level,iradtyp,nzp,nxp,nyp)
+      CALL setDiagnosticVariables(Diag,varlist_main,memsize,level,iradtyp,nzp,nxp,nyp)
 
       ! Juha: Allocate the main scalar arrays
       !-----------------------------------------------------
@@ -224,10 +237,17 @@ CONTAINS
          a_sclrt(:,:,:,:) = 0.
 
       END IF ! level
+      
+      CALL setPrognosticVariables(a_sclrp,a_sclrt,Prog,varlist_main,memsize,level,isgstyp,lbinanl,nzp,nxp,nyp,nscl)
 
-      CALL setPrognosticVariables(a_sclrp,a_sclrt,Prog,memsize,level,isgstyp,nzp,nxp,nyp,nscl)
+      !  Create some subsets of the full FieldArrays. note that these are pointers, not copies!
+      CALL Prog%getByGroup("SALSA_4d",SALSA_tracers_4d)      
+      CALL Prog%getByOutputstatus(outProg)
+      CALL Diag%getByOutputstatus(outDiag)
 
-      CALL Prog%getGroup("SALSA_4d",SALSA_tracers_4d)
+      ! Further output variables
+      CALL setDerivedVariables(outDerived,varlist_main,level,nzp,nxp,nyp)
+      
       
    END SUBROUTINE define_vars
    !
@@ -252,7 +272,8 @@ CONTAINS
 
 
       ! Initialize grid vectors
-      CALL setGridSpacings(level,nzp,nxp,nyp)
+      CALL setGridSpacings(Axes,lbinanl,level,nzp,nxp,nyp)
+      CALL Axes%getByOutputstatus(outAxes)
       
       nxyzp = nxp*nyp*nzp
       nxyp  = nxp*nyp
@@ -421,49 +442,7 @@ CONTAINS
       END ASSOCIATE
         
    END SUBROUTINE define_grid
-   !
-   ! ----------------------------------------------------------------------
-   ! Subroutine init_anal:  Defines the netcdf Analysis file
-   !
-   ! Modified for level 4.
-   ! Juha Tonttila, FMI, 2014
-   !
-   !
-   SUBROUTINE init_anal(time,salsa_b_bins)
-      USE mpi_interface, ONLY : myid, ver, author, info
-      REAL, INTENT(in) :: time
-      LOGICAL, INTENT(in) :: salsa_b_bins
-      
-      CHARACTER(len=20), PARAMETER :: name = "init_anal"
-     
-   END SUBROUTINE init_anal
-   !
-   ! ----------------------------------------------------------------------
-   ! Subroutine close_anal:  Closes netcdf anal file
-   !
-   INTEGER FUNCTION close_anal()
-     USE netcdf
-     
-     CHARACTER(len=20), PARAMETER :: name = "close_anal"
 
-     close_anal = nf90_close(ncid0)
-      
-   END FUNCTION close_anal
-
-   !
-   ! ----------------------------------------------------------------------
-   ! Subroutine Write_anal:  Writes the netcdf Analysis file
-   !
-   ! Modified for levels 4 and 5
-   ! Juha Tonttila, FMI, 2014
-   !
-   !
-   SUBROUTINE write_anal(time)
-      USE netcdf
-      REAL, INTENT(in) :: time
-      CHARACTER(len=20), PARAMETER :: name = "write_anal"
-
-   END SUBROUTINE write_anal
    !
    ! ----------------------------------------------------------------------
    ! Subroutine write_hist:  This subroutine writes a binary history file
@@ -750,82 +729,7 @@ CONTAINS
 
       RETURN
    END SUBROUTINE newsclr
-   !
-   ! -----------------------------------
-   ! Subroutine bulkMixrat: Find and calculate
-   ! the total mixing ratio of a given compound
-   ! in aerosol particles or hydrometeors
-   !
-   ! Juha Tonttila, FMI, 2015
-   ! Jaakko Ahola, FMI, 2015
-   SUBROUTINE bulkMixrat(icomp,ipart,itype,mixrat)
 
-      USE mo_submctl, ONLY : ncld,nbins,nprc,      &
-                             ica,fca,icb,fcb,      &
-                             ira,fra,nice,iia,fia, &
-                             in1a,in2b,fn2a,fn2b
-      USE util, ONLY : getMassIndex
-
-      CHARACTER(len=*), INTENT(in) :: icomp  ! This should be either:
-                                             ! SO4,OC,NO,NH,BC,DU,SS,H2O.
-
-      CHARACTER(len=*), INTENT(in) :: ipart  ! This should be either:
-                                             ! aerosol,cloud,rain,ice,snow
-      CHARACTER(len=*), INTENT(in) :: itype  ! Select bin regime: a or b
-
-      REAL, INTENT(out) :: mixrat(nzp,nxp,nyp)
-
-      CHARACTER(len=20), PARAMETER :: name = "bulkMixrat"
-
-      INTEGER :: istr,iend,mm
-
-      mixrat = 0.
-
-      ! Determine multiplier
-      mm = spec%getIndex(icomp)
-
-      ! Given in kg/kg
-      SELECT CASE(ipart)
-         CASE('aerosol')
-            IF (itype == 'ab') THEN
-               istr = getMassIndex(nbins,in1a,mm)   
-               iend = getMassIndex(nbins,fn2b,mm)    
-            ELSE IF (itype == 'a') THEN
-               istr = getMassIndex(nbins,in1a,mm)
-               iend = getMassIndex(nbins,fn2a,mm)  
-            ELSE IF (itype == 'b') THEN
-               istr = getMassIndex(nbins,in2b,mm)
-               iend = getMassIndex(nbins,fn2b,mm)
-            ELSE
-               STOP 'bulkMixrat: Invalid aerosol bin regime SELECTion'
-            END IF
-            mixrat(:,:,:) = SUM(a_maerop%d(:,:,:,istr:iend),DIM=4)
-         CASE('cloud')
-            IF (itype == 'ab') THEN
-               istr = getMassIndex(ncld,ica%cur,mm)
-               iend = getMassIndex(ncld,fcb%cur,mm)
-            ELSE IF (itype == 'a') THEN
-               istr = getMassIndex(ncld,ica%cur,mm)  
-               iend = getMassIndex(ncld,fca%cur,mm)
-            ELSE IF (itype == 'b') THEN
-               istr = getMassIndex(ncld,icb%cur,mm)
-               iend = getMassIndex(ncld,fcb%cur,mm)
-            ELSE
-               STOP 'bulkMixrat: Invalid cloud bin regime SELECTion'
-            END IF
-            mixrat(:,:,:) = SUM(a_mcloudp%d(:,:,:,istr:iend),DIM=4)
-         CASE('precp')
-            istr = getMassIndex(nprc,ira,mm)
-            iend = getMassIndex(nprc,fra,mm)
-            mixrat(:,:,:) = SUM(a_mprecpp%d(:,:,:,istr:iend),DIM=4)
-         CASE('ice')
-            istr = getMassIndex(nice,iia,mm)
-            iend = getMassIndex(nice,fia,mm)
-            mixrat(:,:,:) = SUM(a_micep%d(:,:,:,istr:iend),DIM=4)
-      END SELECT
-
-   END SUBROUTINE bulkMixrat
-   !
    ! ----------------------------------------------
    ! Subroutine binSpecMixrat: Calculate the mixing
    ! ratio of selected aerosol species in individual
@@ -918,188 +822,7 @@ CONTAINS
       
    END SUBROUTINE binMixrat
 
-   !
-   ! ----------------------------------------------
-   ! Subroutine bulkNumc: Calculate the total number
-   ! concentration of particles of given type
-   !
-   ! Juha Tonttila, FMI, 2015
-   !
-   SUBROUTINE bulkNumc(ipart,itype,numc)
-      USE mo_submctl, ONLY : ica,fca,icb,fcb,ira,fra, &
-                             iia,fia,in1a,in2b,fn2a,fn2b
 
-      CHARACTER(len=*), INTENT(in) :: ipart
-      CHARACTER(LEN=*), INTENT(in) :: itype
-      REAL, INTENT(out) :: numc(nzp,nxp,nyp)
-      
-      CHARACTER(len=20), PARAMETER :: name = "bulkNumc"
-
-      INTEGER :: istr,iend
-
-      istr = 0
-      iend = 0
-
-      ! Outputs #/kg
-      ! No concentration limits (nlim or prlim) for number
-
-      SELECT CASE(ipart)
-         CASE('aerosol')
-            IF (itype == 'ab') THEN ! Note: 1a and 2a, 2b combined
-               istr = in1a
-               iend = fn2b
-            ELSE IF (itype == 'a') THEN ! Note: 1a and 2a combined
-               istr = in1a
-               iend = fn2a
-            ELSE IF (itype == 'b') THEN ! 2b
-               istr = in2b
-               iend = fn2b
-            END IF
-            numc(:,:,:) = SUM(a_naerop%d(:,:,:,istr:iend),DIM=4)
-         CASE('cloud')
-            IF (itype == 'ab') THEN ! Note: 1a and 2a, 2b combined
-               istr = ica%cur
-               iend = fcb%cur
-            ELSE IF (itype == 'a') THEN ! Note: 1a and 2a combined
-               istr = ica%cur
-               iend = fca%cur
-            ELSE IF (itype == 'b') THEN
-               istr = icb%cur
-               iend = fcb%cur
-            END IF
-            numc(:,:,:) = SUM(a_ncloudp%d(:,:,:,istr:iend),DIM=4)
-         CASE('precp')
-            istr = ira
-            iend = fra
-            numc(:,:,:) = SUM(a_nprecpp%d(:,:,:,istr:iend),DIM=4)
-         CASE('ice')
-            istr = iia
-            iend = fia
-            numc(:,:,:) = SUM(a_nicep%d(:,:,:,istr:iend),DIM=4)
-      END SELECT
-
-   END SUBROUTINE bulkNumc
-
-   !
-   ! -------------------------------------------------
-   ! SUBROUTINE meanRadius
-   ! Gets the mean wet (water=nspec+1) radius for particles - this function is for outputs only
-   !
-   SUBROUTINE meanRadius(ipart,itype,rad)
-     USE mo_submctl, ONLY : spec,nbins,ncld,nprc,nice,     &
-                            ica,fca,icb,fcb,ira,fra,       &
-                            iia,fia,in1a,fn2a,in2b,fn2b,   &
-                            nlim,prlim
-     IMPLICIT NONE
-     
-     CHARACTER(len=*), INTENT(in) :: ipart
-     CHARACTER(len=*), INTENT(in) :: itype
-     REAL, INTENT(out) :: rad(nzp,nxp,nyp)
-     CHARACTER(len=20), PARAMETER :: name = "meanRadius"
-     
-     INTEGER :: istr,iend
-     INTEGER :: nspec
-     
-     nspec = spec%getNSpec(type="wet")
-     
-     rad = 0.
-     
-     SELECT CASE(ipart)
-     CASE('aerosol')
-        
-        IF (itype == 'ab') THEN ! Note: 1a, 2a and 2b combined
-           istr = in1a
-           iend = fn2b
-        ELSE IF (itype == 'a') THEN ! Note: 1a and 2a combined
-           istr = in1a
-           iend = fn2a
-        ELSE IF (itype == 'b') THEN
-           istr = in2b
-           iend = fn2b
-        ELSE
-           STOP 'meanRadius: Invalid bin regime selection (aerosol)'
-        END IF
-        
-        CALL getRadius(istr,iend,nbins,nspec,a_naerop,a_maerop,nlim,rad,1)
-        
-     CASE('cloud')
-        
-        IF (itype == 'ab') THEN
-           istr = ica%cur
-           iend = fcb%cur
-        ELSE IF (itype == 'a') THEN
-           istr = ica%cur
-           iend = fca%cur
-        ELSE IF (itype == 'b') THEN
-           istr = icb%cur
-           iend = fcb%cur
-        ELSE
-           STOP 'meanRadius: Invalid bin regime selection (cloud)'
-        END IF
-        
-        CALL getRadius(istr,iend,ncld,nspec,a_ncloudp,a_mcloudp,nlim,rad,2)
-        
-     CASE('precp')
-        
-        istr = ira
-        iend = fra
-        
-        CALL getRadius(istr,iend,nprc,nspec,a_nprecpp,a_mprecpp,prlim,rad,3)
-        
-     CASE('ice')
-
-        istr = iia
-        iend = fia
-         
-        CALL getRadius(istr,iend,nice,nspec+1,a_nicep,a_micep,prlim,rad,4)
-               
-     END SELECT
-     
-   CONTAINS
-     
-     SUBROUTINE getRadius(zstr,zend,nb,ns,numc,mass,numlim,zrad,flag)
-       USE util, ONLY : getBinMassArray
-       USE mo_particle_external_properties, ONLY : calcDiamLES
-       USE mo_submctl, ONLY : pi6
-       IMPLICIT NONE
-       
-       INTEGER, INTENT(in) :: nb, ns ! Number of bins (nb) and compounds (ns)
-       INTEGER, INTENT(in) :: zstr,zend  ! Start and end index for averaging
-       TYPE(FloatArray4d), INTENT(in) :: numc
-       TYPE(FloatArray4d), INTENT(in) :: mass
-       REAL, INTENT(in) :: numlim
-       INTEGER, INTENT(IN) :: flag
-       REAL, INTENT(out) :: zrad(nzp,nxp,nyp)
-       
-       INTEGER :: k,i,j,bin
-       REAL :: tot, rwet, tmp(ns)
-       REAL :: zlm(nb*ns),zln(nb) ! Local grid point binned mass and number concentrations 
-              
-       zrad(:,:,:)=0.
-       DO j = 3,nyp-2
-          DO i = 3,nxp-2
-             DO k = 1,nzp
-                zlm(:) = mass%d(k,i,j,:)
-                zln(:) = numc%d(k,i,j,:)
-                tot=0.
-                rwet=0.
-                DO bin = zstr,zend                  
-                   IF (zln(bin)>numlim) THEN
-                      tot=tot+zln(bin)
-                      tmp(:) = 0.
-                      CALL getBinMassArray(nb,ns,bin,zlm,tmp)
-                      rwet=rwet+0.5*calcDiamLES(ns,zln(bin),tmp,flag)*zln(bin)
-                   ENDIF
-                ENDDO
-                IF (tot>numlim) THEN
-                   zrad(k,i,j) = rwet/tot
-                ENDIF
-             END DO
-          END DO
-       END DO
-       
-     END SUBROUTINE getRadius
-   END SUBROUTINE meanRadius
    
    !
    ! ---------------------------------------------------

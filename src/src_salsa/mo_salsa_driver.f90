@@ -145,7 +145,7 @@ CONTAINS
 
       CALL Prog%getData(1,gaerop,name="gaero")
       CALL Prog%getData(2,gaerot,name="gaero")
-      
+
       in_p(:,:) = 0.; in_t(:,:) = 0.; in_rs(:,:) = 0.; in_rsi(:,:) = 0.; in_w(:,:) = 0.
       in_rv(:,:) = 0.; rv_old(:,:) = 0.
       
@@ -195,7 +195,7 @@ CONTAINS
                mtend(2) = FloatArray1d(mcloudt%d(kk,ii,jj,:),store=.FALSE.)
                mtend(3) = FloatArray1d(mprecpt%d(kk,ii,jj,:),store=.FALSE.)
                mtend(4) = FloatArray1d(micet%d(kk,ii,jj,:),store=.FALSE.)               
-
+               
                ! Update SALSA input arrays
                DO nb = 1,ntotal
                   icat = allSALSA(1,1,nb)%phase   ! Phase indentifier, this should correspond to index in bin_starts and bin_numbers, mpart and npart, ntend and mtend
@@ -245,7 +245,7 @@ CONTAINS
                zgnh3(1,1) = gaerop%d(kk,ii,jj,3)*pdn%d(kk,ii,jj)
                zgocnv(1,1) = gaerop%d(kk,ii,jj,4)*pdn%d(kk,ii,jj)
                zgocsv(1,1) = gaerop%d(kk,ii,jj,5)*pdn%d(kk,ii,jj)
-
+               
                ! ***************************************!
                !                Run SALSA               !
                ! ***************************************!
@@ -254,7 +254,7 @@ CONTAINS
                           in_t,   tstep,  zgso4,  zgocnv,   &
                           zgocsv, zghno3, zgnh3,  actd,     &
                           in_w,   level                     )
-
+               
                ! Update tendency arrays
                DO nb = 1,ntotal
                   icat = allSALSA(1,1,nb)%phase   ! Phase indentifier, this should correspond to index in npart and mpart
@@ -268,25 +268,25 @@ CONTAINS
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc)
                         mtend(icat)%d(str) = mtend(icat)%d(str) + &
-                             ( allSALSA(1,1,nb)%volc(nc) - mpart(icat)%d(str) ) * &
-                             spec%rholiq(nc)/pdn%d(kk,ii,jj)/tstep
+                             ( allSALSA(1,1,nb)%volc(nc)*spec%rholiq(nc)/pdn%d(kk,ii,jj) -   &
+                               mpart(icat)%d(str) ) / tstep
                      END DO
                   ELSE IF (icat == 4) THEN
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc)
                         mtend(icat)%d(str) = mtend(icat)%d(str) + &
-                             ( allSALSA(1,1,nb)%volc(nc) - mpart(icat)%d(str) ) * &
-                             spec%rhoice(nc)/pdn%d(kk,ii,jj)/tstep
+                             ( allSALSA(1,1,nb)%volc(nc)*spec%rhoice(nc)/pdn%d(kk,ii,jj) -   &
+                               mpart(icat)%d(str) ) / tstep
                      END DO
                      str = getMassIndex(catnbins,nbloc,irim)
                      mtend(icat)%d(str) = mtend(icat)%d(str) + &
-                          ( allSALSA(1,1,nb)%volc(irim) - mpart(icat)%d(str) ) * &
-                          spec%rhori/pdn%d(kk,ii,jj)/tstep
+                          ( allSALSA(1,1,nb)%volc(irim)*spec%rhori/pdn%d(kk,ii,jj) -     &
+                            mpart(icat)%d(str) ) / tstep
                   END IF
                         
                   ! Update number tendencies
                   ntend(icat)%d(nbloc) = ntend(icat)%d(nbloc) + &
-                       ( allSALSA(1,1,nb)%numc - npart(icat)%d(nbloc) )/pdn%d(kk,ii,jj)/tstep
+                       ( allSALSA(1,1,nb)%numc/pdn%d(kk,ii,jj) - npart(icat)%d(nbloc) )/tstep
 
                END DO
 

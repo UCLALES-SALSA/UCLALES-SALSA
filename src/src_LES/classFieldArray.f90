@@ -5,7 +5,7 @@ MODULE classFieldArray
    ! Juha Tonttila, FMI, 2017
    !
 
-   USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray2d, FloatArray3d, FloatArray4d
+   USE mo_structured_datatypes, ONLY : FloatArray0d, FloatArray1d, FloatArray2d, FloatArray3d, FloatArray4d
    IMPLICIT NONE
 
    TYPE ArrayElement
@@ -50,8 +50,8 @@ MODULE classFieldArray
 
    TYPE FieldArray
       TYPE(ArrayElement), ALLOCATABLE  :: list(:)     ! Each element holds data and attributes to one variable given by the class ArrayElement
-      INTEGER                          :: count       ! Number of entries, initialized as 0
-      LOGICAL                          :: Initialized ! Initialized as .FALSE. will be TRUE after the first entry is made
+      INTEGER                          :: count       = 0       ! Number of entries, initialized as 0
+      LOGICAL                          :: Initialized = .FALSE. ! Initialized as .FALSE. will be TRUE after the first entry is made
 
       CONTAINS
 
@@ -65,13 +65,14 @@ MODULE classFieldArray
 
          PROCEDURE :: getField
 
-         PROCEDURE :: getGroup
+         PROCEDURE :: getByGroup
+         PROCEDURE :: getByOutputstatus
          
          PROCEDURE :: getVarInst_ind, getVarInst_name
          GENERIC   :: getVarInst => getVarInst_ind, getVarInst_name
 
-         PROCEDURE :: getData_1d, getData_2d, getData_3d, getData_4d
-         GENERIC   :: getData => getData_1d, getData_2d, getData_3d, getData_4d
+         PROCEDURE :: getData_0d, getData_1d, getData_2d, getData_3d, getData_4d
+         GENERIC   :: getData => getData_0d, getData_1d, getData_2d, getData_3d, getData_4d
 
          PROCEDURE :: getFieldIndex
        
@@ -101,14 +102,13 @@ MODULE classFieldArray
       IMPLICIT NONE
       TYPE(ArrayElement)                        :: ArrayElement_constructor
       CHARACTER(len=*), INTENT(in)              :: in_name        ! Variable name
-      CHARACTER(len=*), INTENT(in) :: in_long_name     ! Long name, mainly for output attributes
-      CHARACTER(len=*), INTENT(in)  :: in_unit          ! Unit of the variable, e.g. "kg/kg"; used mainly for output attributes
-      CHARACTER(len=*), INTENT(in)  :: in_dimension     ! String that gives the dimension environment for output (see ncio.f90)
-      LOGICAL, INTENT(in)            :: in_outputstatus
+      CHARACTER(len=*), INTENT(in)              :: in_long_name     ! Long name, mainly for output attributes
+      CHARACTER(len=*), INTENT(in)              :: in_unit          ! Unit of the variable, e.g. "kg/kg"; used mainly for output attributes
+      CHARACTER(len=*), INTENT(in)              :: in_dimension     ! String that gives the dimension environment for output (see ncio.f90)
+      LOGICAL, INTENT(in)                       :: in_outputstatus
       CLASS(*), INTENT(in), POINTER             :: in_p_data      ! Polymorphic pointer to data (values)
       CLASS(*), INTENT(in), POINTER, OPTIONAL   :: in_t_data      ! - '' - (tendencies)
       CHARACTER(len=*), INTENT(in), OPTIONAL    :: in_group
-
 
       ArrayElement_constructor%name = in_name
       ArrayElement_constructor%long_name = in_long_name
@@ -151,13 +151,13 @@ MODULE classFieldArray
       IMPLICIT NONE
       CLASS(FieldArray), INTENT(inout)         :: SELF
       CHARACTER(len=*), INTENT(in)             :: in_name     ! Variable name
-      CHARACTER(len=*), INTENT(in)  :: in_long_name     ! Long name, mainly for output attributes
-      CHARACTER(len=*), INTENT(in)  :: in_unit          ! Unit of the variable, e.g. "kg/kg"; used mainly for output attributes
-      CHARACTER(len=*), INTENT(in)  :: in_dimension     ! String that gives the dimension environment for output (see ncio.f90)
-      LOGICAL, INTENT(in)           :: in_outputstatus
+      CHARACTER(len=*), INTENT(in)             :: in_long_name     ! Long name, mainly for output attributes
+      CHARACTER(len=*), INTENT(in)             :: in_unit          ! Unit of the variable, e.g. "kg/kg"; used mainly for output attributes
+      CHARACTER(len=*), INTENT(in)             :: in_dimension     ! String that gives the dimension environment for output (see ncio.f90)
+      LOGICAL, INTENT(in)                      :: in_outputstatus
       CLASS(*), INTENT(in), POINTER            :: in_p_data   ! Polymorphic pointer to data (values)
       CLASS(*), INTENT(in), POINTER, OPTIONAL  :: in_t_data   ! - '' - (tendencies)
-      CHARACTER(len=*), INTENT(in), OPTIONAL  :: in_group
+      CHARACTER(len=*), INTENT(in), OPTIONAL   :: in_group
  
       ! Extend the variable list allocation in FieldArray
       CALL SELF%Extend()
@@ -246,14 +246,14 @@ MODULE classFieldArray
 
    ! -----------------------------------------------------------------------------
    ! getGroup returns a FieldArray instance, which contains a subset of variables
-   ! from the parent FieldArray instance that belong to the inquired group
+   ! from the parent FieldArray instance that belong to the inquired group. Whether
+   ! any variables meeting the criterion are found can be checked by the field
+   ! FieldArray%Initialized.
    ! 
-   !
-   SUBROUTINE getGroup(SELF,groupname,FAout)
+   SUBROUTINE getByGroup(SELF,groupname,FAout)
      IMPLICIT NONE
      CLASS(FieldArray), INTENT(in)  :: SELF
      CHARACTER(len=*), INTENT(in)   :: groupname
-
      TYPE(FieldArray), INTENT(out) :: FAout
 
      LOGICAL :: groupmask(SELF%count)
@@ -263,14 +263,36 @@ MODULE classFieldArray
      
      groupmask = .FALSE.
      groupmask(:) = (SELF%list(:)%group == groupname)
-
-     FAout%Initialized = .TRUE.
-     FAout%count = COUNT(groupmask)
-     ALLOCATE(FAout%list(FAout%count))
-     FAout%list(:) = PACK(SELF%list(:),groupmask)     
      
-   END SUBROUTINE getGroup
+     FAout%count = COUNT(groupmask)
+     IF (FAout%count > 0) THEN
+        ALLOCATE(FAout%list(FAout%count))
+        FAout%list(:) = PACK(SELF%list(:),groupmask)     
+        FAout%Initialized = .TRUE.
+     END IF
+        
+   END SUBROUTINE getByGroup
 
+   SUBROUTINE getByOutputstatus(SELF,FAout)
+     IMPLICIT NONE
+     CLASS(FieldArray), INTENT(in) :: SELF
+     TYPE(FieldArray), INTENT(out) :: FAout
+
+     LOGICAL :: mask(SELF%count)
+
+     FAout = FieldArray()
+
+     mask = .FALSE.
+     mask(:) = (SELF%list(:)%outputstatus)
+
+     FAout%count = COUNT(mask)
+     IF (FAout%count > 0) THEN
+        ALLOCATE(FAout%list(FAout%count))
+        FAout%list(:) = PACK(SELF%list(:),mask)     
+        FAout%Initialized = .TRUE.
+     END IF
+        
+   END SUBROUTINE getByOutputstatus
    
    !
    ! ----------------------------------------------------------------------------
@@ -336,6 +358,33 @@ MODULE classFieldArray
    ! is returned. getData currently overloads the procedures getData_1d,
    ! getData_2d, getData_3d and getData_4d bound to FieldArray.
    !
+   SUBROUTINE getData_0d(SELF,tend,out,index,name)
+      IMPLICIT NONE
+      CLASS(FieldArray), INTENT(in)            :: SELF
+      TYPE(FloatArray0d), INTENT(out), POINTER :: out    ! Data container instance
+      INTEGER, INTENT(in), OPTIONAL            :: index  ! Index of the variable in the FieldArray list
+      CHARACTER(len=*), INTENT(in), OPTIONAL   :: name   ! Name of the variable
+      INTEGER, INTENT(in)                      :: tend   ! Get value (1; default) or tendency (2)
+
+      CLASS(*), POINTER :: pp  ! Polymorphic pointer to the variable instance in ArrayElement
+
+      IF (PRESENT(index)) THEN
+         CALL SELF%getVarInst(index,pp,tend)
+      ELSE IF (PRESENT(name)) THEN
+         CALL SELF%getVarInst(name,pp,tend)
+      END IF
+
+      ! Collapse to inquired datatype. If the in_name or ind does not point to
+      ! variable of this datatype, return an error status LISAA TAMA
+      SELECT TYPE(pp)
+         TYPE IS (FloatArray0d)
+            out => pp
+      END SELECT
+
+   END SUBROUTINE getData_0d
+   
+   ! ---------
+   ! ---------
    SUBROUTINE getData_1d(SELF,tend,out,index,name)
       IMPLICIT NONE
       CLASS(FieldArray), INTENT(in)            :: SELF
@@ -465,7 +514,7 @@ MODULE classFieldArray
          i = i + 1
       END DO
       ind = i
-
+      
    END SUBROUTINE getFieldIndex
 
    ! ---------------------------------------------------------------

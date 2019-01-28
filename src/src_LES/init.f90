@@ -59,6 +59,8 @@ CONTAINS
       USE emission_init, ONLY : init_emission
       USE constrain_SALSA, ONLY : SALSA_diagnostics
       USE mo_structured_datatypes
+      USE mo_output, ONLY : init_main, write_main
+
       
       IMPLICIT NONE
 
@@ -83,7 +85,6 @@ CONTAINS
 
             n4 = spec%getNSpec(type="wet")
 
-            ! HUOM UUSI SALSAKUTSU TRACEREIDEN OSALTA
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,n4,   &
                               zwp,a_nactd,a_vactd,dtlt,   &
@@ -107,11 +108,11 @@ CONTAINS
 
      ! When SALSA b-bin outputs are needed?
      !   -level >= 4
-     !   -outputs are forced (salsa_b_bins=.true.)
+     !   -outputs are forced (lsalsabbins=.true.)
      !   -b-bins initialized with non-zero concentration
      !   -nucleation set to produce particles to b bins (currently only a bins)
-     IF (level >= 4 .AND. (.NOT. salsa_b_bins)) &
-        salsa_b_bins = ANY( a_naerop%d(:,:,:,in2b:fn2b) > nlim ) 
+     IF (level >= 4 .AND. (.NOT. lsalsabbins)) &
+        lsalsabbins = ANY( a_naerop%d(:,:,:,in2b:fn2b) > nlim ) 
 
      CALL sponge_init
      !CALL init_stat(time+dtl,filprf,expnme,nzp)
@@ -150,11 +151,11 @@ CONTAINS
       IF (outflg) THEN
          IF (runtype == 'INITIAL') THEN
             CALL write_hist(1, time)
-            CALL init_anal(time,salsa_b_bins)
+            CALL init_main(time)
             CALL thermo(level)
-            CALL write_anal(time)
+            CALL write_main(time)
          ELSE
-            CALL init_anal(time+dtl,salsa_b_bins)
+            CALL init_main(time+dtl)
             CALL write_hist(0, time)
          END IF
       END IF !outflg
@@ -1038,7 +1039,7 @@ CONTAINS
  ! number concentration fractions between a and b bins
  !
  SUBROUTINE READ_AERO_INPUT(ppndist,ppvfOC1a,ppvf2a,ppvf2b)
-    USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
+    USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_nc
     USE mo_submctl, ONLY : nbins, in1a, fn2a, in2b, fn2b,  &
                            nspec_dry, maxspec, nmod
     USE mo_salsa_sizedist, ONLY : size_distribution
@@ -1111,7 +1112,7 @@ CONTAINS
        CALL read_aero_nc_2d(ncid,'sigmagA',nc_levs,nmod,zsigmagA)
        CALL read_aero_nc_2d(ncid,'sigmagB',nc_levs,nmod,zsigmagB)
 
-       CALL close_aero_nc(ncid)
+       CALL close_nc(ncid)
     ELSE
        ! Read the profile data from a text file
        OPEN(11,file='aerosol_in',status='old',form='formatted')
