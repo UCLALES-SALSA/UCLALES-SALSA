@@ -13,9 +13,10 @@ MODULE constrain_SALSA
 
 
    SUBROUTINE tend_constrain2
-      USE grid, ONLY : dtlt, nxp,nyp,nzp,nsalsa,level, SALSA_tracers_4d
-      USE mo_submctl, ONLY : nbins, ncld, nprc, &
-                             nice    
+     USE grid, ONLY : dtlt, nxp,nyp,nzp,nsalsa,level
+     USE mo_field_types, ONLY : SALSA_tracers_4d
+     USE mo_submctl, ONLY : nbins, ncld, nprc, &
+                            nice    
       IMPLICIT NONE
 
       INTEGER :: nb,nvk,i,j
@@ -47,8 +48,8 @@ MODULE constrain_SALSA
 
    SUBROUTINE SALSA_diagnostics(callno,onlyDiag)
      USE grid, ONLY : nxp,nyp,nzp,    &
-                      level,   &
-                      binMixrat
+                      level
+     USE mo_derived_procedures, ONLY : binMixrat ! Maybe at some point one could use the actual variables instead of this subroutine directly?
      USE mo_submctl, ONLY : nbins,ncld,nprc,nice,ica,fca,icb,fcb,ira,fra,              &
                             in1a,in2a,fn2a,fn2b,                        &
                             nice,iia,fia,                    &

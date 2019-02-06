@@ -34,9 +34,9 @@ CONTAINS
   SUBROUTINE fadvect
     USE mo_diag_state, ONLY : a_rc
     USE mo_progn_state, ONLY: a_qp
+    USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc
     USE mo_aux_state, ONLY: dzt, dzm, zt
-    USE grid, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, newsclr,  &
-                     nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt,  &
+    USE grid, ONLY : newsclr, nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt,  &
                      dzt, dzm, zt, dxi, dyi, level, isgstyp
     !USE stat, ONLY : sflg, updtst
     USE util, ONLY : get_avg3
@@ -72,13 +72,13 @@ CONTAINS
             iw = .FALSE.
          END IF
 
-         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_vp,a_vc,iw)
+         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_vp%d,a_vc%d,iw)
          CALL mamaos_y(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dyi,dtlt)
 
-         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_up,a_uc,iw)
+         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_up%d,a_uc%d,iw)
          CALL mamaos_x(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dxi,dtlt)
 
-         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,iw)
+         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp%d,a_wc%d,iw)
          CALL mamaos(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dzt,dzm,dn0,dtlt,iw)
 
          !IF (sflg) THEN
@@ -105,8 +105,8 @@ CONTAINS
   !
   SUBROUTINE newdroplet(pactmask)
     USE mo_submctl, ONLY : ncld,nbins,ica,fca,eps,spec
-    USE grid, ONLY : nxp,nyp,nzp,   &
-                     a_wp,a_wc,a_nactd,a_vactd
+    USE grid, ONLY : nxp,nyp,nzp,a_nactd,a_vactd
+    USE mo_vector_state, ONLY : a_wp, a_wc
     USE mo_progn_state, ONLY : a_naerop, a_naerot, a_maerop, a_maerot,  &
                                a_ncloudt, a_mcloudt, a_rt
     USE mo_aux_state, ONLY : dzt
@@ -125,7 +125,7 @@ CONTAINS
     DO kk = 2, nzp-1
 
        kp1 = kk + 1 ! Tendency is applied in the level above where the potential number of activated is computed
-       zw = 0.25*( a_wp(kk,:,:) + a_wc(kk,:,:) + a_wp(kp1,:,:) + a_wc(kp1,:,:) )
+       zw = 0.25*( a_wp%d(kk,:,:) + a_wc%d(kk,:,:) + a_wp%d(kp1,:,:) + a_wc%d(kp1,:,:) )
        frac = 0.
 
        DO bb = ica%cur, fca%cur

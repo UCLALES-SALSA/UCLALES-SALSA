@@ -102,7 +102,7 @@ CONTAINS
 
   SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,riri,rsi,rhi)
     USE defs, ONLY : R, cp, cpr, p00, alvl, alvi
-    USE grid, ONLY : a_dn
+    USE mo_diag_state, ONLY : a_dn
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: level,n1,n2,n3

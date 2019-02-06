@@ -36,8 +36,8 @@ MODULE mo_diag_state
   TYPE(FloatArray2D), TARGET :: ww_sfc
   TYPE(FloatArray2D), TARGET :: wt_sfc
   TYPE(FloatArray2D), TARGET :: wq_sfc
-  TYPE(FloatArray3D), TARGET :: precip               ! Precipitation flux
-  TYPE(FloatArray3D), TARGET :: frzprecip            ! Precipitation flux, frozen
+  TYPE(FloatArray3D), TARGET :: a_rrate               ! Precipitation flux
+  TYPE(FloatArray3D), TARGET :: a_irate            ! Precipitation flux, frozen
 
   
   CONTAINS
@@ -253,18 +253,18 @@ MODULE mo_diag_state
 
       IF (level >= 3) THEN
          memsize = memsize + nxy
-         precip = FloatArray3d(zeros3d,store=.TRUE.)
-         pipeline => precip
-         CALL Diag%NewField("precip", "Liquid surface precipitation", "CHECK", "xtytt",   &
-                            ANY(outputlist == "precip"), pipeline) 
+         a_rrate = FloatArray3d(zeros3d,store=.TRUE.)
+         pipeline => a_rrate
+         CALL Diag%NewField("rrate", "Liquid surface precipitation", "CHECK", "xtytt",   &
+                            ANY(outputlist == "rrate"), pipeline) 
       END IF
 
       IF (level == 5) THEN
          memsize = memsize + nxy
-         frzprecip = FloatArray3d(zeros3d,store=.TRUE.)
-         pipeline => frzprecip
-         CALL Diag%NewField("frzprecip", "Frozen surface precipitation", "CHECK", "xtytt",    &
-                            ANY(outputlist == "frzprecip"), pipeline) 
+         a_irate = FloatArray3d(zeros3d,store=.TRUE.)
+         pipeline => a_irate
+         CALL Diag%NewField("irate", "Frozen surface precipitation", "CHECK", "xtytt",    &
+                            ANY(outputlist == "irate"), pipeline) 
       END IF
          
                  

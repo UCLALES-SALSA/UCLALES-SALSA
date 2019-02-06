@@ -79,10 +79,11 @@ CONTAINS
      USE defs, ONLY: vonk, p00, rcp, g, cp, alvl, ep2
      USE mo_diag_state, ONLY : a_theta, a_rv, a_ustar, a_tstar, a_rstar,  &
                                uw_sfc, vw_sfc, ww_sfc, wt_sfc, wq_sfc,    &
-                               a_sflx, a_rflx, precip, a_dn
+                               a_sflx, a_rflx, a_rrate, a_dn
      USE mo_aux_state, ONLY : zt, dzt, dn0
      USE mo_progn_state, ONLY : a_rp
-     USE grid, ONLY: nzp, nxp, nyp, a_up, a_vp,psrf, th00,  &
+     USE mo_vector_state, ONLY : a_up, a_vp
+     USE grid, ONLY: nzp, nxp, nyp, psrf, th00,  &
                      umean, vmean, level, dtl, W1,W2,W3,    &
                      mc_ApVdom, dtlt,sst
       USE thrm, ONLY: rslf
@@ -121,7 +122,7 @@ CONTAINS
             ! set surface gradients
             !
          CASE(1)
-            CALL get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up,a_vp,umean,vmean)
+            CALL get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up%d,a_vp%d,umean,vmean)
             DO j = 3, nyp-2
                DO i = 3, nxp-2
                   dtdz(i,j) = dthcon
@@ -139,7 +140,7 @@ CONTAINS
             ! get fluxes from profiles
             !
          CASE(2)
-            CALL get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up,a_vp,umean,vmean)
+            CALL get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up%d,a_vp%d,umean,vmean)
             usum = 0.
             DO j = 3, nyp-2
                DO i = 3, nxp-2
@@ -161,7 +162,7 @@ CONTAINS
              ! drtcon
              !
          CASE(3)
-            CALL get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up,a_vp,umean,vmean)
+            CALL get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up%d,a_vp%d,umean,vmean)
             DO j = 3, nyp-2
                DO i = 3, nxp-2
                   dtdz(i,j) = a_theta%d(2,i,j) - sst*(p00/psrf)**rcp
@@ -213,13 +214,13 @@ CONTAINS
                   wt_sfc%d(i,j) = Vbulk * (sst -a_theta%d(2,i,j))
                   wq_sfc%d(i,j) = Vbulk * (rslf(psrf,sst) - rx(2,i,j)) ! Juha: rx
                   wspd(i,j)    = max(0.1,                                    &
-                                 sqrt((a_up(2,i,j)+umean)**2+(a_vp(2,i,j)+vmean)**2))
+                                 sqrt((a_up%d(2,i,j)+umean)**2+(a_vp%d(2,i,j)+vmean)**2))
                   bflx         = wt_sfc%d(i,j)*g/bfg(1) + g*ep2*wq_sfc%d(i,j)
                   a_ustar%d(i,j) = diag_ustar(zt%d(2),zrough,bflx,wspd(i,j))
                   uw_sfc%d(i,j)  = -a_ustar%d(i,j)*a_ustar%d(i,j)                  &
-                                 *(a_up(2,i,j)+umean)/wspd(i,j)
+                                 *(a_up%d(2,i,j)+umean)/wspd(i,j)
                   vw_sfc%d(i,j)  = -a_ustar%d(i,j)*a_ustar%d(i,j)                  &
-                                 *(a_vp(2,i,j)+vmean)/wspd(i,j)
+                                 *(a_vp%d(2,i,j)+vmean)/wspd(i,j)
                   ww_sfc%d(i,j)  = 0.
                   a_rstar%d(i,j) = wq_sfc%d(i,j)/a_ustar%d(i,j)
                   a_tstar%d(i,j) = wt_sfc%d(i,j)/a_ustar%d(i,j)
@@ -252,7 +253,7 @@ CONTAINS
                   total_rw = total_rw + a_rflx%d(2,i,j)
                   total_la = total_la + wq_sfc%d(i,j)*(0.5*(dn0%d(1)+dn0%d(2))*alvl)/ffact
                   total_se = total_se + wt_sfc%d(i,j)*(0.5*(dn0%d(1)+dn0%d(2))*cp)/ffact
-                  total_pre=   total_pre +  precip%d(2,i,j)
+                  total_pre=   total_pre +  a_rrate%d(2,i,j)
                END DO
             END DO
             total_sw  = total_sw/REAL((nxp-4)*(nyp-4))
@@ -296,7 +297,7 @@ CONTAINS
             !  Following is copied from CASE (2). No idea if this is valid or not..
             !
 
-            CALL get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up,a_vp,umean,vmean)
+            CALL get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up%d,a_vp%d,umean,vmean)
             usum = 0.
             DO j = 3, nyp-2
                DO i = 3, nxp-2
@@ -352,7 +353,7 @@ CONTAINS
                   wq_sfc%d(i,j) = wq_sfc%d(1,1)
 
                   wspd(i,j)   = max(0.1,                                    &
-                                sqrt((a_up(2,i,j)+umean)**2+(a_vp(2,i,j)+vmean)**2))
+                                sqrt((a_up%d(2,i,j)+umean)**2+(a_vp%d(2,i,j)+vmean)**2))
                   IF (ubmin > 0.) THEN
                      bflx = g*wt_sfc%d(1,1)/th00
                      IF (level >= 2) bflx = bflx + g*ep2*wq_sfc%d(i,j)
@@ -362,8 +363,8 @@ CONTAINS
                   END IF
 
                   ffact = a_ustar%d(i,j)*a_ustar%d(i,j)/wspd(i,j)
-                  uw_sfc%d(i,j)  = -ffact*(a_up(2,i,j)+umean)
-                  vw_sfc%d(i,j)  = -ffact*(a_vp(2,i,j)+vmean)
+                  uw_sfc%d(i,j)  = -ffact*(a_up%d(2,i,j)+umean)
+                  vw_sfc%d(i,j)  = -ffact*(a_vp%d(2,i,j)+vmean)
                   ww_sfc%d(i,j)  = 0.
                   a_rstar%d(i,j) = wq_sfc%d(i,j)/a_ustar%d(i,j)
                   a_tstar%d(i,j) = wt_sfc%d(i,j)/a_ustar%d(i,j)

@@ -48,7 +48,8 @@ CONTAINS
       USE step, ONLY          : stepper
       USE mpi_interface, ONLY : init_mpi, define_decomp,                    &
                                 init_alltoall_reorder, appl_finalize
-
+      USE mo_field_state, ONLY : initialize_FieldArrays
+      
       ! Added for SALSA
       USE mo_salsa_init, ONLY : define_salsa, salsa_initialize
 
@@ -72,6 +73,8 @@ CONTAINS
 
       CALL define_vars
 
+      CALL initialize_FieldArrays ! the source scalar arrays must be allocated at this point (define_vars)
+      
       CALL initialize ! Added initialization of aerosol size distributions here + a single call
                       ! for SALSA to set up cloud microphysics
       CALL stepper
@@ -91,7 +94,7 @@ CONTAINS
     USE sgsm, ONLY              : csx, prndtl
     USE srfc, ONLY              : isfctyp, zrough, ubmin, dthcon, drtcon, C_heat,          &
                                   deepSoilTemp, lConstSoilWater, lConstSoilHeatCap
-    USE step, ONLY              : timmax, istpfl, corflg, outflg, frqanl, frqhis,                    &
+    USE step, ONLY              : timmax, istpfl, corflg, outflg, frqhis,                    &
                                   strtim, radfrq
     USE nudg_defs, ONLY         : nudge_time, nudge_zmin, nudge_zmax,                                &
                                   ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
@@ -115,6 +118,7 @@ CONTAINS
     USE mcrp, ONLY              : sed_aero, sed_cloud, sed_precp, sed_ice, init_mcrp_switches, &
                                   bulk_autoc
     USE mpi_interface, ONLY     : myid, appl_abort, ver, author
+    USE mo_output, ONLY         : ps_intvl, main_intvl
     
     IMPLICIT NONE
     
@@ -122,12 +126,7 @@ CONTAINS
          expnme    ,       & ! experiment name
          nxpart    ,       & ! whether partition in x direction?
          naddsc    ,       & ! Number of additional scalars
-         !savg_intvl,       & ! output statistics frequency
-         !ssam_intvl,       & ! integral accumulate/ts print frequency
-         !mcflg,            & ! Mass conservation stats flag
-         !csflg,            & ! Column statistics flag
          lsalsabbins,     & ! b-bins output statistics flag
-         !cloudy_col_stats, & ! Output column statistics for cloudy/clear column
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          level  , CCN    , & ! Microphysical model Number of CCN per kg of air
@@ -137,7 +136,7 @@ CONTAINS
          dzrat  , dzmax  , igrdtyp, & ! stretched grid parameters
          timmax , dtlong , istpfl , & ! timestep control
          runtype, hfilin , filprf , & ! type of run (INITIAL or HISTORY)
-         frqhis , frqanl , outflg , & ! freq of history/anal writes, output flg
+         frqhis , outflg , &          ! freq of history writes, output flg
          strtim ,                   & ! Model start time
          iradtyp,                   & ! Radiation type
          isgstyp, csx    , prndtl , & ! SGS model type, parameters
@@ -194,7 +193,9 @@ CONTAINS
          lConstSoilWater,   &   ! Keep soil water content(s) constant? (Only with isfctyp=5)
          lConstSoilHeatCap      ! Keep soil heat capacity con
     
-    NAMELIST /output/  &
+    NAMELIST /output/       &
+         ps_intvl,          &
+         main_intvl,        &
          varlist_main,      &
          varlist_ps,        &
          varlist_ts
@@ -257,7 +258,7 @@ CONTAINS
        ELSE
           WRITE(*,600) expnme, timmax
        END IF
-       IF (outflg) WRITE(*,602) filprf, frqhis, frqanl
+       IF (outflg) WRITE(*,602) filprf, frqhis, main_intvl
        !
        ! Do some cursory error checking in namelist variables
        !

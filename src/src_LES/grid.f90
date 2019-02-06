@@ -19,27 +19,20 @@
 !
 MODULE grid
   
-  USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray2d, FloatArray3d, FloatArray4d
   USE classFieldArray, ONLY : FieldArray
-  USE mo_diag_state
-  USE mo_progn_state
   USE mo_aux_state
-  USE mo_derived_state
-  USE mo_submctl, ONLY : spec, nbins
-
+  USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice
   
   IMPLICIT NONE
 
   SAVE
   
   CHARACTER(len=10), PARAMETER :: global_name = "grid"
-
   !
   INTEGER :: nxp = 132           ! number of x points
   INTEGER :: nyp = 132           ! number of y points
   INTEGER :: nzp = 105           ! number of z points
-  
-  
+    
   LOGICAL :: nxpart = .TRUE.     ! number of processors in x
   
   REAL    :: deltax = 35.        ! dx for basic grid
@@ -80,9 +73,7 @@ MODULE grid
   ! Output file list; given here instead of mo_output.f90 to avoid cyclic dependencies
   CHARACTER(len=10) :: varlist_main(100),varlist_ps(100), varlist_ts(100)  ! 
 
-  
   CHARACTER (len=7),  PRIVATE :: v_snm = 'sxx    '
-
 
   ! Grid definitions
   ! -----------------------------------------------------
@@ -96,9 +87,9 @@ MODULE grid
   !
   ! Prognostic vector variables (past, current and tendency)
   !
-  REAL, ALLOCATABLE, TARGET :: a_up(:,:,:),a_uc(:,:,:),a_ut(:,:,:)
-  REAL, ALLOCATABLE, TARGET :: a_vp(:,:,:),a_vc(:,:,:),a_vt(:,:,:)
-  REAL, ALLOCATABLE, TARGET :: a_wp(:,:,:),a_wc(:,:,:),a_wt(:,:,:)
+!  REAL, ALLOCATABLE, TARGET :: a_up(:,:,:),a_uc(:,:,:),a_ut(:,:,:)
+!  REAL, ALLOCATABLE, TARGET :: a_vp(:,:,:),a_vc(:,:,:),a_vt(:,:,:)
+!  REAL, ALLOCATABLE, TARGET :: a_wp(:,:,:),a_wc(:,:,:),a_wt(:,:,:)
   !
   ! wsave variables used in fft in x and y directons
   !
@@ -116,24 +107,14 @@ MODULE grid
   ! ----------------------------------------------------------------
   REAL, ALLOCATABLE, TARGET :: a_sclrp(:,:,:,:),a_sclrt(:,:,:,:)
   ! ----------------------------------------------------------------
-  
-  ! Field arrays for organizing the prognostic and diagnostic variables and their attributes and output status
-  ! ------------------------------------------------------------------------------------------------------------
-  TYPE(FieldArray) :: Prog
-  TYPE(FieldArray) :: Diag
-  ! ------------------------------------------------------------------------------------------------------------
 
-  ! Auxiliary FieldArray instances for pre-selected groups
-  TYPE(FieldArray) :: SALSA_tracers_4d  ! 4d SALSA tracers (size distributions and compositions)
-  TYPE(FieldArray) :: outProg           ! Contains variables from Prog assigned for output
-  TYPE(FieldArray) :: outDiag           ! Same for Diag
+  ! Other field arrays are initialized and stored in mo_field_state. The ones below are needed here
+  ! but sine they don't contain any variable associated procedures, there is no risk for cyclic dependencies.
   TYPE(FieldArray) :: Axes              ! Contains the grid and size distribution axis vectors
   TYPE(FieldArray) :: outAxes           ! Subset from above assigned for output
+  TYPE(FieldArray) :: outAxesPS         ! Subset from Axes assigned for ps-file output
   TYPE(FieldArray) :: BasicState        ! Basic state profiles (no particles)
   TYPE(FieldArray) :: outBasicState     ! Subset from above assigned for output
-  TYPE(FieldArray) :: outDerived        ! Derived variables - only for output, the data is only calculated using method onDemand
-  !
-
   
   ! Juha:
   ! Diagnostic variables needed to track mass conservation (of water).
@@ -148,6 +129,7 @@ MODULE grid
   
   !
   INTEGER :: nscl = 1
+  INTEGER :: memsize
   !INTEGER, SAVE :: ncid0,ncid_s
   !
   
@@ -162,19 +144,15 @@ CONTAINS
    SUBROUTINE define_vars
 
       USE mpi_interface, ONLY : myid
-      USE mo_submctl, ONLY : nbins,ncld,nprc,  & ! Number of aerosol and hydrometeor size bins for SALSA
-                             nice          ! number of ice size bins for SALSA
 
       CHARACTER(len=20), PARAMETER :: name = "define_vars"
-      INTEGER :: memsize
       INTEGER :: zz
       INTEGER :: nc
       INTEGER :: st_salsa,en_salsa ! start and end indices for SALSA tracers
       
-      ! Instanciate the main field arrays
-      Prog = FieldArray()
-      Diag = FieldArray()
-
+      ! Instanciate the field arrays
+      BasicState = FieldArray()
+      
       nc = 0
       ! Juha: Number of prognostic tracers for SALSA
       !       Aerosol bins + Cloud bins + gas compound tracers
@@ -190,24 +168,21 @@ CONTAINS
 
       memsize = 2*nxyzp ! complexarray in pressure solver
 
-      ! Vector variables
-      ALLOCATE (a_up(nzp,nxp,nyp),a_vp(nzp,nxp,nyp),a_wp(nzp,nxp,nyp))
-      a_up(:,:,:) = 0.
-      a_vp(:,:,:) = 0.
-      a_wp(:,:,:) = 0.
+!      ! Vector variables
+!      ALLOCATE (a_up(nzp,nxp,nyp),a_vp(nzp,nxp,nyp),a_wp(nzp,nxp,nyp))
+!      a_up(:,:,:) = 0.
+!      a_vp(:,:,:) = 0.
+!      a_wp(:,:,:) = 0.
 
-      ALLOCATE (a_uc(nzp,nxp,nyp),a_vc(nzp,nxp,nyp),a_wc(nzp,nxp,nyp))
-      a_uc(:,:,:) = 0.
-      a_vc(:,:,:) = 0.
-      a_wc(:,:,:) = 0.
+!      ALLOCATE (a_uc(nzp,nxp,nyp),a_vc(nzp,nxp,nyp),a_wc(nzp,nxp,nyp))
+!      a_uc(:,:,:) = 0.
+!      a_vc(:,:,:) = 0.
+!      a_wc(:,:,:) = 0.
 
-      ALLOCATE (a_ut(nzp,nxp,nyp),a_vt(nzp,nxp,nyp),a_wt(nzp,nxp,nyp))
-      a_ut(:,:,:) = 0.
-      a_vt(:,:,:) = 0.
-      a_wt(:,:,:) = 0.
-
-      ! Diagnostic scalars
-      CALL setDiagnosticVariables(Diag,varlist_main,memsize,level,iradtyp,nzp,nxp,nyp)
+!      ALLOCATE (a_ut(nzp,nxp,nyp),a_vt(nzp,nxp,nyp),a_wt(nzp,nxp,nyp))
+!      a_ut(:,:,:) = 0.
+!      a_vt(:,:,:) = 0.
+!      a_wt(:,:,:) = 0.
 
       ! Juha: Allocate the main scalar arrays
       !-----------------------------------------------------
@@ -237,18 +212,7 @@ CONTAINS
          a_sclrt(:,:,:,:) = 0.
 
       END IF ! level
-      
-      CALL setPrognosticVariables(a_sclrp,a_sclrt,Prog,varlist_main,memsize,level,isgstyp,lbinanl,nzp,nxp,nyp,nscl)
-
-      !  Create some subsets of the full FieldArrays. note that these are pointers, not copies!
-      CALL Prog%getByGroup("SALSA_4d",SALSA_tracers_4d)      
-      CALL Prog%getByOutputstatus(outProg)
-      CALL Diag%getByOutputstatus(outDiag)
-
-      ! Further output variables
-      CALL setDerivedVariables(outDerived,varlist_main,level,nzp,nxp,nyp)
-      
-      
+           
    END SUBROUTINE define_vars
    !
    !----------------------------------------------------------------------
@@ -272,8 +236,10 @@ CONTAINS
 
 
       ! Initialize grid vectors
+      Axes = FieldArray()
       CALL setGridSpacings(Axes,lbinanl,level,nzp,nxp,nyp)
       CALL Axes%getByOutputstatus(outAxes)
+      CALL Axes%getByGroup("ps",outAxesPS)
       
       nxyzp = nxp*nyp*nzp
       nxyp  = nxp*nyp
@@ -443,276 +409,7 @@ CONTAINS
         
    END SUBROUTINE define_grid
 
-   !
-   ! ----------------------------------------------------------------------
-   ! Subroutine write_hist:  This subroutine writes a binary history file
-   !
-   SUBROUTINE write_hist(htype, time)
-
-     USE mpi_interface, ONLY : appl_abort, myid, wrxid, wryid
-   
-     !Ali
-     !These are must be written and read from history file
-     !for consistent nudging initialization
-     USE nudg_defs, ONLY : theta_ref, rv_ref, u_ref, v_ref, aero_ref, &
-                           ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
-     
-      INTEGER :: errcode = -17
-
-      INTEGER, INTENT (in) :: htype
-      REAL, INTENT (in)    :: time
-
-      CHARACTER(len=20), PARAMETER :: name = "write_hist"
-
-      CHARACTER (len=80) :: hname
-
-      INTEGER :: n, iblank, ii, jj, kk,nn
-      !
-      ! create and open a new output file.
-      !
-      WRITE(hname,'(i4.4,a1,i4.4)') wrxid,'_',wryid
-      hname = trim(hname)//'.'//trim(filprf)
-
-      SELECT CASE(htype)
-         CASE DEFAULT
-            hname = trim(hname)//'.iflg'
-         CASE(0)
-            hname = trim(hname)//'.R'
-         CASE(1)
-            hname = trim(hname)//'.rst'
-         CASE(2)
-            iblank=index(hname,' ')
-            WRITE(hname(iblank:iblank+7),'(a1,i6.6,a1)') '.', int(time), 's'
-      END SELECT
-      !
-      ! Write fields
-      !
-      IF (myid == 0) PRINT "(//' ',49('-')/,' ',/,'   History write to: ',A30)" &
-                            ,hname
-      OPEN(10,file=trim(hname), form='unformatted')
-
-      WRITE(10) time,th00,umean,vmean,dtl,level,isgstyp,iradtyp,nzp,nxp,nyp,nscl
-      WRITE(10) xt%d, xm%d, yt%d, ym%d, zt%d, zm%d, dn0%d, th0%d, u0%d, v0%d, pi0%d, &
-                pi1%d, rt0%d, psrf,sst,W1,W2,W3 ! added by Zubair
-
-      WRITE(10) a_ustar%d, a_tstar%d, a_rstar%d
-
-      WRITE(10) a_pexnr%d
-      WRITE(10) a_press%d
-      WRITE(10) a_theta%d
-
-      WRITE(10) a_up
-      WRITE(10) a_vp
-      WRITE(10) a_wp
-      WRITE(10) a_uc
-      WRITE(10) a_vc
-      WRITE(10) a_wc
-
-      DO n = 1, nscl
-         CALL newsclr(n)  
-         WRITE(10) a_sp
-      END DO
-
-      IF (ndg_theta%nudgetype > 0) THEN
-        DO n = 1, nzp
-          WRITE(10) theta_ref(n)
-        END DO  
-      END IF
-
-      IF (ndg_rv%nudgetype > 0) THEN
-        DO n = 1, nzp
-          WRITE(10) rv_ref(n)
-        END DO  
-      END IF
-
-      IF (ndg_u%nudgetype > 0) THEN
-        DO n = 1, nzp
-          WRITE(10) u_ref(n)
-        END DO  
-      END IF
-
-      IF (ndg_v%nudgetype > 0) THEN
-        DO n = 1, nzp
-          WRITE(10) v_ref(n)
-        END DO  
-      END IF
-
-      IF (level > 3 .AND. ndg_aero%nudgetype > 0) THEN
-        WRITE(10) nbins
-        DO n = 1, nzp
-          DO nn = 1, nbins
-            WRITE(10) aero_ref(n,nn)    
-          END DO
-        END DO
-      END IF
-    
-      IF ( ASSOCIATED(a_rv%d)   ) WRITE(10) a_rv%d
-      IF ( ASSOCIATED(a_rc%d)   ) WRITE(10) a_rc%d
-      IF ( ASSOCIATED(a_rflx%d) ) WRITE(10) a_rflx%d
-      CLOSE(10)
-
-      IF (myid == 0 .AND. htype < 0) THEN
-         PRINT *, 'CFL Violation'
-         CALL appl_abort(errcode)
-      END IF
-
-      RETURN
-   END SUBROUTINE write_hist
-   !
-   ! ----------------------------------------------------------------------
-   ! Subroutine read_hist:  This subroutine reads a binary history file
-   !
-   !                        Modified for level 4
-   !                Juha Tonttila, FMI, 20140828
-   !
-
-   SUBROUTINE read_hist(time, hfilin)
-
-     USE mpi_interface, ONLY : appl_abort, myid, wrxid, wryid
-     
-      !Ali
-      !These are must be written and read from history file
-      !for consistent nudging initialization
-      USE nudg_defs, ONLY : theta_ref, rv_ref, u_ref, v_ref, aero_ref, &
-                           ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
-      
-      CHARACTER(len=80), INTENT(in) :: hfilin
-      REAL, INTENT(out)             :: time
-
-      CHARACTER(len=20), PARAMETER :: name = "read_hist"
-
-      CHARACTER (len=80) :: hname
-      INTEGER :: n, nxpx, nypx, nzpx, nsclx, iradx, isgsx, lvlx, ii, jj, kk
-      LOGICAL :: exans
-      REAL    :: umx, vmx, thx
-      INTEGER :: nn, nnbins
-      !
-      ! open input file.
-      !
-
-      WRITE(hname,'(i4.4,a1,i4.4)') wrxid,'_',wryid
-      hname = trim(hname)//'.'//trim(hfilin)
-
-      inquire(file=trim(hname),exist=exans)
-      IF (.NOT. exans) THEN
-         PRINT *,'ABORTING: History file', trim(hname),' not found'
-         CALL appl_abort(0)
-      ELSE
-         OPEN(10,file=trim(hname),status='old',form='unformatted')
-         READ(10) time,thx,umx,vmx,dtl,lvlx,isgsx,iradx,nzpx,nxpx,nypx,nsclx
-
-         IF (nxpx /= nxp .OR. nypx /= nyp .OR. nzpx /= nzp)  THEN
-            IF (myid == 0) PRINT *, nxp, nyp, nzp, nxpx, nypx, nzpx
-            CALL appl_abort(-1)
-         END IF
-
-         READ(10) xt%d, xm%d, yt%d, ym%d, zt%d, zm%d, dn0%d, th0%d, u0%d, v0%d, pi0%d, pi1%d, rt0%d, psrf,sst,W1,W2,W3
-
-         READ(10) a_ustar%d, a_tstar%d, a_rstar%d
-
-         READ(10) a_pexnr%d
-         READ(10) a_press%d
-         READ(10) a_theta%d
-
-         READ(10) a_up
-         READ(10) a_vp
-         READ(10) a_wp
-         READ(10) a_uc
-         READ(10) a_vc
-         READ(10) a_wc
-
-         DO n = 1, nscl
-            CALL newsclr(n)
-            IF (n <= nsclx) READ(10) a_sp
-         END DO
-
-         IF (ndg_theta%nudgetype > 0) THEN
-           ALLOCATE(theta_ref(nzp))
-           DO n = 1, nzp
-              READ(10) theta_ref(n)
-           END DO
-         END IF
-
-         IF (ndg_rv%nudgetype > 0) THEN
-           ALLOCATE(rv_ref(nzp))
-           DO n = 1, nzp
-              READ(10) rv_ref(n)
-           END DO
-         END IF
-
-         IF (ndg_u%nudgetype > 0) THEN
-           ALLOCATE(u_ref(nzp))
-           DO n = 1, nzp
-              READ(10) u_ref(n)
-           END DO
-         END IF
-
-         IF (ndg_v%nudgetype > 0) THEN
-           ALLOCATE(v_ref(nzp))
-           DO n = 1, nzp
-              READ(10) v_ref(n)
-           END DO
-         END IF
-
-         IF (level > 3 .AND. ndg_aero%nudgetype > 0) THEN
-           READ(10) nnbins
-           ALLOCATE(aero_ref(nzp,nnbins))
-           DO n = 1, nzp
-             DO nn = 1, nbins
-               READ(10) aero_ref(n,nn)    
-             END DO
-           END DO
-         END IF
-
-         
-         DO n = nscl+1, nsclx
-            READ(10)
-         END DO
-
-         IF (lvlx > 0 .AND. lvlx < 4) THEN
-            IF (level > 0 .AND. lvlx < 4) THEN
-               READ(10) a_rv%d
-            ELSE
-               READ(10)
-            END IF
-         END IF
-         IF (lvlx > 1) THEN
-            IF (level > 1) THEN
-               READ(10) a_rc%d
-            ELSE
-               READ(10)
-            END IF
-         END IF
-         IF (iradx > 0) THEN
-            IF (iradtyp > 0) THEN
-               READ(10) a_rflx%d
-            ELSE
-               READ(10)
-            END IF
-         END IF
-
-         CLOSE(10)
-         !
-         ! adjust namelist and basic state appropriately
-         !
-         IF (thx /= th00) THEN
-            IF (myid == 0) PRINT "('  th00 changed  -  ',2f8.2)",th00,thx
-            a_tp%d(:,:,:) = a_tp%d(:,:,:) + thx - th00
-         END IF
-         IF (umx /= umean) THEN
-            IF (myid == 0) PRINT "('  umean changed  -  ',2f8.2)",umean,umx
-            a_up = a_up + umx - umean
-         END IF
-         IF (vmx /= vmean) THEN
-            IF (myid == 0) PRINT "('  vmean changed  -  ',2f8.2)",vmean,vmx
-            a_vp = a_vp + vmx - vmean
-         END IF
-         dtlv = 2.*dtl
-         dtlt = dtl
-
-      END IF
-
-   END SUBROUTINE read_hist
+ 
    !
    ! ----------------------------------------------------------------------
    ! Subroutine newsclr:  This routine updates the scalar pointer to the
@@ -730,140 +427,7 @@ CONTAINS
       RETURN
    END SUBROUTINE newsclr
 
-   ! ----------------------------------------------
-   ! Subroutine binSpecMixrat: Calculate the mixing
-   ! ratio of selected aerosol species in individual
-   ! bins.
-   !
-   ! Juha Tonttila, FMI, 2015
-   SUBROUTINE binSpecMixrat(ipart,icomp,ibin,mixr)
-      USE mo_submctl, ONLY : ncld, nbins, nprc, nice
-      USE util, ONLY : getMassIndex
 
-      CHARACTER(len=*), INTENT(in) :: icomp  ! This should be either:
-                                             ! SO4,OC,NO,NH,BC,DU,SS,H2O.
-
-      CHARACTER(len=*), INTENT(in) :: ipart  ! This should be either:
-                                             ! aerosol,cloud,rain,ice
-      INTEGER, INTENT(in) :: ibin
-
-      REAL, INTENT(out)   :: mixr(nzp,nxp,nyp)
-
-      CHARACTER(len=20), PARAMETER :: name = "binSpecMixrat"
-
-      INTEGER :: mm
-
-      ! Determine multipliers
-      mm = spec%getIndex(icomp)
-
-      SELECT CASE(ipart)
-         CASE('aerosol')
-            mixr(:,:,:) = a_maerop%d(:,:,:,getMassIndex(nbins,ibin,mm))
-         CASE('cloud')
-            mixr(:,:,:) = a_mcloudp%d(:,:,:,getMassIndex(ncld,ibin,mm))
-         CASE('precp')
-            mixr(:,:,:) = a_mprecpp%d(:,:,:,getMassIndex(nprc,ibin,mm))
-         CASE('ice')
-            mixr(:,:,:) = a_micep%d(:,:,:,getMassIndex(nice,ibin,mm))
-      END SELECT
-
-   END SUBROUTINE binSpecMixrat
-   !
-   ! ----------------------------------------------
-   ! Subroutine binMixrat: Calculate the total dry or wet
-   ! Mass concentration for individual bins
-   !
-   ! Juha Tonttila, FMI, 2015
-   ! Tomi Raatikainen, FMI, 2016
-   SUBROUTINE binMixrat(ipart,itype,ibin,ii,jj,kk,sumc)
-      USE util, ONLY : getBinTotalMass
-      USE mo_submctl, ONLY : ncld,nbins,nprc,nice
-      IMPLICIT NONE
-
-      CHARACTER(len=*), INTENT(in) :: ipart
-      CHARACTER(len=*), INTENT(in) :: itype
-      INTEGER, INTENT(in) :: ibin,ii,jj,kk
-      REAL, INTENT(out) :: sumc
-
-      CHARACTER(len=20), PARAMETER :: name = "binMixrat"
-
-      INTEGER :: iend
-
-      REAL, POINTER :: tmp(:) => NULL()
-
-      IF (itype == 'dry') THEN
-         iend = spec%getNSpec(type="dry")   ! dry CASE
-      ELSE IF (itype == 'wet') THEN
-         iend = spec%getNSpec(type="wet")   ! wet CASE
-         IF (ipart == 'ice') &
-              iend = iend+1   ! For ice, take also rime
-      ELSE
-         STOP 'Error in binMixrat!'
-      END IF
-
-      SELECT CASE(ipart)
-         CASE('aerosol')
-            tmp => a_maerop%d(kk,ii,jj,1:iend*nbins)
-            CALL getBinTotalMass(nbins,iend,ibin,tmp,sumc)
-         CASE('cloud')
-            tmp => a_mcloudp%d(kk,ii,jj,1:iend*ncld)
-            CALL getBinTotalMass(ncld,iend,ibin,tmp,sumc)
-         CASE('precp')
-            tmp => a_mprecpp%d(kk,ii,jj,1:iend*nprc)
-            CALL getBinTotalMass(nprc,iend,ibin,tmp,sumc)
-         CASE('ice')
-            tmp => a_micep%d(kk,ii,jj,1:iend*nice)
-            CALL getBinTotalMass(nice,iend,ibin,tmp,sumc) 
-         CASE DEFAULT
-            STOP 'bin mixrat error'
-      END SELECT
-
-      tmp => NULL()
-      
-   END SUBROUTINE binMixrat
-
-
-   
-   !
-   ! ---------------------------------------------------
-   ! SUBROUTINE getBinRadius
-   ! Calculates wet radius for each bin in the whole domain - this function is for outputs only
-   SUBROUTINE getBinRadius(nb,ns,numc,mass,numlim,zrad,flag)
-     USE util, ONLY : getBinMassArray
-     USE mo_particle_external_properties, ONLY : calcDiamLES
-     USE mo_submctl, ONLY : pi6
-     IMPLICIT NONE
-     
-     INTEGER, INTENT(in) :: nb, ns ! Number of bins (nb) and aerosol species (ns)
-     TYPE(FloatArray4d), INTENT(in) :: numc
-     TYPE(FloatArray4d), INTENT(in) :: mass
-     REAL, INTENT(in) :: numlim
-     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4)
-     REAL, INTENT(out) :: zrad(nzp,nxp,nyp,nb)
-
-     INTEGER :: k,i,j,bin
-     REAL :: tmp(ns)
-     REAL :: zlm(nb*ns), zln(nb)
-     
-     zrad(:,:,:,:)=0.
-     DO j = 3,nyp-2
-        DO i = 3,nxp-2
-           DO k = 1,nzp
-              zlm(:) = mass%d(k,i,j,:)
-              zln(:) = numc%d(k,i,j,:)
-              DO bin = 1,nb
-                 IF (zln(bin)>numlim) THEN
-                    tmp(:) = 0.
-                    CALL getBinMassArray(nb,ns,bin,zlm,tmp)
-                    zrad(k,i,j,bin)=0.5*calcDiamLES(ns,zln(bin),tmp,flag)
-                 ENDIF
-              END DO
-           END DO
-        END DO
-     END DO
-
-   END SUBROUTINE getBinRadius
-   
 
 END MODULE grid
 

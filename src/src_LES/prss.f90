@@ -37,8 +37,8 @@ MODULE prss
 
       USE mo_aux_state, ONLY : dzm, dzt, dn0
       USE mo_diag_state, ONLY : a_press, a_pexnr
-      USE grid, ONLY : nxp, nyp, nzp, dtlt, dxi, dyi, a_up,                     &
-                       a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt, &
+      USE mo_vector_state, ONLY : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt
+      USE grid, ONLY : nxp, nyp, nzp, dtlt, dxi, dyi,  &
                        th00, wsavex, wsavey
       !USE stat, ONLY : fill_scalar, sflg
       USE util, ONLY : ae1mm
@@ -59,14 +59,14 @@ MODULE prss
       !
 
       CALL asselin(1)
-      CALL apl_tnd(nzp,nxp,nyp,a_up,a_vp,a_wp,a_ut,a_vt,a_wt,dtlt)
+      CALL apl_tnd(nzp,nxp,nyp,a_up%d,a_vp%d,a_wp%d,a_ut%d,a_vt%d,a_wt%d,dtlt)
       !
       ! ------
       ! Pressure Solve
       !
-      CALL poiss(nzp,nxp,nyp,ix,iy,a_up,a_vp,a_wp,a_pexnr,a_press,dn0,th00,dzt, &
+      CALL poiss(nzp,nxp,nyp,ix,iy,a_up%d,a_vp%d,a_wp%d,a_pexnr,a_press,dn0,th00,dzt, &
                  dzm,dxi,dyi,dtlt,s1,wsavex,wsavey)
-      CALL ae1mm(nzp,nxp,nyp,a_wp,awpbar)
+      CALL ae1mm(nzp,nxp,nyp,a_wp%d,awpbar)
       !
       ! -------
       ! Do second step of asselin filter, first saving corrlations of
@@ -77,7 +77,7 @@ MODULE prss
       !
       CALL asselin(2)
       CALL velocity_bcs
-      CALL get_diverg(nzp,nxp,nyp,ix,iy,s1,a_up,a_vp,a_wp,dn0,dzt,dxi,dyi,  &
+      CALL get_diverg(nzp,nxp,nyp,ix,iy,s1,a_up%d,a_vp%d,a_wp%d,dn0,dzt,dxi,dyi,  &
                       dtlt,mxdiv)
 
       !IF (sflg) THEN
@@ -409,16 +409,17 @@ MODULE prss
    !
    SUBROUTINE asselin(iac)
 
-      USE grid, ONLY : a_up,a_vp,a_wp,a_uc,a_vc,a_wc, nxyzp, runtype
-
+      USE grid, ONLY : nxyzp, runtype
+      USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc
+      
       INTEGER :: iac
       INTEGER, SAVE :: ncall = 0
 
       IF (runtype == 'HISTORY') ncall = 1
 
-      CALL predict(nxyzp,a_uc,a_up,iac,ncall)
-      CALL predict(nxyzp,a_vc,a_vp,iac,ncall)
-      CALL predict(nxyzp,a_wc,a_wp,iac,ncall)
+      CALL predict(nxyzp,a_uc%d,a_up%d,iac,ncall)
+      CALL predict(nxyzp,a_vc%d,a_vp%d,iac,ncall)
+      CALL predict(nxyzp,a_wc%d,a_wp%d,iac,ncall)
       IF (iac == 2) ncall = ncall+1
 
    END SUBROUTINE asselin
@@ -466,12 +467,12 @@ MODULE prss
 
      USE mo_aux_state, ONLY : dzm
      USE mo_diag_state, ONLY : a_pexnr, a_press
-      USE grid, ONLY : a_up,a_vp,a_wp,a_uc,a_vc,a_wc,  &
-                       nxp, nyp, nzp
+      USE grid, ONLY : nxp, nyp, nzp
+      USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc
       USE util, ONLY : velset, sclrset
 
-      CALL velset(nzp,nxp,nyp,a_up,a_vp,a_wp)
-      CALL velset(nzp,nxp,nyp,a_uc,a_vc,a_wc)
+      CALL velset(nzp,nxp,nyp,a_up%d,a_vp%d,a_wp%d)
+      CALL velset(nzp,nxp,nyp,a_uc%d,a_vc%d,a_wc%d)
       CALL sclrset('grad',nzp,nxp,nyp,a_pexnr%d,dzm%d)
       CALL sclrset('grad',nzp,nxp,nyp,a_press%d,dzm%d)
 

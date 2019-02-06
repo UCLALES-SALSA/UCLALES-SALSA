@@ -13,10 +13,10 @@ MODULE emission_main
   USE mo_aux_state, ONLY : dzt,zt,xt,yt
   USE mo_progn_state, ONLY : a_maerot, a_naerot
   USE mo_diag_state, ONLY : a_dn
+  !USE mo_vector_state, ONLY : a_up, a_vp ! needed for the seasalt thing
   USE grid, ONLY: deltax, deltay, deltaz, dtl, &                  
-                  nxp,nyp,nzp,              &
-                  a_up, a_vp
-  
+                  nxp,nyp,nzp
+    
   USE util, ONLY: smaller, closest, getMassIndex
   USE exceptionHandling, ONLY: errorMessage
   USE mpi_interface, ONLY : myid

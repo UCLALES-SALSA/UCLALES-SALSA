@@ -22,7 +22,7 @@ MODULE mcrp
   USE defs, ONLY : alvl,alvi,rowt,pi,Rm,cp,kb,g,vonk
   USE mo_aux_state, ONLY : dzt,dn0,pi0
   USE mo_diag_state, ONLY : a_pexnr,a_rv,a_rc,a_theta,a_press,     &
-                            a_temp,a_rsl,precip,frzprecip,a_dn,    &
+                            a_temp,a_rsl,a_rrate,a_irate,a_dn,    &
                             a_ustar
   USE mo_progn_state, ONLY : a_rp,a_tp,a_rt,a_tt,a_rpp,a_rpt,a_npp,a_npt
   USE grid, ONLY : dtlt,nxp,nyp,nzp,th00,CCN
@@ -90,14 +90,14 @@ MODULE mcrp
       SELECT CASE (level)
       CASE(2)
          IF (sed_cloud%state)  &
-              CALL sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
+              CALL sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,a_rrate,a_rt,a_tt)
       CASE(3)
          CALL mcrph(nzp,nxp,nyp,dn0,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,   &
-                    a_npp,precip,a_rt,a_tt,a_rpt,a_npt)
+                    a_npp,a_rrate,a_rt,a_tt,a_rpt,a_npt)
       CASE(4,5)
          nspec = spec%getNSpec(type="wet")
          CALL sedim_SALSA(nzp,nxp,nyp,nspec,dtlt,a_temp,a_theta,                &
-                          precip, frzprecip, a_tt                )
+                          a_rrate, a_irate, a_tt                )
       END SELECT
       
     END SUBROUTINE micro
@@ -618,13 +618,13 @@ MODULE mcrp
          DO j = 3, n3-2
             DO i = 3, n2-2
                DO k = 1, n1-1
-                  tlt%d(k,i,j) = tlt%d(k,i,j) - SUM(prmt(k,i,j,istr:iend))/tstep*(alvl/cp)*th%d(k,i,j)/tk%d(k,i,j)
+                  tlt%d(k,i,j) = tlt%d(k,i,j) - (SUM(prmt(k,i,j,istr:iend))/tstep)*(alvl/cp)*th%d(k,i,j)/tk%d(k,i,j)
                END DO
             END DO
          END DO
       END IF
       
-      IF (sed_ice%state) THEN                              ! Here we should have rhomean; atm not in LES side?
+      IF (sed_ice%state) THEN                          
          CALL DepositionFast(n1,n2,n3,nice,nspec+1,tk,a_nicep,a_micep,tstep,irnt,irmt,remice,irate,4)
          
          a_nicet%d(:,:,:,:) = a_nicet%d(:,:,:,:) + irnt(:,:,:,:)/tstep
@@ -639,7 +639,7 @@ MODULE mcrp
          DO j = 3, n3-2
             DO i = 3, n2-2
                DO k = 1, n1-1
-                  tlt%d(k,i,j) = tlt%d(k,i,j) - SUM(irmt(k,i,j,istr:iend))/tstep*(alvi/cp)*th%d(k,i,j)/tk%d(k,i,j)
+                  tlt%d(k,i,j) = tlt%d(k,i,j) - (SUM(irmt(k,i,j,istr:iend))/tstep)*(alvi/cp)*th%d(k,i,j)/tk%d(k,i,j)
                END DO
             END DO
          END DO
@@ -767,6 +767,9 @@ MODULE mcrp
                 ! box thickness and timestep (should not cause any further issues).
                 vc = MIN( vc, MIN(0.5*(1./dzt%d(k))/dt, 2.0) )
 
+                ! POISTA
+                IF (vc > 10. .OR. vc < 0.) WRITE(*,*) 'DEP SLOW ', vc
+                
                 IF (k==2) THEN ! The level just above surface
                     ! Particle diffusitivity  (15.29) in jacobson book
                     mdiff = (kb*tk%d(k,i,j)*GG)/(3.0*pi*avis*dwet) !(kb*tk(k,i,j)*GG)/(6.0*pi*avis*rwet)
@@ -898,6 +901,9 @@ MODULE mcrp
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
                 vc = terminal_vel(dwet,zdn,a_dn%d(k,i,j),avis,GG,flag)
 
+                ! POISTA
+                IF (vc > 10. .OR. vc < 0.) WRITE(*,*) 'DEP FAST ', vc
+                
                 ! Rain rate statistics: removal of water from the current bin is accounted for
                 ! Water is the last (nspec) species and rain rate is given here kg/s/m^2
                 ! Juha: For ice, have to sum up the pristine and rimed ice

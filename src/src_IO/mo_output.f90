@@ -2,17 +2,21 @@ MODULE mo_output
   USE netcdf
   USE mpi_interface, ONLY : myid, ver, author, info
   USE ncio
-  USE grid, ONLY : outProg,outDiag,outDerived,outAxes,expnme,    &
-                   nzp,nxp,nyp,filprf,lbinanl,level,lsalsabbins
+  USE grid, ONLY : outAxes,outAxesPS,expnme,nzp,nxp,nyp,filprf,  &
+                   lbinanl,level,lsalsabbins
+  USE mo_field_types, ONLY : outProg, outVector, outDiag, outDerived, outPS
   USE classFieldArray, ONLY : FieldArray
   USE mo_structured_datatypes
   USE mo_submctl, ONLY : in1a,fn2a,in2b,fn2b,ica,fca,icb,fcb,nprc,nice
   
   IMPLICIT NONE
 
-  INTEGER, PRIVATE :: ncid_main
-  INTEGER, PRIVATE :: nrec_main, nvar_main
-  CHARACTER(len=150), PRIVATE :: fname      
+  LOGICAL :: sflg = .FALSE.
+  REAL :: ps_intvl = 120.
+  REAL :: main_intvl = 3600.
+  INTEGER, PRIVATE :: ncid_main, ncid_ps
+  INTEGER, PRIVATE :: nrec_main, nvar_main, nrec_ps, nvar_ps
+  CHARACTER(len=150), PRIVATE :: fname_main, fname_ps      
 
 
 
@@ -29,57 +33,66 @@ MODULE mo_output
     !
     SUBROUTINE init_main(time)
       REAL, INTENT(in) :: time
-      CHARACTER(len=20), PARAMETER :: name = "init_main"
 
       INTEGER :: npoints
       
       npoints = (nxp-4)*(nyp-4)
 
-      fname = trim(filprf)
+      fname_main = trim(filprf)
 
-      IF(myid == 0) PRINT                                                  &
-           "(//' ',49('-')/,' ',/,'   Initializing: ',A20)",trim(fname)
+      IF ( .NOT. ANY([outProg%Initialized,     &
+                      outDiag%Initialized,     &
+                      outDerived%Initialized]  &
+                    ) ) RETURN ! If no output variables defined, do not open the files 
       
-      CALL open_nc(fname,expnme,time,npoints,ncid_main,nrec_main,ver,author,info)
+      IF(myid == 0) PRINT                                                  &
+           "(//' ',49('-')/,' ',/,'   Initializing: ',A20)",trim(fname_main)
+      
+      CALL open_nc(fname_main,expnme,time,npoints,ncid_main,nrec_main,ver,author,info)
 
       IF (level < 4 .OR. .NOT. lbinanl) THEN
-         CALL define_nc(ncid_main,nrec_main,nvar_main,       &
-                        outProg,outDiag,outDerived,outAxes,  &
-                        n1=nzp,n2=nxp-4,n3=nyp-4)
+         CALL define_nc(ncid_main,nrec_main,nvar_main,          &
+                        outProg=outProg,outVector=outVector,    &
+                        outDiag=outDiag,outDerived=outDerived,  &
+                        outAxes=outAxes, n1=nzp,n2=nxp-4,n3=nyp-4)
 
       ELSE IF (level == 4 .AND. lbinanl) THEN
          IF (lsalsabbins) THEN           
-            CALL define_nc(ncid_main,nrec_main,nvar_main,       &
-                           outProg,outDiag,outDerived,outAxes,  &
-                           n1=nzp,n2=nxp-4,n3=nyp-4,            &
-                           inae_a=fn2a,inae_b=fn2b-fn2a,        &
-                           incld_a=fca%cur,incld_b=fcb%cur,     &
-                           inprc=nprc                           )
+            CALL define_nc(ncid_main,nrec_main,nvar_main,          &
+                           outProg=outProg,outVector=outVector,    &
+                           outDiag=outDiag,outDerived=outDerived,  &
+                           outAxes=outAxes, n1=nzp,n2=nxp-4,       &
+                           n3=nyp-4,inae_a=fn2a,inae_b=fn2b-fn2a,  &
+                           incld_a=fca%cur,incld_b=fcb%cur,        &
+                           inprc=nprc                              )
                
          ELSE              
-            CALL define_nc(ncid_main,nrec_main,nvar_main,       &
-                           outProg,outDiag,outDerived,outAxes,  &
-                           n1=nzp,n2=nxp-4,n3=nyp-4,            &
-                           inae_a=fn2a,incld_a=fca%cur,         &
-                           inprc=nprc                           )    
+            CALL define_nc(ncid_main,nrec_main,nvar_main,          &
+                           outProg=outProg,outVector=outVector,    &
+                           outDiag=outDiag,outDerived=outDerived,  &
+                           outAxes=outAxes,n1=nzp,n2=nxp-4,        &
+                           n3=nyp-4,inae_a=fn2a,incld_a=fca%cur,   &
+                           inprc=nprc                              )    
             
          END IF
             
       ELSE IF (level == 5 .AND. lbinanl) THEN
          IF (lsalsabbins) THEN
-            CALL define_nc(ncid_main,nrec_main,nvar_main,       &
-                           outProg,outDiag,outDerived,outAxes,  &
-                           n1=nzp,n2=nxp-4,n3=nyp-4,            &
-                           inae_a=fn2a,inae_b=fn2b-fn2a,        &
-                           incld_a=fca%cur,incld_b=fcb%cur,     &                              
-                           inprc=nprc,inice=nice                )
+            CALL define_nc(ncid_main,nrec_main,nvar_main,          &
+                           outProg=outProg,outVector=outVector,    &
+                           outDiag=outDiag,outDerived=outDerived,  &
+                           outAxes=outAxes,n1=nzp,n2=nxp-4,        &
+                           n3=nyp-4,inae_a=fn2a,inae_b=fn2b-fn2a,  &
+                           incld_a=fca%cur,incld_b=fcb%cur,        &                              
+                           inprc=nprc,inice=nice                   )
                
          ELSE
-            CALL define_nc(ncid_main,nrec_main,nvar_main,       &
-                           outProg,outDiag,outDerived,outAxes,  &
-                           n1=nzp,n2=nxp-4,n3=nyp-4,            &
-                           inae_a=fn2a,incld_a=fca%cur,         &                              
-                           inprc=nprc,inice=nice                )
+            CALL define_nc(ncid_main,nrec_main,nvar_main,          &
+                           outProg=outProg,outVector=outVector,    &
+                           outDiag=outDiag,outDerived=outDerived,  &
+                           outAxes=outAxes,n1=nzp,n2=nxp-4,        &
+                           n3=nyp-4,inae_a=fn2a,incld_a=fca%cur,   &                              
+                           inprc=nprc,inice=nice                   )
          END IF
          
       END IF
@@ -88,12 +101,49 @@ MODULE mo_output
 
       
     END SUBROUTINE init_main
+
+    ! ------------------------------------------------------------------------
+
+    SUBROUTINE init_ps(time)
+      REAL, INTENT(in) :: time
+
+      INTEGER :: npoints
+
+      npoints = (nxp-4)*(nyp-4)
+      
+      fname_ps = TRIM(filprf)//'.ps'
+
+      IF (.NOT. outPS%Initialized) RETURN ! If no variables defined for output, do not create the file 
+      
+      IF(myid == 0) PRINT                                                  &
+           "(//' ',49('-')/,' ',/,'   Initializing: ',A20)",trim(fname_ps)
+
+      CALL open_nc(fname_ps,expnme,time,npoints,ncid_ps,nrec_ps,ver,author,info)
+
+      ! Providing the full outAxes will cause some error codes from netCDF when trying to
+      ! define the vector variables for axes dimensions that are not defined for the netcdf
+      ! file. This won't affect the model operation and it should work, but it would be
+      ! better to somehow mask the outAxes variables for different output types.
+
+      IF (level < 4 .OR. .NOT. lbinanl) THEN
+         CALL define_nc(ncid_ps,nrec_ps,nvar_ps,         &
+                        outPS=outPS,outAxes=outAxesPS,   &  ! Use the PS subset of the axis variables                               
+                        n1=nzp                           )
+      END IF
+
+      IF (myid == 0) PRINT *,'   ...starting record: ', nrec_ps
+      
+    END SUBROUTINE init_ps
+
+    ! -------------------------------------------------------------------------
     
     SUBROUTINE close_main()
-
       CALL close_nc(ncid_main)
-      
     END SUBROUTINE close_main
+
+    SUBROUTINE close_ps()
+      CALL close_nc(ncid_ps)
+    END SUBROUTINE close_ps
     
     !
     ! ----------------------------------------------------------------------
@@ -105,10 +155,14 @@ MODULE mo_output
     !
     SUBROUTINE write_main(time)
       REAL, INTENT(in) :: time
-      CHARACTER(len=20), PARAMETER :: name = "write_main"
       INTEGER :: ibeg0(1)
 
       ibeg0 = [nrec_main]
+
+      IF ( .NOT. ANY([outProg%Initialized,     &
+                      outDiag%Initialized,     &
+                      outDerived%Initialized]  &
+                    ) ) RETURN ! If no output variables defined, do not try to write
       
       ! write time
       CALL write_nc(ncid_main,'time',time,ibeg0)
@@ -118,19 +172,52 @@ MODULE mo_output
          CALL write_output(outAxes,nrec_main,ncid_main)
       END IF
       
-      CALL write_output(outProg,nrec_main,ncid_main)
-      CALL write_output(outDiag,nrec_main,ncid_main)
-      CALL write_output(outDerived,nrec_main,ncid_main)
+      IF (outProg%Initialized) &
+           CALL write_output(outProg,nrec_main,ncid_main)
+      IF (outVector%Initialized) &
+           CALL write_output(outVector,nrec_main,ncid_main)
+      IF (outDiag%Initialized) &
+           CALL write_output(outDiag,nrec_main,ncid_main)
+      IF (outDerived%Initialized) &
+           CALL write_output(outDerived,nrec_main,ncid_main)
 
-      IF (myid == 0) PRINT "(//' ',12('-'),'   Record ',I3,' to: ',A60)",    &
-         nrec_main,fname
+      IF (myid == 0) PRINT "(//' ',12('-'),'   Record ',I3,' to: ',A60 //)",    &
+         nrec_main,fname_main
 
       CALL sync_nc(ncid_main)
       nrec_main = nrec_main+1      
       
     END SUBROUTINE write_main
 
+    ! --------------------------------------------------------------------------
 
+    SUBROUTINE write_ps(time)
+      REAL, INTENT(in) :: time
+      INTEGER :: ibeg0(1)
+
+      ibeg0 = [nrec_ps]
+
+      IF ( .NOT. outPS%Initialized ) RETURN
+      
+      ! write time
+      CALL write_nc(ncid_ps,'time',time,ibeg0)
+
+      IF (nrec_ps == 1) THEN
+         ! First entry -> write axis variables
+         CALL write_output(outAxesPS,nrec_ps,ncid_ps)
+      END IF
+
+      IF (outPS%Initialized) &
+           CALL write_output(outPS,nrec_ps,ncid_ps)
+
+      IF (myid == 0) PRINT "(//' ',12('-'),'   Record ',I3,' to: ',A60 //)",    &
+         nrec_ps,fname_ps      
+
+      CALL sync_nc(ncid_ps)
+      nrec_ps = nrec_ps+1
+      
+    END SUBROUTINE write_ps
+    
     !
     ! Subroutine WRITE_OUTPUT: A general wrap-around routine used to to the writing of all kinds of
     !                          output variables
@@ -155,6 +242,7 @@ MODULE mo_output
       TYPE(FloatArray4d), POINTER :: var4d => NULL()
 
       REAL :: out3d(nzp,nxp,nyp)
+      REAL :: out1d(nzp)
       
       INTEGER :: i1,i2,j1,j2,nstr,nend
 
@@ -180,47 +268,52 @@ MODULE mo_output
          vname = varArray%list(n)%name
          SELECT CASE(varArray%list(n)%dimension)
          CASE('time')
-            CALL varArray%getData(1,var0d,n)
+            CALL varArray%getData(1,var0d,index=n)
             CALL write_nc(ncid0,vname,var0d%d,ibeg0d)
             
          CASE('zt','zm')
-            CALL varArray%getData(1,var1d,n)
+            CALL varArray%getData(1,var1d,index=n)
             CALL write_nc(ncid0,vname,var1d%d(:),ibeg0d)
             
          CASE('xt','xm')
-            CALL varArray%getData(1,var1d,n)
+            CALL varArray%getData(1,var1d,index=n)
             CALL write_nc(ncid0,vname,var1d%d(i1:i2),ibeg0d)
             
          CASE('yt','ym')
-            CALL varArray%getData(1,var1d,n)
+            CALL varArray%getData(1,var1d,index=n)
             CALL write_nc(ncid0,vname,var1d%d(j1:j2),ibeg0d)
 
          CASE('aea','aeb','cla','clb','prc','ice')
-            CALL varArray%getData(1,var1d,n)
+            CALL varArray%getData(1,var1d,index=n)
             CALL write_nc(ncid0,vname,var1d%d(:),ibeg0d)
             
          CASE('ztt','zmt')
-            CALL varArray%getData(1,var1d,n)
-            CALL write_nc(ncid0,vname,var1d%d(:),ibeg1d,icnt=icnt1d)
+            CALL varArray%getData(1,var1d,index=n)
+            IF (ASSOCIATED(var1d%onDemand)) THEN
+               CALL var1d%onDemand(vname,out1d)
+            ELSE
+               out1d = var1d%d
+            END IF
+            CALL write_nc(ncid0,vname,out1d(:),ibeg1d,icnt=icnt1d)
 
          CASE('xtytt')
-            CALL varArray%getData(1,var2d,n)
+            CALL varArray%getData(1,var2d,index=n)
             CALL write_nc(ncid0,vname,var2d%d(i1:i2,j1:j2),ibeg2d,icnt=icnt2d)
             
          CASE('zttaea','zttaeb','zttcla','zttclb','zttprc','zttice')
             CALL getSDdim(varArray%list(n)%dimension,nstr,nend)
             icnt1dsd = [nzp,nend-nstr+1,1]
-            CALL varArray%getData(1,var2d,n)
+            CALL varArray%getData(1,var2d,index=n)
             CALL write_nc(ncid0,vname,var2d%d(:,nstr:nend),ibeg2d,icnt=icnt1dsd)
             
          CASE('taea','taeb','tcla','tclb','tprc','tice')
             CALL getSDdim(varArray%list(n)%dimension,nstr,nend)
             icnt0dsd = [nend-nstr+1,1]
-            CALL varArray%getData(1,var1d,n)
+            CALL varArray%getData(1,var1d,index=n)
             CALL write_nc(ncid0,vname,var1d%d(nstr:nend),ibeg1d,icnt=icnt0dsd)
             
          CASE('tttt','mttt','tmtt','ttmt')
-            CALL varArray%getData(1,var3d,n)
+            CALL varArray%getData(1,var3d,index=n)
             IF (ASSOCIATED(var3d%onDemand)) THEN
                CALL var3d%onDemand(vname,out3d)
             ELSE
@@ -231,7 +324,7 @@ MODULE mo_output
          CASE('ttttaea','ttttaeb','ttttcla','ttttclb','ttttprc','ttttice')
             CALL getSDdim(varArray%list(n)%dimension,nstr,nend)
             icnt3dsd = [nzp,nxp-4,nyp-4,nend-nstr+1,1]
-            CALL varArray%getData(1,var4d,n)
+            CALL varArray%getData(1,var4d,index=n)
             CALL write_nc(ncid0,vname,var4d%d(:,i1:i2,j1:j2,nstr:nend),ibeg4d,icnt=icnt3dsd)
                        
          END SELECT                  

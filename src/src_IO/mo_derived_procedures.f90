@@ -16,7 +16,7 @@ MODULE mo_derived_procedures
 
   PRIVATE
 
-  PUBLIC :: bulkNumc, totalWater, bulkDiameter, bulkMixrat
+  PUBLIC :: bulkNumc, totalWater, bulkDiameter, bulkMixrat, binMixrat
     
   CONTAINS
 
@@ -254,6 +254,147 @@ MODULE mo_derived_procedures
    END SUBROUTINE bulkMixrat
    !
    
+
+
+
+   ! NONE OF THE BELOW IS YET ASSOCIATED WITH ANYTHING !!!!!!!!!!!!!!!!!!!!
+
+   
+   ! ----------------------------------------------
+   ! Subroutine binSpecMixrat: Calculate the mixing
+   ! ratio of selected aerosol species in individual
+   ! bins.
+   !
+   ! Juha Tonttila, FMI, 2015
+   SUBROUTINE binSpecMixrat(ipart,icomp,ibin,mixr)
+      USE mo_submctl, ONLY : ncld, nbins, nprc, nice
+      USE util, ONLY : getMassIndex
+
+      CHARACTER(len=*), INTENT(in) :: icomp  ! This should be either:
+                                             ! SO4,OC,NO,NH,BC,DU,SS,H2O.
+
+      CHARACTER(len=*), INTENT(in) :: ipart  ! This should be either:
+                                             ! aerosol,cloud,rain,ice
+      INTEGER, INTENT(in) :: ibin
+
+      REAL, INTENT(out)   :: mixr(nzp,nxp,nyp)
+
+      CHARACTER(len=20), PARAMETER :: name = "binSpecMixrat"
+
+      INTEGER :: mm
+
+      ! Determine multipliers
+      mm = spec%getIndex(icomp)
+
+      SELECT CASE(ipart)
+         CASE('aerosol')
+            mixr(:,:,:) = a_maerop%d(:,:,:,getMassIndex(nbins,ibin,mm))
+         CASE('cloud')
+            mixr(:,:,:) = a_mcloudp%d(:,:,:,getMassIndex(ncld,ibin,mm))
+         CASE('precp')
+            mixr(:,:,:) = a_mprecpp%d(:,:,:,getMassIndex(nprc,ibin,mm))
+         CASE('ice')
+            mixr(:,:,:) = a_micep%d(:,:,:,getMassIndex(nice,ibin,mm))
+      END SELECT
+
+   END SUBROUTINE binSpecMixrat
+   !
+   ! ----------------------------------------------
+   ! Subroutine binMixrat: Calculate the total dry or wet
+   ! Mass concentration for individual bins
+   !
+   ! Juha Tonttila, FMI, 2015
+   ! Tomi Raatikainen, FMI, 2016
+   SUBROUTINE binMixrat(ipart,itype,ibin,ii,jj,kk,sumc)
+      USE util, ONLY : getBinTotalMass
+      USE mo_submctl, ONLY : ncld,nbins,nprc,nice
+      IMPLICIT NONE
+
+      CHARACTER(len=*), INTENT(in) :: ipart
+      CHARACTER(len=*), INTENT(in) :: itype
+      INTEGER, INTENT(in) :: ibin,ii,jj,kk
+      REAL, INTENT(out) :: sumc
+
+      CHARACTER(len=20), PARAMETER :: name = "binMixrat"
+
+      INTEGER :: iend
+
+      REAL, POINTER :: tmp(:) => NULL()
+
+      IF (itype == 'dry') THEN
+         iend = spec%getNSpec(type="dry")   ! dry CASE
+      ELSE IF (itype == 'wet') THEN
+         iend = spec%getNSpec(type="wet")   ! wet CASE
+         IF (ipart == 'ice') &
+              iend = iend+1   ! For ice, take also rime
+      ELSE
+         STOP 'Error in binMixrat!'
+      END IF
+
+      SELECT CASE(ipart)
+         CASE('aerosol')
+            tmp => a_maerop%d(kk,ii,jj,1:iend*nbins)
+            CALL getBinTotalMass(nbins,iend,ibin,tmp,sumc)
+         CASE('cloud')
+            tmp => a_mcloudp%d(kk,ii,jj,1:iend*ncld)
+            CALL getBinTotalMass(ncld,iend,ibin,tmp,sumc)
+         CASE('precp')
+            tmp => a_mprecpp%d(kk,ii,jj,1:iend*nprc)
+            CALL getBinTotalMass(nprc,iend,ibin,tmp,sumc)
+         CASE('ice')
+            tmp => a_micep%d(kk,ii,jj,1:iend*nice)
+            CALL getBinTotalMass(nice,iend,ibin,tmp,sumc) 
+         CASE DEFAULT
+            STOP 'bin mixrat error'
+      END SELECT
+
+      tmp => NULL()
+      
+   END SUBROUTINE binMixrat
+
+
+   
+   !
+   ! ---------------------------------------------------
+   ! SUBROUTINE getBinRadius
+   ! Calculates wet radius for each bin in the whole domain - this function is for outputs only
+   SUBROUTINE getBinRadius(nb,ns,numc,mass,numlim,zrad,flag)
+     USE util, ONLY : getBinMassArray
+     USE mo_particle_external_properties, ONLY : calcDiamLES
+     USE mo_submctl, ONLY : pi6
+     IMPLICIT NONE
+     
+     INTEGER, INTENT(in) :: nb, ns ! Number of bins (nb) and aerosol species (ns)
+     TYPE(FloatArray4d), INTENT(in) :: numc
+     TYPE(FloatArray4d), INTENT(in) :: mass
+     REAL, INTENT(in) :: numlim
+     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4)
+     REAL, INTENT(out) :: zrad(nzp,nxp,nyp,nb)
+
+     INTEGER :: k,i,j,bin
+     REAL :: tmp(ns)
+     REAL :: zlm(nb*ns), zln(nb)
+     
+     zrad(:,:,:,:)=0.
+     DO j = 3,nyp-2
+        DO i = 3,nxp-2
+           DO k = 1,nzp
+              zlm(:) = mass%d(k,i,j,:)
+              zln(:) = numc%d(k,i,j,:)
+              DO bin = 1,nb
+                 IF (zln(bin)>numlim) THEN
+                    tmp(:) = 0.
+                    CALL getBinMassArray(nb,ns,bin,zlm,tmp)
+                    zrad(k,i,j,bin)=0.5*calcDiamLES(ns,zln(bin),tmp,flag)
+                 ENDIF
+              END DO
+           END DO
+        END DO
+     END DO
+
+   END SUBROUTINE getBinRadius
+   
+
 
    
    

@@ -30,7 +30,6 @@ MODULE step
   LOGICAL :: corflg = .FALSE.
   
   REAL    :: frqhis =  9000.
-  REAL    :: frqanl =  3600.
   REAL    :: radfrq =  0.
   
   REAL    :: time   =  0.
@@ -51,14 +50,15 @@ CONTAINS
       USE mo_aux_state, ONLY : dzt, zt, zm, dn0, u0, v0
       USE mo_progn_state, ONLY : a_rp
       USE mo_diag_state, ONLY : a_rc, a_srp, a_dn
-      USE grid, ONLY : dtl, nzp, a_up, a_vp, a_wp, &
-                       a_uc, a_vc, a_wc, write_hist, dtlt,  &
+      USE mo_vector_state, ONLY : a_uc, a_vc, a_wc, a_up, a_vp, a_wp
+      USE grid, ONLY : dtl, nzp, dtlt,  &
                        dtlv, dtlong, nzp, nyp, nxp, level
                        
       !USE stat, ONLY : sflg, savg_intvl, ssam_intvl, write_ps, close_stat, mcflg, acc_massbudged,  &
       !                 write_massbudged
       USE thrm, ONLY : thermo
-      USE mo_output, ONLY : write_main, close_main
+      USE mo_output, ONLY : write_main, close_main, write_ps, close_ps, sflg, ps_intvl, main_intvl
+      USE mo_history, ONLY : write_hist
       
       LOGICAL, PARAMETER :: StopOnCFLViolation = .FALSE.
       REAL, PARAMETER :: cfl_upper = 0.50, cfl_lower = 0.30
@@ -79,8 +79,8 @@ CONTAINS
 
          istp = istp+1
          tplsdt = time + dtl + 0.1*dtl
-         !sflg = (min(mod(tplsdt,ssam_intvl),mod(tplsdt,savg_intvl)) < dtl  &
-         !   .OR. tplsdt >= timmax  .OR. tplsdt < 2.*dtl)
+         sflg = ( mod(tplsdt,ps_intvl) < dtl  &
+            .OR. tplsdt >= timmax  .OR. tplsdt < 2.*dtl)
 
          CALL t_step(cflflg,cflmax)
 
@@ -90,7 +90,7 @@ CONTAINS
          cflmax = gcflmax
 
          IF (cflmax > cfl_upper .OR. cflmax < cfl_lower) THEN
-            CALL tstep_reset(nzp,nxp,nyp,a_up,a_vp,a_wp,a_uc,a_vc,a_wc,     &
+            CALL tstep_reset(nzp,nxp,nyp,a_up%d,a_vp%d,a_wp%d,a_uc%d,a_vc%d,a_wc%d,     &
                              dtl,dtlong,cflmax,cfl_upper,cfl_lower)
             dtlv = 2.*dtl
             dtlt = dtl
@@ -99,15 +99,13 @@ CONTAINS
          !
          ! output control
          !
-         !IF (mod(tplsdt,savg_intvl) < dtl .OR. time >= timmax .OR. time == dtl)   &
-         !   CALL write_ps(nzp,dn0,u0,v0,zm,zt,time)
+         IF (mod(tplsdt,ps_intvl) < dtl .OR. time >= timmax .OR. time == dtl)   &
+            CALL write_ps(time)
 
          IF ((mod(tplsdt,frqhis) < dtl .OR. time >= timmax) .AND. outflg)   &
             CALL write_hist(2, time)
-         !IF (mod(tplsdt,savg_intvl) < dtl .OR. time >= timmax .OR. time == dtl)   &
-         !   CALL write_hist(1, time)
 
-         IF ((mod(tplsdt,frqanl) < dtl .OR. time >= timmax) .AND. outflg) THEN
+         IF ((mod(tplsdt,main_intvl) < dtl .OR. time >= timmax) .AND. outflg) THEN
             CALL thermo(level)
             CALL write_main(time)
          END IF
@@ -142,7 +140,7 @@ CONTAINS
 
       CALL write_hist(1, time)
       CALL close_main()
-      !iret = close_stat()
+      CALL close_ps()
 
    END SUBROUTINE stepper
    !
@@ -213,10 +211,11 @@ CONTAINS
    !
    SUBROUTINE t_step(cflflg,cflmax)
 
-      USE grid, ONLY : level, dtl, dtlt,      &
-                       nxp, nyp, nzp, a_wp,a_nactd,  a_vactd,  &
-                       Prog, Diag
-
+      USE grid, ONLY : level,dtl,dtlt,      &
+                       nxp,nyp,nzp,   &
+                       a_nactd,  a_vactd, a_sclrp, a_sclrt, nscl
+      USE mo_vector_state, ONLY : a_wp
+      USE mo_field_types, ONLY : Diag, Prog      
       !USE stat, ONLY : sflg, statistics
       USE sgsm, ONLY : diffuse
       USE srfc, ONLY : surface
@@ -240,6 +239,8 @@ CONTAINS
 
       INTEGER :: mi, mi2, i,j,k
 
+      REAL :: testi(nzp,nyp,nxp,nscl)
+      
       INTEGER :: nspec
       
       CALL set_LES_runtime(time)
@@ -276,6 +277,9 @@ CONTAINS
       ! -----------------------
       IF (level >= 4) THEN
 
+         !WRITE(*,*) 'ENNEN, arvo', a_sclrp(40,3,23,2)!a_sclrt(40,3,23,37:47) 
+         !WRITE(*,*) 'ENNEN, tend', a_sclrt(40,3,23,2)
+         
          nspec = spec%getNSpec(type="wet") ! Aerosol components + water
             
          IF ( nxp == 5 .AND. nyp == 5 ) THEN
@@ -286,16 +290,22 @@ CONTAINS
          ELSE
             !! for 2D or 3D runs
             CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,nspec,   &
-                           a_wp,a_nactd,a_vactd,dtlt,     &
+                           a_wp%d,a_nactd,a_vactd,dtlt,     &
                            time,level,.FALSE.             )
              
          END IF !nxp==5 and nyp == 5
 
+         !WRITE(*,*) 'JALKEEN, arvo', a_sclrp(40,3,23,2)!a_sclrt(40,3,23,37:47) 
+         !WRITE(*,*) 'JALKEEN, tend', a_sclrt(40,3,23,2)
+         
          CALL tend_constrain2()
          CALL update_sclrs
          CALL tend0(.TRUE.)
          CALL SALSA_diagnostics(1)
          CALL thermo(level)
+
+         !WRITE(*,*) 'UPDATE, arvo', a_sclrp(40,3,23,2)!a_sclrt(40,3,23,37:47) 
+         !WRITE(*,*) 'UPDATE, tend', a_sclrt(40,3,23,2)
          
       END IF ! level >= 4
 
@@ -350,14 +360,15 @@ CONTAINS
    !
    SUBROUTINE tend0(sclonly)
 
-      USE grid, ONLY : a_ut, a_vt, a_wt, nscl, a_st, newsclr
+     USE grid, ONLY : nscl, a_st, newsclr
+     USE mo_vector_state, ONLY : a_ut, a_vt, a_wt
 
       LOGICAL, INTENT(in) :: sclonly ! If true, only put scalar tendencies to zero
 
       INTEGER :: n
 
       IF( .NOT. sclonly) THEN
-         a_ut = 0.; a_vt = 0.; a_wt = 0.
+         a_ut%d = 0.; a_vt%d = 0.; a_wt%d = 0.
       END IF
       DO n = 1, nscl
          CALL newsclr(n)
@@ -372,14 +383,15 @@ CONTAINS
    !
    SUBROUTINE cfl(cflflg,cflmax)
 
-      USE grid, ONLY : a_up,a_vp,a_wp,nxp,nyp,nzp,dxi,dyi,dzt,dtlt
+      USE grid, ONLY : nxp,nyp,nzp,dxi,dyi,dzt,dtlt
+      USE mo_vector_state, ONLY : a_up, a_vp, a_wp
       !USE stat, ONLY : fill_scalar
 
       LOGICAL, INTENT(out) :: cflflg
       REAL(KIND=8), INTENT (out)   :: cflmax
       REAL, PARAMETER :: cflnum = 0.95
 
-      cflmax =  cfll(nzp,nxp,nyp,a_up,a_vp,a_wp,dxi,dyi,dzt,dtlt)
+      cflmax =  cfll(nzp,nxp,nyp,a_up%d,a_vp%d,a_wp%d,dxi,dyi,dzt,dtlt)
 
       cflflg = (cflmax > cflnum)
       IF (cflflg) PRINT *, 'Warning CFL Violation :', cflmax
@@ -417,8 +429,9 @@ CONTAINS
    !
    SUBROUTINE update_sclrs
 
-      USE grid, ONLY : a_sp, a_st, a_qp, nscl, nxyzp, nxp, nyp, nzp, dzt, &
+      USE grid, ONLY : a_sp, a_st, nscl, nxyzp, nxp, nyp, nzp, dzt, &
                        dtlt, newsclr, isgstyp
+      USE mo_progn_state, ONLY : a_qp
       USE sgsm, ONLY : tkeinit
       USE util, ONLY : sclrset
 
@@ -461,7 +474,8 @@ CONTAINS
    !
    SUBROUTINE buoyancy
      
-     USE grid, ONLY : a_uc, a_vc, a_wc, a_wt, nxp, nyp, nzp, th00, level
+     USE grid, ONLY : nxp, nyp, nzp, th00, level
+     USE mo_vector_state, ONLY : a_uc, a_vc, a_wc, a_wt
      !USE stat, ONLY : sflg, comp_tke
      USE mo_diag_state, ONLY : a_rv, a_rc, a_theta, a_srp, a_ri, a_riri
      USE mo_progn_state, ONLY : a_rp
@@ -481,9 +495,9 @@ CONTAINS
         rv = a_rp%d
         rc = a_rc%d + a_srp%d + a_ri%d + a_riri%d  ! Total condensed water (aerosol+cloud+precipitation+ice)
      END IF
-     call boyanc(nzp,nxp,nyp,a_wt,a_theta,rv,th00,a_tmp1,rc)
+     call boyanc(nzp,nxp,nyp,a_wt%d,a_theta,rv,th00,a_tmp1,rc)
      
-     CALL ae1mm(nzp,nxp,nyp,a_wt,awtbar)
+     CALL ae1mm(nzp,nxp,nyp,a_wt%d,awtbar)
      CALL update_pi1(nzp,awtbar,pi1)
      
      !IF (sflg)  CALL comp_tke(nzp,nxp,nyp,dzm,th00,a_uc,a_vc,a_wc,a_tmp1)
@@ -535,8 +549,9 @@ CONTAINS
 
      USE defs, ONLY : omega
      USE mo_aux_state, ONLY : u0, v0
-      USE grid, ONLY : a_uc, a_vc, a_ut, a_vt, nxp, nyp, nzp, cntlat
-
+      USE grid, ONLY : nxp, nyp, nzp, cntlat
+      USE mo_vector_state, ONLY : a_uc, a_vc, a_ut, a_vt
+      
       LOGICAL, SAVE :: initialized = .FALSE.
       REAL, SAVE    :: fcor
 
@@ -547,10 +562,10 @@ CONTAINS
          DO j = 3, nyp-2
             DO i = 3, nxp-2
                DO k = 2, nzp
-                  a_ut(k,i,j) = a_ut(k,i,j) - fcor*(v0%d(k)-0.25*                   &
-                                (a_vc(k,i,j)+a_vc(k,i+1,j)+a_vc(k,i,j-1)+a_vc(k,i+1,j-1)))
-                  a_vt(k,i,j) = a_vt(k,i,j) + fcor*(u0%d(k)-0.25*                   &
-                                (a_uc(k,i,j)+a_uc(k,i-1,j)+a_uc(k,i,j+1)+a_uc(k,i-1,j+1)))
+                  a_ut%d(k,i,j) = a_ut%d(k,i,j) - fcor*(v0%d(k)-0.25*                   &
+                                (a_vc%d(k,i,j)+a_vc%d(k,i+1,j)+a_vc%d(k,i,j-1)+a_vc%d(k,i+1,j-1)))
+                  a_vt%d(k,i,j) = a_vt%d(k,i,j) + fcor*(u0%d(k)-0.25*                   &
+                                (a_uc%d(k,i,j)+a_uc%d(k,i-1,j)+a_uc%d(k,i,j+1)+a_uc%d(k,i-1,j+1)))
                END DO
             END DO
          END DO
@@ -566,9 +581,11 @@ CONTAINS
    !
    SUBROUTINE sponge (isponge)
 
-      USE grid, ONLY : u0, v0, a_up, a_vp, a_wp, a_tp, a_ut, a_vt, a_wt, a_tt,&
-                       nfpt, spng_tfct, spng_wfct, nzp, nxp, nyp, th0, th00
-
+      USE grid, ONLY : nfpt, spng_tfct, spng_wfct, nzp, nxp, nyp, th00
+      USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_ut, a_vt, a_wt
+      USE mo_progn_state, ONLY : a_tp, a_tt
+      USE mo_aux_state, ONLY : u0, v0, th0
+      
       INTEGER, INTENT (in) :: isponge
 
       INTEGER :: i, j, k, kk
@@ -582,9 +599,9 @@ CONTAINS
                      a_tt%d(k,i,j) = a_tt%d(k,i,j) - spng_tfct(kk)*                   &
                                    (a_tp%d(k,i,j)-th0%d(k)+th00)
                   ELSE
-                     a_ut(k,i,j) = a_ut(k,i,j) - spng_tfct(kk)*(a_up(k,i,j)-u0%d(k))
-                     a_vt(k,i,j) = a_vt(k,i,j) - spng_tfct(kk)*(a_vp(k,i,j)-v0%d(k))
-                     a_wt(k,i,j) = a_wt(k,i,j) - spng_wfct(kk)*(a_wp(k,i,j))
+                     a_ut%d(k,i,j) = a_ut%d(k,i,j) - spng_tfct(kk)*(a_up%d(k,i,j)-u0%d(k))
+                     a_vt%d(k,i,j) = a_vt%d(k,i,j) - spng_tfct(kk)*(a_vp%d(k,i,j)-v0%d(k))
+                     a_wt%d(k,i,j) = a_wt%d(k,i,j) - spng_wfct(kk)*(a_wp%d(k,i,j))
                   END IF
                END DO
             END DO

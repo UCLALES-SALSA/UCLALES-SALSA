@@ -111,15 +111,20 @@ MODULE ncio
     ! Juha: Added more dimensions to represent bins for aerosol, cloud and
     ! precipitation particles.
     !
-    SUBROUTINE define_nc(ncID, nRec, out_nvar, outProg, outDiag, outDerived, outAxes, &
-                         n1, n2, n3, inae_a,incld_a,inprc,     &
-                         inae_b,incld_b,inice)
+    SUBROUTINE define_nc(ncID,nRec,out_nvar,     &
+                         outProg,outVector,      &
+                         outDiag,outDerived,     &
+                         outPS,outAxes,          &
+                         n1,n2,n3,               &
+                         inae_a,incld_a,         &
+                         inprc,inae_b,           &
+                         incld_b,inice           )
       
       INTEGER, INTENT (in)           :: ncID
       INTEGER, INTENT(inout) :: nRec
       INTEGER, INTENT(out) :: out_nvar
       TYPE(FieldArray), OPTIONAL, INTENT(in) :: outProg, outDiag, outDerived, &  ! these should be the subsets of FieldArray instances,
-                                                outAxes                          ! whose variables are marked as outputs, so the output
+                                                outVector, outPS, outAxes        ! whose variables are marked as outputs, so the output
                                                                                  ! status does not have to be tested. New ones can be added
                                                                                  ! e.g. for statistical outputs
       INTEGER, OPTIONAL, INTENT (in) :: n1, n2, n3    
@@ -208,12 +213,16 @@ MODULE ncio
          
          IF (PRESENT(outProg))  &
               CALL defvar_loop(ncID,outProg,out_nvar)
+         IF (PRESENT(outVector)) &
+              CALL defvar_loop(ncID,outVector,out_nvar)
          IF (PRESENT(outDiag))  &
               CALL defvar_loop(ncID,outDiag,out_nvar)
          IF (PRESENT(outAxes))  &
               CALL defvar_loop(ncID,outAxes,out_nvar)
          IF (PRESENT(outDerived)) &
               CALL defvar_loop(ncID,outDerived,out_nvar)
+         IF (PRESENT(outPS)) &
+              CALL defvar_loop(ncID,outPS,out_nvar)
          
          iret = nf90_enddef(ncID)
          iret = nf90_sync(ncID)
@@ -231,6 +240,10 @@ MODULE ncio
                xnm = outProg%list(n)%name
                iret = nf90_inquire_variable(ncID, n, name=xnm)
             END DO
+            DO n = 1, outVector%count
+               xnm = outVector%list(n)%name
+               iret = nf90_inquire_variable(ncId, n, name=xnm)
+            END DO
             DO n = 1,outDiag%count
                xnm = outDiag%list(n)%name
                iret = nf90_inquire_variable(ncID, n, name=xnm)
@@ -243,10 +256,12 @@ MODULE ncio
                xnm = outDerived%list(n)%name
                iret = nf90_inquire_variable(ncID, n, name=xnm)
             END DO
+            DO n = 1, outPS%count
+               xnm = outPS%list(n)%name
+               iret = nf90_inquire_variable(ncID, n, name=xnm)
+            END DO
             iret = nf90_sync(ncID)
          END IF
-
-
 
       END IF ! nrec
       

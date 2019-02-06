@@ -4,8 +4,8 @@ MODULE classFieldArray
    !
    ! Juha Tonttila, FMI, 2017
    !
-
    USE mo_structured_datatypes, ONLY : FloatArray0d, FloatArray1d, FloatArray2d, FloatArray3d, FloatArray4d
+
    IMPLICIT NONE
 
    TYPE ArrayElement
@@ -17,7 +17,8 @@ MODULE classFieldArray
       LOGICAL            :: outputstatus  ! TRUE: write this variable to an output file. FALSE: don't.
 
       ! Below are pointers to scalar variable arrays. In U-S, scalars have two definitions:
-      ! the previous value (p) and the tendency (t). These are given here as unlimited
+      ! the previous value (p) and the tendency (t). For vector variables the is also the
+      ! current (c) state. These are given here as unlimited
       ! polymorphic pointers. This makes it possible to associate them with any Fortran intrinsic
       ! or derived data type, without duplicating the code. However, for arrays of different ranks,
       ! derived datatypes must be used, which are available for 1-4d arrays (easy to add more...)
@@ -32,12 +33,14 @@ MODULE classFieldArray
 
       CLASS(*), POINTER :: p => NULL()
       CLASS(*), POINTER :: t => NULL()
-
+      CLASS(*), POINTER :: c => NULL()
+      
       CONTAINS
        
          PROCEDURE :: get_p
          PROCEDURE :: get_t
-
+         PROCEDURE :: get_c
+         
    END TYPE ArrayElement
 
    !-----------------------
@@ -75,6 +78,8 @@ MODULE classFieldArray
          GENERIC   :: getData => getData_0d, getData_1d, getData_2d, getData_3d, getData_4d
 
          PROCEDURE :: getFieldIndex
+
+         PROCEDURE :: Exist
        
          PROCEDURE :: destroy_FieldArray
          GENERIC   :: destroy => destroy_FieldArray
@@ -94,7 +99,8 @@ MODULE classFieldArray
    ! ---------------------------
    ! CONSTRUCTORS
    !
-   FUNCTION ArrayElement_constructor(in_name, in_long_name, in_unit, in_dimension, in_outputstatus, in_p_data, in_t_data, in_group)
+     FUNCTION ArrayElement_constructor(in_name,in_long_name,in_unit,in_dimension,in_outputstatus,   &
+                                       in_p_data,in_t_data,in_c_data,in_group)
       !
       ! --------------------------------
       ! Instantiate a new ArrayElement
@@ -108,6 +114,7 @@ MODULE classFieldArray
       LOGICAL, INTENT(in)                       :: in_outputstatus
       CLASS(*), INTENT(in), POINTER             :: in_p_data      ! Polymorphic pointer to data (values)
       CLASS(*), INTENT(in), POINTER, OPTIONAL   :: in_t_data      ! - '' - (tendencies)
+      CLASS(*), INTENT(in), POINTER, OPTIONAL   :: in_c_data      ! - '' - (current; for vectors)
       CHARACTER(len=*), INTENT(in), OPTIONAL    :: in_group
 
       ArrayElement_constructor%name = in_name
@@ -120,7 +127,8 @@ MODULE classFieldArray
       ArrayElement_constructor%group = "default"
       IF (PRESENT(in_group)) ArrayElement_constructor%group = in_group
       IF (PRESENT(in_t_data)) ArrayElement_constructor%t => in_t_data
-
+      IF (PRESENT(in_c_data)) ArrayElement_constructor%c => in_c_data
+      
    END FUNCTION ArrayElement_constructor
 
    ! ------------------------------------------
@@ -143,7 +151,8 @@ MODULE classFieldArray
    ! --------------------------------------------
    ! PROCEDURES BOUND TO FieldArray
    !
-   SUBROUTINE newField(SELF, in_name, in_long_name, in_unit, in_dimension, in_outputstatus, in_p_data, in_t_data, in_group)
+   SUBROUTINE newField(SELF,in_name,in_long_name,in_unit,in_dimension,in_outputstatus,   &
+                       in_p_data,in_t_data,in_c_data,in_group)
       !
       ! ------------------------------------------------------------
       ! Create a new variable in the FieldArray list
@@ -157,13 +166,14 @@ MODULE classFieldArray
       LOGICAL, INTENT(in)                      :: in_outputstatus
       CLASS(*), INTENT(in), POINTER            :: in_p_data   ! Polymorphic pointer to data (values)
       CLASS(*), INTENT(in), POINTER, OPTIONAL  :: in_t_data   ! - '' - (tendencies)
+      CLASS(*), INTENT(in), POINTER, OPTIONAL  :: in_c_data   ! - '' - (current)
       CHARACTER(len=*), INTENT(in), OPTIONAL   :: in_group
  
       ! Extend the variable list allocation in FieldArray
       CALL SELF%Extend()
       ! Pass the input data and parameters to ArrayElement constructor
       SELF%list(SELF%count) = ArrayElement(in_name,in_long_name,in_unit,in_dimension,in_outputstatus,  &
-                                           in_p_data,in_t_data,in_group)
+                                           in_p_data,in_t_data,in_c_data,in_group)
 
    END SUBROUTINE newField
 
@@ -279,9 +289,11 @@ MODULE classFieldArray
      TYPE(FieldArray), INTENT(out) :: FAout
 
      LOGICAL :: mask(SELF%count)
-
+    
      FAout = FieldArray()
 
+     IF (.NOT. SELF%Initialized) RETURN
+     
      mask = .FALSE.
      mask(:) = (SELF%list(:)%outputstatus)
 
@@ -301,22 +313,24 @@ MODULE classFieldArray
    ! getVarInst overloads the procedures getVarInst_name and getVarInst_ind bound to
    ! FieldArray.
    !
-   SUBROUTINE getVarInst_name(SELF,in_name,out,tend)
+   SUBROUTINE getVarInst_name(SELF,in_name,out,tlev)
       IMPLICIT NONE
       CLASS(FieldArray), INTENT(in)    :: SELF
       CHARACTER(len=*), INTENT(in)     :: in_name  ! Variable name
       CLASS(*), INTENT(out), POINTER   :: out      ! Variable instance
-      INTEGER, INTENT(in)              :: tend     ! Get the values (1; default) or tendencies (2)
+      INTEGER, INTENT(in)              :: tlev     ! Get the values (1; default) or tendencies (2) or current (for vectors; 3)
 
       TYPE(ArrayElement), POINTER :: Element       ! Pointer to the FieldArray list element
       INTEGER :: ind
 
       CALL SELF%getFieldIndex(in_name,ind)
       CALL SELF%getField(ind,Element)
-      IF (tend==1) THEN
+      IF (tlev==1) THEN
          CALL Element%get_p(out)
-      ELSE IF (tend==2) THEN
+      ELSE IF (tlev==2) THEN
          CALL Element%get_t(out)
+      ELSE IF (tlev==3) THEN
+         CALL Element%get_c(out)
       END IF
 
       Element => NULL()
@@ -324,20 +338,22 @@ MODULE classFieldArray
    END SUBROUTINE getVarInst_name
    ! -------
    ! -------
-   SUBROUTINE getVarInst_ind(SELF,ind,out,tend)
+   SUBROUTINE getVarInst_ind(SELF,ind,out,tlev)
       IMPLICIT NONE
       CLASS(FieldArray), INTENT(in)    :: SELF
       INTEGER, INTENT(in)              :: ind     ! Index of the variable in the FieldArray list
       CLASS(*), INTENT(out), POINTER   :: out     ! Variable instance
-      INTEGER, INTENT(in)              :: tend    ! Get the values (1; default) or tendencies (2)
+      INTEGER, INTENT(in)              :: tlev    ! Get the values (1; default) or tendencies (2) or current (for vectors; 3)
 
       TYPE(ArrayElement), POINTER :: Element      ! Pointer to the FieldArray list element
 
       CALL SELF%getField(ind,Element)
-      IF (tend==1) THEN
+      IF (tlev==1) THEN
          CALL Element%get_p(out)
-      ELSE IF (tend==2) THEN
+      ELSE IF (tlev==2) THEN
          CALL Element%get_t(out)
+      ELSE IF (tlev==3) THEN
+         CALL Element%get_c(out)
       END IF
 
       Element => NULL()
@@ -358,20 +374,20 @@ MODULE classFieldArray
    ! is returned. getData currently overloads the procedures getData_1d,
    ! getData_2d, getData_3d and getData_4d bound to FieldArray.
    !
-   SUBROUTINE getData_0d(SELF,tend,out,index,name)
+   SUBROUTINE getData_0d(SELF,tlev,out,index,name)
       IMPLICIT NONE
       CLASS(FieldArray), INTENT(in)            :: SELF
       TYPE(FloatArray0d), INTENT(out), POINTER :: out    ! Data container instance
       INTEGER, INTENT(in), OPTIONAL            :: index  ! Index of the variable in the FieldArray list
       CHARACTER(len=*), INTENT(in), OPTIONAL   :: name   ! Name of the variable
-      INTEGER, INTENT(in)                      :: tend   ! Get value (1; default) or tendency (2)
+      INTEGER, INTENT(in)                      :: tlev   ! Get value (1; default) or tendency (2) or current (for vectors; 3)
 
       CLASS(*), POINTER :: pp  ! Polymorphic pointer to the variable instance in ArrayElement
 
       IF (PRESENT(index)) THEN
-         CALL SELF%getVarInst(index,pp,tend)
+         CALL SELF%getVarInst(index,pp,tlev)
       ELSE IF (PRESENT(name)) THEN
-         CALL SELF%getVarInst(name,pp,tend)
+         CALL SELF%getVarInst(name,pp,tlev)
       END IF
 
       ! Collapse to inquired datatype. If the in_name or ind does not point to
@@ -385,20 +401,20 @@ MODULE classFieldArray
    
    ! ---------
    ! ---------
-   SUBROUTINE getData_1d(SELF,tend,out,index,name)
+   SUBROUTINE getData_1d(SELF,tlev,out,index,name)
       IMPLICIT NONE
       CLASS(FieldArray), INTENT(in)            :: SELF
       TYPE(FloatArray1d), INTENT(out), POINTER :: out    ! Data container instance
       INTEGER, INTENT(in), OPTIONAL            :: index  ! Index of the variable in the FieldArray list
       CHARACTER(len=*), INTENT(in), OPTIONAL   :: name   ! Name of the variable
-      INTEGER, INTENT(in)                      :: tend   ! Get value (1; default) or tendency (2)
+      INTEGER, INTENT(in)                      :: tlev   ! Get value (1; default) or tendency (2) or current (for vectors; 3)
 
       CLASS(*), POINTER :: pp  ! Polymorphic pointer to the variable instance in ArrayElement
 
       IF (PRESENT(index)) THEN
-         CALL SELF%getVarInst(index,pp,tend)
+         CALL SELF%getVarInst(index,pp,tlev)
       ELSE IF (PRESENT(name)) THEN
-         CALL SELF%getVarInst(name,pp,tend)
+         CALL SELF%getVarInst(name,pp,tlev)
       END IF
 
       ! Collapse to inquired datatype. If the in_name or ind does not point to
@@ -411,20 +427,20 @@ MODULE classFieldArray
    END SUBROUTINE getData_1d
    ! ---------
    ! ---------
-   SUBROUTINE getData_2d(SELF,tend,out,index,name)
+   SUBROUTINE getData_2d(SELF,tlev,out,index,name)
       IMPLICIT NONE
       CLASS(FieldArray), INTENT(in)            :: SELF
       TYPE(FloatArray2d), INTENT(out), POINTER :: out    ! Data container instance
       INTEGER, INTENT(in), OPTIONAL            :: index  ! Index of the variable in the FieldArray list
       CHARACTER(len=*), INTENT(in), OPTIONAL   :: name   ! Name of the variable
-      INTEGER, INTENT(in)                      :: tend   ! Get value (1; default) or tendency (2)
+      INTEGER, INTENT(in)                      :: tlev   ! Get value (1; default) or tendency (2) or current (for vectors; 3)
 
       CLASS(*), POINTER :: pp  ! Polymorphic pointer to the variable instance in ArrayElement
 
       IF (PRESENT(index)) THEN
-         CALL SELF%getVarInst(index,pp,tend)
+         CALL SELF%getVarInst(index,pp,tlev)
       ELSE IF (PRESENT(name)) THEN
-         CALL SELF%getVarInst(name,pp,tend)
+         CALL SELF%getVarInst(name,pp,tlev)
       END IF
 
       ! Collapse to inquired datatype. If the in_name or ind does not point to
@@ -437,20 +453,20 @@ MODULE classFieldArray
    END SUBROUTINE getData_2d
    ! ---------
    ! ---------
-   SUBROUTINE getData_3d(SELF,tend,out,index,name)
+   SUBROUTINE getData_3d(SELF,tlev,out,index,name)
       IMPLICIT NONE
       CLASS(FieldArray), INTENT(in)            :: SELF
       TYPE(FloatArray3d), INTENT(out), POINTER :: out    ! Data container instance
       INTEGER, INTENT(in), OPTIONAL            :: index  ! Index of the variable in the FieldArray list
       CHARACTER(len=*), INTENT(in), OPTIONAL   :: name   ! Name of the variable
-      INTEGER, INTENT(in)                      :: tend   ! Get value (1; default) or tendency (2)
+      INTEGER, INTENT(in)                      :: tlev   ! Get value (1; default) or tendency (2) or current (for vectors; 3)
 
       CLASS(*), POINTER :: pp  ! Polymorphic pointer to the variable instance in ArrayElement
 
       IF (PRESENT(index)) THEN
-         CALL SELF%getVarInst(index,pp,tend)
+         CALL SELF%getVarInst(index,pp,tlev)
       ELSE IF (PRESENT(name)) THEN
-         CALL SELF%getVarInst(name,pp,tend)
+         CALL SELF%getVarInst(name,pp,tlev)
       END IF
 
       ! Collapse to inquired datatype. If the in_name or ind does not point to
@@ -463,20 +479,20 @@ MODULE classFieldArray
    END SUBROUTINE getData_3d
    ! ---------
    ! ---------
-   SUBROUTINE getData_4d(SELF,tend,out,index,name)
+   SUBROUTINE getData_4d(SELF,tlev,out,index,name)
       IMPLICIT NONE
       CLASS(FieldArray), INTENT(in)            :: SELF
       TYPE(FloatArray4d), INTENT(out), POINTER :: out    ! Data container instance
       INTEGER, INTENT(in), OPTIONAL            :: index  ! Index of the variable in the FieldArray list
       CHARACTER(len=*), INTENT(in), OPTIONAL   :: name   ! Name of the variable
-      INTEGER, INTENT(in)                      :: tend   ! Get value (1; default) or tendency (2)
+      INTEGER, INTENT(in)                      :: tlev   ! Get value (1; default) or tendency (2) or current (for vectors; 3)
 
       CLASS(*), POINTER :: pp  ! Polymorphic pointer to the variable instance in ArrayElement
 
       IF (PRESENT(index)) THEN
-         CALL SELF%getVarInst(index,pp,tend)
+         CALL SELF%getVarInst(index,pp,tlev)
       ELSE IF (PRESENT(name)) THEN
-         CALL SELF%getVarInst(name,pp,tend)
+         CALL SELF%getVarInst(name,pp,tlev)
       END IF
 
       ! Collapse to inquired datatype. If the in_name or ind does not point to
@@ -517,6 +533,25 @@ MODULE classFieldArray
       
    END SUBROUTINE getFieldIndex
 
+   ! -----------------------------------------------------------------
+   
+   LOGICAL FUNCTION Exist(SELF,iname)
+     CLASS(FieldArray), INTENT(in) :: SELF
+     CHARACTER(len=*), INTENT(in) :: iname
+
+     INTEGER :: i
+     
+     ! Check if variable with iname exists
+     Exist = .FALSE.
+     DO i = 1,SELF%count
+        IF (SELF%list(i)%name == iname) THEN
+           Exist = .TRUE.
+           EXIT
+        END IF
+     END DO     
+   END FUNCTION Exist
+   
+   
    ! ---------------------------------------------------------------
 
    SUBROUTINE destroy_FieldArray(SELF)
@@ -555,5 +590,17 @@ MODULE classFieldArray
 
    END SUBROUTINE get_t
 
+   ! --------------------------------------------------------------
+
+   SUBROUTINE get_c(SELF,out)
+     IMPLICIT NONE
+     CLASS(ArrayElement), INTENT(in) :: SELF
+     CLASS(*), INTENT(out), POINTER  :: out
+
+     out => SELF%c
+
+   END SUBROUTINE get_c
+
+   
 
 END MODULE classFieldArray

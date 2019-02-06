@@ -1,6 +1,8 @@
 MODULE mo_salsa_types
   USE classSection, ONLY : Section
   IMPLICIT NONE
+
+  SAVE
   
   ! This module is a container for SALSA datatypes.
   ! Previously most of the stuff was placed in mo_submctl.

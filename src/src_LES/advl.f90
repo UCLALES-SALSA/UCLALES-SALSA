@@ -33,8 +33,8 @@ CONTAINS
    !
    SUBROUTINE ladvect
 
-      USE grid, ONLY : a_uc, a_vc, a_wc, a_ut, a_vt, a_wt,      &
-           nxp, nyp, nzp, dxi, dyi
+      USE grid, ONLY : nxp, nyp, nzp, dxi, dyi
+      USE mo_vector_state, ONLY : a_uc, a_vc, a_wc, a_ut, a_vt, a_wt
       USE mo_aux_state, ONLY : dzt, dzm, dn0
       !USE stat, ONLY : sflg, updtst, acc_tend
       USE util, ONLY : get_avg3
@@ -52,9 +52,9 @@ CONTAINS
       ! advection of u by (u,v,w) all at current timelevel.  also when flag
       ! is set updated statistical array with uw flux derived from ladvzu
       !
-      CALL ladvxu(nzp,nxp,nyp,a_uc,a_ut,a_tmp2,dxi)
-      CALL ladvyu(nzp,nxp,nyp,a_uc,a_ut,a_vc,a_tmp2,dyi)
-      CALL ladvzu(nzp,nxp,nyp,a_uc,a_ut,a_tmp1,a_tmp2,v1da)
+      CALL ladvxu(nzp,nxp,nyp,a_uc%d,a_ut%d,a_tmp2,dxi)
+      CALL ladvyu(nzp,nxp,nyp,a_uc%d,a_ut%d,a_vc%d,a_tmp2,dyi)
+      CALL ladvzu(nzp,nxp,nyp,a_uc%d,a_ut%d,a_tmp1,a_tmp2,v1da)
       !IF (sflg) THEN
       !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
       !   CALL updtst(nzp,'adv',-1,v1st,1)
@@ -63,9 +63,9 @@ CONTAINS
       ! advection of v by (u,v,w) all at current timelevel.  also when flag
       ! is set updated statistical array with uw flux derived from ladvzu
       !
-      CALL ladvxv(nzp,nxp,nyp,a_uc,a_vc,a_vt,a_tmp2,dxi)
-      CALL ladvyv(nzp,nxp,nyp,a_vc,a_vt,a_tmp2,dyi)
-      CALL ladvzv(nzp,nxp,nyp,a_vc,a_vt,a_tmp1,a_tmp2,v1da)
+      CALL ladvxv(nzp,nxp,nyp,a_uc%d,a_vc%d,a_vt%d,a_tmp2,dxi)
+      CALL ladvyv(nzp,nxp,nyp,a_vc%d,a_vt%d,a_tmp2,dyi)
+      CALL ladvzv(nzp,nxp,nyp,a_vc%d,a_vt%d,a_tmp1,a_tmp2,v1da)
       !IF (sflg) THEN
       !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
       !   CALL updtst(nzp,'adv',-2,v1st,1)
@@ -74,9 +74,9 @@ CONTAINS
       ! advection of w by (u,v,w) all at current timelevel.  also when flag
       ! is set updated statistical array with uw flux derived from ladvzu
       !
-      CALL ladvxw(nzp,nxp,nyp,a_uc,a_wc,a_wt,a_tmp2,dxi)
-      CALL ladvyw(nzp,nxp,nyp,a_vc,a_wc,a_wt,a_tmp2,dyi)
-      CALL ladvzw(nzp,nxp,nyp,a_wc,a_wt,a_tmp1,a_tmp2,v1db)
+      CALL ladvxw(nzp,nxp,nyp,a_uc%d,a_wc%d,a_wt%d,a_tmp2,dxi)
+      CALL ladvyw(nzp,nxp,nyp,a_vc%d,a_wc%d,a_wt%d,a_tmp2,dyi)
+      CALL ladvzw(nzp,nxp,nyp,a_wc%d,a_wt%d,a_tmp1,a_tmp2,v1db)
 
       !IF (sflg) THEN
       !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1st)
@@ -387,14 +387,14 @@ CONTAINS
    SUBROUTINE advl_prep(n1,n2,n3,w,wm,dn0,dzt,dzm,v1,v2)
 
       INTEGER, INTENT (in)           ::  n1,n2,n3
-      REAL, INTENT (in)              ::  w(n1,n2,n3)
+      TYPE(FloatArray3d), INTENT(in) ::  w
       TYPE(FloatArray1d), INTENT(in) ::  dn0,dzt,dzm
       REAL, INTENT (out)             ::  wm(n1,n2,n3),v1(n1),v2(n1)
 
       INTEGER :: k
 
       DO k = 1, n1-1
-         wm(k,:,:) = w(k,:,:)*(dn0%d(k)+dn0%d(k+1))*.5
+         wm(k,:,:) = w%d(k,:,:)*(dn0%d(k)+dn0%d(k+1))*.5
          v1(k) = dzt%d(k)/dn0%d(k)
          v2(k) = 2.*dzm%d(k)/(dn0%d(k)+dn0%d(k+1))
       END DO

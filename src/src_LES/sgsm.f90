@@ -81,8 +81,8 @@ CONTAINS
     USE mo_aux_state, ONLY : zm, dzt, dzm, dn0, pi0, pi1
     USE mo_diag_state, ONLY : a_rv, a_rc, a_ri, a_srp, a_pexnr, a_theta, a_temp, a_rsl, uw_sfc, vw_sfc, ww_sfc, wt_sfc, wq_sfc
     USE mo_progn_state, ONLY : a_rp, a_tp, a_tt, a_qt, a_qp
-    USE grid, ONLY : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt,    &
-                     a_sp, a_st, nscl, nxp, nyp,    &
+    USE mo_vector_state, ONLY : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt
+    USE grid, ONLY : a_sp, a_st, nscl, nxp, nyp,    &
                      nzp, dxi, dyi, dtlt, dtlv , th00,   &
                      newsclr, level, isgstyp
 
@@ -122,7 +122,7 @@ CONTAINS
     ! are calculated and applied.  Until then use them as scratch by
     ! associating them with scratch pointers (a-c)
     !
-    CALL deform(nzp,nxp,nyp,dzm,dzt,dxi,dyi,a_up,a_vp,a_wp,a_tmp5,a_tmp6,     &
+    CALL deform(nzp,nxp,nyp,dzm,dzt,dxi,dyi,a_up%d,a_vp%d,a_wp%d,a_tmp5,a_tmp6,     &
                 a_tmp4,a_tmp2)
 
     ! ----------
@@ -147,20 +147,20 @@ CONTAINS
     sxy1 = 0.; sxy2 = 0.
 
     CALL diff_vpt(nzp,nxp,nyp,dn0,dzm,dzt,dxi,dyi,dtlv,vw_sfc%d,sxy2,a_tmp6,     &
-                  a_tmp5,a_tmp1,a_vp,a_wp,a_vt,sz2)
+                  a_tmp5,a_tmp1,a_vp%d,a_wp%d,a_vt%d,sz2)
 
     CALL diff_upt(nzp,nxp,nyp,dn0,dzm,dzt,dxi,dyi,dtlv,uw_sfc%d,sxy1,a_tmp5,     &
-                  a_tmp1,a_up,a_wp,a_ut,sz1)
+                  a_tmp1,a_up%d,a_wp%d,a_ut%d,sz1)
 
     CALL diff_wpt(nzp,nxp,nyp,dn0,dzm,dzt,dyi,dxi,dtlv,ww_sfc%d,sxy1,a_tmp4,     &
-                  a_tmp1,a_wp,a_up,a_wt,sz3)
+                  a_tmp1,a_wp%d,a_up%d,a_wt%d,sz3)
 
-    CALL cyclics(nzp,nxp,nyp,a_wt,req)
-    CALL cyclicc(nzp,nxp,nyp,a_wt,req)
-    CALL cyclics(nzp,nxp,nyp,a_vt,req)
-    CALL cyclicc(nzp,nxp,nyp,a_vt,req)
-    CALL cyclics(nzp,nxp,nyp,a_ut,req)
-    CALL cyclicc(nzp,nxp,nyp,a_ut,req)
+    CALL cyclics(nzp,nxp,nyp,a_wt%d,req)
+    CALL cyclicc(nzp,nxp,nyp,a_wt%d,req)
+    CALL cyclics(nzp,nxp,nyp,a_vt%d,req)
+    CALL cyclicc(nzp,nxp,nyp,a_vt%d,req)
+    CALL cyclics(nzp,nxp,nyp,a_ut%d,req)
+    CALL cyclicc(nzp,nxp,nyp,a_ut%d,req)
 
     !IF (sflg) THEN
     !   CALL sgs_vel(nzp,nxp,nyp,sz1,sz2,sz3)

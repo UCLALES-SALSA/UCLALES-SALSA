@@ -85,11 +85,11 @@ MODULE mo_aux_state
 
       zt = FloatArray1d(zeros_z,store=.TRUE.)
       pipeline => zt
-      CALL Axes%newField('zt','zt','m','zt',.TRUE.,pipeline)
+      CALL Axes%newField('zt','zt','m','zt',.TRUE.,pipeline,in_group="ps")
 
       zm = FloatArray1d(zeros_z,store=.TRUE.)
       pipeline => zm
-      CALL Axes%newField('zm','zm','m','zm',.TRUE.,pipeline)
+      CALL Axes%newField('zm','zm','m','zm',.TRUE.,pipeline,in_group="ps")
 
       dzt = FloatArray1d(zeros_z,store=.TRUE.)
       pipeline => dzt
@@ -102,11 +102,11 @@ MODULE mo_aux_state
       IF (level >= 4) THEN
          aea = FloatArray1d(aerobins(in1a:fn2a),store=.TRUE.)
          pipeline => aea
-         CALL Axes%newField('aea','Aerosol A lower limits','m','aea',lbinanl,pipeline)
+         CALL Axes%newField('aea','Aerosol A lower limits','m','aea',lbinanl,pipeline,in_group="ps")
          
          aeb = FloatArray1d(aerobins(in2b:fn2b),store=.TRUE.)
          pipeline => aeb
-         CALL Axes%newField('aeb','Aerosol B lower limits','m','aeb',lbinanl,pipeline)
+         CALL Axes%newField('aeb','Aerosol B lower limits','m','aeb',lbinanl,pipeline,in_group="ps")
          
          aetot = FloatArray1d(aerobins(in1a:fn2b),store=.TRUE.)
          pipeline => aetot
@@ -114,11 +114,11 @@ MODULE mo_aux_state
          
          cla = FloatArray1d(cloudbins(ica%cur:fca%cur),store=.TRUE.)
          pipeline => cla
-         CALL Axes%newField('cla','Cloud A lower limits','m','cla',lbinanl,pipeline)
+         CALL Axes%newField('cla','Cloud A lower limits','m','cla',lbinanl,pipeline,in_group="ps")
          
          clb = FloatArray1d(cloudbins(icb%cur:fcb%cur),store=.TRUE.)
          pipeline => clb
-         CALL Axes%newField('clb','Cloud B lower limits','m','clb',lbinanl,pipeline)
+         CALL Axes%newField('clb','Cloud B lower limits','m','clb',lbinanl,pipeline,in_group="ps")
          
          cltot = FloatArray1d(cloudbins(ica%cur:fcb%cur),store=.TRUE.)
          pipeline => cltot
@@ -126,12 +126,12 @@ MODULE mo_aux_state
          
          prc = FloatArray1d(precpbins(1:nprc),store=.TRUE.)
          pipeline => prc
-         CALL Axes%newField('prc','Precip lower limits','m','prc',lbinanl,pipeline)
+         CALL Axes%newField('prc','Precip lower limits','m','prc',lbinanl,pipeline,in_group="ps")
          
          IF (level == 5) THEN
             ice = FloatArray1d(icebins(1:nice),store=.TRUE.)     
             pipeline => ice
-            CALL Axes%newField('ice','Ice lower limits','m','ice',lbinanl,pipeline)
+            CALL Axes%newField('ice','Ice lower limits','m','ice',lbinanl,pipeline,in_group="ps")
          END IF
       END IF
          

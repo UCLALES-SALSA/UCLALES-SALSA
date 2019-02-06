@@ -972,6 +972,11 @@ CONTAINS
             zcwintae = zcwcae; zcwintcd = zcwccd; zcwintpd = zcwcpd
             zcwintit = zcwcit
 
+            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND1 ',zmtcd(1:7)
+            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND2 ',zcwccd(1:7)
+            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND3 ',zcwsurfcd(1:7)
+            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND4 ',zwsatcd(1:7)
+            
             ! Substepping loop
             ! ---------------------------------
             zcwint = 0.
@@ -1014,7 +1019,7 @@ CONTAINS
                IF ( ANY(ice(ii,jj,:)%numc > ice(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, nice
                      zcwintit(cc) = zcwcit(cc) + MIN(MAX(adt*zmtic(cc)*(zcwint - zwsatic(cc)*zcwsurfic(cc)), &
-                          -0.02*zcwcit(cc)),0.5*zcwcit(cc)) ! Note the increased limit for growth
+                          -0.02*zcwcit(cc)),0.1*zcwcit(cc)) ! Note the increased limit for growth
                      zwsatic(cc) = zkelvinic(cc)
                   END DO
                END IF

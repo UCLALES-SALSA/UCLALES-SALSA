@@ -21,8 +21,10 @@ MODULE init
 
    USE grid
    USE mo_progn_state
+   USE mo_vector_state
    USE mo_diag_state
    USE mo_aux_state
+   USE mo_history, ONLY : read_hist, write_hist
    
    INTEGER, PARAMETER    :: nns = 1500
    INTEGER               :: ns
@@ -59,8 +61,8 @@ CONTAINS
       USE emission_init, ONLY : init_emission
       USE constrain_SALSA, ONLY : SALSA_diagnostics
       USE mo_structured_datatypes
-      USE mo_output, ONLY : init_main, write_main
-
+      USE mo_output, ONLY : init_main, write_main, init_ps, write_ps
+      USE mo_field_types, ONLY : Diag, Prog
       
       IMPLICIT NONE
 
@@ -91,7 +93,7 @@ CONTAINS
                               time,level,.TRUE.           )
             ELSE
                CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,n4,   &
-                              a_wp,a_nactd,a_vactd,dtlt,  &
+                              a_wp%d,a_nactd,a_vactd,dtlt,  &
                               time, level,.TRUE.          )
             END IF
             CALL SALSAInit
@@ -152,6 +154,7 @@ CONTAINS
          IF (runtype == 'INITIAL') THEN
             CALL write_hist(1, time)
             CALL init_main(time)
+            CALL init_ps(time)
             CALL thermo(level)
             CALL write_main(time)
          ELSE
@@ -189,8 +192,8 @@ CONTAINS
          DO i = 1, nxp
             a_ustar%d(i,j) = 0.
             DO k = 1, nzp
-               a_up(k,i,j)    = u0%d(k)
-               a_vp(k,i,j)    = v0%d(k)
+               a_up%d(k,i,j)    = u0%d(k)
+               a_vp%d(k,i,j)    = v0%d(k)
                a_tp%d(k,i,j)    = (th0%d(k)-th00)
                IF (associated (a_rp%d)) a_rp%d(k,i,j)   = rt0%d(k)
                a_theta%d(k,i,j) = th0%d(k)
@@ -276,7 +279,7 @@ CONTAINS
          CALL warm_bubble()
       END IF
 
-      a_wp = 0.
+      a_wp%d = 0.
       IF(isgstyp == 2) CALL tkeinit(nxyzp,a_qp%d)
       !
       ! initialize thermodynamic fields
@@ -291,9 +294,9 @@ CONTAINS
          CALL init_gas_tracers
       END IF
 
-      a_uc = a_up
-      a_vc = a_vp
-      a_wc = a_wp
+      a_uc%d = a_up%d
+      a_vc%d = a_vp%d
+      a_wc%d = a_wp%d
 
       RETURN
    END SUBROUTINE fldinit

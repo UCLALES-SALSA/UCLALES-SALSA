@@ -20,14 +20,14 @@
 MODULE forc
 
   USE grid, ONLY: nxp,nyp,nzp,iradtyp,lnudging,lemission,  &
-                  albedo,CCN,level,a_ut,a_up,a_vt,a_vp,SALSA_tracers_4d
-                  
+                  CCN,level
+  USE mo_vector_state, ONLY : a_ut, a_up, a_vt, a_vp
+  USE mo_field_types, ONLY : SALSA_tracers_4d                  
   USE mo_aux_state, ONLY : zm,zt,dzt,dzm,dn0,pi0,pi1
   USE mo_diag_state, ONLY : a_pexnr,a_temp,a_rv,a_rc,a_rflx,a_sflx,   &
-                            a_fus,a_fds,a_fuir,a_fdir
+                            a_fus,a_fds,a_fuir,a_fdir,albedo
   USE mo_progn_state, ONLY : a_tt,a_tp,a_rt,a_rp,a_rpp, a_npp,        &
-                             a_ncloudp,a_nprecpp,a_mprecpp,a_nicep
-  
+                             a_ncloudp,a_nprecpp,a_mprecpp,a_nicep  
   USE mpi_interface, ONLY : myid, appl_abort
   USE util, ONLY : get_avg2dh
   USE defs, ONLY      : cp
@@ -134,7 +134,7 @@ CONTAINS
        ! ??
        !---
        CALL bellon(nzp, nxp, nyp, a_rflx, a_sflx, zt, dzt, dzm, a_tt, a_tp,&
-                   a_rt, a_rp, a_ut, a_up, a_vt, a_vp)
+                   a_rt, a_rp, a_ut%d, a_up%d, a_vt%d, a_vp%d)
     END SELECT 
 
   END SUBROUTINE forcings
@@ -251,7 +251,7 @@ CONTAINS
 
     TYPE(FloatArray4d), POINTER :: varp => NULL(), vart => NULL()
     
-    INTEGER :: i,j,k,kp1,b
+    INTEGER :: i,j,k,kp1,b,c
     REAL, DIMENSION (n1) :: sf
     REAL, PARAMETER :: zmx_sub = 2260. ! originally 2260.
 
@@ -285,8 +285,14 @@ CONTAINS
           DO b = 1,SALSA_tracers_4d%count
              CALL SALSA_tracers_4d%getData(1,varp,index=b)
              CALL SALSA_tracers_4d%getData(2,vart,index=b)
-             vart%d(2:n1-1,:,:,:) = vart%d(2:n1-1,:,:,:) -   &
-                  (varp%d(3:n1,:,:,:) - varp%d(2:n1-1,:,:,:))*sf(k)
+             DO c = 1,SIZE(varp%d,DIM=4)
+                DO j = 3,n3-2
+                   DO i = 3,n2-2
+                      vart%d(2:n1-1,i,j,c) = vart%d(2:n1-1,i,j,c) -   &
+                           (varp%d(3:n1,i,j,c) - varp%d(2:n1-1,i,j,c))*sf(2:n1-1)
+                   END DO
+                END DO
+             END DO
           END DO
 
           varp => NULL(); vart => NULL()

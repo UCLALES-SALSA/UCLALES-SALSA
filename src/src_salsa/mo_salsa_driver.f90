@@ -177,6 +177,7 @@ CONTAINS
                
                ! Take a copies for the old values. Note that the order of the categories in these arrays is CRUCIAL.
                ! It follows the phase indexing in classSection.
+               ! Also make use of these when preparing SALSA inputs below.
                npart(1) = FloatArray1d(naerop%d(kk,ii,jj,:),store=.TRUE.)
                npart(2) = FloatArray1d(ncloudp%d(kk,ii,jj,:),store=.TRUE.)
                npart(3) = FloatArray1d(nprecpp%d(kk,ii,jj,:),store=.TRUE.)
@@ -203,7 +204,6 @@ CONTAINS
                   
                   nbloc = nb - bin_starts(icat) + 1
                   catnbins = bin_numbers(icat)
-                  IF (nbloc <= 0 .OR. nbloc > ntotal) WRITE(*,*) 'DRIVER VIRHE', nb, nbloc
                   
                   ! Update volume concentrations. Note, rime handled separately below
                   IF (icat < 4) THEN
@@ -268,28 +268,27 @@ CONTAINS
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc)
                         mtend(icat)%d(str) = mtend(icat)%d(str) + &
-                             ( allSALSA(1,1,nb)%volc(nc)*spec%rholiq(nc)/pdn%d(kk,ii,jj) -   &
+                             ( (allSALSA(1,1,nb)%volc(nc)*spec%rholiq(nc)/pdn%d(kk,ii,jj)) -   &
                                mpart(icat)%d(str) ) / tstep
                      END DO
                   ELSE IF (icat == 4) THEN
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc)
                         mtend(icat)%d(str) = mtend(icat)%d(str) + &
-                             ( allSALSA(1,1,nb)%volc(nc)*spec%rhoice(nc)/pdn%d(kk,ii,jj) -   &
+                             ( (allSALSA(1,1,nb)%volc(nc)*spec%rhoice(nc)/pdn%d(kk,ii,jj)) -   &
                                mpart(icat)%d(str) ) / tstep
                      END DO
                      str = getMassIndex(catnbins,nbloc,irim)
                      mtend(icat)%d(str) = mtend(icat)%d(str) + &
-                          ( allSALSA(1,1,nb)%volc(irim)*spec%rhori/pdn%d(kk,ii,jj) -     &
+                          ( (allSALSA(1,1,nb)%volc(irim)*spec%rhori/pdn%d(kk,ii,jj)) -     &
                             mpart(icat)%d(str) ) / tstep
                   END IF
                         
                   ! Update number tendencies
                   ntend(icat)%d(nbloc) = ntend(icat)%d(nbloc) + &
-                       ( allSALSA(1,1,nb)%numc/pdn%d(kk,ii,jj) - npart(icat)%d(nbloc) )/tstep
+                       ( (allSALSA(1,1,nb)%numc/pdn%d(kk,ii,jj)) - npart(icat)%d(nbloc) )/tstep
 
                END DO
-
                
                ! Activated droplets
                pa_nactd(kk,ii,jj,1:ncld) = actd(1,1,1:ncld)%numc/pdn%d(kk,ii,jj)
@@ -318,11 +317,20 @@ CONTAINS
                                           ( (zgocsv(1,1)/pdn%d(kk,ii,jj)) - gaerop%d(kk,ii,jj,5) )/tstep
                END IF
 
+               !IF (kk == 40 .AND. ii == 3 .AND. jj == 23) THEN
+               !   WRITE(*,*) 'DRIVER, arvo vanha', rv_old(1,1)
+               !   WRITE(*,*) 'DRIVER, arvo uusi', in_rv(1,1)
+               !END IF
+                  
                ! Tendency of water vapour mixing ratio 
                rt%d(kk,ii,jj) = rt%d(kk,ii,jj) + &
                   ( in_rv(1,1) - rv_old(1,1) )/tstep
 
-            END DO ! kk
+               !IF (kk == 40 .AND. ii == 3 .AND. jj == 23) THEN
+               !   WRITE(*,*) 'DRIVER, tend ', rt%d(kk,ii,jj)
+               !END IF
+               
+            END DO !kk
          END DO ! ii
       END DO ! jj
 

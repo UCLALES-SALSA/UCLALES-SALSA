@@ -4,7 +4,8 @@ MODULE nudg
   USE mo_diag_state, ONLY : a_rc, a_srp, a_ri
   USE mo_progn_state, ONLY : a_rp, a_rt, a_rpp, a_tp, a_tt,   &
                              a_naerop, a_naerot, a_ncloudp, a_nicep
-  USE grid, ONLY : level, dtlt, nxp, nyp, nzp, a_up, a_ut, a_vp, a_vt
+  USE mo_vector_state, ONLY : a_up, a_ut, a_vp, a_vt
+  USE grid, ONLY : level, dtlt, nxp, nyp, nzp
   USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
   USE nudg_defs 
   
@@ -57,12 +58,12 @@ MODULE nudg
     IF (ndg_u%nudgetype > 0) THEN
       !Ali, if it is not allocated during reading a history file 
       IF (.NOT.ALLOCATED(u_ref) ) ALLOCATE(u_ref(nzp))
-       u_ref(:) = a_up(:,3,3)
+       u_ref(:) = a_up%d(:,3,3)
     END IF
     IF (ndg_v%nudgetype > 0) THEN
       !Ali, if it is not allocated during reading a history file 
       IF (.NOT.ALLOCATED(v_ref) ) ALLOCATE(v_ref(nzp))
-       v_ref(:) = a_vp(:,3,3)
+       v_ref(:) = a_vp%d(:,3,3)
     END IF
     !
     ! Aerosol concentration for level 4. Nudge aerosol concentration based on
@@ -119,11 +120,11 @@ MODULE nudg
       
       ! Horizontal winds
       IF ( ndg_u%nudgetype > 0 ) &
-           CALL nudge_any(nxp,nyp,nzp,zt%d,a_up,dtlt,time,    &
-                          ndg_u,u_ref,a_ut)
+           CALL nudge_any(nxp,nyp,nzp,zt%d,a_up%d,dtlt,time,    &
+                          ndg_u,u_ref,a_ut%d)
       IF ( ndg_v%nudgetype > 0 ) &
-           CALL nudge_any(nxp,nyp,nzp,zt%d,a_vp,dtlt,time,    &
-                          ndg_v,v_ref,a_vt)
+           CALL nudge_any(nxp,nyp,nzp,zt%d,a_vp%d,dtlt,time,    &
+                          ndg_v,v_ref,a_vt%d)
       
       ! Aerosol 
       IF (level > 3 .AND. ndg_aero%nudgetype > 0 ) THEN
