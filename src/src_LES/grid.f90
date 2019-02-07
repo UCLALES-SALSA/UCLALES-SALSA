@@ -85,12 +85,6 @@ MODULE grid
   ! Some zero arrays ice with level < 5
   REAL, ALLOCATABLE, TARGET :: tmp_icep(:,:,:,:), tmp_icet(:,:,:,:)
   !
-  ! Prognostic vector variables (past, current and tendency)
-  !
-!  REAL, ALLOCATABLE, TARGET :: a_up(:,:,:),a_uc(:,:,:),a_ut(:,:,:)
-!  REAL, ALLOCATABLE, TARGET :: a_vp(:,:,:),a_vc(:,:,:),a_vt(:,:,:)
-!  REAL, ALLOCATABLE, TARGET :: a_wp(:,:,:),a_wc(:,:,:),a_wt(:,:,:)
-  !
   ! wsave variables used in fft in x and y directons
   !
   REAL, ALLOCATABLE :: wsavex(:), wsavey(:)
