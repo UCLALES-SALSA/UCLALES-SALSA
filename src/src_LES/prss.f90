@@ -23,20 +23,23 @@
 !
 MODULE prss
 
-   USE defs, ONLY : pi
+  USE defs, ONLY : pi
+  USE mo_structured_datatypes
    IMPLICIT NONE
 
-CONTAINS
-   !
-   !----------------------------------------------------------------------
-   ! Subroutine poisson: called by timesteping driver to invert the
-   ! poisson equation for pressure and apply the velocity tendencies.
-   !
-   SUBROUTINE poisson
+  CONTAINS
+    !
+    !----------------------------------------------------------------------
+    ! Subroutine poisson: called by timesteping driver to invert the
+    ! poisson equation for pressure and apply the velocity tendencies.
+    !
+    SUBROUTINE poisson
 
-      USE grid, ONLY : nxp, nyp, nzp, dtlt, dxi, dyi, dzm, dzt, a_up,                     &
-                       a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt, a_press, a_pexnr,  &
-                       th00, dn0, wsavex, wsavey
+      USE mo_aux_state, ONLY : dzm, dzt, dn0
+      USE mo_diag_state, ONLY : a_press, a_pexnr
+      USE mo_vector_state, ONLY : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt
+      USE grid, ONLY : nxp, nyp, nzp, dtlt, dxi, dyi,  &
+                       th00, wsavex, wsavey
       !USE stat, ONLY : fill_scalar, sflg
       USE util, ONLY : ae1mm
 
@@ -56,14 +59,14 @@ CONTAINS
       !
 
       CALL asselin(1)
-      CALL apl_tnd(nzp,nxp,nyp,a_up,a_vp,a_wp,a_ut,a_vt,a_wt,dtlt)
+      CALL apl_tnd(nzp,nxp,nyp,a_up%d,a_vp%d,a_wp%d,a_ut%d,a_vt%d,a_wt%d,dtlt)
       !
       ! ------
       ! Pressure Solve
       !
-      CALL poiss(nzp,nxp,nyp,ix,iy,a_up,a_vp,a_wp,a_pexnr,a_press,dn0,th00,dzt, &
+      CALL poiss(nzp,nxp,nyp,ix,iy,a_up%d,a_vp%d,a_wp%d,a_pexnr,a_press,dn0,th00,dzt, &
                  dzm,dxi,dyi,dtlt,s1,wsavex,wsavey)
-      CALL ae1mm(nzp,nxp,nyp,a_wp,awpbar)
+      CALL ae1mm(nzp,nxp,nyp,a_wp%d,awpbar)
       !
       ! -------
       ! Do second step of asselin filter, first saving corrlations of
@@ -74,7 +77,7 @@ CONTAINS
       !
       CALL asselin(2)
       CALL velocity_bcs
-      CALL get_diverg(nzp,nxp,nyp,ix,iy,s1,a_up,a_vp,a_wp,dn0,dzt,dxi,dyi,  &
+      CALL get_diverg(nzp,nxp,nyp,ix,iy,s1,a_up%d,a_vp%d,a_wp%d,dn0,dzt,dxi,dyi,  &
                       dtlt,mxdiv)
 
       !IF (sflg) THEN
@@ -129,9 +132,11 @@ CONTAINS
       USE util, ONLY  : velset, get_fft_twodim
 
       INTEGER :: n1,n2,n3,ix,iy
-      REAL    :: pp(n1,n2,n3),pc(n1,n2,n3),dmy
+      REAL    :: dmy
+      TYPE(FloatArray3d) :: pp,pc
       REAL    :: u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
-      REAL    :: wsvx(1:),wsvy(1:),dn0(n1),dzt(n1),dzm(n1),dx,dy,dtlt,th00
+      REAL    :: wsvx(1:),wsvy(1:),dx,dy,dtlt,th00
+      TYPE(FloatArray1d) :: dn0, dzt, dzm
       COMPLEX :: s1(ix,iy,n1)
 
       CALL get_diverg(n1,n2,n3,ix,iy,s1,u,v,w,dn0,dzt,dx,dy,dtlt,dmy)
@@ -144,8 +149,8 @@ CONTAINS
 
       CALL velset(n1,n2,n3,u,v,w)
 
-      pp(:,:,:) = pp(:,:,:)/th00
-      pc(:,:,:) = pp(:,:,:)
+      pp%d(:,:,:) = pp%d(:,:,:)/th00
+      pc%d(:,:,:) = pp%d(:,:,:)
 
    END SUBROUTINE poiss
    !
@@ -155,11 +160,12 @@ CONTAINS
    !
    SUBROUTINE get_diverg(n1,n2,n3,ix,iy,s1,u,v,w,dn0,dz,dx,dy,dt,mxdiv)
 
-      INTEGER, INTENT (in)  :: n1,n2,n3,ix,iy
-      REAL, INTENT (in)     :: dz(n1),dn0(n1),dx,dy,dt
-      REAL, INTENT (in)     :: u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
-      REAL, INTENT (out)    :: mxdiv
-      COMPLEX, INTENT (out) :: s1(ix,iy,n1)
+      INTEGER, INTENT (in)             :: n1,n2,n3,ix,iy
+      TYPE(FloatArray1d), INTENT(in)   :: dz,dn0
+      REAL, INTENT (in)                :: dx,dy,dt
+      REAL, INTENT (in)                :: u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
+      REAL, INTENT (out)               :: mxdiv
+      COMPLEX, INTENT (out)            :: s1(ix,iy,n1)
 
       INTEGER :: k,i,j,l,m
       REAL    :: xf,yf,zf,wf1,wf2,dtv,dti
@@ -174,13 +180,13 @@ CONTAINS
          DO i = 3, n2-2
             l = l+1
             DO k = 2, n1-1
-               wf1 = 0.5*(dn0(k+1)+dn0(k))
-               wf2 = 0.5*(dn0(k)+dn0(k-1))
+               wf1 = 0.5*(dn0%d(k+1)+dn0%d(k))
+               wf2 = 0.5*(dn0%d(k)+dn0%d(k-1))
                IF (k == 2 )   wf2 = 0.
                IF (k == n1-1) wf1 = 0.
-               xf = dn0(k)*dx*dti
-               yf = dn0(k)*dy*dti
-               zf = dti*dz(k)
+               xf = dn0%d(k)*dx*dti
+               yf = dn0%d(k)*dy*dti
+               zf = dti*dz%d(k)
                s1(l,m,k) = (wf1*w(k,i,j)-wf2*w(k-1,i,j))*zf                  &
                            +(v(k,i,j)-v(k,i,j-1))*yf+(u(k,i,j)-u(k,i-1,j))*xf
             END DO
@@ -202,10 +208,10 @@ CONTAINS
       USE mpi_interface, ONLY : cyclics,cyclicc
 
       INTEGER :: n1,n2,n3,ix,iy,k,i,j,l,m,req(16)
-      REAL    :: pp(n1,n2,n3)
+      TYPE(FloatArray3d)    :: pp
       COMPLEX :: s1(ix,iy,n1)
 
-      pp(:,:,:) = 0.0
+      pp%d(:,:,:) = 0.0
       DO k = 2, n1-1
          l = 0
          DO i = 3, n2-2
@@ -213,12 +219,12 @@ CONTAINS
             m = 0
             DO j = 3, n3-2
                m = m+1
-               pp(k,i,j) = REAL(s1(l,m,k))
+               pp%d(k,i,j) = REAL(s1(l,m,k))
             END DO
          END DO
       END DO
-      CALL cyclics(n1,n2,n3,pp,req)
-      CALL cyclicc(n1,n2,n3,pp,req)
+      CALL cyclics(n1,n2,n3,pp%d,req)
+      CALL cyclicc(n1,n2,n3,pp%d,req)
 
    END SUBROUTINE fll_prs
    !
@@ -232,7 +238,8 @@ CONTAINS
       USE util, ONLY          : tridiff
 
       INTEGER, INTENT (in)    :: n1,ix,iy
-      REAL, INTENT (in)       :: dn0(n1),dzt(n1),dzm(n1),dx,dy
+      TYPE(FloatArray1d), INTENT (in) :: dn0,dzt,dzm
+      REAL, INTENT(in)        :: dx,dy
       COMPLEX, INTENT (inout) :: s1(ix,iy,n1)
 
       REAL    :: ak(ix,n1),dk(ix,n1),bk(ix,n1),ck(ix,n1)
@@ -268,15 +275,15 @@ CONTAINS
       !
       DO m = 1, iy
          DO k = 2, n1-1
-            af = (dn0(k)+dn0(k-1))*.5
-            cf = (dn0(k+1)+dn0(k))*.5
+            af = (dn0%d(k)+dn0%d(k-1))*.5
+            cf = (dn0%d(k+1)+dn0%d(k))*.5
             IF (k == 2   ) af = 0.
             IF (k == n1-1) cf =0.
             DO l = 1, ix
-               ak(l,k) = dzt(k)*dzm(k-1)*af
+               ak(l,k) = dzt%d(k)*dzm%d(k-1)*af
                bk(l,k) = s1(l,m,k)
-               ck(l,k) = dzt(k)*dzm(k)*cf
-               dk(l,k) = dn0(k)*wv(l,m)-(ak(l,k)+ck(l,k))
+               ck(l,k) = dzt%d(k)*dzm%d(k)*cf
+               dk(l,k) = dn0%d(k)*wv(l,m)-(ak(l,k)+ck(l,k))
             END DO
          END DO
          !
@@ -310,18 +317,20 @@ CONTAINS
    !
    SUBROUTINE prs_grd(n1,n2,n3,p,u,v,w,dz,dx,dy,dtlt)
 
-      INTEGER, INTENT (in) :: n1,n2,n3
-      REAL, INTENT (in)    :: p(n1,n2,n3),dz(n1),dx,dy,dtlt
-      REAL, INTENT (inout) :: u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
+     INTEGER, INTENT (in) :: n1,n2,n3
+     TYPE(FloatArray1d)   :: dz
+     TYPE(FloatArray3d)   :: p
+     REAL, INTENT (in)    :: dx,dy,dtlt
+     REAL, INTENT (inout) :: u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
 
       INTEGER :: i,j,k
 
       DO j = 1, n3-1
          DO i = 1, n2-1
             DO k = 2, n1-1
-               IF(k /= n1-1)w(k,i,j) = w(k,i,j)-dz(k)*2.*dtlt*(p(k+1,i,j)-p(k,i,j))
-               u(k,i,j) = u(k,i,j)-dx*2.*dtlt*(p(k,i+1,j)-p(k,i,j))
-               v(k,i,j) = v(k,i,j)-dy*2.*dtlt*(p(k,i,j+1)-p(k,i,j))
+               IF(k /= n1-1)w(k,i,j) = w(k,i,j)-dz%d(k)*2.*dtlt*(p%d(k+1,i,j)-p%d(k,i,j))
+               u(k,i,j) = u(k,i,j)-dx*2.*dtlt*(p%d(k,i+1,j)-p%d(k,i,j))
+               v(k,i,j) = v(k,i,j)-dy*2.*dtlt*(p%d(k,i,j+1)-p%d(k,i,j))
             END DO
          END DO
       END DO
@@ -338,7 +347,9 @@ CONTAINS
       USE util, ONLY : get_cor
 
       INTEGER, INTENT (in) :: n1,n2,n3
-      REAL, INTENT (in)    :: p(n1,n2,n3),dz(n1),dx,dy,th00
+      TYPE(FloatArray3d), INTENT(in) :: p
+      TYPE(FloatArray1d), INTENT(in) :: dz
+      REAL, INTENT (in)    :: dx,dy,th00
       REAL, INTENT (in)    :: u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
 
       REAL, DIMENSION (n2,n3) :: pgx, pgy, pgz, ufld, vfld, wfld
@@ -352,14 +363,14 @@ CONTAINS
       DO k = 2, n1-1
          fx = dx*th00
          fy = dy*th00
-         fz = dz(k)*th00
+         fz = dz%d(k)*th00
          DO j = 1, n3
             DO i = 1, n2
                ip1 = min(n2,i+1)
                jp1 = min(n3,j+1)
-               pgx(i,j) = -fx*(p(k,ip1,j)-p(k,i,j))
-               pgy(i,j) = -fy*(p(k,i,jp1)-p(k,i,j))
-               pgz(i,j) = -fz*(p(k+1,i,j)-p(k,i,j))
+               pgx(i,j) = -fx*(p%d(k,ip1,j)-p%d(k,i,j))
+               pgy(i,j) = -fy*(p%d(k,i,jp1)-p%d(k,i,j))
+               pgz(i,j) = -fz*(p%d(k+1,i,j)-p%d(k,i,j))
                ufld(i,j) = u(k,i,j)
                vfld(i,j) = v(k,i,j)
                wfld(i,j) = w(k,i,j)
@@ -398,16 +409,17 @@ CONTAINS
    !
    SUBROUTINE asselin(iac)
 
-      USE grid, ONLY : a_up,a_vp,a_wp,a_uc,a_vc,a_wc, nxyzp, runtype
-
+      USE grid, ONLY : nxyzp, runtype
+      USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc
+      
       INTEGER :: iac
       INTEGER, SAVE :: ncall = 0
 
       IF (runtype == 'HISTORY') ncall = 1
 
-      CALL predict(nxyzp,a_uc,a_up,iac,ncall)
-      CALL predict(nxyzp,a_vc,a_vp,iac,ncall)
-      CALL predict(nxyzp,a_wc,a_wp,iac,ncall)
+      CALL predict(nxyzp,a_uc%d,a_up%d,iac,ncall)
+      CALL predict(nxyzp,a_vc%d,a_vp%d,iac,ncall)
+      CALL predict(nxyzp,a_wc%d,a_wp%d,iac,ncall)
       IF (iac == 2) ncall = ncall+1
 
    END SUBROUTINE asselin
@@ -453,14 +465,16 @@ CONTAINS
    !
    SUBROUTINE velocity_bcs
 
-      USE grid, ONLY : a_up,a_vp,a_wp,a_uc,a_vc,a_wc,a_pexnr,a_press,           &
-                       nxp, nyp, nzp, dzm
+     USE mo_aux_state, ONLY : dzm
+     USE mo_diag_state, ONLY : a_pexnr, a_press
+      USE grid, ONLY : nxp, nyp, nzp
+      USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc
       USE util, ONLY : velset, sclrset
 
-      CALL velset(nzp,nxp,nyp,a_up,a_vp,a_wp)
-      CALL velset(nzp,nxp,nyp,a_uc,a_vc,a_wc)
-      CALL sclrset('grad',nzp,nxp,nyp,a_pexnr,dzm)
-      CALL sclrset('grad',nzp,nxp,nyp,a_press,dzm)
+      CALL velset(nzp,nxp,nyp,a_up%d,a_vp%d,a_wp%d)
+      CALL velset(nzp,nxp,nyp,a_uc%d,a_vc%d,a_wc%d)
+      CALL sclrset('grad',nzp,nxp,nyp,a_pexnr%d,dzm%d)
+      CALL sclrset('grad',nzp,nxp,nyp,a_press%d,dzm%d)
 
    END SUBROUTINE velocity_bcs
 

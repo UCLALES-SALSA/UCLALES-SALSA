@@ -4,6 +4,9 @@ MODULE mo_submctl
   USE classBinLayout, ONLY : BinLayout
   IMPLICIT NONE
 
+  SAVE
+
+  
   ! I'd say nothing here needs to be PRIVATE so removed explicit PRIVATE and PUBLIC attributes (PUBLIC is default).
   ! -Juha
   

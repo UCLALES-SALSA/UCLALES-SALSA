@@ -21,6 +21,7 @@ MODULE sgsm
 
   !USE stat, ONLY : sflg, updtst, acc_tend, sgsflxs, sgs_vel
   USE util, ONLY : tridiff, vel_bc
+  USE mo_structured_datatypes
   IMPLICIT NONE
 !
 ! setting the prandtl number to a value less than zero enforces an exponential
@@ -77,12 +78,13 @@ CONTAINS
   !
   SUBROUTINE diffuse
 
-    USE grid, ONLY : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt,    &
-                     a_rv, a_rc, a_rp, a_ri, a_srp, a_tp, a_tt, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta,  &
-                     a_temp, a_rsl, nscl, nxp, nyp,    &
-                     nzp, zm, dxi, dyi, dzt, dzm, dtlt, dtlv , th00, dn0,  &
-                     pi0, pi1, newsclr, level, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc, &
-                     wq_sfc
+    USE mo_aux_state, ONLY : zm, dzt, dzm, dn0, pi0, pi1
+    USE mo_diag_state, ONLY : a_rv, a_rc, a_ri, a_srp, a_pexnr, a_theta, a_temp, a_rsl, uw_sfc, vw_sfc, ww_sfc, wt_sfc, wq_sfc
+    USE mo_progn_state, ONLY : a_rp, a_tp, a_tt, a_qt, a_qp
+    USE mo_vector_state, ONLY : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt
+    USE grid, ONLY : a_sp, a_st, nscl, nxp, nyp,    &
+                     nzp, dxi, dyi, dtlt, dtlv , th00,   &
+                     newsclr, level, isgstyp
 
     USE util, ONLY          : get_avg3
     USE mpi_interface, ONLY : cyclics, cyclicc
@@ -95,11 +97,14 @@ CONTAINS
 
     SELECT CASE(level)
        CASE(1,2,3)
-          rx = a_rv
-          rxt = a_rp
-       CASE(4,5)
-          rx = a_rp
-          rxt = a_rp + a_rc + a_ri + a_srp
+          rx = a_rv%d
+          rxt = a_rp%d
+       CASE(4)
+          rx = a_rp%d
+          rxt = a_rp%d + a_rc%d + a_srp%d
+       CASE(5)
+          rx = a_rp%d
+          rxt = a_rp%d + a_rc%d + a_ri%d + a_srp%d
     END SELECT
 
 
@@ -117,7 +122,7 @@ CONTAINS
     ! are calculated and applied.  Until then use them as scratch by
     ! associating them with scratch pointers (a-c)
     !
-    CALL deform(nzp,nxp,nyp,dzm,dzt,dxi,dyi,a_up,a_vp,a_wp,a_tmp5,a_tmp6,     &
+    CALL deform(nzp,nxp,nyp,dzm,dzt,dxi,dyi,a_up%d,a_vp%d,a_wp%d,a_tmp5,a_tmp6,     &
                 a_tmp4,a_tmp2)
 
     ! ----------
@@ -141,21 +146,21 @@ CONTAINS
     CALL diff_prep(nzp,nxp,nyp,a_tmp5,a_tmp6,a_tmp4,a_tmp1)
     sxy1 = 0.; sxy2 = 0.
 
-    CALL diff_vpt(nzp,nxp,nyp,dn0,dzm,dzt,dxi,dyi,dtlv,vw_sfc,sxy2,a_tmp6,     &
-                  a_tmp5,a_tmp1,a_vp,a_wp,a_vt,sz2)
+    CALL diff_vpt(nzp,nxp,nyp,dn0,dzm,dzt,dxi,dyi,dtlv,vw_sfc%d,sxy2,a_tmp6,     &
+                  a_tmp5,a_tmp1,a_vp%d,a_wp%d,a_vt%d,sz2)
 
-    CALL diff_upt(nzp,nxp,nyp,dn0,dzm,dzt,dxi,dyi,dtlv,uw_sfc,sxy1,a_tmp5,     &
-                  a_tmp1,a_up,a_wp,a_ut,sz1)
+    CALL diff_upt(nzp,nxp,nyp,dn0,dzm,dzt,dxi,dyi,dtlv,uw_sfc%d,sxy1,a_tmp5,     &
+                  a_tmp1,a_up%d,a_wp%d,a_ut%d,sz1)
 
-    CALL diff_wpt(nzp,nxp,nyp,dn0,dzm,dzt,dyi,dxi,dtlv,ww_sfc,sxy1,a_tmp4,     &
-                  a_tmp1,a_wp,a_up,a_wt,sz3)
+    CALL diff_wpt(nzp,nxp,nyp,dn0,dzm,dzt,dyi,dxi,dtlv,ww_sfc%d,sxy1,a_tmp4,     &
+                  a_tmp1,a_wp%d,a_up%d,a_wt%d,sz3)
 
-    CALL cyclics(nzp,nxp,nyp,a_wt,req)
-    CALL cyclicc(nzp,nxp,nyp,a_wt,req)
-    CALL cyclics(nzp,nxp,nyp,a_vt,req)
-    CALL cyclicc(nzp,nxp,nyp,a_vt,req)
-    CALL cyclics(nzp,nxp,nyp,a_ut,req)
-    CALL cyclicc(nzp,nxp,nyp,a_ut,req)
+    CALL cyclics(nzp,nxp,nyp,a_wt%d,req)
+    CALL cyclicc(nzp,nxp,nyp,a_wt%d,req)
+    CALL cyclics(nzp,nxp,nyp,a_vt%d,req)
+    CALL cyclicc(nzp,nxp,nyp,a_vt%d,req)
+    CALL cyclics(nzp,nxp,nyp,a_ut%d,req)
+    CALL cyclicc(nzp,nxp,nyp,a_ut%d,req)
 
     !IF (sflg) THEN
     !   CALL sgs_vel(nzp,nxp,nyp,sz1,sz2,sz3)
@@ -165,21 +170,21 @@ CONTAINS
     !
     ! Diffuse scalars
     !
-    a_tt = 0.
+    a_tt%d = 0.
     DO n = 1, nscl
        CALL newsclr(n)
        sxy1 = 0.
        sxy2 = 0.
-       IF ( associated(a_tp,a_sp) ) sxy1 = wt_sfc
-       IF ( associated(a_tp,a_sp) ) sxy2 = wt_sfc
-       IF ( associated(a_rp,a_sp) ) sxy1 = wq_sfc
+       IF ( associated(a_tp%d,a_sp) ) sxy1 = wt_sfc%d
+       IF ( associated(a_tp%d,a_sp) ) sxy2 = wt_sfc%d
+       IF ( associated(a_rp%d,a_sp) ) sxy1 = wq_sfc%d
 
        ! WHERE(abs(a_sp) < 1.e-40) a_sp=0. !stop denormal AZ
        !IF (sflg) a_tmp1 = 0.
        IF ( isgstyp <= 1) THEN
           CALL diffsclr(nzp,nxp,nyp,dtlt,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2,   &
                         a_sp,a_tmp2,a_st,a_tmp1)
-       ELSE IF ( .NOT. associated(a_qp,a_sp) ) THEN
+       ELSE IF ( .NOT. associated(a_qp%d,a_sp) ) THEN
           CALL diffsclr(nzp,nxp,nyp,dtlt,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2,   &
                         a_sp,a_tmp2,a_st,a_tmp1)
        END IF
@@ -211,7 +216,8 @@ CONTAINS
 
     INTEGER, INTENT(in) :: n1,n2,n3
     REAL, INTENT(in)    :: u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
-    REAL, INTENT(in)    :: dzm(n1),dzt(n1),dx,dy
+    TYPE(FloatArray1d), INTENT(in) :: dzm,dzt
+    REAL, INTENT(in)    :: dx,dy
 
     REAL, INTENT(out)   :: s(n1,n2,n3), s22(n1,n2,n3)
     REAL, INTENT(out)   :: s12(n1,n2,n3),s23(n1,n2,n3)
@@ -231,7 +237,7 @@ CONTAINS
           DO k = 1, n1
              szx2(k,i)  = 2.*(u(k,i,j)-u(k,im,j))*dx
              s22(k,i,j) = 2.*(v(k,i,j)-v(k,i,jm))*dy
-             szx3(k,i)  = 2.*(w(k,i,j)-w(max(1,k-1),i,j))*dzt(k)
+             szx3(k,i)  = 2.*(w(k,i,j)-w(max(1,k-1),i,j))*dzt%d(k)
              s12(k,i,j) = (u(k,i,jp)-u(k,i,j))*dy + (v(k,ip,j)-v(k,i,j))*dx
           END DO
           szx3(1,i)  = 0.
@@ -239,8 +245,8 @@ CONTAINS
 
           DO k = 1, n1-1
              szx1(k,i)  = 0.333333*(szx2(k,i)+s22(k,i,j)+szx3(k,i))
-             szx4(k,i)  = (u(k+1,i,j)-u(k,i,j))*dzm(k)+(w(k,ip,j)-w(k,i,j))*dx
-             s23(k,i,j) = (v(k+1,i,j)-v(k,i,j))*dzm(k)+(w(k,i,jp)-w(k,i,j))*dy
+             szx4(k,i)  = (u(k+1,i,j)-u(k,i,j))*dzm%d(k)+(w(k,ip,j)-w(k,i,j))*dx
+             s23(k,i,j) = (v(k+1,i,j)-v(k,i,j))*dzm%d(k)+(w(k,i,jp)-w(k,i,j))*dy
           END DO
           szx1(n1,i) = 0.333333*(szx2(n1,i)+s22(n1,i,j)+szx3(n1,i))
        END DO
@@ -292,7 +298,8 @@ CONTAINS
 
     LOGICAL, INTENT(in) :: sflg
     INTEGER, INTENT(in) :: n1,n2,n3
-    REAL, INTENT(in)    :: dxi,zm(n1),dn0(n1)
+    REAL, INTENT(in)    :: dxi
+    TYPE(FloatArray1d), INTENT(in) :: dn0,zm
     REAL, INTENT(inout) :: ri(n1,n2,n3),kh(n1,n2,n3)
     REAL, INTENT(out)   :: km(n1,n2,n3)
 
@@ -301,15 +308,15 @@ CONTAINS
     pr    = abs(prndtl)
 
     delta = 1./dxi
-    delta = (zm(2)/dxi/dxi)**(1./3.)
+    delta = (zm%d(2)/dxi/dxi)**(1./3.)
 
     DO j = 3, n3-2
        DO i = 3, n2-2
           DO k = 1, n1-1
-             yplus = max(zm(2),min(zm(k),(zm(n1-1)-zm(k))))
+             yplus = max(zm%d(2),min(zm%d(k),(zm%d(n1-1)-zm%d(k))))
              ri(k,i,j) = max( -1., ri(k,i,j)/(kh(k,i,j) + 1.e-12) )
              km(k,i,j) = sqrt(max(0.,kh(k,i,j)*(1.-ri(k,i,j)/pr))) &
-                         *0.5*(dn0(k)+dn0(k+1))/(1./(delta*csx)**2+1./(yplus*vonk)**2)
+                         *0.5*(dn0%d(k)+dn0%d(k+1))/(1./(delta*csx)**2+1./(yplus*vonk)**2)
           END DO
           kh(n1,i,j) = kh(n1-1,i,j)
           km(n1,i,j) = km(n1-1,i,j)
@@ -339,7 +346,7 @@ CONTAINS
           DO k = 1, n1
             kh(k,i,j) = km(k,i,j)/pr
             IF (prndtl < 0.) THEN
-               kh(k,i,j) = kh(k,i,j) * exp(zm(k)/(-100.))
+               kh(k,i,j) = kh(k,i,j) * exp(zm%d(k)/(-100.))
             END IF
           END DO
        END DO
@@ -380,10 +387,12 @@ CONTAINS
 
     LOGICAL, INTENT(in) :: sflg
     INTEGER, INTENT(in) :: n1,n2,n3
-    REAL, INTENT(in)    :: dxi,dn0(n1),zm(n1)
-    REAL, INTENT(in)    :: tke(n1,n2,n3)
+    REAL, INTENT(in)    :: dxi
+    TYPE(FloatArray1d), INTENT(in) :: dn0,zm
+    TYPE(FloatArray3d), INTENT(in)    :: tke
     REAL, INTENT(inout) :: xx(n1,n2,n3),zz(n1,n2,n3)
-    REAL, INTENT(out)   :: yy(n1,n2,n3),tket(n1,n2,n3)
+    REAL, INTENT(out)   :: yy(n1,n2,n3)
+    TYPE(FloatArray3d), INTENT(inout) :: tket
 
     REAL :: ln,lm,ch
     !
@@ -403,12 +412,12 @@ CONTAINS
     DO j = 1, n3
        DO i = 1, n2
           DO k = 2, n1-2
-             ln = sqrt(1./(dxi**2 + (0.23/(zm(k)*vonk))**2) )
-             lm = min(cs*sqrt(tke(k,i,j)/max(eps,xx(k,i,j))),ln)
+             ln = sqrt(1./(dxi**2 + (0.23/(zm%d(k)*vonk))**2) )
+             lm = min(cs*sqrt(tke%d(k,i,j)/max(eps,xx(k,i,j))),ln)
              ch = (1.+2.*lm/ln)
-             tket(k,i,j) = cm*lm*sqrt(tke(k,i,j))*(zz(k,i,j) - ch*xx(k,i,j))
+             tket%d(k,i,j) = cm*lm*sqrt(tke%d(k,i,j))*(zz(k,i,j) - ch*xx(k,i,j))
              xx(k,i,j) = lm/(c_e1 + c_e2*lm/ln)
-             yy(k,i,j) = cm*lm*sqrt(tke(k,i,j))*.5*(dn0(k)+dn0(k+1))
+             yy(k,i,j) = cm*lm*sqrt(tke%d(k,i,j))*.5*(dn0%d(k)+dn0%d(k+1))
              zz(k,i,j) = ch*yy(k,i,j)
              !IF (sflg) THEN
              !   sz6(k) = sz6(k) + lm
@@ -451,9 +460,11 @@ CONTAINS
     IMPLICIT NONE
 
     INTEGER, INTENT (in) :: n1,n2,n3
-    REAL, INTENT (in)    :: dn0(n1),dzm(n1),dzt(n1),dxi,dyi,dt
-    REAL, INTENT (in)    :: km(n1,n2,n3),ep(n1,n2,n3),le(n1,n2,n3)
-    REAL, INTENT (inout) :: et(n1,n2,n3)
+    TYPE(FloatArray1d), INTENT (in)    :: dn0,dzm,dzt
+    REAL, INTENT(in)     :: dxi,dyi,dt
+    REAL, INTENT (in)    :: km(n1,n2,n3),le(n1,n2,n3)
+    TYPE(FloatArray3d), INTENT(in) :: ep
+    TYPE(FloatArray3d), INTENT(inout) :: et
 
     !
     ! Add horizontal diffusivities to tendency arrays
@@ -461,12 +472,12 @@ CONTAINS
     DO j = 2, n3-1
        DO i = 2, n2-1
           DO k = 2, n1-2
-             et(k,i,j) = et(k,i,j)+(                                           &
-                         ((km(k,i+1,j)+km(k,i,j))*(ep(k,i+1,j)-ep(k,i,j))           &
-                         -(km(k,i,j)+km(k,i-1,j))*(ep(k,i,j)-ep(k,i-1,j)))*dxi*dxi  &
-                         +((km(k,i,j+1)+km(k,i,j))*(ep(k,i,j+1)-ep(k,i,j))          &
-                         -(km(k,i,j)+km(k,i,j-1))*(ep(k,i,j)-ep(k,i,j-1)))*dyi*dyi  &
-                          )/((dn0(k)+dn0(k+1))*.5)
+             et%d(k,i,j) = et%d(k,i,j)+(                                           &
+                         ((km(k,i+1,j)+km(k,i,j))*(ep%d(k,i+1,j)-ep%d(k,i,j))           &
+                         -(km(k,i,j)+km(k,i-1,j))*(ep%d(k,i,j)-ep%d(k,i-1,j)))*dxi*dxi  &
+                         +((km(k,i,j+1)+km(k,i,j))*(ep%d(k,i,j+1)-ep%d(k,i,j))          &
+                         -(km(k,i,j)+km(k,i,j-1))*(ep%d(k,i,j)-ep%d(k,i,j-1)))*dyi*dyi  &
+                          )/((dn0%d(k)+dn0%d(k+1))*.5)
           END DO
        END DO
     END DO
@@ -482,14 +493,14 @@ CONTAINS
        indh = 0
        DO i = 2, n2-1
           indh = indh+1
-          sz7(1) = dzt(2)*(km(2,i,j)+km(1,i,j))
+          sz7(1) = dzt%d(2)*(km(2,i,j)+km(1,i,j))
           DO k = 2, n1-2
-             sz7(k)       = dzt(k+1)*(km(k+1,i,j)+km(k,i,j))
-             sxz4(indh,k) = 0.5*(dn0(k)+dn0(k+1))*(ep(k,i,j)+dt*et(k,i,j))
-             sxz3(indh,k) = -dt*dzm(k)*sz7(k)
-             sxz2(indh,k) = -dt*dzm(k)*sz7(k-1)
-             sxz1(indh,k) = (dn0(k)+dn0(k+1))*0.5                             &
-                            *(1.+dt*sqrt(ep(k,i,j))/le(k,i,j))-sxz2(indh,k)-sxz3(indh,k)
+             sz7(k)       = dzt%d(k+1)*(km(k+1,i,j)+km(k,i,j))
+             sxz4(indh,k) = 0.5*(dn0%d(k)+dn0%d(k+1))*(ep%d(k,i,j)+dt*et%d(k,i,j))
+             sxz3(indh,k) = -dt*dzm%d(k)*sz7(k)
+             sxz2(indh,k) = -dt*dzm%d(k)*sz7(k-1)
+             sxz1(indh,k) = (dn0%d(k)+dn0%d(k+1))*0.5                             &
+                            *(1.+dt*sqrt(ep%d(k,i,j))/le(k,i,j))-sxz2(indh,k)-sxz3(indh,k)
 
           END DO
        END DO
@@ -502,7 +513,7 @@ CONTAINS
        DO i = 2, n2-1
           indh = indh+1
           DO k = 2, n1-2
-             et(k,i,j) = dti*(sxz1(indh,k)-ep(k,i,j))
+             et%d(k,i,j) = dti*(sxz1(indh,k)-ep%d(k,i,j))
           END DO
        END DO
     END DO
@@ -554,7 +565,8 @@ CONTAINS
     REAL, INTENT(in)    :: sij(n1,n2,n3)
     REAL, INTENT(in)    :: km(n1,n2,n3),u(n1,n2,n3),w(n1,n2,n3)
     REAL, INTENT(in)    :: sflx(n2,n3),tflx(n2,n3)
-    REAL, INTENT(in)    :: dn0(n1),dzm(n1),dzt(n1),dxi,dyi,dt
+    TYPE(FloatArray1d), INTENT(in)    :: dn0,dzm,dzt
+    REAL, INTENT(in)    :: dxi,dyi,dt
 
     REAL, INTENT(inout) :: flx(n1)
     REAL, INTENT(out)   :: tnd(n1,n2,n3)
@@ -571,27 +583,27 @@ CONTAINS
        indh = 0
        DO i = 3, n2-2
           indh = indh+1
-          sz8(1) = dzm(1)*(km(1,i,j)+km(1,i+1,j))
-          sz7(n1-1) =.5*tflx(i,j)*(dn0(n1)+dn0(n1-1))
-          sz7(1)    =.5*sflx(i,j)*(dn0(1)+dn0(2))
+          sz8(1) = dzm%d(1)*(km(1,i,j)+km(1,i+1,j))
+          sz7(n1-1) =.5*tflx(i,j)*(dn0%d(n1)+dn0%d(n1-1))
+          sz7(1)    =.5*sflx(i,j)*(dn0%d(1)+dn0%d(2))
           DO k = 2, n1-1
              IF (k < n1-1)  sz7(k) = (-(w(k,i+1,j)-w(k,i,j))*dxi) &
                                      *0.5*(km(k,i,j)+km(k,i+1,j))
-             sz8(k) = dzm(k)*(km(k,i,j)+km(k,i+1,j))
-             sxz4(indh,k) = u(k,i,j)*dn0(k) + dt*dzt(k)*(sz7(k-1)-sz7(k))
-             sxz3(indh,k) = -0.5*dt*dzt(k)*sz8(k)
-             sxz2(indh,k) = -0.5*dt*dzt(k)*sz8(k-1)
-             sxz1(indh,k) = dn0(k)-sxz2(indh,k)-sxz3(indh,k)
+             sz8(k) = dzm%d(k)*(km(k,i,j)+km(k,i+1,j))
+             sxz4(indh,k) = u(k,i,j)*dn0%d(k) + dt*dzt%d(k)*(sz7(k-1)-sz7(k))
+             sxz3(indh,k) = -0.5*dt*dzt%d(k)*sz8(k)
+             sxz2(indh,k) = -0.5*dt*dzt%d(k)*sz8(k-1)
+             sxz1(indh,k) = dn0%d(k)-sxz2(indh,k)-sxz3(indh,k)
           END DO
           !
           ! Boundary conditions
           !
           IF (vel_bc == 'noslip') THEN
-             sxz1(indh,2)    = dn0(2)-2.*sxz2(indh,2)-sxz3(indh,2)
-             sxz1(indh,n1-1) = dn0(n1-1)-sxz2(indh,n1-1)-2.*sxz3(indh,n1-1)
+             sxz1(indh,2)    = dn0%d(2)-2.*sxz2(indh,2)-sxz3(indh,2)
+             sxz1(indh,n1-1) = dn0%d(n1-1)-sxz2(indh,n1-1)-2.*sxz3(indh,n1-1)
           ELSE
-             sxz1(indh,2)    = dn0(2)-sxz3(indh,2)
-             sxz1(indh,n1-1) = dn0(n1-1)-sxz2(indh,n1-1)
+             sxz1(indh,2)    = dn0%d(2)-sxz3(indh,2)
+             sxz1(indh,n1-1) = dn0%d(n1-1)-sxz2(indh,n1-1)
           END IF
 
           sxz3(indh,n1-1) = 0.
@@ -621,9 +633,9 @@ CONTAINS
           tnd(1,i,j) = 0.
           DO k = 2, n1-1
              tnd(k,i,j) = dti*(sxz1(indh,k)-u(k,i,j))-((szx5(k,i+1)-szx5(k,i))  &
-                          *dxi + (sij(k,i,j)-sij(k,i,j-1))*dyi)/dn0(k)
+                          *dxi + (sij(k,i,j)-sij(k,i,j-1))*dyi)/dn0%d(k)
 
-             IF (k < n1-1) flx(k) = flx(k)-dzm(k)*(km(k,i,j)+km(k,i+1,j))      &
+             IF (k < n1-1) flx(k) = flx(k)-dzm%d(k)*(km(k,i,j)+km(k,i+1,j))      &
                                     *(sxz1(indh,k+1)-sxz1(indh,k))*.5
           END DO
           tnd(n1,i,j) = 0.
@@ -641,7 +653,8 @@ CONTAINS
                        km,v,w,tnd,flx)
 
     INTEGER, INTENT(in) :: n1,n2,n3
-    REAL, INTENT(in)    :: dn0(n1),dzm(n1),dzt(n1),dxi,dyi,dt
+    TYPE(FloatArray1d), INTENT(in)    :: dn0,dzm,dzt
+    REAL, INTENT(in)    :: dxi,dyi,dt
     REAL, INTENT(in)    :: sflx(n2,n3),tflx(n2,n3)
     REAL, INTENT(in)    :: sii(n1,n2,n3),sij(n1,n2,n3)
     REAL, INTENT(in)    :: km(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
@@ -660,27 +673,27 @@ CONTAINS
        indh = 0
        DO i = 3, n2-2
           indh = indh+1
-          sz8(1) = dzm(1)*(km(1,i,j)+km(1,i,j+1))
-          sz7(n1-1) =.5*(tflx(i,j))*(dn0(n1)+dn0(n1-1))
-          sz7(1)    =.5*(sflx(i,j))*(dn0(1)+dn0(2))
+          sz8(1) = dzm%d(1)*(km(1,i,j)+km(1,i,j+1))
+          sz7(n1-1) =.5*(tflx(i,j))*(dn0%d(n1)+dn0%d(n1-1))
+          sz7(1)    =.5*(sflx(i,j))*(dn0%d(1)+dn0%d(2))
           DO k = 2, n1-1
              IF (k < n1-1) sz7(k) = (-(w(k,i,j+1)-w(k,i,j))*dyi) &
                                     *0.5*(km(k,i,j)+km(k,i,j+1))
-             sz8(k) = dzm(k)*(km(k,i,j)+km(k,i,j+1))
-             sxz4(indh,k) = v(k,i,j)*dn0(k) + dt*dzt(k)*(sz7(k-1)-sz7(k))
-             sxz3(indh,k) = -0.5*dt*dzt(k)*sz8(k)
-             sxz2(indh,k) = -0.5*dt*dzt(k)*sz8(k-1)
-             sxz1(indh,k) = dn0(k)-sxz2(indh,k)-sxz3(indh,k)
+             sz8(k) = dzm%d(k)*(km(k,i,j)+km(k,i,j+1))
+             sxz4(indh,k) = v(k,i,j)*dn0%d(k) + dt*dzt%d(k)*(sz7(k-1)-sz7(k))
+             sxz3(indh,k) = -0.5*dt*dzt%d(k)*sz8(k)
+             sxz2(indh,k) = -0.5*dt*dzt%d(k)*sz8(k-1)
+             sxz1(indh,k) = dn0%d(k)-sxz2(indh,k)-sxz3(indh,k)
           END DO
           !
           ! Boundary conditions
           !
           IF (vel_bc == 'noslip') THEN
-             sxz1(indh,2)    = dn0(2)-2.*sxz2(indh,2)-sxz3(indh,2)
-             sxz1(indh,n1-1) = dn0(n1-1)-sxz2(indh,n1-1)-2.*sxz3(indh,n1-1)
+             sxz1(indh,2)    = dn0%d(2)-2.*sxz2(indh,2)-sxz3(indh,2)
+             sxz1(indh,n1-1) = dn0%d(n1-1)-sxz2(indh,n1-1)-2.*sxz3(indh,n1-1)
           ELSE
-             sxz1(indh,2)    = dn0(2)-sxz3(indh,2)
-             sxz1(indh,n1-1) = dn0(n1-1)-sxz2(indh,n1-1)
+             sxz1(indh,2)    = dn0%d(2)-sxz3(indh,2)
+             sxz1(indh,n1-1) = dn0%d(n1-1)-sxz2(indh,n1-1)
           END IF
 
           sxz3(indh,n1-1) = 0.
@@ -700,8 +713,8 @@ CONTAINS
           tnd(1,i,j) = 0.
           DO k = 2, n1-1
              tnd(k,i,j) = dti*(sxz1(indh,k)-v(k,i,j))-((sii(k,i,j+1)-sii(k,i,j))&
-                          *dyi+(sij(k,i,j)-sij(k,i-1,j))*dxi)/dn0(k)
-             IF (k < n1-1) flx(k) = flx(k)-dzm(k)*(km(k,i,j)+km(k,i,j+1))      &
+                          *dyi+(sij(k,i,j)-sij(k,i-1,j))*dxi)/dn0%d(k)
+             IF (k < n1-1) flx(k) = flx(k)-dzm%d(k)*(km(k,i,j)+km(k,i,j+1))      &
                                     *(sxz1(indh,k+1)-sxz1(indh,k))*.5
           END DO
           tnd(n1,i,j) = 0.
@@ -721,7 +734,8 @@ CONTAINS
     REAL, INTENT(in)    :: s23(n1,n2,n3)
     REAL, INTENT(in)    :: km(n1,n2,n3),w(n1,n2,n3),u(n1,n2,n3)
     REAL, INTENT(in)    :: sflx(n2,n3),tflx(n2,n3)
-    REAL, INTENT(in)    :: dn0(n1),dzm(n1),dzt(n1),dxi,dyi,dt
+    TYPE(FloatArray1d), INTENT(in)    :: dn0,dzm,dzt
+    REAL, INTENT(in)    :: dxi,dyi,dt
 
     REAL, INTENT(inout) :: flx(n1)
     REAL, INTENT(out)   :: tnd(n1,n2,n3)
@@ -749,31 +763,31 @@ CONTAINS
        DO i = 3, n2-2
           indh = indh+1
 
-          sz8(1) = dzt(2)*.5*(km(1,i,j)+km(2,i,j))
+          sz8(1) = dzt%d(2)*.5*(km(1,i,j)+km(2,i,j))
           DO k = 2, n1-2
              kp1 = k+1
-             sz8(k) = dzt(kp1)*.5*(km(k,i,j)+km(kp1,i,j))
-             sxz4(indh,k) = w(k,i,j)*(dn0(k)+dn0(kp1))*.5
-             sxz3(indh,k) = -dt*dzm(k)*sz8(k)
-             sxz2(indh,k) = -dt*dzm(k)*sz8(k-1)
-             sxz1(indh,k) = (dn0(k)+dn0(kp1))*0.5 - sxz2(indh,k) - sxz3(indh,k)
+             sz8(k) = dzt%d(kp1)*.5*(km(k,i,j)+km(kp1,i,j))
+             sxz4(indh,k) = w(k,i,j)*(dn0%d(k)+dn0%d(kp1))*.5
+             sxz3(indh,k) = -dt*dzm%d(k)*sz8(k)
+             sxz2(indh,k) = -dt*dzm%d(k)*sz8(k-1)
+             sxz1(indh,k) = (dn0%d(k)+dn0%d(kp1))*0.5 - sxz2(indh,k) - sxz3(indh,k)
           END DO
           sxz2(indh,2)    = 0.
           sxz3(indh,n1-2) = 0.
 
-          flx(1) = flx(1)+sflx(i,j)*dn0(2)
-          flx(n1-1) = flx(n1-1)+tflx(i,j)*dn0(n1-1)
+          flx(1) = flx(1)+sflx(i,j)*dn0%d(2)
+          flx(n1-1) = flx(n1-1)+tflx(i,j)*dn0%d(n1-1)
 
           DO k = 2, n1-1
-             szx5(k,i) = ((u(k+1,i,j)-u(k,i,j))*dzm(k)+(w(k,i+1,j)-w(k,i,j))  &
+             szx5(k,i) = ((u(k+1,i,j)-u(k,i,j))*dzm%d(k)+(w(k,i+1,j)-w(k,i,j))  &
                          *dxi)*(-0.5)*(km(k,i,j)+km(k,i+1,j))
           END DO
-          sxz4(indh,2)    = sxz4(indh,2) + dt*dzm(2)*sflx(i,j)*dn0(2)
-          sxz4(indh,n1-2) = sxz4(indh,n1-2)-dt*dzm(n1-2)*tflx(i,j)*dn0(n1-1)
+          sxz4(indh,2)    = sxz4(indh,2) + dt*dzm%d(2)*sflx(i,j)*dn0%d(2)
+          sxz4(indh,n1-2) = sxz4(indh,n1-2)-dt*dzm%d(n1-2)*tflx(i,j)*dn0%d(n1-1)
        END DO
 
        DO k = 2, n1-1
-          szx5(k,2) = ((u(k+1,2,j)-u(k,2,j))*dzm(k) + (w(k,3,j)-w(k,2,j))    &
+          szx5(k,2) = ((u(k+1,2,j)-u(k,2,j))*dzm%d(k) + (w(k,3,j)-w(k,2,j))    &
                       *dxi)*(-0.5)*(km(k,2,j)+km(k,3,j))
        END DO
 
@@ -789,8 +803,8 @@ CONTAINS
           jm1  = max(j-1,2)
           DO k = 2, n1-2
              tnd(k,i,j) = dti*(sxz1(indh,k)-w(k,i,j))-((szx5(k,i)-szx5(k,im1))  &
-                          *dxi + (s23(k,i,j)-s23(k,i,jm1))*dyi)/((dn0(k)+dn0(k+1))*.5)
-             flx(k) = flx(k)-dzt(k)*(km(k,i,j)+km(k+1,i,j))*0.5               &
+                          *dxi + (s23(k,i,j)-s23(k,i,jm1))*dyi)/((dn0%d(k)+dn0%d(k+1))*.5)
+             flx(k) = flx(k)-dzt%d(k)*(km(k,i,j)+km(k+1,i,j))*0.5               &
                       *(sxz1(indh,k)-sxz1(indh,k-1))
           END DO
        END DO
@@ -807,8 +821,9 @@ CONTAINS
 
     INTEGER, INTENT(in) :: n1,n2,n3
     REAL, INTENT(in)    :: xkh(n1,n2,n3),scp(n1,n2,n3)
-    REAL, INTENT(in)    :: sflx(n2,n3),tflx(n2,n3),dn0(n1)
-    REAL, INTENT(in)    :: dxi,dyi,dzm(n1),dzt(n1),dtlt
+    REAL, INTENT(in)    :: sflx(n2,n3),tflx(n2,n3)
+    REAL, INTENT(in)    :: dxi,dyi,dtlt
+    TYPE(FloatArray1d), INTENT(in) :: dzm,dzt,dn0
 
     REAL, INTENT(out)   :: flx(n1,n2,n3),sct(n1,n2,n3)
     !
@@ -836,16 +851,16 @@ CONTAINS
        DO i = 3, n2-2
           indh = indh+1
           DO k = 2, n1-1
-             IF (k < n1-1) sz7(k) = dtlt*dzm(k)*xkh(k,i,j)
-             sxz1(indh,k) = -dzt(k)*sz7(k-1)
-             sxz2(indh,k) = -dzt(k)*sz7(k)
-             sxz3(indh,k) = dn0(k)-sxz1(indh,k)-sxz2(indh,k)
-             sxz4(indh,k) = scp(k,i,j)*dn0(k)
+             IF (k < n1-1) sz7(k) = dtlt*dzm%d(k)*xkh(k,i,j)
+             sxz1(indh,k) = -dzt%d(k)*sz7(k-1)
+             sxz2(indh,k) = -dzt%d(k)*sz7(k)
+             sxz3(indh,k) = dn0%d(k)-sxz1(indh,k)-sxz2(indh,k)
+             sxz4(indh,k) = scp(k,i,j)*dn0%d(k)
           END DO
-          sxz4(indh,2) = scp(2,i,j)*dn0(2)                                     &
-                         + sflx(i,j)*(dn0(1)+dn0(2))*.5   *dtlt*dzt(2)
-          sxz4(indh,n1-1) = scp(n1-1,i,j)*dn0(n1-1)                            &
-                            - tflx(i,j)*(dn0(n1-1)+dn0(n1))*.5   *dtlt*dzt(n1-1)
+          sxz4(indh,2) = scp(2,i,j)*dn0%d(2)                                     &
+                         + sflx(i,j)*(dn0%d(1)+dn0%d(2))*.5   *dtlt*dzt%d(2)
+          sxz4(indh,n1-1) = scp(n1-1,i,j)*dn0%d(n1-1)                            &
+                            - tflx(i,j)*(dn0%d(n1-1)+dn0%d(n1))*.5   *dtlt*dzt%d(n1-1)
        END DO
        CALL tridiff(n2,n1-1,indh,sxz1,sxz3,sxz2,sxz4,sxz5,sxz6)
        !
@@ -853,8 +868,8 @@ CONTAINS
        !
        indh = 0
        DO i = 3, n2-2
-          flx(1,i,j)    = sflx(i,j)*(dn0(1)+dn0(2))*.5
-          flx(n1-1,i,j) = tflx(i,j)*(dn0(n1)+dn0(n1-1))*.5
+          flx(1,i,j)    = sflx(i,j)*(dn0%d(1)+dn0%d(2))*.5
+          flx(n1-1,i,j) = tflx(i,j)*(dn0%d(n1)+dn0%d(n1-1))*.5
           flx(n1,i,j)   = 0.
           indh = indh+1
           DO k = 2, n1-1
@@ -863,9 +878,9 @@ CONTAINS
                           *dxi + (-(scp(k,i,j+1)-scp(k,i,j))*dyi*0.25*(xkh(k,i,j)     &
                           +xkh(k,i,j+1)+xkh(k-1,i,j)+xkh(k-1,i,j+1))+(scp(k,i,j)      &
                           -scp(k,i,j-1))*dyi*0.25*(xkh(k,i,j-1)+xkh(k,i,j)            &
-                          +xkh(k-1,i,j-1)+xkh(k-1,i,j)))*dyi) /dn0(k)
+                          +xkh(k-1,i,j-1)+xkh(k-1,i,j)))*dyi) /dn0%d(k)
              IF (k < n1-1) flx(k,i,j) = -xkh(k,i,j)*(sxz5(indh,k+1)-sxz5(indh,k)) &
-                                      *dzm(k)
+                                      *dzm%d(k)
           END DO
        END DO
     END DO

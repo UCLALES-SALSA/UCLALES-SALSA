@@ -13,11 +13,11 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=2 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
+IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
 EXPNAME="WK82"  # Name of the experiment
 
-NPROCS=2          # Number of processors (for IsSeq==0)
+NPROCS=1          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
@@ -72,18 +72,15 @@ cat > NAMELIST <<EOF
   dtlong = ${DT}              ! Max. timestep
   distim = 100.               ! Timescale for the dissipation in sponge layer
   timmax = ${Texp}            ! Length of the simulation
-  runtype = "INITIAL"         ! INITIAL or HISTORY (restart) run
+  runtype = "HISTORY"         ! INITIAL or HISTORY (restart) run
   CCN = 600.e6                ! 
   corflg = .false.            ! Apply coriolis force
   prndtl = -0.3333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
-  hfilin = '${EXPNAME}.001000s' ! History file name
-  !ssam_intvl = 30.           ! Interval for statistical output
-  !savg_intvl = 30.           ! Averaging interval for stat output
-  frqanl = 30.                ! Interval for full domain output
-  frqhis = 1000.
-  lbinanl = .TRUE.           ! Write binned microphysical output (with level >= 4)
-  salsa_b_bins = .FALSE.
+  hfilin = '${EXPNAME}.000600s' ! History file name
+  frqhis = 200.
+  lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
+  lsalsabbins = .FALSE.
   !mcflg = .FALSE.             ! Do mass conservation statistics
 
   sed_aero%switch = .TRUE.          ! Calculate sedimentation of aerosol particles
@@ -101,6 +98,15 @@ cat > NAMELIST <<EOF
   strtim = 215.5               ! Start time
   case_name = 'default'       ! Case name for large-scale forcing schemes
   div = 1.e-8               ! Large-scale divergence
+/
+
+! -----------------------------------------------------------------------------------
+
+&output
+ps_intvl = 120.
+main_intvl = 5.
+varlist_main = 'temp','rp','rc','rr','ri','riri','rh','rhi','Nca','Ncb','Naa','Nab','Dwca','wwind','srp'
+varlist_ps = ''
 /
 
 ! -----------------------------------------------------------------------------------
@@ -188,20 +194,20 @@ cat > NAMELIST <<EOF
   emitModes(2)%emitSigma = 2.
 
   emitModes(3)%emitType = 3
-  emitModes(1)%regime = 2
-  emitModes(1)%start_time = 21600.
-  emitModes(1)%end_time = 11000.
-  emitModes(1)%species = "SS"
-  emitModes(1)%emitHeightMin = 600.
-  emitModes(1)%emitHeightMax = 650.
-  emitModes(1)%emitSizeDistType = 2
-  emitModes(1)%emitDiam = 0.6e-6
-  emitModes(1)%emitNum = 10.5e6
-  emitModes(1)%emitSigma = 1.1
-  emitModes(1)%emitMap = 'datafiles/emitMap_1'
-  emitModes(1)%scS = 60.                        ! source velocity
-  emitModes(1)%z_expan_up = 3
-  emitModes(1)%z_expan_dw = 2
+  emitModes(3)%regime = 2
+  emitModes(3)%start_time = 21600.
+  emitModes(3)%end_time = 11000.
+  emitModes(3)%species = "SS"
+  emitModes(3)%emitHeightMin = 600.
+  emitModes(3)%emitHeightMax = 650.
+  emitModes(3)%emitSizeDistType = 2
+  emitModes(3)%emitDiam = 0.6e-6
+  emitModes(3)%emitNum = 10.5e6
+  emitModes(3)%emitSigma = 1.1
+  emitModes(3)%emitMap = 'datafiles/emitMap_1'
+  emitModes(3)%scS = 60.                        ! source velocity
+  emitModes(3)%z_expan_up = 3
+  emitModes(3)%z_expan_dw = 2
 
 /
 

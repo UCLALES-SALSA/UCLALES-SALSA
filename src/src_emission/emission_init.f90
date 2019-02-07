@@ -1,12 +1,13 @@
 MODULE emission_init
-  USE mo_submctl, ONLY : spec, nbins, aerobins, pi6, in1a, fn2a, in2b, fn2b
+  USE mo_submctl, ONLY : spec, nbins, pi6, in1a, fn2a, in2b, fn2b
   USE emission_types, ONLY : emitConfig, emitModes, emitData, emitType3, nEmissionModes
   USE mo_lagrangian_tracker, ONLY : lagrangian_tracker
   USE mo_salsa_types, ONLY : aero
+  USE mo_aux_state, ONLY : aetot,xt,yt,zt
   USE mo_salsa_sizedist, ONLY : size_distribution
   USE util, ONLY : smaller, getMassIndex, closest, arr_resize
   USE exceptionHandling, ONLY : errorMessage
-  USE grid, ONLY : deltax, deltay, xt, yt, zt
+  USE grid, ONLY : deltax, deltay
   USE mpi_interface, ONLY : myid
   IMPLICIT NONE
 
@@ -66,13 +67,13 @@ MODULE emission_init
                  
                  ! Determine the destination bin of the monochromatic emission from the
                  ! specified diameter
-                 ibin = smaller(aerobins(st:en),emd%emitDiam) - 1
+                 ibin = smaller(aetot%d(st:en),emd%emitDiam) - 1
                  
                  ! Get bin indices for emitted mass tendencies (in addition to specified species, put also
                  ! some water due to current limitations in condensation in mo_salsa_dynamics. Review this later!)
                  CALL bin_indices(nprof,nbins,st,en,   &
-                      nc1, nc2, mb1, mb2,  &
-                      mb12, mb22, ibin=ibin)
+                                  nc1, nc2, mb1, mb2,  &
+                                  mb12, mb22, ibin=ibin)
                  
                  ! Place the emission number and mass concentrations to the emission data instance
                  edt%numc(st+ibin) = emd%emitNum
@@ -95,12 +96,11 @@ MODULE emission_init
                                          [emd%emitDiam],  &
                                          [emd%emitSigma], &
                                          naero            )
-                 !naero = 1.
                  
                  ! -- Get the indices for emitted species and water.
                  CALL bin_indices( nprof,nbins,st,en,  &
-                      nc1, nc2, mb1, mb2, &
-                      mb12, mb22          )
+                                   nc1, nc2, mb1, mb2, &
+                                   mb12, mb22          )
                  
                  ! Set the emission number and mass concentrations to the emission data instance
                  edt%numc(st:en) = naero(1,1,st:en)
@@ -174,9 +174,9 @@ MODULE emission_init
            IF (emitHeightMin == -999.) emitHeightMin = maxf
            IF (emitHeightMax == -999.) emitHeightMax = maxf
            
-           ilev = closest(zt,emitHeightMin)
+           ilev = closest(zt%d,emitHeightMin)
            emitLevMin = ilev
-           ilev = closest(zt,emitHeightMax)
+           ilev = closest(zt%d,emitHeightMax)
            emitLevMax = ilev
            
         ELSE IF (emitLevMin > 0 .OR. emitLevMax > 0) THEN
@@ -186,8 +186,8 @@ MODULE emission_init
            IF (emitLevMax == -999) emitLevMax = maxi
            
            ! Update the emission height levels according to the indices
-           emitHeightMin = zt(emitLevMin)
-           emitHeightMax = zt(emitLevMax)
+           emitHeightMin = zt%d(emitLevMin)
+           emitHeightMax = zt%d(emitLevMax)
            
         END IF
         
@@ -228,10 +228,10 @@ MODULE emission_init
     deltax2 = deltax/2
     deltay2 = deltay/2
     
-    xlim1 = MINVAL(xt) + 3*deltax2
-    xlim2 = MAXVAL(xt) - 3*deltax2
-    ylim1 = MINVAL(yt) + 3*deltay2
-    ylim2 = MAXVAL(yt) - 3*deltay2
+    xlim1 = MINVAL(xt%d) + 3*deltax2
+    xlim2 = MAXVAL(xt%d) - 3*deltax2
+    ylim1 = MINVAL(yt%d) + 3*deltay2
+    ylim2 = MAXVAL(yt%d) - 3*deltay2
     
     i = 1
     DO WHILE (.TRUE.)

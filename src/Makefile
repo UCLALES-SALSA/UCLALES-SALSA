@@ -5,7 +5,8 @@ VPATH = $(SRCUTIL):   \
 	$(SRCSALSA):  \
 	$(SRCRAD):    \
 	$(SRCEMIS):   \
-	$(SRCSHARED)  
+	$(SRCSHARED): \
+	$(SRCIO)
 
 ifneq (,$(findstring mpi,$(LES_ARC)))
 	seqmpi = mpi_interface.f90
@@ -22,8 +23,9 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa
 	  rad_solver.f90 rad_corkds.f90 rad_cldwtr.f90 rad_d4strm.f90 rad_driver.f90 radiation_main.f90                \
 	  emission_main.f90 emission_init.f90 mo_lagrangian_tracker.f90 emission_types.f90 mo_seasalt_emission.f90     \
 	  exceptionHandling.f90 mo_aerorad_lut.f90 mo_salsa_optical_properties.f90 mo_particle_external_properties.f90 \
-	  mo_ice_shape.f90
-
+	  mo_ice_shape.f90 mo_structured_datatypes.f90 mo_aux_state.f90 mo_diag_state.f90 mo_progn_state.f90           \
+	  mo_vector_state.f90 mo_derived_state.f90 mo_derived_procedures.f90 mo_ps_state.f90 mo_ps_procedures.f90       \
+	  mo_field_state.f90 classFieldArray.f90 mo_output.f90 mo_history.f90 mo_field_types.f90
 
 OBJS =	$(SRCSF90:.f90=.o) $(SRCSF77:.f=.o)
 
@@ -43,40 +45,74 @@ $(OUT): $(OBJS)
 # Dependencies
 # --------------------
 #
-LES.o: grid.o init.o step.o $(seqmpi:.f90=.o) util.o sgsm.o srfc.o \
-       forc.o mo_salsa_init.o nudg.o emission_types.o radiation_main.o \
-       mo_salsa_types.o nudg_defs.o init_warm_bubble.o
-       #stat.o
-ncio.o: $(seqmpi:.f90=.o)
+LES.o: $(seqmpi:.f90=.o) grid.o init.o step.o mo_field_state.o mo_salsa_init.o \
+       util.o sgsm.o srfc.o nudg_defs.o emission_types.o init_warm_bubble.o    \
+       forc.o radiation_main.o mcrp.o mo_output.o
+
+ncio.o: $(seqmpi:.f90=.o) classFieldArray.o
+mo_output.o: $(seqmpi:.f90=.o) ncio.o grid.o mo_field_types.o   \
+	     classFieldArray.o mo_structured_datatypes.o mo_submctl.o
+mo_history.o: $(seqmpi:.f90=.o) grid.o nudg_defs.o mo_progn_state.o   \
+	      mo_vector_state.o mo_diag_state.o mo_aux_state.o
+
 util.o: $(seqmpi:.f90=.o) rfft.o
 defs.o:
-grid.o: ncio.o $(seqmpi:.f90=.o) mo_submctl.o util.o nudg_defs.o
-#stat.o: ncio.o grid.o util.o defs.o mo_submctl.o $(seqmpi:.f90=.o)
-thrm.o: grid.o defs.o 
-forc.o: grid.o defs.o $(seqmpi:.f90=.o) nudg.o radiation_main.o \
-	emission_main.o util.o # stat.o
-advf.o: grid.o util.o mo_submctl.o $(seqmpi:.f90=.o) #stat.o
-advl.o: grid.o util.o # stat.o
-srfc.o: grid.o defs.o thrm.o $(seqmpi:.f90=.o) #stat.o
-prss.o: grid.o defs.o util.o $(seqmpi:.f90=.o) #stat.o
-sgsm.o: grid.o defs.o util.o thrm.o $(seqmpi:.f90=.o)  #stat.o
-mcrp.o: grid.o defs.o thrm.o mo_submctl.o util.o mo_particle_external_properties.o #stat.o
-step.o: grid.o util.o defs.o thrm.o sgsm.o srfc.o  \
-        mcrp.o prss.o advf.o advl.o forc.o $(seqmpi:.f90=.o) \
-        mo_salsa_driver.o mo_submctl.o constrain_SALSA.o # stat.o
-init.o: grid.o util.o defs.o step.o sgsm.o thrm.o  \
-	$(seqmpi:.f90=.o) mo_salsa_sizedist.o mo_submctl.o \
-	mo_salsa_types.o mo_salsa_driver.o mo_submctl.o     \
-	ncio.o nudg.o emission_init.o constrain_SALSA.o      \
-	init_warm_bubble.o  #stat.o
-init_warm_bubble.o: defs.o grid.o
-nudg.o: grid.o mo_submctl.o util.o nudg_defs.o
+grid.o: $(seqmpi:.f90=.o) mo_submctl.o     \
+	classFieldArray.o mo_aux_state.o  
+thrm.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_aux_state.o \
+        grid.o defs.o $(seqmpi:.f90=.o)
+forc.o: grid.o mo_field_types.o mo_aux_state.o mo_diag_state.o mo_progn_state.o \
+        mo_vector_state.o util.o defs.o radiation_main.o nudg.o emission_main.o \
+	mo_structured_datatypes.o $(seqmpi:.f90=.o)
+advf.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_vector_state.o   \
+	mo_aux_state.o grid.o util.o mo_submctl.o $(seqmpi:.f90=.o)	
+advl.o: mo_structured_datatypes.o grid.o mo_vector_state.o mo_aux_state.o util.o 
+srfc.o: mo_structured_datatypes.o defs.o mo_diag_state.o mo_aux_state.o     \
+        mo_vector_state.o mo_progn_state.o grid.o thrm.o defs.o $(seqmpi:.f90=.o) 
+prss.o: defs.o mo_structured_datatypes.o mo_aux_state.o mo_vector_state.o mo_diag_state.o    \
+        grid.o util.o $(seqmpi:.f90=.o)
+sgsm.o: util.o mo_structured_datatypes.o mo_aux_state.o mo_diag_state.o  \
+        mo_vector_state.o mo_progn_state.o grid.o thrm.o defs.o $(seqmpi:.f90=.o)
+mcrp.o: defs.o mo_aux_state.o mo_diag_state.o mo_progn_state.o grid.o  \
+	thrm.o mo_submctl.o mo_particle_external_properties.o util.o   \
+	classProcessSwitch.o mo_structured_datatypes.o 
+step.o: mo_submctl.o util.o mo_structured_datatypes.o mo_aux_state.o                 \
+	mo_vector_state.o mo_progn_state.o mo_diag_state.o grid.o thrm.o mo_output.o \
+	mo_history.o mcrp.o grid.o mo_field_types.o sgsm.o srfc.o                    \
+	prss.o advf.o advl.o forc.o util.o mo_salsa_driver.o constrain_SALSA.o       \
+	defs.o $(seqmpi:.f90=.o)
+init.o: grid.o mo_progn_state.o mo_vector_state.o mo_diag_state.o mo_aux_state.o   \
+	mo_field_types.o step.o sgsm.o thrm.o mo_salsa_driver.o mo_submctl.o       \
+	util.o nudg.o emission_init.o constrain_SALSA.o mo_structured_datatypes.o  \
+	mo_output.o mo_history.o defs.o mo_submctl.o init_warm_bubble.o            \
+	mo_salsa_sizedist.o mo_salsa_types.o ncio.o $(seqmpi:.f90=.o)
+init_warm_bubble.o: defs.o grid.o mo_aux_state.o mo_progn_state.o mo_structured_datatypes.o
+nudg.o: mo_aux_state.o mo_diag_state.o mo_progn_state.o mo_vector_state.o grid.o mo_submctl.o nudg_defs.o util.o
 nudg_defs.o:
-constrain_salsa.o: grid.o mo_submctl.o util.o
-mo_particle_external_properties.o: mo_submctl.o classSection.o util.o
+
+mo_structured_datatypes.o:
+classFieldArray.o: mo_structured_datatypes.o
+mo_aux_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o
+mo_diag_state.o: classFieldArray.o mo_structured_datatypes.o
+mo_progn_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o
+mo_vector_state.o: classFieldArray.o mo_structured_datatypes.o
+mo_derived_state.o: classFieldArray.o mo_structured_datatypes.o mo_derived_procedures.o 
+mo_derived_procedures.o: mo_submctl.o util.o mo_particle_external_properties.o grid.o \
+                         mo_progn_state.o mo_diag_state.o mo_structured_datatypes.o  
+mo_ps_state.o: classFieldArray.o mo_structured_datatypes.o mo_ps_procedures.o
+mo_ps_procedures.o: util.o mo_structured_datatypes.o grid.o mo_field_types.o
+mo_field_state.o: grid.o mo_diag_state.o mo_progn_state.o mo_vector_state.o     \
+	          mo_derived_state.o mo_ps_state.o mo_field_types.o classFieldArray.o
+mo_field_types.o: classFieldArray.o
+
+constrain_SALSA.o: mo_progn_state.o mo_diag_state.o mo_aux_state.o mo_submctl.o nudg_defs.o \
+                   util.o mo_structured_datatypes.o grid.o mo_field_types.o                 \
+	           mo_derived_procedures.o
+mo_particle_external_properties.o: mo_submctl.o classSection.o util.o mo_ice_shape.o
 mo_ice_shape.o: mo_submctl.o
+
 rfft.o:
-radiation_main.o: grid.o rad_driver.o mo_submctl.o 
+radiation_main.o: grid.o rad_driver.o mo_submctl.o mo_aux_state.o mo_diag_state.o mo_progn_state.o
 rad_solver.o: defs.o
 rad_corkds.o: defs.o $(seqmpi:.f90=.o)
 rad_cldwtr.o: defs.o rad_corkds.o mo_aerorad_lut.o mo_salsa_optical_properties.o
@@ -87,16 +123,18 @@ mo_aerorad_lut.o:
 $(seqmpi:.f90=.o):
 
 emission_main.o: emission_types.o mo_seasalt_emission.o mo_submctl.o mo_salsa_types.o    \
-	         mo_salsa_sizedist.o grid.o util.o exceptionHandling.o mpi_interface.o
+	         mo_salsa_sizedist.o grid.o util.o exceptionHandling.o    \
+	         $(seqmpi:.f90=.o) mo_aux_state.o mo_vector_state.o mo_progn_state.o mo_diag_state.o
 emission_types.o: 
 emission_init.o: mo_submctl.o emission_types.o mo_lagrangian_tracker.o mo_salsa_types.o  \
-	         util.o mpi_interface.o mo_salsa_sizedist.o exceptionHandling.o
-mo_lagrangian_tracker.o: grid.o util.o
+	         util.o mpi_interface.o mo_salsa_sizedist.o exceptionHandling.o          \
+	         mo_aux_state.o grid.o $(seqmpi:.f90=.o)
+mo_lagrangian_tracker.o: mo_aux_state.o grid.o util.o
 
 exceptionHandling.o:
 
-mo_salsa_driver.o: mo_salsa_types.o mo_submctl.o mo_salsa.o mo_salsa_properties.o \
-	           classSection.o util.o classProcessSwitch.o
+mo_salsa_driver.o: classSection.o util.o mo_salsa_types.o mo_submctl.o classFieldArray.o   \
+	           mo_structured_datatypes.o mo_salsa.o mo_salsa_properties.o
 mo_salsa_init.o: mo_salsa_types.o mo_submctl.o mo_salsa_driver.o mo_salsa_optical_properties.o \
 	         classSpecies.o classSection.o classProcessSwitch.o classBinLayout.o          \
 	         mo_salsa_coagulation_kernels.o mo_salsa_coagulation_processes.o

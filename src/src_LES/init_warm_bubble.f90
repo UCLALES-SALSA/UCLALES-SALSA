@@ -1,8 +1,9 @@
 MODULE init_warm_bubble
   USE defs, ONLY : pi, cp
-  USE grid, ONLY : nxp,nyp,nzp, xt,yt,zt,  &
-                   a_tp, level, pi0, pi1
-
+  USE mo_aux_state, ONLY : xt,yt,zt,pi0,pi1
+  USE mo_progn_state, ONLY : a_tp
+  USE grid, ONLY : nxp,nyp,nzp,level
+  USE mo_structured_datatypes
 
   IMPLICIT NONE
 
@@ -38,7 +39,7 @@ MODULE init_warm_bubble
          DO i = 3,nxp-2
             DO k = 2,nzp
 
-               coord = [zt(k),xt(i),yt(j)]
+               coord = [zt%d(k),xt%d(i),yt%d(j)]
                total_dist_norm = SQRT( SUM( ((coord-bubble_center)/(0.5*bubble_diameter))**2 ) )
 
                !IF ( k<10 ) WRITE(*,*) k,i,j,total_dist_norm, coord-bubble_center
@@ -48,9 +49,9 @@ MODULE init_warm_bubble
                   ! Add the temperature perturbation to the liquid potential temperature
                   ! (Just a straightforward addition, don't worry about the resulting decrease in RH?)
                                     
-                  exner = (pi0(k) + pi1(k))/cp
+                  exner = (pi0%d(k) + pi1%d(k))/cp
                   !WRITE(*,*) k,i,j, exner, SIN( (1.-total_dist_norm)*0.5*pi ),zt(k)
-                  a_tp(k,i,j) = a_tp(k,i,j) +   &
+                  a_tp%d(k,i,j) = a_tp%d(k,i,j) +   &
                        SIN( (1.-total_dist_norm)*0.5*pi )*bubble_temp_ampl!/exner
 
                END IF 

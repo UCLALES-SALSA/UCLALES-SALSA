@@ -4,17 +4,19 @@ MODULE emission_main
   
   USE mo_seasalt_emission
 
-  USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, aerobins, spec, pi6
+  USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, spec, pi6
 
   USE mo_salsa_types, ONLY : aero
 
   USE mo_salsa_sizedist, ONLY : size_distribution  ! Could this be packaged somehow differently?
 
-  USE grid, ONLY: deltax, deltay, dzt, zt,  & ! Note dzt is inverse of the distance
-                  xt, yt, deltaz, dtl, &                  
-                  nxp,nyp,nzp,              &
-                  a_up, a_vp, a_dn,      &
-                  a_maerot, a_naerot
+  USE mo_aux_state, ONLY : dzt,zt,xt,yt
+  USE mo_progn_state, ONLY : a_maerot, a_naerot
+  USE mo_diag_state, ONLY : a_dn
+  !USE mo_vector_state, ONLY : a_up, a_vp ! needed for the seasalt thing
+  USE grid, ONLY: deltax, deltay, deltaz, dtl, &                  
+                  nxp,nyp,nzp
+    
   USE util, ONLY: smaller, closest, getMassIndex
   USE exceptionHandling, ONLY: errorMessage
   USE mpi_interface, ONLY : myid
@@ -155,10 +157,10 @@ MODULE emission_main
       DO bb = 1,nbins
          DO j = 1,nyp
             DO i = 1,nxp
-               a_naerot(k1:k2,i,j,bb) = a_naerot(k1:k2,i,j,bb) + edt%numc(bb)
+               a_naerot%d(k1:k2,i,j,bb) = a_naerot%d(k1:k2,i,j,bb) + edt%numc(bb)
                DO ss = 1,spec%getNSpec(type="wet")
                   mm = getMassIndex(nbins,bb,ss)
-                  a_maerot(k1:k2,i,j,mm) = a_maerot(k1:k2,i,j,mm) + edt%mass(mm)
+                  a_maerot%d(k1:k2,i,j,mm) = a_maerot%d(k1:k2,i,j,mm) + edt%mass(mm)
                END DO
             END DO
          END DO
@@ -208,12 +210,12 @@ MODULE emission_main
          DO j = 1, di
             dt  = ( MIN(t_end, t(i_str+j)) - MAX(t_str, t(i_str+j-1)) )/dtl
             ind = i_str+j-1
-            a_naerot((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) = &
-                 a_naerot((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) + edt%numc(bb) * dt
+            a_naerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) = &
+                 a_naerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) + edt%numc(bb) * dt
             DO ss = 1,spec%getNSpec()
                mm = getMassIndex(nbins,bb,ss)
-               a_maerot((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),mm) = &
-                    a_maerot((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),mm) + edt%mass(mm) * dt
+               a_maerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),mm) = &
+                    a_maerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),mm) + edt%mass(mm) * dt
             END DO
          END DO
       END DO

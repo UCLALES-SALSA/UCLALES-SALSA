@@ -972,6 +972,11 @@ CONTAINS
             zcwintae = zcwcae; zcwintcd = zcwccd; zcwintpd = zcwcpd
             zcwintit = zcwcit
 
+            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND1 ',zmtcd(1:7)
+            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND2 ',zcwccd(1:7)
+            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND3 ',zcwsurfcd(1:7)
+            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND4 ',zwsatcd(1:7)
+            
             ! Substepping loop
             ! ---------------------------------
             zcwint = 0.
@@ -993,28 +998,28 @@ CONTAINS
                IF ( ANY(aero(ii,jj,:)%numc > aero(ii,jj,:)%nlim) .AND. zrh(ii,jj) > 0.98 ) THEN
                   DO cc = nstr, nbins
                      zcwintae(cc) = zcwcae(cc) + MIN(MAX(adt*zmtae(cc)*(zcwint - zwsatae(cc)*zcwsurfae(cc)), &
-                                                     -0.02*zcwcae(cc)),0.05*zcwcae(cc))
+                                                     -1.e-4*zcwtot), 1.e-4*zcwtot)          !-0.02*zcwcae(cc)),0.05*zcwcae(cc))
                      zwsatae(cc) = acth2o(aero(ii,jj,cc),zcwintae(cc))*zkelvin(cc)
                   END DO
                END IF
                IF ( ANY(cloud(ii,jj,:)%numc > cloud(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, ncld
                      zcwintcd(cc) = zcwccd(cc) + MIN(MAX(adt*zmtcd(cc)*(zcwint - zwsatcd(cc)*zcwsurfcd(cc)), &
-                                                     -0.02*zcwccd(cc)),0.05*zcwccd(cc))
+                                                     -1.e-4*zcwtot), 1.e-4*zcwtot) !-0.02*zcwccd(cc)),0.05*zcwccd(cc))
                      zwsatcd(cc) = acth2o(cloud(ii,jj,cc),zcwintcd(cc))*zkelvincd(cc)
                   END DO
                END IF
                IF ( ANY(precp(ii,jj,:)%numc > precp(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, nprc
                      zcwintpd(cc) = zcwcpd(cc) + MIN(MAX(adt*zmtpd(cc)*(zcwint - zwsatpd(cc)*zcwsurfpd(cc)), &
-                                                     -0.02*zcwcpd(cc)),0.05*zcwcpd(cc))
+                                                     -1.e-4*zcwtot), 1.e-4*zcwtot) !-0.02*zcwcpd(cc)),0.05*zcwcpd(cc))
                      zwsatpd(cc) = acth2o(precp(ii,jj,cc),zcwintpd(cc))*zkelvinpd(cc)
                   END DO
                END IF
                IF ( ANY(ice(ii,jj,:)%numc > ice(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, nice
                      zcwintit(cc) = zcwcit(cc) + MIN(MAX(adt*zmtic(cc)*(zcwint - zwsatic(cc)*zcwsurfic(cc)), &
-                          -0.02*zcwcit(cc)),0.5*zcwcit(cc)) ! Note the increased limit for growth
+                          -0.02*zcwcit(cc)),0.05*zcwcit(cc)) ! Note the increased limit for growth
                      zwsatic(cc) = zkelvinic(cc)
                   END DO
                END IF
