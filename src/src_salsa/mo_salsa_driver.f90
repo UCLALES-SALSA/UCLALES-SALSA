@@ -48,11 +48,7 @@ CONTAINS
    ! Partially adobted form the original SALSA boxmodel version.
    !
    ! Now takes masses in as kg/kg from LES!! Converted to m3/m3 for SALSA
-   !
-   ! 05/2016 Juha: This routine is still pretty much in its original shape.
-   !               It's dumb as a mule and twice as ugly, so implementation of
-   !               an improved solution is necessary sooner or later.
-   !
+
    ! Juha Tonttila, FMI, 2014
    ! Jaakko Ahola, FMI, 2016
    !

@@ -17,7 +17,7 @@ IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
 EXPNAME="WK82"  # Name of the experiment
 
-NPROCS=2          # Number of processors (for IsSeq==0)
+NPROCS=1          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
@@ -77,7 +77,7 @@ cat > NAMELIST <<EOF
   corflg = .false.            ! Apply coriolis force
   prndtl = -0.3333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
-  hfilin = '${EXPNAME}.000800s' ! History file name
+  hfilin = '${EXPNAME}.000600s' ! History file name
   frqhis = 200.
   lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
   lsalsabbins = .FALSE.
@@ -105,7 +105,7 @@ cat > NAMELIST <<EOF
 &output
 ps_intvl = 120.
 main_intvl = 5.
-varlist_main = 'temp','rp','rc','rr','ri','riri','rh','rhi','Nca','Ncb','Naa','Nab','Dwca','wwind'
+varlist_main = 'temp','rp','rc','rr','ri','riri','rh','rhi','Nca','Ncb','Naa','Nab','Dwca','wwind','srp'
 varlist_ps = ''
 /
 

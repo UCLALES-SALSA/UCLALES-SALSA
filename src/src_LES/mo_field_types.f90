@@ -2,6 +2,8 @@ MODULE mo_field_types
   USE classFieldArray
   IMPLICIT NONE  
 
+  SAVE
+  
   ! Field arrays for organizing the prognostic and diagnostic variables and their attributes and output status
   ! ------------------------------------------------------------------------------------------------------------
   TYPE(FieldArray) :: Prog
