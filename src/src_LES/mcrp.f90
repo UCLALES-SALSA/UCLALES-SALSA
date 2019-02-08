@@ -335,7 +335,7 @@ MODULE mcrp
       REAL, INTENT (in)                         :: dt
       TYPE(FloatArray1d), INTENT (in)           :: dn0
       TYPE(FloatArray3d), INTENT (in)           :: rp, np, th, tk
-      TYPE(FloatArray3d), INTENT (out)          :: rrate
+      TYPE(FloatArray3d), INTENT (inout)        :: rrate
       TYPE(FloatArray3d), INTENT (inout)        :: rtt, tlt, rpt, npt
 
       REAL, PARAMETER :: a2 = 9.65       ! in SI [m/s]
@@ -465,7 +465,7 @@ MODULE mcrp
       
       INTEGER, INTENT (in):: n1,n2,n3
       TYPE(FloatArray3d), INTENT (in)         :: th,tk,rc
-      TYPE(FloatArray3d), INTENT (out)        :: rrate
+      TYPE(FloatArray3d), INTENT (inout)        :: rrate
       TYPE(FloatArray3d), INTENT (inout)      :: rtt,tlt
 
       REAL, PARAMETER :: c = 1.19e8 ! Stokes fall velocity coef [m^-1 s^-1]

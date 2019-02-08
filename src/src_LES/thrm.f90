@@ -252,7 +252,7 @@ CONTAINS
     TYPE(FloatArray3d), INTENT (in) :: pp, tl, rt, rp
     TYPE(FloatArray1d), INTENT (in) :: pi0, pi1
     REAL, INTENT (in)               :: th00
-    TYPE(FloatArray3d), INTENT (out) :: rc, rv, rs, th, tk, p
+    TYPE(FloatArray3d), INTENT (inout) :: rc, rv, rs, th, tk, p
 
     INTEGER :: k, i, j, iterate
     REAL    :: exner, tli, tx, txi, rsx, rcx, rpc, tx1, dtx

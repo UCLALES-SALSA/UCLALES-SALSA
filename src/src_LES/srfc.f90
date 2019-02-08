@@ -585,7 +585,7 @@ CONTAINS
       INTEGER, INTENT(in) :: n2,n3
       REAL, INTENT(in)    :: ubar(n2,n3),u(n2,n3),v(n2,n3),xx(n2,n3),vk
       TYPE(FloatArray2d), INTENT(in)    :: us, ts, rs
-      TYPE(FloatArray2d), INTENT(out)   :: uw, vw, tw, rw, ww
+      TYPE(FloatArray2d), INTENT(inout)   :: uw, vw, tw, rw, ww
 
       REAL :: x(n2,n3),y(n2,n3)
       INTEGER i,j
