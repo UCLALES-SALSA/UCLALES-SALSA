@@ -149,7 +149,6 @@ MODULE mo_salsa_coagulation_processes
 
       END DO
 
-
       !
       ! Bin regime 2b
       ! ---------------------
