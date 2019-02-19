@@ -685,7 +685,7 @@ CONTAINS
                         ptemp,  ppres,  prs,   prsi,     &
                         prv,   ptstep    )
     
-     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA
+     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, rateDiag, allSALSA
      USE mo_submctl, ONLY : nbins, ncld, nprc,    &
           nice, ntotal, &
           spec,                           &
@@ -738,16 +738,20 @@ CONTAINS
 
       INTEGER :: nstr
       INTEGER :: ii,jj,cc
-      INTEGER :: counter
-
+      INTEGER :: counter      
       INTEGER :: iwa,irim,nspec
 
+      REAL, ALLOCATABLE :: vrate(:)
+      
       zrh(:,:) = prv(:,:)/prs(:,:)
       
       iwa = spec%getIndex("H2O")
       irim = spec%getIndex("rime")
       nspec = spec%getNSpec(type="total")
 
+      ! For diagnostics
+      ALLOCATE(vrate(nspec))
+      
       ! Calculate the condensation only for 2a/2b aerosol bins
       nstr = in2a
 
@@ -971,11 +975,6 @@ CONTAINS
 
             zcwintae = zcwcae; zcwintcd = zcwccd; zcwintpd = zcwcpd
             zcwintit = zcwcit
-
-            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND1 ',zmtcd(1:7)
-            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND2 ',zcwccd(1:7)
-            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND3 ',zcwsurfcd(1:7)
-            !IF (zrh(ii,jj) > 1.50) WRITE(*,*) 'COND4 ',zwsatcd(1:7)
             
             ! Substepping loop
             ! ---------------------------------
@@ -1054,13 +1053,30 @@ CONTAINS
             
             prv(ii,jj) = zcwn*spec%mwa/rhoair
 
-            aero(ii,jj,1:nbins)%volc(iwa) = max(0.,zcwnae(1:nbins)*spec%mwa/spec%rhowa)
-            cloud(ii,jj,1:ncld)%volc(iwa) = max(0.,zcwncd(1:ncld)*spec%mwa/spec%rhowa)
-            precp(ii,jj,1:nprc)%volc(iwa) = max(0.,zcwnpd(1:nprc)*spec%mwa/spec%rhowa)
-
+            ! Update particle concentrations and diagnostics
+            vrate = 0.
+            DO cc = 1,nbins
+               vrate(iwa) = max(0.,zcwnae(cc)*spec%mwa/spec%rhowa) - aero(ii,jj,cc)%volc(iwa)
+               CALL rateDiag%Cond_a%Accumulate(v=vrate(1:nspec))
+               aero(ii,jj,cc)%volc(iwa) = max(0.,zcwnae(cc)*spec%mwa/spec%rhowa)
+            END DO
+            vrate = 0.
+            DO cc = 1,ncld
+               vrate(iwa) = max(0.,zcwncd(cc)*spec%mwa/spec%rhowa) - cloud(ii,jj,cc)%volc(iwa)
+               CALL rateDiag%Cond_c%Accumulate(v=vrate(1:nspec))
+               cloud(ii,jj,cc)%volc(iwa) = max(0.,zcwncd(cc)*spec%mwa/spec%rhowa)
+            END DO
+            vrate = 0.
+            DO cc = 1,nprc
+               vrate(iwa) = max(0.,zcwnpd(cc)*spec%mwa/spec%rhowa) - precp(ii,jj,cc)%volc(iwa)
+               CALL rateDiag%Cond_p%Accumulate(v=vrate(1:nspec))
+               precp(ii,jj,cc)%volc(iwa) = max(0.,zcwnpd(cc)*spec%mwa/spec%rhowa)
+            END DO
+            
             ! Ice particles: Assume deposition to only contribute to pristine ice.
             ! Sublimation will remove identical fractions from both pristine and
             ! rimed ice contents
+            vrate = 0.
             DO cc = 1,nice
 
                ! Take the total change in ice concentration:
@@ -1069,13 +1085,18 @@ CONTAINS
                IF ( dvitot > 0. ) THEN
                   ! Deposition - assume to increase only the pristine ice
                   dvice = dvitot
-                  ice(ii,jj,cc)%volc(iwa) = ice(ii,jj,cc)%volc(iwa) + dvice*spec%mwa/spec%rhoic                  
+                  ice(ii,jj,cc)%volc(iwa) = ice(ii,jj,cc)%volc(iwa) + dvice*spec%mwa/spec%rhoic
+                  vrate(iwa) = dvice*spec%mwa/spec%rhoic
+                  CALL rateDiag%Cond_i%accumulate(v=vrate(1:nspec))
                ELSE IF ( dvitot < 0. ) THEN
                   ! Sublimation takes an equal fraction out of both pristine and rimed ice
                   dvice = ( zcwnit(cc)/(zorgic(cc)+zorgri(cc)) ) - 1.
                   dvice = dvice * zorgic(cc)
                   dvrime = ( zcwnit(cc)/(zorgic(cc)+zorgri(cc)) ) - 1.
                   dvrime = dvrime * zorgri(cc)
+                  vrate(iwa) = dvice*spec%mwa/spec%rhoic
+                  vrate(irim) = dvrime*spec%mwa/spec%rhori
+                  CALL rateDiag%Cond_i%accumulate(v=vrate(1:nspec))
                   ice(ii,jj,cc)%volc(iwa) = ice(ii,jj,cc)%volc(iwa) + dvice*spec%mwa/spec%rhoic
                   IF(spec%isUsed("rime")) &
                        ice(ii,jj,cc)%volc(irim) = ice(ii,jj,cc)%volc(irim) + dvrime*spec%mwa/spec%rhori                  
@@ -1092,6 +1113,8 @@ CONTAINS
 
       END DO ! klev
 
+      DEALLOCATE(vrate)
+      
    END SUBROUTINE gpparth2o
    !-------------------------------------------------------
    REAL FUNCTION acth2o(ppart,pcw)

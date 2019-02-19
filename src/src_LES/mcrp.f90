@@ -176,15 +176,7 @@ MODULE mcrp
       REAL, PARAMETER    :: Dv = 3.e-5     ! diffusivity of water vapor [m2/s]
       
       INTEGER             :: i, j, k
-      REAL                :: Xp, Dp, G, S, cerpt, cenpt, xnpts
-      REAL, DIMENSION(n1) :: v1
-      
-      !IF(sflg) THEN
-      !   xnpts = 1./((n3-4)*(n2-4))
-      !   DO k = 1, n1
-      !      v1(k) = 0.
-      !   END DO
-      !END IF
+      REAL                :: Xp, Dp, G, S, cerpt, cenpt
       
       DO j = 3, n3-2
          DO i = 3, n2-2
@@ -350,8 +342,8 @@ MODULE mcrp
       REAL, PARAMETER :: bn = -0.1
 
       INTEGER :: i, j, k, kp1, kk, km1
-      REAL    :: b2, Xp, Dp, Dm, mu, flxdiv, tot,sk, mini, maxi, cc, zz, xnpts
-      REAL, DIMENSION(n1) :: nslope,rslope,dn,dr, rfl, nfl, vn, vr, cn, cr, v1
+      REAL    :: b2, Xp, Dp, Dm, mu, flxdiv, tot,sk, mini, maxi, cc, zz
+      REAL, DIMENSION(n1) :: nslope,rslope,dn,dr, rfl, nfl, vn, vr, cn, cr
 
       b2 = a2*exp(c2*Dv)
 
@@ -514,7 +506,7 @@ MODULE mcrp
                                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,        &
                                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,        &
                                   a_nicep,   a_nicet,   a_micep,   a_micet
-      USE grid, ONLY : mc_ApVdom
+      !USE grid, ONLY : mc_ApVdom
       USE mo_submctl, ONLY : nbins, ncld, nprc,           &
                              nice
 
@@ -525,7 +517,6 @@ MODULE mcrp
       TYPE(FloatArray3d), INTENT(in) :: tk, th
       TYPE(FloatArray3d), INTENT(inout) :: tlt,rrate,irate
                              
-      INTEGER :: ss
       INTEGER :: i,j,k,nc,istr,iend
 
       REAL :: prnt(n1,n2,n3,nprc), prmt(n1,n2,n3,nspec*nprc)     ! Number and mass tendencies due to fallout, precip
@@ -539,18 +530,15 @@ MODULE mcrp
 
       ! Particle number removal arrays
       REAL :: andep(n2,n3,nbins),     &
-              cndep(n2,n3,ncld),      &
-              indep(n2,n3,nice)
+              cndep(n2,n3,ncld)
 
-      REAL :: mctmp(n2,n3) ! Helper for mass conservation calculations
+      !REAL :: mctmp(n2,n3) ! Helper for mass conservation calculations
 
       ! Divergence fields
       REAL :: amdiv(n1,n2,n3,nspec*nbins),    &
-              cmdiv(n1,n2,n3,nspec*ncld),     &
-              imdiv(n1,n2,n3,(nspec+1)*nice)     ! nspec + 1 because of RIME
+              cmdiv(n1,n2,n3,nspec*ncld)
       REAL :: andiv(n1,n2,n3,nbins),       &
-              cndiv(n1,n2,n3,ncld),        &
-              indiv(n1,n2,n3,nice)
+              cndiv(n1,n2,n3,ncld)
 
       remaer = 0.; remcld = 0.; remprc = 0.; remice = 0.
       prnt = 0.; prmt = 0.; irnt = 0.; irmt = 0.
@@ -701,7 +689,7 @@ MODULE mcrp
     REAL :: mdiff                ! Particle diffusivity
     REAL :: rt, Sc, St
 
-    REAL :: rflm(n1,nb*ns), rfln(n1,nb), pmass(ns), pmnorime(ns-1), dwet
+    REAL :: rflm(n1,nb*ns), rfln(n1,nb), pmass(ns), dwet
     
     REAL :: zpm(nb*ns)  ! Bin mass array to clean things up
     REAL :: zpn(nb)     ! Bin number array to clean things up
@@ -842,7 +830,7 @@ MODULE mcrp
     REAL :: prnchg(n1,nb), prvchg(n1,nb,ns) ! Instantaneous changes in precipitation number and mass (volume)
     REAL :: dwet
  
-    REAL :: prnumc, pmass(ns), pmnorime(ns-1)  ! Instantaneous source number and mass
+    REAL :: prnumc, pmass(ns) ! Instantaneous source number and mass
     INTEGER :: kf, ni,fi
     LOGICAL :: prcdep  ! Deposition flag
 

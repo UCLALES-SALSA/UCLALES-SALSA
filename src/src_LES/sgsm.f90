@@ -81,7 +81,7 @@ CONTAINS
     USE mo_aux_state, ONLY : zm, dzt, dzm, dn0, pi0, pi1
     USE mo_diag_state, ONLY : a_rv, a_rc, a_ri, a_srp, a_pexnr, a_theta, a_temp, a_rsl, uw_sfc, vw_sfc, ww_sfc, wt_sfc, wq_sfc
     USE mo_progn_state, ONLY : a_rp, a_tp, a_tt, a_qt, a_qp
-    USE mo_vector_state, ONLY : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt
+    USE mo_vector_state, ONLY : a_up, a_ut, a_vp, a_vt, a_wp, a_wt
     USE grid, ONLY : a_sp, a_st, nscl, nxp, nyp,    &
                      nzp, dxi, dyi, dtlt, dtlv , th00,   &
                      newsclr, level, isgstyp
@@ -129,10 +129,10 @@ CONTAINS
     ! Calculate Eddy Viscosity/Diffusivity according to specified SGS model
     !
     SELECT CASE (isgstyp)
-    CASE (1)                    !sflg 
-       CALL smagor(nzp,nxp,nyp,.FALSE.,dxi,dn0,a_tmp3,a_tmp2,a_tmp1,zm)
-    CASE (2)                    !sflg
-       CALL deardf(nzp,nxp,nyp,.FALSE.,dxi,zm,dn0,a_qp,a_qt,a_tmp3,a_tmp2,a_tmp1)
+    CASE (1)                    
+       CALL smagor(nzp,nxp,nyp,dxi,dn0,a_tmp3,a_tmp2,a_tmp1,zm)
+    CASE (2)                    
+       CALL deardf(nzp,nxp,nyp,dxi,zm,dn0,a_qp,a_qt,a_tmp3,a_tmp2,a_tmp1)
 
        CALL solv_tke(nzp,nxp,nyp,a_tmp3,a_tmp1,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi,  &
                      dtlt)
@@ -287,16 +287,14 @@ CONTAINS
   ! timsteps, SGS energy, dissipation, viscosity, diffusivity and
   ! lengthscales are stored.
   !
-  SUBROUTINE smagor(n1,n2,n3,sflg,dxi,dn0,ri,kh,km,zm)
+  SUBROUTINE smagor(n1,n2,n3,dxi,dn0,ri,kh,km,zm)
 
     USE defs, ONLY          : pi, vonk
-    !USE stat, ONLY          : tke_sgs
     USE util, ONLY          : get_avg3, get_cor3
     USE mpi_interface, ONLY : cyclics, cyclicc
 
     IMPLICIT NONE
 
-    LOGICAL, INTENT(in) :: sflg
     INTEGER, INTENT(in) :: n1,n2,n3
     REAL, INTENT(in)    :: dxi
     TYPE(FloatArray1d), INTENT(in) :: dn0,zm
@@ -326,21 +324,6 @@ CONTAINS
     CALL cyclics(n1,n2,n3,km,req)
     CALL cyclicc(n1,n2,n3,km,req)
 
-
-    !IF (sflg) THEN
-    !   CALL get_cor3(n1,n2,n3,km,km,sz1)
-    !   CALL get_cor3(n1,n2,n3,km,kh,sz2)
-    !   CALL updtst(n1,'sgs',-2,sz2,1)      ! dissipation
-
-    !   DO k = 1, n1
-    !      tke_sgs(k) = sz1(k)/(delta*pi*(csx*0.18))**2
-    !      sz1(k) = 1./sqrt(1./(delta*csx)**2+1./(zm(k)*vonk+0.001)**2)
-    !   END DO
-    !   CALL updtst(n1,'sgs',-1,tke_sgs,1)  ! sgs tke
-    !   CALL updtst(n1,'sgs',-5,sz1,1)      ! mixing length
-    !   CALL updtst(n1,'sgs',-6,sz1,1)      ! dissipation lengthscale
-    !END IF
-
     DO j = 3, n3-2
        DO i = 3, n2-2
           DO k = 1, n1
@@ -353,13 +336,6 @@ CONTAINS
     END DO
     CALL cyclics(n1,n2,n3,kh,req)
     CALL cyclicc(n1,n2,n3,kh,req)
-
-    !IF (sflg) THEN
-    !   CALL get_avg3(n1,n2,n3,km,sz3)
-    !   CALL updtst(n1,'sgs',-3,sz3,1)  ! eddy viscosity
-    !   CALL get_avg3(n1,n2,n3,kh,sz2)
-    !   CALL updtst(n1,'sgs',-4,sz2,1)  ! eddy diffusivity
-    !END IF
 
   END SUBROUTINE smagor
   !
@@ -375,17 +351,15 @@ CONTAINS
   !   yy =  ---
   !   zz = deform
   !
-  SUBROUTINE deardf(n1,n2,n3,sflg,dxi,zm,dn0,tke,tket,xx,zz,yy)
+  SUBROUTINE deardf(n1,n2,n3,dxi,zm,dn0,tke,tket,xx,zz,yy)
 
     USE defs, ONLY : vonk
-    !USE stat, ONLY : tke_sgs
     USE util, ONLY : get_avg3
 
     IMPLICIT NONE
 
     REAL, PARAMETER :: cm = 0.1, eps = 1.e-12, cs = 0.82, c_e1 = 0.225, c_e2 = 0.705
 
-    LOGICAL, INTENT(in) :: sflg
     INTEGER, INTENT(in) :: n1,n2,n3
     REAL, INTENT(in)    :: dxi
     TYPE(FloatArray1d), INTENT(in) :: dn0,zm
@@ -419,35 +393,9 @@ CONTAINS
              xx(k,i,j) = lm/(c_e1 + c_e2*lm/ln)
              yy(k,i,j) = cm*lm*sqrt(tke%d(k,i,j))*.5*(dn0%d(k)+dn0%d(k+1))
              zz(k,i,j) = ch*yy(k,i,j)
-             !IF (sflg) THEN
-             !   sz6(k) = sz6(k) + lm
-             !   sz5(k) = sz5(k) + lm*ch
-             !   sz4(k) = sz4(k) + (sqrt(tke(k,i,j)**3))/xx(k,i,j)
-             !END IF
           END DO
        END DO
     END DO
-    !
-    ! --- accumululate SGS model stats
-    !
-    !IF (sflg) THEN
-    !   CALL get_avg3(n1,n2,n3,tke,sz1)
-    !   CALL get_avg3(n1,n2,n3,yy,sz2)
-    !   CALL get_avg3(n1,n2,n3,zz,sz3)!
-
-    !   DO k = 1, n1
-    !      sz6(k) = sz6(k)/REAL(n2*n3)
-    !      sz5(k) = sz5(k)/REAL(n2*n3)
-    !      sz4(k) = sz4(k)/REAL(n2*n3)
-    !      tke_sgs(k) = sz1(k)
-    !   END DO
-    !   CALL updtst(n1,'sgs',-1,sz1,1)
-    !   CALL updtst(n1,'sgs',-2,sz4,1)
-    !   CALL updtst(n1,'sgs',-3,sz2,1)
-    !   CALL updtst(n1,'sgs',-4,sz3,1)
-    !   CALL updtst(n1,'sgs',-5,sz5,1)
-    !   CALL updtst(n1,'sgs',-6,sz6,1)
-    !END IF
 
   END SUBROUTINE deardf
   !

@@ -20,9 +20,7 @@ MODULE emission_init
       CHARACTER(len=50), PARAMETER :: name = "init_emission"
       
       INTEGER :: ibin
-      INTEGER :: ilev
       INTEGER :: st,en
-      INTEGER :: maxv
       INTEGER :: nprof
       INTEGER :: mb1,mb12,mb2,mb22,nc1,nc2
       REAL :: core(nbins), naero(1,1,nbins)

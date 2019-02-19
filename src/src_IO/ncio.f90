@@ -132,9 +132,7 @@ MODULE ncio
                                         inae_b,incld_b,       &
                                         inice            
 
-      INTEGER :: nvar
-      
-      CHARACTER (len=10) :: xnm
+      CHARACTER (len=50) :: xnm
       INTEGER :: iret, n, VarID
 
       out_nvar = 0
@@ -233,7 +231,7 @@ MODULE ncio
          iret = nf90_inquire(ncID, nVariables=n)
          IF (n /= out_nvar) THEN
             iret = nf90_close(ncID)
-            IF (myid == 0) PRINT *, '  ABORTING: Incompatible Netcdf File',n,nvar
+            IF (myid == 0) PRINT *, '  ABORTING: Incompatible Netcdf File',n,out_nvar
             CALL appl_abort(0)
          ELSE
             DO n = 1, outProg%count
@@ -278,7 +276,7 @@ MODULE ncio
       INTEGER, INTENT(inout) :: out_nvar
       
       INTEGER :: nvar, n, VarID, iret
-      CHARACTER(len=10) :: name
+      CHARACTER(len=50) :: name
       CHARACTER(len=100) :: long_name
       CHARACTER(len=10) :: unit,dim
 
@@ -309,7 +307,7 @@ MODULE ncio
     SUBROUTINE define_variable(ncID,dim,name,VarID)
       INTEGER, INTENT(in) :: ncID
       CHARACTER(len=10), INTENT(in) :: dim
-      CHARACTER(len=10), INTENT(in) :: name
+      CHARACTER(len=50), INTENT(in) :: name
       INTEGER, INTENT(out) :: VarID
       
       INTEGER :: iret

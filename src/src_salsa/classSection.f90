@@ -24,7 +24,7 @@ MODULE classSection
 
      REAL :: rhomean     ! The mean ice density for frozen particles. Takes into account only the bulk ice composition
      REAL :: rhoeff      ! Effective ice density. This should take into account non-spherical shape as well as the 
-                          ! bulk ice composition
+                         ! bulk ice composition
 
      INTEGER :: phase    ! Phase identifier, 1: aerosol 2: cloud droplet, 3: precip, 4: ice
      REAL    :: nlim     ! Lower limit for number concentration used in many calculations, depends on particle type
@@ -33,8 +33,6 @@ MODULE classSection
      CONTAINS
        PROCEDURE :: updateDiameter
        PROCEDURE :: updateRhomean
-
-
   END TYPE Section
   INTERFACE Section
      PROCEDURE :: cnstr

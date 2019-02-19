@@ -142,9 +142,7 @@ MODULE emission_main
     TYPE(EmitSizeDist), INTENT(in) :: edt  ! Emission data instance
     TYPE(EmitConfig), INTENT(in) :: emd   ! Emission configuration instance
 
-    INTEGER :: k,i,j,bb,ss,mm
-    CHARACTER(len=30) :: emit_spec
-
+    INTEGER :: i,j,bb,ss,mm
     
     IF (myid == 0) THEN
       WRITE(*,*) '========================'
@@ -187,7 +185,6 @@ MODULE emission_main
     INTEGER :: j,bb,ss,mm
     REAL :: dt, t_str,t_end
     INTEGER :: ind, i_str,i_end, di
-    CHARACTER(len=30) :: emit_spec
     
     IF (myid == 0) THEN
        WRITE(*,*) '========================'

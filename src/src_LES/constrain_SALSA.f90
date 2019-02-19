@@ -13,13 +13,10 @@ MODULE constrain_SALSA
 
 
    SUBROUTINE tend_constrain2
-     USE grid, ONLY : dtlt, nxp,nyp,nzp,nsalsa,level
+     USE grid, ONLY : dtlt
      USE mo_field_types, ONLY : SALSA_tracers_4d
-     USE mo_submctl, ONLY : nbins, ncld, nprc, &
-                            nice    
-      IMPLICIT NONE
+     IMPLICIT NONE
 
-      INTEGER :: nb,nvk,i,j
       TYPE(FloatArray4d), POINTER :: varp => NULL(),vart => NULL()
       INTEGER :: nv
 
@@ -46,27 +43,24 @@ MODULE constrain_SALSA
    ! Juha Tonttila, FMI, 2014
    ! Tomi Raatikainen, FMI, 2016
 
-   SUBROUTINE SALSA_diagnostics(callno,onlyDiag)
+   SUBROUTINE SALSA_diagnostics(onlyDiag)
      USE grid, ONLY : nxp,nyp,nzp,    &
                       level
      USE mo_derived_procedures, ONLY : binMixrat ! Maybe at some point one could use the actual variables instead of this subroutine directly?
      USE mo_submctl, ONLY : nbins,ncld,nprc,nice,ica,fca,icb,fcb,ira,fra,              &
-                            in1a,in2a,fn2a,fn2b,                        &
+                            in1a,fn2b,                        &
                             nice,iia,fia,                    &
                             surfw0, rg, pi, &
                             lscndgas, pi6, avog
      USE util, ONLY : getMassIndex
      IMPLICIT NONE
 
-     INTEGER, INTENT(in) :: callno
      LOGICAL, INTENT(in), OPTIONAL :: onlyDiag ! If true, only update diagnostic concentrations and don't do anything else. Default value is FALSE.
 
      REAL, PARAMETER :: massTH = 1.e-25! Minimum mass threshold; corresponds to about a 1 nm particle == does not make sense
      
-     INTEGER :: i,j,k,bb,bc,ba,s,sc,sa,str,end,nc,nspec
+     INTEGER :: i,j,k,bc,ba,s,sc,sa,str,end,nc,nspec
      INTEGER :: mi,mi2 !"mass index" variables
-
-     REAL :: ra, rb
 
      REAL :: zvol
      REAL :: zdh2o
@@ -228,7 +222,7 @@ MODULE constrain_SALSA
                        IF ( zdh2o < MAX(0.1*cdprc,1.3e-5) .OR.   &
                             a_mprecpp%d(k,i,j,mi) < massTH*a_nprecpp%d(k,i,j,bc) ) THEN
                           
-                          ba = findDry4Wet(a_nprecpp,a_mprecpp,nprc,nspec,bc,k,i,j)
+                          ba = findDry4Wet(a_nprecpp,a_mprecpp,nprc,bc,k,i,j)
                           
                           ! Move the number of particles from cloud to aerosol bins
                           a_naerop%d(k,i,j,ba) = a_naerop%d(k,i,j,ba) + a_nprecpp%d(k,i,j,bc)
@@ -279,7 +273,7 @@ MODULE constrain_SALSA
                        IF ( zvol>0.5 .OR. cdice < 2.e-6 ) THEN
                           
                           ! Find the aerosol bin corresponding to the composition of the IN the current bin
-                          ba = findDry4Wet(a_nicep,a_micep,nice,nspec+1,bc,k,i,j)                     
+                          ba = findDry4Wet(a_nicep,a_micep,nice,bc,k,i,j)                     
                           
                           ! Move the number of particles from ice to aerosol bins
                           a_naerop%d(k,i,j,ba) = a_naerop%d(k,i,j,ba) + a_nicep%d(k,i,j,bc)
@@ -390,13 +384,12 @@ MODULE constrain_SALSA
   ! ----------------------------------------------------------------------
   !
 
-  INTEGER FUNCTION findDry4Wet(nevap,mevap,nb,nsp,ib,iz,ix,iy)
-    USE grid, ONLY : nzp,nxp,nyp
-    USE mo_submctl, ONLY : in2a,fn2a,fn1a,nbins,pi6
+  INTEGER FUNCTION findDry4Wet(nevap,mevap,nb,ib,iz,ix,iy)
+    USE mo_submctl, ONLY : in2a,fn2a,nbins,pi6
     USE util, ONLY :  calc_correlation, getMassIndex
     IMPLICIT NONE
     
-    INTEGER, INTENT(in)            :: nb,nsp  ! Number of bins and number of species in the evaporating particle class 
+    INTEGER, INTENT(in)            :: nb  ! Number of bins and number of species in the evaporating particle class 
     INTEGER, INTENT(in)            :: ib,iz,ix,iy  ! Current bin and grid indices
     TYPE(FloatArray4d), INTENT(in) :: mevap
     TYPE(FloatArray4d), INTENT(in) :: nevap
@@ -406,7 +399,7 @@ MODULE constrain_SALSA
     INTEGER :: ba,bb  ! Corresponding aerosol indices for regimes a and b
     REAL :: ra, rb ! Correlation coefficients for a and b aerosol bins
 
-    INTEGER :: nwet,ndry
+    INTEGER :: ndry
     
     ! This function finds a suitable aerosol bin for evaporating
     ! precipitation or ice bins

@@ -18,14 +18,14 @@ MODULE mo_salsa_update
 
 CONTAINS
 
-   SUBROUTINE distr_update(kproma, kbdim, klev, level )
+   SUBROUTINE distr_update(kbdim, klev, level ) ! kproma
       USE mo_submctl
     
       IMPLICIT NONE
 
       !-- Input and output variables ----------
       INTEGER, INTENT(IN) ::      &
-         kproma,                    & ! number of horiz. grid points 
+         !kproma,                    & ! number of horiz. grid points 
          kbdim,                     & ! dimension for arrays
          klev                         ! number of vertical levels
      

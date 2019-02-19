@@ -85,7 +85,7 @@ MODULE mo_output
                            n3=nyp-4,inae_a=fn2a,inae_b=fn2b-fn2a,  &
                            incld_a=fca%cur,incld_b=fcb%cur,        &                              
                            inprc=nprc,inice=nice                   )
-               
+              
          ELSE
             CALL define_nc(ncid_main,nrec_main,nvar_main,          &
                            outProg=outProg,outVector=outVector,    &
@@ -96,7 +96,7 @@ MODULE mo_output
          END IF
          
       END IF
-               
+              
       IF (myid == 0) PRINT *,'   ...starting record: ', nrec_main
 
       
@@ -228,10 +228,10 @@ MODULE mo_output
       INTEGER, INTENT(in) :: ncid0
       INTEGER, INTENT(inout) :: nrec0
       
-      INTEGER :: icnt0d(1), icnt0dsd(2), icnt1d(2), icnt1dsd(3), icnt2d(3), icnt3d(4), icnt3dsd(5) ! count arrays for 3d variables and 4d size distribution variables
+      INTEGER :: icnt0dsd(2), icnt1d(2), icnt1dsd(3), icnt2d(3), icnt3d(4), icnt3dsd(5) ! count arrays for 3d variables and 4d size distribution variables
       INTEGER :: ibeg0d(1), ibeg1d(2), ibeg2d(3), ibeg3d(4), ibeg4d(5) ! same for beginning indices
 
-      CHARACTER(len=10) :: vname
+      CHARACTER(len=50) :: vname
 
       INTEGER :: n, nvar
 

@@ -28,6 +28,14 @@ MODULE util
       MODULE PROCEDURE arr_resize_rel
    END INTERFACE arr_resize
 
+   ! Extend real 1d-4d arrays by 1 element along the last dimension
+   INTERFACE Extend_last
+      MODULE PROCEDURE Extend_last_1d
+      MODULE PROCEDURE Extend_last_2d
+      MODULE PROCEDURE Extend_last_3d
+      MODULE PROCEDURE Extend_last_4d
+   END INTERFACE Extend_last
+
    
    INTEGER, SAVE :: fftinix = 0, fftiniy = 0
    CHARACTER (len=6), PARAMETER :: vel_bc = 'frslip'
@@ -772,5 +780,106 @@ CONTAINS
     END IF
     
   END SUBROUTINE arr_resize_rel
+
+  ! --------------------------------------------------------------------
+
+  SUBROUTINE Extend_last_1d(arr)
+    REAL, ALLOCATABLE, INTENT(inout) :: arr(:)
+    INTEGER :: nv
+    REAL, ALLOCATABLE :: tmp(:)
+
+    IF (ALLOCATED(arr)) THEN
+       nv = SIZE(arr,DIM=1)
+       ALLOCATE(tmp(nv+1))
+       tmp = 0.
+       tmp(1:nv) = arr(:)
+       DEALLOCATE(arr)
+       CALL MOVE_ALLOC(tmp,arr)
+    ELSE
+       ALLOCATE(arr(1))
+       arr = 0.
+    END IF
+       
+  END SUBROUTINE Extend_last_1d
+
+  ! --------------------------------------------------------------------
+
+  SUBROUTINE Extend_last_2d(arr,n1)
+    REAL, ALLOCATABLE, INTENT(inout) :: arr(:,:)
+    INTEGER, INTENT(in), OPTIONAL :: n1 ! Only used for initial allocation
+    INTEGER :: zn1,nv
+    REAL, ALLOCATABLE :: tmp(:,:)
+
+    IF (ALLOCATED(arr)) THEN
+       zn1 = SIZE(arr,DIM=1)
+       nv = SIZE(arr,DIM=2)       
+       ALLOCATE(tmp(zn1,nv+1))
+       tmp = 0.
+       tmp(1:zn1,1:nv) = arr(:,:)
+       DEALLOCATE(arr)
+       CALL MOVE_ALLOC(tmp,arr)
+    ELSE
+       IF (.NOT. PRESENT(n1)) &
+            STOP "Extend_last_3d: Error: Please provide all necessary dimension lengths"
+       ALLOCATE(arr(n1,1))
+       arr = 0.
+    END IF
+    
+  END SUBROUTINE Extend_last_2d
+
+  ! --------------------------------------------------------------------
+
+  SUBROUTINE Extend_last_3d(arr,n1,n2)
+    REAL, ALLOCATABLE, INTENT(inout) :: arr(:,:,:)
+    INTEGER, INTENT(in), OPTIONAL :: n1,n2 ! Only used for initial allocation
+    INTEGER :: zn1,zn2,nv
+    REAL, ALLOCATABLE :: tmp(:,:,:)
+
+    IF (ALLOCATED(arr)) THEN
+       zn1 = SIZE(arr,DIM=1)
+       zn2 = SIZE(arr,DIM=2)
+       nv = SIZE(arr,DIM=3)
+       ALLOCATE(tmp(zn1,zn2,nv+1))
+       tmp = 0.
+       tmp(1:zn1,1:zn2,1:nv) = arr(:,:,:)
+       DEALLOCATE(arr)
+       CALL MOVE_ALLOC(tmp,arr)
+    ELSE
+       IF (.NOT. ALL([PRESENT(n1),PRESENT(n2)])) &
+            STOP "Extend_last_3d: Error: Please provide all necessary dimension lengths"
+       ALLOCATE(arr(n1,n2,1))
+       arr = 0.
+    END IF
+    
+  END SUBROUTINE Extend_last_3d
+  
+  ! --------------------------------------------------------------------
+
+  SUBROUTINE Extend_last_4d(arr,n1,n2,n3)
+    REAL, ALLOCATABLE, INTENT(inout) :: arr(:,:,:,:)
+    INTEGER, INTENT(in), OPTIONAL :: n1,n2,n3 ! Only used for initial allocation
+    INTEGER :: zn1,zn2,zn3,nv
+    REAL, ALLOCATABLE :: tmp(:,:,:,:)
+
+    IF (ALLOCATED(arr)) THEN
+       zn1 = SIZE(arr,DIM=1)
+       zn2 = SIZE(arr,DIM=2)
+       zn3 = SIZE(arr,DIM=3)
+       nv = SIZE(arr,DIM=4)
+       ALLOCATE(tmp(zn1,zn2,zn3,nv+1))
+       tmp = 0.
+       tmp(1:zn1,1:zn2,1:zn3,1:nv) = arr(:,:,:,:)
+       DEALLOCATE(arr)
+       CALL MOVE_ALLOC(tmp,arr)
+    ELSE
+       IF (.NOT. ALL([PRESENT(n1),PRESENT(n2),PRESENT(n3)])) &
+            STOP "Extend_last_3d: Error: Please provide all necessary dimension lengths"
+       ALLOCATE(arr(n1,n2,n3,1))
+       arr = 0.
+    END IF
+    
+  END SUBROUTINE Extend_last_4d
+
+
   
 END MODULE util

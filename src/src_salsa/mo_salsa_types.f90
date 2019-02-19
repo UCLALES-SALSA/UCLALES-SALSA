@@ -1,4 +1,5 @@
 MODULE mo_salsa_types
+  USE classProcessRates, ONLY : ProcessRates
   USE classSection, ONLY : Section
   IMPLICIT NONE
 
@@ -22,8 +23,11 @@ MODULE mo_salsa_types
                             liquid(:,:,:) => NULL(),  &
                             frozen(:,:,:) => NULL()
 
-
   ! Star and end indices for different particle types in the allSALSA array
   INTEGER :: iaero, faero, icloud, fcloud, iprecp, fprecp, iice, fice
+  
+  ! Process specific pointers for process rate containers. Initialize in salsa_init, remember to reset for each cycle in salsa_driver
+  TYPE(ProcessRates) :: rateDiag     
+
   
 END MODULE mo_salsa_types

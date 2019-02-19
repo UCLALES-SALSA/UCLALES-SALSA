@@ -76,7 +76,8 @@ CONTAINS
 !
   SUBROUTINE update_pi1(n1,awtbar,pi1)
 
-    USE grid, ONLY : th00, zt
+    USE grid, ONLY : th00
+    USE mo_aux_state, ONLY : zt
 
     INTEGER, INTENT (in) :: n1
     REAL, INTENT (in) , DIMENSION (n1)   :: awtbar

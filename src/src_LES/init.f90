@@ -143,7 +143,7 @@ CONTAINS
      ! Diagnostic calculations that should take place (with SALSA) both for INITIAL and HISTORY
      IF ( (level >= 4) ) THEN
         !CALL thermo(level)
-        CALL SALSA_diagnostics(0,onlyDiag=.TRUE.)
+        CALL SALSA_diagnostics(onlyDiag=.TRUE.)
         CALL thermo(level)
      END IF
 
@@ -177,14 +177,12 @@ CONTAINS
       USE defs, ONLY : alvl, cpr, cp, p00
       USE sgsm, ONLY : tkeinit
       USE thrm, ONLY : thermo, rslf
-      USE mo_submctl, ONLY : spec
       USE init_warm_bubble, ONLY : warm_bubble
 
       IMPLICIT NONE
 
       INTEGER :: i,j,k
       REAL    :: exner, pres, tk, rc, xran(nzp)
-      INTEGER :: nspec
       
       CALL htint(ns,ts,hs,nzp,th0%d,zt%d)
       

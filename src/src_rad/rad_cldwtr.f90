@@ -450,8 +450,6 @@ CONTAINS
     INTEGER :: bb
 
     REAL :: TH = 1.e-30
-    
-    LOGICAL :: issw
 
     REAL, POINTER :: aer_nre(:) => NULL(), aer_nim(:) => NULL(),          &
                      aer_alpha(:) => NULL(), aer_sigma(:,:,:) => NULL(),  &

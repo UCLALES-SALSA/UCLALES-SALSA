@@ -18,7 +18,7 @@ SRC_SHARED  =$(SRC)/src_shared
 SRC_IO      =$(SRC)/src_IO
 
 VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC_RAD):  \
-	$(SRC_EMIS):$(SRC_SHARED):$(SRC)
+	$(SRC_EMIS):$(SRC_SHARED):$(SRC_IO):$(SRC)
 
 ECHO    = /bin/echo
 RM      = /bin/rm -f

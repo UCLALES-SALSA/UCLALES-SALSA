@@ -205,6 +205,9 @@ MODULE mo_derived_procedures
      
      INTEGER :: istr,iend,mm,cmax
 
+     iend = 0
+     istr = 0
+     
      cmax = LEN_TRIM(name)
      output = 0.
      icomp = name(2:cmax-1)

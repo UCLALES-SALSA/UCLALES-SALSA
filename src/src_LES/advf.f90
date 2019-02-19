@@ -32,16 +32,15 @@ CONTAINS
   ! times.
   !
   SUBROUTINE fadvect
-    USE mo_diag_state, ONLY : a_rc
     USE mo_progn_state, ONLY: a_qp
     USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc
-    USE mo_aux_state, ONLY: dzt, dzm, zt
-    USE grid, ONLY : newsclr, nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt,  &
-                     dzt, dzm, zt, dxi, dyi, level, isgstyp
+    USE mo_aux_state, ONLY: dzt, dzm,dn0
+    USE grid, ONLY : newsclr, nscl, a_sp, a_st, nxp, nyp, nzp, dtlt,  &
+                     dxi, dyi, isgstyp
     !USE stat, ONLY : sflg, updtst
     USE util, ONLY : get_avg3
 
-    REAL    :: v1da(nzp), a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
+    REAL    :: a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
     INTEGER :: n
     LOGICAL :: iw
     !

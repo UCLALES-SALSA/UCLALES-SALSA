@@ -132,7 +132,7 @@ MODULE mo_salsa
      
      ! Size distribution bin update
      IF (lsdistupdate ) &
-          CALL distr_update(kproma, kbdim, klev, level)
+          CALL distr_update(kbdim, klev, level) ! kproma
 
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"DISTUPDATE")
 

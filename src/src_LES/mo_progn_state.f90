@@ -47,25 +47,25 @@ MODULE mo_progn_state
 
   CONTAINS
   
-    SUBROUTINE setPrognosticVariables(a_sclrp,a_sclrt,Prog,outputlist,memsize,level,isgstyp,lbinanl,nzp,nxp,nyp,nscl)
+    SUBROUTINE setPrognosticVariables(a_sclrp,a_sclrt,Prog,outputlist,level,isgstyp,lbinanl,nzp,nxp,nyp,nscl)
       INTEGER, INTENT(in) :: level,isgstyp,nzp,nxp,nyp,nscl
       LOGICAL, INTENT(in) :: lbinanl
       REAL, INTENT(in) :: a_sclrp(nzp,nxp,nyp,nscl), a_sclrt(nzp,nxp,nyp,nscl)
-      CHARACTER(len=10), INTENT(in) :: outputlist(:)
+      CHARACTER(len=*), INTENT(in) :: outputlist(:)
       TYPE(FieldArray), INTENT(inout) :: Prog
-      INTEGER, INTENT(inout) :: memsize
  
-      CLASS(*), POINTER :: pipeline_p, pipeline_t
+      CLASS(*), POINTER :: pipeline_p => NULL(), pipeline_t => NULL()
 
       INTEGER :: iscl, nspec
-      
+
+      nspec = 0
       IF (level >= 4) nspec = spec%getNSpec(type="wet")  ! Number of aerosol compounds used including water (but not rimed ice!!)
       
       iscl = 0
 
       iscl = iscl + 1
-      a_tp = FloatArray3D(a_sclrp(:,:,:,iscl),store=.FALSE.)
-      a_tt = FloatArray3D(a_sclrt(:,:,:,iscl),store=.FALSE.)
+      a_tp = FloatArray3D(a_sclrp(:,:,:,iscl))
+      a_tt = FloatArray3D(a_sclrt(:,:,:,iscl))
       pipeline_p => a_tp
       pipeline_t => a_tt
       CALL Prog%NewField( "theta_l","Liquid water potential temperature, deviation from the mean",    &
@@ -75,8 +75,8 @@ MODULE mo_progn_state
                         )
 
       iscl = iscl + 1
-      a_rp = FloatArray3D(a_sclrp(:,:,:,iscl),store=.FALSE.)
-      a_rt = FloatArray3D(a_sclrt(:,:,:,iscl),store=.FALSE.)
+      a_rp = FloatArray3D(a_sclrp(:,:,:,iscl))
+      a_rt = FloatArray3D(a_sclrt(:,:,:,iscl))
       pipeline_p => a_rp
       pipeline_t => a_rt
       CALL Prog%NewField( "rp","Progostic water vapor (lev4+) or total water content(lev3-)",   &
@@ -88,8 +88,8 @@ MODULE mo_progn_state
 
       IF (level < 4) THEN
          iscl = iscl + 1
-         a_rpp = FloatArray3D(a_sclrp(:,:,:,iscl),store=.FALSE.)
-         a_rpt = FloatArray3D(a_sclrt(:,:,:,iscl),store=.FALSE.)
+         a_rpp = FloatArray3D(a_sclrp(:,:,:,iscl))
+         a_rpt = FloatArray3D(a_sclrt(:,:,:,iscl))
          pipeline_p => a_rpp
          pipeline_t => a_rpt
          CALL Prog%NewField( "rpp","Precipitation mixing ratio",               &
@@ -99,8 +99,8 @@ MODULE mo_progn_state
                            )
 
          iscl = iscl + 1
-         a_npp = FloatArray3D(a_sclrp(:,:,:,iscl),store=.FALSE.)
-         a_npt = FloatArray3D(a_sclrt(:,:,:,iscl),store=.FALSE.)
+         a_npp = FloatArray3D(a_sclrp(:,:,:,iscl))
+         a_npt = FloatArray3D(a_sclrt(:,:,:,iscl))
          pipeline_p => a_npp
          pipeline_t => a_npt
          CALL Prog%NewField( "npp","Precipitation number",             &
@@ -112,8 +112,8 @@ MODULE mo_progn_state
                          
       IF (isgstyp > 1) THEN
          iscl = iscl + 1
-         a_qp = FloatArray3D(a_sclrp(:,:,:,iscl),store=.FALSE.)
-         a_qt = FloatArray3D(a_sclrt(:,:,:,iscl),store=.FALSE.)
+         a_qp = FloatArray3D(a_sclrp(:,:,:,iscl))
+         a_qt = FloatArray3D(a_sclrt(:,:,:,iscl))
          pipeline_p => a_qp
          pipeline_t => a_qt 
          CALL Prog%NewField( "qp","CHECK",                            &
@@ -130,8 +130,8 @@ MODULE mo_progn_state
       IF (level >= 4) THEN
          
          iscl = iscl + 1
-         a_naerop = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nbins-1),store=.FALSE.)
-         a_naerot = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nbins-1),store=.FALSE.)
+         a_naerop = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nbins-1))
+         a_naerot = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nbins-1))
          pipeline_p => a_naerop
          pipeline_t => a_naerot
          CALL Prog%NewField( "naero","Binned aerosol number concentration",                  &
@@ -142,8 +142,8 @@ MODULE mo_progn_state
          iscl = iscl + nbins-1
 
          iscl = iscl + 1
-         a_maerop = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nbins*nspec-1),store=.FALSE.)
-         a_maerot = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nbins*nspec-1),store=.FALSE.)
+         a_maerop = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nbins*nspec-1))
+         a_maerot = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nbins*nspec-1))
          pipeline_p => a_maerop
          pipeline_t => a_maerot
          CALL Prog%NewField( "maero","Binned aerosol mass concentration, sequentially for each compound",    &
@@ -154,8 +154,8 @@ MODULE mo_progn_state
          iscl = iscl + nbins*nspec-1
          
          iscl = iscl + 1
-         a_ncloudp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+ncld-1),store=.FALSE.)
-         a_ncloudt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+ncld-1),store=.FALSE.)
+         a_ncloudp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+ncld-1))
+         a_ncloudt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+ncld-1))
          pipeline_p => a_ncloudp
          pipeline_t => a_ncloudt
          CALL Prog%NewField( "ncloud","Binned cloud number concentration",                    &
@@ -166,8 +166,8 @@ MODULE mo_progn_state
          iscl = iscl + ncld-1
 
          iscl = iscl + 1
-         a_mcloudp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+ncld*nspec-1),store=.FALSE.)
-         a_mcloudt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+ncld*nspec-1),store=.FALSE.)
+         a_mcloudp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+ncld*nspec-1))
+         a_mcloudt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+ncld*nspec-1))
          pipeline_p => a_mcloudp
          pipeline_t => a_mcloudt
          CALL Prog%NewField( "mcloud","Binned cloud mass concentration, sequentially for each compound",    &
@@ -178,8 +178,8 @@ MODULE mo_progn_state
          iscl = iscl + ncld*nspec-1
          
          iscl = iscl + 1
-         a_nprecpp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nprc-1),store=.FALSE.)
-         a_nprecpt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nprc-1),store=.FALSE.)
+         a_nprecpp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nprc-1))
+         a_nprecpt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nprc-1))
          pipeline_p => a_nprecpp
          pipeline_t => a_nprecpt
          CALL Prog%NewField( "nprecp","Binned precip number concentration",                  &
@@ -190,8 +190,8 @@ MODULE mo_progn_state
          iscl = iscl + nprc-1
 
          iscl = iscl + 1
-         a_mprecpp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nprc*nspec-1),store=.FALSE.)
-         a_mprecpt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nprc*nspec-1),store=.FALSE.)
+         a_mprecpp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nprc*nspec-1))
+         a_mprecpt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nprc*nspec-1))
          pipeline_p => a_mprecpp
          pipeline_t => a_mprecpt
          CALL Prog%NewField( "mprecp","Binned precip mass concentration, sequentially for each compound",    &
@@ -202,8 +202,8 @@ MODULE mo_progn_state
          iscl = iscl + nprc*nspec-1
          
          iscl = iscl + 1
-         a_gaerop = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+5-1),store=.FALSE.)
-         a_gaerot = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+5-1),store=.FALSE.)
+         a_gaerop = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+5-1))
+         a_gaerot = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+5-1))
          pipeline_p => a_gaerop
          pipeline_t => a_gaerop
          CALL Prog%NewField( "gaero","Binned ice number concentration",    &
@@ -217,8 +217,8 @@ MODULE mo_progn_state
 
       IF (level == 5) THEN
          iscl = iscl + 1
-         a_nicep = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nice-1),store=.FALSE.)
-         a_nicet = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nice-1),store=.FALSE.)
+         a_nicep = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nice-1))
+         a_nicet = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nice-1))
          pipeline_p => a_nicep
          pipeline_t => a_nicet
          CALL Prog%NewField( "nice","Binned ice number concentration",                     &
@@ -229,8 +229,8 @@ MODULE mo_progn_state
          iscl = iscl + nice-1
 
          iscl = iscl + 1
-         a_micep = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nice*(nspec+1)-1),store=.FALSE.) ! nspec+1 for rimed ice!
-         a_micet = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nice*(nspec+1)-1),store=.FALSE.)
+         a_micep = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nice*(nspec+1)-1)) ! nspec+1 for rimed ice!
+         a_micet = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nice*(nspec+1)-1))
          pipeline_p => a_micep
          pipeline_t => a_micet
          CALL Prog%NewField( "mice","Binned ice mass concentration, sequentially for each compound",    &

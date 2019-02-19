@@ -6,7 +6,7 @@ MODULE mo_structured_datatypes
    !
 
    IMPLICIT NONE
-
+   
    ! -------------------------------------------------------------
    ! Holds derived types for simple float arrays which are needed
    ! in order to use the unlimited polymorphic fields in the
@@ -43,8 +43,8 @@ MODULE mo_structured_datatypes
    
    TYPE FloatArray0d
       REAL, POINTER :: d => NULL()
-      REAL :: alloc
       PROCEDURE(), NOPASS, POINTER :: onDemand => NULL()
+      LOGICAL :: Initialized = .FALSE.
    END TYPE FloatArray0d
    INTERFACE FloatArray0d
       PROCEDURE :: FloatArray0d_constructor
@@ -52,8 +52,8 @@ MODULE mo_structured_datatypes
    
    TYPE FloatArray1d
       REAL, POINTER :: d(:) => NULL() ! This is used as the generic access name for the data
-      REAL, ALLOCATABLE :: alloc(:)      ! This is used to store data to a FloatArrayXX instance. The pointer data will still be used to access it.
       PROCEDURE(), NOPASS, POINTER :: onDemand => NULL()
+      LOGICAL :: Initialized = .FALSE.
    END TYPE FloatArray1d
    INTERFACE FloatArray1d
       PROCEDURE :: FloatArray1d_constructor
@@ -61,8 +61,8 @@ MODULE mo_structured_datatypes
 
    TYPE FloatArray2d
       REAL, POINTER :: d(:,:) => NULL() ! This is used as the generic access name for the data
-      REAL, ALLOCATABLE :: alloc(:,:)      ! This is used to store data to a FloatArrayXX instance. The pointer data will still be used to access it.
       PROCEDURE(), NOPASS, POINTER :: onDemand => NULL()
+      LOGICAL :: Initialized = .FALSE.
    END TYPE FloatArray2d
    INTERFACE FloatArray2d
       PROCEDURE :: FloatArray2d_constructor
@@ -70,8 +70,8 @@ MODULE mo_structured_datatypes
 
    TYPE FloatArray3d
       REAL, POINTER :: d(:,:,:) => NULL() ! This is used as the generic access name for the data
-      REAL, ALLOCATABLE :: alloc(:,:,:)      ! This is used to store data to a FloatArrayXX instance. The pointer data will still be used to access it.
       PROCEDURE(), NOPASS, POINTER :: onDemand => NULL()
+      LOGICAL :: Initialized = .FALSE.
    END TYPE FloatArray3d
    INTERFACE FloatArray3d
       PROCEDURE :: FloatArray3d_constructor
@@ -79,8 +79,8 @@ MODULE mo_structured_datatypes
 
    TYPE FloatArray4d
       REAL, POINTER :: d(:,:,:,:) => NULL() ! This is used as the generic access name for the data
-      REAL, ALLOCATABLE :: alloc(:,:,:,:)      ! This is used to store data to a FloatArrayXX instance. The pointer data will still be used to access it.
       PROCEDURE(), NOPASS, POINTER :: onDemand => NULL()
+      LOGICAL :: Initialized = .FALSE.
    END TYPE FloatArray4d
    INTERFACE FloatArray4d
       PROCEDURE :: FloatArray4d_constructor
@@ -89,156 +89,66 @@ MODULE mo_structured_datatypes
  CONTAINS
 
    ! ----------------------------------------------------
-   FUNCTION FloatArray0d_constructor(trgt,store)
+   FUNCTION FloatArray0d_constructor(trgt)
      IMPLICIT NONE
-     TYPE(FloatArray0d), TARGET    :: FloatArray0d_constructor
-     REAL, INTENT(in), TARGET      :: trgt
-     LOGICAL, INTENT(in), OPTIONAL :: store
-     
-     LOGICAL :: present_and_true
+     TYPE(FloatArray0d), TARGET         :: FloatArray0d_constructor
+     REAL, INTENT(in), TARGET, OPTIONAL :: trgt
 
-     IF (PRESENT(store)) THEN
-        IF (.NOT. store) THEN
-           FloatArray0d_constructor%d => trgt
-        ELSE
-           present_and_true = .TRUE.
-        END IF
-     END IF
-     
-     IF ( .NOT. PRESENT(store) .OR. present_and_true) THEN
-        FloatArray0d_constructor%alloc = trgt
-        FloatArray0d_constructor%d => FloatArray0d_constructor%alloc
-     END IF
+     IF (PRESENT(trgt)) &
+          FloatArray0d_constructor%d => trgt
+     FloatArray0d_constructor%Initialized = .TRUE.
           
    END FUNCTION FloatArray0d_constructor
 
    !---------------------------------------------------------------------
 
-   FUNCTION FloatArray1d_constructor(trgt,store)
+   FUNCTION FloatArray1d_constructor(trgt)
      IMPLICIT NONE
      TYPE(FloatArray1d), TARGET         :: FloatArray1d_constructor
-     REAL, INTENT(in), TARGET           :: trgt(:)
-     LOGICAL, INTENT(in), OPTIONAL      :: store
-     
-     LOGICAL :: present_and_true
-     INTEGER :: dims(1)
-     
-     present_and_true = .FALSE.
-     
-     IF (PRESENT(store)) THEN
-        IF (.NOT. store) THEN
-           FloatArray1d_constructor%d => trgt
-        ELSE
-           present_and_true = .TRUE.
-        END IF
-     END IF
-     
-     IF ( .NOT. PRESENT(store) .OR. present_and_true ) THEN
-        dims = SHAPE(trgt)
-        ALLOCATE( FloatArray1d_constructor%alloc(dims(1)) )
-        FloatArray1d_constructor%alloc = trgt
-        ! Associate "d" with the allocated array
-        FloatArray1d_constructor%d => FloatArray1d_constructor%alloc
-     END IF
+     REAL, INTENT(in), TARGET, OPTIONAL :: trgt(:)
+
+     IF (PRESENT(trgt)) &
+          FloatArray1d_constructor%d => trgt     
+     FloatArray1d_constructor%Initialized = .TRUE.
      
    END FUNCTION FloatArray1d_constructor
 
    ! ------------------------------------------------------------------
    
-   FUNCTION FloatArray2d_constructor(trgt,store)
+   FUNCTION FloatArray2d_constructor(trgt)
      IMPLICIT NONE
      TYPE(FloatArray2d), TARGET         :: FloatArray2d_constructor
-     REAL, INTENT(in), TARGET           :: trgt(:,:)
-     LOGICAL, INTENT(in), OPTIONAL      :: store
-     
-     LOGICAL :: present_and_true
-     INTEGER :: dims(2)
-     
-     present_and_true = .FALSE.
-     
-     IF (PRESENT(store)) THEN
-        IF (.NOT. store) THEN
-           FloatArray2d_constructor%d => trgt
-        ELSE
-           present_and_true = .TRUE.
-        END IF
-     END IF
-     
-     IF ( .NOT. PRESENT(store) .OR. present_and_true ) THEN
-        dims = SHAPE(trgt)
-        ALLOCATE( FloatArray2d_constructor%alloc(dims(1),  &
-                                                 dims(2))  )
-        FloatArray2d_constructor%alloc = trgt
-        ! Associate "d" with the allocated array
-        FloatArray2d_constructor%d => FloatArray2d_constructor%alloc
-     END IF
+     REAL, INTENT(in), TARGET, OPTIONAL :: trgt(:,:)
+
+     IF (PRESENT(trgt)) &
+          FloatArray2d_constructor%d => trgt
+     FloatArray2d_constructor%Initialized = .TRUE.
      
    END FUNCTION FloatArray2d_constructor
 
    ! ----------------------------------------------------------------------------
    
-   FUNCTION FloatArray3d_constructor(trgt,store)
+   FUNCTION FloatArray3d_constructor(trgt)
      IMPLICIT NONE
      TYPE(FloatArray3d), TARGET         :: FloatArray3d_constructor
-     REAL, INTENT(in), TARGET           :: trgt(:,:,:)
-     LOGICAL, INTENT(in), OPTIONAL      :: store
-     
-     LOGICAL :: present_and_true
-     INTEGER :: dims(3)
-     
-     present_and_true = .FALSE.
-     
-     IF (PRESENT(store)) THEN
-        IF (.NOT. store) THEN
-           FloatArray3d_constructor%d => trgt
-        ELSE
-           present_and_true = .TRUE.
-        END IF
-     END IF
-     
-     IF ( .NOT. PRESENT(store) .OR. present_and_true ) THEN
-        dims = SHAPE(trgt)
-        ALLOCATE( FloatArray3d_constructor%alloc(dims(1),  &
-                                                 dims(2),  &
-                                                 dims(3))  )
-        FloatArray3d_constructor%alloc = trgt
-        ! Associate "d" with the allocated array
-        FloatArray3d_constructor%d => FloatArray3d_constructor%alloc
-     END IF
+     REAL, INTENT(in), TARGET, OPTIONAL :: trgt(:,:,:)
+
+     IF (PRESENT(trgt)) &
+          FloatArray3d_constructor%d => trgt     
+     FloatArray3d_constructor%Initialized = .TRUE.
      
    END FUNCTION FloatArray3d_constructor
 
    ! ------------------------------------------------------------------------
    
-   FUNCTION FloatArray4d_constructor(trgt,store)
+   FUNCTION FloatArray4d_constructor(trgt)
      IMPLICIT NONE
      TYPE(FloatArray4d), TARGET         :: FloatArray4d_constructor
-     REAL, INTENT(in), TARGET           :: trgt(:,:,:,:)
-     LOGICAL, INTENT(in), OPTIONAL      :: store
-     
-     LOGICAL :: present_and_true
-     INTEGER :: dims(4)
-     
-     present_and_true = .FALSE.
-     
-     IF (PRESENT(store)) THEN
-        IF (.NOT. store) THEN
-           FloatArray4d_constructor%d => trgt
-        ELSE
-           present_and_true = .TRUE.
-        END IF
-     END IF
-     
-     IF ( .NOT. PRESENT(store) .OR. present_and_true ) THEN
-        dims = SHAPE(trgt)
-        ALLOCATE( FloatArray4d_constructor%alloc(dims(1),  &
-                                                 dims(2),  &
-                                                 dims(3),  &
-                                                 dims(4))  )
-        FloatArray4d_constructor%alloc = trgt
-        ! Associate "d" with the allocated array
-        FloatArray4d_constructor%d => FloatArray4d_constructor%alloc
-     END IF
+     REAL, INTENT(in), TARGET, OPTIONAL :: trgt(:,:,:,:)
+
+     IF (PRESENT(trgt)) &
+          FloatArray4d_constructor%d => trgt      
+     FloatArray4d_constructor%Initialized = .TRUE.
      
    END FUNCTION FloatArray4d_constructor
    

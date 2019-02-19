@@ -1,7 +1,7 @@
-MODULE mo_salsa_driver
+  MODULE mo_salsa_driver
   USE classSection, ONLY : Section
   USE util, ONLY : getMassIndex !!! IS it good to import this here??? The function is anyway handy here too.
-  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA, iaero, icloud, iprecp, iice
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA, rateDiag, iaero, icloud, iprecp, iice
   USE mo_submctl
   USE classFieldArray, ONLY : FieldArray
   USE mo_structured_datatypes
@@ -17,6 +17,16 @@ MODULE mo_salsa_driver
    !
    !---------------------------------------------------------------
 
+  SAVE
+  
+  ! Derived type for taking copies of the "old" values
+  TYPE old
+     REAL, ALLOCATABLE :: d(:)
+  END TYPE old
+  INTERFACE old
+     PROCEDURE old_cnstr
+  END INTERFACE old
+  
    ! JT: Variables from SALSA
    ! --------------------------------------------
    ! grid points for SALSA
@@ -33,6 +43,10 @@ MODULE mo_salsa_driver
            zgnh3(kbdim,klev),   &
            zgocnv(kbdim,klev),  &
            zgocsv(kbdim,klev)
+
+   ! To help coupling and backing up for tendencies
+   TYPE(old)          :: npart(4), mpart(4)  ! To store the old values
+   TYPE(FloatArray1d) :: ntend(4), mtend(4)  ! Arranged pointers to tendencies
 
  ! --------------------------------------------
 
@@ -72,6 +86,7 @@ CONTAINS
       REAL, INTENT(out)   :: pa_nactd(nzp,nxp,nyp,ncld)   ! Same for number concentration
       INTEGER, INTENT(in) :: level                         ! thermodynamical level
 
+      ! Named pointers to get SALSA variables
       TYPE(FloatArray3d), POINTER :: press => NULL(), tk => NULL(), rv => NULL(), &
                                      rt => NULL(), rs => NULL(), rsi => NULL(),   &
                                      pdn => NULL()
@@ -86,15 +101,19 @@ CONTAINS
                                      mprecpt => NULL(), micet => NULL(),    &
 
                                      gaerop => NULL(), gaerot => NULL()
-      TYPE(FloatArray1d) :: npart(4), mpart(4)  ! To store the old values
-      TYPE(FloatArray1d) :: ntend(4), mtend(4)  ! Arranged pointers to tendencies      
-      
+            
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
               in_w(kbdim,klev), in_rsi(kbdim,klev)
       REAL :: rv_old(kbdim,klev)
 
-      REAL :: mrim(nice), mprist(nice), mrim_old(nice), mprist_old(nice)
+      ! For process rate diagnostics
+      TYPE(FloatArray3d), POINTER :: autoconversion => NULL(), accretion => NULL(),             &
+                                     ACcoll => NULL(), APcoll => NULL(), AIcoll => NULL(),      &
+                                     activation => NULL(), Icehom => NULL(), Icedep => NULL(),  &
+                                     Iceimm => NULL(), Conda => NULL(), Condc => NULL(),        &
+                                     Condp => NULL(), Condi => NULL()
 
+      
       TYPE(Section) :: actd(kbdim,klev,ncld) ! Activated droplets - for interfacing with SALSA
 
       INTEGER :: jj,ii,kk,str,end,nc,nb,nbloc,ndry,nwet,iwa,irim,icat
@@ -111,12 +130,13 @@ CONTAINS
       ! The order here should follow the phase indentifier indexing!!
       bin_numbers(1:4) = [nbins,ncld,nprc,nice]
       bin_starts(1:4) = [iaero,icloud,iprecp,iice]
-      
+
       ! Get the pointers to variable arrays
       CALL Diag%getData(1,press,name="press")
       CALL Diag%getData(1,tk,name="temp")
       CALL Diag%getData(1,rs,name="rsl")
-      CALL Diag%getData(1,rsi,name="rsi")
+      IF (level == 5) &
+           CALL Diag%getData(1,rsi,name="rsi")
       CALL Diag%getData(1,pdn,name="dn")
       CALL Prog%getData(1,rv,name="rp")
       CALL Prog%getData(2,rt,name="rp")
@@ -126,22 +146,47 @@ CONTAINS
       CALL Prog%getData(1,ncloudp,name="ncloud")
       CALL Prog%getData(2,ncloudt,name="ncloud")
       CALL Prog%getData(1,nprecpp,name="nprecp")
-      CALL Prog%getData(2,nprecpt,name="nprecp") 
-      CALL Prog%getData(1,nicep,name="nice")
-      CALL Prog%getData(2,nicet,name="nice")
-
+      CALL Prog%getData(2,nprecpt,name="nprecp")
+      IF (level == 5) THEN
+           CALL Prog%getData(1,nicep,name="nice")      
+           CALL Prog%getData(2,nicet,name="nice")
+      END IF
+           
       CALL Prog%getData(1,maerop,name="maero")
       CALL Prog%getData(2,maerot,name="maero")
       CALL Prog%getData(1,mcloudp,name="mcloud")
       CALL Prog%getData(2,mcloudt,name="mcloud")
       CALL Prog%getData(1,mprecpp,name="mprecp")
-      CALL Prog%getData(2,mprecpt,name="mprecp") 
-      CALL Prog%getData(1,micep,name="mice")
-      CALL Prog%getData(2,micet,name="mice")
-
+      CALL Prog%getData(2,mprecpt,name="mprecp")
+      IF (level == 5) THEN
+         CALL Prog%getData(1,micep,name="mice")
+         CALL Prog%getData(2,micet,name="mice")
+      END IF
+         
       CALL Prog%getData(1,gaerop,name="gaero")
       CALL Prog%getData(2,gaerot,name="gaero")
 
+      ! Get pointers to process rate output streams
+      CALL Diag%getData(1,autoconversion,name="autoconversion")
+      CALL Diag%getData(1,accretion,name="accretion")
+      CALL Diag%getData(1,ACcoll,name="ACcoll")
+      CALL Diag%getData(1,APcoll,name="APcoll")
+      CALL Diag%getData(1,activation,name="activation")
+      IF (level == 5) THEN
+         CALL Diag%getData(1,AIcoll,name="AIcoll")
+         CALL Diag%getData(1,Icehom,name="icehom")
+         CALL Diag%getData(1,Icedep,name="icedep")
+         CALL Diag%getData(1,Iceimm,name="iceimm")
+         CALL Diag%getData(1,condi,name="condi")
+      END IF
+      CALL Diag%getData(1,conda,name="conda")
+      CALL Diag%getData(1,condc,name="condc")
+      CALL Diag%getData(1,condp,name="condp")
+               
+      ! Initialize the arrays for managing "old" values and tendencies
+      IF (initialize) &
+           CALL initialize_arrays(nwet,bin_numbers)
+      
       in_p(:,:) = 0.; in_t(:,:) = 0.; in_rs(:,:) = 0.; in_rsi(:,:) = 0.; in_w(:,:) = 0.
       in_rv(:,:) = 0.; rv_old(:,:) = 0.
       
@@ -157,7 +202,8 @@ CONTAINS
                in_p(1,1) = press%d(kk,ii,jj)
                in_t(1,1) = tk%d(kk,ii,jj)
                in_rs(1,1) = rs%d(kk,ii,jj)
-               in_rsi(1,1) = rsi%d(kk,ii,jj)
+               IF (level == 5) &
+                    in_rsi(1,1) = rsi%d(kk,ii,jj)
                in_w(1,1) = wp(kk,ii,jj)
 
                ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
@@ -172,26 +218,30 @@ CONTAINS
                ! ---------------------------------------------------------------------------------------------------
                
                ! Take a copies for the old values. Note that the order of the categories in these arrays is CRUCIAL.
-               ! It follows the phase indexing in classSection.
-               ! Also make use of these when preparing SALSA inputs below.
-               npart(1) = FloatArray1d(naerop%d(kk,ii,jj,:),store=.TRUE.)
-               npart(2) = FloatArray1d(ncloudp%d(kk,ii,jj,:),store=.TRUE.)
-               npart(3) = FloatArray1d(nprecpp%d(kk,ii,jj,:),store=.TRUE.)
-               npart(4) = FloatArray1d(nicep%d(kk,ii,jj,:),store=.TRUE.)
-               mpart(1) = FloatArray1d(maerop%d(kk,ii,jj,:),store=.TRUE.)
-               mpart(2) = FloatArray1d(mcloudp%d(kk,ii,jj,:),store=.TRUE.)
-               mpart(3) = FloatArray1d(mprecpp%d(kk,ii,jj,:),store=.TRUE.)
-               mpart(4) = FloatArray1d(micep%d(kk,ii,jj,:),store=.TRUE.)
-
+               ! It follows the phase indexing in classSection. Use the derived type "old"
+               ! Also make use of these when preparing SALSA inputs below. this is a bit verbose, but what are you gonna do...
+               npart(1)%d = naerop%d(kk,ii,jj,:)
+               npart(2)%d = ncloudp%d(kk,ii,jj,:)
+               npart(3)%d = nprecpp%d(kk,ii,jj,:)
+               IF (level == 5) &
+                    npart(4)%d = nicep%d(kk,ii,jj,:)
+               mpart(1)%d = maerop%d(kk,ii,jj,:)
+               mpart(2)%d = mcloudp%d(kk,ii,jj,:)
+               mpart(3)%d = mprecpp%d(kk,ii,jj,:)
+               IF (level == 5) &
+                    mpart(4)%d = micep%d(kk,ii,jj,:)
+               
                ! Make arranged pointers (not copies!) to tendency arrays in the same manner
-               ntend(1) = FloatArray1d(naerot%d(kk,ii,jj,:),store=.FALSE.)
-               ntend(2) = FloatArray1d(ncloudt%d(kk,ii,jj,:),store=.FALSE.)
-               ntend(3) = FloatArray1d(nprecpt%d(kk,ii,jj,:),store=.FALSE.)
-               ntend(4) = FloatArray1d(nicet%d(kk,ii,jj,:),store=.FALSE.)
-               mtend(1) = FloatArray1d(maerot%d(kk,ii,jj,:),store=.FALSE.)
-               mtend(2) = FloatArray1d(mcloudt%d(kk,ii,jj,:),store=.FALSE.)
-               mtend(3) = FloatArray1d(mprecpt%d(kk,ii,jj,:),store=.FALSE.)
-               mtend(4) = FloatArray1d(micet%d(kk,ii,jj,:),store=.FALSE.)               
+               ntend(1)%d => naerot%d(kk,ii,jj,:)
+               ntend(2)%d => ncloudt%d(kk,ii,jj,:)
+               ntend(3)%d => nprecpt%d(kk,ii,jj,:)
+               IF (level == 5) &
+                    ntend(4)%d => nicet%d(kk,ii,jj,:)
+               mtend(1)%d => maerot%d(kk,ii,jj,:)
+               mtend(2)%d => mcloudt%d(kk,ii,jj,:)
+               mtend(3)%d => mprecpt%d(kk,ii,jj,:)
+               IF (level == 5) &
+                    mtend(4)%d => micet%d(kk,ii,jj,:)               
                
                ! Update SALSA input arrays
                DO nb = 1,ntotal
@@ -241,6 +291,9 @@ CONTAINS
                zgnh3(1,1) = gaerop%d(kk,ii,jj,3)*pdn%d(kk,ii,jj)
                zgocnv(1,1) = gaerop%d(kk,ii,jj,4)*pdn%d(kk,ii,jj)
                zgocsv(1,1) = gaerop%d(kk,ii,jj,5)*pdn%d(kk,ii,jj)
+
+               ! Reset process rate diagnostics
+               CALL rateDiag%Reset()
                
                ! ***************************************!
                !                Run SALSA               !
@@ -250,7 +303,7 @@ CONTAINS
                           in_t,   tstep,  zgso4,  zgocnv,   &
                           zgocsv, zghno3, zgnh3,  actd,     &
                           in_w,   level                     )
-               
+
                ! Update tendency arrays
                DO nb = 1,ntotal
                   icat = allSALSA(1,1,nb)%phase   ! Phase indentifier, this should correspond to index in npart and mpart
@@ -313,24 +366,40 @@ CONTAINS
                                           ( (zgocsv(1,1)/pdn%d(kk,ii,jj)) - gaerop%d(kk,ii,jj,5) )/tstep
                END IF
 
-               !IF (kk == 40 .AND. ii == 3 .AND. jj == 23) THEN
-               !   WRITE(*,*) 'DRIVER, arvo vanha', rv_old(1,1)
-               !   WRITE(*,*) 'DRIVER, arvo uusi', in_rv(1,1)
-               !END IF
-                  
                ! Tendency of water vapour mixing ratio 
                rt%d(kk,ii,jj) = rt%d(kk,ii,jj) + &
                   ( in_rv(1,1) - rv_old(1,1) )/tstep
 
-               !IF (kk == 40 .AND. ii == 3 .AND. jj == 23) THEN
-               !   WRITE(*,*) 'DRIVER, tend ', rt%d(kk,ii,jj)
-               !END IF
-               
+
+               ! Store the process rate diagnostics for output
+               autoconversion%d(kk,ii,jj) = rateDiag%Autoconversion%volc(iwa)*spec%rhowa/pdn%d(kk,ii,jj)
+               accretion%d(kk,ii,jj) = rateDiag%Accretion%volc(iwa)*spec%rhowa/pdn%d(kk,ii,jj)
+               ACcoll%d(kk,ii,jj) = SUM(rateDiag%ACcoll%volc(1:ndry)*spec%rholiq(1:ndry))/pdn%d(kk,ii,jj)
+               APcoll%d(kk,ii,jj) = SUM(rateDiag%APcoll%volc(1:ndry)*spec%rholiq(1:ndry))/pdn%d(kk,ii,jj)
+               activation%d(kk,ii,jj) = rateDiag%Activation%numc/pdn%d(kk,ii,jj)
+               conda%d(kk,ii,jj) = rateDiag%Cond_a%volc(iwa)/pdn%d(kk,ii,jj)
+               condc%d(kk,ii,jj) = rateDiag%Cond_c%volc(iwa)/pdn%d(kk,ii,jj)
+               condp%d(kk,ii,jj) = rateDiag%Cond_p%volc(iwa)/pdn%d(kk,ii,jj)
+               IF (level == 5) THEN
+                  AIcoll%d(kk,ii,jj) = SUM(rateDiag%AIcoll%volc(1:ndry)*spec%rhoice(1:ndry))/pdn%d(kk,ii,jj)
+                  Icehom%d(kk,ii,jj) = rateDiag%Ice_hom%numc/pdn%d(kk,ii,jj)
+                  Icedep%d(kk,ii,jj) = rateDiag%Ice_dep%numc/pdn%d(kk,ii,jj)
+                  Iceimm%d(kk,ii,jj) = rateDiag%Ice_imm%numc/pdn%d(kk,ii,jj)
+                  Condi%d(kk,ii,jj) = ( rateDiag%Cond_i%volc(iwa)*spec%rhoic    +  &
+                                        rateDiag%Cond_i%volc(irim)*spec%rhori ) /  &
+                                        pdn%d(kk,ii,jj)
+               END IF
+                              
             END DO !kk
          END DO ! ii
       END DO ! jj
 
-      ! Nullify pointers
+      ! Nullify pointers and clean up
+      DO icat = 1,4
+         ntend(icat)%d => NULL()
+         mtend(icat)%d => NULL()
+      END DO
+      
       press => NULL(); tk => NULL(); rv => NULL()
       rt => NULL(); rs => NULL(); rsi => NULL()
       pdn => NULL()
@@ -371,5 +440,39 @@ CONTAINS
      
    END SUBROUTINE set_SALSA_runtime
 
+   ! ------------------------------
 
+   SUBROUTINE initialize_arrays(nwet,bins)
+     INTEGER, INTENT(in) :: nwet
+     INTEGER, INTENT(in) :: bins(4)     
+     INTEGER :: icat
+     DO icat = 1,4
+        ntend(icat) = FloatArray1d()
+        mtend(icat) = FloatArray1d()
+        npart(icat) = old(bins(icat))
+        IF (icat < 4) THEN
+           mpart(icat) = old(bins(icat)*nwet)
+        ELSE
+           mpart(icat) = old(bins(icat)*(nwet+1))
+        END IF
+     END DO     
+   END SUBROUTINE initialize_arrays
+   
+   FUNCTION old_cnstr(n)
+     TYPE(old) :: old_cnstr
+     INTEGER, INTENT(in) :: n
+     ALLOCATE(old_cnstr%d(n))
+     old_cnstr%d(:) = 0.
+   END FUNCTION old_cnstr
+
+   ! -----------------------------------
+
+   !SUBROUTINE fetchProcessRates()
+
+     
+     
+   !END SUBROUTINE fetchProcessRates
+   
+   
+   
 END MODULE mo_salsa_driver

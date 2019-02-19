@@ -85,7 +85,7 @@ CONTAINS
   ! defined by input ckd file
   !
   SUBROUTINE rad (as, u0, ss, pts, ee, pp, pt, ph, po, fds, fus, fdir, fuir, &
-                  McICA, nspec, plwc, pre, piwc, pde, prwc, pgwc, maerobin, naerobin)
+                  McICA, nspec, plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc needed?
 
     INTEGER, INTENT(in) :: nspec
     REAL, INTENT(in) :: pp (nv1) ! pressure at interfaces
@@ -100,7 +100,7 @@ CONTAINS
          pre,  & ! effective radius of cloud droplets [microns]
          piwc, & ! cloud ice water content [g/m^3]
          pde,  & ! effective diameter of ice particles [microns]
-         prwc, & ! rain water content [g/m^3]
+         !prwc, & ! rain water content [g/m^3]
          pgwc    ! graupel water content
 
     REAL, OPTIONAL, INTENT(in) :: maerobin(nv,nspec*nbins),  & !  maerobin(:,:), naerobin(:,:)
@@ -120,10 +120,10 @@ CONTAINS
          fdir, fuir   ! downward and upward ir flux
 
     CALL rad_ir(nspec,pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
-                 plwc, pre, piwc, pde, prwc, pgwc, maerobin, naerobin)
+                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc
 
     CALL rad_vis(nspec,as, u0, ss, pp, pt, ph, po, fds, fus, McICA, &
-                 plwc, pre, piwc, pde, prwc, pgwc, maerobin, naerobin)
+                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc
 
   END SUBROUTINE rad
 
@@ -133,7 +133,7 @@ CONTAINS
   ! defined by input ckd file
   !
   SUBROUTINE rad_ir (nspec,pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
-                     plwc, pre, piwc, pde, prwc, pgwc, maerobin, naerobin)
+                     plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc needed?
 
     INTEGER, INTENT(in) :: nspec
     REAL, INTENT(in) :: pp (nv1) ! pressure at interfaces
@@ -148,7 +148,7 @@ CONTAINS
          pre,  & ! effective radius of cloud droplets [microns]
          piwc, & ! cloud ice water content [g/m^3]
          pde,  & ! effective diameter of ice particles [microns]
-         prwc, & ! rain water content [g/m^3]
+         !prwc, & ! rain water content [g/m^3]
          pgwc    ! graupel water content
 
     REAL, OPTIONAL, INTENT(in) :: maerobin(nv,nspec*nbins), naerobin(nv,nbins) !maerobin(:,:), naerobin(:,:)
@@ -271,7 +271,7 @@ CONTAINS
   !
 
   SUBROUTINE rad_vis (nspec,as, u0, ss, pp, pt, ph, po, fds, fus, McICA,  &
-                      plwc, pre, piwc, pde, prwc, pgwc, maerobin, naerobin )
+                      plwc, pre, piwc, pde, pgwc, maerobin, naerobin ) !prwc needed?
 
     INTEGER, INTENT(in) :: nspec
     REAL, INTENT(in) :: pp (nv1) ! pressure at interfaces
@@ -286,7 +286,7 @@ CONTAINS
          pre,  & ! effective radius of cloud droplets [microns]
          piwc, & ! cloud ice water content [g/m^3]
          pde,  & ! effective diameter of ice particles [microns]
-         prwc, & ! rain water content [g/m^3]
+         !prwc, & ! rain water content [g/m^3]
          pgwc    ! graupel water content
 
     REAL, OPTIONAL, INTENT(in) :: maerobin(nv,nspec*nbins), naerobin(nv,nbins) !maerobin(:,:), naerobin(:,:)
@@ -332,12 +332,6 @@ CONTAINS
     fus(:) = 0.0
     bf(:)  = 0.0
     
-    !WRITE(*,*) 'HEP'
-    !WRITE(*,*) '1', 1./center(solar_bands)
-    !WRITE(*,*) '2',1./center(ir_bands)
-    !WRITE(*,*) '3',1./center(band)
-
-
     IF(u0 > minSolarZenithCosForVis) THEN
       CALL thicks(pp, pt, ph, dz) 
   
@@ -363,8 +357,6 @@ CONTAINS
            ig1 = 1
            ig2 = kg(solar_bands(ib))
          END IF
-  
-         !WRITE(*,*) 'HEP SW', 1./center(band(ib))
 
          !
          ! Rayleigh scattering
@@ -402,13 +394,11 @@ CONTAINS
             CALL gases (solar_bands(ib), ig, pp, pt, ph, po, tg )
             CALL combineOpticalProperties(tau, w, pf, tg)
             
-            !WRITE(*,*) SUM(taer(:))
-            !
+
             ! Solver expects cumulative optical depth
             !
             DO k = 2, nv
                tau(k) = tau(k) + tau(k - 1)
-               !WRITE(*,*) 'VIS',k,taer(k),waer(k),wwaer(k,:)
             END DO
             CALL qft (.TRUE., 0., as, u0, bf, tau, w, pf(:, 1), pf(:, 2),    &
                       pf(:, 3), pf(:, 4), fu1, fd1)
@@ -426,13 +416,11 @@ CONTAINS
       ! Thekaekara (1973), and 1340.0 W/m**2 is the solar energy contained 
       ! in the spectral region 0.2 - 4.0 um., thus scale solar fluxes by
       ! fuq1
-      !
-      !WRITE(*,*) "EKA", fds(90), fus(90), tau(90)
 
       fuq1 = ss / totalpower
       fds(:)  = fds(:)*fuq1
       fus(:)  = fus(:)*fuq1
-      !WRITE(*,*) "TOKA", fds(90), fus(90), tau(90)
+
     END IF 
   END SUBROUTINE rad_vis
   ! ----------------------------------------------------------------------

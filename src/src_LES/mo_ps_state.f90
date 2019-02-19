@@ -4,6 +4,10 @@ MODULE mo_ps_state
   USE mo_ps_procedures
   IMPLICIT NONE
 
+  ! Variables for profile statistics output.
+  ! Note that no data is stored for these variables, but the onDemand function is associated to get
+  ! the necessary diagnostics when writing output.
+
   TYPE(FloatArray1d), TARGET :: ps_theta, ps_temp, ps_press,     &
                                 ps_rp, ps_rc, ps_rr, ps_ri,      &
                                 ps_riri, ps_Naa, ps_Nab,         &
@@ -26,21 +30,18 @@ MODULE mo_ps_state
                                 ps_aNOa, ps_aNOb, ps_cNOa, ps_cNOb, ps_pNOa, ps_iNOa,  &
                                 ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa
 
-                                
-  REAL, ALLOCATABLE, TARGET :: zeros1d(:)
-
+ 
   CONTAINS
 
-    SUBROUTINE setPSVariables(PS,outputlist,level,nzp)
+    SUBROUTINE setPSVariables(PS,outputlist,level)
       TYPE(FieldArray), INTENT(inout) :: PS
-      CHARACTER(len=10), INTENT(in)   :: outputlist(:)
-      INTEGER, INTENT(in)             :: nzp,level
-      CLASS(*), POINTER :: pipeline
+      CHARACTER(len=*), INTENT(in)   :: outputlist(:)
+      INTEGER, INTENT(in)             :: level
+      CLASS(*), POINTER :: pipeline => NULL()
       
-      ALLOCATE(zeros1d(nzp))
 
       IF (ANY(outputlist == "theta")) THEN
-         ps_theta = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_theta = FloatArray1d()
          ps_theta%onDemand => globalAvgProfile
          pipeline => ps_theta
          CALL PS%newField("theta", "Potential temperature", "K", "ztt",   &
@@ -48,7 +49,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "temp")) THEN
-         ps_temp = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_temp = FloatArray1d()
          ps_temp%onDemand => globalAvgProfile
          pipeline => ps_temp
          CALL PS%newField("temp", "Abs temperature", "K", "ztt",   &
@@ -56,7 +57,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "press")) THEN
-         ps_press = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_press = FloatArray1d()
          ps_press%onDemand => globalAvgProfile
          pipeline => ps_press
          CALL PS%newField("press", "Pressure", "Pa", "ztt",   &
@@ -64,7 +65,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rp")) THEN
-         ps_rp = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_rp = FloatArray1d()
          ps_rp%onDemand => globalAvgProfile
          pipeline => ps_rp
          CALL PS%newField("rp", "Water vapor mixing ratio", "kg/kg", "ztt",   &
@@ -72,7 +73,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rc")) THEN
-         ps_rc = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_rc = FloatArray1d()
          ps_rc%onDemand => globalAvgProfile
          pipeline => ps_rc
          CALL PS%newField("rc", "Cloud water mixing ratio", "kg/kg", "ztt",   &
@@ -80,7 +81,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rr")) THEN
-         ps_rr = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_rr = FloatArray1d()
          ps_rr%onDemand => globalAvgProfile
          pipeline => ps_rr
          CALL PS%newField("rr", "Precipitation mixing ratio", "kg/kg", "ztt",   &
@@ -89,7 +90,7 @@ MODULE mo_ps_state
          
       IF (level == 5) THEN
          IF (ANY(outputlist == "ri")) THEN
-            ps_ri = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_ri = FloatArray1d()
             ps_ri%onDemand => globalAvgProfile
             pipeline => ps_ri
             CALL PS%newField("ri", "Unrimed ice mixing ratio", "kg/kg", "ztt",   &
@@ -97,7 +98,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "riri")) THEN
-            ps_riri = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_riri = FloatArray1d()
             ps_riri%onDemand => globalAvgProfile
             pipeline => ps_riri
             CALL PS%newField("riri", "Rimed ice mixing ratio", "kg/kg", "ztt",   &
@@ -107,7 +108,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "Naa")) THEN
-            ps_Naa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_Naa = FloatArray1d()
             ps_Naa%onDemand => globalAvgProfile
             pipeline => ps_Naa
             CALL PS%newField("Naa", "Aerosol A, bulk number concentration", "m-3", "ztt",   &
@@ -115,7 +116,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Nab")) THEN
-            ps_Nab = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_Nab = FloatArray1d()
             ps_Nab%onDemand => globalAvgProfile
             pipeline => ps_Nab
             CALL PS%newField("Nab", "Aerosol B, bulk number concentration", "m-3", "ztt",   &
@@ -123,7 +124,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Nca")) THEN
-            ps_Nca = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_Nca = FloatArray1d()
             ps_Nca%onDemand => globalAvgProfile
             pipeline => ps_Nca
             CALL PS%newField("Nca", "Cloud A, bulk number concentration", "m-3", "ztt",   &
@@ -131,7 +132,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Ncb")) THEN
-            ps_Ncb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_Ncb = FloatArray1d()
             ps_Ncb%onDemand => globalAvgProfile
             pipeline => ps_Ncb
             CALL PS%newField("Ncb", "Cloud B, bulk number concentration", "m-3", "ztt",   &
@@ -139,7 +140,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Np")) THEN
-            ps_Np = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_Np = FloatArray1d()
             ps_Np%onDemand => globalAvgProfile
             pipeline => ps_Np
             CALL PS%newField("Np", "Precipitation bulk number concentration", "m-3", "ztt",   &
@@ -148,7 +149,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "Ni")) THEN
-         ps_Ni = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_Ni = FloatArray1d()
          ps_Ni%onDemand => globalAvgProfile
          pipeline => ps_Ni
          CALL PS%newField("Ni", "Ice bulk number concentration", "m-3", "ztt",   &
@@ -156,7 +157,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "RH")) THEN
-         ps_RH = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_RH = FloatArray1d()
          ps_RH%onDemand => globalAvgProfile
          pipeline => ps_RH
          CALL PS%newField("RH", "Relative humidity", "1", "ztt",   &
@@ -164,7 +165,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rsl")) THEN
-         ps_rsl = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_rsl = FloatArray1d()
          ps_rsl%onDemand => globalAvgProfile
          pipeline => ps_rsl
          CALL PS%newField("rsl", "Saturation mixing ratio, liquid", "kg/kg", "ztt",   &
@@ -173,7 +174,7 @@ MODULE mo_ps_state
          
       IF (level == 5) THEN
          IF (ANY(outputlist == "RHI")) THEN
-            ps_RHI = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_RHI = FloatArray1d()
             ps_RHI%onDemand => globalAvgProfile
             pipeline => ps_RHI
             CALL PS%newField("RHI", "Relative humidity over ice", "1", "ztt",   &
@@ -181,7 +182,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "rsi")) THEN
-            ps_rsi = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_rsi = FloatArray1d()
             ps_rsi%onDemand => globalAvgProfile
             pipeline => ps_rsi
             CALL PS%newField("rsi", "Saturation mixing ratio, ice", "kg/kg", "ztt",   &
@@ -190,7 +191,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rrate")) THEN
-         ps_rrate  = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_rrate  = FloatArray1d()
          ps_rrate%onDemand => globalAvgProfile
          pipeline => ps_rrate
          CALL PS%newField("rrate", "Precipitation flux", "kg/m2s", "ztt",   &
@@ -198,7 +199,7 @@ MODULE mo_ps_state
       END IF
          
       IF (level == 5 .AND. ANY(outputlist == "irate")) THEN
-         ps_irate = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_irate = FloatArray1d()
          ps_irate%onDemand => globalAvgProfile
          pipeline => ps_irate
          CALL PS%newField("irate", "Ice precipitation flux", "kg/m2s", "ztt",   &
@@ -206,7 +207,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rflx")) THEN
-         ps_rflx = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_rflx = FloatArray1d()
          ps_rflx%onDemand => globalAvgProfile
          pipeline => ps_rflx
          CALL PS%newField("rflx", "Net LW flux", "W/m2", "ztt",   &
@@ -214,7 +215,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "sflx")) THEN         
-         ps_sflx = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_sflx = FloatArray1d()
          ps_sflx%onDemand => globalAvgProfile
          pipeline => ps_sflx
          CALL PS%newField("sflx", "Net SW flux", "W/m2", "ztt",   &
@@ -222,7 +223,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "lwup")) THEN
-         ps_lwup = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_lwup = FloatArray1d()
          ps_lwup%onDemand => globalAvgProfile
          pipeline => ps_lwup
          CALL PS%newField("lwup", "Upward LW flux", "W/m2", "ztt",   &
@@ -230,7 +231,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "lwdn")) THEN
-         ps_lwdn = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_lwdn = FloatArray1d()
          ps_lwdn%onDemand => globalAvgProfile
          pipeline => ps_lwdn
          CALL PS%newField("lwdn", "Downward LW flux", "W/m2", "ztt",   &
@@ -238,7 +239,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "swup")) THEN
-         ps_swup = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_swup = FloatArray1d()
          ps_swup%onDemand => globalAvgProfile
          pipeline => ps_swup
          CALL PS%newField("swup", "Upward SW flux", "W/m2", "ztt",   &
@@ -246,7 +247,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "swdn")) THEN
-         ps_swdn = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_swdn = FloatArray1d()
          ps_swdn%onDemand => globalAvgProfile
          pipeline => ps_swdn
          CALL PS%newField("swdn", "Downward SW flux", "W/m2", "ztt",   &
@@ -255,7 +256,7 @@ MODULE mo_ps_state
          
       IF (level >= 4) THEN
          IF (ANY(outputlist == "Dwaa")) THEN
-            ps_Dwaa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_Dwaa = FloatArray1d()
             ps_Dwaa%onDemand => globalAvgProfile
             pipeline => ps_Dwaa
             CALL PS%newField("Dwaa", "Aerosol A bulk wet diameter", "m", "ztt",   &
@@ -263,7 +264,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Dwab")) THEN
-            ps_Dwab = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_Dwab = FloatArray1d()
             ps_Dwab%onDemand => globalAvgProfile
             pipeline => ps_Dwab
             CALL PS%newField("Dwab", "Aerosol B bulk wet diameter", "m", "ztt",   &
@@ -271,7 +272,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Dwca")) THEN
-            ps_Dwca = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_Dwca = FloatArray1d()
             ps_Dwca%onDemand => globalAvgProfile
             pipeline => ps_Dwca
             CALL PS%newField("Dwca", "Cloud A bulk wet diameter", "m", "ztt",   &
@@ -279,7 +280,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Dwcb")) THEN
-            ps_Dwcb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_Dwcb = FloatArray1d()
             ps_Dwcb%onDemand => globalAvgProfile
             pipeline => ps_Dwcb
             CALL PS%newField("Dwcb", "Cloud B bulk wet diameter", "m", "ztt",   &
@@ -287,7 +288,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Dwpa")) THEN
-            ps_Dwpa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_Dwpa = FloatArray1d()
             ps_Dwpa%onDemand => globalAvgProfile
             pipeline => ps_Dwpa
             CALL PS%newField("Dwpa", "Precipitation bulk wet diameter", "m", "ztt",   &
@@ -296,7 +297,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "Dwia")) THEN
-         ps_Dwia = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_Dwia = FloatArray1d()
          ps_Dwia%onDemand => globalAvgProfile
          pipeline => ps_Dwia
          CALL PS%newField("Dwia", "Ice bulk wet diameter (spherical)", "m", "ztt",   &
@@ -305,7 +306,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aSO4a")) THEN
-            ps_aSO4a = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aSO4a = FloatArray1d()
             ps_aSO4a%onDemand => globalAvgProfile
             pipeline => ps_aSO4a
             CALL PS%newField("aSO4a", "Aerosol A bulk SO4 mass", "kg/kg", "ztt",   &
@@ -313,7 +314,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "aSO4b")) THEN
-            ps_aSO4b = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aSO4b = FloatArray1d()
             ps_aSO4b%onDemand => globalAvgProfile
             pipeline => ps_aSO4b
             CALL PS%newField("aSO4b", "Aerosol B bulk SO4 mass", "kg/kg", "ztt",   &
@@ -321,7 +322,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cSO4a")) THEN
-            ps_cSO4a = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cSO4a = FloatArray1d()
             ps_cSO4a%onDemand => globalAvgProfile
             pipeline => ps_cSO4a
             CALL PS%newField("cSO4a", "Cloud A bulk SO4 mass", "kg/kg", "ztt",   &
@@ -329,7 +330,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cSO4b")) THEN
-            ps_cSO4b = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cSO4b = FloatArray1d()
             ps_cSO4b%onDemand => globalAvgProfile
             pipeline => ps_cSO4b
             CALL PS%newField("cSO4b", "Cloud B bulk SO4 mass", "kg/kg", "ztt",   &
@@ -337,7 +338,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "pSO4a")) THEN
-            ps_pSO4a = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_pSO4a = FloatArray1d()
             ps_pSO4a%onDemand => globalAvgProfile
             pipeline => ps_pSO4a
             CALL PS%newField("pSO4a", "Precipitation bulk SO4 mass", "kg/kg", "ztt",   &
@@ -346,7 +347,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iSO4a")) THEN
-         ps_iSO4a = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_iSO4a = FloatArray1d()
          ps_iSO4a%onDemand => globalAvgProfile
          pipeline => ps_iSO4a
          CALL PS%newField("iSO4a", "Ice bulk SO4 mass", "kg/kg", "ztt",   &
@@ -355,7 +356,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aOCa")) THEN
-            ps_aOCa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aOCa = FloatArray1d()
             ps_aOCa%onDemand => globalAvgProfile
             pipeline => ps_aOCa
             CALL PS%newField("aOCa", "Aerosol A bulk OC mass", "kg/kg", "ztt",   &
@@ -363,7 +364,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "aOCb")) THEN
-            ps_aOCb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aOCb = FloatArray1d()
             ps_aOCb%onDemand => globalAvgProfile
             pipeline => ps_aOCb
             CALL PS%newField("aOCb", "Aerosol B bulk OC mass", "kg/kg", "ztt",   &
@@ -371,7 +372,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cOCa")) THEN
-            ps_cOCa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cOCa = FloatArray1d()
             ps_cOCa%onDemand => globalAvgProfile
             pipeline => ps_cOCa
             CALL PS%newField("cOCa", "Cloud A bulk OC mass", "kg/kg", "ztt",   &
@@ -379,7 +380,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cOCb")) THEN
-            ps_cOCb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cOCb = FloatArray1d()
             ps_cOCb%onDemand => globalAvgProfile
             pipeline => ps_cOCb
             CALL PS%newField("cOCb", "Cloud B bulk OC mass", "kg/kg", "ztt",   &
@@ -387,7 +388,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "pOCa")) THEN
-            ps_pOCa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_pOCa = FloatArray1d()
             ps_pOCa%onDemand => globalAvgProfile
             pipeline => ps_pOCa
             CALL PS%newField("pOCa", "Precipitation bulk OC mass", "kg/kg", "ztt",   &
@@ -396,7 +397,7 @@ MODULE mo_ps_state
       END IF
          
       IF (level == 5 .AND. ANY(outputlist == "iOCa")) THEN
-         ps_iOCa = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_iOCa = FloatArray1d()
          ps_iOCa%onDemand => globalAvgProfile
          pipeline => ps_iOCa
          CALL PS%newField("iOCa", "Ice bulk OC mass", "kg/kg", "ztt",   &
@@ -405,7 +406,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aBCa")) THEN
-            ps_aBCa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aBCa = FloatArray1d()
             ps_aBCa%onDemand => globalAvgProfile
             pipeline => ps_aBCa
             CALL PS%newField("aBCa", "Aerosol A bulk BC mass", "kg/kg", "ztt",   &
@@ -413,7 +414,7 @@ MODULE mo_ps_state
          END IF
          
          IF (ANY(outputlist == "aBCb")) THEN
-            ps_aBCb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aBCb = FloatArray1d()
             ps_aBCb%onDemand => globalAvgProfile
             pipeline => ps_aBCb
             CALL PS%newField("aBCb", "Aerosol B bulk BC mass", "kg/kg", "ztt",   &
@@ -421,7 +422,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cBCa")) THEN
-            ps_cBCa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cBCa = FloatArray1d()
             ps_cBCa%onDemand => globalAvgProfile
             pipeline => ps_cBCa
             CALL PS%newField("cBCa", "Cloud A bulk BC mass", "kg/kg", "ztt",   &
@@ -429,7 +430,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cBCb")) THEN
-            ps_cBCb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cBCb = FloatArray1d()
             ps_cBCb%onDemand => globalAvgProfile
             pipeline => ps_cBCb
             CALL PS%newField("cBCb", "Cloud B bulk BC mass", "kg/kg", "ztt",   &
@@ -437,7 +438,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "pBCa")) THEN
-            ps_pBCa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_pBCa = FloatArray1d()
             ps_pBCa%onDemand => globalAvgProfile
             pipeline => ps_pBCa
             CALL PS%newField("pBCa", "Precipitation bulk BC mass", "kg/kg", "ztt",   &
@@ -446,7 +447,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iBCa")) THEN
-         ps_iBCa = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_iBCa = FloatArray1d()
          ps_iBCa%onDemand => globalAvgProfile
          pipeline => ps_iBCa
          CALL PS%newField("iBCa", "Ice bulk BC mass", "kg/kg", "ztt",   &
@@ -455,7 +456,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aDUa")) THEN
-            ps_aDUa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aDUa = FloatArray1d()
             ps_aDUa%onDemand => globalAvgProfile
             pipeline => ps_aDUa
             CALL PS%newField("aDUa", "Aerosol A bulk DU mass", "kg/kg", "ztt",   &
@@ -463,7 +464,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "aDUb")) THEN
-            ps_aDUb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aDUb = FloatArray1d()
             ps_aDUb%onDemand => globalAvgProfile
             pipeline => ps_aDUb
             CALL PS%newField("aDUb", "Aerosol B bulk DU ", "kg/kg", "ztt",   &
@@ -471,7 +472,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cDUa")) THEN
-            ps_cDUa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cDUa = FloatArray1d()
             ps_cDUa%onDemand => globalAvgProfile
             pipeline => ps_cDUa
             CALL PS%newField("cDUa", "Cloud A bulk DU mass", "kg/kg", "ztt",   &
@@ -479,7 +480,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cDUb")) THEN
-            ps_cDUb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cDUb = FloatArray1d()
             ps_cDUb%onDemand => globalAvgProfile
             pipeline => ps_cDUb
             CALL PS%newField("cDUb", "Cloud B bulk DU mass", "kg/kg", "ztt",   &
@@ -487,7 +488,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "pDUa")) THEN
-            ps_pDUa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_pDUa = FloatArray1d()
             ps_pDUa%onDemand => globalAvgProfile
             pipeline => ps_pDUa
             CALL PS%newField("pDUa", "Precipitation bulk DU mass", "kg/kg", "ztt",   &
@@ -496,7 +497,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iDUa")) THEN
-         ps_iDUa = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_iDUa = FloatArray1d()
          ps_iDUa%onDemand => globalAvgProfile
          pipeline => ps_iDUa
          CALL PS%newField("iDUa", "Ice bulk DU mass", "kg/kg", "ztt",   &
@@ -505,15 +506,15 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aSSa")) THEN
-            ps_aSSa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aSSa = FloatArray1d()
             ps_aSSa%onDemand => globalAvgProfile
             pipeline => ps_aSSA
-            CALL PS%newField("aSSA", "Aerosol A bulk SS mass", "kg/kg", "ztt",   &
+            CALL PS%newField("aSSa", "Aerosol A bulk SS mass", "kg/kg", "ztt",   &
                              ANY(outputlist == "aSSa"), pipeline)
          END IF
 
          IF (ANY(outputlist == "aSSb")) THEN
-            ps_aSSb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aSSb = FloatArray1d()
             ps_aSSb%onDemand => globalAvgProfile
             pipeline => ps_aSSb
             CALL PS%newField("aSSb", "Aerosol B bulk SS mass", "kg/kg", "ztt",   &
@@ -521,7 +522,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cSSa")) THEN
-            ps_cSSa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cSSa = FloatArray1d()
             ps_cSSa%onDemand => globalAvgProfile
             pipeline => ps_cSSa
             CALL PS%newField("cSSa", "Cloud A bulk SS mass", "kg/kg", "ztt",   &
@@ -529,7 +530,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cSSb")) THEN
-            ps_cSSb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cSSb = FloatArray1d()
             ps_cSSb%onDemand => globalAvgProfile
             pipeline => ps_cSSb
             CALL PS%newField("cSSb", "Cloud B bulk SS mass", "K", "ztt",   &
@@ -537,7 +538,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "pSSa")) THEN
-            ps_pSSa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_pSSa = FloatArray1d()
             ps_pSSa%onDemand => globalAvgProfile
             pipeline => ps_pSSa
             CALL PS%newField("pSSa", "Precipitation bulk SS mass", "kg/kg", "ztt",   &
@@ -546,7 +547,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iSSa")) THEN
-         ps_iSSa = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_iSSa = FloatArray1d()
          ps_iSSa%onDemand => globalAvgProfile
          pipeline => ps_iSSa
          CALL PS%newField("iSSa", "Ice bulk SS mass", "kg/kg", "ztt",   &
@@ -555,7 +556,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aNOa")) THEN
-            ps_aNOa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aNOa = FloatArray1d()
             ps_aNOa%onDemand => globalAvgProfile
             pipeline => ps_aNOa
             CALL PS%newField("aNOa", "Aerosol A bulk NO mass", "kg/kg", "ztt",   &
@@ -563,7 +564,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "aNOb")) THEN
-            ps_aNOb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aNOb = FloatArray1d()
             ps_aNOb%onDemand => globalAvgProfile
             pipeline => ps_aNOb
             CALL PS%newField("aNOb", "Aerosol B bulk NO mass", "kg/kg", "ztt",   &
@@ -571,7 +572,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cNOa")) THEN
-            ps_cNOa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cNOa = FloatArray1d()
             ps_cNOa%onDemand => globalAvgProfile
             pipeline => ps_cNOa
             CALL PS%newField("cNOa", "Cloud A bulk NO mass", "kg/kg", "ztt",   &
@@ -579,7 +580,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "cNOb")) THEN
-            ps_cNOb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cNOb = FloatArray1d()
             ps_cNOb%onDemand => globalAvgProfile
             pipeline => ps_cNOb
             CALL PS%newField("cNOb", "Cloud B bulk NO mass", "kg/kg", "ztt",   &
@@ -587,7 +588,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "pNOa")) THEN
-            ps_pNOa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_pNOa = FloatArray1d()
             ps_pNOa%onDemand => globalAvgProfile
             pipeline => ps_pNOa
             CALL PS%newField("pNOa", "Precipitation bulk NO mass", "kg/kg", "ztt",   &
@@ -596,7 +597,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iNOa")) THEN
-         ps_iNOa = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_iNOa = FloatArray1d()
          ps_iNOa%onDemand => globalAvgProfile
          pipeline => ps_iNOa
          CALL PS%newField("iNOa", "Ice bulk NO mass", "kg/kg", "ztt",   &
@@ -605,7 +606,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aNHa")) THEN
-            ps_aNHa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aNHa = FloatArray1d()
             ps_aNHa%onDemand => globalAvgProfile
             pipeline => ps_aNHa
             CALL PS%newField("aNHa", "Aerosol A bulk NH mass", "kg/kg", "ztt",   &
@@ -613,7 +614,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "aNHb")) THEN
-            ps_aNHb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_aNHb = FloatArray1d()
             ps_aNHb%onDemand => globalAvgProfile
             pipeline => ps_aNHb
             CALL PS%newField("aNHb", "Aerosol B bulk NH mass", "kg/kg", "ztt",   &
@@ -621,7 +622,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "cNHa")) THEN
-            ps_cNHa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cNHa = FloatArray1d()
             ps_cNHa%onDemand => globalAvgProfile
             pipeline => ps_cNHa
             CALL PS%newField("cNHa", "Cloud A bulk NH mass", "kg/kg", "ztt",   &
@@ -629,7 +630,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "cNHb")) THEN
-            ps_cNHb = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_cNHb = FloatArray1d()
             ps_cNHb%onDemand => globalAvgProfile
             pipeline => ps_cNHb
             CALL PS%newField("cNHb", "Cloud B bulk NH mass", "kg/kg", "ztt",   &
@@ -637,7 +638,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "pNHa")) THEN
-            ps_pNHa = FloatArray1d(zeros1d,store=.FALSE.)
+            ps_pNHa = FloatArray1d()
             ps_pNHa%onDemand => globalAvgProfile
             pipeline => ps_pNHa
             CALL PS%newField("pNHa", "Precipitation bulk NH mass", "kg/kg", "ztt",   &
@@ -646,12 +647,14 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iNHa")) THEN
-         ps_iNHa = FloatArray1d(zeros1d,store=.FALSE.)
+         ps_iNHa = FloatArray1d()
          ps_iNHa%onDemand => globalAvgProfile
          pipeline => ps_iNHa
          CALL PS%newField("iNHa", "Ice bulk NH mass", "kg/kg", "ztt",   &
                           ANY(outputlist == "iNHa"), pipeline)
       END IF
+
+      pipeline => NULL()
       
     END SUBROUTINE setPSVariables
 

@@ -1,3 +1,4 @@
+
 !----------------------------------------------------------------------------
 ! This file is part of UCLALES.
 !
@@ -47,15 +48,9 @@ CONTAINS
    SUBROUTINE stepper
 
       USE mpi_interface, ONLY : myid, double_scalar_par_max
-      USE mo_aux_state, ONLY : dzt, zt, zm, dn0, u0, v0
-      USE mo_progn_state, ONLY : a_rp
-      USE mo_diag_state, ONLY : a_rc, a_srp, a_dn
       USE mo_vector_state, ONLY : a_uc, a_vc, a_wc, a_up, a_vp, a_wp
-      USE grid, ONLY : dtl, nzp, dtlt,  &
+      USE grid, ONLY : dtl, dtlt,  &
                        dtlv, dtlong, nzp, nyp, nxp, level
-                       
-      !USE stat, ONLY : sflg, savg_intvl, ssam_intvl, write_ps, close_stat, mcflg, acc_massbudged,  &
-      !                 write_massbudged
       USE thrm, ONLY : thermo
       USE mo_output, ONLY : write_main, close_main, write_ps, close_ps, sflg, ps_intvl, main_intvl
       USE mo_history, ONLY : write_hist
@@ -65,7 +60,7 @@ CONTAINS
 
       REAL         :: t1,t2,tplsdt,begtime
       REAL(kind=8) :: cflmax,gcflmax
-      INTEGER      :: istp, iret
+      INTEGER      :: istp
       LOGICAL :: cflflg
       !
       ! Timestep loop for program
@@ -126,17 +121,6 @@ CONTAINS
          END IF
 
       END DO
-
-      !IF (mcflg) THEN
-         !
-         ! Juha:
-         ! Get the final statistics of atmospheric water for mass budged
-         !CALL acc_massbudged(nzp,nxp,nyp,1,dtlt,dzt,a_dn,    &
-         !                    rv=a_rp,rc=a_rc,prc=a_srp)
-
-         !CALL write_massbudged
-
-      !END IF ! mcflg
 
       CALL write_hist(1, time)
       CALL close_main()
@@ -211,12 +195,11 @@ CONTAINS
    !
    SUBROUTINE t_step(cflflg,cflmax)
 
-      USE grid, ONLY : level,dtl,dtlt,      &
+      USE grid, ONLY : level,dtlt,      &
                        nxp,nyp,nzp,   &
-                       a_nactd,  a_vactd, a_sclrp, a_sclrt, nscl
+                       a_nactd,  a_vactd
       USE mo_vector_state, ONLY : a_wp
       USE mo_field_types, ONLY : Diag, Prog      
-      !USE stat, ONLY : sflg, statistics
       USE sgsm, ONLY : diffuse
       USE srfc, ONLY : surface
       USE thrm, ONLY : thermo
@@ -234,13 +217,8 @@ CONTAINS
       LOGICAL, INTENT (out)      :: cflflg
       REAL(KIND=8), INTENT (out) :: cflmax
 
-      LOGICAL :: zactmask(nzp,nxp,nyp)
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
 
-      INTEGER :: mi, mi2, i,j,k
-
-      REAL :: testi(nzp,nyp,nxp,nscl)
-      
       INTEGER :: nspec
       
       CALL set_LES_runtime(time)
@@ -277,9 +255,6 @@ CONTAINS
       ! -----------------------
       IF (level >= 4) THEN
 
-         !WRITE(*,*) 'ENNEN, arvo', a_sclrp(40,3,23,2)!a_sclrt(40,3,23,37:47) 
-         !WRITE(*,*) 'ENNEN, tend', a_sclrt(40,3,23,2)
-         
          nspec = spec%getNSpec(type="wet") ! Aerosol components + water
             
          IF ( nxp == 5 .AND. nyp == 5 ) THEN
@@ -294,19 +269,13 @@ CONTAINS
                            time,level,.FALSE.             )
              
          END IF !nxp==5 and nyp == 5
-
-         !WRITE(*,*) 'JALKEEN, arvo', a_sclrp(40,3,23,2)!a_sclrt(40,3,23,37:47) 
-         !WRITE(*,*) 'JALKEEN, tend', a_sclrt(40,3,23,2)
          
          CALL tend_constrain2()
          CALL update_sclrs
          CALL tend0(.TRUE.)
-         CALL SALSA_diagnostics(1)
+         CALL SALSA_diagnostics()
          CALL thermo(level)
 
-         !WRITE(*,*) 'UPDATE, arvo', a_sclrp(40,3,23,2)!a_sclrt(40,3,23,37:47) 
-         !WRITE(*,*) 'UPDATE, tend', a_sclrt(40,3,23,2)
-         
       END IF ! level >= 4
 
          
@@ -316,10 +285,10 @@ CONTAINS
       ! Dont perform sedimentation or level 3 autoconversion during spinup (internal switches implemented)
       CALL micro(level)
 
-      IF (level >= 4) CALL tend_constrain2() !tend_constrain(nspec)
+      IF (level >= 4) CALL tend_constrain2()
       CALL update_sclrs
       CALL tend0(.TRUE.)
-      IF (level >= 4) CALL SALSA_diagnostics(2)
+      IF (level >= 4) CALL SALSA_diagnostics()
       CALL thermo(level)
       
       
@@ -330,9 +299,8 @@ CONTAINS
       IF (level >= 4) CALL tend_constrain2()
       CALL update_sclrs
       CALL tend0(.TRUE.)
-      IF (level >= 4) CALL SALSA_diagnostics(3)
+      IF (level >= 4) CALL SALSA_diagnostics()
       CALL thermo(level)
-
       
       CALL corlos
 
@@ -346,12 +314,8 @@ CONTAINS
 
       CALL cfl (cflflg, cflmax)
 
-      IF (level >= 4) CALL SALSA_diagnostics(3)
+      IF (level >= 4) CALL SALSA_diagnostics()
       CALL thermo(level)
-      
-      !IF (sflg) THEN
-      !   CALL statistics (time+dtl)
-      !END IF
 
    END SUBROUTINE t_step
    !
@@ -383,8 +347,9 @@ CONTAINS
    !
    SUBROUTINE cfl(cflflg,cflmax)
 
-      USE grid, ONLY : nxp,nyp,nzp,dxi,dyi,dzt,dtlt
+      USE grid, ONLY : nxp,nyp,nzp,dxi,dyi,dtlt
       USE mo_vector_state, ONLY : a_up, a_vp, a_wp
+      USE mo_aux_state, ONLY : dzt
       !USE stat, ONLY : fill_scalar
 
       LOGICAL, INTENT(out) :: cflflg
@@ -395,7 +360,6 @@ CONTAINS
 
       cflflg = (cflmax > cflnum)
       IF (cflflg) PRINT *, 'Warning CFL Violation :', cflmax
-      !CALL fill_scalar(1,REAL(cflmax))
 
    END SUBROUTINE cfl
    !
@@ -429,8 +393,9 @@ CONTAINS
    !
    SUBROUTINE update_sclrs
 
-      USE grid, ONLY : a_sp, a_st, nscl, nxyzp, nxp, nyp, nzp, dzt, &
+      USE grid, ONLY : a_sp, a_st, nscl, nxyzp, nxp, nyp, nzp, &
                        dtlt, newsclr, isgstyp
+      USE mo_aux_state, ONLY : dzt
       USE mo_progn_state, ONLY : a_qp
       USE sgsm, ONLY : tkeinit
       USE util, ONLY : sclrset
@@ -475,11 +440,11 @@ CONTAINS
    SUBROUTINE buoyancy
      
      USE grid, ONLY : nxp, nyp, nzp, th00, level
-     USE mo_vector_state, ONLY : a_uc, a_vc, a_wc, a_wt
+     USE mo_vector_state, ONLY : a_wt
      !USE stat, ONLY : sflg, comp_tke
      USE mo_diag_state, ONLY : a_rv, a_rc, a_theta, a_srp, a_ri, a_riri
      USE mo_progn_state, ONLY : a_rp
-     USE mo_aux_state, ONLY : dzm, pi1
+     USE mo_aux_state, ONLY : pi1
      USE util, ONLY : ae1mm
      USE thrm, ONLY : update_pi1
      
@@ -499,8 +464,6 @@ CONTAINS
      
      CALL ae1mm(nzp,nxp,nyp,a_wt%d,awtbar)
      CALL update_pi1(nzp,awtbar,pi1)
-     
-     !IF (sflg)  CALL comp_tke(nzp,nxp,nyp,dzm,th00,a_uc,a_vc,a_wc,a_tmp1)
      
    END SUBROUTINE buoyancy
    !
@@ -609,10 +572,5 @@ CONTAINS
       END IF
 
    END SUBROUTINE sponge
-
-
-   ! NOTE: SALSA_DIAGNOSTICS AND OTHER SIMILAR SUBROUTINES ARE NOW FOUND IN CONSTRAIN_SALSA.F90
-
-
 
 END MODULE step

@@ -5,7 +5,7 @@ MODULE mo_salsa_cloud_ice
        nlim, prlim, ice_hom, ice_imm, ice_dep, &
        boltz, planck, rg, rd, avog,     &
        fixinc, spec
-  USE mo_salsa_types, ONLY : aero, cloud, ice, precp, liquid, frozen
+  USE mo_salsa_types, ONLY : aero, cloud, ice, precp, liquid, frozen, rateDiag
   USE mo_particle_external_properties, ONLY : calcSweq
   USE util, ONLY : calc_correlation, cumlognorm, closest
 
@@ -50,7 +50,7 @@ MODULE mo_salsa_cloud_ice
 
     LOGICAL :: isdry
     
-    INTEGER :: ibc, idu, iwa, irim, nspec, ndry
+    INTEGER :: ibc, idu, iwa, irim, nspec, ndry, phase
     REAL :: zinsol
     
     ! Ice nucleation modes
@@ -78,6 +78,8 @@ MODULE mo_salsa_cloud_ice
              IF (ptemp(ii,jj) > 273.15) CYCLE
              IF (liquid(ii,jj,kk)%numc < liquid(ii,jj,kk)%nlim) CYCLE
 
+             phase = liquid(ii,jj,kk)%phase
+             
              ! Get the insoluble volume concentration
              zinsol = 0.
              IF ( ibc > 0 ) zinsol = zinsol + liquid(ii,jj,kk)%volc(ibc)
@@ -92,9 +94,9 @@ MODULE mo_salsa_cloud_ice
              ! Equilibrium saturation ratio
              Sw_eq = calcSweq(liquid(ii,jj,kk),ptemp(ii,jj))
              
-             ! Immersion freezing (similar for all categories)
+             ! Immersion freezing (not directly from aerosol?)
              pf_imm = 0.
-             IF (dins > dmin .AND. ice_imm) THEN
+             IF ( dins > dmin .AND. ice_imm .AND. ANY(phase == [2,3]) ) THEN
                 jf = calc_Jhet(dins,ptemp(ii,jj),Sw_eq)
                 pf_imm = 1. - EXP( -jf*ptstep )
              END IF
@@ -102,7 +104,7 @@ MODULE mo_salsa_cloud_ice
              ! Deposition freezing
              pf_dep = 0.
              IF ( dins > dmin .AND. dwet-dins < dmin .AND. prv(ii,jj)/prs(ii,jj)<1.0 .AND. &
-                  liquid(ii,jj,kk)%phase == 1 .AND. ice_dep                           ) THEN
+                  phase == 1 .AND. ice_dep                           ) THEN
                 Si = prv(ii,jj)/prsi(ii,jj) ! Water vapor saturation ratio over ice
                 jf = calc_Jdep(dins,ptemp(ii,jj),Si)
                 pf_dep = 1. - EXP( -jf*ptstep )
@@ -122,7 +124,8 @@ MODULE mo_salsa_cloud_ice
 
              CALL iceNucleation(ii,jj,bb,ndry,iwa,irim,liquid(ii,jj,kk),frac)
 
-             !IF (ice(ii,jj,bb)%numc > ice(ii,jj,bb)%nlim) &
+             CALL iceDiagnostics(liquid(ii,jj,kk),pf_imm,pf_dep,pf_hom)
+             
              CALL ice(ii,jj,bb)%updateRhomean()
 
           END DO !ii
@@ -513,6 +516,20 @@ MODULE mo_salsa_cloud_ice
     pliq%numc = MAX(0.,pliq%numc*(1.-frac))
     
   END SUBROUTINE iceNucleation
+
+
+  SUBROUTINE iceDiagnostics(pliq,fimm,fdep,fhom)
+    TYPE(Section), INTENT(in) :: pliq
+    REAL, INTENT(in)          :: fimm,fdep,fhom
+    
+    CALL rateDiag%Ice_hom%accumulate(n=pliq%numc*fhom,    &
+                                     v=pliq%volc(:)*fhom)
+    CALL rateDiag%Ice_dep%accumulate(n=pliq%numc*fdep,    &
+                                     v=pliq%volc(:)*fdep)
+    CALL rateDiag%Ice_imm%accumulate(n=pliq%numc*fimm,    &
+                                     v=pliq%volc(:)*fimm)
+    
+  END SUBROUTINE iceDiagnostics
   
 
 END MODULE mo_salsa_cloud_ice

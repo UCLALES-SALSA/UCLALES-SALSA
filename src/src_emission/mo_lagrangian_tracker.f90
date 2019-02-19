@@ -27,6 +27,10 @@ MODULE mo_lagrangian_tracker
     REAl    :: t_trac_old, sub_dt, dt, dtx, dty, dtz, min_t, dt2(2) = -999., dt4(4) = -999.
     REAl    :: eps = 1e-6
     LOGICAL :: nexpout = .FALSE.
+
+    x2 = 0.; y2 = 0.
+    dx = 0.; dy = 0.; dx2x1 = 0.; dy2y1 = 0.; dz2z1 = 0.; t_trac_old = 0.
+
     
     deltax2 = deltax/2
     deltay2 = deltay/2

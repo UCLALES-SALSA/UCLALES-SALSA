@@ -29,7 +29,7 @@ MODULE mo_history
       
       CHARACTER (len=80) :: hname
       
-      INTEGER :: n, iblank, ii, jj, kk,nn
+      INTEGER :: n, iblank,nn
       !
       ! create and open a new output file.
       !
@@ -136,7 +136,7 @@ MODULE mo_history
       CHARACTER(len=20), PARAMETER :: name = "read_hist"
       
       CHARACTER (len=80) :: hname
-      INTEGER :: n, nxpx, nypx, nzpx, nsclx, iradx, isgsx, lvlx, ii, jj, kk
+      INTEGER :: n, nxpx, nypx, nzpx, nsclx, iradx, isgsx, lvlx
       LOGICAL :: exans
       REAL    :: umx, vmx, thx
       INTEGER :: nn, nnbins

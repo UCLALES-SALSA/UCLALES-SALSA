@@ -9,7 +9,6 @@ CONTAINS
       USE mo_submctl, ONLY :      &
          pi6,                       &
          pi,                        &
-         in1a,                      &
          fn2b
 
       USE mo_salsa_driver, ONLY : aero ! This is needed for size bins spacings

@@ -10,7 +10,8 @@
 MODULE mo_salsa_init
   USE classSection, ONLY : Section
   USE classSpecies, ONLY : Species
-
+  USE classProcessRates, ONLY : Initialize_processrates, ProcessRates
+  
   USE mo_submctl, ONLY : reglim,nbin,in1a,fn1a,in2a,fn2a,in2b,fn2b,           &
                          ica,fca,icb,fcb,ira,fra,iia,fia, & 
                          nbins, ncld, nprc, bloPrc, nice, bloIce, ntotal, nliquid, nfrozen,              &
@@ -18,10 +19,11 @@ MODULE mo_salsa_init
                          aerobins,cloudbins,precpbins,icebins, & 
                          spec, nspec_dry, listspec, nlim, prlim, massacc, pi6 
 
-  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, &
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice,         &
                              allSALSA, frozen, liquid,        &
-                             iaero, faero, icloud, fcloud, iprecp, fprecp,    &
-                             iice, fice
+                             rateDiag,                        &
+                             iaero, faero, icloud, fcloud,    &
+                             iprecp, fprecp, iice, fice
 
   USE mo_salsa_driver, ONLY : kbdim,klev
                              
@@ -366,13 +368,12 @@ CONTAINS
    ! Jaakko Ahola (FMI) 2015
    !
    !---------------------------------------------------------------------------
-   SUBROUTINE set_icebins(dumaero,dumice)     
+   SUBROUTINE set_icebins(dumice)     
      IMPLICIT NONE
      
-     TYPE(Section), INTENT(in) :: dumaero(kbdim,klev,nbins)
      TYPE(Section), INTENT(out), ALLOCATABLE :: dumice(:,:,:)
      
-     INTEGER :: ii,jj,bb,nba,nbb
+     INTEGER :: ii,jj,bb
      
      REAL, ALLOCATABLE :: tmplolim(:), tmphilim(:)
 
@@ -484,7 +485,6 @@ CONTAINS
 
                              bloPrc,                      &                            
                              nbin,reglim,                 &
-                             nice,                        &
                              nspec_dry,listspec,          &
                              volDistA, volDistB,          &
                              isdtyp,                      &
@@ -639,14 +639,12 @@ CONTAINS
    ! Juha Tonttila (FMI) 2014
    !
    !-------------------------------------------------------------------------------
-   SUBROUTINE salsa_initialize(level)
+   SUBROUTINE salsa_initialize()
 
       !
       !-------------------------------------------------------------------------------
       IMPLICIT NONE
 
-      INTEGER, INTENT(in) :: level
-      
       ! Dummy size distributions just for setting everything up!!
       ! May not be the smartest or the fastest way, but revise later... 
       TYPE(Section), ALLOCATABLE :: dumaero(:,:,:), dumcloud(:,:,:), dumprecp(:,:,:), &
@@ -680,15 +678,17 @@ CONTAINS
 
       CALL set_cloudbins(dumaero, dumcloud, dumprecp)
 
-      CALL set_icebins(dumaero, dumice) 
+      CALL set_icebins(dumice) 
 
       CALL set_masterbins(dumaero, dumcloud, dumprecp, dumice) 
 
       ! Initialize aerosol optical properties - uses settings from "spec"
       CALL initialize_optical_properties()
-      
-      ! Initialize the coagulation kernel arrays and sink/source term arrays for processes
 
+      ! Initialize the container for process rate diagnostics
+      CALL Initialize_processrates()
+      rateDiag = ProcessRates()
+      
       IF ( ALLOCATED(dumaero) ) DEALLOCATE(dumaero)
       IF ( ALLOCATED(dumcloud)) DEALLOCATE(dumcloud)
       IF ( ALLOCATED(dumprecp)) DEALLOCATE(dumprecp)

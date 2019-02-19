@@ -9,23 +9,34 @@ MODULE mo_vector_state
   TYPE(FloatArray3d), TARGET :: a_vp, a_vc, a_vt
   TYPE(FloatArray3d), TARGET :: a_wp, a_wc, a_wt
   
+  REAL, ALLOCATABLE, TARGET :: a_vectort(:,:,:,:), a_vectorp(:,:,:,:), a_vectorc(:,:,:,:)
 
+  
   CONTAINS
 
     SUBROUTINE setVectorVariables(Vector,outputlist,nzp,nxp,nyp)
       TYPE(FieldArray), INTENT(inout) :: Vector
       CHARACTER(len=*), INTENT(in) :: outputlist(:)
       INTEGER, INTENT(in) :: nzp,nxp,nyp
+
+      INTEGER :: nvar, nn
+      CLASS(*), POINTER :: pipeline_p => NULL(),  &
+                           pipeline_c => NULL(),    &
+                           pipeline_t => NULL()
+
+      nvar = 3
+      ALLOCATE(a_vectort(nzp,nxp,nyp,nvar),  &
+               a_vectorp(nzp,nxp,nyp,nvar),  &
+               a_vectorc(nzp,nxp,nyp,nvar))
+      a_vectort(:,:,:,:) = 0.
+      a_vectorp(:,:,:,:) = 0.
+      a_vectorc(:,:,:,:) = 0.
+      nn = 0
       
-      REAL :: zeros3d(nzp,nxp,nyp)
-      
-      CLASS(*), POINTER :: pipeline_p, pipeline_c, pipeline_t
-      
-      zeros3d = 0.
-      
-      a_up = FloatArray3d(zeros3d,store=.TRUE.)
-      a_uc = FloatArray3d(zeros3d,store=.TRUE.)
-      a_ut = FloatArray3d(zeros3d,store=.TRUE.)
+      nn = nn + 1
+      a_up = FloatArray3d(a_vectorp(:,:,:,nn))
+      a_uc = FloatArray3d(a_vectorc(:,:,:,nn))
+      a_ut = FloatArray3d(a_vectort(:,:,:,nn))
       pipeline_p => a_up
       pipeline_t => a_ut
       pipeline_c => a_uc
@@ -34,9 +45,10 @@ MODULE mo_vector_state
                            in_t_data=pipeline_t,in_c_data=pipeline_c,        &
                            in_group='Vector')
 
-      a_vp = FloatArray3d(zeros3d,store=.TRUE.)
-      a_vc = FloatArray3d(zeros3d,store=.TRUE.)      
-      a_vt = FloatArray3d(zeros3d,store=.TRUE.)
+      nn = nn + 1
+      a_vp = FloatArray3d(a_vectorp(:,:,:,nn))
+      a_vc = FloatArray3d(a_vectorc(:,:,:,nn))      
+      a_vt = FloatArray3d(a_vectort(:,:,:,nn))
       pipeline_p => a_vp
       pipeline_t => a_vt
       pipeline_c => a_vc
@@ -44,10 +56,11 @@ MODULE mo_vector_state
                            ANY(outputlist == 'vwind'),in_p_data=pipeline_p,  &
                            in_t_data=pipeline_t,in_c_data=pipeline_c,        &
                            in_group='Vector')
-      
-      a_wp = FloatArray3d(zeros3d,store=.TRUE.)
-      a_wc = FloatArray3d(zeros3d,store=.TRUE.)
-      a_wt = FloatArray3d(zeros3d,store=.TRUE.)
+
+      nn = nn + 1
+      a_wp = FloatArray3d(a_vectorp(:,:,:,nn))
+      a_wc = FloatArray3d(a_vectorc(:,:,:,nn))
+      a_wt = FloatArray3d(a_vectort(:,:,:,nn))
       pipeline_p => a_wp
       pipeline_t => a_wt
       pipeline_c => a_wc
@@ -55,7 +68,11 @@ MODULE mo_vector_state
                            ANY(outputlist == 'wwind'),in_p_data=pipeline_p,  &
                            in_t_data=pipeline_t,in_c_data=pipeline_c,        &
                            in_group='Vector')      
-                        
+
+      pipeline_p => NULL()
+      pipeline_c => NULL()
+      pipeline_t => NULL()
+      
     END SUBROUTINE setVectorVariables
 
 

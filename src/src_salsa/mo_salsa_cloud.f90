@@ -1,5 +1,5 @@
 MODULE mo_salsa_cloud
-    USE mo_salsa_types, ONLY : aero, cloud, precp
+    USE mo_salsa_types, ONLY : aero, cloud, precp, rateDiag
     USE mo_submctl, ONLY : nbins, ncld, spec,          &
                            in1a,in2a,in2b,fn2a,fn2b,   &
                            ica,icb,fca,fcb,            &
@@ -623,6 +623,10 @@ CONTAINS
              ! Store the number concentration and mass of activated particles for current bins
              pactd(cb)%numc = MIN(Nact,Nmid)
              pactd(cb)%volc(1:nwet) = MIN(Vact(1:nwet),aero(ii,jj,ab)%volc(1:nwet))
+
+             ! Diagnostics
+             CALL rateDiag%Activation%Accumulate(n=pactd(cb)%numc)
+             CALL rateDiag%Activation%Accumulate(v=pactd(cb)%volc(1:nwet))
              
           END DO ! cb
           

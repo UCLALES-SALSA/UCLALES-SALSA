@@ -79,13 +79,14 @@ CONTAINS
      USE defs, ONLY: vonk, p00, rcp, g, cp, alvl, ep2
      USE mo_diag_state, ONLY : a_theta, a_rv, a_ustar, a_tstar, a_rstar,  &
                                uw_sfc, vw_sfc, ww_sfc, wt_sfc, wq_sfc,    &
-                               a_sflx, a_rflx, a_rrate, a_dn
-     USE mo_aux_state, ONLY : zt, dzt, dn0
+                               a_sflx, a_rflx, a_rrate
+     USE mo_aux_state, ONLY : zt, dn0
      USE mo_progn_state, ONLY : a_rp
      USE mo_vector_state, ONLY : a_up, a_vp
      USE grid, ONLY: nzp, nxp, nyp, psrf, th00,  &
                      umean, vmean, level, dtl, W1,W2,W3,    &
-                     mc_ApVdom, dtlt,sst
+                     !mc_ApVdom,
+                     sst
       USE thrm, ONLY: rslf
       !USE stat, ONLY: sfc_stat, sflg, mcflg, acc_massbudged
       USE mpi_interface, ONLY : nypg, nxpg, double_array_par_sum
@@ -109,6 +110,8 @@ CONTAINS
 
       REAL :: mctmp(nxp,nyp) ! Helper for mass concenrvation statistics
 
+      mctmp = 0.
+      
       ! Added by Juha
       SELECT CASE(level)
          CASE(1,2,3)

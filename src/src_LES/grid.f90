@@ -20,8 +20,9 @@
 MODULE grid
   
   USE classFieldArray, ONLY : FieldArray
-  USE mo_aux_state
-  USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice
+  USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice,     &
+                         in1a, fn2a, in2b, fn2b, ica, icb, fca, fcb,  &
+                         aerobins, cloudbins, precpbins, icebins
   
   IMPLICIT NONE
 
@@ -71,9 +72,7 @@ MODULE grid
   CHARACTER (len=7)  :: runtype = 'INITIAL'! Run Type SELECTion
 
   ! Output file list; given here instead of mo_output.f90 to avoid cyclic dependencies
-  CHARACTER(len=10) :: varlist_main(100),varlist_ps(100), varlist_ts(100)  ! 
-
-  CHARACTER (len=7),  PRIVATE :: v_snm = 'sxx    '
+  CHARACTER(len=50) :: varlist_main(100),varlist_ps(100), varlist_ts(100)  ! 
 
   ! Grid definitions
   ! -----------------------------------------------------
@@ -105,6 +104,7 @@ MODULE grid
   ! Other field arrays are initialized and stored in mo_field_state. The ones below are needed here
   ! but sine they don't contain any variable associated procedures, there is no risk for cyclic dependencies.
   TYPE(FieldArray) :: Axes              ! Contains the grid and size distribution axis vectors
+  TYPE(FieldArray) :: AxesPS            ! All the axes that can be assigned to profile statistics files
   TYPE(FieldArray) :: outAxes           ! Subset from above assigned for output
   TYPE(FieldArray) :: outAxesPS         ! Subset from Axes assigned for ps-file output
   TYPE(FieldArray) :: BasicState        ! Basic state profiles (no particles)
@@ -124,7 +124,6 @@ MODULE grid
   !
   INTEGER :: nscl = 1
   INTEGER :: memsize
-  !INTEGER, SAVE :: ncid0,ncid_s
   !
   
 CONTAINS
@@ -136,13 +135,10 @@ CONTAINS
    ! Juha Tonttila, FMI, 2014.
    !
    SUBROUTINE define_vars
-
-      USE mpi_interface, ONLY : myid
+     USE mo_aux_state, ONLY : setInitialProfiles
 
       CHARACTER(len=20), PARAMETER :: name = "define_vars"
-      INTEGER :: zz
       INTEGER :: nc
-      INTEGER :: st_salsa,en_salsa ! start and end indices for SALSA tracers
       
       ! Instanciate the field arrays
       BasicState = FieldArray()
@@ -161,22 +157,6 @@ CONTAINS
       CALL BasicState%getByOutputstatus(outBasicState)
 
       memsize = 2*nxyzp ! complexarray in pressure solver
-
-!      ! Vector variables
-!      ALLOCATE (a_up(nzp,nxp,nyp),a_vp(nzp,nxp,nyp),a_wp(nzp,nxp,nyp))
-!      a_up(:,:,:) = 0.
-!      a_vp(:,:,:) = 0.
-!      a_wp(:,:,:) = 0.
-
-!      ALLOCATE (a_uc(nzp,nxp,nyp),a_vc(nzp,nxp,nyp),a_wc(nzp,nxp,nyp))
-!      a_uc(:,:,:) = 0.
-!      a_vc(:,:,:) = 0.
-!      a_wc(:,:,:) = 0.
-
-!      ALLOCATE (a_ut(nzp,nxp,nyp),a_vt(nzp,nxp,nyp),a_wt(nzp,nxp,nyp))
-!      a_ut(:,:,:) = 0.
-!      a_vt(:,:,:) = 0.
-!      a_wt(:,:,:) = 0.
 
       ! Juha: Allocate the main scalar arrays
       !-----------------------------------------------------
@@ -212,10 +192,11 @@ CONTAINS
    !----------------------------------------------------------------------
    !
    SUBROUTINE define_grid
-
+     USE mo_aux_state, ONLY : setGridSpacings,xt,xm,yt,ym,zt,zm,dzt,dzm,      &
+                              aea, aeb, cla, clb, prc, ice, aetot, cltot
       USE mpi_interface, ONLY : xoffset, yoffset, wrxid, wryid, nxpg, nypg,   &
                                 appl_abort, myid
-
+      USE mo_structured_datatypes, ONLY : FloatArray1d
       CHARACTER(len=20), PARAMETER :: name = "define_grid"
       INTEGER :: i,j,k,kmax,nchby
       REAL    :: dzrfm,dz,zb,dzmin
@@ -227,13 +208,13 @@ CONTAINS
          fm4 = '("   nzp   = ",i3,", dz, dz = ",f8.1,",",f8.1," m")',      &
          fm5 = '("   timestep: ",f7.3,"s ")                        ',      &
          fm6 = '("   thermo level: ",i3)                        '
-
-
+      
       ! Initialize grid vectors
       Axes = FieldArray()
       CALL setGridSpacings(Axes,lbinanl,level,nzp,nxp,nyp)
       CALL Axes%getByOutputstatus(outAxes)
-      CALL Axes%getByGroup("ps",outAxesPS)
+      CALL Axes%getByGroup("ps",AxesPS)
+      CALL Axes%getByOutputstatus(outAxesPS)
       
       nxyzp = nxp*nyp*nzp
       nxyp  = nxp*nyp
@@ -246,160 +227,172 @@ CONTAINS
       wsavex = 0.0
       wsavey = 0.0
 
-      ASSOCIATE(xm => xm%d(:), xt => xt%d(:), ym => ym%d(:), yt => yt%d(:),  &
-                zm => zm%d(:), zt => zt%d(:), dzt => dzt%d(:), dzm => dzm%d(:)        )
+      !
+      ! define xm array for grid 1 from deltax
+      !
+      xm%d(1) = -float(max(nxpg-2,1))*.5*deltax+xoffset(wrxid)*deltax
+      DO i = 2, nxp-1
+         xm%d(i) = xm%d(i-1)+deltax
+      END DO
+      xm%d(nxp) = 2*xm%d(nxp-1)-xm%d(nxp-2)
+      !
+      ! define ym array for grid 1 from deltay
+      !
+      ym%d(1) = -float(max(nypg-2,1))*.5*deltay+yoffset(wryid)*deltay
+      DO j = 2, nyp-1
+         ym%d(j) = ym%d(j-1)+deltay
+      END DO
+      ym%d(nyp) = 2*ym%d(nyp-1)-ym%d(nyp-2)
       
-        !
-        ! define xm array for grid 1 from deltax
-        !
-        xm(1) = -float(max(nxpg-2,1))*.5*deltax+xoffset(wrxid)*deltax
-        DO i = 2, nxp-1
-           xm(i) = xm(i-1)+deltax
-        END DO
-        xm(nxp) = 2*xm(nxp-1)-xm(nxp-2)
-        !
-        ! define ym array for grid 1 from deltay
-        !
-        ym(1) = -float(max(nypg-2,1))*.5*deltay+yoffset(wryid)*deltay
-        DO j = 2, nyp-1
-           ym(j) = ym(j-1)+deltay
-        END DO
-        ym(nyp) = 2*ym(nyp-1)-ym(nyp-2)
-        
-        !
-        !      define where the momentum points will lie in vertical
-        !
-        SELECT CASE (abs(igrdtyp))
-           !
-           ! Read in grid spacings from a file
-           !
-        CASE(3)
-           OPEN(1,file='zm_grid_in',status='old',form='formatted')
-           DO k = 1, nzp
-              READ(1,*) zm(k)
-           END DO
-           CLOSE(1)
-           IF (zm(1) /= 0.) THEN
-              IF (myid == 0) PRINT *, 'ABORTING:  Error in input grid'
-              CALL appl_abort(0)
-           END IF
-           !
-           ! Tschebyschev Grid with vertical size given by dzmax
-           !
-        CASE(2)
-           zm(1) = 0.
-           nchby = nzp-3
-           DO k = 1, nzp-1
-              zm(k+1) = cos( ((2.*nchby - 1. - 2.*(k-1))*2.*asin(1.))/(2.*nchby))
-              zm(k+1) = (zm(k+1)+1.)*dzmax/2.
-           END DO
-           zm(nzp-1) = dzmax
-           zm(nzp)   = dzmax + zm(2)*zm(2)/(zm(3)-zm(2))
-           !
-           ! define zm array for grid 1 from deltaz and dzrat, if dzrat is
-           ! negative compress grid so that dzmin is the grid spacing in a 100m
-           ! interval below dzmax.  In both CASEs stretcvh grid uniformly by the
-           ! ration |dzrat| above dzmax
-           !
-        CASE(1)
-           dzmin=0.
-           zm(1) = 0.
-           zm(2) = deltaz
-           zb = dzmax+100.
-           IF (dzrat < 0.) THEN
-              dzmin = -float(int(dzrat))
-              dzrat =  dzrat+dzmin-1
-              kmax = int(log(deltaz/dzmin)/log(abs(dzrat)))
-              zb = dzmax-100.
-              DO k = 1, kmax
-                 zb = zb-dzmin*abs(dzrat)**k
-              END DO
-           END IF
-           
-           dz = deltaz
-           DO k = 3, nzp
-              IF(zm(k-1) > zb .AND. zm(k-1) < dzmax)then
-                 dz = max(dzmin,dz/abs(dzrat))
-              ELSE IF (zm(k-1) >= dzmax) THEN
-                 dz = dz*abs(dzrat)
-              END IF
-              zm(k) = zm(k-1)+dz
-           END DO
-        CASE DEFAULT
-           zm(1) = 0.
-           DO k = 2, nzp ! Fixed: used to start from 1
-              zm(k) = zm(k-1)+deltaz
-           END DO
-        END SELECT
-        !
-        ! Grid Points for Thermal Points (T-Grid):
-        !
-        DO i = 2, nxp
-           xt(i) = .5*(xm(i)+xm(i-1))
-        END DO
-        xt(1) = 1.5*xm(1)-.5*xm(2)
-        !
-        DO j = 2, nyp
-           yt(j) = .5*(ym(j)+ym(j-1))
-        END DO
-        yt(1) = 1.5*ym(1)-.5*ym(2)
-        !
-        IF (igrdtyp < 0) THEN
-           !
-           ! Read in grid spacings from a file
-           !
-           OPEN(2,file='zt_grid_in',status='old',form='formatted')
-           DO k = 1, nzp
-              READ(2,*) zt(k)
-           END DO
-           CLOSE(2)
-        ELSE
-           !
-           ! calculate where the thermo points will lie based on geometric
-           ! interpolation from the momentum points
-           !
-           DO k = 1, nzp
-              zmnvc(k) = zm(k)
-           END DO
-           zmnvc(0) = -(zmnvc(2)-zmnvc(1))**2 /(zmnvc(3)-zmnvc(2))
-           zmnvc(-1) = zmnvc(0)-(zmnvc(1)-zmnvc(0))**2 /(zmnvc(2)-zmnvc(1))
-           zmnvc(nzp+1) = zmnvc(nzp)+(zmnvc(nzp)-zmnvc(nzp-1))**2              &
-                /(zmnvc(nzp-1)-zmnvc(nzp-2))
-           DO k = 1, nzp
-              dzrfm = sqrt(sqrt((zmnvc(k+1)-zmnvc(k)) /(zmnvc(k-1)-zmnvc(k-2))))
-              zt(k) = zmnvc(k-1)+(zmnvc(k)-zmnvc(k-1))/(1.+dzrfm)
-           END DO
-        END IF
-        !
-        ! compute other arrays based on the vertical grid.
-        !   dzm: inverse of distance between thermal points k+1 and k
-        !   dzt: inverse of distance between momentum points k and k-1
-        !
-        DO k = 1, nzp-1
-           dzm(k) = 1./(zt(k+1)-zt(k))
-        END DO
-        dzm(nzp) = dzm(nzp-1)*dzm(nzp-1)/dzm(nzp-2)
-        DO k = 2, nzp
-           dzt(k) = 1./(zm(k)-zm(k-1))
-        END DO
-        dzt(1) = dzt(2)*dzt(2)/dzt(3)
-        !
-        ! set timesteps
-        !
-        dtl = dtlong
-        dtlv = 2.*dtl
-        dtlt = dtl
-        !
-        IF(myid == 0) THEN
-           WRITE(6,fm1)
-           WRITE(6,fm2) nxpg-4, deltax, 2.*xt(nxp-2)
-           WRITE(6,fm3) nypg-4, deltay, 2.*yt(nyp-2)
-           WRITE(6,fm4) nzp,zm(2)-zm(1),zm(nzp)
-           WRITE(6,fm5) dtl
-           WRITE(6,fm6) level
-        END IF
+      !
+      !      define where the momentum points will lie in vertical
+      !
+      SELECT CASE (abs(igrdtyp))
+         !
+         ! Read in grid spacings from a file
+         !
+      CASE(3)
+         OPEN(1,file='zm_grid_in',status='old',form='formatted')
+         DO k = 1, nzp
+            READ(1,*) zm%d(k)
+         END DO
+         CLOSE(1)
+         IF (zm%d(1) /= 0.) THEN
+            IF (myid == 0) PRINT *, 'ABORTING:  Error in input grid'
+            CALL appl_abort(0)
+         END IF
+         !
+         ! Tschebyschev Grid with vertical size given by dzmax
+         !
+      CASE(2)
+         zm%d(1) = 0.
+         nchby = nzp-3
+         DO k = 1, nzp-1
+            zm%d(k+1) = cos( ((2.*nchby - 1. - 2.*(k-1))*2.*asin(1.))/(2.*nchby))
+            zm%d(k+1) = (zm%d(k+1)+1.)*dzmax/2.
+         END DO
+         zm%d(nzp-1) = dzmax
+         zm%d(nzp)   = dzmax + zm%d(2)*zm%d(2)/(zm%d(3)-zm%d(2))
+         !
+         ! define zm array for grid 1 from deltaz and dzrat, if dzrat is
+         ! negative compress grid so that dzmin is the grid spacing in a 100m
+         ! interval below dzmax.  In both CASEs stretcvh grid uniformly by the
+         ! ration |dzrat| above dzmax
+         !
+      CASE(1)
+         dzmin=0.
+         zm%d(:) = 0.
+         zm%d(1) = 0.
+         zm%d(2) = deltaz
+         zb = dzmax+100.
+         IF (dzrat < 0.) THEN
+            dzmin = -float(int(dzrat))
+            dzrat =  dzrat+dzmin-1
+            kmax = int(log(deltaz/dzmin)/log(abs(dzrat)))
+            zb = dzmax-100.
+            DO k = 1, kmax
+               zb = zb-dzmin*abs(dzrat)**k
+            END DO
+         END IF
+         
+         dz = deltaz
+         DO k = 3, nzp
+            IF(zm%d(k-1) > zb .AND. zm%d(k-1) < dzmax)then
+               dz = max(dzmin,dz/abs(dzrat))
+            ELSE IF (zm%d(k-1) >= dzmax) THEN
+               dz = dz*abs(dzrat)
+            END IF
+            zm%d(k) = zm%d(k-1)+dz
+         END DO
+      CASE DEFAULT
+         zm%d(1) = 0.
+         DO k = 2, nzp ! Fixed: used to start from 1
+            zm%d(k) = zm%d(k-1)+deltaz
+         END DO
+      END SELECT
 
-      END ASSOCIATE
+      !
+      ! Grid Points for Thermal Points (T-Grid):
+      !
+      DO i = 2, nxp
+         xt%d(i) = .5*(xm%d(i)+xm%d(i-1))
+      END DO
+      xt%d(1) = 1.5*xm%d(1)-.5*xm%d(2)
+      !
+      DO j = 2, nyp
+         yt%d(j) = .5*(ym%d(j)+ym%d(j-1))
+      END DO
+      yt%d(1) = 1.5*ym%d(1)-.5*ym%d(2)
+      !
+      IF (igrdtyp < 0) THEN
+         !
+         ! Read in grid spacings from a file
+         !
+         OPEN(2,file='zt_grid_in',status='old',form='formatted')
+         DO k = 1, nzp
+            READ(2,*) zt%d(k)
+         END DO
+         CLOSE(2)
+      ELSE
+         !
+         ! calculate where the thermo points will lie based on geometric
+         ! interpolation from the momentum points
+         !
+         DO k = 1, nzp
+            zmnvc(k) = zm%d(k)
+         END DO
+         zmnvc(0) = -(zmnvc(2)-zmnvc(1))**2 /(zmnvc(3)-zmnvc(2))
+         zmnvc(-1) = zmnvc(0)-(zmnvc(1)-zmnvc(0))**2 /(zmnvc(2)-zmnvc(1))
+         zmnvc(nzp+1) = zmnvc(nzp)+(zmnvc(nzp)-zmnvc(nzp-1))**2              &
+              /(zmnvc(nzp-1)-zmnvc(nzp-2))
+         DO k = 1, nzp
+            dzrfm = sqrt(sqrt((zmnvc(k+1)-zmnvc(k)) /(zmnvc(k-1)-zmnvc(k-2))))
+            zt%d(k) = zmnvc(k-1)+(zmnvc(k)-zmnvc(k-1))/(1.+dzrfm)
+         END DO
+      END IF
+      !
+      ! compute other arrays based on the vertical grid.
+      !   dzm: inverse of distance between thermal points k+1 and k
+      !   dzt: inverse of distance between momentum points k and k-1
+      !
+      DO k = 1, nzp-1
+         dzm%d(k) = 1./(zt%d(k+1)-zt%d(k))
+      END DO
+      dzm%d(nzp) = dzm%d(nzp-1)*dzm%d(nzp-1)/dzm%d(nzp-2)
+      DO k = 2, nzp
+         dzt%d(k) = 1./(zm%d(k)-zm%d(k-1))
+      END DO
+      dzt%d(1) = dzt%d(2)*dzt%d(2)/dzt%d(3)
+      !
+      ! set timesteps
+      !
+      dtl = dtlong
+      dtlv = 2.*dtl
+      dtlt = dtl
+      !
+      
+      ! Set bin diameter grids 
+      IF (level >= 4) THEN
+         aea%d(:) = aerobins(in1a:fn2a)
+         aeb%d(:) = aerobins(in2b:fn2b)
+         aetot%d(:) = aerobins(in1a:fn2b)
+         cla%d(:) = cloudbins(ica%cur:fca%cur)
+         clb%d(:) = cloudbins(icb%cur:fcb%cur)
+         cltot%d(:) = cloudbins(ica%cur:fcb%cur)
+         prc%d(:) = precpbins(1:nprc)
+      END IF
+      IF (level > 4) THEN
+         ice%d(:) = icebins(1:nice)
+      END IF
+      
+      IF(myid == 0) THEN
+         WRITE(6,fm1)
+         WRITE(6,fm2) nxpg-4, deltax, 2.*xt%d(nxp-2)
+         WRITE(6,fm3) nypg-4, deltay, 2.*yt%d(nyp-2)
+         WRITE(6,fm4) nzp,zm%d(2)-zm%d(1),zm%d(nzp)
+         WRITE(6,fm5) dtl
+         WRITE(6,fm6) level
+      END IF
         
    END SUBROUTINE define_grid
 

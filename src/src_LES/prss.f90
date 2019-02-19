@@ -37,7 +37,7 @@ MODULE prss
 
       USE mo_aux_state, ONLY : dzm, dzt, dn0
       USE mo_diag_state, ONLY : a_press, a_pexnr
-      USE mo_vector_state, ONLY : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt
+      USE mo_vector_state, ONLY : a_up, a_ut, a_vp, a_vt, a_wp, a_wt
       USE grid, ONLY : nxp, nyp, nzp, dtlt, dxi, dyi,  &
                        th00, wsavex, wsavey
       !USE stat, ONLY : fill_scalar, sflg

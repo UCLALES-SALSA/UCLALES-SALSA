@@ -39,7 +39,7 @@ CONTAINS
       !USE stat, ONLY : sflg, updtst, acc_tend
       USE util, ONLY : get_avg3
 
-      REAL :: v1da(nzp), v1db(nzp), v1dc(nzp), v1dd(nzp), v1de(nzp), v1st(nzp), &
+      REAL :: v1da(nzp),v1db(nzp), &
               a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
       !
       ! prepare density weights for use vertical advection

@@ -8,12 +8,15 @@ MODULE classFieldArray
 
    IMPLICIT NONE
 
+   INTEGER, PARAMETER :: undefined = 999 
+
+   
    TYPE ArrayElement
-      CHARACTER(len=10)  :: name          ! Short name: for output variable name and for fetching data using getData
+      CHARACTER(len=50)  :: name          ! Short name: for output variable name and for fetching data using getData
       CHARACTER(len=100) :: long_name     ! Long name, mainly for output attributes
-      CHARACTER(len=10)  :: unit          ! Unit of the variable, e.g. "kg/kg"; used mainly for output attributes
-      CHARACTER(len=10)  :: dimension     ! String that gives the dimension environment for output (see ncio.f90)
-      CHARACTER(len=10)  :: group         ! A group tag that can be used to fetch a list of certain type variables
+      CHARACTER(len=50)  :: unit          ! Unit of the variable, e.g. "kg/kg"; used mainly for output attributes
+      CHARACTER(len=50)  :: dimension     ! String that gives the dimension environment for output (see ncio.f90)
+      CHARACTER(len=50)  :: group         ! A group tag that can be used to fetch a list of certain type variables
       LOGICAL            :: outputstatus  ! TRUE: write this variable to an output file. FALSE: don't.
 
       ! Below are pointers to scalar variable arrays. In U-S, scalars have two definitions:
@@ -320,16 +323,19 @@ MODULE classFieldArray
       CLASS(*), INTENT(out), POINTER   :: out      ! Variable instance
       INTEGER, INTENT(in)              :: tlev     ! Get the values (1; default) or tendencies (2) or current (for vectors; 3)
 
-      TYPE(ArrayElement), POINTER :: Element       ! Pointer to the FieldArray list element
+      TYPE(ArrayElement), POINTER :: Element      ! Pointer to the FieldArray list element
       INTEGER :: ind
 
+      out => NULL()
+      Element => NULL()
       CALL SELF%getFieldIndex(in_name,ind)
-      CALL SELF%getField(ind,Element)
-      IF (tlev==1) THEN
+      IF (ind /= undefined ) &              ! If the variable is not defined, Element will remain unassociated
+           CALL SELF%getField(ind,Element)
+      IF (tlev==1 .AND. ASSOCIATED(Element)) THEN ! If Element is unassociated, out will remain unassociated as well
          CALL Element%get_p(out)
-      ELSE IF (tlev==2) THEN
+      ELSE IF (tlev==2 .AND. ASSOCIATED(Element)) THEN
          CALL Element%get_t(out)
-      ELSE IF (tlev==3) THEN
+      ELSE IF (tlev==3 .AND. ASSOCIATED(Element)) THEN
          CALL Element%get_c(out)
       END IF
 
@@ -347,12 +353,15 @@ MODULE classFieldArray
 
       TYPE(ArrayElement), POINTER :: Element      ! Pointer to the FieldArray list element
 
-      CALL SELF%getField(ind,Element)
-      IF (tlev==1) THEN
+      Element => NULL()
+      out => NULL()
+      IF (ind <= SELF%count .AND. ind >= 1 .AND. ind /= undefined) & ! If index is bad, Element and out will remain unassociated
+           CALL SELF%getField(ind,Element)      
+      IF (tlev==1 .AND. ASSOCIATED(Element)) THEN
          CALL Element%get_p(out)
-      ELSE IF (tlev==2) THEN
+      ELSE IF (tlev==2 .AND. ASSOCIATED(Element)) THEN
          CALL Element%get_t(out)
-      ELSE IF (tlev==3) THEN
+      ELSE IF (tlev==3 .AND. ASSOCIATED(Element)) THEN
          CALL Element%get_c(out)
       END IF
 
@@ -384,6 +393,8 @@ MODULE classFieldArray
 
       CLASS(*), POINTER :: pp  ! Polymorphic pointer to the variable instance in ArrayElement
 
+      out => NULL()
+      
       IF (PRESENT(index)) THEN
          CALL SELF%getVarInst(index,pp,tlev)
       ELSE IF (PRESENT(name)) THEN
@@ -391,11 +402,13 @@ MODULE classFieldArray
       END IF
 
       ! Collapse to inquired datatype. If the in_name or ind does not point to
-      ! variable of this datatype, return an error status LISAA TAMA
-      SELECT TYPE(pp)
+      ! variable of this datatype, out will remain unassociated
+      IF (ASSOCIATED(pp)) THEN
+         SELECT TYPE(pp)
          TYPE IS (FloatArray0d)
             out => pp
-      END SELECT
+         END SELECT
+      END IF
 
    END SUBROUTINE getData_0d
    
@@ -411,6 +424,8 @@ MODULE classFieldArray
 
       CLASS(*), POINTER :: pp  ! Polymorphic pointer to the variable instance in ArrayElement
 
+      out => NULL()
+      
       IF (PRESENT(index)) THEN
          CALL SELF%getVarInst(index,pp,tlev)
       ELSE IF (PRESENT(name)) THEN
@@ -418,12 +433,14 @@ MODULE classFieldArray
       END IF
 
       ! Collapse to inquired datatype. If the in_name or ind does not point to
-      ! variable of this datatype, return an error status LISAA TAMA
-      SELECT TYPE(pp)
+      ! variable of this datatype, out will remain unassociated
+      IF (ASSOCIATED(pp)) THEN
+         SELECT TYPE(pp)
          TYPE IS (FloatArray1d)
             out => pp
-      END SELECT
-
+         END SELECT
+      END IF
+         
    END SUBROUTINE getData_1d
    ! ---------
    ! ---------
@@ -437,6 +454,8 @@ MODULE classFieldArray
 
       CLASS(*), POINTER :: pp  ! Polymorphic pointer to the variable instance in ArrayElement
 
+      out => NULL()
+      
       IF (PRESENT(index)) THEN
          CALL SELF%getVarInst(index,pp,tlev)
       ELSE IF (PRESENT(name)) THEN
@@ -444,12 +463,14 @@ MODULE classFieldArray
       END IF
 
       ! Collapse to inquired datatype. If the in_name or ind does not point to
-      ! variable of this datatype, return an error status LISAA TAMA
-      SELECT TYPE(pp)
+      ! variable of this datatype, out will remain unassociated
+      IF (ASSOCIATED(pp)) THEN
+         SELECT TYPE(pp)
          TYPE IS (FloatArray2d)
             out => pp
-      END SELECT
-
+         END SELECT
+      END IF
+         
    END SUBROUTINE getData_2d
    ! ---------
    ! ---------
@@ -463,6 +484,8 @@ MODULE classFieldArray
 
       CLASS(*), POINTER :: pp  ! Polymorphic pointer to the variable instance in ArrayElement
 
+      out => NULL()
+      
       IF (PRESENT(index)) THEN
          CALL SELF%getVarInst(index,pp,tlev)
       ELSE IF (PRESENT(name)) THEN
@@ -470,12 +493,14 @@ MODULE classFieldArray
       END IF
 
       ! Collapse to inquired datatype. If the in_name or ind does not point to
-      ! variable of this datatype, return an error status LISAA TAMA
-      SELECT TYPE(pp)
+      ! variable of this datatype, out will remain unassociated
+      IF (ASSOCIATED(pp)) THEN
+         SELECT TYPE(pp)
          TYPE IS (FloatArray3d)
             out => pp
-      END SELECT
-
+         END SELECT
+      END IF
+         
    END SUBROUTINE getData_3d
    ! ---------
    ! ---------
@@ -489,6 +514,8 @@ MODULE classFieldArray
 
       CLASS(*), POINTER :: pp  ! Polymorphic pointer to the variable instance in ArrayElement
 
+      out => NULL()
+      
       IF (PRESENT(index)) THEN
          CALL SELF%getVarInst(index,pp,tlev)
       ELSE IF (PRESENT(name)) THEN
@@ -496,12 +523,14 @@ MODULE classFieldArray
       END IF
 
       ! Collapse to inquired datatype. If the in_name or ind does not point to
-      ! variable of this datatype, return an error status LISAA TAMA
-      SELECT TYPE(pp)
+      ! variable of this datatype, out will remain unassociated
+      IF (ASSOCIATED(pp)) THEN
+         SELECT TYPE(pp)
          TYPE IS (FloatArray4d)
             out => pp
-      END SELECT
-
+         END SELECT
+      END IF
+         
    END SUBROUTINE getData_4d
 
    ! ---------------------------------------------------------------
@@ -521,7 +550,7 @@ MODULE classFieldArray
       i = 1
       DO
          IF (i > SELF%count) THEN
-            i = 999
+            i = undefined
             EXIT
          END IF
          IF (SELF%list(i)%name == in_name) THEN
