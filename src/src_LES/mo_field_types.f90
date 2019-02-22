@@ -20,5 +20,7 @@ MODULE mo_field_types
   TYPE(FieldArray) :: Derived
   TYPE(FieldArray) :: outDerived        ! Derived variables - only for output, the data is only calculated using method onDemand
   TYPE(FieldArray) :: outPS             ! Variables for profile statistic outputs. Data is only calculated with onDemand
+  TYPE(FieldArray) :: outTS             ! Variables for timeseries outputs. Data only calculated with onDemand
 
+  
 END MODULE mo_field_types

@@ -1,0 +1,38 @@
+MODULE mo_ts_state
+  IMPLICIT NONE
+
+  TYPE(FloatArray0d), TARGET :: vtke,              &  ! 1:
+                                sfcbflux,          &  ! 2:
+                                wmax,              &  ! 3:
+                                tsrf,              &  ! 4:
+                                shf_bar,lhf_bar,   &  ! 5,6:
+                                lwp_bar,rwp_bar,   &  ! 7,8:
+                                iwp_bar,           &  ! 9:
+                                ctop,cbase,cfrac,  &  ! 10,11,12:
+                                sfc_rain              ! 13:
+
+  REAL, ALLOCATABLE, TARGET :: a_ts0d(:)
+  INTEGER, PARAMETER        :: nts0d = 13
+
+  
+  CONTAINS
+
+    SUBROUTINE setTSVariables(TS,outputlist,level)
+      TYPE(FieldArray), INTENT(inout) :: TS
+      CHARACTER(len=*), INTENT(in)    :: outputlist(:)
+      INTEGER, INTENT(in)             :: level
+      CLASS(*), POINTER :: pipeline => NULL()
+
+      IF (ANY(outputlist == "vtke")) THEN
+         vtke = FloatArray0d()
+      END IF
+      
+
+      
+
+    END SUBROUTINE setTSVariables
+    
+  
+  
+
+END MODULE mo_ts_state

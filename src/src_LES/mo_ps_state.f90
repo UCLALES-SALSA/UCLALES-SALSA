@@ -5,7 +5,7 @@ MODULE mo_ps_state
   IMPLICIT NONE
 
   ! Variables for profile statistics output.
-  ! Note that no data is stored for these variables, but the onDemand function is associated to get
+  ! Note that for some of these variables (so far all) no data is stored, but the onDemand function is associated to get
   ! the necessary diagnostics when writing output.
 
   TYPE(FloatArray1d), TARGET :: ps_theta, ps_temp, ps_press,     &

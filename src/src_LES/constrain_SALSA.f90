@@ -369,15 +369,17 @@ MODULE constrain_SALSA
     a_srp%d(:,:,:) = SUM(a_mprecpp%d(:,:,:,str:end),DIM=4)
     a_snrp%d(:,:,:) = SUM(a_nprecpp%d(:,:,:,ira:fra),DIM=4)
     ! ice
-    str = getMassIndex(nice,iia,nc)
-    end = getMassIndex(nice,fia,nc)
-    a_ri%d(:,:,:) = SUM(a_micep%d(:,:,:,str:end),DIM=4)
-    ! Rimed ice
-    nc = spec%getIndex("rime")
-    str = getMassIndex(nice,iia,nc)
-    end = getMassIndex(nice,fia,nc)
-    a_riri%d(:,:,:) = SUM(a_micep%d(:,:,:,str:end),DIM=4)
-
+    IF (level == 5) THEN 
+       str = getMassIndex(nice,iia,nc)
+       end = getMassIndex(nice,fia,nc)
+       a_ri%d(:,:,:) = SUM(a_micep%d(:,:,:,str:end),DIM=4)
+       ! Rimed ice
+       nc = spec%getIndex("rime")
+       str = getMassIndex(nice,iia,nc)
+       end = getMassIndex(nice,fia,nc)
+       a_riri%d(:,:,:) = SUM(a_micep%d(:,:,:,str:end),DIM=4)
+    END IF
+       
   END SUBROUTINE SALSA_diagnostics
 
   !

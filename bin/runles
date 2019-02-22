@@ -15,21 +15,21 @@
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
 IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
-EXPNAME="outputdiag-testi"  # Name of the experiment
+EXPNAME="sizedist"  # Name of the experiment
 
 NPROCS=1          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=40              # Number of points in Y-direction (including "halo" points)
+NYP=100              # Number of points in Y-direction (including "halo" points)
 NZP=70              # Number of points in Z-direction
-DX=50.              # Resolution in X-direction (meters)
-DY=50.              # Resolution in Y-direction (meters)
+DX=40.              # Resolution in X-direction (meters)
+DY=40.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=0.        # Length of the spinup period (seconds)
+Tspinup=1800.        # Length of the spinup period (seconds)
 Texp=43200.         # Length of the experiment (seconds)
-LEVEL=5             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
 
 
@@ -79,8 +79,8 @@ cat > NAMELIST <<EOF
   filprf = '${EXPNAME}'       ! Output filename profile
   hfilin = '${EXPNAME}.000600s' ! History file name
   frqhis = 500.
-  lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
-  lsalsabbins = .FALSE.
+  lbinanl = .TRUE.           ! Write binned microphysical output (with level >= 4)
+  lsalsabbins = .TRUE.  
   !mcflg = .FALSE.             ! Do mass conservation statistics
 
   sed_aero%switch = .TRUE.          ! Calculate sedimentation of aerosol particles
@@ -105,8 +105,8 @@ cat > NAMELIST <<EOF
 
 &output
   ps_intvl = 120.
-  main_intvl = 10.
-  varlist_main = 'temp','rp','rc','srp','autoconversion','accretion','conda','condc'
+  main_intvl = 120.
+  varlist_main = 'temp','rp','rc','srp','theta','wwind','ri','riri','rh','rhi','naero','ncloud','nprecp','nice'
   varlist_ps = ''
 /
 
@@ -120,7 +120,7 @@ cat > NAMELIST <<EOF
   th00              = 300.    ! Reference temperature
   umean             = 0.                
   vmean             = 0.
-  itsflg            = 0       ! Flag for temperature type in input sounding
+  itsflg            = 1       ! Flag for temperature type in input sounding
   ipsflg            = 1       ! - '' - for pressure
 /
 
@@ -272,15 +272,15 @@ cat > NAMELIST <<EOF
    rhlim = 1.005          ! RH limit for SALSA during initialization and spinup
 
    isdtyp = 0
-   nspec_dry = 2
-   listspec = 'SO4','BC','','','','',''
+   nspec_dry = 1
+   listspec = 'SO4','','','','','',''
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
    volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)  
    sigmagA  = 1.55, 1.8, 1.5, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpgA     = 0.022, 0.1, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nA       = 800., 400., 1., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
+   nA       = 600., 300., 1., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
    volDistB = 0.2, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0

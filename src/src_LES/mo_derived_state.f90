@@ -25,7 +25,6 @@ MODULE mo_derived_state
                                 aSSa, aSSb, cSSa, cSSb, pSSa, iSSa,        &  ! Sea salt
                                 aNOa, aNOb, cNOa, cNOb, pNOa, iNOa,        &  ! Nitrate
                                 aNHa, aNHb, cNHa, cNHb, pNHa, iNHa            ! Ammonia
-
   
   
   CONTAINS
@@ -497,7 +496,19 @@ MODULE mo_derived_state
          CALL Derived%newField("iNHa", "Bulk NH in ice", "kg/kg", 'tttt',   &
                                ANY(outputlist == "iNHa"), pipeline          )
       END IF
-         
+
+      IF (level >= 4 .AND. ANY(outputlist == "Naba")) THEN
+         Naba = FloatArray4d()
+         Naba%onDemand => 
+
+      END IF
+
+
+
+
+
+
+      
       pipeline => NULL()
       
     END SUBROUTINE setDerivedVariables
