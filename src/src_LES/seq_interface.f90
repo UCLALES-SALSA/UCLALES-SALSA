@@ -123,14 +123,17 @@ CONTAINS
       nxg = nxpg-4
       nyg = nypg-4
 
-      ALLOCATE (nxpa(0:nxprocs-1), nypa(0:nyprocs-1))
+      ! FIX ? -1
+      ALLOCATE (nxpa(0:nxprocs), nypa(0:nyprocs))
       nxpa(0) = nxg
       nypa(0) = nyg
 
       !
       !  offsets for ecah processor in x and y, for a given grid (nxp x nyp)
       !
-      ALLOCATE(xoffset(0:nxprocs-1),yoffset(0:nyprocs-1))
+      ! FIX ? -1
+      ALLOCATE(xoffset(0:nxprocs),yoffset(0:nyprocs))
+      
 
       xoffset = 0
       yoffset = 0

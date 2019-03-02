@@ -2,6 +2,7 @@ MODULE mo_derived_state
   USE classFieldArray
   USE mo_structured_datatypes
   USE mo_derived_procedures
+  USE mo_check_state, ONLY : checkOutputs
   IMPLICIT NONE
 
   SAVE
@@ -42,6 +43,7 @@ MODULE mo_derived_state
       ! the variables in this module is still determined solely by the main outputlist.
 
       IF (ANY(outputlist == "qtot" .OR. outputlist_ps == "qtot")) THEN
+         pipeline => NULL()
          qtot = FloatArray3d()
          qtot%onDemand => totalWater
          pipeline => qtot
@@ -50,6 +52,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "Naa" .OR. outputlist_ps == "Naa")) THEN
+         pipeline => NULL()
          Naa = FloatArray3d()
          Naa%onDemand => bulkNumc
          pipeline => Naa
@@ -58,7 +61,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "Nab" .OR. outputlist_ps == "Nab")  &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          Nab = FloatArray3d()
          Nab%onDemand => bulkNumc
          pipeline => Nab
@@ -67,6 +71,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "Nca" .OR. outputlist_ps == "Nca")) THEN
+         pipeline => NULL()
          Nca = FloatArray3d()
          Nca%onDemand => bulkNumc
          pipeline => Nca
@@ -75,7 +80,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "Ncb" .OR. outputlist_ps == "Ncb") &
-          .AND. lsalsabbins) THEN         
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          Ncb = FloatArray3d()
          Ncb%onDemand => bulkNumc
          pipeline => Ncb
@@ -83,7 +89,8 @@ MODULE mo_derived_state
                                ANY(outputlist == "Ncb"), pipeline                          )
       END IF
 
-      IF (level >= 4 .AND. ANY(outputlist == "Np" .OR. outputlist_ps == "Np")) THEN      
+      IF (level >= 4 .AND. ANY(outputlist == "Np" .OR. outputlist_ps == "Np")) THEN
+         pipeline => NULL()
          Np = FloatArray3d()
          Np%onDemand => bulkNumc
          pipeline => Np
@@ -92,6 +99,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "Ni" .OR. outputlist_ps == "Ni")) THEN
+         pipeline => NULL()
          Ni = FloatArray3d()
          Ni%onDemand => bulkNumc
          pipeline => Ni
@@ -100,6 +108,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "Dwaa" .OR. outputlist_ps == "Dwaa")) THEN
+         pipeline => NULL()
          Dwaa = FloatArray3d()
          Dwaa%onDemand => bulkDiameter
          pipeline => Dwaa
@@ -108,7 +117,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "Dwab" .OR. outputlist_ps == "Dwab") &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          Dwab = FloatArray3d()
          Dwab%onDemand => bulkDiameter
          pipeline => Dwab
@@ -117,6 +127,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "Dwca" .OR. outputlist_ps == "Dwca")) THEN
+         pipeline => NULL()
          Dwca = FloatArray3d()
          Dwca%onDemand => bulkDiameter
          pipeline => Dwca
@@ -125,6 +136,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "Dwcb" .OR. outputlist_ps == "Dwcb")) THEN
+         pipeline => NULL()
          Dwcb = FloatArray3d()
          Dwcb%onDemand => bulkDiameter
          pipeline => Dwcb
@@ -133,6 +145,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "Dwpa" .OR. outputlist_ps == "Dwpa")) THEN
+         pipeline => NULL()
          Dwpa = FloatArray3d()
          Dwpa%onDemand => bulkDiameter
          pipeline => Dwpa
@@ -141,6 +154,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "Dwia" .OR. outputlist_ps == "Dwia")) THEN
+         pipeline => NULL()
          Dwia = FloatArray3d()
          Dwia%onDemand => bulkDiameter
          pipeline => Dwia
@@ -149,6 +163,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aSO4a" .OR. outputlist_ps == "aSO4a")) THEN
+         pipeline => NULL()
          aSO4a = FloatArray3d()
          aSO4a%onDemand => bulkMixrat
          pipeline => aSO4a
@@ -157,7 +172,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aSO4b" .OR. outputlist_ps == "aSO4b") &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          aSO4b = FloatArray3d()
          aSO4b%onDemand => bulkMixrat
          pipeline => aSO4b
@@ -166,6 +182,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cSO4a" .OR. outputlist_ps == "cSO4a")) THEN
+         pipeline => NULL()
          cSO4a = FloatArray3d()
          cSO4a%onDemand => bulkMixrat
          pipeline => cSO4a
@@ -174,7 +191,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cSO4b" .OR. outputlist_ps == "cSO4b")  &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          cSO4b = FloatArray3d()
          cSO4b%onDemand => bulkMixrat
          pipeline => cSO4b
@@ -183,6 +201,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "pSO4a" .OR. outputlist_ps == "pSO4a")) THEN
+         pipeline => NULL()
          pSO4a = FloatArray3d()
          pSO4a%onDemand => bulkMixrat
          pipeline => pSO4a
@@ -190,7 +209,8 @@ MODULE mo_derived_state
                                ANY(outputlist == "pSO4a"), pipeline              )
       END IF
       
-      IF (level >= 4 .AND. ANY(outputlist == "iSO4a" .OR. outputlist_ps == "iSO4a")) THEN      
+      IF (level >= 4 .AND. ANY(outputlist == "iSO4a" .OR. outputlist_ps == "iSO4a")) THEN
+         pipeline => NULL()
          iSO4a = FloatArray3d()
          iSO4a%onDemand => bulkMixrat
          pipeline => iSO4a
@@ -199,6 +219,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aOCa" .OR. outputlist_ps == "aOCa")) THEN
+         pipeline => NULL()
          aOCa = FloatArray3d()
          aOCa%onDemand => bulkMixrat
          pipeline => aOCa
@@ -207,7 +228,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aOCb" .OR. outputlist_ps == "aOCb")  &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          aOCb = FloatArray3d()
          aOCb%onDemand => bulkMixrat
          pipeline => aOCb
@@ -216,6 +238,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cOCa" .OR. outputlist_ps == "cOCa")) THEN
+         pipeline => NULL()
          cOCa = FloatArray3d()
          cOCa%onDemand => bulkMixrat
          pipeline => cOCa
@@ -224,7 +247,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cOCb" .OR. outputlist_ps == "cOCb")   &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          cOCb = FloatArray3d()
          cOCb%onDemand => bulkMixrat
          pipeline => cOCb
@@ -233,6 +257,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "pOCa" .OR. outputlist_ps == "pOCa")) THEN
+         pipeline => NULL()
          pOCa = FloatArray3d()
          pOCa%onDemand => bulkMixrat
          pipeline => pOCa
@@ -241,6 +266,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "iOCa" .OR. outputlist_ps == "iOCa")) THEN
+         pipeline => NULL()
          iOCa = FloatArray3d()
          iOCa%onDemand => bulkMixrat
          pipeline => iOCa
@@ -249,6 +275,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aBCa" .OR. outputlist_ps == "aBCa")) THEN
+         pipeline => NULL()
          aBCa = FloatArray3d()
          aBCa%onDemand => bulkMixrat
          pipeline => aBCa
@@ -257,7 +284,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aBCb" .OR. outputlist_ps == "aBCb")  &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          aBCb = FloatArray3d()
          aBCb%onDemand => bulkMixrat
          pipeline => aBCb
@@ -266,6 +294,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cBCa" .OR. outputlist_ps == "cBCa")) THEN
+         pipeline => NULL()
          cBCa = FloatArray3d()
          cBCa%onDemand => bulkMixrat
          pipeline => cBCa
@@ -274,7 +303,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cBCb" .OR. outputlist_ps == "cBCb") &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          cBCb = FloatArray3d()
          cBCb%onDemand => bulkMixrat
          pipeline => cBCb
@@ -283,6 +313,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "pBCa" .OR. outputlist_ps == "pBCa")) THEN
+         pipeline => NULL()
          pBCa = FloatArray3d()
          pBCa%onDemand => bulkMixrat
          pipeline => pBCa
@@ -291,6 +322,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "iBCa" .OR. outputlist_ps == "iBCa")) THEN
+         pipeline => NULL()
          iBCa = FloatArray3d()
          iBCa%onDemand => bulkMixrat
          pipeline => iBCa
@@ -299,6 +331,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aDUa" .OR. outputlist_ps == "aDUa")) THEN
+         pipeline => NULL()
          aDUa = FloatArray3d()
          aDUa%onDemand => bulkMixrat
          pipeline => aDUa
@@ -307,7 +340,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aDUb" .OR. outputlist_ps == "aDUb")   &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          aDUb = FloatArray3d()
          aDUb%onDemand => bulkMixrat
          pipeline => aDUb
@@ -316,6 +350,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cDUa" .OR. outputlist_ps == "cDUa")) THEN
+         pipeline => NULL()
          cDUa = FloatArray3d()
          cDUa%onDemand => bulkMixrat
          pipeline => cDUa
@@ -324,6 +359,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cDUb" .OR. outputlist_ps == "cDUb")) THEN
+         pipeline => NULL()
          cDUb = FloatArray3d()
          cDUb%onDemand => bulkMixrat
          pipeline => cDUb
@@ -332,6 +368,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "pDUa" .OR. outputlist_ps == "pDUa")) THEN
+         pipeline => NULL()
          pDUa = FloatArray3d()
          pDUa%onDemand => bulkMixrat
          pipeline => pDUa
@@ -340,6 +377,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "iDUa" .OR. outputlist_ps == "iDUa")) THEN
+         pipeline => NULL()
          iDUa = FloatArray3d()
          iDUa%onDemand => bulkMixrat
          pipeline => iDUa
@@ -348,6 +386,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aSSa" .OR. outputlist_ps == "aSSa")) THEN
+         pipeline => NULL()
          aSSa = FloatArray3d()
          aSSa%onDemand => bulkMixrat
          pipeline => aSSa
@@ -356,7 +395,8 @@ MODULE mo_derived_state
       END IF
       
       IF (level >= 4 .AND. ANY(outputlist == "aSSb" .OR. outputlist_ps == "aSSb")   &
-          .AND. lsalsabbins) THEN  
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          aSSb = FloatArray3d()
          aSSb%onDemand => bulkMixrat
          pipeline => aSSb
@@ -365,6 +405,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cSSa" .OR. outputlist_ps == "cSSa")) THEN
+         pipeline => NULL()
          cSSa = FloatArray3d()
          cSSa%onDemand => bulkMixrat
          pipeline => cSSa
@@ -373,7 +414,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cSSb" .OR. outputlist_ps == "cSSb")  &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          cSSb = FloatArray3d()
          cSSb%onDemand => bulkMixrat
          pipeline => cSSb
@@ -382,6 +424,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "pSSa" .OR. outputlist_ps == "pSSa")) THEN
+         pipeline => NULL()
          pSSa = FloatArray3d()
          pSSa%onDemand => bulkMixrat
          pipeline => pSSa
@@ -390,6 +433,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "iSSa" .OR. outputlist_ps == "iSSa")) THEN
+         pipeline => NULL()
          iSSa = FloatArray3d()
          iSSa%onDemand => bulkMixrat
          pipeline => iSSa
@@ -398,6 +442,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aNOa" .OR. outputlist_ps == "aNOa")) THEN
+         pipeline => NULL()
          aNOa = FloatArray3d()
          aNOa%onDemand => bulkMixrat
          pipeline => aNOa
@@ -406,7 +451,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aNOb" .OR. outputlist_ps == "aNOb")   &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          aNOb = FloatArray3d()
          aNOb%onDemand => bulkMixrat
          pipeline => aNOb
@@ -415,6 +461,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cNOa" .OR. outputlist_ps == "cNOa")) THEN
+         pipeline => NULL()
          cNOa = FloatArray3d()
          cNOa%onDemand => bulkMixrat
          pipeline => cNOa
@@ -423,7 +470,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cNOb" .OR. outputlist_ps == "cNOb")  &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          cNOb = FloatArray3d()
          cNOb%onDemand => bulkMixrat
          pipeline => cNOb
@@ -432,6 +480,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "pNOa" .OR. outputlist_ps == "pNOa")) THEN
+         pipeline => NULL()
          pNOa = FloatArray3d()
          pNOa%onDemand => bulkMixrat
          pipeline => pNOa
@@ -440,6 +489,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "iNOa" .OR. outputlist_ps == "iNOa")) THEN
+         pipeline => NULL()
          iNOa = FloatArray3d()
          iNOa%onDemand => bulkMixrat
          pipeline => iNOa
@@ -448,6 +498,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aNHa" .OR. outputlist_ps == "aNHa")) THEN
+         pipeline => NULL()
          aNHa = FloatArray3d()
          aNHa%onDemand => bulkMixrat
          pipeline => aNHa
@@ -456,7 +507,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "aNHb" .OR. outputlist_ps == "aNHb")  &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          aNHb = FloatArray3d()
          aNHb%onDemand => bulkMixrat
          pipeline => aNHb
@@ -465,6 +517,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cNHa" .OR. outputlist_ps == "cNHa")) THEN
+         pipeline => NULL()
          cNHa = FloatArray3d()
          cNHa%onDemand => bulkMixrat
          pipeline => cNHa
@@ -473,7 +526,8 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "cNHb" .OR. outputlist_ps == "cNHb") &
-          .AND. lsalsabbins) THEN
+           .AND. lsalsabbins) THEN
+         pipeline => NULL()
          cNHb = FloatArray3d()
          cNHb%onDemand => bulkMixrat
          pipeline => cNHb
@@ -482,6 +536,7 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "pNHa" .OR. outputlist_ps == "pNHa")) THEN
+         pipeline => NULL()
          pNHa = FloatArray3d()
          pNHa%onDemand => bulkMixrat
          pipeline => pNHa
@@ -490,31 +545,19 @@ MODULE mo_derived_state
       END IF
 
       IF (level >= 4 .AND. ANY(outputlist == "iNHa" .OR. outputlist_ps == "iNHa")) THEN
+         pipeline => NULL()
          iNHa = FloatArray3d()
          iNHa%onDemand => bulkMixrat
          pipeline => iNHa
          CALL Derived%newField("iNHa", "Bulk NH in ice", "kg/kg", 'tttt',   &
                                ANY(outputlist == "iNHa"), pipeline          )
       END IF
-
-      IF (level >= 4 .AND. ANY(outputlist == "Naba")) THEN
-         Naba = FloatArray4d()
-         Naba%onDemand => 
-
-      END IF
-
-
-
-
-
-
       
       pipeline => NULL()
-      
-    END SUBROUTINE setDerivedVariables
-      
 
-  
-  
+      ! Check the user specified output variable list for bad entries
+      CALL checkOutputs(outputlist,Derived)
+      
+    END SUBROUTINE setDerivedVariables        
 
 END MODULE mo_derived_state

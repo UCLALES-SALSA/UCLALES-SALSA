@@ -326,9 +326,14 @@ CONTAINS
                        c6 = 0.6936113e-08, c7 = 0.2564861e-11,    &
                        c8 = -.3704404e-13
 
-  REAL ::  esl, x
-
-  x = min(max(-80.,t-273.16),50.)
+  REAL ::  esl, x, v1,v2,v3
+  
+  v1 = -80
+  v2 = 273.16
+  v3 = 50.
+  
+  !x = min(max(-80.,t-273.16),50.)
+  x = min(max(v1,t-v2),v3)
   esl = c0+x*(c1+x*(c2+x*(c3+x*(c4+x*(c5+x*(c6+x*(c7+x*c8)))))))
   rslf = .622*esl/(p-esl)
 

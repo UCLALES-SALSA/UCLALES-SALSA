@@ -13,10 +13,11 @@ MODULE mo_output
 
   LOGICAL :: sflg = .FALSE.
   REAL :: ps_intvl = 120.
+  REAL :: ts_intvl = 120.
   REAL :: main_intvl = 3600.
-  INTEGER, PRIVATE :: ncid_main, ncid_ps
-  INTEGER, PRIVATE :: nrec_main, nvar_main, nrec_ps, nvar_ps
-  CHARACTER(len=150), PRIVATE :: fname_main, fname_ps      
+  INTEGER, PRIVATE :: ncid_main, ncid_ps, ncid_ts
+  INTEGER, PRIVATE :: nrec_main, nvar_main, nrec_ps, nvar_ps, nrec_ts, nvar_ts
+  CHARACTER(len=150), PRIVATE :: fname_main, fname_ps, fname_ts      
 
 
 
@@ -49,7 +50,6 @@ MODULE mo_output
            "(//' ',49('-')/,' ',/,'   Initializing: ',A20)",trim(fname_main)
       
       CALL open_nc(fname_main,expnme,time,npoints,ncid_main,nrec_main,ver,author,info)
-
       IF (level < 4 .OR. .NOT. lbinanl) THEN
          CALL define_nc(ncid_main,nrec_main,nvar_main,          &
                         outProg=outProg,outVector=outVector,    &
@@ -72,8 +72,8 @@ MODULE mo_output
                            outDiag=outDiag,outDerived=outDerived,  &
                            outAxes=outAxes,n1=nzp,n2=nxp-4,        &
                            n3=nyp-4,inae_a=fn2a,incld_a=fca%cur,   &
-                           inprc=nprc                              )    
-            
+                           inprc=nprc                              )                
+
          END IF
             
       ELSE IF (level == 5 .AND. lbinanl) THEN
@@ -96,7 +96,6 @@ MODULE mo_output
          END IF
          
       END IF
-              
       IF (myid == 0) PRINT *,'   ...starting record: ', nrec_main
 
       
@@ -135,6 +134,41 @@ MODULE mo_output
       
     END SUBROUTINE init_ps
 
+    ! ------------------------------------------------------------------------
+
+    SUBROUTINE init_ts(time)
+      REAL, INTENT(in) :: time
+
+      INTEGER :: npoints
+
+      npoints = (nxp-4)*(nyp-4)
+      
+      fname_ts = TRIM(filprf)//'.ts'
+
+      IF (.NOT. outTS%Initialized) RETURN ! If no variables defined for output, do not create the file 
+      
+      IF(myid == 0) PRINT                                                  &
+           "(//' ',49('-')/,' ',/,'   Initializing: ',A20)",trim(fname_ts)
+
+      CALL open_nc(fname_ts,expnme,time,npoints,ncid_ts,nrec_ts,ver,author,info)
+
+      ! Providing the full outAxes will cause some error codes from netCDF when trying to
+      ! define the vector variables for axes dimensions that are not defined for the netcdf
+      ! file. This won't affect the model operation and it should work, but it would be
+      ! better to somehow mask the outAxes variables for different output types.
+
+      IF (level < 4 .OR. .NOT. lbinanl) THEN
+         CALL define_nc(ncid_ts,nrec_ts,nvar_ts,         &
+                        outTS=outTS,outAxes=outAxesTS,   &  ! Use the TS subset of the axis variables                               
+                        n1=nzp                           )   MODAA outAxesTS!!!
+      END IF
+
+      IF (myid == 0) PRINT *,'   ...starting record: ', nrec_ts
+      
+    END SUBROUTINE init_ts
+
+
+    
     ! -------------------------------------------------------------------------
     
     SUBROUTINE close_main()
@@ -241,8 +275,9 @@ MODULE mo_output
       TYPE(FloatArray3d), POINTER :: var3d => NULL()
       TYPE(FloatArray4d), POINTER :: var4d => NULL()
 
-      REAL :: out3d(nzp,nxp,nyp)
+      REAL :: out2d(nxp,nyp),out3d(nzp,nxp,nyp)
       REAL :: out1d(nzp)
+      REAL, ALLOCATABLE :: out3dsd(:,:,:,:), outsd(:), out1dsd(:,:)
       
       INTEGER :: i1,i2,j1,j2,nstr,nend
 
@@ -298,20 +333,40 @@ MODULE mo_output
 
          CASE('xtytt')
             CALL varArray%getData(1,var2d,index=n)
-            CALL write_nc(ncid0,vname,var2d%d(i1:i2,j1:j2),ibeg2d,icnt=icnt2d)
+            IF (ASSOCIATED(var2d%onDemand)) THEN
+               CALL var2d%onDemand(vname,out2d)
+            ELSE
+               out2d = var2d%d
+            END IF
+            CALL write_nc(ncid0,vname,out2d(i1:i2,j1:j2),ibeg2d,icnt=icnt2d)
+            DEALLOCATE(out2d)
             
          CASE('zttaea','zttaeb','zttcla','zttclb','zttprc','zttice')
             CALL getSDdim(varArray%list(n)%dimension,nstr,nend)
             icnt1dsd = [nzp,nend-nstr+1,1]
+            ALLOCATE(out1dsd(nzp,nend-nstr+1))
             CALL varArray%getData(1,var2d,index=n)
-            CALL write_nc(ncid0,vname,var2d%d(:,nstr:nend),ibeg2d,icnt=icnt1dsd)
+            IF (ASSOCIATED(var2d%onDemand)) THEN
+               CALL var2d%onDemand(vname,out1dsd)
+            ELSE
+               out1dsd = var2d%d
+            END IF
+            CALL write_nc(ncid0,vname,out1dsd(:,nstr:nend),ibeg2d,icnt=icnt1dsd)
+            DEALLOCATE(out1dsd)
             
          CASE('taea','taeb','tcla','tclb','tprc','tice')
             CALL getSDdim(varArray%list(n)%dimension,nstr,nend)
             icnt0dsd = [nend-nstr+1,1]
+            ALLOCATE(outsd(nend-nstr+1)); outsd = 0.
             CALL varArray%getData(1,var1d,index=n)
-            CALL write_nc(ncid0,vname,var1d%d(nstr:nend),ibeg1d,icnt=icnt0dsd)
-            
+            IF (ASSOCIATED(var1d%onDemand)) THEN
+               CALL var1d%onDemand(vname,outsd)
+            ELSE
+               outsd = var1d%d
+            END IF
+            CALL write_nc(ncid0,vname,outsd(nstr:nend),ibeg1d,icnt=icnt0dsd)
+            DEALLOCATE(outsd)
+               
          CASE('tttt','mttt','tmtt','ttmt')
             CALL varArray%getData(1,var3d,index=n)
             IF (ASSOCIATED(var3d%onDemand)) THEN
@@ -324,9 +379,16 @@ MODULE mo_output
          CASE('ttttaea','ttttaeb','ttttcla','ttttclb','ttttprc','ttttice')
             CALL getSDdim(varArray%list(n)%dimension,nstr,nend)
             icnt3dsd = [nzp,nxp-4,nyp-4,nend-nstr+1,1]
+            ALLOCATE(out3dsd(nzp,nxp,nyp,nend-nstr+1)); out3dsd = 0.
             CALL varArray%getData(1,var4d,index=n)
-            CALL write_nc(ncid0,vname,var4d%d(:,i1:i2,j1:j2,nstr:nend),ibeg4d,icnt=icnt3dsd)
-                       
+            IF (ASSOCIATED(var4d%onDemand)) THEN
+               CALL var4d%onDemand(vname,out3dsd)
+            ELSE
+               out3dsd = var4d%d
+            END IF
+            CALL write_nc(ncid0,vname,out3dsd(:,i1:i2,j1:j2,nstr:nend),ibeg4d,icnt=icnt3dsd)
+            DEALLOCATE(out3dsd)
+            
          END SELECT                  
       END DO
       

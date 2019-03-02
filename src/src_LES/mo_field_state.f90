@@ -10,7 +10,7 @@ MODULE mo_field_state
   USE mo_ps_state, ONLY : setPSVariables
   USE mo_field_types, ONLY : Prog, Vector, Diag, Derived,    &
                              outProg, outVector, outDiag,    &
-                             outDerived, outPS, SALSA_tracers_4d
+                             outDerived, outPS, outTS, SALSA_tracers_4d
   USE classFieldArray, ONLY : FieldArray
   IMPLICIT NONE
   
@@ -28,11 +28,11 @@ MODULE mo_field_state
            SALSA_tracers_4d = FieldArray()
 
       CALL setPrognosticVariables(a_sclrp,a_sclrt,Prog,varlist_main,  &
-                                  level,isgstyp,lbinanl,nzp,nxp,nyp,nscl      )
+                                  level,isgstyp,lbinanl,nzp,nxp,nyp,nscl)
       CALL setVectorVariables(Vector,varlist_main,nzp,nxp,nyp)
       CALL setDiagnosticVariables(Diag,varlist_main,memsize,level,iradtyp,nzp,nxp,nyp)      
       CALL setDerivedVariables(Derived,varlist_main,varlist_ps,lsalsabbins,level)
-      
+
       !  Create some subsets of the full FieldArrays. note that these are pointers, not copies!
       IF (level >= 4) &
            CALL Prog%getByGroup("SALSA_4d",SALSA_tracers_4d)      
@@ -40,9 +40,10 @@ MODULE mo_field_state
       CALL Vector%getByOutputstatus(outVector)
       CALL Diag%getByOutputstatus(outDiag)
       CALL Derived%getByOutputstatus(outDerived)
-      
+
       CALL setPSVariables(outPS,varlist_ps,level)
-      
+      CALL setTSVariables(outTS,varlist_ts,level)
+
     END SUBROUTINE initialize_FieldArrays
     
 END MODULE mo_field_state

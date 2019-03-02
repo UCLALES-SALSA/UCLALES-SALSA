@@ -26,7 +26,7 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa
 	  mo_particle_external_properties.f90 mo_ice_shape.f90 mo_structured_datatypes.f90 mo_aux_state.f90            \
 	  mo_diag_state.f90 mo_progn_state.f90 mo_vector_state.f90 mo_derived_state.f90 mo_derived_procedures.f90      \
 	  mo_ps_state.f90 mo_ps_procedures.f90 mo_field_state.f90 classFieldArray.f90 mo_output.f90 mo_history.f90     \
-	  mo_field_types.f90
+	  mo_field_types.f90 mo_check_state.f90
 
 OBJS =	$(SRCSF90:.f90=.o) $(SRCSF77:.f=.o)
 
@@ -94,17 +94,19 @@ nudg_defs.o:
 mo_structured_datatypes.o:
 classFieldArray.o: mo_structured_datatypes.o
 mo_aux_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o
-mo_diag_state.o: classFieldArray.o mo_structured_datatypes.o util.o
-mo_progn_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o
-mo_vector_state.o: classFieldArray.o mo_structured_datatypes.o
-mo_derived_state.o: classFieldArray.o mo_structured_datatypes.o mo_derived_procedures.o 
+mo_diag_state.o: classFieldArray.o mo_structured_datatypes.o util.o mo_check_state.o
+mo_progn_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o mo_check_state.o
+mo_vector_state.o: classFieldArray.o mo_structured_datatypes.o mo_check_state.o
+mo_derived_state.o: classFieldArray.o mo_structured_datatypes.o mo_derived_procedures.o mo_check_state.o
 mo_derived_procedures.o: mo_submctl.o util.o mo_particle_external_properties.o grid.o \
                          mo_progn_state.o mo_diag_state.o mo_structured_datatypes.o  
-mo_ps_state.o: classFieldArray.o mo_structured_datatypes.o mo_ps_procedures.o
+mo_ps_state.o: classFieldArray.o mo_structured_datatypes.o mo_ps_procedures.o mo_check_state.o
 mo_ps_procedures.o: util.o mo_structured_datatypes.o grid.o mo_field_types.o
 mo_field_state.o: grid.o mo_diag_state.o mo_progn_state.o mo_vector_state.o     \
 	          mo_derived_state.o mo_ps_state.o mo_field_types.o classFieldArray.o
 mo_field_types.o: classFieldArray.o
+mo_check_state.o: $(seqmpi:.f90=.o) classFieldArray.o
+
 
 constrain_SALSA.o: mo_progn_state.o mo_diag_state.o mo_aux_state.o mo_submctl.o nudg_defs.o \
                    util.o mo_structured_datatypes.o grid.o mo_field_types.o                 \

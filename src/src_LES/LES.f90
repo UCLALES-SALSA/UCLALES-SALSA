@@ -74,9 +74,10 @@ CONTAINS
       CALL define_vars
 
       CALL initialize_FieldArrays ! the source scalar arrays must be allocated at this point (define_vars)
-      
+
       CALL initialize ! Added initialization of aerosol size distributions here + a single call
                       ! for SALSA to set up cloud microphysics
+
       CALL stepper
 
       CALL appl_finalize(ierror)
@@ -107,7 +108,6 @@ CONTAINS
     USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                                   zrand, zrndamp, init_type
     USE init_warm_bubble, ONLY  : bubble_center, bubble_diameter, bubble_temp_ampl
-    !USE stat, ONLY             : ssam_intvl, savg_intvl, mcflg, csflg, salsa_b_bins, cloudy_col_stats
     USE forc, ONLY              : div, case_name     ! Divergence, forcing case name
     USE radiation_main, ONLY    : radsounding,   &
                                   sfc_albedo,    &
@@ -119,6 +119,7 @@ CONTAINS
                                   bulk_autoc
     USE mpi_interface, ONLY     : myid, appl_abort, ver, author
     USE mo_output, ONLY         : ps_intvl, main_intvl
+    USE mo_check_state, ONLY    : breakUndefOutput
     
     IMPLICIT NONE
     
@@ -194,6 +195,8 @@ CONTAINS
          lConstSoilHeatCap      ! Keep soil heat capacity con
     
     NAMELIST /output/       &
+         breakUndefOutput,  &
+         ts_intvl,          &
          ps_intvl,          &
          main_intvl,        &
          varlist_main,      &

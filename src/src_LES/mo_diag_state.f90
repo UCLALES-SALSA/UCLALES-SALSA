@@ -2,6 +2,7 @@ MODULE mo_diag_state
   USE util, ONLY : Extend_last
   USE classFieldArray
   USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray2d, FloatArray3d, FloatArray4d
+  USE mo_check_state, ONLY : checkOutputs
   IMPLICIT NONE
 
   SAVE
@@ -70,7 +71,7 @@ MODULE mo_diag_state
 
   REAL, ALLOCATABLE, TARGET :: a_rateDiag3d(:,:,:,:)
   INTEGER, PARAMETER :: nratediag3d = 13 ! Remember to update if adding new variables!!
-  
+
   CONTAINS
 
     SUBROUTINE setDiagnosticVariables(Diag,outputlist,memsize,level,iradtyp,nzp,nxp,nyp)
@@ -92,9 +93,14 @@ MODULE mo_diag_state
       ALLOCATE(a_diag2d(nxp,nyp,ndiag2d))
       ALLOCATE(a_rateDiag3d(nzp,nxp,nyp,nratediag3d))
 
+      a_diag3d = 0.
+      a_diag2d = 0.
+      a_rateDiag3d = 0.
+      
       ! First entry for a_diag3d
       memsize = memsize + nxyz
       n3d = n3d+1
+      pipeline => NULL()
       a_theta = FloatArray3d(a_diag3d(:,:,:,n3d))
       pipeline => a_theta
       CALL Diag%newField("theta", "Potential temperature", "K", "tttt",    &
@@ -102,20 +108,23 @@ MODULE mo_diag_state
       
       memsize = memsize + nxyz
       n3d = n3d+1
+      pipeline => NULL()
       a_temp = FloatArray3d(a_diag3d(:,:,:,n3d))
       pipeline => a_temp
       CALL Diag%newField("temp", "Abolute temperature", "K", "tttt",      &
                          ANY(outputlist == "temp"), pipeline)
       
       memsize = memsize + nxyz
-      n3d = n3d+1      
+      n3d = n3d+1
+      pipeline => NULL()
       a_pexnr = FloatArray3d(a_diag3d(:,:,:,n3d))
       pipeline => a_pexnr
-      CALL Diag%newField("penxr", "Exner function", "1", "tttt",       &
+      CALL Diag%newField("pexnr", "Exner function", "1", "tttt",       &
                          ANY(outputlist == "pexnr"), pipeline)
 
       memsize = memsize + nxyz
       n3d = n3d+1
+      pipeline => NULL()
       a_press = FloatArray3d(a_diag3d(:,:,:,n3d))
       pipeline => a_press
       CALL Diag%newField("press", "Pressure", "Pa", "tttt",       &
@@ -124,6 +133,7 @@ MODULE mo_diag_state
       IF (level > 1) THEN
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_rc = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_rc
          CALL Diag%newField("rc", "Cloud mixing ratio", "kg/kg", "tttt",    &
@@ -133,13 +143,15 @@ MODULE mo_diag_state
       IF (level == 5) THEN
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_ri = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_ri
          CALL Diag%newField("ri", "Unrimed ice mixing ratio", "g/kg", "tttt",  &
                             ANY(outputlist == "ri"), pipeline)
 
          memsize = memsize + nxyz
-         n3d = n3d+1         
+         n3d = n3d+1
+         pipeline => NULL()
          a_riri = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_riri
          CALL Diag%newField("riri", "Rimed ice mixing ratio", "kg/kg", "tttt",  &
@@ -149,6 +161,7 @@ MODULE mo_diag_state
       IF (level < 4) THEN
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_rv = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_rv
          CALL Diag%newField("rv", "Water vapor mixing ratio", "kg/kg", "tttt",    &
@@ -158,6 +171,7 @@ MODULE mo_diag_state
       IF (level >=4 ) THEN
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_srp = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_srp
          CALL Diag%newField("srp", "Precipitation mixing ratio", "kg/kg", "tttt",  &
@@ -165,6 +179,7 @@ MODULE mo_diag_state
 
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_snrp = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_snrp
          CALL Diag%newField("snrp", "Precipitation number mixing ratio", "#/kg", "tttt", &
@@ -173,6 +188,7 @@ MODULE mo_diag_state
 
       memsize = memsize + nxyz
       n3d = n3d+1
+      pipeline => NULL()
       a_rh = FloatArray3d(a_diag3d(:,:,:,n3d))
       pipeline => a_rh
       CALL Diag%newField("rh", "Relative humidity", "1", "tttt",    &
@@ -180,6 +196,7 @@ MODULE mo_diag_state
 
       memsize = memsize + nxyz
       n3d = n3d+1
+      pipeline => NULL()
       a_rsl = FloatArray3d(a_diag3d(:,:,:,n3d))
       pipeline => a_rsl
       CALL Diag%newField("rsl", "Liquid saturation mixing ratio", "kg/kg", "tttt",    &
@@ -188,6 +205,7 @@ MODULE mo_diag_state
       IF (level == 5) THEN
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_rhi = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_rhi
          CALL Diag%newField("rhi", "Relative humidity over ice", "1", "tttt",   &
@@ -195,6 +213,7 @@ MODULE mo_diag_state
 
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_rsi = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_rsi
          CALL Diag%newField("rsi", "Ice saturation mixing ratio", "kg/kg", "tttt",   &
@@ -203,6 +222,7 @@ MODULE mo_diag_state
 
       memsize = memsize + nxyz
       n3d = n3d+1
+      pipeline => NULL()
       a_dn = FloatArray3d(a_diag3d(:,:,:,n3d))
       pipeline => a_dn
       CALL Diag%newField("dn", "Air density", "kg/m3", "tttt",   &
@@ -211,6 +231,7 @@ MODULE mo_diag_state
       IF (iradtyp > 0) THEN
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_rflx = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_rflx
          CALL Diag%newField("rflx", "Net longwave flux", "W/m2", "tttt",   &
@@ -220,6 +241,7 @@ MODULE mo_diag_state
       IF (iradtyp >= 3) THEN
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_sflx = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_sflx
          CALL Diag%newField("sflx", "Net shortwave flux", "W/m2", "tttt",   &
@@ -227,6 +249,7 @@ MODULE mo_diag_state
 
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_fus = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_fus
          CALL Diag%newField("fus", "Upwelling shortwave flux", "W/m2", "tttt",   &
@@ -234,6 +257,7 @@ MODULE mo_diag_state
 
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_fds = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_fds
          CALL Diag%newField("fds", "Downwelling shortwave flux", "W/m2", "tttt",   &
@@ -241,6 +265,7 @@ MODULE mo_diag_state
 
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_fuir = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_fuir
          CALL Diag%newField("fuir", "Upwelling longwave flux", "W/m2", "tttt",    &
@@ -248,6 +273,7 @@ MODULE mo_diag_state
 
          memsize = memsize + nxyz
          n3d = n3d+1
+         pipeline => NULL()
          a_fdir = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_fdir
          CALL Diag%newField("fdir", "Downwelling longwave flux", "W/m2", "tttt",   &
@@ -257,6 +283,7 @@ MODULE mo_diag_state
       IF (level >= 3) THEN
          memsize = memsize + nxy
          n3d = n3d+1
+         pipeline => NULL()
          a_rrate = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_rrate
          CALL Diag%newField("rrate", "Liquid surface precipitation", "CHECK", "xtytt",   &
@@ -266,6 +293,7 @@ MODULE mo_diag_state
       IF (level == 5) THEN
          memsize = memsize + nxy
          n3d = n3d+1
+         pipeline => NULL()
          a_irate = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_irate
          CALL Diag%newField("irate", "Frozen surface precipitation", "CHECK", "xtytt",    &
@@ -276,6 +304,7 @@ MODULE mo_diag_state
       IF (iradtyp >= 3) THEN
          memsize = memsize + nxy
          n2d = n2d+1
+         pipeline => NULL()
          albedo = FloatArray2d(a_diag2d(:,:,n2d))  
          pipeline => albedo
          CALL Diag%newField("albedo", "Albedo", "1", "xtytt",     &
@@ -284,6 +313,7 @@ MODULE mo_diag_state
          
       memsize = memsize + nxy
       n2d = n2d+1
+      pipeline => NULL()
       a_ustar = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => a_ustar
       CALL Diag%newField("ustar", "Turbulent friction velocity", "m/s", "xtytt",   &
@@ -291,6 +321,7 @@ MODULE mo_diag_state
 
       memsize = memsize + nxy
       n2d = n2d+1
+      pipeline => NULL()
       a_tstar = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => a_tstar
       CALL Diag%newField("tstar", "Turbulent scale temperature", "K", "xtytt",    &
@@ -298,6 +329,7 @@ MODULE mo_diag_state
 
       memsize = memsize + nxy
       n2d = n2d+1
+      pipeline => NULL()
       a_rstar = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => a_rstar
       CALL Diag%newField("rstar", "Turbulent scale CHECK", "CHECK", "xtytt",    &
@@ -305,6 +337,7 @@ MODULE mo_diag_state
 
       memsize = memsize + nxy
       n2d = n2d+1
+      pipeline => NULL()
       uw_sfc = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => uw_sfc
       CALL Diag%newField("uw_sfc", "Vertical momentum flux with u wind", "CHECK", "xtytt",   &
@@ -312,6 +345,7 @@ MODULE mo_diag_state
 
       memsize = memsize + nxy
       n2d = n2d+1
+      pipeline => NULL()
       vw_sfc = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => vw_sfc
       CALL Diag%newField("vw_sfc", "Vertical momentum flux with v wind", "CHECK", "xtytt",    &
@@ -319,6 +353,7 @@ MODULE mo_diag_state
 
       memsize = memsize + nxy
       n2d = n2d+1
+      pipeline => NULL()
       ww_sfc = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => ww_sfc
       CALL Diag%newField("ww_sfc", "Vertical wind covariance", "CHECK", "xtytt",    &
@@ -326,6 +361,7 @@ MODULE mo_diag_state
 
       memsize = memsize + nxy
       n2d = n2d+1
+      pipeline => NULL()
       wt_sfc = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => wt_sfc
       CALL Diag%newField("wt_sfc", "Vertical temperature flux", "CHECK", "xtytt",   &
@@ -333,6 +369,7 @@ MODULE mo_diag_state
 
       memsize = memsize + nxy
       n2d = n2d+1
+      pipeline => NULL()
       wq_sfc = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => wq_sfc
       CALL Diag%newField("wq_sfc", "Vertical moisture flux", "CHECK", "xtytt",    &
@@ -341,87 +378,101 @@ MODULE mo_diag_state
 
       ! First rateDiag3d entry
       n3dr = n3dr + 1
+      pipeline => NULL()
       m_autoconversion = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => m_autoconversion
       CALL Diag%newField("autoconversion", "Autoconversion rate, h2o mass", "kg/kgs", "tttt",   &
                          ANY(outputlist == "autoconversion"), pipeline)
 
-      n3dr = n3dr + 1           
+      n3dr = n3dr + 1
+      pipeline => NULL()
       m_accretion = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => m_accretion
       CALL Diag%newField("accretion", "Accretion rate, h2o mass", "kg/kgs", "tttt",   &
                          ANY(outputlist == "autoconversion"), pipeline)
 
       n3dr = n3dr + 1
+      pipeline => NULL()
       m_ACcoll_dry = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => m_ACcoll_dry
       CALL Diag%newField("ACcoll", "Cloud collection of aerosol, dry mass", "kg/kgs", "tttt",  &
                          ANY(outputlist == "ACcoll"), pipeline)
 
       n3dr = n3dr + 1
+      pipeline => NULL()
       m_APcoll_dry = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => m_APcoll_dry
       CALL Diag%newField("APcoll","Rain collection of aerosol, dry mass", "kg/kgs", "tttt",   &
                          ANY(outputlist == "APcoll"), pipeline)
 
       n3dr = n3dr + 1
+      pipeline => NULL()
       m_AIcoll_dry = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => m_AIcoll_dry
       CALL Diag%newField("AIcoll","Ice collection of aerosol, dry mass", "kg/kgs", "tttt",   &
                          ANY(outputlist == "AIcoll"), pipeline)
 
       n3dr = n3dr + 1
+      pipeline => NULL()
       n_activation = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => n_activation
       CALL Diag%newField("activation","Cloud activation rate, number", "#/kgs","tttt",   &
                          ANY(outputlist == "activation"), pipeline)
       
       n3dr = n3dr + 1
+      pipeline => NULL()
       n_icehom = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => n_icehom
       CALL Diag%newfield("icehom","Homogeneous freezing rate, number", "#/kgs","tttt",   &
                          ANY(outputlist == "icehom"), pipeline)
 
-      n3dr = n3dr + 1     
+      n3dr = n3dr + 1
+      pipeline => NULL()
       n_icedep = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => n_icedep
       CALL Diag%newField("icedep","Deposition freezing rate, number", "#/kgs", "tttt",  &
                          ANY(outputlist == "icedep"), pipeline)
 
       n3dr = n3dr + 1
+      pipeline => NULL()
       n_iceimm = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => n_iceimm
       CALL Diag%newField("iceimm","Immersion freezing rate, number", "#/kgs", "tttt",  &
                          ANY(outputlist == "iceimm"), pipeline)
 
       n3dr = n3dr + 1
+      pipeline => NULL()
       m_conda = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => m_conda
       CALL Diag%newField("conda","H2O condensation rate on aerosol", "#/kgs", "tttt",  &
                          ANY(outputlist == "conda"), pipeline)
 
-      n3dr = n3dr + 1     
+      n3dr = n3dr + 1
+      pipeline => NULL()
       m_condc = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => m_condc
       CALL Diag%newField("condc","H2O condensation rate on cloud droplets", "#/kgs", "tttt",  &
                          ANY(outputlist == "condc"), pipeline)
 
-      n3dr = n3dr + 1      
+      n3dr = n3dr + 1
+      pipeline => NULL()
       m_condp = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => m_condp
       CALL Diag%newField("condp","H2O condensation rate on precipiation", "#/kgs", "tttt",    &
                          ANY(outputlist == "condp"), pipeline)
 
       n3dr = n3dr + 1
+      pipeline => NULL()
       m_condi = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
       pipeline => m_condi
       CALL Diag%newField("condi","H2O condensation rate on ice", "#/kgs", "tttt",   &
                          ANY(outputlist == "condi"), pipeline)
       
       pipeline => NULL()
+
+      ! Check the user specified output variable list for bad entries
+      CALL checkOutputs(outputlist,Diag)
       
     END SUBROUTINE
-
-    !!
         
 END MODULE mo_diag_state

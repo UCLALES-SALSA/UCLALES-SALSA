@@ -19,12 +19,11 @@ MODULE constrain_SALSA
 
       TYPE(FloatArray4d), POINTER :: varp => NULL(),vart => NULL()
       INTEGER :: nv
-
       
       DO nv = 1,SALSA_tracers_4d%count
          CALL SALSA_tracers_4d%getData(1,varp,nv)
          CALL SALSA_tracers_4d%getData(2,vart,nv)
-         vart%d = MAX( ((1.e-10)-1.)*varp%d/dtlt, vart%d )
+         vart%d(:,:,:,:) = MAX( (-1.+1.e-8)*varp%d(:,:,:,:)/dtlt, vart%d(:,:,:,:)  )
       END DO
 
       varp => NULL(); vart => NULL()
@@ -246,60 +245,62 @@ MODULE constrain_SALSA
         END DO ! bc
         
         ! Loop over ice bins
-        DO bc = 1,nice
-           DO j = 3,nyp-2
-              DO i = 3,nxp-2
-                 DO k = 1,nzp
-                    
-                    mi = getMassIndex(nice,bc,nspec)     ! Pristine ice
-                    mi2 = getMassIndex(nice,bc,nspec+1)  ! rimed ice
-                    mice_tot = a_micep%d(k,i,j,mi) + a_micep%d(k,i,j,mi2)
-                    vice_tot = SUM(a_micep%d(k,i,j,bc:mi2:nice)/spec%rhoice(1:nspec+1))
-                    
-                    IF ( a_nicep%d(k,i,j,bc) > prlim .AND. a_rhi%d(k,i,j)<0.999 .AND.   &
-                         mice_tot < 1.e-15 ) THEN
+        IF (level == 5) THEN
+           DO bc = 1,nice
+              DO j = 3,nyp-2
+                 DO i = 3,nxp-2
+                    DO k = 1,nzp
                        
-                       ! Ice and snow don't have a critical size, but lose particles when water content becomes low enough or size is < 2e-6m
+                       mi = getMassIndex(nice,bc,nspec)     ! Pristine ice
+                       mi2 = getMassIndex(nice,bc,nspec+1)  ! rimed ice
+                       mice_tot = a_micep%d(k,i,j,mi) + a_micep%d(k,i,j,mi2)
+                       vice_tot = SUM(a_micep%d(k,i,j,bc:mi2:nice)/spec%rhoice(1:nspec+1))
                        
-                       ! Diameter          
-                       cdice = vice_tot / a_nicep%d(k,i,j,bc)
-                       cdice = (cdice/pi6)**(1./3.)
-                       
-                       ! Lose ice when dry to total mass ratio is more than 0.5
-                       CALL binMixrat("ice","dry",bc,i,j,k,zdrms)
-                       CALL binMixrat("ice","wet",bc,i,j,k,zwams)
-                       zvol = zdrms/zwams
-                       
-                       IF ( zvol>0.5 .OR. cdice < 2.e-6 ) THEN
+                       IF ( a_nicep%d(k,i,j,bc) > prlim .AND. a_rhi%d(k,i,j)<0.999 .AND.   &
+                            mice_tot < 1.e-15 ) THEN
                           
-                          ! Find the aerosol bin corresponding to the composition of the IN the current bin
-                          ba = findDry4Wet(a_nicep,a_micep,nice,bc,k,i,j)                     
+                          ! Ice and snow don't have a critical size, but lose particles when water content becomes low enough or size is < 2e-6m
                           
-                          ! Move the number of particles from ice to aerosol bins
-                          a_naerop%d(k,i,j,ba) = a_naerop%d(k,i,j,ba) + a_nicep%d(k,i,j,bc)
-                          a_nicep%d(k,i,j,bc) = 0.
+                          ! Diameter          
+                          cdice = vice_tot / a_nicep%d(k,i,j,bc)
+                          cdice = (cdice/pi6)**(1./3.)
                           
-                          ! Move mass material back to aerosol regime (including water)
-                          DO s = 1,nspec
-                             sc = getMassIndex(nice,bc,s)
-                             sa = getMassIndex(nbins,ba,s)
+                          ! Lose ice when dry to total mass ratio is more than 0.5
+                          CALL binMixrat("ice","dry",bc,i,j,k,zdrms)
+                          CALL binMixrat("ice","wet",bc,i,j,k,zwams)
+                          zvol = zdrms/zwams
+                          
+                          IF ( zvol>0.5 .OR. cdice < 2.e-6 ) THEN
+                             
+                             ! Find the aerosol bin corresponding to the composition of the IN the current bin
+                             ba = findDry4Wet(a_nicep,a_micep,nice,bc,k,i,j)                     
+                             
+                             ! Move the number of particles from ice to aerosol bins
+                             a_naerop%d(k,i,j,ba) = a_naerop%d(k,i,j,ba) + a_nicep%d(k,i,j,bc)
+                             a_nicep%d(k,i,j,bc) = 0.
+                             
+                             ! Move mass material back to aerosol regime (including water)
+                             DO s = 1,nspec
+                                sc = getMassIndex(nice,bc,s)
+                                sa = getMassIndex(nbins,ba,s)
+                                a_maerop%d(k,i,j,sa) = a_maerop%d(k,i,j,sa) + a_micep%d(k,i,j,sc)
+                                a_micep%d(k,i,j,sc) = 0.
+                             END DO
+                             ! Rimed ice
+                             sa = getMassIndex(nbins,ba,nspec)
+                             sc = getMassIndex(nice,bc,nspec+1)
                              a_maerop%d(k,i,j,sa) = a_maerop%d(k,i,j,sa) + a_micep%d(k,i,j,sc)
                              a_micep%d(k,i,j,sc) = 0.
-                          END DO
-                          ! Rimed ice
-                          sa = getMassIndex(nbins,ba,nspec)
-                          sc = getMassIndex(nice,bc,nspec+1)
-                          a_maerop%d(k,i,j,sa) = a_maerop%d(k,i,j,sa) + a_micep%d(k,i,j,sc)
-                          a_micep%d(k,i,j,sc) = 0.
-                       END IF
+                          END IF
+                          
+                       END IF  ! prlim
                        
-                    END IF  ! prlim
-                    
+                    END DO
                  END DO
               END DO
-           END DO
-        END DO ! bc
-        
+           END DO ! bc
+        END IF ! level = 5
+           
         ! Loop over aerosol bins
         DO ba = 1,nbins
            DO j = 3,nyp-2

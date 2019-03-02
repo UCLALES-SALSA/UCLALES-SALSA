@@ -192,7 +192,7 @@ CONTAINS
       
       ! Set the SALSA runtime config 
       CALL set_salsa_runtime(time)
-
+      
       ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of kg/kg (multiplied by pdn/divided by substance density)
       DO jj = 3, nyp-2
          DO ii = 3, nxp-2
@@ -270,7 +270,7 @@ CONTAINS
                   allSALSA(1,1,nb)%numc = npart(icat)%d(nbloc)*pdn%d(kk,ii,jj)
 
                   ! Update particle size and densities
-                  CALL allSALSA(1,1,nb)%updateDiameter(.TRUE.,type="all")
+                  !CALL allSALSA(1,1,nb)%updateDiameter(.TRUE.,type="all")
                   CALL allSALSA(1,1,nb)%updateRhomean()
 
                   IF (allSALSA(1,1,nb)%numc > allSALSA(1,1,nb)%nlim) THEN
@@ -393,7 +393,7 @@ CONTAINS
             END DO !kk
          END DO ! ii
       END DO ! jj
-
+      
       ! Nullify pointers and clean up
       DO icat = 1,4
          ntend(icat)%d => NULL()

@@ -134,11 +134,11 @@ MODULE ncio
 
       CHARACTER (len=50) :: xnm
       INTEGER :: iret, n, VarID
-
-      out_nvar = 0
-      
       
       IF (nRec == 0) THEN
+         
+         out_nvar = 0
+
          iret = nf90_def_dim(ncID, 'time', NF90_UNLIMITED, timeID)
          IF (present(n1)) THEN
             iret = nf90_def_dim(ncID, 'zt', n1, ztID)
@@ -152,7 +152,6 @@ MODULE ncio
             iret = nf90_def_dim(ncID, 'yt', n3, ytID)
             iret = nf90_def_dim(ncID, 'ym', n3, ymID)
          END IF
-         
          IF (present(inae_a)) THEN
             iret = nf90_def_dim(ncID, 'aea', inae_a, aeaID)
          END IF
@@ -227,6 +226,20 @@ MODULE ncio
          nRec = 1
          
       ELSE  ! nrec /= 0
+
+         out_nvar = 1 ! time
+         IF (PRESENT(outProg))  &
+              out_nvar = out_nvar + outProg%count
+         IF (PRESENT(outVector)) &
+              out_nvar = out_nvar + outVector%count
+         IF (PRESENT(outDiag))  &
+              out_nvar = out_nvar + outDiag%count
+         IF (PRESENT(outAxes))  &
+              out_nvar = out_nvar + outAxes%count
+         IF (PRESENT(outDerived)) &
+              out_nvar = out_nvar + outDerived%count
+         IF (PRESENT(outPS)) &
+              out_nvar = out_nvar + outPS%count
          
          iret = nf90_inquire(ncID, nVariables=n)
          IF (n /= out_nvar) THEN
@@ -234,30 +247,30 @@ MODULE ncio
             IF (myid == 0) PRINT *, '  ABORTING: Incompatible Netcdf File',n,out_nvar
             CALL appl_abort(0)
          ELSE
-            DO n = 1, outProg%count
-               xnm = outProg%list(n)%name
-               iret = nf90_inquire_variable(ncID, n, name=xnm)
-            END DO
-            DO n = 1, outVector%count
-               xnm = outVector%list(n)%name
-               iret = nf90_inquire_variable(ncId, n, name=xnm)
-            END DO
-            DO n = 1,outDiag%count
-               xnm = outDiag%list(n)%name
-               iret = nf90_inquire_variable(ncID, n, name=xnm)
-            END DO
-            DO n = 1, outAxes%count
-               xnm = outAxes%list(n)%name
-               iret = nf90_inquire_variable(ncID, n, name=xnm)
-            END DO
-            DO n = 1, outDerived%count
-               xnm = outDerived%list(n)%name
-               iret = nf90_inquire_variable(ncID, n, name=xnm)
-            END DO
-            DO n = 1, outPS%count
-               xnm = outPS%list(n)%name
-               iret = nf90_inquire_variable(ncID, n, name=xnm)
-            END DO
+            !DO n = 1, outProg%count
+            !   xnm = outProg%list(n)%name
+            !   iret = nf90_inquire_variable(ncID, n, name=xnm)
+            !END DO
+            !DO n = 1, outVector%count
+            !   xnm = outVector%list(n)%name
+            !   iret = nf90_inquire_variable(ncId, n, name=xnm)
+            !END DO
+            !DO n = 1,outDiag%count
+            !   xnm = outDiag%list(n)%name
+            !   iret = nf90_inquire_variable(ncID, n, name=xnm)
+            !END DO
+            !DO n = 1, outAxes%count
+            !   xnm = outAxes%list(n)%name
+            !   iret = nf90_inquire_variable(ncID, n, name=xnm)
+            !END DO
+            !DO n = 1, outDerived%count
+            !   xnm = outDerived%list(n)%name
+            !   iret = nf90_inquire_variable(ncID, n, name=xnm)
+            !END DO
+            !DO n = 1, outPS%count
+            !   xnm = outPS%list(n)%name
+            !   iret = nf90_inquire_variable(ncID, n, name=xnm)
+            !END DO
             iret = nf90_sync(ncID)
          END IF
 
@@ -278,7 +291,7 @@ MODULE ncio
       INTEGER :: nvar, n, VarID, iret
       CHARACTER(len=50) :: name
       CHARACTER(len=100) :: long_name
-      CHARACTER(len=10) :: unit,dim
+      CHARACTER(len=50) :: unit,dim
 
       ! Check that the variable array is initialized
       IF (varInst%Initialized) THEN      
@@ -306,7 +319,7 @@ MODULE ncio
     !
     SUBROUTINE define_variable(ncID,dim,name,VarID)
       INTEGER, INTENT(in) :: ncID
-      CHARACTER(len=10), INTENT(in) :: dim
+      CHARACTER(len=50), INTENT(in) :: dim
       CHARACTER(len=50), INTENT(in) :: name
       INTEGER, INTENT(out) :: VarID
       

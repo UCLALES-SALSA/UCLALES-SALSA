@@ -211,7 +211,7 @@ CONTAINS
       
       ! Initialize grid vectors
       Axes = FieldArray()
-      CALL setGridSpacings(Axes,lbinanl,level,nzp,nxp,nyp)
+      CALL setGridSpacings(Axes,lbinanl,lsalsabbins,level,nzp,nxp,nyp)
       CALL Axes%getByOutputstatus(outAxes)
       CALL Axes%getByGroup("ps",AxesPS)
       CALL Axes%getByOutputstatus(outAxesPS)
@@ -370,9 +370,9 @@ CONTAINS
       dtlv = 2.*dtl
       dtlt = dtl
       !
-      
+
       ! Set bin diameter grids 
-      IF (level >= 4) THEN
+      IF (level >= 4) THEN         
          aea%d(:) = aerobins(in1a:fn2a)
          aeb%d(:) = aerobins(in2b:fn2b)
          aetot%d(:) = aerobins(in1a:fn2b)

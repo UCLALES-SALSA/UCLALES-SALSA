@@ -80,7 +80,7 @@ CONTAINS
          CALL basic_state
          CALL fldinit ! Juha: aerosol size distributions are initialized here.
                       !       Also thermodynamics!
-         
+
          ! If SALSA is used, call SALSA with full configuration once before beginning
          ! spin-up period to set up aerosol and cloud fields.
          IF (level >= 4) THEN
@@ -99,7 +99,7 @@ CONTAINS
             CALL SALSAInit
 
          END IF !level >= 4
-         
+
       ELSE IF (runtype == 'HISTORY') THEN
          IF (isgstyp == 2) CALL tkeinit(nxyzp,a_qp%d)
          CALL hstart
@@ -127,8 +127,7 @@ CONTAINS
      ! Initialize aerosol emissions
      ! -----------------------------
      IF (lemission .AND. level >= 4) CALL init_emission()
-
-     !
+          !
      !IF (mcflg) THEN
      !   ! Juha:
      !   ! Calculate some numbers for mass concervation experiments
@@ -146,7 +145,6 @@ CONTAINS
         CALL SALSA_diagnostics(onlyDiag=.TRUE.)
         CALL thermo(level)
      END IF
-
      !
       ! write analysis and history files from restart if appropriate
       !
@@ -199,7 +197,6 @@ CONTAINS
             END DO
          END DO
       END DO
-
       ! Juha: Added SELECT-CASE for level 4
       SELECT CASE(level)
       CASE(1,2,3)
@@ -228,7 +225,6 @@ CONTAINS
                END DO
             END DO
          END IF
-         
       CASE(4,5)
          ! Condensation will be calculated by the initial call of SALSA, so use the
          ! saturation adjustment method to estimate the amount of liquid water,
@@ -252,18 +248,20 @@ CONTAINS
                END DO !k
             END DO !i
          END DO !j
-          
       END SELECT
-      
+
       IF (init_type == 1) THEN
+
          ! Initialize with random perturbations
          k = 1
+
          DO WHILE( zt%d(k+1) <= zrand .AND. k+1 < nzp)
             k = k+1
             xran(k) = zrndamp*(zrand - zt%d(k))/zrand
          END DO
+
          CALL random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
-         
+
          IF (associated(a_rp%d)) THEN
             k = 1
             DO WHILE( zt%d(k+1) <= zrand .AND. k+1 < nzp)
@@ -276,14 +274,12 @@ CONTAINS
          ! Initialize with warm bubble (for convection)
          CALL warm_bubble()
       END IF
-
       a_wp%d = 0.
       IF(isgstyp == 2) CALL tkeinit(nxyzp,a_qp%d)
       !
       ! initialize thermodynamic fields
       !
       CALL thermo (level)
-      
       !
       ! Initialize aerosol size distributions
       !
@@ -291,7 +287,6 @@ CONTAINS
          CALL aerosol_init()
          CALL init_gas_tracers
       END IF
-
       a_uc%d = a_up%d
       a_vc%d = a_vp%d
       a_wc%d = a_wp%d
@@ -699,15 +694,13 @@ CONTAINS
        rand(3:n2-2, 3:n3-2) = rand_temp(3+xoffset(wrxid):n2+xoffset(wrxid)-2, &
                               3+yoffset(wryid):n3+yoffset(wryid)-2)
        DEALLOCATE (rand_temp)
-
-       xx = 0.
+       xx = 0. 
        DO j = 3, n3-2
           DO i = 3, n2-2
              fld%d(k,i,j) = fld%d(k,i,j) + rand(i,j)*xmag(k)
              xx = xx + rand(i,j)*xmag(k)
           END DO
        END DO
-
        xxl = xx
        CALL double_scalar_par_sum(xxl,xx)
        xx = xx/REAL((n2g-4)*(n3g-4))
@@ -720,9 +713,7 @@ CONTAINS
        PRINT 600,zt%d(kmx),rand(3,3),xx
        PRINT *,'-------------------------------------------------'
     END IF
-
     CALL sclrset('cnst',n1,n2,n3,fld%d)
-
     RETURN
 
 600 FORMAT(2x,'Inserting random temperature perturbations',      &

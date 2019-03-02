@@ -1,6 +1,7 @@
 MODULE mo_vector_state
   USE classFieldArray
-  USE mo_structured_datatypes  
+  USE mo_structured_datatypes
+  USE mo_check_state, ONLY : checkOutputs
   IMPLICIT NONE
 
   SAVE
@@ -34,6 +35,7 @@ MODULE mo_vector_state
       nn = 0
       
       nn = nn + 1
+      pipeline_p => NULL(); pipeline_t => NULL(); pipeline_c => NULL()
       a_up = FloatArray3d(a_vectorp(:,:,:,nn))
       a_uc = FloatArray3d(a_vectorc(:,:,:,nn))
       a_ut = FloatArray3d(a_vectort(:,:,:,nn))
@@ -46,6 +48,7 @@ MODULE mo_vector_state
                            in_group='Vector')
 
       nn = nn + 1
+      pipeline_p => NULL(); pipeline_t => NULL(); pipeline_c => NULL()
       a_vp = FloatArray3d(a_vectorp(:,:,:,nn))
       a_vc = FloatArray3d(a_vectorc(:,:,:,nn))      
       a_vt = FloatArray3d(a_vectort(:,:,:,nn))
@@ -58,6 +61,7 @@ MODULE mo_vector_state
                            in_group='Vector')
 
       nn = nn + 1
+      pipeline_p => NULL(); pipeline_t => NULL(); pipeline_c => NULL()
       a_wp = FloatArray3d(a_vectorp(:,:,:,nn))
       a_wc = FloatArray3d(a_vectorc(:,:,:,nn))
       a_wt = FloatArray3d(a_vectort(:,:,:,nn))
@@ -72,9 +76,10 @@ MODULE mo_vector_state
       pipeline_p => NULL()
       pipeline_c => NULL()
       pipeline_t => NULL()
+
+      ! Check the user specified output variable list for bad entries
+      CALL checkOutputs(outputlist,Vector)
       
     END SUBROUTINE setVectorVariables
-
-
     
 END MODULE mo_vector_state

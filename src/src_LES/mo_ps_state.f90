@@ -2,6 +2,7 @@ MODULE mo_ps_state
   USE classFieldArray
   USE mo_structured_datatypes
   USE mo_ps_procedures
+  USE mo_check_state, ONLY : checkOutputs
   IMPLICIT NONE
 
   ! Variables for profile statistics output.
@@ -41,6 +42,7 @@ MODULE mo_ps_state
       
 
       IF (ANY(outputlist == "theta")) THEN
+         pipeline => NULL()
          ps_theta = FloatArray1d()
          ps_theta%onDemand => globalAvgProfile
          pipeline => ps_theta
@@ -49,6 +51,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "temp")) THEN
+         pipeline => NULL()
          ps_temp = FloatArray1d()
          ps_temp%onDemand => globalAvgProfile
          pipeline => ps_temp
@@ -57,6 +60,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "press")) THEN
+         pipeline => NULL()
          ps_press = FloatArray1d()
          ps_press%onDemand => globalAvgProfile
          pipeline => ps_press
@@ -65,6 +69,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rp")) THEN
+         pipeline => NULL()
          ps_rp = FloatArray1d()
          ps_rp%onDemand => globalAvgProfile
          pipeline => ps_rp
@@ -73,6 +78,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rc")) THEN
+         pipeline => NULL()
          ps_rc = FloatArray1d()
          ps_rc%onDemand => globalAvgProfile
          pipeline => ps_rc
@@ -81,6 +87,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rr")) THEN
+         pipeline => NULL()
          ps_rr = FloatArray1d()
          ps_rr%onDemand => globalAvgProfile
          pipeline => ps_rr
@@ -90,6 +97,7 @@ MODULE mo_ps_state
          
       IF (level == 5) THEN
          IF (ANY(outputlist == "ri")) THEN
+            pipeline => NULL()
             ps_ri = FloatArray1d()
             ps_ri%onDemand => globalAvgProfile
             pipeline => ps_ri
@@ -98,6 +106,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "riri")) THEN
+            pipeline => NULL()
             ps_riri = FloatArray1d()
             ps_riri%onDemand => globalAvgProfile
             pipeline => ps_riri
@@ -108,6 +117,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "Naa")) THEN
+            pipeline => NULL()
             ps_Naa = FloatArray1d()
             ps_Naa%onDemand => globalAvgProfile
             pipeline => ps_Naa
@@ -116,6 +126,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Nab")) THEN
+            pipeline => NULL()
             ps_Nab = FloatArray1d()
             ps_Nab%onDemand => globalAvgProfile
             pipeline => ps_Nab
@@ -124,6 +135,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Nca")) THEN
+            pipeline => NULL()
             ps_Nca = FloatArray1d()
             ps_Nca%onDemand => globalAvgProfile
             pipeline => ps_Nca
@@ -132,6 +144,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Ncb")) THEN
+            pipeline => NULL()
             ps_Ncb = FloatArray1d()
             ps_Ncb%onDemand => globalAvgProfile
             pipeline => ps_Ncb
@@ -140,6 +153,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Np")) THEN
+            pipeline => NULL()
             ps_Np = FloatArray1d()
             ps_Np%onDemand => globalAvgProfile
             pipeline => ps_Np
@@ -149,6 +163,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "Ni")) THEN
+         pipeline => NULL()
          ps_Ni = FloatArray1d()
          ps_Ni%onDemand => globalAvgProfile
          pipeline => ps_Ni
@@ -157,6 +172,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "RH")) THEN
+         pipeline => NULL()
          ps_RH = FloatArray1d()
          ps_RH%onDemand => globalAvgProfile
          pipeline => ps_RH
@@ -165,6 +181,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rsl")) THEN
+         pipeline => NULL()
          ps_rsl = FloatArray1d()
          ps_rsl%onDemand => globalAvgProfile
          pipeline => ps_rsl
@@ -174,6 +191,7 @@ MODULE mo_ps_state
          
       IF (level == 5) THEN
          IF (ANY(outputlist == "RHI")) THEN
+            pipeline => NULL()
             ps_RHI = FloatArray1d()
             ps_RHI%onDemand => globalAvgProfile
             pipeline => ps_RHI
@@ -182,6 +200,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "rsi")) THEN
+            pipeline => NULL()
             ps_rsi = FloatArray1d()
             ps_rsi%onDemand => globalAvgProfile
             pipeline => ps_rsi
@@ -191,6 +210,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rrate")) THEN
+         pipeline => NULL()
          ps_rrate  = FloatArray1d()
          ps_rrate%onDemand => globalAvgProfile
          pipeline => ps_rrate
@@ -199,6 +219,7 @@ MODULE mo_ps_state
       END IF
          
       IF (level == 5 .AND. ANY(outputlist == "irate")) THEN
+         pipeline => NULL()
          ps_irate = FloatArray1d()
          ps_irate%onDemand => globalAvgProfile
          pipeline => ps_irate
@@ -207,6 +228,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "rflx")) THEN
+         pipeline => NULL()
          ps_rflx = FloatArray1d()
          ps_rflx%onDemand => globalAvgProfile
          pipeline => ps_rflx
@@ -214,7 +236,8 @@ MODULE mo_ps_state
                           ANY(outputlist == "rflx"), pipeline)
       END IF
 
-      IF (ANY(outputlist == "sflx")) THEN         
+      IF (ANY(outputlist == "sflx")) THEN
+         pipeline => NULL()
          ps_sflx = FloatArray1d()
          ps_sflx%onDemand => globalAvgProfile
          pipeline => ps_sflx
@@ -223,6 +246,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "lwup")) THEN
+         pipeline => NULL()
          ps_lwup = FloatArray1d()
          ps_lwup%onDemand => globalAvgProfile
          pipeline => ps_lwup
@@ -231,6 +255,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "lwdn")) THEN
+         pipeline => NULL()
          ps_lwdn = FloatArray1d()
          ps_lwdn%onDemand => globalAvgProfile
          pipeline => ps_lwdn
@@ -239,6 +264,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "swup")) THEN
+         pipeline => NULL()
          ps_swup = FloatArray1d()
          ps_swup%onDemand => globalAvgProfile
          pipeline => ps_swup
@@ -247,6 +273,7 @@ MODULE mo_ps_state
       END IF
 
       IF (ANY(outputlist == "swdn")) THEN
+         pipeline => NULL()
          ps_swdn = FloatArray1d()
          ps_swdn%onDemand => globalAvgProfile
          pipeline => ps_swdn
@@ -256,6 +283,7 @@ MODULE mo_ps_state
          
       IF (level >= 4) THEN
          IF (ANY(outputlist == "Dwaa")) THEN
+            pipeline => NULL()
             ps_Dwaa = FloatArray1d()
             ps_Dwaa%onDemand => globalAvgProfile
             pipeline => ps_Dwaa
@@ -264,6 +292,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Dwab")) THEN
+            pipeline => NULL()
             ps_Dwab = FloatArray1d()
             ps_Dwab%onDemand => globalAvgProfile
             pipeline => ps_Dwab
@@ -272,6 +301,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Dwca")) THEN
+            pipeline => NULL()
             ps_Dwca = FloatArray1d()
             ps_Dwca%onDemand => globalAvgProfile
             pipeline => ps_Dwca
@@ -280,6 +310,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Dwcb")) THEN
+            pipeline => NULL()
             ps_Dwcb = FloatArray1d()
             ps_Dwcb%onDemand => globalAvgProfile
             pipeline => ps_Dwcb
@@ -288,6 +319,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "Dwpa")) THEN
+            pipeline => NULL()
             ps_Dwpa = FloatArray1d()
             ps_Dwpa%onDemand => globalAvgProfile
             pipeline => ps_Dwpa
@@ -297,6 +329,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "Dwia")) THEN
+         pipeline => NULL()
          ps_Dwia = FloatArray1d()
          ps_Dwia%onDemand => globalAvgProfile
          pipeline => ps_Dwia
@@ -306,6 +339,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aSO4a")) THEN
+            pipeline => NULL()
             ps_aSO4a = FloatArray1d()
             ps_aSO4a%onDemand => globalAvgProfile
             pipeline => ps_aSO4a
@@ -314,6 +348,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "aSO4b")) THEN
+            pipeline => NULL()
             ps_aSO4b = FloatArray1d()
             ps_aSO4b%onDemand => globalAvgProfile
             pipeline => ps_aSO4b
@@ -322,6 +357,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cSO4a")) THEN
+            pipeline => NULL()
             ps_cSO4a = FloatArray1d()
             ps_cSO4a%onDemand => globalAvgProfile
             pipeline => ps_cSO4a
@@ -330,6 +366,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cSO4b")) THEN
+            pipeline => NULL()
             ps_cSO4b = FloatArray1d()
             ps_cSO4b%onDemand => globalAvgProfile
             pipeline => ps_cSO4b
@@ -338,6 +375,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "pSO4a")) THEN
+            pipeline => NULL()
             ps_pSO4a = FloatArray1d()
             ps_pSO4a%onDemand => globalAvgProfile
             pipeline => ps_pSO4a
@@ -347,6 +385,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iSO4a")) THEN
+         pipeline => NULL()
          ps_iSO4a = FloatArray1d()
          ps_iSO4a%onDemand => globalAvgProfile
          pipeline => ps_iSO4a
@@ -356,6 +395,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aOCa")) THEN
+            pipeline => NULL()
             ps_aOCa = FloatArray1d()
             ps_aOCa%onDemand => globalAvgProfile
             pipeline => ps_aOCa
@@ -364,6 +404,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "aOCb")) THEN
+            pipeline => NULL()
             ps_aOCb = FloatArray1d()
             ps_aOCb%onDemand => globalAvgProfile
             pipeline => ps_aOCb
@@ -372,6 +413,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cOCa")) THEN
+            pipeline => NULL()
             ps_cOCa = FloatArray1d()
             ps_cOCa%onDemand => globalAvgProfile
             pipeline => ps_cOCa
@@ -380,6 +422,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cOCb")) THEN
+            pipeline => NULL()
             ps_cOCb = FloatArray1d()
             ps_cOCb%onDemand => globalAvgProfile
             pipeline => ps_cOCb
@@ -388,6 +431,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "pOCa")) THEN
+            pipeline => NULL()
             ps_pOCa = FloatArray1d()
             ps_pOCa%onDemand => globalAvgProfile
             pipeline => ps_pOCa
@@ -397,6 +441,7 @@ MODULE mo_ps_state
       END IF
          
       IF (level == 5 .AND. ANY(outputlist == "iOCa")) THEN
+         pipeline => NULL()
          ps_iOCa = FloatArray1d()
          ps_iOCa%onDemand => globalAvgProfile
          pipeline => ps_iOCa
@@ -406,6 +451,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aBCa")) THEN
+            pipeline => NULL()
             ps_aBCa = FloatArray1d()
             ps_aBCa%onDemand => globalAvgProfile
             pipeline => ps_aBCa
@@ -414,6 +460,7 @@ MODULE mo_ps_state
          END IF
          
          IF (ANY(outputlist == "aBCb")) THEN
+            pipeline => NULL()
             ps_aBCb = FloatArray1d()
             ps_aBCb%onDemand => globalAvgProfile
             pipeline => ps_aBCb
@@ -422,6 +469,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cBCa")) THEN
+            pipeline => NULL()
             ps_cBCa = FloatArray1d()
             ps_cBCa%onDemand => globalAvgProfile
             pipeline => ps_cBCa
@@ -430,6 +478,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cBCb")) THEN
+            pipeline => NULL()
             ps_cBCb = FloatArray1d()
             ps_cBCb%onDemand => globalAvgProfile
             pipeline => ps_cBCb
@@ -438,6 +487,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "pBCa")) THEN
+            pipeline => NULL()
             ps_pBCa = FloatArray1d()
             ps_pBCa%onDemand => globalAvgProfile
             pipeline => ps_pBCa
@@ -447,6 +497,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iBCa")) THEN
+         pipeline => NULL()
          ps_iBCa = FloatArray1d()
          ps_iBCa%onDemand => globalAvgProfile
          pipeline => ps_iBCa
@@ -456,6 +507,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aDUa")) THEN
+            pipeline => NULL()
             ps_aDUa = FloatArray1d()
             ps_aDUa%onDemand => globalAvgProfile
             pipeline => ps_aDUa
@@ -464,6 +516,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "aDUb")) THEN
+            pipeline => NULL()
             ps_aDUb = FloatArray1d()
             ps_aDUb%onDemand => globalAvgProfile
             pipeline => ps_aDUb
@@ -480,6 +533,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cDUb")) THEN
+            pipeline => NULL()
             ps_cDUb = FloatArray1d()
             ps_cDUb%onDemand => globalAvgProfile
             pipeline => ps_cDUb
@@ -488,6 +542,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "pDUa")) THEN
+            pipeline => NULL()
             ps_pDUa = FloatArray1d()
             ps_pDUa%onDemand => globalAvgProfile
             pipeline => ps_pDUa
@@ -497,6 +552,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iDUa")) THEN
+         pipeline => NULL()
          ps_iDUa = FloatArray1d()
          ps_iDUa%onDemand => globalAvgProfile
          pipeline => ps_iDUa
@@ -506,6 +562,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aSSa")) THEN
+            pipeline => NULL()
             ps_aSSa = FloatArray1d()
             ps_aSSa%onDemand => globalAvgProfile
             pipeline => ps_aSSA
@@ -514,6 +571,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "aSSb")) THEN
+            pipeline => NULL()
             ps_aSSb = FloatArray1d()
             ps_aSSb%onDemand => globalAvgProfile
             pipeline => ps_aSSb
@@ -522,6 +580,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cSSa")) THEN
+            pipeline => NULL()
             ps_cSSa = FloatArray1d()
             ps_cSSa%onDemand => globalAvgProfile
             pipeline => ps_cSSa
@@ -530,6 +589,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cSSb")) THEN
+            pipeline => NULL()
             ps_cSSb = FloatArray1d()
             ps_cSSb%onDemand => globalAvgProfile
             pipeline => ps_cSSb
@@ -538,6 +598,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "pSSa")) THEN
+            pipeline => NULL()
             ps_pSSa = FloatArray1d()
             ps_pSSa%onDemand => globalAvgProfile
             pipeline => ps_pSSa
@@ -547,6 +608,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iSSa")) THEN
+         pipeline => NULL()
          ps_iSSa = FloatArray1d()
          ps_iSSa%onDemand => globalAvgProfile
          pipeline => ps_iSSa
@@ -556,6 +618,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aNOa")) THEN
+            pipeline => NULL()
             ps_aNOa = FloatArray1d()
             ps_aNOa%onDemand => globalAvgProfile
             pipeline => ps_aNOa
@@ -564,6 +627,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "aNOb")) THEN
+            pipeline => NULL()
             ps_aNOb = FloatArray1d()
             ps_aNOb%onDemand => globalAvgProfile
             pipeline => ps_aNOb
@@ -572,6 +636,7 @@ MODULE mo_ps_state
          END IF
 
          IF (ANY(outputlist == "cNOa")) THEN
+            pipeline => NULL()
             ps_cNOa = FloatArray1d()
             ps_cNOa%onDemand => globalAvgProfile
             pipeline => ps_cNOa
@@ -580,6 +645,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "cNOb")) THEN
+            pipeline => NULL()
             ps_cNOb = FloatArray1d()
             ps_cNOb%onDemand => globalAvgProfile
             pipeline => ps_cNOb
@@ -588,6 +654,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "pNOa")) THEN
+            pipeline => NULL()
             ps_pNOa = FloatArray1d()
             ps_pNOa%onDemand => globalAvgProfile
             pipeline => ps_pNOa
@@ -597,6 +664,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iNOa")) THEN
+         pipeline => NULL()
          ps_iNOa = FloatArray1d()
          ps_iNOa%onDemand => globalAvgProfile
          pipeline => ps_iNOa
@@ -606,6 +674,7 @@ MODULE mo_ps_state
 
       IF (level >= 4) THEN
          IF (ANY(outputlist == "aNHa")) THEN
+            pipeline => NULL()
             ps_aNHa = FloatArray1d()
             ps_aNHa%onDemand => globalAvgProfile
             pipeline => ps_aNHa
@@ -614,6 +683,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "aNHb")) THEN
+            pipeline => NULL()
             ps_aNHb = FloatArray1d()
             ps_aNHb%onDemand => globalAvgProfile
             pipeline => ps_aNHb
@@ -622,6 +692,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "cNHa")) THEN
+            pipeline => NULL()
             ps_cNHa = FloatArray1d()
             ps_cNHa%onDemand => globalAvgProfile
             pipeline => ps_cNHa
@@ -630,6 +701,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "cNHb")) THEN
+            pipeline => NULL()
             ps_cNHb = FloatArray1d()
             ps_cNHb%onDemand => globalAvgProfile
             pipeline => ps_cNHb
@@ -638,6 +710,7 @@ MODULE mo_ps_state
          END IF
             
          IF (ANY(outputlist == "pNHa")) THEN
+            pipeline => NULL()
             ps_pNHa = FloatArray1d()
             ps_pNHa%onDemand => globalAvgProfile
             pipeline => ps_pNHa
@@ -647,6 +720,7 @@ MODULE mo_ps_state
       END IF
 
       IF (level == 5 .AND. ANY(outputlist == "iNHa")) THEN
+         pipeline => NULL()
          ps_iNHa = FloatArray1d()
          ps_iNHa%onDemand => globalAvgProfile
          pipeline => ps_iNHa
@@ -655,6 +729,9 @@ MODULE mo_ps_state
       END IF
 
       pipeline => NULL()
+
+      ! Check the user specified output variable list for bad entries
+      CALL checkOutputs(outputlist,PS)
       
     END SUBROUTINE setPSVariables
 

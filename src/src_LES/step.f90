@@ -22,7 +22,7 @@ MODULE step
 
   USE mo_submctl, ONLY : spec, nice
   USE util, ONLY : getMassIndex, calc_correlation
-  USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray3d
+  USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray3d, FloatArray4d ! poista vika
   
   IMPLICIT NONE
   
@@ -199,7 +199,7 @@ CONTAINS
                        nxp,nyp,nzp,   &
                        a_nactd,  a_vactd
       USE mo_vector_state, ONLY : a_wp
-      USE mo_field_types, ONLY : Diag, Prog      
+      USE mo_field_types, ONLY : Diag, Prog
       USE sgsm, ONLY : diffuse
       USE srfc, ONLY : surface
       USE thrm, ONLY : thermo
@@ -220,6 +220,7 @@ CONTAINS
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
 
       INTEGER :: nspec
+
       
       CALL set_LES_runtime(time)
 
@@ -250,7 +251,6 @@ CONTAINS
       CALL tend0(.TRUE.)
       CALL thermo(level)
 
-      
       ! SALSA timestep
       ! -----------------------
       IF (level >= 4) THEN
@@ -269,7 +269,7 @@ CONTAINS
                            time,level,.FALSE.             )
              
          END IF !nxp==5 and nyp == 5
-         
+
          CALL tend_constrain2()
          CALL update_sclrs
          CALL tend0(.TRUE.)
@@ -281,21 +281,18 @@ CONTAINS
          
       !-------------------------------------------
       ! "Deposition" timestep
-      
       ! Dont perform sedimentation or level 3 autoconversion during spinup (internal switches implemented)
       CALL micro(level)
-
       IF (level >= 4) CALL tend_constrain2()
       CALL update_sclrs
       CALL tend0(.TRUE.)
       IF (level >= 4) CALL SALSA_diagnostics()
       CALL thermo(level)
-      
-      
+
       !-------------------------------------------
       ! "Advection" timestep
       CALL fadvect
-
+      
       IF (level >= 4) CALL tend_constrain2()
       CALL update_sclrs
       CALL tend0(.TRUE.)
