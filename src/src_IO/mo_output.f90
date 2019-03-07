@@ -1,26 +1,29 @@
 MODULE mo_output
   USE netcdf
-  USE mpi_interface, ONLY : myid, ver, author, info
+  USE mpi_interface, ONLY : myid, mpiroot, ver, author, info
   USE ncio
-  USE grid, ONLY : outAxes,outAxesPS,expnme,nzp,nxp,nyp,filprf,  &
+  USE grid, ONLY : outAxes,outAxesPS,outAxesTS,expnme,nzp,nxp,nyp,filprf,  &
                    lbinanl,level,lsalsabbins
-  USE mo_field_types, ONLY : outProg, outVector, outDiag, outDerived, outPS
+  USE mo_field_state, ONLY : outProg, outVector, outDiag, outDerived, outPS, outTS
   USE classFieldArray, ONLY : FieldArray
   USE mo_structured_datatypes
   USE mo_submctl, ONLY : in1a,fn2a,in2b,fn2b,ica,fca,icb,fcb,nprc,nice
   
   IMPLICIT NONE
 
-  LOGICAL :: sflg = .FALSE.
+  ! NOTE ABOUT TS AND PS FILES: These are only written by the rank mpiroot. Initialization and closing calls should be
+  ! done only for myid = mpiroot. Writing procedures however must be called by all processes, because the onDemand functions
+  ! for the statistics use MPI's collective reduction procedures. However, only mpiroot will actually write the output, i.e.
+  ! if the variable dimensions imply statistical output, only mpiroot will call the ncio.f90/write_nc subroutine.
+
+  
+  LOGICAL :: tsflg = .FALSE., psflg = .FALSE. ! Flags to accumulate data for statistical processes from within physics routines; should coincide with the statistics output timestep
   REAL :: ps_intvl = 120.
   REAL :: ts_intvl = 120.
   REAL :: main_intvl = 3600.
   INTEGER, PRIVATE :: ncid_main, ncid_ps, ncid_ts
   INTEGER, PRIVATE :: nrec_main, nvar_main, nrec_ps, nvar_ps, nrec_ts, nvar_ts
   CHARACTER(len=150), PRIVATE :: fname_main, fname_ps, fname_ts      
-
-
-
   
   CONTAINS
 
@@ -46,8 +49,7 @@ MODULE mo_output
                       outDerived%Initialized]  &
                     ) ) RETURN ! If no output variables defined, do not open the files 
       
-      IF(myid == 0) PRINT                                                  &
-           "(//' ',49('-')/,' ',/,'   Initializing: ',A20)",trim(fname_main)
+      IF(myid == 0) WRITE(*,"(//' ',49('-')/,' ',/,'   Initializing: ',A20)") trim(fname_main)
       
       CALL open_nc(fname_main,expnme,time,npoints,ncid_main,nrec_main,ver,author,info)
       IF (level < 4 .OR. .NOT. lbinanl) THEN
@@ -96,7 +98,7 @@ MODULE mo_output
          END IF
          
       END IF
-      IF (myid == 0) PRINT *,'   ...starting record: ', nrec_main
+      IF (myid == 0) WRITE(*,*) '   ...starting record: ', nrec_main
 
       
     END SUBROUTINE init_main
@@ -105,7 +107,6 @@ MODULE mo_output
 
     SUBROUTINE init_ps(time)
       REAL, INTENT(in) :: time
-
       INTEGER :: npoints
 
       npoints = (nxp-4)*(nyp-4)
@@ -114,15 +115,9 @@ MODULE mo_output
 
       IF (.NOT. outPS%Initialized) RETURN ! If no variables defined for output, do not create the file 
       
-      IF(myid == 0) PRINT                                                  &
-           "(//' ',49('-')/,' ',/,'   Initializing: ',A20)",trim(fname_ps)
+      IF(myid == 0) WRITE(*,"(//' ',49('-')/,' ',/,'   Initializing: ',A20)") trim(fname_ps)
 
       CALL open_nc(fname_ps,expnme,time,npoints,ncid_ps,nrec_ps,ver,author,info)
-
-      ! Providing the full outAxes will cause some error codes from netCDF when trying to
-      ! define the vector variables for axes dimensions that are not defined for the netcdf
-      ! file. This won't affect the model operation and it should work, but it would be
-      ! better to somehow mask the outAxes variables for different output types.
 
       IF (level < 4 .OR. .NOT. lbinanl) THEN
          CALL define_nc(ncid_ps,nrec_ps,nvar_ps,         &
@@ -130,7 +125,7 @@ MODULE mo_output
                         n1=nzp                           )
       END IF
 
-      IF (myid == 0) PRINT *,'   ...starting record: ', nrec_ps
+      IF (myid == 0) WRITE(*,*) '   ...starting record: ', nrec_ps
       
     END SUBROUTINE init_ps
 
@@ -138,7 +133,6 @@ MODULE mo_output
 
     SUBROUTINE init_ts(time)
       REAL, INTENT(in) :: time
-
       INTEGER :: npoints
 
       npoints = (nxp-4)*(nyp-4)
@@ -147,23 +141,16 @@ MODULE mo_output
 
       IF (.NOT. outTS%Initialized) RETURN ! If no variables defined for output, do not create the file 
       
-      IF(myid == 0) PRINT                                                  &
-           "(//' ',49('-')/,' ',/,'   Initializing: ',A20)",trim(fname_ts)
+      IF(myid == 0) WRITE(*,"(//' ',49('-')/,' ',/,'   Initializing: ',A20)") trim(fname_ts)
 
       CALL open_nc(fname_ts,expnme,time,npoints,ncid_ts,nrec_ts,ver,author,info)
 
-      ! Providing the full outAxes will cause some error codes from netCDF when trying to
-      ! define the vector variables for axes dimensions that are not defined for the netcdf
-      ! file. This won't affect the model operation and it should work, but it would be
-      ! better to somehow mask the outAxes variables for different output types.
-
       IF (level < 4 .OR. .NOT. lbinanl) THEN
          CALL define_nc(ncid_ts,nrec_ts,nvar_ts,         &
-                        outTS=outTS,outAxes=outAxesTS,   &  ! Use the TS subset of the axis variables                               
-                        n1=nzp                           )   MODAA outAxesTS!!!
+                        outTS=outTS,outAxes=outAxesTS    ) ! Use the TS subset of the axis variables                               
       END IF
 
-      IF (myid == 0) PRINT *,'   ...starting record: ', nrec_ts
+      IF (myid == 0) write(*,*) '   ...starting record: ', nrec_ts
       
     END SUBROUTINE init_ts
 
@@ -178,6 +165,10 @@ MODULE mo_output
     SUBROUTINE close_ps()
       CALL close_nc(ncid_ps)
     END SUBROUTINE close_ps
+
+    SUBROUTINE close_ts()
+      CALL close_nc(ncid_ts)
+    END SUBROUTINE close_ts
     
     !
     ! ----------------------------------------------------------------------
@@ -215,7 +206,7 @@ MODULE mo_output
       IF (outDerived%Initialized) &
            CALL write_output(outDerived,nrec_main,ncid_main)
 
-      IF (myid == 0) PRINT "(//' ',12('-'),'   Record ',I3,' to: ',A60 //)",    &
+      IF (myid == 0) WRITE(*,"(//' ',12('-'),'   Record ',I3,' to: ',A60 //)")    &
          nrec_main,fname_main
 
       CALL sync_nc(ncid_main)
@@ -225,7 +216,7 @@ MODULE mo_output
 
     ! --------------------------------------------------------------------------
 
-    SUBROUTINE write_ps(time)
+    SUBROUTINE write_ps(time)   
       REAL, INTENT(in) :: time
       INTEGER :: ibeg0(1)
 
@@ -234,7 +225,8 @@ MODULE mo_output
       IF ( .NOT. outPS%Initialized ) RETURN
       
       ! write time
-      CALL write_nc(ncid_ps,'time',time,ibeg0)
+      IF (myid == mpiroot) &
+           CALL write_nc(ncid_ps,'time',time,ibeg0)
 
       IF (nrec_ps == 1) THEN
          ! First entry -> write axis variables
@@ -244,14 +236,45 @@ MODULE mo_output
       IF (outPS%Initialized) &
            CALL write_output(outPS,nrec_ps,ncid_ps)
 
-      IF (myid == 0) PRINT "(//' ',12('-'),'   Record ',I3,' to: ',A60 //)",    &
+      IF (myid == 0) WRITE(*,"(//' ',12('-'),'   Record ',I3,' to: ',A60 //)")     &
          nrec_ps,fname_ps      
 
-      CALL sync_nc(ncid_ps)
+      IF (myid == mpiroot) &
+           CALL sync_nc(ncid_ps)
       nrec_ps = nrec_ps+1
       
     END SUBROUTINE write_ps
-    
+
+    ! ----------------------------------------------------------------------------
+
+    SUBROUTINE write_ts(time)
+      REAL, INTENT(in) :: time
+      INTEGER :: ibeg0(1)
+
+      ibeg0 = [nrec_ts]
+
+      IF ( .NOT. outTS%Initialized ) RETURN
+
+      ! Write time
+      IF (myid == mpiroot) &
+           CALL write_nc(ncid_ts,'time',time,ibeg0)
+
+      IF (nrec_ts == 1) THEN
+         ! First entry -> write axis variables
+         CALL write_output(outAxesTS,nrec_ts,ncid_ts)
+      END IF
+
+      IF (outTS%Initialized)  &
+           CALL write_output(outTS,nrec_ts,ncid_ts)
+
+      IF (myid == 0) WRITE(*,"(//' ',12('-'),'   Record ',I3,' to: ',A60 //)")    &
+         nrec_ts,fname_ts   
+
+      IF (myid == mpiroot) &
+           CALL sync_nc(ncid_ts)
+      nrec_ts = nrec_ts+1
+      
+    END SUBROUTINE write_ts    
     !
     ! Subroutine WRITE_OUTPUT: A general wrap-around routine used to to the writing of all kinds of
     !                          output variables
@@ -277,6 +300,7 @@ MODULE mo_output
 
       REAL :: out2d(nxp,nyp),out3d(nzp,nxp,nyp)
       REAL :: out1d(nzp)
+      REAL :: out0d
       REAL, ALLOCATABLE :: out3dsd(:,:,:,:), outsd(:), out1dsd(:,:)
       
       INTEGER :: i1,i2,j1,j2,nstr,nend
@@ -304,7 +328,13 @@ MODULE mo_output
          SELECT CASE(varArray%list(n)%dimension)
          CASE('time')
             CALL varArray%getData(1,var0d,index=n)
-            CALL write_nc(ncid0,vname,var0d%d,ibeg0d)
+            IF (ASSOCIATED(var0d%onDemand)) THEN
+               CALL var0d%onDemand(vname,out0d)
+            ELSE
+               out0d = var0d%d
+            END IF
+            IF (myid == mpiroot) &
+                 CALL write_nc(ncid0,vname,out0d,ibeg0d)
             
          CASE('zt','zm')
             CALL varArray%getData(1,var1d,index=n)
@@ -329,7 +359,8 @@ MODULE mo_output
             ELSE
                out1d = var1d%d
             END IF
-            CALL write_nc(ncid0,vname,out1d(:),ibeg1d,icnt=icnt1d)
+            IF (myid == mpiroot) &
+                 CALL write_nc(ncid0,vname,out1d(:),ibeg1d,icnt=icnt1d)
 
          CASE('xtytt')
             CALL varArray%getData(1,var2d,index=n)
@@ -339,7 +370,6 @@ MODULE mo_output
                out2d = var2d%d
             END IF
             CALL write_nc(ncid0,vname,out2d(i1:i2,j1:j2),ibeg2d,icnt=icnt2d)
-            DEALLOCATE(out2d)
             
          CASE('zttaea','zttaeb','zttcla','zttclb','zttprc','zttice')
             CALL getSDdim(varArray%list(n)%dimension,nstr,nend)
@@ -351,7 +381,8 @@ MODULE mo_output
             ELSE
                out1dsd = var2d%d
             END IF
-            CALL write_nc(ncid0,vname,out1dsd(:,nstr:nend),ibeg2d,icnt=icnt1dsd)
+            IF (myid == mpiroot) &
+                 CALL write_nc(ncid0,vname,out1dsd(:,nstr:nend),ibeg2d,icnt=icnt1dsd)
             DEALLOCATE(out1dsd)
             
          CASE('taea','taeb','tcla','tclb','tprc','tice')
@@ -364,7 +395,8 @@ MODULE mo_output
             ELSE
                outsd = var1d%d
             END IF
-            CALL write_nc(ncid0,vname,outsd(nstr:nend),ibeg1d,icnt=icnt0dsd)
+            IF (myid == mpiroot) &
+                 CALL write_nc(ncid0,vname,outsd(nstr:nend),ibeg1d,icnt=icnt0dsd)
             DEALLOCATE(outsd)
                
          CASE('tttt','mttt','tmtt','ttmt')

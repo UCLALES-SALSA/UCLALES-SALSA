@@ -45,10 +45,10 @@ CONTAINS
 
       USE grid, ONLY          : define_grid, define_vars, level, nxp, nyp, nzp, nxpart
       USE init, ONLY          : initialize
+      USE mo_field_init, ONLY : initialize_FieldArrays
       USE step, ONLY          : stepper
       USE mpi_interface, ONLY : init_mpi, define_decomp,                    &
                                 init_alltoall_reorder, appl_finalize
-      USE mo_field_state, ONLY : initialize_FieldArrays
       
       ! Added for SALSA
       USE mo_salsa_init, ONLY : define_salsa, salsa_initialize
@@ -64,7 +64,7 @@ CONTAINS
       IF (level >= 4) CALL define_salsa(level) ! Read SALSA namelist etc.
 
       IF (level >= 4) CALL salsa_initialize() ! All salsa variables and bin diameters are now initialized
-
+      
       CALL define_decomp(nxp, nyp, nxpart)
 
       CALL define_grid
@@ -118,7 +118,7 @@ CONTAINS
     USE mcrp, ONLY              : sed_aero, sed_cloud, sed_precp, sed_ice, init_mcrp_switches, &
                                   bulk_autoc
     USE mpi_interface, ONLY     : myid, appl_abort, ver, author
-    USE mo_output, ONLY         : ps_intvl, main_intvl
+    USE mo_output, ONLY         : ts_intvl, ps_intvl, main_intvl
     USE mo_check_state, ONLY    : breakUndefOutput
     
     IMPLICIT NONE

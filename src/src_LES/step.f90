@@ -47,12 +47,14 @@ CONTAINS
    ! satisfied.
    SUBROUTINE stepper
 
-      USE mpi_interface, ONLY : myid, double_scalar_par_max
+      USE mpi_interface, ONLY : myid, double_scalar_par_max, mpiroot
       USE mo_vector_state, ONLY : a_uc, a_vc, a_wc, a_up, a_vp, a_wp
       USE grid, ONLY : dtl, dtlt,  &
                        dtlv, dtlong, nzp, nyp, nxp, level
       USE thrm, ONLY : thermo
-      USE mo_output, ONLY : write_main, close_main, write_ps, close_ps, sflg, ps_intvl, main_intvl
+      USE mo_output, ONLY : write_main, close_main, write_ps, close_ps,    &
+                            write_ts, close_ts, tsflg, psflg, ts_intvl,    &
+                            ps_intvl, main_intvl
       USE mo_history, ONLY : write_hist
       
       LOGICAL, PARAMETER :: StopOnCFLViolation = .FALSE.
@@ -74,9 +76,10 @@ CONTAINS
 
          istp = istp+1
          tplsdt = time + dtl + 0.1*dtl
-         sflg = ( mod(tplsdt,ps_intvl) < dtl  &
-            .OR. tplsdt >= timmax  .OR. tplsdt < 2.*dtl)
 
+         tsflg = ( mod(tplsdt,ts_intvl) < dtl .OR. time >= timmax .OR. time == dtl )
+         psflg = ( mod(tplsdt,ps_intvl) < dtl .OR. time >= timmax .OR. time == dtl )
+         
          CALL t_step(cflflg,cflmax)
 
          time = time + dtl
@@ -94,9 +97,12 @@ CONTAINS
          !
          ! output control
          !
-         IF (mod(tplsdt,ps_intvl) < dtl .OR. time >= timmax .OR. time == dtl)   &
-            CALL write_ps(time)
+         IF (mod(tplsdt,ps_intvl) < dtl .OR. time >= timmax .OR. time == dtl) &
+              CALL write_ps(time)
 
+         IF (mod(tplsdt,ts_intvl) < dtl .OR. time >= timmax .OR. time == dtl) &
+              CALL write_ts(time)
+         
          IF ((mod(tplsdt,frqhis) < dtl .OR. time >= timmax) .AND. outflg)   &
             CALL write_hist(2, time)
 
@@ -124,8 +130,11 @@ CONTAINS
 
       CALL write_hist(1, time)
       CALL close_main()
-      CALL close_ps()
-
+      IF (myid == mpiroot) THEN
+         CALL close_ps()
+         CALL close_ts()
+      END IF
+         
    END SUBROUTINE stepper
    !
    !----------------------------------------------------------------------
@@ -199,7 +208,7 @@ CONTAINS
                        nxp,nyp,nzp,   &
                        a_nactd,  a_vactd
       USE mo_vector_state, ONLY : a_wp
-      USE mo_field_types, ONLY : Diag, Prog
+      USE mo_field_state, ONLY : Diag, Prog
       USE sgsm, ONLY : diffuse
       USE srfc, ONLY : surface
       USE thrm, ONLY : thermo

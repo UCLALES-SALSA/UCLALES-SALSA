@@ -1,7 +1,6 @@
 MODULE mo_vector_state
   USE classFieldArray
   USE mo_structured_datatypes
-  USE mo_check_state, ONLY : checkOutputs
   IMPLICIT NONE
 
   SAVE
@@ -45,7 +44,7 @@ MODULE mo_vector_state
       CALL Vector%newField("uwind","Zonal wind vector","m/s",'mttt',         &
                            ANY(outputlist == 'uwind'),in_p_data=pipeline_p,  &
                            in_t_data=pipeline_t,in_c_data=pipeline_c,        &
-                           in_group='Vector')
+                           in_group=['vector'])
 
       nn = nn + 1
       pipeline_p => NULL(); pipeline_t => NULL(); pipeline_c => NULL()
@@ -58,7 +57,7 @@ MODULE mo_vector_state
       CALL Vector%newField("vwind","Meridional wind vector","m/s",'tmtt',         &
                            ANY(outputlist == 'vwind'),in_p_data=pipeline_p,  &
                            in_t_data=pipeline_t,in_c_data=pipeline_c,        &
-                           in_group='Vector')
+                           in_group=['vector'])
 
       nn = nn + 1
       pipeline_p => NULL(); pipeline_t => NULL(); pipeline_c => NULL()
@@ -71,15 +70,12 @@ MODULE mo_vector_state
       CALL Vector%newField("wwind","Vertical wind vector","m/s",'ttmt',         &
                            ANY(outputlist == 'wwind'),in_p_data=pipeline_p,  &
                            in_t_data=pipeline_t,in_c_data=pipeline_c,        &
-                           in_group='Vector')      
+                           in_group=['vector'])      
 
       pipeline_p => NULL()
       pipeline_c => NULL()
       pipeline_t => NULL()
 
-      ! Check the user specified output variable list for bad entries
-      CALL checkOutputs(outputlist,Vector)
-      
     END SUBROUTINE setVectorVariables
     
 END MODULE mo_vector_state

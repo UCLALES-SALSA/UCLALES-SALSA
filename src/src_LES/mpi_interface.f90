@@ -30,6 +30,17 @@ MODULE mpi_interface
    INTERFACE broadcast
       MODULE PROCEDURE broadcastRealArray1d, broadcastRealArray3d, broadcastInteger
    END INTERFACE broadcast
+
+   INTERFACE get_max_root
+      MODULE PROCEDURE get_scalar_integer_global_max_root
+   END INTERFACE get_max_root
+
+   INTERFACE get_sum_root
+      MODULE PROCEDURE get_scalar_float_global_sum_root,    &
+                       get_1d_float_global_sum_root,        &
+                       get_1d_integer_global_sum_root
+   END INTERFACE get_sum_root
+   
    
    !
    !    nxg = nxpg-4
@@ -46,8 +57,9 @@ MODULE mpi_interface
    !         respectively
    !
 
-   INTEGER :: myid, pecount, nxpg, nypg, nxg, nyg, nbytes, intsize, &
-              MY_SIZE, MY_CMPLX
+   INTEGER, PARAMETER :: mpiroot = 0 ! root process defined as rank 0
+   INTEGER :: REAL_SIZE, CMPLX_SIZE, INT_SIZE
+   INTEGER :: myid, pecount, nxpg, nypg, nxg, nyg, nbytes
    INTEGER :: xcomm, ycomm,commxid,commyid
    INTEGER :: nxnzp,nynzp,fftinix,fftiniy
    INTEGER :: wrxid, wryid, nxprocs, nyprocs
@@ -83,21 +95,21 @@ CONTAINS
       SELECT CASE (kind(0.0))
          CASE (4)
             nbytes = 4
-            MY_SIZE = MPI_REAL
-            MY_CMPLX = MPI_COMPLEX
+            REAL_SIZE = MPI_REAL
+            CMPLX_SIZE = MPI_COMPLEX
          CASE (8)
             nbytes = 8
-            MY_SIZE = MPI_DOUBLE_PRECISION
-            MY_CMPLX = MPI_doUBLE_COMPLEX
+            REAL_SIZE = MPI_DOUBLE_PRECISION
+            CMPLX_SIZE = MPI_doUBLE_COMPLEX
          CASE DEFAULT
             STOP "kind not supported"
       END SELECT
 
       SELECT CASE(kind(0))
          CASE (4)
-            intsize = 4
+            INT_SIZE= 4
          CASE (8)
-            intsize = 8
+            INT_SIZE = 8
          CASE DEFAULT
             STOP "int kind not supported"
       END SELECT
@@ -105,7 +117,7 @@ CONTAINS
       CALL date_and_time(date)
       IF (myid == 0) PRINT "(/1x,75('-'),/2x,A22,/2x,A15,I2,A15,I2,A14)", &
          'UCLALES-SALSA '//date, 'Computing using',nbytes,' byte REALs and', &
-         intsize," byte INTEGERs"
+         INT_SIZE," byte INTEGERs"
       IF (myid == 0 .AND. len(info) > 0) PRINT *, ' '//trim(info)
 
    END SUBROUTINE init_mpi
@@ -333,7 +345,7 @@ CONTAINS
    !
    !----------------------------------------------------------------------
    ! INIT_ALLTOALL_REORDERXY: Defines the mpi derived types to do a data
-   ! movement of the form A(m,n/p,z) -> B(n,m/p,z) for data of type MY_CMPLX
+   ! movement of the form A(m,n/p,z) -> B(n,m/p,z) for data of type CMPLX_SIZE
    !
    SUBROUTINE init_alltoall_reorder(nxp,nyp,nzp)
 
@@ -386,7 +398,7 @@ CONTAINS
       nxnzp = nxnza(wryid)
       nynzp = nynza(wrxid)
 
-      CALL MPI_TYPE_SIZE(MY_CMPLX,typesize, ierr)
+      CALL MPI_TYPE_SIZE(CMPLX_SIZE,typesize, ierr)
 
       xcount = 1
       ycount = 1
@@ -404,37 +416,37 @@ CONTAINS
       END DO
 
       DO i = 0, nxprocs-1
-         CALL mpi_type_contiguous(nx*nynza(i),MY_CMPLX, xtype(i,1),ierr)
+         CALL mpi_type_contiguous(nx*nynza(i),CMPLX_SIZE, xtype(i,1),ierr)
          CALL mpi_type_commit(xtype(i,1),ierr)
-         CALL mpi_type_vector(nynzp, nxpa(i), nxg, MY_CMPLX, xtype(i,2),ierr)
+         CALL mpi_type_vector(nynzp, nxpa(i), nxg, CMPLX_SIZE, xtype(i,2),ierr)
          CALL mpi_type_commit(xtype(i,2),ierr)
       END DO
 
       DO i = 0, nyprocs-1
-         CALL mpi_type_contiguous(ny*nxnza(i),MY_CMPLX, ytype(i,1),ierr)
+         CALL mpi_type_contiguous(ny*nxnza(i),CMPLX_SIZE, ytype(i,1),ierr)
          CALL mpi_type_commit(ytype(i,1),ierr)
-         CALL mpi_type_vector(nxnzp, nypa(i), nyg, MY_CMPLX, ytype(i,2),ierr)
+         CALL mpi_type_vector(nxnzp, nypa(i), nyg, CMPLX_SIZE, ytype(i,2),ierr)
          CALL mpi_type_commit(ytype(i,2),ierr)
       END DO
 
-      CALL MPI_TYPE_VECTOR(nyp-4,nzp*2,nxp*nzp,MY_SIZE,stridetype,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,nzp*2,nxp*nzp,REAL_SIZE,stridetype,ierr)
       CALL MPI_TYPE_COMMIT(stridetype,ierr)
-      CALL MPI_TYPE_VECTOR(nyp-4,nzp*2,nxp*nzp,MY_SIZE,xstride,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,nzp*2,nxp*nzp,REAL_SIZE,xstride,ierr)
       CALL MPI_TYPE_COMMIT(xstride,ierr)
-      CALL MPI_TYPE_VECTOR(2,nzp*(nxp-4),nxp*nzp,MY_SIZE,ystride,ierr)
+      CALL MPI_TYPE_VECTOR(2,nzp*(nxp-4),nxp*nzp,REAL_SIZE,ystride,ierr)
       CALL MPI_TYPE_COMMIT(ystride,ierr)
-      CALL MPI_TYPE_VECTOR(2,2*nzp,nxp*nzp,MY_SIZE,xystride,ierr)
+      CALL MPI_TYPE_VECTOR(2,2*nzp,nxp*nzp,REAL_SIZE,xystride,ierr)
       CALL MPI_TYPE_COMMIT(xystride,ierr)
 
-      CALL MPI_TYPE_VECTOR(nyp-4,nxp-4,nxpg-4,MY_SIZE,fxytype,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,nxp-4,nxpg-4,REAL_SIZE,fxytype,ierr)
       CALL MPI_TYPE_COMMIT(fxytype,ierr)
 
-      CALL MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,(nxpg-4)*nzp,MY_SIZE,fxyztype,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,(nxpg-4)*nzp,REAL_SIZE,fxyztype,ierr)
       CALL MPI_TYPE_COMMIT(fxyztype,ierr)
 
-      CALL MPI_TYPE_VECTOR(nyp-4,nxp-4,nxp,MY_SIZE,xylarry,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,nxp-4,nxp,REAL_SIZE,xylarry,ierr)
       CALL MPI_TYPE_COMMIT(xylarry,ierr)
-      CALL MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,nxp*nzp,MY_SIZE,xyzlarry,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,nxp*nzp,REAL_SIZE,xyzlarry,ierr)
       CALL MPI_TYPE_COMMIT(xyzlarry,ierr)
 
    END SUBROUTINE init_alltoall_reorder
@@ -619,7 +631,71 @@ CONTAINS
          END IF
       END IF
 
-   END SUBROUTINE yshuffle
+    END SUBROUTINE yshuffle
+    
+    !
+    ! -------------------------------------------------------------------------
+    ! SUBROUTINE get_scalar_global_max_root
+    ! Get the global maximum across processes for a single scalar. The value is
+    ! stored only for the root process!
+    ! 
+    SUBROUTINE get_scalar_integer_global_max_root(lmax,gmax)
+      REAL, INTENT(in) :: lmax
+      REAL, INTENT(out) :: gmax
+      INTEGER :: ierr
+      gmax = 0.
+      CALL MPI_REDUCE(lmax,gmax,1,REAL_SIZE,MPI_MAX,    &
+                      mpiroot,MPI_COMM_WORLD,ierr    )      
+    END SUBROUTINE get_scalar_integer_global_max_root
+
+    !
+    ! --------------------------------------------------------------------
+    ! SUBROUTINE get_scalar_global_sum_root   
+    ! Get the sum across processes for a single float scalar. The value
+    ! is stored only for the root process!
+    SUBROUTINE get_scalar_float_global_sum_root(lsum,gsum)
+      REAL, INTENT(in) :: lsum
+      REAL, INTENT(out) :: gsum
+      INTEGER :: ierr
+      gsum = 0.
+      CALL MPI_REDUCE(lsum,gsum,1,REAL_SIZE,MPI_SUM,       &
+                      mpiroot,MPI_COMM_WORLD,ierr)
+    END SUBROUTINE get_scalar_float_global_sum_root
+    ! --------------------------------------
+    ! SAme for integer
+    SUBROUTINE get_scalar_integer_global_sum_root(lsum,gsum)
+      INTEGER, INTENT(in) :: lsum
+      INTEGER, INTENT(out) :: gsum
+      INTEGER :: ierr
+      gsum = 0
+      CALL MPI_REDUCE(lsum,gsum,1,INT_SIZE,MPI_SUM,        &
+                      mpiroot,MPI_COMM_WORLD,ierr)
+    END SUBROUTINE get_scalar_integer_global_sum_root
+    !
+    ! ------------------------------------------------------------------------
+    ! SUBROUTINE get_1d_global_sum_root(lsum,gsum)
+    ! Get the sum across all processes for a 1 dimensional float array. The values
+    ! are stored only for the root process
+    SUBROUTINE get_1d_float_global_sum_root(n,lsum,gsum)
+      INTEGER, INTENT(in) :: n
+      REAL, INTENT(in) :: lsum(n)
+      REAL, INTENT(out) :: gsum(n)
+      INTEGER :: ierr
+      gsum = 0.
+      CALL MPI_REDUCE(lsum,gsum,n,REAL_SIZE,MPI_SUM,      &
+                      mpiroot,MPI_COMM_WORLD,ierr)
+    END SUBROUTINE get_1d_float_global_sum_root
+    ! -------------------------------------------------
+    ! Same for integer
+    SUBROUTINE get_1d_integer_global_sum_root(n,lsum,gsum)
+      INTEGER, INTENT(in) :: n
+      INTEGER, INTENT(in) :: lsum(n)
+      INTEGER, INTENT(out) :: gsum(n)
+      INTEGER :: ierr
+      gsum = 0
+      CALL MPI_REDUCE(lsum,gsum,n,INT_SIZE,MPI_SUM,       &
+                      mpiroot,MPI_COMM_WORLD,ierr)
+    END SUBROUTINE get_1d_integer_global_sum_root
    !
    !---------------------------------------------------------------------------
    ! get maximum across processors

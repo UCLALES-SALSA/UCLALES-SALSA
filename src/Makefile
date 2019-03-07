@@ -25,8 +25,8 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa
 	  mo_seasalt_emission.f90 exceptionHandling.f90 mo_aerorad_lut.f90 mo_salsa_optical_properties.f90             \
 	  mo_particle_external_properties.f90 mo_ice_shape.f90 mo_structured_datatypes.f90 mo_aux_state.f90            \
 	  mo_diag_state.f90 mo_progn_state.f90 mo_vector_state.f90 mo_derived_state.f90 mo_derived_procedures.f90      \
-	  mo_ps_state.f90 mo_ps_procedures.f90 mo_field_state.f90 classFieldArray.f90 mo_output.f90 mo_history.f90     \
-	  mo_field_types.f90 mo_check_state.f90
+	  mo_ps_state.f90 mo_ps_procedures.f90 mo_ts_state.f90 mo_ts_procedures.f90 classFieldArray.f90 mo_output.f90  \
+	  mo_history.f90 mo_field_state.f90 mo_field_init.f90 mo_check_state.f90 mo_stats_finder.f90
 
 OBJS =	$(SRCSF90:.f90=.o) $(SRCSF77:.f=.o)
 
@@ -46,13 +46,13 @@ $(OUT): $(OBJS)
 # Dependencies
 # --------------------
 #
-LES.o: $(seqmpi:.f90=.o) grid.o init.o step.o mo_field_state.o mo_salsa_init.o \
+LES.o: $(seqmpi:.f90=.o) grid.o init.o step.o mo_salsa_init.o \
        util.o sgsm.o srfc.o nudg_defs.o emission_types.o init_warm_bubble.o    \
        forc.o radiation_main.o mcrp.o mo_output.o
 
 ncio.o: $(seqmpi:.f90=.o) classFieldArray.o
-mo_output.o: $(seqmpi:.f90=.o) ncio.o grid.o mo_field_types.o   \
-	     classFieldArray.o mo_structured_datatypes.o mo_submctl.o
+mo_output.o: $(seqmpi:.f90=.o) ncio.o grid.o classFieldArray.o mo_structured_datatypes.o  \
+	     mo_submctl.o mo_field_state.o
 mo_history.o: $(seqmpi:.f90=.o) grid.o nudg_defs.o mo_progn_state.o   \
 	      mo_vector_state.o mo_diag_state.o mo_aux_state.o
 
@@ -62,8 +62,8 @@ grid.o: $(seqmpi:.f90=.o) mo_submctl.o     \
 	classFieldArray.o mo_aux_state.o
 thrm.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_aux_state.o \
         grid.o defs.o $(seqmpi:.f90=.o)
-forc.o: grid.o mo_field_types.o mo_aux_state.o mo_diag_state.o mo_progn_state.o \
-        mo_vector_state.o util.o defs.o radiation_main.o nudg.o emission_main.o \
+forc.o: grid.o mo_aux_state.o mo_diag_state.o mo_progn_state.o mo_vector_state.o \
+	mo_field_state.o util.o defs.o radiation_main.o nudg.o emission_main.o \
 	mo_structured_datatypes.o $(seqmpi:.f90=.o)
 advf.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_vector_state.o   \
 	mo_aux_state.o grid.o util.o mo_submctl.o $(seqmpi:.f90=.o)	
@@ -79,38 +79,41 @@ mcrp.o: defs.o mo_aux_state.o mo_diag_state.o mo_progn_state.o grid.o  \
 	classProcessSwitch.o mo_structured_datatypes.o 
 step.o: mo_submctl.o util.o mo_structured_datatypes.o mo_aux_state.o                 \
 	mo_vector_state.o mo_progn_state.o mo_diag_state.o grid.o thrm.o mo_output.o \
-	mo_history.o mcrp.o grid.o mo_field_types.o sgsm.o srfc.o                    \
+	mo_history.o mcrp.o grid.o mo_field_state.o sgsm.o srfc.o                    \
 	prss.o advf.o advl.o forc.o util.o mo_salsa_driver.o constrain_SALSA.o       \
 	defs.o $(seqmpi:.f90=.o)
-init.o: grid.o mo_progn_state.o mo_vector_state.o mo_diag_state.o mo_aux_state.o   \
-	mo_field_types.o step.o sgsm.o thrm.o mo_salsa_driver.o mo_submctl.o       \
-	util.o nudg.o emission_init.o constrain_SALSA.o mo_structured_datatypes.o  \
-	mo_output.o mo_history.o defs.o mo_submctl.o init_warm_bubble.o            \
-	mo_salsa_sizedist.o mo_salsa_types.o ncio.o $(seqmpi:.f90=.o)
+init.o: grid.o mo_progn_state.o mo_vector_state.o mo_diag_state.o mo_derived_state.o \
+	mo_aux_state.o mo_ts_state.o mo_ps_state.o mo_field_state.o mo_field_init.o  \
+	step.o sgsm.o thrm.o mo_salsa_driver.o mo_submctl.o util.o nudg.o            \
+	emission_init.o constrain_SALSA.o mo_structured_datatypes.o mo_output.o      \
+	mo_history.o defs.o mo_submctl.o init_warm_bubble.o mo_salsa_sizedist.o      \
+	mo_salsa_types.o ncio.o mo_check_state.o $(seqmpi:.f90=.o)
 init_warm_bubble.o: defs.o grid.o mo_aux_state.o mo_progn_state.o mo_structured_datatypes.o
 nudg.o: mo_aux_state.o mo_diag_state.o mo_progn_state.o mo_vector_state.o grid.o mo_submctl.o nudg_defs.o util.o
 nudg_defs.o:
 
 mo_structured_datatypes.o:
 classFieldArray.o: mo_structured_datatypes.o
+mo_field_state.o: classFieldArray.o
+mo_field_init.o:  $(seqmpi:.f90=.o) mo_progn_state.o mo_diag_state.o mo_derived_state.o mo_vector_state.o \
+                  mo_aux_state.o mo_ts_state.o mo_ps_state.o mo_field_state.o mo_check_state.o grid.o
 mo_aux_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o
-mo_diag_state.o: classFieldArray.o mo_structured_datatypes.o util.o mo_check_state.o
-mo_progn_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o mo_check_state.o
-mo_vector_state.o: classFieldArray.o mo_structured_datatypes.o mo_check_state.o
-mo_derived_state.o: classFieldArray.o mo_structured_datatypes.o mo_derived_procedures.o mo_check_state.o
+mo_diag_state.o: classFieldArray.o mo_structured_datatypes.o util.o 
+mo_progn_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o 
+mo_vector_state.o: classFieldArray.o mo_structured_datatypes.o 
+mo_derived_state.o: classFieldArray.o mo_structured_datatypes.o mo_derived_procedures.o 
 mo_derived_procedures.o: mo_submctl.o util.o mo_particle_external_properties.o grid.o \
                          mo_progn_state.o mo_diag_state.o mo_structured_datatypes.o  
-mo_ps_state.o: classFieldArray.o mo_structured_datatypes.o mo_ps_procedures.o mo_check_state.o
-mo_ps_procedures.o: util.o mo_structured_datatypes.o grid.o mo_field_types.o
-mo_field_state.o: grid.o mo_diag_state.o mo_progn_state.o mo_vector_state.o     \
-	          mo_derived_state.o mo_ps_state.o mo_field_types.o classFieldArray.o
-mo_field_types.o: classFieldArray.o
+mo_ps_state.o: classFieldArray.o mo_structured_datatypes.o mo_ps_procedures.o 
+mo_ps_procedures.o: util.o mo_structured_datatypes.o grid.o mo_field_state.o
+mo_ts_state.o: classFieldArray.o mo_structured_datatypes.o mo_ts_procedures.o
+mo_ts_procedures.o: grid.o mo_stats_finder.o util.o mo_progn_state.o mo_diag_state.o mo_aux_state.o
 mo_check_state.o: $(seqmpi:.f90=.o) classFieldArray.o
-
+mo_stats_finder.o: mo_structured_datatypes.o mo_field_state.o
 
 constrain_SALSA.o: mo_progn_state.o mo_diag_state.o mo_aux_state.o mo_submctl.o nudg_defs.o \
-                   util.o mo_structured_datatypes.o grid.o mo_field_types.o                 \
-	           mo_derived_procedures.o
+                   util.o mo_structured_datatypes.o grid.o mo_derived_procedures.o          \
+	           mo_field_state.o
 mo_particle_external_properties.o: mo_submctl.o classSection.o util.o mo_ice_shape.o
 mo_ice_shape.o: mo_submctl.o
 

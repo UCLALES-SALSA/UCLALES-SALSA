@@ -2,7 +2,6 @@ MODULE mo_diag_state
   USE util, ONLY : Extend_last
   USE classFieldArray
   USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray2d, FloatArray3d, FloatArray4d
-  USE mo_check_state, ONLY : checkOutputs
   IMPLICIT NONE
 
   SAVE
@@ -469,9 +468,6 @@ MODULE mo_diag_state
                          ANY(outputlist == "condi"), pipeline)
       
       pipeline => NULL()
-
-      ! Check the user specified output variable list for bad entries
-      CALL checkOutputs(outputlist,Diag)
       
     END SUBROUTINE
         

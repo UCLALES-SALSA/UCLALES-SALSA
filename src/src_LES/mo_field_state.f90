@@ -1,49 +1,27 @@
-MODULE mo_field_state
-  USE grid, ONLY : memsize,varlist_main,varlist_ps,    &
-                   level,iradtyp,isgstyp,lbinanl,      &
-                   lsalsabbins,nzp,nxp,nyp,nscl,       &
-                   a_sclrp,a_sclrt
-  USE mo_diag_state, ONLY : setDiagnosticVariables
-  USE mo_progn_state, ONLY : setPrognosticVariables
-  USE mo_vector_state, ONLY : setVectorVariables
-  USE mo_derived_state, ONLY : setDerivedVariables
-  USE mo_ps_state, ONLY : setPSVariables
-  USE mo_field_types, ONLY : Prog, Vector, Diag, Derived,    &
-                             outProg, outVector, outDiag,    &
-                             outDerived, outPS, outTS, SALSA_tracers_4d
-  USE classFieldArray, ONLY : FieldArray
-  IMPLICIT NONE
+MODULE mo_field_state  
+  USE classFieldArray
+  IMPLICIT NONE  
+
+  SAVE
   
-  CONTAINS
+  ! Field arrays for organizing the prognostic and diagnostic variables and their attributes and output status
+  ! ------------------------------------------------------------------------------------------------------------
+  TYPE(FieldArray) :: Prog
+  TYPE(FieldArray) :: Diag
+  TYPE(FieldArray) :: Vector
+  ! ------------------------------------------------------------------------------------------------------------
+
+  ! Auxiliary FieldArray instances for pre-selected groups
+  TYPE(FieldArray) :: SALSA_tracers_4d  ! 4d SALSA tracers (size distributions and compositions)
+  TYPE(FieldArray) :: outProg           ! Contains variables from Prog assigned for output
+  TYPE(FieldArray) :: outVector         ! Same for Vector variables
+  TYPE(FieldArray) :: outDiag           ! Same for Diag
+
+  TYPE(FieldArray) :: Derived
+  TYPE(FieldArray) :: outDerived        ! Derived variables - only for output, the data is only calculated using method onDemand
+  TYPE(FieldArray) :: PS                ! 
+  TYPE(FieldArray) :: outPS             ! Variables for profile statistic outputs. Data is only calculated with onDemand
+  TYPE(FieldArray) :: TS
+  TYPE(FieldArray) :: outTS             ! Variables for timeseries outputs. Data only calculated with onDemand
   
-    SUBROUTINE initialize_FieldArrays()
-
-      ! Instantiate the field arrays
-      Prog = FieldArray()
-      Vector = FieldArray()
-      Diag = FieldArray()
-      Derived = FieldArray()
-      
-      IF (level >= 4) &
-           SALSA_tracers_4d = FieldArray()
-
-      CALL setPrognosticVariables(a_sclrp,a_sclrt,Prog,varlist_main,  &
-                                  level,isgstyp,lbinanl,nzp,nxp,nyp,nscl)
-      CALL setVectorVariables(Vector,varlist_main,nzp,nxp,nyp)
-      CALL setDiagnosticVariables(Diag,varlist_main,memsize,level,iradtyp,nzp,nxp,nyp)      
-      CALL setDerivedVariables(Derived,varlist_main,varlist_ps,lsalsabbins,level)
-
-      !  Create some subsets of the full FieldArrays. note that these are pointers, not copies!
-      IF (level >= 4) &
-           CALL Prog%getByGroup("SALSA_4d",SALSA_tracers_4d)      
-      CALL Prog%getByOutputstatus(outProg)
-      CALL Vector%getByOutputstatus(outVector)
-      CALL Diag%getByOutputstatus(outDiag)
-      CALL Derived%getByOutputstatus(outDerived)
-
-      CALL setPSVariables(outPS,varlist_ps,level)
-      CALL setTSVariables(outTS,varlist_ts,level)
-
-    END SUBROUTINE initialize_FieldArrays
-    
 END MODULE mo_field_state

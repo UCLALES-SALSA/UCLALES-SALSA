@@ -114,7 +114,7 @@ MODULE ncio
     SUBROUTINE define_nc(ncID,nRec,out_nvar,     &
                          outProg,outVector,      &
                          outDiag,outDerived,     &
-                         outPS,outAxes,          &
+                         outPS,outTS,outAxes,    &
                          n1,n2,n3,               &
                          inae_a,incld_a,         &
                          inprc,inae_b,           &
@@ -124,7 +124,7 @@ MODULE ncio
       INTEGER, INTENT(inout) :: nRec
       INTEGER, INTENT(out) :: out_nvar
       TYPE(FieldArray), OPTIONAL, INTENT(in) :: outProg, outDiag, outDerived, &  ! these should be the subsets of FieldArray instances,
-                                                outVector, outPS, outAxes        ! whose variables are marked as outputs, so the output
+                                                outVector, outPS, outTS, outAxes ! whose variables are marked as outputs, so the output
                                                                                  ! status does not have to be tested. New ones can be added
                                                                                  ! e.g. for statistical outputs
       INTEGER, OPTIONAL, INTENT (in) :: n1, n2, n3    
@@ -220,6 +220,8 @@ MODULE ncio
               CALL defvar_loop(ncID,outDerived,out_nvar)
          IF (PRESENT(outPS)) &
               CALL defvar_loop(ncID,outPS,out_nvar)
+         IF (PRESENT(outTS)) &
+              CALL defvar_loop(ncID,outTS,out_nvar)
          
          iret = nf90_enddef(ncID)
          iret = nf90_sync(ncID)
@@ -240,6 +242,8 @@ MODULE ncio
               out_nvar = out_nvar + outDerived%count
          IF (PRESENT(outPS)) &
               out_nvar = out_nvar + outPS%count
+         IF (PRESENT(outTS)) &
+              out_nvar = out_nvar + outTS%count
          
          iret = nf90_inquire(ncID, nVariables=n)
          IF (n /= out_nvar) THEN

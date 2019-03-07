@@ -105,8 +105,10 @@ MODULE grid
   ! but sine they don't contain any variable associated procedures, there is no risk for cyclic dependencies.
   TYPE(FieldArray) :: Axes              ! Contains the grid and size distribution axis vectors
   TYPE(FieldArray) :: AxesPS            ! All the axes that can be assigned to profile statistics files
+  TYPE(FieldArray) :: AxesTS            ! Same for timeseries output
   TYPE(FieldArray) :: outAxes           ! Subset from above assigned for output
   TYPE(FieldArray) :: outAxesPS         ! Subset from Axes assigned for ps-file output
+  TYPE(FieldArray) :: outAxesTS         ! Same for ts-files
   TYPE(FieldArray) :: BasicState        ! Basic state profiles (no particles)
   TYPE(FieldArray) :: outBasicState     ! Subset from above assigned for output
   
@@ -214,8 +216,10 @@ CONTAINS
       CALL setGridSpacings(Axes,lbinanl,lsalsabbins,level,nzp,nxp,nyp)
       CALL Axes%getByOutputstatus(outAxes)
       CALL Axes%getByGroup("ps",AxesPS)
-      CALL Axes%getByOutputstatus(outAxesPS)
-      
+      CALL Axes%getByGroup("ts",AxesTS)
+      CALL AxesPS%getByOutputstatus(outAxesPS)
+      CALL AxesTS%getByOutputstatus(outAxesTS)
+               
       nxyzp = nxp*nyp*nzp
       nxyp  = nxp*nyp
 

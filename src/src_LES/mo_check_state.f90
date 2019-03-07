@@ -1,4 +1,4 @@
-MODULE check_state
+MODULE mo_check_state
   USE mpi_interface, ONLY : appl_abort
   USE classFieldArray, ONLY : FieldArray
   IMPLICIT NONE
@@ -9,33 +9,34 @@ MODULE check_state
 
   CONTAINS
 
-    SUBROUTINE checkOutputs(user,field)
+    SUBROUTINE checkOutputs(N_given,exist,user,field)
+      INTEGER, INTENT(in) :: N_given
+      LOGICAL, INTENT(inout) :: exist(:)
       CHARACTER(len=*), INTENT(in) :: user(:)
       TYPE(FieldArray), INTENT(in) :: field
 
-      CHARACTER(len=50), ALLOCATABLE :: fieldvars
-      
+      CHARACTER(len=50), ALLOCATABLE :: fieldvars(:)
+
       INTEGER :: i
       
+      IF (SIZE(exist) /= SIZE(user)) THEN
+         WRITE(*,*) 'mo_check_state ERROR: the output logical mask should', &
+                    'be the same size as the input variable list'
+         CALL appl_abort(11)
+      END IF
+         
       ! get the list of variable names defined in the field array instance
       ALLOCATE(fieldvars(field%count))
       DO i = 1,field%count
-         fieldvars = field%list(i)%name
+         fieldvars(i) = field%list(i)%name
       END DO
-      
-      DO i = 1,SIZE(user)
-         IF ( ALL(user(i) /= fieldvars(:)) ) THEN
-            IF (breakUndefOutput) THEN
-               ! Write and error message and stop program
-               WRITE(*,*) 'ERROR: user defined outputlist contains variables which are currently undefined: ',user(i)
-               CALL appl_abort(0)
-            ELSE
-               ! WRite a warning
-               WRITE(*,*) 'WARNING: user defined outputlist contains variables which are currently undefined: ',user(i)
-            END IF               
-         END IF
+
+      DO i = 1,N_given
+            exist(i) = exist(i) .OR. ANY(user(i) == fieldvars(:))            
       END DO
+        
+      DEALLOCATE(fieldvars)
       
     END SUBROUTINE checkOutputs
   
-END MODULE check_state
+END MODULE mo_check_state

@@ -14,7 +14,7 @@ MODULE constrain_SALSA
 
    SUBROUTINE tend_constrain2
      USE grid, ONLY : dtlt
-     USE mo_field_types, ONLY : SALSA_tracers_4d
+     USE mo_field_state, ONLY : SALSA_tracers_4d
      IMPLICIT NONE
 
       TYPE(FloatArray4d), POINTER :: varp => NULL(),vart => NULL()

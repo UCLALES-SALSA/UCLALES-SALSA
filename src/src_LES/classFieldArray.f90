@@ -16,7 +16,7 @@ MODULE classFieldArray
       CHARACTER(len=100) :: long_name     ! Long name, mainly for output attributes
       CHARACTER(len=50)  :: unit          ! Unit of the variable, e.g. "kg/kg"; used mainly for output attributes
       CHARACTER(len=50)  :: dimension     ! String that gives the dimension environment for output (see ncio.f90)
-      CHARACTER(len=50)  :: group         ! A group tag that can be used to fetch a list of certain type variables
+      CHARACTER(len=50), ALLOCATABLE  :: group(:)         ! A group tag that can be used to fetch a list of certain type variables
       LOGICAL            :: outputstatus  ! TRUE: write this variable to an output file. FALSE: don't.
 
       ! Below are pointers to scalar variable arrays. In U-S, scalars have two definitions:
@@ -118,7 +118,7 @@ MODULE classFieldArray
       CLASS(*), INTENT(in), POINTER             :: in_p_data      ! Polymorphic pointer to data (values)
       CLASS(*), INTENT(in), POINTER, OPTIONAL   :: in_t_data      ! - '' - (tendencies)
       CLASS(*), INTENT(in), POINTER, OPTIONAL   :: in_c_data      ! - '' - (current; for vectors)
-      CHARACTER(len=*), INTENT(in), OPTIONAL    :: in_group
+      CHARACTER(len=*), INTENT(in), OPTIONAL    :: in_group(:)
 
       ArrayElement_constructor%name = in_name
       ArrayElement_constructor%long_name = in_long_name
@@ -127,8 +127,14 @@ MODULE classFieldArray
       ArrayElement_constructor%outputstatus = in_outputstatus
       ArrayElement_constructor%p => in_p_data
 
-      ArrayElement_constructor%group = "default"
-      IF (PRESENT(in_group)) ArrayElement_constructor%group = in_group
+      IF (PRESENT(in_group)) THEN
+         ALLOCATE(ArrayElement_constructor%group(SIZE(in_group)))
+         ArrayElement_constructor%group = in_group
+      ELSE
+         ! Set group as "default" if nothing given
+         ALLOCATE(ArrayElement_constructor%group(1))
+         ArrayElement_constructor%group = ['default']
+      END IF
       IF (PRESENT(in_t_data)) ArrayElement_constructor%t => in_t_data
       IF (PRESENT(in_c_data)) ArrayElement_constructor%c => in_c_data
       
@@ -170,7 +176,7 @@ MODULE classFieldArray
       CLASS(*), INTENT(in), POINTER            :: in_p_data   ! Polymorphic pointer to data (values)
       CLASS(*), INTENT(in), POINTER, OPTIONAL  :: in_t_data   ! - '' - (tendencies)
       CLASS(*), INTENT(in), POINTER, OPTIONAL  :: in_c_data   ! - '' - (current)
-      CHARACTER(len=*), INTENT(in), OPTIONAL   :: in_group
+      CHARACTER(len=*), INTENT(in), OPTIONAL   :: in_group(:)
  
       ! Extend the variable list allocation in FieldArray
       CALL SELF%Extend()
@@ -275,8 +281,10 @@ MODULE classFieldArray
      FAout = FieldArray()
      
      groupmask = .FALSE.
-     groupmask(:) = (SELF%list(:)%group == groupname)
-     
+     DO i = 1,SELF%count
+        groupmask(i) = (ANY(SELF%list(i)%group(:) == groupname))
+     END DO
+        
      FAout%count = COUNT(groupmask)
      IF (FAout%count > 0) THEN
         ALLOCATE(FAout%list(FAout%count))

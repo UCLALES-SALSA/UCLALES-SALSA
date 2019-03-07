@@ -23,7 +23,9 @@ MODULE init
    USE mo_progn_state
    USE mo_vector_state
    USE mo_diag_state
+   USE mo_derived_state
    USE mo_aux_state
+   USE mo_field_state, ONLY : Prog,Diag  ! Note if you import PS and TS you'll have a problem with namespace!
    USE mo_history, ONLY : read_hist, write_hist
    
    INTEGER, PARAMETER    :: nns = 1500
@@ -52,7 +54,7 @@ CONTAINS
       USE step, ONLY : time, outflg
       !USE stat, ONLY : init_stat, mcflg, acc_massbudged, salsa_b_bins
       USE sgsm, ONLY : tkeinit
-      USE mpi_interface, ONLY : appl_abort, myid
+      USE mpi_interface, ONLY : appl_abort, myid, mpiroot
       USE thrm, ONLY : thermo
       USE mo_salsa_driver, ONLY : run_SALSA
       USE mo_submctl, ONLY : in2b, fn2b, nlim, prlim, spec
@@ -61,15 +63,14 @@ CONTAINS
       USE emission_init, ONLY : init_emission
       USE constrain_SALSA, ONLY : SALSA_diagnostics
       USE mo_structured_datatypes
-      USE mo_output, ONLY : init_main, write_main, init_ps, write_ps
-      USE mo_field_types, ONLY : Diag, Prog
+      USE mo_output, ONLY : init_main, write_main, init_ps, init_ts, write_ps
       
       IMPLICIT NONE
 
       ! Local variables for SALSA basic state
       REAL    :: zwp(nzp,nxp,nyp)
       INTEGER :: n4
-   
+
       ! Set vertical velocity as 0.5 m/s to intialize cloud microphysical properties with
       ! SALSA
       zwp(:,:,:) = 0.5
@@ -152,11 +153,18 @@ CONTAINS
          IF (runtype == 'INITIAL') THEN
             CALL write_hist(1, time)
             CALL init_main(time)
-            CALL init_ps(time)
+            IF (myid == mpiroot) THEN
+               CALL init_ps(time)
+               CALL init_ts(time)
+            END IF
             CALL thermo(level)
             CALL write_main(time)
          ELSE
             CALL init_main(time+dtl)
+            IF (myid == mpiroot) THEN
+               CALL init_ps(time+dtl)
+               CALL init_ts(time+dtl)
+            END IF
             CALL write_hist(0, time)
          END IF
       END IF !outflg
@@ -1203,7 +1211,6 @@ CONTAINS
 
 
  END SUBROUTINE init_gas_tracers
-
 
 
  END MODULE init
