@@ -21,7 +21,7 @@ NPROCS=2          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=40              # Number of points in Y-direction (including "halo" points)
+NYP=5              # Number of points in Y-direction (including "halo" points)
 NZP=70              # Number of points in Z-direction
 DX=40.              # Resolution in X-direction (meters)
 DY=40.              # Resolution in Y-direction (meters)
@@ -271,13 +271,13 @@ cat > NAMELIST <<EOF
    bloIce%dlo       = 2.e-6    ! Lower limit of the smallest bin
    bloIce%vol_ratio = 3.        ! Volume ratio between bins
 
-   lsfreeRH%switch = .TRUE.
+   lsfreeRH%switch = .FALSE.
    lsfreeRH%delay = ${Tspinup}
    rhlim = 1.005          ! RH limit for SALSA during initialization and spinup
 
    isdtyp = 0
-   nspec_dry = 3
-   listspec = 'SO4','NO','NH','','','',''
+   nspec_dry = 1
+   listspec = 'SO4','','','','','',''
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
    volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
@@ -287,7 +287,7 @@ cat > NAMELIST <<EOF
    nA       = 2000., 3000., 1., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
-   volDistB = 0.2, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0
+   volDistB = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)
    sigmagB  = 1.2, 1.7, 1.6, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform) 
    dpgB     = 0.022, 0.12, 1.8, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers

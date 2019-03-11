@@ -5,9 +5,21 @@ MODULE mo_salsa_cloud
                            ica,icb,fca,fcb,            &
                            pi, pi6, grav, rg,          &
                            surfw0, cpa, mair
-    USE util, ONLY : cumlognorm
+    USE util, ONLY : cumlognorm, V2D, D2V
   IMPLICIT NONE
 
+
+  ! Som helpfull types for the activation calculation
+  TYPE lomidhi ! container for lower limit, bin center and high limit values
+     REAL :: lo, mid, hi
+  END TYPE lomidhi
+
+  TYPE integrParameters  ! Parameters for slope integration within current bin
+     REAL :: zs1,zs2,O1,O2  ! slope coefficients, origin values
+     REAL :: norm           ! normalization factor
+     REAL :: int1,int2      ! integration limits between vlo-vmid and vmid-vhi to account for transect of e.g. ambient S vs Scrit
+  END TYPE integrParameters
+  
   !*********************************************************
   !  MO_SALSA_CLOUD
   !*********************************************************
@@ -76,7 +88,8 @@ CONTAINS
     ! Interstitial activation
     ! -------------------------------------
     IF ( lsactiv%mode == 1 ) THEN
-       
+       ! POISTA
+       !CALL Activate(kproma,kbdim,klev,rv,rs,temp)
        CALL actInterst(kproma,kbdim,klev,rv,rs,temp)
        
     END IF
@@ -361,6 +374,488 @@ CONTAINS
 
   END SUBROUTINE ActCloudBase
 
+  ! ------------------------------------------------
+  SUBROUTINE Activate(kproma,kbdim,klev,prv,prs,temp)
+    USE classSection, ONLY : Section
+    
+    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    REAL, INTENT(in) :: prv(kbdim,klev), prs(kbdim,klev) ! Water vapor and saturation mixing ratios
+    REAL, INTENT(in) :: temp(kbdim,klev)                 ! Absolute temperature
+
+    ! Here basically all moist sizes are by diameter
+    REAL :: Nmid,Nim1,Nip1      ! Bin number concentration, current bin and adjacent bins
+    TYPE(lomidhi) :: Vi
+    TYPE(lomidhi) :: Dwi
+    TYPE(lomidhi) :: n_sol
+    REAL          :: n_insol
+    TYPE(lomidhi) :: V_insol
+    TYPE(lomidhi) :: Dp   
+    TYPE(lomidhi) :: Dpinsol
+    TYPE(lomidhi) :: Vim1
+    REAL          :: Dwim1
+    TYPE(lomidhi) :: Vip1
+    REAL          :: Dwip1
+    TYPE(lomidhi) :: kB
+    REAL          :: kA
+    TYPE(lomidhi) :: Dcrit
+    TYPE(lomidhi) :: Scrit
+    TYPE(lomidhi) :: Seq
+    REAL          :: Samb
+    
+    TYPE(integrParameters) :: Dwslope  ! Integration parameters for wet diameter profile
+    TYPE(integrParameters) :: Nslope   ! Integration parameters for number concentration profile
+    TYPE(integrParameters) :: Dcslope  ! Integration parameters for critical size
+    TYPE(integrParameters) :: Scslope  ! Integration parameters for critical supersaturation profile
+    TYPE(integrParameters) :: Seslope  ! Integration parameters for equilibrium supersaturation profile
+
+    REAL :: dNip1, dNim1, dNmid   ! Density function values for number in current and adjacent bins
+    REAL :: Nact
+    
+    INTEGER :: ii,jj,cb,ab,isol
+    LOGICAL :: intrange_pri(3)        ! Primary mask for positive integration ranges
+    LOGICAL :: intrange_sec(3)        ! Secondary mask
+    LOGICAL :: scond
+    
+    INTEGER :: iwa,ndry,nwet,indsol
+    REAL, PARAMETER :: THvol = 1.e-28 ! m^3, less than the volume of a 1 nm particle
+    REAL, PARAMETER :: maxdcrit = 5.e-6  ! Maximum critical diameter: particles with 10um diameter behave mostly like cloud droplets even though strictly speaking they might not be activated
+    
+    ! Consider activated particles as those with
+    ! Dp > D* and S_ambient > Seq  ; Primary condition
+    
+    iwa = spec%getIndex("H2O")
+    nwet = spec%getNSpec(type="wet")
+    ndry = spec%getNSpec(type="dry")
+    
+    DO jj = 1,klev
+       DO ii = 1,kproma
+          IF ( prv(ii,jj)/prs(ii,jj) <= 1.000 ) CYCLE  
+
+           ! Loop over cloud droplet (and aerosol) bins
+          DO cb = ica%cur, fcb%cur
+             IF (cb <= fca%cur) THEN
+                ! a-bins
+                ab = ica%par + (cb-ica%cur)
+             ELSE
+                ! b-bins
+                ab = icb%par + (cb-icb%cur)
+             END IF
+
+             IF ( aero(ii,jj,ab)%numc < aero(ii,jj,ab)%nlim) CYCLE    ! Must have a reasonable number of particles
+             IF ( aero(ii,jj,ab)%volc(iwa) < aero(ii,jj,ab)%numc*THvol ) CYCLE ! Must not be totally dry             
+             
+             ! Determine the moles of soluble and insoluble material per particle
+             n_sol%lo = 0.; n_sol%mid = 0.; n_sol%hi = 0.
+             n_insol = 0.
+             V_insol%lo = 0.; V_insol%mid = 0.; V_insol%hi = 0.
+             IF ( spec%Nsoluble >= 1 ) THEN ! If this isn't true, we should not be here in the first place...               
+                DO isol = 1,spec%Nsoluble
+                   indsol = spec%ind_soluble(isol)
+                   n_sol%mid = n_sol%mid +    &
+                        aero(ii,jj,ab)%volc(indsol) *  &
+                        spec%rholiq(indsol) *          &
+                        spec%diss(indsol)   /          &
+                        ( aero(ii,jj,ab)%numc*spec%MM(indsol) )
+                   n_sol%lo = n_sol%lo +   &
+                        aero(ii,jj,ab)%volc(indsol)*aero(ii,jj,ab)%vratiolo * &
+                        spec%rholiq(indsol) *          &
+                        spec%diss(indsol)   /          &
+                        ( aero(ii,jj,ab)%numc*spec%MM(indsol) )
+                   n_sol%hi = n_sol%hi +   &
+                        aero(ii,jj,ab)%volc(indsol)*aero(ii,jj,ab)%vratiohi * &
+                        spec%rholiq(indsol) *          &
+                        spec%diss(indsol)   /          &
+                        ( aero(ii,jj,ab)%numc*spec%MM(indsol) )                   
+                END DO
+             END IF
+             ! Determine the volume of the insoluble part
+             IF ( spec%Ninsoluble >= 1 ) THEN
+                DO isol = 1,spec%Ninsoluble
+                   indsol = spec%ind_insoluble(isol)
+                   V_insol%lo = V_insol%lo +   &
+                        aero(ii,jj,ab)%volc(indsol)*aero(ii,jj,ab)%vratiolo
+                   V_insol%mid = V_insol%mid +   &
+                        aero(ii,jj,ab)%volc(indsol)
+                   V_insol%hi = V_insol%hi +   &
+                        aero(ii,jj,ab)%volc(indsol)*aero(ii,jj,ab)%vratiohi
+                   !n_insol = n_insol +     &
+                   !     aero(ii,jj,ab)%volc(indsol) *    &
+                   !     spec%rholiq(indsol) *            & 
+                   !   ( aero(ii,jj,ab)%numc*spec%MM(indsol) )
+                END DO
+             END IF
+
+             ! Define some parameters; Note: for moist sizes the conversion from volume to diameter is done after all this!
+             Nmid = aero(ii,jj,ab)%numc                     ! Number concentration of the current bin
+             Dwi%mid = SUM(aero(ii,jj,ab)%volc(1:nwet))/Nmid  ! Wet volume of a particle at the current bin center
+             Vi%mid = SUM(aero(ii,jj,ab)%volc(1:ndry))/Nmid   ! Dry volume of a particle at the current bin center
+             Vi%lo = aero(ii,jj,ab)%vlolim                    ! Dry volume at low limit
+             Vi%hi = aero(ii,jj,ab)%vhilim                    ! Dry vol at high limit
+
+             ! POISTA TMS
+             IF (Vi%mid < Vi%lo .OR. Vi%mid > Vi%hi) &
+                  WRITE(*,*) 'ACTIVAATIO WARNING, KESKIKOHTA BININ ULKONA', Vi%mid, Vi%lo, Vi%hi, ab, cb
+                          
+             ! Number concentrations and volumes at adjacent bins (check for sizedistribution boundaries)
+             !---
+             ! 1. previous (smaller) bin
+             IF (ab == in1a .OR. ab == in2b) THEN  ! If the first bin of a regime; for this case the values for previous
+                                                   ! bins don't have much practical significance, as long as they are non-zero
+                Nim1 = aero(ii,jj,ab)%nlim   ! Number of previous
+                Vim1%mid = Vi%lo/2.                ! mid volume of previous
+                Vim1%lo = 0.                   ! low limit of previous
+                Vim1%hi = Vi%lo                  ! high limit of previous
+                Dwim1 = Vim1%mid                 ! Wet volume at previous
+             ELSE
+                Nim1 = aero(ii,jj,ab-1)%numc
+                IF (Nim1 > aero(ii,jj,ab-1)%nlim) THEN
+                   Vim1%mid = SUM(aero(ii,jj,ab-1)%volc(1:ndry))/Nim1
+                   Dwim1 = SUM(aero(ii,jj,ab-1)%volc(1:nwet))/Nim1
+                ELSE
+                   Vim1%mid = D2V(aero(ii,jj,ab-1)%dmid,pi6)
+                   Dwim1 = D2V(aero(ii,jj,ab-1)%dmid,pi6)
+                END IF
+                Vim1%lo = Vim1%mid*aero(ii,jj,ab-1)%vratiolo
+                Vim1%hi = Vim1%mid*aero(ii,jj,ab-1)%vratiohi
+             END IF
+             ! 2. next (larger) bin
+             IF (ab == fn2a .OR. ab == fn2b ) THEN ! If the last bin of a regime, do similar stuff to get info
+                                                   ! for the "next" bin as with the first bin
+                Nip1 = aero(ii,jj,ab)%nlim
+                Vip1%mid = Vi%hi + 0.5*(Vi%hi-Vi%lo)
+                Vip1%lo = Vi%hi
+                Vip1%hi = Vi%hi + (Vi%hi-Vi%lo)
+                Dwip1 = Vip1%mid
+             ELSE
+                Nip1 = aero(ii,jj,ab+1)%numc
+                IF (Nip1 > aero(ii,jj,ab+1)%nlim) THEN
+                   Vip1%mid = SUM(aero(ii,jj,ab+1)%volc(1:ndry))/Nip1
+                   Dwip1 = SUM(aero(ii,jj,ab+1)%volc(1:nwet))/Nip1
+                ELSE
+                   Vip1%mid = D2V(aero(ii,jj,ab+1)%dmid,pi6)
+                   Dwip1 = D2V(aero(ii,jj,ab+1)%dmid,pi6)
+                END IF
+                Vip1%lo = Vip1%mid*aero(ii,jj,ab+1)%vratiolo
+                Vip1%hi = Vip1%mid*aero(ii,jj,ab+1)%vratiohi
+             END IF
+             
+             ! Keeping things smooth...
+             Vip1%mid = MAX(Vi%hi,Vip1%mid)   ! The mid dry vol of next bin shall be at least equal to the high limit of current bin
+             Vim1%mid = MIN(Vi%lo,Vim1%mid)   ! similar for previous bin
+                          
+             ! Make conversion between vol ja diameters
+             Dwi = volDp(Dwi)  ! These were saved as volumes
+             Dwim1 = V2D(Dwim1,pi6)
+             Dwip1 = V2D(Dwip1,pi6)
+             Dp = volDp(Vi)
+             Dpinsol = volDp(V_insol)
+             
+             ! Ambient saturation ratio
+             Samb = prv(ii,jj)/prs(ii,jj)
+
+             ! Get the integration slopes for wet diameter and interpolate the values at current bin edges
+             CALL integrSlopes(Dwslope,Vim1%mid,Vi%mid,Vip1%mid,    &
+                               Dwim1,Dwi%mid,Dwip1                  ) 
+             CALL interpolateEdges(Dwslope,Vi,Dwi)
+
+             ! Get the integration slopes ready for number concentration profiles.
+             ! The intermediate integration boundaries and regions of positive contribution
+             ! are determined after this.
+             ! Start with getting density distribution values for number concentration
+             dNim1 = Nim1/(Vim1%hi-Vim1%lo)
+             dNip1 = Nip1/(Vip1%hi-Vip1%lo)
+             dNmid = Nmid/(Vi%hi-Vi%lo)
+             CALL integrSlopes(Nslope,Vim1%mid,Vi%mid,Vip1%mid,     &
+                               dNim1,dNmid,dNip1)
+             
+             ! Get the A and B terms of the Koehler equation
+             kA = koehlerA(temp(ii,jj))
+             kB = koehlerB(n_sol)
+
+             ! Equilibrium sat rat 
+             Seq = getSeq(kA,kB,Dwi,Dpinsol)
+             
+             ! Get the critical diameter
+             Dcrit = getDcrit(kA,kB,Dpinsol,maxdcrit)
+
+             ! Make critical size integration slopes
+             CALL integrSlopes(Dcslope,Vi%lo,Vi%mid,Vi%hi,    &
+                               Dcrit%lo, Dcrit%mid, Dcrit%hi  )
+             
+             ! Get the critical supersaturations; dunno if really needed here?
+             Scrit = getScrit(kA,kB,Dpinsol)
+
+             ! Primary integration mask
+             intrange_pri = [ ( Dwi%lo > Dcrit%lo .AND. Samb > Seq%lo ),    &
+                             ( Dwi%mid > Dcrit%mid .AND. Samb > Seq%mid ),  &
+                             ( Dwi%hi > Dcrit%hi .AND. Samb > Seq%hi )      ]
+
+             ! Secondary integration mask - do we need this?
+             intrange_sec = [ ( samb > Scrit%lo ),  &
+                             ( samb > Scrit%mid ),  &
+                             ( samb > Scrit%hi )    ]
+
+             ! Determine the intermediate integration limits from the possible transect between
+             ! the wet diameter and critical diameter profiles. These are only needed for the number
+             ! nubmer concentration profiles
+             Nslope%int1 = (Dwslope%O1 - Dcslope%O1)/(Dcslope%zs1 - Dwslope%zs1)
+             Nslope%int1 = MIN( MAX( Nslope%int1,Vi%lo ),Vi%mid )
+             Nslope%int2 = (Dwslope%O2 - Dcslope%O2)/(Dcslope%zs2 - Dwslope%zs2)
+             Nslope%int2 = MIN( MAX( Nslope%int2,Vi%mid ),Vi%hi )
+
+             ! Normalization factor (to account for the fact that Nmid is interpreted as
+             ! bin middle value although in reality it is for the entire bin)
+             Nslope%norm = intgN(Nslope%zs1,Nslope%O1,Vi%lo,Vi%mid) + intgN(Nslope%zs2,Nslope%O2,Vi%mid,Vi%hi)
+
+             CALL integrNact(Nslope,Vi,intrange_pri,Nmid,Nact)
+                                       
+             IF (ANY(intrange_pri .AND. .NOT. intrange_sec) .OR. .TRUE.) THEN
+             WRITE(*,*) '------------'
+             WRITE(*,*) 'TESTAA',ab,cb,Nmid,Nact
+             WRITE(*,*) 'PRIMARY', intrange_pri
+             WRITE(*,*) 'SECONDARY', intrange_sec
+             WRITE(*,*) 'koehler A', kA
+             WRITE(*,*) 'koehler B', kB
+             WRITE(*,*) 'Ddry lo mid hi', Dp
+             WRITE(*,*) 'Dinsol, lo mid hi',Dpinsol
+             WRITE(*,*) 'Dlo, Dmid, Dhi', Dwi
+             WRITE(*,*) 'Dcl, Dcm,  Dch', Dcrit
+             WRITE(*,*) 'S    ', Samb
+             WRITE(*,*) 'Scrit',Scrit
+             WRITE(*,*) 'Seq  ',Seq
+             
+             WRITE(*,*) 
+             END IF
+                                     
+          END DO
+             
+       END DO
+    END DO
+          
+  END SUBROUTINE Activate
+
+  FUNCTION getalpha1(zA,zB,zdpinsol)
+    ! Gets the alpha_1 parameter in Kokkola et al., 2008
+    REAL, INTENT(in) :: zA
+    TYPE(lomidhi), INTENT(in) :: zB
+    TYPE(lomidhi), INTENT(in) :: zdpinsol
+    TYPE(lomidhi) :: getalpha1
+    getalpha1%lo = SQRT(3.*zB%lo/zA)**3    
+    getalpha1%lo = 12.*SQRT(81.*zdpinsol%lo**6 + 12.*getalpha1%lo*zdpinsol%lo**3)
+    getalpha1%mid = SQRT(3.*zB%mid/zA)**3    
+    getalpha1%mid = 12.*SQRT(81.*zdpinsol%mid**6 + 12.*getalpha1%mid*zdpinsol%mid**3)
+    getalpha1%hi = SQRT(3.*zB%hi/zA)**3    
+    getalpha1%hi = 12.*SQRT(81.*zdpinsol%hi**6 + 12.*getalpha1%hi*zdpinsol%hi**3)    
+  END FUNCTION getalpha1
+
+  ! --------------------------------------
+  
+  FUNCTION getalpha2(zA,zB,zdpinsol)
+    ! Gets the alpha_2 parameter in Kokkola et al. 2008
+    REAL, INTENT(in) :: zA
+    TYPE(lomidhi), INTENT(in) :: zB
+    TYPE(lomidhi), INTENT(in) :: zdpinsol
+    TYPE(lomidhi) :: getalpha2
+    TYPE(lomidhi) :: a1
+    a1 = getalpha1(zA,zB,zdpinsol)
+    getalpha2%lo = SQRT(3.*zB%lo/zA)**3
+    getalpha2%lo = 12.*(108.*zdpinsol%lo**3 + 8.*getalpha2%lo + a1%lo)**(1./3.)
+    getalpha2%mid = SQRT(3.*zB%mid/zA)**3
+    getalpha2%mid = 12.*(108.*zdpinsol%mid**3 + 8.*getalpha2%mid + a1%mid)**(1./3.)    
+    getalpha2%hi = SQRT(3.*zB%hi/zA)**3
+    getalpha2%hi = 12.*(108.*zdpinsol%hi**3 + 8.*getalpha2%hi + a1%hi)**(1./3.)    
+  END FUNCTION getalpha2
+
+  ! --------------------------------------
+  
+  FUNCTION getScrit(zA,zB,zdpinsol)
+    ! Get the critical supersaturation, taking into account insoluble core
+    REAL, INTENT(in) :: zA
+    TYPE(lomidhi), INTENT(in) :: zB
+    TYPE(lomidhi), INTENT(in) :: zdpinsol
+    TYPE(lomidhi) :: getScrit
+    
+    REAL :: term1
+    TYPE(lomidhi) :: term2
+    TYPE(lomidhi) :: a2
+    a2 = getalpha2(zA,zB,zdpinsol)
+    term2%lo = 3.*zB%lo/zA; term2%mid = 3.*zB%mid/zA; term2%hi = 3.*zB%hi/zA
+    
+    term1 = gett1(a2%lo,term2%lo)
+    getScrit%lo = fsc(zA,zB%lo,term1,zdpinsol%lo)
+    term1 = gett1(a2%mid,term2%mid)
+    getScrit%mid = fsc(zA,zB%mid,term1,zdpinsol%mid)
+    term1 = gett1(a2%hi,term2%hi)
+    getScrit%hi = fsc(zA,zB%hi,term1,zdpinsol%hi)
+    
+    CONTAINS
+
+      FUNCTION gett1(ia2,it2)
+        REAL, INTENT(in) :: ia2,it2
+        REAL :: gett1
+        gett1 = (1./6.)*ia2 + (2./3.)*(it2/ia2) * SQRT(it2)/3.        
+      END FUNCTION gett1
+
+      FUNCTION fsc(ika,ikb,it1,idpi)
+        REAL, INTENT(in) :: ika,ikb,it1,idpi
+        REAL :: fsc
+        fsc = EXP( (ika/it1) + ikb/(it1**3 - idpi**3) )
+      END FUNCTION fsc
+      
+  END FUNCTION getScrit
+  
+  ! ----------------------------------
+
+  FUNCTION getDcrit(zA,zB,zdpinsol,maxd)
+    ! Get the critical diameter, taking into account insoluble core
+    REAL, INTENT(in) :: zA
+    TYPE(lomidhi), INTENT(in) :: zB
+    TYPE(lomidhi), INTENT(in) :: zdpinsol
+    REAL, INTENT(in) :: maxd
+    TYPE(lomidhi) :: getDcrit
+    TYPE(lomidhi) :: a2, term1
+    a2 = getalpha2(zA,zB,zdpinsol)
+    term1%lo = 3.*zB%lo/zA; term1%mid = 3.*zB%mid/zA; term1%hi = 3.*zB%hi/zA
+
+    getDcrit%lo = MIN(fdc(zA,zB%lo,term1%lo,a2%lo),maxd)
+    getDcrit%mid = MIN(fdc(zA,zB%mid,term1%mid,a2%mid),maxd)
+    getDcrit%hi = MIN(fdc(zA,zB%hi,term1%hi,a2%hi),maxd)
+        
+    CONTAINS
+        
+      FUNCTION fdc(ika,ikb,it1,ia2)
+        REAL, INTENT(in) :: ika,ikb,it1,ia2
+        REAL :: fdc
+        fdc = (1./6.)*ia2 + (2./3.)*(it1/ia2) + (1./3.)*SQRT(it1)
+      END FUNCTION fdc
+
+  END FUNCTION getDcrit
+
+  ! ----------------------------------
+  
+  FUNCTION getSeq(zA,zB,zdp,zdpinsol)
+    ! Gets equlibrium saturation ratio, taking into account insoluble core
+    REAL, INTENT(in) :: zA
+    TYPE(lomidhi), INTENT(in) :: zB
+    TYPE(lomidhi), INTENT(in) :: zdp,zdpinsol
+    TYPE(lomidhi) :: getSeq
+    getSeq%lo = fseq(zA,zB%lo,zdp%lo,zdpinsol%lo)
+    getSeq%mid = fseq(zA,zB%mid,zdp%mid,zdpinsol%mid)
+    getSeq%hi = fseq(zA,zB%hi,zdp%hi,zdpinsol%hi)
+
+    CONTAINS
+
+      FUNCTION fseq(ika,ikb,idp,idp0)
+        REAL, INTENT(in) :: ika,ikb,idp,idp0
+        REAL :: fseq
+        fseq = EXP( (ika/idp) - ikb/(idp**3-idp0**3) )        
+      END FUNCTION fseq
+      
+  END FUNCTION getSeq
+  
+  ! -----------------------------------
+  
+  FUNCTION volDp(vol) 
+    TYPE(lomidhi), INTENT(in) :: vol
+    TYPE(lomidhi) :: volDp
+    volDp%lo = V2D(vol%lo,pi6)
+    volDp%mid = V2D(vol%mid,pi6)
+    volDp%hi = V2D(vol%hi,pi6)
+  END FUNCTION volDp
+  
+  ! -----------------------------------
+
+  REAL FUNCTION koehlerA(ptemp)
+    REAL, INTENT(in) :: ptemp
+    koehlerA = 4.*spec%mwa*surfw0
+    koehlerA = koehlerA/(rg*ptemp*spec%rhowa)    
+  END FUNCTION koehlerA
+
+  ! -----------------------------------
+
+  FUNCTION koehlerB(nsol)
+    TYPE(lomidhi), INTENT(in) :: nsol
+    TYPE(lomidhi) :: koehlerB
+    koehlerB%lo = fkb(nsol%lo)
+    koehlerB%mid = fkb(nsol%mid)
+    koehlerB%hi = fkb(nsol%hi)
+    
+    CONTAINS
+
+      FUNCTION fkb(ins)
+        REAL, INTENT(in) :: ins
+        REAL :: fkb
+        fkb = 6.*ins*spec%mwa
+        fkb = fkb/(pi*spec%rhowa)
+      END FUNCTION fkb
+    
+  END FUNCTION koehlerB
+
+  ! -----------------------------------
+
+  SUBROUTINE integrSlopes(params,xm1,xmid,xp1,ym1,ymid,yp1 )
+    TYPE(integrParameters), INTENT(out) :: params ! Holds the parameters for integrating along the fitted slopes
+    REAL, INTENT(in) :: xm1,xmid,xp1  ! The "x axis" is generally the dry volume. m1 and p1 can be either adjacent bin centers or current bin edges
+    REAL, INTENT(in) :: ym1,ymid,yp1  ! the "y axis" is the fitted value, e.g. wet size, D*, S* etc
+    
+    ! First, make linear slopes between the current and adjacent bin centers,
+    params%zs1 = (ymid - MAX(ym1,0.))/(xmid - xm1) ! Linear slope from previous to current
+    params%zs2 = (MAX(yp1,0.) - ymid)/(xp1 - xmid) ! same from current to next
+    
+    ! Get the origin values for the straights
+    params%O1 = ymid - params%zs1*xmid
+    params%O2 = ymid - params%zs2*xmid
+  END SUBROUTINE integrSlopes
+
+  ! ------------------------------------
+
+  SUBROUTINE interpolateEdges(params,xx,yy)
+    TYPE(integrParameters), INTENT(in) :: params 
+    TYPE(lomidhi), INTENT(in)      :: xx     ! "x axis" parameters, typically dry volume
+    TYPE(lomidhi), INTENT(inout)   :: yy     ! "y axis" parameters, e.g. wet volume.
+                                             ! The edge values of yy are updated. Note that
+                                             ! "inout" is necessary since the bin mid value
+                                             ! might already be defined and we dont want to overwrite
+    yy%lo = MAX(params%O1 + params%zs1*xx%lo, 0.)
+    yy%hi = MAX(params%O2 + params%zs2*xx%hi, 0.)
+  END SUBROUTINE interpolateEdges
+  
+  ! ----------------------------------------------
+
+  SUBROUTINE integrNact(params,Vi,intrange,Nmid,Nact)
+    TYPE(integrParameters), INTENT(in) :: params ! Integration params
+    TYPE(lomidhi), INTENT(in) :: Vi              ! Dry volumes
+    LOGICAL, INTENT(in) :: intrange(3)           ! Mask for ranges of positive contribution within bin
+    REAL, INTENT(in) :: Nmid                     ! Bin number concentration
+    REAL, INTENT(out) :: Nact                    ! Number of activated
+
+    Nact = 0.
+    Nact = Nact +    &
+         MERGE( (Nmid/params%norm)*intgN(params%zs1,params%O1,Vi%lo,Vi%mid), 0.,  &
+                ALL(intrange(1:2))                                                )
+    Nact = Nact +    &
+         MERGE( (Nmid/params%norm)*intgN(params%zs1,params%O1,Vi%lo,params%int1), 0.,  &
+                intrange(1) .AND. .NOT. intrange(2)                                    )
+    Nact = Nact +    &
+         MERGE( (Nmid/params%norm)*intgN(params%zs1,params%O1,params%int1,Vi%mid), 0.,  &
+                intrange(2) .AND. .NOT. intrange(1) )
+    Nact = Nact +    &
+         MERGE( (Nmid/params%norm)*intgN(params%zs2,params%O2,Vi%mid,Vi%hi), 0.,  &
+                ALL(intrange(2:3))                                                )
+    Nact = Nact +    &
+         MERGE( (Nmid/params%norm)*intgN(params%zs2,params%O2,Vi%mid,params%int2), 0.,  &
+                intrange(2) .AND. .NOT. intrange(3) )
+    Nact = Nact +    &
+         MERGE( (Nmid/params%norm)*intgN(params%zs2,params%O2,params%int2,Vi%hi), 0.,  &
+                intrange(3) .AND. .NOT. intrange(2) ) 
+    
+    
+  END SUBROUTINE integrNact
+
+  
+  
+  ! -------------------------------------------------
+  
   SUBROUTINE actInterst(kproma,kbdim,klev,prv,prs,temp)
     !
     ! Activate interstitial aerosols if they've reached their critical size
@@ -427,6 +922,10 @@ CONTAINS
     DO jj = 1, klev
        DO ii = 1, kbdim
           IF ( prv(ii,jj)/prs(ii,jj) <= 1.000 ) CYCLE  
+
+          ! POISTA
+          !aero(ii,jj,6)%numc = 0.
+          !aero(ii,jj,6)%volc = 0.
           
           zkelvin = 4.*spec%mwa*surfw0/(rg*spec%rhowa*temp(ii,jj)) ! Kelvin effect [m]
             
@@ -469,18 +968,27 @@ CONTAINS
              
              ! Define some parameters
              Nmid = aero(ii,jj,ab)%numc                     ! Number concentration at the current bin center
-             Vwmid = SUM(aero(ii,jj,ab)%volc(1:nwet))/Nmid  ! Wet volume at the current bin center
-             Vmid = SUM(aero(ii,jj,ab)%volc(1:ndry))/Nmid   ! Dry volume at the current bin center
+             Vwmid = SUM(aero(ii,jj,ab)%volc(1:nwet))/Nmid  ! Wet volume of a particle at the current bin center
+             Vmid = SUM(aero(ii,jj,ab)%volc(1:ndry))/Nmid   ! Dry volume of a particle at the current bin center
              Vlo = Vmid*aero(ii,jj,ab)%vratiolo             ! Dry vol at low limit
              Vhi = Vmid*aero(ii,jj,ab)%vratiohi             ! Dry vol at high limit
+
+             !WRITE(*,*) 'TESTING'
+             !WRITE(*,*) ab, vlo, aero(ii,jj,ab)%vlolim
+             !WRITE(*,*) ab, vhi, aero(ii,jj,ab)%vhilim
+             !write(*,*) '----'
+             !WRITE(*,*) ''
              
              ! Number concentrations and volumes at adjacent bins (check for sizedistribution boundaries)
-             IF (ab == in1a .OR. ab == in2b) THEN
-                Nim1 = aero(ii,jj,ab)%nlim
-                Vim1 = Vlo/2.
-                Vlom1 = 0.
-                Vhim1 = Vlo
-                Vwim1 = Vwmid/3.
+             !---
+             ! 1. previous (smaller) bin
+             IF (ab == in1a .OR. ab == in2b) THEN  ! If the first bin of a regime; for this case the values for previous
+                                                   ! bins don't have much practical significance, as long as they are non-zero
+                Nim1 = aero(ii,jj,ab)%nlim   ! Number of previous
+                Vim1 = Vlo/2.                ! mid volume of previous
+                Vlom1 = 0.                   ! low limit of previous
+                Vhim1 = Vlo                  ! high limit of previous
+                Vwim1 = Vim1 ! Vwmid/3.!Vim1                 ! Wet volume at previous
              ELSE
                 Nim1 = aero(ii,jj,ab-1)%numc
                 IF (Nim1 > aero(ii,jj,ab-1)%nlim) THEN
@@ -493,12 +1001,14 @@ CONTAINS
                 Vlom1 = Vim1*aero(ii,jj,ab-1)%vratiolo
                 Vhim1 = Vim1*aero(ii,jj,ab-1)%vratiohi
              END IF
-             IF (ab == fn2a .OR. ab == fn2b ) THEN
+             ! 2. next (larger) bin
+             IF (ab == fn2a .OR. ab == fn2b ) THEN ! If the last bin of a regime, do similar stuff to get info
+                                                   ! for the "next" bin as with the first bin
                 Nip1 = aero(ii,jj,ab)%nlim
                 Vip1 = Vhi + 0.5*(Vhi-Vlo)
                 Vlop1 = Vhi
                 Vhip1 = Vhi + (Vhi-Vlo)
-                Vwip1 = Vhip1
+                Vwip1 = Vip1 !Vhip1 !Vip1
              ELSE
                 Nip1 = aero(ii,jj,ab+1)%numc
                 IF (Nip1 > aero(ii,jj,ab+1)%nlim) THEN
@@ -513,21 +1023,33 @@ CONTAINS
              END IF
              
              ! Keeping things smooth...
-             Vip1 = MAX(Vhi,Vip1)
-             Vim1 = MIN(Vlo,Vim1)
+             Vip1 = MAX(Vhi,Vip1)   ! The mid dry vol of next bin shall be at least equal to the high limit of current bin
+             Vim1 = MIN(Vlo,Vim1)   ! similar for previous bin
+
+
+             ! First, make linear slopes for wet volume between the current and adjacent bin centers, from which
+             ! the wet volumes at the current bin edge are interpolated
+
+             zs1 = (Vwmid - MAX(Vwim1,0.))/(Vmid - Vim1) ! Linear slope from previous to current
+             zs2 = (MAX(Vwip1,0.) - Vwmid)/(Vip1 - Vmid) ! same from current to next
              
-             ! First, make profiles of particle wet radius in
-             ! order to determine the integration boundaries
-             zs1 = (Vwmid - MAX(Vwim1,0.))/(Vmid - Vim1)
-             zs2 = (MAX(Vwip1,0.) - Vwmid)/(Vip1 - Vmid)
-             
-             ! Get the origin values for slope equations
+             ! Get the origin values for the straights
              V01 = Vwmid - zs1*Vmid
              V02 = Vwmid - zs2*Vmid
              
              ! Get the wet sizes at bins edges
-             Vwlo = MAX(V01 + zs1*Vlo, 0.)
-             Vwhi = MAX(V02 + zs2*Vhi, 0.)
+             Vwlo = MAX(V01 + zs1*Vlo, Vlo)
+             Vwhi = MAX(V02 + zs2*Vhi, Vhi)
+
+            ! IF (ab == 5) THEN
+            !    WRITE(*,*) 'ACTIV', ab
+            !    WRITE(*,*) Nmid, Nip1
+            !    WRITE(*,*) Vmid, Vwmid
+            !    WRITE(*,*) Vhi, Vwhi
+            !    WRITE(*,*) Vip1, Vwip1
+            !    WRITE(*,*)
+            ! END IF
+
              
              ! Find out dry vol integration boundaries based on *zvcstar*:
              IF ( zvcstar < Vwlo .AND. zvcstar < Vwmid .AND. zvcstar < Vwhi ) THEN
