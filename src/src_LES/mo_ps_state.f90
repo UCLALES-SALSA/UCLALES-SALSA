@@ -37,8 +37,8 @@ MODULE mo_ps_state
   
   
   TYPE(FloatArray1d), TARGET :: ps_theta, ps_temp, ps_press,     &
-                                ps_rp, ps_rc, ps_rr, ps_ri,      &
-                                ps_riri, ps_Naa, ps_Nab,         &
+                                ps_rp, ps_rc, ps_srp, ps_rpp,    &
+                                ps_ri, ps_riri, ps_Naa, ps_Nab,  &
                                 ps_Nca, ps_Ncb, ps_Np, ps_Ni,    &
                                 ps_RH, ps_rsl, ps_RHI, ps_rsi,   &
 
@@ -103,12 +103,23 @@ MODULE mo_ps_state
       CALL PS%newField("rc", "Cloud water mixing ratio", "kg/kg", "ztt",   &
                        ANY(outputlist == "rc"), pipeline)
 
-      pipeline => NULL()
-      ps_rr = FloatArray1d()
-      ps_rr%onDemand => globalAvgProfile
-      pipeline => ps_rr
-      CALL PS%newField("rr", "Precipitation mixing ratio", "kg/kg", "ztt",   &
-                       ANY(outputlist == "rr"), pipeline)
+      IF (level < 4) THEN
+         pipeline => NULL()
+         ps_rpp = FloatArray1d()
+         ps_rpp%onDemand => globalAvgProfile
+         pipeline => ps_rpp
+         CALL PS%newField("rpp", "Precipitation mixing ratio", "kg/kg", "ztt",   &
+              ANY(outputlist == "rpp"), pipeline)
+      END IF
+      
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         ps_srp = FloatArray1d()
+         ps_srp%onDemand => globalAvgProfile
+         pipeline => ps_srp
+         CALL PS%newField("srp", "Precipitation mixing ratio", "kg/kg", "ztt",   &
+              ANY(outputlist == "srp"), pipeline)
+      END IF
          
       IF (level == 5) THEN
          pipeline => NULL()

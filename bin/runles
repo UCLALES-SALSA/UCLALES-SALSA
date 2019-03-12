@@ -21,7 +21,7 @@ NPROCS=2          # Number of processors (for IsSeq==0)
 TWALL=8:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=5              # Number of points in Y-direction (including "halo" points)
+NYP=40              # Number of points in Y-direction (including "halo" points)
 NZP=70              # Number of points in Z-direction
 DX=40.              # Resolution in X-direction (meters)
 DY=40.              # Resolution in Y-direction (meters)
@@ -110,7 +110,7 @@ cat > NAMELIST <<EOF
   main_intvl = 5.
   varlist_main = 'temp','rp','rc','srp','theta','wwind','ri','riri',
                  'rh','rhi','Naba','Ncba','Npba','Niba'
-  varlist_ps = 'temp','theta'
+  varlist_ps = 'temp','theta','srp'
   varlist_ts = 'lwp_bar','cfrac'
 /
 
@@ -271,7 +271,7 @@ cat > NAMELIST <<EOF
    bloIce%dlo       = 2.e-6    ! Lower limit of the smallest bin
    bloIce%vol_ratio = 3.        ! Volume ratio between bins
 
-   lsfreeRH%switch = .FALSE.
+   lsfreeRH%switch = .TRUE.
    lsfreeRH%delay = ${Tspinup}
    rhlim = 1.005          ! RH limit for SALSA during initialization and spinup
 
