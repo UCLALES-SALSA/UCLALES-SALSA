@@ -100,16 +100,14 @@ CONTAINS
          CASE (8)
             nbytes = 8
             REAL_SIZE = MPI_DOUBLE_PRECISION
-            CMPLX_SIZE = MPI_doUBLE_COMPLEX
+            CMPLX_SIZE = MPI_DOUBLE_COMPLEX
          CASE DEFAULT
             STOP "kind not supported"
       END SELECT
 
       SELECT CASE(kind(0))
          CASE (4)
-            INT_SIZE= 4
-         CASE (8)
-            INT_SIZE = 8
+            INT_SIZE = MPI_INTEGER
          CASE DEFAULT
             STOP "int kind not supported"
       END SELECT

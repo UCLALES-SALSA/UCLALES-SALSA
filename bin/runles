@@ -72,12 +72,12 @@ cat > NAMELIST <<EOF
   dtlong = ${DT}              ! Max. timestep
   distim = 100.               ! Timescale for the dissipation in sponge layer
   timmax = ${Texp}            ! Length of the simulation
-  runtype = "INITIAL"         ! INITIAL or HISTORY (restart) run
+  runtype = "HISTORY"         ! INITIAL or HISTORY (restart) run
   CCN = 50.e6                ! 
   corflg = .false.            ! Apply coriolis force
   prndtl = -0.3333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
-  hfilin = '${EXPNAME}.000020s' ! History file name
+  hfilin = '${EXPNAME}.000040s' ! History file name
   frqhis = 40.
   lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
   lsalsabbins = .FALSE.  
@@ -108,7 +108,7 @@ cat > NAMELIST <<EOF
   ps_intvl = 5.
   ts_intvl = 5.
   main_intvl = 5.
-  varlist_main = !'temp','rp','rc','srp','theta','wwind','ri','riri',
+  varlist_main = 'temp','rp','rc','srp','theta','wwind','ri','riri',
                  !'rh','rhi','Naba','Ncba','Npba','Niba'
   varlist_ps = !'temp','theta'
   varlist_ts = !'lwp_bar','cfrac'

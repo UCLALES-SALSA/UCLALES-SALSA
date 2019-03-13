@@ -29,6 +29,9 @@ MODULE mo_history
       CHARACTER(len=20), PARAMETER :: name = "write_hist"
       
       CHARACTER (len=80) :: hname
+      INTEGER :: ichar
+
+      TYPE(mpi_file_parameters) :: fhist
       
       INTEGER :: n, iblank,nn
       INTEGER :: globalInts(4)  ! just to reduce the number of separate mpi write calls
@@ -39,19 +42,11 @@ MODULE mo_history
       !
       ! create and open a new output file.
       !
-      hname = trim(hname)//'.'//trim(filprf)
-      
-      SELECT CASE(htype)
-      CASE DEFAULT
-         hname = trim(hname)//'.iflg'
-      CASE(0)
-         hname = trim(hname)//'.R'
-      CASE(1)
-         hname = trim(hname)//'.rst'
-      CASE(2)
-         iblank=index(hname,' ')
-         WRITE(hname(iblank:iblank+7),'(a1,i6.6,a1)') '.', int(time), 's'
-      END SELECT
+
+      hname = trim(filprf)
+      ichar = LEN(TRIM(hname))
+      WRITE(hname(ichar+1:ichar+12),'(a1,i6.6,a1,a1,a3)')  &
+           '.',int(time),'s','.','rst'
       !
       ! Write fields
       !
@@ -65,77 +60,77 @@ MODULE mo_history
       nudgetypes = [ndg_theta%nudgetype,ndg_rv%nudgetype,ndg_u%nudgetype,   &
                     ndg_v%nudgetype,ndg_aero%nudgetype]
       
-      CALL create_mpi_hist(trim(hname))
+      CALL create_mpi_hist(trim(hname),fhist)
 
       ! These values are identical for all processes -> write only from root
-      CALL write_hist_mpi(4,globalInts,onlyroot=.TRUE.)
-      CALL write_hist_mpi(5,globalFloats,onlyroot=.TRUE.)
+      CALL write_hist_mpi(4,globalInts,.TRUE.,fhist)
+      CALL write_hist_mpi(5,globalFloats,.TRUE.,fhist)
 
-      CALL write_hist_mpi(5,nudgetypes,onlyroot=.TRUE.)
+      CALL write_hist_mpi(5,nudgetypes,.TRUE.,fhist)
 
       ! Process specific parameters
-      CALL write_hist_mpi(3,localInts,onlyroot=.FALSE.)
-      CALL write_hist_mpi(5,localFloats,onlyroot=.FALSE.)
+      CALL write_hist_mpi(3,localInts,.FALSE.,fhist)
+      CALL write_hist_mpi(5,localFloats,.FALSE.,fhist)
       
       ! Basic state arrays - identical for all processses -> write only from root
-      CALL write_hist_mpi(nzp,dn0%d,onlyroot=.TRUE.)
-      CALL write_hist_mpi(nzp,th0%d,onlyroot=.TRUE.)
-      CALL write_hist_mpi(nzp,u0%d,onlyroot=.TRUE.)
-      CALL write_hist_mpi(nzp,v0%d,onlyroot=.TRUE.)
-      CALL write_hist_mpi(nzp,pi0%d,onlyroot=.TRUE.)
-      CALL write_hist_mpi(nzp,pi1%d,onlyroot=.TRUE.)
-      CALL write_hist_mpi(nzp,rt0%d,onlyroot=.TRUE.)
+      CALL write_hist_mpi(nzp,dn0%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nzp,th0%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nzp,u0%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nzp,v0%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nzp,pi0%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nzp,pi1%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nzp,rt0%d,.TRUE.,fhist)
       
       ! Grid displacements
-      CALL write_hist_mpi(nxp,xt%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nxp,xm%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nyp,yt%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nyp,ym%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nzp,zm%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nzp,zt%d,onlyroot=.FALSE.)
+      CALL write_hist_mpi(nxp,xt%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nxp,xm%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nyp,yt%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nyp,ym%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nzp,zm%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nzp,zt%d,.FALSE.,fhist)
 
       ! 2d fields
-      CALL write_hist_mpi(nxp,nyp,a_ustar%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nxp,nyp,a_tstar%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nxp,nyp,a_rstar%d,onlyroot=.FALSE.)
+      CALL write_hist_mpi(nxp,nyp,a_ustar%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_tstar%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_rstar%d,.FALSE.,fhist)
 
       ! 3d fields
-      CALL write_hist_mpi(nzp,nxp,nyp,a_pexnr%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nzp,nxp,nyp,a_press%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nzp,nxp,nyp,a_theta%d,onlyroot=.FALSE.)
+      CALL write_hist_mpi(nzp,nxp,nyp,a_pexnr%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nzp,nxp,nyp,a_press%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nzp,nxp,nyp,a_theta%d,.FALSE.,fhist)
 
-      CALL write_hist_mpi(nzp,nxp,nyp,a_up%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nzp,nxp,nyp,a_vp%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nzp,nxp,nyp,a_wp%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nzp,nxp,nyp,a_uc%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nzp,nxp,nyp,a_vc%d,onlyroot=.FALSE.)
-      CALL write_hist_mpi(nzp,nxp,nyp,a_wc%d,onlyroot=.FALSE.)
+      CALL write_hist_mpi(nzp,nxp,nyp,a_up%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nzp,nxp,nyp,a_vp%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nzp,nxp,nyp,a_wp%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nzp,nxp,nyp,a_uc%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nzp,nxp,nyp,a_vc%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nzp,nxp,nyp,a_wc%d,.FALSE.,fhist)
 
       ! Prognostic scalars
       DO n = 1, nscl
          CALL newsclr(n)  
-         CALL write_hist_mpi(nzp,nxp,nyp,a_sp,onlyroot=.FALSE.)
+         CALL write_hist_mpi(nzp,nxp,nyp,a_sp,.FALSE.,fhist)
       END DO
 
       IF (ndg_theta%nudgetype > 0)  &          
-           CALL write_hist_mpi(nzp,theta_ref,onlyroot=.FALSE.)
+           CALL write_hist_mpi(nzp,theta_ref,.FALSE.,fhist)
       
       IF (ndg_rv%nudgetype > 0)  &
-           CALL write_hist_mpi(nzp,rv_ref,onlyroot=.FALSE.)
+           CALL write_hist_mpi(nzp,rv_ref,.FALSE.,fhist)
       
       IF (ndg_u%nudgetype > 0)  &
-           CALL write_hist_mpi(nzp,u_ref,onlyroot=.FALSE.)
+           CALL write_hist_mpi(nzp,u_ref,.FALSE.,fhist)
       
       IF (ndg_v%nudgetype > 0)  &
-           CALL write_hist_mpi(nzp,v_ref,onlyroot=.FALSE.)
+           CALL write_hist_mpi(nzp,v_ref,.FALSE.,fhist)
       
       ! AEROSOL NUDGE REF MISSING FOR NOW !!!!
       
-      IF ( ASSOCIATED(a_rv%d)   ) CALL write_hist_mpi(nzp,nxp,nyp,a_rv%d,onlyroot=.FALSE.)
-      IF ( ASSOCIATED(a_rc%d)   ) CALL write_hist_mpi(nzp,nxp,nyp,a_rc%d,onlyroot=.FALSE.)
-      IF ( ASSOCIATED(a_rflx%d) ) CALL write_hist_mpi(nzp,nxp,nyp,a_rflx%d,onlyroot=.FALSE.)
+      IF ( ASSOCIATED(a_rv%d)   ) CALL write_hist_mpi(nzp,nxp,nyp,a_rv%d,.FALSE.,fhist)
+      IF ( ASSOCIATED(a_rc%d)   ) CALL write_hist_mpi(nzp,nxp,nyp,a_rc%d,.FALSE.,fhist)
+      IF ( ASSOCIATED(a_rflx%d) ) CALL write_hist_mpi(nzp,nxp,nyp,a_rflx%d,.FALSE.,fhist)
 
-      CALL close_mpi_hist()
+      CALL close_mpi_hist(fhist)
       
       IF (myid == 0 .AND. htype < 0) THEN
          PRINT *, 'CFL Violation'
@@ -163,17 +158,25 @@ MODULE mo_history
       LOGICAL :: exans
       REAL    :: umx, vmx, thx
       INTEGER :: nn, nnbins
+
+      TYPE(mpi_file_parameters) :: fhist
+      
       INTEGER :: globalInts(4)  ! just to reduce the number of separate mpi write calls
       REAL    :: globalFloats(5)
       INTEGER :: localInts(3)
       REAL    :: localFloats(5)
       INTEGER :: nudgetypes(5)
 
+      globalInts = 0
+      globalFloats = 0.
+      localInts = 0
+      localFloats = 0.
+      nudgetypes = 0
+      
       !
       ! open input file.
       !
-      
-      hname = trim(hname)//'.'//trim(hfilin)
+      hname = trim(hfilin)//'.rst'
       
       inquire(file=trim(hname),exist=exans)
       IF (.NOT. exans) THEN
@@ -186,14 +189,14 @@ MODULE mo_history
          ! those variables afterwards. All reading should take place in exactly the same
          ! order as they were written.
          
-         CALL open_mpi_hist(trim(hname))
+         CALL open_mpi_hist(trim(hname),fhist)
 
          ! Some parameters.
-         CALL read_hist_mpi(4,globalInts,onlyroot=.TRUE.)
-         CALL read_hist_mpi(5,globalFLoats,onlyroot=.TRUE.)
-         CALL read_hist_mpi(5,nudgetypes,onlyroot=.TRUE.)
-         CALL read_hist_mpi(3,localInts,onlyroot=.FALSE.)
-         CALL read_hist_mpi(5,localFloats,onlyroot=.FALSE.)
+         CALL read_hist_mpi(4,globalInts,.TRUE.,fhist)
+         CALL read_hist_mpi(5,globalFloats,.TRUE.,fhist)
+         CALL read_hist_mpi(5,nudgetypes,.TRUE.,fhist)
+         CALL read_hist_mpi(3,localInts,.FALSE.,fhist)
+         CALL read_hist_mpi(5,localFloats,.FALSE.,fhist)
          
          ! Decompose the input arrays and do some checking of the configuration
          lvlx = globalInts(1); isgsx = globalInts(2); iradx = globalInts(3); nsclx = globalInts(4)
@@ -202,7 +205,7 @@ MODULE mo_history
          ndg_theta%nudgetype = nudgetypes(1); ndg_rv%nudgetype = nudgetypes(2)
          ndg_u%nudgetype = nudgetypes(3); ndg_v%nudgetype = nudgetypes(4)
          ndg_aero%nudgetype = nudgetypes(5)
-         nzp = localInts(1); nxp = localInts(2); nyp = localInts(3)
+         nzpx = localInts(1); nxpx = localInts(2); nypx = localInts(3)
          psrf = localFloats(1); sst = localFloats(2); W1 = localFloats(3)
          W2 = localFloats(4); W3 = localFloats(5)
          
@@ -221,75 +224,75 @@ MODULE mo_history
             CALL appl_abort(-1)
          END IF
          
-         CALL read_hist_mpi(nzp,dn0%d,onlyroot=.TRUE.)
-         CALL read_hist_mpi(nzp,th0%d,onlyroot=.TRUE.)
-         CALL read_hist_mpi(nzp,u0%d,onlyroot=.TRUE.)
-         CALL read_hist_mpi(nzp,v0%d,onlyroot=.TRUE.)
-         CALL read_hist_mpi(nzp,pi0%d,onlyroot=.TRUE.)
-         CALL read_hist_mpi(nzp,pi1%d,onlyroot=.TRUE.)
-         CALL read_hist_mpi(nzp,rt0%d,onlyroot=.TRUE.)         
+         CALL read_hist_mpi(nzp,dn0%d,.TRUE.,fhist)
+         CALL read_hist_mpi(nzp,th0%d,.TRUE.,fhist)
+         CALL read_hist_mpi(nzp,u0%d,.TRUE.,fhist)
+         CALL read_hist_mpi(nzp,v0%d,.TRUE.,fhist)
+         CALL read_hist_mpi(nzp,pi0%d,.TRUE.,fhist)
+         CALL read_hist_mpi(nzp,pi1%d,.TRUE.,fhist)
+         CALL read_hist_mpi(nzp,rt0%d,.TRUE.,fhist)         
 
-         CALL read_hist_mpi(nxp,xt%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nxp,xm%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nyp,yt%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nyp,ym%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nzp,zm%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nzp,zt%d,onlyroot=.FALSE.)
+         CALL read_hist_mpi(nxp,xt%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nxp,xm%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nyp,yt%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nyp,ym%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nzp,zm%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nzp,zt%d,.FALSE.,fhist)
 
-         CALL read_hist_mpi(nxp,nyp,a_ustar%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nxp,nyp,a_tstar%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nxp,nyp,a_rstar%d,onlyroot=.FALSE.)
+         CALL read_hist_mpi(nxp,nyp,a_ustar%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nxp,nyp,a_tstar%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nxp,nyp,a_rstar%d,.FALSE.,fhist)
 
          ! 3d fields
-         CALL read_hist_mpi(nzp,nxp,nyp,a_pexnr%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nzp,nxp,nyp,a_press%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nzp,nxp,nyp,a_theta%d,onlyroot=.FALSE.)
+         CALL read_hist_mpi(nzp,nxp,nyp,a_pexnr%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nzp,nxp,nyp,a_press%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nzp,nxp,nyp,a_theta%d,.FALSE.,fhist)
          
-         CALL read_hist_mpi(nzp,nxp,nyp,a_up%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nzp,nxp,nyp,a_vp%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nzp,nxp,nyp,a_wp%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nzp,nxp,nyp,a_uc%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nzp,nxp,nyp,a_vc%d,onlyroot=.FALSE.)
-         CALL read_hist_mpi(nzp,nxp,nyp,a_wc%d,onlyroot=.FALSE.)
+         CALL read_hist_mpi(nzp,nxp,nyp,a_up%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nzp,nxp,nyp,a_vp%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nzp,nxp,nyp,a_wp%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nzp,nxp,nyp,a_uc%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nzp,nxp,nyp,a_vc%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nzp,nxp,nyp,a_wc%d,.FALSE.,fhist)
          
          ! Prognostic scalars
          DO n = 1, nscl
             CALL newsclr(n)  
-            CALL read_hist_mpi(nzp,nxp,nyp,a_sp,onlyroot=.FALSE.)
+            CALL read_hist_mpi(nzp,nxp,nyp,a_sp,.FALSE.,fhist)
          END DO
                 
          IF (ndg_theta%nudgetype > 0) THEN 
             ALLOCATE(theta_ref(nzp))
-            CALL read_hist_mpi(nzp,theta_ref,onlyroot=.FALSE.)
+            CALL read_hist_mpi(nzp,theta_ref,.FALSE.,fhist)
          END IF
 
          IF (ndg_rv%nudgetype > 0) THEN
            ALLOCATE(rv_ref(nzp))
-           CALL read_hist_mpi(nzp,rv_ref,onlyroot=.FALSE.)
+           CALL read_hist_mpi(nzp,rv_ref,.FALSE.,fhist)
          END IF
 
          IF (ndg_u%nudgetype > 0) THEN
            ALLOCATE(u_ref(nzp))
-           CALL read_hist_mpi(nzp,u_ref,onlyroot=.FALSE.)
+           CALL read_hist_mpi(nzp,u_ref,.FALSE.,fhist)
          END IF
 
          IF (ndg_v%nudgetype > 0) THEN
            ALLOCATE(v_ref(nzp))
-           CALL read_hist_mpi(nzp,v_ref,onlyroot=.FALSE.)
+           CALL read_hist_mpi(nzp,v_ref,.FALSE.,fhist)
          END IF
 
          ! AEROREF STILL MISSING
 
          IF (ASSOCIATED(a_rv%d)) &
-              CALL read_hist_mpi(nzp,nxp,nyp,a_rv%d,onlyroot=.FALSE.)
+              CALL read_hist_mpi(nzp,nxp,nyp,a_rv%d,.FALSE.,fhist)
               
          IF (ASSOCIATED(a_rc%d)) &
-              CALL read_hist_mpi(nzp,nxp,nyp,a_rc%d,onlyroot=.FALSE.)
+              CALL read_hist_mpi(nzp,nxp,nyp,a_rc%d,.FALSE.,fhist)
 
          IF (ASSOCIATED(a_rflx%d) .AND. iradx > 0) &
-              CALL read_hist_mpi(nzp,nxp,nyp,a_rflx%d,onlyroot=.FALSE.)
+              CALL read_hist_mpi(nzp,nxp,nyp,a_rflx%d,.FALSE.,fhist)
          
-         CALL close_mpi_hist()
+         CALL close_mpi_hist(fhist)
          
          !
          ! adjust namelist and basic state appropriately
