@@ -1,0 +1,135 @@
+MODULE mo_mpi_io
+  USE mpi_interface, ONLY : REAL_SIZE, INT_SIZE, myid, pecount
+  USE mpi
+  IMPLICIT NONE
+
+  TYPE mpi_file_parameters
+     INTEGER :: id
+     INTEGER(kind=MPI_OFFSET_KIND) :: disp  ! Make sure the displacement gets updated uniquely for each mpi task
+  END TYPE mpi_file_parameters
+  
+  TYPE(mpi_file_parameters), SAVE :: f_hist
+
+  CONTAINS 
+
+    SUBROUTINE create_mpi_hist(filename)
+      CHARACTER(len=*), INTENT(in) :: filename
+      INTEGER :: ierr
+      
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD, filename,           &
+                         MPI_MODE_CREATE + MPI_MODE_WRONLY,  &
+                         MPI_INFO_NULL, f_hist%id, ierr)
+
+      ! Initialize displacement
+      f_hist%disp = 0
+      
+    END SUBROUTINE create_mpi_hist
+
+    ! ------------------------------------------
+
+    SUBROUTINE close_mpi_hist()
+      INTEGER :: ierr
+      CALL MPI_FILE_CLOSE(f_hist%id,ierr)      
+    END SUBROUTINE close_mpi_hist
+    
+    ! ------------------------------------------
+    
+    SUBROUTINE write_hist_parameters_int(var)
+      INTEGER, INTENT(in) :: var
+      INTEGER :: ierr
+      
+      CALL MPI_FILE_WRITE_AT(f_hist%id, f_hist%disp, var, 1,    &
+                             INT_SIZE, MPI_STATUS_IGNORE, ierr  )
+
+      ! Update displacement
+      f_hist%disp = f_hist%disp + INT_SIZE
+
+    END SUBROUTINE write_hist_parameters_int
+
+    ! ------------------------------------------
+    
+    SUBROUTINE write_hist_parameters_int(var)
+      REAL, INTENT(in) :: var
+      INTEGER :: ierr
+      
+      CALL MPI_FILE_WRITE_AT(f_hist%id, f_hist%disp, var, 1,    &
+                             REAL_SIZE, MPI_STATUS_IGNORE, ierr )
+
+      ! Update displacement
+      f_hist%disp = f_hist%disp + INT_SIZE
+
+    END SUBROUTINE write_hist_parameters_int    
+
+    ! ------------------------------------------
+    
+    SUBROUTINE write_hist_field_1d(n1,var)
+      INTEGER, INTENT(in) :: n1
+      REAL, INTENT(in) :: var(n1)
+      INTEGER :: lsize, ierr
+      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp 
+           
+      lsize = n1
+
+      ! Store the initial displacement (same for all processes)
+      init_disp = f_hist%disp
+      
+      ! update the displacement from a common starting points depending on rank and the size of the field
+      f_hist%disp = f_hist%disp + myid * lsize * REAL_SIZE 
+      CALL MPI_FILE_WRITE_AT_ALL(f_hist%id, f_hist%disp, var, lsize, REAL_SIZE, MPI_STATUS_IGNORE, ierr)
+      
+      ! update the displacement to a next common value (same for all processes!) depending on the total process count,
+      ! and the field size
+      f_hist%disp = init_disp + pecount * lsize * REAL_SIZE
+            
+    END SUBROUTINE write_hist_field_1d
+
+    ! -----------------------------------------
+    
+    SUBROUTINE write_hist_field_2d(n2,n3,var)
+      INTEGER, INTENT(in) :: n2,n2
+      REAL, INTENT(in) :: var(n2,n3)
+      INTEGER :: lsize, ierr
+      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+
+      lsize = n2*n3
+
+      ! Store the initial displacement (same for all processes)
+      init_disp = f_hist%disp
+      
+      ! update the displacement from a common starting points depending on rank and the size of the field
+      f_hist%disp = f_hist%disp + myid * lsize * REAL_SIZE 
+      CALL MPI_FILE_WRITE_AT_ALL(f_hist%id, f_hist%disp, var, lsize, REAL_SIZE, MPI_STATUS_IGNORE, ierr)
+      
+      ! update the displacement to a next common value (same for all processes!) depending on the total process count,
+      ! and the field size
+      f_hist%disp = init_disp + pecount * lsize * REAL_SIZE
+      
+    END SUBROUTINE write_hist_field_2d
+
+    ! -----------------------------------------
+
+    SUBROUTINE write_hist_field_3d(n1,n2,n3,var)
+      INTEGER, INTENT(in) :: n1,n2,n3
+      REAL, INTENT(in) :: var(n1,n2,n3)
+      INTEGER :: lsize, ierr
+      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+
+      lsize = n1*n2*n3
+
+       ! Store the initial displacement (same for all processes)
+      init_disp = f_hist%disp
+      
+      ! update the displacement from a common starting points depending on rank and the size of the field
+      f_hist%disp = f_hist%disp + myid * lsize * REAL_SIZE 
+      CALL MPI_FILE_WRITE_AT_ALL(f_hist%id, f_hist%disp, var, lsize, REAL_SIZE, MPI_STATUS_IGNORE, ierr)
+      
+      ! update the displacement to a next common value (same for all processes!) depending on the total process count,
+      ! and the field size
+      f_hist%disp = init_disp + pecount * lsize * REAL_SIZE     
+      
+    END SUBROUTINE write_hist_field_3d
+    
+    ! -----------------------------------------
+    
+    
+END MODULE mo_mpi_io

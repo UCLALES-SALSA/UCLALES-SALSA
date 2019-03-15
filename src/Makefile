@@ -10,8 +10,10 @@ VPATH = $(SRCUTIL):   \
 
 ifneq (,$(findstring mpi,$(LES_ARC)))
 	seqmpi = mpi_interface.f90
+	seqmpihis = mo_history_mpi.f90
 else
 	seqmpi = seq_interface.f90
+	seqmpihis = mo_history_seq.f90
 endif
 
 SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa_sizedist.f90 mo_salsa_dynamics.f90    \
@@ -26,7 +28,7 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa
 	  mo_particle_external_properties.f90 mo_ice_shape.f90 mo_structured_datatypes.f90 mo_aux_state.f90            \
 	  mo_diag_state.f90 mo_progn_state.f90 mo_vector_state.f90 mo_derived_state.f90 mo_derived_procedures.f90      \
 	  mo_ps_state.f90 mo_ps_procedures.f90 mo_ts_state.f90 mo_ts_procedures.f90 classFieldArray.f90 mo_output.f90  \
-	  mo_history.f90 mo_field_state.f90 mo_field_init.f90 mo_check_state.f90 mo_stats_finder.f90
+	  $(seqmpihis) mo_field_state.f90 mo_field_init.f90 mo_check_state.f90 mo_stats_finder.f90 mo_mpi_io.f90
 
 OBJS =	$(SRCSF90:.f90=.o) $(SRCSF77:.f=.o)
 
@@ -53,9 +55,9 @@ LES.o: $(seqmpi:.f90=.o) grid.o init.o step.o mo_salsa_init.o \
 ncio.o: $(seqmpi:.f90=.o) classFieldArray.o
 mo_output.o: $(seqmpi:.f90=.o) ncio.o grid.o classFieldArray.o mo_structured_datatypes.o  \
 	     mo_submctl.o mo_field_state.o
-mo_history.o: $(seqmpi:.f90=.o) grid.o nudg_defs.o mo_progn_state.o   \
-	      mo_vector_state.o mo_diag_state.o mo_aux_state.o
-
+$(seqmpihis:.f90=.o): $(seqmpi:.f90=.o) grid.o nudg_defs.o mo_progn_state.o   \
+	              mo_vector_state.o mo_diag_state.o mo_aux_state.o mo_mpi_io.o
+mo_mpi_io.o: $(seqmpi:.f90=.o)
 util.o: $(seqmpi:.f90=.o) rfft.o
 defs.o:
 grid.o: $(seqmpi:.f90=.o) mo_submctl.o     \
@@ -79,14 +81,14 @@ mcrp.o: defs.o mo_aux_state.o mo_diag_state.o mo_progn_state.o grid.o  \
 	classProcessSwitch.o mo_structured_datatypes.o 
 step.o: mo_submctl.o util.o mo_structured_datatypes.o mo_aux_state.o                 \
 	mo_vector_state.o mo_progn_state.o mo_diag_state.o grid.o thrm.o mo_output.o \
-	mo_history.o mcrp.o grid.o mo_field_state.o sgsm.o srfc.o                    \
+	$(seqmpihis:.f90=.o) mcrp.o grid.o mo_field_state.o sgsm.o srfc.o                    \
 	prss.o advf.o advl.o forc.o util.o mo_salsa_driver.o constrain_SALSA.o       \
 	defs.o $(seqmpi:.f90=.o)
 init.o: grid.o mo_progn_state.o mo_vector_state.o mo_diag_state.o mo_derived_state.o \
 	mo_aux_state.o mo_ts_state.o mo_ps_state.o mo_field_state.o mo_field_init.o  \
 	step.o sgsm.o thrm.o mo_salsa_driver.o mo_submctl.o util.o nudg.o            \
 	emission_init.o constrain_SALSA.o mo_structured_datatypes.o mo_output.o      \
-	mo_history.o defs.o mo_submctl.o init_warm_bubble.o mo_salsa_sizedist.o      \
+	$(seqmpihis:.f90=.o) defs.o mo_submctl.o init_warm_bubble.o mo_salsa_sizedist.o      \
 	mo_salsa_types.o ncio.o mo_check_state.o $(seqmpi:.f90=.o)
 init_warm_bubble.o: defs.o grid.o mo_aux_state.o mo_progn_state.o mo_structured_datatypes.o
 nudg.o: mo_aux_state.o mo_diag_state.o mo_progn_state.o mo_vector_state.o grid.o mo_submctl.o nudg_defs.o util.o

@@ -153,8 +153,6 @@ MODULE mo_output
       IF (myid == 0) write(*,*) '   ...starting record: ', nrec_ts
       
     END SUBROUTINE init_ts
-
-
     
     ! -------------------------------------------------------------------------
     

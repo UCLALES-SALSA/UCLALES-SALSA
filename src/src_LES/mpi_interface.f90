@@ -58,7 +58,7 @@ MODULE mpi_interface
    !
 
    INTEGER, PARAMETER :: mpiroot = 0 ! root process defined as rank 0
-   INTEGER :: REAL_SIZE, CMPLX_SIZE, INT_SIZE
+   INTEGER :: REAL_SIZE, INT_SIZE, MY_REAL, MY_CMPLX
    INTEGER :: myid, pecount, nxpg, nypg, nxg, nyg, nbytes
    INTEGER :: xcomm, ycomm,commxid,commyid
    INTEGER :: nxnzp,nynzp,fftinix,fftiniy
@@ -95,28 +95,28 @@ CONTAINS
       SELECT CASE (kind(0.0))
          CASE (4)
             nbytes = 4
-            REAL_SIZE = MPI_REAL
-            CMPLX_SIZE = MPI_COMPLEX
+            CALL MPI_TYPE_SIZE(MPI_REAL, REAL_SIZE, ierror)                        
+            MY_REAL = MPI_REAL
+            MY_CMPLX = MPI_COMPLEX
          CASE (8)
             nbytes = 8
-            REAL_SIZE = MPI_DOUBLE_PRECISION
-            CMPLX_SIZE = MPI_doUBLE_COMPLEX
+            CALL MPI_TYPE_SIZE(MPI_DOUBLE_PRECISION, REAL_SIZE, ierror)            
+            MY_REAL = MPI_DOUBLE_PRECISION
+            MY_CMPLX = MPI_DOUBLE_COMPLEX
          CASE DEFAULT
             STOP "kind not supported"
       END SELECT
 
       SELECT CASE(kind(0))
          CASE (4)
-            INT_SIZE= 4
-         CASE (8)
-            INT_SIZE = 8
+            CALL MPI_TYPE_SIZE(MPI_INTEGER, INT_SIZE, ierror)
          CASE DEFAULT
             STOP "int kind not supported"
       END SELECT
       !
       CALL date_and_time(date)
       IF (myid == 0) PRINT "(/1x,75('-'),/2x,A22,/2x,A15,I2,A15,I2,A14)", &
-         'UCLALES-SALSA '//date, 'Computing using',nbytes,' byte REALs and', &
+         'UCLALES-SALSA '//date, 'Computing using',REAL_SIZE,' byte REALs and', &
          INT_SIZE," byte INTEGERs"
       IF (myid == 0 .AND. len(info) > 0) PRINT *, ' '//trim(info)
 
@@ -398,7 +398,7 @@ CONTAINS
       nxnzp = nxnza(wryid)
       nynzp = nynza(wrxid)
 
-      CALL MPI_TYPE_SIZE(CMPLX_SIZE,typesize, ierr)
+      CALL MPI_TYPE_SIZE(MY_CMPLX,typesize, ierr)
 
       xcount = 1
       ycount = 1
@@ -416,37 +416,37 @@ CONTAINS
       END DO
 
       DO i = 0, nxprocs-1
-         CALL mpi_type_contiguous(nx*nynza(i),CMPLX_SIZE, xtype(i,1),ierr)
+         CALL mpi_type_contiguous(nx*nynza(i),MY_CMPLX, xtype(i,1),ierr)
          CALL mpi_type_commit(xtype(i,1),ierr)
-         CALL mpi_type_vector(nynzp, nxpa(i), nxg, CMPLX_SIZE, xtype(i,2),ierr)
+         CALL mpi_type_vector(nynzp, nxpa(i), nxg, MY_CMPLX, xtype(i,2),ierr)
          CALL mpi_type_commit(xtype(i,2),ierr)
       END DO
 
       DO i = 0, nyprocs-1
-         CALL mpi_type_contiguous(ny*nxnza(i),CMPLX_SIZE, ytype(i,1),ierr)
+         CALL mpi_type_contiguous(ny*nxnza(i),MY_CMPLX, ytype(i,1),ierr)
          CALL mpi_type_commit(ytype(i,1),ierr)
-         CALL mpi_type_vector(nxnzp, nypa(i), nyg, CMPLX_SIZE, ytype(i,2),ierr)
+         CALL mpi_type_vector(nxnzp, nypa(i), nyg, MY_CMPLX, ytype(i,2),ierr)
          CALL mpi_type_commit(ytype(i,2),ierr)
       END DO
 
-      CALL MPI_TYPE_VECTOR(nyp-4,nzp*2,nxp*nzp,REAL_SIZE,stridetype,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,nzp*2,nxp*nzp,MY_REAL,stridetype,ierr)
       CALL MPI_TYPE_COMMIT(stridetype,ierr)
-      CALL MPI_TYPE_VECTOR(nyp-4,nzp*2,nxp*nzp,REAL_SIZE,xstride,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,nzp*2,nxp*nzp,MY_REAL,xstride,ierr)
       CALL MPI_TYPE_COMMIT(xstride,ierr)
-      CALL MPI_TYPE_VECTOR(2,nzp*(nxp-4),nxp*nzp,REAL_SIZE,ystride,ierr)
+      CALL MPI_TYPE_VECTOR(2,nzp*(nxp-4),nxp*nzp,MY_REAL,ystride,ierr)
       CALL MPI_TYPE_COMMIT(ystride,ierr)
-      CALL MPI_TYPE_VECTOR(2,2*nzp,nxp*nzp,REAL_SIZE,xystride,ierr)
+      CALL MPI_TYPE_VECTOR(2,2*nzp,nxp*nzp,MY_REAL,xystride,ierr)
       CALL MPI_TYPE_COMMIT(xystride,ierr)
 
-      CALL MPI_TYPE_VECTOR(nyp-4,nxp-4,nxpg-4,REAL_SIZE,fxytype,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,nxp-4,nxpg-4,MY_REAL,fxytype,ierr)
       CALL MPI_TYPE_COMMIT(fxytype,ierr)
 
-      CALL MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,(nxpg-4)*nzp,REAL_SIZE,fxyztype,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,(nxpg-4)*nzp,MY_REAL,fxyztype,ierr)
       CALL MPI_TYPE_COMMIT(fxyztype,ierr)
 
-      CALL MPI_TYPE_VECTOR(nyp-4,nxp-4,nxp,REAL_SIZE,xylarry,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,nxp-4,nxp,MY_REAL,xylarry,ierr)
       CALL MPI_TYPE_COMMIT(xylarry,ierr)
-      CALL MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,nxp*nzp,REAL_SIZE,xyzlarry,ierr)
+      CALL MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,nxp*nzp,MY_REAL,xyzlarry,ierr)
       CALL MPI_TYPE_COMMIT(xyzlarry,ierr)
 
    END SUBROUTINE init_alltoall_reorder
@@ -644,7 +644,7 @@ CONTAINS
       REAL, INTENT(out) :: gmax
       INTEGER :: ierr
       gmax = 0.
-      CALL MPI_REDUCE(lmax,gmax,1,REAL_SIZE,MPI_MAX,    &
+      CALL MPI_REDUCE(lmax,gmax,1,MY_REAL,MPI_MAX,    &
                       mpiroot,MPI_COMM_WORLD,ierr    )      
     END SUBROUTINE get_scalar_integer_global_max_root
 
@@ -658,7 +658,7 @@ CONTAINS
       REAL, INTENT(out) :: gsum
       INTEGER :: ierr
       gsum = 0.
-      CALL MPI_REDUCE(lsum,gsum,1,REAL_SIZE,MPI_SUM,       &
+      CALL MPI_REDUCE(lsum,gsum,1,MY_REAL,MPI_SUM,       &
                       mpiroot,MPI_COMM_WORLD,ierr)
     END SUBROUTINE get_scalar_float_global_sum_root
     ! --------------------------------------
@@ -668,7 +668,7 @@ CONTAINS
       INTEGER, INTENT(out) :: gsum
       INTEGER :: ierr
       gsum = 0
-      CALL MPI_REDUCE(lsum,gsum,1,INT_SIZE,MPI_SUM,        &
+      CALL MPI_REDUCE(lsum,gsum,1,MPI_INTEGER,MPI_SUM,        &
                       mpiroot,MPI_COMM_WORLD,ierr)
     END SUBROUTINE get_scalar_integer_global_sum_root
     !
@@ -682,7 +682,7 @@ CONTAINS
       REAL, INTENT(out) :: gsum(n)
       INTEGER :: ierr
       gsum = 0.
-      CALL MPI_REDUCE(lsum,gsum,n,REAL_SIZE,MPI_SUM,      &
+      CALL MPI_REDUCE(lsum,gsum,n,MY_REAL,MPI_SUM,      &
                       mpiroot,MPI_COMM_WORLD,ierr)
     END SUBROUTINE get_1d_float_global_sum_root
     ! -------------------------------------------------
@@ -693,7 +693,7 @@ CONTAINS
       INTEGER, INTENT(out) :: gsum(n)
       INTEGER :: ierr
       gsum = 0
-      CALL MPI_REDUCE(lsum,gsum,n,INT_SIZE,MPI_SUM,       &
+      CALL MPI_REDUCE(lsum,gsum,n,MPI_INTEGER,MPI_SUM,       &
                       mpiroot,MPI_COMM_WORLD,ierr)
     END SUBROUTINE get_1d_integer_global_sum_root
    !
