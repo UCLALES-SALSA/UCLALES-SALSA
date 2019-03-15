@@ -54,6 +54,7 @@ MODULE mpi_interface
 
    INTEGER, PARAMETER :: mpiroot = 0
    INTEGER :: REAL_SIZE, CMPLX_SIZE, INT_SIZE
+   INTEGER :: MY_REAL ! this is neede here just as a dummy because for mpi build there are additional modules that import this
    INTEGER :: myid, pecount, nxpg, nypg, nxg, nyg, nbytes
    INTEGER :: xcomm, ycomm,commxid,commyid
    INTEGER :: nxnzp,nynzp

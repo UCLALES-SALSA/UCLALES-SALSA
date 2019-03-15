@@ -30,23 +30,15 @@ MODULE mo_history
       
       CHARACTER (len=80) :: hname
       
-      INTEGER :: n, iblank,nn
+      INTEGER :: n, ichar,nn
       !
       ! create and open a new output file.
       !
-      hname = trim(hname)//'.'//trim(filprf)
-      
-      SELECT CASE(htype)
-      CASE DEFAULT
-         hname = trim(hname)//'.iflg'
-      CASE(0)
-         hname = trim(hname)//'.R'
-      CASE(1)
-         hname = trim(hname)//'.rst'
-      CASE(2)
-         iblank=index(hname,' ')
-         WRITE(hname(iblank:iblank+7),'(a1,i6.6,a1)') '.', int(time), 's'
-      END SELECT
+      hname = trim(filprf)
+      ichar = LEN(TRIM(hname))
+      WRITE(hname(ichar+1:ichar+12),'(a1,i6.6,a1,a1,a3)')  &
+           '.',int(time),'s','.','rst'
+
       !
       ! Write fields
       !
@@ -143,13 +135,11 @@ MODULE mo_history
       !
       ! open input file.
       !
-      
-      WRITE(hname,'(i4.4,a1,i4.4)') wrxid,'_',wryid
-      hname = trim(hname)//'.'//trim(hfilin)
+      hname = trim(hfilin)//'.rst'
       
       inquire(file=trim(hname),exist=exans)
       IF (.NOT. exans) THEN
-         PRINT *,'ABORTING: History file', trim(hname),' not found'
+         PRINT *,'ABORTING: History file ', trim(hname),' not found'
          CALL appl_abort(0)
       ELSE
          OPEN(10,file=trim(hname),status='old',form='unformatted')

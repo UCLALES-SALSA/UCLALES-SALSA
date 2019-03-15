@@ -13,7 +13,7 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=2 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
+IsSeq=5 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
 EXPNAME="histtest"  # Name of the experiment
 
@@ -72,13 +72,13 @@ cat > NAMELIST <<EOF
   dtlong = ${DT}              ! Max. timestep
   distim = 100.               ! Timescale for the dissipation in sponge layer
   timmax = ${Texp}            ! Length of the simulation
-  runtype = "HISTORY"         ! INITIAL or HISTORY (restart) run
+  runtype = "INITIAL"         ! INITIAL or HISTORY (restart) run
   CCN = 50.e6                ! 
   corflg = .false.            ! Apply coriolis force
   prndtl = -0.3333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
-  hfilin = '${EXPNAME}.000400s' ! History file name
-  frqhis = 400.
+  hfilin = '${EXPNAME}.000020s' ! History file name
+  frqhis = 10.
   lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
   lsalsabbins = .FALSE.  
   !mcflg = .FALSE.             ! Do mass conservation statistics

@@ -178,7 +178,7 @@ MODULE mo_history
       
       inquire(file=trim(hname),exist=exans)
       IF (.NOT. exans) THEN
-         PRINT *,'ABORTING: History file', trim(hname),' not found'
+         PRINT *,'ABORTING: History file ', trim(hname),' not found'
          CALL appl_abort(0)
       ELSE
 
