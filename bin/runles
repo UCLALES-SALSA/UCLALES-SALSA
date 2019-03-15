@@ -28,7 +28,7 @@ DY=40.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
 Tspinup=0.        # Length of the spinup period (seconds)
-Texp=100.         # Length of the experiment (seconds)
+Texp=800.         # Length of the experiment (seconds)
 LEVEL=5             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
 
@@ -77,8 +77,8 @@ cat > NAMELIST <<EOF
   corflg = .false.            ! Apply coriolis force
   prndtl = -0.3333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
-  hfilin = '${EXPNAME}.000040s' ! History file name
-  frqhis = 40.
+  hfilin = '${EXPNAME}.000400s' ! History file name
+  frqhis = 400.
   lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
   lsalsabbins = .FALSE.  
   !mcflg = .FALSE.             ! Do mass conservation statistics
@@ -109,8 +109,8 @@ cat > NAMELIST <<EOF
   ts_intvl = 5.
   main_intvl = 5.
   varlist_main = 'temp','rp','rc','srp','theta','wwind','ri','riri',
-                 !'rh','rhi','Naba','Ncba','Npba','Niba'
-  varlist_ps = !'temp','theta'
+                 'rh','rhi','Naba','Ncba','Npba','Niba'
+  varlist_ps = 'temp','theta','press'
   varlist_ts = !'lwp_bar','cfrac'
 /
 

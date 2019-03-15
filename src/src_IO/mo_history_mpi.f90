@@ -65,13 +65,11 @@ MODULE mo_history
       ! These values are identical for all processes -> write only from root
       CALL write_hist_mpi(4,globalInts,.TRUE.,fhist)
       CALL write_hist_mpi(5,globalFloats,.TRUE.,fhist)
-
       CALL write_hist_mpi(5,nudgetypes,.TRUE.,fhist)
-
       ! Process specific parameters
       CALL write_hist_mpi(3,localInts,.FALSE.,fhist)
       CALL write_hist_mpi(5,localFloats,.FALSE.,fhist)
-      
+
       ! Basic state arrays - identical for all processses -> write only from root
       CALL write_hist_mpi(nzp,dn0%d,.TRUE.,fhist)
       CALL write_hist_mpi(nzp,th0%d,.TRUE.,fhist)
@@ -80,7 +78,7 @@ MODULE mo_history
       CALL write_hist_mpi(nzp,pi0%d,.TRUE.,fhist)
       CALL write_hist_mpi(nzp,pi1%d,.TRUE.,fhist)
       CALL write_hist_mpi(nzp,rt0%d,.TRUE.,fhist)
-      
+
       ! Grid displacements
       CALL write_hist_mpi(nxp,xt%d,.FALSE.,fhist)
       CALL write_hist_mpi(nxp,xm%d,.FALSE.,fhist)
@@ -88,17 +86,17 @@ MODULE mo_history
       CALL write_hist_mpi(nyp,ym%d,.FALSE.,fhist)
       CALL write_hist_mpi(nzp,zm%d,.FALSE.,fhist)
       CALL write_hist_mpi(nzp,zt%d,.FALSE.,fhist)
-
+      
       ! 2d fields
       CALL write_hist_mpi(nxp,nyp,a_ustar%d,.FALSE.,fhist)
       CALL write_hist_mpi(nxp,nyp,a_tstar%d,.FALSE.,fhist)
       CALL write_hist_mpi(nxp,nyp,a_rstar%d,.FALSE.,fhist)
-
+      
       ! 3d fields
       CALL write_hist_mpi(nzp,nxp,nyp,a_pexnr%d,.FALSE.,fhist)
       CALL write_hist_mpi(nzp,nxp,nyp,a_press%d,.FALSE.,fhist)
       CALL write_hist_mpi(nzp,nxp,nyp,a_theta%d,.FALSE.,fhist)
-
+      
       CALL write_hist_mpi(nzp,nxp,nyp,a_up%d,.FALSE.,fhist)
       CALL write_hist_mpi(nzp,nxp,nyp,a_vp%d,.FALSE.,fhist)
       CALL write_hist_mpi(nzp,nxp,nyp,a_wp%d,.FALSE.,fhist)
@@ -223,6 +221,7 @@ MODULE mo_history
             IF (myid == 0) WRITE(*,*) 'RESTART ERROR: inconsistent grid: ', nxp, nyp, nzp, nxpx, nypx, nzpx
             CALL appl_abort(-1)
          END IF
+
          
          CALL read_hist_mpi(nzp,dn0%d,.TRUE.,fhist)
          CALL read_hist_mpi(nzp,th0%d,.TRUE.,fhist)
@@ -242,8 +241,8 @@ MODULE mo_history
          CALL read_hist_mpi(nxp,nyp,a_ustar%d,.FALSE.,fhist)
          CALL read_hist_mpi(nxp,nyp,a_tstar%d,.FALSE.,fhist)
          CALL read_hist_mpi(nxp,nyp,a_rstar%d,.FALSE.,fhist)
-
-         ! 3d fields
+         
+         ! 3d fields         
          CALL read_hist_mpi(nzp,nxp,nyp,a_pexnr%d,.FALSE.,fhist)
          CALL read_hist_mpi(nzp,nxp,nyp,a_press%d,.FALSE.,fhist)
          CALL read_hist_mpi(nzp,nxp,nyp,a_theta%d,.FALSE.,fhist)
@@ -291,7 +290,7 @@ MODULE mo_history
 
          IF (ASSOCIATED(a_rflx%d) .AND. iradx > 0) &
               CALL read_hist_mpi(nzp,nxp,nyp,a_rflx%d,.FALSE.,fhist)
-         
+
          CALL close_mpi_hist(fhist)
          
          !

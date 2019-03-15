@@ -1,5 +1,5 @@
 MODULE mo_mpi_io
-  USE mpi_interface, ONLY : REAL_SIZE, INT_SIZE, myid, pecount, mpiroot
+  USE mpi_interface, ONLY : REAL_SIZE, INT_SIZE, MY_REAL, myid, pecount, mpiroot
   USE mpi
   IMPLICIT NONE
   
@@ -80,7 +80,7 @@ MODULE mo_mpi_io
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       IF (onlyroot) THEN
          l_root = (myid == mpiroot)
@@ -88,23 +88,23 @@ MODULE mo_mpi_io
          l_root = .TRUE.
       END IF
 
-      init_disp = fhist%disp
+      disp = fhist%disp
       IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,1,INT_SIZE)
+           disp = fhist%disp + myid * INT_SIZE 
       
       IF (l_root .AND. onlyroot) &
-           CALL MPI_FILE_WRITE_AT(fhist%id, fhist%disp, var, 1,    &
-                                  INT_SIZE, MPI_STATUS_IGNORE, ierr  )
+           CALL MPI_FILE_WRITE_AT(fhist%id, disp, var, 1,    &
+                                  MPI_INTEGER, MPI_STATUS_IGNORE, ierr  )
 
       IF (l_root .AND. .NOT. onlyroot) &
-           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, fhist%disp, var, 1,   &
-                                      INT_SIZE, MPI_STATUS_IGNORE, ierr)
+           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, disp, var, 1,   &
+                                      MPI_INTEGER, MPI_STATUS_IGNORE, ierr)
       
       ! Update displacement
       IF (onlyroot) THEN
          fhist%disp = fhist%disp + INT_SIZE
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,1,INT_SIZE)
+         fhist%disp = fhist%disp + pecount*INT_SIZE
       END IF
          
     END SUBROUTINE write_hist_parameters_int
@@ -119,31 +119,34 @@ MODULE mo_mpi_io
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
+      lsize = nn
+      
       IF (onlyroot) THEN
          l_root = (myid == mpiroot)
       ELSE
          l_root = .TRUE.
       END IF
 
-      init_disp = fhist%disp
+      disp = fhist%disp
       IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,nn,INT_SIZE)
+           disp = fhist%disp + myid * lsize * INT_SIZE
       
       IF (l_root .AND. onlyroot) &
-           CALL MPI_FILE_WRITE_AT(fhist%id, fhist%disp, var, nn,    &
-                                  INT_SIZE, MPI_STATUS_IGNORE, ierr  )
+           CALL MPI_FILE_WRITE_AT(fhist%id, disp, var, nn,    &
+                                  MPI_INTEGER, MPI_STATUS_IGNORE, ierr  )
 
       IF (l_root .AND. .NOT. onlyroot) &
-           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, fhist%disp, var, nn,   &
-                                      INT_SIZE, MPI_STATUS_IGNORE, ierr)
+           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, disp, var, nn,   &
+                                      MPI_INTEGER, MPI_STATUS_IGNORE, ierr)
 
       ! Update displacement
       IF (onlyroot) THEN
-         fhist%disp = fhist%disp + nn*INT_SIZE
+         fhist%disp = fhist%disp + lsize * INT_SIZE
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,nn,INT_SIZE)
+         fhist%disp = fhist%disp + pecount * lsize * INT_SIZE
       END IF
          
     END SUBROUTINE write_hist_parameters_int_1d
@@ -157,7 +160,7 @@ MODULE mo_mpi_io
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       IF (onlyroot) THEN
          l_root = (myid == mpiroot)
@@ -165,23 +168,23 @@ MODULE mo_mpi_io
          l_root = .TRUE.
       END IF
 
-      init_disp = fhist%disp
+      disp = fhist%disp
       IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,1,REAL_SIZE)      
+           disp = fhist%disp + myid * REAL_SIZE  
 
       IF (l_root .AND. onlyroot) &
-           CALL MPI_FILE_WRITE_AT(fhist%id, fhist%disp, var, 1,    &
-                                  REAL_SIZE, MPI_STATUS_IGNORE, ierr )
+           CALL MPI_FILE_WRITE_AT(fhist%id, disp, var, 1,    &
+                                  MY_REAL, MPI_STATUS_IGNORE, ierr )
 
       IF (l_root .AND. .NOT. onlyroot) &
-           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, fhist%disp, var, 1,   &
-                                      REAL_SIZE, MPI_STATUS_IGNORE, ierr)
+           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, disp, var, 1,   &
+                                      MY_REAL, MPI_STATUS_IGNORE, ierr)
 
       ! Update displacement
       IF (onlyroot) THEN
          fhist%disp = fhist%disp + REAL_SIZE
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,1,REAL_SIZE)
+         fhist%disp = fhist%disp + pecount * REAL_SIZE
       END IF
          
     END SUBROUTINE write_hist_parameters_real    
@@ -195,9 +198,10 @@ MODULE mo_mpi_io
       LOGICAL, INTENT(in) :: onlyroot
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
-      INTEGER :: lsize, ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
-
+      INTEGER :: ierr
+      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
+      
       lsize = nn
       
       IF (onlyroot) THEN
@@ -206,26 +210,26 @@ MODULE mo_mpi_io
          l_root = .TRUE.
       END IF
 
-      init_disp = fhist%disp
+      disp = fhist%disp
       IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,lsize,REAL_SIZE)      
+           disp = fhist%disp + myid * lsize * REAL_SIZE
 
       IF (l_root .AND. onlyroot) &
-           CALL MPI_FILE_WRITE_AT(fhist%id, fhist%disp, var, lsize,    &
-                                  REAL_SIZE, MPI_STATUS_IGNORE, ierr )
+           CALL MPI_FILE_WRITE_AT(fhist%id, disp, var, lsize,    &
+                                  MY_REAL, MPI_STATUS_IGNORE, ierr )
       
       IF (l_root .AND. .NOT. onlyroot) &
-           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, fhist%disp, var, lsize,      &
-                                      REAL_SIZE, MPI_STATUS_IGNORE, ierr)
+           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, disp, var, lsize,      &
+                                      MY_REAL, MPI_STATUS_IGNORE, ierr)
       
       ! update the displacement to a next common value (same for all processes!) depending on the total process count,
       ! and the field size
       IF (onlyroot) THEN
-         fhist%disp = init_disp + lsize * REAL_SIZE
+         fhist%disp = fhist%disp + lsize * REAL_SIZE
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,lsize,REAL_SIZE)
+         fhist%disp = fhist%disp + pecount * lsize * REAL_SIZE
       END IF
-            
+
     END SUBROUTINE write_hist_field_1d
 
     !-----------------------------------------------------------------
@@ -237,8 +241,9 @@ MODULE mo_mpi_io
       LOGICAL, INTENT(in) :: onlyroot
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
-      INTEGER :: lsize, ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+      INTEGER :: ierr
+      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       lsize = n2*n3
       
@@ -248,24 +253,24 @@ MODULE mo_mpi_io
          l_root = .TRUE.
       END IF
 
-      init_disp = fhist%disp
+      disp = fhist%disp
       IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,lsize,REAL_SIZE)      
+           disp = fhist%disp + myid * lsize * REAL_SIZE  
 
       IF (l_root .AND. onlyroot) &
-           CALL MPI_FILE_WRITE_AT(fhist%id, fhist%disp, var, lsize,    &
-                                  REAL_SIZE, MPI_STATUS_IGNORE, ierr )
+           CALL MPI_FILE_WRITE_AT(fhist%id, disp, var, lsize,    &
+                                  MY_REAL, MPI_STATUS_IGNORE, ierr )
       
       IF (l_root .AND. .NOT. onlyroot) &
-           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, fhist%disp, var, lsize,     &
-                                      REAL_SIZE, MPI_STATUS_IGNORE, ierr)
+           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, disp, var, lsize,     &
+                                      MY_REAL, MPI_STATUS_IGNORE, ierr)
       
       ! update the displacement to a next common value (same for all processes!) depending on the total process count,
       ! and the field size
       IF (onlyroot) THEN
-         fhist%disp = init_disp + lsize * REAL_SIZE
+         fhist%disp = fhist%disp + lsize * REAL_SIZE
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,lsize,REAL_SIZE)
+         fhist%disp = fhist%disp + pecount * lsize * REAL_SIZE
       END IF
          
     END SUBROUTINE write_hist_field_2d
@@ -279,8 +284,9 @@ MODULE mo_mpi_io
       LOGICAL, INTENT(in) :: onlyroot
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
-      INTEGER :: lsize, ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+      INTEGER :: ierr
+      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       lsize = n1*n2*n3
       
@@ -290,24 +296,24 @@ MODULE mo_mpi_io
          l_root = .TRUE.
       END IF
 
-      init_disp = fhist%disp
+      disp = fhist%disp
       IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,lsize,REAL_SIZE)      
+           disp = fhist%disp + myid * lsize * REAL_SIZE
 
       IF (l_root .AND. onlyroot) &
-           CALL MPI_FILE_WRITE_AT(fhist%id, fhist%disp, var, lsize,    &
-                                  REAL_SIZE, MPI_STATUS_IGNORE, ierr )
+           CALL MPI_FILE_WRITE_AT(fhist%id, disp, var, lsize,    &
+                                  MY_REAL, MPI_STATUS_IGNORE, ierr )
       
       IF (l_root .AND. .NOT. onlyroot) &      
-           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, fhist%disp, var, lsize,     &
-                                      REAL_SIZE, MPI_STATUS_IGNORE, ierr)
+           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, disp, var, lsize,     &
+                                      MY_REAL, MPI_STATUS_IGNORE, ierr)
       
       ! update the displacement to a next common value (same for all processes!) depending on the total process count,
       ! and the field size
       IF (onlyroot) THEN
-         fhist%disp = init_disp + lsize * REAL_SIZE     
+         fhist%disp = fhist%disp + lsize * REAL_SIZE     
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,lsize,REAL_SIZE)
+         fhist%disp = fhist%disp + pecount * lsize * REAL_SIZE
       END IF
          
     END SUBROUTINE write_hist_field_3d
@@ -319,20 +325,20 @@ MODULE mo_mpi_io
       LOGICAL, INTENT(in) :: onlyroot
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
       
-      init_disp = fhist%disp
+      disp = fhist%disp
       IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,1,INT_SIZE)
+           disp = fhist%disp + myid * INT_SIZE
 
-      CALL MPI_FILE_READ_AT_ALL(fhist%id, fhist%disp, var, 1,    &
-                                INT_SIZE, MPI_STATUS_IGNORE, ierr  )
+      CALL MPI_FILE_READ_AT_ALL(fhist%id, disp, var, 1,    &
+                                MPI_INTEGER, MPI_STATUS_IGNORE, ierr  )
 
       ! Update displacement
       IF (onlyroot) THEN
          fhist%disp = fhist%disp + INT_SIZE
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,1,INT_SIZE)
+         fhist%disp = fhist%disp + pecount * INT_SIZE
       END IF
 
     END SUBROUTINE read_hist_parameters_int
@@ -345,20 +351,23 @@ MODULE mo_mpi_io
       LOGICAL, INTENT(in) :: onlyroot
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
-      
-      init_disp = fhist%disp
-      IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,nn,INT_SIZE)
+      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
-      CALL MPI_FILE_READ_AT_ALL(fhist%id, fhist%disp, var, nn,    &
-                                INT_SIZE, MPI_STATUS_IGNORE, ierr  )
+      lsize = nn
+      
+      disp = fhist%disp
+      IF (.NOT. onlyroot) &
+           disp = fhist%disp + myid * lsize * INT_SIZE
+
+      CALL MPI_FILE_READ_AT_ALL(fhist%id, disp, var, nn,    &
+                                MPI_INTEGER, MPI_STATUS_IGNORE, ierr  )
       
       ! Update displacement
       IF (onlyroot) THEN
-         fhist%disp = fhist%disp + nn*INT_SIZE
+         fhist%disp = fhist%disp + lsize * INT_SIZE
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,nn,INT_SIZE)
+         fhist%disp = fhist%disp + pecount * lsize * INT_SIZE
       END IF
 
     END SUBROUTINE read_hist_parameters_int_1d
@@ -371,20 +380,20 @@ MODULE mo_mpi_io
       LOGICAL, INTENT(in) :: onlyroot
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
       
-      init_disp = fhist%disp
+      disp = fhist%disp
       IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,1,REAL_SIZE)
+           disp = fhist%disp + myid * REAL_SIZE
 
-      CALL MPI_FILE_READ_AT_ALL(fhist%id, fhist%disp, var, 1,    &
-                                REAL_SIZE, MPI_STATUS_IGNORE, ierr  )
+      CALL MPI_FILE_READ_AT_ALL(fhist%id, disp, var, 1,    &
+                                MY_REAL, MPI_STATUS_IGNORE, ierr  )
 
       ! Update displacement
       IF (onlyroot) THEN
          fhist%disp = fhist%disp + REAL_SIZE
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,1,REAL_SIZE)
+         fhist%disp = fhist%disp + pecount * REAL_SIZE
       END IF
     END SUBROUTINE read_hist_parameters_real
 
@@ -396,53 +405,56 @@ MODULE mo_mpi_io
       LOGICAL, INTENT(in) :: onlyroot
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
-      INTEGER :: lsize, ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+      INTEGER :: ierr
+      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       lsize = nn
       
-      init_disp = fhist%disp
+      disp = fhist%disp
       IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,lsize,REAL_SIZE)      
+           disp = fhist%disp + myid * lsize * REAL_SIZE
       
-      CALL MPI_FILE_READ_AT_ALL(fhist%id, fhist%disp, var, lsize,      &
-                                REAL_SIZE, MPI_STATUS_IGNORE, ierr)
+      CALL MPI_FILE_READ_AT_ALL(fhist%id, disp, var, lsize,      &
+                                MY_REAL, MPI_STATUS_IGNORE, ierr)
       
       ! update the displacement to a next common value (same for all processes!) depending on the total process count,
       ! and the field size
       IF (onlyroot) THEN
-         fhist%disp = init_disp + lsize * REAL_SIZE
+         fhist%disp = fhist%disp + lsize * REAL_SIZE
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,lsize,REAL_SIZE)
+         fhist%disp = fhist%disp + pecount * lsize * REAL_SIZE
       END IF
     END SUBROUTINE read_hist_field_1d
 
     ! -------------------------------------------------
     
-    SUBROUTINE read_hist_field_2d(n1,n2,var,onlyroot,fhist)
-      INTEGER, INTENT(in) :: n1,n2
-      REAL, INTENT(out) :: var(n1,n2)
+    SUBROUTINE read_hist_field_2d(n2,n3,var,onlyroot,fhist)
+      INTEGER, INTENT(in) :: n2,n3
+      REAL, INTENT(out) :: var(n2,n3)
       LOGICAL, INTENT(in) :: onlyroot
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
-      INTEGER :: lsize, ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+      INTEGER :: ierr
+      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
-      lsize = n1*n2
+      lsize = n2*n3
       
-      init_disp = fhist%disp
+      disp = fhist%disp
       IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,lsize,REAL_SIZE)      
+           disp = fhist%disp + myid * lsize * REAL_SIZE
 
-      CALL MPI_FILE_READ_AT_ALL(fhist%id, fhist%disp, var, lsize,      &
-                                REAL_SIZE, MPI_STATUS_IGNORE, ierr)
+      CALL MPI_FILE_READ_AT_ALL(fhist%id, disp, var, lsize,      &
+                                MY_REAL, MPI_STATUS_IGNORE, ierr)
       
       ! update the displacement to a next common value (same for all processes!) depending on the total process count,
       ! and the field size
+      
       IF (onlyroot) THEN
-         fhist%disp = init_disp + lsize * REAL_SIZE
+         fhist%disp = fhist%disp + lsize * REAL_SIZE
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,lsize,REAL_SIZE)
+         fhist%disp = fhist%disp + pecount * lsize * REAL_SIZE 
       END IF
     END SUBROUTINE read_hist_field_2d
 
@@ -454,42 +466,29 @@ MODULE mo_mpi_io
       LOGICAL, INTENT(in) :: onlyroot
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
-      INTEGER :: lsize, ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: init_disp
+      INTEGER :: ierr
+      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       lsize = n1*n2*n3
       
-      init_disp = fhist%disp
+      disp = fhist%disp
       IF (.NOT. onlyroot) &
-           fhist%disp = getRankDisplacement(fhist%disp,lsize,REAL_SIZE)      
+           disp = fhist%disp + myid * lsize * REAL_SIZE
       
-      CALL MPI_FILE_READ_AT_ALL(fhist%id, fhist%disp, var, lsize,      &
-                                REAL_SIZE, MPI_STATUS_IGNORE, ierr)
+      CALL MPI_FILE_READ_AT_ALL(fhist%id, disp, var, lsize,      &
+                                MY_REAL, MPI_STATUS_IGNORE, ierr)
       
       ! update the displacement to a next common value (same for all processes!) depending on the total process count,
       ! and the field size
       IF (onlyroot) THEN
-         fhist%disp = init_disp + lsize * REAL_SIZE
+         fhist%disp = fhist%disp + lsize * REAL_SIZE
       ELSE
-         fhist%disp = getGlobalDisplacement(init_disp,lsize,REAL_SIZE)
+         fhist%disp = fhist%disp + pecount * lsize * REAL_SIZE 
       END IF
     END SUBROUTINE read_hist_field_3d
 
     ! --------------------------------------------------
-    
-    FUNCTION getRankDisplacement(idisp,isize,ikind)
-      INTEGER(KIND=MPI_OFFSET_KIND), INTENT(in) :: idisp
-      INTEGER, INTENT(in) :: isize,ikind
-      INTEGER(KIND=MPI_OFFSET_KIND) :: getRankDisplacement
-      getRankDisplacement = idisp + myid * isize * ikind
-    END FUNCTION getRankDisplacement
-
-    FUNCTION getGlobalDisplacement(idisp,isize,ikind)
-      INTEGER(KIND=MPI_OFFSET_KIND), INTENT(in) :: idisp
-      INTEGER, INTENT(in) :: isize,ikind
-      INTEGER(KIND=MPI_OFFSET_KIND) :: getGlobalDisplacement
-      getGlobalDisplacement = idisp + pecount * isize * ikind
-    END FUNCTION
-    
+        
     
 END MODULE mo_mpi_io
