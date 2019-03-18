@@ -109,8 +109,8 @@ cat > NAMELIST <<EOF
   ts_intvl = 5.
   main_intvl = 5.
   varlist_main = 'temp','rp','rc','srp','theta','wwind','ri','riri',
-                 'rh','rhi','Naba','Ncba','Npba','Niba'
-  varlist_ps = 'temp','theta'
+                 'rh','rhi','sfcrrate','rrate'
+  varlist_ps = 'temp','theta','rrate'
   varlist_ts = 'lwp_bar','cfrac'
 /
 
@@ -284,14 +284,14 @@ cat > NAMELIST <<EOF
    ! The number of entries must comply with the max number of _modes_ (currently 7)  
    sigmagA  = 1.55, 1.8, 1.5, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpgA     = 0.022, 0.1, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nA       = 2000., 3000., 1., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
+   nA       = 500., 50., 1., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
    volDistB = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)
    sigmagB  = 1.2, 1.7, 1.6, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform) 
    dpgB     = 0.022, 0.12, 1.8, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nB       = 0., 0., 30., 0., 0., 0., 0.             ! Mode number concentrations in #/cm^3 
+   nB       = 0., 0., 0., 0., 0., 0., 0.             ! Mode number concentrations in #/cm^3 
 /
 
 EOF

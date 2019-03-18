@@ -46,8 +46,11 @@ MODULE mo_diag_state
   TYPE(FloatArray2D), TARGET :: wt_sfc               ! 8: 
   TYPE(FloatArray2D), TARGET :: wq_sfc               ! 9:
 
+  TYPE(FloatArray2D), TARGET :: a_sfcrrate           ! 10: Surface rain rate
+  TYPE(FloatArray2D), TARGET :: a_sfcirate           ! 11: Surface frozen precipitation
+  
   REAL, ALLOCATABLE, TARGET :: a_diag2d(:,:,:)
-  INTEGER, PARAMETER :: ndiag2d = 9  ! Remember to update if adding new variables!!
+  INTEGER, PARAMETER :: ndiag2d = 11  ! Remember to update if adding new variables!!
   
   !
   ! Microphysical process rates -- they need to be stored during the timestep because they cannot be simply diagnosed afterwards
@@ -285,7 +288,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          a_rrate = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_rrate
-         CALL Diag%newField("rrate", "Liquid surface precipitation", "CHECK", "xtytt",   &
+         CALL Diag%newField("rrate", "Liquid surface precipitation", "W/m2", "tttt",   &
                             ANY(outputlist == "rrate"), pipeline) 
       END IF
 
@@ -295,7 +298,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          a_irate = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_irate
-         CALL Diag%newField("irate", "Frozen surface precipitation", "CHECK", "xtytt",    &
+         CALL Diag%newField("irate", "Frozen surface precipitation", "W/m2", "tttt",    &
                             ANY(outputlist == "irate"), pipeline) 
       END IF
 
@@ -374,6 +377,24 @@ MODULE mo_diag_state
       CALL Diag%newField("wq_sfc", "Vertical moisture flux", "CHECK", "xtytt",    &
                          ANY(outputlist == "wq_sfc"), pipeline) 
 
+      memsize = memsize + nxy
+      n2d = n2d+1
+      pipeline => NULL()
+      a_sfcrrate = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_sfcrrate
+      CALL Diag%newField("sfcrrate", "Surface rain rate", "mm/h", "xtytt",     &
+                         ANY(outputlist == "sfcrrate"), pipeline)
+
+      IF ( level == 5 ) THEN
+         memsize = memsize + nxy
+         n2d = n2d+1
+         pipeline => NULL()
+         a_sfcirate = FloatArray2d(a_diag2d(:,:,n2d))
+         pipeline => a_sfcirate
+         CALL Diag%newField("sfcirate", "Surface frozen precip (liquid eqv)", "mm/h", "xtytt",    &
+                            ANY(outputlist == "sfcirate"), pipeline)
+      END IF
+      
 
       ! First rateDiag3d entry
       n3dr = n3dr + 1

@@ -97,10 +97,10 @@ CONTAINS
          !
          ! output control
          !
-         IF (mod(tplsdt,ps_intvl) < dtl .OR. time >= timmax .OR. time == dtl) &
+         IF (psflg) &
               CALL write_ps(time)
 
-         IF (mod(tplsdt,ts_intvl) < dtl .OR. time >= timmax .OR. time == dtl) &
+         IF (tsflg) &
               CALL write_ts(time)
          
          IF ((mod(tplsdt,frqhis) < dtl .OR. time >= timmax) .AND. outflg)   &

@@ -22,8 +22,8 @@ MODULE mcrp
   USE defs, ONLY : alvl,alvi,rowt,pi,Rm,cp,kb,g,vonk
   USE mo_aux_state, ONLY : dzt,dn0,pi0
   USE mo_diag_state, ONLY : a_pexnr,a_rv,a_rc,a_theta,a_press,     &
-                            a_temp,a_rsl,a_rrate,a_irate,a_dn,    &
-                            a_ustar
+                            a_temp,a_rsl,a_dn,a_ustar,             &
+                            a_rrate, a_irate, a_sfcrrate, a_sfcirate
   USE mo_progn_state, ONLY : a_rp,a_tp,a_rt,a_tt,a_rpp,a_rpt,a_npp,a_npt
   USE grid, ONLY : dtlt,nxp,nyp,nzp,th00,CCN
   USE thrm, ONLY : thermo
@@ -97,7 +97,8 @@ MODULE mcrp
       CASE(4,5)
          nspec = spec%getNSpec(type="wet")
          CALL sedim_SALSA(nzp,nxp,nyp,nspec,dtlt,a_temp,a_theta,                &
-                          a_rrate, a_irate, a_tt                )
+                          a_rrate, a_sfcrrate, a_irate, a_sfcirate,             &
+                          a_tt                                                  )
       END SELECT
       
     END SUBROUTINE micro
@@ -499,8 +500,8 @@ MODULE mcrp
     ! Juha: Rain is now treated completely separately (20151013)
     !
     ! Jaakko: Modified for the use of ice and snow bins
-    SUBROUTINE sedim_SALSA(n1,n2,n3,nspec,tstep,tk,th,          &
-                           rrate, irate, tlt          )
+    SUBROUTINE sedim_SALSA(n1,n2,n3,nspec,tstep,tk,th,              &
+                           rrate, sfcrrate, irate, sfcirate,  tlt   )
 
       USE mo_progn_state, ONLY :  a_naerop,  a_naerot,  a_maerop,  a_maerot,         &
                                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,        &
@@ -516,6 +517,7 @@ MODULE mcrp
       REAL, INTENT(in) :: tstep
       TYPE(FloatArray3d), INTENT(in) :: tk, th
       TYPE(FloatArray3d), INTENT(inout) :: tlt,rrate,irate
+      TYPE(FloatArray2d), INTENT(inout) :: sfcrrate, sfcirate
                              
       INTEGER :: i,j,k,nc,istr,iend
 
@@ -596,11 +598,15 @@ MODULE mcrp
          
          a_nprecpt%d(:,:,:,:) = a_nprecpt%d(:,:,:,:) + prnt(:,:,:,:)/tstep
          a_mprecpt%d(:,:,:,:) = a_mprecpt%d(:,:,:,:) + prmt(:,:,:,:)/tstep
-         
-         ! Convert mass flux to heat flux (W/m^2)
-         rrate%d(:,:,:) = rrate%d(:,:,:)*alvl
-         
+
          nc = spec%getIndex('H2O')
+         ! Surface precipitation as mm/h (kg/m^2 h)
+         istr = getMassIndex(nprc,1,nc); iend = getMassIndex(nprc,nprc,nc)
+         sfcrrate%d(:,:) = SUM(remprc(:,:,istr:iend),DIM=3)*3600.
+         
+         ! Convert mass flux to heat flux (W/m^2) for output
+         rrate%d(:,:,:) = rrate%d(:,:,:)*alvl
+
          istr = getMassIndex(nprc,1,nc)
          iend = getMassIndex(nprc,nprc,nc)
          DO j = 3, n3-2
@@ -617,11 +623,18 @@ MODULE mcrp
          
          a_nicet%d(:,:,:,:) = a_nicet%d(:,:,:,:) + irnt(:,:,:,:)/tstep
          a_micet%d(:,:,:,:) = a_micet%d(:,:,:,:) + irmt(:,:,:,:)/tstep
+
+         nc = spec%getIndex('H2O')
+         ! Surface frozen precipitation as mm/h (liquid equivalent)
+         istr = getMassIndex(nice,1,nc); iend = getMassIndex(nice,nice,nc)
+         sfcirate%d(:,:) = SUM(remice(:,:,istr:iend),DIM=3)*3600.
+         istr = getMassIndex(nice,1,nc+1); iend = getMassIndex(nice,nice,nc+1)
+         sfcirate%d(:,:) = + sfcirate%d(:,:) +  &
+              SUM(remice(:,:,istr:iend),DIM=3)*3600.
          
          ! Convert mass flux to heat flux (W/m^2)
          irate%d(:,:,:) = irate%d(:,:,:)*alvi
-         
-         nc = spec%getIndex('H2O')
+
          istr = getMassIndex(nice,1,nc)
          iend = getMassIndex(nice,nice,nc+1) ! Include both pristine and rime
          DO j = 3, n3-2
@@ -891,6 +904,7 @@ MODULE mcrp
 
                 ! POISTA
                 IF (vc > 10. .OR. vc < 0.) WRITE(*,*) 'DEP FAST ', vc
+                vc = MIN(vc,10.)
                 
                 ! Rain rate statistics: removal of water from the current bin is accounted for
                 ! Water is the last (nspec) species and rain rate is given here kg/s/m^2
