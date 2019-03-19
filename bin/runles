@@ -22,14 +22,21 @@ TWALL=8:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
 NYP=40              # Number of points in Y-direction (including "halo" points)
-NZP=70              # Number of points in Z-direction
+NZP=150              # Number of points in Z-direction
 DX=40.              # Resolution in X-direction (meters)
 DY=40.              # Resolution in Y-direction (meters)
-DZ=20.              # Resolution in Z-direction (meters)
+DZ=100.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
 Tspinup=0.        # Length of the spinup period (seconds)
 Texp=43200.         # Length of the experiment (seconds)
 LEVEL=5             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+
+# FOR SALSA
+ISDTYP=1            # 0: Aerosol size distribution from namelist (uniform across domain),
+                    # 1: Read profile from input file. Note that nspec_dry and listspec in SALSA namelist
+                    #    must conform with the input data in the file specified below. 
+AEROSOL_CASE="aerosol_UAE_SO4_DU_BASIC.nc"  # If ISDTYP==1, the symbolic link 'aerosol_in.nc' is pointed to this file
+
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
 
 
@@ -46,6 +53,12 @@ if [ $? -eq 0 ]; then
 else
     ver=latest
 fi
+
+if [ ${ISDTYP} -eq 1 ]; then
+    ln -s ${AEROSOL_CASE} datafiles/aerosol_in.nc
+fi
+
+
 # ---------------------------------------------------------------- </DO NOT CHANGE>
 
 
@@ -135,8 +148,8 @@ cat > NAMELIST <<EOF
   zrough            = 0.005
   ubmin             = -0.25
   sst               = 285.
-  dthcon            = 10.
-  drtcon            = 80.
+  dthcon            = 100.
+  drtcon            = 0.
   C_heat            = 2.e6
   deepSoilTemp      = 285.
   W1                = 0.9
@@ -271,14 +284,14 @@ cat > NAMELIST <<EOF
    bloIce%dlo       = 2.e-6    ! Lower limit of the smallest bin
    bloIce%vol_ratio = 3.        ! Volume ratio between bins
 
-   lsfreeRH%switch = .FALSE.
+   lsfreeRH%switch = .TRUE.
    lsfreeRH%delay = ${Tspinup}
    rhlim = 1.005          ! RH limit for SALSA during initialization and spinup
 
-   isdtyp = 0
    nspec_dry = 1
    listspec = 'SO4','','','','','',''
 
+   isdtyp = ${ISDTYP}
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
    volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)  

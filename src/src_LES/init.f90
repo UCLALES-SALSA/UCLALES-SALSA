@@ -619,9 +619,10 @@ CONTAINS
     INTEGER :: l, k, i
     REAL    :: wt
 
+    xb = 0.
     DO i = 1, nx
        l = 1
-       DO k = 1, nb
+       DO k = 2, nb
           IF (zb(k) <= za(na)) THEN
              DO WHILE ( zb(k) > za(l+1) .AND. l < na)
                 l = l+1
@@ -1074,11 +1075,11 @@ CONTAINS
     LOGICAL :: READ_NC
 
     ! Read the NetCDF input when it is available
-    INQUIRE(FILE='aerosol_in.nc',EXIST=READ_NC)
+    INQUIRE(FILE='datafiles/aerosol_in.nc',EXIST=READ_NC)
 
     ! Open the input file
     IF (READ_NC) CALL open_aero_nc(ncid, nc_levs, nc_nspec, nc_nmod)
-
+    
     ! Check that the input dimensions are compatible with SALSA initialization
     ! ....
 
@@ -1086,12 +1087,12 @@ CONTAINS
     ALLOCATE( zlevs(nc_levs),              &
               zvolDistA(nc_levs,maxspec),  &
               zvolDistB(nc_levs,maxspec),  &
-              znA(nc_levs,nmod),           &
-              zsigmagA(nc_levs,nmod),      &
-              zdpgA(nc_levs,nmod),         &
-              znB(nc_levs,nmod),           &
-              zsigmagB(nc_levs,nmod),      &
-              zdpgB(nc_levs,nmod),         &
+              znA(nc_levs,nc_nmod),           &
+              zsigmagA(nc_levs,nc_nmod),      &
+              zdpgA(nc_levs,nc_nmod),         &
+              znB(nc_levs,nc_nmod),           &
+              zsigmagB(nc_levs,nc_nmod),      &
+              zdpgB(nc_levs,nc_nmod),         &
         ! Couple of helper arrays
               znsectA(nc_levs,nbins),      &
               znsectB(nc_levs,nbins),      &
@@ -1105,14 +1106,15 @@ CONTAINS
        CALL read_aero_nc_1d(ncid,'levs',nc_levs,zlevs)
        CALL read_aero_nc_2d(ncid,'volDistA',nc_levs,maxspec,zvolDistA)
        CALL read_aero_nc_2d(ncid,'volDistB',nc_levs,maxspec,zvolDistB)
-       CALL read_aero_nc_2d(ncid,'nA',nc_levs,nmod,znA)
-       CALL read_aero_nc_2d(ncid,'nB',nc_levs,nmod,znB)
-       CALL read_aero_nc_2d(ncid,'dpgA',nc_levs,nmod,zdpgA)
-       CALL read_aero_nc_2d(ncid,'dpgB',nc_levs,nmod,zdpgB)
-       CALL read_aero_nc_2d(ncid,'sigmagA',nc_levs,nmod,zsigmagA)
-       CALL read_aero_nc_2d(ncid,'sigmagB',nc_levs,nmod,zsigmagB)
+       CALL read_aero_nc_2d(ncid,'nA',nc_levs,nc_nmod,znA)
+       CALL read_aero_nc_2d(ncid,'nB',nc_levs,nc_nmod,znB)
+       CALL read_aero_nc_2d(ncid,'dpgA',nc_levs,nc_nmod,zdpgA)
+       CALL read_aero_nc_2d(ncid,'dpgB',nc_levs,nc_nmod,zdpgB)
+       CALL read_aero_nc_2d(ncid,'sigmagA',nc_levs,nc_nmod,zsigmagA)
+       CALL read_aero_nc_2d(ncid,'sigmagB',nc_levs,nc_nmod,zsigmagB)
 
        CALL close_nc(ncid)
+       
     ELSE
        ! Read the profile data from a text file
        OPEN(11,file='aerosol_in',status='old',form='formatted')
@@ -1163,7 +1165,7 @@ CONTAINS
  CALL htint2d(nc_levs,znsectA(1:nc_levs,:),zlevs(1:nc_levs),nzp,pndistA,zt%d,nbins)
  CALL htint2d(nc_levs,znsectB(1:nc_levs,:),zlevs(1:nc_levs),nzp,pndistB,zt%d,nbins)
  ppndist = pndistA + pndistB
- 
+
  ! Since 1a bins by SALSA convention can only contain SO4 or OC,
  ! get renormalized mass fractions.
  ! --------------------------------------------------------------

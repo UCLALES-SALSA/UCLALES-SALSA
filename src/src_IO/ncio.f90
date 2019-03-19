@@ -652,7 +652,7 @@ MODULE ncio
     INTEGER :: iret, did
 
     ! Open file
-    iret = nf90_open('aerosol_in.nc',NF90_NOWRITE,ncid)
+    iret = nf90_open('datafiles/aerosol_in.nc',NF90_NOWRITE,ncid)
 
     ! Inquire the number of input levels
     iret = nf90_inq_dimid(ncid,'levs',did)

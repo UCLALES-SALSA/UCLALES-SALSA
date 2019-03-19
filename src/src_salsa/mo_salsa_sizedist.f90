@@ -40,7 +40,9 @@ CONTAINS
       INTEGER :: ii, jj, kk, ib
 
       naero = 0.
+      
 
+      
       DO jj = 1, klev    ! vertical grid
          DO ii = 1, kbdim ! horizontal grid
 
@@ -61,8 +63,8 @@ CONTAINS
                   !   dpg = geometric-mean number, area, or volume diameter
                   !   n(kk) = number, area, or volume concentration in a bin
                   naero(ii,jj,kk) = naero(ii,jj,kk)+sum(n*deltadp/                        &
-                                                        (sqrt(2.*pi)*log(sigmag))*        &
-                                                        exp(-log(dmid/dpg)**2/(2.*log(sigmag)**2)))
+                                                        (sqrt(2.*pi)*log(MAX(sigmag,1.e-9)))*        &
+                                                        exp(-log(dmid/MAX(dpg,1.e-9))**2/(2.*log(MAX(sigmag,1.e-9))**2)))
                END DO
 
             END DO
