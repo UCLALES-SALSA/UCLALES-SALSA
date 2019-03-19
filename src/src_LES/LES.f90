@@ -90,7 +90,7 @@ contains
     use util, only : fftinix,fftiniy
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon
-    use step, only : timmax, istpfl, corflg, outflg, frqanl, frqhis,          &
+    use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, &
          strtim, radfrq, cntlat
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
@@ -131,6 +131,7 @@ contains
          timmax , dtlong , istpfl , & ! timestep control
          runtype, hfilin , filprf , & ! type of run (INITIAL or HISTORY)
          frqhis , frqanl , outflg , & ! freq of history/anal writes, output flg
+         anl_start,                 & ! start saving data to the 4D analysis files after this time
          iradtyp, radfrq , strtim , & ! radiation type flag
          isfctyp, ubmin  , zrough , & ! surface parameterization type
          sst    , dthcon , drtcon , & ! SSTs, surface flx parameters

@@ -33,7 +33,7 @@ contains
   subroutine fadvect
     use grid, only : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, newsclr  &
          , nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtl  &
-         , dzt, dzm, zt, dxi, dyi, level, isgstyp
+         , dzt, dzm, zt, dxi, dyi, isgstyp
     use stat, only      : sflg, updtst
     use util, only      : get_avg3
 
@@ -43,7 +43,7 @@ contains
     !
     ! diagnose liquid water flux
     !
-    if (sflg .and. level > 1) then
+    if (sflg) then
        a_tmp1=a_rc
        call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.false.)
        call mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtl,.false.)

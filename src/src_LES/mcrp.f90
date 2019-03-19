@@ -135,10 +135,6 @@ contains
 
     !
     ! Microphysics following Seifert Beheng (2001, 2005)
-    ! note that the order below is important as the rc array is
-    ! redefined in cld_dgn below and is assumed to be cloud water
-    ! after that and total condensate priort to that
-    !
 
     ! Diagnostics (ignoring/avoiding negative values, and changes in number due to minimum and maximum volumes)
     diag_rr(:,:,:)=rp(:,:,:)
@@ -157,7 +153,7 @@ contains
     ! Condensation/evaporation
     cond_rr(:,:,:)=rpt(:,:,:)
     cond_nr(:,:,:)=npt(:,:,:) ! Level 3 only
-    call wtr_dff_SB(n1,n2,n3,dn0,rp,np,rc,rs,rv,tk,rpt,npt)
+    call wtr_dff_SB(n1,n2,n3,dn0,rp,np,rs,rv,tk,rpt,npt)
     cond_rr(:,:,:)=rpt(:,:,:)-cond_rr(:,:,:)
     cond_nr(:,:,:)=npt(:,:,:)-cond_nr(:,:,:)
 
@@ -175,25 +171,24 @@ contains
     coag_rr(:,:,:)=rpt(:,:,:)-coag_rr(:,:,:)
     coag_nr(:,:,:)=npt(:,:,:)-coag_nr(:,:,:)
 
+    ! Apply tendencies
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1-1
-             diag_rr(k,i,j)=diag_rr(k,i,j)-min(0.,rpt(k,i,j)+rp(k,i,j)/dtl)
-             diag_nr(k,i,j)=diag_nr(k,i,j)-min(0.,npt(k,i,j)+np(k,i,j)/dtl)
+             rp_old=rp(k,i,j); np_old = np(k,i,j)
              !
              rp(k,i,j) = rp(k,i,j) + max(-rp(k,i,j)/dtl,rpt(k,i,j))*dtl
              np(k,i,j) = np(k,i,j) + max(-np(k,i,j)/dtl,npt(k,i,j))*dtl
-             rpt(k,i,j)= 0.
-             npt(k,i,j)= 0.
-             rp_old=rp(k,i,j); np_old = np(k,i,j)
              rp(k,i,j) = max(0., rp(k,i,j))
              np(k,i,j) = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
              !
-             diag_rr(k,i,j)=diag_rr(k,i,j)+(rp(k,i,j)-rp_old)/dtl
-             diag_nr(k,i,j)=diag_nr(k,i,j)+(np(k,i,j)-np_old)/dtl
+             diag_rr(k,i,j)=diag_rr(k,i,j)+(rp(k,i,j)-rp_old)/dtl-rpt(k,i,j)
+             diag_nr(k,i,j)=diag_nr(k,i,j)+(np(k,i,j)-np_old)/dtl-npt(k,i,j)
           end do
        end do
     end do
+    rpt(:,:,:)= 0.
+    npt(:,:,:)= 0.
 
     ! Sedimentation
     sedi_rr(:,:,:)=rpt(:,:,:)
@@ -203,6 +198,7 @@ contains
     sedi_rr(:,:,:)=rpt(:,:,:)-sedi_rr(:,:,:)
     sedi_nr(:,:,:)=npt(:,:,:)-sedi_nr(:,:,:)
 
+    ! Note: rc is not updated after autoconversion and accretion!
     sedi_rc(:,:,:)=rtt(:,:,:)
     if (sed_cloud) call sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
     sedi_rc(:,:,:)=sedi_rc(:,:,:)-rtt(:,:,:) ! rtt is total water, so an increase in rt means decrease in rc
@@ -214,12 +210,12 @@ contains
   ! mass mixing ratio large drops due to evaporation in the absence of
   ! cloud water.
   !
-  subroutine wtr_dff_SB(n1,n2,n3,dn0,rp,np,rl,rs,rv,tk,rpt,npt)
+  subroutine wtr_dff_SB(n1,n2,n3,dn0,rp,np,rs,rv,tk,rpt,npt)
 
     integer, intent (in) :: n1,n2,n3
     real, intent (in)    :: tk(n1,n2,n3), np(n1,n2,n3), rp(n1,n2,n3),        &
          rs(n1,n2,n3),rv(n1,n2,n3), dn0(n1)
-    real, intent (inout) :: rpt(n1,n2,n3), npt(n1,n2,n3), rl(n1,n2,n3)
+    real, intent (inout) :: rpt(n1,n2,n3), npt(n1,n2,n3)
 
     real, parameter    :: Kt = 2.5e-2    ! conductivity of heat [J/(sKm)]
     real, parameter    :: Dv = 3.e-5     ! diffusivity of water vapor [m2/s]
@@ -238,7 +234,7 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1
-             if (rp(k,i,j) > rl(k,i,j)) then
+             if (rp(k,i,j) > 0. .AND. rv(k,i,j)<rs(k,i,j)) then
                 Xp = rp(k,i,j)/ (np(k,i,j)+eps0)
                 Xp = MIN(MAX(Xp,X_bnd),X_max)
                 Dp = ( Xp / prw )**(1./3.)
@@ -247,15 +243,12 @@ contains
                      alvl*(alvl/(Rm*tk(k,i,j))-1.) / (Kt*tk(k,i,j)))
                 S = rv(k,i,j)/rs(k,i,j) - 1.
 
-                if (S < 0) then
-                   cerpt = 2. * pi * Dp * G * S * np(k,i,j)
-                   cenpt = cerpt * np(k,i,j) / rp(k,i,j)
-                   rpt(k,i,j)=rpt(k,i,j) + cerpt
-                   npt(k,i,j)=npt(k,i,j) + cenpt
-                   if (sflg) v1(k) = v1(k) + cerpt * xnpts
-                end if
+                cerpt = 2. * pi * Dp * G * S * np(k,i,j)
+                cenpt = cerpt * np(k,i,j) / rp(k,i,j)
+                rpt(k,i,j)=rpt(k,i,j) + cerpt
+                npt(k,i,j)=npt(k,i,j) + cenpt
+                if (sflg) v1(k) = v1(k) + cerpt * xnpts
              end if
-             rl(k,i,j) = max(0.,rl(k,i,j) - rp(k,i,j))
           end do
        end do
     end do

@@ -586,7 +586,7 @@ contains
     SELECT CASE(level)
        CASE (3)
           rxt = a_rp ! Total water (vapor + condensed water and ice) = q
-          rxl = a_rc-a_rpp ! Cloud water (+aerosol), but no precipitation or ice
+          rxl = a_rc ! Cloud water (+aerosol), but no precipitation or ice
           rxv = a_rv ! Water vapor
           xrpp = a_rpp ! Rain water
           xnpp = a_npp ! Rain number
@@ -662,7 +662,7 @@ contains
         ENDIF
 
         ! Warm cloud statistics
-        rxt = 0.    ! Condensate
+        rxt = 0.    ! Cloud water
         rnt = 0.
         xrpp = 0.   ! Precipitate
         xnpp = 0.
@@ -1823,7 +1823,7 @@ contains
                                nprc,nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                      a_rc, a_srp, a_rp, a_rh, prtcl,    &
-                     a_naerop, a_ncloudp, a_nprecpp, cldin, zm, a_dn, &
+                     a_naerop, a_ncloudp, a_nprecpp, cldin, a_dn, &
                      coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
                      cond_ra, cond_rc, cond_rr, auto_rr, auto_nr, cact_rc, cact_nc, &
                      sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
@@ -2042,7 +2042,7 @@ contains
     use mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,prlim ! Note: prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
                      a_ri, a_srs, a_rhi, prtcl, a_nicep, a_nsnowp, icein, snowin, a_tp, th00, &
-                     zm, a_dn, coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
+                     a_dn, coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
                      nucl_ri, nucl_ni, sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
                      diag_ri, diag_ni, diag_rs, diag_ns, melt_ri, melt_ni, melt_rs, melt_ns
     USE class_ComponentIndex, ONLY : IsUsed

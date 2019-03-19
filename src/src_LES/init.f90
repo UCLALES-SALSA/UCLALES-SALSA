@@ -44,7 +44,7 @@ contains
   !
   subroutine initialize
 
-    use step, only : time, outflg, salsa_diag_update
+    use step, only : time, outflg, salsa_diag_update, anl_start
     use stat, only : init_stat, mcflg, acc_massbudged
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
@@ -161,7 +161,7 @@ contains
           call write_hist(1, time)
           call init_anal(time,stat_b_bins)
           call thermo(level)
-          call write_anal(time)
+          IF (time >= anl_start) call write_anal(time)
        else
           call init_anal(time+dtl,stat_b_bins)
           call write_hist(0, time)
@@ -720,11 +720,9 @@ contains
   ! Juha Tonttila, FMI, 2014
   !
   SUBROUTINE SALSAInit
-    USE mo_submctl, ONLY : nbins,ncld,nprc,nice,nsnw, &
-               in1a,fn2b,ica,fcb,ira,fra,iia,fib,isa,fsa
     USE class_componentIndex, ONLY : GetIndex
     IMPLICIT NONE
-    INTEGER :: k,i,j,nc,str,end
+    INTEGER :: k,i,j
 
     DO j=1,nyp
        DO i=1,nxp

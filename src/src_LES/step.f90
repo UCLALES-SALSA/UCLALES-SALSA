@@ -27,6 +27,7 @@ module step
 
   real    :: frqhis =  9000.
   real    :: frqanl =  3600.
+  real    :: anl_start = -1.
   real    :: radfrq =  0.
 
   real    :: time   =  0.
@@ -100,7 +101,7 @@ contains
 
        if ((mod(tplsdt,frqanl) < dtl .or. time >= timmax) .and. outflg) then
           call thermo(level)
-          call write_anal(time)
+          IF (time >= anl_start-0.5*dtl) call write_anal(time)
        end if
 
        if(myid == 0) then
@@ -260,10 +261,12 @@ contains
     CALL tend0(.TRUE.)
 
     ! Dont perform sedimentation or level 3 autoconversion during spinup
-    IF (zrm == 3) CALL micro(level)
+    IF (zrm == 3) THEN
+        CALL micro(level)
 
-    IF (level >= 4) CALL tend_constrain(n4)
-    CALL update_sclrs
+        IF (level >= 4) CALL tend_constrain(n4)
+        CALL update_sclrs
+    END IF
 
     !-------------------------------------------
     ! "Advection" timestep
@@ -342,7 +345,7 @@ contains
   SUBROUTINE nudging(time)
 
     use grid, only : level, dtl, nxp, nyp, nzp, &
-                zt, a_rp, a_rt, a_rpp, a_rc, a_srp, a_ri, a_srs, &
+                zt, a_rp, a_rt, a_rc, a_srp, a_ri, a_srs, &
                 a_naerop, a_naerot, a_ncloudp, a_nicep, &
                 a_tp, a_tt, a_up, a_ut, a_vp, a_vt, &
                 nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
@@ -366,15 +369,15 @@ contains
         ENDIF
         !
         ! Water vapor mixing ratio based on total water
-        !   Levels 0-3: total = cloud water (a_rc) and water vapor (a_rp) + rain water (a_rpp)
-        !   Levels 4-5: total = water vapor (a_rp) + condensate (a_rc) + rain water (a_srp)
+        !   Levels 0-3: total = total water (a_rp)
+        !   Levels 4-5: total = water vapor (a_rp) + aerosol and cloud water (a_rc) + rain water (a_srp)
         !                            + ice (a_ri) + snow (a_srs)
         IF (nudge_rv/=0)  THEN
             ALLOCATE(rv_ref(nzp))
             IF (level>3) THEN
                 rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_srp(:,3,3)+a_ri(:,3,3)+a_srs(:,3,3)
             ELSE ! Levels 0-3
-                rv_ref(:)=a_rp(:,3,3) ! This includes all, so no need to add a_rpp(:,3,3)
+                rv_ref(:)=a_rp(:,3,3) ! This includes all
             ENDIF
         ENDIF
         !
@@ -725,7 +728,7 @@ contains
   subroutine buoyancy
 
     use grid, only : a_uc, a_vc, a_wc, a_wt, a_rv, a_rc, a_theta, &
-         a_rp, a_srp, a_ri, a_srs, nxp, nyp, nzp, dzm, th00, level, pi1
+         a_rp, a_rpp, a_srp, a_ri, a_srs, nxp, nyp, nzp, dzm, th00, level, pi1
     use stat, only : sflg, comp_tke
     use util, only : ae1mm
     use thrm, only : update_pi1
@@ -734,8 +737,8 @@ contains
 
     IF (level<4) THEN
        rv = a_rv ! Water vapor
-       rc = a_rp - a_rv ! Total condensate (cloud + precipitation)
-    ELSE IF (level >= 4) THEN
+       rc = a_rc + a_rpp ! Total condensate (cloud + precipitation)
+    ELSE
        rv = a_rp ! Water vapor
        rc = a_rc + a_srp + a_ri + a_srs ! Total condensed water (aerosol+cloud+precipitation+ice+snow)
     END IF

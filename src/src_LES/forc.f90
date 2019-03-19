@@ -45,10 +45,10 @@ contains
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc     &
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp  &
          , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
-         a_ncloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_nsnowp, a_msnowp, &
+         a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_ri, a_nicep, a_micep, a_nsnowp, a_msnowp, &
          a_fus, a_fds, a_fuir, a_fdir
 
-    USE mo_submctl, ONLY : nspec,nprc,ira,fra,nsnw,isa,fsa
+    USE mo_submctl, ONLY : nspec,ncld,nprc,ica,fcb,nice,ira,fra,nsnw,iia,fib,isa,fsa
 
     use mpi_interface, only : myid, appl_abort
 
@@ -112,10 +112,11 @@ contains
 
           IF (level <= 3) THEN
              znc(:,:,:) = CCN
-             zrc(:,:,:) = a_rc(:,:,:) ! Cloud water only
-             IF (level == 3 .AND. RadPrecipBins > 0) THEN ! Add precipitation (all or nothing)
-                znc(:,:,:) = znc(:,:,:) + a_npp(:,:,:)
-                zrc(:,:,:) = zrc(:,:,:) + a_rpp(:,:,:)
+             zrc(:,:,:) = a_rc(:,:,:) ! Cloud water
+             IF (level == 3 .AND. RadPrecipBins > 0) THEN
+                ! Include clouds and rain - number is a mass-mean for cloud and rain species
+                zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
+                WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc*CCN))/zrc
              ENDIF
              call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                   dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
@@ -123,10 +124,11 @@ contains
                   useMcICA=useMcICA, ConstPrs=RadConstPress)
 
           ELSE IF (level == 4) THEN
+             ! Water is the last species (nspec+1)
+             !zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
+             zrc(:,:,:) = SUM(a_mcloudp(:,:,:,nspec*ncld+ica%cur:nspec*ncld+fcb%cur),DIM=4) ! Cloud droplets
              znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) ! Cloud droplets
-             zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
              IF (RadPrecipBins>0) THEN ! Add precipitation bins
-                ! Water is the last species (nspec+1)
                 zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
                 znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
              ENDIF
@@ -136,17 +138,17 @@ contains
                   useMcICA=useMcICA, ConstPrs=RadConstPress)
 
           ELSE IF (level == 5) THEN
+             ! Water is the last species (nspec+1)
+             !zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
+             zrc(:,:,:) = SUM(a_mcloudp(:,:,:,nspec*ncld+ica%cur:nspec*ncld+fcb%cur),DIM=4) ! Cloud droplets
              znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4) ! Cloud droplets
-             zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
              IF (RadPrecipBins>0) THEN ! Add precipitation bins
-                ! Water is the last species (nspec+1)
                 zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,nspec*nprc+ira:nspec*nprc+min(RadPrecipBins,fra)),DIM=4)
                 znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
              ENDIF
              zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4) ! Ice
-             zri(:,:,:) = a_ri(:,:,:) ! Ice (no aerosol ice?)
+             zri(:,:,:) = SUM(a_micep(:,:,:,nspec*nice+iia%cur:nspec*nice+fib%cur),DIM=4)
              IF (RadSnowBins>0) THEN ! Add snow bins
-                ! Water is the last species (nspec+1)
                 zri(:,:,:) = zri(:,:,:) + SUM(a_msnowp(:,:,:,nspec*nsnw+isa:nspec*nsnw+min(RadSnowBins,fsa)),DIM=4)
                 zni(:,:,:) = zni(:,:,:) + SUM(a_nsnowp(:,:,:,isa:min(RadSnowBins,fsa)),DIM=4)
              ENDIF

@@ -50,12 +50,15 @@ contains
     integer, intent (in) :: level
 
     select case (level)
-    case default
+    case (1)
        call drythrm(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,   &
                     pi1,th00,a_rp,a_rv)
-    case (2,3)
+    case (2)
        call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl)
+    case (3)
+       call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
+                     pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp)
     case (4:5)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
                       a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_rsi,a_rhi,a_srs)
@@ -211,16 +214,17 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1
-             dtx = 2.*epsln
-             iterate = 1
+             IF (PRESENT(rp)) rpc = MAX(0.,rp(k,i,j))
              exner=(pi0(k)+pi1(k)+pp(k,i,j))/cp
              p(k,i,j) = p00 * (exner)**cpr
-             tli=(tl(k,i,j)+th00)*exner
+             ! Adjust tl and rt so that they are for cloud water only
+             tli=(tl(k,i,j)+th00)*exner+alvl/cp*rpc
              tx=tli
-             rsx=rslf(p(k,i,j),tx)
-             IF (PRESENT(rp)) rpc = MAX(0.,rp(k,i,j))
-             rcx=max(rt(k,i,j)-rsx,0.)
-             if (rcx > rpc) then
+             rsx=rslf(p(k,i,j),tx) ! Saturation mixing ratio
+             rcx=max(rt(k,i,j)-rpc-rsx,0.) ! Cloud condensate mixing ratio
+             if (rcx > 0.) then
+                dtx = 2.*epsln
+                iterate = 1
                 do while(dtx > epsln .and. iterate < 20)
                    txi=alvl/(cp*tx)
                    tx1=tx - (tx - tli*(1.+txi*rcx))/(1. + txi*tli         &
@@ -228,7 +232,7 @@ contains
                    dtx = abs(tx1-tx)
                    tx  = tx1
                    rsx=rslf(p(k,i,j),tx)
-                   rcx=max(rt(k,i,j)-rsx,0.)
+                   rcx=max(rt(k,i,j)-rpc-rsx,0.)
                    iterate = iterate+1
                 enddo
                 if (dtx > epsln) then
@@ -237,25 +241,9 @@ contains
                                tk(k,i,j),rt(k,i,j),rv(k,i,j),rc(k,i,j),rs(k,i,j)
                     call appl_abort(0)
                 endif
-             ELSEIF (rpc>0.) THEN
-                do while (dtx > epsln .and. iterate < 10)
-                   txi = alvl*rpc/(cp*tx)
-                   tx1 = tx - (tx - tli*(1+txi)) / (1+txi*tli/tx)
-                   dtx = abs(tx1-tx)
-                   tx  = tx1
-                   iterate = iterate+1
-                end do
-                rsx=rslf(p(k,i,j),tx)
-                rcx=max(rt(k,i,j)-rsx,0.)
-                if (dtx > epsln) then
-                    print *, '  ABORTING: thrm', dtx, epsln
-                    WRITE(*,*) pp(k,i,j),p(k,i,j),tl(k,i,j),th(k,i,j), &
-                               tk(k,i,j),rt(k,i,j),rv(k,i,j),rc(k,i,j),rs(k,i,j),rp(k,i,j)
-                    call appl_abort(0)
-                endif
              endif
              rc(k,i,j)=rcx
-             rv(k,i,j)=rt(k,i,j)-rc(k,i,j)
+             rv(k,i,j)=rt(k,i,j)-rpc-rc(k,i,j)
              rs(k,i,j)=rsx
              tk(k,i,j)=tx
              th(k,i,j)=tk(k,i,j)/exner

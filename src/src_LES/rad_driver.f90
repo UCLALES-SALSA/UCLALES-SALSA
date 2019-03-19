@@ -75,9 +75,9 @@ module radiation
                 !   - Upper atmosphere (P > 179 hPa) from dsrt.lay
                 !   - log-log or lin-log interpolation between LES and the upper atmosphere
                 !   - Boundary layer ozone concentration fixed to 50 ppt
-                call setup_auto(n1,nv1,nv,p0,tk(n1,3,3),rv(n1,3,3),50e-9)
+                call setup_auto(n1,nv1,nv,p0,tk(n1,3,3),MAX(4e-7,rv(n1,3,3)),50e-9)
             ELSE
-                call setup_les(background,n1,nv1,nv,p0,tk(n1,3,3),rv(n1,3,3))
+                call setup_les(background,n1,nv1,nv,p0,tk(n1,3,3),MAX(4e-7,rv(n1,3,3)))
             ENDIF
          ELSE
             p0(n1) = (p00*(pi0(n1)/cp)**cpr) / 100.
