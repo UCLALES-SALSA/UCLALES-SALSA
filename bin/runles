@@ -55,7 +55,7 @@ else
 fi
 
 if [ ${ISDTYP} -eq 1 ]; then
-    ln -s ${AEROSOL_CASE} datafiles/aerosol_in.nc
+    ln -sf ${AEROSOL_CASE} datafiles/aerosol_in.nc
 fi
 
 
