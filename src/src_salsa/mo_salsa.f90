@@ -30,7 +30,7 @@ CONTAINS
 
     USE mo_salsa_dynamics, only : coagulation, condensation
     USE mo_salsa_update, ONLY : distr_update
-    USE mo_salsa_cloud, only : cloud_activation, autoconv2, &
+    USE mo_salsa_cloud, only : cloud_activation, autoconv2, autoconv_sb, &
             autosnow, ice_fixed_NC, ice_nucl_driver, ice_melt
 
     USE mo_submctl, ONLY :      &
@@ -164,6 +164,7 @@ CONTAINS
     IF (lsauto) &
          CALL autoconv2(kproma,kbdim,klev, &
                         pcloud, pprecp )
+         !CALL autoconv_sb(kproma,kbdim,klev,ptstep,pcloud,pprecp)
     autoc_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(8),DIM=3)-autoc_vprecp(:,:)
     autoc_nprecp(:,:)=SUM(pprecp(:,:,:)%numc,DIM=3)-autoc_nprecp(:,:)
 

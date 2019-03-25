@@ -190,19 +190,13 @@ CONTAINS
                                in2a,fn2a,       &
                                fn2b,       &
                                cloudbins,       &
-                               precpbins
+                               precpbins, rainbinlim
     USE mo_salsa_driver, ONLY : kbdim, klev, &
                                  cloud,precp,aero
 
     IMPLICIT NONE
 
     INTEGER :: ii,jj,cc,nba,nbb
-
-    REAL :: tmplolim(7), tmphilim(7)
-
-    ! Helper arrays to set up precipitation size bins
-    tmplolim = (/50.,55.,65.,100.,200.,500.,1000./)*1.e-6
-    tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
 
     ! Cloud bins are parallel with the 2a and 2b aerosol bins
 
@@ -221,7 +215,27 @@ CONTAINS
     ncld = fcb%cur
 
     ! Rain/drizzle bins
-    ira = 1; fra = 7;
+    IF (rainbinlim(1)<0.) THEN
+        ! Use the default
+        rainbinlim(1:8)=(/50.,55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
+        fra=7
+    ELSEIF (rainbinlim(2)<0. .OR. rainbinlim(1)>rainbinlim(2) .OR. rainbinlim(1)<0.1 .OR. rainbinlim(1)>1000.) THEN
+        ! Bins should start from about 20-80 microns
+        WRITE(*,*) 'Bad input rain bin limits!'
+        STOP
+    ELSE
+        ii=2
+        DO WHILE (rainbinlim(ii)>0.)
+            IF (rainbinlim(ii-1)>rainbinlim(ii)) THEN
+                WRITE(*,*) 'Non-monotonic input rain bin limits!'
+                STOP
+            ENDIF
+            ii=ii+1
+        END DO
+        rainbinlim(1:ii-1)=rainbinlim(1:ii-1)*1.e-6 ! from microns to meters
+        fra=ii-2
+    ENDIF
+    ira = 1
     nprc = fra
 
     ! ----------------------------------------
@@ -267,8 +281,8 @@ CONTAINS
           ! Set the precipitation properties; unlike aerosol and cloud bins, the size distribution
           ! goes according to the *wet* radius
           ! ---------------------------------------------------------------------------------------
-          precp(ii,jj,:)%vhilim = pi6*tmphilim(:)**3
-          precp(ii,jj,:)%vlolim = pi6*tmplolim(:)**3
+          precp(ii,jj,:)%vhilim = pi6*rainbinlim(2:nprc+1)**3
+          precp(ii,jj,:)%vlolim = pi6*rainbinlim(1:nprc)**3
           precp(ii,jj,:)%dmid = ( (precp(ii,jj,:)%vlolim + precp(ii,jj,:)%vhilim) / (2.*pi6) )**(1./3.)
           precp(ii,jj,:)%vratiohi = precp(ii,jj,:)%vhilim / ( pi6*precp(ii,jj,:)%dmid**3 )
           precp(ii,jj,:)%vratiolo = precp(ii,jj,:)%vlolim / ( pi6*precp(ii,jj,:)%dmid**3 )
@@ -315,19 +329,13 @@ CONTAINS
                                in2a,fn2a,       &
                                fn2b,       &
                                icebins,         &
-                               snowbins
+                               snowbins, snowbinlim
     USE mo_salsa_driver, ONLY : kbdim, klev, &
                                  ice,snow,aero
 
     IMPLICIT NONE
 
     INTEGER :: ii,jj,cc,nba,nbb
-
-    REAL :: tmplolim(7), tmphilim(7)
-
-    ! Helper arrays to set up snow size bins
-    tmplolim = (/50.,55.,65., 100.,200.,500., 1000./)*1.e-6
-    tmphilim = (/55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
 
     ! Number of ice bins in regime a (soluble nuclei)
     nba = fn2a-in2a+1
@@ -344,7 +352,27 @@ CONTAINS
     nice = fib%cur
 
     ! snow bins
-    isa = 1; fsa = 7;
+    IF (snowbinlim(1)<0.) THEN
+        ! Use the default
+        snowbinlim(1:8)=(/50.,55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
+        fsa=7
+    ELSEIF (snowbinlim(2)<0. .OR. snowbinlim(1)>snowbinlim(2) .OR. snowbinlim(1)<0.1 .OR. snowbinlim(1)>1000.) THEN
+        ! Bins should start from about 20-80 microns
+        WRITE(*,*) 'Bad input snow bin limits!'
+        STOP
+    ELSE
+        ii=2
+        DO WHILE (snowbinlim(ii)>0.)
+            IF (snowbinlim(ii-1)>snowbinlim(ii)) THEN
+                WRITE(*,*) 'Non-monotonic input snow bin limits!'
+                STOP
+            ENDIF
+            ii=ii+1
+        END DO
+        snowbinlim(1:ii-1)=snowbinlim(1:ii-1)*1.e-6 ! from microns to meters
+        fsa=ii-2
+    ENDIF
+    isa = 1
     nsnw = fsa
 
     ! ----------------------------------------
@@ -356,7 +384,7 @@ CONTAINS
        DO ii = 1,kbdim
 
           ! -------------------------------------------------
-          ! Set iceproperties (parallel to aerosol bins)
+          ! Set ice properties (parallel to aerosol bins)
           ! -------------------------------------------------
           ice(ii,jj,iia%cur:fia%cur)%vhilim = aero(ii,jj,iia%par:fia%par)%vhilim
           ice(ii,jj,iib%cur:fib%cur)%vhilim = aero(ii,jj,iib%par:fib%par)%vhilim
@@ -388,8 +416,8 @@ CONTAINS
           ! goes according to the "wet" radius
           ! ---------------------------------------------------------------------------------------
 
-          snow(ii,jj,:)%vhilim = pi6*tmphilim(:)**3
-          snow(ii,jj,:)%vlolim = pi6*tmplolim(:)**3
+          snow(ii,jj,:)%vhilim = pi6*snowbinlim(2:nsnw+1)**3
+          snow(ii,jj,:)%vlolim = pi6*snowbinlim(1:nsnw)**3
           snow(ii,jj,:)%dmid = ( (snow(ii,jj,:)%vlolim + snow(ii,jj,:)%vhilim) / (2.*pi6) )**(1./3.)
           snow(ii,jj,:)%vratiohi = snow(ii,jj,:)%vhilim / ( pi6*snow(ii,jj,:)%dmid**3 )
           snow(ii,jj,:)%vratiolo = snow(ii,jj,:)%vlolim / ( pi6*snow(ii,jj,:)%dmid**3 )
@@ -453,7 +481,9 @@ CONTAINS
                                ice_hom, ice_imm, ice_dep, &
                                icenucl_tstart,        &
                                nlicmelt,              &
-                               stat_b_bins,          &
+                               stat_b_bins,           &
+                               rainbinlim,            &
+                               snowbinlim,            &
                                nbin,reglim,           &
                                nice,nsnw,             &
                                nspec,listspec,        &
@@ -506,6 +536,8 @@ CONTAINS
          nlactbase,     & ! Switch for parameterized cloud base activation
          nlactintst,    & ! Switch for interstitial activation based on particle growth and host model S
          stat_b_bins,   & ! Save statistics about SALSA b-bins
+         rainbinlim,    & ! Rain bin limits (microns)
+         snowbinlim,    & ! Snow bin limits (microns)
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          reglim,        & ! Low/high diameter limits of the 2 aerosol size regimes (1d table with length 4)
          nbin,          & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)

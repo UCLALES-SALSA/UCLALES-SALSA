@@ -200,7 +200,7 @@ CONTAINS
 
            !-- Cloud droplet diameter and mass; Assume water density
            CALL CalcDimension(ncld,pcloud(ii,jj,1:ncld),nlim,zdcloud(1:ncld),2)
-           ! No size limit?
+           zdcloud(1:ncld) = MIN(zdcloud(1:ncld), 2.e-4) ! Limit to 0.2 mm
            zmcloud(1:ncld) = pi6*(zdcloud(1:ncld)**3)*rhowa
 
            !-- Precipitation droplet diameter and mass

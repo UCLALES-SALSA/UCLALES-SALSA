@@ -178,6 +178,12 @@ MODULE mo_submctl
    INTEGER :: &
    nbin(nreg) = (/ 3, 7 /)   ! number of bins in each main regime 
 
+  ! Rain and snow bin limits
+  !  For example, this line in the NAMELIST would set the default rain bins:
+  !    rainbinlim(1:8)=50.,55.,65.,100.,200.,500.,1000.,2000.
+  REAL :: rainbinlim(100) = -1.
+  REAL :: snowbinlim(100) = -1.
+
   INTEGER ::      & ! start index for bin regimes
    in1a,          & ! regime 1a
    in2a,          & ! regime 2a

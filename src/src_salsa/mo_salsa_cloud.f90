@@ -904,6 +904,138 @@ CONTAINS
   END SUBROUTINE autoconv2
 
 
+  !-----------------------------------------
+  SUBROUTINE autoconv_sb(kproma,kbdim,klev,ptstep,pcloud,pprecp)
+    !
+    ! Autoconversion based on the Seifert & Beheng (2001) microphysics
+    !
+    ! Seifert, A., and Beheng, K.D.: A two-moment cloud microphysics parameterization
+    ! for mixed-phase clouds. Part 1: Model description, Meteorol. Atmos. Phys., 92, 45-66, 2006.
+    ! DOI: 10.1007/s00703-005-0112-4
+    !
+    USE mo_submctl, ONLY : t_section,   &
+                               ncld,        &
+                               nprc,        &
+                               pi6,         &
+                               nlim, prlim, &
+                               rhowa
+    IMPLICIT NONE
+
+    ! Parameters
+    real, parameter :: &
+            nu_c  = 0, &       ! Width parameter of cloud DSD
+            k_c = 9.44e+9, &   ! Long-Kernel (m^3/kg^2/s)
+            k_1 = 6.e+2, k_2 = 0.68, &  ! Parameters for phi function
+            X_min = 4.2e-15, & ! Minimum cloud droplet mass (kg), D_min=2e-6 m
+            X_bnd = 2.6e-10 ! Droplet mass that separates cloud droplets from rain drops (kg), D_bnd=80e-6 m
+    INTEGER, SAVE :: iout=-1  ! Specified bin for new raindrops: <=0 find the bin matching with X_bnd; >0 select one bin (hard coded)
+    REAL :: fact=0.5 ! Fraction of converted cloud droplets that are added to the cloud drop number (accounting for self-colleection)
+
+    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    REAL, INTENT(IN) :: ptstep
+    TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld)
+    TYPE(t_section), INTENT(inout) :: pprecp(kbdim,klev,nprc)
+
+    REAL :: Vrem, Nrem, Vtot, Ntot, scaling(ncld), scalen(ncld), scalev(ncld)
+    REAL :: k_au, Xc, tau, phi, au
+    INTEGER :: ii,jj,cc,ss,io
+
+    IF (iout<=0) THEN
+        ! Find the bin matching with X_bnd
+        io=1
+        DO WHILE (io<nprc .AND. X_bnd/rhowa .GT. pprecp(1,1,io)%vhilim)
+            io=io+1
+        END DO
+        iout=io
+    ENDIF
+
+    ! Constant for the autoconversion equation (m^3/kg^3/s)
+    k_au  = k_c / (20.*X_bnd) * (nu_c+2.)*(nu_c+4.)/(nu_c+1.)**2
+
+    DO jj = 1,klev
+      DO ii = 1,kbdim
+        ! Total cloud droplet number and water volume
+        Ntot = SUM(pcloud(ii,jj,:)%numc)
+        Vtot = SUM(pcloud(ii,jj,:)%volc(8))
+        IF (Ntot <= nlim .OR. Vtot<=0.) CYCLE
+        !
+        ! Parameters
+        if (Vtot > 1.e-10) then ! Limit set to 1e-10 m^3/m^3
+            !   Dimensionless internal time scale - based on water only
+            tau = 1.0-Vtot/( Vtot+SUM(pprecp(ii,jj,:)%volc(8)) )
+            tau = MIN(MAX(tau,epsilon(1.0)),0.9)
+            !   Universal function for autoconversion
+            phi = k_1 * tau**k_2 * (1.0 - tau**k_2)**3
+        ELSE
+            tau = 0.
+            phi = 0.
+        ENDIF
+        !
+        ! Mean cloud droplet mass (kg) - assuming it is just water
+        Xc = MIN(MAX(Vtot/Ntot*rhowa,X_min),X_bnd)
+        !
+        ! Autoconversion rate (kg/m^3/s)
+        au = k_au*(Vtot*rhowa)**2*Xc**2*(1.0+phi/(1.0-tau)**2)
+        !
+        ! Convert to absolute change in rain water volume mixing ratio (m^3/m^3)
+        Vrem = MAX(au/rhowa*ptstep,0.0)
+        !
+        ! Detemine the change in rain droplet number concentration
+        !   Note: Nrem=dNcloud=-dNrain*fact, where fact<1 represents number reduction due to cloud droplet collisions
+        IF (Vrem>=Vtot) THEN
+            ! If all volume should go to the rain bins, then just move all cloud droplets
+            Nrem=Ntot
+            Vrem=Vtot
+            ! Find bin
+            io=1
+            DO WHILE (io<nprc .AND. Vrem .GT. fact*Nrem*pprecp(ii,jj,io)%vhilim)
+               io=io+1
+            END DO
+            ! Note: must move all to this bin
+        ELSE
+            ! Add rain drops to the specified bin (e.g. the first bin, the bin with 65-100 um rain drops, or any other bin) and
+            ! calculate number based on that: N*pi/6*Dmid**3=V => N=V/(pi/6*Dmid**3)
+            io=iout ! The default bin
+            Nrem=Vrem/(pi6*pprecp(ii,jj,io)%dmid**3)/fact
+        END IF
+        !
+        ! Nrem cannot be larger than Ntot and in that case just remove all (cannot remove almost all particles, but leave mass)
+        IF (Nrem>Ntot) THEN
+            Nrem=Ntot
+            Vrem=Vtot
+        ENDIF
+        !
+        IF (Vrem <= 0. .OR. Nrem*fact <= prlim) CYCLE
+        !
+        ! How to split the change between bins?
+        !   - Don't change cloud droplet dry size (bins), so volc(1:7) and numc must change with the same fraction
+        !   - Note that number need not to be conserved in the coagulation-based autoconversion
+        !
+        ! Possible scaling factors
+        ! 1) Linear dN(i)=N(i)*dNtot/Ntot
+        !scalen(:)=Nrem/Ntot
+        !scalev(:)=Vrem/Vtot
+        ! 2) Weighted: dN(i)=N(i)*X(i)*dNtot/sum(N(i)*X(i))
+        !  a) Weight based on autoconversion rate: V**2*Xc**2=V**2*(rho*pi/6/D**3)**2=V**2*D**6
+        scaling=pcloud(ii,jj,:)%volc(8)**2*pcloud(ii,jj,:)%dmid**6
+        scalen(:)=scaling(:)*Nrem/SUM(scaling(:)*pcloud(ii,jj,:)%numc)
+        scalev(:)=scaling(:)*Vrem/SUM(scaling(:)*pcloud(ii,jj,:)%volc(8))
+        !
+        DO cc = 1,ncld
+            IF ( pcloud(ii,jj,cc)%numc > nlim ) THEN
+                pprecp(ii,jj,io)%volc(1:7) = pprecp(ii,jj,io)%volc(1:7) + pcloud(ii,jj,cc)%volc(1:7)*scalen(cc)
+                pcloud(ii,jj,cc)%volc(1:7) = pcloud(ii,jj,cc)%volc(1:7)*(1. - scalen(cc))
+                pprecp(ii,jj,io)%volc(8) = pprecp(ii,jj,io)%volc(8) + pcloud(ii,jj,cc)%volc(8)*scalev(cc)
+                pcloud(ii,jj,cc)%volc(8) = pcloud(ii,jj,cc)%volc(8)*(1. - scalev(cc))
+                pprecp(ii,jj,io)%numc = pprecp(ii,jj,io)%numc + pcloud(ii,jj,cc)%numc*scalen(cc)*fact
+                pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc*(1. - scalen(cc))
+            END IF
+          END DO ! cc
+       END DO ! ii
+    END DO ! jj
+
+  END SUBROUTINE autoconv_sb
+
 
   !***********************************************
   ! Ice nucleation
