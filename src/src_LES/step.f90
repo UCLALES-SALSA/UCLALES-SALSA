@@ -282,7 +282,7 @@ CONTAINS
          CALL tend_constrain2()
          CALL update_sclrs
          CALL tend0(.TRUE.)
-         CALL SALSA_diagnostics()
+         CALL SALSA_diagnostics(.FALSE.)
          CALL thermo(level)
 
       END IF ! level >= 4
@@ -295,7 +295,7 @@ CONTAINS
       IF (level >= 4) CALL tend_constrain2()
       CALL update_sclrs
       CALL tend0(.TRUE.)
-      IF (level >= 4) CALL SALSA_diagnostics()
+      IF (level >= 4) CALL SALSA_diagnostics(.TRUE.)
       CALL thermo(level)
 
       !-------------------------------------------
@@ -305,7 +305,7 @@ CONTAINS
       IF (level >= 4) CALL tend_constrain2()
       CALL update_sclrs
       CALL tend0(.TRUE.)
-      IF (level >= 4) CALL SALSA_diagnostics()
+      IF (level >= 4) CALL SALSA_diagnostics(.TRUE.)
       CALL thermo(level)
       
       CALL corlos
@@ -320,7 +320,7 @@ CONTAINS
 
       CALL cfl (cflflg, cflmax)
 
-      IF (level >= 4) CALL SALSA_diagnostics()
+      IF (level >= 4) CALL SALSA_diagnostics(.TRUE.)
       CALL thermo(level)
 
    END SUBROUTINE t_step

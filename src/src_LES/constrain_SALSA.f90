@@ -350,7 +350,7 @@ MODULE constrain_SALSA
         
      END IF ! onlyDiag
 
-!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!
     ! Update diagnostic tracers
     !!!!!!!!!!!!!!!!!!!!!!!
 
