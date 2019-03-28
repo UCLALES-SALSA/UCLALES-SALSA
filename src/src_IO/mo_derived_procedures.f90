@@ -66,11 +66,11 @@ MODULE mo_derived_procedures
             iend = fcb%cur
          END SELECT
          output(:,:,:) = SUM(a_ncloudp%d(:,:,:,istr:iend),DIM=4)
-      CASE('precp')
+      CASE('Np')
          istr = ira
          iend = fra
          output(:,:,:) = SUM(a_nprecpp%d(:,:,:,istr:iend),DIM=4)
-      CASE('ice')
+      CASE('Ni')
          istr = iia
          iend = fia
          output(:,:,:) = SUM(a_nicep%d(:,:,:,istr:iend),DIM=4)
@@ -87,7 +87,7 @@ MODULE mo_derived_procedures
      output = a_rp%d + a_rc%d + a_srp%d
      IF (level == 5) output = output + a_ri%d + a_riri%d
          
-   END SUBROUTINE
+   END SUBROUTINE totalWater
    
    ! --------------------------------------------------------------
 
@@ -114,7 +114,7 @@ MODULE mo_derived_procedures
            istr = in2b
            iend = fn2b
         END SELECT       
-        CALL getRadius(istr,iend,nbins,nspec,a_naerop,a_maerop,nlim,output,1)
+        CALL getMeanDiameter(istr,iend,nbins,nspec,a_naerop,a_maerop,nlim,output,1)
                 
      CASE('Dwctot','Dwca','Dwcb')
         SELECT CASE(name)
@@ -128,17 +128,17 @@ MODULE mo_derived_procedures
            istr = icb%cur
            iend = fcb%cur
         END SELECT        
-        CALL getRadius(istr,iend,ncld,nspec,a_ncloudp,a_mcloudp,nlim,output,2)
+        CALL getMeanDiameter(istr,iend,ncld,nspec,a_ncloudp,a_mcloudp,nlim,output,2)
         
-     CASE('precp')        
+     CASE('Dwpa')        
         istr = ira
         iend = fra        
-        CALL getRadius(istr,iend,nprc,nspec,a_nprecpp,a_mprecpp,prlim,output,3)
+        CALL getMeanDiameter(istr,iend,nprc,nspec,a_nprecpp,a_mprecpp,prlim,output,3)
         
-     CASE('ice')
+     CASE('Dwia')
         istr = iia
         iend = fia         
-        CALL getRadius(istr,iend,nice,nspec+1,a_nicep,a_micep,prlim,output,4)
+        CALL getMeanDiameter(istr,iend,nice,nspec+1,a_nicep,a_micep,prlim,output,4)
                
      END SELECT
 
@@ -146,7 +146,7 @@ MODULE mo_derived_procedures
 
    !------------------------------------------
 
-   SUBROUTINE getRadius(zstr,zend,nb,ns,numc,mass,numlim,zdiam,flag)
+   SUBROUTINE getMeanDiameter(zstr,zend,nb,ns,numc,mass,numlim,zdiam,flag)
 
      IMPLICIT NONE
      
@@ -185,7 +185,7 @@ MODULE mo_derived_procedures
         END DO
      END DO
      
-   END SUBROUTINE getRadius
+   END SUBROUTINE getMeanDiameter
 
    ! -------------------------------------------------
 

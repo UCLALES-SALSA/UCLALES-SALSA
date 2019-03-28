@@ -78,22 +78,22 @@ MODULE constrain_SALSA
      ELSE
         l_onlyDiag = .FALSE.
      END IF
+
+     ! Remove negative values
+     a_naerop%d = MAX(0.,a_naerop%d)
+     a_ncloudp%d = MAX(0.,a_ncloudp%d)
+     a_nprecpp%d = MAX(0.,a_nprecpp%d)
+     a_maerop%d = MAX(0.,a_maerop%d)
+     a_mcloudp%d = MAX(0.,a_mcloudp%d)
+     a_mprecpp%d = MAX(0.,a_mprecpp%d)
+     
+     IF (level == 5) THEN
+        a_nicep%d = MAX(0.,a_nicep%d)
+        a_micep%d = MAX(0.,a_micep%d)
+     END IF
      
      IF ( .NOT. l_onlyDiag) THEN
-        
-        ! Remove negative values
-        a_naerop%d = MAX(0.,a_naerop%d)
-        a_ncloudp%d = MAX(0.,a_ncloudp%d)
-        a_nprecpp%d = MAX(0.,a_nprecpp%d)
-        a_maerop%d = MAX(0.,a_maerop%d)
-        a_mcloudp%d = MAX(0.,a_mcloudp%d)
-        a_mprecpp%d = MAX(0.,a_mprecpp%d)
-
-        IF (level == 5) THEN
-           a_nicep%d = MAX(0.,a_nicep%d)
-           a_micep%d = MAX(0.,a_micep%d)
-        END IF
-           
+                   
         ! Remove particles that have number but not mass
         DO j = 3,nyp-2
            DO i = 3,nxp-2
