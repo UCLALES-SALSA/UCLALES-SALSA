@@ -157,7 +157,7 @@ MODULE mo_salsa_cloud_ice
     REAL, PARAMETER :: & ! Constants
          C = 1.7e10, & ! Constant (1.7e11 dyn cm^-2 = 1.7e11*1e-5/1e-4 N m^-2 = 1.7e10 N m^-2)
          rho_ice = 900., & ! Density of ice (kg/m^3)
-         c_1s = 1e19, & ! The concentration of water molecules adsorbed on 1 m^2 a surface (#/m^2)
+         c_1s = 1e32, & ! The concentration of water molecules adsorbed on 1 m^2 a surface (#/m^2)
          T0 = 273.15 ! 0 C in Kelvins
     REAL, PARAMETER :: & ! Case-dependent parameters
          epsi = 0., & ! Elastic strain produced in ice embryo by the insoluble substrate
