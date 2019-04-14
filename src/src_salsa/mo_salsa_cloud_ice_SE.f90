@@ -2,6 +2,9 @@ MODULE mo_salsa_cloud_ice_SE
   USE mo_salsa_types, ONLY : liquid, ice
   IMPLICIT NONE
 
+  REAL, PARAMETER, PRIVATE :: sqrt2 = SQRT(2.)
+
+  
   ! This contains the ice nucleation paramterization procedures according
   ! to Savre and Ekman 2015
 
@@ -10,22 +13,24 @@ MODULE mo_salsa_cloud_ice_SE
 
   SUBROUTINE IceNucleation
     
-    ! Get/update the low theta angle, needed for each ice nucleating species in each bin
-    ! low_theta is a tracer in aerosol and cloud bins for each insoluble species
-    ! It is initialized as the theta_mean + sigma*sqrt(2)*erf(-1). This is used to
-    ! compute ice nucleation in from each bin. low_theta is then updated to be
-    ! MAX(low_theta_old, new value) where new_value is obtained using the Nice_new/Ntot for the current bin
-    
+    ! Use IN deficit fraction as a "prognostic" variable. From that, first update theta0. Then calculate nucleation.
+    ! Finally, estimate the new total nucleation deficit fraction. This wont be exact, but hopefully close enough.
+    CALL low_theta(...)
+
+    CALL 
+
 
     
-    ! Iterate the immersion and deposition nucleation modes in the legendre polynomial integration
-
+    CALL update_indef(...)
+    
     
   END SUBROUTINE IceNucleation
 
+  SUBROUTINE gauss_legendre()
 
 
-    
+
+  
   SUBROUTINE J_imm(theta,Tk,Din,Seq,J)
     ! Immersion freezing according to Khvorostyanov and Curry 2000    
 
@@ -147,7 +152,7 @@ MODULE mo_salsa_cloud_ice_SE
     !   The pre-exponential factor (kineticc oefficient) is about (1e26 cm^-2)*rn**2
     calc_Jdep = (1./4.)*1.e30*(Din**2)*exp( -(act_energy+crit_energy)/(boltz*Tk)) 
     
-  END FUNCTION calc_Jdep
+  END SUBROUTINE J_dep
   
   ! ---------------------------------------------------
 
@@ -212,20 +217,25 @@ MODULE mo_salsa_cloud_ice_SE
   SUBROUTINE low_theta()
 
     INTEGER :: ni, nins, nb, ii, jj
-    REAL :: th00_old
+    REAL :: th00(nins)   ! lower bound of the contact angle
+    REAL :: indef        ! IN deficit ratio from the previous timestep
 
+    REAL :: thmean(nins), thstd(nins) ! Mean and standard deviation of the contact angle distribution for insoluble species
+    
     ! Number of warm phase bins and number of IN species
     nb = SIZE(liquid,DIM=3) 
     nins = spec%Ninsoluble
-
+    thmean = spec%thmean
+    thstd = spec%thstd
+    
     ! Loop over insoluble species
     IF (nins > 0) RETURN
 
     DO jj = 1,klev
        DO ii = 1,kproma
           DO ni = 1,nins
-             th00_old = liquid(ii,jj,ni)%thetcn
-             
+             indef = liquid(ii,jj,ni)%indef
+             th00(ni) = thmean(ni) + sqrt2*thstd(ni)*erfm1( indef ) 
           END DO
        END DO
     END DO
@@ -233,6 +243,12 @@ MODULE mo_salsa_cloud_ice_SE
 
   END SUBROUTINE low_theta
 
-  
+  !
 
+  SUBROUTINE update_indef
+    ! Update the IN deficit fraction    
+  END SUBROUTINE update_indef
+
+
+  
 END MODULE mo_salsa_cloud_ice_SE
