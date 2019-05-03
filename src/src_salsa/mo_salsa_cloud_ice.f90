@@ -73,8 +73,8 @@ MODULE mo_salsa_cloud_ice
 
     ! Loop over liquid phase bins
     DO kk = 1,nliquid 
-       DO ii = 1,kbdim
-          DO jj = 1,klev
+       DO jj = 1,klev
+          DO ii = 1,kproma
              IF (ptemp(ii,jj) > 273.15) CYCLE
              IF (liquid(ii,jj,kk)%numc < liquid(ii,jj,kk)%nlim) CYCLE
 

@@ -30,6 +30,9 @@ MODULE classSection
      REAL    :: nlim     ! Lower limit for number concentration used in many calculations, depends on particle type
      REAL    :: dlim     ! Category specific diameter limit used e.g. in coagulation calculations
 
+     REAL    :: INdef    ! IN deficit ratio (for ice nucleation only)
+
+     
      CONTAINS
        PROCEDURE :: updateDiameter
        PROCEDURE :: updateRhomean

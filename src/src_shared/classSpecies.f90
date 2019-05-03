@@ -99,7 +99,12 @@ MODULE classSpecies
   CHARACTER(len=4), TARGET, PRIVATE   :: allNamesInsoluble(maxins) = ['BC ','DU ']                                   ! Names of all possible insoluble compounds
   CHARACTER(len=4), TARGET, PRIVATE   :: allNamesSoluble(maxsol)   = ['SO4','OC ','SS ','NO ','NH ']                 ! Names of all possible soluble compounds
   REAL, TARGET, PRIVATE               :: allMM(maxspec+2)   = [98.08e-3, 150.e-3, 12.e-3, 100.e-3,    &                 
-                                                               58.44e-3, 62.01e-3, 18.04e-3, 18.016e-3, 18.016e-3]   ! Molecular masses 
+                                                               58.44e-3, 62.01e-3, 18.04e-3, 18.016e-3, 18.016e-3]   ! Molecular masses
+  !REAL, TARGET, PRIVATE               :: allThetaMeanDep(maxspec) = [15., 15.5]
+  !REAL, TARGET, PRIVATE               :: allThetaMeanImm(maxspec) = [140., 132.]
+  !REAL, TARGET, PRIVATE               :: allThetaSigmaDep(maxspec) = [1.4, 1.4]
+  !REAL, TARGET, PRIVATE               :: allThetaSigmaImm(maxspec) = [23., 20.]
+  
   REAL, PARAMETER, PRIVATE    :: auxrhoic = 917.                                                   ! Bulk density of ice
   REAL, PARAMETER, PRIVATE    :: auxrhorime = 400.                                                 ! Bulk density of rimed ice
   REAL, TARGET, PRIVATE       :: t_auxrhoic = auxrhoic      ! workaround for pointer assignment - find a way to remove this
@@ -144,6 +149,8 @@ MODULE classSpecies
                                       rhoice_insoluble(:)
      REAL,             ALLOCATABLE :: diss_soluble(:), diss_insoluble(:)                           ! Dissociation factors
 
+     !REAL,             ALLOCATABLE :: thetaMeanDep(:), thetaMeanImm(:), thetaSigmaDep(:), thetaSigmaImm(:)
+     
      REAL    :: mas = 132.14e-3  ! Molar mass of ammonium sulphate
      REAL    :: rhoas = 1770.    ! Density of ammonium sulphate
 

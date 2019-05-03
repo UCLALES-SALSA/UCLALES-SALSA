@@ -1,9 +1,19 @@
 MODULE mo_salsa_cloud_ice_SE
   USE mo_salsa_types, ONLY : liquid, ice
+  USE mo_submctl, ONLY : nliquid, pi6, ice_hom, ice_dep, ice_imm
+  USE util, ONLY : erfm1
+  USE mo_particle_external_properties, ONLY : calcSweq
   IMPLICIT NONE
 
   REAL, PARAMETER, PRIVATE :: sqrt2 = SQRT(2.)
 
+  ! Should package these nicer into classSpecies or something
+  !                                                                     BC,  DU
+  REAL, PARAMETER, PRIVATE               :: allThetaMeanDep(maxspec) = [15., 15.5]
+  REAL, PARAMETER, PRIVATE               :: allThetaMeanImm(maxspec) = [140., 132.]
+  REAL, PARAMETER, PRIVATE               :: allThetaSigmaDep(maxspec) = [1.4, 1.4]
+  REAL, PARAMETER, PRIVATE               :: allThetaSigmaImm(maxspec) = [23., 20.]
+  
   
   ! This contains the ice nucleation paramterization procedures according
   ! to Savre and Ekman 2015
@@ -11,25 +21,167 @@ MODULE mo_salsa_cloud_ice_SE
   
   CONTAINS
 
-  SUBROUTINE IceNucleation
+  SUBROUTINE ice_nucl_driver(kproma,kbdim,klev,ptemp,prv,prs,prsi,tstep)
+    INTEGER, INTENT(in) :: kproma, kbdim, klev
+    REAL, INTENT(in) :: ptemp(kbdim,klev), prv(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev)
+    REAL, INTENT(in) :: tstep
+        
+    REAL :: th00(kbdim,klev,nliquid)  ! Mitäs jos on internally mixed IN hitusia??
+    REAL :: Seq(kbdim,klev,nliquid)
+    REAL :: f_dep(kbdim,klev,nliquid), f_imm(kbdim,klev,nliquid), f_hom(kbdim,klev,nliquid)
+    REAL :: thm_imm(kbdim,klev,nliquid), ths_imm(kbdim,klev,nliquid)
+    REAL :: thm_dep(kbdim,klev,nliquid), ths_dep(kbdim,klev,nliquid)
+    REAL :: frac(kbdim,klev,nliquid)
+    REAL :: Jhom
+    
+    INTEGER :: ii,jj,kk,is, ibc, idu
+    INTEGER :: thind
+    REAL :: dwet, dins
+    REAL, PARAMETER :: dmin = 1.e-10
+    REAL, PARAMETER :: Vmin = pi6*(1.e-10)**3
+    REAL, PARAMETER :: tmax_homog = 243.15  ! Juha: Isnt this a bit high?   
+    LOGICAL :: nuc_mask(kbdim,klev,nliquid) ! Mask for conditions on different ice nucleation processes
+    
+    
+    EXTERNAL :: J_imm, J_dep
     
     ! Use IN deficit fraction as a "prognostic" variable. From that, first update theta0. Then calculate nucleation.
     ! Finally, estimate the new total nucleation deficit fraction. This wont be exact, but hopefully close enough.
-    CALL low_theta(...)
 
-    CALL 
+    ! If no insolubles present, no need to do this (except homogeneous nucleation if it will be implemented)
+    IF (spec%Ninsoluble > 0) THEN
 
+       f_dep = 0.; f_imm = 0.; f_hom = 0.
+       
+       thm_imm = 0.; ths_imm = 0.
+       thm_dep = 0.; ths_dep = 0.
+       
+       ibc = spec%getIndex("DU",notFoundValue=0)
+       idu = spec%getIndex("BC",notFoundValue=0)
+       thind = MERGE(2,1, idu > 0 )
+       
+       DO kk = 1,nliquid
+          DO jj = 1,klev
+             DO ii = 1,kproma
+                Seq(ii,jj,kk) = calcSweq(liquid(ii,jj,kk),ptemp(ii,jj))
 
+                ! Determine which contact angle distribution parameters to use (depends on species, DU or BC).
+                ! This is done bin by bin. If both present in an internally mixed configuration, just use DU... <- implement this!!!
+                thm_imm(ii,jj,kk) = thetaMeanImm(thind)
+                ths_imm(ii,jj,kk) = thetaSigmaImm(thind)
+                thm_dep(ii,jj,kk) = thetaMeanDep(thind)
+                ths_dep(ii,jj,kk) = thetaSigmaDep(thind)
+
+                ! Update particle diameters for later use
+                CALL liquid(ii,jj,kk)%updateDiameter(type="all", limit=.TRUE.)                
+                dwet = liquid(ii,jj,kk)%dwet
+                dins = liquid(ii,jj,kk)%dins
+                
+                ! Calculate homogeneous freezing here separately since it does not need contact angle integration
+                ! Homogeneous freezing
+                IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. ice_hom) THEN
+                   CALL J_hf(ptemp,Seq,Jhom)
+                   f_hom(ii,jj,kk) = 1. - EXP( -Jhom*pi6*(dwet**3-dins**3)*tstep )
+                END IF
+                
+             END DO
+          END DO
+       END DO
+
+       ! For now just use the immersion contact angle values for everything...
+       CALL low_theta( kproma,kbdim,klev,th00,thm_imm,ths_imm )
+
+       ! Immersion freezing
+       nuc_mask(:,:,:) = ( ( liquid(:,:,:)%phase == 2 .OR. liquid(:,:,:)%phase == 3 ) .AND. &
+                           ( liquid(:,:,:)%dins > dmin) .AND. ice_imm )
+       CALL gauss_legendre( J_imm, kproma, kbdim, klev, ptemp, Seq, th00, thm_imm, ths_imm, tstep, nuc_mask, f_imm )
+
+       ! Deposition freezing
+       DO kk = 1,nliquid
+          nuc_mask(:,:,kk) = ( ( liquid(:,:,kk)%phase == 1 .AND. prv(:,:)/prs(:,:) < 1.0 ) .AND.  &
+                               ( liquid(:,:,kk)%dwet-liquid(:,:,kk)%dins < dmin) .AND.            &
+                               ( liquid(:,:,kk)%dins > dmin) .AND. ice_dep )
+       END DO
+       CALL gauss_legendre( J_dep, kproma, kbdim, klev, ptemp, Seq, th00, thm_imm, ths_imm, tstep, nuc_mask, f_dep )
+
+       ! Homogeneous freezing       
+       frac = MAX(0., MIN(0.99,f_imm+f_hom+f_dep-(f_imm+f_dep)*f_hom))
+       
+       CALL iceNucleation( kproma,kbdim,klev,frac )
     
-    CALL update_indef(...)
+    END IF ! insoluble
+       
+  END SUBROUTINE Ice_Nucl_Driver
+
+  ! ----------------------------------------
+  
+  SUBROUTINE gauss_legendre( func, kproma, kbdim, klev, Tk, Seq, th00, thm, ths, tstep, nuc_mask, frac)
     
+    ! Integrate the ice nucleation across contact angles using the Gauss-Legenre quadrature
+    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    REAL, INTENT(in) :: Tk(kbdim,klev), Seq(kbdim,klev,nliquid), th00(kbdim,klev,nliquid)
+    REAL, INTENT(in) :: thm, ths, tstep
+    LOGICAL, INTENT(in) :: nuc_mask(kbdim,klev,nliquid)
+    REAL, INTENT(out) :: frac(kbdim,klev,nliquid)   ! Fraction nucleated
+    EXTERNAL func
     
-  END SUBROUTINE IceNucleation
+    REAL :: thmax, thmin, th1
+    
+    ! Points and weights for 10th order method
+    REAL, DIMENSION(10), PARAMETER  :: x = [ -0.973908239224106,-0.865060566454542,-0.679410688379483,-0.433395397408358,-0.148874339007507, &
+                                              0.148874339007507,0.433395397408358,0.679410688379483,0.865060566454542,0.973908239224106 ]
+    REAL, DIMENSION(10), PARAMETER  :: w = [ 0.066667031481273176,0.14945422671662059,0.21908574324601154,0.26926671836765848,0.29552422471242434, &
+                                              0.29552422471242434,0.26926671836765848,0.21908574324601154,0.14945422671662059,0.066667031481273176 ]    
 
-  SUBROUTINE gauss_legendre()
+    REAL :: J, ftheta, Jacc, dins
 
+    INTEGER :: i, ii,jj,kk
+    INTEGER :: ins, nliquid
+    
+    thmax = 180.
+    
+    frac = 0.
+    
+    DO kk = 1,nliquid
+       DO jj = 1,klev
+          DO ii = 1,kproma
 
+             IF ( .NOT. nuc_mask(ii,jj,kk) .OR.                 &
+                  Tk(ii,jj) > 273.15 .OR.                       &
+                  liquid(ii,jj,kk)%numc < liquid(ii,jj,kk)%nlim ) CYCLE
+             
+             thmin = th00(ii,jj,kk)            
+             Jacc = 0.
 
+             dins = liquid(ii,jj,kk)%dins
+             
+             DO i = 1,10
+                
+                th1 = 0.5*(thmax - thmin)*x(i) + 0.5*(thmax + thmin)
+
+                CALL func(th1, Tk, dins, Seq, J)
+                
+                IF (th1 > thmin) THEN
+                   ftheta = f_gauss(th1,ths,thm)
+                ELSE
+                   ftheta = 0.
+                END IF
+
+                Jacc = Jacc + w(i) * J * ftheta
+
+             END DO
+
+             Jacc = 0.5 * (thmax - thmin) * Jacc
+             
+             frac = 1. - EXP( -Jacc * tstep)
+             
+          END DO
+       END DO
+    END DO
+
+  END SUBROUTINE gauss_legendre
+
+  ! ----------------------------------------
   
   SUBROUTINE J_imm(theta,Tk,Din,Seq,J)
     ! Immersion freezing according to Khvorostyanov and Curry 2000    
@@ -54,7 +206,7 @@ MODULE mo_salsa_cloud_ice_SE
     REAL :: Tc, act_energy, Lefm, GG, sigma_is, d_g, sf, crit_energy
     REAL :: thrad
     
-    calc_Jhet = 0.
+    J = 0.
     
     ! Must have a core
     IF (rn<1e-10) RETURN
@@ -150,7 +302,7 @@ MODULE mo_salsa_cloud_ice_SE
     
     ! Eq 2.13 in KC00
     !   The pre-exponential factor (kineticc oefficient) is about (1e26 cm^-2)*rn**2
-    calc_Jdep = (1./4.)*1.e30*(Din**2)*exp( -(act_energy+crit_energy)/(boltz*Tk)) 
+    J = (1./4.)*1.e30*(Din**2)*exp( -(act_energy+crit_energy)/(boltz*Tk)) 
     
   END SUBROUTINE J_dep
   
@@ -189,7 +341,7 @@ MODULE mo_salsa_cloud_ice_SE
     crit_energy = (pi/3.)*sigma_is*d_g**2
     
     ! Eq. 1
-    calc_Jhf = 2.0*Nc*(spec%rhowa*boltz*Tk/spec%rhoic/planck)*sqrt(sigma_is/boltz/Tk)*exp( -(crit_energy+act_energy)/(boltz*Tk) )
+    J = 2.0*Nc*(spec%rhowa*boltz*Tk/spec%rhoic/planck)*sqrt(sigma_is/boltz/Tk)*exp( -(crit_energy+act_energy)/(boltz*Tk) )
     
   END SUBROUTINE J_hf
   
@@ -214,41 +366,131 @@ MODULE mo_salsa_cloud_ice_SE
   
   ! ------------------------------------
 
-  SUBROUTINE low_theta()
-
-    INTEGER :: ni, nins, nb, ii, jj
-    REAL :: th00(nins)   ! lower bound of the contact angle
+  SUBROUTINE low_theta(kproma,kbdim,klev,th00,thmean,thstd)
+    
+    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    REAL, INTENT(out) :: th00(kbdim,klev,nliquid), thmean(kbidm,klev,nliquid), thstd(kbdim,klev,nliquid)
+    INTEGER :: nb, ii, jj
     REAL :: indef        ! IN deficit ratio from the previous timestep
 
-    REAL :: thmean(nins), thstd(nins) ! Mean and standard deviation of the contact angle distribution for insoluble species
-    
-    ! Number of warm phase bins and number of IN species
-    nb = SIZE(liquid,DIM=3) 
-    nins = spec%Ninsoluble
-    thmean = spec%thmean
-    thstd = spec%thstd
+    th00 = 0.
     
     ! Loop over insoluble species
     IF (nins > 0) RETURN
 
     DO jj = 1,klev
        DO ii = 1,kproma
-          DO ni = 1,nins
-             indef = liquid(ii,jj,ni)%indef
-             th00(ni) = thmean(ni) + sqrt2*thstd(ni)*erfm1( indef ) 
+          DO nb = 1,nliquid
+             indef = liquid(ii,jj,nb)%indef
+             th00(nb) = thmean(nb) + sqrt2*thstd(nb)*erfm1( 2.*indef - 1. ) 
           END DO
        END DO
     END DO
     
-
   END SUBROUTINE low_theta
 
-  !
+  ! ----------------------------------------------------
 
-  SUBROUTINE update_indef
-    ! Update the IN deficit fraction    
-  END SUBROUTINE update_indef
+  SUBROUTINE iceNucleation(kproma,kbdim,klev,frac)
+    ! Update the IN deficit fraction
+    ! Update the number of ice particles
+    INTEGER, INTENT(in) :: kproma, kbdim,klev
+    REAL, INTENT(in) :: frac(kbdim,klev,nliquid)
+
+    REAL :: f0, f1, nnuc_new, ncur0
+    
+    INTEGER :: ii,jj,kk,bb,ss
+    INTEGER :: ndry, iwa, irim
+    REAL :: dwet
+
+    ndry = spec%getNSpec(type="dry")
+    iwa = spec%getIndex("H2O")
+    irim = spec%getIndex("rime")
+    
+    DO kk = 1,nliquid
+       DO jj = 1,klev
+          DO ii = 1,kproma
+
+             ! The old IN "deficit" fraction
+             f0 = liquid(ii,jj,kk)%indef
+
+             ! Current number of potential IN particles !!!! ADD A CHECK THAT THIS BIN ACTUALLY CONTAINS IN; OR DO IT WHEN CALCULATING FRAC
+             ncur0 = liquid(ii,jj,kk)%numc             
+             nnuc_new = frac(ii,jj,kk)*ncur0
+             
+             f1 = nnuc_new + (ncur0 + nnuc_new)*f0
+             f1 = f1/ncur0
+
+             liquid(ii,jj,kk)%indef = f1
+             
+             ! Determine the target ice bin
+             CALL liquid(ii,jj,kk)%updateDiameter(type="wet",limit=.TRUE.)
+             dwet = liquid(ii,jj,kk)%dwet             
+             bb = getIceBin(dwet)
+
+             ! Update the ice bins
+             ! Dry aerosol
+             DO ss = 1,ndry
+                ice(ii,jj,bb)%volc(ss) = MAX(0., ice(ii,jj,bb)%volc(ss) + liquid(ii,jj,kk)%volc(ss)*frac(ii,jj,kk))
+                liquid(ii,jj,kk)%volc(ss) = MAX(0., liquid(ii,jj,kk)%volc(ss)*(1.-frac(ii,jj,kk)))
+             END DO
+             
+             ! Water (total ice)
+             IF (ANY(liquid(ii,jj,kk)%phase == [1,2])) THEN
+                ! Aerosol or cloud droplets -> only pristine ice production
+                ice(ii,jj,bb)%volc(iwa) = MAX(0.,ice(ii,jj,bb)%volc(iwa) + liquid(ii,jj,kk)%volc(iwa)*frac(ii,jj,kk)*spec%rhowa/spec%rhoic)
+                liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac(ii,jj,kk)))
+             ELSE IF (liquid(ii,jj,kk)%phase == 3) THEN
+                ! Precip -> rimed ice
+                ice(ii,jj,bb)%volc(irim) = MAX(0.,ice(ii,jj,bb)%volc(irim) + liquid(ii,jj,kk)%volc(iwa)*frac(ii,jj,kk)*spec%rhowa/spec%rhori)
+                liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac(ii,jj,kk)))
+             END IF
+             
+             ! Number concentration
+             ice(ii,jj,bb)%numc = MAX(0.,ice(ii,jj,bb)%numc + liquid(ii,jj,kk)%numc*frac(ii,jj,kk))
+             liquid(ii,jj,kk)%numc = MAX(0.,liquid(ii,jj,kk)%numc*(1.-frac(ii,jj,kk)))
+               
+          END DO
+       END DO
+    END DO
+             
+  END SUBROUTINE iceNucleation
+
+  ! --------------------------------------
+  
+  INTEGER FUNCTION getIceBin(ldwet)
+    REAL, INTENT(in)    :: ldwet
+    REAL :: vol
+    INTEGER :: ii
+
+    ! Find the ice bin where a freezing liquid droplet of given diameter will presumably belong
+    ! -----------------------------------------------------------------------------------------
+    vol = pi6*ldwet**3
+    ! Correct for the the change in density (AS a first guess, just assume pristine ice density)
+    vol = vol*spec%rhowa/spec%rhoic
+    ii = COUNT( (ice(1,1,iia:fia)%vlolim < vol) )               
+    getIceBin = MIN(MAX(1,ii),nice)
+
+  END FUNCTION getIceBin
+
+  INTEGER FUNCTION getPrecipBin(idwet,idens)
+    REAL, INTENT(in) :: idwet   ! This should be given as a spherical effective diameter
+    REAL, INTENT(in) :: idens   ! this should be the particle mean density (contribution by pristine and rimed ice)
+    REAL :: vol
+    INTEGER :: ii
+
+    ! Find the precip bin where a melting ice particle of given diameter and mean density will presumably belong
+    ! ------------------------------------------------------------------------------------------------------------
+    vol = pi6*idwet**3
+    ! Correct for the change in density
+    vol = vol*idens/spec%rhowa
+    ii = COUNT( (precp(1,1,ira:fra)%vlolim < vol) )
+    getPrecipBin = MIN(MAX(1,ii),nprc)
+    
+  END FUNCTION getPrecipBin
 
 
+
+  
   
 END MODULE mo_salsa_cloud_ice_SE

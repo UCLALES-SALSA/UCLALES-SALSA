@@ -1024,6 +1024,34 @@ CONTAINS
      D2V = pi6*diam**3
    END FUNCTION D2V
    
+   ! ------------------------------------------
+
+   REAL FUNCTION erfm1(x)
+     ! Inverse error function - just quickly grabbed the Maclaurin series terms from wikipedia...
+     REAL, INTENT(in) :: x
+     REAL, PARAMETER :: tt = 0.8862269254527579, t1 = 1., t3 = 0.2617993877991494,   &
+                        t5 = 0.14393173084921979, t7 = 0.09766361950392055,          &
+                        t9 = 0.07329907936638086, t11 = 0.05837250087858452
+     
+     erfm1 = x + t3*x**3 + t5*x**5 + t7*x**7 + t9*x**9 + t11*x**11
+     erfm1 = ermf1*tt
+
+   END FUNCTION erfm1
+
+   ! ------------------------------------------
+   
+   REAL FUNCTION f_gauss(x,sig,mean)
+     USE mo_submctl, ONLY : pi
+     ! Normalized frequency from Gaussian distribution
+     REAL, INTENT(in) :: x, sig, mean
+     REAL :: a, b
+
+     a = SQRT(2.*pi)*sig
+     b = (x - mean)**2
+     b = b/(2.*sig**2)
+     
+     f_gauss = (1./a) * EXP(-b)          
+   END FUNCTION f_gauss
 
    
 END MODULE util
