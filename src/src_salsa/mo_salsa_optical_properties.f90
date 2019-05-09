@@ -209,7 +209,7 @@ MODULE mo_salsa_optical_properties
               riReLW_all(maxspec+1,NaerRadPropsLW), riImLW_all(maxspec+1,NaerRadPropsLW)
       
       ! The number of active compounds defined in the NAMELIST (+water)
-      nspec = spec%getNSpec()
+      nspec = spec%getNSpec(type="wet")
 
       ! This gives the optical properties for all possible SALSA compounds in single arrays, hard coded in the same order
       ! as classSpecies/allNames. This is mostly needed because it makes it easy to use the indexing provided by the class object "spec" to

@@ -382,6 +382,10 @@ MODULE ncio
       CASE ('ttmt')
          iret = nf90_def_var(ncID,name,NF90_FLOAT,dim_ttmt,VarID)
       ! //
+      ! Regular 2d output (x-y)
+      CASE ('xtytt')
+         iret = nf90_def_var(ncID,name,NF90_FLOAT,dim_xtytt,VarID)
+      ! //
       ! Binned time series
       CASE ('taea')
          iret = nf90_def_var(ncID,name,NF90_FLOAT,dim_taea,VarID)
@@ -648,7 +652,7 @@ MODULE ncio
     INTEGER :: iret, did
 
     ! Open file
-    iret = nf90_open('aerosol_in.nc',NF90_NOWRITE,ncid)
+    iret = nf90_open('datafiles/aerosol_in.nc',NF90_NOWRITE,ncid)
 
     ! Inquire the number of input levels
     iret = nf90_inq_dimid(ncid,'levs',did)

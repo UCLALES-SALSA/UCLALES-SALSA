@@ -1006,6 +1006,24 @@ CONTAINS
      
    END SUBROUTINE Extend_last_4d
    
+   ! -----------------------------------------
 
-  
+   REAL FUNCTION V2D(vol,pi6)
+     ! Get volume from diameter for spherical particle
+     REAL, INTENT(in) :: vol
+     REAL, INTENT(in) :: pi6
+     V2D = (vol/pi6)**(1./3.)
+   END FUNCTION V2D
+
+   ! ------------------------------------------
+
+   REAL FUNCTION D2V(diam,pi6)
+     ! Get diameter from volume for spherical particle
+     REAL, INTENT(in) :: diam
+     REAL, INTENT(in) :: pi6
+     D2V = pi6*diam**3
+   END FUNCTION D2V
+   
+
+   
 END MODULE util

@@ -236,6 +236,7 @@ MODULE mo_salsa_coagulation_processes
       INTEGER :: index_aero_a, index_aero_b
       INTEGER :: index_a, index_b
       INTEGER :: ii,jj,kk
+      REAL :: fix_coag
 
       ! Update the cloud droplet diameters as they are needed later; THIS CAN BE DONE IN A CLEANER WAY IN SUBSEQUENT VERSIONS
       IF (lsauto%state .AND. lsauto%mode == 1) THEN
@@ -278,7 +279,9 @@ MODULE mo_salsa_coagulation_processes
             END IF
 
             IF (lsauto%state .AND. lsauto%mode == 1) THEN
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,kk,kk,zcccc,              &
+               fix_coag = (max(1. - ptstep*(0.5*zcccc(1,1,kk,kk)*cloud(1,1,kk)%numc**2 / &
+                      (cloud(1,1,kk)%numc)),0.1))
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,kk,kk,fix_coag,zcccc,              &
                                               zplusterm,zminus_self,zvolsink_slf,zvol_prc,znum_prc )
             ELSE
                CALL accumulateSink(kbdim,klev,ncld,ncld,kk,kk,kk,zcccc,cloud,zminus_self,2,multp=0.5)
@@ -306,9 +309,13 @@ MODULE mo_salsa_coagulation_processes
          IF (lscgcc .AND. kk > ica%cur) THEN
 
             IF ( lsauto%state .AND. lsauto%mode == 1) THEN
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,kk-1,zcccc,    &
+               fix_coag =     &
+                    max(1. - ptstep*sum(zcccc(1,1,kk,ica%cur:fca%cur)*cloud(1,1,ica%cur:fca%cur)%numc), 0.1)
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,kk-1,fix_coag,zcccc,    &
                                               zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,index_b,zcccc, &
+               fix_coag =     &
+                    max(1. - ptstep*sum(zcccc(1,1,kk,icb%cur:fcb%cur)*cloud(1,1,icb%cur:fcb%cur)%numc), 0.1)
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,index_b,fix_coag,zcccc, &
                                               zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
             ELSE
                CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,kk-1,zcccc,cloud,zplusterm,2)
@@ -358,7 +365,9 @@ MODULE mo_salsa_coagulation_processes
             END IF
 
             IF (lsauto%state .AND. lsauto%mode == 1) THEN
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,kk,kk,zcccc,              &
+               fix_coag = (max(1. - ptstep*(0.5*zcccc(1,1,kk,kk)*cloud(1,1,kk)%numc**2 / &
+                    (cloud(1,1,kk)%numc)),0.1))
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,kk,kk,fix_coag,zcccc,              &
                                               zplusterm,zminus_self,zvolsink_slf,zvol_prc,znum_prc )
             ELSE
                CALL accumulateSink(kbdim,klev,ncld,ncld,kk,kk,kk,zcccc,cloud,zminus_self,2,multp=0.5)
@@ -386,9 +395,13 @@ MODULE mo_salsa_coagulation_processes
          IF (lscgcc .AND. kk > icb%cur) THEN
 
             IF ( lsauto%state .AND. lsauto%mode == 1) THEN
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,kk-1,zcccc,    &
+               fix_coag =     &
+                    max(1. - ptstep*sum(zcccc(1,1,kk,icb%cur:fcb%cur)*cloud(1,1,icb%cur:fcb%cur)%numc), 0.1)
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,kk-1,fix_coag,zcccc,    &
                                               zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,index_a,zcccc, &
+               fix_coag =     &
+                    max(1. - ptstep*sum(zcccc(1,1,kk,ica%cur:fca%cur)*cloud(1,1,ica%cur:fca%cur)%numc), 0.1)
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,index_a,fix_coag,zcccc, &
                                               zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
             ELSE
                CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,kk-1,zcccc,cloud,zplusterm,2)
@@ -878,7 +891,7 @@ MODULE mo_salsa_coagulation_processes
 
     ! Category specific processes
     ! ---------------------------------
-    SUBROUTINE accumulatePrecipFormation(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,zcc,     &
+    SUBROUTINE accumulatePrecipFormation(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,fix_coag,zcc,     &
                                          source, sink, volsink_slf, vol_prc, num_prc             )
       !
       ! This method for collision-coalescence transfers the resulting
@@ -890,6 +903,7 @@ MODULE mo_salsa_coagulation_processes
       INTEGER, INTENT(in) :: nbtrgt, nbcoll   ! Number of bins in the target and collected categories
       INTEGER, INTENT(in) :: nspec            ! Number of compounds
       INTEGER, INTENT(in) :: itrgt,istr,iend  ! Index of the target (cloud droplet) bin, start and end indices for the collected bins
+      REAL, INTENT(in)    :: fix_coag
       REAL, INTENT(in)      :: zcc(kbdim,klev,nbcoll,nbtrgt)    ! Collision kernels
       REAL, INTENT(inout)   :: source(nspec,kbdim,klev)         ! Regular coagulation source term
       REAL, INTENT(inout)   :: sink(kbdim,klev)           ! Regular coagulation sink term
@@ -901,7 +915,7 @@ MODULE mo_salsa_coagulation_processes
       INTEGER :: trgt_prc
       INTEGER :: ii,jj,ll
       LOGICAL :: selfcoll
-
+      
       selfcoll = .FALSE.
       IF (itrgt == istr .AND. itrgt == iend) THEN
          ! Self collection
@@ -924,18 +938,18 @@ MODULE mo_salsa_coagulation_processes
                   IF ( selfcoll ) THEN
                      ! Self collection
                      vol_prc(1:nspec,ii,jj,trgt_prc) = vol_prc(1:nspec,ii,jj,trgt_prc) +   &
-                          cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc*zcc(ii,jj,ll,itrgt) 
+                          cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc*zcc(ii,jj,ll,itrgt) * fix_coag
                      
                      num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) +        &
-                          (0.5*zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) 
+                          (0.5*zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) * fix_coag
                      
                   ELSE
                      vol_prc(1:nspec,ii,jj,trgt_prc) = vol_prc(1:nspec,ii,jj,trgt_prc) +    &
                           ( cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc +         &
-                          cloud(ii,jj,itrgt)%volc(1:nspec)*cloud(ii,jj,ll)%numc ) * zcc(ii,jj,ll,itrgt)
+                          cloud(ii,jj,itrgt)%volc(1:nspec)*cloud(ii,jj,ll)%numc ) * zcc(ii,jj,ll,itrgt) * fix_coag
                      
                      num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) +        &
-                          (zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) 
+                          (zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) * fix_coag
                      
                   END IF
 
