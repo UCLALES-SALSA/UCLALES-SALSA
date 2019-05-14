@@ -1,7 +1,7 @@
 MODULE mo_progn_state
   USE classFieldArray
   USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray2d, FloatArray3d, FloatArray4d
-  USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice, in1a,fn2a, in2b,fn2b, ica,fca, icb,fcb
+  USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice, in1a,fn2a, in2b,fn2b, ica,fca, icb,fcb, ice_theta_dist
   IMPLICIT NONE
 
   SAVE
@@ -50,6 +50,8 @@ MODULE mo_progn_state
                                 a_mcloudp, a_mcloudt, &    ! Cloud
                                 a_mprecpp, a_mprecpt, &    ! Precip
                                 a_micep,   a_micet         ! Ice
+
+  TYPE(FloatArray4D), TARGET :: a_indefp, a_indeft
   
   ! -- Gas compound tracers
   TYPE(FloatArray4D), TARGET :: a_gaerop, a_gaerot
@@ -288,9 +290,24 @@ MODULE mo_progn_state
                              "kg/kg", "N/A", .FALSE.,                                                   &
                              pipeline_p, in_t_data = pipeline_t,                                        &
                              in_group = ["SALSA_4d"]                                                    &
-                           )                            
-         iscl = iscl + nice*(nspec+1)-1
+                           )
 
+         IF (ice_theta_dist) THEN
+            iscl = iscl + nice*(nspec+1)
+            pipeline_p => NULL(); pipeline_t => NULL()
+            a_indefp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nbins+ncld+nprc-1)) 
+            a_indeft = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nbins+ncld+nprc-1))
+            pipeline_p => a_indefp
+            pipeline_t => a_indeft
+            CALL Prog%newField( "indef","IN deficit fraction for contact angle distributions",    &
+                                "kg/kg", "N/A", .FALSE.,     &
+                                pipeline_p,in_t_data = pipeline_t                                 &
+                              )
+            
+            
+         END IF
+
+            
       END IF
       
 

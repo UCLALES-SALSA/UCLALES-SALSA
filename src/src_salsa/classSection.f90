@@ -60,6 +60,7 @@ MODULE classSection
       cnstr%dlim = idlim
       cnstr%rhomean = 0.
       cnstr%rhoeff = 0.
+      cnstr%INdef = 0.
 
     END FUNCTION cnstr
 

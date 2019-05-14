@@ -1,10 +1,10 @@
 MODULE constrain_SALSA
   USE mo_progn_state, ONLY : a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,   &
                              a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,   &
-                             a_nicep,  a_nicet,  a_micep,   a_micet, a_gaerop
+                             a_nicep,  a_nicet,  a_micep,   a_micet, a_gaerop, a_indefp
   USE mo_diag_state, ONLY : a_rc, a_srp, a_snrp, a_rh, a_temp, a_ri, a_riri, a_rhi
   USE mo_aux_state, ONLY : aetot
-  USE mo_submctl, ONLY : spec, nlim, prlim
+  USE mo_submctl, ONLY : spec, nlim, prlim, ice_theta_dist
   USE mo_structured_datatypes
   IMPLICIT NONE
 
@@ -25,9 +25,11 @@ MODULE constrain_SALSA
          CALL SALSA_tracers_4d%getData(2,vart,nv)
          vart%d(:,:,:,:) = MAX( (-1.+1.e-8)*varp%d(:,:,:,:)/dtlt, vart%d(:,:,:,:)  )
       END DO
-
       varp => NULL(); vart => NULL()
-         
+
+      IF (ice_theta_dist)   &
+           a_indefp%d(:,:,:,:) = MIN( MAX( a_indefp%d(:,:,:,:),0. ),1. )
+      
    END SUBROUTINE tend_constrain2
    
    !

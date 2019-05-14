@@ -482,6 +482,7 @@ CONTAINS
                              lscheckarrays,               &
                              fixINC,                      &
                              ice_hom, ice_imm, ice_dep,   &
+                             ice_theta_dist,              &
 
                              bloPrc,                      &                            
                              nbin,reglim,                 &
@@ -525,10 +526,11 @@ CONTAINS
          lsdistupdate,  & ! Switch for size dsitribution update
          lscheckarrays, & ! Switch for runnin the array check routine in mo_salsa
 
-         fixINC,      & ! fixed ice number concentration #/kg
-         ice_hom,     & ! Switch for homogeneous ice nucleation
-         ice_imm,     & ! .. for immersio freezing
-         ice_dep,     & ! .. for deposition freezing
+         fixINC,      &    ! fixed ice number concentration #/kg
+         ice_hom,     &    ! Switch for homogeneous ice nucleation
+         ice_imm,     &    ! .. for immersio freezing
+         ice_dep,     &    ! .. for deposition freezing
+         ice_theta_dist, & ! contact angle distributions
          
          bloPrc,      & ! Precipitation bin definitions
          bloIce,      & ! Ice bin definitions
@@ -612,6 +614,8 @@ CONTAINS
      lsfreeRH = ProcessSwitch()
 
    END SUBROUTINE associate_master_switches
+
+   ! ----------------------------------------
    
    SUBROUTINE setDefaultBinLayouts
      USE mo_submctl, ONLY : bloPrc, bloIce

@@ -100,6 +100,8 @@ CONTAINS
                                      maerot => NULL(), mcloudt => NULL(),   &
                                      mprecpt => NULL(), micet => NULL(),    &
 
+                                     indefp => NULL(),                      &
+                                     
                                      gaerop => NULL(), gaerot => NULL()
             
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
@@ -161,6 +163,7 @@ CONTAINS
       IF (level == 5) THEN
          CALL Prog%getData(1,micep,name="mice")
          CALL Prog%getData(2,micet,name="mice")
+         IF (ice_theta_dist) CALL Prog%getData(1,indefp,name="indef")
       END IF
          
       CALL Prog%getData(1,gaerop,name="gaero")
@@ -257,6 +260,11 @@ CONTAINS
                         str = getMassIndex(catnbins,nbloc,nc) 
                         allSALSA(1,1,nb)%volc(nc) = mpart(icat)%d(str)*pdn%d(kk,ii,jj)/spec%rholiq(nc)                     
                      END DO
+
+                     IF (level == 5 .AND. ice_theta_dist) THEN
+                        allSALSA(1,1,nb)%INdef = indefp%d(kk,ii,jj,nb)
+                     END IF
+                     
                   ELSE IF (icat == 4) THEN
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc)
@@ -264,6 +272,7 @@ CONTAINS
                      END DO
                      str = getMassIndex(catnbins,nbloc,irim)
                      allSALSA(1,1,nb)%volc(irim) = mpart(icat)%d(str)*pdn%d(kk,ii,jj)/spec%rhori
+
                   END IF
 
                   ! Update number concentrations
@@ -320,6 +329,11 @@ CONTAINS
                              ( (allSALSA(1,1,nb)%volc(nc)*spec%rholiq(nc)/pdn%d(kk,ii,jj)) -   &
                                mpart(icat)%d(str) ) / tstep
                      END DO
+
+                     IF (level == 5 .AND. ice_theta_dist) THEN
+                        indefp%d(kk,ii,jj,nb) = allSALSA(1,1,nb)%INdef 
+                     END IF
+                      
                   ELSE IF (icat == 4) THEN
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc)
@@ -414,6 +428,8 @@ CONTAINS
       mprecpt => NULL(); micet => NULL()
       
       gaerop => NULL(); gaerot => NULL()     
+
+      indefp => NULL()
 
       
    END SUBROUTINE run_SALSA

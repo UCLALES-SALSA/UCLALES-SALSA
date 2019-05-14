@@ -106,6 +106,9 @@ MODULE mo_particle_external_properties
       
       iwa = spec%getIndex("H2O")
       ndry = spec%getNSpec(type="dry")
+
+      calcSweq = 0.
+      IF (part%numc < part%nlim) RETURN
       
       ! Wet diameter  !! USE THE FUNCTIONS PROVIDED FOR THIS??
       dwet = (SUM(part%volc(:))/part%numc/pi6)**(1./3.)

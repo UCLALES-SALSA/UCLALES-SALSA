@@ -1,18 +1,20 @@
 MODULE mo_salsa_cloud_ice_SE
-  USE mo_salsa_types, ONLY : liquid, ice
-  USE mo_submctl, ONLY : nliquid, pi6, ice_hom, ice_dep, ice_imm
-  USE util, ONLY : erfm1
+  USE mo_salsa_types, ONLY : liquid, ice, precp, rateDiag
+  USE mo_submctl, ONLY : nliquid, ira,fra, nprc, iia, fia, nice, pi6, ice_hom, ice_dep, ice_imm, spec,  &
+                         boltz, pi, planck, rg, avog
+  USE util, ONLY : erfm1, f_gauss
   USE mo_particle_external_properties, ONLY : calcSweq
+  USE classSection, ONLY : Section
   IMPLICIT NONE
 
   REAL, PARAMETER, PRIVATE :: sqrt2 = SQRT(2.)
 
   ! Should package these nicer into classSpecies or something
   !                                                                     BC,  DU
-  REAL, PARAMETER, PRIVATE               :: allThetaMeanDep(maxspec) = [15., 15.5]
-  REAL, PARAMETER, PRIVATE               :: allThetaMeanImm(maxspec) = [140., 132.]
-  REAL, PARAMETER, PRIVATE               :: allThetaSigmaDep(maxspec) = [1.4, 1.4]
-  REAL, PARAMETER, PRIVATE               :: allThetaSigmaImm(maxspec) = [23., 20.]
+  REAL, PARAMETER, PRIVATE               :: thetaMeanDep(2) = [15., 15.5]
+  REAL, PARAMETER, PRIVATE               :: thetaMeanImm(2) = [140., 132.]
+  REAL, PARAMETER, PRIVATE               :: thetaSigmaDep(2) = [1.4, 1.4]
+  REAL, PARAMETER, PRIVATE               :: thetaSigmaImm(2) = [23., 20.]
   
   
   ! This contains the ice nucleation paramterization procedures according
@@ -25,9 +27,9 @@ MODULE mo_salsa_cloud_ice_SE
     INTEGER, INTENT(in) :: kproma, kbdim, klev
     REAL, INTENT(in) :: ptemp(kbdim,klev), prv(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev)
     REAL, INTENT(in) :: tstep
-        
-    REAL :: th00(kbdim,klev,nliquid)  ! Mitäs jos on internally mixed IN hitusia??
-    REAL :: Seq(kbdim,klev,nliquid)
+    
+    REAL :: th00(kbdim,klev,nliquid) 
+    REAL :: Seq(kbdim,klev,nliquid), Si(kbdim,klev,nliquid)
     REAL :: f_dep(kbdim,klev,nliquid), f_imm(kbdim,klev,nliquid), f_hom(kbdim,klev,nliquid)
     REAL :: thm_imm(kbdim,klev,nliquid), ths_imm(kbdim,klev,nliquid)
     REAL :: thm_dep(kbdim,klev,nliquid), ths_dep(kbdim,klev,nliquid)
@@ -40,10 +42,8 @@ MODULE mo_salsa_cloud_ice_SE
     REAL, PARAMETER :: dmin = 1.e-10
     REAL, PARAMETER :: Vmin = pi6*(1.e-10)**3
     REAL, PARAMETER :: tmax_homog = 243.15  ! Juha: Isnt this a bit high?   
-    LOGICAL :: nuc_mask(kbdim,klev,nliquid) ! Mask for conditions on different ice nucleation processes
-    
-    
-    EXTERNAL :: J_imm, J_dep
+    LOGICAL :: nuc_mask(kbdim,klev,nliquid) ! Mask for conditions on different ice nucleation processes    
+
     
     ! Use IN deficit fraction as a "prognostic" variable. From that, first update theta0. Then calculate nucleation.
     ! Finally, estimate the new total nucleation deficit fraction. This wont be exact, but hopefully close enough.
@@ -56,15 +56,20 @@ MODULE mo_salsa_cloud_ice_SE
        thm_imm = 0.; ths_imm = 0.
        thm_dep = 0.; ths_dep = 0.
        
-       ibc = spec%getIndex("DU",notFoundValue=0)
-       idu = spec%getIndex("BC",notFoundValue=0)
+       ibc = spec%getIndex("BC",notFoundValue=0)
+       idu = spec%getIndex("DU",notFoundValue=0)
        thind = MERGE(2,1, idu > 0 )
+
+       Seq = 0.
+       Si = 0.
+       th00 = 0.
        
        DO kk = 1,nliquid
           DO jj = 1,klev
              DO ii = 1,kproma
                 Seq(ii,jj,kk) = calcSweq(liquid(ii,jj,kk),ptemp(ii,jj))
-
+                Si(ii,jj,kk) = prv(ii,jj)/prsi(ii,jj)
+                                
                 ! Determine which contact angle distribution parameters to use (depends on species, DU or BC).
                 ! This is done bin by bin. If both present in an internally mixed configuration, just use DU... <- implement this!!!
                 thm_imm(ii,jj,kk) = thetaMeanImm(thind)
@@ -80,7 +85,7 @@ MODULE mo_salsa_cloud_ice_SE
                 ! Calculate homogeneous freezing here separately since it does not need contact angle integration
                 ! Homogeneous freezing
                 IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. ice_hom) THEN
-                   CALL J_hf(ptemp,Seq,Jhom)
+                   CALL J_hf(ptemp(ii,jj),Seq(ii,jj,kk),Jhom)
                    f_hom(ii,jj,kk) = 1. - EXP( -Jhom*pi6*(dwet**3-dins**3)*tstep )
                 END IF
                 
@@ -94,49 +99,69 @@ MODULE mo_salsa_cloud_ice_SE
        ! Immersion freezing
        nuc_mask(:,:,:) = ( ( liquid(:,:,:)%phase == 2 .OR. liquid(:,:,:)%phase == 3 ) .AND. &
                            ( liquid(:,:,:)%dins > dmin) .AND. ice_imm )
-       CALL gauss_legendre( J_imm, kproma, kbdim, klev, ptemp, Seq, th00, thm_imm, ths_imm, tstep, nuc_mask, f_imm )
+
+       CALL gauss_legendre( kproma, kbdim, klev, ptemp, Seq, th00,        &
+                            thm_imm, ths_imm, tstep, nuc_mask, 1, f_imm   )
 
        ! Deposition freezing
        DO kk = 1,nliquid
           nuc_mask(:,:,kk) = ( ( liquid(:,:,kk)%phase == 1 .AND. prv(:,:)/prs(:,:) < 1.0 ) .AND.  &
-                               ( liquid(:,:,kk)%dwet-liquid(:,:,kk)%dins < dmin) .AND.            &
-                               ( liquid(:,:,kk)%dins > dmin) .AND. ice_dep )
+                               ( liquid(:,:,kk)%dwet-liquid(:,:,kk)%dins < dmin ) .AND.           &
+                               ( liquid(:,:,kk)%dins > dmin ) .AND. ice_dep )
        END DO
-       CALL gauss_legendre( J_dep, kproma, kbdim, klev, ptemp, Seq, th00, thm_imm, ths_imm, tstep, nuc_mask, f_dep )
 
-       ! Homogeneous freezing       
+       CALL gauss_legendre( kproma, kbdim, klev, ptemp, Si, th00,       &
+                            thm_imm, ths_imm, tstep, nuc_mask, 2, f_dep  )
+
+       CALL iceDiagnostics(kproma,kbdim,klev,liquid,f_imm,f_dep,f_hom)
+             
        frac = MAX(0., MIN(0.99,f_imm+f_hom+f_dep-(f_imm+f_dep)*f_hom))
        
        CALL iceNucleation( kproma,kbdim,klev,frac )
-    
+       
     END IF ! insoluble
        
   END SUBROUTINE Ice_Nucl_Driver
 
   ! ----------------------------------------
   
-  SUBROUTINE gauss_legendre( func, kproma, kbdim, klev, Tk, Seq, th00, thm, ths, tstep, nuc_mask, frac)
+  SUBROUTINE gauss_legendre( kproma, kbdim, klev, Tk, Seq, th00,     &
+                             thm, ths, tstep, nuc_mask, mode, frac   )
     
     ! Integrate the ice nucleation across contact angles using the Gauss-Legenre quadrature
     INTEGER, INTENT(in) :: kproma,kbdim,klev
-    REAL, INTENT(in) :: Tk(kbdim,klev), Seq(kbdim,klev,nliquid), th00(kbdim,klev,nliquid)
-    REAL, INTENT(in) :: thm, ths, tstep
+    REAL, INTENT(in) :: Tk(kbdim,klev), Seq(kbdim,klev,nliquid), th00(kbdim,klev,nliquid)  !!! Note for deposition mode, Seq should be saturation w.r.t ice
+    REAL, INTENT(in) :: thm(kbdim,klev,nliquid), ths(kbdim,klev,nliquid), tstep
     LOGICAL, INTENT(in) :: nuc_mask(kbdim,klev,nliquid)
+    INTEGER, INTENT(in) :: mode   ! 1 = immersion, 2=deposition
     REAL, INTENT(out) :: frac(kbdim,klev,nliquid)   ! Fraction nucleated
-    EXTERNAL func
+    INTERFACE
+       SUBROUTINE func(theta,Tk,Din,Seq,J)
+         REAL, INTENT(in) :: theta,    & ! Contact angle
+                             Tk,       & ! temperature in K
+                             Din,      & ! Diameter of the IN
+                             Seq         ! Equilibrium saturation ratio 
+         REAL, INTENT(out) :: J          ! Nucleation rate (per particle per sec)
+       END SUBROUTINE func
+    END INTERFACE
     
     REAL :: thmax, thmin, th1
     
     ! Points and weights for 10th order method
-    REAL, DIMENSION(10), PARAMETER  :: x = [ -0.973908239224106,-0.865060566454542,-0.679410688379483,-0.433395397408358,-0.148874339007507, &
-                                              0.148874339007507,0.433395397408358,0.679410688379483,0.865060566454542,0.973908239224106 ]
-    REAL, DIMENSION(10), PARAMETER  :: w = [ 0.066667031481273176,0.14945422671662059,0.21908574324601154,0.26926671836765848,0.29552422471242434, &
-                                              0.29552422471242434,0.26926671836765848,0.21908574324601154,0.14945422671662059,0.066667031481273176 ]    
-
+    REAL, DIMENSION(10), PARAMETER  :: x = [ -0.973908239224106,-0.865060566454542,   &
+                                             -0.679410688379483,-0.433395397408358,   &
+                                             -0.148874339007507, 0.148874339007507,   &
+                                             0.433395397408358,  0.679410688379483,   &
+                                             0.865060566454542,  0.973908239224106    ]
+    REAL, DIMENSION(10), PARAMETER  :: w = [ 0.066667031481273176,0.14945422671662059,  &
+                                             0.21908574324601154,0.26926671836765848,   &
+                                             0.29552422471242434,0.29552422471242434,   &
+                                             0.26926671836765848,0.21908574324601154,   &
+                                             0.14945422671662059,0.066667031481273176   ]    
     REAL :: J, ftheta, Jacc, dins
 
     INTEGER :: i, ii,jj,kk
-    INTEGER :: ins, nliquid
+    INTEGER :: ins
     
     thmax = 180.
     
@@ -154,27 +179,29 @@ MODULE mo_salsa_cloud_ice_SE
              Jacc = 0.
 
              dins = liquid(ii,jj,kk)%dins
-             
+                          
              DO i = 1,10
                 
                 th1 = 0.5*(thmax - thmin)*x(i) + 0.5*(thmax + thmin)
 
-                CALL func(th1, Tk, dins, Seq, J)
-                
+                IF (mode == 1) THEN
+                   CALL J_imm(th1, Tk(ii,jj), dins, Seq(ii,jj,kk), J)
+                ELSE IF (mode == 2) THEN
+                   CALL J_dep(th1, Tk(ii,jj), dins, Seq(ii,jj,kk), J)
+                END IF
+                   
                 IF (th1 > thmin) THEN
-                   ftheta = f_gauss(th1,ths,thm)
+                   ftheta = f_gauss(th1,ths(ii,jj,kk),thm(ii,jj,kk))
                 ELSE
                    ftheta = 0.
                 END IF
 
-                Jacc = Jacc + w(i) * J * ftheta
+                frac(ii,jj,kk) = frac(ii,jj,kk) + ftheta*w(i)*( 1. - EXP( -J*tstep ) )
 
              END DO
 
-             Jacc = 0.5 * (thmax - thmin) * Jacc
-             
-             frac = 1. - EXP( -Jacc * tstep)
-             
+             frac(ii,jj,kk) = 0.5 * (thmax - thmin) * frac(ii,jj,kk) 
+                          
           END DO
        END DO
     END DO
@@ -209,7 +236,7 @@ MODULE mo_salsa_cloud_ice_SE
     J = 0.
     
     ! Must have a core
-    IF (rn<1e-10) RETURN
+    IF (Din<1e-10) RETURN
     
     Tc = Tk-T0 ! Temperature in Celsius
     
@@ -233,23 +260,23 @@ MODULE mo_salsa_cloud_ice_SE
     Lefm = (79.7+0.708*Tc-2.5e-3*Tc**2)*4.1868e3 
     GG = rg*Tk/spec%mwa/Lefm
     
-    IF ( (T0/temp)*Sw**GG<1.0001 ) RETURN
+    IF ( (T0/Tk)*Seq**GG<1.0001 ) RETURN
 
-    d_g = 4.*sigma_is/( rho_ice*Lefm*log((T0/temp)*Sw**GG)-C*epsi**2) 
+    d_g = 4.*sigma_is/( rho_ice*Lefm*log((T0/Tk)*Seq**GG)-C*epsi**2) 
 
-    IF (r_g<=1e-10) RETURN
+    IF (d_g<=1e-10) RETURN
     
     ! b) Shape factor (eq. 2.9 in KC00)
     thrad = theta * pi/180.
     costh = COS(thrad)
-
-    sf=calc_het_sf(Din/d_g,costh)
+    
+    sf=het_sf(Din/d_g,costh)
     
     ! c) Critical energy (eq. 2.10 in KC00)
     crit_energy = (pi/3.)*sigma_is*(d_g**2)*sf - (1./4.)*alpha*(1.-costh)*Din**2
     
     ! Eq 2.1 in KC00
-    J = (boltz*Tk/planck) * c_1s*pi*(Din**2)*exp( -(act_energy+crit_energy)/(boltz*temp) ) 
+    J = (boltz*Tk/planck) * c_1s*pi*(Din**2)*exp( -(act_energy+crit_energy)/(boltz*Tk) ) 
     
   END SUBROUTINE J_imm
  
@@ -276,6 +303,8 @@ MODULE mo_salsa_cloud_ice_SE
 
     REAL :: thrad, costh   ! Contact angle in radians, cosine of contact angle
 
+    WRITE(*,*) 'jdep'
+    
     ! Must have a core and supersaturation over ice
     IF (Din<1e-10 .OR. Seq<1.0001) RETURN
     
@@ -295,7 +324,7 @@ MODULE mo_salsa_cloud_ice_SE
     ! b) Shape factor (eq. 2.9 in KC00)
     thrad = theta * pi/180.
     costh = COS(thrad)
-    sf=calc_het_sf(Din/d_g,costh)
+    sf=het_sf(Din/d_g,costh)
     
     ! c) Critical energy (eq. 2.12 in KC00)
     crit_energy = (pi/3.)*sigma_iv*(d_g**2)*sf ! / 4 for diameter
@@ -334,14 +363,15 @@ MODULE mo_salsa_cloud_ice_SE
     GG = rg*Tk/Lefm/spec%mwa
     IF ( (T0/Tk)*Sw**GG<1.0001 ) RETURN
     sigma_is = 28.e-3+0.25e-3*Tc ! Surface tension between ice and solution
-    d_g = 4.*sigma_is/( spec%rhoic*Lefm*log((T0/Tk)*Seq**GG) )
+    d_g = 4.*sigma_is/( spec%rhoic*Lefm*log((T0/Tk)*Sw**GG) )
     IF (d_g<=1e-10) RETURN
     
     ! c) Critical energy (eq. 9b)
     crit_energy = (pi/3.)*sigma_is*d_g**2
     
     ! Eq. 1
-    J = 2.0*Nc*(spec%rhowa*boltz*Tk/spec%rhoic/planck)*sqrt(sigma_is/boltz/Tk)*exp( -(crit_energy+act_energy)/(boltz*Tk) )
+    J = 2.0*Nc*(spec%rhowa*boltz*Tk/spec%rhoic/planck)*sqrt(sigma_is/boltz/Tk) * &
+        exp( -(crit_energy+act_energy)/(boltz*Tk) )
     
   END SUBROUTINE J_hf
   
@@ -369,20 +399,18 @@ MODULE mo_salsa_cloud_ice_SE
   SUBROUTINE low_theta(kproma,kbdim,klev,th00,thmean,thstd)
     
     INTEGER, INTENT(in) :: kproma,kbdim,klev
-    REAL, INTENT(out) :: th00(kbdim,klev,nliquid), thmean(kbidm,klev,nliquid), thstd(kbdim,klev,nliquid)
+    REAL, INTENT(out) :: th00(kbdim,klev,nliquid), thmean(kbdim,klev,nliquid), thstd(kbdim,klev,nliquid)
     INTEGER :: nb, ii, jj
     REAL :: indef        ! IN deficit ratio from the previous timestep
 
     th00 = 0.
-    
-    ! Loop over insoluble species
-    IF (nins > 0) RETURN
 
-    DO jj = 1,klev
-       DO ii = 1,kproma
-          DO nb = 1,nliquid
+    DO nb = 1,nliquid
+       DO jj = 1,klev
+          DO ii = 1,kproma
              indef = liquid(ii,jj,nb)%indef
-             th00(nb) = thmean(nb) + sqrt2*thstd(nb)*erfm1( 2.*indef - 1. ) 
+             th00(ii,jj,nb) = thmean(ii,jj,nb) + sqrt2*thstd(ii,jj,nb)*erfm1( 2.*indef - 1. )
+             th00(ii,jj,nb) = MIN( MAX( th00(ii,jj,nb),0. ),180. )
           END DO
        END DO
     END DO
@@ -397,8 +425,10 @@ MODULE mo_salsa_cloud_ice_SE
     INTEGER, INTENT(in) :: kproma, kbdim,klev
     REAL, INTENT(in) :: frac(kbdim,klev,nliquid)
 
-    REAL :: f0, f1, nnuc_new, ncur0
+    REAL, PARAMETER :: minVin = pi6*(1.e-8)**3  ! Minimum vol (D=10nm) for the insoluble core to count as IN
     
+    REAL :: f0, f1, nnuc_new, ncur0
+       
     INTEGER :: ii,jj,kk,bb,ss
     INTEGER :: ndry, iwa, irim
     REAL :: dwet
@@ -411,16 +441,21 @@ MODULE mo_salsa_cloud_ice_SE
        DO jj = 1,klev
           DO ii = 1,kproma
 
+             IF (liquid(ii,jj,kk)%numc < liquid(ii,jj,kk)%nlim) CYCLE  ! Not enough droplets
+             IF ( SUM(liquid(ii,jj,kk)%volc(spec%ind_insoluble)) < minVin ) CYCLE ! Not enough IN material
+             
              ! The old IN "deficit" fraction
              f0 = liquid(ii,jj,kk)%indef
 
-             ! Current number of potential IN particles !!!! ADD A CHECK THAT THIS BIN ACTUALLY CONTAINS IN; OR DO IT WHEN CALCULATING FRAC
+             ! Current number of potential IN particles
              ncur0 = liquid(ii,jj,kk)%numc             
              nnuc_new = frac(ii,jj,kk)*ncur0
              
              f1 = nnuc_new + (ncur0 + nnuc_new)*f0
              f1 = f1/ncur0
-
+             IF (f1 < 0. .OR. f1 > 1.) WRITE(*,*) 'update indef wrong', f1
+             f1 = MIN( MAX(f1,1.e-6),1.-1.e-6 )
+             
              liquid(ii,jj,kk)%indef = f1
              
              ! Determine the target ice bin
@@ -431,25 +466,31 @@ MODULE mo_salsa_cloud_ice_SE
              ! Update the ice bins
              ! Dry aerosol
              DO ss = 1,ndry
-                ice(ii,jj,bb)%volc(ss) = MAX(0., ice(ii,jj,bb)%volc(ss) + liquid(ii,jj,kk)%volc(ss)*frac(ii,jj,kk))
-                liquid(ii,jj,kk)%volc(ss) = MAX(0., liquid(ii,jj,kk)%volc(ss)*(1.-frac(ii,jj,kk)))
+                ice(ii,jj,bb)%volc(ss) =    &
+                     MAX(0., ice(ii,jj,bb)%volc(ss) + liquid(ii,jj,kk)%volc(ss)*frac(ii,jj,kk))
+                liquid(ii,jj,kk)%volc(ss) =   &
+                     MAX(0., liquid(ii,jj,kk)%volc(ss)*(1.-frac(ii,jj,kk)))
              END DO
              
              ! Water (total ice)
              IF (ANY(liquid(ii,jj,kk)%phase == [1,2])) THEN
                 ! Aerosol or cloud droplets -> only pristine ice production
-                ice(ii,jj,bb)%volc(iwa) = MAX(0.,ice(ii,jj,bb)%volc(iwa) + liquid(ii,jj,kk)%volc(iwa)*frac(ii,jj,kk)*spec%rhowa/spec%rhoic)
+                ice(ii,jj,bb)%volc(iwa) =   &
+                     MAX(0.,ice(ii,jj,bb)%volc(iwa) + liquid(ii,jj,kk)%volc(iwa)*frac(ii,jj,kk)*spec%rhowa/spec%rhoic)
                 liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac(ii,jj,kk)))
              ELSE IF (liquid(ii,jj,kk)%phase == 3) THEN
                 ! Precip -> rimed ice
-                ice(ii,jj,bb)%volc(irim) = MAX(0.,ice(ii,jj,bb)%volc(irim) + liquid(ii,jj,kk)%volc(iwa)*frac(ii,jj,kk)*spec%rhowa/spec%rhori)
+                ice(ii,jj,bb)%volc(irim) =   &
+                     MAX(0.,ice(ii,jj,bb)%volc(irim) + liquid(ii,jj,kk)%volc(iwa)*frac(ii,jj,kk)*spec%rhowa/spec%rhori)
                 liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac(ii,jj,kk)))
              END IF
              
              ! Number concentration
              ice(ii,jj,bb)%numc = MAX(0.,ice(ii,jj,bb)%numc + liquid(ii,jj,kk)%numc*frac(ii,jj,kk))
              liquid(ii,jj,kk)%numc = MAX(0.,liquid(ii,jj,kk)%numc*(1.-frac(ii,jj,kk)))
-               
+
+             CALL ice(ii,jj,bb)%updateRhomean()
+             
           END DO
        END DO
     END DO
@@ -473,6 +514,8 @@ MODULE mo_salsa_cloud_ice_SE
 
   END FUNCTION getIceBin
 
+  ! ------------------------------------------------------------
+  
   INTEGER FUNCTION getPrecipBin(idwet,idens)
     REAL, INTENT(in) :: idwet   ! This should be given as a spherical effective diameter
     REAL, INTENT(in) :: idens   ! this should be the particle mean density (contribution by pristine and rimed ice)
@@ -489,6 +532,26 @@ MODULE mo_salsa_cloud_ice_SE
     
   END FUNCTION getPrecipBin
 
+  ! ---------------------------
+
+  SUBROUTINE iceDiagnostics(kproma,kbdim,klev,pliq,fimm,fdep,fhom)
+    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    TYPE(Section), INTENT(in) :: pliq(kbdim,klev,nliquid)
+    REAL, INTENT(in)          :: fimm(kbdim,klev,nliquid),     &
+                                 fdep(kbdim,klev,nliquid),     &
+                                 fhom(kbdim,klev,nliquid)
+    INTEGER :: kk
+
+    DO kk = 1,nliquid
+       CALL rateDiag%Ice_hom%accumulate(n=pliq(1,1,kk)%numc*fhom(1,1,kk),    &
+                                        v=pliq(1,1,kk)%volc(:)*fhom(1,1,kk))
+       CALL rateDiag%Ice_dep%accumulate(n=pliq(1,1,kk)%numc*fdep(1,1,kk),    &
+                                        v=pliq(1,1,kk)%volc(:)*fdep(1,1,kk))
+       CALL rateDiag%Ice_imm%accumulate(n=pliq(1,1,kk)%numc*fimm(1,1,kk),    &
+                                        v=pliq(1,1,kk)%volc(:)*fimm(1,1,kk))
+    END DO
+       
+  END SUBROUTINE iceDiagnostics
 
 
   

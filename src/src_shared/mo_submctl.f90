@@ -45,6 +45,13 @@ MODULE mo_submctl
   LOGICAL :: lscndh2oae = .TRUE.  ! Condensation of water vapour on aerosol particles (FALSE -> equilibrium calc.)
   LOGICAL :: lscndh2oic = .TRUE.  ! Condensation of water vapour on ice and snow
 
+  ! Ice nucleation subprocesses
+  LOGICAL :: ice_hom = .FALSE.        ! Homogeneous freezing
+  LOGICAL :: ice_imm = .FALSE.        ! Immersion freezing
+  LOGICAL :: ice_dep = .FALSE.        ! Deposition freezing
+  LOGICAL :: ice_theta_dist = .TRUE.  ! Use contact angle distributions for heterogeneous nucleation
+                                      ! processes according to Savre and Ekman (2015)
+  
   LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
 
   LOGICAL :: lscheckarrays = .FALSE.
@@ -114,7 +121,7 @@ MODULE mo_submctl
   ! b) Modelled ice nucleation || Juha: These could be placed with the other switches. Also, would 
   !                               do the fixed thing with the condition nlicenucl = false and fixinc > 0.,
   !                               otherwise physical nucleation.
-  LOGICAL :: ice_hom = .FALSE., ice_imm=.FALSE., ice_dep=.FALSE. ! Available ice nucleation modes
+
 
   INTEGER, PARAMETER ::            &
        nreg = 2                          ! number of main size regimes

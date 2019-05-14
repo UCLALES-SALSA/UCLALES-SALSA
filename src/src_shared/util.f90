@@ -1029,12 +1029,27 @@ CONTAINS
    REAL FUNCTION erfm1(x)
      ! Inverse error function - just quickly grabbed the Maclaurin series terms from wikipedia...
      REAL, INTENT(in) :: x
-     REAL, PARAMETER :: tt = 0.8862269254527579, t1 = 1., t3 = 0.2617993877991494,   &
-                        t5 = 0.14393173084921979, t7 = 0.09766361950392055,          &
-                        t9 = 0.07329907936638086, t11 = 0.05837250087858452
+     !REAL, PARAMETER :: tt = 0.8862269254527579, t1 = 1., t3 = 0.2617993877991494,   &
+     !                   t5 = 0.14393173084921979, t7 = 0.09766361950392055,          &
+     !                   t9 = 0.07329907936638086, t11 = 0.05837250087858452
+     REAL, PARAMETER :: a = 0.140012 ! 0.147
+     REAL, PARAMETER :: pi = 3.14159265359
+     REAL :: sgn, t1, t2, t3, t4, t5,xx
      
-     erfm1 = x + t3*x**3 + t5*x**5 + t7*x**7 + t9*x**9 + t11*x**11
-     erfm1 = ermf1*tt
+     
+     sgn = 1.
+     IF (x < 0.) sgn = -1.
+     xx = MAX( MIN( x, 1.-1.e-6  ), -1.+1.e-6 )
+     t1 = LOG(1.-xx**2)
+     t2 = 2./(pi*a)
+     
+     t3 = t2 + 0.5*t1
+     t4 = t1/a
+     t5 = t2 + 0.5*t1
+     erfm1 = sgn * SQRT( SQRT(t3**2 - t4) - t5 )
+     
+     !erfm1 = x + t3*x**3 + t5*x**5 + t7*x**7 + t9*x**9 + t11*x**11
+     !erfm1 = erfm1*tt
 
    END FUNCTION erfm1
 
