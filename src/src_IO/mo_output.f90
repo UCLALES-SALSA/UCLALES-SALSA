@@ -412,11 +412,11 @@ MODULE mo_output
             ALLOCATE(out3dsd(nzp,nxp,nyp,nend-nstr+1)); out3dsd = 0.
             CALL varArray%getData(1,var4d,index=n)
             IF (ASSOCIATED(var4d%onDemand)) THEN
-               CALL var4d%onDemand(vname,out3dsd)
+               CALL var4d%onDemand(vname,out3dsd,nstr,nend)
             ELSE
                out3dsd = var4d%d
             END IF
-            CALL write_nc(ncid0,vname,out3dsd(:,i1:i2,j1:j2,nstr:nend),ibeg4d,icnt=icnt3dsd)
+            CALL write_nc(ncid0,vname,out3dsd(:,i1:i2,j1:j2,1:nend-nstr+1),ibeg4d,icnt=icnt3dsd)
             DEALLOCATE(out3dsd)
             
          END SELECT                  

@@ -92,7 +92,7 @@ cat > NAMELIST <<EOF
   filprf = '${EXPNAME}'       ! Output filename profile
   hfilin = '${EXPNAME}.000020s' ! History file name
   frqhis = 600.
-  lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
+  lbinanl = .TRUE.           ! Write binned microphysical output (with level >= 4)
   lsalsabbins = .FALSE.  
   !mcflg = .FALSE.             ! Do mass conservation statistics
 
@@ -121,7 +121,7 @@ cat > NAMELIST <<EOF
   ps_intvl = 5.
   ts_intvl = 5.
   main_intvl = 5.
-  varlist_main = 'Dwia','Dwpa','Ni','Np','sfcirate','sfcrrate'
+  varlist_main = 'Dwia','Dwpa','Ni','Np','sfcirate','sfcrrate', 'Dwaba', 'Dwabb', 'Dwcba', 'Dwcbb', 'Dwpba', 'Dwiba'
   varlist_ps = 'temp','theta','rrate'
   varlist_ts = 'lwp_bar','cfrac'
 /
