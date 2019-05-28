@@ -25,7 +25,10 @@ MODULE mo_derived_state
                                 aSSa, aSSb, cSSa, cSSb, pSSa, iSSa,        &  ! Sea salt
                                 aNOa, aNOb, cNOa, cNOb, pNOa, iNOa,        &  ! Nitrate
                                 aNHa, aNHb, cNHa, cNHb, pNHa, iNHa            ! Ammonia
-  
+
+  ! SALSA related variables
+  TYPE(FloatArray4d), TARGET :: Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba, Dwiba     ! Bin diameters  
+
   
   CONTAINS
 
@@ -154,6 +157,60 @@ MODULE mo_derived_state
          pipeline => Dwia
          CALL Derived%newField("Dwia", "Bulk mean diameter, ice", "m", 'tttt',   &
                                ANY(outputlist == "Dwia"), pipeline               )
+      END IF
+
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         Dwaba = FloatArray4d()
+         Dwaba%onDemand => getBinDiameter
+         pipeline => Dwaba
+         CALL Derived%newField("Dwaba", "Bin diameter, aerosol A", "m", 'ttttaea',   &
+                               ANY(outputlist == "Dwaba"), pipeline                     )
+      END IF
+
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         Dwabb = FloatArray4d()
+         Dwabb%onDemand => getBinDiameter
+         pipeline => Dwabb
+         CALL Derived%newField("Dwabb", "Bin diameter, aerosol B", "m", 'ttttaeb',   &
+                               ANY(outputlist == "Dwabb"), pipeline                     )
+      END IF
+
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         Dwcba = FloatArray4d()
+         Dwcba%onDemand => getBinDiameter
+         pipeline => Dwcba
+         CALL Derived%newField("Dwcba", "Bin diameter, clouds A", "m", 'ttttcla',   &
+                               ANY(outputlist == "Dwcba"), pipeline                    )
+      END IF
+
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         Dwcbb = FloatArray4d()
+         Dwcbb%onDemand => getBinDiameter
+         pipeline => Dwcbb
+         CALL Derived%newField("Dwcbb", "Bin diameter, clouds B", "m", 'ttttclb',   &
+                               ANY(outputlist == "Dwcbb"), pipeline                    )
+      END IF
+
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         Dwpba = FloatArray4d()
+         Dwpba%onDemand => getBinDiameter
+         pipeline => Dwpba
+         CALL Derived%newField("Dwpba", "Bin diameter, precip", "m", 'ttttprc',   &
+                               ANY(outputlist == "Dwpba"), pipeline                    )
+      END IF
+
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         Dwiba = FloatArray4d()
+         Dwiba%onDemand => getBinDiameter
+         pipeline => Dwiba
+         CALL Derived%newField("Dwiba", "Bin diameter, ice", "m", 'ttttice',   &
+                               ANY(outputlist == "Dwiba"), pipeline                    )
       END IF
 
       IF (level >= 4) THEN

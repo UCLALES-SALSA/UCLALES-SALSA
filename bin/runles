@@ -121,9 +121,9 @@ cat > NAMELIST <<EOF
   ps_intvl = 5.
   ts_intvl = 5.
   main_intvl = 5.
-  varlist_main = !'Ni','Nca','Np','rp','srp','ri','riri','rc','wwind'
-  varlist_ps = 'sflx','temp','press'
-  varlist_ts = 
+  varlist_main = 'Dwia','Dwpa','Ni','Np','sfcirate','sfcrrate', 'Dwaba', 'Dwabb', 'Dwcba', 'Dwcbb', 'Dwpba', 'Dwiba'
+  varlist_ps = 'temp','theta','rrate'
+  varlist_ts = 'lwp_bar','cfrac'
 /
 
 ! -----------------------------------------------------------------------------------
