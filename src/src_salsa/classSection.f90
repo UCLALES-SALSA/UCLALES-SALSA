@@ -98,9 +98,11 @@ MODULE classSection
          IF (ANY(swtyp == ["nsp","all"])) THEN
             ! Non-spherical diameter - only relevant for ice. Make sure to not use with liquid categories, since ice densities are implicitly assumed
             SELF%dnsp = 1.e-10
-            mpri = SUM(SELF%volc(1:nwet)*spec%rhoice(1:nwet))
-            mrim = SELF%volc(nnsp)*spec%rhori
-            SELF%dnsp = getDiameter( mpri,mrim,SELF%numc )
+            IF (SELF%phase == 4) THEN
+               mpri = SUM(SELF%volc(1:nwet)*spec%rhoice(1:nwet))
+               mrim = SELF%volc(nnsp)*spec%rhori
+               SELF%dnsp = getDiameter( mpri,mrim,SELF%numc )
+            END IF
          END IF
          
          IF (ANY(swtyp == ["wet","all"])) THEN

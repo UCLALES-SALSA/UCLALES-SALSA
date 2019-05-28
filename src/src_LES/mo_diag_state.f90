@@ -288,7 +288,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          a_rrate = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_rrate
-         CALL Diag%newField("rrate", "Liquid surface precipitation", "W/m2", "tttt",   &
+         CALL Diag%newField("rrate", "Liquid precipitation flux", "W/m2", "tttt",   &
                             ANY(outputlist == "rrate"), pipeline) 
       END IF
 
@@ -298,7 +298,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          a_irate = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_irate
-         CALL Diag%newField("irate", "Frozen surface precipitation", "W/m2", "tttt",    &
+         CALL Diag%newField("irate", "Frozen precipitation flux", "W/m2", "tttt",    &
                             ANY(outputlist == "irate"), pipeline) 
       END IF
 

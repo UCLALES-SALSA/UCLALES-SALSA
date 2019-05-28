@@ -255,7 +255,7 @@ MODULE classSpecies
       ! First, use the same arrays for densities in ice array
       cnstr%rhoiceNative = cnstr%rholiqNative
       ! Second, replace the water densities with appropriate values. Rime density is already set.
-      cnstr%rhoiceNative(cnstr%Nused) = auxrhoic
+      cnstr%rhoiceNative(cnstr%Nused-1) = auxrhoic
       
       ! Make another set of truncated property lists, where the values are sorted to the same order
       ! as the compounds appear in the UCLALES-SALSA mass arrays

@@ -887,12 +887,15 @@ MODULE mcrp
 
                 ! Calculate wet size
                 CALL getBinMassArray(nb,ns,bin,zpm,pmass)
-                IF (flag < 4) THEN
-                   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.)   
-                ELSE
-                   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.FALSE.) ! For non-spherical ice, this is the max diameter of the crystal
-                END IF
-                   
+                !IF (flag < 4) THEN
+                !   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.)   
+                !ELSE
+                !   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.FALSE.) ! For non-spherical ice, this is the max diameter of the crystal
+                !END IF
+                ! Just take the bulk spherical size for ice too
+                dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.)   
+
+                
                 ! Calculate particle density based on dwet; for non-spherical ice this will get the "effective" density, which amy be
                 ! quite low for large non-spherical crystals
                 zdn = SUM(pmass)/zpn(bin)/(pi6*dwet**3)

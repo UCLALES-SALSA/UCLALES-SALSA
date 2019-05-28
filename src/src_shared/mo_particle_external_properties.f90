@@ -20,9 +20,13 @@ MODULE mo_particle_external_properties
       INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4)
       ! Constants
       REAL, PARAMETER :: rhoa_ref = 1.225 ! reference air density (kg/m^3)
+      REAL, PARAMETER :: delta0 = 9.06, C0 = 0.292, Dcr = 134.e-6 ! Khvorostyanov and Curry 2002
+      REAL, PARAMETER :: are = 1.85                               ! Khvorostyanov and Curry 2002
+      REAL :: Avr, Bv
+      
       
       terminal_vel = 0.
-      IF( ANY(flag == [1,2,3])) THEN
+      IF( ANY(flag == [1,2,3,4])) THEN
          ! Aerosol and cloud and rain droplets
          IF (diam<80.0e-6) THEN
             ! Stokes law with Cunningham slip correction factor
@@ -38,8 +42,20 @@ MODULE mo_particle_external_properties
             terminal_vel = 2.01e2*SQRT( MIN(diam/2.,2.0e-3)*rhoa_ref/rhoa )
          END IF
       ELSE IF (flag==4) THEN   ! Ice
-         ! Ice crystal terminal fall speed from Ovchinnikov et al. (2014)
-         terminal_vel = 12.0*SQRT(diam)
+         
+         ! Khvorostyanov and Curry 2002
+         IF (diam < Dcr) THEN
+            Avr = 16.*rhop*grav / ( 3.*C0*rhoa*visc*delta0**2 )
+            Bv = 2.
+         ELSE IF (diam > Dcr) THEN
+            Avr = SQRT(2.) * are * SQRT( 4.*rhop*grav / ( 3.*rhoa ) )
+            Bv = 0.5
+         END IF
+
+         terminal_vel = Avr * (0.5*diam)**Bv
+         
+         !! Ice crystal terminal fall speed from Ovchinnikov et al. (2014)
+         !terminal_vel = 12.0*SQRT(diam)
       END IF
 
     END FUNCTION terminal_vel
