@@ -16,7 +16,7 @@ MODULE mo_derived_procedures
 
   PRIVATE
 
-  PUBLIC :: bulkNumc, totalWater, bulkDiameter, bulkMixrat, binMixrat
+  PUBLIC :: bulkNumc, totalWater, bulkDiameter, bulkMixrat, binMixrat, getBinDiameter
     
   CONTAINS
 
@@ -358,46 +358,87 @@ MODULE mo_derived_procedures
    
    !
    ! ---------------------------------------------------
-   ! SUBROUTINE getBinRadius
-   ! Calculates wet radius for each bin in the whole domain - this function is for outputs only
-   SUBROUTINE getBinRadius(nb,ns,numc,mass,numlim,zrad,flag)
+   ! SUBROUTINE getBinDiameter
+   ! Calculates wet diameter for each bin in the whole domain - this function is for outputs only
+   SUBROUTINE getBinDiameter(name, output, nstr, nend)
      USE util, ONLY : getBinMassArray
      USE mo_particle_external_properties, ONLY : calcDiamLES
      USE mo_submctl, ONLY : pi6
      IMPLICIT NONE
      
-     INTEGER, INTENT(in) :: nb, ns ! Number of bins (nb) and aerosol species (ns)
-     TYPE(FloatArray4d), INTENT(in) :: numc
-     TYPE(FloatArray4d), INTENT(in) :: mass
-     REAL, INTENT(in) :: numlim
-     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4)
-     REAL, INTENT(out) :: zrad(nzp,nxp,nyp,nb)
+     CHARACTER(len=*), INTENT(in) :: name
+     INTEGER, INTENT(in) :: nstr, nend 
+     REAL, INTENT(out) :: output(nzp,nxp,nyp,nend-nstr+1)
 
-     INTEGER :: k,i,j,bin
-     REAL :: tmp(ns)
-     REAL :: zlm(nb*ns), zln(nb)
+     INTEGER :: flag, k,i,j,bin, nb, ntot
+     INTEGER :: nspec
+     TYPE(FloatArray4d), POINTER :: numc
+     TYPE(FloatArray4d), POINTER :: mass
+     REAL, ALLOCATABLE :: tmp(:), zlm(:), zln(:)
+     REAL :: numlim
      
-     zrad(:,:,:,:)=0.
+     nspec = spec%getNSpec(type="wet")
+
+     SELECT CASE(name)
+     CASE('Dwaba')
+        flag = 1
+        numlim = nlim
+        numc => a_naerop
+        mass => a_maerop
+        nb = nbins
+     CASE('Dwabb')
+        flag = 1
+        numlim = nlim
+        numc => a_naerop
+        mass => a_maerop
+        nb = nbins          
+     CASE('Dwcba')
+        flag = 2
+        numlim = nlim
+        numc => a_ncloudp
+        mass => a_mcloudp     
+        nb = ncld
+     CASE('Dwcbb')
+        flag = 2
+        numlim = nlim
+        numc => a_ncloudp
+        mass => a_mcloudp
+        nb = ncld
+     CASE('Dwpba')        
+        flag = 3   
+        numlim = prlim
+        numc => a_nprecpp
+        mass => a_mprecpp
+        nb = nprc
+     CASE('Dwiba')
+        flag = 4
+        numlim = prlim
+        numc => a_nicep
+        mass => a_micep 
+        nspec = nspec + 1 
+        nb = nice        
+     END SELECT    
+     
+     ALLOCATE(tmp(nspec), zlm(nb*nspec), zln(nb))      
+      
+     output(:,:,:,:)=0.
      DO j = 3,nyp-2
         DO i = 3,nxp-2
            DO k = 1,nzp
               zlm(:) = mass%d(k,i,j,:)
               zln(:) = numc%d(k,i,j,:)
-              DO bin = 1,nb
+              DO bin = nstr,nend
                  IF (zln(bin)>numlim) THEN
                     tmp(:) = 0.
-                    CALL getBinMassArray(nb,ns,bin,zlm,tmp)
-                    zrad(k,i,j,bin)=0.5*calcDiamLES(ns,zln(bin),tmp,flag)
+                    CALL getBinMassArray(nb,nspec,bin,zlm,tmp)
+                    output(k,i,j,bin-nstr+1)=calcDiamLES(nspec,zln(bin),tmp,flag)
                  ENDIF
               END DO
            END DO
         END DO
      END DO
 
-   END SUBROUTINE getBinRadius
-   
-
-
-   
+   END SUBROUTINE getBinDiameter
    
 END MODULE mo_derived_procedures
+

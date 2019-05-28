@@ -120,11 +120,10 @@ cat > NAMELIST <<EOF
   breakUndefOutput = .TRUE.
   ps_intvl = 5.
   ts_intvl = 5.
-  main_intvl = 300.
-  varlist_main = 'Naa','Ni','Nca','Np','rp','srp','ri','riri','rc','wwind',
-                 'Naba','Ncba','Npba','Niba','rrate','irate'
-  varlist_ps = !'sflx','temp','press'
-  varlist_ts = 
+  main_intvl = 5.
+  varlist_main = 'Dwia','Dwpa','Ni','Np','sfcirate','sfcrrate', 'Dwaba', 'Dwabb', 'Dwcba', 'Dwcbb', 'Dwpba', 'Dwiba'
+  varlist_ps = 'temp','theta','rrate'
+  varlist_ts = 'lwp_bar','cfrac'
 /
 
 ! -----------------------------------------------------------------------------------
@@ -148,7 +147,7 @@ cat > NAMELIST <<EOF
   zrough            = 0.0004
   ubmin             = -0.25
   sst               = 285.
-  dthcon            = 0.
+  dthcon            = 100.
   drtcon            = 0.
   C_heat            = 2.e6
   deepSoilTemp      = 285.

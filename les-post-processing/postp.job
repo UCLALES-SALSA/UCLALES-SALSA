@@ -8,5 +8,5 @@
 cd $PBS_O_WORKDIR
 export LD_LIBRARY_PATH=/lustre/tmp/tonttila/anaconda2/lib
 
-aprun -n 1 python postp_UCLALES-SALSA.py -i wk82modseed -o wk82modseed_postp_binned -v S_Naba,S_Nabb,S_Ncba,S_Ncbb,S_Npba,S_Niba,S_Rwcba,S_Rwcbb,S_Rwpba,S_Rwiba | tee postp_output
+aprun -n 1 python postp_UCLALES-SALSA.py -i sizedist01 -o sizedist01_postp_binned -| tee postp_output
 

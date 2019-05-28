@@ -34,7 +34,7 @@ MPI = /usr
 #MPILIB = -L$(MPI)/lib -lmpich
 MPILIB = -L$(MPI)/lib -lmpichfort
 
-MPIINC = -I$(MPI)/include/mpich
+MPIINC = -I$(MPI)/include/x86_64-linux-gnu/mpich
 NCDF = /usr
 NCDFLIB = -L$(NCDF)/lib -lnetcdf -lnetcdff
 NCDFINC = -I$(NCDF)/include
