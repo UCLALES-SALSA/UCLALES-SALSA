@@ -938,7 +938,7 @@ CONTAINS
 
     REAL :: Vrem, Nrem, Vtot, Ntot, scaling(ncld), scalen(ncld), scalev(ncld)
     REAL :: k_au, Xc, tau, phi, au
-    INTEGER :: ii,jj,cc,ss,io
+    INTEGER :: ii,jj,cc,io
 
     IF (iout<=0) THEN
         ! Find the bin matching with X_bnd
@@ -1042,13 +1042,13 @@ CONTAINS
   !***********************************************
 
   SUBROUTINE ice_nucl_driver(kproma,kbdim,klev,   &
-                      paero,pcloud,pprecp,pice, &
+                      paero,pcloud,pprecp,pice,psnow, &
                       ptemp,prv,prs,prsi,ptstep)
 
     USE mo_submctl, ONLY : t_section,   &
                                in2a, fn2b,  &
-                               ncld, nprc, nice,  &
-                               rhowa, rhoic,  &
+                               ncld, nprc, nice, nsnw,  &
+                               rhowa, rhoic, rhosn,  &
                                pi, nlim, prlim, &
                                calc_Sw_eq, &
                                ice_hom, ice_imm, ice_dep, &
@@ -1066,12 +1066,15 @@ CONTAINS
     TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,fn2b), &
                                       pcloud(kbdim,klev,ncld), &
                                       pprecp(kbdim,klev,nprc), &
-                                      pice(kbdim,klev,nice)
+                                      pice(kbdim,klev,nice), &
+                                      psnow(kbdim,klev,nsnw)
 
     ! Which species are allowed to freeze
     LOGICAL, PARAMETER :: ice_aerosol = .TRUE., ice_cloud = .TRUE., ice_precip = .TRUE.
     ! Maximum temperature (K) for homogeneous nucleation
     REAL, PARAMETER :: tmax_homog=243.15
+    ! Ice target bin options: -1=parallel ice bin (default), 0=find matching snow bin, x=snow bin specified by the parameter
+    INTEGER, PARAMETER :: ice_target_opt = -1
 
     INTEGER :: ii,jj,kk,ss,bb
     REAL :: pf_imm, pf_dep, pf_hom, jf
@@ -1118,36 +1121,54 @@ CONTAINS
             frac = MIN(1.,pf_imm+pf_hom-pf_imm*pf_hom)
             IF (pprecp(ii,jj,kk)%numc*frac <prlim) CYCLE
 
-            ! Move to ice bin with closest matching bin dry volume (%core) and select a or b bin based on composition (%volc(1:7)).
-            ! Ain't perfect but the bin update subroutine in SALSA will take care of the rest.
-            zvol = SUM( pprecp(ii,jj,kk)%volc(1:7) )/pprecp(ii,jj,kk)%numc ! Dry volume
+            ! Move to the parallel ice bin or to a snow bin
+            IF (ice_target_opt<0) THEN
+                ! Move to ice bin with closest matching bin dry volume (%core) and select a or b bin based on composition (%volc(1:7)).
+                ! Ain't perfect but the bin update subroutine in SALSA will take care of the rest.
+                zvol = SUM( pprecp(ii,jj,kk)%volc(1:7) )/pprecp(ii,jj,kk)%numc ! Dry volume
 
-            ! 1) Find the closest matching bin dry volume
-            bb=1
-            DO ss=2,nice/2 ! a and b bins have the same core sizes
-                IF (abs(pice(ii,jj,ss)%core-zvol)<abs(pice(ii,jj,bb)%core-zvol)) bb=ss
-            ENDDO
-            ! 2) Select a or b bin
-            IF (pice(ii,jj,bb+nice/2)%numc<=prlim) THEN
-                ! Empty b bin so select a
-                !bb = bb
-            ELSEIF (pice(ii,jj,bb)%numc<=prlim) THEN
-                ! Empty a bin so select b
-                bb = bb + nice/2
-            ELSE
-                ! Both are present - find bin based on compositional similarity
-                ra = calc_correlation(pice(ii,jj,bb)%volc(1:7),pprecp(ii,jj,kk)%volc(1:7),7)
-                rb = calc_correlation(pice(ii,jj,bb+nice/2)%volc(1:7),pprecp(ii,jj,kk)%volc(1:7),7)
-                IF (ra<rb) bb = bb + nice/2
+                ! 1) Find the closest matching bin dry volume
+                bb=1
+                DO ss=2,nice/2 ! a and b bins have the same core sizes
+                    IF (abs(pice(ii,jj,ss)%core-zvol)<abs(pice(ii,jj,bb)%core-zvol)) bb=ss
+                ENDDO
+                ! 2) Select a or b bin
+                IF (pice(ii,jj,bb+nice/2)%numc<=prlim) THEN
+                    ! Empty b bin so select a
+                    !bb = bb
+                ELSEIF (pice(ii,jj,bb)%numc<=prlim) THEN
+                    ! Empty a bin so select b
+                    bb = bb + nice/2
+                ELSE
+                    ! Both are present - find bin based on compositional similarity
+                    ra = calc_correlation(pice(ii,jj,bb)%volc(1:7),pprecp(ii,jj,kk)%volc(1:7),7)
+                    rb = calc_correlation(pice(ii,jj,bb+nice/2)%volc(1:7),pprecp(ii,jj,kk)%volc(1:7),7)
+                    IF (ra<rb) bb = bb + nice/2
+                ENDIF
+                ! Add to the matching ice bin
+                pice(ii,jj,bb)%volc(1:7) = pice(ii,jj,bb)%volc(1:7) + max(0., pprecp(ii,jj,kk)%volc(1:7)*frac )
+                pice(ii,jj,bb)%volc(8) = pice(ii,jj,bb)%volc(8) + max(0., pprecp(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                pice(ii,jj,bb)%numc   = pice(ii,jj,bb)%numc + pprecp(ii,jj,kk)%numc*frac
+            ELSEIF (ice_target_opt==0) THEN
+                ! Add to the matching snow bin
+                ss=1
+                zvol=(SUM(pprecp(ii,jj,kk)%volc(1:7))+pprecp(ii,jj,kk)%volc(8)*rhowa/rhosn)/pprecp(ii,jj,kk)%numc
+                DO WHILE (zvol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
+                    ss=ss+1
+                ENDDO
+                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pprecp(ii,jj,kk)%volc(1:7)*frac )
+                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pprecp(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pprecp(ii,jj,kk)%numc*frac
+             ELSE
+                ! Add to the ss:th snow bin
+                ss=MIN(nsnw,ice_target_opt)
+                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pprecp(ii,jj,kk)%volc(1:7)*frac )
+                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pprecp(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pprecp(ii,jj,kk)%numc*frac
             ENDIF
 
-            pice(ii,jj,bb)%volc(1:7) = max(0.,pice(ii,jj,bb)%volc(1:7) + pprecp(ii,jj,kk)%volc(1:7)*frac)
-            pprecp(ii,jj,kk)%volc(1:7) = max(0.,pprecp(ii,jj,kk)%volc(1:7) - pprecp(ii,jj,kk)%volc(1:7)*frac)
-            pice(ii,jj,bb)%volc(8) = max(0.,pice(ii,jj,bb)%volc(8) + pprecp(ii,jj,kk)%volc(8)*frac*rhowa/rhoic)
-            pprecp(ii,jj,kk)%volc(8) = max(0.,pprecp(ii,jj,kk)%volc(8) - pprecp(ii,jj,kk)%volc(8)*frac)
-
-            pice(ii,jj,bb)%numc = max(0.,pice(ii,jj,bb)%numc + pprecp(ii,jj,kk)%numc*frac)
-            pprecp(ii,jj,kk)%numc = max(0.,pprecp(ii,jj,kk)%numc-pprecp(ii,jj,kk)%numc*frac)
+            pprecp(ii,jj,kk)%numc = pprecp(ii,jj,kk)%numc - pprecp(ii,jj,kk)%numc*frac
+            pprecp(ii,jj,kk)%volc(1:8) = pprecp(ii,jj,kk)%volc(1:8) - max(0., pprecp(ii,jj,kk)%volc(1:8)*frac )
 
         end do
 
@@ -1182,14 +1203,33 @@ CONTAINS
             frac = MIN(1.,pf_imm+pf_hom-pf_imm*pf_hom)
             IF (pcloud(ii,jj,kk)%numc*frac <prlim) CYCLE
 
-            ! Move to the parallel ice bin
-            pice(ii,jj,kk)%volc(1:7) = max(0.,pice(ii,jj,kk)%volc(1:7) + pcloud(ii,jj,kk)%volc(1:7)*frac)
-            pcloud(ii,jj,kk)%volc(1:7) = max(0.,pcloud(ii,jj,kk)%volc(1:7) - pcloud(ii,jj,kk)%volc(1:7)*frac)
-            pice(ii,jj,kk)%volc(8) = max(0.,pice(ii,jj,kk)%volc(8) + pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhoic)
-            pcloud(ii,jj,kk)%volc(8) = max(0.,pcloud(ii,jj,kk)%volc(8) - pcloud(ii,jj,kk)%volc(8)*frac)
+            ! Move to the parallel ice bin or to a snow bin
+            IF (ice_target_opt<0) THEN
+                ! Add to the matching ice bin
+                pice(ii,jj,kk)%volc(1:7) = pice(ii,jj,kk)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                pice(ii,jj,kk)%volc(8) = pice(ii,jj,kk)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + pcloud(ii,jj,kk)%numc*frac
+            ELSEIF (ice_target_opt==0) THEN
+                ! Add to the matching snow bin
+                ss=1
+                zvol=(SUM(pcloud(ii,jj,kk)%volc(1:7))+pcloud(ii,jj,kk)%volc(8)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                DO WHILE (zvol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
+                    ss=ss+1
+                ENDDO
+                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pcloud(ii,jj,kk)%numc*frac
+             ELSE
+                ! Add to the ss:th snow bin
+                ss=MIN(nsnw,ice_target_opt)
+                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pcloud(ii,jj,kk)%numc*frac
+            ENDIF
 
-            pice(ii,jj,kk)%numc = max(0.,pice(ii,jj,kk)%numc + pcloud(ii,jj,kk)%numc*frac)
-            pcloud(ii,jj,kk)%numc = max(0.,pcloud(ii,jj,kk)%numc-pcloud(ii,jj,kk)%numc*frac)
+            pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - pcloud(ii,jj,kk)%numc*frac
+            pcloud(ii,jj,kk)%volc(1:8) = pcloud(ii,jj,kk)%volc(1:8) - max(0., pcloud(ii,jj,kk)%volc(1:8)*frac )
+
         END DO
 
 
@@ -1229,15 +1269,33 @@ CONTAINS
             frac = MIN(1.,pf_imm+pf_hom+pf_dep-(pf_imm+pf_dep)*pf_hom)
             IF (paero(ii,jj,kk)%numc*frac <prlim) CYCLE
 
-            ! Move to the parallel ice bin
-            bb = kk-in2a+1
-            pice(ii,jj,bb)%volc(1:7) = max(0.,pice(ii,jj,bb)%volc(1:7) + paero(ii,jj,kk)%volc(1:7)*frac)
-            paero(ii,jj,kk)%volc(1:7) = max(0.,paero(ii,jj,kk)%volc(1:7) - paero(ii,jj,kk)%volc(1:7)*frac)
-            pice(ii,jj,bb)%volc(8) = max(0.,pice(ii,jj,bb)%volc(8) + paero(ii,jj,kk)%volc(8)*frac*rhowa/rhoic)
-            paero(ii,jj,kk)%volc(8) = max(0.,paero(ii,jj,kk)%volc(8) - paero(ii,jj,kk)%volc(8)*frac)
+            ! Move to the parallel ice bin or to a snow bin
+            IF (ice_target_opt<0) THEN
+                ! Add to the matching ice bin
+                bb = kk-in2a+1
+                pice(ii,jj,bb)%volc(1:7) = pice(ii,jj,bb)%volc(1:7) + max(0., paero(ii,jj,kk)%volc(1:7)*frac )
+                pice(ii,jj,bb)%volc(8) = pice(ii,jj,bb)%volc(8) + max(0., paero(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                pice(ii,jj,bb)%numc   = pice(ii,jj,bb)%numc + max(0., paero(ii,jj,kk)%numc*frac )
+            ELSEIF (ice_target_opt==0) THEN
+                ! Add to the matching snow bin
+                ss=1
+                zvol=(SUM(paero(ii,jj,kk)%volc(1:7))+paero(ii,jj,kk)%volc(8)*rhowa/rhosn)/paero(ii,jj,kk)%numc
+                DO WHILE (zvol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
+                    ss=ss+1
+                ENDDO
+                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., paero(ii,jj,kk)%volc(1:7)*frac )
+                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., paero(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + max(0., paero(ii,jj,kk)%numc*frac )
+            ELSE
+                ! Add to the ss:th snow bin
+                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., paero(ii,jj,kk)%volc(1:7)*frac )
+                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., paero(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + max(0., paero(ii,jj,kk)%numc*frac )
+            ENDIF
 
-            pice(ii,jj,bb)%numc = max(0.,pice(ii,jj,bb)%numc + paero(ii,jj,kk)%numc*frac)
-            paero(ii,jj,kk)%numc = max(0.,paero(ii,jj,kk)%numc-paero(ii,jj,kk)%numc*frac)
+             paero(ii,jj,kk)%numc = paero(ii,jj,kk)%numc - max(0., paero(ii,jj,kk)%numc*frac )
+             paero(ii,jj,kk)%volc(1:8) = paero(ii,jj,kk)%volc(1:8) - max(0., paero(ii,jj,kk)%volc(1:8)*frac )
+
         END DO
 
     END DO
@@ -1478,7 +1536,7 @@ CONTAINS
             IF( sumICE < Ni0 .AND. pcloud(ii,jj,kk)%numc > nlim) THEN
 
                 ! Approach #1: activate ice starting from the largest cloud bin
-                iceTendecyNumber = max( 0.0, min( Ni0 - pice(ii,jj,kk)%numc , pcloud(ii,jj,kk)%numc )  )
+                iceTendecyNumber = max( 0.0, min( Ni0 - sumICE , pcloud(ii,jj,kk)%numc )  )
 
                 ! Approach #2: activate a fraction from all cloud bins
                 !iceTendecyNumber = frac*pcloud(ii,jj,kk)%numc
@@ -1506,7 +1564,175 @@ CONTAINS
   ! ------------------------------------------------------------
 
 
+  !***********************************************
+  !
+  ! Prescribed ice number concentration: ice number concentration is increased to the
+  ! target concentration (fixinc, #/kg) by converting cloud droplets to ice or snow.
+  !
+  !***********************************************
 
+  SUBROUTINE fixed_ice_driver(kproma, kbdim, klev,   &
+            pcloud,  pice,   psnow, ptemp,  ppres,  prv,  prsi)
+
+    USE mo_submctl, ONLY : t_section,      &
+                    ncld, nice, nsnw,      &
+                    rhowa, rhoic, rhosn,   &
+                    rda, nlim, prlim, &
+                    fixinc
+    IMPLICIT NONE
+
+    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    REAL, INTENT(in) :: &
+                    ptemp(kbdim,klev), &
+                    ppres(kbdim,klev), &
+                    prv(kbdim,klev),   &
+                    prsi(kbdim,klev)
+    TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
+                    pice(kbdim,klev,nsnw), psnow(kbdim,klev,nsnw)
+
+    ! Limits for ice formation
+    !   a) Minimum  water vapor satuturation ratio ove ice (-)
+    !   b) Minimum cloud water mixing ratio (kg/kg)
+    REAL, PARAMETER :: min_S_ice=1.05, min_rc=1e-6
+    ! Ice source and target bin options
+    !   a) Cloud freezing order: 1=start from the largest bin (default), 0=all bins evenly, -1=start from the smallest bin
+    !   b) Target bin: -1=parallel ice bin (default), 0=find matching snow bin, x=snow bin specified by the parameter
+    INTEGER, PARAMETER :: ice_source_opt = 1, ice_target_opt = -1
+
+    INTEGER :: ii,jj,kk,ss
+    REAL :: pdn, S_ice, rc, Ni0, vol, sumICE, dnice, frac
+
+    ! Target snow bin when ice_target_opt>0
+    ss=MIN(nsnw,ice_target_opt)
+
+    DO ii = 1,kbdim
+    DO jj = 1,klev
+        pdn=ppres(ii,jj)/(rda*ptemp(ii,jj)) ! Air density (kg/m^3)
+
+        ! Conditions for ice nucleation
+        S_ice = prv(ii,jj)/prsi(ii,jj) ! Saturation with respect to ice
+        rc = sum( pcloud(ii,jj,:)%volc(8) )*rhowa/pdn ! Cloud water mixing ratio (kg/kg)
+        if ( S_ice < min_S_ice .OR. rc < min_rc ) cycle
+
+        ! Target number concentration of ice, converted to #/m^3
+        Ni0 = fixinc * pdn
+
+        ! Current ice number concentration (#/m^3)
+        IF (ice_target_opt<0) THEN
+            sumICE = SUM( pice(ii,jj,:)%numc )
+        ELSE
+            sumICE = SUM( psnow(ii,jj,:)%numc )
+        ENDIF
+
+        if ( sumICE > Ni0 ) cycle
+
+        IF (ice_source_opt>0) THEN
+            ! Activate ice starting from the largest cloud bin
+            DO kk = nice,1,-1 ! ncld=nice
+                IF( Ni0 - sumICE > prlim .AND. pcloud(ii,jj,kk)%numc > nlim) THEN
+                    dnice = MAX( 0.0, MIN( Ni0 - sumICE , pcloud(ii,jj,kk)%numc ) )
+                    frac = MAX( 0.0, MIN( 1.0, dnice/pcloud(ii,jj,kk)%numc ) )
+                    sumICE = sumICE + dnice
+
+                    IF (ice_target_opt<0) THEN
+                        ! Add to the matching ice bin
+                        pice(ii,jj,kk)%volc(1:7) = pice(ii,jj,kk)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                        pice(ii,jj,kk)%volc(8) = pice(ii,jj,kk)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                        pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + dnice
+                    ELSEIF (ice_target_opt==0) THEN
+                        ! Add to the matching snow bin
+                        ss=1
+                        vol=(SUM(pcloud(ii,jj,kk)%volc(1:7))+pcloud(ii,jj,kk)%volc(8)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                        DO WHILE (vol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
+                            ss=ss+1
+                        ENDDO
+                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
+                    ELSE
+                        ! Add to the ss:th snow bin
+                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
+                    ENDIF
+
+                    pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - dnice
+                    pcloud(ii,jj,kk)%volc(1:8) = pcloud(ii,jj,kk)%volc(1:8) - max(0., pcloud(ii,jj,kk)%volc(1:8)*frac )
+                END IF
+            END DO
+        ELSEIF (ice_source_opt<0) THEN
+            ! Activate ice starting from the smallest cloud bin
+            DO kk = 1,nice ! ncld=nice
+                IF( Ni0 - sumICE > prlim .AND. pcloud(ii,jj,kk)%numc > nlim) THEN
+                    dnice = MAX( 0.0, MIN( Ni0 - sumICE , pcloud(ii,jj,kk)%numc ) )
+                    frac = MAX( 0.0, MIN( 1.0, dnice/pcloud(ii,jj,kk)%numc ) )
+                    sumICE = sumICE + dnice
+
+                    IF (ice_target_opt<0) THEN
+                        ! Add to the matching ice bin
+                        pice(ii,jj,kk)%volc(1:7) = pice(ii,jj,kk)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                        pice(ii,jj,kk)%volc(8) = pice(ii,jj,kk)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                        pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + dnice
+                    ELSEIF (ice_target_opt==0) THEN
+                        ! Add to the matching snow bin
+                        ss=1
+                        vol=(SUM(pcloud(ii,jj,kk)%volc(1:7))+pcloud(ii,jj,kk)%volc(8)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                        DO WHILE (vol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
+                            ss=ss+1
+                        ENDDO
+                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
+                    ELSE
+                        ! Add to the ss:th snow bin
+                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
+                    ENDIF
+
+                    pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - dnice
+                    pcloud(ii,jj,kk)%volc(1:8) = pcloud(ii,jj,kk)%volc(1:8) - max(0., pcloud(ii,jj,kk)%volc(1:8)*frac )
+                END IF
+            END DO
+        ELSE
+            ! Activate ice from all cloud bins
+            frac = max(0.0, min(1.0, (Ni0-sumICE)/SUM(pcloud(ii,jj,:)%numc)))
+            DO kk = 1,nice ! ncld=nice
+                IF(pcloud(ii,jj,kk)%numc > nlim .AND. frac*pcloud(ii,jj,kk)%numc > prlim) THEN
+                    dnice = frac*pcloud(ii,jj,kk)%numc
+
+                    IF (ice_target_opt<0) THEN
+                        ! Add to the matching ice bin
+                        pice(ii,jj,kk)%volc(1:7) = pice(ii,jj,kk)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                        pice(ii,jj,kk)%volc(8) = pice(ii,jj,kk)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                        pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + dnice
+                    ELSEIF (ice_target_opt==0) THEN
+                        ! Add to the matching snow bin
+                        ss=1
+                        vol=(SUM(pcloud(ii,jj,kk)%volc(1:7))+pcloud(ii,jj,kk)%volc(8)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                        DO WHILE (vol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
+                            ss=ss+1
+                        ENDDO
+                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
+                    ELSE
+                        ! Add to the ss:th snow bin
+                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
+                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
+                    ENDIF
+
+                    pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - dnice
+                    pcloud(ii,jj,kk)%volc(1:8) = pcloud(ii,jj,kk)%volc(1:8) - max(0., pcloud(ii,jj,kk)%volc(1:8)*frac )
+                END IF
+            END DO
+        ENDIF
+    END DO
+    END DO
+
+  END SUBROUTINE fixed_ice_driver
+  ! ------------------------------------------------------------
 
 
   SUBROUTINE ice_melt(kproma,kbdim,klev,   &

@@ -348,6 +348,7 @@ contains
                 zt, a_rp, a_rt, a_rc, a_srp, a_ri, a_srs, &
                 a_naerop, a_naerot, a_ncloudp, a_nicep, &
                 a_tp, a_tt, a_up, a_ut, a_vp, a_vt, &
+                !th0, th00, rt0, u0, v0, &
                 nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
                 nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau, &
                 nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau, &
@@ -362,10 +363,15 @@ contains
 
     ! Initialization
     IF (nudge_init) THEN
+        ! Note: the first temperature and humidity values can include random
+        ! perturbations, so could take the target values from soundings (th0, rt0).
+        ! There are no wind perturbations, but can still could use u0 and v0.
+        !
         ! (Liquid water) potential temperature: nudge towards initial theta
         IF (nudge_theta/=0) THEN
             ALLOCATE(theta_ref(nzp))
             theta_ref(:)=a_tp(:,3,3)
+            !theta_ref(:)=th0(:)-th00 ! Initial state from soundings
         ENDIF
         !
         ! Water vapor mixing ratio based on total water
@@ -379,16 +385,19 @@ contains
             ELSE ! Levels 0-3
                 rv_ref(:)=a_rp(:,3,3) ! This includes all
             ENDIF
+            !rv_ref(:)=rt0(:) ! Initial state from soundings
         ENDIF
         !
         ! Horizontal winds
         IF (nudge_u/=0) THEN
             ALLOCATE(u_ref(nzp))
             u_ref(:)=a_up(:,3,3)
+            !u_ref(:)=u0(:) ! Initial state from soundings
         ENDIF
         IF (nudge_v/=0) THEN
             ALLOCATE(v_ref(nzp))
             v_ref(:)=a_vp(:,3,3)
+            !v_ref(:)=v0(:) ! Initial state from soundings
         ENDIF
         !
         ! Nudge level 4 and 5 aerosol concentration based on total CCN = aerosol + cloud droplets + ice.
@@ -1076,7 +1085,8 @@ contains
              ! Loop over ice bins
              DO bc = iia%cur,fib%cur
 
-                IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. a_micep(k,i,j,(nn-1)*nice+bc)<1e-15 ) THEN
+                IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. &
+                        a_micep(k,i,j,(nn-1)*nice+bc)<1e-8 ) THEN
                    ! Diameter (assuming constant ice density)
                    cd = (SUM( a_micep(k,i,j,bc:(nn-1)*nice+bc:nice)/dens_ice(1:nn) )/a_nicep(k,i,j,bc)/pi6)**(1./3.)
 
@@ -1111,7 +1121,7 @@ contains
              DO bc = isa,fsa
 
                 IF ( a_nsnowp(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. &
-                        a_msnowp(k,i,j,(nn-1)*nsnw+bc)<1e-20 ) THEN
+                        a_msnowp(k,i,j,(nn-1)*nsnw+bc)<1e-8 ) THEN
                    ! Diameter (assuming constant snow density)
                    cd = (SUM( a_msnowp(k,i,j,bc:(nn-1)*nsnw+bc:nsnw)/dens_snow(1:nn) )/a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
 

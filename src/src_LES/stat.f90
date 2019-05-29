@@ -2069,15 +2069,13 @@ contains
     CALL get_avg3(n1,n2,n3,a12,a2(:,2))
 
     ! Generate ice mask (grid cells with ice)
-    !   - One 60 um ice particle would be about 1e-10 kg and concentrations can be as low as 1e-6 #/kg (=prlim)
-    icemask(:,:,:) = ( a1(:,:,:)+a12(:,:,:) > prlim .AND. a_ri(:,:,:) > 1.e-15)
+    icemask(:,:,:) = ( a1(:,:,:)+a12(:,:,:) > prlim .AND. a_ri(:,:,:) > 1.e-8)
 
     CALL bulkNumc('snow','a',a1)
     CALL get_avg3(n1,n2,n3,a1,a2(:,3))
 
     ! Generate snow mask (grid cells with snow)
-    ! - One small 250 um snow particle would be about 1e-8 kg, but concentrations are often lower than that of ice
-    snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srs(:,:,:) > 1.e-20 )
+    snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srs(:,:,:) > 1.e-8 )
 
     svctr_lvl5(:,4:6) = svctr_lvl5(:,4:6) + a2(:,1:3)
 
