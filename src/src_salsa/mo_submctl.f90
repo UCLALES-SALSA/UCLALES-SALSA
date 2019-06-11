@@ -414,6 +414,12 @@ contains
     REAL :: x(n), y(n)
     REAL :: sx, sy, sx2, sy2, sxy
     INTEGER :: i
+    IF (n<=1) THEN
+        calc_correlation = 0.
+    ELSE
+        calc_correlation = (SUM(x*y)*n-SUM(x)*SUM(y))/( SQRT(SUM(x**2)*n-SUM(x)**2)*SQRT(SUM(y**2)*n-SUM(y)**2) )
+    ENDIF
+    RETURN
     sx=0.; sy=0.; sx2=0.; sy2=0.; sxy=0.
     DO i=1,n
         sx=sx+x(i)

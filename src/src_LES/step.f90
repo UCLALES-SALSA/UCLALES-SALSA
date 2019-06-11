@@ -1059,8 +1059,8 @@ contains
                          ba = bb
                       ELSE
                          ! Both are present - find bin based on compositional similarity
-                         ra = calc_correlation(a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins),a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc),7)
-                         rb = calc_correlation(a_maerop(k,i,j,bb:(nn-2)*nbins+bb:nbins),a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc),7)
+                         ra=calc_correlation(a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins),a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc),nn-1)
+                         rb=calc_correlation(a_maerop(k,i,j,bb:(nn-2)*nbins+bb:nbins),a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc),nn-1)
                          IF (ra<rb) ba = bb
                       ENDIF
 
@@ -1150,8 +1150,8 @@ contains
                          ba = bb
                       ELSE
                          ! Both are present - find bin based on compositional similarity
-                         ra = calc_correlation(a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins),a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw),7)
-                         rb = calc_correlation(a_maerop(k,i,j,bb:(nn-2)*nbins+bb:nbins),a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw),7)
+                         ra=calc_correlation(a_maerop(k,i,j,ba:(nn-2)*nbins+ba:nbins),a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw),nn-1)
+                         rb=calc_correlation(a_maerop(k,i,j,bb:(nn-2)*nbins+bb:nbins),a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw),nn-1)
                          IF (ra<rb) ba = bb
                       ENDIF
 

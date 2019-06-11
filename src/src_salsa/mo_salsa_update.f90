@@ -69,13 +69,11 @@ CONTAINS
                    zvpart = sum(paero(ii,jj,kk)%volc(1:7))/paero(ii,jj,kk)%numc
 
                    ! Smallest bin cannot decrease
-                   IF (paero(ii,jj,kk)%vlolim > zvpart .AND. kk == in1a) CYCLE
+                   IF (paero(ii,jj,kk)%vlolim > zvpart .AND. (kk == in1a .OR. kk == in2b)) CYCLE
 
                    ! Decreasing bins
                    IF(paero(ii,jj,kk)%vlolim > zvpart) THEN
                       mm = kk - 1
-                      IF(kk == in2b) mm = fn1a ! 2b goes to 1a
-                      
                       paero(ii,jj,mm)%numc = paero(ii,jj,mm)%numc + paero(ii,jj,kk)%numc 
                       paero(ii,jj,kk)%numc = 0.
                       paero(ii,jj,mm)%volc(:) = paero(ii,jj,mm)%volc(:) + paero(ii,jj,kk)%volc(:)
@@ -106,25 +104,20 @@ CONTAINS
                    IF (ABS(znfrac * paero(ii,jj,kk)%numc) < nlim) CYCLE
 
                    !-- volume fraction to be moved to the larger bin
-                   !zvfrac = znfrac * zVexc / (1./2.*(zVihi+zVilo))
-                   !zvfrac = MIN(0.99,znfrac*zVexc/zvpart)
+                   zvfrac = znfrac*zVexc/zvpart
 
                    IF(znfrac < 0.) STOP 'Error aerosol 0'
                    !-- update bin
                    mm = kk+1
                    !-- volume
-                   paero(ii,jj,mm)%volc(:) = paero(ii,jj,mm)%volc(:) &
-                        + znfrac * paero(ii,jj,kk)%numc * zVexc * paero(ii,jj,kk)%volc(:) / &
-                        sum(paero(ii,jj,kk)%volc(1:7))
+                   paero(ii,jj,mm)%volc(:) = paero(ii,jj,mm)%volc(:) + zvfrac * paero(ii,jj,kk)%volc(:)
 
-                   paero(ii,jj,kk)%volc(:) = paero(ii,jj,kk)%volc(:) &
-                        - znfrac * paero(ii,jj,kk)%numc * zVexc * paero(ii,jj,kk)%volc(:) / &
-                        sum(paero(ii,jj,kk)%volc(1:7))
+                   paero(ii,jj,kk)%volc(:) = paero(ii,jj,kk)%volc(:) - zvfrac * paero(ii,jj,kk)%volc(:)
 
                    !-- number
                    paero(ii,jj,mm)%numc = paero(ii,jj,mm)%numc + znfrac * paero(ii,jj,kk)%numc
 
-                   paero(ii,jj,kk)%numc = paero(ii,jj,kk)%numc * (1. - znfrac)
+                   paero(ii,jj,kk)%numc = paero(ii,jj,kk)%numc - znfrac * paero(ii,jj,kk)%numc
 
                 END IF ! nlim
 
