@@ -1052,7 +1052,8 @@ CONTAINS
                                pi, nlim, prlim, &
                                calc_Sw_eq, &
                                ice_hom, ice_imm, ice_dep, &
-                               calc_correlation
+                               calc_correlation, &
+                               ice_target_opt
 
     IMPLICIT NONE
 
@@ -1073,8 +1074,6 @@ CONTAINS
     LOGICAL, PARAMETER :: ice_aerosol = .TRUE., ice_cloud = .TRUE., ice_precip = .TRUE.
     ! Maximum temperature (K) for homogeneous nucleation
     REAL, PARAMETER :: tmax_homog=243.15
-    ! Ice target bin options: -1=parallel ice bin (default), 0=find matching snow bin, x=snow bin specified by the parameter
-    INTEGER, PARAMETER :: ice_target_opt = -1
 
     INTEGER :: ii,jj,kk,ss,bb
     REAL :: pf_imm, pf_dep, pf_hom, jf
@@ -1578,7 +1577,7 @@ CONTAINS
                     ncld, nice, nsnw,      &
                     rhowa, rhoic, rhosn,   &
                     rda, nlim, prlim, &
-                    fixinc
+                    fixinc, ice_source_opt, ice_target_opt
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kproma,kbdim,klev
@@ -1594,10 +1593,6 @@ CONTAINS
     !   a) Minimum  water vapor satuturation ratio ove ice (-)
     !   b) Minimum cloud water mixing ratio (kg/kg)
     REAL, PARAMETER :: min_S_ice=1.05, min_rc=1e-6
-    ! Ice source and target bin options
-    !   a) Cloud freezing order: 1=start from the largest bin (default), 0=all bins evenly, -1=start from the smallest bin
-    !   b) Target bin: -1=parallel ice bin (default), 0=find matching snow bin, x=snow bin specified by the parameter
-    INTEGER, PARAMETER :: ice_source_opt = 1, ice_target_opt = -1
 
     INTEGER :: ii,jj,kk,ss
     REAL :: pdn, S_ice, rc, Ni0, vol, sumICE, dnice, frac

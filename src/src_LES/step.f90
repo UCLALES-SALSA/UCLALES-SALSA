@@ -1044,9 +1044,9 @@ contains
 
                       ! 1) Find the closest matching bin based on dry particle radius (a and b bins)
                       cd = 0.5*(SUM( a_mprecpp(k,i,j,bc:(nn-2)*nprc+bc:nprc)/dens(1:nn-1) )/a_nprecpp(k,i,j,bc)/pi6)**(1./3.) ! Dry radius
-                      ba=in2a ! Ignore 1a and note that "aerobins" contains the lower limit of bin dry radius
-                      DO WHILE (cd>=aerobins(ba+1) .AND. ba<fn2a)
-                         ba=ba+1
+                      ba=fn2a ! Ignore 1a and note that aerobins contains the lower limit of bin dry radius
+                      DO WHILE (cd<aerobins(ba) .AND. ba>in2a)
+                         ba=ba-1
                       ENDDO
                       ! Corresponding b bin is ba+(fn2a-fn1a)=ba+fn2a-(in2a-1)=ba+fn2a-in2a+1
                       bb=ba+fn2a-in2a+1
@@ -1135,9 +1135,9 @@ contains
 
                       ! 1) Find the closest matching bin based on dry particle radius (a and b bins)
                       cd = 0.5*(SUM( a_msnowp(k,i,j,bc:(nn-2)*nsnw+bc:nsnw)/dens(1:nn-1) )/a_nsnowp(k,i,j,bc)/pi6)**(1./3.) ! Dry radius
-                      ba=in2a ! Ignore 1a and note that aerobins contains the lower limit of bin dry radius
-                      DO WHILE (cd>=aerobins(ba+1) .AND. ba<fn2a)
-                         ba=ba+1
+                      ba=fn2a ! Ignore 1a and note that aerobins contains the lower limit of bin dry radius
+                      DO WHILE (cd<aerobins(ba) .AND. ba>in2a)
+                         ba=ba-1
                       ENDDO
                       ! Corresponding b bin is ba+(fn2a-fn1a)=ba+fn2a-(in2a-1)=ba+fn2a-in2a+1
                       bb=ba+fn2a-in2a+1

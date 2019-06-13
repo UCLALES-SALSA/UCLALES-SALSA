@@ -477,9 +477,10 @@ CONTAINS
                                nlactintst,            &
                                nlactbase,            &
                                nlicenucl,             &
-                               fixinc,                &
+                               fixinc, ice_source_opt,&
                                ice_hom, ice_imm, ice_dep, &
                                icenucl_tstart,        &
+                               ice_target_opt,        &
                                nlicmelt,              &
                                stat_b_bins,           &
                                rainbinlim,            &
@@ -517,10 +518,12 @@ CONTAINS
          nlcndgas,    & ! Condensation of precursor gases
          nlicenucl,   & ! Ice nucleation master switch
          fixinc,      & ! Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
+         ice_source_opt, & ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
          ice_hom,     & ! If fixinc is not set or it is not positive, ice nucleation can be modelled based on homogeneous, ...
          ice_imm,     & ! immersion and/or ...
          ice_dep,     & ! deposition freezing mechanisms
          icenucl_tstart, & ! Start time (s) for ice formation
+         ice_target_opt, & ! Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
          nlicmelt,    & ! Switch for ice'n'snow melting
          nbin,        & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
          nice,        & ! number of ice bins

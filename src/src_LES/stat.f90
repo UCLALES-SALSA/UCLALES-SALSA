@@ -244,7 +244,7 @@ contains
     use grid, only : nxp, nyp, iradtyp, prtcl, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, ver, author, info
     use mo_submctl, only : nprc,nsnw,fn2a,fn2b,fca,fcb,fra,fia,fib,fsa,stat_b_bins, &
-        nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt
+        nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt,ice_target_opt
     USE class_ComponentIndex, ONLY : IsUsed
 
     character (len=80), intent (in) :: filprf, expnme
@@ -409,7 +409,7 @@ contains
           IF (level>=5) THEN
             tmp(26:29) = nlcoag
             tmp(30:31) = nlcnd
-            tmp(32:33) = nlautosnow
+            tmp(32:33) = nlautosnow .OR. (nlicenucl .AND. ice_target_opt>=0) ! Autoconversion or modelled ice nucleation
             tmp(34:35) = nlicenucl
             tmp(36:37) = sed_ice
             tmp(38:39) = sed_snow

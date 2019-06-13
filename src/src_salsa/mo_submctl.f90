@@ -150,12 +150,16 @@ MODULE mo_submctl
   REAL :: autoc_snow_sigmag = 1.2 ! Assumed log-normal ice particle size distribution width
 
   ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
-  ! a) Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
+  ! a) Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice/snow
   REAL :: fixinc = -1.0 ! Default = disabled
+  ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
+  INTEGER :: ice_source_opt = 1 ! Default = start from the largest bin
   ! b) Modelled ice nucleation
   LOGICAL :: ice_hom = .FALSE., ice_imm=.FALSE., ice_dep=.FALSE. ! Available ice nucleation modes
   ! c) Start time (s) for ice formation
   REAL :: icenucl_tstart = 0. ! Default: right after initialization
+  ! d) Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
+  INTEGER :: ice_target_opt = -1 ! Default = parallel ice bins
 
   ! Flags controlling outputs
   LOGICAL :: stat_b_bins = .FALSE. ! Save statistics about SALSA b-bins
