@@ -245,7 +245,7 @@ MODULE mo_submctl
    als    = 2.834e6      ! latent heat for sublimation (J/kg)
 
   REAL, PARAMETER ::     & ! molar mass [kg/mol]
-   msu = 98.08e-3,        & ! sulphate
+   msu = 115.11e-3 ,        & ! ammonium bisulphate (ISDAC)
    mno = 62.01e-3,        & ! HNO3
    mnh = 18.04e-3,        & ! NH3
    moc = 150.e-3,         & ! organic carbon
@@ -256,7 +256,7 @@ MODULE mo_submctl
    mas = 132.14e-3,       & ! ammoniums sulphate ((NH4)2SO4)
                                !
                                ! densities [kg/m3]
-   rhosu = 1830.,         & ! sulphate
+   rhosu = 1780.,         & ! ! ammonium bisulphate(ISDAC)
    rhono = 1479.,         & ! HNO3
    rhonh = 1530.,         & ! NH3
    rhooc = 2000.,         & ! organic carbon
@@ -264,8 +264,8 @@ MODULE mo_submctl
    rhoss = 2165.,         & ! sea salt (NaCl)
    rhodu = 2650.,         & ! mineral dust
    rhowa = 1000.,         & ! water
-   rhoic = 917.,          & ! ice
-   rhosn = 300.,          & ! snow
+   rhoic = 84.4937,       & ! ice (ISDAC)
+   rhosn = 84.4937,       & ! snow (ISDAC)
                                !
                                ! volume of molecule [kg/#]
    mvsu = msu/avog/rhosu,    & ! sulphate
@@ -299,7 +299,7 @@ MODULE mo_submctl
 
 
   REAL, PARAMETER :: &
-   nlim = 1.,  & ! Number conc. limit (#/m3) for aerosol and cloud droplets
+   nlim = 1.e-3,  & ! Number conc. limit (#/m3) for aerosol and cloud droplets
    prlim = 1.e-6 ! The same for precipitation and ice species for which concentrations are normally much lower [#/m3]
 
 

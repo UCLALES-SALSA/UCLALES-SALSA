@@ -58,7 +58,7 @@ contains
     ! Local variables for SALSA basic state
     REAL :: zwp(nzp,nxp,nyp)
     INTEGER :: n4
-    
+
     ! Set vertical velocity as 0.5 m/s to intialize cloud microphysical properties with
     ! SALSA
     zwp(:,:,:) = 0.5
@@ -159,11 +159,11 @@ contains
     if (outflg) then
        if (runtype == 'INITIAL') then
           call write_hist(1, time)
-          call init_anal(time,stat_b_bins)
+          call init_analysis(time,stat_b_bins)
           call thermo(level)
-          IF (time >= anl_start) call write_anal(time)
+          IF (time >= anl_start) call write_analysis(time)
        else
-          call init_anal(time+dtl,stat_b_bins)
+          call init_analysis(time+dtl,stat_b_bins)
           call write_hist(0, time)
        end if
     end if !outflg

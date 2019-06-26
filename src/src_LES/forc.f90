@@ -170,6 +170,17 @@ contains
     case (4)
        call bellon(nzp, nxp, nyp, a_rflx, a_sflx, zt, dzt, dzm, a_tt, a_tp&
             ,a_rt, a_rp, a_ut, a_up, a_vt, a_vp)
+
+    case (5)
+       ! ISDAC
+       xka = 170.
+       fr0 = 72.
+       fr1 = 15.
+       div = 5.e-6
+       ! Cloud water only (regimes a and b)
+       zrc(:,:,:) = SUM(a_mcloudp(:,:,:,nspec*ncld+ica%cur:nspec*ncld+fcb%cur),DIM=4)
+       call isdac_gcss(nzp, nxp, nyp, xka, fr0, fr1, div, zrc, dn0,     &
+               a_rflx, zt, zm, dzt, a_tt, a_tp, a_rt, a_rp)
     end select 
 
   end subroutine forcings
@@ -230,6 +241,79 @@ contains
     enddo
 
   end subroutine gcss_rad
+
+
+  subroutine isdac_gcss(n1,n2,n3,xka,fr0,fr1,div,rc,dn0,flx,zt,zm,dzt,   &
+                        tt,tl,rtt,rt)
+    USE grid, ONLY : a_ncloudp, a_nprecpp, a_mprecpp, a_nicep, a_nsnowp, a_msnowp, &
+         a_naerop, a_naerot, a_ncloudt, a_nicet, a_nsnowt, a_maerop, a_mcloudp, a_micep,  &
+         a_maerot, a_mcloudt, a_micet, a_msnowt, a_nprecpt, a_mprecpt, level, a_temp, a_theta
+    implicit none
+    integer, intent (in)::  n1,n2, n3
+    real, intent (in)   ::  xka, fr0, fr1, div
+    real, intent (in)   ::  zt(n1),zm(n1),dzt(n1),dn0(n1),rc(n1,n2,n3),tl(n1,n2,n3),rt(n1,n2,n3)
+    real, intent (inout)::  tt(n1,n2,n3),rtt(n1,n2,n3)
+
+
+    real, intent (out)  ::  flx(n1,n2,n3)
+
+    integer :: i, j, k, kp1
+    real    :: lwp
+    real, dimension (n1) :: sf
+
+    flx=0.
+    sf=0.
+    do j=3,n3-2
+       do i=3,n2-2
+          lwp=0.
+          ! No cloud water at level k=1
+          flx(1,i,j)=fr1*exp(-1.*xka*lwp)
+          do k=2,n1
+             lwp=lwp+max(0.,rc(k,i,j))*dn0(k)/dzt(k)
+             flx(k,i,j)=fr1*exp(-1.*xka*lwp)
+          enddo
+          !
+          ! Level k=1
+          flx(1,i,j)=flx(1,i,j)+fr0*exp(-1.*xka*lwp)
+          do k=2,n1
+             lwp=lwp-max(0.,rc(k,i,j)*dn0(k)/dzt(k))
+             flx(k,i,j)=flx(k,i,j)+fr0*exp(-1.*xka*lwp)
+             ! dtheta_il/dT=dtheta/dT=1/pi=theta/T => dtheta_il = theta/T*dT
+             tt(k,i,j) =tt(k,i,j)-(flx(k,i,j)-flx(k-1,i,j))*dzt(k)/(dn0(k)*cp)*a_theta(k,i,j)/a_temp(k,i,j)
+          enddo
+      enddo
+    enddo
+    !
+    do k=2,n1-2
+        ! calculate subsidence factor (wsub / dz)
+        sf(k) = -div*min( 825.,zt(k) )*dzt(k)
+    end do
+    !
+    DO j=3,n3-2
+        DO i=3,n2-2
+            DO k=2,n1-1
+                kp1 = k+1
+                tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
+                rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
+
+                IF (level>=4) THEN
+                  a_maerot(k,i,j,:) = a_maerot(k,i,j,:) - ( a_maerop(kp1,i,j,:) - a_maerop(k,i,j,:) )*sf(k)
+                  a_mcloudt(k,i,j,:) = a_mcloudt(k,i,j,:) - ( a_mcloudp(kp1,i,j,:) - a_mcloudp(k,i,j,:) )*sf(k)
+                  a_mprecpt(k,i,j,:) = a_mprecpt(k,i,j,:) - ( a_mprecpp(kp1,i,j,:) - a_mprecpp(k,i,j,:) )*sf(k)
+                  a_naerot(k,i,j,:) = a_naerot(k,i,j,:) - ( a_naerop(kp1,i,j,:) - a_naerop(k,i,j,:) )*sf(k)
+                  a_ncloudt(k,i,j,:) = a_ncloudt(k,i,j,:) - ( a_ncloudp(kp1,i,j,:) - a_ncloudp(k,i,j,:) )*sf(k)
+                  a_nprecpt(k,i,j,:) = a_nprecpt(k,i,j,:) - ( a_nprecpp(kp1,i,j,:) - a_nprecpp(k,i,j,:) )*sf(k)
+                ENDIF
+                IF (level>=5) THEN
+                  a_micet(k,i,j,:) = a_micet(k,i,j,:) - ( a_micep(kp1,i,j,:) - a_micep(k,i,j,:) )*sf(k)
+                  a_msnowt(k,i,j,:) = a_msnowt(k,i,j,:) - ( a_msnowp(kp1,i,j,:) - a_msnowp(k,i,j,:) )*sf(k)
+                  a_nicet(k,i,j,:) = a_nicet(k,i,j,:) - ( a_nicep(kp1,i,j,:) - a_nicep(k,i,j,:) )*sf(k)
+                  a_nsnowt(k,i,j,:) = a_nsnowt(k,i,j,:) - ( a_nsnowp(kp1,i,j,:) - a_nsnowp(k,i,j,:) )*sf(k)
+                ENDIF
+            END DO
+        END DO
+    END DO
+  end subroutine isdac_gcss
   !
   ! -------------------------------------------------------------------
   ! subroutine smoke_rad:  call simple radiative parameterization for 

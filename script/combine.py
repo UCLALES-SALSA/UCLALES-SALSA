@@ -13,13 +13,14 @@
 #	One file and list if variables to be included in the outputs
 #		python combine.py rf01 l q t
 #
-# Last update: 13.4.2017 Tomi Raatikainen
+# Last updates:
+#    5.10.2018   Added compression to 4D data (zlib=True)
 #
 # Required modules
 #		Python 2.7.10
 #
 # Edit this tag when outputs are changed
-version='combine_1.0.0'
+version='combine_1.1.0'
 #
 import sys
 import os
@@ -85,7 +86,7 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 	else:
 		# Generate new file with same global attributes and dimensions, but with selected variables
 		ncid_src = netcdf.Dataset(src,'r')
-		dim_list=ncid_src.dimensions.keys()	# Dimensions
+		dim_list=list(ncid_src.dimensions.keys())	# Dimensions
 		fmt=ncid_src.data_model	# Typically NETCDF3_CLASSIC, but this cannot handle 2+ Gb files!
 		# Output NetCDF file
 		dst='%s.nc' % (infile)
@@ -100,7 +101,7 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 		ncid.setncattr('PP_date',date)
 		#
 		# Copy dimensions and relevant variables
-		for name in ncid_src.variables.keys():
+		for name in list(ncid_src.variables.keys()):
 			# Source data
 			obj_src = ncid_src.variables[name]
 			val = obj_src[:]	# Values
@@ -122,7 +123,7 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 			#
 			# Copy attributes
 			var_info=obj_src.__dict__	# Attributes
-			for att in var_info.keys(): setattr(id,att,var_info[att])
+			for att in list(var_info.keys()): setattr(id,att,var_info[att])
 		#
 		# Save data
 		ncid.sync()
@@ -149,14 +150,14 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 			'w_cs2','tl_cs2','tv_cs2','rt_cs2','rl_cs2','wt_cs2','wv_cs2','wr_cs2']
 	#
 	# Variable and dimension lists
-	var_list=ncid.variables.keys()	# Variables
-	dim_list=ncid.dimensions.keys()	# Dimensions
+	var_list=list(ncid.variables.keys())	# Variables
+	dim_list=list(ncid.dimensions.keys())	# Dimensions
 	#
-	print ' '
-	print 'Generating file '+dst+' from '+str(nfiles)+' files'
-	print ' '
-	print '%-9s  %3s  %s' % ('name','op.','longname')
-	print '---------------------------------------------'
+	print(' ')
+	print('Generating file '+dst+' from '+str(nfiles)+' files')
+	print(' ')
+	print('%-9s  %3s  %s' % ('name','op.','longname'))
+	print('---------------------------------------------')
 	for name in var_list:
 		# Skip dimension variables
 		if name in dim_list: continue
@@ -176,7 +177,7 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 			# Weighted averages
 			op='wgh'
 			# No weighted averages?
-			print 'Unknown method for '+name+': default (avg) used!'
+			print('Unknown method for '+name+': default (avg) used!')
 			op='avg'
 		elif name in variances:
 			# Average of variances: need both variance and average
@@ -201,7 +202,7 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 			elif name=='sflx2':	# Shortwave radiative flux
 				aname='sflx'
 			else:
-				print 'Unknown method for '+name+': default (avg) used!'
+				print('Unknown method for '+name+': default (avg) used!')
 				op='avg'
 		elif name in thirdmom:
 			# Third momenets: need the second (variance) and first (average) moments
@@ -214,7 +215,7 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 				vname='q_2'
 				aname='q'
 			else:
-				print 'Unknown method for '+name+': default (avg) used!'
+				print('Unknown method for '+name+': default (avg) used!')
 				op='avg'
 		elif name in static:
 			# Should have constant values
@@ -229,7 +230,7 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 		#
 		# Calculations for the given variable
 		tmp=obj.__dict__	# Dictionary of information
-		print '%-9s  %3s   %s (%s)' % (name,op,tmp['longname'],tmp['units'])
+		print('%-9s  %3s   %s (%s)' % (name,op,tmp['longname'],tmp['units']))
 		#
 		info_prints=0
 		#
@@ -250,16 +251,16 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 					if name=='pfrac':
 						# Precipitation fraction: missing values can be set to zero
 						val_src[val_src==-999]=0
-						if info_prints==0: print '	Flagged values (-999) set to zero!'
+						if info_prints==0: print('	Flagged values (-999) set to zero!')
 						info_prints+=1
 					elif name=='zb':
 						# Cloud base height: set to a large number (and convert back to -999 when all values are unavailable)
 						set_missing=99999	# Will be changed to -999 if any left
 						val_src[val_src==-999]=set_missing
-						if info_prints==0: print '	Flagged values (-999) found!'
+						if info_prints==0: print('	Flagged values (-999) found!')
 						info_prints+=1
 					else:
-						if info_prints==0: print '	Flagged values (-999) found!'
+						if info_prints==0: print('	Flagged values (-999) found!')
 						info_prints+=1
 					#
 					if (i+j==0): val=val_src
@@ -312,7 +313,7 @@ def reduce_ts_ps(infile,imax,jmax,var_list):
 					if i+j==0:
 						val=val_src
 					elif numpy.amax( numpy.absolute(val-val_src) )>1e-10:
-						print 'Values of '+name+' change (expecting constant values)!'
+						print('Values of '+name+' change (expecting constant values)!')
 				else:
 					# Average
 					if i+j==0:
@@ -380,7 +381,7 @@ def reduce_full(infile,imax,jmax,var_list):
 			# 5D
 			out[pointer[0]:pointer[0]+inp.shape[0],pointer[1]:pointer[1]+inp.shape[1],pointer[2]:pointer[2]+inp.shape[2],pointer[3]:pointer[3]+inp.shape[3],pointer[4]:pointer[4]+inp.shape[4]]=inp
 		else:
-			print len(pointer)
+			print(len(pointer))
 			raise Exception('Unknown dimensions')
 	#
 	#
@@ -390,14 +391,14 @@ def reduce_full(infile,imax,jmax,var_list):
 	src='%s.%04u%04u.nc' % (infile, 0, 0)
 	ncid_src = netcdf.Dataset(src,'r')
 	# Variable and dimension lists
-	if len(var_list)==0: var_list=ncid_src.variables.keys()		# Variables
-	dim_list=ncid_src.dimensions.keys()	# Dimensions
+	if len(var_list)==0: var_list=list(ncid_src.variables.keys())		# Variables
+	dim_list=list(ncid_src.dimensions.keys())	# Dimensions
 	fmt=ncid_src.data_model	# netCDF data model version (typically NETCDF3_CLASSIC)
 	# **********************************************************
 	# Note: NETCDF3_CLASSIC does not handle 2+ Gb files!
 	b = os.path.getsize(src)	# File size in bytes
 	if nfiles*b>2e9:
-		print 'Warning: file size exceeds 2 GB (total approx. %.2f GB) - changing to NetCDF4' % (nfiles*b/1073741824.0)
+		print('Warning: file size exceeds 2 GB (total approx. %.2f GB) - changing to NetCDF4' % (nfiles*b/1073741824.0))
 		fmt='NETCDF4'
 	# **********************************************************
 	#
@@ -405,15 +406,15 @@ def reduce_full(infile,imax,jmax,var_list):
 	dst='%s.nc' % (infile)
 	ncid_dst = netcdf.Dataset(dst,'w',format=fmt)
 	# Copy global attributes
-	print 'Copying global attributes...'
+	print('Copying global attributes...')
 	for att in ncid_src.ncattrs():
 		ncid_dst.setncattr(att,ncid_src.getncattr(att))
-		print '  %-15s  %s' %(att,ncid_src.getncattr(att))
+		print('  %-15s  %s' %(att,ncid_src.getncattr(att)))
 	# Add information about post processing
 	ncid_dst.setncattr('PP_version',version)
 	ncid_dst.setncattr('PP_date',date)
 	#
-	print 'Done'
+	print('Done')
 	ncid_src.close()
 	#
 	# a) Dimensions
@@ -421,7 +422,7 @@ def reduce_full(infile,imax,jmax,var_list):
 	indices=numpy.empty([len(dim_list),imax,jmax], dtype=int)
 	sizes=numpy.zeros(len(dim_list),dtype=int)
 	k=0
-	print 'Creating dimensions...'
+	print('Creating dimensions...')
 	for name in dim_list:
 		# All files
 		for i in range(imax):
@@ -465,16 +466,16 @@ def reduce_full(infile,imax,jmax,var_list):
 		id=ncid_dst.createVariable(name,typ,(name,))
 		id[:]=val
 		# Copy attributes
-		for att in var_info.keys(): setattr(id,att,var_info[att])
+		for att in list(var_info.keys()): setattr(id,att,var_info[att])
 		#
 		#print '  %-8s %4u => %-4u  %s' % (name, old_len, len(val), var_info)
-		print '  %-8s %4u => %-4u  %s (%s)' % (name,old_len, len(val),var_info['longname'],var_info['units'])
+		print('  %-8s %4u => %-4u  %s (%s)' % (name,old_len, len(val),var_info['longname'],var_info['units']))
 
 		k+=1
-	print 'Done'
+	print('Done')
 	#
 	# b) Variables
-	print 'Creating varibles...'
+	print('Creating varibles...')
 	for name in var_list:
 		# Skip dimension variables
 		if name in dim_list: continue
@@ -527,10 +528,10 @@ def reduce_full(infile,imax,jmax,var_list):
 		#
 		# Create variable
 		#print 'creating',name,typ,dims,val.shape
-		id=ncid_dst.createVariable(name,typ,dims)
+		id=ncid_dst.createVariable(name,typ,dims,zlib=True)
 		id[:]=val
 		# Copy attributes
-		for att in var_info.keys(): setattr(id,att,var_info[att])
+		for att in list(var_info.keys()): setattr(id,att,var_info[att])
 		#
 		# Save data
 		ncid_dst.sync()
@@ -539,13 +540,13 @@ def reduce_full(infile,imax,jmax,var_list):
 		if IsConst:
 			# Constant data
 			#print '  *%-8s %30s  %s' % (name,dims,var_info)
-			print '  *%-8s %30s  %s (%s)' % (name,dims,var_info['longname'],var_info['units'])
+			print('  *%-8s %30s  %s (%s)' % (name,dims,var_info['longname'],var_info['units']))
 		else:
 			#print '  %-8s  %30s  %s' % (name,dims,var_info)
-			print '  %-8s  %30s  %s (%s)' % (name,dims,var_info['longname'],var_info['units'])
+			print('  %-8s  %30s  %s (%s)' % (name,dims,var_info['longname'],var_info['units']))
 	#
-	print '*Identical data in each netCDF file'
-	print 'Done'
+	print('*Identical data in each netCDF file')
+	print('Done')
 	#	
 	# Close file
 	ncid_dst.close()
@@ -583,7 +584,7 @@ def examine_var_name(file,var):
 	# OPen NetCDF file
 	ncid = netcdf.Dataset(fname,'r')
 	# Compare name with variable list
-	if var in ncid.variables.keys():
+	if var in list(ncid.variables.keys()):
 		# Found
 		ncid.close()
 		return True

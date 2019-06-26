@@ -1,0 +1,37 @@
+# Don't follow compiled files
+
+src/*.mod
+src/*.o
+les.mpi*
+les.seq*
+*.orig
+util/
+
+bin/NAMELIST
+bin/sound_in
+
+sound_in*
+
+*.pyc
+*.zip
+
+############################
+# Jaakko's auxialiry files #
+############################
+
+# campaign inputs
+case_*
+
+dict/
+
+# git trees
+gitpuut/
+
+# some old files
+script/vanhaa_settii/
+
+src/ice_immers_nucl_Jaakko.f90
+
+script/nodelog
+script/qstatlogi
+script/bash_kilkkeita.bash

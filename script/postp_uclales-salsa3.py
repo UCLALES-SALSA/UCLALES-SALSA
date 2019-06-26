@@ -5,12 +5,12 @@ def openr(filepref,ff):
 
 def openw(filepref):
     import netCDF4 as nc
-    fname = '%s_pp.nc' % (filepref)
+    fname = '%s.nc' % (filepref)
     return nc.Dataset(fname,'w',format='NETCDF3_CLASSIC')
 
 def opena(filepref):
     import netCDF4 as nc
-    fname = '%s_pp.nc' % (filepref)
+    fname = '%s.nc' % (filepref)
     return nc.Dataset(fname,'a')
 
 def getVariable(fid,vname):
@@ -31,7 +31,7 @@ def getDimension(fid,dname):
     import numpy as np
 
     # Check that both dimension and axis variable exist
-    if dname in fid.variables.keys():
+    if dname in list(fid.variables.keys()):
         val = fid.variables[dname][:]
         varfound = True
     else:
@@ -48,9 +48,9 @@ def getNames(fid,itype):
     # itype == 2 : Variables
 
     if itype == 1:
-        return fid.dimensions.keys()
+        return list(fid.dimensions.keys())
     if itype == 2:
-        return fid.variables.keys()
+        return list(fid.variables.keys())
     
 
 def makeVariables(fidout,filepref,imaax,jmax,dimnames,vars):
@@ -62,8 +62,8 @@ def makeVariables(fidout,filepref,imaax,jmax,dimnames,vars):
         vars = getNames(idin,2)
         idin.close()
 
-    ii = range(imax)
-    jj = range(jmax)
+    ii = list(range(imax))
+    jj = list(range(jmax))
     ifn = []
     for i in ii:
         for j in jj:
@@ -75,23 +75,23 @@ def makeVariables(fidout,filepref,imaax,jmax,dimnames,vars):
     # Iterate files
     try:
         while 1:
-            fn = itfile.next()
-            print 'file ', fn
+            fn = next(itfile)
+            print('file ', fn)
             idin = openr(filepref,fn)
 
             # Iterate variables
             itvars = iter(vars)
             try:
                 while 1:
-                    vn = itvars.next()
+                    vn = next(itvars)
 
-                    print vn
-                    print '--------'
+                    print(vn)
+                    print('--------')
 
                     vv = []
 
                     if vn in dimnames:
-                        print 'axis variable, skip'
+                        print('axis variable, skip')
                         continue   
                     
                     val,dims,coords = getVariable(idin,vn)
@@ -171,8 +171,8 @@ def makeStatVariables(fidout,filepref,imax,jmax,dimnames,vars):
         vars = getNames(idin,2)
         idin.close()
 
-    ii = range(imax)
-    jj = range(jmax)
+    ii = list(range(imax))
+    jj = list(range(jmax))
     ifn = []
     for i in ii:
         for j in jj:
@@ -189,23 +189,23 @@ def makeStatVariables(fidout,filepref,imax,jmax,dimnames,vars):
     # Iterate files
     try:
         while 1:
-            fn = itfile.next()
-            print 'file ', fn
+            fn = next(itfile)
+            print('file ', fn)
             idin = openr(filepref,fn)
 
             # Iterate variables
             itvars = iter(vars)
             try:
                 while 1:
-                    vn = itvars.next()
+                    vn = next(itvars)
 
-                    print vn
-                    print '--------'
+                    print(vn)
+                    print('--------')
 
                     vv = []
 
                     if vn in dimnames:
-                        print 'axis variable, skip'
+                        print('axis variable, skip')
                         continue   
                     
                     val,dims,coords = getVariable(idin,vn)
@@ -262,8 +262,8 @@ def makeDimensions(fidout,filepref,imax,jmax):
     itdims = iter(dimnames)
     idin.close()
 
-    ii = range(imax)
-    jj = range(jmax)
+    ii = list(range(imax))
+    jj = list(range(jmax))
     ifn = []
     for i in ii:
         for j in jj:
@@ -273,10 +273,10 @@ def makeDimensions(fidout,filepref,imax,jmax):
 
     try:
         while 1:
-            dim = itdims.next()
+            dim = next(itdims)
 
-            print dim
-            print '------'
+            print(dim)
+            print('------')
 
             dst_val = np.array([])
             dst_size = 0
@@ -284,8 +284,8 @@ def makeDimensions(fidout,filepref,imax,jmax):
             itfile = iter(ifn)
             try:
                 while 1:
-                    fn = itfile.next()
-                    print 'file ',fn
+                    fn = next(itfile)
+                    print('file ',fn)
                     
                     if dim == 'time' and fn != (0,0):
                         break
@@ -294,7 +294,7 @@ def makeDimensions(fidout,filepref,imax,jmax):
                     val,dlen,dvfound = getDimension(idin,dim)
                     idin.close()
                     
-                    print '1'
+                    print('1')
 
                     if dvfound:
                         # If the values are already in the destination array, do nothing
@@ -311,7 +311,7 @@ def makeDimensions(fidout,filepref,imax,jmax):
                         dst_size = dlen
                         continue
 
-                    print '2'
+                    print('2')
 
                     del val,dlen
                     gc.collect()

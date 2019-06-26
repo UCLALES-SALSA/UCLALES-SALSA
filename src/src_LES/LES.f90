@@ -130,7 +130,7 @@ contains
          dzrat  , dzmax  , igrdtyp, & ! stretched grid parameters
          timmax , dtlong , istpfl , & ! timestep control
          runtype, hfilin , filprf , & ! type of run (INITIAL or HISTORY)
-         frqhis , frqanl , outflg , & ! freq of history/anal writes, output flg
+         frqhis , frqanl , outflg , & ! freq of history/analysis writes, output flg
          anl_start,                 & ! start saving data to the 4D analysis files after this time
          iradtyp, radfrq , strtim , & ! radiation type flag
          isfctyp, ubmin  , zrough , & ! surface parameterization type
@@ -218,4 +218,3 @@ contains
   end subroutine define_parm
 
 end program ucla_les
-
