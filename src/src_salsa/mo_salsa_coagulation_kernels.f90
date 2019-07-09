@@ -8,6 +8,7 @@ MODULE mo_salsa_coagulation_kernels
                          lscgpc, lscgic,                      & 
                          lscgip 
   USE classSection, ONLY : Section
+  USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
   IMPLICIT NONE
 
   CONTAINS
@@ -102,30 +103,16 @@ MODULE mo_salsa_coagulation_kernels
                  CALL pp1(mm)%updateRhomean()
               END DO
 
-              zmass(1:nb1) = pp1(1:nb1)%rhomean*pi6*pp1(1:nb1)%dwet**3
-              zdiam(1:nb1) = pp1(1:nb1)%dwet
               IF (pp1(1)%phase == 4) zdiam(1:nb1) = pp1(1:nb1)%dnsp ! for ice use nonspherical shape for the actual diameter
               
-              DO mm = 1, nb1         ! smaller colliding particle
-                 
+              DO mm = 1, nb1         ! smaller colliding particle                 
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
                  
                  DO nn = mm, nb1            ! larger colliding particle
-
                     IF (pp1(nn)%numc < pp1(nn)%nlim) CYCLE
                     
-                    ! In case of self-coagulation, add a small size deviation to account a little bit for the variability inside the bins
-                    IF (mm == nn) THEN
-                       zmass_mm = zmass(mm)*0.7290 ! corresponds to 0.9*diameter 
-                       zdiam_mm = zdiam(mm)*0.9
-                    ELSE
-                       zmass_mm = zmass(mm)
-                       zdiam_mm = zdiam(mm)
-                    END IF
-                   
-                    zcc(ii,jj,mm,nn) = coagc(zdiam_mm,pp1(nn)%dwet,zmass_mm,zmass(nn),    &
-                                             ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,        &
-                                             pp1(nn)%phase                                     )
+                    zcc(ii,jj,mm,nn) = coagc( pp1(mm),pp1(nn),            &
+                                              ptemp(ii,jj),ppres(ii,jj),2 )
                     zcc(ii,jj,nn,mm) = zcc(ii,jj,mm,nn)
                  END DO
               END DO
@@ -168,21 +155,13 @@ MODULE mo_salsa_coagulation_kernels
                  CALL pp2(nn)%updateDiameter(limit=.TRUE.,type="all")
                  CALL pp2(nn)%updateRhomean()
               END DO
-              zmass1(1:nb1) = pp1(1:nb1)%rhomean*pi6*pp1(1:nb1)%dwet**3
-              zmass2(1:nb2) = pp2(1:nb2)%rhomean*pi6*pp2(1:nb2)%dwet**3
-              zdiam1(1:nb1) = pp1(1:nb1)%dwet
-              IF (pp1(1)%phase == 4) zdiam1(1:nb1) = pp1(1:nb1)%dnsp
-                 
-              zdiam2(1:nb2) = pp2(1:nb2)%dwet
-              IF (pp2(1)%phase == 4) zdiam2(1:nb2) = pp2(1:nb2)%dnsp
-                 
+              
               DO mm = 1,nb1
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
                  DO nn = 1,nb2
                     IF (pp2(nn)%numc < pp2(nn)%nlim) CYCLE
-                    zcc(ii,jj,mm,nn) = coagc(zdiam1(mm),zdiam2(nn),zmass1(mm),zmass2(nn),   &
-                                             ptemp(ii,jj),ppres(ii,jj),2,pp1(mm)%phase,         &
-                                             pp2(nn)%phase                                      )
+                    zcc(ii,jj,mm,nn) = coagc( pp1(mm),pp2(nn),            &
+                                              ptemp(ii,jj),ppres(ii,jj),2 )
                  END DO
               END DO
               
@@ -196,7 +175,7 @@ MODULE mo_salsa_coagulation_kernels
 
     ! ==========================================
 
-    REAL FUNCTION coagc(diam1,diam2,mass1,mass2,temp,pres,kernel,flag1,flag2)
+    REAL FUNCTION coagc(pp1,pp2,temp,pres,kernel)
 
       USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd 
       USE mo_particle_external_properties, ONLY : terminal_vel
@@ -204,20 +183,16 @@ MODULE mo_salsa_coagulation_kernels
       IMPLICIT NONE
       
       !-- Input variables ----------
+
+      TYPE(Section), INTENT(in) :: pp1,pp2
+
       REAL, INTENT(IN) :: &
-           diam1,  &   ! diameters of colliding particles [m]
-           diam2,  &   !
-           mass1,  &   ! masses -"- [kg]
-           mass2,  &
            temp,   &   ! ambient temperature [K]
            pres        ! ambient pressure [fxm]
       
       INTEGER, INTENT(in) :: kernel ! select the type of kernel: 1 - aerosol-aerosol coagulation (the original version)
       !                            2 - hydrometeor-aerosol or hydrometeor-hydrometeor coagulation
-      INTEGER, INTENT(in) :: flag1,flag2 ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
-      
-      !-- Output variables ---------
-      
+           
       !-- Local variables ----------
       REAL ::  &
            visc,     &   ! viscosity of air [kg/(m s)]
@@ -235,13 +210,20 @@ MODULE mo_salsa_coagulation_kernels
            zgrav,    &   !                                    Gravitational collection
            ztshear,  &   ! turbulent shear
            zturbinert    ! turbulent inertia
+
+      REAL :: diam1, diam2,       & ! Particle diameters; for ice this should be the effective max dimension
+              dicesph1, dicesph2, & ! Spherical equivalent diameters for ice
+              mass1, mass2,       & ! Masses of particles
+              rhop1, rhop2,       & ! Particle densities; For ice this is the effective density (low for non-spherical)
+              rhoiceb1, rhoiceb2   ! Bulk ice densities
+              
       
       REAL, DIMENSION (2) :: &
            diam,   &   ! diameters of particles [m]
            mpart,  &   ! masses of particles [kg]
            knud,   &   ! particle knudsen number [1]
            beta,   &   ! Cunningham correction factor [1]
-           zrhop,  &   ! Particle density [kg m-3]
+           zrhop,  &   ! Particle density [kg m-3]; For ice this will be the effective density (==low for non-spherical)
            dfpart, &   ! particle diffusion coefficient [m2/s]
            mtvel,  &   ! particle mean thermal velocity [m/s]
            termv,  &   ! Particle terminal velocity
@@ -254,6 +236,10 @@ MODULE mo_salsa_coagulation_kernels
            reyn(2), &    ! Reynolds number
            stok             ! Stokes number
       INTEGER :: lrg,sml
+
+      INTEGER :: ns ! number of species
+      
+      TYPE(t_shape_coeffs) :: shape1, shape2 ! Shape coefficients needed for ice
       
       zbrown = 0.
       zbrconv = 0.
@@ -262,8 +248,26 @@ MODULE mo_salsa_coagulation_kernels
       coagc = 0.
       
       !-------------------------------------------------------------------------------
+
+      ns = spec%getNSpec(type="total") ! includes rime
       
       !-- 0) Initializing particle and ambient air variables --------------------
+      diam1 = MERGE(pp1%dnsp, pp1%dwet, pp1%phase == 4)
+      diam2 = MERGE(pp2%dnsp, pp2%dwet, pp2%phase == 4)
+      IF (pp1%phase == 4) dicesph1 = pp1%dwet
+      IF (pp2%phase == 4) dicesph2 = pp2%dwet
+
+      mass1 = pp1%rhomean*pi6*pp1%dwet**3
+      mass2 = pp2%rhomean*pi6*pp2%dwet**3
+
+      ! If this is for self coagulation, put a minor offset on the particle diameters to account for
+      ! the bin width
+      IF ( ABS(pp1%dmid - pp2%dmid)/pp1%dmid < 1.e-2) THEN
+         diam1 = 0.9*diam2
+         mass1 = 0.7290*mass2 ! 0.7290 corresponds to 0.9*diameter ;;  NOTE this might cause some small error for ice!!
+      END IF
+
+      
       diam  = (/ diam1, diam2 /)       ! particle diameters [m]
       mpart = (/ mass1, mass2 /)       ! particle masses [kg]
       
@@ -316,13 +320,33 @@ MODULE mo_salsa_coagulation_kernels
          IF (diam(1) >= diam(2)) THEN
             lrg = 1; sml = 2
          END IF
+
+         IF (pp1%phase == 4) &
+              CALL getShapeCoefficients( shape1, SUM(pp1%volc(1:ns-1)*spec%rhoic),     &
+                                         pp1%volc(ns)*spec%rhori,                      &
+                                         pp1%numc                                      )
+
+         IF (pp2%phase == 4) &
+              CALL getShapeCoefficients( shape2, SUM(pp2%volc(1:ns-1)*spec%rhoic),     &
+                                         pp2%volc(ns)*spec%rhori,                      &
+                                         pp2%numc                                      )
          
-         zrhoa = pres/(rd*temp)   ! Density of air
-         zrhop = mpart/(pi6*diam**3)             ! Density of particles
-         vkin  = visc/zrhoa   ! Kinematic viscosity of air [m2 s-1]
          
-         termv(1) = terminal_vel(diam(1),zrhop(1),zrhoa,visc,beta(1),flag1)
-         termv(2) = terminal_vel(diam(2),zrhop(2),zrhoa,visc,beta(2),flag2)
+         zrhoa = pres/(rd*temp)       ! Density of air
+         zrhop = mpart/(pi6*diam**3)  ! Density of particles; For ice this is the effective density using the non-spherical diameter
+         vkin  = visc/zrhoa           ! Kinematic viscosity of air [m2 s-1]
+
+         IF (pp1%phase < 4) THEN         
+            termv(1) = terminal_vel(pp1%dwet,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase)
+         ELSE
+            termv(1) = terminal_vel(pp1%dwet,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase,shape1,pp1%dnsp)
+         END IF
+
+         IF (pp2%phase < 4) THEN
+            termv(2) = terminal_vel(pp2%dwet,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase)
+         ELSE
+            termv(2) = terminal_vel(pp2%dwet,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase,shape2,pp2%dnsp)
+         END IF
          
          ! Reynolds number
          reyn = diam*termv/vkin

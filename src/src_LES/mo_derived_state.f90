@@ -13,7 +13,11 @@ MODULE mo_derived_state
   !
 
   ! General LES variables
-  TYPE(FLoatArray3d), TARGET :: qtot     ! Total water content
+  TYPE(FloatArray3d), TARGET :: qtot                     ! Total water content
+  TYPE(FloatArray2d), TARGET :: lwp, iwp, rwp            ! Liquid water path, ice water path, rain water path.
+                                                         ! LWP contains cloud droplets and aerosol, IWP both pristine and rimed ice,
+                                                         ! and rwp the water in the "precipitation" category
+  
   
   ! SALSA related variables
   TYPE(FloatArray3d), TARGET :: Naa, Nab, Nca, Ncb, Np, Ni,                &  ! Bulk number concentrations, aerosol, cloud, precip, ice
@@ -28,6 +32,9 @@ MODULE mo_derived_state
 
   ! SALSA related variables
   TYPE(FloatArray4d), TARGET :: Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba, Dwiba     ! Bin diameters  
+
+  ! Some binned diagnostics
+  TYPE(FloatArray4d), TARGET :: irhob, irhoe ! Bulk mean and effective ice densities
 
   
   CONTAINS
@@ -51,6 +58,31 @@ MODULE mo_derived_state
       CALL Derived%newField("qtot", "Total water content", "kg/kg", "tttt",   &
                             ANY(outputlist == "qtot"), pipeline               )
 
+      pipeline => NULL()
+      lwp = FloatArray2d()
+      lwp%onDemand => waterPaths
+      pipeline => lwp
+      CALL Derived%newField("lwp", "Liquid water path", "kg/m2", "xtytt",   &
+                            ANY(outputlist == "lwp"), pipeline              )
+
+      IF (level > 4) THEN
+         pipeline => NULL()
+         iwp = FloatArray2d()
+         iwp%onDemand => waterPaths
+         pipeline => iwp
+         CALL Derived%newField("iwp", "Ice water path", "kg/m2", "xtytt",    &
+                               ANY(outputlist == "iwp"), pipeline           )
+      END IF
+
+      IF (level >= 3) THEN
+         pipeline => NULL()
+         rwp = FloatArray2d()
+         rwp%onDemand => waterPaths
+         pipeline => rwp
+         CALL Derived%newField("rwp", "Rain water path", "kg/m2", "xtytt",   &
+                               ANY(outputlist == "rwp"), pipeline            )
+      END IF
+           
       IF (level >= 4) THEN
          pipeline => NULL()
          Naa = FloatArray3d()
@@ -592,6 +624,24 @@ MODULE mo_derived_state
       END IF
       
       pipeline => NULL()
+
+      IF ( level > 4 ) THEN
+         pipeline => NULL()
+         irhob = FloatArray4d()
+         irhob%onDemand => binIceDensities 
+         pipeline => irhob
+         CALL Derived%newField("irhob", "Bulk mean density of ice", "kg/m3", "ttttice",   &
+                            ANY(outputlist == "irhob"), pipeline)
+
+         pipeline => NULL()
+         irhoe = FloatArray4d()
+         irhoe%onDemand => binIceDensities
+         pipeline => irhoe
+         CALL Derived%newField("irhoe", "Effective mean density of ice", "kg/m3", "ttttice",   &
+                            ANY(outputlist == "irhoe"), pipeline)
+      END IF
+
+
       
     END SUBROUTINE setDerivedVariables        
 

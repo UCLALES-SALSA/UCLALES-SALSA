@@ -63,9 +63,9 @@ MODULE mo_output
             CALL define_nc(ncid_main,nrec_main,nvar_main,          &
                            outProg=outProg,outVector=outVector,    &
                            outDiag=outDiag,outDerived=outDerived,  &
-                           outAxes=outAxes, n1=nzp,n2=nxp-4,       &
-                           n3=nyp-4,inae_a=fn2a,inae_b=fn2b-fn2a,  &
-                           incld_a=fca%cur,incld_b=fcb%cur,        &
+                           outAxes=outAxes, n1=nzp,n2=nxp-4,         &
+                           n3=nyp-4,inae_a=fn2a,inae_b=fn2b-fn2a,    &
+                           incld_a=fca%cur,incld_b=fcb%cur-fca%cur,  &
                            inprc=nprc                              )
                
          ELSE              
@@ -85,7 +85,7 @@ MODULE mo_output
                            outDiag=outDiag,outDerived=outDerived,  &
                            outAxes=outAxes,n1=nzp,n2=nxp-4,        &
                            n3=nyp-4,inae_a=fn2a,inae_b=fn2b-fn2a,  &
-                           incld_a=fca%cur,incld_b=fcb%cur,        &                              
+                           incld_a=fca%cur,incld_b=fcb%cur-fca%cur,        &                              
                            inprc=nprc,inice=nice                   )
               
          ELSE

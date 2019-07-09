@@ -23,7 +23,8 @@ MODULE mcrp
   USE mo_aux_state, ONLY : dzt,dn0,pi0
   USE mo_diag_state, ONLY : a_pexnr,a_rv,a_rc,a_theta,a_press,     &
                             a_temp,a_rsl,a_dn,a_ustar,             &
-                            a_rrate, a_irate, a_sfcrrate, a_sfcirate
+                            a_rrate, a_irate, a_sfcrrate, a_sfcirate,   &
+                            d_VtPrc, d_VtIce
   USE mo_progn_state, ONLY : a_rp,a_tp,a_rt,a_tt,a_rpp,a_rpt,a_npp,a_npt
   USE grid, ONLY : dtlt,nxp,nyp,nzp,th00,CCN
   USE thrm, ONLY : thermo
@@ -810,6 +811,7 @@ MODULE mcrp
   SUBROUTINE DepositionFast(n1,n2,n3,nb,ns,tk,numc,mass,tstep,prnt,prvt,remprc,rate,flag)
     USE util, ONLY : getBinMassArray
     USE mo_submctl, ONLY : nlim,prlim,pi6
+    USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,ns,nb
@@ -841,8 +843,9 @@ MODULE mcrp
     ! For precipitation:
     REAL :: fd,fdmax,fdos ! Fall distance for rain drops, max fall distance, overshoot from nearest grid level
     REAL :: prnchg(n1,nb), prvchg(n1,nb,ns) ! Instantaneous changes in precipitation number and mass (volume)
-    REAL :: dwet
- 
+    REAL :: dwet  ! Spherical wet diameter
+    REAL :: dnsp  ! Diameter for non-spherical ice
+    
     REAL :: prnumc, pmass(ns) ! Instantaneous source number and mass
     INTEGER :: kf, ni,fi
     LOGICAL :: prcdep  ! Deposition flag
@@ -851,9 +854,16 @@ MODULE mcrp
     
     REAL :: zpm(nb*ns), zpn(nb)  ! Bin mass and number arrays to clean things up
     REAL :: zdn                  ! Particle density
+    REAL :: zdneff               ! Effective density for non-spherical
+
+    TYPE(t_shape_coeffs) :: shape ! Used for ice
     
     clim = nlim
     IF (ANY(flag == [3,4])) clim = prlim
+
+    ! Zero the output diagnostics
+    IF (flag == 3) d_VtPrc%d(:,:,:,:) = 0.
+    IF (flag == 4) d_VtIce%d(:,:,:,:) = 0.
     
     remprc(:,:,:) = 0.
     rate%d(:,:,:) = 0.
@@ -873,7 +883,7 @@ MODULE mcrp
           
              ! atm modelling Eq.4.54
              avis = 1.8325e-5*(416.16/(tk%d(k,i,j)+120.0))*(tk%d(k,i,j)/296.16)**1.5
-             kvis = avis/a_dn%d(k,i,j) !actual density ???
+             kvis = avis/a_dn%d(k,i,j) 
              va = sqrt(8.*kb*tk%d(k,i,j)/(pi*M)) ! thermal speed of air molecule
              lambda = 2.*avis/(a_dn%d(k,i,j)*va) !mean free path
 
@@ -887,14 +897,13 @@ MODULE mcrp
 
                 ! Calculate wet size
                 CALL getBinMassArray(nb,ns,bin,zpm,pmass)
-                !IF (flag < 4) THEN
-                !   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.)   
-                !ELSE
-                !   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.FALSE.) ! For non-spherical ice, this is the max diameter of the crystal
-                !END IF
-                ! Just take the bulk spherical size for ice too
-                dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.)   
-
+                IF (flag < 4) THEN
+                   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.)   
+                ELSE
+                   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.) 
+                   dnsp=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.FALSE.) ! For non-spherical ice, this is the max diameter of the crystal
+                   CALL getShapeCoefficients(shape,SUM(pmass(1:ns-1)),pmass(ns),zpn(bin))
+                END IF
                 
                 ! Calculate particle density based on dwet; for non-spherical ice this will get the "effective" density, which amy be
                 ! quite low for large non-spherical crystals
@@ -903,11 +912,16 @@ MODULE mcrp
                 ! Terminal velocity
                 Kn = 2.*lambda/dwet   !lambda/rwet
                 GG = 1.+ Kn*(A+B*exp(-C/Kn))
-                vc = terminal_vel(dwet,zdn,a_dn%d(k,i,j),avis,GG,flag)
-
-                ! POISTA
-                IF (vc > 10. .OR. vc < 0.) WRITE(*,*) 'DEP FAST ', vc
-                vc = MIN(vc,10.)
+                
+                IF (flag < 4) THEN
+                   vc = terminal_vel(dwet,zdn,a_dn%d(k,i,j),avis,GG,flag)
+                   ! Diagnostics
+                   d_VtPrc%d(k,i,j,bin) = vc
+                ELSE
+                   vc = terminal_vel(dwet,zdn,a_dn%d(k,i,j),avis,GG,flag,shape,dnsp)
+                   ! Diagnostics
+                   d_VtIce%d(k,i,j,bin) = vc
+                END IF
                 
                 ! Rain rate statistics: removal of water from the current bin is accounted for
                 ! Water is the last (nspec) species and rain rate is given here kg/s/m^2
@@ -946,6 +960,7 @@ MODULE mcrp
                 fdos = MIN(MAX(fdmax-fd,0.),1./dzt%d(kf))
              
                 ! Remove the drops from the original level
+                pmass = 0.
                 prnumc = zpn(bin)
                 prnchg(k,bin) = prnchg(k,bin) - prnumc
                 DO ni = 1,ns

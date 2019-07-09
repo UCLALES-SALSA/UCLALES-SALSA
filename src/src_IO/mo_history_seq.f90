@@ -6,7 +6,6 @@ MODULE mo_history
   USE nudg_defs, ONLY : theta_ref, rv_ref, u_ref, v_ref, aero_ref, &
                         ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
   USE mpi_interface, ONLY : appl_abort, myid
-  USE mo_mpi_io
   USE mo_vector_state
   USE mo_progn_state
   USE mo_diag_state

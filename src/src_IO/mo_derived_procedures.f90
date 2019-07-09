@@ -9,14 +9,16 @@ MODULE mo_derived_procedures
   USE grid, ONLY : nzp,nxp,nyp,level
   USE mo_progn_state, ONLY : a_naerop, a_ncloudp, a_nprecpp, a_nicep,  &
                              a_maerop, a_mcloudp, a_mprecpp, a_micep,  &
-                             a_rp
-  USE mo_diag_state, ONLY : a_rc, a_ri, a_riri, a_srp
+                             a_rp, a_rpp
+  USE mo_diag_state, ONLY : a_rc, a_ri, a_riri, a_srp, a_dn
+  USE mo_aux_state, ONLY : dzt
   USE mo_structured_datatypes
   IMPLICIT NONE
 
   PRIVATE
 
-  PUBLIC :: bulkNumc, totalWater, bulkDiameter, bulkMixrat, binMixrat, getBinDiameter
+  PUBLIC :: bulkNumc, totalWater, bulkDiameter, bulkMixrat, binMixrat, getBinDiameter, &
+            binIceDensities, waterPaths
     
   CONTAINS
 
@@ -190,6 +192,92 @@ MODULE mo_derived_procedures
    ! -------------------------------------------------
 
    !
+   ! ---------------------------------------------------
+   ! SUBROUTINE getBinDiameter
+   ! Calculates wet diameter for each bin in the whole domain - this function is for outputs only
+   SUBROUTINE getBinDiameter(name, output, nstr, nend)
+     USE util, ONLY : getBinMassArray
+     USE mo_particle_external_properties, ONLY : calcDiamLES
+     USE mo_submctl, ONLY : pi6
+     IMPLICIT NONE
+     
+     CHARACTER(len=*), INTENT(in) :: name
+     INTEGER, INTENT(in) :: nstr, nend 
+     REAL, INTENT(out) :: output(nzp,nxp,nyp,nend-nstr+1)
+
+     INTEGER :: flag, k,i,j,bin, nb, ntot
+     INTEGER :: nspec
+     TYPE(FloatArray4d), POINTER :: numc
+     TYPE(FloatArray4d), POINTER :: mass
+     REAL, ALLOCATABLE :: tmp(:), zlm(:), zln(:)
+     REAL :: numlim
+     
+     nspec = spec%getNSpec(type="wet")
+
+     SELECT CASE(name)
+     CASE('Dwaba')
+        flag = 1
+        numlim = nlim
+        numc => a_naerop
+        mass => a_maerop
+        nb = nbins
+     CASE('Dwabb')
+        flag = 1
+        numlim = nlim
+        numc => a_naerop
+        mass => a_maerop
+        nb = nbins          
+     CASE('Dwcba')
+        flag = 2
+        numlim = nlim
+        numc => a_ncloudp
+        mass => a_mcloudp     
+        nb = ncld
+     CASE('Dwcbb')
+        flag = 2
+        numlim = nlim
+        numc => a_ncloudp
+        mass => a_mcloudp
+        nb = ncld
+     CASE('Dwpba')        
+        flag = 3   
+        numlim = prlim
+        numc => a_nprecpp
+        mass => a_mprecpp
+        nb = nprc
+     CASE('Dwiba')
+        flag = 4
+        numlim = prlim
+        numc => a_nicep
+        mass => a_micep 
+        nspec = nspec + 1 ! For rime
+        nb = nice        
+     END SELECT    
+     
+     ALLOCATE(tmp(nspec), zlm(nb*nspec), zln(nb))      
+      
+     output(:,:,:,:)=0.
+     DO j = 3,nyp-2
+        DO i = 3,nxp-2
+           DO k = 1,nzp
+              zlm(:) = mass%d(k,i,j,:)
+              zln(:) = numc%d(k,i,j,:)
+              DO bin = nstr,nend
+                 IF (zln(bin)>numlim) THEN
+                    tmp(:) = 0.
+                    CALL getBinMassArray(nb,nspec,bin,zlm,tmp)
+                    ! sph=false enables calculation of non-spherical ice diameter. This will only affect ice.
+                    output(k,i,j,bin-nstr+1)=calcDiamLES(nspec,zln(bin),tmp,flag,sph=.FALSE.)  
+                 ENDIF
+              END DO
+           END DO
+        END DO
+     END DO
+
+   END SUBROUTINE getBinDiameter
+
+   
+   !
    ! -----------------------------------
    ! Subroutine bulkMixrat: Find and calculate
    ! the total mixing ratio of a given compound
@@ -257,8 +345,79 @@ MODULE mo_derived_procedures
    END SUBROUTINE bulkMixrat
    !
    
-   
+   SUBROUTINE waterPaths(name, output)
+     CHARACTER(len=*), INTENT(in) :: name
+     REAL, INTENT(out) :: output(nxp,nyp)
+     INTEGER :: kk
+     
+     output = 0.
+     
+     SELECT CASE(name)
+     CASE("lwp")
+        DO kk = 1,nzp
+           output(:,:) = output(:,:) + a_rc%d(kk,:,:)*a_dn%d(kk,:,:)/dzt%d(kk)   !dzt = 1/dz
+        END DO
+     CASE("iwp")
+        DO kk = 1,nzp
+           output(:,:) = output(:,:) +    &
+                (a_ri%d(kk,:,:)+a_riri%d(kk,:,:))*a_dn%d(kk,:,:)/dzt%d(kk)
+        END DO                
+     CASE("rwp")
+        IF (level < 4) THEN
+           DO kk = 1,nzp
+              output(:,:) = output(:,:) + a_rpp%d(kk,:,:)*a_dn%d(kk,:,:)/dzt%d(kk)               
+           END DO
+        ELSE
+           DO kk = 1,nzp
+              output(:,:) = output(:,:) + a_srp%d(kk,:,:)*a_dn%d(kk,:,:)/dzt%d(kk)  ! For level 4+ should make some more robust
+           END DO                                                             ! since the smallest precipitation bins are not
+        END IF                                                                ! actually precipitation.
+              
+     END SELECT
+                      
+   END SUBROUTINE waterPaths
 
+   ! -----------------------------
+
+   SUBROUTINE binIceDensities(name,output,nstr,nend)
+     CHARACTER(len=*), INTENT(in) :: name
+     INTEGER, INTENT(in) :: nstr, nend 
+     REAL, INTENT(out) :: output(nzp,nxp,nyp,nend-nstr+1)
+
+     INTEGER :: nspec,i,j,k,b
+     REAL, ALLOCATABLE :: pmass(:)
+     REAL :: diam
+     LOGICAL :: sphtype
+
+     output = 0.
+     
+     nspec = spec%getNSpec(type="total")
+     ALLOCATE(pmass(nspec))
+     pmass = 0.
+
+     sphtype = .FALSE.
+     IF (name == "irhob") sphtype = .TRUE.
+     
+     DO b = nstr,nend
+        DO j = 1,nyp
+           DO i = 1,nxp
+              DO k = 1,nzp
+                 IF (a_nicep%d(k,i,j,b) > prlim) THEN
+                    CALL getBinMassArray(nice,nspec,b,a_micep%d(k,i,j,:),pmass)
+                    diam = calcDiamLES(nspec,a_nicep%d(k,i,j,b),pmass,4,sph=sphtype)
+                    output(k,i,j,b-nstr+1) = SUM(pmass)/a_nicep%d(k,i,j,b)/(pi6*diam**3)
+                 END IF
+              END DO
+           END DO
+        END DO
+     END DO
+        
+
+     DEALLOCATE(pmass)
+     
+   END SUBROUTINE binIceDensities
+
+   
    ! NONE OF THE BELOW IS YET ASSOCIATED WITH ANYTHING !!!!!!!!!!!!!!!!!!!!
 
    
@@ -356,89 +515,7 @@ MODULE mo_derived_procedures
 
 
    
-   !
-   ! ---------------------------------------------------
-   ! SUBROUTINE getBinDiameter
-   ! Calculates wet diameter for each bin in the whole domain - this function is for outputs only
-   SUBROUTINE getBinDiameter(name, output, nstr, nend)
-     USE util, ONLY : getBinMassArray
-     USE mo_particle_external_properties, ONLY : calcDiamLES
-     USE mo_submctl, ONLY : pi6
-     IMPLICIT NONE
-     
-     CHARACTER(len=*), INTENT(in) :: name
-     INTEGER, INTENT(in) :: nstr, nend 
-     REAL, INTENT(out) :: output(nzp,nxp,nyp,nend-nstr+1)
 
-     INTEGER :: flag, k,i,j,bin, nb, ntot
-     INTEGER :: nspec
-     TYPE(FloatArray4d), POINTER :: numc
-     TYPE(FloatArray4d), POINTER :: mass
-     REAL, ALLOCATABLE :: tmp(:), zlm(:), zln(:)
-     REAL :: numlim
-     
-     nspec = spec%getNSpec(type="wet")
-
-     SELECT CASE(name)
-     CASE('Dwaba')
-        flag = 1
-        numlim = nlim
-        numc => a_naerop
-        mass => a_maerop
-        nb = nbins
-     CASE('Dwabb')
-        flag = 1
-        numlim = nlim
-        numc => a_naerop
-        mass => a_maerop
-        nb = nbins          
-     CASE('Dwcba')
-        flag = 2
-        numlim = nlim
-        numc => a_ncloudp
-        mass => a_mcloudp     
-        nb = ncld
-     CASE('Dwcbb')
-        flag = 2
-        numlim = nlim
-        numc => a_ncloudp
-        mass => a_mcloudp
-        nb = ncld
-     CASE('Dwpba')        
-        flag = 3   
-        numlim = prlim
-        numc => a_nprecpp
-        mass => a_mprecpp
-        nb = nprc
-     CASE('Dwiba')
-        flag = 4
-        numlim = prlim
-        numc => a_nicep
-        mass => a_micep 
-        nspec = nspec + 1 
-        nb = nice        
-     END SELECT    
-     
-     ALLOCATE(tmp(nspec), zlm(nb*nspec), zln(nb))      
-      
-     output(:,:,:,:)=0.
-     DO j = 3,nyp-2
-        DO i = 3,nxp-2
-           DO k = 1,nzp
-              zlm(:) = mass%d(k,i,j,:)
-              zln(:) = numc%d(k,i,j,:)
-              DO bin = nstr,nend
-                 IF (zln(bin)>numlim) THEN
-                    tmp(:) = 0.
-                    CALL getBinMassArray(nb,nspec,bin,zlm,tmp)
-                    output(k,i,j,bin-nstr+1)=calcDiamLES(nspec,zln(bin),tmp,flag)
-                 ENDIF
-              END DO
-           END DO
-        END DO
-     END DO
-
-   END SUBROUTINE getBinDiameter
    
 END MODULE mo_derived_procedures
 

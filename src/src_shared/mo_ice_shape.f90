@@ -1,5 +1,5 @@
 MODULE mo_ice_shape
-  USE mo_submctl, ONLY : spec,pi6
+  USE mo_submctl, ONLY : spec,pi6,pi
   IMPLICIT NONE
  
   ! -----------------------------------------------
@@ -7,9 +7,23 @@ MODULE mo_ice_shape
   ! mass-diameter relationships of particles
   ! -----------------------------------------------
 
-  ! Shape parameters for non-spherical ice (from Morrison and Grabowski 2008)
-  REAL, PARAMETER :: alpha = 15.56999e-3
-  REAL, PARAMETER :: beta = 2.02
+  ! Suggested values for shape parameters for non-spherical ice from Khvorostyanov and Curry 2002
+  ! for "Crystal with sector-like branches". Can be specified from SALSA namelist. Mass coeffs changed
+  ! to SI units. Also make sure to use SI units when specifying these in the namelist. Pretty much all the
+  ! articles report these in non-SI units!
+  
+  ! For Mass:
+  REAL, SAVE :: iceShapeAlpha = 15.56999e-3
+  REAL, SAVE :: iceShapeBeta = 2.02
+
+  ! For cross sectional area
+  REAL, SAVE :: iceShapeGamma = 0.55
+  REAL, SAVE :: iceShapeSigma = 1.97
+
+  TYPE t_shape_coeffs
+     REAL :: alpha, beta, gamma, sigma     
+  END TYPE t_shape_coeffs
+
   
   CONTAINS
     !
@@ -28,20 +42,21 @@ MODULE mo_ice_shape
               rho_b,    &
               Fr
 
-      IF (mpri+mrim < 1.e-15 .OR. numc < 1.e-6) RETURN
+      getDiameter = 1.e-9 
       
-      getDiameter = 1.e-9            
+      IF (numc < 1.e-6) RETURN
+                 
       Mtot = ( mpri + mrim )/numc
       
       Fr = MAX( MIN(mrim/(Mtot*numc),0.99),0.01 )
       rho_b = getBulkRho(Fr)  ! "almost" like graupel density...
-      Dth = (pi6*spec%rhoic/alpha)**(1./(beta-3.))
-      Dgr = (alpha/(pi6*rho_b))**(1./(3.-beta))
-      Dcr = ( (1./(1.-Fr))*alpha/(pi6*rho_b) )**(1./(3.-beta))
+      Dth = (pi6*spec%rhoic/iceShapeAlpha)**(1./(iceShapeBeta-3.))
+      Dgr = (iceShapeAlpha/(pi6*rho_b))**(1./(3.-iceShapeBeta))
+      Dcr = ( (1./(1.-Fr))*iceShapeAlpha/(pi6*rho_b) )**(1./(3.-iceShapeBeta))
       Mth = spec%rhoic*pi6*Dth**3
       Mgr = rho_b*pi6*Dgr**3
       Mcr = rho_b*pi6*Dcr**3
-      
+         
       IF (Mgr < Mth .OR. Mgr > Mcr) WRITE(*,*) 'ICE SHAPE VAARIN', Dth, Dgr, Dcr
       
       IF ( Mtot < Mth ) THEN
@@ -49,13 +64,13 @@ MODULE mo_ice_shape
          getDiameter = D_spherical(spec%rhoic,Mtot)         
       ELSE IF (Mtot >= Mth .AND. Mtot < Mgr) THEN
          ! Dense non-spherical
-         getDiameter = D_nonsphericalIce(Fr,Mtot)
+         getDiameter = D_nonsphericalIce(Mtot)
       ELSE IF (Mtot >= Mgr .AND. Mtot < Mcr) THEN
          ! Graupel
          getDiameter = D_spherical(rho_b,Mtot)
       ELSE IF (Mtot > Mcr) THEN
          ! Partially rimed crystals
-         getDiameter = D_nonsphericalIce(Fr,Mtot)
+         getDiameter = D_nonsphericalRimed(Fr,Mtot)
       ELSE
          WRITE(*,*) 'ICE SHAPE VAARIN 2'
       END IF
@@ -97,13 +112,23 @@ MODULE mo_ice_shape
     ! Get the diameter (~maximum particle dimension) of non-spherical
     ! ice particles using the coefficients for an m-D relationship.
     !
-    REAL FUNCTION D_nonsphericalIce(Fr,mass)
+    REAL FUNCTION D_nonsphericalIce(mass)
+      REAL, INTENT(in) :: mass
+      D_nonsphericalIce = ( mass/iceShapeAlpha )**(1./iceShapeBeta)
+    END FUNCTION D_nonsphericalIce
+    !
+    !-------------------------------------------------------------
+    ! Function D_nonsphericalRimed
+    ! Same as above but for large rimed particles
+    !
+    REAL FUNCTION D_nonsphericalRimed(Fr,mass)
       REAL, INTENT(in) :: Fr
       REAL, INTENT(in) :: mass
       REAL :: hlp
       hlp = 1./(1.-Fr)
-      D_nonsphericalIce = ( mass/(hlp*alpha) )**(1./beta)
-    END FUNCTION D_nonsphericalIce
+      D_nonsphericalRimed = ( mass/(hlp*iceShapeAlpha) )**(1./iceShapeBeta)
+    END FUNCTION D_nonsphericalRimed
+      
     !
     !-------------------------------------------------------------
     ! Function D_spherical
@@ -116,5 +141,46 @@ MODULE mo_ice_shape
       D_spherical = ( mass/(pi6*rho) )**(1./3.)      
     END FUNCTION D_spherical
       
+    ! --------------------------
+
+    SUBROUTINE getShapeCoefficients(ishape,mpri,mrim,numc)
+      TYPE(t_shape_coeffs), INTENT(out) :: ishape
+      REAL, INTENT(in) :: mpri, mrim
+      REAL, INTENT(in) :: numc
       
+      REAL :: Mtot,     &
+              Dth,Mth,      &
+              Dgr,Mgr,      &
+              Dcr,Mcr,      &
+              rho_b,    &
+              Fr
+
+      ! Initially, set values for spherical
+      ishape%alpha = pi6*spec%rhoic
+      ishape%beta = 3.
+      ishape%gamma = pi/4.
+      ishape%sigma = 2.      
+      
+      IF (numc < 1.e-6) RETURN
+                 
+      Mtot = ( mpri + mrim )/numc
+      
+      Fr = MAX( MIN(mrim/(Mtot*numc),0.99),0.01 )
+      rho_b = getBulkRho(Fr)  ! "almost" like graupel density...
+      Dth = (pi6*spec%rhoic/iceShapeAlpha)**(1./(iceShapeBeta-3.))
+      Dgr = (iceShapeAlpha/(pi6*rho_b))**(1./(3.-iceShapeBeta))
+      Dcr = ( (1./(1.-Fr))*iceShapeAlpha/(pi6*rho_b) )**(1./(3.-iceShapeBeta))
+      Mth = spec%rhoic*pi6*Dth**3
+      Mgr = rho_b*pi6*Dgr**3
+      Mcr = rho_b*pi6*Dcr**3
+
+      ! Modify values for non-spherical particles
+      IF ( (Mtot >= Mth .AND. Mtot < Mgr) .OR. (Mtot > Mcr) ) THEN
+         ishape%alpha = iceShapeAlpha; ishape%beta = iceShapeBeta
+         ishape%gamma = iceShapeGamma; ishape%sigma = iceShapeSigma         
+      END IF
+      
+    END SUBROUTINE getShapeCoefficients
+
+    
 END MODULE mo_ice_shape

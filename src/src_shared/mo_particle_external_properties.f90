@@ -1,6 +1,8 @@
 MODULE mo_particle_external_properties
   USE mo_submctl, ONLY : pi6, eps, rg, surfw0, grav, spec
   USE classSection, ONLY : Section
+  USE util, ONLY : getBinMassArray
+  USE mo_ice_shape, ONLY : getDiameter, t_shape_coeffs
   IMPLICIT NONE
 
   ! This module contains a collection of function to calculate physical and thermodynamical particle properties,
@@ -13,20 +15,23 @@ MODULE mo_particle_external_properties
     !     Tomi Raatikainen (2.5.2017)
     !     - Changed from radius to diameter since ~the rest of the model
     !       as well as the calculations below take diameter anyway! -Juha
-    REAL FUNCTION terminal_vel(diam,rhop,rhoa,visc,beta,flag)
+    REAL FUNCTION terminal_vel(diam,rhop,rhoa,visc,beta,flag,shape,dnsp)
       IMPLICIT NONE
-      REAL, INTENT(in) :: diam, rhop ! Particle diameter and density
+      REAL, INTENT(in) :: diam,  &      ! Particle diameter; for ice this should be the spherical equivalent diameter
+                          rhop          ! Bulk density of particle
       REAL, INTENT(in) :: rhoa, visc, beta ! Air density, viscocity and Cunningham correction factor
       INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4)
+      TYPE(t_shape_coeffs), INTENT(in), OPTIONAL :: shape ! Shape coefficients needed for ice
+      REAL, INTENT(in), OPTIONAL :: dnsp                  ! Maximum diameter of non-spherical ice particle
+
       ! Constants
       REAL, PARAMETER :: rhoa_ref = 1.225 ! reference air density (kg/m^3)
-      REAL, PARAMETER :: delta0 = 9.06, C0 = 0.292, Dcr = 134.e-6 ! Khvorostyanov and Curry 2002
-      REAL, PARAMETER :: are = 1.85                               ! Khvorostyanov and Curry 2002
-      REAL :: Avr, Bv
-      
-      
+
+      REAL :: Vb, Ap   ! Bulk volume, cross sectional area (should revise Ap for nonspherical ice!!!)
+      REAL :: X     ! Best number
+           
       terminal_vel = 0.
-      IF( ANY(flag == [1,2,3,4])) THEN
+      IF( ANY(flag == [1,2,3])) THEN
          ! Aerosol and cloud and rain droplets
          IF (diam<80.0e-6) THEN
             ! Stokes law with Cunningham slip correction factor
@@ -42,23 +47,75 @@ MODULE mo_particle_external_properties
             terminal_vel = 2.01e2*SQRT( MIN(diam/2.,2.0e-3)*rhoa_ref/rhoa )
          END IF
       ELSE IF (flag==4) THEN   ! Ice
-         
-         ! Khvorostyanov and Curry 2002
-         IF (diam < Dcr) THEN
-            Avr = 16.*rhop*grav / ( 3.*C0*rhoa*visc*delta0**2 )
-            Bv = 2.
-         ELSE IF (diam > Dcr) THEN
-            Avr = SQRT(2.) * are * SQRT( 4.*rhop*grav / ( 3.*rhoa ) )
-            Bv = 0.5
-         END IF
 
-         terminal_vel = Avr * (0.5*diam)**Bv
-         
-         !! Ice crystal terminal fall speed from Ovchinnikov et al. (2014)
-         !terminal_vel = 12.0*SQRT(diam)
+         ! Khvorostyanov and Curry 2002
+         Vb = pi6*diam**3     ! Bulk volume of the particle obtained from spherical equivalent diameter
+         Ap = shape%gamma*dnsp**shape%sigma
+         X = ( 2. * Vb * (rhop - rhoa) * grav * dnsp**2 ) /  &
+             ( Ap * rhoa * visc**2 )
+         terminal_vel = kcVt(shape,dnsp,X,visc,rhoa) 
+                  
       END IF
 
     END FUNCTION terminal_vel
+    !--
+    REAL FUNCTION kc1213(X)
+      ! Calculate the term needed in 2.12 and 2.13 in Khvorostyanov and Curry 2002
+      REAL, INTENT(in) :: X
+      REAL, PARAMETER :: c1 = 0.0902 !(KC2002)
+      kc1213 = SQRT(1. + c1*SQRT(X))      
+    END FUNCTION kc1213
+    !--
+    REAL FUNCTION kcbre(X)
+      ! b_Re from 2.12 in KC2002
+      REAL, INTENT(in) :: X
+      REAL, PARAMETER :: c1 = 0.0902 !(KC2002)
+      kcbre = 0.5 * c1 * SQRT(X)
+      kcbre = kcbre / ( kc1213(X) - 1. )
+      kcbre = kcbre / kc1213(X)
+    END FUNCTION kcbre
+    !--
+    REAL FUNCTION kcare(X)
+      ! a_Re from 2.13 in KC2002
+      REAL, INTENT(in) :: X
+      REAL, PARAMETER :: delta0 = 9.06, c1 = 0.0902 !(KC2002)
+      REAL :: bre
+      bre = kcbre(X)
+      kcare = 0.25*delta0**2
+      kcare = kcare * (kc1213(X) - 1.)**2
+      kcare = kcare / (X**bre)
+    END FUNCTION kcare
+    !--
+    REAL FUNCTION kcAv(shape,X,visc,rhoa)
+      ! 2.24 from KC2002
+      TYPE(t_shape_coeffs), INTENT(in) :: shape
+      REAL, INTENT(in) :: X,visc, rhoa
+      REAL :: are, bre
+      are = kcare(X)
+      bre = kcbre(X)      
+      kcAv = are * visc**(1.-2.*bre)
+      kcAv = kcAv * ( (2.*shape%alpha*grav)/(rhoa*shape%gamma) )**bre      
+    END FUNCTION kcAv
+    !--
+    REAL FUNCTION kcBv(shape,X)
+      ! 2.25 from KC2002
+      TYPE(t_shape_coeffs), INTENT(in) :: shape
+      REAL, INTENT(in) :: X
+      REAL :: bre
+      bre = kcbre(X)
+      kcBv = bre * (shape%beta - shape%sigma + 2.) - 1.
+    END FUNCTION kcBv
+    !--
+    REAL FUNCTION kcVt(shape,D,X,visc,rhoa)
+      ! 2.23 from KC2002
+      TYPE(t_shape_coeffs), INTENT(in) :: shape
+      REAL, INTENT(in) :: D, X, visc, rhoa     
+      REAL :: Av, Bv      
+      Av = kcAv(shape,X,visc,rhoa)
+      Bv = kcBv(shape,X)
+      kcVt = Av * D**Bv
+    END FUNCTION kcVt
+      
     
     !
     ! Function for calculating effective (wet) radius for any particle type
@@ -69,9 +126,6 @@ MODULE mo_particle_external_properties
     ! and capacitance (condensation). Otherwise spherical assumed. This function is overloaded for LES and SALSA environments.
     !
     FUNCTION calcDiamLES(ns,numc,mass,flag,sph)
-      USE util, ONLY : getBinMassArray
-      USE mo_ice_shape, ONLY : getDiameter
-      USE mo_submctl, ONLY : pi6
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: ns ! Number of species
       INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3) and ice (4) particle phases

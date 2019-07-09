@@ -17,7 +17,7 @@ MODULE mo_salsa_init
                          nbins, ncld, nprc, bloPrc, nice, bloIce, ntotal, nliquid, nfrozen,              &
                          dlaero, dlcloud, dlprecp, dlice, & 
                          aerobins,cloudbins,precpbins,icebins, & 
-                         spec, nspec_dry, listspec, nlim, prlim, massacc, pi6 
+                         spec, nspec_dry, listspec, nlim, prlim, massacc, pi6, lsFreeTheta, initMinTheta
 
   USE mo_salsa_types, ONLY : aero, cloud, precp, ice,         &
                              allSALSA, frozen, liquid,        &
@@ -29,6 +29,8 @@ MODULE mo_salsa_init
                              
   USE mo_salsa_optical_properties, ONLY : initialize_optical_properties
 
+
+  
   IMPLICIT NONE
    
 CONTAINS
@@ -483,6 +485,7 @@ CONTAINS
                              fixINC,                      &
                              ice_hom, ice_imm, ice_dep,   &
                              ice_theta_dist,              &
+                             lsfreeTheta, initMinTheta,   &
 
                              bloPrc,                      &                            
                              nbin,reglim,                 &
@@ -493,6 +496,11 @@ CONTAINS
                              sigmagB,dpgB,nB,             &
                              lsfreeRH,rhlim
 
+      USE mo_ice_shape, ONLY : iceShapeAlpha, iceShapeBeta,   &
+                               iceShapeGamma, iceShapeSigma
+      USE mo_salsa_cloud_ice_SE, ONLY : mean_theta, sigma_theta
+
+      
       IMPLICIT NONE
 
     INTEGER, INTENT(in) :: level
@@ -531,6 +539,14 @@ CONTAINS
          ice_imm,     &    ! .. for immersio freezing
          ice_dep,     &    ! .. for deposition freezing
          ice_theta_dist, & ! contact angle distributions
+         lsfreeTheta,    & ! Switch for using initMinTheta
+         initMinTheta,   & ! Initial minimum theta for initialization and spinup
+         mean_theta,     & ! Mean of the contact angle distribution
+         sigma_theta,    & ! standard deviation of the contact angle distribution
+         iceShapeAlpha,  & ! m = ALPHA* D ** beta
+         iceShapeBeta,   & ! m = alpha* D ** BETA
+         iceShapeGamma,  & ! A = GAMMA* D ** sigma
+         iceShapeSigma,  & ! A = gamma* D ** SIGMA
          
          bloPrc,      & ! Precipitation bin definitions
          bloIce,      & ! Ice bin definitions
@@ -612,6 +628,7 @@ CONTAINS
 
      ! Use this to initialize also some other switches
      lsfreeRH = ProcessSwitch()
+     lsfreeTheta = ProcessSwitch()
 
    END SUBROUTINE associate_master_switches
 

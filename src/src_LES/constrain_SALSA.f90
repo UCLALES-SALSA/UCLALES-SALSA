@@ -5,6 +5,7 @@ MODULE constrain_SALSA
   USE mo_diag_state, ONLY : a_rc, a_srp, a_snrp, a_rh, a_temp, a_ri, a_riri, a_rhi
   USE mo_aux_state, ONLY : aetot
   USE mo_submctl, ONLY : spec, nlim, prlim, ice_theta_dist
+  USE grid, ONLY : level
   USE mo_structured_datatypes
   IMPLICIT NONE
 
@@ -27,7 +28,7 @@ MODULE constrain_SALSA
       END DO
       varp => NULL(); vart => NULL()
 
-      IF (ice_theta_dist)   &
+      IF (ice_theta_dist .AND. level > 4)   &
            a_indefp%d(:,:,:,:) = MIN( MAX( a_indefp%d(:,:,:,:),0. ),1. )
       
    END SUBROUTINE tend_constrain2

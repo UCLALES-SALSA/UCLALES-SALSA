@@ -15,10 +15,10 @@
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
 IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
-EXPNAME="sizedist"  # Name of the experiment
+EXPNAME="testi"  # Name of the experiment
 
-NPROCS=2          # Number of processors (for IsSeq==0)
-TWALL=8:00:00      # Required wallclock time for batch system
+NPROCS=1          # Number of processors (for IsSeq==0)
+TWALL=72:00:00      # Required wallclock time for batch system
 
 NXP=100               # Number of points in X-direction (including "halo" points)
 NYP=5              # Number of points in Y-direction (including "halo" points)
@@ -27,9 +27,9 @@ DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
 DZ=10.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=7200.        # Length of the spinup period (seconds)
+Tspinup=100.        # Length of the spinup period (seconds)
 Texp=28800.         # Length of the experiment (seconds)
-LEVEL=5             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 
 # FOR SALSA
 ISDTYP=0            # 0: Aerosol size distribution from namelist (uniform across domain),
@@ -83,21 +83,21 @@ cat > NAMELIST <<EOF
   dzmax  = 1500.              ! Height above which start stretching vertical grid
   dzrat  = 1.0                ! Factor for vertical grid stretching
   dtlong = ${DT}              ! Max. timestep
-  distim = 300.               ! Timescale for the dissipation in sponge layer
+  distim = 100.               ! Timescale for the dissipation in sponge layer
   timmax = ${Texp}            ! Length of the simulation
   runtype = "INITIAL"         ! INITIAL or HISTORY (restart) run
   CCN = 50.e6                ! 
   corflg = .false.            ! Apply coriolis force
-  prndtl = -0.4         !
+  prndtl = -0.333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
   hfilin = '${EXPNAME}.000020s' ! History file name
   frqhis = 7200.
   lbinanl = .TRUE.           ! Write binned microphysical output (with level >= 4)
-  lsalsabbins = .FALSE.  
+  lsalsabbins = .TRUE.  
   !mcflg = .FALSE.             ! Do mass conservation statistics
 
   sed_aero%switch = .FALSE.          ! Calculate sedimentation of aerosol particles
-  sed_cloud%switch = .FALSE.          ! - '' - cloud droplets
+  sed_cloud%switch = .TRUE.          ! - '' - cloud droplets
   sed_cloud%delay = ${Tspinup}
   sed_precp%switch = .TRUE.          ! precipitation
   sed_precp%delay = ${Tspinup}  
@@ -105,25 +105,27 @@ cat > NAMELIST <<EOF
   bulk_autoc%switch = .FALSE.
   bulk_autoc%delay = ${Tspinup}      ! Autoconversion switch for level = 1-3
 
-  lnudging = .TRUE.           ! Master swtich for nudging scheme
-  lemission = .FALSE.          ! Master switch for aerosol emissions  
+  lnudging = .FALSE.           ! Master swtich for nudging scheme
+  lemission = .TRUE.          ! Master switch for aerosol emissions  
   iradtyp = 3                 ! Radiation/large scale forcing
-  strtim = 240.1               ! Start time
+  strtim = 215.167               ! Start time
   case_name = 'default'       ! Case name for large-scale forcing schemes
-  div = 1.e-6               ! Large-scale divergence
-  cntlat = 65.0
+  div = 3.7e-6               ! Large-scale divergence
+  cntlat = 37.0
 /
 
 ! -----------------------------------------------------------------------------------
 
 &output
-  breakUndefOutput = .TRUE.
+  breakUndefOutput = .FALSE.
   ps_intvl = 5.
   ts_intvl = 5.
-  main_intvl = 5.
-  varlist_main = 'Dwia','Dwpa','Ni','Np','sfcirate','sfcrrate', 'Dwaba', 'Dwabb', 'Dwcba', 'Dwcbb', 'Dwpba', 'Dwiba'
-  varlist_ps = 'temp','theta','rrate'
-  varlist_ts = 'lwp_bar','cfrac'
+  main_intvl = 10.
+  varlist_main = 'temp','theta','wwind','uwind','vwind','rp','srp',
+                 'rc','rh','Naa','Nab','Nca','Ncb','Np','rrate',
+                 'Dwcba','VtIce'
+  varlist_ps = 
+  varlist_ts = 
 /
 
 ! -----------------------------------------------------------------------------------
@@ -133,10 +135,10 @@ cat > NAMELIST <<EOF
   bubble_center     = 1000.,0.,0.
   bubble_diameter   = 1500.,6000.,6000.
   bubble_temp_ampl  = 1.5
-  th00              = 265.    ! Reference temperature
-  umean             = -7.                
+  th00              = 300.    ! Reference temperature
+  umean             = 0.                
   vmean             = 0.
-  itsflg            = 1       ! Flag for temperature type in input sounding
+  itsflg            = 0       ! Flag for temperature type in input sounding
   ipsflg            = 1       ! - '' - for pressure
 /
 
@@ -146,14 +148,14 @@ cat > NAMELIST <<EOF
   isfctyp           = 0
   zrough            = 0.0004
   ubmin             = -0.25
-  sst               = 285.
-  dthcon            = 100.
-  drtcon            = 0.
+  sst               = 288.
+  dthcon            = 16.
+  drtcon            = 93.
   C_heat            = 2.e6
-  deepSoilTemp      = 285.
-  W1                = 0.9
-  W2                = 0.9
-  W3                = 0.9
+  deepSoilTemp      = 288.
+  W1                = 0.2
+  W2                = 0.2
+  W3                = 0.2
   lConstSoilWater   = .FALSE.
   lConstSoilHeatCap = .TRUE. 
 /
@@ -161,8 +163,8 @@ cat > NAMELIST <<EOF
 ! ------------------------------------------------------------------------------------
 
 &radiation
-  radsounding = 'datafiles/ksaw.lay'  
-  sfc_albedo = 0.4
+  radsounding = 'datafiles/ksas.lay'  
+  sfc_albedo = 0.2
   laerorad = .FALSE. 
   useMcICA = .TRUE.
 /
@@ -174,9 +176,9 @@ cat > NAMELIST <<EOF
   nudge_time = 7200.          ! Overall time for nudging from the start of the simulation
   ndg_theta%nudgetype = 1
   ndg_theta%tau_type = 2      ! Type of relaxation time (0:constant, 1-3: increasing)
-  ndg_theta%tau_min = 60.    ! Min relaxation time (with tau_type=1-3 and constant tau)
+  ndg_theta%tau_min = 300.    ! Min relaxation time (with tau_type=1-3 and constant tau)
   ndg_theta%tau_max = 3600.   ! Max relaxation time (with tau_type=1-3)
-  ndg_theta%tau_max_continue = .FALSE.
+  ndg_theta%tau_max_continue = .TRUE.
 /
 
 ! ---------------------------------------------------------------------------------------
@@ -186,45 +188,46 @@ cat > NAMELIST <<EOF
 
   nEmissionModes = 2
 
+  !emitModes(1)%emitType = 3
+  !emitModes(1)%regime = 2
+  !emitModes(1)%start_time = 200.
+  !emitModes(1)%end_time = 7201.
+  !emitModes(1)%species = "SS"
+  !emitModes(1)%emitHeightMin = 600.
+  !emitModes(1)%emitHeightMax = 650.
+  !emitModes(1)%emitSizeDistType = 2
+  !emitModes(1)%emitDiam = 0.6e-6
+  !emitModes(1)%emitNum = 10.5e7
+  !emitModes(1)%emitSigma = 1.1
+  !emitModes(1)%emitMap = 'emitMap_1'
+  !emitModes(1)%scS = 60.
+  !emitModes(1)%z_expan_up = 3
+  !emitModes(1)%z_expan_dw = 2
+
   emitModes(1)%emitType = 2
   emitModes(1)%regime = 2
-  emitModes(1)%start_time = 7200.
-  emitModes(1)%end_time = 7201.
+  emitModes(1)%start_time = 200.
+  emitModes(1)%end_time = 201.
   emitModes(1)%species = "SS"
-  emitModes(1)%emitHeightMin = 600.
-  emitModes(1)%emitHeightMax = 650.
+  emitModes(1)%emitHeightMin = 550.
+  emitModes(1)%emitHeightMax = 600.
   emitModes(1)%emitSizeDistType = 2
-  emitModes(1)%emitDiam = 1.1e-6
-  emitModes(1)%emitNum = 0.5e4
-  emitModes(1)%emitSigma = 1.5
+  emitModes(1)%emitDiam = 1.5e-6
+  emitModes(1)%emitNum = 0.5e6
+  emitModes(1)%emitSigma = 1.3
 
   emitModes(2)%emitType = 2
   emitModes(2)%regime = 2
-  emitModes(2)%start_time = 7200.
-  emitModes(2)%end_time = 7201.
+  emitModes(2)%start_time = 200.
+  emitModes(2)%end_time = 201.
   emitModes(2)%species = "SS"
-  emitModes(2)%emitHeightMin = 600.
-  emitModes(2)%emitHeightMax = 650.
+  emitModes(2)%emitHeightMin = 550.
+  emitModes(2)%emitHeightMax = 600.
   emitModes(2)%emitSizeDistType = 2
-  emitModes(2)%emitDiam = 4.0e-6
-  emitModes(2)%emitNum = 0.6e4
-  emitModes(2)%emitSigma = 2.
+  emitModes(2)%emitDiam = 8.0e-6
+  emitModes(2)%emitNum = 0.5e6
+  emitModes(2)%emitSigma = 1.6
 
-  emitModes(3)%emitType = 3
-  emitModes(3)%regime = 2
-  emitModes(3)%start_time = 21600.
-  emitModes(3)%end_time = 11000.
-  emitModes(3)%species = "SS"
-  emitModes(3)%emitHeightMin = 600.
-  emitModes(3)%emitHeightMax = 650.
-  emitModes(3)%emitSizeDistType = 2
-  emitModes(3)%emitDiam = 0.6e-6
-  emitModes(3)%emitNum = 10.5e6
-  emitModes(3)%emitSigma = 1.1
-  emitModes(3)%emitMap = 'datafiles/emitMap_1'
-  emitModes(3)%scS = 60.                        ! source velocity
-  emitModes(3)%z_expan_up = 3
-  emitModes(3)%z_expan_dw = 2
 
 /
 
@@ -233,6 +236,8 @@ cat > NAMELIST <<EOF
  ! With level >= 4
 &salsa	
 
+
+   ! Master process switches
    lscoag%switch = .TRUE.
    lscoag%delay = ${Tspinup}
 
@@ -246,33 +251,56 @@ cat > NAMELIST <<EOF
    lsactiv%mode = 1   ! 1: aerosol growth based activation, 2: parameterized cloud base activation
 
    lsicenucl%switch = .TRUE.
-   lsicenucl%delay = 3600.
+   lsicenucl%delay = 100.
 
    lsicemelt%switch = .TRUE.
 
+   ! Sub-process switches: Coagulation
    lscgcc = .TRUE.       ! Self-collection of cloud droplets
    lscgpp = .TRUE.       ! Self-collection of rain drops
    lscgpc = .TRUE.       ! Rain collection of cloud droplets
    lscgaa = .FALSE.       ! Aerosol coagulation
    lscgca = .FALSE.       ! Cloud collection of aerosols
-   lscgpa = .FALSE.       ! Rain collection of aerosols
-   lscgia = .FALSE.       ! Ice collection of aerosols
+   lscgpa = .TRUE.       ! Rain collection of aerosols
+   lscgia = .TRUE.       ! Ice collection of aerosols
    lscgic = .TRUE.       ! Ice collection of cloud droplets
    lscgii = .TRUE.       ! Self-collection of ice
    lscgip = .TRUE.       ! Ice collection of rain drops
 
+   ! Sub-process switches: Condensation
    lscndgas    = .FALSE.  ! --Aerosol precursor gas codensation
    lscndh2oae  = .TRUE.  ! --Condensation of water on aerosols (if FALSE, equilibrium assumed)
    lscndh2ocl  = .TRUE.  ! --Condensation of water on cloud droplets (and drizzle)
    lscndh2oic  = .TRUE.  ! --Condensation of water on ice particles
 
+   ! Sub-process switches: Ice nucleation
    ice_hom     = .TRUE.
    ice_imm     = .TRUE.
    ice_dep     = .TRUE.
    ice_theta_dist = .TRUE.
 
+   ! Misc switches
    lscheckarrays = .FALSE.
    lsdistupdate = .TRUE.
+
+   ! Some useful switches for spinup and initilization
+   lsfreeRH%switch = .TRUE.       ! Use freely evolving RH. If FALSE, RH is limited by rhlim through entire simulation
+   lsfreeRH%delay = ${Tspinup}    ! Time until which RH is limited by rhlim, in case lsfreeRH%swithc == TRUE
+   rhlim = 1.005                  ! RH limit for SALSA during initialization and spinup
+
+   lsfreeTheta%switch = .TRUE.    ! Use freely evolving lower limit in contact angle integration for ice nucleation
+   lsfreeTheta%delay = 0.         ! Time until which lower limit theta is set to be at least initMinTheta, in case lsfreeTheta%switch == TRUE
+   initMinTheta = 0.             ! Lower limit for contact angle integration in degrees for initialization and spinup
+   
+   ! Parameters for ice nucleation contact angle distributions (used with ice_theta_dist == TRUE)
+   mean_theta = 132.    ! Distribution mean
+   sigma_theta = 20.    ! Standard deviation
+
+   ! m-D and A-D parameters for non-spherical ice
+   iceShapeAlpha = 15.56999e-3   ! m = ALPHA * D**beta
+   iceShapeBeta = 2.02           ! m = alpha * D**BETA
+   iceShapeGamma = 0.55          ! A = GAMMA * D**sigma
+   iceShapeSigma = 1.97          ! A = gamma * D**SIGMA
 
    ! Precipitation bin layout parameters
    bloPrc%nbins     = 20        ! Number of bins
@@ -284,23 +312,20 @@ cat > NAMELIST <<EOF
    bloIce%dlo       = 2.e-6    ! Lower limit of the smallest bin
    bloIce%vol_ratio = 3.        ! Volume ratio between bins
 
-   lsfreeRH%switch = .TRUE.
-   lsfreeRH%delay = ${Tspinup}
-   rhlim = 1.005          ! RH limit for SALSA during initialization and spinup
-
+   ! Initial aerosol size distributions
    nspec_dry = 2
-   listspec = 'SO4','DU','','','','',''
+   listspec = 'SO4','SS','','','','',''
 
    isdtyp = ${ISDTYP}
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
-   volDistA = 0.8, 0.2, 0.0, 0.0, 0.0, 0.0, 0.0
+   volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)  
-   sigmagA  = 1.5, 2.45, 1.5, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
-   dpgA     = 0.2, 0.7, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nA       = 159., 6.5, 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
+   sigmagA  = 1.2, 1.7, 2.0, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
+   dpgA     = 0.022, 0.12, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
+   nA       = 400., 400., 0.5, 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
-   volDistB = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+   volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)
    sigmagB  = 1.2, 1.7, 1.6, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform) 
    dpgB     = 0.022, 0.12, 1.8, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers

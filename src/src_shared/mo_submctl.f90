@@ -49,18 +49,24 @@ MODULE mo_submctl
   LOGICAL :: ice_hom = .FALSE.        ! Homogeneous freezing
   LOGICAL :: ice_imm = .FALSE.        ! Immersion freezing
   LOGICAL :: ice_dep = .FALSE.        ! Deposition freezing
-  LOGICAL :: ice_theta_dist = .TRUE.  ! Use contact angle distributions for heterogeneous nucleation
-                                      ! processes according to Savre and Ekman (2015)
+
+  ! Contact angle distribution for ice nucleation:
+  ! Use contact angle distributions for heterogeneous nucleation
+  ! processes according to Savre and Ekman (2015).
+  ! initMinTheta is used to specify a minimum contact angle for the entire IN population
+  ! during initial stages of the simulation. The period when initMinTheta is applied
+  ! is from model initialization to ice_theta_dist%delay (in seconds)
+  LOGICAL :: ice_theta_dist = .TRUE.
+  TYPE(ProcessSwitch) :: lsFreeTheta
+  REAL :: initMinTheta = 0.
   
-  LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
+  LOGICAL :: lsdistupdate = .TRUE.    ! Perform the size distribution update
+  LOGICAL :: lscheckarrays = .FALSE.  ! Do some primitive error checking in the SALSA main program
 
-  LOGICAL :: lscheckarrays = .FALSE.
-
-  TYPE(ProcessSwitch) :: lsfreeRH   ! If FALSE, use RH constrained by *rhlim* for SALSA processes. Otherwise use the predicted value.
-                                    ! If lsfreeRH%delay > 0, the constrain is active until that time.
-  ! RH Limit: used for initialization and spinup within SALSA to limit the water vapour mixing ratio.
-  ! Prevents unrealistically high RH in cloud activation and condensation procedures that is often assigned
-  ! in the LES input files to immediately generate cloud. Given in %/100.
+  ! RH Limit:
+  ! If lsfreeRH=FALSE, use RH constrained by *rhlim* for SALSA processes. Otherwise use the predicted value.
+  ! If lsfreeTH=TRUE and lsfreeRH%delay > 0, the constrain is active until that time, and predicted rh is used after the delay time.
+  TYPE(ProcessSwitch) :: lsfreeRH   
   REAL :: rhlim = 1.20
 
   ! 1) Switches for aerosol microphysical processes ------------------------

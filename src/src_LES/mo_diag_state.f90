@@ -2,12 +2,13 @@ MODULE mo_diag_state
   USE util, ONLY : Extend_last
   USE classFieldArray
   USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray2d, FloatArray3d, FloatArray4d
+  USE mo_submctl, ONLY : nprc, nice
   IMPLICIT NONE
 
   SAVE
   
   !
-  ! Mandatory diagnostic quantities
+  ! Mandatory diagnostic quantities (stored)
   !
   TYPE(FloatArray3D), TARGET :: a_theta  ! 1: dry potential temp (k)
   TYPE(FloatArray3D), TARGET :: a_temp   ! 2: Absolute temperature (K)
@@ -32,6 +33,12 @@ MODULE mo_diag_state
 
   REAL, ALLOCATABLE, TARGET :: a_diag3d(:,:,:,:) 
   INTEGER, PARAMETER :: ndiag3d = 23   ! Remember to update if adding new variables!!
+
+  !
+  ! Binned diagnostic variables mainly for output
+  !
+  TYPE(FloatArray4d), TARGET :: d_VtPrc, d_VtIce ! Precipitation and ice terminal fall velocities
+  REAL, ALLOCATABLE, TARGET :: d_binned(:,:,:,:)
   
   !
   ! Two dimensional variables that need to be stored during the timestep
@@ -73,16 +80,17 @@ MODULE mo_diag_state
 
   REAL, ALLOCATABLE, TARGET :: a_rateDiag3d(:,:,:,:)
   INTEGER, PARAMETER :: nratediag3d = 13 ! Remember to update if adding new variables!!
-
+  
   CONTAINS
 
     SUBROUTINE setDiagnosticVariables(Diag,outputlist,memsize,level,iradtyp,nzp,nxp,nyp)
       TYPE(FieldArray), INTENT(inout) :: Diag
       CHARACTER(len=*), INTENT(in) :: outputlist(:)
       INTEGER, INTENT(inout) :: memsize
-      INTEGER, INTENT(in) :: level, iradtyp, nzp,nxp,nyp      
+      INTEGER, INTENT(in) :: level, iradtyp, nzp,nxp,nyp
       CLASS(*), POINTER :: pipeline => NULL()
-      INTEGER :: nxyz, nxy, n2d,n3d,n3dr
+      INTEGER :: nxyz, nxy, n2d,n3d,n3dr,n4db
+      INTEGER :: nbinned
 
       nxyz = nxp*nyp*nzp
       nxy = nxp*nyp
@@ -90,11 +98,15 @@ MODULE mo_diag_state
       n3d = 0
       n3dr = 0
       n2d = 0
-      
+            
       ALLOCATE(a_diag3d(nzp,nxp,nyp,ndiag3d))
       ALLOCATE(a_diag2d(nxp,nyp,ndiag2d))
       ALLOCATE(a_rateDiag3d(nzp,nxp,nyp,nratediag3d))
-
+      nbinned = 0
+      IF ( level >= 4) nbinned = nbinned + nprc
+      IF ( level > 4) nbinned = nbinned + nice
+      ALLOCATE(d_binned(nzp,nxp,nyp,nbinned))
+      
       a_diag3d = 0.
       a_diag2d = 0.
       a_rateDiag3d = 0.
@@ -488,8 +500,30 @@ MODULE mo_diag_state
       CALL Diag%newField("condi","H2O condensation rate on ice", "#/kgs", "tttt",   &
                          ANY(outputlist == "condi"), pipeline)
       
+
+      ! Binned variables
+      n4db = 1
+      IF ( level >= 4) THEN
+         pipeline => NULL()
+         d_VtPrc = FloatArray4d(d_binned(:,:,:,n4db:n4db+nprc-1))
+         pipeline => d_VtPrc
+         CALL Diag%newField("VtPrc", "Terminal fall speed of precip", "m/s", "ttttprc",   &
+                            ANY(outputlist == "VtPrc"), pipeline)
+         n4db = n4db + nprc
+      END IF
+
+      IF (level > 4) THEN
+         pipeline => NULL()
+         d_VtIce = FloatArray4d(d_binned(:,:,:,n4db:n4db+nice-1))
+         pipeline => d_VtIce
+         CALL Diag%newField("VtIce", "Terminal fall speed of ice", "m/s", "ttttice",   &
+                            ANY(outputlist == "VtIce"), pipeline)
+         n4db = n4db + nice
+      END IF
+          
       pipeline => NULL()
+
       
-    END SUBROUTINE
+    END SUBROUTINE setDiagnosticVariables
         
 END MODULE mo_diag_state

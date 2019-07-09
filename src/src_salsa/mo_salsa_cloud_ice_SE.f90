@@ -1,7 +1,7 @@
 MODULE mo_salsa_cloud_ice_SE
   USE mo_salsa_types, ONLY : liquid, ice, precp, rateDiag
   USE mo_submctl, ONLY : nliquid, ira,fra, nprc, iia, fia, nice, pi6, ice_hom, ice_dep, ice_imm, spec,  &
-                         boltz, pi, planck, rg, avog
+                         boltz, pi, planck, rg, avog, lsFreeTheta, initMinTheta
   USE util, ONLY : erfm1, f_gauss
   USE mo_particle_external_properties, ONLY : calcSweq
   USE classSection, ONLY : Section
@@ -9,14 +9,16 @@ MODULE mo_salsa_cloud_ice_SE
 
   REAL, PARAMETER, PRIVATE :: sqrt2 = SQRT(2.)
 
-  ! Should package these nicer into classSpecies or something
-  !                                                                     BC,  DU
-  REAL, PARAMETER, PRIVATE               :: thetaMeanDep(2) = [15., 15.5]
-  REAL, PARAMETER, PRIVATE               :: thetaMeanImm(2) = [140., 132.]
-  REAL, PARAMETER, PRIVATE               :: thetaSigmaDep(2) = [1.4, 1.4]
-  REAL, PARAMETER, PRIVATE               :: thetaSigmaImm(2) = [23., 20.]
-  
-  
+  ! Mean and standard deviation for the contact angle distribution
+  ! For simplicity just use one set, even though they can be very different
+  ! different IN constituents and the fits to measurements in different
+  ! nucleation modes can also be quite different. Below default values for DU
+  ! in immersion mode (in degrees) from Savre and Ekman 2015. Adjust these from the SALSA
+  ! namelist to suit different setups.
+  !
+  REAL, SAVE :: mean_theta = 132. ! mean contact angle
+  REAL, SAVE :: sigma_theta = 20.  ! STD of the contact angle distribution.
+
   ! This contains the ice nucleation paramterization procedures according
   ! to Savre and Ekman 2015
 
@@ -31,8 +33,6 @@ MODULE mo_salsa_cloud_ice_SE
     REAL :: th00(kbdim,klev,nliquid) 
     REAL :: Seq(kbdim,klev,nliquid), Si(kbdim,klev,nliquid)
     REAL :: f_dep(kbdim,klev,nliquid), f_imm(kbdim,klev,nliquid), f_hom(kbdim,klev,nliquid)
-    REAL :: thm_imm(kbdim,klev,nliquid), ths_imm(kbdim,klev,nliquid)
-    REAL :: thm_dep(kbdim,klev,nliquid), ths_dep(kbdim,klev,nliquid)
     REAL :: frac(kbdim,klev,nliquid)
     REAL :: Jhom
     
@@ -52,10 +52,7 @@ MODULE mo_salsa_cloud_ice_SE
     IF (spec%Ninsoluble > 0) THEN
 
        f_dep = 0.; f_imm = 0.; f_hom = 0.
-       
-       thm_imm = 0.; ths_imm = 0.
-       thm_dep = 0.; ths_dep = 0.
-       
+
        ibc = spec%getIndex("BC",notFoundValue=0)
        idu = spec%getIndex("DU",notFoundValue=0)
        thind = MERGE(2,1, idu > 0 )
@@ -69,13 +66,6 @@ MODULE mo_salsa_cloud_ice_SE
              DO ii = 1,kproma
                 Seq(ii,jj,kk) = calcSweq(liquid(ii,jj,kk),ptemp(ii,jj))
                 Si(ii,jj,kk) = prv(ii,jj)/prsi(ii,jj)
-                                
-                ! Determine which contact angle distribution parameters to use (depends on species, DU or BC).
-                ! This is done bin by bin. If both present in an internally mixed configuration, just use DU... <- implement this!!!
-                thm_imm(ii,jj,kk) = thetaMeanImm(thind)
-                ths_imm(ii,jj,kk) = thetaSigmaImm(thind)
-                thm_dep(ii,jj,kk) = thetaMeanDep(thind)
-                ths_dep(ii,jj,kk) = thetaSigmaDep(thind)
 
                 ! Update particle diameters for later use
                 CALL liquid(ii,jj,kk)%updateDiameter(type="all", limit=.TRUE.)                
@@ -93,15 +83,15 @@ MODULE mo_salsa_cloud_ice_SE
           END DO
        END DO
 
-       ! For now just use the immersion contact angle values for everything...
-       CALL low_theta( kproma,kbdim,klev,th00,thm_imm,ths_imm )
+       ! Update the low limit contact angle for the distribution integration
+       CALL low_theta( kproma,kbdim,klev,th00,mean_theta,sigma_theta )
 
        ! Immersion freezing
        nuc_mask(:,:,:) = ( ( liquid(:,:,:)%phase == 2 .OR. liquid(:,:,:)%phase == 3 ) .AND. &
                            ( liquid(:,:,:)%dins > dmin) .AND. ice_imm )
 
        CALL gauss_legendre( kproma, kbdim, klev, ptemp, Seq, th00,        &
-                            thm_imm, ths_imm, tstep, nuc_mask, 1, f_imm   )
+                            mean_theta, sigma_theta, tstep, nuc_mask, 1, f_imm   )
 
        ! Deposition freezing
        DO kk = 1,nliquid
@@ -111,7 +101,7 @@ MODULE mo_salsa_cloud_ice_SE
        END DO
 
        CALL gauss_legendre( kproma, kbdim, klev, ptemp, Si, th00,       &
-                            thm_imm, ths_imm, tstep, nuc_mask, 2, f_dep  )
+                            mean_theta, sigma_theta, tstep, nuc_mask, 2, f_dep  )
 
        CALL iceDiagnostics(kproma,kbdim,klev,liquid,f_imm,f_dep,f_hom)
              
@@ -131,19 +121,10 @@ MODULE mo_salsa_cloud_ice_SE
     ! Integrate the ice nucleation across contact angles using the Gauss-Legenre quadrature
     INTEGER, INTENT(in) :: kproma,kbdim,klev
     REAL, INTENT(in) :: Tk(kbdim,klev), Seq(kbdim,klev,nliquid), th00(kbdim,klev,nliquid)  !!! Note for deposition mode, Seq should be saturation w.r.t ice
-    REAL, INTENT(in) :: thm(kbdim,klev,nliquid), ths(kbdim,klev,nliquid), tstep
+    REAL, INTENT(in) :: thm, ths, tstep
     LOGICAL, INTENT(in) :: nuc_mask(kbdim,klev,nliquid)
     INTEGER, INTENT(in) :: mode   ! 1 = immersion, 2=deposition
     REAL, INTENT(out) :: frac(kbdim,klev,nliquid)   ! Fraction nucleated
-    INTERFACE
-       SUBROUTINE func(theta,Tk,Din,Seq,J)
-         REAL, INTENT(in) :: theta,    & ! Contact angle
-                             Tk,       & ! temperature in K
-                             Din,      & ! Diameter of the IN
-                             Seq         ! Equilibrium saturation ratio 
-         REAL, INTENT(out) :: J          ! Nucleation rate (per particle per sec)
-       END SUBROUTINE func
-    END INTERFACE
     
     REAL :: thmax, thmin, th1
     
@@ -191,7 +172,7 @@ MODULE mo_salsa_cloud_ice_SE
                 END IF
                    
                 IF (th1 > thmin) THEN
-                   ftheta = f_gauss(th1,ths(ii,jj,kk),thm(ii,jj,kk))
+                   ftheta = f_gauss(th1,ths,thm)
                 ELSE
                    ftheta = 0.
                 END IF
@@ -302,8 +283,6 @@ MODULE mo_salsa_cloud_ice_SE
          epsi = 0.    ! Elastic strain produced in ice embryo by the insoluble substrate
 
     REAL :: thrad, costh   ! Contact angle in radians, cosine of contact angle
-
-    WRITE(*,*) 'jdep'
     
     ! Must have a core and supersaturation over ice
     IF (Din<1e-10 .OR. Seq<1.0001) RETURN
@@ -399,7 +378,8 @@ MODULE mo_salsa_cloud_ice_SE
   SUBROUTINE low_theta(kproma,kbdim,klev,th00,thmean,thstd)
     
     INTEGER, INTENT(in) :: kproma,kbdim,klev
-    REAL, INTENT(out) :: th00(kbdim,klev,nliquid), thmean(kbdim,klev,nliquid), thstd(kbdim,klev,nliquid)
+    REAL, INTENT(in) :: thmean, thstd
+    REAL, INTENT(out) :: th00(kbdim,klev,nliquid) 
     INTEGER :: nb, ii, jj
     REAL :: indef        ! IN deficit ratio from the previous timestep
 
@@ -409,8 +389,11 @@ MODULE mo_salsa_cloud_ice_SE
        DO jj = 1,klev
           DO ii = 1,kproma
              indef = liquid(ii,jj,nb)%indef
-             th00(ii,jj,nb) = thmean(ii,jj,nb) + sqrt2*thstd(ii,jj,nb)*erfm1( 2.*indef - 1. )
+             th00(ii,jj,nb) = thmean + sqrt2*thstd*erfm1( 2.*indef - 1. )
              th00(ii,jj,nb) = MIN( MAX( th00(ii,jj,nb),0. ),180. )
+             
+             IF (.NOT. lsFreeTheta%state ) th00(ii,jj,nb) = MAX(initMinTheta,th00(ii,jj,nb))
+             
           END DO
        END DO
     END DO

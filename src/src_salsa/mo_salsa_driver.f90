@@ -453,6 +453,7 @@ CONTAINS
 
      ! Some other switches
      IF ( lsfreeRH%switch .AND. time > lsfreeRH%delay ) lsfreeRH%state = .TRUE.
+     IF ( lsFreeTheta%switch .AND. time > lsFreeTheta%delay) lsFreeTheta%state = .TRUE.
      
    END SUBROUTINE set_SALSA_runtime
 
@@ -481,14 +482,4 @@ CONTAINS
      old_cnstr%d(:) = 0.
    END FUNCTION old_cnstr
 
-   ! -----------------------------------
-
-   !SUBROUTINE fetchProcessRates()
-
-     
-     
-   !END SUBROUTINE fetchProcessRates
-   
-   
-   
 END MODULE mo_salsa_driver

@@ -209,7 +209,7 @@ MODULE emission_main
             ind = i_str+j-1
             a_naerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) = &
                  a_naerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) + edt%numc(bb) * dt
-            DO ss = 1,spec%getNSpec()
+            DO ss = 1,spec%getNSpec(type="wet")
                mm = getMassIndex(nbins,bb,ss)
                a_maerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),mm) = &
                     a_maerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),mm) + edt%mass(mm) * dt
