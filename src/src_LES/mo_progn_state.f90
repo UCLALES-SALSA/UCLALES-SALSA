@@ -251,7 +251,7 @@ MODULE mo_progn_state
          a_gaerot = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+5-1))
          pipeline_p => a_gaerop
          pipeline_t => a_gaerot
-         CALL Prog%newField( "gaero","Binned ice number concentration",    &
+         CALL Prog%newField( "gaero","Aerosol precursor gas concentrations",    &
                              "#/kg", "N/A", .FALSE.,                       &
                              pipeline_p, in_t_data = pipeline_t,           &
                              in_group = ["SALSA_4d"]                       &

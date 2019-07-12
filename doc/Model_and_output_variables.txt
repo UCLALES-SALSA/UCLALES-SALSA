@@ -1,0 +1,353 @@
+
+
+1. Datatypes
+----------------------
+
+All LES variables are now instances of FloatArray1-4D datatypes, defined in src_LES/mo_structured_datatypes.
+This enables automatic organization of output status and associated properties. Note that this only applies to
+the LES side of UCLALES-SALSA: SALSA variables remain with their own datatypes and the switch between the two
+is done in src_salsa/mo_salsa_driver.f90 as usual.
+
+The FloatArray types have two modes of operation
+1) The pointer type bound variable "d" is associated with a master data array (e.g. a_sclrp in the original LES)
+   so the data of a variable inside the LES is accessed by e.g. a_tp%d(:,:,:).
+
+2) For strictly output diagnostic variables (i.e. only needed for writing output), the type bound pointer "d" can
+   be left unaasociated, i.e. no data is stored for a variable. Instead, the type bound procedure pointer "onDemand"
+   found in the FloatArray types can be associated with a function that calculates the values only when needed,
+   typically (and currently only) when writing the output. Note that all the onDemand functions need to have
+   identical interface for all variables in each dimension layout. For different dimension layouts the interface
+   may be different. Just see how it's done in src_IO/mo_output.f90.
+
+Upon declaration, the variables are also associated with a FieldArray class instance, which are basically lists of
+variables, holding their data, names, output status, and other attributes mostly needed for output. The operation
+modes and details and locations of declaration for all currently available model variables are listed in the next
+section, just take a look at the source code files referenced there to get a better idea of how all of this is done.
+It's really pretty simple
+
+Note that from prognostic variables, currently only the value (not tendency) can be written to output files.
+
+2. Model variables
+------------------------
+
+The declaration of the model variables are divided into several module files according to their type and for what
+they are used. These are
+src_LES/mo_aux_state.f90
+        mo_vector_state.f90
+	mo_progn_state.f90
+	mo_diag_state.f90
+	mo_derived_state.f90
+	mo_ps_state.f90
+	mo_ts_state.f90
+
+
+2.1 mo_aux_state.f90
+------------------------
+
+Holds the vector variables for model grid displacements and spacings, and the vertical vectors for the model initial
+state variables. The grid vectors are automatically written to output when needed.
+
+All of these associate the type bound pointer "d" to hold data.
+
+LES grid displacements:
+     xt,xm,yt,ym,zt,zm                   
+Reciprocals of LES vertical grid spacings:
+     dzt,dzm
+SALSA bin diameter displacements
+     aea,aeb,aetot: Aerosol bin lower limit diameters for regime A, B and combined
+     cla,clb,cltot: Same for cloud droplet bins
+     prc,ice:       Same for precipitation and ice bins (only one regime each)
+Basic state profile variables
+     u0, v0, pi0, pi1, th0, dn0, rt0
+
+
+2.2 mo_vector_state.f90
+------------------------
+
+Holds the LES prognostic vector variables, i.e. wind components
+
+All of these associate the type bound pointer "d" to hold data.
+
+a_up, a_uc, a_ut: u-wind past value, current value and tendency.
+                  Output: "uwind"
+		  
+a_vp, a_vc, a_vt: v-wind past value, current value and tendency.
+                  Output: "vwind"
+		  
+a_wp, a_wc, a_wt: w-wind past value, current value and tendency.
+                  Output: "wwind"
+
+
+2.3 mo_progn_state.f90
+------------------------
+
+Holds the prognostic scalar variables. Variables ending with "p" are for past values, the ones with "t" for tendency.
+
+All of these associate the type bound pointer "d" to hold data.
+
+a_tp,a_tt: Liquid water potential temperature deviation from a mean state.
+           Output: "theta_l"
+
+a_rp,a_rt: Water vapor (level = 4-5) or total water (level = 1-3) mixing ratio.
+           Output: "rp"
+
+a_rpp,a_rpt: Precipitation mixing ratio for level = 1-3.
+             Output: "rpp"
+
+a_npp,a_npt: Precipitation number for level = 1-3.
+	     Output: "npp"
+
+a_naerop,a_naerot: Binned aerosol number concentrations
+                   Output: N/A, only for computing
+
+a_Naba:            Binned aerosol number concentrations for output, regime A
+                   Output: "Naba"
+
+a_Nabb:            Binned aerosol number concentrations for output, regime B
+                   Output: "Nabb"
+
+a_maerop,a_maerot: Binned aerosol mass mixing ratios sequentially for each compound
+                   Output: N/A
+
+a_ncloudp,a_ncloudt: Binned cloud droplet number concentrations
+		     Output: N/A
+
+a_Ncba:              Binned cloud droplet number for output, regime A
+                     Output: "Ncba"
+
+a_Ncbb:              Binned cloud droplet number for output, regime B
+                     Output: "Ncbb"
+
+a_mcloudp,a_mcloudt: Binned cloud droplet mass mixing ratios sequentially for each compound
+		     Output: N/A
+
+a_nprecpp,a_nprecpt: Binned precipitation number concentration
+		     Output: N/A
+
+a_Npba:		     Binned precip number for output
+		     Output: Npba
+
+a_mprecpp,a_mprecpt: Binned precip mass sequentially for each compound
+		     Output: N/A
+
+a_gaerop,a_gaerop:   Aerosol precursor gas concentrations
+		     Output: N/A
+
+a_nicep,a_nicet:     Binned ice number concentrations
+		     Output: N/A
+
+a_Niba:              Binned ice number concentrations for output
+		     Output: "Niba"
+
+a_micep,a_micet:     Binned ice mass mix rat sequentially for each compound
+		     Output: N/A
+
+a_indefp,a_indeft:   IN deficit fraction for contact angle distributions
+		     Output: N/A
+
+
+
+2.4 mo_diag_state.f90
+---------------------------
+
+Holds diagnostic variables that are needed during the timestep, and they all therefore
+associate the type bound pointer "d" to hold data.
+
+a_theta:      Potential temperature
+	      Output: "theta"
+
+a_temp:       Absolute temperature
+	      Output: "temp"
+
+a_pexnr:      Exner function
+	      Output: "pexnr"
+
+a_press:      Pressure
+	      Output: "press"
+
+a_rc:         Cloud water mixing ratio (for level >= 4 includes also water in aerosol)
+	      Output: "rc"
+
+a_ri:         Pristine ice mixing ratio
+	      Output: "ri"
+
+a_riri:       Rimed ice mixing ratio
+	      Output: "riri"
+
+a_rv:         Water vapor mixing ratio (for level < 4)
+	      Output: "rv"
+
+a_srp:        Precipitation mixing ratio (for level >= 4)
+	      Output: "srp"
+
+a_rh:         Relative humidity
+	      Output: "rh"
+
+a_rsl:        Liquid saturation mixing ratio
+	      Output: "rsl"
+
+a_rhi:        Relative humidity with respect to ice
+	      Output: "rhi"
+
+a_rsi:        Ice saturation mixing ratio
+	      Output: "rsi"
+
+a_dn:         Air density
+	      Output: "dn"
+
+a_rflx:       Net longwave flux
+	      Output: "rflx"
+
+a_sflx:       Net shortwave flux
+	      Output: "sflx"
+
+a_fus:        Upwelling shortwave flux
+	      Output: "fus"
+
+a_fds:        Downwelling shortwave flux
+	      Output: "fds"
+
+a_fuir:       Upwelling longwave flux
+	      Output: "fuir"
+
+a_fdir:       Downwelling longwave flux
+	      Output: "fdir"
+
+a_rrate:      Liquid precip rate
+	      Output: "rrate"
+
+a_irate:      Frozen precip rate
+	      Output: "irate"
+
+albedo:       Albedo
+	      Output: "albedo"
+
+a_ustar:      Friction velocity
+	      Output: "ustar"
+
+a_tstar:      Turbulent temperature scale
+	      Output: "tstar"
+
+a_rstar:      Turbulent moisture (CHECK) scale
+	      Output: "rstar"
+
+
+... Some more turbulence and process rate variables, check mo_diag_state, will update this document soon.
+
+
+
+2.5 mo_derived_state.f90
+--------------------------
+
+This module holds variables needed only for output in the 3d analysis files. Therefore, no data is held
+and the pointer "d" is not associated, but the procedure pointer "onDemand" is. The target subroutines
+for "onDemand" are found in src_IO/mo_derived_procedures.f90.
+
+qtot:        Total condensate mix rat
+	     Output: "qtot"
+
+lwp:         Liquid water path
+	     Output: "lwp"
+
+iwp:         Ice water path
+	     Output: "iwp"
+
+rwp:         Precip water path
+	     Output: "rwp"
+
+Naa:         Total number of aerosol in regime A
+	     Output: "Naa"
+
+Nab:         Total number of aerosol in regime B
+	     Output: "Nab"
+
+Nca:         Total number of cloud droplets in regime A
+	     Output: "Nca"
+
+Ncb:         Total number of cloud droplets in regime B
+	     Output: "Ncb"
+
+Np:          Total number of precip droplets
+	     Output: "Np"
+
+Ni           Total number of ice particles
+	     Output: "Ni"
+
+Dwaa:        Bulk mean wet diameter of aerosol regime A
+	     Output: "Dwaa"
+
+Dwab:        Bulk mean wet diameter of aerosol regime B
+	     Output: "Dwab"
+
+Dwca:        Bulk mean wet diameter of cloud droplets regime A
+	     Output: "Dwca"
+
+Dwcb:        Bulk mean wet diameter of cloud droplets regime B
+	     Output: "Dwcb"
+
+Dwia:        Bulk mean "wet" diameter of ice
+	     Output: "Dwia"
+
+Dwpa:        Bulk mean wet diameter of precip
+	     Output: "Dwpa"
+
+Dwaba:       Binned wet diameter of aerosol regime A
+	     Output: "Dwaba"
+
+Dwabb:       Binned wet diameter of aerosol regime B
+	     Output: "Dwabb"
+
+Dwcba:       Binned wet diameter of cloud droplets regime A
+	     Output: "Dwcba"
+
+Dwcbb:       Binned wet diameter of cloud droplets regime B
+	     Output: "Dwcbb"
+
+Dwpba:       Binned wet diameter of precip
+	     Output: "Dwpba"
+
+Dwiba:       Binned wet diameter of ice
+	     Output: "Dwiba"
+
+aSO4a:       Bulk SO4 in aerosol A
+	     Output: "aSO4a"
+
+aSO4b:       Bulk SO4 in aerosol B
+	     Output: "aSO4b"
+
+cSO4a:       Bulk SO4 in cloud droplets A
+	     Output: "cSO4a"
+
+cSO4b:       Bulk SO4 in cloud droplets B
+	     Output: "cSO4b"
+
+pSO4a:       Bulk SO4 in precip
+	     Output: "pSO4a"
+
+iSO4a:       Bulk SO4 in ice
+	     Output: "iSO4a"
+
+.... and so on for other compounds, see mo_derived_state.f90....
+
+
+
+2.6 mo_ps_state.f90
+------------------------
+	
+The profile statistics variables also associate the "onDemand" function. The target subroutines are found in
+src_IO/mo_ps_procedures.f90. Currently, this can only do time-height domain mean profiles of the variables
+defined in the previously described state modules. Note that the subroutine in mo_ps_procedures finds the
+variables by name, so the ps-variables must have the same shortname as their full-domain counterparts.
+
+It is ofcourse possible to add derived variables to ps files, but for that you need to write additional onDemand
+target subroutines to mo_ps_procedures.
+
+Check the current list of variables from mo_ps_state.f90. This will be extended quite a bit.
+
+
+2.7 mo_ts_state.f90
+-----------------------
+
+This is even more work-in-progress than the PS output, but works basically the same.
+
+
