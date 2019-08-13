@@ -630,7 +630,7 @@ MODULE mcrp
          istr = getMassIndex(nice,1,nc); iend = getMassIndex(nice,nice,nc)
          sfcirate%d(:,:) = SUM(remice(:,:,istr:iend),DIM=3)*3600.
          istr = getMassIndex(nice,1,nc+1); iend = getMassIndex(nice,nice,nc+1)
-         sfcirate%d(:,:) = + sfcirate%d(:,:) +  &
+         sfcirate%d(:,:) = sfcirate%d(:,:) +  &
               SUM(remice(:,:,istr:iend),DIM=3)*3600.
          
          ! Convert mass flux to heat flux (W/m^2)
