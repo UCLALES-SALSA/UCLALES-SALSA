@@ -44,7 +44,7 @@ contains
   !
   subroutine initialize
 
-    use step, only : time, outflg, salsa_diag_update, anl_start
+    use step, only : time, outflg, salsa_diag_update, anl_start, nudging
     use stat, only : init_stat, mcflg, acc_massbudged
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
@@ -116,6 +116,9 @@ contains
           CALL thermo(level)
 
        END IF !level >= 4
+
+       ! Initialize nudging
+       CALL nudging(time)
 
     else if (runtype == 'HISTORY') then
        if (isgstyp == 2) call tkeinit(nxyzp,a_qp)

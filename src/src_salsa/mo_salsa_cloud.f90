@@ -1046,7 +1046,7 @@ CONTAINS
                       ptemp,prv,prs,prsi,ptstep)
 
     USE mo_submctl, ONLY : t_section,   &
-                               in2a, fn2b,  &
+                               in2a, fn2b, fia,  &
                                ncld, nprc, nice, nsnw,  &
                                rhowa, rhoic, rhosn,  &
                                pi, nlim, prlim, &
@@ -1122,27 +1122,27 @@ CONTAINS
 
             ! Move to the parallel ice bin or to a snow bin
             IF (ice_target_opt<0) THEN
-                ! Move to ice bin with closest matching bin dry volume (%core) and select a or b bin based on composition (%volc(1:7)).
-                ! Ain't perfect but the bin update subroutine in SALSA will take care of the rest.
+                ! Move to ice bin with matching dry volume (%vhilim) and select a or b bin based on composition (%volc(1:7)).
                 zvol = SUM( pprecp(ii,jj,kk)%volc(1:7) )/pprecp(ii,jj,kk)%numc ! Dry volume
 
-                ! 1) Find the closest matching bin dry volume
+                ! 1) Find the matching bin
                 bb=1
-                DO ss=2,nice/2 ! a and b bins have the same core sizes
-                    IF (abs(pice(ii,jj,ss)%core-zvol)<abs(pice(ii,jj,bb)%core-zvol)) bb=ss
+                DO WHILE (zvol>pice(ii,jj,bb)%vhilim .AND. bb<fia%cur)
+                    bb=bb+1
                 ENDDO
+
                 ! 2) Select a or b bin
-                IF (pice(ii,jj,bb+nice/2)%numc<=prlim) THEN
+                IF (pice(ii,jj,bb+fia%cur)%numc<=prlim) THEN
                     ! Empty b bin so select a
                     !bb = bb
                 ELSEIF (pice(ii,jj,bb)%numc<=prlim) THEN
                     ! Empty a bin so select b
-                    bb = bb + nice/2
+                    bb = bb + fia%cur
                 ELSE
                     ! Both are present - find bin based on compositional similarity
                     ra = calc_correlation(pice(ii,jj,bb)%volc(1:7),pprecp(ii,jj,kk)%volc(1:7),7)
-                    rb = calc_correlation(pice(ii,jj,bb+nice/2)%volc(1:7),pprecp(ii,jj,kk)%volc(1:7),7)
-                    IF (ra<rb) bb = bb + nice/2
+                    rb = calc_correlation(pice(ii,jj,bb+fia%cur)%volc(1:7),pprecp(ii,jj,kk)%volc(1:7),7)
+                    IF (ra<rb) bb = bb + fia%cur
                 ENDIF
                 ! Add to the matching ice bin
                 pice(ii,jj,bb)%volc(1:7) = pice(ii,jj,bb)%volc(1:7) + max(0., pprecp(ii,jj,kk)%volc(1:7)*frac )

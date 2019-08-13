@@ -418,7 +418,7 @@ contains
              if (abs(scr(i,k) - scp0(k,i,j)) > spacing(scr(i,k))) then
                 i2 = i+gamma
                 i1 = i+gamma+1
-                r(i,k) = (scp0(k,i1,j)-scp0(k,i2,j))/(scr(i,k)-scp0(k,i,j)+spacing(scr(i,k)))
+                r(i,k) = (scp0(k,i1,j)-scp0(k,i2,j))/(scr(i,k)-scp0(k,i,j))
              else
                 r(i,k) = 0.
              endif
@@ -494,7 +494,7 @@ contains
        do k = 2, n1-1
           do j = 2,n3-2
              gamma = int(-sign(1.,cfl(j,k)))
-             if (abs(scr(j,k) - scp0(k,i,j)) > spacing(scr(j,k)) .AND.scr(j,k)+scp0(k,i,j).GT.1e-40) then
+             if (abs(scr(j,k) - scp0(k,i,j)) > spacing(scr(j,k))) then
                 j2 = j+gamma
                 j1 = j+gamma+1
                 r(j,k) = (scp0(k,i,j1)-scp0(k,i,j2))/(scr(j,k)-scp0(k,i,j))
