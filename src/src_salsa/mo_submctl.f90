@@ -18,8 +18,8 @@ MODULE mo_submctl
                                ! Since most of the stuff in SALSA is hard coded, these
                                ! *have to be* in the order: 1:SO4, 2:OC, 3:BC, 4:DU, 5:SS, 6:NO, 7:NH, 8:H2O
 
-                 numc,       & ! Number concentration of particles/droplets 
-                 core          ! Volume of dry particle
+                 numc          ! Number concentration of particles/droplets
+                 !core          ! Volume of dry particle
   END TYPE t_section
   ! ---------------------------------------------------------------------------------------------------
 

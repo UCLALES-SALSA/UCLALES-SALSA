@@ -90,7 +90,7 @@ contains
     use util, only : fftinix,fftiniy
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon
-    use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, &
+    use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, frqrst, &
          strtim, radfrq, cntlat
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
@@ -130,8 +130,8 @@ contains
          dzrat  , dzmax  , igrdtyp, & ! stretched grid parameters
          timmax , dtlong , istpfl , & ! timestep control
          runtype, hfilin , filprf , & ! type of run (INITIAL or HISTORY)
-         frqhis , frqanl , outflg , & ! freq of history/anal writes, output flg
-         anl_start,                 & ! start saving data to the 4D analysis files after this time
+         frqhis , frqanl , frqrst , & ! freq of history/anal/restart writes
+         outflg , anl_start,        & ! output flg, time to start saving analysis files
          iradtyp, radfrq , strtim , & ! radiation type flag
          isfctyp, ubmin  , zrough , & ! surface parameterization type
          sst    , dthcon , drtcon , & ! SSTs, surface flx parameters
@@ -183,7 +183,7 @@ contains
        else
           write (*,600) expnme, timmax
        end if
-       if (outflg) write (*,602) filprf, frqhis, frqanl, Tspinup
+       if (outflg) write (*,602) filprf, frqhis, frqrst, frqanl, Tspinup
        !
        ! do some cursory error checking in namelist variables
        !
@@ -211,6 +211,7 @@ contains
          /,'  Final Time: ',F10.1,' s'              )
 602 format('  Output File Stem:   ',A50                      &
          /,'  History Frequency:  ',F7.1,                    &
+         /,'  Restart Frequency:  ',F7.1,                    &
          /,'  Analysis Frequency: ',F7.1,                    &
          /,'  Model spinup period: ',F7.1)
 

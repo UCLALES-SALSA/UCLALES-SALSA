@@ -26,6 +26,7 @@ module step
   logical :: corflg = .false.
 
   real    :: frqhis =  9000.
+  real    :: frqrst =  3600.
   real    :: frqanl =  3600.
   real    :: anl_start = -1.
   real    :: radfrq =  0.
@@ -60,53 +61,51 @@ contains
 
     real, parameter :: cfl_upper = 0.5
 
-    real    :: t1,t2,tplsdt,begtime,dt_prev
+    real    :: t1,t2,tplsdt
     REAL(kind=8) :: cflmax,gcflmax
     integer :: istp, iret
     !
     ! Timestep loop for program
     !
-    begtime = time
     istp = 0
 
     call cpu_time(t1)
 
-    do while (time + 0.1*dtl < timmax)
-
-       istp = istp+1
-       tplsdt = time + dtl + 0.1*dtl
-       sflg = (min(mod(tplsdt,ssam_intvl),mod(tplsdt,savg_intvl)) < dtl  &
-            .or. tplsdt >= timmax  .or. tplsdt < 2.*dtl)
-
-       call t_step
-
-       time  = time + dtl
-
+    do while (time < timmax)
+       ! Limit time step based on the Courant-Friedrichs-Lewy condition
        call cfl(cflmax)
        call double_scalar_par_max(cflmax,gcflmax)
        cflmax = gcflmax
-       dt_prev = dtl
        dtl = min(dtlong,dtl*cfl_upper/(cflmax+epsilon(1.)))
 
-       !
-       ! output control
-       !
-       if (mod(tplsdt,savg_intvl)<dtl .or. time>=timmax .or. time==dtl)   &
-       call write_ps(nzp,dn0,u0,v0,zm,zt,time)
+       ! Determine when to compute statistics
+       !    - When a given output or profile sampling time (n*tstep) will be reached or exceeded for the first time
+       !    - After the first call (time=0)
+       tplsdt = time + dtl ! Time after t_step
+       sflg = (min(mod(tplsdt,ssam_intvl),mod(tplsdt,savg_intvl)) < dtl .or. tplsdt < 1.1*dtl)
 
-       if ((mod(tplsdt,frqhis) < dtl .or. time >= timmax) .and. outflg)   &
+       call t_step
+       time = time + dtl
+
+       ! Write profiles
+       if (mod(tplsdt,savg_intvl) < dtl .or. tplsdt < 1.1*dtl)   &
+            call write_ps(nzp,dn0,u0,v0,zm,zt,time)
+
+       ! Write restarts (*.<time>s and *.rst)
+       if (mod(tplsdt,frqhis) < dtl .and. outflg)   &
             call write_hist(2, time)
-       if (mod(tplsdt,savg_intvl)<dtl .or. time>=timmax .or. time==dtl)   &
+
+       if (mod(tplsdt,frqrst) < dtl .and. outflg)   &
             call write_hist(1, time)
 
-       if ((mod(tplsdt,frqanl) < dtl .or. time >= timmax) .and. outflg) then
-          call thermo(level)
-          IF (time >= anl_start-0.5*dtl) call write_anal(time)
-       end if
+       ! Write analysis files
+       if (mod(tplsdt,frqanl) < dtl .and. outflg .and. time >= anl_start)   &
+            call write_anal(time)
 
        if(myid == 0) then
-          call cpu_time(t2) ! t2-t1 is the actual time from output
+          istp = istp+1
           if (mod(istp,istpfl) == 0 ) THEN
+              call cpu_time(t2) ! t2-t1 is the actual CPU time from the previous output
               print "('   Timestep # ',i6," //     &
                  "'   Model time(sec)=',f10.2,3x,'CPU time(sec)=',f8.3)",     &
                  istp, time, t2-t1

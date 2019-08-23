@@ -1926,7 +1926,7 @@ contains
 
     END IF
 
-    if (myid==0) print "(//' ',12('-'),'   Record ',I3,' to: ',A60)",    &
+    if (myid==0) print "(/' ',12('-'),'   Record ',I3,' to: ',A60)",    &
          nrec0,fname
 
     iret  = nf90_sync(ncid0)
@@ -1968,7 +1968,7 @@ contains
     !
     ! Write fields
     !
-    if (myid == 0) print "(//' ',49('-')/,' ',/,'   History write to: ',A30)" &
+    if (myid == 0) print "(/' ',12('-'),'   History write to: ',A30)" &
          ,hname
     open(10,file=trim(hname), form='unformatted')
 

@@ -57,12 +57,11 @@ contains
        iret = nf90_open (trim(lfname), NF90_WRITE, ncid)
        iret = nf90_inquire(ncid, unlimitedDimId = RecordDimID)
        iret = nf90_inquire_dimension(ncid, RecordDimID, len=nrec)
-       ncall=1
        iret = nf90_inq_varid(ncid,'time',VarID)
        allocate (xtimes(nrec+1))
        iret = nf90_get_var(ncid, VarId, xtimes(1:nrec))
        ncall = 1
-       do while(ncall <= nrec .and. xtimes(ncall) < time - spacing(1.))
+       do while(ncall <= nrec .and. xtimes(ncall) < time + 0.01)
           ncall=ncall+1
        end do
        deallocate(xtimes)

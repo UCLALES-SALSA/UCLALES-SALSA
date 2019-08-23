@@ -149,7 +149,6 @@ CONTAINS
 
           ! Initialize the wet diameter with the bin dry diameter to avoid numerical proplems later
           aero(ii,jj,:)%dwet = aero(ii,jj,:)%dmid
-          aero(ii,jj,:)%core = pi6*aero(ii,jj,:)%dmid**3
 
           ! Set volume and number concentrations to zero
           aero(ii,jj,:)%numc = 0.
@@ -267,7 +266,6 @@ CONTAINS
           ! Initialize the droplet diameter ("wet diameter") as the dry
           ! mid diameter of the nucleus to avoid problems later.
           cloud(ii,jj,:)%dwet = cloud(ii,jj,:)%dmid
-          cloud(ii,jj,:)%core = pi6*cloud(ii,jj,:)%dmid**3
 
           ! Initialize the volume and number concentrations for clouds.
           ! First "real" values are only obtained upon the first calculation
@@ -289,7 +287,6 @@ CONTAINS
 
           ! Initialize the wet diameter as the bin mid diameter
           precp(ii,jj,:)%dwet = precp(ii,jj,:)%dmid
-          precp(ii,jj,:)%core = pi6*precp(ii,jj,:)%dmid**3
 
           DO cc = 1,8
              precp(ii,jj,:)%volc(cc) = 0.
@@ -403,7 +400,6 @@ CONTAINS
 
           ! Initialize the "wet" diameter as the dry mid diameter of the nucleus
           ice(ii,jj,:)%dwet = ice(ii,jj,:)%dmid
-          ice(ii,jj,:)%core = pi6*ice(ii,jj,:)%dmid**3
 
           ! Initialize the volume and number concentrations for ice.
           DO cc = 1,8
@@ -424,7 +420,6 @@ CONTAINS
 
           ! Initialize the wet diameter as the bin mid diameter
           snow(ii,jj,:)%dwet = snow(ii,jj,:)%dmid
-          snow(ii,jj,:)%core = pi6*snow(ii,jj,:)%dmid**3
 
           DO cc = 1,8
              snow(ii,jj,:)%volc(cc) = 0.

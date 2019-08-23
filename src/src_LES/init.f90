@@ -144,7 +144,7 @@ contains
        stat_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim ) .OR. any( a_nicep(:,:,:,iib%cur:fib%cur)>prlim )
 
     call sponge_init
-    call init_stat(time+dtl,filprf,expnme,nzp)
+    call init_stat(time,filprf,expnme,nzp)
     !
     IF (mcflg) THEN
        ! Juha:
@@ -161,7 +161,7 @@ contains
     !
     if (outflg) then
        if (runtype == 'INITIAL') then
-          call write_hist(1, time)
+          !call write_hist(1, time)
           call init_anal(time,stat_b_bins)
           call thermo(level)
           IF (time >= anl_start) call write_anal(time)

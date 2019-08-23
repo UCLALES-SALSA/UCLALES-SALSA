@@ -2334,6 +2334,7 @@ contains
   subroutine write_ts
 
     use netcdf
+    use mpi_interface, only : myid
 
     integer :: iret, n, VarID
 
@@ -2377,6 +2378,8 @@ contains
        END DO
     END IF
 
+    if (myid==0) print "(/' ',12('-'),'   Record ',I3,' to time series')",nrec1
+
     iret = nf90_sync(ncid1)
     nrec1 = nrec1 + 1
 
@@ -2393,6 +2396,7 @@ contains
     USE mo_submctl, ONLY : in1a,in2b,fn2a,fn2b,fca,ica,fcb,icb,fra,ira, &
                                iia, fia, iib, fib, isa, fsa, &
                                aerobins,cloudbins,precpbins,icebins,snowbins
+    use mpi_interface, only : myid
 
     integer, intent (in) :: n1
     real, intent (in)    :: time
@@ -2593,6 +2597,8 @@ contains
                count=(/n1,1/))
        END DO
     END IF
+
+    if (myid==0) print "(/' ',12('-'),'   Record ',I3,' to profiles')",nrec2
 
     iret  = nf90_sync(ncid2)
     nrec2 = nrec2+1
