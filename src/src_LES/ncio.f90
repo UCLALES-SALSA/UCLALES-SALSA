@@ -80,14 +80,14 @@ contains
   !
   subroutine define_nc(ncID, nRec, nVar, sx, n1, n2, n3, &
                        inae_a,incld_a,inprc,           &
-                       inae_b,incld_b,inice_a,inice_b,insnw         )
+                       inae_b,incld_b,inice_a,inice_b,insnw,inchist,inihist)
 
     integer, intent (in)           :: nVar, ncID
     integer, optional, intent (in) :: n1, n2, n3
     ! Juha: Added
     INTEGER, OPTIONAL, INTENT(in)  :: inae_a,incld_a,inprc, &
                                       inae_b,incld_b,       &
-                                      inice_a,inice_b,insnw
+                                      inice_a,inice_b,insnw,inchist,inihist
     ! --
     integer, intent (inout)        :: nRec
     character (len=7), intent (in) :: sx(nVar)
@@ -98,7 +98,7 @@ contains
 
     ! Juha: added
     INTEGER, SAVE :: aeaID=0, claID=0, aebID=0, clbID=0, prcID=0,   &
-                     icaID=0, icbID=0,snowID=0,                     &
+                     icaID=0, icbID=0, snowID=0, hcID=0, hiID=0,    &
                      dim_ttttaea(5) = 0, dim_ttttcla(5) = 0,    &
                      dim_ttttaeb(5) = 0, dim_ttttclb(5) = 0,    &
                      dim_ttttprc(5) = 0,                        &
@@ -113,7 +113,8 @@ contains
                      dim_ttztaeb(3) = 0, dim_ttztclb(3) = 0,    &
                      dim_ttztprc(3) = 0,                        &
                      dim_ttztica(3) = 0, dim_ttzticb(3) = 0,    &
-                     dim_ttztsnw(3) = 0
+                     dim_ttztsnw(3) = 0,                        &
+                     dim_tttzhct(3) = 0, dim_tttzhit(3) = 0
     !--
 
     character (len=7) :: xnm
@@ -163,6 +164,12 @@ contains
        IF (PRESENT(insnw)) THEN
           iret = nf90_def_dim(ncID, 'snw', insnw, snowID)
        END IF
+       IF (PRESENT(inchist)) THEN
+          iret = nf90_def_dim(ncID, 'P_hRc', inchist, hcID)
+       END IF
+       IF (PRESENT(inihist)) THEN
+          iret = nf90_def_dim(ncID, 'P_hRi', inihist, hiID)
+       END IF
 
        dim_tt = (/ztID,timeID/)
        dim_mt = (/zmID,timeID/)
@@ -203,6 +210,9 @@ contains
        dim_ttztica = (/ztID,icaID,timeID/)
        dim_ttzticb = (/ztID,icbID,timeID/)
        dim_ttztsnw = (/ztID,snowID,timeID/)
+       ! Histograms
+       dim_tttzhct = (/ztID,hcID,timeID/)
+       dim_tttzhit = (/ztID,hiID,timeID/)
 
        do n=1,nVar
           select case(trim(ncinfo(2,sx(n),dimensions=dims)))
@@ -238,6 +248,10 @@ contains
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,icbID   ,VarID)
           case ('snw')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,snowID   ,VarID)
+          CASE ('hcr')
+             iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,hcID    ,VarID)
+          CASE ('hir')
+             iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,hiID    ,VarID)
           !Juha added
           case ('ttttaea')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttaea,VarID)
@@ -256,6 +270,10 @@ contains
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttticb,VarID)
           case ('ttttsnw')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttsnw,VarID)
+          case ('tttzhct')
+             iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttzhct,VarID)
+          case ('tttzhit')
+             iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttzhit,VarID)
           ! ---
           case ('tttt')
              if (present(n2) .and. present(n3)) then
@@ -2507,6 +2525,31 @@ contains
        if (itype==0) ncinfo = 'Mass mixing ratio of NO3 in snow bins'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'ttztsnw'
+    case('P_hNca')
+       if (itype==0) ncinfo = 'Cloud droplets per radius bin (A bins)'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttzhct'
+    case('P_hNcb')
+       if (itype==0) ncinfo = 'Cloud droplets per radius bin (B bins)'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttzhct'
+    case('P_hRc')
+       if (itype==0) ncinfo = 'Cloud histogram bin mean radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'hcr'
+    case('P_hNia')
+       if (itype==0) ncinfo = 'Ice particles per radius bin (A bins)'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttzhit'
+    case('P_hNib')
+       if (itype==0) ncinfo = 'Ice particles per radius bin (B bins)'
+       if (itype==1) ncinfo = 'kg^-1'
+       if (itype==2) ncinfo = 'tttzhit'
+    case('P_hRi')
+       if (itype==0) ncinfo = 'Ice histogram bin mean radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'hir'
+
     ! -----
     case default
        ! Automatically generated microphysical process rate statistics

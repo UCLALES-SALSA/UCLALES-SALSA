@@ -41,7 +41,7 @@ module stat
                         nv2sca = 8, nv2scb = 8,   &
                         nv2sp = 8, &
                         nv2sia = 8, nv2sib = 8,   &
-                        nv2ss = 8
+                        nv2ss = 8, nv2h = 3
 
   ! All SALSA species
   CHARACTER(len=3), PARAMETER :: zspec(8) = (/'SO4','OC ','BC ','DU ','SS ','NO ','NH ','H2O'/)
@@ -202,11 +202,15 @@ module stat
         'P_Nsb  ','P_SO4sb','P_OCsb ','P_BCsb ',                     &
         'P_DUsb ','P_SSsb ','P_NOsb ','P_NHsb '/),                   &
 
+        ! **** Cloud droplet and ice histograms
+        s2CldHist(nv2h) = (/'P_hNca ','P_hNcb ','P_hRc  '/),         &
+        s2IceHist(nv2h) = (/'P_hNia ','P_hNib ','P_hRi  '/),         &
+
         s1Total(nvar1+nv1_lvl4+nv1_lvl5+nv12_rate),                            &
-        s2Total(nvar2+nv2_lvl4+nv2_lvl5+nv12_rate+nv2saa+nv2sab+nv2sca+nv2scb+nv2sp+nv2sia+nv2sib+nv2ss)
+        s2Total(nvar2+nv2_lvl4+nv2_lvl5+nv12_rate+nv2saa+nv2sab+nv2sca+nv2scb+nv2sp+nv2sia+nv2sib+nv2ss+2*nv2h)
 
 
-  LOGICAL, save :: s2bool(nvar2+nv2_lvl4+nv2_lvl5+nv12_rate+nv2saa+nv2sab+nv2sca+nv2scb+nv2sp+nv2sia+nv2sib+nv2ss)
+  LOGICAL, save :: s2bool(nvar2+nv2_lvl4+nv2_lvl5+nv12_rate+nv2saa+nv2sab+nv2sca+nv2scb+nv2sp+nv2sia+nv2sib+nv2ss+2*nv2h)
   LOGICAL, save :: s1bool(nvar1+nv1_lvl4+nv1_lvl5+nv12_rate)
 
   real, save, allocatable   :: tke_sgs(:), tke_res(:), tke0(:), wtv_sgs(:),  &
@@ -216,6 +220,8 @@ module stat
        ! Additional ssclr and svctr for BINNED SALSA output.
        svctr_aa(:,:,:), svctr_ca(:,:,:), svctr_p(:,:,:),                     &
        svctr_ab(:,:,:), svctr_cb(:,:,:),                                     &
+       ! Cloud and ice histograms
+       svctr_ch(:,:,:), svctr_ih(:,:,:),                                     &
        ! The same for SALSA level 5
        svctr_lvl5(:,:), ssclr_lvl5(:), &
        svctr_ia(:,:,:), svctr_ib(:,:,:), svctr_s(:,:,:), &
@@ -244,7 +250,7 @@ contains
     use grid, only : nxp, nyp, iradtyp, prtcl, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, ver, author, info
     use mo_submctl, only : nprc,nsnw,fn2a,fn2b,fca,fcb,fra,fia,fib,fsa,stat_b_bins, &
-        nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt,ice_target_opt
+        nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt,ice_target_opt,nout_cld,nout_ice
     USE class_ComponentIndex, ONLY : IsUsed
 
     character (len=80), intent (in) :: filprf, expnme
@@ -292,6 +298,10 @@ contains
     s2Total(i:e) = s2Iceb
     i = e + 1; e = e + nv2ss
     s2Total(i:e) = s2Snow
+    i = e + 1; e = e + nv2h
+    s2Total(i:e) = s2CldHist
+    i = e + 1; e = e + nv2h
+    s2Total(i:e) = s2IceHist
 
     wtv_sgs(:) = 0.
     wtv_res(:) = 0.
@@ -369,6 +379,10 @@ contains
            ALLOCATE ( massbdg(nv1MB) ) ! Mass budged array
            massbdg(:) = 0.
        END IF
+       IF (nout_cld>0) THEN
+          ALLOCATE ( svctr_ch(nzp,nout_cld,2) )
+          svctr_ch(:,:,:) = 0.
+       ENDIF
        IF (level >=5 ) THEN
            ALLOCATE( ssclr_lvl5(nv1_lvl5), svctr_lvl5(nzp,nv2_lvl5) )
            ALLOCATE( svctr_ia(nzp,fia%cur,nv2sia), svctr_ib(nzp,fib%cur-fia%cur,nv2sib), &
@@ -377,6 +391,10 @@ contains
            svctr_lvl5(:,:) = 0.
            svctr_ia(:,:,:) = 0.; svctr_ib(:,:,:) = 0.
            svctr_s(:,:,:) = 0.
+           IF (nout_ice>0) THEN
+                ALLOCATE ( svctr_ih(nzp,nout_ice,2) )
+                svctr_ih(:,:,:) = 0.
+           ENDIF
        END IF
 
        ! Create a boolean array for items that are actually used
@@ -495,6 +513,18 @@ contains
           ENDIF
        ENDDO
 
+       i = nvar2+nv2_lvl4+nv2_lvl5+nv12_rate+nv2saa+nv2sab+nv2sca+nv2scb+nv2sp+nv2sia+nv2sib+nv2ss
+       IF (nout_cld>0) THEN
+          s2bool(i+1) = .TRUE. ! A-bins
+          s2bool(i+2) = stat_b_bins ! B-bins
+          s2bool(i+3) = .TRUE. ! Bin mean radius
+       END IF
+       IF (nout_ice>0 .AND. level>=5) THEN
+          s2bool(i+4) = .TRUE.
+          s2bool(i+5) = stat_b_bins
+          s2bool(i+6) = .TRUE.
+       END IF
+
        s1bool(nvar1+53)=.TRUE.  ! Maximum supersaturation
 
        s2bool(nvar2+40:nvar2+44) = .TRUE.     ! Water mixing ratios, RH and cloud droplet sedimentation flux
@@ -542,7 +572,8 @@ contains
     call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2, ver, author, info)
     ! Juha: Modified due to SALSA output
     call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp, inae_a=fn2a, inae_b=fn2b-fn2a, &
-                    incld_a=fca%cur, incld_b=fcb%cur-fca%cur, inice_a=fia%cur, inice_b=fib%cur-fia%cur, inprc=fra, insnw=fsa)
+                    incld_a=fca%cur, incld_b=fcb%cur-fca%cur, inice_a=fia%cur, inice_b=fib%cur-fia%cur, inprc=fra, insnw=fsa, &
+                    inchist=nout_cld,inihist=nout_ice)
     if (myid == 0) print *, '   ...starting record: ', nrec2
 
 
@@ -1820,10 +1851,10 @@ contains
   subroutine accum_lvl4(n1,n2,n3)
     use mo_submctl, only : in1a,in2b,fn2a,fn2b, &
                                ica,fca,icb,fcb,ira,fra, &
-                               nprc,nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
-    use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
+                               nprc,nspec,cldbinlim,nout_cld,nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
+    use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, getBinRadius, &
                      a_rc, a_srp, a_rp, a_rh, prtcl,    &
-                     a_naerop, a_ncloudp, a_nprecpp, cldin, a_dn, &
+                     a_naerop, a_mcloudp, a_ncloudp, a_nprecpp, cldin, a_dn, &
                      coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
                      cond_ra, cond_rc, cond_rr, auto_rr, auto_nr, cact_rc, cact_nc, &
                      sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
@@ -1843,6 +1874,8 @@ contains
     REAL, DIMENSION(n1,fca%cur)         :: a4_a
     REAL, DIMENSION(n1,fcb%cur-fca%cur) :: a4_b
     REAL, DIMENSION(n1,nprc)            :: a5
+    REAL, DIMENSION(n1,n2,n3,fcb%cur)   :: a_Rwet
+    REAL, ALLOCATABLE                   :: hist(:,:)
 
 
     ! *************************
@@ -2032,6 +2065,19 @@ contains
         END DO
     ENDIF
 
+    ! Cloud droplet histograms
+    IF (nout_cld>0) THEN
+        ALLOCATE(hist(n1,nout_cld))
+        ! Cloud droplet bin wet radius
+        CALL getBinRadius(fcb%cur,nspec+1,a_ncloudp,a_mcloudp,nlim,a_Rwet,2)
+        ! Histograms (regime A)
+        CALL HistDistr(n1,n2,n3,fca%cur,a_Rwet(:,:,:,ica%cur:fca%cur),a_ncloudp(:,:,:,ica%cur:fca%cur),cldbinlim,nout_cld,hist)
+        svctr_ch(:,:,1) = svctr_ch(:,:,1) + hist(:,:)
+        ! Histograms (regime B)
+        CALL HistDistr(n1,n2,n3,fca%cur,a_Rwet(:,:,:,icb%cur:fcb%cur),a_ncloudp(:,:,:,icb%cur:fcb%cur),cldbinlim,nout_cld,hist)
+        svctr_ch(:,:,2) = svctr_ch(:,:,2) + hist(:,:)
+        DEALLOCATE(hist)
+    ENDIF
   end subroutine accum_lvl4
 
   !---------------------------------------------------------------------
@@ -2039,9 +2085,9 @@ contains
   ! on level 5 variables.
   !
   subroutine accum_lvl5(n1,n2,n3)
-    use mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,prlim ! Note: prlim in #/m^3, but close enough to #/kg for statistics
-    use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, &
-                     a_ri, a_srs, a_rhi, prtcl, a_nicep, a_nsnowp, icein, snowin, a_tp, th00, &
+    use mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,nspec,icebinlim,nout_ice,prlim ! Note: prlim in #/m^3, but close enough to #/kg for statistics
+    use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, getBinRadius, &
+                     a_ri, a_srs, a_rhi, prtcl, a_micep, a_nicep, a_nsnowp, icein, snowin, a_tp, th00, &
                      a_dn, coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
                      nucl_ri, nucl_ni, sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
                      diag_ri, diag_ni, diag_rs, diag_ns, melt_ri, melt_ni, melt_rs, melt_ns
@@ -2058,6 +2104,8 @@ contains
     REAL, DIMENSION(n1,fia%cur) :: a4_a
     REAL, DIMENSION(n1,fib%cur-fia%cur) :: a4_b
     REAL, DIMENSION(n1,nsnw) :: a5
+    REAL, DIMENSION(n1,n2,n3,fib%cur)   :: a_Rwet
+    REAL, ALLOCATABLE                   :: hist(:,:)
 
     ! *************************
     ! Bulk output for SALSA
@@ -2216,8 +2264,58 @@ contains
             END DO
         END DO
     ENDIF
+
+    ! Ice histograms
+    IF (nout_ice>0) THEN
+        ALLOCATE(hist(n1,nout_ice))
+        ! Cloud droplet bin wet radius
+        CALL getBinRadius(fib%cur,nspec+1,a_nicep,a_micep,prlim,a_Rwet,4)
+        ! Histograms (regime A)
+        CALL HistDistr(n1,n2,n3,fia%cur,a_Rwet(:,:,:,iia%cur:fia%cur),a_nicep(:,:,:,iia%cur:fia%cur),icebinlim,nout_ice,hist)
+        svctr_ih(:,:,1) = svctr_ih(:,:,1) + hist(:,:)
+        ! Histograms (regime B)
+        CALL HistDistr(n1,n2,n3,fia%cur,a_Rwet(:,:,:,iib%cur:fib%cur),a_nicep(:,:,:,iib%cur:fib%cur),icebinlim,nout_ice,hist)
+        svctr_ih(:,:,2) = svctr_ih(:,:,2) + hist(:,:)
+        DEALLOCATE(hist)
+    ENDIF
   end subroutine accum_lvl5
 
+  !---------------------------------------------------------------------
+  ! Calculate histograms from concentration (num) and radius (rad) data
+  !
+  SUBROUTINE HistDistr(n1,n2,n3,n4,rad,num,rbins,nout,hist)
+    INTEGER, INTENT(IN) :: n1, n2, n3, n4, nout ! Dimensions
+    REAL, INTENT(IN) :: rad(n1,n2,n3,n4), num(n1,n2,n3,n4) ! Size and number data
+    REAL, INTENT(IN) :: rbins(nout+1) ! Size bin limits
+    REAL, INTENT(OUT) :: hist(n1,nout) ! Output histogram
+    REAL :: rmin, rmax
+    INTEGER :: i, j, k, l, ii
+    !
+    ! Include values that are within the bin limits
+    rmin=MAX(rbins(1),1e-10) ! r=0 when there are no particles
+    rmax=rbins(nout+1)
+    !
+    hist=0.
+    DO l=1,n4
+      do j=3,n3-2
+        do i=3,n2-2
+          do k=2,n1
+            IF (rmin<=rad(k,i,j,l) .AND. rad(k,i,j,l)<=rmax) THEN
+                ii=nout
+                DO WHILE (rad(k,i,j,l)<rbins(ii) .AND. ii>1)
+                    ii=ii-1
+                ENDDO
+                hist(k,ii)=hist(k,ii)+num(k,i,j,l)
+            ENDIF
+          ENDDO
+        ENDDO
+      ENDDO
+    ENDDO
+    !
+    ! Normalize by the number of columns
+    hist(:,:)=hist(:,:)/REAL((n3-4)*(n2-4))
+    !
+  END SUBROUTINE HistDistr
   !
   !
   !
@@ -2395,7 +2493,8 @@ contains
     use defs, only : alvl, cp
     USE mo_submctl, ONLY : in1a,in2b,fn2a,fn2b,fca,ica,fcb,icb,fra,ira, &
                                iia, fia, iib, fib, isa, fsa, &
-                               aerobins,cloudbins,precpbins,icebins,snowbins
+                               aerobins,cloudbins,precpbins,icebins,snowbins, &
+                               nout_cld, cldbinlim, nout_ice, icebinlim
     use mpi_interface, only : myid
 
     integer, intent (in) :: n1
@@ -2403,6 +2502,7 @@ contains
     real, intent (in)    :: dn0(n1), u0(n1), v0(n1), zm(n1), zt(n1)
 
     integer :: iret, VarID, k, n, kp1
+    REAL, ALLOCATABLE :: rmid(:)
 
     lsttm = time
     do k=1,n1
@@ -2467,6 +2567,13 @@ contains
           IF (iret == NF90_NOERR) iret = nf90_put_var(ncid2,VarID,cloudbins(icb%cur:fcb%cur),start=(/nrec2/))
           iret = nf90_inq_varid(ncid2,s2_lvl4(5),VarID)
           iret = nf90_put_var(ncid2,VarID,precpbins(ira:fra),start=(/nrec2/))
+          iret = nf90_inq_varid(ncid2,s2CldHist(3),VarID)
+          IF (iret == NF90_NOERR) THEN
+              ALLOCATE(rmid(nout_cld))
+              rmid(:)=0.5*(cldbinlim(1:nout_cld)+cldbinlim(2:nout_cld+1))
+              iret = nf90_put_var(ncid2,VarID,rmid,start=(/nrec2/))
+              DEALLOCATE(rmid)
+          END IF
        END IF
        IF (level >= 5) THEN
           iret = nf90_inq_varid(ncid2,s2_lvl5(1),VarID)
@@ -2475,6 +2582,13 @@ contains
           IF (iret == NF90_NOERR) iret = nf90_put_var(ncid2,VarID,icebins(iib%cur:fib%cur),start=(/nrec2/))
           iret = nf90_inq_varid(ncid2,s2_lvl5(3),VarID)
           iret = nf90_put_var(ncid2,VarID,snowbins(isa:fsa),start=(/nrec2/))
+          iret = nf90_inq_varid(ncid2,s2IceHist(3),VarID)
+          IF (iret == NF90_NOERR) THEN
+              ALLOCATE(rmid(nout_ice))
+              rmid(:)=0.5*(icebinlim(1:nout_ice)+icebinlim(2:nout_ice+1))
+              iret = nf90_put_var(ncid2,VarID,rmid,start=(/nrec2/))
+              DEALLOCATE(rmid)
+          END IF
        END IF
        ! \\ SALSA
        iret = nf90_inq_varid(ncid2, s2(5), VarID)
@@ -2596,6 +2710,26 @@ contains
           iret = nf90_put_var(ncid2,VarID,svctr_rate(:,n), start=(/1,nrec2/),  &
                count=(/n1,1/))
        END DO
+    END IF
+
+    IF (level >= 4 .AND. nout_cld>0) THEN
+        iret = nf90_inq_varid(ncid2, s2CldHist(1), VarID)
+        IF (iret == NF90_NOERR) &
+            iret = nf90_put_var(ncid2,VarID,svctr_ch(:,:,1), start=(/1,1,nrec2/), count=(/n1,nout_cld,1/))
+        iret = nf90_inq_varid(ncid2, s2CldHist(2), VarID)
+        IF (iret == NF90_NOERR) &
+            iret = nf90_put_var(ncid2,VarID,svctr_ch(:,:,2), start=(/1,1,nrec2/), count=(/n1,nout_cld,1/))
+        svctr_ch(:,:,:) = 0.
+    END IF
+
+    IF (level >= 5 .AND. nout_ice>0) THEN
+        iret = nf90_inq_varid(ncid2, s2IceHist(1), VarID)
+        IF (iret == NF90_NOERR) &
+            iret = nf90_put_var(ncid2,VarID,svctr_ih(:,:,1), start=(/1,1,nrec2/), count=(/n1,nout_ice,1/))
+        iret = nf90_inq_varid(ncid2, s2IceHist(2), VarID)
+        IF (iret == NF90_NOERR) &
+            iret = nf90_put_var(ncid2,VarID,svctr_ih(:,:,2), start=(/1,1,nrec2/), count=(/n1,nout_ice,1/))
+        svctr_ih(:,:,:) = 0.
     END IF
 
     if (myid==0) print "(/' ',12('-'),'   Record ',I3,' to profiles')",nrec2

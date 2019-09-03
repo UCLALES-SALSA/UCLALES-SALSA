@@ -189,7 +189,7 @@ CONTAINS
                                in2a,fn2a,       &
                                fn2b,       &
                                cloudbins,       &
-                               precpbins, rainbinlim
+                               precpbins, rainbinlim, cldbinlim, nout_cld
     USE mo_salsa_driver, ONLY : kbdim, klev, &
                                  cloud,precp,aero
 
@@ -304,6 +304,20 @@ CONTAINS
     precpbins(:) = (precp(1,1,:)%vlolim/pi6)**(1./3.)
     precpbins = 0.5*precpbins ! To radius
 
+    ! Cloud bin limits for outputs
+    IF (cldbinlim(1)>=0.) THEN
+        ii=2
+        DO WHILE (cldbinlim(ii)>=0.)
+            IF (cldbinlim(ii-1)>cldbinlim(ii)) THEN
+                WRITE(*,*) 'Non-monotonic input cloud bin limits!'
+                STOP
+            ENDIF
+            ii=ii+1
+        END DO
+        cldbinlim(1:ii-1)=cldbinlim(1:ii-1)*0.5e-6 ! from microns to meters and to radius
+        nout_cld=ii-2
+    ENDIF
+
   END SUBROUTINE set_cloudbins
 
   !--------------------------------------------------------------------------
@@ -326,7 +340,7 @@ CONTAINS
                                in2a,fn2a,       &
                                fn2b,       &
                                icebins,         &
-                               snowbins, snowbinlim
+                               snowbins, snowbinlim, icebinlim, nout_ice
     USE mo_salsa_driver, ONLY : kbdim, klev, &
                                  ice,snow,aero
 
@@ -437,6 +451,20 @@ CONTAINS
     snowbins(:) = (snow(1,1,:)%vlolim/pi6)**(1./3.)
     snowbins = 0.5*snowbins ! To radius
 
+    ! Ice bin limits for outputs
+    IF (icebinlim(1)>=0.) THEN
+        ii=2
+        DO WHILE (icebinlim(ii)>=0.)
+            IF (icebinlim(ii-1)>icebinlim(ii)) THEN
+                WRITE(*,*) 'Non-monotonic input ice bin limits!'
+                STOP
+            ENDIF
+            ii=ii+1
+        END DO
+        icebinlim(1:ii-1)=icebinlim(1:ii-1)*0.5e-6 ! from microns to meters and to radius
+        nout_ice=ii-2
+    ENDIF
+
   END SUBROUTINE set_icebins
 
 
@@ -486,7 +514,7 @@ CONTAINS
                                volDistA, volDistB,    &
                                nf2a, isdtyp,          &
                                sigmag,dpg,n,          &
-                               rhlim
+                               rhlim, cldbinlim, icebinlim
 
     IMPLICIT NONE
 
@@ -551,8 +579,9 @@ CONTAINS
 
          sigmag,        & ! Stdev for the 7 initial lognormal modes
          dpg,           & ! Mean diameter for the 7 initial lognormal modes
-         n                ! Number concentration for the 7 initial lognormal modes
-
+         n,             & ! Number concentration for the 7 initial lognormal modes
+         cldbinlim,     & ! Output cloud bin diameter limits (microns)
+         icebinlim        ! Output ice bin diameter limits (microns)
 
 
     OPEN(11,STATUS='old',FILE='NAMELIST')

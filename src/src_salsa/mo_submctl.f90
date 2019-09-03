@@ -188,6 +188,10 @@ MODULE mo_submctl
   REAL :: rainbinlim(100) = -1.
   REAL :: snowbinlim(100) = -1.
 
+  ! Cloud and ice bin limits for histogram outputs (profiles only)
+  REAL :: cldbinlim(100) = -1., icebinlim(100) = -1.
+  INTEGER :: nout_cld=0, nout_ice=0
+
   INTEGER ::      & ! start index for bin regimes
    in1a,          & ! regime 1a
    in2a,          & ! regime 2a
