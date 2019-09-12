@@ -705,7 +705,7 @@ CONTAINS
           END IF
 
           zvcstar = MAX( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vlolim )
-          zvcstar = MIN( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vhilim ) 
+          zvcstar = MIN( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vhilim )
 
           ! Loop over cloud droplet (and aerosol) bins
           DO cb = ica%cur,fcb%cur
@@ -758,7 +758,7 @@ CONTAINS
 
              Vip1 = MAX(Vlop1,MIN(Vip1,Vhip1))
              Vim1 = MAX(Vlom1,MIN(Vim1,Vhim1))
-             
+
 
              ! get density distribution values for
              dNim1 = Nim1/(Vhim1-Vlom1)
@@ -821,7 +821,7 @@ CONTAINS
   REAL FUNCTION intgN(ikk,icc,ilow,ihigh)
     ! Gets the integral over a (linear) number concentration distribution
     !
-    
+
     IMPLICIT NONE
     REAL, INTENT(in) :: ikk,icc,ilow,ihigh
     intgN = 0.5*ikk*MAX(ihigh**2 - ilow**2,0.) + icc*MAX(ihigh - ilow,0.)
@@ -830,7 +830,7 @@ CONTAINS
   REAL FUNCTION intgV(ikk,icc,ilow,ihigh)
     ! Gets the integral over a volume volume distribution based on a linear
     ! number concentration distribution
-    
+
     IMPLICIT NONE
     REAL, INTENT(in) :: ikk,icc,ilow,ihigh
     intgV = (1./3.)*ikk*MAX(ihigh**3 - ilow**3,0.) + 0.5*icc*MAX(ihigh**2 - ilow**2,0.)
@@ -845,7 +845,7 @@ CONTAINS
   ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
   ! parameter and is set to 1.2 by default
   !
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
                                nprc,        &
@@ -886,7 +886,7 @@ CONTAINS
                       pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + pcloud(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
                       pcloud(ii,jj,cc)%volc(ss) = pcloud(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
                    END DO
-                   
+
                    pprecp(ii,jj,1)%volc(8) = pprecp(ii,jj,1)%volc(8) + pcloud(ii,jj,cc)%volc(8)*(Vrem/Vtot)
                    pcloud(ii,jj,cc)%volc(8) = pcloud(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot))
 
@@ -1364,7 +1364,7 @@ CONTAINS
     ! c) Critical energy (eq. 2.10 in KC00)
     crit_energy = 4.*pi/3.*sigma_is*r_g**2*sf-alpha*(1-mis)*rn**2
 
-    ! Eq 2.1 in KC00
+    ! Eq 2.1 in KC00 ( KC04 )
     calc_Jhet= boltz*temp/planck*c_1s*4.*pi*rn**2*exp((-act_energy-crit_energy)/(boltz*temp))
 
   END FUNCTION calc_Jhet
@@ -1802,7 +1802,7 @@ CONTAINS
   ! Assume a lognormal ice distribution for each bin. Sigma_g is an adjustable
   ! parameter and is set to 1.2 by default
   !
-    
+
     USE mo_submctl, ONLY : t_section,   &
                                nice,        &
                                nsnw,        &
@@ -1864,7 +1864,7 @@ CONTAINS
   ! -----------------------------------------------------------------
   !
   REAL FUNCTION cumlognorm(dg,sigmag,dpart)
-    
+
     IMPLICIT NONE
     ! Cumulative lognormal function
     REAL, INTENT(in) :: dg

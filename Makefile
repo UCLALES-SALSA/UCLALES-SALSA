@@ -61,8 +61,8 @@ ifeq ($(COMP),ubuntu)
 
 	ifeq ($(RUNTYPE),fast)
 		# Optimized
-		FFLAGS		= -O2 -fdefault-real-8 ${NCDFINC} 
-		F77FLAGS	= -O2 
+		FFLAGS		= -O2 -fdefault-real-8 ${NCDFINC}
+		F77FLAGS	= -O2
 	else
 		#Debug
 		FFLAGS		= -O2 -fdefault-real-8 ${NCDFINC} -fbounds-check  -g -fcheck=all  -Wall -Wtabs -fbacktrace -ffpe-trap=invalid,zero,overflow
@@ -76,7 +76,7 @@ ifeq ($(COMP),gnu)
 	NCDF		= /usr
 	NCDFLIB		= '-L$(NCDF)/lib -lnetcdff -lnetcdf'
 	NCDFINC		= -I$(NCDF)/include
-	
+
 	# Libraries
 	LIBS		= $(NCDFLIB)
 	LIBFLAGS	= -I$(SRC)
@@ -107,17 +107,43 @@ ifeq ($(COMP),cray)
 		FFLAGS		= -O0 -s real64 -eD -G0
 		F77FLAGS	= -G0
 	endif
-	
+
 endif
 # Taito Intel -------------------------------------------------
 ifeq ($(COMP),taitointel)
 	F90		= mpif90
 
 	NETCDROOT	= /appl/opt/netcdf4/intel-16.0.0/intelmpi-5.1.1/4.3.3.1/
-	NETCDF_LIB	= -L$(NETCDFROOT)lib -lnetcdff -lnetcdf 
+	NETCDF_LIB	= -L$(NETCDFROOT)lib -lnetcdff -lnetcdf
 	NETCDF_INCLUDE	= -I$(NETCDFROOT)/include
 
 	HDF5ROOT	= /appl/opt/hdf5-par/intel-16.0.0/intelmpi-5.1.1/1.8.15
+	HDF5_LIB	= -L$(HDF5ROOT)/lib -lhdf5_hl -lhdf5
+	HDF5_INCLUDE       = -I$(HDF5ROOT)/include
+
+	# Libraries
+	LIBS		= '$(HDF5_LIB) $(NETCDF_LIB)'
+	LIBFLAGS 	= -I$(SRC) $(HDF5_INCLUDE) $(NETCDF_INCLUDE)
+
+	ifeq ($(RUNTYPE),fast)
+		# Optimized
+		FFLAGS		= -O2 -march=native -real-size 64 -fp-model precise -convert big_endian -fpe0
+		F77FLAGS	= -O2 -march=native -real-size 64 -fp-model precise -convert big_endian -fpe0
+	else
+		# Debug
+		FFLAGS		= -O2 -march=native -real-size 64 -convert big_endian -fpe0 -fp-model source -fp-model precise -g -traceback -integer-size 32 -check bounds
+		F77FLAGS	= -O2 -march=native -real-size 64 -convert big_endian -fpe0 -fp-model source -fp-model precise -g -traceback -integer-size 32 -check bounds
+	endif
+endif
+# Puhti Intel -------------------------------------------------
+ifeq ($(COMP),puhtiintel)
+	F90		= mpif90
+
+	NETCDROOT	= /appl/spack/install-tree/intel-19.0.4/netcdf-fortran-4.4.4-tmvulh/
+	NETCDF_LIB	= -L$(NETCDFROOT)lib -lnetcdff -lnetcdf
+	NETCDF_INCLUDE	= -I$(NETCDFROOT)/include
+
+	HDF5ROOT	= /appl/spack/install-tree/intel-19.0.4/hdf5-1.10.4-z72kbd/
 	HDF5_LIB	= -L$(HDF5ROOT)/lib -lhdf5_hl -lhdf5
 	HDF5_INCLUDE       = -I$(HDF5ROOT)/include
 
@@ -175,7 +201,7 @@ seq: $(LES_OUT_SEQ)
 
 mpi: $(LES_OUT_MPI)
 
-$(LES_OUT_SEQ): 
+$(LES_OUT_SEQ):
 	cd $(SRC); $(MAKE) LES_ARC=seq \
 	FFLAGS='$(FFLAGS) $(LIBFLAGS)' F90=$(F90) \
 	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_SEQ) \
@@ -189,14 +215,14 @@ $(LES_OUT_MPI):
 	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) SRCLES=$(SRC_LES) \
 	SRCSALSA=$(SRC_SALSA)
 
-.PHONY: $(LES_OUT_SEQ) 
+.PHONY: $(LES_OUT_SEQ)
 .PHONY: $(LES_OUT_MPI)
 
 #
 # cleaning
 # --------------------
 #
-clean: cleanmpi cleanseq 
+clean: cleanmpi cleanseq
 	$(RM) $(SRC)/*mod $(SRC)/*.o
 
 cleanmpi:
@@ -207,5 +233,5 @@ cleanseq:
 	$(ECHO) "clean sequential model"
 	$(RM) core $(LES_OUT_SEQ) $(SRC)/seq/*mod $(LES_ARC_SEQ)
 
-FORCE: 
+FORCE:
 .PRECIOUS: $(LIBS)
