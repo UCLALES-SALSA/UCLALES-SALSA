@@ -5,7 +5,9 @@ def examine_fname(infile):
     # Examine if the given file name pattern represents a valid output file
     #
     # At least one file must exists
-    if not os.path.isfile('%s.%04u%04u.nc' % (infile, 0, 0)): return 0,0
+    if not os.path.isfile('%s.%04u%04u.nc' % (infile, 0, 0)):
+        print("Input files not found: ",'%s.%04u%04u.nc' % (infile, 0, 0))
+        return 0,0
     #
     # Limits for the data file indices
     imax,jmax=0,0

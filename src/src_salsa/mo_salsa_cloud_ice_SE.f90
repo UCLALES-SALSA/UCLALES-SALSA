@@ -70,8 +70,8 @@ MODULE mo_salsa_cloud_ice_SE
                 ! Update particle diameters for later use
                 CALL liquid(ii,jj,kk)%updateDiameter(type="all", limit=.TRUE.)                
                 dwet = liquid(ii,jj,kk)%dwet
-                dins = liquid(ii,jj,kk)%dins
-                
+!                dins = liquid(ii,jj,kk)%dins
+                dins = liquid(ii,jj,kk)%ddry
                 ! Calculate homogeneous freezing here separately since it does not need contact angle integration
                 ! Homogeneous freezing
                 IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. ice_hom) THEN
@@ -147,11 +147,11 @@ MODULE mo_salsa_cloud_ice_SE
     thmax = 180.
     
     frac = 0.
-    
+  
     DO kk = 1,nliquid
        DO jj = 1,klev
           DO ii = 1,kproma
-
+             
              IF ( .NOT. nuc_mask(ii,jj,kk) .OR.                 &
                   Tk(ii,jj) > 273.15 .OR.                       &
                   liquid(ii,jj,kk)%numc < liquid(ii,jj,kk)%nlim ) CYCLE
@@ -159,7 +159,9 @@ MODULE mo_salsa_cloud_ice_SE
              thmin = th00(ii,jj,kk)            
              Jacc = 0.
 
-             dins = liquid(ii,jj,kk)%dins
+             !dins = liquid(ii,jj,kk)%dins
+             !!!! USE DRY DIAMETER IF EXTERNAL MIXTURE ASSUMED WIHTIN BIN. NEEDED TO AVOID EXCESS FREEZING BECAUSE OF COAGULATION BETWEEN A AND B REGIMES 
+             dins = liquid(ii,jj,kk)%ddry
                           
              DO i = 1,10
                 
@@ -186,6 +188,7 @@ MODULE mo_salsa_cloud_ice_SE
           END DO
        END DO
     END DO
+
 
   END SUBROUTINE gauss_legendre
 
@@ -413,13 +416,14 @@ MODULE mo_salsa_cloud_ice_SE
     REAL :: f0, f1, nnuc_new, ncur0
        
     INTEGER :: ii,jj,kk,bb,ss
-    INTEGER :: ndry, iwa, irim
-    REAL :: dwet
+    INTEGER :: ndry, iwa, irim,I_DU
+    REAL :: dwet,V_tot(kbdim,klev,nliquid),frac_DU(kbdim,klev,nliquid), frac2(kbdim,klev,nliquid)
 
     ndry = spec%getNSpec(type="dry")
     iwa = spec%getIndex("H2O")
     irim = spec%getIndex("rime")
     
+    I_DU=spec%getIndex("DU")
     DO kk = 1,nliquid
        DO jj = 1,klev
           DO ii = 1,kproma
@@ -427,50 +431,83 @@ MODULE mo_salsa_cloud_ice_SE
              IF (liquid(ii,jj,kk)%numc < liquid(ii,jj,kk)%nlim) CYCLE  ! Not enough droplets
              IF ( SUM(liquid(ii,jj,kk)%volc(spec%ind_insoluble)) < minVin ) CYCLE ! Not enough IN material
              
-             ! The old IN "deficit" fraction
-             f0 = liquid(ii,jj,kk)%indef
 
-             ! Current number of potential IN particles
-             ncur0 = liquid(ii,jj,kk)%numc             
-             nnuc_new = frac(ii,jj,kk)*ncur0
-             
-             f1 = nnuc_new + (ncur0 + nnuc_new)*f0
-             f1 = f1/ncur0
-             IF (f1 < 0. .OR. f1 > 1.) WRITE(*,*) 'update indef wrong', f1
-             f1 = MIN( MAX(f1,1.e-6),1.-1.e-6 )
-             
-             liquid(ii,jj,kk)%indef = f1
-             
              ! Determine the target ice bin
              CALL liquid(ii,jj,kk)%updateDiameter(type="wet",limit=.TRUE.)
              dwet = liquid(ii,jj,kk)%dwet             
              bb = getIceBin(dwet)
-
+             
              ! Update the ice bins
              ! Dry aerosol
-             DO ss = 1,ndry
-                ice(ii,jj,bb)%volc(ss) =    &
-                     MAX(0., ice(ii,jj,bb)%volc(ss) + liquid(ii,jj,kk)%volc(ss)*frac(ii,jj,kk))
-                liquid(ii,jj,kk)%volc(ss) =   &
-                     MAX(0., liquid(ii,jj,kk)%volc(ss)*(1.-frac(ii,jj,kk)))
-             END DO
              
+             ! TOTAL FROZEN VOLUME WITHOUT WATER
+             V_tot(ii,jj,kk)=frac(ii,jj,kk)*sum( liquid(ii,jj,kk)%volc(1:ndry))
+             ! DUST VOLUME FRACTION
+             frac_DU(ii,jj,kk)=liquid(ii,jj,kk)%volc(I_DU)/sum( liquid(ii,jj,kk)%volc(1:ndry))
+             
+             
+             frac2(ii,jj,kk)=frac(ii,jj,kk)
+             if(frac_DU(ii,jj,kk) <= 0.1) then                         ! JUST TO CHANGE ACTIVATED AMOUNT IN A-BINS
+                frac2(ii,jj,kk)=frac(ii,jj,kk)*frac_DU(ii,jj,kk)
+             else
+                frac2(ii,jj,kk)=frac(ii,jj,kk)
+             endif
+
+             ! The old IN "deficit" fraction
+             f0 = liquid(ii,jj,kk)%indef
+
+             ! Current number of potential IN particles
+             
+             if(frac_DU(ii,jj,kk) <= 0.1) then
+                ncur0 = liquid(ii,jj,kk)%numc*frac_DU(ii,jj,kk)
+                nnuc_new = frac(ii,jj,kk)*ncur0            
+             else
+                ncur0 = liquid(ii,jj,kk)%numc  
+                nnuc_new = frac(ii,jj,kk)*ncur0            
+             endif
+
+
+             f1 = nnuc_new + (ncur0 - nnuc_new)*f0
+             f1 = f1/ncur0
+             IF (f1 < -1.e-20 .OR. f1 > 2.) WRITE(*,*) 'update indef wrong', f1
+             f1 = MIN( MAX(f1,1.e-6),1.-1.e-6 )
+             
+             liquid(ii,jj,kk)%indef = f1
+             
+
+             ! NEXT ONLY DUST  REMOVED IF THERE IS ENOUGH OF IT   
+             if(frac_DU(ii,jj,kk) <= 0.1 ) then
+                
+                ice(ii,jj,bb)%volc(I_DU) =    &
+                     MAX(0., ice(ii,jj,bb)%volc(I_DU) + V_tot(ii,jj,kk)*frac_DU(ii,jj,kk))
+                liquid(ii,jj,kk)%volc(I_DU) =   &
+                     MAX(0., liquid(ii,jj,kk)%volc(I_DU)-V_tot(ii,jj,kk)*frac_DU(ii,jj,kk))
+             else
+                
+                DO ss = 1,ndry
+                   ice(ii,jj,bb)%volc(ss) =    &
+                        MAX(0., ice(ii,jj,bb)%volc(ss) + liquid(ii,jj,kk)%volc(ss)*frac2(ii,jj,kk))
+                   liquid(ii,jj,kk)%volc(ss) =   &
+                        MAX(0., liquid(ii,jj,kk)%volc(ss)*(1.-frac2(ii,jj,kk)))
+                END DO
+             endif
+
              ! Water (total ice)
              IF (ANY(liquid(ii,jj,kk)%phase == [1,2])) THEN
                 ! Aerosol or cloud droplets -> only pristine ice production
                 ice(ii,jj,bb)%volc(iwa) =   &
-                     MAX(0.,ice(ii,jj,bb)%volc(iwa) + liquid(ii,jj,kk)%volc(iwa)*frac(ii,jj,kk)*spec%rhowa/spec%rhoic)
-                liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac(ii,jj,kk)))
+                     MAX(0.,ice(ii,jj,bb)%volc(iwa) + liquid(ii,jj,kk)%volc(iwa)*frac2(ii,jj,kk)*spec%rhowa/spec%rhoic)
+                liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac2(ii,jj,kk)))
              ELSE IF (liquid(ii,jj,kk)%phase == 3) THEN
                 ! Precip -> rimed ice
                 ice(ii,jj,bb)%volc(irim) =   &
-                     MAX(0.,ice(ii,jj,bb)%volc(irim) + liquid(ii,jj,kk)%volc(iwa)*frac(ii,jj,kk)*spec%rhowa/spec%rhori)
-                liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac(ii,jj,kk)))
+                     MAX(0.,ice(ii,jj,bb)%volc(irim) + liquid(ii,jj,kk)%volc(iwa)*frac2(ii,jj,kk)*spec%rhowa/spec%rhori)
+                liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac2(ii,jj,kk)))
              END IF
              
              ! Number concentration
-             ice(ii,jj,bb)%numc = MAX(0.,ice(ii,jj,bb)%numc + liquid(ii,jj,kk)%numc*frac(ii,jj,kk))
-             liquid(ii,jj,kk)%numc = MAX(0.,liquid(ii,jj,kk)%numc*(1.-frac(ii,jj,kk)))
+             ice(ii,jj,bb)%numc = MAX(0.,ice(ii,jj,bb)%numc + liquid(ii,jj,kk)%numc*frac2(ii,jj,kk))
+             liquid(ii,jj,kk)%numc = MAX(0.,liquid(ii,jj,kk)%numc*(1.-frac2(ii,jj,kk)))
 
              CALL ice(ii,jj,bb)%updateRhomean()
              

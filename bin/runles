@@ -15,19 +15,19 @@
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
 IsSeq=1 # 0 for mpi runs with CRAY, 1 for sequential, 2 for mpi on laptop
 
-EXPNAME="testi"  # Name of the experiment
+EXPNAME="seed_init_100_dmin50"  # Name of the experiment
 
 NPROCS=1          # Number of processors (for IsSeq==0)
 TWALL=72:00:00      # Required wallclock time for batch system
 
-NXP=100               # Number of points in X-direction (including "halo" points)
+NXP=50               # Number of points in X-direction (including "halo" points)
 NYP=5              # Number of points in Y-direction (including "halo" points)
-NZP=140              # Number of points in Z-direction
+NZP=100              # Number of points in Z-direction
 DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
 DZ=10.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=100.        # Length of the spinup period (seconds)
+Tspinup=60.        # Length of the spinup period (seconds)
 Texp=28800.         # Length of the experiment (seconds)
 LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 
@@ -90,18 +90,18 @@ cat > NAMELIST <<EOF
   corflg = .false.            ! Apply coriolis force
   prndtl = -0.333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
-  hfilin = '${EXPNAME}.000020s' ! History file name
-  frqhis = 7200.
+  hfilin = 'testi.003600s' ! History file name
+  frqhis = 3600.
   lbinanl = .TRUE.           ! Write binned microphysical output (with level >= 4)
   lsalsabbins = .TRUE.  
   !mcflg = .FALSE.             ! Do mass conservation statistics
 
   sed_aero%switch = .FALSE.          ! Calculate sedimentation of aerosol particles
-  sed_cloud%switch = .TRUE.          ! - '' - cloud droplets
+  sed_cloud%switch = .FALSE.          ! - '' - cloud droplets
   sed_cloud%delay = ${Tspinup}
-  sed_precp%switch = .TRUE.          ! precipitation
+  sed_precp%switch = .FALSE.          ! precipitation
   sed_precp%delay = ${Tspinup}  
-  sed_ice%switch = .TRUE.            ! ice particles
+  sed_ice%switch = .FALSE.            ! ice particles
   bulk_autoc%switch = .FALSE.
   bulk_autoc%delay = ${Tspinup}      ! Autoconversion switch for level = 1-3
 
@@ -120,10 +120,8 @@ cat > NAMELIST <<EOF
   breakUndefOutput = .FALSE.
   ps_intvl = 5.
   ts_intvl = 5.
-  main_intvl = 10.
-  varlist_main = 'temp','theta','wwind','uwind','vwind','rp','srp',
-                 'rc','rh','Naa','Nab','Nca','Ncb','Np','rrate',
-                 'Dwcba','VtIce'
+  main_intvl = 5.
+  varlist_main = 'Naba','Nabb','Ncba','Ncbb','Npba','Dwaba','Dwabb','Dwcba','Dwcbb','Dwpba'
   varlist_ps = 
   varlist_ts = 
 /
@@ -204,10 +202,10 @@ cat > NAMELIST <<EOF
   !emitModes(1)%z_expan_up = 3
   !emitModes(1)%z_expan_dw = 2
 
-  emitModes(1)%emitType = 2
+  emitModes(1)%emitType = 3
   emitModes(1)%regime = 2
-  emitModes(1)%start_time = 200.
-  emitModes(1)%end_time = 201.
+  emitModes(1)%start_time = 100. !3610.
+  emitModes(1)%end_time = 3611.
   emitModes(1)%species = "SS"
   emitModes(1)%emitHeightMin = 550.
   emitModes(1)%emitHeightMax = 600.
@@ -215,11 +213,15 @@ cat > NAMELIST <<EOF
   emitModes(1)%emitDiam = 1.5e-6
   emitModes(1)%emitNum = 0.5e6
   emitModes(1)%emitSigma = 1.3
+  emitModes(1)%emitMap = 'emitMap_1'
+  emitModes(1)%scS = 60.
+  emitModes(1)%z_expan_up = 3
+  emitModes(1)%z_expan_dw = 2
 
-  emitModes(2)%emitType = 2
+  emitModes(2)%emitType = 3
   emitModes(2)%regime = 2
-  emitModes(2)%start_time = 200.
-  emitModes(2)%end_time = 201.
+  emitModes(2)%start_time = 100. !3610.
+  emitModes(2)%end_time = 3611.
   emitModes(2)%species = "SS"
   emitModes(2)%emitHeightMin = 550.
   emitModes(2)%emitHeightMax = 600.
@@ -227,7 +229,10 @@ cat > NAMELIST <<EOF
   emitModes(2)%emitDiam = 8.0e-6
   emitModes(2)%emitNum = 0.5e6
   emitModes(2)%emitSigma = 1.6
-
+  emitModes(2)%emitMap = 'emitMap_1'
+  emitModes(2)%scS = 60.
+  emitModes(2)%z_expan_up = 3
+  emitModes(2)%z_expan_dw = 2
 
 /
 
@@ -257,11 +262,11 @@ cat > NAMELIST <<EOF
 
    ! Sub-process switches: Coagulation
    lscgcc = .TRUE.       ! Self-collection of cloud droplets
-   lscgpp = .TRUE.       ! Self-collection of rain drops
-   lscgpc = .TRUE.       ! Rain collection of cloud droplets
+   lscgpp = .FALSE.       ! Self-collection of rain drops
+   lscgpc = .FALSE.       ! Rain collection of cloud droplets
    lscgaa = .FALSE.       ! Aerosol coagulation
    lscgca = .FALSE.       ! Cloud collection of aerosols
-   lscgpa = .TRUE.       ! Rain collection of aerosols
+   lscgpa = .FALSE.       ! Rain collection of aerosols
    lscgia = .TRUE.       ! Ice collection of aerosols
    lscgic = .TRUE.       ! Ice collection of cloud droplets
    lscgii = .TRUE.       ! Self-collection of ice
@@ -285,7 +290,7 @@ cat > NAMELIST <<EOF
 
    ! Some useful switches for spinup and initilization
    lsfreeRH%switch = .TRUE.       ! Use freely evolving RH. If FALSE, RH is limited by rhlim through entire simulation
-   lsfreeRH%delay = ${Tspinup}    ! Time until which RH is limited by rhlim, in case lsfreeRH%swithc == TRUE
+   lsfreeRH%delay = 0. !${Tspinup}    ! Time until which RH is limited by rhlim, in case lsfreeRH%swithc == TRUE
    rhlim = 1.005                  ! RH limit for SALSA during initialization and spinup
 
    lsfreeTheta%switch = .TRUE.    ! Use freely evolving lower limit in contact angle integration for ice nucleation
@@ -304,7 +309,7 @@ cat > NAMELIST <<EOF
 
    ! Precipitation bin layout parameters
    bloPrc%nbins     = 20        ! Number of bins
-   bloPrc%dlo       = 20.e-6    ! Lower limit of the smallest bin
+   bloPrc%dlo       = 50.e-6    ! Lower limit of the smallest bin
    bloPrc%vol_ratio = 2.        ! Volume ratio between bins
 
    ! Ice bin layout parameters
@@ -320,9 +325,9 @@ cat > NAMELIST <<EOF
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
    volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)  
-   sigmagA  = 1.2, 1.7, 2.0, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
+   sigmagA  = 1.2, 1.7, 1.5, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpgA     = 0.022, 0.12, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nA       = 400., 400., 0.5, 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
+   nA       = 400., 200., 1.0, 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
    volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
