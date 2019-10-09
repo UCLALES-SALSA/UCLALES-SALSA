@@ -41,9 +41,22 @@ MODULE mpi_interface
    INTERFACE broadcast
       MODULE PROCEDURE broadcastRealArray1d, broadcastRealArray3d, broadcastInteger
    END INTERFACE broadcast
-   
-   INTEGER :: myid, pecount, nxpg, nypg, nxg, nyg, nbytes, intsize
-   INTEGER :: xcomm, ycomm,commxid,commyid, MY_CMPLX, MY_SIZE
+
+   INTERFACE get_max_root
+      MODULE PROCEDURE get_scalar_integer_global_max_root
+   END INTERFACE get_max_root
+
+   INTERFACE get_sum_root
+      MODULE PROCEDURE get_scalar_float_global_sum_root,    &
+                       get_1d_float_global_sum_root,        &
+                       get_1d_integer_global_sum_root
+   END INTERFACE get_sum_root
+
+   INTEGER, PARAMETER :: mpiroot = 0
+   INTEGER :: REAL_SIZE, CMPLX_SIZE, INT_SIZE
+   INTEGER :: MY_REAL ! this is neede here just as a dummy because for mpi build there are additional modules that import this
+   INTEGER :: myid, pecount, nxpg, nypg, nxg, nyg, nbytes
+   INTEGER :: xcomm, ycomm,commxid,commyid
    INTEGER :: nxnzp,nynzp
    INTEGER :: wrxid, wryid, nxprocs, nyprocs
    INTEGER, ALLOCATABLE, DIMENSION(:) :: xoffset, yoffset, nxpa, nypa
@@ -68,21 +81,21 @@ CONTAINS
       SELECT CASE (kind(0.0))
          CASE (4)
             nbytes = 4
-            MY_SIZE = 4
-            MY_CMPLX = 8
+            REAL_SIZE = 4
+            CMPLX_SIZE = 8
          CASE (8)
             nbytes = 8
-            MY_SIZE = 8
-            MY_CMPLX = 16
+            REAL_SIZE = 8
+            CMPLX_SIZE = 16
          CASE DEFAULT
             STOP "kind not supported"
       END SELECT
 
       SELECT CASE(kind(0))
          CASE (4)
-            intsize = 4
+            INT_SIZE = 4
          CASE (8)
-            intsize = 8
+            INT_SIZE = 8
          CASE DEFAULT
             STOP "int kind not supported"
       END SELECT
@@ -90,7 +103,7 @@ CONTAINS
       CALL date_and_time(date)
       IF (myid == 0) PRINT "(/1x,75('-'),/2x,A22,/2x,A15,I2,A15,I2,A14)", &
          'UCLALES-SALSA '//date, 'Computing using',nbytes,' byte REALs and', &
-         intsize," byte INTEGERs"
+         INT_SIZE," byte INTEGERs"
       IF (myid == 0 .AND. len(info) > 0) PRINT *, ' '//trim(info)
 
    END SUBROUTINE init_mpi
@@ -123,14 +136,17 @@ CONTAINS
       nxg = nxpg-4
       nyg = nypg-4
 
-      ALLOCATE (nxpa(0:nxprocs-1), nypa(0:nyprocs-1))
+      ! FIX ? -1
+      ALLOCATE (nxpa(0:nxprocs), nypa(0:nyprocs))
       nxpa(0) = nxg
       nypa(0) = nyg
 
       !
       !  offsets for ecah processor in x and y, for a given grid (nxp x nyp)
       !
-      ALLOCATE(xoffset(0:nxprocs-1),yoffset(0:nyprocs-1))
+      ! FIX ? -1
+      ALLOCATE(xoffset(0:nxprocs),yoffset(0:nyprocs))
+      
 
       xoffset = 0
       yoffset = 0
@@ -158,7 +174,7 @@ CONTAINS
    !
    !----------------------------------------------------------------------
    ! INIT_ALLTOALL_REORDERXY: Defines the mpi derived types to do a data
-   ! movement of the form A(m,n/p,z) -> B(n,m/p,z) for data of type MY_CMPLX
+   ! movement of the form A(m,n/p,z) -> B(n,m/p,z) for data of type CMPLX_SIZE
    !
    SUBROUTINE init_alltoall_reorder(nxp,nyp,nzp)
 
@@ -289,6 +305,56 @@ CONTAINS
       END IF
 
    END SUBROUTINE yshuffle
+    !
+    ! -------------------------------------------------------------------------
+    ! SUBROUTINE get_scalar_global_max_root
+    ! Get the global maximum across processes for a single scalar. The value is
+    ! stored only for the root process!
+    ! 
+    SUBROUTINE get_scalar_integer_global_max_root(lmax,gmax)
+      REAL, INTENT(in) :: lmax
+      REAL, INTENT(out) :: gmax
+      gmax=lmax
+    END SUBROUTINE get_scalar_integer_global_max_root
+
+    !
+    ! --------------------------------------------------------------------
+    ! SUBROUTINE get_scalar_global_sum_root   
+    ! Get the sum across processes for a single float scalar. The value
+    ! is stored only for the root process!
+    SUBROUTINE get_scalar_float_global_sum_root(lsum,gsum)
+      REAL, INTENT(in) :: lsum
+      REAL, INTENT(out) :: gsum
+      gsum = lsum
+    END SUBROUTINE get_scalar_float_global_sum_root
+    ! --------------------------------------
+    ! SAme for integer
+    SUBROUTINE get_scalar_integer_global_sum_root(lsum,gsum)
+      INTEGER, INTENT(in) :: lsum
+      INTEGER, INTENT(out) :: gsum
+      gsum = lsum
+    END SUBROUTINE get_scalar_integer_global_sum_root
+    !
+    ! ------------------------------------------------------------------------
+    ! SUBROUTINE get_1d_global_sum_root(lsum,gsum)
+    ! Get the sum across all processes for a 1 dimensional float array. The values
+    ! are stored only for the root process
+    SUBROUTINE get_1d_float_global_sum_root(n,lsum,gsum)
+      INTEGER, INTENT(in) :: n
+      REAL, INTENT(in) :: lsum(n)
+      REAL, INTENT(out) :: gsum(n)
+      gsum = lsum
+    END SUBROUTINE get_1d_float_global_sum_root
+    ! -------------------------------------------------
+    ! Same for integer
+    SUBROUTINE get_1d_integer_global_sum_root(n,lsum,gsum)
+      INTEGER, INTENT(in) :: n
+      INTEGER, INTENT(in) :: lsum(n)
+      INTEGER, INTENT(out) :: gsum(n)
+      gsum = lsum
+    END SUBROUTINE get_1d_integer_global_sum_root
+   !
+
    !
    !---------------------------------------------------------------------------
    ! get maximum across processors

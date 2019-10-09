@@ -18,7 +18,8 @@
 !----------------------------------------------------------------------------
 !
 MODULE advf
-
+  USE mo_structured_datatypes
+  
   IMPLICIT NONE
 
   INTEGER :: lmtr = 1
@@ -31,25 +32,27 @@ CONTAINS
   ! times.
   !
   SUBROUTINE fadvect
-    USE grid, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, newsclr,  &
-                     nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtlt,  &
-                     dzt, dzm, zt, dxi, dyi, level, isgstyp
-    USE stat, ONLY : sflg, updtst
+    USE mo_progn_state, ONLY: a_qp
+    USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc
+    USE mo_aux_state, ONLY: dzt, dzm,dn0
+    USE grid, ONLY : newsclr, nscl, a_sp, a_st, nxp, nyp, nzp, dtlt,  &
+                     dxi, dyi, isgstyp
+    !USE stat, ONLY : sflg, updtst
     USE util, ONLY : get_avg3
 
-    REAL    :: v1da(nzp), a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
+    REAL    :: a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
     INTEGER :: n
     LOGICAL :: iw
     !
     ! diagnose liquid water flux
     !
-    IF (sflg .AND. level > 1) THEN
-       a_tmp1 = a_rc
-       CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.FALSE.)
-       CALL mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtlt,.FALSE.)
-       CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-       CALL updtst(nzp,'adv',0,v1da,1)
-    END IF
+    !IF (sflg .AND. level > 1) THEN
+    !   a_tmp1 = a_rc
+    !   CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.FALSE.)
+    !   CALL mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtlt,.FALSE.)
+    !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+    !   CALL updtst(nzp,'adv',0,v1da,1)
+    !END IF
     !
     ! loop through the scalar table, setting iscp and isct to the
     ! appropriate scalar pointer and do the advection, also add large
@@ -62,33 +65,33 @@ CONTAINS
       IF ( ANY(a_sp /= 0.0 ) ) THEN ! TR added: no need to calculate advection for zero arrays
          a_tmp1 = a_sp
 
-         IF (isgstyp > 1 .AND. associated(a_qp,a_sp)) THEN
+         IF (isgstyp > 1 .AND. associated(a_qp%d,a_sp)) THEN
             iw = .TRUE.
          ELSE
             iw = .FALSE.
          END IF
 
-         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_vp,a_vc,iw)
+         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_vp%d,a_vc%d,iw)
          CALL mamaos_y(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dyi,dtlt)
 
-         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_up,a_uc,iw)
+         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_up%d,a_uc%d,iw)
          CALL mamaos_x(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dxi,dtlt)
 
-         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,iw)
+         CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp%d,a_wc%d,iw)
          CALL mamaos(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dzt,dzm,dn0,dtlt,iw)
 
-         IF (sflg) THEN
-            CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-            CALL updtst(nzp,'adv',n,v1da,1)
-         END IF
+         !IF (sflg) THEN
+         !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+         !   CALL updtst(nzp,'adv',n,v1da,1)
+         !END IF
 
          CALL advtnd(nzp,nxp,nyp,a_sp,a_tmp1,a_st,dtlt)
 
-      ELSE IF (sflg) THEN
-         ! Averages & statistics even for zeros (might be non-zero elsewhere)
-         a_tmp2(:,:,:) = 0.
-         CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-         CALL updtst(nzp,'adv',n,v1da,1)
+      !ELSE IF (sflg) THEN
+      !   ! Averages & statistics even for zeros (might be non-zero elsewhere)
+      !   a_tmp2(:,:,:) = 0.
+      !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+      !   !CALL updtst(nzp,'adv',n,v1da,1)
       END IF
 
     END DO
@@ -101,11 +104,12 @@ CONTAINS
   !
   SUBROUTINE newdroplet(pactmask)
     USE mo_submctl, ONLY : ncld,nbins,ica,fca,eps,spec
-    USE grid, ONLY : nxp,nyp,nzp,dzt,            &
-                     a_wp,a_wc,  &
-                     a_naerop, a_naerot, a_maerop, a_maerot,  &
-                     a_ncloudt, a_mcloudt,  &
-                     a_nactd,  a_vactd,  a_rt
+    USE grid, ONLY : nxp,nyp,nzp,a_nactd,a_vactd
+    USE mo_vector_state, ONLY : a_wp, a_wc
+    USE mo_progn_state, ONLY : a_naerop, a_naerot, a_maerop, a_maerot,  &
+                               a_ncloudt, a_mcloudt, a_rt
+    USE mo_aux_state, ONLY : dzt
+    
     IMPLICIT NONE
 
     LOGICAL, INTENT(in) :: pactmask(nzp,nxp,nyp)
@@ -120,49 +124,49 @@ CONTAINS
     DO kk = 2, nzp-1
 
        kp1 = kk + 1 ! Tendency is applied in the level above where the potential number of activated is computed
-       zw = 0.25*( a_wp(kk,:,:) + a_wc(kk,:,:) + a_wp(kp1,:,:) + a_wc(kp1,:,:) )
+       zw = 0.25*( a_wp%d(kk,:,:) + a_wc%d(kk,:,:) + a_wp%d(kp1,:,:) + a_wc%d(kp1,:,:) )
        frac = 0.
 
        DO bb = ica%cur, fca%cur
 
           bbpar = ica%par + (bb-ica%cur)
 
-          dn(:,:) = zw(:,:)*a_nactd(kk,:,:,bb)*dzt(kk)
+          dn(:,:) = zw(:,:)*a_nactd(kk,:,:,bb)*dzt%d(kk)
 
           DO jj = 3, nyp-2
              DO ii = 3, nxp-2
-                fix_flux(ii,jj) = max(min(1.0,a_naerot(kp1,ii,jj,bbpar)/max(eps,dn(ii,jj))),0.8)
+                fix_flux(ii,jj) = max(min(1.0,a_naerot%d(kp1,ii,jj,bbpar)/max(eps,dn(ii,jj))),0.8)
              END DO
           END DO
 
           ! Add to cloud droplets
-          a_ncloudt(kp1,:,:,bb) = a_ncloudt(kp1,:,:,bb) +   &
+          a_ncloudt%d(kp1,:,:,bb) = a_ncloudt%d(kp1,:,:,bb) +   &
                                   MERGE( dn(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
           ! Remove from aerosols
-          a_naerot(kp1,:,:,bbpar) = a_naerot(kp1,:,:,bbpar) -   &
+          a_naerot%d(kp1,:,:,bbpar) = a_naerot%d(kp1,:,:,bbpar) -   &
                                     MERGE( dn(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
           ! Change in dry ccn/aerosol mass
-          DO ss = 1, spec%getNSpec()-1
+          DO ss = 1, spec%getNSpec(type="dry")
 
              mm = (ss-1)*ncld + bb
              mmpar = (ss-1)*nbins + bbpar
 
-             dv(:,:) = zw(:,:)*a_vactd(kk,:,:,mm)*dzt(kk)
+             dv(:,:) = zw(:,:)*a_vactd(kk,:,:,mm)*dzt%d(kk)
 
              DO jj = 3, nyp-2
                 DO ii = 3, nxp-2
-                   fix_flux(ii,jj) = max(min(1.0,a_maerot(kp1,ii,jj,mmpar)/max(eps,dv(ii,jj))),0.8)
+                   fix_flux(ii,jj) = max(min(1.0,a_maerot%d(kp1,ii,jj,mmpar)/max(eps,dv(ii,jj))),0.8)
                 END DO
              END DO
 
              ! Add to cloud droplets
-             a_mcloudt(kp1,:,:,mm) = a_mcloudt(kp1,:,:,mm) +   &
+             a_mcloudt%d(kp1,:,:,mm) = a_mcloudt%d(kp1,:,:,mm) +   &
                                      MERGE( dv(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
              ! Remove from aerosols
-             a_maerot(kp1,:,:,mmpar) = a_maerot(kp1,:,:,mmpar) -   &
+             a_maerot%d(kp1,:,:,mmpar) = a_maerot%d(kp1,:,:,mmpar) -   &
                                        MERGE( dv(:,:)*fix_flux(:,:), 0., pactmask(kk,:,:) )
 
           END DO ! ss
@@ -170,23 +174,29 @@ CONTAINS
           ! Change in water content
           ! Assume that existing condensate from aerosols bins is taken in the same relation
           ! as the number concentration....
-          frac(:,:) = a_nactd(kk,:,:,bb)/MAX(a_naerop(kk,:,:,bbpar),1.)
+          frac(:,:) = a_nactd(kk,:,:,bb)/MAX(a_naerop%d(kk,:,:,bbpar),1.)
 
           nc = spec%getIndex('H2O')
           mm = (nc-1)*ncld + bb
           mmpar = (nc-1)*nbins + bbpar
 
           ! Amount of water condensed from vapor
-          a_rt(kp1,:,:) = a_rt(kp1,:,:) -   &
-                          MERGE( fix_flux(:,:)*zw(:,:)*(a_vactd(kk,:,:,mm)-frac(:,:)*a_maerop(kk,:,:,mmpar))*dzt(kk), 0., &
-                                 pactmask(kk,:,:) )
+          a_rt%d(kp1,:,:) = a_rt%d(kp1,:,:) -   &
+               MERGE( fix_flux(:,:)*zw(:,:)*(a_vactd(kk,:,:,mm)-frac(:,:) * &
+                      a_maerop%d(kk,:,:,mmpar))*dzt%d(kk),                  &
+                      0., pactmask(kk,:,:) )
+          
           ! Add to cloud droplets
-          a_mcloudt(kp1,:,:,mm) = a_mcloudt(kp1,:,:,mm) +   &
-                                  MERGE( fix_flux(:,:)*zw(:,:)*a_vactd(kk,:,:,mm)*dzt(kk), 0., pactmask(kk,:,:) )
+          a_mcloudt%d(kp1,:,:,mm) = a_mcloudt%d(kp1,:,:,mm) +       &
+                                    MERGE( fix_flux(:,:)*zw(:,:) *  &
+                                    a_vactd(kk,:,:,mm)*dzt%d(kk),   &
+                                    0., pactmask(kk,:,:) )
 
           ! Remove from aerosols
-          a_maerot(kp1,:,:,mmpar) = a_maerot(kp1,:,:,mmpar) -   &
-                                    MERGE( fix_flux(:,:)*zw(:,:)*frac(:,:)*a_maerop(kk,:,:,mmpar)*dzt(kk), 0., pactmask(kk,:,:) )
+          a_maerot%d(kp1,:,:,mmpar) = a_maerot%d(kp1,:,:,mmpar) -               &
+                                      MERGE( fix_flux(:,:)*zw(:,:)*frac(:,:) *  &
+                                      a_maerop%d(kk,:,:,mmpar)*dzt%d(kk),       &
+                                      0., pactmask(kk,:,:) )
 
        END DO ! bb
 
@@ -196,7 +206,7 @@ CONTAINS
     ! the points defined by the activation mask (0 elsewhere)
     DO bb = ica%cur, fca%cur
        a_nactd(:,:,:,bb) = MERGE(a_nactd(:,:,:,bb),0.,pactmask(:,:,:))
-       DO ss = 1, spec%getNSpec()
+       DO ss = 1, spec%getNSpec(type="wet")
           mm = (ss-1)*ncld + bb
           a_vactd(:,:,:,mm) = MERGE(a_vactd(:,:,:,mm),0.,pactmask(:,:,:))
        END DO
@@ -265,6 +275,8 @@ CONTAINS
        END DO
     END DO
 
+    !tnd(n1-1:n1,:,:) = 0.
+    
   END SUBROUTINE advtnd
   !
   !----------------------------------------------------------------------
@@ -274,14 +286,13 @@ CONTAINS
   ! July 21, 2003
   !
   SUBROUTINE mamaos(n1,n2,n3,wp,scp0,scp,dzt,dzm,dn0,dt,lwpt)
-
     USE mpi_interface, ONLY : myid, appl_abort
-    INTEGER, INTENT (in)    :: n1,n2,n3
-    REAL, INTENT (in)       :: scp0(n1,n2,n3)
-    REAL, INTENT (in)       :: dn0(n1),dzt(n1),dzm(n1)
-    REAL, INTENT (in)       :: dt
-    LOGICAL, INTENT (in)    :: lwpt
-    REAL, INTENT (inout)    :: wp(n1,n2,n3),scp(n1,n2,n3)
+    INTEGER, INTENT (in)            :: n1,n2,n3
+    REAL, INTENT (in)               :: scp0(n1,n2,n3)
+    TYPE(FloatArray1d), INTENT (in) :: dn0,dzt,dzm
+    REAL, INTENT (in)               :: dt
+    LOGICAL, INTENT (in)            :: lwpt
+    REAL, INTENT (inout)            :: wp(n1,n2,n3),scp(n1,n2,n3)
 
     REAL    :: density(n1)   ! averaged density
     REAL    :: dzt_local(n1) ! grid spacing for scalars
@@ -292,18 +303,23 @@ CONTAINS
     REAL    :: wpdn(n1)      ! momentum: wp*density
     INTEGER :: i, j, k, kp1, k1, k2
     INTEGER :: gamma
+
+
+    r = 0.
+    C = 0.
+
     !
     ! initialize fields for use later
     !
     DO k = 1, n1
        kp1 = min(k+1,n1)
-       density(k) = 0.5 * (dn0(k) + dn0(kp1))
+       density(k) = 0.5 * (dn0%d(k) + dn0%d(kp1))
        IF (lwpt) THEN
-          dzt_local(k) = dzm(k)
-          dzm_local(k) = dzt(kp1)
+          dzt_local(k) = dzm%d(k)
+          dzm_local(k) = dzt%d(kp1)
        ELSE
-          dzt_local(k) = dzt(k)
-          dzm_local(k) = dzm(k)
+          dzt_local(k) = dzt%d(k)
+          dzm_local(k) = dzm%d(k)
        END IF
     END DO
 
@@ -324,8 +340,8 @@ CONTAINS
           ! calculate the ratio of slopes
           !
           DO k = 1, n1-1
-             gamma = -sign(1.,cfl(k))
-             IF (scp0(k+1,i,j)-scp0(k,i,j) /= 0.0 .AND. scp0(k+1,i,j)+scp0(k,i,j) > 1.e-40) THEN
+             gamma = -INT(sign(1.,cfl(k)))
+             IF (ABS(scp0(k+1,i,j)-scp0(k,i,j)) > 1.e-40  ) THEN!> SPACING(scp0(k,i,j)) ) THEN !.AND. scp0(k+1,i,j)-scp0(k,i,j) > 1.e-40) THEN
                 k2 = max(1,k+gamma)
                 k1 = min(n1,k+gamma+1)
                 r(k) = (scp0(k1,i,j) - scp0(k2,i,j)) / (scp0(k+1,i,j) - scp0(k,i,j))
@@ -369,7 +385,7 @@ CONTAINS
           DO k = 2, n1-1
              scp(k,i,j) = scp(k,i,j) - ((wp(k,i,j)-wp(k-1,i,j)) -      &
                           scp0(k,i,j)*(wpdn(k)-wpdn(k-1))) *           &
-                          dt*dzt_local(k)/dn0(k)
+                          dt*dzt_local(k)/dn0%d(k)
           END DO
 
        END DO
@@ -399,7 +415,9 @@ CONTAINS
     INTEGER :: i, j, k, i1, i2
     INTEGER :: gamma
     !
-
+    r = 0.
+    C = 0.
+    
     DO j = 3, n3-2
        !
        ! compute CFL and scr array for down-grid value of scalar
@@ -419,11 +437,11 @@ CONTAINS
           !
        DO k = 2, n1-1
           DO i = 2, n2-2
-             gamma = int(-sign(1.,cfl(i,k)))
-             IF (abs(scr(i,k) - scp0(k,i,j)) > spacing(scr(i,k))) THEN
+             gamma = INT(-sign(1.,cfl(i,k)))
+             IF (abs(scr(i,k) - scp0(k,i,j)) > 1.e-40 ) THEN !> SPACING(scr(i,k))) THEN
                 i2 = i+gamma
                 i1 = i+gamma+1
-                r(i,k) = (scp0(k,i1,j)-scp0(k,i2,j))/(scr(i,k)-scp0(k,i,j)+spacing(scr(i,k)))
+                r(i,k) = (scp0(k,i1,j)-scp0(k,i2,j))/(scr(i,k)-scp0(k,i,j))
              ELSE
                 r(i,k) = 0.
              END IF
@@ -478,6 +496,8 @@ CONTAINS
     INTEGER :: i, j, k, j1, j2
     INTEGER :: gamma
     !
+    r = 0.
+    C = 0.
 
     DO i = 1, n2
        !
@@ -498,8 +518,8 @@ CONTAINS
           !
        DO k = 2, n1-1
           DO j = 2, n3-2
-             gamma = int(-sign(1.,cfl(j,k)))
-             IF (abs(scr(j,k) - scp0(k,i,j)) > spacing(scr(j,k)) .AND. scr(j,k)+scp0(k,i,j) > 1e-40) THEN
+             gamma = INT(-sign(1.,cfl(j,k)))
+             IF (ABS(scr(j,k) - scp0(k,i,j)) > 1.e-40 ) THEN !> SPACING(scr(j,k)) ) THEN
                 j2 = j+gamma
                 j1 = j+gamma+1
                 r(j,k) = (scp0(k,i,j1)-scp0(k,i,j2))/(scr(j,k)-scp0(k,i,j))

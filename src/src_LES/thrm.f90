@@ -30,7 +30,9 @@
 !
 !
 MODULE thrm
-
+  USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray2d, FloatArray3d, FloatArray4d
+  
+  
   IMPLICIT NONE
 
 CONTAINS
@@ -43,12 +45,13 @@ CONTAINS
 !
   SUBROUTINE thermo (level)
 
-    USE grid, ONLY : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_temp,  &
-                     a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
-                     a_srp, a_ri, a_rsi, a_rhi, a_srs
+    USE mo_diag_state, ONLY : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_temp, a_rsl, a_srp, a_ri, a_riri, a_rsi, a_rhi
+    USE mo_progn_state, ONLY : a_rp, a_tp, a_rpp
+    USE mo_aux_state, ONLY : pi0, pi1
+    USE grid, ONLY : nxp, nyp, nzp, th00
 
     INTEGER, INTENT (in) :: level
-
+    
     SELECT CASE (level)
     CASE DEFAULT
        CALL drythrm(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,   &
@@ -58,10 +61,10 @@ CONTAINS
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl)
     CASE (3)
        CALL satadjst3(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0, &
-                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp)
+                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp,a_rh)
     CASE (4:5)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
-                      a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_rsi,a_rhi,a_srs)
+                      a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_riri,a_rsi,a_rhi)
     END SELECT
 
   END SUBROUTINE thermo
@@ -73,16 +76,17 @@ CONTAINS
 !
   SUBROUTINE update_pi1(n1,awtbar,pi1)
 
-    USE grid, ONLY : th00, zt
+    USE grid, ONLY : th00
+    USE mo_aux_state, ONLY : zt
 
     INTEGER, INTENT (in) :: n1
     REAL, INTENT (in) , DIMENSION (n1)   :: awtbar
-    REAL, INTENT (inout), DIMENSION (n1) :: pi1
+    TYPE(FloatArray1d), INTENT (inout) :: pi1
 
     INTEGER :: k
 
     DO k = 2, n1
-       pi1(k) = pi1(k-1) + awtbar(k-1)*(zt(k)-zt(k-1))/th00
+       pi1%d(k) = pi1%d(k-1) + awtbar(k-1)*(zt%d(k)-zt%d(k-1))/th00
     END DO
 
   END SUBROUTINE update_pi1
@@ -97,28 +101,28 @@ CONTAINS
   !            in SALSA.
   !
 
-  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,rsi,rhi,srs)
+  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,riri,rsi,rhi)
     USE defs, ONLY : R, cp, cpr, p00, alvl, alvi
-    USE grid, ONLY : a_dn
+    USE mo_diag_state, ONLY : a_dn
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: level,n1,n2,n3
-    REAL, INTENT(in) :: rv(n1,n2,n3),   &     ! Water vapour mixing ratio
-                        pp(n1,n2,n3),   &     ! Exner function
-                        tl(n1,n2,n3)          ! liquid potential temp
+    TYPE(FloatArray3d), INTENT(in) :: rv,   &     ! Water vapour mixing ratio
+                                      pp,   &     ! Exner function
+                                      tl          ! liquid potential temp
     REAL, INTENT(in) :: th00
-    REAL, INTENT(in) :: pi0(n1),pi1(n1)
-    REAL, INTENT(IN) :: rc(n1,n2,n3),   &  ! Total cloud condensate mix rat
-                        srp(n1,n2,n3)            ! Precipitation mix rat
-    REAL, INTENT(OUT) :: rs(n1,n2,n3),  &   ! Saturation mix rat
-                         rh(n1,n2,n3),  &     ! Relative humidity
-                         th(n1,n2,n3),  &     ! Potential temperature
-                         tk(n1,n2,n3),  &     ! Absolute temperature
-                         p(n1,n2,n3)          ! Air pressure
-    REAL, INTENT(IN)  :: ri(n1,n2,n3),   &  ! Total ice condensate mix rat
-                         srs(n1,n2,n3)      ! Snow mix rat
-    REAL, INTENT(OUT) :: rsi(n1,n2,n3), &  ! Saturation mix rat over ice
-                         rhi(n1,n2,n3)     ! relative humidity over ice
+    TYPE(FloatArray1d), INTENT(in) :: pi0, pi1
+    TYPE(FloatArray3d), INTENT(in) :: rc,   &    ! Total cloud condensate mix rat
+                                      srp        ! Precipitation mix rat
+    TYPE(FloatArray3d), INTENT(inout) :: rs,  &    ! Saturation mix rat
+                                       rh,  &    ! Relative humidity
+                                       th,  &    ! Potential temperature
+                                       tk,  &    ! Absolute temperature
+                                       p         ! Air pressure
+    TYPE(FloatArray3d), INTENT(in)  :: ri      ! Pristine ice condensate mix rat
+    TYPE(FloatArray3d), INTENT(in)  :: riri    ! Rimed ice condensate mix rat
+    TYPE(FloatArray3d), INTENT(inout) :: rsi, &  ! Saturation mix rat over ice
+                                       rhi     ! relative humidity over ice
     REAL    :: exner
     INTEGER :: k,i,j
     REAL    :: thil
@@ -126,34 +130,34 @@ CONTAINS
      DO j = 3, n3-2
        DO i = 3, n2-2
           DO k = 1, n1
-
+             
              ! Pressure
-             exner = (pi0(k) + pi1(k) + pp(k,i,j))/cp
-             p(k,i,j) = p00*exner**cpr
-             thil = tl(k,i,j)+th00
+             exner = (pi0%d(k) + pi1%d(k) + pp%d(k,i,j))/cp
+             p%d(k,i,j) = p00*exner**cpr
+             thil = tl%d(k,i,j)+th00
 
              ! Potential and absolute temperatures
-             th(k,i,j) = thil + (alvl*( rc(k,i,j) + srp(k,i,j) ))/cp/exner
-             IF(level == 5) th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp/exner
+             th%d(k,i,j) = thil + (alvl*( rc%d(k,i,j) + srp%d(k,i,j) ))/cp/exner
+             IF(level == 5) th%d(k,i,j) = th%d(k,i,j) + (alvi*( ri%d(k,i,j) + riri%d(k,i,j) ))/cp/exner
 
-             tk(k,i,j) = th(k,i,j)*exner
+             tk%d(k,i,j) = th%d(k,i,j)*exner
 
              ! Saturation mixing ratio
-             rs(k,i,j) = rslf(p(k,i,j),tk(k,i,j))
-             rh(k,i,j) = rv(k,i,j)/rs(k,i,j)
+             rs%d(k,i,j) = rslf(p%d(k,i,j),tk%d(k,i,j))
+             rh%d(k,i,j) = rv%d(k,i,j)/rs%d(k,i,j)
 
              IF (level==5) THEN
-                 rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))
-                 rhi(k,i,j) = rv(k,i,j)/rsi(k,i,j)
+                 rsi%d(k,i,j) = rsif(p%d(k,i,j),tk%d(k,i,j))
+                 rhi%d(k,i,j) = rv%d(k,i,j)/rsi%d(k,i,j)
              END IF
 
              ! True air density
-             a_dn(k,i,j) = p(k,i,j)/(R*tk(k,i,j))
+             a_dn%d(k,i,j) = p%d(k,i,j)/(R*tk%d(k,i,j))
 
           END DO
        END DO
     END DO
-
+    
   END SUBROUTINE SALSAthrm
 !
 ! -------------------------------------------------------------------------
@@ -165,9 +169,10 @@ CONTAINS
   USE defs, ONLY : cp, cpr, p00
 
   INTEGER, INTENT (in) :: n1,n2,n3
-  REAL, INTENT (in)    :: pi0(n1),pi1(n1),th00
-  REAL, INTENT (in)    :: pp(n1,n2,n3),thil(n1,n2,n3),rt(n1,n2,n3)
-  REAL, INTENT (out)   :: p(n1,n2,n3),theta(n1,n2,n3),rv(n1,n2,n3),t(n1,n2,n3)
+  TYPE(FloatArray1d), INTENT (in)  :: pi0, pi1
+  REAl, INTENT(in)                 :: th00
+  TYPE(FloatArray3d), INTENT (in)  :: pp, thil, rt
+  TYPE(FloatArray3d), INTENT (out) :: p, theta, rv, t
 
   INTEGER :: i,j,k
   REAL    :: exner
@@ -175,11 +180,11 @@ CONTAINS
   DO j = 3, n3-2
     DO i = 3, n2-2
       DO k = 1, n1
-        exner  = (pi0(k)+pi1(k)+pp(k,i,j))/cp
-        p(k,i,j) = p00 * (exner)**cpr
-        theta(k,i,j) = thil(k,i,j)+th00
-        t(k,i,j) = theta(k,i,j)*exner
-        rv(k,i,j) = rt(k,i,j)
+        exner  = (pi0%d(k)+pi1%d(k)+pp%d(k,i,j))/cp
+        p%d(k,i,j) = p00 * (exner)**cpr
+        theta%d(k,i,j) = thil%d(k,i,j)+th00
+        t%d(k,i,j) = theta%d(k,i,j)*exner
+        rv%d(k,i,j) = rt%d(k,i,j)
       END DO
     END DO
   END DO
@@ -196,10 +201,10 @@ CONTAINS
 
     INTEGER, INTENT (in) ::  n1,n2,n3
 
-    REAL, INTENT (in), DIMENSION (n1,n2,n3)  :: pp, tl, rt
-    REAL, INTENT (in), DIMENSION (n1)        :: pi0, pi1
-    REAL, INTENT (in)                        :: th00
-    REAL, INTENT (out), DIMENSION (n1,n2,n3) :: rc,rv,rs,th,tk,p
+    TYPE(FloatArray3d), INTENT (in)  :: pp, tl, rt
+    TYPE(FloatArray1d), INTENT (in)  :: pi0, pi1
+    REAL, INTENT (in)                :: th00
+    TYPE(FloatArray3d), INTENT (out) :: rc,rv,rs,th,tk,p
 
     INTEGER :: k, i, j, iterate
     REAL    :: exner,til,x1,xx,yy,zz
@@ -207,26 +212,26 @@ CONTAINS
     DO j = 3, n3-2
        DO i = 3, n2-2
           DO k = 1, n1
-             exner = (pi0(k)+pi1(k)+pp(k,i,j))/cp
-             p(k,i,j) = p00 * (exner)**cpr
-             til = (tl(k,i,j)+th00)*exner
+             exner = (pi0%d(k)+pi1%d(k)+pp%d(k,i,j))/cp
+             p%d(k,i,j) = p00 * (exner)**cpr
+             til = (tl%d(k,i,j)+th00)*exner
              xx = til
-             yy = rslf(p(k,i,j),xx)
-             zz = max(rt(k,i,j)-yy,0.)
+             yy = rslf(p%d(k,i,j),xx)
+             zz = max(rt%d(k,i,j)-yy,0.)
              IF (zz > 0.) THEN
                 DO iterate = 1, 3
                    x1 = alvl/(cp*xx)
                    xx = xx - (xx - til*(1.+x1*zz))/(1. + x1*til                &
                         *(zz/xx+(1.+yy*ep)*yy*alvl/(Rm*xx*xx)))
-                   yy = rslf(p(k,i,j),xx)
-                   zz = max(rt(k,i,j)-yy,0.)
+                   yy = rslf(p%d(k,i,j),xx)
+                   zz = max(rt%d(k,i,j)-yy,0.)
                 END DO
              END IF
-             rc(k,i,j) = zz
-             rv(k,i,j) = rt(k,i,j)-rc(k,i,j)
-             rs(k,i,j) = yy
-             tk(k,i,j) = xx
-             th(k,i,j) = tk(k,i,j)/exner
+             rc%d(k,i,j) = zz
+             rv%d(k,i,j) = rt%d(k,i,j)-rc%d(k,i,j)
+             rs%d(k,i,j) = yy
+             tk%d(k,i,j) = xx
+             th%d(k,i,j) = tk%d(k,i,j)/exner
           END DO
        END DO
     END DO
@@ -238,17 +243,17 @@ CONTAINS
 ! liquid water using a saturation adjustment for warm-phase systems; in
 ! addition, takes in the account the precipitable water when present
 !
-  SUBROUTINE satadjst3(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs,rp)
+  SUBROUTINE satadjst3(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs,rp,rh)
 
     USE defs, ONLY : cp, cpr, alvl, ep, Rm, p00
     USE mpi_interface, ONLY : myid, appl_abort
 
     INTEGER, INTENT (in) ::  n1,n2,n3
 
-    REAL, INTENT (in), DIMENSION (n1,n2,n3)  :: pp, tl, rt, rp
-    REAL, INTENT (in), DIMENSION (n1)        :: pi0, pi1
-    REAL, INTENT (in)                        :: th00
-    REAL, INTENT (out), DIMENSION (n1,n2,n3) :: rc, rv, rs, th, tk, p
+    TYPE(FloatArray3d), INTENT (in) :: pp, tl, rt, rp, rh
+    TYPE(FloatArray1d), INTENT (in) :: pi0, pi1
+    REAL, INTENT (in)               :: th00
+    TYPE(FloatArray3d), INTENT (inout) :: rc, rv, rs, th, tk, p
 
     INTEGER :: k, i, j, iterate
     REAL    :: exner, tli, tx, txi, rsx, rcx, rpc, tx1, dtx
@@ -257,13 +262,13 @@ CONTAINS
     DO j = 3, n3-2
        DO i = 3, n2-2
           DO k = 1, n1
-             exner = (pi0(k)+pi1(k)+pp(k,i,j))/cp
-             p(k,i,j) = p00 * (exner)**cpr
-             tli = (tl(k,i,j)+th00)*exner
+             exner = (pi0%d(k)+pi1%d(k)+pp%d(k,i,j))/cp
+             p%d(k,i,j) = p00 * (exner)**cpr
+             tli = (tl%d(k,i,j)+th00)*exner
              tx = tli
-             rsx = rslf(p(k,i,j),tx)
-             rcx = max(rt(k,i,j)-rsx,0.)
-             rpc = rp(k,i,j)
+             rsx = rslf(p%d(k,i,j),tx)
+             rcx = max(rt%d(k,i,j)-rsx,0.)
+             rpc = rp%d(k,i,j)
              IF (rcx > 0. .OR. rpc > 0.) THEN
                 iterate = 1
                 dtx = 1.
@@ -275,8 +280,8 @@ CONTAINS
                       tx  = tx1
                       iterate = iterate+1
                    END DO
-                   rsx = rslf(p(k,i,j),tx)
-                   rcx = max(rt(k,i,j)-rsx,0.)
+                   rsx = rslf(p%d(k,i,j),tx)
+                   rcx = max(rt%d(k,i,j)-rsx,0.)
                 ELSE
                    DO WHILE(dtx > epsln .AND. iterate < 10)
                       txi = alvl/(cp*tx)
@@ -284,24 +289,25 @@ CONTAINS
                              *(rcx/tx+(1.+rsx*ep)*rsx*alvl/(Rm*tx*tx)))
                       dtx = abs(tx1-tx)
                       tx  = tx1
-                      rsx = rslf(p(k,i,j),tx)
-                      rcx = max(rt(k,i,j)-rsx,0.)
+                      rsx = rslf(p%d(k,i,j),tx)
+                      rcx = max(rt%d(k,i,j)-rsx,0.)
                       iterate = iterate+1
                    END DO
                 END IF
 
                 IF (dtx > epsln) THEN
                    IF (myid == 0) PRINT *, '  ABORTING: thrm', dtx, epsln
-                   IF (myid == 0) WRITE(*,*) pp(k,i,j),p(k,i,j),tl(k,i,j),th(k,i,j), &
-                                             tk(k,i,j),rt(k,i,j),rv(k,i,j),rc(k,i,j),rs(k,i,j),rp(k,i,j)
+                   IF (myid == 0) WRITE(*,*) pp%d(k,i,j),p%d(k,i,j),tl%d(k,i,j),th%d(k,i,j), &
+                                             tk%d(k,i,j),rt%d(k,i,j),rv%d(k,i,j),rc%d(k,i,j),rs%d(k,i,j),rp%d(k,i,j)
                    CALL appl_abort(0)
                 END IF
              END IF
-             rc(k,i,j) = rcx
-             rv(k,i,j) = rt(k,i,j)-rc(k,i,j)
-             rs(k,i,j) = rsx
-             tk(k,i,j) = tx
-             th(k,i,j) = tk(k,i,j)/exner
+             rc%d(k,i,j) = rcx
+             rv%d(k,i,j) = rt%d(k,i,j)-rc%d(k,i,j)
+             rs%d(k,i,j) = rsx
+             rh%d(k,i,j) = rv%d(k,i,j)/rs%d(k,i,j)
+             tk%d(k,i,j) = tx
+             th%d(k,i,j) = tk%d(k,i,j)/exner
           END DO
        END DO
     END DO
@@ -321,9 +327,14 @@ CONTAINS
                        c6 = 0.6936113e-08, c7 = 0.2564861e-11,    &
                        c8 = -.3704404e-13
 
-  REAL ::  esl, x
-
-  x = min(max(-80.,t-273.16),50.)
+  REAL ::  esl, x, v1,v2,v3
+  
+  v1 = -80
+  v2 = 273.16
+  v3 = 50.
+  
+  !x = min(max(-80.,t-273.16),50.)
+  x = min(max(v1,t-v2),v3)
   esl = c0+x*(c1+x*(c2+x*(c3+x*(c4+x*(c5+x*(c6+x*(c7+x*c8)))))))
   rslf = .622*esl/(p-esl)
 
@@ -344,7 +355,7 @@ CONTAINS
 
   REAL  :: esi, x
 
-  x = max(-80.,t-273.16)
+  x = MIN(MAX(-80.,t-273.16),0.)
   esi = c0+x*(c1+x*(c2+x*(c3+x*(c4+x*(c5+x*(c6+x*(c7+x*c8)))))))
   rsif = .622*esi/(p-esi)
 
@@ -359,10 +370,10 @@ CONTAINS
   USE defs, ONLY : cp, cpr, p00
 
   INTEGER, INTENT (in) :: n1,n2,n3
-  REAL, INTENT (in)    :: th(n1,n2,n3), pp(n1,n2,n3)
-  REAL, INTENT (in)    :: pi0(n1), pi1(n1)
-  REAL, INTENT (out)   :: tk(n1,n2,n3)
-  REAL, OPTIONAL, INTENT (out) :: rs(n1,n2,n3)
+  TYPE(FloatArray3d), INTENT (in) :: th, pp
+  TYPE(FloatArray1d), INTENT (in) :: pi0, pi1
+  TYPE(FloatArray3d), INTENT (inout):: tk
+  TYPE(FloatArray3d), OPTIONAL, INTENT (inout) :: rs
 
   INTEGER :: i, j, k
   REAL    :: exner
@@ -370,9 +381,9 @@ CONTAINS
   DO j = 3, n3-2
     DO i = 3, n2-2
       DO k = 1, n1
-        exner = (pi0(k)+pi1(k)+pp(k,i,j))/cp
-        tk(k,i,j) = th(k,i,j)*exner
-        IF (present(rs)) rs(k,i,j) = rslf(p00*exner**cpr,tk(k,i,j))
+        exner = (pi0%d(k)+pi1%d(k)+pp%d(k,i,j))/cp
+        tk%d(k,i,j) = th%d(k,i,j)*exner
+        IF (present(rs)) rs%d(k,i,j) = rslf(p00*exner**cpr,tk%d(k,i,j))
       END DO
     END DO
   END DO
@@ -391,8 +402,10 @@ CONTAINS
   USE defs, ONLY : g, R, cp, alvl, ep, ep2
 
   INTEGER, INTENT (in) :: n1, n2, n3, level
-  REAL, INTENT (in)    :: th(n1,n2,n3), tl(n1,n2,n3), rt(n1,n2,n3),         &
-                          rs(n1,n2,n3), dzm(n1), th00
+  REAL, INTENT(in) :: rt(n1,n2,n3)
+  TYPE(FloatArray3d), INTENT(in) :: th, tl, rs
+  TYPE(FloatArray1d), INTENT(in) :: dzm
+  REAL, INTENT(in) :: th00
   REAL, INTENT (out)   :: en2(n1,n2,n3)
 
   INTEGER :: i, k, j, kp1
@@ -403,42 +416,42 @@ CONTAINS
         DO k = 1, n1-1
            SELECT CASE(level)
            CASE (0)
-              en2(k,i,j) = g*dzm(k)*((th(k+1,i,j)-th(k,i,j))/th00)
+              en2(k,i,j) = g*dzm%d(k)*((th%d(k+1,i,j)-th%d(k,i,j))/th00)
            CASE (1)
-              tvk = th(k,i,j)*(1.+ep2*rt(k,i,j))
-              tvkp1 = th(k+1,i,j)*(1.+ep2*rt(k+1,i,j))
-              en2(k,i,j) = g*dzm(k)*(tvkp1-tvk)/th00
+              tvk = th%d(k,i,j)*(1.+ep2*rt(k,i,j))
+              tvkp1 = th%d(k+1,i,j)*(1.+ep2*rt(k+1,i,j))
+              en2(k,i,j) = g*dzm%d(k)*(tvkp1-tvk)/th00
            CASE (2)
               rtbar = 0.5*(rt(k,i,j)+rt(k+1,i,j))
-              rsbar = 0.5*(rs(k,i,j)+rs(k+1,i,j))
+              rsbar = 0.5*(rs%d(k,i,j)+rs%d(k+1,i,j))
               kp1 = min(n1-1,k+1)
-              IF (rt(k,i,j) > rs(k,i,j) .AND. rt(kp1,i,j) > rs(kp1,i,j)) THEN
-                 c1=(1.+ep*alvl/R/th(k,i,j))/ep
-                 c2=ep*alvl*alvl/(R*cp*th(k,i,j)*th(k,i,j))
-                 c3=alvl/(cp*th(k,i,j))
+              IF (rt(k,i,j) > rs%d(k,i,j) .AND. rt(kp1,i,j) > rs%d(kp1,i,j)) THEN
+                 c1=(1.+ep*alvl/R/th%d(k,i,j))/ep
+                 c2=ep*alvl*alvl/(R*cp*th%d(k,i,j)*th%d(k,i,j))
+                 c3=alvl/(cp*th%d(k,i,j))
                  aa = (1. - rtbar + rsbar*c1)/(1. + c2*rsbar)
                  bb = (c3*aa - 1.)
               ELSE
                  aa = (1.00 + ep2*rtbar)
                  bb = ep2
               END IF
-              en2(k,i,j) = g*dzm(k)*(aa*(tl(k+1,i,j)-tl(k,i,j))/th00        &
+              en2(k,i,j) = g*dzm%d(k)*(aa*(tl%d(k+1,i,j)-tl%d(k,i,j))/th00        &
                            + bb*(rt(k+1,i,j)-rt(k,i,j)))
            CASE (3,4,5)
               rtbar = 0.5*(rt(k,i,j)+rt(k+1,i,j))
-              rsbar = 0.5*(rs(k,i,j)+rs(k+1,i,j))
+              rsbar = 0.5*(rs%d(k,i,j)+rs%d(k+1,i,j))
               kp1 = min(n1-1,k+2)
-              IF (rt(k,i,j) > rs(k,i,j) .AND. rt(kp1,i,j) > rs(kp1,i,j)) THEN
-                 c1=(1.+ep*alvl/R/th(k,i,j))/ep
-                 c2=ep*alvl*alvl/(R*cp*th(k,i,j)*th(k,i,j))
-                 c3=alvl/(cp*th(k,i,j))
+              IF (rt(k,i,j) > rs%d(k,i,j) .AND. rt(kp1,i,j) > rs%d(kp1,i,j)) THEN
+                 c1=(1.+ep*alvl/R/th%d(k,i,j))/ep
+                 c2=ep*alvl*alvl/(R*cp*th%d(k,i,j)*th%d(k,i,j))
+                 c3=alvl/(cp*th%d(k,i,j))
                  aa = (1. - rtbar + rsbar*c1)/(1. + c2*rsbar)
                  bb = (c3*aa - 1.)
               ELSE
                  aa = (1.00 + ep2*rtbar)
                  bb = ep2
               END IF
-              en2(k,i,j) = g*dzm(k)*(aa*(tl(k+1,i,j)-tl(k,i,j))/th00        &
+              en2(k,i,j) = g*dzm%d(k)*(aa*(tl%d(k+1,i,j)-tl%d(k,i,j))/th00        &
                            + bb*(rt(k+1,i,j)-rt(k,i,j)))
            CASE DEFAULT
               STOP 'level not supported in bruvais'
