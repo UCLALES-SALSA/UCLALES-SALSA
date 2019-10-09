@@ -61,7 +61,7 @@ CONTAINS
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl)
     CASE (3)
        CALL satadjst3(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0, &
-                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp)
+                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp,a_rh)
     CASE (4:5)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
                       a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_riri,a_rsi,a_rhi)
@@ -243,14 +243,14 @@ CONTAINS
 ! liquid water using a saturation adjustment for warm-phase systems; in
 ! addition, takes in the account the precipitable water when present
 !
-  SUBROUTINE satadjst3(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs,rp)
+  SUBROUTINE satadjst3(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs,rp,rh)
 
     USE defs, ONLY : cp, cpr, alvl, ep, Rm, p00
     USE mpi_interface, ONLY : myid, appl_abort
 
     INTEGER, INTENT (in) ::  n1,n2,n3
 
-    TYPE(FloatArray3d), INTENT (in) :: pp, tl, rt, rp
+    TYPE(FloatArray3d), INTENT (in) :: pp, tl, rt, rp, rh
     TYPE(FloatArray1d), INTENT (in) :: pi0, pi1
     REAL, INTENT (in)               :: th00
     TYPE(FloatArray3d), INTENT (inout) :: rc, rv, rs, th, tk, p
@@ -305,6 +305,7 @@ CONTAINS
              rc%d(k,i,j) = rcx
              rv%d(k,i,j) = rt%d(k,i,j)-rc%d(k,i,j)
              rs%d(k,i,j) = rsx
+             rh%d(k,i,j) = rv%d(k,i,j)/rs%d(k,i,j)
              tk%d(k,i,j) = tx
              th%d(k,i,j) = tk%d(k,i,j)/exner
           END DO
