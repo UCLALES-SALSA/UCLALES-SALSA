@@ -8,6 +8,8 @@ MODULE classProcessSwitch
      
      LOGICAL :: state = .FALSE.  ! This gives the current state of the switch and this should be used
                         ! in the code
+     INTEGER :: mode = 1         ! Mode switch, e.g. selecting between different implementation of the same physical process
+     
 
   END TYPE ProcessSwitch
 
@@ -25,6 +27,9 @@ MODULE classProcessSwitch
       cnstr%delay = 0.
       
       cnstr%state = .FALSE.
+      
+      cnstr%mode = 1
+
 
     END FUNCTION cnstr
 

@@ -452,6 +452,8 @@ CONTAINS
       INTEGER :: k44, n44, m18, m28, m38, m48, m1f, im1, i0m1, i0, i0f, ifq
       REAL    :: xx, yy, t, p
 
+      i0 = 0
+      
       n4 = 4*nv
       DO  k = 1, nv - 1
          k44 = 4 * k - 4

@@ -167,7 +167,6 @@ CONTAINS
   SUBROUTINE init_aerorad
     IMPLICIT NONE
 
-    INTEGER :: k,i,j
     CHARACTER(len=34) :: filename
 
     ! Shortwave tables
@@ -426,7 +425,6 @@ CONTAINS
 
 
     REAL :: lambda_r   ! Center wavenumber for current band 1/cm
-    REAL :: Dpart      ! Particle diameter
 
     REAL            :: volc(nspec,nbins)                         ! Corresponding particle volume concentrations for each bin (0 if not used)
     REAL            :: voltot(nbins)                                 ! Total particle volume for each bin                          
@@ -448,12 +446,10 @@ CONTAINS
     INTEGER :: refi_ind  ! index for the vector with refractive indices for each wavelength
 
     ! Bunch of other idices (for loops)
-    INTEGER :: ss,kk,nc, istr,iend
+    INTEGER :: ss,kk, istr,iend
     INTEGER :: bb
 
     REAL :: TH = 1.e-30
-    
-    LOGICAL :: issw
 
     REAL, POINTER :: aer_nre(:) => NULL(), aer_nim(:) => NULL(),          &
                      aer_alpha(:) => NULL(), aer_sigma(:,:,:) => NULL(),  &
