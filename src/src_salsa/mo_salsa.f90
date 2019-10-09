@@ -1,170 +1,205 @@
 MODULE mo_salsa
+   IMPLICIT NONE
 
-  ! --------------------------------------------------------------------------
-  ! The SALSA subroutine
-  !
-  ! Modified for the new aerosol datatype,
-  ! Juha Tonttila, FMI, 2014.
-  ! --------------------------------------------------------------------------
-
-
-  PRIVATE
-
-  ! -- subroutines
-  PUBLIC :: salsa
-
-CONTAINS
-
-  SUBROUTINE salsa(kproma,   kbdim,    klev,    krow,       &
-                   ppres,    prv, prs, prsi,    ptemp, ptt, ptstep,     &
-                   pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,    &
-                   pc_nh3,   paero,    pcloud,  pprecp,     &
-                   pice, psnow,                             &
-                   pactd,    pw,    prtcl, time,level      )
-
-    USE mo_salsa_dynamics, only : coagulation, condensation
-    USE mo_salsa_update, ONLY : distr_update
-    USE mo_salsa_cloud, only : cloud_activation, autoconv2, &
-              ice_immers_nucl,ice_hom_nucl,ice_het_nucl,ice_melt, &
-              autosnow
-
-    USE mo_submctl, ONLY :      &
-         fn2b,               & ! size section and composition indices
-         t_section,                 & ! For cloud bins
-         ncld,                      &
-         nprc,                      &
-         nice,                      & ! ice
-         nsnw,                      & ! snow
-         lscoag,                    &
-         lscnd,                     &
-         lsauto,                    &
-         lsautosnow,                &
-         lsactiv,                   &
-         lsichom,                   &
-         lsichet,                   &
-         lsicimmers,                &
-         lsicmelt,                  &
-         lsdistupdate,              &
-         debug
-
-    USE class_componentIndex, ONLY : ComponentIndex
-
-    IMPLICIT NONE
-
-    !-- Input parameters and variables --------------------------------------------------
-    INTEGER, INTENT(in) ::          &
-         kproma,                    & ! number of horiz. grid points in a slab (='kproma')
-         kbdim,                     & ! dimension for arrays (='kbdim')
-         klev,                      & ! number of vertical levels (='klev')
-         krow                         ! local latitude index
+   ! --------------------------------------------------------------------------
+   ! The SALSA subroutine
+   !
+   ! Modified for the new aerosol datatype,
+   ! Juha Tonttila, FMI, 2014.
+   ! --------------------------------------------------------------------------
 
 
-    REAL, INTENT(in) ::            &
-         ppres(kbdim,klev),            & ! atmospheric pressure at each grid point [Pa]
-         ptemp(kbdim,klev),            & ! temperature at each grid point [K]
-         ptt(kbdim,klev),              & ! temperature tendency
-         ptstep,                       &   ! time step [s]
-         time                             ! time
+   PRIVATE
 
-    TYPE(ComponentIndex), INTENT(in) :: prtcl
+   ! -- subroutines
+   PUBLIC :: salsa
 
-    REAL, INTENT(in) ::            & ! Vertical velocity
-         pw(kbdim,klev)
+ CONTAINS
 
-    !-- Input variables that are changed within --------------------------------------
-    REAL, INTENT(inout) ::      & ! gas phase concentrations at each grid point [#/m3]
-         pc_h2so4(kbdim,klev),      & ! sulphuric acid
-         pc_hno3 (kbdim,klev),      & ! nitric acid
-         pc_nh3  (kbdim,klev),      & ! ammonia
-         pc_ocnv (kbdim,klev),      & ! nonvolatile organic compound
-         pc_ocsv (kbdim,klev),      & ! semivolatile organic compound
-         prv(kbdim,klev),           & ! Water vapour mixing ratio  [kg/m3]
-         prs(kbdim,klev),           & ! Saturation mixing ratio    [kg/m3]
-         prsi(kbdim,klev)              ! Saturation mixing ratio over ice   [kg/m3]
+   SUBROUTINE salsa(kproma,   kbdim,    klev,    krow,       &
+                    ppres,    prv, prs, prsi,    ptemp,  ptstep,     &
+                    pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,    &
+                    pc_nh3,   allSALSA,                         &
+                    pactd,    pw, level )
+     
+     USE classSection
+     USE mo_salsa_dynamics, only : coagulation, condensation
+     USE mo_salsa_update, ONLY : distr_update
+     USE mo_salsa_cloud, only : cloud_activation, autoconv2, &
+                                autosnow,ice_fixed_NC, ice_nucl_driver,ice_melt
+     
+     USE mo_submctl, ONLY :      &
+          fn2b,                      & ! size section and composition indices
+          ncld,                      &
+          nprc,                      &
+          nice,                      &
+          nsnw,                      & 
+          ntotal,                    &
+          fixinc,                    &
+          lscoag,                    &
+          lscnd,                     &
+          lsauto,                    &
+          lsautosnow,                &
+          lsactiv,                   &
+          lsicenucl,                 &
+          lsicemelt,                  &
+          lsdistupdate,              &
+          lscheckarrays,             &
+          ice_hom, ice_imm, ice_dep
 
-    TYPE(t_section), INTENT(inout) :: &
-         pcloud(kbdim,klev,ncld),     &
-         paero(kbdim,klev,fn2b),      &
-         pprecp(kbdim,klev,nprc),     &
-         pice(kbdim,klev,nice),       &
-         psnow(kbdim,klev,nsnw)
+     IMPLICIT NONE
 
-    TYPE(t_section), INTENT(out) :: &
-         pactd(kbdim,klev,ncld)
+     !-- Input parameters and variables --------------------------------------------------
+     INTEGER, INTENT(in) ::      &
+          kproma,                    & ! number of horiz. grid points in a slab (='kproma')
+          kbdim,                     & ! dimension for arrays (='kbdim')
+          klev,                      & ! number of vertical levels (='klev')
+          krow                         ! local latitude index
+     
+     REAL, INTENT(in) ::            &
+          ppres(kbdim,klev),            & ! atmospheric pressure at each grid point [Pa]
+          ptemp(kbdim,klev),            & ! temperature at each grid point [K]
+          ptstep                          ! time step [s]
+     
+     REAL, INTENT(in) ::            & ! Vertical velocity
+          pw(kbdim,klev)
+     
+     !-- Input variables that are changed within --------------------------------------
+     REAL, INTENT(inout) ::      & ! gas phase concentrations at each grid point [#/m3]
+          pc_h2so4(kbdim,klev),      & ! sulphuric acid
+          pc_hno3 (kbdim,klev),      & ! nitric acid
+          pc_nh3  (kbdim,klev),      & ! ammonia
+          pc_ocnv (kbdim,klev),      & ! nonvolatile organic compound
+          pc_ocsv (kbdim,klev),      & ! semivolatile organic compound
+          prv(kbdim,klev),           & ! Water vapour mixing ratio  [kg/kg]
+          prs(kbdim,klev),           & ! Saturation mixing ratio    [kg/kg]
+          prsi(kbdim,klev)             ! Saturation mixing ratio over ice   [kg/kg]
+     
+     TYPE(Section), INTENT(inout) :: &
+          allSALSA(kbdim,klev,ntotal)
+     
+     TYPE(Section), INTENT(out) :: &
+          pactd(kbdim,klev,ncld)
+     
+     INTEGER, INTENT(in) :: level                         ! thermodynamical level
+     
+     !-- Local variables ------------------------------------------------------------------
+     
+     INTEGER :: zpbl(kbdim)            ! Planetary boundary layer top level
+     
+     zpbl(:) = 1
+     
+     ! Coagulation
+     IF (lscoag%state) &
+          CALL coagulation( kproma, kbdim,  klev,                   &
+                            allSALSA,    &
+                            ptstep, ptemp,  ppres   )
 
-    INTEGER, INTENT(in) :: level                         ! thermodynamical level
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"COAG")
 
-    !-- Local variables ------------------------------------------------------------------
+     ! Condensation
+     IF (lscnd%state) &
+          CALL condensation(kproma, kbdim,    klev,     krow,          &
+                            level, allSALSA,                    &
+                            pc_h2so4, pc_ocnv, pc_ocsv,  pc_hno3,  &
+                            pc_nh3, prv, prs, prsi, ptemp, ppres,  &
+                            ptstep, zpbl                    )
 
-    INTEGER :: zpbl(kbdim)            ! Planetary boundary layer top level
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"CONDENSATION")
 
-    IF (debug) WRITE(*,*) 'start salsa'
+     ! Autoconversion (liquid)
+     IF (lsauto%state) &
+          CALL autoconv2(kproma,kbdim,klev, &
+                         ptstep   )
 
-    zpbl(:)=1
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"AUTOCONV")
 
-    ! Coagulation
-    IF (lscoag) &
-       CALL coagulation(kproma, kbdim,  klev,                   &
-                        paero,  pcloud, pprecp, pice, psnow,    &
-                        ptstep, ptemp,  ppres                   )
+     ! Cloud activation
+     IF (lsactiv%state )  &
+          CALL cloud_activation(kproma, kbdim, klev,   &
+                                ptemp,  ppres, prv,    &
+                                prs,    pw           , &
+                                pactd          )
 
-    ! Condensation
-    IF (lscnd) &
-       CALL condensation(kproma,  kbdim,    klev,     krow,     &
-                         paero,   pcloud,   pprecp,             &
-                         pice,    psnow,                        &
-                         pc_h2so4, pc_ocnv, pc_ocsv,  pc_hno3,  &
-                         pc_nh3, prv, prs, prsi, ptemp, ppres,  &
-                         ptstep, zpbl, prtcl                    )
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"ACTIVATION")
 
-    ! Autoconversion (liquid)
-    IF (lsauto) &
-         CALL autoconv2(kproma,kbdim,klev, &
-                        pcloud, pprecp, ptstep )
+     ! Ice nucleation
+     IF (lsicenucl%state) THEN
+        IF (fixinc>0. .AND. .NOT. ANY([ice_hom,ice_imm,ice_dep])) THEN
+           ! Fixed ice number concentration
+           CALL  ice_fixed_NC(kproma, kbdim, klev,   &
+                              ptemp,  ppres,  prv,  prsi)
+        ELSE IF (ANY([ice_hom,ice_imm,ice_dep])) THEN
+           ! Modelled ice nucleation
+           CALL ice_nucl_driver(kproma,kbdim,klev,   &
+                                ptemp,prv,prs,prsi,ptstep)
+        END IF
+     END IF
 
-    ! Cloud activation
-    IF (lsactiv )  &
-         CALL cloud_activation(kproma, kbdim, klev,   &
-                               ptemp,  ppres, prv,    &
-                               prs,    pw,    paero,  &
-                               pcloud, pactd          )
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"ICENUC")
 
-    ! Immersion freezing
-    IF (lsicimmers) &
-         CALL ice_immers_nucl(kproma,kbdim,klev,            &
-                              pcloud,pice,ppres,            &
-                              ptemp,ptt,prv,prs,ptstep,time )
+     ! Melting of ice and snow
+     IF (lsicemelt%state) &
+          CALL ice_melt(kproma,kbdim,klev,              &
+                        ptemp)
 
-    ! Homogenous nucleation Morrison et al. 2005 eq. (25)
-    IF (lsichom) &
-        CALL ice_hom_nucl(kproma,kbdim,klev,       &
-                          pcloud,pice,paero,ppres, &
-                          ptemp,prv,prs,ptstep)
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"ICEMELT")
 
-    !! heterogenous nucleation Morrison et al. 2005 eq. (27)
-    IF (lsichet) &
-        CALL ice_het_nucl(kproma,kbdim,klev,       &
-                          pcloud,pice,paero,ppres, &
-                          ptemp,prv,prs,ptstep)
-    
-    ! Melting of ice
-    IF (lsicmelt) &
-         CALL ice_melt(kproma,kbdim,klev,              &
-                       pcloud,pice,pprecp,psnow,ppres, &
-                       ptemp,prv,prs,ptstep)
+     ! Snow formation ~ autoconversion from ice
+     IF (lsautosnow%state) &
+          CALL autosnow(kproma,kbdim,klev)
 
-    ! Snow formation ~ autoconversion for ice
-    IF (lsautosnow) &
-         CALL autosnow(kproma,kbdim,klev, &
-                       pice, psnow        )
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"AUTOSNOW")
 
-    ! Size distribution bin update
-    IF (lsdistupdate ) &
-         CALL distr_update(kproma, kbdim, klev,     &
-                           paero,  pcloud, pprecp,  &
-                           pice, psnow, level       )
+     ! Size distribution bin update
+     IF (lsdistupdate ) &
+          CALL distr_update(kproma, kbdim, klev,     &
+                            allSALSA, level       )
 
-  END SUBROUTINE salsa
+     IF (lscheckarrays) CALL check_arrays(kbdim,klev,ntotal,allSALSA,"DISTUPDATE")
+
+   END SUBROUTINE salsa
+
+   ! -------------------------------
+
+   SUBROUTINE check_arrays(kbdim,klev,ntotal,array,position)
+     USE classSection, ONLY : Section
+     IMPLICIT NONE
+     ! Check that particle arrays remain positive and
+     ! check for NANs
+     INTEGER, INTENT(in) :: kbdim,klev,ntotal
+     CHARACTER(len=*), INTENT(in) :: position
+     TYPE(Section), INTENT(in) :: array(kbdim,klev,ntotal)
+     
+     INTEGER :: ii,jj,nn
+
+     DO jj = 1,klev
+        DO ii = 1,kbdim
+           DO nn = 1,ntotal
+              IF ( array(ii,jj,nn)%numc < 0. .OR.  &
+                   ANY( array(ii,jj,nn)%volc(:) < 0. ) ) THEN
+
+                 WRITE(*,*) 'SALSA: NEGATIVE CONCENTRATIONS, BIN ',nn
+                 WRITE(*,*) 'NUMC', array(ii,jj,nn)%numc
+                 WRITE(*,*) 'VOLC', array(ii,jj,nn)%volc(:)
+                 WRITE(*,*) 'At '//TRIM(position)
+
+              END IF
+
+              IF ( array(ii,jj,nn)%numc /= array(ii,jj,nn)%numc  .OR.  &
+                   ANY( array(ii,jj,nn)%volc(:) /= array(ii,jj,nn)%volc(:) ) ) THEN
+
+                   WRITE(*,*) 'SALSA: NAN CONCENTRATIONS, BIN ',nn
+                   WRITE(*,*) 'NUMC', array(ii,jj,nn)%numc
+                   WRITE(*,*) 'VOLC', array(ii,jj,nn)%volc(:)
+                   WRITE(*,*) 'At '//TRIM(position)
+                   
+              END IF
+           END DO
+        END DO
+     END DO
+
+   END SUBROUTINE check_arrays
 
 
 END MODULE mo_salsa
