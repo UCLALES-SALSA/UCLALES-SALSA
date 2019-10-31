@@ -222,7 +222,7 @@ CONTAINS
       USE mo_salsa_driver, ONLY : run_SALSA
 
       USE constrain_SALSA, ONLY : SALSA_diagnostics, tend_constrain2
-
+      
       LOGICAL, INTENT (out)      :: cflflg
       REAL(KIND=8), INTENT (out) :: cflmax
 
@@ -230,7 +230,7 @@ CONTAINS
 
       INTEGER :: nspec
 
-      
+         
       CALL set_LES_runtime(time)
 
       zwp = 0.5  ! single column run vertical velocity

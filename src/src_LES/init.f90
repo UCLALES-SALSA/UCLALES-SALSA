@@ -1169,15 +1169,18 @@ CONTAINS
  ! Since 1a bins by SALSA convention can only contain SO4 or OC,
  ! get renormalized mass fractions.
  ! --------------------------------------------------------------
+ WRITE(*,*) 'HEP', spec%getIndex("OC"), spec%getIndex("SO4"), ppvf2a(:,spec%getIndex("OC"))+ppvf2a(:,spec%getIndex("SO4"))
+
+ ppvfOC1a = 0.
  IF (spec%isUsed("OC") .AND. spec%isUsed("SO4")) THEN
     ! Both are there, so use the given "massDistrA"
-    ppvfOC1a(:) = ppvf2a(:,spec%getIndex("OC"))/(ppvf2a(:,spec%getIndex("OC"))+ppvf2a(:,spec%getIndex("SO4"))) ! Normalize
+    ppvfOC1a(2:nzp) = ppvf2a(2:nzp,spec%getIndex("OC"))/(ppvf2a(2:nzp,spec%getIndex("OC"))+ppvf2a(2:nzp,spec%getIndex("SO4"))) ! Normalize
  ELSE IF (spec%isUsed("OC")) THEN
     ! Pure OC
-    ppvfOC1a(:) = 1.0
+    ppvfOC1a(2:nzp) = 1.0
  ELSE IF (spec%isUsed("SO4")) THEN
     ! Pure SO4
-    ppvfOC1a(:) = 0.0
+    ppvfOC1a(2:nzp) = 0.0
  ELSE
     STOP 'Either OC or SO4 must be active for aerosol region 1a!'
  END IF

@@ -152,7 +152,7 @@ CONTAINS
              END IF
 
              ! True air density
-             a_dn%d(k,i,j) = p%d(k,i,j)/(R*tk%d(k,i,j))
+             a_dn%d(k,i,j) = p%d(k,i,j)/(R*tk%d(k,i,j)*(1+0.61*rv%d(k,i,j)))
 
           END DO
        END DO
