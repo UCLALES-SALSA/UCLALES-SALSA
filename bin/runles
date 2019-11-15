@@ -21,21 +21,21 @@ NPROCS=1          # Number of processors (for IsSeq==0)
 TWALL=72:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=5              # Number of points in Y-direction (including "halo" points)
-NZP=180              # Number of points in Z-direction
-DX=50.              # Resolution in X-direction (meters)
-DY=50.              # Resolution in Y-direction (meters)
-DZ=10.              # Resolution in Z-direction (meters)
+NYP=30              # Number of points in Y-direction (including "halo" points)
+NZP=100              # Number of points in Z-direction
+DX=500.              # Resolution in X-direction (meters)
+DY=500.              # Resolution in Y-direction (meters)
+DZ=100.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=3600.        # Length of the spinup period (seconds)
+Tspinup=100.        # Length of the spinup period (seconds)
 Texp=28800.         # Length of the experiment (seconds)
-LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+LEVEL=5             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 
 # FOR SALSA
-ISDTYP=0            # 0: Aerosol size distribution from namelist (uniform across domain),
+ISDTYP=1            # 0: Aerosol size distribution from namelist (uniform across domain),
                     # 1: Read profile from input file. Note that nspec_dry and listspec in SALSA namelist
                     #    must conform with the input data in the file specified below. 
-AEROSOL_CASE=".nc"  # If ISDTYP==1, the symbolic link 'aerosol_in.nc' is pointed to this file
+AEROSOL_CASE="aerosol_UAE_SO4_DU_DUACC.nc"  # If ISDTYP==1, the symbolic link 'aerosol_in.nc' is pointed to this file
 
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
 
@@ -80,8 +80,8 @@ cat > NAMELIST <<EOF
   deltay = ${DY}              ! Grid spacing in y
   deltaz = ${DZ}              ! Grid spacing in the vertical
   nxpart = .TRUE.             ! 
-  dzmax  = 1500.              ! Height above which start stretching vertical grid
-  dzrat  = 1.0                ! Factor for vertical grid stretching
+  dzmax  = 5000.              ! Height above which start stretching vertical grid
+  dzrat  = 1.03                ! Factor for vertical grid stretching
   dtlong = ${DT}              ! Max. timestep
   distim = 100.               ! Timescale for the dissipation in sponge layer
   timmax = ${Texp}            ! Length of the simulation
@@ -91,8 +91,8 @@ cat > NAMELIST <<EOF
   prndtl = -0.333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
   hfilin = '${EXPNAME}.000020s' ! History file name
-  frqhis = 7200.
-  lbinanl = .FALSE.           ! Write binned microphysical output (with level >= 4)
+  frqhis = 1000.
+  lbinanl = .TRUE.           ! Write binned microphysical output (with level >= 4)
   lsalsabbins = .FALSE.  
   !mcflg = .FALSE.             ! Do mass conservation statistics
 
@@ -101,17 +101,17 @@ cat > NAMELIST <<EOF
   sed_cloud%delay = ${Tspinup}
   sed_precp%switch = .TRUE.          ! precipitation
   sed_precp%delay = ${Tspinup}  
-  sed_ice%switch = .FALSE.            ! ice particles
+  sed_ice%switch = .TRUE.            ! ice particles
   bulk_autoc%switch = .FALSE.
   bulk_autoc%delay = ${Tspinup}      ! Autoconversion switch for level = 1-3
 
   lnudging = .FALSE.           ! Master swtich for nudging scheme
   lemission = .FALSE.          ! Master switch for aerosol emissions  
   iradtyp = 3                 ! Radiation/large scale forcing
-  strtim = 215.167               ! Start time
+  strtim = 240.45               ! Start time
   case_name = 'default'       ! Case name for large-scale forcing schemes
-  div = 0.e-6               ! Large-scale divergence
-  cntlat = 37.0
+  div = 1.e-6               ! Large-scale divergence
+  cntlat = 25.0
 /
 
 ! -----------------------------------------------------------------------------------
@@ -120,37 +120,37 @@ cat > NAMELIST <<EOF
   breakUndefOutput = .FALSE.
   ps_intvl = 5.
   ts_intvl = 5.
-  main_intvl = 120.
-  varlist_main = 'aSO4a','aSO4b','rp','rc','srp'
-  varlist_ps = 
+  main_intvl = 5.
+  varlist_main = 'temp','wwind','rp','srp','ri','riri','Ni','rc','rhi','rh','Nca','Ncba'
+  varlist_ps = 'temp','wwind','rp','srp','ri','riri','Ni','rc','rhi','rh','Nca','Ncba'
   varlist_ts = 
 /
 
 ! -----------------------------------------------------------------------------------
 
 &initialization
-  init_type         = 1       ! 1: random perturbations, 2: warm bubble
-  bubble_center     = 1000.,0.,0.
-  bubble_diameter   = 1500.,6000.,6000.
-  bubble_temp_ampl  = 1.5
-  th00              = 272.    ! Reference temperature
+  init_type         = 2       ! 1: random perturbations, 2: warm bubble
+  bubble_center     = 2000.,0.,0.
+  bubble_diameter   = 1000.,2000.,2000.
+  bubble_temp_ampl  = 3.
+  th00              = 300.    ! Reference temperature
   umean             = 0.                
   vmean             = 0.
   itsflg            = 0       ! Flag for temperature type in input sounding
-  ipsflg            = 0       ! - '' - for pressure
+  ipsflg            = 1       ! - '' - for pressure
 /
 
 ! -------------------------------------------------------------------------------------
 
 &surface
-  isfctyp           = 0
+  isfctyp           = 5
   zrough            = 0.0004
   ubmin             = -0.25
-  sst               = 272.
+  sst               = 312.
   dthcon            = 100.
-  drtcon            = 0.
+  drtcon            = 20.
   C_heat            = 2.e6
-  deepSoilTemp      = 274.
+  deepSoilTemp      = 300.
   W1                = 0.2
   W2                = 0.2
   W3                = 0.2
@@ -161,8 +161,8 @@ cat > NAMELIST <<EOF
 ! ------------------------------------------------------------------------------------
 
 &radiation
-  radsounding = 'datafiles/ksas.lay'  
-  sfc_albedo = 0.2
+  radsounding = 'datafiles/dsrt.lay'  
+  sfc_albedo = 0.3
   laerorad = .FALSE. 
   useMcICA = .TRUE.
 /
@@ -243,34 +243,37 @@ cat > NAMELIST <<EOF
 
 
    ! Master process switches
-   lscoag%switch = .TRUE.
-   lscoag%delay = 0. !${Tspinup}
+   lscoag%switch = .TRUE.          ! Coagulation
+   lscoag%delay = 0. !${Tspinup} 
+ 
+   lscnd%switch = .TRUE.           ! Condensation
 
-   lscnd%switch = .TRUE.
-
-   lsauto%switch = .TRUE.
+   lsauto%switch = .TRUE.          ! Precip formation / autoconversion
    lsauto%delay = 0. !${Tspinup}
-   lsauto%mode = 1    ! 1: precip formation based on coagulation, 2: parameterized autoconversion
+   lsauto%mode = 1                 ! 1: precip formation based on coagulation, 2: parameterized autoconversion
 
    lsactiv%switch = .TRUE.
-   lsactiv%mode = 1   ! 1: aerosol growth based activation, 2: parameterized cloud base activation
+   lsactiv%mode = 1                ! 1: aerosol growth based activation, 2: parameterized cloud base activation
 
-   lsicenucl%switch = .TRUE.
+   lsicenucl%switch = .TRUE.       ! Ice nucleation
    lsicenucl%delay = 100.
 
-   lsicemelt%switch = .TRUE.
+   lsicemelt%switch = .TRUE.       ! Ice melting
+
+   lssecice%switch = .TRUE.        ! Secondary ice production
+   lssecice%delay = 200.
 
    ! Sub-process switches: Coagulation
    lscgcc = .TRUE.       ! Self-collection of cloud droplets
    lscgpp = .TRUE.       ! Self-collection of rain drops
    lscgpc = .TRUE.       ! Rain collection of cloud droplets
-   lscgaa = .TRUE.       ! Aerosol coagulation
-   lscgca = .TRUE.       ! Cloud collection of aerosols
-   lscgpa = .TRUE.       ! Rain collection of aerosols
+   lscgaa = .FALSE.       ! Aerosol coagulation
+   lscgca = .FALSE.       ! Cloud collection of aerosols
+   lscgpa = .FALSE.       ! Rain collection of aerosols
    lscgia = .FALSE.       ! Ice collection of aerosols
-   lscgic = .FALSE.       ! Ice collection of cloud droplets
-   lscgii = .FALSE.       ! Self-collection of ice
-   lscgip = .FALSE.       ! Ice collection of rain drops
+   lscgic = .TRUE.       ! Ice collection of cloud droplets
+   lscgii = .TRUE.       ! Self-collection of ice
+   lscgip = .TRUE.       ! Ice collection of rain drops
 
    ! Sub-process switches: Condensation
    lscndgas    = .FALSE.  ! --Aerosol precursor gas codensation
@@ -279,10 +282,13 @@ cat > NAMELIST <<EOF
    lscndh2oic  = .TRUE.  ! --Condensation of water on ice particles
 
    ! Sub-process switches: Ice nucleation
-   ice_hom     = .TRUE.
-   ice_imm     = .TRUE.
-   ice_dep     = .TRUE.
-   ice_theta_dist = .TRUE.
+   ice_hom     = .TRUE.        ! Homogeneous freezing   
+   ice_imm     = .TRUE.        ! Immersion freezing
+   ice_dep     = .TRUE.        ! Deposition freezing
+   ice_theta_dist = .TRUE.     ! Use contact angle distribution for the IN population
+
+   ! Sub-process swithces: Secondary ice
+   ice_halmos = .TRUE.         ! Rime splintering; Hallet-Mossop
 
    ! Misc switches
    lscheckarrays = .FALSE.
@@ -318,8 +324,8 @@ cat > NAMELIST <<EOF
    bloIce%vol_ratio = 3.        ! Volume ratio between bins
 
    ! Initial aerosol size distributions
-   nspec_dry = 1
-   listspec = 'SO4','','','','','',''
+   nspec_dry = 2
+   listspec = 'SO4','DU','','','','',''
 
    isdtyp = ${ISDTYP}
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
