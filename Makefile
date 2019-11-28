@@ -136,7 +136,7 @@ ifeq ($(COMP),taitointel)
 	endif
 endif
 # Puhti Intel -------------------------------------------------
-ifeq ($(COMP),puhtiintel)
+ifeq ($(COMP),puhtiIntel)
 	F90		= mpif90
 
 	NETCDROOT	= /appl/spack/install-tree/intel-19.0.4/netcdf-fortran-4.4.4-tmvulh/
