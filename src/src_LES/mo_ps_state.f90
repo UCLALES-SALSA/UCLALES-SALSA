@@ -35,12 +35,13 @@ MODULE mo_ps_state
   !     a statistics timestep using the TYPE(FloatArray1d) variable you declared. Just make sure the end result is the global representative
   !     value across all processes and defined for rank mpi_root !!
   
-  
+  ! 3d variables
   TYPE(FloatArray1d), TARGET :: ps_theta, ps_temp, ps_press,     &
                                 ps_rp, ps_rc, ps_srp, ps_rpp,    &
                                 ps_ri, ps_riri, ps_Naa, ps_Nab,  &
                                 ps_Nca, ps_Ncb, ps_Np, ps_Ni,    &
                                 ps_RH, ps_rsl, ps_RHI, ps_rsi,   &
+                                ps_dn,                           &
 
                                 ps_rrate, ps_irate,              &
 
@@ -51,13 +52,16 @@ MODULE mo_ps_state
                                 ps_Dwcb, ps_Dwpa, ps_Dwia,       &
 
                                 ps_aSO4a, ps_aSO4b, ps_cSO4a, ps_cSO4b, ps_pSO4a, ps_iSO4a,  &
-                                ps_aOCa, ps_aOCb, ps_cOCa, ps_cOCb, ps_pOCa, ps_iOCa,  &
-                                ps_aBCa, ps_aBCb, ps_cBCa, ps_cBCb, ps_pBCa, ps_iBCa,  &
-                                ps_aDUa, ps_aDUb, ps_cDUa, ps_cDUb, ps_pDUa, ps_iDUa,  &
-                                ps_aSSa, ps_aSSb, ps_cSSa, ps_cSSb, ps_pSSa, ps_iSSa,  &
-                                ps_aNOa, ps_aNOb, ps_cNOa, ps_cNOb, ps_pNOa, ps_iNOa,  &
+                                ps_aOCa, ps_aOCb, ps_cOCa, ps_cOCb, ps_pOCa, ps_iOCa,        &
+                                ps_aBCa, ps_aBCb, ps_cBCa, ps_cBCb, ps_pBCa, ps_iBCa,        &
+                                ps_aDUa, ps_aDUb, ps_cDUa, ps_cDUb, ps_pDUa, ps_iDUa,        &
+                                ps_aSSa, ps_aSSb, ps_cSSa, ps_cSSb, ps_pSSa, ps_iSSa,        &
+                                ps_aNOa, ps_aNOb, ps_cNOa, ps_cNOb, ps_pNOa, ps_iNOa,        &
                                 ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa
 
+  ! binned variables
+  TYPE(FloatArray2d), TARGET :: ps_Dwaba, ps_Dwabb, ps_Dwcba, ps_Dwcbb, ps_Dwpba, ps_Dwiba
+  TYPE(FloatArray2d), TARGET :: ps_Naba, ps_Nabb, ps_Ncba, ps_Ncbb, ps_Npba, ps_Niba
  
   CONTAINS
 
@@ -142,36 +146,72 @@ MODULE mo_ps_state
          ps_Naa = FloatArray1d()
          ps_Naa%onDemand => globalAvgProfile
          pipeline => ps_Naa
-         CALL PS%newField("Naa", "Aerosol A, bulk number concentration", "m-3", "ztt",   &
+         CALL PS%newField("Naa", "Aerosol A, bulk number concentration", "#/kg", "ztt",   &
                           ANY(outputlist == "Naa"), pipeline)
 
          pipeline => NULL()
          ps_Nab = FloatArray1d()
          ps_Nab%onDemand => globalAvgProfile
          pipeline => ps_Nab
-         CALL PS%newField("Nab", "Aerosol B, bulk number concentration", "m-3", "ztt",   &
+         CALL PS%newField("Nab", "Aerosol B, bulk number concentration", "#/kg", "ztt",   &
                           ANY(outputlist == "Nab"), pipeline)
 
          pipeline => NULL()
          ps_Nca = FloatArray1d()
          ps_Nca%onDemand => globalAvgProfile
          pipeline => ps_Nca
-         CALL PS%newField("Nca", "Cloud A, bulk number concentration", "m-3", "ztt",   &
+         CALL PS%newField("Nca", "Cloud A, bulk number concentration", "#/kg", "ztt",   &
                           ANY(outputlist == "Nca"), pipeline)
 
          pipeline => NULL()
          ps_Ncb = FloatArray1d()
          ps_Ncb%onDemand => globalAvgProfile
          pipeline => ps_Ncb
-         CALL PS%newField("Ncb", "Cloud B, bulk number concentration", "m-3", "ztt",   &
+         CALL PS%newField("Ncb", "Cloud B, bulk number concentration", "#/kg", "ztt",   &
                           ANY(outputlist == "Ncb"), pipeline)
 
          pipeline => NULL()
          ps_Np = FloatArray1d()
          ps_Np%onDemand => globalAvgProfile
          pipeline => ps_Np
-         CALL PS%newField("Np", "Precipitation bulk number concentration", "m-3", "ztt",   &
+         CALL PS%newField("Np", "Precipitation bulk number concentration", "#/kg", "ztt",   &
                           ANY(outputlist == "Np"), pipeline)
+
+         pipeline => NULL()
+         ps_Naba = FloatArray2d()
+         ps_Naba%onDemand => globalAvgProfileBinned
+         pipeline => ps_Naba
+         CALL PS%newField("Naba", "Aerosol A binned number concentration", "#/kg", "zttaea",   &
+                          ANY(outputlist == "Naba"), pipeline)
+
+         pipeline => NULL()
+         ps_Nabb = FloatArray2d()
+         ps_Nabb%onDemand => globalAvgProfileBinned
+         pipeline => ps_Nabb
+         CALL PS%newfield("Nabb", "Aerosol B binned number concentration", "#/kg", "zttaeb",   &
+                          ANY(outputlist == "Nabb"), pipeline)
+
+         pipeline => NULL()
+         ps_Ncba = FloatArray2d()
+         ps_Ncba%onDemand => globalAvgProfileBinned
+         pipeline => ps_Ncba
+         CALL PS%newfield("Ncba", "Cloud A binned number concentration", "#/kg", "zttcla",   &
+                          ANY(outputlist == "Ncba"), pipeline)         
+
+         pipeline => NULL()
+         ps_Ncbb = FloatArray2d()
+         ps_Ncbb%onDemand => globalAvgProfileBinned
+         pipeline => ps_Ncbb
+         CALL PS%newfield("Ncbb", "Cloud B binned number concentration", "#/kg", "zttclb",   &
+                          ANY(outputlist == "Ncba"), pipeline)
+
+         pipeline => NULL()
+         ps_Npba = FloatArray2d()
+         ps_Npba%onDemand => globalAvgProfileBinned
+         pipeline => ps_Npba
+         CALL PS%newfield("Npba", "Precipitation binned number concentration", "#/kg", "zttprc",   &
+                          ANY(outputlist == "Npba"), pipeline)
+         
       END IF
 
       IF (level == 5) THEN
@@ -179,8 +219,15 @@ MODULE mo_ps_state
          ps_Ni = FloatArray1d()
          ps_Ni%onDemand => globalAvgProfile
          pipeline => ps_Ni
-         CALL PS%newField("Ni", "Ice bulk number concentration", "m-3", "ztt",   &
+         CALL PS%newField("Ni", "Ice bulk number concentration", "#/kg", "ztt",   &
                           ANY(outputlist == "Ni"), pipeline)
+
+         pipeline => NULL()
+         ps_Niba = FloatArray2d()
+         ps_Niba%onDemand => globalAvgProfileBinned
+         pipeline => ps_Niba
+         CALL PS%newfield("Niba", "Ice binned number concentration", "#/kg", "zttice",   &
+                          ANY(outputlist == "Niba"), pipeline)
       END IF
 
       pipeline => NULL()
@@ -213,6 +260,13 @@ MODULE mo_ps_state
                           ANY(outputlist == "rsi"), pipeline)
       END IF
 
+      pipeline => NULL()
+      ps_dn = FloatArray1d()
+      ps_dn%onDemand => globalAvgProfile
+      pipeline => ps_dn
+      CALL PS%newField("dn", "Air density", "kg/m3", "ztt",   &
+                       ANY(outputlist == "dn"), pipeline)      
+      
 
       pipeline => NULL()
       ps_rrate  = FloatArray1d()
@@ -308,6 +362,42 @@ MODULE mo_ps_state
          pipeline => ps_Dwpa
          CALL PS%newField("Dwpa", "Precipitation bulk wet diameter", "m", "ztt",   &
                           ANY(outputlist == "Dwpa"), pipeline)
+
+         pipeline => NULL()
+         ps_Dwaba = FloatArray2d()
+         ps_Dwaba%onDemand => globalAvgProfileBinned
+         pipeline => ps_Dwaba
+         CALL PS%newField("Dwaba", "Aerosol A binned diameter", "m", "zttaea",    &
+                          ANY(outputlist == "Dwaba"), pipeline)
+
+         pipeline => NULL()
+         ps_Dwabb = FloatArray2d()
+         ps_Dwabb%onDemand => globalAvgProfileBinned
+         pipeline => ps_Dwabb
+         CALL PS%newField("Dwabb", "Aerosol B binned diameter", "m", "zttaeb",    &
+                          ANY(outputlist == "Dwabb"), pipeline)
+
+         pipeline => NULL()
+         ps_Dwcba = FloatArray2d()
+         ps_Dwcba%onDemand => globalAvgProfileBinned
+         pipeline => ps_Dwcba
+         CALL PS%newField("Dwcba", "Cloud A binned diameter", "m", "zttcla",    &
+                          ANY(outputlist == "Dwcba"), pipeline)
+
+         pipeline => NULL()
+         ps_Dwcbb = FloatArray2d()
+         ps_Dwcbb%onDemand => globalAvgProfileBinned
+         pipeline => ps_Dwcbb
+         CALL PS%newField("Dwcbb", "Cloud B binned diameter", "m", "zttclb",    &
+                          ANY(outputlist == "Dwcbb"), pipeline)
+
+         pipeline => NULL()
+         ps_Dwpba = FloatArray2d()
+         ps_Dwpba%onDemand => globalAvgProfileBinned
+         pipeline => ps_Dwpba
+         CALL PS%newField("Dwpba", "Precipitation binned diameter", "m", "zttprc",    &
+                          ANY(outputlist == "Dwpba"), pipeline)
+         
       END IF
 
       IF (level == 5) THEN
@@ -317,6 +407,12 @@ MODULE mo_ps_state
          pipeline => ps_Dwia
          CALL PS%newField("Dwia", "Ice bulk wet diameter (spherical)", "m", "ztt",   &
                           ANY(outputlist == "Dwia"), pipeline)
+         pipeline => NULL()
+         ps_Dwiba = FloatArray2d()
+         ps_Dwiba%onDemand => globalAvgProfileBinned
+         pipeline => ps_Dwiba
+         CALL PS%newField("Dwiba", "Ice binned diameter", "m", "zttice",    &
+                          ANY(outputlist == "Dwiba"), pipeline)         
       END IF
 
       IF (level >= 4) THEN

@@ -39,7 +39,7 @@ all: $(OUT)
 
 
 $(OUT): $(OBJS)
-	$(F90) $(FFLAGS) $(SEQFFLAGS) -o $@ $(OBJS) $(LIBS)
+	$(F90) $(FFLAGS) -o $@ $(OBJS) $(LIBS)
 
 %.o: %.f90 
 	$(F90) -c $(FFLAGS) $<

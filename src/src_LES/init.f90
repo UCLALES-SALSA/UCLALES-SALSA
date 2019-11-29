@@ -109,14 +109,6 @@ CONTAINS
          CALL appl_abort(0)
       END IF ! runtype
 
-     ! When SALSA b-bin outputs are needed?
-     !   -level >= 4
-     !   -outputs are forced (lsalsabbins=.true.)
-     !   -b-bins initialized with non-zero concentration
-     !   -nucleation set to produce particles to b bins (currently only a bins)
-     IF (level >= 4 .AND. (.NOT. lsalsabbins)) &
-        lsalsabbins = ANY( a_naerop%d(:,:,:,in2b:fn2b) > nlim ) 
-
      CALL sponge_init
      !CALL init_stat(time+dtl,filprf,expnme,nzp)
      !

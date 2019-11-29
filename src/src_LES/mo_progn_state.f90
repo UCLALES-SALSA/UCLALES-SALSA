@@ -58,9 +58,8 @@ MODULE mo_progn_state
   
   CONTAINS
   
-    SUBROUTINE setPrognosticVariables(a_sclrp,a_sclrt,Prog,outputlist,level,isgstyp,lbinanl,nzp,nxp,nyp,nscl)
+    SUBROUTINE setPrognosticVariables(a_sclrp,a_sclrt,Prog,outputlist,level,isgstyp,nzp,nxp,nyp,nscl)
       INTEGER, INTENT(in) :: level,isgstyp,nzp,nxp,nyp,nscl
-      LOGICAL, INTENT(in) :: lbinanl
       REAL, INTENT(in) :: a_sclrp(nzp,nxp,nyp,nscl), a_sclrt(nzp,nxp,nyp,nscl)
       CHARACTER(len=*), INTENT(in) :: outputlist(:)
       TYPE(FieldArray), INTENT(inout) :: Prog
@@ -148,20 +147,20 @@ MODULE mo_progn_state
                              "#/kg", "N/A", .FALSE.,                           &
                              pipeline_p, in_t_data = pipeline_t,               &
                              in_group = ["SALSA_4d"]                           &
-                             )
+                           )
          pipeline_p => NULL()
          a_Naba = FloatArray4d(a_naerop%d(:,:,:,in1a:fn2a))
          pipeline_p => a_Naba
-         CALL Prog%newField( "Naba", "Binned aerosol number, A",                           &
-                             "#/kg", "ttttaea", ANY(outputlist == "Naba" .AND. lbinanl),   &
-                             pipeline_p                                                    &
-                             )
+         CALL Prog%newField( "Naba", "Binned aerosol number, A",                    &
+                             "#/kg", "ttttaea", ANY(outputlist == "Naba"),          &
+                             pipeline_p                                             &
+                           )
          pipeline_p => NULL()
          a_Nabb = FloatArray4d(a_naerop%d(:,:,:,in2b:fn2b))
          pipeline_p => a_Nabb
-         CALL Prog%newField( "Nabb", "Binned aerosol number, B",                           & 
-                             "#/kg", "ttttaeb", ANY(outputlist == "Nabb" .AND. lbinanl),   &
-                             pipeline_p                                                    &
+         CALL Prog%newField( "Nabb", "Binned aerosol number, B",                    & 
+                             "#/kg", "ttttaeb", ANY(outputlist == "Nabb"),          &
+                             pipeline_p                                             &
                            )
 
          iscl = iscl + nbins
@@ -186,20 +185,20 @@ MODULE mo_progn_state
                              "#/kg", "N/A", .FALSE.,                          &
                              pipeline_p, in_t_data = pipeline_t,              &
                              in_group = ["SALSA_4d"]                          &
-                             )
+                           )
          pipeline_p => NULL()
          a_Ncba = FloatArray4d(a_ncloudp%d(:,:,:,ica%cur:fca%cur))
          pipeline_p => a_Ncba
-         CALL Prog%newField( "Ncba", "Binned cloud number, A",                             & 
-                             "#/kg", "ttttcla", ANY(outputlist == "Ncba" .AND. lbinanl),   &
-                             pipeline_p                                                    &
+         CALL Prog%newField( "Ncba", "Binned cloud number, A",                    & 
+                             "#/kg", "ttttcla", ANY(outputlist == "Ncba"),        &
+                             pipeline_p                                           &
                              )
          pipeline_p => NULL()
          a_Ncbb = FloatArray4d(a_ncloudp%d(:,:,:,icb%cur:fcb%cur))
          pipeline_p => a_Ncbb
-         CALL Prog%newField( "Ncbb", "Binned cloud number, B",                             &
-                             "#/kg", "ttttclb", ANY(outputlist == "Ncbb" .AND. lbinanl),   &
-                             pipeline_p                                                    &
+         CALL Prog%newField( "Ncbb", "Binned cloud number, B",                    &
+                             "#/kg", "ttttclb", ANY(outputlist == "Ncbb"),        &
+                             pipeline_p                                           &
                            )
 
          iscl = iscl + ncld
@@ -228,9 +227,9 @@ MODULE mo_progn_state
          pipeline_p => NULL()
          a_Npba = FloatArray4d(a_nprecpp%d(:,:,:,1:nprc))
          pipeline_p => a_Npba
-         CALL Prog%newField( "Npba", "Binned precipitation number",                         &
-                             "#/kg", "ttttprc", ANY(outputlist == "Npba" .AND. lbinanl),    &
-                             pipeline_p                                                     &
+         CALL Prog%newField( "Npba", "Binned precipitation number",             &
+                             "#/kg", "ttttprc", ANY(outputlist == "Npba"),      &
+                             pipeline_p                                         &
                            )
          
          iscl = iscl + nprc
@@ -252,9 +251,9 @@ MODULE mo_progn_state
          pipeline_p => a_gaerop
          pipeline_t => a_gaerot
          CALL Prog%newField( "gaero","Aerosol precursor gas concentrations",    &
-                             "#/kg", "N/A", .FALSE.,                       &
-                             pipeline_p, in_t_data = pipeline_t,           &
-                             in_group = ["SALSA_4d"]                       &
+                             "#/kg", "N/A", .FALSE.,                            &
+                             pipeline_p, in_t_data = pipeline_t,                &
+                             in_group = ["SALSA_4d"]                            &
                            )                            
          iscl = iscl + 5-1
          
@@ -275,9 +274,9 @@ MODULE mo_progn_state
          pipeline_p => NULL()
          a_Niba = FloatArray4d(a_nicep%d(:,:,:,1:nice))
          pipeline_p => a_Niba
-         CALL Prog%newField( "Niba", "Binned ice number",                                 &
-                             "#/kg", "ttttice", ANY(outputlist == "Niba" .AND. lbinanl),  &
-                             pipeline_p                                                   &
+         CALL Prog%newField( "Niba", "Binned ice number",                        &
+                             "#/kg", "ttttice", ANY(outputlist == "Niba"),       &
+                             pipeline_p                                          &
                            )
                   
          iscl = iscl + nice
@@ -300,7 +299,7 @@ MODULE mo_progn_state
             pipeline_p => a_indefp
             pipeline_t => a_indeft
             CALL Prog%newField( "indef","IN deficit fraction for contact angle distributions",    &
-                                "kg/kg", "N/A", .FALSE.,     &
+                                "kg/kg", "N/A", .FALSE.,                                          &
                                 pipeline_p,in_t_data = pipeline_t                                 &
                               )
             

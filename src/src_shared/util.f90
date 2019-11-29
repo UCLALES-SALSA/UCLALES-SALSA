@@ -40,8 +40,9 @@ MODULE util
   INTERFACE get_gsum   ! Global summation
      MODULE PROCEDURE get_profile_float_gsum_3d,    &
                       get_profile_integer_gsum_3d,  &
+                      get_profile_float_gsum_3d_binned,   &
                       get_scalar_float_gsum_2d,     &
-                      get_scalar_float_gsum_3d
+                      get_scalar_float_gsum_3d              
   END INTERFACE get_gsum
 
   INTERFACE get_gmax  ! Global maximum
@@ -252,7 +253,27 @@ CONTAINS
     lsum(1:n1) = SUM(SUM(a(1:n1,3:n2-2,3:n3-2),DIM=3),DIM=2)
     CALL get_sum_root(n1,lsum,asum)
   END SUBROUTINE get_profile_integer_gsum_3d
-
+  !
+  ! -----------------------------------------------------------
+  ! SUBROUTINE GET_PROFILE_GSUM_3D_BINNED
+  ! Get the global sum across all processes at each model level
+  ! from a binned 3-dimensional field. The output shall be a sum
+  ! across the model domain in each model level and each bin.
+  SUBROUTINE get_profile_float_gsum_3d_binned(n1,n2,n3,n4,a,asum)
+    USE mpi_interface, ONLY : get_sum_root
+    INTEGER, INTENT(in) :: n1,n2,n3,n4
+    REAL, INTENT(in) :: a(n1,n2,n3,n4)
+    REAL, INTENT(out) :: asum(n1,n4)
+    REAL :: lsum(n1,n4)
+    INTEGER :: bb
+    asum = 0.
+    lsum = 0.
+    DO bb = 1,n4
+       lsum(1:n1,bb) = SUM( SUM( a(1:n1,3:n2-2,3:n3-2,bb),DIM=3 ),DIM=2 )
+    END DO
+    CALL get_sum_root(n1,n4,lsum,asum)    
+  END SUBROUTINE get_profile_float_gsum_3d_binned
+  
   !
   ! ------------------------------------------------------------------
   ! GET_AVG2_ROOT: gets the global average for a 2d x-y field
@@ -336,6 +357,28 @@ CONTAINS
        
   END SUBROUTINE get_avg3_root
 
+  ! --------------------------------------------------------------------
+  ! GET_AVG3_BINNED_ROOT: Get the average across the outer two spatial
+  ! dimensions along the inner dimensions in each size bin of a binned
+  ! variable. The result is defined (non-zero) only for the root process.
+  SUBROUTINE get_avg3_binned_root(n1,n2,n3,n4,a,avg)
+    USE mpi_interface, ONLY : nxpg,nypg
+    INTEGER, INTENT(in) :: n1,n2,n3,n4
+    REAL, INTENT(in)    :: a(n1,n2,n3,n4)
+    REAL, INTENT(out)   :: avg(n1,n4)
+    REAL :: gavg(n1,n4), x
+
+    avg = 0.; gavg = 0.
+    
+    ! TODO: Add the possibility to use conditional averaging
+    
+    x = 1./(REAL(nypg-4)*REAL(nxpg-4))
+    CALL get_gsum(n1,n2,n3,n4,a,gavg)
+    avg(:,:) = gavg(:,:)*x
+        
+  END SUBROUTINE get_avg3_binned_root
+  
+  
   !---------------------------------------------------------------------
   ! GET_AVG3: gets average across outer two dimensions at each
   ! point along inner dimension across all processes. The result
