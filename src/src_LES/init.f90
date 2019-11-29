@@ -1161,8 +1161,6 @@ CONTAINS
  ! Since 1a bins by SALSA convention can only contain SO4 or OC,
  ! get renormalized mass fractions.
  ! --------------------------------------------------------------
- WRITE(*,*) 'HEP', spec%getIndex("OC"), spec%getIndex("SO4"), ppvf2a(:,spec%getIndex("OC"))+ppvf2a(:,spec%getIndex("SO4"))
-
  ppvfOC1a = 0.
  IF (spec%isUsed("OC") .AND. spec%isUsed("SO4")) THEN
     ! Both are there, so use the given "massDistrA"

@@ -103,13 +103,16 @@ CONTAINS
                            lscgaa, lscgcc, lscgpp, lscgii, & 
                            lscgca, lscgpa, lscgia, & 
                            lscgpc, lscgic, &
-                           lscgip
+                           lscgip,                         &
+                           lssecice, ice_halmos
 
 
       USE mo_salsa_coagulation_kernels
 
       USE mo_salsa_coagulation_processes
 
+      USE mo_salsa_secondary_ice, ONLY : halletmossop
+      
       IMPLICIT NONE
 
 
@@ -125,10 +128,12 @@ CONTAINS
          ppres(kbdim,klev)
       !-- Local variables ------------------------
 
-      INTEGER :: nspec
+      INTEGER :: nspec, iri
       INTEGER :: ii,jj,bb
 
-      LOGICAL :: any_aero, any_cloud, any_precp, any_ice!, any_snow
+      LOGICAL :: any_aero, any_cloud, any_precp, any_ice
+
+      LOGICAL :: any_lt13(kbdim,klev), any_gt25(kbdim,klev)
       
       REAL :: zccaa(kbdim,klev,nbins,nbins),    & ! updated coagulation coefficients [m3/s]
               zcccc(kbdim,klev,ncld,ncld),      & ! - '' - for collision-coalescence between cloud droplets [m3/s]
@@ -141,6 +146,10 @@ CONTAINS
               zccii(kbdim,klev,nice,nice),      & ! - '' - for aggregation between ice 
               zccip(kbdim,klev,nprc,nice)         ! - '' - for collection of precip by ice
 
+      ! For Hallet-Mossop
+      REAL :: drimdt(kbdim,klev,nice)  ! Volume change in rime due to liquid collection in the presense of liquid
+                                       ! hydrometeors with diameters both < 13um and >25um
+      
       !-----------------------------------------------------------------------------
       !-- 1) Coagulation to coarse mode calculated in a simplified way: ------------
       !      CoagSink ~ Dp in continuum regime, thus we calculate
@@ -153,7 +162,8 @@ CONTAINS
       !-- 2) Updating coagulation coefficients -------------------------------------
       
       nspec = spec%getNSpec(type="total")
-
+      iri = spec%getIndex("rime")
+      
       ! Since this is done here, it won't really be necessary in the subsequent coagulation routines
       ! (its called at least in coagulation_kernels)
       DO bb = 1,ntotal
@@ -176,13 +186,30 @@ CONTAINS
                   ANY( [lscgpp,lscgpa,lscgpc,lscgip])
       any_ice = ANY( ice(:,:,:)%numc > ice(:,:,:)%nlim ) .AND. &
                 ANY( [lscgii,lscgia,lscgic,lscgip] )
-      
+
+      any_lt13 = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim .AND. cloud(:,:,:)%dwet < 13.e-6, DIM=3 )
+      any_gt25 = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim .AND. cloud(:,:,:)%dwet > 25.e-6, DIM = 3 )   &
+            .OR. ANY( precp(:,:,:)%numc > precp(:,:,:)%nlim .AND. precp(:,:,:)%dwet > 25.e-6, DIM = 3 )
+            
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !-- 3) New particle and volume concentrations after coagulation -------------
       !                 GENERALIZE THE PTEMP STATEMENT
-      IF (any_ice .AND. ALL(ptemp < 273.15)) &
-           CALL coag_ice(kbdim,klev,nspec,ptstep,zccii,zccia,zccic,zccip)
+      IF (any_ice .AND. ALL(ptemp < 273.15)) THEN
 
+         ! For H-M: Store the "old" rime volumes
+         drimdt(:,:,:) = ice(:,:,:)%volc(iri)
+         
+         CALL coag_ice(kbdim,klev,nspec,ptstep,zccii,zccia,zccic,zccip)
+
+         ! For H-M: Take the change in rime after collection processes
+         drimdt(:,:,:) = ice(:,:,:)%volc(iri) - drimdt(:,:,:)
+
+         ! H-M rime splintering
+         IF (lssecice%state .AND. ice_halmos) &
+              CALL halletmossop(kbdim,kproma,klev,(any_lt13 .AND. any_gt25),ptemp,drimdt)
+         
+      END IF
+         
       IF (any_precp) &
            CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip)
 

@@ -172,7 +172,8 @@ MODULE classSection
             mass_p = spec%rhoic*SELF%volc(iwa)
             mass_r = spec%rhori*SELF%volc(irim)
             mass_t = mass_p + mass_r
-            SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/mass_t
+            SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/MAX(mass_t,7.e-25)
+            SELF%rhomean = MAX(SELF%rhomean, spec%rhowa)
          ELSE
             SELF%rhomean = spec%rhoic
          END IF

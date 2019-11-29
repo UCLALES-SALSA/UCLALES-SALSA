@@ -52,7 +52,8 @@ MODULE mo_particle_external_properties
          Vb = pi6*diam**3     ! Bulk volume of the particle obtained from spherical equivalent diameter
          Ap = shape%gamma*dnsp**shape%sigma
          X = ( 2. * Vb * (rhop - rhoa) * grav * dnsp**2 ) /  &
-             ( Ap * rhoa * visc**2 )
+              ( Ap * rhoa * visc**2 )
+         IF (X < 0.) WRITE(*,*) 'HEP', rhop, rhoa
          terminal_vel = kcVt(shape,dnsp,X,visc,rhoa) 
                   
       END IF

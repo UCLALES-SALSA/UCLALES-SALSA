@@ -257,7 +257,10 @@ cat > NAMELIST <<EOF
    lsicenucl%switch = .TRUE.
    lsicenucl%delay = 100.
 
-   lsicemelt%switch = .TRUE.
+   lsicemelt%switch = .TRUE.       ! Ice melting
+
+   lssecice%switch = .TRUE.        ! Secondary ice production
+   lssecice%delay = 200.
 
    ! Sub-process switches: Coagulation
    lscgcc = .TRUE.       ! Self-collection of cloud droplets
@@ -278,10 +281,13 @@ cat > NAMELIST <<EOF
    lscndh2oic  = .TRUE.  ! --Condensation of water on ice particles
 
    ! Sub-process switches: Ice nucleation
-   ice_hom     = .TRUE.
-   ice_imm     = .TRUE.
-   ice_dep     = .TRUE.
-   ice_theta_dist = .TRUE.
+   ice_hom     = .TRUE.        ! Homogeneous freezing   
+   ice_imm     = .TRUE.        ! Immersion freezing
+   ice_dep     = .TRUE.        ! Deposition freezing
+   ice_theta_dist = .TRUE.     ! Use contact angle distribution for the IN population
+
+   ! Sub-process swithces: Secondary ice
+   ice_halmos = .TRUE.         ! Rime splintering; Hallet-Mossop
 
    ! Misc switches
    lscheckarrays = .FALSE.
@@ -317,8 +323,8 @@ cat > NAMELIST <<EOF
    bloIce%vol_ratio = 3.        ! Volume ratio between bins
 
    ! Initial aerosol size distributions
-   nspec_dry = 1
-   listspec = 'SO4','','','','','',''
+   nspec_dry = 2
+   listspec = 'SO4','DU','','','','',''
 
    isdtyp = ${ISDTYP}
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
