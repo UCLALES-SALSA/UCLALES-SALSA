@@ -192,7 +192,7 @@ MODULE mo_progn_state
          CALL Prog%newField( "Ncba", "Binned cloud number, A",                    & 
                              "#/kg", "ttttcla", ANY(outputlist == "Ncba"),        &
                              pipeline_p                                           &
-                             )
+                           )
          pipeline_p => NULL()
          a_Ncbb = FloatArray4d(a_ncloudp%d(:,:,:,icb%cur:fcb%cur))
          pipeline_p => a_Ncbb
@@ -302,8 +302,7 @@ MODULE mo_progn_state
                                 "kg/kg", "N/A", .FALSE.,                                          &
                                 pipeline_p,in_t_data = pipeline_t                                 &
                               )
-            
-            
+                        
          END IF
 
             

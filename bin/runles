@@ -13,16 +13,16 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=1 # 0 for mpi runs with CRAY, 1 for mpi runs with Puhti, 2 for sequential, 3 for mpi on laptop
+IsSeq=2 # 0 for mpi runs with CRAY, 1 for mpi runs with Puhti, 2 for sequential, 3 for mpi on laptop
 
 EXPNAME="testi"             # Name of the experiment
 PROJECT="project_2002221"   # Project name, needed for resource allocation in PUHTI
 
-NPROCS=144          # Number of processors (for IsSeq==0)
+NPROCS=1          # Number of processors (for IsSeq==0)
 TWALL=72:00:00      # Required wallclock time for batch system
 
-NXP=100               # Number of points in X-direction (including "halo" points)
-NYP=100              # Number of points in Y-direction (including "halo" points)
+NXP=5               # Number of points in X-direction (including "halo" points)
+NYP=40              # Number of points in Y-direction (including "halo" points)
 NZP=70              # Number of points in Z-direction
 DX=50.              # Resolution in X-direction (meters)
 DY=50.              # Resolution in Y-direction (meters)
@@ -120,8 +120,8 @@ cat > NAMELIST <<EOF
   ps_intvl = 5.
   ts_intvl = 5.
   main_intvl = 5.
-  varlist_main = 'aSO4a','aSO4b','rp','rc','srp','dn','Naba','Dwaba'
-  varlist_ps = 'aSO4a','aSO4b','rp','rc','srp','dn','Naba','Dwaba'
+  varlist_main = 'aSO4a','aSO4b','rp','rc','srp','dn','Naba','Dwaba','Ncba','Dwcba'
+  varlist_ps = 'aSO4a','aSO4b','rp','rc','srp','dn','Naba','Dwaba','Ncba','Dwcba'
   varlist_ts = 
 /
 

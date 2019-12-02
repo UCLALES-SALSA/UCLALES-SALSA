@@ -371,7 +371,7 @@ MODULE mo_output
                out1dsd = var2d%d
             END IF
             IF (myid == mpiroot) &
-                 CALL write_nc(ncid0,vname,out1dsd(:,nstr:nend),ibeg2d,icnt=icnt1dsd)
+                 CALL write_nc(ncid0,vname,out1dsd(:,:),ibeg2d,icnt=icnt1dsd)
             DEALLOCATE(out1dsd)
             
          CASE('taea','taeb','tcla','tclb','tprc','tice')
@@ -385,7 +385,7 @@ MODULE mo_output
                outsd = var1d%d
             END IF
             IF (myid == mpiroot) &
-                 CALL write_nc(ncid0,vname,outsd(nstr:nend),ibeg1d,icnt=icnt0dsd)
+                 CALL write_nc(ncid0,vname,outsd(:),ibeg1d,icnt=icnt0dsd)
             DEALLOCATE(outsd)
                
          CASE('tttt','mttt','tmtt','ttmt')
@@ -407,7 +407,7 @@ MODULE mo_output
             ELSE
                out3dsd = var4d%d
             END IF
-            CALL write_nc(ncid0,vname,out3dsd(:,i1:i2,j1:j2,1:nend-nstr+1),ibeg4d,icnt=icnt3dsd)
+            CALL write_nc(ncid0,vname,out3dsd(:,i1:i2,j1:j2,:),ibeg4d,icnt=icnt3dsd)
             DEALLOCATE(out3dsd)
             
          END SELECT                  
