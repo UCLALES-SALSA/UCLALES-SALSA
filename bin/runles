@@ -371,7 +371,7 @@ cat > job.sh <<EOF
 #!/bin/sh
 #SBATCH --job-name=${EXPNAME}
 #SBATCH --account=${PROJECT}
-#SBATCH --time=00:30:00
+#SBATCH --time=${TWALL}
 #SBATCH --mem-per-cpu=2G
 #SBATCH --partition=fmi
 #SBATCH --ntasks=${NPROCS}

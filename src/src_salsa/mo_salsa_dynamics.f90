@@ -1176,41 +1176,4 @@ CONTAINS
 
    END FUNCTION acth2o
 
-   ! ------------------------------------------------------------------
-
-   FUNCTION satvaph2o(ptemp) RESULT(psat)
-      !-----------------------------------------------------------------
-      ! Saturation vapour pressure of water vapour
-      ! This is a local function for the subroutine *cloud_condensation*
-      !
-      ! J. Tonttila, FMI, 03/2014
-      !-----------------------------------------------------------------
-    
-      IMPLICIT NONE
-
-      REAL, INTENT(in) :: ptemp
-
-      REAL, PARAMETER ::       &
-         za0 = 6.107799961,    &
-         za1 = 4.436518521e-1, &
-         za2 = 1.428945805e-2, &
-         za3 = 2.650648471e-4, &
-         za4 = 3.031240396e-6, &
-         za5 = 2.034080948e-8, &
-         za6 = 6.136820929e-11
-
-      REAL :: zt
-
-      REAL :: psat
-
-      zt = ptemp - 273.15
-
-      psat = za0 + za1*zt + za2*zt**2 + za3*zt**3 +   &
-             za4*zt**4 + za5*zt**5 + za6*zt**6
-
-      ! To Pascals
-      psat = psat*100.
-
-   END FUNCTION satvaph2o
- 
 END MODULE mo_salsa_dynamics

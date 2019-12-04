@@ -642,6 +642,9 @@ CONTAINS
 
     IMPLICIT NONE
 
+    IF(myid == 0) &
+         PRINT "(//' ',49('-')/,' ',/,' History restart, preparing for model state input from: ',A60)",hfilin
+    
     CALL read_hist(time, hfilin)
 
     dtlv = 2.*dtl

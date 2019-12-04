@@ -363,7 +363,7 @@ MODULE mo_output
          CASE('zttaea','zttaeb','zttcla','zttclb','zttprc','zttice')
             CALL getSDdim(varArray%list(n)%dimension,nstr,nend)
             icnt1dsd = [nzp,nend-nstr+1,1]
-            ALLOCATE(out1dsd(nzp,nend-nstr+1))
+            ALLOCATE(out1dsd(nzp,nend-nstr+1)); out1dsd = 0.
             CALL varArray%getData(1,var2d,index=n)
             IF (ASSOCIATED(var2d%onDemand)) THEN
                CALL var2d%onDemand(vname,out1dsd,nstr,nend)
