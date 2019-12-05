@@ -70,12 +70,11 @@ contains
   subroutine surface(sst)
 
     use defs, only: vonk, p00, rcp, g, cp, alvl, ep2
-    use grid, only: nzp, nxp, nyp, a_up, a_vp, a_theta, a_rv, a_rp, zt, dzt, psrf, th00  &
+    use grid, only: nzp, nxp, nyp, a_up, a_vp, a_theta, a_rv, a_rp, zt, psrf, th00  &
          , umean, vmean, a_ustar, a_tstar, a_rstar, uw_sfc, vw_sfc, ww_sfc    &
-         , wt_sfc, wq_sfc, obl, dn0, level,dtl, a_sflx, a_rflx, precip, a_dn,  &
-        W1,W2,W3, mc_ApVdom
+         , wt_sfc, wq_sfc, obl, dn0, level,dtl, a_sflx, a_rflx, precip, W1,W2,W3
     use thrm, only: rslf
-    use stat, only: sfc_stat, sflg, mcflg, acc_massbudged
+    use stat, only: sfc_stat, sflg
     use mpi_interface, only : nypg, nxpg, double_array_par_sum
 
 
@@ -95,8 +94,6 @@ contains
     integer :: i, j, iterate
     real    :: zs, bflx, ffact, sst1, bflx1, Vbulk, Vzt, usum
     real (kind=8) :: bfl(2), bfg(2)
-
-    REAL :: mctmp(nxp,nyp) ! Helper for mass concenrvation statistics
 
     ! Added by Juha
     SELECT CASE(level)
@@ -356,15 +353,6 @@ contains
 
     end select
 
-    IF ( mcflg ) THEN
-       !
-       ! Juha: Take moisture flux to mass budged statistics
-       mctmp(:,:) = wq_sfc(:,:)*(0.5*(a_dn(1,:,:)+a_dn(2,:,:)))
-       CALL acc_massbudged(nzp,nxp,nyp,2,dtl,dzt,a_dn,       &
-            revap=mctmp,ApVdom=mc_ApVdom)
-       !
-       !
-    END IF !mcflg
     if (sflg) call sfc_stat(nxp,nyp,wt_sfc,wq_sfc,a_ustar,sst)
 
     return

@@ -45,72 +45,52 @@ contains
   subroutine initialize
 
     use step, only : time, outflg, salsa_diag_update, anl_start, nudging
-    use stat, only : init_stat, mcflg, acc_massbudged
+    use stat, only : init_stat
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : in2b, fn2b, iib, fib, nlim, prlim, stat_b_bins
-    USE class_ComponentIndex, ONLY : GetNcomp
+    USE mo_submctl, ONLY : in2b, fn2b, nlim, stat_b_bins, nspec
 
     implicit none
 
     ! Local variables for SALSA basic state
-    REAL :: zwp(nzp,nxp,nyp)
     INTEGER :: n4
-    
-    ! Set vertical velocity as 0.5 m/s to intialize cloud microphysical properties with
-    ! SALSA
-    zwp(:,:,:) = 0.5
 
     if (runtype == 'INITIAL') then
        time=0.
        call arrsnd
        call basic_state
-       call fldinit ! Juha: aerosol size distributions are initialized here.
-                    !       Also thermodynamics!
+       call fldinit
 
        ! If SALSA is used, call SALSA with full configuration once before beginning
        ! spin-up period to set up aerosol and cloud fields.
        IF (level >= 4) THEN
 
-          n4 = GetNcomp(prtcl) + 1 ! Aerosol components + water
+          n4 = nspec+1 ! Aerosol components + water
+
+          ! Initialize SALSA species
+          CALL aerosol_init
+          CALL init_gas_tracers
 
           ! Update diagnostic SALSA tracers
           CALL SALSA_diag_update
           CALL thermo(level)
 
-          IF ( nxp == 5 .and. nyp == 5 ) THEN
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,zwp,a_dn, &
+          CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
-                  a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtl, 0., level,  &
+                  a_gaerop,  a_gaerot,  1, dtl, time, level, &
                   coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
                   coag_ri, coag_ni, coag_rs, coag_ns, &
                   cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
                   auto_rr, auto_nr, auto_rs, auto_ns, &
                   cact_rc, cact_nc, nucl_ri, nucl_ni, &
                   melt_ri, melt_ni, melt_rs, melt_ns)
-          ELSE
-             CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_wp,a_dn, &
-                  a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
-                  a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
-                  a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
-                  a_nicep,   a_nicet,   a_micep,   a_micet,    &
-                  a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
-                  a_nactd,   a_vactd,   a_gaerop,  a_gaerot,   &
-                  1, prtcl, dtl, 0., level,  &
-                  coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
-                  coag_ri, coag_ni, coag_rs, coag_ns, &
-                  cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
-                  auto_rr, auto_nr, auto_rs, auto_ns, &
-                  cact_rc, cact_nc, nucl_ri, nucl_ni, &
-                  melt_ri, melt_ni, melt_rs, melt_ns)
-          END IF
+
           CALL SALSAInit
           CALL SALSA_diag_update
           CALL thermo(level)
@@ -137,36 +117,22 @@ contains
 
     ! When SALSA b-bin outputs are needed?
     !   -level >= 4
-    !   -outputs are forced (stat_b_bins=.true.)
-    !   -b-bins initialized with non-zero concentration
-    !   -nucleation set to produce particles to b bins (currently only a bins)
-    IF (level >= 4 .and. (.not. stat_b_bins)) &
-       stat_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim ) .OR. any( a_nicep(:,:,:,iib%cur:fib%cur)>prlim )
+    !   -outputs are forced (stat_b_bins=.true.) or b-bins are initialized with non-zero concentration
+    IF (level >= 4 .and. (.not. stat_b_bins)) stat_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim )
 
     call sponge_init
     call init_stat(time,filprf,expnme,nzp)
-    !
-    IF (mcflg) THEN
-       ! Juha:
-       ! Calculate some numbers for mass concervation experiments
-       mc_Vdom = deltax*deltay*deltaz*(nxp-4)*(nyp-4)*(nzp-1)
-       mc_Adom = deltax*deltay*(nxp-4)*(nyp-4)
-       mc_ApVdom = mc_Adom/mc_Vdom
-       ! Get the initial mass of atmospheric water
-       CALL acc_massbudged(nzp,nxp,nyp,0,dtl,dzt,a_dn,     &
-            rv=a_rp,rc=a_rc,prc=a_srp)
-    END IF ! mcflg
     !
     ! write analysis and history files from restart if appropriate
     !
     if (outflg) then
        if (runtype == 'INITIAL') then
           !call write_hist(1, time)
-          call init_anal(time,stat_b_bins)
+          call init_anal(time)
           call thermo(level)
           IF (time >= anl_start) call write_anal(time)
        else
-          call init_anal(time+dtl,stat_b_bins)
+          call init_anal(time+dtl)
           call write_hist(0, time)
        end if
     end if !outflg
@@ -284,14 +250,6 @@ contains
     ! initialize thermodynamic fields
     !
     call thermo (level)
-
-    !
-    ! Initialize aerosol size distributions
-    !
-    IF (level >= 4) THEN
-       CALL aerosol_init
-       CALL init_gas_tracers
-    END IF
 
     a_uc=a_up
     a_vc=a_vp
@@ -723,7 +681,6 @@ contains
   ! Juha Tonttila, FMI, 2014
   !
   SUBROUTINE SALSAInit
-    USE class_componentIndex, ONLY : GetIndex
     IMPLICIT NONE
     INTEGER :: k,i,j
 
@@ -759,33 +716,79 @@ contains
   !
   SUBROUTINE aerosol_init
 
-    USE class_componentIndex, ONLY : getIndex,IsUsed
-    USE mo_salsa_sizedist, ONLY : size_distribution
-    USE mo_salsa_driver, ONLY : aero
-    USE mo_submctl, ONLY : pi6, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
-                               sigmag, dpg, n, volDistA, volDistB, nf2a, nreg,isdtyp,nspec, &
-                               rhosu, rhooc, rhobc, rhodu, rhoss, rhono, rhonh
+    USE mo_submctl, ONLY : pi6, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,aerobins, &
+                           nmod, sigmag, dpg, n, volDistA, volDistB, nf2a, nreg, isdtyp, nspec, listspec, &
+                           rhosu, msu, rhooc, moc, rhobc, mbc, rhodu, mdu, &
+                           rhoss, mss, rhono, mno, rhonh, mnh, rhowa, mwa, &
+                           dens, diss, mws, iso, ioc, ibc, idu, iss, inh, ino, ih2o, zspec
     USE mpi_interface, ONLY : myid
 
     IMPLICIT NONE
-    REAL :: core(nbins), nsect(1,1,nbins)             ! Size of the bin mid aerosol particle, local aerosol size dist
-    REAL :: pndist(nzp,nbins)                         ! Aerosol size dist as a function of height
+    REAL :: core(fn2a), nsect(fn2a)                   ! Size of the bin mid aerosol particle, local aerosol size dist
+    REAL :: pndist(nzp,fn2a)                          ! Aerosol size dist as a function of height
     REAL :: pvf2a(nzp,nspec), pvf2b(nzp,nspec)        ! Mass distributions of aerosol species for a and b-bins
     REAL :: pnf2a(nzp)                                ! Number fraction for bins 2a
     REAL :: pvfOC1a(nzp)                              ! Mass distribution between SO4 and OC in 1a
-    INTEGER :: ss,ee,i,j,k
-    INTEGER :: iso4=-1, ioc=-1, ibc=-1, idu=-1, &
-               iss=-1, inh=-1, ino=-1
+    REAL :: mass(2*nspec)
+    INTEGER :: ss,ee,i,j,k,nc
+    CHARACTER(len=600) :: fmt
 
-    CHARACTER(len=600) :: fmt = &
-         "(/,' -------------------------------------------------',/," // &
-         "' Initial aerosol profile: ',//, 4X, 'Height', 6X, 'Na', 9X, 'Nb'," // &
-         "7X, 'SO4a', 8X, 'OCa', 9X, 'BCa', 9X, 'DUa', 9X, 'SSa', 9X, 'NH3a', 8X, 'HNO3a'," // &
-         "7X, 'SO4b', 8X, 'OCb', 9X, 'BCb', 9X, 'DUb', 9X, 'SSb', 9X, 'NH3b', 8X, 'HNO3b'//," // &
-         "(3F10.2,14ES12.3))"
+    ! Active aerosol species: name, density, dissociation constant, MW and index
+    ! Water is always the first species!
+    ss=1
+    zspec(ss)='H2O'
+    dens(ss)=rhowa
+    diss(ss)=1.
+    mws(ss)=mwa
+    ih2o=ss
+    ! .. then normal aerosol species
+    DO ss=2,nspec+1
+         zspec(ss)=listspec(ss-1) ! Inputs do not include water
+         SELECT CASE(listspec(ss-1))
+            CASE('SO4')
+                dens(ss)=rhosu
+                diss(ss)=3.  ! H2SO4
+                mws(ss)=msu
+                iso=ss
+            CASE('OC')
+                dens(ss)=rhooc
+                diss(ss)=1.
+                mws(ss)=moc
+                ioc=ss
+            CASE('BC')
+                dens(ss)=rhobc
+                diss(ss)=0.  ! Insoluble
+                mws(ss)=mbc
+                ibc=ss
+            CASE('DU')
+                dens(ss)=rhodu
+                diss(ss)=0.  ! Insoluble
+                mws(ss)=mdu
+                idu=ss
+            CASE('SS')
+                dens(ss)=rhoss
+                diss(ss)=2.  ! NaCl
+                mws(ss)=mss
+                iss=ss
+            CASE('NO')
+                dens(ss)=rhono
+                diss(ss)=1.  ! NO3- ??
+                mws(ss)=mno
+                ino=ss
+            CASE('NH')
+                dens(ss)=rhonh
+                diss(ss)=1.  ! NH4+ ??
+                mws(ss)=mnh
+                inh=ss
+            CASE DEFAULT
+                WRITE(*,*) 'Unkown species: '//TRIM(zspec(ss))
+                STOP
+        END SELECT
+    END DO
+
     !
     ! Bin mean aerosol particle volume
-    core(1:nbins) = pi6 * aero(1,1,1:nbins)%dmid**3
+    core(1:fn2a) = 4.*pi6*(aerobins(1:fn2a)**3+aerobins(2:fn2a+1)**3) ! = 4/3*pi*(rmin**3+rmax**3)/2
 
     ! Set concentrations to zero
     pndist = 0.
@@ -795,60 +798,26 @@ contains
     a_maerop(:,:,:,:)=0.0
     a_naerop(:,:,:,:)=0.0
 
-    ! Indices (-1 = not used)
-    i=0
-    IF (IsUsed(prtcl,'SO4')) THEN
-       iso4 = GetIndex(prtcl,'SO4')
-       i=i+1
-    END IF
-    IF (IsUsed(prtcl,'OC')) THEN
-       ioc = GetIndex(prtcl, 'OC')
-       i=i+1
-    END IF
-    IF (IsUsed(prtcl,'BC')) THEN
-       ibc = GetIndex(prtcl,'BC')
-       i=i+1
-    END IF
-    IF (IsUsed(prtcl,'DU')) THEN
-       idu = GetIndex(prtcl,'DU')
-       i=i+1
-    END IF
-    IF (IsUsed(prtcl,'SS')) THEN
-       iss = GetIndex(prtcl,'SS')
-       i=i+1
-    END IF
-    IF (IsUsed(prtcl,'NO')) THEN
-       ino = GetIndex(prtcl,'NO')
-       i=i+1
-    END IF
-    IF (IsUsed(prtcl,'NH')) THEN
-       inh = GetIndex(prtcl,'NH')
-       i=i+1
-    END IF
-
-    ! All species must be known
-    IF (i /= nspec) STOP 'Unknown aerosol species given in the initialization!'
-
     !
     ! Altitude dependent size distributions and compositions.
-    ! Read and interpolate/extrapolate size distribution and composition for altitude level k: z=(zt(k)
+    ! Read and interpolate/extrapolate size distribution and composition for altitude level k: z=zt(k)
     ! ---------------------------------------------------------------------------------------------------
     IF (isdtyp == 1) THEN
 
-       CALL READ_AERO_INPUT(iso4,ioc,pndist,pvfOC1a,pvf2a,pvf2b,pnf2a)
+       CALL READ_AERO_INPUT(iso-1,ioc-1,pndist,pvfOC1a,pvf2a,pvf2b,pnf2a)
 
     !
     ! Uniform profiles based on NAMELIST parameters
     ! ---------------------------------------------------------------------------------------------------
     ELSE IF (isdtyp == 0) THEN
 
-       IF (ioc>0 .AND. iso4>0) THEN
+       IF (ioc>0 .AND. iso>0) THEN
           ! Both are there, so use the given "massDistrA"
-          pvfOC1a(:) = volDistA(ioc)/(volDistA(ioc)+volDistA(iso4)) ! Normalize
+          pvfOC1a(:) = volDistA(ioc-1)/(volDistA(ioc-1)+volDistA(iso-1)) ! Normalize
        ELSE IF (ioc>0) THEN
           ! Pure OC
           pvfOC1a(:) = 1.0
-       ELSE IF (iso4>0) THEN
+       ELSE IF (iso>0) THEN
           ! Pure SO4
           pvfOC1a(:) = 0.0
        ELSE
@@ -870,9 +839,9 @@ contains
        ! Convert to SI
        n = n*1.e6
        dpg = dpg*1.e-6
-       CALL size_distribution(1,1,1, n, dpg, sigmag, nsect)
-       DO ss = 1,nbins
-          pndist(:,ss) = nsect(1,1,ss)
+       CALL size_distribution(nmod, n, dpg, sigmag, nsect)
+       DO ss = 1,fn2a
+          pndist(:,ss) = nsect(ss)
        END DO
 
     END IF
@@ -898,10 +867,10 @@ contains
 
              !
              ! b) Aerosol mass concentrations
-             ! bin regime 1, done here separately because of the SO4/OC convention
+             ! bin regime 1a, done here separately because of the SO4/OC convention
              ! SO4
-             IF (iso4 > 0) THEN
-                ss = (iso4-1)*nbins + in1a; ee = (iso4-1)*nbins + fn1a
+             IF (iso > 0) THEN
+                ss = (iso-1)*nbins + in1a; ee = (iso-1)*nbins + fn1a
                 a_maerop(k,i,j,ss:ee) = max(0.0,1.0-pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhosu
              END IF
              ! OC
@@ -910,120 +879,58 @@ contains
                 a_maerop(k,i,j,ss:ee) = max(0.0,pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhooc
              END IF
 
+             ! bin regimes 2a and 2b
+             DO nc=1,nspec
+                ! 2a
+                ss = nc*nbins + in2a; ee = nc*nbins + fn2a
+                a_maerop(k,i,j,ss:ee) = max( 0.0,pvf2a(k,nc) )*pnf2a(k) * &
+                     pndist(k,in2a:fn2a)*core(in2a:fn2a)*dens(nc+1)
+                ! 2b
+                ss = nc*nbins + in2b; ee = nc*nbins + fn2b
+                a_maerop(k,i,j,ss:ee) = max( 0.0,pvf2b(k,nc) )*(1.0-pnf2a(k)) * &
+                     pndist(k,in2a:fn2a)*core(in2a:fn2a)*dens(nc+1)
+             END DO
+
           END DO ! i
        END DO ! j
     END DO ! k
     a_naerop(1,:,:,:) = a_naerop(2,:,:,:)
     a_maerop(1,:,:,:) = a_maerop(2,:,:,:)
 
-    !
-    ! c) Aerosol mass concentrations
-    ! bin regime 2
-    IF (nreg>1) THEN
-
-       ! 1: SO4
-       IF (iso4>0) THEN
-          CALL setAeroMass(iso4,pvf2a,pvf2b,pnf2a,pndist,core,rhosu)
-       END IF
-
-       ! 2: OC
-       IF (ioc>0) THEN
-          CALL setAeroMass(ioc,pvf2a,pvf2b,pnf2a,pndist,core,rhooc)
-       END IF
-
-       ! 3: BC
-       IF (ibc>0) THEN
-          CALL setAeroMass(ibc,pvf2a,pvf2b,pnf2a,pndist,core,rhobc)
-       END IF
-
-       ! 4: DU
-       IF (idu>0) THEN
-          CALL setAeroMass(idu,pvf2a,pvf2b,pnf2a,pndist,core,rhodu)
-       END IF
-
-       ! 5: SS
-       IF (iss>0) THEN
-          CALL setAeroMass(iss,pvf2a,pvf2b,pnf2a,pndist,core,rhoss)
-       END IF
-
-       ! 6: NO3
-       IF (ino>0) THEN
-          CALL setAeroMass(ino,pvf2a,pvf2b,pnf2a,pndist,core,rhono)
-       END IF
-
-       ! 7: NH3
-       IF (inh>0) THEN
-          CALL setAeroMass(inh,pvf2a,pvf2b,pnf2a,pndist,core,rhonh)
-       END IF
-
-    END IF
-
     ! Put out some info about the initial state
     ! ---------------------------------------------------------------------------------------------------------------------
-    IF (myid == 0)                   WRITE(*,*) ''
-    IF (myid == 0 .AND. isdtyp == 0) WRITE(*,*) 'AEROSOL PROPERTIES TAKEN FROM A NAMELIST'
-    IF (myid == 0 .AND. isdtyp == 1) WRITE(*,*) 'AEROSOL PROPERTIES READ FROM aerosol_in.nc'
+    IF (myid == 0) THEN
+        ! Source
+        IF (isdtyp == 0) THEN
+            WRITE(*,'(/,A)') 'Aerosol properties from the NAMELIST'
+        ELSE
+            WRITE(*,'(/,A)') 'Aerosol properties from file aerosol_in'
+        ENDIF
 
-    IF (myid == 0) WRITE(*,fmt) &
-         ( zt(k), SUM(a_naerop(k,3,3,in1a:fn2a))*1.e-6, SUM(a_naerop(k,3,3,in2b:fn2b))*1.e-6,                 &
-
-         MERGE( SUM( a_maerop(k,3,3,MAX(iso4-1,0)*nbins+in1a:MAX(iso4-1,0)*nbins+fn2a) ), -999., iso4>0 ),    &
-         MERGE( SUM( a_maerop(k,3,3,MAX(ioc-1,0)*nbins+in1a:MAX(ioc-1,0)*nbins+fn2a) ), -999., ioc>0 ),       &
-         MERGE( SUM( a_maerop(k,3,3,MAX(ibc-1,0)*nbins+in1a:MAX(ibc-1,0)*nbins+fn2a) ), -999., ibc>0 ),       &
-         MERGE( SUM( a_maerop(k,3,3,MAX(idu-1,0)*nbins+in1a:MAX(idu-1,0)*nbins+fn2a) ), -999., idu>0 ),       &
-         MERGE( SUM( a_maerop(k,3,3,MAX(iss-1,0)*nbins+in1a:MAX(iss-1,0)*nbins+fn2a) ), -999., iss>0 ),       &
-         MERGE( SUM( a_maerop(k,3,3,MAX(ino-1,0)*nbins+in1a:MAX(ino-1,0)*nbins+fn2a) ), -999., ino>0 ),       &
-         MERGE( SUM( a_maerop(k,3,3,MAX(inh-1,0)*nbins+in1a:MAX(inh-1,0)*nbins+fn2a) ), -999., inh>0 ),       &
-
-         MERGE( SUM( a_maerop(k,3,3,MAX(iso4-1,0)*nbins+in2b:MAX(iso4-1,0)*nbins+fn2b) ), -999., iso4>0 ),    &
-         MERGE( SUM( a_maerop(k,3,3,MAX(ioc-1,0)*nbins+in2b:MAX(ioc-1,0)*nbins+fn2b) ), -999., ioc>0 ),       &
-         MERGE( SUM( a_maerop(k,3,3,MAX(ibc-1,0)*nbins+in2b:MAX(ibc-1,0)*nbins+fn2b) ), -999., ibc>0 ),       &
-         MERGE( SUM( a_maerop(k,3,3,MAX(idu-1,0)*nbins+in2b:MAX(idu-1,0)*nbins+fn2b) ), -999., idu>0 ),       &
-         MERGE( SUM( a_maerop(k,3,3,MAX(iss-1,0)*nbins+in2b:MAX(iss-1,0)*nbins+fn2b) ), -999., iss>0 ),       &
-         MERGE( SUM( a_maerop(k,3,3,MAX(ino-1,0)*nbins+in2b:MAX(ino-1,0)*nbins+fn2b) ), -999., ino>0 ),       &
-         MERGE( SUM( a_maerop(k,3,3,MAX(inh-1,0)*nbins+in2b:MAX(inh-1,0)*nbins+fn2b) ), -999., inh>0 ),       &
-         k=1,nzp )
-
+        WRITE(*,'(/,A)') ' Initial aerosol profile (number [1e6/kg] and mass [ug/kg] for a and b bins):'
+        ! Header
+        WRITE(fmt,"(A9,I2,A8,I2,A4)") "(A12,A10,",nspec,"A12,A10,",nspec,"A12)"
+        WRITE(*,fmt) 'Height (m)','Na',zspec(2:nspec+1),'Nb',zspec(2:nspec+1)
+        !
+        ! Number and mass concentrations for each active species in a and b bins
+        WRITE(fmt,"(A13,I2,A13,I2,A7)") "(F12.1,F10.1,",nspec,"ES12.3,F10.1,",nspec,"ES12.3)"
+        !
+        DO k=1,nzp
+            ! Calculate mass (1e-6g/kg)
+            DO i=1,nspec
+                mass(i)=SUM( a_maerop(k,3,3,i*nbins+in1a:i*nbins+fn2a) )*1e9
+                mass(nspec+i)=SUM( a_maerop(k,3,3,i*nbins+in2b:i*nbins+fn2b) )*1e9
+            ENDDO
+            ! Print
+            WRITE(*,fmt) zt(k), SUM(a_naerop(k,3,3,in1a:fn2a))*1.e-6, mass(1:nspec), &
+                                SUM(a_naerop(k,3,3,in2b:fn2b))*1.e-6, mass(nspec+1:2*nspec)
+            IF (k==10 .AND. isdtyp == 0) THEN
+                WRITE(*,'(A14)')'...'
+                EXIT
+            ENDIF
+        ENDDO
+    ENDIF
   END SUBROUTINE aerosol_init
-
-
-  !
-  ! ----------------------------------------------------------
-  ! Sets the mass concentrations to aerosol arrays in 2a and 2b
-  !
-  !
-  SUBROUTINE setAeroMass(ispec,ppvf2a,ppvf2b,ppnf2a,ppndist,pcore,prho)
-    USE mo_submctl, ONLY : nbins, in2a,fn2a,in2b,fn2b, nspec
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: ispec                             ! Aerosol species index
-    REAL, INTENT(in) :: ppvf2a(nzp,nspec), ppvf2b(nzp,nspec) ! Mass distributions for a and b bins
-    REAL, INTENT(in) :: ppnf2a(nzp)                          ! Number fraction for 2a
-    REAL, INTENT(in) :: ppndist(nzp,nbins)                   ! Aerosol size distribution
-    REAL, INTENT(in) :: pcore(nbins)                         ! Aerosol bin mid core volume
-    REAL, INTENT(in) :: prho                                 ! Aerosol density
-
-    INTEGER :: ss,ee
-    INTEGER :: i,j,k
-
-    DO k = 2,nzp ! DONT PUT STUFF INSIDE THE GROUND
-       DO j = 1,nyp
-          DO i = 1,nxp
-             ! 2a
-             ss = (ispec-1)*nbins + in2a; ee = (ispec-1)*nbins + fn2a
-             a_maerop(k,i,j,ss:ee) =      &
-                  max( 0.0,ppvf2a(k,ispec) )*ppnf2a(k) * &
-                  ppndist(k,in2a:fn2a)*pcore(in2a:fn2a)*prho
-             ! 2b
-             ss = (ispec-1)*nbins + in2b; ee = (ispec-1)*nbins + fn2b
-             a_maerop(k,i,j,ss:ee) =      &
-                  max( 0.0,ppvf2b(k,ispec) )*(1.0-ppnf2a(k)) * &
-                  ppndist(k,in2a:fn2a)*pcore(in2a:fn2a)*prho
-          END DO
-       END DO
-    END DO
-
-  END SUBROUTINE setAeroMass
   !
   ! -------------------------------------------------------------------------
   ! Reads vertical profiles of aerosol size distribution parameters, aerosol species volume fractions and
@@ -1031,61 +938,49 @@ contains
   !
   SUBROUTINE READ_AERO_INPUT(piso4,pioc,ppndist,ppvfOC1a,ppvf2a,ppvf2b,ppnf2a)
     USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
-    USE mo_submctl, ONLY : nbins,  &
-                               nspec, maxspec, nmod
-    USE mo_salsa_sizedist, ONLY : size_distribution
+    USE mo_submctl, ONLY : fn2a, nspec, maxspec, nmod
     USE mpi_interface, ONLY : appl_abort, myid
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: piso4,pioc
-    REAL, INTENT(out) :: ppndist(nzp,nbins)                   ! Aerosol size dist as a function of height
+    REAL, INTENT(out) :: ppndist(nzp,fn2a)                    ! Aerosol size dist as a function of height
     REAL, INTENT(out) :: ppvf2a(nzp,nspec), ppvf2b(nzp,nspec) ! Volume distributions of aerosol species for a and b-bins
     REAL, INTENT(out) :: ppnf2a(nzp)                          ! Number fraction for bins 2a
     REAL, INTENT(out) :: ppvfOC1a(nzp)                        ! Volume distribution between SO4 and OC in 1a
 
-    REAL :: nsect(1,1,nbins)
+    REAL :: nsect(fn2a)
 
     INTEGER :: ncid, k, i
     INTEGER :: nc_levs=500, nc_nspec, nc_nmod
 
     ! Stuff that will be read from the file
-    REAL, ALLOCATABLE :: zlevs(:),         &  ! Levels in meters
-                         zvolDistA(:,:),  &  ! Volume distribution of aerosol species in a and b bins
-                         zvoldistB(:,:),  &  ! (Don't mess these with the ones in namelist.salsa -
-                                             !  they are not used here!)
+    REAL, ALLOCATABLE :: zlevs(:),        &  ! Levels in meters
+                         zvolDistA(:,:),  &  ! Volume distribution of aerosol species in a
+                         zvoldistB(:,:),  &  ! ... and b bins
                          znf2a(:),        &  ! Number fraction for bins 2a
                          zn(:,:),         &  ! Aerosol mode number concentrations
                          zsigmag(:,:),    &  ! Geometric standard deviations
                          zdpg(:,:),       &  ! Mode mean diameters
-                         znsect(:,:),     &  ! Helper for binned number concentrations
-                         helper(:,:)         ! nspec helper
+                         znsect(:,:)         ! Helper for binned number concentrations
     LOGICAL :: READ_NC
 
     ! Read the NetCDF input when it is available
     INQUIRE(FILE='aerosol_in.nc',EXIST=READ_NC)
 
-    ! Open the input file
-    IF (READ_NC) CALL open_aero_nc(ncid, nc_levs, nc_nspec, nc_nmod)
-
-    ! Check that the input dimensions are compatible with SALSA initialization
-    ! ....
-
     ! Allocate input variables
-    ALLOCATE( zlevs(nc_levs),               &
+    ALLOCATE( zlevs(nc_levs),              &
               zvolDistA(nc_levs,maxspec),  &
               zvolDistB(nc_levs,maxspec),  &
               znf2a(nc_levs),              &
               zn(nc_levs,nmod),            &
               zsigmag(nc_levs,nmod),       &
-              zdpg(nc_levs,nmod),          &
-              ! Couple of helper arrays
-              znsect(nc_levs,nbins),        &
-              helper(nc_levs,nspec)        )
-
-    zlevs = 0.; zvolDistA = 0.; zvolDistB = 0.; znf2a = 0.; zn = 0.; zsigmag = 0.
-    zdpg = 0.; znsect = 0.; helper = 0.
+              zdpg(nc_levs,nmod)           )
+    zlevs = 0.; zvolDistA = 0.; zvolDistB = 0.; znf2a = 0.; zn = 0.; zsigmag = 0.; zdpg = 0.
 
     IF (READ_NC) THEN
+       ! Open the input file
+       CALL open_aero_nc(ncid, nc_levs, nc_nspec, nc_nmod)
+
        ! Read the aerosol profile data
        CALL read_aero_nc_1d(ncid,'levs',nc_levs,zlevs)
        CALL read_aero_nc_2d(ncid,'volDistA',nc_levs,maxspec,zvolDistA)
@@ -1126,17 +1021,18 @@ contains
     zdpg = zdpg*1.e-6
 
     ! Get the binned size distribution
+    ALLOCATE( znsect(nc_levs,fn2a) )
     znsect = 0.
     DO k = 1,nc_levs
-       CALL size_distribution(1,1,1,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
-       znsect(k,:) = nsect(1,1,:)
+       CALL size_distribution(nmod,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
+       znsect(k,:) = nsect(:)
     END DO
 
     ! Interpolate the input variables to model levels
     ! ------------------------------------------------
     CALL htint2d(nc_levs,zvolDistA(1:nc_levs,1:nspec),zlevs(1:nc_levs),nzp,ppvf2a,zt,nspec)
     CALL htint2d(nc_levs,zvolDistB(1:nc_levs,1:nspec),zlevs(1:nc_levs),nzp,ppvf2b,zt,nspec)
-    CALL htint2d(nc_levs,znsect(1:nc_levs,:),zlevs(1:nc_levs),nzp,ppndist,zt,nbins)
+    CALL htint2d(nc_levs,znsect(1:nc_levs,:),zlevs(1:nc_levs),nzp,ppndist,zt,fn2a)
     CALL htint(nc_levs,znf2a(1:nc_levs),zlevs(1:nc_levs),nzp,ppnf2a,zt)
 
     ! Since 1a bins by SALSA convention can only contain SO4 or OC,
@@ -1155,7 +1051,7 @@ contains
        STOP 'Either OC or SO4 must be active for aerosol region 1a!'
     ENDIF
 
-    DEALLOCATE( zlevs, zvolDistA, zvolDistB, znf2a, zn, zsigmag, zdpg, znsect, helper )
+    DEALLOCATE( zlevs, zvolDistA, zvolDistB, znf2a, zn, zsigmag, zdpg, znsect )
 
   END SUBROUTINE READ_AERO_INPUT
 
@@ -1166,26 +1062,97 @@ contains
   ! Juha Tonttila, FMI, 2014
   !
   SUBROUTINE init_gas_tracers
+    USE mpi_interface, ONLY : myid
+    USE mo_submctl, ONLY : avog, &
+        part_h2so4, conc_h2so4, iso, isog, part_ocnv, conc_ocnv, ioc, iocg, &
+        mws_gas, ngases, zgas
     IMPLICIT NONE
 
-    INTEGER :: j,i,k
+    ! Local variables
+    INTEGER :: i
+    CHARACTER(LEN=300) :: fmt
 
-    ! Taken as molecules/kg
-    DO j = 1,nyp
-       DO i = 1,nxp
-          DO k = 1,nzp
-             a_gaerop(k,i,j,1) = 5.E14/dn0(k) !SO4
-             a_gaerop(k,i,j,2) = 0./dn0(k)    !NO3
-             a_gaerop(k,i,j,3) = 0./dn0(k)    !NH4
-             a_gaerop(k,i,j,4) = 5.E14/dn0(k) !OCNV
-             a_gaerop(k,i,j,5) = 1.E14/dn0(k) !OCSV
-          END DO
-       END DO
-    END DO
+    ! Gases initialized in SALSA
+    IF (ngases==0) RETURN
 
+    ! Note: gas phase concentration units for prognostic and diagnostic variables
+    ! are kg/kg and mol/kg, respectively. Inputs can have different units!
+
+    ! Sulfate and non-volatile organics
+    !  - Input as molecules/kg
+    IF (part_h2so4 .AND. iso<=0) THEN
+        STOP 'Error: sulfate partitioning without aerosol SO4!'
+    ELSEIF (part_h2so4) THEN
+        ! Sulfate or H2SO4
+        a_gaerop(:,:,:,isog) = conc_h2so4/avog*mws_gas(isog)
+    ENDIF
+    IF (part_ocnv .AND. ioc<=0) THEN
+        STOP 'Error: non-volatile organic partitioning without aerosol OC!'
+    ELSEIF (part_ocnv) THEN
+        ! Non-volatile organic vapor
+        a_gaerop(:,:,:,iocg) = conc_ocnv/avog*mws_gas(iocg)
+    ENDIF
+
+    ! Info
+    IF (myid == 0) THEN
+        WRITE(*,*) ''
+        WRITE(*,'(/,A)') ' Initial gas/vapor concentration profile [ug/kg]:'
+        ! Header
+        WRITE(fmt,"(A9,I2,A8)") "(A12,",ngases,"A12)"
+        WRITE(*,fmt) 'Height (m)',zgas(1:ngases)
+        !
+        ! Number and mass concentrations for each active species in a and b bins
+        WRITE(fmt,"(A7,I2,A7)") "(F12.1,",ngases,"ES12.3)"
+        !
+        DO i=1,nzp
+            ! Print
+            WRITE(*,fmt) zt(i), a_gaerop(i,3,3,:)*1.e9 ! kg => ug
+            IF (i==10) THEN
+                WRITE(*,'(A14)')'...'
+                EXIT
+            ENDIF
+        ENDDO
+    ENDIF
 
   END SUBROUTINE init_gas_tracers
 
+  !
+  !------------------------------------------------------------------
+  ! SIZE_DISTRIBUTION: Converts multimodal log-normal size distribution into size bins
+  !
+  ! From module mo_salsa_sizedist
+  !
+  SUBROUTINE size_distribution(nmod, n, dpg, sigmag, naero)
+    USE mo_submctl, ONLY : pi, fn2a, aerobins
+    IMPLICIT NONE
 
+    INTEGER, INTENT(IN) :: nmod ! number of modes
+    REAL, INTENT(IN) :: n(nmod), dpg(nmod), sigmag(nmod) ! Mode number concentration, mean diameter and width
+    REAL, INTENT(OUT) :: naero(fn2a) ! number concentration
+
+    !-- local variables
+    REAL :: deltadp,d1,d2,delta_d,dmid
+    INTEGER :: kk,ib
+
+    naero(:)=0.
+    DO kk = 1, fn2a ! Bin
+        d1 = aerobins(kk)*2.
+        d2 = aerobins(kk+1)*2.
+        delta_d=(d2-d1)/10.
+        DO ib = 1,10
+            d1=aerobins(kk)*2.+(ib-1.)*delta_d
+            d2=d1+delta_d
+            dmid=(d1+d2)/2.
+            deltadp = log(d2/d1)
+            !-- size distribution
+            !   ntot = total number, total area, or total volume concentration
+            !   dpg = geometric-mean number, area, or volume diameter
+            !   n(kk) = number, area, or volume concentration in a bin
+            naero(kk) = naero(kk)+sum(n*deltadp/        &
+                 (sqrt(2.*pi)*log(sigmag))*                   &
+                 exp(-log(dmid/dpg)**2/(2.*log(sigmag)**2)))
+        END DO
+    END DO
+  END SUBROUTINE size_distribution
 
 end module init

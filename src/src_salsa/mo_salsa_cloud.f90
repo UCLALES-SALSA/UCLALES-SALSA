@@ -22,55 +22,36 @@ MODULE mo_salsa_cloud
 
 CONTAINS
 
-  SUBROUTINE cloud_activation(kproma, kbdim, klev,   &
+  SUBROUTINE cloud_activation(kbdim, klev,           &
                               temp,   pres,  rv,     &
-                              rs,     w,     paero,  &
-                              pcloud, pactd          )
+                              rs,     paero, pcloud  )
 
-    USE mo_submctl, ONLY : t_section, fn2b, ncld, &
+    USE mo_submctl, ONLY : t_section, nbins, ncld, &
               lsactintst, lsactbase
 
     IMPLICIT NONE
 
     !-- Input and output variables ----------
     INTEGER, INTENT(IN) ::              &
-             kproma,                    & ! number of horiz. grid points
              kbdim,                     & ! dimension for arrays
              klev                       ! number of vertical levels
 
     REAL, INTENT(in) ::             &
              pres(kbdim,klev),          &
-             temp(kbdim,klev),          &
-             w(kbdim,klev)
+             temp(kbdim,klev)
 
     REAL, INTENT(inout) :: rv(kbdim,klev) ! Water vapor mixing ratio
     REAL, INTENT(in)    :: rs(kbdim,klev) ! Saturation vapor mixing ratio
 
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld),  &
-                                      paero(kbdim,klev,fn2b)
-
-    ! Properties of newly activate particles
-    TYPE(t_section), INTENT(out) :: pactd(kbdim,klev,ncld)
-
-    INTEGER :: ii, jj, kk
-
-    ! This is needed for cloud base activation, but must be set to zero for interstitial activation
-    DO jj = 1,klev    ! vertical grid
-        DO ii = 1,kbdim ! horizontal grid
-            ! Reset activated
-            DO kk = 1,ncld
-                pactd(ii,jj,kk)%volc(:) = 0.
-                pactd(ii,jj,kk)%numc = 0.
-            END DO
-        END DO
-    END DO
+                                      paero(kbdim,klev,nbins)
 
     ! -------------------------------------
     ! Interstitial activation
     ! -------------------------------------
     IF ( lsactintst ) THEN
 
-       CALL actInterst(kproma,kbdim,klev,paero,pcloud,rv,rs,temp)
+       CALL actInterst(kbdim,klev,paero,pcloud,rv,rs,temp)
 
     END IF
 
@@ -79,7 +60,7 @@ CONTAINS
     ! -----------------------------------
     IF ( lsactbase ) THEN
 
-        CALL ActCloudBase(kproma,kbdim,klev,paero,pres,temp,w,pactd)
+        STOP 'Cloud base activation not supported!'
 
     END IF
 
@@ -87,290 +68,9 @@ CONTAINS
 
 
 ! -----------------------------------------------------------------
-! Calculates the number of moles of dissolved solutes in one particle
-!
-  SUBROUTINE getSolute(kproma,kbdim,klev,paero,pns)
-    USE mo_submctl, ONLY : t_section,nlim,       &
-                               fn2b,            &
-                               rhosu, rhooc,    &
-                               rhonh, rhono,    &
-                               rhoss,             &
-                               msu, moc,        &
-                               mnh, mno,        &
-                               mss
-    IMPLICIT NONE
 
-    INTEGER, INTENT(IN) :: kproma,kbdim,klev
-    TYPE(t_section), INTENT(IN) :: paero(kbdim,klev,fn2b)
-    REAL, INTENT(OUT) :: pns(kbdim,klev,fn2b)
 
-    INTEGER :: ii,jj,kk
-
-    pns = 0.
-
-    DO jj = 1,klev
-
-       DO ii = 1,kbdim
-
-          !-- subranges 1a, 2a and 2b
-
-          DO kk = 1, fn2b
-             IF (paero(ii,jj,kk)%numc > nlim) THEN
-
-                !-- number of moles of solute in one particle [mol]
-                !   BC and dust are insoluble - ignored
-                !   SS or NaCl produces 2 ions
-                !   SO or H2SO4 produces 3 ions
-                pns(ii,jj,kk) = (3.*paero(ii,jj,kk)%volc(1)*rhosu/msu  +   &
-                     paero(ii,jj,kk)%volc(2) * rhooc/moc +                    &
-                     paero(ii,jj,kk)%volc(6) * rhono/mno +                    &
-                     paero(ii,jj,kk)%volc(7) * rhonh/mnh +                    &
-                     2.*paero(ii,jj,kk)%volc(5) * rhoss/mss)/              &
-                     paero(ii,jj,kk)%numc
-
-             END IF
-          END DO
-
-       END DO
-
-    END DO
-
-
-  END SUBROUTINE getSolute
-
-
-! -----------------------------------------------------------------
-
-  SUBROUTINE ActCloudBase(kproma,kbdim,klev,paero,pres,temp,w,pactd)
-    ! Cloud base activation following:
-    !
-    ! Abdul-Razzak et al: "A parameterization of aerosol activation -
-    !                      3. Sectional representation"
-    !                      J. Geophys. Res. 107, 10.1029/2001JD000483, 2002.
-    !                      [Part 3]
-    !
-    ! Abdul Razzak et al: "A parameterization of aerosol activation -
-    !                      1. Single aerosol type"
-    !                      J. Geophys. Res. 103, 6123-6130, 1998.
-    !                      [Part 1]
-    !
-    !
-    ! Note: updates pactd, but does not change pcloud?
-    ! Note: insoluble species are not properly accounted for
-    !
-    USE mo_submctl, ONLY :     &
-         grav,                          & ! gravitational acceleration (m/s^2)
-         rg,                             & ! molar gas constant [J/(mol K)]
-         surfw0,                       & ! surface tension of water [J/m2]
-         nlim,                           & ! lowest possible particle conc. in a bin [#/m3]
-         rhowa, mwa,                & ! Density and molar mass of water
-         pi,                             &
-         cpa, mair,                    & ! Air properties
-         in1a,in2b,fn2a, fn2b,      & ! size regime bin indices
-         t_section,                    & ! Data type for cloud/rain drops
-         ncld                               ! Total number of cloud bins
-
-    IMPLICIT NONE
-
-    !-- Input and output variables ----------
-    INTEGER, INTENT(IN) ::              &
-             kproma,                    & ! number of horiz. grid points
-             kbdim,                     & ! dimension for arrays
-             klev                       ! number of vertical levels
-
-    REAL, INTENT(in) ::             &
-             pres(kbdim,klev),          &
-             temp(kbdim,klev),          &
-             w(kbdim,klev)
-
-    TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,fn2b)
-
-    ! Properties of newly activate particles
-    TYPE(t_section), INTENT(out) :: pactd(kbdim,klev,ncld)
-
-    !-- local variables --------------
-    INTEGER :: ii, jj, kk             ! loop indices
-
-    INTEGER :: bcrita(kbdim,klev),bcritb(kbdim,klev) ! Index of the critical aerosol bin for regimes a and b
-
-    REAL ::                         &
-             sil,                       & ! critical supersaturation
-                                          !     at the upper bound of the bin
-             siu,                       & !  "  at the lower bound of the bin
-             scrit(fn2b),               & !  "  at the center of the bin
-             aa,                        & ! curvature (Kelvin) effect [m]
-             bb,                        & ! solute (Raoult) effect [m3]
-             ns(kbdim,klev,fn2b),                  & ! number of moles of solute
-             nshi,                      & !             " at the upper bound of the bin
-             nslo,                      & !             " at the lower bound of the bin
-             s_max,                     & ! maximum supersaturation
-             s_eff,                     & ! effective supersaturation
-             x, x1, a1, sum1,       & ! technical variables
-             ka1,                       & ! thermal conductivity
-             dv1,                       & ! diffusion coefficient
-             Gc,                        & ! growth coefficient
-             alpha,                     & ! see Abdul-Razzak and Ghan, part 3
-             gamma,                     & ! see Abdul-Razzak and Ghan, part 3
-             L,                         & ! latent heat of evaporation
-             ps,                        & ! saturation vapor pressure of water [Pa]
-             khi,                       & ! see Abdul-Razzak and Ghan, part 3
-             theta,                     & ! see Abdul-Razzak and Ghan, part 3
-             frac(kbdim,klev,fn2b),                & ! fraction of activated droplets in a bin
-             ntot,                      & ! total number conc of particles [#/m3]
-             zdcrit(kbdim,klev,fn2b),   & ! critical diameter [m]
-             zdcstar(kbdim,klev),                   & ! Critical diameter corresponding to Smax
-             zdcrhi(kbdim,klev,fn2b),   & ! Critical diameter at the high end of a bin
-             zdcrlo(kbdim,klev,fn2b),   & ! Critical diameter at the low end of a bin
-             V,                         & ! updraft velocity [m/s]
-             rref                       ! reference radius [m]
-
-    ! ------------------------------------------------------------------
-    ! Initialization
-    ! ------------------------------------------------------------------
-
-    bb = 6.*mwa/(pi*rhowa)             ! Raoult effect [m3]
-                                          ! NOTE!
-                                          ! bb must be multiplied
-                                          ! by the number of moles of
-                                          ! solute
-    zdcrit(:,:,:) = 0.
-    zdcrlo(:,:,:) = 0.
-    zdcrhi(:,:,:) = 0.
-    frac(:,:,:) = 0.
-    bcrita(:,:) = fn2a
-    bcritb(:,:) = fn2b
-
-    ! Get moles of solute at the middle of the bin
-    CALL getSolute(kproma,kbdim,klev,paero,ns)
-
-    ! ----------------------------------------------------------------
-
-       DO jj = 1,klev    ! vertical grid
-          DO ii = 1,kbdim ! horizontal grid
-             ! Reset activated - done already
-             !   pactd(ii,jj,kk)%volc(:) = 0.
-             !   pactd(ii,jj,kk)%numc = 0.
-
-             ! Positive updraft velocity required
-             IF (w(ii,jj) <= 0.) CYCLE
-
-             aa = 4.*mwa*surfw0/(rg*rhowa*temp(ii,jj)) ! Kelvin effect [m]
-
-             x  = 4.*aa**3/(27.*bb)
-
-             ! Get the critical supersaturation for aerosol bins for necessary summation terms (sum1 & ntot)
-
-             scrit(in1a:fn2b) = exp(sqrt(x/max(epsilon(1.0),ns(ii,jj,in1a:fn2b)))) - 1.
-
-             !-- sums in equation (8), part 3
-             ntot = SUM(paero(ii,jj,in1a:fn2b)%numc)
-             sum1 = SUM(paero(ii,jj,in1a:fn2b)%numc/scrit(in1a:fn2b)**(2./3.))
-
-             IF(ntot < nlim) CYCLE
-             V  = w(ii,jj)
-
-             !-- latent heat of evaporation [J/kg]
-             L     = 2.501e6-2370.*(temp(ii,jj)-273.15)
-
-             !-- saturation vapor pressure of water [Pa]
-             a1    = 1.-(373.15/temp(ii,jj))
-             ps    = 101325.*                                                 &
-                  exp(13.3185*a1-1.976*a1**2-0.6445*a1**3-0.1299*a1**4)
-
-             !-- part 1, eq (11)
-             alpha = grav*mwa*L/(cpa*rg*temp(ii,jj)**2)-                            &
-                  grav*mair/(rg*temp(ii,jj))
-
-             !-- part 1, eq (12)
-             gamma = rg*temp(ii,jj)/(ps*mwa) &
-                  + mwa*L**2/(cpa*pres(ii,jj)*mair*temp(ii,jj))
-
-             !-- diffusivity [m2/s], Seinfeld and Pandis (15.65)
-             x1 = pres(ii,jj) / 101325.
-             dv1= 1.e-4 * (0.211/x1) * ((temp(ii,jj)/273.)**1.94)
-
-             rref = 10.e-9
-
-             !-- thermal conductivity [J/(m s K)], Seinfeld and Pandis (15.75)
-             ka1= 1.e-3 * (4.39 + 0.071 * temp(ii,jj))
-
-             !-- growth coefficient, part 1, eq (16)
-             !-- (note: here uncorrected diffusivities and conductivities are used
-             !    based on personal communication with H. Abdul-Razzak, 2007)
-             Gc = 1./(rhowa*rg*temp(ii,jj)/(ps*dv1*mwa) +                      &
-                  L*rhowa/(ka1*temp(ii,jj)) * (L*mwa/(temp(ii,jj)*rg)-1.))
-
-             !-- effective critical supersaturation: part 3, eq (8)
-             s_eff = (ntot/sum1)**(3./2.)
-
-             !-- part 3, equation (5)
-
-             theta = ((alpha*V/Gc)**(3./2.))/(2.*pi*rhowa*gamma*ntot)
-
-             !-- part 3, equation (6)
-             khi = (2./3.)*aa*SQRT(alpha*V/Gc)
-
-             !-- maximum supersaturation of the air parcel: part 3, equation (9)
-             s_max = s_eff / SQRT(0.5*(khi/theta)**(3./2.)              &
-                  + ((s_eff**2)/(theta+3.*khi))**(3./4.))
-
-             !-- Juha: Get the critical diameter corresponding to the maximum supersaturation
-             zdcstar = 2.*aa/(3.*s_max)
-
-
-             DO kk = in1a, fn2b
-
-                IF (paero(ii,jj,kk)%numc < nlim) CYCLE
-
-                !-- moles of solute in particle at the upper bound of the bin
-                nshi = ns(ii,jj,kk)*paero(ii,jj,kk)%vratiohi
-
-                !-- critical supersaturation
-                sil = exp(sqrt(x/nshi)) - 1.
-
-                IF(s_max < sil) CYCLE
-
-                !-- moles of solute at the lower bound of the bin:
-                nslo = ns(ii,jj,kk)*paero(ii,jj,kk)%vratiolo
-
-                !-- critical supersaturation
-                siu = exp(sqrt(x/nslo)) - 1.
-
-                !-- fraction of activated in a bin, eq (13), part 3
-                frac(ii,jj,kk) = min(1.,log(s_max/sil)/log(siu/sil))
-
-                !-- Critical diameters for each bin and bin edges
-                zdcrlo(ii,jj,kk) = 2.*sqrt(3.*nslo*bb/aa)
-                zdcrhi(ii,jj,kk) = 2.*sqrt(3.*nshi*bb/aa)
-                zdcrit(ii,jj,kk) = 2.*sqrt(3.*ns(ii,jj,kk)*bb/aa)
-
-             END DO ! kk
-
-             ! Find critical bin
-             DO kk = in1a,fn2a
-                IF (frac(ii,jj,kk) < 1. .AND. frac(ii,jj,kk) > 0.) THEN
-                   bcrita(ii,jj) = kk
-                   EXIT
-                END IF
-             END DO
-             DO kk = in2b,fn2b
-                IF (frac(ii,jj,kk) < 1. .AND. frac(ii,jj,kk) > 0.) THEN
-                   bcritb(ii,jj) = kk
-                   EXIT
-                END IF
-             END DO
-
-          END DO ! ii
-
-       END DO ! jj
-
-       CALL activate3(kproma,kbdim,klev,paero,bcrita,bcritb,  &
-                      zdcrit, zdcrlo, zdcrhi, zdcstar, pactd  )
-
-  END SUBROUTINE ActCloudBase
-
-
-  SUBROUTINE actInterst(kproma,kbdim,klev,paero,pcloud,prv,prs,temp)
+  SUBROUTINE actInterst(kbdim,klev,paero,pcloud,prv,prs,temp)
     !
     ! Activate interstitial aerosols if they've reached their critical size
     !
@@ -384,16 +84,12 @@ CONTAINS
     ! Note: insoluble species are not properly accounted for
     !
     USE mo_submctl, ONLY :     &
-         rg,                             & ! molar gas constant [J/(mol K)]
-         surfw0,                       & ! surface tension of water [J/m2]
-         t_section,nlim,pi6,         &
-         ica,fca,icb,fcb,             &
-         mwa, rhowa,                &
-         in1a,fn2a,in2b,fn2b,       &
-         nbins,ncld
+         rg,surfw0,nlim,pi6,mwa,rhowa,t_section, & ! constants
+         in1a,fn1a,in2a,fn2a,in2b,fn2b,inp2a,fnp2b, & ! bin indexes
+         nbins,ncld,nspec
     IMPLICIT NONE
 
-    INTEGER, INTENT(IN) :: kproma,kbdim,klev
+    INTEGER, INTENT(IN) :: kbdim,klev
     TYPE(t_section), INTENT(INOUT) :: paero(kbdim,klev,nbins),  &
                                       pcloud(kbdim,klev,ncld)
     REAL, INTENT(IN) :: prv(kbdim,klev),prs(kbdim,klev)  ! Water vapour and saturation mixin ratios
@@ -406,7 +102,7 @@ CONTAINS
     REAL :: zdcstar,zvcstar   ! Critical diameter/volume corresponding to S_LES
     REAL :: zactvol           ! Total volume of the activated particles
 
-    REAL :: Nact, Vact(8)        ! Helper variables for transferring the activated particles
+    REAL :: Nact, Vact(nspec+1)  ! Helper variables for transferring the activated particles
 
     REAL :: Nmid, Nim1, Nip1     ! Bin number concentrations in current and adjacent bins
     REAL :: dNmid, dNim1, dNip1  ! Density function value of the number distribution for current and adjacent bins
@@ -428,8 +124,9 @@ CONTAINS
     REAL :: vcut,vint1,vint2  ! cut volume, integration limit volumes
     LOGICAL :: intrange(4)    ! Logical table for integration ranges depending on the shape of the wet size profile:
                                   ! [Vlo -- vint1][vint1 -- Vmid][Vmid -- vint2][vint1 -- Vhi]
-    INTEGER :: cb,ab, ii,jj,ss
+    INTEGER :: cb,ab, ii,jj,ss,nn
 
+    nn = nspec+1 ! Aerosol species + water
 
     DO jj = 1,klev
        DO ii = 1,kbdim
@@ -448,24 +145,18 @@ CONTAINS
           ! is enough soluble material so that the current approach is valid.
 
           ! Loop over cloud droplet (and aerosol) bins
-          DO cb = ica%cur, fcb%cur
-             IF (cb<=fca%cur) THEN
-                ! a-bins
-                ab = ica%par + (cb-ica%cur)
-             ELSE
-                ! b-bins
-                ab = icb%par + (cb-icb%cur)
-             ENDIF
+          DO cb = inp2a, fnp2b
+             ab = fn1a + cb
              pactd(cb)%numc = 0.d0
              pactd(cb)%volc(:) =0.d0
              ! Dry particles are not activated (volume 1e-28 m^3 is less than that in a 1 nm droplet)
-             IF ( paero(ii,jj,ab)%numc < nlim .OR. paero(ii,jj,ab)%volc(8)<paero(ii,jj,ab)%numc*1e-28 ) CYCLE
+             IF ( paero(ii,jj,ab)%numc < nlim .OR. paero(ii,jj,ab)%volc(1)<paero(ii,jj,ab)%numc*1e-28 ) CYCLE
              intrange = .FALSE.
 
              ! Define some parameters
              Nmid = paero(ii,jj,ab)%numc     ! Number concentration at the current bin center
-             Vwmid = SUM(paero(ii,jj,ab)%volc(:))/Nmid  ! Wet volume at the current bin center
-             Vmid = SUM(paero(ii,jj,ab)%volc(1:7))/Nmid ! Dry volume at the current bin center
+             Vwmid = SUM(paero(ii,jj,ab)%volc(1:nn))/Nmid  ! Wet volume at the current bin center
+             Vmid = SUM(paero(ii,jj,ab)%volc(2:nn))/Nmid ! Dry volume at the current bin center
              Vlo = Vmid*paero(ii,jj,ab)%vratiolo        ! Dry vol at low limit
              Vhi = Vmid*paero(ii,jj,ab)%vratiohi        ! Dry vol at high limit
 
@@ -479,8 +170,8 @@ CONTAINS
              ELSE
                    Nim1 = paero(ii,jj,ab-1)%numc
                    IF (Nim1 > nlim) THEN
-                      Vim1 = SUM(paero(ii,jj,ab-1)%volc(1:7))/Nim1
-                      Vwim1 = SUM(paero(ii,jj,ab-1)%volc(:))/Nim1
+                      Vim1 = SUM(paero(ii,jj,ab-1)%volc(2:nn))/Nim1
+                      Vwim1 = SUM(paero(ii,jj,ab-1)%volc(1:nn))/Nim1
                    ELSE
                       Vim1 = pi6*paero(ii,jj,ab-1)%dmid**3
                       Vwim1 = pi6*paero(ii,jj,ab-1)%dmid**3
@@ -497,8 +188,8 @@ CONTAINS
              ELSE
                    Nip1 = paero(ii,jj,ab+1)%numc
                    IF (Nip1 > nlim) THEN
-                      Vip1 = SUM(paero(ii,jj,ab+1)%volc(1:7))/Nip1
-                      Vwip1 = SUM(paero(ii,jj,ab+1)%volc(:))/Nip1
+                      Vip1 = SUM(paero(ii,jj,ab+1)%volc(2:nn))/Nip1
+                      Vwip1 = SUM(paero(ii,jj,ab+1)%volc(1:nn))/Nip1
                    ELSE
                       Vip1 = pi6*paero(ii,jj,ab+1)%dmid**3
                       Vwip1 = pi6*paero(ii,jj,ab+1)%dmid**3
@@ -611,24 +302,22 @@ CONTAINS
                 zactvol = zactvol + (Nmid*Vmid/Vnorm)*intgV(zs2,N02,vint2,Vhi)
              END IF
 
-             DO ss = 1,8
+             DO ss = 1,nn
                 Vact(ss) = zactvol*( paero(ii,jj,ab)%volc(ss)/(Vmid*Nmid) )
              END DO
 
              ! Store the number concentration and mass of activated particles for current bins
              pactd(cb)%numc = MIN(Nact,Nmid)
-             pactd(cb)%volc(:) = MIN(Vact(:),paero(ii,jj,ab)%volc(:))
+             pactd(cb)%volc(1:nn) = MIN(Vact(1:nn),paero(ii,jj,ab)%volc(1:nn))
 
           END DO ! cb
 
           ! Apply the number and mass activated to aerosol and cloud bins
-          paero(ii,jj,ica%par:fcb%par)%numc =   &
-               MAX(0., paero(ii,jj,ica%par:fcb%par)%numc - pactd(ica%cur:fcb%cur)%numc)
-          pcloud(ii,jj,ica%cur:fcb%cur)%numc = pcloud(ii,jj,ica%cur:fcb%cur)%numc + pactd(ica%cur:fcb%cur)%numc
-          DO ss = 1,8
-             paero(ii,jj,ica%par:fcb%par)%volc(ss) =  &
-               MAX(0., paero(ii,jj,ica%par:fcb%par)%volc(ss) - pactd(ica%cur:fcb%cur)%volc(ss))
-             pcloud(ii,jj,ica%cur:fcb%cur)%volc(ss) = pcloud(ii,jj,ica%cur:fcb%cur)%volc(ss) + pactd(ica%cur:fcb%cur)%volc(ss)
+          paero(ii,jj,in2a:fn2b)%numc = MAX(0., paero(ii,jj,in2a:fn2b)%numc - pactd(inp2a:fnp2b)%numc)
+          pcloud(ii,jj,inp2a:fnp2b)%numc = pcloud(ii,jj,inp2a:fnp2b)%numc + pactd(inp2a:fnp2b)%numc
+          DO ss = 1,nn
+             paero(ii,jj,in2a:fn2b)%volc(ss) = MAX(0., paero(ii,jj,in2a:fn2b)%volc(ss) - pactd(inp2a:fnp2b)%volc(ss))
+             pcloud(ii,jj,inp2a:fnp2b)%volc(ss) = pcloud(ii,jj,inp2a:fnp2b)%volc(ss) + pactd(inp2a:fnp2b)%volc(ss)
           END DO
 
        END DO ! ii
@@ -639,185 +328,6 @@ CONTAINS
 
 
   ! ----------------------------------------------
-
-  SUBROUTINE activate3(kproma,kbdim,klev,paero,pbcrita,pbcritb, &
-                       pdcrit, pdcrlo, pdcrhi, pdcstar, pactd   )
-    !
-    ! Gets the number and mass activated in the critical aerosol size bin
-    !
-    USE mo_submctl, ONLY : t_section, pi6, nlim, fn2b, ncld,  &
-                               in1a,fn2a, ica, fca, icb, fcb, in2b, fn2b
-    IMPLICIT NONE
-
-    INTEGER, INTENT(IN) :: kproma,kbdim,klev
-    TYPE(t_section), INTENT(IN) :: paero(kbdim,klev,fn2b)
-    INTEGER, INTENT(IN) :: pbcrita(kbdim,klev),         & ! Index of the critical aerosol bin in regime a
-                           pbcritb(kbdim,klev)            ! Index of the critical aerosol bin in regime b
-    REAL, INTENT(IN) :: pdcrit(kbdim,klev,fn2b),    & ! Bin middle critical diameter
-                            pdcrlo(kbdim,klev,fn2b),    & ! Critical diameter at low limit
-                            pdcrhi(kbdim,klev,fn2b)       ! Critical diameter at high limit
-    REAL, INTENT(IN) :: pdcstar(kbdim,klev)           ! Critical diameter corresponding to Smax
-    TYPE(t_section), INTENT(OUT) :: pactd(kbdim,klev,ncld) ! Properties of the maximum amount of newly activated droplets
-
-
-    REAL :: zvcstar, zvcint
-    REAL :: zs1,zs2             ! Slopes
-    REAL :: Nmid, Nim1,Nip1
-    REAL :: dNmid, dNim1, dNip1
-    REAL :: Vmid,Vlo,Vhi
-    REAL :: Vim1,Vlom1,Vhim1
-    REAL :: Vip1,Vlop1,Vhip1
-    REAL :: Nnorm,Vnorm,N01,N02
-    REAL :: zactvol
-
-    REAL :: zhlp
-
-    INTEGER :: ii,jj,ss,cb,ab
-
-    DO jj = 1,klev
-       DO ii = 1,kbdim
-
-          ! This means in practice that vertical velocity is <= 0 or Ntot == 0
-          IF ( ALL(pdcrit(ii,jj,:) < epsilon(1.0)) ) CYCLE
-
-          zvcstar = 0.
-
-          IF ( paero(ii,jj,pbcrita(ii,jj))%numc < nlim ) THEN
-             Vmid = pi6*paero(ii,jj,pbcrita(ii,jj))%dmid**3
-          ELSE
-             Vmid = SUM( paero(ii,jj,pbcrita(ii,jj))%volc(1:7) )/MAX(nlim,paero(ii,jj,pbcrita(ii,jj))%numc)
-          END IF
-          Vhi = paero(ii,jj,pbcrita(ii,jj))%vhilim
-          Vlo = paero(ii,jj,pbcrita(ii,jj))%vlolim
-
-
-          IF ( pdcstar(ii,jj) >= pdcrit(ii,jj,pbcrita(ii,jj)) ) THEN
-             zhlp = ( pi6*pdcstar(ii,jj)**3 - pi6*pdcrit(ii,jj,pbcrita(ii,jj))**3 ) / &
-                    MAX( epsilon(1.0), pi6*pdcrhi(ii,jj,pbcrita(ii,jj))**3 - pi6*pdcrit(ii,jj,pbcrita(ii,jj))**3 )
-
-             zvcstar = Vmid + zhlp*(Vhi-Vmid)
-          ELSE IF (pdcstar(ii,jj) < pdcrit(ii,jj,pbcrita(ii,jj)) ) THEN
-
-             zhlp = ( pi6*pdcrit(ii,jj,pbcrita(ii,jj))**3 - pi6*pdcstar(ii,jj)**3 ) / &
-                    MAX( epsilon(1.0), pi6*pdcrit(ii,jj,pbcrita(ii,jj))**3 - pi6*pdcrlo(ii,jj,pbcrita(ii,jj))**3 )
-
-             zvcstar = Vmid - zhlp*(Vmid-Vlo)
-          END IF
-
-          zvcstar = MAX( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vlolim )
-          zvcstar = MIN( zvcstar, paero(ii,jj,pbcrita(ii,jj))%vhilim ) 
-
-          ! Loop over cloud droplet (and aerosol) bins
-          DO cb = ica%cur,fcb%cur
-             IF (cb<=fca%cur) THEN
-                ab = ica%par + (cb-ica%cur)
-             ELSE
-                ab = icb%par + (cb-icb%cur)
-             ENDIF
-
-             IF ( paero(ii,jj,ab)%numc < nlim) CYCLE
-
-             ! Formulate a slope for Wet particle size within bins and integrate over
-             ! the particles larger than zvcstar
-
-             Nmid = MAX(paero(ii,jj,ab)%numc, nlim)
-             Vmid = SUM(paero(ii,jj,ab)%volc(1:7))/Nmid ! Dry bin mid volume
-             Vlo = paero(ii,jj,ab)%vlolim      ! Mid dry volume scaled to bin low limit (this is mostly an educated guess... )
-             Vhi = paero(ii,jj,ab)%vhilim      ! Same for high limit
-
-             IF (ab==in1a .OR. ab==in2b) THEN
-                Nim1 = nlim
-                Vim1 = Vlo/2.
-                Vlom1 = 0.
-                Vhim1 = Vlo
-             ELSE
-                Nim1 = MAX(paero(ii,jj,ab-1)%numc, nlim)
-                IF (Nim1 > nlim) THEN
-                   Vim1 = SUM(paero(ii,jj,ab-1)%volc(1:7))/Nim1
-                ELSE
-                   Vim1 = pi6*paero(ii,jj,ab-1)%dmid**3
-                END IF
-                Vlom1 = paero(ii,jj,ab-1)%vlolim
-                Vhim1 = paero(ii,jj,ab-1)%vhilim
-             END IF
-             IF (ab==fn2a .OR. ab==fn2b) THEN
-                Nip1 = nlim
-                Vip1 = Vhi + 0.5*(Vhi-Vlo)
-                Vlop1 = Vhi
-                Vhip1 = Vhi + (Vhi-Vlo)
-             ELSE
-                Nip1 = MAX(paero(ii,jj,ab+1)%numc, nlim)
-                IF (Nip1 > nlim) THEN
-                   Vip1 = SUM(paero(ii,jj,ab+1)%volc(1:7))/Nip1
-                ELSE
-                   Vip1 = pi6*paero(ii,jj,ab+1)%dmid**3
-                END IF
-                Vlop1 = paero(ii,jj,ab+1)%vlolim
-                Vhip1 = paero(ii,jj,ab+1)%vhilim
-             END IF
-
-             Vip1 = MAX(Vlop1,MIN(Vip1,Vhip1))
-             Vim1 = MAX(Vlom1,MIN(Vim1,Vhim1))
-             
-
-             ! get density distribution values for
-             dNim1 = Nim1/(Vhim1-Vlom1)
-             dNip1 = Nip1/(Vhip1-Vlop1)
-             dNmid = Nmid/(Vhi-Vlo)
-
-             ! Get slopes
-             zs1 = ( dNmid - dNim1 )/( Vmid - Vim1 )
-             zs2 = ( dNip1 - dNmid )/( Vip1 - Vmid )
-
-             N01 = dNmid - zs1*Vmid  ! Origins
-             N02 = dNip1 - zs2*Vip1  !
-
-             ! Define normalization factors
-             Nnorm = intgN(zs1,N01,Vlo,Vmid) + intgN(zs2,N02,Vmid,Vhi)
-             Vnorm = intgV(zs1,N01,Vlo,Vmid) + intgV(zs2,N02,Vmid,Vhi)
-
-             IF (zvcstar < Vmid) THEN
-
-                ! Use actual critical volume only in the critical bin, otherwise current bin limits
-                zvcint = MAX(zvcstar, Vlo)
-
-                pactd(ii,jj,cb)%numc = (Nmid/Nnorm) * ( intgN(zs1,N01,zvcint,Vmid) + intgN(zs2,N02,Vmid,Vhi) )
-                ! For different species, assume the mass distribution identical in particles within the bin
-                zactvol = (Nmid*Vmid/Vnorm) * ( intgV(zs1,N01,zvcint,Vmid) + intgV(zs2,N02,Vmid,Vhi) )
-                DO ss = 1,8
-                   pactd(ii,jj,cb)%volc(ss) = zactvol*( paero(ii,jj,ab)%volc(ss)/(Vmid*Nmid) )
-                END DO
-
-             ELSE IF (zvcstar >= Vmid) THEN
-
-                ! Use actual critical volume only in the critical bin, otherwise current bin limits
-                zvcint = MIN(zvcstar,Vhi)
-
-                pactd(ii,jj,cb)%numc = (Nmid/Nnorm) * ( intgN(zs2,N02,zvcint,Vhi) )
-                zactvol = (Nmid*Vmid/Vnorm) * ( intgV(zs2,N02,zvcint,Vhi) )
-                DO ss = 1,8
-                   pactd(ii,jj,cb)%volc(ss) = zactvol*( paero(ii,jj,ab)%volc(ss)/(Vmid*Nmid) )
-                END DO
-
-             END IF
-
-             pactd(ii,jj,cb)%numc = MAX(0., pactd(ii,jj,cb)%numc)
-             DO ss = 1,8
-                pactd(ii,jj,cb)%volc(ss) = MAX(0., pactd(ii,jj,cb)%volc(ss))
-             END DO
-
-             ! "Artificially" adjust the wet size of newly activated a little bit to prevent them from being
-             ! evaporated immediately
-             pactd(ii,jj,cb)%volc(8) = pactd(ii,jj,cb)%numc*pi6*(pdcrit(ii,jj,ab)**3) *  &
-                                       MIN(2.,(3.e-6/max(epsilon(1.0),pdcrit(ii,jj,ab)))**2)
-
-          END DO ! cb
-
-       END DO ! ii
-    END DO ! jj
-
-  END SUBROUTINE activate3
-  ! ------------------------------------------------
   REAL FUNCTION intgN(ikk,icc,ilow,ihigh)
     ! Gets the integral over a (linear) number concentration distribution
     !
@@ -838,7 +348,7 @@ CONTAINS
 
 
   !-----------------------------------------
-  SUBROUTINE autoconv2(kproma,kbdim,klev,   &
+  SUBROUTINE autoconv2(kbdim,klev,   &
                       pcloud,pprecp)
   !
   ! Uses a more straightforward method for converting cloud droplets to drizzle.
@@ -849,12 +359,13 @@ CONTAINS
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
                                nprc,        &
+                               nspec,       &
                                pi6,         &
                                nlim, prlim, &
                                autoc_rain_zd0, autoc_rain_sigmag
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    INTEGER, INTENT(in) :: kbdim,klev
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld)
     TYPE(t_section), INTENT(inout) :: pprecp(kbdim,klev,nprc)
 
@@ -882,13 +393,13 @@ CONTAINS
 
                    ! Put the mass and number to the first precipitation bin and remove from
                    ! cloud droplets
-                   DO ss = 1,7
+                   DO ss = 2,nspec+1
                       pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + pcloud(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
                       pcloud(ii,jj,cc)%volc(ss) = pcloud(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
                    END DO
                    
-                   pprecp(ii,jj,1)%volc(8) = pprecp(ii,jj,1)%volc(8) + pcloud(ii,jj,cc)%volc(8)*(Vrem/Vtot)
-                   pcloud(ii,jj,cc)%volc(8) = pcloud(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot))
+                   pprecp(ii,jj,1)%volc(1) = pprecp(ii,jj,1)%volc(1) + pcloud(ii,jj,cc)%volc(1)*(Vrem/Vtot)
+                   pcloud(ii,jj,cc)%volc(1) = pcloud(ii,jj,cc)%volc(1)*(1. - (Vrem/Vtot))
 
                    pprecp(ii,jj,1)%numc = pprecp(ii,jj,1)%numc + Nrem
                    pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc - Nrem
@@ -905,7 +416,7 @@ CONTAINS
 
 
   !-----------------------------------------
-  SUBROUTINE autoconv_sb(kproma,kbdim,klev,ptstep,pcloud,pprecp)
+  SUBROUTINE autoconv_sb(kbdim,klev,ptstep,pcloud,pprecp)
     !
     ! Autoconversion based on the Seifert & Beheng (2001) microphysics
     !
@@ -931,7 +442,7 @@ CONTAINS
     INTEGER, SAVE :: iout=-1  ! Specified bin for new raindrops: <=0 find the bin matching with X_bnd; >0 select one bin (hard coded)
     REAL :: fact=0.5 ! Fraction of converted cloud droplets that are added to the cloud drop number (accounting for self-colleection)
 
-    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    INTEGER, INTENT(in) :: kbdim,klev
     REAL, INTENT(IN) :: ptstep
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld)
     TYPE(t_section), INTENT(inout) :: pprecp(kbdim,klev,nprc)
@@ -956,13 +467,13 @@ CONTAINS
       DO ii = 1,kbdim
         ! Total cloud droplet number and water volume
         Ntot = SUM(pcloud(ii,jj,:)%numc)
-        Vtot = SUM(pcloud(ii,jj,:)%volc(8))
+        Vtot = SUM(pcloud(ii,jj,:)%volc(1))
         IF (Ntot <= nlim .OR. Vtot<=0.) CYCLE
         !
         ! Parameters
         if (Vtot > 1.e-10) then ! Limit set to 1e-10 m^3/m^3
             !   Dimensionless internal time scale - based on water only
-            tau = 1.0-Vtot/( Vtot+SUM(pprecp(ii,jj,:)%volc(8)) )
+            tau = 1.0-Vtot/( Vtot+SUM(pprecp(ii,jj,:)%volc(1)) )
             tau = MIN(MAX(tau,epsilon(1.0)),0.9)
             !   Universal function for autoconversion
             phi = k_1 * tau**k_2 * (1.0 - tau**k_2)**3
@@ -1008,7 +519,7 @@ CONTAINS
         IF (Vrem <= 0. .OR. Nrem*fact <= prlim) CYCLE
         !
         ! How to split the change between bins?
-        !   - Don't change cloud droplet dry size (bins), so volc(1:7) and numc must change with the same fraction
+        !   - Don't change cloud droplet dry size (bins), so volc(2:) and numc must change with the same fraction
         !   - Note that number need not to be conserved in the coagulation-based autoconversion
         !
         ! Possible scaling factors
@@ -1017,16 +528,16 @@ CONTAINS
         !scalev(:)=Vrem/Vtot
         ! 2) Weighted: dN(i)=N(i)*X(i)*dNtot/sum(N(i)*X(i))
         !  a) Weight based on autoconversion rate: V**2*Xc**2=V**2*(rho*pi/6/D**3)**2=V**2*D**6
-        scaling=pcloud(ii,jj,:)%volc(8)**2*pcloud(ii,jj,:)%dmid**6
+        scaling=pcloud(ii,jj,:)%volc(1)**2*pcloud(ii,jj,:)%dmid**6
         scalen(:)=scaling(:)*Nrem/SUM(scaling(:)*pcloud(ii,jj,:)%numc)
-        scalev(:)=scaling(:)*Vrem/SUM(scaling(:)*pcloud(ii,jj,:)%volc(8))
+        scalev(:)=scaling(:)*Vrem/SUM(scaling(:)*pcloud(ii,jj,:)%volc(1))
         !
         DO cc = 1,ncld
             IF ( pcloud(ii,jj,cc)%numc > nlim ) THEN
-                pprecp(ii,jj,io)%volc(1:7) = pprecp(ii,jj,io)%volc(1:7) + pcloud(ii,jj,cc)%volc(1:7)*scalen(cc)
-                pcloud(ii,jj,cc)%volc(1:7) = pcloud(ii,jj,cc)%volc(1:7)*(1. - scalen(cc))
-                pprecp(ii,jj,io)%volc(8) = pprecp(ii,jj,io)%volc(8) + pcloud(ii,jj,cc)%volc(8)*scalev(cc)
-                pcloud(ii,jj,cc)%volc(8) = pcloud(ii,jj,cc)%volc(8)*(1. - scalev(cc))
+                pprecp(ii,jj,io)%volc(2:) = pprecp(ii,jj,io)%volc(2:) + pcloud(ii,jj,cc)%volc(2:)*scalen(cc)
+                pcloud(ii,jj,cc)%volc(2:) = pcloud(ii,jj,cc)%volc(2:)*(1. - scalen(cc))
+                pprecp(ii,jj,io)%volc(1) = pprecp(ii,jj,io)%volc(1) + pcloud(ii,jj,cc)%volc(1)*scalev(cc)
+                pcloud(ii,jj,cc)%volc(1) = pcloud(ii,jj,cc)%volc(1)*(1. - scalev(cc))
                 pprecp(ii,jj,io)%numc = pprecp(ii,jj,io)%numc + pcloud(ii,jj,cc)%numc*scalen(cc)*fact
                 pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc*(1. - scalen(cc))
             END IF
@@ -1041,23 +552,23 @@ CONTAINS
   ! Ice nucleation
   !***********************************************
 
-  SUBROUTINE ice_nucl_driver(kproma,kbdim,klev,   &
+  SUBROUTINE ice_nucl_driver(kbdim,klev,   &
                       paero,pcloud,pprecp,pice,psnow, &
                       ptemp,prv,prs,prsi,ptstep)
 
     USE mo_submctl, ONLY : t_section,   &
-                               in2a, fn2b, fia,  &
+                               in2a, fn2b, fnp2a,  &
                                ncld, nprc, nice, nsnw,  &
                                rhowa, rhoic, rhosn,  &
                                pi, nlim, prlim, &
                                calc_Sw_eq, &
                                ice_hom, ice_imm, ice_dep, &
                                calc_correlation, &
-                               ice_target_opt
+                               ice_target_opt, idu, nspec
 
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    INTEGER, INTENT(in) :: kbdim,klev
     REAL, INTENT(in) :: ptstep
     REAL, INTENT(in) :: ptemp(kbdim,klev),  &
                             prv(kbdim,klev),    &
@@ -1075,9 +586,15 @@ CONTAINS
     ! Maximum temperature (K) for homogeneous nucleation
     REAL, PARAMETER :: tmax_homog=243.15
 
-    INTEGER :: ii,jj,kk,ss,bb
+    INTEGER :: ii,jj,kk,ss,bb,nn
     REAL :: pf_imm, pf_dep, pf_hom, jf
     REAL :: Sw_eq, Si, rn, rw, frac, zvol, ra, rb
+
+    ! Dust is the only ice nucleation active species
+    IF (idu<0) RETURN
+
+    ! Total number of active species
+    nn = nspec+1
 
     ! Ice nucleation modes
     ! 1) Homogeneous freezing: possible for any aqueous droplet with or without insoluble species (DU or BC)
@@ -1097,9 +614,9 @@ CONTAINS
             IF (pprecp(ii,jj,kk)%numc<prlim .OR. .NOT.ice_precip) CYCLE
 
             ! Radius of the insoluble portion of the droplet
-            rn = MAX(0., (3.*sum(pprecp(ii,jj,kk)%volc(3:4))/pprecp(ii,jj,kk)%numc/4./pi)**(1./3.) )
+            rn = MAX(0., (3.*pprecp(ii,jj,kk)%volc(idu)/pprecp(ii,jj,kk)%numc/4./pi)**(1./3.) )
             ! Droplet radius
-            rw = (3.*sum(pprecp(ii,jj,kk)%volc(:))/pprecp(ii,jj,kk)%numc/4./pi)**(1./3.)
+            rw = (3.*sum(pprecp(ii,jj,kk)%volc(1:nn))/pprecp(ii,jj,kk)%numc/4./pi)**(1./3.)
             ! Equilibrium saturation ratio
             Sw_eq = calc_Sw_eq(pprecp(ii,jj,kk),ptemp(ii,jj))
 
@@ -1122,52 +639,52 @@ CONTAINS
 
             ! Move to the parallel ice bin or to a snow bin
             IF (ice_target_opt<0) THEN
-                ! Move to ice bin with matching dry volume (%vhilim) and select a or b bin based on composition (%volc(1:7)).
-                zvol = SUM( pprecp(ii,jj,kk)%volc(1:7) )/pprecp(ii,jj,kk)%numc ! Dry volume
+                ! Move to ice bin with matching dry volume (%vhilim) and select a or b bin based on composition (%volc(2:)).
+                zvol = SUM( pprecp(ii,jj,kk)%volc(2:nn) )/pprecp(ii,jj,kk)%numc ! Dry volume
 
                 ! 1) Find the matching bin
                 bb=1
-                DO WHILE (zvol>pice(ii,jj,bb)%vhilim .AND. bb<fia%cur)
+                DO WHILE (zvol>pice(ii,jj,bb)%vhilim .AND. bb<fnp2a)
                     bb=bb+1
                 ENDDO
 
                 ! 2) Select a or b bin
-                IF (pice(ii,jj,bb+fia%cur)%numc<=prlim) THEN
+                IF (pice(ii,jj,bb+fnp2a)%numc<=prlim) THEN
                     ! Empty b bin so select a
                     !bb = bb
                 ELSEIF (pice(ii,jj,bb)%numc<=prlim) THEN
                     ! Empty a bin so select b
-                    bb = bb + fia%cur
+                    bb = bb + fnp2a
                 ELSE
                     ! Both are present - find bin based on compositional similarity
-                    ra = calc_correlation(pice(ii,jj,bb)%volc(1:7),pprecp(ii,jj,kk)%volc(1:7),7)
-                    rb = calc_correlation(pice(ii,jj,bb+fia%cur)%volc(1:7),pprecp(ii,jj,kk)%volc(1:7),7)
-                    IF (ra<rb) bb = bb + fia%cur
+                    ra = calc_correlation(pice(ii,jj,bb)%volc(2:nn),pprecp(ii,jj,kk)%volc(2:nn),nspec)
+                    rb = calc_correlation(pice(ii,jj,bb+fnp2a)%volc(2:nn),pprecp(ii,jj,kk)%volc(2:nn),nspec)
+                    IF (ra<rb) bb = bb + fnp2a
                 ENDIF
                 ! Add to the matching ice bin
-                pice(ii,jj,bb)%volc(1:7) = pice(ii,jj,bb)%volc(1:7) + max(0., pprecp(ii,jj,kk)%volc(1:7)*frac )
-                pice(ii,jj,bb)%volc(8) = pice(ii,jj,bb)%volc(8) + max(0., pprecp(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                pice(ii,jj,bb)%volc(2:nn) = pice(ii,jj,bb)%volc(2:nn) + max(0., pprecp(ii,jj,kk)%volc(2:nn)*frac )
+                pice(ii,jj,bb)%volc(1) = pice(ii,jj,bb)%volc(1) + max(0., pprecp(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
                 pice(ii,jj,bb)%numc   = pice(ii,jj,bb)%numc + pprecp(ii,jj,kk)%numc*frac
             ELSEIF (ice_target_opt==0) THEN
                 ! Add to the matching snow bin
                 ss=1
-                zvol=(SUM(pprecp(ii,jj,kk)%volc(1:7))+pprecp(ii,jj,kk)%volc(8)*rhowa/rhosn)/pprecp(ii,jj,kk)%numc
+                zvol=(SUM(pprecp(ii,jj,kk)%volc(2:nn))+pprecp(ii,jj,kk)%volc(1)*rhowa/rhosn)/pprecp(ii,jj,kk)%numc
                 DO WHILE (zvol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                     ss=ss+1
                 ENDDO
-                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pprecp(ii,jj,kk)%volc(1:7)*frac )
-                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pprecp(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pprecp(ii,jj,kk)%volc(2:nn)*frac )
+                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pprecp(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pprecp(ii,jj,kk)%numc*frac
              ELSE
                 ! Add to the ss:th snow bin
                 ss=MIN(nsnw,ice_target_opt)
-                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pprecp(ii,jj,kk)%volc(1:7)*frac )
-                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pprecp(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pprecp(ii,jj,kk)%volc(2:nn)*frac )
+                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pprecp(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pprecp(ii,jj,kk)%numc*frac
             ENDIF
 
             pprecp(ii,jj,kk)%numc = pprecp(ii,jj,kk)%numc - pprecp(ii,jj,kk)%numc*frac
-            pprecp(ii,jj,kk)%volc(1:8) = pprecp(ii,jj,kk)%volc(1:8) - max(0., pprecp(ii,jj,kk)%volc(1:8)*frac )
+            pprecp(ii,jj,kk)%volc(1:nn) = pprecp(ii,jj,kk)%volc(1:nn) - max(0., pprecp(ii,jj,kk)%volc(1:nn)*frac )
 
         end do
 
@@ -1179,9 +696,9 @@ CONTAINS
             IF (pcloud(ii,jj,kk)%numc<nlim .OR. .NOT.ice_cloud) CYCLE
 
             ! Radius of the insoluble portion of the droplet
-            rn = MAX(0., (3.*sum(pcloud(ii,jj,kk)%volc(3:4))/pcloud(ii,jj,kk)%numc/4./pi)**(1./3.) )
+            rn = MAX(0., (3.*pcloud(ii,jj,kk)%volc(idu)/pcloud(ii,jj,kk)%numc/4./pi)**(1./3.) )
             ! Droplet radius
-            rw = (3.*sum(pcloud(ii,jj,kk)%volc(:))/pcloud(ii,jj,kk)%numc/4./pi)**(1./3.)
+            rw = (3.*sum(pcloud(ii,jj,kk)%volc(1:nn))/pcloud(ii,jj,kk)%numc/4./pi)**(1./3.)
             ! Equilibrium saturation ratio
             Sw_eq = calc_Sw_eq(pcloud(ii,jj,kk),ptemp(ii,jj))
 
@@ -1205,29 +722,29 @@ CONTAINS
             ! Move to the parallel ice bin or to a snow bin
             IF (ice_target_opt<0) THEN
                 ! Add to the matching ice bin
-                pice(ii,jj,kk)%volc(1:7) = pice(ii,jj,kk)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                pice(ii,jj,kk)%volc(8) = pice(ii,jj,kk)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                pice(ii,jj,kk)%volc(2:nn) = pice(ii,jj,kk)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                pice(ii,jj,kk)%volc(1) = pice(ii,jj,kk)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
                 pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + pcloud(ii,jj,kk)%numc*frac
             ELSEIF (ice_target_opt==0) THEN
                 ! Add to the matching snow bin
                 ss=1
-                zvol=(SUM(pcloud(ii,jj,kk)%volc(1:7))+pcloud(ii,jj,kk)%volc(8)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                zvol=(SUM(pcloud(ii,jj,kk)%volc(2:nn))+pcloud(ii,jj,kk)%volc(1)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
                 DO WHILE (zvol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                     ss=ss+1
                 ENDDO
-                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pcloud(ii,jj,kk)%numc*frac
              ELSE
                 ! Add to the ss:th snow bin
                 ss=MIN(nsnw,ice_target_opt)
-                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pcloud(ii,jj,kk)%numc*frac
             ENDIF
 
             pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - pcloud(ii,jj,kk)%numc*frac
-            pcloud(ii,jj,kk)%volc(1:8) = pcloud(ii,jj,kk)%volc(1:8) - max(0., pcloud(ii,jj,kk)%volc(1:8)*frac )
+            pcloud(ii,jj,kk)%volc(1:nn) = pcloud(ii,jj,kk)%volc(1:nn) - max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
 
         END DO
 
@@ -1239,9 +756,9 @@ CONTAINS
             IF (paero(ii,jj,kk)%numc<nlim .OR. .NOT.ice_aerosol) CYCLE
 
             ! Radius of the insoluble portion of the droplet
-            rn = MAX(0., (3.*sum(paero(ii,jj,kk)%volc(3:4))/paero(ii,jj,kk)%numc/4./pi)**(1./3.) )
+            rn = MAX(0., (3.*paero(ii,jj,kk)%volc(idu)/paero(ii,jj,kk)%numc/4./pi)**(1./3.) )
             ! Droplet radius
-            rw = (3.*sum(paero(ii,jj,kk)%volc(:))/paero(ii,jj,kk)%numc/4./pi)**(1./3.)
+            rw = (3.*sum(paero(ii,jj,kk)%volc(1:nn))/paero(ii,jj,kk)%numc/4./pi)**(1./3.)
             ! Equilibrium saturation ratio
             Sw_eq = calc_Sw_eq(paero(ii,jj,kk),ptemp(ii,jj))
 
@@ -1272,28 +789,28 @@ CONTAINS
             IF (ice_target_opt<0) THEN
                 ! Add to the matching ice bin
                 bb = kk-in2a+1
-                pice(ii,jj,bb)%volc(1:7) = pice(ii,jj,bb)%volc(1:7) + max(0., paero(ii,jj,kk)%volc(1:7)*frac )
-                pice(ii,jj,bb)%volc(8) = pice(ii,jj,bb)%volc(8) + max(0., paero(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                pice(ii,jj,bb)%volc(2:nn) = pice(ii,jj,bb)%volc(2:nn) + max(0., paero(ii,jj,kk)%volc(2:nn)*frac )
+                pice(ii,jj,bb)%volc(1) = pice(ii,jj,bb)%volc(1) + max(0., paero(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
                 pice(ii,jj,bb)%numc   = pice(ii,jj,bb)%numc + max(0., paero(ii,jj,kk)%numc*frac )
             ELSEIF (ice_target_opt==0) THEN
                 ! Add to the matching snow bin
                 ss=1
-                zvol=(SUM(paero(ii,jj,kk)%volc(1:7))+paero(ii,jj,kk)%volc(8)*rhowa/rhosn)/paero(ii,jj,kk)%numc
+                zvol=(SUM(paero(ii,jj,kk)%volc(2:nn))+paero(ii,jj,kk)%volc(1)*rhowa/rhosn)/paero(ii,jj,kk)%numc
                 DO WHILE (zvol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                     ss=ss+1
                 ENDDO
-                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., paero(ii,jj,kk)%volc(1:7)*frac )
-                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., paero(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., paero(ii,jj,kk)%volc(2:nn)*frac )
+                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., paero(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + max(0., paero(ii,jj,kk)%numc*frac )
             ELSE
                 ! Add to the ss:th snow bin
-                psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., paero(ii,jj,kk)%volc(1:7)*frac )
-                psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., paero(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., paero(ii,jj,kk)%volc(2:nn)*frac )
+                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., paero(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + max(0., paero(ii,jj,kk)%numc*frac )
             ENDIF
 
              paero(ii,jj,kk)%numc = paero(ii,jj,kk)%numc - max(0., paero(ii,jj,kk)%numc*frac )
-             paero(ii,jj,kk)%volc(1:8) = paero(ii,jj,kk)%volc(1:8) - max(0., paero(ii,jj,kk)%volc(1:8)*frac )
+             paero(ii,jj,kk)%volc(1:nn) = paero(ii,jj,kk)%volc(1:nn) - max(0., paero(ii,jj,kk)%volc(1:nn)*frac )
 
         END DO
 
@@ -1477,7 +994,7 @@ CONTAINS
   ! target concentration (fixinc, #/kg) by converting the largest cloud droplets to ice.
   !
   !***********************************************
-  SUBROUTINE ice_fixed_NC(kproma, kbdim,  klev,   &
+  SUBROUTINE ice_fixed_NC(kbdim,  klev,   &
                           pcloud,  pice,   &
                           ptemp,  ppres,  prv,  prsi)
 
@@ -1485,6 +1002,7 @@ CONTAINS
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
                                nice,        &
+                               nspec,       &
                                rhowa,       &
                                rhoic,       &
                                rda,         &
@@ -1492,7 +1010,7 @@ CONTAINS
                                fixinc   ! Target ice number concentration (#/kg)
 
     IMPLICIT NONE
-    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    INTEGER, INTENT(in) :: kbdim,klev
 
     REAL, INTENT(in) :: &
                             ptemp(kbdim,klev),    &
@@ -1513,7 +1031,7 @@ CONTAINS
         pdn=ppres(ii,jj)/(rda*ptemp(ii,jj)) ! Air density (kg/m^3)
 
         iceSupSat = prv(ii,jj) / prsi(ii,jj)  - 1.0 ! ice supersaturation
-        rc_tot = sum( pcloud(ii,jj,:)%volc(8) )*rhowa/pdn ! cloud water mixing ratio (kg/kg)
+        rc_tot = sum( pcloud(ii,jj,:)%volc(1) )*rhowa/pdn ! cloud water mixing ratio (kg/kg)
 
         ! conditions for ice nucleation
         if ( icesupsat < 0.05 .OR. rc_tot < 0.001e-3  ) cycle
@@ -1546,11 +1064,11 @@ CONTAINS
                 liqToIceFrac   = MAX( 0.0, MIN( 1.0, iceTendecyNumber/pcloud(ii,jj,kk)%numc ) )
                 pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - iceTendecyNumber
 
-                DO ss = 1,7
+                DO ss = 2,nspec+1
                     pice(ii,jj,kk)%volc(ss) = pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
                     pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
                 END DO
-                ss=8 ! Water
+                ss=1 ! Water
                 pice(ii,jj,kk)%volc(ss) = pice(ii,jj,kk)%volc(ss) + max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac*rhowa/rhoic )
                 pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) - max(0., pcloud(ii,jj,kk)%volc(ss)*liqToIceFrac )
             END IF
@@ -1570,17 +1088,17 @@ CONTAINS
   !
   !***********************************************
 
-  SUBROUTINE fixed_ice_driver(kproma, kbdim, klev,   &
+  SUBROUTINE fixed_ice_driver(kbdim, klev,   &
             pcloud,  pice,   psnow, ptemp,  ppres,  prv,  prsi)
 
     USE mo_submctl, ONLY : t_section,      &
-                    ncld, nice, nsnw,      &
+                    ncld, nice, nsnw, nspec, &
                     rhowa, rhoic, rhosn,   &
                     rda, nlim, prlim, &
                     fixinc, ice_source_opt, ice_target_opt
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    INTEGER, INTENT(in) :: kbdim,klev
     REAL, INTENT(in) :: &
                     ptemp(kbdim,klev), &
                     ppres(kbdim,klev), &
@@ -1594,8 +1112,10 @@ CONTAINS
     !   b) Minimum cloud water mixing ratio (kg/kg)
     REAL, PARAMETER :: min_S_ice=1.05, min_rc=1e-6
 
-    INTEGER :: ii,jj,kk,ss
+    INTEGER :: ii,jj,kk,ss,nn
     REAL :: pdn, S_ice, rc, Ni0, vol, sumICE, dnice, frac
+
+    nn = nspec + 1 ! Aerosol species + water
 
     ! Target snow bin when ice_target_opt>0
     ss=MIN(nsnw,ice_target_opt)
@@ -1606,7 +1126,7 @@ CONTAINS
 
         ! Conditions for ice nucleation
         S_ice = prv(ii,jj)/prsi(ii,jj) ! Saturation with respect to ice
-        rc = sum( pcloud(ii,jj,:)%volc(8) )*rhowa/pdn ! Cloud water mixing ratio (kg/kg)
+        rc = sum( pcloud(ii,jj,:)%volc(1) )*rhowa/pdn ! Cloud water mixing ratio (kg/kg)
         if ( S_ice < min_S_ice .OR. rc < min_rc ) cycle
 
         ! Target number concentration of ice, converted to #/m^3
@@ -1631,28 +1151,28 @@ CONTAINS
 
                     IF (ice_target_opt<0) THEN
                         ! Add to the matching ice bin
-                        pice(ii,jj,kk)%volc(1:7) = pice(ii,jj,kk)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                        pice(ii,jj,kk)%volc(8) = pice(ii,jj,kk)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                        pice(ii,jj,kk)%volc(2:nn) = pice(ii,jj,kk)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                        pice(ii,jj,kk)%volc(1) = pice(ii,jj,kk)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
                         pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + dnice
                     ELSEIF (ice_target_opt==0) THEN
                         ! Add to the matching snow bin
                         ss=1
-                        vol=(SUM(pcloud(ii,jj,kk)%volc(1:7))+pcloud(ii,jj,kk)%volc(8)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                        vol=(SUM(pcloud(ii,jj,kk)%volc(2:nn))+pcloud(ii,jj,kk)%volc(1)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
                         DO WHILE (vol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                             ss=ss+1
                         ENDDO
-                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ELSE
                         ! Add to the ss:th snow bin
-                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ENDIF
 
                     pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - dnice
-                    pcloud(ii,jj,kk)%volc(1:8) = pcloud(ii,jj,kk)%volc(1:8) - max(0., pcloud(ii,jj,kk)%volc(1:8)*frac )
+                    pcloud(ii,jj,kk)%volc(1:nn) = pcloud(ii,jj,kk)%volc(1:nn) - max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                 END IF
             END DO
         ELSEIF (ice_source_opt<0) THEN
@@ -1665,28 +1185,28 @@ CONTAINS
 
                     IF (ice_target_opt<0) THEN
                         ! Add to the matching ice bin
-                        pice(ii,jj,kk)%volc(1:7) = pice(ii,jj,kk)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                        pice(ii,jj,kk)%volc(8) = pice(ii,jj,kk)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                        pice(ii,jj,kk)%volc(2:nn) = pice(ii,jj,kk)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                        pice(ii,jj,kk)%volc(1) = pice(ii,jj,kk)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
                         pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + dnice
                     ELSEIF (ice_target_opt==0) THEN
                         ! Add to the matching snow bin
                         ss=1
-                        vol=(SUM(pcloud(ii,jj,kk)%volc(1:7))+pcloud(ii,jj,kk)%volc(8)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                        vol=(SUM(pcloud(ii,jj,kk)%volc(2:nn))+pcloud(ii,jj,kk)%volc(1)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
                         DO WHILE (vol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                             ss=ss+1
                         ENDDO
-                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ELSE
                         ! Add to the ss:th snow bin
-                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ENDIF
 
                     pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - dnice
-                    pcloud(ii,jj,kk)%volc(1:8) = pcloud(ii,jj,kk)%volc(1:8) - max(0., pcloud(ii,jj,kk)%volc(1:8)*frac )
+                    pcloud(ii,jj,kk)%volc(1:nn) = pcloud(ii,jj,kk)%volc(1:nn) - max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                 END IF
             END DO
         ELSE
@@ -1698,28 +1218,28 @@ CONTAINS
 
                     IF (ice_target_opt<0) THEN
                         ! Add to the matching ice bin
-                        pice(ii,jj,kk)%volc(1:7) = pice(ii,jj,kk)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                        pice(ii,jj,kk)%volc(8) = pice(ii,jj,kk)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhoic )
+                        pice(ii,jj,kk)%volc(2:nn) = pice(ii,jj,kk)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                        pice(ii,jj,kk)%volc(1) = pice(ii,jj,kk)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
                         pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + dnice
                     ELSEIF (ice_target_opt==0) THEN
                         ! Add to the matching snow bin
                         ss=1
-                        vol=(SUM(pcloud(ii,jj,kk)%volc(1:7))+pcloud(ii,jj,kk)%volc(8)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                        vol=(SUM(pcloud(ii,jj,kk)%volc(2:nn))+pcloud(ii,jj,kk)%volc(1)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
                         DO WHILE (vol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                             ss=ss+1
                         ENDDO
-                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ELSE
                         ! Add to the ss:th snow bin
-                        psnow(ii,jj,ss)%volc(1:7) = psnow(ii,jj,ss)%volc(1:7) + max(0., pcloud(ii,jj,kk)%volc(1:7)*frac )
-                        psnow(ii,jj,ss)%volc(8) = psnow(ii,jj,ss)%volc(8) + max(0., pcloud(ii,jj,kk)%volc(8)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
+                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ENDIF
 
                     pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - dnice
-                    pcloud(ii,jj,kk)%volc(1:8) = pcloud(ii,jj,kk)%volc(1:8) - max(0., pcloud(ii,jj,kk)%volc(1:8)*frac )
+                    pcloud(ii,jj,kk)%volc(1:nn) = pcloud(ii,jj,kk)%volc(1:nn) - max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                 END IF
             END DO
         ENDIF
@@ -1730,7 +1250,7 @@ CONTAINS
   ! ------------------------------------------------------------
 
 
-  SUBROUTINE ice_melt(kproma,kbdim,klev,   &
+  SUBROUTINE ice_melt(kbdim,klev,   &
                       pcloud,pice,pprecp,psnow, &
                       ptemp )
 
@@ -1739,12 +1259,13 @@ CONTAINS
                                nice,        &
                                nsnw,        &
                                nprc,        &
+                               nspec,       &
                                rhowa, rhoic, rhosn,      &
                                prlim
 
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    INTEGER, INTENT(in) :: kbdim,klev
     REAL, INTENT(in) :: ptemp(kbdim,klev)
 
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
@@ -1763,11 +1284,11 @@ CONTAINS
           DO kk = 1,nice
               ! Ice => cloud water (parallel bin)
               IF (pice(ii,jj,kk)%numc<prlim) CYCLE
-              DO ss = 1,7
+              DO ss = 2,nspec+1
                   pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) + pice(ii,jj,kk)%volc(ss)
                   pice(ii,jj,kk)%volc(ss) = 0.
               END DO
-              ss=8 ! Water
+              ss=1 ! Water
               pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) + pice(ii,jj,kk)%volc(ss)*rhoic/rhowa
               pice(ii,jj,kk)%volc(ss) = 0.
 
@@ -1778,11 +1299,11 @@ CONTAINS
           DO kk =1,nsnw
               ! Snow => precipitation (bin 1)
               IF (psnow(ii,jj,kk)%numc<prlim) CYCLE
-              DO ss = 1,7
+              DO ss = 2,nspec+1
                   pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + psnow(ii,jj,kk)%volc(ss)
                   psnow(ii,jj,kk)%volc(ss) = 0.
               END DO
-              ss=8 ! Water
+              ss=1 ! Water
               pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + psnow(ii,jj,kk)%volc(ss)*rhosn/rhowa
               psnow(ii,jj,kk)%volc(ss) = 0.
 
@@ -1795,7 +1316,7 @@ CONTAINS
   END SUBROUTINE ice_melt
 
 
-  SUBROUTINE autosnow(kproma,kbdim,klev,   &
+  SUBROUTINE autosnow(kbdim,klev,   &
                       pice,psnow)
   !
   ! Uses a more straightforward method for converting ice to snow.
@@ -1806,13 +1327,14 @@ CONTAINS
     USE mo_submctl, ONLY : t_section,   &
                                nice,        &
                                nsnw,        &
+                               nspec,       &
                                pi6,         &
                                rhosn, rhoic,       &
                                prlim,       &
                                autoc_snow_zd0, autoc_snow_sigmag
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    INTEGER, INTENT(in) :: kbdim,klev
     TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice)
     TYPE(t_section), INTENT(inout) :: psnow(kbdim,klev,nsnw)
 
@@ -1839,13 +1361,13 @@ CONTAINS
                 IF ( Vrem > 0. .AND. Nrem > prlim) THEN
 
                    ! Put the mass and number to the first snow bin and remove from ice
-                   DO ss = 1,7
+                   DO ss = 2,nspec+1
                       psnow(ii,jj,1)%volc(ss) = psnow(ii,jj,1)%volc(ss) + pice(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
                       pice(ii,jj,cc)%volc(ss) = pice(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
                    END DO
 
-                   psnow(ii,jj,1)%volc(8) = psnow(ii,jj,1)%volc(8) + pice(ii,jj,cc)%volc(8)*(Vrem/Vtot)*rhoic/rhosn
-                   pice(ii,jj,cc)%volc(8) = pice(ii,jj,cc)%volc(8)*(1. - (Vrem/Vtot))
+                   psnow(ii,jj,1)%volc(1) = psnow(ii,jj,1)%volc(1) + pice(ii,jj,cc)%volc(1)*(Vrem/Vtot)*rhoic/rhosn
+                   pice(ii,jj,cc)%volc(1) = pice(ii,jj,cc)%volc(1)*(1. - (Vrem/Vtot))
 
                    psnow(ii,jj,1)%numc = psnow(ii,jj,1)%numc + Nrem
                    pice(ii,jj,cc)%numc = pice(ii,jj,cc)%numc - Nrem

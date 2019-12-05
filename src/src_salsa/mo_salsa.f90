@@ -15,12 +15,12 @@ MODULE mo_salsa
 
 CONTAINS
 
-  SUBROUTINE salsa(kproma,   kbdim,    klev,    krow,       &
-                   ppres,    prv, prs, prsi,    ptemp, ptstep,     &
-                   pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,    &
-                   pc_nh3,   paero,    pcloud,  pprecp,     &
-                   pice, psnow,                             &
-                   pactd,    pw,    prtcl, level,           &
+  SUBROUTINE salsa(kbdim,  klev,                        &
+                   ppres,  prv,    prs,    prsi,        &
+                   ptemp,  ptstep,                      &
+                   pc_gas, ngas,                        &
+                   paero,  pcloud, pprecp, pice, psnow, &
+                   level,                               &
                    coag_vaero, coag_naero, coag_vcloud, coag_ncloud, coag_vprecp, &
                    coag_nprecp, coag_vice, coag_nice, coag_vsnow, coag_nsnow, &
                    cond_vaero, cond_vcloud, cond_vprecp, cond_vice, cond_vsnow, &
@@ -34,32 +34,20 @@ CONTAINS
             autosnow, fixed_ice_driver, ice_nucl_driver, ice_melt
 
     USE mo_submctl, ONLY :      &
-         fn2b,               & ! size section and composition indices
-         t_section,                 & ! For cloud bins
-         ncld,                      &
-         nprc,                      &
-         nice,                      &
-         nsnw,                      &
-         lscoag,                    &
-         lscnd,                     &
-         lsauto,                    &
-         lsautosnow,                &
-         lsactiv,                   &
-         lsicenucl,                 &
-         lsicmelt,                  &
-         lsdistupdate,              &
+         fn2b,ncld,nprc,nice,nsnw,         &
+         t_section,                        &
+         lscoag,lscnd,                     &
+         lsauto,lsautosnow,lsactiv,        &
+         lsicenucl,lsicmelt,lsdistupdate,  &
          fixinc, ice_hom, ice_imm, ice_dep
-
-    USE class_componentIndex, ONLY : ComponentIndex
 
     IMPLICIT NONE
 
     !-- Input parameters and variables --------------------------------------------------
     INTEGER, INTENT(in) ::          &
-         kproma,                    & ! number of horiz. grid points in a slab (='kproma')
          kbdim,                     & ! dimension for arrays (='kbdim')
          klev,                      & ! number of vertical levels (='klev')
-         krow                         ! local latitude index
+         ngas                         ! number of gases
 
 
     REAL, INTENT(in) ::            &
@@ -67,18 +55,9 @@ CONTAINS
          ptemp(kbdim,klev),            & ! temperature at each grid point [K]
          ptstep                          ! time step [s]
 
-    TYPE(ComponentIndex), INTENT(in) :: prtcl
-
-    REAL, INTENT(in) ::            & ! Vertical velocity
-         pw(kbdim,klev)
-
     !-- Input variables that are changed within --------------------------------------
-    REAL, INTENT(inout) ::      & ! gas phase concentrations at each grid point [#/m3]
-         pc_h2so4(kbdim,klev),      & ! sulphuric acid
-         pc_hno3 (kbdim,klev),      & ! nitric acid
-         pc_nh3  (kbdim,klev),      & ! ammonia
-         pc_ocnv (kbdim,klev),      & ! nonvolatile organic compound
-         pc_ocsv (kbdim,klev),      & ! semivolatile organic compound
+    REAL, INTENT(inout) ::      &
+         pc_gas(kbdim,klev,ngas),   & ! gas phase concentrations at each grid point [mol/m3]
          prv(kbdim,klev),           & ! Water vapour mixing ratio  [kg/kg]
          prs(kbdim,klev),           & ! Saturation mixing ratio    [kg/kg]
          prsi(kbdim,klev)             ! Saturation mixing ratio over ice   [kg/kg]
@@ -90,10 +69,7 @@ CONTAINS
          pice(kbdim,klev,nice),       &
          psnow(kbdim,klev,nsnw)
 
-    TYPE(t_section), INTENT(out) :: &
-         pactd(kbdim,klev,ncld)
-
-    INTEGER, INTENT(in) :: level                         ! thermodynamical level
+    INTEGER, INTENT(in) :: level      ! thermodynamical level
 
     !-- Output statistics --------------------------------------
     REAL, DIMENSION(kbdim,klev), INTENT(out) :: &
@@ -103,12 +79,6 @@ CONTAINS
             autoc_vprecp, autoc_nprecp, autoc_vsnow, autoc_nsnow, &
             act_vcloud, act_ncloud, nucl_vice, nucl_nice, &
             melt_vice, melt_nice, melt_vsnow, melt_nsnow
-
-    !-- Local variables ------------------------------------------------------------------
-
-    INTEGER :: zpbl(kbdim)            ! Planetary boundary layer top level
-
-    zpbl(:)=1
 
     ! Reset outputs
     coag_vaero=0.; coag_naero=0.; coag_vcloud=0.; coag_ncloud=0.; coag_vprecp=0.; coag_nprecp=0.
@@ -121,74 +91,70 @@ CONTAINS
     ! Coagulation
     !   Statistics: change in total water volume concentration for each hydrometeor (m^3/m^3)
     IF (lscoag) THEN
-       coag_vaero(:,:)=SUM(paero(:,:,:)%volc(8),DIM=3)
+       coag_vaero(:,:)=SUM(paero(:,:,:)%volc(1),DIM=3)
        coag_naero(:,:)=SUM(paero(:,:,:)%numc,DIM=3)
-       coag_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(8),DIM=3)
+       coag_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)
        coag_ncloud(:,:)=SUM(pcloud(:,:,:)%numc,DIM=3)
-       coag_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(8),DIM=3)
+       coag_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)
        coag_nprecp(:,:)=SUM(pprecp(:,:,:)%numc,DIM=3)
-       coag_vice(:,:)=SUM(pice(:,:,:)%volc(8),DIM=3)
+       coag_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)
        coag_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)
-       coag_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)
+       coag_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
        coag_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)
-       CALL coagulation(kproma, kbdim,  klev,                   &
+       CALL coagulation(kbdim,  klev,                           &
                         paero,  pcloud, pprecp, pice, psnow,    &
                         ptstep, ptemp,  ppres                   )
-       coag_vaero(:,:)=SUM(paero(:,:,:)%volc(8),DIM=3)-coag_vaero(:,:)
+       coag_vaero(:,:)=SUM(paero(:,:,:)%volc(1),DIM=3)-coag_vaero(:,:)
        coag_naero(:,:)=SUM(paero(:,:,:)%numc,DIM=3)-coag_naero(:,:)
-       coag_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(8),DIM=3)-coag_vcloud(:,:)
+       coag_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)-coag_vcloud(:,:)
        coag_ncloud(:,:)=SUM(pcloud(:,:,:)%numc,DIM=3)-coag_ncloud(:,:)
-       coag_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(8),DIM=3)-coag_vprecp(:,:)
+       coag_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)-coag_vprecp(:,:)
        coag_nprecp(:,:)=SUM(pprecp(:,:,:)%numc,DIM=3)-coag_nprecp(:,:)
-       coag_vice(:,:)=SUM(pice(:,:,:)%volc(8),DIM=3)-coag_vice(:,:)
+       coag_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)-coag_vice(:,:)
        coag_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)-coag_nice(:,:)
-       coag_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)-coag_vsnow(:,:)
+       coag_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-coag_vsnow(:,:)
        coag_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)-coag_nsnow(:,:)
     ENDIF
 
     ! Condensation
     !   Statistics: change in total water volume concentration for each hydrometeor (m^3/m^3)
     IF (lscnd) THEN
-       cond_vaero(:,:)=SUM(paero(:,:,:)%volc(8),DIM=3)
-       cond_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(8),DIM=3)
-       cond_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(8),DIM=3)
-       cond_vice(:,:)=SUM(pice(:,:,:)%volc(8),DIM=3)
-       cond_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)
-       CALL condensation(kproma,  kbdim,    klev,     krow,     &
-                         paero,   pcloud,   pprecp,             &
-                         pice,    psnow,                        &
-                         pc_h2so4, pc_ocnv, pc_ocsv,  pc_hno3,  &
-                         pc_nh3, prv, prs, prsi, ptemp, ppres,  &
-                         ptstep, zpbl, prtcl                    )
-        cond_vaero(:,:)=SUM(paero(:,:,:)%volc(8),DIM=3)-cond_vaero(:,:)
-        cond_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(8),DIM=3)-cond_vcloud(:,:)
-        cond_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(8),DIM=3)-cond_vprecp(:,:)
-        cond_vice(:,:)=SUM(pice(:,:,:)%volc(8),DIM=3)-cond_vice(:,:)
-        cond_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)-cond_vsnow(:,:)
+        cond_vaero(:,:)=SUM(paero(:,:,:)%volc(1),DIM=3)
+        cond_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)
+        cond_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)
+        cond_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)
+        cond_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
+        CALL condensation(kbdim,  klev,                         &
+                          paero,  pcloud, pprecp, pice, psnow,  &
+                          pc_gas, ngas,                         &
+                          prv, prs, prsi, ptemp, ppres, ptstep  )
+        cond_vaero(:,:)=SUM(paero(:,:,:)%volc(1),DIM=3)-cond_vaero(:,:)
+        cond_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)-cond_vcloud(:,:)
+        cond_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)-cond_vprecp(:,:)
+        cond_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)-cond_vice(:,:)
+        cond_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-cond_vsnow(:,:)
     ENDIF
 
     ! Autoconversion (liquid)
     !   Statistics: change in total rain water volume (=change in cloud water) and rain drop number concentration
     IF (lsauto) THEN
-         autoc_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(8),DIM=3)
+         autoc_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)
          autoc_nprecp(:,:)=SUM(pprecp(:,:,:)%numc,DIM=3)
-         CALL autoconv2(kproma,kbdim,klev, &
-                        pcloud, pprecp )
-         !CALL autoconv_sb(kproma,kbdim,klev,ptstep,pcloud,pprecp)
-         autoc_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(8),DIM=3)-autoc_vprecp(:,:)
+         CALL autoconv2(kbdim,klev,pcloud, pprecp)
+         !CALL autoconv_sb(kbdim,klev,ptstep,pcloud,pprecp)
+         autoc_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)-autoc_vprecp(:,:)
          autoc_nprecp(:,:)=SUM(pprecp(:,:,:)%numc,DIM=3)-autoc_nprecp(:,:)
     ENDIF
 
     ! Cloud activation
     !   Statistics: change in total cloud water volume (=change in cloud water) and cloud drop number concentration
     IF (lsactiv ) THEN
-         act_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(8),DIM=3)
+         act_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)
          act_ncloud(:,:)=SUM(pcloud(:,:,:)%numc,DIM=3)
-         CALL cloud_activation(kproma, kbdim, klev,   &
+         CALL cloud_activation(kbdim,  klev,          &
                                ptemp,  ppres, prv,    &
-                               prs,    pw,    paero,  &
-                               pcloud, pactd          )
-         act_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(8),DIM=3)-act_vcloud(:,:)
+                               prs,    paero, pcloud  )
+         act_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)-act_vcloud(:,:)
          act_ncloud(:,:)=SUM(pcloud(:,:,:)%numc,DIM=3)-act_ncloud(:,:)
     ENDIF
 
@@ -198,61 +164,59 @@ CONTAINS
     !     to the autoconversion variables (no ice category; autoconversion disabled)
     IF (lsicenucl .AND. fixinc>=0.) THEN
         ! Fixed ice number concentration
-        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(8),DIM=3)
+        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)
         nucl_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)
-        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)
+        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
         autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)
-        CALL fixed_ice_driver(kproma, kbdim, klev,   &
-                             pcloud,   pice,  psnow,   &
+        CALL fixed_ice_driver(kbdim, klev,             &
+                             pcloud, pice,   psnow,    &
                              ptemp,  ppres,  prv,  prsi)
-        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(8),DIM=3)-nucl_vice(:,:)
+        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)-nucl_vice(:,:)
         nucl_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)-nucl_nice(:,:)
-        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)-autoc_vsnow(:,:)
+        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-autoc_vsnow(:,:)
         autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)-autoc_nsnow(:,:)
     ELSEIF (lsicenucl .AND. (ice_hom .OR. ice_imm .OR. ice_dep)) THEN
         ! Modelled ice nucleation
-        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(8),DIM=3)
+        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)
         nucl_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)
-        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)
+        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
         autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)
-        CALL ice_nucl_driver(kproma,kbdim,klev,   &
+        CALL ice_nucl_driver(kbdim,klev,   &
                           paero,pcloud,pprecp,pice,psnow, &
                           ptemp,prv,prs,prsi,ptstep)
-        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(8),DIM=3)-nucl_vice(:,:)
+        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)-nucl_vice(:,:)
         nucl_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)-nucl_nice(:,:)
-        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)-autoc_vsnow(:,:)
+        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-autoc_vsnow(:,:)
         autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)-autoc_nsnow(:,:)
     ENDIF
 
     ! Melting of ice and snow
     !   Statistics: change in total ice and snow water volume and number concentrations
     IF (lsicmelt) THEN
-         melt_vice(:,:)=SUM(pice(:,:,:)%volc(8),DIM=3)
+         melt_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)
          melt_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)
-         melt_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)
+         melt_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
          melt_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)
-         CALL ice_melt(kproma,kbdim,klev,              &
-                       pcloud,pice,pprecp,psnow,ptemp)
-         melt_vice(:,:)=SUM(pice(:,:,:)%volc(8),DIM=3)-melt_vice(:,:)
+         CALL ice_melt(kbdim,klev,pcloud,pice,pprecp,psnow,ptemp)
+         melt_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)-melt_vice(:,:)
          melt_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)-melt_nice(:,:)
-         melt_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)-melt_vsnow(:,:)
+         melt_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-melt_vsnow(:,:)
          melt_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)-melt_nsnow(:,:)
     ENDIF
 
     ! Snow formation ~ autoconversion from ice
     !   Statistics: change in total snow water volume (=change in ice water) and snow number concentration
     IF (lsautosnow) THEN
-         autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)
+         autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
          autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)
-         CALL autosnow(kproma,kbdim,klev, &
-                       pice, psnow )
-         autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(8),DIM=3)-autoc_vsnow(:,:)
+         CALL autosnow(kbdim,klev,pice,psnow)
+         autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-autoc_vsnow(:,:)
          autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)-autoc_nsnow(:,:)
     ENDIF
 
     ! Size distribution bin update
     IF (lsdistupdate ) &
-         CALL distr_update(kproma, kbdim, klev,     &
+         CALL distr_update(kbdim, klev,             &
                            paero,  pcloud, pprecp,  &
                            pice, psnow, level       )
 
