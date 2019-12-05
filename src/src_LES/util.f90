@@ -116,13 +116,15 @@ contains
   end subroutine velset
   !
   !---------------------------------------------------------------------
-  ! GET_AVG2dh: Get the average of a 2 dimensional (horizontal) input field
+  ! GET_AVG2dh: Get the average of a 2 dimensional (horizontal) input field - calculated over all PUs
   !
   REAL FUNCTION get_avg2dh(n2,n3,a)
+    use mpi_interface, only : nypg,nxpg,double_scalar_par_sum
 
     INTEGER, INTENT(in) :: n2,n3
     REAL, INTENT(in)    :: a(n2,n3)
 
+    REAL(kind=8) :: lavg,gavg
     INTEGER :: i,j
     
     get_avg2dh = 0.
@@ -132,7 +134,10 @@ contains
        END DO
     END DO
 
-    get_avg2dh = get_avg2dh/real((n3-4)*(n2-4))
+    lavg = get_avg2dh
+    call double_scalar_par_sum(lavg,gavg)
+
+    get_avg2dh = real(gavg)/real((nypg-4)*(nxpg-4))
 
   END FUNCTION get_avg2dh
   !
@@ -260,6 +265,53 @@ contains
     ENDIF
 
   end subroutine get_avg3
+  !
+  !---------------------------------------------------------------------
+  ! Calculate histograms from concentration (num) and radius (rad) data - calculated over all PUs
+  !
+  SUBROUTINE HistDistr(n1,n2,n3,n4,rad,num,rbins,nout,hist)
+    use mpi_interface, only : nypg,nxpg,double_array_par_sum
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: n1, n2, n3, n4, nout ! Dimensions
+    REAL, INTENT(IN) :: rad(n1,n2,n3,n4), num(n1,n2,n3,n4) ! Size and number data
+    REAL, INTENT(IN) :: rbins(nout+1) ! Size bin limits
+    REAL, INTENT(OUT) :: hist(n1,nout) ! Output histogram
+    REAL :: rmin, rmax
+    INTEGER :: i, j, k, l, ii
+    real(kind=8) :: lavg(n1*nout),gavg(n1*nout)
+    !
+    ! Include values that are within the bin limits
+    rmin=MAX(rbins(1),1e-10) ! r=0 when there are no particles
+    rmax=rbins(nout+1)
+    !
+    !hist=0.
+    lavg=0.
+    DO l=1,n4
+      do j=3,n3-2
+        do i=3,n2-2
+          do k=2,n1
+            IF (rmin<=rad(k,i,j,l) .AND. rad(k,i,j,l)<=rmax) THEN
+                ii=nout
+                DO WHILE (rad(k,i,j,l)<rbins(ii) .AND. ii>1)
+                    ii=ii-1
+                ENDDO
+                !hist(k,ii)=hist(k,ii)+num(k,i,j,l)
+                ii=ii+(k-1)*n1
+                lavg(ii)=lavg(ii)+num(k,i,j,l)
+            ENDIF
+          ENDDO
+        ENDDO
+      ENDDO
+    ENDDO
+    !
+    ! Sum over PUs
+    call double_array_par_sum(lavg,gavg,n1)
+    hist = RESHAPE( gavg, (/n1,nout/) )
+    !
+    ! Normalize by the number of columns
+    hist(:,:)=hist(:,:)/(real(nypg-4)*real(nxpg-4))
+    !
+  END SUBROUTINE HistDistr
   !
   !---------------------------------------------------------------------
   ! function get_cor: gets mean correlation between two fields at a 
@@ -477,93 +529,5 @@ contains
     enddo
 
   end subroutine get_fft_twodim
-  !
-  !---------------------------------------------------------------
-  ! MASKACTIV: Create a logical mask for grid points where cloud
-  !            activation will be calculated.
-  !
-  ! Juha Tonttila, FMI, 2014
-  !
-  SUBROUTINE maskactiv(act_mask,nx,ny,nz,mode,rh,rc,w)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: nx,ny,nz
-    REAL, INTENT(in)    :: rh(nz,nx,ny)
-    REAL, OPTIONAL, INTENT(in) :: rc(nz,nx,ny),w(nz,nx,ny)
-
-    INTEGER, INTENT(in) :: mode ! 1 = Initialization; 2 = Normal timestepping
-
-    LOGICAL, INTENT(out) :: act_mask(nz,nx,ny)
-
-    LOGICAL :: actmask_newcloud(nz,nx,ny)
-    LOGICAL :: actmask_oldcloud(nz,nx,ny)
-    LOGICAL :: cldmask(nz,nx,ny)
-    LOGICAL :: cldm1(nz,nx,ny),   & !inverse cloud mask offset downwards by one grid level
-               cldp1(nz,nx,ny),   & !inverse cloud mask offset upwards by one grid level 
-               cldpm(nz,nx,ny)
-
-    LOGICAL :: notused(nx,ny)
-
-    INTEGER :: k
-
-    actmask_newcloud = .FALSE.
-    actmask_oldcloud = .FALSE.
-    cldm1 = .TRUE.
-    cldp1 = .TRUE.
-    cldpm = .TRUE.
-    act_mask = .FALSE. 
-
-
-    SELECT CASE(mode)
-    CASE(1)
-       ! Calculate cloud activation in all cloudy grid points for initialization
-       ! i.e. points with RH >= threshold
-       !zrh = rv/rs
-       act_mask = ( rh >= 1.000 )
-
-    CASE(2)
-
-       ! Normal opperation
-       
-       IF ( .NOT. PRESENT(rc) ) STOP 'maskactiv: invalid arguments'
-
-       ! Mask grid points just below cloud or where new cloud is expected to form
-       ! 
-       
-       cldmask(:,:,:) = ( rc(:,:,:) >= 1.e-5 )
-
-      
-       ! Check for the lowest point where RH > 1. 
-       cldpm(:,:,:) = .FALSE.
-       cldpm(1:nz-1,:,:) = ( rh(2:nz,:,:) > 1.000 )
-
-       cldp1(:,:,:) = .TRUE.
-       cldp1(2:nz,:,:) = ( .NOT. cldpm(1:nz-1,:,:) )
-       actmask_newcloud(:,:,:) = ( cldpm(:,:,:) .AND. cldp1(:,:,:) ) .AND. ( w(:,:,:) > 0. ) &
-            .AND. (rc(:,:,:)<5.e-5)
-
-       ! Base of existing cloud
-       cldpm(:,:,:) = .FALSE.
-       cldpm(1:nz-1,:,:) = cldmask(2:nz,:,:)
-       
-       cldp1(:,:,:) = .TRUE.
-       cldp1(2:nz,:,:) = ( .NOT. cldpm(1:nz-1,:,:) ) 
-
-       ! Take the lowest level of the two cases
-       
-       notused = .TRUE.
-       DO k = 2,nz-1
-          ! New cloud + no old cloud
-          act_mask(k,:,:) = MERGE( (actmask_oldcloud(k,:,:) .OR. actmask_newcloud(k,:,:))  &
-                                .AND. cldp1(k,:,:), .FALSE., notused(:,:))
-          notused(:,:) = notused(:,:) .AND. .NOT. act_mask(k,:,:)
-          notused(:,:) =  (rh(k,:,:) < 0.99 .OR. notused(:,:))
-       END DO
-
-    END SELECT
-     
-  END SUBROUTINE maskactiv
-
-
 
 end module util

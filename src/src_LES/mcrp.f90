@@ -25,16 +25,16 @@ module mcrp
        a_press, a_temp, a_rsl, precip, a_dn, a_ustar,                  &
        a_naerop,  a_naerot,  a_maerop,  a_maerot,                               &
        a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,                              &
-       a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt, mc_ApVdom,         &
+       a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,                              &
        a_nicep,   a_nicet,   a_micep,   a_micet,                                &
        a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
-       aerin, cldin, icein, snowin, prtcl, calc_eff_radius, &
+       aerin, cldin, icein, snowin, calc_eff_radius, &
        sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
        sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
        coag_rr, coag_nr, cond_rr, cond_nr, auto_rr, auto_nr, diag_rr, diag_nr, &
        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
-  use stat, only : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
-  USE mo_submctl, ONLY : terminal_vel
+  use stat, only : sflg, updtst, acc_removal, cs_rem_set
+  USE mo_submctl, ONLY : terminal_vel, nspec
   implicit none
 
   logical, parameter :: khairoutdinov = .False.
@@ -65,10 +65,8 @@ contains
   ! MICRO: sets up call to microphysics
   !
   subroutine micro(level)
-    USE class_componentIndex, ONLY : GetNcomp
     USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw
     integer, intent (in) :: level
-    INTEGER :: nn
 
     select case (level)
     case(2)
@@ -81,21 +79,20 @@ contains
        IF (level < 5) THEN
             sed_ice = .FALSE.; sed_snow = .FALSE.
        ENDIF
-       nn = GetNcomp(prtcl)+1 ! Total number of species = index for water
 
        ! Sedimentation is described with water mass (kg/kg/s) and particle number (#/kg/s) divergence fields
-       sedi_ra(:,:,:)=SUM(a_maerot(:,:,:,(nn-1)*nbins+1:nn*nbins),DIM=4)
+       sedi_ra(:,:,:)=SUM(a_maerot(:,:,:,1:nbins),DIM=4)
        sedi_na(:,:,:)=SUM(a_naerot,DIM=4)
-       sedi_rc(:,:,:)=SUM(a_mcloudt(:,:,:,(nn-1)*ncld+1:nn*ncld),DIM=4)
+       sedi_rc(:,:,:)=SUM(a_mcloudt(:,:,:,1:ncld),DIM=4)
        sedi_nc(:,:,:)=SUM(a_ncloudt,DIM=4)
-       sedi_rr(:,:,:)=SUM(a_mprecpt(:,:,:,(nn-1)*nprc+1:nn*nprc),DIM=4)
+       sedi_rr(:,:,:)=SUM(a_mprecpt(:,:,:,1:nprc),DIM=4)
        sedi_nr(:,:,:)=SUM(a_nprecpt,DIM=4)
-       sedi_ri(:,:,:)=SUM(a_micet(:,:,:,(nn-1)*nice+1:nn*nice),DIM=4)
+       sedi_ri(:,:,:)=SUM(a_micet(:,:,:,1:nice),DIM=4)
        sedi_ni(:,:,:)=SUM(a_nicet,DIM=4)
-       sedi_rs(:,:,:)=SUM(a_msnowt(:,:,:,(nn-1)*nsnw+1:nn*nsnw),DIM=4)
+       sedi_rs(:,:,:)=SUM(a_msnowt(:,:,:,1:nsnw),DIM=4)
        sedi_ns(:,:,:)=SUM(a_nsnowt,DIM=4)
 
-       CALL sedim_SALSA(nzp,nxp,nyp,nn, dtl, a_temp, a_theta,                &
+       CALL sedim_SALSA(nzp,nxp,nyp,nspec+1, dtl, a_temp, a_theta,           &
                         a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
                         a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
                         a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,          &
@@ -103,15 +100,15 @@ contains
                         a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,           &
                         a_ustar, aerin, cldin, precip, icein, snowin, a_tt  )
 
-       sedi_ra(:,:,:)=SUM(a_maerot(:,:,:,(nn-1)*nbins+1:nn*nbins),DIM=4)-sedi_ra(:,:,:)
+       sedi_ra(:,:,:)=SUM(a_maerot(:,:,:,1:nbins),DIM=4)-sedi_ra(:,:,:)
        sedi_na(:,:,:)=SUM(a_naerot,DIM=4)-sedi_na(:,:,:)
-       sedi_rc(:,:,:)=SUM(a_mcloudt(:,:,:,(nn-1)*ncld+1:nn*ncld),DIM=4)-sedi_rc(:,:,:)
+       sedi_rc(:,:,:)=SUM(a_mcloudt(:,:,:,1:ncld),DIM=4)-sedi_rc(:,:,:)
        sedi_nc(:,:,:)=SUM(a_ncloudt,DIM=4)-sedi_nc(:,:,:)
-       sedi_rr(:,:,:)=SUM(a_mprecpt(:,:,:,(nn-1)*nprc+1:nn*nprc),DIM=4)-sedi_rr(:,:,:)
+       sedi_rr(:,:,:)=SUM(a_mprecpt(:,:,:,1:nprc),DIM=4)-sedi_rr(:,:,:)
        sedi_nr(:,:,:)=SUM(a_nprecpt,DIM=4)-sedi_nr(:,:,:)
-       sedi_ri(:,:,:)=SUM(a_micet(:,:,:,(nn-1)*nice+1:nn*nice),DIM=4)-sedi_ri(:,:,:)
+       sedi_ri(:,:,:)=SUM(a_micet(:,:,:,1:nice),DIM=4)-sedi_ri(:,:,:)
        sedi_ni(:,:,:)=SUM(a_nicet,DIM=4)-sedi_ni(:,:,:)
-       sedi_rs(:,:,:)=SUM(a_msnowt(:,:,:,(nn-1)*nsnw+1:nn*nsnw),DIM=4)-sedi_rs(:,:,:)
+       sedi_rs(:,:,:)=SUM(a_msnowt(:,:,:,1:nsnw),DIM=4)-sedi_rs(:,:,:)
        sedi_ns(:,:,:)=SUM(a_nsnowt,DIM=4)-sedi_ns(:,:,:)
     end select
 
@@ -632,8 +629,6 @@ contains
             rndiv(n1,n2,n3,nprc),        &
             sndiv(n1,n2,n3,nsnw)
 
-    REAL :: mctmp(n2,n3) ! Helper for mass conservation calculations
-
 
     remaer = 0.; remcld = 0.; remprc = 0.; remice = 0.; remsnw = 0.
 
@@ -643,8 +638,8 @@ contains
        CALL DepositionAny(n1,n2,n3,n4,nbins,tk,a_dn,1500.,ustar,naerop,maerop,dzt,tstep,nlim,andiv,amdiv,andep,amdep,1)
        remaer(:,:,:) = amdep(2,:,:,:)
 
-       istr = (n4-1)*nbins+1
-       iend = n4*nbins
+       istr = 1
+       iend = nbins
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
@@ -664,8 +659,8 @@ contains
        CALL DepositionAny(n1,n2,n3,n4,ncld,tk,a_dn,rhowa,ustar,ncloudp,mcloudp,dzt,tstep,nlim,cndiv,cmdiv,cndep,cmdep,2)
        remcld(:,:,:) = cmdep(2,:,:,:)
 
-       istr = (n4-1)*ncld+1
-       iend = n4*ncld
+       istr = 1
+       iend = ncld
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
@@ -685,8 +680,8 @@ contains
        CALL DepositionAny(n1,n2,n3,n4,nice,tk,a_dn,rhoic,ustar,nicep,micep,dzt,tstep,prlim,indiv,imdiv,indep,imdep,4)
        remice(:,:,:) = imdep(2,:,:,:)
 
-       istr = (n4-1)*nice+1
-       iend = n4*nice
+       istr = 1
+       iend = nice
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 2,n1
@@ -706,8 +701,8 @@ contains
        CALL DepositionAny(n1,n2,n3,n4,nprc,tk,a_dn,rhowa,ustar,nprecpp,mprecpp,dzt,tstep,prlim,rndiv,rmdiv,rndep,rmdep,3)
        remprc(:,:,:) = rmdep(2,:,:,:)
 
-       istr = (n4-1)*nprc + 1
-       iend = n4*nprc
+       istr = 1
+       iend = nprc
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 1,n1-1
@@ -727,8 +722,8 @@ contains
        CALL DepositionAny(n1,n2,n3,n4,nsnw,tk,a_dn,rhosn,ustar,nsnowp,msnowp,dzt,tstep,prlim,sndiv,smdiv,sndep,smdep,5)
        remsnw(:,:,:) = smdep(2,:,:,:)
 
-       istr = (n4-1)*nsnw + 1
-       iend = n4*nsnw
+       istr = 1
+       iend = nsnw
        DO j = 3,n3-2
           DO i = 3,n2-2
              DO k = 1,n1-1
@@ -744,21 +739,6 @@ contains
        srate(:,:,:)=SUM(smdep(:,:,:,istr:iend),4)*alvi
     END IF
 
-    IF (mcflg) THEN
-       ! For mass conservation statistics
-       mctmp(:,:) = 0.
-       istr = (n4-1)*nbins; iend = n4*nbins
-       mctmp(:,:) = mctmp(:,:) + SUM(remaer(:,:,istr:iend),dim=3)
-       istr = (n4-1)*ncld; iend = n4*ncld
-       mctmp(:,:) = mctmp(:,:) + SUM(remcld(:,:,istr:iend),dim=3)
-       istr = (n4-1)*nprc; iend = n4*nprc
-       mctmp(:,:) = mctmp(:,:) + SUM(remprc(:,:,istr:iend),dim=3)
-       istr = (n4-1)*nice; iend = n4*nice
-       mctmp(:,:) = mctmp(:,:) + SUM(remice(:,:,istr:iend),dim=3)
-       istr = (n4-1)*nsnw; iend = n4*nsnw
-       mctmp(:,:) = mctmp(:,:) + SUM(remsnw(:,:,istr:iend),dim=3)
-       CALL acc_massbudged(n1,n2,n3,3,tstep,dzt,a_dn,rdep=mctmp,ApVdom=mc_ApVdom)
-    END IF !mcflg
     ! Aerosol removal statistics
     IF (sflg) CALL acc_removal(n2,n3,n4,remaer,remcld,remprc,remice,remsnw)
     IF (sflg) CALL cs_rem_set(n2,n3,n4,remaer,remcld,remprc,remice,remsnw)

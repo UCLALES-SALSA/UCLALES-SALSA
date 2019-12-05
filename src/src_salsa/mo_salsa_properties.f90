@@ -16,22 +16,18 @@ CONTAINS
   ! for SALSA aerosol bins. Saturation ratio limited between 0.1 and 0.98.
   !
   ! Tomi Raatikainen (FMI) 2018
-  SUBROUTINE equilibration(kproma, kbdim, klev,    &
-                           Sw, temp, paero, init )
+  SUBROUTINE equilibration(kbdim, klev, Sw, temp, paero, init)
 
     USE mo_submctl, ONLY : &
          t_section,    &
          in1a, fn1a, fn2b, &
          pi6, rg ,surfw0, nlim, &
-         rhosu, msu, rhooc, moc, & ! properties of the compounds
-         rhoss, mss, rhono, mno, &
-         rhonh, mnh, rhowa, mwa
+         diss, mws, dens, rhowa, mwa
 
     IMPLICIT NONE
 
     !-- input variables -------------
     INTEGER, INTENT(in) ::    &
-         kproma,              & ! number of horiz. grid kproma
          kbdim,               & ! dimension for arrays
          klev                   ! number of vertical levels
 
@@ -72,15 +68,11 @@ CONTAINS
                zrh = MAX(0.1,MIN(Sw(ii,jj),0.98))
 
                !-- total volume of solutes and water in one particle (m^3)
-               zcore = sum(paero(ii,jj,kk)%volc(1:7))/paero(ii,jj,kk)%numc
-               zw = paero(ii,jj,kk)%volc(8)/paero(ii,jj,kk)%numc
+               zcore = sum(paero(ii,jj,kk)%volc(2:))/paero(ii,jj,kk)%numc
+               zw = paero(ii,jj,kk)%volc(1)/paero(ii,jj,kk)%numc
 
                !-- total dissolved solute molar concentration in one particle (mol)
-               ns = (3.*paero(ii,jj,kk)%volc(1)*rhosu/msu + &
-                       paero(ii,jj,kk)%volc(2)*rhooc/moc +&
-                       2.*paero(ii,jj,kk)%volc(5)*rhoss/mss + &
-                       paero(ii,jj,kk)%volc(6)*rhono/mno +&
-                       paero(ii,jj,kk)%volc(7)*rhonh/mnh )/paero(ii,jj,kk)%numc
+               ns = SUM( paero(ii,jj,kk)%volc(2:)*diss(2:)*dens(2:)/mws(2:) )/paero(ii,jj,kk)%numc
 
                zdold = 1.
                DO n=1,1000
@@ -105,7 +97,7 @@ CONTAINS
                ENDIF
 
                ! Update water volume concentration, droplet wet radius and dry volume
-               paero(ii,jj,kk)%volc(8) = zw*paero(ii,jj,kk)%numc
+               paero(ii,jj,kk)%volc(1) = zw*paero(ii,jj,kk)%numc
                paero(ii,jj,kk)%dwet = zdwet
 
             ELSE

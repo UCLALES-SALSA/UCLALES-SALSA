@@ -67,11 +67,11 @@ CONTAINS
          in2a, fn2a,  & !     - " -       2a
          in2b, fn2b,  & !     - " -       2b
          nbins,  &
+         maxnspec,  &
          aerobins
 
     USE mo_salsa_driver, ONLY : &
-         kbdim,klev,  &
-         aero
+         kbdim,klev,aero
 
     IMPLICIT NONE
 
@@ -152,18 +152,19 @@ CONTAINS
 
           ! Set volume and number concentrations to zero
           aero(ii,jj,:)%numc = 0.
-          DO vv=1,8
+          DO vv=1,maxnspec
              aero(ii,jj,:)%volc(vv) = 0.
           END DO
 
        END DO !ii
     END DO !!jj
 
-    ! Save bin limits to be delivered e.g. to host model if needed
-    ALLOCATE(aerobins(nbins))
-    DO cc = 1,nbins
+    ! Save 1a and 2a bin limits to be delivered e.g. to host model if needed
+    ALLOCATE(aerobins(fn2a+1))
+    DO cc = 1,fn2a
        aerobins(cc) = (aero(1,1,cc)%vlolim/pi6)**(1./3.)
     END DO
+    aerobins(fn2a+1) = (aero(1,1,fn2a)%vhilim/pi6)**(1./3.)
     aerobins = 0.5*aerobins ! to radius
 
   END SUBROUTINE set_sizebins
@@ -181,43 +182,37 @@ CONTAINS
   !---------------------------------------------------------------------------
 
   SUBROUTINE set_cloudbins()
-    USE mo_submctl, ONLY : pi6,             &
-                               ica,icb,         &
-                               fca,fcb,         &
-                               ira,fra,         &
-                               ncld,nprc,        &
-                               in2a,fn2a,       &
-                               fn2b,       &
-                               cloudbins,       &
-                               precpbins, rainbinlim, cldbinlim, nout_cld
+    USE mo_submctl, ONLY : pi6,maxnspec,                &
+                               in2a,fn2a,in2b,fn2b,     &
+                               inp2a,fnp2a,inp2b,fnp2b, &
+                               ncld,nprc,               &
+                               precpbins,rainbinlim,    &
+                               cldbinlim,nout_cld
     USE mo_salsa_driver, ONLY : kbdim, klev, &
-                                 cloud,precp,aero
+                               cloud,precp,aero
 
     IMPLICIT NONE
 
     INTEGER :: ii,jj,cc,nba,nbb
 
-    ! Cloud bins are parallel with the 2a and 2b aerosol bins
+    ! Cloud (and ice) bins are parallel with the 2a and 2b aerosol bins
 
     ! Number of cloud bins in regime a
     nba = fn2a-in2a+1
     ! Number of cloud bins in regime b
-    nbb = nba
+    nbb = fn2b-in2b+1
 
-    ! Reset cloud bin indices accordingly. The two components give the cloud regime index,
-    ! and the aerosol bin index with which they are parallel
-    ica%cur = 1;                      ica%par = in2a
-    fca%cur = ica%cur + nba-1; fca%par = ica%par + nba-1
-    icb%cur = fca%cur + 1;            icb%par = fn2b - nbb + 1
-    fcb%cur = icb%cur + nbb-1; fcb%par = icb%par + nbb-1
+    ! Indices for the 2a and 2b cloud (and ice) bins
+    inp2a = 1;       fnp2a = nba       ! 2a
+    inp2b = fnp2a+1; fnp2b = nba + nbb ! 2b
 
-    ncld = fcb%cur
+    ncld = nba + nbb
 
     ! Rain/drizzle bins
     IF (rainbinlim(1)<0.) THEN
         ! Use the default
         rainbinlim(1:8)=(/50.,55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
-        fra=7
+        nprc=7
     ELSEIF (rainbinlim(2)<0. .OR. rainbinlim(1)>rainbinlim(2) .OR. rainbinlim(1)<0.1 .OR. rainbinlim(1)>1000.) THEN
         ! Bins should start from about 20-80 microns
         WRITE(*,*) 'Bad input rain bin limits!'
@@ -232,10 +227,8 @@ CONTAINS
             ii=ii+1
         END DO
         rainbinlim(1:ii-1)=rainbinlim(1:ii-1)*1.e-6 ! from microns to meters
-        fra=ii-2
+        nprc=ii-2
     ENDIF
-    ira = 1
-    nprc = fra
 
     ! ----------------------------------------
     ! Allocate cloud and precipitation arrays
@@ -248,20 +241,11 @@ CONTAINS
           ! -------------------------------------------------
           ! Set cloud properties (parallel to aerosol bins)
           ! -------------------------------------------------
-          cloud(ii,jj,ica%cur:fca%cur)%vhilim = aero(ii,jj,ica%par:fca%par)%vhilim
-          cloud(ii,jj,icb%cur:fcb%cur)%vhilim = aero(ii,jj,icb%par:fcb%par)%vhilim
-
-          cloud(ii,jj,ica%cur:fca%cur)%vlolim = aero(ii,jj,ica%par:fca%par)%vlolim
-          cloud(ii,jj,icb%cur:fcb%cur)%vlolim = aero(ii,jj,icb%par:fcb%par)%vlolim
-
-          cloud(ii,jj,ica%cur:fca%cur)%vratiohi = aero(ii,jj,ica%par:fca%par)%vratiohi
-          cloud(ii,jj,icb%cur:fcb%cur)%vratiohi = aero(ii,jj,icb%par:fcb%par)%vratiohi
-
-          cloud(ii,jj,ica%cur:fca%cur)%vratiolo = aero(ii,jj,ica%par:fca%par)%vratiolo
-          cloud(ii,jj,icb%cur:fcb%cur)%vratiolo = aero(ii,jj,icb%par:fcb%par)%vratiolo
-
-          cloud(ii,jj,ica%cur:fca%cur)%dmid = aero(ii,jj,ica%par:fca%par)%dmid
-          cloud(ii,jj,icb%cur:fcb%cur)%dmid = aero(ii,jj,icb%par:fcb%par)%dmid
+          cloud(ii,jj,1:)%vhilim = aero(ii,jj,in2a:)%vhilim
+          cloud(ii,jj,1:)%vlolim = aero(ii,jj,in2a:)%vlolim
+          cloud(ii,jj,1:)%vratiohi = aero(ii,jj,in2a:)%vratiohi
+          cloud(ii,jj,1:)%vratiolo = aero(ii,jj,in2a:)%vratiolo
+          cloud(ii,jj,1:)%dmid = aero(ii,jj,in2a:)%dmid
 
           ! Initialize the droplet diameter ("wet diameter") as the dry
           ! mid diameter of the nucleus to avoid problems later.
@@ -270,7 +254,7 @@ CONTAINS
           ! Initialize the volume and number concentrations for clouds.
           ! First "real" values are only obtained upon the first calculation
           ! of the cloud droplet activation.
-          DO cc = 1,8
+          DO cc = 1,maxnspec
              cloud(ii,jj,:)%volc(cc) = 0.
           END DO
           cloud(ii,jj,:)%numc = 0.
@@ -288,7 +272,7 @@ CONTAINS
           ! Initialize the wet diameter as the bin mid diameter
           precp(ii,jj,:)%dwet = precp(ii,jj,:)%dmid
 
-          DO cc = 1,8
+          DO cc = 1,maxnspec
              precp(ii,jj,:)%volc(cc) = 0.
           END DO
           precp(ii,jj,:)%numc = 0.
@@ -296,12 +280,10 @@ CONTAINS
        END DO
     END DO
 
-    ! Save bin limits to be delivered e.g. to host model if needed
-    ALLOCATE(cloudbins(ncld))
-    cloudbins(:) = (cloud(1,1,:)%vlolim/pi6)**(1./3.)
-    cloudbins = 0.5*cloudbins ! To radius
-    ALLOCATE(precpbins(nprc))
-    precpbins(:) = (precp(1,1,:)%vlolim/pi6)**(1./3.)
+    ! Save precipitation bin limits to be delivered e.g. to host model if needed
+    ALLOCATE(precpbins(nprc+1))
+    precpbins(1:nprc) = (precp(1,1,1:nprc)%vlolim/pi6)**(1./3.)
+    precpbins(nprc+1) = (precp(1,1,nprc)%vhilim/pi6)**(1./3.)
     precpbins = 0.5*precpbins ! To radius
 
     ! Cloud bin limits for outputs
@@ -332,41 +314,25 @@ CONTAINS
   !
   !---------------------------------------------------------------------------
   SUBROUTINE set_icebins()
-    USE mo_submctl, ONLY : pi6,             &
-                               iia,iib,         &
-                               fia,fib,         &
-                               isa,fsa,         &
-                               nice,nsnw,        &
-                               in2a,fn2a,       &
-                               fn2b,       &
-                               icebins,         &
-                               snowbins, snowbinlim, icebinlim, nout_ice
+    USE mo_submctl, ONLY : pi6,maxnspec,             &
+                               in2a,ncld,nice,nsnw,  &
+                               snowbins, snowbinlim, &
+                               icebinlim, nout_ice
     USE mo_salsa_driver, ONLY : kbdim, klev, &
-                                 ice,snow,aero
+                               ice,snow,aero
 
     IMPLICIT NONE
 
-    INTEGER :: ii,jj,cc,nba,nbb
+    INTEGER :: ii,jj,cc
 
-    ! Number of ice bins in regime a (soluble nuclei)
-    nba = fn2a-in2a+1
-    ! Number of cloud bins in regime b (insoluble nuclei)
-    nbb = nba
-
-    ! Reset ice bin indices accordingly. The two components give the cloud regime index,
-    ! and the aerosol bin index with which they are parallel
-    iia%cur = 1;                       iia%par = in2a
-    fia%cur = iia%cur + nba-1;  fia%par = iia%par + nba-1
-    iib%cur = fia%cur + 1;             iib%par = fn2b - nbb + 1
-    fib%cur = iib%cur + nbb-1;  fib%par = iib%par + nbb-1
-
-    nice = fib%cur
+    ! Ice bins are identical with the cloud bins
+    nice = ncld
 
     ! snow bins
     IF (snowbinlim(1)<0.) THEN
         ! Use the default
         snowbinlim(1:8)=(/50.,55.,65.,100.,200.,500.,1000.,2000./)*1.e-6
-        fsa=7
+        nsnw=7
     ELSEIF (snowbinlim(2)<0. .OR. snowbinlim(1)>snowbinlim(2) .OR. snowbinlim(1)<0.1 .OR. snowbinlim(1)>1000.) THEN
         ! Bins should start from about 20-80 microns
         WRITE(*,*) 'Bad input snow bin limits!'
@@ -381,10 +347,8 @@ CONTAINS
             ii=ii+1
         END DO
         snowbinlim(1:ii-1)=snowbinlim(1:ii-1)*1.e-6 ! from microns to meters
-        fsa=ii-2
+        nsnw=ii-2
     ENDIF
-    isa = 1
-    nsnw = fsa
 
     ! ----------------------------------------
     ! Allocate ice arrays
@@ -397,26 +361,17 @@ CONTAINS
           ! -------------------------------------------------
           ! Set ice properties (parallel to aerosol bins)
           ! -------------------------------------------------
-          ice(ii,jj,iia%cur:fia%cur)%vhilim = aero(ii,jj,iia%par:fia%par)%vhilim
-          ice(ii,jj,iib%cur:fib%cur)%vhilim = aero(ii,jj,iib%par:fib%par)%vhilim
-
-          ice(ii,jj,iia%cur:fia%cur)%vlolim = aero(ii,jj,iia%par:fia%par)%vlolim
-          ice(ii,jj,iib%cur:fib%cur)%vlolim = aero(ii,jj,iib%par:fib%par)%vlolim
-
-          ice(ii,jj,iia%cur:fia%cur)%vratiohi = aero(ii,jj,iia%par:fia%par)%vratiohi
-          ice(ii,jj,iib%cur:fib%cur)%vratiohi = aero(ii,jj,iib%par:fib%par)%vratiohi
-
-          ice(ii,jj,iia%cur:fia%cur)%vratiolo = aero(ii,jj,iia%par:fia%par)%vratiolo
-          ice(ii,jj,iib%cur:fib%cur)%vratiolo = aero(ii,jj,iib%par:fib%par)%vratiolo
-
-          ice(ii,jj,iia%cur:fia%cur)%dmid = aero(ii,jj,iia%par:fia%par)%dmid
-          ice(ii,jj,iib%cur:fib%cur)%dmid = aero(ii,jj,iib%par:fib%par)%dmid
+          ice(ii,jj,1:)%vhilim = aero(ii,jj,in2a:)%vhilim
+          ice(ii,jj,1:)%vlolim = aero(ii,jj,in2a:)%vlolim
+          ice(ii,jj,1:)%vratiohi = aero(ii,jj,in2a:)%vratiohi
+          ice(ii,jj,1:)%vratiolo = aero(ii,jj,in2a:)%vratiolo
+          ice(ii,jj,1:)%dmid = aero(ii,jj,in2a:)%dmid
 
           ! Initialize the "wet" diameter as the dry mid diameter of the nucleus
           ice(ii,jj,:)%dwet = ice(ii,jj,:)%dmid
 
           ! Initialize the volume and number concentrations for ice.
-          DO cc = 1,8
+          DO cc = 1,maxnspec
              ice(ii,jj,:)%volc(cc) = 0.
           END DO
           ice(ii,jj,:)%numc = 0.
@@ -435,7 +390,7 @@ CONTAINS
           ! Initialize the wet diameter as the bin mid diameter
           snow(ii,jj,:)%dwet = snow(ii,jj,:)%dmid
 
-          DO cc = 1,8
+          DO cc = 1,maxnspec
              snow(ii,jj,:)%volc(cc) = 0.
           END DO
           snow(ii,jj,:)%numc = 0.
@@ -443,12 +398,10 @@ CONTAINS
        END DO
     END DO
 
-    ! Save bin limits to be delivered e.g. to host model if needed
-    ALLOCATE(icebins(nice))
-    icebins(:) = (ice(1,1,:)%vlolim/pi6)**(1./3.)
-    icebins = 0.5*icebins ! To radius
-    ALLOCATE(snowbins(nsnw))
-    snowbins(:) = (snow(1,1,:)%vlolim/pi6)**(1./3.)
+    ! Save snow bin limits to be delivered e.g. to host model if needed
+    ALLOCATE(snowbins(nsnw+1))
+    snowbins(1:nsnw) = (snow(1,1,1:nsnw)%vlolim/pi6)**(1./3.)
+    snowbins(nsnw+1) = (snow(1,1,nsnw)%vhilim/pi6)**(1./3.)
     snowbins = 0.5*snowbins ! To radius
 
     ! Ice bin limits for outputs
@@ -493,6 +446,7 @@ CONTAINS
                                nlcndgas,              &
                                nlcndh2oae,nlcndh2ocl, &
                                nlcndh2oic,            &
+                               rhlim,                 &
                                nlauto,nlautosnow,     &
                                autoc_rain_zd0, autoc_rain_sigmag, &
                                autoc_snow_zd0, autoc_snow_sigmag, &
@@ -505,16 +459,16 @@ CONTAINS
                                icenucl_tstart,        &
                                ice_target_opt,        &
                                nlicmelt,              &
-                               stat_b_bins,           &
                                rainbinlim,            &
                                snowbinlim,            &
                                nbin,reglim,           &
-                               nice,nsnw,             &
                                nspec,listspec,        &
                                volDistA, volDistB,    &
                                nf2a, isdtyp,          &
                                sigmag,dpg,n,          &
-                               rhlim, cldbinlim, icebinlim
+                               conc_h2so4, conc_ocnv, &
+                               stat_b_bins,           &
+                               cldbinlim, icebinlim
 
     IMPLICIT NONE
 
@@ -537,49 +491,51 @@ CONTAINS
          nlcgsi,      & ! Collection of ice by snow
          nlcgsp,      & ! Collection of precipitation by snow
          nlcgss,      & ! Collision-coalescence between snow particles
-         nlcnd,       & ! Switch for condensation subroutine
-         nlcndgas,    & ! Condensation of precursor gases
-         nlicenucl,   & ! Ice nucleation master switch
-         fixinc,      & ! Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
-         ice_source_opt, & ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
-         ice_hom,     & ! If fixinc is not set or it is not positive, ice nucleation can be modelled based on homogeneous, ...
-         ice_imm,     & ! immersion and/or ...
-         ice_dep,     & ! deposition freezing mechanisms
-         icenucl_tstart, & ! Start time (s) for ice formation
-         ice_target_opt, & ! Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
-         nlicmelt,    & ! Switch for ice'n'snow melting
-         nbin,        & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
-         nice,        & ! number of ice bins
-         nsnw,        & ! number of snow bins
-         nlcndh2ocl,    & ! Condensation of water vapour on clouds (drizzle)
-         nlcndh2oic,    & ! Condensation of water vapour on ice particles ! ice'n'snow
-         nlcndh2oae,    & ! Condensation of water vapour on aerosols (FALSE -> equilibrium calc.)
-         nlauto,        & ! Switch for autoconversion of cloud droplets to drizzle and rain
-         nlautosnow,    & ! Switch for autoconversion of ice particles to snowing
+
+         nlcnd,       & ! Condensation master switch
+         nlcndgas,    & ! Condensation of H2SO4 and organic vapors
+         nlcndh2ocl,  & ! Condensation of water vapour on clouds and drizzle
+         nlcndh2oic,  & ! Condensation of water vapour on ice and snow particles
+         nlcndh2oae,  & ! Condensation of water vapour on aerosols (FALSE -> equilibrium calc.)
+         rhlim,       & ! Upper limit RH/100 during initialization and spinup
+
+         nlauto,        & ! Switch for autoconversion of cloud droplets to rain
+         nlautosnow,    & ! Switch for autoconversion of ice particles to snow
          autoc_rain_zd0, autoc_rain_sigmag, & ! Cloud to rain autoconversion parameters
          autoc_snow_zd0, autoc_snow_sigmag, & ! Ice to snow autoconversion parameters
+
          nlactiv,       & ! Master switch for cloud droplet activation
          nlactbase,     & ! Switch for parameterized cloud base activation
          nlactintst,    & ! Switch for interstitial activation based on particle growth and host model S
-         stat_b_bins,   & ! Save statistics about SALSA b-bins
+
+         nlicenucl,     & ! Ice nucleation master switch
+         fixinc,        & ! Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
+         ice_source_opt,& ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
+         ice_hom,       & ! If fixinc is not set or it is not positive, ice nucleation can be modelled based on homogeneous, ...
+         ice_imm,       & ! immersion and/or ...
+         ice_dep,       & ! deposition freezing mechanisms
+         icenucl_tstart,& ! Start time (s) for ice formation
+         ice_target_opt,& ! Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
+         nlicmelt,      & ! Switch for ice and snow melting
+
          rainbinlim,    & ! Rain bin limits (microns)
          snowbinlim,    & ! Snow bin limits (microns)
-         isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
-         reglim,        & ! Low/high diameter limits of the 2 aerosol size regimes (1d table with length 4)
-         nbin,          & ! Number of bins used for each of the aerosol size regimes (1d table with length 2)
+         nbin,          & ! Number of bins used for the 1a and 2a aerosol size regimes (1d table with length 2)
+         reglim,        & ! Low/high diameter limits for the 1a and 2a aerosol size regimes (1d table with length 4)
          nspec,         & ! Number of aerosol species used in the model
          listspec,      & ! List of strings specifying the names of the aerosol species that are active.
-                          ! Must be an array of length 7, with empty strings for unused stuff.
-         volDistA,      & ! Initial relative contribution [0-1] of each species to particle volume in a-bins. Must be
-                          ! an array of length 7, with zero for unused species.
+         isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
+         volDistA,      & ! Initial relative contribution [0-1] of each species to particle volume in a-bins.
          volDistB,      & ! Same as above but for b-bins
          nf2a,          & ! Number fraction of particles allocated to a-bins in regime 2. b-bins will get 1-nf2a
-
-         rhlim,         & ! Upper limit RH/100 for sals during initialization and spinup 
-
          sigmag,        & ! Stdev for the 7 initial lognormal modes
          dpg,           & ! Mean diameter for the 7 initial lognormal modes
          n,             & ! Number concentration for the 7 initial lognormal modes
+
+         conc_h2so4,    & ! Vapor phase concentration for sulfuric acid (#/kg)
+         conc_ocnv,     & ! -||- non-volatile organics
+
+         stat_b_bins,   & ! Save statistics about SALSA b-bins
          cldbinlim,     & ! Output cloud bin diameter limits (microns)
          icebinlim        ! Output ice bin diameter limits (microns)
 
@@ -630,11 +586,9 @@ CONTAINS
     !
     !-------------------------------------------------------------------------------
 
-    USE mo_submctl, ONLY : nbin,     &
-                               in1a,fn1a,in2a,fn2a,in2b,fn2b,  &
-                               nbins, &
-                               massacc
-
+    USE mo_submctl, ONLY : nbin,in1a,fn1a,in2a,fn2a,in2b,fn2b,nbins,massacc, &
+                           conc_h2so4,conc_ocnv,part_h2so4,part_ocnv,isog,iocg,msu,moc, &
+                           ngases,zgas,mws_gas,nlcndgas
     IMPLICIT NONE
 
     ! Remember to call 'define_salsa' for namelist paramers before calling this subroutine!
@@ -667,6 +621,26 @@ CONTAINS
     CALL set_cloudbins()
 
     CALL set_icebins()
+
+    ! --4) Gas phase chemistry
+    IF (nlcndgas) THEN
+        ! Simple SO2 and non-volatile organics
+        ngases = 0
+        IF (conc_h2so4>=0.) THEN
+            ngases = ngases + 1
+            part_h2so4 = .TRUE.
+            zgas(ngases)='SO2'
+            isog = ngases
+            mws_gas(ngases)=msu
+        ENDIF
+        IF (conc_ocnv>=0.) THEN
+            ngases = ngases + 1
+            part_ocnv = .TRUE.
+            zgas(ngases)='NOA'
+            iocg = ngases
+            mws_gas(ngases)=moc
+        ENDIF
+    ENDIF
 
   END SUBROUTINE salsa_initialize
 

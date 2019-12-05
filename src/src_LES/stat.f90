@@ -21,40 +21,27 @@
 module stat
 
   use ncio, only : open_nc, define_nc, define_nc_cs
-  use grid, only : level, lbinprof, stat_micro_ts, stat_micro_ps
+  use grid, only : level, lbinprof, lmixrprof, lremts, stat_micro_ts, stat_micro_ps
   use util, only : get_avg3, get_cor3, get_var3, get_avg_ts, &
-                   get_avg2dh, get_3rd3
+                   get_avg2dh, get_3rd3, HistDistr
 
   implicit none
   private
 
   integer, parameter :: nvar1 = 35,               &
-                        nv1_lvl4 = 53,            &
-                        nv1MB = 4,                &
-                        nv1_lvl5 = 50,            &
+                        nv1_lvl4 = 13,            &
+                        nv1_lvl5 = 18,            &
                         nvar2 = 96,               &
-                        nv2_lvl4 = 44,            &
-                        nv2_lvl5 = 31,            &
-                        nv12_lvl3_rate = 11,      &
-                        nv12_rate = 47,           &
-                        nv2saa = 8, nv2sab = 8,   &
-                        nv2sca = 8, nv2scb = 8,   &
-                        nv2sp = 8, &
-                        nv2sia = 8, nv2sib = 8,   &
-                        nv2ss = 8, nv2h = 3
+                        nv2_lvl4 = 12,            &
+                        nv2_lvl5 = 9,             &
+                        nv_lvl3_rate = 11,        &
+                        nv_salsa_rate = 47,       &
+                        nv2_hist = 2
 
-  ! All SALSA species
-  CHARACTER(len=3), PARAMETER :: zspec(8) = (/'SO4','OC ','BC ','DU ','SS ','NO ','NH ','H2O'/)
-  ! Active SALSA species
-  character (len=3), save :: actspec(8)
-  integer, save      :: nspec=0
-
-  integer, save      :: nrec1, nrec2, nrec3, ncid1, ncid2, ncid3, nv1=nvar1, nv2 = nvar2
+  integer, save      :: nrec1, nrec2, nrec3, ncid1, ncid2, ncid3
   real, save         :: fsttm, lsttm, nsmp = 0
-  REAL, SAVE         :: avgtime = 0
 
   logical            :: sflg = .false.
-  LOGICAL            :: mcflg = .FALSE.
   LOGICAL            :: csflg = .FALSE.
   real               :: ssam_intvl = 30.   ! statistical sampling interval
   real               :: savg_intvl = 1800. ! statistical averaging interval
@@ -80,19 +67,7 @@ module stat
        s1_lvl4(nv1_lvl4) = (/       &
        'Nc_ic  ','Rc_ic  ','Nca_ica','Rca_ica','Ncb_icb','Rcb_icb', & !1
        'Na_int ','Ra_int ','Naa_int','Raa_int','Nab_int','Rab_int', & !7
-       'SO4_ic ','SO4_int','OC_ic  ','OC_int ',   & !13
-       'BC_ic  ','BC_int ','DU_ic  ','DU_int ',   & !17
-       'SS_ic  ','SS_int ','NO_ic  ','NO_int ',   & !21
-       'NH_ic  ','NH_int ','H2O_ic ','H2O_int',   & !25
-       'rmSO4dr','rmSO4cl','rmSO4pr',   & !29
-       'rmOCdr ','rmOCcl ','rmOCpr ',   & !32
-       'rmBCdr ','rmBCcl ','rmBCpr ',   & !35
-       'rmDUdr ','rmDUcl ','rmDUpr ',   & !38
-       'rmSSdr ','rmSScl ','rmSSpr ',   & !41
-       'rmNOdr ','rmNOcl ','rmNOpr ',   & !44
-       'rmNHdr ','rmNHcl ','rmNHpr ',   & !47
-       'rmH2Oae','rmH2Ocl','rmH2Opr',   & !50
-       'SS_max '/), & !53
+       'SS_max '/), & !13
 
        s1_lvl5(nv1_lvl5) = (/  &
        'Ni_ii  ','Ri_ii  ','Nia_iia','Ria_iia','Nib_iib','Rib_iib', & ! 1-6
@@ -100,15 +75,7 @@ module stat
        'iwp_bar','imax   ','nicnt  ',  & ! 9-11
        'swp_bar','smax   ','nscnt  ',  & ! 12-14
        'sfrac  ','sprcp  ','SSi_max',  & ! 15-17
-       'SO4_ii ','SO4_is ','OC_ii  ','OC_is  ',   & ! 18-21
-       'BC_ii  ','BC_is  ','DU_ii  ','DU_is  ',   & ! 22-25
-       'SS_ii  ','SS_is  ','NO_ii  ','NO_is  ',   & ! 26-29
-       'NH_ii  ','NH_is  ','H2O_ii ','H2O_is ',   & ! 30-33
-       'rmSO4ic','rmSO4sn','rmOCic ','rmOCsn ',   & ! 34-37
-       'rmBCic ','rmBCsn ','rmDUic ','rmDUsn ',   & ! 38-41
-       'rmSSic ','rmSSsn ','rmNOic ','rmNOsn ',   & ! 42-45
-       'rmNHic ','rmNHsn ','rmH2Oic','rmH2Osn',   & ! 46-49
-       'thi_int'/), & ! 50
+       'thi_int'/), & ! 18
 
         s2(nvar2)=(/                                                 &
         'time   ','zt     ','zm     ','dn0    ','u0     ','v0     ', & ! 1
@@ -130,33 +97,18 @@ module stat
 
         ! **** BULK PROFILE OUTPUT FOR SALSA ****
         s2_lvl4(nv2_lvl4) = (/                                       &
-        'aea    ','aeb    ','cla    ','clb    ','prc    ',           & !1
-        'P_Naa  ','P_Nab  ','P_Nca  ','P_Ncb  ','P_Np   ',           & !6
-        'P_Rwaa ','P_Rwab ','P_Rwca ','P_Rwcb ','P_Rwp  ',           & !11
-        'P_cSO4a','P_cSO4c','P_cSO4p',                               & !16
-        'P_cOCa ','P_cOCc ','P_cOCp ',                               & !19
-        'P_cBCa ','P_cBCc ','P_cBCp ',                               & !22
-        'P_cDUa ','P_cDUc ','P_cDUp ',                               & !25
-        'P_cSSa ','P_cSSc ','P_cSSp ',                               & !28
-        'P_cNOa ','P_cNOc ','P_cNOp ',                               & !31
-        'P_cNHa ','P_cNHc ','P_cNHp ',                               & !34
-        'P_cH2Oa','P_cH2Oc','P_cH2Op',                               & !37
-        'P_rl   ','P_rr   ','P_rv   ','P_RH   ','crate  '/),         & !40-44
+        'P_Naa  ','P_Nab  ','P_Nca  ','P_Ncb  ','P_Np   ','P_Rwaa ', & ! 1-6
+        'P_Rwab ','P_Rwca ','P_Rwcb ','P_Rwp  ','P_rv   ','crate  '/), & ! 7-12
 
         s2_lvl5(nv2_lvl5) = (/ &
-        'ica    ','icb    ','snw    ', & ! 1-3
-        'P_Nia  ','P_Nib  ','P_Ns   ','P_Rwia ','P_Rwib ','P_Rws  ', & ! 4-9
-        'P_cSO4i','P_cSO4s','P_cOCi ','P_cOCs ', & ! 10-13
-        'P_cBCi ','P_cBCs ','P_cDUi ','P_cDUs ', & ! 14-17
-        'P_cSSi ','P_cSSs ','P_cNOi ','P_cNOs ', & ! 18-21
-        'P_cNHi ','P_cNHs ','P_cH2Oi','P_cH2Os', & ! 22-25
-        'P_ri   ','P_rs   ', 'P_RHi  ','irate  ','srate  ','thi    '/), & ! 26-31
+        'P_Nia  ','P_Nib  ','P_Ns   ','P_Rwia ','P_Rwib ','P_Rws  ', & ! 1-6
+        'irate  ','srate  ','thi    '/), & ! 7-9
 
-        s12_lvl3_rate(nv12_lvl3_rate) = (/ &
+        s_lvl3_rate(nv_lvl3_rate) = (/ &
         'coag_rr','coag_nr','cond_rr','cond_nr','auto_rr','auto_nr', & ! 1-6
         'sedi_rc','sedi_rr','sedi_nr','diag_rr','diag_nr'/), & ! 7-11
 
-        s12_rate(nv12_rate) = (/ &
+        s_salsa_rate(nv_salsa_rate) = (/ &
         'coag_ra','coag_na','coag_rc','coag_nc','coag_rr','coag_nr', & ! 1-6
         'cond_ra','cond_rc','cond_rr','auto_rr','auto_nr','act_rc ','act_nc ', & ! 7-13
         'sedi_ra','sedi_na','sedi_rc','sedi_nc','sedi_rr','sedi_nr', & ! 14-19
@@ -167,75 +119,41 @@ module stat
         'diag_ri','diag_ni','diag_rs','diag_ns', & ! 40-43
         'melt_ri','melt_ni','melt_rs','melt_ns'/), & ! 44-47
 
-        ! **** BINNED PROFILE OUTPUT FOR SALSA ****
-        ! **** Aerosols
-        s2Aeroa(nv2saa) = (/                                         &
-        'P_Naba ','P_SO4aa','P_OCaa ','P_BCaa ',                     &
-        'P_DUaa ','P_SSaa ','P_NOaa ','P_NHaa '/),                   &
-        s2Aerob(nv2sab) = (/                                         &
-        'P_Nabb ','P_SO4ab','P_OCab ','P_BCab ',                     &
-        'P_DUab ','P_SSab ','P_NOab ','P_NHab '/),                   &
-
-        ! **** Clouds
-        s2Clouda(nv2sca) = (/                                        &
-        'P_Ncba ','P_SO4ca','P_OCca ','P_BCca ',                     &
-        'P_DUca ','P_SSca ','P_NOca ','P_NHca '/),                   &
-        s2Cloudb(nv2scb) = (/                                        &
-        'P_Ncbb ','P_SO4cb','P_OCcb ','P_BCcb ',                     &
-        'P_DUcb ','P_SScb ','P_NOcb ','P_NHcb '/),                   &
-
-        ! **** Precip
-        s2Precp(nv2sp) = (/                                         &
-        'P_Npb  ','P_SO4pb','P_OCpb ','P_BCpb ',                     &
-        'P_DUpb ','P_SSpb ','P_NOpb ','P_NHpb '/),                   &
-
-        ! **** Ice
-        s2Icea(nv2sia) = (/                                          &
-        'P_Niba ','P_SO4ia','P_OCia ','P_BCia ',                     &
-        'P_DUia ','P_SSia ','P_NOia ','P_NHia '/),                   &
-        s2Iceb(nv2sib) = (/                                          &
-        'P_Nibb ','P_SO4ib','P_OCib ','P_BCib ',                     &
-        'P_DUib ','P_SSib ','P_NOib ','P_NHib '/),                   &
-
-        ! **** Snow
-        s2Snow(nv2ss) = (/                                           &
-        'P_Nsb  ','P_SO4sb','P_OCsb ','P_BCsb ',                     &
-        'P_DUsb ','P_SSsb ','P_NOsb ','P_NHsb '/),                   &
-
         ! **** Cloud droplet and ice histograms
-        s2CldHist(nv2h) = (/'P_hNca ','P_hNcb ','P_hRc  '/),         &
-        s2IceHist(nv2h) = (/'P_hNia ','P_hNib ','P_hRi  '/),         &
-
-        s1Total(nvar1+nv1_lvl4+nv1_lvl5+nv12_rate),                            &
-        s2Total(nvar2+nv2_lvl4+nv2_lvl5+nv12_rate+nv2saa+nv2sab+nv2sca+nv2scb+nv2sp+nv2sia+nv2sib+nv2ss+2*nv2h)
-
-
-  LOGICAL, save :: s2bool(nvar2+nv2_lvl4+nv2_lvl5+nv12_rate+nv2saa+nv2sab+nv2sca+nv2scb+nv2sp+nv2sia+nv2sib+nv2ss+2*nv2h)
-  LOGICAL, save :: s1bool(nvar1+nv1_lvl4+nv1_lvl5+nv12_rate)
+        s2_CldHist(nv2_hist) = (/'P_hNca ','P_hNcb '/), &
+        s2_IceHist(nv2_hist) = (/'P_hNia ','P_hNib '/)
 
   real, save, allocatable   :: tke_sgs(:), tke_res(:), tke0(:), wtv_sgs(:),  &
        wtv_res(:), wrl_sgs(:), thvar(:), svctr(:,:), ssclr(:),               &
        ! Additional ssclr and svctr for BULK SALSA output
-       svctr_b(:,:), ssclr_b(:),                                             &
+       svctr_lvl4(:,:), ssclr_lvl4(:),                                       &
+       svctr_lvl5(:,:), ssclr_lvl5(:),                                       &
+       ssclr_mixr(:), ssclr_rem(:), svctr_mixr(:,:),                         &
        ! Additional ssclr and svctr for BINNED SALSA output.
        svctr_aa(:,:,:), svctr_ca(:,:,:), svctr_p(:,:,:),                     &
        svctr_ab(:,:,:), svctr_cb(:,:,:),                                     &
+       svctr_ia(:,:,:), svctr_ib(:,:,:), svctr_s(:,:,:),                     &
        ! Cloud and ice histograms
        svctr_ch(:,:,:), svctr_ih(:,:,:),                                     &
-       ! The same for SALSA level 5
-       svctr_lvl5(:,:), ssclr_lvl5(:), &
-       svctr_ia(:,:,:), svctr_ib(:,:,:), svctr_s(:,:,:), &
        ! Microphysics rate statistics
-       svctr_rate(:,:), ssclr_rate(:), &
-       ! Mass budget arrays
-       massbdg(:), scs_rm(:,:,:)
+       svctr_rate(:,:), ssclr_rate(:),                                       &
+       ! Gas phase concentrations
+       svctr_gas(:,:), ssclr_gas(:),                                         &
+       ! Removal rates for columns
+       scs_rm(:,:,:)
+
+  ! Case-dependent dimensions: mixing ratios and removal rates and binned mixing ratio profiles for active species
+  INTEGER, SAVE :: nv1_mixr=0, nv1_rem=0, nv2_mixr=0, nv2_bin=0
+  CHARACTER (len=7), SAVE, ALLOCATABLE :: s1_mixr(:), s1_rem(:), s2_mixr(:), &
+    s2_aa(:), s2_ab(:), s2_ca(:), s2_cb(:), s2_p(:), s2_ia(:), s2_ib(:), s2_s(:), &
+    s1_gas(:), s2_gas(:)
 
   ! SALSA cloud, precipitation, ice and snow masks
   LOGICAL, allocatable :: cloudmask(:,:,:), drizzmask(:,:,:), icemask(:,:,:), snowmask(:,:,:)
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
        acc_tend, updtst, sfc_stat, close_stat, fill_scalar, tke_sgs, sgsflxs,&
-       sgs_vel, comp_tke, get_zi, acc_removal, cs_rem_set, acc_massbudged, write_massbudged, mcflg, csflg
+       sgs_vel, comp_tke, get_zi, acc_removal, cs_rem_set, csflg
 
 contains
   !
@@ -247,61 +165,40 @@ contains
   !
   subroutine init_stat(time, filprf, expnme, nzp)
 
-    use grid, only : nxp, nyp, iradtyp, prtcl, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
+    use grid, only : nxp, nyp, iradtyp, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, ver, author, info
-    use mo_submctl, only : nprc,nsnw,fn2a,fn2b,fca,fcb,fra,fia,fib,fsa,stat_b_bins, &
-        nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt,ice_target_opt,nout_cld,nout_ice
-    USE class_ComponentIndex, ONLY : IsUsed
+    use mo_submctl, only : fn1a,fn2a,fn2b,fnp2a,fnp2b,nprc,nsnw,stat_b_bins, &
+        nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt,ice_target_opt,nout_cld,nout_ice, &
+        nspec, zspec, ngases, zgas
 
     character (len=80), intent (in) :: filprf, expnme
     integer, intent (in)            :: nzp
     real, intent (in)               :: time
 
-    INTEGER :: i,e
+    INTEGER :: i,ii,e,ee
     character (len=80) :: fname
-    LOGICAL :: tmp(nv12_rate)
+    LOGICAL :: tmp(nv_salsa_rate)
+
+    ! Local boolean arrays
+    LOGICAL :: s1_bool(nvar1), s1_lvl4_bool(nv1_lvl4), s1_lvl5_bool(nv1_lvl5), s1_gas_bool(ngases)
+    LOGICAL :: s2_bool(nvar2), s2_lvl4_bool(nv2_lvl4), s2_lvl5_bool(nv2_lvl5), s2_gas_bool(ngases)
+    LOGICAL :: s1_mixr_bool(4*(nspec+1)), s1_rem_bool(5*(nspec+1)), s2_mixr_bool(5*(nspec+1))
+    LOGICAL :: s2_aa_bool(2+nspec), s2_ab_bool(2+nspec), s2_ca_bool(2+nspec), s2_cb_bool(2+nspec), &
+        s2_p_bool(2+nspec), s2_ia_bool(2+nspec), s2_ib_bool(2+nspec), s2_s_bool(2+nspec)
+    LOGICAL :: s2_CldHist_bool(nv2_hist), s2_IceHist_bool(nv2_hist)
+    LOGICAL, ALLOCATABLE :: s1_rate_bool(:), s2_rate_bool(:)
+
+    ! SALSA dimensions
+    INTEGER, PARAMETER :: nv2_ndims = 6
+    LOGICAL :: s2_dims_bool(nv2_ndims)=.FALSE.
+    CHARACTER (len=7) :: s2_dims(nv2_ndims)=(/'P_Rd12a','P_Rd2ab','P_Rwprc','P_Rwsnw','P_hRc  ','P_hRi  '/)
+
+    ! Local combined arrays
+    LOGICAL, ALLOCATABLE :: s1bool(:), s2bool(:)
+    CHARACTER (len=7), ALLOCATABLE :: s1total(:), s2total(:)
 
     allocate (wtv_sgs(nzp),wtv_res(nzp),wrl_sgs(nzp))
     allocate (tke_res(nzp),tke_sgs(nzp),tke0(nzp),thvar(nzp))
-
-    ! Combine name arrays
-    i = 1; e = nvar1
-    s1Total(i:e) = s1
-    i = e + 1; e = e + nv1_lvl4
-    s1Total(i:e) = s1_lvl4
-    i = e + 1; e = e + nv1_lvl5
-    s1Total(i:e) = s1_lvl5
-    i = e + 1; e = e + nv12_rate
-    s1Total(i:e) = s12_rate
-    ! ---
-    i = 1; e = nvar2
-    s2Total(i:e) = s2
-    i = e + 1; e = e + nv2_lvl4
-    s2Total(i:e) = s2_lvl4
-    i = e + 1; e = e + nv2_lvl5
-    s2Total(i:e) = s2_lvl5
-    i = e + 1; e = e + nv12_rate
-    s2Total(i:e) = s12_rate
-    i = e + 1; e = e + nv2saa
-    s2Total(i:e) = s2Aeroa
-    i = e + 1; e = e + nv2sab
-    s2Total(i:e) = s2Aerob
-    i = e + 1; e = e + nv2sca
-    s2Total(i:e) = s2Clouda
-    i = e + 1; e = e + nv2scb
-    s2Total(i:e) = s2Cloudb
-    i = e + 1; e = e + nv2sp
-    s2Total(i:e) = s2Precp
-    i = e + 1; e = e + nv2sia
-    s2Total(i:e) = s2Icea
-    i = e + 1; e = e + nv2sib
-    s2Total(i:e) = s2Iceb
-    i = e + 1; e = e + nv2ss
-    s2Total(i:e) = s2Snow
-    i = e + 1; e = e + nv2h
-    s2Total(i:e) = s2CldHist
-    i = e + 1; e = e + nv2h
-    s2Total(i:e) = s2IceHist
 
     wtv_sgs(:) = 0.
     wtv_res(:) = 0.
@@ -310,110 +207,113 @@ contains
     tke_sgs(:) = 0.
     tke0(:)    = 0.
 
-    select case(level)
-    case (0)
-       nv1 = 13
-       nv2 = 58
-    case (1)
-       nv1 = 14
-       nv2 = 58
-    case (2)
-       nv1 = 20
-       nv2 = 83
-       if (iradtyp == 3) nv1=21
-    ! For SALSA
-    case (4,5)
-       nv1 = nvar1
-       nv2 = nvar2
-    case default
-       nv1 = nvar1
-       nv2 = nvar2
-    end select
+    ! Default outputs
+    ALLOCATE ( ssclr(nvar1), svctr(nzp,nvar2) )
+    svctr(:,:) = 0.
+    ssclr(:)   = 0.
+    s1_bool(:) = .TRUE.
+    s2_bool(:) = .TRUE.
 
     IF ( level < 4 ) THEN
-       ALLOCATE ( ssclr(nvar1), svctr(nzp,nvar2) )
-       IF (mcflg) &
-            ALLOCATE ( massbdg(nv1MB) ) ! Mass budged array; ALL CALCULATIONS ARE NOT IMPLEMENTED FOR LEVEL < 4
-       svctr(:,:) = 0.
-       ssclr(:)   = 0.
-       IF (mcflg) massbdg(:) = 0.
-       s1bool(1:nvar1) = .TRUE.
-       s2bool(1:nvar2) = .TRUE.
        ! Microphysicsal process rate statistics (both ts and ps)
-       ALLOCATE ( ssclr_rate(nv12_lvl3_rate), svctr_rate(nzp,nv12_lvl3_rate) )
+       ALLOCATE ( ssclr_rate(nv_lvl3_rate), svctr_rate(nzp,nv_lvl3_rate) )
+       ALLOCATE ( s1_rate_bool(nv_lvl3_rate), s2_rate_bool(nv_lvl3_rate) )
        ssclr_rate(:) = 0.
        svctr_rate(:,:) = 0.
        IF (level==3 .AND. (stat_micro_ts .OR. stat_micro_ps)) THEN
-          s1bool(nvar1+1:nvar1+6) = stat_micro_ts ! Coagulation, condensation and autoconversion
-          s2bool(nvar2+1:nvar2+6) = stat_micro_ps
-          s1bool(nvar1+7) = stat_micro_ts .AND. sed_cloud ! Cloud sedimentation
-          s2bool(nvar2+7) = stat_micro_ps .AND. sed_cloud
-          s1bool(nvar1+8:nvar1+9) = stat_micro_ts .AND. sed_precp ! Rain sedimentation
-          s2bool(nvar2+8:nvar2+9) = stat_micro_ps .AND. sed_precp
-          s1bool(nvar1+10:nvar1+11) = stat_micro_ts ! Diagnostics
-          s2bool(nvar2+10:nvar2+11) = stat_micro_ps
-          !
-          IF (stat_micro_ts) s1Total(nvar1+1:nvar1+nv12_lvl3_rate) = s12_lvl3_rate(1:nv12_lvl3_rate)
-          IF (stat_micro_ps) s2Total(nvar2+1:nvar2+nv12_lvl3_rate) = s12_lvl3_rate(1:nv12_lvl3_rate)
+          s1_rate_bool(1:6) = stat_micro_ts ! Coagulation, condensation and autoconversion
+          s2_rate_bool(1:6) = stat_micro_ps
+          s1_rate_bool(7) = stat_micro_ts .AND. sed_cloud ! Cloud sedimentation
+          s2_rate_bool(7) = stat_micro_ps .AND. sed_cloud
+          s1_rate_bool(8:9) = stat_micro_ts .AND. sed_precp ! Rain sedimentation
+          s2_rate_bool(8:9) = stat_micro_ps .AND. sed_precp
+          s1_rate_bool(10:11) = stat_micro_ts ! Diagnostics
+          s2_rate_bool(10:11) = stat_micro_ps
        ENDIF
+       !
+       ! Merge logical and name arrays
+       ! a) Time series
+       i=nvar1+nv_lvl3_rate
+       ALLOCATE( s1bool(i), s1total(i) )
+       i=1; e=nvar1
+       s1bool(i:e)=s1_bool; s1total(i:e)=s1
+       i=e+1; e=e+nv_lvl3_rate
+       s1bool(i:e)=s1_rate_bool; s1total(i:e)=s_lvl3_rate
+       ! b) Profiles
+       i=nvar2+nv_lvl3_rate
+       ALLOCATE( s2bool(i), s2total(i) )
+       i=1; e=nvar2
+       s2bool(i:e)=s2_bool; s2total(i:e)=s2
+       i=e+1; e=e+nv_lvl3_rate
+       s2bool(i:e)=s2_rate_bool; s2total(i:e)=s_lvl3_rate
     ELSE IF ( level >= 4 ) THEN
        ! Additional arrays for SALSA
-       ALLOCATE ( ssclr(nvar1), svctr(nzp,nvar2) )
-       ALLOCATE ( ssclr_b(nv1_lvl4), svctr_b(nzp,nv2_lvl4))
-       ALLOCATE ( ssclr_rate(nv12_rate), svctr_rate(nzp,nv12_rate) )
-       ALLOCATE ( svctr_aa(nzp,fn2a,nv2saa), svctr_ab(nzp,fn2b-fn2a,nv2sab),          &
-                  svctr_ca(nzp,fca%cur,nv2sca), svctr_cb(nzp,fcb%cur-fca%cur,nv2scb), &
-                  svctr_p(nzp,nprc,nv2sp)   )
+       ! -- dimensions
+       nv1_mixr = 4*(nspec+1) ! Mixing ratios; in-cloud, intersitial, in-ice and in-snow
+       nv1_rem = 5*(nspec+1)  ! Removal with aerosol, cloud, rain, ice and snow
+       nv2_mixr = 5*(nspec+1) ! Mixing ratio profiles for aerosol, cloud, rain, ice and snow
+       nv2_bin  = 2+nspec     ! Bin number concentrations and species mixing ratios
+       ! -- allocate
+       ALLOCATE ( ssclr_lvl4(nv1_lvl4), svctr_lvl4(nzp,nv2_lvl4) )
+       ALLOCATE ( ssclr_lvl5(nv1_lvl5), svctr_lvl5(nzp,nv2_lvl5) )
+       ALLOCATE ( ssclr_rate(nv_salsa_rate), svctr_rate(nzp,nv_salsa_rate) )
+       ALLOCATE ( ssclr_mixr(nv1_mixr), ssclr_rem(nv1_rem), svctr_mixr(nzp,nv2_mixr) )
+       ALLOCATE ( s1_mixr(nv1_mixr),s1_rem(nv1_rem), s2_mixr(nv2_mixr) )
+       ALLOCATE ( svctr_aa(nzp,fn2a,nv2_bin), svctr_ab(nzp,fn2b-fn2a,nv2_bin), &
+                  svctr_ca(nzp,fnp2a,nv2_bin), svctr_cb(nzp,fnp2b-fnp2a,nv2_bin), &
+                  svctr_p(nzp,nprc,nv2_bin), svctr_ia(nzp,fnp2a,nv2_bin), &
+                  svctr_ib(nzp,fnp2b-fnp2a,nv2_bin), svctr_s(nzp,nsnw,nv2_bin) )
+       ALLOCATE ( s2_aa(nv2_bin), s2_ab(nv2_bin), s2_ca(nv2_bin), s2_cb(nv2_bin), &
+                  s2_p(nv2_bin), s2_ia(nv2_bin), s2_ib(nv2_bin), s2_s(nv2_bin) )
+       ALLOCATE ( s1_rate_bool(nv_salsa_rate), s2_rate_bool(nv_salsa_rate) )
        ALLOCATE ( cloudmask(nzp,nxp,nyp), drizzmask(nzp,nxp,nyp), &
                   icemask(nzp,nxp,nyp), snowmask(nzp,nxp,nyp) )
-       svctr(:,:) = 0.
-       ssclr(:) = 0.
-       svctr_b(:,:) = 0.
-       ssclr_b(:) = 0.
-       ssclr_rate(:) = 0.
-       svctr_rate(:,:) = 0.
+       ALLOCATE ( ssclr_gas(ngases), svctr_gas(nzp,ngases) )
+       ALLOCATE ( s1_gas(ngases), s2_gas(ngases) )
+       ! -- reset data arrays
+       ssclr_lvl4(:) = 0.; svctr_lvl4(:,:) = 0.
+       ssclr_lvl5(:) = 0.; svctr_lvl5(:,:) = 0.
+       ssclr_rate(:) = 0.; svctr_rate(:,:) = 0.
+       ssclr_mixr(:) = 0.; svctr_mixr(:,:) = 0.
+       ssclr_rem(:) = 0.
        svctr_aa(:,:,:) = 0.; svctr_ab(:,:,:) = 0.
        svctr_ca(:,:,:) = 0.; svctr_cb(:,:,:) = 0.
        svctr_p(:,:,:) = 0.
-       IF (mcflg) THEN
-           ALLOCATE ( massbdg(nv1MB) ) ! Mass budged array
-           massbdg(:) = 0.
-       END IF
+       svctr_ia(:,:,:) = 0.; svctr_ib(:,:,:) = 0.
+       svctr_s(:,:,:) = 0.
+       ssclr_gas(:)=0.; svctr_gas(:,:) = 0.
+
+       ! Histograms
        IF (nout_cld>0) THEN
           ALLOCATE ( svctr_ch(nzp,nout_cld,2) )
           svctr_ch(:,:,:) = 0.
        ENDIF
-       IF (level >=5 ) THEN
-           ALLOCATE( ssclr_lvl5(nv1_lvl5), svctr_lvl5(nzp,nv2_lvl5) )
-           ALLOCATE( svctr_ia(nzp,fia%cur,nv2sia), svctr_ib(nzp,fib%cur-fia%cur,nv2sib), &
-                  svctr_s(nzp,nsnw,nv2ss) )
-           ssclr_lvl5(:) = 0.
-           svctr_lvl5(:,:) = 0.
-           svctr_ia(:,:,:) = 0.; svctr_ib(:,:,:) = 0.
-           svctr_s(:,:,:) = 0.
-           IF (nout_ice>0) THEN
-                ALLOCATE ( svctr_ih(nzp,nout_ice,2) )
-                svctr_ih(:,:,:) = 0.
-           ENDIF
-       END IF
-
-       ! Create a boolean array for items that are actually used
-       s2bool(:) = .FALSE.
-       s1bool(:) = .FALSE.
-
-       s1bool(1:nvar1) = .TRUE.
-       s2bool(1:nvar2) = .TRUE.     ! Original LES vars (assume always used...)
-
-       s1bool(nvar1+1:nvar1+12) = .TRUE. ! Aerosol and cloud number concentrations and sizes (total, a and b)
-       s2bool(nvar2+1:nvar2+15) = .TRUE. ! Bin dimensions, number concentrations and radius
-       IF (level>=5) THEN
-          s1bool(nvar1+nv1_lvl4+1:nvar1+nv1_lvl4+17) = .TRUE.
-          s1bool(nvar1+nv1_lvl4+50) = .TRUE.
-          s2bool(nvar2+nv2_lvl4+1:nvar2+nv2_lvl4+9) = .TRUE.
-          s2bool(nvar2+nv2_lvl4+26:nvar2+nv2_lvl4+31) = .TRUE.
+       IF (level >4 .AND. nout_ice>0) THEN
+            ALLOCATE ( svctr_ih(nzp,nout_ice,2) )
+            svctr_ih(:,:,:) = 0.
        ENDIF
 
-       ! Microphysicsal process rate statistics (both ts and ps)
+       ! Create a boolean array for items that are actually used
+
+       ! 1) Standard outputs
+       s1_lvl4_bool(:) = .TRUE.
+       s1_lvl5_bool(:) = (level>4)
+       s2_lvl4_bool(:) = .TRUE.
+       s2_lvl5_bool(:) = (level>4)
+
+       ! b-bins are not always saved
+       IF (.not. stat_b_bins) THEN
+          ! Concentrations and sizes
+          s1_lvl4_bool(3:6) = .FALSE.
+          s1_lvl4_bool(9:12) = .FALSE.
+          s1_lvl5_bool(3:6) = .FALSE.
+          s2_lvl4_bool((/2,4,7,9/)) = .FALSE.
+          s2_lvl5_bool((/2,5/)) = .FALSE.
+       ENDIF
+
+       ! 2) Microphysicsal process rate statistics (both ts and ps)
+       s1_rate_bool(:) = .FALSE.
+       s2_rate_bool(:) = .FALSE.
        IF (stat_micro_ts .OR. stat_micro_ps) THEN
           tmp(:)= .FALSE.
           tmp(1:6) = nlcoag    ! Coagulation
@@ -434,148 +334,201 @@ contains
             tmp(40:43) = .TRUE.   ! SALSA_diagnostics
             tmp(44:47) = nlicmelt ! Melting
           ENDIF
-          IF (stat_micro_ts) s1bool(nvar1+nv1_lvl4+nv1_lvl5+1:nvar1+nv1_lvl4+nv1_lvl5+47) = tmp(1:47)
-          IF (stat_micro_ps) s2bool(nvar2+nv2_lvl4+nv2_lvl5+1:nvar2+nv2_lvl4+nv2_lvl5+47) = tmp(1:47)
+          IF (stat_micro_ts) s1_rate_bool = tmp
+          IF (stat_micro_ps) s2_rate_bool = tmp
        ENDIF
 
-       ! Bin number concentrations
-       i = nvar2+nv2_lvl4+nv2_lvl5+nv12_rate+1  ! binned
-       s2bool(i) = lbinprof
-       i = i+nv2saa
-       s2bool(i) = lbinprof .AND. stat_b_bins
-       i = i+nv2sab
-       s2bool(i) = lbinprof
-       i = i+nv2sca
-       s2bool(i) = lbinprof .AND. stat_b_bins
-       i =i+nv2scb
-       s2bool(i) = lbinprof
-       IF (level>=5) THEN
-            i = i+nv2sp
-            s2bool(i) = lbinprof
-            i = i + nv2sia
-            s2bool(i) = lbinprof .AND. stat_b_bins
-            i = i + nv2sib
-            s2bool(i) = lbinprof
-       ENDIF
+       ! 3) Species or bin dependent outputs
+       s1_mixr_bool(:)=.TRUE.
+       s1_rem_bool(:)=lremts
+       s2_mixr_bool(:)=lmixrprof
 
-       nspec = 0
-       DO e=1,8 ! With water, which is false for "IsUsed"!
-          IF (.NOT.IsUsed(prtcl,zspec(e)) .AND. (e<8)) CYCLE
+       s2_aa_bool(:)=lbinprof
+       s2_ab_bool(:)=lbinprof .AND. stat_b_bins
+       s2_ca_bool(:)=lbinprof
+       s2_cb_bool(:)=lbinprof .AND. stat_b_bins
+       s2_p_bool(:)=lbinprof
+       s2_ia_bool(:)=lbinprof .AND. (level>4)
+       s2_ib_bool(:)=lbinprof .AND. (level>4) .AND. stat_b_bins
+       s2_s_bool(:)=lbinprof .AND. (level>4)
 
-          ! List of active species (including water, which is the last species)
-          nspec = nspec+1
-          actspec(nspec)=zspec(e)
+       DO ee=1,nspec+1 ! Aerosol species and water
+          ! Mixing ratios
+          ii = (ee-1)*4
+          s1_mixr(ii+1)=TRIM(zspec(ee))//'_ic'
+          s1_mixr(ii+2)=TRIM(zspec(ee))//'_int'
+          s1_mixr(ii+3)=TRIM(zspec(ee))//'_ii'
+          s1_mixr(ii+4)=TRIM(zspec(ee))//'_is'
+          s1_mixr_bool(ii+3:ii+4) = .TRUE. .AND. (level>4)
 
-          ! Mixing rations in cloud droplets and interstitial aerosol (level 4)
-          i=nvar1+13+(e-1)*2
-          s1bool(i:i+1)=.TRUE.
-          ! Removal with aerosol, cloud and precipitation (level 4)
-          i=nvar1+29+(e-1)*3
-          s1bool(i:i+2)=.TRUE.
+          ! Removal; dry, cloud, precipitation and snow
+          ii = (ee-1)*5
+          s1_rem(ii+1)='rm'//TRIM(zspec(ee))//'dr'
+          s1_rem(ii+2)='rm'//TRIM(zspec(ee))//'cl'
+          s1_rem(ii+3)='rm'//TRIM(zspec(ee))//'pr'
+          s1_rem(ii+4)='rm'//TRIM(zspec(ee))//'ic'
+          s1_rem(ii+5)='rm'//TRIM(zspec(ee))//'sn'
+          s1_rem_bool(ii+1) = lremts .AND. sed_aero
+          s1_rem_bool(ii+2) = lremts .AND. sed_cloud
+          s1_rem_bool(ii+3) = lremts .AND. sed_precp
+          s1_rem_bool(ii+4) = lremts .AND. sed_ice .AND. (level>4)
+          s1_rem_bool(ii+5) = lremts .AND. sed_snow .AND. (level>4)
 
-          IF (level>=5) THEN
-             ! Mixing ratios in ice and snow
-             i=nvar1+nv1_lvl4+18+(e-1)*2
-             s1bool(i:i+1)=.TRUE.
+          ! Total mixing ratios, profiles
+          ii = (ee-1)*5
+          s2_mixr(ii+1)='P_c'//TRIM(zspec(ee))//'a'
+          s2_mixr(ii+2)='P_c'//TRIM(zspec(ee))//'c'
+          s2_mixr(ii+3)='P_c'//TRIM(zspec(ee))//'p'
+          s2_mixr(ii+4)='P_c'//TRIM(zspec(ee))//'i'
+          s2_mixr(ii+5)='P_c'//TRIM(zspec(ee))//'s'
+          s2_mixr_bool(ii+4:ii+5) = lmixrprof .AND. (level>4)
 
-             ! Removal with ice and snow
-             i=nvar1+nv1_lvl4+34+(e-1)*2
-             s1bool(i:i+1)=.TRUE.
+          ! Mixing ratios for each bin (profiles)
+          IF (ee==1) THEN
+             ! Number concentrations first
+             ii=1
+             s2_aa(ii)='P_Naba'
+             s2_ab(ii)='P_Nabb'
+             s2_ca(ii)='P_Ncba'
+             s2_cb(ii)='P_Ncbb'
+             s2_p(ii)='P_Npb'
+             s2_ia(ii)='P_Niba'
+             s2_ib(ii)='P_Nibb'
+             s2_s(ii)='P_Nsb'
           ENDIF
-
-
-          ! Bulk mixing ratios
-          i = nvar2+16+(e-1)*3
-          s2bool(i:i+2) = .TRUE.
-          IF (level>=5) THEN
-             i = nvar2+nv2_lvl4+10+(e-1)*2
-             s2bool(i:i+1) = .TRUE.
-          ENDIF
-          ! Bin number concentrations
-          IF (e==8) CYCLE ! Not for water
-          i = nvar2+nv2_lvl4+nv2_lvl5+nv12_rate+1+e
-          s2bool(i) = lbinprof
-          i = i+nv2saa
-          s2bool(i) = lbinprof .AND. stat_b_bins
-          i = i+nv2sab
-          s2bool(i) = lbinprof
-          i = i+nv2sca
-          s2bool(i) = lbinprof .AND. stat_b_bins
-          i = i+nv2scb
-          s2bool(i) = lbinprof
-          IF (level>=5) THEN
-             i = i+nv2sp
-             s2bool(i) = lbinprof
-             i = i + nv2sia
-             s2bool(i) = lbinprof .AND. stat_b_bins
-             i = i + nv2sib
-             s2bool(i) = lbinprof
-          ENDIF
+          ! Add species
+          ii=1+ee
+          s2_aa(ii)='P_'//TRIM(zspec(ee))//'aa'
+          s2_ab(ii)='P_'//TRIM(zspec(ee))//'ab'
+          s2_ca(ii)='P_'//TRIM(zspec(ee))//'ca'
+          s2_cb(ii)='P_'//TRIM(zspec(ee))//'cb'
+          s2_p(ii)='P_'//TRIM(zspec(ee))//'pb'
+          s2_ia(ii)='P_'//TRIM(zspec(ee))//'ia'
+          s2_ib(ii)='P_'//TRIM(zspec(ee))//'ib'
+          s2_s(ii)='P_'//TRIM(zspec(ee))//'sb'
        ENDDO
 
-       i = nvar2+nv2_lvl4+nv2_lvl5+nv12_rate+nv2saa+nv2sab+nv2sca+nv2scb+nv2sp+nv2sia+nv2sib+nv2ss
-       IF (nout_cld>0) THEN
-          s2bool(i+1) = .TRUE. ! A-bins
-          s2bool(i+2) = stat_b_bins ! B-bins
-          s2bool(i+3) = .TRUE. ! Bin mean radius
-       END IF
-       IF (nout_ice>0 .AND. level>=5) THEN
-          s2bool(i+4) = .TRUE.
-          s2bool(i+5) = stat_b_bins
-          s2bool(i+6) = .TRUE.
-       END IF
-
-       s1bool(nvar1+53)=.TRUE.  ! Maximum supersaturation
-
-       s2bool(nvar2+40:nvar2+44) = .TRUE.     ! Water mixing ratios, RH and cloud droplet sedimentation flux
-
-       ! b-bins are not always saved
-       IF (.not. stat_b_bins) THEN
-          ! Concentrations and sizes
-          s1bool(nvar1+3:nvar1+6) = .FALSE.
-          s1bool(nvar1+9:nvar1+12) = .FALSE.
-          s1bool(nvar1+nv1_lvl4+3:nvar1+nv1_lvl4+6) = .FALSE.
-          s2bool(nvar2+7) = .FALSE.
-          s2bool(nvar2+9) = .FALSE.
-          s2bool(nvar2+12) = .FALSE.
-          s2bool(nvar2+14) = .FALSE.
-          s2bool(nvar2+nv2_lvl4+5) = .FALSE.
-          s2bool(nvar2+nv2_lvl4+8) = .FALSE.
+       ! SALSA dimensions
+       !    s2_dims(nv2_ndims)=(/'P_Rd12a','P_Rd2ab','P_Rwprc','P_Rwsnw','P_hRc  ','P_hRi  '/)
+       IF (lbinprof) THEN
+            s2_dims_bool(1:3)=.TRUE.
+            s2_dims_bool(4)=(level>4)
        ENDIF
+
+       ! Cloud and ice histrograms
+       s2_CldHist_bool=.FALSE.
+       IF (nout_cld>0) THEN
+          s2_CldHist_bool(1) = .TRUE. ! A-bins
+          s2_CldHist_bool(2) = stat_b_bins ! B-bins
+          ! Add dimension
+          s2_dims_bool(5)=.TRUE.
+       END IF
+       s2_IceHist_bool=.FALSE.
+       IF (nout_ice>0 .AND. level>=5) THEN
+          s2_IceHist_bool(1) = .TRUE.
+          s2_IceHist_bool(2) = stat_b_bins
+          ! Add dimension
+          s2_dims_bool(6)=.TRUE.
+       END IF
+
+       ! Gas phase concentrations
+       DO i=1,ngases
+          s1_gas_bool(i) = .FALSE.
+          s2_gas(i) = TRIM(zgas(i))//'g'
+          s2_gas_bool(i) = .TRUE.
+          s2_gas(i) = 'P_c'//TRIM(zgas(i))//'g'
+       ENDDO
 
        IF (csflg .and. level>3) THEN
            ! Allocate array for level 4 removal rate column statistics
            ! Total number of outputs is 3 for warm (aerosol, cloud and precipitation)
            ! and 5 (add ice and snow) for each species including water
            IF (level==4) THEN
-              ALLOCATE( scs_rm(3*nspec,nxp,nyp) )
+              ALLOCATE( scs_rm(3*(nspec+1),nxp,nyp) )
            ELSE
-              ALLOCATE( scs_rm(5*nspec,nxp,nyp) )
+              ALLOCATE( scs_rm(5*(nspec+1),nxp,nyp) )
           ENDIF
           scs_rm=0. ! Set to zero (during spinup)
        END IF
+
+        ! Merge logical and name arrays
+        ! a) Time series
+        i=nvar1+nv1_lvl4+nv1_lvl5+nv_salsa_rate+nv1_mixr+nv1_rem+ngases
+        ALLOCATE( s1bool(i), s1total(i) )
+        i=1; e=nvar1
+        s1bool(i:e)=s1_bool; s1total(i:e)=s1
+        i=e+1; e=e+nv1_lvl4
+        s1bool(i:e)=s1_lvl4_bool; s1total(i:e)=s1_lvl4
+        i=e+1; e=e+nv1_lvl5
+        s1bool(i:e)=s1_lvl5_bool; s1total(i:e)=s1_lvl5
+        i=e+1; e=e+nv_salsa_rate
+        s1bool(i:e)=s1_rate_bool; s1total(i:e)=s_salsa_rate
+        i=e+1; e=e+nv1_mixr
+        s1bool(i:e)=s1_mixr_bool; s1total(i:e)=s1_mixr
+        i=e+1; e=e+nv1_rem
+        s1bool(i:e)=s1_rem_bool; s1total(i:e)=s1_rem
+        IF (ngases>0) THEN
+            i=e+1; e=e+ngases
+            s1bool(i:e)=s1_gas_bool; s1total(i:e)=s1_gas
+        ENDIF
+        ! b) Profiles
+        i=nvar2+nv2_lvl4+nv2_lvl5+nv_salsa_rate+nv2_mixr+8*nv2_bin+2*nv2_hist+nv2_ndims+ngases
+        ALLOCATE( s2bool(i), s2total(i) )
+        i=1; e=nvar2
+        s2bool(i:e)=s2_bool; s2total(i:e)=s2
+        i=e+1; e=e+nv2_lvl4
+        s2bool(i:e)=s2_lvl4_bool; s2total(i:e)=s2_lvl4
+        i=e+1; e=e+nv2_lvl5
+        s2bool(i:e)=s2_lvl5_bool; s2total(i:e)=s2_lvl5
+        i=e+1; e=e+nv_salsa_rate
+        s2bool(i:e)=s2_rate_bool; s2total(i:e)=s_salsa_rate
+        i=e+1; e=e+nv2_mixr
+        s2bool(i:e)=s2_mixr_bool; s2total(i:e)=s2_mixr
+        i=e+1; e=e+nv2_bin
+        s2bool(i:e)=s2_aa_bool; s2total(i:e)=s2_aa
+        i=e+1; e=e+nv2_bin
+        s2bool(i:e)=s2_ab_bool; s2total(i:e)=s2_ab
+        i=e+1; e=e+nv2_bin
+        s2bool(i:e)=s2_ca_bool; s2total(i:e)=s2_ca
+        i=e+1; e=e+nv2_bin
+        s2bool(i:e)=s2_cb_bool; s2total(i:e)=s2_cb
+        i=e+1; e=e+nv2_bin
+        s2bool(i:e)=s2_p_bool; s2total(i:e)=s2_p
+        i=e+1; e=e+nv2_bin
+        s2bool(i:e)=s2_ia_bool; s2total(i:e)=s2_ia
+        i=e+1; e=e+nv2_bin
+        s2bool(i:e)=s2_ib_bool; s2total(i:e)=s2_ib
+        i=e+1; e=e+nv2_bin
+        s2bool(i:e)=s2_s_bool; s2total(i:e)=s2_s
+        i=e+1; e=e+nv2_hist
+        s2bool(i:e)=s2_CldHist_bool; s2total(i:e)=s2_CldHist
+        i=e+1; e=e+nv2_hist
+        s2bool(i:e)=s2_IceHist_bool; s2total(i:e)=s2_IceHist
+        i=e+1; e=e+nv2_ndims
+        s2bool(i:e)=s2_dims_bool; s2total(i:e)=s2_dims
+        IF (ngases>0) THEN
+            i=e+1; e=e+ngases
+            s2bool(i:e)=s2_gas_bool; s2total(i:e)=s2_gas
+        ENDIF
     END IF ! If level >=4
 
     fname =  trim(filprf)//'.ts'
     if(myid == 0) print                                                  &
-         "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
+         "(//' ',49('-')/,' ',/,'  Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(s1bool)
     call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid1, nrec1, ver, author, info)
     ! Juha: Modified for SALSA output
     call define_nc( ncid1, nrec1, COUNT(s1bool), PACK(s1Total,s1bool))
     if (myid == 0) print *, '   ...starting record: ', nrec1
 
 
-
     fname =  trim(filprf)//'.ps'
     if(myid == 0) print                                                  &
-         "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
+         "(//' ',49('-')/,' ',/,'  Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(s2bool)
     call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2, ver, author, info)
     ! Juha: Modified due to SALSA output
-    call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp, inae_a=fn2a, inae_b=fn2b-fn2a, &
-                    incld_a=fca%cur, incld_b=fcb%cur-fca%cur, inice_a=fia%cur, inice_b=fib%cur-fia%cur, inprc=fra, insnw=fsa, &
-                    inchist=nout_cld,inihist=nout_ice)
+    call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp,  &
+            n1a=fn1a, n2a=fn2a-fn1a, n2b=fn2b-fn2a,nprc=nprc, nsnw=nsnw, nchist=nout_cld, nihist=nout_ice)
     if (myid == 0) print *, '   ...starting record: ', nrec2
-
 
 
     ! Optional column statistics
@@ -583,7 +536,7 @@ contains
         fname =  trim(filprf)//'.cs'
         if(myid == 0) print "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
         call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid3, nrec3, ver, author, info)
-        IF (ncid3>=0) CALL define_nc_cs(ncid3, nrec3, nxp-4, nyp-4, level, iradtyp, actspec(1:nspec), nspec)
+        IF (ncid3>=0) CALL define_nc_cs(ncid3, nrec3, nxp-4, nyp-4, level, iradtyp, zspec(1:nspec+1), nspec+1)
         if (myid == 0) print *, '   ...starting record: ', nrec3
     ENDIF
 
@@ -757,7 +710,7 @@ contains
   ! Removal statistics (level>3): calculate values for further use
   SUBROUTINE cs_rem_set(n2,n3,n4,raer,rcld,rprc,rice,rsnw)
 
-    USE mo_submctl, ONLY : nbins, ncld, nprc, nice,  nsnw
+    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw, nspec
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n2,n3,n4   ! Grid dimensions
@@ -773,7 +726,7 @@ contains
 
     ! Calculate all removal fluxes and save those to scs_rm for later use
     i=1
-    DO si = 1,nspec
+    DO si = 1,nspec+1
         ! Removal by sedimentation of aerosol
         str = (si-1)*nbins+1
         end = si*nbins
@@ -812,6 +765,7 @@ contains
   ! Removal statistics (level>3): save values
   SUBROUTINE cs_rem_save(n2,n3)
 
+    USE mo_submctl, ONLY : nspec, zspec
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n2,n3
@@ -824,8 +778,8 @@ contains
     ! Save all previously calculated removal fluxes
     !   Note: fluxes not calculated during spinup, so saving zeros
     i=1
-    DO si = 1,nspec
-        nam=actspec(si)
+    DO si = 1,nspec+1
+        nam=zspec(si)
 
         ! Removal by sedimentation of aerosol
         CALL set_cs_any(n2,n3,scs_rm(i,:,:),'rm'//trim(nam)//'dr') ! 'dr' should be for aerosol and 'ae' for water
@@ -1208,73 +1162,63 @@ contains
   !  Some rewriting and adjusting by Juha Tonttila
   !
   SUBROUTINE ts_lvl4(n1,n2,n3)
-    use mo_submctl, only : nlim ! Note: #/m^3, but close enough to #/kg for statistics
-    USE grid, ONLY : prtcl, bulkNumc, bulkMixrat, meanradius, dzt, a_rh, zm, a_dn, dn0, &
+    use mo_submctl, only : nspec, ngases, nlim ! Note: #/m^3, but close enough to #/kg for statistics
+    USE grid, ONLY : bulkNumc, bulkMixrat, meanradius, dzt, a_rh, zm, dn0, a_dn, &
         coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, cond_ra, cond_rc, cond_rr, &
         auto_rr, auto_nr, cact_rc, cact_nc, sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
-        diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr
-    USE class_componentIndex, ONLY : IsUsed
+        diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr, a_gaerop
 
     IMPLICIT NONE
 
     integer, intent(in) :: n1,n2,n3
 
     REAL :: a0(n1,n2,n3), a1(n1,n2,n3), a2(n1,n2,n3), fact
-    integer :: ii,ss, i, j, k
+    integer :: ii, i, j, k
     LOGICAL :: mask(n1,n2,n3)
 
     ! Clouds; combined and a and b separately for a and b regions, respectively
     CALL bulkNumc('cloud','a',a0)
     CALL bulkNumc('cloud','b',a1)
-    ssclr_b(1) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cloudmask)
+    ssclr_lvl4(1) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cloudmask)
     CALL meanRadius('cloud','ab',a2)
-    ssclr_b(2) = get_avg_ts(n1,n2,n3,a2,dzt,cloudmask)
+    ssclr_lvl4(2) = get_avg_ts(n1,n2,n3,a2,dzt,cloudmask)
 
     mask(:,:,:) = ( a0(:,:,:) > nlim .AND. cloudmask(:,:,:) )
-    ssclr_b(3) = get_avg_ts(n1,n2,n3,a0,dzt,mask)
+    ssclr_lvl4(3) = get_avg_ts(n1,n2,n3,a0,dzt,mask)
     CALL meanRadius('cloud','a',a2)
-    ssclr_b(4) = get_avg_ts(n1,n2,n3,a2,dzt,mask)
+    ssclr_lvl4(4) = get_avg_ts(n1,n2,n3,a2,dzt,mask)
 
     mask(:,:,:) = ( a1(:,:,:) > nlim .AND. cloudmask(:,:,:) )
-    ssclr_b(5) = get_avg_ts(n1,n2,n3,a1,dzt,mask)
+    ssclr_lvl4(5) = get_avg_ts(n1,n2,n3,a1,dzt,mask)
     CALL meanRadius('cloud','b',a2)
-    ssclr_b(6) = get_avg_ts(n1,n2,n3,a2,dzt,mask)
+    ssclr_lvl4(6) = get_avg_ts(n1,n2,n3,a2,dzt,mask)
 
     ! Interstitial aerosol; combined and a and b separately
     CALL bulkNumc('aerosol','a',a0)
     CALL bulkNumc('aerosol','b',a1)
-    ssclr_b(7) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cloudmask)
+    ssclr_lvl4(7) = get_avg_ts(n1,n2,n3,a0+a1,dzt,cloudmask)
     CALL meanRadius('aerosol','ab',a2)
-    ssclr_b(8) = get_avg_ts(n1,n2,n3,a2,dzt,cloudmask)
+    ssclr_lvl4(8) = get_avg_ts(n1,n2,n3,a2,dzt,cloudmask)
 
-    ssclr_b(9) = get_avg_ts(n1,n2,n3,a0,dzt,cloudmask)
+    ssclr_lvl4(9) = get_avg_ts(n1,n2,n3,a0,dzt,cloudmask)
     CALL meanRadius('aerosol','a',a2)
-    ssclr_b(10) = get_avg_ts(n1,n2,n3,a2,dzt,cloudmask)
+    ssclr_lvl4(10) = get_avg_ts(n1,n2,n3,a2,dzt,cloudmask)
 
-    ssclr_b(11) = get_avg_ts(n1,n2,n3,a1,dzt,cloudmask)
+    ssclr_lvl4(11) = get_avg_ts(n1,n2,n3,a1,dzt,cloudmask)
     CALL meanRadius('aerosol','b',a2)
-    ssclr_b(12) = get_avg_ts(n1,n2,n3,a2,dzt,cloudmask)
-
-    ! Species mixing ratios in cloud droplets and interstitial aerosol
-    ii = 13
-    DO ss = 1,8
-       IF (ss==8 .OR. IsUsed(prtcl,zspec(ss))) THEN
-          CALL bulkMixrat(zspec(ss),'cloud','ab',a0)
-          ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0,dzt,cloudmask)
-          ii = ii + 1
-
-          CALL bulkMixrat(zspec(ss),'aerosol','ab',a0)
-          ssclr_b(ii) = get_avg_ts(n1,n2,n3,a0,dzt,cloudmask)
-          ii = ii + 1
-       ELSE
-          ii = ii + 2
-       END IF
-    END DO
-
-    ! Removal statistics elsewhere ..
+    ssclr_lvl4(12) = get_avg_ts(n1,n2,n3,a2,dzt,cloudmask)
 
     ! Maximum supersaturation
-    ssclr_b(53) = (MAXVAL(a_rh(2:n1,3:n2-2,3:n3-2))-1.0)*100.
+    ssclr_lvl4(13) = (MAXVAL(a_rh(2:n1,3:n2-2,3:n3-2))-1.0)*100.
+
+    ! Species mixing ratios in cloud droplets and interstitial aerosol
+    DO i=1,nspec+1 ! Aerosol species and water
+        ii = (i-1)*4 +1
+        CALL bulkMixrat(i,'cloud','ab',a0)
+        ssclr_mixr(ii) = get_avg_ts(n1,n2,n3,a0,dzt,cloudmask)
+        CALL bulkMixrat(i,'aerosol','ab',a0)
+        ssclr_mixr(ii+1) = get_avg_ts(n1,n2,n3,a0,dzt,cloudmask)
+    END DO
 
     ! Process rate statistics
     IF (stat_micro_ts) THEN
@@ -1284,7 +1228,7 @@ contains
             do i=3,n2-2
                 do k=2,n1
                     !fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
-                    fact = a_dn(k,i,j)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
+                    fact = a_dn(k,i,j)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) ) ! a_dn is better for SALSA
                     ssclr_rate(1) = ssclr_rate(1) + coag_ra(k,i,j)*fact
                     ssclr_rate(2) = ssclr_rate(2) + coag_na(k,i,j)*fact
                     ssclr_rate(3) = ssclr_rate(3) + coag_rc(k,i,j)*fact
@@ -1315,6 +1259,12 @@ contains
         END DO
     ENDIF
 
+    ! Gases
+    DO i=1,ngases
+        a0(:,:,:) = a_gaerop(:,:,:,i)
+        ssclr_gas(i) = get_avg_ts(n1,n2,n3,a0,dzt)
+    END DO
+
   END SUBROUTINE ts_lvl4
   !
   ! -----------------------------------------------------------------------
@@ -1322,13 +1272,12 @@ contains
   !  Implemented by Jaakko Ahola 15/12/2016
   !
   SUBROUTINE ts_lvl5(n1,n2,n3)
-    USE mo_submctl, only : prlim ! Note: #/m^3, but close enough to #/kg for statistics
-    USE grid, ONLY : prtcl, bulkNumc, bulkMixrat,meanRadius, dzt, &
-        a_dn, dn0, zm, a_ri, a_srs, snowin, a_rhi, a_tp, th00, &
+    USE mo_submctl, only : nspec, prlim ! Note: #/m^3, but close enough to #/kg for statistics
+    USE grid, ONLY : bulkNumc, bulkMixrat,meanRadius, dzt, &
+        dn0, a_dn, zm, a_ri, a_srs, snowin, a_rhi, a_tp, th00, &
         coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
         nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns, sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
         diag_ri, diag_ni, diag_rs, diag_ns
-    USE class_componentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
 
@@ -1337,7 +1286,7 @@ contains
     REAL :: a0(n1,n2,n3), a1(n1,n2,n3), a2(n1,n2,n3)
     REAL :: scr(n2,n3), scr2(n2,n3), scr3(n2,n3)
     REAL :: fact
-    integer :: i, j, k, ii, ss, sscnt
+    integer :: i, j, k, ii, sscnt
     LOGICAL :: mask(n1,n2,n3)
 
     ! Ice; combined and a and b separately for a and b regions, respectively
@@ -1405,25 +1354,18 @@ contains
     scr2(:,:) = snowin(2,:,:)
     ssclr_lvl5(16) = get_avg2dh(n2,n3,scr2)
     !
-    ssclr_lvl5(50) = get_avg2dh(n2,n3,scr3)
+    ssclr_lvl5(18) = get_avg2dh(n2,n3,scr3)
     !
     ! Maximum supersaturation over ice
     ssclr_lvl5(17) = (MAXVAL(a_rhi(2:n1,3:n2-2,3:n3-2))-1.0)*100.
 
     ! Species mixing ratios in ice and snow
-    ii = 18
-    DO ss = 1,8
-       IF (ss==8 .OR. IsUsed(prtcl,zspec(ss))) THEN
-          CALL bulkMixrat(zspec(ss),'ice','ab',a0)
-          ssclr_lvl5(ii) = get_avg_ts(n1,n2,n3,a0,dzt,icemask)
-          ii = ii + 1
-
-          CALL bulkMixrat(zspec(ss),'snow','ab',a0)
-          ssclr_lvl5(ii) = get_avg_ts(n1,n2,n3,a0,dzt,snowmask)
-          ii = ii + 1
-       ELSE
-          ii = ii + 2
-       END IF
+    DO i=1,nspec+1 ! Aerosol species and water
+        ii = (i-1)*4 + 3
+        CALL bulkMixrat(i,'ice','ab',a0)
+        ssclr_mixr(ii) = get_avg_ts(n1,n2,n3,a0,dzt,icemask)
+        CALL bulkMixrat(i,'snow','ab',a0)
+        ssclr_mixr(ii+1) = get_avg_ts(n1,n2,n3,a0,dzt,snowmask)
     END DO
 
     ! Removal statistics elsewhere ..
@@ -1436,7 +1378,7 @@ contains
             do i=3,n2-2
                 do k=2,n1
                     !fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
-                    fact = a_dn(k,i,j)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) )
+                    fact = a_dn(k,i,j)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) ) ! a_dn is better for SALSA
                     ssclr_rate(26) = ssclr_rate(26) + coag_ri(k,i,j)*fact
                     ssclr_rate(27) = ssclr_rate(27) + coag_ni(k,i,j)*fact
                     ssclr_rate(28) = ssclr_rate(28) + coag_rs(k,i,j)*fact
@@ -1688,7 +1630,7 @@ contains
     integer                :: k, i, j
     real                   :: nrsum, nrcnt, rrcnt, rrcb
     real                   :: rmax, rmin
-    real, dimension(n1)    :: a1
+    real, dimension(n1)    :: a1, col
     real, dimension(n2,n3) :: scr2
     REAL :: mask(n1,n2,n3), tmp(n1,n2,n3), fact
     LOGICAL :: below
@@ -1753,26 +1695,29 @@ contains
 
     ! Process rate statistics
     IF (stat_micro_ps .AND. level==3) THEN
-        ! Take average over horizontal dimension
-        svctr_rate(:,1:11) = 0.
-        do j=3,n3-2
-            do i=3,n2-2
-                do k=2,n1
-                    fact = dn0(k)/REAL( (n3-4)*(n2-4) ) ! a_dn is for levels 4 and 5
-                    svctr_rate(k,1) = svctr_rate(k,1) + coag_rr(k,i,j)*fact
-                    svctr_rate(k,2) = svctr_rate(k,2) + coag_nr(k,i,j)*fact
-                    svctr_rate(k,3) = svctr_rate(k,3) + cond_rr(k,i,j)*fact
-                    svctr_rate(k,4) = svctr_rate(k,4) + cond_nr(k,i,j)*fact
-                    svctr_rate(k,5) = svctr_rate(k,5) + auto_rr(k,i,j)*fact
-                    svctr_rate(k,6) = svctr_rate(k,6) + auto_nr(k,i,j)*fact
-                    svctr_rate(k,7) = svctr_rate(k,7) + sedi_rc(k,i,j)*fact
-                    svctr_rate(k,8) = svctr_rate(k,8) + sedi_rr(k,i,j)*fact
-                    svctr_rate(k,9) = svctr_rate(k,9) + sedi_nr(k,i,j)*fact
-                    svctr_rate(k,10) = svctr_rate(k,10) + diag_rr(k,i,j)*fact
-                    svctr_rate(k,11) = svctr_rate(k,11) + diag_nr(k,i,j)*fact
-                END DO
-            END DO
-        END DO
+        ! Take average over horizontal dimension and convert from per kg to per m^3
+        CALL get_avg3(n1,n2,n3,coag_rr,col)
+        svctr_rate(:,1) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,coag_nr,col)
+        svctr_rate(:,2) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,cond_rr,col)
+        svctr_rate(:,3) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,cond_nr,col)
+        svctr_rate(:,4) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,auto_rr,col)
+        svctr_rate(:,5) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,auto_nr,col)
+        svctr_rate(:,6) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,sedi_rc,col)
+        svctr_rate(:,7) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,sedi_rr,col)
+        svctr_rate(:,8) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,sedi_nr,col)
+        svctr_rate(:,9) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,diag_rr,col)
+        svctr_rate(:,10) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,diag_nr,col)
+        svctr_rate(:,11) = col(:)*dn0(:)
     ENDIF
 
     !
@@ -1825,7 +1770,7 @@ contains
         do j=3,n3-2
             do i=3,n2-2
                 do k=2,n1
-                    fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) ) ! a_dn is for levels 4 and 5
+                    fact = dn0(k)*(zm(k)-zm(k-1))/REAL( (n3-4)*(n2-4) ) ! a_dn is for SALSA only
                     ssclr_rate(1) = ssclr_rate(1) + coag_rr(k,i,j)*fact
                     ssclr_rate(2) = ssclr_rate(2) + coag_nr(k,i,j)*fact
                     ssclr_rate(3) = ssclr_rate(3) + cond_rr(k,i,j)*fact
@@ -1850,31 +1795,31 @@ contains
   !
   subroutine accum_lvl4(n1,n2,n3)
     use mo_submctl, only : in1a,in2b,fn2a,fn2b, &
-                               ica,fca,icb,fcb,ira,fra, &
-                               nprc,nspec,cldbinlim,nout_cld,nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
+                               inp2a,fnp2a,inp2b,fnp2b,nprc, &
+                               nspec,ngases,cldbinlim,nout_cld, &
+                               nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, getBinRadius, &
-                     a_rc, a_srp, a_rp, a_rh, prtcl,    &
-                     a_naerop, a_mcloudp, a_ncloudp, a_nprecpp, cldin, a_dn, &
+                     a_rc, a_srp, a_rp, dn0, cldin, &
+                     a_naerop, a_mcloudp, a_ncloudp, a_nprecpp, a_gaerop, &
                      coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
                      cond_ra, cond_rc, cond_rr, auto_rr, auto_nr, cact_rc, cact_nc, &
                      sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
                      diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr
-    USE class_ComponentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3
-    INTEGER :: ii,ss,bb,i,j,k
-    REAL :: fact
+    INTEGER :: ii,bb,i
 
     REAL, DIMENSION(n1,n2,n3)           :: a1,a12
     REAL, DIMENSION(n1,5)               :: a2
+    REAL, DIMENSION(n1)                 :: col(n1)
     REAL, DIMENSION(n1,fn2a)            :: a3_a
     REAL, DIMENSION(n1,fn2b-fn2a)       :: a3_b
-    REAL, DIMENSION(n1,fca%cur)         :: a4_a
-    REAL, DIMENSION(n1,fcb%cur-fca%cur) :: a4_b
+    REAL, DIMENSION(n1,fnp2a)           :: a4_a
+    REAL, DIMENSION(n1,fnp2b-fnp2a)     :: a4_b
     REAL, DIMENSION(n1,nprc)            :: a5
-    REAL, DIMENSION(n1,n2,n3,fcb%cur)   :: a_Rwet
+    REAL, DIMENSION(n1,n2,n3,fnp2b)     :: a_Rwet
     REAL, ALLOCATABLE                   :: hist(:,:)
 
 
@@ -1902,7 +1847,7 @@ contains
     ! Generate drizzle mask (grid cells with precipitation)
     drizzmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srp(:,:,:) > 1.e-6 )
 
-    svctr_b(:,6:10) = svctr_b(:,6:10) + a2(:,1:5)
+    svctr_lvl4(:,1:5) = svctr_lvl4(:,1:5) + a2(:,1:5)
 
     ! Particle radius
     CALL meanRadius('aerosol','a',a1)
@@ -1922,10 +1867,18 @@ contains
     CALL meanRadius('precp','a',a1)
     CALL get_avg3(n1,n2,n3,a1,a2(:,5),cond=drizzmask)
 
-    svctr_b(:,11:15) = svctr_b(:,11:15) + a2(:,1:5)
+    svctr_lvl4(:,6:10) = svctr_lvl4(:,6:10) + a2(:,1:5)
+
+    ! Water vapor mixing ratio
+    CALL get_avg3(n1,n2,n3,a_rp,a2(:,1))
+
+    ! Cloud water deposition flux
+    call get_avg3(n1,n2,n3,cldin,a2(:,2))
+
+    svctr_lvl4(:,11:12) = svctr_lvl4(:,11:12) + a2(:,1:2)
 
     ! Bin number concentrations
-    ! -------------------------------------------
+    ! -------------------------
     IF (lbinprof) THEN
         DO bb = in1a,fn2a
            CALL get_avg3(n1,n2,n3,a_naerop(:,:,:,bb),a3_a(:,bb))
@@ -1933,13 +1886,13 @@ contains
         DO bb = in2b,fn2b
            CALL get_avg3(n1,n2,n3,a_naerop(:,:,:,bb),a3_b(:,bb-fn2a))
         END DO
-        DO bb = ica%cur,fca%cur
+        DO bb = inp2a,fnp2a
            CALL get_avg3(n1,n2,n3,a_ncloudp(:,:,:,bb),a4_a(:,bb))
         END DO
-        DO bb = icb%cur,fcb%cur
-           CALL get_avg3(n1,n2,n3,a_ncloudp(:,:,:,bb),a4_b(:,bb-fca%cur))
+        DO bb = inp2b,fnp2b
+           CALL get_avg3(n1,n2,n3,a_ncloudp(:,:,:,bb),a4_b(:,bb-fnp2a))
         END DO
-        DO bb = ira,fra
+        DO bb = 1,nprc
            CALL get_avg3(n1,n2,n3,a_nprecpp(:,:,:,bb),a5(:,bb))
         END DO
 
@@ -1951,130 +1904,137 @@ contains
     END IF
 
     ! Species mixing ratios
-    ! -------------------------------------------
-    ii = 16 !  'P_cSO4a'
-    DO ss = 1,8 ! Including water (ss=8)
-       IF (ss==8 .OR. IsUsed(prtcl,zspec(ss))) THEN
-          ! Total mass mixing ratios
-          CALL bulkMixrat(zspec(ss),'aerosol','ab',a1)
-          CALL get_avg3(n1,n2,n3,a1,a2(:,1))
+    ! ---------------------
+    DO i=1,nspec+1 ! Aerosol species and water
+        IF(lmixrprof) THEN
+            ! Total mass mixing ratios
+            CALL bulkMixrat(i,'aerosol','ab',a1)
+            CALL get_avg3(n1,n2,n3,a1,a2(:,1))
 
-          ! In-cloud
-          CALL bulkMixrat(zspec(ss),'cloud','ab',a1)
-          CALL get_avg3(n1,n2,n3,a1,a2(:,2),cond=cloudmask)
+            ! In-cloud
+            CALL bulkMixrat(i,'cloud','ab',a1)
+            CALL get_avg3(n1,n2,n3,a1,a2(:,2),cond=cloudmask)
 
-          ! In-drizzle
-          CALL bulkMixrat(zspec(ss),'precp','a',a1)
-          CALL get_avg3(n1,n2,n3,a1,a2(:,3),cond=drizzmask)
+            ! In-drizzle
+            CALL bulkMixrat(i,'precp','a',a1)
+            CALL get_avg3(n1,n2,n3,a1,a2(:,3),cond=drizzmask)
 
-          svctr_b(:,ii:ii+2) = svctr_b(:,ii:ii+2) + a2(:,1:3)
+            ii = (i-1)*5+1 ! Order: aer, cld, prc, ice, snw
+            svctr_mixr(:,ii:ii+2) = svctr_mixr(:,ii:ii+2) + a2(:,1:3)
+        END IF
 
-          ! Binned mixing ratios (not for water)
-          IF (lbinprof .AND. ss<8) THEN
-              DO bb = in1a,fn2a
-                 CALL binSpecMixrat('aerosol',zspec(ss),bb,a1) ! z,x,y-field for bin bb
-                 CALL get_avg3(n1,n2,n3,a1,a3_a(:,bb))         ! average profile for bin bb for species ss
-              END DO
-              DO bb = in2b,fn2b
-                 CALL binSpecMixrat('aerosol',zspec(ss),bb,a1) ! z,x,y-field for bin bb
-                 CALL get_avg3(n1,n2,n3,a1,a3_b(:,bb-fn2a))    ! average profile for bin bb for species ss
-              END DO
+        ! Bin mixing ratios for all species
+        IF (lbinprof) THEN
+            DO bb = in1a,fn2a
+                CALL binSpecMixrat('aerosol',i,bb,a1)
+                CALL get_avg3(n1,n2,n3,a1,a3_a(:,bb))
+            END DO
+            DO bb = in2b,fn2b
+                CALL binSpecMixrat('aerosol',i,bb,a1)
+                CALL get_avg3(n1,n2,n3,a1,a3_b(:,bb-fn2a))
+            END DO
 
-              DO bb = ica%cur,fca%cur
-                 CALL binSpecMixrat('cloud',zspec(ss),bb,a1)  ! z,x,y-field for bin bb
-                 CaLL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=cloudmask)        ! average profile for bin bb for species ss
-              END DO
-              DO bb = icb%cur,fcb%cur
-                 CALL binSpecMixrat('cloud',zspec(ss),bb,a1)  ! z,x,y-field for bin bb
-                 CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fca%cur),cond=cloudmask)! average profile for bin bb for species ss
-              END DO
+            DO bb = 1,fnp2a
+                CALL binSpecMixrat('cloud',i,bb,a1)
+                CALL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=cloudmask)
+            END DO
+            DO bb = inp2b,fnp2b
+                CALL binSpecMixrat('cloud',i,bb,a1)
+                CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fnp2a),cond=cloudmask)
+            END DO
 
-              DO bb = 1,nprc
-                 CALL binSpecMixrat('precp',zspec(ss),bb,a1)  ! z,x,y-field for bin bb
-                 CALL get_avg3(n1,n2,n3,a1,a5(:,bb),cond=drizzmask)          ! average profile for bin bb for species ss
-              END DO
+            DO bb = 1,nprc
+                CALL binSpecMixrat('precp',i,bb,a1)
+                CALL get_avg3(n1,n2,n3,a1,a5(:,bb),cond=drizzmask)
+            END DO
 
-              svctr_aa(:,:,ss+1) = svctr_aa(:,:,ss+1) + a3_a(:,:)
-              svctr_ab(:,:,ss+1) = svctr_ab(:,:,ss+1) + a3_b(:,:)
-              svctr_ca(:,:,ss+1) = svctr_ca(:,:,ss+1) + a4_a(:,:)
-              svctr_cb(:,:,ss+1) = svctr_cb(:,:,ss+1) + a4_b(:,:)
-              svctr_p(:,:,ss+1) = svctr_p(:,:,ss+1) + a5(:,:)
-          END IF
-
-       END IF ! IsUsed
-
-       ii = ii + 3
-
-    END DO ! ss
-
-    ! Liquid water mixing ratio (domain mean)
-    CALL get_avg3(n1,n2,n3,a_rc,a2(:,1))
-
-    ! Precipitation mixing ratio
-    CALL get_avg3(n1,n2,n3,a_srp,a2(:,2))
-
-    ! Water vapor mixing ratio
-    CALL get_avg3(n1,n2,n3,a_rp,a2(:,3))
-
-    ! Relative humidity
-    CALL get_avg3(n1,n2,n3,a_rh,a2(:,4))
-    a2(:,4)=a2(:,4)*100.0 ! RH in %
-
-    ! Cloud water deposition flux
-    call get_avg3(n1,n2,n3,cldin,a2(:,5))
-
-    svctr_b(:,40:44) = svctr_b(:,40:44) + a2(:,1:5)
+            svctr_aa(:,:,i+1) = svctr_aa(:,:,i+1) + a3_a(:,:)
+            svctr_ab(:,:,i+1) = svctr_ab(:,:,i+1) + a3_b(:,:)
+            svctr_ca(:,:,i+1) = svctr_ca(:,:,i+1) + a4_a(:,:)
+            svctr_cb(:,:,i+1) = svctr_cb(:,:,i+1) + a4_b(:,:)
+            svctr_p(:,:,i+1) = svctr_p(:,:,i+1) + a5(:,:)
+        END IF
+    END DO
 
     ! Process rate statistics
+    ! -----------------------
     IF (stat_micro_ps) THEN
-        ! Take average over horizontal dimension
-        svctr_rate(:,1:25) = 0.
-        do j=3,n3-2
-            do i=3,n2-2
-                do k=2,n1
-                    !fact = dn0(k)/REAL( (n3-4)*(n2-4) )
-                    fact = a_dn(k,i,j)/REAL( (n3-4)*(n2-4) )
-                    !fact = 1.0/REAL( (n3-4)*(n2-4) )
-                    svctr_rate(k,1) = svctr_rate(k,1) + coag_ra(k,i,j)*fact
-                    svctr_rate(k,2) = svctr_rate(k,2) + coag_na(k,i,j)*fact
-                    svctr_rate(k,3) = svctr_rate(k,3) + coag_rc(k,i,j)*fact
-                    svctr_rate(k,4) = svctr_rate(k,4) + coag_nc(k,i,j)*fact
-                    svctr_rate(k,5) = svctr_rate(k,5) + coag_rr(k,i,j)*fact
-                    svctr_rate(k,6) = svctr_rate(k,6) + coag_nr(k,i,j)*fact
-                    svctr_rate(k,7) = svctr_rate(k,7) + cond_ra(k,i,j)*fact
-                    svctr_rate(k,8) = svctr_rate(k,8) + cond_rc(k,i,j)*fact
-                    svctr_rate(k,9) = svctr_rate(k,9) + cond_rr(k,i,j)*fact
-                    svctr_rate(k,10) = svctr_rate(k,10) + auto_rr(k,i,j)*fact
-                    svctr_rate(k,11) = svctr_rate(k,11) + auto_nr(k,i,j)*fact
-                    svctr_rate(k,12) = svctr_rate(k,12) + cact_rc(k,i,j)*fact
-                    svctr_rate(k,13) = svctr_rate(k,13) + cact_nc(k,i,j)*fact
-                    svctr_rate(k,14) = svctr_rate(k,14) + sedi_ra(k,i,j)*fact
-                    svctr_rate(k,15) = svctr_rate(k,15) + sedi_na(k,i,j)*fact
-                    svctr_rate(k,16) = svctr_rate(k,16) + sedi_rc(k,i,j)*fact
-                    svctr_rate(k,17) = svctr_rate(k,17) + sedi_nc(k,i,j)*fact
-                    svctr_rate(k,18) = svctr_rate(k,18) + sedi_rr(k,i,j)*fact
-                    svctr_rate(k,19) = svctr_rate(k,19) + sedi_nr(k,i,j)*fact
-                    svctr_rate(k,20) = svctr_rate(k,20) + diag_ra(k,i,j)*fact
-                    svctr_rate(k,21) = svctr_rate(k,21) + diag_na(k,i,j)*fact
-                    svctr_rate(k,22) = svctr_rate(k,22) + diag_rc(k,i,j)*fact
-                    svctr_rate(k,23) = svctr_rate(k,23) + diag_nc(k,i,j)*fact
-                    svctr_rate(k,24) = svctr_rate(k,24) + diag_rr(k,i,j)*fact
-                    svctr_rate(k,25) = svctr_rate(k,25) + diag_nr(k,i,j)*fact
-                END DO
-            END DO
-        END DO
+        ! Take average over horizontal dimension and convert from per kg to per m^3
+        ! Coagulation
+        CALL get_avg3(n1,n2,n3,coag_ra,col)
+        svctr_rate(:,1) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,coag_na,col)
+        svctr_rate(:,2) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,coag_rc,col)
+        svctr_rate(:,3) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,coag_nc,col)
+        svctr_rate(:,4) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,coag_rr,col)
+        svctr_rate(:,5) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,coag_nr,col)
+        svctr_rate(:,6) = col(:)*dn0(:)
+        ! Condensation
+        CALL get_avg3(n1,n2,n3,cond_ra,col)
+        svctr_rate(:,7) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,cond_rc,col)
+        svctr_rate(:,8) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,cond_rr,col)
+        svctr_rate(:,9) = col(:)*dn0(:)
+        ! Autoconversion
+        CALL get_avg3(n1,n2,n3,auto_rr,col)
+        svctr_rate(:,10) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,auto_nr,col)
+        svctr_rate(:,11) = col(:)*dn0(:)
+        ! Cloud activation
+        CALL get_avg3(n1,n2,n3,cact_rc,col)
+        svctr_rate(:,12) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,cact_nc,col)
+        svctr_rate(:,13) = col(:)*dn0(:)
+        ! Sedimentation
+        CALL get_avg3(n1,n2,n3,sedi_ra,col)
+        svctr_rate(:,14) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,sedi_na,col)
+        svctr_rate(:,15) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,sedi_rc,col)
+        svctr_rate(:,16) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,sedi_nc,col)
+        svctr_rate(:,17) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,sedi_rr,col)
+        svctr_rate(:,18) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,sedi_nr,col)
+        svctr_rate(:,19) = col(:)*dn0(:)
+        ! Diagnostics
+        CALL get_avg3(n1,n2,n3,diag_ra,col)
+        svctr_rate(:,20) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,diag_na,col)
+        svctr_rate(:,21) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,diag_rc,col)
+        svctr_rate(:,22) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,diag_nc,col)
+        svctr_rate(:,23) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,diag_rr,col)
+        svctr_rate(:,24) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,diag_nr,col)
+        svctr_rate(:,25) = col(:)*dn0(:)
     ENDIF
 
+    ! Gases
+    DO i=1,ngases
+        CALL get_avg3(n1,n2,n3,a_gaerop(:,:,:,i),col)
+        svctr_gas(:,i) = svctr_gas(:,i) + col(:)
+    END DO
+
     ! Cloud droplet histograms
+    ! ------------------------
     IF (nout_cld>0) THEN
         ALLOCATE(hist(n1,nout_cld))
         ! Cloud droplet bin wet radius
-        CALL getBinRadius(fcb%cur,nspec+1,a_ncloudp,a_mcloudp,nlim,a_Rwet,2)
+        CALL getBinRadius(fnp2b,nspec+1,a_ncloudp,a_mcloudp,nlim,a_Rwet,2)
         ! Histograms (regime A)
-        CALL HistDistr(n1,n2,n3,fca%cur,a_Rwet(:,:,:,ica%cur:fca%cur),a_ncloudp(:,:,:,ica%cur:fca%cur),cldbinlim,nout_cld,hist)
+        CALL HistDistr(n1,n2,n3,fnp2a,a_Rwet(:,:,:,inp2a:fnp2a),a_ncloudp(:,:,:,inp2a:fnp2a),cldbinlim,nout_cld,hist)
         svctr_ch(:,:,1) = svctr_ch(:,:,1) + hist(:,:)
         ! Histograms (regime B)
-        CALL HistDistr(n1,n2,n3,fca%cur,a_Rwet(:,:,:,icb%cur:fcb%cur),a_ncloudp(:,:,:,icb%cur:fcb%cur),cldbinlim,nout_cld,hist)
+        CALL HistDistr(n1,n2,n3,fnp2b-fnp2a,a_Rwet(:,:,:,inp2b:fnp2b),a_ncloudp(:,:,:,inp2b:fnp2b),cldbinlim,nout_cld,hist)
         svctr_ch(:,:,2) = svctr_ch(:,:,2) + hist(:,:)
         DEALLOCATE(hist)
     ENDIF
@@ -2085,26 +2045,26 @@ contains
   ! on level 5 variables.
   !
   subroutine accum_lvl5(n1,n2,n3)
-    use mo_submctl, only : iia,fia,iib,fib,isa,fsa,nsnw,nspec,icebinlim,nout_ice,prlim ! Note: prlim in #/m^3, but close enough to #/kg for statistics
-    use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, getBinRadius, &
-                     a_ri, a_srs, a_rhi, prtcl, a_micep, a_nicep, a_nsnowp, icein, snowin, a_tp, th00, &
-                     a_dn, coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
+    use mo_submctl, only : inp2a,fnp2a,inp2b,fnp2b,nsnw,nspec,icebinlim,nout_ice, &
+                     prlim ! Note: prlim in #/m^3, but close enough to #/kg for statistics
+    use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, getBinRadius, dn0, &
+                     a_ri, a_srs, a_micep, a_nicep, a_nsnowp, icein, snowin, a_tp, th00, &
+                     coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
                      nucl_ri, nucl_ni, sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
                      diag_ri, diag_ni, diag_rs, diag_ns, melt_ri, melt_ni, melt_rs, melt_ns
-    USE class_ComponentIndex, ONLY : IsUsed
 
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3
-    INTEGER :: ii,ss,bb,i,j,k
-    REAL :: fact
+    INTEGER :: ii,bb,i
 
-    REAL, DIMENSION(n1,n2,n3) :: a1,a12
-    REAL, DIMENSION(n1,3) :: a2
-    REAL, DIMENSION(n1,fia%cur) :: a4_a
-    REAL, DIMENSION(n1,fib%cur-fia%cur) :: a4_b
-    REAL, DIMENSION(n1,nsnw) :: a5
-    REAL, DIMENSION(n1,n2,n3,fib%cur)   :: a_Rwet
+    REAL, DIMENSION(n1,n2,n3)           :: a1,a12
+    REAL, DIMENSION(n1,3)               :: a2
+    REAL, DIMENSION(n1)                 :: col(n1)
+    REAL, DIMENSION(n1,fnp2a)           :: a4_a
+    REAL, DIMENSION(n1,fnp2b-fnp2a)     :: a4_b
+    REAL, DIMENSION(n1,nsnw)            :: a5
+    REAL, DIMENSION(n1,n2,n3,fnp2b)     :: a_Rwet
     REAL, ALLOCATABLE                   :: hist(:,:)
 
     ! *************************
@@ -2125,96 +2085,20 @@ contains
     ! Generate snow mask (grid cells with snow)
     snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srs(:,:,:) > 1.e-8 )
 
-    svctr_lvl5(:,4:6) = svctr_lvl5(:,4:6) + a2(:,1:3)
+    svctr_lvl5(:,1:3) = svctr_lvl5(:,1:3) + a2(:,1:3)
 
-    ! Particle radius
-
-    ! Ice
+    ! Ice radius
     CALL meanRadius('ice','a',a1)
     CALL get_avg3(n1,n2,n3,a1,a2(:,1),cond=icemask)
 
     CALL meanRadius('ice','b',a1)
     CALL get_avg3(n1,n2,n3,a1,a2(:,2),cond=icemask)
 
-    ! Snow
+    ! Snow radius
     CALL meanRadius('snow','a',a1)
     CALL get_avg3(n1,n2,n3,a1,a2(:,3),cond=snowmask)
 
-    svctr_lvl5(:,7:9) = svctr_lvl5(:,7:9) + a2(:,1:3)
-
-    ! Bin number concentrations
-    ! -------------------------------------------
-    IF (lbinprof) THEN
-        DO bb = iia%cur,fia%cur
-           CALL get_avg3(n1,n2,n3,a_nicep(:,:,:,bb),a4_a(:,bb))
-        END DO
-        DO bb = iib%cur,fib%cur
-           CALL get_avg3(n1,n2,n3,a_nicep(:,:,:,bb),a4_b(:,bb-fia%cur))
-        END DO
-        DO bb = isa,fsa
-           CALL get_avg3(n1,n2,n3,a_nsnowp(:,:,:,bb),a5(:,bb))
-        END DO
-
-        svctr_ia(:,:,1) = svctr_ia(:,:,1) + a4_a(:,:)
-        svctr_ib(:,:,1) = svctr_ib(:,:,1) + a4_b(:,:)
-        svctr_s(:,:,1) = svctr_s(:,:,1) + a5(:,:)
-    ENDIF
-
-    ! Species mixing ratios
-    ! -------------------------------------------
-    ii=10 ! 'P_cSO4i'
-    DO ss = 1,8  ! Including water
-       IF (ss==8 .OR. IsUsed(prtcl,zspec(ss))) THEN
-          ! Total mass mixing ratios
-
-          ! In-ice
-          CALL bulkMixrat(zspec(ss),'ice','ab',a1)
-          CALL get_avg3(n1,n2,n3,a1,a2(:,1),cond=icemask)
-
-          ! In-snow
-          CALL bulkMixrat(zspec(ss),'snow','a',a1)
-          CALL get_avg3(n1,n2,n3,a1,a2(:,2),cond=snowmask)
-
-          svctr_lvl5(:,ii:ii+1) = svctr_lvl5(:,ii:ii+1) + a2(:,1:2)
-
-          ! Binned mixing ratios (not for water)
-          IF (lbinprof .AND. ss<8) THEN
-              DO bb = iia%cur,fia%cur
-                 CALL binSpecMixrat('ice',zspec(ss),bb,a1)
-                 CaLL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=icemask)
-              END DO
-              DO bb = iib%cur,fib%cur
-                 CALL binSpecMixrat('ice',zspec(ss),bb,a1)
-                 CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fia%cur),cond=icemask)
-              END DO
-
-              DO bb = 1,nsnw
-                 CALL binSpecMixrat('snow',zspec(ss),bb,a1)
-                 CALL get_avg3(n1,n2,n3,a1,a5(:,bb),cond=snowmask)
-              END DO
-
-              svctr_ia(:,:,ss+1) = svctr_ia(:,:,ss+1) + a4_a(:,:)
-              svctr_ib(:,:,ss+1) = svctr_ib(:,:,ss+1) + a4_b(:,:)
-              svctr_s(:,:,ss+1) = svctr_s(:,:,ss+1) + a5(:,:)
-          END IF
-
-       END IF ! IsUsed
-
-       ii = ii + 2
-
-    END DO ! ss
-
-    ! Ice water mixing ratio
-    CALL get_avg3(n1,n2,n3,a_ri,a2(:,1))
-
-    ! Snow water mixing ratio
-    CALL get_avg3(n1,n2,n3,a_srs,a2(:,2))
-
-    ! Relative humidity ove ice
-    CALL get_avg3(n1,n2,n3,a_rhi,a2(:,3))
-    a2(:,3)=a2(:,3)*100.0 ! RH in %
-
-    svctr_lvl5(:,26:28) = svctr_lvl5(:,26:28) + a2(:,1:3)
+    svctr_lvl5(:,4:6) = svctr_lvl5(:,4:6) + a2(:,1:3)
 
     ! Ice deposition flux
     call get_avg3(n1,n2,n3,icein,a2(:,1))
@@ -2226,96 +2110,138 @@ contains
     call get_avg3(n1,n2,n3,a_tp,a2(:,3))
     a2(:,3) = a2(:,3) + th00
 
-    svctr_lvl5(:,29:31)=svctr_lvl5(:,29:31)+a2(:,1:3)
+    svctr_lvl5(:,7:9)=svctr_lvl5(:,7:9)+a2(:,1:3)
+
+    ! Bin number concentrations
+    ! -------------------------
+    IF (lbinprof) THEN
+        DO bb = inp2a,fnp2a
+           CALL get_avg3(n1,n2,n3,a_nicep(:,:,:,bb),a4_a(:,bb))
+        END DO
+        DO bb = inp2b,fnp2b
+           CALL get_avg3(n1,n2,n3,a_nicep(:,:,:,bb),a4_b(:,bb-fnp2a))
+        END DO
+        DO bb = 1,nsnw
+           CALL get_avg3(n1,n2,n3,a_nsnowp(:,:,:,bb),a5(:,bb))
+        END DO
+
+        svctr_ia(:,:,1) = svctr_ia(:,:,1) + a4_a(:,:)
+        svctr_ib(:,:,1) = svctr_ib(:,:,1) + a4_b(:,:)
+        svctr_s(:,:,1) = svctr_s(:,:,1) + a5(:,:)
+    ENDIF
+
+    ! Species mixing ratios
+    ! ---------------------
+    DO i=1,nspec+1 ! Aerosol species and water
+        IF(lmixrprof) THEN
+            ! In-ice
+            CALL bulkMixrat(i,'ice','ab',a1)
+            CALL get_avg3(n1,n2,n3,a1,a2(:,1),cond=icemask)
+
+            ! In-snow
+            CALL bulkMixrat(i,'snow','a',a1)
+            CALL get_avg3(n1,n2,n3,a1,a2(:,2),cond=snowmask)
+
+            ii = (i-1)*5+4 ! Order: aer, cld, prc, ice, snw
+            svctr_mixr(:,ii:ii+1) = svctr_mixr(:,ii:ii+1) + a2(:,1:2)
+        ENDIF
+
+        ! Binned mixing ratios for all species
+        IF (lbinprof) THEN
+            DO bb = 1,fnp2a
+                CALL binSpecMixrat('ice',i,bb,a1)
+                CaLL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=icemask)
+            END DO
+            DO bb = inp2b,fnp2b
+                CALL binSpecMixrat('ice',i,bb,a1)
+                CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fnp2a),cond=icemask)
+            END DO
+
+            DO bb = 1,nsnw
+                CALL binSpecMixrat('snow',i,bb,a1)
+                CALL get_avg3(n1,n2,n3,a1,a5(:,bb),cond=snowmask)
+            END DO
+
+            svctr_ia(:,:,i+1) = svctr_ia(:,:,i+1) + a4_a(:,:)
+            svctr_ib(:,:,i+1) = svctr_ib(:,:,i+1) + a4_b(:,:)
+            svctr_s(:,:,i+1) = svctr_s(:,:,i+1) + a5(:,:)
+       END IF
+
+    END DO
 
     ! Process rate statistics
+    ! -----------------------
     IF (stat_micro_ps) THEN
-        ! Take average over horizontal dimension
-        svctr_rate(:,26:47) = 0.
-        do j=3,n3-2
-            do i=3,n2-2
-                do k=2,n1
-                    !fact = dn0(k)/REAL( (n3-4)*(n2-4) )
-                    fact = a_dn(k,i,j)/REAL( (n3-4)*(n2-4) )
-                    !fact = 1.0/REAL( (n3-4)*(n2-4) )
-                    svctr_rate(k,26) = svctr_rate(k,26) + coag_ri(k,i,j)*fact
-                    svctr_rate(k,27) = svctr_rate(k,27) + coag_ni(k,i,j)*fact
-                    svctr_rate(k,28) = svctr_rate(k,28) + coag_rs(k,i,j)*fact
-                    svctr_rate(k,29) = svctr_rate(k,29) + coag_ns(k,i,j)*fact
-                    svctr_rate(k,30) = svctr_rate(k,30) + cond_ri(k,i,j)*fact
-                    svctr_rate(k,31) = svctr_rate(k,31) + cond_rs(k,i,j)*fact
-                    svctr_rate(k,32) = svctr_rate(k,32) + auto_rs(k,i,j)*fact
-                    svctr_rate(k,33) = svctr_rate(k,33) + auto_ns(k,i,j)*fact
-                    svctr_rate(k,34) = svctr_rate(k,34) + nucl_ri(k,i,j)*fact
-                    svctr_rate(k,35) = svctr_rate(k,35) + nucl_ni(k,i,j)*fact
-                    svctr_rate(k,36) = svctr_rate(k,36) + sedi_ri(k,i,j)*fact
-                    svctr_rate(k,37) = svctr_rate(k,37) + sedi_ni(k,i,j)*fact
-                    svctr_rate(k,38) = svctr_rate(k,38) + sedi_rs(k,i,j)*fact
-                    svctr_rate(k,39) = svctr_rate(k,39) + sedi_ns(k,i,j)*fact
-                    svctr_rate(k,40) = svctr_rate(k,40) + diag_ri(k,i,j)*fact
-                    svctr_rate(k,41) = svctr_rate(k,41) + diag_ni(k,i,j)*fact
-                    svctr_rate(k,42) = svctr_rate(k,42) + diag_rs(k,i,j)*fact
-                    svctr_rate(k,43) = svctr_rate(k,43) + diag_ns(k,i,j)*fact
-                    svctr_rate(k,44) = svctr_rate(k,44) + melt_ri(k,i,j)*fact
-                    svctr_rate(k,45) = svctr_rate(k,45) + melt_ni(k,i,j)*fact
-                    svctr_rate(k,46) = svctr_rate(k,46) + melt_rs(k,i,j)*fact
-                    svctr_rate(k,47) = svctr_rate(k,47) + melt_ns(k,i,j)*fact
-                END DO
-            END DO
-        END DO
+        ! Take average over horizontal dimension and convert from per kg to per m^3
+        ! Coagulation
+        CALL get_avg3(n1,n2,n3,coag_ri,col)
+        svctr_rate(:,26) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,coag_ni,col)
+        svctr_rate(:,27) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,coag_rs,col)
+        svctr_rate(:,28) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,coag_ns,col)
+        svctr_rate(:,29) = col(:)*dn0(:)
+        ! Condensation
+        CALL get_avg3(n1,n2,n3,cond_ri,col)
+        svctr_rate(:,30) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,cond_rs,col)
+        svctr_rate(:,31) = col(:)*dn0(:)
+        ! Autoconversion
+        CALL get_avg3(n1,n2,n3,auto_rs,col)
+        svctr_rate(:,32) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,auto_ns,col)
+        svctr_rate(:,33) = col(:)*dn0(:)
+        ! Ice nucleation
+        CALL get_avg3(n1,n2,n3,nucl_ri,col)
+        svctr_rate(:,34) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,nucl_ni,col)
+        svctr_rate(:,35) = col(:)*dn0(:)
+        ! Sedimentation
+        CALL get_avg3(n1,n2,n3,sedi_ri,col)
+        svctr_rate(:,36) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,sedi_ni,col)
+        svctr_rate(:,37) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,sedi_rs,col)
+        svctr_rate(:,38) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,sedi_ns,col)
+        svctr_rate(:,39) = col(:)*dn0(:)
+        ! Diagnostics
+        CALL get_avg3(n1,n2,n3,diag_ri,col)
+        svctr_rate(:,40) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,diag_ni,col)
+        svctr_rate(:,41) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,diag_rs,col)
+        svctr_rate(:,42) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,diag_ns,col)
+        svctr_rate(:,43) = col(:)*dn0(:)
+        ! Melting
+        CALL get_avg3(n1,n2,n3,melt_ri,col)
+        svctr_rate(:,44) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,melt_ni,col)
+        svctr_rate(:,45) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,melt_rs,col)
+        svctr_rate(:,46) = col(:)*dn0(:)
+        CALL get_avg3(n1,n2,n3,melt_ns,col)
+        svctr_rate(:,47) = col(:)*dn0(:)
     ENDIF
 
     ! Ice histograms
+    ! --------------
     IF (nout_ice>0) THEN
         ALLOCATE(hist(n1,nout_ice))
         ! Cloud droplet bin wet radius
-        CALL getBinRadius(fib%cur,nspec+1,a_nicep,a_micep,prlim,a_Rwet,4)
+        CALL getBinRadius(fnp2b,nspec+1,a_nicep,a_micep,prlim,a_Rwet,4)
         ! Histograms (regime A)
-        CALL HistDistr(n1,n2,n3,fia%cur,a_Rwet(:,:,:,iia%cur:fia%cur),a_nicep(:,:,:,iia%cur:fia%cur),icebinlim,nout_ice,hist)
+        CALL HistDistr(n1,n2,n3,fnp2a,a_Rwet(:,:,:,inp2a:fnp2a),a_nicep(:,:,:,inp2a:fnp2a),icebinlim,nout_ice,hist)
         svctr_ih(:,:,1) = svctr_ih(:,:,1) + hist(:,:)
         ! Histograms (regime B)
-        CALL HistDistr(n1,n2,n3,fia%cur,a_Rwet(:,:,:,iib%cur:fib%cur),a_nicep(:,:,:,iib%cur:fib%cur),icebinlim,nout_ice,hist)
+        CALL HistDistr(n1,n2,n3,fnp2a,a_Rwet(:,:,:,inp2b:fnp2b),a_nicep(:,:,:,inp2b:fnp2b),icebinlim,nout_ice,hist)
         svctr_ih(:,:,2) = svctr_ih(:,:,2) + hist(:,:)
         DEALLOCATE(hist)
     ENDIF
   end subroutine accum_lvl5
 
-  !---------------------------------------------------------------------
-  ! Calculate histograms from concentration (num) and radius (rad) data
-  !
-  SUBROUTINE HistDistr(n1,n2,n3,n4,rad,num,rbins,nout,hist)
-    INTEGER, INTENT(IN) :: n1, n2, n3, n4, nout ! Dimensions
-    REAL, INTENT(IN) :: rad(n1,n2,n3,n4), num(n1,n2,n3,n4) ! Size and number data
-    REAL, INTENT(IN) :: rbins(nout+1) ! Size bin limits
-    REAL, INTENT(OUT) :: hist(n1,nout) ! Output histogram
-    REAL :: rmin, rmax
-    INTEGER :: i, j, k, l, ii
-    !
-    ! Include values that are within the bin limits
-    rmin=MAX(rbins(1),1e-10) ! r=0 when there are no particles
-    rmax=rbins(nout+1)
-    !
-    hist=0.
-    DO l=1,n4
-      do j=3,n3-2
-        do i=3,n2-2
-          do k=2,n1
-            IF (rmin<=rad(k,i,j,l) .AND. rad(k,i,j,l)<=rmax) THEN
-                ii=nout
-                DO WHILE (rad(k,i,j,l)<rbins(ii) .AND. ii>1)
-                    ii=ii-1
-                ENDDO
-                hist(k,ii)=hist(k,ii)+num(k,i,j,l)
-            ENDIF
-          ENDDO
-        ENDDO
-      ENDDO
-    ENDDO
-    !
-    ! Normalize by the number of columns
-    hist(:,:)=hist(:,:)/REAL((n3-4)*(n2-4))
-    !
-  END SUBROUTINE HistDistr
   !
   !
   !
@@ -2433,48 +2359,69 @@ contains
 
     use netcdf
     use mpi_interface, only : myid
+    USE mo_submctl, ONLY : ngases
 
     integer :: iret, n, VarID
 
-    do n=1,nv1
+    do n=1,nvar1
        iret = nf90_inq_varid(ncid1, s1(n), VarID)
-       iret = nf90_put_var(ncid1, VarID, ssclr(n), start=(/nrec1/))
-       ssclr(n) = 0.
+       IF (iret == NF90_NOERR) iret = nf90_put_var(ncid1, VarID, ssclr(n), start=(/nrec1/))
     end do
+    ssclr(:) = 0.
 
     IF (level >= 4) THEN
        DO n = 1,nv1_lvl4
           iret = nf90_inq_varid(ncid1, s1_lvl4(n), VarID)
-          IF (iret /= NF90_NOERR) CYCLE ! Probably due to aerosol species not being used
-          iret = nf90_put_var(ncid1, VarID, ssclr_b(n), start=(/nrec1/))
-          ssclr_b(n) = 0.
+          IF (iret == NF90_NOERR) iret = nf90_put_var(ncid1, VarID, ssclr_lvl4(n), start=(/nrec1/))
        END DO
+       ssclr_lvl4(:) = 0.
     END IF
 
     IF (level >= 5) THEN
        DO n = 1,nv1_lvl5
           iret = nf90_inq_varid(ncid1, s1_lvl5(n), VarID)
-          IF (iret /= NF90_NOERR) CYCLE ! Probably due to aerosol species not being used
-          iret = nf90_put_var(ncid1, VarID, ssclr_lvl5(n), start=(/nrec1/))
-          ssclr_lvl5(n) = 0.
+          IF (iret == NF90_NOERR) iret = nf90_put_var(ncid1, VarID, ssclr_lvl5(n), start=(/nrec1/))
        END DO
+       ssclr_lvl5(:) = 0.
     END IF
 
-    IF (level >= 4 .AND. stat_micro_ts) THEN
-       DO n = 1,nv12_rate
-          iret = nf90_inq_varid(ncid1, s12_rate(n), VarID)
-          IF (iret /= NF90_NOERR) CYCLE
-          iret = nf90_put_var(ncid1, VarID, ssclr_rate(n), start=(/nrec1/))
-          ssclr_rate(n) = 0.
+    IF (nv1_mixr>0) THEN
+       DO n = 1,nv1_mixr
+          iret = nf90_inq_varid(ncid1, s1_mixr(n), VarID)
+          IF (iret == NF90_NOERR) iret = nf90_put_var(ncid1, VarID, ssclr_mixr(n), start=(/nrec1/))
        END DO
-    ELSEIF (level == 3 .AND. stat_micro_ts) THEN
-       DO n = 1,nv12_lvl3_rate
-          iret = nf90_inq_varid(ncid1, s12_lvl3_rate(n), VarID)
-          IF (iret /= NF90_NOERR) CYCLE
-          iret = nf90_put_var(ncid1, VarID, ssclr_rate(n), start=(/nrec1/))
-          ssclr_rate(n) = 0.
-       END DO
+       ssclr_mixr(:) = 0.
     END IF
+
+    IF (nv1_rem>0) THEN
+       DO n = 1,nv1_rem
+          iret = nf90_inq_varid(ncid1, s1_rem(n), VarID)
+          IF (iret == NF90_NOERR) iret = nf90_put_var(ncid1, VarID, ssclr_rem(n), start=(/nrec1/))
+       END DO
+       ssclr_rem(:) = 0.
+    END IF
+
+    ! Microphysical process rates
+    IF (level >= 4 .AND. stat_micro_ts) THEN
+       DO n = 1,nv_salsa_rate
+          iret = nf90_inq_varid(ncid1, s_salsa_rate(n), VarID)
+          IF (iret == NF90_NOERR) iret = nf90_put_var(ncid1, VarID, ssclr_rate(n), start=(/nrec1/))
+       END DO
+       ssclr_rate(:) = 0.
+    ELSEIF (level == 3 .AND. stat_micro_ts) THEN
+       DO n = 1,nv_lvl3_rate
+          iret = nf90_inq_varid(ncid1, s_lvl3_rate(n), VarID)
+          IF (iret == NF90_NOERR) iret = nf90_put_var(ncid1, VarID, ssclr_rate(n), start=(/nrec1/))
+       END DO
+       ssclr_rate(:) = 0.
+    END IF
+
+    ! Gas concentrations
+    DO n=1,ngases
+       iret = nf90_inq_varid(ncid1, s1_gas(n), VarID)
+       IF (iret == NF90_NOERR) iret = nf90_put_var(ncid1, VarID, ssclr_gas(n), start=(/nrec1/))
+       ssclr_gas(n) = 0.
+    END DO
 
     if (myid==0) print "(/' ',12('-'),'   Record ',I3,' to time series')",nrec1
 
@@ -2491,9 +2438,9 @@ contains
 
     use netcdf
     use defs, only : alvl, cp
-    USE mo_submctl, ONLY : in1a,in2b,fn2a,fn2b,fca,ica,fcb,icb,fra,ira, &
-                               iia, fia, iib, fib, isa, fsa, &
-                               aerobins,cloudbins,precpbins,icebins,snowbins, &
+    USE mo_submctl, ONLY : in1a,in2a,fn2a,fn2b,fnp2a,fnp2b, &
+                               nprc,nsnw,ngases, &
+                               aerobins,precpbins,snowbins, &
                                nout_cld, cldbinlim, nout_ice, icebinlim
     use mpi_interface, only : myid
 
@@ -2525,9 +2472,10 @@ contains
           svctr(k,49) = 0.
        end if
 
-       svctr(k,10:nv2) = svctr(k,10:nv2)/nsmp
+       svctr(k,10:nvar2) = svctr(k,10:nvar2)/nsmp
        IF (level >=4 ) THEN
-          svctr_b(k,:) = svctr_b(k,:)/nsmp
+          svctr_lvl4(k,:) = svctr_lvl4(k,:)/nsmp
+          svctr_mixr(k,:) = svctr_mixr(k,:)/nsmp
           svctr_aa(k,:,:) = svctr_aa(k,:,:)/nsmp
           svctr_ab(k,:,:) = svctr_ab(k,:,:)/nsmp
           svctr_ca(k,:,:) = svctr_ca(k,:,:)/nsmp
@@ -2535,7 +2483,7 @@ contains
           svctr_p(k,:,:) = svctr_p(k,:,:)/nsmp
 
           ! Replace level 3 CDNC=CCN with that from SALSA (a + b bins)
-          svctr(k,84)=svctr_b(k,8)+svctr_b(k,9)
+          svctr(k,84)=svctr_lvl4(k,3)+svctr_lvl4(k,4)
        END IF
        IF (level >= 5) THEN
           svctr_lvl5(k,:) = svctr_lvl5(k,:)/nsmp
@@ -2546,8 +2494,10 @@ contains
 
     end do
 
+    ! Time
     iret = nf90_inq_VarID(ncid2, s2(1), VarID)
     iret = nf90_put_var(ncid2, VarID, time, start=(/nrec2/))
+    ! Constants (grid dimensions, bin limits,...)
     if (nrec2 == 1) then
        iret = nf90_inq_varid(ncid2, s2(2), VarID)
        iret = nf90_put_var(ncid2, VarID, zt, start = (/nrec2/))
@@ -2555,34 +2505,33 @@ contains
        iret = nf90_put_var(ncid2, VarID, zm, start = (/nrec2/))
        iret = nf90_inq_varid(ncid2, s2(4), VarID)
        iret = nf90_put_var(ncid2, VarID, dn0, start = (/nrec2/))
+       iret = nf90_inq_varid(ncid2, s2(5), VarID)
+       iret = nf90_put_var(ncid2, VarID, u0, start = (/nrec2/))
+       iret = nf90_inq_varid(ncid2, s2(6), VarID)
+       iret = nf90_put_var(ncid2, VarID, v0, start = (/nrec2/))
        ! Juha: For SALSA
        IF (level >= 4) THEN
-          iret = nf90_inq_varid(ncid2,s2_lvl4(1),VarID)
-          iret = nf90_put_var(ncid2,VarID,aerobins(in1a:fn2a),start=(/nrec2/))
-          iret = nf90_inq_varid(ncid2,s2_lvl4(2),VarID)
-          IF (iret == NF90_NOERR) iret = nf90_put_var(ncid2,VarID,aerobins(in2b:fn2b),start=(/nrec2/))
-          iret = nf90_inq_varid(ncid2,s2_lvl4(3),VarID)
-          iret = nf90_put_var(ncid2,VarID,cloudbins(ica%cur:fca%cur),start=(/nrec2/))
-          iret = nf90_inq_varid(ncid2,s2_lvl4(4),VarID)
-          IF (iret == NF90_NOERR) iret = nf90_put_var(ncid2,VarID,cloudbins(icb%cur:fcb%cur),start=(/nrec2/))
-          iret = nf90_inq_varid(ncid2,s2_lvl4(5),VarID)
-          iret = nf90_put_var(ncid2,VarID,precpbins(ira:fra),start=(/nrec2/))
-          iret = nf90_inq_varid(ncid2,s2CldHist(3),VarID)
+          iret = nf90_inq_varid(ncid2,'P_Rd12a',VarID) ! 1a+2a
+          IF (iret == NF90_NOERR) &
+                iret = nf90_put_var(ncid2,VarID,aerobins(in1a:fn2a),start=(/nrec2/))
+          iret = nf90_inq_varid(ncid2,'P_Rd2ab',VarID) ! 2a = 2b
+          IF (iret == NF90_NOERR) &
+                iret = nf90_put_var(ncid2,VarID,aerobins(in2a:fn2a),start=(/nrec2/))
+          iret = nf90_inq_varid(ncid2,'P_Rwprc',VarID)
+          IF (iret == NF90_NOERR) &
+                iret = nf90_put_var(ncid2,VarID,precpbins(1:nprc),start=(/nrec2/))
+          iret = nf90_inq_varid(ncid2,'P_Rwsnw',VarID)
+          IF (iret == NF90_NOERR) &
+                iret = nf90_put_var(ncid2,VarID,snowbins(1:nsnw),start=(/nrec2/))
+          ! Histograms
+          iret = nf90_inq_varid(ncid2,'P_hRc',VarID)
           IF (iret == NF90_NOERR) THEN
               ALLOCATE(rmid(nout_cld))
               rmid(:)=0.5*(cldbinlim(1:nout_cld)+cldbinlim(2:nout_cld+1))
               iret = nf90_put_var(ncid2,VarID,rmid,start=(/nrec2/))
               DEALLOCATE(rmid)
           END IF
-       END IF
-       IF (level >= 5) THEN
-          iret = nf90_inq_varid(ncid2,s2_lvl5(1),VarID)
-          iret = nf90_put_var(ncid2,VarID,icebins(iia%cur:fia%cur),start=(/nrec2/))
-          iret = nf90_inq_varid(ncid2,s2_lvl5(2),VarID)
-          IF (iret == NF90_NOERR) iret = nf90_put_var(ncid2,VarID,icebins(iib%cur:fib%cur),start=(/nrec2/))
-          iret = nf90_inq_varid(ncid2,s2_lvl5(3),VarID)
-          iret = nf90_put_var(ncid2,VarID,snowbins(isa:fsa),start=(/nrec2/))
-          iret = nf90_inq_varid(ncid2,s2IceHist(3),VarID)
+          iret = nf90_inq_varid(ncid2,'P_hRi',VarID)
           IF (iret == NF90_NOERR) THEN
               ALLOCATE(rmid(nout_ice))
               rmid(:)=0.5*(icebinlim(1:nout_ice)+icebinlim(2:nout_ice+1))
@@ -2590,11 +2539,6 @@ contains
               DEALLOCATE(rmid)
           END IF
        END IF
-       ! \\ SALSA
-       iret = nf90_inq_varid(ncid2, s2(5), VarID)
-       iret = nf90_put_var(ncid2, VarID, u0, start = (/nrec2/))
-       iret = nf90_inq_varid(ncid2, s2(6), VarID)
-       iret = nf90_put_var(ncid2, VarID, v0, start = (/nrec2/))
     end if
 
     iret = nf90_inq_VarID(ncid2, s2(7), VarID)
@@ -2612,124 +2556,130 @@ contains
 
     IF (level >= 4) THEN
        ! SALSA level 4
-       DO n = 6,nv2_lvl4
+       DO n = 1,nv2_lvl4
           iret = nf90_inq_varid(ncid2,s2_lvl4(n),VarID)
-          IF (iret /= NF90_NOERR) CYCLE ! This is intended to mainly keep track of which variables are used
-          iret = nf90_put_var(ncid2,VarID,svctr_b(:,n), start=(/1,nrec2/),  &
-               count=(/n1,1/))
+          IF (iret == NF90_NOERR) &
+             iret = nf90_put_var(ncid2,VarID,svctr_lvl4(:,n), start=(/1,nrec2/), count=(/n1,1/))
+       END DO
+
+       ! Mixing ratios
+       DO n = 1,nv2_mixr
+          iret = nf90_inq_varid(ncid2,s2_mixr(n),VarID)
+          IF (iret == NF90_NOERR) &
+             iret = nf90_put_var(ncid2,VarID,svctr_mixr(:,n), start=(/1,nrec2/), count=(/n1,1/))
        END DO
 
        ! Binned aerosols, regime a
-       DO n = 1,nv2saa
-          iret = nf90_inq_varid(ncid2,s2Aeroa(n),VarID)
-          IF (iret /= NF90_NOERR) CYCLE ! keep track of used vars
-          iret = nf90_put_var(ncid2,VarID,svctr_aa(:,:,n), start=(/1,1,nrec2/),  &
-               count=(/n1,fn2a,1/))
+       DO n = 1,nv2_bin
+          iret = nf90_inq_varid(ncid2,s2_aa(n),VarID)
+          IF (iret == NF90_NOERR) &
+             iret = nf90_put_var(ncid2,VarID,svctr_aa(:,:,n), start=(/1,1,nrec2/), count=(/n1,fn2a,1/))
        END DO
 
        ! Aerosols, regime b
-       DO n = 1,nv2sab
-          iret = nf90_inq_varid(ncid2,s2Aerob(n),VarID)
-          IF (iret /= NF90_NOERR) CYCLE ! Keep track of used variables
-          iret = nf90_put_var(ncid2,VarID,svctr_ab(:,:,n), start=(/1,1,nrec2/),  &
-               count=(/n1,fn2b-fn2a,1/))
+       DO n = 1,nv2_bin
+          iret = nf90_inq_varid(ncid2,s2_ab(n),VarID)
+          IF (iret == NF90_NOERR) &
+             iret = nf90_put_var(ncid2,VarID,svctr_ab(:,:,n), start=(/1,1,nrec2/), count=(/n1,fn2b-fn2a,1/))
        END DO
 
        ! Cloud droplets, regime a
-       DO n = 1,nv2sca
-          iret = nf90_inq_varid(ncid2,s2Clouda(n),VarID)
-          IF (iret /= NF90_NOERR) CYCLE ! Keep track of used variables
-          iret = nf90_put_var(ncid2,VarID,svctr_ca(:,:,n), start=(/1,1,nrec2/),  &
-               count=(/n1,fca%cur,1/))
+       DO n = 1,nv2_bin
+          iret = nf90_inq_varid(ncid2,s2_ca(n),VarID)
+          IF (iret == NF90_NOERR) &
+             iret = nf90_put_var(ncid2,VarID,svctr_ca(:,:,n), start=(/1,1,nrec2/), count=(/n1,fnp2a,1/))
        END DO
 
        ! Cloud droplets, regime b
-       DO n = 1,nv2scb
-          iret = nf90_inq_varid(ncid2,s2Cloudb(n),VarID)
-          IF (iret /= NF90_NOERR) CYCLE ! Keep track of used variables
-          iret = nf90_put_var(ncid2,VarID,svctr_cb(:,:,n), start=(/1,1,nrec2/),  &
-               count=(/n1,fcb%cur-fca%cur,1/))
+       DO n = 1,nv2_bin
+          iret = nf90_inq_varid(ncid2,s2_cb(n),VarID)
+          IF (iret == NF90_NOERR) &
+            iret = nf90_put_var(ncid2,VarID,svctr_cb(:,:,n), start=(/1,1,nrec2/), count=(/n1,fnp2b-fnp2a,1/))
        END DO
 
        ! Precipitation
-       DO n = 1,nv2sp
-          iret = nf90_inq_varid(ncid2,s2Precp(n),VarID)
-          IF (iret /= NF90_NOERR) CYCLE ! Keep track of used variables
-          iret = nf90_put_var(ncid2,VarID,svctr_p(:,:,n), start=(/1,1,nrec2/),   &
-               count=(/n1,fra,1/))
+       DO n = 1,nv2_bin
+          iret = nf90_inq_varid(ncid2,s2_p(n),VarID)
+          IF (iret == NF90_NOERR) &
+            iret = nf90_put_var(ncid2,VarID,svctr_p(:,:,n), start=(/1,1,nrec2/), count=(/n1,nprc,1/))
        END DO
 
     END IF
 
     IF (level >= 5) THEN
        ! SALSA level 5
-       DO n = 4,nv2_lvl5
+       DO n = 1,nv2_lvl5
           iret = nf90_inq_varid(ncid2,s2_lvl5(n),VarID)
-          IF (iret /= NF90_NOERR) CYCLE ! This is intended to mainly keep track of which variables are used
-          iret = nf90_put_var(ncid2,VarID,svctr_lvl5(:,n), start=(/1,nrec2/),  &
-               count=(/n1,1/))
+          IF (iret == NF90_NOERR) &
+             iret = nf90_put_var(ncid2,VarID,svctr_lvl5(:,n), start=(/1,nrec2/), count=(/n1,1/))
        END DO
 
        ! Ice, regime a
-       DO n = 1,nv2sia
-          iret = nf90_inq_varid(ncid2,s2Icea(n),VarID)
-          IF (iret /= NF90_NOERR) CYCLE
-          iret = nf90_put_var(ncid2,VarID,svctr_ia(:,:,n), start=(/1,1,nrec2/),  &
-               count=(/n1,fia%cur,1/))
+       DO n = 1,nv2_bin
+          iret = nf90_inq_varid(ncid2,s2_ia(n),VarID)
+          IF (iret == NF90_NOERR) &
+             iret = nf90_put_var(ncid2,VarID,svctr_ia(:,:,n), start=(/1,1,nrec2/), count=(/n1,fnp2a,1/))
        END DO
 
        ! Ice, regime b
-       DO n = 1,nv2sib
-          iret = nf90_inq_varid(ncid2,s2Iceb(n),VarID)
-          IF (iret /= NF90_NOERR) CYCLE
-          iret = nf90_put_var(ncid2,VarID,svctr_ib(:,:,n), start=(/1,1,nrec2/),  &
-               count=(/n1,fib%cur-fia%cur,1/))
+       DO n = 1,nv2_bin
+          iret = nf90_inq_varid(ncid2,s2_ib(n),VarID)
+          IF (iret == NF90_NOERR) &
+             iret = nf90_put_var(ncid2,VarID,svctr_ib(:,:,n), start=(/1,1,nrec2/), count=(/n1,fnp2b-fnp2a,1/))
        END DO
 
        ! Snow
-       DO n = 1,nv2ss
-          iret = nf90_inq_varid(ncid2,s2Snow(n),VarID)
-          IF (iret /= NF90_NOERR) CYCLE
-          iret = nf90_put_var(ncid2,VarID,svctr_s(:,:,n), start=(/1,1,nrec2/),   &
-               count=(/n1,fsa,1/))
+       DO n = 1,nv2_bin
+          iret = nf90_inq_varid(ncid2,s2_s(n),VarID)
+          IF (iret == NF90_NOERR) &
+             iret = nf90_put_var(ncid2,VarID,svctr_s(:,:,n), start=(/1,1,nrec2/), count=(/n1,nsnw,1/))
        END DO
 
     END IF
 
     IF (level >= 4 .AND. stat_micro_ps) THEN
-       DO n = 1,nv12_rate
-          iret = nf90_inq_varid(ncid2, s12_rate(n), VarID)
-          IF (iret /= NF90_NOERR) CYCLE
-          iret = nf90_put_var(ncid2,VarID,svctr_rate(:,n), start=(/1,nrec2/),  &
-               count=(/n1,1/))
+       DO n = 1,nv_salsa_rate
+          iret = nf90_inq_varid(ncid2, s_salsa_rate(n), VarID)
+          IF (iret == NF90_NOERR) &
+             iret = nf90_put_var(ncid2,VarID,svctr_rate(:,n), start=(/1,nrec2/), count=(/n1,1/))
        END DO
     ELSEIF (level == 3 .AND. stat_micro_ps) THEN
-       DO n = 1,nv12_lvl3_rate
-          iret = nf90_inq_varid(ncid2, s12_lvl3_rate(n), VarID)
-          IF (iret /= NF90_NOERR) CYCLE
-          iret = nf90_put_var(ncid2,VarID,svctr_rate(:,n), start=(/1,nrec2/),  &
-               count=(/n1,1/))
+       DO n = 1,nv_lvl3_rate
+          iret = nf90_inq_varid(ncid2, s_lvl3_rate(n), VarID)
+          IF (iret == NF90_NOERR) &
+             iret = nf90_put_var(ncid2,VarID,svctr_rate(:,n), start=(/1,nrec2/), count=(/n1,1/))
        END DO
     END IF
 
     IF (level >= 4 .AND. nout_cld>0) THEN
-        iret = nf90_inq_varid(ncid2, s2CldHist(1), VarID)
+        iret = nf90_inq_varid(ncid2, s2_CldHist(1), VarID)
         IF (iret == NF90_NOERR) &
             iret = nf90_put_var(ncid2,VarID,svctr_ch(:,:,1), start=(/1,1,nrec2/), count=(/n1,nout_cld,1/))
-        iret = nf90_inq_varid(ncid2, s2CldHist(2), VarID)
+        iret = nf90_inq_varid(ncid2, s2_CldHist(2), VarID)
         IF (iret == NF90_NOERR) &
             iret = nf90_put_var(ncid2,VarID,svctr_ch(:,:,2), start=(/1,1,nrec2/), count=(/n1,nout_cld,1/))
         svctr_ch(:,:,:) = 0.
     END IF
 
     IF (level >= 5 .AND. nout_ice>0) THEN
-        iret = nf90_inq_varid(ncid2, s2IceHist(1), VarID)
+        iret = nf90_inq_varid(ncid2, s2_IceHist(1), VarID)
         IF (iret == NF90_NOERR) &
             iret = nf90_put_var(ncid2,VarID,svctr_ih(:,:,1), start=(/1,1,nrec2/), count=(/n1,nout_ice,1/))
-        iret = nf90_inq_varid(ncid2, s2IceHist(2), VarID)
+        iret = nf90_inq_varid(ncid2, s2_IceHist(2), VarID)
         IF (iret == NF90_NOERR) &
             iret = nf90_put_var(ncid2,VarID,svctr_ih(:,:,2), start=(/1,1,nrec2/), count=(/n1,nout_ice,1/))
         svctr_ih(:,:,:) = 0.
+    END IF
+
+    IF (level >= 4 .AND. ngases>0) THEN
+        DO n=1,ngases
+            iret = nf90_inq_varid(ncid2, s2_gas(n), VarID)
+            IF (iret == NF90_NOERR) THEN
+                svctr_gas(:,n)=svctr_gas(:,n)/nsmp
+                iret = nf90_put_var(ncid2,VarID,svctr_gas(:,n), start=(/1,nrec2/),count=(/n1,1/))
+            ENDIF
+       END DO
+       svctr_gas(:,:)=0.
     END IF
 
     if (myid==0) print "(/' ',12('-'),'   Record ',I3,' to profiles')",nrec2
@@ -2740,7 +2690,8 @@ contains
 
     svctr(:,:) = 0.
     IF (level >= 4) THEN
-        svctr_b(:,:) = 0.
+        svctr_lvl4(:,:) = 0.
+        svctr_mixr(:,:) = 0.
         svctr_aa(:,:,:) = 0.
         svctr_ab(:,:,:) = 0.
         svctr_ca(:,:,:) = 0.
@@ -3028,9 +2979,7 @@ contains
   ! -------------------------------------------------------------------------
   !
   SUBROUTINE acc_removal(n2,n3,n4,raer,rcld,rprc,rice,rsnw)
-    USE grid, ONLY : prtcl
-    USE mo_submctl, ONLY : nbins, ncld, nprc, nice,  nsnw
-    USE class_componentIndex, ONLY : IsUsed, GetIndex
+    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw, nspec
     IMPLICIT NONE
 
     INTEGER, INTENT(in)           :: n2,n3,n4                     ! Grid dimensions
@@ -3040,139 +2989,46 @@ contains
                                      rice(n2,n3,n4*nice), &
                                      rsnw(n2,n3,n4*nsnw)
 
-    INTEGER :: ss, si
-    INTEGER :: tt
-    INTEGER :: end,str
+    INTEGER :: si, tt, end, str
 
-    DO ss = 1,8
-        IF ( .NOT. IsUsed(prtcl,zspec(ss)) .AND. (ss<8) ) CYCLE
-
-        si = GetIndex(prtcl,zspec(ss))
-
-        ! Index to ssclr_b
-        tt = 29 +(ss-1)*3
+    DO si = 1,nspec+1 ! Aerosol species and water
+        tt=(si-1)*5+1
 
         ! Removal by sedimentation of aerosol
         str = (si-1)*nbins+1
         end = si*nbins
-        ssclr_b(tt) = get_avg2dh( n2,n3,SUM(raer(:,:,str:end),DIM=3) )
+        ssclr_rem(tt) = get_avg2dh( n2,n3,SUM(raer(:,:,str:end),DIM=3) )
         tt=tt+1
 
         ! Removal by sedimentation of cloud droplets
         str = (si-1)*ncld+1
         end = si*ncld
-        ssclr_b(tt) = get_avg2dh( n2,n3,SUM(rcld(:,:,str:end),DIM=3) )
+        ssclr_rem(tt) = get_avg2dh( n2,n3,SUM(rcld(:,:,str:end),DIM=3) )
         tt=tt+1
 
         ! Removal by precipitation
         str = (si-1)*nprc+1
         end = si*nprc
-        ssclr_b(tt) = get_avg2dh( n2,n3,SUM(rprc(:,:,str:end),DIM=3) )
+        ssclr_rem(tt) = get_avg2dh( n2,n3,SUM(rprc(:,:,str:end),DIM=3) )
         tt=tt+1
 
         IF (level<5) CYCLE
 
-        ! Index to ssclr_lvl5
-        tt = 34 +(ss-1)*2
-
         ! Removal by sedimentation of ice particles
         str = (si-1)*nice+1
         end = si*nice
-        ssclr_lvl5(tt) = get_avg2dh( n2,n3,SUM(rice(:,:,str:end),DIM=3) )
+        ssclr_rem(tt) = get_avg2dh( n2,n3,SUM(rice(:,:,str:end),DIM=3) )
         tt=tt+1
 
         ! Removal by snow
         str = (si-1)*nsnw+1
         end = si*nsnw
-        ssclr_lvl5(tt) = get_avg2dh( n2,n3,SUM(rsnw(:,:,str:end),DIM=3) )
+        ssclr_rem(tt) = get_avg2dh( n2,n3,SUM(rsnw(:,:,str:end),DIM=3) )
+        tt=tt+1
 
     END DO
 
   END SUBROUTINE acc_removal
-  !
-  !--------------------------------------------------------------------------
-  !
-  ! Accumulate mass budget terms. Must be done for every timestep. Is called from step,srfc,mcrp
-  ! Juha Tonttila, FMI, 2016
-  !
-  SUBROUTINE acc_massbudged(n1,n2,n3,type,tstep,dz,dn,    &
-                            rv,rc,prc,revap,rdep,ApVdom   )
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: n1,n2,n3  !
-    INTEGER, INTENT(in) :: type      ! 1: Atmospheric water, 2: Water evaporated to the atm,
-                                     ! 3: Water removed by precip/deposition
-    REAL, INTENT(in) :: tstep        ! Current timestep length
-
-    REAL, INTENT(in) :: dz(n1)
-    REAL, INTENT(in) :: dn(n1,n2,n3) ! Air density
-
-    REAL, INTENT(in), OPTIONAL :: rv(n1,n2,n3)      ! Water vapor mixing ratio
-    REAL, INTENT(in), OPTIONAL :: rc(n1,n2,n3), &   ! Cloud water mixing ratio
-                                  prc(n1,n2,n3)     ! Precipitation mixing ratio
-
-    REAL, INTENT(in), OPTIONAL :: revap(n2,n3), &   ! Gain of water through evaporation at the surface
-                                  rdep(n2,n3)       ! Loss of water through deposition
-
-    REAL, INTENT(in), OPTIONAL :: ApVdom            ! Domain surface area / Domain atm volume
-
-    REAL :: a1,a2,a3
-
-    SELECT CASE(type)
-       CASE(0)
-          IF ( .NOT. PRESENT(rv) .OR. .NOT. PRESENT(rc) .OR. .NOT. PRESENT(prc) ) &
-               STOP 'acc_massbudget (stat): ERROR - for atm water q,rc and prc must be present'
-
-          a1 = 0.; a2 = 0.; a3 = 0.
-          a1 = get_avg_ts(n1,n2,n3,rv*dn,dz)
-          a2 = get_avg_ts(n1,n2,n3,rc*dn,dz)
-          a3 = get_avg_ts(n1,n2,n3,prc*dn,dz)
-          massbdg(1) = (a1 + a2 + a3)
-
-       CASE(1)
-          IF ( .NOT. PRESENT(rv) .OR. .NOT. PRESENT(rc) .OR. .NOT. PRESENT(prc) ) &
-               STOP 'acc_massbudget (stat): ERROR - for atm water q,rc and prc must be present'
-
-          a1 = 0.; a2 = 0.; a3 = 0.
-          a1 = get_avg_ts(n1,n2,n3,rv*dn,dz)
-          a2 = get_avg_ts(n1,n2,n3,rc*dn,dz)
-          a3 = get_avg_ts(n1,n2,n3,prc*dn,dz)
-          massbdg(2) = (a1 + a2 + a3) ! Not accumulated
-
-       CASE(2)
-          IF ( .NOT. PRESENT(revap) .OR. .NOT. PRESENT(ApVdom) ) &
-               STOP 'acc_massbudget (stat): ERROR - for evaporation stats revap must be present'
-
-          a1 = 0.
-          a1 = get_avg2dh(n2,n3,revap)
-          massbdg(3) = massbdg(3) + a1*tstep*ApVdom
-
-       CASE(3)
-          IF ( .NOT. PRESENT(rdep) .OR. .NOT. PRESENT(ApVdom) ) &
-               STOP 'acc_massbudget (stat): ERROR - for deposition stats rdep must be present'
-
-          a1 = 0.
-          a1 = get_avg2dh(n2,n3,rdep)
-          massbdg(4) = massbdg(4) + a1*tstep*ApVdom
-
-    END SELECT
-
-    avgtime = avgtime + tstep ! Accumulate time for normalization
-
-  END SUBROUTINE acc_massbudged
-  !
-  ! -------------------------------------------------------------------------
-  !
-  SUBROUTINE write_massbudged()
-    IMPLICIT NONE
-
-    OPEN(88,FILE='MASSBUDGED.TXT')
-    WRITE(88,*) 'Initial mass (atm), Final mass (atm), Final-Initial, Total evpaoration, Total deposition, Evap-Dep  '
-    WRITE(88,*) massbdg(1), massbdg(2), massbdg(2)-massbdg(1),  &
-                massbdg(3), massbdg(4), massbdg(3)-massbdg(4)
-    CLOSE(88)
-
-  END SUBROUTINE write_massbudged
   !
   ! -------------------------------------------------------------------------
   !
