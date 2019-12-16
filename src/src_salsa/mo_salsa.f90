@@ -37,7 +37,7 @@ CONTAINS
          fn2b,ncld,nprc,nice,nsnw,         &
          t_section,                        &
          lscoag,lscnd,                     &
-         lsauto,lsautosnow,lsactiv,        &
+         lsauto,auto_sb,lsautosnow,lsactiv,&
          lsicenucl,lsicmelt,lsdistupdate,  &
          fixinc, ice_hom, ice_imm, ice_dep
 
@@ -140,8 +140,11 @@ CONTAINS
     IF (lsauto) THEN
          autoc_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)
          autoc_nprecp(:,:)=SUM(pprecp(:,:,:)%numc,DIM=3)
-         CALL autoconv2(kbdim,klev,pcloud, pprecp)
-         !CALL autoconv_sb(kbdim,klev,ptstep,pcloud,pprecp)
+         IF (auto_sb) THEN
+            CALL autoconv_sb(kbdim,klev,ptstep,pcloud,pprecp)
+         ELSE
+            CALL autoconv2(kbdim,klev,pcloud, pprecp)
+         ENDIF
          autoc_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)-autoc_vprecp(:,:)
          autoc_nprecp(:,:)=SUM(pprecp(:,:,:)%numc,DIM=3)-autoc_nprecp(:,:)
     ENDIF

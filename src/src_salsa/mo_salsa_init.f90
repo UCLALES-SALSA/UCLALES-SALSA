@@ -448,6 +448,7 @@ CONTAINS
                                nlcndh2oic,            &
                                rhlim,                 &
                                nlauto,nlautosnow,     &
+                               auto_sb,               &
                                autoc_rain_zd0, autoc_rain_sigmag, &
                                autoc_snow_zd0, autoc_snow_sigmag, &
                                nlactiv,               &
@@ -501,6 +502,7 @@ CONTAINS
 
          nlauto,        & ! Switch for autoconversion of cloud droplets to rain
          nlautosnow,    & ! Switch for autoconversion of ice particles to snow
+         auto_sb,       & ! Use the Seifert & Beheng (2001) autoconversion method
          autoc_rain_zd0, autoc_rain_sigmag, & ! Cloud to rain autoconversion parameters
          autoc_snow_zd0, autoc_snow_sigmag, & ! Ice to snow autoconversion parameters
 

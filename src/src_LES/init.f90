@@ -716,7 +716,7 @@ contains
   !
   SUBROUTINE aerosol_init
 
-    USE mo_submctl, ONLY : pi6, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,aerobins, &
+    USE mo_submctl, ONLY : pi6, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,fnp2a,aerobins, &
                            nmod, sigmag, dpg, n, volDistA, volDistB, nf2a, nreg, isdtyp, nspec, listspec, &
                            rhosu, msu, rhooc, moc, rhobc, mbc, rhodu, mdu, &
                            rhoss, mss, rhono, mno, rhonh, mnh, rhowa, mwa, &
@@ -924,11 +924,25 @@ contains
             ! Print
             WRITE(*,fmt) zt(k), SUM(a_naerop(k,3,3,in1a:fn2a))*1.e-6, mass(1:nspec), &
                                 SUM(a_naerop(k,3,3,in2b:fn2b))*1.e-6, mass(nspec+1:2*nspec)
-            IF (k==10 .AND. isdtyp == 0) THEN
+            IF (k==5 .AND. isdtyp == 0) THEN
                 WRITE(*,'(A14)')'...'
                 EXIT
             ENDIF
         ENDDO
+        !
+        !
+        ! Initial aerosol size distribution, but only when it is constant
+        IF (isdtyp == 0) THEN
+            WRITE(*,'(/,A)') ' Initial aerosol size distribution:'
+            WRITE(*,*)'   Bin      Dmin [m]   Na [1e6/kg]    Nb [1e6/kg]'
+            DO i=1,fn2a
+                IF (i<in2a) THEN
+                    WRITE(*,'(I7,ES14.3,F14.1)') i, aerobins(i)*2., a_naerop(2,3,3,i)*1e-6
+                ELSE
+                    WRITE(*,'(I7,ES14.3,2F14.1)') i, aerobins(i)*2., a_naerop(2,3,3,i)*1e-6, a_naerop(2,3,3,fnp2a+i)*1e-6
+                ENDIF
+            ENDDO
+        ENDIF
     ENDIF
   END SUBROUTINE aerosol_init
   !

@@ -89,6 +89,7 @@ MODULE mo_submctl
   !   Cloud to rain
   REAL :: autoc_rain_zd0 = 50.e-6 ! Cloud-rain diameter limit
   REAL :: autoc_rain_sigmag = 1.2 ! Assumed log-normal cloud drop size distribution width
+  LOGICAL :: auto_sb = .FALSE. ! Use the Seifert & Beheng (2001) autoconversion method
   !   Ice to snow
   REAL :: autoc_snow_zd0 = 250.e-6 ! Ice-snow diameter limit
   REAL :: autoc_snow_sigmag = 1.2 ! Assumed log-normal ice particle size distribution width
