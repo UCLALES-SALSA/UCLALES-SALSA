@@ -29,7 +29,8 @@ module forc
   character (len=50) :: radsounding = 'datafiles/dsrt.lay'  ! Juha: Added so the radiation background sounding can be given
                                                             ! from the NAMELIST
   REAL :: sfc_albedo = 0.05
-  REAL  :: div = 0.
+  REAL :: div = 0., zmaxdiv = 1e6
+  REAL :: xka = 119., fr0 = 96.2, fr1 = 61.2, alpha = 1.0
   LOGICAL :: useMcICA = .TRUE.
   LOGICAL :: RadConstPress = .FALSE. ! Keep constant pressure levels
   INTEGER :: RadPrecipBins = 0 ! Add precipitation bins to cloud water (for level 3 and up)
@@ -47,130 +48,96 @@ contains
          , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
          a_fus, a_fds, a_fuir, a_fdir
-
     USE mo_submctl, ONLY : ncld,nice,nprc,nsnw
-
     use mpi_interface, only : myid, appl_abort
 
-    real, optional, intent (in) :: time_in, cntlat, sst
-
-    real :: xka, fr0, fr1
+    real, intent (in) :: time_in, cntlat, sst
     REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
 
-    ! DIVERGENCE GIVEN FROM NAMELIST
-    if (trim(case_name) == 'atex') then
-       xka = 130.
-       fr0 = 74.
-       fr1 = 0.
-       div = 0.
-    else
-       xka = 85.
-       fr0 = 70.
-       fr1 = 22.
-       !div = 3.75e-6
-    end if
-
-    if (trim(case_name)=='ascos') THEN
-        ! Full radiation calculations when saving data (stat/sflg=.TRUE. when saving)
-        useMcICA=.NOT.sflg
-    endif
-
     select case(iradtyp)
+    case (0)
+       ! No radiation or large-scale forcing
+
     case (1)
-       ! No radiation, just large-scale forcing. 
-       ! Note, there's a slight discrepancy between lev 1-3 and lev 4 with a_rp
-       ! (total water vs vapour): it perhaps doesn't make sence to change the
-       ! tendency of condesated water due to subsidence in level4 and for level
-       ! 1-3 total mixing ratio is the only prognostic water variable.
-       ! -------------------------------------------------
+       ! No radiation, just case-dependent large-scale forcing
+       !
        IF ( case_name /= 'none' ) THEN
           call case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
        END IF
 
     case (2)
-       ! Some original special cases....
-       ! ---------------------------------
-       IF ( level >= 4) THEN
-          IF(myid == 0) WRITE(*,*) 'FORCING: selection not implemented for level 4 or 5, iradtyp = ',iradtyp
-          CALL appl_abort(0)
+       ! Parameterized radiation (GCSS) and subsidence (constant div up to z=zmaxdiv)
+       !
+       IF (level <= 3) THEN
+          zrc(:,:,:) = a_rc(:,:,:) ! Cloud water
+       ELSE
+          zrc(:,:,:) = SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) ! Cloud water only (regimes a and b)
+       ENDIF
+       call new_gcss_rad(nzp, nxp, nyp, xka, fr0, fr1, alpha, zmaxdiv, div, &
+            zrc, dn0, a_rflx, zt, zm, dzt, a_tt, a_tp, a_rt, a_rp)
+
+    case (3)
+       ! Fu and Liou (1993) radiation code and case-dependent large-scale forcing
+       !
+       IF (level <= 3) THEN
+          znc(:,:,:) = CCN
+          zrc(:,:,:) = a_rc(:,:,:) ! Cloud water
+          IF (level == 3 .AND. RadPrecipBins > 0) THEN
+             ! Include clouds and rain - number is a mass-mean for cloud and rain species
+             zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
+             WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc*CCN))/zrc
+          ENDIF
+          call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+               dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
+               useMcICA=useMcICA, ConstPrs=RadConstPress)
+
+       ELSE IF (level == 4) THEN
+          ! Water is the first SALSA species
+          !zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
+          zrc(:,:,:) = SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) ! Cloud droplets
+          znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4)
+          IF (RadPrecipBins>0) THEN ! Add precipitation bins
+             zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
+             znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
+          ENDIF
+          CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+               dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
+               useMcICA=useMcICA, ConstPrs=RadConstPress)
+
+       ELSE IF (level == 5) THEN
+          ! Water is the first SALSA species
+          !zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
+          zrc(:,:,:) = SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) ! Cloud droplets
+          znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4)
+          IF (RadPrecipBins>0) THEN ! Add precipitation bins
+             zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
+             znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
+          ENDIF
+          zri(:,:,:) = SUM(a_micep(:,:,:,1:nice),DIM=4) ! Ice
+          zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4)
+          IF (RadSnowBins>0) THEN ! Add snow bins
+             zri(:,:,:) = zri(:,:,:) + SUM(a_msnowp(:,:,:,1:min(RadSnowBins,nsnw)),DIM=4)
+             zni(:,:,:) = zni(:,:,:) + SUM(a_nsnowp(:,:,:,1:min(RadSnowBins,nsnw)),DIM=4)
+          ENDIF
+          CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+               dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
+               useMcICA=useMcICA, ConstPrs=RadConstPress)
+
        END IF
 
-       select case(level)
-       case(1) 
-          call smoke_rad(nzp, nxp, nyp, dn0, a_rflx, zm, dzt,a_tt,a_rp)
-       case(2)
-          call gcss_rad(nzp, nxp, nyp, xka, fr0, fr1, div, a_rc, dn0,     &
-               a_rflx, zt, zm, dzt, a_tt, a_tp, a_rt, a_rp)
+       ! Case-dependent large-scale forcing
+       IF ( case_name /= 'none') THEN
+          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
+       END IF
 
-       end select
-       if (trim(case_name) == 'atex') call case_forcing(nzp, nxp, nyp,    &
-            zt, dzt, dzm, div, a_tp, a_rp, a_tt, a_rt)
-    case (3)
-       ! Radiation + large-scale forcing
-       ! -------------------------------------
-       if (present(time_in) .and. present(cntlat) .and. present(sst)) then
+    case default
+       if (myid == 0) print *, '  ABORTING: improper call to forcing'
+       call appl_abort(0)
 
-          IF (level <= 3) THEN
-             znc(:,:,:) = CCN
-             zrc(:,:,:) = a_rc(:,:,:) ! Cloud water
-             IF (level == 3 .AND. RadPrecipBins > 0) THEN
-                ! Include clouds and rain - number is a mass-mean for cloud and rain species
-                zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
-                WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc*CCN))/zrc
-             ENDIF
-             call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                  dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
-                  useMcICA=useMcICA, ConstPrs=RadConstPress)
-
-          ELSE IF (level == 4) THEN
-             ! Water is the first SALSA species
-             !zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
-             zrc(:,:,:) = SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) ! Cloud droplets
-             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4)
-             IF (RadPrecipBins>0) THEN ! Add precipitation bins
-                zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
-                znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
-             ENDIF
-             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                  dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
-                  useMcICA=useMcICA, ConstPrs=RadConstPress)
-
-          ELSE IF (level == 5) THEN
-             ! Water is the first SALSA species
-             !zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
-             zrc(:,:,:) = SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) ! Cloud droplets
-             znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4)
-             IF (RadPrecipBins>0) THEN ! Add precipitation bins
-                zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
-                znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
-             ENDIF
-             zri(:,:,:) = SUM(a_micep(:,:,:,1:nice),DIM=4) ! Ice
-             zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4)
-             IF (RadSnowBins>0) THEN ! Add snow bins
-                zri(:,:,:) = zri(:,:,:) + SUM(a_msnowp(:,:,:,1:min(RadSnowBins,nsnw)),DIM=4)
-                zni(:,:,:) = zni(:,:,:) + SUM(a_nsnowp(:,:,:,1:min(RadSnowBins,nsnw)),DIM=4)
-             ENDIF
-             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-                  dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
-                  a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
-                  useMcICA=useMcICA, ConstPrs=RadConstPress)
-
-          END IF
-
-          IF ( case_name /= 'none') THEN
-             CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
-          END IF 
-
-       else
-          if (myid == 0) print *, '  ABORTING: inproper call to radiation'
-          call appl_abort(0)
-       end if
-    case (4)
-       call bellon(nzp, nxp, nyp, a_rflx, a_sflx, zt, dzt, dzm, a_tt, a_tp&
-            ,a_rt, a_rp, a_ut, a_up, a_vt, a_vp)
-    end select 
+    end select
 
   end subroutine forcings
 
@@ -230,6 +197,88 @@ contains
     enddo
 
   end subroutine gcss_rad
+
+
+  subroutine new_gcss_rad(n1,n2,n3,xka,fr0,fr1,alpha,zmaxdiv,div,rc,dn0,flx,zt,zm,dzt,   &
+                        tt,tl,rtt,rt)
+    USE grid, ONLY : a_ncloudp, a_nprecpp, a_mprecpp, a_nicep, a_nsnowp, a_msnowp, &
+         a_naerop, a_naerot, a_ncloudt, a_nicet, a_nsnowt, a_maerop, a_mcloudp, a_micep,  &
+         a_maerot, a_mcloudt, a_micet, a_msnowt, a_nprecpt, a_mprecpt, level, a_temp, a_theta
+    implicit none
+    integer, intent (in)::  n1,n2, n3
+    real, intent (in)   ::  xka, fr0, fr1, alpha, zmaxdiv, div
+    real, intent (in)   ::  zt(n1),zm(n1),dzt(n1),dn0(n1),rc(n1,n2,n3),tl(n1,n2,n3),rt(n1,n2,n3)
+    real, intent (inout)::  tt(n1,n2,n3),rtt(n1,n2,n3)
+    real, intent (out)  ::  flx(n1,n2,n3)
+
+    integer :: i, j, k, kp1, ki
+    real    :: lwp, fact
+    real, dimension (n1) :: sf
+
+    ! a) Radiation
+    flx=0.
+    do j=3,n3-2
+       do i=3,n2-2
+          ki=n1
+          lwp=0.
+          ! No cloud water at level k=1
+          flx(1,i,j)=fr1*exp(-1.*xka*lwp)
+          do k=2,n1
+             lwp=lwp+max(0.,rc(k,i,j))*dn0(k)/dzt(k)
+             flx(k,i,j)=fr1*exp(-1.*xka*lwp)
+             if ( rc(k,i,j) > 0.01e-3 ) ki=k
+          enddo
+          !
+          fact=dn0(ki)*cp*div*alpha
+          ! Level k=1
+          flx(1,i,j)=flx(1,i,j)+fr0*exp(-1.*xka*lwp)
+          do k=2,n1
+             lwp=lwp-max(0.,rc(k,i,j)*dn0(k)/dzt(k))
+             flx(k,i,j)=flx(k,i,j)+fr0*exp(-1.*xka*lwp)
+             if (k > ki .and. fact > 0.) then
+                flx(k,i,j)=flx(k,i,j) + fact*(0.25*(zm(k)-zm(ki))**1.333 + &
+                    zm(ki)*(zm(k)-zm(ki))**0.333333)
+             end if
+             ! dtheta_il/dT=dtheta/dT=1/pi=theta/T => dtheta_il = theta/T*dT
+             tt(k,i,j) =tt(k,i,j)-(flx(k,i,j)-flx(k-1,i,j))*dzt(k)/(dn0(k)*cp)*a_theta(k,i,j)/a_temp(k,i,j)
+          enddo
+      enddo
+    enddo
+    !
+    ! b) Subsidence
+    IF (ABS(div)<1e-10) RETURN
+    !
+    sf=0.
+    do k=2,n1-2
+        ! calculate subsidence factor (wsub / dz)
+        sf(k) = -div*min( zmaxdiv,zt(k) )*dzt(k)
+    end do
+    !
+    DO j=3,n3-2
+        DO i=3,n2-2
+            DO k=2,n1-1
+                kp1 = k+1
+                tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
+                rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
+
+                IF (level>=4) THEN
+                  a_maerot(k,i,j,:) = a_maerot(k,i,j,:) - ( a_maerop(kp1,i,j,:) - a_maerop(k,i,j,:) )*sf(k)
+                  a_mcloudt(k,i,j,:) = a_mcloudt(k,i,j,:) - ( a_mcloudp(kp1,i,j,:) - a_mcloudp(k,i,j,:) )*sf(k)
+                  a_mprecpt(k,i,j,:) = a_mprecpt(k,i,j,:) - ( a_mprecpp(kp1,i,j,:) - a_mprecpp(k,i,j,:) )*sf(k)
+                  a_naerot(k,i,j,:) = a_naerot(k,i,j,:) - ( a_naerop(kp1,i,j,:) - a_naerop(k,i,j,:) )*sf(k)
+                  a_ncloudt(k,i,j,:) = a_ncloudt(k,i,j,:) - ( a_ncloudp(kp1,i,j,:) - a_ncloudp(k,i,j,:) )*sf(k)
+                  a_nprecpt(k,i,j,:) = a_nprecpt(k,i,j,:) - ( a_nprecpp(kp1,i,j,:) - a_nprecpp(k,i,j,:) )*sf(k)
+                ENDIF
+                IF (level>=5) THEN
+                  a_micet(k,i,j,:) = a_micet(k,i,j,:) - ( a_micep(kp1,i,j,:) - a_micep(k,i,j,:) )*sf(k)
+                  a_msnowt(k,i,j,:) = a_msnowt(k,i,j,:) - ( a_msnowp(kp1,i,j,:) - a_msnowp(k,i,j,:) )*sf(k)
+                  a_nicet(k,i,j,:) = a_nicet(k,i,j,:) - ( a_nicep(kp1,i,j,:) - a_nicep(k,i,j,:) )*sf(k)
+                  a_nsnowt(k,i,j,:) = a_nsnowt(k,i,j,:) - ( a_nsnowp(kp1,i,j,:) - a_nsnowp(k,i,j,:) )*sf(k)
+                ENDIF
+            END DO
+        END DO
+    END DO
+  end subroutine new_gcss_rad
   !
   ! -------------------------------------------------------------------
   ! subroutine smoke_rad:  call simple radiative parameterization for 
@@ -299,7 +348,9 @@ contains
        ! User specified divergence used as a simple large scle forcing for moisture and temperature fields
        ! -------------------------------------------------------------------------------------------------
        !
-       sf(:)=-zdiv*zt(:)*dzt(:)
+       DO k=2,n1-1
+          sf(k)=-zdiv*MIN(zt(k),zmaxdiv)*dzt(k)
+       END DO
        DO j=3,n3-2
           DO i=3,n2-2
              DO k=2,n1-1
