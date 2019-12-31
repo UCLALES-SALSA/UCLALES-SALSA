@@ -63,6 +63,7 @@ CONTAINS
          pi6,         & ! pi/6
          reglim,      & ! diameter limits for size regimes [m]
          nbin,        & ! number of size bins in each (sub)regime
+         maxnreg,     & ! maximum number of subregimes
          in1a, fn1a,  & ! size regime bin indices: 1a
          in2a, fn2a,  & !     - " -       2a
          in2b, fn2b,  & !     - " -       2b
@@ -77,11 +78,7 @@ CONTAINS
 
     !-- local variables ----------
     INTEGER :: ii, jj,cc,dd,vv ! loop indices
-    INTEGER :: nbin2, nbin3
     REAL ::  ratio ! ratio of regime upper and lower diameter
-
-    nbin2 = 4
-    nbin3 = nbin(2) - nbin2
 
     ! -------------------------
     ! Allocate aerosol tracers
@@ -94,53 +91,30 @@ CONTAINS
     DO jj = 1,klev
        DO ii = 1,kbdim
 
-          !-- 1) size regime 1: --------------------------------------
+          !-- 1) aerosol size regimes 1 and 2
           !  - minimum & maximum *dry* volumes [fxm]
           !  - bin mid *dry* diameter [m]
-          ratio = reglim(2)/reglim(1)   ! section spacing
+          dd = 0
+          DO vv = 1,maxnreg
+              IF (nbin(vv)<=0) EXIT
+              ratio = reglim(vv+1)/reglim(vv)
 
-          DO cc = in1a,fn1a
-             aero(ii,jj,cc)%vlolim = pi6*(reglim(1)*ratio**(real(cc-1)/nbin(1)))**3
-             aero(ii,jj,cc)%vhilim = pi6*(reglim(1)*ratio**(real(cc)/nbin(1)))**3
-             aero(ii,jj,cc)%dmid = ( (aero(ii,jj,cc)%vhilim + aero(ii,jj,cc)%vlolim) /  &
-                                     (2.*pi6) )**(1./3.)
-             aero(ii,jj,cc)%vratiohi = aero(ii,jj,cc)%vhilim/(pi6*aero(ii,jj,cc)%dmid**3)
-             aero(ii,jj,cc)%vratiolo = aero(ii,jj,cc)%vlolim/(pi6*aero(ii,jj,cc)%dmid**3)
+              DO cc = 1,nbin(vv)
+                 dd = dd+1
+                 aero(ii,jj,dd)%vlolim = pi6*(reglim(vv)*ratio**(real(cc-1)/nbin(vv)))**3
+                 aero(ii,jj,dd)%vhilim = pi6*(reglim(vv)*ratio**(real(cc)/nbin(vv)))**3
+                 aero(ii,jj,dd)%dmid = ( (aero(ii,jj,dd)%vhilim + aero(ii,jj,dd)%vlolim) /(2.*pi6) )**(1./3.)
+                 aero(ii,jj,dd)%vratiohi = aero(ii,jj,dd)%vhilim/(pi6*aero(ii,jj,dd)%dmid**3)
+                 aero(ii,jj,dd)%vratiolo = aero(ii,jj,dd)%vlolim/(pi6*aero(ii,jj,dd)%dmid**3)
+              END DO
           END DO
+          IF (vv<3 .OR. dd/=fn2a) THEN
+             WRITE(*,*) cc, nbin(1:cc), dd, fn2a
+             WRITE(*,*) 'Error in given aerosol size bin definitions!'
+             STOP
+          ENDIF
 
-          !-- 2) size regime 2: --------------------------------------
-          !  - minimum & maximum *dry* volumes [fxm]
-          !  - bin mid *dry* diameter [m]
-
-          !-- 2.1) first for subregime 2a
-          ratio = reglim(3)/reglim(2)   ! section spacing
-
-          DO dd = in2a,in2a+nbin2-1
-             cc = dd - in2a
-             aero(ii,jj,dd)%vlolim = pi6*(reglim(2)*ratio**(real(cc)/nbin2))**3
-             aero(ii,jj,dd)%vhilim = pi6*(reglim(2)*ratio**(real(cc+1)/nbin2))**3
-             aero(ii,jj,dd)%dmid = ( (aero(ii,jj,dd)%vhilim + aero(ii,jj,dd)%vlolim) /  &
-                                     (2.*pi6) )**(1./3.)
-             aero(ii,jj,dd)%vratiohi = aero(ii,jj,dd)%vhilim/(pi6*aero(ii,jj,dd)%dmid**3)
-             aero(ii,jj,dd)%vratiolo = aero(ii,jj,dd)%vlolim/(pi6*aero(ii,jj,dd)%dmid**3)
-          END DO
-
-          !-- 3) size regime 3: --------------------------------------
-          !  - bin mid *dry* diameter [m]
-          ratio = reglim(4)/reglim(3)   ! section spacing
-
-          DO dd = in2a+nbin2,fn2a
-             cc = dd - (fn2a-(nbin3-1))
-
-             aero(ii,jj,dd)%vlolim = pi6*(reglim(3)*ratio**(real(cc)/nbin3))**3
-             aero(ii,jj,dd)%vhilim = pi6*(reglim(3)*ratio**(real(cc+1)/nbin3))**3
-             aero(ii,jj,dd)%dmid = ( (aero(ii,jj,dd)%vhilim + aero(ii,jj,dd)%vlolim) /  &
-                                     (2.*pi6) )**(1./3.)
-             aero(ii,jj,dd)%vratiohi = aero(ii,jj,dd)%vhilim/(pi6*aero(ii,jj,dd)%dmid**3)
-             aero(ii,jj,dd)%vratiolo = aero(ii,jj,dd)%vlolim/(pi6*aero(ii,jj,dd)%dmid**3)
-          END DO
-
-          !-- 2.2) same values for subregime 2b
+          !-- 2) same values for subregime 2b
           aero(ii,jj,in2b:fn2b)%vlolim = aero(ii,jj,in2a:fn2a)%vlolim
           aero(ii,jj,in2b:fn2b)%vhilim = aero(ii,jj,in2a:fn2a)%vhilim
           aero(ii,jj,in2b:fn2b)%dmid = aero(ii,jj,in2a:fn2a)%dmid
@@ -464,6 +438,7 @@ CONTAINS
                                snowbinlim,            &
                                nbin,reglim,           &
                                nspec,listspec,        &
+                               indiss,indens,inmw,    &
                                volDistA, volDistB,    &
                                nf2a, isdtyp,          &
                                sigmag,dpg,n,          &
@@ -526,6 +501,9 @@ CONTAINS
          reglim,        & ! Low/high diameter limits for the 1a and 2a aerosol size regimes (1d table with length 4)
          nspec,         & ! Number of aerosol species used in the model
          listspec,      & ! List of strings specifying the names of the aerosol species that are active.
+         indiss,        & ! Dissociation constant (optional)
+         indens,        & ! Density [kg/m3] (optional)
+         inmw,          & ! Molecular weight [kg/mol] (optional)
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          volDistA,      & ! Initial relative contribution [0-1] of each species to particle volume in a-bins.
          volDistB,      & ! Same as above but for b-bins
@@ -589,9 +567,14 @@ CONTAINS
     !-------------------------------------------------------------------------------
 
     USE mo_submctl, ONLY : nbin,in1a,fn1a,in2a,fn2a,in2b,fn2b,nbins,massacc, &
-                           conc_h2so4,conc_ocnv,part_h2so4,part_ocnv,isog,iocg,msu,moc, &
-                           ngases,zgas,mws_gas,nlcndgas
+                           zspec,dens,diss,mws,ih2o,iso,ioc,ibc,idu,iss,inh,ino,nspec,listspec, &
+                           indiss,indens,inmw, &
+                           rhowa,mwa,rhosu,msu,rhooc,moc,rhobc,mbc, &
+                           rhodu,mdu,rhoss,mss,rhono,mno,rhonh,mnh, &
+                           nlcndgas,ngases,zgas,mws_gas, &
+                           conc_h2so4,conc_ocnv,part_h2so4,part_ocnv,isog,iocg
     IMPLICIT NONE
+    INTEGER :: ss
 
     ! Remember to call 'define_salsa' for namelist paramers before calling this subroutine!
 
@@ -599,11 +582,11 @@ CONTAINS
 
     in1a = 1
     in2a = in1a + nbin(1)
-    in2b = in2a + nbin(2)
+    in2b = in2a + SUM(nbin(2:))
 
     fn1a = in2a - 1
-    fn2a = fn1a + nbin(2)
-    fn2b = fn2a + nbin(2)
+    fn2a = fn1a + SUM(nbin(2:))
+    fn2b = fn2a + SUM(nbin(2:))
 
     nbins = fn2b
 
@@ -613,10 +596,6 @@ CONTAINS
 
     massacc = 1.
 
-
-    ! -- Aerosol tracers are allocated in *set_sizebins*
-    ! -- Hydrometeor tracer in *set_cloudbins*
-
     ! --3) Call other initialization routines
     CALL set_sizebins()
 
@@ -624,11 +603,70 @@ CONTAINS
 
     CALL set_icebins()
 
-    ! --4) Gas phase chemistry
+    ! --4) Set the input aerosol species: name, density, dissociation constant, MW and index
+
+    ! Water is always the first species!
+    ss=1
+    zspec(ss)='H2O'
+    dens(ss)=rhowa
+    diss(ss)=1.
+    mws(ss)=mwa
+    ih2o=ss
+    ! .. then normal aerosol species
+    DO ss=2,nspec+1
+         zspec(ss)=listspec(ss-1) ! Inputs do not include water
+         SELECT CASE(listspec(ss-1))
+            CASE('SO4')
+                dens(ss)=rhosu
+                diss(ss)=3.  ! H2SO4
+                mws(ss)=msu
+                iso=ss
+            CASE('OC')
+                dens(ss)=rhooc
+                diss(ss)=1.
+                mws(ss)=moc
+                ioc=ss
+            CASE('BC')
+                dens(ss)=rhobc
+                diss(ss)=0.  ! Insoluble
+                mws(ss)=mbc
+                ibc=ss
+            CASE('DU')
+                dens(ss)=rhodu
+                diss(ss)=0.  ! Insoluble
+                mws(ss)=mdu
+                idu=ss
+            CASE('SS')
+                dens(ss)=rhoss
+                diss(ss)=2.  ! NaCl
+                mws(ss)=mss
+                iss=ss
+            CASE('NO')
+                dens(ss)=rhono
+                diss(ss)=1.  ! NO3- ??
+                mws(ss)=mno
+                ino=ss
+            CASE('NH')
+                dens(ss)=rhonh
+                diss(ss)=1.  ! NH4+ ??
+                mws(ss)=mnh
+                inh=ss
+            CASE DEFAULT
+                WRITE(*,*) 'Unkown species: '//TRIM(zspec(ss))
+                STOP
+        END SELECT
+        ! Optional inputs for changing the defaults: dissociation factor, density and MW
+        IF (indiss(ss-1)>-0.5) diss(ss)=indiss(ss-1)
+        IF (indens(ss-1)>-0.5) dens(ss)=indens(ss-1)
+        IF (inmw(ss-1)>-0.5) mws(ss)=inmw(ss-1)
+    END DO
+
+    ! --5) Gas phase chemistry
+    ngases = 0
     IF (nlcndgas) THEN
         ! Simple SO2 and non-volatile organics
-        ngases = 0
         IF (conc_h2so4>=0.) THEN
+            IF (iso<=0) STOP 'Error: sulfate partitioning without aerosol SO4!'
             ngases = ngases + 1
             part_h2so4 = .TRUE.
             zgas(ngases)='SO2'
@@ -636,6 +674,7 @@ CONTAINS
             mws_gas(ngases)=msu
         ENDIF
         IF (conc_ocnv>=0.) THEN
+            IF (ioc<=0) STOP 'Error: organic vapor partitioning without aerosol OC!'
             ngases = ngases + 1
             part_ocnv = .TRUE.
             zgas(ngases)='NOA'

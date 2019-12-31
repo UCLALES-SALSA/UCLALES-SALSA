@@ -904,7 +904,7 @@ contains
         end do
     ENDIF
 
-    ! Include and/or exlude outputs based on user inputs
+    ! Include and/or exclude outputs based on user inputs
     n=e ! Length of btot and stot
     DO i=1,n_anl_opts
         IF (LEN_TRIM(anl_include(i))>0) THEN
@@ -1041,7 +1041,7 @@ contains
        END IF
     end if
 
-    ! Always saved: u, v, w, , theta, P
+    ! Always saved: u, v, w, theta, P
     iret = nf90_inq_varid(ncid0, 'u', VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_up(:,i1:i2,j1:j2), start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'v', VarID)
@@ -1130,7 +1130,7 @@ contains
        IF (iret==NF90_NOERR) &
           iret = nf90_put_var(ncid0,VarID,a_srs(:,i1:i2,j1:j2),start=ibeg,count=icnt)
 
-       ! Aerosol, cloud, rain , ice and snow
+       ! Aerosol, cloud, rain, ice and snow
 
        ! Total number of aerosol (regimes A and B)
        iret = nf90_inq_varid(ncid0,'S_Naa',VarID)
@@ -1412,6 +1412,7 @@ contains
           ENDIF
        ENDDO
 
+       ! Gas mixing ratios
        DO ee=1,ngases
           iret = nf90_inq_varid(ncid0,'S_c'//TRIM(zgas(ee))//'g',VarID)
           IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_gaerop(:,i1:i2,j1:j2,ee),start=ibeg,count=icnt)
@@ -1946,7 +1947,7 @@ contains
   !
   SUBROUTINE meanRadius(ipart,itype,rad)
     USE mo_submctl, ONLY : nbins,ncld,nprc,nice,nsnw,  &
-                               inp2a,fnp2a,inp2b,fnp2b,      &
+                               inp2a,fnp2a,inp2b,fnp2b,&
                                in1a,fn2a,in2b,fn2b,    &
                                nlim,prlim,nspec
     IMPLICIT NONE

@@ -109,21 +109,18 @@ MODULE mo_submctl
 
 
   ! Gas phase parameters
-  !   Control parameters/inputs from the NAMELIST:
-  !     a) Sulfate aerosol formation
-  !       conc_h2so4
-  !     b) Organic aerosol formation
-  !         conc_ocnv
+  INTEGER, PARAMETER :: maxngas=15
   ! Total number of prognostic gas phase species
   INTEGER :: ngases = 0
   ! Names of the prognostic gas phase species
-  CHARACTER(len=3) :: zgas(maxnspec) = '   '
+  CHARACTER(len=3) :: zgas(maxngas) = '   '
+  ! Molecular weights (kg/mol)
+  REAL :: mws_gas(maxngas) = 0.1
 
-  ! a) Simple sulfate (H2SO4(g) => SO4) and non-volatile organic vapor (LVOA(g)  => OC) partitioning
+  ! Simple sulfate (H2SO4(g) => SO4) and non-volatile organic vapor (LVOA(g)  => OC) partitioning
   REAL :: conc_h2so4=-1., conc_ocnv=-1.            ! Initial concentrations
   LOGICAL :: part_h2so4=.FALSE., part_ocnv=.FALSE. ! Calculated when non-negative input concentrations
   INTEGER :: isog=1, iocg=1                        ! Index to gas phase
-  REAL :: mws_gas(maxnspec)=0.1 ! Molecular weights
 
 
   ! ---------------------------------------------------------------------------------------------------------
@@ -140,6 +137,7 @@ MODULE mo_submctl
   INTEGER :: nspec = 1 ! Does not include water
   INTEGER, PARAMETER :: maxspec = 7
   CHARACTER(len=3) :: listspec(maxspec) = (/'SO4','   ','   ','   ','   ','   ','   '/)
+  REAL :: indiss(maxnspec) = -1., indens(maxnspec) = -1., inmw(maxnspec) = -1.
 
   ! Volume fractions between aerosol species for A and B-bins
   REAL :: volDistA(maxspec) = (/1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
@@ -158,9 +156,9 @@ MODULE mo_submctl
                n(nmod) = (/1600.,640.,0.,0.,0.,0.,0./)        ! 1e6#/kg ~ #/cm3
 
   ! Aerosol, cloud and ice bin limits (based on dry size)
-  INTEGER, PARAMETER :: nreg = 2 ! number of main size regimes
-  REAL :: reglim(nreg+2) = (/ 3.e-9, 5.e-8, 7.e-7, 1.e-5 /) ! low/high diameter limits of main size regimes [m]
-  INTEGER :: nbin(nreg) = (/ 3, 7 /)   ! number of bins in each main regime
+  INTEGER, PARAMETER :: maxnreg = 5 ! maximum number of subregimes (the first is region 1 and the rest are for region 2)
+  REAL :: reglim(maxnreg+1) = (/ 3.e-9, 5.e-8, 7.e-7, 1.e-5, 0., 0. /) ! low/high diameter limits of main size regimes [m]
+  INTEGER :: nbin(maxnreg) = (/ 3, 4, 3, 0, 0 /)   ! number of bins in each main regime
 
   ! Rain and snow bin limits
   !  For example, this line in the NAMELIST would set the default rain bins:

@@ -569,8 +569,7 @@ CONTAINS
               zplusterm(:) = 0.
 
               ! corresponding index for regime b cloud droplets
-              kk = MAX(cc-fnp2a+ncld,inp2b) ! Regime a has more bins than b:
-                                                     ! Set this at minimum to beginning of b.
+              kk = fnp2a + cc
 
               ! Droplets lost by those with larger nucleus in regime a
               DO ll = cc+1,fnp2a
@@ -632,7 +631,7 @@ CONTAINS
               zplusterm(:) = 0.
 
               ! corresponding index for regime a cloud droplets
-              kk = cc - ncld + fnp2a
+              kk = cc - fnp2a
 
               ! Droplets lost by those with larger nucleus in regime b
               DO ll = cc+1,fnp2b
@@ -743,8 +742,7 @@ CONTAINS
               zplusterm(:) = 0.
 
               ! corresponding index for regime b ice
-              kk = MAX(cc-fnp2a+nice,inp2b) ! Regime a has more bins than b:
-                                                     ! Set this at minimum to beginning of b.
+              kk = fnp2a + cc
 
               ! Particles lost by those with larger nucleus in regime a
               DO ll = cc+1,fnp2a
@@ -809,7 +807,7 @@ CONTAINS
               zplusterm(:) = 0.
 
               ! corresponding index for regime a
-              kk = cc - nice + fnp2a
+              kk = cc - fnp2a
 
               ! Particles lost by those with larger nucleus in regime b
               DO ll = cc+1,fnp2b
@@ -932,7 +930,7 @@ CONTAINS
   !      and organic vapours (average values? 'real' values for each?)
   !********************************************************************
   !
-  ! subroutine CONDENSATION(kbdim,  klev,        &
+  ! subroutine CONDENSATION(kbdim,  klev,                &
   !                         pnaero, pvols,  pdwet, plwc, &
   !                         pcsa,   pcocnv, pcocsv,      &
   !                         ptemp,  ppres,  ptstep)
@@ -1009,6 +1007,7 @@ CONTAINS
          ncld,nprc,                  &
          nice,nsnw,                 &
          lscndgas,                  &
+         part_h2so4, part_ocnv,     &
          nlcndh2oae, nlcndh2ocl, nlcndh2oic, & ! Condensation to aerosols, clouds and ice particles
          nsnucl                     ! nucleation
 
@@ -1045,7 +1044,7 @@ CONTAINS
     IF (nsnucl > 0) STOP 'Nucleation not available for this version!'
 
     ! Condensation of H2SO4 and organic vapors
-    IF (lscndgas .AND. ngas>0) &
+    IF (lscndgas .AND. (part_h2so4 .OR. part_ocnv)) &
         CALL condgas(kbdim,  klev,         &
                    paero, pcloud, pprecp,  &
                    pice, psnow,            &

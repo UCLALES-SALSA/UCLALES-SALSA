@@ -83,7 +83,7 @@ contains
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
-                  a_gaerop,  a_gaerot,  1, dtl, time, level, &
+                  a_gaerop,  a_gaerot,  1, dtl, time, level,   &
                   coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
                   coag_ri, coag_ni, coag_rs, coag_ns, &
                   cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
@@ -716,11 +716,9 @@ contains
   !
   SUBROUTINE aerosol_init
 
-    USE mo_submctl, ONLY : pi6, nbins, in1a,in2a,in2b,fn1a,fn2a,fn2b,fnp2a,aerobins, &
-                           nmod, sigmag, dpg, n, volDistA, volDistB, nf2a, nreg, isdtyp, nspec, listspec, &
-                           rhosu, msu, rhooc, moc, rhobc, mbc, rhodu, mdu, &
-                           rhoss, mss, rhono, mno, rhonh, mnh, rhowa, mwa, &
-                           dens, diss, mws, iso, ioc, ibc, idu, iss, inh, ino, ih2o, zspec
+    USE mo_submctl, ONLY : pi6,nbins,in1a,in2a,in2b,fn1a,fn2a,fn2b,fnp2a,aerobins, &
+                           nmod, sigmag, dpg, n, volDistA, volDistB, nf2a, isdtyp, &
+                           iso, rhosu, ioc, rhooc, nspec, dens, zspec
     USE mpi_interface, ONLY : myid
 
     IMPLICIT NONE
@@ -733,60 +731,6 @@ contains
     INTEGER :: ss,ee,i,j,k,nc
     CHARACTER(len=600) :: fmt
 
-    ! Active aerosol species: name, density, dissociation constant, MW and index
-    ! Water is always the first species!
-    ss=1
-    zspec(ss)='H2O'
-    dens(ss)=rhowa
-    diss(ss)=1.
-    mws(ss)=mwa
-    ih2o=ss
-    ! .. then normal aerosol species
-    DO ss=2,nspec+1
-         zspec(ss)=listspec(ss-1) ! Inputs do not include water
-         SELECT CASE(listspec(ss-1))
-            CASE('SO4')
-                dens(ss)=rhosu
-                diss(ss)=3.  ! H2SO4
-                mws(ss)=msu
-                iso=ss
-            CASE('OC')
-                dens(ss)=rhooc
-                diss(ss)=1.
-                mws(ss)=moc
-                ioc=ss
-            CASE('BC')
-                dens(ss)=rhobc
-                diss(ss)=0.  ! Insoluble
-                mws(ss)=mbc
-                ibc=ss
-            CASE('DU')
-                dens(ss)=rhodu
-                diss(ss)=0.  ! Insoluble
-                mws(ss)=mdu
-                idu=ss
-            CASE('SS')
-                dens(ss)=rhoss
-                diss(ss)=2.  ! NaCl
-                mws(ss)=mss
-                iss=ss
-            CASE('NO')
-                dens(ss)=rhono
-                diss(ss)=1.  ! NO3- ??
-                mws(ss)=mno
-                ino=ss
-            CASE('NH')
-                dens(ss)=rhonh
-                diss(ss)=1.  ! NH4+ ??
-                mws(ss)=mnh
-                inh=ss
-            CASE DEFAULT
-                WRITE(*,*) 'Unkown species: '//TRIM(zspec(ss))
-                STOP
-        END SELECT
-    END DO
-
-    !
     ! Bin mean aerosol particle volume
     core(1:fn2a) = 4.*pi6*(aerobins(1:fn2a)**3+aerobins(2:fn2a+1)**3) ! = 4/3*pi*(rmin**3+rmax**3)/2
 
@@ -860,10 +804,8 @@ contains
              a_naerop(k,i,j,in1a:fn1a) = pndist(k,in1a:fn1a)
 
              ! Region 2
-             IF (nreg>1) THEN
-                a_naerop(k,i,j,in2a:fn2a) = max(0.0,pnf2a(k))*pndist(k,in2a:fn2a)
-                a_naerop(k,i,j,in2b:fn2b) = max(0.0,1.0-pnf2a(k))*pndist(k,in2a:fn2a)
-             END IF
+             a_naerop(k,i,j,in2a:fn2a) = max(0.0,pnf2a(k))*pndist(k,in2a:fn2a)
+             a_naerop(k,i,j,in2b:fn2b) = max(0.0,1.0-pnf2a(k))*pndist(k,in2a:fn2a)
 
              !
              ! b) Aerosol mass concentrations
@@ -907,7 +849,7 @@ contains
             WRITE(*,'(/,A)') 'Aerosol properties from file aerosol_in'
         ENDIF
 
-        WRITE(*,'(/,A)') ' Initial aerosol profile (number [1e6/kg] and mass [ug/kg] for a and b bins):'
+        WRITE(*,'(/,A)') ' Initial aerosol profile (total number [1e6/kg] and mass [ug/kg] for a and b bins):'
         ! Header
         WRITE(fmt,"(A9,I2,A8,I2,A4)") "(A12,A10,",nspec,"A12,A10,",nspec,"A12)"
         WRITE(*,fmt) 'Height (m)','Na',zspec(2:nspec+1),'Nb',zspec(2:nspec+1)
@@ -1077,9 +1019,9 @@ contains
   !
   SUBROUTINE init_gas_tracers
     USE mpi_interface, ONLY : myid
-    USE mo_submctl, ONLY : avog, &
-        part_h2so4, conc_h2so4, iso, isog, part_ocnv, conc_ocnv, ioc, iocg, &
-        mws_gas, ngases, zgas
+    USE mo_submctl, ONLY : avog, mws_gas, ngases, zgas, &
+        part_h2so4, conc_h2so4, part_ocnv, conc_ocnv
+
     IMPLICIT NONE
 
     ! Local variables
@@ -1094,17 +1036,16 @@ contains
 
     ! Sulfate and non-volatile organics
     !  - Input as molecules/kg
-    IF (part_h2so4 .AND. iso<=0) THEN
-        STOP 'Error: sulfate partitioning without aerosol SO4!'
-    ELSEIF (part_h2so4) THEN
+    i=0
+    IF (part_h2so4) THEN
         ! Sulfate or H2SO4
-        a_gaerop(:,:,:,isog) = conc_h2so4/avog*mws_gas(isog)
+        i=i+1
+        a_gaerop(:,:,:,i) = conc_h2so4/avog*mws_gas(i)
     ENDIF
-    IF (part_ocnv .AND. ioc<=0) THEN
-        STOP 'Error: non-volatile organic partitioning without aerosol OC!'
-    ELSEIF (part_ocnv) THEN
+    IF (part_ocnv) THEN
         ! Non-volatile organic vapor
-        a_gaerop(:,:,:,iocg) = conc_ocnv/avog*mws_gas(iocg)
+        i=i+1
+        a_gaerop(:,:,:,i) = conc_ocnv/avog*mws_gas(i)
     ENDIF
 
     ! Info
@@ -1121,7 +1062,7 @@ contains
         DO i=1,nzp
             ! Print
             WRITE(*,fmt) zt(i), a_gaerop(i,3,3,:)*1.e9 ! kg => ug
-            IF (i==10) THEN
+            IF (i==5) THEN
                 WRITE(*,'(A14)')'...'
                 EXIT
             ENDIF

@@ -277,8 +277,7 @@ IMPLICIT NONE
 
 
              ! If this is an initialization call, calculate the equilibrium particle
-             If (prunmode == 1) CALL equilibration(kbdim,klev,   &
-                                                    init_rh,in_t,aero,.TRUE.)
+             If (prunmode == 1) CALL equilibration(kbdim,klev,init_rh,in_t,aero,.TRUE.)
 
 
              ! ***************************************!
