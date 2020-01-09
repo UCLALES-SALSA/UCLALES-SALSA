@@ -440,7 +440,7 @@ CONTAINS
             X_min = 4.2e-15, & ! Minimum cloud droplet mass (kg), D_min=2e-6 m
             X_bnd = 2.6e-10 ! Droplet mass that separates cloud droplets from rain drops (kg), D_bnd=80e-6 m
     INTEGER, SAVE :: iout=-1  ! Specified bin for new raindrops: <=0 find the bin matching with X_bnd; >0 select one bin (hard coded)
-    REAL :: fact=0.5 ! Fraction of converted cloud droplets that are added to the cloud drop number (accounting for self-colleection)
+    REAL :: fact=0.5 ! Fraction of converted cloud droplets that are added to the cloud drop number (accounting for self-collection)
 
     INTEGER, INTENT(in) :: kbdim,klev
     REAL, INTENT(IN) :: ptstep
@@ -527,8 +527,17 @@ CONTAINS
         !scalen(:)=Nrem/Ntot
         !scalev(:)=Vrem/Vtot
         ! 2) Weighted: dN(i)=N(i)*X(i)*dNtot/sum(N(i)*X(i))
-        !  a) Weight based on autoconversion rate: V**2*Xc**2=V**2*(rho*pi/6/D**3)**2=V**2*D**6
-        scaling=pcloud(ii,jj,:)%volc(1)**2*pcloud(ii,jj,:)%dmid**6
+        ! Weight based on autoconversion rate: V**2*Xc**2 where
+        !   V=Vw(i), V=k*Ddry(i)**3 or V=Vtot=const
+        !   Xc=k*Vi(i)/N(i) or Xc=k*Ddry(i)**3
+        !scaling=pcloud(ii,jj,:)%volc(1)**2*pcloud(ii,jj,:)%dmid**6
+        scaling=pcloud(ii,jj,:)%dmid**6
+        !WHERE (pcloud(ii,jj,:)%numc>nlim)
+        !    scaling=pcloud(ii,jj,:)%volc(1)**4/pcloud(ii,jj,:)%numc**2
+        !    scaling=(pcloud(ii,jj,:)%volc(1)/pcloud(ii,jj,:)%numc)**2
+        !ELSEWHERE
+        !    scaling=0.
+        !ENDWHERE
         scalen(:)=scaling(:)*Nrem/SUM(scaling(:)*pcloud(ii,jj,:)%numc)
         scalev(:)=scaling(:)*Vrem/SUM(scaling(:)*pcloud(ii,jj,:)%volc(1))
         !

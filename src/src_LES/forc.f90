@@ -31,6 +31,7 @@ module forc
   REAL :: sfc_albedo = 0.05
   REAL :: div = 0., zmaxdiv = 1e6
   REAL :: xka = 119., fr0 = 96.2, fr1 = 61.2, alpha = 1.0
+  REAL :: rc_limit = 0.01e-3, rt_limit = 8e-3
   LOGICAL :: useMcICA = .TRUE.
   LOGICAL :: RadConstPress = .FALSE. ! Keep constant pressure levels
   INTEGER :: RadPrecipBins = 0 ! Add precipitation bins to cloud water (for level 3 and up)
@@ -45,10 +46,10 @@ contains
 
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc     &
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp  &
-         , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_ut, a_up, a_vt, a_vp, &
+         , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_maerop, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
          a_fus, a_fds, a_fuir, a_fdir
-    USE mo_submctl, ONLY : ncld,nice,nprc,nsnw
+    USE mo_submctl, ONLY : nbins,ncld,nice,nprc,nsnw
     use mpi_interface, only : myid, appl_abort
 
     real, intent (in) :: time_in, cntlat, sst
@@ -69,12 +70,15 @@ contains
        ! Parameterized radiation (GCSS) and subsidence (constant div up to z=zmaxdiv)
        !
        IF (level <= 3) THEN
-          zrc(:,:,:) = a_rc(:,:,:) ! Cloud water
+          zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:) ! Liquid water mixing ratio - radiative effects
+          znc(:,:,:) = a_rp(:,:,:) + a_rpp(:,:,:) ! Total water mixing ratio - for determining inversion height
        ELSE
-          zrc(:,:,:) = SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) ! Cloud water only (regimes a and b)
+          zrc(:,:,:) = SUM(a_maerop(:,:,:,1:nbins),DIM=4) + &
+                       SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) + &
+                       SUM(a_mprecpp(:,:,:,1:nprc),DIM=4) ! Aerosol, cloud and rain water
+          znc(:,:,:) = a_rp(:,:,:) + zrc(:,:,:) ! Water vapor and liquid water, but no ice or snow
        ENDIF
-       call new_gcss_rad(nzp, nxp, nyp, xka, fr0, fr1, alpha, zmaxdiv, div, &
-            zrc, dn0, a_rflx, zt, zm, dzt, a_tt, a_tp, a_rt, a_rp)
+       call new_gcss_rad(nzp, nxp, nyp, zrc, znc, a_rflx)
 
     case (3)
        ! Fu and Liou (1993) radiation code and case-dependent large-scale forcing
@@ -187,10 +191,8 @@ contains
           if (div /= 0.) then
              do k=2,n1-2
                 kp1 = k+1
-                tt(k,i,j) = tt(k,i,j) + &
-                        div*zt(k)*(tl(kp1,i,j)-tl(k,i,j))*dzt(k)
-                rtt(k,i,j)=rtt(k,i,j) + &
-                        div*zt(k)*(rt(kp1,i,j)-rt(k,i,j))*dzt(k)
+                tt(k,i,j) = tt(k,i,j) + div*zt(k)*(tl(kp1,i,j)-tl(k,i,j))*dzt(k)
+                rtt(k,i,j)=rtt(k,i,j) + div*zt(k)*(rt(kp1,i,j)-rt(k,i,j))*dzt(k)
              end do
           end if
        enddo
@@ -199,16 +201,14 @@ contains
   end subroutine gcss_rad
 
 
-  subroutine new_gcss_rad(n1,n2,n3,xka,fr0,fr1,alpha,zmaxdiv,div,rc,dn0,flx,zt,zm,dzt,   &
-                        tt,tl,rtt,rt)
+  subroutine new_gcss_rad(n1,n2,n3,rc,rt,flx)
     USE grid, ONLY : a_ncloudp, a_nprecpp, a_mprecpp, a_nicep, a_nsnowp, a_msnowp, &
          a_naerop, a_naerot, a_ncloudt, a_nicet, a_nsnowt, a_maerop, a_mcloudp, a_micep,  &
-         a_maerot, a_mcloudt, a_micet, a_msnowt, a_nprecpt, a_mprecpt, level, a_temp, a_theta
+         a_maerot, a_mcloudt, a_micet, a_msnowt, a_nprecpt, a_mprecpt, level, a_temp, a_theta, &
+         zt, zm, dzt, dzm, dn0, a_tt, a_tp, a_rt, a_rp
     implicit none
     integer, intent (in)::  n1,n2, n3
-    real, intent (in)   ::  xka, fr0, fr1, alpha, zmaxdiv, div
-    real, intent (in)   ::  zt(n1),zm(n1),dzt(n1),dn0(n1),rc(n1,n2,n3),tl(n1,n2,n3),rt(n1,n2,n3)
-    real, intent (inout)::  tt(n1,n2,n3),rtt(n1,n2,n3)
+    real, intent (in)   ::  rc(n1,n2,n3),rt(n1,n2,n3)
     real, intent (out)  ::  flx(n1,n2,n3)
 
     integer :: i, j, k, kp1, ki
@@ -224,23 +224,23 @@ contains
           ! No cloud water at level k=1
           flx(1,i,j)=fr1*exp(-1.*xka*lwp)
           do k=2,n1
-             lwp=lwp+max(0.,rc(k,i,j))*dn0(k)/dzt(k)
+             lwp=lwp+max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1)))
              flx(k,i,j)=fr1*exp(-1.*xka*lwp)
-             if ( rc(k,i,j) > 0.01e-3 ) ki=k
+             if ( rc(k,i,j) >= rc_limit .and. rt(k,i,j) >= rt_limit) ki=k
           enddo
           !
           fact=dn0(ki)*cp*div*alpha
           ! Level k=1
           flx(1,i,j)=flx(1,i,j)+fr0*exp(-1.*xka*lwp)
           do k=2,n1
-             lwp=lwp-max(0.,rc(k,i,j)*dn0(k)/dzt(k))
+             lwp=lwp-max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1)))
              flx(k,i,j)=flx(k,i,j)+fr0*exp(-1.*xka*lwp)
              if (k > ki .and. fact > 0.) then
                 flx(k,i,j)=flx(k,i,j) + fact*(0.25*(zm(k)-zm(ki))**1.333 + &
                     zm(ki)*(zm(k)-zm(ki))**0.333333)
              end if
              ! dtheta_il/dT=dtheta/dT=1/pi=theta/T => dtheta_il = theta/T*dT
-             tt(k,i,j) =tt(k,i,j)-(flx(k,i,j)-flx(k-1,i,j))*dzt(k)/(dn0(k)*cp)*a_theta(k,i,j)/a_temp(k,i,j)
+             a_tt(k,i,j)=a_tt(k,i,j)-(flx(k,i,j)-flx(k-1,i,j))*dzt(k)/(dn0(k)*cp)*a_theta(k,i,j)/a_temp(k,i,j)
           enddo
       enddo
     enddo
@@ -258,8 +258,8 @@ contains
         DO i=3,n2-2
             DO k=2,n1-1
                 kp1 = k+1
-                tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
-                rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
+                a_tt(k,i,j) = a_tt(k,i,j) - ( a_tp(kp1,i,j) - a_tp(k,i,j) )*sf(k)
+                a_rt(k,i,j) = a_rt(k,i,j) - ( a_rp(kp1,i,j) - a_rp(k,i,j) )*sf(k)
 
                 IF (level>=4) THEN
                   a_maerot(k,i,j,:) = a_maerot(k,i,j,:) - ( a_maerop(kp1,i,j,:) - a_maerop(k,i,j,:) )*sf(k)

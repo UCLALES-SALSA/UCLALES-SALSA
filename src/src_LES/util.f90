@@ -284,7 +284,6 @@ contains
     rmin=MAX(rbins(1),1e-10) ! r=0 when there are no particles
     rmax=rbins(nout+1)
     !
-    !hist=0.
     lavg=0.
     DO l=1,n4
       do j=3,n3-2
@@ -295,8 +294,7 @@ contains
                 DO WHILE (rad(k,i,j,l)<rbins(ii) .AND. ii>1)
                     ii=ii-1
                 ENDDO
-                !hist(k,ii)=hist(k,ii)+num(k,i,j,l)
-                ii=ii+(k-1)*n1
+                ii=k+(ii-1)*n1
                 lavg(ii)=lavg(ii)+num(k,i,j,l)
             ENDIF
           ENDDO
@@ -305,7 +303,7 @@ contains
     ENDDO
     !
     ! Sum over PUs
-    call double_array_par_sum(lavg,gavg,n1)
+    call double_array_par_sum(lavg,gavg,n1*nout)
     hist = RESHAPE( gavg, (/n1,nout/) )
     !
     ! Normalize by the number of columns

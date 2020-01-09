@@ -106,8 +106,8 @@ contains
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
     use stat, only : ssam_intvl, savg_intvl, csflg
-    USE forc, ONLY : radsounding, case_name, &
-         sfc_albedo, div, zmaxdiv, xka, fr0, fr1, alpha, &
+    USE forc, ONLY : radsounding, case_name, sfc_albedo, &
+         div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit, &
          useMcICA,RadConstPress,RadPrecipBins,RadSnowBins
     use mpi_interface, only : myid, appl_abort, ver, author
 
@@ -149,6 +149,7 @@ contains
          radsounding, case_name, & ! Name of the radiation sounding file and case name
          div, zmaxdiv,           & ! Divergence and maximum altitude
          xka, fr0, fr1, alpha,   & ! Parameters for GCSS radiation
+         rc_limit, rt_limit,     & ! Inversion height thresholds for GCSS radiation
          sfc_albedo,         & ! Surface albedo
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
          RadConstPress,      & ! keep constant pressure levels (T/F),

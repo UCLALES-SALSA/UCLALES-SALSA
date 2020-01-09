@@ -249,8 +249,11 @@ contains
           call appl_abort(0)
        else
           do n=1,nVar
-             xnm=sx(n)
              iret = nf90_inquire_variable(ncID, n, name=xnm)
+             IF (xnm /= sx(n)) THEN
+                if (myid == 0) print *, '  ABORTING: Incompatible Netcdf File',n,xnm,sx(n)
+                call appl_abort(0)
+             END IF
           end do
           iret = nf90_sync(ncID)
        end if
