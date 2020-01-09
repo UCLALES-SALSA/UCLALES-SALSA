@@ -50,6 +50,88 @@ module srfc
 
 
 contains
+
+  ! --------------------------------------------------------------------------
+  ! Size-resolved marine aerosol production rates as a function of sea surface temperature (SST, K)
+  ! and friction velocity (u_star, m/s). Parameterization from:
+  !  Mortensson et al., Laboratory simulations and parameterization of the primary marine
+  !  aerosol production, J. Geophys. Res., 108, 4297, doi:10.1029/2002JD002263, 2003
+  ! The result is the rate of change in particle number concentration (#/kg/s), or tendency, for
+  ! each size bin at the first level above sea surface.
+  !
+  SUBROUTINE get_aero_flux(n,rad,sst,dcdt)
+    ! Parameters
+    use defs, only: vonk, g
+    use grid, only: nxp, nyp, a_ustar, a_dn, zm
+    IMPLICIT NONE
+    ! Inputs: aerosol size bin limits (dry radius) and SST
+    INTEGER , INTENT(IN) :: n       ! Number of size bins
+    REAL, INTENT(IN) :: rad(n+1)  ! Size bins limits (dry radius, m)
+    REAL, INTENT(IN) :: sst     ! Sea surface temperature (K)
+    REAL, INTENT(OUT) :: dcdt(nxp,nyp,n) ! Particle concentration tendency (#/kg/s)
+    ! Local
+    INTEGER :: i, j, k
+    REAL usum, zs, dia, Ak, Bk
+    REAL :: w(nxp,nyp) ! 10 m wind speed
+    REAL :: flx(n+1) ! Production rate for each size bin
+
+    ! Calculate particle flux for each size bin limit
+    DO k=1,n+1
+        dia=rad(k)*2.
+        ! Parameters for Eq. 5 from Table 1
+        IF (dia<0.020e-6) THEN
+            Ak=0.
+            Bk=0.
+        ELSEIF (dia<0.145e-6) THEN
+            Ak=-2.576e35*dia**4+5.932e28*dia**3-2.867e21*dia**2-3.003e13*dia-2.881e6
+            Bk= 7.188e37*dia**4-1.616e31*dia**3+6.791e23*dia**2+1.829e16*dia+7.609e8
+        ELSEIF (dia<0.419e-6) THEN
+            Ak=-2.452e33*dia**4+2.404e27*dia**3-8.148e20*dia**2+1.183e14*dia-6.743e6
+            Bk= 7.368e35*dia**4-7.310e29*dia**3+2.528e23*dia**2-3.787e16*dia+2.279e9
+        ELSEIF (dia<2.8e-6) THEN
+            Ak= 1.085e29*dia**4-9.841e23*dia**3+3.132e18*dia**2-4.165e12*dia+2.181e6
+            Bk=-2.859e31*dia**4+2.601e26*dia**3-8.297e20*dia**2+1.105e15*dia-5.800e8
+        ELSE
+            Ak=0.
+            Bk=0.
+            ! Extrapolation: Ak*sst+Bk vs D is almost linear in the log-log scale
+            Ak=139934 ! Ak(2.8e-6)
+            Bk=-3.84343e7 ! Bk(2.8e-6)
+            ! Cheat a bit by using variable Bk
+            Bk=(Ak*sst+Bk)*(dia/2.8e-6)**(-3.5)
+            Ak=0.
+        ENDIF
+        ! Equation 6: particle flux per whitecap area, dFp/dlog(Dp) [#/m^2/s]
+        flx(k)=MAX(0.,Ak*sst+Bk)
+    ENDDO
+
+    ! Roughness height is needed for the 10 m wind speeds
+    zs = zrough
+    IF (zrough <= 0.) THEN ! Calculate
+        usum = 0.
+        DO j=3,nyp-2
+            DO i=3,nxp-2
+                usum = usum + a_ustar(i,j)
+            END DO
+        ENDDO
+        usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
+        zs = max(0.0001,(0.016/g)*usum**2)
+    ENDIF
+
+    ! Whitecap cover (% => fraction) based on 10 m wind speeds (eq. 2)
+    w(:,:)=0.01*3.84e-4*( a_ustar(:,:)/vonk*log(10.0/zs) )**3.41
+
+    ! Particle concentration tendency for each size bin
+    DO k=1,n
+        ! Mean flux: 0.5*(flx(k)+flx(k+1))
+        ! From dFp/dlog(Dp) to dFp: multiply by log10(rad(k+1)/rad(k))
+        ! Multiply by the whitecap cover w
+        ! Convert #/m^2/s to the rate of change in concetration (#/kg/s): multily by 1/rho/dz
+        dcdt(:,:,k)=0.5*(flx(k)+flx(k+1))*log10(rad(k+1)/rad(k))*w(:,:)/a_dn(2,:,:)/(zm(3)-zm(2))
+    ENDDO
+
+  END SUBROUTINE get_aero_flux
+
   !
   ! --------------------------------------------------------------------------
   ! SURFACE: Calculates surface fluxes using an algorithm chosen by ISFCTYP

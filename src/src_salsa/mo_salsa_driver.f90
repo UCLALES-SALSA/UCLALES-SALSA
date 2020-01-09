@@ -69,7 +69,8 @@ IMPLICIT NONE
 
     USE mo_submctl, ONLY : nbins,ncld,nprc,nice,nsnw,pi6,          &
                                rhoic,rhosn, rhowa, dens, &
-                               rhlim, lscndgas, ngases, mws_gas, nlim, prlim, nspec, maxnspec
+                               rhlim, lscndgas, ngases, mws_gas, nlim, prlim, nspec, maxnspec, &
+                               ngases_diag, zgas_diag
     USE mo_salsa, ONLY : salsa
     USE mo_salsa_properties, ONLY : equilibration
     IMPLICIT NONE
@@ -126,7 +127,7 @@ IMPLICIT NONE
                        melt_ri, melt_ni, melt_rs, melt_ns
 
     ! -- Local gas concentrations [mol m-3]
-    REAL :: zgas(kbdim,klev,ngases)
+    REAL :: zgas(kbdim,klev,ngases+ngases_diag)
 
     ! Helper arrays for calculating the rates of change
     TYPE(t_section) :: aero_old(1,1,nbins), cloud_old(1,1,ncld), precp_old(1,1,nprc), &
@@ -270,9 +271,13 @@ IMPLICIT NONE
 
 
              ! Condensable gases (sulfate and organics)
-             IF (lscndgas .AND. ngases>0) THEN
+             IF (lscndgas .AND. ngases+ngases_diag>0) THEN
                 ! Convert from kg/kg to mol/m^3
                 zgas(1,1,1:ngases) = pa_gasp(kk,ii,jj,1:ngases)*pdn(kk,ii,jj)/mws_gas(1:ngases)
+                IF (ngases_diag>0) THEN
+                    ! Diagnostic gases - units are mol/kg, but convert to mol/m^3
+                    zgas(1,1,ngases+1:ngases+ngases_diag) = zgas_diag(1:ngases_diag)*pdn(kk,ii,jj)
+                ENDIF
              ENDIF
 
 
@@ -285,8 +290,8 @@ IMPLICIT NONE
              ! ***************************************!
              CALL salsa(kbdim,  klev,                          &
                         in_p,   in_rv,  in_rs,  in_rsi,        &
-                        in_t,   tstep,                         &
-                        zgas,   ngases,                        &
+                        in_t,   tstep,  time,                  &
+                        zgas,   ngases+ngases_diag,            &
                         aero,   cloud,  precp,                 &
                         ice,    snow,                          &
                         level,                                 &

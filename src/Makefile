@@ -22,7 +22,8 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 \
           rad_cldwtr.f90 rad_d4strm.f90 rad_driver.f90 \
           ncio.f90 util.f90 grid.f90 stat.f90 thrm.f90 forc.f90 advf.f90 \
           advl.f90 srfc.f90 prss.f90 sgsm.f90 mcrp.f90 step.f90 init.f90 \
-          rfft.f90
+          rfft.f90 \
+          mo_vbsctl.f90 mo_vbs.f90 mo_vbs_init.f90 mo_vbs_partition.f90
 SRCSF77 = 
 
 
@@ -75,11 +76,15 @@ rad_d4strm.o: defs.o rad_solver.o \
 rad_driver.o: defs.o rad_d4strm.o $(seqmpi:.f90=.o)
 $(seqmpi:.f90=.o):
 mo_salsa_driver.o: mo_submctl.o mo_salsa.o mo_salsa_properties.o
-mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o
+mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o mo_vbs_init.o
 mo_submctl.o: 
 mo_salsa_cloud.o: mo_submctl.o
 mo_salsa.o: mo_submctl.o mo_salsa_dynamics.o \
           mo_salsa_update.o mo_salsa_cloud.o
-mo_salsa_dynamics.o: mo_submctl.o mo_salsa_properties.o
+mo_salsa_dynamics.o: mo_submctl.o mo_salsa_properties.o mo_vbs_partition.o
 mo_salsa_properties.o: mo_submctl.o
 mo_salsa_update.o: mo_submctl.o
+mo_vbsctl.o:
+mo_vbs_init.o: mo_submctl.o mo_vbs.o mo_vbsctl.o
+mo_vbs.o: mo_vbsctl.o
+mo_vbs_partition.o: mo_submctl.o mo_vbsctl.o

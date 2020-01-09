@@ -1020,12 +1020,15 @@ contains
   SUBROUTINE init_gas_tracers
     USE mpi_interface, ONLY : myid
     USE mo_submctl, ONLY : avog, mws_gas, ngases, zgas, &
-        part_h2so4, conc_h2so4, part_ocnv, conc_ocnv
-
+        part_h2so4, conc_h2so4, part_ocnv, conc_ocnv, &
+        ox_prescribed, conc_oh, conc_o3, conc_no3, mair, &
+        nvocs, nvbs, naqsoa, conc_voc, conc_vbsg, conc_aqsoag, &
+        ngases_diag, zgas_diag, model_lat, start_doy
+    USE step, ONLY : cntlat, strtim
     IMPLICIT NONE
 
     ! Local variables
-    INTEGER :: i
+    INTEGER :: i, j
     CHARACTER(LEN=300) :: fmt
 
     ! Gases initialized in SALSA
@@ -1048,6 +1051,59 @@ contains
         a_gaerop(:,:,:,i) = conc_ocnv/avog*mws_gas(i)
     ENDIF
 
+
+    ! VBS: oxidants (OH, O3 and NOx) + VOCs(g) + VBS(g) [+ aqSOA(g)]
+    !   a) Oxidants: initial concentration given as a number mixing ratio
+    j=0
+    IF (conc_oh>=0.) THEN
+        IF (ox_prescribed) THEN
+            ! Diagnostic (constant)
+            j=j+1
+            zgas_diag(j) = conc_oh/mair ! Note: mol/kg
+        ELSE
+            ! Prognostic (variable)
+            i=i+1
+            a_gaerop(:,:,:,i) = conc_oh*mws_gas(i)/mair ! kg/kg
+        ENDIF
+    ENDIF
+    IF (conc_o3>0.) THEN
+        IF (ox_prescribed) THEN
+            j=j+1
+            zgas_diag(j) = conc_o3/mair
+        ELSE
+            i=i+1
+            a_gaerop(:,:,:,i) = conc_o3*mws_gas(i)/mair
+        ENDIF
+    ENDIF
+    IF (conc_no3>0.) THEN
+        IF (ox_prescribed) THEN
+            j=j+1
+            zgas_diag(j) = conc_o3/mair
+        ELSE
+            i=i+1
+            a_gaerop(:,:,:,i) = conc_no3*mws_gas(i)/mair
+        ENDIF
+    ENDIF
+    !   b) VOCs: initial concentration given as a mass mixing ratio (the same for VBS and aqSOA)
+    DO j=1,nvocs
+        i=i+1
+        a_gaerop(:,:,:,i) = conc_voc(j)
+    ENDDO
+    !   c) VBS bins
+    DO j=1,nvbs
+        i=i+1
+        a_gaerop(:,:,:,i) = conc_vbsg(j)
+    ENDDO
+    !   d) aqSOA
+    DO j=1,naqsoa
+        i=i+1
+        a_gaerop(:,:,:,i) = conc_aqsoag(j)
+    ENDDO
+
+    ! Additional VBS parameters
+    start_doy=strtim ! Start time as decimal day of year
+    model_lat=cntlat ! Center latitude (degrees)
+
     ! Info
     IF (myid == 0) THEN
         WRITE(*,*) ''
@@ -1067,6 +1123,15 @@ contains
                 EXIT
             ENDIF
         ENDDO
+        !
+        ! Diagnostic
+        IF (ngases_diag>0) THEN
+            WRITE(*,*) ''
+            WRITE(*,*) 'Diagnostic gas phase species (id, name and concentration [mol/kg]):'
+            DO i=1,ngases_diag
+                WRITE(*,"(4X,I2,2X,A3,2X,ES12.3)")i,zgas(ngases+i),zgas_diag(i)
+            ENDDO
+        ENDIF
     ENDIF
 
   END SUBROUTINE init_gas_tracers

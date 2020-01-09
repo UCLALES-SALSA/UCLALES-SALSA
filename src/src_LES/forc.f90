@@ -39,6 +39,37 @@ module forc
 
 contains
   !
+  SUBROUTINE surface_naerot(fluksi)
+    use grid, only : nxp, nyp, a_naerot, a_maerot
+    USE mo_submctl, ONLY : nbins, aerobins, in2a, fn2a, in2b, pi6, iss, ih2o, rhowa, rhoss
+    IMPLICIT NONE
+    REAL :: fluksi(nxp,nyp,fn2a) ! Rate of change in number concentration (#/kg/s)
+    INTEGER :: i, j
+    REAL :: mdry, mwat
+    !
+    IF (iss<1) STOP 'Sea salt not included!'
+    !
+    ! Ignore 1a, because there is no sea salt
+    DO i=in2a,fn2a
+        ! Dry particle mass (assuming SS): use bin GMD
+        !   Note: bin center is volume mean - using other than that will cause problems!
+        mdry=4.*pi6*(aerobins(i)**3+aerobins(i+1)**3)*rhoss
+        ! Water mass: assume volume growth factor of 10
+        mwat=10.*mdry*rhowa/rhoss
+        !
+        ! Apply to 2b bins
+        j = in2b + i - in2a
+        a_naerot(2,:,:,j) = a_naerot(2,:,:,j) + fluksi(:,:,i)
+        ! ... and specifically to SS
+        j = (iss-1)*nbins + in2b + i - in2a
+        a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)*mdry
+        !  ... and just add water
+        j = (ih2o-1)*nbins + in2b + i - in2a
+        a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)*mwat
+    ENDDO
+  END SUBROUTINE surface_naerot
+
+  !
   ! -------------------------------------------------------------------
   ! subroutine forcings:  calls the appropriate large-scale forcings
   !

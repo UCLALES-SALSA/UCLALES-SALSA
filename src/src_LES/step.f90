@@ -139,18 +139,19 @@ contains
 
     use stat, only : sflg, statistics
     use sgsm, only : diffuse
-    use srfc, only : surface
+    use srfc, only : surface, get_aero_flux
     use thrm, only : thermo
     use mcrp, only : micro
     use prss, only : poisson
     use advf, only : fadvect
     use advl, only : ladvect
-    use forc, only : forcings
+    use forc, only : forcings, surface_naerot
 
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : nspec
+    USE mo_submctl, ONLY : aerobins, fn2a, nspec
 
     real :: xtime
+    REAL :: dnaeropdt(nxp,nyp,fn2a)
     INTEGER :: zrm
     INTEGER :: n4
 
@@ -166,6 +167,12 @@ contains
     CALL tend0(.FALSE.)
 
     call surface(sst)
+
+    IF (level > 3 .AND. .FALSE.) THEN
+        ! Surface aerosol sources (#/m^2/s)
+        CALL get_aero_flux(fn2a,aerobins,sst,dnaeropdt)
+        CALL surface_naerot(dnaeropdt)
+    END IF
 
     call diffuse
 

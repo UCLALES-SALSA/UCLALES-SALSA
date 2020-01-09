@@ -443,6 +443,10 @@ CONTAINS
                                nf2a, isdtyp,          &
                                sigmag,dpg,n,          &
                                conc_h2so4, conc_ocnv, &
+                               nvbs_setup, laqsoa,    &
+                               ox_prescribed,         &
+                               conc_oh, conc_o3, conc_no3, &
+                               conc_voc, conc_vbsg, conc_aqsoag, &
                                stat_b_bins,           &
                                cldbinlim, icebinlim
 
@@ -515,6 +519,12 @@ CONTAINS
          conc_h2so4,    & ! Vapor phase concentration for sulfuric acid (#/kg)
          conc_ocnv,     & ! -||- non-volatile organics
 
+         nvbs_setup,    & ! Detailed secondary organic aerosol formation (VOC+oxidant => BVS(g) <=> VBS(s))
+         laqsoa,        & ! Additional aqSOA formation
+         ox_prescribed, & ! Oxidant concentrations can be fixed (diagnostic parameter)
+         conc_oh, conc_o3, conc_no3, & ! Initial oxidant concentrations (number mixing ratios)
+         conc_voc, conc_vbsg, conc_aqsoag, & ! Arrays for initial VOC(g), VBS(g) and aqSOA(g) concentrations (mass mixing ratios)
+
          stat_b_bins,   & ! Save statistics about SALSA b-bins
          cldbinlim,     & ! Output cloud bin diameter limits (microns)
          icebinlim        ! Output ice bin diameter limits (microns)
@@ -572,7 +582,9 @@ CONTAINS
                            rhowa,mwa,rhosu,msu,rhooc,moc,rhobc,mbc, &
                            rhodu,mdu,rhoss,mss,rhono,mno,rhonh,mnh, &
                            nlcndgas,ngases,zgas,mws_gas, &
-                           conc_h2so4,conc_ocnv,part_h2so4,part_ocnv,isog,iocg
+                           conc_h2so4,conc_ocnv,part_h2so4,part_ocnv,isog,iocg, &
+                           nvbs_setup,laqsoa
+    USE mo_vbs_init, ONLY : init_vbs
     IMPLICIT NONE
     INTEGER :: ss
 
@@ -680,6 +692,18 @@ CONTAINS
             zgas(ngases)='NOA'
             iocg = ngases
             mws_gas(ngases)=moc
+        ENDIF
+
+        ! Detailed SOA formation includes VOC(g) -> VBS(g) <=> VBS(s,aq) and optionally also aqSOA
+        IF (nvbs_setup>=0) THEN
+            ! VBS setup
+            !   Export: nvbs_setup, laqsoa, fn2b
+            !   Update (gas): nvocs, nvbs, naqsoa, ngases, ngases_diag, nspec, mws_gas, zgas, id_oh, id_no3, id_o3
+            !   Update (aerosol): dens, diss, mws, zspec
+            CALL init_vbs(nvbs_setup, laqsoa)
+        ELSE
+            laqsoa = .false.
+            nvbs_setup = -1
         ENDIF
     ENDIF
 

@@ -5,7 +5,7 @@ MODULE mo_submctl
   ! 1) Data type definitions
 
   ! Data type used to store information about aerosol, cloud, rain, ice, and snow size bins
-  INTEGER, PARAMETER :: maxnspec=5
+  INTEGER, PARAMETER :: maxnspec=11
   TYPE t_section
      REAL :: vhilim,     & ! bin volume at the high limit
                  vlolim,     & ! - '' - at the low limit
@@ -116,11 +116,28 @@ MODULE mo_submctl
   CHARACTER(len=3) :: zgas(maxngas) = '   '
   ! Molecular weights (kg/mol)
   REAL :: mws_gas(maxngas) = 0.1
+  ! Total number of diagnostic gas phase species
+  INTEGER :: ngases_diag = 0
+  ! Concentration array for the diagnostic gas phase species (mol/kg)
+  REAL :: zgas_diag(maxngas) = 0.
 
   ! Simple sulfate (H2SO4(g) => SO4) and non-volatile organic vapor (LVOA(g)  => OC) partitioning
   REAL :: conc_h2so4=-1., conc_ocnv=-1.            ! Initial concentrations
   LOGICAL :: part_h2so4=.FALSE., part_ocnv=.FALSE. ! Calculated when non-negative input concentrations
   INTEGER :: isog=1, iocg=1                        ! Index to gas phase
+
+  ! Detailed SOA formation including gas phase oxidants, VOCs and VBS and aqSOA species
+  INTEGER :: nvbs_setup = -1   ! VBS setup option (hard-coded schemes)
+  LOGICAL :: laqsoa = .FALSE.  ! Enable aqSOA formation
+  INTEGER :: nvocs=0, nvbs=0, naqsoa=0 ! Number of VOCs, VBS species and aqSOA species
+  REAL :: conc_voc(maxngas)=0., conc_vbsg(maxngas)=0., conc_aqsoag(maxngas)=0. ! Initial concetrations (kg/kg)
+  ! VOC oxidants
+  LOGICAL :: ox_prescribed = .TRUE.              ! Prescribed or prognostic concentration fields
+  INTEGER :: id_oh=-1, id_o3=-1, id_no3=-1       ! Indexes to gas phase
+  REAL :: conc_oh=-1., conc_o3=-1., conc_no3=-1. ! Initial concentrations (number mixing ratio)
+  ! Communication between LES and SALSA/VBS
+  REAL :: model_lat, & ! Mean latitude from the model domain [deg]
+      start_doy=-1.    ! Decimal day of year [-]
 
 
   ! ---------------------------------------------------------------------------------------------------------

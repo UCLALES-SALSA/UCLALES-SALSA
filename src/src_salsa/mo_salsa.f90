@@ -17,7 +17,7 @@ CONTAINS
 
   SUBROUTINE salsa(kbdim,  klev,                        &
                    ppres,  prv,    prs,    prsi,        &
-                   ptemp,  ptstep,                      &
+                   ptemp,  ptstep, petime,              &
                    pc_gas, ngas,                        &
                    paero,  pcloud, pprecp, pice, psnow, &
                    level,                               &
@@ -53,7 +53,8 @@ CONTAINS
     REAL, INTENT(in) ::            &
          ppres(kbdim,klev),            & ! atmospheric pressure at each grid point [Pa]
          ptemp(kbdim,klev),            & ! temperature at each grid point [K]
-         ptstep                          ! time step [s]
+         ptstep,                       & ! time step [s]
+         petime                          ! elapsed time [s]
 
     !-- Input variables that are changed within --------------------------------------
     REAL, INTENT(inout) ::      &
@@ -127,7 +128,7 @@ CONTAINS
         CALL condensation(kbdim,  klev,                         &
                           paero,  pcloud, pprecp, pice, psnow,  &
                           pc_gas, ngas,                         &
-                          prv, prs, prsi, ptemp, ppres, ptstep  )
+                          prv, prs, prsi, ptemp, ppres, ptstep, petime)
         cond_vaero(:,:)=SUM(paero(:,:,:)%volc(1),DIM=3)-cond_vaero(:,:)
         cond_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)-cond_vcloud(:,:)
         cond_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)-cond_vprecp(:,:)

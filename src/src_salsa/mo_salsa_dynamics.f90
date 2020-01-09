@@ -999,7 +999,7 @@ CONTAINS
   SUBROUTINE condensation(kbdim,  klev,                         &
                           paero,  pcloud, pprecp, pice, psnow,  &
                           pc_gas, ngas,   prv,    prs,          &
-                          prsi,   ptemp,  ppres,  ptstep)
+                          prsi,   ptemp,  ppres,  ptstep, petime)
 
     USE mo_submctl,    ONLY :   &
          t_section,                 & ! Data type for the cloud bin representation
@@ -1008,6 +1008,7 @@ CONTAINS
          nice,nsnw,                 &
          lscndgas,                  &
          part_h2so4, part_ocnv,     &
+         nvbs,                      &
          nlcndh2oae, nlcndh2ocl, nlcndh2oic, & ! Condensation to aerosols, clouds and ice particles
          nsnucl                     ! nucleation
 
@@ -1023,6 +1024,7 @@ CONTAINS
          ptemp(kbdim,klev),         & ! ambient temperature [K]
          ppres(kbdim,klev),         & ! ambient pressure [Pa]
          ptstep,                    & ! timestep [s]
+         petime,                    & ! elapsed time [s]
          prs(kbdim,klev),           & ! Water vapor saturation mixing ratio [kg/kg]
          prsi(kbdim,klev)             ! Water vapor saturation mixing ratio over ice [kg/kg]
 
@@ -1050,6 +1052,14 @@ CONTAINS
                    pice, psnow,            &
                    pc_gas, ngas,           &
                    ptemp,  ppres, ptstep)
+
+    ! Detailed SOA formation
+    IF (lscndgas .AND. nvbs>0) &
+        CALL condgas_soa(kbdim,  klev,     &
+                   paero, pcloud, pprecp,  &
+                   pice, psnow,            &
+                   pc_gas, ngas,           &
+                   ptemp,  ppres, ptstep, petime)
 
     ! Condensation of water vapour
     IF (nlcndh2ocl .OR. nlcndh2oae .OR. nlcndh2oic) &
@@ -1291,6 +1301,70 @@ CONTAINS
     END DO ! klev
 
   END SUBROUTINE condgas
+
+
+!
+! ----------------------------------------------------------------------------------------------------------
+!
+
+  SUBROUTINE condgas_soa(kbdim,  klev,                   &
+            paero,  pcloud, pprecp, pice,  psnow,        &
+            pc_gas, ngas,   ptemp,  ppres, ptstep, petime)
+
+    USE mo_submctl, ONLY : &
+         t_section,                     & ! data type for the cloud bin representation
+         nbins, ncld, nprc, nice, nsnw, & ! number of bins
+         laqsoa, nvbs                     ! number of aqSOA and VBS species
+
+    USE mo_vbs_partition, ONLY : &
+         vbs_gas_phase_chem,   & ! VOC oxidation
+         vbs_condensation_salsa  ! Vapor-liquid partitioning
+
+   IMPLICIT NONE
+
+    !-- Input and output variables ----------
+    INTEGER, INTENT(IN) :: &
+         kbdim,                     & ! dimension for arrays
+         klev,                      & ! number of vertical klev
+         ngas                         ! number of gases
+
+    REAL, INTENT(IN) :: &
+         ptemp(kbdim,klev),         & ! ambient temperature [K]
+         ppres(kbdim,klev),         & ! ambient pressure [Pa]
+         ptstep, petime               ! timestep [s] and elapsed time [s]
+
+    REAL, INTENT(INOUT) :: &
+         pc_gas(kbdim,klev,ngas)      ! gas concentrations [mol/m3]
+
+    TYPE(t_section), INTENT(INOUT) :: &
+         paero(kbdim,klev,nbins),   & ! aerosol properties
+         pcloud(kbdim,klev,ncld),   & ! cloud properties
+         pprecp(kbdim,klev,nprc),   & ! rain properties
+         pice(kbdim,klev,nice),     & ! ice properties
+         psnow(kbdim,klev,nsnw)       ! snow properties
+
+    !-- Local variables ----------------------
+    INTEGER :: ii, jj
+
+
+    IF (nvbs<=0) RETURN
+
+    ! Gas phase chemistry
+    CALL vbs_gas_phase_chem(kbdim, klev, ptemp, ptstep, petime, pc_gas,ngas)
+
+    DO jj = 1,klev
+    DO ii = 1,kbdim
+
+        ! This calculates equilibrium for VBS bins, aqSOA, a non-volatile organic vapor and sulfate
+        call vbs_condensation_salsa( &
+                ptemp(ii,jj),ppres(ii,jj),ptstep,pc_gas(ii,jj,:),ngas, &
+                paero(ii,jj,:),pcloud(ii,jj,:),pprecp(ii,jj,:), &
+                pice(ii,jj,:),psnow(ii,jj,:) )
+
+    END DO ! kbdim
+    END DO ! klev
+
+  END SUBROUTINE condgas_soa
 
 !
 ! ----------------------------------------------------------------------------------------------------------
