@@ -485,7 +485,7 @@ CONTAINS
 
           ! computing the new gas phase concentration (16.71)
           zc_gas(jg) = min(&
-               (zc_gas(jg)+zh*sum(zk_mass(:)*zs_prime(jg,:)*zc_sat_part(:)))/(1.0+zh*zk_mass_tot),&
+               (zc_gas(jg)+zh*sum(zk_mass(1:nbin_tot)*zs_prime(jg,1:nbin_tot)*zc_sat_part(1:nbin_tot)))/(1.0+zh*zk_mass_tot),&
                zc_tot(jg)&
                )
 
@@ -579,6 +579,7 @@ CONTAINS
         zdfvap = 5.1111e-10*ptemp**1.75*pstand/ppres  ! Diffusion coefficient [m2/s]
         zmfp   = 3.*zdfvap*sqrt(pi*msu/(8.*rg*ptemp)) ! Mean free path [m]
 
+        jvc = nbin_tot
         ! Knudsen number (Eq. 16.20)
         zknud(1:jvc) = 2.*zmfp/zk_diam(1:jvc)
         ! transitional correction factor (Eq. 16.19), without mass accomodation coefficient
