@@ -716,9 +716,9 @@ contains
   !
   SUBROUTINE aerosol_init
 
-    USE mo_submctl, ONLY : pi6,nbins,in1a,in2a,in2b,fn1a,fn2a,fn2b,fnp2a,aerobins, &
+    USE mo_submctl, ONLY : pi6,nbins,in1a,in2a,in2b,fn1a,fn2a,fn2b,aerobins, &
                            nmod, sigmag, dpg, n, volDistA, volDistB, nf2a, isdtyp, &
-                           iso, rhosu, ioc, rhooc, nspec, dens, zspec
+                           iso, rhosu, ioc, rhooc, nspec, dens, zspec, nlim
     USE mpi_interface, ONLY : myid
 
     IMPLICIT NONE
@@ -730,6 +730,7 @@ contains
     REAL :: mass(2*nspec)
     INTEGER :: ss,ee,i,j,k,nc
     CHARACTER(len=600) :: fmt
+    LOGICAL :: bbins
 
     ! Bin mean aerosol particle volume
     core(1:fn2a) = 4.*pi6*(aerobins(1:fn2a)**3+aerobins(2:fn2a+1)**3) ! = 4/3*pi*(rmin**3+rmax**3)/2
@@ -796,6 +797,7 @@ contains
     ! Initialize concentrations
     ! ----------------------------------------------------------
     DO k = 2,nzp
+
        DO j = 1,nyp
           DO i = 1,nxp
 
@@ -833,6 +835,13 @@ contains
                      pndist(k,in2a:fn2a)*core(in2a:fn2a)*dens(nc+1)
              END DO
 
+             ! Apply concentration threshold
+             DO nc = 1,nbins
+                IF (a_naerop(k,i,j,nc)*a_dn(k,i,j) < nlim) THEN
+                   a_naerop(k,i,j,nc) = 0.
+                   a_maerop(k,i,j,nc:nspec*nbins+nc:nbins) = 0.
+                END IF
+             END DO
           END DO ! i
        END DO ! j
     END DO ! k
@@ -841,13 +850,46 @@ contains
 
     ! Put out some info about the initial state
     ! ---------------------------------------------------------------------------------------------------------------------
-    IF (myid == 0) THEN
-        ! Source
-        IF (isdtyp == 0) THEN
-            WRITE(*,'(/,A)') 'Aerosol properties from the NAMELIST'
+    IF (myid == 0 .AND. isdtyp == 0) THEN
+        WRITE(*,'(/,A)') 'Aerosol properties from the NAMELIST (constant size distribution)'
+
+        ! Are b-bins used?
+        bbins = SUM(a_naerop(2,3,3,in2b:fn2b))>0.
+
+        WRITE(*,'(/,A)') ' Initial aerosol number [1e6/kg] and species mass mixing ratios [ug/kg]:'
+        ! Header
+        WRITE(fmt,"(A12,I2,A8,I2,A4)") "(A7,A12,A11,",nspec,"A12,A11,",nspec,"A12)"
+        IF (bbins) THEN
+            WRITE(*,fmt) 'Bin','Dmin [m]','Na',zspec(2:nspec+1),'Nb',zspec(2:nspec+1)
         ELSE
-            WRITE(*,'(/,A)') 'Aerosol properties from file aerosol_in'
+            WRITE(*,fmt) 'Bin','Dmin [m]','Na',zspec(2:nspec+1)
         ENDIF
+        ! Lines
+        WRITE(fmt,"(A17,I2,A13,I2,A7)") "(I7,ES12.2,F11.2,",nspec,"ES12.3,F11.2,",nspec,"ES12.3)"
+        DO i=1,fn2a
+            IF (i<in2a .OR. .NOT.bbins) THEN
+                WRITE(*,FMT) i, aerobins(i)*2., a_naerop(2,3,3,i)*1e-6, a_maerop(2,3,3,i+nbins:i+nspec*nbins:nbins)*1e9
+            ELSE
+                j = in2b + i - in2a
+                WRITE(*,FMT) i, aerobins(i)*2., a_naerop(2,3,3,i)*1e-6, a_maerop(2,3,3,i+nbins:i+nspec*nbins:nbins)*1e9, &
+                                                a_naerop(2,3,3,j)*1e-6, a_maerop(2,3,3,j+nbins:j+nspec*nbins:nbins)*1e9
+            ENDIF
+        ENDDO
+        ! Total number and mass
+        DO i=1,nspec
+            mass(i)=SUM( a_maerop(2,3,3,i*nbins+in1a:i*nbins+fn2a) )*1e9
+            mass(nspec+i)=SUM( a_maerop(2,3,3,i*nbins+in2b:i*nbins+fn2b) )*1e9
+        ENDDO
+        WRITE(*,'(A)')'    --------------------------'
+        WRITE(fmt,"(A11,I2,A13,I2,A7)") "(A19,F11.2,",nspec,"ES12.3,F11.2,",nspec,"ES12.3)"
+        IF (bbins) THEN
+            WRITE(*,fmt) 'total', SUM(a_naerop(2,3,3,in1a:fn2a))*1.e-6, mass(1:nspec), &
+                                  SUM(a_naerop(2,3,3,in2b:fn2b))*1.e-6, mass(nspec+1:2*nspec)
+        ELSE
+            WRITE(*,fmt) 'total', SUM(a_naerop(2,3,3,in1a:fn2a))*1.e-6, mass(1:nspec)
+        ENDIF
+    ELSEIF (myid == 0) THEN
+        WRITE(*,'(/,A)') 'Aerosol properties from file aerosol_in'
 
         WRITE(*,'(/,A)') ' Initial aerosol profile (total number [1e6/kg] and mass [ug/kg] for a and b bins):'
         ! Header
@@ -871,20 +913,6 @@ contains
                 EXIT
             ENDIF
         ENDDO
-        !
-        !
-        ! Initial aerosol size distribution, but only when it is constant
-        IF (isdtyp == 0) THEN
-            WRITE(*,'(/,A)') ' Initial aerosol size distribution:'
-            WRITE(*,*)'   Bin      Dmin [m]   Na [1e6/kg]    Nb [1e6/kg]'
-            DO i=1,fn2a
-                IF (i<in2a) THEN
-                    WRITE(*,'(I7,ES14.3,F14.1)') i, aerobins(i)*2., a_naerop(2,3,3,i)*1e-6
-                ELSE
-                    WRITE(*,'(I7,ES14.3,2F14.1)') i, aerobins(i)*2., a_naerop(2,3,3,i)*1e-6, a_naerop(2,3,3,fnp2a+i)*1e-6
-                ENDIF
-            ENDDO
-        ENDIF
     ENDIF
   END SUBROUTINE aerosol_init
   !

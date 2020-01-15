@@ -131,10 +131,10 @@ contains
           iret = nf90_def_dim(ncID, 'P_Rwsnw', nsnw, snowID)
        END IF
        IF (PRESENT(nchist)) THEN
-          iret = nf90_def_dim(ncID, 'P_hRc', nchist, hcID)
+          IF (nchist>0) iret = nf90_def_dim(ncID, 'P_hRc', nchist, hcID)
        END IF
        IF (PRESENT(nihist)) THEN
-          iret = nf90_def_dim(ncID, 'P_hRi', nihist, hiID)
+          IF (nihist>0) iret = nf90_def_dim(ncID, 'P_hRi', nihist, hiID)
        END IF
 
        dim_tt = (/ztID,timeID/)

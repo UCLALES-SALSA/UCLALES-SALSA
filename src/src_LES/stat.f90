@@ -526,8 +526,16 @@ contains
          "(//' ',49('-')/,' ',/,'  Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(s2bool)
     call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2, ver, author, info)
     ! Juha: Modified due to SALSA output
-    call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp,  &
-            n1a=fn1a, n2a=fn2a-fn1a, n2b=fn2b-fn2a,nprc=nprc, nsnw=nsnw, nchist=nout_cld, nihist=nout_ice)
+    IF (level<4) THEN
+        call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp)
+    ELSEIF (level<5) THEN
+        call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp,  &
+            n1a=fn1a, n2a=fn2a-fn1a, n2b=fn2b-fn2a, nprc=nprc, nchist=nout_cld)
+    ELSE
+        call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp,  &
+            n1a=fn1a, n2a=fn2a-fn1a, n2b=fn2b-fn2a, nprc=nprc, nchist=nout_cld, &
+            nsnw=nsnw, nihist=nout_ice)
+    ENDIF
     if (myid == 0) print *, '   ...starting record: ', nrec2
 
 
@@ -1845,7 +1853,7 @@ contains
     CALL get_avg3(n1,n2,n3,a1,a2(:,5))
 
     ! Generate drizzle mask (grid cells with precipitation)
-    drizzmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srp(:,:,:) > 1.e-6 )
+    drizzmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srp(:,:,:) > 1.e-8 )
 
     svctr_lvl4(:,1:5) = svctr_lvl4(:,1:5) + a2(:,1:5)
 
@@ -2083,7 +2091,7 @@ contains
     CALL get_avg3(n1,n2,n3,a1,a2(:,3))
 
     ! Generate snow mask (grid cells with snow)
-    snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srs(:,:,:) > 1.e-8 )
+    snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srs(:,:,:) > 1.e-11 )
 
     svctr_lvl5(:,1:3) = svctr_lvl5(:,1:3) + a2(:,1:3)
 
