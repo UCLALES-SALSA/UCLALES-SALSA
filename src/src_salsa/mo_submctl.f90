@@ -219,7 +219,7 @@ MODULE mo_submctl
   ! 6) Constants
 
   REAL, PARAMETER :: &
-   nlim   = 1.,           & ! Number conc. limit (#/m3) for aerosol and cloud droplets
+   nlim   = 1.e-3,        & ! Number conc. limit (#/m3) for aerosol and cloud droplets
    prlim  = 1.e-6,        & ! The same for precipitation and ice species for which concentrations are normally much lower [#/m3]
    eps    = epsilon(1.0)    ! epsilon
 
