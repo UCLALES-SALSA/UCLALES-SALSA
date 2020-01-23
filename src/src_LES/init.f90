@@ -718,7 +718,7 @@ contains
 
     USE mo_submctl, ONLY : pi6,nbins,in1a,in2a,in2b,fn1a,fn2a,fn2b,aerobins, &
                            nmod, sigmag, dpg, n, volDistA, volDistB, nf2a, isdtyp, &
-                           iso, rhosu, ioc, rhooc, nspec, dens, zspec, nlim
+                           iso, rhosu, ioc, rhooc, nspec, dens, zspec, nlim, salsa1a_SO4_OC
     USE mpi_interface, ONLY : myid
 
     IMPLICIT NONE
@@ -726,7 +726,6 @@ contains
     REAL :: pndist(nzp,fn2a)                          ! Aerosol size dist as a function of height
     REAL :: pvf2a(nzp,nspec), pvf2b(nzp,nspec)        ! Mass distributions of aerosol species for a and b-bins
     REAL :: pnf2a(nzp)                                ! Number fraction for bins 2a
-    REAL :: pvfOC1a(nzp)                              ! Mass distribution between SO4 and OC in 1a
     REAL :: mass(2*nspec)
     INTEGER :: ss,ee,i,j,k,nc
     CHARACTER(len=600) :: fmt
@@ -738,7 +737,7 @@ contains
     ! Set concentrations to zero
     pndist = 0.
     pvf2a = 0.; pvf2b = 0.
-    pnf2a = 0.; pvfOC1a = 0.
+    pnf2a = 0.
 
     a_maerop(:,:,:,:)=0.0
     a_naerop(:,:,:,:)=0.0
@@ -749,25 +748,12 @@ contains
     ! ---------------------------------------------------------------------------------------------------
     IF (isdtyp == 1) THEN
 
-       CALL READ_AERO_INPUT(iso-1,ioc-1,pndist,pvfOC1a,pvf2a,pvf2b,pnf2a)
+       CALL READ_AERO_INPUT(pndist,pvf2a,pvf2b,pnf2a)
 
     !
     ! Uniform profiles based on NAMELIST parameters
     ! ---------------------------------------------------------------------------------------------------
     ELSE IF (isdtyp == 0) THEN
-
-       IF (ioc>0 .AND. iso>0) THEN
-          ! Both are there, so use the given "massDistrA"
-          pvfOC1a(:) = volDistA(ioc-1)/(volDistA(ioc-1)+volDistA(iso-1)) ! Normalize
-       ELSE IF (ioc>0) THEN
-          ! Pure OC
-          pvfOC1a(:) = 1.0
-       ELSE IF (iso>0) THEN
-          ! Pure SO4
-          pvfOC1a(:) = 0.0
-       ELSE
-          STOP 'Either OC or SO4 must be active for aerosol region 1a!'
-       ENDIF
 
        ! Mass fractions for species in a and b-bins
        DO ss = 1,nspec
@@ -811,29 +797,41 @@ contains
 
              !
              ! b) Aerosol mass concentrations
-             ! bin regime 1a, done here separately because of the SO4/OC convention
-             ! SO4
-             IF (iso > 0) THEN
-                ss = (iso-1)*nbins + in1a; ee = (iso-1)*nbins + fn1a
-                a_maerop(k,i,j,ss:ee) = max(0.0,1.0-pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhosu
-             END IF
-             ! OC
-             IF (ioc > 0) THEN
-                ss = (ioc-1)*nbins + in1a; ee = (ioc-1)*nbins + fn1a
-                a_maerop(k,i,j,ss:ee) = max(0.0,pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhooc
-             END IF
-
-             ! bin regimes 2a and 2b
              DO nc=1,nspec
-                ! 2a
-                ss = nc*nbins + in2a; ee = nc*nbins + fn2a
+                ! 1a and 2a
+                ss = nc*nbins + in1a; ee = nc*nbins + fn2a
                 a_maerop(k,i,j,ss:ee) = max( 0.0,pvf2a(k,nc) )*pnf2a(k) * &
-                     pndist(k,in2a:fn2a)*core(in2a:fn2a)*dens(nc+1)
+                     pndist(k,in1a:fn2a)*core(in1a:fn2a)*dens(nc+1)
                 ! 2b
                 ss = nc*nbins + in2b; ee = nc*nbins + fn2b
                 a_maerop(k,i,j,ss:ee) = max( 0.0,pvf2b(k,nc) )*(1.0-pnf2a(k)) * &
                      pndist(k,in2a:fn2a)*core(in2a:fn2a)*dens(nc+1)
              END DO
+
+             ! Modify 1a so that there can be sulfate and/or OC?
+             IF (salsa1a_SO4_OC) THEN
+                ! Set to zero
+                a_maerop(k,i,j,in1a:nspec*nbins + fn1a:nbins) = 0.
+                IF (iso > 0 .AND. ioc > 0) THEN
+                  ! Sulfate and OC mixture
+                  ss = (iso-1)*nbins + in1a; ee = (iso-1)*nbins + fn1a
+                  a_maerop(k,i,j,ss:ee) = max(0.0,pvf2a(k,iso-1)/(pvf2a(k,ioc-1)+pvf2a(k,iso-1)) )* &
+                      pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhosu
+                  ss = (ioc-1)*nbins + in1a; ee = (ioc-1)*nbins + fn1a
+                  a_maerop(k,i,j,ss:ee) = max(0.0,pvf2a(k,ioc-1)/(pvf2a(k,ioc-1)+pvf2a(k,iso-1)) )* &
+                      pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhooc
+                ELSEIF (iso > 0) THEN
+                  ! Pure sulfate
+                  ss = (iso-1)*nbins + in1a; ee = (iso-1)*nbins + fn1a
+                  a_maerop(k,i,j,ss:ee) = pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhosu
+                ELSEIF (ioc > 0) THEN
+                  ! Pure OC
+                  ss = (ioc-1)*nbins + in1a; ee = (ioc-1)*nbins + fn1a
+                  a_maerop(k,i,j,ss:ee) = pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhooc
+                ELSE
+                  STOP 'Either OC or SO4 must be active for aerosol region 1a!'
+                ENDIF
+             ENDIF
 
              ! Apply concentration threshold
              DO nc = 1,nbins
@@ -920,17 +918,15 @@ contains
   ! Reads vertical profiles of aerosol size distribution parameters, aerosol species volume fractions and
   ! number concentration fractions between a and b bins
   !
-  SUBROUTINE READ_AERO_INPUT(piso4,pioc,ppndist,ppvfOC1a,ppvf2a,ppvf2b,ppnf2a)
+  SUBROUTINE READ_AERO_INPUT(ppndist,ppvf2a,ppvf2b,ppnf2a)
     USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
     USE mo_submctl, ONLY : fn2a, nspec, maxspec, nmod
     USE mpi_interface, ONLY : appl_abort, myid
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: piso4,pioc
     REAL, INTENT(out) :: ppndist(nzp,fn2a)                    ! Aerosol size dist as a function of height
     REAL, INTENT(out) :: ppvf2a(nzp,nspec), ppvf2b(nzp,nspec) ! Volume distributions of aerosol species for a and b-bins
     REAL, INTENT(out) :: ppnf2a(nzp)                          ! Number fraction for bins 2a
-    REAL, INTENT(out) :: ppvfOC1a(nzp)                        ! Volume distribution between SO4 and OC in 1a
 
     REAL :: nsect(fn2a)
 
@@ -1019,22 +1015,6 @@ contains
     CALL htint2d(nc_levs,znsect(1:nc_levs,:),zlevs(1:nc_levs),nzp,ppndist,zt,fn2a)
     CALL htint(nc_levs,znf2a(1:nc_levs),zlevs(1:nc_levs),nzp,ppnf2a,zt)
 
-    ! Since 1a bins by SALSA convention can only contain SO4 or OC,
-    ! get renormalized mass fractions.
-    ! --------------------------------------------------------------
-    IF (pioc>0 .AND. piso4>0) THEN
-       ! Both are there, so use the given "massDistrA"
-       ppvfOC1a(:) = ppvf2a(:,pioc)/(ppvf2a(:,pioc)+ppvf2a(:,piso4)) ! Normalize
-    ELSE IF (pioc>0) THEN
-       ! Pure OC
-       ppvfOC1a(:) = 1.0
-    ELSE IF (piso4>0) THEN
-       ! Pure SO4
-       ppvfOC1a(:) = 0.0
-    ELSE
-       STOP 'Either OC or SO4 must be active for aerosol region 1a!'
-    ENDIF
-
     DEALLOCATE( zlevs, zvolDistA, zvolDistB, znf2a, zn, zsigmag, zdpg, znsect )
 
   END SUBROUTINE READ_AERO_INPUT
@@ -1056,8 +1036,9 @@ contains
     IMPLICIT NONE
 
     ! Local variables
-    INTEGER :: i, j
+    INTEGER :: i, j, k, iout
     CHARACTER(LEN=300) :: fmt
+    REAL :: array(nzp,10)
 
     ! Gases initialized in SALSA
     IF (ngases==0) RETURN
@@ -1113,19 +1094,41 @@ contains
         ENDIF
     ENDIF
     !   b) VOCs: initial concentration given as a mass mixing ratio (the same for VBS and aqSOA)
+    !   See if the input profile data file vocg_in exists
+    IF (nvocs>0) CALL read_input_array('vocg_in',nzp,zt,nvocs,array(:,1:nvocs),iout)
     DO j=1,nvocs
         i=i+1
-        a_gaerop(:,:,:,i) = conc_voc(j)
+        IF (iout==0) THEN
+            a_gaerop(:,:,:,i) = conc_voc(j)
+        ELSE
+            DO k=1,nzp
+                a_gaerop(k,:,:,i) = array(k,j)
+            ENDDO
+        ENDIF
     ENDDO
     !   c) VBS bins
+    IF (nvbs>0) CALL read_input_array('vbsg_in',nzp,zt,nvbs,array(:,1:nvbs),iout)
     DO j=1,nvbs
         i=i+1
-        a_gaerop(:,:,:,i) = conc_vbsg(j)
+        IF (iout==0) THEN
+            a_gaerop(:,:,:,i) = conc_vbsg(j)
+        ELSE
+            DO k=1,nzp
+                a_gaerop(k,:,:,i) = array(k,j)
+            ENDDO
+        ENDIF
     ENDDO
     !   d) aqSOA
+    IF (naqsoa>0) CALL read_input_array('aqsoag_in',nzp,zt,naqsoa,array(:,1:naqsoa),iout)
     DO j=1,naqsoa
         i=i+1
-        a_gaerop(:,:,:,i) = conc_aqsoag(j)
+        IF (iout==0) THEN
+            a_gaerop(:,:,:,i) = conc_aqsoag(j)
+        ELSE
+            DO k=1,nzp
+                a_gaerop(k,:,:,i) = array(k,j)
+            ENDDO
+        ENDIF
     ENDDO
 
     ! Additional VBS parameters
@@ -1133,7 +1136,7 @@ contains
     model_lat=cntlat ! Center latitude (degrees)
 
     ! Info
-    IF (myid == 0) THEN
+    IF (myid == 0 .AND. ngases>0) THEN
         WRITE(*,*) ''
         WRITE(*,'(/,A)') ' Initial gas/vapor concentration profile [ug/kg]:'
         ! Header
@@ -1146,7 +1149,7 @@ contains
         DO i=1,nzp
             ! Print
             WRITE(*,fmt) zt(i), a_gaerop(i,3,3,:)*1.e9 ! kg => ug
-            IF (i==5) THEN
+            IF (i==5 .AND. ALL( ABS(a_gaerop(4,3,3,:)-a_gaerop(5,3,3,:))<1e-13 )) THEN
                 WRITE(*,'(A14)')'...'
                 EXIT
             ENDIF
@@ -1163,6 +1166,62 @@ contains
     ENDIF
 
   END SUBROUTINE init_gas_tracers
+
+  !
+  !------------------------------------------------------------------
+  ! read_input_array: read an input text file where the first column is altitude (m) and
+  ! the remaining columns contain the data. The data is interpolated for the current grid.
+  !
+  ! Tomi Raatikainen, FMI, 2020
+  !
+  SUBROUTINE read_input_array(fname,nzp,zt,ncols,output,istat)
+    ! Read standard input text files and interpolate these to the current vertical grid
+    USE mpi_interface, ONLY : appl_abort, myid
+    IMPLICIT NONE
+    ! Inputs and outputs
+    CHARACTER(LEN=*), INTENT(IN) :: fname ! Data file name
+    INTEGER, INTENT(IN) :: nzp,ncols ! Known output dimensions
+    REAL, INTENT(IN) :: zt(nzp) ! Target or output grid
+    REAL, INTENT(OUT) :: output(nzp,ncols) ! Output data
+    INTEGER, INTENT(OUT) :: istat ! Flag: 1 = OK, 0 = file not found, which can be OK
+    ! Local variables
+    INTEGER, PARAMETER :: max_levs=1000 ! Maximum number or rows
+    REAL :: zlevs(max_levs), ztmp(max_levs,ncols) ! z and data
+    INTEGER :: k, i, nc_levs
+    LOGICAL :: read_file
+    !
+    ! File may not exists
+    istat = 0
+    INQUIRE(FILE=fname,EXIST=read_file)
+    IF (.NOT. read_file) RETURN
+    !
+    ! File exists, so read the data
+    open (11,file=fname,status='old',form='formatted')
+    do i=1,max_levs
+        ! Each row contains altitude and then data (ncols columns)
+        read (11,*,end=100) zlevs(i), (ztmp(i,k),k=1,ncols)
+    end do
+100   continue
+    close (11)
+    ! The true number of altitude levels
+    nc_levs=i-1
+    !
+    IF (nc_levs<1) THEN
+       if (myid == 0) print *, '  ABORTING: empty input file '//TRIM(fname)
+       call appl_abort(0)
+    ELSEIF (zlevs(nc_levs)<zt(nzp)) then
+       if (myid == 0) print *, '  ABORTING: Model top above input top in file '//TRIM(fname)
+       if (myid == 0) print '(2F12.2)', zlevs(nc_levs), zt(nzp)
+       call appl_abort(0)
+    END IF
+    !
+    ! Interpolate input variables to model levels
+    CALL htint2d(nc_levs,ztmp(1:nc_levs,:),zlevs(1:nc_levs),nzp,output,zt,ncols)
+    !
+    ! All OK
+    istat = 1
+  END SUBROUTINE read_input_array
+
 
   !
   !------------------------------------------------------------------

@@ -440,6 +440,7 @@ CONTAINS
                                nspec,listspec,        &
                                indiss,indens,inmw,    &
                                volDistA, volDistB,    &
+                               salsa1a_SO4_OC,        &
                                nf2a, isdtyp,          &
                                sigmag,dpg,n,          &
                                conc_h2so4, conc_ocnv, &
@@ -511,6 +512,7 @@ CONTAINS
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          volDistA,      & ! Initial relative contribution [0-1] of each species to particle volume in a-bins.
          volDistB,      & ! Same as above but for b-bins
+         salsa1a_SO4_OC,& ! Limit 1a composition to OC and/or SO4
          nf2a,          & ! Number fraction of particles allocated to a-bins in regime 2. b-bins will get 1-nf2a
          sigmag,        & ! Stdev for the 7 initial lognormal modes
          dpg,           & ! Mean diameter for the 7 initial lognormal modes
@@ -663,6 +665,15 @@ CONTAINS
                 diss(ss)=1.  ! NH4+ ??
                 mws(ss)=mnh
                 inh=ss
+            CASE('VB1','VB2','VB3','VB4','VB5','VB6','VB7','VB8','VB9')
+                ! Volatility Basis Set (VBS) bins: their properties will be specified later in the VBS setup. However,
+                ! these species should be listed here when initial aerosol-phase volume fractions will be specified.
+                !dens(ss) = 1320.0
+                !diss(ss) = 0.0047
+                !mw(ss) = 186e-3
+                ! Volatility bin input concentrations are separate from the default aerosol input,
+                ! so do not change the counter!
+                nspec = nspec - 1
             CASE DEFAULT
                 WRITE(*,*) 'Unkown species: '//TRIM(zspec(ss))
                 STOP
@@ -697,7 +708,7 @@ CONTAINS
         ! Detailed SOA formation includes VOC(g) -> VBS(g) <=> VBS(s,aq) and optionally also aqSOA
         IF (nvbs_setup>=0) THEN
             ! VBS setup
-            !   Export: nvbs_setup, laqsoa, fn2b
+            !   Export: nvbs_setup, laqsoa
             !   Update (gas): nvocs, nvbs, naqsoa, ngases, ngases_diag, nspec, mws_gas, zgas, id_oh, id_no3, id_o3
             !   Update (aerosol): dens, diss, mws, zspec
             CALL init_vbs(nvbs_setup, laqsoa)
