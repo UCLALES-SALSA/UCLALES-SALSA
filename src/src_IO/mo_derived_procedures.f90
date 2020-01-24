@@ -5,20 +5,21 @@ MODULE mo_derived_procedures
                          nlim, prlim,                 &
                          spec, pi6
   USE util, ONLY : getBinMassArray, getMassIndex
+  USE defs, ONLY : cp, alvl
   USE mo_particle_external_properties, ONLY : calcDiamLES
   USE grid, ONLY : nzp,nxp,nyp,level
   USE mo_progn_state, ONLY : a_naerop, a_ncloudp, a_nprecpp, a_nicep,  &
                              a_maerop, a_mcloudp, a_mprecpp, a_micep,  &
                              a_rp, a_rpp
-  USE mo_diag_state, ONLY : a_rc, a_ri, a_riri, a_srp, a_dn
-  USE mo_aux_state, ONLY : dzt
+  USE mo_diag_state, ONLY : a_rc, a_ri, a_riri, a_srp, a_dn, wt_sfc, wq_sfc
+  USE mo_aux_state, ONLY : dzt,dn0
   USE mo_structured_datatypes
   IMPLICIT NONE
 
   PRIVATE
 
   PUBLIC :: bulkNumc, totalWater, bulkDiameter, bulkMixrat, binMixrat, getBinDiameter, &
-            binIceDensities, waterPaths
+            binIceDensities, waterPaths, surfaceFluxes
     
   CONTAINS
 
@@ -416,6 +417,26 @@ MODULE mo_derived_procedures
      DEALLOCATE(pmass)
      
    END SUBROUTINE binIceDensities
+
+   ! ------------------------------------------
+
+   SUBROUTINE surfaceFluxes(name,output)
+     CHARACTER(len=*), INTENT(in) :: name
+     REAL, INTENT(out) :: output(nxp,nyp)
+     INTEGER :: kk
+
+     output = 0.
+     SELECT CASE(name)
+     CASE("lhf")
+        output = wq_sfc%d * alvl*(dn0%d(1) + dn0%d(2))*0.5
+     CASE("shf")
+        output = wt_sfc%d * cp*(dn0%d(1) + dn0%d(2))*0.5
+     END SELECT
+       
+   END SUBROUTINE surfaceFluxes
+
+
+
 
    
    ! NONE OF THE BELOW IS YET ASSOCIATED WITH ANYTHING !!!!!!!!!!!!!!!!!!!!

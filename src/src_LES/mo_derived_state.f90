@@ -17,7 +17,7 @@ MODULE mo_derived_state
   TYPE(FloatArray2d), TARGET :: lwp, iwp, rwp            ! Liquid water path, ice water path, rain water path.
                                                          ! LWP contains cloud droplets and aerosol, IWP both pristine and rimed ice,
                                                          ! and rwp the water in the "precipitation" category
-  
+  TYPE(FloatArray2d), TARGET :: shf, lhf                 ! Surface sensible and latend heat fluxes
   
   ! SALSA related variables
   TYPE(FloatArray3d), TARGET :: Naa, Nab, Nca, Ncb, Np, Ni,                &  ! Bulk number concentrations, aerosol, cloud, precip, ice
@@ -64,6 +64,21 @@ MODULE mo_derived_state
       CALL Derived%newField("lwp", "Liquid water path", "kg/m2", "xtytt",   &
                             ANY(outputlist == "lwp"), pipeline              )
 
+      pipeline => NULL()
+      lhf = FloatArray2d()
+      lhf%onDemand => surfaceFluxes
+      pipeline => lhf
+      CALL Derived%newField("lhf", "Latent heat flux", "W m-2", "xtytt",   &
+                            ANY(outputlist == "lhf"), pipeline             )
+
+      pipeline => NULL()
+      shf = FloatArray2d()
+      shf%onDemand => surfaceFluxes
+      pipeline => shf
+      CALL Derived%newField("shf", "Sensible heat flux", "W m-2", "xtytt",   &
+                            ANY(outputlist == "shf"), pipeline                )
+      
+      
       IF (level > 4) THEN
          pipeline => NULL()
          iwp = FloatArray2d()
@@ -81,7 +96,7 @@ MODULE mo_derived_state
          CALL Derived%newField("rwp", "Rain water path", "kg/m2", "xtytt",   &
                                ANY(outputlist == "rwp"), pipeline            )
       END IF
-           
+            
       IF (level >= 4) THEN
          pipeline => NULL()
          Naa = FloatArray3d()

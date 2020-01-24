@@ -22,21 +22,21 @@ NPROCS=1          # Number of processors (for IsSeq==0)
 TWALL=72:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=40              # Number of points in Y-direction (including "halo" points)
-NZP=70              # Number of points in Z-direction
-DX=50.              # Resolution in X-direction (meters)
-DY=50.              # Resolution in Y-direction (meters)
-DZ=20.              # Resolution in Z-direction (meters)
+NYP=20              # Number of points in Y-direction (including "halo" points)
+NZP=150              # Number of points in Z-direction
+DX=300.              # Resolution in X-direction (meters)
+DY=300.              # Resolution in Y-direction (meters)
+DZ=100.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=100.        # Length of the spinup period (seconds)
+Tspinup=10.        # Length of the spinup period (seconds)
 Texp=28800.         # Length of the experiment (seconds)
-LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+LEVEL=5             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 
 # FOR SALSA
-ISDTYP=0            # 0: Aerosol size distribution from namelist (uniform across domain),
+ISDTYP=1            # 0: Aerosol size distribution from namelist (uniform across domain),
                     # 1: Read profile from input file. Note that nspec_dry and listspec in SALSA namelist
                     #    must conform with the input data in the file specified below. 
-AEROSOL_CASE=".nc"  # If ISDTYP==1, the symbolic link 'aerosol_in.nc' is pointed to this file
+AEROSOL_CASE="aerosol_UAE_SO4_DU_DUACC_2.nc"  # If ISDTYP==1, the symbolic link 'aerosol_in.nc' is pointed to this file
 
 # -------------------------------------------------- </USER SPECIFIED INFORMATION>
 
@@ -120,9 +120,9 @@ cat > NAMELIST <<EOF
   ps_intvl = 5.
   ts_intvl = 5.
   main_intvl = 5.
-  varlist_main = 'aSO4a','aSO4b','rp','rc','srp','dn','Naba','Dwaba','Ncba','Dwcba'
-  varlist_ps = 'aSO4a','aSO4b','rp','rc','srp','dn','Naba','Dwaba','Ncba','Dwcba'
-  varlist_ts = 
+  varlist_main = 'theta','temp','Naa','Nab','rp','rh','rhi','ri','lhf','shf'
+  !varlist_ps = 'theta'
+  !varlist_ts = 'rwp_bar'
 /
 
 ! -----------------------------------------------------------------------------------
@@ -147,7 +147,7 @@ cat > NAMELIST <<EOF
   ubmin             = -0.25
   sst               = 272.
   dthcon            = 100.
-  drtcon            = 0.
+  drtcon            = 10.
   C_heat            = 2.e6
   deepSoilTemp      = 274.
   W1                = 0.2
@@ -266,13 +266,13 @@ cat > NAMELIST <<EOF
    lscgcc = .TRUE.       ! Self-collection of cloud droplets
    lscgpp = .TRUE.       ! Self-collection of rain drops
    lscgpc = .TRUE.       ! Rain collection of cloud droplets
-   lscgaa = .TRUE.       ! Aerosol coagulation
-   lscgca = .TRUE.       ! Cloud collection of aerosols
-   lscgpa = .TRUE.       ! Rain collection of aerosols
+   lscgaa = .FALSE.       ! Aerosol coagulation
+   lscgca = .FALSE.       ! Cloud collection of aerosols
+   lscgpa = .FALSE.       ! Rain collection of aerosols
    lscgia = .FALSE.       ! Ice collection of aerosols
-   lscgic = .FALSE.       ! Ice collection of cloud droplets
-   lscgii = .FALSE.       ! Self-collection of ice
-   lscgip = .FALSE.       ! Ice collection of rain drops
+   lscgic = .TRUE.       ! Ice collection of cloud droplets
+   lscgii = .TRUE.       ! Self-collection of ice
+   lscgip = .TRUE.       ! Ice collection of rain drops
 
    ! Sub-process switches: Condensation
    lscndgas    = .FALSE.  ! --Aerosol precursor gas codensation

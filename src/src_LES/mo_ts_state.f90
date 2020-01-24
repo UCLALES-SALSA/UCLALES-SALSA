@@ -108,7 +108,7 @@ MODULE mo_ts_state
                        ANY(outputlist == "lwp_bar"), pipeline)
 
       rwp_bar = FloatArray0d()
-      lwp_bar%onDemand => globalAvgWaterPaths
+      rwp_bar%onDemand => globalAvgWaterPaths
       pipeline => rwp_bar
       CALL TS%newField("rwp_bar", "Mean precipitating water path", "kg/m2", "time",   &
                        ANY(outputlist == "rwp_bar"), pipeline)

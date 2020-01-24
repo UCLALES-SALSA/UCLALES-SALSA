@@ -354,7 +354,7 @@ MODULE mo_diag_state
       pipeline => NULL()
       uw_sfc = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => uw_sfc
-      CALL Diag%newField("uw_sfc", "Vertical momentum flux with u wind", "CHECK", "xtytt",   &
+      CALL Diag%newField("uw_sfc", "Vertical momentum flux with u wind", "m2 s-2", "xtytt",   &
                          ANY(outputlist == "uw_sfc"), pipeline) 
 
       memsize = memsize + nxy
@@ -362,7 +362,7 @@ MODULE mo_diag_state
       pipeline => NULL()
       vw_sfc = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => vw_sfc
-      CALL Diag%newField("vw_sfc", "Vertical momentum flux with v wind", "CHECK", "xtytt",    &
+      CALL Diag%newField("vw_sfc", "Vertical momentum flux with v wind", "m2 s-2", "xtytt",    &
                          ANY(outputlist == "vw_sfc"), pipeline) 
 
       memsize = memsize + nxy
@@ -370,7 +370,7 @@ MODULE mo_diag_state
       pipeline => NULL()
       ww_sfc = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => ww_sfc
-      CALL Diag%newField("ww_sfc", "Vertical wind covariance", "CHECK", "xtytt",    &
+      CALL Diag%newField("ww_sfc", "Vertical wind covariance", "m2 s-2", "xtytt",    &
                          ANY(outputlist == "ww_sfc"), pipeline) 
 
       memsize = memsize + nxy
@@ -378,7 +378,7 @@ MODULE mo_diag_state
       pipeline => NULL()
       wt_sfc = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => wt_sfc
-      CALL Diag%newField("wt_sfc", "Vertical temperature flux", "CHECK", "xtytt",   &
+      CALL Diag%newField("wt_sfc", "Vertical temperature flux", "m K s-1", "xtytt",   &
                          ANY(outputlist == "wt_sfc"), pipeline) 
 
       memsize = memsize + nxy
@@ -386,7 +386,7 @@ MODULE mo_diag_state
       pipeline => NULL()
       wq_sfc = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => wq_sfc
-      CALL Diag%newField("wq_sfc", "Vertical moisture flux", "CHECK", "xtytt",    &
+      CALL Diag%newField("wq_sfc", "Vertical moisture flux", "m Kg Kg-1 s-1", "xtytt",    &
                          ANY(outputlist == "wq_sfc"), pipeline) 
 
       memsize = memsize + nxy
