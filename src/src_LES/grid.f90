@@ -50,7 +50,6 @@ module grid
   integer           :: iradtyp = 0         ! radiation model type
   integer           :: level   = 0         ! thermodynamic level
   integer           :: naddsc  = 0         ! number of additional scalars;
-  INTEGER           :: nsalsa  = 0         ! Number of tracers for SALSA
   integer           :: nfpt = 10           ! number of rayleigh friction points
   real              :: distim = 300.0      ! dissipation timescale
 
@@ -87,7 +86,6 @@ module grid
   real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
   LOGICAL, SAVE :: nudge_init=.TRUE.
 
-  character (len=7), allocatable, save :: sanal(:)
   character (len=80):: expnme = 'Default' ! Experiment name
   character (len=80):: filprf = 'x'       ! File Prefix
   character (len=7) :: runtype = 'INITIAL'! Run Type Selection
@@ -100,14 +98,16 @@ module grid
 
   character (len=80), private :: fname
 
-  integer, private, save  ::  nrec0, nvar0
+  integer, private, save  ::  nrec0
 
   integer           :: nz, nxyzp, nxyp
   real              :: dxi, dyi, dtl, umean, vmean, psrf
   real, allocatable :: xt(:), xm(:), yt(:), ym(:), zt(:), zm(:), dzt(:), dzm(:)
   real, allocatable :: u0(:), v0(:), pi0(:), pi1(:), th0(:), dn0(:), rt0(:)
   real, allocatable :: spng_wfct(:), spng_tfct(:)
+  REAL, ALLOCATABLE, target :: tmp_prcp(:,:,:,:), tmp_prct(:,:,:,:)
   REAL, ALLOCATABLE, target :: tmp_icep(:,:,:,:), tmp_icet(:,:,:,:)
+  REAL, ALLOCATABLE, target :: tmp_snwp(:,:,:,:), tmp_snwt(:,:,:,:)
   REAL, ALLOCATABLE, target :: tmp_gasp(:,:,:,:), tmp_gast(:,:,:,:)
   !
   ! velocity variables (past, current and tendency)
@@ -154,6 +154,16 @@ module grid
                    a_msnowp(:,:,:,:), a_msnowt(:,:,:,:)
   ! -- Gas compound tracers
   REAL, POINTER :: a_gaerop(:,:,:,:), a_gaerot(:,:,:,:)
+  ! -- Local (LES) dimensions
+  INTEGER :: nbins=0,ncld=0,nice=0,nprc=0,nsnw=0,nspec=0,ngases=0
+
+  ! No prognostic b-bins for aerosol, cloud or ice
+  LOGICAL :: no_b_bins = .FALSE.
+  ! No prognostic rain
+  LOGICAL :: no_prog_prc = .FALSE.
+  ! No prognostic ice or snow (level=5)
+  LOGICAL :: no_prog_ice = .FALSE.
+  LOGICAL :: no_prog_snw = .FALSE.
 
   real, allocatable, target :: a_sclrp(:,:,:,:),a_sclrt(:,:,:,:)
    !
@@ -212,6 +222,16 @@ module grid
   !
 contains
   !
+  ! Copy SALSA parameters to LES
+  SUBROUTINE copy_salsa_pars(nspec_out,nprc_out,nsnw_out,ngases_out)
+    USE mo_submctl, ONLY : nspec,nprc,nsnw,ngases
+    INTEGER, INTENT(OUT) :: nspec_out, nprc_out, nsnw_out, ngases_out
+    nspec_out=nspec
+    nprc_out=nprc
+    nsnw_out=nsnw
+    ngases_out=ngases
+  END SUBROUTINE copy_salsa_pars
+  !
   !----------------------------------------------------------------------
   ! SUBROUTINE define_vars
   !
@@ -221,21 +241,12 @@ contains
   subroutine define_vars
 
     use mpi_interface, only :myid
-    USE mo_submctl, ONLY : nbins,ncld,nprc,nice,nsnw, & ! Number of aerosol, cloud, rain, ice and snow bins
-                               nspec,ngases             ! Number of chemical species and gases for SALSA
+    USE mo_submctl, ONLY : fn2a,fn2b,fnp2a,fnp2b ! Indexes for SALSA
 
     integer :: memsize
     INTEGER :: zz
     INTEGER :: nc
-
-    ! Juha: Number of prognostic tracers for SALSA
-    !            Aerosol bins + Cloud bins + gas compound tracers
-
-    IF (level >= 4) THEN
-       nc = nspec ! Aerosol components without water
-       nsalsa = (nc+2)*nbins + (nc+2)*ncld + (nc+2)*nprc+ngases
-       IF (level>=5) nsalsa = nsalsa + (nc+2)*nice + (nc+2)*nsnw
-    END IF
+    INTEGER :: nsalsa
 
     ! Juha: Stuff that's allocated for all configurations
     !----------------------------------------------------------
@@ -343,8 +354,6 @@ contains
     !---------------------------------------------------
     ELSE IF (level >= 4) THEN
 
-       nc = nspec+1 ! number of aerosol components used + 1 for water
-
        allocate (a_rc(nzp,nxp,nyp), a_srp(nzp,nxp,nyp), a_snrp(nzp,nxp,nyp),     &
                  a_rh(nzp,nxp,nyp),a_dn(nzp,nxp,nyp)  )
 
@@ -363,6 +372,26 @@ contains
        a_srs(:,:,:) = 0.
        a_snrs(:,:,:) = 0.
        memsize = memsize + 5*nxyzp
+
+       ! Number of prognostic SALSA variables
+       IF (no_b_bins) THEN
+          ! No b-bins for LES, but full arrays are needed for SALSA
+          nbins=fn2a
+          ncld=fnp2a
+          nice=fnp2a
+       ELSE
+          nbins=fn2b
+          ncld=fnp2b
+          nice=fnp2b
+       ENDIF
+       CALL copy_salsa_pars(nspec,nprc,nsnw,ngases)
+
+       ! Total number of prognostic SALSA variables (number and mass for each aerosol component + gases)
+       nc = nspec+2
+       nsalsa = ngases + nc*nbins + nc*ncld
+       IF (.NOT. no_prog_prc) nsalsa = nsalsa + nc*nprc
+       IF (level>=5 .AND. .NOT. no_prog_ice) nsalsa = nsalsa + nc*nice
+       IF (level>=5 .AND. .NOT. no_prog_snw) nsalsa = nsalsa + nc*nsnw
 
        ! Total number of prognostic scalars: temperature + water vapor + SALSA + tke (isgstyp > 1) [+ additional scalars]
        nscl = 2 + nsalsa + naddsc
@@ -384,11 +413,11 @@ contains
        end if
 
        !JT: Set the pointers for prognostic SALSA variables (levels 4 & 5)
+       nc = nspec+1
        zz = 2
        a_naerop => a_sclrp(:,:,:,zz+1:zz+nbins)
        a_naerot => a_sclrt(:,:,:,zz+1:zz+nbins)
        zz = zz+nbins
-
        a_maerop => a_sclrp(:,:,:,zz+1:zz+nc*nbins)
        a_maerot => a_sclrt(:,:,:,zz+1:zz+nc*nbins)
        zz = zz+nc*nbins
@@ -396,49 +425,68 @@ contains
        a_ncloudp => a_sclrp(:,:,:,zz+1:zz+ncld)
        a_ncloudt => a_sclrt(:,:,:,zz+1:zz+ncld)
        zz = zz+ncld
-
        a_mcloudp => a_sclrp(:,:,:,zz+1:zz+nc*ncld)
        a_mcloudt => a_sclrt(:,:,:,zz+1:zz+nc*ncld)
        zz = zz+nc*ncld
 
-       a_nprecpp => a_sclrp(:,:,:,zz+1:zz+nprc)
-       a_nprecpt => a_sclrt(:,:,:,zz+1:zz+nprc)
-       zz = zz+nprc
+       IF (.NOT. no_prog_prc) THEN
+          ! Prognostic rain
+          a_nprecpp => a_sclrp(:,:,:,zz+1:zz+nprc)
+          a_nprecpt => a_sclrt(:,:,:,zz+1:zz+nprc)
+          zz = zz+nprc
+          a_mprecpp => a_sclrp(:,:,:,zz+1:zz+nc*nprc)
+          a_mprecpt => a_sclrt(:,:,:,zz+1:zz+nc*nprc)
+          zz = zz+nc*nprc
+       ELSE
+          ! Allocate zero arrays for pointers
+          ALLOCATE (tmp_prcp(nzp,nxp,nyp,(nc+1)*nprc), &
+                    tmp_prct(nzp,nxp,nyp,(nc+1)*nprc))
+          tmp_prcp(:,:,:,:) = 0.
+          tmp_prct(:,:,:,:) = 0.
+          a_nprecpp => tmp_prcp(:,:,:,1:nprc)
+          a_nprecpt => tmp_prct(:,:,:,1:nprc)
+          a_mprecpp => tmp_prcp(:,:,:,nprc+1:(nc+1)*nprc)
+          a_mprecpt => tmp_prct(:,:,:,nprc+1:(nc+1)*nprc)
+       ENDIF
 
-       a_mprecpp => a_sclrp(:,:,:,zz+1:zz+nc*nprc)
-       a_mprecpt => a_sclrt(:,:,:,zz+1:zz+nc*nprc)
-       zz = zz+nc*nprc
-
-       IF (level>=5) THEN      ! Level 5
+       IF (level>=5 .AND. .NOT.no_prog_ice) THEN
+          ! Prognostic ice
           a_nicep => a_sclrp(:,:,:,zz+1:zz+nice)
           a_nicet => a_sclrt(:,:,:,zz+1:zz+nice)
           zz = zz+nice
-
           a_micep => a_sclrp(:,:,:,zz+1:zz+nc*nice)
           a_micet => a_sclrt(:,:,:,zz+1:zz+nc*nice)
           zz = zz+nc*nice
+       ELSE
+          ! Allocate zero arrays for pointers
+          ALLOCATE (tmp_icep(nzp,nxp,nyp,(nc+1)*nice), &
+                    tmp_icet(nzp,nxp,nyp,(nc+1)*nice))
+          tmp_icep(:,:,:,:) = 0.
+          tmp_icet(:,:,:,:) = 0.
+          a_nicep => tmp_icep(:,:,:,1:nice)
+          a_nicet => tmp_icet(:,:,:,1:nice)
+          a_micep => tmp_icep(:,:,:,nice+1:(nc+1)*nice)
+          a_micet => tmp_icet(:,:,:,nice+1:(nc+1)*nice)
+       ENDIF
 
+       IF (level>=5 .AND. .NOT.no_prog_snw) THEN
+          ! Prognostic snow
           a_nsnowp => a_sclrp(:,:,:,zz+1:zz+nsnw)
           a_nsnowt => a_sclrt(:,:,:,zz+1:zz+nsnw)
           zz = zz+nsnw
-
           a_msnowp => a_sclrp(:,:,:,zz+1:zz+nc*nsnw)
           a_msnowt => a_sclrt(:,:,:,zz+1:zz+nc*nsnw)
           zz = zz+nc*nsnw
        ELSE
-          ! Ice not included so allocate zero arrays for ice pointers
-          ALLOCATE (tmp_icep(nzp,nxp,nyp,nc*MAX(nice,nsnw)), &
-                          tmp_icet(nzp,nxp,nyp,nc*MAX(nice,nsnw)))
-          tmp_icep =0.
-          tmp_icet =0.
-          a_nicep => tmp_icep(:,:,:,1:nice)
-          a_nicet => tmp_icet(:,:,:,1:nice)
-          a_micep => tmp_icep(:,:,:,1:nc*nice)
-          a_micet => tmp_icet(:,:,:,1:nc*nice)
-          a_nsnowp => tmp_icep(:,:,:,1:nsnw)
-          a_nsnowt => tmp_icet(:,:,:,1:nsnw)
-          a_msnowp => tmp_icep(:,:,:,1:nc*nsnw)
-          a_msnowt => tmp_icet(:,:,:,1:nc*nsnw)
+          ! Allocate zero arrays for pointers
+          ALLOCATE (tmp_snwp(nzp,nxp,nyp,(nc+1)*nsnw), &
+                    tmp_snwt(nzp,nxp,nyp,(nc+1)*nsnw))
+          tmp_snwp(:,:,:,:) = 0.
+          tmp_snwt(:,:,:,:) = 0.
+          a_nsnowp => tmp_snwp(:,:,:,1:nsnw)
+          a_nsnowt => tmp_snwt(:,:,:,1:nsnw)
+          a_msnowp => tmp_snwp(:,:,:,nsnw+1:(nc+1)*nsnw)
+          a_msnowt => tmp_snwt(:,:,:,nsnw+1:(nc+1)*nsnw)
        ENDIF
 
        IF (ngases>0) THEN
@@ -723,9 +771,9 @@ contains
   subroutine init_anal(time)
 
     use mpi_interface, only :myid, ver, author, info
-    USE mo_submctl, ONLY : fn1a,fn2a,fn2b,nprc,nsnw, &
+    USE mo_submctl, ONLY : fn1a,fn2a,fn2b, &
                 nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt,&
-                stat_b_bins,ice_target_opt,nspec,zspec,ngases,zgas
+                stat_b_bins,ice_target_opt,zspec,zgas
     IMPLICIT NONE
     real, intent (in) :: time
     ! Dimensions (time, x, y, x, and SALSA bins) and constants (u0, v0, dn0) are saved
@@ -738,6 +786,7 @@ contains
          'u      ','v      ','w      ','theta  ','p      ','stke   ','rflx   ', & ! 1-7
          'q      ','l      ','r      ','n      ','i      ','s      '/)            ! 8-13
     LOGICAL, SAVE :: b_dims(n_dims)=.TRUE., b_base(n_base)=.TRUE.
+    character (len=7), allocatable :: sanal(:)
 
     ! Process rates
     INTEGER, PARAMETER :: n_lvl3_rate = 11, n_salsa_rate = 47
@@ -771,7 +820,7 @@ contains
     LOGICAL, SAVE, ALLOCATABLE :: b_bin(:), b_mixr(:), btot(:)
 
     ! Local variables
-    INTEGER :: i, ii, e, ee, n, n_bin, n_mixr
+    INTEGER :: i, ii, e, ee, n, n_bin, n_mixr, nvar0
     character (len=7) :: v_snm='sxx    '
     LOGICAL :: found
 
@@ -975,8 +1024,7 @@ contains
                                inp2a,fnp2a,inp2b,fnp2b, &
                                aerobins, precpbins, snowbins, &
                                nlim, prlim, &
-                               nspec, nbins, ncld, nice, nprc, nsnw, zspec, &
-                               ngases, zgas
+                               zspec, zgas
 
     real, intent (in) :: time
 
@@ -1620,7 +1668,6 @@ contains
   subroutine read_hist(time, hfilin)
 
     use mpi_interface, only : appl_abort, myid, wrxid, wryid
-    USE mo_submctl, ONLY : nbins
 
     character(len=80), intent(in) :: hfilin
     real, intent(out)             :: time
@@ -1761,9 +1808,7 @@ contains
   ! Juha Tonttila, FMI, 2015
   ! Jaakko Ahola, FMI, 2015
   SUBROUTINE bulkMixrat(mm,ipart,itype,mixrat)
-    USE mo_submctl, ONLY : ncld,nbins,nprc,nice,nsnw,   &
-                               inp2a,fnp2a,inp2b,fnp2b, &
-                               in1a,in2b,fn2a,fn2b
+    USE mo_submctl, ONLY : fnp2a,inp2b,in2b,fn2a
 
     INTEGER, INTENT(in) :: mm ! Index to an active species (1, 2,... nspec+1)
     CHARACTER(len=*), INTENT(in) :: ipart  ! This should be aerosol, cloud, rain, ice or snow
@@ -1778,28 +1823,28 @@ contains
     SELECT CASE(ipart)
        CASE('aerosol')
           IF (itype == 'ab') THEN
-             istr = (mm-1)*nbins + in1a
-             iend = (mm-1)*nbins + fn2b
+             istr = (mm-1)*nbins + 1
+             iend = mm*nbins
           ELSEIF (itype == 'a') THEN
-             istr = (mm-1)*nbins + in1a
+             istr = (mm-1)*nbins + 1
              iend = (mm-1)*nbins + fn2a
           ELSE IF (itype == 'b') THEN
              istr = (mm-1)*nbins + in2b
-             iend = (mm-1)*nbins + fn2b
+             iend = mm*nbins
           ELSE
              STOP 'bulkMixrat: Invalid aerosol bin regime selection'
           END IF
           mixrat(:,:,:) = SUM(a_maerop(:,:,:,istr:iend),DIM=4)
        CASE('cloud')
           IF (itype == 'ab') THEN
-             istr = (mm-1)*ncld + inp2a
-             iend = (mm-1)*ncld + fnp2b
+             istr = (mm-1)*ncld + 1
+             iend = mm*ncld
           ELSEIF (itype == 'a') THEN
-             istr = (mm-1)*ncld + inp2a
+             istr = (mm-1)*ncld + 1
              iend = (mm-1)*ncld + fnp2a
           ELSE IF (itype == 'b') THEN
              istr = (mm-1)*ncld + inp2b
-             iend = (mm-1)*ncld + fnp2b
+             iend = mm*ncld
           ELSE
              STOP 'bulkMixrat: Invalid cloud bin regime selection'
           END IF
@@ -1810,14 +1855,14 @@ contains
           mixrat(:,:,:) = SUM(a_mprecpp(:,:,:,istr:iend),DIM=4)
        CASE('ice')
           IF (itype == 'ab') THEN
-             istr = (mm-1)*nice + inp2a
-             iend = (mm-1)*nice + fnp2b
+             istr = (mm-1)*nice + 1
+             iend = mm*nice
           ELSEIF (itype == 'a') THEN
-             istr = (mm-1)*nice + inp2a
+             istr = (mm-1)*nice + 1
              iend = (mm-1)*nice + fnp2a
           ELSE IF (itype == 'b') THEN
              istr = (mm-1)*nice + inp2b
-             iend = (mm-1)*nice + fnp2b
+             iend = mm*nice
           ELSE
              STOP 'bulkMixrat: Invalid ice bin regime selection'
           END IF
@@ -1839,7 +1884,6 @@ contains
   !
   ! Juha Tonttila, FMI, 2015
   SUBROUTINE binSpecMixrat(ipart,mm,ibin,mixr)
-    USE mo_submctl, ONLY : ncld, nbins, nprc, nice, nsnw
 
     INTEGER, INTENT(in) :: mm ! Index to an active species (1, 2,... nspec+1)
     CHARACTER(len=*), INTENT(in) :: ipart  ! This should be aerosol, cloud, rain, ice or snow
@@ -1870,9 +1914,7 @@ contains
   ! Juha Tonttila, FMI, 2015
   !
   SUBROUTINE bulkNumc(ipart,itype,numc)
-    USE mo_submctl, ONLY : nprc,nsnw, &
-                               inp2a,fnp2a,inp2b,fnp2b, &
-                               in1a,in2b,fn2a,fn2b
+    USE mo_submctl, ONLY : fnp2a,inp2b,in2b,fn2a
 
     CHARACTER(len=*), INTENT(in) :: ipart
     CHARACTER(LEN=*), INTENT(in) :: itype
@@ -1885,28 +1927,28 @@ contains
     SELECT CASE(ipart)
        CASE('aerosol')
           IF (itype == 'ab') THEN ! Note: 1a, 2a and 2b combined
-             istr = in1a
-             iend = fn2b
+             istr = 1
+             iend = nbins
           ELSE IF (itype == 'a') THEN ! Note: 1a and 2a combined
-             istr = in1a
+             istr = 1
              iend = fn2a
           ELSE IF (itype == 'b') THEN ! 2b
              istr = in2b
-             iend = fn2b
+             iend = nbins
           ELSE
              STOP 'bulkNumc: Invalid bin selection'
           END IF
           numc(:,:,:) = SUM(a_naerop(:,:,:,istr:iend),DIM=4)
        CASE('cloud')
           IF (itype == 'ab') THEN
-             istr = inp2a
-             iend = fnp2b
+             istr = 1
+             iend = ncld
           ELSE IF (itype == 'a') THEN
-             istr = inp2a
+             istr = 1
              iend = fnp2a
           ELSE IF (itype == 'b') THEN
              istr = inp2b
-             iend = fnp2b
+             iend = ncld
           ELSE
              STOP 'bulkNumc: Invalid bin selection'
           END IF
@@ -1917,14 +1959,14 @@ contains
           numc(:,:,:) = SUM(a_nprecpp(:,:,:,istr:iend),DIM=4)
         CASE('ice')
           IF (itype == 'ab') THEN
-             istr = inp2a
-             iend = fnp2b
+             istr = 1
+             iend = nice
           ELSE IF (itype == 'a') THEN
-             istr = inp2a
+             istr = 1
              iend = fnp2a
           ELSE IF (itype == 'b') THEN
              istr = inp2b
-             iend = fnp2b
+             iend = nice
           ELSE
              STOP 'bulkNumc: Invalid bin selection'
           END IF
@@ -1946,10 +1988,7 @@ contains
   ! Gets the mean wet (total number of species = nspec+1) radius for particles.
   !
   SUBROUTINE meanRadius(ipart,itype,rad)
-    USE mo_submctl, ONLY : nbins,ncld,nprc,nice,nsnw,  &
-                               inp2a,fnp2a,inp2b,fnp2b,&
-                               in1a,fn2a,in2b,fn2b,    &
-                               nlim,prlim,nspec
+    USE mo_submctl, ONLY : fnp2a,inp2b,fn2a,in2b,nlim,prlim
     IMPLICIT NONE
 
     CHARACTER(len=*), INTENT(in) :: ipart
@@ -1963,28 +2002,28 @@ contains
     SELECT CASE(ipart)
     CASE('aerosol')
        IF (itype == 'ab') THEN ! Note: 1a, 2a and 2b combined
-          istr = in1a
-          iend = fn2b
+          istr = 1
+          iend = nbins
        ELSE IF (itype == 'a') THEN ! Note: 1a and 2a combined
-          istr = in1a
+          istr = 1
           iend = fn2a
        ELSE IF (itype == 'b') THEN
           istr = in2b
-          iend = fn2b
+          iend = nbins
        ELSE
           STOP 'meanRadius: Invalid bin regime selection (aerosol)'
        END IF
        CALL getRadius(istr,iend,nbins,nspec+1,a_naerop,a_maerop,nlim,rad,1)
     CASE('cloud')
        IF (itype == 'ab') THEN
-          istr = inp2a
-          iend = fnp2b
+          istr = 1
+          iend = ncld
        ELSE IF (itype == 'a') THEN
-          istr = inp2a
+          istr = 1
           iend = fnp2a
        ELSE IF (itype == 'b') THEN
           istr = inp2b
-          iend = fnp2b
+          iend = ncld
        ELSE
           STOP 'meanRadius: Invalid bin regime selection (cloud)'
        END IF
@@ -1995,14 +2034,14 @@ contains
        CALL getRadius(istr,iend,nprc,nspec+1,a_nprecpp,a_mprecpp,prlim,rad,3)
     CASE('ice')
        IF (itype == 'ab') THEN
-          istr = inp2a
-          iend = fnp2b
+          istr = 1
+          iend = nice
        ELSE IF (itype == 'a') THEN
-          istr = inp2a
+          istr = 1
           iend = fnp2a
        ELSE IF (itype == 'b') THEN
           istr = inp2b
-          iend = fnp2b
+          iend = nice
        ELSE
           STOP 'meanRadius: Invalid bin regime selection (ice)'
        END IF

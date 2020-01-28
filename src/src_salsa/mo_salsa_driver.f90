@@ -53,7 +53,8 @@ IMPLICIT NONE
   ! Juha Tonttila, FMI, 2014
   ! Jaakko Ahola, FMI, 2016
   !
-  SUBROUTINE run_SALSA(pnx, pny, pnz, n4, press, tk, rv, rt, rs, rsi, pdn,   &
+  SUBROUTINE run_SALSA(pnx, pny, pnz, n4, nbins, ncld, nprc, nice, nsnw, &
+                       press, tk, rv, rt, rs, rsi, pdn, &
                        pa_naerop,  pa_naerot,  pa_maerop,  pa_maerot,   &
                        pa_ncloudp, pa_ncloudt, pa_mcloudp, pa_mcloudt,  &
                        pa_nprecpp, pa_nprecpt, pa_mprecpp, pa_mprecpt,  &
@@ -67,15 +68,15 @@ IMPLICIT NONE
                        cact_rc, cact_nc, nucl_ri, nucl_ni,              &
                        melt_ri, melt_ni, melt_rs, melt_ns)
 
-    USE mo_submctl, ONLY : nbins,ncld,nprc,nice,nsnw,pi6,          &
-                               rhoic,rhosn, rhowa, dens, &
+    USE mo_submctl, ONLY : fn2b, fnp2b, pi6, rhoic, rhosn, rhowa, dens, &
                                rhlim, lscndgas, ngases, mws_gas, nlim, prlim, nspec, maxnspec, &
                                ngases_diag, zgas_diag
     USE mo_salsa, ONLY : salsa
     USE mo_salsa_properties, ONLY : equilibration
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: pnx,pny,pnz,n4                       ! Dimensions: x,y,z,number of chemical species  
+    INTEGER, INTENT(in) :: pnx,pny,pnz,n4, &                ! Dimensions: x,y,z,number of chemical species
+                               nbins,ncld,nprc,nice,nsnw    ! ... and number of *prognostic* bins
     REAL, INTENT(in)    :: tstep, time                      ! Model timestep length and time
 
     REAL, INTENT(in)    :: press(pnz,pnx,pny), &            ! Pressure (Pa)
@@ -130,8 +131,8 @@ IMPLICIT NONE
     REAL :: zgas(kbdim,klev,ngases+ngases_diag)
 
     ! Helper arrays for calculating the rates of change
-    TYPE(t_section) :: aero_old(1,1,nbins), cloud_old(1,1,ncld), precp_old(1,1,nprc), &
-       ice_old(1,1,nice), snow_old(1,1,nsnw)
+    TYPE(t_section) :: aero_old(1,1,fn2b), cloud_old(1,1,fnp2b), precp_old(1,1,nprc), &
+       ice_old(1,1,fnp2b), snow_old(1,1,nsnw)
 
     INTEGER :: jj,ii,kk,ss,str,end,nc
     REAL, DIMENSION(kbdim,klev) :: in_p, in_t, in_rv, in_rs, in_rsi, &

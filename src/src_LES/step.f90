@@ -132,6 +132,7 @@ contains
                      a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                      a_gaerop, a_gaerot,                                                &
+                     nspec, nbins, ncld, nprc, nice, nsnw, &
                      nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
                      coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, coag_ri, coag_ni, coag_rs, coag_ns, &
                      cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, auto_rr, auto_nr, auto_rs, auto_ns, &
@@ -148,7 +149,7 @@ contains
     use forc, only : forcings, surface_naerot
 
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : aerobins, fn2a, nspec
+    USE mo_submctl, ONLY : aerobins, fn2a
 
     real :: xtime
     REAL :: dnaeropdt(nxp,nyp,fn2a)
@@ -191,7 +192,8 @@ contains
           call update_sclrs
           CALL tend0(.TRUE.)
 
-          CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,  &
+          CALL run_SALSA(nxp,nyp,nzp,n4,nbins,ncld,nprc,nice,nsnw, &
+                  a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,  &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -296,7 +298,7 @@ contains
   !
   SUBROUTINE nudging(time)
 
-    use grid, only : level, dtl, nxp, nyp, nzp, &
+    use grid, only : level, dtl, nxp, nyp, nzp, nbins, ncld, nice, &
                 zt, a_rp, a_rt, a_rc, a_srp, a_ri, a_srs, &
                 a_naerop, a_naerot, a_ncloudp, a_nicep, &
                 a_tp, a_tt, a_up, a_ut, a_vp, a_vt, &
@@ -307,7 +309,7 @@ contains
                 nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau, &
                 nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, &
                 theta_ref, rv_ref, u_ref, v_ref, aero_ref, nudge_init
-    USE mo_submctl, ONLY : nbins, ncld, nice, in2a, fn2b
+    USE mo_submctl, ONLY : in2a
 
     IMPLICIT NONE
     REAL, INTENT(IN) :: time
@@ -358,8 +360,8 @@ contains
             ! Nudge aerosol based on the total number (aerosol+cloud+ice)
             ALLOCATE(aero_ref(nzp,nbins))
             aero_ref(:,:)=a_naerop(:,3,3,:)
-            aero_ref(:,in2a:fn2b)=aero_ref(:,in2a:fn2b)+a_ncloudp(:,3,3,1:ncld)
-            IF (level==5) aero_ref(:,in2a:fn2b)=aero_ref(:,in2a:fn2b)+a_nicep(:,3,3,1:nice)
+            aero_ref(:,in2a:nbins)=aero_ref(:,in2a:nbins)+a_ncloudp(:,3,3,1:ncld)
+            IF (level==5) aero_ref(:,in2a:nbins)=aero_ref(:,in2a:nbins)+a_nicep(:,3,3,1:nice)
         ENDIF
         !
         ! Initialized
@@ -396,8 +398,8 @@ contains
     IF (level>3 .AND. nudge_ccn/=0) THEN
         ! Target aerosol concentration = aerosol(t)+cloud(t)+ice(t)
         aero_target(:,:,:,:)=a_naerop(:,:,:,:)
-        aero_target(:,:,:,in2a:fn2b)=aero_target(:,:,:,in2a:fn2b)+a_ncloudp(:,:,:,1:ncld)
-        IF (level==5) aero_target(:,:,:,in2a:fn2b)=aero_target(:,:,:,in2a:fn2b)-a_nicep(:,:,:,1:nice)
+        aero_target(:,:,:,in2a:nbins)=aero_target(:,:,:,in2a:nbins)+a_ncloudp(:,:,:,1:ncld)
+        IF (level==5) aero_target(:,:,:,in2a:nbins)=aero_target(:,:,:,in2a:nbins)-a_nicep(:,:,:,1:nice)
         ! Apply to sectional data
         CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,aero_target,a_naerot,aero_ref,dtl,time,nudge_ccn, &
             nudge_ccn_time,nudge_ccn_zmin,nudge_ccn_zmax,nudge_ccn_tau)
@@ -501,8 +503,7 @@ contains
     USE grid, ONLY : a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,   &
                      a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,   &
                      a_nicep, a_nicet, a_nsnowp, a_nsnowt, a_micep, a_micet, a_msnowp, a_msnowt,  &
-                     dtl, nxp,nyp,nzp,level
-    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw
+                     dtl, nxp,nyp,nzp,nbins,ncld,nprc,nice,nsnw,level
 
     INTEGER, INTENT(in) :: nn
 
@@ -824,13 +825,14 @@ contains
   ! Tomi Raatikainen, FMI, 2016
 
   SUBROUTINE SALSA_diagnostics(reset_stats)
-    USE grid, ONLY : nxp,nyp,nzp,    &
+    USE grid, ONLY : nxp,nyp,nzp,nbins,ncld,nprc,nice,nsnw,nspec, &
                      a_naerop,a_maerop,a_ncloudp,a_mcloudp,a_nprecpp,a_mprecpp,      &
                      a_nicep,a_micep,a_nsnowp,a_msnowp,a_gaerop, &
                      a_rh, a_temp, a_rhi, a_dn, level, dtl, &
-                     diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr, diag_ri, diag_ni, diag_rs, diag_ns
-    USE mo_submctl, ONLY : nbins,ncld,nprc,nice,nsnw,fn1a,in2a,fn2a, &
-                     nspec, diss, mws, dens, dens_ice, dens_snow, &
+                     diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr, diag_ri, diag_ni, diag_rs, diag_ns, &
+                     tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
+    USE mo_submctl, ONLY : fn1a,in2a,fn2a, &
+                     diss, mws, dens, dens_ice, dens_snow, &
                      surfw0, rg, nlim, prlim, pi, pi6, &
                      lscndgas, part_h2so4, part_ocnv, iso, ioc, isog, iocg, &
                      aerobins, calc_correlation
@@ -993,7 +995,10 @@ contains
                       ! Corresponding b bin is ba+(fn2a-fn1a)=ba+fn2a-(in2a-1)=ba+fn2a-in2a+1
                       bb=ba+fn2a-in2a+1
                       ! 2) Select a or b bin
-                      IF (a_naerop(k,i,j,bb)*a_dn(k,i,j)<=nlim) THEN
+                      IF (bb>nbins) THEN
+                         ! b bins not used so select a
+                         !ba = ba
+                      ELSEIF (a_naerop(k,i,j,bb)*a_dn(k,i,j)<=nlim) THEN
                          ! Empty b bin so select a
                          !ba = ba
                       ELSEIF (a_naerop(k,i,j,ba)*a_dn(k,i,j)<=nlim) THEN
@@ -1075,7 +1080,10 @@ contains
                       ! Corresponding b bin is ba+(fn2a-fn1a)=ba+fn2a-(in2a-1)=ba+fn2a-in2a+1
                       bb=ba+fn2a-in2a+1
                       ! 2) Select a or b bin
-                      IF (a_naerop(k,i,j,bb)*a_dn(k,i,j)<=nlim) THEN
+                      IF (bb>nbins) THEN
+                         ! b bins are not used so select a
+                         !ba = ba
+                     ELSEIF (a_naerop(k,i,j,bb)*a_dn(k,i,j)<=nlim) THEN
                          ! Empty b bin so select a
                          !ba = ba
                       ELSEIF (a_naerop(k,i,j,ba)*a_dn(k,i,j)<=nlim) THEN
@@ -1150,6 +1158,21 @@ contains
 
     CALL SALSA_diag_update
 
+
+    ! Check that ignored species or bins are not used
+    IF (ALLOCATED(tmp_prcp)) THEN
+        IF (ANY(tmp_prcp>prlim)) STOP 'Non-zero rain even when disabled!'
+    ENDIF
+    IF (ALLOCATED(tmp_icep)) THEN
+        IF (ANY(tmp_icep>prlim)) STOP 'Non-zero ice even when disabled!'
+    ENDIF
+    IF (ALLOCATED(tmp_snwp)) THEN
+        IF (ANY(tmp_snwp>prlim)) STOP 'Non-zero snow even when disabled!'
+    ENDIF
+    IF (ALLOCATED(tmp_gasp)) THEN
+        IF (ANY(tmp_gasp>prlim)) STOP 'Non-zero gas even when disabled!'
+    ENDIF
+
   END SUBROUTINE SALSA_diagnostics
 
   !
@@ -1158,8 +1181,8 @@ contains
 
   SUBROUTINE SALSA_diag_update
     USE grid, ONLY : a_maerop,a_mcloudp,a_mprecpp,a_nprecpp, &
-            a_micep,a_msnowp,a_nsnowp, a_rc, a_srp,a_snrp, a_ri,a_srs,a_snrs
-    USE mo_submctl, ONLY : nbins,ncld,nprc,nice,nsnw
+            a_micep,a_msnowp,a_nsnowp,nbins,ncld,nprc,nice,nsnw,&
+            a_rc,a_srp,a_snrp,a_ri,a_srs,a_snrs
 
     ! Liquid water content (water is the first species)
     ! Aerosol and cloud droplets, regimes a and b

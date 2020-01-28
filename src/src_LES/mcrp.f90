@@ -28,13 +28,14 @@ module mcrp
        a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,                              &
        a_nicep,   a_nicet,   a_micep,   a_micet,                                &
        a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
+       nbins, ncld, nprc, nice, nsnw, nspec, &
        aerin, cldin, icein, snowin, calc_eff_radius, &
        sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
        sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
        coag_rr, coag_nr, cond_rr, cond_nr, auto_rr, auto_nr, diag_rr, diag_nr, &
        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
   use stat, only : sflg, updtst, acc_removal, cs_rem_set
-  USE mo_submctl, ONLY : terminal_vel, nspec
+  USE mo_submctl, ONLY : terminal_vel
   implicit none
 
   logical, parameter :: khairoutdinov = .False.
@@ -65,7 +66,6 @@ contains
   ! MICRO: sets up call to microphysics
   !
   subroutine micro(level)
-    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw
     integer, intent (in) :: level
 
     select case (level)
@@ -557,10 +557,7 @@ contains
                          nsnowp, nsnowt, msnowp, msnowt,   &
                          ustar, arate, crate, rrate, irate, srate, tlt )
 
-    USE mo_submctl, ONLY : nbins, ncld, nprc,           &
-                               nice,  nsnw,                 &
-                               nlim,prlim,  &
-                               rhowa,rhoic,rhosn
+    USE mo_submctl, ONLY : nlim,prlim,rhowa,rhoic,rhosn
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,n4

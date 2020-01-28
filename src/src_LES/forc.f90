@@ -40,8 +40,8 @@ module forc
 contains
   !
   SUBROUTINE surface_naerot(fluksi)
-    use grid, only : nxp, nyp, a_naerot, a_maerot
-    USE mo_submctl, ONLY : nbins, aerobins, in2a, fn2a, in2b, pi6, iss, ih2o, rhowa, rhoss
+    use grid, only : nxp, nyp, nbins, a_naerot, a_maerot
+    USE mo_submctl, ONLY : aerobins, in2a, fn2a, in2b, pi6, iss, ih2o, rhowa, rhoss
     IMPLICIT NONE
     REAL :: fluksi(nxp,nyp,fn2a) ! Rate of change in number concentration (#/kg/s)
     INTEGER :: i, j
@@ -57,7 +57,8 @@ contains
         ! Water mass: assume volume growth factor of 10
         mwat=10.*mdry*rhowa/rhoss
         !
-        ! Apply to 2b bins
+        ! Apply to 2b bins, if possible
+        IF (nbins<in2b) STOP 'Prognostic b-bins needed!'
         j = in2b + i - in2a
         a_naerot(2,:,:,j) = a_naerot(2,:,:,j) + fluksi(:,:,i)
         ! ... and specifically to SS
@@ -79,8 +80,7 @@ contains
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp  &
          , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_maerop, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
-         a_fus, a_fds, a_fuir, a_fdir
-    USE mo_submctl, ONLY : nbins,ncld,nice,nprc,nsnw
+         nbins, ncld, nice, nprc, nsnw, a_fus, a_fds, a_fuir, a_fdir
     use mpi_interface, only : myid, appl_abort
 
     real, intent (in) :: time_in, cntlat, sst

@@ -50,7 +50,7 @@ contains
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : in2b, fn2b, nlim, stat_b_bins, nspec
+    USE mo_submctl, ONLY : in2b, fn2b, nlim, stat_b_bins
 
     implicit none
 
@@ -76,8 +76,8 @@ contains
           ! Update diagnostic SALSA tracers
           CALL SALSA_diag_update
           CALL thermo(level)
-
-          CALL run_SALSA(nxp,nyp,nzp,n4,a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn, &
+          CALL run_SALSA(nxp,nyp,nzp,n4,nbins,ncld,nprc,nice,nsnw,&
+                  a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,   &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -118,7 +118,10 @@ contains
     ! When SALSA b-bin outputs are needed?
     !   -level >= 4
     !   -outputs are forced (stat_b_bins=.true.) or b-bins are initialized with non-zero concentration
-    IF (level >= 4 .and. (.not. stat_b_bins)) stat_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim )
+    IF (level >= 4) THEN
+        IF (stat_b_bins .AND. no_b_bins) STOP 'Error: b-bins not prognostic, but outputs requested!'
+        IF (.not. stat_b_bins .AND. .not.no_b_bins) stat_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim )
+    ENDIF
 
     call sponge_init
     call init_stat(time,filprf,expnme,nzp)
@@ -716,7 +719,7 @@ contains
   !
   SUBROUTINE aerosol_init
 
-    USE mo_submctl, ONLY : pi6,nbins,in1a,in2a,in2b,fn1a,fn2a,fn2b,aerobins, &
+    USE mo_submctl, ONLY : pi6,in1a,in2a,in2b,fn1a,fn2a,fn2b,aerobins, &
                            nmod, sigmag, dpg, n, volDistA, volDistB, nf2a, isdtyp, &
                            iso, rhosu, ioc, rhooc, nspec, dens, zspec, nlim, salsa1a_SO4_OC
     USE mpi_interface, ONLY : myid
@@ -743,17 +746,15 @@ contains
     a_naerop(:,:,:,:)=0.0
 
     !
-    ! Altitude dependent size distributions and compositions.
-    ! Read and interpolate/extrapolate size distribution and composition for altitude level k: z=zt(k)
-    ! ---------------------------------------------------------------------------------------------------
+    ! Read  size distributions and compositions
+    ! ----------------------------------------------------------
     IF (isdtyp == 1) THEN
+       ! Altitude dependent profiles from text or NetCDF files
 
        CALL READ_AERO_INPUT(pndist,pvf2a,pvf2b,pnf2a)
 
-    !
-    ! Uniform profiles based on NAMELIST parameters
-    ! ---------------------------------------------------------------------------------------------------
     ELSE IF (isdtyp == 0) THEN
+       ! Uniform profiles based on NAMELIST parameters
 
        ! Mass fractions for species in a and b-bins
        DO ss = 1,nspec
@@ -777,8 +778,6 @@ contains
 
     END IF
 
-    ! ----------------------------------------------------------
-
     !
     ! Initialize concentrations
     ! ----------------------------------------------------------
@@ -793,7 +792,7 @@ contains
 
              ! Region 2
              a_naerop(k,i,j,in2a:fn2a) = max(0.0,pnf2a(k))*pndist(k,in2a:fn2a)
-             a_naerop(k,i,j,in2b:fn2b) = max(0.0,1.0-pnf2a(k))*pndist(k,in2a:fn2a)
+             IF (pnf2a(k)<1.) a_naerop(k,i,j,in2b:fn2b) = max(0.0,1.0-pnf2a(k))*pndist(k,in2a:fn2a)
 
              !
              ! b) Aerosol mass concentrations
@@ -803,9 +802,11 @@ contains
                 a_maerop(k,i,j,ss:ee) = max( 0.0,pvf2a(k,nc) )*pnf2a(k) * &
                      pndist(k,in1a:fn2a)*core(in1a:fn2a)*dens(nc+1)
                 ! 2b
-                ss = nc*nbins + in2b; ee = nc*nbins + fn2b
-                a_maerop(k,i,j,ss:ee) = max( 0.0,pvf2b(k,nc) )*(1.0-pnf2a(k)) * &
-                     pndist(k,in2a:fn2a)*core(in2a:fn2a)*dens(nc+1)
+                IF (pnf2a(k)<1.) THEN
+                   ss = nc*nbins + in2b; ee = nc*nbins + fn2b
+                   a_maerop(k,i,j,ss:ee) = max( 0.0,pvf2b(k,nc) )*(1.0-pnf2a(k)) * &
+                        pndist(k,in2a:fn2a)*core(in2a:fn2a)*dens(nc+1)
+                ENDIF
              END DO
 
              ! Modify 1a so that there can be sulfate and/or OC?
@@ -847,12 +848,16 @@ contains
     a_maerop(1,:,:,:) = a_maerop(2,:,:,:)
 
     ! Put out some info about the initial state
-    ! ---------------------------------------------------------------------------------------------------------------------
+    ! ----------------------------------------------------------
     IF (myid == 0 .AND. isdtyp == 0) THEN
         WRITE(*,'(/,A)') 'Aerosol properties from the NAMELIST (constant size distribution)'
 
         ! Are b-bins used?
-        bbins = SUM(a_naerop(2,3,3,in2b:fn2b))>0.
+        IF (no_b_bins) THEN
+            bbins = .FALSE.
+        ELSE
+            bbins = SUM(a_naerop(2,3,3,in2b:fn2b))>0.
+        ENDIF
 
         WRITE(*,'(/,A)') ' Initial aerosol number [1e6/kg] and species mass mixing ratios [ug/kg]:'
         ! Header
@@ -876,7 +881,7 @@ contains
         ! Total number and mass
         DO i=1,nspec
             mass(i)=SUM( a_maerop(2,3,3,i*nbins+in1a:i*nbins+fn2a) )*1e9
-            mass(nspec+i)=SUM( a_maerop(2,3,3,i*nbins+in2b:i*nbins+fn2b) )*1e9
+            IF (bbins) mass(nspec+i)=SUM( a_maerop(2,3,3,i*nbins+in2b:i*nbins+fn2b) )*1e9
         ENDDO
         WRITE(*,'(A)')'    --------------------------'
         WRITE(fmt,"(A11,I2,A13,I2,A7)") "(A19,F11.2,",nspec,"ES12.3,F11.2,",nspec,"ES12.3)"
@@ -889,26 +894,43 @@ contains
     ELSEIF (myid == 0) THEN
         WRITE(*,'(/,A)') 'Aerosol properties from file aerosol_in'
 
-        WRITE(*,'(/,A)') ' Initial aerosol profile (total number [1e6/kg] and mass [ug/kg] for a and b bins):'
-        ! Header
-        WRITE(fmt,"(A9,I2,A8,I2,A4)") "(A12,A10,",nspec,"A12,A10,",nspec,"A12)"
-        WRITE(*,fmt) 'Height (m)','Na',zspec(2:nspec+1),'Nb',zspec(2:nspec+1)
-        !
-        ! Number and mass concentrations for each active species in a and b bins
-        WRITE(fmt,"(A13,I2,A13,I2,A7)") "(F12.1,F10.1,",nspec,"ES12.3,F10.1,",nspec,"ES12.3)"
+        ! Are b-bins used?
+        IF (no_b_bins) THEN
+            bbins = .FALSE.
+        ELSE
+            bbins = SUM(a_naerop(2:nzp-1,3,3,in2b:fn2b))>0.
+        ENDIF
+
+        IF (bbins) THEN
+            WRITE(*,'(/,A)') ' Initial aerosol profile (total number [1e6/kg] and mass [ug/kg] for a and b bins):'
+            ! Header
+            WRITE(fmt,"(A9,I2,A8,I2,A4)") "(A12,A10,",nspec,"A12,A10,",nspec,"A12)"
+            WRITE(*,fmt) 'Height (m)','Na',zspec(2:nspec+1),'Nb',zspec(2:nspec+1)
+            !
+            ! Number and mass concentrations for each active species in a and b bins
+            WRITE(fmt,"(A13,I2,A13,I2,A7)") "(F12.1,F10.1,",nspec,"ES12.3,F10.1,",nspec,"ES12.3)"
+        ELSE
+            WRITE(*,'(/,A)') ' Initial aerosol profile (total number [1e6/kg] and mass [ug/kg] for a bins):'
+            ! Header
+            WRITE(fmt,"(A9,I2,A4)") "(A12,A10,",nspec,"A12)"
+            WRITE(*,fmt) 'Height (m)','Na',zspec(2:nspec+1)
+            !
+            ! Number and mass concentrations for each active species in a bins
+            WRITE(fmt,"(A13,I2,A7)") "(F12.1,F10.1,",nspec,"ES12.3)"
+        ENDIF
         !
         DO k=1,nzp
             ! Calculate mass (1e-6g/kg)
             DO i=1,nspec
                 mass(i)=SUM( a_maerop(k,3,3,i*nbins+in1a:i*nbins+fn2a) )*1e9
-                mass(nspec+i)=SUM( a_maerop(k,3,3,i*nbins+in2b:i*nbins+fn2b) )*1e9
+                IF (bbins) mass(nspec+i)=SUM( a_maerop(k,3,3,i*nbins+in2b:i*nbins+fn2b) )*1e9
             ENDDO
             ! Print
-            WRITE(*,fmt) zt(k), SUM(a_naerop(k,3,3,in1a:fn2a))*1.e-6, mass(1:nspec), &
+            IF (bbins)  THEN
+                WRITE(*,fmt) zt(k), SUM(a_naerop(k,3,3,in1a:fn2a))*1.e-6, mass(1:nspec), &
                                 SUM(a_naerop(k,3,3,in2b:fn2b))*1.e-6, mass(nspec+1:2*nspec)
-            IF (k==5 .AND. isdtyp == 0) THEN
-                WRITE(*,'(A14)')'...'
-                EXIT
+            ELSE
+                WRITE(*,fmt) zt(k), SUM(a_naerop(k,3,3,in1a:fn2a))*1.e-6, mass(1:nspec)
             ENDIF
         ENDDO
     ENDIF
@@ -1027,7 +1049,7 @@ contains
   !
   SUBROUTINE init_gas_tracers
     USE mpi_interface, ONLY : myid
-    USE mo_submctl, ONLY : avog, mws_gas, ngases, zgas, &
+    USE mo_submctl, ONLY : avog, mws_gas, zgas, &
         part_h2so4, conc_h2so4, part_ocnv, conc_ocnv, &
         ox_prescribed, conc_oh, conc_o3, conc_no3, mair, &
         nvocs, nvbs, naqsoa, conc_voc, conc_vbsg, conc_aqsoag, &

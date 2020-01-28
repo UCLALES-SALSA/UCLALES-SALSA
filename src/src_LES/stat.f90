@@ -165,11 +165,12 @@ contains
   !
   subroutine init_stat(time, filprf, expnme, nzp)
 
-    use grid, only : nxp, nyp, iradtyp, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
+    use grid, only : nxp, nyp, nprc, nsnw, nspec, ngases, iradtyp, &
+        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
     use mpi_interface, only : myid, ver, author, info
-    use mo_submctl, only : fn1a,fn2a,fn2b,fnp2a,fnp2b,nprc,nsnw,stat_b_bins, &
+    use mo_submctl, only : fn1a,fn2a,fn2b,fnp2a,fnp2b,stat_b_bins, &
         nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt,ice_target_opt,nout_cld,nout_ice, &
-        nspec, zspec, ngases, zgas
+        zspec, zgas
 
     character (len=80), intent (in) :: filprf, expnme
     integer, intent (in)            :: nzp
@@ -718,7 +719,7 @@ contains
   ! Removal statistics (level>3): calculate values for further use
   SUBROUTINE cs_rem_set(n2,n3,n4,raer,rcld,rprc,rice,rsnw)
 
-    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw, nspec
+    USE grid, ONLY : nbins, ncld, nprc, nice, nsnw, nspec
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n2,n3,n4   ! Grid dimensions
@@ -773,7 +774,8 @@ contains
   ! Removal statistics (level>3): save values
   SUBROUTINE cs_rem_save(n2,n3)
 
-    USE mo_submctl, ONLY : nspec, zspec
+    USE mo_submctl, ONLY : zspec
+    USE grid, ONLY : nspec
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n2,n3
@@ -1170,11 +1172,11 @@ contains
   !  Some rewriting and adjusting by Juha Tonttila
   !
   SUBROUTINE ts_lvl4(n1,n2,n3)
-    use mo_submctl, only : nspec, ngases, nlim ! Note: #/m^3, but close enough to #/kg for statistics
+    use mo_submctl, only : nlim ! Note: #/m^3, but close enough to #/kg for statistics
     USE grid, ONLY : bulkNumc, bulkMixrat, meanradius, dzt, a_rh, zm, dn0, a_dn, &
         coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, cond_ra, cond_rc, cond_rr, &
         auto_rr, auto_nr, cact_rc, cact_nc, sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
-        diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr, a_gaerop
+        diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr, a_gaerop, nspec, ngases
 
     IMPLICIT NONE
 
@@ -1280,12 +1282,12 @@ contains
   !  Implemented by Jaakko Ahola 15/12/2016
   !
   SUBROUTINE ts_lvl5(n1,n2,n3)
-    USE mo_submctl, only : nspec, prlim ! Note: #/m^3, but close enough to #/kg for statistics
+    USE mo_submctl, only : prlim ! Note: #/m^3, but close enough to #/kg for statistics
     USE grid, ONLY : bulkNumc, bulkMixrat,meanRadius, dzt, &
         dn0, a_dn, zm, a_ri, a_srs, snowin, a_rhi, a_tp, th00, &
         coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
         nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns, sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
-        diag_ri, diag_ni, diag_rs, diag_ns
+        diag_ri, diag_ni, diag_rs, diag_ns, nspec
 
     IMPLICIT NONE
 
@@ -1802,12 +1804,10 @@ contains
   ! on level 4 variables.
   !
   subroutine accum_lvl4(n1,n2,n3)
-    use mo_submctl, only : in1a,in2b,fn2a,fn2b, &
-                               inp2a,fnp2a,inp2b,fnp2b,nprc, &
-                               nspec,ngases,cldbinlim,nout_cld, &
-                               nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
+    use mo_submctl, only : fn2a,fn2b,inp2a,fnp2a,inp2b,fnp2b,cldbinlim,nout_cld, &
+                     nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, getBinRadius, &
-                     a_rc, a_srp, a_rp, dn0, cldin, &
+                     a_rc, a_srp, a_rp, dn0, cldin, nspec, nbins, ncld, nprc, ngases, &
                      a_naerop, a_mcloudp, a_ncloudp, a_nprecpp, a_gaerop, &
                      coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
                      cond_ra, cond_rc, cond_rr, auto_rr, auto_nr, cact_rc, cact_nc, &
@@ -1888,17 +1888,19 @@ contains
     ! Bin number concentrations
     ! -------------------------
     IF (lbinprof) THEN
-        DO bb = in1a,fn2a
-           CALL get_avg3(n1,n2,n3,a_naerop(:,:,:,bb),a3_a(:,bb))
+        DO bb = 1,nbins
+           IF (bb<=fn2a) THEN
+              CALL get_avg3(n1,n2,n3,a_naerop(:,:,:,bb),a3_a(:,bb))
+           ELSE
+              CALL get_avg3(n1,n2,n3,a_naerop(:,:,:,bb),a3_b(:,bb-fn2a))
+           ENDIF
         END DO
-        DO bb = in2b,fn2b
-           CALL get_avg3(n1,n2,n3,a_naerop(:,:,:,bb),a3_b(:,bb-fn2a))
-        END DO
-        DO bb = inp2a,fnp2a
-           CALL get_avg3(n1,n2,n3,a_ncloudp(:,:,:,bb),a4_a(:,bb))
-        END DO
-        DO bb = inp2b,fnp2b
-           CALL get_avg3(n1,n2,n3,a_ncloudp(:,:,:,bb),a4_b(:,bb-fnp2a))
+        DO bb = 1,ncld
+           IF (bb<=fnp2a) THEN
+              CALL get_avg3(n1,n2,n3,a_ncloudp(:,:,:,bb),a4_a(:,bb))
+           ELSE
+              CALL get_avg3(n1,n2,n3,a_ncloudp(:,:,:,bb),a4_b(:,bb-fnp2a))
+           ENDIF
         END DO
         DO bb = 1,nprc
            CALL get_avg3(n1,n2,n3,a_nprecpp(:,:,:,bb),a5(:,bb))
@@ -1933,24 +1935,22 @@ contains
 
         ! Bin mixing ratios for all species
         IF (lbinprof) THEN
-            DO bb = in1a,fn2a
+            DO bb = 1,nbins
                 CALL binSpecMixrat('aerosol',i,bb,a1)
-                CALL get_avg3(n1,n2,n3,a1,a3_a(:,bb))
+                IF (bb<=fn2a) THEN
+                   CALL get_avg3(n1,n2,n3,a1,a3_a(:,bb))
+                ELSE
+                   CALL get_avg3(n1,n2,n3,a1,a3_b(:,bb-fn2a))
+                ENDIF
             END DO
-            DO bb = in2b,fn2b
-                CALL binSpecMixrat('aerosol',i,bb,a1)
-                CALL get_avg3(n1,n2,n3,a1,a3_b(:,bb-fn2a))
-            END DO
-
-            DO bb = 1,fnp2a
+            DO bb = 1,ncld
                 CALL binSpecMixrat('cloud',i,bb,a1)
-                CALL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=cloudmask)
+                IF (bb<=fnp2a) THEN
+                   CALL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=cloudmask)
+                ELSE
+                   CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fnp2a),cond=cloudmask)
+                ENDIF
             END DO
-            DO bb = inp2b,fnp2b
-                CALL binSpecMixrat('cloud',i,bb,a1)
-                CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fnp2a),cond=cloudmask)
-            END DO
-
             DO bb = 1,nprc
                 CALL binSpecMixrat('precp',i,bb,a1)
                 CALL get_avg3(n1,n2,n3,a1,a5(:,bb),cond=drizzmask)
@@ -2037,13 +2037,15 @@ contains
     IF (nout_cld>0) THEN
         ALLOCATE(hist(n1,nout_cld))
         ! Cloud droplet bin wet radius
-        CALL getBinRadius(fnp2b,nspec+1,a_ncloudp,a_mcloudp,nlim,a_Rwet,2)
+        CALL getBinRadius(ncld,nspec+1,a_ncloudp,a_mcloudp,nlim,a_Rwet,2)
         ! Histograms (regime A)
         CALL HistDistr(n1,n2,n3,fnp2a,a_Rwet(:,:,:,inp2a:fnp2a),a_ncloudp(:,:,:,inp2a:fnp2a),cldbinlim,nout_cld,hist)
         svctr_ch(:,:,1) = svctr_ch(:,:,1) + hist(:,:)
         ! Histograms (regime B)
-        CALL HistDistr(n1,n2,n3,fnp2b-fnp2a,a_Rwet(:,:,:,inp2b:fnp2b),a_ncloudp(:,:,:,inp2b:fnp2b),cldbinlim,nout_cld,hist)
-        svctr_ch(:,:,2) = svctr_ch(:,:,2) + hist(:,:)
+        IF (ncld==fnp2b) THEN
+            CALL HistDistr(n1,n2,n3,fnp2b-fnp2a,a_Rwet(:,:,:,inp2b:fnp2b),a_ncloudp(:,:,:,inp2b:fnp2b),cldbinlim,nout_cld,hist)
+            svctr_ch(:,:,2) = svctr_ch(:,:,2) + hist(:,:)
+        ENDIF
         DEALLOCATE(hist)
     ENDIF
   end subroutine accum_lvl4
@@ -2053,10 +2055,10 @@ contains
   ! on level 5 variables.
   !
   subroutine accum_lvl5(n1,n2,n3)
-    use mo_submctl, only : inp2a,fnp2a,inp2b,fnp2b,nsnw,nspec,icebinlim,nout_ice, &
+    use mo_submctl, only : inp2a,fnp2a,inp2b,fnp2b,icebinlim,nout_ice, &
                      prlim ! Note: prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, getBinRadius, dn0, &
-                     a_ri, a_srs, a_micep, a_nicep, a_nsnowp, icein, snowin, a_tp, th00, &
+                     a_ri, a_srs, nspec, nice, nsnw, a_micep, a_nicep, a_nsnowp, icein, snowin, a_tp, th00, &
                      coag_ri, coag_ni, coag_rs, coag_ns, cond_ri, cond_rs, auto_rs, auto_ns, &
                      nucl_ri, nucl_ni, sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
                      diag_ri, diag_ni, diag_rs, diag_ns, melt_ri, melt_ni, melt_rs, melt_ns
@@ -2123,11 +2125,12 @@ contains
     ! Bin number concentrations
     ! -------------------------
     IF (lbinprof) THEN
-        DO bb = inp2a,fnp2a
-           CALL get_avg3(n1,n2,n3,a_nicep(:,:,:,bb),a4_a(:,bb))
-        END DO
-        DO bb = inp2b,fnp2b
-           CALL get_avg3(n1,n2,n3,a_nicep(:,:,:,bb),a4_b(:,bb-fnp2a))
+        DO bb = 1,nice
+            IF (bb<=fnp2a) THEN
+                CALL get_avg3(n1,n2,n3,a_nicep(:,:,:,bb),a4_a(:,bb))
+            ELSE
+                CALL get_avg3(n1,n2,n3,a_nicep(:,:,:,bb),a4_b(:,bb-fnp2a))
+            ENDIF
         END DO
         DO bb = 1,nsnw
            CALL get_avg3(n1,n2,n3,a_nsnowp(:,:,:,bb),a5(:,bb))
@@ -2156,15 +2159,14 @@ contains
 
         ! Binned mixing ratios for all species
         IF (lbinprof) THEN
-            DO bb = 1,fnp2a
+            DO bb = 1,nice
                 CALL binSpecMixrat('ice',i,bb,a1)
-                CaLL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=icemask)
+                IF (bb<=fnp2a) THEN
+                    CaLL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=icemask)
+                ELSE
+                    CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fnp2a),cond=icemask)
+                ENDIF
             END DO
-            DO bb = inp2b,fnp2b
-                CALL binSpecMixrat('ice',i,bb,a1)
-                CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fnp2a),cond=icemask)
-            END DO
-
             DO bb = 1,nsnw
                 CALL binSpecMixrat('snow',i,bb,a1)
                 CALL get_avg3(n1,n2,n3,a1,a5(:,bb),cond=snowmask)
@@ -2239,13 +2241,15 @@ contains
     IF (nout_ice>0) THEN
         ALLOCATE(hist(n1,nout_ice))
         ! Cloud droplet bin wet radius
-        CALL getBinRadius(fnp2b,nspec+1,a_nicep,a_micep,prlim,a_Rwet,4)
+        CALL getBinRadius(nice,nspec+1,a_nicep,a_micep,prlim,a_Rwet,4)
         ! Histograms (regime A)
         CALL HistDistr(n1,n2,n3,fnp2a,a_Rwet(:,:,:,inp2a:fnp2a),a_nicep(:,:,:,inp2a:fnp2a),icebinlim,nout_ice,hist)
         svctr_ih(:,:,1) = svctr_ih(:,:,1) + hist(:,:)
         ! Histograms (regime B)
-        CALL HistDistr(n1,n2,n3,fnp2a,a_Rwet(:,:,:,inp2b:fnp2b),a_nicep(:,:,:,inp2b:fnp2b),icebinlim,nout_ice,hist)
-        svctr_ih(:,:,2) = svctr_ih(:,:,2) + hist(:,:)
+        IF (nice==fnp2b) THEN
+            CALL HistDistr(n1,n2,n3,fnp2a,a_Rwet(:,:,:,inp2b:fnp2b),a_nicep(:,:,:,inp2b:fnp2b),icebinlim,nout_ice,hist)
+            svctr_ih(:,:,2) = svctr_ih(:,:,2) + hist(:,:)
+        ENDIF
         DEALLOCATE(hist)
     ENDIF
   end subroutine accum_lvl5
@@ -2367,7 +2371,7 @@ contains
 
     use netcdf
     use mpi_interface, only : myid
-    USE mo_submctl, ONLY : ngases
+    USE grid, ONLY : ngases
 
     integer :: iret, n, VarID
 
@@ -2447,9 +2451,9 @@ contains
     use netcdf
     use defs, only : alvl, cp
     USE mo_submctl, ONLY : in1a,in2a,fn2a,fn2b,fnp2a,fnp2b, &
-                               nprc,nsnw,ngases, &
                                aerobins,precpbins,snowbins, &
                                nout_cld, cldbinlim, nout_ice, icebinlim
+    USE grid, ONLY : nprc,nsnw,ngases
     use mpi_interface, only : myid
 
     integer, intent (in) :: n1
@@ -2987,7 +2991,7 @@ contains
   ! -------------------------------------------------------------------------
   !
   SUBROUTINE acc_removal(n2,n3,n4,raer,rcld,rprc,rice,rsnw)
-    USE mo_submctl, ONLY : nbins, ncld, nprc, nice, nsnw, nspec
+    USE grid, ONLY : nbins, ncld, nprc, nice, nsnw, nspec
     IMPLICIT NONE
 
     INTEGER, INTENT(in)           :: n2,n3,n4                     ! Grid dimensions
