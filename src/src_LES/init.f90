@@ -721,7 +721,7 @@ contains
 
     USE mo_submctl, ONLY : pi6,in1a,in2a,in2b,fn1a,fn2a,fn2b,aerobins, &
                            nmod, sigmag, dpg, n, volDistA, volDistB, nf2a, isdtyp, &
-                           iso, rhosu, ioc, rhooc, nspec, dens, zspec, nlim, salsa1a_SO4_OC
+                           iso, ioc, nspec, dens, zspec, nlim, salsa1a_SO4_OC
     USE mpi_interface, ONLY : myid
 
     IMPLICIT NONE
@@ -729,7 +729,7 @@ contains
     REAL :: pndist(nzp,fn2a)                          ! Aerosol size dist as a function of height
     REAL :: pvf2a(nzp,nspec), pvf2b(nzp,nspec)        ! Mass distributions of aerosol species for a and b-bins
     REAL :: pnf2a(nzp)                                ! Number fraction for bins 2a
-    REAL :: mass(2*nspec)
+    REAL :: mass(2*nspec), factor
     INTEGER :: ss,ee,i,j,k,nc
     CHARACTER(len=600) :: fmt
     LOGICAL :: bbins
@@ -778,6 +778,10 @@ contains
 
     END IF
 
+    ! Are b-bins used? If not, these can be disabled.
+    bbins = ANY(pnf2a(:)<1.)
+    IF (no_b_bins .AND. bbins) STOP 'Error: non-zero initial concentrations for disabled b-bins!'
+
     !
     ! Initialize concentrations
     ! ----------------------------------------------------------
@@ -792,47 +796,41 @@ contains
 
              ! Region 2
              a_naerop(k,i,j,in2a:fn2a) = max(0.0,pnf2a(k))*pndist(k,in2a:fn2a)
-             IF (pnf2a(k)<1.) a_naerop(k,i,j,in2b:fn2b) = max(0.0,1.0-pnf2a(k))*pndist(k,in2a:fn2a)
+             IF (bbins) a_naerop(k,i,j,in2b:fn2b) = max(0.0,1.0-pnf2a(k))*pndist(k,in2a:fn2a)
 
              !
              ! b) Aerosol mass concentrations
              DO nc=1,nspec
                 ! 1a and 2a
                 ss = nc*nbins + in1a; ee = nc*nbins + fn2a
-                a_maerop(k,i,j,ss:ee) = max( 0.0,pvf2a(k,nc) )*pnf2a(k) * &
-                     pndist(k,in1a:fn2a)*core(in1a:fn2a)*dens(nc+1)
+                a_maerop(k,i,j,ss:ee) = a_naerop(k,i,j,in1a:fn2a)*max(0.0,pvf2a(k,nc))*core(in1a:fn2a)*dens(nc+1)
                 ! 2b
-                IF (pnf2a(k)<1.) THEN
+                IF (bbins) THEN
                    ss = nc*nbins + in2b; ee = nc*nbins + fn2b
-                   a_maerop(k,i,j,ss:ee) = max( 0.0,pvf2b(k,nc) )*(1.0-pnf2a(k)) * &
-                        pndist(k,in2a:fn2a)*core(in2a:fn2a)*dens(nc+1)
+                   a_maerop(k,i,j,ss:ee) = a_naerop(k,i,j,in2b:fn2b)*max(0.0,pvf2b(k,nc))*core(in2a:fn2a)*dens(nc+1)
                 ENDIF
              END DO
 
              ! Modify 1a so that there can be sulfate and/or OC?
              IF (salsa1a_SO4_OC) THEN
-                ! Set to zero
-                a_maerop(k,i,j,in1a:nspec*nbins + fn1a:nbins) = 0.
-                IF (iso > 0 .AND. ioc > 0) THEN
-                  ! Sulfate and OC mixture
-                  ss = (iso-1)*nbins + in1a; ee = (iso-1)*nbins + fn1a
-                  a_maerop(k,i,j,ss:ee) = max(0.0,pvf2a(k,iso-1)/(pvf2a(k,ioc-1)+pvf2a(k,iso-1)) )* &
-                      pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhosu
-                  ss = (ioc-1)*nbins + in1a; ee = (ioc-1)*nbins + fn1a
-                  a_maerop(k,i,j,ss:ee) = max(0.0,pvf2a(k,ioc-1)/(pvf2a(k,ioc-1)+pvf2a(k,iso-1)) )* &
-                      pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhooc
-                ELSEIF (iso > 0) THEN
-                  ! Pure sulfate
-                  ss = (iso-1)*nbins + in1a; ee = (iso-1)*nbins + fn1a
-                  a_maerop(k,i,j,ss:ee) = pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhosu
-                ELSEIF (ioc > 0) THEN
-                  ! Pure OC
-                  ss = (ioc-1)*nbins + in1a; ee = (ioc-1)*nbins + fn1a
-                  a_maerop(k,i,j,ss:ee) = pndist(k,in1a:fn1a)*core(in1a:fn1a)*rhooc
-                ELSE
-                  STOP 'Either OC or SO4 must be active for aerosol region 1a!'
-                ENDIF
-             ENDIF
+                ! Remove all other species and scale SO4 and OC mass concentrations based on their
+                ! relative volume fractions. The inverse of the scaling factor is pvf2a(k,ioc-1)+pvf2a(k,iso-1).
+                factor=0.
+                IF (iso > 0) factor=factor+max(0.0,pvf2a(k,iso-1))
+                IF (ioc > 0) factor=factor+max(0.0,pvf2a(k,ioc-1))
+                IF (factor<1e-10) STOP 'Either OC or SO4 must be active for aerosol region 1a!'
+                ! Update mass concentrations
+                DO nc=1,nspec
+                    ! 1a and 2a
+                    ss = nc*nbins + in1a; ee = nc*nbins + fn1a
+                    IF (nc==iso-1 .OR. nc==ioc-1) THEN
+                        a_maerop(k,i,j,ss:ee) = a_maerop(k,i,j,ss:ee)/factor
+                    ELSE
+                        ! Set to zero
+                        a_maerop(k,i,j,ss:ee) = 0.
+                    ENDIF
+                ENDDO
+            ENDIF
 
              ! Apply concentration threshold
              DO nc = 1,nbins
