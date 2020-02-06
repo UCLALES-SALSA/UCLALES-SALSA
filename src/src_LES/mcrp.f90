@@ -34,7 +34,7 @@ module mcrp
        sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
        coag_rr, coag_nr, cond_rr, cond_nr, auto_rr, auto_nr, diag_rr, diag_nr, &
        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
-  use stat, only : sflg, updtst, acc_removal, cs_rem_set
+  use stat, only : sflg, updtst, acc_removal, cs_rem_set, out_mcrp_nout, out_mcrp_data, out_mcrp_list
   USE mo_submctl, ONLY : terminal_vel
   implicit none
 
@@ -70,9 +70,11 @@ contains
 
     select case (level)
     case(2)
+       IF (sflg) out_mcrp_data(:,:,:,:) = 0.
        if (sed_cloud)  &
             call sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
     case(3)
+       IF (sflg) out_mcrp_data(:,:,:,:) = 0.
        call mcrph(nzp,nxp,nyp,dn0,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,   &
                   a_npp,precip,a_rt,a_tt,a_rpt,a_npt)
     case(4,5)
@@ -129,13 +131,14 @@ contains
 
     integer :: i, j, k
     real :: rp_old, np_old
-
+    REAL :: tmp_nr(nzp,nxp,nyp), tmp_rr(nzp,nxp,nyp), tmp_rt(nzp,nxp,nyp)
     !
     ! Microphysics following Seifert Beheng (2001, 2005)
 
     ! Diagnostics (ignoring/avoiding negative values, and changes in number due to minimum and maximum volumes)
     diag_rr(:,:,:)=rp(:,:,:)
     diag_nr(:,:,:)=np(:,:,:)
+    if(sflg) CALL sb_var_stat('diag',2) ! Use rain concentrations
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1
@@ -144,31 +147,39 @@ contains
           end do
        end do
     end do
+    if(sflg) CALL sb_var_stat('diag',3) ! ... simple difference
     diag_rr(:,:,:)=(rp(:,:,:)-diag_rr(:,:,:))/dtl
     diag_nr(:,:,:)=(np(:,:,:)-diag_nr(:,:,:))/dtl
 
     ! Condensation/evaporation
     cond_rr(:,:,:)=rpt(:,:,:)
     cond_nr(:,:,:)=npt(:,:,:) ! Level 3 only
+    if(sflg) CALL sb_var_stat('cond',0) ! Use rain tendencies
     call wtr_dff_SB(n1,n2,n3,dn0,rp,np,rs,rv,tk,rpt,npt)
+    if(sflg) CALL sb_var_stat('cond',1) ! ... simple difference
     cond_rr(:,:,:)=rpt(:,:,:)-cond_rr(:,:,:)
     cond_nr(:,:,:)=npt(:,:,:)-cond_nr(:,:,:)
 
     ! Autoconversion
     auto_rr(:,:,:)=rpt(:,:,:)
     auto_nr(:,:,:)=npt(:,:,:)
+    if(sflg) CALL sb_var_stat('auto',0) ! Use rain tendencies
     call auto_SB(n1,n2,n3,dn0,rc,rp,rpt,npt)
+    if(sflg) CALL sb_var_stat('auto',1) ! ... simple difference
     auto_rr(:,:,:)=rpt(:,:,:)-auto_rr(:,:,:)
     auto_nr(:,:,:)=npt(:,:,:)-auto_nr(:,:,:)
 
     ! Accretion - coagulation
     coag_rr(:,:,:)=rpt(:,:,:)
     coag_nr(:,:,:)=npt(:,:,:)
+    if(sflg) CALL sb_var_stat('coag',0) ! Use rain tendenciess
     call accr_SB(n1,n2,n3,dn0,rc,rp,np,rpt,npt)
+    if(sflg) CALL sb_var_stat('coag',1) ! ... simple difference
     coag_rr(:,:,:)=rpt(:,:,:)-coag_rr(:,:,:)
     coag_nr(:,:,:)=npt(:,:,:)-coag_nr(:,:,:)
 
     ! Apply tendencies
+    if(sflg) CALL sb_var_stat('diag',2) ! Use rain concentrations
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1-1
@@ -184,12 +195,14 @@ contains
           end do
        end do
     end do
+    if(sflg) CALL sb_var_stat('diag',4) ! ... the real change compared with the tendency
     rpt(:,:,:)= 0.
     npt(:,:,:)= 0.
 
     ! Sedimentation
     sedi_rr(:,:,:)=rpt(:,:,:)
     sedi_nr(:,:,:)=npt(:,:,:)
+    if(sflg) CALL sb_var_stat('sedi',0) ! Use rain and total water tendencies
     rrate(:,:,:)=0.
     if (sed_precp) call sedim_rd(n1,n2,n3,dtl,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
     sedi_rr(:,:,:)=rpt(:,:,:)-sedi_rr(:,:,:)
@@ -198,7 +211,85 @@ contains
     ! Note: rc is not updated after autoconversion and accretion!
     sedi_rc(:,:,:)=rtt(:,:,:)
     if (sed_cloud) call sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
-    sedi_rc(:,:,:)=sedi_rc(:,:,:)-rtt(:,:,:) ! rtt is total water, so an increase in rt means decrease in rc
+    if(sflg) CALL sb_var_stat('sedi',1) ! ... simple difference
+    sedi_rc(:,:,:)=rtt(:,:,:)-sedi_rc(:,:,:)
+
+  CONTAINS
+
+      ! Collecting statistical outputs from the Seifert and Beheng micophysics
+      !     Main program: out_mcrp_nout, out_mcrp_data, out_mcrp_list
+      !     Calling subroutine: tmp_nr, tmp_rr and tmp_rt
+      ! The first call (flag is 0 or 2) saves the current state and the second
+      ! call (flag is 1, 3 or 4) is for calculating the change.
+      SUBROUTINE sb_var_stat(prefix,flag)
+        IMPLICIT NONE
+        ! Input
+        character (len=4), intent (in) :: prefix ! Process name
+        INTEGER, INTENT(IN) :: flag ! Option flag
+        ! Local
+        INTEGER :: i
+        !
+        IF (out_mcrp_nout==0) RETURN
+        !
+        ! a) The first call
+        IF (flag==0) THEN
+            ! Save current tendency
+            tmp_nr(:,:,:) = a_npt(:,:,:) ! Rain drop number
+            tmp_rr(:,:,:) = a_rpt(:,:,:) ! Rain water mixing ratio
+            tmp_rt(:,:,:) = a_rt(:,:,:) ! Total water mixing ratio
+            RETURN
+        ELSEIF (flag==2) THEN
+            ! Save current absolute concentration
+            tmp_nr(:,:,:) = a_npp(:,:,:)
+            tmp_rr(:,:,:) = a_rpp(:,:,:)
+            tmp_rt(:,:,:) = a_rp(:,:,:)
+            RETURN
+        ENDIF
+        !
+        ! b) The second call
+        ! Find the requested ouput
+        DO i=1,out_mcrp_nout
+            IF ( prefix//'_nr' == out_mcrp_list(i) ) THEN
+                ! Rain number (a_npt or a_npp)
+                IF (flag==1) THEN
+                    ! Calculate the change in tendency
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (a_npt(:,:,:) - tmp_nr(:,:,:))
+                ELSEIF (flag==3) THEN
+                    ! Calculate the change in absolute concentrations (divide by time step)
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (a_npp(:,:,:) - tmp_nr(:,:,:))/dtl
+                ELSEIF (flag==4) THEN
+                    ! Compare the actual change in absolute concetration to the expected change
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (a_npp(:,:,:) - tmp_nr(:,:,:))/dtl - a_npt(:,:,:)
+                ENDIF
+            ELSEIF ( prefix//'_rr' == out_mcrp_list(i) ) THEN
+                ! Rain mixing ratio (a_rpt and a_rpp)
+                IF (flag==1) THEN
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (a_rpt(:,:,:) - tmp_rr(:,:,:))
+                ELSEIF (flag==3) THEN
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (a_rpp(:,:,:) - tmp_rr(:,:,:))/dtl
+                ELSEIF (flag==4) THEN
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (a_rpp(:,:,:) - tmp_rr(:,:,:))/dtl - a_rpt(:,:,:)
+                ENDIF
+            ELSEIF ( prefix//'_rt' == out_mcrp_list(i) ) THEN
+                ! Total water (a_rt and a_rp)
+                IF (flag==0) THEN
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (a_rt(:,:,:) - tmp_rt(:,:,:))
+                ELSEIF (flag==3) THEN
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (a_rp(:,:,:) - tmp_rt(:,:,:))/dtl
+                ELSEIF (flag==4) THEN
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (a_rp(:,:,:) - tmp_rt(:,:,:))/dtl - a_rt(:,:,:)
+                ENDIF
+            ELSEIF ( prefix//'_rc' == out_mcrp_list(i) ) THEN
+                ! Cloud water - diagnostic: when water vapor mixing ratio is constant, rc = const + rt - rr
+                IF (flag==1) THEN
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (a_rt(:,:,:)-a_rpt(:,:,:) - (tmp_rt(:,:,:)-tmp_rr(:,:,:)))
+                ELSEIF (flag==3) THEN
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (a_rp(:,:,:)-a_rpp(:,:,:) - (tmp_rt(:,:,:)-tmp_rr(:,:,:)))/dtl
+                ELSEIF (flag==4) THEN
+                ENDIF
+            ENDIF
+        ENDDO
+      END SUBROUTINE sb_var_stat
 
   end subroutine mcrph
   !

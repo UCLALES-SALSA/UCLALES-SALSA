@@ -93,8 +93,11 @@ module grid
   REAL              :: Tspinup = 7200.    ! Spinup period in seconds (added by Juha)
 
   ! User control of analysis outputs
-  INTEGER, PARAMETER :: n_anl_opts=100
-  CHARACTER(len=7), dimension(n_anl_opts), SAVE :: anl_include='       ', anl_exclude='       '
+  INTEGER, PARAMETER :: maxn_list=100
+  CHARACTER(len=7), dimension(maxn_list), SAVE :: anl_include='       ', anl_exclude='       '
+  CHARACTER(len=7), dimension(maxn_list), SAVE :: out_an_list(maxn_list)='       '
+  INTEGER, SAVE :: nv4_proc=0
+  REAL, SAVE, ALLOCATABLE :: out_an_data(:,:,:,:)
 
   character (len=80), private :: fname
 
@@ -307,10 +310,11 @@ contains
             STOP
        end if
 
-       allocate (a_rv(nzp,nxp,nyp),a_rc(nzp,nxp,nyp))
+       allocate (a_rv(nzp,nxp,nyp),a_rc(nzp,nxp,nyp),a_dn(nzp,nxp,nyp))
        a_rv(:,:,:) = 0.
        a_rc(:,:,:) = 0.
-       memsize = memsize + 2*nxyzp
+       a_dn(:,:,:) = 0.
+       memsize = memsize + 3*nxyzp
 
        ! Prognostic scalars: temperature + total water + rain mass and number (level=3) + tke (isgstyp> 1) + additional scalars
        nscl = 2+naddsc
@@ -827,6 +831,11 @@ contains
     b_base(6) = (isgstyp > 1)
     b_base(7) = (iradtyp > 1)
 
+
+    ! Allocate data for user selected process rate outputs (see init_stat in stat.f90)
+    ALLOCATE ( out_an_data(nzp,nxp,nyp,nv4_proc) )
+    out_an_data(:,:,:,:) = 0.
+
     IF (level < 4) THEN  ! Standard operation for levels 1-3
         b_dims(11:14) = .FALSE. ! SALSA bins
         b_base(10:11) = (level==3) ! Rain
@@ -834,7 +843,7 @@ contains
         b_lvl3_rate(:) = (level == 3 .AND. stat_micro) ! Process rate statistics
 
        ! Merge logical and name arrays
-       i=n_dims+n_base+n_lvl3_rate+naddsc
+       i=n_dims+n_base+n_lvl3_rate+nv4_proc+naddsc
        ALLOCATE( btot(i), stot(i) )
        i=1; e=n_dims
        btot(i:e)=b_dims; stot(i:e)=s_dims
@@ -842,6 +851,10 @@ contains
        btot(i:e)=b_base; stot(i:e)=s_base
        i=e+1; e=e+n_lvl3_rate
        btot(i:e)=b_lvl3_rate; stot(i:e)=s_lvl3_rate
+       IF (nv4_proc>0) THEN
+          i=e+1; e=e+nv4_proc
+          btot(i:e)=.TRUE.; stot(i:e)=out_an_list(1:nv4_proc)
+       END IF
     ELSE IF (level >= 4) THEN ! Operation with SALSA
        ! Additional arrays for SALSA
        ! -- dimensions
@@ -927,7 +940,7 @@ contains
        ENDDO
 
        ! Merge logical and name arrays
-       i=n_dims+n_base+n_salsa_rate+n_salsa+n_mixr+n_bin+naddsc
+       i=n_dims+n_base+n_salsa_rate+n_salsa+n_mixr+n_bin+naddsc+nv4_proc
        ALLOCATE( btot(i), stot(i) )
        i=1; e=n_dims
        btot(i:e)=b_dims; stot(i:e)=s_dims
@@ -941,6 +954,10 @@ contains
        btot(i:e)=b_mixr; stot(i:e)=s_mixr
        i=e+1; e=e+n_bin
        btot(i:e)=b_bin; stot(i:e)=s_bin
+       IF (nv4_proc>0) THEN
+          i=e+1; e=e+nv4_proc
+          btot(i:e)=.TRUE.; stot(i:e)=out_an_list(1:nv4_proc)
+       END IF
     END IF
 
     ! Addtional scalars
@@ -955,7 +972,7 @@ contains
 
     ! Include and/or exclude outputs based on user inputs
     n=e ! Length of btot and stot
-    DO i=1,n_anl_opts
+    DO i=1,maxn_list
         IF (LEN_TRIM(anl_include(i))>0) THEN
             found=.FALSE.
             DO e=1,n
@@ -1108,6 +1125,15 @@ contains
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_rflx(:,i1:i2,j1:j2), start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'stke', VarID) ! Subgrid TKE
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_qp(:,i1:i2,j1:j2), start=ibeg, count=icnt)
+
+    ! User-selected process rate outputs
+    IF (nv4_proc>0) THEN
+        DO bb=1,nv4_proc
+            iret = nf90_inq_varid(ncid0, out_an_list(bb), VarID)
+            IF (iret == NF90_NOERR) iret = nf90_put_var(ncid0,VarID,out_an_data(:,i1:i2,j1:j2,bb),start=ibeg,count=icnt)
+        ENDDO
+        out_an_data(:,:,:,:) = 0.
+    ENDIF
 
     IF (level < 4) THEN ! Normal operation for levels 1-3
        ! Total water

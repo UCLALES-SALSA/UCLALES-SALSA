@@ -7,7 +7,8 @@ module ncio
   private
 
   public :: open_nc, define_nc, define_nc_cs, &
-            open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
+            open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc, &
+            ncinfo
 
 contains
   !
@@ -264,10 +265,11 @@ contains
   ! ----------------------------------------------------------------------
   ! Subroutine define_nc_cs: Defines the structure of a column statistics nc file
   !
-  subroutine define_nc_cs(ncID, nRec, n2, n3, level, rad_level, spec_list, nspec )
-    integer, intent (in) :: ncID, n2, n3, level, rad_level, nspec
+  subroutine define_nc_cs(ncID, nRec, n2, n3, level, rad_level, spec_list, nspec, usr_list, nusr )
+    integer, intent (in) :: ncID, n2, n3, level, rad_level, nspec, nusr
     integer, intent (inout) :: nRec ! nRec=0 means new files
     CHARACTER(LEN=3), intent (in) :: spec_list(nspec) ! SALSA species (e.g. SO4, Org,..., H2O)
+    CHARACTER(LEN=7), intent (in) :: usr_list(nusr) ! User-selcted list of process rate statistics
 
     integer, save :: timeID=0, xtID=0, ytID=0
     integer, save :: dim_ttt(3)
@@ -400,6 +402,15 @@ contains
               iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
               iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
            END DO
+       ENDIF
+
+       IF (nusr>0) THEN
+           ! User-selected process rate outputs
+           DO ss = 1,nusr
+              iret=nf90_def_var(ncID,usr_list(ss),NF90_FLOAT,dim_ttt,VarID)
+              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,usr_list(ss),2))
+              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,usr_list(ss),2))
+           ENDDO
        ENDIF
 
        IF (level==3) THEN
@@ -1522,7 +1533,9 @@ contains
   ! 2) Examples of names
   !     diag_ri     Change in ice water mixing ratio due to diagnostics
   !     diag_ni     Change in ice water number concentration due to diagnostics
-  !     r=mixing ratio, n=number concentration, i=ice
+  !     diag_tt     Change in [total] temperature ...
+  !     r=mixing ratio, n=number concentration, t=temperature,..
+  !     i=ice, t=total,..
   !
   character (len=80) function get_rate_info(itype,short_name,dims)
     implicit none
@@ -1531,7 +1544,8 @@ contains
 
     character (len=20) :: pros, spec
     integer :: i
-    logical :: numc
+    logical :: numc, mixr, temp
+    CHARACTER :: idc
 
     IF (LEN(TRIM(short_name))<6 .OR. INDEX(short_name,'_')==0) THEN
         get_rate_info=''
@@ -1541,32 +1555,58 @@ contains
     ! Which process
     IF ('coag_'==short_name(1:5)) THEN
         pros='coagulation'
+    ELSEIF ('oxid_'==short_name(1:5)) THEN
+        pros='oxidation'
+    ELSEIF ('ocon_'==short_name(1:5)) THEN
+        pros='condensation'
     ELSEIF ('cond_'==short_name(1:5)) THEN
         pros='condensation'
     ELSEIF ('auto_'==short_name(1:5)) THEN
         pros='autoconversion'
-    ELSEIF ('act_'==short_name(1:4)) THEN
+    ELSEIF ('act_'==short_name(1:4) .OR. 'cact_'==short_name(1:5)) THEN
         pros='activation'
     ELSEIF ('nucl_'==short_name(1:5)) THEN
         pros='nucleation'
-    ELSEIF ('mult_'==short_name(1:5)) THEN
+    ELSEIF ('melt_'==short_name(1:5)) THEN
         pros='melting'
+    ELSEIF ('dist_'==short_name(1:5)) THEN
+        pros='distribution update'
     ELSEIF ('sedi_'==short_name(1:5)) THEN
         pros='sedimentation'
     ELSEIF ('diag_'==short_name(1:5)) THEN
         pros='diagnostics'
+    ELSEIF ('advf_'==short_name(1:5)) THEN
+        pros='advection'
+    ELSEIF ('srfc_'==short_name(1:5)) THEN
+        pros='surface'
+    ELSEIF ('diff_'==short_name(1:5)) THEN
+        pros='diffusion'
+    ELSEIF ('forc_'==short_name(1:5)) THEN
+        pros='forcings'
+    ELSEIF ('mcrp_'==short_name(1:5)) THEN
+        pros='microphysics'
+    ELSEIF ('nudg_'==short_name(1:5)) THEN
+        pros='nudging'
     ELSE
         get_rate_info=''
         RETURN
     ENDIF
 
-    ! Number concentration (n) or water mixing ratio (r)
+    ! Number concentration (n), water mixing ratio (r) or mixing ratio of component x (x, where x=1,2,...,9)
+    ! temperature (t)
+    numc=.FALSE.
+    mixr=.FALSE.
+    temp=.FALSE.
     i=LEN(TRIM(short_name))-1
     select case (short_name(i:i))
     CASE('n')
         numc=.TRUE.
     CASE('r')
-        numc=.FALSE.
+        mixr=.TRUE.
+    CASE('t')
+        temp=.TRUE.
+    CASE('1','2','3','4','5','6','7','8','9')
+        idc=short_name(i:i)
     case default
         get_rate_info=''
         RETURN
@@ -1585,6 +1625,10 @@ contains
         spec='ice'
     CASE('s')
         spec='snow'
+    CASE('g')
+        spec='gas'
+    CASE('t')
+        spec='total'
     case default
         get_rate_info=''
         RETURN
@@ -1593,30 +1637,40 @@ contains
     ! Valid microphysical process identified, formulate the output
     if (itype==0) THEN
         ! Long name
-        IF (dims==0) THEN
-            ! Integrated number concentration or mixing ratio (#/m^2/s or kg/m^2/s)
+        IF (dims==0 .OR. dims==2) THEN
+            ! Vertical integral of number concentration or mixing ratio (#/m^2/s or kg/m^2/s)
             IF (numc) THEN
                 get_rate_info='Change in column '//TRIM(spec)//' number due to '//TRIM(pros)
-            ELSE
+            ELSEIF (mixr) THEN
                 get_rate_info='Change in column '//TRIM(spec)//' water due to '//TRIM(pros)
+            ELSEIF (temp) THEN
+                get_rate_info='Change in column '//TRIM(spec)//' temperature due to '//TRIM(pros)
+            ELSE
+                get_rate_info='Change in column '//TRIM(spec)//' component #'//idc//' mixing ratio due to '//TRIM(pros)
             ENDIF
         ELSEIF (dims==1 .OR. dims==3) THEN
             ! Profiles give the average rate per volume (#/m^3/s or kg/m^3/s), so just different unit
             ! 3D data in original units (#/kg/s or kg/kg/s)
             IF (numc) THEN
                 get_rate_info='Change in '//TRIM(spec)//' number concentration due to '//TRIM(pros)
-            ELSE
+            ELSEIF (mixr) THEN
                 get_rate_info='Change in '//TRIM(spec)//' water mixing ratio due to '//TRIM(pros)
+            ELSEIF (temp) THEN
+                get_rate_info='Change in '//TRIM(spec)//' temperature due to '//TRIM(pros)
+            ELSE
+                get_rate_info='Change in '//TRIM(spec)//' component #'//idc//' mixing ratio due to '//TRIM(pros)
             ENDIF
         ELSE
             get_rate_info = ''
         ENDIF
     ELSEIF (itype==1) THEN
         ! Unit
-        IF (dims==0) THEN
-            ! Integrated number concentration or mixing ratio (#/m^2/s or kg/m^2/s)
+        IF (dims==0 .OR. dims==2) THEN
+            ! Vertical integral of number concentration or mixing ratio (#/m^2/s or kg/m^2/s)
             IF (numc) THEN
                 get_rate_info = '#/m^2/s'
+            ELSEIF (temp) THEN
+                get_rate_info = 'W/m^2'
             ELSE
                 get_rate_info = 'kg/m^2/s'
             ENDIF
@@ -1624,6 +1678,8 @@ contains
             ! Profiles give the average rate per volume (#/m^3/s or kg/m^3/s)
             IF (numc) THEN
                 get_rate_info = '#/m^3/s'
+            ELSEIF (temp) THEN
+                get_rate_info = 'W/m^3'
             ELSE
                 get_rate_info = 'kg/m^3/s'
             ENDIF
@@ -1631,6 +1687,8 @@ contains
             ! 3D data in original units (#/kg/s or kg/kg/s)
             IF (numc) THEN
                 get_rate_info = '#/kg/s'
+            ELSEIF (temp) THEN
+                get_rate_info = 'W/kg'
             ELSE
                 get_rate_info = 'kg/kg/s'
             ENDIF

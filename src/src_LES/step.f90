@@ -138,7 +138,7 @@ contains
                      cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, auto_rr, auto_nr, auto_rs, auto_ns, &
                      cact_rc, cact_nc, nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns
 
-    use stat, only : sflg, statistics
+    use stat, only : sflg, statistics, les_rate_stats, out_mcrp_data, out_mcrp_list, out_mcrp_nout, mcrp_var_save
     use sgsm, only : diffuse
     use srfc, only : surface, get_aero_flux
     use thrm, only : thermo
@@ -158,6 +158,8 @@ contains
 
     xtime = time/86400. + strtim
 
+    n4 = nspec + 1 ! Aerosol components + water
+
     ! The runmode parameter zrm is used by SALSA only
     zrm = 3
     IF ( time < Tspinup ) zrm = 2
@@ -173,9 +175,19 @@ contains
         ! Surface aerosol sources (#/m^2/s)
         CALL get_aero_flux(fn2a,aerobins,sst,dnaeropdt)
         CALL surface_naerot(dnaeropdt)
+        CALL tend_constrain(n4)
     END IF
 
+    IF (sflg) CALL les_rate_stats('srfc')
+    !call update_sclrs
+    !CALL tend0(.TRUE.)
+
     call diffuse
+
+    !IF (level>3) CALL tend_constrain(n4)
+    !IF (sflg) CALL les_rate_stats('diff')
+    !call update_sclrs
+    !CALL tend0(.TRUE.)
 
     call sponge(0)
 
@@ -185,11 +197,12 @@ contains
 
        call forcings(xtime,cntlat,sst)
 
+       IF (level>3) CALL tend_constrain(n4)
+       IF (sflg) CALL les_rate_stats('forc')
+       call update_sclrs
+
        IF (level >= 4) THEN
 
-          n4 = nspec + 1 ! Aerosol components + water
-          CALL tend_constrain(n4)
-          call update_sclrs
           CALL tend0(.TRUE.)
 
           CALL run_SALSA(nxp,nyp,nzp,n4,nbins,ncld,nprc,nice,nsnw, &
@@ -205,14 +218,18 @@ contains
                   cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
                   auto_rr, auto_nr, auto_rs, auto_ns, &
                   cact_rc, cact_nc, nucl_ri, nucl_ni, &
-                  melt_ri, melt_ni, melt_rs, melt_ns)
+                  melt_ri, melt_ni, melt_rs, melt_ns, &
+                  sflg, out_mcrp_nout, out_mcrp_data, out_mcrp_list)
 
           CALL tend_constrain(n4)
+          IF (sflg) CALL les_rate_stats('mcrp')
+          call update_sclrs
+
+          ! Save user-selected details about SALSA microphysics
+          IF (sflg) CALL mcrp_var_save()
        END IF
 
     end if ! level
-
-    call update_sclrs
 
     !-------------------------------------------
     ! "Deposition" timestep
@@ -224,6 +241,13 @@ contains
         CALL micro(level)
 
         IF (level >= 4) CALL tend_constrain(n4)
+
+        IF (sflg .AND. level == 3) CALL les_rate_stats('mcrp')
+        IF (sflg .AND. level >= 4) CALL les_rate_stats('sedi')
+
+        ! Save user-selected details about Seifert and Beheng microphysics
+        IF (sflg .AND. level == 3) CALL mcrp_var_save()
+
         CALL update_sclrs
     END IF
 
@@ -234,8 +258,9 @@ contains
 
     CALL fadvect
 
-    IF (level >= 4)  &
-         CALL tend_constrain(n4)
+    IF (level >= 4) CALL tend_constrain(n4)
+
+    IF (sflg) CALL les_rate_stats('advf')
 
     CALL update_sclrs
 
@@ -255,6 +280,10 @@ contains
         ENDIF
 
         CALL nudging(time)
+
+        IF (level >= 4) CALL tend_constrain(n4)
+
+        IF (sflg) CALL les_rate_stats('nudg')
 
         CALL update_sclrs
 
@@ -281,6 +310,10 @@ contains
     IF (level >= 4)  THEN
          CALL SALSA_diagnostics(.false.)
          call thermo(level)
+         IF (sflg) THEN
+            CALL les_rate_stats('diag') ! This includes both calls
+            call tend0(.TRUE.) ! Tendencies were calculated for this purpose only, so set to zero now
+         ENDIF
     ENDIF
 
     if (sflg) then
@@ -828,6 +861,8 @@ contains
     USE grid, ONLY : nxp,nyp,nzp,nbins,ncld,nprc,nice,nsnw,nspec, &
                      a_naerop,a_maerop,a_ncloudp,a_mcloudp,a_nprecpp,a_mprecpp,      &
                      a_nicep,a_micep,a_nsnowp,a_msnowp,a_gaerop, &
+                     a_naerot,a_maerot,a_ncloudt,a_mcloudt,a_nprecpt,a_mprecpt,      &
+                     a_nicet,a_micet,a_nsnowt,a_msnowt,a_gaerot, &
                      a_rh, a_temp, a_rhi, a_dn, level, dtl, &
                      diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr, diag_ri, diag_ni, diag_rs, diag_ns, &
                      tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
@@ -836,7 +871,7 @@ contains
                      surfw0, rg, nlim, prlim, pi, pi6, &
                      lscndgas, part_h2so4, part_ocnv, iso, ioc, isog, iocg, &
                      aerobins, calc_correlation
-
+    USE stat, ONLY : sflg
     IMPLICIT NONE
 
     LOGICAL :: reset_stats
@@ -865,6 +900,17 @@ contains
         diag_rr=0.; diag_nr=0.
         diag_ri=0.; diag_ni=0.
         diag_rs=0.; diag_ns=0.
+    ENDIF
+
+    IF (sflg .AND. reset_stats) THEN
+        ! Statistics output step: need to calculate tendencies over
+        ! both calls, so use tendencies as temporary variables!
+        a_naerot=a_naerop; a_maerot=a_maerop
+        a_ncloudt=a_ncloudp; a_mcloudt=a_mcloudp
+        a_nprecpt=a_nprecpp; a_mprecpt=a_mprecpp
+        a_nicet=a_nicep; a_micet=a_micep
+        a_nsnowt=a_nsnowp; a_msnowt=a_msnowp
+        a_gaerot=a_gaerop
     ENDIF
 
     nn = nspec + 1 ! Aerosol components + water
@@ -1151,6 +1197,20 @@ contains
     diag_ni(:,:,:)=diag_ni(:,:,:)+( SUM(a_nicep,DIM=4)-tmp_ni(:,:,:) )/dtl
     diag_rs(:,:,:)=diag_rs(:,:,:)+( SUM(a_msnowp(:,:,:,1:nsnw),DIM=4)-tmp_rs(:,:,:) )/dtl
     diag_ns(:,:,:)=diag_ns(:,:,:)+( SUM(a_nsnowp,DIM=4)-tmp_ns(:,:,:) )/dtl
+
+    IF (sflg .AND. .NOT.reset_stats) THEN
+        a_naerot=(a_naerop-a_naerot)/dtl
+        a_maerot=(a_maerop-a_maerot)/dtl
+        a_ncloudt=(a_ncloudp-a_ncloudt)/dtl
+        a_mcloudt=(a_mcloudp-a_mcloudt)/dtl
+        a_nprecpt=(a_nprecpp-a_nprecpt)/dtl
+        a_mprecpt=(a_mprecpp-a_mprecpt)/dtl
+        a_nicet=(a_nicep-a_nicet)/dtl
+        a_micet=(a_micep-a_micet)/dtl
+        a_nsnowt=(a_nsnowp-a_nsnowt)/dtl
+        a_msnowt=(a_msnowp-a_msnowt)/dtl
+        a_gaerot=(a_gaerop-a_gaerot)/dtl
+    ENDIF
 
     !!!!!!!!!!!!!!!!!!!!!!!
     ! Update diagnostic tracers

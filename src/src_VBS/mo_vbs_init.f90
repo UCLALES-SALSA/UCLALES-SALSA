@@ -24,7 +24,7 @@ SUBROUTINE init_vbs(nvbs_setup, laqsoa)
             id_oh, id_no3, id_o3, conc_oh, conc_no3, conc_o3, ox_prescribed, ngases_diag
     ! Inputs
     LOGICAL, INTENT(IN) :: laqsoa
-    INTEGER, INTENT(IN) :: nvbs_setup !,nbins
+    INTEGER, INTENT(IN) :: nvbs_setup
     ! Local
     INTEGER :: i, j
     CHARACTER(LEN=3) :: tmp

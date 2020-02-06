@@ -122,12 +122,14 @@ contains
     w(:,:)=0.01*3.84e-4*( a_ustar(:,:)/vonk*log(10.0/zs) )**3.41
 
     ! Particle concentration tendency for each size bin
+    dcdt(:,:,:)=0.
     DO k=1,n
         ! Mean flux: 0.5*(flx(k)+flx(k+1))
         ! From dFp/dlog(Dp) to dFp: multiply by log10(rad(k+1)/rad(k))
         ! Multiply by the whitecap cover w
         ! Convert #/m^2/s to the rate of change in concetration (#/kg/s): multily by 1/rho/dz
-        dcdt(:,:,k)=0.5*(flx(k)+flx(k+1))*log10(rad(k+1)/rad(k))*w(:,:)/a_dn(2,:,:)/(zm(3)-zm(2))
+        dcdt(3:nxp-2,3:nyp-2,k)=0.5*(flx(k)+flx(k+1))*log10(rad(k+1)/rad(k))* &
+                w(3:nxp-2,3:nyp-2)/a_dn(2,3:nxp-2,3:nyp-2)/(zm(3)-zm(2))
     ENDDO
 
   END SUBROUTINE get_aero_flux

@@ -45,7 +45,7 @@ contains
   subroutine initialize
 
     use step, only : time, outflg, salsa_diag_update, anl_start, nudging
-    use stat, only : init_stat
+    use stat, only : init_stat, sflg, out_mcrp_nout
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
@@ -89,7 +89,8 @@ contains
                   cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
                   auto_rr, auto_nr, auto_rs, auto_ns, &
                   cact_rc, cact_nc, nucl_ri, nucl_ni, &
-                  melt_ri, melt_ni, melt_rs, melt_ns)
+                  melt_ri, melt_ni, melt_rs, melt_ns, &
+                  sflg, out_mcrp_nout)
 
           CALL SALSAInit
           CALL SALSA_diag_update

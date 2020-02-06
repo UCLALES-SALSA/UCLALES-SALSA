@@ -154,7 +154,6 @@ MODULE mo_submctl
   INTEGER :: nspec = 1 ! Does not include water
   INTEGER, PARAMETER :: maxspec = 7
   CHARACTER(len=3) :: listspec(maxspec) = (/'SO4','   ','   ','   ','   ','   ','   '/)
-  REAL :: indiss(maxnspec) = -1., indens(maxnspec) = -1., inmw(maxnspec) = -1.
 
   ! Volume fractions between aerosol species for A and B-bins
   REAL :: volDistA(maxspec) = (/1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
@@ -242,27 +241,16 @@ MODULE mo_submctl
    surfw0 = 0.073,        & ! surface tension of pure water @ ~ 293 K [J/m2]
    surfi0 = 0.105           ! surface tension of ice
 
-  REAL, PARAMETER :: &
-                        ! molar mass [kg/mol]
-   msu = 98.08e-3,        & ! sulphate
-   mno = 62.01e-3,        & ! HNO3
-   mnh = 18.04e-3,        & ! NH3
-   moc = 150.e-3,         & ! organic carbon
-   mbc = 12.e-3,          & ! black carbon
-   mss = 58.44e-3,        & ! sea salt (NaCl)
-   mdu = 100.e-3,         & ! mineral dust
-   mwa = 18.016e-3,       & ! water
-                        ! densities [kg/m3]
-   rhosu = 1830.,         & ! sulphate
-   rhono = 1479.,         & ! HNO3
-   rhonh = 1530.,         & ! NH3
-   rhooc = 2000.,         & ! organic carbon
-   rhobc = 2000.,         & ! black carbon
-   rhoss = 2165.,         & ! sea salt (NaCl)
-   rhodu = 2650.,         & ! mineral dust
-   rhowa = 1000.,         & ! water
-   rhoic = 917.,          & ! ice
-   rhosn = 300.             ! snow
+  REAL, SAVE :: & ! molar mass [kg/mol], dissociation constant [-], and density [kg/m3]
+   msu = 98.08e-3,  disssu = 3.0, rhosu = 1830., & ! sulphate
+   mno = 62.01e-3,  dissno = 1.0, rhono = 1479., & ! HNO3
+   mnh = 18.04e-3,  dissnh = 1.0, rhonh = 1530., & ! NH3
+   moc = 150.e-3,   dissoc = 1.0, rhooc = 2000., & ! organic carbon
+   mbc = 12.e-3,    dissbc = 0.0, rhobc = 2000., & ! black carbon
+   mss = 58.44e-3,  dissss = 2.0, rhoss = 2165., & ! sea salt (NaCl)
+   mdu = 100.e-3,   dissdu = 0.0, rhodu = 2650., & ! mineral dust
+   mwa = 18.016e-3, disswa = 1.0, rhowa = 1000., & ! water
+   rhoic = 917.,    rhosn = 300. ! densitities of ice and snow
 
   REAL, PARAMETER :: & ! diameter of condensing molecule [m]
    d_sa = 5.539376964394570e-10, & ! H2SO4

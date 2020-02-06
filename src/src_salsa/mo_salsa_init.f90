@@ -438,11 +438,19 @@ CONTAINS
                                snowbinlim,            &
                                nbin,reglim,           &
                                nspec,listspec,        &
-                               indiss,indens,inmw,    &
                                volDistA, volDistB,    &
                                salsa1a_SO4_OC,        &
                                nf2a, isdtyp,          &
                                sigmag,dpg,n,          &
+                               msu, disssu, rhosu,    &
+                               mno, dissno, rhono,    &
+                               mnh, dissnh, rhonh,    &
+                               moc, dissoc, rhooc,    &
+                               mbc, dissbc, rhobc,    &
+                               mss, dissss, rhoss,    &
+                               mdu, dissdu, rhodu,    &
+                               mwa, disswa, rhowa,    &
+                               rhoic, rhosn,          &
                                conc_h2so4, conc_ocnv, &
                                nvbs_setup, laqsoa,    &
                                ox_prescribed,         &
@@ -506,9 +514,6 @@ CONTAINS
          reglim,        & ! Low/high diameter limits for the 1a and 2a aerosol size regimes (1d table with length 4)
          nspec,         & ! Number of aerosol species used in the model
          listspec,      & ! List of strings specifying the names of the aerosol species that are active.
-         indiss,        & ! Dissociation constant (optional)
-         indens,        & ! Density [kg/m3] (optional)
-         inmw,          & ! Molecular weight [kg/mol] (optional)
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
          volDistA,      & ! Initial relative contribution [0-1] of each species to particle volume in a-bins.
          volDistB,      & ! Same as above but for b-bins
@@ -517,6 +522,16 @@ CONTAINS
          sigmag,        & ! Stdev for the 7 initial lognormal modes
          dpg,           & ! Mean diameter for the 7 initial lognormal modes
          n,             & ! Number concentration for the 7 initial lognormal modes
+
+         msu, disssu, rhosu, & ! Physical properties of the species; sulphate
+         mno, dissno, rhono, & ! HNO3
+         mnh, dissnh, rhonh, & ! NH3
+         moc, dissoc, rhooc, & ! organic carbon
+         mbc, dissbc, rhobc, & ! black carbon
+         mss, dissss, rhoss, & ! sea salt (NaCl)
+         mdu, dissdu, rhodu, & ! mineral dust
+         mwa, disswa, rhowa, & ! water
+         rhoic, rhosn,       & ! densitities of ice and snow
 
          conc_h2so4,    & ! Vapor phase concentration for sulfuric acid (#/kg)
          conc_ocnv,     & ! -||- non-volatile organics
@@ -580,9 +595,8 @@ CONTAINS
 
     USE mo_submctl, ONLY : nbin,in1a,fn1a,in2a,fn2a,in2b,fn2b,nbins,massacc, &
                            zspec,dens,diss,mws,ih2o,iso,ioc,ibc,idu,iss,inh,ino,nspec,listspec, &
-                           indiss,indens,inmw, &
-                           rhowa,mwa,rhosu,msu,rhooc,moc,rhobc,mbc, &
-                           rhodu,mdu,rhoss,mss,rhono,mno,rhonh,mnh, &
+                           rhowa,disswa,mwa,rhosu,disssu,msu,rhooc,dissoc,moc,rhobc,dissbc,mbc, &
+                           rhodu,dissdu,mdu,rhoss,dissss,mss,rhono,dissno,mno,rhonh,dissnh,mnh, &
                            nlcndgas,ngases,zgas,mws_gas, &
                            conc_h2so4,conc_ocnv,part_h2so4,part_ocnv,isog,iocg, &
                            nvbs_setup,laqsoa
@@ -623,7 +637,7 @@ CONTAINS
     ss=1
     zspec(ss)='H2O'
     dens(ss)=rhowa
-    diss(ss)=1.
+    diss(ss)=disswa
     mws(ss)=mwa
     ih2o=ss
     ! .. then normal aerosol species
@@ -632,45 +646,45 @@ CONTAINS
          SELECT CASE(listspec(ss-1))
             CASE('SO4')
                 dens(ss)=rhosu
-                diss(ss)=3.  ! H2SO4
+                diss(ss)=disssu
                 mws(ss)=msu
                 iso=ss
             CASE('OC')
                 dens(ss)=rhooc
-                diss(ss)=1.
+                diss(ss)=dissoc
                 mws(ss)=moc
                 ioc=ss
             CASE('BC')
                 dens(ss)=rhobc
-                diss(ss)=0.  ! Insoluble
+                diss(ss)=dissbc
                 mws(ss)=mbc
                 ibc=ss
             CASE('DU')
                 dens(ss)=rhodu
-                diss(ss)=0.  ! Insoluble
+                diss(ss)=dissdu
                 mws(ss)=mdu
                 idu=ss
             CASE('SS')
                 dens(ss)=rhoss
-                diss(ss)=2.  ! NaCl
+                diss(ss)=dissss
                 mws(ss)=mss
                 iss=ss
             CASE('NO')
                 dens(ss)=rhono
-                diss(ss)=1.  ! NO3- ??
+                diss(ss)=dissno
                 mws(ss)=mno
                 ino=ss
             CASE('NH')
                 dens(ss)=rhonh
-                diss(ss)=1.  ! NH4+ ??
+                diss(ss)=dissnh
                 mws(ss)=mnh
                 inh=ss
             CASE('VB1','VB2','VB3','VB4','VB5','VB6','VB7','VB8','VB9')
                 ! Volatility Basis Set (VBS) bins: their properties will be specified later in the VBS setup. However,
                 ! these species should be listed here when initial aerosol-phase volume fractions will be specified.
-                !dens(ss) = 1320.0
-                !diss(ss) = 0.0047
-                !mw(ss) = 186e-3
+                !dens(ss)=densoc
+                !diss(ss)=dissoc
+                !mw(ss)=mwoc
                 ! Volatility bin input concentrations are separate from the default aerosol input,
                 ! so do not change the counter!
                 nspec = nspec - 1
@@ -678,10 +692,6 @@ CONTAINS
                 WRITE(*,*) 'Unkown species: '//TRIM(zspec(ss))
                 STOP
         END SELECT
-        ! Optional inputs for changing the defaults: dissociation factor, density and MW
-        IF (indiss(ss-1)>-0.5) diss(ss)=indiss(ss-1)
-        IF (indens(ss-1)>-0.5) dens(ss)=indens(ss-1)
-        IF (inmw(ss-1)>-0.5) mws(ss)=inmw(ss-1)
     END DO
 
     ! --5) Gas phase chemistry

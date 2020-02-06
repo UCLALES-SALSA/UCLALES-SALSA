@@ -102,10 +102,10 @@ contains
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau,  &
          nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau,  &
          nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, &
-         no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, anl_include, anl_exclude
+         no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, anl_include, anl_exclude, out_an_list
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
-    use stat, only : ssam_intvl, savg_intvl, csflg
+    use stat, only : ssam_intvl, savg_intvl, csflg, out_cs_list, out_ps_list, out_ts_list
     USE forc, ONLY : radsounding, case_name, sfc_albedo, &
          div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit, &
          useMcICA,RadConstPress,RadPrecipBins,RadSnowBins
@@ -160,6 +160,10 @@ contains
          no_prog_prc,        & ! no prognostic rain (level 4 or 5)
          no_prog_ice,        & ! ... or ice (level 5)
          no_prog_snw,        & ! ... or snow (level 5)
+         out_an_list,        & ! Output statistics about selected LES and microphysical processes - 4D analysis files
+         out_cs_list,        & ! - column statistics
+         out_ps_list,        & ! - profile statistics
+         out_ts_list,        & ! - time series statistics
          anl_include, anl_exclude ! Include and exclude list for analysis outputs
 
     namelist /version/  &

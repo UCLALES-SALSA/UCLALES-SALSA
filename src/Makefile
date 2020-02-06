@@ -80,8 +80,8 @@ mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o mo_vbs_init.o
 mo_submctl.o: 
 mo_salsa_cloud.o: mo_submctl.o
 mo_salsa.o: mo_submctl.o mo_salsa_dynamics.o \
-          mo_salsa_update.o mo_salsa_cloud.o
-mo_salsa_dynamics.o: mo_submctl.o mo_salsa_properties.o mo_vbs_partition.o
+          mo_salsa_update.o mo_salsa_cloud.o mo_vbs_partition.o
+mo_salsa_dynamics.o: mo_submctl.o mo_salsa_properties.o
 mo_salsa_properties.o: mo_submctl.o
 mo_salsa_update.o: mo_submctl.o
 mo_vbsctl.o:

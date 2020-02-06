@@ -45,7 +45,8 @@ contains
 
     use grid, only : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_temp,  &
          a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
-         a_srp, a_ri, a_rsi, a_rhi, a_srs
+         a_srp, a_ri, a_rsi, a_rhi, a_srs, a_dn
+    USE defs, ONLY : R
 
     integer, intent (in) :: level
 
@@ -63,6 +64,9 @@ contains
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
                       a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_rsi,a_rhi,a_srs)
     end select
+
+    ! Air density
+    a_dn(:,3:nxp-2,3:nyp-2) = a_press(:,3:nxp-2,3:nyp-2)/(R*a_temp(:,3:nxp-2,3:nyp-2))
 
   end subroutine thermo
 !
@@ -98,8 +102,7 @@ contains
 !
 
   SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,rsi,rhi,srs)
-    USE defs, ONLY : R, cp, cpr, p00, alvl, alvi
-    USE grid, ONLY : a_dn
+    USE defs, ONLY : cp, cpr, p00, alvl, alvi
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: level,n1,n2,n3
@@ -148,9 +151,6 @@ contains
                 rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))
                 rhi(k,i,j) = rv(k,i,j)/rsi(k,i,j)
              end if
-
-             ! True air density
-             a_dn(k,i,j) = p(k,i,j)/(R*tk(k,i,j))
 
           END DO
        END DO

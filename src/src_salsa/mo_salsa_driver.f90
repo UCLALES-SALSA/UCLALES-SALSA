@@ -66,7 +66,8 @@ IMPLICIT NONE
                        cond_ra, cond_rc, cond_rr, cond_ri, cond_rs,     &
                        auto_rr, auto_nr, auto_rs, auto_ns,              &
                        cact_rc, cact_nc, nucl_ri, nucl_ni,              &
-                       melt_ri, melt_ni, melt_rs, melt_ns)
+                       melt_ri, melt_ni, melt_rs, melt_ns,              &
+                       sflg, nstat, sdata, slist)
 
     USE mo_submctl, ONLY : fn2b, fnp2b, pi6, rhoic, rhosn, rhowa, dens, &
                                rhlim, lscndgas, ngases, mws_gas, nlim, prlim, nspec, maxnspec, &
@@ -104,6 +105,11 @@ IMPLICIT NONE
                                                          ! 2: Spinup period call
                                                          ! 3: Regular runtime call
     INTEGER, INTENT(in) :: level                         ! thermodynamical level
+
+    LOGICAL, INTENT(IN) :: sflg                          ! statistics sampling flag
+    INTEGER, INTENT(IN) :: nstat                         ! the number of requested outputs
+    REAL, OPTIONAL, INTENT(OUT) :: sdata(pnz,pnx,pny,nstat) ! output data (needed when saving data)
+    CHARACTER(LEN=7), OPTIONAL, DIMENSION(:), INTENT(IN) :: slist  ! names of the output variables (needed when saving data)
 
     REAL, INTENT(inout)   :: pa_naerot(pnz,pnx,pny,nbins),      & ! Aerosol number tendency
                                  pa_maerot(pnz,pnx,pny,n4*nbins),   & ! Aerosol mass tendency
@@ -143,6 +149,7 @@ IMPLICIT NONE
                 out_cact_vc, out_cact_nc, out_nucl_vi, out_nucl_ni, &
                 out_melt_vi, out_melt_ni, out_melt_vs, out_melt_ns
     REAL :: rv_old(kbdim,klev), rho
+    REAL :: out_sdata(kbdim,klev,nstat)
 
     ! Number is always set, but mass can be uninitialized
     DO ss = 1,maxnspec
@@ -157,6 +164,8 @@ IMPLICIT NONE
        ice_old(:,:,:)%volc(ss) = 0.
        snow_old(:,:,:)%volc(ss) = 0.
     END DO
+
+    IF (sflg .AND. nstat>0) sdata(:,:,:,:) = 0.
 
     ! Set the SALSA runtime config
     CALL set_salsa_runtime(prunmode,time)
@@ -295,7 +304,7 @@ IMPLICIT NONE
                         zgas,   ngases+ngases_diag,            &
                         aero,   cloud,  precp,                 &
                         ice,    snow,                          &
-                        level,                                 &
+                        level,  sflg, nstat, out_sdata, slist, &
                         out_coag_va, out_coag_na, out_coag_vc, out_coag_nc, out_coag_vr, &
                         out_coag_nr, out_coag_vi, out_coag_ni, out_coag_vs, out_coag_ns, &
                         out_cond_va, out_cond_vc, out_cond_vr, out_cond_vi, out_cond_vs, &
@@ -333,6 +342,8 @@ IMPLICIT NONE
              melt_ni(kk,ii,jj)=out_melt_ni(1,1)/pdn(kk,ii,jj)/tstep
              melt_rs(kk,ii,jj)=out_melt_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
              melt_ns(kk,ii,jj)=out_melt_ns(1,1)/pdn(kk,ii,jj)/tstep
+
+            IF (sflg .AND. nstat>0) sdata(kk,ii,jj,:) = out_sdata(1,1,:)/pdn(kk,ii,jj)/tstep
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)
              pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &

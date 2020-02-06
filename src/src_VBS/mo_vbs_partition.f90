@@ -19,8 +19,8 @@ MODULE mo_vbs_partition
   PRIVATE
 
   PUBLIC :: &
-       vbs_gas_phase_chem,&   ! VOC oxidation
-       vbs_condensation_salsa ! Vapor-liquid partitioning
+       vbs_gas_phase_chem,& ! VOC oxidation
+       vbs_condensation     ! Vapor-liquid partitioning
 
 CONTAINS
 
@@ -228,6 +228,33 @@ CONTAINS
   end function zenith
 
 
+  SUBROUTINE vbs_condensation(kbdim,  klev,       &
+            paero,  pcloud, pprecp, pice,  psnow, &
+            pc_gas, ngas,   ptemp,  ppres, ptstep )
+    ! SALSA hydrometeors
+    USE mo_submctl, ONLY : t_section, nbins, ncld, nprc, nice, nsnw
+    IMPLICIT NONE
+    !-- Input and output variables ----------
+    INTEGER, INTENT(IN) :: kbdim, klev, ngas
+    REAL, INTENT(IN) :: ptemp(kbdim,klev), ppres(kbdim,klev), ptstep
+    REAL, INTENT(INOUT) :: pc_gas(kbdim,klev,ngas)      ! gas concentrations [mol/m3]
+    TYPE(t_section), INTENT(INOUT) :: paero(kbdim,klev,nbins), pcloud(kbdim,klev,ncld), &
+        pprecp(kbdim,klev,nprc), pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
+    !-- Local variables ----------------------
+    INTEGER :: ii, jj
+
+    DO jj = 1,klev
+        DO ii = 1,kbdim
+            ! This calculates equilibrium for VBS bins, aqSOA, a non-volatile organic vapor and sulfate
+            call vbs_condensation_salsa( &
+                ptemp(ii,jj),ppres(ii,jj),ptstep,pc_gas(ii,jj,:),ngas, &
+                paero(ii,jj,:),pcloud(ii,jj,:),pprecp(ii,jj,:), &
+                pice(ii,jj,:),psnow(ii,jj,:) )
+        END DO ! kbdim
+    END DO ! klev
+
+  END SUBROUTINE vbs_condensation
+
 
   SUBROUTINE vbs_condensation_salsa(&
        ptemp,ppres,                         &
@@ -410,7 +437,7 @@ CONTAINS
     ! Note 1: VBS partitioning in the default SALSA is calculated only for the soluble a-bins, but here
     !       solubility is not predefined. Therefore, include all bins and for the known solids (ice and snow)
     !       just ignore Raoult and Kelvin effects.
-    ! Note 2: aqSOA partitioning is calculated for all bins that can contain liquid water ( aerosol, cloud and rain)
+    ! Note 2: aqSOA partitioning is calculated for all bins that can contain liquid water (aerosol, cloud and rain)
 
     ! Calculate the mass-transfer coefficient (Eq. 6.64) for a model substance (alpha-pinene) representing all
     ! semi-volatile organics (VBS, aqSOA and non-volatile organics).

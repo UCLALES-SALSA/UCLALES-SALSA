@@ -21,7 +21,7 @@
 module stat
 
   use ncio, only : open_nc, define_nc, define_nc_cs
-  use grid, only : level, lbinprof, lmixrprof, lremts, stat_micro_ts, stat_micro_ps
+  use grid, only : level, lbinprof, lmixrprof, lremts, stat_micro_ts, stat_micro_ps, maxn_list
   use util, only : get_avg3, get_cor3, get_var3, get_avg_ts, &
                    get_avg2dh, get_3rd3, HistDistr
 
@@ -45,6 +45,10 @@ module stat
   LOGICAL            :: csflg = .FALSE.
   real               :: ssam_intvl = 30.   ! statistical sampling interval
   real               :: savg_intvl = 1800. ! statistical averaging interval
+
+  ! User-selected process rate output lists (analysis ouputs in module grid)
+  CHARACTER(LEN=7), SAVE :: out_mcrp_list(maxn_list)='       ', &
+    out_cs_list(maxn_list)='       ',out_ps_list(maxn_list)='       ',out_ts_list(maxn_list)='       '
 
   ! New output variables:
   ! 1. Add them to one of the arrays below
@@ -139,11 +143,15 @@ module stat
        svctr_rate(:,:), ssclr_rate(:),                                       &
        ! Gas phase concentrations
        svctr_gas(:,:), ssclr_gas(:),                                         &
+       ! User-selected process rate outputs
+       out_cs_data(:,:,:), out_ps_data(:,:), out_ts_data(:),                 &
+       out_mcrp_data(:,:,:,:),                                               &
        ! Removal rates for columns
        scs_rm(:,:,:)
 
   ! Case-dependent dimensions: mixing ratios and removal rates and binned mixing ratio profiles for active species
-  INTEGER, SAVE :: nv1_mixr=0, nv1_rem=0, nv2_mixr=0, nv2_bin=0
+  INTEGER, SAVE :: nv1_mixr=0, nv1_rem=0, nv2_mixr=0, nv2_bin=0, &
+    nv1_proc=0, nv2_proc=0, nv3_proc=0, out_mcrp_nout=0
   CHARACTER (len=7), SAVE, ALLOCATABLE :: s1_mixr(:), s1_rem(:), s2_mixr(:), &
     s2_aa(:), s2_ab(:), s2_ca(:), s2_cb(:), s2_p(:), s2_ia(:), s2_ib(:), s2_s(:), &
     s1_gas(:), s2_gas(:)
@@ -153,7 +161,9 @@ module stat
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
        acc_tend, updtst, sfc_stat, close_stat, fill_scalar, tke_sgs, sgsflxs,&
-       sgs_vel, comp_tke, get_zi, acc_removal, cs_rem_set, csflg
+       sgs_vel, comp_tke, get_zi, acc_removal, cs_rem_set, csflg, &
+       les_rate_stats, mcrp_var_save, out_cs_list, out_ps_list, out_ts_list, &
+       out_mcrp_data, out_mcrp_list, out_mcrp_nout
 
 contains
   !
@@ -166,7 +176,7 @@ contains
   subroutine init_stat(time, filprf, expnme, nzp)
 
     use grid, only : nxp, nyp, nprc, nsnw, nspec, ngases, iradtyp, &
-        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
+        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, out_an_list, nv4_proc
     use mpi_interface, only : myid, ver, author, info
     use mo_submctl, only : fn1a,fn2a,fn2b,fnp2a,fnp2b,stat_b_bins, &
         nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt,ice_target_opt,nout_cld,nout_ice, &
@@ -215,12 +225,30 @@ contains
     s1_bool(:) = .TRUE.
     s2_bool(:) = .TRUE.
 
+    ! User selected process rate outputs: check, count and order inputs
+    CALL test_user_vars(out_ts_list,maxn_list,nv1_proc)
+    CALL test_user_vars(out_ps_list,maxn_list,nv2_proc)
+    CALL test_user_vars(out_an_list,maxn_list,nv4_proc)
+    IF (csflg) CALL test_user_vars(out_cs_list,maxn_list,nv3_proc)
+    ! Allocate data arrays (analysis data located in module grid)
+    ALLOCATE ( out_cs_data(nxp,nyp,nv3_proc), out_ps_data(nzp,nv2_proc), out_ts_data(nv1_proc) )
+    out_cs_data(:,:,:) = 0.; out_ps_data(:,:) = 0.; out_ts_data(:) = 0.
+    ! Find those process rate outputs that require raw 3D data from microphysics (SALSA or S&B)
+    out_mcrp_nout=0
+    CALL add_mcrp_list(out_mcrp_nout,out_mcrp_list,out_ts_list,maxn_list)
+    CALL add_mcrp_list(out_mcrp_nout,out_mcrp_list,out_ps_list,maxn_list)
+    CALL add_mcrp_list(out_mcrp_nout,out_mcrp_list,out_an_list,maxn_list)
+    IF (csflg) CALL add_mcrp_list(out_mcrp_nout,out_mcrp_list,out_cs_list,maxn_list)
+    ALLOCATE(out_mcrp_data(nzp,nxp,nyp,out_mcrp_nout))
+
     IF ( level < 4 ) THEN
        ! Microphysicsal process rate statistics (both ts and ps)
        ALLOCATE ( ssclr_rate(nv_lvl3_rate), svctr_rate(nzp,nv_lvl3_rate) )
        ALLOCATE ( s1_rate_bool(nv_lvl3_rate), s2_rate_bool(nv_lvl3_rate) )
        ssclr_rate(:) = 0.
        svctr_rate(:,:) = 0.
+       s1_rate_bool(:) = .FALSE.
+       s2_rate_bool(:) = .FALSE.
        IF (level==3 .AND. (stat_micro_ts .OR. stat_micro_ps)) THEN
           s1_rate_bool(1:6) = stat_micro_ts ! Coagulation, condensation and autoconversion
           s2_rate_bool(1:6) = stat_micro_ps
@@ -234,19 +262,27 @@ contains
        !
        ! Merge logical and name arrays
        ! a) Time series
-       i=nvar1+nv_lvl3_rate
+       i=nvar1+nv_lvl3_rate+nv1_proc
        ALLOCATE( s1bool(i), s1total(i) )
        i=1; e=nvar1
        s1bool(i:e)=s1_bool; s1total(i:e)=s1
        i=e+1; e=e+nv_lvl3_rate
        s1bool(i:e)=s1_rate_bool; s1total(i:e)=s_lvl3_rate
+       IF (nv1_proc>0) THEN
+          i=e+1; e=e+nv1_proc
+          s1bool(i:e)=.TRUE.; s1total(i:e)=out_ts_list(1:nv1_proc)
+       ENDIF
        ! b) Profiles
-       i=nvar2+nv_lvl3_rate
+       i=nvar2+nv_lvl3_rate+nv2_proc
        ALLOCATE( s2bool(i), s2total(i) )
        i=1; e=nvar2
        s2bool(i:e)=s2_bool; s2total(i:e)=s2
        i=e+1; e=e+nv_lvl3_rate
        s2bool(i:e)=s2_rate_bool; s2total(i:e)=s_lvl3_rate
+       IF (nv2_proc>0) THEN
+          i=e+1; e=e+nv2_proc
+          s2bool(i:e)=.TRUE.; s2total(i:e)=out_ps_list(1:nv2_proc)
+       ENDIF
     ELSE IF ( level >= 4 ) THEN
        ! Additional arrays for SALSA
        ! -- dimensions
@@ -312,7 +348,7 @@ contains
           s2_lvl5_bool((/2,5/)) = .FALSE.
        ENDIF
 
-       ! 2) Microphysicsal process rate statistics (both ts and ps)
+       ! 2) Microphysical process rate statistics (both ts and ps)
        s1_rate_bool(:) = .FALSE.
        s2_rate_bool(:) = .FALSE.
        IF (stat_micro_ts .OR. stat_micro_ps) THEN
@@ -454,7 +490,7 @@ contains
 
         ! Merge logical and name arrays
         ! a) Time series
-        i=nvar1+nv1_lvl4+nv1_lvl5+nv_salsa_rate+nv1_mixr+nv1_rem+ngases
+        i=nvar1+nv1_lvl4+nv1_lvl5+nv_salsa_rate+nv1_mixr+nv1_rem+ngases+nv1_proc
         ALLOCATE( s1bool(i), s1total(i) )
         i=1; e=nvar1
         s1bool(i:e)=s1_bool; s1total(i:e)=s1
@@ -472,8 +508,12 @@ contains
             i=e+1; e=e+ngases
             s1bool(i:e)=s1_gas_bool; s1total(i:e)=s1_gas
         ENDIF
+        IF (nv1_proc>0) THEN
+            i=e+1; e=e+nv1_proc
+            s1bool(i:e)=.TRUE.; s1total(i:e)=out_ts_list(1:nv1_proc)
+        ENDIF
         ! b) Profiles
-        i=nvar2+nv2_lvl4+nv2_lvl5+nv_salsa_rate+nv2_mixr+8*nv2_bin+2*nv2_hist+nv2_ndims+ngases
+        i=nvar2+nv2_lvl4+nv2_lvl5+nv_salsa_rate+nv2_mixr+8*nv2_bin+2*nv2_hist+nv2_ndims+ngases+nv2_proc
         ALLOCATE( s2bool(i), s2total(i) )
         i=1; e=nvar2
         s2bool(i:e)=s2_bool; s2total(i:e)=s2
@@ -511,6 +551,10 @@ contains
             i=e+1; e=e+ngases
             s2bool(i:e)=s2_gas_bool; s2total(i:e)=s2_gas
         ENDIF
+        IF (nv2_proc>0) THEN
+            i=e+1; e=e+nv2_proc
+            s2bool(i:e)=.TRUE.; s2total(i:e)=out_ps_list(1:nv2_proc)
+        ENDIF
     END IF ! If level >=4
 
     fname =  trim(filprf)//'.ts'
@@ -545,11 +589,87 @@ contains
         fname =  trim(filprf)//'.cs'
         if(myid == 0) print "(//' ',49('-')/,' ',/,'  Initializing: ',A20)",trim(fname)
         call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid3, nrec3, ver, author, info)
-        IF (ncid3>=0) CALL define_nc_cs(ncid3, nrec3, nxp-4, nyp-4, level, iradtyp, zspec(1:nspec+1), nspec+1)
+        IF (ncid3>=0) CALL define_nc_cs(ncid3, nrec3, nxp-4, nyp-4, level, iradtyp, zspec(1:nspec+1), nspec+1, &
+                                out_cs_list(1:nv3_proc), nv3_proc)
         if (myid == 0) print *, '   ...starting record: ', nrec3
     ENDIF
 
   end subroutine init_stat
+
+  ! Check user-selected process rate outputs
+  subroutine test_user_vars(list,n,nout)
+    USE ncio, ONLY : ncinfo
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: n
+    CHARACTER(LEN=7), INTENT(INOUT) :: list(n)
+    INTEGER, INTENT(OUT) :: nout
+    ! Local
+    INTEGER :: i, j, k
+    LOGICAL :: fail
+    CHARACTER(LEN=80) :: info
+    !
+    fail=.FALSE.
+    j = 0
+    DO i=1,n
+        IF (LEN(TRIM(list(i)))>0) THEN
+            ! Not an empty list item
+            j=j+1
+            ! Remove possible empty items so that the real data will be continuous
+            IF (j<i) THEN
+                list(j)=list(i)
+                list(i)='       '
+            ENDIF
+            ! Examine that this is a valid output (if not then ncinfo will fail)
+            info=ncinfo(0, list(i))
+            ! Check that there are no duplicates
+            DO k=1,j-1
+                IF (list(k)==list(j)) THEN
+                    WRITE(*,*)" Error: duplicate item #",i," '"//TRIM(list(k))//"' in the output list!"
+                    fail=.TRUE.
+                ENDIF
+            ENDDO
+        ENDIF
+    ENDDO
+    ! Stop if failures
+    IF (fail) stop
+    !
+    ! Return the true number of list items
+    nout=j
+    !
+  end subroutine test_user_vars
+
+  ! Add microphysics-related outputs to list "base" from the common list "add"
+  SUBROUTINE add_mcrp_list(j,base,add,n)
+    IMPLICIT NONE
+    ! Inputs
+    INTEGER, INTENT(INOUT) :: j
+    INTEGER, INTENT(IN) :: n
+    CHARACTER(LEN=7), INTENT(INOUT) :: base(n)
+    CHARACTER(LEN=7), INTENT(IN) :: add(n)
+    ! Local
+    INTEGER :: i, k
+    LOGICAL :: dupl
+    CHARACTER(LEN=4) :: short
+    !
+    DO i=1,n
+        IF (LEN(TRIM(add(i)))>0) THEN
+            ! Do not include LES items (any prefix used in the calls from t_step/step.f90)
+            short=add(i)
+            IF (short=='srfc' .OR. short=='diff' .OR. short=='forc' .OR. short=='mcrp' .OR. &
+                short=='advf' .OR. short=='nudg' .OR. (level>3 .AND. (short=='diag' .OR. short=='sedi')) ) CYCLE
+            ! Check that there are no duplicates
+            dupl=.FALSE.
+            DO k=1,j
+                IF (base(k)==add(i)) dupl=.true.
+            ENDDO
+            IF (.not.dupl) THEN
+                j=j+1
+                base(j)=add(i)
+            ENDIF
+        ENDIF
+    ENDDO
+  END SUBROUTINE add_mcrp_list
+
   !
   ! ---------------------------------------------------------------------
   ! Subroutine Statistics:  This subroutine is the statistics driver
@@ -575,6 +695,7 @@ contains
 
     real :: rxt(nzp,nxp,nyp), rxl(nzp,nxp,nyp), rxv(nzp,nxp,nyp), rnt(nzp,nxp,nyp)
     REAL :: xrpp(nzp,nxp,nyp), xnpp(nzp,nxp,nyp), thl(nzp,nxp,nyp)
+    INTEGER :: i
 
     SELECT CASE(level)
        CASE (3)
@@ -687,6 +808,13 @@ contains
             xrpp = a_srs
             xnpp = a_snrs
             CALL set_cs_cold(nzp,nxp,nyp,rxt,rnt,xrpp,xnpp,dn0,zm,xt,yt,time)
+        ENDIF
+
+        ! User-selected process rate outputs
+        IF (nv3_proc>0) THEN
+            DO i = 1,nv3_proc
+                CALL set_cs_any(nxp,nyp,out_cs_data(:,:,i),out_cs_list(i))
+            ENDDO
         ENDIF
 
         nrec3 = nrec3 + 1
@@ -2435,6 +2563,15 @@ contains
        ssclr_gas(n) = 0.
     END DO
 
+    ! User-selected process rate outputs
+    IF (nv1_proc>0) THEN
+       DO n=1,nv1_proc
+          iret = nf90_inq_varid(ncid1, out_ts_list(n), VarID)
+          IF (iret == NF90_NOERR) iret = nf90_put_var(ncid1, VarID, out_ts_data(n), start=(/nrec1/))
+        ENDDO
+        out_ts_data(:) = 0.
+    ENDIF
+
     if (myid==0) print "(/' ',12('-'),'   Record ',I3,' to time series')",nrec1
 
     iret = nf90_sync(ncid1)
@@ -2693,6 +2830,17 @@ contains
        END DO
        svctr_gas(:,:)=0.
     END IF
+
+    IF (nv2_proc>0) THEN
+        DO n=1,nv2_proc
+            iret = nf90_inq_varid(ncid2, out_ps_list(n), VarID)
+            IF (iret == NF90_NOERR) THEN
+                ! Instantaneous, so no need to divide by nsmp: out_ps_data(:,n)=out_ps_data(:,n)/nsmp
+                iret = nf90_put_var(ncid2,VarID,out_ps_data(:,n), start=(/1,nrec2/),count=(/n1,1/))
+            ENDIF
+        ENDDO
+        out_ps_data(:,:) = 0.
+    ENDIF
 
     if (myid==0) print "(/' ',12('-'),'   Record ',I3,' to profiles')",nrec2
 
@@ -2979,6 +3127,158 @@ contains
 
   end subroutine updtst
 
+
+  ! -------------------------------------------------------------------------
+  ! Produce user-requested (out_ts_list, out_ps_list, out_cs_list and out_an_list) outputs that give
+  ! information about the effects of LES and microphysics function calls on prognostic variables.
+  ! These calculations are instantaneous and the outputs describe the rate of change (tendency).
+  !
+  ! a) Data from SALSA or S&B microphysics is ready for calculations
+  SUBROUTINE mcrp_var_save()
+    USE grid, ONLY : nxp, nyp, nzp
+    IMPLICIT NONE
+    INTEGER :: i
+    !
+    ! 4D array out_mcrp_data contains 3D data arrays whose names are
+    ! specified in the out_mcrp_list containing out_mcrp_nout items
+    DO i=1,out_mcrp_nout
+        ! Calculate different outputs
+        CALL scalar_rate_stat(out_mcrp_list(i),nzp,nxp,nyp,out_mcrp_data(:,:,:,i))
+    ENDDO
+    !
+  END SUBROUTINE mcrp_var_save
+  !
+  ! b) LES is has data (tendencies) for outputs (several function calls from t_step in step.f90)
+  SUBROUTINE les_rate_stats(prefix)
+    USE grid, ONLY : nxp, nyp, nzp, nbins, ncld, nprc, nice, nsnw, nspec, &
+                     a_naerot, a_maerot, a_ncloudt, a_mcloudt, a_nprecpt, a_mprecpt, &
+                     a_nicet,  a_micet, a_nsnowt, a_msnowt, level, &
+                     a_tt, a_rt,a_rpt, a_npt
+    use defs, only : cp
+    IMPLICIT NONE
+    ! Input
+    character (len=4), intent (in) :: prefix ! 'srfc', 'diff', 'forc', 'mcrp', 'sedi', 'advf',...
+    !
+    ! [Ice-liquid water] potential temperature tendency: convert to heating rate [W/kg] by multiplying with heat capacity
+    CALL scalar_rate_stat(prefix//'_tt',nzp,nxp,nyp,a_tt,factor=cp)
+    !
+    ! Concentrations
+    IF (level==3) THEN
+        ! Level 3: total water (a_rt) and rain water mass and droplet number
+        CALL scalar_rate_stat(prefix//'_rt',nzp,nxp,nyp,a_rt)
+        CALL scalar_rate_stat(prefix//'_nr',nzp,nxp,nyp,a_npt)
+        CALL scalar_rate_stat(prefix//'_rr',nzp,nxp,nyp,a_rpt)
+    ENDIF
+    IF (level>=4) THEN
+        ! Level 4: water vapor (a_rt) and liquid hydrometeors
+        CALL scalar_rate_stat(prefix//'_rg',nzp,nxp,nyp,a_rt)
+        ! SALSA tendencies are 4D arrays
+        CALL salsa_rate_stat(prefix//'_na',nzp,nxp,nyp,nbins,1,a_naerot)
+        CALL salsa_rate_stat(prefix//'_ra',nzp,nxp,nyp,nbins,nspec+1,a_maerot)
+        CALL salsa_rate_stat(prefix//'_nc',nzp,nxp,nyp,ncld,1,a_ncloudt)
+        CALL salsa_rate_stat(prefix//'_rc',nzp,nxp,nyp,ncld,nspec+1,a_mcloudt)
+        CALL salsa_rate_stat(prefix//'_nr',nzp,nxp,nyp,nprc,1,a_nprecpt)
+        CALL salsa_rate_stat(prefix//'_rr',nzp,nxp,nyp,nprc,nspec+1,a_mprecpt)
+    ENDIF
+    IF (level>=5) THEN
+        ! Level 5: level 4 + frozen hydrometeors
+        CALL salsa_rate_stat(prefix//'_ni',nzp,nxp,nyp,nice,1,a_nicet)
+        CALL salsa_rate_stat(prefix//'_ri',nzp,nxp,nyp,nice,nspec+1,a_micet)
+        CALL salsa_rate_stat(prefix//'_ns',nzp,nxp,nyp,nsnw,1,a_nsnowt)
+        CALL salsa_rate_stat(prefix//'_rs',nzp,nxp,nyp,nsnw,nspec+1,a_msnowt)
+    ENDIF
+    !
+  END SUBROUTINE les_rate_stats
+  !
+  ! Scalar 3D arrays
+  SUBROUTINE scalar_rate_stat(vname,n1,n2,n3,tend,factor)
+    USE grid, ONLY : dzt, a_dn, out_an_list, out_an_data
+    IMPLICIT NONE
+    ! Inputs
+    character (len=7), intent (in) :: vname ! Variable name such as 'diag_rr'
+    INTEGER, INTENT(IN) :: n1,n2,n3 ! Dimensions
+    REAL, INTENT(in) :: tend(n1,n2,n3) ! Tendency array
+    REAL, OPTIONAL, INTENT(in) :: factor ! Scaling factor for e.g. unit conversions
+    ! Local
+    INTEGER :: i, k
+    REAL :: tmp(n1,n2,n3), col(n1), area(n2,n3), fact
+    !
+    fact=1.0
+    IF (PRESENT(factor)) fact=factor
+    !
+    ! Is this output selected
+    DO i=1,maxn_list
+        IF ( vname == out_an_list(i) ) THEN
+            ! Analysis data as is (per mass of air)
+            out_an_data(:,:,:,i) = tend(:,:,:)*fact
+        ENDIF
+        IF ( vname == out_ts_list(i) .OR. vname == out_ps_list(i) ) THEN
+            ! Averaged tendencies are weighted by air density
+            tmp(:,:,:) = tend(:,:,:)*a_dn(:,:,:)
+            ! Average over horizontal dimensions
+            CALL get_avg3(n1,n2,n3,tmp,col)
+            ! Profile
+            IF ( vname == out_ps_list(i) ) out_ps_data(:,i) = col(:)*fact
+            ! Integrate over vertical dimension to get the domain mean
+            IF ( vname == out_ts_list(i) ) out_ts_data(i) = SUM( col(2:n1)/dzt(2:n1) )*fact
+        ENDIF
+        IF ( csflg .AND. vname == out_cs_list(i) ) THEN
+            ! Column outputs are integrals over vertical dimension (per volume of air)
+            area(:,:) = 0.
+            do k=2,n1
+                area(:,:)=area(:,:)+tend(k,:,:)*a_dn(k,:,:)/dzt(k)
+            ENDDO
+            out_cs_data(:,:,i) = area(:,:)*fact
+        ENDIF
+    ENDDO
+  END SUBROUTINE scalar_rate_stat
+  !
+  ! SALSA concentration arrays (4D)
+  SUBROUTINE salsa_rate_stat(vname,n1,n2,n3,nb,ns,tend,factor)
+    USE grid, ONLY : dzt, a_dn, out_an_list, out_an_data
+    IMPLICIT NONE
+    ! Inputs
+    character (len=7), intent (in) :: vname ! Variable name such as 'diag_rr'
+    INTEGER, INTENT(IN) :: n1,n2,n3,nb,ns ! Dimensions (ns=1 for number)
+    REAL, INTENT(in) :: tend(n1,n2,n3,nb*ns) ! Tendency array
+    REAL, OPTIONAL, INTENT(in) :: factor ! Scaling factor for e.g. unit conversions
+    ! Local
+    INTEGER :: i, k
+    REAL :: tmp(n1,n2,n3), col(n1), area(n2,n3), fact
+    !
+    fact=1.0
+    IF (PRESENT(factor)) fact=factor
+    !
+    ! Is this output selected
+    DO i=1,maxn_list
+        IF ( vname == out_an_list(i) ) THEN
+            ! Analysis data as is (per mass of air)
+            out_an_data(:,:,:,i) = SUM(tend(:,:,:,1:nb),DIM=4)*fact
+        ENDIF
+        IF ( vname == out_ts_list(i) .OR. vname == out_ps_list(i) ) THEN
+            ! Averaged tendencies are weighted by air density
+            tmp(:,:,:) = SUM(tend(:,:,:,1:nb),DIM=4)*a_dn(:,:,:)
+            ! Average over horizontal dimensions
+            CALL get_avg3(n1,n2,n3,tmp,col)
+            ! Profile
+            IF ( vname == out_ps_list(i) ) out_ps_data(:,i) = col(:)*fact
+            ! Integrate over vertical dimension to get the domain mean
+            IF ( vname == out_ts_list(i) ) out_ts_data(i) = SUM( col(2:n1)/dzt(2:n1) )*fact
+            ! Integral over vertial dimension and then average over horizontal dimensions.
+        ENDIF
+        IF ( csflg .AND. vname == out_cs_list(i) ) THEN
+            ! Column outputs are integrals over vertical dimension (per volume of air)
+            tmp(:,:,:) = SUM(tend(:,:,:,1:nb),DIM=4)*a_dn(:,:,:)
+            ! Calculate integral over vertical dimension
+            area(:,:) = 0.
+            do k=2,n1
+                area(:,:)=area(:,:)+tmp(k,:,:)/dzt(k)
+            ENDDO
+            out_cs_data(:,:,i) = area(:,:)*fact
+        ENDIF
+    ENDDO
+  END SUBROUTINE salsa_rate_stat
+  !
   !
   ! -------------------------------------------------------------------------
   ! Similar to updtst but intended for making temporal statistics of the
