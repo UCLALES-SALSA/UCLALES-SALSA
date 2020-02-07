@@ -30,9 +30,6 @@ module mcrp
        a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
        nbins, ncld, nprc, nice, nsnw, nspec, &
        aerin, cldin, icein, snowin, calc_eff_radius, &
-       sedi_ra, sedi_na, sedi_rc, sedi_nc, sedi_rr, sedi_nr, &
-       sedi_ri, sedi_ni, sedi_rs, sedi_ns, &
-       coag_rr, coag_nr, cond_rr, cond_nr, auto_rr, auto_nr, diag_rr, diag_nr, &
        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
   use stat, only : sflg, updtst, acc_removal, cs_rem_set, out_mcrp_nout, out_mcrp_data, out_mcrp_list
   USE mo_submctl, ONLY : terminal_vel
@@ -82,18 +79,6 @@ contains
             sed_ice = .FALSE.; sed_snow = .FALSE.
        ENDIF
 
-       ! Sedimentation is described with water mass (kg/kg/s) and particle number (#/kg/s) divergence fields
-       sedi_ra(:,:,:)=SUM(a_maerot(:,:,:,1:nbins),DIM=4)
-       sedi_na(:,:,:)=SUM(a_naerot,DIM=4)
-       sedi_rc(:,:,:)=SUM(a_mcloudt(:,:,:,1:ncld),DIM=4)
-       sedi_nc(:,:,:)=SUM(a_ncloudt,DIM=4)
-       sedi_rr(:,:,:)=SUM(a_mprecpt(:,:,:,1:nprc),DIM=4)
-       sedi_nr(:,:,:)=SUM(a_nprecpt,DIM=4)
-       sedi_ri(:,:,:)=SUM(a_micet(:,:,:,1:nice),DIM=4)
-       sedi_ni(:,:,:)=SUM(a_nicet,DIM=4)
-       sedi_rs(:,:,:)=SUM(a_msnowt(:,:,:,1:nsnw),DIM=4)
-       sedi_ns(:,:,:)=SUM(a_nsnowt,DIM=4)
-
        CALL sedim_SALSA(nzp,nxp,nyp,nspec+1, dtl, a_temp, a_theta,           &
                         a_naerop,  a_naerot,  a_maerop,  a_maerot,           &
                         a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,          &
@@ -102,16 +87,6 @@ contains
                         a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,           &
                         a_ustar, aerin, cldin, precip, icein, snowin, a_tt  )
 
-       sedi_ra(:,:,:)=SUM(a_maerot(:,:,:,1:nbins),DIM=4)-sedi_ra(:,:,:)
-       sedi_na(:,:,:)=SUM(a_naerot,DIM=4)-sedi_na(:,:,:)
-       sedi_rc(:,:,:)=SUM(a_mcloudt(:,:,:,1:ncld),DIM=4)-sedi_rc(:,:,:)
-       sedi_nc(:,:,:)=SUM(a_ncloudt,DIM=4)-sedi_nc(:,:,:)
-       sedi_rr(:,:,:)=SUM(a_mprecpt(:,:,:,1:nprc),DIM=4)-sedi_rr(:,:,:)
-       sedi_nr(:,:,:)=SUM(a_nprecpt,DIM=4)-sedi_nr(:,:,:)
-       sedi_ri(:,:,:)=SUM(a_micet(:,:,:,1:nice),DIM=4)-sedi_ri(:,:,:)
-       sedi_ni(:,:,:)=SUM(a_nicet,DIM=4)-sedi_ni(:,:,:)
-       sedi_rs(:,:,:)=SUM(a_msnowt(:,:,:,1:nsnw),DIM=4)-sedi_rs(:,:,:)
-       sedi_ns(:,:,:)=SUM(a_nsnowt,DIM=4)-sedi_ns(:,:,:)
     end select
 
   end subroutine micro
@@ -130,14 +105,11 @@ contains
     real, intent (out)                        :: rrate(n1,n2,n3)
 
     integer :: i, j, k
-    real :: rp_old, np_old
     REAL :: tmp_nr(nzp,nxp,nyp), tmp_rr(nzp,nxp,nyp), tmp_rt(nzp,nxp,nyp)
     !
     ! Microphysics following Seifert Beheng (2001, 2005)
 
     ! Diagnostics (ignoring/avoiding negative values, and changes in number due to minimum and maximum volumes)
-    diag_rr(:,:,:)=rp(:,:,:)
-    diag_nr(:,:,:)=np(:,:,:)
     if(sflg) CALL sb_var_stat('diag',2) ! Use rain concentrations
     do j=3,n3-2
        do i=3,n2-2
@@ -148,50 +120,31 @@ contains
        end do
     end do
     if(sflg) CALL sb_var_stat('diag',3) ! ... simple difference
-    diag_rr(:,:,:)=(rp(:,:,:)-diag_rr(:,:,:))/dtl
-    diag_nr(:,:,:)=(np(:,:,:)-diag_nr(:,:,:))/dtl
 
     ! Condensation/evaporation
-    cond_rr(:,:,:)=rpt(:,:,:)
-    cond_nr(:,:,:)=npt(:,:,:) ! Level 3 only
     if(sflg) CALL sb_var_stat('cond',0) ! Use rain tendencies
     call wtr_dff_SB(n1,n2,n3,dn0,rp,np,rs,rv,tk,rpt,npt)
     if(sflg) CALL sb_var_stat('cond',1) ! ... simple difference
-    cond_rr(:,:,:)=rpt(:,:,:)-cond_rr(:,:,:)
-    cond_nr(:,:,:)=npt(:,:,:)-cond_nr(:,:,:)
 
     ! Autoconversion
-    auto_rr(:,:,:)=rpt(:,:,:)
-    auto_nr(:,:,:)=npt(:,:,:)
     if(sflg) CALL sb_var_stat('auto',0) ! Use rain tendencies
     call auto_SB(n1,n2,n3,dn0,rc,rp,rpt,npt)
     if(sflg) CALL sb_var_stat('auto',1) ! ... simple difference
-    auto_rr(:,:,:)=rpt(:,:,:)-auto_rr(:,:,:)
-    auto_nr(:,:,:)=npt(:,:,:)-auto_nr(:,:,:)
 
     ! Accretion - coagulation
-    coag_rr(:,:,:)=rpt(:,:,:)
-    coag_nr(:,:,:)=npt(:,:,:)
     if(sflg) CALL sb_var_stat('coag',0) ! Use rain tendenciess
     call accr_SB(n1,n2,n3,dn0,rc,rp,np,rpt,npt)
     if(sflg) CALL sb_var_stat('coag',1) ! ... simple difference
-    coag_rr(:,:,:)=rpt(:,:,:)-coag_rr(:,:,:)
-    coag_nr(:,:,:)=npt(:,:,:)-coag_nr(:,:,:)
 
     ! Apply tendencies
     if(sflg) CALL sb_var_stat('diag',2) ! Use rain concentrations
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1-1
-             rp_old=rp(k,i,j); np_old = np(k,i,j)
-             !
              rp(k,i,j) = rp(k,i,j) + max(-rp(k,i,j)/dtl,rpt(k,i,j))*dtl
              np(k,i,j) = np(k,i,j) + max(-np(k,i,j)/dtl,npt(k,i,j))*dtl
              rp(k,i,j) = max(0., rp(k,i,j))
              np(k,i,j) = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
-             !
-             diag_rr(k,i,j)=diag_rr(k,i,j)+(rp(k,i,j)-rp_old)/dtl-rpt(k,i,j)
-             diag_nr(k,i,j)=diag_nr(k,i,j)+(np(k,i,j)-np_old)/dtl-npt(k,i,j)
           end do
        end do
     end do
@@ -200,19 +153,13 @@ contains
     npt(:,:,:)= 0.
 
     ! Sedimentation
-    sedi_rr(:,:,:)=rpt(:,:,:)
-    sedi_nr(:,:,:)=npt(:,:,:)
     if(sflg) CALL sb_var_stat('sedi',0) ! Use rain and total water tendencies
     rrate(:,:,:)=0.
     if (sed_precp) call sedim_rd(n1,n2,n3,dtl,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
-    sedi_rr(:,:,:)=rpt(:,:,:)-sedi_rr(:,:,:)
-    sedi_nr(:,:,:)=npt(:,:,:)-sedi_nr(:,:,:)
 
     ! Note: rc is not updated after autoconversion and accretion!
-    sedi_rc(:,:,:)=rtt(:,:,:)
     if (sed_cloud) call sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
     if(sflg) CALL sb_var_stat('sedi',1) ! ... simple difference
-    sedi_rc(:,:,:)=rtt(:,:,:)-sedi_rc(:,:,:)
 
   CONTAINS
 

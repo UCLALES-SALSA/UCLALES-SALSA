@@ -133,10 +133,7 @@ contains
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                      a_gaerop, a_gaerot,                                                &
                      nspec, nbins, ncld, nprc, nice, nsnw, &
-                     nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
-                     coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, coag_ri, coag_ni, coag_rs, coag_ns, &
-                     cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, auto_rr, auto_nr, auto_rs, auto_ns, &
-                     cact_rc, cact_nc, nucl_ri, nucl_ni, melt_ri, melt_ni, melt_rs, melt_ns
+                     nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn
 
     use stat, only : sflg, statistics, les_rate_stats, out_mcrp_data, out_mcrp_list, out_mcrp_nout, mcrp_var_save
     use sgsm, only : diffuse
@@ -179,15 +176,15 @@ contains
     END IF
 
     IF (sflg) CALL les_rate_stats('srfc')
-    !call update_sclrs
-    !CALL tend0(.TRUE.)
+    call update_sclrs
+    CALL tend0(.TRUE.)
 
     call diffuse
 
-    !IF (level>3) CALL tend_constrain(n4)
-    !IF (sflg) CALL les_rate_stats('diff')
-    !call update_sclrs
-    !CALL tend0(.TRUE.)
+    IF (level>3) CALL tend_constrain(n4)
+    IF (sflg) CALL les_rate_stats('diff')
+    call update_sclrs
+    CALL tend0(.TRUE.)
 
     call sponge(0)
 
@@ -213,13 +210,7 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_gaerop,  a_gaerot,  zrm, dtl, time, level, &
-                  coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
-                  coag_ri, coag_ni, coag_rs, coag_ns, &
-                  cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
-                  auto_rr, auto_nr, auto_rs, auto_ns, &
-                  cact_rc, cact_nc, nucl_ri, nucl_ni, &
-                  melt_ri, melt_ni, melt_rs, melt_ns, &
-                  sflg, out_mcrp_nout, out_mcrp_data, out_mcrp_list)
+                  sflg, out_mcrp_nout, out_mcrp_list, out_mcrp_data)
 
           CALL tend_constrain(n4)
           IF (sflg) CALL les_rate_stats('mcrp')
@@ -334,6 +325,7 @@ contains
     use grid, only : level, dtl, nxp, nyp, nzp, nbins, ncld, nice, &
                 zt, a_rp, a_rt, a_rc, a_srp, a_ri, a_srs, &
                 a_naerop, a_naerot, a_ncloudp, a_nicep, &
+                nspec, a_dn, a_maerop, a_maerot, &
                 a_tp, a_tt, a_up, a_ut, a_vp, a_vt, &
                 !th0, th00, rt0, u0, v0, &
                 nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
@@ -342,7 +334,7 @@ contains
                 nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau, &
                 nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, &
                 theta_ref, rv_ref, u_ref, v_ref, aero_ref, nudge_init
-    USE mo_submctl, ONLY : in2a
+    USE mo_submctl, ONLY : in2a, nlim
 
     IMPLICIT NONE
     REAL, INTENT(IN) :: time
@@ -436,6 +428,8 @@ contains
         ! Apply to sectional data
         CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,aero_target,a_naerot,aero_ref,dtl,time,nudge_ccn, &
             nudge_ccn_time,nudge_ccn_zmin,nudge_ccn_zmax,nudge_ccn_tau)
+        ! Change aerosol mass so that the mean dry and wet sizes are unchanged
+        CALL adj_salsa_maerot(nxp,nyp,nzp,nbins,nspec,nlim,a_dn,a_naerop,a_naerot,a_maerop,a_maerot)
     ENDIF
 
   END SUBROUTINE nudging
@@ -503,6 +497,31 @@ contains
     ENDIF
     !
   END SUBROUTINE nudge_any_2d
+  !
+  ! Calculate SALSA aerosol mass tendency so that number nudging doesn't change the mean size or composition
+  SUBROUTINE adj_salsa_maerot(nxp,nyp,nzp,nb,ns,nlim,adn,anp,ant,amp,amt)
+    IMPLICIT NONE
+    INTEGER :: nxp,nyp,nzp,nb,ns ! Dimensions
+    REAL, INTENT(IN) :: nlim ! Aerosol number concentration limit (#/m3)
+    REAL, INTENT(IN) :: adn(nzp,nxp,nyp) ! Air density (kg/m3)
+    REAL, INTENT(IN) :: anp(nzp,nxp,nyp,nb), ant(nzp,nxp,nyp,nb) ! Aerosol number and number tendency
+    REAL, INTENT(IN) :: amp(nzp,nxp,nyp,nb*(ns+1)) ! Aerosol mass
+    REAL, INTENT(INOUT) :: amt(nzp,nxp,nyp,nb*(ns+1)) ! Aerosol mass tendency
+    INTEGER :: i, j, k, bc
+    !
+    DO j = 3,nyp-2
+      DO i = 3,nxp-2
+        DO k = 1,nzp
+          DO bc = 1,nb
+            IF (anp(k,i,j,bc)*adn(k,i,j) > nlim) THEN
+              amt(k,i,j,bc:ns*nb+bc:nb) = ant(k,i,j,bc)/anp(k,i,j,bc)*amp(k,i,j,bc:ns*nb+bc:nb)
+            END IF
+          END DO
+        END DO
+      END DO
+    END DO
+    !
+  END SUBROUTINE adj_salsa_maerot
   !
   !----------------------------------------------------------------------
   ! subroutine tend0: sets all tendency arrays to zero
@@ -864,7 +883,6 @@ contains
                      a_naerot,a_maerot,a_ncloudt,a_mcloudt,a_nprecpt,a_mprecpt,      &
                      a_nicet,a_micet,a_nsnowt,a_msnowt,a_gaerot, &
                      a_rh, a_temp, a_rhi, a_dn, level, dtl, &
-                     diag_ra, diag_na, diag_rc, diag_nc, diag_rr, diag_nr, diag_ri, diag_ni, diag_rs, diag_ns, &
                      tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
     USE mo_submctl, ONLY : fn1a,in2a,fn2a, &
                      diss, mws, dens, dens_ice, dens_snow, &
@@ -880,28 +898,9 @@ contains
 
     REAL :: zvol, ra, rb
     REAL :: ns, cd
-    REAL, DIMENSION(nzp,nxp,nyp) :: tmp_ra, tmp_na, tmp_rc, tmp_nc, tmp_rr, tmp_nr, tmp_ri, tmp_ni, tmp_rs, tmp_ns
 
     ! Change in concentrations due to diagnostics (e.g. release of cloud/rain/ice/snow into aerosol,
     ! cleaning particles without mass or negligible number concentration)
-    tmp_ra(:,:,:)=SUM(a_maerop(:,:,:,1:nbins),DIM=4)
-    tmp_na(:,:,:)=SUM(a_naerop,DIM=4)
-    tmp_rc(:,:,:)=SUM(a_mcloudp(:,:,:,1:ncld),DIM=4)
-    tmp_nc(:,:,:)=SUM(a_ncloudp,DIM=4)
-    tmp_rr(:,:,:)=SUM(a_mprecpp(:,:,:,1:nprc),DIM=4)
-    tmp_nr(:,:,:)=SUM(a_nprecpp,DIM=4)
-    tmp_ri(:,:,:)=SUM(a_micep(:,:,:,1:nice),DIM=4)
-    tmp_ni(:,:,:)=SUM(a_nicep,DIM=4)
-    tmp_rs(:,:,:)=SUM(a_msnowp(:,:,:,1:nsnw),DIM=4)
-    tmp_ns(:,:,:)=SUM(a_nsnowp,DIM=4)
-    IF (reset_stats) THEN ! Reset outputs (there are two SALSA_diagnostics calls during one time step)
-        diag_ra=0.; diag_na=0.
-        diag_rc=0.; diag_nc=0.
-        diag_rr=0.; diag_nr=0.
-        diag_ri=0.; diag_ni=0.
-        diag_rs=0.; diag_ns=0.
-    ENDIF
-
     IF (sflg .AND. reset_stats) THEN
         ! Statistics output step: need to calculate tendencies over
         ! both calls, so use tendencies as temporary variables!
@@ -1186,17 +1185,6 @@ contains
           END DO   ! k
        END DO   ! i
     END DO   ! j
-
-    diag_ra(:,:,:)=diag_ra(:,:,:)+( SUM(a_maerop(:,:,:,1:nbins),DIM=4)-tmp_ra(:,:,:) )/dtl
-    diag_na(:,:,:)=diag_na(:,:,:)+( SUM(a_naerop,DIM=4)-tmp_na(:,:,:) )/dtl
-    diag_rc(:,:,:)=diag_rc(:,:,:)+( SUM(a_mcloudp(:,:,:,1:ncld),DIM=4)-tmp_rc(:,:,:) )/dtl
-    diag_nc(:,:,:)=diag_nc(:,:,:)+( SUM(a_ncloudp,DIM=4)-tmp_nc(:,:,:) )/dtl
-    diag_rr(:,:,:)=diag_rr(:,:,:)+( SUM(a_mprecpp(:,:,:,1:nprc),DIM=4)-tmp_rr(:,:,:) )/dtl
-    diag_nr(:,:,:)=diag_nr(:,:,:)+( SUM(a_nprecpp,DIM=4)-tmp_nr(:,:,:) )/dtl
-    diag_ri(:,:,:)=diag_ri(:,:,:)+( SUM(a_micep(:,:,:,1:nice),DIM=4)-tmp_ri(:,:,:) )/dtl
-    diag_ni(:,:,:)=diag_ni(:,:,:)+( SUM(a_nicep,DIM=4)-tmp_ni(:,:,:) )/dtl
-    diag_rs(:,:,:)=diag_rs(:,:,:)+( SUM(a_msnowp(:,:,:,1:nsnw),DIM=4)-tmp_rs(:,:,:) )/dtl
-    diag_ns(:,:,:)=diag_ns(:,:,:)+( SUM(a_nsnowp,DIM=4)-tmp_ns(:,:,:) )/dtl
 
     IF (sflg .AND. .NOT.reset_stats) THEN
         a_naerot=(a_naerop-a_naerot)/dtl

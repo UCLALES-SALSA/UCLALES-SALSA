@@ -45,7 +45,7 @@ contains
   subroutine initialize
 
     use step, only : time, outflg, salsa_diag_update, anl_start, nudging
-    use stat, only : init_stat, sflg, out_mcrp_nout
+    use stat, only : init_stat, sflg, out_mcrp_nout, out_mcrp_list
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
@@ -84,13 +84,7 @@ contains
                   a_nicep,   a_nicet,   a_micep,   a_micet,    &
                   a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
                   a_gaerop,  a_gaerot,  1, dtl, time, level,   &
-                  coag_ra, coag_na, coag_rc, coag_nc, coag_rr, coag_nr, &
-                  coag_ri, coag_ni, coag_rs, coag_ns, &
-                  cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
-                  auto_rr, auto_nr, auto_rs, auto_ns, &
-                  cact_rc, cact_nc, nucl_ri, nucl_ni, &
-                  melt_ri, melt_ni, melt_rs, melt_ns, &
-                  sflg, out_mcrp_nout)
+                  sflg, out_mcrp_nout, out_mcrp_list)
 
           CALL SALSAInit
           CALL SALSA_diag_update

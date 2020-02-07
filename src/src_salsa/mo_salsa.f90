@@ -20,13 +20,7 @@ CONTAINS
                    ptemp,  ptstep, petime,              &
                    pc_gas, ngas,                        &
                    paero,  pcloud, pprecp, pice, psnow, &
-                   level, sflg, nstat, sdata, slist,    &
-                   coag_vaero, coag_naero, coag_vcloud, coag_ncloud, coag_vprecp, &
-                   coag_nprecp, coag_vice, coag_nice, coag_vsnow, coag_nsnow, &
-                   cond_vaero, cond_vcloud, cond_vprecp, cond_vice, cond_vsnow, &
-                   autoc_vprecp, autoc_nprecp, autoc_vsnow, autoc_nsnow, &
-                   act_vcloud, act_ncloud, nucl_vice, nucl_nice, &
-                   melt_vice, melt_nice, melt_vsnow, melt_nsnow)
+                   level, sflg, nstat, sdata, slist)
 
     USE mo_salsa_dynamics, only : coagulation, condgas, gpparth2o
     USE mo_vbs_partition, ONLY : vbs_gas_phase_chem, vbs_condensation
@@ -79,55 +73,17 @@ CONTAINS
     REAL, INTENT(OUT) :: sdata(kbdim,klev,nstat) ! output data array
     CHARACTER(LEN=7), DIMENSION(:), INTENT(IN) :: slist ! names of the output variables
 
-    !-- Output statistics --------------------------------------
-    REAL, DIMENSION(kbdim,klev), INTENT(out) :: &
-            coag_vaero, coag_naero, coag_vcloud, coag_ncloud, coag_vprecp, coag_nprecp, &
-            coag_vice, coag_nice, coag_vsnow, coag_nsnow, &
-            cond_vaero, cond_vcloud, cond_vprecp, cond_vice, cond_vsnow, &
-            autoc_vprecp, autoc_nprecp, autoc_vsnow, autoc_nsnow, &
-            act_vcloud, act_ncloud, nucl_vice, nucl_nice, &
-            melt_vice, melt_nice, melt_vsnow, melt_nsnow
-
     ! Reset outputs
-    coag_vaero=0.; coag_naero=0.; coag_vcloud=0.; coag_ncloud=0.; coag_vprecp=0.; coag_nprecp=0.
-    coag_vice=0.; coag_nice=0.; coag_vsnow=0.; coag_nsnow=0.
-    cond_vaero=0.; cond_vcloud=0.; cond_vprecp=0.; cond_vice=0.; cond_vsnow=0.
-    autoc_vprecp=0.; autoc_nprecp=0.; autoc_vsnow=0.; autoc_nsnow=0.
-    act_vcloud=0.; act_ncloud=0.; nucl_vice=0.; nucl_nice=0.;
-    melt_vice=0.; melt_nice=0.; melt_vsnow=0.; melt_nsnow=0.
-
     sdata(:,:,:) = 0.
 
     ! Coagulation
     !   Statistics: change in total water volume concentration for each hydrometeor (m^3/m^3)
     IF (lscoag) THEN
-       coag_vaero(:,:)=SUM(paero(:,:,:)%volc(1),DIM=3)
-       coag_naero(:,:)=SUM(paero(:,:,:)%numc,DIM=3)
-       coag_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)
-       coag_ncloud(:,:)=SUM(pcloud(:,:,:)%numc,DIM=3)
-       coag_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)
-       coag_nprecp(:,:)=SUM(pprecp(:,:,:)%numc,DIM=3)
-       coag_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)
-       coag_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)
-       coag_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
-       coag_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)
-
        IF (sflg) CALL salsa_var_stat('coag',0)
        CALL coagulation(kbdim,  klev,                           &
                         paero,  pcloud, pprecp, pice, psnow,    &
                         ptstep, ptemp,  ppres                   )
        IF (sflg) CALL salsa_var_stat('coag',1)
-
-       coag_vaero(:,:)=SUM(paero(:,:,:)%volc(1),DIM=3)-coag_vaero(:,:)
-       coag_naero(:,:)=SUM(paero(:,:,:)%numc,DIM=3)-coag_naero(:,:)
-       coag_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)-coag_vcloud(:,:)
-       coag_ncloud(:,:)=SUM(pcloud(:,:,:)%numc,DIM=3)-coag_ncloud(:,:)
-       coag_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)-coag_vprecp(:,:)
-       coag_nprecp(:,:)=SUM(pprecp(:,:,:)%numc,DIM=3)-coag_nprecp(:,:)
-       coag_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)-coag_vice(:,:)
-       coag_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)-coag_nice(:,:)
-       coag_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-coag_vsnow(:,:)
-       coag_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)-coag_nsnow(:,:)
     ENDIF
 
     ! Condensation of H2SO4 and non-volatile organic vapor
@@ -155,28 +111,16 @@ CONTAINS
     ! Condensation of water vapor
     !   Statistics: change in total water volume concentration for each hydrometeor (m^3/m^3)
     IF (lscnd .AND. (nlcndh2ocl .OR. nlcndh2oae .OR. nlcndh2oic)) THEN
-        cond_vaero(:,:)=SUM(paero(:,:,:)%volc(1),DIM=3)
-        cond_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)
-        cond_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)
-        cond_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)
-        cond_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
         IF (sflg) CALL salsa_var_stat('cond',0)
         CALL gpparth2o(kbdim, klev, &
             paero, pcloud, pprecp, pice, psnow, &
             ptemp, ppres, prs, prsi, prv, ptstep)
         IF (sflg) CALL salsa_var_stat('cond',1)
-        cond_vaero(:,:)=SUM(paero(:,:,:)%volc(1),DIM=3)-cond_vaero(:,:)
-        cond_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)-cond_vcloud(:,:)
-        cond_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)-cond_vprecp(:,:)
-        cond_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)-cond_vice(:,:)
-        cond_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-cond_vsnow(:,:)
     ENDIF
 
     ! Autoconversion (liquid)
     !   Statistics: change in total rain water volume (=change in cloud water) and rain drop number concentration
     IF (lsauto) THEN
-         autoc_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)
-         autoc_nprecp(:,:)=SUM(pprecp(:,:,:)%numc,DIM=3)
          IF (sflg) CALL salsa_var_stat('auto',0)
          IF (auto_sb) THEN
             CALL autoconv_sb(kbdim,klev,ptstep,pcloud,pprecp)
@@ -184,22 +128,16 @@ CONTAINS
             CALL autoconv2(kbdim,klev,pcloud, pprecp)
          ENDIF
          IF (sflg) CALL salsa_var_stat('auto',1)
-         autoc_vprecp(:,:)=SUM(pprecp(:,:,:)%volc(1),DIM=3)-autoc_vprecp(:,:)
-         autoc_nprecp(:,:)=SUM(pprecp(:,:,:)%numc,DIM=3)-autoc_nprecp(:,:)
     ENDIF
 
     ! Cloud activation
     !   Statistics: change in total cloud water volume (=change in cloud water) and cloud drop number concentration
     IF (lsactiv ) THEN
-         act_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)
-         act_ncloud(:,:)=SUM(pcloud(:,:,:)%numc,DIM=3)
          IF (sflg) CALL salsa_var_stat('cact',0)
          CALL cloud_activation(kbdim,  klev,          &
                                ptemp,  ppres, prv,    &
                                prs,    paero, pcloud  )
          IF (sflg) CALL salsa_var_stat('cact',1)
-         act_vcloud(:,:)=SUM(pcloud(:,:,:)%volc(1),DIM=3)-act_vcloud(:,:)
-         act_ncloud(:,:)=SUM(pcloud(:,:,:)%numc,DIM=3)-act_ncloud(:,:)
     ENDIF
 
     ! Ice nucleation
@@ -208,62 +146,34 @@ CONTAINS
     !     to the autoconversion variables (no ice category; autoconversion disabled)
     IF (lsicenucl .AND. fixinc>=0.) THEN
         ! Fixed ice number concentration
-        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)
-        nucl_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)
-        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
-        autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)
         IF (sflg) CALL salsa_var_stat('nucl',0)
         CALL fixed_ice_driver(kbdim, klev,             &
                              pcloud, pice,   psnow,    &
                              ptemp,  ppres,  prv,  prsi)
         IF (sflg) CALL salsa_var_stat('nucl',1)
-        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)-nucl_vice(:,:)
-        nucl_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)-nucl_nice(:,:)
-        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-autoc_vsnow(:,:)
-        autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)-autoc_nsnow(:,:)
     ELSEIF (lsicenucl .AND. (ice_hom .OR. ice_imm .OR. ice_dep)) THEN
         ! Modelled ice nucleation
-        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)
-        nucl_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)
-        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
-        autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)
         IF (sflg) CALL salsa_var_stat('nucl',0)
         CALL ice_nucl_driver(kbdim,klev,   &
                           paero,pcloud,pprecp,pice,psnow, &
                           ptemp,prv,prs,prsi,ptstep)
         IF (sflg) CALL salsa_var_stat('nucl',1)
-        nucl_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)-nucl_vice(:,:)
-        nucl_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)-nucl_nice(:,:)
-        autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-autoc_vsnow(:,:)
-        autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)-autoc_nsnow(:,:)
     ENDIF
 
     ! Melting of ice and snow
     !   Statistics: change in total ice and snow water volume and number concentrations
     IF (lsicmelt) THEN
-         melt_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)
-         melt_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)
-         melt_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
-         melt_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)
          IF (sflg) CALL salsa_var_stat('melt',0)
          CALL ice_melt(kbdim,klev,pcloud,pice,pprecp,psnow,ptemp)
          IF (sflg) CALL salsa_var_stat('melt',1)
-         melt_vice(:,:)=SUM(pice(:,:,:)%volc(1),DIM=3)-melt_vice(:,:)
-         melt_nice(:,:)=SUM(pice(:,:,:)%numc,DIM=3)-melt_nice(:,:)
-         melt_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-melt_vsnow(:,:)
-         melt_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)-melt_nsnow(:,:)
     ENDIF
 
     ! Snow formation ~ autoconversion from ice
     !   Statistics: change in total snow water volume (=change in ice water) and snow number concentration
     IF (lsautosnow) THEN
-         autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)
-         autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)
          IF (sflg) CALL salsa_var_stat('auto',0) ! Note: the same output name for warm cloud autoconversion!
          CALL autosnow(kbdim,klev,pice,psnow)
          IF (sflg) CALL salsa_var_stat('auto',1)
-         autoc_vsnow(:,:)=SUM(psnow(:,:,:)%volc(1),DIM=3)-autoc_vsnow(:,:)
-         autoc_nsnow(:,:)=SUM(psnow(:,:,:)%numc,DIM=3)-autoc_nsnow(:,:)
     ENDIF
 
     ! Size distribution bin update

@@ -61,13 +61,7 @@ IMPLICIT NONE
                        pa_nicep,   pa_nicet,   pa_micep,   pa_micet,    &
                        pa_nsnowp,  pa_nsnowt,  pa_msnowp,  pa_msnowt,   &
                        pa_gasp,  pa_gast, prunmode, tstep, time, level, &
-                       coag_ra, coag_na, coag_rc, coag_nc, coag_rr,     &
-                       coag_nr, coag_ri, coag_ni, coag_rs, coag_ns,     &
-                       cond_ra, cond_rc, cond_rr, cond_ri, cond_rs,     &
-                       auto_rr, auto_nr, auto_rs, auto_ns,              &
-                       cact_rc, cact_nc, nucl_ri, nucl_ni,              &
-                       melt_ri, melt_ni, melt_rs, melt_ns,              &
-                       sflg, nstat, sdata, slist)
+                       sflg, nstat, slist, sdata)
 
     USE mo_submctl, ONLY : fn2b, fnp2b, pi6, rhoic, rhosn, rhowa, dens, &
                                rhlim, lscndgas, ngases, mws_gas, nlim, prlim, nspec, maxnspec, &
@@ -108,8 +102,8 @@ IMPLICIT NONE
 
     LOGICAL, INTENT(IN) :: sflg                          ! statistics sampling flag
     INTEGER, INTENT(IN) :: nstat                         ! the number of requested outputs
+    CHARACTER(LEN=7), DIMENSION(:), INTENT(IN) :: slist  ! names of the output variables
     REAL, OPTIONAL, INTENT(OUT) :: sdata(pnz,pnx,pny,nstat) ! output data (needed when saving data)
-    CHARACTER(LEN=7), OPTIONAL, DIMENSION(:), INTENT(IN) :: slist  ! names of the output variables (needed when saving data)
 
     REAL, INTENT(inout)   :: pa_naerot(pnz,pnx,pny,nbins),      & ! Aerosol number tendency
                                  pa_maerot(pnz,pnx,pny,n4*nbins),   & ! Aerosol mass tendency
@@ -125,14 +119,6 @@ IMPLICIT NONE
     REAL, INTENT(inout)   :: pa_gast(pnz,pnx,pny,ngases)      ! Gaseous tracer tendency
     REAL, INTENT(inout)   :: rt(pnz,pnx,pny)                  ! Water vapour tendency
 
-    REAL, DIMENSION(pnz,pnx,pny), INTENT(OUT) :: & ! Statistics
-                       coag_ra, coag_na, coag_rc, coag_nc, coag_rr, &
-                       coag_nr, coag_ri, coag_ni, coag_rs, coag_ns, &
-                       cond_ra, cond_rc, cond_rr, cond_ri, cond_rs, &
-                       auto_rr, auto_nr, auto_rs, auto_ns, &
-                       cact_rc, cact_nc, nucl_ri, nucl_ni, &
-                       melt_ri, melt_ni, melt_rs, melt_ns
-
     ! -- Local gas concentrations [mol m-3]
     REAL :: zgas(kbdim,klev,ngases+ngases_diag)
 
@@ -141,13 +127,7 @@ IMPLICIT NONE
        ice_old(1,1,fnp2b), snow_old(1,1,nsnw)
 
     INTEGER :: jj,ii,kk,ss,str,end,nc
-    REAL, DIMENSION(kbdim,klev) :: in_p, in_t, in_rv, in_rs, in_rsi, &
-                out_coag_va, out_coag_na, out_coag_vc, out_coag_nc, out_coag_vr, &
-                out_coag_nr, out_coag_vi, out_coag_ni, out_coag_vs, out_coag_ns, &
-                out_cond_va, out_cond_vc, out_cond_vr, out_cond_vi, out_cond_vs, &
-                out_auto_vr, out_auto_nr, out_auto_vs, out_auto_ns, &
-                out_cact_vc, out_cact_nc, out_nucl_vi, out_nucl_ni, &
-                out_melt_vi, out_melt_ni, out_melt_vs, out_melt_ns
+    REAL, DIMENSION(kbdim,klev) :: in_p, in_t, in_rv, in_rs, in_rsi
     REAL :: rv_old(kbdim,klev), rho
     REAL :: out_sdata(kbdim,klev,nstat)
 
@@ -304,46 +284,12 @@ IMPLICIT NONE
                         zgas,   ngases+ngases_diag,            &
                         aero,   cloud,  precp,                 &
                         ice,    snow,                          &
-                        level,  sflg, nstat, out_sdata, slist, &
-                        out_coag_va, out_coag_na, out_coag_vc, out_coag_nc, out_coag_vr, &
-                        out_coag_nr, out_coag_vi, out_coag_ni, out_coag_vs, out_coag_ns, &
-                        out_cond_va, out_cond_vc, out_cond_vr, out_cond_vi, out_cond_vs, &
-                        out_auto_vr, out_auto_nr, out_auto_vs, out_auto_ns, &
-                        out_cact_vc, out_cact_nc, out_nucl_vi, out_nucl_ni, &
-                        out_melt_vi, out_melt_ni, out_melt_vs, out_melt_ns)
+                        level,  sflg, nstat, out_sdata, slist)
 
 
              ! Output statistics (mixing ratios from m^3/m^3 to kg/kg and concentrations from 1/m^3 to 1/kg;
              ! also converted to rates by dividing by the time step)
-             coag_ra(kk,ii,jj)=out_coag_va(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             coag_na(kk,ii,jj)=out_coag_na(1,1)/pdn(kk,ii,jj)/tstep
-             coag_rc(kk,ii,jj)=out_coag_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             coag_nc(kk,ii,jj)=out_coag_nc(1,1)/pdn(kk,ii,jj)/tstep
-             coag_rr(kk,ii,jj)=out_coag_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             coag_nr(kk,ii,jj)=out_coag_nr(1,1)/pdn(kk,ii,jj)/tstep
-             coag_ri(kk,ii,jj)=out_coag_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
-             coag_ni(kk,ii,jj)=out_coag_ni(1,1)/pdn(kk,ii,jj)/tstep
-             coag_rs(kk,ii,jj)=out_coag_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
-             coag_ns(kk,ii,jj)=out_coag_ns(1,1)/pdn(kk,ii,jj)/tstep
-             cond_ra(kk,ii,jj)=out_cond_va(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             cond_rc(kk,ii,jj)=out_cond_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             cond_rr(kk,ii,jj)=out_cond_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             cond_ri(kk,ii,jj)=out_cond_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
-             cond_rs(kk,ii,jj)=out_cond_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
-             auto_rr(kk,ii,jj)=out_auto_vr(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             auto_nr(kk,ii,jj)=out_auto_nr(1,1)/pdn(kk,ii,jj)/tstep
-             auto_rs(kk,ii,jj)=out_auto_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
-             auto_ns(kk,ii,jj)=out_auto_ns(1,1)/pdn(kk,ii,jj)/tstep
-             cact_rc(kk,ii,jj)=out_cact_vc(1,1)*rhowa/pdn(kk,ii,jj)/tstep
-             cact_nc(kk,ii,jj)=out_cact_nc(1,1)/pdn(kk,ii,jj)/tstep
-             nucl_ri(kk,ii,jj)=out_nucl_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
-             nucl_ni(kk,ii,jj)=out_nucl_ni(1,1)/pdn(kk,ii,jj)/tstep
-             melt_ri(kk,ii,jj)=out_melt_vi(1,1)*rhoic/pdn(kk,ii,jj)/tstep
-             melt_ni(kk,ii,jj)=out_melt_ni(1,1)/pdn(kk,ii,jj)/tstep
-             melt_rs(kk,ii,jj)=out_melt_vs(1,1)*rhosn/pdn(kk,ii,jj)/tstep
-             melt_ns(kk,ii,jj)=out_melt_ns(1,1)/pdn(kk,ii,jj)/tstep
-
-            IF (sflg .AND. nstat>0) sdata(kk,ii,jj,:) = out_sdata(1,1,:)/pdn(kk,ii,jj)/tstep
+             IF (sflg .AND. nstat>0) sdata(kk,ii,jj,:) = out_sdata(1,1,:)/pdn(kk,ii,jj)/tstep
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)
              pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &
