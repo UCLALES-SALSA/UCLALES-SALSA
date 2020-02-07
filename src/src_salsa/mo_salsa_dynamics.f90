@@ -193,28 +193,28 @@ CONTAINS
            any_snow = ANY(psnow(ii,jj,:)%numc > prlim)
 
            !-- Aerosol diameter [m] and mass [kg]; density of 1500 kg/m3 assumed
-           CALL CalcDimension(fn2b,paero(ii,jj,1:fn2b),nlim,zdpart(1:fn2b),1)
-           zdpart(1:fn2b) = MIN(zdpart(1:fn2b), 30.e-6) ! Limit to 30 um
+           CALL CalcDimension(fn2b,paero(ii,jj,1:fn2b),nlim,1)
+           zdpart(1:fn2b) = MIN(paero(ii,jj,1:fn2b)%dwet, 30.e-6) ! Limit to 30 um
            zmpart(1:fn2b) = pi6*(zdpart(1:fn2b)**3)*1500.
 
            !-- Cloud droplet diameter and mass; Assume water density
-           CALL CalcDimension(ncld,pcloud(ii,jj,1:ncld),nlim,zdcloud(1:ncld),2)
-           zdcloud(1:ncld) = MIN(zdcloud(1:ncld), 2.e-4) ! Limit to 0.2 mm
+           CALL CalcDimension(ncld,pcloud(ii,jj,1:ncld),nlim,2)
+           zdcloud(1:ncld) = MIN(pcloud(ii,jj,1:ncld)%dwet, 2.e-4) ! Limit to 0.2 mm
            zmcloud(1:ncld) = pi6*(zdcloud(1:ncld)**3)*rhowa
 
            !-- Precipitation droplet diameter and mass
-           CALL CalcDimension(nprc,pprecp(ii,jj,1:nprc),prlim,zdprecp(1:nprc),3)
-           zdprecp(1:nprc) = MIN(zdprecp(1:nprc), 2.e-3) ! Limit to 2 mm
+           CALL CalcDimension(nprc,pprecp(ii,jj,1:nprc),prlim,3)
+           zdprecp(1:nprc) = MIN(pprecp(ii,jj,1:nprc)%dwet, 2.e-3) ! Limit to 2 mm
            zmprecp(1:nprc) = pi6*(zdprecp(1:nprc)**3)*rhowa
 
            !-- Ice particle diameter and mass - may not be spherical
-           CALL CalcDimension(nice,pice(ii,jj,1:nice),prlim,zdice(1:nice),4)
-           zdice(1:nice) = MIN(zdice(1:nice), 2.e-3) ! Limit to 2 mm
+           CALL CalcDimension(nice,pice(ii,jj,1:nice),prlim,4)
+           zdice(1:nice) = MIN(pice(ii,jj,1:nice)%dwet, 2.e-3) ! Limit to 2 mm
            zmice(1:nice) =   pi6*(zdice(1:nice)**3)*rhoic
 
            !-- Snow diameter and mass - may not be spherical
-           CALL CalcDimension(nsnw,psnow(ii,jj,1:nsnw),prlim,zdsnow(1:nsnw),5)
-           zdsnow(1:nsnw) = MIN(zdsnow(1:nsnw), 10.e-3) ! Limit to 10 mm
+           CALL CalcDimension(nsnw,psnow(ii,jj,1:nsnw),prlim,5)
+           zdsnow(1:nsnw) = MIN(psnow(ii,jj,1:nsnw)%dwet, 10.e-3) ! Limit to 10 mm
            zmsnow(1:nsnw) =  pi6*(zdsnow(1:nsnw)**3)*rhosn
 
            temppi=ptemp(ii,jj)
@@ -1010,6 +1010,7 @@ CONTAINS
          t_section,                 & ! data type for the cloud bin representation
          ncld, nprc, nice, nsnw,    & ! number of bins
          nlim, prlim,               & ! concentration limits
+         CalcDimension,             & ! function for updating wet sizes
          pstand,                    & ! standard pressure [Pa]
          msu,moc,rhosu,rhooc,       & ! molar mass [kg/mol] and density [kg/m3] of sulphate and OC
          d_sa,                      & ! diameter of H2SO4 molecule [m]
@@ -1073,6 +1074,12 @@ CONTAINS
 
     DO jj = 1,klev
        DO ii = 1,kbdim
+          ! Calculate wet diameters (%dwet)
+          CALL CalcDimension(fn2b,paero(ii,jj,:),nlim,1)
+          CALL CalcDimension(ncld,pcloud(ii,jj,:),nlim,2)
+          CALL CalcDimension(nprc,pprecp(ii,jj,:),prlim,3)
+          CALL CalcDimension(nice,pice(ii,jj,:),prlim,4)
+          CALL CalcDimension(nsnw,psnow(ii,jj,:),prlim,5)
 
           !-- 1) Properties of air and condensing gases --------------------
           zvisc  = (7.44523e-3*ptemp(ii,jj)**1.5)/(5093.*(ptemp(ii,jj)+110.4))! viscosity of air [kg/(m s)]
@@ -1412,8 +1419,8 @@ CONTAINS
           DO cc = 1,nice
              IF (pice(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
                 ! Dimension
-                CALL CalcDimension(1,pice(ii,jj,cc),prlim,dw,4)
-                dwet=dw(1)
+                CALL CalcDimension(1,pice(ii,jj,cc),prlim,4)
+                dwet=pice(ii,jj,cc)%dwet
 
                 ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
                 cap=0.5*dwet
@@ -1453,8 +1460,8 @@ CONTAINS
           DO cc = 1,nsnw
              IF (psnow(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
                 ! Dimension
-                CALL CalcDimension(1,psnow(ii,jj,cc),prlim,dw,5)
-                dwet=dw(1)
+                CALL CalcDimension(1,psnow(ii,jj,cc),prlim,5)
+                dwet=psnow(ii,jj,cc)%dwet
 
                 ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
                 cap=0.5*dwet

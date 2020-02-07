@@ -96,13 +96,8 @@ CONTAINS
                   STOP 'SALSA equilibration: no convergence!!'
                ENDIF
 
-               ! Update water volume concentration, droplet wet radius and dry volume
+               ! Update water volume concentration
                paero(ii,jj,kk)%volc(1) = zw*paero(ii,jj,kk)%numc
-               paero(ii,jj,kk)%dwet = zdwet
-
-            ELSE
-
-               paero(ii,jj,kk)%dwet = paero(ii,jj,kk)%dmid
 
             END IF
 

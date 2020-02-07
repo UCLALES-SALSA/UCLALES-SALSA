@@ -308,19 +308,18 @@ contains
   ! Correct dimension is needed for irregular particles (e.g. ice and snow) for calculating fall speed (deposition and coagulation)
   ! and capacitance (condensation). Otherwise compact spherical structure can be expected,
   !
-  SUBROUTINE CalcDimension(n,ppart,lim,dia,flag)
+  SUBROUTINE CalcDimension(n,ppart,lim,flag)
     IMPLICIT NONE
     INTEGER, INTENT(in) :: n
-    TYPE(t_section), INTENT(in) :: ppart(n)
+    TYPE(t_section), INTENT(inout) :: ppart(n)
     REAL, INTENT(IN) :: lim
     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
-    REAL, INTENT(OUT) :: dia(n)
     INTEGER i
 
-    dia(:) = 2.e-10
+    ppart(:)%dwet = 2.e-10
     DO i=1,n
         IF (ppart(i)%numc>lim) &
-            dia(i)=(SUM(ppart(i)%volc(:))/ppart(i)%numc/pi6)**(1./3.)
+            ppart(i)%dwet=(SUM(ppart(i)%volc(:))/ppart(i)%numc/pi6)**(1./3.)
     ENDDO
 
   END SUBROUTINE CalcDimension

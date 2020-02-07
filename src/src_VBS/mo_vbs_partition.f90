@@ -305,7 +305,8 @@ CONTAINS
          ioc, iocg, moc, part_ocnv,            & ! NVOA partitioning (optional)
          iso, isog, msu, part_h2so4,           & ! Sulfate partitioning (optional)
          nspec, nbins, ncld, nprc, nice, nsnw, & ! Number of species and bins
-         t_section, nlim, prlim                  ! Data type for the bin representation and concentration tresholds
+         t_section, nlim, prlim,               & ! Data type for the bin representation and concentration tresholds
+         CalcDimension                           ! Function for updating wet sizes
 
     ! -----------------------------------------------------------------------
 
@@ -382,6 +383,7 @@ CONTAINS
     ! aerosol + cloud + rain [i.e. typically aqueous], and all bins)
     jvc = 0
     zc_part_all(:,:)=0.
+    CALL CalcDimension(nbins,paero,nlim,1) ! Update wet diameters (%dwet)
     DO jc = 1,nbins ! Aerosol
        IF (paero(jc)%numc>nlim) THEN
           ! increment size bin counter
@@ -395,6 +397,7 @@ CONTAINS
        END IF
     END DO
     nbin_aer = jvc ! Number of aerosol bins
+    CALL CalcDimension(ncld,pcloud,nlim,2)
     DO jc = 1,ncld ! Cloud droplets
        IF (pcloud(jc)%numc>nlim) THEN
           jvc = jvc + 1
@@ -403,6 +406,7 @@ CONTAINS
           zk_diam(jvc) = pcloud(jc)%dwet
        END IF
     END DO
+    CALL CalcDimension(nprc,pprecp,prlim,3)
     DO jc = 1,nprc ! Rain drops
        IF (pprecp(jc)%numc>prlim) THEN
           jvc = jvc + 1
@@ -412,6 +416,7 @@ CONTAINS
        END IF
     END DO
     nbin_aq = jvc ! Total number of the commonly water soluble bins
+    CALL CalcDimension(nice,pice,prlim,4)
     DO jc = 1,nice ! Ice
        IF (pice(jc)%numc>prlim) THEN
           jvc = jvc + 1
@@ -421,6 +426,7 @@ CONTAINS
           zk_diam(jvc) = pice(jc)%dwet
        END IF
     END DO
+    CALL CalcDimension(nsnw,psnow,prlim,5)
     DO jc = 1,nsnw ! Snow
        IF (psnow(jc)%numc>prlim) THEN
           jvc = jvc + 1

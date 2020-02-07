@@ -211,53 +211,18 @@ IMPLICIT NONE
              ! Number concentrations and particle sizes
              aero(1,1,1:nbins)%numc = pa_naerop(kk,ii,jj,1:nbins)*pdn(kk,ii,jj)
              aero_old(1,1,1:nbins)%numc = aero(1,1,1:nbins)%numc
-             DO ss=1,nbins
-                IF (aero(1,1,ss)%numc>nlim) THEN
-                    aero(1,1,ss)%dwet = ( SUM(aero(1,1,ss)%volc(:))/aero(1,1,ss)%numc/pi6 )**(1./3.)
-                ELSE
-                    aero(1,1,ss)%dwet = aero(1,1,ss)%dmid
-                ENDIF
-             ENDDO
 
              cloud(1,1,1:ncld)%numc = pa_ncloudp(kk,ii,jj,1:ncld)*pdn(kk,ii,jj)
              cloud_old(1,1,1:ncld)%numc = cloud(1,1,1:ncld)%numc
-             DO ss=1,ncld
-                IF (cloud(1,1,ss)%numc>nlim) THEN
-                    cloud(1,1,ss)%dwet = ( SUM(cloud(1,1,ss)%volc(:))/cloud(1,1,ss)%numc/pi6 )**(1./3.)
-                ELSE
-                    cloud(1,1,ss)%dwet = cloud(1,1,ss)%dmid
-                ENDIF
-             ENDDO
 
              precp(1,1,1:nprc)%numc = pa_nprecpp(kk,ii,jj,1:nprc)*pdn(kk,ii,jj)
              precp_old(1,1,1:nprc)%numc = precp(1,1,1:nprc)%numc
-             DO ss=1,nprc
-                IF (precp(1,1,ss)%numc>prlim) THEN
-                    precp(1,1,ss)%dwet = ( SUM(precp(1,1,ss)%volc(:))/precp(1,1,ss)%numc/pi6 )**(1./3.)
-                ELSE
-                    precp(1,1,ss)%dwet = precp(1,1,ss)%dmid
-                ENDIF
-             ENDDO
 
              ice(1,1,1:nice)%numc = pa_nicep(kk,ii,jj,1:nice)*pdn(kk,ii,jj)
              ice_old(1,1,1:nice)%numc = ice(1,1,1:nice)%numc
-             DO ss=1,nice
-                IF (ice(1,1,ss)%numc>prlim) THEN
-                    ice(1,1,ss)%dwet = ( SUM(ice(1,1,ss)%volc(:))/ice(1,1,ss)%numc/pi6 )**(1./3.)
-                ELSE
-                    ice(1,1,ss)%dwet = ice(1,1,ss)%dmid
-                ENDIF
-             ENDDO
 
              snow(1,1,1:nsnw)%numc = pa_nsnowp(kk,ii,jj,1:nsnw)*pdn(kk,ii,jj)
              snow_old(1,1,1:nsnw)%numc = snow(1,1,1:nsnw)%numc
-             DO ss=1,nsnw
-                IF (snow(1,1,ss)%numc>prlim) THEN
-                    snow(1,1,ss)%dwet = ( SUM(snow(1,1,ss)%volc(:))/snow(1,1,ss)%numc/pi6 )**(1./3.)
-                ELSE
-                    snow(1,1,ss)%dwet = snow(1,1,ss)%dmid
-                ENDIF
-             ENDDO
 
 
              ! Condensable gases (sulfate and organics)
