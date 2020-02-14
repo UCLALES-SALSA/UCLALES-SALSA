@@ -249,7 +249,7 @@ IMPLICIT NONE
                         zgas,   ngases+ngases_diag,            &
                         aero,   cloud,  precp,                 &
                         ice,    snow,                          &
-                        level,  sflg, nstat, out_sdata, slist)
+                        level, (sflg .AND. nstat>0), nstat, out_sdata, slist)
 
 
              ! Output statistics (mixing ratios from m^3/m^3 to kg/kg and concentrations from 1/m^3 to 1/kg;

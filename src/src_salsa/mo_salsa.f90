@@ -198,41 +198,55 @@ CONTAINS
         ! Input
         character (len=4), intent (in) :: prefix ! Process name
         INTEGER, INTENT(IN) :: ncall ! Before or after process call
+        ! Local
+        INTEGER :: i
+        CHARACTER(LEN=7) :: nam
         !
-        ! Level 4
-        IF (level>=4) THEN
-            CALL salsa_rate_stat(prefix,'a',fn2b,paero,ncall,rhowa)
-            CALL salsa_rate_stat(prefix,'c',ncld,pcloud,ncall,rhowa)
-            CALL salsa_rate_stat(prefix,'r',nprc,pprecp,ncall,rhowa)
-        ENDIF
-        ! Level 5
-        IF (level>=5) THEN
-            CALL salsa_rate_stat(prefix,'i',nice,pice,ncall,rhoic)
-            CALL salsa_rate_stat(prefix,'s',nsnw,psnow,ncall,rhosn)
-        ENDIF
-        ! Gases
-        IF (ngas>0) CALL salsa_rate_stat_gas(prefix,'g',ngas,pc_gas,ncall)
+        ! Examine outputs
+        DO i=1,nstat
+            ! The first four characters contain process name, which should match with the given prefix
+            nam=slist(i)
+            IF (nam(1:4)==prefix) THEN
+                ! The 5th character is just '_', but the 6th character indicates the output type
+                ! (n=number, r=water mixing ratio or an integer)
+                !
+                ! The last (7th) character is phase (a, c, r, i, s or g)
+                SELECT CASE (nam(7:7))
+                    CASE ('a')
+                        CALL salsa_rate_stat(i,nam(6:6),fn2b,paero,ncall,rhowa)
+                    CASE ('c')
+                        CALL salsa_rate_stat(i,nam(6:6),ncld,pcloud,ncall,rhowa)
+                    CASE ('r')
+                        CALL salsa_rate_stat(i,nam(6:6),nprc,pprecp,ncall,rhowa)
+                    CASE ('i')
+                        CALL salsa_rate_stat(i,nam(6:6),nice,pice,ncall,rhoic)
+                    CASE ('s')
+                        CALL salsa_rate_stat(i,nam(6:6),nsnw,psnow,ncall,rhosn)
+                    CASE ('g')
+                        CALL salsa_rate_stat_gas(i,nam(6:6),ngas,pc_gas,ncall)
+                END SELECT
+            ENDIF
+        ENDDO
         !
       END SUBROUTINE salsa_var_stat
 
       ! 2a) The actual subroutine for doing the work for t_section types
-      SUBROUTINE salsa_rate_stat(prefix,tchar,nb,curr,ncall,rhowa)
+      SUBROUTINE salsa_rate_stat(i,tchar,nb,curr,ncall,rhowa)
         USE mo_submctl, ONLY : nspec, dens
         IMPLICIT NONE
         ! Inputs
-        character (len=4), intent (in) :: prefix ! variable name related to a process, e.g. 'coag'
-        CHARACTER, intent (in) :: tchar ! character indicating the type of the input hydrometeor (a, c, r, i, s)
+        INTEGER, intent (in) :: i ! the i:th output
+        CHARACTER, intent (in) :: tchar ! output type character (n, r, or an integer number)
         INTEGER, INTENT(IN) :: nb ! number of bins
         TYPE(t_section), INTENT(in) :: curr(kbdim,klev,nb) ! current state of a hydrometeor
         INTEGER, INTENT(IN) :: ncall ! calling before (0) or after (1) the main function call
         REAL, INTENT(IN) :: rhowa ! Density of water (liquid, ice or snow)
         ! Local
-        INTEGER :: i, j
-        CHARACTER(LEN=7) :: nam
+        INTEGER :: j
         !
-        ! Is this output selected
-        DO i=1,nstat
-            IF ( prefix//'_n'//tchar == slist(i) ) THEN
+        ! Check the output type
+        SELECT CASE (tchar)
+            CASE ('n')
                 IF (ncall==0) THEN
                     ! Set: sum of number concentrations over bins (#/m3)
                     sdata(:,:,i) = SUM(curr(:,:,:)%numc,DIM=3)
@@ -240,8 +254,7 @@ CONTAINS
                     ! Difference
                     sdata(:,:,i) = SUM(curr(:,:,:)%numc,DIM=3) - sdata(:,:,i)
                 ENDIF
-            ENDIF
-            IF ( prefix//'_r'//tchar == slist(i) ) THEN
+            CASE('r')
                 ! Sum of water volume mixing ratio over bins (m3/m3)
                 IF (ncall==0) THEN
                     ! Set: sum of water volume mixing ratios over bins (m3/m3)
@@ -250,53 +263,44 @@ CONTAINS
                     ! Difference multiplied by water density (kg/m3)
                     sdata(:,:,i) = (SUM(curr(:,:,:)%volc(1),DIM=3) - sdata(:,:,i))*rhowa
                 ENDIF
-            ENDIF
-            ! Species and phase-dependent mixing ratio outputs
-            DO j=1,nspec+1
-                WRITE(nam,'(A4,A1,I1,A1)') prefix,'_',j,tchar ! e.g. 'cond_1a'
-                IF ( nam == slist(i) ) THEN
-                    IF (ncall==0) THEN
-                        ! Set: sum of component j volume mixing ratio over bins (m3/m3)
-                        sdata(:,:,i) = SUM(curr(:,:,:)%volc(j),DIM=3)
-                    ELSE
-                        ! Difference multiplied by density (kg/m3)
-                        sdata(:,:,i) = (SUM(curr(:,:,:)%volc(j),DIM=3) - sdata(:,:,i))*dens(j)
-                        IF (j==1) sdata(:,:,i)=sdata(:,:,i)*rhowa/dens(j)
-                    ENDIF
+            CASE DEFAULT
+                ! Species-dependent mixing ratio outputs
+                ! Convert to integer - used as is
+                READ(UNIT=tchar,FMT='(I1)') j
+                IF (ncall==0) THEN
+                    ! Set: sum of component j volume mixing ratio over bins (m3/m3)
+                    sdata(:,:,i) = SUM(curr(:,:,:)%volc(j),DIM=3)
+                ELSE
+                    ! Difference multiplied by density (kg/m3)
+                    sdata(:,:,i) = (SUM(curr(:,:,:)%volc(j),DIM=3) - sdata(:,:,i))*dens(j)
+                    IF (j==1) sdata(:,:,i)=sdata(:,:,i)*rhowa/dens(j)
                 ENDIF
-            ENDDO
-        ENDDO
+        END SELECT
+        !
       END SUBROUTINE salsa_rate_stat
 
-      ! 2b) The same for gases
-      SUBROUTINE salsa_rate_stat_gas(prefix,tchar,ng,curr,ncall)
+      ! 2b) The same for gases (not a t_section type)
+      SUBROUTINE salsa_rate_stat_gas(i,tchar,ng,curr,ncall)
         ! The list of requested outputs
         IMPLICIT NONE
         ! Inputs
-        character (len=4), intent (in) :: prefix ! variable name related to a process, e.g. 'coag'
-        CHARACTER, intent (in) :: tchar ! character indicating the type of the input hydrometeor (here just g)
+        INTEGER, intent (in) :: i !  the i:th output
+        CHARACTER, intent (in) :: tchar ! output type character (an integer number)
         INTEGER, INTENT(IN) :: ng ! number of gases
         REAL, INTENT(in) :: curr(kbdim,klev,ng) ! current state of the parameter
         INTEGER, INTENT(IN) :: ncall ! calling before (0) or after (1) the main function call
         ! Local
-        INTEGER :: i, j
-        CHARACTER(LEN=7) :: nam
+        INTEGER :: j
         !
-        ! Is this output selected
-        DO i=1,nstat
-            ! Species dependent
-            DO j=1,ng
-                WRITE(nam,'(A4,A1,I1,A1)') prefix,'_',j,tchar ! e.g. 'cond_1g'
-                IF ( nam == slist(i) ) THEN
-                    ! Gas phase component j molar mixing ratio (mol/m3)
-                    IF (ncall==0) THEN
-                        sdata(:,:,i) = curr(:,:,j)
-                    ELSE
-                        sdata(:,:,i) = curr(:,:,j) - sdata(:,:,i)
-                    ENDIF
-                ENDIF
-            ENDDO
-        ENDDO
+        ! Convert to integer - used as is
+        READ(UNIT=tchar,FMT='(I1)') j
+        ! Gas phase component j molar mixing ratio (mol/m3)
+        IF (ncall==0) THEN
+            sdata(:,:,i) = curr(:,:,j)
+        ELSE
+            sdata(:,:,i) = curr(:,:,j) - sdata(:,:,i)
+        ENDIF
+        !
       END SUBROUTINE salsa_rate_stat_gas
 
   END SUBROUTINE salsa

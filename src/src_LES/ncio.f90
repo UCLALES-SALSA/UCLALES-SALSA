@@ -1736,6 +1736,7 @@ contains
 
     get_salsa_info = ''
     i=LEN(TRIM(short_name))
+    spec='   '
 
     ! All SALSA species: 'SO4','OC ','BC ','DU ','SS ','NO ','NH ','H2O'
 
