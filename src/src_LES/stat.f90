@@ -2829,16 +2829,18 @@ contains
   !
   ! b) LES is has data (tendencies) for outputs (several function calls from t_step in step.f90)
   SUBROUTINE les_rate_stats(prefix)
-    USE grid, ONLY : nxp, nyp, nzp, nbins, ncld, nprc, nice, nsnw, nspec, &
-                     a_naerot, a_maerot, a_ncloudt, a_mcloudt, a_nprecpt, a_mprecpt, &
-                     a_nicet,  a_micet, a_nsnowt, a_msnowt, level, &
+    USE grid, ONLY : out_an_list, nxp, nyp, nzp, level, &
                      a_tt, a_rt,a_rpt, a_npt
     use defs, only : cp
     IMPLICIT NONE
     ! Input
     character (len=4), intent (in) :: prefix ! 'srfc', 'diff', 'forc', 'mcrp', 'sedi', 'advf',...
+    ! Local
+    INTEGER :: i
     !
-    ! [Ice-liquid water] potential temperature tendency: convert to heating rate [W/kg] by multiplying with heat capacity
+    ! a) LES variables
+    ! [Ice-liquid water] potential temperature tendency:
+    ! convert to heating rate [W/kg] by multiplying with heat capacity
     CALL scalar_rate_stat(prefix//'_tt',nzp,nxp,nyp,a_tt,factor=cp)
     !
     ! Concentrations
@@ -2847,27 +2849,149 @@ contains
         CALL scalar_rate_stat(prefix//'_rt',nzp,nxp,nyp,a_rt)
         CALL scalar_rate_stat(prefix//'_nr',nzp,nxp,nyp,a_npt)
         CALL scalar_rate_stat(prefix//'_rr',nzp,nxp,nyp,a_rpt)
-    ENDIF
-    IF (level>=4) THEN
-        ! Level 4: water vapor (a_rt) and liquid hydrometeors
+    ELSEIF (level>=4) THEN
+        ! Level 4 and 5: water vapor (a_rt)
         CALL scalar_rate_stat(prefix//'_rg',nzp,nxp,nyp,a_rt)
-        ! SALSA tendencies are 4D arrays
-        CALL salsa_rate_stat(prefix//'_na',nzp,nxp,nyp,nbins,1,a_naerot)
-        CALL salsa_rate_stat(prefix//'_ra',nzp,nxp,nyp,nbins,nspec+1,a_maerot)
-        CALL salsa_rate_stat(prefix//'_nc',nzp,nxp,nyp,ncld,1,a_ncloudt)
-        CALL salsa_rate_stat(prefix//'_rc',nzp,nxp,nyp,ncld,nspec+1,a_mcloudt)
-        CALL salsa_rate_stat(prefix//'_nr',nzp,nxp,nyp,nprc,1,a_nprecpt)
-        CALL salsa_rate_stat(prefix//'_rr',nzp,nxp,nyp,nprc,nspec+1,a_mprecpt)
-    ENDIF
-    IF (level>=5) THEN
-        ! Level 5: level 4 + frozen hydrometeors
-        CALL salsa_rate_stat(prefix//'_ni',nzp,nxp,nyp,nice,1,a_nicet)
-        CALL salsa_rate_stat(prefix//'_ri',nzp,nxp,nyp,nice,nspec+1,a_micet)
-        CALL salsa_rate_stat(prefix//'_ns',nzp,nxp,nyp,nsnw,1,a_nsnowt)
-        CALL salsa_rate_stat(prefix//'_rs',nzp,nxp,nyp,nsnw,nspec+1,a_msnowt)
     ENDIF
     !
+    ! b) LES variables related to SALSA
+    IF (level<4) RETURN
+    ! There are so many possible outputs, that it is faster to examine the requested outputs
+    DO i=1,maxn_list
+        ! The first four characters contain process name, which should match with the given prefix.
+        ! The 5th character is just '_', but the 6th character indicates the output type (n=number,
+        ! r=water mixing ratio or an integer i referring to i:th component in condensed or gas phase).
+        ! The last (7th) character is phase (a, c, r, i, s or g).
+        IF (prefix == out_an_list(i)(1:4)) THEN
+            ! Analysis data
+            CALL calc_salsa_rate(i,4,out_an_list(i)(6:6),out_an_list(i)(7:7))
+        ENDIF
+        IF (csflg .AND. prefix == out_cs_list(i)(1:4)) THEN
+            ! Column statistics
+            CALL calc_salsa_rate(i,3,out_cs_list(i)(6:6),out_cs_list(i)(7:7))
+        ENDIF
+        IF (prefix == out_ps_list(i)(1:4)) THEN
+            ! Profiles
+            CALL calc_salsa_rate(i,2,out_ps_list(i)(6:6),out_ps_list(i)(7:7))
+        ENDIF
+        IF (prefix == out_ts_list(i)(1:4)) THEN
+            ! Time series
+            CALL calc_salsa_rate(i,1,out_ts_list(i)(6:6),out_ts_list(i)(7:7))
+        ENDIF
+    ENDDO
+    !
   END SUBROUTINE les_rate_stats
+
+  ! This is the actual function for calculating level 4 and 5 outputs
+  SUBROUTINE calc_salsa_rate(out_ind,out_id,tchar,pchar)
+    USE grid, ONLY : dzt, a_dn, out_an_data, &
+                     nxp, nyp, nzp, nbins, ncld, nprc, nice, nsnw, nspec, &
+                     a_naerot, a_maerot, a_ncloudt, a_mcloudt, a_nprecpt, a_mprecpt, &
+                     a_nicet,  a_micet, a_nsnowt, a_msnowt, a_gaerot
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: out_ind, out_id ! Index and type of output
+    CHARACTER, INTENT(IN) :: tchar, pchar ! Type and phase characters
+    ! Local
+    INTEGER :: j, k
+    REAL ::tend(nzp,nxp,nyp), tmp(nzp,nxp,nyp), col(nzp), area(nxp,nyp)
+    !
+    SELECT CASE (pchar)
+        CASE ('a')
+            ! Aerosol
+            SELECT CASE (tchar)
+                CASE ('n')
+                   ! Number concentration
+                   tend=SUM(a_naerot,DIM=4)
+                CASE('r','1')
+                   ! Water (component 1) mass mixing ratio
+                   tend=SUM(a_maerot(:,:,:,1:nbins),DIM=4)
+                CASE DEFAULT
+                   ! Mass mixing ratio of component j
+                   READ(UNIT=tchar,FMT='(I1)') j
+                   tend=SUM(a_maerot(:,:,:,(j-1)*nbins+1:j*nbins),DIM=4)
+                END SELECT
+        CASE ('c')
+            ! Cloud
+            SELECT CASE (tchar)
+                CASE ('n')
+                   tend=SUM(a_ncloudt,DIM=4)
+                CASE('r','1')
+                   tend=SUM(a_mcloudt(:,:,:,1:ncld),DIM=4)
+                CASE DEFAULT
+                   READ(UNIT=tchar,FMT='(I1)') j
+                   tend=SUM(a_mcloudt(:,:,:,(j-1)*ncld+1:j*ncld),DIM=4)
+                END SELECT
+        CASE ('r')
+            ! Rain
+            SELECT CASE (tchar)
+                CASE ('n')
+                   ! Number concentration
+                   tend=SUM(a_nprecpt,DIM=4)
+                CASE('r','1')
+                   tend=SUM(a_mprecpt(:,:,:,1:nprc),DIM=4)
+                CASE DEFAULT
+                   READ(UNIT=tchar,FMT='(I1)') j
+                   tend=SUM(a_mprecpt(:,:,:,(j-1)*nprc+1:j*nprc),DIM=4)
+                END SELECT
+        CASE ('i')
+            ! Ice
+            SELECT CASE (tchar)
+                CASE ('n')
+                   tend=SUM(a_nicet,DIM=4)
+                CASE('r','1')
+                   tend=SUM(a_micet(:,:,:,1:nice),DIM=4)
+                CASE DEFAULT
+                   READ(UNIT=tchar,FMT='(I1)') j
+                   tend=SUM(a_micet(:,:,:,(j-1)*nice+1:j*nice),DIM=4)
+                END SELECT
+        CASE ('s')
+            ! Snow
+            SELECT CASE (tchar)
+                CASE ('n')
+                   ! Number concentration
+                   tend=SUM(a_nsnowt,DIM=4)
+                CASE('r','1')
+                   ! Water (component 1) mass mixing ratio
+                   tend=SUM(a_msnowt(:,:,:,1:nsnw),DIM=4)
+                CASE DEFAULT
+                   ! Mass mixing ratio of component j
+                   READ(UNIT=tchar,FMT='(I1)') j
+                   tend=SUM(a_msnowt(:,:,:,(j-1)*nsnw+1:j*nsnw),DIM=4)
+                END SELECT
+        CASE ('g')
+            ! Gas: scalar so just mass mixing ratio of component j
+            READ(UNIT=tchar,FMT='(I1)') j
+            tend=a_gaerot(:,:,:,j)
+    END SELECT
+    !
+    ! Save the data; calculate averages when needed
+    IF (out_id==4) THEN
+        ! Analysis data as is (per mass of air)
+        out_an_data(:,:,:,out_ind) = tend(:,:,:)
+    ELSEIF (out_id==3) THEN
+        ! Column outputs are integrals over vertical dimension (per volume of air)
+        area(:,:) = 0.
+        do k=2,nzp
+            area(:,:)=area(:,:)+tend(k,:,:)*a_dn(k,:,:)/dzt(k)
+        ENDDO
+        out_cs_data(:,:,out_ind) = area(:,:)
+    ELSEIF (out_id==2) THEN
+        ! Profiles: averaged tendencies are weighted by air density
+        tmp(:,:,:) = tend(:,:,:)*a_dn(:,:,:)
+        ! Average over horizontal dimensions
+        CALL get_avg3(nzp,nxp,nyp,tmp,col)
+        ! Profile
+        out_ps_data(:,out_ind) = col(:)
+    ELSE
+        ! Time series: averaged tendencies are weighted by air density
+        tmp(:,:,:) = tend(:,:,:)*a_dn(:,:,:)
+        ! Average over horizontal dimensions
+        CALL get_avg3(nzp,nxp,nyp,tmp,col)
+        ! Integrate over vertical dimension to get the domain mean
+        out_ts_data(out_ind) = SUM( col(2:nzp)/dzt(2:nzp) )
+    ENDIF
+    !
+  END SUBROUTINE calc_salsa_rate
   !
   ! Scalar 3D arrays
   SUBROUTINE scalar_rate_stat(vname,n1,n2,n3,tend,factor)
@@ -2943,7 +3067,6 @@ contains
             IF ( vname == out_ps_list(i) ) out_ps_data(:,i) = col(:)*fact
             ! Integrate over vertical dimension to get the domain mean
             IF ( vname == out_ts_list(i) ) out_ts_data(i) = SUM( col(2:n1)/dzt(2:n1) )*fact
-            ! Integral over vertial dimension and then average over horizontal dimensions.
         ENDIF
         IF ( csflg .AND. vname == out_cs_list(i) ) THEN
             ! Column outputs are integrals over vertical dimension (per volume of air)
