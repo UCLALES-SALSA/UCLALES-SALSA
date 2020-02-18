@@ -1,6 +1,9 @@
 
 UCLALES-SALSA is a Large-Eddy model coupled with a detailed sectional 
-microphysics module for aerosol, clouds and precipitation.
+microphysics module for aerosol, clouds and precipitation. The core model
+UCLALES is the work of Stevens et al. (2005 @ Mon. Wea. Rev.). SALSA
+and all modifications and components related to the coupled UCLALES-SALSA have
+been designed and developed by the Finnish Meteorological Institute.
 
 To install this model, simply type 
    >> git clone https://github.com/UCLALES-SALSA/UCLALES-SALSA.git
