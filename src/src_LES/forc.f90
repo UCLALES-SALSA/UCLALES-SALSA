@@ -233,10 +233,7 @@ contains
 
 
   subroutine new_gcss_rad(n1,n2,n3,rc,rt,flx)
-    USE grid, ONLY : a_ncloudp, a_nprecpp, a_mprecpp, a_nicep, a_nsnowp, a_msnowp, &
-         a_naerop, a_naerot, a_ncloudt, a_nicet, a_nsnowt, a_maerop, a_mcloudp, a_micep,  &
-         a_maerot, a_mcloudt, a_micet, a_msnowt, a_nprecpt, a_mprecpt, level, a_temp, a_theta, &
-         zt, zm, dzt, dzm, dn0, a_tt, a_tp, a_rt, a_rp
+    USE grid, ONLY : zm, zt, dzt, dn0, a_tt, a_temp, a_theta, a_sclrp, a_sclrt
     implicit none
     integer, intent (in)::  n1,n2, n3
     real, intent (in)   ::  rc(n1,n2,n3),rt(n1,n2,n3)
@@ -285,27 +282,12 @@ contains
         sf(k) = -div*min( zmaxdiv,zt(k) )*dzt(k)
     end do
     !
+    ! Apply to all prognostic variables
     DO j=3,n3-2
         DO i=3,n2-2
             DO k=2,n1-1
                 kp1 = k+1
-                a_tt(k,i,j) = a_tt(k,i,j) - ( a_tp(kp1,i,j) - a_tp(k,i,j) )*sf(k)
-                a_rt(k,i,j) = a_rt(k,i,j) - ( a_rp(kp1,i,j) - a_rp(k,i,j) )*sf(k)
-
-                IF (level>=4) THEN
-                  a_maerot(k,i,j,:) = a_maerot(k,i,j,:) - ( a_maerop(kp1,i,j,:) - a_maerop(k,i,j,:) )*sf(k)
-                  a_mcloudt(k,i,j,:) = a_mcloudt(k,i,j,:) - ( a_mcloudp(kp1,i,j,:) - a_mcloudp(k,i,j,:) )*sf(k)
-                  a_mprecpt(k,i,j,:) = a_mprecpt(k,i,j,:) - ( a_mprecpp(kp1,i,j,:) - a_mprecpp(k,i,j,:) )*sf(k)
-                  a_naerot(k,i,j,:) = a_naerot(k,i,j,:) - ( a_naerop(kp1,i,j,:) - a_naerop(k,i,j,:) )*sf(k)
-                  a_ncloudt(k,i,j,:) = a_ncloudt(k,i,j,:) - ( a_ncloudp(kp1,i,j,:) - a_ncloudp(k,i,j,:) )*sf(k)
-                  a_nprecpt(k,i,j,:) = a_nprecpt(k,i,j,:) - ( a_nprecpp(kp1,i,j,:) - a_nprecpp(k,i,j,:) )*sf(k)
-                ENDIF
-                IF (level>=5) THEN
-                  a_micet(k,i,j,:) = a_micet(k,i,j,:) - ( a_micep(kp1,i,j,:) - a_micep(k,i,j,:) )*sf(k)
-                  a_msnowt(k,i,j,:) = a_msnowt(k,i,j,:) - ( a_msnowp(kp1,i,j,:) - a_msnowp(k,i,j,:) )*sf(k)
-                  a_nicet(k,i,j,:) = a_nicet(k,i,j,:) - ( a_nicep(kp1,i,j,:) - a_nicep(k,i,j,:) )*sf(k)
-                  a_nsnowt(k,i,j,:) = a_nsnowt(k,i,j,:) - ( a_nsnowp(kp1,i,j,:) - a_nsnowp(k,i,j,:) )*sf(k)
-                ENDIF
+                a_sclrt(k,i,j,:) = a_sclrt(k,i,j,:) - ( a_sclrp(kp1,i,j,:) - a_sclrp(k,i,j,:) )*sf(k)
             END DO
         END DO
     END DO

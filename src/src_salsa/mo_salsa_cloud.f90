@@ -524,22 +524,22 @@ CONTAINS
         !
         ! Possible scaling factors
         ! 1) Linear dN(i)=N(i)*dNtot/Ntot
-        !scalen(:)=Nrem/Ntot
-        !scalev(:)=Vrem/Vtot
+        scalen(:)=Nrem/Ntot
+        scalev(:)=Vrem/Vtot
         ! 2) Weighted: dN(i)=N(i)*X(i)*dNtot/sum(N(i)*X(i))
         ! Weight based on autoconversion rate: V**2*Xc**2 where
         !   V=Vw(i), V=k*Ddry(i)**3 or V=Vtot=const
         !   Xc=k*Vi(i)/N(i) or Xc=k*Ddry(i)**3
         !scaling=pcloud(ii,jj,:)%volc(1)**2*pcloud(ii,jj,:)%dmid**6
-        scaling=pcloud(ii,jj,:)%dmid**6
+        !scaling=pcloud(ii,jj,:)%dmid**6
         !WHERE (pcloud(ii,jj,:)%numc>nlim)
         !    scaling=pcloud(ii,jj,:)%volc(1)**4/pcloud(ii,jj,:)%numc**2
         !    scaling=(pcloud(ii,jj,:)%volc(1)/pcloud(ii,jj,:)%numc)**2
         !ELSEWHERE
         !    scaling=0.
         !ENDWHERE
-        scalen(:)=scaling(:)*Nrem/SUM(scaling(:)*pcloud(ii,jj,:)%numc)
-        scalev(:)=scaling(:)*Vrem/SUM(scaling(:)*pcloud(ii,jj,:)%volc(1))
+        !scalen(:)=scaling(:)*Nrem/SUM(scaling(:)*pcloud(ii,jj,:)%numc)
+        !scalev(:)=scaling(:)*Vrem/SUM(scaling(:)*pcloud(ii,jj,:)%volc(1))
         !
         DO cc = 1,ncld
             IF ( pcloud(ii,jj,cc)%numc > nlim ) THEN
