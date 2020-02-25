@@ -885,7 +885,7 @@ contains
                      a_rh, a_temp, a_rhi, a_dn, level, dtl, &
                      tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
     USE mo_submctl, ONLY : fn1a,in2a,fn2a, &
-                     diss, mws, dens, dens_ice, dens_snow, &
+                     diss, mws, dens, rhoic, rhosn, &
                      surfw0, rg, nlim, prlim, pi, pi6, &
                      lscndgas, part_h2so4, part_ocnv, iso, ioc, isog, iocg, &
                      aerobins, calc_correlation
@@ -1078,7 +1078,8 @@ contains
                 IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. &
                         a_micep(k,i,j,bc)<1e-8 ) THEN
                    ! Diameter (assuming constant ice density)
-                   cd = (SUM( a_micep(k,i,j,bc:nspec*nice+bc:nice)/dens_ice(1:nn) )/a_nicep(k,i,j,bc)/pi6)**(1./3.)
+                   cd = ( (a_micep(k,i,j,bc)/rhoic+SUM(a_micep(k,i,j,nice+bc:nspec*nice+bc:nice)/dens(2:nn)) )/ &
+                            a_nicep(k,i,j,bc)/pi6)**(1./3.)
 
                    ! Dry to total mass ratio
                    zvol = SUM( a_micep(k,i,j,nice+bc:nspec*nice+bc:nice) )/SUM( a_micep(k,i,j,bc:nspec*nice+bc:nice) )
@@ -1106,7 +1107,8 @@ contains
                 IF ( a_nsnowp(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. &
                         a_msnowp(k,i,j,bc)<1e-8 ) THEN
                    ! Diameter (assuming constant snow density)
-                   cd = (SUM( a_msnowp(k,i,j,bc:nspec*nsnw+bc:nsnw)/dens_snow(1:nn) )/a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
+                   cd = ( (a_msnowp(k,i,j,bc)/rhosn+SUM(a_msnowp(k,i,j,nsnw+bc:nspec*nsnw+bc:nsnw)/dens(2:nn)) )/ &
+                            a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
 
                    ! Dry to total mass ratio
                    zvol = SUM( a_msnowp(k,i,j,nsnw+bc:nspec*nsnw+bc:nsnw) )/SUM( a_msnowp(k,i,j,bc:nspec*nsnw+bc:nsnw) )

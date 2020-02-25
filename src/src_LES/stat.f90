@@ -1167,6 +1167,7 @@ contains
   subroutine set_ts(n1,n2,n3,w,th,t,dn0,zt,zm,dzt,dzm,th00,time)
 
     use defs, only : cp
+    USE grid, ONLY : th0
 
     integer, intent(in) :: n1,n2,n3
     real, intent(in)    :: w(n1,n2,n3),th(n1,n2,n3),t(n1,n2,n3)
@@ -1200,7 +1201,7 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1
-             scr(i,j)=scr(i,j)+t(k,i,j)*(zm(k)-zm(k-1))
+             scr(i,j)=scr(i,j)+(t(k,i,j)+th00-th0(k))*(zm(k)-zm(k-1))
           enddo
        end do
     end do
@@ -1370,7 +1371,7 @@ contains
   SUBROUTINE ts_lvl5(n1,n2,n3)
     USE mo_submctl, only : prlim ! Note: #/m^3, but close enough to #/kg for statistics
     USE grid, ONLY : bulkNumc, bulkMixrat,meanRadius, dzt, &
-        dn0, zm, a_ri, a_srs, snowin, a_rhi, a_tp, th00, nspec
+        dn0, zm, a_ri, a_srs, snowin, a_rhi, a_tp, th0, th00, nspec
 
     IMPLICIT NONE
 
@@ -1430,8 +1431,8 @@ contains
              ! Snow-water path
              scr2(i,j)=scr2(i,j)+a_srs(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
              !
-             ! Integrated ice-liquid water potential temperature
-             scr3(i,j)=scr3(i,j)+(a_tp(k,i,j)+th00)*(zm(k)-zm(k-1))
+             ! Integrated ice-liquid water potential temperature - change from th0
+             scr3(i,j)=scr3(i,j)+(a_tp(k,i,j)+th00-th0(k))*(zm(k)-zm(k-1))
           end do
           !
           ! Surface snow rate

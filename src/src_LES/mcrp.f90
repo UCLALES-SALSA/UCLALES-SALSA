@@ -29,10 +29,10 @@ module mcrp
        a_nicep,   a_nicet,   a_micep,   a_micet,                                &
        a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,                               &
        nbins, ncld, nprc, nice, nsnw, nspec, &
-       aerin, cldin, icein, snowin, calc_eff_radius, &
+       aerin, cldin, icein, snowin, &
        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
   use stat, only : sflg, updtst, acc_removal, cs_rem_set, out_mcrp_nout, out_mcrp_data, out_mcrp_list
-  USE mo_submctl, ONLY : terminal_vel
+  USE mo_submctl, ONLY : terminal_vel, calc_eff_radius
   implicit none
 
   logical, parameter :: khairoutdinov = .False.
@@ -842,8 +842,8 @@ contains
                 ! Calculate wet size
                 !   n4 = number of active species
                 !   bin = size bin
-                pmass(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-                rwet=calc_eff_radius(n4,numc(k,i,j,bin),pmass,flag)
+                pmass(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)/numc(k,i,j,bin)
+                rwet=calc_eff_radius(n4,pmass,flag)
 
                 ! Terminal velocity
                 Kn = lambda/rwet
