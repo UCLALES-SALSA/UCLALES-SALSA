@@ -440,14 +440,13 @@ CONTAINS
             X_min = 4.2e-15, & ! Minimum cloud droplet mass (kg), D_min=2e-6 m
             X_bnd = 2.6e-10 ! Droplet mass that separates cloud droplets from rain drops (kg), D_bnd=80e-6 m
     INTEGER, SAVE :: iout=-1  ! Specified bin for new raindrops: <=0 find the bin matching with X_bnd; >0 select one bin (hard coded)
-    REAL :: fact=0.5 ! Fraction of converted cloud droplets that are added to the cloud drop number (accounting for self-collection)
 
     INTEGER, INTENT(in) :: kbdim,klev
     REAL, INTENT(IN) :: ptstep
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld)
     TYPE(t_section), INTENT(inout) :: pprecp(kbdim,klev,nprc)
 
-    REAL :: Vrem, Nrem, Vtot, Ntot, scaling(ncld), scalen(ncld), scalev(ncld)
+    REAL :: Vrem, Nrem, Vtot, Ntot, fact, scaling
     REAL :: k_au, Xc, tau, phi, au
     INTEGER :: ii,jj,cc,io
 
@@ -468,7 +467,7 @@ CONTAINS
         ! Total cloud droplet number and water volume
         Ntot = SUM(pcloud(ii,jj,:)%numc)
         Vtot = SUM(pcloud(ii,jj,:)%volc(1))
-        IF (Ntot <= nlim .OR. Vtot<=0.) CYCLE
+        IF (Ntot <= nlim .OR. Vtot*rhowa <= Ntot*X_min) CYCLE
         !
         ! Parameters
         if (Vtot > 1.e-10) then ! Limit set to 1e-10 m^3/m^3
@@ -492,14 +491,15 @@ CONTAINS
         Vrem = MAX(au/rhowa*ptstep,0.0)
         !
         ! Detemine the change in rain droplet number concentration
-        !   Note: Nrem=dNcloud=-dNrain*fact, where fact<1 represents number reduction due to cloud droplet collisions
+        !   Note: Nrem=dNrain=fact*dNcloud where 0<fact<=1 represents number reduction due to cloud droplet collisions
         IF (Vrem>=Vtot) THEN
             ! If all volume should go to the rain bins, then just move all cloud droplets
-            Nrem=Ntot
+            fact=0.5
+            Nrem=Ntot*fact
             Vrem=Vtot
             ! Find bin
             io=1
-            DO WHILE (io<nprc .AND. Vrem .GT. fact*Nrem*pprecp(ii,jj,io)%vhilim)
+            DO WHILE (io<nprc .AND. Vrem .GT. Nrem*pprecp(ii,jj,io)%vhilim)
                io=io+1
             END DO
             ! Note: must move all to this bin
@@ -507,48 +507,27 @@ CONTAINS
             ! Add rain drops to the specified bin (e.g. the first bin, the bin with 65-100 um rain drops, or any other bin) and
             ! calculate number based on that: N*pi/6*Dmid**3=V => N=V/(pi/6*Dmid**3)
             io=iout ! The default bin
-            Nrem=Vrem/(pi6*pprecp(ii,jj,io)%dmid**3)/fact
+            Nrem=Vrem/(pi6*pprecp(ii,jj,io)%dmid**3)
+            ! Determine fact: Nrem=SUM(fact*Nc(i)*Vrem/Vtot)=fact*Ntot*Vrem/Vtot
+            fact=MIN(1.,Nrem/Ntot*Vtot/Vrem) ! Limited to 1
         END IF
         !
-        ! Nrem cannot be larger than Ntot and in that case just remove all (cannot remove almost all particles, but leave mass)
-        IF (Nrem>Ntot) THEN
-            Nrem=Ntot
-            Vrem=Vtot
-        ENDIF
-        !
-        IF (Vrem <= 0. .OR. Nrem*fact <= prlim) CYCLE
+        IF (Vrem <= 0. .OR. Nrem <= prlim) CYCLE
         !
         ! How to split the change between bins?
         !   - Don't change cloud droplet dry size (bins), so volc(2:) and numc must change with the same fraction
-        !   - Note that number need not to be conserved in the coagulation-based autoconversion
+        !   - Should not change aerosol-water ratios, so volc(:) and numc must change with the same fraction
+        !   - Number need not to be conserved in the coagulation-based autoconversion (adjusting rain drop number)
+        !   - Linear scaling, dV(i)=V(i)*dVtot/Vtot, is robust and does not produce unphysical results
         !
-        ! Possible scaling factors
-        ! 1) Linear dN(i)=N(i)*dNtot/Ntot
-        scalen(:)=Nrem/Ntot
-        scalev(:)=Vrem/Vtot
-        ! 2) Weighted: dN(i)=N(i)*X(i)*dNtot/sum(N(i)*X(i))
-        ! Weight based on autoconversion rate: V**2*Xc**2 where
-        !   V=Vw(i), V=k*Ddry(i)**3 or V=Vtot=const
-        !   Xc=k*Vi(i)/N(i) or Xc=k*Ddry(i)**3
-        !scaling=pcloud(ii,jj,:)%volc(1)**2*pcloud(ii,jj,:)%dmid**6
-        !scaling=pcloud(ii,jj,:)%dmid**6
-        !WHERE (pcloud(ii,jj,:)%numc>nlim)
-        !    scaling=pcloud(ii,jj,:)%volc(1)**4/pcloud(ii,jj,:)%numc**2
-        !    scaling=(pcloud(ii,jj,:)%volc(1)/pcloud(ii,jj,:)%numc)**2
-        !ELSEWHERE
-        !    scaling=0.
-        !ENDWHERE
-        !scalen(:)=scaling(:)*Nrem/SUM(scaling(:)*pcloud(ii,jj,:)%numc)
-        !scalev(:)=scaling(:)*Vrem/SUM(scaling(:)*pcloud(ii,jj,:)%volc(1))
+        scaling = Vrem/Vtot
         !
         DO cc = 1,ncld
             IF ( pcloud(ii,jj,cc)%numc > nlim ) THEN
-                pprecp(ii,jj,io)%volc(2:) = pprecp(ii,jj,io)%volc(2:) + pcloud(ii,jj,cc)%volc(2:)*scalen(cc)
-                pcloud(ii,jj,cc)%volc(2:) = pcloud(ii,jj,cc)%volc(2:)*(1. - scalen(cc))
-                pprecp(ii,jj,io)%volc(1) = pprecp(ii,jj,io)%volc(1) + pcloud(ii,jj,cc)%volc(1)*scalev(cc)
-                pcloud(ii,jj,cc)%volc(1) = pcloud(ii,jj,cc)%volc(1)*(1. - scalev(cc))
-                pprecp(ii,jj,io)%numc = pprecp(ii,jj,io)%numc + pcloud(ii,jj,cc)%numc*scalen(cc)*fact
-                pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc*(1. - scalen(cc))
+                pprecp(ii,jj,io)%volc(:) = pprecp(ii,jj,io)%volc(:) + pcloud(ii,jj,cc)%volc(:)*scaling
+                pcloud(ii,jj,cc)%volc(:) = pcloud(ii,jj,cc)%volc(:)*(1. - scaling)
+                pprecp(ii,jj,io)%numc = pprecp(ii,jj,io)%numc + pcloud(ii,jj,cc)%numc*scaling*fact
+                pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc*(1. - scaling)
             END IF
           END DO ! cc
        END DO ! ii
