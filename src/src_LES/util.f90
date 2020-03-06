@@ -146,9 +146,10 @@ contains
   ! Implemented by Zubair Maalick
   ! Possibility for conditional sampling added by Juha Tonttila
   ! 
-  ! Weighting by layer thickness implemented for non-uniform vertical resolution
+  ! Weighting by layer thickness implemented for non-uniform vertical resolution  - calculated over all PUs
   !
   real function get_avg_ts(n1,n2,n3,a,dz,cond)
+    use mpi_interface, only : double_scalar_par_sum
 
     integer, intent (in):: n1, n2, n3
     REAL, INTENT(in)    :: dz(n1)  ! Reciprocal of layer depth!
@@ -157,6 +158,7 @@ contains
     
     integer :: i,j,k, npnt
     REAL :: ztmp,ztot
+    REAL(kind=8) :: lavg,gavg,nn
 
     npnt = 0
     get_avg_ts=0.
@@ -197,7 +199,16 @@ contains
 
     END IF
 
-    IF (npnt>0) get_avg_ts = get_avg_ts/real(npnt)
+    lavg = REAL(npnt)
+    call double_scalar_par_sum(lavg,gavg)
+    IF (gavg>0.) THEN
+        nn = gavg ! npnt
+        lavg = get_avg_ts
+        call double_scalar_par_sum(lavg,gavg)
+        get_avg_ts = real(gavg/nn)
+    ELSE
+        get_avg_ts = -999.
+    ENDIF
 
   end function get_avg_ts
   !
@@ -266,6 +277,207 @@ contains
 
   end subroutine get_avg3
   !
+  ! -------------------------------------------------------------------------
+  !
+  ! find the mean level at which sx=threshold - calculated over all PUs
+  real function get_zi_val(n1, n2, n3, sx, z, threshold)
+    use mpi_interface, only : double_scalar_par_sum
+
+    integer, intent (in) :: n1, n2, n3
+    real, intent (in)    :: z(n1), sx(n1,n2,n3), threshold
+
+    integer :: i, j, k, n
+    real    :: zibar
+    REAL(kind=8) :: lavg,gavg,nn
+
+    n = 0
+    zibar = 0.
+    do j=3,n3-2
+        do i=3,n2-2
+            k = 2
+            do while (k < n1-2 .and. sx(k,i,j) > threshold)
+                k = k+1
+            end do
+            IF (k < n1-2) THEN
+                ! Level found
+                n = n+1
+                ! Interpolation
+                zibar = zibar + z(k-1) +  &
+                  (threshold - sx(k-1,i,j))/(z(k)-z(k-1))     /  &
+                  (sx(k,i,j) - sx(k-1,i,j) + epsilon(1.))
+            ENDIF
+        end do
+    end do
+
+    ! Global mean
+    lavg = REAL(n)
+    call double_scalar_par_sum(lavg,gavg)
+    IF (gavg>0.) THEN
+        nn =gavg
+        lavg = zibar
+        call double_scalar_par_sum(lavg,gavg)
+        get_zi_val = real(gavg/nn)
+    ELSE
+        get_zi_val = -999.
+    ENDIF
+
+  END function get_zi_val
+  !
+  ! -------------------------------------------------------------------------
+  !
+  ! Find the mean height where sx has its maximum gradient, positive or negative - calculated over all PUs
+  real function get_zi_dmax(n1, n2, n3, sx, z)
+    use mpi_interface, only : nypg,nxpg,double_scalar_par_sum
+
+    integer, intent (in) :: n1, n2, n3
+    real, intent (in)    :: z(n1), sx(n1,n2,n3)
+
+    integer :: i, j, k
+    real    :: sval, dmy, scr
+    REAL(kind=8) :: lavg,gavg
+
+    get_zi_dmax = 0.
+    do j=3,n3-2
+        do i=3,n2-2
+            sval = 0. ! for k=1
+            scr = z(1)
+            do k=2,n1-5
+                dmy = abs( (sx(k+1,i,j)-sx(k,i,j))/(z(k+1)-z(k)) )
+                if (dmy > sval) then
+                   sval = dmy
+                   scr = z(k)
+                end if
+            end do
+            get_zi_dmax = get_zi_dmax + scr
+        end do
+    end do
+
+    lavg = get_zi_dmax
+    call double_scalar_par_sum(lavg,gavg)
+    get_zi_dmax = real(gavg)/real((nypg-4)*(nxpg-4))
+
+  end function get_zi_dmax
+  !
+  ! -------------------------------------------------------------------------
+  !
+  ! Find the maximum of sx - calculated over all PUs
+  real function get_max_val(n1, n2, n3, sx)
+    use mpi_interface, only : double_scalar_par_max
+
+    integer, intent (in) :: n1, n2, n3
+    real, intent (in)    :: sx(n1,n2,n3)
+
+    REAL(kind=8) :: lavg,gavg
+
+    lavg = maxval(sx(2:n1,3:n2-2,3:n3-2))
+    call double_scalar_par_max(lavg,gavg)
+    get_max_val = REAL(gavg)
+
+  end function get_max_val
+  !
+  ! -------------------------------------------------------------------------
+  !
+  ! Statistics of a scalar calculated over all PUs
+  real function get_pustat_scalar(op, sx, wx)
+    use mpi_interface, only : pecount, double_scalar_par_max, double_scalar_par_sum
+
+    CHARACTER(LEN=3) :: op ! Operation
+    real, intent (in)    :: sx ! Data
+    real, OPTIONAL, intent (in) :: wx ! Weight (optional, for average only)
+
+    REAL(kind=8) :: lavg,gavg,sw
+
+    select case(op)
+    CASE('avg')
+        ! Average
+        IF (PRESENT(wx)) THEN
+            ! Weighted average: avg = sum(x(i)*w(i),i=1,n)/sum(w(i),i=1,n)
+            lavg = wx
+            call double_scalar_par_sum(lavg,gavg)
+            IF (ABS(gavg)>1e-30) THEN
+                sw = gavg
+                lavg = sx
+                call double_scalar_par_sum(lavg,gavg)
+                get_pustat_scalar = REAL(gavg/sw)
+            ELSE
+                get_pustat_scalar = -999.
+            ENDIF
+        ELSE
+            ! Average: avg = sum(x(i),i=1,n)/n
+            lavg = sx
+            call double_scalar_par_sum(lavg,gavg)
+            get_pustat_scalar = REAL(gavg)/REAL(pecount)
+        ENDIF
+    CASE('sum')
+        ! Sum
+        lavg = sx
+        call double_scalar_par_sum(lavg,gavg)
+        get_pustat_scalar = REAL(gavg)
+    CASE('max')
+        ! Maximum
+        lavg = sx
+        call double_scalar_par_max(lavg,gavg)
+        get_pustat_scalar = REAL(gavg)
+    CASE('min')
+        ! Minimum (<1e30)
+        lavg = -sx
+        call double_scalar_par_max(lavg,gavg)
+        get_pustat_scalar = -REAL(gavg)
+    case default
+        WRITE(*,*) op
+        STOP 'Bad option for get_pustat_scalar!'
+    END SELECT
+
+  end function get_pustat_scalar
+  ! -------------------------------------------------------------------------
+  !
+  ! Statistics of a vector calculated over all PUs
+  SUBROUTINE get_pustat_vector(op, n, sx, wx)
+    use mpi_interface, only : pecount, double_array_par_sum
+
+    CHARACTER(LEN=3) :: op        ! Operation
+    integer, intent(in) :: n      ! Dimension
+    real, intent (inout) :: sx(n) ! Data
+    real, OPTIONAL, intent (in) :: wx(n) ! Weight (optional, for average only)
+
+    INTEGER :: i
+    REAL(kind=8) :: lavg(n),gavg(n),sw(n)
+
+    select case(op)
+    CASE('avg')
+        ! Average
+        IF (PRESENT(wx)) THEN
+            ! Weighted average: avg = sum(x(i)*w(i),i=1,n)/sum(w(i),i=1,n)
+            lavg = wx
+            call double_array_par_sum(lavg,gavg,n)
+            sw = gavg
+            lavg = sx
+            call double_array_par_sum(lavg,gavg,n)
+            DO i=1,n
+                IF (ABS(gavg(i))>1e-30) THEN
+                    sx(i) = REAL(gavg(i)/sw(i))
+                ELSE
+                    sx(i) = -999.
+                ENDIF
+            ENDDO
+        ELSE
+            ! Average: avg = sum(x(i),i=1,n)/n
+            lavg = sx
+            call double_array_par_sum(lavg,gavg,n)
+            sx(:) = REAL(gavg(:))/REAL(pecount)
+        ENDIF
+    CASE('sum')
+        ! Sum
+        lavg = sx
+        call double_array_par_sum(lavg,gavg,n)
+        sx(:) = REAL(gavg(:))
+    case default
+        WRITE(*,*) op
+        STOP 'Bad option for get_pustat_vector!'
+    END SELECT
+
+  end SUBROUTINE get_pustat_vector
+  !
   !---------------------------------------------------------------------
   ! Calculate histograms from concentration (num) and radius (rad) data - calculated over all PUs
   !
@@ -313,13 +525,15 @@ contains
   !
   !---------------------------------------------------------------------
   ! function get_cor: gets mean correlation between two fields at a 
-  ! given level
+  ! given level - calculated over all PUs
   !
   real function get_cor(n1,n2,n3,k,a,b)
+    use mpi_interface, only : nypg,nxpg,double_scalar_par_sum
 
     integer, intent (in) :: n1,n2,n3,k
-    real, intent (inout) :: a(n1,n2,n3),b(n1,n2,n3)
+    real, intent (in) :: a(n1,n2,n3),b(n1,n2,n3)
 
+    REAL(kind=8) :: lavg,gavg
     integer :: i,j
 
     get_cor=0.
@@ -328,20 +542,25 @@ contains
           get_cor=get_cor+a(k,i,j)*b(k,i,j)
        end do
     end do
-    get_cor=get_cor/real((n3-4)*(n2-4))
+
+    lavg = get_cor
+    call double_scalar_par_sum(lavg,gavg)
+    get_cor = real(gavg)/real((nypg-4)*(nxpg-4))
 
   end function get_cor
   !
   !---------------------------------------------------------------------
   ! function get_cor3: gets mean correlation accross outer two dimensions
-  ! at each point along inner dimension
+  ! at each point along inner dimension - calculated over all PUs
   !
   subroutine get_cor3(n1,n2,n3,a,b,avg)
+    use mpi_interface, only : nypg,nxpg,double_array_par_sum
 
     integer, intent (in) :: n1,n2,n3
     real, intent (in)    :: a(n1,n2,n3),b(n1,n2,n3)
     real, intent (out)   :: avg(n1)
 
+    real(kind=8) :: lavg(n1),gavg(n1)
     integer :: k,i,j
 
     avg(:) = 0.
@@ -352,17 +571,22 @@ contains
           end do
        enddo
     enddo
-    avg(:)=avg(:)/real((n3-4)*(n2-4))
+
+    lavg(:) = avg(:)
+    call double_array_par_sum(lavg,gavg,n1)
+    avg(:) = real(gavg(:))/real((nypg-4)*(nxpg-4))
 
   end subroutine get_cor3
   !
   !---------------------------------------------------------------------
-  ! function get_var3: gets variance for a field whose mean is known
+  ! function get_var3: gets variance for a field whose mean is known - calculated over all PUs
   !
   subroutine get_var3(n1,n2,n3,a,b,avg)
+    use mpi_interface, only : nypg,nxpg,double_array_par_sum
 
     integer n1,n2,n3,k,i,j
     real a(n1,n2,n3),b(n1),avg(n1)
+    real(kind=8) :: lavg(n1),gavg(n1)
 
     avg(:) = 0.
     do j=3,n3-2
@@ -372,17 +596,22 @@ contains
           end do
        enddo
     enddo
-    avg(:)=avg(:)/real((n3-4)*(n2-4))
+
+    lavg = avg
+    call double_array_par_sum(lavg,gavg,n1)
+    avg(:) = real(gavg(:))/real((nypg-4)*(nxpg-4))
 
   end subroutine get_var3
   !
   !---------------------------------------------------------------------
-  ! function get_3rd3: gets the third moment for a field whose mean is known
+  ! function get_3rd3: gets the third moment for a field whose mean is known - calculated over all PUs
   !
   subroutine get_3rd3(n1,n2,n3,a,b,avg)
+    use mpi_interface, only : nypg,nxpg,double_array_par_sum
 
     integer n1,n2,n3,k,i,j
     real a(n1,n2,n3),b(n1),avg(n1)
+    real(kind=8) :: lavg(n1),gavg(n1)
 
     avg(:) = 0.
     do j=3,n3-2
@@ -392,8 +621,10 @@ contains
           end do
        enddo
     enddo
-    avg(:)=avg(:)/real((n3-4)*(n2-4))
 
+    lavg = avg
+    call double_array_par_sum(lavg,gavg,n1)
+    avg(:) = real(gavg(:))/real((nypg-4)*(nxpg-4))
   end subroutine get_3rd3
   !
   ! ----------------------------------------------------------------------

@@ -334,8 +334,8 @@ contains
   !
   subroutine case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,tl,rt,tt,rtt)
 
-    use mpi_interface, only : pecount, double_scalar_par_sum,myid, appl_abort
-    use stat, only : get_zi
+    use mpi_interface, only : myid, appl_abort
+    use util, only : get_zi_val
     USE grid, ONLY : a_ncloudp, a_nprecpp, a_mprecpp, a_nicep, a_nsnowp, a_msnowp, &
          a_naerop, a_naerot, a_ncloudt, a_nicet, a_nsnowt, a_maerop, a_mcloudp, a_micep,  &
          a_maerot, a_mcloudt, a_micet, a_msnowt, a_nprecpt, a_mprecpt, level
@@ -350,10 +350,9 @@ contains
     real, dimension (n1) :: sf
     real, parameter :: zmx_sub = 2260. ! originally 2260.
 
-    real (kind=8) :: zig, zil
     real          :: zibar
 
-    zig = 0.0; zil = 0.0; zibar = 0.0
+    zibar = 0.0
     kp1= 0
     select case (trim(case_name))
     case('default')
@@ -470,9 +469,7 @@ contains
        !
        ! calculate subsidence factor (wsub / dz)
        !
-       zil = get_zi (n1, n2, n3, 2, rt, dzm, zt, 6.5e-3)
-       call double_scalar_par_sum(zil,zig)
-       zibar = real(zig/pecount)
+       zibar = get_zi_val(n1, n2, n3, rt, zt, 6.5e-3)
 
        do k=2,n1-2
           if (zt(k) < zibar) then

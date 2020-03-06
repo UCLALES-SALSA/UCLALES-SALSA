@@ -14,7 +14,7 @@ contains
   ! ----------------------------------------------------------------------
   ! Subroutine Open_NC: Opens a NetCDF File and identifies starting record
   !
-  subroutine open_nc (fname, ename, time, npts, ncid, nrec, version, author, info)
+  subroutine open_nc (fname, ename, time, npts, ncid, nrec, version, author, info, par)
 
     integer, intent(in)             :: npts
     integer, intent(out)            :: ncid
@@ -22,15 +22,20 @@ contains
     real, intent (in)               :: time
     character (len=80), intent (in) :: fname, ename
     CHARACTER(LEN=80) :: version, author, info
+    logical, optional, intent(in) :: par
 
     real, allocatable :: xtimes(:)
 
     character (len=8)  :: date
     character (len=88) :: lfname
     integer :: iret, ncall, VarID, RecordDimID
-    logical :: exans
+    logical :: exans, parallel
 
-    if (pecount > 1) then
+    ! Produce output from each PU (column statistics and analysis files when parallel jobs)
+    parallel = pecount > 1
+    IF (PRESENT(par)) parallel = par .AND. pecount > 1
+
+    if (parallel) then
        write(lfname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',wrxid,wryid,'.nc'
     else
        write(lfname,'(a,a3)') trim(fname),'.nc'
@@ -52,7 +57,7 @@ contains
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPTS',npts)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPROCS',pecount)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'PROCID',myid)
-       iret = nf90_put_att(ncid, NF90_GLOBAL, 'IO_version',1.1)
+       iret = nf90_put_att(ncid, NF90_GLOBAL, 'IO_version',1.2)
     else
        iret = nf90_open (trim(lfname), NF90_WRITE, ncid)
        iret = nf90_inquire(ncid, unlimitedDimId = RecordDimID)
@@ -778,15 +783,15 @@ contains
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sfs_vw')
-       if (itype==0) ncinfo = 'SGS vertical flux of v-wind'
+       if (itype==0) ncinfo = 'Sub-filter scale vertical flux of v-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('tot_ww')
-       if (itype==0) ncinfo = 'Total vertical flux of v-wind'
+       if (itype==0) ncinfo = 'Total vertical flux of w-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sfs_ww')
-       if (itype==0) ncinfo = 'SGS vertical flux of w-wind'
+       if (itype==0) ncinfo = 'Sub-filter scale vertical flux of w-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('km')
@@ -810,11 +815,11 @@ contains
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sfs_boy')
-       if (itype==0) ncinfo = 'Subfilter Buoyancy production of TKE'
+       if (itype==0) ncinfo = 'Sub-filter scale buoyancy production of TKE'
        if (itype==1) ncinfo = 'm^2/s^3'
        if (itype==2) ncinfo = 'ttmt'
     case('sfs_shr')
-       if (itype==0) ncinfo = 'Shear production of SGS TKE'
+       if (itype==0) ncinfo = 'Sub-filter scale shear production of TKE'
        if (itype==1) ncinfo = 'm^2/s^3'
        if (itype==2) ncinfo = 'tttt'
     case('boy_prd')
@@ -886,7 +891,7 @@ contains
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'tttt'
     case('tot_qw')
-       if (itype==0) ncinfo = 'Total vertical flux of q'
+       if (itype==0) ncinfo = 'Total vertical flux of water'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sfs_qw')
@@ -935,7 +940,7 @@ contains
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'tttt'
     case('tot_lw')
-       if (itype==0) ncinfo = 'Resolved turbulent flux of liquid water mixing ratio'
+       if (itype==0) ncinfo = 'Total vertical flux of liquid water'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sed_lw')
@@ -1178,11 +1183,11 @@ contains
        if (itype==0) ncinfo =  'Cloud droplet bin radius, regime b'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'ttttclb'
-    case('S_Npb','S_Npba')
+    case('S_Npb')
        if (itype==0) ncinfo = 'Rain drop bin number concentration'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttttprc'
-    case('S_Rwpba')
+    case('S_Rwpb')
        if (itype==0) ncinfo = 'Rain bin radius'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'ttttprc'
@@ -1202,11 +1207,11 @@ contains
        if (itype==0) ncinfo = 'Ice bin radius, regime b'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttticb'
-    case('S_Nsba')
+    case('S_Nsb')
        if (itype==0) ncinfo = 'Snow bin number concentration'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttttsnw'
-    case('S_Rwsba')
+    case('S_Rwsb')
        if (itype==0) ncinfo = 'Snow bin radius'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'ttttsnw'

@@ -811,6 +811,7 @@ contains
             'S_Ncba ','S_Ncbb ','S_Rwcba','S_Rwcbb','S_Npb  ','S_Rwpb ', & ! 5-10
             'S_Niba ','S_Nibb ','S_Rwiba','S_Rwibb','S_Nsb  ','S_Rwsb '/) ! 11-16
        IF (.not.stat_b_bins) b_bin((/2,4,6,8,12,14/))=.FALSE.
+       IF (level<5) b_bin(11:16)=.FALSE.
        ! Species dependent outputs
        DO ee=1,nspec+1 ! Aerosol species and water
           ! Total mixing ratios
@@ -992,19 +993,17 @@ contains
        iret = nf90_put_var(ncid0, VarID, dn0, start = (/nrec0/))
 
        IF (level >= 4 .AND. lbinanl) THEN
-          iret = nf90_inq_varid(ncid0,'S_Rd12a', VarID)
-          iret = nf90_put_var(ncid0, VarID, aerobins(in1a:fn2a), start = (/nrec0/))
+          iret = nf90_inq_varid(ncid0,'P_Rd12a', VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, aerobins(in1a:fn2a), start = (/nrec0/))
 
-          iret = nf90_inq_varid(ncid0,'S_Rd2ab', VarID)
-          iret = nf90_put_var(ncid0,VarID, aerobins(in2a:fn2a), start = (/nrec0/))
+          iret = nf90_inq_varid(ncid0,'P_Rd2ab', VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID, aerobins(in2a:fn2a), start = (/nrec0/))
 
-          iret = nf90_inq_varid(ncid0,'S_Rwprc', VarID)
-          iret = nf90_put_var(ncid0,VarID, precpbins(1:nprc), start = (/nrec0/))
+          iret = nf90_inq_varid(ncid0,'P_Rwprc', VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID, precpbins(1:nprc), start = (/nrec0/))
 
-          IF (level == 5) THEN
-             iret = nf90_inq_varid(ncid0,'S_Rwsnw', VarID)
-             iret = nf90_put_var(ncid0,VarID, snowbins(1:nsnw), start = (/nrec0/))
-          END IF
+          iret = nf90_inq_varid(ncid0,'P_Rwsnw', VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID, snowbins(1:nsnw), start = (/nrec0/))
        END IF
     end if
 
@@ -1328,7 +1327,7 @@ contains
           iret = nf90_inq_varid(ncid0,'S_'//TRIM(zspec(ee))//'pb',VarID)
           IF (iret==NF90_NOERR) THEN
              DO bb = 1,nprc
-                CALL binSpecMixrat('precip',ee,bb,a_Rpwet(:,:,:,bb))
+                CALL binSpecMixrat('precp',ee,bb,a_Rpwet(:,:,:,bb))
             END DO
             iret = nf90_put_var(ncid0,VarID,a_Rpwet(:,i1:i2,j1:j2,1:nprc),start=ibegsd,count=icntpr)
           ENDIF
@@ -1769,7 +1768,7 @@ contains
           iend = nsnw
           numc(:,:,:) = SUM(a_nsnowp(:,:,:,istr:iend),DIM=4)
        CASE DEFAULT
-          STOP 'binSpecMixrat: Invalid particle type'
+          STOP 'bulkNumc: Invalid particle type'
     END SELECT
 
   END SUBROUTINE bulkNumc
