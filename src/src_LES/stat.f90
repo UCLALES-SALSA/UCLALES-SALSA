@@ -747,7 +747,7 @@ contains
 
     use grid, only : a_up, a_vp, a_wp, a_rc, a_theta, a_temp, a_rv           &
          , a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean            &
-         , vmean, dn0, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx, a_sflx               &
+         , vmean, dn0, a_dn, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx, a_sflx         &
          , a_fus, a_fds, a_fuir, a_fdir, albedo, a_srp, a_snrp, a_ncloudp, a_ri, a_nicep, a_srs, a_snrs
     USE defs, ONLY : cp, alvi
 
@@ -804,7 +804,7 @@ contains
     if (level >=1) call accum_lvl1(nzp, nxp, nyp, rxt)
     if (level >=2) call accum_lvl2(nzp, nxp, nyp, th00, a_wp,        &
                                    a_theta, thl, rxv, rxl, rxt   )
-    if (level >=3) call accum_lvl3(nzp, nxp, nyp, dn0, zm, rxl, xrpp,  &
+    if (level >=3) call accum_lvl3(nzp, nxp, nyp, a_dn, zm, rxl, xrpp, &
                                    xnpp, precip, CCN                    )
     if (level >=4)  call accum_lvl4(nzp, nxp, nyp)
     if (level >=5)  call accum_lvl5(nzp, nxp, nyp)
@@ -813,7 +813,7 @@ contains
     !
     call set_ts(nzp, nxp, nyp, a_wp, a_theta, thl, dn0, zt,zm,dzt,th00,time)
     IF ( level >=1 ) CALL ts_lvl1(nzp, nxp, nyp, dn0, zt, rxt)
-    IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, dn0, zm, zt, rxl, rxv)
+    IF ( level >=2 ) CALL ts_lvl2(nzp, nxp, nyp, a_dn, zm, zt, rxl, rxv)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp)
     IF ( level >=5 ) CALL ts_lvl5(nzp, nxp, nyp)
 
@@ -826,12 +826,12 @@ contains
         ! Warm cloud statistics (xrpp and xnpp from above; CDNC is calculated below)
         rnt = CCN
         IF (level>3) rnt = SUM(a_ncloudp,DIM=4)
-        CALL set_cs_warm(nzp,nxp,nyp,a_rc,rnt,xrpp,xnpp,a_theta,a_wp,precip,dn0,zm,zt,dzm)
+        CALL set_cs_warm(nzp,nxp,nyp,a_rc,rnt,xrpp,xnpp,a_theta,a_wp,precip,a_dn,zm,zt,dzm)
 
         ! Ice cloud statistics
         IF (level==5) THEN
             rnt = SUM(a_nicep,DIM=4)
-            CALL set_cs_cold(nzp,nxp,nyp,a_ri,rnt,a_srs,a_snrs,dn0,zm)
+            CALL set_cs_cold(nzp,nxp,nyp,a_ri,rnt,a_srs,a_snrs,a_dn,zm)
         ENDIF
 
         ! All other outputs
@@ -881,13 +881,13 @@ contains
   END SUBROUTINE cs_rem_set
   !
   ! Calculate warm cloud statistics
-  subroutine set_cs_warm(n1,n2,n3,rc,nc,rp,np,th,w,rrate,dn0,zm,zt,dzm)
+  subroutine set_cs_warm(n1,n2,n3,rc,nc,rp,np,th,w,rrate,dn,zm,zt,dzm)
 
     use netcdf
 
     integer, intent(in) :: n1,n2,n3
     real, intent(in)    :: rc(n1,n2,n3),nc(n1,n2,n3),rp(n1,n2,n3),np(n1,n2,n3),th(n1,n2,n3)
-    real, intent(in)    :: w(n1,n2,n3),rrate(n1,n2,n3),dn0(n1),zm(n1),zt(n1),dzm(n1)
+    real, intent(in)    :: w(n1,n2,n3),rrate(n1,n2,n3),dn(n1,n2,n3),zm(n1),zt(n1),dzm(n1)
     REAL :: lwp(n2,n3), ncld(n2,n3), rwp(n2,n3), nrain(n2,n3), zb(n2,n3), zc(n2,n3), &
                 th1(n2,n3), lmax(n2,n3), prcp_bc(n2,n3), wbase(n2,n3), wmax(n2,n3)
     INTEGER :: ncloudy(n2,n3), nrainy(n2,n3)
@@ -917,12 +917,12 @@ contains
           rn=0.
           sval = 0.
           do k=2,n1
-             lwp(i,j)=lwp(i,j)+rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+             lwp(i,j)=lwp(i,j)+rc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
              IF (rc(k,i,j)>0.01e-3) THEN
                 ! Cloudy grid
                 ! Volume weighted average of the CDNC
-                ncld(i,j)=ncld(i,j)+nc(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
-                cld=cld+dn0(k)*(zm(k)-zm(k-1))
+                ncld(i,j)=ncld(i,j)+nc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
+                cld=cld+dn(k,i,j)*(zm(k)-zm(k-1))
                 ! Number of cloudy pixels
                 ncloudy(i,j)=ncloudy(i,j)+1
                 ! Cloud base and top
@@ -936,12 +936,12 @@ contains
                 ENDIF
              END IF
              !
-             rwp(i,j)=rwp(i,j)+rp(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+             rwp(i,j)=rwp(i,j)+rp(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
              if (rp(k,i,j) > 0.001e-3) then
                 ! Rainy grid cell
                 ! Volume weighted average of the RDNC
-                nrain(i,j)=nrain(i,j)+np(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
-                rn=rn+dn0(k)*(zm(k)-zm(k-1))
+                nrain(i,j)=nrain(i,j)+np(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
+                rn=rn+dn(k,i,j)*(zm(k)-zm(k-1))
                 ! Number of rainy pixels
                 nrainy(i,j)=nrainy(i,j)+1
              end if
@@ -1014,13 +1014,13 @@ contains
   end subroutine set_cs_warm
 
   ! Calculate cold cloud statistics
-  subroutine set_cs_cold(n1,n2,n3,ri,ni,rs,ns,dn0,zm)
+  subroutine set_cs_cold(n1,n2,n3,ri,ni,rs,ns,dn,zm)
 
     use netcdf
 
     integer, intent(in) :: n1,n2,n3
     real, intent(in)    :: ri(n1,n2,n3),ni(n1,n2,n3),rs(n1,n2,n3),ns(n1,n2,n3)
-    real, intent(in)    :: dn0(n1),zm(n1)
+    real, intent(in)    :: dn(n1,n2,n3),zm(n1)
     REAL :: iwp(n2,n3), nice(n2,n3), swp(n2,n3), nsnow(n2,n3), imax(n2,n3)
     INTEGER :: nicy(n2,n3), nsnowy(n2,n3)
     integer :: i, j, k, iret, VarID
@@ -1042,21 +1042,21 @@ contains
           ice=0.
           sn=0.
           do k=2,n1
-             iwp(i,j)=iwp(i,j)+ri(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+             iwp(i,j)=iwp(i,j)+ri(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
              IF (icemask(k,i,j)) THEN
                 ! Icy grid cell
                 ! Volume weighted average of the ice number concentration
-                nice(i,j)=nice(i,j)+ni(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
-                ice=ice+dn0(k)*(zm(k)-zm(k-1))
+                nice(i,j)=nice(i,j)+ni(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
+                ice=ice+dn(k,i,j)*(zm(k)-zm(k-1))
                 ! Number of icy pixels
                 nicy(i,j)=nicy(i,j)+1
              END IF
-             swp(i,j)=swp(i,j)+rs(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+             swp(i,j)=swp(i,j)+rs(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
              if (snowmask(k,i,j)) then
                 ! Snowy grid cell
                 ! Volume weighted average of the snow number concentration
-                nsnow(i,j)=nsnow(i,j)+ns(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
-                sn=sn+dn0(k)*(zm(k)-zm(k-1))
+                nsnow(i,j)=nsnow(i,j)+ns(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
+                sn=sn+dn(k,i,j)*(zm(k)-zm(k-1))
                 ! Number of snowy pixels
                 nsnowy(i,j)=nsnowy(i,j)+1
              end if
@@ -1230,10 +1230,10 @@ contains
   ! -----------------------------------------------------------------------
   ! subroutine ts_lvl2: computes and writes time sequence stats
   !
-  subroutine ts_lvl2(n1,n2,n3,dn0,zm,zt,rc,rv)
+  subroutine ts_lvl2(n1,n2,n3,dn,zm,zt,rc,rv)
 
     integer, intent(in) :: n1,n2,n3
-    real, intent(in) :: dn0(n1), zm(n1), zt(n1), rc(n1,n2,n3), rv(n1,n2,n3)
+    real, intent(in) :: dn(n1,n2,n3), zm(n1), zt(n1), rc(n1,n2,n3), rv(n1,n2,n3)
 
     integer :: k,i,j,n,m
     real    :: scr(n2,n3), scr2(n2,n3), ct_tmp, cb_tmp, ct_sum, cb_sum, ct_max, cb_min
@@ -1257,8 +1257,8 @@ contains
                 cb_tmp = min(cb_tmp,zt(k))
              end if
              ! LWP and WVP
-             scr(i,j)=scr(i,j)+rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
-             scr2(i,j)=scr2(i,j)+rv(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+             scr(i,j)=scr(i,j)+rc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
+             scr2(i,j)=scr2(i,j)+rv(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
           end do
           IF (ct_tmp>zt(1)) THEN
              ! Cloudy column
@@ -1378,7 +1378,7 @@ contains
   SUBROUTINE ts_lvl5(n1,n2,n3)
     USE mo_submctl, only : prlim ! Note: #/m^3, but close enough to #/kg for statistics
     USE grid, ONLY : bulkNumc, bulkMixrat,meanRadius, dzt, &
-        dn0, zm, a_ri, a_srs, snowin, a_rhi, a_tp, th0, th00, nspec
+        a_dn, zm, a_ri, a_srs, snowin, a_rhi, a_tp, th0, th00, nspec
 
     IMPLICIT NONE
 
@@ -1429,10 +1429,10 @@ contains
        do i=3,n2-2
           do k=2,n1
              ! Ice-water path (without snow)
-             scr(i,j)=scr(i,j)+a_ri(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+             scr(i,j)=scr(i,j)+a_ri(k,i,j)*a_dn(k,i,j)*(zm(k)-zm(k-1))
              !
              ! Snow-water path
-             scr2(i,j)=scr2(i,j)+a_srs(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+             scr2(i,j)=scr2(i,j)+a_srs(k,i,j)*a_dn(k,i,j)*(zm(k)-zm(k-1))
              !
              ! Integrated ice-liquid water potential temperature - change from th0
              scr3(i,j)=scr3(i,j)+(a_tp(k,i,j)+th00-th0(k))*(zm(k)-zm(k-1))
@@ -1675,14 +1675,14 @@ contains
   ! SUBROUTINE ACCUM_LVL3: Accumulates specialized statistics that depend
   ! on level 3 variables.
   !
-  subroutine accum_lvl3(n1, n2, n3, dn0, zm, rc, rr, nr, rrate, CCN)
+  subroutine accum_lvl3(n1, n2, n3, dn, zm, rc, rr, nr, rrate, CCN)
 
     IMPLICIT NONE
 
     integer, intent (in) :: n1,n2,n3
     real, intent (in)                      :: CCN
-    real, intent (in), dimension(n1)       :: zm, dn0
-    real, intent (in), dimension(n1,n2,n3) :: rc, rr, nr, rrate
+    real, intent (in), dimension(n1)       :: zm
+    real, intent (in), dimension(n1,n2,n3) :: rc, rr, nr, rrate, dn
 
     integer                :: k, i, j
     real                   :: nrsum, nrcnt, rrcnt, rrcb
@@ -1764,7 +1764,7 @@ contains
           do k=2,n1
 
              ! RWP
-             scr2(i,j)=scr2(i,j)+rr(k,i,j)*dn0(k)*(zm(k)-zm(k-1))
+             scr2(i,j)=scr2(i,j)+rr(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
 
              ! Rainy grid cell
              if (rr(k,i,j) > 0.001e-3) then

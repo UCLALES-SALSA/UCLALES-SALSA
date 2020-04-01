@@ -76,7 +76,7 @@ contains
   !
   subroutine forcings(time_in, cntlat, sst)
 
-    use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc     &
+    use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, a_dn, iradtyp, a_rc    &
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp  &
          , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_maerop, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
@@ -123,7 +123,7 @@ contains
              WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc*CCN))/zrc
           ENDIF
           call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
+               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
                useMcICA=useMcICA, ConstPrs=RadConstPress)
 
@@ -137,7 +137,7 @@ contains
              znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
           ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
+               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
                useMcICA=useMcICA, ConstPrs=RadConstPress)
 
@@ -157,7 +157,7 @@ contains
              zni(:,:,:) = zni(:,:,:) + SUM(a_nsnowp(:,:,:,1:min(RadSnowBins,nsnw)),DIM=4)
           ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
+               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
                useMcICA=useMcICA, ConstPrs=RadConstPress)
 
@@ -233,7 +233,7 @@ contains
 
 
   subroutine new_gcss_rad(n1,n2,n3,rc,rt,flx)
-    USE grid, ONLY : zm, zt, dzt, dn0, a_tt, a_temp, a_theta, a_sclrp, a_sclrt
+    USE grid, ONLY : zm, zt, dzt, a_dn, a_tt, a_temp, a_theta, a_sclrp, a_sclrt
     implicit none
     integer, intent (in)::  n1,n2, n3
     real, intent (in)   ::  rc(n1,n2,n3),rt(n1,n2,n3)
@@ -252,23 +252,23 @@ contains
           ! No cloud water at level k=1
           flx(1,i,j)=fr1*exp(-1.*xka*lwp)
           do k=2,n1
-             lwp=lwp+max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1)))
+             lwp=lwp+max(0.,rc(k,i,j)*a_dn(k,i,j)*(zm(k)-zm(k-1)))
              flx(k,i,j)=fr1*exp(-1.*xka*lwp)
              if ( rc(k,i,j) >= rc_limit .and. rt(k,i,j) >= rt_limit) ki=k
           enddo
           !
-          fact=dn0(ki)*cp*div*alpha
+          fact=a_dn(ki,i,j)*cp*div*alpha
           ! Level k=1
           flx(1,i,j)=flx(1,i,j)+fr0*exp(-1.*xka*lwp)
           do k=2,n1
-             lwp=lwp-max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1)))
+             lwp=lwp-max(0.,rc(k,i,j)*a_dn(k,i,j)*(zm(k)-zm(k-1)))
              flx(k,i,j)=flx(k,i,j)+fr0*exp(-1.*xka*lwp)
              if (k > ki .and. fact > 0.) then
                 flx(k,i,j)=flx(k,i,j) + fact*(0.25*(zm(k)-zm(ki))**1.333 + &
                     zm(ki)*(zm(k)-zm(ki))**0.333333)
              end if
              ! dtheta_il/dT=dtheta/dT=1/pi=theta/T => dtheta_il = theta/T*dT
-             a_tt(k,i,j)=a_tt(k,i,j)-(flx(k,i,j)-flx(k-1,i,j))*dzt(k)/(dn0(k)*cp)*a_theta(k,i,j)/a_temp(k,i,j)
+             a_tt(k,i,j)=a_tt(k,i,j)-(flx(k,i,j)-flx(k-1,i,j))*dzt(k)/(a_dn(k,i,j)*cp)*a_theta(k,i,j)/a_temp(k,i,j)
           enddo
       enddo
     enddo
