@@ -105,7 +105,8 @@ contains
          no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, anl_include, anl_exclude, out_an_list
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
-    use stat, only : ssam_intvl, savg_intvl, csflg, out_cs_list, out_ps_list, out_ts_list
+    use stat, only : ssam_intvl, savg_intvl, csflg, cs_include, cs_exclude, &
+         ps_include, ps_exclude, ts_include, ts_exclude, out_cs_list, out_ps_list, out_ts_list
     USE forc, ONLY : radsounding, case_name, sfc_albedo, &
          div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit, &
          useMcICA,RadConstPress,RadPrecipBins,RadSnowBins
@@ -166,7 +167,10 @@ contains
          out_cs_list,        & ! - column statistics
          out_ps_list,        & ! - profile statistics
          out_ts_list,        & ! - time series statistics
-         anl_include, anl_exclude ! Include and exclude list for analysis outputs
+         anl_include, anl_exclude, & ! Include and exclude list for analysis outputs
+         cs_include, cs_exclude,   & ! - column statistics
+         ps_include, ps_exclude,   & ! - profile statistics
+         ts_include, ts_exclude      ! - time series statistics
 
     namelist /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author

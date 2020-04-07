@@ -211,7 +211,7 @@ MODULE mo_submctl
   ! Indexes linking named specied to the active species (-1 = not used)
   INTEGER :: iso=-1, ioc=-1, ibc=-1, idu=-1, iss=-1, inh=-1, ino=-1, ih2o=-1
   ! Chemical and physics properties alls of aerosol (cloud, ice, ...) species
-  REAL :: dens(maxnspec)=1000., mws(maxnspec)=0.1, diss(maxnspec)=0., dens_ice(maxnspec)=0., dens_snow(maxnspec)=0.
+  REAL :: dens(maxnspec)=1000., mws(maxnspec)=0.1, diss(maxnspec)=0.
   ! Names, e.g. 'SO4'
   CHARACTER(len=3) :: zspec(maxnspec)='   '
 
@@ -299,15 +299,16 @@ contains
   END FUNCTION terminal_vel
 
   !********************************************************************
-  ! Function for calculating dimension (or wet diameter) for any particle type
+  ! Functions for calculating dimension (or wet diameter) for any particle type
   ! - Aerosol, cloud and rain are spherical
   ! - Snow and ice can be irregular and their densities can be size-dependent
   !
-  ! Edit this function when needed also note calc_eff_radius in grid.f90
+  ! Edit these functions when needed
   !
-  ! Correct dimension is needed for irregular particles (e.g. ice and snow) for calculating fall speed (deposition and coagulation)
-  ! and capacitance (condensation). Otherwise compact spherical structure can be expected,
+  ! Correct dimension is needed for irregular particles (e.g. ice and snow) for calculating fall speed (deposition
+  ! and coagulation) and capacitance (condensation). Otherwise compact spherical structure can be expected.
   !
+  ! This function is for SALSA t_section arrays and assumes volume-based concentration units
   SUBROUTINE CalcDimension(n,ppart,lim,flag)
     IMPLICIT NONE
     INTEGER, INTENT(in) :: n
@@ -323,6 +324,26 @@ contains
     ENDDO
 
   END SUBROUTINE CalcDimension
+  !
+  ! This function is for single LES size bin and assumes that concentration is given as mass per particle
+  REAL FUNCTION calc_eff_radius(n,mass,flag)
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: n ! Number of chemical species
+    REAL, INTENT(IN) :: mass(n) ! Mass (kg) per particle
+    INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
+
+    IF (flag==4) THEN   ! Ice
+        ! Spherical ice
+        calc_eff_radius=0.5*( (mass(1)/rhoic+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
+    ELSEIF (flag==5) THEN   ! Snow
+        ! Spherical snow
+        calc_eff_radius=0.5*( (mass(1)/rhosn+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
+    ELSE
+        ! Radius from total volume of a spherical particle or aqueous droplet
+        calc_eff_radius=0.5*( SUM(mass(:)/dens(1:n))/pi6)**(1./3.)
+    ENDIF
+
+  END FUNCTION calc_eff_radius
 
   !********************************************************************
   ! Function for calculating equilibrium water saturation ratio at droplet surface based on Kohler theory

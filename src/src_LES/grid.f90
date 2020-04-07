@@ -816,6 +816,7 @@ contains
             'S_Ncba ','S_Ncbb ','S_Rwcba','S_Rwcbb','S_Npb  ','S_Rwpb ', & ! 5-10
             'S_Niba ','S_Nibb ','S_Rwiba','S_Rwibb','S_Nsb  ','S_Rwsb '/) ! 11-16
        IF (.not.stat_b_bins) b_bin((/2,4,6,8,12,14/))=.FALSE.
+       IF (level<5) b_bin(11:16)=.FALSE.
        ! Species dependent outputs
        DO ee=1,nspec+1 ! Aerosol species and water
           ! Total mixing ratios
@@ -997,20 +998,18 @@ contains
        iret = nf90_put_var(ncid0, VarID, dn0, start = (/nrec0/))
 
        IF (level >= 4 .AND. lbinanl) THEN
-          iret = nf90_inq_varid(ncid0,'S_Rd12a', VarID)
-          iret = nf90_put_var(ncid0, VarID, aerobins(in1a:fn2a), start = (/nrec0/))
+          iret = nf90_inq_varid(ncid0,'P_Rd12a', VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, aerobins(in1a:fn2a), start = (/nrec0/))
 
-          iret = nf90_inq_varid(ncid0,'S_Rd2ab', VarID)
-          iret = nf90_put_var(ncid0,VarID, aerobins(in2a:fn2a), start = (/nrec0/))
+          iret = nf90_inq_varid(ncid0,'P_Rd2ab', VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID, aerobins(in2a:fn2a), start = (/nrec0/))
 
-          iret = nf90_inq_varid(ncid0,'S_Rwprc', VarID)
-          iret = nf90_put_var(ncid0,VarID, precpbins(1:nprc), start = (/nrec0/))
+          iret = nf90_inq_varid(ncid0,'P_Rwprc', VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID, precpbins(1:nprc), start = (/nrec0/))
 
-          IF (level == 5) THEN
-             iret = nf90_inq_varid(ncid0,'S_Rwsnw', VarID)
-             iret = nf90_put_var(ncid0,VarID, snowbins(1:nsnw), start = (/nrec0/))
+          iret = nf90_inq_varid(ncid0,'P_Rwsnw', VarID)
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID, snowbins(1:nsnw), start = (/nrec0/))
           END IF
-       END IF
     end if
 
     ! Always saved: u, v, w, theta, P
@@ -1333,7 +1332,7 @@ contains
           iret = nf90_inq_varid(ncid0,'S_'//TRIM(zspec(ee))//'pb',VarID)
           IF (iret==NF90_NOERR) THEN
              DO bb = 1,nprc
-                CALL binSpecMixrat('precip',ee,bb,a_Rpwet(:,:,:,bb))
+                CALL binSpecMixrat('precp',ee,bb,a_Rpwet(:,:,:,bb))
             END DO
             iret = nf90_put_var(ncid0,VarID,a_Rpwet(:,i1:i2,j1:j2,1:nprc),start=ibegsd,count=icntpr)
           ENDIF
@@ -1774,7 +1773,7 @@ contains
           iend = nsnw
           numc(:,:,:) = SUM(a_nsnowp(:,:,:,istr:iend),DIM=4)
        CASE DEFAULT
-          STOP 'binSpecMixrat: Invalid particle type'
+          STOP 'bulkNumc: Invalid particle type'
     END SELECT
 
   END SUBROUTINE bulkNumc
@@ -1855,6 +1854,7 @@ contains
   contains
 
    SUBROUTINE getRadius(zstr,zend,nn,n4,numc,mass,numlim,zrad,flag)
+    USE mo_submctl, ONLY : calc_eff_radius
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: nn, n4 ! Number of bins (nn) and aerosol species (n4)
@@ -1877,8 +1877,8 @@ contains
           DO bin = zstr,zend
             IF (numc(k,i,j,bin)>numlim) THEN
               tot=tot+numc(k,i,j,bin)
-              tmp(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-              rwet=rwet+calc_eff_radius(n4,numc(k,i,j,bin),tmp,flag)*numc(k,i,j,bin)
+              tmp(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)/numc(k,i,j,bin)
+              rwet=rwet+calc_eff_radius(n4,tmp,flag)*numc(k,i,j,bin)
             ENDIF
           ENDDO
           IF (tot>numlim) THEN
@@ -1896,6 +1896,7 @@ contains
   ! SUBROUTINE getBinRadius
   ! Calculates wet radius for each bin in the whole domain
   SUBROUTINE getBinRadius(nn,n4,numc,mass,numlim,zrad,flag)
+    USE mo_submctl, ONLY : calc_eff_radius
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: nn, n4 ! Number of bins (nn) and aerosol species (n4)
@@ -1914,8 +1915,8 @@ contains
         DO k = 1,nzp
           DO bin = 1,nn
             IF (numc(k,i,j,bin)>numlim) THEN
-              tmp(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)
-              zrad(k,i,j,bin)=calc_eff_radius(n4,numc(k,i,j,bin),tmp,flag)
+              tmp(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)/numc(k,i,j,bin)
+              zrad(k,i,j,bin)=calc_eff_radius(n4,tmp,flag)
             ENDIF
           END DO
         END DO
@@ -1923,44 +1924,6 @@ contains
     END DO
 
   END SUBROUTINE getBinRadius
-
-
-  !********************************************************************
-  !
-  ! Function for calculating effective (wet) radius for any particle type
-  ! - Aerosol, cloud and rain are spherical
-  ! - Snow and ice can be irregular and their densities can be size-dependent
-  !
-  ! Edit this function when needed (also update CalcDimension in mo_submctl.f90)
-  !
-  ! Correct dimension is needed for irregular particles (e.g. ice and snow) for calculating fall speed (deposition and coagulation)
-  ! and capacitance (condensation). Otherwise compact spherical structure can be expected,
-  !
-  REAL FUNCTION calc_eff_radius(n,numc,mass,flag)
-    USE mo_submctl, ONLY : pi6, dens, dens_ice, dens_snow
-    IMPLICIT NONE
-    INTEGER, INTENT(IN) :: n ! Number of species
-    INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
-    REAL, INTENT(IN) :: numc, mass(n)
-    integer :: i
-    calc_eff_radius=0.
-
-    ! Don't calculate if very low number concentration
-    IF (numc<1e-15) RETURN
-
-    IF (flag==4) THEN   ! Ice
-        ! Spherical ice
-        calc_eff_radius=0.5*( SUM(mass(:)/dens_ice(1:n))/numc/pi6)**(1./3.)
-    ELSEIF (flag==5) THEN   ! Snow
-        ! Spherical snow
-        calc_eff_radius=0.5*( SUM(mass(:)/dens_snow(1:n))/numc/pi6)**(1./3.)
-    ELSE
-        ! Radius from total volume of a spherical particle or aqueous droplet
-        calc_eff_radius=0.5*( SUM(mass(:)/dens(1:n))/numc/pi6)**(1./3.)
-    ENDIF
-
-  END FUNCTION calc_eff_radius
-  !********************************************************************
 
 end module grid
 

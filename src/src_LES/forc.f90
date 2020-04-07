@@ -104,7 +104,7 @@ contains
   !
   subroutine forcings(time_in, cntlat, sst)
 
-    use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, dn0, iradtyp, a_rc     &
+    use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, a_dn, iradtyp, a_rc    &
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp  &
          , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_maerop, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
@@ -151,7 +151,7 @@ contains
              WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc*CCN))/zrc
           ENDIF
           call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt,  &
+               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
                useMcICA=useMcICA, ConstPrs=RadConstPress)
 
@@ -165,7 +165,7 @@ contains
              znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
           ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
+               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
                useMcICA=useMcICA, ConstPrs=RadConstPress)
 
@@ -185,7 +185,7 @@ contains
              zni(:,:,:) = zni(:,:,:) + SUM(a_nsnowp(:,:,:,1:min(RadSnowBins,nsnw)),DIM=4)
           ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               dn0, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt,  &
+               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
                useMcICA=useMcICA, ConstPrs=RadConstPress)
 
@@ -261,10 +261,7 @@ contains
 
 
   subroutine new_gcss_rad(n1,n2,n3,rc,rt,flx)
-    USE grid, ONLY : a_ncloudp, a_nprecpp, a_mprecpp, a_nicep, a_nsnowp, a_msnowp, &
-         a_naerop, a_naerot, a_ncloudt, a_nicet, a_nsnowt, a_maerop, a_mcloudp, a_micep,  &
-         a_maerot, a_mcloudt, a_micet, a_msnowt, a_nprecpt, a_mprecpt, level, a_temp, a_theta, &
-         zt, zm, dzt, dzm, dn0, a_tt, a_tp, a_rt, a_rp
+    USE grid, ONLY : zm, zt, dzt, a_dn, a_tt, a_temp, a_theta, a_sclrp, a_sclrt
     implicit none
     integer, intent (in)::  n1,n2, n3
     real, intent (in)   ::  rc(n1,n2,n3),rt(n1,n2,n3)
@@ -283,23 +280,23 @@ contains
           ! No cloud water at level k=1
           flx(1,i,j)=fr1*exp(-1.*xka*lwp)
           do k=2,n1
-             lwp=lwp+max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1)))
+             lwp=lwp+max(0.,rc(k,i,j)*a_dn(k,i,j)*(zm(k)-zm(k-1)))
              flx(k,i,j)=fr1*exp(-1.*xka*lwp)
              if ( rc(k,i,j) >= rc_limit .and. rt(k,i,j) >= rt_limit) ki=k
           enddo
           !
-          fact=dn0(ki)*cp*div*alpha
+          fact=a_dn(ki,i,j)*cp*div*alpha
           ! Level k=1
           flx(1,i,j)=flx(1,i,j)+fr0*exp(-1.*xka*lwp)
           do k=2,n1
-             lwp=lwp-max(0.,rc(k,i,j)*dn0(k)*(zm(k)-zm(k-1)))
+             lwp=lwp-max(0.,rc(k,i,j)*a_dn(k,i,j)*(zm(k)-zm(k-1)))
              flx(k,i,j)=flx(k,i,j)+fr0*exp(-1.*xka*lwp)
              if (k > ki .and. fact > 0.) then
                 flx(k,i,j)=flx(k,i,j) + fact*(0.25*(zm(k)-zm(ki))**1.333 + &
                     zm(ki)*(zm(k)-zm(ki))**0.333333)
              end if
              ! dtheta_il/dT=dtheta/dT=1/pi=theta/T => dtheta_il = theta/T*dT
-             a_tt(k,i,j)=a_tt(k,i,j)-(flx(k,i,j)-flx(k-1,i,j))*dzt(k)/(dn0(k)*cp)*a_theta(k,i,j)/a_temp(k,i,j)
+             a_tt(k,i,j)=a_tt(k,i,j)-(flx(k,i,j)-flx(k-1,i,j))*dzt(k)/(a_dn(k,i,j)*cp)*a_theta(k,i,j)/a_temp(k,i,j)
           enddo
       enddo
     enddo
@@ -313,27 +310,12 @@ contains
         sf(k) = -div*min( zmaxdiv,zt(k) )*dzt(k)
     end do
     !
+    ! Apply to all prognostic variables
     DO j=3,n3-2
         DO i=3,n2-2
             DO k=2,n1-1
                 kp1 = k+1
-                a_tt(k,i,j) = a_tt(k,i,j) - ( a_tp(kp1,i,j) - a_tp(k,i,j) )*sf(k)
-                a_rt(k,i,j) = a_rt(k,i,j) - ( a_rp(kp1,i,j) - a_rp(k,i,j) )*sf(k)
-
-                IF (level>=4) THEN
-                  a_maerot(k,i,j,:) = a_maerot(k,i,j,:) - ( a_maerop(kp1,i,j,:) - a_maerop(k,i,j,:) )*sf(k)
-                  a_mcloudt(k,i,j,:) = a_mcloudt(k,i,j,:) - ( a_mcloudp(kp1,i,j,:) - a_mcloudp(k,i,j,:) )*sf(k)
-                  a_mprecpt(k,i,j,:) = a_mprecpt(k,i,j,:) - ( a_mprecpp(kp1,i,j,:) - a_mprecpp(k,i,j,:) )*sf(k)
-                  a_naerot(k,i,j,:) = a_naerot(k,i,j,:) - ( a_naerop(kp1,i,j,:) - a_naerop(k,i,j,:) )*sf(k)
-                  a_ncloudt(k,i,j,:) = a_ncloudt(k,i,j,:) - ( a_ncloudp(kp1,i,j,:) - a_ncloudp(k,i,j,:) )*sf(k)
-                  a_nprecpt(k,i,j,:) = a_nprecpt(k,i,j,:) - ( a_nprecpp(kp1,i,j,:) - a_nprecpp(k,i,j,:) )*sf(k)
-                ENDIF
-                IF (level>=5) THEN
-                  a_micet(k,i,j,:) = a_micet(k,i,j,:) - ( a_micep(kp1,i,j,:) - a_micep(k,i,j,:) )*sf(k)
-                  a_msnowt(k,i,j,:) = a_msnowt(k,i,j,:) - ( a_msnowp(kp1,i,j,:) - a_msnowp(k,i,j,:) )*sf(k)
-                  a_nicet(k,i,j,:) = a_nicet(k,i,j,:) - ( a_nicep(kp1,i,j,:) - a_nicep(k,i,j,:) )*sf(k)
-                  a_nsnowt(k,i,j,:) = a_nsnowt(k,i,j,:) - ( a_nsnowp(kp1,i,j,:) - a_nsnowp(k,i,j,:) )*sf(k)
-                ENDIF
+                a_sclrt(k,i,j,:) = a_sclrt(k,i,j,:) - ( a_sclrp(kp1,i,j,:) - a_sclrp(k,i,j,:) )*sf(k)
             END DO
         END DO
     END DO
@@ -380,8 +362,8 @@ contains
   !
   subroutine case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,tl,rt,tt,rtt)
 
-    use mpi_interface, only : pecount, double_scalar_par_sum,myid, appl_abort
-    use stat, only : get_zi
+    use mpi_interface, only : myid, appl_abort
+    use util, only : get_zi_val
     USE grid, ONLY : a_ncloudp, a_nprecpp, a_mprecpp, a_nicep, a_nsnowp, a_msnowp, &
          a_naerop, a_naerot, a_ncloudt, a_nicet, a_nsnowt, a_maerop, a_mcloudp, a_micep,  &
          a_maerot, a_mcloudt, a_micet, a_msnowt, a_nprecpt, a_mprecpt, level
@@ -396,10 +378,9 @@ contains
     real, dimension (n1) :: sf
     real, parameter :: zmx_sub = 2260. ! originally 2260.
 
-    real (kind=8) :: zig, zil
     real          :: zibar
 
-    zig = 0.0; zil = 0.0; zibar = 0.0
+    zibar = 0.0
     kp1= 0
     select case (trim(case_name))
     case('default')
@@ -516,9 +497,7 @@ contains
        !
        ! calculate subsidence factor (wsub / dz)
        !
-       zil = get_zi (n1, n2, n3, 2, rt, dzm, zt, 6.5e-3)
-       call double_scalar_par_sum(zil,zig)
-       zibar = real(zig/pecount)
+       zibar = get_zi_val(n1, n2, n3, rt, zt, 6.5e-3)
 
        do k=2,n1-2
           if (zt(k) < zibar) then

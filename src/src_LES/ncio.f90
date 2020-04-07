@@ -6,16 +6,15 @@ module ncio
   implicit none
   private
 
-  public :: open_nc, define_nc, define_nc_cs, &
-            open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc, &
-            ncinfo
+  public :: open_nc, define_nc, ncinfo, &
+            open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
 
 contains
   !
   ! ----------------------------------------------------------------------
   ! Subroutine Open_NC: Opens a NetCDF File and identifies starting record
   !
-  subroutine open_nc (fname, ename, time, npts, ncid, nrec, version, author, info)
+  subroutine open_nc (fname, ename, time, npts, ncid, nrec, version, author, info, par)
 
     integer, intent(in)             :: npts
     integer, intent(out)            :: ncid
@@ -23,15 +22,20 @@ contains
     real, intent (in)               :: time
     character (len=80), intent (in) :: fname, ename
     CHARACTER(LEN=80) :: version, author, info
+    logical, optional, intent(in) :: par
 
     real, allocatable :: xtimes(:)
 
     character (len=8)  :: date
     character (len=88) :: lfname
     integer :: iret, ncall, VarID, RecordDimID
-    logical :: exans
+    logical :: exans, parallel
 
-    if (pecount > 1) then
+    ! Produce output from each PU (column statistics and analysis files when parallel jobs)
+    parallel = pecount > 1
+    IF (PRESENT(par)) parallel = par .AND. pecount > 1
+
+    if (parallel) then
        write(lfname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',wrxid,wryid,'.nc'
     else
        write(lfname,'(a,a3)') trim(fname),'.nc'
@@ -53,7 +57,7 @@ contains
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPTS',npts)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPROCS',pecount)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'PROCID',myid)
-       iret = nf90_put_att(ncid, NF90_GLOBAL, 'IO_version',1.1)
+       iret = nf90_put_att(ncid, NF90_GLOBAL, 'IO_version',1.2)
     else
        iret = nf90_open (trim(lfname), NF90_WRITE, ncid)
        iret = nf90_inquire(ncid, unlimitedDimId = RecordDimID)
@@ -98,7 +102,8 @@ contains
     INTEGER, SAVE :: aeaID=0, aebID=0, prcID=0, snowID=0, hcID=0, hiID=0,                &
          dim_ttttaea(5) = 0, dim_ttttaeb(5) = 0, dim_ttttprc(5) = 0, dim_ttttsnw(5) = 0, & ! z, x, y, bin, time
          dim_ttztaea(3) = 0, dim_ttztaeb(3) = 0, dim_ttztprc(3) = 0, dim_ttztsnw(3) = 0, & ! z, bin, time
-         dim_tttzhct(3) = 0, dim_tttzhit(3) = 0    ! z, histogram_bins, time
+         dim_tttzhct(3) = 0, dim_tttzhit(3) = 0, & ! z, histogram_bins, time
+         dim_ttt(3) = 0    ! x, y, time
 
     character (len=7) :: xnm
     integer :: iret, n, VarID, dims
@@ -119,7 +124,7 @@ contains
        if (present(n3)) then
           iret = nf90_def_dim(ncID, 'yt', n3, ytID)
           iret = nf90_def_dim(ncID, 'ym', n3, ymID)
-          dims = 3
+          IF (.not.present(n1)) dims = 2
        end if
        IF (PRESENT(n1a) .AND. PRESENT(n2a) .AND. PRESENT(n2b)) THEN
           iret = nf90_def_dim(ncID, 'P_Rd12a', n1a+n2a, aeaID) ! 1a+2a (a-aerosol only)
@@ -158,11 +163,17 @@ contains
        ! Histograms
        dim_tttzhct = (/ztID,hcID,timeID/)
        dim_tttzhit = (/ztID,hiID,timeID/)
+       ! Column statistics
+       dim_ttt = (/xtID,ytID,timeID/)
 
        do n=1,nVar
           select case(trim(ncinfo(2,sx(n),dimensions=dims)))
           case ('time')
-             iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,timeID  ,VarID)
+             if (sx(n)/='time' .and. dims == 2) then
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttt,VarID)
+             ELSE
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,timeID,VarID)
+             ENDIF
           case ('zt')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,ztID    ,VarID)
           case ('zm')
@@ -201,26 +212,30 @@ contains
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttzhit,VarID)
           ! ---
           case ('tttt')
-             if (present(n2) .and. present(n3)) then
+             if (dims == 3) then
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttt,VarID)
+             ELSEIF (dims == 2) then
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttt,VarID)
              else
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tt,VarID)
              end if
           case ('mttt')
-             if (present(n2) .and. present(n3)) then
+             if (dims == 3) then
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_mttt,VarID)
              else
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tt,VarID)
              end if
           case ('tmtt')
-             if (present(n2) .and. present(n3)) then
+             if (dims == 3) then
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tmtt,VarID)
              else
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tt,VarID)
              end if
           case ('ttmt')
-             if (present(n2) .and. present(n3)) then
+             if (dims == 3) then
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttmt,VarID)
+             ELSEif (dims == 2) then
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttt,VarID)
              else
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_mt,VarID)
              end if
@@ -261,171 +276,6 @@ contains
     end if
 
   end subroutine define_nc
-  !
-  ! ----------------------------------------------------------------------
-  ! Subroutine define_nc_cs: Defines the structure of a column statistics nc file
-  !
-  subroutine define_nc_cs(ncID, nRec, n2, n3, level, rad_level, spec_list, nspec, usr_list, nusr )
-    integer, intent (in) :: ncID, n2, n3, level, rad_level, nspec, nusr
-    integer, intent (inout) :: nRec ! nRec=0 means new files
-    CHARACTER(LEN=3), intent (in) :: spec_list(nspec) ! SALSA species (e.g. SO4, Org,..., H2O)
-    CHARACTER(LEN=7), intent (in) :: usr_list(nusr) ! User-selcted list of process rate statistics
-
-    integer, save :: timeID=0, xtID=0, ytID=0
-    integer, save :: dim_ttt(3)
-    CHARACTER(LEN=7) nam
-    integer :: iret, VarID, ss
-
-    if (nRec == 0) then
-       iret = nf90_def_dim(ncID, 'time', NF90_UNLIMITED, timeID)
-       iret = nf90_def_dim(ncID, 'xt', n2, xtID)
-       iret = nf90_def_dim(ncID, 'yt', n3, ytID)
-
-       dim_ttt= (/xtID,ytID,timeID/)
-
-       iret=nf90_def_var(ncID,'time',NF90_FLOAT,timeID  ,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'time'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'time'))
-
-       iret=nf90_def_var(ncID,'xt',NF90_FLOAT,xtID    ,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'xt'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'xt'))
-
-       iret=nf90_def_var(ncID,'yt',NF90_FLOAT,ytID    ,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'yt'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'yt'))
-
-       iret=nf90_def_var(ncID,'lwp',NF90_FLOAT,dim_ttt,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'lwp'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'lwp'))
-
-       iret=nf90_def_var(ncID,'rwp',NF90_FLOAT,dim_ttt,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'rwp'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'rwp'))
-
-       iret=nf90_def_var(ncID,'Nc',NF90_FLOAT,dim_ttt,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'Nc'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'Nc'))
-
-       iret=nf90_def_var(ncID,'Nr',NF90_FLOAT,dim_ttt,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'Nr'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'Nr'))
-
-       iret=nf90_def_var(ncID,'nccnt',NF90_INT,dim_ttt,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'nccnt'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'nccnt'))
-
-       iret=nf90_def_var(ncID,'nrcnt',NF90_INT,dim_ttt,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'nrcnt'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'nrcnt'))
-
-       iret=nf90_def_var(ncID,'zb',NF90_FLOAT,dim_ttt,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'zb'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'zb'))
-
-       iret=nf90_def_var(ncID,'zc',NF90_FLOAT,dim_ttt,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'zc'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'zc'))
-
-       iret=nf90_def_var(ncID,'zi1',NF90_FLOAT,dim_ttt,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'zi1_bar'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'zi1_bar'))
-
-       iret=nf90_def_var(ncID,'lmax',NF90_FLOAT,dim_ttt,VarID)
-       iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'lmax'))
-       iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'lmax'))
-
-       ! Can add: maximum/minimum vertical velocities and their variances,
-       ! surface heat and humidity fluxes, buoyancy statistics,...
-
-       IF (rad_level==3) THEN
-          iret=nf90_def_var(ncID,'albedo',NF90_FLOAT,dim_ttt,VarID)
-          iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'albedo'))
-          iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'albedo'))
-       ENDIF
-
-       IF (level>=4) THEN
-          ! Aerosol and water removal
-           DO ss = 1,nspec
-              nam='rm'//trim(spec_list(ss))//'dr'
-              iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
-              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
-              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
-
-              nam='rm'//trim(spec_list(ss))//'cl'
-              iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
-              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
-              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
-
-              nam='rm'//trim(spec_list(ss))//'pr'
-              iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
-              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
-              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
-           END DO
-       ENDIF
-
-       IF (level>=5) THEN
-           ! Ice and snow
-           iret=nf90_def_var(ncID,'iwp',NF90_FLOAT,dim_ttt,VarID)
-           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'iwp'))
-           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'iwp'))
-
-           iret=nf90_def_var(ncID,'swp',NF90_FLOAT,dim_ttt,VarID)
-           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'swp'))
-           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'swp'))
-
-           iret=nf90_def_var(ncID,'Ni',NF90_FLOAT,dim_ttt,VarID)
-           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'Ni'))
-           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'Ni'))
-
-           iret=nf90_def_var(ncID,'Ns',NF90_FLOAT,dim_ttt,VarID)
-           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'Ns'))
-           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'Ns'))
-
-           iret=nf90_def_var(ncID,'nicnt',NF90_INT,dim_ttt,VarID)
-           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'nicnt'))
-           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'nicnt'))
-
-           iret=nf90_def_var(ncID,'nscnt',NF90_INT,dim_ttt,VarID)
-           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'nscnt'))
-           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'nscnt'))
-
-           ! Aerosol and water removal with ice and snow
-           DO ss = 1,nspec
-              nam='rm'//trim(spec_list(ss))//'ic'
-              iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
-              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
-              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
-
-              nam='rm'//trim(spec_list(ss))//'sn'
-              iret=nf90_def_var(ncID,nam,NF90_FLOAT,dim_ttt,VarID)
-              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,nam))
-              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,nam))
-           END DO
-       ENDIF
-
-       IF (nusr>0) THEN
-           ! User-selected process rate outputs
-           DO ss = 1,nusr
-              iret=nf90_def_var(ncID,usr_list(ss),NF90_FLOAT,dim_ttt,VarID)
-              iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,usr_list(ss),2))
-              iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,usr_list(ss),2))
-           ENDDO
-       ENDIF
-
-       IF (level==3) THEN
-           ! Surface precipitation for levels 3
-           iret=nf90_def_var(ncID,'prcp',NF90_FLOAT,dim_ttt,VarID)
-           iret=nf90_put_att(ncID,VarID,'longname',ncinfo(0,'prcp'))
-           iret=nf90_put_att(ncID,VarID,'units',ncinfo(1,'prcp'))
-       ENDIF
-
-       iret  = nf90_enddef(ncID)
-       iret  = nf90_sync(ncID)
-       nRec = 1
-    end if
-
-  end subroutine define_nc_cs
   !
   ! ----------------------------------------------------------------------
   ! Subroutine nc_info: Gets long_name, units and dimension info given a
@@ -579,7 +429,7 @@ contains
        if (itype==0) ncinfo = 'Maximum divergence'
        if (itype==1) ncinfo = '1/s'
        if (itype==2) ncinfo = 'time'
-    case('zi1_bar')
+    case('zi1_bar','zi1')
        if (itype==0) ncinfo = 'Height of maximum theta gradient'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'time'
@@ -605,6 +455,10 @@ contains
        if (itype==2) ncinfo = 'time'
     case('wmax')
        if (itype==0) ncinfo = 'Maximum vertical velocity'
+       if (itype==1) ncinfo = 'm/s'
+       if (itype==2) ncinfo = 'time'
+    case('wbase')
+       if (itype==0) ncinfo = 'Cloud base vertical velocity'
        if (itype==1) ncinfo = 'm/s'
        if (itype==2) ncinfo = 'time'
     case('tsrf')
@@ -748,7 +602,7 @@ contains
        if (itype==1) ncinfo = '%'
        if (itype==2) ncinfo = 'time'
     case('thl_int')
-       if (itype==0) ncinfo = 'Integrated liquid water potential temperature'
+       if (itype==0) ncinfo = 'Integrated liquid water potential temperature change'
        if (itype==1) ncinfo = 'Km'
        if (itype==2) ncinfo = 'time'
     case('thi_int')
@@ -929,15 +783,15 @@ contains
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sfs_vw')
-       if (itype==0) ncinfo = 'SGS vertical flux of v-wind'
+       if (itype==0) ncinfo = 'Sub-filter scale vertical flux of v-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('tot_ww')
-       if (itype==0) ncinfo = 'Total vertical flux of v-wind'
+       if (itype==0) ncinfo = 'Total vertical flux of w-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sfs_ww')
-       if (itype==0) ncinfo = 'SGS vertical flux of w-wind'
+       if (itype==0) ncinfo = 'Sub-filter scale vertical flux of w-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('km')
@@ -961,11 +815,11 @@ contains
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sfs_boy')
-       if (itype==0) ncinfo = 'Subfilter Buoyancy production of TKE'
+       if (itype==0) ncinfo = 'Sub-filter scale buoyancy production of TKE'
        if (itype==1) ncinfo = 'm^2/s^3'
        if (itype==2) ncinfo = 'ttmt'
     case('sfs_shr')
-       if (itype==0) ncinfo = 'Shear production of SGS TKE'
+       if (itype==0) ncinfo = 'Sub-filter scale shear production of TKE'
        if (itype==1) ncinfo = 'm^2/s^3'
        if (itype==2) ncinfo = 'tttt'
     case('boy_prd')
@@ -1037,7 +891,7 @@ contains
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'tttt'
     case('tot_qw')
-       if (itype==0) ncinfo = 'Total vertical flux of q'
+       if (itype==0) ncinfo = 'Total vertical flux of water'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sfs_qw')
@@ -1086,7 +940,7 @@ contains
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'tttt'
     case('tot_lw')
-       if (itype==0) ncinfo = 'Resolved turbulent flux of liquid water mixing ratio'
+       if (itype==0) ncinfo = 'Total vertical flux of liquid water'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('sed_lw')
@@ -1329,11 +1183,11 @@ contains
        if (itype==0) ncinfo =  'Cloud droplet bin radius, regime b'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'ttttclb'
-    case('S_Npb','S_Npba')
+    case('S_Npb')
        if (itype==0) ncinfo = 'Rain drop bin number concentration'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttttprc'
-    case('S_Rwpba')
+    case('S_Rwpb')
        if (itype==0) ncinfo = 'Rain bin radius'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'ttttprc'
@@ -1353,11 +1207,11 @@ contains
        if (itype==0) ncinfo = 'Ice bin radius, regime b'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttticb'
-    case('S_Nsba')
+    case('S_Nsb')
        if (itype==0) ncinfo = 'Snow bin number concentration'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'ttttsnw'
-    case('S_Rwsba')
+    case('S_Rwsb')
        if (itype==0) ncinfo = 'Snow bin radius'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'ttttsnw'
@@ -1512,7 +1366,7 @@ contains
        ! Automatically generated microphysical process rate statistics
        ncinfo=TRIM( get_rate_info(itype,trim(short_name),dims) )
        ! ... and some other species and bin-dependent SALSA variables
-       IF (LEN(TRIM(ncinfo))<1) ncinfo=TRIM( get_salsa_info(itype,trim(short_name)) )
+       IF (LEN(TRIM(ncinfo))<1) ncinfo=TRIM( get_salsa_info(itype,trim(short_name),dims) )
        IF (LEN(TRIM(ncinfo))<1) THEN
           if (myid==0) print *, 'ABORTING: ncinfo: variable not found ',trim(short_name)
           call appl_abort(0)
@@ -1717,18 +1571,20 @@ contains
   !
   ! ----------------------------------------------------------------------
   ! Function that determines information related to SALSA variables.
-  ! 1) Time series:
+  ! 1) Time series and column stats
   !         removal rates (e.g. rmNOcl)
+  !         integrated concentrations (e.g. intNOcl)
   ! 2) Profiles
   !     Total mass concentration (e.g. P_cH2Os)
   !     Mass concentration in each bin (e.g. P_OCaa)
   ! 3) Analysis files
   !     Total mass concentration (e.g. S_cH2Os)
   !     Mass concentration in each bin (e.g. S_OCaa)
-  character (len=80) function get_salsa_info(itype,short_name)
+  character (len=80) function get_salsa_info(itype,short_name,dims)
     implicit none
     integer, intent (in) :: itype
     character (len=*), intent (in) :: short_name
+    INTEGER, INTENT(IN) :: dims
 
     character (len=20) :: phase, bin, var
     character (len=3) :: spec
@@ -1920,6 +1776,41 @@ contains
         ELSEIF (itype==2) THEN
             ! NetCDF dimensions
             get_salsa_info = TRIM(var)
+        ENDIF
+    ELSEIF (INDEX(short_name,'int')==1) THEN
+        ! Column integrated concentrations, e.g. "intNOa"
+        spec(1:i-4)=short_name(4:i-1)
+        !
+        select case (short_name(i:i))
+        CASE('a')
+            phase='aerosol'
+        CASE('c')
+            phase='cloud'
+        CASE('r','p')
+            phase='rain'
+        CASE('i')
+            phase='ice'
+        CASE('s')
+            phase='snow'
+        CASE('g')
+            phase='gas'
+        case default
+            RETURN
+        end select
+        !
+        if (itype==0) THEN
+            ! Long name
+            get_salsa_info = 'Column integrated mass mixing ratio of '//TRIM(spec)//' in '//TRIM(phase)
+        ELSEIF (itype==1) THEN
+            ! Unit
+            get_salsa_info = 'kg/m^2'
+        ELSEIF (itype==2) THEN
+            ! NetCDF dimensions
+            IF (dims==0) THEN
+                get_salsa_info = 'time'
+            ELSE
+                get_salsa_info = 'tttt'
+            ENDIF
         ENDIF
     ENDIF
     END function get_salsa_info
