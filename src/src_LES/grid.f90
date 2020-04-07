@@ -157,6 +157,7 @@ module grid
                    a_msnowp(:,:,:,:), a_msnowt(:,:,:,:)
   ! -- Gas compound tracers
   REAL, POINTER :: a_gaerop(:,:,:,:), a_gaerot(:,:,:,:)
+  
   ! -- Local (LES) dimensions
   INTEGER :: nbins=0,ncld=0,nice=0,nprc=0,nsnw=0,nspec=0,ngases=0
 
@@ -187,6 +188,8 @@ module grid
   REAL, ALLOCATABLE :: a_rhi(:,:,:)    ! Relative humidity over ice
   REAL, ALLOCATABLE :: a_rsi(:,:,:)    ! Water vapor saturation mixing ratio over ice
   REAL, ALLOCATABLE :: a_dn(:,:,:)     ! Air density
+  
+  REAL, ALLOCATABLE  :: sspray_ovf(:,:,:)     ! Organic volume fraction of sea spray emission
   !
   ! scratch arrays
   !
@@ -478,7 +481,9 @@ contains
           a_gaerop => tmp_gasp(:,:,:,:)
           a_gaerot => tmp_gast(:,:,:,:)
        ENDIF
-
+	   
+       allocate (sspray_ovf(nxp,nyp,fn2a))
+	   sspray_ovf(:,:,:) = -1.
     END IF ! level
 
     !----------------------------------------------------
@@ -1937,7 +1942,7 @@ contains
     INTEGER, INTENT(IN) :: n ! Number of species
     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
     REAL, INTENT(IN) :: numc, mass(n)
-
+    integer :: i
     calc_eff_radius=0.
 
     ! Don't calculate if very low number concentration

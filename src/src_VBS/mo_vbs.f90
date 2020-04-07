@@ -23,6 +23,9 @@ MODULE mo_vbs
 
   ! Initialize species
   PUBLIC :: vbs_species
+  
+  REAL, PUBLIC, SAVE :: rate_o3_o1d_ave, maxdayfac  
+  
 
 CONTAINS
 
@@ -373,5 +376,27 @@ CONTAINS
 
   END SUBROUTINE new_species
 
+ ! From LES/rad_driver.f90
+  ! ---------------------------------------------------------------------------
+  ! Return the cosine of the solar zenith angle give the decimal day and
+  ! the latitude
+  !
+  real function zenith(alat,time)
+
+    real, intent (in)  :: alat, time
+
+    real, parameter :: pi     = 3.14159265358979323846264338327
+    real :: lamda, d, sig, del, h, day
+
+    day    = floor(time)
+    lamda  = alat*pi/180.
+    d      = 2.*pi*int(time)/365.
+    sig    = d + pi/180.*(279.9340 + 1.914827*sin(d) - 0.7952*cos(d) &
+         &                      + 0.019938*sin(2.*d) - 0.00162*cos(2.*d))
+    del    = asin(sin(23.4439*pi/180.)*sin(sig))
+    h      = 2.*pi*((time-day)-0.5)
+    zenith = sin(lamda)*sin(del) + cos(lamda)*cos(del)*cos(h)
+
+  end function zenith
 
 END MODULE mo_vbs

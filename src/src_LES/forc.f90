@@ -39,34 +39,62 @@ module forc
 
 contains
   !
-  SUBROUTINE surface_naerot(fluksi)
+  SUBROUTINE surface_naerot(fluksi, ovf)
     use grid, only : nxp, nyp, nbins, a_naerot, a_maerot
-    USE mo_submctl, ONLY : aerobins, in2a, fn2a, in2b, pi6, iss, ih2o, rhowa, rhoss
+    USE mo_submctl, ONLY : aerobins, in2a, fn2a, in2b, pi6, &
+                         & iss, ioc, ih2o, rhowa, rhoss, rhooc, nvbs_setup
+    use mo_vbsctl, only: vbs_set						 
+	use mo_vbs, only: spec_density		
+	
     IMPLICIT NONE
     REAL :: fluksi(nxp,nyp,fn2a) ! Rate of change in number concentration (#/kg/s)
+    REAL :: ovf(nxp,nyp,fn2a) ! volume fraction of organic matter in dry sea spray
     INTEGER :: i, j
-    REAL :: mdry, mwat
+    REAL :: vdry
     !
-    IF (iss<1) STOP 'Sea salt not included!'
+    IF (iss<1 .and. ioc<1 .and. nvbs_setup<1) STOP 'No sea spray species included!'
     !
     ! Ignore 1a, because there is no sea salt
     DO i=in2a,fn2a
-        ! Dry particle mass (assuming SS): use bin GMD
-        !   Note: bin center is volume mean - using other than that will cause problems!
-        mdry=4.*pi6*(aerobins(i)**3+aerobins(i+1)**3)*rhoss
-        ! Water mass: assume volume growth factor of 10
-        mwat=10.*mdry*rhowa/rhoss
+
+        ! Note: bin center is volume mean - using other than that will cause problems!
+        vdry=4.*pi6*(aerobins(i)**3+aerobins(i+1)**3)
+
         !
         ! Apply to 2b bins, if possible
         IF (nbins<in2b) STOP 'Prognostic b-bins needed!'
         j = in2b + i - in2a
         a_naerot(2,:,:,j) = a_naerot(2,:,:,j) + fluksi(:,:,i)
+		!print *, 'n', a_naerot(2,3,3,j)
+		
+		!print *, 'N b-bins i, j ', i, j
         ! ... and specifically to SS
-        j = (iss-1)*nbins + in2b + i - in2a
-        a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)*mdry
-        !  ... and just add water
-        j = (ih2o-1)*nbins + in2b + i - in2a
-        a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)*mwat
+		!print *, 'iss, ih2o, vbs_set(1)%id_vols', iss, ih2o, vbs_set(1)%id_vols
+        if(iss>0)then
+          j = (iss-1)*nbins + in2b + i - in2a
+		  !print *, 'ss b-bins j ', j
+          a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
+                                              & vdry*rhoss*(1.-ovf(:,:,i))
+          !print *, 'ss', a_maerot(2,3,3,j)
+          !  ... and just add water at 80% RH (D80 = 2 x Ddry)
+          j = (ih2o-1)*nbins + in2b + i - in2a
+          a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
+                                              & vdry*rhowa*(1.-ovf(:,:,i))*7.
+		  !print *, 'h2o', a_maerot(2,3,3,j)
+        endif
+		! .. organic fraction
+		if (nvbs_setup>=0) then
+		  j = (vbs_set(1)%id_vols-1)*nbins + in2b + i - in2a
+		  a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
+                                              & vdry*spec_density(vbs_set(1)%spid)*(ovf(:,:,i))
+											  
+	      !print *, 'vbs1', a_maerot(2,3,3,j)								  
+        elseif(ioc>0)then
+          j = (ioc-1)*nbins + in2b + i - in2a
+          a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
+                                              & vdry*rhooc*(ovf(:,:,i))
+          !print *, a_maerot(2,3,3,j)
+        endif
     ENDDO
   END SUBROUTINE surface_naerot
 

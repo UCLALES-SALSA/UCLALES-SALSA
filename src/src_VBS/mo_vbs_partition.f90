@@ -51,6 +51,8 @@ CONTAINS
          t_vbs_group, t_voc_prec, t_aq_soa, & ! the VBS, VOC and aqSOA data structures
          vbs_set, aqsoa_set,vbs_voc_set,   &
          aqsoa_ngroup, vbs_ngroup, vbs_nvocs
+		 
+    USE mo_vbs, ONLY : rate_o3_o1d_ave, maxdayfac, zenith
 
     ! input/output parameters
     INTEGER,  INTENT(in) :: kbdim                    ! geographic block max number of locations
@@ -99,7 +101,7 @@ CONTAINS
          zlossno3_aqsoa,       & ! NO3 zloss of aqsoa
          zlossphoto_aqsoa        ! photodissociation zloss of aqsoa
 
-    REAL :: zdayfac, u0
+    REAL :: zdayfac, u0, znightfac
     INTEGER :: jk, jl, jb, jv
     INTEGER :: idt_prec, idt_base, idt_aqsoa
 
@@ -110,8 +112,14 @@ CONTAINS
     ! For LES time scales it is either day or night (cos(zenith_angle) < 0)
     ! Cosine of the solar zenith angle
     u0=zenith(model_lat, start_doy+etime/86400.)
-    zdayfac=1.
-    IF (u0<0.) zdayfac=0.
+    !zdayfac=1.
+    IF (u0<=0.)then
+    	zdayfac=0.
+    else
+        zdayfac = 6.073e-5 * u0**1.743 * exp(-0.474 / u0)
+        zdayfac = zdayfac / rate_o3_o1d_ave
+		znightfac = (maxdayfac - zdayfac) / (maxdayfac - 1.)
+    endif
 
     ! Obtain oxidant concentrations and scale for day/night time length. Also,
     ! convert mol/m^3 to #/cm^3, because the unit of prefactor k0 is cm^3/#/s.
@@ -119,8 +127,8 @@ CONTAINS
     zc_o3(:,:)=0.
     zc_no3(:,:)=0.
     IF (id_oh>0)  zc_oh(:,:)=pc_gas(:,:,id_oh)*zdayfac*avog*1e-6
-    IF (id_o3>0)  zc_o3(:,:)=pc_gas(:,:,id_o3)*zdayfac*avog*1e-6
-    IF (id_no3>0) zc_no3(:,:)=pc_gas(:,:,id_no3)*(1.-zdayfac)*avog*1e-6
+    IF (id_o3>0)  zc_o3(:,:)=pc_gas(:,:,id_o3)*avog*1e-6   !*zdayfac
+    IF (id_no3>0) zc_no3(:,:)=pc_gas(:,:,id_no3)*znightfac*avog*1e-6
 
     DO jv = 1,vbs_nvocs
 
@@ -130,7 +138,7 @@ CONTAINS
 
        DO jk = 1,klev
           DO jl = 1,kbdim
-
+!print *, jv, pc_gas(jl,jk,idt_prec), pc_gas(jl,jk,id_oh), pc_gas(jl,jk,id_o3), pc_gas(jl,jk,id_no3), zdayfac !,zprec%k_0_OH,zprec%k_0_O3,zprec%k_0_NO3,ptemp(jl,jk)
               IF (pc_gas(jl,jk,idt_prec)<1e-20) CYCLE
 
               ! the precursor concentration in this grid cell [mol/m3]
@@ -151,6 +159,7 @@ CONTAINS
 
               !---amount of reacted voc [mol/m3]
               zloss_prec = zc_prec * (1. - EXP(-zc_rate_tot_prec*tstep))
+			  
               !---correcting concentration [mol/m3]
               pc_gas(jl,jk,idt_prec) = pc_gas(jl,jk,idt_prec) - zloss_prec
 
@@ -203,30 +212,6 @@ CONTAINS
   END DO !vbs_nvocs
 
   END SUBROUTINE vbs_gas_phase_chem
-
-  ! From LES/rad_driver.f90
-  ! ---------------------------------------------------------------------------
-  ! Return the cosine of the solar zenith angle give the decimal day and
-  ! the latitude
-  !
-  real function zenith(alat,time)
-
-    real, intent (in)  :: alat, time
-
-    real, parameter :: pi     = 3.14159265358979323846264338327
-    real :: lamda, d, sig, del, h, day
-
-    day    = floor(time)
-    lamda  = alat*pi/180.
-    d      = 2.*pi*int(time)/365.
-    sig    = d + pi/180.*(279.9340 + 1.914827*sin(d) - 0.7952*cos(d) &
-         &                      + 0.019938*sin(2.*d) - 0.00162*cos(2.*d))
-    del    = asin(sin(23.4439*pi/180.)*sin(sig))
-    h      = 2.*pi*((time-day)-0.5)
-    zenith = sin(lamda)*sin(del) + cos(lamda)*cos(del)*cos(h)
-
-  end function zenith
-
 
   SUBROUTINE vbs_condensation(kbdim,  klev,       &
             paero,  pcloud, pprecp, pice,  psnow, &

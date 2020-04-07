@@ -524,34 +524,85 @@ CONTAINS
         !
         ! Possible scaling factors
         ! 1) Linear dN(i)=N(i)*dNtot/Ntot
-        !scalen(:)=Nrem/Ntot
-        !scalev(:)=Vrem/Vtot
+        scalen(:)=Nrem/Ntot
+        scalev(:)=Vrem/Vtot
+!		print *, 'Vrem/Vtot, Nrem/Ntot', Vrem/Vtot, Nrem/Ntot
         ! 2) Weighted: dN(i)=N(i)*X(i)*dNtot/sum(N(i)*X(i))
         ! Weight based on autoconversion rate: V**2*Xc**2 where
         !   V=Vw(i), V=k*Ddry(i)**3 or V=Vtot=const
         !   Xc=k*Vi(i)/N(i) or Xc=k*Ddry(i)**3
         !scaling=pcloud(ii,jj,:)%volc(1)**2*pcloud(ii,jj,:)%dmid**6
-        scaling=pcloud(ii,jj,:)%dmid**6
+!        scaling=(pcloud(ii,jj,:)%dmid*1.e6)**6
         !WHERE (pcloud(ii,jj,:)%numc>nlim)
         !    scaling=pcloud(ii,jj,:)%volc(1)**4/pcloud(ii,jj,:)%numc**2
         !    scaling=(pcloud(ii,jj,:)%volc(1)/pcloud(ii,jj,:)%numc)**2
         !ELSEWHERE
         !    scaling=0.
         !ENDWHERE
-        scalen(:)=scaling(:)*Nrem/SUM(scaling(:)*pcloud(ii,jj,:)%numc)
-        scalev(:)=scaling(:)*Vrem/SUM(scaling(:)*pcloud(ii,jj,:)%volc(1))
+! !		scaling(:) = scaling(:)/maxval(scaling(:))
+		
+        ! scalen(:)=scaling(:)*Nrem/SUM(scaling(:)*pcloud(ii,jj,:)%numc)
+        ! scalev(:)=scaling(:)*Vrem/SUM(scaling(:)*pcloud(ii,jj,:)%volc(1))
+       
+	    ! ! The above formulation can lead to >1 scalings in some bins
+		! i = 0
+		! do while (any(scalen>1.)) 
+		! ! Removed numbers that need redistributing
+		  ! rem_tmp = sum(max(0., scalen(:)-1.)*pcloud(ii,jj,:)%numc)
+		  ! if(rem_tmp*fact <= prlim) then
+             ! scalen(:) = min(scalen(:), 1.0)
+			 ! exit
+          ! endif	
+          ! i = i +1		  
+		  ! scaling_tmp = scaling
+		  ! where(scalen>=1.)scaling_tmp = 0
+		  ! scalex_tmp(:)=scaling_tmp(:)*rem_tmp/SUM(scaling_tmp(:)*pcloud(ii,jj,:)%volc(1))
+		  ! DO cc = 1,ncld
+		  
+		  
+		  ! where(scalen>1.)scalen = 1.
+          ! scalen = scalen + scalex_tmp
+		! enddo
+		! i = 0
+		! do while (any(scalev>1.))
+		! ! Removed water volumes that need redistributing
+		  ! rem_tmp = sum(max(0., scalev(:)-1.)*pcloud(ii,jj,:)%volc(1))
+		  ! if(rem_tmp <= 1.e-10) then
+             ! scalev(:) = min(scalen(:), 1.0)
+			 ! exit
+	      ! endif
+		  ! i = i+1
+		  ! scaling_tmp = scaling
+		  ! where(scalev>=1.)scaling_tmp = 0
+		  ! where(scalev>1.)scalev = 1.
+		  ! scalex_tmp(:)=scaling_tmp(:)*rem_tmp/SUM(scaling_tmp(:)*pcloud(ii,jj,:)%volc(1))
+          ! scalev = scalev + scalex_tmp
+		! enddo
+
         !
+!        DO cc = 1,ncld
+!            IF ( pcloud(ii,jj,cc)%numc > nlim ) THEN
+!                pprecp(ii,jj,io)%volc(2:) = pprecp(ii,jj,io)%volc(2:) + pcloud(ii,jj,cc)%volc(2:)*scalen(cc)
+!                pcloud(ii,jj,cc)%volc(2:) = pcloud(ii,jj,cc)%volc(2:)*(1. - scalen(cc))
+!                pprecp(ii,jj,io)%volc(1) = pprecp(ii,jj,io)%volc(1) + pcloud(ii,jj,cc)%volc(1)*scalev(cc)
+!                pcloud(ii,jj,cc)%volc(1) = pcloud(ii,jj,cc)%volc(1)*(1. - scalev(cc))
+!                pprecp(ii,jj,io)%numc = pprecp(ii,jj,io)%numc + pcloud(ii,jj,cc)%numc*scalen(cc)*fact
+!                pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc*(1. - scalen(cc))
+!            END IF
+!        END DO ! cc
+		
+		pprecp(ii,jj,io)%numc = pprecp(ii,jj,io)%numc + Nrem 
         DO cc = 1,ncld
             IF ( pcloud(ii,jj,cc)%numc > nlim ) THEN
-                pprecp(ii,jj,io)%volc(2:) = pprecp(ii,jj,io)%volc(2:) + pcloud(ii,jj,cc)%volc(2:)*scalen(cc)
-                pcloud(ii,jj,cc)%volc(2:) = pcloud(ii,jj,cc)%volc(2:)*(1. - scalen(cc))
+                pprecp(ii,jj,io)%volc(2:) = pprecp(ii,jj,io)%volc(2:) + pcloud(ii,jj,cc)%volc(2:)*scalev(cc)
+                pcloud(ii,jj,cc)%volc(2:) = pcloud(ii,jj,cc)%volc(2:)*(1. - scalev(cc))
                 pprecp(ii,jj,io)%volc(1) = pprecp(ii,jj,io)%volc(1) + pcloud(ii,jj,cc)%volc(1)*scalev(cc)
                 pcloud(ii,jj,cc)%volc(1) = pcloud(ii,jj,cc)%volc(1)*(1. - scalev(cc))
-                pprecp(ii,jj,io)%numc = pprecp(ii,jj,io)%numc + pcloud(ii,jj,cc)%numc*scalen(cc)*fact
-                pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc*(1. - scalen(cc))
+                pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc*(1. - scalev(cc))
             END IF
-          END DO ! cc
-       END DO ! ii
+        END DO ! cc		
+
+      END DO ! ii
     END DO ! jj
 
   END SUBROUTINE autoconv_sb

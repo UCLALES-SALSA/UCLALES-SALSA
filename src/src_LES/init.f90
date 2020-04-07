@@ -581,12 +581,47 @@ contains
     use step, only : time
     use mpi_interface, only : myid
 
+    USE mo_submctl, ONLY : ox_prescribed, conc_oh, conc_o3, conc_no3, mair, &
+        ngases_diag, zgas_diag, model_lat, start_doy
+    USE step, ONLY : cntlat, strtim
+	use mpi_interface, only : appl_abort
+
     implicit none
+ 
+    integer :: j
 
     call read_hist(time, hfilin)
 
     if(myid == 0) &
          print "(//' ',49('-')/,' ',/,' History read from: ',A60)",hfilin
+
+    ! Gases initialized in SALSA
+    IF (ngases==0) RETURN
+
+    ! If vbs oxidants are prescribed they need to be set from namelist
+    ! VBS: oxidants (OH, O3 and NOx) + VOCs(g) + VBS(g) [+ aqSOA(g)]
+    !   a) Oxidants: initial concentration given as a number mixing ratio
+    j=0
+	IF (ox_prescribed) THEN
+	  !print *, 'Setting prescribed oxidants (OH, O3, NO3): ', conc_oh, conc_o3, conc_no3
+      IF (conc_oh>=0.) THEN
+            ! Diagnostic (constant)
+            j=j+1
+            zgas_diag(j) = conc_oh/mair ! Note: mol/kg
+        ENDIF
+        IF (conc_o3>0.) THEN
+            j=j+1
+            zgas_diag(j) = conc_o3/mair
+        ENDIF
+        IF (conc_no3>0.) THEN
+            j=j+1
+            zgas_diag(j) = conc_no3/mair
+        ENDIF
+    ENDIF
+
+    ! Additional VBS parameters
+    start_doy=strtim ! Start time as decimal day of year
+    model_lat=cntlat ! Center latitude (degrees)
 
     return
   end subroutine hstart
@@ -1048,6 +1083,7 @@ contains
         nvocs, nvbs, naqsoa, conc_voc, conc_vbsg, conc_aqsoag, &
         ngases_diag, zgas_diag, model_lat, start_doy
     USE step, ONLY : cntlat, strtim
+	use mpi_interface, only : appl_abort
     IMPLICIT NONE
 
     ! Local variables
@@ -1075,7 +1111,7 @@ contains
         a_gaerop(:,:,:,i) = conc_ocnv/avog*mws_gas(i)
     ENDIF
 
-
+    
     ! VBS: oxidants (OH, O3 and NOx) + VOCs(g) + VBS(g) [+ aqSOA(g)]
     !   a) Oxidants: initial concentration given as a number mixing ratio
     j=0
@@ -1102,7 +1138,7 @@ contains
     IF (conc_no3>0.) THEN
         IF (ox_prescribed) THEN
             j=j+1
-            zgas_diag(j) = conc_o3/mair
+            zgas_diag(j) = conc_no3/mair
         ELSE
             i=i+1
             a_gaerop(:,:,:,i) = conc_no3*mws_gas(i)/mair

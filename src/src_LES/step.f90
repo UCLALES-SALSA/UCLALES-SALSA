@@ -133,11 +133,12 @@ contains
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
                      a_gaerop, a_gaerot,                                                &
                      nspec, nbins, ncld, nprc, nice, nsnw, &
-                     nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn
+                     nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
+					 sspray_ovf
 
     use stat, only : sflg, statistics, les_rate_stats, out_mcrp_data, out_mcrp_list, out_mcrp_nout, mcrp_var_save
     use sgsm, only : diffuse
-    use srfc, only : surface, get_aero_flux
+    use srfc, only : surface, get_aero_flux, marine_gas_flux
     use thrm, only : thermo
     use mcrp, only : micro
     use prss, only : poisson
@@ -146,10 +147,11 @@ contains
     use forc, only : forcings, surface_naerot
 
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : aerobins, fn2a
+    USE mo_submctl, ONLY : aerobins, fn2a, nvbs_setup
 
     real :: xtime
     REAL :: dnaeropdt(nxp,nyp,fn2a)
+    REAL :: flxIsop(nxp,nyp), flxMonotrp(nxp,nyp)
     INTEGER :: zrm
     INTEGER :: n4
 
@@ -168,11 +170,15 @@ contains
 
     call surface(sst)
 
-    IF (level > 3 .AND. .FALSE.) THEN
+    IF (level > 3) THEN
         ! Surface aerosol sources (#/m^2/s)
-        CALL get_aero_flux(fn2a,aerobins,sst,dnaeropdt)
-        CALL surface_naerot(dnaeropdt)
+        CALL get_aero_flux(fn2a,aerobins,sst,dnaeropdt,sspray_ovf)
+        CALL surface_naerot(dnaeropdt,sspray_ovf)
+        if (nvbs_setup>=0) then
+            call marine_gas_flux(sst,flxIsop,flxMonotrp)
+        endif
         CALL tend_constrain(n4)
+!       if(sflg)call ems_stat(nxp,nyp,fn2a,dnaeropdt,ovf,flxIsop,flxMonotrp)
     END IF
 
     IF (sflg) CALL les_rate_stats('srfc')
@@ -214,6 +220,7 @@ contains
 
           CALL tend_constrain(n4)
           IF (sflg) CALL les_rate_stats('mcrp')
+
           call update_sclrs
 
           ! Save user-selected details about SALSA microphysics
@@ -221,6 +228,8 @@ contains
        END IF
 
     end if ! level
+    a_mcloudp = MAX(0.,a_mcloudp)
+
 
     !-------------------------------------------
     ! "Deposition" timestep
@@ -254,7 +263,7 @@ contains
     IF (sflg) CALL les_rate_stats('advf')
 
     CALL update_sclrs
-
+	
     CALL thermo(level)
 
     ! Nudging

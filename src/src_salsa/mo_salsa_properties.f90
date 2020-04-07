@@ -91,6 +91,10 @@ CONTAINS
                   zw = mwa/rhowa*zrh/(zke-zrh)*ns
 
                END DO
+			   if(zw < 0.)THEN
+                  WRITE(*,*)'  bin ',kk,', parameters:',zcore, ns, zw, zdwet, zke
+                  STOP 'SALSA equilibration: negative water in aerosol!!'
+               ENDIF
                IF (n > 1000) THEN
                   WRITE(*,*)'  bin ',kk,', parameters:',zcore, ns, zw, zdwet, zke
                   STOP 'SALSA equilibration: no convergence!!'
