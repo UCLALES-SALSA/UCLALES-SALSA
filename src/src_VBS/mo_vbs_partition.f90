@@ -54,6 +54,8 @@ CONTAINS
 		 
     USE mo_vbs, ONLY : rate_o3_o1d_ave, maxdayfac, zenith
 
+    use grid, only: iradtyp
+
     ! input/output parameters
     INTEGER,  INTENT(in) :: kbdim                    ! geographic block max number of locations
     INTEGER,  INTENT(in) :: klev                     ! numer of levels
@@ -109,18 +111,26 @@ CONTAINS
     ! executable procedure
     ! -----------------------------------------------------------------------
 
-    ! For LES time scales it is either day or night (cos(zenith_angle) < 0)
-    ! Cosine of the solar zenith angle
-    u0=zenith(model_lat, start_doy+etime/86400.)
-    !zdayfac=1.
-    IF (u0<=0.)then
+    ! Only the 4stream radiation scheme accounts for time of day, 
+	! so here we use the prescribed value as te daily average and apply 
+    ! ozone photolysis rate as OH diurnal variation and opposite for NO3
+	! For other schemes use the oxidants concentrations as prescribed in namelist  
+	if(iradtyp > 2)then
+	
+      ! Cosine of the solar zenith angle
+      u0=zenith(model_lat, start_doy+etime/86400.)
+      !zdayfac=1.
+      IF (u0<=0.)then
     	zdayfac=0.
-    else
+      else
         zdayfac = 6.073e-5 * u0**1.743 * exp(-0.474 / u0)
         zdayfac = zdayfac / rate_o3_o1d_ave
-		znightfac = (maxdayfac - zdayfac) / (maxdayfac - 1.)
-    endif
-
+      endif
+	  znightfac = (maxdayfac - zdayfac) / (maxdayfac - 1.)
+    else
+	  zdayfac = 1.
+	  znightfac = 1.
+	endif
     ! Obtain oxidant concentrations and scale for day/night time length. Also,
     ! convert mol/m^3 to #/cm^3, because the unit of prefactor k0 is cm^3/#/s.
     zc_oh(:,:)=0.

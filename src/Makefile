@@ -53,7 +53,7 @@ defs.o:
 grid.o: ncio.o $(seqmpi:.f90=.o) mo_submctl.o
 stat.o: ncio.o grid.o util.o defs.o mo_submctl.o $(seqmpi:.f90=.o)
 thrm.o: grid.o defs.o $(seqmpi:.f90=.o) mo_submctl.o 
-forc.o: grid.o defs.o stat.o rad_driver.o mo_submctl.o $(seqmpi:.f90=.o)
+forc.o: grid.o defs.o stat.o util.o rad_driver.o mo_submctl.o $(seqmpi:.f90=.o)
 advf.o: grid.o stat.o util.o mo_submctl.o $(seqmpi:.f90=.o)
 advl.o: grid.o stat.o util.o
 srfc.o: grid.o stat.o defs.o thrm.o $(seqmpi:.f90=.o)
@@ -76,7 +76,7 @@ rad_d4strm.o: defs.o rad_solver.o \
 rad_driver.o: defs.o rad_d4strm.o $(seqmpi:.f90=.o)
 $(seqmpi:.f90=.o):
 mo_salsa_driver.o: mo_submctl.o mo_salsa.o mo_salsa_properties.o
-mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o mo_vbs_init.o
+mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o mo_vbs_init.o step.o 
 mo_submctl.o: 
 mo_salsa_cloud.o: mo_submctl.o
 mo_salsa.o: mo_submctl.o mo_salsa_dynamics.o \
@@ -86,5 +86,5 @@ mo_salsa_properties.o: mo_submctl.o
 mo_salsa_update.o: mo_submctl.o
 mo_vbsctl.o:
 mo_vbs_init.o: mo_submctl.o mo_vbs.o mo_vbsctl.o
-mo_vbs.o: mo_vbsctl.o
-mo_vbs_partition.o: mo_submctl.o mo_vbsctl.o
+mo_vbs.o: mo_vbsctl.o 
+mo_vbs_partition.o: mo_submctl.o mo_vbsctl.o mo_vbs.o grid.o

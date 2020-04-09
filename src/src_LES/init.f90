@@ -1081,8 +1081,8 @@ contains
         part_h2so4, conc_h2so4, part_ocnv, conc_ocnv, &
         ox_prescribed, conc_oh, conc_o3, conc_no3, mair, &
         nvocs, nvbs, naqsoa, conc_voc, conc_vbsg, conc_aqsoag, &
-        ngases_diag, zgas_diag, model_lat, start_doy
-    USE step, ONLY : cntlat, strtim
+        ngases_diag, zgas_diag
+
 	use mpi_interface, only : appl_abort
     IMPLICIT NONE
 
@@ -1181,10 +1181,6 @@ contains
             ENDDO
         ENDIF
     ENDDO
-
-    ! Additional VBS parameters
-    start_doy=strtim ! Start time as decimal day of year
-    model_lat=cntlat ! Center latitude (degrees)
 
     ! Info
     IF (myid == 0 .AND. ngases>0) THEN

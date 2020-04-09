@@ -522,18 +522,6 @@ CONTAINS
         !
         scaling = Vrem/Vtot
         !
-!        DO cc = 1,ncld
-!            IF ( pcloud(ii,jj,cc)%numc > nlim ) THEN
-!                pprecp(ii,jj,io)%volc(2:) = pprecp(ii,jj,io)%volc(2:) + pcloud(ii,jj,cc)%volc(2:)*scalen(cc)
-!                pcloud(ii,jj,cc)%volc(2:) = pcloud(ii,jj,cc)%volc(2:)*(1. - scalen(cc))
-!                pprecp(ii,jj,io)%volc(1) = pprecp(ii,jj,io)%volc(1) + pcloud(ii,jj,cc)%volc(1)*scalev(cc)
-!                pcloud(ii,jj,cc)%volc(1) = pcloud(ii,jj,cc)%volc(1)*(1. - scalev(cc))
-!                pprecp(ii,jj,io)%numc = pprecp(ii,jj,io)%numc + pcloud(ii,jj,cc)%numc*scalen(cc)*fact
-!                pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc*(1. - scalen(cc))
-!            END IF
-!        END DO ! cc
-		
-		pprecp(ii,jj,io)%numc = pprecp(ii,jj,io)%numc + Nrem 
         DO cc = 1,ncld
             IF ( pcloud(ii,jj,cc)%numc > nlim ) THEN
                 pprecp(ii,jj,io)%volc(:) = pprecp(ii,jj,io)%volc(:) + pcloud(ii,jj,cc)%volc(:)*scaling

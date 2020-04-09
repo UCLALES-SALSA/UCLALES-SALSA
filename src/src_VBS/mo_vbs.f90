@@ -22,7 +22,7 @@ MODULE mo_vbs
   REAL, PUBLIC, SAVE :: spec_moleweight(100), spec_density(100), spec_kappa(100)
 
   ! Initialize species
-  PUBLIC :: vbs_species
+  PUBLIC :: vbs_species, zenith
   
   REAL, PUBLIC, SAVE :: rate_o3_o1d_ave, maxdayfac  
   

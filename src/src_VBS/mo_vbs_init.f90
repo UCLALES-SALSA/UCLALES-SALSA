@@ -22,7 +22,8 @@ SUBROUTINE init_vbs(nvbs_setup, laqsoa)
             vbs_nvocs, vbs_ngroup, aqsoa_ngroup
     USE mo_submctl, ONLY : dens, mws, diss, nspec, zspec, &
             nvocs, nvbs, naqsoa, mws_gas, ngases, zgas, &
-            id_oh, id_no3, id_o3, conc_oh, conc_no3, conc_o3, ox_prescribed, ngases_diag
+            id_oh, id_no3, id_o3, conc_oh, conc_no3, conc_o3, & 
+			ox_prescribed, ngases_diag, model_lat, start_doy
     ! Inputs
     LOGICAL, INTENT(IN) :: laqsoa
     INTEGER, INTENT(IN) :: nvbs_setup
@@ -30,7 +31,7 @@ SUBROUTINE init_vbs(nvbs_setup, laqsoa)
     INTEGER :: i, j
     CHARACTER(LEN=3) :: tmp
     INTEGER :: subm_naerospec=0, subm_ngasspec=0
-	real :: u0
+	real :: u0, rate_o3_o1d
 
     ! 1) VBS initialization
     ! *********************
@@ -158,6 +159,7 @@ SUBROUTINE init_vbs(nvbs_setup, laqsoa)
 		    rate_o3_o1d = 6.073e-5 * u0**1.743 * exp(-0.474 / u0)
 		    if(rate_o3_o1d > maxdayfac) maxdayfac = rate_o3_o1d
 		    rate_o3_o1d_ave = rate_o3_o1d_ave + rate_o3_o1d
+			print *, model_lat, start_doy, i, u0, rate_o3_o1d
 		endif
         j = j + 1
     enddo

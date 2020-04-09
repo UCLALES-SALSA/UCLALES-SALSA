@@ -599,7 +599,8 @@ CONTAINS
                            rhodu,dissdu,mdu,rhoss,dissss,mss,rhono,dissno,mno,rhonh,dissnh,mnh, &
                            nlcndgas,ngases,zgas,mws_gas, &
                            conc_h2so4,conc_ocnv,part_h2so4,part_ocnv,isog,iocg, &
-                           nvbs_setup,laqsoa
+                           nvbs_setup,laqsoa, model_lat, start_doy
+    USE step, ONLY : cntlat, strtim
     USE mo_vbs_init, ONLY : init_vbs
     IMPLICIT NONE
     INTEGER :: ss
@@ -721,7 +722,11 @@ CONTAINS
             !   Export: nvbs_setup, laqsoa
             !   Update (gas): nvocs, nvbs, naqsoa, ngases, ngases_diag, nspec, mws_gas, zgas, id_oh, id_no3, id_o3
             !   Update (aerosol): dens, diss, mws, zspec
-            CALL init_vbs(nvbs_setup, laqsoa)
+                ! Additional VBS parameters
+    start_doy=strtim ! Start time as decimal day of year
+    model_lat=cntlat ! Center latitude (degrees)
+			
+			CALL init_vbs(nvbs_setup, laqsoa)
         ELSE
             laqsoa = .false.
             nvbs_setup = -1
