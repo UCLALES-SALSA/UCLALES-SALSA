@@ -40,7 +40,7 @@ CONTAINS
     INTEGER :: ii, jj, kk, mm
     REAL :: zvpart, znfrac, zvfrac, zVrat, zVilo, zVihi, zVexc, zvdec
     LOGICAL  :: within_bins
-    INTEGER :: count, nn, i
+    INTEGER :: count, nn
 
     zvpart = 0.
     zvfrac = 0.
@@ -216,9 +216,6 @@ CONTAINS
                 END IF !nlim
                 
                 IF ( pcloud(ii,jj,kk)%numc > nlim ) THEN
-				   !do i = 1,nn
-    				!  print *, i, ii,jj,kk, pcloud(ii,jj,kk)%numc, pcloud(ii,jj,kk)%volc(i)
-				   !enddo
                    zvpart = sum(pcloud(ii,jj,kk)%volc(2:nn))/pcloud(ii,jj,kk)%numc ! Note: dry volume
                    within_bins = within_bins .AND. pcloud(ii,jj,kk)%vlolim<zvpart .AND. zvpart<pcloud(ii,jj,kk)%vhilim
                 END IF

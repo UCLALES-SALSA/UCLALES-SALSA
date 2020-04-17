@@ -530,7 +530,6 @@ CONTAINS
                 pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc*(1. - scaling)
             END IF
         END DO ! cc		
-
       END DO ! ii
     END DO ! jj
 

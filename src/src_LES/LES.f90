@@ -89,7 +89,8 @@ contains
 
     use util, only : fftinix,fftiniy
     use sgsm, only : csx, prndtl
-    use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon, wtrChlA, ifPOCadd, wtrIsop, wtrMtrp
+    use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon, &
+                    wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ifSeaSpray, ifSeaVOC
     use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, frqrst, &
          strtim, radfrq, cntlat
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
@@ -134,8 +135,9 @@ contains
          outflg , anl_start,        & ! output flg, time to start saving analysis files
          iradtyp, radfrq , strtim , & ! radiation type flag
          isfctyp, ubmin  , zrough , & ! surface parameterization type
+		 ifSeaSpray, ifSeaVOC,      & ! marine emissions
          wtrChlA, ifPOCadd,         & ! chlorophyll alpha sea surface concentrations, if organic fraction is additive
-		 wtrIsop, wtrMtrp,          & ! sea surface concentrations of isoprene and monoterpenes
+         wtrIsop, wtrMtrp,          & ! sea surface concentrations of isoprene and monoterpenes
          sst    , dthcon , drtcon , & ! SSTs, surface flx parameters
          isgstyp, csx    , prndtl , & ! SGS model type, parameters
          ipsflg , itsflg ,          & ! sounding flags

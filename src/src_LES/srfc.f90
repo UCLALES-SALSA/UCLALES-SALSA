@@ -48,6 +48,8 @@ module srfc
 
 ! <--- Sami added
 
+
+  logical :: ifSeaSpray = .false., ifSeaVOC = .false.
   ! Chlorophyll alpha concentration for marine organic emissions
   real :: wtrChlA = -1.   ! kg/m3
   logical :: ifPOCadd = .false.
@@ -156,24 +158,23 @@ contains
 	     !print *, 'dcdt2', rad(k+1), rad(k), minval(w(:,:)), maxval(w(:,:)), flx(k), flx(k+1)
             dcdt(i,j,k)=0.5*(flx(k)+flx(k+1))*log10(rad(k+1)/rad(k))*w(i,j)/a_dn(2,i,j)/(zm(3)-zm(2))
 
-        ! Size dependent organic mass fraction from Gantt ea, 2011 (eq. 3)
+            ! Size dependent organic mass fraction from Gantt ea, 2011 (eq. 3)
             if(wtrChlA>0.)then
                 dia = (4.*rad(k)**3.+rad(k+1)**3.)**(1./3.)*1.e6 ! bin volume-mean diameter in micrometers
-            ! Organic fraction is parameterized for particle diameter at 80% RH
-            ! which depends on composition, so technically would need to iterate.
-            ! However, hopefully it converges after limited nr of timesteps.
-            ! Mean diameter at RH 80% ~2 x dry diameter for sea salt,
-            ! organic part is assumed insoluble
+                ! Organic fraction is parameterized for particle diameter at 80% RH
+                ! which depends on composition, so technically would need to iterate.
+                ! However, hopefully it converges after limited nr of timesteps.
+                ! Mean diameter at RH 80% ~2 x dry diameter for sea salt,
+                ! organic part is assumed insoluble
 
-
-                    if( Ovf(i,j,k) < 0.)then ! first timestep
+                if( Ovf(i,j,k) < 0.)then ! first timestep
                         Ovf(i,j,k) = omf_max(i,j)/(omf_max(i,j)*(1.-rhorho)+rhorho)
-                    endif
-                    dia80 = (dia**3.*(Ovf(i,j,k)+8.*(1.-Ovf(i,j,k))))**(1./3.) !
-                    omf = omf_max(i,j)/(1.+0.03*exp(6.81*dia80))+0.03*omf_max(i,j)
-                    Ovf(i,j,k) = omf/(omf*(1.-rhorho)+rhorho)
-					!print *, 'k, dia, dia80, omf_max(i,j), omf, Ovf(i,j,k)', k, dia, dia80, omf_max(i,j), omf, Ovf(i,j,k)
-					!print *, k,Ovf(i,j,k)
+                endif
+                dia80 = (dia**3.*(Ovf(i,j,k)+8.*(1.-Ovf(i,j,k))))**(1./3.) !
+                omf = omf_max(i,j)/(1.+0.03*exp(6.81*dia80))+0.03*omf_max(i,j)
+                Ovf(i,j,k) = omf/(omf*(1.-rhorho)+rhorho)
+                !print *, 'k, dia, dia80, omf_max(i,j), omf, Ovf(i,j,k)', k, dia, dia80, omf_max(i,j), omf, Ovf(i,j,k)
+                !print *, k,Ovf(i,j,k)
 	        else
 				Ovf(i,j,k) = 0.
 		    endif

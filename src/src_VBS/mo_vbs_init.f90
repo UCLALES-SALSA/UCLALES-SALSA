@@ -31,7 +31,7 @@ SUBROUTINE init_vbs(nvbs_setup, laqsoa)
     INTEGER :: i, j
     CHARACTER(LEN=3) :: tmp
     INTEGER :: subm_naerospec=0, subm_ngasspec=0
-	real :: u0, rate_o3_o1d
+    real :: u0, rate_o3_o1d
 
     ! 1) VBS initialization
     ! *********************
@@ -151,20 +151,19 @@ SUBROUTINE init_vbs(nvbs_setup, laqsoa)
     ENDDO
 
     j = 0
-	rate_o3_o1d_ave = 0.
-	maxdayfac = 0.
+    rate_o3_o1d_ave = 0.
+    maxdayfac = 0.
     do i = 0, 23
-	    u0=zenith(model_lat, start_doy+i/24.)
-		IF (u0>0.)then
-		    rate_o3_o1d = 6.073e-5 * u0**1.743 * exp(-0.474 / u0)
-		    if(rate_o3_o1d > maxdayfac) maxdayfac = rate_o3_o1d
-		    rate_o3_o1d_ave = rate_o3_o1d_ave + rate_o3_o1d
-			print *, model_lat, start_doy, i, u0, rate_o3_o1d
-		endif
+        u0=zenith(model_lat, start_doy+i/24.)
+        IF (u0>0.)then
+            rate_o3_o1d = 6.073e-5 * u0**1.743 * exp(-0.474 / u0)
+            if(rate_o3_o1d > maxdayfac) maxdayfac = rate_o3_o1d
+            rate_o3_o1d_ave = rate_o3_o1d_ave + rate_o3_o1d
+        endif
         j = j + 1
     enddo
-	rate_o3_o1d_ave = rate_o3_o1d_ave / j
-	maxdayfac = maxdayfac / rate_o3_o1d_ave
+    rate_o3_o1d_ave = rate_o3_o1d_ave / j
+    maxdayfac = maxdayfac / rate_o3_o1d_ave
 	
 	
 END SUBROUTINE init_vbs

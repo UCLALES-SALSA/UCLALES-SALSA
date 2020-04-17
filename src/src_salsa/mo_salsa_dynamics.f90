@@ -1746,15 +1746,6 @@ CONTAINS
     diam = (/ diam1, diam2 /)       ! particle diameters [m]
     mpart = (/ mass1, mass2 /)       ! particle masses [kg]
 
-
-    ! If this is for self coagulation, put a minor offset on the particle diameters to account for
-    ! the bin width
-!    IF ( ABS(diam1 - diam2)/diam1 < 1.e-2) THEN
-!         diam(1) = 0.9*diam1
-!         mpart(1) = 0.7290*mass1 ! 0.7290 corresponds to 0.9*diameter ;;  NOTE this might cause some small error for ice!!
-!   END IF
-
-
     visc = (7.44523e-3*temp**1.5)/(5093.*(temp+110.4)) ! viscosity of air [kg/(m s)]
 
     mfp = (1.656e-10*temp+1.828e-8)*pstand/pres ! mean free path of air [m]

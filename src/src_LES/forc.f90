@@ -65,35 +65,26 @@ contains
         IF (nbins<in2b) STOP 'Prognostic b-bins needed!'
         j = in2b + i - in2a
         a_naerot(2,:,:,j) = a_naerot(2,:,:,j) + fluksi(:,:,i)
-		!print *, 'n', a_naerot(2,3,3,j)
-		
-		!print *, 'N b-bins i, j ', i, j
         ! ... and specifically to SS
-		!print *, 'iss, ih2o, vbs_set(1)%id_vols', iss, ih2o, vbs_set(1)%id_vols
         if(iss>0)then
           j = (iss-1)*nbins + in2b + i - in2a
-		  !print *, 'ss b-bins j ', j
           a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
                                               & vdry*rhoss*(1.-ovf(:,:,i))
-          !print *, 'ss', a_maerot(2,3,3,j)
           !  ... and just add water at 80% RH (D80 = 2 x Ddry)
           j = (ih2o-1)*nbins + in2b + i - in2a
           a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
                                               & vdry*rhowa*(1.-ovf(:,:,i))*7.
-		  !print *, 'h2o', a_maerot(2,3,3,j)
         endif
 		! .. organic fraction
 		if (nvbs_setup>=0) then
 		  j = (vbs_set(1)%id_vols-1)*nbins + in2b + i - in2a
 		  a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
                                               & vdry*spec_density(vbs_set(1)%spid)*(ovf(:,:,i))
-											  
-	      !print *, 'vbs1', a_maerot(2,3,3,j)								  
+											  								  
         elseif(ioc>0)then
           j = (ioc-1)*nbins + in2b + i - in2a
           a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
                                               & vdry*rhooc*(ovf(:,:,i))
-          !print *, a_maerot(2,3,3,j)
         endif
     ENDDO
   END SUBROUTINE surface_naerot

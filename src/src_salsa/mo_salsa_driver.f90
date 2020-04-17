@@ -126,7 +126,7 @@ IMPLICIT NONE
     TYPE(t_section) :: aero_old(1,1,fn2b), cloud_old(1,1,fnp2b), precp_old(1,1,nprc), &
        ice_old(1,1,fnp2b), snow_old(1,1,nsnw)
 
-    INTEGER :: jj,ii,kk,ss,str,end,nc, i
+    INTEGER :: jj,ii,kk,ss,str,end,nc
     REAL, DIMENSION(kbdim,klev) :: in_p, in_t, in_rv, in_rs, in_rsi
     REAL :: rv_old(kbdim,klev), rho
     REAL :: out_sdata(kbdim,klev,nstat)
@@ -226,7 +226,6 @@ IMPLICIT NONE
 
 
              ! Condensable gases (sulfate and organics)
-			 
              IF (lscndgas .AND. ngases+ngases_diag>0) THEN
                 ! Convert from kg/kg to mol/m^3
                 zgas(1,1,1:ngases) = pa_gasp(kk,ii,jj,1:ngases)*pdn(kk,ii,jj)/mws_gas(1:ngases)

@@ -73,7 +73,7 @@ CONTAINS
     REAL, INTENT(OUT) :: sdata(kbdim,klev,nstat) ! output data array
     CHARACTER(LEN=7), DIMENSION(:), INTENT(IN) :: slist ! names of the output variables
 	
-	integer :: i, j, k
+!	integer :: i, j, k
 
     ! Reset outputs
     sdata(:,:,:) = 0.
@@ -94,7 +94,6 @@ CONTAINS
             paero, pcloud, pprecp, pice, psnow, &
             pc_gas, ngas, ptemp, ppres, ptstep)
     ENDIF
-	
     ! Condensation of semivolatile organic species and gas phase chemistry
     IF (lscnd .AND. lscndgas .AND. nvbs>0) THEN
         ! Gas phase chemistry (oxidation)
@@ -188,22 +187,22 @@ CONTAINS
         IF (sflg) CALL salsa_var_stat('dist',1)
     ENDIF
 
-	do i = 1, kbdim
-	  do j = 1, klev
-	    do k = 1, fn2b
-		  if(k <= ncld)then
-          if (any(pcloud(i,j,k)%volc<0.))then
-	    	print *, 'Negative cloud mass after SALSA', i, j, k
-            pcloud(i,j,k)%volc = MAX(0.,pcloud(i,j,k)%volc)
-          endif
-		  endif
-          if (any(paero(i,j,k)%volc<0.))then
-	    	print *, 'Negative aero mass after SALSA', i, j, k
-            paero(i,j,k)%volc = MAX(0.,paero(i,j,k)%volc)
-          endif
-        enddo
-	  enddo
-	enddo
+!	do i = 1, kbdim
+!	  do j = 1, klev
+!	    do k = 1, fn2b
+!		  if(k <= ncld)then
+!          if (any(pcloud(i,j,k)%volc<0.))then
+!	    	print *, 'Negative cloud mass after SALSA', i, j, k
+!            pcloud(i,j,k)%volc = MAX(0.,pcloud(i,j,k)%volc)
+!          endif
+!		  endif
+!          if (any(paero(i,j,k)%volc<0.))then
+!	    	print *, 'Negative aero mass after SALSA', i, j, k
+!            paero(i,j,k)%volc = MAX(0.,paero(i,j,k)%volc)
+!          endif
+!        enddo
+!	  enddo
+!	enddo
 	
     CONTAINS
 

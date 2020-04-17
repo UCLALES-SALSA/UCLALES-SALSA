@@ -582,8 +582,7 @@ contains
     use mpi_interface, only : myid
 
     USE mo_submctl, ONLY : ox_prescribed, conc_oh, conc_o3, conc_no3, mair, &
-        ngases_diag, zgas_diag, model_lat, start_doy
-    USE step, ONLY : cntlat, strtim
+        ngases_diag, zgas_diag
 	use mpi_interface, only : appl_abort
 
     implicit none
@@ -618,10 +617,6 @@ contains
             zgas_diag(j) = conc_no3/mair
         ENDIF
     ENDIF
-
-    ! Additional VBS parameters
-    start_doy=strtim ! Start time as decimal day of year
-    model_lat=cntlat ! Center latitude (degrees)
 
     return
   end subroutine hstart
@@ -1083,7 +1078,6 @@ contains
         nvocs, nvbs, naqsoa, conc_voc, conc_vbsg, conc_aqsoag, &
         ngases_diag, zgas_diag
 
-	use mpi_interface, only : appl_abort
     IMPLICIT NONE
 
     ! Local variables

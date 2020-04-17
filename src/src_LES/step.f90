@@ -138,7 +138,7 @@ contains
 
     use stat, only : sflg, statistics, les_rate_stats, out_mcrp_data, out_mcrp_list, out_mcrp_nout, mcrp_var_save
     use sgsm, only : diffuse
-    use srfc, only : surface, get_aero_flux, marine_gas_flux
+    use srfc, only : surface, get_aero_flux, marine_gas_flux, ifSeaSpray, ifSeaVOC
     use thrm, only : thermo
     use mcrp, only : micro
     use prss, only : poisson
@@ -172,13 +172,14 @@ contains
 
     IF (level > 3) THEN
         ! Surface aerosol sources (#/m^2/s)
-        CALL get_aero_flux(fn2a,aerobins,sst,dnaeropdt,sspray_ovf)
-        CALL surface_naerot(dnaeropdt,sspray_ovf)
-        if (nvbs_setup>=0) then
+		if(ifSeaSpray)then
+          CALL get_aero_flux(fn2a,aerobins,sst,dnaeropdt,sspray_ovf)
+          CALL surface_naerot(dnaeropdt,sspray_ovf)
+		endif
+        if(nvbs_setup>=0 .and. ifSeaVOC) then
             call marine_gas_flux(sst,flxIsop,flxMonotrp)
         endif
         CALL tend_constrain(n4)
-!       if(sflg)call ems_stat(nxp,nyp,fn2a,dnaeropdt,ovf,flxIsop,flxMonotrp)
     END IF
 
     IF (sflg) CALL les_rate_stats('srfc')
@@ -228,8 +229,6 @@ contains
        END IF
 
     end if ! level
-    a_mcloudp = MAX(0.,a_mcloudp)
-
 
     !-------------------------------------------
     ! "Deposition" timestep
@@ -588,7 +587,15 @@ contains
                    END DO
 
                 END IF
-
+				
+                DO ni = 1,nn
+                  if(a_maerop(kk,ii,jj,(ni-1)*nbins+cc) + a_maerot(kk,ii,jj,(ni-1)*nbins+cc)*dtl < 0.)then
+                    IF(a_maerop(kk,ii,jj,(ni-1)*nbins+cc)<0.)a_maerop(kk,ii,jj,(ni-1)*nbins+cc)=0.
+                    a_maerot(kk,ii,jj,(ni-1)*nbins+cc) = MAX( ((1.e-10-1.0)*a_maerop(kk,ii,jj,(ni-1)*nbins+cc))/dtl,  &
+                                                            a_maerot(kk,ii,jj,(ni-1)*nbins+cc) )
+                  endif
+               enddo
+				
              END DO
 
              ! Cloud droplets
