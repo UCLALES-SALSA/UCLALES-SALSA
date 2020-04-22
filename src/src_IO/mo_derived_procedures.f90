@@ -19,7 +19,7 @@ MODULE mo_derived_procedures
   PRIVATE
 
   PUBLIC :: bulkNumc, totalWater, bulkDiameter, bulkMixrat, binMixrat, getBinDiameter, &
-            binIceDensities, waterPaths, surfaceFluxes
+            binIceDensities, waterPaths, surfaceFluxes, getCDNC, getCNC, getReff
     
   CONTAINS
 
@@ -178,7 +178,7 @@ MODULE mo_derived_procedures
                     tot=tot+zln(bin)
                     tmp(:) = 0.
                     CALL getBinMassArray(nb,ns,bin,zlm,tmp)
-                    dwet=dwet+calcDiamLES(ns,zln(bin),tmp,flag)*zln(bin)
+                    dwet=dwet+calcDiamLES(ns,zln(bin),tmp,flag,sph=.FALSE.)*zln(bin)
                  ENDIF
               ENDDO
               IF (tot>numlim) THEN
@@ -254,7 +254,8 @@ MODULE mo_derived_procedures
         nspec = nspec + 1 ! For rime
         nb = nice        
      END SELECT    
-     
+
+     ! Could this be done with pointers or even just straight up? -Juha
      ALLOCATE(tmp(nspec), zlm(nb*nspec), zln(nb))      
       
      output(:,:,:,:)=0.
@@ -275,6 +276,8 @@ MODULE mo_derived_procedures
         END DO
      END DO
 
+     DEALLOCATE(tmp, zlm, zln)
+     
    END SUBROUTINE getBinDiameter
 
    
@@ -413,7 +416,6 @@ MODULE mo_derived_procedures
         END DO
      END DO
         
-
      DEALLOCATE(pmass)
      
    END SUBROUTINE binIceDensities
@@ -435,9 +437,103 @@ MODULE mo_derived_procedures
        
    END SUBROUTINE surfaceFluxes
 
+   ! -------------------------------------------------
 
+   SUBROUTINE getCDNC(name,output)
+     CHARACTER(len=*), INTENT(in) :: name
+     REAL, INTENT(out) :: output(nzp,nxp,nyp)
 
+     REAL :: Dwcba(nzp,nxp,nyp,fca%cur),Dwcbb(nzp,nxp,nyp,fcb%cur-fca%cur),  &
+             Dwpba(nzp,nxp,nyp,nprc)
 
+     REAL, PARAMETER :: lowlim = 2.e-6
+     REAL, PARAMETER :: highlim = 80.e-6
+     
+     Dwcba = 0.; Dwcbb = 0.; Dwpba = 0.
+     output = 0.
+     
+     ! Get binned diameters for clouds and drizzle modes
+     CALL getBinDiameter("Dwcba",Dwcba,ica%cur,fca%cur)
+     CALL getBinDiameter("Dwcbb",Dwcbb,icb%cur,fcb%cur)
+     CALL getBinDiameter("Dwpba",Dwpba,ira,fra)
+
+     output = output + SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur), &
+                            DIM=4, MASK=(Dwcba > lowlim .AND. Dwcba < highlim) )  
+     
+     output = output + SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur), &
+                            DIM=4, MASK=(Dwcbb > lowlim .AND. Dwcbb < highlim) )  
+
+     output = output + SUM( a_nprecpp%d(:,:,:,ira:fra), &
+                            DIM=4, MASK=(Dwpba > lowlim .AND. Dwpba < highlim) )       
+   END SUBROUTINE getCDNC
+     
+   ! -----------------------------------------------------------
+
+   SUBROUTINE getCNC(name,output)
+     CHARACTER(len=*), INTENT(in) :: name
+     REAL, INTENT(out) :: output(nzp,nxp,nyp)
+
+     REAL :: Dwcba(nzp,nxp,nyp,fca%cur),Dwcbb(nzp,nxp,nyp,fcb%cur-fca%cur),  &
+             Dwpba(nzp,nxp,nyp,nprc)
+
+     REAL, PARAMETER :: lowlim = 2.e-6
+     
+     Dwcba = 0.; Dwcbb = 0.; Dwpba = 0.
+     output = 0.
+     
+     ! Get binned diameters for clouds and drizzle modes
+     CALL getBinDiameter("Dwcba",Dwcba,ica%cur,fca%cur)
+     CALL getBinDiameter("Dwcbb",Dwcbb,icb%cur,fcb%cur)
+     CALL getBinDiameter("Dwpba",Dwpba,ira,fra)
+
+     output = output + SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur), &
+                            DIM=4, MASK=(Dwcba > lowlim) )  
+     
+     output = output + SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur), &
+                            DIM=4, MASK=(Dwcbb > lowlim) )  
+
+     output = output + SUM( a_nprecpp%d(:,:,:,ira:fra), &
+                            DIM=4, MASK=(Dwpba > lowlim) )       
+   END SUBROUTINE getCNC
+
+   ! -----------------------------------------------------------
+
+   SUBROUTINE getReff(name,output)
+     CHARACTER(len=*), INTENT(in) :: name
+     REAL, INTENT(out) :: output(nzp,nxp,nyp)
+
+     REAL :: Dwcba(nzp,nxp,nyp,fca%cur),Dwcbb(nzp,nxp,nyp,fcb%cur-fca%cur),  &
+             Dwpba(nzp,nxp,nyp,nprc)
+
+     REAL :: third(nzp,nxp,nyp), second(nzp,nxp,nyp) ! Third and second moments of the size distribution
+     REAL :: numsum(nzp,nxp,nyp)
+     
+     REAL, PARAMETER :: lowlim = 2.e-6
+     
+     Dwcba = 0.; Dwcbb = 0.; Dwpba = 0.
+     output = 0.; third=0.; second=0.
+
+     numsum = SUM(a_ncloudp%d,DIM=4) + SUM(a_nprecpp%d,DIM=4)
+     
+     ! Get binned diameters for clouds and drizzle modes
+     CALL getBinDiameter("Dwcba",Dwcba,ica%cur,fca%cur)
+     CALL getBinDiameter("Dwcbb",Dwcbb,icb%cur,fcb%cur)
+     CALL getBinDiameter("Dwpba",Dwpba,ira,fra)
+
+     third = third + SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur)*Dwcba**3, DIM=4, MASK=(Dwcba > lowlim) ) 
+     third = third + SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur)*Dwcbb**3, DIM=4, MASK=(Dwcbb > lowlim) )
+     third = third + SUM( a_nprecpp%d(:,:,:,ira:fra)*Dwpba**3, DIM=4, MASK=(Dwpba > lowlim) )
+
+     second = second + SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur)*Dwcba**2, DIM=4, MASK=(Dwcba > lowlim)  )
+     second = second + SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur)*Dwcbb**2, DIM=4, MASK=(Dwcbb > lowlim)  )
+     second = second + SUM( a_nprecpp%d(:,:,:,ira:fra)*Dwpba**2, DIM=4, MASK=(Dwpba > lowlim)  )
+     
+     output = 0.5*MERGE(third/MAX(second,1.e-20), 0., numsum > 1.)
+     
+     
+   END SUBROUTINE getReff
+
+   ! -------------------------------------------------------------------------------
    
    ! NONE OF THE BELOW IS YET ASSOCIATED WITH ANYTHING !!!!!!!!!!!!!!!!!!!!
 

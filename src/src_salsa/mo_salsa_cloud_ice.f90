@@ -440,7 +440,6 @@ MODULE mo_salsa_cloud_ice
 
              precp(ii,jj,bb)%numc = precp(ii,jj,bb)%numc + maxfrac*ice(ii,jj,kk)%numc
              ice(ii,jj,kk)%numc = (1.-maxfrac)*ice(ii,jj,kk)%numc
-
              
              precp(ii,jj,bb)%volc(iwa) = precp(ii,jj,bb)%volc(iwa) + maxfrac*liqvol                       
              ice(ii,jj,kk)%volc(iwa) = (1.-maxfrac)*ice(ii,jj,kk)%volc(iwa)

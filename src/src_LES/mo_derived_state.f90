@@ -29,7 +29,11 @@ MODULE mo_derived_state
                                 aSSa, aSSb, cSSa, cSSb, pSSa, iSSa,        &  ! Sea salt
                                 aNOa, aNOb, cNOa, cNOb, pNOa, iNOa,        &  ! Nitrate
                                 aNHa, aNHb, cNHa, cNHb, pNHa, iNHa            ! Ammonia
-
+  ! A bit more derived SALSA variables
+  TYPE(FloatArray3d), TARGET :: CDNC,                                      &  ! CDNC - number of all droplets for whom 2 um < D < 80 um
+                                CNC,                                       &  ! Cloud number concentration - number of all droplet for whom D > 2 um 
+                                Reff                                          ! Droplet effective radius for all D > 2 um
+                                
   ! SALSA related variables
   TYPE(FloatArray4d), TARGET :: Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba, Dwiba     ! Bin diameters  
 
@@ -102,7 +106,7 @@ MODULE mo_derived_state
          Naa = FloatArray3d()
          Naa%onDemand => bulkNumc
          pipeline => Naa
-         CALL Derived%newField("Naa", "Bulk number of aerosol, A", "m-3", 'tttt',   &
+         CALL Derived%newField("Naa", "Bulk number of aerosol, A", "kg-1", 'tttt',   &
                                ANY(outputlist == "Naa"), pipeline                   )
       END IF
 
@@ -111,7 +115,7 @@ MODULE mo_derived_state
          Nab = FloatArray3d()
          Nab%onDemand => bulkNumc
          pipeline => Nab
-         CALL Derived%newField("Nab", "Bulk number of aerosol, B", "m-3", 'tttt',   &
+         CALL Derived%newField("Nab", "Bulk number of aerosol, B", "kg-1", 'tttt',   &
                                ANY(outputlist == "Nab"), pipeline                   )
       END IF
 
@@ -120,7 +124,7 @@ MODULE mo_derived_state
          Nca = FloatArray3d()
          Nca%onDemand => bulkNumc
          pipeline => Nca
-         CALL Derived%newField("Nca", "Bulk number of cloud droplets, A", "m-3", 'tttt',   &
+         CALL Derived%newField("Nca", "Bulk number of cloud droplets, A", "kg-1", 'tttt',   &
                                ANY(outputlist == "Nca"), pipeline                          )
       END IF
 
@@ -129,7 +133,7 @@ MODULE mo_derived_state
          Ncb = FloatArray3d()
          Ncb%onDemand => bulkNumc
          pipeline => Ncb
-         CALL Derived%newField("Ncb", "Bulk number of cloud droplets, B", "m-3", 'tttt',   &
+         CALL Derived%newField("Ncb", "Bulk number of cloud droplets, B", "kg-1", 'tttt',   &
                                ANY(outputlist == "Ncb"), pipeline                          )
       END IF
 
@@ -138,7 +142,7 @@ MODULE mo_derived_state
          Np = FloatArray3d()
          Np%onDemand => bulkNumc
          pipeline => Np
-         CALL Derived%newField("Np", "Bulk number of precip", "m-3", 'tttt',   &
+         CALL Derived%newField("Np", "Bulk number of precip", "kg-1", 'tttt',   &
                                ANY(outputlist == "Np"), pipeline               )
       END IF
 
@@ -147,10 +151,37 @@ MODULE mo_derived_state
          Ni = FloatArray3d()
          Ni%onDemand => bulkNumc
          pipeline => Ni
-         CALL Derived%newField("Ni", "Bulk number of ice", "m-3", 'tttt',   &
+         CALL Derived%newField("Ni", "Bulk number of ice", "kg-1", 'tttt',   &
                                ANY(outputlist == "Ni"), pipeline            )
       END IF
 
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         CDNC = FloatArray3d()
+         CDNC%onDemand => getCDNC
+         pipeline => CDNC
+         CALL Derived%newField("CDNC", "Cloud droplet number concentration",      &
+                               "kg-1", 'tttt', ANY(outputlist == "CDNC"), pipeline)
+      END IF
+
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         CNC = FloatArray3d()
+         CNC%onDemand => getCNC
+         pipeline => CNC
+         CALL Derived%newField("CNC", "Cloud number concentration", "kg-1", 'tttt',  &
+                               ANY(outputlist == "CNC"), pipeline                    )
+      END IF
+
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         Reff = FloatArray3d()
+         Reff%onDemand => getReff
+         pipeline => Reff
+         CALL Derived%newField("Reff", "Droplet effective radius", "m", 'tttt',   &
+                               ANY(outputlist == "Reff"), pipeline                )
+      END IF
+      
       IF (level >= 4) THEN
          pipeline => NULL()
          Dwaa = FloatArray3d()
