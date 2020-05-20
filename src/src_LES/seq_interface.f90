@@ -48,8 +48,10 @@ MODULE mpi_interface
 
    INTERFACE get_sum_root
       MODULE PROCEDURE get_scalar_float_global_sum_root,    &
+                       get_scalar_integer_global_sum_root,  &
                        get_1d_float_global_sum_root,        &
-                       get_1d_integer_global_sum_root
+                       get_1d_integer_global_sum_root,      &
+                       get_2d_float_global_sum_root
    END INTERFACE get_sum_root
 
    INTEGER, PARAMETER :: mpiroot = 0
@@ -353,8 +355,20 @@ CONTAINS
       INTEGER, INTENT(out) :: gsum(n)
       gsum = lsum
     END SUBROUTINE get_1d_integer_global_sum_root
-   !
+    !
+    !---------------------------------------------------------------------------
+    ! SUBROUTINE get_2d_float_global_sum_root
+    ! Get the sum aross all processes for a 2 dimensional float array. The values
+    ! are stored only for the root process
+    !
+    SUBROUTINE get_2d_float_global_sum_root(n1,n2,lsum,gsum)
+      INTEGER, INTENT(in) :: n1,n2
+      REAL, INTENT(in) :: lsum(n1,n2)
+      REAL, INTENT(out) :: gsum(n1,n2)
+      gsum = lsum
+    END SUBROUTINE get_2d_float_global_sum_root
 
+    
    !
    !---------------------------------------------------------------------------
    ! get maximum across processors

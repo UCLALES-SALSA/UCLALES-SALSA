@@ -1,12 +1,13 @@
 #! /bin/sh
 
-#PBS -N PostpLES
-#PBS -l mppwidth=1
-#PBS -l mppnppn=28
-#PBS -l walltime=05:00:00
+#SBATCH --job-name=PostpLES
+#SBATCH --account=project_2002221
+#SBATCH --partition=fmi
+#SBATCH --time=05:00:00
+#SBATCH --ntasks=1
+#SBATCH --mem-per-cpu=4G
 
-cd $PBS_O_WORKDIR
-export LD_LIBRARY_PATH=/lustre/tmp/tonttila/anaconda2/lib
+module load python-data
 
-aprun -n 1 python postp_UCLALES-SALSA.py -i sizedist01 -o sizedist01_postp_binned -| tee postp_output
+srun python postp_UCLALES-SALSA.py -i UAE_Cu_restart_6 --input-path=/fmi/scratch/project_2002221/UAE_Cu_6_PUHTI --output-path=/fmi/scratch/project_2002221/UAE_Cu_6_PUHTI --no-binned
 

@@ -34,10 +34,10 @@ MODULE mo_field_init
            SALSA_tracers_4d = FieldArray()
       
       CALL setPrognosticVariables(a_sclrp,a_sclrt,Prog,varlist_main,  &
-           level,isgstyp,lbinanl,nzp,nxp,nyp,nscl)
+           level,isgstyp,nzp,nxp,nyp,nscl)
       CALL setVectorVariables(Vector,varlist_main,nzp,nxp,nyp)
       CALL setDiagnosticVariables(Diag,varlist_main,memsize,level,iradtyp,nzp,nxp,nyp)      
-      CALL setDerivedVariables(Derived,varlist_main,varlist_ps,lsalsabbins,level)
+      CALL setDerivedVariables(Derived,varlist_main,varlist_ps,level)
       CALL setPSVariables(PS,varlist_ps,level)
       CALL setTSVariables(TS,varlist_ts,level)
 
@@ -109,9 +109,7 @@ MODULE mo_field_init
             WRITE(*,*)
          END IF
       END IF
-      
-
-      
+            
       DEALLOCATE(main_exist,ps_exist,ts_exist)
       
       !  Create some subsets of the full FieldArrays. note that these are pointers, not copies!
@@ -125,9 +123,5 @@ MODULE mo_field_init
       CALL TS%getByOutputstatus(outTS)
       
     END SUBROUTINE initialize_FieldArrays
-    
-
- 
-  
-  
+         
 END MODULE mo_field_init

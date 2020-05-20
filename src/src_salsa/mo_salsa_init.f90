@@ -470,6 +470,7 @@ CONTAINS
                              lsactiv,               &
                              lsicenucl,             &
                              lsicemelt,             &
+                             lssecice,              &
 
                              lscgaa,lscgcc,lscgpp,  &
                              lscgca,lscgpa,lscgpc,  &
@@ -484,6 +485,7 @@ CONTAINS
                              lscheckarrays,               &
                              fixINC,                      &
                              ice_hom, ice_imm, ice_dep,   &
+                             ice_halmos,                  &
                              ice_theta_dist,              &
                              lsfreeTheta, initMinTheta,   &
 
@@ -507,12 +509,13 @@ CONTAINS
 
     NAMELIST /salsa/  &
          ! Master process switches
-         lscoag,      &
-         lscnd,       &
+         lscoag,      &     ! Coagulation
+         lscnd,       &     ! Condensation
          lsauto,      &     ! mode 1: parameterized simple autoconversion, mode 2: more elaborate precipitation formation based on coagulation
          lsactiv,     &     ! mode 1: Aerosol growth-based activation, mode 2: Parameterized cloud base activation 
-         lsicenucl,   &
-         lsicemelt,   &
+         lsicenucl,   &     ! Ice nucleation
+         lsicemelt,   &     ! Ice melting
+         lssecice,    &     ! Secondary ice production
 
          ! Subprocess switches
          lscgaa,      & ! Coagulation between aerosols
@@ -531,13 +534,15 @@ CONTAINS
          lscndh2oic,    & ! Condensation of water vapour on ice particles ! ice'n'snow
          lscndh2oae,    & ! Condensation of water vapour on aerosols (FALSE -> equilibrium calc.)
 
-         lsdistupdate,  & ! Switch for size dsitribution update
-         lscheckarrays, & ! Switch for runnin the array check routine in mo_salsa
-
-         fixINC,      &    ! fixed ice number concentration #/kg
          ice_hom,     &    ! Switch for homogeneous ice nucleation
          ice_imm,     &    ! .. for immersio freezing
          ice_dep,     &    ! .. for deposition freezing
+         ice_halmos,  &    ! Secondary ice production by rime splintering; Hallet-Mossop
+         
+         lsdistupdate,  & ! Switch for size dsitribution update
+         lscheckarrays, & ! Switch for runnin the array check routine in mo_salsa
+
+         fixINC,      &    ! fixed ice number concentration #/kg 
          ice_theta_dist, & ! contact angle distributions
          lsfreeTheta,    & ! Switch for using initMinTheta
          initMinTheta,   & ! Initial minimum theta for initialization and spinup
@@ -593,6 +598,7 @@ CONTAINS
 
             lsicenucl%switch = .FALSE.
             lsicemelt%switch = .FALSE.
+            lssecice%switch = .FALSE.
 
       END IF !level
 
@@ -607,8 +613,7 @@ CONTAINS
    SUBROUTINE associate_master_switches
      USE classProcessSwitch, ONLY : ProcessSwitch
      USE mo_submctl, ONLY : Nmaster, lsmaster, lscoag, lscnd, lsauto,  &
-                            lsactiv, lsicenucl,   &
-                            lsicemelt, lsfreeRH
+                            lsactiv, lsicenucl, lsicemelt, lssecice, lsfreeRH
      IMPLICIT NONE
      
      INTEGER :: i
@@ -625,6 +630,7 @@ CONTAINS
      lsactiv => lsmaster(4)
      lsicenucl => lsmaster(5)
      lsicemelt => lsmaster(6)
+     lssecice => lsmaster(7)
 
      ! Use this to initialize also some other switches
      lsfreeRH = ProcessSwitch()

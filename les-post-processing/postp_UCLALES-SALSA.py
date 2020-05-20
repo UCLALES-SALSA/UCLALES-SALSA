@@ -18,7 +18,7 @@ def examine_fname(infile):
 
 def create_output_template(inputPath,inputPrefix,outputPath,outputPrefix,listOfVars,nFX,nFY,useBinned):
     
-    print "Create output template with experiment prefix",inputPrefix
+    print("Create output template with experiment prefix",inputPrefix)
     
     ifile = nc.NcInput(inputPath+'/'+inputPrefix+".00000000.nc",useBinned=useBinned,varNames=listOfVars)
 
@@ -36,30 +36,30 @@ def concatenateDomain(inputPath,inputPrefix,outputPath,outputPrefix,listOfVars):
                                             not 'ps' in ff.split(".")    and \
                                             not 'ts' in ff.split(".")]    
     
-    print"Beging sequence for subdomain concatenation"
-    print ""
-    print"Input files:"
-    print infile_list
-    print""
+    print("Beging sequence for subdomain concatenation")
+    print("")
+    print("Input files:")
+    print(infile_list)
+    print("")
 
     ntot = len(infile_list)
     i = 1
     
-    print"Processing",ntot,"files and",len(listOfVars),"variables"
+    print("Processing",ntot,"files and",len(listOfVars),"variables")
 
     ofile = nc.NcExtend(outputPath+'/'+outputPrefix+".nc")
     for infile in infile_list:
-        print "Processing input from",infile, str(i)+"/"+str(ntot)
-        print ""
+        print("Processing input from",infile, str(i)+"/"+str(ntot) )
+        print("")
         ifile = nc.NcInput(inputPath+'/'+infile,varNames=listOfVars)
         ofile.processData(ifile.dimensions,ifile.data)
         ifile.NcClose()
         i+=1
         del ifile
         gc.collect()
-        print "Done", infile
-        print "======================================="
-        print ""
+        print("Done", infile)
+        print("=======================================")
+        print("")
     ofile.NcClose()
 
 
@@ -83,7 +83,7 @@ def parse_args(arguments):
         if opt == '-i':
             check = True
     if not check:
-        print "Config error: Must define at least the input prefix -i"
+        print("Config error: Must define at least the input prefix -i")
         sys.exit(2)
 
     for opt,arg in opts:
@@ -106,12 +106,12 @@ def parse_args(arguments):
             # Don't process binned (==5d) variables 
             useBinned=False
 
-    print"CONFIG:"
-    print"--------------"
-    print"Input path:",ipath,", with file prefix:",ifile
-    print"Processed output path:",opath,", with file prefix",ofile
-    print"--------------"
-    print""
+    print("CONFIG:")
+    print("--------------")
+    print("Input path:",ipath,", with file prefix:",ifile)
+    print("Processed output path:",opath,", with file prefix",ofile)
+    print("--------------")
+    print("")
 
     return ifile,ipath,ofile,opath,lvars,useBinned
 

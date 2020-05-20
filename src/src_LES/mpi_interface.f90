@@ -37,8 +37,10 @@ MODULE mpi_interface
 
    INTERFACE get_sum_root
       MODULE PROCEDURE get_scalar_float_global_sum_root,    &
+                       get_scalar_integer_global_sum_root,  &
                        get_1d_float_global_sum_root,        &
-                       get_1d_integer_global_sum_root
+                       get_1d_integer_global_sum_root,      &
+                       get_2d_float_global_sum_root
    END INTERFACE get_sum_root
    
    
@@ -684,7 +686,7 @@ CONTAINS
       gsum = 0.
       CALL MPI_REDUCE(lsum,gsum,n,MY_REAL,MPI_SUM,      &
                       mpiroot,MPI_COMM_WORLD,ierr)
-    END SUBROUTINE get_1d_float_global_sum_root
+    END SUBROUTINE get_1d_float_global_sum_root    
     ! -------------------------------------------------
     ! Same for integer
     SUBROUTINE get_1d_integer_global_sum_root(n,lsum,gsum)
@@ -696,6 +698,24 @@ CONTAINS
       CALL MPI_REDUCE(lsum,gsum,n,MPI_INTEGER,MPI_SUM,       &
                       mpiroot,MPI_COMM_WORLD,ierr)
     END SUBROUTINE get_1d_integer_global_sum_root
+    !
+    !-----------------------------------------------------------------------------
+    ! SUBROUTINE get_2d_global_sum_root(lsum,gsum)
+    ! Get the sum aross all processes for a 2 dimensional float array. The values
+    ! are stored only for the root process
+    SUBROUTINE get_2d_float_global_sum_root(n1,n2,lsum,gsum)
+      INTEGER, INTENT(in) :: n1,n2
+      REAL, INTENT(in) :: lsum(n1,n2)
+      REAL, INTENT(out) :: gsum(n1,n2)
+      REAL :: lbuff(n1*n2),gbuff(n1*n2)
+      INTEGER :: ierr
+      gsum = 0.; lbuff = 0.; gbuff = 0.
+      lbuff = RESHAPE(lsum,[n1*n2])
+      CALL MPI_REDUCE(lbuff,gbuff,n1*n2,MY_REAL,MPI_SUM,    &
+                      mpiroot,MPI_COMM_WORLD,ierr)
+      gsum = RESHAPE(gbuff,[n1,n2])
+    END SUBROUTINE get_2d_float_global_sum_root
+        
    !
    !---------------------------------------------------------------------------
    ! get maximum across processors

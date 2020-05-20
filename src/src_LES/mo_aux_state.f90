@@ -79,9 +79,8 @@ MODULE mo_aux_state
 
     ! ------------------------------------------
 
-    SUBROUTINE setGridSpacings(Axes,lbinanl,lsalsabbins,level,nzp,nxp,nyp)
+    SUBROUTINE setGridSpacings(Axes,level,nzp,nxp,nyp)
       INTEGER, INTENT(in) :: level,nzp,nxp,nyp
-      LOGICAL, INTENT(in) :: lbinanl, lsalsabbins
       TYPE(FieldArray), INTENT(inout) :: Axes
 
       ClASS(*), POINTER :: pipeline => NULL()
@@ -150,14 +149,14 @@ MODULE mo_aux_state
          pipeline => NULL()
          aea = FloatArray1d(a_grid(n1:n2))
          pipeline => aea
-         CALL Axes%newField('aea','Aerosol A lower limits','m','aea',lbinanl,pipeline,in_group=["ps","ts"])
+         CALL Axes%newField('aea','Aerosol A lower limits','m','aea',.TRUE.,pipeline,in_group=["ps","ts"])
 
          n1 = n2 + 1; n2 = n2 + (fn2b-fn2a)
          n2aux = n2
          pipeline => NULL()
          aeb = FloatArray1d(a_grid(n1:n2))
          pipeline => aeb
-         CALL Axes%newField('aeb','Aerosol B lower limits','m','aeb',(lbinanl .AND. lsalsabbins),pipeline,in_group=["ps","ts"])
+         CALL Axes%newField('aeb','Aerosol B lower limits','m','aeb',.TRUE.,pipeline,in_group=["ps","ts"])
 
          pipeline => NULL()
          aetot = FloatArray1d(a_grid(n1aux:n2aux))
@@ -169,14 +168,14 @@ MODULE mo_aux_state
          pipeline => NULL()
          cla = FloatArray1d(a_grid(n1:n2))
          pipeline => cla
-         CALL Axes%newField('cla','Cloud A lower limits','m','cla',lbinanl,pipeline,in_group=["ps","ts"])
+         CALL Axes%newField('cla','Cloud A lower limits','m','cla',.TRUE.,pipeline,in_group=["ps","ts"])
 
          n1 = n2 + 1; n2 = n2 + (fcb%cur-fca%cur)
          n2aux = n2
          pipeline => NULL()
          clb = FloatArray1d(a_grid(n1:n2))
          pipeline => clb
-         CALL Axes%newField('clb','Cloud B lower limits','m','clb',(lbinanl .AND. lsalsabbins),pipeline,in_group=["ps","ts"])
+         CALL Axes%newField('clb','Cloud B lower limits','m','clb',.TRUE.,pipeline,in_group=["ps","ts"])
 
          pipeline => NULL()
          cltot = FloatArray1d(a_grid(n1aux:n2aux))
@@ -187,14 +186,14 @@ MODULE mo_aux_state
          pipeline => NULL()
          prc = FloatArray1d(a_grid(n1:n2))
          pipeline => prc
-         CALL Axes%newField('prc','Precip lower limits','m','prc',lbinanl,pipeline,in_group=["ps","ts"])
+         CALL Axes%newField('prc','Precip lower limits','m','prc',.TRUE.,pipeline,in_group=["ps","ts"])
          
          IF (level == 5) THEN
             n1 = n2 + 1; n2 = n2 + nice
             pipeline => NULL()
             ice = FloatArray1d(a_grid(n1:n2))     
             pipeline => ice
-            CALL Axes%newField('ice','Ice lower limits','m','ice',lbinanl,pipeline,in_group=["ps","ts"])
+            CALL Axes%newField('ice','Ice lower limits','m','ice',.TRUE.,pipeline,in_group=["ps","ts"])
          END IF
       END IF
 

@@ -109,14 +109,6 @@ CONTAINS
          CALL appl_abort(0)
       END IF ! runtype
 
-     ! When SALSA b-bin outputs are needed?
-     !   -level >= 4
-     !   -outputs are forced (lsalsabbins=.true.)
-     !   -b-bins initialized with non-zero concentration
-     !   -nucleation set to produce particles to b bins (currently only a bins)
-     IF (level >= 4 .AND. (.NOT. lsalsabbins)) &
-        lsalsabbins = ANY( a_naerop%d(:,:,:,in2b:fn2b) > nlim ) 
-
      CALL sponge_init
      !CALL init_stat(time+dtl,filprf,expnme,nzp)
      !
@@ -650,6 +642,9 @@ CONTAINS
 
     IMPLICIT NONE
 
+    IF(myid == 0) &
+         PRINT "(//' ',49('-')/,' ',/,' History restart, preparing for model state input from: ',A60)",hfilin
+    
     CALL read_hist(time, hfilin)
 
     dtlv = 2.*dtl
@@ -1169,15 +1164,16 @@ CONTAINS
  ! Since 1a bins by SALSA convention can only contain SO4 or OC,
  ! get renormalized mass fractions.
  ! --------------------------------------------------------------
+ ppvfOC1a = 0.
  IF (spec%isUsed("OC") .AND. spec%isUsed("SO4")) THEN
     ! Both are there, so use the given "massDistrA"
-    ppvfOC1a(:) = ppvf2a(:,spec%getIndex("OC"))/(ppvf2a(:,spec%getIndex("OC"))+ppvf2a(:,spec%getIndex("SO4"))) ! Normalize
+    ppvfOC1a(2:nzp) = ppvf2a(2:nzp,spec%getIndex("OC"))/(ppvf2a(2:nzp,spec%getIndex("OC"))+ppvf2a(2:nzp,spec%getIndex("SO4"))) ! Normalize
  ELSE IF (spec%isUsed("OC")) THEN
     ! Pure OC
-    ppvfOC1a(:) = 1.0
+    ppvfOC1a(2:nzp) = 1.0
  ELSE IF (spec%isUsed("SO4")) THEN
     ! Pure SO4
-    ppvfOC1a(:) = 0.0
+    ppvfOC1a(2:nzp) = 0.0
  ELSE
     STOP 'Either OC or SO4 must be active for aerosol region 1a!'
  END IF

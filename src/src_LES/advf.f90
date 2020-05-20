@@ -22,7 +22,7 @@ MODULE advf
   
   IMPLICIT NONE
 
-  INTEGER :: lmtr = 1
+  INTEGER :: lmtr = 3
 
 CONTAINS
   !

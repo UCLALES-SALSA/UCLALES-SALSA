@@ -6,7 +6,6 @@ MODULE mo_submctl
 
   SAVE
 
-  
   ! I'd say nothing here needs to be PRIVATE so removed explicit PRIVATE and PUBLIC attributes (PUBLIC is default).
   ! -Juha
   
@@ -17,8 +16,7 @@ MODULE mo_submctl
   END TYPE t_parallelbin
        
   !Switches for SALSA aerosol microphysical processes
-
-  INTEGER, PARAMETER :: Nmaster = 6
+  INTEGER, PARAMETER :: Nmaster = 7
   TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)  ! Array for master switches. The specific master switches are pointers to this array
   TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation
   TYPE(ProcessSwitch), POINTER :: lscnd => NULL()      ! Condensation
@@ -26,7 +24,8 @@ MODULE mo_submctl
   TYPE(ProcessSwitch), POINTER :: lsactiv => NULL()    ! Cloud activation, mode = 1: aerosol growth based activation, mode = 2: parameterized cloud base activation
   TYPE(ProcessSwitch), POINTER :: lsicenucl => NULL()  ! Ice nucleation
   TYPE(ProcessSwitch), POINTER :: lsicemelt => NULL()  ! Melting of ice
-
+  TYPE(ProcessSwitch), POINTER :: lssecice => NULL()
+    
   ! Collision subprocesses
   LOGICAL :: lscgaa  = .TRUE.  ! Coagulation between aerosols
   LOGICAL :: lscgcc  = .TRUE.  ! Collision-coalescence between cloud droplets
@@ -50,6 +49,10 @@ MODULE mo_submctl
   LOGICAL :: ice_imm = .FALSE.        ! Immersion freezing
   LOGICAL :: ice_dep = .FALSE.        ! Deposition freezing
 
+  ! Secondary ice subprocesses
+  LOGICAL :: ice_halmos = .FALSE.     ! Rime splintering; Hallet-Mossop
+ 
+  
   ! Contact angle distribution for ice nucleation:
   ! Use contact angle distributions for heterogeneous nucleation
   ! processes according to Savre and Ekman (2015).

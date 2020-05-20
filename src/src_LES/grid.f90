@@ -47,8 +47,6 @@ MODULE grid
   REAL    :: CCN = 150.e6
   REAL    :: cntlat =  31.5      ! Latitude for radiation
   
-  LOGICAL :: lbinanl = .FALSE.   ! Whether to write binned data to analysis files (takes a lot of space + mainly used for debugging)
-  LOGICAL :: lbinprof = .TRUE.   ! The same for profile statistics
   LOGICAL :: lnudging = .FALSE.  ! Master switch for nudging scheme
   LOGICAL :: lemission = .FALSE. ! Master switch for aerosol emission
   
@@ -66,7 +64,6 @@ MODULE grid
   REAL    :: W2  = 0.9
   REAL    :: W3  = 0.9
   
-  LOGICAL            :: lsalsabbins = .FALSE.  ! This is brought here temporarily from stat.f90 
   CHARACTER (len=150) :: expnme = 'Default' ! Experiment name
   CHARACTER (len=150) :: filprf = 'x'       ! File Prefix
   CHARACTER (len=7)  :: runtype = 'INITIAL'! Run Type SELECTion
@@ -214,7 +211,7 @@ CONTAINS
       
       ! Initialize grid vectors
       Axes = FieldArray()
-      CALL setGridSpacings(Axes,lbinanl,lsalsabbins,level,nzp,nxp,nyp)
+      CALL setGridSpacings(Axes,level,nzp,nxp,nyp)
       CALL Axes%getByOutputstatus(outAxes)
       CALL Axes%getByGroup("ps",AxesPS)
       CALL Axes%getByGroup("ts",AxesTS)

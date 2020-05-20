@@ -76,7 +76,7 @@ CONTAINS
 
    SUBROUTINE surface()
 
-     USE defs, ONLY: vonk, p00, rcp, g, cp, alvl, ep2
+     USE defs, ONLY: vonk, p00, rcp, g, cp, alvl, ep2, rowt
      USE mo_diag_state, ONLY : a_theta, a_rv, a_ustar, a_tstar, a_rstar,  &
                                uw_sfc, vw_sfc, ww_sfc, wt_sfc, wq_sfc,    &
                                a_sflx, a_rflx, a_rrate
@@ -288,13 +288,14 @@ CONTAINS
 
             Q3 = K_s3*W3**(2.*B3+3.)*sin(0.05236) ! 3 degrees  Eq 8
 
-            Q12 = Kmean1*2.*( (fii_1-fii_2)/(D1+D2)+1.0)
-            Q23 = Kmean2*2.*( (fii_2-fii_3)/(D2+D3)+1.0)
+            Q12 = Kmean1*( 2.*(fii_1-fii_2)/(D1+D2)+1.0)
+            Q23 = Kmean2*( 2.*(fii_2-fii_3)/(D2+D3)+1.0)
 
             IF (.NOT. lConstSoilWater) THEN
-               W1 = W1+1./(thetaS1*D1)*(-Q12-((total_la+total_pre)/((0.5*(dn0%d(1)+dn0%d(2))*alvl)/ffact))/(thetaS1*1000))*dtl
-               W2 = W2+1./(thetaS2*D2)*(Q12-Q23)*dtl
-               W3 = W3+1./(thetaS3*D3)*(Q23-Q3)*dtl
+               W1 = W1 + (1./(thetaS1*D1)) * ( - Q12 + (total_pre/(0.5*(dn0%d(1)+dn0%d(2))*alvl)/ffact)         &
+                                               - (total_la/(0.5*(dn0%d(1)+dn0%d(2))*alvl)/ffact)/rowt ) *dtl
+               W2 = W2 + (1./(thetaS2*D2)) * (Q12-Q23) * dtl
+               W3 = W3 + (1./(thetaS3*D3)) * (Q23-Q3) * dtl
             END IF
             !
             !  Following is copied from CASE (2). No idea if this is valid or not..
@@ -310,7 +311,7 @@ CONTAINS
                   ff1 = 1.0
                   IF(W1 < 0.75) ff1 = W1/0.75
                   ! Flux of moisture is limited by water content.
-                  drdz(i,j) = a_rp%d(2,i,j) - ff1*rslf(psrf,min(sst1,280.))  !  a_rv changed to a_rp (by Zubair)
+                  drdz(i,j) = a_rp%d(2,i,j) - ff1*rslf(psrf,sst1)   !rslf(psrf,min(sst1,280.))  !  a_rv changed to a_rp (by Zubair)
                   !
                   bfct(i,j) = g*zt%d(2)/(a_theta%d(2,i,j)*wspd(i,j)**2)
                   usum = usum + a_ustar%d(i,j)

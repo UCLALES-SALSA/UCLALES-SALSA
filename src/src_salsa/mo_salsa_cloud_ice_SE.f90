@@ -469,7 +469,7 @@ MODULE mo_salsa_cloud_ice_SE
 
              f1 = nnuc_new + (ncur0 - nnuc_new)*f0
              f1 = f1/ncur0
-             IF (f1 < -1.e-20 .OR. f1 > 2.) WRITE(*,*) 'update indef wrong', f1
+             IF (f1 < -1.e-3 .OR. f1 > 2.) WRITE(*,*) 'update indef wrong', f1
              f1 = MIN( MAX(f1,1.e-6),1.-1.e-6 )
              
              liquid(ii,jj,kk)%indef = f1

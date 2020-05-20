@@ -103,8 +103,8 @@ CONTAINS
     USE grid, ONLY              : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                                   dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                                   filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
-                                  nfpt, distim, runtype, CCN,sst,W1,W2,W3, lbinanl, &
-                                  cntlat, lsalsabbins, varlist_main, varlist_ps, varlist_ts
+                                  nfpt, distim, runtype, CCN,sst,W1,W2,W3, &
+                                  cntlat, varlist_main, varlist_ps, varlist_ts
     USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                                   zrand, zrndamp, init_type
     USE init_warm_bubble, ONLY  : bubble_center, bubble_diameter, bubble_temp_ampl
@@ -127,7 +127,6 @@ CONTAINS
          expnme    ,       & ! experiment name
          nxpart    ,       & ! whether partition in x direction?
          naddsc    ,       & ! Number of additional scalars
-         lsalsabbins,     & ! b-bins output statistics flag
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          level  , CCN    , & ! Microphysical model Number of CCN per kg of air
@@ -142,7 +141,6 @@ CONTAINS
          iradtyp,                   & ! Radiation type
          isgstyp, csx    , prndtl , & ! SGS model type, parameters
          lnudging, lemission,       & ! master switch for nudging, aerosol emissions
-         lbinanl,          &          ! 
          div, case_name, &            ! divergence for LEVEL 4
          sed_aero, sed_cloud, sed_precp, sed_ice,  & ! Sedimentation (T/F)
          bulk_autoc                                            ! autoconversion (and accretion) switch for level < 4 

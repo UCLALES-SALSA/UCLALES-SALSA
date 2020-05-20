@@ -79,32 +79,18 @@ MODULE mo_ice_shape
 
     !
     !-------------------------------------------------------------
-    ! Function getDcr
-    ! Gets the critical size for complete infilling by rime, i.e.
-    ! formation of graupel
-    
-    !
-    !-------------------------------------------------------------
-    ! Function getPartiallyRimedAlpha
-    ! Makes a linear interpolation for the alpha parameter
-    ! between alpha1 and alpha2 based on the rime fraction
-    ! DONT USE
-    !!REAL FUNCTION getPartiallyRimedAlpha(Fr)
-    !  REAL, INTENT(in) :: Fr      
-    !  REAL :: hlp
-    !  hlp = alpha1 + (alpha2-alpha1)*Fr
-    !  getPartiallyRimedAlpha = hlp           
-    !END FUNCTION getPartiallyRimedAlpha
-    !
-    !-------------------------------------------------------------
     ! Function getBulkRho
     ! Gets the bulk ice density based on the particle's rime fraction
     ! Note that this simplifies Morrison and Milbrandt 2015 by neglecting
-    ! the Eq 17 and just using pristine ice bulk density for "rho_d"
+    ! the Eq 17 since at the moment we cannot afford iteration. Thus just
+    ! use the bulk rime density. This will reduce some of the response of
+    ! the size limits between graupel and non-spherical ice, but this effect
+    ! should in most case be secondary to the effect of rime fraction. But still,
+    ! this is not the full implementation!
     !
     REAL FUNCTION getBulkRho(Fr)
       REAL, INTENT(in) :: Fr
-      getBulkRho = Fr*spec%rhori + (1.-Fr)*spec%rhoic
+      getBulkRho = spec%rhori !Fr*spec%rhori + (1.-Fr)*spec%rhoic
     END FUNCTION getBulkRho
     !
     !-------------------------------------------------------------

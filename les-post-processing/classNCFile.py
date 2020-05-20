@@ -45,9 +45,10 @@ class NcInput(NCFile,object):
             
             if len(names) == 0:
                 # If no names specified, read all variables
-                names = self.ncid.variables.keys()
+                names = list(self.ncid.variables.keys())
+                print(names)
                 # Remove dimension names from this list 
-                rem = self.ncid.dimensions.keys()
+                rem = list(self.ncid.dimensions.keys())
                 for r in rem: names.remove(r)
                 
                 # Remove binned variables if needed
@@ -91,10 +92,10 @@ class NcNew(NCFile,object):
         # Create dimensions that are the same for all raw data files,
         # i.e. everything except lateral dimensions
         #
-        dimiter = dim.iteritems()
+        dimiter = iter(dim.items())
         while True:
             try:
-                dimitem = dimiter.next()
+                dimitem = next(dimiter)
                 
                 if dimitem[0] in latdims:
                     print("creating dimension",dimitem[0])
@@ -109,7 +110,7 @@ class NcNew(NCFile,object):
 
                     # Make the lateral axes by calculating from number of points and resolution
                     print("Writing lateral axes:",dimitem[0])
-                    print ""
+                    print("")
                     d0 = dimitem[1].values[0]
                     dd = np.diff(dimitem[1].values)[0]
                     axes = self._makeLateralAxes(d0,dd,length)
@@ -121,7 +122,7 @@ class NcNew(NCFile,object):
                     self.ncid.createVariable(dimitem[0],'d',dimensions=dimitem[1].dims)
                     
                     print("writing initial values for",dimitem[0])
-                    print ""
+                    print("")
                     self._putInitialValues(dimitem)
                     
             except StopIteration:
@@ -142,18 +143,18 @@ class NcNew(NCFile,object):
 
     def _makeVariables(self,var):
 
-        variter = var.iteritems()
+        variter = iter(var.items())
         while True:
             try:
-                varitem = variter.next()
+                varitem = next(variter)
                 if varitem[0] in skip: continue
 
-                print "creating variable", varitem[0]
+                print("creating variable", varitem[0])
                 self.ncid.createVariable(varitem[0],'f',dimensions=varitem[1].dims)
 
             except StopIteration:
                 break
-        print ""
+        print("")
                 
     def _putInitialValues(self,var):
 
@@ -167,10 +168,10 @@ class NcExtend(NCFile,object):
     def processData(self,dim,var):
 
         borders = self._findTargetSpace(dim)
-        print "------------------------"
-        print "[xmin,xmax,ymin,ymax] (indices) for current block:",borders
-        print "------------------------"
-        print ""
+        print("------------------------")
+        print("[xmin,xmax,ymin,ymax] (indices) for current block:",borders)
+        print("------------------------")
+        print("")
         self._writeBlockData(var,borders)
         del borders
         del dim
@@ -188,12 +189,12 @@ class NcExtend(NCFile,object):
         xthi = dim['xt'].values[-1]
         xtout = self.ncid.variables['xt'][:]
 
-        print "Find location for current subdomain:"
-        print "-----------------"
-        print "Border locations in X-direction",xtlo,xthi
-        print "within"
-        print xtout
-        print ""
+        print("Find location for current subdomain:")
+        print("-----------------")
+        print("Border locations in X-direction",xtlo,xthi)
+        print("within")
+        print(xtout)
+        print("")
 
         borders[0] = np.where(xtout == xtlo)[0][0]
         borders[1] = np.where(xtout == xthi)[0][0]
@@ -202,11 +203,11 @@ class NcExtend(NCFile,object):
         ythi = dim['yt'].values[-1]
         ytout = self.ncid.variables['yt'][:]
 
-        print "Border locations in Y-direction",ytlo,ythi
-        print "within"
-        print ytout
-        print "-----------------"
-        print ""
+        print("Border locations in Y-direction",ytlo,ythi)
+        print("within")
+        print(ytout)
+        print("-----------------")
+        print("")
 
         borders[2] = np.where(ytout == ytlo)[0][0]
         borders[3] = np.where(ytout == ythi)[0][0]
@@ -215,14 +216,14 @@ class NcExtend(NCFile,object):
 
     def _writeBlockData(self,var,borders):
  
-        variter = var.iteritems()
+        variter = iter(var.items())
         while True:
             try:
-                varitem = variter.next()
+                varitem = next(variter)
                 if varitem[0] in skip: continue
 
-                print "Writing block values for",varitem[0]
-                print ""
+                print("Writing block values for",varitem[0])
+                print("")
                 tmp = self.ncid.variables[varitem[0]]
                 if len( tmp.dimensions ) == 4:
                     tmp[:,                       \
