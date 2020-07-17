@@ -130,7 +130,6 @@ CONTAINS
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          level  , CCN    , & ! Microphysical model Number of CCN per kg of air
-         iseed  , zrand  , zrndamp, & ! random seed
          nxp    , nyp    , nzp   ,  & ! number of x, y, z points
          deltax , deltay , deltaz , & ! delta x, y, z (meters)
          dzrat  , dzmax  , igrdtyp, & ! stretched grid parameters

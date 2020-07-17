@@ -679,7 +679,8 @@ CONTAINS
     INTEGER, DIMENSION (:), ALLOCATABLE :: seed
 
     INTEGER :: i,j,k,n2g,n3g,isize
-
+    REAL :: hep
+    
     rand = 0.0
     ! seed must be a double precision odd whole number greater than
     ! or equal to 1.0 and less than 2**48.
