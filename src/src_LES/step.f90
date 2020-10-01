@@ -134,24 +134,22 @@ contains
                      a_gaerop, a_gaerot,                                                &
                      nspec, nbins, ncld, nprc, nice, nsnw, &
                      nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
-					 sspray_ovf
+                     sspray_ovf, ifSeaSpray, ifSeaVOC
 
     use stat, only : sflg, statistics, les_rate_stats, out_mcrp_data, out_mcrp_list, out_mcrp_nout, mcrp_var_save
     use sgsm, only : diffuse
-    use srfc, only : surface, get_aero_flux, marine_gas_flux, ifSeaSpray, ifSeaVOC
+    use srfc, only : surface, marine_aero_flux, marine_gas_flux
     use thrm, only : thermo
     use mcrp, only : micro
     use prss, only : poisson
     use advf, only : fadvect
     use advl, only : ladvect
-    use forc, only : forcings, surface_naerot
+    use forc, only : forcings
 
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : aerobins, fn2a, nvbs_setup
+    USE mo_submctl, ONLY : nvbs_setup
 
     real :: xtime
-    REAL :: dnaeropdt(nxp,nyp,fn2a)
-    REAL :: flxIsop(nxp,nyp), flxMonotrp(nxp,nyp)
     INTEGER :: zrm
     INTEGER :: n4
 
@@ -169,15 +167,12 @@ contains
     CALL tend0(.FALSE.)
 
     call surface(sst)
-
     IF (level > 3) THEN
-        ! Surface aerosol sources (#/m^2/s)
-		if(ifSeaSpray)then
-          CALL get_aero_flux(fn2a,aerobins,sst,dnaeropdt,sspray_ovf)
-          CALL surface_naerot(dnaeropdt,sspray_ovf)
-		endif
+        if(ifSeaSpray)then
+          CALL marine_aero_flux(sst,sspray_ovf)
+        endif
         if(nvbs_setup>=0 .and. ifSeaVOC) then
-            call marine_gas_flux(sst,flxIsop,flxMonotrp)
+            call marine_gas_flux(sst)
         endif
         CALL tend_constrain(n4)
     END IF
@@ -221,7 +216,6 @@ contains
 
           CALL tend_constrain(n4)
           IF (sflg) CALL les_rate_stats('mcrp')
-
           call update_sclrs
 
           ! Save user-selected details about SALSA microphysics
@@ -262,7 +256,7 @@ contains
     IF (sflg) CALL les_rate_stats('advf')
 
     CALL update_sclrs
-	
+
     CALL thermo(level)
 
     ! Nudging
@@ -587,15 +581,7 @@ contains
                    END DO
 
                 END IF
-				
-                DO ni = 1,nn
-                  if(a_maerop(kk,ii,jj,(ni-1)*nbins+cc) + a_maerot(kk,ii,jj,(ni-1)*nbins+cc)*dtl < 0.)then
-                    IF(a_maerop(kk,ii,jj,(ni-1)*nbins+cc)<0.)a_maerop(kk,ii,jj,(ni-1)*nbins+cc)=0.
-                    a_maerot(kk,ii,jj,(ni-1)*nbins+cc) = MAX( ((1.e-10-1.0)*a_maerop(kk,ii,jj,(ni-1)*nbins+cc))/dtl,  &
-                                                            a_maerot(kk,ii,jj,(ni-1)*nbins+cc) )
-                  endif
-               enddo
-				
+
              END DO
 
              ! Cloud droplets

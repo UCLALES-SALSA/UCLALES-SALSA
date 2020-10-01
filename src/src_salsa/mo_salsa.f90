@@ -72,8 +72,6 @@ CONTAINS
     INTEGER, INTENT(IN) :: nstat      ! number of outputs
     REAL, INTENT(OUT) :: sdata(kbdim,klev,nstat) ! output data array
     CHARACTER(LEN=7), DIMENSION(:), INTENT(IN) :: slist ! names of the output variables
-	
-!	integer :: i, j, k
 
     ! Reset outputs
     sdata(:,:,:) = 0.
@@ -109,7 +107,7 @@ CONTAINS
             pc_gas, ngas, ptemp, ppres, ptstep)
         IF (sflg) CALL salsa_var_stat('ocon',1)
     ENDIF
-	
+
     ! Condensation of water vapor
     !   Statistics: change in total water volume concentration for each hydrometeor (m^3/m^3)
     IF (lscnd .AND. (nlcndh2ocl .OR. nlcndh2oae .OR. nlcndh2oic)) THEN
@@ -119,7 +117,7 @@ CONTAINS
             ptemp, ppres, prs, prsi, prv, ptstep)
         IF (sflg) CALL salsa_var_stat('cond',1)
     ENDIF
-	
+
     ! Autoconversion (liquid)
     !   Statistics: change in total rain water volume (=change in cloud water) and rain drop number concentration
     IF (lsauto) THEN
@@ -131,7 +129,7 @@ CONTAINS
          ENDIF
          IF (sflg) CALL salsa_var_stat('auto',1)
     ENDIF
-	
+
     ! Cloud activation
     !   Statistics: change in total cloud water volume (=change in cloud water) and cloud drop number concentration
     IF (lsactiv ) THEN
@@ -141,7 +139,7 @@ CONTAINS
                                prs,    paero, pcloud  )
          IF (sflg) CALL salsa_var_stat('cact',1)
     ENDIF
-	
+
     ! Ice nucleation
     !   Statistics: change in total ice/snow* water volume and ice/snow number concentration
     !   * ice nucleation can also produce snow and in this case snow formation rate is saved
@@ -161,7 +159,7 @@ CONTAINS
                           ptemp,prv,prs,prsi,ptstep)
         IF (sflg) CALL salsa_var_stat('nucl',1)
     ENDIF
-	
+
     ! Melting of ice and snow
     !   Statistics: change in total ice and snow water volume and number concentrations
     IF (lsicmelt) THEN
@@ -177,7 +175,7 @@ CONTAINS
          CALL autosnow(kbdim,klev,pice,psnow)
          IF (sflg) CALL salsa_var_stat('auto',1)
     ENDIF
-	
+
     ! Size distribution bin update
     IF (lsdistupdate ) THEN
         IF (sflg) CALL salsa_var_stat('dist',0)
@@ -187,23 +185,7 @@ CONTAINS
         IF (sflg) CALL salsa_var_stat('dist',1)
     ENDIF
 
-!	do i = 1, kbdim
-!	  do j = 1, klev
-!	    do k = 1, fn2b
-!		  if(k <= ncld)then
-!          if (any(pcloud(i,j,k)%volc<0.))then
-!	    	print *, 'Negative cloud mass after SALSA', i, j, k
-!            pcloud(i,j,k)%volc = MAX(0.,pcloud(i,j,k)%volc)
-!          endif
-!		  endif
-!          if (any(paero(i,j,k)%volc<0.))then
-!	    	print *, 'Negative aero mass after SALSA', i, j, k
-!            paero(i,j,k)%volc = MAX(0.,paero(i,j,k)%volc)
-!          endif
-!        enddo
-!	  enddo
-!	enddo
-	
+
     CONTAINS
 
       ! Functions for generating requested raw output data for the LES model. These functions

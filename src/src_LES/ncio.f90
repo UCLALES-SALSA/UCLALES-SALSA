@@ -477,6 +477,18 @@ contains
        if (itype==0) ncinfo = 'Latent heat flux'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'time'
+    case('flx_aer')
+       if (itype==0) ncinfo = 'Aerosol sea surface flux'
+       if (itype==1) ncinfo = '#/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('flx_iso')
+       if (itype==0) ncinfo = 'Isoprene sea surface flux'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
+    case('flx_mt')
+       if (itype==0) ncinfo = 'Monoterpene sea surface flux'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'time'
     case('zi_bar')
        if (itype==0) ncinfo = 'Height of maximum total water mixing ratio gradient'
        if (itype==1) ncinfo = 'm'

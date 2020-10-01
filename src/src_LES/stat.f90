@@ -29,7 +29,7 @@ module stat
   private
 
   integer, parameter :: nvar1 = 35,               &
-                        nv1_lvl4 = 13,            &
+                        nv1_lvl4 = 16,            &
                         nv1_lvl5 = 18,            &
                         nvar2 = 96,               &
                         nv2_lvl4 = 12,            &
@@ -76,7 +76,7 @@ module stat
        s1_lvl4(nv1_lvl4) = (/       &
        'Nc_ic  ','Rc_ic  ','Nca_ica','Rca_ica','Ncb_icb','Rcb_icb', & !1
        'Na_int ','Ra_int ','Naa_int','Raa_int','Nab_int','Rab_int', & !7
-       'SS_max '/), & !13
+       'SS_max ','flx_aer','flx_iso','flx_mt '/), & !13
 
        s1_lvl5(nv1_lvl5) = (/  &
        'Ni_ii  ','Ri_ii  ','Nia_iia','Ria_iia','Nib_iib','Rib_iib', & ! 1-6
@@ -157,8 +157,8 @@ module stat
   LOGICAL, allocatable :: cloudmask(:,:,:), drizzmask(:,:,:), icemask(:,:,:), snowmask(:,:,:)
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
-       acc_tend, updtst, sfc_stat, close_stat, fill_scalar, tke_sgs, sgsflxs,&
-       sgs_vel, comp_tke, acc_removal, cs_rem_set, csflg, &
+       acc_tend, updtst, sfc_stat, flux_stat, close_stat, fill_scalar, &
+       tke_sgs, sgsflxs, sgs_vel, comp_tke, acc_removal, cs_rem_set, csflg, &
        les_rate_stats, mcrp_var_save, out_cs_list, out_ps_list, out_ts_list, &
        cs_include, cs_exclude, ps_include, ps_exclude, ts_include, ts_exclude, &
        out_mcrp_data, out_mcrp_list, out_mcrp_nout
@@ -174,7 +174,8 @@ contains
   subroutine init_stat(time, filprf, expnme, nzp)
 
     use grid, only : nxp, nyp, nprc, nsnw, nspec, ngases, iradtyp, &
-        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, out_an_list, nv4_proc
+        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, out_an_list, nv4_proc, &
+        ifSeaSpray, ifSeaVOC
     use mpi_interface, only : myid, ver, author, info
     use mo_submctl, only : fn1a,fn2a,fn2b,fnp2a,fnp2b,stat_b_bins, &
         nlcoag,nlcnd,nlauto,nlautosnow,nlactiv,nlicenucl,nlicmelt,ice_target_opt,nout_cld,nout_ice, &
@@ -363,6 +364,11 @@ contains
           s2_lvl4_bool((/2,4,7,9/)) = .FALSE.
           s2_lvl5_bool((/2,5/)) = .FALSE.
        ENDIF
+
+       ! Surface emissions
+       s1_lvl4_bool(14) = ifSeaSpray ! Aerosol
+       s1_lvl4_bool(15) = ifSeaVOC ! Isoprene
+       s1_lvl4_bool(16) = ifSeaVOC ! Monoterpene
 
        ! 2) Microphysical process rate statistics (both ts and ps)
 
@@ -737,8 +743,7 @@ contains
   ! statistical quantities.  These are stored in two arrays:  SVCTR,
   ! and SSCLR (which accumulate scalar and vector statistics respectively
   !
-  ! Modified for level 4: rxt contains a_rp if level < 4 and a_rp+a_rc
-  ! if level == 4
+  ! Modified for level 4
   ! Juha Tonttila, FMI, 2014
   !
   ! Modified for level 5
@@ -2604,6 +2609,19 @@ contains
   end subroutine sfc_stat
   !
   ! ----------------------------------------------------------------------
+  ! Marine emissions
+  !
+  subroutine flux_stat(n2,n3,flx,i)
+
+    integer, intent(in) :: n2,n3,i
+    real, intent(in), dimension(n2,n3) :: flx
+
+    ssclr_lvl4(13+i) = get_avg2dh(n2,n3,flx)
+
+  end subroutine flux_stat
+  !
+  ! ----------------------------------------------------------------------
+  !
   ! subroutine: fills scalar array based on index
   ! 1: cfl; 2 max divergence
   !

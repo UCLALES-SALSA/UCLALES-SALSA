@@ -90,7 +90,7 @@ contains
     use util, only : fftinix,fftiniy
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon, &
-                    wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ifSeaSpray, ifSeaVOC
+                    wtrChlA, ifPOCadd, wtrIsop, wtrMtrp
     use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, frqrst, &
          strtim, radfrq, cntlat
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
@@ -103,7 +103,8 @@ contains
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau,  &
          nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau,  &
          nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, &
-         no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, anl_include, anl_exclude, out_an_list
+         no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, anl_include, anl_exclude, out_an_list, &
+         ifSeaSpray, ifSeaVOC
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
     use stat, only : ssam_intvl, savg_intvl, csflg, cs_include, cs_exclude, &
@@ -135,7 +136,7 @@ contains
          outflg , anl_start,        & ! output flg, time to start saving analysis files
          iradtyp, radfrq , strtim , & ! radiation type flag
          isfctyp, ubmin  , zrough , & ! surface parameterization type
-		 ifSeaSpray, ifSeaVOC,      & ! marine emissions
+         ifSeaSpray, ifSeaVOC,      & ! marine emissions
          wtrChlA, ifPOCadd,         & ! chlorophyll alpha sea surface concentrations, if organic fraction is additive
          wtrIsop, wtrMtrp,          & ! sea surface concentrations of isoprene and monoterpenes
          sst    , dthcon , drtcon , & ! SSTs, surface flx parameters

@@ -725,7 +725,7 @@ CONTAINS
             ! Additional VBS parameters
             start_doy=strtim ! Start time as decimal day of year
             model_lat=cntlat ! Center latitude (degrees)
-			
+
             CALL init_vbs(nvbs_setup, laqsoa)
         ELSE
             laqsoa = .false.

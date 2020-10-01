@@ -529,7 +529,7 @@ CONTAINS
                 pprecp(ii,jj,io)%numc = pprecp(ii,jj,io)%numc + pcloud(ii,jj,cc)%numc*scaling*fact
                 pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc*(1. - scaling)
             END IF
-        END DO ! cc		
+        END DO ! cc
       END DO ! ii
     END DO ! jj
 

@@ -69,7 +69,7 @@ contains
     case(2)
        IF (sflg) out_mcrp_data(:,:,:,:) = 0.
        if (sed_cloud)  &
-            call sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
+            call sedim_cd(nzp,nxp,nyp,dtl,a_dn,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
     case(3)
        IF (sflg) out_mcrp_data(:,:,:,:) = 0.
        call mcrph(nzp,nxp,nyp,a_dn,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,  &
@@ -157,7 +157,7 @@ contains
     if (sed_precp) call sedim_rd(n1,n2,n3,dtl,dn,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
 
     ! Note: rc is not updated after autoconversion and accretion!
-    if (sed_cloud) call sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
+    if (sed_cloud) call sedim_cd(n1,n2,n3,dtl,dn,th,tk,rc,rrate,rtt,tlt)
     if(sflg) CALL sb_var_stat('sedi',1) ! ... simple difference
 
   CONTAINS
@@ -375,6 +375,7 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1-1
+             ! accretion
              if (rc(k,i,j) > 0. .and. rp(k,i,j) > 0.) then
                 tau = 1.0-rc(k,i,j)/(rc(k,i,j)+rp(k,i,j)+eps0)
                 tau = MIN(MAX(tau,eps0),1.)
@@ -382,12 +383,14 @@ contains
                 ac  = k_r * rc(k,i,j) * rp(k,i,j) * phi * sqrt(rho_0*dn(k,i,j))
                 !
                 ! Khairoutdinov and Kogan
-                !
-                !ac = Cac * (rc(k,i,j) * rp(k,i,j))**Eac
+                if (khairoutdinov) then
+                   ac = Cac * (rc(k,i,j) * rp(k,i,j))**Eac
+                end if
                 !
                 rpt(k,i,j) = rpt(k,i,j) + ac
-
              end if
+
+             ! self-collection
              sc = k_r * np(k,i,j) * rp(k,i,j) * sqrt(rho_0*dn(k,i,j))
              npt(k,i,j) = npt(k,i,j) - sc
           end do
@@ -439,16 +442,14 @@ contains
               Xp = MIN(MAX(Xp,X_bnd),X_max)
               !
               ! Adjust Dm and mu-Dm and Dp=1/lambda following Milbrandt & Yau
-              !
               Dm = ( 6. / (rowt*pi) * Xp )**(1./3.)
               mu = cmur1*(1.+tanh(cmur2*(Dm-cmur3)))
               Dp = (Dm**3/((mu+3.)*(mu+2.)*(mu+1.)))**(1./3.)
-
-              vn(k) = sqrt(dens(k,i,j)/1.2)*(a2 - b2*(1.+c2*Dp)**(-(1.+mu)))
-              vr(k) = sqrt(dens(k,i,j)/1.2)*(a2 - b2*(1.+c2*Dp)**(-(4.+mu)))
+              ! fall speeds
+              vn(k) = sqrt(rho_0/dens(k,i,j))*(a2 - b2*(1.+c2*Dp)**(-(1.+mu)))
+              vr(k) = sqrt(rho_0/dens(k,i,j))*(a2 - b2*(1.+c2*Dp)**(-(4.+mu)))
               !
               ! Set fall speeds following Khairoutdinov and Kogan
-
               if (khairoutdinov) then
                  vn(k) = max(0.,an * Dp + bn)
                  vr(k) = max(0.,aq * Dp + bq)
@@ -520,11 +521,8 @@ contains
               rpt(k,i,j) =rpt(k,i,j)-flxdiv
               rtt(k,i,j) =rtt(k,i,j)-flxdiv
               tlt(k,i,j) =tlt(k,i,j)+flxdiv*(alvl/cp)*th(k,i,j)/tk(k,i,j)
-
               npt(k,i,j) = npt(k,i,j)-(nfl(kp1)-nfl(k))*dzt(k)/dens(k,i,j)
-
-              rrate(k,i,j) = rrate(k,i,j) -rfl(k)/dens(k,i,j) * alvl*0.5*(dens(k,i,j)+dens(kp1,i,j))
-
+              rrate(k,i,j) = rrate(k,i,j) -rfl(k) * alvl
            end do
         end do
      end do
@@ -535,11 +533,11 @@ contains
   ! SEDIM_CD: calculates the cloud-droplet sedimentation flux and its effect
   ! on the evolution of r_t and theta_l assuming a log-normal distribution
   !
-  subroutine sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
-
+  subroutine sedim_cd(n1,n2,n3,dt,dens,th,tk,rc,rrate,rtt,tlt)
 
     integer, intent (in):: n1,n2,n3
-    real, intent (in),   dimension(n1,n2,n3) :: th,tk,rc
+    real, intent (in)   :: dt
+    real, intent (in),   dimension(n1,n2,n3) :: dens,th,tk,rc
     real, intent (inout),dimension(n1,n2,n3) :: rrate
     real, intent (inout),dimension(n1,n2,n3) :: rtt,tlt
 
@@ -555,16 +553,18 @@ contains
     !
     do j=3,n3-2
        do i=3,n2-2
-          rfl(n1) = 0.
+          rfl(:) = 0.
           do k=n1-1,2,-1
-             Xc = rc(k,i,j) / (CCN+eps0)
-             Dc = ( Xc / prw )**(1./3.)
-             Dc = MIN(MAX(Dc,D_min),D_bnd)
-             vc = min(c*(Dc*0.5)**2 * exp(4.5*(log(sgg))**2),1./(dzt(k)*dtl))
-             rfl(k) = - rc(k,i,j) * vc
+             if (rc(k,i,j) > 0.) then
+                Xc = rc(k,i,j) / CCN
+                Dc = ( Xc / prw )**(1./3.)
+                Dc = MIN(MAX(Dc,D_min),D_bnd)
+                vc = min(c*(Dc*0.5)**2 * exp(5.0*(log(sgg))**2),1./(dzt(k)*dt))
+                rfl(k) = - dens(k,i,j) * rc(k,i,j) * vc
+             end if
              !
              kp1=k+1
-             flxdiv = (rfl(kp1)-rfl(k))*dzt(k)
+             flxdiv = (rfl(kp1)-rfl(k))*dzt(k)/dens(k,i,j)
              rtt(k,i,j) = rtt(k,i,j)-flxdiv
              tlt(k,i,j) = tlt(k,i,j)+flxdiv*(alvl/cp)*th(k,i,j)/tk(k,i,j)
              rrate(k,i,j) = rrate(k,i,j) -rfl(k) * alvl

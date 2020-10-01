@@ -86,6 +86,10 @@ module grid
   real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
   LOGICAL, SAVE :: nudge_init=.TRUE.
 
+  ! Marine emissions
+  logical :: ifSeaSpray = .false. ! Aerosol
+  logical :: ifSeaVOC = .false.   ! Isoprene and monoterpenes
+
   character (len=80):: expnme = 'Default' ! Experiment name
   character (len=80):: filprf = 'x'       ! File Prefix
   character (len=7) :: runtype = 'INITIAL'! Run Type Selection
@@ -157,7 +161,6 @@ module grid
                    a_msnowp(:,:,:,:), a_msnowt(:,:,:,:)
   ! -- Gas compound tracers
   REAL, POINTER :: a_gaerop(:,:,:,:), a_gaerot(:,:,:,:)
-  
   ! -- Local (LES) dimensions
   INTEGER :: nbins=0,ncld=0,nice=0,nprc=0,nsnw=0,nspec=0,ngases=0
 
@@ -188,8 +191,6 @@ module grid
   REAL, ALLOCATABLE :: a_rhi(:,:,:)    ! Relative humidity over ice
   REAL, ALLOCATABLE :: a_rsi(:,:,:)    ! Water vapor saturation mixing ratio over ice
   REAL, ALLOCATABLE :: a_dn(:,:,:)     ! Air density
-  
-  REAL, ALLOCATABLE  :: sspray_ovf(:,:,:)     ! Organic volume fraction of sea spray emission
   !
   ! scratch arrays
   !
@@ -208,6 +209,7 @@ module grid
   real, allocatable :: wq_sfc(:,:)
   real, allocatable :: obl(:,:)
   real, allocatable :: aerin(:,:,:), cldin(:,:,:), precip(:,:,:), icein(:,:,:), snowin(:,:,:), albedo(:,:)
+  REAL, ALLOCATABLE :: sspray_ovf(:,:,:) ! Organic volume fraction of sea spray emission
   !
   integer :: nscl = 1
   integer, save :: ncid0,ncid_s
@@ -481,9 +483,6 @@ contains
           a_gaerop => tmp_gasp(:,:,:,:)
           a_gaerot => tmp_gast(:,:,:,:)
        ENDIF
-	   
-       allocate (sspray_ovf(nxp,nyp,fn2a))
-	   sspray_ovf(:,:,:) = -1.
     END IF ! level
 
     !----------------------------------------------------
@@ -504,6 +503,9 @@ contains
        icein = 0.
        snowin = 0.
        memsize = memsize + nxyzp*4
+       allocate (sspray_ovf(nxp,nyp,fn2a))
+       sspray_ovf(:,:,:) = -1.
+       memsize = memsize + nxyzp*fn2a
     end if
 
     a_ustar(:,:) = 0.
@@ -1009,7 +1011,7 @@ contains
 
           iret = nf90_inq_varid(ncid0,'P_Rwsnw', VarID)
           IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID, snowbins(1:nsnw), start = (/nrec0/))
-          END IF
+       END IF
     end if
 
     ! Always saved: u, v, w, theta, P

@@ -583,7 +583,7 @@ contains
 
     USE mo_submctl, ONLY : ox_prescribed, conc_oh, conc_o3, conc_no3, mair, &
         ngases_diag, zgas_diag
-	use mpi_interface, only : appl_abort
+    use mpi_interface, only : appl_abort
 
     implicit none
  
@@ -601,8 +601,7 @@ contains
     ! VBS: oxidants (OH, O3 and NOx) + VOCs(g) + VBS(g) [+ aqSOA(g)]
     !   a) Oxidants: initial concentration given as a number mixing ratio
     j=0
-	IF (ox_prescribed) THEN
-	  !print *, 'Setting prescribed oxidants (OH, O3, NO3): ', conc_oh, conc_o3, conc_no3
+    IF (ox_prescribed) THEN
       IF (conc_oh>=0.) THEN
             ! Diagnostic (constant)
             j=j+1
@@ -1105,7 +1104,7 @@ contains
         a_gaerop(:,:,:,i) = conc_ocnv/avog*mws_gas(i)
     ENDIF
 
-    
+
     ! VBS: oxidants (OH, O3 and NOx) + VOCs(g) + VBS(g) [+ aqSOA(g)]
     !   a) Oxidants: initial concentration given as a number mixing ratio
     j=0

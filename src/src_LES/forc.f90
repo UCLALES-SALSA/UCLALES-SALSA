@@ -38,56 +38,6 @@ module forc
   INTEGER :: RadSnowBins = 0 ! Add snow bins to cloud ice (for level 5 and up)
 
 contains
-  !
-  SUBROUTINE surface_naerot(fluksi, ovf)
-    use grid, only : nxp, nyp, nbins, a_naerot, a_maerot
-    USE mo_submctl, ONLY : aerobins, in2a, fn2a, in2b, pi6, &
-                         & iss, ioc, ih2o, rhowa, rhoss, rhooc, nvbs_setup
-    use mo_vbsctl, only: vbs_set						 
-	use mo_vbs, only: spec_density		
-	
-    IMPLICIT NONE
-    REAL :: fluksi(nxp,nyp,fn2a) ! Rate of change in number concentration (#/kg/s)
-    REAL :: ovf(nxp,nyp,fn2a) ! volume fraction of organic matter in dry sea spray
-    INTEGER :: i, j
-    REAL :: vdry
-    !
-    IF (iss<1 .and. ioc<1 .and. nvbs_setup<1) STOP 'No sea spray species included!'
-    !
-    ! Ignore 1a, because there is no sea salt
-    DO i=in2a,fn2a
-
-        ! Note: bin center is volume mean - using other than that will cause problems!
-        vdry=4.*pi6*(aerobins(i)**3+aerobins(i+1)**3)
-
-        !
-        ! Apply to 2b bins, if possible
-        IF (nbins<in2b) STOP 'Prognostic b-bins needed!'
-        j = in2b + i - in2a
-        a_naerot(2,:,:,j) = a_naerot(2,:,:,j) + fluksi(:,:,i)
-        ! ... and specifically to SS
-        if(iss>0)then
-          j = (iss-1)*nbins + in2b + i - in2a
-          a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
-                                              & vdry*rhoss*(1.-ovf(:,:,i))
-          !  ... and just add water at 80% RH (D80 = 2 x Ddry)
-          j = (ih2o-1)*nbins + in2b + i - in2a
-          a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
-                                              & vdry*rhowa*(1.-ovf(:,:,i))*7.
-        endif
-		! .. organic fraction
-		if (nvbs_setup>=0) then
-		  j = (vbs_set(1)%id_vols-1)*nbins + in2b + i - in2a
-		  a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
-                                              & vdry*spec_density(vbs_set(1)%spid)*(ovf(:,:,i))
-											  								  
-        elseif(ioc>0)then
-          j = (ioc-1)*nbins + in2b + i - in2a
-          a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + fluksi(:,:,i)* &
-                                              & vdry*rhooc*(ovf(:,:,i))
-        endif
-    ENDDO
-  END SUBROUTINE surface_naerot
 
   !
   ! -------------------------------------------------------------------
@@ -121,7 +71,7 @@ contains
        !
        IF (level <= 3) THEN
           zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:) ! Liquid water mixing ratio - radiative effects
-          znc(:,:,:) = a_rp(:,:,:) + a_rpp(:,:,:) ! Total water mixing ratio - for determining inversion height
+          znc(:,:,:) = a_rp(:,:,:) ! Total water mixing ratio - for determining inversion height
        ELSE
           zrc(:,:,:) = SUM(a_maerop(:,:,:,1:nbins),DIM=4) + &
                        SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) + &
@@ -355,9 +305,7 @@ contains
 
     use mpi_interface, only : myid, appl_abort
     use util, only : get_zi_val
-    USE grid, ONLY : a_ncloudp, a_nprecpp, a_mprecpp, a_nicep, a_nsnowp, a_msnowp, &
-         a_naerop, a_naerot, a_ncloudt, a_nicet, a_nsnowt, a_maerop, a_mcloudp, a_micep,  &
-         a_maerot, a_mcloudt, a_micet, a_msnowt, a_nprecpt, a_mprecpt, level
+    USE grid, ONLY : a_sclrt, a_sclrp
 
     integer, intent (in):: n1,n2, n3
     real, dimension (n1), intent (in)          :: zt, dzt, dzm
@@ -376,8 +324,8 @@ contains
     select case (trim(case_name))
     case('default')
        !
-       ! User specified divergence used as a simple large scle forcing for moisture and temperature fields
-       ! -------------------------------------------------------------------------------------------------
+       ! User specified divergence used as a simple large scale forcing for prognostic variables
+       ! ---------------------------------------------------------------------------------------
        !
        DO k=2,n1-1
           sf(k)=-zdiv*MIN(zt(k),zmaxdiv)*dzt(k)
@@ -386,23 +334,7 @@ contains
           DO i=3,n2-2
              DO k=2,n1-1
                 kp1 = k+1
-                tt(k,i,j)  =  tt(k,i,j) - ( tl(kp1,i,j) - tl(k,i,j) )*sf(k)
-                rtt(k,i,j) = rtt(k,i,j) - ( rt(kp1,i,j) - rt(k,i,j) )*sf(k)
-
-                IF (level>=4) THEN
-                  a_maerot(k,i,j,:) = a_maerot(k,i,j,:) - ( a_maerop(kp1,i,j,:) - a_maerop(k,i,j,:) )*sf(k)
-                  a_mcloudt(k,i,j,:) = a_mcloudt(k,i,j,:) - ( a_mcloudp(kp1,i,j,:) - a_mcloudp(k,i,j,:) )*sf(k)
-                  a_mprecpt(k,i,j,:) = a_mprecpt(k,i,j,:) - ( a_mprecpp(kp1,i,j,:) - a_mprecpp(k,i,j,:) )*sf(k)
-                  a_naerot(k,i,j,:) = a_naerot(k,i,j,:) - ( a_naerop(kp1,i,j,:) - a_naerop(k,i,j,:) )*sf(k)
-                  a_ncloudt(k,i,j,:) = a_ncloudt(k,i,j,:) - ( a_ncloudp(kp1,i,j,:) - a_ncloudp(k,i,j,:) )*sf(k)
-                  a_nprecpt(k,i,j,:) = a_nprecpt(k,i,j,:) - ( a_nprecpp(kp1,i,j,:) - a_nprecpp(k,i,j,:) )*sf(k)
-                ENDIF
-                IF (level>=5) THEN
-                  a_micet(k,i,j,:) = a_micet(k,i,j,:) - ( a_micep(kp1,i,j,:) - a_micep(k,i,j,:) )*sf(k)
-                  a_msnowt(k,i,j,:) = a_msnowt(k,i,j,:) - ( a_msnowp(kp1,i,j,:) - a_msnowp(k,i,j,:) )*sf(k)
-                  a_nicet(k,i,j,:) = a_nicet(k,i,j,:) - ( a_nicep(kp1,i,j,:) - a_nicep(k,i,j,:) )*sf(k)
-                  a_nsnowt(k,i,j,:) = a_nsnowt(k,i,j,:) - ( a_nsnowp(kp1,i,j,:) - a_nsnowp(k,i,j,:) )*sf(k)
-                ENDIF
+                a_sclrt(k,i,j,:) = a_sclrt(k,i,j,:) - ( a_sclrp(kp1,i,j,:) - a_sclrp(k,i,j,:) )*sf(k)
              END DO
           END DO
        END DO

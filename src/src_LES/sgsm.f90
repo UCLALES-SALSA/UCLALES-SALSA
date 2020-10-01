@@ -65,14 +65,6 @@ contains
   ! the model computes diffusivities based on smaorinsky equilibrium model
   ! or a subgrid tke model.
   !
-  ! Modified for Level 4:
-  ! For water vapour: a_rv replaced by rx, which contains values
-  !                   a_rv if level < 4 and a_rp if level == 4.
-  !
-  ! For total water amount: a_rp is replaced by rxt which is
-  !                         similarly either a_rp (level < 4)
-  !                         or a_rp + a_rc (level == 4).
-  !
   ! Juha Tonttila, FMI, 2014
   !
   subroutine diffuse

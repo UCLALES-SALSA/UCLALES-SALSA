@@ -49,7 +49,6 @@ module srfc
 ! <--- Sami added
 
 
-  logical :: ifSeaSpray = .false., ifSeaVOC = .false.
   ! Chlorophyll alpha concentration for marine organic emissions
   real :: wtrChlA = -1.   ! kg/m3
   logical :: ifPOCadd = .false.
@@ -65,32 +64,34 @@ contains
   !  Mortensson et al., Laboratory simulations and parameterization of the primary marine
   !  aerosol production, J. Geophys. Res., 108, 4297, doi:10.1029/2002JD002263, 2003
   ! The result is the rate of change in particle number concentration (#/kg/s), or tendency, for
-  ! each size bin at the first level above sea surface.
+  ! each size bin at the first level above sea surface. This is then used to compute tendencies
+  ! for mass concentrations.
   !
-  SUBROUTINE get_aero_flux(n,rad,sst,dcdt, ovf)
+  SUBROUTINE marine_aero_flux(sst,ovf)
     ! Parameters
     use defs, only: vonk, g
-    use grid, only: nxp, nyp, a_ustar, a_dn, zm
-    use mo_submctl, only: rhooc, rhoss, nvbs_setup
-	use mo_vbsctl, only: vbs_set
-	use mo_vbs, only: spec_density
-	
+    use grid, only: nxp, nyp, a_ustar, a_dn, zm, nbins, a_naerot, a_maerot
+    use mo_submctl, only: rhooc, rhoss, nvbs_setup, aerobins, in2a, fn2a, &
+                    in2b, pi6, iss, ioc, ih2o, rhowa, rhoss, rhooc, nvbs_setup
+    use mo_vbsctl, only: vbs_set
+    use mo_vbs, only: spec_density
+    use stat, only: flux_stat, sflg
+
     IMPLICIT NONE
-    ! Inputs: aerosol size bin limits (dry radius) and SST
-    INTEGER , INTENT(IN) :: n       ! Number of size bins
-    REAL, INTENT(IN) :: rad(n+1)  ! Size bins limits (dry radius, m)
     REAL, INTENT(IN) :: sst     ! Sea surface temperature (K)
-    REAL, INTENT(OUT) :: dcdt(nxp,nyp,n) ! Particle concentration tendency (#/kg/s)
-    REAL, INTENT(INOUT) :: ovf(nxp,nyp,n) ! volume fraction of organic matter
+    REAL, INTENT(INOUT) :: ovf(nxp,nyp,fn2a) ! volume fraction of organic matter
     ! Local
     INTEGER :: i, j, k
-    REAL :: usum, zs, dia, Ak, Bk, rhorho, dia80, omf
+    REAL :: usum, zs, dia, Ak, Bk, rhorho, dia80, omf, vdry
     REAL :: w(nxp,nyp), u10(nxp,nyp),omf_max(nxp,nyp) ! whitecap cover, 10 m wind speed
-    REAL :: flx(n+1) ! Production rate for each size bin
+    REAL :: flx(fn2a+1) ! Production rate for each size bin
+    REAL :: dcdt(nxp,nyp,fn2a) ! Particle concentration tendency (#/kg/s)
+
+    IF (iss<1 .and. ioc<1 .and. nvbs_setup<1) STOP 'No sea spray species included!'
 
     ! Calculate particle flux for each size bin limit
-    DO k=1,n+1
-        dia=rad(k)*2.
+    DO k=1,fn2a+1
+        dia=aerobins(k)*2.
         ! Parameters for Eq. 5 from Table 1
         IF (dia<0.020e-6) THEN
             Ak=0.
@@ -135,32 +136,30 @@ contains
     u10(:,:) = a_ustar(:,:)/vonk*log(10.0/zs)
     w(:,:)=0.01*3.84e-4*u10**3.41
     ! Organic mass fraction grom Gantt ea (2011)
-	! conversion to mg from kg
-    if(wtrChlA>0.)then 
-		if(nvbs_setup > 0)then
-			rhorho = spec_density(vbs_set(1)%spid)/rhoss
-		else 
+    ! conversion to mg from kg
+    if(wtrChlA>0.)then
+        if(nvbs_setup > 0)then
+            rhorho = spec_density(vbs_set(1)%spid)/rhoss
+        else
             rhorho = rhooc/rhoss ! ratio of densities of marine organic matter and salt
         endif
-	    omf_max = 1./(1.+exp(-2.63e6*wtrChlA+0.18*U10))
-	endif
-    !print *, 'wtrChlA, U10(3,3), omf_max(3,3)', wtrChlA, U10(3,3), omf_max(3,3)
+        omf_max = 1./(1.+exp(-2.63e6*wtrChlA+0.18*U10))
+    endif
+
     ! Particle concentration tendency for each size bin
     dcdt(:,:,:)=0.
-    DO k=1,n
+    DO k=in2a,fn2a ! Ignore 1a, because there is no sea salt
         ! Mean flux: 0.5*(flx(k)+flx(k+1))
         ! From dFp/dlog(Dp) to dFp: multiply by log10(rad(k+1)/rad(k))
         ! Multiply by the whitecap cover w
         ! Convert #/m^2/s to the rate of change in concetration (#/kg/s): multily by 1/rho/dz
-		DO j=3,nyp-2
+        DO j=3,nyp-2
           DO i=3,nxp-2
-	     !print *, 'dcdt1', k, zm(3), zm(2), minval(a_dn(2,:,:)),maxval(a_dn(2,:,:))
-	     !print *, 'dcdt2', rad(k+1), rad(k), minval(w(:,:)), maxval(w(:,:)), flx(k), flx(k+1)
-            dcdt(i,j,k)=0.5*(flx(k)+flx(k+1))*log10(rad(k+1)/rad(k))*w(i,j)/a_dn(2,i,j)/(zm(3)-zm(2))
+            dcdt(i,j,k)=0.5*(flx(k)+flx(k+1))*log10(aerobins(k+1)/aerobins(k))*w(i,j)/a_dn(2,i,j)/(zm(3)-zm(2))
 
             ! Size dependent organic mass fraction from Gantt ea, 2011 (eq. 3)
             if(wtrChlA>0.)then
-                dia = (4.*rad(k)**3.+rad(k+1)**3.)**(1./3.)*1.e6 ! bin volume-mean diameter in micrometers
+                dia = (4.*(aerobins(k)**3+aerobins(k+1)**3))**(1./3.)*1.e6 ! bin volume-mean diameter in micrometers
                 ! Organic fraction is parameterized for particle diameter at 80% RH
                 ! which depends on composition, so technically would need to iterate.
                 ! However, hopefully it converges after limited nr of timesteps.
@@ -173,42 +172,78 @@ contains
                 dia80 = (dia**3.*(Ovf(i,j,k)+8.*(1.-Ovf(i,j,k))))**(1./3.) !
                 omf = omf_max(i,j)/(1.+0.03*exp(6.81*dia80))+0.03*omf_max(i,j)
                 Ovf(i,j,k) = omf/(omf*(1.-rhorho)+rhorho)
-                !print *, 'k, dia, dia80, omf_max(i,j), omf, Ovf(i,j,k)', k, dia, dia80, omf_max(i,j), omf, Ovf(i,j,k)
-                !print *, k,Ovf(i,j,k)
-	        else
-				Ovf(i,j,k) = 0.
-		    endif
-			
-			! Different assumptions can be made about whether the organic fraction replaces the salt or is additive to it. 
-			! If assumed additive, increase the emiision flux accordingly
-			if(ifPOCadd) dcdt(i,j,k) = dcdt(i,j,k) / (1. - Ovf(i,j,k))
+            else
+                Ovf(i,j,k) = 0.
+            endif
+
+            ! Different assumptions can be made about whether the organic fraction replaces the salt or is additive to it.
+            ! If assumed additive, increase the emission flux accordingly
+            if(ifPOCadd) dcdt(i,j,k) = dcdt(i,j,k) / (1. - Ovf(i,j,k))
 
           enddo
         enddo
-		
+
+
+        ! Apply to 2b bins, if possible
+        IF (nbins<in2b) THEN
+            i = k
+        ELSE
+            i = in2b + k - in2a
+        ENDIF
+
+        ! Note: bin center is volume mean - using other than that will cause problems!
+        vdry = pi6*4.*(aerobins(k)**3+aerobins(k+1)**3)
+
+        a_naerot(2,:,:,i) = a_naerot(2,:,:,i) + dcdt(:,:,k)
+        ! ... and specifically to SS
+        if(iss>0)then
+            j = (iss-1)*nbins + i
+            a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
+                                              & vdry*rhoss*(1.-ovf(:,:,k))
+            !  ... and just add water at 80% RH (D80 = 2 x Ddry)
+            j = (ih2o-1)*nbins + i
+            a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
+                                              & vdry*rhowa*(1.-ovf(:,:,k))*7.
+        endif
+        ! .. organic fraction
+        if (nvbs_setup>=0) then
+            j = (vbs_set(1)%id_vols-1)*nbins + i
+            a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
+                                              & vdry*spec_density(vbs_set(1)%spid)*(ovf(:,:,k))
+        elseif(ioc>0)then
+            j = (ioc-1)*nbins + i
+            a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
+                                              & vdry*rhooc*(ovf(:,:,k))
+        endif
+
     ENDDO
 
-  END SUBROUTINE get_aero_flux
+    if (sflg) then
+        ! Convert dcdt [#/kg/s] to flux [#/m^2/s] and take sum over bins
+        w(:,:) = SUM(dcdt(:,:,:),DIM=3)*a_dn(2,:,:)*(zm(3)-zm(2))
+        call flux_stat(nxp,nyp,w,1)
+    endif
+
+  END SUBROUTINE marine_aero_flux
 
   ! --------------------------------------------------------------------------
   ! Gas emissions from ocean surface
   !
-  SUBROUTINE marine_gas_flux(sst,flxIsop,flxMtrp)
+  SUBROUTINE marine_gas_flux(sst)
     ! Parameters
     use defs, only: vonk, g
     use grid, only: nxp, nyp, a_ustar, a_dn, zm, a_gaerot
     use mo_vbsctl, only: vbs_voc_set
-	use mo_vbs, only: spec_moleweight
-    !use mo_submctl, only ??
+    use mo_vbs, only: spec_moleweight
+    use stat, only: flux_stat, sflg
     IMPLICIT NONE
     REAL, INTENT(IN) :: sst     ! Sea surface temperature (K)
-    REAL, INTENT(OUT) :: flxIsop(nxp,nyp), flxMtrp(nxp,nyp) ! Gas flux (kg/m2/s)
 
     ! Local
     INTEGER :: i, j, k
     REAL :: usum, zs
     REAL :: u10(nxp,nyp)! whitecap cover, 10 m wind speed
-    REAL :: flx(nxp,nyp) ! Production rate for each gas
+    REAL :: flxIsop(nxp,nyp), flxMtrp(nxp,nyp) ! Gas flux (kg/m2/s)
 
     real, parameter :: schmidt_ref = 660.0, & ! CO2 in 293 K
  & per_sec = 1.0 / 3600.0, to_m = 0.01, p23 = 2.0 / 3.0, p12 = 0.5
@@ -244,9 +279,9 @@ contains
     ! Palmer & Shaw, 2005
     schmidt_isoprene = 3913.15 - 162.13*temp_c + 2.67*temp_c**2 - 0.012*temp_c**3
     if(wtrIsop > 0.)then
-	  sc_ratio = schmidt_ref / schmidt_isoprene
+      sc_ratio = schmidt_ref / schmidt_isoprene
       iGas = vbs_voc_set(2)%id_gas
-	  DO j=3,nyp-2
+      DO j=3,nyp-2
         DO i=3,nxp-2
           ! First compute the transfer velocity (m/s)
 !          select case (transfer_velocity_type)
@@ -261,7 +296,6 @@ contains
 !            flxIsop = flxIsop * per_sec*to_m
 !          case (Wannikhof) ! Wannikhof (2014)
             flxIsop(i,j) = 0.251*u10(i,j)*u10(i,j)*sc_ratio**p12 * per_sec*to_m
-	        !print *, u10(3,3), schmidt_isoprene, sc_ratio, flxIsop(3,3), spec_moleweight(iGas), temp_c
 !          case default ! No flux
 !            flxIsop = 0.
 !          end select
@@ -269,9 +303,8 @@ contains
           flxIsop(i,j) = flxIsop(i,j) * wtrIsop * spec_moleweight(iGas) /1000.
 
           a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxIsop(i,j) / a_dn(2,i,j) / (zm(3)-zm(2))
-	      !print *, 'flxIsop(3,3)', flxIsop(3,3), a_gaerot(2,3,3,iGas)
-	    enddo
-	  enddo
+        enddo
+      enddo
     endif
 
     ! 2. Monoterpenes
@@ -289,16 +322,20 @@ contains
       ! Take average of a-pinene and limonene - 159.1
       schmidt_monoterp = schmidt_isoprene*(159.1/101.1)**0.6
       sc_ratio = schmidt_ref / schmidt_monoterp
-	  DO j=3,nyp-2
+      DO j=3,nyp-2
         DO i=3,nxp-2
           ! Transfer velocity (m/s)
           flxMtrp(i,j) = 0.251*u10(i,j)*u10(i,j)*sc_ratio**p12 * per_sec*to_m
           ! Flux
           flxMtrp(i,j) = flxMtrp(i,j) * wtrMtrp * spec_moleweight(iGas) /1000.
           a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxMtrp(i,j) / a_dn(2,i,j) / (zm(3)-zm(2))
-          !print *, 'flxMtrp(3,3)', flxMtrp(3,3), a_gaerot(2,3,3,iGas)
-		enddo
+        enddo
       enddo
+    endif
+
+    if (sflg) then
+        call flux_stat(nxp,nyp,flxIsop,2)
+        call flux_stat(nxp,nyp,flxMtrp,3)
     endif
 
   END SUBROUTINE marine_gas_flux
@@ -314,9 +351,7 @@ contains
   !     isfctyp=3: bulk aerodynamic law with coefficients (drtcon, dthcon)
   !     isfctyp=4: regulate surface temperature to yield a constant surface buoyancy flux
   !
-  ! Modified for level 4: a_rv replaced by a local variable rx, which has
-  ! values a_rv if level < 4, and a_rp if level == 4 (i.e. water vapour mixrat in both cases)
-  !
+  ! Modified for level 4
   ! Juha Tonttila, FMI, 2014
   !
 
@@ -540,7 +575,7 @@ contains
               ff1=1.0
               IF(W1<0.75) ff1=W1/0.75
               ! Flux of moisture is limited by water content.
-              drdz(i,j) = a_rp(2,i,j) - ff1*rslf(psrf,min(sst1,280.))  !  a_rv changed to a_rp (by Zubair)
+              drdz(i,j) = rx(2,i,j) - ff1*rslf(psrf,min(sst1,280.))
               !
               bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2)
               usum = usum + a_ustar(i,j)
