@@ -139,7 +139,7 @@ emission_main.o: emission_types.o mo_seasalt_emission.o mo_submctl.o mo_salsa_ty
 	         $(seqmpi:.f90=.o) mo_aux_state.o mo_vector_state.o mo_progn_state.o mo_diag_state.o
 emission_types.o: 
 emission_init.o: mo_submctl.o emission_types.o mo_lagrangian_tracker.o mo_salsa_types.o  \
-	         util.o mpi_interface.o mo_salsa_sizedist.o exceptionHandling.o          \
+	         util.o mo_salsa_sizedist.o exceptionHandling.o          \
 	         mo_aux_state.o grid.o $(seqmpi:.f90=.o)
 mo_lagrangian_tracker.o: mo_aux_state.o grid.o util.o
 
