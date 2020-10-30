@@ -197,8 +197,9 @@ CONTAINS
 !
   SUBROUTINE satadjst(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs)
 
-    USE defs, ONLY : cp, cpr, alvl, ep, Rm, p00
-
+    USE defs, ONLY : cp, cpr, alvl, ep, Rm, R, p00
+    USE mo_diag_state, ONLY : a_dn
+    
     INTEGER, INTENT (in) ::  n1,n2,n3
 
     TYPE(FloatArray3d), INTENT (in)  :: pp, tl, rt
@@ -232,6 +233,10 @@ CONTAINS
              rs%d(k,i,j) = yy
              tk%d(k,i,j) = xx
              th%d(k,i,j) = tk%d(k,i,j)/exner
+
+             ! True air density
+             a_dn%d(k,i,j) = p%d(k,i,j)/(R*tk%d(k,i,j)*(1+0.61*rv%d(k,i,j)))
+             
           END DO
        END DO
     END DO
@@ -245,7 +250,8 @@ CONTAINS
 !
   SUBROUTINE satadjst3(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs,rp,rh)
 
-    USE defs, ONLY : cp, cpr, alvl, ep, Rm, p00
+    USE mo_diag_state, ONLY : a_dn
+    USE defs, ONLY : cp, cpr, alvl, ep, Rm, R, p00
     USE mpi_interface, ONLY : myid, appl_abort
 
     INTEGER, INTENT (in) ::  n1,n2,n3
@@ -308,6 +314,10 @@ CONTAINS
              rh%d(k,i,j) = rv%d(k,i,j)/rs%d(k,i,j)
              tk%d(k,i,j) = tx
              th%d(k,i,j) = tk%d(k,i,j)/exner
+
+             ! True air density
+             a_dn%d(k,i,j) = p%d(k,i,j)/(R*tk%d(k,i,j)*(1+0.61*rv%d(k,i,j)))
+             
           END DO
        END DO
     END DO

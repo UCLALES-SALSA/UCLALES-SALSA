@@ -155,6 +155,9 @@ MODULE mcrp
             END DO
          END DO
       END DO
+
+      ! zero the rate diagnostic for current timestep
+      rrate%d = 0.
       
       IF (sed_precp%state) CALL sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
       
@@ -443,7 +446,7 @@ MODULE mcrp
 
                npt%d(k,i,j) = npt%d(k,i,j)-(nfl(kp1)-nfl(k))*dzt%d(k)/dn0%d(k)
 
-               rrate%d(k,i,j) = -rfl(k)/dn0%d(k) * alvl*0.5*(dn0%d(k)+dn0%d(kp1))
+               rrate%d(k,i,j) = rrate%d(k,i,j) - rfl(k)/dn0%d(k) * alvl*0.5*(dn0%d(k)+dn0%d(kp1))
 
             END DO
          END DO
@@ -486,7 +489,7 @@ MODULE mcrp
                flxdiv = (rfl(kp1)-rfl(k))*dzt%d(k)
                rtt%d(k,i,j) = rtt%d(k,i,j)-flxdiv
                tlt%d(k,i,j) = tlt%d(k,i,j)+flxdiv*(alvl/cp)*th%d(k,i,j)/tk%d(k,i,j)
-               rrate%d(k,i,j) = -rfl(k)
+               rrate%d(k,i,j) = rrate%d(k,i,j) - rfl(k) * alvl
             END DO
          END DO
       END DO
