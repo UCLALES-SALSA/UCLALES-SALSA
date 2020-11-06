@@ -489,6 +489,10 @@ contains
        if (itype==0) ncinfo = 'Monoterpene sea surface flux'
        if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'time'
+    case('u10')
+       if (itype==0) ncinfo = 'Average 10 m wind speed'
+       if (itype==1) ncinfo = 'm/s'
+       if (itype==2) ncinfo = 'time'
     case('zi_bar')
        if (itype==0) ncinfo = 'Height of maximum total water mixing ratio gradient'
        if (itype==1) ncinfo = 'm'
@@ -1571,6 +1575,9 @@ contains
             get_rate_info = 'tttt'
         ELSEIF (dims==3) THEN
             ! 3D outputs
+            get_rate_info = 'tttt'
+        ELSEIF (dims==2) THEN
+            ! 2D outputs
             get_rate_info = 'tttt'
         ELSE
             get_rate_info = ''

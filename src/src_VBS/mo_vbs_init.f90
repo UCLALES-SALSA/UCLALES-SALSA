@@ -134,7 +134,7 @@ SUBROUTINE init_vbs(nvbs_setup, laqsoa)
         dens(j)=spec_density(vbs_set(i)%spid)
         mws(j)=spec_moleweight(vbs_set(i)%spid)*1e-3
         ! kappa-Kohler: k=diss_i*v_w/v_i => diss_i=k*v_i/v_w, where v=M/rho
-        diss(j)=spec_kappa(vbs_set(i)%spid)*( mws(1)/dens(1) )/( mws(j)/dens(j) )
+        diss(j)=spec_kappa(vbs_set(i)%spid)*( mws(j)/dens(j) )/( mws(1)/dens(1) )
         ! SALSA/LES name
         WRITE(tmp,"('VB',I1)") i
         zspec(j)=tmp
@@ -145,7 +145,7 @@ SUBROUTINE init_vbs(nvbs_setup, laqsoa)
         j=nspec+1
         dens(j)=spec_density(aqsoa_set(i)%spid)
         mws(j)=spec_moleweight(aqsoa_set(i)%spid)*1e-3
-        diss(j)=spec_kappa(aqsoa_set(i)%spid)*( mws(1)/dens(1) )/( mws(j)/dens(j) )
+        diss(j)=spec_kappa(aqsoa_set(i)%spid)*( mws(j)/dens(j) )/( mws(1)/dens(1) )
         WRITE(tmp,"('AQ',I1)") i
         zspec(j)=tmp
     ENDDO

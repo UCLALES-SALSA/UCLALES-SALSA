@@ -209,7 +209,6 @@ module grid
   real, allocatable :: wq_sfc(:,:)
   real, allocatable :: obl(:,:)
   real, allocatable :: aerin(:,:,:), cldin(:,:,:), precip(:,:,:), icein(:,:,:), snowin(:,:,:), albedo(:,:)
-  REAL, ALLOCATABLE :: sspray_ovf(:,:,:) ! Organic volume fraction of sea spray emission
   !
   integer :: nscl = 1
   integer, save :: ncid0,ncid_s
@@ -503,9 +502,6 @@ contains
        icein = 0.
        snowin = 0.
        memsize = memsize + nxyzp*4
-       allocate (sspray_ovf(nxp,nyp,fn2a))
-       sspray_ovf(:,:,:) = -1.
-       memsize = memsize + nxyzp*fn2a
     end if
 
     a_ustar(:,:) = 0.

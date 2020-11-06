@@ -29,7 +29,7 @@ module stat
   private
 
   integer, parameter :: nvar1 = 35,               &
-                        nv1_lvl4 = 16,            &
+                        nv1_lvl4 = 17,            &
                         nv1_lvl5 = 18,            &
                         nvar2 = 96,               &
                         nv2_lvl4 = 12,            &
@@ -76,7 +76,7 @@ module stat
        s1_lvl4(nv1_lvl4) = (/       &
        'Nc_ic  ','Rc_ic  ','Nca_ica','Rca_ica','Ncb_icb','Rcb_icb', & !1
        'Na_int ','Ra_int ','Naa_int','Raa_int','Nab_int','Rab_int', & !7
-       'SS_max ','flx_aer','flx_iso','flx_mt '/), & !13
+       'SS_max ','flx_aer','flx_iso','flx_mt ','u10    '/), & !13
 
        s1_lvl5(nv1_lvl5) = (/  &
        'Ni_ii  ','Ri_ii  ','Nia_iia','Ria_iia','Nib_iib','Rib_iib', & ! 1-6
@@ -369,6 +369,7 @@ contains
        s1_lvl4_bool(14) = ifSeaSpray ! Aerosol
        s1_lvl4_bool(15) = ifSeaVOC ! Isoprene
        s1_lvl4_bool(16) = ifSeaVOC ! Monoterpene
+       s1_lvl4_bool(17) = ifSeaSpray .OR. ifSeaVOC ! u10
 
        ! 2) Microphysical process rate statistics (both ts and ps)
 
@@ -2611,12 +2612,22 @@ contains
   ! ----------------------------------------------------------------------
   ! Marine emissions
   !
-  subroutine flux_stat(n2,n3,flx,i)
-
-    integer, intent(in) :: n2,n3,i
-    real, intent(in), dimension(n2,n3) :: flx
-
-    ssclr_lvl4(13+i) = get_avg2dh(n2,n3,flx)
+  subroutine flux_stat(flx,vname)
+    use netcdf
+    IMPLICIT NONE
+    ! Inputs
+    real, intent(in) :: flx
+    character (len=7), intent (in) :: vname
+    ! Local
+    INTEGER :: i, iret, VarID
+    !
+    ! Is this output selected
+    DO i=1,nv1_lvl4
+        IF ( vname == s1_lvl4(i) ) THEN
+            ! Calculate domain mean
+            ssclr_lvl4(i) = get_pustat_scalar('avg', flx)
+        ENDIF
+    ENDDO
 
   end subroutine flux_stat
   !

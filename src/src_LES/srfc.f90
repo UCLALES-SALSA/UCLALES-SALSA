@@ -55,6 +55,10 @@ module srfc
   ! Isoprene and monoterpene concentrations in the ocean surface layer
   real :: wtrIsop = -1.   ! mol/m3
   real :: wtrMtrp = -1.   ! mol/m3
+  ! Option for sea-spray aerosol source function parameterization
+  integer :: ssa_param = 0
+  ! Volume fraction of organic matter in sea spray
+  real, allocatable, save :: ovf(:)
 
 contains
 
@@ -67,7 +71,7 @@ contains
   ! each size bin at the first level above sea surface. This is then used to compute tendencies
   ! for mass concentrations.
   !
-  SUBROUTINE marine_aero_flux(sst,ovf)
+  SUBROUTINE marine_aero_flux(sst)
     ! Parameters
     use defs, only: vonk, g
     use grid, only: nxp, nyp, a_ustar, a_dn, zm, nbins, a_naerot, a_maerot
@@ -79,45 +83,14 @@ contains
 
     IMPLICIT NONE
     REAL, INTENT(IN) :: sst     ! Sea surface temperature (K)
-    REAL, INTENT(INOUT) :: ovf(nxp,nyp,fn2a) ! volume fraction of organic matter
     ! Local
     INTEGER :: i, j, k
-    REAL :: usum, zs, dia, Ak, Bk, rhorho, dia80, omf, vdry
-    REAL :: w(nxp,nyp), u10(nxp,nyp),omf_max(nxp,nyp) ! whitecap cover, 10 m wind speed
+    REAL :: usum, zs, dia, rhorho, dia80, omf, omf_max, vdry, u10_bar
+    REAL :: u10(nxp,nyp) ! 10 m wind speed
     REAL :: flx(fn2a+1) ! Production rate for each size bin
     REAL :: dcdt(nxp,nyp,fn2a) ! Particle concentration tendency (#/kg/s)
 
     IF (iss<1 .and. ioc<1 .and. nvbs_setup<1) STOP 'No sea spray species included!'
-
-    ! Calculate particle flux for each size bin limit
-    DO k=1,fn2a+1
-        dia=aerobins(k)*2.
-        ! Parameters for Eq. 5 from Table 1
-        IF (dia<0.020e-6) THEN
-            Ak=0.
-            Bk=0.
-        ELSEIF (dia<0.145e-6) THEN
-            Ak=-2.576e35*dia**4+5.932e28*dia**3-2.867e21*dia**2-3.003e13*dia-2.881e6
-            Bk= 7.188e37*dia**4-1.616e31*dia**3+6.791e23*dia**2+1.829e16*dia+7.609e8
-        ELSEIF (dia<0.419e-6) THEN
-            Ak=-2.452e33*dia**4+2.404e27*dia**3-8.148e20*dia**2+1.183e14*dia-6.743e6
-            Bk= 7.368e35*dia**4-7.310e29*dia**3+2.528e23*dia**2-3.787e16*dia+2.279e9
-        ELSEIF (dia<2.8e-6) THEN
-            Ak= 1.085e29*dia**4-9.841e23*dia**3+3.132e18*dia**2-4.165e12*dia+2.181e6
-            Bk=-2.859e31*dia**4+2.601e26*dia**3-8.297e20*dia**2+1.105e15*dia-5.800e8
-        ELSE
-            Ak=0.
-            Bk=0.
-            ! Extrapolation: Ak*sst+Bk vs D is almost linear in the log-log scale
-            Ak=139934 ! Ak(2.8e-6)
-            Bk=-3.84343e7 ! Bk(2.8e-6)
-            ! Cheat a bit by using variable Bk
-            Bk=(Ak*sst+Bk)*(dia/2.8e-6)**(-3.5)
-            Ak=0.
-        ENDIF
-        ! Equation 6: particle flux per whitecap area, dFp/dlog(Dp) [#/m^2/s]
-        flx(k)=MAX(0.,Ak*sst+Bk)
-    ENDDO
 
     ! Roughness height is needed for the 10 m wind speeds
     zs = zrough
@@ -131,10 +104,31 @@ contains
         usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
         zs = max(0.0001,(0.016/g)*usum**2)
     ENDIF
-
-    ! Whitecap cover (% => fraction) based on 10 m wind speeds (eq. 2)
     u10(:,:) = a_ustar(:,:)/vonk*log(10.0/zs)
-    w(:,:)=0.01*3.84e-4*u10**3.41
+    ! Mean 10 m wind speed (for each sub-domain)
+    u10_bar = SUM(SUM(u10(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))
+
+    ! Calculate particle flux, dF/dlogDp, for each size bin limit
+    DO k=1,fn2a+1
+        dia=aerobins(k)*2.
+        select case (ssa_param)
+        case(0)
+            ! Combining Martensson et al. (2003), Monahan et al. (1986), and Smith and Harrison (1998)
+            flx(k) = flux_mmsh(dia,sst,u10_bar)
+        case(1)
+            ! Gong (2003)
+            flx(k) = flux_gong(dia,sst,u10_bar)
+        case(2)
+            ! Grythe et al. (2014)
+            flx(k) = flux_grythe(dia,sst,u10_bar)
+        case(3)
+            ! Sofiev et al. (2011)
+            flx(k) = flux_sofiev(dia,sst,u10_bar)
+        case default
+            STOP 'Sea-spray source function not supported!'
+        end select
+    ENDDO
+
     ! Organic mass fraction grom Gantt ea (2011)
     ! conversion to mg from kg
     if(wtrChlA>0.)then
@@ -143,42 +137,43 @@ contains
         else
             rhorho = rhooc/rhoss ! ratio of densities of marine organic matter and salt
         endif
-        omf_max = 1./(1.+exp(-2.63e6*wtrChlA+0.18*U10))
+        omf_max = 1./(1.+exp(-2.63e6*wtrChlA+0.18*u10_bar))
+    endif
+    ! Growth factor depends on organic volume fraction
+    if (.not. allocated(ovf)) THEN
+        ! first call
+        ALLOCATE(ovf(fn2a))
+        ovf(:) = omf_max/(omf_max*(1.-rhorho)+rhorho)
     endif
 
     ! Particle concentration tendency for each size bin
     dcdt(:,:,:)=0.
     DO k=in2a,fn2a ! Ignore 1a, because there is no sea salt
+        ! Size dependent organic mass fraction from Gantt ea, 2011 (eq. 3)
+        if(wtrChlA>0.)then
+            dia = (4.*(aerobins(k)**3+aerobins(k+1)**3))**(1./3.)*1.e6 ! bin volume-mean diameter in micrometers
+            ! Organic fraction is parameterized for particle diameter at 80% RH
+            ! which depends on composition, so technically would need to iterate.
+            ! However, hopefully it converges after limited nr of timesteps.
+            ! Mean diameter at RH 80% ~2 x dry diameter for sea salt,
+            ! organic part is assumed insoluble
+            dia80 = (dia**3*(ovf(k)+8.*(1.-ovf(k))))**(1./3.)
+            omf = omf_max/(1.+0.03*exp(6.81*dia80))+0.03*omf_max
+            ovf(k) = omf/(omf*(1.-rhorho)+rhorho)
+        else
+            ovf(k) = 0.
+        endif
+
         ! Mean flux: 0.5*(flx(k)+flx(k+1))
         ! From dFp/dlog(Dp) to dFp: multiply by log10(rad(k+1)/rad(k))
-        ! Multiply by the whitecap cover w
-        ! Convert #/m^2/s to the rate of change in concetration (#/kg/s): multily by 1/rho/dz
+        ! Convert #/m^2/s to the rate of change in concentration (#/kg/s): multiply by 1/rho/dz
         DO j=3,nyp-2
           DO i=3,nxp-2
-            dcdt(i,j,k)=0.5*(flx(k)+flx(k+1))*log10(aerobins(k+1)/aerobins(k))*w(i,j)/a_dn(2,i,j)/(zm(3)-zm(2))
-
-            ! Size dependent organic mass fraction from Gantt ea, 2011 (eq. 3)
-            if(wtrChlA>0.)then
-                dia = (4.*(aerobins(k)**3+aerobins(k+1)**3))**(1./3.)*1.e6 ! bin volume-mean diameter in micrometers
-                ! Organic fraction is parameterized for particle diameter at 80% RH
-                ! which depends on composition, so technically would need to iterate.
-                ! However, hopefully it converges after limited nr of timesteps.
-                ! Mean diameter at RH 80% ~2 x dry diameter for sea salt,
-                ! organic part is assumed insoluble
-
-                if( Ovf(i,j,k) < 0.)then ! first timestep
-                        Ovf(i,j,k) = omf_max(i,j)/(omf_max(i,j)*(1.-rhorho)+rhorho)
-                endif
-                dia80 = (dia**3.*(Ovf(i,j,k)+8.*(1.-Ovf(i,j,k))))**(1./3.) !
-                omf = omf_max(i,j)/(1.+0.03*exp(6.81*dia80))+0.03*omf_max(i,j)
-                Ovf(i,j,k) = omf/(omf*(1.-rhorho)+rhorho)
-            else
-                Ovf(i,j,k) = 0.
-            endif
+            dcdt(i,j,k)=0.5*(flx(k)+flx(k+1))*log10(aerobins(k+1)/aerobins(k))/a_dn(2,i,j)/(zm(3)-zm(2))
 
             ! Different assumptions can be made about whether the organic fraction replaces the salt or is additive to it.
             ! If assumed additive, increase the emission flux accordingly
-            if(ifPOCadd) dcdt(i,j,k) = dcdt(i,j,k) / (1. - Ovf(i,j,k))
+            if(ifPOCadd) dcdt(i,j,k) = dcdt(i,j,k) / (1. - ovf(k))
 
           enddo
         enddo
@@ -199,32 +194,243 @@ contains
         if(iss>0)then
             j = (iss-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*rhoss*(1.-ovf(:,:,k))
+                                              & vdry*rhoss*(1.-ovf(k))
             !  ... and just add water at 80% RH (D80 = 2 x Ddry)
             j = (ih2o-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*rhowa*(1.-ovf(:,:,k))*7.
+                                              & vdry*rhowa*(1.-ovf(k))*7.
         endif
         ! .. organic fraction
         if (nvbs_setup>=0) then
             j = (vbs_set(1)%id_vols-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*spec_density(vbs_set(1)%spid)*(ovf(:,:,k))
+                                              & vdry*spec_density(vbs_set(1)%spid)*(ovf(k))
         elseif(ioc>0)then
             j = (ioc-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*rhooc*(ovf(:,:,k))
+                                              & vdry*rhooc*(ovf(k))
         endif
 
     ENDDO
 
     if (sflg) then
         ! Convert dcdt [#/kg/s] to flux [#/m^2/s] and take sum over bins
-        w(:,:) = SUM(dcdt(:,:,:),DIM=3)*a_dn(2,:,:)*(zm(3)-zm(2))
-        call flux_stat(nxp,nyp,w,1)
+        omf = SUM ( SUM( SUM(dcdt(3:nxp-2,3:nyp-2,:),DIM=3)*a_dn(2,:,:),DIM=2 ) )*(zm(3)-zm(2))/REAL((nxp-4)*(nyp-4))
+        call flux_stat(omf,'flx_aer')
+        ! 10 m wind speed
+        call flux_stat(u10_bar,'u10    ')
     endif
 
   END SUBROUTINE marine_aero_flux
+
+
+  ! -------------------------------------------------------------------
+  ! Sea spray emissions parameterizations
+  !   Inputs: dry diameter (Dp, m), sea surface temperature (SST, K) and 10 m wind speed (u10, m/s)
+  !   Output: particle number flux, dF/dlog10(Dp), #/m^2/s
+  !
+  ! References
+  !  Gong, S. L.: A parameterization of sea-salt aerosol source function for sub- and super-micron
+  !     particles, Global Biogeochem. Cycles, 17, 1097, doi:10.1029/2003GB002079, 2003
+  !  Grythe, H., Strom, J., Krejci, R., Quinn, P., and Stohl, A.: A review of sea-spray aerosol
+  !     source functions using a large global set of sea salt aerosol concentration measurements,
+  !     Atmos. Chem. Phys., 14, 1277-1297, https://doi.org/10.5194/acp-14-1277-2014, 2014
+  !  Jaegle, L., Quinn, P. K., Bates, T. S., Alexander, B., and Lin, J.-T.: Global distribution of
+  !     sea salt aerosols: new constraints from in situ and remote sensing observations,
+  !     Atmos. Chem. Phys., 11, 3137-3157, https://doi.org/10.5194/acp-11-3137-2011, 2011.
+  ! Martensson, E. M., Nilsson, E. D., de Leeuw, G., Cohen, L. H., and Hansson, H.-C.:
+  !     Laboratory simulations and parameterization of the primary marine aerosol production,
+  !     J. Geophys. Res., 108, 4297, doi:10.1029/2002JD002263, 2003
+  ! Monahan, E. C., D. E. Spiel, and K. L. Davidson: A model of marine aerosol generation via
+  !    whitecaps and wave disruption, in Oceanic Whitecaps, edited by E. Monahan, and G. M. Niocaill,
+  !    pp. 167-174, D. Reidel, Norwell, Mass., 1986
+  ! Smith, M.H., and Harrison,  N.M.: The sea spray generation function, J. Aerosol Sci.,
+  !    Volume 29, Supplement 1, S189-S190, https://doi.org/10.1016/S0021-8502(98)00280-8, 1998
+  ! Sofiev, M., Soares, J., Prank, M., de Leeuw, G., and Kukkonen, J.: A regional-to-global
+  !    mode of emission and transport of sea salt particles in the atmosphere,
+  !    J. Geophys. Res., 116, D21302, doi:10.1029/2010JD014713, 2011
+
+  REAL FUNCTION flux_mmsh(dia,sst,u10)
+    ! Flux parameterization combining those from Martensson et al. (2003), Monahan et al. (1986), and Smith and Harrison (1998)
+    ! Valid from 0.02e-6 to 300e-6 m
+    REAL, INTENT(IN) :: dia,sst,u10 ! Dry diameter (m), sea surface temperature (K) and 10 m wind speed (m/s)
+    !
+    if (dia<=1e-6) then
+        flux_mmsh = flux_martensson(dia,sst,u10)
+    elseif (dia<=10e-6) then
+        flux_mmsh = flux_monahan(dia,sst,u10)
+    else
+        flux_mmsh = flux_smith(dia,sst,u10)
+    endif
+    !
+  END FUNCTION flux_mmsh
+
+  REAL FUNCTION flux_martensson(dia,sst,u10)
+    ! Flux parameterization from Martensson et al. (2003)
+    ! Valid from 0.02e-6 to 2.8e-6 m
+    REAL, INTENT(IN) :: dia,sst,u10 ! Dry diameter (m), sea surface temperature (K) and 10 m wind speed (m/s)
+    REAL :: Ak, Bk, flx, w
+    !
+    ! Parameters for Eq. 5 from Table 1
+    IF (dia<0.020e-6) THEN
+        Ak=0.
+        Bk=0.
+    ELSEIF (dia<0.145e-6) THEN
+        Ak=-2.576e35*dia**4+5.932e28*dia**3-2.867e21*dia**2-3.003e13*dia-2.881e6
+        Bk= 7.188e37*dia**4-1.616e31*dia**3+6.791e23*dia**2+1.829e16*dia+7.609e8
+    ELSEIF (dia<0.419e-6) THEN
+        Ak=-2.452e33*dia**4+2.404e27*dia**3-8.148e20*dia**2+1.183e14*dia-6.743e6
+        Bk= 7.368e35*dia**4-7.310e29*dia**3+2.528e23*dia**2-3.787e16*dia+2.279e9
+    ELSEIF (dia<2.8e-6) THEN
+        Ak= 1.085e29*dia**4-9.841e23*dia**3+3.132e18*dia**2-4.165e12*dia+2.181e6
+        Bk=-2.859e31*dia**4+2.601e26*dia**3-8.297e20*dia**2+1.105e15*dia-5.800e8
+    ELSE
+        Ak=0.
+        Bk=0.
+    ENDIF
+    ! Eq. 6: particle flux per whitecap area, dFp/dlog(Dp) [#/m^2/s]
+    flx=MAX(0.,Ak*sst+Bk)
+    !
+    ! Whitecap cover (% => fraction) based on 10 m wind speeds (eq. 2)
+    w=3.84e-6*u10**3.41
+    !
+    ! Multiply by white cap cover
+    flux_martensson=flx*w
+  END FUNCTION flux_martensson
+
+  REAL FUNCTION flux_monahan(dia,sst,u10)
+    ! Flux parameterization from Monahan et al. (1986)
+    ! Valid from 0.8e-6 to 8e-6 m, but reasonable values from about 0.1e-6 m up to 50e-6 m
+    REAL, INTENT(IN) :: dia,sst,u10 ! Dry diameter (m), sea surface temperature (K) and 10 m wind speed (m/s)
+    REAL :: rad80, b, flx, tw, twt
+    !
+    ! Particle radius at 80 RH% is about the same as the dry diameter (assuming GF=2)
+    rad80=dia*1e6 ! Radius in microns
+    !
+    ! Flux parameterization, dF/dr, Eq. 1 in Gong (2003) or Eq. A2 in Grythe et al. (2014)
+    b = (0.38-log10(rad80))/0.65
+    flx = 1.373*u10**3.41/rad80**3*(1.+0.057*rad80**1.05)*10.**(1.19*exp(-b**2))
+    !
+    ! Additional: temperature dependency from Jaegle et al. (2011)
+    tw = sst-273.15 ! Temperature in C
+    twt = 0.3+0.1*tw-0.0076*tw**2+0.00021*tw**3
+    !
+    ! Convert from dF/dDp to dF/dlog10Dp: multiply by Dp*ln(10)
+    flux_monahan = rad80*log(10.)*flx*twt
+  END FUNCTION flux_monahan
+
+  REAL FUNCTION flux_smith(dia,sst,u10)
+    ! Flux parameterization from Smith and Harrison (1998)
+    ! Valid from 1e-6 to 300e-6 m
+    REAL, INTENT(IN) :: dia,sst,u10 ! Dry diameter (m), sea surface temperature (K) and 10 m wind speed (m/s)
+    REAL :: flx, tw, twt
+    !
+    ! Partial particle flux, dF/dr80 = dF/dDp
+    flx = 0.2*u10**3.5*exp(-1.5*log(dia/3e-6)**2)+6.8e-3*u10**3*exp(-3.3*log(dia/30e-6)**2)
+    !
+    ! Additional: temperature dependency from Jaegle et al. (2011)
+    tw = sst-273.15 ! Temperature in C
+    twt = 0.3+0.1*tw-0.0076*tw**2+0.00021*tw**3
+    !
+    ! Convert from dF/dDp to dF/dlog10Dp: multiply by Dp*ln(10)
+    flux_smith = dia*1e6*log(10.)*flx*twt
+  END FUNCTION flux_smith
+
+  REAL FUNCTION flux_gong(dia,sst,u10)
+    ! Flux parameterization from Gong (2003)
+    ! Valid from 0.07e.6 to 20e-6 m, but reasonable values from about 0.01e-6 m up to 50e-6 m.
+    REAL, INTENT(IN) :: dia,sst,u10 ! Dry diameter (m), sea surface temperature (K) and 10 m wind speed (m/s)
+    REAL :: rad80, a, b, flx, tw, twt
+    !
+    ! Particle radius at 80 RH% is about the same as the dry diameter (assuming GF=2)
+    rad80=dia*1e6 ! Radius in microns
+    !
+    ! Flux parameterization, dF/dr=dF/dDp, Eq. 2
+    a = 4.7*(1.+30.*rad80)**(-0.017*rad80**(-1.44)) ! here theta=30
+    b = (0.433-log10(rad80))/0.433
+    flx = 1.373*u10**3.41/rad80**a*(1.+0.057*rad80**3.45)*10.**(1.607*exp(-b**2))
+    !
+    ! Additional: temperature dependency from Jaegle et al. (2011)
+    tw = sst-273.15 ! Temperature in C
+    twt = 0.3+0.1*tw-0.0076*tw**2+0.00021*tw**3
+    !
+    ! Convert from dF/dDp to dF/dlog10Dp: multiply by Dp*ln(10)
+    flux_gong = rad80*log(10.)*flx*twt
+  END FUNCTION flux_gong
+
+  REAL FUNCTION flux_grythe(dia,sst,u10)
+    ! The new flux parameterization from Grythe et al. (2014)
+    ! Valid from 0.07e.6 to 10e-6 m, but reasonable values from about 0.01e-6 m up to 50e-6 m.
+    REAL, INTENT(IN) :: dia,sst,u10 ! Dry diameter (m), sea surface temperature (K) and 10 m wind speed (m/s)
+    REAL :: tw, twt, flx
+    !
+    ! Partial particle flux, dF/dDp, Eq. 7
+    flx = 235.*u10**3.5*exp(-0.55*log(dia/0.1e-6)**2)+ &
+          0.2*u10**3.5*exp(-1.5*log(dia/3e-6)**2) + &
+          6.8e-3*u10**3*exp(-1.*log(dia/30e-6)**2)
+    ! Note: the last coefficient is 6.8e-3 and not 6.8 (Smith and Harrison, 1998)
+    !
+    ! Temperature dependency, Eq. A7 (originally from Jaegle et al., 2011)
+    tw = sst-273.15 ! Temperature in C
+    twt=0.3+0.1*tw-0.0076*tw**2+0.00021*tw**3
+    !
+    ! Convert from dF/dDp to dF/dlog10(Dp): multiply by Dp*ln(10)
+    flux_grythe = dia*1e6*log(10.)*flx*twt
+  END FUNCTION flux_grythe
+
+  REAL FUNCTION flux_sofiev(dia,sst,u10)
+    ! Flux parameterization from Sofiev et al. (2011)
+    ! Valid from 0.01e-6 to 10e-6 m, but can be extrapolated up to 100e-6 m
+    REAL, INTENT(IN) :: dia,sst,u10 ! Dry diameter (m), sea surface temperature (K) and 10 m wind speed (m/s)
+    REAL, PARAMETER :: sw=0.033 ! Salinity
+    REAL :: diam, ai, bi, tw, ftw, fsw, w, flx
+    !
+    ! Diameter in micro meters
+    diam=dia*1e6
+    !
+    ! Temperature
+    tw = sst-273.15 ! Temperature in C
+    if (tw<=-2.) then
+        ai=0.092
+        bi=-0.96
+    elseif (tw<=5.) then
+        ai=0.092+(0.15-0.092)/(5.+2.)*(tw+2.)
+        bi=-0.96+(-0.88+0.96)/(5.+2.)*(tw+2.)
+    elseif (tw<=15.) then
+        ai=0.15+(0.48-0.15)/(15.-5.)*(tw-5.)
+        bi=-0.88+(-0.36+0.88)/(15.-5.)*(tw-5.)
+    elseif (tw<25.) then
+        ai=0.48+(1.-0.48)/(25.-15.)*(tw-15.)
+        bi=-0.36+(0.+0.36)/(25.-15.)*(tw-15.)
+    else
+        ai=1.
+        bi=0.
+    endif
+    ftw=ai*diam**bi
+    !
+    ! Salinity
+    if (sw<=0.) then
+        ai=0.12
+        bi=-0.71
+    elseif (sw<=0.0092) then
+        ai=0.12+(0.12-5.85e-5)/(0.0092-0.)*(sw-0.0092)
+        bi=-0.71+(-0.71+1.7)/(0.0092-0.)*(sw-0.0092)
+    else
+        ai=0.12+(0.12-1.)/(0.0092-0.033)*(sw-0.0092)
+        bi=-0.71+(-0.71+0.)/(0.0092-0.033)*(sw-0.0092)
+    endif
+    fsw=ai*diam**bi
+    !
+    ! Whitecap cover (% => fraction) based on 10 m wind speeds
+    w=3.84e-6*u10**3.41
+    !
+    ! Partial particle flux, dF/dDp(0.033,25C), Eq. 6
+    flx = 1e6*exp(-0.09/(diam+3e-3))/(2.+exp(-5./diam))*(1.+0.05*diam**1.05)/diam**3* &
+        10.**(1.05*exp(-((0.27+log10(diam))/1.1)**2))
+    !
+    ! Convert from dF/dDp to dF/dlog10(Dp): multiply by Dp*ln(10)
+    flux_sofiev=diam*log(10.)*flx*ftw*fsw*w
+  END FUNCTION flux_sofiev
 
   ! --------------------------------------------------------------------------
   ! Gas emissions from ocean surface
@@ -241,17 +447,17 @@ contains
 
     ! Local
     INTEGER :: i, j, k
-    REAL :: usum, zs
+    REAL :: usum, zs, u10_bar
     REAL :: u10(nxp,nyp)! whitecap cover, 10 m wind speed
-    REAL :: flxIsop(nxp,nyp), flxMtrp(nxp,nyp) ! Gas flux (kg/m2/s)
+    REAL :: flxIsop, flxMtrp ! Gas flux (kg/m2/s)
 
     real, parameter :: schmidt_ref = 660.0, & ! CO2 in 293 K
  & per_sec = 1.0 / 3600.0, to_m = 0.01, p23 = 2.0 / 3.0, p12 = 0.5
     real :: schmidt_isoprene, schmidt_monoterp, sc_ratio, temp_c
     integer :: iGas
 
-    flxIsop(:,:) = 0.
-    flxMtrp(:,:) = 0.
+    flxIsop = 0.
+    flxMtrp = 0.
     if(.not. (wtrMtrp > 0. .or. wtrIsop > 0.))return
 
     ! Roughness height is needed for the 10 m wind speeds
@@ -269,6 +475,8 @@ contains
 
     ! Whitecap cover (% => fraction) based on 10 m wind speeds (eq. 2)
     u10(:,:) = a_ustar(:,:)/vonk*log(10.0/zs)
+    ! Mean 10 m wind speed
+    u10_bar = SUM(SUM(u10(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))
 
     temp_c = sst - 273.15
 
@@ -281,9 +489,7 @@ contains
     if(wtrIsop > 0.)then
       sc_ratio = schmidt_ref / schmidt_isoprene
       iGas = vbs_voc_set(2)%id_gas
-      DO j=3,nyp-2
-        DO i=3,nxp-2
-          ! First compute the transfer velocity (m/s)
+      ! First compute the transfer velocity (m/s)
 !          select case (transfer_velocity_type)
 !          case(Liss_Merlivat) ! Liss & Merlivat 1986
 !            if (windspeed <= 3.6) then
@@ -295,14 +501,15 @@ contains
 !            end if
 !            flxIsop = flxIsop * per_sec*to_m
 !          case (Wannikhof) ! Wannikhof (2014)
-            flxIsop(i,j) = 0.251*u10(i,j)*u10(i,j)*sc_ratio**p12 * per_sec*to_m
+            flxIsop = 0.251*u10_bar*u10_bar*sc_ratio**p12 * per_sec*to_m
 !          case default ! No flux
 !            flxIsop = 0.
 !          end select
-          ! Flux
-          flxIsop(i,j) = flxIsop(i,j) * wtrIsop * spec_moleweight(iGas) /1000.
-
-          a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxIsop(i,j) / a_dn(2,i,j) / (zm(3)-zm(2))
+      ! Flux
+      flxIsop = flxIsop * wtrIsop * spec_moleweight(iGas) /1000.
+      DO j=3,nyp-2
+        DO i=3,nxp-2
+          a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxIsop / a_dn(2,i,j) / (zm(3)-zm(2))
         enddo
       enddo
     endif
@@ -322,20 +529,21 @@ contains
       ! Take average of a-pinene and limonene - 159.1
       schmidt_monoterp = schmidt_isoprene*(159.1/101.1)**0.6
       sc_ratio = schmidt_ref / schmidt_monoterp
+      ! Transfer velocity (m/s)
+      flxMtrp = 0.251*u10_bar*u10_bar*sc_ratio**p12 * per_sec*to_m
+      ! Flux
+      flxMtrp = flxMtrp * wtrMtrp * spec_moleweight(iGas) /1000.
       DO j=3,nyp-2
         DO i=3,nxp-2
-          ! Transfer velocity (m/s)
-          flxMtrp(i,j) = 0.251*u10(i,j)*u10(i,j)*sc_ratio**p12 * per_sec*to_m
-          ! Flux
-          flxMtrp(i,j) = flxMtrp(i,j) * wtrMtrp * spec_moleweight(iGas) /1000.
-          a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxMtrp(i,j) / a_dn(2,i,j) / (zm(3)-zm(2))
+          a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxMtrp / a_dn(2,i,j) / (zm(3)-zm(2))
         enddo
       enddo
     endif
 
     if (sflg) then
-        call flux_stat(nxp,nyp,flxIsop,2)
-        call flux_stat(nxp,nyp,flxMtrp,3)
+        call flux_stat(flxIsop,'flx_iso')
+        call flux_stat(flxMtrp,'flx_mt ')
+        call flux_stat(u10_bar,'u10    ')
     endif
 
   END SUBROUTINE marine_gas_flux

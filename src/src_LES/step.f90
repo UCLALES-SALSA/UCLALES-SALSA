@@ -134,7 +134,7 @@ contains
                      a_gaerop, a_gaerot,                                                &
                      nspec, nbins, ncld, nprc, nice, nsnw, &
                      nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
-                     sspray_ovf, ifSeaSpray, ifSeaVOC
+                     ifSeaSpray, ifSeaVOC
 
     use stat, only : sflg, statistics, les_rate_stats, out_mcrp_data, out_mcrp_list, out_mcrp_nout, mcrp_var_save
     use sgsm, only : diffuse
@@ -169,7 +169,7 @@ contains
     call surface(sst)
     IF (level > 3) THEN
         if(ifSeaSpray)then
-          CALL marine_aero_flux(sst,sspray_ovf)
+          CALL marine_aero_flux(sst)
         endif
         if(nvbs_setup>=0 .and. ifSeaVOC) then
             call marine_gas_flux(sst)
