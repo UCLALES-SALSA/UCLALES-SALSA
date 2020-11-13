@@ -318,7 +318,7 @@ MODULE mo_output
          CASE('time')
             CALL varArray%getData(1,var0d,index=n)
             IF (ASSOCIATED(var0d%onDemand)) THEN
-               CALL var0d%onDemand(vname,out0d)
+               CALL var0d%onDemand(out0d)
             ELSE
                out0d = var0d%d
             END IF
@@ -344,7 +344,7 @@ MODULE mo_output
          CASE('ztt','zmt')
             CALL varArray%getData(1,var1d,index=n)
             IF (ASSOCIATED(var1d%onDemand)) THEN
-               CALL var1d%onDemand(vname,out1d)
+               CALL var1d%onDemand(out1d)
             ELSE
                out1d = var1d%d
             END IF
@@ -380,7 +380,7 @@ MODULE mo_output
             ALLOCATE(outsd(nend-nstr+1)); outsd = 0.
             CALL varArray%getData(1,var1d,index=n)
             IF (ASSOCIATED(var1d%onDemand)) THEN
-               CALL var1d%onDemand(vname,outsd)
+               CALL var1d%onDemand(outsd)
             ELSE
                outsd = var1d%d
             END IF

@@ -6,7 +6,8 @@ VPATH = $(SRCUTIL):   \
 	$(SRCRAD):    \
 	$(SRCEMIS):   \
 	$(SRCSHARED): \
-	$(SRCIO)
+	$(SRCIO):     \
+        $(SRCVARS):
 
 ifneq (,$(findstring mpi,$(LES_ARC)))
 	seqmpi = mpi_interface.f90
@@ -32,7 +33,7 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa
 	  mo_structured_datatypes.f90 mo_aux_state.f90 mo_diag_state.f90 mo_progn_state.f90 mo_vector_state.f90       \
 	  mo_derived_state.f90 mo_derived_procedures.f90 mo_ps_state.f90 mo_ps_procedures.f90 mo_ts_state.f90         \
           mo_ts_procedures.f90 classFieldArray.f90 mo_output.f90 $(seqmpihis) mo_field_state.f90 mo_field_init.f90    \
-          mo_check_state.f90 mo_stats_finder.f90 $(mpi_io)
+          mo_check_state.f90 mo_stats_finder.f90 mo_stats_parameters.f90 $(mpi_io)
 
 OBJS =	$(SRCSF90:.f90=.o) $(SRCSF77:.f=.o)
 
@@ -54,7 +55,7 @@ $(OUT): $(OBJS)
 #
 LES.o: $(seqmpi:.f90=.o) grid.o init.o step.o mo_salsa_init.o \
        util.o sgsm.o srfc.o nudg_defs.o emission_types.o init_warm_bubble.o    \
-       forc.o radiation_main.o mcrp.o mo_output.o
+       forc.o radiation_main.o mcrp.o mo_output.o mo_stats_parameters.o
 
 ncio.o: $(seqmpi:.f90=.o) classFieldArray.o
 mo_output.o: $(seqmpi:.f90=.o) ncio.o grid.o classFieldArray.o mo_structured_datatypes.o  \
@@ -111,11 +112,14 @@ mo_derived_state.o: classFieldArray.o mo_structured_datatypes.o mo_derived_proce
 mo_derived_procedures.o: mo_submctl.o util.o defs.o mo_particle_external_properties.o grid.o \
                          mo_progn_state.o mo_diag_state.o mo_aux_state.o mo_structured_datatypes.o  
 mo_ps_state.o: classFieldArray.o mo_structured_datatypes.o mo_ps_procedures.o 
-mo_ps_procedures.o: util.o mo_structured_datatypes.o grid.o mo_field_state.o
+mo_ps_procedures.o: util.o mo_structured_datatypes.o grid.o mo_stats_finder.o mo_aux_state.o \
+                    mo_vector_state.o advf.o advl.o defs.o
 mo_ts_state.o: classFieldArray.o mo_structured_datatypes.o mo_ts_procedures.o
-mo_ts_procedures.o: grid.o mo_stats_finder.o util.o mo_progn_state.o mo_diag_state.o mo_aux_state.o
+mo_ts_procedures.o: grid.o mo_stats_finder.o util.o mo_progn_state.o mo_diag_state.o mo_aux_state.o  \
+                    mo_structured_datatypes.o mo_stats_parameters.o
 mo_check_state.o: $(seqmpi:.f90=.o) classFieldArray.o
 mo_stats_finder.o: mo_structured_datatypes.o mo_field_state.o
+mo_stats_parameters.o:
 
 constrain_SALSA.o: mo_progn_state.o mo_diag_state.o mo_aux_state.o mo_submctl.o nudg_defs.o \
                    util.o mo_structured_datatypes.o grid.o mo_derived_procedures.o          \

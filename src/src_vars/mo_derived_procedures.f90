@@ -18,8 +18,19 @@ MODULE mo_derived_procedures
 
   PRIVATE
 
-  PUBLIC :: bulkNumc, totalWater, bulkDiameter, bulkMixrat, binMixrat, getBinDiameter, &
-            binIceDensities, waterPaths, surfaceFluxes, getCDNC, getCNC, getReff
+  ! Procedures for derived output diagnostics currently implemented
+  PUBLIC :: bulkNumc,        &  ! Total number concentration of particles of given type (for level >= 4)
+            totalWater,      &  ! Total water mixing ratio (makes sense only for level >= 4, since with level <= 3 this is given by rp)
+            bulkDiameter,    &  ! Mean diameter of particles of given type (level >= 4)
+            bulkMixrat,      &  ! Total mixing ratio of given aerosol constituent (level >= 4)
+            binMixrat,       &  ! Binned mixing ratio of given aerosol constituent (level >= 4)
+            getBinDiameter,  &  ! Binned particle (wet) diameter (level >= 4)
+            binIceDensities, &  ! Get the binned ice particle effective densities (level = 5)
+            waterPaths,      &  ! Get waterpaths (lwp,iwp or rpw; level >= 2)
+            surfaceFluxes,   &  ! Diagnose surface fluxes in W/m2
+            getCDNC,         &  ! Diagnose the "real" CDNC ( 2 um < D < 80 um; level >= 4 )
+            getCNC,          &  ! Diagnose the "cloud number concentration" (D > 2 um; level >= 4)
+            getReff             ! Get the effective radius using all liquid hdrometeor > 2 um (level >= 4)
     
   CONTAINS
 
@@ -457,14 +468,17 @@ MODULE mo_derived_procedures
      CALL getBinDiameter("Dwcbb",Dwcbb,icb%cur,fcb%cur)
      CALL getBinDiameter("Dwpba",Dwpba,ira,fra)
 
-     output = output + SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur), &
-                            DIM=4, MASK=(Dwcba > lowlim .AND. Dwcba < highlim) )  
+     output = output + &
+              a_dn%d(:,:,:) * SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur), &
+                                   DIM=4, MASK=(Dwcba > lowlim .AND. Dwcba < highlim) )  
      
-     output = output + SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur), &
-                            DIM=4, MASK=(Dwcbb > lowlim .AND. Dwcbb < highlim) )  
+     output = output + &
+              a_dn%d(:,:,:) * SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur), &
+                                   DIM=4, MASK=(Dwcbb > lowlim .AND. Dwcbb < highlim) )  
 
-     output = output + SUM( a_nprecpp%d(:,:,:,ira:fra), &
-                            DIM=4, MASK=(Dwpba > lowlim .AND. Dwpba < highlim) )       
+     output = output + &
+              a_dn%d(:,:,:) * SUM( a_nprecpp%d(:,:,:,ira:fra), &
+                                   DIM=4, MASK=(Dwpba > lowlim .AND. Dwpba < highlim) )       
    END SUBROUTINE getCDNC
      
    ! -----------------------------------------------------------
@@ -486,14 +500,17 @@ MODULE mo_derived_procedures
      CALL getBinDiameter("Dwcbb",Dwcbb,icb%cur,fcb%cur)
      CALL getBinDiameter("Dwpba",Dwpba,ira,fra)
 
-     output = output + SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur), &
-                            DIM=4, MASK=(Dwcba > lowlim) )  
+     output = output +   &
+              a_dn%d(:,:,:) * SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur), &
+                                   DIM=4, MASK=(Dwcba > lowlim) )  
      
-     output = output + SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur), &
-                            DIM=4, MASK=(Dwcbb > lowlim) )  
+     output = output +   &
+              a_dn%d(:,:,:) * SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur), &
+                                   DIM=4, MASK=(Dwcbb > lowlim) )  
 
-     output = output + SUM( a_nprecpp%d(:,:,:,ira:fra), &
-                            DIM=4, MASK=(Dwpba > lowlim) )       
+     output = output +   &
+              a_dn%d(:,:,:) * SUM( a_nprecpp%d(:,:,:,ira:fra), &
+                                   DIM=4, MASK=(Dwpba > lowlim) )       
    END SUBROUTINE getCNC
 
    ! -----------------------------------------------------------

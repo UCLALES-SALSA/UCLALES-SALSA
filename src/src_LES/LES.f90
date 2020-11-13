@@ -120,6 +120,7 @@ CONTAINS
     USE mpi_interface, ONLY     : myid, appl_abort, ver, author
     USE mo_output, ONLY         : ts_intvl, ps_intvl, main_intvl
     USE mo_check_state, ONLY    : breakUndefOutput
+    USE mo_stats_parameters, ONLY : TH_rc, TH_rr, TH_ri, TH_rrate
     
     IMPLICIT NONE
     
@@ -192,14 +193,18 @@ CONTAINS
          lConstSoilHeatCap      ! Keep soil heat capacity con
     
     NAMELIST /output/       &
-         breakUndefOutput,  &
-         ts_intvl,          &
-         ps_intvl,          &
-         main_intvl,        &
-         varlist_main,      &
-         varlist_ps,        &
-         varlist_ts
-
+         breakUndefOutput,  &   ! Stop the model if undefined output variables are entered to varlists (T/F)
+         ts_intvl,          &   ! Output interval for TS statistics (s)
+         ps_intvl,          &   ! Output interval for PS statistics (s)
+         main_intvl,        &   ! Output interval for the main analysis files (s)
+         varlist_main,      &   ! List of variables for the main analysis output
+         varlist_ps,        &   ! List of variables for the PS statistics output
+         varlist_ts,        &   ! List of variables for the TS statistics output
+         TH_rc,             &   ! Threshold for cloud water mix rat for conditional averaging
+         TH_rr,             &   ! Threshold for drizzle/rain mix rat for conditional averaging
+         TH_ri,             &   ! Threshold for ice mix rat for conditional averaging
+         TH_rrate               ! Threshold for precip rate for conditional averaging
+         
     NAMELIST /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author
     

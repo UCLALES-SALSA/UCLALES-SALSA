@@ -32,8 +32,14 @@ MODULE mpi_interface
    END INTERFACE broadcast
 
    INTERFACE get_max_root
-      MODULE PROCEDURE get_scalar_integer_global_max_root
+      MODULE PROCEDURE get_scalar_integer_global_max_root,  &
+                       get_scalar_float_global_max_root
    END INTERFACE get_max_root
+
+   INTERFACE get_min_root
+      MODULE PROCEDURE get_scalar_integer_global_min_root,  &
+                       get_scalar_float_global_min_root
+   END INTERFACE get_min_root
 
    INTERFACE get_sum_root
       MODULE PROCEDURE get_scalar_float_global_sum_root,    &
@@ -637,19 +643,51 @@ CONTAINS
     
     !
     ! -------------------------------------------------------------------------
-    ! SUBROUTINE get_scalar_global_max_root
+    ! SUBROUTINE get_max_root
     ! Get the global maximum across processes for a single scalar. The value is
     ! stored only for the root process!
     ! 
     SUBROUTINE get_scalar_integer_global_max_root(lmax,gmax)
+      INTEGER, INTENT(in) :: lmax
+      INTEGER, INTENT(out) :: gmax
+      INTEGER :: ierr
+      gmax = 0
+      CALL MPI_REDUCE(lmax,gmax,1,MPI_INTEGER,MPI_MAX,    &
+                      mpiroot,MPI_COMM_WORLD,ierr         )      
+    END SUBROUTINE get_scalar_integer_global_max_root
+    ! ------------------------------------
+    SUBROUTINE get_scalar_float_global_max_root(lmax,gmax)
       REAL, INTENT(in) :: lmax
       REAL, INTENT(out) :: gmax
       INTEGER :: ierr
       gmax = 0.
-      CALL MPI_REDUCE(lmax,gmax,1,MY_REAL,MPI_MAX,    &
-                      mpiroot,MPI_COMM_WORLD,ierr    )      
-    END SUBROUTINE get_scalar_integer_global_max_root
-
+      CALL MPI_REDUCE(lmax,gmax,1,MY_REAL,MPI_MAX,        &
+                      mpiroot,MPI_COMM_WORLD,ierr         )
+    END SUBROUTINE get_scalar_float_global_max_root
+    
+    !
+    ! --------------------------------------------------------------------------
+    ! SUBROUTINE get_min_root
+    ! Get the global minimum across processes for a single scalar. The value is
+    ! stored only for the root process!
+    !
+    SUBROUTINE get_scalar_integer_global_min_root(lmin,gmin)
+      INTEGER, INTENT(in) :: lmin
+      INTEGER, INTENT(out) :: gmin
+      INTEGER :: ierr
+      gmin = 0
+      CALL MPI_REDUCE(lmin,gmin,1,MPI_INTEGER,MPI_MIN,    &
+                      mpiroot,MPI_COMM_WORLD,ierr         )      
+    END SUBROUTINE get_scalar_integer_global_min_root
+    ! -----------------------------------
+    SUBROUTINE get_scalar_float_global_min_root(lmin,gmin)
+      REAL, INTENT(in) :: lmin
+      REAL, INTENT(out) :: gmin
+      INTEGER :: ierr
+      gmin = 0.
+      CALL MPI_REDUCE(lmin,gmin,1,MY_REAL,MPI_MIN,        &
+                      mpiroot,MPI_COMM_WORLD,ierr         )
+    END SUBROUTINE get_scalar_float_global_min_root    
     !
     ! --------------------------------------------------------------------
     ! SUBROUTINE get_scalar_global_sum_root   

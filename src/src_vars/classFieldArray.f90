@@ -71,6 +71,8 @@ MODULE classFieldArray
 
          PROCEDURE :: getField
 
+         PROCEDURE :: getFieldIndex
+         
          PROCEDURE :: getByGroup
          PROCEDURE :: getByOutputstatus
          
@@ -80,8 +82,8 @@ MODULE classFieldArray
          PROCEDURE :: getData_0d, getData_1d, getData_2d, getData_3d, getData_4d
          GENERIC   :: getData => getData_0d, getData_1d, getData_2d, getData_3d, getData_4d
 
-         PROCEDURE :: getFieldIndex
-
+         PROCEDURE :: getDimension
+         
          PROCEDURE :: Exist
        
          PROCEDURE :: destroy_FieldArray
@@ -247,19 +249,51 @@ MODULE classFieldArray
 
    END SUBROUTINE ExN_FieldArray
 
+   !
+   ! ---------------------------------------------------------
+   ! Returns the FieldArray index with name=in_name
+   !
+   INTEGER FUNCTION getFieldIndex(SELF,in_name)
+      CLASS(FieldArray), INTENT(in) :: SELF
+      CHARACTER(len=*), INTENT(in)  :: in_name
+      INTEGER :: i
 
-   SUBROUTINE getField(SELF,ind,out)
-      !
-      ! ---------------------------------------------
-      ! Returns the ArrayElement instance for given
-      ! index "ind" of the FieldArray list.
-      !
+      i = 1
+      DO
+         IF (i > SELF%count) THEN
+            i = undefined
+            EXIT
+         END IF
+         IF (SELF%list(i)%name == in_name) THEN
+            EXIT
+         END IF
+         i = i + 1
+      END DO
+      getFieldIndex = i
+      
+   END FUNCTION getFieldIndex
+   !
+   ! ---------------------------------------------
+   ! Returns the ArrayElement instance for given
+   ! index "ind" of the FieldArray list.
+   !
+   SUBROUTINE getField(SELF,out,ind,name)
+
       IMPLICIT NONE
       CLASS(FieldArray), TARGET, INTENT(in) :: SELF
-      INTEGER, INTENT(in) :: ind
+      INTEGER, INTENT(in), OPTIONAL :: ind
+      CHARACTER(len=*), INTENT(in), OPTIONAL :: name
       TYPE(ArrayElement), POINTER :: out
-
-      out => SELF%list(ind)
+      INTEGER :: lind
+      lind=0
+      IF (PRESENT(ind)) THEN
+         lind = ind
+      ELSE IF (PRESENT(name)) THEN
+         lind = SELF%getFieldIndex(name)
+      END IF
+      IF (lind==0) &
+           WRITE(*,*) "classFieldArray:getField -- WARNING: Variable not found ",name
+      out => SELF%list(lind)
 
    END SUBROUTINE getField
 
@@ -324,6 +358,9 @@ MODULE classFieldArray
    ! getVarInst overloads the procedures getVarInst_name and getVarInst_ind bound to
    ! FieldArray.
    !
+   ! THESE SHOULD BE MADE PRIVATE, SINCE THE POLYMORPHIC RESULT REQUIRES MORE WORK BEFORE IT IS USEFUL.
+   ! MAINLY THESE ARE NEEDED FOR THE GETDATA-PROCEDURES, WHICH ARE THE ONES THAT SHOULD BE USED.
+   !
    SUBROUTINE getVarInst_name(SELF,in_name,out,tlev)
       IMPLICIT NONE
       CLASS(FieldArray), INTENT(in)    :: SELF
@@ -336,9 +373,9 @@ MODULE classFieldArray
 
       out => NULL()
       Element => NULL()
-      CALL SELF%getFieldIndex(in_name,ind)
+      ind = SELF%getFieldIndex(in_name)
       IF (ind /= undefined ) &              ! If the variable is not defined, Element will remain unassociated
-           CALL SELF%getField(ind,Element)
+           CALL SELF%getField(Element,ind=ind)
       IF (tlev==1 .AND. ASSOCIATED(Element)) THEN ! If Element is unassociated, out will remain unassociated as well
          CALL Element%get_p(out)
       ELSE IF (tlev==2 .AND. ASSOCIATED(Element)) THEN
@@ -364,7 +401,7 @@ MODULE classFieldArray
       Element => NULL()
       out => NULL()
       IF (ind <= SELF%count .AND. ind >= 1 .AND. ind /= undefined) & ! If index is bad, Element and out will remain unassociated
-           CALL SELF%getField(ind,Element)      
+           CALL SELF%getField(Element,ind=ind)      
       IF (tlev==1 .AND. ASSOCIATED(Element)) THEN
          CALL Element%get_p(out)
       ELSE IF (tlev==2 .AND. ASSOCIATED(Element)) THEN
@@ -541,35 +578,22 @@ MODULE classFieldArray
          
    END SUBROUTINE getData_4d
 
-   ! ---------------------------------------------------------------
+   ! -----------------------------------------------------------------
 
-   SUBROUTINE getFieldIndex(SELF,in_name,ind)
-      !
-      ! ---------------------------------------------------------
-      ! Returns the FieldArray index with name=in_name
-      !
-      IMPLICIT NONE
-      CLASS(FieldArray), INTENT(in) :: SELF
-      CHARACTER(len=*), INTENT(in)  :: in_name
-      INTEGER, INTENT(out)          :: ind
-
-      INTEGER :: i
-
-      i = 1
-      DO
-         IF (i > SELF%count) THEN
-            i = undefined
-            EXIT
-         END IF
-         IF (SELF%list(i)%name == in_name) THEN
-            EXIT
-         END IF
-         i = i + 1
-      END DO
-      ind = i
-      
-   END SUBROUTINE getFieldIndex
-
+   CHARACTER(len=50) FUNCTION getDimension(SELF,iname)
+     CLASS(FieldArray), INTENT(in) :: SELF
+     CHARACTER(len=*), INTENT(in) :: iname
+     INTEGER :: ind
+     
+     IF ( SELF%Exist(iname) ) THEN
+        ind = SELF%getFieldIndex(iname)
+        getDimension = SELF%list(ind)%dimension
+     ELSE
+        getDimension = ''
+     END IF
+     
+   END FUNCTION getDimension
+   
    ! -----------------------------------------------------------------
    
    LOGICAL FUNCTION Exist(SELF,iname)

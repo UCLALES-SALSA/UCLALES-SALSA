@@ -43,9 +43,15 @@ MODULE mpi_interface
    END INTERFACE broadcast
 
    INTERFACE get_max_root
-      MODULE PROCEDURE get_scalar_integer_global_max_root
+      MODULE PROCEDURE get_scalar_integer_global_max_root,  &
+                       get_scalar_float_global_max_root
    END INTERFACE get_max_root
 
+   INTERFACE get_min_root
+      MODULE PROCEDURE get_scalar_integer_global_min_root,  &
+                       get_scalar_float_global_min_root
+   END INTERFACE get_min_root
+   
    INTERFACE get_sum_root
       MODULE PROCEDURE get_scalar_float_global_sum_root,    &
                        get_scalar_integer_global_sum_root,  &
@@ -309,15 +315,39 @@ CONTAINS
    END SUBROUTINE yshuffle
     !
     ! -------------------------------------------------------------------------
-    ! SUBROUTINE get_scalar_global_max_root
+    ! SUBROUTINE get_max_root
     ! Get the global maximum across processes for a single scalar. The value is
     ! stored only for the root process!
     ! 
     SUBROUTINE get_scalar_integer_global_max_root(lmax,gmax)
+      INTEGER, INTENT(in) :: lmax
+      INTEGER, INTENT(out) :: gmax
+      gmax = lmax
+    END SUBROUTINE get_scalar_integer_global_max_root
+    ! --------------------------------------------------
+    SUBROUTINE get_scalar_float_global_max_root(lmax,gmax)
       REAL, INTENT(in) :: lmax
       REAL, INTENT(out) :: gmax
-      gmax=lmax
-    END SUBROUTINE get_scalar_integer_global_max_root
+      gmax = lmax
+    END SUBROUTINE get_scalar_float_global_max_root
+    
+    !
+    ! --------------------------------------------------------------------------
+    ! SUBROUTINE get_min_root
+    ! Get the global minimum across processes for a single scalar. The value is
+    ! stored only for the root process!
+    !
+    SUBROUTINE get_scalar_integer_global_min_root(lmin,gmin)
+      INTEGER, INTENT(in) :: lmin
+      INTEGER, INTENT(out) :: gmin
+      gmin = lmin
+    END SUBROUTINE get_scalar_integer_global_min_root
+    ! -------------------------------------------------
+    SUBROUTINE get_scalar_float_global_min_root(lmin,gmin)
+      REAL, INTENT(in) :: lmin
+      REAL, INTENT(out) :: gmin
+      gmin = lmin
+    END SUBROUTINE get_scalar_float_global_min_root
 
     !
     ! --------------------------------------------------------------------

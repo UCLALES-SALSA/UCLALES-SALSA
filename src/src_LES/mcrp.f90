@@ -91,10 +91,10 @@ MODULE mcrp
       SELECT CASE (level)
       CASE(2)
          IF (sed_cloud%state)  &
-              CALL sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,a_rrate,a_rt,a_tt)
+              CALL sedim_cd(nzp,nxp,nyp,a_theta,a_temp,a_rc,dn0,a_rrate,a_rt,a_tt)
       CASE(3)
          CALL mcrph(nzp,nxp,nyp,dn0,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,   &
-                    a_npp,a_rrate,a_rt,a_tt,a_rpt,a_npt)
+                    a_npp,a_rrate,a_sfcrrate,a_rt,a_tt,a_rpt,a_npt)
       CASE(4,5)
          nspec = spec%getNSpec(type="wet")
          CALL sedim_SALSA(nzp,nxp,nyp,nspec,dtlt,a_temp,a_theta,                &
@@ -109,13 +109,14 @@ MODULE mcrp
     ! MCRPH: calls microphysical parameterization
     !
     SUBROUTINE mcrph(n1,n2,n3,dn0,th,tk,rv,rs,rc,rp,np,rrate,         &
-                     rtt,tlt,rpt,npt)
+                     sfcrrate,rtt,tlt,rpt,npt)
       
       INTEGER, INTENT (in) :: n1,n2,n3
       TYPE(FloatArray3d), INTENT (in)    :: th, tk, rv, rs
       TYPE(FloatArray1d), INTENT (in)    :: dn0
       TYPE(FloatArray3d), INTENT (inout) :: rc, rtt, tlt, rpt, npt, np, rp
-      TYPE(FloatArray3d), INTENT (inout)   :: rrate
+      TYPE(FloatArray3d), INTENT (inout) :: rrate
+      TYPE(FloatArray2d), INTENT (inout) :: sfcrrate
       
       INTEGER :: i, j, k
       
@@ -158,10 +159,13 @@ MODULE mcrp
 
       ! zero the rate diagnostic for current timestep
       rrate%d = 0.
+      sfcrrate%d = 0.
       
       IF (sed_precp%state) CALL sedim_rd(n1,n2,n3,dtlt,dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
       
-      IF (sed_cloud%state) CALL sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
+      IF (sed_cloud%state) CALL sedim_cd(n1,n2,n3,th,tk,rc,dn0,rrate,rtt,tlt)
+
+      sfcrrate%d(:,:) = rrate%d(2,:,:)
       
     END SUBROUTINE mcrph
     !
@@ -436,10 +440,10 @@ MODULE mcrp
                   kk  = kk + 1
                   cc  = min(1.,cr(kk) - zz*dzt%d(kk))
                END DO
-               rfl(k) = -tot /dt
+               rfl(k) = -tot /dt ! kg/m2/s?
 
                kp1 = k+1
-               flxdiv = (rfl(kp1)-rfl(k))*dzt%d(k)/dn0%d(k)
+               flxdiv = (rfl(kp1)-rfl(k))*dzt%d(k)/dn0%d(k)  ! kg/kg/s
                rpt%d(k,i,j) =rpt%d(k,i,j)-flxdiv
                rtt%d(k,i,j) =rtt%d(k,i,j)-flxdiv
                tlt%d(k,i,j) =tlt%d(k,i,j)+flxdiv*(alvl/cp)*th%d(k,i,j)/tk%d(k,i,j)
@@ -447,7 +451,6 @@ MODULE mcrp
                npt%d(k,i,j) = npt%d(k,i,j)-(nfl(kp1)-nfl(k))*dzt%d(k)/dn0%d(k)
 
                rrate%d(k,i,j) = rrate%d(k,i,j) - rfl(k)/dn0%d(k) * alvl*0.5*(dn0%d(k)+dn0%d(kp1))
-
             END DO
          END DO
       END DO
@@ -458,11 +461,12 @@ MODULE mcrp
     ! SEDIM_CD: calculates the cloud-droplet sedimentation flux and its effect
     ! on the evolution of r_t and theta_l assuming a log-normal distribution
     !
-    SUBROUTINE sedim_cd(n1,n2,n3,th,tk,rc,rrate,rtt,tlt)
+    SUBROUTINE sedim_cd(n1,n2,n3,th,tk,rc,dn0,rrate,rtt,tlt)
       
       INTEGER, INTENT (in):: n1,n2,n3
       TYPE(FloatArray3d), INTENT (in)         :: th,tk,rc
-      TYPE(FloatArray3d), INTENT (inout)        :: rrate
+      TYPE(FloatArray1d), INTENT (in)         :: dn0
+      TYPE(FloatArray3d), INTENT (inout)      :: rrate
       TYPE(FloatArray3d), INTENT (inout)      :: rtt,tlt
 
       REAL, PARAMETER :: c = 1.19e8 ! Stokes fall velocity coef [m^-1 s^-1]
@@ -483,17 +487,17 @@ MODULE mcrp
                Dc = ( Xc / prw )**((1./3.))
                Dc = MIN(MAX(Dc,D_min),D_bnd)
                vc = min(c*(Dc*0.5)**2 * exp(4.5*(log(sgg))**2),1./(dzt%d(k)*dtlt))
-               rfl(k) = - rc%d(k,i,j) * vc
+               rfl(k) = - rc%d(k,i,j) * vc  ! kg/kg m/s
                !
                kp1 = k+1
-               flxdiv = (rfl(kp1)-rfl(k))*dzt%d(k)
+               flxdiv = (rfl(kp1)-rfl(k))*dzt%d(k)  ! kg/kg/s
                rtt%d(k,i,j) = rtt%d(k,i,j)-flxdiv
                tlt%d(k,i,j) = tlt%d(k,i,j)+flxdiv*(alvl/cp)*th%d(k,i,j)/tk%d(k,i,j)
-               rrate%d(k,i,j) = rrate%d(k,i,j) - rfl(k) * alvl
+               rrate%d(k,i,j) = rrate%d(k,i,j) - rfl(k) * alvl * 0.5*(dn0%d(k) + dn0%d(k+1))               
             END DO
          END DO
       END DO
-      
+            
     END SUBROUTINE sedim_cd
     
     ! ---------------------------------------------------------------------
@@ -520,7 +524,8 @@ MODULE mcrp
       INTEGER, INTENT(in) :: n1,n2,n3,nspec
       REAL, INTENT(in) :: tstep
       TYPE(FloatArray3d), INTENT(in) :: tk, th
-      TYPE(FloatArray3d), INTENT(inout) :: tlt,rrate,irate
+      TYPE(FloatArray3d), INTENT(inout) :: tlt
+      TYPE(FloatArray3d), INTENT(inout) :: rrate,irate
       TYPE(FloatArray2d), INTENT(inout) :: sfcrrate, sfcirate
                              
       INTEGER :: i,j,k,nc,istr,iend
@@ -548,13 +553,16 @@ MODULE mcrp
 
       remaer = 0.; remcld = 0.; remprc = 0.; remice = 0.
       prnt = 0.; prmt = 0.; irnt = 0.; irmt = 0.
+
+      rrate%d = 0.; irate%d = 0.
+      sfcrrate%d = 0.; sfcirate%d = 0.
       
       ! Sedimentation for slow (non-precipitating) particles
       !-------------------------------------------------------
       IF (sed_aero%state) THEN
 
          CALL DepositionSlow(n1,n2,n3,nbins,nspec,tk,a_ustar,a_naerop,a_maerop, &
-                             tstep,andiv,amdiv,andep,remaer,1            )
+                             tstep,andiv,amdiv,andep,remaer,rrate,sfcrrate,1     )
 
          a_naerot%d = a_naerot%d - andiv
          a_maerot%d = a_maerot%d - amdiv
@@ -576,7 +584,7 @@ MODULE mcrp
       IF (sed_cloud%state) THEN
          
          CALL DepositionSlow(n1,n2,n3,ncld,nspec,tk,a_ustar,a_ncloudp,a_mcloudp, &
-                             tstep,cndiv,cmdiv,cndep,remcld,2                  )
+                             tstep,cndiv,cmdiv,cndep,remcld,rrate,sfcrrate,2     )
          
          a_ncloudt%d = a_ncloudt%d - cndiv
          a_mcloudt%d = a_mcloudt%d - cmdiv
@@ -592,24 +600,24 @@ MODULE mcrp
                END DO
             END DO
          END DO
-         
+                  
       END IF ! sed_cloud
       
       ! ---------------------------------------------------------
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
       IF (sed_precp%state) THEN
-         CALL DepositionFast(n1,n2,n3,nprc,nspec,tk,a_nprecpp,a_mprecpp,tstep,prnt,prmt,remprc,rrate,3)
+         CALL DepositionFast(n1,n2,n3,nprc,nspec,tk,a_nprecpp,a_mprecpp,tstep,prnt,prmt,remprc,rrate,sfcrrate,3)
          
          a_nprecpt%d(:,:,:,:) = a_nprecpt%d(:,:,:,:) + prnt(:,:,:,:)/tstep
          a_mprecpt%d(:,:,:,:) = a_mprecpt%d(:,:,:,:) + prmt(:,:,:,:)/tstep
 
          nc = spec%getIndex('H2O')
-         ! Surface precipitation as mm/h (kg/m^2 h)
-         istr = getMassIndex(nprc,1,nc); iend = getMassIndex(nprc,nprc,nc)
-         sfcrrate%d(:,:) = SUM(remprc(:,:,istr:iend),DIM=3)*3600.
+         ! Surface precipitation W m-2
+         !istr = getMassIndex(nprc,1,nc); iend = getMassIndex(nprc,nprc,nc)
+         !sfcrrate%d(:,:) = SUM(remprc(:,:,istr:iend),DIM=3)*alvl
          
          ! Convert mass flux to heat flux (W/m^2) for output
-         rrate%d(:,:,:) = rrate%d(:,:,:)*alvl
+         !rrate%d(:,:,:) = rrate%d(:,:,:)*alvl
 
          istr = getMassIndex(nprc,1,nc)
          iend = getMassIndex(nprc,nprc,nc)
@@ -623,21 +631,21 @@ MODULE mcrp
       END IF
       
       IF (sed_ice%state) THEN                          
-         CALL DepositionFast(n1,n2,n3,nice,nspec+1,tk,a_nicep,a_micep,tstep,irnt,irmt,remice,irate,4)
+         CALL DepositionFast(n1,n2,n3,nice,nspec+1,tk,a_nicep,a_micep,tstep,irnt,irmt,remice,irate,sfcirate,4)
          
          a_nicet%d(:,:,:,:) = a_nicet%d(:,:,:,:) + irnt(:,:,:,:)/tstep
          a_micet%d(:,:,:,:) = a_micet%d(:,:,:,:) + irmt(:,:,:,:)/tstep
 
          nc = spec%getIndex('H2O')
          ! Surface frozen precipitation as mm/h (liquid equivalent)
-         istr = getMassIndex(nice,1,nc); iend = getMassIndex(nice,nice,nc)
-         sfcirate%d(:,:) = SUM(remice(:,:,istr:iend),DIM=3)*3600.
-         istr = getMassIndex(nice,1,nc+1); iend = getMassIndex(nice,nice,nc+1)
-         sfcirate%d(:,:) = sfcirate%d(:,:) +  &
-              SUM(remice(:,:,istr:iend),DIM=3)*3600.
+         !istr = getMassIndex(nice,1,nc); iend = getMassIndex(nice,nice,nc)
+         !sfcirate%d(:,:) = SUM(remice(:,:,istr:iend),DIM=3)*3600.
+         !istr = getMassIndex(nice,1,nc+1); iend = getMassIndex(nice,nice,nc+1)
+         !sfcirate%d(:,:) = sfcirate%d(:,:) +  &
+         !     SUM(remice(:,:,istr:iend),DIM=3)*3600.
          
          ! Convert mass flux to heat flux (W/m^2)
-         irate%d(:,:,:) = irate%d(:,:,:)*alvi
+         !irate%d(:,:,:) = irate%d(:,:,:)*alvi
 
          istr = getMassIndex(nice,1,nc)
          iend = getMassIndex(nice,nice,nc+1) ! Include both pristine and rime
@@ -673,7 +681,8 @@ MODULE mcrp
 
 
 
-  SUBROUTINE DepositionSlow(n1,n2,n3,nb,ns,tk,ustar,numc,mass,dt,flxdivn,flxdivm,depflxn,depflxm,flag)
+   SUBROUTINE DepositionSlow(n1,n2,n3,nb,ns,tk,ustar,numc,mass,dt,     &
+                             flxdivn,flxdivm,depflxn,depflxm,rate,srate,flag)
     USE util, ONLY : getBinMassArray
     USE mo_submctl, ONLY : nlim,prlim,pi6
     IMPLICIT NONE
@@ -688,7 +697,9 @@ MODULE mcrp
     INTEGER, INTENT(IN)            :: flag         ! An option for identifying aerosol, cloud, precp and ice (1,2,3,4)
     REAL, INTENT(OUT)              :: flxdivm(n1,n2,n3,nb*ns), flxdivn(n1,n2,n3,nb) ! Mass and number divergency
     REAL, INTENT(OUT)              :: depflxn(n2,n3,nb), depflxm(n2,n3,nb*ns) ! Mass and number deposition fluxes to the surface
-
+    TYPE(FloatArray3d), INTENT(inout) :: rate     ! Rain rate and surface rain rate diagnostics (cumulative, W/m^2) 
+    TYPE(FloatArray2d), INTENT(inout) :: srate
+    
     INTEGER :: i,j,k,kp1
     INTEGER :: bin,bs
 
@@ -787,23 +798,28 @@ MODULE mcrp
 
                 ! Flux for the particle mass
                 DO bs = bin, (ns-1)*nb + bin, nb
-                   rflm(k,bs) = -zpm(bs)*vc
+                   rflm(k,bs) = -zpm(bs)*vc   ! kg/kg m/s
                 END DO
 
                 ! Flux for the particle number
                  rfln(k,bin) = -zpn(bin)*vc
              END DO
 
-             flxdivm(k,i,j,:) = (rflm(kp1,:)*a_dn%d(kp1,i,j)-rflm(k,:)*a_dn%d(k,i,j))*dzt%d(k)/a_dn%d(k,i,j)
+             flxdivm(k,i,j,:) = (rflm(kp1,:)*a_dn%d(kp1,i,j)-rflm(k,:)*a_dn%d(k,i,j))*dzt%d(k)/a_dn%d(k,i,j)  ! kg/kg/s
              flxdivn(k,i,j,:) = (rfln(kp1,:)*a_dn%d(kp1,i,j)-rfln(k,:)*a_dn%d(k,i,j))*dzt%d(k)/a_dn%d(k,i,j)
+
+                                               ! Sum of water flux from all bins
+             rate%d(k,i,j) = rate%d(k,i,j) - SUM(rflm(k,(ns-1)*nb:ns*nb)) * a_dn%d(k,i,j) * alvl
 
           END DO ! k
 
           ! Deposition flux to surface
           k=2
-          depflxm(i,j,:) = -rflm(k,:)*dzt%d(k)
+          depflxm(i,j,:) = -rflm(k,:)*dzt%d(k) ! kg/kg/s
           depflxn(i,j,:) = -rfln(k,:)*dzt%d(k)
 
+          srate%d(i,j) = srate%d(i,j) - SUM(rflm(k,(ns-1)*nb:ns*nb)) * a_dn%d(k,i,j) * alvl
+          
        END DO ! i
     END DO ! j
 
@@ -811,7 +827,7 @@ MODULE mcrp
 
 
   !------------------------------------------------------------------
-  SUBROUTINE DepositionFast(n1,n2,n3,nb,ns,tk,numc,mass,tstep,prnt,prvt,remprc,rate,flag)
+  SUBROUTINE DepositionFast(n1,n2,n3,nb,ns,tk,numc,mass,tstep,prnt,prvt,remprc,rate,srate,flag)
     USE util, ONLY : getBinMassArray
     USE mo_submctl, ONLY : nlim,prlim,pi6
     USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
@@ -825,7 +841,8 @@ MODULE mcrp
     INTEGER, INTENT(IN) :: flag         ! An option for identifying liquid and ice (1,2,3,4)
     REAL, INTENT(out) :: prnt(n1,n2,n3,nb), prvt(n1,n2,n3,nb*ns)     ! Number and mass tendencies due to fallout
     REAL, INTENT(out) :: remprc(n2,n3,nb*ns)
-    TYPE(FloatArray3d), INTENT(inout) :: rate ! Rain rate (kg/s/m^2)
+    TYPE(FloatArray3d), INTENT(inout) :: rate ! Precip rate (W/m^2)
+    TYPE(FloatArray2d), INTENT(inout) :: srate ! Surface precip rate (W/m^2)
 
     INTEGER :: k,i,j,bin
     INTEGER :: istr,iend
@@ -869,7 +886,6 @@ MODULE mcrp
     IF (flag == 4) d_VtIce%d(:,:,:,:) = 0.
     
     remprc(:,:,:) = 0.
-    rate%d(:,:,:) = 0.
     prnt(:,:,:,:) = 0.
     prvt(:,:,:,:) = 0.
     zpm(:) = 0.
@@ -926,15 +942,6 @@ MODULE mcrp
                    d_VtIce%d(k,i,j,bin) = vc
                 END IF
                 
-                ! Rain rate statistics: removal of water from the current bin is accounted for
-                ! Water is the last (nspec) species and rain rate is given here kg/s/m^2
-                ! Juha: For ice, have to sum up the pristine and rimed ice
-                IF (flag == 4) THEN
-                   rate%d(k,i,j)=rate%d(k,i,j)+(zpm((ns-2)*nb+bin)+zpm((ns-1)*nb+bin))*a_dn%d(k,i,j)*vc
-                ELSE
-                   rate%d(k,i,j)=rate%d(k,i,j)+zpm((ns-1)*nb+bin)*a_dn%d(k,i,j)*vc
-                END IF
-                   
                 ! Determine output flux for current level: Find the closest level to which the
                 ! current drop parcel can fall within 1 timestep. If the lowest atmospheric level
                 ! is reached, the drops are sedimented.
@@ -979,6 +986,15 @@ MODULE mcrp
                    END DO
                 ENDIF ! prcdep
 
+                ! precip rate statistics: removal of water from the current bin is accounted for
+                ! Water is the last (nspec) species and precip rate is given here W/m^2
+                ! Juha: For ice, have to sum up the pristine and rimed ice
+                IF (flag == 4) THEN
+                   rate%d(k,i,j)=rate%d(k,i,j)+(zpm((ns-2)*nb+bin)+zpm((ns-1)*nb+bin))*a_dn%d(k,i,j)*vc*alvi
+                ELSE
+                   rate%d(k,i,j)=rate%d(k,i,j)+zpm((ns-1)*nb+bin)*a_dn%d(k,i,j)*vc*alvl
+                END IF
+                                   
                 ! Put the drops to new positions (may be partially the original grid cell as well!)
                 IF (fdos*dzt%d(kf) > 0.5) THEN  ! Reduce numerical diffusion
                    prnchg(kf-1,bin) = prnchg(kf-1,bin) + prnumc
@@ -998,6 +1014,13 @@ MODULE mcrp
           
           END DO ! k
 
+          ! Surface precip rate
+          IF (flag == 4) THEN
+             srate%d(i,j) = srate%d(i,j) + SUM(remprc(i,j,(ns-2)*nb:ns*nb)) * alvi
+          ELSE
+             srate%d(i,j) = srate%d(i,j) + SUM(remprc(i,j,(ns-1)*nb:ns*nb)) * alvl
+          END IF
+          
           prnt(:,i,j,:) = prnt(:,i,j,:) + prnchg(:,:)
           DO ni = 1,ns
              istr = (ni-1)*nb+1

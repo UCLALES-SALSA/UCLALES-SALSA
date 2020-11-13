@@ -43,6 +43,8 @@ CONTAINS
     REAL    :: a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
     INTEGER :: n
     LOGICAL :: iw
+    a_tmp1 = 0.  ! Just making sure while finding a memory leak... -Juha
+    a_tmp2 = 0.
     !
     ! diagnose liquid water flux
     !
@@ -51,13 +53,11 @@ CONTAINS
     !   CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.FALSE.)
     !   CALL mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtlt,.FALSE.)
     !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-    !   CALL updtst(nzp,'adv',0,v1da,1)
+    !   CALL updtst(nzp,'adv',0,v1da,1)   RL_FLUX
     !END IF
     !
     ! loop through the scalar table, setting iscp and isct to the
-    ! appropriate scalar pointer and do the advection, also add large
-    ! scale subsidence.  Don't advect TKE here since it resides at a
-    ! w-point
+    ! appropriate scalar pointer and do the advection
     !
     DO n = 1, nscl
       CALL newsclr(n)
@@ -82,7 +82,7 @@ CONTAINS
 
          !IF (sflg) THEN
          !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-         !   CALL updtst(nzp,'adv',n,v1da,1)
+         !   CALL updtst(nzp,'adv',n,v1da,1)   1 tl flux, 2, ... N PERUSTEELLA PITÄÄ SELVITTÄÄ MIKÄ SKALAARI MENOSSA!!! VOIS OLLA YKSINKERTASEMPAA VAAN LASEKA 
          !END IF
 
          CALL advtnd(nzp,nxp,nyp,a_sp,a_tmp1,a_st,dtlt)
@@ -230,6 +230,7 @@ CONTAINS
 
     INTEGER :: i,j,k
 
+    su = 0.
     IF (lwpt) THEN
        DO j= 1, n3
           DO i= 1, n2
@@ -274,8 +275,6 @@ CONTAINS
           tnd(n1,i,j) = 0.
        END DO
     END DO
-
-    !tnd(n1-1:n1,:,:) = 0.
     
   END SUBROUTINE advtnd
   !
@@ -307,7 +306,7 @@ CONTAINS
 
     r = 0.
     C = 0.
-
+    wpdn = 0. ! Fixes a possible memory leak issue
     !
     ! initialize fields for use later
     !

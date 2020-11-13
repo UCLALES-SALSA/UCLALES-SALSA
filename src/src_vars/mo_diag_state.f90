@@ -1,7 +1,7 @@
 MODULE mo_diag_state
   USE util, ONLY : Extend_last
   USE classFieldArray
-  USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray2d, FloatArray3d, FloatArray4d
+  USE mo_structured_datatypes, ONLY : FloatArray2d, FloatArray3d, FloatArray4d
   USE mo_submctl, ONLY : nprc, nice
   IMPLICIT NONE
 
@@ -53,6 +53,7 @@ MODULE mo_diag_state
   TYPE(FloatArray2D), TARGET :: wt_sfc               ! 8: 
   TYPE(FloatArray2D), TARGET :: wq_sfc               ! 9:
 
+  ! Do these need to be stored? If not, move to mo_derived_state?
   TYPE(FloatArray2D), TARGET :: a_sfcrrate           ! 10: Surface rain rate
   TYPE(FloatArray2D), TARGET :: a_sfcirate           ! 11: Surface frozen precipitation
   
@@ -294,7 +295,7 @@ MODULE mo_diag_state
                             ANY(outputlist == "fdir"), pipeline)               
       END IF
 
-      IF (level >= 3) THEN
+      IF (level >= 2) THEN
          memsize = memsize + nxy
          n3d = n3d+1
          pipeline => NULL()
@@ -394,7 +395,7 @@ MODULE mo_diag_state
       pipeline => NULL()
       a_sfcrrate = FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => a_sfcrrate
-      CALL Diag%newField("sfcrrate", "Surface rain rate", "mm/h", "xtytt",     &
+      CALL Diag%newField("sfcrrate", "Surface rain rate", "W m-2", "xtytt",     &
                          ANY(outputlist == "sfcrrate"), pipeline)
 
       IF ( level == 5 ) THEN
@@ -403,7 +404,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          a_sfcirate = FloatArray2d(a_diag2d(:,:,n2d))
          pipeline => a_sfcirate
-         CALL Diag%newField("sfcirate", "Surface frozen precip (liquid eqv)", "mm/h", "xtytt",    &
+         CALL Diag%newField("sfcirate", "Surface frozen precip", "W m-2", "xtytt",    &
                             ANY(outputlist == "sfcirate"), pipeline)
       END IF
       
