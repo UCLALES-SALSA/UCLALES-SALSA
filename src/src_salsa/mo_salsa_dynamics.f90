@@ -1023,8 +1023,10 @@ CONTAINS
 
                IF ( ANY(aero(ii,jj,:)%numc > aero(ii,jj,:)%nlim) .AND. zrh(ii,jj) > 0.98 ) THEN
                   DO cc = nstr, nbins
+                     !zcwintae(cc) = zcwcae(cc) + MIN(MAX(adt*zmtae(cc)*(zcwint - zwsatae(cc)*zcwsurfae(cc)), &
+                     !                                -1.e-2*zcwtot), 1.e-2*zcwtot)
                      zcwintae(cc) = zcwcae(cc) + MIN(MAX(adt*zmtae(cc)*(zcwint - zwsatae(cc)*zcwsurfae(cc)), &
-                                                     -1.e-2*zcwtot), 1.e-2*zcwtot)   
+                                                      -1.e-1*zcwcae(cc)), 1.e-1*zcwcae(cc))  
                      zwsatae(cc) = acth2o(aero(ii,jj,cc),zcwintae(cc))*zkelvin(cc)
                   END DO
                END IF
