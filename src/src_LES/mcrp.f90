@@ -26,7 +26,7 @@ MODULE mcrp
                             a_rrate, a_irate, a_sfcrrate, a_sfcirate,   &
                             d_VtPrc, d_VtIce
   USE mo_progn_state, ONLY : a_rp,a_tp,a_rt,a_tt,a_rpp,a_rpt,a_npp,a_npt
-  USE grid, ONLY : dtlt,nxp,nyp,nzp,th00,CCN
+  USE grid, ONLY : dtlt,nxp,nyp,nzp,th00,CCN,level
   USE thrm, ONLY : thermo
   !USE stat, ONLY : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
   USE mo_submctl, ONLY : spec 
@@ -84,8 +84,7 @@ MODULE mcrp
     ! ---------------------------------------------------------------------
     ! MICRO: sets up call to microphysics
     !
-    SUBROUTINE micro(level)
-      INTEGER, INTENT (in) :: level
+    SUBROUTINE micro()
       INTEGER :: nspec
       
       SELECT CASE (level)
@@ -554,8 +553,10 @@ MODULE mcrp
       remaer = 0.; remcld = 0.; remprc = 0.; remice = 0.
       prnt = 0.; prmt = 0.; irnt = 0.; irmt = 0.
 
-      rrate%d = 0.; irate%d = 0.
-      sfcrrate%d = 0.; sfcirate%d = 0.
+      rrate%d = 0.; sfcrrate%d = 0.
+      IF (level == 5) THEN
+         irate%d = 0.; sfcirate%d = 0.
+      END IF
       
       ! Sedimentation for slow (non-precipitating) particles
       !-------------------------------------------------------
@@ -630,7 +631,7 @@ MODULE mcrp
          END DO
       END IF
       
-      IF (sed_ice%state) THEN                          
+      IF (sed_ice%state .AND. level == 5) THEN                          
          CALL DepositionFast(n1,n2,n3,nice,nspec+1,tk,a_nicep,a_micep,tstep,irnt,irmt,remice,irate,sfcirate,4)
          
          a_nicet%d(:,:,:,:) = a_nicet%d(:,:,:,:) + irnt(:,:,:,:)/tstep

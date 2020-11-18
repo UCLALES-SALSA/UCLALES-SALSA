@@ -31,7 +31,7 @@ DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
 Tspinup=0.        # Length of the spinup period (seconds)
 Texp=28800.         # Length of the experiment (seconds)
-LEVEL=3             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+LEVEL=5             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 
 # FOR SALSA
 ISDTYP=0            # 0: Aerosol size distribution from namelist (uniform across domain),
@@ -88,7 +88,7 @@ cat > NAMELIST <<EOF
   distim = 100.               ! Timescale for the dissipation in sponge layer
   timmax = ${Texp}            ! Length of the simulation
   runtype = "INITIAL"         ! INITIAL or HISTORY (restart) run
-  CCN = 50.e6                ! 
+  CCN = 100.e6                ! 
   corflg = .false.            ! Apply coriolis force
   prndtl = -0.333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
@@ -118,16 +118,18 @@ cat > NAMELIST <<EOF
 
 &output
   breakUndefOutput = .TRUE.
-  ps_intvl = 60.
-  ts_intvl = 60.
+  ps_intvl = 10.
+  ts_intvl = 10.
   main_intvl = 600.
-  varlist_main = 'temp','theta','wwind','uwind','vwind','rp','rpp','npp',
-                 'rc','rh','rrate','sfcrrate','lwp'
-                 'lhf','shf'
-  varlist_ps = 'rrate','wbar','w_2','tw_res','tke_res'
-  varlist_ts = 'lwp','rwp',
-               'ic_lwp','pr_rwp','ctop','cbase','cfrac','rainsfc','pr_rainsfc'
+  varlist_main = 'temp','theta','wwind','uwind','vwind','rp',
+                 'rc','rh','rrate','sfcrrate','lwp','lhf','shf'!,'CDNC' !,'rpp','npp'
+  varlist_ps = 'rrate','wbar','w_2','u_2','v_2','tw_res','qw_res','uw_res',
+               'vw_res','ww_res','tke_res','pr_rrate','rc','ic_rc','rh','ic_rh'!,'CDNC' 
+               !,'pr_rpp','pr_npp'
+  varlist_ts = 'lwp','rwp','ic_lwp','pr_rwp','ctop','cbase','cfrac','rainsfc','pr_rainsfc'
   TH_rrate = 30.
+  TH_rc = 1.e-5
+  TH_rr = 1.e-6
 /
 
 ! -----------------------------------------------------------------------------------
@@ -330,15 +332,15 @@ cat > NAMELIST <<EOF
    volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)  
    sigmagA  = 1.28, 1.75, 1.5, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
-   dpgA     = 0.03, 0.14, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nA       = 108., 18., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/cm^3 
+   dpgA     = 0.06, 0.28, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
+   nA       = 76., 13., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/mg 
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
    volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)
    sigmagB  = 1.2, 1.7, 1.6, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform) 
    dpgB     = 0.022, 0.12, 1.8, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nB       = 0., 0., 0., 0., 0., 0., 0.             ! Mode number concentrations in #/cm^3 
+   nB       = 0., 0., 0., 0., 0., 0., 0.             ! Mode number concentrations in #/mg 
 /
 
 EOF

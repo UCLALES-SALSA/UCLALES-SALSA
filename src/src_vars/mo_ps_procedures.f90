@@ -16,7 +16,7 @@ MODULE mo_ps_procedures
 
   PUBLIC :: globalMinProfile, globalMaxProfile,                           & 
             globalMeanProfile, globalMeanProfileBinned, globalVarProfile, &
-            incloudMeanProfile, precipMeanProfile,                        &
+            inCloudMeanProfile, inLiqMeanProfile, precipMeanProfile,      &
             meanScalarFlux, meanMomFlux, meanTKEres
 
   CONTAINS
@@ -87,20 +87,57 @@ MODULE mo_ps_procedures
 
     ! -----------------------------------------------------
     
-    SUBROUTINE incloudMeanProfile(SELF,output)
+    SUBROUTINE inCloudMeanProfile(SELF,output)
+      USE mo_stats_parameters, ONLY : TH_rc, TH_ri
+      USE mo_diag_state, ONLY : a_rc, a_ri, a_riri
+      USE util, ONLY : get_avg3_root
       CLASS(FloatArray1d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output(:)
+      LOGICAL :: cond(nzp,nxp,nyp)
       REAL :: fvar(nzp,nxp,nyp)
+      output = 0.
+      fvar = 0.
+      IF (level <= 4) THEN
+         cond = (a_rc%d > TH_rc)
+      ELSE
+         cond = (a_rc%d > TH_rc .OR. a_ri%d + a_riri%d > TH_ri)
+      END IF
+      CALL stats_get(SELF%srcName,fvar)
+      CALL get_avg3_root(nzp,nxp,nyp,fvar,output,cond)
+    END SUBROUTINE inCloudMeanProfile
+    
+    ! -----------------------------------------------------
+    
+    SUBROUTINE inLiqMeanProfile(SELF,output)
+      USE mo_stats_parameters, ONLY : TH_rc
+      USE mo_diag_state, ONLY : a_rc
+      USE util, ONLY : get_avg3_root
+      CLASS(FloatArray1d), INTENT(in) :: SELF
+      REAL, INTENT(out) :: output(:)
+      LOGICAL :: cond(nzp,nxp,nyp)
+      REAL :: fvar(nzp,nxp,nyp)
+      cond = ( a_rc%d > TH_rc )      
       fvar = 0.
       output = 0.
-    END SUBROUTINE incloudMeanProfile
+      CALL stats_get(SELF%srcName,fvar)
+      CALL get_avg3_root(nzp,nxp,nyp,fvar,output,cond)
+    END SUBROUTINE inLiqMeanProfile
 
     ! -----------------------------------------------------
 
     SUBROUTINE precipMeanProfile(SELF,output)
+      USE mo_stats_parameters, ONLY : TH_rrate
+      USE mo_diag_state, ONLY : a_rrate
+      USE util, ONLY : get_avg3_root
       CLASS(FloatArray1d), INTENT(in) :: SELF 
       REAL, INTENT(out) :: output(:)
+      LOGICAL :: cond(nzp,nxp,nyp)
+      REAL :: fvar(nzp,nxp,nyp)
+      fvar = 0.
       output = 0.
+      cond = ( a_rrate%d > TH_rrate )
+      CALL stats_get(SELF%srcName,fvar)
+      CALL get_avg3_root(nzp,nxp,nyp,fvar,output,cond)
     END SUBROUTINE precipMeanProfile
 
     ! -----------------------------------------------------    
@@ -169,11 +206,10 @@ MODULE mo_ps_procedures
       tmp2 = 0.
             
       CALL stats_get("wwind",wpm)
-      wpm = 0.
       DO k = 2,nzp-1
          wpm(k,:,:) = wpm(k,:,:)*0.5*(dn0%d(k)+dn0%d(k+1))
       END DO
-                     
+      
       SELECT CASE(SELF%shortName)
       CASE("uw_res")   
          CALL stats_get("uwind",fvar)    ! This takes always the p-value although here it really should be the c value...
@@ -187,7 +223,7 @@ MODULE mo_ps_procedures
       END SELECT
 
       CALL get_avg3_root(nzp,nxp,nyp,flx,output)
-         
+      
     END SUBROUTINE meanMomFlux
     
     ! -------------------------------

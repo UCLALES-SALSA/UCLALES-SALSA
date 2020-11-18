@@ -113,7 +113,7 @@ mo_derived_procedures.o: mo_submctl.o util.o defs.o mo_particle_external_propert
                          mo_progn_state.o mo_diag_state.o mo_aux_state.o mo_structured_datatypes.o  
 mo_ps_state.o: classFieldArray.o mo_structured_datatypes.o mo_ps_procedures.o 
 mo_ps_procedures.o: util.o mo_structured_datatypes.o grid.o mo_stats_finder.o mo_aux_state.o \
-                    mo_vector_state.o advf.o advl.o defs.o
+                    mo_vector_state.o advf.o advl.o defs.o $(seqmpi:.f90=.o)
 mo_ts_state.o: classFieldArray.o mo_structured_datatypes.o mo_ts_procedures.o
 mo_ts_procedures.o: grid.o mo_stats_finder.o util.o mo_progn_state.o mo_diag_state.o mo_aux_state.o  \
                     mo_structured_datatypes.o mo_stats_parameters.o

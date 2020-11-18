@@ -291,7 +291,7 @@ CONTAINS
       !-------------------------------------------
       ! "Deposition" timestep
       ! Dont perform sedimentation or level 3 autoconversion during spinup (internal switches implemented)
-      CALL micro(level)
+      CALL micro()
       IF (level >= 4) CALL tend_constrain2()
       CALL update_sclrs
       CALL tend0(.TRUE.)

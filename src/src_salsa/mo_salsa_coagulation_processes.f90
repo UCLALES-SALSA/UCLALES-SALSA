@@ -565,7 +565,7 @@ MODULE mo_salsa_coagulation_processes
       END DO
 
     END SUBROUTINE applyCoag
- ! ----------------------------------------
+    ! ----------------------------------------
     SUBROUTINE applyCoagIce(kbdim,klev,nb,nspec,iwa,irim,itrgt,ptstep,part,  &
                             source,sink,sink_self)
       ! --------------------------------------------------------------------------------------

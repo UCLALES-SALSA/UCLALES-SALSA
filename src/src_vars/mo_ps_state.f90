@@ -46,7 +46,7 @@ MODULE mo_ps_state
                                 ps_ri, ps_riri, ps_Naa, ps_Nab,         &
                                 ps_Nca, ps_Ncb, ps_Np, ps_Ni,           &
                                 ps_CDNC, ps_CNC, ps_Reff,               &                                
-                                ps_RH, ps_rsl, ps_RHI, ps_rsi,          &
+                                ps_rh, ps_rsl, ps_rhi, ps_rsi,          &
                                 ps_dn,                                  &
                                                                 
                                 ps_rrate, ps_irate,              &
@@ -57,7 +57,7 @@ MODULE mo_ps_state
 
                                 ps_tw_res, ps_qw_res, ps_lw_res,     &
                                 ps_uw_res, ps_vw_res, ps_ww_res,     &  
-                                ps_tke_res, ps_tke_sgs,                        &  ! subroutine missing
+                                ps_tke_res, ps_tke_sgs,                        &  ! sgs subroutine missing
 
                                 ps_rflx, ps_sflx, ps_lwup,       &
                                 ps_lwdn, ps_swup, ps_swdn,       &
@@ -75,10 +75,10 @@ MODULE mo_ps_state
 
   ! Conditionally sampled profiles
   TYPE(FloatArray1d), TARGET :: psic_rc, psic_Naa, psic_Nab, psic_Nca, psic_Ncb, psic_CDNC, psic_CNC,   &
-                                psic_Reff   ! subroutine missing
+                                psic_Reff, psic_rh   
   
   ! -- mean across precipitating grid boxes
-  TYPE(FloatArray1d), TARGET :: pspr_rrate, pspr_irate, pspr_srp, pspr_rpp, pspr_npp, pspr_Np ! subroutine missing
+  TYPE(FloatArray1d), TARGET :: pspr_rrate, pspr_irate, pspr_srp, pspr_rpp, pspr_npp, pspr_Np 
        
 
   ! binned variables
@@ -298,7 +298,7 @@ MODULE mo_ps_state
       pipeline => ps_rh
       CALL PS%newField(ps_rh%shortName, "Relative humidity", "1", "ztt",   &
                        ANY(outputlist == ps_rh%shortName), pipeline)
-
+      
       pipeline => NULL()
       ps_rsl = FloatArray1d("rsl")
       ps_rsl%onDemand => globalMeanProfile
@@ -339,7 +339,7 @@ MODULE mo_ps_state
 
       pipeline => NULL()
       pspr_rrate  = FloatArray1d("pr_rrate",srcName="rrate")
-      pspr_rrate%onDemand => globalMeanProfile !!! IMPLEMENT THE CONDITIONAL SUBROUTINE
+      pspr_rrate%onDemand => globalMeanProfile 
       pipeline => pspr_rrate
       CALL PS%newField(pspr_rrate%shortName, "Conditionally avg precipitation flux", "W m-2", "ztt",   &
                        ANY(outputlist == pspr_rrate%shortName), pipeline)     
@@ -354,7 +354,7 @@ MODULE mo_ps_state
 
          pipeline => NULL()
          pspr_irate = FloatArray1d("pr_irate",srcName="irate")
-         pspr_irate%onDemand => globalMeanProfile  ! IMPLEMENT THE CONDITIONAL SUBROUTINE
+         pspr_irate%onDemand => globalMeanProfile 
          pipeline => pspr_irate
          CALL PS%newField(pspr_irate%shortName, "Conditionally avg ice precipitation flux", "W m-2", "ztt",   &
                           ANY(outputlist == pspr_irate%shortName), pipeline)
@@ -823,22 +823,29 @@ MODULE mo_ps_state
 
       pipeline => NULL()
       psic_rc = FloatArray1d("ic_rc",srcName="rc")
-      psic_rc%onDemand => incloudMeanProfile
+      psic_rc%onDemand => inLiqMeanProfile
       pipeline => psic_rc
       CALL PS%newField(psic_rc%shortName, "In-cloud cloud water mix rat", "kg/kg", "ztt",   &
                        ANY(outputlist == psic_rc%shortName), pipeline)
 
+      pipeline => NULL()
+      psic_rh = FloatArray1d("ic_rh",srcName="rh")
+      psic_rh%onDemand => inCloudMeanProfile
+      pipeline => psic_rh
+      CALL PS%newField(psic_rh%shortName, "In-cloud relative humidity", "1", "ztt",   &
+                       ANY(outputlist == psic_rh%shortName), pipeline)
+      
       IF (level >= 4) THEN
          pipeline => NULL()
          psic_Naa = FloatArray1d("ic_Naa",srcName="Naa")
-         psic_Naa%onDemand => incloudMeanProfile  ! IMPLEMENT THE SUBROUTINES
+         psic_Naa%onDemand => inCloudMeanProfile 
          pipeline => psic_Naa
          CALL PS%newField(psic_Naa%shortName, "Interstitial aerosol A", "kg-1", "ztt",   &
                           ANY(outputlist == psic_Naa%shortName), pipeline)
 
          pipeline => NULL()
          psic_Nab = FloatArray1d("ic_Nab",srcName="Nab")
-         psic_Nab%onDemand => incloudMeanProfile
+         psic_Nab%onDemand => inCloudMeanProfile
          pipeline => psic_Nab
          CALL PS%newField(psic_Nab%shortName, "Interstitial aerosol B", "kg-1", "ztt",   &
                           ANY(outputlist == psic_Nab%shortName), pipeline)
@@ -859,21 +866,21 @@ MODULE mo_ps_state
 
          pipeline => NULL()
          psic_CDNC = FloatArray1d("ic_CDNC",srcName="CDNC")
-         psic_CDNC%onDemand => incloudMeanProfile
+         psic_CDNC%onDemand => inLiqMeanProfile
          pipeline => psic_CDNC
          CALL PS%newField(psic_CDNC%shortName, "Cloud droplet number concentration in-cloud", "m-3", "ztt",   &
                           ANY(outputlist == psic_CDNC%shortName), pipeline)
 
          pipeline => NULL()
          psic_CNC = FloatArray1d("ic_CNC",srcName="CNC")
-         psic_CNC%onDemand => incloudMeanProfile
+         psic_CNC%onDemand => inLiqMeanProfile
          pipeline => psic_CNC
          CALL PS%newField(psic_CNC%shortName, "Hydrometeor number concentration in-cloud", "m-3", "ztt",   &
                           ANY(outputlist == psic_CNC%shortName), pipeline)        
 
          pipeline => NULL()
          psic_Reff = FloatArray1d("ic_Reff",srcName="Reff")
-         psic_Reff%onDemand => incloudMeanProfile
+         psic_Reff%onDemand => inLiqMeanProfile
          pipeline => psic_Reff
          CALL PS%newField(psic_Reff%shortName, "Droplet effective radius, in-cloud", "m", "ztt",   &
                           ANY(outputlist == psic_Reff%shortName), pipeline)          
@@ -886,7 +893,7 @@ MODULE mo_ps_state
 
       pipeline => NULL()
       pspr_rrate = FloatArray1d("pr_rrate",srcName="rrate")
-      pspr_rrate%onDemand => precipMeanProfile  ! IMPLEMENT THE SUBROUTINES
+      pspr_rrate%onDemand => precipMeanProfile  
       pipeline => pspr_rrate
       CALL PS%newField(pspr_rrate%shortName, "Conditionally avg precipitation flux", "W m-2", "ztt",   &
                        ANY(outputlist == pspr_rrate%shortName), pipeline)   
@@ -960,7 +967,7 @@ MODULE mo_ps_state
       pipeline => NULL()
       ps_vw_res = FloatArray1d("vw_res")
       ps_vw_res%onDemand => meanMomFlux
-      pipeline => ps_uw_res
+      pipeline => ps_vw_res
       CALL PS%newField(ps_vw_res%shortName, "Resolved flux of v momentum", "m2 s-2", "ztt",   &
                        ANY(outputlist == ps_vw_res%shortName), pipeline)
 
