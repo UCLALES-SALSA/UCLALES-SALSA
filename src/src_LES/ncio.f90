@@ -1263,7 +1263,7 @@ contains
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttt'
     case('P_Rwcb')
-       if (itype==0) ncinfo = 'Number mean cloud droplet radius, regime a'
+       if (itype==0) ncinfo = 'Number mean cloud droplet radius, regime b'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttt'
     case('P_Np')

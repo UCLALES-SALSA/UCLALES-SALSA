@@ -215,7 +215,7 @@ contains
 
     if (sflg) then
         ! Convert dcdt [#/kg/s] to flux [#/m^2/s] and take sum over bins
-        omf = SUM ( SUM( SUM(dcdt(3:nxp-2,3:nyp-2,:),DIM=3)*a_dn(2,:,:),DIM=2 ) )*(zm(3)-zm(2))/REAL((nxp-4)*(nyp-4))
+        omf = SUM ( SUM( SUM(dcdt(:,:,:),DIM=3)*a_dn(2,:,:),DIM=2 ) )*(zm(3)-zm(2))/REAL((nxp-4)*(nyp-4))
         call flux_stat(omf,'flx_aer')
         ! 10 m wind speed
         call flux_stat(u10_bar,'u10    ')

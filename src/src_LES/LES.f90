@@ -104,7 +104,7 @@ contains
          nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau,  &
          nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, &
          no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, anl_include, anl_exclude, out_an_list, &
-         ifSeaSpray, ifSeaVOC
+         ifSeaSpray, ifSeaVOC, sea_tspinup
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
     use stat, only : ssam_intvl, savg_intvl, csflg, cs_include, cs_exclude, &
@@ -137,6 +137,7 @@ contains
          iradtyp, radfrq , strtim , & ! radiation type flag
          isfctyp, ubmin  , zrough , & ! surface parameterization type
          ifSeaSpray, ifSeaVOC,      & ! marine emissions
+         sea_tspinup,               & ! spinup time for marine emissions
          wtrChlA, ifPOCadd,         & ! chlorophyll alpha sea surface concentrations, if organic fraction is additive
          wtrIsop, wtrMtrp,          & ! sea surface concentrations of isoprene and monoterpenes
          ssa_param,                 & ! option for sea-spray aerosol source function parameterization

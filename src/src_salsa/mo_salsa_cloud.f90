@@ -792,6 +792,7 @@ CONTAINS
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + max(0., paero(ii,jj,kk)%numc*frac )
             ELSE
                 ! Add to the ss:th snow bin
+                ss=MIN(nsnw,ice_target_opt)
                 psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., paero(ii,jj,kk)%volc(2:nn)*frac )
                 psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., paero(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + max(0., paero(ii,jj,kk)%numc*frac )

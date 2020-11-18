@@ -89,6 +89,7 @@ module grid
   ! Marine emissions
   logical :: ifSeaSpray = .false. ! Aerosol
   logical :: ifSeaVOC = .false.   ! Isoprene and monoterpenes
+  real :: sea_tspinup = 0.        ! Spin-up time (s) for marine emissions
 
   character (len=80):: expnme = 'Default' ! Experiment name
   character (len=80):: filprf = 'x'       ! File Prefix
