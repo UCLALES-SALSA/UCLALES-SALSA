@@ -84,13 +84,19 @@ MODULE mo_ps_state
   ! binned variables
   TYPE(FloatArray2d), TARGET :: ps_Dwaba, ps_Dwabb, ps_Dwcba, ps_Dwcbb, ps_Dwpba, ps_Dwiba
   TYPE(FloatArray2d), TARGET :: ps_Naba, ps_Nabb, ps_Ncba, ps_Ncbb, ps_Npba, ps_Niba
- 
+
+  ! Piggybacking slave microphysics diagnostics
+  TYPE(FloatArray1d), TARGET :: ps_pb_rrate, ps_pb_rc,         &
+                                pspr_pb_rrate, psic_pb_rc
+
+  
   CONTAINS
 
-    SUBROUTINE setPSVariables(PS,outputlist,level)
+    SUBROUTINE setPSVariables(PS,outputlist,level,lpback)
       TYPE(FieldArray), INTENT(inout) :: PS
       CHARACTER(len=*), INTENT(in)   :: outputlist(:)
       INTEGER, INTENT(in)             :: level
+      LOGICAL, INTENT(in)             :: lpback
       CLASS(*), POINTER :: pipeline => NULL()
       
 
@@ -1042,10 +1048,46 @@ MODULE mo_ps_state
       ps_tke_res = FloatArray1d("tke_res")
       ps_tke_res%onDemand => meanTKEres
       pipeline => ps_tke_res
-      CALL PS%newField(ps_tke_res%shortName, "TKE from resolved flow", "m2 s-2", "ztt"   ,  &
+      CALL PS%newField(ps_tke_res%shortName, "TKE from resolved flow", "m2 s-2", "ztt",  &
                        ANY(outputlist == ps_tke_res%shortName), pipeline)
 
       pipeline => NULL()
+
+      ! ---------------------------------------------------------------
+      ! Piggybacking slave microphysical diagnostics
+      ! ---------------------------------------------------------------
+      IF (lpback) THEN
+         pipeline => NULL()
+         ps_pb_rrate = FloatArray1d("pb_rrate")
+         ps_pb_rrate%onDemand => globalMeanProfile
+         pipeline => ps_pb_rrate
+         CALL PS%newField(ps_pb_rrate%shortName, "Precip flux (bulk slave)", "W m-2", "ztt",   &
+                          ANY(outputlist == ps_pb_rrate%shortName), pipeline)
+
+         pipeline => NULL()
+         pspr_pb_rrate = FloatArray1d("pr_pb_rrate",srcname="pb_rrate")
+         pspr_pb_rrate%onDemand => precipMeanProfile
+         pipeline => pspr_pb_rrate
+         CALL PS%newField(pspr_pb_rrate%shortName, "Conditional precip flux (bulk slave)", "W m-2", "ztt",  &
+                          ANY(outputlist == pspr_pb_rrate%shortName), pipeline)
+
+         pipeline => NULL()
+         ps_pb_rc = FloatArray1d("pb_rc")
+         ps_pb_rc%onDemand => globalMeanProfile
+         pipeline => ps_pb_rc
+         CALL PS%newField(ps_pb_rc%shortName, "Cloud condensate mixing ratio (bulk slave)", "W m-2", "ztt",  &
+                          ANY(outputlist == ps_pb_rc%shortName), pipeline)
+
+         pipeline => NULL()
+         psic_pb_rc = FloatArray1d("ic_pb_rc",srcname="pb_rc")
+         psic_pb_rc%onDemand => inLiqMeanProfile
+         pipeline => psic_pb_rc
+         CALL PS%newField(psic_pb_rc%shortName, "Conditional in-cloud condensate mix rat (bulk slave)", "W m-2", "ztt",  &
+                          ANY(outputlist == psic_pb_rc%shortName), pipeline)                  
+
+      END IF
+      
+
       
     END SUBROUTINE setPSVariables
 

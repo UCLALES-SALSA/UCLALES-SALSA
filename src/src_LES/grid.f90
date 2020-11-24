@@ -49,6 +49,8 @@ MODULE grid
   
   LOGICAL :: lnudging = .FALSE.  ! Master switch for nudging scheme
   LOGICAL :: lemission = .FALSE. ! Master switch for aerosol emission
+  LOGICAL :: lpback = .FALSE.    ! Master switch for running bulk microphysics
+                                 ! in piggybacking mode, while level == 4
   
   INTEGER :: iradtyp
   INTEGER :: igrdtyp = 1         ! vertical grid type
@@ -180,7 +182,10 @@ CONTAINS
          ! Total number of prognostic scalars: temp + water vapor + tke(isgstyp>1) + SALSA
          nscl = 2 + nsalsa
          IF (isgstyp > 1) nscl = nscl+1
-
+         ! ... + bulk slave precip number and mass (lpback = .TRUE.)
+         IF (lpback) nscl = nscl + 2
+         
+         
          ALLOCATE (a_sclrp(nzp,nxp,nyp,nscl), a_sclrt(nzp,nxp,nyp,nscl))
          a_sclrp(:,:,:,:) = 0.
          a_sclrt(:,:,:,:) = 0.

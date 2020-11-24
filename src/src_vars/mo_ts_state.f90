@@ -49,9 +49,13 @@ MODULE mo_ts_state
                                 tsic_lwp, tsic_iwp,                     &  
                                 tspr_rwp,                               &  
                                 ts_ctop,ts_cbase,ts_cfrac,              &  
-                                ts_rainsfc,tspr_rainsfc,                &  
+                                ts_sfcrrate,tspr_sfcrrate,                &  
                                 ts_SSmax, ts_SSimax
-                                
+
+  ! Piggybacking slave microphysics diagnostics
+  TYPE(FloatArray0d), TARGET :: ts_pb_sfcrrate, tspr_pb_sfcrrate
+
+  ! NOT IMPLEMENTED
   ! Accumulated statistics
   TYPE(FloatArray0d), TARGET :: ts_shfacc,ts_lhfacc,                    &  
                                 ts_lwpacc,ts_rwpacc,ts_iwpacc                               
@@ -64,10 +68,11 @@ MODULE mo_ts_state
   
   CONTAINS
 
-    SUBROUTINE setTSVariables(TS,outputlist,level)
+    SUBROUTINE setTSVariables(TS,outputlist,level,lpback)
       TYPE(FieldArray), INTENT(inout) :: TS
       CHARACTER(len=*), INTENT(in)    :: outputlist(:)
       INTEGER, INTENT(in)             :: level
+      LOGICAL, INTENT(in)             :: lpback
       CLASS(*), POINTER :: pipeline => NULL()
 
       INTEGER :: nts
@@ -156,17 +161,17 @@ MODULE mo_ts_state
       CALL TS%newField(ts_lhf%shortName, "Surface latent heat flux", "W m-2", "time",   &
                        ANY(outputlist == ts_lhf%shortName), pipeline)
 
-      ts_rainsfc = FloatArray0d("rainsfc",srcname="sfcrrate")
-      ts_rainsfc%onDemand => tsSfcMean
-      pipeline => ts_rainsfc
-      CALL TS%newField(ts_rainsfc%shortName, "Surface rain rate", "W m-2", "time",   &
-                       ANY(outputlist == ts_rainsfc%shortName), pipeline)
+      ts_sfcrrate = FloatArray0d("sfcrrate")
+      ts_sfcrrate%onDemand => tsSfcMean
+      pipeline => ts_sfcrrate
+      CALL TS%newField(ts_sfcrrate%shortName, "Surface rain rate", "W m-2", "time",   &
+                       ANY(outputlist == ts_sfcrrate%shortName), pipeline)
 
-      tspr_rainsfc = FloatArray0d("pr_rainsfc",srcname="sfcrrate")
-      tspr_rainsfc%onDemand => tsInPrecipMean
-      pipeline => tspr_rainsfc
-      CALL TS%newField(tspr_rainsfc%shortName, "Surface rain rate in precipitating grid points", "W m-2", "time",   &
-                       ANY(outputlist == tspr_rainsfc%shortName), pipeline)
+      tspr_sfcrrate = FloatArray0d("pr_sfcrrate",srcname="sfcrrate")
+      tspr_sfcrrate%onDemand => tsInPrecipMean
+      pipeline => tspr_sfcrrate
+      CALL TS%newField(tspr_sfcrrate%shortName, "Surface rain rate in precipitating grid points", "W m-2", "time",   &
+                       ANY(outputlist == tspr_sfcrrate%shortName), pipeline)
       
       ts_lwp = FloatArray0d("lwp",srcname="lwp")
       ts_lwp%onDemand => tsSfcMean
@@ -240,7 +245,24 @@ MODULE mo_ts_state
          CALL TS%newField(ts_SSimax%shortName, "Maximum supersaturation w.r.t. ice (for T < 273K)", "1", "time",   &
                           ANY(outputlist == ts_SSimax%shortName), pipeline)
       END IF
+
+      IF (lpback) THEN
+
+         ts_pb_sfcrrate = FloatArray0d("pb_sfcrrate")
+         ts_pb_sfcrrate%onDemand => tsSfcMean
+         pipeline => ts_pb_sfcrrate
+         CALL TS%newField(ts_pb_sfcrrate%shortName, "Surface precip flux (bulk slave)", "W m-2", "time",   &
+                          ANY(outputlist == ts_pb_sfcrrate%shortName), pipeline)
          
+         tspr_pb_sfcrrate = FloatArray0d("pr_pb_sfcrrate",srcname="pb_sfcrrate")
+         tspr_pb_sfcrrate%onDemand => tsInPrecipMean
+         pipeline => tspr_pb_sfcrrate
+         CALL TS%newField(tspr_pb_sfcrrate%shortName, "Conditional surface precip flux (bulk slave)", "W m-2", "time",  &
+                          ANY(outputlist == tspr_pb_sfcrrate%shortName), pipeline)
+         
+      END IF
+
+      
     END SUBROUTINE setTSVariables
         
 END MODULE mo_ts_state

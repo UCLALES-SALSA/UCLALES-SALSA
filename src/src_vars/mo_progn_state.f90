@@ -55,11 +55,16 @@ MODULE mo_progn_state
   
   ! -- Gas compound tracers
   TYPE(FloatArray4D), TARGET :: a_gaerop, a_gaerot
+
+  ! -- Prognostic tracers needed for bulk microphysics in piggybacking mode
+  TYPE(FloatArray3D), TARGET :: pb_rpp, pb_rpt
+  TYPE(FloatArray3D), TARGET :: pb_npp, pb_npt
   
   CONTAINS
   
-    SUBROUTINE setPrognosticVariables(a_sclrp,a_sclrt,Prog,outputlist,level,isgstyp,nzp,nxp,nyp,nscl)
+    SUBROUTINE setPrognosticVariables(a_sclrp,a_sclrt,Prog,outputlist,level,isgstyp,lpback,nzp,nxp,nyp,nscl)
       INTEGER, INTENT(in) :: level,isgstyp,nzp,nxp,nyp,nscl
+      LOGICAL, INTENT(in) :: lpback
       REAL, INTENT(in) :: a_sclrp(nzp,nxp,nyp,nscl), a_sclrt(nzp,nxp,nyp,nscl)
       CHARACTER(len=*), INTENT(in) :: outputlist(:)
       TYPE(FieldArray), INTENT(inout) :: Prog
@@ -301,11 +306,30 @@ MODULE mo_progn_state
             CALL Prog%newField( "indef","IN deficit fraction for contact angle distributions",    &
                                 "kg/kg", "N/A", .FALSE.,                                          &
                                 pipeline_p,in_t_data = pipeline_t                                 &
-                              )
-                        
+                              )                        
          END IF
+                     
+      END IF
 
-            
+      IF (lpback) THEN
+         iscl = iscl + 1
+         pipeline_p => NULL(); pipeline_t => NULL()
+         pb_rpp = FloatArray3D(a_sclrp(:,:,:,iscl))
+         pb_rpt = FloatArray3D(a_sclrt(:,:,:,iscl))
+         pipeline_p => pb_rpp
+         pipeline_t => pb_rpt
+         CALL Prog%newField("pb_rpp", "Precip mixing ratio (bulk slave)", "kg/kg", "tttt",  &
+                            ANY(outputlist == "pb_rpp"), pipeline_p, in_t_data = pipeline_t )
+
+         iscl = iscl + 1
+         pipeline_p => NULL(); pipeline_t => NULL()
+         pb_npp = FloatArray3D(a_sclrp(:,:,:,iscl))
+         pb_npt = FloatArray3D(a_sclrt(:,:,:,iscl))
+         pipeline_p => pb_npp
+         pipeline_t => pb_npt
+         CALL Prog%newField("pb_npp", "Precip number mixing ratio (bulk slave)", "kg-1", "tttt",   &
+                            ANY(outputlist == "pb_npp"), pipeline_p, in_t_data = pipeline_t )
+         
       END IF
       
 

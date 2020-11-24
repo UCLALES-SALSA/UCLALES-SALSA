@@ -7,40 +7,41 @@ MODULE mo_diag_state
 
   SAVE
   
-  !
+  ! -----------------------------------------------------------------------
   ! Mandatory diagnostic quantities (stored)
   !
   TYPE(FloatArray3D), TARGET :: a_theta  ! 1: dry potential temp (k)
   TYPE(FloatArray3D), TARGET :: a_temp   ! 2: Absolute temperature (K)
   TYPE(FloatArray3D), TARGET :: a_pexnr  ! 3: perturbation exner func
   TYPE(FloatArray3D), TARGET :: a_press  ! 4: pressure (hpa)
-  TYPE(FloatArray3D), TARGET :: a_rc     ! 5: Total cloud water +rain (level<=3) or aerosol+cloud (level>=4) water mixing ratio
-  TYPE(FloatArray3D), TARGET :: a_ri     ! 6: Unrimed ice mixing ratio
-  TYPE(FloatArray3D), TARGET :: a_riri   ! 7: Rimed ice mixing ratio
-  TYPE(FloatArray3D), TARGET :: a_rv     ! 8: Water vapor mixing ratio  (only for levels < 4!)
-  TYPE(FloatArray3D), TARGET :: a_srp    ! 9: Bulk precipitation mixing ratio (levels >= 4)
-  TYPE(FloatArray3D), TARGET :: a_snrp   ! 10: Bulk precipitation number mixing ratio (levels >=4) 
-  TYPE(FloatArray3D), TARGET :: a_rh     ! 11: Relative humidity
-  TYPE(FloatArray3D), TARGET :: a_rsl    ! 12: Water vapor saturation mixing ratio
-  TYPE(FloatArray3D), TARGET :: a_rhi    ! 13: Relative humidity over ice
-  TYPE(FloatArray3D), TARGET :: a_rsi    ! 14: Water vapor saturation mixing ratio over ice
-  TYPE(FloatArray3D), TARGET :: a_dn     ! 15: Air density
-  TYPE(FloatArray3D), TARGET :: a_rflx, a_sflx,   &  ! 16, 17: Radiation fluxes
-                                a_fus, a_fds,     &  ! 18, 19: 
-                                a_fuir, a_fdir       ! 20, 21:
-  TYPE(FloatArray3D), TARGET :: a_rrate              ! 22: Precipitation flux
-  TYPE(FloatArray3D), TARGET :: a_irate              ! 23: Precipitation flux, frozen
+  TYPE(FloatArray3D), TARGET :: a_rtot   ! 5: Total water mix rat for level >= 4 (vapor + condensate)
+  TYPE(FloatArray3D), TARGET :: a_rc     ! 6: Total cloud water +rain (level<=3) or aerosol+cloud (level>=4) water mixing ratio
+  TYPE(FloatArray3D), TARGET :: a_ri     ! 7: Unrimed ice mixing ratio
+  TYPE(FloatArray3D), TARGET :: a_riri   ! 8: Rimed ice mixing ratio
+  TYPE(FloatArray3D), TARGET :: a_rv     ! 9: Water vapor mixing ratio  (only for levels < 4!)
+  TYPE(FloatArray3D), TARGET :: a_srp    ! 10: Bulk precipitation mixing ratio (levels >= 4)
+  TYPE(FloatArray3D), TARGET :: a_snrp   ! 11: Bulk precipitation number mixing ratio (levels >=4) 
+  TYPE(FloatArray3D), TARGET :: a_rh     ! 12: Relative humidity
+  TYPE(FloatArray3D), TARGET :: a_rsl    ! 13: Water vapor saturation mixing ratio
+  TYPE(FloatArray3D), TARGET :: a_rhi    ! 14: Relative humidity over ice
+  TYPE(FloatArray3D), TARGET :: a_rsi    ! 15: Water vapor saturation mixing ratio over ice
+  TYPE(FloatArray3D), TARGET :: a_dn     ! 16: Air density
+  TYPE(FloatArray3D), TARGET :: a_rflx, a_sflx,   &  ! 17, 18: Radiation fluxes
+                                a_fus, a_fds,     &  ! 19, 20: 
+                                a_fuir, a_fdir       ! 21, 22:
+  TYPE(FloatArray3D), TARGET :: a_rrate              ! 23: Precipitation flux
+  TYPE(FloatArray3D), TARGET :: a_irate              ! 24: Precipitation flux, frozen
 
   REAL, ALLOCATABLE, TARGET :: a_diag3d(:,:,:,:) 
-  INTEGER, PARAMETER :: ndiag3d = 23   ! Remember to update if adding new variables!!
+  INTEGER, PARAMETER :: ndiag3d = 24   ! Remember to update if adding new variables!!
 
-  !
+  !-------------------------------------------------------------------
   ! Binned diagnostic variables mainly for output
   !
   TYPE(FloatArray4d), TARGET :: d_VtPrc, d_VtIce ! Precipitation and ice terminal fall velocities
   REAL, ALLOCATABLE, TARGET :: d_binned(:,:,:,:)
   
-  !
+  !----------------------------------------------------------------------------
   ! Two dimensional variables that need to be stored during the timestep
   !
   TYPE(FloatArray2D), TARGET :: albedo               ! 1: Albedo, CHECK DEFINITION
@@ -53,6 +54,7 @@ MODULE mo_diag_state
   TYPE(FloatArray2D), TARGET :: wt_sfc               ! 8: 
   TYPE(FloatArray2D), TARGET :: wq_sfc               ! 9:
 
+  ! -------------------------------------------------------------------------------
   ! Do these need to be stored? If not, move to mo_derived_state?
   TYPE(FloatArray2D), TARGET :: a_sfcrrate           ! 10: Surface rain rate
   TYPE(FloatArray2D), TARGET :: a_sfcirate           ! 11: Surface frozen precipitation
@@ -60,7 +62,7 @@ MODULE mo_diag_state
   REAL, ALLOCATABLE, TARGET :: a_diag2d(:,:,:)
   INTEGER, PARAMETER :: ndiag2d = 11  ! Remember to update if adding new variables!!
   
-  !
+  ! --------------------------------------------------------------------------------------------------------------------------------------------------
   ! Microphysical process rates -- they need to be stored during the timestep because they cannot be simply diagnosed afterwards
   ! For now, these are BULK process rates only for water/ice, except where indicated otherwise !! Number concentration rate given for particle formation processes,
   ! mass concetration rate for others
@@ -81,16 +83,35 @@ MODULE mo_diag_state
 
   REAL, ALLOCATABLE, TARGET :: a_rateDiag3d(:,:,:,:)
   INTEGER, PARAMETER :: nratediag3d = 13 ! Remember to update if adding new variables!!
+
+  ! --------------------------------------------------------------------
+  ! Diagnostic variables for piggybacking, used in the "slave" bulk scheme
+  !
+  TYPE(FloatArray3D), TARGET :: pb_theta,       & ! 1: Potential temp
+                                pb_temp,        & ! 2: Absolute temp
+                                pb_rv,          & ! 3: Water vapor mix rat
+                                pb_rc,          & ! 4: Cloud + precip mix rat (similar to level 3)
+                                pb_rh,          & ! 5: Relative humidity
+                                pb_rsl,         & ! 6: Saturation mixing ratio
+                                pb_rrate          ! 7: Precip flux
+
+  TYPE(FloatArray2d), TARGET :: pb_sfcrrate       ! 1: Surface precip flux; Could this be also as derived on-demand diagnostic?
+  REAL, ALLOCATABLE, TARGET :: pb_diag3d(:,:,:,:)
+  REAL, ALLOCATABLE, TARGET :: pb_diag2d(:,:,:)
+  INTEGER, PARAMETER :: npbdiag3d = 7
+  INTEGER, PARAMETER :: npbdiag2d = 1
+
   
   CONTAINS
 
-    SUBROUTINE setDiagnosticVariables(Diag,outputlist,memsize,level,iradtyp,nzp,nxp,nyp)
+    SUBROUTINE setDiagnosticVariables(Diag,outputlist,memsize,level,iradtyp,lpback,nzp,nxp,nyp)
       TYPE(FieldArray), INTENT(inout) :: Diag
       CHARACTER(len=*), INTENT(in) :: outputlist(:)
       INTEGER, INTENT(inout) :: memsize
       INTEGER, INTENT(in) :: level, iradtyp, nzp,nxp,nyp
+      LOGICAL, INTENT(in) :: lpback
       CLASS(*), POINTER :: pipeline => NULL()
-      INTEGER :: nxyz, nxy, n2d,n3d,n3dr,n4db
+      INTEGER :: nxyz, nxy, n2d,n3d,n3dr,n4db, npb3d, npb2d
       INTEGER :: nbinned
 
       nxyz = nxp*nyp*nzp
@@ -99,19 +120,31 @@ MODULE mo_diag_state
       n3d = 0
       n3dr = 0
       n2d = 0
-            
+      npb3d = 0
+      npb2d = 0
+      
       ALLOCATE(a_diag3d(nzp,nxp,nyp,ndiag3d))
       ALLOCATE(a_diag2d(nxp,nyp,ndiag2d))
       ALLOCATE(a_rateDiag3d(nzp,nxp,nyp,nratediag3d))
-      nbinned = 0
-      IF ( level >= 4) nbinned = nbinned + nprc
-      IF ( level > 4) nbinned = nbinned + nice
-      ALLOCATE(d_binned(nzp,nxp,nyp,nbinned))
-      
       a_diag3d = 0.
       a_diag2d = 0.
       a_rateDiag3d = 0.
       
+      nbinned = 0
+      IF ( level >= 4) THEN
+         IF ( level >= 4) nbinned = nbinned + nprc
+         IF ( level > 4) nbinned = nbinned + nice
+         ALLOCATE(d_binned(nzp,nxp,nyp,nbinned))
+         d_binned = 0.
+      END IF
+         
+      IF (lpback) THEN
+         ALLOCATE(pb_diag3d(nzp,nxp,nyp,npbdiag3d))
+         pb_diag3d = 0.
+         ALLOCATE(pb_diag2d(nxp,nyp,npbdiag2d))
+         pb_diag2d = 0.
+      END IF
+
       ! First entry for a_diag3d
       memsize = memsize + nxyz
       n3d = n3d+1
@@ -145,6 +178,16 @@ MODULE mo_diag_state
       CALL Diag%newField("press", "Pressure", "Pa", "tttt",       &
                          ANY(outputlist == "press"), pipeline)
 
+      IF (level >= 4) THEN
+         memsize = memsize + nxyz
+         n3d = n3d + 1
+         pipeline => NULL()
+         a_rtot = FloatArray3d(a_diag3d(:,:,:,n3d))
+         pipeline => a_rtot
+         CALL Diag%newField("rtot", "Total waer mixing ratio", "kg/kg", "tttt",  &
+                            ANY(outputlist == "rtot"), pipeline)
+      END IF
+         
       IF (level > 1) THEN
          memsize = memsize + nxyz
          n3d = n3d+1
@@ -521,9 +564,68 @@ MODULE mo_diag_state
                             ANY(outputlist == "VtIce"), pipeline)
          n4db = n4db + nice
       END IF
-          
-      pipeline => NULL()
 
+      ! Piggybacking variables for "slave" microphysics
+      IF (lpback) THEN
+         npb3d = npb3d + 1
+         pipeline => NULL()
+         pb_theta = FloatArray3d(pb_diag3d(:,:,:,npb3d))
+         pipeline => pb_theta
+         CALL Diag%newField("pb_theta", "Potential temperature (bulk slave)", "K", "tttt",   &
+                            ANY(outputlist == "pb_theta"), pipeline)
+         
+         npb3d = npb3d + 1
+         pipeline => NULL()
+         pb_temp = FloatArray3d(pb_diag3d(:,:,:,npb3d))
+         pipeline => pb_temp
+         CALL Diag%newField("pb_temp", "Absolute temperature (bulk slave)", "K", "tttt",    &
+                            ANY(outputlist == "pb_temp"), pipeline)         
+
+         npb3d = npb3d + 1
+         pipeline => NULL()
+         pb_rv = FloatArray3d(pb_diag3d(:,:,:,npb3d))
+         pipeline => pb_rv
+         CALL Diag%newField("pb_rv", "Water vapor mixing ratio (bulk slave)", "kg/kg", "tttt",   &
+                            ANY(outputlist == "pb_rv"), pipeline)
+
+         npb3d = npb3d + 1
+         pipeline => NULL()
+         pb_rc = FloatArray3d(pb_diag3d(:,:,:,npb3d))
+         pipeline => pb_rc
+         CALL Diag%newField("pb_rc", "Condensate mixing ratio (bulk slave)", "kg/kg", "tttt",    &
+                            ANY(outputlist == "pb_rc"), pipeline)
+
+         npb3d = npb3d + 1
+         pipeline => NULL()
+         pb_rh = FloatArray3d(pb_diag3d(:,:,:,npb3d))
+         pipeline => pb_rh
+         CALL Diag%newField("pb_rh", "Relative humidity (bulk slave)", "1", "tttt",    &
+                            ANY(outputlist == "pb_rh"), pipeline)
+         
+         npb3d = npb3d + 1
+         pipeline => NULL()
+         pb_rsl = FloatArray3d(pb_diag3d(:,:,:,npb3d))
+         pipeline => pb_rsl
+         CALL Diag%newField("pb_rsl", "Saturation mixing ratio (bulk slave)", "kg/kg", "tttt",    &
+                            ANY(outputlist == "pb_rsl"), pipeline)
+
+         npb3d = npb3d + 1
+         pipeline => NULL()
+         pb_rrate = FloatArray3d(pb_diag3d(:,:,:,npb3d))
+         pipeline => pb_rrate
+         CALL Diag%newField("pb_rrate", "Rain flux (bulk slave)", "W m-2", "tttt",     &
+                            ANY(outputlist == "pb_rrate"), pipeline)
+
+         npb2d = 1
+         pipeline => NULL()
+         pb_sfcrrate = FloatArray2d(pb_diag2d(:,:,npb2d))
+         pipeline => pb_sfcrrate
+         CALL Diag%newField("pb_sfcrrate", "Surface rain flux (bulk slave)", "W m-2", "xtytt",   &
+                            ANY(outputlist == "pb_sfcrrate"), pipeline)
+         
+      END IF
+      
+      pipeline => NULL()
       
     END SUBROUTINE setDiagnosticVariables
         

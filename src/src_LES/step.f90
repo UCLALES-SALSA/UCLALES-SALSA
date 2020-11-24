@@ -204,7 +204,7 @@ CONTAINS
    !
    SUBROUTINE t_step(cflflg,cflmax)
 
-      USE grid, ONLY : level,dtlt,      &
+      USE grid, ONLY : level,lpback,dtlt,      &
                        nxp,nyp,nzp,   &
                        a_nactd,  a_vactd
       USE mo_vector_state, ONLY : a_wp
@@ -264,6 +264,12 @@ CONTAINS
       ! -----------------------
       IF (level >= 4) THEN
 
+         ! ---------------------------------------------------------------------
+         ! With pigybacking setup, call the slave bulk microphysics before SALSA
+         ! Note that SALSA still requires the separate call to "micro" afterwards
+         ! because of sedimentation, which is a bit silly. 
+         IF (lpback) CALL micro(0)
+                  
          nspec = spec%getNSpec(type="wet") ! Aerosol components + water
             
          IF ( nxp == 5 .AND. nyp == 5 ) THEN
@@ -291,7 +297,7 @@ CONTAINS
       !-------------------------------------------
       ! "Deposition" timestep
       ! Dont perform sedimentation or level 3 autoconversion during spinup (internal switches implemented)
-      CALL micro()
+      CALL micro(level)
       IF (level >= 4) CALL tend_constrain2()
       CALL update_sclrs
       CALL tend0(.TRUE.)

@@ -34,12 +34,12 @@ MODULE mo_field_init
            SALSA_tracers_4d = FieldArray()
       
       CALL setPrognosticVariables(a_sclrp,a_sclrt,Prog,varlist_main,  &
-           level,isgstyp,nzp,nxp,nyp,nscl)
+           level,isgstyp,lpback,nzp,nxp,nyp,nscl)
       CALL setVectorVariables(Vector,varlist_main,nzp,nxp,nyp)
-      CALL setDiagnosticVariables(Diag,varlist_main,memsize,level,iradtyp,nzp,nxp,nyp)      
+      CALL setDiagnosticVariables(Diag,varlist_main,memsize,level,iradtyp,lpback,nzp,nxp,nyp)      
       CALL setDerivedVariables(Derived,varlist_main,level)
-      CALL setPSVariables(PS,varlist_ps,level)
-      CALL setTSVariables(TS,varlist_ts,level)
+      CALL setPSVariables(PS,varlist_ps,level,lpback)
+      CALL setTSVariables(TS,varlist_ts,level,lpback)
 
       F_main = SIZE(varlist_main)
       F_ps = SIZE(varlist_ps)

@@ -103,7 +103,7 @@ CONTAINS
     USE grid, ONLY              : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                                   dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                                   filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
-                                  nfpt, distim, runtype, CCN,sst,W1,W2,W3, &
+                                  lpback, nfpt, distim, runtype, CCN,sst,W1,W2,W3, &
                                   cntlat, varlist_main, varlist_ps, varlist_ts
     USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                                   zrand, zrndamp, init_type
@@ -141,6 +141,7 @@ CONTAINS
          iradtyp,                   & ! Radiation type
          isgstyp, csx    , prndtl , & ! SGS model type, parameters
          lnudging, lemission,       & ! master switch for nudging, aerosol emissions
+         lpback,                    & ! Switch for piggybacking microphysics
          div, case_name, &            ! divergence for LEVEL 4
          sed_aero, sed_cloud, sed_precp, sed_ice,  & ! Sedimentation (T/F)
          bulk_autoc                                            ! autoconversion (and accretion) switch for level < 4 
@@ -268,22 +269,27 @@ CONTAINS
        ! Do some cursory error checking in namelist variables
        !
        IF (laerorad .AND. level < 4) THEN 
-          IF (myid ==0) WRITE(*,*) "WARNING: laerorad=TRUE valid only for level >= 4, setting to FALSE"
+          WRITE(*,*) "WARNING: laerorad=TRUE valid only for level >= 4, setting to FALSE"
           laerorad = .FALSE.
        END IF
        
        IF (MIN(nxp,nyp) < 5) THEN
-          IF (myid == 0) PRINT *, '  ABORTING: min(nxp,nyp) must be > 4.'
+          PRINT *, '  ABORTING: min(nxp,nyp) must be > 4.'
           CALL appl_abort(0)
        END IF
        
        IF (nzp < 3 ) THEN
-          IF (myid == 0) PRINT *, '  ABORTING: nzp must be > 2 '
+          PRINT *, '  ABORTING: nzp must be > 2 '
           CALL appl_abort(0)
        END IF
        
        IF (cntlat < -90. .OR. cntlat > 90.) THEN
-          IF (myid == 0) PRINT *, '  ABORTING: central latitude out of bounds.'
+          PRINT *, '  ABORTING: central latitude out of bounds.'
+          CALL appl_abort(0)
+       END IF
+       
+       IF (lpback .AND. level /= 4) THEN
+          WRITE(*,*) "ABORTING: lpback=TRUE currently valid only with level=4"
           CALL appl_abort(0)
        END IF
     END IF

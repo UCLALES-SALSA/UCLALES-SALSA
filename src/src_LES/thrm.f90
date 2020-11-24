@@ -45,8 +45,13 @@ CONTAINS
 !
   SUBROUTINE thermo (level)
 
-    USE mo_diag_state, ONLY : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_temp, a_rsl, a_srp, a_ri, a_riri, a_rsi, a_rhi
-    USE mo_progn_state, ONLY : a_rp, a_tp, a_rpp
+    USE mo_diag_state, ONLY : a_rtot, a_rc, a_rv, a_rh, a_theta,    &
+                              a_pexnr, a_press, a_temp, a_rsl,      &
+                              a_srp, a_ri, a_riri, a_rsi, a_rhi,    &
+                              pb_theta, pb_temp, pb_rv, pb_rc,      &
+                              pb_rsl, pb_rh
+    USE mo_progn_state, ONLY : a_rp, a_tp, a_rpp,   &
+                               pb_rpp
     USE mo_aux_state, ONLY : pi0, pi1
     USE grid, ONLY : nxp, nyp, nzp, th00
 
@@ -65,6 +70,11 @@ CONTAINS
     CASE (4:5)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
                       a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_riri,a_rsi,a_rhi)
+    CASE (0) ! Piggybacking call to level 3 thermodynamics, when using
+             ! bulk microphysics as slave and SALSA as the primary scheme.
+       CALL satadjst3(nzp,nxp,nyp,a_pexnr,a_press,a_tp,pb_theta,pb_temp,pi0,  &
+                      pi1,th00,a_rtot,pb_rv,pb_rc,pb_rsl,pb_rpp,pb_rh)
+
     END SELECT
 
   END SUBROUTINE thermo
