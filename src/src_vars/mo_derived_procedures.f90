@@ -30,7 +30,8 @@ MODULE mo_derived_procedures
             surfaceFluxes,   &  ! Diagnose surface fluxes in W/m2
             getCDNC,         &  ! Diagnose the "real" CDNC ( 2 um < D < 80 um; level >= 4 )
             getCNC,          &  ! Diagnose the "cloud number concentration" (D > 2 um; level >= 4)
-            getReff             ! Get the effective radius using all liquid hdrometeor > 2 um (level >= 4)
+            getReff,         &  ! Get the effective radius using all liquid hdrometeor > 2 um (level >= 4)
+            getBinTotMass       ! Get the binned total mass
     
   CONTAINS
 
@@ -225,7 +226,10 @@ MODULE mo_derived_procedures
      REAL :: numlim
      
      nspec = spec%getNSpec(type="wet")
+     numlim = 0.
+     numc => NULL(); mass => NULL(); nb = 0.
 
+     
      SELECT CASE(name)
      CASE('Dwaba')
         flag = 1
@@ -551,6 +555,58 @@ MODULE mo_derived_procedures
    END SUBROUTINE getReff
 
    ! -------------------------------------------------------------------------------
+
+   SUBROUTINE getBinTotMass(name,output,nstr,nend)
+     CHARACTER(len=*), INTENT(in) :: name
+     INTEGER, INTENT(in) :: nstr,nend
+     REAL, INTENT(out) :: output(nzp,nxp,nyp,nend-nstr+1)
+     REAL, POINTER :: parr(:,:,:,:) => NULL()
+     REAL, ALLOCATABLE :: tmp(:)    
+     INTEGER :: nspec, i,j,k,bin
+     INTEGER :: nb
+
+     parr => NULL()
+     output = 0.
+     nspec = spec%getNSpec(type="wet") ! Update below if ice
+     
+     SELECT CASE(name)
+     CASE("Maba","Mabb")
+        parr => a_maerop%d(:,:,:,:)
+        nb = nbins
+     CASE("Mcba","Mcbb")
+        parr => a_mcloudp%d(:,:,:,:)
+        nb = ncld
+     CASE("Mpba")
+        parr => a_mprecpp%d(:,:,:,:)
+        nb = nprc
+     CASE("Miba")
+        parr => a_micep%d(:,:,:,:)
+        nspec = spec%getNSpec(type="total")
+        nb = nice
+     END SELECT
+     
+     ALLOCATE(tmp(nspec))
+     tmp = 0.
+     
+     DO bin = nstr,nend
+        DO j = 1,nyp
+           DO i = 1,nxp
+              DO k = 1,nzp
+                 CALL getBinMassArray(nb,nspec,bin,parr(k,i,j,:),tmp)
+                 output(k,i,j,bin-nstr+1) = SUM(tmp)
+              END DO
+           END DO
+        END DO
+     END DO
+     
+     DEALLOCATE(tmp)
+     parr => NULL()
+     
+   END SUBROUTINE getBinTotMass
+
+
+
+
    
    ! NONE OF THE BELOW IS YET ASSOCIATED WITH ANYTHING !!!!!!!!!!!!!!!!!!!!
 

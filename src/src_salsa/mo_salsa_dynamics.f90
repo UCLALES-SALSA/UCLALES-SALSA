@@ -149,6 +149,8 @@ CONTAINS
       ! For Hallet-Mossop
       REAL :: drimdt(kbdim,klev,nice)  ! Volume change in rime due to liquid collection in the presense of liquid
                                        ! hydrometeors with diameters both < 13um and >25um
+      REAL :: pre1, pre2, post1, post2
+
       
       !-----------------------------------------------------------------------------
       !-- 1) Coagulation to coarse mode calculated in a simplified way: ------------
@@ -161,7 +163,10 @@ CONTAINS
  
       !-- 2) Updating coagulation coefficients -------------------------------------
       
-      nspec = spec%getNSpec(type="total")
+      nspec = spec%getNSpec(type="total")  ! Note this includes the rime index even if it is not used/present.
+                                           ! In classSection the volume concentration array is hardcoded to allocate
+                                           ! everything, so this doesn't matter, but is ofcourse extra work. So we
+                                           ! need extra work for this...
       iri = spec%getIndex("rime")
       
       ! Since this is done here, it won't really be necessary in the subsequent coagulation routines
@@ -209,9 +214,25 @@ CONTAINS
               CALL halletmossop(kbdim,kproma,klev,(any_lt13 .AND. any_gt25),ptemp,drimdt)
          
       END IF
-         
-      IF (any_precp) &
-           CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip)
+
+      ! Get new nspec that omits the rime. See comments in the beginning..
+      nspec = spec%getNSpec(type="wet")
+
+      pre1 = SUM(precp(1,1,:)%volc(1)) + sum(cloud(1,1,:)%volc(1))
+      pre2 = SUM(precp(1,1,:)%volc(2)) + SUM(cloud(1,1,:)%volc(2))
+      
+      ! POISTA MASSATARKASTELUT
+      IF (any_precp) THEN 
+         CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip)
+
+      END IF
+
+      post1 = SUM(precp(1,1,:)%volc(1)) + SUM(cloud(1,1,:)%volc(1))
+      post2 = SUM(precp(1,1,:)%volc(2)) + SUM(cloud(1,1,:)%volc(2))
+      !IF(any_precp) &
+      !     WRITE(*,*) "coag pre post rdiff ", pre1, pre2, post1, post2,   &
+      !                (post1-pre1)/pre1, (post2-pre2)/pre2
+      
 
       IF (any_aero) &
            CALL coag_aero(kbdim,klev,nspec,ptstep,zccaa,zccca,zccpa,zccia)
@@ -219,6 +240,7 @@ CONTAINS
       IF (any_cloud) &
            CALL coag_cloud(kbdim,klev,nspec,ptstep,zcccc,zccca,zccpc,zccic)
 
+      
    END SUBROUTINE coagulation
 
 
@@ -1033,21 +1055,21 @@ CONTAINS
                IF ( ANY(cloud(ii,jj,:)%numc > cloud(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, ncld
                      zcwintcd(cc) = zcwccd(cc) + MIN(MAX(adt*zmtcd(cc)*(zcwint - zwsatcd(cc)*zcwsurfcd(cc)), &
-                                                     -1.e-2*zcwtot), 1.e-2*zcwtot) 
+                                                        -1.e-1*zcwccd(cc)), 1.e-1*zcwccd(cc)) !-1.e-2*zcwtot), 1.e-2*zcwtot) 
                      zwsatcd(cc) = acth2o(cloud(ii,jj,cc),zcwintcd(cc))*zkelvincd(cc)
                   END DO
                END IF
                IF ( ANY(precp(ii,jj,:)%numc > precp(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, nprc
                      zcwintpd(cc) = zcwcpd(cc) + MIN(MAX(adt*zmtpd(cc)*(zcwint - zwsatpd(cc)*zcwsurfpd(cc)), &
-                                                     -1.e-2*zcwtot), 1.e-2*zcwtot) 
+                                                        -1.e-1*zcwcpd(cc)), 1.e-1*zcwcpd(cc)) !-1.e-2*zcwtot), 1.e-2*zcwtot) 
                      zwsatpd(cc) = acth2o(precp(ii,jj,cc),zcwintpd(cc))*zkelvinpd(cc)
                   END DO
                END IF
                IF ( ANY(ice(ii,jj,:)%numc > ice(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, nice
                      zcwintit(cc) = zcwcit(cc) + MIN(MAX(adt*zmtic(cc)*(zcwint - zwsatic(cc)*zcwsurfic(cc)), &
-                                                     -1.e-2*zcwtot), 1.e-2*zcwtot) 
+                                                         -1.e-1*zcwcit(cc)), 1.e-1*zcwcit(cc)) !-1.e-2*zcwtot), 1.e-2*zcwtot) 
                      zwsatic(cc) = zkelvinic(cc)
                   END DO
                END IF

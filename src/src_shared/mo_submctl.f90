@@ -183,8 +183,8 @@ MODULE mo_submctl
   ! classSection instances
   REAL, PARAMETER :: dlaero = 30.e-6,   &
                      dlcloud = 100.e-6, &
-                     dlprecp = 2.e-3,   &
-                     dlice   = 2.e-3
+                     dlprecp = 5.e-3,   &
+                     dlice   = 10.e-3
     
   REAL, PARAMETER ::     &
    avog   = 6.0221e+23,   & ! Avogadro number (#/mol)
@@ -264,6 +264,6 @@ MODULE mo_submctl
   
   REAL, PARAMETER :: &
    nlim = 1.,  & ! Number conc. limit (#/kg) for aerosol and cloud droplets 
-   prlim = 1.e-6 ! The same for precipitation and ice species for which concentrations are normally much lower [#/m3]
+   prlim = 1.e-6 ! The same for precipitation and ice species for which concentrations are normally much lower [#/kg]
   
 END MODULE mo_submctl

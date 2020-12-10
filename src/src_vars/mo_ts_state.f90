@@ -60,7 +60,8 @@ MODULE mo_ts_state
   TYPE(FloatArray0d), TARGET :: ts_shfacc,ts_lhfacc,                    &  
                                 ts_lwpacc,ts_rwpacc,ts_iwpacc                               
 
-                                
+  TYPE(FloatArray0d), TARGET :: ts_total_mass   ! Total mass of constituents in the atmosphere (i.e. everything except air)
+  
   ! Storage for accumulated statistics                                 
   REAL, ALLOCATABLE, TARGET :: a_ts0d(:)
   INTEGER, PARAMETER        :: nts0d = 5
@@ -262,6 +263,13 @@ MODULE mo_ts_state
          
       END IF
 
+      ts_total_mass = FloatArray0d("total_mass")
+      ts_total_mass%onDemand => tsTotalMass
+      pipeline => ts_total_mass
+      CALL TS%newField(ts_total_mass%shortName, "Total mass of constituents", "kg", "time",   &
+                       ANY(outputlist == ts_total_mass%shortName), pipeline)
+      
+      pipeline => NULL()
       
     END SUBROUTINE setTSVariables
         

@@ -1,5 +1,5 @@
 MODULE mo_ts_procedures
-  USE grid, ONLY : nzp,nxp,nyp,level
+  USE grid, ONLY : deltax,deltay,nzp,nxp,nyp,level
   USE mo_aux_state, ONLY : dzt,zt
   USE mo_stats_finder
   USE mo_structured_datatypes, ONLY : FloatArray0d
@@ -11,7 +11,7 @@ MODULE mo_ts_procedures
   PUBLIC :: tsMin,tsMax,tsSfcMean,tsInCloudMean,               &
             tsInLiqMean,tsInIceMean,tsInPrecipMean,            &
             tsCloudBoundaries,tsCloudFraction,    &
-            tsSurface
+            tsTotalMass
 
   CONTAINS
 
@@ -334,14 +334,45 @@ MODULE mo_ts_procedures
       CALL get_avg2_root(nxp,nyp,lateral,output)      
     END SUBROUTINE tsCloudFraction
 
+    !SUBROUTINE tsSurface(SELF,name,output)
+    !  CLASS(FloatArray0d), INTENT(in) :: SELF
+    !  CHARACTER(len=*), INTENT(in) :: name
+    !  REAL, INTENT(out) :: output
+    !  output = 0.
+    !END SUBROUTINE tsSurface
     
-    
-    SUBROUTINE tsSurface(SELF,name,output)
+    !
+    ! -------------------------------------------
+    ! SUBROUTINE tsTotalMass:
+    ! Calculates the total mass of everything except air in the domain
+    ! THIS ONLY WORK NOW FOR LEVEL >= 4
+    !
+    SUBROUTINE tsTotalMass(SELF,output)
+      USE mo_progn_state, ONLY : a_maerop, a_mcloudp, a_mprecpp, a_micep, a_rp
+      USE mo_diag_state, ONLY : a_dn
       CLASS(FloatArray0d), INTENT(in) :: SELF
-      CHARACTER(len=*), INTENT(in) :: name
       REAL, INTENT(out) :: output
+      REAL :: box(nzp)
+      INTEGER :: i,j,k
+
+      box(1:nzp) = deltax*deltay/dzt%d(1:nzp)
+      
       output = 0.
-    END SUBROUTINE tsSurface
+
+      DO j = 1,nyp
+         DO i = 1,nxp
+            DO k = 1,nzp
+               output = output + SUM(a_maerop%d(k,i,j,:))*box(k)*a_dn%d(k,i,j)
+               output = output + SUM(a_mcloudp%d(k,i,j,:))*box(k)*a_dn%d(k,i,j)
+               output = output + SUM(a_mprecpp%d(k,i,j,:))*box(k)*a_dn%d(k,i,j)
+               IF (level == 5) output = output + SUM(a_micep%d(k,i,j,:))*box(k)*a_dn%d(k,i,j)
+               output = output + a_rp%d(k,i,j)*box(k)*a_dn%d(k,i,j)
+            END DO
+         END DO
+      END DO
+
+      
+    END SUBROUTINE tsTotalMass
     
       
 END MODULE mo_ts_procedures

@@ -82,7 +82,7 @@ CONTAINS
 
          !IF (sflg) THEN
          !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-         !   CALL updtst(nzp,'adv',n,v1da,1)   1 tl flux, 2, ... N PERUSTEELLA PITÄÄ SELVITTÄÄ MIKÄ SKALAARI MENOSSA!!! VOIS OLLA YKSINKERTASEMPAA VAAN LASEKA 
+         !   CALL updtst(nzp,'adv',n,v1da,1)
          !END IF
 
          CALL advtnd(nzp,nxp,nyp,a_sp,a_tmp1,a_st,dtlt)

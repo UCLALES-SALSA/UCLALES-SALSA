@@ -104,7 +104,7 @@ MODULE mcrp
          CALL sedim_SALSA(nspec,level,a_ustar,a_temp,a_theta,a_dn,a_rrate,   &
                           a_sfcrrate,a_irate,a_sfcirate,d_VtPrc,d_VtIce,a_tt )
                          
-      CASE(0) ! For piggybacking call to level 3 microphysics. pb_mcrph just wraps the necessary calls to thrm and mcrph
+      CASE(0) ! For piggybacking call to level 3 microphysics. pb_mcrph just wraps the necessary calls to thermo and mcrph
          CALL pb_mcrph(dn0)
       END SELECT
       

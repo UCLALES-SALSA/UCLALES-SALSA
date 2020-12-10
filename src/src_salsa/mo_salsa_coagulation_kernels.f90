@@ -78,23 +78,19 @@ MODULE mo_salsa_coagulation_kernels
     END SUBROUTINE update_coagulation_kernels
 
     ! ----------------------
+    
     SUBROUTINE buildKernelSelf( kbdim,klev,nb1,part1,ptemp,ppres,zcc )
       INTEGER, INTENT(in) :: kbdim,klev,nb1
-      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1)
+      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1)  ! inout because updates rho, D
       REAL, INTENT(in) :: ptemp(kbdim,klev),ppres(kbdim,klev)
-      REAL, INTENT(inout) :: zcc(kbdim,klev,nb1,nb1)
-
-      REAL :: zdiam_mm, zmass_mm
-      
-      REAL :: zdiam(nb1), zmass(nb1)
+      REAL, INTENT(out) :: zcc(kbdim,klev,nb1,nb1)
 
       INTEGER :: mm,nn,ii,jj
 
+      zcc = 0.
+      
       DO jj = 1,klev
          DO ii = 1,kbdim
-            
-            zdiam(:) = 0.
-            zmass(:) = 0.
             
             ASSOCIATE ( pp1 => part1(ii,jj,1:nb1) )
               
@@ -102,8 +98,6 @@ MODULE mo_salsa_coagulation_kernels
                  CALL pp1(mm)%updateDiameter(limit=.TRUE.,type="all")
                  CALL pp1(mm)%updateRhomean()
               END DO
-
-              IF (pp1(1)%phase == 4) zdiam(1:nb1) = pp1(1:nb1)%dnsp ! for ice use nonspherical shape for the actual diameter
               
               DO mm = 1, nb1         ! smaller colliding particle                 
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
@@ -130,19 +124,16 @@ MODULE mo_salsa_coagulation_kernels
       ! Always the "smaller" particle indices first
       INTEGER, INTENT(in) :: kbdim,klev
       INTEGER, INTENT(in) :: nb1, nb2
-      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1), part2(kbdim,klev,nb2)
+      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1), part2(kbdim,klev,nb2) ! inout because updates rho, D 
       REAL, INTENT(in)    :: ptemp(kbdim,klev),ppres(kbdim,klev)
-      REAL, INTENT(inout)   :: zcc(kbdim,klev,nb1,nb2)
-      
-      REAL :: zdiam1(nb1), zdiam2(nb2), zmass1(nb1), zmass2(nb2)
-
+      REAL, INTENT(out)   :: zcc(kbdim,klev,nb1,nb2)
+     
       INTEGER :: mm,nn,ii,jj
 
+      zcc = 0.
+      
       DO jj = 1,klev
          DO ii = 1,kbdim
-            
-            zdiam1(:) = 0.; zdiam2(:) = 0.
-            zmass1(:) = 0.; zmass2(:) = 0.
             
             ASSOCIATE ( pp1 => part1(ii,jj,1:nb1), pp2 => part2(ii,jj,1:nb2) )
 
@@ -263,8 +254,8 @@ MODULE mo_salsa_coagulation_kernels
       ! If this is for self coagulation, put a minor offset on the particle diameters to account for
       ! the bin width
       IF ( ABS(pp1%dmid - pp2%dmid)/pp1%dmid < 1.e-2) THEN
-         diam1 = 0.9*diam2
-         mass1 = 0.7290*mass2 ! 0.7290 corresponds to 0.9*diameter ;;  NOTE this might cause some small error for ice!!
+         diam1 = 1.1*diam2
+         mass1 = 1.33*mass2 ! 1.33 corresponds roughly to factor 1.1 in diameter 
       END IF
 
       
@@ -337,15 +328,15 @@ MODULE mo_salsa_coagulation_kernels
          vkin  = visc/zrhoa           ! Kinematic viscosity of air [m2 s-1]
 
          IF (pp1%phase < 4) THEN         
-            termv(1) = terminal_vel(pp1%dwet,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase)
+            termv(1) = terminal_vel(diam1,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase)
          ELSE
-            termv(1) = terminal_vel(pp1%dwet,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase,shape1,pp1%dnsp)
+            termv(1) = terminal_vel(dicesph1,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase,shape1,diam1)
          END IF
 
          IF (pp2%phase < 4) THEN
-            termv(2) = terminal_vel(pp2%dwet,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase)
+            termv(2) = terminal_vel(diam2,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase)
          ELSE
-            termv(2) = terminal_vel(pp2%dwet,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase,shape2,pp2%dnsp)
+            termv(2) = terminal_vel(dicesph2,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase,shape2,diam2)
          END IF
          
          ! Reynolds number
@@ -366,7 +357,7 @@ MODULE mo_salsa_coagulation_kernels
          END IF
          
          ! Turbulent Shear
-         eddy_dis = 10.e-4 ! Values suggested by Sami - could be taken from the LES model?
+         eddy_dis = 1.e-1 ! Values suggested by Sami - could be taken from the LES model?
          ztshear = SQRT(8.*pi*eddy_dis/(15.*vkin))*(0.5*(diam(1)+diam(2)))**3
          zturbinert = pi*eddy_dis**(0.75) /(grav* SQRT(SQRT( vkin )))  &
               *(0.5*(diam(1)+diam(2)))**2* ABS(termv(1)-termv(2))
