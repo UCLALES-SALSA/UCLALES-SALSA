@@ -102,7 +102,7 @@ module stat
         'wrt_cs1','cs2    ','cnt_cs2','w_cs2  ','tl_cs2 ','tv_cs2 ', & ! 73
         'rt_cs2 ','rc_cs2 ','wtl_cs2','wtv_cs2','wrt_cs2','Nc     ', & ! 79
         'Nr     ','rr     ','rrate  ','evap   ','frc_prc','prc_prc', & ! 85
-        'frc_ran','hst_srf','sw_up  ','sw_down','lw_up  ','lw_down'/), & ! 91, total 96
+        'frc_ran','rho_air','sw_up  ','sw_down','lw_up  ','lw_down'/), & ! 91, total 96
 
         ! **** BULK PROFILE OUTPUT FOR SALSA ****
         s2_lvl4(nv2_lvl4) = (/                                       &
@@ -120,11 +120,11 @@ module stat
         ! Column statistics
        s3(nvar3)=(/ &
        'time   ','xt     ','xm     ','yt     ','ym     ','lwp    ','rwp    ', & ! 1-7
-       'Nc     ','Nr     ','nccnt  ','nrcnt  ','zb     ','zc     ','zi1    ', & ! 8-14
+       'Nc     ','Nr     ','Rwc    ','Rwr    ','zb     ','zc     ','zi1    ', & ! 8-14
        'lmax   ','wmax   ','wbase  ','prcp   ','prcp_bc','albedo '/), & ! 15-20
        s3_lvl4(nv3_lvl4), & ! Not used
        s3_lvl5(nv3_lvl5) = (/ &
-       'iwp    ','swp    ','Ni     ','Ns     ','nicnt  ','nscnt  '/) ! 1-6
+       'iwp    ','swp    ','Ni     ','Ns     ','Rwi    ','Rws    '/) ! 1-6
 
   real, save, allocatable   :: tke_sgs(:), tke_res(:), tke0(:), wtv_sgs(:),  &
        wtv_res(:), wrl_sgs(:), thvar(:), svctr(:,:), ssclr(:),               &
@@ -193,7 +193,7 @@ contains
     LOGICAL :: s1_bool(nvar1), s1_lvl4_bool(nv1_lvl4), s1_lvl5_bool(nv1_lvl5), s1_gas_bool(ngases)
     LOGICAL :: s2_bool(nvar2), s2_lvl4_bool(nv2_lvl4), s2_lvl5_bool(nv2_lvl5), s2_gas_bool(ngases)
     LOGICAL :: s3_bool(nvar3), s3_lvl4_bool(nv3_lvl4), s3_lvl5_bool(nv3_lvl5)
-    LOGICAL :: s1_mixr_bool(4*(nspec+1)), s1_rem_bool(5*(nspec+1)), s2_mixr_bool(5*(nspec+1))
+    LOGICAL :: s1_mixr_bool(5*(nspec+1)), s1_rem_bool(5*(nspec+1)), s2_mixr_bool(5*(nspec+1))
     LOGICAL :: s2_aa_bool(2+nspec), s2_ab_bool(2+nspec), s2_ca_bool(2+nspec), s2_cb_bool(2+nspec), &
         s2_p_bool(2+nspec), s2_ia_bool(2+nspec), s2_ib_bool(2+nspec), s2_s_bool(2+nspec)
     LOGICAL :: s2_CldHist_bool(nv2_hist), s2_IceHist_bool(nv2_hist)
@@ -306,7 +306,7 @@ contains
     ELSE IF ( level >= 4 ) THEN
        ! Additional arrays for SALSA
        ! -- dimensions
-       nv1_mixr = 4*(nspec+1) ! Mixing ratios; in-cloud, intersitial, in-ice and in-snow
+       nv1_mixr = 5*(nspec+1) ! Mixing ratios in aerosol, cloud, rain, ice and snow
        nv1_rem = 5*(nspec+1)  ! Removal with aerosol, cloud, rain, ice and snow
        nv2_mixr = 5*(nspec+1) ! Mixing ratio profiles for aerosol, cloud, rain, ice and snow
        nv2_bin  = 2+nspec     ! Bin number concentrations and species mixing ratios
@@ -389,12 +389,13 @@ contains
 
        DO ee=1,nspec+1 ! Aerosol species and water
           ! Mixing ratios
-          ii = (ee-1)*4
-          s1_mixr(ii+1)=TRIM(zspec(ee))//'_ic'
-          s1_mixr(ii+2)=TRIM(zspec(ee))//'_int'
-          s1_mixr(ii+3)=TRIM(zspec(ee))//'_ii'
-          s1_mixr(ii+4)=TRIM(zspec(ee))//'_is'
-          s1_mixr_bool(ii+3:ii+4) = .TRUE. .AND. (level>4)
+          ii = (ee-1)*5
+          s1_mixr(ii+1)='tc'//TRIM(zspec(ee))//'ae'
+          s1_mixr(ii+2)='tc'//TRIM(zspec(ee))//'cl'
+          s1_mixr(ii+3)='tc'//TRIM(zspec(ee))//'pr'
+          s1_mixr(ii+4)='tc'//TRIM(zspec(ee))//'ic'
+          s1_mixr(ii+5)='tc'//TRIM(zspec(ee))//'sn'
+          s1_mixr_bool(ii+4:ii+5) = .TRUE. .AND. (level>4)
 
           ! Removal; dry, cloud, precipitation and snow
           ii = (ee-1)*5
@@ -890,67 +891,78 @@ contains
   subroutine set_cs_warm(n1,n2,n3,rc,nc,rp,np,th,w,rrate,dn,zm,zt,dzm)
 
     use netcdf
+    use defs, only : rowt, pi
+    use grid, only : meanRadius
 
     integer, intent(in) :: n1,n2,n3
     real, intent(in)    :: rc(n1,n2,n3),nc(n1,n2,n3),rp(n1,n2,n3),np(n1,n2,n3),th(n1,n2,n3)
     real, intent(in)    :: w(n1,n2,n3),rrate(n1,n2,n3),dn(n1,n2,n3),zm(n1),zt(n1),dzm(n1)
-    REAL :: lwp(n2,n3), ncld(n2,n3), rwp(n2,n3), nrain(n2,n3), zb(n2,n3), zc(n2,n3), &
-                th1(n2,n3), lmax(n2,n3), prcp_bc(n2,n3), wbase(n2,n3), wmax(n2,n3)
-    INTEGER :: ncloudy(n2,n3), nrainy(n2,n3)
-    integer :: i, j, k, iret, VarID
+    REAL :: lwp(n2,n3), ncld(n2,n3), rcld(n2,n3), rwp(n2,n3), nrain(n2,n3), rrain(n2,n3), &
+            zb(n2,n3), zc(n2,n3), th1(n2,n3), lmax(n2,n3), prcp_bc(n2,n3), wbase(n2,n3), wmax(n2,n3)
+    REAL :: Rwc(n1,n2,n3), Rwr(n1,n2,n3)
+    integer :: i, j, k, iret, VarID, ibase, itop
     real    :: cld, rn, sval, dmy
 
     ! No outputs for level 1
     IF (level<2) RETURN
 
+    ! Calculate wet radius
+    IF (level>3) THEN
+        CALL meanRadius('cloud','ab',Rwc)
+        CALL meanRadius('precp','ab',Rwr)
+    ELSE
+        ! r=n*rho*4/3*pi*r**3
+        WHERE (nc>0.)
+            Rwc=(0.75/(rowt*pi)*rc/nc)**(1./3.)
+        ELSEWHERE
+            Rwc=0.
+        END WHERE
+        WHERE (np>0.)
+            Rwr=(0.75/(rowt*pi)*rp/np)**(1./3.)
+        ELSEWHERE
+            Rwr=0.
+        END WHERE
+    ENDIF
+
     ! Calculate stats
     lwp=0.      ! LWP (kg/m^2)
     ncld=0.     ! Average CDNC (#/kg)
-    ncloudy=0 ! Number of cloudy grid cells
+    rcld=0.     ! Average cloud droplet radius (m)
     rwp=0.      ! RWP (kg/m^2)
     nrain=0.    ! Average RDNC (#/kg)
-    nrainy=0    ! Number of cloudy grid cells
-    zb=zm(n1)+100.  ! Cloud base (m)
-    zc=0.           ! Cloud top (m)
-    lmax=0.     ! Liquid water mixing ratio (kg/kg)
-    th1=0.      ! Height of the maximum theta gradient
-    prcp_bc = -999. ! Precipitation at the cloud base (W/m^2)
-    wbase = -999.   ! Vertical velocity -||- (m/s)
-    wmax = 0.   ! Maximum absolute vertical velocity (m/s)
+    rrain=0.    ! Average rain drop radius (m)
+    zb=-999.    ! Cloud base height (m)
+    zc=-999.    ! Cloud top height (m)
+    lmax=0.     ! Maximum liquid water mixing ratio (kg/kg)
+    th1=0.      ! Height of the maximum theta gradient (m)
+    prcp_bc=-999. ! Precipitation rate at the cloud base (W/m^2)
+    wbase=-999.   ! Vertical velocity -||- (m/s)
+    wmax=0.     ! Maximum absolute vertical velocity (m/s)
     do j=3,n3-2
        do i=3,n2-2
           cld=0.
           rn=0.
+          ibase=-1
+          itop=-1
           sval = 0.
           do k=2,n1
              lwp(i,j)=lwp(i,j)+rc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
+             ! Number weighted averages of CDNC and cloud droplet radius
+             ncld(i,j)=ncld(i,j)+nc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*nc(k,i,j)
+             rcld(i,j)=rcld(i,j)+nc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*Rwc(k,i,j)
+             cld=cld+nc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
+             ! The first and last cloudy (rc>1e-5 kg/kg) grid cell
              IF (rc(k,i,j)>0.01e-3) THEN
-                ! Cloudy grid
-                ! Volume weighted average of the CDNC
-                ncld(i,j)=ncld(i,j)+nc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-                cld=cld+dn(k,i,j)*(zm(k)-zm(k-1))
-                ! Number of cloudy pixels
-                ncloudy(i,j)=ncloudy(i,j)+1
-                ! Cloud base and top
-                zb(i,j)=min(zt(k),zb(i,j))
-                zc(i,j)=max(zt(k),zc(i,j))
-                ! Cloud base vertical velocity and precipitation
-                IF (ncloudy(i,j)==1) THEN
-                    ! Take those from level k-1 (>=2), which is just below cloud base
-                    wbase(i,j) = w(max(2,k-1),i,j)
-                    prcp_bc(i,j) = rrate(max(2,k-1),i,j)
-                ENDIF
+                IF (ibase<0) ibase=k
+                itop=k
              END IF
              !
              rwp(i,j)=rwp(i,j)+rp(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-             if (rp(k,i,j) > 0.001e-3) then
-                ! Rainy grid cell
-                ! Volume weighted average of the RDNC
-                nrain(i,j)=nrain(i,j)+np(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-                rn=rn+dn(k,i,j)*(zm(k)-zm(k-1))
-                ! Number of rainy pixels
-                nrainy(i,j)=nrainy(i,j)+1
-             end if
+             ! Number weighted average of RDNC and rain drop radius
+             nrain(i,j)=nrain(i,j)+np(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*np(k,i,j)
+             rrain(i,j)=rrain(i,j)+np(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*Rwr(k,i,j)
+             rn=rn+np(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
+             !
              ! Maximum liquid water mixing ratio
              lmax(i,j) = max(lmax(i,j),rc(k,i,j))
              ! Maximum absolute vertical velocity
@@ -966,13 +978,24 @@ contains
           enddo
           IF (cld>0.) THEN
             ncld(i,j)=ncld(i,j)/cld
+            rcld(i,j)=rcld(i,j)/cld
           ELSE
-            zb(i,j)=-999.
-            zc(i,j)=-999.
+            rcld(i,j)=-999.
           END IF
           IF (rn>0.) THEN
             nrain(i,j)=nrain(i,j)/rn
+            rrain(i,j)=rrain(i,j)/rn
+          ELSE
+            rrain(i,j)=-999.
           END IF
+          IF (ibase>0) THEN
+            ! Cloud base and top
+            zb(i,j)=zt(ibase)
+            zc(i,j)=zt(itop)
+            ! Cloud base vertical velocity and precipitation (taken from the level just below cloud base)
+            wbase(i,j) = w(max(2,ibase-1),i,j)
+            prcp_bc(i,j) = rrate(max(2,ibase-1),i,j)
+          ENDIF
        end do
     end do
 
@@ -990,11 +1013,11 @@ contains
     iret = nf90_inq_varid(ncid3,'Nr',VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nrain(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
-    iret = nf90_inq_varid(ncid3,'nccnt',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, ncloudy(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    iret = nf90_inq_varid(ncid3,'Rwc',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rcld(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
-    iret = nf90_inq_varid(ncid3,'nrcnt',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nrainy(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    iret = nf90_inq_varid(ncid3,'Rwr',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rrain(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_inq_varid(ncid3,'zb',VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, zb(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
@@ -1023,57 +1046,58 @@ contains
   subroutine set_cs_cold(n1,n2,n3,ri,ni,rs,ns,dn,zm)
 
     use netcdf
+    use grid, only : meanRadius
 
     integer, intent(in) :: n1,n2,n3
     real, intent(in)    :: ri(n1,n2,n3),ni(n1,n2,n3),rs(n1,n2,n3),ns(n1,n2,n3)
     real, intent(in)    :: dn(n1,n2,n3),zm(n1)
-    REAL :: iwp(n2,n3), nice(n2,n3), swp(n2,n3), nsnow(n2,n3), imax(n2,n3)
-    INTEGER :: nicy(n2,n3), nsnowy(n2,n3)
+    REAL :: iwp(n2,n3), nice(n2,n3), rice(n2,n3), swp(n2,n3), nsnow(n2,n3), rsnow(n2,n3)
+    REAL :: Rwi(n1,n2,n3), Rws(n1,n2,n3)
     integer :: i, j, k, iret, VarID
     real    :: ice, sn
 
     ! No outputs for levels less than 5
     IF (level<5) RETURN
 
+    ! Calculate wet radius
+    CALL meanRadius('ice','ab',Rwi)
+    CALL meanRadius('snow','ab',Rws)
+
     ! Calculate stats
-    iwp=0.  ! IWP (kg/m^2)
-    nice=0. ! Average ice number concentration (#/kg)
-    nicy=0  ! Number of icy grid cells
-    swp=0.  ! SWP (kg/m^2)
-    nsnow=0.    ! Average snow number concentration (#/kg)
-    nsnowy=0    ! Number of snowy grid cells
-    imax=0. ! Maximum ice water mixing ratio (kg/kg)
+    iwp=0.   ! IWP (kg/m^2)
+    nice=0.  ! Average ice number concentration (#/kg)
+    rice=0.  ! Average ice radius (m)
+    swp=0.   ! SWP (kg/m^2)
+    nsnow=0. ! Average snow number concentration (#/kg)
+    rsnow=0. ! Average snow radius (m)
     do j=3,n3-2
        do i=3,n2-2
           ice=0.
           sn=0.
           do k=2,n1
              iwp(i,j)=iwp(i,j)+ri(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-             IF (icemask(k,i,j)) THEN
-                ! Icy grid cell
-                ! Volume weighted average of the ice number concentration
-                nice(i,j)=nice(i,j)+ni(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-                ice=ice+dn(k,i,j)*(zm(k)-zm(k-1))
-                ! Number of icy pixels
-                nicy(i,j)=nicy(i,j)+1
-             END IF
+             ! Number weighted average of ice number concentration and radius
+             nice(i,j)=nice(i,j)+ni(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*ni(k,i,j)
+             rice(i,j)=rice(i,j)+ni(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*Rwi(k,i,j)
+             ice=ice+ni(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
+             !
              swp(i,j)=swp(i,j)+rs(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-             if (snowmask(k,i,j)) then
-                ! Snowy grid cell
-                ! Volume weighted average of the snow number concentration
-                nsnow(i,j)=nsnow(i,j)+ns(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-                sn=sn+dn(k,i,j)*(zm(k)-zm(k-1))
-                ! Number of snowy pixels
-                nsnowy(i,j)=nsnowy(i,j)+1
-             end if
-             ! Maximum ice water mixing ratio
-             imax(i,j) = max(imax(i,j),ri(k,i,j))
+             ! Number weighted average of snow number concentration and radius
+             nsnow(i,j)=nsnow(i,j)+ns(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*ns(k,i,j)
+             rsnow(i,j)=rsnow(i,j)+ns(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*Rws(k,i,j)
+             sn=sn+ns(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
           enddo
           IF (ice>0.) THEN
             nice(i,j)=nice(i,j)/ice
+            rice(i,j)=rice(i,j)/ice
+          ELSE
+            rice(i,j)=-999.
           END IF
           IF (sn>0.) THEN
             nsnow(i,j)=nsnow(i,j)/sn
+            rsnow(i,j)=rsnow(i,j)/sn
+          ELSE
+            rsnow(i,j)=-999.
           END IF
        end do
     end do
@@ -1090,14 +1114,11 @@ contains
     iret = nf90_inq_varid(ncid3,'Ns',VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nsnow(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
-    iret = nf90_inq_varid(ncid3,'nicnt',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nicy(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    iret = nf90_inq_varid(ncid3,'Rwi',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rice(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
-    iret = nf90_inq_varid(ncid3,'nscnt',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nsnowy(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-
-    iret = nf90_inq_varid(ncid3,'imax',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, imax(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    iret = nf90_inq_varid(ncid3,'Rws',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rsnow(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
   end subroutine set_cs_cold
 
@@ -1314,7 +1335,7 @@ contains
   !
   SUBROUTINE ts_lvl4(n1,n2,n3)
     use mo_submctl, only : nlim ! Note: #/m^3, but close enough to #/kg for statistics
-    USE grid, ONLY : bulkNumc, bulkMixrat, meanradius, dzt, a_rh, &
+    USE grid, ONLY : bulkNumc, bulkMixrat, meanradius, dzt, a_rh, a_dn, &
         a_gaerop, nspec, ngases
 
     IMPLICIT NONE
@@ -1360,13 +1381,15 @@ contains
     ! Maximum supersaturation
     ssclr_lvl4(13) = (get_max_val(n1,n2,n3,a_rh)-1.0)*100.
 
-    ! Species mixing ratios in cloud droplets and interstitial aerosol
+    ! Species mixing ratios in aerosol, cloud and rain (vertically integrated)
     DO i=1,nspec+1 ! Aerosol species and water
-        ii = (i-1)*4 +1
-        CALL bulkMixrat(i,'cloud','ab',a0)
-        ssclr_mixr(ii) = get_avg_ts(n1,n2,n3,a0,dzt,cloudmask)
+        ii = (i-1)*5
         CALL bulkMixrat(i,'aerosol','ab',a0)
-        ssclr_mixr(ii+1) = get_avg_ts(n1,n2,n3,a0,dzt,cloudmask)
+        ssclr_mixr(ii+1) = get_avg_ts(n1,n2,n3,a0,dzt,dens=a_dn)
+        CALL bulkMixrat(i,'cloud','ab',a0)
+        ssclr_mixr(ii+2) = get_avg_ts(n1,n2,n3,a0,dzt,dens=a_dn)
+        CALL bulkMixrat(i,'precp','ab',a0)
+        ssclr_mixr(ii+3) = get_avg_ts(n1,n2,n3,a0,dzt,dens=a_dn)
     END DO
 
     ! Gases
@@ -1460,13 +1483,13 @@ contains
     ! Maximum supersaturation over ice
     ssclr_lvl5(17) = (get_max_val(n1,n2,n3,a_rhi)-1.0)*100.
 
-    ! Species mixing ratios in ice and snow
+    ! Species mixing ratios in ice and snow (vertically integrated)
     DO i=1,nspec+1 ! Aerosol species and water
-        ii = (i-1)*4 + 3
+        ii = (i-1)*5
         CALL bulkMixrat(i,'ice','ab',a0)
-        ssclr_mixr(ii) = get_avg_ts(n1,n2,n3,a0,dzt,icemask)
+        ssclr_mixr(ii+4) = get_avg_ts(n1,n2,n3,a0,dzt,dens=a_dn)
         CALL bulkMixrat(i,'snow','ab',a0)
-        ssclr_mixr(ii+1) = get_avg_ts(n1,n2,n3,a0,dzt,snowmask)
+        ssclr_mixr(ii+5) = get_avg_ts(n1,n2,n3,a0,dzt,dens=a_dn)
     END DO
 
     ! Removal statistics elsewhere ..
@@ -1741,19 +1764,9 @@ contains
     svctr(:,89)=svctr(:,89)+a1(:)
 
     !
-    ! Histogram of surface rain rates
+    ! average air density
     !
-    mask = 0.
-    do k=1,n1
-       rmin = max(6.2e-8,(k-1)*3.421e-5)
-       rmax =  k * 3.421e-5
-       do j=3,n3-2
-          do i=3,n2-2
-             if (rrate(2,i,j) > rmin .and. rrate(2,i,j) <= rmax) mask(k,i,j)=1.
-          end do
-       end do
-    end do
-    call get_avg3(n1,n2,n3,mask,a1,normalize=.FALSE.)
+    call get_avg3(n1,n2,n3,dn,a1)
     svctr(:,92)=svctr(:,92)+a1(:)
 
     !
@@ -1915,17 +1928,17 @@ contains
     ! ---------------------
     DO i=1,nspec+1 ! Aerosol species and water
         IF(lmixrprof) THEN
-            ! Total mass mixing ratios
+            ! Aerosol
             CALL bulkMixrat(i,'aerosol','ab',a1)
             CALL get_avg3(n1,n2,n3,a1,a2(:,1))
 
-            ! In-cloud
+            ! Cloud
             CALL bulkMixrat(i,'cloud','ab',a1)
-            CALL get_avg3(n1,n2,n3,a1,a2(:,2),cond=cloudmask)
+            CALL get_avg3(n1,n2,n3,a1,a2(:,2))
 
-            ! In-drizzle
+            ! Rain
             CALL bulkMixrat(i,'precp','a',a1)
-            CALL get_avg3(n1,n2,n3,a1,a2(:,3),cond=drizzmask)
+            CALL get_avg3(n1,n2,n3,a1,a2(:,3))
 
             ii = (i-1)*5+1 ! Order: aer, cld, prc, ice, snw
             svctr_mixr(:,ii:ii+2) = svctr_mixr(:,ii:ii+2) + a2(:,1:3)
@@ -1944,14 +1957,14 @@ contains
             DO bb = 1,ncld
                 CALL binSpecMixrat('cloud',i,bb,a1)
                 IF (bb<=fnp2a) THEN
-                   CALL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=cloudmask)
+                   CALL get_avg3(n1,n2,n3,a1,a4_a(:,bb))
                 ELSE
-                   CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fnp2a),cond=cloudmask)
+                   CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fnp2a))
                 ENDIF
             END DO
             DO bb = 1,nprc
                 CALL binSpecMixrat('precp',i,bb,a1)
-                CALL get_avg3(n1,n2,n3,a1,a5(:,bb),cond=drizzmask)
+                CALL get_avg3(n1,n2,n3,a1,a5(:,bb))
             END DO
 
             svctr_aa(:,:,i+1) = svctr_aa(:,:,i+1) + a3_a(:,:)
@@ -2077,13 +2090,13 @@ contains
     ! ---------------------
     DO i=1,nspec+1 ! Aerosol species and water
         IF(lmixrprof) THEN
-            ! In-ice
+            ! Ice
             CALL bulkMixrat(i,'ice','ab',a1)
-            CALL get_avg3(n1,n2,n3,a1,a2(:,1),cond=icemask)
+            CALL get_avg3(n1,n2,n3,a1,a2(:,1))
 
-            ! In-snow
+            ! Snow
             CALL bulkMixrat(i,'snow','a',a1)
-            CALL get_avg3(n1,n2,n3,a1,a2(:,2),cond=snowmask)
+            CALL get_avg3(n1,n2,n3,a1,a2(:,2))
 
             ii = (i-1)*5+4 ! Order: aer, cld, prc, ice, snw
             svctr_mixr(:,ii:ii+1) = svctr_mixr(:,ii:ii+1) + a2(:,1:2)
@@ -2094,14 +2107,14 @@ contains
             DO bb = 1,nice
                 CALL binSpecMixrat('ice',i,bb,a1)
                 IF (bb<=fnp2a) THEN
-                    CaLL get_avg3(n1,n2,n3,a1,a4_a(:,bb),cond=icemask)
+                    CaLL get_avg3(n1,n2,n3,a1,a4_a(:,bb))
                 ELSE
-                    CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fnp2a),cond=icemask)
+                    CALL get_avg3(n1,n2,n3,a1,a4_b(:,bb-fnp2a))
                 ENDIF
             END DO
             DO bb = 1,nsnw
                 CALL binSpecMixrat('snow',i,bb,a1)
-                CALL get_avg3(n1,n2,n3,a1,a5(:,bb),cond=snowmask)
+                CALL get_avg3(n1,n2,n3,a1,a5(:,bb))
             END DO
 
             svctr_ia(:,:,i+1) = svctr_ia(:,:,i+1) + a4_a(:,:)
@@ -2437,8 +2450,8 @@ contains
 
     do n=10,nvar2
        iret = nf90_inq_varid(ncid2, s2(n), VarID)
-       iret = nf90_put_var(ncid2,VarID,svctr(:,n), start=(/1,nrec2/),    &
-            count=(/n1,1/))
+       IF (iret == NF90_NOERR) &
+          iret = nf90_put_var(ncid2,VarID,svctr(:,n), start=(/1,nrec2/), count=(/n1,1/))
     end do
 
     IF (level >= 4) THEN
@@ -2619,7 +2632,7 @@ contains
     real, intent(in) :: flx
     character (len=7), intent (in) :: vname
     ! Local
-    INTEGER :: i, iret, VarID
+    INTEGER :: i
     !
     ! Is this output selected
     DO i=1,nv1_lvl4
@@ -2688,7 +2701,6 @@ contains
     integer :: k,i,j
     real    :: rnpts      ! reciprical of number of points and
     real    :: fctl, fctt ! factors for liquid (l) and tv (t) fluxes
-    REAL(kind=8) :: lavg(n1),gavg(n1)
 
     if (type == 'tl') then
        wrl_sgs(:) = 0.

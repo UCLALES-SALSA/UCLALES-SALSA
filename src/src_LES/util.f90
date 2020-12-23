@@ -145,16 +145,17 @@ contains
   ! GET_AVG_ts: gets average field value from the whole domain 
   ! Implemented by Zubair Maalick
   ! Possibility for conditional sampling added by Juha Tonttila
-  ! 
+  ! Possibility for vertical integral with air density as a weight
   ! Weighting by layer thickness implemented for non-uniform vertical resolution  - calculated over all PUs
   !
-  real function get_avg_ts(n1,n2,n3,a,dz,cond)
+  real function get_avg_ts(n1,n2,n3,a,dz,cond,dens)
     use mpi_interface, only : double_scalar_par_sum
 
     integer, intent (in):: n1, n2, n3
     REAL, INTENT(in)    :: dz(n1)  ! Reciprocal of layer depth!
     real, intent (in)   :: a(n1,n2,n3)
     LOGICAL, OPTIONAL, INTENT(in) :: cond(n1,n2,n3)
+    REAL, OPTIONAL, INTENT(in) :: dens(n1,n2,n3)
     
     integer :: i,j,k, npnt
     REAL :: ztmp,ztot
@@ -163,6 +164,8 @@ contains
     npnt = 0
     get_avg_ts=0.
     IF (PRESENT(cond)) THEN
+       ! Conditional average
+       IF (PRESENT(dens)) STOP 'Bad inputs for get_avg_ts: either conditional average or vertical integral!'
        DO j=3,n3-2
           DO i=3,n2-2
              ztot = 0.
@@ -180,8 +183,21 @@ contains
              END IF
           END DO
        END DO
-       
+    ELSEIF (PRESENT(dens)) THEN
+       ! Vertical integral with density weights
+       DO j=3,n3-2
+          DO i=3,n2-2
+             ztmp = 0.
+             DO k = 2,n1
+                ztmp = ztmp + a(k,i,j)*(dens(k,i,j)/dz(k))
+             END DO
+             ! Vertical integral, so no need to normalize
+             get_avg_ts = get_avg_ts + ztmp
+             npnt = npnt + 1
+          END DO
+       END DO
     ELSE
+       ! Average
        DO j=3,n3-2
           DO i=3,n2-2
              ztot = 0.
@@ -190,13 +206,11 @@ contains
                 ztmp = ztmp + a(k,i,j)*(1./dz(k))
                 ztot = ztot + (1./dz(k))
              END DO
-             ! Grid wighted vertical average
-             ztmp = ztmp/ztot
+             ! Grid weighted vertical average
+             get_avg_ts = get_avg_ts + ztmp/ztot
              npnt = npnt + 1
-             get_avg_ts = get_avg_ts + ztmp
           END DO
        END DO
-
     END IF
 
     lavg = REAL(npnt)

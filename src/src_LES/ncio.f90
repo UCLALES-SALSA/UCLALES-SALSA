@@ -401,10 +401,6 @@ contains
        if (itype==0) ncinfo = 'Rain-water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
-    case('f')
-       if (itype==0) ncinfo = 'Total ice mixing ratio'
-       if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('i')
        if (itype==0) ncinfo = 'Ice mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
@@ -652,10 +648,6 @@ contains
        if (itype==0) ncinfo = 'In-cloud interstitial aerosol number concentration (b bins)'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
-    case('Ni_ic')
-       if (itype==0) ncinfo = 'Ice number concentration in liquid clouds'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'time'
     case('Ni_ii')
        if (itype==0) ncinfo = 'Ice number concentration in icy regions'
        if (itype==1) ncinfo = 'kg^-1'
@@ -666,18 +658,6 @@ contains
        if (itype==2) ncinfo = 'time'
     case('Nib_iib')
        if (itype==0) ncinfo = 'Ice number concentration in icy regions (b bins)'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'time'
-    case('Ni_is')
-       if (itype==0) ncinfo = 'Ice number concentration in snowy regions'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'time'
-    case('Ns_ic')
-       if (itype==0) ncinfo = 'Snow number concentration in liquid clouds'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'time'
-    case('Ns_ii')
-       if (itype==0) ncinfo = 'Snow number concentration in icy regions'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'time'
     case('Ns_is')
@@ -1059,6 +1039,22 @@ contains
        if (itype==0) ncinfo = 'Snow number concentration'
        if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
+    case('Rwc')
+       if (itype==0) ncinfo = 'Cloud droplet radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'tttt'
+    case('Rwr')
+       if (itype==0) ncinfo = 'Rain drop radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'tttt'
+    case('Rwi')
+       if (itype==0) ncinfo = 'Ice radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'tttt'
+    case('Rws')
+       if (itype==0) ncinfo = 'Snow radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'tttt'
     case('rr')
        if (itype==0) ncinfo = 'Rain water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
@@ -1095,9 +1091,9 @@ contains
        if (itype==0) ncinfo = 'Rain water fraction'
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'tttt'
-    case('hst_srf')
-       if (itype==0) ncinfo = 'Histogram of surface rain rates'
-       if (itype==1) ncinfo = '-'
+    case('rho_air')
+       if (itype==0) ncinfo = 'Air density'
+       if (itype==1) ncinfo = 'kg/m^3'
        if (itype==2) ncinfo = 'tttt'
     !
     !
@@ -1591,8 +1587,9 @@ contains
   ! ----------------------------------------------------------------------
   ! Function that determines information related to SALSA variables.
   ! 1) Time series and column stats
-  !         removal rates (e.g. rmNOcl)
-  !         integrated concentrations (e.g. intNOcl)
+  !      Removal rates (e.g. rmNOcl)
+  !      Vertically integrated total concentrations (e.g. tcNOae, tcNOcl)
+  !      Conditional averages (e.g. NO_int, NO_ic)
   ! 2) Profiles
   !     Total mass concentration (e.g. P_cH2Os)
   !     Mass concentration in each bin (e.g. P_OCaa)
@@ -1644,28 +1641,33 @@ contains
             ! NetCDF dimensions
             get_salsa_info = 'time'
         ENDIF
-    ELSEIF (INDEX(short_name,'_ii')>1) THEN
-        ! In-ice time series
-        spec(1:)=short_name(1:INDEX(short_name,'_ii')-1)
+    ELSEIF (INDEX(short_name,'tc')==1) THEN
+        ! Total concentration time series
+        !   name='tc'//<spec>//<x> where x='ae', 'cl', 'pr', 'ic' or 'sn'
+        ! Species name
+        spec(1:i-4)=short_name(3:i-2)
+        ! Phase
+        select case (short_name(i-1:i))
+        CASE('ae')
+            phase='aerosol'
+        CASE('cl')
+            phase='cloud'
+        CASE('pr')
+            phase='rain'
+        CASE('ic')
+            phase='ice'
+        CASE('sn')
+            phase='snow'
+        case default
+            RETURN
+        end select
+        ! Generate output
         if (itype==0) THEN
             ! Long name
-            get_salsa_info = TRIM(spec)//' mass mixing ratio in ice'
+            get_salsa_info = 'Vertically integrated mass of '//TRIM(spec)//' in '//TRIM(phase)
         ELSEIF (itype==1) THEN
             ! Unit
-            get_salsa_info = 'kg/kg'
-        ELSEIF (itype==2) THEN
-            ! NetCDF dimensions
-            get_salsa_info = 'time'
-        ENDIF
-    ELSEIF (INDEX(short_name,'_is')>1) THEN
-        ! In-snow time series
-        spec(1:)=short_name(1:INDEX(short_name,'_is')-1)
-        if (itype==0) THEN
-            ! Long name
-            get_salsa_info = TRIM(spec)//' mass mixing ratio in snow'
-        ELSEIF (itype==1) THEN
-            ! Unit
-            get_salsa_info = 'kg/kg'
+            get_salsa_info = 'kg/m^2'
         ELSEIF (itype==2) THEN
             ! NetCDF dimensions
             get_salsa_info = 'time'
