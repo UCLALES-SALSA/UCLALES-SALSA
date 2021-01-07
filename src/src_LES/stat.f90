@@ -370,6 +370,7 @@ contains
        s1_lvl4_bool(15) = ifSeaVOC ! Isoprene
        s1_lvl4_bool(16) = ifSeaVOC ! Monoterpene
        s1_lvl4_bool(17) = ifSeaSpray .OR. ifSeaVOC ! u10
+       ssclr_lvl4(17) = -999. ! Spin-up means zero emissions but u10 is not zero (undefined)
 
        ! 2) Microphysical process rate statistics (both ts and ps)
 
@@ -595,8 +596,8 @@ contains
         DEALLOCATE( s1bool, s1total )
         ! Default (mostly levels 3 & 4) parameters, specific level 4 and 5 parameters,
         ! removal statistics, gases, and process rate statistics.
-        ! Note: removal and gas outputs are the same as those in the time series outputs!
-        i = nvar3 + nv3_lvl4 + nv3_lvl5 + nv1_rem+ngases+nv3_proc
+        ! Note: removal, vertical integrals and gas outputs are the same as those in the time series outputs!
+        i = nvar3 + nv3_lvl4 + nv3_lvl5 + nv1_rem+nv1_mixr+ngases+nv3_proc
         ALLOCATE( s1bool(i), s1total(i) )
         i=1; e=nvar3
         s1total(i:e)=s3; s1bool(i:e)=s3_bool
@@ -612,6 +613,11 @@ contains
             i=e+1; e=e+nv1_rem
             ! Logical and name arrays are the same as those for ts
             s1bool(i:e)=s1_rem_bool; s1total(i:e)=s1_rem
+        ENDIF
+        IF (nv1_mixr>0) THEN
+            i=e+1; e=e+nv1_mixr
+            ! Name array is the same as that for ts, but logical is not (set to false, i.e. optional output)
+            s1bool(i:e)=.FALSE.; s1total(i:e)=s1_mixr
         ENDIF
         IF (ngases>0) THEN
             i=e+1; e=e+ngases
@@ -1125,12 +1131,12 @@ contains
   ! Other column statistics
   subroutine set_cs_other(time)
     use netcdf
-    USE grid, ONLY : nzp, nxp, nyp, xt, xm, yt, ym, a_dn, zm, albedo, ngases, a_gaerop, precip
+    USE grid, ONLY : nzp, nxp, nyp, xt, xm, yt, ym, a_dn, zm, albedo, ngases, a_gaerop, precip, nspec, bulkMixrat
     ! Inputs
     REAL, INTENT(IN) :: time
     ! Local variables
-    REAL :: gwp(nxp,nyp)
-    integer :: i, k, iret, VarID
+    REAL :: gwp(nxp,nyp), a0(nzp,nxp,nyp)
+    integer :: i, ii, k, iret, VarID
 
     ! Coordinates
     if (nrec3 == 1) then
@@ -1161,6 +1167,73 @@ contains
         iret = nf90_inq_varid(ncid3,s1_rem(i),VarID)
         IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, scs_rm(3:nxp-2,3:nyp-2,i), start=(/1,1,nrec3/))
     ENDDO
+
+    ! Species mixing ratios in aerosol, cloud, rain, ice and snow (vertically integrated)
+    IF (level>3) THEN
+        DO i=1,nspec+1 ! Aerosol species and water
+            ii = (i-1)*5
+            ! Aerosol
+            iret = nf90_inq_varid(ncid3,s1_mixr(ii+1),VarID)
+            IF (iret==NF90_NOERR) THEN
+                CALL bulkMixrat(i,'aerosol','ab',a0)
+                ! Path
+                gwp(:,:) = 0.
+                DO k=2,nzp
+                    gwp(:,:) = gwp(:,:) + a0(k,:,:)*a_dn(k,:,:)*(zm(k)-zm(k-1))
+                ENDDO
+                ! Save the data
+                iret = nf90_put_var(ncid3, VarID, gwp(3:nxp-2,3:nyp-2), start=(/1,1,nrec3/))
+            END IF
+            ! Cloud
+            iret = nf90_inq_varid(ncid3,s1_mixr(ii+2),VarID)
+            IF (iret==NF90_NOERR) THEN
+                CALL bulkMixrat(i,'cloud','ab',a0)
+                ! Path
+                gwp(:,:) = 0.
+                DO k=2,nzp
+                    gwp(:,:) = gwp(:,:) + a0(k,:,:)*a_dn(k,:,:)*(zm(k)-zm(k-1))
+                ENDDO
+                ! Save the data
+                iret = nf90_put_var(ncid3, VarID, gwp(3:nxp-2,3:nyp-2), start=(/1,1,nrec3/))
+            END IF
+            ! Rain
+            iret = nf90_inq_varid(ncid3,s1_mixr(ii+3),VarID)
+            IF (iret==NF90_NOERR) THEN
+                CALL bulkMixrat(i,'precp','ab',a0)
+                ! Path
+                gwp(:,:) = 0.
+                DO k=2,nzp
+                    gwp(:,:) = gwp(:,:) + a0(k,:,:)*a_dn(k,:,:)*(zm(k)-zm(k-1))
+                ENDDO
+                ! Save the data
+                iret = nf90_put_var(ncid3, VarID, gwp(3:nxp-2,3:nyp-2), start=(/1,1,nrec3/))
+            END IF
+            ! Ice
+            iret = nf90_inq_varid(ncid3,s1_mixr(ii+4),VarID)
+            IF (iret==NF90_NOERR .AND. level>4) THEN
+                CALL bulkMixrat(i,'ice','ab',a0)
+                ! Path
+                gwp(:,:) = 0.
+                DO k=2,nzp
+                    gwp(:,:) = gwp(:,:) + a0(k,:,:)*a_dn(k,:,:)*(zm(k)-zm(k-1))
+                ENDDO
+                ! Save the data
+                iret = nf90_put_var(ncid3, VarID, gwp(3:nxp-2,3:nyp-2), start=(/1,1,nrec3/))
+            END IF
+            ! Snow
+            iret = nf90_inq_varid(ncid3,s1_mixr(ii+5),VarID)
+            IF (iret==NF90_NOERR .AND. level>4) THEN
+                CALL bulkMixrat(i,'snow','ab',a0)
+                ! Path
+                gwp(:,:) = 0.
+                DO k=2,nzp
+                    gwp(:,:) = gwp(:,:) + a0(k,:,:)*a_dn(k,:,:)*(zm(k)-zm(k-1))
+                ENDDO
+                ! Save the data
+                iret = nf90_put_var(ncid3, VarID, gwp(3:nxp-2,3:nyp-2), start=(/1,1,nrec3/))
+            END IF
+        END DO
+    END IF
 
     ! Gases (names are the same as those for ts)
     DO i=1,ngases

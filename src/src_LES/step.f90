@@ -929,15 +929,13 @@ contains
     a_micep = MAX(0.,a_micep)
     a_msnowp = MAX(0.,a_msnowp)
 
-    ! Remove particles that have number but no mass. Also remove particles that have
-    ! insignificant concentration indicated by nlim and prlim (note: #/m^3)
+    ! Remove particles that have number but no mass.
     DO j = 3,nyp-2
        DO i = 3,nxp-2
           DO k = 1,nzp
              ! Aerosols
              DO bc = 1,nbins
-                IF (a_naerop(k,i,j,bc) > 0. .AND. SUM(a_maerop(k,i,j,bc:nspec*nbins+bc:nbins)) <= 0. .OR. &
-                        a_naerop(k,i,j,bc)*a_dn(k,i,j) < nlim) THEN
+                IF (a_naerop(k,i,j,bc) > 0. .AND. SUM(a_maerop(k,i,j,bc:nspec*nbins+bc:nbins)) <= 0.) THEN
                    a_naerop(k,i,j,bc) = 0.
                    a_maerop(k,i,j,bc:nspec*nbins+bc:nbins) = 0.
                 END IF
@@ -945,8 +943,7 @@ contains
 
              ! Clouds
              DO bc = 1,ncld
-                IF (a_ncloudp(k,i,j,bc) > 0. .AND. SUM(a_mcloudp(k,i,j,bc:nspec*ncld+bc:ncld)) <= 0. .OR. &
-                        a_ncloudp(k,i,j,bc)*a_dn(k,i,j) < nlim) THEN
+                IF (a_ncloudp(k,i,j,bc) > 0. .AND. SUM(a_mcloudp(k,i,j,bc:nspec*ncld+bc:ncld)) <= 0.) THEN
                    a_ncloudp(k,i,j,bc) = 0.
                    a_mcloudp(k,i,j,bc:nspec*ncld+bc:ncld) = 0.
                 END IF
@@ -954,8 +951,7 @@ contains
 
              ! Precipitation
              DO bc = 1,nprc
-                IF (a_nprecpp(k,i,j,bc) > 0. .AND. a_mprecpp(k,i,j,bc) <= 0. .OR. &
-                        a_nprecpp(k,i,j,bc)*a_dn(k,i,j) < prlim) THEN
+                IF (a_nprecpp(k,i,j,bc) > 0. .AND. a_mprecpp(k,i,j,bc) <= 0.) THEN
                    a_nprecpp(k,i,j,bc) = 0.
                    a_mprecpp(k,i,j,bc:nspec*nprc+bc:nprc) = 0.
                 END IF
@@ -964,8 +960,7 @@ contains
              ! Ice
              IF (level<5) CYCLE
              DO bc = 1,nice
-                IF (a_nicep(k,i,j,bc) > 0. .AND. SUM(a_micep(k,i,j,bc:nspec*nice+bc:nice)) <= 0. .OR. &
-                        a_nicep(k,i,j,bc)*a_dn(k,i,j) < prlim ) THEN
+                IF (a_nicep(k,i,j,bc) > 0. .AND. SUM(a_micep(k,i,j,bc:nspec*nice+bc:nice)) <= 0.) THEN
                    a_nicep(k,i,j,bc) = 0.
                    a_micep(k,i,j,bc:nspec*nice+bc:nice) = 0.
                 END IF
@@ -973,8 +968,7 @@ contains
 
              ! Snow
              DO bc = 1,nsnw
-                IF (a_nsnowp(k,i,j,bc) > 0. .AND. a_msnowp(k,i,j,bc) <= 0. .OR. &
-                        a_nsnowp(k,i,j,bc)*a_dn(k,i,j) < prlim) THEN
+                IF (a_nsnowp(k,i,j,bc) > 0. .AND. a_msnowp(k,i,j,bc) <= 0.) THEN
                    a_nsnowp(k,i,j,bc) = 0.
                    a_msnowp(k,i,j,bc:nspec*nsnw+bc:nsnw) = 0.
                 END IF

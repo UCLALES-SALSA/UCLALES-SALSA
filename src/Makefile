@@ -56,7 +56,7 @@ thrm.o: grid.o defs.o $(seqmpi:.f90=.o) mo_submctl.o
 forc.o: grid.o defs.o stat.o util.o rad_driver.o mo_submctl.o $(seqmpi:.f90=.o)
 advf.o: grid.o stat.o util.o mo_submctl.o $(seqmpi:.f90=.o)
 advl.o: grid.o stat.o util.o
-srfc.o: grid.o stat.o defs.o thrm.o $(seqmpi:.f90=.o)
+srfc.o: grid.o stat.o defs.o thrm.o util.o $(seqmpi:.f90=.o)
 prss.o: grid.o stat.o defs.o util.o $(seqmpi:.f90=.o)
 sgsm.o: grid.o stat.o defs.o util.o thrm.o $(seqmpi:.f90=.o)
 mcrp.o: grid.o stat.o defs.o mo_submctl.o

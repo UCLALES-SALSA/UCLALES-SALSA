@@ -80,6 +80,7 @@ contains
     use mo_vbsctl, only: vbs_set
     use mo_vbs, only: spec_density
     use stat, only: flux_stat, sflg
+    use util, only : get_avg2dh
 
     IMPLICIT NONE
     REAL, INTENT(IN) :: sst     ! Sea surface temperature (K)
@@ -105,8 +106,8 @@ contains
         zs = max(0.0001,(0.016/g)*usum**2)
     ENDIF
     u10(:,:) = a_ustar(:,:)/vonk*log(10.0/zs)
-    ! Mean 10 m wind speed (for each sub-domain)
-    u10_bar = SUM(SUM(u10(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))
+    ! Mean 10 m wind speed (for the domain)
+    u10_bar = get_avg2dh(nxp,nyp,u10)
 
     ! Calculate particle flux, dF/dlogDp, for each size bin limit
     DO k=1,fn2a+1
@@ -442,6 +443,7 @@ contains
     use mo_vbsctl, only: vbs_voc_set
     use mo_vbs, only: spec_moleweight
     use stat, only: flux_stat, sflg
+    use util, only : get_avg2dh
     IMPLICIT NONE
     REAL, INTENT(IN) :: sst     ! Sea surface temperature (K)
 
@@ -475,8 +477,8 @@ contains
 
     ! Whitecap cover (% => fraction) based on 10 m wind speeds (eq. 2)
     u10(:,:) = a_ustar(:,:)/vonk*log(10.0/zs)
-    ! Mean 10 m wind speed
-    u10_bar = SUM(SUM(u10(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))
+    ! Mean 10 m wind speed (for the domain)
+    u10_bar = get_avg2dh(nxp,nyp,u10)
 
     temp_c = sst - 273.15
 
