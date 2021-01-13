@@ -97,7 +97,11 @@ CONTAINS
    SUBROUTINE coagulation(kproma,kbdim,klev,   &
                           ptstep,ptemp,ppres   )
 
-     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA
+     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA,      &
+                                zccaa, zcccc, zccpp, zccii,             &
+                                zccca, zccpa, zccia,                    &
+                                zccpc, zccic,                           &
+                                zccip
      USE mo_submctl, ONLY: ntotal,nbins,ncld,nprc,nice, &
                            spec,   &
                            lscgaa, lscgcc, lscgpp, lscgii, & 
@@ -135,16 +139,16 @@ CONTAINS
 
       LOGICAL :: any_lt13(kbdim,klev), any_gt25(kbdim,klev)
       
-      REAL :: zccaa(kbdim,klev,nbins,nbins),    & ! updated coagulation coefficients [m3/s]
-              zcccc(kbdim,klev,ncld,ncld),      & ! - '' - for collision-coalescence between cloud droplets [m3/s]
-              zccca(kbdim,klev,nbins,ncld),     & ! - '' - for cloud collection of aerosols [m3/s]
-              zccpc(kbdim,klev,ncld,nprc),      & ! - '' - for collection of cloud droplets by precip [m3/s]
-              zccpa(kbdim,klev,nbins,nprc),     & ! - '' - for collection of aerosols by precip
-              zccpp(kbdim,klev,nprc,nprc),      & ! - '' - for collision-coalescence between precip particles 
-              zccia(kbdim,klev,nbins,nice),     & ! - '' - for collection of aerosols by ice 
-              zccic(kbdim,klev,ncld,nice),      & ! - '' - for collection of cloud particles droplets by ice 
-              zccii(kbdim,klev,nice,nice),      & ! - '' - for aggregation between ice 
-              zccip(kbdim,klev,nprc,nice)         ! - '' - for collection of precip by ice
+      !REAL :: zccaa(kbdim,klev,nbins,nbins),    & ! updated coagulation coefficients [m3/s]
+      !        zcccc(kbdim,klev,ncld,ncld),      & ! - '' - for collision-coalescence between cloud droplets [m3/s]
+      !        zccca(kbdim,klev,nbins,ncld),     & ! - '' - for cloud collection of aerosols [m3/s]
+      !        zccpc(kbdim,klev,ncld,nprc),      & ! - '' - for collection of cloud droplets by precip [m3/s]
+      !        zccpa(kbdim,klev,nbins,nprc),     & ! - '' - for collection of aerosols by precip
+      !        zccpp(kbdim,klev,nprc,nprc),      & ! - '' - for collision-coalescence between precip particles 
+      !        zccia(kbdim,klev,nbins,nice),     & ! - '' - for collection of aerosols by ice 
+      !        zccic(kbdim,klev,ncld,nice),      & ! - '' - for collection of cloud particles droplets by ice 
+      !        zccii(kbdim,klev,nice,nice),      & ! - '' - for aggregation between ice 
+      !        zccip(kbdim,klev,nprc,nice)         ! - '' - for collection of precip by ice
 
       ! For Hallet-Mossop
       REAL :: drimdt(kbdim,klev,nice)  ! Volume change in rime due to liquid collection in the presense of liquid
@@ -157,9 +161,9 @@ CONTAINS
       !      CoagSink ~ Dp in continuum regime, thus we calculate
       !      'effective' number concentration of coarse particles
 
-      zccaa(:,:,:,:) = 0.; zcccc(:,:,:,:) = 0.; zccca(:,:,:,:) = 0.; zccpc(:,:,:,:) = 0.
-      zccpa(:,:,:,:) = 0.; zccpp(:,:,:,:) = 0.; zccia(:,:,:,:) = 0.; zccic(:,:,:,:) = 0.
-      zccii(:,:,:,:) = 0.; zccip(:,:,:,:) = 0.
+      !zccaa(:,:,:,:) = 0.; zcccc(:,:,:,:) = 0.; zccca(:,:,:,:) = 0.; zccpc(:,:,:,:) = 0.   ! REMOVE? ONLY ZERO IN KERNEL UPDATE, INITIALIZATION, NEW VALUES GIVEN IN UPDATE OR DRIVER
+      !zccpa(:,:,:,:) = 0.; zccpp(:,:,:,:) = 0.; zccia(:,:,:,:) = 0.; zccic(:,:,:,:) = 0.
+      !zccii(:,:,:,:) = 0.; zccip(:,:,:,:) = 0.
  
       !-- 2) Updating coagulation coefficients -------------------------------------
       
@@ -179,9 +183,7 @@ CONTAINS
          END DO
       END DO
       
-      CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp,    &
-                                      zccaa, zcccc, zccca, zccpc, zccpa,  &
-                                      zccpp, zccia, zccic, zccii, zccip)
+      CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp)
 
       any_aero = ANY( aero(:,:,:)%numc > aero(:,:,:)%nlim ) .AND. &
                  ANY( [lscgaa,lscgca,lscgpa,lscgia] )
@@ -204,7 +206,7 @@ CONTAINS
          ! For H-M: Store the "old" rime volumes
          drimdt(:,:,:) = ice(:,:,:)%volc(iri)
          
-         CALL coag_ice(kbdim,klev,nspec,ptstep,zccii,zccia,zccic,zccip)
+         CALL coag_ice(kbdim,klev,nspec,ptstep,zccii,zccia,zccic,zccip) !!!!!!!!!!!!!!!!1 VAIHDA NAAKIN TULEEN MODUULISTA
 
          ! For H-M: Take the change in rime after collection processes
          drimdt(:,:,:) = ice(:,:,:)%volc(iri) - drimdt(:,:,:)

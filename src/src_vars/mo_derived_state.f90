@@ -29,6 +29,7 @@ MODULE mo_derived_state
                                 aSSa, aSSb, cSSa, cSSb, pSSa, iSSa,        &  ! Sea salt
                                 aNOa, aNOb, cNOa, cNOb, pNOa, iNOa,        &  ! Nitrate
                                 aNHa, aNHb, cNHa, cNHb, pNHa, iNHa            ! Ammonia
+
   ! A bit more derived SALSA variables
   TYPE(FloatArray3d), TARGET :: CDNC,                                      &  ! CDNC - number of all droplets for whom 2 um < D < 80 um. Note units in #/m3
                                 CNC,                                       &  ! Cloud number concentration - number of all droplet for whom D > 2 um. In #/m3
@@ -37,8 +38,7 @@ MODULE mo_derived_state
   ! SALSA related variables
   TYPE(FloatArray4d), TARGET :: Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba, Dwiba     ! Binned wet diameters  
   TYPE(FloatArray4d), TARGET :: Maba, Mabb, Mcba, Mcbb, Mpba, Miba           ! Binned particle/droplet total masses
-  
-  
+    
   ! Some binned diagnostics
   TYPE(FloatArray4d), TARGET :: irhob, irhoe ! Bulk mean and effective ice densities
 

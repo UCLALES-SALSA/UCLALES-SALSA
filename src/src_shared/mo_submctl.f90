@@ -26,7 +26,7 @@ MODULE mo_submctl
   TYPE(ProcessSwitch), POINTER :: lsicemelt => NULL()  ! Melting of ice
   TYPE(ProcessSwitch), POINTER :: lssecice => NULL()
     
-  ! Collision subprocesses
+  ! Coagulation/collision subprocesses
   LOGICAL :: lscgaa  = .TRUE.  ! Coagulation between aerosols
   LOGICAL :: lscgcc  = .TRUE.  ! Collision-coalescence between cloud droplets
   LOGICAL :: lscgca  = .TRUE.  ! Cloud collection of aerosols
@@ -38,6 +38,12 @@ MODULE mo_submctl
   LOGICAL :: lscgii  = .TRUE.  ! Collision-coalescence between ice particles
   LOGICAL :: lscgip  = .TRUE.  ! Collection of precipitation by ice particles
 
+  ! Reduced kernel update frequency
+  TYPE(ProcessSwitch) :: lscglowfreq = .FALSE.  ! If %switch = FALSE, update the kernels every timestep, no storage allocated.
+                                                ! If %switch = TRUE, %state will be determined according to cgintvl 
+  REAL :: cgintvl = 10.             ! If lscglowfreq%switch = TRUE, gives the coagulation kernel update interval in seconds
+                                    ! lscglowfreq%state will be TRUE for update timesteps
+  
   ! Condensation subprocesses
   LOGICAL :: lscndgas   = .FALSE. ! Condensation of precursor gases
   LOGICAL :: lscndh2ocl = .TRUE.  ! Condensation of water vapour on clouds and precipitation

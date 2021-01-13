@@ -1,7 +1,7 @@
   MODULE mo_salsa_driver
   USE classSection, ONLY : Section
   USE util, ONLY : getMassIndex !!! IS it good to import this here??? The function is anyway handy here too.
-  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA, rateDiag, iaero, icloud, iprecp, iice
+  USE mo_salsa_types
   USE mo_submctl
   USE classFieldArray, ONLY : FieldArray
   USE mo_structured_datatypes
@@ -29,7 +29,8 @@
   
    ! JT: Variables from SALSA
    ! --------------------------------------------
-   ! grid points for SALSA
+   ! grid points for SALSA; Note that SALSA is called here as a box model, so these are 1.
+   ! If this is ever to change, the driver and possibly parts of the code inside SALSA will need to be revised.
    INTEGER, PARAMETER :: kproma = 1
    INTEGER, PARAMETER :: kbdim = 1
    INTEGER, PARAMETER :: klev = 1
@@ -37,19 +38,28 @@
 
    REAL, PARAMETER    :: init_rh(kbdim,klev) = 0.3
 
-   ! -- Local gas compound tracers [# m-3]
-   REAL :: zgso4(kbdim,klev),   &
-           zghno3(kbdim,klev),  &
-           zgnh3(kbdim,klev),   &
-           zgocnv(kbdim,klev),  &
-           zgocsv(kbdim,klev)
-
    ! To help coupling and backing up for tendencies
    TYPE(old)          :: npart(4), mpart(4)  ! To store the old values
    TYPE(FloatArray1d) :: ntend(4), mtend(4)  ! Arranged pointers to tendencies
 
- ! --------------------------------------------
+   ! --------------------------------------------
 
+   ! Variables for coagulation calls in varying temporal intervals
+   ! --------------------------------------------------------------
+
+   ! Logical switches updated for each timestep
+   LOGICAL :: lcoagupdate = .TRUE.  ! Switch for cuagulation updated for each timestep.
+                                    ! If true, calculate new kernels and the coagulation tendencies   
+   REAL    :: coag_intvl = 1.       ! Interval in seconds between timesteps with coagulation update.
+                                    ! The timesteps in between use the stored tendencies. HOW TO DEAL WITH MASS PRESERVATION???
+   
+   ! Storage of the coagulation kernels:
+   REAL, ALLOCATABLE :: sto_aa(:,:,:,:,:), sto_cc(:,:,:,:,:), sto_pp(:,:,:,:,:), sto_ii(:,:,:,:,:),  &
+                        sto_ca(:,:,:,:,:), sto_pa(:,:,:,:,:), sto_ia(:,:,:,:),   &
+                        sto_pc(:,:,:,:,:), sto_ic(:,:,:,:,:),                  &
+                        sto_ip(:,:,:,:)
+   
+   
 CONTAINS
 
    !
@@ -108,6 +118,13 @@ CONTAINS
               in_w(kbdim,klev), in_rsi(kbdim,klev)
       REAL :: rv_old(kbdim,klev)
 
+      ! -- Local gas compound tracers [# m-3] WHY ARE THESE GLOBAL?
+      REAL :: zgso4(kbdim,klev),   &
+              zghno3(kbdim,klev),  &
+              zgnh3(kbdim,klev),   &
+              zgocnv(kbdim,klev),  &
+              zgocsv(kbdim,klev)
+      
       ! For process rate diagnostics
       TYPE(FloatArray3d), POINTER :: autoconversion => NULL(), accretion => NULL(),             &
                                      ACcoll => NULL(), APcoll => NULL(), AIcoll => NULL(),      &
@@ -115,7 +132,10 @@ CONTAINS
                                      Iceimm => NULL(), Conda => NULL(), Condc => NULL(),        &
                                      Condp => NULL(), Condi => NULL()
 
-      
+
+      ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! As a local variable, it would be better to declare this info as REAL. Or then need to take care to initialize this,
+      ! which is missing
       TYPE(Section) :: actd(kbdim,klev,ncld) ! Activated droplets - for interfacing with SALSA
 
       INTEGER :: jj,ii,kk,str,end,nc,nb,nbloc,ndry,nwet,iwa,irim,icat
@@ -303,6 +323,11 @@ CONTAINS
 
                ! Reset process rate diagnostics
                CALL rateDiag%Reset()
+
+               ! If reduced coagulation kernel update freq, and NOT update timestep,
+               !copy kernels from memory
+               IF (lscgoag%state, lscglowfreq%state) &
+                    CALL fetch_coag(kk,ii,jj) 
                
                ! ***************************************!
                !                Run SALSA               !
@@ -403,7 +428,11 @@ CONTAINS
                                         rateDiag%Cond_i%volc(irim)*spec%rhori ) /  &
                                         pdn%d(kk,ii,jj)
                END IF
-                              
+
+               ! If reduced coagulation kernel update frequency and is update timestep, store the updated kernels
+               IF (lscglowfreq%state) &
+                    CALL store_coag(kk,ii,jj)
+               
             END DO !kk
          END DO ! ii
       END DO ! jj
@@ -441,10 +470,11 @@ CONTAINS
    !
    ! Juha Tonttila, FMI, 2014
    !
-   SUBROUTINE set_SALSA_runtime(time)
-     USE mo_submctl, ONLY : Nmaster, lsmaster, lsfreeRH
+   SUBROUTINE set_SALSA_runtime(time, tstep)
+     USE mo_submctl, ONLY : Nmaster, lsmaster, lsfreeRH,    &
+                            lscglowfreq,cgintvl
      IMPLICIT NONE
-     REAL, INTENT(in) :: time
+     REAL, INTENT(in) :: time, tstep
      INTEGER :: i
 
      DO i = 1,Nmaster
@@ -454,11 +484,17 @@ CONTAINS
      ! Some other switches
      IF ( lsfreeRH%switch .AND. time > lsfreeRH%delay ) lsfreeRH%state = .TRUE.
      IF ( lsFreeTheta%switch .AND. time > lsFreeTheta%delay) lsFreeTheta%state = .TRUE.
+
+     IF (lscglowfreq%switch .AND. lscoag%state .AND. MOD(time,cgintvl) < tstep ) &
+          lscglowfreq%state = .TRUE.
      
    END SUBROUTINE set_SALSA_runtime
 
-   ! ------------------------------
-
+   !
+   ! -----------------------------------------------------------
+   ! INITIALIZE_ARRAYS
+   ! Initializes the storage for arranging SALSA interface data
+   !
    SUBROUTINE initialize_arrays(nwet,bins)
      INTEGER, INTENT(in) :: nwet
      INTEGER, INTENT(in) :: bins(4)     
@@ -474,7 +510,12 @@ CONTAINS
         END IF
      END DO     
    END SUBROUTINE initialize_arrays
-   
+
+   !
+   ! ----------------------------------------------------
+   ! Constructor for the datatype storing "old" values
+   ! used to back up the tendencies.
+   !   
    FUNCTION old_cnstr(n)
      TYPE(old) :: old_cnstr
      INTEGER, INTENT(in) :: n
@@ -482,4 +523,74 @@ CONTAINS
      old_cnstr%d(:) = 0.
    END FUNCTION old_cnstr
 
+   !
+   ! ----------------------------------------------------
+   ! Initializes the coagulation kernel storage 
+   !
+   SUBROUTINE intialize_coagstorage(nzp,nyp,nxp)
+     INTEGER, INTENT(in) :: nxp,nyp,nzp
+
+     IF (lscgaa) ALLOCATE(sto_aa(nzp,nxp,nyp,nbins,nbins)); sto_aa = 0.
+     IF (lscgcc) ALLOCATE(sto_cc(nzp,nxp,nyp,ncld,ncld)); sto_cc = 0.
+     IF (lscgpp) ALLOCATE(sto_pp(nzp,nxp,nyp,nprc,nprc)); sto_pp = 0.
+     IF (lscgii) ALLOCATE(sto_ii(nzp,nxp,nyp,nice,nice)); sto_ii = 0.
+
+     IF (lscgca) ALLOCATE(sto_ca(nzp,nxp,nyp,nbins,ncld)); sto_ca = 0.
+     IF (lscgpa) ALLOCATE(sto_pa(nzp,nxp,nyp,nbins,nprc)); sto_pa = 0.
+     IF (lscgia) ALLOCATE(sto_ia(nzp,nxp,nyp,nbins,nice)); sto_ia = 0.
+
+     IF (lscgpc) ALLOCATE(sto_pc(nzp,nxp,nyp,ncld,nprc)); sto_pc = 0.
+     IF (lscgic) ALLOCATE(sto_ic(nzp,nxp,nyp,ncld,nice)); sto_ic = 0.
+
+     IF (lscgip) ALLOCATE(sto_ip(nzp,nxp,nyp,nice,nprc)); sto_ip = 0.     
+         
+   END SUBROUTINE intialize_coagstorage
+   
+   !
+   ! ------------------------------------------------------
+   ! Store updated coagulation kernels
+   !
+   SUBROUTINE store_coag(kk,ii,jj)
+     INTEGER, INTENT(in) :: ii,jj,kk
+
+     IF (lscgaa) sto_aa(kk,ii,jj,:,:) = zccaa(1,1,:,:)
+     IF (lscgcc) sto_cc(kk,ii,jj,:,:) = zcccc(1,1,:,:)
+     IF (lscgpp) sto_pp(kk,ii,jj,:,:) = zccpp(1,1,:,:)
+     IF (lscgii) sto_ii(kk,ii,jj,:,:) = zccii(1,1,:,:)
+
+     IF (lscgca) sto_ca(kk,ii,jj,:,:) = zccca(1,1,:,:)
+     IF (lscgpa) sto_pa(kk,ii,jj,:,:) = zccpa(1,1,:,:)
+     IF (lscgia) sto_ia(kk,ii,jj,:,:) = zccia(1,1,:,:)
+
+     IF (lscgpc) sto_pc(kk,ii,jj,:,:) = zccpc(1,1,:,:)
+     IF (lscgic) sto_ic(kk,ii,jj,:,:) = zccic(1,1,:,:)
+
+     IF (lscgip) sto_ip(kk,ii,jj,:,:) = zccip(1,1,:,:)
+     
+   END SUBROUTINE store_coag
+
+   !
+   ! -----------------------------------------------------
+   ! Copy coagulation kernels from storage for current timestep,
+   ! i.e. avoid calculating new ones
+   !
+   SUBROUTINE fetch_coag(kk,ii,jj)
+     INTEGER, INTENT(in) :: ii,jj,kk
+     
+     IF (lscgaa) zccaa(1,1,:,:) = sto_aa(kk,ii,jj,:,:) 
+     IF (lscgcc) zcccc(1,1,:,:) = sto_cc(kk,ii,jj,:,:) 
+     IF (lscgpp) zccpp(1,1,:,:) = sto_pp(kk,ii,jj,:,:)
+     IF (lscgii) zccii(1,1,:,:) = sto_ii(kk,ii,jj,:,:)
+
+     IF (lscgca) zccca(1,1,:,:) = sto_ca(kk,ii,jj,:,:)
+     IF (lscgpa) zccpa(1,1,:,:) = sto_pa(kk,ii,jj,:,:) 
+     IF (lscgia) zccia(1,1,:,:) = sto_ia(kk,ii,jj,:,:) 
+
+     IF (lscgpc) zccpc(1,1,:,:) = sto_pc(kk,ii,jj,:,:) 
+     IF (lscgic) zccic(1,1,:,:) = sto_ic(kk,ii,jj,:,:) 
+
+     IF (lscgip) zccip(1,1,:,:) = sto_ip(kk,ii,jj,:,:)
+     
+   END SUBROUTINE fetch_coag
+     
 END MODULE mo_salsa_driver
