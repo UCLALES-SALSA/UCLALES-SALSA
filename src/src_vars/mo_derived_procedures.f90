@@ -10,7 +10,7 @@ MODULE mo_derived_procedures
   USE grid, ONLY : nzp,nxp,nyp,level
   USE mo_progn_state, ONLY : a_naerop, a_ncloudp, a_nprecpp, a_nicep,  &
                              a_maerop, a_mcloudp, a_mprecpp, a_micep,  &
-                             a_rp, a_rpp
+                             a_rp, a_rpp, a_gaerop
   USE mo_diag_state, ONLY : a_rc, a_ri, a_riri, a_srp, a_dn, wt_sfc, wq_sfc
   USE mo_aux_state, ONLY : dzt,dn0
   USE mo_structured_datatypes
@@ -31,7 +31,8 @@ MODULE mo_derived_procedures
             getCDNC,         &  ! Diagnose the "real" CDNC ( 2 um < D < 80 um; level >= 4 )
             getCNC,          &  ! Diagnose the "cloud number concentration" (D > 2 um; level >= 4)
             getReff,         &  ! Get the effective radius using all liquid hdrometeor > 2 um (level >= 4)
-            getBinTotMass       ! Get the binned total mass
+            getBinTotMass,   &  ! Get the binned total mass
+            getGasConc          ! Get the concentration of specific precursor gas
     
   CONTAINS
 
@@ -604,6 +605,31 @@ MODULE mo_derived_procedures
      
    END SUBROUTINE getBinTotMass
 
+   ! ----------------------------------------------------------------------------
+   ! SUBROUTINE GETGASCONC: Gets the sseparate gas concentration for output
+   !
+   SUBROUTINE getGasConc(name,output)
+     CHARACTER(len=*), INTENT(in) :: name
+     REAL, INTENT(out) :: output(nzp,nxp,nyp)
+     INTEGER :: i
+     output = 0. 
+
+     SELECT CASE(name)
+     CASE("gSO4")
+        i = 1
+     CASE("gNO3")
+        i = 2
+     CASE("gNH4")
+        i = 3
+     CASE("gOCNV")
+        i = 4
+     CASE("gOCSV")
+        i = 5
+     END SELECT
+
+     output(:,:,:) = a_gaerop%d(:,:,:,i)
+     
+   END SUBROUTINE getGasConc
 
 
 

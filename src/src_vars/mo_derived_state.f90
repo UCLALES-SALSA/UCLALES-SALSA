@@ -29,6 +29,9 @@ MODULE mo_derived_state
                                 aSSa, aSSb, cSSa, cSSb, pSSa, iSSa,        &  ! Sea salt
                                 aNOa, aNOb, cNOa, cNOb, pNOa, iNOa,        &  ! Nitrate
                                 aNHa, aNHb, cNHa, cNHb, pNHa, iNHa            ! Ammonia
+
+  TYPE(FloatArray3d), TARGET :: gSO4, gNO3, gNH4, gOCNV, gOCSV
+
   ! A bit more derived SALSA variables
   TYPE(FloatArray3d), TARGET :: CDNC,                                      &  ! CDNC - number of all droplets for whom 2 um < D < 80 um. Note units in #/m3
                                 CNC,                                       &  ! Cloud number concentration - number of all droplet for whom D > 2 um. In #/m3
@@ -641,6 +644,46 @@ MODULE mo_derived_state
                             ANY(outputlist == "irhoe"), pipeline)
       END IF
 
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         gSO4 = FloatArray3d()
+         gSO4%onDemand => getGasConc
+         pipeline => gSO4
+         CALL Derived%newField("gSO4", "Gas concentration SO4", "#/kg", "tttt",   &
+                               ANY(outputlist == "gSO4"), pipeline)
+
+         pipeline => NULL()
+         gNO3 = FloatArray3d()
+         gNO3%onDemand => getGasConc
+         pipeline => gNO3
+         CALL Derived%newField("gNO3", "Gas concentration NO3", "#/kg", "tttt",   &
+              ANY(outputlist == "gNO3"), pipeline)
+
+         pipeline => NULL()
+         gNH4 = FloatArray3d()
+         gNH4%onDemand => getGasConc
+         pipeline => gSO4
+         CALL Derived%newField("gSO4", "Gas concentration SO4", "#/kg", "tttt",   &
+              ANY(outputlist == "gSO4"), pipeline)
+
+         pipeline => NULL()
+         gOCNV = FloatArray3d()
+         gOCNV%onDemand => getGasConc
+         pipeline => gOCNV
+         CALL Derived%newField("gOCNV", "Gas concentration OCNV", "#/kg", "tttt",   &
+                               ANY(outputlist == "gOCNV"), pipeline)                  
+
+         pipeline => NULL()
+         gOCSV = FloatArray3d()
+         gOCSV%onDemand => getGasConc
+         pipeline => gOCSV
+         CALL Derived%newField("gOCSV", "Gas concentration OCSV", "#/kg", "tttt",   &
+                               ANY(outputlist == "gOCSV"), pipeline)                  
+
+         
+      END IF
+
+      
       pipeline => NULL()
       
     END SUBROUTINE setDerivedVariables        
