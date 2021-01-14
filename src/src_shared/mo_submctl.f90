@@ -18,7 +18,7 @@ MODULE mo_submctl
   !Switches for SALSA aerosol microphysical processes
   INTEGER, PARAMETER :: Nmaster = 7
   TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)  ! Array for master switches. The specific master switches are pointers to this array
-  TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation
+  TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation, mode = 1: calculate kernels every timestep, mode = 2: use reduced update freq
   TYPE(ProcessSwitch), POINTER :: lscnd => NULL()      ! Condensation
   TYPE(ProcessSwitch), POINTER :: lsauto => NULL()     ! Autoconversion, mode = 1: parameterized simple autoconversion, mode = 2: coagulation based precip formation
   TYPE(ProcessSwitch), POINTER :: lsactiv => NULL()    ! Cloud activation, mode = 1: aerosol growth based activation, mode = 2: parameterized cloud base activation
@@ -38,11 +38,11 @@ MODULE mo_submctl
   LOGICAL :: lscgii  = .TRUE.  ! Collision-coalescence between ice particles
   LOGICAL :: lscgip  = .TRUE.  ! Collection of precipitation by ice particles
 
-  ! Reduced kernel update frequency
-  TYPE(ProcessSwitch) :: lscglowfreq = .FALSE.  ! If %switch = FALSE, update the kernels every timestep, no storage allocated.
-                                                ! If %switch = TRUE, %state will be determined according to cgintvl 
-  REAL :: cgintvl = 10.             ! If lscglowfreq%switch = TRUE, gives the coagulation kernel update interval in seconds
-                                    ! lscglowfreq%state will be TRUE for update timesteps
+  ! Reduced coagulation kernel update frequency
+  REAL :: cgintvl = 10.             ! If lscoag%mode = 2, gives the coagulation kernel update interval in seconds.
+  
+  LOGICAL :: lcgupdt = .FALSE.      ! Switch for updating kernels with lscoag%mode = 2; Note: This is determined
+                                    ! during runtime -> NOT a NAMELIST parameter!
   
   ! Condensation subprocesses
   LOGICAL :: lscndgas   = .FALSE. ! Condensation of precursor gases

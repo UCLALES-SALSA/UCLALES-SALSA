@@ -23,13 +23,13 @@ NNODES=7
 TWALL=48:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=5              # Number of points in Y-direction (including "halo" points)
+NYP=10              # Number of points in Y-direction (including "halo" points)
 NZP=100              # Number of points in Z-direction
 DX=100.              # Resolution in X-direction (meters)
 DY=100.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=0.        # Length of the spinup period (seconds)
+Tspinup=100.        # Length of the spinup period (seconds)
 Texp=28800.         # Length of the experiment (seconds)
 LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 
@@ -121,12 +121,10 @@ cat > NAMELIST <<EOF
   breakUndefOutput = .TRUE.
   ps_intvl = 60.
   ts_intvl = 60.
-  main_intvl = 120.
-  varlist_main = 'CDNC','Naba','Ncba','Npba','Maba','Mcba','Mpba','Dwaba','Dwcba','Dwpba'
-  varlist_ts = 'total_mass'
-  !varlist_main = 'temp','theta','wwind','rp','rc','srp','rrate',!'pb_rc','pb_rpp','pb_npp','pb_rrate','CDNC','Np' 
-  !varlist_ps = 'rrate','pr_rrate','pb_rrate','pr_pb_rrate','rc','ic_rc','pb_rc','ic_pb_rc','CDNC','ic_CDNC','Np','pr_Np'
-  !varlist_ts = 'sfcrrate','pr_sfcrrate','pb_sfcrrate'!,'pr_pb_sfcrrate'
+  main_intvl = 60.
+  varlist_main = 'temp','theta','wwind','rp','rc','srp','rrate'
+  !varlist_ps = ''
+  !varlist_ts = ''
   TH_rrate = 30.
   TH_rc = 1.e-5
   TH_rr = 1.e-6
@@ -245,6 +243,8 @@ cat > NAMELIST <<EOF
    ! Master process switches
    lscoag%switch = .TRUE.
    lscoag%delay = ${Tspinup}
+   lscoag%mode = 2   ! 1: update kernels every timestep, 2: reduced update freq
+   cgintvl = 10.     ! for mode = 2, update interval in seconds
 
    lscnd%switch = .TRUE.
 
@@ -331,7 +331,7 @@ cat > NAMELIST <<EOF
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
    volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)  
-   sigmagA  = 1.28, 1.75, 2.0, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
+   sigmagA  = 1.28, 2.00, 2.0, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpgA     = 0.06, 0.28, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
    nA       = 76., 13., 1., 0., 0., 0., 0.         ! Mode number concentrations in #/mg 
 

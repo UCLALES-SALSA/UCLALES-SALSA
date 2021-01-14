@@ -108,7 +108,8 @@ CONTAINS
                            lscgca, lscgpa, lscgia, & 
                            lscgpc, lscgic, &
                            lscgip,                         &
-                           lssecice, ice_halmos
+                           lssecice, ice_halmos,           &
+                           lcgupdt, lscoag
 
 
       USE mo_salsa_coagulation_kernels
@@ -139,17 +140,6 @@ CONTAINS
 
       LOGICAL :: any_lt13(kbdim,klev), any_gt25(kbdim,klev)
       
-      !REAL :: zccaa(kbdim,klev,nbins,nbins),    & ! updated coagulation coefficients [m3/s]
-      !        zcccc(kbdim,klev,ncld,ncld),      & ! - '' - for collision-coalescence between cloud droplets [m3/s]
-      !        zccca(kbdim,klev,nbins,ncld),     & ! - '' - for cloud collection of aerosols [m3/s]
-      !        zccpc(kbdim,klev,ncld,nprc),      & ! - '' - for collection of cloud droplets by precip [m3/s]
-      !        zccpa(kbdim,klev,nbins,nprc),     & ! - '' - for collection of aerosols by precip
-      !        zccpp(kbdim,klev,nprc,nprc),      & ! - '' - for collision-coalescence between precip particles 
-      !        zccia(kbdim,klev,nbins,nice),     & ! - '' - for collection of aerosols by ice 
-      !        zccic(kbdim,klev,ncld,nice),      & ! - '' - for collection of cloud particles droplets by ice 
-      !        zccii(kbdim,klev,nice,nice),      & ! - '' - for aggregation between ice 
-      !        zccip(kbdim,klev,nprc,nice)         ! - '' - for collection of precip by ice
-
       ! For Hallet-Mossop
       REAL :: drimdt(kbdim,klev,nice)  ! Volume change in rime due to liquid collection in the presense of liquid
                                        ! hydrometeors with diameters both < 13um and >25um
@@ -160,10 +150,6 @@ CONTAINS
       !-- 1) Coagulation to coarse mode calculated in a simplified way: ------------
       !      CoagSink ~ Dp in continuum regime, thus we calculate
       !      'effective' number concentration of coarse particles
-
-      !zccaa(:,:,:,:) = 0.; zcccc(:,:,:,:) = 0.; zccca(:,:,:,:) = 0.; zccpc(:,:,:,:) = 0.   ! REMOVE? ONLY ZERO IN KERNEL UPDATE, INITIALIZATION, NEW VALUES GIVEN IN UPDATE OR DRIVER
-      !zccpa(:,:,:,:) = 0.; zccpp(:,:,:,:) = 0.; zccia(:,:,:,:) = 0.; zccic(:,:,:,:) = 0.
-      !zccii(:,:,:,:) = 0.; zccip(:,:,:,:) = 0.
  
       !-- 2) Updating coagulation coefficients -------------------------------------
       
@@ -182,9 +168,12 @@ CONTAINS
             END DO
          END DO
       END DO
-      
-      CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp)
 
+      ! Calculate new kernels every timestep if low freq updating is NOT used,
+      ! or when low freq IS used AND it is the update timestep.
+      IF (lscoag%mode == 1 .OR. lcgupdt ) &
+           CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp)
+      
       any_aero = ANY( aero(:,:,:)%numc > aero(:,:,:)%nlim ) .AND. &
                  ANY( [lscgaa,lscgca,lscgpa,lscgia] )
       any_cloud = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim ) .AND. &
@@ -206,7 +195,7 @@ CONTAINS
          ! For H-M: Store the "old" rime volumes
          drimdt(:,:,:) = ice(:,:,:)%volc(iri)
          
-         CALL coag_ice(kbdim,klev,nspec,ptstep,zccii,zccia,zccic,zccip) !!!!!!!!!!!!!!!!1 VAIHDA NAAKIN TULEEN MODUULISTA
+         CALL coag_ice(kbdim,klev,nspec,ptstep) 
 
          ! For H-M: Take the change in rime after collection processes
          drimdt(:,:,:) = ice(:,:,:)%volc(iri) - drimdt(:,:,:)
@@ -225,7 +214,7 @@ CONTAINS
       
       ! POISTA MASSATARKASTELUT
       IF (any_precp) THEN 
-         CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip)
+         CALL coag_precp(kbdim,klev,nspec,ptstep)
 
       END IF
 
@@ -237,10 +226,10 @@ CONTAINS
       
 
       IF (any_aero) &
-           CALL coag_aero(kbdim,klev,nspec,ptstep,zccaa,zccca,zccpa,zccia)
+           CALL coag_aero(kbdim,klev,nspec,ptstep)
 
       IF (any_cloud) &
-           CALL coag_cloud(kbdim,klev,nspec,ptstep,zcccc,zccca,zccpc,zccic)
+           CALL coag_cloud(kbdim,klev,nspec,ptstep)
 
       
    END SUBROUTINE coagulation

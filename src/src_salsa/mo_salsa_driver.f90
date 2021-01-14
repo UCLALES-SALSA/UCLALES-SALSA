@@ -55,9 +55,9 @@
    
    ! Storage of the coagulation kernels:
    REAL, ALLOCATABLE :: sto_aa(:,:,:,:,:), sto_cc(:,:,:,:,:), sto_pp(:,:,:,:,:), sto_ii(:,:,:,:,:),  &
-                        sto_ca(:,:,:,:,:), sto_pa(:,:,:,:,:), sto_ia(:,:,:,:),   &
+                        sto_ca(:,:,:,:,:), sto_pa(:,:,:,:,:), sto_ia(:,:,:,:,:),   &
                         sto_pc(:,:,:,:,:), sto_ic(:,:,:,:,:),                  &
-                        sto_ip(:,:,:,:)
+                        sto_ip(:,:,:,:,:)
    
    
 CONTAINS
@@ -153,6 +153,13 @@ CONTAINS
       bin_numbers(1:4) = [nbins,ncld,nprc,nice]
       bin_starts(1:4) = [iaero,icloud,iprecp,iice]
 
+      ! Initialize the arrays for managing "old" values and tendencies
+      IF (initialize) THEN
+         CALL initialize_arrays(nwet,bin_numbers)
+         CALL initialize_coagstorage(nzp,nxp,nyp)
+      END IF
+
+         
       ! Get the pointers to variable arrays
       CALL Diag%getData(1,press,name="press")
       CALL Diag%getData(1,tk,name="temp")
@@ -205,16 +212,12 @@ CONTAINS
       CALL Diag%getData(1,conda,name="conda")
       CALL Diag%getData(1,condc,name="condc")
       CALL Diag%getData(1,condp,name="condp")
-               
-      ! Initialize the arrays for managing "old" values and tendencies
-      IF (initialize) &
-           CALL initialize_arrays(nwet,bin_numbers)
-      
+                     
       in_p(:,:) = 0.; in_t(:,:) = 0.; in_rs(:,:) = 0.; in_rsi(:,:) = 0.; in_w(:,:) = 0.
       in_rv(:,:) = 0.; rv_old(:,:) = 0.
       
       ! Set the SALSA runtime config 
-      CALL set_salsa_runtime(time)
+      CALL set_salsa_runtime(time,tstep)
       
       ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of kg/kg (multiplied by pdn/divided by substance density)
       DO jj = 3, nyp-2
@@ -326,7 +329,7 @@ CONTAINS
 
                ! If reduced coagulation kernel update freq, and NOT update timestep,
                !copy kernels from memory
-               IF (lscgoag%state, lscglowfreq%state) &
+               IF ( lscoag%mode == 2 .AND. .NOT. lcgupdt) &
                     CALL fetch_coag(kk,ii,jj) 
                
                ! ***************************************!
@@ -430,7 +433,7 @@ CONTAINS
                END IF
 
                ! If reduced coagulation kernel update frequency and is update timestep, store the updated kernels
-               IF (lscglowfreq%state) &
+               IF (lscoag%mode == 2 .AND. lcgupdt) &
                     CALL store_coag(kk,ii,jj)
                
             END DO !kk
@@ -466,27 +469,29 @@ CONTAINS
    !
    !---------------------------------------------------------------
    ! SET_SALSA_RUNTIME
-   ! Set the master process %state:s based on the values of %switch and %delay
+   ! Set the master process %state:s based on the values of %switch and %delay.
+   ! Added some new time-dependent switches
    !
-   ! Juha Tonttila, FMI, 2014
+   ! Juha Tonttila, FMI, 2014;2020
    !
    SUBROUTINE set_SALSA_runtime(time, tstep)
-     USE mo_submctl, ONLY : Nmaster, lsmaster, lsfreeRH,    &
-                            lscglowfreq,cgintvl
      IMPLICIT NONE
      REAL, INTENT(in) :: time, tstep
      INTEGER :: i
 
+     ! All the non-interface parameters used below are found in mo_submctl
+     
      DO i = 1,Nmaster
         IF( lsmaster(i)%switch .AND. time > lsmaster(i)%delay ) lsmaster(i)%state = .TRUE.
      END DO
 
      ! Some other switches
+     ! Constraining RH in condensation
      IF ( lsfreeRH%switch .AND. time > lsfreeRH%delay ) lsfreeRH%state = .TRUE.
+     ! Constraining contact angle in ice nucleation
      IF ( lsFreeTheta%switch .AND. time > lsFreeTheta%delay) lsFreeTheta%state = .TRUE.
-
-     IF (lscglowfreq%switch .AND. lscoag%state .AND. MOD(time,cgintvl) < tstep ) &
-          lscglowfreq%state = .TRUE.
+     ! Determine coagulation update status if low freq updating is active
+     lcgupdt = ( lscoag%state .AND. lscoag%mode == 2 .AND. MOD(time,cgintvl) < tstep )
      
    END SUBROUTINE set_SALSA_runtime
 
@@ -527,24 +532,54 @@ CONTAINS
    ! ----------------------------------------------------
    ! Initializes the coagulation kernel storage 
    !
-   SUBROUTINE intialize_coagstorage(nzp,nyp,nxp)
+   SUBROUTINE initialize_coagstorage(nzp,nxp,nyp)
      INTEGER, INTENT(in) :: nxp,nyp,nzp
 
-     IF (lscgaa) ALLOCATE(sto_aa(nzp,nxp,nyp,nbins,nbins)); sto_aa = 0.
-     IF (lscgcc) ALLOCATE(sto_cc(nzp,nxp,nyp,ncld,ncld)); sto_cc = 0.
-     IF (lscgpp) ALLOCATE(sto_pp(nzp,nxp,nyp,nprc,nprc)); sto_pp = 0.
-     IF (lscgii) ALLOCATE(sto_ii(nzp,nxp,nyp,nice,nice)); sto_ii = 0.
+     IF (lscgaa) THEN
+        ALLOCATE(sto_aa(nzp,nxp,nyp,nbins,nbins))
+        sto_aa = 0.
+     END IF
+     IF (lscgcc) THEN
+        ALLOCATE(sto_cc(nzp,nxp,nyp,ncld,ncld))
+        sto_cc = 0.
+     END IF
+     IF (lscgpp) THEN
+        ALLOCATE(sto_pp(nzp,nxp,nyp,nprc,nprc))
+        sto_pp = 0.
+     END IF
+     IF (lscgii) THEN
+        ALLOCATE(sto_ii(nzp,nxp,nyp,nice,nice))
+        sto_ii = 0.
+     END IF
+        
+     IF (lscgca) THEN
+        ALLOCATE(sto_ca(nzp,nxp,nyp,nbins,ncld))
+        sto_ca = 0.
+     END IF
+     IF (lscgpa) THEN
+        ALLOCATE(sto_pa(nzp,nxp,nyp,nbins,nprc))
+        sto_pa = 0.
+     END IF
+     IF (lscgia) THEN
+        ALLOCATE(sto_ia(nzp,nxp,nyp,nbins,nice))
+        sto_ia = 0.
+     END IF
 
-     IF (lscgca) ALLOCATE(sto_ca(nzp,nxp,nyp,nbins,ncld)); sto_ca = 0.
-     IF (lscgpa) ALLOCATE(sto_pa(nzp,nxp,nyp,nbins,nprc)); sto_pa = 0.
-     IF (lscgia) ALLOCATE(sto_ia(nzp,nxp,nyp,nbins,nice)); sto_ia = 0.
-
-     IF (lscgpc) ALLOCATE(sto_pc(nzp,nxp,nyp,ncld,nprc)); sto_pc = 0.
-     IF (lscgic) ALLOCATE(sto_ic(nzp,nxp,nyp,ncld,nice)); sto_ic = 0.
-
-     IF (lscgip) ALLOCATE(sto_ip(nzp,nxp,nyp,nice,nprc)); sto_ip = 0.     
-         
-   END SUBROUTINE intialize_coagstorage
+     IF (lscgpc) THEN
+        ALLOCATE(sto_pc(nzp,nxp,nyp,ncld,nprc))
+        sto_pc = 0.
+     END IF
+     IF (lscgic) THEN
+        ALLOCATE(sto_ic(nzp,nxp,nyp,ncld,nice))
+        sto_ic = 0.
+     END IF
+        
+     IF (lscgip) THEN
+        ALLOCATE(sto_ip(nzp,nxp,nyp,nice,nprc))
+        sto_ip = 0.     
+     END IF
+        
+   END SUBROUTINE initialize_coagstorage
    
    !
    ! ------------------------------------------------------
