@@ -19,12 +19,10 @@ MODULE mo_salsa_coagulation_processes
     !
     ! Aerosol coagulation
     ! -----------------------
-    SUBROUTINE coag_aero(kbdim,klev,nspec,ptstep,zccaa,zccca,zccpa,zccia) 
-      
+    SUBROUTINE coag_aero(kbdim,klev,nspec,ptstep) 
+      USE mo_salsa_types, ONLY : zccaa, zccca, zccpa, zccia
       INTEGER, INTENT(in) :: kbdim,klev,nspec
       REAL, INTENT(in) :: ptstep
-      REAL, INTENT(in) :: zccaa(kbdim,klev,nbins,nbins), zccca(kbdim,klev,nbins,ncld),    &
-                          zccpa(kbdim,klev,nbins,nprc), zccia(kbdim,klev,nbins,nice)
 
       INTEGER :: kk
       REAL :: zplusterm(nspec,kbdim,klev), zminusterm(kbdim,klev), zminus_self(kbdim,klev)
@@ -218,12 +216,10 @@ MODULE mo_salsa_coagulation_processes
     ! Cloud droplet coagulation
     ! -----------------------------
     !
-    SUBROUTINE coag_cloud(kbdim,klev,nspec,ptstep,zcccc,zccca,zccpc,zccic)
-      
+    SUBROUTINE coag_cloud(kbdim,klev,nspec,ptstep)
+      USE mo_salsa_types, ONLY : zcccc, zccca, zccpc, zccic
       INTEGER, INTENT(in) :: kbdim,klev,nspec
       REAL, INTENT(in) :: ptstep
-      REAL, INTENT(in) :: zcccc(kbdim,klev,ncld,ncld), zccca(kbdim,klev,nbins,ncld),    &
-                          zccpc(kbdim,klev,ncld,nprc), zccic(kbdim,klev,ncld,nice)
 
       REAL :: zplusterm(nspec,kbdim,klev), zminusterm(kbdim,klev), zminus_self(kbdim,klev)
 
@@ -425,12 +421,10 @@ MODULE mo_salsa_coagulation_processes
     ! Precipitation coagulation
     ! --------------------------
     !
-    SUBROUTINE coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip) 
-      
+    SUBROUTINE coag_precp(kbdim,klev,nspec,ptstep) 
+      USE mo_salsa_types, ONLY: zccpp, zccpa, zccpc, zccip
       INTEGER, INTENT(in) :: kbdim,klev,nspec
       REAL, INTENT(in) :: ptstep
-      REAL, INTENT(in) :: zccpp(kbdim,klev,nprc,nprc), zccpa(kbdim,klev,nbins,nprc),    &
-                          zccpc(kbdim,klev,ncld,nprc), zccip(kbdim,klev,nprc,nice)
 
       INTEGER :: kk,ii,jj
       REAL :: zplusterm(nspec,kbdim,klev), zminusterm(kbdim,klev), zminus_self(kbdim,klev)
@@ -485,12 +479,10 @@ MODULE mo_salsa_coagulation_processes
     ! Ice coagulation
     ! ------------------
     ! 
-    SUBROUTINE coag_ice(kbdim,klev,nspec,ptstep,zccii,zccia,zccic,zccip)
-
+    SUBROUTINE coag_ice(kbdim,klev,nspec,ptstep)
+      USE mo_salsa_types, ONLY : zccii, zccia, zccic, zccip
       INTEGER, INTENT(in) :: kbdim,klev,nspec   ! nspec should contain all compounds including unrimed and rimed ice!
       REAL, INTENT(in) :: ptstep
-      REAL, INTENT(in) :: zccii(kbdim,klev,nice,nice), zccia(kbdim,klev,nbins,nice),    &
-                          zccic(kbdim,klev,ncld,nice), zccip(kbdim,klev,nprc,nice)
 
       INTEGER :: kk, index_b, index_a
       REAL :: zplusterm(nspec,kbdim,klev), zminusterm(kbdim,klev), zminus_self(kbdim,klev) 
@@ -1069,15 +1061,6 @@ MODULE mo_salsa_coagulation_processes
          END DO
       END DO
       
-      ! Since this is forced to transfer the result to next bin, must take the sink into account.
-
-      ! Change in cloud droplet volume due to precip formation in self collection
-      !volsink_slf(1:nspec,ii,jj) = volsink_slf(1:nspec,ii,jj) +   &
-      !     cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc*zcc(ii,jj,ll,itrgt)
-                     
-      ! Contribution of precip formation due to self collection to the regular sink term
-      !sink(ii,jj) = sink(ii,jj) + 0.5*zcc(ii,jj,ll,itrgt)*cloud(ii,jj,itrgt)%numc      
-
       
     END SUBROUTINE precipSelfCoag
     

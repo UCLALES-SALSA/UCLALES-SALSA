@@ -40,8 +40,7 @@ MODULE mo_derived_state
   ! SALSA related variables
   TYPE(FloatArray4d), TARGET :: Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba, Dwiba     ! Binned wet diameters  
   TYPE(FloatArray4d), TARGET :: Maba, Mabb, Mcba, Mcbb, Mpba, Miba           ! Binned particle/droplet total masses
-  
-  
+    
   ! Some binned diagnostics
   TYPE(FloatArray4d), TARGET :: irhob, irhoe ! Bulk mean and effective ice densities
 

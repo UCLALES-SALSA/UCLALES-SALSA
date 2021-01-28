@@ -29,5 +29,17 @@ MODULE mo_salsa_types
   ! Process specific pointers for process rate containers. Initialize in salsa_init, remember to reset for each cycle in salsa_driver
   TYPE(ProcessRates) :: rateDiag     
 
+  ! Allocate in mo_aero_init
+  REAL, ALLOCATABLE :: zccaa(:,:,:,:),    & ! updated coagulation coefficients [m3/s]
+                       zcccc(:,:,:,:),    & ! - '' - for collision-coalescence between cloud droplets [m3/s]
+                       zccca(:,:,:,:),    & ! - '' - for cloud collection of aerosols [m3/s]
+                       zccpc(:,:,:,:),    & ! - '' - for collection of cloud droplets by precip [m3/s]
+                       zccpa(:,:,:,:),    & ! - '' - for collection of aerosols by precip
+                       zccpp(:,:,:,:),    & ! - '' - for collision-coalescence between precip particles 
+                       zccia(:,:,:,:),    & ! - '' - for collection of aerosols by ice 
+                       zccic(:,:,:,:),    & ! - '' - for collection of cloud particles droplets by ice 
+                       zccii(:,:,:,:),    & ! - '' - for aggregation between ice 
+                       zccip(:,:,:,:)       ! - '' - for collection of precip by ice
+  
   
 END MODULE mo_salsa_types

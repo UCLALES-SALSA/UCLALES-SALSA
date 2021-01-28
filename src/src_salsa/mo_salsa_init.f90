@@ -477,6 +477,8 @@ CONTAINS
                              lscgia,lscgic,lscgii,  &
                              lscgip,  & 
 
+                             cgintvl,               &
+                             
                              lscndgas,                    &
                              lscndh2oae,lscndh2ocl,       &
                              lscndh2oic,                  &
@@ -529,6 +531,8 @@ CONTAINS
          lscgii,      & ! Collision-coalescence between ice particles
          lscgip,      & ! Collection of precipitation by ice particles
 
+         cgintvl,     & ! Interval for low freq coagulation kernel update
+         
          lscndgas,    & ! Condensation of precursor gases
          lscndh2ocl,    & ! Condensation of water vapour on clouds (drizzle)
          lscndh2oic,    & ! Condensation of water vapour on ice particles ! ice'n'snow
@@ -613,7 +617,8 @@ CONTAINS
    SUBROUTINE associate_master_switches
      USE classProcessSwitch, ONLY : ProcessSwitch
      USE mo_submctl, ONLY : Nmaster, lsmaster, lscoag, lscnd, lsauto,  &
-                            lsactiv, lsicenucl, lsicemelt, lssecice, lsfreeRH
+                            lsactiv, lsicenucl, lsicemelt, lssecice, lsfreeRH, &
+                            cgintvl
      IMPLICIT NONE
      
      INTEGER :: i
@@ -632,10 +637,10 @@ CONTAINS
      lsicemelt => lsmaster(6)
      lssecice => lsmaster(7)
 
-     ! Use this to initialize also some other switches
+     ! Use this to initialize also other switches that use the ProcessSwitch type
      lsfreeRH = ProcessSwitch()
      lsfreeTheta = ProcessSwitch()
-
+     
    END SUBROUTINE associate_master_switches
 
    ! ----------------------------------------
@@ -650,7 +655,66 @@ CONTAINS
      
    END SUBROUTINE setDefaultBinLayouts
    
+   ! ----------------------------------------
 
+   SUBROUTINE initialize_coag_kernels()
+     USE mo_salsa_types, ONLY : zccaa, zcccc, zccpp, zccii,      &
+                                zccca, zccpa, zccia,             &
+                                zccpc, zccic,                    &
+                                zccip
+     USE mo_submctl, ONLY :  lscgaa,lscgcc,lscgpp,  &
+                             lscgca,lscgpa,lscgpc,  &
+                             lscgia,lscgic,lscgii,  &
+                             lscgip
+     
+     IF (lscgaa) THEN
+        ALLOCATE(zccaa(kbdim,klev,nbins,nbins))
+        zccaa = 0.
+     END IF
+     IF (lscgcc) THEN
+        ALLOCATE(zcccc(kbdim,klev,ncld,ncld))
+        zcccc = 0.
+     END IF
+     IF (lscgpp) THEN
+        ALLOCATE(zccpp(kbdim,klev,nprc,nprc))
+        zccpp = 0.
+     END IF
+     IF (lscgii) THEN
+        ALLOCATE(zccii(kbdim,klev,nice,nice))
+        zccii = 0.
+     END IF
+        
+     IF (lscgca) THEN
+        ALLOCATE(zccca(kbdim,klev,nbins,ncld))
+        zccca = 0.
+     END IF
+     IF (lscgpa) THEN
+        ALLOCATE(zccpa(kbdim,klev,nbins,nprc))
+        zccpa = 0.
+     END IF
+     IF (lscgia) THEN
+        ALLOCATE(zccia(kbdim,klev,nbins,nice))
+        zccia = 0.
+     END IF
+        
+     IF (lscgpc) THEN
+        ALLOCATE(zccpc(kbdim,klev,ncld,nprc))
+        zccpc = 0.
+     END IF     
+     IF (lscgic) THEN
+        ALLOCATE(zccic(kbdim,klev,ncld,nice))
+        zccic = 0.
+     END IF
+     
+     IF (lscgip) THEN
+        ALLOCATE(zccip(kbdim,klev,nice,nprc))
+        zccip = 0.     
+     END IF
+     
+   END SUBROUTINE initialize_coag_kernels
+
+
+   
    !-------------------------------------------------------------------------------
    !
    ! *****************************
@@ -715,6 +779,9 @@ CONTAINS
       ! Initialize the container for process rate diagnostics
       CALL Initialize_processrates()
       rateDiag = ProcessRates()
+
+      ! Allocate arrays for local coagulation kernels
+      CALL initialize_coag_kernels()
       
       IF ( ALLOCATED(dumaero) ) DEALLOCATE(dumaero)
       IF ( ALLOCATED(dumcloud)) DEALLOCATE(dumcloud)
