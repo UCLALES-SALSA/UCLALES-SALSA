@@ -1061,15 +1061,6 @@ MODULE mo_salsa_coagulation_processes
          END DO
       END DO
       
-      ! Since this is forced to transfer the result to next bin, must take the sink into account.
-
-      ! Change in cloud droplet volume due to precip formation in self collection
-      !volsink_slf(1:nspec,ii,jj) = volsink_slf(1:nspec,ii,jj) +   &
-      !     cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc*zcc(ii,jj,ll,itrgt)
-                     
-      ! Contribution of precip formation due to self collection to the regular sink term
-      !sink(ii,jj) = sink(ii,jj) + 0.5*zcc(ii,jj,ll,itrgt)*cloud(ii,jj,itrgt)%numc      
-
       
     END SUBROUTINE precipSelfCoag
     
