@@ -89,7 +89,25 @@ MODULE mo_ps_state
   TYPE(FloatArray1d), TARGET :: ps_pb_rrate, ps_pb_rc,         &
                                 pspr_pb_rrate, psic_pb_rc
 
-  
+  ! Process rate diagnostics (in-cloud)
+  TYPE(FloatArray1d), TARGET :: psic_s_m_autoc,           &   
+                                psic_s_m_accr,            &
+                                psic_s_m_ACcoll_dry,      &
+                                psic_s_m_APcoll_dry,      &
+                                psic_s_m_AIcoll_dry,      &
+                                psic_s_n_activ,           &
+                                psic_s_n_icehom,          &
+                                psic_s_n_icedep,          &
+                                psic_s_n_iceimm,          &
+                                psic_s_m_conda,           &
+                                psic_s_m_condc,           &
+                                psic_s_m_condp,           &
+                                psic_s_m_condi,           &
+                                  
+                                psic_b_m_autoc,           &
+                                psic_b_n_autoc,           &
+                                psic_b_m_accr       
+    
   CONTAINS
 
     SUBROUTINE setPSVariables(PS,outputlist,level,lpback)
@@ -1082,12 +1100,141 @@ MODULE mo_ps_state
          psic_pb_rc = FloatArray1d("ic_pb_rc",srcname="pb_rc")
          psic_pb_rc%onDemand => inLiqMeanProfile
          pipeline => psic_pb_rc
-         CALL PS%newField(psic_pb_rc%shortName, "Conditional in-cloud condensate mix rat (bulk slave)", "W m-2", "ztt",  &
-                          ANY(outputlist == psic_pb_rc%shortName), pipeline)                  
+         CALL PS%newField(psic_pb_rc%shortName, "Conditional in-cloud condensate mix rat (bulk slave)",      &
+                          "W m-2", "ztt", ANY(outputlist == psic_pb_rc%shortName), pipeline)                  
 
       END IF
-      
 
+      ! --------------------------------------------------------------
+      ! Process rate diagnostics
+      ! --------------------------------------------------------------
+      IF (level <= 3 .OR. lpback) THEN
+         pipeline => NULL()
+         psic_b_m_autoc = FloatArray1d("ic_b_m_autoc",srcname="b_m_autoc")
+         psic_b_m_autoc%onDemand => inCloudMeanProfile
+         pipeline => psic_b_m_autoc
+         CALL PS%newField(psic_b_m_autoc%shortName, "Conditional avg autoconversion rate (bulk scheme, mass)",  &
+                          "kg/kg s", "ztt", ANY(outputlist == psic_b_m_autoc%shortName), pipeline)
+
+         pipeline => NULL()
+         psic_b_n_autoc = FloatArray1d("ic_b_n_autoc",srcname="b_n_autoc")
+         psic_b_n_autoc%onDemand => inCloudMeanProfile
+         pipeline => psic_b_n_autoc
+         CALL PS%newField(psic_b_n_autoc%shortName, "Conditional avg autoconversion rate (bulk scheme, number)", &
+                          "#/kg s", "ztt", ANY(outputlist == psic_b_n_autoc%shortName), pipeline)
+
+         pipeline => NULL()
+         psic_b_m_accr = FloatArray1d("ic_b_m_accr",srcname="b_m_accr")
+         psic_b_m_accr%onDemand => inCloudMeanProfile
+         pipeline => psic_b_m_accr
+         CALL PS%newField(psic_b_m_accr%shortName, "Conditional avg accretion rate (bulk scheme, mass)",    &
+                          "kg/kg s", "ztt", ANY(outputlist == psic_b_m_accr%shortName), pipeline)
+      END IF
+
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         psic_s_m_autoc = FloatArray1d("ic_s_m_autoc",srcname="s_m_autoc")
+         psic_s_m_autoc%onDemand => inCloudMeanProfile
+         pipeline => psic_s_m_autoc
+         CALL PS%newField(psic_s_m_autoc%shortName, "Conditional avg autoconversion rate (SALSA, mass)",   &
+                          "kg/kg s", "ztt", ANY(outputlist == psic_s_m_autoc%shortName), pipeline)
+         
+         pipeline => NULL()         
+         psic_s_m_accr = FloatArray1d("ic_s_m_accr",srcname="s_m_accr")
+         psic_s_m_accr%onDemand => inCloudMeanProfile
+         pipeline => psic_s_m_accr
+         CALL PS%newField(psic_s_m_accr%shortName, "Conditional avg accretion rate (SALSA, mass)",    &
+                          "kg/kg s", "ztt", ANY(outputlist == psic_s_m_accr%shortName), pipeline)
+                  
+         pipeline => NULL()
+         psic_s_m_ACcoll_dry = FloatArray1d("ic_s_m_ACcoll_dry",srcname="s_m_ACcoll_dry")
+         psic_s_m_ACcoll_dry%onDemand => inCloudMeanProfile
+         pipeline => psic_s_m_ACcoll_dry
+         CALL PS%newField(psic_s_m_ACcoll_dry%shortName,   &
+                          "Conditional avg cloud-aerosol collection rate (SALSA, mass)",    &
+                          "kg/kg s", "ztt", ANY(outputlist == psic_s_m_ACcoll_dry%shortName), pipeline)
+                  
+         pipeline => NULL()
+         psic_s_m_APcoll_dry = FloatArray1d("ic_s_m_APcoll_dry",srcname="s_m_APcoll_dry")
+         psic_s_m_APcoll_dry%onDemand => inCloudMeanProfile
+         pipeline => psic_s_m_APcoll_dry
+         CALL PS%newField(psic_s_m_APcoll_dry%shortName,   &
+                          "Conditional avg precip-aerosol collection rate (SALSA, mass)", "kg/kg s",  &
+                          "ztt", ANY(outputlist == psic_s_m_APcoll_dry%shortName), pipeline)
+                  
+         pipeline => NULL()
+         psic_s_m_AIcoll_dry = FloatArray1d("ic_s_m_AIcoll_dry",srcname="s_m_AIcoll_dry")
+         psic_s_m_AIcoll_dry%onDemand => inCloudMeanProfile   ! Should implement in-ice averaging
+         pipeline => psic_s_m_AIcoll_dry
+         CALL PS%newField(psic_s_m_AIcoll_dry%shortName,   &
+                          "Conditional avg ice-aerosol collection rate (SALSA, mass)", "kg/kg s",  &
+                          "ztt", ANY(outputlist == psic_s_m_AIcoll_dry%shortName), pipeline)
+                  
+         pipeline => NULL()
+         psic_s_n_activ = FloatArray1d("ic_s_n_activ",srcname="s_n_activ")
+         psic_s_n_activ%onDemand => inCloudMeanProfile
+         pipeline => psic_s_n_activ
+         CALL PS%newField(psic_s_n_activ%shortName,   &
+                          "Conditional avg activation rate (SALSA, num)", "#/kg s",  &
+                          "ztt", ANY(outputlist == psic_s_n_activ%shortName), pipeline)
+                  
+         pipeline => NULL()
+         psic_s_n_icehom = FloatArray1d("ic_s_n_icehom",srcname="s_n_icehom")
+         psic_s_n_icehom%onDemand => inCloudMeanProfile  ! Should implement in-ice averaging
+         pipeline => psic_s_n_icehom
+         CALL PS%newField(psic_s_n_icehom%shortName,  &
+                          "Conditional avg homog ice nucl rate (SALSA, num)", "#/kg s",  &
+                          "ztt", ANY(outputlist == psic_s_n_icehom%shortName), pipeline)
+                  
+         pipeline => NULL()
+         psic_s_n_icedep = FloatArray1d("ic_s_n_icedep",srcname="s_n_icedep")
+         psic_s_n_icedep%onDemand => inCloudMeanProfile  ! Should implement in-ice averaging
+         pipeline => psic_s_n_icedep
+         CALL PS%newField(psic_s_n_icedep%shortName,  &
+                          "Conditional avg deposition ice nucl rate (SALSA, num)", "#/kg s",  &
+                          "ztt", ANY(outputlist == psic_s_n_icedep%shortName), pipeline)
+                  
+         pipeline => NULL()
+         psic_s_n_iceimm = FloatArray1d("ic_s_n_iceimm",srcname="s_n_iceimm")
+         psic_s_n_iceimm%onDemand => inCloudMeanProfile  ! Should implement in-ice averaging
+         pipeline => psic_s_n_iceimm
+         CALL PS%newField(psic_s_n_iceimm%shortName,  &
+                          "Conditional avg immersion ice nucl rate (SALSA, num)", "#/kg s",  &
+                          "ztt", ANY(outputlist == psic_s_n_iceimm%shortName), pipeline)
+                  
+         pipeline => NULL()
+         psic_s_m_conda = FloatArray1d("ic_s_m_conda",srcname="s_m_conda")
+         psic_s_m_conda%onDemand => inCloudMeanProfile 
+         pipeline => psic_s_m_conda
+         CALL PS%newField(psic_s_m_conda%shortName,   &
+                          "Conditional avg condensation on aero (SALSA, mass)", "kg/kg s",  &
+                          "ztt", ANY(outputlist == psic_s_m_conda%shortName), pipeline)
+                  
+         pipeline => NULL()
+         psic_s_m_condc = FloatArray1d("ic_s_m_condc",srcname="s_m_condc")
+         psic_s_m_condc%onDemand => inCloudMeanProfile
+         pipeline => psic_s_m_condc
+         CALL PS%newField(psic_s_m_condc%shortName,   &
+                          "Conditional avg condensation on cloud (SALSA, mass)", "kg/kg s",  &
+                          "ztt", ANY(outputlist == psic_s_m_condc%shortName), pipeline)
+                  
+         pipeline => NULL()
+         psic_s_m_condp = FloatArray1d("ic_s_m_condp",srcname="s_m_condp")
+         psic_s_m_condp%onDemand => inCloudMeanProfile
+         pipeline => psic_s_m_condp
+         CALL PS%newField(psic_s_m_condp%shortName,   &
+                          "Conditional avg condensation on precip (SALSA, mass)", "kg/kg s",  &
+                          "ztt", ANY(outputlist == psic_s_m_condp%shortName), pipeline)
+                  
+         pipeline => NULL()
+         psic_s_m_condi = FloatArray1d("ic_s_m_condi",srcname="s_m_condi")
+         psic_s_m_condi%onDemand => inCloudMeanProfile  ! Should implement in-ice averaging
+         pipeline => psic_s_m_condi
+         CALL PS%newField(psic_s_m_condi%shortName,   &
+                          "Conditional avg condensation on ice (SALSA, mass)", "kg/kg s",  &
+                          "ztt", ANY(outputlist == psic_s_m_condi%shortName), pipeline)
+         
+      END IF
       
     END SUBROUTINE setPSVariables
 

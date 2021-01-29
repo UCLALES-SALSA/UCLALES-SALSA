@@ -197,21 +197,21 @@ CONTAINS
       CALL Prog%getData(2,gaerot,name="gaero")
 
       ! Get pointers to process rate output streams
-      CALL Diag%getData(1,autoconversion,name="autoconversion")
-      CALL Diag%getData(1,accretion,name="accretion")
-      CALL Diag%getData(1,ACcoll,name="ACcoll")
-      CALL Diag%getData(1,APcoll,name="APcoll")
-      CALL Diag%getData(1,activation,name="activation")
+      CALL Diag%getData(1,autoconversion,name="s_m_autoc")
+      CALL Diag%getData(1,accretion,name="s_m_accr")
+      CALL Diag%getData(1,ACcoll,name="s_m_ACcoll_dry")
+      CALL Diag%getData(1,APcoll,name="s_m_APcoll_dry")
+      CALL Diag%getData(1,activation,name="s_n_activ")
       IF (level == 5) THEN
-         CALL Diag%getData(1,AIcoll,name="AIcoll")
-         CALL Diag%getData(1,Icehom,name="icehom")
-         CALL Diag%getData(1,Icedep,name="icedep")
-         CALL Diag%getData(1,Iceimm,name="iceimm")
-         CALL Diag%getData(1,condi,name="condi")
+         CALL Diag%getData(1,AIcoll,name="s_m_AIcoll_dry")
+         CALL Diag%getData(1,Icehom,name="s_n_icehom")
+         CALL Diag%getData(1,Icedep,name="s_n_icedep")
+         CALL Diag%getData(1,Iceimm,name="s_n_iceimm")
+         CALL Diag%getData(1,condi,name="s_m_condi")
       END IF
-      CALL Diag%getData(1,conda,name="conda")
-      CALL Diag%getData(1,condc,name="condc")
-      CALL Diag%getData(1,condp,name="condp")
+      CALL Diag%getData(1,conda,name="s_m_conda")
+      CALL Diag%getData(1,condc,name="s_m_condc")
+      CALL Diag%getData(1,condp,name="s_m_condp")
                      
       in_p(:,:) = 0.; in_t(:,:) = 0.; in_rs(:,:) = 0.; in_rsi(:,:) = 0.; in_w(:,:) = 0.
       in_rv(:,:) = 0.; rv_old(:,:) = 0.

@@ -265,6 +265,8 @@ MODULE mcrp
     ! one would get a gamma dist in drop diam -> faster rain formation.
     !
     SUBROUTINE auto_SB(dn0,rc,rp,rpt,npt)
+      USE mo_diag_state, ONLY : b_m_autoc, b_n_autoc  ! for rate diagnostics
+      
       TYPE(FloatArray1d), INTENT(in)    :: dn0
       TYPE(FloatArray3d), INTENT(in)    :: rc, rp
       TYPE(FloatArray3d), INTENT(inout) :: rpt, npt
@@ -281,6 +283,9 @@ MODULE mcrp
       INTEGER :: i, j, k
       REAL    :: k_au, Xc, Dc, au, tau, phi
 
+      b_m_autoc%d = 0.
+      b_n_autoc%d = 0.
+      
       k_au = k_c / (20.*X_bnd) * (nu_c+2.)*(nu_c+4.)/(nu_c+1.)**2
 
       DO j = 3, nyp-2
@@ -308,7 +313,11 @@ MODULE mcrp
                   END IF
 
                   rpt%d(k,i,j) = rpt%d(k,i,j) + au
-                  npt%d(k,i,j) = npt%d(k,i,j) + au/X_bnd
+                  npt%d(k,i,j) = npt%d(k,i,j) + au/X_bnd                  
+                  !
+                  ! rate diagnostics
+                  b_m_autoc%d(k,i,j) = au
+                  b_n_autoc%d(k,i,j) = au/X_bnd
                   !
                END IF
             END DO
@@ -324,6 +333,7 @@ MODULE mcrp
     ! Khairoutdinov and Kogan
     !
     SUBROUTINE accr_SB(dn0,rc,rp,np,rpt,npt)
+      USE mo_diag_state, ONLY : b_m_accr
       TYPE(FloatArray3d), INTENT(in)    :: rc, rp, np
       TYPE(FloatArray1d), INTENT(in)    :: dn0
       TYPE(FloatArray3d), INTENT(inout) :: rpt, npt
@@ -336,6 +346,8 @@ MODULE mcrp
       INTEGER :: i, j, k
       REAL    :: tau, phi, ac, sc
 
+      b_m_accr%d = 0.
+      
       DO j = 3, nyp-2
          DO i = 3, nxp-2
             DO k = 2, nzp-1
@@ -350,7 +362,10 @@ MODULE mcrp
                   !ac = Cac * (rc(k,i,j) * rp(k,i,j))**Eac 
                   !
                   rpt%d(k,i,j) = rpt%d(k,i,j) + ac
-
+                  !
+                  ! Rate diagnostic
+                  b_m_accr%d(k,i,j) = ac
+                  !
                END IF
                sc = k_r * np%d(k,i,j) * rp%d(k,i,j) * sqrt(rho_0*dn0%d(k))
                npt%d(k,i,j) = npt%d(k,i,j) - sc

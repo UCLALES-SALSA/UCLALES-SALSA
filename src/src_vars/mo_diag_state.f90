@@ -63,26 +63,32 @@ MODULE mo_diag_state
   INTEGER, PARAMETER :: ndiag2d = 11  ! Remember to update if adding new variables!!
   
   ! --------------------------------------------------------------------------------------------------------------------------------------------------
-  ! Microphysical process rates -- they need to be stored during the timestep because they cannot be simply diagnosed afterwards
+  ! Microphysical process rates from SALSA -- they need to be stored during the timestep because they cannot be simply diagnosed afterwards
   ! For now, these are BULK process rates only for water/ice, except where indicated otherwise !! Number concentration rate given for particle formation processes,
   ! mass concetration rate for others
   !
-  TYPE(FloatArray3d), TARGET :: m_autoconversion    ! 1: Bulk autoconversion rate (mass)
-  TYPE(FloatArray3d), TARGET :: m_accretion         ! 2: Bulk accretion rate (mass)
-  TYPE(FloatArray3d), TARGET :: m_ACcoll_dry        ! 3: Bulk cloud collection of aerosol (dry aerosol mass)
-  TYPE(FloatArray3d), TARGET :: m_APcoll_dry        ! 4: Bulk precipitation collection of aerosol (dry aerosol mass)            
-  TYPE(FloatArray3d), TARGET :: m_AIcoll_dry        ! 5: Bulk ice collection of aerosol (dry aerosol mass)
-  TYPE(FloatArray3d), TARGET :: n_activation        ! 6: Bulk cloud activation rate (number)
-  TYPE(FloatArray3d), TARGET :: n_icehom            ! 7: Bulk homogeneous freezing rate (number)
-  TYPE(FloatArray3d), TARGET :: n_icedep            ! 8: Bulk deposition freezing rate (number)
-  TYPE(Floatarray3d), TARGET :: n_iceimm            ! 9: Bulk immersion freezing rate (number)
-  TYPE(FloatArray3d), TARGET :: m_conda             ! 10: Bulk condensation rate of water on aerosol (mass)
-  TYPE(FloatArray3d), TARGET :: m_condc             ! 11: Bulk condensation rate of water on cloud droplets (mass)
-  TYPE(FloatArray3d), TARGET :: m_condp             ! 12: Bulk condensation rate of water on precipitation (mass)
-  TYPE(FloatArray3d), TARGET :: m_condi             ! 13: Bulk condensation (deposition) rate of water on ice (mass)
-
+  TYPE(FloatArray3d), TARGET :: s_m_autoc        ! 1: Bulk autoconversion rate (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_accr         ! 2: Bulk accretion rate (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_ACcoll_dry   ! 3: Bulk cloud collection of aerosol (dry aerosol mass)
+  TYPE(FloatArray3d), TARGET :: s_m_APcoll_dry   ! 4: Bulk precipitation collection of aerosol (dry aerosol mass)            
+  TYPE(FloatArray3d), TARGET :: s_m_AIcoll_dry   ! 5: Bulk ice collection of aerosol (dry aerosol mass)
+  TYPE(FloatArray3d), TARGET :: s_n_activ        ! 6: Bulk cloud activation rate (number)
+  TYPE(FloatArray3d), TARGET :: s_n_icehom       ! 7: Bulk homogeneous freezing rate (number)
+  TYPE(FloatArray3d), TARGET :: s_n_icedep       ! 8: Bulk deposition freezing rate (number)
+  TYPE(Floatarray3d), TARGET :: s_n_iceimm       ! 9: Bulk immersion freezing rate (number)
+  TYPE(FloatArray3d), TARGET :: s_m_conda        ! 10: Bulk condensation rate of water on aerosol (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_condc        ! 11: Bulk condensation rate of water on cloud droplets (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_condp        ! 12: Bulk condensation rate of water on precipitation (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_condi        ! 13: Bulk condensation (deposition) rate of water on ice (mass)
+  INTEGER, PARAMETER :: nratediag3d_salsa = 13
+  
+  ! Microphysical process rates from bulk microphysics.
+  TYPE(FloatArray3d), TARGET :: b_m_autoc        ! 1: Autoconversion rate (mass)
+  TYPE(FloatArray3d), TARGET :: b_n_autoc        ! 2: Autoconversion rate (number)
+  TYPE(FloatArray3d), TARGET :: b_m_accr         ! 2: Accretion rate (mass)
+  INTEGER, PARAMETER :: nratediag3d_bulk = 3
+  
   REAL, ALLOCATABLE, TARGET :: a_rateDiag3d(:,:,:,:)
-  INTEGER, PARAMETER :: nratediag3d = 13 ! Remember to update if adding new variables!!
 
   ! --------------------------------------------------------------------
   ! Diagnostic variables for piggybacking, used in the "slave" bulk scheme
@@ -111,24 +117,28 @@ MODULE mo_diag_state
       INTEGER, INTENT(in) :: level, iradtyp, nzp,nxp,nyp
       LOGICAL, INTENT(in) :: lpback
       CLASS(*), POINTER :: pipeline => NULL()
-      INTEGER :: nxyz, nxy, n2d,n3d,n3dr,n4db, npb3d, npb2d
+      INTEGER :: nxyz, nxy, n2d,n3d,nr3d,n4db, npb3d, npb2d
       INTEGER :: nbinned
 
       nxyz = nxp*nyp*nzp
       nxy = nxp*nyp
-
-      n3d = 0
-      n3dr = 0
-      n2d = 0
-      npb3d = 0
-      npb2d = 0
       
       ALLOCATE(a_diag3d(nzp,nxp,nyp,ndiag3d))
       ALLOCATE(a_diag2d(nxp,nyp,ndiag2d))
-      ALLOCATE(a_rateDiag3d(nzp,nxp,nyp,nratediag3d))
       a_diag3d = 0.
       a_diag2d = 0.
+      n3d = 0
+      n2d = 0
+
+      IF (level < 4) THEN
+         ALLOCATE(a_rateDiag3d(nzp,nxp,nyp,nratediag3d_bulk))
+      ELSE IF (level >= 4 .AND. .NOT. lpback) THEN
+         ALLOCATE(a_rateDiag3d(nzp,nxp,nyp,nratediag3d_salsa))
+      ELSE IF (level >=4 .AND. lpback) THEN
+         ALLOCATE(a_rateDiag3d(nzp,nxp,nyp,nratediag3d_bulk+nratediag3d_salsa))
+      END IF         
       a_rateDiag3d = 0.
+      nr3d = 0
       
       nbinned = 0
       IF ( level >= 4) THEN
@@ -136,15 +146,21 @@ MODULE mo_diag_state
          IF ( level > 4) nbinned = nbinned + nice
          ALLOCATE(d_binned(nzp,nxp,nyp,nbinned))
          d_binned = 0.
+         n4db = 0
       END IF
          
       IF (lpback) THEN
          ALLOCATE(pb_diag3d(nzp,nxp,nyp,npbdiag3d))
          pb_diag3d = 0.
+         npb3d = 0
          ALLOCATE(pb_diag2d(nxp,nyp,npbdiag2d))
          pb_diag2d = 0.
+         npb2d = 0
       END IF
 
+      ! -----------------------------------
+      ! General diagnostic variables
+      
       ! First entry for a_diag3d
       memsize = memsize + nxyz
       n3d = n3d+1
@@ -450,101 +466,150 @@ MODULE mo_diag_state
          CALL Diag%newField("sfcirate", "Surface frozen precip", "W m-2", "xtytt",    &
                             ANY(outputlist == "sfcirate"), pipeline)
       END IF
+
+      ! -----------------------------------
+      ! Process rate diagnostics
+
+      IF (level >= 4) THEN
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_autoc = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_autoc
+         CALL Diag%newField("s_m_autoc", "Autoconversion rate, h2o mass", "kg/kgs", "tttt",   &
+                            ANY(outputlist == "s_m_autoc"), pipeline)
+
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_accr = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_accr
+         CALL Diag%newField("s_m_accr", "Accretion rate, h2o mass", "kg/kgs", "tttt",   &
+                            ANY(outputlist == "s_m_accr"), pipeline)
+
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_ACcoll_dry = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_ACcoll_dry
+         CALL Diag%newField("s_m_ACcoll_dry", "Cloud collection of aerosol, dry mass", "kg/kgs", "tttt",  &
+                            ANY(outputlist == "s_m_ACcoll_dry"), pipeline)
+
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_APcoll_dry = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_APcoll_dry
+         CALL Diag%newField("s_m_APcoll_dry","Rain collection of aerosol, dry mass", "kg/kgs", "tttt",   &
+                            ANY(outputlist == "s_m_APcoll_dry"), pipeline)
+
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_AIcoll_dry = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_AIcoll_dry
+         CALL Diag%newField("s_m_AIcoll_dry","Ice collection of aerosol, dry mass", "kg/kgs", "tttt",   &
+                            ANY(outputlist == "s_m_AIcoll_dry"), pipeline)
+
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_n_activ = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_n_activ
+         CALL Diag%newField("s_n_activ","Cloud activation rate, number", "#/kgs","tttt",   &
+                            ANY(outputlist == "s_n_activ"), pipeline)
       
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_n_icehom = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_n_icehom
+         CALL Diag%newfield("s_n_icehom","Homogeneous freezing rate, number", "#/kgs","tttt",   &
+                            ANY(outputlist == "s_n_icehom"), pipeline)
 
-      ! First rateDiag3d entry
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      m_autoconversion = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => m_autoconversion
-      CALL Diag%newField("autoconversion", "Autoconversion rate, h2o mass", "kg/kgs", "tttt",   &
-                         ANY(outputlist == "autoconversion"), pipeline)
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_n_icedep = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_n_icedep
+         CALL Diag%newField("s_n_icedep","Deposition freezing rate, number", "#/kgs", "tttt",  &
+                            ANY(outputlist == "s_n_icedep"), pipeline)
 
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      m_accretion = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => m_accretion
-      CALL Diag%newField("accretion", "Accretion rate, h2o mass", "kg/kgs", "tttt",   &
-                         ANY(outputlist == "autoconversion"), pipeline)
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_n_iceimm = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_n_iceimm
+         CALL Diag%newField("s_n_iceimm","Immersion freezing rate, number", "#/kgs", "tttt",  &
+                            ANY(outputlist == "s_n_iceimm"), pipeline)
 
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      m_ACcoll_dry = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => m_ACcoll_dry
-      CALL Diag%newField("ACcoll", "Cloud collection of aerosol, dry mass", "kg/kgs", "tttt",  &
-                         ANY(outputlist == "ACcoll"), pipeline)
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_conda = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_conda
+         CALL Diag%newField("s_m_conda","H2O condensation rate on aerosol", "#/kgs", "tttt",  &
+                            ANY(outputlist == "s_m_conda"), pipeline)
 
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      m_APcoll_dry = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => m_APcoll_dry
-      CALL Diag%newField("APcoll","Rain collection of aerosol, dry mass", "kg/kgs", "tttt",   &
-                         ANY(outputlist == "APcoll"), pipeline)
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_condc = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_condc
+         CALL Diag%newField("s_m_condc","H2O condensation rate on cloud droplets", "#/kgs", "tttt",  &
+                            ANY(outputlist == "s_m_condc"), pipeline)
 
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      m_AIcoll_dry = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => m_AIcoll_dry
-      CALL Diag%newField("AIcoll","Ice collection of aerosol, dry mass", "kg/kgs", "tttt",   &
-                         ANY(outputlist == "AIcoll"), pipeline)
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_condp = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_condp
+         CALL Diag%newField("s_m_condp","H2O condensation rate on precipiation", "#/kgs", "tttt",    &
+                            ANY(outputlist == "s_m_condp"), pipeline)
 
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      n_activation = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => n_activation
-      CALL Diag%newField("activation","Cloud activation rate, number", "#/kgs","tttt",   &
-                         ANY(outputlist == "activation"), pipeline)
-      
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      n_icehom = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => n_icehom
-      CALL Diag%newfield("icehom","Homogeneous freezing rate, number", "#/kgs","tttt",   &
-                         ANY(outputlist == "icehom"), pipeline)
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_condi = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_condi
+         CALL Diag%newField("s_m_condi","H2O condensation rate on ice", "#/kgs", "tttt",   &
+                            ANY(outputlist == "s_m_condi"), pipeline)
 
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      n_icedep = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => n_icedep
-      CALL Diag%newField("icedep","Deposition freezing rate, number", "#/kgs", "tttt",  &
-                         ANY(outputlist == "icedep"), pipeline)
+         IF (lpback) THEN
+            nr3d = nr3d + 1
+            pipeline => NULL()
+            b_m_autoc = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+            pipeline => b_m_autoc
+            CALL Diag%newField("b_m_autoc", "Autoconversion rate, bulk scheme (mass)", "kg/kg s",  &
+                               "tttt", ANY(outputlist == "b_m_autoc"), pipeline)
 
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      n_iceimm = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => n_iceimm
-      CALL Diag%newField("iceimm","Immersion freezing rate, number", "#/kgs", "tttt",  &
-                         ANY(outputlist == "iceimm"), pipeline)
+            nr3d = nr3d + 1
+            pipeline => NULL()
+            b_n_autoc = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+            pipeline => b_n_autoc
+            CALL Diag%newField("b_n_autoc", "Autoconversion rate, bulk scheme (number)", "#/kg s",  &
+                               "tttt", ANY(outputlist == "b_n_autoc"), pipeline)
 
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      m_conda = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => m_conda
-      CALL Diag%newField("conda","H2O condensation rate on aerosol", "#/kgs", "tttt",  &
-                         ANY(outputlist == "conda"), pipeline)
+            nr3d = nr3d + 1
+            pipeline => NULL()
+            b_m_accr = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+            pipeline => b_m_accr
+            CALL Diag%newField("b_m_accr", "Accretion rate, bulk scheme (mass)", "kg/kg s",  &
+                               "tttt", ANY(outputlist == "b_m_accr"), pipeline)
+            
+         END IF         
 
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      m_condc = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => m_condc
-      CALL Diag%newField("condc","H2O condensation rate on cloud droplets", "#/kgs", "tttt",  &
-                         ANY(outputlist == "condc"), pipeline)
+      ELSE IF (level <= 3) THEN
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         b_m_autoc = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => b_m_autoc
+         CALL Diag%newField("b_m_autoc", "Autoconversion rate, bulk scheme (mass)", "kg/kg s",  &
+                            "tttt", ANY(outputlist == "b_m_autoc"), pipeline)
 
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      m_condp = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => m_condp
-      CALL Diag%newField("condp","H2O condensation rate on precipiation", "#/kgs", "tttt",    &
-                         ANY(outputlist == "condp"), pipeline)
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         b_n_autoc = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => b_n_autoc
+         CALL Diag%newField("b_n_autoc", "Autoconversion rate, bulk scheme (number)", "#/kg s",  &
+                            "tttt", ANY(outputlist == "b_n_autoc"), pipeline)
 
-      n3dr = n3dr + 1
-      pipeline => NULL()
-      m_condi = FloatArray3d(a_rateDiag3d(:,:,:,n3dr))
-      pipeline => m_condi
-      CALL Diag%newField("condi","H2O condensation rate on ice", "#/kgs", "tttt",   &
-                         ANY(outputlist == "condi"), pipeline)
-      
-
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         b_m_accr = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => b_m_accr
+         CALL Diag%newField("b_m_accr", "Accretion rate, bulk scheme (mass)", "kg/kg s",  &
+                            "tttt", ANY(outputlist == "b_m_accr"), pipeline)
+            
+      END IF      
+        
       ! Binned variables
       n4db = 1
       IF ( level >= 4) THEN
