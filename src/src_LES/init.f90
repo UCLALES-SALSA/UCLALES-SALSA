@@ -91,11 +91,11 @@ CONTAINS
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,n4,   &
                               zwp,a_nactd,a_vactd,dtlt,   &
-                              time,level,.TRUE.           )
+                              time,0,level,.TRUE.           )
             ELSE
                CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,n4,   &
                               a_wp%d,a_nactd,a_vactd,dtlt,  &
-                              time, level,.TRUE.          )
+                              time,0,level,.TRUE.          )
             END IF
             CALL SALSAInit
 

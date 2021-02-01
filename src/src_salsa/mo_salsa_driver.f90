@@ -41,24 +41,23 @@
    ! To help coupling and backing up for tendencies
    TYPE(old)          :: npart(4), mpart(4)  ! To store the old values
    TYPE(FloatArray1d) :: ntend(4), mtend(4)  ! Arranged pointers to tendencies
-
+   LOGICAL :: auxarr_initialized = .FALSE.
+   
    ! --------------------------------------------
 
    ! Variables for coagulation calls in varying temporal intervals
    ! --------------------------------------------------------------
-
    ! Logical switches updated for each timestep
    LOGICAL :: lcoagupdate = .TRUE.  ! Switch for cuagulation updated for each timestep.
                                     ! If true, calculate new kernels and the coagulation tendencies   
    REAL    :: coag_intvl = 1.       ! Interval in seconds between timesteps with coagulation update.
                                     ! The timesteps in between use the stored tendencies. HOW TO DEAL WITH MASS PRESERVATION???
-   
    ! Storage of the coagulation kernels:
    REAL, ALLOCATABLE :: sto_aa(:,:,:,:,:), sto_cc(:,:,:,:,:), sto_pp(:,:,:,:,:), sto_ii(:,:,:,:,:),  &
                         sto_ca(:,:,:,:,:), sto_pa(:,:,:,:,:), sto_ia(:,:,:,:,:),   &
                         sto_pc(:,:,:,:,:), sto_ic(:,:,:,:,:),                  &
                         sto_ip(:,:,:,:,:)
-   
+   LOGICAL :: cgsto_initialized = .FALSE.
    
 CONTAINS
 
@@ -76,9 +75,9 @@ CONTAINS
    ! Juha Tonttila, FMI, 2014
    ! Jaakko Ahola, FMI, 2016
    !
-  SUBROUTINE run_SALSA(Diag, Prog, nzp, nxp, nyp, ns, wp,    &
-                       pa_nactd, pa_vactd, tstep, time,      &
-                       level, initialize                     )
+  SUBROUTINE run_SALSA(Diag, Prog, nzp, nxp, nyp, ns, wp,     &
+                       pa_nactd, pa_vactd, tstep, time,istp,  &
+                       level, initialize                      )
 
       USE mo_salsa, ONLY : salsa
       USE mo_salsa_properties, ONLY  : equilibration
@@ -88,7 +87,8 @@ CONTAINS
       
       INTEGER, INTENT(in) :: nzp,nxp,nyp,ns                       ! dimensions: x,y,z,number of chemical species
       REAL, INTENT(in)    :: tstep                                ! Model timestep length
-      REAL, INTENT(in)    :: time
+      REAL, INTENT(in)    :: time                                 ! current time (seconds)
+      INTEGER, INTENT(in) :: istp                                 ! Number of current timestep
       LOGICAL, INTENT(in) :: initialize                      
       REAL, INTENT(in)    :: wp(nzp,nxp,nyp)
       REAL, INTENT(out)   :: pa_vactd(nzp,nxp,nyp,ns*ncld) ! mass concentrations of newly activated droplets for calculating the
@@ -154,10 +154,11 @@ CONTAINS
       bin_starts(1:4) = [iaero,icloud,iprecp,iice]
 
       ! Initialize the arrays for managing "old" values and tendencies
-      IF (initialize) THEN
-         CALL initialize_arrays(nwet,bin_numbers)
-         CALL initialize_coagstorage(nzp,nxp,nyp)
-      END IF
+      IF (.NOT. auxarr_initialized) &
+           CALL initialize_arrays(nwet,bin_numbers)
+      IF (.NOT. cgsto_initialized) &
+           CALL initialize_coagstorage(nzp,nxp,nyp)
+
 
          
       ! Get the pointers to variable arrays
@@ -217,7 +218,7 @@ CONTAINS
       in_rv(:,:) = 0.; rv_old(:,:) = 0.
       
       ! Set the SALSA runtime config 
-      CALL set_salsa_runtime(time,tstep)
+      CALL set_salsa_runtime(time,tstep,istp)
       
       ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of kg/kg (multiplied by pdn/divided by substance density)
       DO jj = 3, nyp-2
@@ -474,9 +475,10 @@ CONTAINS
    !
    ! Juha Tonttila, FMI, 2014;2020
    !
-   SUBROUTINE set_SALSA_runtime(time, tstep)
+   SUBROUTINE set_SALSA_runtime(time, tstep, istp)
      IMPLICIT NONE
      REAL, INTENT(in) :: time, tstep
+     INTEGER, INTENT(in) :: istp
      INTEGER :: i
 
      ! All the non-interface parameters used below are found in mo_submctl
@@ -490,8 +492,11 @@ CONTAINS
      IF ( lsfreeRH%switch .AND. time > lsfreeRH%delay ) lsfreeRH%state = .TRUE.
      ! Constraining contact angle in ice nucleation
      IF ( lsFreeTheta%switch .AND. time > lsFreeTheta%delay) lsFreeTheta%state = .TRUE.
-     ! Determine coagulation update status if low freq updating is active
-     lcgupdt = ( lscoag%state .AND. lscoag%mode == 2 .AND. MOD(time,cgintvl) < tstep )
+     ! Determine coagulation kernel update status if low freq updating is active
+     lcgupdt = ( lscoag%state .AND. lscoag%mode == 2 .AND.    &
+                 (MOD(time,cgintvl) < tstep .OR. istp <= 1)   ) ! Making sure the kernels
+                                                                ! are calculated on the first
+                                                                ! timestep of HISTORY runs
      
    END SUBROUTINE set_SALSA_runtime
 
@@ -505,15 +510,16 @@ CONTAINS
      INTEGER, INTENT(in) :: bins(4)     
      INTEGER :: icat
      DO icat = 1,4
-        ntend(icat) = FloatArray1d()
-        mtend(icat) = FloatArray1d()
+        ntend(icat) = FloatArray1d("ntend")   ! Dunno if this mess is really usefull...-Juha
+        mtend(icat) = FloatArray1d("mtend")
         npart(icat) = old(bins(icat))
         IF (icat < 4) THEN
            mpart(icat) = old(bins(icat)*nwet)
         ELSE
            mpart(icat) = old(bins(icat)*(nwet+1))
         END IF
-     END DO     
+     END DO
+     auxarr_initialized = .TRUE.
    END SUBROUTINE initialize_arrays
 
    !
@@ -578,7 +584,9 @@ CONTAINS
         ALLOCATE(sto_ip(nzp,nxp,nyp,nice,nprc))
         sto_ip = 0.     
      END IF
-        
+
+     cgsto_initialized = .TRUE.
+     
    END SUBROUTINE initialize_coagstorage
    
    !

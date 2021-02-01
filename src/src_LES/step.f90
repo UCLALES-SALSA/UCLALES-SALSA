@@ -80,7 +80,7 @@ CONTAINS
          tsflg = ( mod(tplsdt,ts_intvl) < dtl .OR. time >= timmax .OR. time == dtl )
          psflg = ( mod(tplsdt,ps_intvl) < dtl .OR. time >= timmax .OR. time == dtl )
          
-         CALL t_step(cflflg,cflmax)
+         CALL t_step(cflflg,cflmax,istp)
 
          time = time + dtl
 
@@ -202,7 +202,7 @@ CONTAINS
    ! routines.  Within many subroutines, data is accumulated during
    ! the course of a timestep for the purposes of statistical analysis.
    !
-   SUBROUTINE t_step(cflflg,cflmax)
+   SUBROUTINE t_step(cflflg,cflmax,istp)
 
       USE grid, ONLY : level,lpback,dtlt,      &
                        nxp,nyp,nzp,   &
@@ -225,7 +225,8 @@ CONTAINS
       
       LOGICAL, INTENT (out)      :: cflflg
       REAL(KIND=8), INTENT (out) :: cflmax
-
+      INTEGER, INTENT(in) :: istp
+      
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
 
       INTEGER :: nspec
@@ -276,12 +277,12 @@ CONTAINS
             ! 1D -runs
             CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,nspec,   &
                            zwp,a_nactd,a_vactd,dtlt,      &
-                           time,level,.FALSE.             )
+                           time,istp,level,.FALSE.             )
          ELSE
             !! for 2D or 3D runs
             CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,nspec,   &
                            a_wp%d,a_nactd,a_vactd,dtlt,     &
-                           time,level,.FALSE.             )
+                           time,istp,level,.FALSE.             )
              
          END IF !nxp==5 and nyp == 5
 
