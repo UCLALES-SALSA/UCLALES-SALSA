@@ -50,7 +50,6 @@ contains
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
-    USE mo_submctl, ONLY : in2b, fn2b, nlim, stat_b_bins
 
     implicit none
 
@@ -109,14 +108,6 @@ contains
        call appl_abort(0)
     end if ! runtype
 
-
-    ! When SALSA b-bin outputs are needed?
-    !   -level >= 4
-    !   -outputs are forced (stat_b_bins=.true.) or b-bins are initialized with non-zero concentration
-    IF (level >= 4) THEN
-        IF (stat_b_bins .AND. no_b_bins) STOP 'Error: b-bins not prognostic, but outputs requested!'
-        IF (.not. stat_b_bins .AND. .not.no_b_bins) stat_b_bins=any( a_naerop(:,:,:,in2b:fn2b)>nlim )
-    ENDIF
 
     call sponge_init
     call init_stat(time,filprf,expnme,nzp)

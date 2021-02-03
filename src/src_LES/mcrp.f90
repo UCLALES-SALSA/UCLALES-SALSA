@@ -69,11 +69,11 @@ contains
     case(2)
        IF (sflg) out_mcrp_data(:,:,:,:) = 0.
        if (sed_cloud)  &
-            call sedim_cd(nzp,nxp,nyp,dtl,a_dn,a_theta,a_temp,a_rc,precip,a_rt,a_tt)
+            call sedim_cd(nzp,nxp,nyp,dtl,a_dn,a_theta,a_temp,a_rc,cldin,a_rt,a_tt)
     case(3)
        IF (sflg) out_mcrp_data(:,:,:,:) = 0.
        call mcrph(nzp,nxp,nyp,a_dn,a_theta,a_temp,a_rv,a_rsl,a_rc,a_rpp,  &
-                  a_npp,precip,a_rt,a_tt,a_rpt,a_npt)
+                  a_npp,cldin,precip,a_rt,a_tt,a_rpt,a_npt)
     case(4,5)
        IF (level < 5) THEN
             sed_ice = .FALSE.; sed_snow = .FALSE.
@@ -95,13 +95,13 @@ contains
   ! ---------------------------------------------------------------------
   ! MCRPH: calls microphysical parameterization
   !
-  subroutine mcrph(n1,n2,n3,dn,th,tk,rv,rs,rc,rp,np,rrate,        &
+  subroutine mcrph(n1,n2,n3,dn,th,tk,rv,rs,rc,rp,np,crate,rrate,  &
        rtt,tlt,rpt,npt)
 
     integer, intent (in) :: n1,n2,n3
     real, dimension(n1,n2,n3), intent (in)    :: dn, th, tk, rv, rs
     real, dimension(n1,n2,n3), intent (inout) :: rc, rtt, tlt, rpt, npt, np, rp
-    real, intent (out)                        :: rrate(n1,n2,n3)
+    real, intent (out)                        :: crate(n1,n2,n3), rrate(n1,n2,n3)
 
     integer :: i, j, k
     REAL :: tmp_nr(nzp,nxp,nyp), tmp_rr(nzp,nxp,nyp), tmp_rt(nzp,nxp,nyp)
@@ -157,7 +157,8 @@ contains
     if (sed_precp) call sedim_rd(n1,n2,n3,dtl,dn,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
 
     ! Note: rc is not updated after autoconversion and accretion!
-    if (sed_cloud) call sedim_cd(n1,n2,n3,dtl,dn,th,tk,rc,rrate,rtt,tlt)
+    crate(:,:,:)=0.
+    if (sed_cloud) call sedim_cd(n1,n2,n3,dtl,dn,th,tk,rc,crate,rtt,tlt)
     if(sflg) CALL sb_var_stat('sedi',1) ! ... simple difference
 
   CONTAINS
@@ -886,6 +887,13 @@ contains
              flxdivn(k,i,j,:) = (depflxn(k,i,j,:)-depflxn(k+1,i,j,:))*dzt(k)/adn(k,i,j) ! #/kg/s
 
           END DO ! k
+
+          ! Assume constant flux at the domain top (level n1-2 is calculated correctly, so use that)
+          flxdivm(n1,i,j,:) = flxdivm(n1-2,i,j,:)
+          flxdivm(n1-1,i,j,:) = flxdivm(n1-2,i,j,:)
+          flxdivn(n1,i,j,:) = flxdivn(n1-2,i,j,:)
+          flxdivn(n1-1,i,j,:) = flxdivn(n1-2,i,j,:)
+
        END DO ! i
     END DO ! j
 

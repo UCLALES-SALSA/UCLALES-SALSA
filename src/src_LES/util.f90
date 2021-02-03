@@ -163,9 +163,21 @@ contains
 
     npnt = 0
     get_avg_ts=0.
-    IF (PRESENT(cond)) THEN
+    IF (PRESENT(cond) .AND. PRESENT(dens)) THEN
+       ! Conditional vertical integral with density weights
+       DO j=3,n3-2
+          DO i=3,n2-2
+             ztmp = 0.
+             DO k = 2,n1
+                IF (cond(k,i,j)) ztmp = ztmp + a(k,i,j)*(dens(k,i,j)/dz(k))
+             END DO
+             ! Vertical integral, so no need to normalize
+             get_avg_ts = get_avg_ts + ztmp
+             npnt = npnt + 1
+          END DO
+       END DO
+    ELSEIF (PRESENT(cond)) THEN
        ! Conditional average
-       IF (PRESENT(dens)) STOP 'Bad inputs for get_avg_ts: either conditional average or vertical integral!'
        DO j=3,n3-2
           DO i=3,n2-2
              ztot = 0.

@@ -96,19 +96,19 @@ contains
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
-         Tspinup, sst, lbinanl, lbinprof, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, &
-         stat_micro, stat_micro_ts, stat_micro_ps, &
+         Tspinup, sst, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, &
          nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
          nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau,  &
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau,  &
          nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau,  &
          nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, &
          no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, anl_include, anl_exclude, out_an_list, &
-         ifSeaSpray, ifSeaVOC, sea_tspinup
+         user_an_list, ifSeaSpray, ifSeaVOC, sea_tspinup
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
     use stat, only : ssam_intvl, savg_intvl, csflg, cs_include, cs_exclude, &
-         ps_include, ps_exclude, ts_include, ts_exclude, out_cs_list, out_ps_list, out_ts_list
+         ps_include, ps_exclude, ts_include, ts_exclude, out_cs_list, out_ps_list, out_ts_list, &
+         user_cs_list, user_ps_list, user_ts_list
     USE forc, ONLY : radsounding, case_name, sfc_albedo, &
          div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit, &
          useMcICA,RadConstPress,RadPrecipBins,RadSnowBins
@@ -147,8 +147,7 @@ contains
          hs     , ps     , ts    ,  & ! sounding heights, pressure, temperature
          us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
          umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
-         Tspinup, lbinanl, lbinprof, & ! Length of spinup period in seconds
-         stat_micro, stat_micro_ts, stat_micro_ps, & ! Save statistics about microphysical process rates
+         Tspinup,                   & ! Length of spinup period in seconds
          nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, & ! Temperature nudging
          nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau, & ! Water vapor mixing ratio nudging
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau, & ! Horizontal wind nudging
@@ -175,7 +174,11 @@ contains
          anl_include, anl_exclude, & ! Include and exclude list for analysis outputs
          cs_include, cs_exclude,   & ! - column statistics
          ps_include, ps_exclude,   & ! - profile statistics
-         ts_include, ts_exclude      ! - time series statistics
+         ts_include, ts_exclude,   & ! - time series statistics
+         user_an_list,       & ! User-defined outputs, 4D analysis files
+         user_cs_list,       & ! - column statistics
+         user_ps_list,       & ! - profile statistics
+         user_ts_list          ! - time series statistics
 
     namelist /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author

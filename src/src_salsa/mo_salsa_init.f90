@@ -456,7 +456,6 @@ CONTAINS
                                ox_prescribed,         &
                                conc_oh, conc_o3, conc_no3, &
                                conc_voc, conc_vbsg, conc_aqsoag, &
-                               stat_b_bins,           &
                                cldbinlim, icebinlim
 
     IMPLICIT NONE
@@ -542,7 +541,6 @@ CONTAINS
          conc_oh, conc_o3, conc_no3, & ! Initial oxidant concentrations (number mixing ratios)
          conc_voc, conc_vbsg, conc_aqsoag, & ! Arrays for initial VOC(g), VBS(g) and aqSOA(g) concentrations (mass mixing ratios)
 
-         stat_b_bins,   & ! Save statistics about SALSA b-bins
          cldbinlim,     & ! Output cloud bin diameter limits (microns)
          icebinlim        ! Output ice bin diameter limits (microns)
 

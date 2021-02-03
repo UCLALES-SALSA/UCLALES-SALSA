@@ -63,7 +63,6 @@ MODULE mo_submctl
 
   ! Other switches
   LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
-  LOGICAL :: stat_b_bins  = .FALSE. ! Save statistics about SALSA b-bins
 
 
   ! ---------------------------------------------------------------------------------------------------------
@@ -412,5 +411,29 @@ contains
         calc_correlation = ( sxy*n-sx*sy )/( SQRT(sx2*n-sx**2)*SQRT(sy2*n-sy**2) )
     ENDIF
   END FUNCTION calc_correlation
+
+  ! Function for finding aerosol and gas phase species indices based on their names.
+  ! Zero means that species is not found.
+  INTEGER FUNCTION find_spec_id(spec)
+    CHARACTER(len=*) :: spec
+    !
+    IF (nspec>0 .AND. LEN_TRIM(spec)>0) THEN
+        DO  find_spec_id=1,nspec+1
+            IF (zspec(find_spec_id)==spec) RETURN
+        ENDDO
+    ENDIF
+    find_spec_id=0
+  END FUNCTION find_spec_id
+  !
+  INTEGER FUNCTION find_gas_id(spec)
+    CHARACTER(len=*) :: spec
+    !
+    IF (ngases>0 .AND. LEN_TRIM(spec)>0) THEN
+        DO  find_gas_id=1,ngases
+            IF (zgas(find_gas_id)==spec) RETURN
+        ENDDO
+    ENDIF
+    find_gas_id=0
+  END FUNCTION find_gas_id
 
 END MODULE mo_submctl
