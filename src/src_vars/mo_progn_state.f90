@@ -167,8 +167,9 @@ MODULE mo_progn_state
                              "#/kg", "ttttaeb", ANY(outputlist == "Nabb"),          &
                              pipeline_p                                             &
                            )
-
-         iscl = iscl + nbins
+         iscl = iscl + nbins-1
+         
+         iscl = iscl + 1
          pipeline_p => NULL(); pipeline_t => NULL()
          a_maerop = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+(nbins*nspec)-1))
          a_maerot = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+(nbins*nspec)-1))
@@ -178,9 +179,10 @@ MODULE mo_progn_state
                              "kg/kg", "N/A", .FALSE.,                                                        &
                              pipeline_p, in_t_data = pipeline_t,                                             &
                              in_group = ["SALSA_4d"]                                                         &
-                           )    
-         
-         iscl = iscl + nbins*nspec
+                           )             
+         iscl = iscl + nbins*nspec - 1
+
+         iscl = iscl + 1
          pipeline_p => NULL(); pipeline_t => NULL()
          a_ncloudp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+ncld-1))
          a_ncloudt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+ncld-1))
@@ -205,8 +207,9 @@ MODULE mo_progn_state
                              "#/kg", "ttttclb", ANY(outputlist == "Ncbb"),        &
                              pipeline_p                                           &
                            )
+         iscl = iscl + ncld-1
 
-         iscl = iscl + ncld
+         iscl = iscl + 1
          pipeline_p => NULL(); pipeline_t => NULL()
          a_mcloudp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+(ncld*nspec)-1))
          a_mcloudt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+(ncld*nspec)-1))
@@ -216,9 +219,10 @@ MODULE mo_progn_state
                              "kg/kg", "N/A", .FALSE.,                                                       &
                              pipeline_p, in_t_data = pipeline_t,                                            &
                              in_group = ["SALSA_4d"]                                                        &
-                           )    
-         
-         iscl = iscl + ncld*nspec
+                           )             
+         iscl = iscl + ncld*nspec - 1
+
+         iscl = iscl + 1
          pipeline_p => NULL(); pipeline_t => NULL()
          a_nprecpp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nprc-1))
          a_nprecpt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nprc-1))
@@ -235,9 +239,10 @@ MODULE mo_progn_state
          CALL Prog%newField( "Npba", "Binned precipitation number",             &
                              "#/kg", "ttttprc", ANY(outputlist == "Npba"),      &
                              pipeline_p                                         &
-                           )
-         
-         iscl = iscl + nprc
+                           )         
+         iscl = iscl + nprc - 1
+
+         iscl = iscl + 1
          pipeline_p => NULL(); pipeline_t => NULL()
          a_mprecpp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+(nprc*nspec)-1))
          a_mprecpt = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+(nprc*nspec)-1))
@@ -247,9 +252,10 @@ MODULE mo_progn_state
                              "kg/kg", "N/A", .FALSE.,                                                        &
                              pipeline_p, in_t_data = pipeline_t,                                             &
                              in_group = ["SALSA_4d"]                                                         &
-                           )                            
-         
-         iscl = iscl + nprc*nspec
+                           )                                     
+         iscl = iscl + nprc*nspec - 1
+
+         iscl = iscl + 1
          pipeline_p => NULL(); pipeline_t => NULL()
          a_gaerop = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+5-1))
          a_gaerot = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+5-1))
@@ -282,9 +288,10 @@ MODULE mo_progn_state
          CALL Prog%newField( "Niba", "Binned ice number",                        &
                              "#/kg", "ttttice", ANY(outputlist == "Niba"),       &
                              pipeline_p                                          &
-                           )
-                  
-         iscl = iscl + nice
+                           )                  
+         iscl = iscl + nice - 1
+
+         iscl = iscl + 1
          pipeline_p => NULL(); pipeline_t => NULL()
          a_micep = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+(nice*(nspec+1))-1)) ! nspec+1 for rimed ice!
          a_micet = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+(nice*(nspec+1))-1))
@@ -295,9 +302,11 @@ MODULE mo_progn_state
                              pipeline_p, in_t_data = pipeline_t,                                        &
                              in_group = ["SALSA_4d"]                                                    &
                            )
-
+         iscl = iscl + nice*(nspec+1) - 1
+         
+         
          IF (ice_theta_dist) THEN
-            iscl = iscl + nice*(nspec+1)
+            iscl = iscl + 1
             pipeline_p => NULL(); pipeline_t => NULL()
             a_indefp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nbins+ncld+nprc-1)) 
             a_indeft = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nbins+ncld+nprc-1))
@@ -307,6 +316,7 @@ MODULE mo_progn_state
                                 "kg/kg", "N/A", .FALSE.,                                          &
                                 pipeline_p,in_t_data = pipeline_t                                 &
                               )                        
+            iscl = iscl + nbins+ncld+nprc - 1
          END IF
                      
       END IF
