@@ -24,7 +24,7 @@ MODULE mcrp
   !                  is given here in global scope, there is no need to provide them as inputs! 
   USE defs, ONLY : alvl,alvi,rowt,pi,Rm,cp,kb,g,vonk   ! These should be in module scope since used wherever
   USE mo_aux_state, ONLY : dzt                         ! Same for this
-  USE grid, ONLY : dtlt,nxp,nyp,nzp,CCN                ! Should be in module scope AND therefore no need to provide them as inputs!
+  USE grid, ONLY : dtlt,nxp,nyp,nzp,CCN,lpbncmaster    ! Should be in module scope AND therefore no need to provide them as inputs!
 
   USE mo_submctl, ONLY : spec       ! Theres some silly overlaps with this that I did not yet resolve.
  
@@ -33,7 +33,7 @@ MODULE mcrp
   USE mo_structured_datatypes
   IMPLICIT NONE
    
-  LOGICAL, PARAMETER :: khairoutdinov = .FALSE.
+  LOGICAL :: khairoutdinov = .FALSE.
    
   TYPE(ProcessSwitch) :: sed_aero,  &
                          sed_cloud, &
@@ -112,7 +112,7 @@ MODULE mcrp
 
     !
     !------------------------------------------------------------------------------------
-    ! PB_MCRPH: Calls the bulk microphysical routines in "piggybacking" setup,
+    ! PB_MCRPH: Wraps the bulk microphysics in "piggybacking" setup,
     !           i.e. the bulk microphysics is calculated alongside SALSA, but
     !           arising tendencies in dynamical/thermodynamical variables are
     !           not coupled with the model core. The piggybacking microphysical
@@ -127,8 +127,10 @@ MODULE mcrp
                                 pb_theta, pb_temp,     &
                                 pb_rsl, pb_rrate,      &
                                 pb_sfcrrate
+      USE mo_derived_state, ONLY : CDNC
       TYPE(FloatArray1d), INTENT(in) :: dn0
-      REAL :: strg(nzp,nxp,nyp,2)
+      REAL :: strg(nzp,nxp,nyp,2)  ! dummy storage array
+      REAL :: pbcdnc(nzp,nxp,nyp)
       TYPE(FloatArray3d) :: rttdummy, tltdummy
 
       ! These are here just because mcrph requires these tendencies as output arguments,
@@ -143,11 +145,23 @@ MODULE mcrp
       ! consistent with the level 3 microphysics used as the "slave" scheme
       CALL thermo(0)
 
+      ! Diagnose cdnc from SALSA
+      pbcdnc = 0.
+      IF (lpbncmaster) &
+           CALL CDNC%onDemand("CDNC",pbcdnc)
+      
       ! A regular call to level 3 microphysics, except now using the pb-variables and neglecting
       ! the contributions to total water mix rat and temperature tendencies.
-      CALL mcrph(dn0,pb_theta,pb_temp,pb_rv,pb_rsl,pb_rc,pb_rpp,    &      
-                 pb_npp,pb_rrate,pb_sfcrrate,rttdummy,tltdummy,pb_rpt,pb_npt)
-
+      IF (lpbncmaster) THEN
+         CALL mcrph(dn0,pb_theta,pb_temp,pb_rv,pb_rsl,pb_rc,pb_rpp,    &      
+                    pb_npp,pb_rrate,pb_sfcrrate,rttdummy,tltdummy,     &
+                    pb_rpt,pb_npt,pbcdnc)
+      ELSE
+         CALL mcrph(dn0,pb_theta,pb_temp,pb_rv,pb_rsl,pb_rc,pb_rpp,    &      
+                    pb_npp,pb_rrate,pb_sfcrrate,rttdummy,tltdummy,     &
+                    pb_rpt,pb_npt)         
+      END IF
+      
       rttdummy%d => NULL()
       tltdummy%d => NULL()
     END SUBROUTINE pb_mcrph    
@@ -156,13 +170,16 @@ MODULE mcrp
     ! MCRPH: calls microphysical parameterization
     !
     SUBROUTINE mcrph(dn0,th,tk,rv,rs,rc,rp,np,rrate,         &
-                     sfcrrate,rtt,tlt,rpt,npt)
+                     sfcrrate,rtt,tlt,rpt,npt,pcdnc)
       
       TYPE(FloatArray3d), INTENT (in)    :: th, tk, rv, rs
       TYPE(FloatArray1d), INTENT (in)    :: dn0
       TYPE(FloatArray3d), INTENT (inout) :: rc, rtt, tlt, rpt, npt, np, rp
       TYPE(FloatArray3d), INTENT (inout) :: rrate
       TYPE(FloatArray2d), INTENT (inout) :: sfcrrate
+      REAL, INTENT(in), OPTIONAL         :: pcdnc(nzp,nxp,nyp) ! For piggybacking runs, thus optional.
+                                                              ! Diagnosed locally from SALSA, so datatype
+                                                              ! is a simple REAL array
       
       INTEGER :: i, j, k
       
@@ -185,7 +202,7 @@ MODULE mcrp
       CALL wtr_dff_SB(dn0,rp,np,rc,rs,rv,tk,rpt,npt)
       
       IF (bulk_autoc%state) THEN
-         CALL auto_SB(dn0,rc,rp,rpt,npt)
+         CALL auto_SB(dn0,rc,rp,rpt,npt,pcdnc)
          
          CALL accr_SB(dn0,rc,rp,np,rpt,npt)
       END IF
@@ -209,7 +226,7 @@ MODULE mcrp
       
       IF (sed_precp%state) CALL sedim_rd(dn0,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
       
-      IF (sed_cloud%state) CALL sedim_cd(th,tk,rc,dn0,rrate,rtt,tlt)
+      IF (sed_cloud%state) CALL sedim_cd(th,tk,rc,dn0,rrate,rtt,tlt,pcdnc)
 
       sfcrrate%d(:,:) = rrate%d(2,:,:)
       
@@ -264,12 +281,15 @@ MODULE mcrp
     ! be reformulated for f(x)=A*x**(nu_c)*exp(-Bx**(mu)), where formu=1/3
     ! one would get a gamma dist in drop diam -> faster rain formation.
     !
-    SUBROUTINE auto_SB(dn0,rc,rp,rpt,npt)
+    SUBROUTINE auto_SB(dn0,rc,rp,rpt,npt,pcdnc)
       USE mo_diag_state, ONLY : b_m_autoc, b_n_autoc  ! for rate diagnostics
       
       TYPE(FloatArray1d), INTENT(in)    :: dn0
       TYPE(FloatArray3d), INTENT(in)    :: rc, rp
       TYPE(FloatArray3d), INTENT(inout) :: rpt, npt
+      REAL, INTENT(in), OPTIONAL        :: pcdnc(nzp,nxp,nyp) ! For piggybacking runs, thus optional.
+                                                             ! Diagnosed locally from SALSA, so datatype
+                                                             ! is a simple REAL array
       
       REAL, PARAMETER :: nu_c = 0            ! width parameter of cloud DSD
       REAL, PARAMETER :: k_c  = 9.44e+9      ! Long-Kernel
@@ -291,7 +311,11 @@ MODULE mcrp
       DO j = 3, nyp-2
          DO i = 3, nxp-2
             DO k = 2, nzp-1
-               Xc = rc%d(k,i,j)/(CCN+eps0)
+               IF (PRESENT(pcdnc)) THEN
+                  Xc = rc%d(k,i,j)/(pcdnc(k,i,j)+eps0)
+               ELSE
+                  Xc = rc%d(k,i,j)/(CCN+eps0)
+               END IF
                IF (Xc > 0.) THEN
                   Xc = MIN(MAX(Xc,X_min),X_bnd)
                   au = k_au * dn0%d(k) * rc%d(k,i,j)**2 * Xc**2
@@ -356,10 +380,12 @@ MODULE mcrp
                   tau = MIN(MAX(tau,eps0),1.)
                   phi = (tau/(tau+k_1))**4
                   ac  = k_r * rc%d(k,i,j) * rp%d(k,i,j) * phi * sqrt(rho_0*dn0%d(k))
+
                   !
                   ! Khairoutdinov and Kogan
                   !
-                  !ac = Cac * (rc(k,i,j) * rp(k,i,j))**Eac 
+                  IF (khairoutdinov) &
+                       ac = Cac * (rc%d(k,i,j) * rp%d(k,i,j))**Eac 
                   !
                   rpt%d(k,i,j) = rpt%d(k,i,j) + ac
                   !
@@ -510,12 +536,15 @@ MODULE mcrp
     ! SEDIM_CD: calculates the cloud-droplet sedimentation flux and its effect
     ! on the evolution of r_t and theta_l assuming a log-normal distribution
     !
-    SUBROUTINE sedim_cd(th,tk,rc,dn0,rrate,rtt,tlt)      
+    SUBROUTINE sedim_cd(th,tk,rc,dn0,rrate,rtt,tlt,pcdnc)      
       TYPE(FloatArray3d), INTENT (in)         :: th,tk,rc
       TYPE(FloatArray1d), INTENT (in)         :: dn0
       TYPE(FloatArray3d), INTENT (inout)      :: rrate
       TYPE(FloatArray3d), INTENT (inout)      :: rtt,tlt
-
+      REAL, INTENT(in), OPTIONAL              :: pcdnc(nzp,nxp,nyp) ! For piggybacking runs, thus optional.
+                                                                   ! Diagnosed locally from SALSA, so datatype
+                                                                   ! is a simple REAL array
+      
       REAL, PARAMETER :: c = 1.19e8 ! Stokes fall velocity coef [m^-1 s^-1]
       REAL, PARAMETER :: sgg = 1.2  ! geometric standard dev of cloud droplets
 
@@ -530,7 +559,11 @@ MODULE mcrp
          DO i = 3, nxp-2
             rfl(nzp) = 0.
             DO k = nzp-1, 2, -1
-               Xc = rc%d(k,i,j) / (CCN+eps0)
+               IF (PRESENT(pcdnc)) THEN
+                  Xc = rc%d(k,i,j) / (pcdnc(k,i,j)+eps0)
+               ELSE
+                  Xc = rc%d(k,i,j) / (CCN+eps0)
+               END IF
                Dc = ( Xc / prw )**((1./3.))
                Dc = MIN(MAX(Dc,D_min),D_bnd)
                vc = min(c*(Dc*0.5)**2 * exp(4.5*(log(sgg))**2),1./(dzt%d(k)*dtlt))

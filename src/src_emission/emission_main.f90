@@ -14,7 +14,7 @@ MODULE emission_main
   USE mo_progn_state, ONLY : a_maerot, a_naerot, a_naerop, a_indefp, a_indeft
   USE mo_diag_state, ONLY : a_dn
   !USE mo_vector_state, ONLY : a_up, a_vp ! needed for the seasalt thing
-  USE grid, ONLY: deltax, deltay, deltaz, dtl, &                  
+  USE grid, ONLY: deltax, deltay, deltaz, dtlt, &                  
                   nxp,nyp,nzp
     
   USE util, ONLY: smaller, closest, getMassIndex
@@ -141,7 +141,8 @@ MODULE emission_main
     
     TYPE(EmitSizeDist), INTENT(in) :: edt  ! Emission data instance
     TYPE(EmitConfig), INTENT(in) :: emd   ! Emission configuration instance
-
+    REAL :: hlp1(nzp), hlp2(nzp)  ! helper variables
+    
     INTEGER :: i,j,bb,ss,mm
     
     IF (myid == 0) THEN
@@ -160,10 +161,11 @@ MODULE emission_main
                ! by taking number wghted avg and assuming zero for the emitted population.
                ! This is executed regardless of the emitted species, but the information
                ! is only used for ice nucleating species. Aerosol comes first in the indeft array.
+               hlp1 = 0; hlp2 = 0.
+               hlp1(k1:k2) = (a_naerop%d(k1:k2,i,j,bb)*a_indefp%d(k1:k2,i,j,bb) + edt%numc(bb)*0.*dtlt) ! latter term obv. symbolic...
+               hlp2(k1:k2) = (a_naerop%d(k1:k2,i,j,bb)+edt%numc(bb)*dtlt)
                a_indeft%d(k1:k2,i,j,bb) = a_indeft%d(k1:k2,i,j,bb) +  &
-                    ( (a_naerop%d(k1:k2,i,j,bb)*a_indefp%d(k1:k2,i,j,bb) + edt%numc(bb)*0.) /    &
-                      (a_naerop%d(k1:k2,i,j,bb)+edt%numc(bb))                             ) -  &
-                    a_indefp%d(k1:k2,i,j,bb)
+                    ( (hlp1(k1:k2) / hlp2(k1:k2)) - a_indefp%d(k1:k2,i,j,bb) ) / dtlt
                DO ss = 1,spec%getNSpec(type="wet")
                   mm = getMassIndex(nbins,bb,ss)
                   a_maerot%d(k1:k2,i,j,mm) = a_maerot%d(k1:k2,i,j,mm) + edt%mass(mm)
@@ -189,6 +191,8 @@ MODULE emission_main
     TYPE(EmitSizeDist), INTENT(in) :: edt       ! Emission data instance
     TYPE(EmitConfig), INTENT(in) :: emd         ! Emission configuration instance
     TYPE(EmitType3Config), INTENT(inout) :: emdT3  ! Emission type 3 configuration instance
+
+    REAL :: hlp1(nzp), hlp2(nzp)
     
     INTEGER :: j,bb,ss,mm
     REAL :: dt, t_str,t_end
@@ -205,7 +209,7 @@ MODULE emission_main
                z_expan_up => emd%z_expan_up, z_expan_dw => emd%z_expan_dw)
       
       t_str = MAX(t_in(conditionT3), t_trac)
-      t_end = MIN(t_out(conditionT3), (time + dtl) )  
+      t_end = MIN(t_out(conditionT3), (time + dtlt) )  
       i_str = MAXLOC(t, 1, mask = t <= t_str)
       i_end = MAXLOC(t, 1, mask = t < t_end)
       
@@ -213,7 +217,7 @@ MODULE emission_main
       
       DO bb = 1,nbins   
          DO j = 1, di
-            dt  = ( MIN(t_end, t(i_str+j)) - MAX(t_str, t(i_str+j-1)) )/dtl
+            dt  = ( MIN(t_end, t(i_str+j)) - MAX(t_str, t(i_str+j-1)) )/dtlt
             ind = i_str+j-1
             a_naerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) = &
                  a_naerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) + edt%numc(bb) * dt
@@ -221,12 +225,15 @@ MODULE emission_main
             ! by taking number wghted avg and assuming zero for the emitted population.
             ! This is executed regardless of the emitted species, but the information
             ! is only used for ice nucleating species. Aerosol comes first in the indeft array.
+            hlp1 = 0; hlp2 = 0.
+            hlp1 = (a_naerop%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb)* &
+                 a_indefp%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) + edt%numc(bb)*0.*dt)
+            hlp2 = (a_naerop%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) + edt%numc(bb)*dt)
+
             a_indeft%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) = &
-                 a_indeft%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) +  &
-                 ( (a_naerop%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb)* &
-                    a_indefp%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) + edt%numc(bb)*0.) / &
-                   (a_naerop%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) + edt%numc(bb)) ) -  &
-                    a_indefp%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb)
+                 a_indeft%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) +  &                 
+                 ( (hlp1 / hlp2) - a_indefp%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) ) / dt
+
             DO ss = 1,spec%getNSpec(type="wet")
                mm = getMassIndex(nbins,bb,ss)
                a_maerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),mm) = &
@@ -235,7 +242,7 @@ MODULE emission_main
          END DO
       END DO
       
-      t_trac = time + dtl
+      t_trac = time + dtlt
       
     END ASSOCIATE
   END SUBROUTINE custom_emission_typ3

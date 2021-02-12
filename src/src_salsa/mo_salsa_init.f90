@@ -329,7 +329,7 @@ CONTAINS
            
            ! ---------------------------------------------------------------------------------------
            ! Set the precipitation properties; unlike aerosol and cloud bins, the size distribution
-           ! goes according to the *wet* radius
+           ! goes according to the *wet* diameter
            ! ---------------------------------------------------------------------------------------
            DO bb = ira, fra
               dumprecp(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3

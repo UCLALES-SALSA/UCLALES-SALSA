@@ -718,12 +718,17 @@ MODULE mo_salsa_coagulation_processes
       INTEGER, INTENT(in) :: trgtphase    ! phase indentifier for the target particles
       REAL,INTENT(in), OPTIONAL :: multp
 
-      INTEGER :: ll,ii,jj
+      INTEGER :: ll,ii,jj,ix,ex
       REAL :: xx
-      REAL :: nrate(kbdim,klev)
-      REAL :: dnum
+      REAL :: nrate(kbdim,klev), nrate80(kbdim,klev), nrate_au80(kbdim,klev),  & ! For diagnostics
+              nrate50(kbdim,klev), nrate_au50(kbdim,klev)
+      REAL :: dnum, D
       
       nrate = 0.
+      nrate50 = 0.
+      nrate80 = 0.
+      nrate_au50 = 0.
+      nrate_au80 = 0.
       dnum = 0.
       
       ! For self collection
@@ -733,6 +738,7 @@ MODULE mo_salsa_coagulation_processes
          xx = 1.0
       END IF
 
+      ! Collection sink term and rate diagnostics according to bin regime limits
       DO ll = istr,iend
          DO jj = 1,klev
             DO ii = 1,kbdim
@@ -742,8 +748,114 @@ MODULE mo_salsa_coagulation_processes
             END DO
          END DO
       END DO
+      
+      ! Additional diagnostics for Accretion by drizzle D>80um and autoconversion of droplets past 80um
+      IF (coll(1,1,1)%phase == 3) THEN    ! For autoconversion do only the case for growth of drizzle embryos,
+                                          !cloud droplets already taken care of in sourcePrecipFormation
+         ! collect cloud droplets or drizzle embryos
+         IF ( trgtphase == 2 .OR.            &
+              (trgtphase == 3 .AND.           &
+               precpbins(MIN(itrgt,nprc)) < 80.e-6) ) THEN 
+            ! Accretion loop
+            ix = COUNT(precpbins < 80.e-6)+1 ! Collector bin loop to start from 80um
+            DO ll = ix,iend
+               DO jj = 1,klev
+                  DO ii = 1,kbdim
+                     dnum = xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
+                     nrate80(ii,jj) = nrate80(ii,jj) + dnum
+                  END DO
+               END DO
+            END DO
+            ! Autoconversion loop
+            ex = MAX(istr,COUNT(precpbins < 80.e-6)) ! Collector bin loop to end to 80um (low limit for drizzle/rain )
+                                                     ! istr should be ok, since itrgt is limited to < 80 um
+            ! NOTE THESE CONDITIONS (AND MANY OTHER...) HAVE TO BE REVISED IF THIS VERSION OF SALSA
+            ! IS TO BE USED IN ANY OTHER THAN BOX MODEL CONFIG
+            IF (trgtphase == 2) THEN
+               D = cloud(1,1,itrgt)%dwet
+            ELSE IF (trgtphase == 3) THEN
+               D = precp(1,1,itrgt)%dwet
+            END IF
+            DO ll = istr,ex
+               DO jj = 1,klev
+                  DO ii = 1,kbdim
+                     ! The resulting drop should have D >= 80um
+                     IF ( D**3 + coll(ii,jj,ll)%dwet**3 >= (80.e-6)**3 ) THEN
+                        dnum = xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
+                        nrate_au80(ii,jj) = nrate_au80(ii,jj) + dnum
+                     END IF
+                  END DO
+               END DO                  
+            END DO
+            
+         END IF
+      END IF
 
-      ! Diagnostics
+      ! Additional diagnostics for Accretion by drizzle D>50um and autoconversion of droplets past 50um
+      IF (coll(1,1,1)%phase == 3) THEN    ! For autoconversion do only the case for growth of drizzle embryos,
+                                          !cloud droplets already taken care of in sourcePrecipFormation
+         ! collect cloud droplets or drizzle embryos
+         IF ( trgtphase == 2 .OR.            &
+              (trgtphase == 3 .AND.           &
+               precpbins(MIN(itrgt,nprc)) < 50.e-6) ) THEN 
+            ! Accretion loop
+            ix = COUNT(precpbins < 50.e-6)+1 ! Collector bin loop to start from 50um
+            DO ll = ix,iend
+               DO jj = 1,klev
+                  DO ii = 1,kbdim
+                     dnum = xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
+                     nrate50(ii,jj) = nrate50(ii,jj) + dnum
+                  END DO
+               END DO
+            END DO
+            ! Autoconversion loop
+            ex = MAX(istr,COUNT(precpbins < 50.e-6)) ! Collector bin loop to end to 50um (low limit for drizzle/rain )
+                                                     ! istr should be ok, since itrgt is limited to < 50 um
+            ! NOTE THESE CONDITIONS (AND MANY OTHER...) HAVE TO BE REVISED IF THIS VERSION OF SALSA
+            ! IS TO BE USED IN ANY OTHER THAN BOX MODEL CONFIG
+            IF (trgtphase == 2) THEN
+               D = cloud(1,1,itrgt)%dwet
+            ELSE IF (trgtphase == 3) THEN
+               D = precp(1,1,itrgt)%dwet
+            END IF
+            DO ll = istr,ex
+               DO jj = 1,klev
+                  DO ii = 1,kbdim
+                     ! The resulting drop should have D >= 50um
+                     IF ( D**3 + coll(ii,jj,ll)%dwet**3 >= (50.e-6)**3 ) THEN
+                        dnum = xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
+                        nrate_au50(ii,jj) = nrate_au50(ii,jj) + dnum
+                     END IF
+                  END DO
+               END DO                  
+            END DO
+            
+         END IF
+      END IF
+
+      
+      ! Accumulate autoconversion and accretion diagnostics according to custom size limits
+      IF (trgtphase == 2) THEN
+         nrate80(1,1) = nrate80(1,1) * cloud(1,1,itrgt)%numc
+         nrate50(1,1) = nrate50(1,1) * cloud(1,1,itrgt)%numc
+         nrate_au80(1,1) = nrate_au80(1,1) * cloud(1,1,itrgt)%numc
+         nrate_au50(1,1) = nrate_au50(1,1) * cloud(1,1,itrgt)%numc
+         CALL rateDiag%Accretion80%Accumulate(n=nrate80(1,1))
+         CALL rateDiag%Accretion50%Accumulate(n=nrate50(1,1))
+         CALL rateDiag%Autoconversion80%Accumulate(n=nrate_au80(1,1))
+         CALL rateDiag%Autoconversion50%Accumulate(n=nrate_au50(1,1))
+      ELSE IF (trgtphase == 3) THEN
+         nrate80(1,1) = nrate80(1,1) * precp(1,1,itrgt)%numc
+         nrate50(1,1) = nrate50(1,1) * precp(1,1,itrgt)%numc
+         nrate_au80(1,1) = nrate_au80(1,1) * precp(1,1,itrgt)%numc
+         nrate_au50(1,1) = nrate_au50(1,1) * precp(1,1,itrgt)%numc
+         CALL rateDiag%Accretion80%Accumulate(n=nrate80(1,1))
+         CALL rateDiag%Accretion50%Accumulate(n=nrate50(1,1))
+         CALL rateDiag%Autoconversion80%Accumulate(n=nrate_au80(1,1))
+         CALL rateDiag%Autoconversion50%Accumulate(n=nrate_au50(1,1))
+      END IF
+            
+      !  Accumulate diagnostics depending on bin regime limits  
       IF (coll(1,1,1)%phase == 3 .AND. trgtphase == 2) THEN
          ! Accretion -- number sink term
          nrate(1,1) = nrate(1,1) * cloud(1,1,itrgt)%numc
@@ -805,23 +917,140 @@ MODULE mo_salsa_coagulation_processes
       REAL, INTENT(inout) :: source(nspec,kbdim,klev)
       INTEGER, INTENT(in) :: trgtphase   ! Phase identifier of the target bin, 1 aerosol, 2 clouds, 3 precip, 4 ice
 
-      INTEGER :: ll,ii,jj
-      REAL :: vrate(nspec,kbdim,klev)
+      INTEGER :: ll,ii,jj,ex
+      REAL :: vrate(nspec,kbdim,klev), vrate80(nspec,kbdim,klev), vrate_au80(nspec,kbdim,klev),  &
+              vrate50(nspec,kbdim,klev), vrate_au50(nspec,kbdim,klev)
       REAL :: dvol(nspec)
+      REAL :: D
       vrate = 0.
+      vrate50 = 0
+      vrate80 = 0.
+      vrate_au50 = 0.
+      vrate_au80 = 0.
       dvol = 0.
+
+      ! Source term and rate diagnostics according to bin regime limits
       DO ll = istr,iend
          DO jj = 1,klev
             DO ii = 1,kbdim
-               dvol(1:nspec) = zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec)    
+               dvol(1:nspec) = zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec)
+               vrate(1:nspec,ii,jj) = vrate(1:nspec,ii,jj) + dvol(1:nspec)
                source(1:nspec,ii,jj) = source(1:nspec,ii,jj) + dvol(1:nspec)               
-               vrate(1:nspec,ii,jj) = vrate(1:nspec,ii,jj) + dvol(1:nspec) ! For diagnostics
             END DO
          END DO
       END DO
 
-      !Diagnostics
-      IF (trgtphase == 3 .AND. coll(1,1,1)%phase == 2) THEN
+      ! Diagnostics
+      ! Autoconversion for drops past 80um
+      D = 0.
+      ex = iend
+      !IF (trgtphase == 2) THEN      ! This case is already accounted for in the sourcePrecipFormation
+      !   D = cloud(1,1,itrgt)%dwet
+      IF (trgtphase == 3) THEN
+         D = precp(1,1,itrgt)%dwet
+      END IF      
+      IF (coll(1,1,1)%phase == 2) THEN
+         ex = iend
+      ELSE IF (coll(1,1,1)%phase == 3) THEN
+         ex = MIN(iend,COUNT(precpbins < 80.e-6)) ! This should never actually trigger because of the
+                                                  ! call structure
+      END IF      
+      IF ( D > 0. .AND. D < 80.e-6 .AND.               &
+          (coll(1,1,1)%phase==2 .OR. coll(1,1,1)%phase==3) ) THEN
+         DO ll = istr,ex
+            DO jj = 1,klev
+               DO ii = 1,kbdim
+                  IF (D**3 + coll(ii,jj,ll)%dwet**3 > (80.e-6)**3) THEN
+                     dvol(1:nspec) = zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec)    
+                     vrate_au80(1:nspec,ii,jj) = vrate_au80(1:nspec,ii,jj) + dvol(1:nspec) ! For Collection and accretion terms
+                  END IF
+               END DO
+            END DO
+         END DO
+      END IF
+
+      ! Autoconversion for drops past 50 um
+      D = 0.
+      ex = iend
+      !IF (trgtphase == 2) THEN      ! This case is already accounted for in the sourcePrecipFormation
+      !   D = cloud(1,1,itrgt)%dwet
+      IF (trgtphase == 3) THEN
+         D = precp(1,1,itrgt)%dwet
+      END IF      
+      IF (coll(1,1,1)%phase == 2) THEN
+         ex = iend
+      ELSE IF (coll(1,1,1)%phase == 3) THEN
+         ex = MIN(iend,COUNT(precpbins < 50.e-6)) ! This should never actually trigger because of the
+                                                  ! call structure
+      END IF      
+      IF ( D > 0. .AND. D < 50.e-6 .AND.               &
+          (coll(1,1,1)%phase==2 .OR. coll(1,1,1)%phase==3) ) THEN
+         DO ll = istr,ex
+            DO jj = 1,klev
+               DO ii = 1,kbdim
+                  IF (D**3 + coll(ii,jj,ll)%dwet**3 > (50.e-6)**3) THEN
+                     dvol(1:nspec) = zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec)    
+                     vrate_au50(1:nspec,ii,jj) = vrate_au50(1:nspec,ii,jj) + dvol(1:nspec) ! For Collection and accretion terms
+                  END IF
+               END DO
+            END DO
+         END DO
+      END IF
+
+      
+      ! Additional diagnostics for Accretion by drizzle D > 80um
+      IF (trgtphase == 3 .AND. precpbins(itrgt) > 80.e-6) THEN
+         ex = iend
+         IF (coll(1,1,1)%phase == 3) ex = MIN(iend,COUNT(precpbins < 80.e-6)) 
+         IF ( coll(1,1,1)%phase == 2 .OR.   &
+              coll(1,1,1)%phase == 3        ) THEN
+
+            DO ll = istr,ex
+               DO jj = 1,klev
+                  DO ii = 1,kbdim
+                     dvol(1:nspec) = zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec) 
+                     vrate80(1:nspec,ii,jj) = vrate80(1:nspec,ii,jj) + dvol(1:nspec)
+                  END DO
+               END DO                     
+            END DO
+            
+         END IF
+      END IF
+
+      ! Additional diagnostics for Accretion by drizzle D > 50um
+      IF (trgtphase == 3 .AND. precpbins(itrgt) > 50.e-6) THEN
+         ex = iend
+         IF (coll(1,1,1)%phase == 3) ex = MIN(iend,COUNT(precpbins < 50.e-6)) 
+         IF ( coll(1,1,1)%phase == 2 .OR.   &
+              coll(1,1,1)%phase == 3        ) THEN
+
+            DO ll = istr,ex
+               DO jj = 1,klev
+                  DO ii = 1,kbdim
+                     dvol(1:nspec) = zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec) 
+                     vrate50(1:nspec,ii,jj) = vrate50(1:nspec,ii,jj) + dvol(1:nspec)
+                  END DO
+               END DO                     
+            END DO
+            
+         END IF
+      END IF
+
+      
+      ! Accumulate autoconversion and accretion diagnostics according to custom size limits
+      IF (trgtphase == 3) THEN
+         vrate80(1:nspec,1,1) = vrate80(1:nspec,1,1) * precp(1,1,itrgt)%numc
+         vrate50(1:nspec,1,1) = vrate50(1:nspec,1,1) * precp(1,1,itrgt)%numc
+         vrate_au80(1:nspec,1,1) = vrate_au80(1:nspec,1,1) * precp(1,1,itrgt)%numc
+         vrate_au50(1:nspec,1,1) = vrate_au50(1:nspec,1,1) * precp(1,1,itrgt)%numc         
+         CALL rateDiag%Accretion80%Accumulate(v=vrate80(1:nspec,1,1))
+         CALL rateDiag%Accretion50%Accumulate(v=vrate50(1:nspec,1,1))
+         CALL rateDiag%Autoconversion80%Accumulate(v=vrate_au80(1:nspec,1,1))
+         CALL rateDiag%Autoconversion50%Accumulate(v=vrate_au50(1:nspec,1,1))
+      END IF
+         
+      !Accumulate diagnostics depending on bin regime limits
+      IF ( trgtphase == 3 .AND. coll(1,1,1)%phase == 2 ) THEN
          ! Accretion - volume source term
          vrate(1:nspec,1,1) = vrate(1:nspec,1,1) * precp(1,1,itrgt)%numc
          CALL rateDiag%Accretion%Accumulate(v=vrate(1:nspec,1,1))
@@ -953,7 +1182,7 @@ MODULE mo_salsa_coagulation_processes
       REAL, INTENT(inout)   :: vol_prc(nspec,kbdim,klev,nprc)   ! Volume source for precipitation as the result of collision coalescence
       REAL, INTENT(inout)   :: num_prc(kbdim,klev,nprc)         ! Number source for precipitation as the result of collision coalescence
       
-      REAL :: D_new
+      REAL :: D_new,dnum,dvol(nspec)
       INTEGER :: trgt_prc
       INTEGER :: ii,jj,ll
       LOGICAL :: selfcoll
@@ -975,31 +1204,42 @@ MODULE mo_salsa_coagulation_processes
                ! Check out to which precip bin this belogs (if any)
                trgt_prc = 0
                trgt_prc = COUNT( D_new > precpbins(:) )
+               dvol = 0.
+               dnum = 0.
                
-               IF ( trgt_prc > 0) THEN
+               IF ( D_new > precpbins(1)) THEN
                   
                   ! The resulting droplets are large -> put the collision coalescence contribution to precipitation
                   IF ( selfcoll ) THEN
                      ! Self collection
-                     vol_prc(1:nspec,ii,jj,trgt_prc) = vol_prc(1:nspec,ii,jj,trgt_prc) +   &
-                          cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc*zcc(ii,jj,ll,itrgt) * fix_coag
-                     
-                     num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) +        &
-                          (0.5*zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) * fix_coag
+                     dvol(1:nspec) = cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc*zcc(ii,jj,ll,itrgt) * fix_coag
+                     vol_prc(1:nspec,ii,jj,trgt_prc) = vol_prc(1:nspec,ii,jj,trgt_prc) + dvol(1:nspec)
+
+                     dnum = (0.5*zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) * fix_coag
+                     num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) + dnum
                      
                   ELSE
-                     vol_prc(1:nspec,ii,jj,trgt_prc) = vol_prc(1:nspec,ii,jj,trgt_prc) +    &
-                          ( cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc +         &
+                     dvol(1:nspec) = ( cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc +         &
                           cloud(ii,jj,itrgt)%volc(1:nspec)*cloud(ii,jj,ll)%numc ) * zcc(ii,jj,ll,itrgt) * fix_coag
-                     
-                     num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) +        &
-                          (zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) * fix_coag
+                     vol_prc(1:nspec,ii,jj,trgt_prc) = vol_prc(1:nspec,ii,jj,trgt_prc) + dvol(1:nspec)
+
+                     dnum = (zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) * fix_coag
+                     num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) + dnum
                      
                   END IF
 
                   ! Diagnostics
-                  CALL rateDiag%Autoconversion%Accumulate(n=num_prc(ii,jj,trgt_prc),    &
-                                                          v=vol_prc(1:nspec,ii,jj,trgt_prc))
+                  CALL rateDiag%Autoconversion%Accumulate(n=dnum,    &
+                                                          v=dvol(1:nspec))
+
+                  IF (D_new > 50.e-6) &
+                       CALL rateDiag%Autoconversion50%Accumulate(n=dnum,    &
+                                                                 v=dvol(1:nspec))
+                  
+                  IF (D_new > 80.e-6) &
+                       CALL rateDiag%Autoconversion80%Accumulate(n=dnum,    &
+                                                                 v=dvol(1:nspec))
+
                   
                   IF ( selfcoll ) THEN
                      ! Change in cloud droplet volume due to precip formation in self collection

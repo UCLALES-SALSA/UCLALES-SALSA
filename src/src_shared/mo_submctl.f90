@@ -18,11 +18,20 @@ MODULE mo_submctl
   !Switches for SALSA aerosol microphysical processes
   INTEGER, PARAMETER :: Nmaster = 7
   TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)  ! Array for master switches. The specific master switches are pointers to this array
-  TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation, mode = 1: calculate kernels every timestep, mode = 2: use reduced update freq
+  TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation, mode = 1: calculate kernels every timestep,
+                                                       !              mode = 2: use reduced update freq
   TYPE(ProcessSwitch), POINTER :: lscnd => NULL()      ! Condensation
-  TYPE(ProcessSwitch), POINTER :: lsauto => NULL()     ! Autoconversion, mode = 1: parameterized simple autoconversion, mode = 2: coagulation based precip formation
-  TYPE(ProcessSwitch), POINTER :: lsactiv => NULL()    ! Cloud activation, mode = 1: aerosol growth based activation, mode = 2: parameterized cloud base activation
-  TYPE(ProcessSwitch), POINTER :: lsicenucl => NULL()  ! Ice nucleation
+  TYPE(ProcessSwitch), POINTER :: lsauto => NULL()     ! Autoconversion, mode = 1: parameterized simple autoconversion,
+                                                       !                 mode = 2: coagulation based precip formation
+  TYPE(ProcessSwitch), POINTER :: lsactiv => NULL()    ! Cloud activation, mode = 1: aerosol growth based activation,
+                                                       !                   mode = 2: parameterized cloud base activation
+  TYPE(ProcessSwitch), POINTER :: lsicenucl => NULL()  ! Ice nucleation, mode = 1: With %switch=TRUE, %state=FALSE until %delay time is
+                                                       !                           reached and ice nucleation is not called, afterwards
+                                                       !                           %state=TRUE and ice nucleation is called as usual.
+                                                       !                 mode = 2: With %switch=TRUE, %state=FALSE until %delay time is reached,
+                                                       !                           but ice nucleation is called anyway. However, it will only
+                                                       !                           remove aerosol and not produce ice. After %delay, %state=TRUE
+                                                       !                           and ice nucleation will continue normal operation.
   TYPE(ProcessSwitch), POINTER :: lsicemelt => NULL()  ! Melting of ice
   TYPE(ProcessSwitch), POINTER :: lssecice => NULL()
     

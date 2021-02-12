@@ -48,9 +48,14 @@ MODULE grid
   REAL    :: cntlat =  31.5      ! Latitude for radiation
   
   LOGICAL :: lnudging = .FALSE.  ! Master switch for nudging scheme
+
   LOGICAL :: lemission = .FALSE. ! Master switch for aerosol emission
-  LOGICAL :: lpback = .FALSE.    ! Master switch for running bulk microphysics
-                                 ! in piggybacking mode, while level == 4
+  
+  LOGICAL :: lpback = .FALSE.       ! Master switch for running bulk microphysics
+                                    ! in piggybacking mode, while level == 4
+  LOGICAL :: lpbncmaster = .FALSE.  ! For piggybacking runs, if TRUE, take CDNC from
+                                    ! master microphysics (==SALSA). Otherwise use the
+                                    ! fixed CCN.
   
   INTEGER :: iradtyp
   INTEGER :: igrdtyp = 1         ! vertical grid type

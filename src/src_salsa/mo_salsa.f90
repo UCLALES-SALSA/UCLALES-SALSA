@@ -112,7 +112,7 @@ MODULE mo_salsa
                                 prs,    pw,    pactd   )
 
      ! Ice nucleation
-     IF (lsicenucl%state) THEN
+     IF (lsicenucl%state .OR. lsicenucl%mode == 2) THEN ! If mode=2, call even if state=false
         IF (fixinc>0. .AND. .NOT. ANY([ice_hom,ice_imm,ice_dep])) THEN
            ! Fixed ice number concentration
            CALL  ice_fixed_NC(kproma, kbdim, klev,   &

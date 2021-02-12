@@ -67,20 +67,24 @@ MODULE mo_diag_state
   ! For now, these are BULK process rates only for water/ice, except where indicated otherwise !! Number concentration rate given for particle formation processes,
   ! mass concetration rate for others
   !
-  TYPE(FloatArray3d), TARGET :: s_m_autoc        ! 1: Bulk autoconversion rate (mass)
-  TYPE(FloatArray3d), TARGET :: s_m_accr         ! 2: Bulk accretion rate (mass)
-  TYPE(FloatArray3d), TARGET :: s_m_ACcoll_dry   ! 3: Bulk cloud collection of aerosol (dry aerosol mass)
-  TYPE(FloatArray3d), TARGET :: s_m_APcoll_dry   ! 4: Bulk precipitation collection of aerosol (dry aerosol mass)            
-  TYPE(FloatArray3d), TARGET :: s_m_AIcoll_dry   ! 5: Bulk ice collection of aerosol (dry aerosol mass)
-  TYPE(FloatArray3d), TARGET :: s_n_activ        ! 6: Bulk cloud activation rate (number)
-  TYPE(FloatArray3d), TARGET :: s_n_icehom       ! 7: Bulk homogeneous freezing rate (number)
-  TYPE(FloatArray3d), TARGET :: s_n_icedep       ! 8: Bulk deposition freezing rate (number)
-  TYPE(Floatarray3d), TARGET :: s_n_iceimm       ! 9: Bulk immersion freezing rate (number)
-  TYPE(FloatArray3d), TARGET :: s_m_conda        ! 10: Bulk condensation rate of water on aerosol (mass)
-  TYPE(FloatArray3d), TARGET :: s_m_condc        ! 11: Bulk condensation rate of water on cloud droplets (mass)
-  TYPE(FloatArray3d), TARGET :: s_m_condp        ! 12: Bulk condensation rate of water on precipitation (mass)
-  TYPE(FloatArray3d), TARGET :: s_m_condi        ! 13: Bulk condensation (deposition) rate of water on ice (mass)
-  INTEGER, PARAMETER :: nratediag3d_salsa = 13
+  TYPE(FloatArray3d), TARGET :: s_m_autoc        ! 1: Bulk autoconversion rate (mass, following bin regime limits)
+  TYPE(FloatArray3d), TARGET :: s_m_autoc80      ! 2: Bulk autoconversion rate (mass, for drops past 80um)
+  TYPE(FloatArray3d), TARGET :: s_m_autoc50      ! 3: Bulk autoconversion rate (mass, for drops past 50 um)
+  TYPE(FloatArray3d), TARGET :: s_m_accr         ! 4: Bulk accretion rate (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_accr80       ! 5: Bulk accretion rate (mass, by drops L.T. 80um)
+  TYPE(FloatArray3d), TARGET :: s_m_accr50       ! 6: Bulk accretion rate (mass, by drops L.T. 50 um)
+  TYPE(FloatArray3d), TARGET :: s_m_ACcoll_dry   ! 7: Bulk cloud collection of aerosol (dry aerosol mass)
+  TYPE(FloatArray3d), TARGET :: s_m_APcoll_dry   ! 8: Bulk precipitation collection of aerosol (dry aerosol mass)            
+  TYPE(FloatArray3d), TARGET :: s_m_AIcoll_dry   ! 9: Bulk ice collection of aerosol (dry aerosol mass)
+  TYPE(FloatArray3d), TARGET :: s_n_activ        ! 10: Bulk cloud activation rate (number)
+  TYPE(FloatArray3d), TARGET :: s_n_icehom       ! 11: Bulk homogeneous freezing rate (number)
+  TYPE(FloatArray3d), TARGET :: s_n_icedep       ! 12: Bulk deposition freezing rate (number)
+  TYPE(Floatarray3d), TARGET :: s_n_iceimm       ! 13: Bulk immersion freezing rate (number)
+  TYPE(FloatArray3d), TARGET :: s_m_conda        ! 14: Bulk condensation rate of water on aerosol (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_condc        ! 15: Bulk condensation rate of water on cloud droplets (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_condp        ! 16: Bulk condensation rate of water on precipitation (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_condi        ! 17: Bulk condensation (deposition) rate of water on ice (mass)
+  INTEGER, PARAMETER :: nratediag3d_salsa = 17
   
   ! Microphysical process rates from bulk microphysics.
   TYPE(FloatArray3d), TARGET :: b_m_autoc        ! 1: Autoconversion rate (mass)
@@ -480,11 +484,39 @@ MODULE mo_diag_state
 
          nr3d = nr3d + 1
          pipeline => NULL()
+         s_m_autoc50 = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_autoc50
+         CALL Diag%newField("s_m_autoc50", "Autoconversion rate, h2o mass, over 50um", "kg/kgs", "tttt",   &
+                            ANY(outputlist == "s_m_autoc50"), pipeline)
+         
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_autoc80 = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_autoc80
+         CALL Diag%newField("s_m_autoc80", "Autoconversion rate, h2o mass, over 80um", "kg/kgs", "tttt",   &
+                            ANY(outputlist == "s_m_autoc80"), pipeline)
+         
+         nr3d = nr3d + 1
+         pipeline => NULL()
          s_m_accr = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
          pipeline => s_m_accr
          CALL Diag%newField("s_m_accr", "Accretion rate, h2o mass", "kg/kgs", "tttt",   &
                             ANY(outputlist == "s_m_accr"), pipeline)
 
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_accr50 = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_accr50
+         CALL Diag%newField("s_m_accr50", "Accretion rate, h2o mass, over 50um", "kg/kgs", "tttt",   &
+                            ANY(outputlist == "s_m_accr50"), pipeline)
+         
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_m_accr80 = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_m_accr80
+         CALL Diag%newField("s_m_accr80", "Accretion rate, h2o mass, over 80um", "kg/kgs", "tttt",   &
+                            ANY(outputlist == "s_m_accr80"), pipeline)
+         
          nr3d = nr3d + 1
          pipeline => NULL()
          s_m_ACcoll_dry = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))

@@ -364,8 +364,8 @@ MODULE mo_salsa_coagulation_kernels
             zbrconv = 0.45*zbrown*SQRT(reyn(lrg))*( schm(sml)**(1./3.) )
          END IF
          
-         ! Turbulent Shear
-         eddy_dis = 1.e-1 ! Values suggested by Sami - could be taken from the LES model?
+         ! Turbulent Shear; Chen et al. 2020 suggest 500 cm2 s-3 for turbulent cumulus
+         eddy_dis = 0.05 ! Values suggested by Sami - could be taken from the LES model?
          ztshear = SQRT(8.*pi*eddy_dis/(15.*vkin))*(0.5*(diam(1)+diam(2)))**3
          zturbinert = pi*eddy_dis**(0.75) /(grav* SQRT(SQRT( vkin )))  &
               *(0.5*(diam(1)+diam(2)))**2* ABS(termv(1)-termv(2))

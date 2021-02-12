@@ -1,10 +1,11 @@
 MODULE mo_salsa_cloud_ice
   USE classSection, ONLY : Section
   USE mo_submctl, ONLY : in2a,fn2b, ira,fra, iia, fia, ncld, nprc, nice, pi, pi6,    & 
-       nliquid, nfrozen,                              &
-       nlim, prlim, ice_hom, ice_imm, ice_dep, &
-       boltz, planck, rg, rd, avog,     &
-       fixinc, spec
+       nliquid, nfrozen,                        &
+       nlim, prlim, ice_hom, ice_imm, ice_dep,  &
+       boltz, planck, rg, rd, avog,             &
+       fixinc, spec,                            &
+       lsicenucl
   USE mo_salsa_types, ONLY : aero, cloud, ice, precp, liquid, frozen, rateDiag
   USE mo_particle_external_properties, ONLY : calcSweq
   USE util, ONLY : calc_correlation, cumlognorm, closest
@@ -502,16 +503,19 @@ MODULE mo_salsa_cloud_ice
     ! Water (total ice)
     IF (ANY(pliq%phase == [1,2])) THEN
        ! Aerosol or cloud droplets -> only pristine ice production
-       ice(ii,jj,iice)%volc(iwa) = MAX(0.,ice(ii,jj,iice)%volc(iwa) + pliq%volc(iwa)*frac*spec%rhowa/spec%rhoic)
+       IF (lsicenucl%state) &   ! If mode=2 and state=FALSE, do not produce new ice, just remove aerosol/droplets
+            ice(ii,jj,iice)%volc(iwa) = MAX(0.,ice(ii,jj,iice)%volc(iwa) + pliq%volc(iwa)*frac*spec%rhowa/spec%rhoic)
        pliq%volc(iwa) = MAX(0., pliq%volc(iwa)*(1.-frac))
     ELSE IF (pliq%phase == 3) THEN
        ! Precip -> rimed ice
-       ice(ii,jj,iice)%volc(irim) = MAX(0.,ice(ii,jj,iice)%volc(irim) + pliq%volc(iwa)*frac*spec%rhowa/spec%rhori)
+       IF (lsicenucl%state) &   ! Same as above
+            ice(ii,jj,iice)%volc(irim) = MAX(0.,ice(ii,jj,iice)%volc(irim) + pliq%volc(iwa)*frac*spec%rhowa/spec%rhori)
        pliq%volc(iwa) = MAX(0., pliq%volc(iwa)*(1.-frac))
     END IF
     
     ! Number concentration
-    ice(ii,jj,iice)%numc = MAX(0.,ice(ii,jj,iice)%numc + pliq%numc*frac)
+    IF (lsicenucl%state) &   ! Same as above
+         ice(ii,jj,iice)%numc = MAX(0.,ice(ii,jj,iice)%numc + pliq%numc*frac)
     pliq%numc = MAX(0.,pliq%numc*(1.-frac))
     
   END SUBROUTINE iceNucleation

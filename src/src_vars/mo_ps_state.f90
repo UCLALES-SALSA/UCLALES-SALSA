@@ -80,7 +80,6 @@ MODULE mo_ps_state
   ! -- mean across precipitating grid boxes
   TYPE(FloatArray1d), TARGET :: pspr_rrate, pspr_irate, pspr_srp, pspr_rpp, pspr_npp, pspr_Np 
        
-
   ! binned variables
   TYPE(FloatArray2d), TARGET :: ps_Dwaba, ps_Dwabb, ps_Dwcba, ps_Dwcbb, ps_Dwpba, ps_Dwiba
   TYPE(FloatArray2d), TARGET :: ps_Naba, ps_Nabb, ps_Ncba, ps_Ncbb, ps_Npba, ps_Niba
@@ -90,8 +89,12 @@ MODULE mo_ps_state
                                 pspr_pb_rrate, psic_pb_rc
 
   ! Process rate diagnostics (in-cloud)
-  TYPE(FloatArray1d), TARGET :: psic_s_m_autoc,           &   
+  TYPE(FloatArray1d), TARGET :: psic_s_m_autoc,           &
+                                psic_s_m_autoc50,         &
+                                psic_s_m_autoc80,         &
                                 psic_s_m_accr,            &
+                                psic_s_m_accr50,          &
+                                psic_s_m_accr80,          &
                                 psic_s_m_ACcoll_dry,      &
                                 psic_s_m_APcoll_dry,      &
                                 psic_s_m_AIcoll_dry,      &
@@ -1138,6 +1141,22 @@ MODULE mo_ps_state
          pipeline => psic_s_m_autoc
          CALL PS%newField(psic_s_m_autoc%shortName, "Conditional avg autoconversion rate (SALSA, mass)",   &
                           "kg/kg s", "ztt", ANY(outputlist == psic_s_m_autoc%shortName), pipeline)
+
+         pipeline => NULL()
+         psic_s_m_autoc50 = FloatArray1d("ic_s_m_autoc50",srcname="s_m_autoc50")
+         psic_s_m_autoc50%onDemand => inCloudMeanProfile
+         pipeline => psic_s_m_autoc50
+         CALL PS%newField(psic_s_m_autoc50%shortName,      &
+                          "Conditional avg autoconversion rate (SALSA, mass, over 50um)",   &
+                          "kg/kg s", "ztt", ANY(outputlist == psic_s_m_autoc50%shortName), pipeline)  
+         
+         pipeline => NULL()
+         psic_s_m_autoc80 = FloatArray1d("ic_s_m_autoc80",srcname="s_m_autoc80")
+         psic_s_m_autoc80%onDemand => inCloudMeanProfile
+         pipeline => psic_s_m_autoc80
+         CALL PS%newField(psic_s_m_autoc80%shortName,      &
+                          "Conditional avg autoconversion rate (SALSA, mass, over 80um)",   &
+                          "kg/kg s", "ztt", ANY(outputlist == psic_s_m_autoc80%shortName), pipeline)         
          
          pipeline => NULL()         
          psic_s_m_accr = FloatArray1d("ic_s_m_accr",srcname="s_m_accr")
@@ -1145,7 +1164,23 @@ MODULE mo_ps_state
          pipeline => psic_s_m_accr
          CALL PS%newField(psic_s_m_accr%shortName, "Conditional avg accretion rate (SALSA, mass)",    &
                           "kg/kg s", "ztt", ANY(outputlist == psic_s_m_accr%shortName), pipeline)
-                  
+
+         pipeline => NULL()         
+         psic_s_m_accr50 = FloatArray1d("ic_s_m_accr50",srcname="s_m_accr50")
+         psic_s_m_accr50%onDemand => inCloudMeanProfile
+         pipeline => psic_s_m_accr50
+         CALL PS%newField(psic_s_m_accr50%shortName,       &
+                          "Conditional avg accretion rate (SALSA, mass, over 50um)",    &
+                          "kg/kg s", "ztt", ANY(outputlist == psic_s_m_accr50%shortName), pipeline)
+         
+         pipeline => NULL()         
+         psic_s_m_accr80 = FloatArray1d("ic_s_m_accr80",srcname="s_m_accr80")
+         psic_s_m_accr80%onDemand => inCloudMeanProfile
+         pipeline => psic_s_m_accr80
+         CALL PS%newField(psic_s_m_accr80%shortName,       &
+                          "Conditional avg accretion rate (SALSA, mass, over 80um)",    &
+                          "kg/kg s", "ztt", ANY(outputlist == psic_s_m_accr80%shortName), pipeline)
+         
          pipeline => NULL()
          psic_s_m_ACcoll_dry = FloatArray1d("ic_s_m_ACcoll_dry",srcname="s_m_ACcoll_dry")
          psic_s_m_ACcoll_dry%onDemand => inCloudMeanProfile

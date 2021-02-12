@@ -126,7 +126,10 @@ CONTAINS
               zgocsv(kbdim,klev)
       
       ! For process rate diagnostics
-      TYPE(FloatArray3d), POINTER :: autoconversion => NULL(), accretion => NULL(),             &
+      TYPE(FloatArray3d), POINTER :: autoconversion => NULL(), autoconversion50 => NULL(),      &
+                                     autoconversion80 => NULL(),                                &
+                                     accretion => NULL(), accretion50 => NULL(),                &
+                                     accretion80 => NULL(),                                     &
                                      ACcoll => NULL(), APcoll => NULL(), AIcoll => NULL(),      &
                                      activation => NULL(), Icehom => NULL(), Icedep => NULL(),  &
                                      Iceimm => NULL(), Conda => NULL(), Condc => NULL(),        &
@@ -199,7 +202,11 @@ CONTAINS
 
       ! Get pointers to process rate output streams
       CALL Diag%getData(1,autoconversion,name="s_m_autoc")
+      CALL Diag%getData(1,autoconversion50,name="s_m_autoc50")
+      CALL Diag%getData(1,autoconversion80,name="s_m_autoc80")
       CALL Diag%getData(1,accretion,name="s_m_accr")
+      CALL Diag%getData(1,accretion50,name="s_m_accr50")
+      CALL Diag%getData(1,accretion80,name="s_m_accr80")
       CALL Diag%getData(1,ACcoll,name="s_m_ACcoll_dry")
       CALL Diag%getData(1,APcoll,name="s_m_APcoll_dry")
       CALL Diag%getData(1,activation,name="s_n_activ")
@@ -416,7 +423,11 @@ CONTAINS
 
                ! Store the process rate diagnostics for output
                autoconversion%d(kk,ii,jj) = rateDiag%Autoconversion%volc(iwa)*spec%rhowa/pdn%d(kk,ii,jj)
+               autoconversion80%d(kk,ii,jj) = rateDiag%Autoconversion80%volc(iwa)*spec%rhowa/pdn%d(kk,ii,jj)
+               autoconversion50%d(kk,ii,jj) = rateDiag%Autoconversion50%volc(iwa)*spec%rhowa/pdn%d(kk,ii,jj)
                accretion%d(kk,ii,jj) = rateDiag%Accretion%volc(iwa)*spec%rhowa/pdn%d(kk,ii,jj)
+               accretion80%d(kk,ii,jj) = rateDiag%Accretion80%volc(iwa)*spec%rhowa/pdn%d(kk,ii,jj)
+               accretion50%d(kk,ii,jj) = rateDiag%Accretion50%volc(iwa)*spec%rhowa/pdn%d(kk,ii,jj)
                ACcoll%d(kk,ii,jj) = SUM(rateDiag%ACcoll%volc(1:ndry)*spec%rholiq(1:ndry))/pdn%d(kk,ii,jj)
                APcoll%d(kk,ii,jj) = SUM(rateDiag%APcoll%volc(1:ndry)*spec%rholiq(1:ndry))/pdn%d(kk,ii,jj)
                activation%d(kk,ii,jj) = rateDiag%Activation%numc/pdn%d(kk,ii,jj)

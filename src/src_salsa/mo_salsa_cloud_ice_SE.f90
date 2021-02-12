@@ -1,7 +1,7 @@
 MODULE mo_salsa_cloud_ice_SE
   USE mo_salsa_types, ONLY : liquid, ice, precp, rateDiag
   USE mo_submctl, ONLY : nliquid, ira,fra, nprc, iia, fia, nice, pi6, ice_hom, ice_dep, ice_imm, spec,  &
-                         boltz, pi, planck, rg, avog, lsFreeTheta, initMinTheta
+                         boltz, pi, planck, rg, avog, lsFreeTheta, initMinTheta,  lsicenucl
   USE util, ONLY : erfm1, f_gauss
   USE mo_particle_external_properties, ONLY : calcSweq
   USE classSection, ONLY : Section
@@ -495,18 +495,21 @@ MODULE mo_salsa_cloud_ice_SE
              ! Water (total ice)
              IF (ANY(liquid(ii,jj,kk)%phase == [1,2])) THEN
                 ! Aerosol or cloud droplets -> only pristine ice production
-                ice(ii,jj,bb)%volc(iwa) =   &
+                IF (lsicenucl%state) &   ! If mode=2 and state=False, do not produce new ice but just remove the aerosol/droplets
+                     ice(ii,jj,bb)%volc(iwa) =   &
                      MAX(0.,ice(ii,jj,bb)%volc(iwa) + liquid(ii,jj,kk)%volc(iwa)*frac2(ii,jj,kk)*spec%rhowa/spec%rhoic)
                 liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac2(ii,jj,kk)))
              ELSE IF (liquid(ii,jj,kk)%phase == 3) THEN
                 ! Precip -> rimed ice
-                ice(ii,jj,bb)%volc(irim) =   &
+                IF (lsicenucl%state) &   ! If mode=2, and state=false, do not produce new ice but jsut remove the aerosol/droplets
+                     ice(ii,jj,bb)%volc(irim) =   &
                      MAX(0.,ice(ii,jj,bb)%volc(irim) + liquid(ii,jj,kk)%volc(iwa)*frac2(ii,jj,kk)*spec%rhowa/spec%rhori)
                 liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac2(ii,jj,kk)))
              END IF
              
              ! Number concentration
-             ice(ii,jj,bb)%numc = MAX(0.,ice(ii,jj,bb)%numc + liquid(ii,jj,kk)%numc*frac2(ii,jj,kk))
+             IF (lsicenucl%state) &
+                  ice(ii,jj,bb)%numc = MAX(0.,ice(ii,jj,bb)%numc + liquid(ii,jj,kk)%numc*frac2(ii,jj,kk))
              liquid(ii,jj,kk)%numc = MAX(0.,liquid(ii,jj,kk)%numc*(1.-frac2(ii,jj,kk)))
 
              CALL ice(ii,jj,bb)%updateRhomean()
