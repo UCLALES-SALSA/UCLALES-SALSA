@@ -496,7 +496,8 @@ MODULE mo_salsa_cloud_ice
     
     ! Dry aerosol
     DO ss = 1,ndry
-       ice(ii,jj,iice)%volc(ss) = MAX(0., ice(ii,jj,iice)%volc(ss) + pliq%volc(ss)*frac)
+       IF (lsicenucl%state) &   !  If mode=2 and state=FALSE, do not produce new ice, just remove aerosol/droplets
+            ice(ii,jj,iice)%volc(ss) = MAX(0., ice(ii,jj,iice)%volc(ss) + pliq%volc(ss)*frac)
        pliq%volc(ss) = MAX(0., pliq%volc(ss)*(1.-frac))
     END DO
     

@@ -477,15 +477,16 @@ MODULE mo_salsa_cloud_ice_SE
 
              ! NEXT ONLY DUST  REMOVED IF THERE IS ENOUGH OF IT   
              if(frac_DU(ii,jj,kk) <= 0.1 ) then
-                
-                ice(ii,jj,bb)%volc(I_DU) =    &
+                IF (lsicenucl%state)  &    ! If mode=2 and state=false, do not produce new ice but just remove the aerosol
+                     ice(ii,jj,bb)%volc(I_DU) =    &
                      MAX(0., ice(ii,jj,bb)%volc(I_DU) + V_tot(ii,jj,kk)*frac_DU(ii,jj,kk))
                 liquid(ii,jj,kk)%volc(I_DU) =   &
                      MAX(0., liquid(ii,jj,kk)%volc(I_DU)-V_tot(ii,jj,kk)*frac_DU(ii,jj,kk))
              else
                 
                 DO ss = 1,ndry
-                   ice(ii,jj,bb)%volc(ss) =    &
+                   IF (lsicenucl%state)  & ! Same as above
+                        ice(ii,jj,bb)%volc(ss) =    &
                         MAX(0., ice(ii,jj,bb)%volc(ss) + liquid(ii,jj,kk)%volc(ss)*frac2(ii,jj,kk))
                    liquid(ii,jj,kk)%volc(ss) =   &
                         MAX(0., liquid(ii,jj,kk)%volc(ss)*(1.-frac2(ii,jj,kk)))
