@@ -4,7 +4,7 @@ MODULE emission_main
   
   USE mo_seasalt_emission
 
-  USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, spec, pi6
+  USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, spec, pi6, prlim, ice_theta_dist
 
   USE mo_salsa_types, ONLY : aero
 
@@ -15,7 +15,7 @@ MODULE emission_main
   USE mo_diag_state, ONLY : a_dn
   !USE mo_vector_state, ONLY : a_up, a_vp ! needed for the seasalt thing
   USE grid, ONLY: deltax, deltay, deltaz, dtlt, &                  
-                  nxp,nyp,nzp
+                  nxp,nyp,nzp, level
     
   USE util, ONLY: smaller, closest, getMassIndex
   USE exceptionHandling, ONLY: errorMessage
@@ -141,9 +141,9 @@ MODULE emission_main
     
     TYPE(EmitSizeDist), INTENT(in) :: edt  ! Emission data instance
     TYPE(EmitConfig), INTENT(in) :: emd   ! Emission configuration instance
-    REAL :: hlp1(nzp), hlp2(nzp)  ! helper variables
+    REAL :: hlp1, hlp2  ! helper variables
     
-    INTEGER :: i,j,bb,ss,mm
+    INTEGER :: i,j,k,bb,ss,mm
     
     IF (myid == 0) THEN
       WRITE(*,*) '========================'
@@ -156,19 +156,29 @@ MODULE emission_main
       DO bb = 1,nbins
          DO j = 1,nyp
             DO i = 1,nxp
-               a_naerot%d(k1:k2,i,j,bb) = a_naerot%d(k1:k2,i,j,bb) + edt%numc(bb)
-               ! Relax the ice nucleation IN "deficit" ratio used for evolving contact angle
-               ! by taking number wghted avg and assuming zero for the emitted population.
-               ! This is executed regardless of the emitted species, but the information
-               ! is only used for ice nucleating species. Aerosol comes first in the indeft array.
-               hlp1 = 0; hlp2 = 0.
-               hlp1(k1:k2) = (a_naerop%d(k1:k2,i,j,bb)*a_indefp%d(k1:k2,i,j,bb) + edt%numc(bb)*0.*dtlt) ! latter term obv. symbolic...
-               hlp2(k1:k2) = (a_naerop%d(k1:k2,i,j,bb)+edt%numc(bb)*dtlt)
-               a_indeft%d(k1:k2,i,j,bb) = a_indeft%d(k1:k2,i,j,bb) +  &
-                    ( (hlp1(k1:k2) / hlp2(k1:k2)) - a_indefp%d(k1:k2,i,j,bb) ) / dtlt
-               DO ss = 1,spec%getNSpec(type="wet")
-                  mm = getMassIndex(nbins,bb,ss)
-                  a_maerot%d(k1:k2,i,j,mm) = a_maerot%d(k1:k2,i,j,mm) + edt%mass(mm)
+               DO k = k1,k2
+                  a_naerot%d(k,i,j,bb) = a_naerot%d(k,i,j,bb) + edt%numc(bb)
+                  ! If level=5 and ice_theta_dist = TRUE, Relax the ice nucleation IN "deficit"
+                  ! ratio used for evolving contact angle by taking number wghted avg and assuming
+                  ! zero for the emitted population. This is executed regardless of the emitted
+                  ! species, but the information is only used for ice nucleating species. Aerosol
+                  ! comes first in the indeft array.
+                  IF (level == 5 .AND. ice_theta_dist) THEN
+                     hlp1 = 0.; hlp2 = 0.
+                     IF (a_naerop%d(k,i,j,bb) < prlim) THEN
+                        ! Check for empty bins with a rather small limit. This should minimize the contact angle for current bin
+                        a_indeft%d(k,i,j,bb) = a_indeft%d(k,i,j,bb) - a_indefp%d(k,i,j,bb)/dtlt
+                     ELSE
+                        hlp1 = (a_naerop%d(k,i,j,bb)*a_indefp%d(k,i,j,bb) + edt%numc(bb)*0.*dtlt) ! latter term obv. symbolic...
+                        hlp2 = (a_naerop%d(k,i,j,bb)+edt%numc(bb)*dtlt)
+                        a_indeft%d(k,i,j,bb) = a_indeft%d(k,i,j,bb) +  &
+                             ( (hlp1 / hlp2) - a_indefp%d(k,i,j,bb) ) / dtlt
+                     END IF
+                  END IF
+                  DO ss = 1,spec%getNSpec(type="wet")
+                     mm = getMassIndex(nbins,bb,ss)
+                     a_maerot%d(k,i,j,mm) = a_maerot%d(k,i,j,mm) + edt%mass(mm)
+                  END DO
                END DO
             END DO
          END DO
@@ -192,9 +202,9 @@ MODULE emission_main
     TYPE(EmitConfig), INTENT(in) :: emd         ! Emission configuration instance
     TYPE(EmitType3Config), INTENT(inout) :: emdT3  ! Emission type 3 configuration instance
 
-    REAL :: hlp1(nzp), hlp2(nzp)
+    REAL :: hlp1, hlp2
     
-    INTEGER :: j,bb,ss,mm
+    INTEGER :: j,bb,ss,mm, xx,yy,zz1,zz2,k
     REAL :: dt, t_str,t_end
     INTEGER :: ind, i_str,i_end, di
     
@@ -217,27 +227,41 @@ MODULE emission_main
       
       DO bb = 1,nbins   
          DO j = 1, di
+            
             dt  = ( MIN(t_end, t(i_str+j)) - MAX(t_str, t(i_str+j-1)) )/dtlt
             ind = i_str+j-1
-            a_naerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) = &
-                 a_naerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) + edt%numc(bb) * dt
-            ! Relax the ice nucleation IN "deficit" ratio used for evolving contact angle
-            ! by taking number wghted avg and assuming zero for the emitted population.
-            ! This is executed regardless of the emitted species, but the information
-            ! is only used for ice nucleating species. Aerosol comes first in the indeft array.
-            hlp1 = 0; hlp2 = 0.
-            hlp1 = (a_naerop%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb)* &
-                 a_indefp%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) + edt%numc(bb)*0.*dt)
-            hlp2 = (a_naerop%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) + edt%numc(bb)*dt)
+            xx = ix(ind); yy = iy(ind)
+            zz1 = iz(ind)-z_expan_dw; zz2 = iz(ind)+z_expan_up
 
-            a_indeft%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) = &
-                 a_indeft%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) +  &                 
-                 ( (hlp1 / hlp2) - a_indefp%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),bb) ) / dt
-
-            DO ss = 1,spec%getNSpec(type="wet")
-               mm = getMassIndex(nbins,bb,ss)
-               a_maerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),mm) = &
-                    a_maerot%d((iz(ind)-z_expan_dw):(iz(ind)+z_expan_up),ix(ind),iy(ind),mm) + edt%mass(mm) * dt
+            DO k = zz1,zz2
+               a_naerot%d(k,xx,yy,bb) = &
+                    a_naerot%d(k,xx,yy,bb) + edt%numc(bb) * dt
+               ! If level=5 and ice_theta_dist=TRUE, relax the ice nucleation IN "deficit"
+               ! ratio used for evolving contact angle by taking number wghted avg and
+               ! assuming zero for the emitted population. This is executed regardless of
+               ! the emitted species, but the information is only used for ice nucleating
+               ! species. Aerosol comes first in the indeft array.
+               IF (level == 5 .AND. ice_theta_dist) THEN
+                  hlp1 = 0; hlp2 = 0.
+                  IF (a_naerop%d(k,xx,yy,bb) < prlim) THEN
+                     ! Check for empty bins with a rather small limit. This should minimize the contact angle for current bin
+                     a_indeft%d(k,xx,yy,bb) = a_indeft%d(k,xx,yy,bb) - a_indefp%d(k,xx,yy,bb)/dtlt
+                  ELSE                  
+                     hlp1 = (a_naerop%d(k,xx,yy,bb)* &
+                          a_indefp%d(k,xx,yy,bb) + edt%numc(bb)*0.*dt)
+                     hlp2 = (a_naerop%d(k,xx,yy,bb) + edt%numc(bb)*dt)
+                     
+                     a_indeft%d(k,xx,yy,bb) = &
+                          a_indeft%d(k,xx,yy,bb) +  &                 
+                          ( (hlp1 / hlp2) - a_indefp%d(k,xx,yy,bb) ) / dt
+                  END IF
+               END IF
+                  
+               DO ss = 1,spec%getNSpec(type="wet")
+                  mm = getMassIndex(nbins,bb,ss)
+                  a_maerot%d(k,xx,yy,mm) = &
+                       a_maerot%d(k,xx,yy,mm) + edt%mass(mm) * dt
+               END DO
             END DO
          END DO
       END DO

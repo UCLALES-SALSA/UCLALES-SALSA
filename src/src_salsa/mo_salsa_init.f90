@@ -604,6 +604,13 @@ CONTAINS
             lsicemelt%switch = .FALSE.
             lssecice%switch = .FALSE.
 
+            ice_theta_dist = .FALSE.
+            ice_hom = .FALSE.   
+            ice_imm = .FALSE.
+            ice_dep = .FALSE. 
+            ice_halmos = .FALSE.
+
+            
       END IF !level
 
    END SUBROUTINE define_salsa
