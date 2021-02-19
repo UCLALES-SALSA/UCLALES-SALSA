@@ -439,6 +439,7 @@ contains
   ! Nudging for any 3D field based on 1D target
   SUBROUTINE nudge_any(nxp,nyp,nzp,zt,ap,at,trgt,dt,time,iopt,tref,zmin,zmax,tau)
     USE util, ONLY : get_avg3
+    USE defs, ONLY : pi
     IMPLICIT NONE
     INTEGER :: nxp,nyp,nzp
     REAL :: zt(nzp), ap(nzp,nxp,nyp), at(nzp,nxp,nyp)
@@ -448,6 +449,10 @@ contains
     INTEGER :: iopt
     INTEGER :: kk
     REAL :: avg(nzp)
+    !
+    ! ISDAC nudging parameters
+    REAL :: C_nudge
+    REAL, PARAMETER :: Z1=1200., Z2=1500., ZUV=825
     !
     IF (iopt==1 .AND. time<=tref) THEN
         ! Soft nudging with fixed nudging constant (tau [s]), and the time parameter gives the maximum nudging time
@@ -461,6 +466,30 @@ contains
         DO kk = 1,nzp
             IF (zmin<=zt(kk) .AND. zt(kk)<=zmax) &
                 at(kk,:,:)=at(kk,:,:)-(ap(kk,:,:)-trgt(kk))/max(tau,dt)
+        ENDDO
+    ELSEIF (iopt==3) THEN ! ISDAC nudging: theta and q_t
+        ! Soft nudging
+        CALL get_avg3(nzp,nxp,nyp,ap,avg)
+        DO kk = 1,nzp
+            IF ( zt(kk)< Z1 ) THEN
+                C_nudge = 0.
+            ELSEIF ( zt(kk) <= Z2 ) THEN
+                C_nudge = (1./3600.)*( 1.-COS( pi*(zt(kk) - Z1 )/(Z2-Z1) ) )/2.
+            ELSE
+                C_nudge = 1./3600.
+            ENDIF
+            at(kk,:,:)=at(kk,:,:)-C_nudge*(avg(kk)-trgt(kk))
+        ENDDO
+    ELSEIF (iopt==4) THEN ! ISDAC nudging: horizontal winds
+        ! Soft nudging
+        CALL get_avg3(nzp,nxp,nyp,ap,avg)
+        DO kk = 1,nzp
+            IF ( zt(kk)  <= ZUV ) THEN
+                C_nudge = (1./7200.)*( 1.-COS( pi*zt(kk)/ZUV ) )/2.
+            ELSE
+                C_nudge = 1./7200.
+            ENDIF
+            at(kk,:,:)=at(kk,:,:)-C_nudge*(avg(kk)-trgt(kk))
         ENDDO
     ENDIF
     !

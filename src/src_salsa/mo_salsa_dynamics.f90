@@ -1423,7 +1423,7 @@ CONTAINS
                 dwet=pice(ii,jj,cc)%dwet
 
                 ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
-                cap=0.5*dwet
+                cap=dwet/pi ! ISDAC
 
                 ! Activity + Kelvin effect - edit when needed
                 !   Can be calculated just like for sperical homogenous particle or just ignored,
@@ -1431,7 +1431,7 @@ CONTAINS
                 !   Ice may not be that far from a sphere, but most particles are large and at least
                 !   growing particles are covered by a layer of pure ice.
                 zact = 1.0 ! Note: acth2o does not work for ice or snow!
-                zkelvinid(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                !zkelvinid(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) ) ! ISDAC
 
                 ! Saturation mole concentration over flat surface
                 zcwsurfid(cc) = prsi(ii,jj)*rhoair/mwa
@@ -1464,14 +1464,14 @@ CONTAINS
                 dwet=psnow(ii,jj,cc)%dwet
 
                 ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
-                cap=0.5*dwet
+                cap=dwet/pi ! ISDAC
 
                 ! Activity + Kelvin effect
                 !   Can be calculated just like for sperical homogenous particle or just ignored,
                 !   because these are not known for solid, irregular and non-homogenous particles.
                 !   Especially snow is typically highly irregular (e.g. dendrite).
                 zact = 1.0 ! Note: acth2o does not work for ice or snow!
-                zkelvinsd(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
+                !zkelvinsd(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) ) ! ISDAC
 
                 ! Saturation mole concentrations over flat surface
                 zcwsurfsd(cc) = prsi(ii,jj)*rhoair/mwa

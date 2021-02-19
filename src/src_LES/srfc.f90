@@ -59,6 +59,8 @@ module srfc
   integer :: ssa_param = 0
   ! Volume fraction of organic matter in sea spray
   real, allocatable, save :: ovf(:)
+  ! Fraction of ice nucleation active SSA particles (ISDAC)
+  REAL :: ssa_inp_frac = 0
 
 contains
 
@@ -76,7 +78,7 @@ contains
     use defs, only: vonk, g
     use grid, only: nxp, nyp, a_ustar, a_dn, zm, nbins, a_naerot, a_maerot
     use mo_submctl, only: rhooc, rhoss, nvbs_setup, aerobins, in2a, fn2a, &
-                    in2b, pi6, iss, ioc, ih2o, rhowa, rhoss, rhooc, nvbs_setup
+                    in2b, pi6, iss, ioc, ih2o, rhowa, rhoss, rhooc, nvbs_setup, idu, rhodu
     use mo_vbsctl, only: vbs_set
     use mo_vbs, only: spec_density
     use stat, only: flux_stat, sflg
@@ -186,6 +188,7 @@ contains
         ELSE
             i = in2b + k - in2a
         ENDIF
+        i = k ! Sea-salt to a-bins (ISDAC/POA)
 
         ! Note: bin center is volume mean - using other than that will cause problems!
         vdry = pi6*4.*(aerobins(k)**3+aerobins(k+1)**3)
@@ -212,6 +215,30 @@ contains
                                               & vdry*rhooc*(ovf(k))
         endif
 
+        ! Small fraction of particles (ssa_inp_frac) is 50% dust and 50% sea salt (ISDAC/POA)
+        i = in2b + k - in2a
+        ovf(k) = 0.5 ! Overwrites ovf, OK when wtrChlA=0
+        a_naerot(2,:,:,i) = a_naerot(2,:,:,i) + ssa_inp_frac*dcdt(:,:,k)
+        ! ... and specifically to SS
+        if(iss>0)then
+            j = (iss-1)*nbins + i
+            a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + ssa_inp_frac*dcdt(:,:,k)* &
+                                              & vdry*rhoss*(1.-ovf(k))
+            !  ... and just add water at 80% RH (D80 = 2 x Ddry)
+            j = (ih2o-1)*nbins + i
+            a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + ssa_inp_frac*dcdt(:,:,k)* &
+                                              & vdry*rhowa*(1.-ovf(k))*7.
+        endif
+        ! .. organic fraction
+        if (nvbs_setup>=0) then
+            j = (vbs_set(1)%id_vols-1)*nbins + i
+            a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + ssa_inp_frac*dcdt(:,:,k)* &
+                                              & vdry*spec_density(vbs_set(1)%spid)*(ovf(k))
+        elseif(idu>0)then
+            j = (idu-1)*nbins + i
+            a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + ssa_inp_frac*dcdt(:,:,k)* &
+                                              & vdry*rhodu*(ovf(k))
+        endif
     ENDDO
 
     if (sflg) then

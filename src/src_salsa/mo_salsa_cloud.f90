@@ -570,7 +570,7 @@ CONTAINS
                                       psnow(kbdim,klev,nsnw)
 
     ! Which species are allowed to freeze
-    LOGICAL, PARAMETER :: ice_aerosol = .TRUE., ice_cloud = .TRUE., ice_precip = .TRUE.
+    LOGICAL, PARAMETER :: ice_aerosol = .FALSE., ice_cloud = .TRUE., ice_precip = .FALSE. ! ISDAC
     ! Maximum temperature (K) for homogeneous nucleation
     REAL, PARAMETER :: tmax_homog=243.15
 
@@ -836,7 +836,7 @@ CONTAINS
     REAL, PARAMETER :: & ! Case-dependent parameters
             epsi = 0., & ! Elastic strain produced in ice embryo by the insoluble substrate
             alpha = 0.0, & ! Relative area of active sites
-            mis = 0.5 ! Cosine of the contact angle
+            mis = 0.57 ! Cosine of the contact angle (ISDAC)
 
     calc_Jhet = 0.
 
@@ -1026,7 +1026,8 @@ CONTAINS
         if ( S_ice < min_S_ice .OR. rc < min_rc ) cycle
 
         ! Target number concentration of ice, converted to #/m^3
-        Ni0 = fixinc * pdn
+        !Ni0 = fixinc * pdn
+        Ni0 = fixinc * 1000. ! From #/L to #/m^3 (ISDAC)
 
         ! Current ice number concentration (#/m^3)
         IF (ice_target_opt<0) THEN
