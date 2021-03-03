@@ -2861,6 +2861,7 @@ contains
 
   ! This is the actual function for calculating level 4 and 5 outputs
   SUBROUTINE calc_salsa_rate(out_ind,out_id,tchar,pchar)
+    USE mo_submctl, ONLY : in2b, inp2b
     USE grid, ONLY : dzt, a_dn, out_an_data, &
                      nxp, nyp, nzp, nbins, ncld, nprc, nice, nsnw, &
                      a_naerot, a_maerot, a_ncloudt, a_mcloudt, a_nprecpt, a_mprecpt, &
@@ -2955,6 +2956,43 @@ contains
                         SUM(a_mprecpt(:,:,:,(j-1)*nprc+1:j*nprc),DIM=4)
                    IF (level>4) tend=tend+SUM(a_micet(:,:,:,(j-1)*nice+1:j*nice),DIM=4)+ &
                                           SUM(a_msnowt(:,:,:,(j-1)*nsnw+1:j*nsnw),DIM=4)
+                END SELECT
+        CASE ('b')
+            ! b-bin = aerosol+cloud+ice
+            SELECT CASE (tchar)
+                CASE ('n')
+                   ! Number concentration
+                   tend=SUM(a_naerot(:,:,:,in2b:nbins),DIM=4)+SUM(a_ncloudt(:,:,:,inp2b:ncld),DIM=4)
+                   IF (level>4) tend=tend+SUM(a_nicet(:,:,:,inp2b:ncld),DIM=4)
+                  CASE('r','1')
+                   ! Water (component 1) mass mixing ratio
+                   tend=SUM(a_maerot(:,:,:,in2b:nbins),DIM=4)+SUM(a_mcloudt(:,:,:,inp2b:ncld),DIM=4)
+                   IF (level>4) tend=tend+SUM(a_micet(:,:,:,inp2b:nice),DIM=4)
+                CASE DEFAULT
+                   ! Mass mixing ratio of component j
+                   READ(UNIT=tchar,FMT='(I1)') j
+                   tend=SUM(a_maerot(:,:,:,(j-1)*nbins+in2b:j*nbins),DIM=4)+ &
+                        SUM(a_mcloudt(:,:,:,(j-1)*ncld+inp2b:j*ncld),DIM=4)
+                   IF (level>4) tend=tend+SUM(a_micet(:,:,:,(j-1)*nice+inp2b:j*nice),DIM=4)
+                END SELECT
+        CASE ('x')
+            ! Part of the b-bins (aerosol+cloud+ice)
+            k=4 ! Ignore the first four bins
+            SELECT CASE (tchar)
+                CASE ('n')
+                   ! Number concentration
+                   tend=SUM(a_naerot(:,:,:,in2b+k:nbins),DIM=4)+SUM(a_ncloudt(:,:,:,inp2b+k:ncld),DIM=4)
+                   IF (level>4) tend=tend+SUM(a_nicet(:,:,:,inp2b+k:ncld),DIM=4)
+                  CASE('r','1')
+                   ! Water (component 1) mass mixing ratio
+                   tend=SUM(a_maerot(:,:,:,in2b+k:nbins),DIM=4)+SUM(a_mcloudt(:,:,:,inp2b+k:ncld),DIM=4)
+                   IF (level>4) tend=tend+SUM(a_micet(:,:,:,inp2b+k:nice),DIM=4)
+                CASE DEFAULT
+                   ! Mass mixing ratio of component j
+                   READ(UNIT=tchar,FMT='(I1)') j
+                   tend=SUM(a_maerot(:,:,:,(j-1)*nbins+in2b+k:j*nbins),DIM=4)+ &
+                        SUM(a_mcloudt(:,:,:,(j-1)*ncld+inp2b+k:j*ncld),DIM=4)
+                   IF (level>4) tend=tend+SUM(a_micet(:,:,:,(j-1)*nice+inp2b+k:j*nice),DIM=4)
                 END SELECT
         CASE ('g')
             ! Gas: scalar so just mass mixing ratio of component j

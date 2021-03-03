@@ -1186,6 +1186,10 @@ contains
         spec='gas'
     CASE('t')
         spec='total'
+    CASE('b')
+        spec='b-bin'
+    CASE('x')
+        spec='b-bin (5-)'
     case default
         get_rate_info=''
         RETURN
@@ -1369,12 +1373,18 @@ contains
         if (itype==0) THEN
             ! Long name
             IF (spec=='N  ') THEN
-                get_salsa_info = 'Mean number concentration of '//TRIM(phase)//tmp
+                IF (dims==3) THEN
+                    get_salsa_info = 'Total number concentration of '//TRIM(phase)//tmp
+                ELSE
+                    get_salsa_info = 'Mean number concentration of '//TRIM(phase)//tmp
+                ENDIF
             ELSEIF (spec=='R  ' .OR. spec=='Rw ') THEN
                 get_salsa_info = 'Mean radius of '//TRIM(phase)//tmp
             ELSE
                 IF (dims==0 .OR. dims==2) THEN
                     get_salsa_info = 'Vertically integrated '//TRIM(phase)//' '//TRIM(spec)//' mass'//tmp
+                ELSEIF (dims==3) THEN
+                    get_salsa_info = 'Total '//TRIM(phase)//' '//TRIM(spec)//' mass'//tmp
                 ELSE
                     get_salsa_info = 'Mean '//TRIM(phase)//' '//TRIM(spec)//' mass'//tmp
                 ENDIF
