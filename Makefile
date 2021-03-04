@@ -37,10 +37,10 @@ MPI = /usr
 MPILIB = -L$(MPI)/lib -lmpichfort
 
 # This also varies on different computers
-#MPIINC = -I$(MPI)/include/x86_64-linux-gnu/mpich
-MPIINC = -I$(MPI)/include/mpich
+MPIINC = -I$(MPI)/include/x86_64-linux-gnu/mpich
+#MPIINC = -I$(MPI)/include/mpich
 NCDF = /usr
-NCDFLIB = -L$(NCDF)/lib -lnetcdff
+NCDFLIB = -L$(NCDF)/lib -lnetcdf -lnetcdff
 NCDFINC = -I$(NCDF)/include
 LIBS = '$(NCDFLIB) $(MPILIB)'
 F90 = gfortran

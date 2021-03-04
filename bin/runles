@@ -13,7 +13,7 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=2 # 0 for mpi runs with CRAY, 1 for mpi runs with Puhti, 2 for sequential, 3 for mpi on laptop
+IsSeq=3 # 0 for mpi runs with CRAY, 1 for mpi runs with Puhti, 2 for sequential, 3 for mpi on laptop
 
 EXPNAME="RICO_1_forces"  # Name of the experiment
 PROJECT="project_2003163"   # Project name, needed for resource allocation in PUHTI
@@ -23,7 +23,7 @@ NNODES=7
 TWALL=48:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=10              # Number of points in Y-direction (including "halo" points)
+NYP=40              # Number of points in Y-direction (including "halo" points)
 NZP=100              # Number of points in Z-direction
 DX=100.              # Resolution in X-direction (meters)
 DY=100.              # Resolution in Y-direction (meters)
@@ -106,7 +106,7 @@ cat > NAMELIST <<EOF
   bulk_autoc%delay = ${Tspinup}      ! Autoconversion switch for level = 1-3
 
   lnudging = .FALSE.           ! Master swtich for nudging scheme
-  lemission = .TRUE.          ! Master switch for aerosol emissions  
+  lemission = .FALSE.          ! Master switch for aerosol emissions  
   lpback = .FALSE.
   lpbncmaster = .FALSE.
   iradtyp = 1                 ! Radiation/large scale forcing
@@ -119,16 +119,16 @@ cat > NAMELIST <<EOF
 ! -----------------------------------------------------------------------------------
 
 &output
-  breakUndefOutput = .TRUE.
+  breakUndefOutput = .FALSE.
   ps_intvl = 10.
-  ts_intvl = 60.
+  ts_intvl = 10.
   main_intvl = 60.
   varlist_main = 'temp','theta','wwind','rp','rc','srp','rrate',
                  's_m_autoc','s_m_autoc50','s_m_autoc80',
                  's_m_accr','s_m_accr50','s_m_accr80',
   varlist_ps = 'Naa','Nca','Np','ic_s_m_autoc','ic_s_m_autoc50','ic_s_m_autoc80',
-               'ic_s_m_accr','ic_s_m_accr50','ic_s_m_accr80'
-  !varlist_ts = ''
+               'ic_s_m_accr','ic_s_m_accr50','ic_s_m_accr80','rc'
+  varlist_ts = 'vtke','wmax','lwp_bar','ctop','cbase','cfrac','sfc_rain','rwp_bar'
   TH_rrate = 30.
   TH_rc = 1.e-5
   TH_rr = 1.e-6

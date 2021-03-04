@@ -227,7 +227,7 @@ CONTAINS
       CALL Axes%getByGroup("ts",AxesTS)
       CALL AxesPS%getByOutputstatus(outAxesPS)
       CALL AxesTS%getByOutputstatus(outAxesTS)
-               
+
       nxyzp = nxp*nyp*nzp
       nxyp  = nxp*nyp
 

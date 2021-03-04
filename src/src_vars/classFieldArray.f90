@@ -64,7 +64,7 @@ MODULE classFieldArray
          PROCEDURE :: Extend_FieldArray
          GENERIC   :: Extend => Extend_FieldArray
 
-         PROCEDURE :: ExN_FieldArray
+         PROCEDURE :: ExN_FieldArray         ! WHY IS THIS HERE??
          GENERIC   :: ExN => ExN_FieldArray
 
          PROCEDURE :: NewField
@@ -283,7 +283,7 @@ MODULE classFieldArray
       CLASS(FieldArray), TARGET, INTENT(in) :: SELF
       INTEGER, INTENT(in), OPTIONAL :: ind
       CHARACTER(len=*), INTENT(in), OPTIONAL :: name
-      TYPE(ArrayElement), POINTER :: out
+      TYPE(ArrayElement), INTENT(out), POINTER :: out
       INTEGER :: lind
       lind=0
       IF (PRESENT(ind)) THEN
