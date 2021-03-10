@@ -21,60 +21,64 @@ MODULE mo_ps_procedures
 
   CONTAINS
 
-    SUBROUTINE globalMinProfile(SELF,output)
+    SUBROUTINE globalMinProfile(SELF,output,root)
       USE util, ONLY : get_gmin
       CLASS(FloatArray1d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output(:)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       REAL :: fvar(nzp,nxp,nyp)
       fvar = 0.
       output = 0.
       CALL stats_get(SELF%srcName,fvar)
-      CALL get_gmin(nzp,nxp,nyp,fvar,output)
+      CALL get_gmin(nzp,nxp,nyp,fvar,output,root=root)
     END SUBROUTINE globalMinProfile
 
     ! ----------------------------------------------------
 
-    SUBROUTINE globalMaxProfile(SELF,output)
+    SUBROUTINE globalMaxProfile(SELF,output,root)
       USE util, ONLY : get_gmax
       CLASS(FloatArray1d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output(:)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       REAL :: fvar(nzp,nxp,nyp)
       fvar = 0.
       output = 0.
       CALL stats_get(SELF%srcName,fvar)
-      CALL get_gmax(nzp,nxp,nyp,fvar,output)
+      CALL get_gmax(nzp,nxp,nyp,fvar,output,root=root)
     END SUBROUTINE globalMaxProfile
 
     ! -------------------------------------------------------
     
-    SUBROUTINE globalMeanProfile(SELF,output)
-      USE util, ONLY : get_avg3_root
+    SUBROUTINE globalMeanProfile(SELF,output,root)
+      USE util, ONLY : get_gavg3
       CLASS(FloatArray1d), INTENT(in) :: SELF
-      REAL, INTENT(out) :: output(:)      
+      REAL, INTENT(out) :: output(:)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       REAL :: fvar(nzp,nxp,nyp)
       fvar = 0.
       output = 0.
       CALL stats_get(SELF%srcName,fvar)      
-      CALL get_avg3_root(nzp,nxp,nyp,fvar,output)            
+      CALL get_gavg3(nzp,nxp,nyp,fvar,output,root=root)            
     END SUBROUTINE globalMeanProfile
 
     ! ----------------------------------------------------
 
-    SUBROUTINE globalVarProfile(SELF,output)
-      USE util, ONLY : get_var3_root
+    SUBROUTINE globalVarProfile(SELF,output,root)
+      USE util, ONLY : get_gvar3
       CLASS(FloatArray1d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output(:)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       REAL :: fvar(nzp,nxp,nyp)      
       fvar = 0.
       output = 0.
       CALL stats_get(SELF%srcName,fvar)
-      CALL get_var3_root(nzp,nxp,nyp,fvar,output)
+      CALL get_gvar3(nzp,nxp,nyp,fvar,output,root=root)
     END SUBROUTINE globalVarProfile
       
     ! ----------------------------------------------------
     
     SUBROUTINE globalMeanProfileBinned(name,output,nstr,nend)
-      USE util, ONLY : get_avg3_binned_root
+      USE util, ONLY : get_gavg3_binned
       CHARACTER(len=*), INTENT(in) :: name
       INTEGER, INTENT(in) :: nstr,nend
       REAL, INTENT(out) :: output(nzp,nend-nstr+1) 
@@ -82,17 +86,18 @@ MODULE mo_ps_procedures
       fvar = 0.
       output = 0.
       CALL stats_get3d_binned(name,fvar,nstr,nend)      
-      CALL get_avg3_binned_root(nzp,nxp,nyp,nend-nstr+1,fvar,output)
+      CALL get_gavg3_binned(nzp,nxp,nyp,nend-nstr+1,fvar,output)
     END SUBROUTINE globalMeanProfileBinned
 
     ! -----------------------------------------------------
     
-    SUBROUTINE inCloudMeanProfile(SELF,output)
+    SUBROUTINE inCloudMeanProfile(SELF,output,root)
       USE mo_stats_parameters, ONLY : TH_rc, TH_ri
       USE mo_diag_state, ONLY : a_rc, a_ri, a_riri
-      USE util, ONLY : get_avg3_root
+      USE util, ONLY : get_gavg3
       CLASS(FloatArray1d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output(:)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       LOGICAL :: cond(nzp,nxp,nyp)
       REAL :: fvar(nzp,nxp,nyp)
       output = 0.
@@ -103,51 +108,54 @@ MODULE mo_ps_procedures
          cond = (a_rc%d > TH_rc .OR. a_ri%d + a_riri%d > TH_ri)
       END IF
       CALL stats_get(SELF%srcName,fvar)
-      CALL get_avg3_root(nzp,nxp,nyp,fvar,output,cond)
+      CALL get_gavg3(nzp,nxp,nyp,fvar,output,cond=cond,root=root)
     END SUBROUTINE inCloudMeanProfile
     
     ! -----------------------------------------------------
     
-    SUBROUTINE inLiqMeanProfile(SELF,output)
+    SUBROUTINE inLiqMeanProfile(SELF,output,root)
       USE mo_stats_parameters, ONLY : TH_rc
       USE mo_diag_state, ONLY : a_rc
-      USE util, ONLY : get_avg3_root
+      USE util, ONLY : get_gavg3
       CLASS(FloatArray1d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output(:)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       LOGICAL :: cond(nzp,nxp,nyp)
       REAL :: fvar(nzp,nxp,nyp)
       cond = ( a_rc%d > TH_rc )      
       fvar = 0.
       output = 0.
       CALL stats_get(SELF%srcName,fvar)
-      CALL get_avg3_root(nzp,nxp,nyp,fvar,output,cond)
+      CALL get_gavg3(nzp,nxp,nyp,fvar,output,cond=cond,root=root)
     END SUBROUTINE inLiqMeanProfile
 
     ! -----------------------------------------------------
 
-    SUBROUTINE precipMeanProfile(SELF,output)
+    SUBROUTINE precipMeanProfile(SELF,output,root)
       USE mo_stats_parameters, ONLY : TH_rrate
       USE mo_diag_state, ONLY : a_rrate
-      USE util, ONLY : get_avg3_root
+      USE util, ONLY : get_gavg3
       CLASS(FloatArray1d), INTENT(in) :: SELF 
       REAL, INTENT(out) :: output(:)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       LOGICAL :: cond(nzp,nxp,nyp)
       REAL :: fvar(nzp,nxp,nyp)
       fvar = 0.
       output = 0.
       cond = ( a_rrate%d > TH_rrate )
       CALL stats_get(SELF%srcName,fvar)
-      CALL get_avg3_root(nzp,nxp,nyp,fvar,output,cond)
+      CALL get_gavg3(nzp,nxp,nyp,fvar,output,cond=cond,root=root)
     END SUBROUTINE precipMeanProfile
 
     ! -----------------------------------------------------    
 
-    SUBROUTINE meanScalarFlux(SELF,output)
+    SUBROUTINE meanScalarFlux(SELF,output,root)
       USE advf, ONLY : mamaos
       USE mo_aux_state, ONLY : dzt, dzm, dn0
-      USE util, ONLY : get_avg3_root
+      USE util, ONLY : get_gavg3
       CLASS(FloatArray1d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output(:)
+      LOGICAL, INTENT(in), OPTIONAL :: root
 
       REAL :: wp(nzp,nxp,nyp)
       REAL :: fvar(nzp,nxp,nyp)
@@ -186,18 +194,19 @@ MODULE mo_ps_procedures
          wp = wp * alvl  
       END SELECT
       
-      CALL get_avg3_root(nzp,nxp,nyp,wp,output)
+      CALL get_gavg3(nzp,nxp,nyp,wp,output,root=root)
       
     END SUBROUTINE meanScalarFlux
     
     ! --------------------
 
-    SUBROUTINE meanMomFlux(SELF,output)
+    SUBROUTINE meanMomFlux(SELF,output,root)
       USE advl, ONLY : ladvzu, ladvzv, ladvzw
       USE mo_aux_state, ONLY : dn0
-      USE util, ONLY : get_avg3_root
+      USE util, ONLY : get_gavg3
       CLASS(FloatArray1d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output(:)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       REAL :: wpm(nzp,nxp,nyp)
       REAL :: tmp1(nzp),tmp2(nzp,nxp,nyp)
       REAL :: flx(nzp,nxp,nyp),fvar(nzp,nxp,nyp)
@@ -222,21 +231,22 @@ MODULE mo_ps_procedures
          CALL ladvzw(nzp,nxp,nyp,fvar,tmp2,wpm,flx,tmp1)
       END SELECT
 
-      CALL get_avg3_root(nzp,nxp,nyp,flx,output)
+      CALL get_gavg3(nzp,nxp,nyp,flx,output,root=root)
       
     END SUBROUTINE meanMomFlux
     
     ! -------------------------------
 
-    SUBROUTINE meanTKEres(SELF,output)
+    SUBROUTINE meanTKEres(SELF,output,root)
       USE mo_vector_state, ONLY : a_up, a_vp, a_wp
-      USE util, ONLY : get_var3_root
+      USE util, ONLY : get_gvar3
       CLASS(FloatArray1d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output(:)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       REAL :: uvar(nzp), vvar(nzp), wvar(nzp)      
-      CALL get_var3_root(nzp,nxp,nyp,a_up%d,uvar)
-      CALL get_var3_root(nzp,nxp,nyp,a_vp%d,vvar)
-      CALL get_var3_root(nzp,nxp,nyp,a_wp%d,wvar)
+      CALL get_gvar3(nzp,nxp,nyp,a_up%d,uvar,root=root)
+      CALL get_gvar3(nzp,nxp,nyp,a_vp%d,vvar,root=root)
+      CALL get_gvar3(nzp,nxp,nyp,a_wp%d,wvar,root=root)
       output = 0.5 * ( uvar + vvar + wvar )            
     END SUBROUTINE meanTKEres
 

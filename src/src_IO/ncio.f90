@@ -6,11 +6,11 @@ MODULE ncio
   
   IMPLICIT NONE
 
-  INTERFACE write_nc
-     MODULE PROCEDURE write_nc_0d, write_nc_1d,   &
-                      write_nc_2d, write_nc_3d,   &
-                      write_nc_4d
-  END INTERFACE write_nc
+!  INTERFACE write_nc
+!     MODULE PROCEDURE write_nc_0d, write_nc_1d,   &
+!                      write_nc_2d, write_nc_3d,   &
+!                      write_nc_4d
+!  END INTERFACE write_nc
   
   PRIVATE
   
@@ -227,7 +227,7 @@ MODULE ncio
       CLASS(StreamDef), INTENT(inout) :: SELF
       TYPE(FieldArray), INTENT(in) :: outInst(:) ! This shall be an array of instances to facilitate
                                                  ! multiple variable sets
-      INTEGER :: iret, i, N
+      INTEGER :: iret, i, N, Nexist
 
       N = SIZE(outInst)
       
@@ -247,9 +247,9 @@ MODULE ncio
             SELF%nvar = SELF%nvar + outInst(i)%count
          END DO
          
-         iret = nf90_inquire(SELF%ncid, nVariables=n)
-         SELF%nvar = n
-         IF (n /= SELF%nvar) THEN
+         iret = nf90_inquire(SELF%ncid, nVariables=Nexist)
+         !SELF%nvar = Nexist
+         IF (Nexist /= SELF%nvar) THEN
             CALL close_nc(SELF%ncid)
             IF (myid == 0) PRINT *, '  ABORTING: Incompatible Netcdf File',n,SELF%nvar
             CALL appl_abort(0)
@@ -417,7 +417,7 @@ MODULE ncio
       INTEGER, INTENT(in) :: beg(1)
       INTEGER :: iret, VarID
       iret = nf90_inq_varid(SELF%ncid,name,VarID)
-      iret = nf90_put_var(SELF%ncid,VarID,var,start=beg)     
+      iret = nf90_put_var(SELF%ncid,VarID,var,start=beg)
     END SUBROUTINE write_nc_0d
     ! --------------------------------
     SUBROUTINE write_nc_1d(SELF,name,var,beg,icnt)

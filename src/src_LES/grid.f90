@@ -53,10 +53,13 @@ MODULE grid
   
   LOGICAL :: lpback = .FALSE.       ! Master switch for running bulk microphysics
                                     ! in piggybacking mode, while level == 4
-  LOGICAL :: lpbncmaster = .FALSE.  ! For piggybacking runs, if TRUE, take CDNC from
-                                    ! master microphysics (==SALSA). Otherwise use the
-                                    ! fixed CCN.
-  
+  INTEGER :: pbncsrc = 0            ! Source of CDNC for piggybacking microphysics.
+                                    ! 0: use the constant CCN parameter
+                                    ! 1: Use the CNDC taken from master microphysics (SALSA)
+                                    !    gridpoint by gridpoint
+                                    ! 2: Use the CDNC taken from master microphysics (SALSA) 
+                                    !    as a domain mean
+
   INTEGER :: iradtyp
   INTEGER :: igrdtyp = 1         ! vertical grid type
   INTEGER :: isgstyp = 1         ! sgs model type

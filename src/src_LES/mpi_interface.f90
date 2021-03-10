@@ -28,26 +28,26 @@ MODULE mpi_interface
    !       whether MPI is used or not. Another option of course would be to use compiler directives,
    !       maye future work? However it will make the source code again a bit more messy.
    INTERFACE broadcast
-      MODULE PROCEDURE broadcastRealArray1d, broadcastRealArray3d, broadcastInteger
+      MODULE PROCEDURE broadcastFloatArray1d, broadcastFloatArray3d, broadcastInteger, broadcastFloat
    END INTERFACE broadcast
 
-   INTERFACE get_max_root
-      MODULE PROCEDURE get_scalar_integer_global_max_root,  &
-                       get_scalar_float_global_max_root
-   END INTERFACE get_max_root
+   INTERFACE get_mpi_max
+      MODULE PROCEDURE get_scalar_integer_global_max,  &
+                       get_scalar_float_global_max
+   END INTERFACE get_mpi_max
 
-   INTERFACE get_min_root
-      MODULE PROCEDURE get_scalar_integer_global_min_root,  &
-                       get_scalar_float_global_min_root
-   END INTERFACE get_min_root
+   INTERFACE get_mpi_min
+      MODULE PROCEDURE get_scalar_integer_global_min,  &
+                       get_scalar_float_global_min
+   END INTERFACE get_mpi_min
 
-   INTERFACE get_sum_root
-      MODULE PROCEDURE get_scalar_float_global_sum_root,    &
-                       get_scalar_integer_global_sum_root,  &
-                       get_1d_float_global_sum_root,        &
-                       get_1d_integer_global_sum_root,      &
-                       get_2d_float_global_sum_root
-   END INTERFACE get_sum_root
+   INTERFACE get_mpi_sum
+      MODULE PROCEDURE get_scalar_float_global_sum,    &
+                       get_scalar_integer_global_sum,  &
+                       get_1d_float_global_sum,        &
+                       get_1d_integer_global_sum,      &
+                       get_2d_float_global_sum
+   END INTERFACE get_mpi_sum
    
    
    !
@@ -644,126 +644,232 @@ CONTAINS
     !
     ! -------------------------------------------------------------------------
     ! SUBROUTINE get_max_root
-    ! Get the global maximum across processes for a single scalar. The value is
-    ! stored only for the root process!
+    ! Get the global maximum across processes for a single scalar. By default and/or if
+    ! root=TRUE, the result is stored only for the root process (0 for others). If
+    ! root=FALSE, the result is scattered for all processes.
     ! 
-    SUBROUTINE get_scalar_integer_global_max_root(lmax,gmax)
+    SUBROUTINE get_scalar_integer_global_max(lmax,gmax,root)
       INTEGER, INTENT(in) :: lmax
       INTEGER, INTENT(out) :: gmax
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      LOGICAL :: lroot
       INTEGER :: ierr
+      lroot=.TRUE.
+      IF (PRESENT(root)) THEN
+         lroot = root 
+      END IF
       gmax = 0
-      CALL MPI_REDUCE(lmax,gmax,1,MPI_INTEGER,MPI_MAX,    &
-                      mpiroot,MPI_COMM_WORLD,ierr         )      
-    END SUBROUTINE get_scalar_integer_global_max_root
+      IF (lroot) THEN
+         CALL MPI_REDUCE(lmax,gmax,1,MPI_INTEGER,MPI_MAX,    &
+                         mpiroot,MPI_COMM_WORLD,ierr         )
+      ELSE
+         CALL MPI_ALLREDUCE(lmax,gmax,1,MPI_INTEGER,MPI_MAX, &
+                            MPI_COMM_WORLD,ierr)
+      END IF
+    END SUBROUTINE get_scalar_integer_global_max
     ! ------------------------------------
-    SUBROUTINE get_scalar_float_global_max_root(lmax,gmax)
+    SUBROUTINE get_scalar_float_global_max(lmax,gmax,root)
       REAL, INTENT(in) :: lmax
       REAL, INTENT(out) :: gmax
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      LOGICAL :: lroot
       INTEGER :: ierr
+      lroot=.TRUE.
+      IF (PRESENT(root)) THEN
+         lroot = root 
+      END IF      
       gmax = 0.
-      CALL MPI_REDUCE(lmax,gmax,1,MY_REAL,MPI_MAX,        &
-                      mpiroot,MPI_COMM_WORLD,ierr         )
-    END SUBROUTINE get_scalar_float_global_max_root
+      IF (lroot) THEN
+         CALL MPI_REDUCE(lmax,gmax,1,MY_REAL,MPI_MAX,        &
+                         mpiroot,MPI_COMM_WORLD,ierr         )
+      ELSE
+         CALL MPI_ALLREDUCE(lmax,gmax,1,MY_REAL,MPI_MAX, &
+                            MPI_COMM_WORLD,ierr)
+      END IF
+    END SUBROUTINE get_scalar_float_global_max
     
     !
     ! --------------------------------------------------------------------------
     ! SUBROUTINE get_min_root
-    ! Get the global minimum across processes for a single scalar. The value is
-    ! stored only for the root process!
+    ! Get the global minimum across processes for a single scalar. By default and/or if
+    ! root=TRUE, the result is stored only for the root process (0 for others). If
+    ! root=FALSE, the result is scattered for all processes.
     !
-    SUBROUTINE get_scalar_integer_global_min_root(lmin,gmin)
+    SUBROUTINE get_scalar_integer_global_min(lmin,gmin,root)
       INTEGER, INTENT(in) :: lmin
       INTEGER, INTENT(out) :: gmin
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      LOGICAL :: lroot      
       INTEGER :: ierr
+      lroot=.TRUE.
+      IF (PRESENT(root)) THEN
+         lroot = root 
+      END IF            
       gmin = 0
-      CALL MPI_REDUCE(lmin,gmin,1,MPI_INTEGER,MPI_MIN,    &
-                      mpiroot,MPI_COMM_WORLD,ierr         )      
-    END SUBROUTINE get_scalar_integer_global_min_root
+      IF (lroot) THEN
+         CALL MPI_REDUCE(lmin,gmin,1,MPI_INTEGER,MPI_MIN,    &
+                         mpiroot,MPI_COMM_WORLD,ierr         )      
+      ELSE
+         CALL MPI_ALLREDUCE(lmin,gmin,1,MPI_INTEGER,MPI_MIN, &
+                            MPI_COMM_WORLD,ierr)
+      END IF
+    END SUBROUTINE get_scalar_integer_global_min
     ! -----------------------------------
-    SUBROUTINE get_scalar_float_global_min_root(lmin,gmin)
+    SUBROUTINE get_scalar_float_global_min(lmin,gmin,root)
       REAL, INTENT(in) :: lmin
       REAL, INTENT(out) :: gmin
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      LOGICAL :: lroot          
       INTEGER :: ierr
+      lroot=.TRUE.
+      IF (PRESENT(root)) THEN
+         lroot = root 
+      END IF              
       gmin = 0.
-      CALL MPI_REDUCE(lmin,gmin,1,MY_REAL,MPI_MIN,        &
-                      mpiroot,MPI_COMM_WORLD,ierr         )
-    END SUBROUTINE get_scalar_float_global_min_root    
+      IF (lroot) THEN
+         CALL MPI_REDUCE(lmin,gmin,1,MY_REAL,MPI_MIN,        &
+                         mpiroot,MPI_COMM_WORLD,ierr         )
+      ELSE
+         CALL MPI_ALLREDUCE(lmin,gmin,1,MY_REAL,MPI_MIN, &
+                            MPI_COMM_WORLD,ierr)
+      END IF
+    END SUBROUTINE get_scalar_float_global_min
     !
     ! --------------------------------------------------------------------
     ! SUBROUTINE get_scalar_global_sum_root   
-    ! Get the sum across processes for a single float scalar. The value
-    ! is stored only for the root process!
-    SUBROUTINE get_scalar_float_global_sum_root(lsum,gsum)
+    ! Get the sum across processes for a single float scalar. By default and/or if
+    ! root=TRUE, the result is stored only for the root process (0 for others). If
+    ! root=FALSE, the result is scattered for all processes.
+    !
+    SUBROUTINE get_scalar_float_global_sum(lsum,gsum,root)
       REAL, INTENT(in) :: lsum
       REAL, INTENT(out) :: gsum
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      LOGICAL :: lroot            
       INTEGER :: ierr
+      lroot=.TRUE.
+      IF (PRESENT(root)) THEN
+         lroot = root 
+      END IF                
       gsum = 0.
-      CALL MPI_REDUCE(lsum,gsum,1,MY_REAL,MPI_SUM,       &
-                      mpiroot,MPI_COMM_WORLD,ierr)
-    END SUBROUTINE get_scalar_float_global_sum_root
+      IF (lroot) THEN
+         CALL MPI_REDUCE(lsum,gsum,1,MY_REAL,MPI_SUM,       &
+                         mpiroot,MPI_COMM_WORLD,ierr)
+      ELSE
+         CALL MPI_ALLREDUCE(lsum,gsum,1,MY_REAL,MPI_SUM, &
+                            MPI_COMM_WORLD,ierr)         
+      END IF
+    END SUBROUTINE get_scalar_float_global_sum
     ! --------------------------------------
     ! SAme for integer
-    SUBROUTINE get_scalar_integer_global_sum_root(lsum,gsum)
+    SUBROUTINE get_scalar_integer_global_sum(lsum,gsum,root)
       INTEGER, INTENT(in) :: lsum
       INTEGER, INTENT(out) :: gsum
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      LOGICAL :: lroot          
       INTEGER :: ierr
+      lroot=.TRUE.
+      IF (PRESENT(root)) THEN
+         lroot = root 
+      END IF                 
       gsum = 0
-      CALL MPI_REDUCE(lsum,gsum,1,MPI_INTEGER,MPI_SUM,        &
-                      mpiroot,MPI_COMM_WORLD,ierr)
-    END SUBROUTINE get_scalar_integer_global_sum_root
+      IF (lroot) THEN
+         CALL MPI_REDUCE(lsum,gsum,1,MPI_INTEGER,MPI_SUM,        &
+                         mpiroot,MPI_COMM_WORLD,ierr)
+      ELSE
+         CALL MPI_ALLREDUCE(lsum,gsum,1,MPI_INTEGER,MPI_SUM, &
+                            MPI_COMM_WORLD,ierr)         
+      END IF 
+    END SUBROUTINE get_scalar_integer_global_sum
     !
     ! ------------------------------------------------------------------------
     ! SUBROUTINE get_1d_global_sum_root(lsum,gsum)
-    ! Get the sum across all processes for a 1 dimensional float array. The values
-    ! are stored only for the root process
-    SUBROUTINE get_1d_float_global_sum_root(n,lsum,gsum)
+    ! Get the sum across all processes for a 1 dimensional float array. By default and/or if
+    ! root=TRUE, the result is stored only for the root process (0 for others). If
+    ! root=FALSE, the result is scattered for all processes.
+    !
+    SUBROUTINE get_1d_float_global_sum(n,lsum,gsum,root)
       INTEGER, INTENT(in) :: n
       REAL, INTENT(in) :: lsum(n)
       REAL, INTENT(out) :: gsum(n)
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      LOGICAL :: lroot                
       INTEGER :: ierr
+      lroot=.TRUE.
+      IF (PRESENT(root)) THEN
+         lroot = root 
+      END IF                  
       gsum = 0.
-      CALL MPI_REDUCE(lsum,gsum,n,MY_REAL,MPI_SUM,      &
-                      mpiroot,MPI_COMM_WORLD,ierr)
-    END SUBROUTINE get_1d_float_global_sum_root    
+      IF (lroot) THEN
+         CALL MPI_REDUCE(lsum,gsum,n,MY_REAL,MPI_SUM,      &
+                         mpiroot,MPI_COMM_WORLD,ierr)
+      ELSE
+         CALL MPI_ALLREDUCE(lsum,gsum,n,MY_REAL,MPI_SUM, &
+                            MPI_COMM_WORLD,ierr)                  
+      END IF
+    END SUBROUTINE get_1d_float_global_sum
     ! -------------------------------------------------
     ! Same for integer
-    SUBROUTINE get_1d_integer_global_sum_root(n,lsum,gsum)
+    SUBROUTINE get_1d_integer_global_sum(n,lsum,gsum,root)
       INTEGER, INTENT(in) :: n
       INTEGER, INTENT(in) :: lsum(n)
       INTEGER, INTENT(out) :: gsum(n)
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      LOGICAL :: lroot             
       INTEGER :: ierr
+      lroot=.TRUE.
+      IF (PRESENT(root)) THEN
+         lroot = root 
+      END IF            
       gsum = 0
-      CALL MPI_REDUCE(lsum,gsum,n,MPI_INTEGER,MPI_SUM,       &
-                      mpiroot,MPI_COMM_WORLD,ierr)
-    END SUBROUTINE get_1d_integer_global_sum_root
+      IF (lroot) THEN
+         CALL MPI_REDUCE(lsum,gsum,n,MPI_INTEGER,MPI_SUM,       &
+                         mpiroot,MPI_COMM_WORLD,ierr)
+      ELSE
+         CALL MPI_ALLREDUCE(lsum,gsum,n,MPI_INTEGER,MPI_SUM, &
+                            MPI_COMM_WORLD,ierr)               
+      END IF
+    END SUBROUTINE get_1d_integer_global_sum
     !
     !-----------------------------------------------------------------------------
     ! SUBROUTINE get_2d_global_sum_root(lsum,gsum)
-    ! Get the sum aross all processes for a 2 dimensional float array. The values
-    ! are stored only for the root process
-    SUBROUTINE get_2d_float_global_sum_root(n1,n2,lsum,gsum)
+    ! Get the sum aross all processes for a 2 dimensional float array. By default and/or if
+    ! root=TRUE, the result is stored only for the root process (0 for others). If
+    ! root=FALSE, the result is scattered for all processes.
+    !
+    SUBROUTINE get_2d_float_global_sum(n1,n2,lsum,gsum,root)
       INTEGER, INTENT(in) :: n1,n2
       REAL, INTENT(in) :: lsum(n1,n2)
       REAL, INTENT(out) :: gsum(n1,n2)
       REAL :: lbuff(n1*n2),gbuff(n1*n2)
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      LOGICAL :: lroot    
       INTEGER :: ierr
+      lroot=.TRUE.
+      IF (PRESENT(root)) THEN
+         lroot = root 
+      END IF           
       gsum = 0.; lbuff = 0.; gbuff = 0.
       lbuff = RESHAPE(lsum,[n1*n2])
-      CALL MPI_REDUCE(lbuff,gbuff,n1*n2,MY_REAL,MPI_SUM,    &
-                      mpiroot,MPI_COMM_WORLD,ierr)
+      IF (lroot) THEN
+         CALL MPI_REDUCE(lbuff,gbuff,n1*n2,MY_REAL,MPI_SUM,    &
+                         mpiroot,MPI_COMM_WORLD,ierr)
+      ELSE
+         CALL MPI_ALLREDUCE(lbuff,gbuff,n1*n2,MY_REAL,MPI_SUM, &
+                            MPI_COMM_WORLD,ierr)          
+      END IF
       gsum = RESHAPE(gbuff,[n1,n2])
-    END SUBROUTINE get_2d_float_global_sum_root
+    END SUBROUTINE get_2d_float_global_sum
         
    !
    !---------------------------------------------------------------------------
-   ! get maximum across processors
+   ! get maximum across processors; these are deprecated!
    !
    SUBROUTINE double_scalar_par_max(xxl,xxg)
 
       REAL(kind=8), INTENT(out) :: xxg
       REAL(kind=8), INTENT(in)  :: xxl
       INTEGER :: mpiop,ierror
-
 
       CALL mpi_allreduce(xxl,xxg,1,MPI_DOUBLE_PRECISION, MPI_MAX, &
                          MPI_COMM_WORLD, ierror)
@@ -777,7 +883,6 @@ CONTAINS
       REAL(kind=8), INTENT(in)  :: xxl
       INTEGER :: mpiop,ierror
 
-
       CALL mpi_allreduce(xxl,xxg,1,MPI_DOUBLE_PRECISION, MPI_SUM, &
                          MPI_COMM_WORLD, ierror)
 
@@ -790,26 +895,25 @@ CONTAINS
       REAL(kind=8), INTENT(in)  :: xxl(n)
       INTEGER :: mpiop,ierror
 
-
       CALL mpi_allreduce(xxl,xxg,n,MPI_DOUBLE_PRECISION, MPI_SUM, &
                          MPI_COMM_WORLD, ierror)
 
    END SUBROUTINE double_array_par_sum
 
  ! Juha added: Broadcast real arrays and stuff (Need interface to cover everything!)
- SUBROUTINE broadcastRealArray1d(NNdims,rootid,sendbuff)
+ SUBROUTINE broadcastFloatArray1d(NNdims,rootid,sendbuff)
    IMPLICIT NONE
    
-   INTEGER, INTENT(in) :: NNdims(1)
+   INTEGER, INTENT(in) :: NNdims(1)  ! Does this need to be an array?
    INTEGER, INTENT(in) :: rootid
    REAL, INTENT(inout) :: sendbuff(NNdims(1))
    INTEGER :: ierror
 
-   CALL MPI_BCAST(sendbuff,NNdims(1),MPI_DOUBLE_PRECISION,rootid,MPI_COMM_WORLD,ierror)
+   CALL MPI_BCAST(sendbuff,NNdims(1),MY_REAL,rootid,MPI_COMM_WORLD,ierror)
 
- END SUBROUTINE broadcastRealArray1d
+ END SUBROUTINE broadcastFloatArray1d
  
- SUBROUTINE broadcastRealArray3d(NNdims,rootid,sendbuff)
+ SUBROUTINE broadcastFloatArray3d(NNdims,rootid,sendbuff)
    IMPLICIT NONE
 
    INTEGER, INTENT(in) :: NNdims(3)
@@ -830,13 +934,12 @@ CONTAINS
       buff1d = 0.
    END IF
 
-   CALL MPI_BCAST(buff1d,NNtot,MPI_DOUBLE_PRECISION,rootid,MPI_COMM_WORLD,ierror)
+   CALL MPI_BCAST(buff1d,NNtot,MY_REAL,rootid,MPI_COMM_WORLD,ierror)
   
    sendbuff = RESHAPE(buff1d,NNdims)
    DEALLOCATE(buff1d)
 
-
- END SUBROUTINE broadcastRealArray3d
+ END SUBROUTINE broadcastFloatArray3d
 
  SUBROUTINE broadcastInteger(sendbuff,rootid)
    IMPLICIT NONE
@@ -847,10 +950,18 @@ CONTAINS
 
    CALL MPI_BCAST(sendbuff,1,MPI_INTEGER,rootid,MPI_COMM_WORLD,ierror)
 
-
  END SUBROUTINE broadcastInteger
 
+ SUBROUTINE broadcastFloat(sendbuff,rootid)
+   IMPLICIT NONE
 
+   REAL, INTENT(inout) :: sendbuff
+   REAL, INTENT(in) :: rootid
+   INTEGER :: ierror
+
+   CALL MPI_BCAST(sendbuff,1,MY_REAL,rootid,MPI_COMM_WORLD,ierror)
+   
+ END SUBROUTINE broadcastFloat
 
 
 END MODULE mpi_interface

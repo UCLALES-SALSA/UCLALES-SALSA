@@ -50,7 +50,8 @@ MODULE mo_ts_state
                                 tspr_rwp,                               &  
                                 ts_ctop,ts_cbase,ts_cfrac,              &  
                                 ts_sfcrrate,tspr_sfcrrate,                &  
-                                ts_SSmax, ts_SSimax
+                                ts_SSmax, ts_SSimax,                    &
+                                tsic_CDNC
 
   ! Piggybacking slave microphysics diagnostics
   TYPE(FloatArray0d), TARGET :: ts_pb_sfcrrate, tspr_pb_sfcrrate
@@ -239,6 +240,14 @@ MODULE mo_ts_state
       CALL TS%newField(ts_SSmax%shortName, "Maximum supersaturation", "1", "time",  &
                        ANY(outputlist == ts_SSmax%shortName), pipeline)
 
+      IF (level >= 4) THEN
+         tsic_CDNC = FloatArray0d("ic_CDNC",srcname="CDNC")
+         tsic_CDNC%onDemand => tsInLiqMean
+         pipeline => tsic_CDNC
+         CALL TS%newField(tsic_CDNC%shortName, "in-cloud mean CDNC", "# kg-1", "time",  &
+                          ANY(outputlist == tsic_CDNC%shortName), pipeline)
+      END IF
+      
       IF (level == 5) THEN
          ts_SSimax = FloatArray0d("SSimax",srcname="rhi")
          ts_SSimax%onDemand => tsMax

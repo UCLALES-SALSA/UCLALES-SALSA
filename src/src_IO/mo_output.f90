@@ -221,14 +221,14 @@ MODULE mo_output
       REAL, INTENT(in) :: time
       INTEGER :: ibeg0(1)
 
-      ibeg0 = [StreamTS%nrec]
+      ibeg0 = [StreamPS%nrec]
 
       IF ( .NOT. outPS%Initialized ) RETURN
       
       ! write time
-      IF (myid == mpiroot) &         
+      IF (myid == mpiroot) &
            CALL StreamPS%write_nc('time',time,ibeg0)
-
+         
       IF (StreamPS%nrec == 1) &
            ! First entry -> write axis variables
            CALL write_output(outAxesPS,StreamPS)

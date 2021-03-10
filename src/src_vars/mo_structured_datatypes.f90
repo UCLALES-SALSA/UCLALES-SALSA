@@ -32,7 +32,7 @@ MODULE mo_structured_datatypes
    ! ------------------------------------------
    
    TYPE, EXTENDS(FloatArray) :: FloatArray0d
-      REAL, POINTER :: d => NULL()
+      REAL, POINTER :: d => NULL() ! Generic access point to the data
       LOGICAL :: Initialized = .FALSE.
       PROCEDURE(sproc0d), POINTER :: onDemand => NULL() ! Procedure pointer to a subroutine
                                                         ! for calculating parameters on-demand.
@@ -44,7 +44,7 @@ MODULE mo_structured_datatypes
    ! ------------------------------------------
    
    TYPE, EXTENDS(FloatArray) :: FloatArray1d
-      REAL, POINTER :: d(:) => NULL() ! This is used as the generic access name for the data
+      REAL, POINTER :: d(:) => NULL() ! Generic access point to the data
       LOGICAL :: Initialized = .FALSE.
       PROCEDURE(sproc1d), POINTER :: onDemand => NULL() ! Procedure pointer to a subroutine
                                                         ! for calculating parameters on-demand.      
@@ -54,15 +54,17 @@ MODULE mo_structured_datatypes
    END INTERFACE FloatArray1d
 
    ABSTRACT INTERFACE 
-      SUBROUTINE sproc0d(SELF,output)
+      SUBROUTINE sproc0d(SELF,output,root)
         IMPORT FloatArray0d
-        CLASS(FloatArray0d), INTENT(in) :: SELF
-        REAL, INTENT(out) :: output
+        CLASS(FloatArray0d), INTENT(in) :: SELF   ! Variable instance
+        REAL, INTENT(out) :: output               ! Output array in REAL
+        LOGICAL, INTENT(in), OPTIONAL :: root     ! If the result is defined only for root process (root=True, default)
       END SUBROUTINE sproc0d
-      SUBROUTINE sproc1d(SELF,output)
+      SUBROUTINE sproc1d(SELF,output,root)
         IMPORT FloatArray1d
-        CLASS(FloatArray1d), INTENT(in) :: SELF
-        REAL, INTENT(out) :: output(:)
+        CLASS(FloatArray1d), INTENT(in) :: SELF   ! Variable instance
+        REAL, INTENT(out) :: output(:)            ! Output array in REAL
+        LOGICAL, INTENT(in), OPTIONAL :: root     ! If the result is defined only for root process (root=True, default)
       END SUBROUTINE sproc1d
    END INTERFACE
 

@@ -25,39 +25,42 @@ MODULE mo_ts_procedures
     ! To use this procedure, the srcName must be defined in the
     ! FloatArray instance!
     !
-    SUBROUTINE tsMin(SELF,output)
+    SUBROUTINE tsMin(SELF,output,root)
       CLASS(FloatArray0d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output
+      LOGICAL, INTENT(in), OPTIONAL :: root
       CHARACTER(len=50) :: dim
       CALL stats_getDim(SELF%srcName,dim)   ! Determine the dimensions of source variable
       SELECT CASE(dim)
       CASE ('tttt','mttt','tmtt','ttmt')
-         CALL ts3dMin(SELF%srcName,output)
+         CALL ts3dMin(SELF%srcName,output,root=root)
       CASE ('xtytt')
-         CALL ts2dMin(SELF%srcName,output)
+         CALL ts2dMin(SELF%srcName,output,root=root)
       END SELECT
     END SUBROUTINE tsMin
     ! -------------------------------------------
-    SUBROUTINE ts3dMin(iname,output)
+    SUBROUTINE ts3dMin(iname,output,root)
       USE util, ONLY : get_gmin
       CHARACTER(len=*), INTENT(in) :: iname  ! Name of the variable to be processed
-      REAL, INTENT(out) :: output            ! The result min value          
+      REAL, INTENT(out) :: output            ! The result min value
+      LOGICAL, INTENT(in), OPTIONAL :: root  ! True/default: result given only for root process
       REAL :: fvar(nzp,nxp,nyp)              ! Values of the variable to be processed
       fvar = 0.
       output = 0.      
       CALL stats_get(iname,fvar)      
-      CALL get_gmin(nzp,nxp,nyp,fvar,output)       
+      CALL get_gmin(nzp,nxp,nyp,fvar,output,root=root)       
     END SUBROUTINE ts3dMin
     ! -------------------------------------------
-    SUBROUTINE ts2dMin(iname,output)
+    SUBROUTINE ts2dMin(iname,output,root)
       USE util, ONLY : get_gmin
       CHARACTER(len=*), INTENT(in) :: iname  ! Name of the variable to be processed
       REAL, INTENT(out) :: output            ! the result min value
+      LOGICAL, INTENT(in), OPTIONAL :: root  ! True/default: result given only for root process
       REAL :: fvar(nxp,nyp)                  ! Values of the variable to be processed
       fvar = 0.
       output = 0.      
       CALL stats_get(iname,fvar)      
-      CALL get_gmin(nxp,nyp,fvar,output)       
+      CALL get_gmin(nxp,nyp,fvar,output,root=root)       
     END SUBROUTINE ts2dMin
     
     !
@@ -67,39 +70,42 @@ MODULE mo_ts_procedures
     ! To use this procedure, the srcName must be defined in the
     ! FloatArray instance!
     !
-    SUBROUTINE tsMax(SELF,output)
+    SUBROUTINE tsMax(SELF,output,root)
       CLASS(FloatArray0d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output
+      LOGICAL, INTENT(in), OPTIONAL :: root
       CHARACTER(len=50) :: dim
       CALL stats_getDim(SELF%srcName,dim)   ! Determine the dimensions of the source variable
       SELECT CASE(dim)
       CASE ('tttt','mttt','tmtt','ttmt')
-         CALL ts3dMax(SELF%srcName,output)
+         CALL ts3dMax(SELF%srcName,output,root=root)
       CASE ('xtytt')
-         CALL ts2dMax(SELF%srcName,output)
+         CALL ts2dMax(SELF%srcName,output,root=root)
       END SELECT
     END SUBROUTINE tsMax
     ! -------------------------------------------
-    SUBROUTINE ts3dMax(iname,output)
+    SUBROUTINE ts3dMax(iname,output,root)
       USE util, ONLY : get_gmax
       CHARACTER(len=*), INTENT(in) :: iname    ! Name of the variable to be processed
       REAL, INTENT(out) :: output              ! The result max value
+      LOGICAL, INTENT(in), OPTIONAL :: root    ! True/default: result given only for root process
       REAL :: fvar(nzp,nxp,nyp)                ! Values of the variable to be processed
       fvar = 0.
       output = 0.      
       CALL stats_get(iname,fvar)      
-      CALL get_gmax(nzp,nxp,nyp,fvar,output)       
+      CALL get_gmax(nzp,nxp,nyp,fvar,output,root=root)       
     END SUBROUTINE ts3dMax
     ! -------------------------------------------
-    SUBROUTINE ts2dMax(iname,output)
+    SUBROUTINE ts2dMax(iname,output,root)
       USE util, ONLY : get_gmax
       CHARACTER(len=*), INTENT(in) :: iname    ! Name of the variable to be processed
       REAL, INTENT(out) :: output              ! The result max value
+      LOGICAL, INTENT(in), OPTIONAL :: root    ! True/default: result given only for root process
       REAL :: fvar(nxp,nyp)                    ! Values of the variable to be processed
       fvar = 0.
       output = 0.      
       CALL stats_get(iname,fvar)      
-      CALL get_gmax(nxp,nyp,fvar,output)       
+      CALL get_gmax(nxp,nyp,fvar,output,root=root)       
     END SUBROUTINE ts2dMax
 
     !
@@ -110,39 +116,42 @@ MODULE mo_ts_procedures
     ! To use this procedure, the srcName must be defined in the
     ! FloatArray instance!
     !
-    SUBROUTINE tsSfcMean(SELF,output)
+    SUBROUTINE tsSfcMean(SELF,output,root)
       CLASS(FloatArray0d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output
+      LOGICAL, INTENT(in), OPTIONAL :: root
       CHARACTER(len=50) :: dim
       CALL stats_getDim(SELF%srcName,dim)      ! Determine the dimensions of the source variable
       SELECT CASE(dim)
       CASE ('tttt','mttt','tmtt','ttmt')
-         CALL ts3dSfcMean(SELF%srcName,output)
+         CALL ts3dSfcMean(SELF%srcName,output,root)
       CASE ('xtytt')
-         CALL ts2dSfcMean(SELF%srcName,output)
+         CALL ts2dSfcMean(SELF%srcName,output,root)
       END SELECT
     END SUBROUTINE
     ! --------------
-    SUBROUTINE ts3dSfcMean(iname,output)
-      USE util, ONLY : get_avg2dh
+    SUBROUTINE ts3dSfcMean(iname,output,root)
+      USE util, ONLY : get_gavg2
       CHARACTER(len=*), INTENT(in) :: iname     ! Name of the variable to be processed
       REAL, INTENT(out) :: output               ! The result mean value
+      LOGICAL, INTENT(in), OPTIONAL :: root     ! True/default: result given only for root process
       REAL :: fvar(nzp,nxp,nyp)                 ! Values of the variable to be processed
       fvar = 0.
       output = 0.      
       CALL stats_get(iname,fvar)      
-      output = get_avg2dh(nxp,nyp,fvar(2,:,:))      
+      CALL get_gavg2(nxp,nyp,fvar(2,:,:),output,root=root)      
     END SUBROUTINE ts3dSfcMean
     ! ---------------
-    SUBROUTINE ts2dSfcMean(iname,output)
-      USE util, ONLY : get_avg2dh
+    SUBROUTINE ts2dSfcMean(iname,output,root)
+      USE util, ONLY : get_gavg2
       CHARACTER(len=*), INTENT(in) :: iname     ! Name of the variable to be processed
       REAL, INTENT(out) :: output               ! The result mean value
+      LOGICAL, INTENT(in), OPTIONAL :: root     ! True/default: result given only for root process
       REAL :: fvar(nxp,nyp)                     ! Values of the variable to be processed
       fvar = 0.
       output = 0.      
       CALL stats_get(iname,fvar)      
-      output = get_avg2dh(nxp,nyp,fvar(:,:))      
+      CALL get_gavg2(nxp,nyp,fvar(:,:),output,root=root)      
     END SUBROUTINE ts2dSfcMean
 
     !
@@ -152,13 +161,14 @@ MODULE mo_ts_procedures
     ! If the source variable is 2d in x-y plane, it is assumed to
     ! be a surface variable or e.g. LWP.
     ! 
-    SUBROUTINE tsInCloudMean(SELF,output)
+    SUBROUTINE tsInCloudMean(SELF,output,root)
       USE mo_diag_state, ONLY : a_rc, a_ri, a_riri
       CLASS(FloatArray0d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output
+      LOGICAL, INTENT(in), OPTIONAL :: root
       LOGICAL :: cond(nzp,nxp,nyp)
       cond = ( a_rc%d > TH_rc .OR. a_ri%d+a_riri%d > TH_ri )
-      CALL ts3dCondMean(SELF%srcName,cond,output)
+      CALL ts3dCondMean(SELF%srcName,cond,output,root)
     END SUBROUTINE tsInCloudMean
     !
     ! -----------------------------------------------
@@ -167,11 +177,12 @@ MODULE mo_ts_procedures
     ! cloud volume. If the source variable is 2d in x-y plane,
     ! it is assumed to be a surface variable or e.g. LWP.
     !
-    SUBROUTINE tsInLiqMean(SELF,output)
+    SUBROUTINE tsInLiqMean(SELF,output,root)
       USE mo_diag_state, ONLY : a_rc, a_dn
       USE mo_derived_state, ONLY : lwp
       CLASS(FloatArray0d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output
+      LOGICAL, INTENT(in), OPTIONAL :: root
       LOGICAL :: cond(nzp,nxp,nyp)
       REAL :: zlwp(nxp,nyp)
       CHARACTER(len=50) :: dim
@@ -180,11 +191,11 @@ MODULE mo_ts_procedures
       SELECT CASE(dim)
       CASE('tttt','mttt','tmtt','ttmt')      
          cond = ( a_rc%d > TH_rc )
-         CALL ts3dCondMean(SELF%srcName,cond,output)
+         CALL ts3dCondMean(SELF%srcName,cond,output,root)
       CASE('xtytt')
          CALL lwp%onDemand('lwp',zlwp)
          cond(2,:,:) = ( zlwp > TH_rc*a_dn%d(2,:,:)*MAXVAL(1./dzt%d) )
-         CALL ts2dCondMean(SELF%srcName,cond(2,:,:),output)
+         CALL ts2dCondMean(SELF%srcName,cond(2,:,:),output,root)
       END SELECT         
     END SUBROUTINE tsInLiqMean
     !
@@ -194,11 +205,12 @@ MODULE mo_ts_procedures
     ! cloud volume. If the source variable is 2d in x-y plane,
     ! it is assumed to be a surface variable or e.g. LWP.
     !
-    SUBROUTINE tsInIceMean(SELF,output)
+    SUBROUTINE tsInIceMean(SELF,output,root)
       USE mo_diag_state, ONLY : a_ri,a_riri, a_dn
       USE mo_derived_state, ONLY : iwp
       CLASS(FloatArray0d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output
+      LOGICAL, INTENT(in), OPTIONAL :: root
       LOGICAL :: cond(nzp,nxp,nyp)
       REAL :: ziwp(nxp,nyp)
       CHARACTER(len=50) :: dim
@@ -207,11 +219,11 @@ MODULE mo_ts_procedures
       SELECT CASE(dim)
       CASE('tttt','mttt','tmtt','ttmt')
          cond = ( a_ri%d+a_riri%d > TH_ri   )
-         CALL ts3dCondMean(SELF%srcName,cond,output)
+         CALL ts3dCondMean(SELF%srcName,cond,output,root)
       CASE('xtytt')
          CALL iwp%onDemand('iwp',ziwp)
          cond(2,:,:) = (ziwp > TH_rc*a_dn%d(2,:,:)*MAXVAL(1./dzt%d))
-         CALL ts2dCondMean(SELF%srcName,cond(2,:,:),output)
+         CALL ts2dCondMean(SELF%srcName,cond(2,:,:),output,root)
       END SELECT
     END SUBROUTINE tsInIceMean
     !
@@ -222,10 +234,11 @@ MODULE mo_ts_procedures
     ! is 2d in x-y plane, it is assumed to be a surface
     ! variable or e.g. RWP
     !
-    SUBROUTINE tsInPrecipMean(SELF,output)
+    SUBROUTINE tsInPrecipMean(SELF,output,root)
       USE mo_diag_state, ONLY : a_rrate
       CLASS(FloatArray0d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output
+      LOGICAL, INTENT(in), OPTIONAL :: root
       LOGICAL :: cond(nzp,nxp,nyp)
       CHARACTER(len=50) :: dim
       cond(:,:,:) = .FALSE.
@@ -233,34 +246,36 @@ MODULE mo_ts_procedures
       CALL stats_getDim(SELF%srcName,dim)
       SELECT CASE(dim)
       CASE('tttt','mttt','tmtt','ttmt')
-         CALL ts3dCondMean(SELF%srcName,cond,output)
+         CALL ts3dCondMean(SELF%srcName,cond,output,root)
       CASE('xtytt')
-         CALL ts2dCondMean(SELF%srcName,cond(2,:,:),output)
+         CALL ts2dCondMean(SELF%srcName,cond(2,:,:),output,root)
       END SELECT      
     END SUBROUTINE tsInPrecipMean    
     ! ----------------
-    SUBROUTINE ts2dCondMean(iname,cond,output)
-      USE util, ONLY : get_avg2_root
+    SUBROUTINE ts2dCondMean(iname,cond,output,root)
+      USE util, ONLY : get_gavg2
       CHARACTER(len=*), INTENT(in) :: iname     ! Name of the variable to be processed
       LOGICAL, INTENT(in) :: cond(nxp,nyp)      ! Logical mask for conditional averaging
       REAL, INTENT(out) :: output               ! The result mean value
+      LOGICAL, INTENT(in), OPTIONAL :: root     ! True/default: result given only for root process
       REAL :: fvar(nxp,nyp)                     ! Values of the variable to be processed
       fvar = 0.
       output = 0.
       CALL stats_get(iname,fvar)
-      CALL get_avg2_root(nxp,nyp,fvar,output,cond)
+      CALL get_gavg2(nxp,nyp,fvar,output,cond=cond,root=root)
     END SUBROUTINE ts2dCondMean
     ! ---------------
-    SUBROUTINE ts3dCondMean(iname,cond,output)
-      USE util, ONLY : get_avg4_root
+    SUBROUTINE ts3dCondMean(iname,cond,output,root)
+      USE util, ONLY : get_gavg4
       CHARACTER(len=*), INTENT(in) :: iname     ! Name of the variable to be processed
       LOGICAL, INTENT(in) :: cond(nzp,nxp,nyp)  ! Logical mask for conditional averaging
-      REAL, INTENT(out) :: output            ! the result mean value
+      REAL, INTENT(out) :: output               ! the result mean value
+      LOGICAL, INTENT(in), OPTIONAL :: root     ! True/default: result given only for root process
       REAL :: fvar(nzp,nxp,nyp)                 ! Values of the variable to be processed
       fvar = 0.
       output = 0.
       CALL stats_get(iname,fvar)
-      CALL get_avg4_root(nzp,nxp,nyp,fvar,output,dzt%d,cond)
+      CALL get_gavg4(nzp,nxp,nyp,fvar,output,dzt%d,cond=cond,root=root)
     END SUBROUTINE ts3dCondMean
 
     !
@@ -268,11 +283,12 @@ MODULE mo_ts_procedures
     ! SUBROUTINE tsCloudBoundaries
     ! Determines the cloud base and top heights.
     !
-    SUBROUTINE tsCloudBoundaries(SELF,output)
-      USE util, ONLY : get_avg3_root
+    SUBROUTINE tsCloudBoundaries(SELF,output,root)
+      USE util, ONLY : get_gavg3
       USE mo_diag_state, ONLY : a_rc, a_ri, a_riri
       CLASS(FloatArray0d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output
+      LOGICAL, INTENT(in), OPTIONAL :: root
       LOGICAL :: liqmask(nzp,nxp,nyp), icemask(nzp,nxp,nyp)
       LOGICAL :: profmask(nzp)
       REAL :: liqprof(nzp), iceprof(nzp)
@@ -282,13 +298,13 @@ MODULE mo_ts_procedures
       liqmask = .FALSE.; icemask = .FALSE.; profmask = .FALSE.
       
       liqmask = ( a_rc%d > TH_rc )
-      CALL get_avg3_root(nzp,nxp,nyp,a_rc%d,liqprof,liqmask) ! Avg in-cloud cloud condensate
+      CALL get_gavg3(nzp,nxp,nyp,a_rc%d,liqprof,cond=liqmask,root=root) ! Avg in-cloud cloud condensate
 
       IF (level < 5) THEN
          profmask = ( liqprof > TH_rc )
       ELSE
          icemask = ( a_ri%d + a_riri%d > TH_ri )      
-         CALL get_avg3_root(nzp,nxp,nyp,a_ri%d+a_riri%d,iceprof,icemask) ! Avg in-cloud cloud condensate
+         CALL get_gavg3(nzp,nxp,nyp,a_ri%d+a_riri%d,iceprof,cond=icemask,root=root) ! Avg in-cloud cloud condensate
          profmask = ( liqprof > TH_rc .OR. iceprof > TH_ri )
       END IF
 
@@ -318,11 +334,12 @@ MODULE mo_ts_procedures
     ! SUBROUTINE tsCloudFraction:
     ! Get the domain mean total cloud fraction.
     !
-    SUBROUTINE tsCloudFraction(SELF,output)
-      USE util, ONLY : get_avg2_root
+    SUBROUTINE tsCloudFraction(SELF,output,root)
+      USE util, ONLY : get_gavg2
       USE mo_diag_state, ONLY : a_rc,a_ri,a_riri
       CLASS(FloatArray0d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output
+      LOGICAL, INTENT(in), OPTIONAL :: root
       LOGICAL :: cldmask(nzp,nxp,nyp)
       REAL :: lateral(nxp,nyp)
       output = 0.
@@ -331,7 +348,7 @@ MODULE mo_ts_procedures
       cldmask =( a_rc%d > TH_rc )
       IF (level == 5) cldmask = ( cldmask .OR. a_ri%d + a_riri%d > TH_ri )     
       lateral(:,:) = MERGE(1.,0., ANY(cldmask, DIM=1) )      
-      CALL get_avg2_root(nxp,nyp,lateral,output)      
+      CALL get_gavg2(nxp,nyp,lateral,output,root=root)      
     END SUBROUTINE tsCloudFraction
 
     !SUBROUTINE tsSurface(SELF,name,output)
@@ -347,11 +364,12 @@ MODULE mo_ts_procedures
     ! Calculates the total mass of everything except air in the domain
     ! THIS ONLY WORK NOW FOR LEVEL >= 4
     !
-    SUBROUTINE tsTotalMass(SELF,output)
+    SUBROUTINE tsTotalMass(SELF,output,root)
       USE mo_progn_state, ONLY : a_maerop, a_mcloudp, a_mprecpp, a_micep, a_rp
       USE mo_diag_state, ONLY : a_dn
       CLASS(FloatArray0d), INTENT(in) :: SELF
       REAL, INTENT(out) :: output
+      LOGICAL, INTENT(in), OPTIONAL :: root ! Just a dummy...though this routine currently works only for local process
       REAL :: box(nzp)
       INTEGER :: i,j,k
 

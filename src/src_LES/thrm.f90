@@ -215,11 +215,13 @@ CONTAINS
     TYPE(FloatArray3d), INTENT (in)  :: pp, tl, rt
     TYPE(FloatArray1d), INTENT (in)  :: pi0, pi1
     REAL, INTENT (in)                :: th00
-    TYPE(FloatArray3d), INTENT (out) :: rc,rv,rs,th,tk,p
+    TYPE(FloatArray3d), INTENT (inout) :: rc,rv,rs,th,tk,p
 
     INTEGER :: k, i, j, iterate
     REAL    :: exner,til,x1,xx,yy,zz
 
+    rc%d = 0.; rv%d = 0.; rs%d = 0.; th%d = 0.; tk%d = 0.; p%d = 0.
+    
     DO j = 3, n3-2
        DO i = 3, n2-2
           DO k = 1, n1
@@ -275,6 +277,8 @@ CONTAINS
     REAL    :: exner, tli, tx, txi, rsx, rcx, rpc, tx1, dtx
     REAL, PARAMETER :: epsln = 1.e-4
 
+    rc%d = 0.; rv%d = 0.; rs%d = 0.; th%d = 0.; tk%d = 0.; p%d=0. 
+    
     DO j = 3, n3-2
        DO i = 3, n2-2
           DO k = 1, n1

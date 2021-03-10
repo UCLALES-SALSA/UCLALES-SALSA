@@ -24,7 +24,7 @@ MODULE mcrp
   !                  is given here in global scope, there is no need to provide them as inputs! 
   USE defs, ONLY : alvl,alvi,rowt,pi,Rm,cp,kb,g,vonk   ! These should be in module scope since used wherever
   USE mo_aux_state, ONLY : dzt                         ! Same for this
-  USE grid, ONLY : dtlt,nxp,nyp,nzp,CCN,lpbncmaster    ! Should be in module scope AND therefore no need to provide them as inputs!
+  USE grid, ONLY : dtlt,nxp,nyp,nzp,CCN,pbncsrc    ! Should be in module scope AND therefore no need to provide them as inputs!
 
   USE mo_submctl, ONLY : spec       ! Theres some silly overlaps with this that I did not yet resolve.
  
@@ -33,7 +33,10 @@ MODULE mcrp
   USE mo_structured_datatypes
   IMPLICIT NONE
    
-  LOGICAL :: khairoutdinov = .FALSE.
+  INTEGER :: bulkScheme = 1   ! Select bulk microphysics parameterizations:
+                              ! 1: Seifert and Beheng
+                              ! 2: Khairoutdinov and Kogan 2000 (mean radius formulation for autoconv)
+                              ! 3: Khairoutdinol and Kogan 2000 (rc nc exponential formulation)
    
   TYPE(ProcessSwitch) :: sed_aero,  &
                          sed_cloud, &
@@ -128,6 +131,7 @@ MODULE mcrp
                                 pb_rsl, pb_rrate,      &
                                 pb_sfcrrate
       USE mo_derived_state, ONLY : CDNC
+      USE mo_ts_state, ONLY : tsic_CDNC
       TYPE(FloatArray1d), INTENT(in) :: dn0
       REAL :: strg(nzp,nxp,nyp,2)  ! dummy storage array
       REAL :: pbcdnc(nzp,nxp,nyp)
@@ -147,16 +151,27 @@ MODULE mcrp
 
       ! Diagnose cdnc from SALSA
       pbcdnc = 0.
-      IF (lpbncmaster) &
-           CALL CDNC%onDemand("CDNC",pbcdnc)
-      
+      SELECT CASE(pbncsrc)
+      CASE(1)
+         ! Use master CDNC gridpoint by gridpoint
+         CALL CDNC%onDemand("CDNC",pbcdnc)
+      CASE(2)
+         ! Use the domain mean of the master CDNC.
+         ! For this, modify the parameter CCN.
+         ! (note that CCN is also used in radiation, but only for levels 1-3,
+         ! so this should not have any side effects)
+         CALL tsic_CDNC%onDemand(CCN,root=.FALSE.)
+      END SELECT
+         
       ! A regular call to level 3 microphysics, except now using the pb-variables and neglecting
       ! the contributions to total water mix rat and temperature tendencies.
-      IF (lpbncmaster) THEN
+      IF (pbncsrc == 1) THEN
+         ! Use the master CDNC grid-point by grid-point
          CALL mcrph(dn0,pb_theta,pb_temp,pb_rv,pb_rsl,pb_rc,pb_rpp,    &      
                     pb_npp,pb_rrate,pb_sfcrrate,rttdummy,tltdummy,     &
                     pb_rpt,pb_npt,pbcdnc)
       ELSE
+         ! Use constant CCN or the mean of master CDNC (assigned to the variable CCN)
          CALL mcrph(dn0,pb_theta,pb_temp,pb_rv,pb_rsl,pb_rc,pb_rpp,    &      
                     pb_npp,pb_rrate,pb_sfcrrate,rttdummy,tltdummy,     &
                     pb_rpt,pb_npt)         
@@ -202,9 +217,17 @@ MODULE mcrp
       CALL wtr_dff_SB(dn0,rp,np,rc,rs,rv,tk,rpt,npt)
       
       IF (bulk_autoc%state) THEN
-         CALL auto_SB(dn0,rc,rp,rpt,npt,pcdnc)
-         
-         CALL accr_SB(dn0,rc,rp,np,rpt,npt)
+         SELECT CASE(bulkScheme)
+            CASE(1)
+               CALL auto_SB(dn0,rc,rp,rpt,npt,pcdnc)
+               CALL accr_SB(dn0,rc,rp,np,rpt,npt)
+            CASE(2)
+               CALL auto_KK_1(rc,rpt,npt,pcdnc)
+               CALL accr_KK(dn0,rc,rp,np,rpt,npt)
+            CASE(3)
+               CALL auto_KK_2(rc,rpt,npt,pcdnc)
+               CALL accr_KK(dn0,rc,rp,np,rpt,npt)
+            END SELECT
       END IF
       
       DO j = 3, nyp-2
@@ -267,7 +290,7 @@ MODULE mcrp
                      npt%d(k,i,j) = npt%d(k,i,j) + cenpt
                   END IF
                END IF
-               rl%d(k,i,j) = max(0.,rl%d(k,i,j) - rp%d(k,i,j))
+               rl%d(k,i,j) = max(0.,rl%d(k,i,j) - rp%d(k,i,j))  ! What 
             END DO
          END DO
       END DO
@@ -328,13 +351,6 @@ MODULE mcrp
                      phi = k_1 * tau**k_2 * (1.0 - tau**k_2)**3
                      au  = au * (1.0 + phi/(1.0 - tau)**2)
                   END IF
-                  !
-                  ! Khairoutdinov and Kogan
-                  !
-                  IF (khairoutdinov) THEN
-                     Dc = ( Xc / prw )**(1./3.)
-                     au = Cau * (Dc * mmt / 2.)**Eau
-                  END IF
 
                   rpt%d(k,i,j) = rpt%d(k,i,j) + au
                   npt%d(k,i,j) = npt%d(k,i,j) + au/X_bnd                  
@@ -349,6 +365,107 @@ MODULE mcrp
       END DO
       
     END SUBROUTINE auto_SB
+
+    !
+    !---------------------------------
+    !auto_KK_1: The Khairoutdinov and Kogan (2000) autoconversion
+    !           parameterization (the volume mean radius formulation).
+    !
+    SUBROUTINE auto_KK_1(rc,rpt,npt,pcdnc)
+      USE mo_diag_state, ONLY : b_m_autoc, b_n_autoc  ! for rate diagnostics
+
+      TYPE(FloatArray3d), INTENT(in)    :: rc
+      TYPE(FloatArray3d), INTENT(inout) :: rpt, npt
+      REAL, INTENT(in), OPTIONAL        :: pcdnc(nzp,nxp,nyp) ! For piggybacking runs, thus optional.
+                                                             ! Diagnosed locally from SALSA, so datatype
+                                                             ! is a simple REAL array
+
+      REAL, PARAMETER :: Cau = 4.1e-15 ! autoconv. coefficient in KK param.
+      REAL, PARAMETER :: Eau = 5.67    ! autoconv. exponent in KK param.
+      REAL, PARAMETER :: mmt = 1.e+6   ! transformation from m to \mu m
+
+      INTEGER :: i, j, k
+      REAL    :: Xc, Dc, au
+      
+      b_m_autoc%d = 0.
+      b_n_autoc%d = 0.
+      
+      DO j = 3, nyp-2
+         DO i = 3, nxp-2
+            DO k = 2, nzp-1
+               IF (PRESENT(pcdnc)) THEN
+                  Xc = rc%d(k,i,j)/(pcdnc(k,i,j)+eps0)
+               ELSE
+                  Xc = rc%d(k,i,j)/(CCN+eps0)
+               END IF
+               IF (Xc > 0.) THEN
+                  Dc = ( Xc / prw )**(1./3.)
+                  au = Cau * (Dc * mmt / 2.)**Eau
+                  !
+                  rpt%d(k,i,j) = rpt%d(k,i,j) + au
+                  npt%d(k,i,j) = npt%d(k,i,j) + au/X_bnd                  
+                  !
+                  ! rate diagnostics
+                  b_m_autoc%d(k,i,j) = au
+                  b_n_autoc%d(k,i,j) = au/X_bnd
+
+               END IF
+            END DO
+         END DO
+      END DO
+      
+    END SUBROUTINE auto_KK_1
+    !
+    !---------------------------------
+    !auto_KK_2: The Khairoutdinov and Kogan (2000) autoconversion
+    !           parameterization (the rc nc formulation).
+    !
+    SUBROUTINE auto_KK_2(rc,rpt,npt,pcdnc)
+      USE mo_diag_state, ONLY : b_m_autoc, b_n_autoc  ! for rate diagnostics
+
+      TYPE(FloatArray3d), INTENT(in)    :: rc
+      TYPE(FloatArray3d), INTENT(inout) :: rpt, npt
+      REAL, INTENT(in), OPTIONAL        :: pcdnc(nzp,nxp,nyp) ! For piggybacking runs, thus optional.
+                                                             ! Diagnosed locally from SALSA, so datatype
+                                                             ! is a simple REAL array
+
+      REAL, PARAMETER :: Cau = 1350. ! autoconv. coefficient in KK param.
+      REAL, PARAMETER :: E1 = 2.47    ! autoconv. exponent in KK param.
+      REAL, PARAMETER :: E2 = -1.79   ! autoconv. exponent in KK param
+      REAL, PARAMETER :: pcm = 1.e-6
+
+      INTEGER :: i, j, k
+      REAL    :: nc, Dc, au
+      
+      b_m_autoc%d = 0.
+      b_n_autoc%d = 0.
+      
+      DO j = 3, nyp-2
+         DO i = 3, nxp-2
+            DO k = 2, nzp-1
+               IF (PRESENT(pcdnc)) THEN
+                  nc = pcdnc(k,i,j)
+               ELSE
+                  nc = CCN
+               END IF
+              
+               IF (nc > 0. .AND. rc%d(k,i,j) > 1.e-6) THEN
+                  au = Cau * (rc%d(k,i,j)**E1) * ((nc*pcm)**E2) 
+                  !
+                  rpt%d(k,i,j) = rpt%d(k,i,j) + au
+                  npt%d(k,i,j) = npt%d(k,i,j) + au/X_bnd                  
+                  !
+                  ! rate diagnostics
+                  b_m_autoc%d(k,i,j) = au
+                  b_n_autoc%d(k,i,j) = au/X_bnd
+
+               END IF
+            END DO
+         END DO
+      END DO
+      
+    END SUBROUTINE auto_KK_2
+    
     !
     ! ---------------------------------------------------------------------
     ! ACCR_SB calculates the evolution of mass mxng-ratio due to accretion
@@ -381,12 +498,6 @@ MODULE mcrp
                   phi = (tau/(tau+k_1))**4
                   ac  = k_r * rc%d(k,i,j) * rp%d(k,i,j) * phi * sqrt(rho_0*dn0%d(k))
 
-                  !
-                  ! Khairoutdinov and Kogan
-                  !
-                  IF (khairoutdinov) &
-                       ac = Cac * (rc%d(k,i,j) * rp%d(k,i,j))**Eac 
-                  !
                   rpt%d(k,i,j) = rpt%d(k,i,j) + ac
                   !
                   ! Rate diagnostic
@@ -400,6 +511,47 @@ MODULE mcrp
       END DO
       
     END SUBROUTINE accr_SB
+    
+    !----------------------------------------------------------------------
+    ! ACCR_KK: accretion rate according to Khairoutdinov and Kogan (2000)
+    !
+    SUBROUTINE accr_KK(dn0,rc,rp,np,rpt,npt)
+      USE mo_diag_state, ONLY : b_m_accr
+      TYPE(FloatArray3d), INTENT(in)    :: rc, rp, np
+      TYPE(FloatArray1d), INTENT(in)    :: dn0
+      TYPE(FloatArray3d), INTENT(inout) :: rpt, npt
+
+      REAL, PARAMETER :: k_r = 5.78
+      REAL, PARAMETER :: k_1 = 5.e-4
+      REAL, PARAMETER :: Cac = 67.     ! accretion coefficient in KK param.
+      REAL, PARAMETER :: Eac = 1.15    ! accretion exponent in KK param.
+
+      INTEGER :: i, j, k
+      REAL    :: tau, phi, ac, sc
+
+      b_m_accr%d = 0.
+      
+      DO j = 3, nyp-2
+         DO i = 3, nxp-2
+            DO k = 2, nzp-1
+               IF (rc%d(k,i,j) > 0. .AND. rp%d(k,i,j) > 0.) THEN
+
+                  ac = Cac * (rc%d(k,i,j) * rp%d(k,i,j))**Eac 
+                  !
+                  rpt%d(k,i,j) = rpt%d(k,i,j) + ac
+                  !
+                  ! Rate diagnostic
+                  b_m_accr%d(k,i,j) = ac
+                  !
+               END IF
+               sc = k_r * np%d(k,i,j) * rp%d(k,i,j) * sqrt(rho_0*dn0%d(k))
+               npt%d(k,i,j) = npt%d(k,i,j) - sc
+            END DO
+         END DO
+      END DO
+      
+    END SUBROUTINE accr_KK
+    
     !
     ! ---------------------------------------------------------------------
     ! SEDIM_RD: calculates the sedimentation of the rain drops and its
@@ -446,15 +598,17 @@ MODULE mcrp
                mu = cmur1*(1.+tanh(cmur2*(Dm-cmur3)))
                Dp = (Dm**3/((mu+3.)*(mu+2.)*(mu+1.)))**(1./3.)
 
-               vn(k) = sqrt(dn0%d(k)/1.2)*(a2 - b2*(1.+c2*Dp)**(-(1.+mu)))
-               vr(k) = sqrt(dn0%d(k)/1.2)*(a2 - b2*(1.+c2*Dp)**(-(4.+mu)))
-               !
-               ! Set fall speeds following Khairoutdinov and Kogan
-
-               IF (khairoutdinov) THEN
+               
+               SELECT CASE(bulkScheme)
+               CASE(1)
+                  ! Seifert and Beheng
+                  vn(k) = sqrt(dn0%d(k)/1.2)*(a2 - b2*(1.+c2*Dp)**(-(1.+mu)))
+                  vr(k) = sqrt(dn0%d(k)/1.2)*(a2 - b2*(1.+c2*Dp)**(-(4.+mu)))
+               CASE(2,3)
+                  !Khairoutdinov and Kogan 2000
                   vn(k) = max(0.,an * Dp + bn)
                   vr(k) = max(0.,aq * Dp + bq)
-               END IF
+               END SELECT
 
             END DO
 

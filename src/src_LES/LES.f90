@@ -103,7 +103,7 @@ CONTAINS
     USE grid, ONLY              : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                                   dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                                   filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
-                                  lpback, lpbncmaster, nfpt, distim, runtype, CCN,sst,W1,W2,W3, &
+                                  lpback, pbncsrc, nfpt, distim, runtype, CCN,sst,W1,W2,W3, &
                                   cntlat, varlist_main, varlist_ps, varlist_ts
     USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                                   zrand, zrndamp, init_type
@@ -116,7 +116,7 @@ CONTAINS
                                   RadConstPress, &
                                   RadPrecipBins
     USE mcrp, ONLY              : sed_aero, sed_cloud, sed_precp, sed_ice, init_mcrp_switches, &
-                                  bulk_autoc, khairoutdinov
+                                  bulk_autoc, bulkScheme
     USE mpi_interface, ONLY     : myid, appl_abort, ver, author
     USE mo_output, ONLY         : ts_intvl, ps_intvl, main_intvl
     USE mo_check_state, ONLY    : breakUndefOutput
@@ -141,11 +141,11 @@ CONTAINS
          iradtyp,                   & ! Radiation type
          isgstyp, csx    , prndtl , & ! SGS model type, parameters
          lnudging, lemission,       & ! master switch for nudging, aerosol emissions
-         lpback, lpbncmaster,       & ! Switch for piggybacking microphysics, switch for fixed or SALSA CDNC with PB
+         lpback, pbncsrc,       & ! Switch for piggybacking microphysics, switch for fixed or SALSA CDNC with PB
          div, case_name, &            ! divergence for LEVEL 4
          sed_aero, sed_cloud, sed_precp, sed_ice,  & ! Sedimentation (T/F)
          bulk_autoc,                & ! autoconversion (and accretion) switch for level < 4 
-         khairoutdinov
+         bulkScheme                   ! 
     
     NAMELIST /initialization/      &
          init_type,                & ! Type of initialization: 1: random perturbations, 2: warm bubble
