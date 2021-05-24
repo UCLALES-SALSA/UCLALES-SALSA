@@ -19,8 +19,8 @@ else
 	mpi_io = 
 endif
 
-SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa_cloud_ice_SE.f90                     \
-	  mo_salsa_secondary_ice.f90 mo_salsa_sizedist.f90 mo_salsa_dynamics.f90 mo_salsa_coagulation_kernels.f90      \
+SRCSF90 = mo_salsa_math.f90 mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa_cloud_ice_SE.f90   \
+	  mo_salsa_secondary_ice.f90 mo_salsa_sizedist.f90 mo_salsa_dynamics.f90 mo_salsa_coagulation_kernels.f90     \
 	  mo_salsa_coagulation_processes.f90 mo_salsa.f90 mo_salsa_driver.f90 mo_salsa_init.f90                       \
 	  mo_salsa_nucleation.f90 mo_salsa_properties.f90 mo_salsa_types.f90 mo_submctl.f90                           \
 	  aerosol_thermodynamics.f90 classSpecies.f90 classSection.f90 classProcessSwitch.f90 classBinLayout.f90      \
@@ -124,7 +124,7 @@ mo_stats_parameters.o:
 constrain_SALSA.o: mo_progn_state.o mo_diag_state.o mo_aux_state.o mo_submctl.o nudg_defs.o \
                    util.o mo_structured_datatypes.o grid.o mo_derived_procedures.o          \
 	           mo_field_state.o
-mo_particle_external_properties.o: mo_submctl.o classSection.o util.o mo_ice_shape.o
+mo_particle_external_properties.o: mo_submctl.o classSection.o mo_ice_shape.o
 mo_ice_shape.o: mo_submctl.o
 
 rfft.o:
@@ -156,14 +156,14 @@ mo_salsa_init.o: mo_salsa_types.o mo_submctl.o mo_salsa_driver.o mo_salsa_optica
 	         mo_salsa_coagulation_kernels.o mo_salsa_coagulation_processes.o classProcessRates.o  \
                  mo_ice_shape.o mo_salsa_cloud_ice_SE.o 
 mo_submctl.o: classSpecies.o classProcessSwitch.o classBinLayout.o
-mo_salsa_cloud.o: mo_salsa_types.o mo_submctl.o classSection.o mo_particle_external_properties.o util.o   
-mo_salsa_cloud_ice.o: mo_submctl.o mo_salsa_types.o mo_particle_external_properties.o util.o   
-mo_salsa_cloud_ice_SE.o: mo_submctl.o mo_salsa_types.o util.o mo_particle_external_properties.o  \
+mo_salsa_cloud.o: mo_salsa_types.o mo_submctl.o classSection.o mo_particle_external_properties.o mo_salsa_math.o   
+mo_salsa_cloud_ice.o: mo_submctl.o mo_salsa_types.o mo_particle_external_properties.o mo_salsa_math.o   
+mo_salsa_cloud_ice_SE.o: mo_submctl.o mo_salsa_types.o mo_salsa_math.o mo_particle_external_properties.o  \
 	                 classSection.o
 mo_salsa_secondary_ice.o: mo_salsa_types.o mo_submctl.o
-mo_salsa_sizedist.o: mo_salsa_driver.o mo_submctl.o 
+mo_salsa_sizedist.o: mo_salsa_types.o mo_submctl.o 
 mo_salsa.o: mo_submctl.o mo_salsa_dynamics.o mo_salsa_update.o \
-	    mo_salsa_cloud.o classSection.o mo_salsa_cloud_ice.o
+	    mo_salsa_cloud.o classSection.o mo_salsa_cloud_ice.o mo_salsa_cloud_ice_SE.o
 mo_salsa_dynamics.o: mo_salsa_types.o mo_submctl.o mo_salsa_nucleation.o \
                      mo_salsa_properties.o aerosol_thermodynamics.o \
                      classSection.o mo_particle_external_properties.o \
@@ -176,6 +176,7 @@ mo_salsa_properties.o: mo_salsa_types.o mo_submctl.o
 mo_salsa_optical_properties.o: classSpecies.o mo_submctl.o
 mo_salsa_update.o: mo_salsa_types.o mo_submctl.o classSection.o
 mo_salsa_types.o: classSection.o classProcessRates.o
+mo_salsa_math.o: mo_submctl.o
 aerosol_thermodynamics.o:
 classSpecies.o:
 classSection.o: mo_submctl.o mo_ice_shape.o

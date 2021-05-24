@@ -8,7 +8,7 @@ MODULE mo_salsa_cloud_ice
        lsicenucl
   USE mo_salsa_types, ONLY : aero, cloud, ice, precp, liquid, frozen, rateDiag
   USE mo_particle_external_properties, ONLY : calcSweq
-  USE util, ONLY : calc_correlation, cumlognorm, closest
+  USE mo_salsa_math, ONLY : cumlognorm
 
   IMPLICIT NONE
 
@@ -95,7 +95,7 @@ MODULE mo_salsa_cloud_ice
              ! Equilibrium saturation ratio
              Sw_eq = calcSweq(liquid(ii,jj,kk),ptemp(ii,jj))
              
-             ! Immersion freezing (not directly from aerosol?)
+             ! Immersion freezing (not directly from aerosol)
              pf_imm = 0.
              IF ( dins > dmin .AND. ice_imm .AND. ANY(phase == [2,3]) ) THEN
                 jf = calc_Jhet(dins,ptemp(ii,jj),Sw_eq)
@@ -118,6 +118,7 @@ MODULE mo_salsa_cloud_ice
                 pf_hom = 1. - EXP( -jf*pi6*(dwet**3 - dins**3)*ptstep )
              END IF
 
+             ! Total fraction of particles nucleating ice
              frac = MAX(0., MIN(0.99,pf_imm+pf_hom+pf_dep-(pf_imm+pf_dep)*pf_hom))
 
              ! Determine the target ice bin

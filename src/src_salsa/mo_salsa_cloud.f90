@@ -5,7 +5,7 @@ MODULE mo_salsa_cloud
                            ica,icb,fca,fcb,            &
                            pi, pi6, grav, rg,          &
                            surfw0, cpa, mair
-    USE util, ONLY : cumlognorm, V2D, D2V
+    USE mo_salsa_math, ONLY : cumlognorm, V2D, D2V
   IMPLICIT NONE
 
 
@@ -511,8 +511,8 @@ CONTAINS
                    Vim1%mid = SUM(aero(ii,jj,ab-1)%volc(1:ndry))/Nim1
                    Dwim1 = SUM(aero(ii,jj,ab-1)%volc(1:nwet))/Nim1
                 ELSE
-                   Vim1%mid = D2V(aero(ii,jj,ab-1)%dmid,pi6)
-                   Dwim1 = D2V(aero(ii,jj,ab-1)%dmid,pi6)
+                   Vim1%mid = D2V(aero(ii,jj,ab-1)%dmid)
+                   Dwim1 = D2V(aero(ii,jj,ab-1)%dmid)
                 END IF
                 Vim1%lo = Vim1%mid*aero(ii,jj,ab-1)%vratiolo
                 Vim1%hi = Vim1%mid*aero(ii,jj,ab-1)%vratiohi
@@ -531,8 +531,8 @@ CONTAINS
                    Vip1%mid = SUM(aero(ii,jj,ab+1)%volc(1:ndry))/Nip1
                    Dwip1 = SUM(aero(ii,jj,ab+1)%volc(1:nwet))/Nip1
                 ELSE
-                   Vip1%mid = D2V(aero(ii,jj,ab+1)%dmid,pi6)
-                   Dwip1 = D2V(aero(ii,jj,ab+1)%dmid,pi6)
+                   Vip1%mid = D2V(aero(ii,jj,ab+1)%dmid)
+                   Dwip1 = D2V(aero(ii,jj,ab+1)%dmid)
                 END IF
                 Vip1%lo = Vip1%mid*aero(ii,jj,ab+1)%vratiolo
                 Vip1%hi = Vip1%mid*aero(ii,jj,ab+1)%vratiohi
@@ -544,8 +544,8 @@ CONTAINS
                           
              ! Make conversion between vol ja diameters
              Dwi = volDp(Dwi)  ! These were saved as volumes
-             Dwim1 = V2D(Dwim1,pi6)
-             Dwip1 = V2D(Dwip1,pi6)
+             Dwim1 = V2D(Dwim1)
+             Dwip1 = V2D(Dwip1)
              Dp = volDp(Vi)
              Dpinsol = volDp(V_insol)
              
@@ -757,9 +757,9 @@ CONTAINS
   FUNCTION volDp(vol) 
     TYPE(lomidhi), INTENT(in) :: vol
     TYPE(lomidhi) :: volDp
-    volDp%lo = V2D(vol%lo,pi6)
-    volDp%mid = V2D(vol%mid,pi6)
-    volDp%hi = V2D(vol%hi,pi6)
+    volDp%lo = V2D(vol%lo)
+    volDp%mid = V2D(vol%mid)
+    volDp%hi = V2D(vol%hi)
   END FUNCTION volDp
   
   ! -----------------------------------

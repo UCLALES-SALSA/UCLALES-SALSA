@@ -392,7 +392,7 @@ MODULE mo_ps_state
       ps_rflx = FloatArray1d("rflx")
       ps_rflx%onDemand => globalMeanProfile
       pipeline => ps_rflx
-      CALL PS%newField(ps_rflx%shortName, "Net LW flux", "W/m2", "ztt",   &
+      CALL PS%newField(ps_rflx%shortName, "Net rad flux", "W/m2", "ztt",   &
                        ANY(outputlist == ps_rflx%shortName), pipeline)
 
       pipeline => NULL()
@@ -403,28 +403,28 @@ MODULE mo_ps_state
                        ANY(outputlist == ps_sflx%shortName), pipeline)
 
       pipeline => NULL()
-      ps_lwup = FloatArray1d("lwup")
+      ps_lwup = FloatArray1d("lwup",srcName="fuir")
       ps_lwup%onDemand => globalMeanProfile
       pipeline => ps_lwup
       CALL PS%newField(ps_lwup%shortName, "Upward LW flux", "W/m2", "ztt",   &
                        ANY(outputlist == ps_lwup%shortName), pipeline)
 
       pipeline => NULL()
-      ps_lwdn = FloatArray1d("lwdn")
+      ps_lwdn = FloatArray1d("lwdn",srcName="fdir")
       ps_lwdn%onDemand => globalMeanProfile
       pipeline => ps_lwdn
       CALL PS%newField(ps_lwdn%shortName, "Downward LW flux", "W/m2", "ztt",   &
                        ANY(outputlist == ps_lwdn%shortName), pipeline)
 
       pipeline => NULL()
-      ps_swup = FloatArray1d("swup")
+      ps_swup = FloatArray1d("swup",srcName="fus")
       ps_swup%onDemand => globalMeanProfile
       pipeline => ps_swup
       CALL PS%newField(ps_swup%shortName, "Upward SW flux", "W/m2", "ztt",   &
                        ANY(outputlist == ps_swup%shortName), pipeline)
 
       pipeline => NULL()
-      ps_swdn = FloatArray1d("swdn")
+      ps_swdn = FloatArray1d("swdn",srcName="fds")
       ps_swdn%onDemand => globalMeanProfile
       pipeline => ps_swdn
       CALL PS%newField(ps_swdn%shortName, "Downward SW flux", "W/m2", "ztt",   &

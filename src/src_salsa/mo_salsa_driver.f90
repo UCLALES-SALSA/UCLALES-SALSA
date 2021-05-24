@@ -47,11 +47,6 @@
 
    ! Variables for coagulation calls in varying temporal intervals
    ! --------------------------------------------------------------
-   ! Logical switches updated for each timestep
-   LOGICAL :: lcoagupdate = .TRUE.  ! Switch for cuagulation updated for each timestep.
-                                    ! If true, calculate new kernels and the coagulation tendencies   
-   REAL    :: coag_intvl = 1.       ! Interval in seconds between timesteps with coagulation update.
-                                    ! The timesteps in between use the stored tendencies. HOW TO DEAL WITH MASS PRESERVATION???
    ! Storage of the coagulation kernels:
    REAL, ALLOCATABLE :: sto_aa(:,:,:,:,:), sto_cc(:,:,:,:,:), sto_pp(:,:,:,:,:), sto_ii(:,:,:,:,:),  &
                         sto_ca(:,:,:,:,:), sto_pa(:,:,:,:,:), sto_ia(:,:,:,:,:),   &
@@ -495,7 +490,7 @@ CONTAINS
      ! All the non-interface parameters used below are found in mo_submctl
      
      DO i = 1,Nmaster
-        IF( lsmaster(i)%switch .AND. time > lsmaster(i)%delay ) lsmaster(i)%state = .TRUE.
+        IF( lsmaster(i)%switch .AND. time >= lsmaster(i)%delay ) lsmaster(i)%state = .TRUE.
      END DO
 
      ! Some other switches

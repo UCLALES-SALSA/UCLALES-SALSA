@@ -916,7 +916,9 @@ CONTAINS
        END DO
 
     END IF
-
+    
+    WRITE(*,*) nsectA
+    
     ! ----------------------------------------------------------
 
     !
@@ -960,6 +962,7 @@ CONTAINS
 
     IF (nreg > 1) THEN
        DO ss = 1,nspec_dry
+          ! The substitution ind(ss) is not necessary since theyre the same numbers
           CALL setAeroMass(spec%ind(ss),pvf2a,pvf2b,pndist,core,spec%rholiq(ss))
        END DO
     END IF
@@ -1011,7 +1014,7 @@ CONTAINS
 
     INTEGER :: ss,ee
     INTEGER :: i,j,k
-
+    
     DO k = 2, nzp ! DONT PUT STUFF INSIDE THE GROUND
        DO j = 1, nyp
           DO i = 1, nxp

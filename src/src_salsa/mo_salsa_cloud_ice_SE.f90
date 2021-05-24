@@ -2,7 +2,7 @@ MODULE mo_salsa_cloud_ice_SE
   USE mo_salsa_types, ONLY : liquid, ice, precp, rateDiag
   USE mo_submctl, ONLY : nliquid, ira,fra, nprc, iia, fia, nice, pi6, ice_hom, ice_dep, ice_imm, spec,  &
                          boltz, pi, planck, rg, avog, lsFreeTheta, initMinTheta,  lsicenucl
-  USE util, ONLY : erfm1, f_gauss
+  USE mo_salsa_math, ONLY : erfm1, f_gauss
   USE mo_particle_external_properties, ONLY : calcSweq
   USE classSection, ONLY : Section
   IMPLICIT NONE

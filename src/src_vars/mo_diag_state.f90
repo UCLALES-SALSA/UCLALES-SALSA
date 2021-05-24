@@ -312,7 +312,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          a_rflx = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_rflx
-         CALL Diag%newField("rflx", "Net longwave flux", "W/m2", "tttt",   &
+         CALL Diag%newField("rflx", "Net rad flux", "W/m2", "tttt",   &
                             ANY(outputlist == "rflx"), pipeline)           
       END IF
 

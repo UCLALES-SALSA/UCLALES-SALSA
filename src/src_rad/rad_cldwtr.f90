@@ -414,7 +414,7 @@ CONTAINS
     USE util, ONLY : getMassIndex,closest
     USE mo_salsa_optical_properties, ONLY : aerRefrIBands_SW, aerRefrIBands_LW,  &
                                             riReSW, riImSW, riReLW, riImLW
-    USE mo_submctl, ONLY : pi6,nlim,spec
+    USE mo_submctl, ONLY : pi,pi6,nlim,spec
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: ib, nbins, nspec
@@ -422,7 +422,6 @@ CONTAINS
     REAL, INTENT(in) :: maerobin(nv,nspec*nbins), naerobin(nv,nbins) 
     REAL, INTENT(in) :: dz(nv)
     REAL, INTENT(out) :: taer(nv), waer(nv), wwaer(nv,4)   ! optical depth, single scattering albedo, phase function
-
 
     REAL :: lambda_r   ! Center wavenumber for current band 1/cm
 
@@ -526,7 +525,7 @@ CONTAINS
           volmean_refrIm = SUM(volc(1:nspec,bb)*refrIm_all(1:nspec))/voltot(bb)
              
           ! size parameter in current bin
-          sizeparam = 1.e2*lambda_r*(((voltot(bb)/naerobin(kk,bb))/pi6)**(1./3.))
+          sizeparam = 1.e2*lambda_r*pi*(((voltot(bb)/naerobin(kk,bb))/pi6)**(1./3.))
         
           ! Corresponding lookup table indices
           i_re = closest(aer_nre,volmean_refrRe)

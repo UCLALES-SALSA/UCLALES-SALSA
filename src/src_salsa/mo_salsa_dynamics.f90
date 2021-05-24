@@ -1000,7 +1000,7 @@ CONTAINS
             zcwcit(1:nice) = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa
             IF (spec%isUsed("rime")) &
                  zcwcit(1:nice) = zcwcit(1:nice) + ice(ii,jj,1:nice)%volc(irim)*spec%rhori/spec%mwa
-            
+
             ! Store original values of pristine and rimed ice to preserve info about composition
             zorgic = 0.; zorgri = 0.
             zorgic = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa

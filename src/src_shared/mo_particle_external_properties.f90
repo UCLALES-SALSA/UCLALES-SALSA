@@ -1,7 +1,6 @@
 MODULE mo_particle_external_properties
   USE mo_submctl, ONLY : pi6, eps, rg, surfw0, grav, spec
   USE classSection, ONLY : Section
-  USE util, ONLY : getBinMassArray
   USE mo_ice_shape, ONLY : getDiameter, t_shape_coeffs
   IMPLICIT NONE
 
@@ -53,7 +52,6 @@ MODULE mo_particle_external_properties
          Ap = shape%gamma*dnsp**shape%sigma
          X = ( 2. * Vb * (rhop - rhoa) * grav * dnsp**2 ) /  &
               ( Ap * rhoa * visc**2 )
-         IF (X < 0.) WRITE(*,*) 'HEP', rhop, rhoa
          terminal_vel = kcVt(shape,dnsp,X,visc,rhoa) 
                   
       END IF
