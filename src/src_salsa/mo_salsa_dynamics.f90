@@ -967,9 +967,7 @@ CONTAINS
                   zkelvin(cc) = exp( 4.*surfw0*spec%mwa / (rg*ptemp(ii,jj)*spec%rhowa*dwet) )
 
                   ! Saturation mole concentration over flat surface
-                  ! Limit the supersaturation to max 1.01 for the mass transfer
-                  ! EXPERIMENTAL
-                  zcwsurfae(cc) = MAX(prs(ii,jj),prv(ii,jj)/1.01)*rhoair/spec%mwa
+                  zcwsurfae(cc) = prs(ii,jj)*rhoair/spec%mwa
 
                   ! Equilibrium saturation ratio
                   zwsatae(cc) = zact*zkelvin(cc)

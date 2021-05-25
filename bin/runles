@@ -219,7 +219,7 @@ cat > NAMELIST <<EOF
    lscoag%mode = 2   ! 1: update kernels every timestep, 2: reduced update freq
    cgintvl = 10.     ! for mode = 2, update interval in seconds
 
-   lscnd%switch = .FALSE.
+   lscnd%switch = .TRUE.
 
    lsauto%switch = .TRUE.
    lsauto%delay = ${Tspinup}
