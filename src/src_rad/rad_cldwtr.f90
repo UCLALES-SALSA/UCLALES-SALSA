@@ -20,7 +20,7 @@
 MODULE cldwtr
 
   USE defs, ONLY : nv, mb,pi
-  USE mpi_interface, only : appl_abort, myid, broadcast
+  USE mpi_interface, only : appl_abort, myid, broadcast, mpiroot
 
   IMPLICIT NONE
   INTEGER, SAVE :: nsizes
@@ -194,30 +194,30 @@ CONTAINS
 
     INTEGER :: Nalpha, Nim, Nre
 
-    IF (myid == 0) THEN
-       CALL init_aerorad_lut(filename, Nalpha, Nim, Nre,        &
+    IF (myid == mpiroot) THEN
+       CALL init_aerorad_lut(filename, Nalpha, Nre, Nim,        &
                              zaer_nre, zaer_nim, zaer_alpha,    &
                              zaer_sigma, zaer_asym, zaer_omega  )
     END IF
 
     !If it's an mpi run, broadcast to all processors
-    CALL broadcast(Nalpha,0)
-    CALL broadcast(Nim,0)
-    CALL broadcast(Nre,0)
-
-    IF (myid /= 0) ALLOCATE(zaer_nre(Nre),               &
+    CALL broadcast(Nalpha,mpiroot)
+    CALL broadcast(Nim,mpiroot)
+    CALL broadcast(Nre,mpiroot)
+    
+    IF (myid /= mpiroot) ALLOCATE(zaer_nre(Nre),               &
                             zaer_nim(Nim),               &
                             zaer_alpha(Nalpha),          &
                             zaer_sigma(Nre,Nim,Nalpha),  &
                             zaer_asym(Nre,Nim,Nalpha),   &
                             zaer_omega(Nre,Nim,Nalpha))
 
-    CALL broadcast((/Nre/),0,zaer_nre)
-    CALL broadcast((/Nim/),0,zaer_nim)
-    CALL broadcast((/Nalpha/),0,zaer_alpha)
-    CALL broadcast((/Nre,Nim,Nalpha/),0,zaer_sigma)
-    CALL broadcast((/Nre,Nim,Nalpha/),0,zaer_asym)
-    CALL broadcast((/Nre,Nim,Nalpha/),0,zaer_omega)
+    CALL broadcast((/Nre/),mpiroot,zaer_nre)
+    CALL broadcast((/Nim/),mpiroot,zaer_nim)
+    CALL broadcast((/Nalpha/),mpiroot,zaer_alpha)
+    CALL broadcast((/Nre,Nim,Nalpha/),mpiroot,zaer_sigma)
+    CALL broadcast((/Nre,Nim,Nalpha/),mpiroot,zaer_asym)
+    CALL broadcast((/Nre,Nim,Nalpha/),mpiroot,zaer_omega)
 
   END SUBROUTINE init_aerorad_lookuptables
 

@@ -928,7 +928,7 @@ CONTAINS
    IF (myid /= rootid) sendbuff = 0.
 
    ALLOCATE(buff1d(NNtot))
-   IF (myid == 0) THEN
+   IF (myid == rootid) THEN
       buff1d = RESHAPE(sendbuff,(/NNtot/))
    ELSE
       buff1d = 0.
