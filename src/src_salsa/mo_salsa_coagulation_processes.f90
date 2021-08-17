@@ -129,7 +129,7 @@ MODULE mo_salsa_coagulation_processes
          ! Particle volume gained from smaller particles in regime a and b
          IF (lscgaa) THEN
             CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in1a,kk-1,zccaa,aero,zplusterm,1)
-            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in2b,index_b-1,zccaa,aero,zplusterm,1)
+            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in2b,index_b,zccaa,aero,zplusterm,1)
          END IF
 
          ! Volume gained from smaller cloud droplet bins
@@ -192,7 +192,7 @@ MODULE mo_salsa_coagulation_processes
          ! Particle volume gained from smaller particles in regime a and b
          IF (lscgaa) THEN
             CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in2b,kk-1,zccaa,aero,zplusterm,1)
-            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in1a,index_a-1,zccaa,aero,zplusterm,1)
+            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in1a,index_a,zccaa,aero,zplusterm,1)
          END IF
 
          ! Volume gained from smaller cloud droplet bins (reverse collection)
@@ -271,7 +271,7 @@ MODULE mo_salsa_coagulation_processes
          IF (lscgcc) THEN
             IF (kk < fca%cur) THEN
                CALL accumulateSink(kbdim,klev,ncld,ncld,kk,kk+1,fca%cur,zcccc,cloud,zminusterm,2)
-               CALL accumulateSink(kbdim,klev,ncld,ncld,kk,index_b+1,fcb%cur,zcccc,cloud,zminusterm,2)
+               CALL accumulateSink(kbdim,klev,ncld,ncld,kk,index_b,fcb%cur,zcccc,cloud,zminusterm,2)
             END IF
 
             IF (lsauto%state .AND. lsauto%mode == 1) THEN
@@ -358,7 +358,7 @@ MODULE mo_salsa_coagulation_processes
          IF (lscgcc) THEN
             IF (kk < fcb%cur) THEN
                CALL accumulateSink(kbdim,klev,ncld,ncld,kk,kk+1,fcb%cur,zcccc,cloud,zminusterm,2)
-               CALL accumulateSink(kbdim,klev,ncld,ncld,kk,index_a+1,fca%cur,zcccc,cloud,zminusterm,2)
+               CALL accumulateSink(kbdim,klev,ncld,ncld,kk,index_a,fca%cur,zcccc,cloud,zminusterm,2)
             END IF
 
             IF (lsauto%state .AND. lsauto%mode == 1) THEN
