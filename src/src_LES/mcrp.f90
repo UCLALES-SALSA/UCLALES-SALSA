@@ -710,9 +710,8 @@ MODULE mcrp
       ! 
       ! calculate the precipitation flux and its effect on r_t and theta_l
       ! 
-            
-      !!$omp parallel
-      !!$omp doDO j = 3, nyp-2
+      
+      DO j = 3, nyp-2
          DO i = 3, nxp-2
             rfl(nzp) = 0.
             DO k = nzp-1, 2, -1
