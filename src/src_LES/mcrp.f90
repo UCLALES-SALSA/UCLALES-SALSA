@@ -710,10 +710,9 @@ MODULE mcrp
       ! 
       ! calculate the precipitation flux and its effect on r_t and theta_l
       ! 
-      
+            
       !!$omp parallel
-      !!$omp do firstprivate(Xc, Dc, rfl, kp1,flxdiv)
-      DO j = 3, nyp-2
+      !!$omp doDO j = 3, nyp-2
          DO i = 3, nxp-2
             rfl(nzp) = 0.
             DO k = nzp-1, 2, -1
