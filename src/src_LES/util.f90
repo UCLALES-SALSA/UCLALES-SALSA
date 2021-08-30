@@ -67,11 +67,12 @@ CONTAINS
   ! Subroutine sclrset: Sets upper and lower boundaries to a constant
   ! gradient via extrapolation, or a zero-gradient condition depending
   ! on the flag, typically used to set boundary conditions for scalars
-  !
-  SUBROUTINE sclrset(type,n1,n2,n3,a,dz)
+  ! 
+  SUBROUTINE sclrset(type,n1,n2,n3,a,Parallel,dz)
     
     USE mpi_interface, ONLY : myid, appl_abort
     
+    LOGICAL, INTENT(in)        :: Parallel
     INTEGER, INTENT(in)        :: n1,n2,n3
     REAL, INTENT(in), OPTIONAL :: dz(n1)
     REAL, INTENT(inout)        :: a(n1,n2,n3)
@@ -101,8 +102,11 @@ CONTAINS
        END DO
     END DO
     
-    CALL cyclics(n1,n2,n3,a,req)
-    CALL cyclicc(n1,n2,n3,a,req)
+    ! cyclic calls couldn't be parallelized with OpenMP
+    IF (.NOT. Parallel) THEN
+       CALL cyclics(n1,n2,n3,a,req)
+       CALL cyclicc(n1,n2,n3,a,req)
+    END IF
     
   END SUBROUTINE sclrset
   !

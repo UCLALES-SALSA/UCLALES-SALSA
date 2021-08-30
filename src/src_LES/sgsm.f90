@@ -50,13 +50,14 @@ CONTAINS
     INTEGER :: nm
 
     nm = n1-1
-
+    
     ALLOCATE(sxy1(n2,n3), sxy2(n2,n3), sxy3(n2,n3), sxz1(n2,nm), sxz2(n2,nm))
     ALLOCATE(sxz3(n2,nm), sxz4(n2,nm), sxz5(n2,nm), sxz6(n2,nm))
     ALLOCATE(szx1(n1,n2), szx2(n1,n2), szx3(n1,n2), szx4(n1,n2), szx5(n1,n2))
     ALLOCATE(sz1(n1),sz2(n1),sz3(n1),sz4(n1),sz5(n1),sz6(n1),sz7(n1),sz8(n1))
-
+    
     initialized = .TRUE.
+    
   END SUBROUTINE
 
   !
@@ -90,12 +91,17 @@ CONTAINS
     USE util, ONLY          : get_avg3
     USE mpi_interface, ONLY : cyclics, cyclicc
     USE thrm, ONLY          : bruvais, fll_tkrs
+    USE omp_lib
 
     INTEGER :: n
-    REAL    :: rx(nzp,nxp,nyp), rxt(nzp,nxp,nyp), a_tmp1(nzp,nxp,nyp), &
+    REAL    :: rx(nzp,nxp,nyp), rxt(nzp,nxp,nyp), a_tmp1(nzp,nxp,nyp),        &
                a_tmp2(nzp,nxp,nyp), a_tmp3(nzp,nxp,nyp), a_tmp4(nzp,nxp,nyp), &
                a_tmp5(nzp,nxp,nyp), a_tmp6(nzp,nxp,nyp)
-
+    
+    REAL  :: sxy11(nxp,nyp), sxy22(nxp,nyp), sxz11(nxp,nzp-1), sxz22(nxp,nzp-1), sxz33(nxp,nzp-1), &
+             sxz44(nxp,nzp-1), sxz55(nxp,nzp-1), sxz66(nxp,nzp-1), szx11(nzp,nxp)
+    REAL  :: sz77(nzp)
+    
     SELECT CASE(level)
        CASE(1,2,3)
           rx = a_rv%d
@@ -110,20 +116,18 @@ CONTAINS
 
 
     IF (.NOT.Initialized) CALL diffuse_init(nzp, nxp, nyp)
-    !
+    ! 
     ! ----------
     ! Calculate Deformation and stability for SGS calculations
-    !
+    ! 
     CALL fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,a_temp,rs=a_rsl)
-
     CALL bruvais(nzp,nxp,nyp,level,a_theta,a_tp,rxt,a_rsl,a_tmp3,dzm,th00)
-
-    !
+    ! 
     ! the a_ut, a_wt, a_ut arrays are first used when the diffusive tendencies
     ! are calculated and applied.  Until then use them as scratch by
     ! associating them with scratch pointers (a-c)
     !
-    CALL deform(nzp,nxp,nyp,dzm,dzt,dxi,dyi,a_up%d,a_vp%d,a_wp%d,a_tmp5,a_tmp6,     &
+    CALL deform(nzp,nxp,nyp,dzm,dzt,dxi,dyi,a_up%d,a_vp%d,a_wp%d,a_tmp5,a_tmp6,     &  !! 003
                 a_tmp4,a_tmp2)
 
     ! ----------
@@ -138,9 +142,10 @@ CONTAINS
        CALL solv_tke(nzp,nxp,nyp,a_tmp3,a_tmp1,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi,  & 
                      dtlt)
     END SELECT
-    !
+
+    ! 
     ! Diffuse momentum
-    !
+    ! 
     !IF (sflg) CALL acc_tend(nzp,nxp,nyp,a_uc,a_vc,a_wc,a_ut,a_vt,a_wt,         &
     !                        sz4,sz5,sz6,1,'sgs')
 
@@ -168,25 +173,39 @@ CONTAINS
     !   CALL acc_tend(nzp,nxp,nyp,a_uc,a_vc,a_wc,a_ut,a_vt,a_wt,sz4,sz5,sz6,    &
     !                 2,'sgs')
     !END IF
-    !
+    ! 
     ! Diffuse scalars
-    !
+    ! 
     !a_tt%d = 0. WHY WAS THIS HERE???
+    
+    sxy11 = sxy1
+    sxy22 = sxy2
+    sxz11 = sxz1
+    sxz22 = sxz2
+    sxz33 = sxz3
+    sxz44 = sxz4
+    sxz55 = sxz5
+    sxz66 = sxz6
+    szx11 = szx1
+    sz77  = sz7
+    
+    !$OMP PARALLEL FIRSTPRIVATE(sxy11,sxy22,a_tmp1,sz77,sxz11,sxz22,sxz33,sxz44,sxz55,sxz66,szx11)
+    !$OMP DO PRIVATE(a_sp,a_st) SCHEDULE(GUIDED)
     DO n = 1, nscl
-       CALL newsclr(n)
-       sxy1 = 0.
-       sxy2 = 0.
-       IF ( associated(a_tp%d,a_sp) ) sxy1 = wt_sfc%d
-       IF ( associated(a_rp%d,a_sp) ) sxy1 = wq_sfc%d
+       CALL newsclr(n, a_sp, a_st)
+       sxy11 = 0.
+       sxy22 = 0.
+       IF ( associated(a_tp%d,a_sp) ) sxy11 = wt_sfc%d
+       IF ( associated(a_rp%d,a_sp) ) sxy11 = wq_sfc%d
 
        WHERE(abs(a_sp) < 1.e-40) a_sp=0. !stop denormal AZ
        !IF (sflg) a_tmp1 = 0.
        IF ( isgstyp <= 1) THEN
-          CALL diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2,   & 
-                        a_sp,a_tmp2,a_st,a_tmp1)
+          CALL diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy11,sxy22,   & 
+                        a_sp,a_tmp2,a_st,a_tmp1,sz77,sxz11,sxz22,sxz33,sxz44,sxz55,sxz66,szx11)
        ELSE IF ( .NOT. associated(a_qp%d,a_sp) ) THEN
-          CALL diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2,   & 
-                        a_sp,a_tmp2,a_st,a_tmp1)
+          CALL diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy11,sxy22,   & 
+                        a_sp,a_tmp2,a_st,a_tmp1,sz77,sxz11,sxz22,sxz33,sxz44,sxz55,sxz66,szx11)
        END IF
        !IF (sflg) THEN
        !   CALL get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
@@ -196,10 +215,15 @@ CONTAINS
        !   IF (associated(a_sp,a_rp))                          &
        !      CALL sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'rt')
        !END IF
+    END DO
+    !$OMP END DO
+    !$OMP END PARALLEL
+    DO n = 1, nscl
+       CALL newsclr(n, a_sp, a_st)
        CALL cyclics(nzp,nxp,nyp,a_st,req)
        CALL cyclicc(nzp,nxp,nyp,a_st,req)
     END DO
-
+    
   END SUBROUTINE diffuse
   !
   ! ---------------------------------------------------------------------
@@ -776,81 +800,88 @@ CONTAINS
     END DO
 
   END SUBROUTINE diff_wpt
-  !
+  ! 
   ! -----------------------------------------------------------------------
   ! Subroutine diffsclr: computes the diffusivity of a scalar using
   ! a tri-diagnonal solver in the vertical
-  !
+  ! 
   SUBROUTINE diffsclr(n1,n2,n3,dtlt,dxi,dyi,dzm,dzt,dn0,sflx,tflx,scp,xkh,sct, &
-                      flx)
+                      flx,sz77,sxz11,sxz22,sxz33,sxz44,sxz55,sxz66,szx11)
 
-    INTEGER, INTENT(in) :: n1,n2,n3
-    REAL, INTENT(in)    :: xkh(n1,n2,n3),scp(n1,n2,n3)
-    REAL, INTENT(in)    :: sflx(n2,n3),tflx(n2,n3)
-    REAL, INTENT(in)    :: dxi,dyi,dtlt
+    INTEGER, INTENT(in)    :: n1,n2,n3
+    REAL, INTENT(inout)    :: sz77(:)
+    REAL, INTENT(inout)    :: sxz11(:,:),sxz22(:,:),sxz33(:,:),sxz44(:,:), &
+                              sxz55(:,:),sxz66(:,:),szx11(:,:)
+    REAL, INTENT(in)       :: xkh(n1,n2,n3),scp(n1,n2,n3)
+    REAL, INTENT(in)       :: sflx(n2,n3),tflx(n2,n3)
+    REAL, INTENT(in)       :: dxi,dyi,dtlt
+    
     TYPE(FloatArray1d), INTENT(in) :: dzm,dzt
     TYPE(FloatArray1d), INTENT(in) :: dn0
-
     REAL, INTENT(out)   :: flx(n1,n2,n3),sct(n1,n2,n3)
-    !
+    
+    INTEGER :: jj,ii,kk,indhh
+    REAL :: dtii
+    
+    ! 
     ! compute vertical diffusion matrix coefficients for scalars,
     ! Coefficients need only be calculated once and can be used repeatedly
     ! for other scalars
-    !
-    dti = 1.0/dtlt
-    DO k = 1, n1
-       sz7(k)   = 0.
+    ! 
+    dtii = 1.0/dtlt
+    DO kk = 1, n1
+       sz77(kk)   = 0.
     END DO
-
-    DO j = 3, n3-2
-       DO i = 2, n2-2
-          DO k = 2, n1-1
-
-             szx1(k,i) = -(scp(k,i+1,j)-scp(k,i,j))*dxi*.25*(xkh(k,i,j)  +     &
-                         xkh(k,i+1,j)+xkh(k-1,i,j)+xkh(k-1,i+1,j))
+    
+    DO jj = 3, n3-2
+       DO ii = 2, n2-2
+          DO kk = 2, n1-1
+             
+             szx11(kk,ii) = -(scp(kk,ii+1,jj)-scp(kk,ii,jj))*dxi*.25*(xkh(kk,ii,jj)  +     &
+                         xkh(kk,ii+1,jj)+xkh(kk-1,ii,jj)+xkh(kk-1,ii+1,jj))
           END DO
        END DO
-       !
+       ! 
        ! Set up Tri-diagonal Matrix
-       !
-       indh = 0
-       DO i = 3, n2-2
-          indh = indh+1
-          DO k = 2, n1-1
-             IF (k < n1-1) sz7(k) = dtlt*dzm%d(k)*xkh(k,i,j)
-             sxz1(indh,k) = -dzt%d(k)*sz7(k-1)
-             sxz2(indh,k) = -dzt%d(k)*sz7(k)
-             sxz3(indh,k) = dn0%d(k)-sxz1(indh,k)-sxz2(indh,k)
-             sxz4(indh,k) = scp(k,i,j)*dn0%d(k)
+       ! 
+       indhh = 0
+       DO ii = 3, n2-2
+          indhh = indhh+1
+          DO kk = 2, n1-1
+             IF (kk < n1-1) sz77(kk) = dtlt*dzm%d(kk)*xkh(kk,ii,jj)
+             sxz11(indhh,kk) = -dzt%d(kk)*sz77(kk-1)
+             sxz22(indhh,kk) = -dzt%d(kk)*sz77(kk)
+             sxz33(indhh,kk) = dn0%d(kk)-sxz11(indhh,kk)-sxz22(indhh,kk)
+             sxz44(indhh,kk) = scp(kk,ii,jj)*dn0%d(kk)
           END DO
-          sxz4(indh,2) = scp(2,i,j)*dn0%d(2)                                     &
-                         + sflx(i,j)*(dn0%d(1)+dn0%d(2))*.5   *dtlt*dzt%d(2)
-          sxz4(indh,n1-1) = scp(n1-1,i,j)*dn0%d(n1-1)                            &
-                            - tflx(i,j)*(dn0%d(n1-1)+dn0%d(n1))*.5   *dtlt*dzt%d(n1-1)
+          sxz44(indhh,2) = scp(2,ii,jj)*dn0%d(2)                                            &
+                         + sflx(ii,jj)*(dn0%d(1)+dn0%d(2))*.5   *dtlt*dzt%d(2)
+          sxz44(indhh,n1-1) = scp(n1-1,ii,jj)*dn0%d(n1-1)                                   &
+                            - tflx(ii,jj)*(dn0%d(n1-1)+dn0%d(n1))*.5   *dtlt*dzt%d(n1-1)
        END DO
-       CALL tridiff(n2,n1-1,indh,sxz1,sxz3,sxz2,sxz4,sxz5,sxz6)
-       !
+       CALL tridiff(n2,n1-1,indhh,sxz11,sxz33,sxz22,sxz44,sxz55,sxz66)
+       ! 
        ! compute scalar tendency in addition to vertical flux
-       !
-       indh = 0
-       DO i = 3, n2-2
-          flx(1,i,j)    = sflx(i,j)*(dn0%d(1)+dn0%d(2))*.5
-          flx(n1-1,i,j) = tflx(i,j)*(dn0%d(n1)+dn0%d(n1-1))*.5
-          flx(n1,i,j)   = 0.
-          indh = indh+1
-          DO k = 2, n1-1
-             sct(k,i,j) = dti*(sxz5(indh,k)-scp(k,i,j))                               &
-                          -((szx1(k,i)-szx1(k,i-1))                                   &
-                          *dxi + (-(scp(k,i,j+1)-scp(k,i,j))*dyi*0.25*(xkh(k,i,j)     &
-                          +xkh(k,i,j+1)+xkh(k-1,i,j)+xkh(k-1,i,j+1))+(scp(k,i,j)      &
-                          -scp(k,i,j-1))*dyi*0.25*(xkh(k,i,j-1)+xkh(k,i,j)            &
-                          +xkh(k-1,i,j-1)+xkh(k-1,i,j)))*dyi) /dn0%d(k)
-             IF (k < n1-1) flx(k,i,j) = -xkh(k,i,j)*(sxz5(indh,k+1)-sxz5(indh,k)) &
-                                      *dzm%d(k)
+       ! 
+       indhh = 0
+       DO ii = 3, n2-2
+          flx(1,ii,jj)    = sflx(ii,jj)*(dn0%d(1)+dn0%d(2))*.5
+          flx(n1-1,ii,jj) = tflx(ii,jj)*(dn0%d(n1)+dn0%d(n1-1))*.5
+          flx(n1,ii,jj)   = 0.
+          indhh = indhh+1
+          DO kk = 2, n1-1
+             sct(kk,ii,jj) = dtii*(sxz55(indhh,kk)-scp(kk,ii,jj))                              &
+                          -((szx11(kk,ii)-szx11(kk,ii-1))                                     &
+                          *dxi + (-(scp(kk,ii,jj+1)-scp(kk,ii,jj))*dyi*0.25*(xkh(kk,ii,jj)  &
+                          +xkh(kk,ii,jj+1)+xkh(kk-1,ii,jj)+xkh(kk-1,ii,jj+1))+(scp(kk,ii,jj) &
+                          -scp(kk,ii,jj-1))*dyi*0.25*(xkh(kk,ii,jj-1)+xkh(kk,ii,jj)         &
+                          +xkh(kk-1,ii,jj-1)+xkh(kk-1,ii,jj)))*dyi) /dn0%d(kk)
+             IF (kk < n1-1) flx(kk,ii,jj) = -xkh(kk,ii,jj)*(sxz55(indhh,kk+1)-sxz55(indhh,kk))  &
+                                      *dzm%d(kk)
           END DO
        END DO
     END DO
-
+    
   END SUBROUTINE diffsclr
   !
   ! ---------------------------------------------------------------------

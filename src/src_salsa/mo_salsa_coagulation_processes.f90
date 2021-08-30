@@ -1,5 +1,5 @@
 MODULE mo_salsa_coagulation_processes
-  USE mo_salsa_types, ONLY : aero, cloud, precp, ice, rateDiag
+  USE mo_salsa_types, ONLY : rateDiag
   USE mo_submctl, ONLY : in1a, fn1a, in2a, fn2a, in2b, fn2b, nbins,  &
                          ica, fca, icb, fcb, ncld,                  &
                          nprc,                                      &
@@ -11,16 +11,21 @@ MODULE mo_salsa_coagulation_processes
                          lscgip, & 
                          lsauto, &
                          spec
-  USE classSection, ONLY : Section
+  USE classSection, ONLY : Section, CoagCoe
   IMPLICIT NONE
 
   CONTAINS
 
-    !
+    ! 
     ! Aerosol coagulation
     ! -----------------------
-    SUBROUTINE coag_aero(kbdim,klev,nspec,ptstep) 
-      USE mo_salsa_types, ONLY : zccaa, zccca, zccpa, zccia
+    SUBROUTINE coag_aero(kbdim,klev,nspec,ptstep,aero,cloud,precp,ice,allCOAGcoe)
+      TYPE(Section), POINTER, INTENT(inout)  :: aero(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: cloud(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: precp(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: ice(:,:,:)
+      TYPE(CoagCoe), INTENT(inout) :: allCOAGcoe(:)
+      
       INTEGER, INTENT(in) :: kbdim,klev,nspec
       REAL, INTENT(in) :: ptstep
 
@@ -30,10 +35,10 @@ MODULE mo_salsa_coagulation_processes
       INTEGER :: index_cld_a, index_cld_b
       INTEGER :: index_a, index_b
 
-      !
+      ! 
       ! Bin regime a 
-      ! -----------------
-      !
+      ! --- --------------
+      ! 
       DO kk = in1a, fn1a
          IF ( ALL(aero(:,:,kk)%numc < aero(:,:,kk)%nlim) ) CYCLE
 
@@ -46,27 +51,29 @@ MODULE mo_salsa_coagulation_processes
 
          ! Collisions with larger aerosols and self collection
          IF (lscgaa) THEN
-            CALL accumulateSink(kbdim,klev,nbins,nbins,kk,kk+1,fn2b,zccaa,aero,zminusterm,1)
-            CALL accumulateSink(kbdim,klev,nbins,nbins,kk,kk,kk,zccaa,aero,zminus_self,1,multp=0.5)
+            CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nbins,kk,kk+1,fn2b,allCOAGcoe(1)%zccaa,aero,zminusterm,1)
+            CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nbins,kk,kk,kk,allCOAGcoe(1)%zccaa,aero,zminus_self,1,multp=0.5)
          end if
 
          ! Collection by larger and equal cloud droplet bins (regime a and b)
          IF (lscgca) THEN
-            CALL accumulateSink(kbdim,klev,nbins,ncld,kk,index_cld_a,fca%cur,zccca,cloud,zminusterm,1)
-            CALL accumulateSink(kbdim,klev,nbins,ncld,kk,index_cld_b,fcb%cur,zccca,cloud,zminusterm,1)
+            CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,ncld,kk,index_cld_a,fca%cur, &
+                                allCOAGcoe(5)%zccca,cloud,zminusterm,1)
+            CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,ncld,kk,index_cld_b,fcb%cur, &
+                               allCOAGcoe(5)%zccca,cloud,zminusterm,1)
          end if
 
          ! Collection by precipitation
          IF (lscgpa) &
-              CALL accumulateSink(kbdim,klev,nbins,nprc,kk,1,nprc,zccpa,precp,zminusterm,1)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nprc,kk,1,nprc,allCOAGcoe(6)%zccpa,precp,zminusterm,1)
 
          ! Collection by ice
          IF (lscgia) &
-              CALL accumulateSink(kbdim,klev,nbins,nice,kk,iia,fia,zccia,ice,zminusterm,1)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nice,kk,iia,fia,allCOAGcoe(7)%zccia,ice,zminusterm,1)
               
          ! Particle volume gained from smaller particles in regime 1a
          IF (lscgaa .AND. kk > in1a) &
-              CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in1a,kk-1,zccaa,aero,zplusterm,1)
+              CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in1a,kk-1,allCOAGcoe(1)%zccaa,aero,zplusterm,1,cloud,precp,ice)
 
          ! Particle volume gained from smaller cloud droplet bins (does not happen with the current configuration,
          ! but the possiblity is included for generity)
@@ -74,9 +81,11 @@ MODULE mo_salsa_coagulation_processes
             index_cld_a = ica%cur + (kk-ica%par) - 1
             index_cld_b = icb%cur + (index_cld_a - ica%cur)
             IF ( index_cld_a >= ica%cur) &
-                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,ica%cur,index_cld_a,zccca,cloud,zplusterm)
+                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,ica%cur,index_cld_a, &
+                                              allCOAGcoe(5)%zccca,cloud,zplusterm)
             IF ( index_cld_b >= icb%cur) &
-                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,icb%cur,index_cld_b,zccca,cloud,zplusterm)
+                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,icb%cur,index_cld_b, &
+                                              allCOAGcoe(5)%zccca,cloud,zplusterm)
          END IF
 
          !-- Volume and number concentrations after coagulation update [fxm]
@@ -84,10 +93,10 @@ MODULE mo_salsa_coagulation_processes
 
       END DO !kk
 
-      !
+      ! 
       ! Bin regime 2a
       ! ---------------------
-      !
+      ! 
       DO kk = in2a,fn2a
          IF ( ALL(aero(:,:,kk)%numc < aero(:,:,kk)%nlim) ) CYCLE
 
@@ -104,32 +113,35 @@ MODULE mo_salsa_coagulation_processes
          IF (lscgaa) THEN
             ! Collision with larger aerosol in regime 2a and larger or equal aerosol in 2b
             IF ( kk < fn2a) THEN
-               CALL accumulateSink(kbdim,klev,nbins,nbins,kk,kk+1,fn2a,zccaa,aero,zminusterm,1)
-               CALL accumulateSink(kbdim,klev,nbins,nbins,kk,index_b,fn2b,zccaa,aero,zminusterm,1)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nbins,kk,kk+1,fn2a,allCOAGcoe(1)%zccaa,aero,zminusterm,1)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nbins,kk,index_b,fn2b,allCOAGcoe(1)%zccaa,aero,zminusterm,1)
             END IF
 
             ! Self collection
-            CALL accumulateSink(kbdim,klev,nbins,nbins,kk,kk,kk,zccaa,aero,zminus_self,1,multp=0.5)
+            CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nbins,kk,kk,kk,allCOAGcoe(1)%zccaa,aero,zminus_self,1,multp=0.5)
          END IF
 
          ! Collection by larger or equal cloud droplet bins
          IF (lscgca) THEN
-              CALL accumulateSink(kbdim,klev,nbins,ncld,kk,index_cld_a,fca%cur,zccca,cloud,zminusterm,1)
-              CALL accumulateSink(kbdim,klev,nbins,ncld,kk,index_cld_b,fcb%cur,zccca,cloud,zminusterm,1)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,ncld,kk,index_cld_a,fca%cur, &
+                                 allCOAGcoe(5)%zccca,cloud,zminusterm,1)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,ncld,kk,index_cld_b,fcb%cur, &
+                                  allCOAGcoe(5)%zccca,cloud,zminusterm,1)
          END IF
 
          ! Collection by precipitation
          IF (lscgpa) &
-              CALL accumulateSink(kbdim,klev,nbins,nprc,kk,1,nprc,zccpa,precp,zminusterm,1)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nprc,kk,1,nprc,allCOAGcoe(6)%zccpa,precp,zminusterm,1)
 
          ! Collection by ice
          IF (lscgia) &
-              CALL accumulateSink(kbdim,klev,nbins,nice,kk,iia,fia,zccia,ice,zminusterm,1)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nice,kk,iia,fia,allCOAGcoe(7)%zccia,ice,zminusterm,1)
 
          ! Particle volume gained from smaller particles in regime a and b
          IF (lscgaa) THEN
-            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in1a,kk-1,zccaa,aero,zplusterm,1)
-            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in2b,index_b-1,zccaa,aero,zplusterm,1)
+            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in1a,kk-1,allCOAGcoe(1)%zccaa,aero,zplusterm,1,cloud,precp,ice)
+            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in2b,index_b-1, &
+                                   allCOAGcoe(1)%zccaa,aero,zplusterm,1,cloud,precp,ice)
          END IF
 
          ! Volume gained from smaller cloud droplet bins
@@ -137,9 +149,11 @@ MODULE mo_salsa_coagulation_processes
             index_cld_a = ica%cur + (kk-ica%par) - 1
             index_cld_b = icb%cur + (index_cld_a - ica%cur)
             IF ( index_cld_a >= ica%cur) &
-                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,ica%cur,index_cld_a,zccca,cloud,zplusterm)
+                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,ica%cur,& 
+                                             index_cld_a,allCOAGcoe(5)%zccca,cloud,zplusterm)
             IF ( index_cld_b >= icb%cur) &
-                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,icb%cur,index_cld_b,zccca,cloud,zplusterm)
+                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,icb%cur, &
+                                              index_cld_b,allCOAGcoe(5)%zccca,cloud,zplusterm)
          END IF
 
          !-- Volume and number concentrations after coagulation update [fxm]
@@ -167,32 +181,35 @@ MODULE mo_salsa_coagulation_processes
          IF (lscgaa) THEN
             ! Collision with larger aerosol in regime 2b and larger or equal in 2a
             IF ( kk < fn2b) THEN
-               CALL accumulateSink(kbdim,klev,nbins,nbins,kk,kk+1,fn2b,zccaa,aero,zminusterm,1)
-               CALL accumulateSink(kbdim,klev,nbins,nbins,kk,index_a,fn2a,zccaa,aero,zminusterm,1)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nbins,kk,kk+1,fn2b,allCOAGcoe(1)%zccaa,aero,zminusterm,1)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nbins,kk,index_a,fn2a,allCOAGcoe(1)%zccaa,aero,zminusterm,1)
             END IF
 
             ! Self collection
-            CALL accumulateSink(kbdim,klev,nbins,nbins,kk,kk,kk,zccaa,aero,zminus_self,1,multp=0.5)
+            CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nbins,kk,kk,kk,allCOAGcoe(1)%zccaa,aero,zminus_self,1,multp=0.5)
          END IF
 
          ! Collection by larger or equal cloud droplet bins
          IF (lscgca) THEN
-              CALL accumulateSink(kbdim,klev,nbins,ncld,kk,index_cld_a,fca%cur,zccca,cloud,zminusterm,1)
-              CALL accumulateSink(kbdim,klev,nbins,ncld,kk,index_cld_b,fcb%cur,zccca,cloud,zminusterm,1)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,ncld,kk,index_cld_a,fca%cur, &
+                                   allCOAGcoe(5)%zccca,cloud,zminusterm,1)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,ncld,kk,index_cld_b,fcb%cur, & 
+                                   allCOAGcoe(5)%zccca,cloud,zminusterm,1)
          END IF
 
          ! Collection by precipitation
          IF (lscgpa) &
-              CALL accumulateSink(kbdim,klev,nbins,nprc,kk,1,nprc,zccpa,precp,zminusterm,1)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nprc,kk,1,nprc,allCOAGcoe(6)%zccpa,precp,zminusterm,1)
 
          ! Collection by ice
          IF (lscgia) &
-              CALL accumulateSink(kbdim,klev,nbins,nice,kk,iia,fia,zccia,ice,zminusterm,1)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,nbins,nice,kk,iia,fia,allCOAGcoe(7)%zccia,ice,zminusterm,1)
               
          ! Particle volume gained from smaller particles in regime a and b
          IF (lscgaa) THEN
-            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in2b,kk-1,zccaa,aero,zplusterm,1)
-            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in1a,index_a-1,zccaa,aero,zplusterm,1)
+            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in2b,kk-1,allCOAGcoe(1)%zccaa,aero,zplusterm,1,cloud,precp,ice)
+            CALL accumulateSource(kbdim,klev,nbins,nbins,nspec,kk,in1a,index_a-1, & 
+                                  allCOAGcoe(1)%zccaa,aero,zplusterm,1,cloud,precp,ice)
          END IF
 
          ! Volume gained from smaller cloud droplet bins (reverse collection)
@@ -200,9 +217,11 @@ MODULE mo_salsa_coagulation_processes
             index_cld_b = icb%cur + (kk-icb%par) - 1
             index_cld_a = ica%cur + (index_cld_b-icb%cur)
             IF ( index_cld_a >= ica%cur) &
-                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,ica%cur,index_cld_a,zccca,cloud,zplusterm)
+                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,ica%cur, & 
+                                              index_cld_a,allCOAGcoe(5)%zccca,cloud,zplusterm)
             IF ( index_cld_b >= icb%cur) &
-                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,icb%cur,index_cld_b,zccca,cloud,zplusterm)
+                 CALL accumulateSourceReverse(kbdim,klev,nbins,ncld,nspec,kk,icb%cur, & 
+                                              index_cld_b,allCOAGcoe(5)%zccca,cloud,zplusterm)
          END IF
 
          !-- Volume and number concentrations after coagulation update [fxm]
@@ -216,8 +235,13 @@ MODULE mo_salsa_coagulation_processes
     ! Cloud droplet coagulation
     ! -----------------------------
     !
-    SUBROUTINE coag_cloud(kbdim,klev,nspec,ptstep)
-      USE mo_salsa_types, ONLY : zcccc, zccca, zccpc, zccic
+    SUBROUTINE coag_cloud(kbdim,klev,nspec,ptstep,aero,cloud,precp,ice,allCOAGcoe)
+      TYPE(Section), POINTER, INTENT(inout)  :: aero(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: cloud(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: precp(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: ice(:,:,:)
+      TYPE(CoagCoe), INTENT(inout) :: allCOAGcoe(:)
+      
       INTEGER, INTENT(in) :: kbdim,klev,nspec
       REAL, INTENT(in) :: ptstep
 
@@ -257,49 +281,53 @@ MODULE mo_salsa_coagulation_processes
 
          ! Corresponding index in the regime b droplets
          index_b = icb%cur + (kk-ica%cur)
-
+         
          ! Collection by larger aerosol bins (reverse collection)
          IF (lscgca .AND. kk < fca%cur) THEN
             ! Corresponding aerosol bin + 1 in a and b
             index_aero_a = ica%par + (kk - ica%cur) + 1
             index_aero_b = icb%par + (kk - ica%cur) + 1
-            CALL accumulateSinkReverse(kbdim,klev,ncld,nbins,kk,index_aero_a,fn2a,zccca,aero,zminusterm)
-            CALL accumulateSinkReverse(kbdim,klev,ncld,nbins,kk,index_aero_b,fn2b,zccca,aero,zminusterm)
+            CALL accumulateSinkReverse(kbdim,klev,ncld,nbins,kk,index_aero_a,fn2a,allCOAGcoe(5)%zccca,aero,zminusterm)
+            CALL accumulateSinkReverse(kbdim,klev,ncld,nbins,kk,index_aero_b,fn2b,allCOAGcoe(5)%zccca,aero,zminusterm)
          END IF
          
          ! Collection by larger droplet bins in a and b, and self collection
          IF (lscgcc) THEN
             IF (kk < fca%cur) THEN
-               CALL accumulateSink(kbdim,klev,ncld,ncld,kk,kk+1,fca%cur,zcccc,cloud,zminusterm,2)
-               CALL accumulateSink(kbdim,klev,ncld,ncld,kk,index_b+1,fcb%cur,zcccc,cloud,zminusterm,2)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,ncld,ncld,kk,kk+1,fca%cur,allCOAGcoe(2)%zcccc,cloud,zminusterm,2)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,ncld,ncld,kk,index_b+1,fcb%cur, &
+                                   allCOAGcoe(2)%zcccc,cloud,zminusterm,2)
             END IF
 
             IF (lsauto%state .AND. lsauto%mode == 1) THEN
-               fix_coag = (max(1. - ptstep*(0.5*zcccc(1,1,kk,kk)*cloud(1,1,kk)%numc**2 / &
+               fix_coag = (max(1. - ptstep*(0.5*allCOAGcoe(2)%zcccc(1,1,kk,kk)*cloud(1,1,kk)%numc**2 / &
                     (cloud(1,1,kk)%numc)),0.1))
                ! This handles also self collection at the same time
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,kk,kk,fix_coag,zcccc,              &
-                                              zplusterm,zminus_self,zvolsink_slf,zvol_prc,znum_prc )
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,kk,kk,fix_coag,allCOAGcoe(2)%zcccc,        &
+                                              zplusterm,zminus_self,zvolsink_slf,zvol_prc,znum_prc,cloud )
             ELSE
-               CALL accumulateSink(kbdim,klev,ncld,ncld,kk,kk,kk,zcccc,cloud,zminus_self,2,multp=0.5)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,ncld,ncld,kk,kk,kk, & 
+                                   allCOAGcoe(2)%zcccc,cloud,zminus_self,2,multp=0.5)
             END IF
          END IF
          
          ! Collection by precipitation
          IF (lscgpc) &
-              CALL accumulateSink(kbdim,klev,ncld,nprc,kk,1,nprc,zccpc,precp,zminusterm,2)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,ncld,nprc,kk,1,nprc,allCOAGcoe(8)%zccpc,precp,zminusterm,2)
          
          ! Collection by ice
          IF (lscgic) &
-              CALL accumulateSink(kbdim,klev,ncld,nice,kk,iia,fia,zccic,ice,zminusterm,2)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,ncld,nice,kk,iia,fia,allCOAGcoe(9)%zccic,ice,zminusterm,2)
 
          ! Volume gained from smaller and equal aerosol bins
          IF (lscgca) THEN
             ! Corresponding aerosol bins in a and b
             index_aero_a = ica%par + (kk - ica%cur)
             index_aero_b = icb%par + (kk - ica%cur)
-            CALL accumulateSource(kbdim,klev,ncld,nbins,nspec,kk,in1a,index_aero_a,zccca,aero,zplusterm,2)
-            CALL accumulateSource(kbdim,klev,ncld,nbins,nspec,kk,in2b,index_aero_b,zccca,aero,zplusterm,2)
+            CALL accumulateSource(kbdim,klev,ncld,nbins,nspec,kk,in1a,index_aero_a, &
+                                  allCOAGcoe(5)%zccca,aero,zplusterm,2,cloud,precp,ice)
+            CALL accumulateSource(kbdim,klev,ncld,nbins,nspec,kk,in2b,index_aero_b, & 
+                                  allCOAGcoe(5)%zccca,aero,zplusterm,2,cloud,precp,ice)
          END IF
 
          ! Volume gained from smaller cloud droplets (smaller or equal for b)
@@ -307,16 +335,18 @@ MODULE mo_salsa_coagulation_processes
 
             IF ( lsauto%state .AND. lsauto%mode == 1) THEN
                fix_coag =    &
-                    max(1. - ptstep*sum(zcccc(1,1,kk,ica%cur:fca%cur)*cloud(1,1,ica%cur:fca%cur)%numc), 0.1)
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,kk-1,fix_coag,zcccc,    &
-                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
+                    max(1. - ptstep*sum(allCOAGcoe(2)%zcccc(1,1,kk,ica%cur:fca%cur)*cloud(1,1,ica%cur:fca%cur)%numc), 0.1)
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,kk-1,fix_coag,allCOAGcoe(2)%zcccc,    &
+                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc,cloud  )
                fix_coag =   &
-                    max(1. - ptstep*sum(zcccc(1,1,kk,icb%cur:fcb%cur)*cloud(1,1,icb%cur:fcb%cur)%numc), 0.1)
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,index_b,fix_coag,zcccc, &
-                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
+                    max(1. - ptstep*sum(allCOAGcoe(2)%zcccc(1,1,kk,icb%cur:fcb%cur)*cloud(1,1,icb%cur:fcb%cur)%numc), 0.1)
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,index_b,fix_coag,allCOAGcoe(2)%zcccc, &
+                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc,cloud  )
             ELSE
-               CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,kk-1,zcccc,cloud,zplusterm,2)
-               CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,index_b,zcccc,cloud,zplusterm,2)
+               CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,kk-1, & 
+                                    allCOAGcoe(2)%zcccc,cloud,zplusterm,2,cloud,precp,ice)
+               CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,index_b, &
+                                     allCOAGcoe(2)%zcccc,cloud,zplusterm,2,cloud,precp,ice)
             END IF
 
          END IF
@@ -325,7 +355,7 @@ MODULE mo_salsa_coagulation_processes
          CALL applyCoag(kbdim,klev,ncld,nspec,kk,ptstep,cloud,zplusterm,zminusterm,zminus_self)
 
          IF (lsauto%state .AND. lsauto%mode == 1) &
-              CALL applyCoagPrecipFormation(kbdim,klev,nspec,kk,ptstep,zvolsink_slf,zvol_prc,znum_prc)
+              CALL applyCoagPrecipFormation(kbdim,klev,nspec,kk,ptstep,zvolsink_slf,zvol_prc,znum_prc,cloud,precp)
 
       END DO
       
@@ -350,42 +380,46 @@ MODULE mo_salsa_coagulation_processes
             ! Corresponding aerosol bin + 1 in a and b
             index_aero_a = ica%par + (kk - icb%cur) + 1
             index_aero_b = icb%par + (kk - icb%cur) + 1
-            CALL accumulateSinkReverse(kbdim,klev,ncld,nbins,kk,index_aero_a,fn2a,zccca,aero,zminusterm)
-            CALL accumulateSinkReverse(kbdim,klev,ncld,nbins,kk,index_aero_b,fn2b,zccca,aero,zminusterm)
+            CALL accumulateSinkReverse(kbdim,klev,ncld,nbins,kk,index_aero_a,fn2a,allCOAGcoe(5)%zccca,aero,zminusterm)
+            CALL accumulateSinkReverse(kbdim,klev,ncld,nbins,kk,index_aero_b,fn2b,allCOAGcoe(5)%zccca,aero,zminusterm)
          END IF
          
          ! Collection by larger droplet bins in a and b, and self collection
          IF (lscgcc) THEN
             IF (kk < fcb%cur) THEN
-               CALL accumulateSink(kbdim,klev,ncld,ncld,kk,kk+1,fcb%cur,zcccc,cloud,zminusterm,2)
-               CALL accumulateSink(kbdim,klev,ncld,ncld,kk,index_a+1,fca%cur,zcccc,cloud,zminusterm,2)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,ncld,ncld,kk,kk+1,fcb%cur,allCOAGcoe(2)%zcccc,cloud,zminusterm,2)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,ncld,ncld,kk,index_a+1,fca%cur, &
+                                   allCOAGcoe(2)%zcccc,cloud,zminusterm,2)
             END IF
 
             IF (lsauto%state .AND. lsauto%mode == 1) THEN
-               fix_coag = (max(1. - ptstep*(0.5*zcccc(1,1,kk,kk)*cloud(1,1,kk)%numc**2 / &
+               fix_coag = (max(1. - ptstep*(0.5*allCOAGcoe(2)%zcccc(1,1,kk,kk)*cloud(1,1,kk)%numc**2 / &
                     (cloud(1,1,kk)%numc)),0.1))
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,kk,kk,fix_coag,zcccc,  &
-                                              zplusterm,zminus_self,zvolsink_slf,zvol_prc,znum_prc )
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,kk,kk,fix_coag,allCOAGcoe(2)%zcccc,  &
+                                              zplusterm,zminus_self,zvolsink_slf,zvol_prc,znum_prc,cloud )
             ELSE
-               CALL accumulateSink(kbdim,klev,ncld,ncld,kk,kk,kk,zcccc,cloud,zminus_self,2,multp=0.5)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,ncld,ncld,kk,kk,kk, & 
+                                   allCOAGcoe(2)%zcccc,cloud,zminus_self,2,multp=0.5)
             END IF
          END IF
          
          ! Collection by precipitation
          IF (lscgpc) &
-              CALL accumulateSink(kbdim,klev,ncld,nprc,kk,1,nprc,zccpc,precp,zminusterm,2)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,ncld,nprc,kk,1,nprc,allCOAGcoe(8)%zccpc,precp,zminusterm,2)
          
          ! Collection by ice
          IF (lscgic) &
-              CALL accumulateSink(kbdim,klev,ncld,nice,kk,iia,fia,zccic,ice,zminusterm,2)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,ncld,nice,kk,iia,fia,allCOAGcoe(9)%zccic,ice,zminusterm,2)
 
          ! Volume gained from smaller and equal aerosol bins
          IF (lscgca) THEN
             ! Corresponding aerosol bins in a and b
             index_aero_a = ica%par + (kk - icb%cur)
             index_aero_b = icb%par + (kk - icb%cur)
-            CALL accumulateSource(kbdim,klev,ncld,nbins,nspec,kk,in1a,index_aero_a,zccca,aero,zplusterm,2)
-            CALL accumulateSource(kbdim,klev,ncld,nbins,nspec,kk,in2b,index_aero_b,zccca,aero,zplusterm,2)
+            CALL accumulateSource(kbdim,klev,ncld,nbins,nspec,kk,in1a,index_aero_a, &
+                                  allCOAGcoe(5)%zccca,aero,zplusterm,2,cloud,precp,ice)
+            CALL accumulateSource(kbdim,klev,ncld,nbins,nspec,kk,in2b,index_aero_b, &
+                                  allCOAGcoe(5)%zccca,aero,zplusterm,2,cloud,precp,ice)
          END IF
 
          ! Volume gained from smaller cloud droplets (smaller or equal for b)
@@ -393,16 +427,18 @@ MODULE mo_salsa_coagulation_processes
 
             IF ( lsauto%state .AND. lsauto%mode == 1) THEN
                fix_coag =    &
-                    max(1. - ptstep*sum(zcccc(1,1,kk,icb%cur:fcb%cur)*cloud(1,1,icb%cur:fcb%cur)%numc), 0.1)
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,kk-1,fix_coag,zcccc,    &
-                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
+                    max(1. - ptstep*sum(allCOAGcoe(2)%zcccc(1,1,kk,icb%cur:fcb%cur)*cloud(1,1,icb%cur:fcb%cur)%numc), 0.1)
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,kk-1,fix_coag,allCOAGcoe(2)%zcccc,    &
+                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc,cloud  )
                fix_coag =    &
-                    max(1. - ptstep*sum(zcccc(1,1,kk,ica%cur:fca%cur)*cloud(1,1,ica%cur:fca%cur)%numc), 0.1)
-               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,index_a,fix_coag,zcccc, &
-                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
+                    max(1. - ptstep*sum(allCOAGcoe(2)%zcccc(1,1,kk,ica%cur:fca%cur)*cloud(1,1,ica%cur:fca%cur)%numc), 0.1)
+               CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,index_a,fix_coag,allCOAGcoe(2)%zcccc, &
+                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc,cloud  )
             ELSE
-               CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,kk-1,zcccc,cloud,zplusterm,2)
-               CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,index_a,zcccc,cloud,zplusterm,2)
+               CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,kk-1, &
+                                     allCOAGcoe(2)%zcccc,cloud,zplusterm,2,cloud,precp,ice)
+               CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,index_a, &
+                                     allCOAGcoe(2)%zcccc,cloud,zplusterm,2,cloud,precp,ice)
             END IF
 
          END IF
@@ -411,18 +447,23 @@ MODULE mo_salsa_coagulation_processes
          CALL applyCoag(kbdim,klev,ncld,nspec,kk,ptstep,cloud,zplusterm,zminusterm,zminus_self)
 
          IF (lsauto%state .AND. lsauto%mode == 1) &
-              CALL applyCoagPrecipFormation(kbdim,klev,nspec,kk,ptstep,zvolsink_slf,zvol_prc,znum_prc)
+              CALL applyCoagPrecipFormation(kbdim,klev,nspec,kk,ptstep,zvolsink_slf,zvol_prc,znum_prc,cloud,precp)
 
       END DO
 
     END SUBROUTINE coag_cloud
 
-    !
+    ! 
     ! Precipitation coagulation
     ! --------------------------
-    !
-    SUBROUTINE coag_precp(kbdim,klev,nspec,ptstep) 
-      USE mo_salsa_types, ONLY: zccpp, zccpa, zccpc, zccip
+    ! 
+    SUBROUTINE coag_precp(kbdim,klev,nspec,ptstep,aero,cloud,precp,ice,allCOAGcoe)
+      TYPE(Section), POINTER, INTENT(inout)  :: aero(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: cloud(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: precp(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: ice(:,:,:)
+      TYPE(CoagCoe), INTENT(inout) :: allCOAGcoe(:)
+      
       INTEGER, INTENT(in) :: kbdim,klev,nspec
       REAL, INTENT(in) :: ptstep
 
@@ -443,30 +484,31 @@ MODULE mo_salsa_coagulation_processes
          IF (lscgpp) THEN
             IF ( kk < nprc ) THEN
                ! Collection by larger
-               CALL accumulateSink(kbdim,klev,nprc,nprc,kk,kk+1,nprc,zccpp,precp,zminusterm,3)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,nprc,nprc,kk,kk+1,nprc,allCOAGcoe(3)%zccpp,precp,zminusterm,3)
                ! Self collection for all but the largest bin
-               CALL precipSelfCoag(kbdim,klev,nprc,nspec,kk,zccpp,znum_slf,zvol_slf)
+               CALL precipSelfCoag(kbdim,klev,nprc,nspec,kk,allCOAGcoe(3)%zccpp,znum_slf,zvol_slf,precp)
             ELSE
                ! Self collection for the largest bin -- standard approach
-               CALL accumulateSink(kbdim,klev,nprc,nprc,kk,kk,kk,zccpp,precp,zminus_self,3,multp=0.5)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,nprc,nprc,kk,kk,kk, & 
+                                   allCOAGcoe(3)%zccpp,precp,zminus_self,3,multp=0.5)
             END IF
          END IF
 
          ! Collection by ice
          IF (lscgip) &
-              CALL accumulateSink(kbdim,klev,nprc,nice,kk,iia,fia,zccip,ice,zminusterm,3)
+              CALL accumulateSink(aero,cloud,precp,kbdim,klev,nprc,nice,kk,iia,fia,allCOAGcoe(10)%zccip,ice,zminusterm,3)
 
          ! Volume gained from collection of aerosol
          IF (lscgpa) &
-              CALL accumulateSource(kbdim,klev,nprc,nbins,nspec,kk,in1a,fn2b,zccpa,aero,zplusterm,3)
+              CALL accumulateSource(kbdim,klev,nprc,nbins,nspec,kk,in1a,fn2b,allCOAGcoe(6)%zccpa,aero,zplusterm,3,cloud,precp,ice)
          
          ! Volume gained from collection of cloud droplets
          IF (lscgpc) &
-              CALL accumulateSource(kbdim,klev,nprc,ncld,nspec,kk,1,ncld,zccpc,cloud,zplusterm,3)
+              CALL accumulateSource(kbdim,klev,nprc,ncld,nspec,kk,1,ncld,allCOAGcoe(8)%zccpc,cloud,zplusterm,3,cloud,precp,ice)
          
          ! Volume gained from smaller precp
          IF (lscgpp .AND. kk > 1) &
-              CALL accumulateSource(kbdim,klev,nprc,nprc,nspec,kk,1,kk-1,zccpp,precp,zplusterm,3)
+              CALL accumulateSource(kbdim,klev,nprc,nprc,nspec,kk,1,kk-1,allCOAGcoe(3)%zccpp,precp,zplusterm,3,cloud,precp,ice)
          
          !-- Volume and number concentrations after coagulation update 
          CALL applyCoagPrecp(kbdim,klev,nprc,nspec,kk,ptstep,precp,zplusterm,zminusterm,zminus_self,znum_slf,zvol_slf)
@@ -475,12 +517,17 @@ MODULE mo_salsa_coagulation_processes
 
     END SUBROUTINE coag_precp
 
-    !
+    ! 
     ! Ice coagulation
     ! ------------------
     ! 
-    SUBROUTINE coag_ice(kbdim,klev,nspec,ptstep)
-      USE mo_salsa_types, ONLY : zccii, zccia, zccic, zccip
+    SUBROUTINE coag_ice(kbdim,klev,nspec,ptstep,aero,cloud,precp,ice,allCOAGcoe)
+      TYPE(Section), POINTER, INTENT(inout)  :: aero(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: cloud(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: precp(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: ice(:,:,:)
+      TYPE(CoagCoe), INTENT(inout) :: allCOAGcoe(:)
+      
       INTEGER, INTENT(in) :: kbdim,klev,nspec   ! nspec should contain all compounds including unrimed and rimed ice!
       REAL, INTENT(in) :: ptstep
 
@@ -505,30 +552,31 @@ MODULE mo_salsa_coagulation_processes
          ! Collection by larger ice and self coagulation
          IF (lscgii) THEN
             IF (kk < fia) THEN
-               CALL accumulateSink(kbdim,klev,nice,nice,kk,kk+1,fia,zccii,ice,zminusterm,4)
+               CALL accumulateSink(aero,cloud,precp,kbdim,klev,nice,nice,kk,kk+1,fia,allCOAGcoe(4)%zccii,ice,zminusterm,4)
             END IF
-            CALL accumulateSink(kbdim,klev,nice,nice,kk,kk,kk,zccii,ice,zminus_self,4,multp=0.5)
+            CALL accumulateSink(aero,cloud,precp,kbdim,klev,nice,nice,kk,kk,kk, & 
+                                allCOAGcoe(4)%zccii,ice,zminus_self,4,multp=0.5)
          END IF
 
          ! Volume gained from aerosol collection. Assume this to produce pristine ice
          IF (lscgia) &
               CALL accumulateSourcePhaseChange(kbdim,klev,nice,nbins,nspec,iwa,iwa,kk,in1a,fn2b,  &
-                                               rhoic,rhowa,zccia,aero,zplusterm)
+                                               rhoic,rhowa,allCOAGcoe(7)%zccia,aero,zplusterm)
 
          ! Volume gained from cloud collection. Produces rimed ice
          IF (lscgic) &
               CALL accumulateSourcePhaseChange(kbdim,klev,nice,ncld,nspec,irim,iwa,kk,ica%cur,fcb%cur, &
-                                               rhorime,rhowa,zccic,cloud,zplusterm)
+                                               rhorime,rhowa,allCOAGcoe(9)%zccic,cloud,zplusterm)
 
          ! Volume gained from precip collection. Produces rimed ice
          IF (lscgip) &
               CALL accumulateSourcePhaseChange(kbdim,klev,nice,nprc,nspec,irim,iwa,kk,1,nprc,     &
-                                               rhorime,rhowa,zccip,precp,zplusterm)
+                                               rhorime,rhowa,allCOAGcoe(10)%zccip,precp,zplusterm)
 
          ! Volume gained from smaller ice particles.
          IF (lscgii .AND. kk > iia) THEN
             CALL accumulateSourceIce(kbdim,klev,nice,nice,nspec,kk,iia,kk-1, &
-                                     zccii,ice,zplusterm)
+                                     allCOAGcoe(4)%zccii,ice,zplusterm,ice)
          END IF
 
          !-- Volume and number concentrations after coagulation update. Use the Ice variant, which 
@@ -545,7 +593,7 @@ MODULE mo_salsa_coagulation_processes
     SUBROUTINE applyCoag(kbdim,klev,nb,nspec,itrgt,ptstep,part,source,sink,sink_self)
       INTEGER,INTENT(in) :: kbdim,klev,nb,nspec,itrgt
       REAL,INTENT(in)    :: ptstep
-      TYPE(Section),INTENT(inout) :: part(kbdim,klev,nb)
+      TYPE(Section), POINTER, INTENT(inout) :: part(:,:,:)
       REAL,INTENT(in) :: source(nspec,kbdim,klev), sink(kbdim,klev), sink_self(kbdim,klev)
  
       INTEGER :: ii,jj
@@ -570,7 +618,7 @@ MODULE mo_salsa_coagulation_processes
                               source,sink,sink_self,num_slf,vol_slf      )
       INTEGER, INTENT(in) :: kbdim,klev,nb,nspec,itrgt
       REAL, INTENT(in)    :: ptstep
-      TYPE(Section), INTENT(inout) :: part(kbdim,klev,nb)
+      TYPE(Section), POINTER, INTENT(inout) :: part(:,:,:)
       REAL, INTENT(in) :: source(nspec,kbdim,klev), sink(kbdim,klev),     &
                           sink_self(kbdim,klev), num_slf(kbdim,klev),     &
                           vol_slf(nspec,kbdim,klev)
@@ -614,9 +662,10 @@ MODULE mo_salsa_coagulation_processes
       ! Note: The mass conversions and effective densities only account for the ice part.
       ! Not the dry aerosol!!! Is this a good enough approximation?
       ! --------------------------------------------------------------------------------------
-      INTEGER, INTENT(in) :: kbdim,klev,nb,nspec,iwa,irim,itrgt  ! nspec should contain all compounds including both unrimed and rimed ice. Necessary for memory allocation of input arrays
+      INTEGER, INTENT(in) :: kbdim,klev,nb,nspec,iwa,irim,itrgt  ! nspec should contain all compounds including both unrimed and rimed ice. Necessary for memory
+                                                                 ! allocation of input arrays
       REAL, INTENT(in)    :: ptstep
-      TYPE(Section), INTENT(inout) :: part(kbdim,klev,nb)
+      TYPE(Section), POINTER, INTENT(inout) :: part(:,:,:)
       REAL, INTENT(in) :: source(nspec,kbdim,klev), sink(kbdim,klev), sink_self(kbdim,klev)
 
       REAL :: mtrgt_t, mtrgt_r, mtot, mrime ! The ice mass in target particle, the mass source term for total ice
@@ -657,10 +706,12 @@ MODULE mo_salsa_coagulation_processes
     END SUBROUTINE applyCoagIce
     ! -----------------------------------------------------------------
 
-  SUBROUTINE applyCoagPrecipFormation(kbdim,klev,nspec,itrgt,ptstep,volsink_slf,vol_prc,num_prc)
+  SUBROUTINE applyCoagPrecipFormation(kbdim,klev,nspec,itrgt,ptstep,volsink_slf,vol_prc,num_prc,cloud,precp)
       ! 
       ! Make the necessary contributions from the coagulation based precip formation method
-      !
+      ! 
+      TYPE(Section), POINTER, INTENT(inout)  :: cloud(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: precp(:,:,:)
       INTEGER, INTENT(in) :: kbdim,klev
       INTEGER, INTENT(in) :: nspec  ! Number of compounds
       INTEGER, INTENT(in) :: itrgt
@@ -704,11 +755,14 @@ MODULE mo_salsa_coagulation_processes
 
     ! -----------------------------------------------------------------
 
-    SUBROUTINE accumulateSink(kbdim,klev,nbtrgt,nbcoll,itrgt,istr,iend,zcc,coll,sink,trgtphase,multp)
+    SUBROUTINE accumulateSink(aero,cloud,precp,kbdim,klev,nbtrgt,nbcoll,itrgt,istr,iend,zcc,coll,sink,trgtphase,multp)
       ! 
       ! The "direct" method, i.e. "larger" particle category collects "smaller" category.
       ! Here, the target refers always to the collected "smaller" particle category.
-      !
+      ! 
+      TYPE(Section), POINTER, INTENT(inout)  :: aero(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: cloud(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: precp(:,:,:)
       INTEGER,INTENT(in) :: kbdim,klev
       INTEGER,INTENT(in) :: nbtrgt,nbcoll    ! Number of bins in the target and the collector categories
       INTEGER,INTENT(in) :: itrgt,istr,iend  ! Index of the target bin, start and end indices of the collector bins
@@ -730,7 +784,7 @@ MODULE mo_salsa_coagulation_processes
       nrate_au50 = 0.
       nrate_au80 = 0.
       dnum = 0.
-      
+
       ! For self collection
       IF ( PRESENT(multp) ) THEN
          xx = multp
@@ -903,11 +957,14 @@ MODULE mo_salsa_coagulation_processes
     
     ! --------------------------------------------
 
-    SUBROUTINE accumulateSource(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,zcc,coll,source,trgtphase)
-      !
+    SUBROUTINE accumulateSource(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,zcc,coll,source,trgtphase,cloud,precp,ice)
+      ! 
       ! The direct method, where the "larger" particle category collects the "smaller" category.
       ! The target refers always to the "larger", collector category.
       ! 
+      TYPE(Section), POINTER, INTENT(inout)  :: cloud(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: precp(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: ice(:,:,:)
       INTEGER,INTENT(in) :: kbdim,klev
       INTEGER,INTENT(in) :: nbtrgt, nbcoll   ! Number of bins in the target and collectee categories
       INTEGER,INTENT(in) :: nspec           ! Number of chemical compounds
@@ -1132,13 +1189,14 @@ MODULE mo_salsa_coagulation_processes
 
     ! ------------------------------------------
 
-    SUBROUTINE accumulateSourceIce(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,zcc,coll,source)
-      !
+    SUBROUTINE accumulateSourceIce(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,zcc,coll,source,ice)
+      ! 
       ! This subroutine is for collection between different sized ice bins. It's similar to accumulateSourceRime
       ! in every other aspect, except the rime contribution has to be taken from its dedicated field. All the source
       ! terms regardles of the ice type are scaled to bulk pristine ice density for an easy conversion to mass in
       ! applyCoagIce, so that the mass weighted densities can be obtained correctly.
-      !
+      ! 
+      TYPE(Section), POINTER, INTENT(inout)  :: ice(:,:,:)
       INTEGER, INTENT(in) :: kbdim,klev
       INTEGER, INTENT(in) :: nbtrgt,nbcoll
       INTEGER, INTENT(in) :: nspec    ! should contain all compounds including unrimed and rimed ice
@@ -1162,14 +1220,15 @@ MODULE mo_salsa_coagulation_processes
 
     ! Category specific processes
     ! ---------------------------------
-    SUBROUTINE accumulatePrecipFormation(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,fix_coag,zcc,     &
-                                         source, sink, volsink_slf, vol_prc, num_prc             )
-      !
+    SUBROUTINE accumulatePrecipFormation(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,fix_coag,zcc,  &
+                                         source, sink, volsink_slf, vol_prc, num_prc, cloud            )
+      ! 
       ! This method for collision-coalescence transfers the resulting
       ! droplets directly to precipitation bins, if the resulting diameter is 
       ! larger than the first precip bin diameter. This is done via separate source terms
       ! that are output from this subroutine.
-      !
+      ! 
+      TYPE(Section), POINTER, INTENT(inout)  :: cloud(:,:,:)
       INTEGER, INTENT(in) :: kbdim,klev          
       INTEGER, INTENT(in) :: nbtrgt, nbcoll   ! Number of bins in the target and collected categories
       INTEGER, INTENT(in) :: nspec            ! Number of compounds
@@ -1177,7 +1236,7 @@ MODULE mo_salsa_coagulation_processes
       REAL, INTENT(in)    :: fix_coag
       REAL, INTENT(in)      :: zcc(kbdim,klev,nbcoll,nbtrgt)    ! Collision kernels
       REAL, INTENT(inout)   :: source(nspec,kbdim,klev)         ! Regular coagulation source term
-      REAL, INTENT(inout)   :: sink(kbdim,klev)           ! Regular coagulation sink term
+      REAL, INTENT(inout)   :: sink(kbdim,klev)                 ! Regular coagulation sink term
       REAL, INTENT(inout)   :: volsink_slf(nspec,kbdim,klev)    ! Volume sink for cloud droplets upon self collection resulting in precipitation formation
       REAL, INTENT(inout)   :: vol_prc(nspec,kbdim,klev,nprc)   ! Volume source for precipitation as the result of collision coalescence
       REAL, INTENT(inout)   :: num_prc(kbdim,klev,nprc)         ! Number source for precipitation as the result of collision coalescence
@@ -1279,13 +1338,15 @@ MODULE mo_salsa_coagulation_processes
 
     ! -----------------------------------------------
 
-    SUBROUTINE precipSelfCoag(kbdim,klev,nb,nspec,ibin,zcc,num_slf,vol_slf)
+    SUBROUTINE precipSelfCoag(kbdim,klev,nb,nspec,ibin,zcc,num_slf,vol_slf,precp)
+      TYPE(Section), POINTER, INTENT(inout)  :: precp(:,:,:)
       INTEGER, INTENT(in) :: kbdim, klev
       INTEGER, INTENT(in) :: nb, nspec    ! Number of bins, number of species
       INTEGER, INTENT(in) :: ibin         ! the current bin for self-coagulation. The resulting particle should be moved to next bin
       REAL, INTENT(in)    :: zcc(kbdim,klev,nprc,nprc)
       REAL, INTENT(inout) :: vol_slf(nspec,kbdim,klev)
       REAL, INTENT(inout) :: num_slf(kbdim,klev)
+      
       INTEGER :: ii,jj
 
 

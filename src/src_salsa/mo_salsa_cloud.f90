@@ -1,5 +1,6 @@
-MODULE mo_salsa_cloud
-    USE mo_salsa_types, ONLY : aero, cloud, precp, rateDiag
+ MODULE mo_salsa_cloud
+    USE classSection, ONLY : Section
+    USE mo_salsa_types, ONLY : rateDiag
     USE mo_submctl, ONLY : nbins, ncld, spec,          &
                            in1a,in2a,in2b,fn2a,fn2b,   &
                            ica,icb,fca,fcb,            &
@@ -20,7 +21,7 @@ MODULE mo_salsa_cloud
      REAL :: int1,int2      ! integration limits between vlo-vmid and vmid-vhi to account for transect of e.g. ambient S vs Scrit
   END TYPE integrParameters
   
-  !*********************************************************
+  !*****************************************condensation****************
   !  MO_SALSA_CLOUD
   !*********************************************************
   !
@@ -44,7 +45,8 @@ CONTAINS
 
   SUBROUTINE cloud_activation(kproma, kbdim, klev,   &
                               temp,   pres,  rv,     &
-                              rs,     w,     pactd          )
+                              rs,     w,     pactd,  &
+                              aero,   cloud          )
 
     USE classSection, ONLY : Section
     USE mo_submctl, ONLY : lsactiv
@@ -67,6 +69,8 @@ CONTAINS
     
     ! Properties of newly activate particles
     TYPE(Section), INTENT(out) :: pactd(kbdim,klev,ncld)
+    TYPE(Section), POINTER, INTENT(inout) :: aero(:,:,:)
+    TYPE(Section), POINTER, INTENT(inout) :: cloud(:,:,:)
     
     INTEGER :: ii, jj, kk
     INTEGER :: nspec
@@ -89,7 +93,7 @@ CONTAINS
     ! -------------------------------------
     IF ( lsactiv%mode == 1 ) THEN
 
-       CALL actInterst(kproma,kbdim,klev,rv,rs,temp)
+       CALL actInterst(kproma,kbdim,klev,rv,rs,temp,aero,cloud)
        
     END IF
     
@@ -98,7 +102,7 @@ CONTAINS
     ! -----------------------------------
     IF ( lsactiv%mode == 2 ) THEN
        
-       CALL ActCloudBase(kproma,kbdim,klev,pres,temp,w,pactd)
+       CALL ActCloudBase(kproma,kbdim,klev,pres,temp,w,pactd,aero)
        
     END IF
     
@@ -107,15 +111,16 @@ CONTAINS
   
   ! -----------------------------------------------------------------
   ! Calculates the number of moles of dissolved solutes in one particle
-  !
-  SUBROUTINE getSolute(kproma,kbdim,klev,pns)
+  ! 
+  SUBROUTINE getSolute(kproma,kbdim,klev,pns,aero)
 
     
     IMPLICIT NONE
     
+    TYPE(Section), POINTER, INTENT(in) :: aero(:,:,:)
     INTEGER, INTENT(IN) :: kproma,kbdim,klev
     REAL, INTENT(OUT) :: pns(kbdim,klev,fn2b)
-    
+        
     REAL :: diss,rho,mm
     INTEGER :: ii,jj,kk,nn
     
@@ -157,23 +162,23 @@ CONTAINS
   
   ! -----------------------------------------------------------------
 
-  SUBROUTINE ActCloudBase(kproma,kbdim,klev,pres,temp,w,pactd)
+  SUBROUTINE ActCloudBase(kproma,kbdim,klev,pres,temp,w,pactd,aero)
     ! Cloud base activation following:
-    !
+    ! 
     ! Abdul-Razzak et al: "A parameterization of aerosol activation -
     !                      3. Sectional representation"
     !                      J. Geophys. Res. 107, 10.1029/2001JD000483, 2002.
     !                      [Part 3]
-    !
+    ! 
     ! Abdul Razzak et al: "A parameterization of aerosol activation -
     !                      1. Single aerosol type"
     !                      J. Geophys. Res. 103, 6123-6130, 1998.
     !                      [Part 1]
-    !
-    !
+    ! 
+    ! 
     ! Note: updates pactd, but does not change pcloud?
     ! Note: insoluble species are not properly accounted for
-    !
+    ! 
     USE classSection, ONLY : Section
 
     
@@ -192,6 +197,7 @@ CONTAINS
     
     ! Properties of newly activate particles
     TYPE(Section), INTENT(out) :: pactd(kbdim,klev,ncld)
+    TYPE(Section), POINTER, INTENT(in) :: aero(:,:,:)
     
     !-- local variables --------------
     INTEGER :: ii, jj, kk             ! loop indices
@@ -246,7 +252,7 @@ CONTAINS
     bcritb(:,:) = fn2b
     
     ! Get moles of solute at the middle of the bin
-    CALL getSolute(kproma,kbdim,klev,ns)
+    CALL getSolute(kproma,kbdim,klev,ns,aero)
     
     ! ----------------------------------------------------------------
     
@@ -368,15 +374,16 @@ CONTAINS
        
     END DO ! jj
     
-    CALL activate3(kproma, kbdim, klev, bcrita, bcritb, &
-                   zdcrit, zdcrlo, zdcrhi, zdcstar, pactd  )
+    CALL activate3(kproma, kbdim, klev, bcrita, bcritb,    &
+                   zdcrit,zdcrlo,zdcrhi,zdcstar,pactd,aero )
 
   END SUBROUTINE ActCloudBase
 
   ! ------------------------------------------------
-  SUBROUTINE Activate(kproma,kbdim,klev,prv,prs,temp)
+  SUBROUTINE Activate(kproma,kbdim,klev,prv,prs,temp,aero)
     USE classSection, ONLY : Section
-    
+ 
+    TYPE(Section), POINTER, INTENT(in) :: aero(:,:,:)    
     INTEGER, INTENT(in) :: kproma,kbdim,klev
     REAL, INTENT(in) :: prv(kbdim,klev), prs(kbdim,klev) ! Water vapor and saturation mixing ratios
     REAL, INTENT(in) :: temp(kbdim,klev)                 ! Absolute temperature
@@ -855,7 +862,7 @@ CONTAINS
   
   ! -------------------------------------------------
   
-  SUBROUTINE actInterst(kproma,kbdim,klev,prv,prs,temp)
+  SUBROUTINE actInterst(kproma,kbdim,klev,prv,prs,temp,aero,cloud)
     !
     ! Activate interstitial aerosols if they've reached their critical size
     !
@@ -874,9 +881,11 @@ CONTAINS
     INTEGER, INTENT(IN) :: kproma,kbdim,klev
     REAL, INTENT(IN) :: prv(kbdim,klev), prs(kbdim,klev)  ! Water vapour and saturation mixin ratios
     REAL, INTENT(in) :: temp(kbdim,klev)  ! Absolute temperature
+    TYPE(Section), INTENT(inout) :: aero(:,:,:)
+    TYPE(Section), INTENT(inout) :: cloud(:,:,:)
     
     TYPE(Section), TARGET :: pactd(ncld) ! Local variable
-
+    
     REAL, PARAMETER :: THvol = 1.e-28 ! m^3, less than the volume of a 1 nm particle
 
     REAL :: zkelvin               ! Coefficient for Kelvin effect
@@ -1172,8 +1181,8 @@ CONTAINS
   
   ! ----------------------------------------------
   
-  SUBROUTINE activate3(kproma,kbdim,klev,pbcrita,pbcritb, &
-                       pdcrit, pdcrlo, pdcrhi, pdcstar, pactd   )
+  SUBROUTINE activate3(kproma,kbdim,klev,pbcrita,pbcritb,      &
+                       pdcrit,pdcrlo,pdcrhi,pdcstar,pactd,aero )
     !
     ! Gets the number and mass activated in the critical aerosol size bin
     !
@@ -1189,7 +1198,8 @@ CONTAINS
          pdcrhi(kbdim,klev,fn2b)       ! Critical diameter at high limit
     REAL, INTENT(IN) :: pdcstar(kbdim,klev)           ! Critical diameter corresponding to Smax
     TYPE(Section), INTENT(OUT) :: pactd(kbdim,klev,ncld) ! Properties of the maximum amount of newly activated droplets
-    
+    TYPE(Section), INTENT(inout) :: aero(:,:,:)
+        
     REAL :: zvcstar, zvcint
     REAL :: zs1,zs2             ! Slopes
     REAL :: Nmid, Nim1,Nip1
@@ -1374,14 +1384,16 @@ CONTAINS
   END FUNCTION intgV
 
   !-----------------------------------------
-  SUBROUTINE autoconv2(kproma,kbdim,klev,ptstep  )
-    !
+  SUBROUTINE autoconv2(kproma,kbdim,klev,ptstep,cloud,precp)
+    ! 
     ! Uses a more straightforward method for converting cloud droplets to drizzle.
     ! Assume a lognormal cloud droplet distribution for each bin. Sigma_g is an adjustable
     ! parameter and is set to 1.2 by default
-    !
-
+    ! 
+    
     IMPLICIT NONE
+    TYPE(Section), POINTER, INTENT(inout) :: cloud(:,:,:)
+    TYPE(Section), POINTER, INTENT(inout) :: precp(:,:,:)
     
     INTEGER, INTENT(in) :: kproma,kbdim,klev
     REAL, INTENT(in)    :: ptstep

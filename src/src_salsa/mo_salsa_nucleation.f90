@@ -8,7 +8,8 @@
 !****************************************************************
 
 MODULE mo_salsa_nucleation
-    IMPLICIT NONE
+   USE classSection, ONLY : Section
+   IMPLICIT NONE
 
 CONTAINS
 
@@ -16,19 +17,19 @@ CONTAINS
   !  (if asked from Markku, this is terribly wrong!!!
   !   nonvolatile OC should be added???)
   !********************************************************************
-  !
+  ! 
   ! Subroutine NUCLEATION(kproma,kbdim,klev, &
   !       )
-  !
+  ! 
   !********************************************************************
-  !
+  ! 
   ! Purpose:
   ! --------
   ! Calculates the particle number and volume increase,
   !  and gas-phase concentration decrease due to nucleation
   !  subsequent growth to detectable size of 3 nm
-  !
-  !
+  ! 
+  ! 
   ! Method:
   ! -------
   ! When the formed clusters grow by condensation (possibly also by
@@ -36,21 +37,21 @@ CONTAINS
   !  scavenging to pre-existing particles. Thus, the apparent
   !  nucleation rate at 3 nm is significantly lower than
   !  the real nucleation rate (at ~1 nm).
-  !
+  ! 
   ! The formation rate of detectable particles at 3 nm is
   !  calculated with a parameterization presented in:
-  !
+  ! 
   !  Kerminen, V.-M. and Kulmala, M. (2002) Analytical formulae
   !  connecting the 'real' and the 'apparent' nucleation rate
   !  and the nuclei number concentration for atmospheric
   !  nucleation events, J. Aerosol Sci., 33, 609-622.
-  !
-  !
+  ! 
+  ! 
   ! Interface:
   ! ----------
   ! Called from subroutine condensation
-  !
-  !
+  ! 
+  ! 
   ! Externals:
   ! ----------
   ! calls one of the following subroutines:
@@ -58,25 +59,25 @@ CONTAINS
   !  - ternucl
   !  - kinnucl
   !  - actnucl
-  !
-  !
+  ! 
+  ! 
   ! Coded by:
   ! ---------
   ! Hannele Korhonen (FMI) 2005
   ! Harri Kokkola (FMI) 2006
   ! Matti Niskanen(FMI) 2012
   ! Anton Laakso  (FMI) 2013
-  !
+  ! 
   !---------------------------------------------------------------------
 
   SUBROUTINE nucleation(kproma, kbdim,  klev,   krow,   &
-                        ptemp,  prh,    ppres,  &
+                        ptemp,  prh,    ppres,          &
                         pcsa,   pcocnv, ptstep, pj3n3,  &
-                        pxsa,   pxocnv, ppbl            )
+                        pxsa,   pxocnv, ppbl,   aero    )
 
     !USE mo_aero_mem_salsa, ONLY: d_jnuc,d_j3 !ALN002
 
-    USE mo_salsa_types, ONLY : aero
+
     USE mo_submctl,   ONLY:  &
          !aero,                  &
          act_coeff,              &
@@ -98,6 +99,7 @@ CONTAINS
     IMPLICIT NONE
 
     !-- Input and output variables -------------
+    TYPE(Section), POINTER, INTENT(in) :: aero(:,:,:)
     INTEGER, INTENT(IN) ::        &
          kproma,                  & ! number of horiz. grid kproma
          kbdim,                   & ! dimension for arrays

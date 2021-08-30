@@ -8,7 +8,7 @@
 !*                                                              *
 !****************************************************************
 MODULE mo_salsa_init
-  USE classSection, ONLY : Section
+  USE classSection, ONLY : Section, CoagCoe
   USE classSpecies, ONLY : Species
   USE classProcessRates, ONLY : Initialize_processrates, ProcessRates
   
@@ -19,20 +19,17 @@ MODULE mo_salsa_init
                          aerobins,cloudbins,precpbins,icebins, & 
                          spec, nspec_dry, listspec, nlim, prlim, massacc, pi6, lsFreeTheta, initMinTheta
 
-  USE mo_salsa_types, ONLY : aero, cloud, precp, ice,         &
-                             allSALSA, frozen, liquid,        &
-                             rateDiag,                        &
-                             iaero, faero, icloud, fcloud,    &
-                             iprecp, fprecp, iice, fice
+  USE mo_salsa_types, ONLY : aero, cloud, precp, ice,            &
+                             allSALSA, frozen, liquid, rateDiag, &
+                             iaero, faero, icloud, fcloud,       &
+                             iprecp, fprecp, iice, fice, allCOAGcoe
 
   USE mo_salsa_driver, ONLY : kbdim,klev
                              
   USE mo_salsa_optical_properties, ONLY : initialize_optical_properties
-
-
   
   IMPLICIT NONE
-   
+  
 CONTAINS
 
   !----------------------------------------------------------------------------------
@@ -41,61 +38,61 @@ CONTAINS
   !                            for all particle types. Arrays "aero", "cloud" etc.
   !                            are pointers associated with segments of allSALSA
   !                            to allow  easy access to specific particle types.
-  !
+  ! 
   ! Juha Tonttila, FMI, 2017
   !-----------------------------
-
+  
   SUBROUTINE set_masterbins(dumaero, dumcloud, dumprecp, dumice) 
-    TYPE(Section), INTENT(in) :: dumaero(kbdim,klev,nbins), dumcloud(kbdim,klev,ncld),  &
-                                 dumprecp(kbdim,klev,nprc), dumice(kbdim,klev,nice)
+    
+        TYPE(Section), OPTIONAL, INTENT(in)  :: dumaero(kbdim,klev,nbins), dumcloud(kbdim,klev,ncld),  &
+                                            dumprecp(kbdim,klev,nprc), dumice(kbdim,klev,nice)
+        INTEGER :: lo,hi
+    
+        ntotal = nbins+ncld+nprc+nice
+        ! Allocate the combined particle size distribution array
+        ALLOCATE(allSALSA(kbdim,klev,ntotal))
+        allSALSA(:,:,:) = Section(0,nlim,dlaero)
+        
+        ! Associate pointers for specific particle types
+        lo = 1 
+        hi = nbins
+        aero => allSALSA(:,:,lo:hi)
+        iaero = lo; faero = hi
 
-    INTEGER :: lo,hi
+        lo = hi + 1 
+        hi = hi + ncld
+        cloud => allSALSA(:,:,lo:hi)
+        icloud = lo; fcloud = hi
 
-    ntotal = nbins+ncld+nprc+nice
+        lo = hi + 1 
+        hi = hi + nprc
+        precp => allSALSA(:,:,lo:hi)
+        iprecp = lo; fprecp = hi
 
-    ! Allocate the combined particle size distribution array
-    ALLOCATE(allSALSA(kbdim,klev,ntotal))
-    allSALSA(:,:,:) = Section(0,nlim,dlaero)
+        lo = hi + 1 
+        hi = hi + nice
+        ice => allSALSA(:,:,lo:hi)
+        iice = lo; fice = hi
 
-    ! Associate pointers for specific particle types
-    lo = 1 
-    hi = nbins
-    aero => allSALSA(:,:,lo:hi)
-    iaero = lo; faero = hi
+        ! Associate some (potentially helpful) subcollections 
+        ! (note: for this it is necessary to have all the particles containing liquid water consecutively, and then ice containing particles
+        !  consecutively so that the indexing works)
+        lo = 1
+        hi = nbins + ncld + nprc
+        liquid => allSALSA(:,:,lo:hi)
+        nliquid = hi - (lo-1)
 
-    lo = hi + 1 
-    hi = hi + ncld
-    cloud => allSALSA(:,:,lo:hi)
-    icloud = lo; fcloud = hi
-
-    lo = hi + 1 
-    hi = hi + nprc
-    precp => allSALSA(:,:,lo:hi)
-    iprecp = lo; fprecp = hi
-
-    lo = hi + 1 
-    hi = hi + nice
-    ice => allSALSA(:,:,lo:hi)
-    iice = lo; fice = hi
-
-    ! Associate some (potentially helpful) subcollections 
-    ! (note: for this it is necessary to have all the particles containing liquid water consecutively, and then ice containing particles
-    !  consecutively so that the indexing works)
-    lo = 1
-    hi = nbins + ncld + nprc
-    liquid => allSALSA(:,:,lo:hi)
-    nliquid = hi - (lo-1)
-
-    lo = nbins + ncld + nprc + 1
-    hi = nbins + ncld + nprc + nice 
-    frozen => allSALSA(:,:,lo:hi)
-    nfrozen = hi - (lo-1)
-
-    ! Copy the dummy size distributions to actual size dists.
-    aero = dumaero
-    cloud = dumcloud
-    precp = dumprecp
-    ice = dumice
+        lo = nbins + ncld + nprc + 1
+        hi = nbins + ncld + nprc + nice 
+        frozen => allSALSA(:,:,lo:hi)
+        nfrozen = hi - (lo-1)
+    
+        ! Copy the dummy size distributions to actual size dists.
+        aero = dumaero
+        cloud = dumcloud
+        precp = dumprecp
+        ice = dumice
+   
 
   END SUBROUTINE set_masterbins
 
@@ -674,6 +671,7 @@ CONTAINS
                              lscgia,lscgic,lscgii,  &
                              lscgip
      
+     
      IF (lscgaa) THEN
         ALLOCATE(zccaa(kbdim,klev,nbins,nbins))
         zccaa = 0.
@@ -718,35 +716,41 @@ CONTAINS
         zccip = 0.     
      END IF
      
+     ALLOCATE(allCoagCoe(10))
+     allCOAGcoe(:) = CoagCoe(zccaa(:,:,:,:), zcccc(:,:,:,:), zccpp(:,:,:,:),zccii(:,:,:,:),  &
+                             zccca(:,:,:,:), zccpc(:,:,:,:), zccpa(:,:,:,:), zccia(:,:,:,:), &
+                             zccic(:,:,:,:), zccip(:,:,:,:)                                  )
+                             
+     
    END SUBROUTINE initialize_coag_kernels
 
 
    
    !-------------------------------------------------------------------------------
-   !
+   ! 
    ! *****************************
    ! Subroutine salsa_initialize
    ! *****************************
-   !
+   ! 
    ! SALSA initializations. Modified and rewritten for more dynamic control
    ! and LES implementation.
-   !
+   ! 
    ! define_salsa **MUST** be called before salsa_initialize so that the 
    ! NAMELIST-parameters will have an effect.
-   !
+   ! 
    ! Juha Tonttila (FMI) 2014
-   !
+   ! 
    !-------------------------------------------------------------------------------
    SUBROUTINE salsa_initialize()
-
-      !
+      USE mo_salsa_types, ONLY : aero, cloud, precp, ice,         &
+                                 allSALSA, frozen, liquid
+      ! 
       !-------------------------------------------------------------------------------
       IMPLICIT NONE
 
       ! Dummy size distributions just for setting everything up!!
       ! May not be the smartest or the fastest way, but revise later... 
-      TYPE(Section), ALLOCATABLE :: dumaero(:,:,:), dumcloud(:,:,:), dumprecp(:,:,:), &
-                                      dumice(:,:,:)
+      TYPE(Section), ALLOCATABLE :: dumaero(:,:,:), dumcloud(:,:,:), dumprecp(:,:,:), dumice(:,:,:)
 
       ! --1) Set derived indices
       in1a = 1

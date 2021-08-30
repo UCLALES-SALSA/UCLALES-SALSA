@@ -7,6 +7,8 @@
 !*                                                              *
 !****************************************************************
 MODULE mo_salsa_properties
+   USE classSection, ONLY : Section
+   USE omp_lib
    IMPLICIT NONE
 
 
@@ -17,24 +19,24 @@ CONTAINS
    ! fxm: crashes if no sulphate or sea salt
    ! fxm: do we really need to consider Kelvin effect for regime 2
    !********************************************************************
-   !
+   ! 
    ! Subroutine WETSIZE()
-   !
+   ! 
    !********************************************************************
-   !
+   ! 
    ! Purpose:
    ! --------
    ! Calculates ambient sizes of particles by equilibrating
    !  soluble fraction of particles with water
-   !
-   !
+   ! 
+   ! 
    ! Method:
    ! -------
    ! Following chemical components are assumed water-soluble
    ! - (ammonium) sulphate (100%)
    ! - sea salt (100 %)
    ! - organic carbon (epsoc * 100%)
-   !
+   ! 
    ! Exact thermodynamic considerations neglected
    ! - If particles contain no sea salt, calculation according to
    !  sulphate properties
@@ -43,7 +45,7 @@ CONTAINS
    ! - If contain both sulphate and sea salt
    !  -> the molar fraction of these compounds determines
    !     which one of them is used as the basis of calculation
-   !
+   ! 
    ! If sulphate and sea salt coexist in a particle,
    !   it is assumed that the Cl is replaced by sulphate;
    !   thus only either sulphate + organics or sea salt + organics
@@ -52,8 +54,8 @@ CONTAINS
    ! Molality parameterizations taken from table 1 of
    !  Tang: Mixed-salt aerosols of atmospheric importance,
    !   JGR, 102 (D2), 1883-1893 (1997)
-   !
-   !
+   ! 
+   ! 
    ! Interface:
    ! ----------
    ! Called from main aerosol model
@@ -71,11 +73,9 @@ CONTAINS
    !---------------------------------------------------------------------
 
    SUBROUTINE equilibration(kproma, kbdim, klev,    &
-                            prh, ptemp, init )
+                            prh, ptemp, aero, init )
 
-     USE mo_salsa_types, ONLY : aero
-      USE mo_submctl, ONLY : &
-         !aero,         &
+    USE mo_submctl, ONLY : &
          spec,         &
          pi6,          & ! pi/6
          in1a, fn1a,   &
@@ -94,8 +94,10 @@ CONTAINS
       IMPLICIT NONE
 
       !-- input variables -------------
-      INTEGER, INTENT(in) ::      &
-         kproma,                    & ! number of horiz. grid kproma 
+      TYPE(Section), INTENT(inout) :: aero(:,:,:)
+      
+      INTEGER, INTENT(in) ::       &
+         kproma,                   & ! number of horiz. grid kproma 
          kbdim,                    & ! dimension for arrays
          klev                        ! number of vertical levels
 
@@ -131,7 +133,7 @@ CONTAINS
       REAL :: zvolc(kbdim,klev,nbins,7) ! Local vol concentrations to accommodate hard-coded parts...
       INTEGER :: massindx(7)
       INTEGER :: iwa
-
+      
       ! This list has to be compiled because there is old hard-coded stuff that depends on the order of the compounds.
       ! You can do this more cleanly, but it requires rewriting the whole module...
       massindx = 0
@@ -145,6 +147,7 @@ CONTAINS
       nspc = spec%getNSpec()
 
       zvolc = 0.
+
       DO cc = 1,5   ! Loop over massindx-array
          DO kk = in1a,fn2b
             DO jj = 1,klev
@@ -157,8 +160,7 @@ CONTAINS
             END DO
          END DO
       END DO
-         
-
+      
       zcore = 0.
       zvpart(:) = 0.
       zlwc = 0.
@@ -171,7 +173,7 @@ CONTAINS
       DO kk = in1a, fn1a      ! size bin
          DO jj = 1, klev      ! vertical grid
             DO ii = 1, kbdim  ! horizontal grid
-
+               
                !-- initialize
                zbinmol = 0.
                zdold = 1.
@@ -248,7 +250,7 @@ CONTAINS
                   ! (easy to convert...)
                   iwa = spec%getIndex("H2O")
                   aero(ii,jj,kk)%volc(iwa) = zlwc/spec%rhowa
-                
+                  
                   ! If this is initialization, update the core and wet diameter
                   IF (init) THEN
                      aero(ii,jj,kk)%dwet = zdwet
@@ -273,7 +275,7 @@ CONTAINS
       !                 water contents are computed via condensation
 
       IF (init) THEN
-
+         
          ! loops over:
          DO kk = in2a, fn2b      ! size bin
             DO jj = 1, klev      ! vertical grid

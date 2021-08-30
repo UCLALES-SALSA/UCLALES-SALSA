@@ -90,9 +90,9 @@ MODULE grid
   
   ! Some zero arrays ice with level < 5
   REAL, ALLOCATABLE, TARGET :: tmp_icep(:,:,:,:), tmp_icet(:,:,:,:)
-  !
+  ! 
   ! wsave variables used in fft in x and y directons
-  !
+  ! 
   REAL, ALLOCATABLE :: wsavex(:), wsavey(:)
   !
   ! For looping through scalar arrays
@@ -109,7 +109,7 @@ MODULE grid
   ! ----------------------------------------------------------------
 
   ! Other field arrays are initialized and stored in mo_field_state. The ones below are needed here
-  ! but sine they don't contain any variable associated procedures, there is no risk for cyclic dependencies.
+  ! but sine they don't contain any variSCHEDULE(GUIDED)able associated procedures, there is no risk for cyclic dependencies.
   TYPE(FieldArray) :: Axes              ! Contains the grid and size distribution axis vectors
   TYPE(FieldArray) :: AxesPS            ! All the axes that can be assigned to profile statistics files
   TYPE(FieldArray) :: AxesTS            ! Same for timeseries output
@@ -201,9 +201,9 @@ CONTAINS
       END IF ! level
            
    END SUBROUTINE define_vars
-   !
+   ! 
    !----------------------------------------------------------------------
-   !
+   ! 
    SUBROUTINE define_grid
      USE mo_aux_state, ONLY : setGridSpacings,xt,xm,yt,ym,zt,zm,dzt,dzm,      &
                               aea, aeb, cla, clb, prc, ice, aetot, cltot
@@ -417,14 +417,16 @@ CONTAINS
    ! Subroutine newsclr:  This routine updates the scalar pointer to the
    ! value corresponding to the next scalar in the scalar table
    !
-   SUBROUTINE newsclr(iscnum)
+   SUBROUTINE newsclr(iscnum, a_spt, a_stt)
+
+      REAL, POINTER, INTENT(inout) :: a_spt(:,:,:),a_stt(:,:,:)
 
       INTEGER, INTENT(in) :: iscnum
 
       CHARACTER(len=20), PARAMETER :: name = "newsclr"
 
-      a_sp => a_sclrp(:,:,:,iscnum)
-      a_st => a_sclrt(:,:,:,iscnum)
+      a_spt => a_sclrp(:,:,:,iscnum)
+      a_stt => a_sclrt(:,:,:,iscnum)
 
       RETURN
    END SUBROUTINE newsclr

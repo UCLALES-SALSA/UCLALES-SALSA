@@ -1,5 +1,5 @@
 MODULE mo_salsa_cloud_ice_SE
-  USE mo_salsa_types, ONLY : liquid, ice, precp, rateDiag
+  USE mo_salsa_types, ONLY : rateDiag
   USE mo_submctl, ONLY : nliquid, ira,fra, nprc, iia, fia, nice, pi6, ice_hom, ice_dep, ice_imm, spec,  &
                          boltz, pi, planck, rg, avog, lsFreeTheta, initMinTheta,  lsicenucl
   USE mo_salsa_math, ONLY : erfm1, f_gauss
@@ -25,7 +25,9 @@ MODULE mo_salsa_cloud_ice_SE
   
   CONTAINS
 
-  SUBROUTINE ice_nucl_driver(kproma,kbdim,klev,ptemp,prv,prs,prsi,tstep)
+  SUBROUTINE ice_nucl_driver(kproma,kbdim,klev,ptemp,prv,prs,prsi,tstep,ice,liquid)
+    TYPE(Section), POINTER, INTENT(inout)  :: ice(:,:,:)
+    TYPE(Section), POINTER, INTENT(inout)  :: liquid(:,:,:)
     INTEGER, INTENT(in) :: kproma, kbdim, klev
     REAL, INTENT(in) :: ptemp(kbdim,klev), prv(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev)
     REAL, INTENT(in) :: tstep
@@ -84,14 +86,14 @@ MODULE mo_salsa_cloud_ice_SE
        END DO
 
        ! Update the low limit contact angle for the distribution integration
-       CALL low_theta( kproma,kbdim,klev,th00,mean_theta,sigma_theta )
+       CALL low_theta( kproma,kbdim,klev,th00,mean_theta,sigma_theta,liquid )
 
        ! Immersion freezing
        nuc_mask(:,:,:) = ( ( liquid(:,:,:)%phase == 2 .OR. liquid(:,:,:)%phase == 3 ) .AND. &
                            ( liquid(:,:,:)%dins > dmin) .AND. ice_imm )
 
        CALL gauss_legendre( kproma, kbdim, klev, ptemp, Seq, th00,        &
-                            mean_theta, sigma_theta, tstep, nuc_mask, 1, f_imm   )
+                            mean_theta, sigma_theta, tstep, nuc_mask, 1, f_imm, liquid )
 
        ! Deposition freezing
        DO kk = 1,nliquid
@@ -101,13 +103,13 @@ MODULE mo_salsa_cloud_ice_SE
        END DO
 
        CALL gauss_legendre( kproma, kbdim, klev, ptemp, Si, th00,       &
-                            mean_theta, sigma_theta, tstep, nuc_mask, 2, f_dep  )
+                            mean_theta, sigma_theta, tstep, nuc_mask, 2, f_dep, liquid )
 
        CALL iceDiagnostics(kproma,kbdim,klev,liquid,f_imm,f_dep,f_hom)
              
        frac = MAX(0., MIN(0.99,f_imm+f_hom+f_dep-(f_imm+f_dep)*f_hom))
        
-       CALL iceNucleation( kproma,kbdim,klev,frac )
+       CALL iceNucleation( kproma,kbdim,klev,frac,liquid,ice )
        
     END IF ! insoluble
        
@@ -116,9 +118,10 @@ MODULE mo_salsa_cloud_ice_SE
   ! ----------------------------------------
   
   SUBROUTINE gauss_legendre( kproma, kbdim, klev, Tk, Seq, th00,     &
-                             thm, ths, tstep, nuc_mask, mode, frac   )
+                             thm, ths, tstep, nuc_mask, mode, frac, liquid )
     
     ! Integrate the ice nucleation across contact angles using the Gauss-Legenre quadrature
+    TYPE(Section), POINTER, INTENT(in)  :: liquid(:,:,:)
     INTEGER, INTENT(in) :: kproma,kbdim,klev
     REAL, INTENT(in) :: Tk(kbdim,klev), Seq(kbdim,klev,nliquid), th00(kbdim,klev,nliquid)  !!! Note for deposition mode, Seq should be saturation w.r.t ice
     REAL, INTENT(in) :: thm, ths, tstep
@@ -378,8 +381,9 @@ MODULE mo_salsa_cloud_ice_SE
   
   ! ------------------------------------
 
-  SUBROUTINE low_theta(kproma,kbdim,klev,th00,thmean,thstd)
-    
+  SUBROUTINE low_theta(kproma,kbdim,klev,th00,thmean,thstd,liquid)
+
+    TYPE(Section), POINTER, INTENT(in)  :: liquid(:,:,:)    
     INTEGER, INTENT(in) :: kproma,kbdim,klev
     REAL, INTENT(in) :: thmean, thstd
     REAL, INTENT(out) :: th00(kbdim,klev,nliquid) 
@@ -405,9 +409,11 @@ MODULE mo_salsa_cloud_ice_SE
 
   ! ----------------------------------------------------
 
-  SUBROUTINE iceNucleation(kproma,kbdim,klev,frac)
+  SUBROUTINE iceNucleation(kproma,kbdim,klev,frac,liquid,ice)
     ! Update the IN deficit fraction
     ! Update the number of ice particles
+    TYPE(Section), POINTER, INTENT(inout)  :: liquid(:,:,:)
+    TYPE(Section), POINTER, INTENT(inout)  :: ice(:,:,:)
     INTEGER, INTENT(in) :: kproma, kbdim,klev
     REAL, INTENT(in) :: frac(kbdim,klev,nliquid)
 
@@ -435,7 +441,7 @@ MODULE mo_salsa_cloud_ice_SE
              ! Determine the target ice bin
              CALL liquid(ii,jj,kk)%updateDiameter(type="wet",limit=.TRUE.)
              dwet = liquid(ii,jj,kk)%dwet             
-             bb = getIceBin(dwet)
+             bb = getIceBin(dwet,ice)
              
              ! Update the ice bins
              ! Dry aerosol
@@ -523,7 +529,8 @@ MODULE mo_salsa_cloud_ice_SE
 
   ! --------------------------------------
   
-  INTEGER FUNCTION getIceBin(ldwet)
+  INTEGER FUNCTION getIceBin(ldwet,ice)
+    TYPE(Section), POINTER, INTENT(in)  :: ice(:,:,:)
     REAL, INTENT(in)    :: ldwet
     REAL :: vol
     INTEGER :: ii
@@ -540,7 +547,8 @@ MODULE mo_salsa_cloud_ice_SE
 
   ! ------------------------------------------------------------
   
-  INTEGER FUNCTION getPrecipBin(idwet,idens)
+  INTEGER FUNCTION getPrecipBin(idwet,idens,precp)
+    TYPE(Section), POINTER, INTENT(in)  :: precp(:,:,:)
     REAL, INTENT(in) :: idwet   ! This should be given as a spherical effective diameter
     REAL, INTENT(in) :: idens   ! this should be the particle mean density (contribution by pristine and rimed ice)
     REAL :: vol

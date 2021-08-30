@@ -1,20 +1,20 @@
   MODULE mo_salsa_driver
-  USE classSection, ONLY : Section
+  USE classSection, ONLY : Section, CoagCoe
   USE util, ONLY : getMassIndex !!! IS it good to import this here??? The function is anyway handy here too.
-  USE mo_salsa_types
   USE mo_submctl
   USE classFieldArray, ONLY : FieldArray
   USE mo_structured_datatypes
+  USE omp_lib
   IMPLICIT NONE
 
    !---------------------------------------------------------------
-   !
+   ! 
    ! MO_SALSA_DRIVER:
    ! Contains the primary SALSA input/output variables as well as
    ! Subroutines used to call the main SALSA routine.
-   !
+   ! 
    ! Juha Tonttila, FMI, 2014
-   !
+   ! 
    !---------------------------------------------------------------
 
   SAVE
@@ -35,13 +35,7 @@
    INTEGER, PARAMETER :: kbdim = 1
    INTEGER, PARAMETER :: klev = 1
    INTEGER, PARAMETER :: krow = 1
-
    REAL, PARAMETER    :: init_rh(kbdim,klev) = 0.3
-
-   ! To help coupling and backing up for tendencies
-   TYPE(old)          :: npart(4), mpart(4)  ! To store the old values
-   TYPE(FloatArray1d) :: ntend(4), mtend(4)  ! Arranged pointers to tendencies
-   LOGICAL :: auxarr_initialized = .FALSE.
    
    ! --------------------------------------------
 
@@ -50,30 +44,33 @@
    ! Storage of the coagulation kernels:
    REAL, ALLOCATABLE :: sto_aa(:,:,:,:,:), sto_cc(:,:,:,:,:), sto_pp(:,:,:,:,:), sto_ii(:,:,:,:,:),  &
                         sto_ca(:,:,:,:,:), sto_pa(:,:,:,:,:), sto_ia(:,:,:,:,:),   &
-                        sto_pc(:,:,:,:,:), sto_ic(:,:,:,:,:),                  &
-                        sto_ip(:,:,:,:,:)
+                        sto_pc(:,:,:,:,:), sto_ic(:,:,:,:,:), sto_ip(:,:,:,:,:)
+                        
    LOGICAL :: cgsto_initialized = .FALSE.
    
 CONTAINS
 
-   !
+   ! 
    !----------------------------------------------------
    ! RUN_SALSA
    ! Performs necessary unit and dimension conversion between
    ! the host model and SALSA module, and calls the main SALSA
    ! routine
-   !
+   ! 
    ! Partially adobted form the original SALSA boxmodel version.
-   !
+   ! 
    ! Now takes masses in as kg/kg from LES!! Converted to m3/m3 for SALSA
 
    ! Juha Tonttila, FMI, 2014
    ! Jaakko Ahola, FMI, 2016
-   !
+   ! 
+
   SUBROUTINE run_SALSA(Diag, Prog, nzp, nxp, nyp, ns, wp,     &
                        pa_nactd, pa_vactd, tstep, time,istp,  &
                        level, initialize                      )
 
+      USE mo_salsa_types, ONLY : iaero, faero, icloud, fcloud, iprecp, fprecp, iice, fice, &
+                                 rateDiag, allCOAGcoe, aero, cloud, precp, ice, liquid, frozen, allSALSA
       USE mo_salsa, ONLY : salsa
       USE mo_salsa_properties, ONLY  : equilibration
       IMPLICIT NONE
@@ -90,7 +87,11 @@ CONTAINS
                                                            ! actual tendency due to new droplet formation.
       REAL, INTENT(out)   :: pa_nactd(nzp,nxp,nyp,ncld)   ! Same for number concentration
       INTEGER, INTENT(in) :: level                         ! thermodynamical level
-
+      
+      ! To help coupling and backing up for tendencies
+      TYPE(old)          :: npart(4), mpart(4)  ! To store the old values
+      TYPE(FloatArray1d) :: ntend(4), mtend(4)  ! Arranged pointers to tendencies
+      
       ! Named pointers to get SALSA variables
       TYPE(FloatArray3d), POINTER :: press => NULL(), tk => NULL(), rv => NULL(), &
                                      rt => NULL(), rs => NULL(), rsi => NULL(),   &
@@ -108,7 +109,7 @@ CONTAINS
                                      indefp => NULL(),                      &
                                      
                                      gaerop => NULL(), gaerot => NULL()
-            
+           
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
               in_w(kbdim,klev), in_rsi(kbdim,klev)
       REAL :: rv_old(kbdim,klev)
@@ -130,17 +131,16 @@ CONTAINS
                                      Iceimm => NULL(), Conda => NULL(), Condc => NULL(),        &
                                      Condp => NULL(), Condi => NULL()
 
-
       ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !! As a local variable, it would be better to declare this info as REAL. Or then need to take care to initialize this,
       ! which is missing
       TYPE(Section) :: actd(kbdim,klev,ncld) ! Activated droplets - for interfacing with SALSA
 
-      INTEGER :: jj,ii,kk,str,end,nc,nb,nbloc,ndry,nwet,iwa,irim,icat
+      INTEGER :: jj,ii,kk,str,endd,nc,nb,nbloc,ndry,nwet,iwa,irim,icat
 
       INTEGER :: bin_numbers(4), bin_starts(4) ! Number of bins and the starting indices in the
                                                ! allSALSA array according to the phase indexing in classSection.f90
-      INTEGER :: catnbins
+      INTEGER :: catnbins, lo, hi
       
       ndry = spec%getNSpec(type="dry")
       nwet = spec%getNSpec(type="wet")  ! excludes rimed ice
@@ -152,13 +152,11 @@ CONTAINS
       bin_starts(1:4) = [iaero,icloud,iprecp,iice]
 
       ! Initialize the arrays for managing "old" values and tendencies
-      IF (.NOT. auxarr_initialized) &
-           CALL initialize_arrays(nwet,bin_numbers)
+      CALL initialize_arrays(nwet,bin_numbers,npart,mpart,ntend,mtend)
+      
       IF (.NOT. cgsto_initialized) &
            CALL initialize_coagstorage(nzp,nxp,nyp)
 
-
-         
       ! Get the pointers to variable arrays
       CALL Diag%getData(1,press,name="press")
       CALL Diag%getData(1,tk,name="temp")
@@ -215,18 +213,49 @@ CONTAINS
       CALL Diag%getData(1,conda,name="s_m_conda")
       CALL Diag%getData(1,condc,name="s_m_condc")
       CALL Diag%getData(1,condp,name="s_m_condp")
-                     
+      
       in_p(:,:) = 0.; in_t(:,:) = 0.; in_rs(:,:) = 0.; in_rsi(:,:) = 0.; in_w(:,:) = 0.
       in_rv(:,:) = 0.; rv_old(:,:) = 0.
       
       ! Set the SALSA runtime config 
       CALL set_salsa_runtime(time,tstep,istp)
       
-      ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of kg/kg (multiplied by pdn/divided by substance density)
+      ! Sets up the parallel region and privates nessecary variables. These are directly carried into subroutines as arguements for that routine
+      !$OMP PARALLEL FIRSTPRIVATE(aero,cloud,precp,ice,liquid,frozen,allSALSA) &
+      !$OMP PRIVATE(nb,nc,icat,str,catnbins,nbloc,endd,zghno3,zgnh3,zgocnv,zgocsv,zgso4,lo,hi) &
+      !$OMP FIRSTPRIVATE(in_p,in_t,in_rs,in_rsi,in_w,in_rv,rv_old,allCOAGcoe,npart,mpart,ntend,mtend)
+      
+      ! Sets privated pointers to point at the private copies of allSALSA
+      lo = 1
+      hi = nbins
+      aero => allSALSA(:,:,lo:hi)
+      
+      lo = hi + 1
+      hi = hi + ncld
+      cloud => allSALSA(:,:,lo:hi)
+
+      lo = hi + 1
+      hi = hi + nprc
+      precp => allSALSA(:,:,lo:hi)
+
+      lo = hi + 1
+      hi = hi + nice
+      ice => allSALSA(:,:,lo:hi)
+
+      lo = 1
+      hi = nbins + ncld + nprc
+      liquid => allSALSA(:,:,lo:hi)
+
+      lo = nbins + ncld + nprc + 1
+      hi = nbins + ncld + nprc + nice
+      frozen => allSALSA(:,:,lo:hi)
+      
+      ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of kg/kg (multiplied by pdn/divided by substance density) 
+      !$OMP DO SCHEDULE(GUIDED)
       DO jj = 3, nyp-2
          DO ii = 3, nxp-2
             DO kk = nzp-1, 2, -1
-
+            
                ! Set inputs
                in_p(1,1) = press%d(kk,ii,jj)
                in_t(1,1) = tk%d(kk,ii,jj)
@@ -242,10 +271,9 @@ CONTAINS
                   in_rv(1,1) = MIN(rv%d(kk,ii,jj), rs%d(kk,ii,jj)*rhlim)
                END IF
                rv_old(1,1) = in_rv(1,1)
-       
+               
                ! Update volume concentrations
                ! ---------------------------------------------------------------------------------------------------
-               
                ! Take a copies for the old values. Note that the order of the categories in these arrays is CRUCIAL.
                ! It follows the phase indexing in classSection. Use the derived type "old"
                ! Also make use of these when preparing SALSA inputs below. this is a bit verbose, but what are you gonna do...
@@ -274,7 +302,7 @@ CONTAINS
                
                ! Update SALSA input arrays
                DO nb = 1,ntotal
-                  icat = allSALSA(1,1,nb)%phase   ! Phase indentifier, this should correspond to index in bin_starts and bin_numbers, mpart and npart, ntend and mtend
+                  icat = allSALSA(1,1,nb)%phase  ! Phase indentifier, this should correspond to index in bin_starts and bin_numbers, mpart and npart, ntend and mtend
                   IF (icat == 4 .AND. level < 5) EXIT  ! skip ice if level < 5; since ice gets the last index in classSection, we can use EXIT
                   
                   nbloc = nb - bin_starts(icat) + 1
@@ -286,7 +314,7 @@ CONTAINS
                         str = getMassIndex(catnbins,nbloc,nc) 
                         allSALSA(1,1,nb)%volc(nc) = mpart(icat)%d(str)*pdn%d(kk,ii,jj)/spec%rholiq(nc)                     
                      END DO
-
+                     
                      IF (level == 5 .AND. ice_theta_dist) THEN
                         allSALSA(1,1,nb)%INdef = indefp%d(kk,ii,jj,nb)
                      END IF
@@ -300,26 +328,26 @@ CONTAINS
                      allSALSA(1,1,nb)%volc(irim) = mpart(icat)%d(str)*pdn%d(kk,ii,jj)/spec%rhori
 
                   END IF
-
+                  
                   ! Update number concentrations
                   allSALSA(1,1,nb)%numc = npart(icat)%d(nbloc)*pdn%d(kk,ii,jj)
-
+                  
                   ! Update particle size and densities
                   !CALL allSALSA(1,1,nb)%updateDiameter(.TRUE.,type="all")
                   CALL allSALSA(1,1,nb)%updateRhomean()
-
+                  
                   IF (allSALSA(1,1,nb)%numc > allSALSA(1,1,nb)%nlim) THEN
                      allSALSA(1,1,nb)%core = SUM(allSALSA(1,1,nb)%volc(1:ndry))/allSALSA(1,1,nb)%numc
                   ELSE
                      allSALSA(1,1,nb)%core = pi6*(allSALSA(1,1,nb)%dmid)**3
-                  END IF 
+                  END IF
                   
                END DO
-                       
+               
                ! If this is an initialization call, calculate the equilibrium particle
-               If (initialize) CALL equilibration(kproma,kbdim,klev,   &
-                                                  init_rh,in_t,.TRUE.)
-
+               If (initialize) CALL equilibration(kproma,kbdim,klev,init_rh, &
+                                                  in_t, aero, .TRUE.         )
+               
                ! Convert to #/m3
                zgso4(1,1) = gaerop%d(kk,ii,jj,1)*pdn%d(kk,ii,jj)
                zghno3(1,1) = gaerop%d(kk,ii,jj,2)*pdn%d(kk,ii,jj)
@@ -331,22 +359,22 @@ CONTAINS
                CALL rateDiag%Reset()
 
                ! If reduced coagulation kernel update freq, and NOT update timestep,
-               !copy kernels from memory
-               IF ( lscoag%mode == 2 .AND. .NOT. lcgupdt) &
-                    CALL fetch_coag(kk,ii,jj) 
+               ! copy kernels from memory
+               
+               IF ( lscoag%mode == 2 .AND. .NOT. lcgupdt ) &
+                     CALL fetch_coag(kk,ii,jj,allCOAGcoe ) 
                
                ! ***************************************!
                !                Run SALSA               !
                ! ***************************************!
-               CALL salsa(kproma, kbdim,  klev,   krow,     &
-                          in_p,   in_rv,  in_rs,  in_rsi,   &
-                          in_t,   tstep,  zgso4,  zgocnv,   &
-                          zgocsv, zghno3, zgnh3,  actd,     &
-                          in_w,   level                     )
-
+               CALL salsa(kproma, kbdim,  klev,   krow,   in_p,   in_rv,  in_rs,  in_rsi,   &
+                          in_t,   tstep,  zgso4,  zgocnv, zgocsv, zghno3, zgnh3,  actd,     &
+                          in_w,   level,  allSALSA, aero, cloud,  precp,  ice, liquid,  allCOAGcoe )
+               
                ! Update tendency arrays
                DO nb = 1,ntotal
                   icat = allSALSA(1,1,nb)%phase   ! Phase indentifier, this should correspond to index in npart and mpart
+                  
                   IF (icat == 4 .AND. level < 5) EXIT  ! skip ice if level < 5; since ice gets the last index in classSection, we can use EXIT
                   
                   nbloc = nb - bin_starts(icat) + 1
@@ -377,11 +405,11 @@ CONTAINS
                           ( (allSALSA(1,1,nb)%volc(irim)*spec%rhori/pdn%d(kk,ii,jj)) -     &
                             mpart(icat)%d(str) ) / tstep
                   END IF
-                        
+                  
                   ! Update number tendencies
                   ntend(icat)%d(nbloc) = ntend(icat)%d(nbloc) + &
                        ( (allSALSA(1,1,nb)%numc/pdn%d(kk,ii,jj)) - npart(icat)%d(nbloc) )/tstep
-
+                  
                END DO
                
                ! Activated droplets
@@ -390,8 +418,8 @@ CONTAINS
                DO nc = 1,iwa
                   ! Activated droplets (in case of cloud base activation)
                   str = getMassIndex(ncld,1,nc)
-                  end = getMassIndex(ncld,ncld,nc)
-                  pa_vactd(kk,ii,jj,str:end) = actd(1,1,1:ncld)%volc(nc)*spec%rholiq(nc)/pdn%d(kk,ii,jj)                  
+                  endd = getMassIndex(ncld,ncld,nc)
+                  pa_vactd(kk,ii,jj,str:endd) = actd(1,1,1:ncld)%volc(nc)*spec%rholiq(nc)/pdn%d(kk,ii,jj)                  
                END DO
 
                IF (lscndgas) THEN
@@ -410,11 +438,10 @@ CONTAINS
                   gaerot%d(kk,ii,jj,5) = gaerot%d(kk,ii,jj,5) + &
                                           ( (zgocsv(1,1)/pdn%d(kk,ii,jj)) - gaerop%d(kk,ii,jj,5) )/tstep
                END IF
-
+               
                ! Tendency of water vapour mixing ratio 
                rt%d(kk,ii,jj) = rt%d(kk,ii,jj) + &
                   ( in_rv(1,1) - rv_old(1,1) )/tstep
-
 
                ! Store the process rate diagnostics for output
                autoconversion%d(kk,ii,jj) = rateDiag%Autoconversion%volc(iwa)*spec%rhowa/pdn%d(kk,ii,jj)
@@ -438,14 +465,16 @@ CONTAINS
                                         rateDiag%Cond_i%volc(irim)*spec%rhori ) /  &
                                         pdn%d(kk,ii,jj)
                END IF
-
+               
                ! If reduced coagulation kernel update frequency and is update timestep, store the updated kernels
                IF (lscoag%mode == 2 .AND. lcgupdt) &
-                    CALL store_coag(kk,ii,jj)
+                    CALL store_coag(kk,ii,jj,allCOAGcoe)
                
             END DO !kk
          END DO ! ii
       END DO ! jj
+      !$OMP END DO
+      !$OMP END PARALLEL
       
       ! Nullify pointers and clean up
       DO icat = 1,4
@@ -466,21 +495,19 @@ CONTAINS
       maerot => NULL(); mcloudt => NULL()
       mprecpt => NULL(); micet => NULL()
       
-      gaerop => NULL(); gaerot => NULL()     
-
+      gaerop => NULL(); gaerot => NULL()
       indefp => NULL()
-
       
    END SUBROUTINE run_SALSA
 
-   !
+   ! 
    !---------------------------------------------------------------
    ! SET_SALSA_RUNTIME
    ! Set the master process %state:s based on the values of %switch and %delay.
    ! Added some new time-dependent switches
-   !
+   ! 
    ! Juha Tonttila, FMI, 2014;2020
-   !
+   ! 
    SUBROUTINE set_SALSA_runtime(time, tstep, istp)
      IMPLICIT NONE
      REAL, INTENT(in) :: time, tstep
@@ -506,12 +533,14 @@ CONTAINS
      
    END SUBROUTINE set_SALSA_runtime
 
-   !
+   ! 
    ! -----------------------------------------------------------
    ! INITIALIZE_ARRAYS
    ! Initializes the storage for arranging SALSA interface data
-   !
-   SUBROUTINE initialize_arrays(nwet,bins)
+   ! 
+   SUBROUTINE initialize_arrays(nwet,bins,npart,mpart,ntend,mtend)
+     TYPE(old), INTENT(inout) :: npart(4),mpart(4)
+     TYPE(FloatArray1d), INTENT(inout) :: ntend(4),mtend(4)
      INTEGER, INTENT(in) :: nwet
      INTEGER, INTENT(in) :: bins(4)     
      INTEGER :: icat
@@ -525,14 +554,13 @@ CONTAINS
            mpart(icat) = old(bins(icat)*(nwet+1))
         END IF
      END DO
-     auxarr_initialized = .TRUE.
    END SUBROUTINE initialize_arrays
 
-   !
+   ! 
    ! ----------------------------------------------------
    ! Constructor for the datatype storing "old" values
    ! used to back up the tendencies.
-   !   
+   ! 
    FUNCTION old_cnstr(n)
      TYPE(old) :: old_cnstr
      INTEGER, INTENT(in) :: n
@@ -540,13 +568,13 @@ CONTAINS
      old_cnstr%d(:) = 0.
    END FUNCTION old_cnstr
 
-   !
+   ! 
    ! ----------------------------------------------------
    ! Initializes the coagulation kernel storage 
-   !
+   ! 
    SUBROUTINE initialize_coagstorage(nzp,nxp,nyp)
      INTEGER, INTENT(in) :: nxp,nyp,nzp
-
+     
      IF (lscgaa) THEN
         ALLOCATE(sto_aa(nzp,nxp,nyp,nbins,nbins))
         sto_aa = 0.
@@ -595,50 +623,55 @@ CONTAINS
      
    END SUBROUTINE initialize_coagstorage
    
-   !
+   ! 
    ! ------------------------------------------------------
    ! Store updated coagulation kernels
-   !
-   SUBROUTINE store_coag(kk,ii,jj)
+   ! 
+   SUBROUTINE store_coag(kk,ii,jj,allCOAGcoe)
+                         
+     TYPE(CoagCoe), INTENT(in) :: allCOAGcoe(:)
      INTEGER, INTENT(in) :: ii,jj,kk
+     
+     IF (lscgaa) sto_aa(kk,ii,jj,:,:) = allCOAGcoe(1)%zccaa(1,1,:,:)
+     
+     IF (lscgcc) sto_cc(kk,ii,jj,:,:) = allCOAGcoe(2)%zcccc(1,1,:,:)
+     IF (lscgpp) sto_pp(kk,ii,jj,:,:) = allCOAGcoe(3)%zccpp(1,1,:,:)
+     IF (lscgii) sto_ii(kk,ii,jj,:,:) = allCOAGcoe(4)%zccii(1,1,:,:)
 
-     IF (lscgaa) sto_aa(kk,ii,jj,:,:) = zccaa(1,1,:,:)
-     IF (lscgcc) sto_cc(kk,ii,jj,:,:) = zcccc(1,1,:,:)
-     IF (lscgpp) sto_pp(kk,ii,jj,:,:) = zccpp(1,1,:,:)
-     IF (lscgii) sto_ii(kk,ii,jj,:,:) = zccii(1,1,:,:)
+     IF (lscgca) sto_ca(kk,ii,jj,:,:) = allCOAGcoe(5)%zccca(1,1,:,:)
+     IF (lscgpa) sto_pa(kk,ii,jj,:,:) = allCOAGcoe(6)%zccpa(1,1,:,:)
+     IF (lscgia) sto_ia(kk,ii,jj,:,:) = allCOAGcoe(7)%zccia(1,1,:,:)
 
-     IF (lscgca) sto_ca(kk,ii,jj,:,:) = zccca(1,1,:,:)
-     IF (lscgpa) sto_pa(kk,ii,jj,:,:) = zccpa(1,1,:,:)
-     IF (lscgia) sto_ia(kk,ii,jj,:,:) = zccia(1,1,:,:)
+     IF (lscgpc) sto_pc(kk,ii,jj,:,:) = allCOAGcoe(8)%zccpc(1,1,:,:)
+     IF (lscgic) sto_ic(kk,ii,jj,:,:) = allCOAGcoe(9)%zccic(1,1,:,:)
 
-     IF (lscgpc) sto_pc(kk,ii,jj,:,:) = zccpc(1,1,:,:)
-     IF (lscgic) sto_ic(kk,ii,jj,:,:) = zccic(1,1,:,:)
-
-     IF (lscgip) sto_ip(kk,ii,jj,:,:) = zccip(1,1,:,:)
+     IF (lscgip) sto_ip(kk,ii,jj,:,:) = allCOAGcoe(10)%zccip(1,1,:,:)
      
    END SUBROUTINE store_coag
 
-   !
+   ! 
    ! -----------------------------------------------------
    ! Copy coagulation kernels from storage for current timestep,
-   ! i.e. avoid calculating new ones
-   !
-   SUBROUTINE fetch_coag(kk,ii,jj)
+   ! i .e. avoid calculating new ones
+   ! 
+   SUBROUTINE fetch_coag(kk,ii,jj,allCOAGcoe )
+   
+     TYPE(CoagCoe), INTENT(inout) :: allCOAGcoe(:)
      INTEGER, INTENT(in) :: ii,jj,kk
      
-     IF (lscgaa) zccaa(1,1,:,:) = sto_aa(kk,ii,jj,:,:) 
-     IF (lscgcc) zcccc(1,1,:,:) = sto_cc(kk,ii,jj,:,:) 
-     IF (lscgpp) zccpp(1,1,:,:) = sto_pp(kk,ii,jj,:,:)
-     IF (lscgii) zccii(1,1,:,:) = sto_ii(kk,ii,jj,:,:)
+     IF (lscgaa) allCOAGcoe(1)%zccaa(1,1,:,:) = sto_aa(kk,ii,jj,:,:)
+     IF (lscgcc) allCOAGcoe(2)%zcccc(1,1,:,:) = sto_cc(kk,ii,jj,:,:) 
+     IF (lscgpp) allCOAGcoe(3)%zccpp(1,1,:,:) = sto_pp(kk,ii,jj,:,:)
+     IF (lscgii) allCOAGcoe(4)%zccii(1,1,:,:) = sto_ii(kk,ii,jj,:,:)
 
-     IF (lscgca) zccca(1,1,:,:) = sto_ca(kk,ii,jj,:,:)
-     IF (lscgpa) zccpa(1,1,:,:) = sto_pa(kk,ii,jj,:,:) 
-     IF (lscgia) zccia(1,1,:,:) = sto_ia(kk,ii,jj,:,:) 
+     IF (lscgca) allCOAGcoe(5)%zccca(1,1,:,:) = sto_ca(kk,ii,jj,:,:)
+     IF (lscgpa) allCOAGcoe(6)%zccpa(1,1,:,:) = sto_pa(kk,ii,jj,:,:) 
+     IF (lscgia) allCOAGcoe(7)%zccia(1,1,:,:) = sto_ia(kk,ii,jj,:,:) 
 
-     IF (lscgpc) zccpc(1,1,:,:) = sto_pc(kk,ii,jj,:,:) 
-     IF (lscgic) zccic(1,1,:,:) = sto_ic(kk,ii,jj,:,:) 
+     IF (lscgpc) allCOAGcoe(8)%zccpc(1,1,:,:) = sto_pc(kk,ii,jj,:,:) 
+     IF (lscgic) allCOAGcoe(9)%zccic(1,1,:,:) = sto_ic(kk,ii,jj,:,:) 
 
-     IF (lscgip) zccip(1,1,:,:) = sto_ip(kk,ii,jj,:,:)
+     IF (lscgip) allCOAGcoe(10)%zccip(1,1,:,:) = sto_ip(kk,ii,jj,:,:)
      
    END SUBROUTINE fetch_coag
      

@@ -16,22 +16,23 @@
 IsSeq=2 # 0 for mpi runs with CRAY, 1 for mpi runs with Puhti, 2 for sequential, 3 for mpi on laptop
 
 EXPNAME="bulktest"  # Name of the experiment
-PROJECT="project_2003163"   # Project name, needed for resource allocation in PUHTI
+PROJECT="project_2004746"   # Project name, needed for resource allocation in PUHTI
 
-NPROCS=4          # Number of processors (for IsSeq==0)
-NNODES=7
-TWALL=48:00:00      # Required wallclock time for batch system
+NPROCS=2           # Number of processors (for IsSeq==0)
+NNODES=1
+THREADS=4   
+TWALL=24:00:00      # Required wallclock time for batch system
 
-NXP=40               # Number of points in X-direction (including "halo" points)
-NYP=5              # Number of points in Y-direction (including "halo" points)
-NZP=100              # Number of points in Z-direction
-DX=100.              # Resolution in X-direction (meters)
-DY=100.              # Resolution in Y-direction (meters)
+NXP=5           # Number of points in X-direction (including "halo" points)
+NYP=20           # Number of points in Y-direction (including "halo" points)
+NZP=100             # Number of points in Z-direction
+DX=100.             # Resolution in X-direction (meters)
+DY=100.             # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=0.        # Length of the spinup period (seconds)
-Texp=20000.         # Length of the experiment (seconds)
-LEVEL=3             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+Tspinup=0.          # Length of the spinup period (seconds)
+Texp=1500.          # Length of the experiment (seconds)
+LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 
 # FOR SALSA
 ISDTYP=0            # 0: Aerosol size distribution from namelist (uniform across domain),
@@ -121,10 +122,10 @@ cat > NAMELIST <<EOF
 
 &output
   breakUndefOutput = .FALSE.
-  ps_intvl = 60.
-  ts_intvl = 10.
-  main_intvl = 60.
-  varlist_main = 'rp','rc','temp'
+  ps_intvl = 6000.
+  ts_intvl = 1000.
+  main_intvl = 10.
+  varlist_main = 'rp','rc','temp','Naa','Nca','srp','CDNC'
   varlist_ps = 'rflx','sflx','lwup','lwdn','swup','swdn'
   !varlist_ts = 'ic_CDNC'
   TH_rrate = 30.
@@ -240,7 +241,7 @@ cat > NAMELIST <<EOF
    lscgcc = .TRUE.       ! Self-collection of cloud droplets
    lscgpp = .TRUE.       ! Self-collection of rain drops
    lscgpc = .TRUE.       ! Rain collection of cloud droplets
-   lscgaa = .FALSE.       ! Aerosol coagulation
+   lscgaa = .TRUE.       ! Aerosol coagulation
    lscgca = .TRUE.       ! Cloud collection of aerosols
    lscgpa = .TRUE.       ! Rain collection of aerosols
    lscgia = .TRUE.       ! Ice collection of aerosols
@@ -345,11 +346,13 @@ cat > job.sh <<EOF
 #!/bin/sh
 #SBATCH --job-name=${EXPNAME}
 #SBATCH --account=${PROJECT}
-#SBATCH --time=${TWALL}
-#SBATCH --mem-per-cpu=2G
 #SBATCH --partition=fmi
+#SBATCH --time=${TWALL}
 #SBATCH --ntasks=${NPROCS}
 #SBATCH --nodes=${NNODES}
+#SBATCH --cpus-per-task=$THREADS
+#SBATCH --mem-per-cpu=4000
+export OMP_NUM_THREADS=$THREADS
 
 module load intel-mpi
 module load netcdf-fortran
@@ -361,7 +364,7 @@ EOF
 sbatch job.sh
 
 elif [ $IsSeq -eq 2 ]; then
-    ./les.seq
+    OMP_NUM_THREADS=$THREADS ./les.seq
 elif [ $IsSeq -eq 3 ]; then
-    mpirun -np ${NPROCS} ./les.mpi
+    OMP_NUM_THREADS=$THREADS mpirun -np ${NPROCS} ./les.mpi
 fi

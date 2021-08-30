@@ -6,7 +6,7 @@ MODULE mo_salsa_cloud_ice
        boltz, planck, rg, rd, avog,             &
        fixinc, spec,                            &
        lsicenucl
-  USE mo_salsa_types, ONLY : aero, cloud, ice, precp, liquid, frozen, rateDiag
+  USE mo_salsa_types, ONLY : frozen, rateDiag
   USE mo_particle_external_properties, ONLY : calcSweq
   USE mo_salsa_math, ONLY : cumlognorm
 
@@ -23,11 +23,13 @@ MODULE mo_salsa_cloud_ice
   !   PK97  Pruppacher and Klett, Microphysics of Clouds and Precipitation, 1997
   !***********************************************
   
-  SUBROUTINE ice_nucl_driver(kproma,kbdim,klev,   &
-                             ptemp,prv,prs,prsi,ptstep )
+  SUBROUTINE ice_nucl_driver(kproma,kbdim,klev,ptemp,        &
+                             prv,prs,prsi,ptstep,ice,liquid  )
         
     IMPLICIT NONE
     
+    TYPE(Section), POINTER, INTENT(inout)  :: ice(:,:,:)
+    TYPE(Section), POINTER, INTENT(inout)  :: liquid(:,:,:)
     INTEGER, INTENT(in) :: kproma,kbdim,klev
     REAL, INTENT(in) :: ptstep
     REAL, INTENT(in) :: ptemp(kbdim,klev),  &
@@ -122,9 +124,9 @@ MODULE mo_salsa_cloud_ice
              frac = MAX(0., MIN(0.99,pf_imm+pf_hom+pf_dep-(pf_imm+pf_dep)*pf_hom))
 
              ! Determine the target ice bin
-             bb = getIceBin(dwet)
+             bb = getIceBin(dwet,ice)
 
-             CALL iceNucleation(ii,jj,bb,ndry,iwa,irim,liquid(ii,jj,kk),frac)
+             CALL iceNucleation(ii,jj,bb,ndry,iwa,irim,liquid(ii,jj,kk),frac,ice)
 
              CALL iceDiagnostics(liquid(ii,jj,kk),pf_imm,pf_dep,pf_hom)
              
@@ -312,15 +314,17 @@ MODULE mo_salsa_cloud_ice
   !
   !***********************************************
   SUBROUTINE ice_fixed_NC(kproma, kbdim,  klev,   &
-       ptemp, ppres, prv,  prsi     )
+       ptemp, ppres, prv,  prsi, ice, cloud       )
     
 
  !!!!!!!!!!!!!!!!!!!!!!!!! DOES NOT WORK ANYMORE AS IT IS, NEED TO UPDATE ARRAY INDICES IF THIS IS STILL REQUIRED
 
     
     IMPLICIT NONE
-    INTEGER, INTENT(in) :: kproma,kbdim,klev
+    TYPE(Section), POINTER, INTENT(inout)  :: cloud(:,:,:)
+    TYPE(Section), POINTER, INTENT(inout)  :: ice(:,:,:)
     
+    INTEGER, INTENT(in) :: kproma,kbdim,klev
     REAL, INTENT(in) :: &
          ptemp(kbdim,klev),    &
          ppres(kbdim,klev),    &
@@ -387,13 +391,15 @@ MODULE mo_salsa_cloud_ice
   
   ! ------------------------------------------------------------
   
-  SUBROUTINE ice_melt(kproma,kbdim,klev,   &
-       ptemp )
+  SUBROUTINE ice_melt(kproma, kbdim, klev,   &
+                      ptemp,  precp, ice     )
 
     ! UPDATE INDICES
     
     IMPLICIT NONE
     
+    TYPE(Section), POINTER, INTENT(inout) :: precp(:,:,:)
+    TYPE(Section), POINTER, INTENT(inout) :: ice(:,:,:)
     INTEGER, INTENT(in) :: kproma,kbdim,klev
     REAL, INTENT(in) :: ptemp(kbdim,klev)
 
@@ -431,7 +437,7 @@ MODULE mo_salsa_cloud_ice
              dwet = ice(ii,jj,kk)%dwet
              CALL ice(ii,jj,kk)%updateRhomean()
              rhomean = ice(ii,jj,kk)%rhomean
-             bb = getPrecipBin(dwet,rhomean)
+             bb = getPrecipBin(dwet,rhomean,precp)
              
              DO ss = 1,ndry
                 precp(ii,jj,bb)%volc(ss) = precp(ii,jj,bb)%volc(ss) + maxfrac*ice(ii,jj,kk)%volc(ss)
@@ -455,7 +461,8 @@ MODULE mo_salsa_cloud_ice
   
   ! ------------------------------------------
   
-  INTEGER FUNCTION getIceBin(ldwet)
+  INTEGER FUNCTION getIceBin(ldwet,ice)
+    TYPE(Section), POINTER, INTENT(in) :: ice(:,:,:)
     REAL, INTENT(in)    :: ldwet
     REAL :: vol
     INTEGER :: ii
@@ -470,7 +477,8 @@ MODULE mo_salsa_cloud_ice
 
   END FUNCTION getIceBin
 
-  INTEGER FUNCTION getPrecipBin(idwet,idens)
+  INTEGER FUNCTION getPrecipBin(idwet,idens,precp)
+    TYPE(Section), POINTER, INTENT(in) :: precp(:,:,:)
     REAL, INTENT(in) :: idwet   ! This should be given as a spherical effective diameter
     REAL, INTENT(in) :: idens   ! this should be the particle mean density (contribution by pristine and rimed ice)
     REAL :: vol
@@ -487,10 +495,11 @@ MODULE mo_salsa_cloud_ice
   END FUNCTION getPrecipBin
 
 
-  SUBROUTINE iceNucleation(ii,jj,iice,ndry,iwa,irim,pliq,frac)
+  SUBROUTINE iceNucleation(ii,jj,iice,ndry,iwa,irim,pliq,frac,ice)
     INTEGER, INTENT(in) :: ii,jj,iice
     INTEGER, INTENT(in) :: iwa, irim, ndry
     TYPE(Section), INTENT(inout) :: pliq  ! Liquid particle properties
+    TYPE(Section), POINTER, INTENT(inout) :: ice(:,:,:)
     REAL, INTENT(in)          :: frac  ! Fraction of nucleated particles from liquid phase
     
     INTEGER :: ss

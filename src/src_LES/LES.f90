@@ -13,10 +13,10 @@
 !
 ! You should have received a copy of the GNU General Public License
 ! along with this program.  If not, see <http://www.gnu.org/licenses/>.
-!
+! 
 ! Copyright 1999-2007, Bjorn B. Stevens, Dep't Atmos and Ocean Sci, UCLA
 !----------------------------------------------------------------------------
-!
+! 
 PROGRAM ucla_les
 
    USE mpi_interface, ONLY : myid
@@ -24,7 +24,7 @@ PROGRAM ucla_les
    IMPLICIT NONE
 
    REAL :: t1, t2
-
+   
    CALL cpu_time(t1)
    CALL driver
    CALL cpu_time(t2)
@@ -56,7 +56,7 @@ CONTAINS
       IMPLICIT NONE
 
       INTEGER :: ierror
-
+      
       CALL init_mpi
 
       CALL define_parm

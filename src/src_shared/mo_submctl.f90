@@ -46,6 +46,7 @@ MODULE mo_submctl
   LOGICAL :: lscgic  = .TRUE.  ! Collection of cloud droplet by ice particles
   LOGICAL :: lscgii  = .TRUE.  ! Collision-coalescence between ice particles
   LOGICAL :: lscgip  = .TRUE.  ! Collection of precipitation by ice particles
+  LOGICAL :: ParallelStep = .FALSE.
 
   ! Reduced coagulation kernel update frequency
   REAL :: cgintvl = 10.             ! If lscoag%mode = 2, gives the coagulation kernel update interval in seconds.

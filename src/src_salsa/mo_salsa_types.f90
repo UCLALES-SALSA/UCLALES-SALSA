@@ -1,6 +1,6 @@
 MODULE mo_salsa_types
   USE classProcessRates, ONLY : ProcessRates
-  USE classSection, ONLY : Section
+  USE classSection, ONLY : Section, CoagCoe
   IMPLICIT NONE
 
   SAVE
@@ -22,7 +22,7 @@ MODULE mo_salsa_types
                             ice(:,:,:)   => NULL(),    &
                             liquid(:,:,:) => NULL(),  &
                             frozen(:,:,:) => NULL()
-
+  
   ! Star and end indices for different particle types in the allSALSA array
   INTEGER :: iaero, faero, icloud, fcloud, iprecp, fprecp, iice, fice
   
@@ -41,5 +41,7 @@ MODULE mo_salsa_types
                        zccii(:,:,:,:),    & ! - '' - for aggregation between ice 
                        zccip(:,:,:,:)       ! - '' - for collection of precip by ice
   
+  ! zccxx variables packed into this so subroutine calls look cleaner                       
+  TYPE(CoagCoe), ALLOCATABLE  :: allCOAGcoe(:)
   
 END MODULE mo_salsa_types

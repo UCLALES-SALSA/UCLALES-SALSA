@@ -7,6 +7,7 @@ MODULE constrain_SALSA
   USE mo_submctl, ONLY : spec, nlim, prlim, ice_theta_dist
   USE grid, ONLY : level
   USE mo_structured_datatypes
+  USE omp_lib
   IMPLICIT NONE
 
 
@@ -21,11 +22,16 @@ MODULE constrain_SALSA
       TYPE(FloatArray4d), POINTER :: varp => NULL(),vart => NULL()
       INTEGER :: nv
       
+      !$OMP PARALLEL
+      !$OMP DO FIRSTPRIVATE(varp, vart)
       DO nv = 1,SALSA_tracers_4d%count
          CALL SALSA_tracers_4d%getData(1,varp,nv)
          CALL SALSA_tracers_4d%getData(2,vart,nv)
          vart%d(:,:,:,:) = MAX( (-1.+1.e-8)*varp%d(:,:,:,:)/dtlt, vart%d(:,:,:,:)  )
       END DO
+      !$OMP END DO
+      !$OMP END PARALLEL
+      
       varp => NULL(); vart => NULL()
 
       IF (ice_theta_dist .AND. level > 4)   &
@@ -33,7 +39,7 @@ MODULE constrain_SALSA
       
    END SUBROUTINE tend_constrain2
    
-   !
+   ! 
    ! ---------------------------------------------------------------------
    ! SALSA_diagnostics: Update properties for the current timestep:
    !                    E.g. if enough water has evaporated from droplets,
@@ -41,7 +47,7 @@ MODULE constrain_SALSA
    !                    back to the aerosol regime.
    !                    In addition, update the diagnostic scalars for total grid-cell
    !                    liquid water contents.
-   !
+   ! 
    ! Juha Tonttila, FMI, 2014
    ! Tomi Raatikainen, FMI, 2016
 
@@ -96,7 +102,10 @@ MODULE constrain_SALSA
      END IF
      
      IF ( .NOT. l_onlyDiag) THEN
-                   
+        
+        ! Sets up parallel region for multiple DO-loops. All privates are not needed in first DO-loop but still declared here
+        !$OMP PARALLEL PRIVATE(bc,mi,mi2,mice_tot,ns,zbb,zaa,cdcld,zvol,zdh2o,ba,s,sc,sa,vice_tot,cdice,nc)
+        !$OMP DO SCHEDULE(GUIDED)
         ! Remove particles that have number but not mass
         DO j = 3,nyp-2
            DO i = 3,nxp-2
@@ -144,11 +153,12 @@ MODULE constrain_SALSA
               END DO !k
            END DO !i
         END DO !j
-        
+        !$OMP END DO
         ! Check evaporation of particles
         ! --------------------------------------
         ! Loop over cloud droplet bins
-        DO bc = ica%cur,fcb%cur    
+        !$OMP DO SCHEDULE(GUIDED)
+        DO bc = ica%cur,fcb%cur  
            DO j = 3,nyp-2
               DO i = 3,nxp-2
                  DO k = 1,nzp
@@ -197,8 +207,9 @@ MODULE constrain_SALSA
               END DO
            END DO
         END DO ! bc
-        
+        !$OMP END DO
         ! Loop over precipitation bins
+        !$OMP DO SCHEDULE(GUIDED)
         DO bc = 1,nprc
            DO j = 3,nyp-2
               DO i = 3,nxp-2
@@ -246,9 +257,10 @@ MODULE constrain_SALSA
               END DO
            END DO
         END DO ! bc
-        
+        !$OMP END DO
         ! Loop over ice bins
         IF (level == 5) THEN
+           !$OMP DO SCHEDULE(GUIDED)
            DO bc = 1,nice
               DO j = 3,nyp-2
                  DO i = 3,nxp-2
@@ -302,9 +314,11 @@ MODULE constrain_SALSA
                  END DO
               END DO
            END DO ! bc
+           !$OMP END DO
         END IF ! level = 5
            
         ! Loop over aerosol bins
+        !$OMP DO SCHEDULE(GUIDED)
         DO ba = 1,nbins
            DO j = 3,nyp-2
               DO i = 3,nxp-2
@@ -350,9 +364,10 @@ MODULE constrain_SALSA
               END DO
            END DO
         END DO
-        
+        !$OMP END DO
+        !$OMP END PARALLEL
      END IF ! onlyDiag
-
+     
     !!!!!!!!!!!!!!!!!!!!!!!
     ! Update diagnostic tracers
     !!!!!!!!!!!!!!!!!!!!!!!

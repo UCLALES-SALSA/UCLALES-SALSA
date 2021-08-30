@@ -35,8 +35,8 @@ CONTAINS
     USE mo_progn_state, ONLY: a_qp
     USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc
     USE mo_aux_state, ONLY: dzt, dzm,dn0
-    USE grid, ONLY : newsclr, nscl, a_sp, a_st, nxp, nyp, nzp, dtlt,  &
-                     dxi, dyi, isgstyp
+    USE grid, ONLY : nscl, a_sp, a_st, nxp, nyp, nzp, dtlt,  &
+                     dxi, dyi, isgstyp, a_sclrp
     !USE stat, ONLY : sflg, updtst
     USE util, ONLY : get_avg3
 
@@ -45,9 +45,9 @@ CONTAINS
     LOGICAL :: iw
     a_tmp1 = 0.  ! Just making sure while finding a memory leak... -Juha
     a_tmp2 = 0.
-    !
+    ! 
     ! diagnose liquid water flux
-    !
+    ! 
     !IF (sflg .AND. level > 1) THEN
     !   a_tmp1 = a_rc
     !   CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.FALSE.)
@@ -55,12 +55,16 @@ CONTAINS
     !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
     !   CALL updtst(nzp,'adv',0,v1da,1)   RL_FLUX
     !END IF
-    !
+    ! 
     ! loop through the scalar table, setting iscp and isct to the
     ! appropriate scalar pointer and do the advection
-    !
+    ! 
+    !$OMP PARALLEL
+    !$OMP DO PRIVATE(a_sp, a_st, a_tmp1, a_tmp2, iw) SCHEDULE(DYNAMIC)
     DO n = 1, nscl
-      CALL newsclr(n)
+      ! Sets private pointers to private targets
+      a_sp => a_sclrp(:,:,:,n)
+      a_st => a_sclrp(:,:,:,n)
 
       IF ( ANY(a_sp /= 0.0 ) ) THEN ! TR added: no need to calculate advection for zero arrays
          a_tmp1 = a_sp
@@ -95,7 +99,9 @@ CONTAINS
       END IF
 
     END DO
-
+    !$omp end do
+    !$omp end parallel
+    
   END SUBROUTINE fadvect
   !
   !----------------------------------------------------------------------

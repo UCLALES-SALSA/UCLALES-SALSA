@@ -31,6 +31,7 @@ MODULE mcrp
   !USE stat, ONLY : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
   USE classProcessSwitch, ONLY : ProcessSwitch
   USE mo_structured_datatypes
+  USE omp_lib
   IMPLICIT NONE
    
   INTEGER :: bulkScheme = 1   ! Select bulk microphysics parameterizations:
@@ -685,11 +686,11 @@ MODULE mcrp
       END DO
       
     END SUBROUTINE sedim_rd
-    !
+    ! 
     ! ---------------------------------------------------------------------
     ! SEDIM_CD: calculates the cloud-droplet sedimentation flux and its effect
     ! on the evolution of r_t and theta_l assuming a log-normal distribution
-    !
+    ! 
     SUBROUTINE sedim_cd(th,tk,rc,dn0,rrate,rtt,tlt,pcdnc)      
       TYPE(FloatArray3d), INTENT (in)         :: th,tk,rc
       TYPE(FloatArray1d), INTENT (in)         :: dn0
@@ -706,9 +707,12 @@ MODULE mcrp
       REAL    :: Dc, Xc, vc, flxdiv
       REAL    :: rfl(nzp)
 
-      !
+      ! 
       ! calculate the precipitation flux and its effect on r_t and theta_l
-      !
+      ! 
+      
+      !!$omp parallel
+      !!$omp do firstprivate(Xc, Dc, rfl, kp1,flxdiv)
       DO j = 3, nyp-2
          DO i = 3, nxp-2
             rfl(nzp) = 0.
@@ -722,7 +726,7 @@ MODULE mcrp
                Dc = MIN(MAX(Dc,D_min),D_bnd)
                vc = min(c*(Dc*0.5)**2 * exp(4.5*(log(sgg))**2),1./(dzt%d(k)*dtlt))
                rfl(k) = - rc%d(k,i,j) * vc  ! kg/kg m/s
-               !
+               
                kp1 = k+1
                flxdiv = (rfl(kp1)-rfl(k))*dzt%d(k)  ! kg/kg/s
                rtt%d(k,i,j) = rtt%d(k,i,j)-flxdiv
@@ -731,6 +735,7 @@ MODULE mcrp
             END DO
          END DO
       END DO
+         
             
     END SUBROUTINE sedim_cd
     
@@ -800,10 +805,10 @@ MODULE mcrp
 
          CALL DepositionSlow(nbins,nspec,tk,adn,ustar,a_naerop,a_maerop, &
                              andiv,amdiv,andep,remaer,rrate,sfcrrate,1     )
-
+         
          a_naerot%d = a_naerot%d - andiv
          a_maerot%d = a_maerot%d - amdiv
-
+         
          ! Account for changes in liquid water pot temperature
          nc = spec%getIndex('H2O')
          istr = getMassIndex(nbins,1,nc)
@@ -845,6 +850,7 @@ MODULE mcrp
       ! ---------------------------------------------------------
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
       IF (sed_precp%state) THEN
+         
          CALL DepositionFast(nprc,nspec,tk,adn,a_nprecpp,a_mprecpp,   &
                              prnt,prmt,remprc,rrate,sfcrrate,VtPrc,3  )
          
@@ -977,7 +983,8 @@ MODULE mcrp
     depflxn = 0.
     zpm(:) = 0.
     zpn(:) = 0.
-
+    !$omp parallel firstprivate(rflm,rfln,zpm,zpn,pmass)
+    !$omp do private(k,bs,avis,kvis,lambda,dwet,mdiff,Sc,St,rt,Kn,zdn,GG,vc,kp1)
     DO j = 3,nyp-2
        DO i = 3,nxp-2
 
@@ -1065,7 +1072,9 @@ MODULE mcrp
           
        END DO ! i
     END DO ! j
-
+    !$omp end do
+    !$omp end parallel
+    
   END SUBROUTINE DepositionSlow
 
 
@@ -1133,9 +1142,9 @@ MODULE mcrp
     prvt(:,:,:,:) = 0.
     zpm(:) = 0.
     zpn(:) = 0.
-
+    !$omp parallel firstprivate(prnchg,prvchg,zpm,zpn,pmass,shape)
+    !$omp do private(bin,ni,kvis,va,lambda,dwet,dnsp,vc,prcdep,kf,fdos,prnumc,fdmax,fd,zdn,Kn,GG,fi,avis)
     DO j = 3,nyp-2
-       
        DO i = 3,nxp-2
 
           prnchg = 0.
@@ -1250,9 +1259,8 @@ MODULE mcrp
                       prvchg(kf,bin,ni) = prvchg(kf,bin,ni) + ( 1. - fdos*dzt%d(kf) )*pmass(ni)
                    END DO
                 END IF ! diffusion
-             
+                
              END DO !bin
-          
           END DO ! k
 
           ! Surface precip rate
@@ -1267,12 +1275,13 @@ MODULE mcrp
              istr = (ni-1)*nb+1
              iend = ni*nb
              prvt(:,i,j,istr:iend) = prvt(:,i,j,istr:iend) + prvchg(:,:,ni)
+          
           END DO !ni
-
        END DO ! i
-
     END DO ! j
-
+    !$omp end do
+    !$omp end parallel
+    
   END SUBROUTINE DepositionFast
 
 

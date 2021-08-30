@@ -1,6 +1,6 @@
 !****************************************************************
 !*                                                              *
-!*   MODULE MO_SALSA_UPDATE                                 *
+!*   MODULE MO_SALSA_UPDATE                                     *
 !*                                                              *
 !*   Contains subroutines and functions that are used           *
 !*   to calculate aerosol dynamics                              *
@@ -13,17 +13,23 @@
 
 MODULE mo_salsa_update
    USE classSection
-   USE mo_salsa_types, ONLY : aero, cloud, precp, ice
+
    IMPLICIT NONE
 
 CONTAINS
 
-   SUBROUTINE distr_update(kbdim, klev, level ) ! kproma
+   SUBROUTINE distr_update(kbdim, klev, level, aero, cloud, precp, ice, allSALSA) ! kproma
       USE mo_submctl
     
       IMPLICIT NONE
 
       !-- Input and output variables ----------
+      TYPE(Section), INTENT(inout) :: allSALSA(:,:,:)
+      TYPE(section), INTENT(inout) :: aero(:,:,:)
+      TYPE(section), INTENT(inout) :: cloud(:,:,:)
+      TYPE(section), INTENT(inout) :: precp(:,:,:)
+      TYPE(section), INTENT(inout) :: ice(:,:,:)
+      
       INTEGER, INTENT(IN) ::      &
          !kproma,                    & ! number of horiz. grid points 
          kbdim,                     & ! dimension for arrays
@@ -276,7 +282,7 @@ CONTAINS
                         !-- Number fraction to be moved to the smaller bin
                         znfrac = min(1.,(precp(ii,jj,kk)%vlolim-zVilo) / (zVihi-zVilo))
                         IF (znfrac < 0.) STOP 'Error, numc precp 0'
-
+                        
                         !-- Index for the smaller bin
                         mm = kk - 1
 

@@ -1,7 +1,7 @@
 
 !****************************************************************
 !*                                                              *
-!*   MODULE MO_SALSA_DYNAMICS                               *
+!*   MODULE MO_SALSA_DYNAMICS                                   *
 !*                                                              *
 !*   Contains subroutines and functions that are used           *
 !*   to calculate aerosol dynamics                              *
@@ -9,7 +9,9 @@
 !****************************************************************
 
 MODULE mo_salsa_dynamics
-   IMPLICIT NONE
+  USE classSection, ONLY : Section, CoagCoe
+  USE omp_lib
+  IMPLICIT NONE
 
 
 CONTAINS
@@ -18,19 +20,19 @@ CONTAINS
    ! fxm: test well, esp. self-coagulation (but other bits too!)
    ! AL_note: Diagnostic variables of cond and nucl mass
    !********************************************************************
-   !
+   ! 
    ! Subroutine COAGULATION(kproma,kbdim,klev, &
    !       pnaero,pvols,pdwet, &
    !       pcore, ptstep)
-   !
+   ! 
    !********************************************************************
-   !
+   ! 
    ! Purpose:
    ! --------
    ! Calculates particle loss and change in size distribution
    !  due to (Brownian) coagulation
-   !
-   !
+   ! 
+   ! 
    ! Method:
    ! -------
    ! Semi-implicit, non-iterative method:
@@ -39,7 +41,7 @@ CONTAINS
    !  Start from first bin and use the updated number and volume
    !  for calculation of following bins. NB! Our bin numbering
    !  does not follow particle size in regime 2.
-   !
+   ! 
    !Schematic for bin numbers in different regimes:
    !             1                            2
    !    +-------------------------------------------+
@@ -53,10 +55,10 @@ CONTAINS
    !  from model driver. In subroutine COAGULATION, these exact
    !  coefficients are scaled according to current particle wet size
    !  (linear scaling).
-   !
+   ! 
    ! Juha: Now also considers coagulation between hydrometeors,
    !       and hydrometeors and aerosols.
-   !
+   ! 
    !       Since the bins are organized in terms of the dry size of
    !       of the condensation nucleus, while coagulation kernell is
    !       calculated with the actual hydrometeor size, some assumptions
@@ -69,19 +71,19 @@ CONTAINS
    !                    coagulation with all drizzle bins, regardless of
    !                    the nucleus size in the latter (collection of cloud
    !                    droplets by rain).
-   !
+   ! 
    !                 3. Coagulation between drizzle bins acts like 1.
-   !
+   ! 
    !       ISSUES:
    !           Process selection should be made smarter - now just lots of ifs
    !           inside loops. Bad.
-   !
-   !
+   ! 
+   ! 
    ! Interface:
    ! ----------
    ! Called from main aerosol model
-   !
-   !
+   ! 
+   ! 
    ! Coded by:
    ! ---------
    ! Hannele Korhonen (FMI) 2005
@@ -90,18 +92,14 @@ CONTAINS
    ! Matti Niskanen(FMI) 2012
    ! Anton Laakso  (FMI) 2013
    ! Juha Tonttila (FMI) 2014
-   !
+   ! 
    !---------------------------------------------------------------------
 
 
    SUBROUTINE coagulation(kproma,kbdim,klev,   &
-                          ptstep,ptemp,ppres   )
+                          ptstep,ptemp,ppres,  &
+                          aerot,cloudt,precpt,icet,allSALSA,allCOAGcoe  )
 
-     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA,      &
-                                zccaa, zcccc, zccpp, zccii,             &
-                                zccca, zccpa, zccia,                    &
-                                zccpc, zccic,                           &
-                                zccip
      USE mo_submctl, ONLY: ntotal,nbins,ncld,nprc,nice, &
                            spec,   &
                            lscgaa, lscgcc, lscgpp, lscgii, & 
@@ -122,6 +120,13 @@ CONTAINS
 
 
       !-- Input and output variables -------------
+      TYPE(Section), TARGET, INTENT(inout) :: allSALSA(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: aerot(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: cloudt(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: precpt(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout)  :: icet(:,:,:)
+      TYPE(CoagCoe), INTENT(inout) :: allCOAGcoe(:)
+      
       INTEGER, INTENT(IN) ::        &
          kproma,                    & ! number of horiz. grid kproma
          kbdim,                     & ! dimension for arrays
@@ -168,24 +173,24 @@ CONTAINS
             END DO
          END DO
       END DO
-
+      
       ! Calculate new kernels every timestep if low freq updating is NOT used,
       ! or when low freq IS used AND it is the update timestep.
       IF (lscoag%mode == 1 .OR. lcgupdt ) &
-           CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp)
+           CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp,aerot,cloudt,precpt,icet,allCOAGcoe)
       
-      any_aero = ANY( aero(:,:,:)%numc > aero(:,:,:)%nlim ) .AND. &
+      any_aero = ANY( aerot(:,:,:)%numc > aerot(:,:,:)%nlim ) .AND. &
                  ANY( [lscgaa,lscgca,lscgpa,lscgia] )
-      any_cloud = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim ) .AND. &
+      any_cloud = ANY( cloudt(:,:,:)%numc > cloudt(:,:,:)%nlim ) .AND. &
                   ANY( [lscgcc,lscgca,lscgpc,lscgic] ) 
-      any_precp = ANY( precp(:,:,:)%numc > precp(:,:,:)%nlim ) .AND. &
+      any_precp = ANY( precpt(:,:,:)%numc > precpt(:,:,:)%nlim ) .AND. &
                   ANY( [lscgpp,lscgpa,lscgpc,lscgip])
-      any_ice = ANY( ice(:,:,:)%numc > ice(:,:,:)%nlim ) .AND. &
+      any_ice = ANY( icet(:,:,:)%numc > icet(:,:,:)%nlim ) .AND. &
                 ANY( [lscgii,lscgia,lscgic,lscgip] )
 
-      any_lt13 = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim .AND. cloud(:,:,:)%dwet < 13.e-6, DIM=3 )
-      any_gt25 = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim .AND. cloud(:,:,:)%dwet > 25.e-6, DIM = 3 )   &
-            .OR. ANY( precp(:,:,:)%numc > precp(:,:,:)%nlim .AND. precp(:,:,:)%dwet > 25.e-6, DIM = 3 )
+      any_lt13 = ANY( cloudt(:,:,:)%numc > cloudt(:,:,:)%nlim .AND. cloudt(:,:,:)%dwet < 13.e-6, DIM=3 )
+      any_gt25 = ANY( cloudt(:,:,:)%numc > cloudt(:,:,:)%nlim .AND. cloudt(:,:,:)%dwet > 25.e-6, DIM = 3 )   &
+            .OR. ANY( precpt(:,:,:)%numc > precpt(:,:,:)%nlim .AND. precpt(:,:,:)%dwet > 25.e-6, DIM = 3 )
             
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !-- 3) New particle and volume concentrations after coagulation -------------
@@ -193,44 +198,43 @@ CONTAINS
       IF (any_ice .AND. ALL(ptemp < 273.15)) THEN
 
          ! For H-M: Store the "old" rime volumes
-         drimdt(:,:,:) = ice(:,:,:)%volc(iri)
+         drimdt(:,:,:) = icet(:,:,:)%volc(iri)
          
-         CALL coag_ice(kbdim,klev,nspec,ptstep) 
+         CALL coag_ice(kbdim,klev,nspec,ptstep,aerot,cloudt,precpt,icet,allCOAGcoe) 
 
          ! For H-M: Take the change in rime after collection processes
-         drimdt(:,:,:) = ice(:,:,:)%volc(iri) - drimdt(:,:,:)
+         drimdt(:,:,:) = icet(:,:,:)%volc(iri) - drimdt(:,:,:)
 
          ! H-M rime splintering
          IF (lssecice%state .AND. ice_halmos) &
-              CALL halletmossop(kbdim,kproma,klev,(any_lt13 .AND. any_gt25),ptemp,drimdt)
+              CALL halletmossop(kbdim,kproma,klev,(any_lt13 .AND. any_gt25),ptemp,drimdt,icet)
          
       END IF
-
+      
       ! Get new nspec that omits the rime. See comments in the beginning..
       nspec = spec%getNSpec(type="wet")
 
-      pre1 = SUM(precp(1,1,:)%volc(1)) + sum(cloud(1,1,:)%volc(1))
-      pre2 = SUM(precp(1,1,:)%volc(2)) + SUM(cloud(1,1,:)%volc(2))
+      pre1 = SUM(precpt(1,1,:)%volc(1)) + sum(cloudt(1,1,:)%volc(1))
+      pre2 = SUM(precpt(1,1,:)%volc(2)) + SUM(cloudt(1,1,:)%volc(2))
       
       ! POISTA MASSATARKASTELUT
       IF (any_precp) THEN 
-         CALL coag_precp(kbdim,klev,nspec,ptstep)
-
+         CALL coag_precp(kbdim,klev,nspec,ptstep,aerot,cloudt,precpt,icet,allCOAGcoe)
       END IF
-
-      post1 = SUM(precp(1,1,:)%volc(1)) + SUM(cloud(1,1,:)%volc(1))
-      post2 = SUM(precp(1,1,:)%volc(2)) + SUM(cloud(1,1,:)%volc(2))
+      
+      post1 = SUM(precpt(1,1,:)%volc(1)) + SUM(cloudt(1,1,:)%volc(1))
+      post2 = SUM(precpt(1,1,:)%volc(2)) + SUM(cloudt(1,1,:)%volc(2))
       !IF(any_precp) &
       !     WRITE(*,*) "coag pre post rdiff ", pre1, pre2, post1, post2,   &
       !                (post1-pre1)/pre1, (post2-pre2)/pre2
       
-
+      
       IF (any_aero) &
-           CALL coag_aero(kbdim,klev,nspec,ptstep)
-
+           CALL coag_aero(kbdim,klev,nspec,ptstep,aerot,cloudt,precpt,icet,allCOAGcoe)
+      
       IF (any_cloud) &
-           CALL coag_cloud(kbdim,klev,nspec,ptstep)
-
+           CALL coag_cloud(kbdim,klev,nspec,ptstep,aerot,cloudt,precpt,icet,allCOAGcoe)
+      
       
    END SUBROUTINE coagulation
 
@@ -239,22 +243,22 @@ CONTAINS
    ! fxm: same diffusion coefficients and mean free paths used for sulphuric acid
    !      and organic vapours (average values? 'real' values for each?)
    !********************************************************************
-   !
+   ! 
    ! Subroutine CONDENSATION(kproma, kbdim,  klev,        &
    !                         pnaero, pvols,  pdwet, plwc, &
    !                         pcsa,   pcocnv, pcocsv,      &
    !                         ptemp,  ppres,  ptstep)
    !
    !********************************************************************
-   !
+   ! 
    ! Purpose:
    ! --------
    ! Calculates the increase in particle volume and
    !  decrease in gas phase concentrations due to condensation
    !  of sulphuric acid and two organic compounds (non-volatile
    !  and semivolatile)
-   !
-   !
+   ! 
+   ! 
    ! Method:
    ! -------
    ! Regime 3 particles only act as a sink for condensing vapours
@@ -267,10 +271,10 @@ CONTAINS
    !  condensational and dissolutional growth equations
    !  when growth is coupled to reversible reactions,
    !  Aerosol Sci. Tech., 27, pp 491-498.
-   !
+   ! 
    ! fxm: one should really couple with vapour production and loss terms as well
    !      should nucleation be coupled here as well????
-   !
+   ! 
    ! Juha: Now does the condensation of water vapour on hydrometeors as well,
    !       + the condensation of semivolatile aerosol species on hydromets.
    !       Modified for the new aerosol datatype. LWC is obtained from %volc(8)
@@ -279,37 +283,38 @@ CONTAINS
    ! Interface:
    ! ----------
    ! Called from main aerosol model
-   !
-   !
+   ! 
+   ! 
    ! Coded by:
    ! ---------
    ! Hannele Korhonen (FMI) 2005
    ! Harri Kokkola (FMI) 2006
    ! Juha Tonttila (FMI) 2014
-   !
+   ! 
    !---------------------------------------------------------------
-   !
+   ! 
    ! Following parameterization has been used:
    ! ------------------------------------------
-   !
+   ! 
    ! Molecular diffusion coefficient of condensing vapour [m2/s]
    !  (Reid et al. (1987): Properties of gases and liquids,
    !   McGraw-Hill, New York.)
-   !
+   ! 
    ! D = {1.d-7*sqrt(1/M_air + 1/M_gas)*T^1.75} / &
    !  {p_atm/p_stand * (d_air^(1/3) + d_gas^(1/3))^2 }
-   !
+   ! 
    ! M_air = 28.965 : molar mass of air [g/mol]
    ! d_air = 19.70  : diffusion volume of air
    ! M_h2so4 = 98.08  : molar mass of h2so4 [g/mol]
    ! d_h2so4 = 51.96  : diffusion volume of h2so4
-   !
+   ! 
    !---------------------------------------------------------------
 
-   SUBROUTINE condensation(kproma,  kbdim,  klev,    krow,      &
-                           pcsa,   pcocnv,  pcocsv,    &
-                           pchno3,  pcnh3,  prv,prs, prsi,      &
-                           ptemp,   ppres,  ptstep,  ppbl       )
+   SUBROUTINE condensation(kproma,  kbdim,   klev,    krow,      &
+                           pcsa,    pcocnv,  pcocsv,  pchno3,    &
+                           pcnh3,   prv,prs, prsi,    ptemp,     &
+                           ppres,   ptstep,  ppbl ,   allSALSA,  &
+                           aero,    cloud,   precp,   ice        )
 
       USE mo_salsa_nucleation
       USE mo_submctl, ONLY :      &
@@ -320,6 +325,12 @@ CONTAINS
       IMPLICIT NONE
 
       !-- Input and output variables ----------
+      TYPE(Section), TARGET, INTENT(inout) :: allSALSA(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: aero(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: cloud(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: precp(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: ice(:,:,:)      
+
       INTEGER, INTENT(IN) ::      &
          kproma,                    & ! number of horiz. grid kproma
          kbdim,                     & ! dimension for arrays
@@ -356,21 +367,23 @@ CONTAINS
       !------------------------------------------------------------------------------
 
       ! Nucleation
-      IF (nsnucl > 0) CALL nucleation(kproma, kbdim,  klev,   krow,  &
-                                      ptemp,  zrh,    ppres,  &
+      IF (nsnucl > 0) CALL nucleation(kproma, kbdim,  klev,   krow,   &
+                                      ptemp,  zrh,    ppres,          &
                                       pcsa,   pcocnv, ptstep, zj3n3,  &
-                                      zxsa,   zxocnv, ppbl            )
+                                      zxsa,   zxocnv, ppbl,   aero    )
 
       ! Condensation of H2SO4 and organic vapors
-      IF (lscndgas) CALL condgas(kproma,  kbdim,  klev,    krow,      &
-                                 pcsa, pcocnv, pcocsv,     &
-                                 zxsa, ptemp,  ppres, ptstep )
+      IF (lscndgas) CALL condgas(kproma,  kbdim,  klev,   krow,    &
+                                 pcsa,    pcocnv, pcocsv, zxsa,    &
+                                 ptemp,   ppres,  ptstep, aero,    &
+                                 cloud,   precp,  ice,    allSALSA )
 
       ! Condensation of water vapour
       IF (lscndh2ocl .OR. lscndh2oae .OR. lscndh2oic) &
-         CALL gpparth2o(kproma, kbdim, klev,  krow,  &
-                        ptemp,  ppres, prs,   prsi,  &
-                        prv,   ptstep        )
+         CALL gpparth2o(kproma, kbdim, klev,  krow,   &
+                        ptemp,  ppres, prs,   prsi,   &
+                        prv,    ptstep,   allSALSA,   &
+                        aero,   cloud, precp, ice     )
 
    END SUBROUTINE condensation
 
@@ -380,10 +393,10 @@ CONTAINS
 
    SUBROUTINE condgas(kproma,  kbdim,  klev,    krow,      &
                       pcsa,    pcocnv, pcocsv,  zxsa,      &
-                      ptemp,   ppres,  ptstep              )
+                      ptemp,   ppres,  ptstep,  aero,      &
+                      cloud,   precp,  ice,     allSALSA   )
 
-     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA
-      USE mo_submctl, ONLY :      &
+    USE mo_submctl, ONLY :      &
          pi,                        &
          in1a, in2a,                & ! size bin indices
          fn2b,                      &
@@ -405,6 +418,12 @@ CONTAINS
       IMPLICIT NONE
 
       !-- Input and output variables ----------
+      TYPE(Section), TARGET, INTENT(inout) :: allSALSA(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: aero(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: cloud(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: precp(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: ice(:,:,:)
+      
       INTEGER, INTENT(IN) ::      &
          kproma,                    & ! number of horiz. grid kproma
          kbdim,                     & ! dimension for arrays
@@ -723,9 +742,10 @@ CONTAINS
 
    SUBROUTINE gpparth2o(kproma, kbdim,  klev,  krow,     &
                         ptemp,  ppres,  prs,   prsi,     &
-                        prv,   ptstep    )
+                        prv,    ptstep, allSALSA,        &
+                        aero,   cloud,  precp, ice       )
     
-     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, rateDiag, allSALSA
+     USE mo_salsa_types, ONLY : rateDiag
      USE mo_submctl, ONLY : nbins, ncld, nprc,    &
           nice, ntotal, &
           spec,                           &
@@ -739,7 +759,13 @@ CONTAINS
           alv, als 
      USE mo_salsa_properties, ONLY : equilibration
      IMPLICIT NONE
-
+      
+      TYPE(Section), TARGET, INTENT(inout) :: allSALSA(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: aero(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: cloud(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: precp(:,:,:)
+      TYPE(Section), POINTER, INTENT(inout) :: ice(:,:,:)
+      
       INTEGER, INTENT(in) :: kproma,kbdim,klev,krow
       REAL, INTENT(in) :: ptstep
       REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev)
@@ -800,17 +826,17 @@ CONTAINS
 
       ! For 1a bins do the equilibrium calculation
       CALL equilibration(kproma,kbdim,klev,      &
-                         zrh,ptemp,.FALSE. )
+                         zrh,ptemp,aero, .FALSE. )
 
       ! If RH < 98 % OR dynamic condensation for aerosols switched off, do equilibrium for all bins
       IF (zrh(1,1) < 0.98 .OR. .NOT. lscndh2oae)  CALL equilibration(kproma,kbdim,klev,      &
-                                                                     zrh,ptemp,.TRUE. )
+                                                                     zrh,ptemp,aero, .TRUE.  )
 
       ! The new aerosol water content after equilibrium calculation
       zaelwc2(:,:) = SUM(aero(:,:,in1a:fn2b)%volc(iwa),DIM=3)*spec%rhowa
 
       prv(:,:) = prv(:,:) - ( zaelwc2(:,:) - zaelwc1(:,:) )/(ppres(:,:)*mair/(rg*ptemp(:,:)))
-
+      
       DO jj = 1, klev
          DO ii = 1, kbdim
             ! Necessary?

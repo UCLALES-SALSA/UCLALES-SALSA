@@ -679,7 +679,6 @@ CONTAINS
     INTEGER, DIMENSION (:), ALLOCATABLE :: seed
 
     INTEGER :: i,j,k,n2g,n3g,isize
-    REAL :: hep
     
     rand = 0.0
     ! seed must be a double precision odd whole number greater than
@@ -718,7 +717,7 @@ CONTAINS
        PRINT 600,zt%d(kmx),rand(3,3),xx
        PRINT *,'-------------------------------------------------'
     END IF
-    CALL sclrset('cnst',n1,n2,n3,fld%d)
+    CALL sclrset('cnst',n1,n2,n3,fld%d,.FALSE.)
     RETURN
 
 600 FORMAT(2x,'Inserting random temperature perturbations',      &

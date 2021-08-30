@@ -1,5 +1,5 @@
 MODULE mo_salsa_secondary_ice
-  USE mo_salsa_types, ONLY : ice
+  USE classSection, ONLY : Section
   USE mo_submctl, ONLY : nice, pi6, spec
   IMPLICIT NONE
 
@@ -10,7 +10,8 @@ MODULE mo_salsa_secondary_ice
   
   CONTAINS
 
-    SUBROUTINE halletmossop(kbdim,kproma,klev,any_sizerange,ptemp,drimdt)
+    SUBROUTINE halletmossop(kbdim,kproma,klev,any_sizerange,ptemp,drimdt,ice)
+      TYPE(Section), POINTER, INTENT(inout)  :: ice(:,:,:)
       INTEGER, INTENT(in) :: kbdim,kproma,klev
       LOGICAL, INTENT(in) :: any_sizerange(kbdim,klev) ! Logical whether liquid hydrometeor exist in the sizeranges required by the H-M process
       REAL, INTENT(in) :: ptemp(kbdim,klev)

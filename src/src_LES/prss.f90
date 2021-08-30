@@ -473,8 +473,8 @@ MODULE prss
 
       CALL velset(nzp,nxp,nyp,a_up%d,a_vp%d,a_wp%d)
       CALL velset(nzp,nxp,nyp,a_uc%d,a_vc%d,a_wc%d)
-      CALL sclrset('grad',nzp,nxp,nyp,a_pexnr%d,dzm%d)
-      CALL sclrset('grad',nzp,nxp,nyp,a_press%d,dzm%d)
+      CALL sclrset('grad',nzp,nxp,nyp,a_pexnr%d,.FALSE.,dzm%d)
+      CALL sclrset('grad',nzp,nxp,nyp,a_press%d,.FALSE.,dzm%d)
 
    END SUBROUTINE velocity_bcs
 

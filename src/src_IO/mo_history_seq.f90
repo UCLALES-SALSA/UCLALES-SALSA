@@ -19,7 +19,8 @@ MODULE mo_history
     ! ----------------------------------------------------------------------
     ! Subroutine write_hist:  This subroutine writes a binary history file
     !
-    SUBROUTINE write_hist(htype, time)      
+    SUBROUTINE write_hist(htype, time)    
+      USE grid, ONLY : a_sp, a_st
       INTEGER :: errcode = -17
       
       INTEGER, INTENT (in) :: htype
@@ -63,7 +64,7 @@ MODULE mo_history
       WRITE(10) a_wc%d
       
       DO n = 1, nscl
-         CALL newsclr(n)  
+         CALL newsclr(n, a_sp, a_st)  
          WRITE(10) a_sp
       END DO
       
@@ -120,7 +121,8 @@ MODULE mo_history
     !                Juha Tonttila, FMI, 20140828
     !
     
-    SUBROUTINE read_hist(time, hfilin)      
+    SUBROUTINE read_hist(time, hfilin)
+      USE grid, ONLY : a_sp, a_st
       CHARACTER(len=80), INTENT(in) :: hfilin
       REAL, INTENT(out)             :: time
       
@@ -165,7 +167,7 @@ MODULE mo_history
          READ(10) a_wc%d
          
          DO n = 1, nscl
-            CALL newsclr(n)
+            CALL newsclr(n, a_sp, a_st)
             IF (n <= nsclx) READ(10) a_sp
          END DO
 

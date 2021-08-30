@@ -40,7 +40,12 @@ MODULE classSection
   INTERFACE Section
      PROCEDURE :: cnstr
   END INTERFACE Section
-
+  
+  TYPE CoagCoe
+    REAL, ALLOCATABLE :: zccaa(:,:,:,:), zcccc(:,:,:,:), zccpp(:,:,:,:), zccii(:,:,:,:), zccca(:,:,:,:), & ! OpenMP needs privated variables to be as arguements of the function/subroutine call
+                         zccpc(:,:,:,:), zccpa(:,:,:,:), zccia(:,:,:,:), zccic(:,:,:,:), zccip(:,:,:,:)    ! so these are packed into 1 type to make calls cleaner, same could be maybe be done for allSALSA
+  END TYPE CoagCoe
+  
   CONTAINS
     
     FUNCTION cnstr(iphase, inlim, idlim)
@@ -63,7 +68,7 @@ MODULE classSection
       cnstr%INdef = 0.
 
     END FUNCTION cnstr
-
+    
     ! 
     ! Function for calculating dimension (or wet diameter) for any particle type
     ! - Aerosol, cloud and rain are spherical

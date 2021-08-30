@@ -17,13 +17,13 @@
 !
 ! Copyright 199-2007, Bjorn B. Stevens, Dep't Atmos and Ocean Sci, UCLA
 !----------------------------------------------------------------------------
-!
+! 
 MODULE step
 
   USE mo_submctl, ONLY : spec, nice
   USE util, ONLY : getMassIndex, calc_correlation
   USE mo_structured_datatypes, ONLY : FloatArray1d, FloatArray3d, FloatArray4d ! poista vika
-  
+  USE omp_lib
   IMPLICIT NONE
   
   INTEGER :: istpfl = 1
@@ -36,9 +36,9 @@ MODULE step
   REAL    :: time   =  0.
   REAL    :: strtim =  0.0    ! In decimal days, 0.5 mid-day
   LOGICAL :: outflg = .TRUE.
-  
+
 CONTAINS
-   !
+   ! 
    ! ----------------------------------------------------------------------
    ! Subroutine model:  This is the main driver for the model's time
    ! integration.  It calls the routine tstep, which steps through the
@@ -64,16 +64,15 @@ CONTAINS
       REAL(kind=8) :: cflmax,gcflmax
       INTEGER      :: istp
       LOGICAL :: cflflg
-      !
+      ! 
       ! Timestep loop for program
-      !
+      ! 
       begtime = time
       istp = 0
-
+      
       CALL cpu_time(t1)
 
       DO WHILE (time + 0.1*dtl < timmax)
-
          istp = istp+1
          tplsdt = time + dtl + 0.1*dtl
 
@@ -94,9 +93,9 @@ CONTAINS
             dtlt = dtl
          END IF
 
-         !
+         ! 
          ! output control
-         !
+         ! 
          IF (psflg) &
               CALL write_ps(time)
 
@@ -125,7 +124,6 @@ CONTAINS
                CALL cpu_time(t1)
             END IF
          END IF
-
       END DO
 
       CALL write_hist(1, time)
@@ -136,11 +134,11 @@ CONTAINS
       END IF
          
    END SUBROUTINE stepper
-   !
+   ! 
    !----------------------------------------------------------------------
    ! Subroutine tstep_reset: Called to adjust current velocity and reset
    ! timestep based on cfl limits
-   !
+   ! 
    SUBROUTINE tstep_reset(n1,n2,n3,up,vp,wp,uc,vc,wc,dtl,dtmx,cfl,c1,c2)
 
       INTEGER, INTENT (in)      :: n1,n2,n3
@@ -169,11 +167,11 @@ CONTAINS
 
    END SUBROUTINE tstep_reset
 
-   ! 
+   !  
    !----------------------------------------------------------------------
    ! Subroutine set_LES_runtime: Set the status of process switches e.g.
    ! if they have a defined spinup time etc.
-   !
+   ! 
    SUBROUTINE set_LES_runtime(time)
      USE mcrp, ONLY : sed_aero,   &
                       sed_cloud,  &
@@ -196,12 +194,12 @@ CONTAINS
 
    END SUBROUTINE set_LES_runtime
 
-   !
+   ! 
    !----------------------------------------------------------------------
    ! Subroutine t_step: Called by driver to timestep through the LES
    ! routines.  Within many subroutines, data is accumulated during
    ! the course of a timestep for the purposes of statistical analysis.
-   !
+   ! 
    SUBROUTINE t_step(cflflg,cflmax,istp)
 
       USE grid, ONLY : level,lpback,dtlt,      &
@@ -228,39 +226,36 @@ CONTAINS
       INTEGER, INTENT(in) :: istp
       
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
-
       INTEGER :: nspec
       
-         
       CALL set_LES_runtime(time)
-
+      
       zwp = 0.5  ! single column run vertical velocity
-
       cflflg = .FALSE.
-
+      
       ! Reset ALL tendencies here.
       !----------------------------------------------------------------
       ! "Scalar" timestep
       CALL tend0(.FALSE.)
-
+      
       ! Put the newly activated to zero
       IF (level >= 4) THEN
          a_vactd = 0.
          a_nactd = 0.
       END IF
-
+      
       CALL surface()
 
       CALL diffuse
-
+      
       CALL sponge(0)
-
+      
       IF (level >= 1) CALL forcings(time,strtim)
-
-      CALL update_sclrs
+      
+      CALL update_sclrs(.FALSE.)
       CALL tend0(.TRUE.)
       CALL thermo(level)
-
+      
       ! SALSA timestep
       ! -----------------------
       IF (level >= 4) THEN
@@ -269,29 +264,30 @@ CONTAINS
          ! With pigybacking setup, call the slave bulk microphysics before SALSA
          ! Note that SALSA still requires the separate call to "micro" afterwards
          ! because of sedimentation, which is a bit silly. 
+         
          IF (lpback) CALL micro(0)
-                  
+                 
          nspec = spec%getNSpec(type="wet") ! Aerosol components + water
-            
+         
          IF ( nxp == 5 .AND. nyp == 5 ) THEN
             ! 1D -runs
             CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,nspec,   &
                            zwp,a_nactd,a_vactd,dtlt,      &
-                           time,istp,level,.FALSE.             )
+                           time,istp,level,.FALSE.         )
          ELSE
             !! for 2D or 3D runs
             CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,nspec,   &
-                           a_wp%d,a_nactd,a_vactd,dtlt,     &
-                           time,istp,level,.FALSE.             )
-             
+                           a_wp%d,a_nactd,a_vactd,dtlt,   &
+                           time,istp,level,.FALSE.         )
+         
          END IF !nxp==5 and nyp == 5
-
+         
          CALL tend_constrain2()
-         CALL update_sclrs
+         CALL update_sclrs(.FALSE.)                                         
          CALL tend0(.TRUE.)
          CALL SALSA_diagnostics(.FALSE.)
          CALL thermo(level)
-
+         
       END IF ! level >= 4
 
          
@@ -299,65 +295,44 @@ CONTAINS
       ! "Deposition" timestep
       ! Dont perform sedimentation or level 3 autoconversion during spinup (internal switches implemented)
       CALL micro(level)
+      
       IF (level >= 4) CALL tend_constrain2()
-      CALL update_sclrs
+      CALL update_sclrs(.FALSE.)
       CALL tend0(.TRUE.)
       IF (level >= 4) CALL SALSA_diagnostics(.TRUE.)
       CALL thermo(level)
-
+      
       !-------------------------------------------
       ! "Advection" timestep
       CALL fadvect
-      
       IF (level >= 4) CALL tend_constrain2()
-      CALL update_sclrs
+      CALL update_sclrs(.TRUE.)             
       CALL tend0(.TRUE.)
       IF (level >= 4) CALL SALSA_diagnostics(.TRUE.)
       CALL thermo(level)
       
       CALL corlos
-
+      
       CALL ladvect
-
+      
       CALL buoyancy
-
+      
       CALL sponge(1)
-
+      
       CALL poisson
-
+      
       CALL cfl (cflflg, cflmax)
-
+      
       IF (level >= 4) CALL SALSA_diagnostics(.TRUE.)
+
       CALL thermo(level)
-
+      
    END SUBROUTINE t_step
-   !
-   !----------------------------------------------------------------------
-   ! Subroutine tend0: sets all tendency arrays to zero
-   !
-   SUBROUTINE tend0(sclonly)
-
-     USE grid, ONLY : nscl, a_st, newsclr
-     USE mo_vector_state, ONLY : a_ut, a_vt, a_wt
-
-      LOGICAL, INTENT(in) :: sclonly ! If true, only put scalar tendencies to zero
-
-      INTEGER :: n
-
-      IF( .NOT. sclonly) THEN
-         a_ut%d = 0.; a_vt%d = 0.; a_wt%d = 0.
-      END IF
-      DO n = 1, nscl
-         CALL newsclr(n)
-         a_st = 0.
-      END DO
-
-   END SUBROUTINE tend0
-
-   !
+   
+   ! 
    !----------------------------------------------------------------------
    ! Subroutine cfl: Driver for calling CFL computation subroutine
-   !
+   ! 
    SUBROUTINE cfl(cflflg,cflmax)
 
       USE grid, ONLY : nxp,nyp,nzp,dxi,dyi,dtlt
@@ -399,12 +374,12 @@ CONTAINS
       END DO
 
    END FUNCTION cfll
-   !
+   ! 
    !----------------------------------------------------------------------
    ! Subroutine update_sclrs:  Updates scalars by applying tendency and
    ! boundary conditions
-   !
-   SUBROUTINE update_sclrs
+   ! 
+   SUBROUTINE update_sclrs(Parallel)
 
       USE grid, ONLY : a_sp, a_st, nscl, nxyzp, nxp, nyp, nzp, &
                        dtlt, newsclr, isgstyp
@@ -412,24 +387,62 @@ CONTAINS
       USE mo_progn_state, ONLY : a_qp
       USE sgsm, ONLY : tkeinit
       USE util, ONLY : sclrset
-
+      LOGICAL, INTENT(in) :: Parallel
       INTEGER :: n
-
-      DO n = 1, nscl
-         CALL newsclr(n)
-         CALL update(nzp,nxp,nyp,a_sp,a_st,dtlt)
-         CALL sclrset('mixd',nzp,nxp,nyp,a_sp,dzt%d)
-      END DO
-
+      
+      ! Not every sclrset call could be parallelized so there are now 2 versions
+      ! (cyclic calls with MPI didn't work with OpenMP)
+      IF (Parallel) then
+        !$OMP PARALLEL 
+        !$OMP DO PRIVATE(a_sp, a_st)
+        DO n = 1, nscl
+           CALL newsclr(n, a_sp, a_st)
+           CALL update(nzp,nxp,nyp,a_sp,a_st,dtlt)
+           CALL sclrset('mixd',nzp,nxp,nyp,a_sp,Parallel,dzt%d)
+        END DO
+        !$OMP END DO
+        !$OMP END PARALLEL
+        
+      ELSE
+        DO n = 1, nscl
+           CALL newsclr(n, a_sp, a_st)
+           CALL update(nzp,nxp,nyp,a_sp,a_st,dtlt)
+           CALL sclrset('mixd',nzp,nxp,nyp,a_sp,Parallel,dzt%d)
+        END DO
+      END IF
+      
       IF (isgstyp == 2) THEN
          CALL tkeinit(nxyzp,a_qp%d)
       END IF
 
    END SUBROUTINE update_sclrs
-   !
+   ! 
+   !----------------------------------------------------------------------
+   ! Subroutine tend0: sets all tendency arrays to zero
+   ! 
+   SUBROUTINE tend0(sclonly)
+
+     USE grid, ONLY : nscl, newsclr, a_sp, a_st, a_sclrp, a_sclrt
+     USE mo_vector_state, ONLY : a_ut, a_vt, a_wt
+
+      LOGICAL, INTENT(in) :: sclonly ! If true, only put scalar tendencies to zero
+
+      INTEGER :: n
+
+      IF( .NOT. sclonly) THEN
+         a_ut%d = 0.; a_vt%d = 0.; a_wt%d = 0.
+      END IF
+      
+      DO n = 1, nscl
+         CALL newsclr(n, a_sp, a_st)
+         a_st = 0.
+      END DO
+
+   END SUBROUTINE tend0
+   ! 
    ! ----------------------------------------------------------------------
    ! Subroutine update:
-   !
+   ! 
    SUBROUTINE update(n1,n2,n3,a,fa,dt)
 
       INTEGER, INTENT(in)   :: n1, n2, n3
@@ -565,8 +578,9 @@ CONTAINS
       INTEGER, INTENT (in) :: isponge
 
       INTEGER :: i, j, k, kk
-
+      
       IF (maxval(spng_tfct) > epsilon(1.) .AND. nfpt > 1) THEN
+         
          DO j = 3, nyp-2
             DO i = 3, nxp-2
                DO k = nzp-nfpt, nzp-1
@@ -582,8 +596,9 @@ CONTAINS
                END DO
             END DO
          END DO
+         
       END IF
-
+      
    END SUBROUTINE sponge
 
 END MODULE step

@@ -1,6 +1,6 @@
 ###############################################################
-#
-# Llocation of code (in $ROOT) and location where model is to be built $BIN
+# OpenMP does NOT work with intel compiler (FFLAG qopenmp removed). Works with GCC.
+# Location of code (in $ROOT) and location where model is to be built $BIN
 #
 ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BIN       = $(ROOT)/bin
@@ -18,34 +18,26 @@ SRC_SHARED  =$(SRC)/src_shared
 SRC_IO      =$(SRC)/src_IO
 SRC_VARS    =$(SRC)/src_vars
 
-VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC_RAD):  \
-	$(SRC_EMIS):$(SRC_SHARED):$(SRC_IO):$(SRC_VARS): \
+VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC_RAD):   \
+        $(SRC_EMIS):$(SRC_SHARED):$(SRC_IO):$(SRC_VARS):  \
 	$(SRC)
 
 ECHO    = /bin/echo
 RM      = /bin/rm -f
 
-ARCHIVE = ar rs
-RANLIB =:
-SEQFFLAGS = -I$(SRC)
-MPIFFLAGS = -I$(SRC)
 MPI = /usr
-
-# Linking the mpi has slightly changed for newer linux & library versions.
-# Try switching between the two if it does not work.
-#MPILIB = -L$(MPI)/lib -lmpich
-MPILIB = -L$(MPI)/lib -lmpichfort
-
-# This also varies on different computers
-MPIINC = -I$(MPI)/include/x86_64-linux-gnu/mpich
-#MPIINC = -I$(MPI)/include/mpich
-NCDF = /usr
-NCDFLIB = -L$(NCDF)/lib -lnetcdf -lnetcdff
+MPILIB =
+MPIINC =
+NCDF = $(NETCDF_FORTRAN_INSTALL_ROOT)
+NCDFLIB = -L$(NCDF)/lib -lnetcdff
 NCDFINC = -I$(NCDF)/include
-LIBS = '$(NCDFLIB) $(MPILIB)'
-F90 = gfortran
-MPIF90 = gfortran
-FFLAGS = -O2 -fdefault-real-8 ${NCDFINC} $(MPIINC) -std=f2008 -fbounds-check  -g -fcheck=all -Wall -Wtabs  -fbacktrace -ffpe-trap=invalid,zero,overflow
+LIBS = '$(NCDFLIB)'
+F90 = ifort
+MPIF90 = mpiifort
+FFLAGS = -O2 -march=native -real-size 64 -fp-model precise -stand f08
+SEQFFLAGS = -I$(SRC) $(NCDFINC)
+MPIFFLAGS = -I$(SRC) $(NCDFINC)
+
 
 LES_OUT_MPI=$(BIN)/les.mpi
 
@@ -85,7 +77,7 @@ $(LES_OUT_MPI):
 # --------------------
 #
 clean: cleanmpi cleanseq 
-	$(RM) $(SRC)/*mod $(SRC)/*.o
+	$(RM) $(SRC)/*.mod $(SRC)/*.o
 
 cleanmpi:
 	$(ECHO) "cleaning mpi model"
