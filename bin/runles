@@ -20,8 +20,8 @@ PROJECT="project_2004746"   # Project name, needed for resource allocation in PU
 
 NPROCS=2           # Number of processors (for IsSeq==0)
 NNODES=1
-THREADS=4   
-TWALL=24:00:00      # Required wallclock time for batch system
+THREADS=4          # Number of threads for OpenMP parallelization
+TWALL=24:00:00     # Required wallclock time for batch system
 
 NXP=5           # Number of points in X-direction (including "halo" points)
 NYP=20           # Number of points in Y-direction (including "halo" points)
