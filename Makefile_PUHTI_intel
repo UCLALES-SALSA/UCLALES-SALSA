@@ -33,7 +33,7 @@ NCDFLIB = -L$(NCDF)/lib -lnetcdff
 NCDFINC = -I$(NCDF)/include
 LIBS = '$(NCDFLIB)'
 F90 = ifort
-MPIF90 = mpiifort
+MPIF90 = mpif90
 FFLAGS = -O2 -march=native -real-size 64 -fp-model precise -stand f08
 SEQFFLAGS = -I$(SRC) $(NCDFINC)
 MPIFFLAGS = -I$(SRC) $(NCDFINC)
