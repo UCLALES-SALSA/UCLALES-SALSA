@@ -142,6 +142,13 @@ CONTAINS
                                                ! allSALSA array according to the phase indexing in classSection.f90
       INTEGER :: catnbins, lo, hi
       
+      aero => NULL()
+      cloud => NULL()
+      precp => NULL()
+      ice => NULL()
+      liquid => NULL()
+      frozen => NULL()
+      
       ndry = spec%getNSpec(type="dry")
       nwet = spec%getNSpec(type="wet")  ! excludes rimed ice
       iwa = spec%getIndex("H2O")    ! water/unrimed ice
@@ -221,9 +228,9 @@ CONTAINS
       CALL set_salsa_runtime(time,tstep,istp)
       
       ! Sets up the parallel region and privates nessecary variables. These are directly carried into subroutines as arguements for that routine
-      !$OMP PARALLEL FIRSTPRIVATE(aero,cloud,precp,ice,liquid,frozen,allSALSA) &
+      !$OMP PARALLEL PRIVATE(aero,cloud,precp,ice,liquid,frozen,ntend,mtend) &
       !$OMP PRIVATE(nb,nc,icat,str,catnbins,nbloc,endd,zghno3,zgnh3,zgocnv,zgocsv,zgso4,lo,hi) &
-      !$OMP FIRSTPRIVATE(in_p,in_t,in_rs,in_rsi,in_w,in_rv,rv_old,allCOAGcoe,npart,mpart,ntend,mtend)
+      !$OMP FIRSTPRIVATE(in_p,in_t,in_rs,in_rsi,in_w,in_rv,rv_old,allCOAGcoe,allSALSA,npart,mpart)
       
       ! Sets privated pointers to point at the private copies of allSALSA
       lo = 1
