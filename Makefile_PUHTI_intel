@@ -1,5 +1,5 @@
 ###############################################################
-# OpenMP does NOT work with intel compiler (FFLAG qopenmp removed). Works with GCC.
+# 
 # Location of code (in $ROOT) and location where model is to be built $BIN
 #
 ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
@@ -34,7 +34,7 @@ NCDFINC = -I$(NCDF)/include
 LIBS = '$(NCDFLIB)'
 F90 = ifort
 MPIF90 = mpif90
-FFLAGS = -O2 -march=native -real-size 64 -fp-model precise -stand f08
+FFLAGS = -O2 -march=native -real-size 64 -fp-model precise -stand f08 -qopenmp
 SEQFFLAGS = -I$(SRC) $(NCDFINC)
 MPIFFLAGS = -I$(SRC) $(NCDFINC)
 
