@@ -16,7 +16,7 @@ probably have to adjust the paths to MPI and NetCDF libraries in the
 makefile found in the model root folder. Makefile_ubuntu and 
 Makefile_CRAY provide examples for a simple ubuntu workstation and
 a Cray supercomputing cluster. The code compiles correctly at least 
-with GCC. Intel compilers should work (not OpenMP so remove -fopenmp).
+with GCC.
 
 After compiling the model, the executable is found in the bin-folder
 together with the runscript "runles". This should be used for both
