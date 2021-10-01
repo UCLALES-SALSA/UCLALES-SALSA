@@ -115,7 +115,7 @@ CONTAINS
             rctot = SUM(a_mcloudp%d(:,:,:,mi:mf),DIM=4)
             DO i = mi,mf
                a_mcloudp%d(:,:,:,i) = a_mcloudp%d(:,:,:,i) +   &
-                    rp_excess(:,:,:)*a_mcloudp%d(:,:,:,i)/rctot(:,:,:)
+                    rp_excess(:,:,:)*a_mcloudp%d(:,:,:,i)/MAX(rctot(:,:,:),1.e-12)
             END DO
             
          END IF
