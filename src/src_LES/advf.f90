@@ -32,17 +32,30 @@ CONTAINS
   ! times.
   !
   SUBROUTINE fadvect
-    USE mo_progn_state, ONLY: a_qp
+    USE mo_progn_state, ONLY: a_qp, a_rp, a_mcloudp ! a_rp, a_mcloudp for SS hack
+    USE mo_diag_state, ONLY : a_rsl  ! for SS hack
     USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc
-    USE mo_aux_state, ONLY: dzt, dzm,dn0
+    USE mo_aux_state, ONLY: dzt, dzm,dn0  ! level for SS hack
     USE grid, ONLY : newsclr, nscl, a_sp, a_st, nxp, nyp, nzp, dtlt,  &
-                     dxi, dyi, isgstyp
+                     dxi, dyi, isgstyp, level
     !USE stat, ONLY : sflg, updtst
-    USE util, ONLY : get_avg3
-
+    USE util, ONLY : get_avg3, getMassIndex ! getMassIndex for SS hack
+    
+    USE thrm, ONLY : thermo  ! for SS hack
+    USE mo_submctl, ONLY : spec,ncld ! for SS hack
+    
     REAL    :: a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
     INTEGER :: n
     LOGICAL :: iw
+    
+    ! For the supersaturation hack
+    REAL :: rp_excess(nzp,nxp,nyp) ! "Excess" water vapor after lateral advection
+    REAL :: rctot(nzp,nxp,nyp)     ! You could use SALSA diagnostics to get rc, but
+                                   ! just to make sure you get up to date value...
+    INTEGER :: mi,mf,nspec,i
+    rp_excess = 0.
+    rctot = 0.
+    
     a_tmp1 = 0.  ! Just making sure while finding a memory leak... -Juha
     a_tmp2 = 0.
     !
@@ -70,13 +83,43 @@ CONTAINS
          ELSE
             iw = .FALSE.
          END IF
-
+         
          CALL add_vel(nzp,nxp,nyp,a_tmp2,a_vp%d,a_vc%d,iw)
          CALL mamaos_y(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dyi,dtlt)
 
          CALL add_vel(nzp,nxp,nyp,a_tmp2,a_up%d,a_uc%d,iw)
          CALL mamaos_x(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dxi,dtlt)
 
+         ! -----------------------------------------------------------
+         ! Hacks for  mamaos_y and mamaos_x to prevent strange
+         ! cloud top saturation peak and spurious activation. This will 
+         ! prevent the increase of saturation ratio as a result of lateral
+         ! advective mixing. This is for test purposes at does not represent
+         ! a final solution. This hack will not account for the simultaneous
+         ! change in temperature, but the supersaturation change is checked
+         ! only on the advection of moisture.         
+         IF (ASSOCIATED(a_rp%d,a_sp) .AND. level >= 4) THEN
+            ! Must call thermo to get the updated saturation mix rats
+            CALL thermo(level)
+            ! compare the new and old vapor concentration to saturation. Save the difference
+            ! if a) the parcel was saturated in the beginning and b) the saturation ratio increased
+            ! after lateral advection.
+            rp_excess = MERGE( a_tmp1-a_sp,0., (a_tmp1 > a_sp .AND. a_sp > a_rsl%d) )
+            ! Remove the excess from updated rp
+            a_tmp1 = a_tmp1 - rp_excess
+            ! Place the excess moisture to cloud droplets
+            ! determine the index ranges
+            nspec = spec%getNSpec(type="wet")
+            mi = getMassIndex(ncld,1,nspec)
+            mf = getMassIndex(ncld,ncld,nspec)
+            rctot = SUM(a_mcloudp%d(:,:,:,mi:mf),DIM=4)
+            DO i = mi,mf
+               a_mcloudp%d(:,:,:,i) = a_mcloudp%d(:,:,:,i) +   &
+                    rp_excess(:,:,:)*a_mcloudp%d(:,:,:,i)/rctot(:,:,:)
+            END DO
+            
+         END IF
+                  
          CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp%d,a_wc%d,iw)
          CALL mamaos(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dzt,dzm,dn0,dtlt,iw)
 

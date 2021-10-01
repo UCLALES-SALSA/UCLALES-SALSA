@@ -73,7 +73,7 @@ forc.o: grid.o mo_aux_state.o mo_diag_state.o mo_progn_state.o mo_vector_state.o
 	mo_field_state.o util.o defs.o radiation_main.o nudg.o emission_main.o \
 	mo_structured_datatypes.o $(seqmpi:.f90=.o)
 advf.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_vector_state.o   \
-	mo_aux_state.o grid.o util.o mo_submctl.o $(seqmpi:.f90=.o)	
+	mo_aux_state.o grid.o util.o mo_submctl.o thrm.o $(seqmpi:.f90=.o) 	
 advl.o: mo_structured_datatypes.o grid.o mo_vector_state.o mo_aux_state.o util.o 
 srfc.o: mo_structured_datatypes.o defs.o mo_diag_state.o mo_aux_state.o     \
         mo_vector_state.o mo_progn_state.o grid.o thrm.o defs.o $(seqmpi:.f90=.o) 
