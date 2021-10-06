@@ -348,6 +348,10 @@ CONTAINS
               zxocnv(kbdim,klev),         &
               zrh(kbdim,klev)
 
+      ! For semivolatile/water substepping...
+      REAL :: ztstep2, zsubtime
+      INTEGER :: ll
+      
       zxocnv = 0.
       zxsa = 0.
       zj3n3 = 0.
@@ -366,11 +370,17 @@ CONTAINS
                                  pcsa, pcocnv, pcocsv,     &
                                  zxsa, ptemp,  ppres, ptstep )
 
-      ! Condensation of water vapour
-      IF (lscndh2ocl .OR. lscndh2oae .OR. lscndh2oic) &
-         CALL gpparth2o(kproma, kbdim, klev,  krow,  &
-                        ptemp,  ppres, prs,   prsi,  &
-                        prv,   ptstep        )
+
+      ztstep2=1e-4
+      zsubtime = 0.
+      DO ll = 1,15         
+         zsubtime = zsubtime + ztstep2
+         IF (zsubtime>=ptstep) CYCLE
+         IF (lscndh2ocl .OR. lscndh2oae .OR. lscndh2oic) &
+              CALL partitioning(kproma,kbdim,klev,krow,ppres,ptemp,   &
+                                pchno3,pcnh3,prv,prs,ztstep2          )
+         ztstep2=MIN(0.2,ztstep2*10,ptstep- zsubtime)         
+      END DO      
 
    END SUBROUTINE condensation
 
@@ -720,6 +730,962 @@ CONTAINS
    !
    ! ----------------------------------------------------------------------------------------------------------
    !
+   SUBROUTINE partitioning(kproma,kbdim,klev,krow,ppres,ptemp,   &
+                           pghno3,pgnh3,prv,prs,ptstep)
+     
+     ! Notes: - Many of the particle loops could be combined as one
+     !        - Substepping should be placed inside this subroutine
+     !        - Added checks whether semivolatiles in use; the code should be grouped
+     !          better to make this less verbose and more efficient
+     !        - The process switches of condensing different compounds to different particles
+     !          are at the moment essentially broken...
+     
+     USE mo_salsa_types, ONLY : aero, cloud, precp, ice
+     USE classSection
+     USE mo_submctl, ONLY : spec,           &
+          nbins, ncld, nprc,   &
+          in1a, fn2b,          &
+          rhowa, mwa, mair,    &   ! Check if rhowa and mwa etc from submctl become deprecated
+          surfw0, mvno, mvnh,  &
+          mvwa, boltz, rg,     &
+          massacc,      &
+          !rhono, mno,          &
+          !rhonh, mnh,          &
+          !rhosu, msu,          &
+          avog, pi,pi6,            &
+          pstand,              &
+          nlim, prlim, d_sa,ntotal, &
+          alv
+            
+      USE aerosol_thermodynamics, ONLY : inorganic_pdfite
+      
+      IMPLICIT NONE
+      
+      ! Equation numbers refer to those in Jacobson: Fundamentals of Atmospheric Modelling, Second Edition (2005)
+      
+      INTEGER, INTENT(in)  :: kproma,kbdim,klev,krow
+      REAL, INTENT(in) :: ptstep
+      REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev)
+      REAL, INTENT(in) :: prs(kbdim,klev)
+      
+      REAL, INTENT(inout) :: prv(kbdim,klev),      &
+                             pghno3(kbdim,klev),   &
+                             pgnh3(kbdim,klev)
+
+      REAL :: zph(kbdim,klev,nbins+ncld+nprc)
+      
+      REAL :: zkelwaae(nbins),  zkelwacd(ncld),  zkelwapd(nprc)      ! Kelvin effects for water
+      REAL :: zkelno3ae(nbins), zkelno3cd(ncld), zkelno3pd(nprc)     ! Kelvin effects for HNO3
+      REAL :: zkelnh3ae(nbins), zkelnh3cd(ncld), zkelnh3pd(nprc)     ! Kelvin effects for NH3
+      
+      REAL :: zcwacae(nbins),   zcwanae(nbins),   & ! Current, intermediate and new water in aerosols
+              zcno3cae(nbins),  zcno3nae(nbins),  & !  -  ''  - HNO3
+              zcnh3cae(nbins),  zcnh3nae(nbins),  & !  -  ''  - NH3
+           
+              zcwaccd(ncld),    zcwancd(ncld),   & ! -  ''  - water in cloud droplets
+              zcno3ccd(ncld),   zcno3ncd(ncld),  & ! -  ''  - HNO3 in cloud droplets
+              zcnh3ccd(ncld),   zcnh3ncd(ncld),  & ! -  ''  - NH3 
+           
+              zcwacpd(nprc),    zcwanpd(nprc),   & ! -  ''  - water in precipitation
+              zcno3cpd(nprc),   zcno3npd(nprc),  & ! -  ''  - HNO3 in precipitation
+              zcnh3cpd(nprc),   zcnh3npd(nprc)     ! -  ''  - NH3
+      
+      REAL :: zcwatot,zcnh3tot,zcno3tot
+      
+      REAL :: zcwac, zcwan                                         ! Current, intermediate and new water gas concentration
+      REAL :: zcno3c, zcno3n                                       ! -  ''  - HNO3
+      REAL :: zcnh3c, zcnh3n                                       ! -  ''  - NH3
+      
+      REAL :: zcgnh3eqae(nbins), zcgno3eqae(nbins), zcgwaeqae(nbins), & ! Equilibrium gas concentrations 
+              zcgnh3eqcd(ncld), zcgno3eqcd(ncld),   zcgwaeqcd(ncld), &
+              zcgnh3eqpd(nprc), zcgno3eqpd(nprc),   zcgwaeqpd(nprc)
+      
+      REAL :: zmtwaae(nbins),  zmtwacd(ncld),  zmtwapd(nprc)  ! Mass transfer coefficients for H2O
+      REAL :: zmtno3ae(nbins), zmtno3cd(ncld), zmtno3pd(nprc) ! Mass transfer coefficients for HNO3
+      REAL :: zmtnh3ae(nbins), zmtnh3cd(ncld), zmtnh3pd(nprc) ! Mass transfer coefficients for NH3
+      
+      REAL :: zsathno3ae(nbins), zsathno3cd(ncld), zsathno3pd(nprc)
+      REAL :: zsatnh3ae(nbins), zsatnh3cd(ncld), zsatnh3pd(nprc)
+      
+      REAL :: zbeta  ! transition correction factor
+      REAL :: zdfvap ! Diffusion coefficient for vapors
+      
+      REAL :: zaw(nbins) ! water activity
+      
+      REAL :: zHp_ae(nbins,3),    & ! H' (Eq (17.99)) for aerosol, 1 = NO3-, 2=NH4+, 3=H2O
+              zHp_cd(ncld,3),     & ! H' (Eq (17.99)) for clouds
+              zHp_pd(nprc,3),     & ! H' (Eq (17.99)) for precipitation
+              zexpterm_ae(nbins), & ! exponent term in (17.104) for aerosol bins
+              zexpterm_cd(ncld), &  ! exponent term in (17.104) for cloud bins
+              zexpterm_pd(nprc)     ! exponent term in (17.104) for precipitation bins
+      
+      
+      REAL :: zrhoair,            & ! air density [kg m-3]
+              zthcond,            & ! thermal conductivity of air
+              zdfh2o,zdfno3,zdfnh3                ! diffusion coefficient of water
+      
+      REAL :: adt ! timestep
+      REAL :: adtc2(2,nbins)
+      REAL :: telp,ttot ! Elapsed time
+      REAL :: zsum1, zsum2, zhlp3 ! temporary variables 
+      REAL :: zDeff_ae(nbins), zDeff_cd(ncld), zDeff_pd(nprc), & ! effective diffusion coefficient
+              zDp_ae(nbins),   zDp_cd(ncld),   zDp_pd(nprc), &
+              dwet_ae(nbins),   dwet_cd(ncld),   dwet_pd(nprc)
+      INTEGER :: nstr,ph_switch= 0
+      INTEGER :: ii,jj,kk,cc,tt,new,water, nspec
+
+      REAL :: zbetaae(fn2b),zbetacd(ncld),zbetapd(nprc),fmax,fmin
+      REAL :: zknae(fn2b),zkncd(ncld),zknpd(nprc),zknud(fn2b),h2oactae(fn2b),h2oactcd(ncld),h2oactpd(nprc)
+      REAL :: zmfp_h2o, zmfp_no3, zmfp_nh3
+      REAL :: zmfp,rhlimx, alpha_h2o, alpha_no3, alpha_nh3
+      INTEGER :: iso4,ioc,ibc,idu,iss,iwa,ino,inh
+
+      ! Most of these are not needed?
+      iso4 = spec%getIndex("SO4",notFoundValue = 0)
+      !ioc = spec%getIndex("OC",notFoundValue = 0)
+      !ibc = spec%getIndex("BC",notFoundValue = 0)
+      !idu = spec%getIndex("DU",notFoundValue = 0)
+      !iss = spec%getIndex("SS",notFoundValue = 0)
+      ino = spec%getIndex("NO",notFoundValue = 0)
+      inh = spec%getIndex("NH",notFoundValue = 0)
+      iwa = spec%getIndex("H2O")
+      nspec = spec%getNSpec(type="wet")  ! Includes water, but not rime (ice bins)
+      
+      nstr = 1
+      ! initialize
+      adt = ptstep  ! Cleanup different variables for the same timestep...
+    
+      DO jj = 1,klev
+
+         DO ii = 1,kproma
+            
+            ! density of air
+            zrhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
+            zkelno3pd = 1.
+            zkelno3cd = 1.
+            zkelno3ae = 1.
+            zkelnh3pd = 1.
+            zkelnh3cd = 1.
+            zkelnh3ae = 1.
+            zsathno3ae = 1.
+            zsathno3cd = 1.
+            zsathno3pd = 1.
+            zsatnh3ae = 1.
+            zsatnh3cd = 1.
+            zsatnh3pd = 1.
+            zexpterm_ae = 0.
+            zexpterm_cd = 0.
+            zexpterm_pd = 0.
+            
+            ! Kelvin effects; These loops could be combined to one
+            ! Diameters can be obtained directly from the Section instance. Perhaps should also implement
+            ! the Kelvin parameters there?
+            DO cc = 1, nbins
+               if (aero(ii,jj,cc)%numc >nlim) then
+                  dwet_ae(cc) = ( SUM(aero(ii,jj,cc)%volc(1:nspec))/aero(ii,jj,cc)%numc/pi6 )**(1./3.)
+                  zkelwaae(cc) = min(2.,exp( 4.*surfw0*mvwa /  &
+                       (boltz*ptemp(ii,jj)*dwet_ae(cc)) ) )
+                  IF (ino > 0) &
+                       zkelno3ae(cc) = min(2.,exp( 4.*surfw0*mvno /  &
+                                       (boltz*ptemp(ii,jj)*dwet_ae(cc)) ) )
+                  IF (inh > 0) &
+                       zkelnh3ae(cc) = min(2.,exp( 4.*surfw0*mvnh /  &
+                                       (boltz*ptemp(ii,jj)*dwet_ae(cc)) ) )
+               endif
+            enddo
+                        
+            DO cc = 1, ncld
+               if (cloud(ii,jj,cc)%numc >nlim) then 
+                  dwet_cd(cc) = ( SUM(cloud(ii,jj,cc)%volc(1:nspec))/cloud(ii,jj,cc)%numc/pi6 )**(1./3.)
+                  zkelwacd(cc) = min(2.,exp( 4.*surfw0*mvwa /  & 
+                       (boltz*ptemp(ii,jj)*dwet_cd(cc)) ) )
+                  IF (ino > 0)  &
+                       zkelno3cd(cc) = min(2.,exp( 4.*surfw0*mvno /  & 
+                                       (boltz*ptemp(ii,jj)*dwet_cd(cc)) ) )
+                  IF (inh > 0)  &
+                       zkelnh3cd(cc) = min(2.,exp( 4.*surfw0*mvnh /  &
+                                       (boltz*ptemp(ii,jj)*dwet_cd(cc)) ) )
+               endif
+            enddo
+            
+            DO cc = 1, nprc
+               if (precp(ii,jj,cc)%numc >prlim) then 
+                  dwet_pd(cc) = ( SUM(precp(ii,jj,cc)%volc(1:nspec))/precp(ii,jj,cc)%numc/pi6 )**(1./3.)
+                  zkelwapd(cc) = min(2.,exp( 4.*surfw0*mvwa /  &
+                       (boltz*ptemp(ii,jj)*dwet_pd(cc)) ) )
+                  IF (ino > 0)  &
+                       zkelno3pd(cc) = min(2.,exp( 4.*surfw0*mvno /  &
+                                       (boltz*ptemp(ii,jj)*dwet_pd(cc)) ) )
+                  IF (inh > 0)  &
+                       zkelnh3pd(cc) = min(2.,exp( 4.*surfw0*mvnh /  &
+                                       (boltz*ptemp(ii,jj)*dwet_pd(cc)) ) )
+               endif
+            enddo
+            
+            ! Current gas concentrations
+            IF (ino > 0) &
+                 zcno3c = pghno3(ii,jj)/avog
+            IF (inh > 0) &
+                 zcnh3c = pgnh3(ii,jj)/avog
+            zcwac = prv(ii,jj)/spec%mwa*zrhoair
+            
+            ! Current particle concentrations
+            ! NOTE these are NOT initialized anywhere!! => potential trouble below
+            if (ino>0) then
+               zcno3cae(1:nbins) = aero(ii,jj,1:nbins)%volc(ino)*spec%rhono/spec%mno
+               zcno3ccd(1:ncld) = cloud(ii,jj,1:ncld)%volc(ino)*spec%rhono/spec%mno
+               zcno3cpd(1:nprc) = precp(ii,jj,1:nprc)%volc(ino)*spec%rhono/spec%mno
+               zcno3tot=zcno3c+sum(zcno3cae(1:nbins)) + sum(zcno3ccd(1:ncld)) + sum(zcno3cpd(1:nprc))
+            endif
+            if (inh>0) then
+               zcnh3cae(1:nbins) = aero(ii,jj,1:nbins)%volc(inh)*spec%rhonh/spec%mnh
+               zcnh3ccd(1:ncld) = cloud(ii,jj,1:ncld)%volc(inh)*spec%rhonh/spec%mnh
+               zcnh3cpd(1:nprc) = precp(ii,jj,1:nprc)%volc(inh)*spec%rhonh/spec%mnh
+               zcnh3tot=zcnh3c+sum(zcnh3cae(1:nbins)) + sum(zcnh3ccd(1:ncld)) + sum(zcnh3cpd(1:nprc))
+            endif
+            if (iwa>0) then
+               zcwacae(1:nbins) = aero(ii,jj,1:nbins)%volc(iwa)*spec%rhowa/spec%mwa
+               zcwaccd(1:ncld) = cloud(ii,jj,1:ncld)%volc(iwa)*spec%rhowa/spec%mwa
+               zcwacpd(1:nprc) = precp(ii,jj,1:nprc)%volc(iwa)*spec%rhowa/spec%mwa
+               zcwatot=zcwac + sum(zcwacae(1:nbins)) + sum(zcwaccd(1:ncld)) + sum(zcwacpd(1:nprc)) ! total amount of water
+            endif
+                                   
+            ! Mass transfer coefficients 
+            zmtwaae = 0.; zmtwaae = 0.
+            zmtno3ae = 0.; zmtnh3ae = 0.
+            zmtno3cd = 0.; zmtnh3cd = 0.
+            zmtno3pd = 0.; zmtnh3pd = 0.
+            
+            ! Get the equilibrium concentrations before condensation of water
+            ! aerosols
+            zcgno3eqae=0.
+            zcgnh3eqae=0.
+            zcgwaeqae=0.
+            zcgno3eqcd=0.
+            zcgnh3eqcd=0.
+            zcgwaeqcd=0.
+            zcgno3eqpd=0.
+            zcgnh3eqpd=0.
+            zcgwaeqpd=0.
+            h2oactae=0.
+            h2oactcd=0.
+            h2oactpd=0.
+
+            !IF (ALL([ino,inh] > 0)) THEN
+            ! Thermodynamics calls needed for water activity and eq mole concentrations for semivolatiles
+            ! aerosol droplets
+            CALL thermoequil(aero(ii,jj,:),nbins,nlim,ptemp(ii,jj),ppres(ii,jj),          &
+                 zcgno3eqae,zcgnh3eqae,zcgwaeqae,h2oactae,zpH(ii,jj,1:nbins), &
+                 ph_switch,prv(ii,jj)/prs(ii,jj),ptstep              )
+            ! cloud droplets            
+            CALL thermoequil(cloud(ii,jj,:),ncld,nlim,ptemp(ii,jj),ppres(ii,jj),                     &
+                 zcgno3eqcd,zcgnh3eqcd,zcgwaeqcd,h2oactcd,zpH(ii,jj,nbins+1:nbins+ncld), &
+                 ph_switch,prv(ii,jj)/prs(ii,jj),ptstep                         )
+            ! precipitation
+            CALL thermoequil(precp(ii,jj,:),nprc,prlim,ptemp(ii,jj),ppres(ii,jj),                              &
+                 zcgno3eqpd,zcgnh3eqpd,zcgwaeqpd,h2oactpd,zpH(ii,jj,nbins+ncld+1:nbins+ncld+nprc), &
+                 ph_switch,prv(ii,jj)/prs(ii,jj),ptstep                                   )
+            !END IF
+               
+            ! 1) Condensation / evaporation of water
+            ! Diffusion coefficients
+            zdfh2o = DIFFC(ptemp(ii,jj),ppres(ii,jj),1) 
+            !IF (ino > 0)  &
+            zdfno3 = DIFFC(ptemp(ii,jj),ppres(ii,jj),2) 
+            !IF (inh > 0)  &
+            zdfnh3 = DIFFC(ptemp(ii,jj),ppres(ii,jj),4) 
+            
+
+            zthcond = 0.023807 + 7.1128e-5*(ptemp(ii,jj) - 273.16) ! Thermal conductivity of air 
+            
+            ! Initialization of variables
+            zsum1 = 0.
+            zsum2 = 0.
+            zcwan = 0.
+            zcwanae = 0.
+            zcwancd = 0.
+            zcwanpd = 0.
+            rhlimx = 1.
+            
+            !-- 2) Transition regime correction factor for particles ---------
+            !  
+            !  Fuchs and Sutugin (1971), In: Hidy et al. (ed.)
+            !  Topics in current aerosol research, Pergamon.  
+            !
+            !  Size of condensing molecule considered only for 
+            !  nucleation mode (3 - 20 nm) 
+            !
+            ! mean free path [m]
+            !zmfp   = 3.*zdfno3*sqrt(pi*msu/(8.*rg*ptemp(ii,jj)))  ! NOT needed here?                     
+            zmfp_h2o = 1.e-2*(mair*1.e3/(pi*avog*zrhoair*1.e-3*(3.11e-8)**2))*   &
+                       SQRT(mair/(mair+spec%mwa))
+            IF (ino > 0)  &
+                 zmfp_no3 = 1.e-2*(mair*1.e3/(pi*avog*zrhoair*1.e-3*(3.07e-8)**2))*   &
+                            SQRT(mair/(mair+spec%mno))
+            IF (inh > 0)  &
+                 zmfp_nh3 = 1.e-2*(mair*1.e3/(pi*avog*zrhoair*1.e-3*(4.32e-8)**2))*   &
+                            SQRT(mair/(mair+spec%mnh))
+            alpha_h2o = 1. !mass accomodation coeficient Davidovits, P., et al. 2004
+            alpha_no3 = 1. !jacobson
+            alpha_nh3 = 1. !jacobson
+
+            
+            ! 1) Condensation / evaporation of water; THIS IS NOW DONE IN ANY CASE; EQ SOLUTION NOT NEEDED ANYMORE?
+            ! aerosol bins
+            DO cc = nstr, nbins
+               IF (aero(ii,jj,cc)%numc > nlim) THEN 
+                  zcgwaeqae(cc)  = h2oactae(cc)*prs(ii,jj)*zrhoair/spec%mwa
+                  zknae(cc) = zmfp_h2o/(0.5*dwet_ae(cc))                                            !16.20
+                  zbetaae(cc) = 1. + zknae(cc)*(( 1.33 + (0.71/zknae(cc)))/( 1. + (1./zknae(cc))) +   &
+                                4.*(1-alpha_h2o)/(3.*alpha_h2o) )
+                  zbetaae(cc) = 1./zbetaae(cc)  
+                  zDp_ae(cc) = zdfh2o*zbetaae(cc)
+                  zDeff_ae(cc) = zDp_ae(cc)/           &                                            ! (16.55)
+                       ( (spec%mwa*zDp_ae(cc)*alv*zkelwaae(cc)*zcgwaeqae(cc)/(zthcond*ptemp(ii,jj))) *  &
+                         ((alv*spec%mwa/(rg*ptemp(ii,jj))) - 1.) + 1. )
+                  zmtwaae(cc) = aero(ii,jj,cc)%numc*2.*pi*dwet_ae(cc)*zDeff_ae(cc)                  ! (16.64)
+                                
+                  zHp_ae(cc,3) = 1.e0                                                               ! initialization
+                  IF(zcgwaeqae(cc) > 0. .and. zcwacae(cc) > 0.)  &
+                       zHp_ae(cc,3) = zcwacae(cc)/zcgwaeqae(cc)                                     ! (17.99)
+                  
+                  zhlp3 = max(-200.,-adt*zkelwaae(cc)*zmtwaae(cc)/zHp_ae(cc,3))                     ! prevent underflow problem on some compilers
+                  zexpterm_ae(cc) = exp(zhlp3)                                                      ! exponent term in Eq (17.104)
+                  IF(prv(ii,jj)/prs(ii,jj) < rhlimx) THEN                           ! APD
+                     zsum1 = zsum1 + zcwacae(cc)*(1.-zexpterm_ae(cc))                               ! sum term in Eq (17.104) numerator
+                     zsum2 = zsum2 + (zHp_ae(cc,3)/zkelwaae(cc))*(1.-zexpterm_ae(cc))                 ! sum term in Eq (17.104) denominator
+                  ELSE                                                              ! APC
+                     zsum1 = zsum1 + adt*zmtwaae(cc)*zkelwaae(cc)*zcgwaeqae(cc)                     ! sum term in Eq (16.71) numerator
+                     zsum2 = zsum2 + adt*zmtwaae(cc)                                                ! sum term in Eq (16.71) denominator
+                  END IF
+                  
+               END IF
+            END DO
+            
+            ! cloud bins
+            DO cc = 1, ncld
+               IF (cloud(ii,jj,cc)%numc > nlim) THEN
+                  zcgwaeqcd(cc)  = h2oactcd(cc)*prs(ii,jj)*zrhoair/spec%mwa
+                  zkncd(cc) = zmfp_h2o/(0.5*dwet_cd(cc))  
+                  zbetacd(cc) = 1. + zkncd(cc)*(( 1.33 + (0.71/zkncd(cc)))/( 1. + (1./zkncd(cc))) + & 
+                                4.*(1-alpha_h2o)/(3.*alpha_h2o) )
+                                    
+                  zbetacd(cc) = 1./zbetacd(cc)
+                  zDp_cd(cc) = zdfh2o*zbetacd(cc)
+                  zDeff_cd(cc) = zDp_cd(cc) /          &                                            ! (16.55)
+                       ( (spec%mwa*zDp_cd(cc)*alv*zkelwacd(cc)*zcgwaeqcd(cc)/(zthcond*ptemp(ii,jj))) *   &
+                         ((alv*spec%mwa/(rg*ptemp(ii,jj))) - 1.) + 1. )
+                  zmtwacd(cc) =  cloud(ii,jj,cc)%numc*2.*pi*dwet_cd(cc)*zDeff_cd(cc)                ! (16.64)
+                                 
+                  zHp_cd(cc,3) = 1.e0                                                               ! initialization
+                  IF(zcgwaeqcd(cc) > 0. .and. zcwaccd(cc) > 0.)    &
+                       zHp_cd(cc,3) = zcwaccd(cc)/zcgwaeqcd(cc)                                     ! (17.99)
+                  
+                  zhlp3 = max(-200.,-adt*zkelwacd(cc)*zmtwacd(cc)/zHp_cd(cc,3))
+                  zexpterm_cd(cc) = exp(zhlp3)                                                      ! exponent term in Eq (17.104)
+                  IF(prv(ii,jj)/prs(ii,jj) < rhlimx) THEN                             ! APD
+                     zsum1 = zsum1 + zcwaccd(cc)*(1.-zexpterm_cd(cc))                               ! sum term in Eq (17.104) numerator
+                     zsum2 = zsum2 + (zHp_cd(cc,3)/zkelwacd(cc))*(1.-zexpterm_cd(cc))               ! sum term in Eq (17.104) denominator
+                  ELSE                                                                ! APC
+                     zsum1 = zsum1 + adt*zmtwacd(cc)*zkelwacd(cc)*zcgwaeqcd(cc)                     ! sum term in Eq (16.71) numerator
+                     zsum2 = zsum2 + adt*zmtwacd(cc)                                                ! sum term in Eq (16.71) denominator
+                  END IF
+               END IF
+            END DO
+            
+            ! precipitation bins
+            DO cc = 1, nprc
+               IF (precp(ii,jj,cc)%numc > prlim) THEN
+                  zcgwaeqpd(cc)  = h2oactpd(cc)*prs(ii,jj)*zrhoair/spec%mwa
+                  zknpd(cc) = zmfp_h2o/(0.5*dwet_pd(cc))                                            !16.20
+                  zbetapd(cc) = 1. + zknpd(cc)*(( 1.33 + (0.71/zknpd(cc)))/( 1. + (1./zknpd(cc))) + &
+                                4.*(1-alpha_h2o)/(3.*alpha_h2o) )
+                  zbetapd(cc) = 1./zbetapd(cc)
+                  zDp_pd(cc) = zdfh2o*zbetapd(cc)
+                  zDeff_pd(cc) = zDp_pd(cc) /           &                                           ! (16.55)
+                       ( (spec%mwa*zDp_pd(cc)*alv*zkelwapd(cc)*zcgwaeqpd(cc)/(zthcond*ptemp(ii,jj))) *   &
+                         ((alv*spec%mwa/(rg*ptemp(ii,jj))) - 1.) + 1. )
+                  zmtwapd(cc) =  precp(ii,jj,cc)%numc*2.*pi*dwet_pd(cc)*  &                         ! (16.64)
+                                 zDeff_pd(cc)
+                  zHp_pd(cc,3) = 1.e0                                                               ! initialization
+                  IF(zcgwaeqpd(cc) > 0. .and. zcwacpd(cc) > 0.)      &
+                       zHp_pd(cc,3) = zcwacpd(cc)/zcgwaeqpd(cc)                                     ! (17.99)
+                  
+                  zhlp3 = max(-200.,-adt*zkelwapd(cc)*zmtwapd(cc)/zHp_pd(cc,3))
+                  zexpterm_pd(cc) = exp(zhlp3)                                                      ! exponent term in Eq (17.104)
+                  IF(prv(ii,jj)/prs(ii,jj) < rhlimx) THEN                             ! APD
+                     zsum1 = zsum1 + zcwacpd(cc)*(1.-zexpterm_pd(cc))                               ! sum term in Eq (17.104) numerator
+                     zsum2 = zsum2 + (zHp_pd(cc,3)/zkelwapd(cc))*(1.-zexpterm_pd(cc))               ! sum term in Eq (17.104) denominator
+                  ELSE                                                                ! APC
+                     zsum1 = zsum1 + adt*zmtwapd(cc)*zkelwapd(cc)*zcgwaeqpd(cc)                     ! sum term in Eq (16.71) numerator
+                     zsum2 = zsum2 + adt*zmtwapd(cc)                                                ! sum term in Eq (16.71) denominator
+                  END IF
+               END IF
+            END DO
+            fmax = 0.3
+            fmin = -0.2
+            ! update the gas phase concentration [mol/m3] of water
+            zcwan = MIN(zcwatot,(zcwac + zsum1)/(1. + zsum2)) ! Eq (17.104)
+            ! update the particle phase concentration of water in each bin
+
+            !aerosol bins
+            DO cc = 1, nbins
+               IF (aero(ii,jj,cc)%numc > nlim) THEN
+                  IF(prv(ii,jj)/prs(ii,jj) < rhlimx .and. (zcwan-zkelwaae(cc)*zcgwaeqae(cc)) > 0.) THEN    ! APD
+                     zcwanae(cc) = zHp_ae(cc,3)*zcwan/zkelwaae(cc) +    &                            ! (17.102)
+                                   (zcwacae(cc) - zHp_ae(cc,3)*zcwan/zkelwaae(cc))*zexpterm_ae(cc)
+                  ELSE                                                                                     ! APC
+                     zcwanae(cc) = zcwacae(cc) + min(max(adt*zmtwaae(cc)*(zcwan-zkelwaae(cc)*zcgwaeqae(cc)), &
+                                   fmin*zcwacae(cc)),fmax*zcwacae(cc))                               !16.69
+                  END IF                  
+                  aero(ii,jj,cc)%volc(iwa) = zcwanae(cc)*spec%mwa/spec%rhowa                         ! convert to volume concentration
+               END IF
+            END DO
+            
+            !cloud bins
+            DO cc = 1, ncld
+               IF (cloud(ii,jj,cc)%numc > nlim) THEN
+                  IF(prv(ii,jj)/prs(ii,jj) < rhlimx .and. (zcwan-zkelwacd(cc)*zcgwaeqcd(cc)) > 0.) THEN          ! APD
+                     zcwancd(cc) = zHp_cd(cc,3)*zcwan/zkelwacd(cc) +                     & ! (17.102)
+                                   (zcwaccd(cc) - zHp_cd(cc,3)*zcwan/zkelwacd(cc))*zexpterm_cd(cc)
+                  ELSE                                                                                           ! APC
+                     zcwancd(cc) = zcwaccd(cc) + min(max(adt*zmtwacd(cc)*(zcwan-zkelwacd(cc)*zcgwaeqcd(cc)), &
+                                   fmin*zcwaccd(cc)),fmax*zcwaccd(cc))                     !16.69
+                  END IF
+                  cloud(ii,jj,cc)%volc(iwa) = zcwancd(cc)*spec%mwa/spec%rhowa              ! convert to volume concentration
+               END IF
+            END DO
+            
+            !precipitation bins
+            DO cc = 1, nprc
+               IF (precp(ii,jj,cc)%numc > prlim) THEN
+                  IF(prv(ii,jj)/prs(ii,jj) < rhlimx .and. (zcwan-zkelwapd(cc)*zcgwaeqpd(cc)) > 0.) THEN           ! APD
+                     zcwanpd(cc) = zHp_pd(cc,3)*zcwan/zkelwapd(cc) +                     & ! (17.102)
+                                   (zcwacpd(cc) - zHp_pd(cc,3)*zcwan/zkelwapd(cc))*zexpterm_pd(cc)
+                  ELSE                                                                                            ! APC
+                     zcwanpd(cc) = zcwacpd(cc) + min(max(adt*zmtwapd(cc)*(zcwan-zkelwapd(cc)*zcgwaeqpd(cc)), &
+                                   fmin*zcwacpd(cc)),fmax*zcwacpd(cc))                      !16.69
+                  END IF
+                  precp(ii,jj,cc)%volc(iwa) = zcwanpd(cc)*spec%mwa/spec%rhowa               ! convert to volume concentration
+               END IF
+            END DO
+            
+            zcwan = zcwatot - (sum(zcwanae)+sum(zcwancd)+sum(zcwanpd))
+
+            ! END WATER CONDENSATION
+            ! --------------------------------------------------------------------------------------
+                                    
+            ! 1) Condensation / evaporation of HNO3 
+            ! Initialization of variables
+            IF ( ALL([ino,inh,iso4] > 0) ) THEN   ! In practice this should probably be IF ino > 0 AND inh > 0 AND iso4?? CHECK
+               zsum1 = 0.
+               zsum2 = 0.
+               zcno3nae = 0.
+               zcno3ncd = 0.
+               zcno3npd = 0.
+               ! aerosol bins
+               DO cc = nstr, nbins
+                  IF (aero(ii,jj,cc)%numc > nlim) THEN
+                     zknae(cc) = zmfp_no3/(0.5*dwet_ae(cc))                                 !16.20
+                     zbetaae(cc) = 1. + zknae(cc)*(( 1.33 + (0.71/zknae(cc)))/( 1. + (1./zknae(cc))) +  &
+                                   4.*(1-alpha_no3)/(3.*alpha_no3) )
+                     zbetaae(cc) = 1./zbetaae(cc)
+                     zHp_ae(cc,1) = 1.e0                                                    ! initialization
+                     IF(zcgno3eqae(cc) > 0. .and. zcno3cae(cc) > 0.) &
+                          zHp_ae(cc,1) = zcno3cae(cc)/zcgno3eqae(cc)                        ! (17.99)
+
+                     zmtno3ae(cc) = 2.*pi*dwet_ae(cc) *  &                                  ! (16.64)
+                                    zdfno3*aero(ii,jj,cc)%numc*zbetaae(cc)
+                     zhlp3 = max(-200.,-adt*zkelno3ae(cc)*zmtno3ae(cc)/zHp_ae(cc,1))
+                     zexpterm_ae(cc) = exp(zhlp3)                                           ! exponent term in Eq (17.104)
+                     zsum1 = zsum1 + zcno3cae(cc)*(1.-zexpterm_ae(cc))                      ! sum term in Eq (17.104) numerator
+                     zsum2 = zsum2 + (zHp_ae(cc,1)/zkelno3ae(cc))*(1.-zexpterm_ae(cc))        ! sum term in Eq (17.104) denominator
+                  END IF
+               END DO
+            
+               ! cloud bins
+               DO cc = 1, ncld
+                  IF (cloud(ii,jj,cc)%numc > nlim) THEN
+                     zkncd(cc) = zmfp_no3/(0.5*dwet_cd(cc))                                 !16.20
+                     zbetacd(cc) = 1. + zkncd(cc)*(( 1.33 + (0.71/zkncd(cc)))/( 1. + (1./zkncd(cc))) + &
+                                   4.*(1-alpha_no3)/(3.*alpha_no3) )
+                     zbetacd(cc) = 1./zbetacd(cc)
+                     zHp_cd(cc,1) = 1.e0                                                    ! initialization
+                     IF(zcgno3eqcd(cc) > 0. .and. zcno3ccd(cc) > 0.)   &
+                          zHp_cd(cc,1) = zcno3ccd(cc)/zcgno3eqcd(cc)                        ! (17.99)
+
+                     zmtno3cd(cc) = 2.*pi*dwet_cd(cc) *  &
+                                    zdfno3*cloud(ii,jj,cc)%numc*zbetacd(cc)
+                     zhlp3 = max(-200.,-adt*zkelno3cd(cc)*zmtno3cd(cc)/zHp_cd(cc,1))
+                     zexpterm_cd(cc) = exp(zhlp3)                                           ! exponent term in Eq (17.104)
+                     zsum1 = zsum1 + zcno3ccd(cc)*(1.-zexpterm_cd(cc))                      ! sum term in Eq (17.104) numerator
+                     zsum2 = zsum2 + (zHp_cd(cc,1)/zkelno3cd(cc))*(1.-zexpterm_cd(cc))        ! sum term in Eq (17.104) denominator
+                  END IF
+               END DO
+          
+               ! precipitation bins
+               DO cc = 1, nprc
+                  IF (precp(ii,jj,cc)%numc > prlim) THEN
+                     zknpd(cc) = zmfp_no3/(0.5*dwet_pd(cc))                                 !16.20
+                     zbetapd(cc) = 1. + zknpd(cc)*(( 1.33 + (0.71/zknpd(cc)))/( 1. + (1./zknpd(cc))) + &
+                                   4.*(1-alpha_no3)/(3.*alpha_no3) )
+                     zbetapd(cc) = 1./zbetapd(cc)
+                     zHp_pd(cc,1) = 1.e0                                                    ! initialization
+                     IF(zcgno3eqpd(cc) > 0. .and. zcno3cpd(cc) > 0.)   &
+                          zHp_pd(cc,1) = zcno3cpd(cc)/zcgno3eqpd(cc)                        ! (17.99)
+
+                     zmtno3pd(cc) = 2.*pi*dwet_pd(cc) *  &
+                                    zdfno3*precp(ii,jj,cc)%numc*zbetapd(cc)
+                     zhlp3 = max(-200.,-adt*zkelno3pd(cc)*zmtno3pd(cc)/zHp_pd(cc,1)) 
+                     zexpterm_pd(cc) = exp(zhlp3)                                           ! exponent term in Eq (17.104)
+                     zsum1 = zsum1 + zcno3cpd(cc)*(1.-zexpterm_pd(cc))                      ! sum term in Eq (17.104) numerator
+                     zsum2 = zsum2 + (zHp_pd(cc,1)/zkelno3pd(cc))*(1.-zexpterm_pd(cc))        ! sum term in Eq (17.104) denominator
+                  END IF
+               END DO
+     
+               ! update the gas phase concentration [mol/m3] of HNO3
+               zcno3n = (zcno3c + zsum1)/(1.  + zsum2) ! Eq (17.104)
+               ! update the particle phase concentration of NO3- in each bin
+               !aerosol bins
+               DO cc = nstr, nbins
+                  IF (aero(ii,jj,cc)%numc > nlim) THEN
+                     zcno3nae(cc) = max(zcnh3cae(cc)-aero(ii,jj,cc)%volc(iso4)*spec%rhosu/spec%msu*1.99, &  !! WAS volc(1), should refer to SO4?
+                                        zHp_ae(cc,1)*zcno3n/zkelno3ae(cc) +  &              ! (17.102)
+                                        (zcno3cae(cc) - zHp_ae(cc,1)*zcno3n/zkelno3ae(cc))*zexpterm_ae(cc))
+                     aero(ii,jj,cc)%volc(ino) = zcno3nae(cc)*spec%mno/spec%rhono            ! convert to volume concentration
+                  END IF
+               END DO
+            
+               !cloud bins
+               DO cc = 1, ncld
+                  IF (cloud(ii,jj,cc)%numc > nlim) THEN
+                     zcno3ncd(cc) = zHp_cd(cc,1)*zcno3n/zkelno3cd(cc) +   &                 ! (17.102)
+                                    (zcno3ccd(cc) - zHp_cd(cc,1)*zcno3n/zkelno3cd(cc))*zexpterm_cd(cc)
+                     cloud(ii,jj,cc)%volc(ino) = zcno3ncd(cc)*spec%mno/spec%rhono           ! convert to volume concentration
+                  END IF
+               END DO
+               
+               !precipitation bins
+               DO cc = 1, nprc
+                  IF (precp(ii,jj,cc)%numc > prlim) THEN
+                     zcno3npd(cc) = zHp_pd(cc,1)*zcno3n/zkelno3pd(cc) +   &                 ! (17.102)
+                                    (zcno3cpd(cc) - zHp_pd(cc,1)*zcno3n/zkelno3pd(cc))*zexpterm_pd(cc)
+                     precp(ii,jj,cc)%volc(ino) = zcno3npd(cc)*spec%mno/spec%rhono           ! convert to volume concentration
+                  END IF
+               END DO
+               !CALL THERMODYNAMICS AGAIN
+               zcgno3eqae=0.
+               zcgnh3eqae=0.
+               zcgwaeqae=0.
+               zcgno3eqcd=0.
+               zcgnh3eqcd=0.
+               zcgwaeqcd=0.
+               zcgno3eqpd=0.
+               zcgnh3eqpd=0.
+               zcgwaeqpd=0.
+
+               !IF (ALL([ino,inh] > 0)) THEN
+               ! aerosol droplets
+               CALL thermoequil(aero(ii,jj,:),nbins,nlim,ptemp(ii,jj),ppres(ii,jj),           &
+                    zcgno3eqae,zcgnh3eqae,zcgwaeqae,h2oactae,zpH(ii,jj,1:nbins),  &
+                    ph_switch,prv(ii,jj)/prs(ii,jj),ptstep               )
+               ! cloud droplets
+               CALL thermoequil(cloud(ii,jj,:),ncld,nlim,ptemp(ii,jj),ppres(ii,jj),                      &
+                    zcgno3eqcd,zcgnh3eqcd,zcgwaeqcd,h2oactcd,zpH(ii,jj,nbins+1:nbins+ncld),  &
+                    ph_switch,prv(ii,jj)/prs(ii,jj),ptstep                          )
+               ! precipitation
+               CALL thermoequil(precp(ii,jj,:),nprc,prlim,ptemp(ii,jj),ppres(ii,jj),                              &
+                    zcgno3eqpd,zcgnh3eqpd,zcgwaeqpd,h2oactpd,zpH(ii,jj,nbins+ncld+1:nbins+ncld+nprc), &
+                    ph_switch,prv(ii,jj)/prs(ii,jj),ptstep                                   )
+               !END IF
+            END IF
+
+            IF ( ALL([ino,inh,iso4] > 0)) THEN   ! Is this ok? 
+               ! 2) Condensation / evaporation of NH3
+               ! Initialization of variables
+               zsum1 = 0.
+               zsum2 = 0.
+               zcnh3nae = 0.
+               zcnh3ncd = 0.
+               zcnh3npd = 0.
+               ! aerosol bins
+               DO cc = nstr, nbins
+                  IF (aero(ii,jj,cc)%numc > nlim) THEN
+                     zknae(cc) = zmfp_nh3/(0.5*dwet_ae(cc))                                  !16.20
+                     zbetaae(cc) = 1. + zknae(cc)*(( 1.33 + (0.71/zknae(cc)))/( 1. + (1./zknae(cc))) + &
+                                   4.*(1-alpha_nh3)/(3.*alpha_nh3) )
+                     zbetaae(cc) = 1./zbetaae(cc)
+                     zHp_ae(cc,2) = 1.e0                                                     ! initialize
+                     IF(zcgnh3eqae(cc) > 0. .and. zcnh3cae(cc) > 0.) &
+                          zHp_ae(cc,2) = zcnh3cae(cc)/zcgnh3eqae(cc)                         ! (17.99)
+                     zmtnh3ae(cc) = 2.*pi*dwet_ae(cc) *  &
+                                    zdfnh3*aero(ii,jj,cc)%numc*zbetaae(cc)
+                     zhlp3 = max(-200.,-adt*zkelnh3ae(cc)*zmtnh3ae(cc)/zHp_ae(cc,2))
+                     zexpterm_ae(cc)=exp(zhlp3)                                              ! exponent term in Eq (17.104)
+                     zsum1 = zsum1 + zcnh3cae(cc)*(1.-zexpterm_ae(cc))                       ! sum term in Eq (17.104) numerator
+                     zsum2 = zsum2 + (zHp_ae(cc,2)/zkelnh3ae(cc))*(1.-zexpterm_ae(cc))         ! sum term in Eq (17.104) denominator
+                  END IF
+               END DO
+          
+               !cloud bins
+               DO cc = 1, ncld
+                  IF (cloud(ii,jj,cc)%numc > nlim) THEN
+                     zkncd(cc) = zmfp_nh3/(0.5*dwet_cd(cc))                                  !16.20
+                     zbetacd(cc) = 1. + zkncd(cc)*(( 1.33 + (0.71/zkncd(cc)))/( 1. + (1./zkncd(cc))) + &
+                                   4.*(1-alpha_nh3)/(3.*alpha_nh3) )
+                     zbetacd(cc) = 1./zbetacd(cc)
+                     zHp_cd(cc,2) = 1.e0                                                     ! initialize
+                     IF(zcgnh3eqcd(cc) > 0. .and. zcnh3ccd(cc) > 0.)    &
+                          zHp_cd(cc,2) = zcnh3ccd(cc)/zcgnh3eqcd(cc)                         ! (17.99)
+                     zmtnh3cd(cc) = 2.*pi*dwet_cd(cc) *  &
+                                    zdfnh3*cloud(ii,jj,cc)%numc*zbetacd(cc)
+                     zhlp3 = max(-200.,-adt*zkelnh3cd(cc)*zmtnh3cd(cc)/zHp_cd(cc,2))
+                     zexpterm_cd(cc)=exp(zhlp3)                                              ! exponent term in Eq (17.104)
+                     zsum1 = zsum1 + zcnh3ccd(cc)*(1.-zexpterm_cd(cc))                       ! sum term in Eq (17.104) numerator
+                     zsum2 = zsum2 + (zHp_cd(cc,2)/zkelnh3cd(cc))*(1.-zexpterm_cd(cc))         ! sum term in Eq (17.104) denominator
+                  END IF
+               END DO
+          
+               ! precipitation bins
+               DO cc = 1, nprc
+                  IF (precp(ii,jj,cc)%numc > prlim) THEN
+                     zknpd(cc) = zmfp_nh3/(0.5*dwet_pd(cc))                                  !16.20
+                     zbetapd(cc) = 1. + zknpd(cc)*(( 1.33 + (0.71/zknpd(cc)))/( 1. + (1./zknpd(cc))) + &
+                                   4.*(1-alpha_nh3)/(3.*alpha_nh3) )
+                     zbetapd(cc) = 1./zbetapd(cc)
+                     zHp_pd(cc,2) = 1.e0                                                     ! initialize
+                     IF(zcgnh3eqpd(cc) > 0. .and. zcnh3cpd(cc) > 0.)    &
+                          zHp_pd(cc,2) = zcnh3cpd(cc)/zcgnh3eqpd(cc)                         ! (17.99)
+                     zmtnh3pd(cc) = 2.*pi*dwet_pd(cc) *  &
+                                    zdfnh3*precp(ii,jj,cc)%numc*zbetapd(cc)
+                     zhlp3 = max(-200.,-adt*zkelnh3pd(cc)*zmtnh3pd(cc)/zHp_pd(cc,2))
+                     zexpterm_pd(cc)=exp(zhlp3)                                              ! exponent term in Eq (17.104)
+                     zsum1 = zsum1 + zcnh3cpd(cc)*(1.-zexpterm_pd(cc))                       ! sum term in Eq (17.104) numerator
+                     zsum2 = zsum2 + (zHp_pd(cc,2)/zkelnh3pd(cc))*(1.-zexpterm_pd(cc))         ! sum term in Eq (17.104) denominator
+                  END IF
+               END DO
+          
+               ! update the gas phase concentration [mol/m3] of NH3
+               zcnh3n = (zcnh3c + zsum1)/(1. + zsum2) ! (17.104)
+               ! update the particle phase concentration of NH3 in each bin
+          
+               !aerosol bins
+               DO cc = nstr, nbins
+                  IF (aero(ii,jj,cc)%numc > nlim) THEN   
+                     zcnh3nae(cc) = max(min(zHp_ae(cc,2)/zkelnh3ae(cc)*zcnh3n +       &      ! (17.102)
+                                            (zcnh3cae(cc) - zHp_ae(cc,2)/zkelnh3ae(cc)*zcnh3n)*zexpterm_ae(cc),     &
+                                            zcno3nae(cc)+(2.-1.e-5)*aero(ii,jj,cc)%volc(iso4)*spec%rhosu/spec%msu), &  ! WAS volc(1), now volc(iso4)?
+                                        0.95*zcnh3cae(cc))
+                
+                     aero(ii,jj,cc)%volc(inh) = zcnh3nae(cc)*spec%mnh/spec%rhonh             ! convert to volume concentration
+                  END IF
+               END DO
+          
+               ! cloud bins
+               DO cc = 1, ncld
+                  IF (cloud(ii,jj,cc)%numc > nlim) THEN
+                     zcnh3ncd(cc) = max(min(zHp_cd(cc,2)/zkelnh3cd(cc)*zcnh3n +       &      ! (17.102)
+                                            (zcnh3ccd(cc) - zHp_cd(cc,2)/zkelnh3cd(cc)*zcnh3n)*zexpterm_cd(cc),      &
+                                            zcno3ncd(cc)+(2.-1.e-5)*cloud(ii,jj,cc)%volc(iso4)*spec%rhosu/spec%msu), & ! WAS volc(1), now volc(iso4)?
+                                        0.95*zcnh3ccd(cc))
+
+                     cloud(ii,jj,cc)%volc(inh) = zcnh3ncd(cc)*spec%mnh/spec%rhonh            ! convert to volume concentration
+                  END IF
+               END DO
+          
+               ! precipitation bins
+               DO cc = 1, nprc
+                  IF (precp(ii,jj,cc)%numc > prlim) THEN
+                     zcnh3npd(cc) = max(min(zHp_pd(cc,2)/zkelnh3pd(cc)*zcnh3n +       &      ! (17.102)
+                                            (zcnh3cpd(cc) - zHp_pd(cc,2)/zkelnh3pd(cc)*zcnh3n)*zexpterm_pd(cc),      &
+                                            zcno3npd(cc)+(2.-1.e-5)*precp(ii,jj,cc)%volc(iso4)*spec%rhosu/spec%msu), & ! WAS volc(1), now volc(iso4)?
+                                        0.95*zcnh3cpd(cc))
+
+                     precp(ii,jj,cc)%volc(inh) = zcnh3npd(cc)*spec%mnh/spec%rhonh            ! convert to volume concentration
+                  END IF
+               END DO
+
+               !Make sure that mass balance holds in condensation
+          
+               zcnh3n = zcnh3tot - &
+                    (sum(aero(ii,jj,1:nbins)%volc(inh))+  &
+                     sum(cloud(ii,jj,1:ncld)%volc(inh))+  & 
+                     sum( precp(ii,jj,1:nprc)%volc(inh)))*spec%rhonh/spec%mnh
+               
+               zcno3n = zcno3tot -  &
+                    (sum(aero(ii,jj,1:nbins)%volc(ino))+  &
+                     sum(cloud(ii,jj,1:ncld)%volc(ino))+  & 
+                     sum( precp(ii,jj,1:nprc)%volc(ino)))*spec%rhono/spec%mno
+
+               zcwatot=zcwac + sum(zcwacae(1:nbins)) + sum(zcwaccd(1:ncld)) + sum(zcwacpd(1:nprc))
+               prv(ii,jj) = zcwan*spec%mwa/zrhoair !      "            water concentration to kg/kg
+               pghno3(ii,jj) = zcno3n*avog       ! convert gas phase concentration to #/m3
+               pgnh3(ii,jj) = zcnh3n*avog        !      "
+
+            END IF
+
+         END DO
+      END DO
+  
+    END SUBROUTINE partitioning
+
+    !
+    ! ---------------------------------------------------------------------------------------------------------
+    !
+
+    SUBROUTINE thermoequil(ppart,nb,nlim,ptemp,ppress, chno3g, cnh3g, ch2og, h2oact,acidity,ph_switch,prh,ptstep)
+    USE mo_salsa_types, ONLY : section
+    USE mo_submctl, ONLY : & !rhosu,msu,    &
+                           !rhoss,mss,    &
+                           !rhono,mno,    &
+                           !rhonh,mnh,    &
+                           !rhowa,mwa,    &
+                           rg, avog, spec
+
+    USE aerosol_thermodynamics, ONLY : inorganic_pdfite
+
+    IMPLICIT NONE
+
+    INTEGER, INTENT(in) :: nb
+    TYPE(section), INTENT(in) :: ppart(nb)
+    REAL,INTENT(in) :: nlim
+
+    REAL, INTENT(in)  :: ptemp,ppress ,ptstep
+    INTEGER, INTENT(in) :: ph_switch
+    REAL, INTENT(in) :: prh
+    ! equilibrium gas phase concentrations over a flat surface
+    REAL, INTENT(out) :: chno3g(nb), &
+                         cnh3g(nb),  &
+                         ch2og(nb) , h2oact(nb) 
+    REAL, INTENT(out) :: acidity(nb)
+    !<testing
+    INTEGER, PARAMETER :: NCmax=3, NAmax=5, NNmax=1
+    REAL :: MOLAL(-NAmax:NCmax) 
+    !>
+    LOGICAL  :: detailed_thermo
+    REAL :: zions(7)                ! mol/m3
+
+    REAL :: zwatertotal,        &   ! Total water in particles (mol/m3) ???
+            chcl,               &   ! dummy variable for HCl concentration (not in use)
+            zgammas(7)              ! Activity coefficients
+
+    INTEGER :: cc
+
+    REAL :: pmols(nb,7), paw(nb) 
+    REAL :: c_ions(7),SO4_rat(nb)
+
+    
+    REAL :: zKr,               & ! Equilibrium constants (see 
+            zKeq,              & ! Jacobson (1999),  Atmos Environ 33, 3635 - 3649), Table 3
+            dx,                & ! Change in ion concentration
+            zcwl,              & ! Liquid water mol/m3-air
+            zhlp,esl,rsl,H_eff_no3          !
+
+    REAL, PARAMETER ::ztemp0   = 298.15      ! Reference temperature (K)    
+
+    ! FROM/TO ISOROPIA
+    REAL :: zwi_S(5)          ! Total species concentrations in moles/m**3 air
+    REAL :: zcntrl_s(2)       ! nug for different types of problems solved
+                              ! different state of aerosols (deliquescent or
+                              ! metastable)
+    REAL :: zwt_s(5)          ! ?
+    REAL :: zaerliq_S(12)     ! Aqueous-phase concentration array in moles/m**3air
+    REAL :: zaersld_S(9)      ! Solid-phase concentration array in moles/m**3 air  
+    REAL :: zother_s(6)       ! Solution information array
+    REAL :: zgas_s(3)         ! Gas-phase concentration array in moles/m**3 air
+    REAL :: Kwa               
+    CHARACTER(len=15) ::  scasi_s          ! Returns the subcase which the input corresponds to
+    REAL :: GAMA(6), gamma_no3, gamma_nh3, atm = 101325., H_eff_nh3
+
+    ! Switch for thermodynamic model. Only PDFite is available with this distribution.
+    INTEGER :: thermo_model=2 !1 = ISOROPIA, 2 = PDFiTE, !3 = AIM !0 = No thermodynamic model
+
+    INTEGER :: iso4,iss,iwa,ino,inh
+
+    ! The calls to thermodynamics models include some hardcoded inputs,
+    ! fo must keep track which compounds are configured active in SALSA.
+    iso4 = spec%getIndex("SO4",notFoundValue = 0)
+    iss = spec%getIndex("SS",notFoundValue = 0)
+    ino = spec%getIndex("NO",notFoundValue = 0)
+    inh = spec%getIndex("NH",notFoundValue = 0)
+    iwa = spec%getIndex("H2O",notFoundValue = 0)
+
+    ! choose how thermodynamical equilibrium is calculated
+    ! .true. for detailed PD-Fite calculations of activity coefficients
+    ! .false. for fast calculation, assuming ideality for all species
+    detailed_thermo = .TRUE.
+                        
+    ! If there is no HNO3, PD-Fite is not required
+    IF (ino == 0) &
+         detailed_thermo = .FALSE.
+    IF (ino /= 0) THEN 
+       IF(SUM(ppart(:)%volc(ino)*spec%rhono/spec%mno) == 0. .AND. thermo_model==2)  &
+            detailed_thermo = .FALSE.
+    END IF
+
+    ! initialize
+    pmols = 0.   ! Only needed for PD-Fite interface but not otherwise used?
+    h2oact  = 0.
+    ch2og = 0.
+    chno3g = 0.
+    cnh3g = 0.
+    acidity = 0.   
+    DO cc = 1, nb
+       IF(ppart(cc)%numc > nlim .and. ppart(cc)%volc(iwa)>0.) THEN
+          
+          !Calculate initial concentrations of individual ions
+          ! Accumulate H+ concentration
+          zhlp = 0.
+          IF (iso4 > 0) zhlp = zhlp + 2.*ppart(cc)%volc(iso4)*spec%rhosu/spec%msu
+          IF (ino > 0) zhlp = zhlp + ppart(cc)%volc(ino)*spec%rhono/spec%mno
+          IF (inh > 0) zhlp = zhlp - ppart(cc)%volc(inh)*spec%rhonh/spec%mnh
+          zhlp = MAX(zhlp, 1.e-30)
+          
+          c_ions= 0.
+          c_ions(1) = zhlp                                         ! H+
+          c_ions(2) = ppart(cc)%volc(iso4)*spec%rhosu/spec%msu     ! SO42-
+          c_ions(3) = 0.                                           ! HSO4
+          IF (ino > 0) c_ions(4) = ppart(cc)%volc(ino)*spec%rhono/spec%mno                                  ! NO3
+          IF (inh > 0) c_ions(5) = MIN(ppart(cc)%volc(inh)*spec%rhonh/spec%mnh,c_ions(2)*2.+c_ions(4)-zhlp) ! NH4
+          if (iss>0) c_ions(6) = ppart(cc)%volc(iss)*spec%rhoss/spec%mss                                    ! Na
+          if (iss>0) c_ions(7) = ppart(cc)%volc(iss)*spec%rhoss/spec%mss                                    ! Cl
+ 	
+	  !getting the activity of water
+          MOLAL     = 0.
+          MOLAL(-2) = c_ions(2)                                      ! SO42-
+          MOLAL(-3) = c_ions(4)                                      ! NO3-
+          MOLAL(2)  = MIN((2.-1.e-10)*MOLAL(-2)+MOLAL(-3),c_ions(5)) ! NH4+ 
+          MOLAL(1)  = MOLAL(-3)+2.*MOLAL(-2)-MOLAL(2)
+          MOLAL     = MOLAL/(ppart(cc)%volc(iwa)*spec%rhowa) 
+
+          zcwl = ppart(cc)%volc(iwa)*spec%rhowa/spec%mwa
+          
+          IF (detailed_thermo) THEN
+
+             !zcwl = ppart(cc)%volc(iwa)*spec%rhowa/spec%mwa
+             paw(cc) = 0.
+             
+             IF (zcwl/(zcwl+c_ions(2)) > 0.00001) THEN
+                SELECT CASE(thermo_model)
+                CASE(1)
+		   ! -----------------------------------
+		   ! THERMODYNAMICS WITH ISORROPIA	
+		   !
+                   ! We are not licensed to distribute ISORROPIA, hence we leaving out all the components 
+ 		   ! of it from this distribution. If interested in using ISORROPIA with this code, 
+		   ! download the ISORROPIA source codes and place them in src/src_salsa/ directory, 
+		   ! include the dependencies to src/Makefile and uncomment the lines below. 
+
+                   ! WI moles/m3, aerosol phase, NA, SO4, HN4, NO3, CL
+                   !!zwi_s=0
+                   !!IF (iss>0) zwi_s(1)= ppart(cc)%volc(iss)*spec%rhoss/spec%mss       !Na
+                   !!IF (iso4>0) zwi_s(2)= ppart(cc)%volc(iso4)*spec%rhosu/spec%msu     !SO4
+                   !!IF (inh>0) zwi_s(3)= ppart(cc)%volc(inh)*spec%rhonh/spec%mnh       !NH4
+                   !!IF (ino>0) zwi_s(4)= ppart(cc)%volc(ino)*spec%rhono/spec%mno       !NO3
+                   !!IF (iss>0) zwi_s(5)= ppart(cc)%volc(iss)*spec%rhoss/spec%mss       !Cl
+
+                   !!zcntrl_s(1)=1 ! reverse problem solved with WI only aerosol phase 
+                   !!zcntrl_s(2)=1  ! The aerosol can have both solid+liquid phases (deliquescent) 
+
+                   !!CALL ISOROPIA(zwi_s, min(prh,1.), ptemp,  zcntrl_s,   &
+                   !!zwt_s, zgas_s, zaerliq_s, zaersld_s, scasi_s, zother_s)                   
+
+                   !!chno3g(cc) = zgas_s(2)
+                   !!cnh3g(cc)  = zgas_s(1)
+
+                   !!IF (zcwl/(zcwl+SUM(c_ions)) > 0.995) THEN
+                   !!   H_eff_no3 = 3.2e6*exp(8700*(1./ptemp-1./298.))/(c_ions(1)/ppart(cc)%volc(iwa)*1.e-3)
+                   !!   chno3g(cc) = (zwi_s(4)/ppart(cc)%volc(iwa)*1.e-3)/H_eff_no3*atm/(rg*ptemp)
+                   !!   Kwa=1.0e-14
+
+                   !!   H_eff_nh3 = 62.0*1.7e-5*exp(450*(1./ptemp-1./298.))*(c_ions(1)/ppart(cc)%volc(iwa)*1.e-3)/Kwa
+                   !!   cnh3g(cc) = (zwi_s(3)/ppart(cc)%volc(iwa)*1.e-3)/H_eff_nh3*atm/(rg*ptemp)
+                   !!END IF
+
+                CASE(2)
+                   zions = 0.
+                   zions(1) = zhlp                        ! H+
+                   IF (inh>0) zions(2) = ppart(cc)%volc(inh)*spec%rhonh/spec%mnh   ! NH4
+                   IF (iss>0) zions(3) = ppart(cc)%volc(iss)*spec%rhoss/spec%mss   ! Na
+                   IF (iso4>0) zions(4) = ppart(cc)%volc(iso4)*spec%rhosu/spec%msu ! SO4
+                   zions(5) = 0. ! HSO4
+                   IF (ino>0) zions(6) = ppart(cc)%volc(ino)*spec%rhono/spec%mno ! NO3; WAS zions(ino), now zions(6)
+                   if (iss>0) zions(7) = ppart(cc)%volc(iss)*spec%rhoss/spec%mss ! Cl; WAS zions(inh), now zions(7)
+
+                   ! calculate thermodynamical equilibrium in the particle phase
+                   CALL inorganic_pdfite(.9,ptemp,zions,zcwl,chno3g(cc),chcl,cnh3g(cc),zgammas,pmols(cc,:))  ! FIXED RH??
+                   
+                   ch2og(cc) =ch2og(cc)/(rg*ptemp)
+                   chno3g(cc)=chno3g(cc)/(rg*ptemp)
+                   cnh3g(cc) =cnh3g(cc)/(rg*ptemp)
+
+                CASE(3)
+		   ! --------------------------------------------------------------
+                   ! THERMODYNAMIC WITH AIM
+		   !
+                   ! We are not licensed to distribute AIM, hence we leaving out all the components of it from this distribution.
+                   ! If interested in using AIM with this code, download the AIM source codes and place them in src/src_salsa/ 
+		   ! directory, include dependencies to src/Makefile and uncomment the lines below.
+
+                   !!CALL THERMO(ptemp,MOLAL,ch2og(cc),chno3g(cc),cnh3g(cc),paw(cc))
+                   !!ch2og(cc) =ch2og(cc)/(rg*ptemp)
+                   !!chno3g(cc)=chno3g(cc)/(rg*ptemp)
+                   !!cnh3g(cc) =cnh3g(cc)/(rg*ptemp)
+                CASE DEFAULT
+                   !do nothing
+                END SELECT
+                
+             END IF
+             
+             h2oact(cc) = zcwl/(zcwl+sum(c_ions))
+
+          ELSE
+             ! Equilibrium coefficient (mol/kg)
+             zKeq = 1.02e-2*EXP(8.84*(ztemp0/ptemp-1.0)+25.15*(1.-ztemp0/ptemp+LOG(ztemp0/ptemp))) ! Table B7 
+          
+             ! Convert zKeq to zKr (molm-3) , Equation from Table 3 in Jacobson (1999) 
+             !                                Atmos Environ 33, 3635 - 3649                                      
+             zKr   = zKeq*(zcwl*spec%mwa)
+             ! Eq (17.13)
+             dx = (-c_ions(2)-c_ions(1)-zKr &                                   ! Eq (17), Jacobson (1999)
+                   +SQRT((c_ions(2)+c_ions(1)+zKr)**2. & 
+                   -4.0*(c_ions(1)*c_ions(2)-c_ions(3)*zKr)))/2.0
+             cnh3g(cc) = 0.
+             chno3g(cc) = 0.
+
+             !Change concentrations
+             c_ions(1) = c_ions(1) + dx
+             c_ions(2) = c_ions(2) + dx
+             c_ions(3) = c_ions(3) - dx
+             ch2og(cc) = zcwl/(zcwl+sum(c_ions))*satvaph2o(ptemp)/(rg*ptemp)  ! Currently saturation mix.rat. is already brought here so there's some redundancy
+             
+             ! vapor pressure of HNO3 at the droplet surface:
+             zKeq=2.5e6*EXP(29.17*(ztemp0/ptemp-1.0)+16.83*(1.-ztemp0/ptemp+LOG(ztemp0/ptemp)))/101325. ! Table B.7 
+             zKr = (zKeq*(zcwl*spec%mwa)**2*rg*ptemp)                                                ! Table 3 in Jacobson (1999) 
+             chno3g(cc) = 0.
+             IF(c_ions(4) > 0.) chno3g(cc) = c_ions(4)*c_ions(1)/zKr                                   !    "
+             ! vapor pressure of NH3 at the droplet surface:
+             zKeq=2.58e17*EXP(64.02*(ztemp0/ptemp-1.0)+11.44*(1.-ztemp0/ptemp+LOG(ztemp0/ptemp)))/101325.**2 ! Table B.7 
+             zKr = (zKeq*(zcwl*spec%mwa*rg*ptemp)**2)                              ! Table 3 in Jacobson (1999) 
+             cnh3g(cc) = 0.
+             IF(chno3g(cc) > 0.) cnh3g(cc) = c_ions(4)*c_ions(1)/(chno3g(cc)*zKr)                      ! 
+             h2oact(cc) = zcwl/(zcwl+sum(c_ions))
+
+             IF (ph_switch == 1) THEN
+		!CALL THERMO(ptemp,MOLAL,ch2og(cc),chno3g(cc),cnh3g(cc),paw(cc))
+                acidity(cc) = -log10(MOLAL(1))
+             END IF
+          END IF
+       END IF
+
+    END DO
+
+  END SUBROUTINE thermoequil
+    
+   
+   !
+   ! ----------------------------------------------------------------------------------------------------------
+   !
 
    SUBROUTINE gpparth2o(kproma, kbdim,  klev,  krow,     &
                         ptemp,  ppres,  prs,   prsi,     &
@@ -967,7 +1933,9 @@ CONTAINS
                   zkelvin(cc) = exp( 4.*surfw0*spec%mwa / (rg*ptemp(ii,jj)*spec%rhowa*dwet) )
 
                   ! Saturation mole concentration over flat surface
-                  zcwsurfae(cc) = prs(ii,jj)*rhoair/spec%mwa
+                  ! Limit the supersaturation to max 1.01 for the mass transfer
+                  ! EXPERIMENTAL
+                  zcwsurfae(cc) = MAX(prs(ii,jj),prv(ii,jj)/1.01)*rhoair/spec%mwa
 
                   ! Equilibrium saturation ratio
                   zwsatae(cc) = zact*zkelvin(cc)
@@ -998,7 +1966,7 @@ CONTAINS
             zcwcit(1:nice) = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa
             IF (spec%isUsed("rime")) &
                  zcwcit(1:nice) = zcwcit(1:nice) + ice(ii,jj,1:nice)%volc(irim)*spec%rhori/spec%mwa
-
+            
             ! Store original values of pristine and rimed ice to preserve info about composition
             zorgic = 0.; zorgri = 0.
             zorgic = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa
@@ -1155,9 +2123,32 @@ CONTAINS
 
       DEALLOCATE(vrate)
       
-   END SUBROUTINE gpparth2o
-   !-------------------------------------------------------
-   REAL FUNCTION acth2o(ppart,pcw)
+    END SUBROUTINE gpparth2o
+
+    ! ------------------------------------------------------
+
+    FUNCTION DIFFC(Temp,Press,I)
+      !
+      ! This function is used to calculate the diffusion coefficient from the
+      ! vapor in the gas as a function of temperature and pressure after expans.
+      ! I is species number.
+      !
+      Real :: Temp, Press
+      !     
+      Real :: MYY(6), DN(6), DIFFC
+      INTEGER :: I,J
+      DATA ( DN(J),MYY(J), J=1,6 ) /  &
+           22.0748e-6, 1.6658e+0, 12.98e-6, 1.75e+0, 9.380307e-6,    &
+           1.75e+0, 20.0e-6, 1.75e+0, 14.76518e-6, 1.75e+0, 0.0, 0.0 /
+      !   
+      DIFFC = DN(I) * ( (TEMP/273.15)**MYY(I) ) * 101325. / Press
+      !     
+      RETURN
+    END FUNCTION DIFFC
+    
+    !-------------------------------------------------------
+
+    REAL FUNCTION acth2o(ppart,pcw)
 
       USE classSection, ONLY : Section
       USE mo_submctl, ONLY : eps, spec
@@ -1189,4 +2180,43 @@ CONTAINS
 
    END FUNCTION acth2o
 
+   !
+   ! -------------------------
+   !
+
+   FUNCTION satvaph2o(ptemp) RESULT(psat)
+      !-----------------------------------------------------------------
+      ! Saturation vapour pressure of water vapour
+      ! This is a local function for the subroutine *cloud_condensation*
+      !
+      ! J. Tonttila, FMI, 03/2014
+      !-----------------------------------------------------------------
+    
+      IMPLICIT NONE
+
+      REAL, INTENT(in) :: ptemp
+
+      REAL, PARAMETER ::       &
+         za0 = 6.107799961,    &
+         za1 = 4.436518521e-1, &
+         za2 = 1.428945805e-2, &
+         za3 = 2.650648471e-4, &
+         za4 = 3.031240396e-6, &
+         za5 = 2.034080948e-8, &
+         za6 = 6.136820929e-11
+
+      REAL :: zt
+
+      REAL :: psat
+
+      zt = ptemp - 273.15
+
+      psat = za0 + za1*zt + za2*zt**2 + za3*zt**3 +   &
+             za4*zt**4 + za5*zt**5 + za6*zt**6
+
+      ! To Pascals
+      psat = psat*100.
+
+   END FUNCTION satvaph2o
+   
 END MODULE mo_salsa_dynamics

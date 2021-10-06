@@ -1193,25 +1193,25 @@ CONTAINS
  ! Juha Tonttila, FMI, 2014
  !
  SUBROUTINE init_gas_tracers
-    IMPLICIT NONE
+   USE mo_submctl, ONLY : avog
+   IMPLICIT NONE
 
-    INTEGER :: j,i,k
+   INTEGER :: j,i,k
 
-    ! These could be read from a file
-    ! Taken as molecules/kg
-    DO j = 1, nyp
-       DO i = 1, nxp
-          DO k = 1, nzp
-             a_gaerop%d(k,i,j,1) = 5.E14/dn0%d(k) !SO4
-             a_gaerop%d(k,i,j,2) = 0./dn0%d(k)    !NO3
-             a_gaerop%d(k,i,j,3) = 0./dn0%d(k)    !NH4
-             a_gaerop%d(k,i,j,4) = 5.E14/dn0%d(k) !OCNV
-             a_gaerop%d(k,i,j,5) = 1.E14/dn0%d(k) !OCSV
-          END DO
-       END DO
-    END DO
-
-
+   ! These could be read from a file
+   ! Taken as molecules/kg
+   DO j = 1, nyp
+      DO i = 1, nxp
+         DO k = 1, nzp
+            a_gaerop%d(k,i,j,1) = 5.E14/dn0%d(k) !SO4
+            a_gaerop%d(k,i,j,2) = 1.e-9 * avog / dn0%d(k)    !NO3
+            a_gaerop%d(k,i,j,3) = 1.e-9 * avog /dn0%d(k)    !NH4
+            a_gaerop%d(k,i,j,4) = 0. !5.E14/dn0%d(k) !OCNV
+            a_gaerop%d(k,i,j,5) = 0. !1.E14/dn0%d(k) !OCSV
+         END DO
+      END DO
+   END DO
+   
  END SUBROUTINE init_gas_tracers
 
 
