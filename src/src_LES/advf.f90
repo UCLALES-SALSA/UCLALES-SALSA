@@ -32,8 +32,8 @@ CONTAINS
   ! times.
   !
   SUBROUTINE fadvect
-    USE mo_progn_state, ONLY: a_qp, a_rp, a_mcloudp ! a_rp, a_mcloudp for SS hack
-    USE mo_diag_state, ONLY : a_rsl  ! for SS hack
+    USE mo_progn_state, ONLY: a_qp, a_rp, a_mcloudp, a_ncloudp ! a_rp, a_mcloudp, a_ncloudp for SS hack
+    USE mo_diag_state, ONLY : a_rsl, a_temp, a_rc, a_press  ! for SS hack
     USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc
     USE mo_aux_state, ONLY: dzt, dzm,dn0  ! level for SS hack
     USE grid, ONLY : newsclr, nscl, a_sp, a_st, nxp, nyp, nzp, dtlt,  &
@@ -41,7 +41,7 @@ CONTAINS
     !USE stat, ONLY : sflg, updtst
     USE util, ONLY : get_avg3, getMassIndex ! getMassIndex for SS hack
     
-    USE thrm, ONLY : thermo  ! for SS hack
+    USE thrm, ONLY : thermo,rslf  ! for SS hack
     USE mo_submctl, ONLY : spec,ncld ! for SS hack
     
     REAL    :: a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
@@ -52,22 +52,61 @@ CONTAINS
     REAL :: rp_excess(nzp,nxp,nyp) ! "Excess" water vapor after lateral advection
     REAL :: rctot(nzp,nxp,nyp)     ! You could use SALSA diagnostics to get rc, but
                                    ! just to make sure you get up to date value...
-    INTEGER :: mi,mf,nspec,i
+    REAL :: tk1(nzp,nxp,nyp),rp1(nzp,nxp,nyp),rs1(nzp,nxp,nyp),   &
+            tk2(nzp,nxp,nyp),rp2(nzp,nxp,nyp),rs2(nzp,nxp,nyp)
+
+    INTEGER :: mi,mf,nspec,ii, i,j,k
     rp_excess = 0.
     rctot = 0.
+    tk1 = 0.
+    tk2 = 0.
+    rp1 = 0.
+    rp2 = 0.
+    rs1 = 0.
+    rs2 = 0.
     
     a_tmp1 = 0.  ! Just making sure while finding a memory leak... -Juha
     a_tmp2 = 0.
+
+    ! ---------------------------------------------------
+    ! Attempt No 2 at fixing spurious supersaturations.
     !
-    ! diagnose liquid water flux
+    ! Use the diagnostic absolute temperature and rp to calculate
+    ! the change from horizontal advection simulatenously, take
+    ! saturation mix rat before and after and compare the supersaturation
+    ! using those values only in points where there is already some
+    ! clouds present.
     !
-    !IF (sflg .AND. level > 1) THEN
-    !   a_tmp1 = a_rc
-    !   CALL add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.FALSE.)
-    !   CALL mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtlt,.FALSE.)
-    !   CALL get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-    !   CALL updtst(nzp,'adv',0,v1da,1)   RL_FLUX
-    !END IF
+    CALL thermo(level)    ! Update the current thermodynamical state
+    tk1 = a_temp%d        ! Store "before" values
+    rp1 = a_rp%d
+    rs1 = 0.
+    DO j = 3, nyp-2
+       DO i = 3, nxp-2
+          DO k = 1, nzp
+             rs1(k,i,j) = rslf(a_press%d(k,i,j),tk1(k,i,j))
+          END DO
+       END DO
+    END DO
+    CALL add_vel(nzp,nxp,nyp,a_tmp2,a_vp%d,a_vc%d,iw)  ! Calls to horizontal advection
+    CALL mamaos_y(nzp,nxp,nyp,a_tmp2,tk1,tk2,dyi,dtlt)
+    CALL mamaos_y(nzp,nxp,nyp,a_tmp2,rp1,rp2,dyi,dtlt)
+    CALL add_vel(nzp,nxp,nyp,a_tmp2,a_up%d,a_uc%d,iw)
+    CALL mamaos_x(nzp,nxp,nyp,a_tmp2,tk1,tk2,dxi,dtlt)
+    CALL mamaos_x(nzp,nxp,nyp,a_tmp2,rp1,rp2,dxi,dtlt)
+    
+    rs2 = 0.
+    DO j = 3, nyp-2
+       DO i = 3, nxp-2
+          DO k = 1, nzp
+             rs2(k,i,j) = rslf(a_press%d(k,i,j),tk2(k,i,j))
+          END DO
+       END DO
+    END DO             
+    rp_excess = MERGE( (rp2-rs2)-(rp1-rs1), 0.,         &
+         ((rp2-rs2) > (rp1-rs1) .AND. rp1 > rs1)  )  ! Is the cloud droplet condition valid??
+    ! --> move the excess from vapor to droplets within the actual advection loop
+    
     !
     ! loop through the scalar table, setting iscp and isct to the
     ! appropriate scalar pointer and do the advection
@@ -99,21 +138,21 @@ CONTAINS
          ! change in temperature, but the supersaturation change is checked
          ! only on the advection of moisture.         
          IF (ASSOCIATED(a_rp%d,a_sp) .AND. level >= 4) THEN
-            ! Must call thermo to get the updated saturation mix rats
-            CALL thermo(level)
-            ! compare the new and old vapor concentration to saturation. Save the difference
-            ! if a) the parcel was saturated in the beginning and b) the saturation ratio increased
-            ! after lateral advection.
-            rp_excess = MERGE( a_tmp1-a_sp,0., (a_tmp1 > a_sp .AND. a_sp > a_rsl%d) )
-            ! Remove the excess from updated rp
+         !!   ! Must call thermo to get the updated saturation mix rats
+         !!   CALL thermo(level)
+         !!   ! compare the new and old vapor concentration to saturation. Save the difference
+         !!   ! if a) the parcel was saturated in the beginning and b) the saturation ratio increased
+         !!   ! after lateral advection.
+         !!   rp_excess = MERGE( a_tmp1-a_sp,0., (a_tmp1 > a_sp .AND. a_sp > a_rsl%d) )
+         !!   ! Remove the excess from updated rp
             a_tmp1 = a_tmp1 - rp_excess
-            ! Place the excess moisture to cloud droplets
-            ! determine the index ranges
+         !!   ! Place the excess moisture to cloud droplets
+         !!   ! determine the index ranges
             nspec = spec%getNSpec(type="wet")
             mi = getMassIndex(ncld,1,nspec)
             mf = getMassIndex(ncld,ncld,nspec)
             rctot = SUM(a_mcloudp%d(:,:,:,mi:mf),DIM=4)
-            DO i = mi,mf
+            DO ii = mi,mf
                a_mcloudp%d(:,:,:,i) = a_mcloudp%d(:,:,:,i) +   &
                     rp_excess(:,:,:)*a_mcloudp%d(:,:,:,i)/MAX(rctot(:,:,:),1.e-12)
             END DO
