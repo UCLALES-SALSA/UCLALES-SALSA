@@ -35,7 +35,7 @@ CONTAINS
     USE mo_progn_state, ONLY: a_qp, a_rp, a_mcloudp, a_ncloudp ! a_rp, a_mcloudp, a_ncloudp for SS hack
     USE mo_diag_state, ONLY : a_rsl, a_temp, a_rc, a_press  ! for SS hack
     USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_uc, a_vc, a_wc
-    USE mo_aux_state, ONLY: dzt, dzm,dn0  ! level for SS hack
+    USE mo_aux_state, ONLY: dzt, dzm,dn0,zt  ! level for SS hack
     USE grid, ONLY : newsclr, nscl, a_sp, a_st, nxp, nyp, nzp, dtlt,  &
                      dxi, dyi, isgstyp, level
     !USE stat, ONLY : sflg, updtst
@@ -55,7 +55,10 @@ CONTAINS
     REAL :: tk1(nzp,nxp,nyp),rp1(nzp,nxp,nyp),rs1(nzp,nxp,nyp),   &
             tk2(nzp,nxp,nyp),rp2(nzp,nxp,nyp),rs2(nzp,nxp,nyp)
 
-    INTEGER :: mi,mf,nspec,ii, i,j,k
+    LOGICAL :: l_cldtop(nzp,nxp,nyp), l_cld(nzp,nxp,nyp), l_cldm1(nzp,nxp,nyp)
+    REAL :: dz
+    
+    INTEGER :: mi,mf,nspec,ii, i,j,k,itop,ist,nlevs
     rp_excess = 0.
     rctot = 0.
     tk1 = 0.
@@ -77,6 +80,35 @@ CONTAINS
     ! using those values only in points where there is already some
     ! clouds present.
     !
+    ! Apply the supersat limitation in a 50 m slab around cloud top only
+    ! make a cloud top mask using rc
+    l_cldtop = .FALSE.  ! Initialize
+    l_cld = .FALSE.
+    l_cldm1 = .FALSE.
+
+    l_cld = a_rc%d > 1.e-5  ! Cloud mask
+    l_cldm1 = .NOT. l_cld   ! Reverse cloud mask
+    ! Cloud top is where cloud mask AND reverse cloud mask one level above are both true
+    l_cldtop(1:nzp-1,:,:) =   &  
+         ( l_cld(1:nzp-1,:,:) .AND. l_cldm1(2:nzp,:,:) )
+
+    ! Check vertical resolution
+    dz = 1./dzt%d(1)
+    ! Approximate number of levels for 50m slab
+    nlevs = NINT(50./dz)
+
+    ! Mask nlevs levels counting downwards from cloud top... 
+    DO j = 1,nyp-2
+       DO i = 1,nxp-2
+          DO k = 2,nzp
+             IF (l_cldtop(k,i,j)) &
+                  l_cldtop(MAX(2,k-nlevs):k,i,j) = .TRUE.
+          END DO
+          WRITE(*,*) PACK(zt%d(:),l_cldtop(:,i,j))!l_cldtop(:,i,j)
+          !WRITE(*,*) ''
+       END DO
+    END DO
+                                                                      
     CALL thermo(level)    ! Update the current thermodynamical state
     tk1 = a_temp%d        ! Store "before" values
     rp1 = a_rp%d
@@ -103,8 +135,10 @@ CONTAINS
           END DO
        END DO
     END DO             
+
+    ! Add the cloud top mask and apply only for points with supersaturation > 0.1 %
     rp_excess = MERGE( (rp2-rs2)-(rp1-rs1), 0.,         &
-         ((rp2-rs2) > (rp1-rs1) .AND. rp1 > rs1)  )  ! Is the cloud droplet condition valid??
+         ((rp2-rs2) > (rp1-rs1) .AND. rp1 > rs1*1.001) .AND. l_cldtop  )
     ! --> move the excess from vapor to droplets within the actual advection loop
     
     !
@@ -153,8 +187,8 @@ CONTAINS
             mf = getMassIndex(ncld,ncld,nspec)
             rctot = SUM(a_mcloudp%d(:,:,:,mi:mf),DIM=4)
             DO ii = mi,mf
-               a_mcloudp%d(:,:,:,i) = a_mcloudp%d(:,:,:,i) +   &
-                    rp_excess(:,:,:)*a_mcloudp%d(:,:,:,i)/MAX(rctot(:,:,:),1.e-12)
+               a_mcloudp%d(:,:,:,ii) = a_mcloudp%d(:,:,:,ii) +   &
+                    rp_excess(:,:,:)*a_mcloudp%d(:,:,:,ii)/MAX(rctot(:,:,:),1.e-12)
             END DO
             
          END IF
