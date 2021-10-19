@@ -104,7 +104,7 @@ CONTAINS
              IF (l_cldtop(k,i,j)) &
                   l_cldtop(MAX(2,k-nlevs):k,i,j) = .TRUE.
           END DO
-          WRITE(*,*) PACK(zt%d(:),l_cldtop(:,i,j))!l_cldtop(:,i,j)
+          !WRITE(*,*) PACK(zt%d(:),l_cldtop(:,i,j))!l_cldtop(:,i,j)
           !WRITE(*,*) ''
        END DO
     END DO
