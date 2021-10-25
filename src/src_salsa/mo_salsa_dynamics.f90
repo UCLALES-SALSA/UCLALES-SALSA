@@ -1417,7 +1417,9 @@ CONTAINS
                      sum(cloud(ii,jj,1:ncld)%volc(ino))+  & 
                      sum( precp(ii,jj,1:nprc)%volc(ino)))*spec%rhono/spec%mno
 
-               zcwatot=zcwac + sum(zcwacae(1:nbins)) + sum(zcwaccd(1:ncld)) + sum(zcwacpd(1:nprc))
+               zcwan = zcwatot - &
+                    ( SUM(zcwanae(1:nbins)) + SUM(zcwancd(1:ncld)) + SUM(zcwanpd(1:nprc)) )
+               !zcwatot=zcwac + sum(zcwacae(1:nbins)) + sum(zcwaccd(1:ncld)) + sum(zcwacpd(1:nprc))
                prv(ii,jj) = zcwan*spec%mwa/zrhoair !      "            water concentration to kg/kg
                pghno3(ii,jj) = zcno3n*avog       ! convert gas phase concentration to #/m3
                pgnh3(ii,jj) = zcnh3n*avog        !      "
