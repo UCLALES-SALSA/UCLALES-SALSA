@@ -842,10 +842,6 @@ CONTAINS
 
       ! Most of these are not needed?
       iso4 = spec%getIndex("SO4",notFoundValue = 0)
-      !ioc = spec%getIndex("OC",notFoundValue = 0)
-      !ibc = spec%getIndex("BC",notFoundValue = 0)
-      !idu = spec%getIndex("DU",notFoundValue = 0)
-      !iss = spec%getIndex("SS",notFoundValue = 0)
       ino = spec%getIndex("NO",notFoundValue = 0)
       inh = spec%getIndex("NH",notFoundValue = 0)
       iwa = spec%getIndex("H2O")
@@ -971,22 +967,35 @@ CONTAINS
             h2oactcd=0.
             h2oactpd=0.
 
-            !IF (ALL([ino,inh] > 0)) THEN
-            ! Thermodynamics calls needed for water activity and eq mole concentrations for semivolatiles
-            ! aerosol droplets
-            CALL thermoequil(aero(ii,jj,:),nbins,nlim,ptemp(ii,jj),ppres(ii,jj),          &
-                 zcgno3eqae,zcgnh3eqae,zcgwaeqae,h2oactae,zpH(ii,jj,1:nbins), &
-                 ph_switch,prv(ii,jj)/prs(ii,jj),ptstep              )
-            ! cloud droplets            
-            CALL thermoequil(cloud(ii,jj,:),ncld,nlim,ptemp(ii,jj),ppres(ii,jj),                     &
-                 zcgno3eqcd,zcgnh3eqcd,zcgwaeqcd,h2oactcd,zpH(ii,jj,nbins+1:nbins+ncld), &
-                 ph_switch,prv(ii,jj)/prs(ii,jj),ptstep                         )
-            ! precipitation
-            CALL thermoequil(precp(ii,jj,:),nprc,prlim,ptemp(ii,jj),ppres(ii,jj),                              &
-                 zcgno3eqpd,zcgnh3eqpd,zcgwaeqpd,h2oactpd,zpH(ii,jj,nbins+ncld+1:nbins+ncld+nprc), &
-                 ph_switch,prv(ii,jj)/prs(ii,jj),ptstep                                   )
-            !END IF
-               
+            IF (ALL([ino,inh] > 0)) THEN
+               ! Thermodynamics calls needed for water activity and eq mole concentrations for semivolatiles
+               ! aerosol droplets
+               CALL thermoequil(aero(ii,jj,:),nbins,nlim,ptemp(ii,jj),ppres(ii,jj),          &
+                    zcgno3eqae,zcgnh3eqae,zcgwaeqae,h2oactae,zpH(ii,jj,1:nbins), &
+                    ph_switch,prv(ii,jj)/prs(ii,jj),ptstep              )
+               ! cloud droplets            
+               CALL thermoequil(cloud(ii,jj,:),ncld,nlim,ptemp(ii,jj),ppres(ii,jj),                     &
+                    zcgno3eqcd,zcgnh3eqcd,zcgwaeqcd,h2oactcd,zpH(ii,jj,nbins+1:nbins+ncld), &
+                    ph_switch,prv(ii,jj)/prs(ii,jj),ptstep                         )
+               ! precipitation
+               CALL thermoequil(precp(ii,jj,:),nprc,prlim,ptemp(ii,jj),ppres(ii,jj),                              &
+                    zcgno3eqpd,zcgnh3eqpd,zcgwaeqpd,h2oactpd,zpH(ii,jj,nbins+ncld+1:nbins+ncld+nprc), &
+                    ph_switch,prv(ii,jj)/prs(ii,jj),ptstep                                   )
+            ELSE
+               h2oactae = 0.
+               h2oactcd = 0.
+               h2oactpd = 0.
+               DO cc = 1,nbins
+                  h2oactae(cc) = acth2o(aero(ii,jj,cc))
+               END DO
+               DO cc = 1,ncld
+                  h2oactcd(cc) = acth2o(cloud(ii,jj,cc))
+               END DO
+               DO cc = 1,nprc
+                  h2oactpd(cc) = acth2o(precp(ii,jj,cc))
+               END DO
+            END IF
+         
             ! 1) Condensation / evaporation of water
             ! Diffusion coefficients
             zdfh2o = DIFFC(ptemp(ii,jj),ppres(ii,jj),1) 
@@ -1168,10 +1177,7 @@ CONTAINS
                   END IF
                   precp(ii,jj,cc)%volc(iwa) = zcwanpd(cc)*spec%mwa/spec%rhowa               ! convert to volume concentration
                END IF
-            END DO
-            
-            zcwan = zcwatot - (sum(zcwanae)+sum(zcwancd)+sum(zcwanpd))
-
+            END DO            
             ! END WATER CONDENSATION
             ! --------------------------------------------------------------------------------------
                                     
@@ -1404,28 +1410,21 @@ CONTAINS
                      precp(ii,jj,cc)%volc(inh) = zcnh3npd(cc)*spec%mnh/spec%rhonh            ! convert to volume concentration
                   END IF
                END DO
-
-               !Make sure that mass balance holds in condensation
-          
-               zcnh3n = zcnh3tot - &
-                    (sum(aero(ii,jj,1:nbins)%volc(inh))+  &
-                     sum(cloud(ii,jj,1:ncld)%volc(inh))+  & 
-                     sum( precp(ii,jj,1:nprc)%volc(inh)))*spec%rhonh/spec%mnh
                
-               zcno3n = zcno3tot -  &
-                    (sum(aero(ii,jj,1:nbins)%volc(ino))+  &
-                     sum(cloud(ii,jj,1:ncld)%volc(ino))+  & 
-                     sum( precp(ii,jj,1:nprc)%volc(ino)))*spec%rhono/spec%mno
-
-               zcwan = zcwatot - &
-                    ( SUM(zcwanae(1:nbins)) + SUM(zcwancd(1:ncld)) + SUM(zcwanpd(1:nprc)) )
-               !zcwatot=zcwac + sum(zcwacae(1:nbins)) + sum(zcwaccd(1:ncld)) + sum(zcwacpd(1:nprc))
-               prv(ii,jj) = zcwan*spec%mwa/zrhoair !      "            water concentration to kg/kg
-               pghno3(ii,jj) = zcno3n*avog       ! convert gas phase concentration to #/m3
-               pgnh3(ii,jj) = zcnh3n*avog        !      "
-
             END IF
 
+            !Make sure that mass balance holds in condensation
+            IF (inh > 0) THEN
+               zcnh3n = zcnh3tot - ( SUM(zcnh3nae) + SUM(zcnh3ncd) + SUM(zcnh3npd) )
+               pgnh3(ii,jj) = zcnh3n*avog        ! convert gas concentration to #/m3
+            END IF
+            IF (ino > 0) THEN
+               zcno3n = zcno3tot - ( SUM(zcno3nae) + SUM(zcno3ncd) + SUM(zcno3npd) )
+               pghno3(ii,jj) = zcno3n*avog       ! convert gas phase concentration to #/m3
+            END IF
+            zcwan = zcwatot - ( SUM(zcwanae) + SUM(zcwancd) + SUM(zcwanpd) )
+            prv(ii,jj) = zcwan*spec%mwa/zrhoair ! convert water vapor concentration to kg/kg
+            
          END DO
       END DO
   
@@ -1528,7 +1527,7 @@ CONTAINS
     ! initialize
     pmols = 0.   ! Only needed for PD-Fite interface but not otherwise used?
     h2oact  = 0.
-    ch2og = 0.
+    ch2og = 0.     ! THIS IS NOT TREATED CORRECTLY AND ENDS UP 0. HOWEVER, IT'S CURRENTLY NOT USED ANYWHERE...
     chno3g = 0.
     cnh3g = 0.
     acidity = 0.   
@@ -1616,7 +1615,8 @@ CONTAINS
 
                    ! calculate thermodynamical equilibrium in the particle phase
                    CALL inorganic_pdfite(.9,ptemp,zions,zcwl,chno3g(cc),chcl,cnh3g(cc),zgammas,pmols(cc,:))  ! FIXED RH??
-                   
+
+                   !!! WHERE DOES ch2og COME FROM????
                    ch2og(cc) =ch2og(cc)/(rg*ptemp)
                    chno3g(cc)=chno3g(cc)/(rg*ptemp)
                    cnh3g(cc) =cnh3g(cc)/(rg*ptemp)
@@ -1660,6 +1660,7 @@ CONTAINS
              c_ions(2) = c_ions(2) + dx
              c_ions(3) = c_ions(3) - dx
              ch2og(cc) = zcwl/(zcwl+sum(c_ions))*satvaph2o(ptemp)/(rg*ptemp)  ! Currently saturation mix.rat. is already brought here so there's some redundancy
+                                                                              ! THIS CAN LEAD TO AN INCONSISTENCY W.R.P TO HOST
              
              ! vapor pressure of HNO3 at the droplet surface:
              zKeq=2.5e6*EXP(29.17*(ztemp0/ptemp-1.0)+16.83*(1.-ztemp0/ptemp+LOG(ztemp0/ptemp)))/101325. ! Table B.7 
