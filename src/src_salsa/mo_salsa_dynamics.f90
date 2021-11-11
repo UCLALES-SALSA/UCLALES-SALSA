@@ -360,8 +360,8 @@ CONTAINS
       !------------------------------------------------------------------------------
 
       ! Nucleation
-      IF (nsnucl > 0) CALL nucleation(kproma, kbdim,  klev,   krow,  &
-                                      ptemp,  zrh,    ppres,  &
+      IF (nsnucl > 0) CALL nucleation(kproma, kbdim,  klev,   krow,   &
+                                      ptemp,  zrh,    ppres,          &
                                       pcsa,   pcocnv, ptstep, zj3n3,  &
                                       zxsa,   zxocnv, ppbl            )
 
@@ -923,7 +923,7 @@ CONTAINS
                  zcno3c = pghno3(ii,jj)/avog
             IF (inh > 0) &
                  zcnh3c = pgnh3(ii,jj)/avog
-            zcwac = prv(ii,jj)/spec%mwa*zrhoair
+            zcwac = (prv(ii,jj)/spec%mwa)*zrhoair
             
             ! Current particle concentrations
             ! NOTE these are NOT initialized anywhere!! => potential trouble below
