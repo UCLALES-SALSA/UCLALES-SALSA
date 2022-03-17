@@ -321,6 +321,8 @@ MODULE mo_derived_procedures
      icomp = name(2:cmax-1)
      mm = spec%getIndex(icomp)
 
+     IF (mm == 0) RETURN
+     
      ! Given in kg/kg
      SELECT CASE(name(1:1))
      CASE('a') ! aerosol

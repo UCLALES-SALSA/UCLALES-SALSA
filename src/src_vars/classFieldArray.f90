@@ -322,8 +322,14 @@ MODULE classFieldArray
      FAout%count = COUNT(groupmask)
      IF (FAout%count > 0) THEN
         ALLOCATE(FAout%list(FAout%count))
-        FAout%list(:) = PACK(SELF%list(:),groupmask)     
-        FAout%Initialized = .TRUE.
+        FAout%list(:) = PACK(SELF%list(:),groupmask)  ! Could and would it be better
+                                                      ! for this to be a pointer? But there
+                                                      ! is no significant amount of data stored
+                                                      ! directly to the instance and this really
+                                                      ! only needs to be used to produce a local
+                                                      ! temporary copy in a subroutine, so there
+                                                      ! is little benefit.
+        FAout%Initialized = .TRUE.                
      END IF
         
    END SUBROUTINE getByGroup

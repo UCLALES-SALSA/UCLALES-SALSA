@@ -15,7 +15,7 @@
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
 IsSeq=2 # 0 for mpi runs with CRAY, 1 for mpi runs with Puhti, 2 for sequential, 3 for mpi on laptop
 
-EXPNAME="bulktest"  # Name of the experiment
+EXPNAME="condtest_fixarr_actmod_substep_test_time"  # Name of the experiment
 PROJECT="project_2003163"   # Project name, needed for resource allocation in PUHTI
 
 NPROCS=4          # Number of processors (for IsSeq==0)
@@ -24,14 +24,14 @@ TWALL=48:00:00      # Required wallclock time for batch system
 
 NXP=40               # Number of points in X-direction (including "halo" points)
 NYP=5              # Number of points in Y-direction (including "halo" points)
-NZP=100              # Number of points in Z-direction
-DX=100.              # Resolution in X-direction (meters)
-DY=100.              # Resolution in Y-direction (meters)
+NZP=70              # Number of points in Z-direction
+DX=50.              # Resolution in X-direction (meters)
+DY=50.              # Resolution in Y-direction (meters)
 DZ=20.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
-Tspinup=0.        # Length of the spinup period (seconds)
-Texp=20000.         # Length of the experiment (seconds)
-LEVEL=3             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
+Tspinup=600.        # Length of the spinup period (seconds)
+Texp=10800.         # Length of the experiment (seconds)
+LEVEL=4             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 
 # FOR SALSA
 ISDTYP=0            # 0: Aerosol size distribution from namelist (uniform across domain),
@@ -93,7 +93,7 @@ cat > NAMELIST <<EOF
   prndtl = -0.333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
   hfilin = 'UAE_Cu_restart_6.014400s' ! History file name
-  frqhis = 36000.
+  frqhis = 7200.
   !mcflg = .FALSE.             ! Do mass conservation statistics
 
   sed_aero%switch = .FALSE.          ! Calculate sedimentation of aerosol particles
@@ -113,8 +113,8 @@ cat > NAMELIST <<EOF
   iradtyp = 3                 ! Radiation/large scale forcing
   strtim = 334.4               ! Start time
   case_name = 'default'       ! Case name for large-scale forcing schemes
-  div = 1.e-6               ! Large-scale divergence
-  cntlat = 20.0
+  div = 3.75e-6               ! Large-scale divergence
+  cntlat = 31.5
 /
 
 ! -----------------------------------------------------------------------------------
@@ -123,9 +123,9 @@ cat > NAMELIST <<EOF
   breakUndefOutput = .FALSE.
   ps_intvl = 60.
   ts_intvl = 10.
-  main_intvl = 60.
-  varlist_main = 'rp','rc','temp'
-  varlist_ps = 'rflx','sflx','lwup','lwdn','swup','swdn'
+  main_intvl = 600.
+  varlist_main = 'rp','rc','temp','rrate','srp','Nca','Naa'
+  varlist_ps = 'rrate','rc','rp','Nca','Np'
   !varlist_ts = 'ic_CDNC'
   TH_rrate = 30.
   TH_rc = 1.e-5
@@ -140,24 +140,24 @@ cat > NAMELIST <<EOF
   bubble_diameter   = 1500.,6000.,6000.
   bubble_temp_ampl  = 1.5
   iseed             = 3
-  th00              = 295.    ! Reference temperature
+  th00              = 288.    ! Reference temperature
   umean             = 0.                
   vmean             = 0.
-  itsflg            = 0       ! Flag for temperature type in input sounding
+  itsflg            = 1       ! Flag for temperature type in input sounding
   ipsflg            = 1       ! - '' - for pressure
 /
 
 ! -------------------------------------------------------------------------------------
 
 &surface
-  isfctyp           = 5       ! This is not entirely accurate for momentum vs vanZanten et al. 2011
+  isfctyp           = 0       ! This is not entirely accurate for momentum vs vanZanten et al. 2011
   zrough            = 0.0002
   ubmin             = -0.25
-  sst               = 288.8
-  dthcon            = 0. !0.001094 ! with isfctyp these are the bulk formula coefficients
-  drtcon            = 0. !0.00133
+  sst               = 288.
+  dthcon            = 16. !0.001094 ! with isfctyp these are the bulk formula coefficients
+  drtcon            = 93. !0.00133
   C_heat            = 2.e6
-  deepSoilTemp      = 288.8
+  deepSoilTemp      = 288
   W1                = 0.4
   W2                = 0.4
   W3                = 0.4
@@ -168,7 +168,7 @@ cat > NAMELIST <<EOF
 ! ------------------------------------------------------------------------------------
 
 &radiation
-  radsounding = 'datafiles/ktrop.lay'  
+  radsounding = 'datafiles/ksas.lay'  
   sfc_albedo = 0.1
   laerorad = .FALSE. 
   useMcICA = .TRUE.
@@ -297,16 +297,16 @@ cat > NAMELIST <<EOF
    bloIce%vol_ratio = 3.        ! Volume ratio between bins
 
    ! Initial aerosol size distributions
-   nspec_dry = 3
-   listspec = 'SO4','SS','DU','','','',''
+   nspec_dry = 1
+   listspec = 'SO4','','','','','',''
 
    isdtyp = ${ISDTYP}
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
-   volDistA = 0.3, 0.3, 0.4, 0.0, 0.0, 0.0, 0.0
+   volDistA = 1.0, 0.0, 0., 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)  
-   sigmagA  = 1.28, 2.00, 2.0, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
-   dpgA     = 0.06, 0.28, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nA       = 76., 13., 1., 0., 0., 0., 0.         ! Mode number concentrations in #/mg 
+   sigmagA  = 1.2, 1.70, 2.0, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
+   dpgA     = 0.022, 0.12, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
+   nA       = 125., 65., 0., 0., 0., 0., 0.         ! Mode number concentrations in #/mg 
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
    volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0

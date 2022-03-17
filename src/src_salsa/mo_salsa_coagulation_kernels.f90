@@ -101,11 +101,12 @@ MODULE mo_salsa_coagulation_kernels
          DO ii = 1,kbdim
             
             ASSOCIATE ( pp1 => part1(ii,jj,1:nb1) )
-              
-              DO mm = 1,nb1
-                 CALL pp1(mm)%updateDiameter(limit=.TRUE.,type="all")
-                 CALL pp1(mm)%updateRhomean()
-              END DO
+
+              ! This is already done in coagulation main subroutine
+              !DO mm = 1,nb1
+              !   CALL pp1(mm)%updateDiameter(limit=.TRUE.,type="all")
+              !   CALL pp1(mm)%updateRhomean()
+              !END DO
               
               DO mm = 1, nb1         ! smaller colliding particle                 
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
@@ -145,15 +146,16 @@ MODULE mo_salsa_coagulation_kernels
             
             ASSOCIATE ( pp1 => part1(ii,jj,1:nb1), pp2 => part2(ii,jj,1:nb2) )
 
+              ! This is already done in coagulation main subroutine
               ! Update wet diameters
-              DO mm = 1,nb1
-                 CALL pp1(mm)%updateDiameter(limit=.TRUE.,type="all")
-                 CALL pp1(mm)%updateRhomean()
-              END DO
-              DO nn = 1,nb2
-                 CALL pp2(nn)%updateDiameter(limit=.TRUE.,type="all")
-                 CALL pp2(nn)%updateRhomean()
-              END DO
+              !DO mm = 1,nb1
+              !   CALL pp1(mm)%updateDiameter(limit=.TRUE.,type="all")
+              !   CALL pp1(mm)%updateRhomean()
+              !END DO
+              !DO nn = 1,nb2
+              !   CALL pp2(nn)%updateDiameter(limit=.TRUE.,type="all")
+              !   CALL pp2(nn)%updateRhomean()
+              !END DO
               
               DO mm = 1,nb1
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
