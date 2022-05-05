@@ -221,7 +221,7 @@ MODULE constrain_SALSA
                        zdh2o = (zvol/pi6)**(1./3.)
                        
                        ! Lose the droplets if small
-                       IF ( zdh2o < MIN(0.1*cdprc,1.3e-5) .OR.   &
+                       IF ( zdh2o < MIN(0.2*cdprc,10.e-6) .OR.   &
                             a_mprecpp%d(k,i,j,mi) < massTH*a_nprecpp%d(k,i,j,bc) ) THEN
                           
                           ba = findDry4Wet(a_nprecpp,a_mprecpp,nprc,bc,k,i,j)
