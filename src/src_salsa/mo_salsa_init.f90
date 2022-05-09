@@ -502,7 +502,8 @@ CONTAINS
 
       USE mo_ice_shape, ONLY : iceShapeAlpha, iceShapeBeta,   &
                                iceShapeGamma, iceShapeSigma
-      USE mo_salsa_cloud_ice_SE, ONLY : mean_theta, sigma_theta
+      USE mo_salsa_cloud_ice_SE, ONLY : mean_theta_imm, sigma_theta_imm,   &
+                                        mean_theta_dep, sigma_theta_dep
 
       
       IMPLICIT NONE
@@ -550,8 +551,10 @@ CONTAINS
          ice_theta_dist, & ! contact angle distributions
          lsfreeTheta,    & ! Switch for using initMinTheta
          initMinTheta,   & ! Initial minimum theta for initialization and spinup
-         mean_theta,     & ! Mean of the contact angle distribution
-         sigma_theta,    & ! standard deviation of the contact angle distribution
+         mean_theta_imm,   & ! Mean of the contact angle distribution for immersion frz
+         sigma_theta_imm,  & ! standard deviation of the contact angle distribution for immersion frz
+         mean_theta_dep,   & ! Mean of the contact angle distribution for deposition frz
+         sigma_theta_dep,  & ! standard deviation of the contact angle distribution for deposition frz
          iceShapeAlpha,  & ! m = ALPHA* D ** beta
          iceShapeBeta,   & ! m = alpha* D ** BETA
          iceShapeGamma,  & ! A = GAMMA* D ** sigma

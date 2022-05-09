@@ -259,6 +259,25 @@ cat > NAMELIST <<EOF
    ice_imm     = .TRUE.        ! Immersion freezing
    ice_dep     = .TRUE.        ! Deposition freezing
    ice_theta_dist = .TRUE.     ! Use contact angle distribution for the IN population
+   emitPristineIN = .TRUE.     ! TRUE: when aerosol emissions active, IN active particles 
+                               !       improve the IN efficiency of the target population.
+			       ! FALSE: IN efficiency of target population remains intact. 
+
+   lsfreeTheta%switch = .TRUE.    ! Use freely evolving lower limit in contact angle integration for ice nucleation
+   lsfreeTheta%delay = 0.         ! Time until which lower limit theta is set to be at least initMinTheta, in case lsfreeTheta%switch == TRUE
+   initMinTheta = 0.             ! Lower limit for contact angle integration in degrees for initialization and spinup
+
+   ! Parameters for ice nucleation contact angle distributions (used with ice_theta_dist == TRUE)
+   mean_theta_imm = 132.    ! Distribution mean for immersion freezing
+   sigma_theta_imm = 20.    ! Standard deviation for immersion freezing
+   mean_theta_dep = 15.5    ! Distribution mean for deposition freezing
+   sigma_theta_dep = 1.4    ! Standard deviation for deposition freezing
+
+   ! m-D and A-D parameters for non-spherical ice
+   iceShapeAlpha = 15.56999e-3   ! m = ALPHA * D**beta
+   iceShapeBeta = 2.02           ! m = alpha * D**BETA
+   iceShapeGamma = 0.55          ! A = GAMMA * D**sigma
+   iceShapeSigma = 1.97          ! A = gamma * D**SIGMA
 
    ! Sub-process swithces: Secondary ice
    ice_halmos = .TRUE.         ! Rime splintering; Hallet-Mossop
@@ -271,20 +290,6 @@ cat > NAMELIST <<EOF
    lsfreeRH%switch = .TRUE.       ! Use freely evolving RH. If FALSE, RH is limited by rhlim through entire simulation
    lsfreeRH%delay = ${Tspinup}    ! Time until which RH is limited by rhlim, in case lsfreeRH%swithc == TRUE
    rhlim = 1.005                  ! RH limit for SALSA during initialization and spinup
-
-   lsfreeTheta%switch = .TRUE.    ! Use freely evolving lower limit in contact angle integration for ice nucleation
-   lsfreeTheta%delay = 0.         ! Time until which lower limit theta is set to be at least initMinTheta, in case lsfreeTheta%switch == TRUE
-   initMinTheta = 0.             ! Lower limit for contact angle integration in degrees for initialization and spinup
-   
-   ! Parameters for ice nucleation contact angle distributions (used with ice_theta_dist == TRUE)
-   mean_theta = 132.    ! Distribution mean
-   sigma_theta = 20.    ! Standard deviation
-
-   ! m-D and A-D parameters for non-spherical ice
-   iceShapeAlpha = 15.56999e-3   ! m = ALPHA * D**beta
-   iceShapeBeta = 2.02           ! m = alpha * D**BETA
-   iceShapeGamma = 0.55          ! A = GAMMA * D**sigma
-   iceShapeSigma = 1.97          ! A = gamma * D**SIGMA
 
    ! Precipitation bin layout parameters
    bloPrc%nbins     = 20        ! Number of bins

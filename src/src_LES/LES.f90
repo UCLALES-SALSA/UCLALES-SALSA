@@ -99,7 +99,7 @@ CONTAINS
                                   strtim, radfrq
     USE nudg_defs, ONLY         : nudge_time, nudge_zmin, nudge_zmax,                                &
                                   ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
-    USE emission_types, ONLY    : emitModes, nEmissionModes
+    USE emission_types, ONLY    : emitModes, nEmissionModes, emitPristineIN
     USE grid, ONLY              : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                                   dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                                   filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
@@ -166,18 +166,19 @@ CONTAINS
          RadConstPress,            & ! keep constant pressure levels (T/F) 
          RadPrecipBins               ! add precipitation bins cloud water (0, 1, 2, 3,...)
     
-    NAMELIST /nudge/   &
-         nudge_time,                       & ! Total nudging time (independent of spin-up)
-         nudge_zmin, nudge_zmax,           & ! Altitude (m) range for nudging
-         ndg_theta,                        & ! Temperature nudging
-         ndg_rv,                           & ! Water vapor mixing ratio nudging
-         ndg_u,                            & ! wind nudging
-         ndg_v,                            & ! Horizontal wind nudging
-         ndg_aero                             ! Aerosol number concentration nudging
+    NAMELIST /nudge/               &
+         nudge_time,               & ! Total nudging time (independent of spin-up)
+         nudge_zmin, nudge_zmax,   & ! Altitude (m) range for nudging
+         ndg_theta,                & ! Temperature nudging
+         ndg_rv,                   & ! Water vapor mixing ratio nudging
+         ndg_u,                    & ! wind nudging
+         ndg_v,                    & ! Horizontal wind nudging
+         ndg_aero                    ! Aerosol number concentration nudging
     
-    NAMELIST /emission/ &              
-         nEmissionModes,      & ! Number of emission profiles to be used (max 5)
-         emitModes              ! Emission configs
+    NAMELIST /emission/     &              
+         nEmissionModes,    & ! Number of emission profiles to be used (max 5)
+         emitPristineIN,    & ! Assume emitted IN are pristine in terms of contact angle integration in ice nucleation
+         emitModes            ! Emission configs
     
     NAMELIST /surface/      &
          isfctyp,           &   ! Surface parameterization type

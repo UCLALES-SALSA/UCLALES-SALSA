@@ -74,9 +74,11 @@ MODULE mo_submctl
   ! initMinTheta is used to specify a minimum contact angle for the entire IN population
   ! during initial stages of the simulation. The period when initMinTheta is applied
   ! is from model initialization to ice_theta_dist%delay (in seconds)
-  LOGICAL :: ice_theta_dist = .TRUE.
-  TYPE(ProcessSwitch) :: lsFreeTheta
-  REAL :: initMinTheta = 0.
+  LOGICAL :: ice_theta_dist = .TRUE.   ! Use contact angle integration in ice nucleation
+  TYPE(ProcessSwitch) :: lsFreeTheta   ! Switch: Use freely evolving lower limit in contact angle integration
+                                       ! delay: Time until which the low limit contact for contact angle integration
+                                       !        is fixed as initMinTheta.
+  REAL :: initMinTheta = 0.            ! Fixed lower limit for contact angle integration
   
   LOGICAL :: lsdistupdate = .TRUE.    ! Perform the size distribution update
   LOGICAL :: lscheckarrays = .FALSE.  ! Do some primitive error checking in the SALSA main program

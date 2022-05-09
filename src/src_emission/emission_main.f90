@@ -1,10 +1,12 @@
 MODULE emission_main
-  use emission_types, ONLY : EmitConfig, EmitSizeDist, EmitType3Config,   &
-                             emitModes, emitData, emitType3, nEmissionModes
+  use emission_types, ONLY : EmitConfig, EmitSizeDist, EmitType3Config,       &
+                             emitModes, emitData, emitType3, nEmissionModes,  &
+                             emitPristineIN
   
   USE mo_seasalt_emission
 
-  USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, spec, pi6, prlim, ice_theta_dist
+  USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, spec, pi6, prlim, &
+                         ice_theta_dist 
 
   USE mo_salsa_types, ONLY : aero
 
@@ -157,28 +159,37 @@ MODULE emission_main
          DO j = 1,nyp
             DO i = 1,nxp
                DO k = k1,k2
-                  a_naerot%d(k,i,j,bb) = a_naerot%d(k,i,j,bb) + edt%numc(bb)
-                  ! If level=5 and ice_theta_dist = TRUE, Relax the ice nucleation IN "deficit"
-                  ! ratio used for evolving contact angle by taking number wghted avg and assuming
-                  ! zero for the emitted population. This is executed regardless of the emitted
-                  ! species, but the information is only used for ice nucleating species. Aerosol
-                  ! comes first in the indeft array.
-                  IF (level == 5 .AND. ice_theta_dist) THEN
+
+                  ! With level 5 using the contact angle distribution for ice nucletion, update the
+                  ! IN nucleated fraction assuming emitted particles contain IN and comprise pirstine INP.
+                  ! this contributuion can also be switched off using
+                  ! --------------------------------------------------------------------------------
+                  IF (level == 5 .AND. ice_theta_dist .AND. emitPristineIN) THEN
                      hlp1 = 0.; hlp2 = 0.
                      IF (a_naerop%d(k,i,j,bb) < prlim) THEN
                         ! Check for empty bins with a rather small limit. This should minimize the contact angle for current bin
                         a_indeft%d(k,i,j,bb) = a_indeft%d(k,i,j,bb) - a_indefp%d(k,i,j,bb)/dtlt
                      ELSE
+                        ! hlp1 and hlp2 gets the new IN nucleated fraction after emission, i.e. emission should decrease it
                         hlp1 = (a_naerop%d(k,i,j,bb)*a_indefp%d(k,i,j,bb) + edt%numc(bb)*0.*dtlt) ! latter term obv. symbolic...
                         hlp2 = (a_naerop%d(k,i,j,bb)+edt%numc(bb)*dtlt)
+                        ! Conver the emission contribution into tendency
                         a_indeft%d(k,i,j,bb) = a_indeft%d(k,i,j,bb) +  &
                              ( (hlp1 / hlp2) - a_indefp%d(k,i,j,bb) ) / dtlt
                      END IF
                   END IF
+                  ! --------------------------------------------------------------------------------
+
+
+                  ! Emission contribution to number concentration
+                  a_naerot%d(k,i,j,bb) = a_naerot%d(k,i,j,bb) + edt%numc(bb)
+
+                  ! Contribution to particle composition
                   DO ss = 1,spec%getNSpec(type="wet")
                      mm = getMassIndex(nbins,bb,ss)
                      a_maerot%d(k,i,j,mm) = a_maerot%d(k,i,j,mm) + edt%mass(mm)
                   END DO
+
                END DO
             END DO
          END DO

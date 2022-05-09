@@ -54,8 +54,13 @@ MODULE emission_types
      INTEGER :: np                  ! Number of points of emission trajectory intersecting with cell boundaries for each subdomain/processor
    END type EmitType3Config
 
-   INTEGER :: nEmissionModes = 0                             ! Number of emission modes (NAMELIST variable, max=5)
    INTEGER, PARAMETER :: maxEmissionModes = 5                ! Max number of emission modes
+
+   ! NAMELIST variables
+   LOGICAL :: emitPristineIN = .TRUE.                        ! TRUE: when aerosol emissions active, IN active particles 
+                                                             !       improve the IN efficiency of the target population.
+			                                     ! FALSE: IN efficiency of target population remains intact.    
+   INTEGER :: nEmissionModes = 0                             ! Number of emission modes (max == maxemissionModes)
    TYPE(EmitConfig), TARGET :: emitModes(MaxEmissionModes)   ! Configuration instances for emission modes
    TYPE(EmitSizeDist), TARGET :: emitData(MaxEmissionModes)  ! Emission size distribution data for each setup/mode.
    TYPE(EmitType3Config), TARGET :: emitType3(MaxEmissionModes)   ! Configuration instances for emission type 3

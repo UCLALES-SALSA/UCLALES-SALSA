@@ -227,23 +227,13 @@ MODULE mo_salsa_coagulation_processes
       REAL :: zvolsink_slf(nspec,kbdim,klev)
       REAL :: zvol_prc(nspec,kbdim,klev,nprc)
       REAL :: znum_prc(kbdim,klev,nprc)
+      REAL :: zINF_prc(kbdim,klev,nprc)
       ! ---
 
       INTEGER :: index_aero_a, index_aero_b
       INTEGER :: index_a, index_b
       INTEGER :: ii,jj,kk
       REAL :: fix_coag
-
-      ! Update the cloud droplet diameters as they are needed later
-      IF (lsauto%state .AND. lsauto%mode == 1) THEN
-         DO kk = 1,ncld
-            DO jj = 1,klev
-               DO ii = 1,kbdim
-                  CALL cloud(ii,jj,kk)%updateDiameter(.TRUE.)
-               END DO
-            END DO
-         END DO
-      END IF
 
       DO kk = ica%cur,fca%cur
          IF ( ALL(cloud(:,:,kk)%numc < cloud(:,:,kk)%nlim) ) CYCLE
@@ -254,6 +244,7 @@ MODULE mo_salsa_coagulation_processes
          zvolsink_slf(:,:,:) = 0.
          zvol_prc(:,:,:,:) = 0.
          znum_prc(:,:,:) = 0.
+         zINF_prc(:,:,:) = 0.
 
          ! Corresponding index in the regime b droplets
          index_b = icb%cur + (kk-ica%cur)
@@ -279,7 +270,7 @@ MODULE mo_salsa_coagulation_processes
                     (cloud(1,1,kk)%numc)),0.1))
                ! This handles also self collection at the same time
                CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,kk,kk,fix_coag,zcccc,              &
-                                              zplusterm,zminus_self,zvolsink_slf,zvol_prc,znum_prc )
+                                              zplusterm,zminus_self,zvolsink_slf,zvol_prc,znum_prc,zINF_prc    )
             ELSE
                CALL accumulateSink(kbdim,klev,ncld,ncld,kk,kk,kk,zcccc,cloud,zminus_self,2,multp=0.5)
             END IF
@@ -309,11 +300,11 @@ MODULE mo_salsa_coagulation_processes
                fix_coag =    &
                     max(1. - ptstep*sum(zcccc(1,1,kk,ica%cur:fca%cur)*cloud(1,1,ica%cur:fca%cur)%numc), 0.1)
                CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,kk-1,fix_coag,zcccc,    &
-                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
+                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc,zINF_prc  )
                fix_coag =   &
                     max(1. - ptstep*sum(zcccc(1,1,kk,icb%cur:fcb%cur)*cloud(1,1,icb%cur:fcb%cur)%numc), 0.1)
                CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,index_b,fix_coag,zcccc, &
-                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
+                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc,zINF_prc  )
             ELSE
                CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,kk-1,zcccc,cloud,zplusterm,2)
                CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,index_b,zcccc,cloud,zplusterm,2)
@@ -325,7 +316,7 @@ MODULE mo_salsa_coagulation_processes
          CALL applyCoag(kbdim,klev,ncld,nspec,kk,ptstep,cloud,zplusterm,zminusterm,zminus_self)
 
          IF (lsauto%state .AND. lsauto%mode == 1) &
-              CALL applyCoagPrecipFormation(kbdim,klev,nspec,kk,ptstep,zvolsink_slf,zvol_prc,znum_prc)
+              CALL applyCoagPrecipFormation(kbdim,klev,nspec,kk,ptstep,zvolsink_slf,zvol_prc,znum_prc,zINF_prc)
 
       END DO
       
@@ -341,7 +332,8 @@ MODULE mo_salsa_coagulation_processes
          zvolsink_slf(:,:,:) = 0.
          zvol_prc(:,:,:,:) = 0.
          znum_prc(:,:,:) = 0.
-
+         zINF_prc(:,:,:) = 0.
+         
          ! Corresponding index in the regime b droplets
          index_a = ica%cur + (kk-icb%cur)
 
@@ -365,7 +357,7 @@ MODULE mo_salsa_coagulation_processes
                fix_coag = (max(1. - ptstep*(0.5*zcccc(1,1,kk,kk)*cloud(1,1,kk)%numc**2 / &
                     (cloud(1,1,kk)%numc)),0.1))
                CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,kk,kk,fix_coag,zcccc,  &
-                                              zplusterm,zminus_self,zvolsink_slf,zvol_prc,znum_prc )
+                                              zplusterm,zminus_self,zvolsink_slf,zvol_prc,znum_prc,zINF_prc )
             ELSE
                CALL accumulateSink(kbdim,klev,ncld,ncld,kk,kk,kk,zcccc,cloud,zminus_self,2,multp=0.5)
             END IF
@@ -395,11 +387,11 @@ MODULE mo_salsa_coagulation_processes
                fix_coag =    &
                     max(1. - ptstep*sum(zcccc(1,1,kk,icb%cur:fcb%cur)*cloud(1,1,icb%cur:fcb%cur)%numc), 0.1)
                CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,kk-1,fix_coag,zcccc,    &
-                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
+                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc,zINF_prc  )
                fix_coag =    &
                     max(1. - ptstep*sum(zcccc(1,1,kk,ica%cur:fca%cur)*cloud(1,1,ica%cur:fca%cur)%numc), 0.1)
                CALL accumulatePrecipFormation(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,index_a,fix_coag,zcccc, &
-                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc  )
+                                              zplusterm,zminusterm,zvolsink_slf,zvol_prc,znum_prc,zINF_prc  )
             ELSE
                CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,icb%cur,kk-1,zcccc,cloud,zplusterm,2)
                CALL accumulateSource(kbdim,klev,ncld,ncld,nspec,kk,ica%cur,index_a,zcccc,cloud,zplusterm,2)
@@ -411,7 +403,7 @@ MODULE mo_salsa_coagulation_processes
          CALL applyCoag(kbdim,klev,ncld,nspec,kk,ptstep,cloud,zplusterm,zminusterm,zminus_self)
 
          IF (lsauto%state .AND. lsauto%mode == 1) &
-              CALL applyCoagPrecipFormation(kbdim,klev,nspec,kk,ptstep,zvolsink_slf,zvol_prc,znum_prc)
+              CALL applyCoagPrecipFormation(kbdim,klev,nspec,kk,ptstep,zvolsink_slf,zvol_prc,znum_prc,zINF_prc)
 
       END DO
 
@@ -657,7 +649,7 @@ MODULE mo_salsa_coagulation_processes
     END SUBROUTINE applyCoagIce
     ! -----------------------------------------------------------------
 
-  SUBROUTINE applyCoagPrecipFormation(kbdim,klev,nspec,itrgt,ptstep,volsink_slf,vol_prc,num_prc)
+  SUBROUTINE applyCoagPrecipFormation(kbdim,klev,nspec,itrgt,ptstep,volsink_slf,vol_prc,num_prc,INF_prc)
       ! 
       ! Make the necessary contributions from the coagulation based precip formation method
       !
@@ -668,7 +660,8 @@ MODULE mo_salsa_coagulation_processes
       REAL, INTENT(in)    :: volsink_slf(nspec,kbdim,klev)
       REAL, INTENT(in)    :: vol_prc(nspec,kbdim,klev,nprc)
       REAL, INTENT(in)    :: num_prc(kbdim,klev,nprc)
-       
+      REAL, INTENT(in)    :: INF_prc(kbdim,klev,nprc)
+      
       INTEGER :: ii,jj,cc
       REAL :: vrate(nspec), nrate
 
@@ -695,6 +688,11 @@ MODULE mo_salsa_coagulation_processes
                nrate = num_prc(ii,jj,cc)
                precp(ii,jj,cc)%numc = precp(ii,jj,cc)%numc +    &
                     ptstep*nrate
+
+               IF ( precp(ii,jj,cc)%numc > precp(ii,jj,cc)%nlim )  &
+                    precp(ii,jj,cc)%INdef = ( precp(ii,jj,cc)%INdef * (precp(ii,jj,cc)%numc - ptstep*nrate) +   &
+                                              INF_prc(ii,jj,cc) * ptstep*nrate ) / precp(ii,jj,cc)%numc
+
             END DO
          END DO
       END DO
@@ -769,8 +767,6 @@ MODULE mo_salsa_coagulation_processes
             ! Autoconversion loop
             ex = MAX(istr,COUNT(precpbins < 80.e-6)) ! Collector bin loop to end to 80um (low limit for drizzle/rain )
                                                      ! istr should be ok, since itrgt is limited to < 80 um
-            ! NOTE THESE CONDITIONS (AND MANY OTHER...) HAVE TO BE REVISED IF THIS VERSION OF SALSA
-            ! IS TO BE USED IN ANY OTHER THAN BOX MODEL CONFIG
             IF (trgtphase == 2) THEN
                D = cloud(1,1,itrgt)%dwet
             ELSE IF (trgtphase == 3) THEN
@@ -831,6 +827,7 @@ MODULE mo_salsa_coagulation_processes
             END DO
             
          END IF
+
       END IF
 
       
@@ -1163,7 +1160,7 @@ MODULE mo_salsa_coagulation_processes
     ! Category specific processes
     ! ---------------------------------
     SUBROUTINE accumulatePrecipFormation(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,fix_coag,zcc,     &
-                                         source, sink, volsink_slf, vol_prc, num_prc             )
+                                         source, sink, volsink_slf, vol_prc, num_prc, INF_prc             )
       !
       ! This method for collision-coalescence transfers the resulting
       ! droplets directly to precipitation bins, if the resulting diameter is 
@@ -1181,7 +1178,8 @@ MODULE mo_salsa_coagulation_processes
       REAL, INTENT(inout)   :: volsink_slf(nspec,kbdim,klev)    ! Volume sink for cloud droplets upon self collection resulting in precipitation formation
       REAL, INTENT(inout)   :: vol_prc(nspec,kbdim,klev,nprc)   ! Volume source for precipitation as the result of collision coalescence
       REAL, INTENT(inout)   :: num_prc(kbdim,klev,nprc)         ! Number source for precipitation as the result of collision coalescence
-      
+      REAL, INTENT(inout)   :: INF_prc(kbdim,klev,nprc)         ! Contribution to the IN nucleated fraction from the source bins
+                                                                ! (needed for ice nucleation if active)      
       REAL :: D_new,dnum,dvol(nspec)
       INTEGER :: trgt_prc
       INTEGER :: ii,jj,ll
@@ -1217,6 +1215,11 @@ MODULE mo_salsa_coagulation_processes
 
                      dnum = (0.5*zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) * fix_coag
                      num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) + dnum
+
+                     ! Contribution to the IN nucleated fraction. Take the value from the self-coagulating cloud droplets
+                     IF (num_prc(ii,jj,trgt_prc) > 0.) &  
+                          INF_prc(ii,jj,trgt_prc) = ( INF_prc(ii,jj,trgt_prc) * (num_prc(ii,jj,trgt_prc)-dnum) +   &
+                                                      cloud(ii,jj,ll)%INdef * dnum ) / num_prc(ii,jj,trgt_prc)
                      
                   ELSE
                      dvol(1:nspec) = ( cloud(ii,jj,ll)%volc(1:nspec)*cloud(ii,jj,itrgt)%numc +         &
@@ -1225,6 +1228,14 @@ MODULE mo_salsa_coagulation_processes
 
                      dnum = (zcc(ii,jj,ll,itrgt)*cloud(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc) * fix_coag
                      num_prc(ii,jj,trgt_prc) = num_prc(ii,jj,trgt_prc) + dnum
+
+                     ! Contribution to the IN nucleated fraction. Take the value as the mean from the colliding droplet bins
+                     IF (num_prc(ii,jj,trgt_prc) > 0.) &
+                          INF_prc(ii,jj,trgt_prc) = ( INF_prc(ii,jj,trgt_prc) * (num_prc(ii,jj,trgt_prc)-dnum) +      &
+                                                      0.5*(cloud(ii,jj,ll)%INdef+cloud(ii,jj,itrgt)%INdef) * dnum ) / &
+                                                      num_prc(ii,jj,trgt_prc)
+
+
                      
                   END IF
 

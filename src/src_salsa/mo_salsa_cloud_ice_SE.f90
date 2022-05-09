@@ -9,15 +9,19 @@ MODULE mo_salsa_cloud_ice_SE
 
   REAL, PARAMETER, PRIVATE :: sqrt2 = SQRT(2.)
 
-  ! Mean and standard deviation for the contact angle distribution
-  ! For simplicity just use one set, even though they can be very different
-  ! different IN constituents and the fits to measurements in different
-  ! nucleation modes can also be quite different. Below default values for DU
-  ! in immersion mode (in degrees) from Savre and Ekman 2015. Adjust these from the SALSA
-  ! namelist to suit different setups.
+  ! Mean and standard deviation for the contact angle distributions.
+  ! these have to be adjusted according to the IN composition. As of yet
+  ! these are not coupled with the actual particle composition in any way
+  ! so be careful! Below default values for DU (in degrees) from
+  ! Savre and Ekman 2015. Adjust these from the SALSA namelist to suit different
+  ! setups.
   !
-  REAL, SAVE :: mean_theta = 132. ! mean contact angle
-  REAL, SAVE :: sigma_theta = 20.  ! STD of the contact angle distribution.
+  ! Parameters for immersion freezing
+  REAL, SAVE :: mean_theta_imm = 132. ! mean contact angle
+  REAL, SAVE :: sigma_theta_imm = 20.  ! STD of the contact angle distribution.
+  ! Parameters for deposition freezing
+  REAL, SAVE :: mean_theta_dep = 15.5
+  REAL, SAVE :: sigma_theta_dep = 1.4
 
   ! This contains the ice nucleation paramterization procedures according
   ! to Savre and Ekman 2015
@@ -30,14 +34,13 @@ MODULE mo_salsa_cloud_ice_SE
     REAL, INTENT(in) :: ptemp(kbdim,klev), prv(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev)
     REAL, INTENT(in) :: tstep
     
-    REAL :: th00(kbdim,klev,nliquid) 
+    REAL :: th00_imm(kbdim,klev,nliquid), th00_dep(kbdim,klev,nliquid)   ! lower limit for contact angle integration for imm and dep frz. 
     REAL :: Seq(kbdim,klev,nliquid), Si(kbdim,klev,nliquid)
     REAL :: f_dep(kbdim,klev,nliquid), f_imm(kbdim,klev,nliquid), f_hom(kbdim,klev,nliquid)
     REAL :: frac(kbdim,klev,nliquid)
     REAL :: Jhom
     
     INTEGER :: ii,jj,kk,is, ibc, idu
-    INTEGER :: thind
     REAL :: dwet, dins
     REAL, PARAMETER :: dmin = 1.e-10
     REAL, PARAMETER :: Vmin = pi6*(1.e-10)**3
@@ -55,23 +58,22 @@ MODULE mo_salsa_cloud_ice_SE
 
        ibc = spec%getIndex("BC",notFoundValue=0)
        idu = spec%getIndex("DU",notFoundValue=0)
-       thind = MERGE(2,1, idu > 0 )
 
        Seq = 0.
        Si = 0.
-       th00 = 0.
+       th00_imm = 0.
+       th00_dep = 0.
        
        DO kk = 1,nliquid
           DO jj = 1,klev
              DO ii = 1,kproma
-                Seq(ii,jj,kk) = calcSweq(liquid(ii,jj,kk),ptemp(ii,jj))
-                Si(ii,jj,kk) = prv(ii,jj)/prsi(ii,jj)
+                Seq(ii,jj,kk) = calcSweq(liquid(ii,jj,kk),ptemp(ii,jj))  !! Eq saturation ratio for liquid
+                Si(ii,jj,kk) = prv(ii,jj)/prsi(ii,jj)                    !! Saturation ratio for ice
 
                 ! Update particle diameters for later use
-                CALL liquid(ii,jj,kk)%updateDiameter(type="all", limit=.TRUE.)                
+                CALL liquid(ii,jj,kk)%updateDiameter(type="all", limit=.TRUE.)     !! Where was this last updated/is it needed here?            
                 dwet = liquid(ii,jj,kk)%dwet
-!                dins = liquid(ii,jj,kk)%dins
-                dins = liquid(ii,jj,kk)%ddry
+                dins = liquid(ii,jj,kk)%ddry  ! Why do I call this dins...cant remember
                 ! Calculate homogeneous freezing here separately since it does not need contact angle integration
                 ! Homogeneous freezing
                 IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. ice_hom) THEN
@@ -83,26 +85,36 @@ MODULE mo_salsa_cloud_ice_SE
           END DO
        END DO
 
-       ! Update the low limit contact angle for the distribution integration
-       CALL low_theta( kproma,kbdim,klev,th00,mean_theta,sigma_theta )
-
        ! Immersion freezing
-       nuc_mask(:,:,:) = ( ( liquid(:,:,:)%phase == 2 .OR. liquid(:,:,:)%phase == 3 ) .AND. &
-                           ( liquid(:,:,:)%dins > dmin) .AND. ice_imm )
+       IF (ice_imm) THEN
+          f_imm = 0.
+          
+          ! Update the low limit contact angle for the distribution integration
+          CALL low_theta(kproma,kbdim,klev,th00_imm,mean_theta_imm,sigma_theta_imm)
 
-       CALL gauss_legendre( kproma, kbdim, klev, ptemp, Seq, th00,        &
-                            mean_theta, sigma_theta, tstep, nuc_mask, 1, f_imm   )
+          nuc_mask(:,:,:) = ( ( liquid(:,:,:)%phase == 2 .OR. liquid(:,:,:)%phase == 3 ) .AND. &
+                              ( liquid(:,:,:)%dins > dmin ) )
+
+          CALL gauss_legendre( kproma, kbdim, klev, ptemp, Seq, th00_imm,        &
+                               mean_theta_imm, sigma_theta_imm, tstep, nuc_mask, 1, f_imm   )
+       END IF
 
        ! Deposition freezing
-       DO kk = 1,nliquid
-          nuc_mask(:,:,kk) = ( ( liquid(:,:,kk)%phase == 1 .AND. prv(:,:)/prs(:,:) < 1.0 ) .AND.  &
-                               ( liquid(:,:,kk)%dwet-liquid(:,:,kk)%dins < dmin ) .AND.           &
-                               ( liquid(:,:,kk)%dins > dmin ) .AND. ice_dep )
-       END DO
+       IF (ice_dep) THEN
+          f_dep = 0.
+          ! Update the low limit contact angle for the distribution integration          
+          CALL low_theta(kproma,kbdim,klev,th00_dep,mean_theta_dep,sigma_theta_dep)
+          
+          DO kk = 1,nliquid
+             nuc_mask(:,:,kk) = ( ( liquid(:,:,kk)%phase == 1 .AND. prv(:,:)/prs(:,:) < 1.0 ) .AND.  &
+                                  ( liquid(:,:,kk)%dwet-liquid(:,:,kk)%dins < dmin ) .AND.           &
+                                  ( liquid(:,:,kk)%dins > dmin ) )
+          END DO
 
-       CALL gauss_legendre( kproma, kbdim, klev, ptemp, Si, th00,       &
-                            mean_theta, sigma_theta, tstep, nuc_mask, 2, f_dep  )
-
+          CALL gauss_legendre( kproma, kbdim, klev, ptemp, Si, th00_dep,       &
+                               mean_theta_dep, sigma_theta_dep, tstep, nuc_mask, 2, f_dep  )
+       END IF
+          
        CALL iceDiagnostics(kproma,kbdim,klev,liquid,f_imm,f_dep,f_hom)
              
        frac = MAX(0., MIN(0.99,f_imm+f_hom+f_dep-(f_imm+f_dep)*f_hom))
@@ -406,7 +418,7 @@ MODULE mo_salsa_cloud_ice_SE
   ! ----------------------------------------------------
 
   SUBROUTINE iceNucleation(kproma,kbdim,klev,frac)
-    ! Update the IN deficit fraction
+    ! Update the IN nucleated fraction
     ! Update the number of ice particles
     INTEGER, INTENT(in) :: kproma, kbdim,klev
     REAL, INTENT(in) :: frac(kbdim,klev,nliquid)
@@ -449,49 +461,42 @@ MODULE mo_salsa_cloud_ice_SE
              frac2(ii,jj,kk)=frac(ii,jj,kk)
              if(frac_DU(ii,jj,kk) <= 0.1) then                         ! JUST TO CHANGE ACTIVATED AMOUNT IN A-BINS
                 frac2(ii,jj,kk)=frac(ii,jj,kk)*frac_DU(ii,jj,kk)
+                ncur0 = liquid(ii,jj,kk)%numc*frac_DU(ii,jj,kk)
              else
                 frac2(ii,jj,kk)=frac(ii,jj,kk)
+                ncur0 = liquid(ii,jj,kk)%numc
              endif
-
-             ! The old IN "deficit" fraction
-             f0 = liquid(ii,jj,kk)%indef
-
-             ! Current number of potential IN particles
+             nnuc_new = frac2(ii,jj,kk)*liquid(ii,jj,kk)%numc
              
-             if(frac_DU(ii,jj,kk) <= 0.1) then
-                ncur0 = liquid(ii,jj,kk)%numc*frac_DU(ii,jj,kk)
-                nnuc_new = frac(ii,jj,kk)*ncur0            
-             else
-                ncur0 = liquid(ii,jj,kk)%numc  
-                nnuc_new = frac(ii,jj,kk)*ncur0            
-             endif
-
-
+             ! The old IN nucleated fraction
+             f0 = liquid(ii,jj,kk)%indef
+             
+             ! Get the new nucleated fraction
              f1 = nnuc_new + (ncur0 - nnuc_new)*f0
              f1 = f1/ncur0
              IF (f1 < -1.e-3 .OR. f1 > 2.) WRITE(*,*) 'update indef wrong', f1
-             f1 = MIN( MAX(f1,1.e-6),1.-1.e-6 )
-             
+             f1 = MIN( MAX(f1,1.e-6),1.-1.e-6 )             
              liquid(ii,jj,kk)%indef = f1
              
-
              ! NEXT ONLY DUST  REMOVED IF THERE IS ENOUGH OF IT   
-             if(frac_DU(ii,jj,kk) <= 0.1 ) then
+             IF(frac_DU(ii,jj,kk) <= 0.1 ) then
                 IF (lsicenucl%state)  &    ! If mode=2 and state=false, do not produce new ice but just remove the aerosol
                      ice(ii,jj,bb)%volc(I_DU) =    &
                      MAX(0., ice(ii,jj,bb)%volc(I_DU) + V_tot(ii,jj,kk)*frac_DU(ii,jj,kk))
+                
                 liquid(ii,jj,kk)%volc(I_DU) =   &
                      MAX(0., liquid(ii,jj,kk)%volc(I_DU)-V_tot(ii,jj,kk)*frac_DU(ii,jj,kk))
-             else
+             ELSE
                 
                 DO ss = 1,ndry
                    IF (lsicenucl%state)  & ! Same as above
                         ice(ii,jj,bb)%volc(ss) =    &
                         MAX(0., ice(ii,jj,bb)%volc(ss) + liquid(ii,jj,kk)%volc(ss)*frac2(ii,jj,kk))
+                   
                    liquid(ii,jj,kk)%volc(ss) =   &
                         MAX(0., liquid(ii,jj,kk)%volc(ss)*(1.-frac2(ii,jj,kk)))
                 END DO
-             endif
+             END IF
 
              ! Water (total ice)
              IF (ANY(liquid(ii,jj,kk)%phase == [1,2])) THEN
@@ -499,21 +504,25 @@ MODULE mo_salsa_cloud_ice_SE
                 IF (lsicenucl%state) &   ! If mode=2 and state=False, do not produce new ice but just remove the aerosol/droplets
                      ice(ii,jj,bb)%volc(iwa) =   &
                      MAX(0.,ice(ii,jj,bb)%volc(iwa) + liquid(ii,jj,kk)%volc(iwa)*frac2(ii,jj,kk)*spec%rhowa/spec%rhoic)
+                
                 liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac2(ii,jj,kk)))
+
              ELSE IF (liquid(ii,jj,kk)%phase == 3) THEN
                 ! Precip -> rimed ice
                 IF (lsicenucl%state) &   ! If mode=2, and state=false, do not produce new ice but jsut remove the aerosol/droplets
                      ice(ii,jj,bb)%volc(irim) =   &
                      MAX(0.,ice(ii,jj,bb)%volc(irim) + liquid(ii,jj,kk)%volc(iwa)*frac2(ii,jj,kk)*spec%rhowa/spec%rhori)
+                
                 liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac2(ii,jj,kk)))
              END IF
              
              ! Number concentration
              IF (lsicenucl%state) &
                   ice(ii,jj,bb)%numc = MAX(0.,ice(ii,jj,bb)%numc + liquid(ii,jj,kk)%numc*frac2(ii,jj,kk))
+             
              liquid(ii,jj,kk)%numc = MAX(0.,liquid(ii,jj,kk)%numc*(1.-frac2(ii,jj,kk)))
 
-             CALL ice(ii,jj,bb)%updateRhomean()
+             !CALL ice(ii,jj,bb)%updateRhomean() ! probably not necessary here. Update where actually needed...
              
           END DO
        END DO

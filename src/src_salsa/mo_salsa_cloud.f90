@@ -1148,8 +1148,8 @@ CONTAINS
           END DO ! cb
           
           ! Make things cleaner
-          ASSOCIATE(zaer => aero(ii,jj,ica%par:fcb%par),  &
-                    zcld => cloud(ii,jj,ica%cur:fcb%cur), &
+          ASSOCIATE(zaer => aero(ii,jj,ica%par:fcb%par),     &
+                    zcld => cloud(ii,jj,ica%cur:fcb%cur),    &
                     zact => pactd(ica%cur:fcb%cur)        )
             
             ! Apply the number and mass activated to aerosol and cloud bins 
@@ -1160,6 +1160,12 @@ CONTAINS
                   zaer(cb)%volc(ss) = MAX(0., zaer(cb)%volc(ss) - zact(cb)%volc(ss))
                   zcld(cb)%volc(ss) = zcld(cb)%volc(ss) + zact(cb)%volc(ss)
                END DO
+
+               ! Also handle the contribution of activated aerosol
+               ! to the IN efficiency of the droplet population
+               zcld(cb)%INdef = ( zcld(cb)%INdef*(zcld(cb)%numc-zact(cb)%numc) +    &
+                                  zaer(cb)%INdef*zact(cb)%numc   )  / &
+                                zcld(cb)%numc
             END DO
             
           END ASSOCIATE
