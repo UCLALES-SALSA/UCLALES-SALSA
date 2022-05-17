@@ -8,7 +8,7 @@ MODULE mo_salsa_cloud_ice
        lsicenucl
   USE mo_salsa_types, ONLY : aero, cloud, ice, precp, liquid, frozen, rateDiag
   USE mo_particle_external_properties, ONLY : calcSweq
-  USE mo_salsa_math, ONLY : cumlognorm
+  USE math_functions, ONLY : cumlognorm
 
   IMPLICIT NONE
 

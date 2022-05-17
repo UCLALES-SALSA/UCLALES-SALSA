@@ -57,6 +57,8 @@ CONTAINS
                             ps_intvl, main_intvl
       USE mo_history, ONLY : write_hist
       
+      USE perturbation_forc, ONLY : warm_bubble, gaussian_flux_perturbation
+      
       LOGICAL, PARAMETER :: StopOnCFLViolation = .FALSE.
       REAL, PARAMETER :: cfl_upper = 0.50, cfl_lower = 0.30
 
@@ -79,7 +81,20 @@ CONTAINS
 
          tsflg = ( mod(tplsdt,ts_intvl) < dtl .OR. time >= timmax .OR. time == dtl )
          psflg = ( mod(tplsdt,ps_intvl) < dtl .OR. time >= timmax .OR. time == dtl )
+
+         CALL set_LES_runtime()
+      
          
+         ! Create a warm bubble perturbation if required
+         IF ( warm_bubble%state ) THEN
+            CALL warm_bubble%run()
+         END IF
+
+         ! Create surface flux perturnations if required
+         IF ( gaussian_flux_perturbation%state ) THEN
+            CALL gaussian_flux_perturbation%run()
+         END IF
+                 
          CALL t_step(cflflg,cflmax,istp)
 
          time = time + dtl
@@ -174,26 +189,46 @@ CONTAINS
    ! Subroutine set_LES_runtime: Set the status of process switches e.g.
    ! if they have a defined spinup time etc.
    !
-   SUBROUTINE set_LES_runtime(time)
+   SUBROUTINE set_LES_runtime()
      USE mcrp, ONLY : sed_aero,   &
                       sed_cloud,  &
                       sed_precp,  &
                       sed_ice,    &
                       bulk_autoc
-     USE grid, ONLY : level
+     USE grid, ONLY : level,dtl
+     USE perturbation_forc, ONLY : warm_bubble, gaussian_flux_perturbation
      IMPLICIT NONE
 
-     REAL, INTENT(in) :: time
-
+     sed_aero%state = .FALSE.
      IF ( sed_aero%switch .AND. time > sed_aero%delay ) sed_aero%state = .TRUE.
+
+     sed_cloud%state = .FALSE.
      IF ( sed_cloud%switch .AND. time > sed_cloud%delay ) sed_cloud%state = .TRUE.
+
+     sed_precp%state = .FALSE.
      IF ( sed_precp%switch .AND. time > sed_precp%delay ) sed_precp%state = .TRUE.
+
+     sed_ice%state = .FALSE.
      IF ( sed_ice%switch .AND. time > sed_ice%delay ) sed_ice%state = .TRUE.
+
+     bulk_autoc%state = .FALSE.
      IF ( bulk_autoc%switch .AND. time > bulk_autoc%delay ) bulk_autoc%state = .TRUE.
+
+     warm_bubble%state = .FALSE.
+     IF ( warm_bubble%switch .AND. MOD(time,warm_bubble%tstart) < dtl ) warm_bubble%state = .TRUE.
+
+     gaussian_flux_perturbation%state = .FALSE.
+     IF ( gaussian_flux_perturbation%switch .AND.    &
+          (gaussian_flux_perturbation%t_start <= time .AND.   &
+           gaussian_flux_perturbation%t_end > time)  ) gaussian_flux_perturbation%state=.TRUE. 
+     
+     
      IF (level < 5) THEN
         sed_ice%state = .FALSE.
      END IF
 
+
+     
    END SUBROUTINE set_LES_runtime
 
    !
@@ -232,7 +267,6 @@ CONTAINS
       INTEGER :: nspec
       
          
-      CALL set_LES_runtime(time)
 
       zwp = 0.5  ! single column run vertical velocity
 

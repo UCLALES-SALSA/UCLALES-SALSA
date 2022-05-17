@@ -40,7 +40,8 @@ MODULE mo_progn_state
                                 a_nprecpp, a_nprecpt, &    ! Number of precip
                                 a_nicep,   a_nicet         ! Number of ice
   
-  !                      ! A and B bins for output
+  !                      ! A and B bins for output ;;; Should these rather be in mo_derived_state as well even though the number
+  !                                                    concentrations are very simple to just remap?
   TYPE(FloatArray4d), TARGET :: a_Naba, a_Nabb, a_Ncba, a_Ncbb  ! Aerosol A, B, Cloud droplets A,B
   TYPE(FloatArray4d), TARGET :: a_Npba, a_Niba                  ! Precipitation and ice; these are not really neede but added
                                                                 ! anyway to keep consistent output variable naming convention
@@ -51,7 +52,11 @@ MODULE mo_progn_state
                                 a_mprecpp, a_mprecpt, &    ! Precip
                                 a_micep,   a_micet         ! Ice
 
-  TYPE(FloatArray4D), TARGET :: a_indefp, a_indeft
+  ! IN nucleated fractions, used for contact angle integration in ice nucleation.
+  TYPE(FloatArray4D), TARGET :: a_indefp, a_indeft  ! These hold the values for all aerosol, cloud and precip bins.
+                                                    ! For output, unpack these below similar to bin number concentrations.
+  TYPE(FloatArray4D), TARGET :: a_indefaba, a_indefabb, a_indefcba, a_indefcbb, a_indefpba
+
   
   ! -- Gas compound tracers
   TYPE(FloatArray4D), TARGET :: a_gaerop, a_gaerot
@@ -312,10 +317,46 @@ MODULE mo_progn_state
             a_indeft = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nbins+ncld+nprc-1))
             pipeline_p => a_indefp
             pipeline_t => a_indeft
-            CALL Prog%newField( "indef","IN deficit fraction for contact angle distributions",    &
-                                "kg/kg", "N/A", .FALSE.,                                          &
-                                pipeline_p,in_t_data = pipeline_t                                 &
+            CALL Prog%newField( "indef","IN nucleated fraction",       &
+                                "1", "N/A", .FALSE.,               &
+                                pipeline_p,in_t_data = pipeline_t      &
                               )                        
+
+            pipeline_p => NULL()
+            a_indefaba = FloatArray4d(a_indefp%d(:,:,:,in1a:fn2a))
+            pipeline_p => a_indefaba
+            CALL Prog%newField("indefaba","IN nucleated fraction, aero A",     &
+                               "1","ttttaea",ANY(outputlist == "indefaba"),    &
+                               pipeline_p)
+
+            pipeline_p => NULL()
+            a_indefabb = FloatArray4d(a_indefp%d(:,:,:,in2b:fn2b))
+            pipeline_p => a_indefabb
+            CALL Prog%newField("indefabb","IN nucleated fraction, aero B",     &
+                               "1","ttttaeb",ANY(outputlist == "indefabb"),    &
+                               pipeline_p)
+
+            pipeline_p => NULL()           
+            a_indefcba = FloatArray4d(a_indefp%d(:,:,:,ica%cur:fca%cur))
+            pipeline_p => a_indefcba
+            CALL Prog%newField("indefcba","IN nucleated fraction, cloud A",    &
+                               "1","ttttcla",ANY(outputlist == "indefcba"),    &
+                               pipeline_p)
+            
+            pipeline_p => NULL()
+            a_indefcbb = FloatArray4d(a_indefp%d(:,:,:,icb%cur:fcb%cur))
+            pipeline_p => a_indefcbb
+            CALL Prog%newField("indefcbb","IN nucleated fraction, cloud B",   &
+                               "1","ttttclb",ANY(outputlist == "indefcbb"),   &
+                               pipeline_p)
+            
+            pipeline_p => NULL()
+            a_indefpba = FloatArray4d(a_indefp%d(:,:,:,1:nprc))
+            pipeline_p => a_indefpba
+            CALL Prog%newField("indefpba","IN nucleated fraction, precip",    &
+                               "1","ttttprc",ANY(outputlist == "indefpba"),   &
+                               pipeline_p)
+                        
             iscl = iscl + nbins+ncld+nprc - 1
          END IF
                      

@@ -1,8 +1,9 @@
 MODULE mo_salsa_cloud_ice_SE
   USE mo_salsa_types, ONLY : liquid, ice, precp, rateDiag
   USE mo_submctl, ONLY : nliquid, ira,fra, nprc, iia, fia, nice, pi6, ice_hom, ice_dep, ice_imm, spec,  &
-                         boltz, pi, planck, rg, avog, lsFreeTheta, initMinTheta,  lsicenucl
-  USE mo_salsa_math, ONLY : erfm1, f_gauss
+                         boltz, pi, planck, rg, avog, lsFreeTheta, initMinTheta,  lsicenucl,            &
+                         mean_theta_imm, sigma_theta_imm, mean_theta_dep, sigma_theta_dep
+  USE math_functions, ONLY : erfm1, f_gauss
   USE mo_particle_external_properties, ONLY : calcSweq
   USE classSection, ONLY : Section
   IMPLICIT NONE
@@ -16,12 +17,7 @@ MODULE mo_salsa_cloud_ice_SE
   ! Savre and Ekman 2015. Adjust these from the SALSA namelist to suit different
   ! setups.
   !
-  ! Parameters for immersion freezing
-  REAL, SAVE :: mean_theta_imm = 132. ! mean contact angle
-  REAL, SAVE :: sigma_theta_imm = 20.  ! STD of the contact angle distribution.
-  ! Parameters for deposition freezing
-  REAL, SAVE :: mean_theta_dep = 15.5
-  REAL, SAVE :: sigma_theta_dep = 1.4
+
 
   ! This contains the ice nucleation paramterization procedures according
   ! to Savre and Ekman 2015
@@ -475,7 +471,7 @@ MODULE mo_salsa_cloud_ice_SE
              f1 = nnuc_new + (ncur0 - nnuc_new)*f0
              f1 = f1/ncur0
              IF (f1 < -1.e-3 .OR. f1 > 2.) WRITE(*,*) 'update indef wrong', f1
-             f1 = MIN( MAX(f1,1.e-6),1.-1.e-6 )             
+             f1 = MIN( MAX(f1,0.),1.-1.e-20 )  ! the fraction can be a very small number, but still meaningful           
              liquid(ii,jj,kk)%indef = f1
              
              ! NEXT ONLY DUST  REMOVED IF THERE IS ENOUGH OF IT   

@@ -18,39 +18,50 @@
 !----------------------------------------------------------------------------
 !
 MODULE srfc
-
+  USE grid, ONLY : nzp,nxp,nyp
   USE mo_structured_datatypes
+
+  ! NAMELIST parameters
+  ! ------------------------------------------------
+  INTEGER :: isfctyp = 0       ! Surface model type
+  REAL    :: zrough =  0.1e-3  ! Roughness length (meters, check!)
+  REAL    :: ubmin  =  0.20
   
-   INTEGER :: isfctyp = 0
-   REAL    :: zrough =  0.1e-3   !!!!! CHECK THAT IN METERS EVERYWHERE!!
-   REAL    :: ubmin  =  0.20
-   REAL    :: dthcon = 100.0
-   REAL    :: drtcon = 0.0
+  ! Specified surface fluxes for isfctyp=0/default. These are used for other purposes isfctyp > 0.
+  ! See comments for subroutine SURFACE.
+  REAL :: dthcon = 100.0  ! Sensible heat flux Wm-2
+  REAL :: drtcon = 0.0    ! Latent heat flux Wm-2
+  ! -----------------------------------------------
 
-
-
-   ! Sami added ----->
-   ! Initial values for surface properties
-   ! REAL :: W1 = 0.9   !Water content      ... Definition in grid now because of restrat files
-   ! REAL :: W2 = 0.9
-   ! REAL :: W3 = 0.9
-
-   REAL ::  B1 = 6.5
-   REAL ::  B3 = 7.26
-   REAL ::  K_s1 = 5.8e-5
-   REAL ::  K_s3 = 0.89e-5
-   REAL ::  fii_s1 = -0.036
-   REAL ::  fii_s3 = -0.085
-   REAL ::  thetaS1 = 0.98 ! Soil porosity
-   REAL ::  thetaS2 = 0.98
-   REAL ::  thetaS3 = 0.488
-   REAL ::  D1 = 0.1  !Depth of different layers !
-   REAL ::  D2 = 0.3
-   REAL ::  D3 = 0.6
-
-! <--- Sami added
-
-! Juha moved/added
+  
+  ! Other module variables
+  ! -----------------------------------------------------------
+  ! Additional perturbation values for surface fluxes with isfctyp=0/default
+  REAL, ALLOCATABLE :: lh_flx(:,:)  ! Sensible heat Wm-2
+  REAL, ALLOCATABLE :: sh_flx(:,:)  ! Latent heat Wm-2
+  
+  ! Sami added ----->
+  ! Initial values for surface properties
+  ! REAL :: W1 = 0.9   !Water content      ... Definition in grid now because of restrat files
+  ! REAL :: W2 = 0.9
+  ! REAL :: W3 = 0.9
+  
+  REAL ::  B1 = 6.5
+  REAL ::  B3 = 7.26
+  REAL ::  K_s1 = 5.8e-5
+  REAL ::  K_s3 = 0.89e-5
+  REAL ::  fii_s1 = -0.036
+  REAL ::  fii_s3 = -0.085
+  REAL ::  thetaS1 = 0.98 ! Soil porosity
+  REAL ::  thetaS2 = 0.98
+  REAL ::  thetaS3 = 0.488
+  REAL ::  D1 = 0.1  !Depth of different layers !
+  REAL ::  D2 = 0.3
+  REAL ::  D3 = 0.6
+  
+  ! <--- Sami added
+  
+  ! Juha moved/added
   ! for isfctyp == 5:
   REAL :: C_heat = 2.e6                 ! Surface heat capacity
   REAL :: deepSoilTemp = 280.            ! Assumed deep soil layer temperature
@@ -58,7 +69,14 @@ MODULE srfc
   LOGICAL :: lConstSoilHeatCap = .FALSE. ! Keep the value of surface heat capacity constant (as specified in NAMELIST)
 
 CONTAINS
-   !
+
+  ! Called in init.f90
+  SUBROUTINE surface_initialize()
+    ALLOCATE(lh_flx(nxp,nyp),sh_flx(nxp,nyp))
+    lh_flx = 0.
+    sh_flx = 0.    
+  END SUBROUTINE surface_initialize
+  
    ! --------------------------------------------------------------------------
    ! SURFACE: Calcualtes surface fluxes using an algorithm chosen by ISFCLYR
    ! and fills the appropriate 2D arrays
@@ -73,7 +91,6 @@ CONTAINS
    !
    ! Juha Tonttila, FMI, 2014
    !
-
    SUBROUTINE surface()
 
      USE defs, ONLY: vonk, p00, rcp, g, cp, alvl, ep2, rowt
@@ -83,8 +100,8 @@ CONTAINS
      USE mo_aux_state, ONLY : zt, dn0
      USE mo_progn_state, ONLY : a_rp
      USE mo_vector_state, ONLY : a_up, a_vp
-     USE grid, ONLY: nzp, nxp, nyp, psrf, th00,  &
-                     umean, vmean, level, dtl, W1,W2,W3,    &
+     USE grid, ONLY: psrf, th00, umean, vmean, &
+                     level, dtl, W1,W2,W3,     &
                      !mc_ApVdom,
                      sst
       USE thrm, ONLY: rslf
@@ -97,12 +114,9 @@ CONTAINS
               wspd(nxp,nyp), bfct(nxp,nyp)
       REAL :: rx(nzp,nxp,nyp)
 
-
       REAL :: total_sw, total_rw, total_la, total_se, total_pre  ! Sami added
       REAL :: lambda ! Sami added
       REAL :: K1,K2,K3,Kmean1,Kmean2,fii_1,fii_2,fii_3,Q3,Q12,Q23,ff1  ! Sami added
-
-
 
       INTEGER :: i, j, iterate
       REAL    :: zs, bflx, ffact, sst1, bflx1, Vbulk, Vzt, usum
@@ -334,10 +348,12 @@ CONTAINS
          ! units and calculate  momentum fluxes from winds
          !
          CASE DEFAULT
-            ffact = 1.
-            wt_sfc%d(1,1)  = ffact* dthcon/(0.5*(dn0%d(1)+dn0%d(2))*cp)
-            wq_sfc%d(1,1)  = ffact* drtcon/(0.5*(dn0%d(1)+dn0%d(2))*alvl)
-
+            !ffact = 1.  ! what is this? I guess doesn't matter at thhis point since it's 1
+            !wt_sfc%d(1,1)  = ffact* dthcon/(0.5*(dn0%d(1)+dn0%d(2))*cp)
+            !wq_sfc%d(1,1)  = ffact* drtcon/(0.5*(dn0%d(1)+dn0%d(2))*alvl)
+            lh_flx(:,:) = lh_flx(:,:) + dthcon
+            sh_flx(:,:) = sh_flx(:,:) + drtcon
+                        
             IF (zrough <= 0.) THEN
                usum = 0.
                DO j = 3, nyp-2
@@ -353,13 +369,15 @@ CONTAINS
 
             DO j = 3, nyp-2
                DO i = 3, nxp-2
-                  wt_sfc%d(i,j) = wt_sfc%d(1,1)
-                  wq_sfc%d(i,j) = wq_sfc%d(1,1)
-
+                  !wt_sfc%d(i,j) = wt_sfc%d(1,1)
+                  !wq_sfc%d(i,j) = wq_sfc%d(1,1)
+                  wt_sfc%d(i,j) = sh_flx(i,j)/(0.5*(dn0%d(1)+dn0%d(2))*cp)
+                  wq_sfc%d(i,j) = lh_flx(i,j)/(0.5*(dn0%d(1)+dn0%d(2))*alvl)
+                  
                   wspd(i,j)   = max(0.1,                                    &
                                 sqrt((a_up%d(2,i,j)+umean)**2+(a_vp%d(2,i,j)+vmean)**2))
                   IF (ubmin > 0.) THEN
-                     bflx = g*wt_sfc%d(1,1)/th00
+                     bflx = g*wt_sfc%d(i,j)/th00   ! Why was the index 1,1??
                      IF (level >= 2) bflx = bflx + g*ep2*wq_sfc%d(i,j)
                      a_ustar%d(i,j) = diag_ustar(zt%d(2),zs,bflx,wspd(i,j))
                   ELSE
@@ -374,7 +392,11 @@ CONTAINS
                   a_tstar%d(i,j) = wt_sfc%d(i,j)/a_ustar%d(i,j)
                END DO
             END DO
-
+            
+            ! Reset for next timestep
+            lh_flx = 0.
+            sh_flx = 0.
+            
       END SELECT
 
       !IF ( mcflg ) THEN

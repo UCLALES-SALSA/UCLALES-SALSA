@@ -36,7 +36,7 @@ MODULE mo_derived_state
   TYPE(FloatArray3d), TARGET :: CDNC,                                      &  ! CDNC - number of all droplets for whom 2 um < D < 80 um. Note units in #/m3
                                 CNC,                                       &  ! Cloud number concentration - number of all droplet for whom D > 2 um. In #/m3
                                 Reff                                          ! Droplet effective radius for all D > 2 um
-                                
+
   ! SALSA related variables
   TYPE(FloatArray4d), TARGET :: Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba, Dwiba     ! Binned wet diameters  
   TYPE(FloatArray4d), TARGET :: Maba, Mabb, Mcba, Mcbb, Mpba, Miba           ! Binned particle/droplet total masses
@@ -44,6 +44,10 @@ MODULE mo_derived_state
   ! Some binned diagnostics
   TYPE(FloatArray4d), TARGET :: irhob, irhoe ! Bulk mean and effective ice densities
 
+  ! Initial values for contact angle integration in immersion and deposition freezing
+  TYPE(FloatArray4d), TARGET :: immThetaaba, immThetaabb, immThetacba, immThetacbb, immThetapba,    &
+                                depThetaaba, depThetaabb, depThetacba, depThetacbb, depThetapba
+  
   
   CONTAINS
 
@@ -641,8 +645,81 @@ MODULE mo_derived_state
          pipeline => irhoe
          CALL Derived%newField("irhoe", "Effective mean density of ice", "kg/m3", "ttttice",   &
                             ANY(outputlist == "irhoe"), pipeline)
-      END IF
 
+         pipeline => NULL()
+         immThetaaba = FloatArray4d()
+         immThetaaba%onDemand => initContactAngle
+         pipeline => immThetaaba
+         CALL Derived%newField("immThetaaba", "Initial value for immersion contact angle in aerosol A",  &
+                               "deg", "ttttaea", ANY(outputlist == "immThetaaba"), pipeline)
+
+         pipeline => NULL()
+         immThetaabb = FloatArray4d()
+         immThetaabb%onDemand => initContactAngle
+         pipeline => immThetaabb
+         CALL Derived%newField("immThetaabb", "Initial value for immersion contact angle in aerosol B",  &
+                               "deg", "ttttaeb", ANY(outputlist == "immThetaabb"), pipeline)
+
+         pipeline => NULL()
+         immThetacba = FloatArray4d()
+         immThetacba%onDemand => initContactAngle
+         pipeline => immThetacba
+         CALL Derived%newField("immThetacba", "Initial value for immersion contact angle in cloud A",  &
+                               "deg", "ttttcla", ANY(outputlist == "immThetacba"), pipeline)
+
+         pipeline => NULL()
+         immThetacbb = FloatArray4d()
+         immThetacbb%onDemand => initContactAngle
+         pipeline => immThetacbb
+         CALL Derived%newField("immThetacbb", "Initial value for immersion contact angle in cloud B",  &
+                               "deg", "ttttclb", ANY(outputlist == "immThetacbb"), pipeline)      
+
+         pipeline => NULL()
+         immThetapba = FloatArray4d()
+         immThetapba%onDemand => initContactAngle
+         pipeline => immThetapba
+         CALL Derived%newField("immThetapba", "Initial value for immersion contact angle in precip A",  &
+                               "deg", "ttttprc", ANY(outputlist == "immThetapba"), pipeline)
+
+         pipeline => NULL()
+         depThetaaba = FloatArray4d()
+         depThetaaba%onDemand => initContactAngle
+         pipeline => depThetaaba
+         CALL Derived%newField("depThetaaba", "Initial value for deposition contact angle in aerosol A",  &
+                               "deg", "ttttaea", ANY(outputlist == "depThetaaba"), pipeline)
+
+         pipeline => NULL()
+         depThetaabb = FloatArray4d()
+         depThetaabb%onDemand => initContactAngle
+         pipeline => depThetaabb
+         CALL Derived%newField("depThetaabb", "Initial value for deposition contact angle in aerosol B",  &
+                               "deg", "ttttaeb", ANY(outputlist == "depThetaabb"), pipeline)
+
+         pipeline => NULL()
+         depThetacba = FloatArray4d()
+         depThetacba%onDemand => initContactAngle
+         pipeline => depThetacba
+         CALL Derived%newField("depThetacba", "Initial value for deposition contact angle in cloud A",  &
+                               "deg", "ttttcla", ANY(outputlist == "depThetacba"), pipeline)
+
+         pipeline => NULL()
+         depThetacbb = FloatArray4d()
+         depThetacbb%onDemand => initContactAngle
+         pipeline => depThetacbb
+         CALL Derived%newField("depThetacbb", "Initial value for deposition contact angle in cloud B",  &
+                               "deg", "ttttclb", ANY(outputlist == "depThetacbb"), pipeline)      
+
+         pipeline => NULL()
+         depThetapba = FloatArray4d()
+         depThetapba%onDemand => initContactAngle
+         pipeline => depThetapba
+         CALL Derived%newField("depThetapba", "Initial value for deposition contact angle in precip A",  &
+                               "deg", "ttttprc", ANY(outputlist == "depThetapba"), pipeline)
+
+
+         
+      END IF
+            
       IF (level >= 4) THEN
          pipeline => NULL()
          gSO4 = FloatArray3d()

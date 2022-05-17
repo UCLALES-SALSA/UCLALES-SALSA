@@ -1,19 +1,23 @@
 MODULE mo_derived_procedures
-  USE mo_submctl, ONLY : ica,fca,icb,fcb,ira,fra,     & 
-                         iia,fia,in1a,in2b,fn2a,fn2b, &
-                         nbins,ncld,nprc,nice,        &
-                         nlim, prlim,                 &
-                         spec, pi6
+  USE mo_submctl, ONLY : ica,fca,icb,fcb,ira,fra,          &  
+                         iia,fia,in1a,in2b,fn2a,fn2b,      &
+                         nbins,ncld,nprc,nice,             &
+                         nlim, prlim,                      &
+                         spec, pi6,                        & 
+                         mean_theta_imm, sigma_theta_imm,  &
+                         mean_theta_dep, sigma_theta_dep
   USE util, ONLY : getBinMassArray, getMassIndex
   USE defs, ONLY : cp, alvl
   USE mo_particle_external_properties, ONLY : calcDiamLES
   USE grid, ONLY : nzp,nxp,nyp,level
   USE mo_progn_state, ONLY : a_naerop, a_ncloudp, a_nprecpp, a_nicep,  &
                              a_maerop, a_mcloudp, a_mprecpp, a_micep,  &
-                             a_rp, a_rpp, a_gaerop
+                             a_indefaba, a_indefabb, a_indefcba, a_indefcbb, a_indefpba, &
+                             a_rp, a_rpp, a_gaerop 
   USE mo_diag_state, ONLY : a_rc, a_ri, a_riri, a_srp, a_dn, wt_sfc, wq_sfc
   USE mo_aux_state, ONLY : dzt,dn0
   USE mo_structured_datatypes
+  USE math_functions, ONLY : erfm1
   IMPLICIT NONE
 
   PRIVATE
@@ -32,8 +36,9 @@ MODULE mo_derived_procedures
             getCNC,          &  ! Diagnose the "cloud number concentration" (D > 2 um; level >= 4)
             getReff,         &  ! Get the effective radius using all liquid hdrometeor > 2 um (level >= 4)
             getBinTotMass,   &  ! Get the binned total mass
-            getGasConc          ! Get the concentration of specific precursor gas
-    
+            getGasConc,      &  ! Get the concentration of specific precursor gas
+            initContactAngle    ! Convert the IN nucleated fraction into the initial value for contact angle integration
+  
   CONTAINS
 
    !
@@ -561,7 +566,7 @@ MODULE mo_derived_procedures
      CHARACTER(len=*), INTENT(in) :: name
      INTEGER, INTENT(in) :: nstr,nend
      REAL, INTENT(out) :: output(nzp,nxp,nyp,nend-nstr+1)
-     REAL, POINTER :: parr(:,:,:,:) => NULL()
+     REAL, POINTER :: parr(:,:,:,:)
      REAL, ALLOCATABLE :: tmp(:)    
      INTEGER :: nspec, i,j,k,bin
      INTEGER :: nb
@@ -631,8 +636,60 @@ MODULE mo_derived_procedures
      
    END SUBROUTINE getGasConc
 
+   ! ----------------------------------------------------------------------------
+   ! SUBROUTINE INITCONTACTANGLE: Get the initial value for contact angle
+   ! integration in ice nucleation
+   !
+   SUBROUTINE initContactAngle(name,output,nstr,nend)
+     CHARACTER(len=*), INTENT(in) :: name
+     INTEGER, INTENT(in) :: nstr,nend
+     REAL, INTENT(out) :: output(nzp,nxp,nyp,nend-nstr+1)
+     REAL, POINTER :: var(:,:,:,:) 
+     REAL, PARAMETER :: sqrt2 = SQRT(2.)
+     REAL :: mean,sigma
+     INTEGER :: bin,i,j,k
+     
+     var => NULL()
 
+     ! Associate to the target values. Note that some tweaking with the indices is necessary
+     ! because of the indices the output routine assumes for binned variables...
+     SELECT CASE(name)
+     CASE("immThetaaba","depThetaaba")
+        var => a_indefaba%d(:,:,:,nstr:nend)
+     CASE("immThetaabb","depThetaabb")
+        var => a_indefabb%d(:,:,:,1:nend-nstr+1)    
+     CASE("immThetacba","depThetacba")
+        var => a_indefcba%d(:,:,:,nstr:nend)
+     CASE("immThetacbb","depThetacbb")
+        var => a_indefcbb%d(:,:,:,1:nend-nstr+1)
+     CASE("immThetapba","depThetapba")
+        var => a_indefpba%d(:,:,:,nstr:nend)
+     END SELECT
+        
+     IF (name(1:3) == "imm") THEN
+        mean = mean_theta_imm
+        sigma = sigma_theta_imm
+     ELSE IF (name(1:3) == "dep") THEN
+        mean = mean_theta_dep
+        sigma = sigma_theta_dep
+     END IF
+         
+     DO bin = nstr,nend
+        DO j = 1,nyp
+           DO i = 1,nxp
+              DO k = 1,nzp
+                 output(k,i,j,bin-nstr+1) = mean +     &
+                      sqrt2*sigma*erfm1( 2.*var(k,i,j,bin-nstr+1) - 1. )
+              END DO
+           END DO
+        END DO
+     END DO
 
+     var => NULL()
+     
+   END SUBROUTINE initContactAngle
+
+   
    
    ! NONE OF THE BELOW IS YET ASSOCIATED WITH ANYTHING !!!!!!!!!!!!!!!!!!!!
 

@@ -79,6 +79,13 @@ MODULE mo_submctl
                                        ! delay: Time until which the low limit contact for contact angle integration
                                        !        is fixed as initMinTheta.
   REAL :: initMinTheta = 0.            ! Fixed lower limit for contact angle integration
+
+  ! Contact angle distribution parameters for immersion freezing
+  REAL :: mean_theta_imm = 132. ! mean contact angle
+  REAL :: sigma_theta_imm = 20.  ! STD of the contact angle distribution.
+  ! Contact angle distribution parameters for deposition freezing
+  REAL :: mean_theta_dep = 15.5
+  REAL :: sigma_theta_dep = 1.4
   
   LOGICAL :: lsdistupdate = .TRUE.    ! Perform the size distribution update
   LOGICAL :: lscheckarrays = .FALSE.  ! Do some primitive error checking in the SALSA main program

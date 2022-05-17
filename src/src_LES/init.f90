@@ -41,7 +41,7 @@ MODULE init
    REAL                  :: zrndamp = 0.2 ! the amplitude of pseudorandom fluctuations
    CHARACTER  (len=80)   :: hfilin = 'test.'
 
-   INTEGER               :: init_type = 1 ! Switch for how to initialize mixing: 1) random perturbations, 2) warm bubble
+   !INTEGER               :: init_type = 1 ! Switch for how to initialize mixing: 1) random perturbations, 2) warm bubble
 
 CONTAINS
    !
@@ -54,6 +54,7 @@ CONTAINS
       USE step, ONLY : time, outflg
       !USE stat, ONLY : init_stat, mcflg, acc_massbudged, salsa_b_bins
       USE sgsm, ONLY : tkeinit
+      USE srfc, ONLY : surface_initialize
       USE mpi_interface, ONLY : appl_abort, myid, mpiroot
       USE thrm, ONLY : thermo
       USE mo_salsa_driver, ONLY : run_SALSA
@@ -120,7 +121,13 @@ CONTAINS
      ! Initialize aerosol emissions
      ! -----------------------------
      IF (lemission .AND. level >= 4) CALL init_emission()
-          !
+
+     !
+     ! Initialize the surface scheme
+     ! ------------------------------
+     CALL surface_initialize()
+
+     !
      !IF (mcflg) THEN
      !   ! Juha:
      !   ! Calculate some numbers for mass concervation experiments
@@ -175,7 +182,7 @@ CONTAINS
       USE defs, ONLY : alvl, cpr, cp, p00
       USE sgsm, ONLY : tkeinit
       USE thrm, ONLY : thermo, rslf
-      USE init_warm_bubble, ONLY : warm_bubble
+      !USE init_warm_bubble, ONLY : warm_bubble
 
       IMPLICIT NONE
 
@@ -250,30 +257,30 @@ CONTAINS
          END DO !j
       END SELECT
 
-      IF (init_type == 1) THEN
+     ! IF (init_type == 1) THEN
 
-         ! Initialize with random perturbations
+      ! Initialize with random perturbations
+      k = 1
+
+      DO WHILE( zt%d(k+1) <= zrand .AND. k+1 < nzp)
+         k = k+1
+         xran(k) = zrndamp*(zrand - zt%d(k))/zrand
+      END DO
+      
+      CALL random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
+
+      IF (associated(a_rp%d)) THEN
          k = 1
-
          DO WHILE( zt%d(k+1) <= zrand .AND. k+1 < nzp)
             k = k+1
-            xran(k) = zrndamp*(zrand - zt%d(k))/zrand
+            xran(k) = 5.0e-5*(zrand - zt%d(k))/zrand
          END DO
-
-         CALL random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
-
-         IF (associated(a_rp%d)) THEN
-            k = 1
-            DO WHILE( zt%d(k+1) <= zrand .AND. k+1 < nzp)
-               k = k+1
-               xran(k) = 5.0e-5*(zrand - zt%d(k))/zrand
-            END DO
-            CALL random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
-         END IF
-      ELSE IF (init_type == 2) THEN
-         ! Initialize with warm bubble (for convection)
-         CALL warm_bubble()
+         CALL random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
       END IF
+      !ELSE IF (init_type == 2) THEN
+      !   ! Initialize with warm bubble (for convection)
+      !   CALL warm_bubble()
+      !END IF
       a_wp%d = 0.
       IF(isgstyp == 2) CALL tkeinit(nxyzp,a_qp%d)
       !

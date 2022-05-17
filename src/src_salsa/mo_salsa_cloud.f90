@@ -5,7 +5,8 @@ MODULE mo_salsa_cloud
                            ica,icb,fca,fcb,            &
                            pi, pi6, grav, rg,          &
                            surfw0, cpa, mair
-    USE mo_salsa_math, ONLY : cumlognorm, V2D, D2V
+    USE mo_salsa_math, ONLY : V2D, D2V
+    USE math_functions, ONLY : cumlognorm
   IMPLICIT NONE
 
 
@@ -1163,9 +1164,11 @@ CONTAINS
 
                ! Also handle the contribution of activated aerosol
                ! to the IN efficiency of the droplet population
-               zcld(cb)%INdef = ( zcld(cb)%INdef*(zcld(cb)%numc-zact(cb)%numc) +    &
-                                  zaer(cb)%INdef*zact(cb)%numc   )  / &
-                                zcld(cb)%numc
+               IF (zcld(cb)%numc > 0.) THEN  ! Would there be a better criterion
+                  zcld(cb)%INdef = ( zcld(cb)%INdef*(zcld(cb)%numc-zact(cb)%numc) +    &
+                                     zaer(cb)%INdef*zact(cb)%numc   )  / &
+                                     zcld(cb)%numc
+               END IF
             END DO
             
           END ASSOCIATE

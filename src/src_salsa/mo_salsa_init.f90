@@ -498,13 +498,15 @@ CONTAINS
                              isdtyp,                      &
                              sigmagA,dpgA,nA,             &
                              sigmagB,dpgB,nB,             &
-                             lsfreeRH,rhlim
+                             lsfreeRH,rhlim,              &
+                             mean_theta_imm,              &
+                             sigma_theta_imm,             &
+                             mean_theta_dep,              &
+                             sigma_theta_dep
+
 
       USE mo_ice_shape, ONLY : iceShapeAlpha, iceShapeBeta,   &
                                iceShapeGamma, iceShapeSigma
-      USE mo_salsa_cloud_ice_SE, ONLY : mean_theta_imm, sigma_theta_imm,   &
-                                        mean_theta_dep, sigma_theta_dep
-
       
       IMPLICIT NONE
 

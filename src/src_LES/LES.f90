@@ -106,8 +106,7 @@ CONTAINS
                                   lpback, pbncsrc, nfpt, distim, runtype, CCN,sst,W1,W2,W3, &
                                   cntlat, varlist_main, varlist_ps, varlist_ts
     USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
-                                  zrand, zrndamp, init_type
-    USE init_warm_bubble, ONLY  : bubble_center, bubble_diameter, bubble_temp_ampl
+                                  zrand, zrndamp
     USE forc, ONLY              : div, case_name     ! Divergence, forcing case name
     USE radiation_main, ONLY    : radsounding,   &
                                   sfc_albedo,    &
@@ -121,6 +120,8 @@ CONTAINS
     USE mo_output, ONLY         : ts_intvl, ps_intvl, main_intvl
     USE mo_check_state, ONLY    : breakUndefOutput
     USE mo_stats_parameters, ONLY : TH_rc, TH_rr, TH_ri, TH_rrate
+    USE perturbation_forc, ONLY : warm_bubble, gaussian_flux_perturbation
+
     
     IMPLICIT NONE
     
@@ -145,13 +146,13 @@ CONTAINS
          div, case_name, &            ! divergence for LEVEL 4
          sed_aero, sed_cloud, sed_precp, sed_ice,  & ! Sedimentation (T/F)
          bulk_autoc,                & ! autoconversion (and accretion) switch for level < 4 
-         bulkScheme                   ! 
-    
+         bulkScheme,                &  ! 1: SB, 2: KK (mean radius autoc), 3: KK (rc nc exponential autoc)
+
+         warm_bubble,               &  ! Parameters for setting up a warm bubble. Default switch == FALSE
+         gaussian_flux_perturbation    ! Parameters for setting up a horizontally gaussian surface flux
+                                       ! perturbation. Default switch == FALSE.
+         
     NAMELIST /initialization/      &
-         init_type,                & ! Type of initialization: 1: random perturbations, 2: warm bubble
-         bubble_center,            & ! Center coordinates for warm bubble (z,x,y) 
-         bubble_diameter,          & ! Diameter for warm bubble (z,x,y)   
-         bubble_temp_ampl,         & ! Temperature amplitude for the warm bubble, assume sinusoidal
          ipsflg, itsflg,           & ! sounding flags
          hs, ps, ts,               & ! sounding heights, pressure, temperature
          us, vs, rts,              & ! sounding E/W winds, water vapor
