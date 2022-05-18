@@ -337,21 +337,21 @@ MODULE mo_progn_state
                                pipeline_p)
 
             pipeline_p => NULL()           
-            a_indefcba = FloatArray4d(a_indefp%d(:,:,:,ica%cur:fca%cur))
+            a_indefcba = FloatArray4d(a_indefp%d(:,:,:,nbins+ica%cur:nbins+fca%cur))
             pipeline_p => a_indefcba
             CALL Prog%newField("indefcba","IN nucleated fraction, cloud A",    &
                                "1","ttttcla",ANY(outputlist == "indefcba"),    &
                                pipeline_p)
             
             pipeline_p => NULL()
-            a_indefcbb = FloatArray4d(a_indefp%d(:,:,:,icb%cur:fcb%cur))
+            a_indefcbb = FloatArray4d(a_indefp%d(:,:,:,nbins+icb%cur:nbins+fcb%cur))
             pipeline_p => a_indefcbb
             CALL Prog%newField("indefcbb","IN nucleated fraction, cloud B",   &
                                "1","ttttclb",ANY(outputlist == "indefcbb"),   &
                                pipeline_p)
             
             pipeline_p => NULL()
-            a_indefpba = FloatArray4d(a_indefp%d(:,:,:,1:nprc))
+            a_indefpba = FloatArray4d(a_indefp%d(:,:,:,nbins+ncld+1:nbins+ncld+nprc))
             pipeline_p => a_indefpba
             CALL Prog%newField("indefpba","IN nucleated fraction, precip",    &
                                "1","ttttprc",ANY(outputlist == "indefpba"),   &

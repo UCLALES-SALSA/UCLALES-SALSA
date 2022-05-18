@@ -431,7 +431,7 @@ MODULE mo_salsa_cloud_ice_SE
     iwa = spec%getIndex("H2O")
     irim = spec%getIndex("rime")
     
-    I_DU=spec%getIndex("DU")
+    I_DU=spec%getIndex("DU") !! WHAT IF DUST NOT USED!?
     DO kk = 1,nliquid
        DO jj = 1,klev
           DO ii = 1,kproma
@@ -441,7 +441,7 @@ MODULE mo_salsa_cloud_ice_SE
              
 
              ! Determine the target ice bin
-             CALL liquid(ii,jj,kk)%updateDiameter(type="wet",limit=.TRUE.)
+             !CALL liquid(ii,jj,kk)%updateDiameter(type="wet",limit=.TRUE.) This was just updated...
              dwet = liquid(ii,jj,kk)%dwet             
              bb = getIceBin(dwet)
              
@@ -449,9 +449,9 @@ MODULE mo_salsa_cloud_ice_SE
              ! Dry aerosol
              
              ! TOTAL FROZEN VOLUME WITHOUT WATER
-             V_tot(ii,jj,kk)=frac(ii,jj,kk)*sum( liquid(ii,jj,kk)%volc(1:ndry))
+             V_tot(ii,jj,kk)=frac(ii,jj,kk)*SUM( liquid(ii,jj,kk)%volc(1:ndry))
              ! DUST VOLUME FRACTION
-             frac_DU(ii,jj,kk)=liquid(ii,jj,kk)%volc(I_DU)/sum( liquid(ii,jj,kk)%volc(1:ndry))
+             frac_DU(ii,jj,kk)=liquid(ii,jj,kk)%volc(I_DU)/SUM( liquid(ii,jj,kk)%volc(1:ndry))
              
              
              frac2(ii,jj,kk)=frac(ii,jj,kk)

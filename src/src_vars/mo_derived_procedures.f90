@@ -685,6 +685,8 @@ MODULE mo_derived_procedures
         END DO
      END DO
 
+     output = MAX(0.,output)
+     
      var => NULL()
      
    END SUBROUTINE initContactAngle

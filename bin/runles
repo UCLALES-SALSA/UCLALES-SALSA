@@ -134,7 +134,8 @@ cat > NAMELIST <<EOF
   ts_intvl = 10.
   main_intvl = 60.
   varlist_main = 'rp','rc','temp','wq_sfc','wt_sfc','srp','rrate','Ni','Np','CDNC',
-                 'immThetaaea','immThetacba','immThetapba','indefaba','indefcba','indefpba'
+                 'immThetaaea','immThetacba','immThetapba','indefaba','indefcba','indefpba',
+		 'Ncba','Npba','Niba'
   !varlist_ps = 'rflx','sflx','lwup','lwdn','swup','swdn'
   !varlist_ts = 'ic_CDNC'
   TH_rrate = 30.
