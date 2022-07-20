@@ -1,7 +1,8 @@
 MODULE mo_progn_state
   USE classFieldArray
   USE mo_structured_datatypes, ONLY : FloatArray3d, FloatArray4d
-  USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice, in1a,fn2a, in2b,fn2b, ica,fca, icb,fcb, ice_theta_dist
+  USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice, in1a,fn2a, in2b,fn2b,    &
+                         ica,fca, icb,fcb, ice_theta_dist, lssecice 
   IMPLICIT NONE
 
   SAVE
@@ -57,6 +58,10 @@ MODULE mo_progn_state
                                                     ! For output, unpack these below similar to bin number concentrations.
   TYPE(FloatArray4D), TARGET :: a_indefaba, a_indefabb, a_indefcba, a_indefcbb, a_indefpba
 
+  ! SIP tracers; passive, similar to the nucleated fractions
+  TYPE(FloatArray4D), TARGET :: a_sipdrfrp, a_sipdrfrt     ! Drop fracturing sip
+  TYPE(FloatArray4D), TARGET :: a_siprmsplp, a_siprmsplt   ! Rime splintering sip
+  
   
   ! -- Gas compound tracers
   TYPE(FloatArray4D), TARGET :: a_gaerop, a_gaerot
@@ -359,7 +364,35 @@ MODULE mo_progn_state
                         
             iscl = iscl + nbins+ncld+nprc - 1
          END IF
-                     
+
+         IF (lssecice%switch) THEN
+            iscl = iscl + 1
+            pipeline_p => NULL(); pipeline_t => NULL()
+            a_sipdrfrp = FloatArray4d(a_sclrp(:,:,:,iscl:iscl+nice-1))
+            a_sipdrfrt = FloatArray4d(a_sclrt(:,:,:,iscl:iscl+nice-1))
+            pipeline_p => a_sipdrfrp
+            pipeline_t => a_sipdrfrt
+            CALL Prog%newField("sipdrfr", "Drop fracturing SIP tracer",         &
+                               "kg-1", "ttttice", ANY(outputlist == "sipdrfr"), &
+                               pipeline_p, in_t_data = pipeline_t               &
+                               )
+            iscl = iscl + nice - 1
+
+            iscl = iscl + 1
+            pipeline_p => NULL(); pipeline_t => NULL()
+            a_siprmsplp = FloatArray4d(a_sclrp(:,:,:,iscl:iscl+nice-1))
+            a_siprmsplt = FloatArray4d(a_sclrt(:,:,:,iscl:iscl+nice-1))
+            pipeline_p => a_siprmsplp
+            pipeline_t => a_siprmsplt
+            CALL Prog%newField("siprmspl", "Rime splintering SIP tracer",        &
+                               "kg-1", "ttttice", ANY(outputlist == "siprmspl"), &
+                               pipeline_p, in_t_data = pipeline_t                &
+                               )
+            iscl = iscl + nice - 1            
+         END IF
+
+
+         
       END IF
 
       IF (lpback) THEN

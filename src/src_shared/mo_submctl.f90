@@ -66,7 +66,8 @@ MODULE mo_submctl
 
   ! Secondary ice subprocesses
   LOGICAL :: ice_halmos = .FALSE.     ! Rime splintering; Hallet-Mossop
- 
+  LOGICAL :: ice_dropfrac = .FALSE.   ! Drop fracturing SIP; Lawson et al 2015
+  
   
   ! Contact angle distribution for ice nucleation:
   ! Use contact angle distributions for heterogeneous nucleation

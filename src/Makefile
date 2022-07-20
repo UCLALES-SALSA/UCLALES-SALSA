@@ -156,7 +156,7 @@ mo_salsa_driver.o: classSection.o util.o mo_salsa_types.o mo_submctl.o classFiel
 mo_salsa_init.o: mo_salsa_types.o mo_submctl.o mo_salsa_driver.o mo_salsa_optical_properties.o \
 	         classSpecies.o classSection.o classProcessSwitch.o classBinLayout.o          \
 	         mo_salsa_coagulation_kernels.o mo_salsa_coagulation_processes.o classProcessRates.o  \
-                 mo_ice_shape.o mo_salsa_cloud_ice_SE.o 
+                 mo_ice_shape.o mo_salsa_cloud_ice_SE.o mo_salsa_secondary_ice.o
 mo_submctl.o: classSpecies.o classProcessSwitch.o classBinLayout.o
 mo_salsa_cloud.o: mo_salsa_types.o mo_submctl.o classSection.o mo_particle_external_properties.o   \
 	          mo_salsa_math.o math_functions.o

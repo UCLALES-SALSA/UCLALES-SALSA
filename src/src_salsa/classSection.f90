@@ -30,9 +30,13 @@ MODULE classSection
      REAL    :: nlim     ! Lower limit for number concentration used in many calculations, depends on particle type
      REAL    :: dlim     ! Category specific diameter limit used e.g. in coagulation calculations
 
-     REAL    :: INdef    ! IN nucleated fraction
+     REAL    :: INdef    ! IN nucleated fraction for lower limit contact angle
 
-     
+     ! Secondary ice diagnostics: These are just added from the source, advected and removed upon evaporation/sedimentation/melting,
+     ! but currently not coupled with coagulation...
+     REAL    :: SIP_drfr   ! Secondary ice due to drop fracturing. 
+     REAL    :: SIP_rmspl  ! Secondary ice due to rime splintering
+          
      CONTAINS
        PROCEDURE :: updateDiameter
        PROCEDURE :: updateRhomean

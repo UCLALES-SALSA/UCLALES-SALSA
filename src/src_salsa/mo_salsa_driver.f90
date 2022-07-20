@@ -53,6 +53,40 @@
                         sto_pc(:,:,:,:,:), sto_ic(:,:,:,:,:),                  &
                         sto_ip(:,:,:,:,:)
    LOGICAL :: cgsto_initialized = .FALSE.
+
+
+   !
+   ! Pointers to hook up host model with the SALSA driver interface
+   !
+   TYPE(FloatArray3d), POINTER :: ppress => NULL(), ptk => NULL(), prv => NULL(), &
+                                  prt => NULL(), prs => NULL(), prsi => NULL(),   &
+                                  pdn => NULL()
+   TYPE(FloatArray4d), POINTER :: pnaerop => NULL(), pncloudp => NULL(),   &
+                                  pnprecpp => NULL(), pnicep => NULL(),    &
+                                  pnaerot => NULL(), pncloudt => NULL(),   &
+                                  pnprecpt => NULL(), pnicet => NULL(),    &
+
+                                  pmaerop => NULL(), pmcloudp => NULL(),   &
+                                  pmprecpp => NULL(), pmicep => NULL(),    &
+                                  pmaerot => NULL(), pmcloudt => NULL(),   &
+                                  pmprecpt => NULL(), pmicet => NULL(),    &
+                                  
+                                  pindefp => NULL(),                      &
+                                  
+                                  psipdrfrp => NULL(), psiprmsplp => NULL(), &
+                                     
+                                  pgaerop => NULL(), pgaerot => NULL()   
+
+   ! For process rate diagnostics
+   TYPE(FloatArray3d), POINTER :: autoconversion => NULL(), autoconversion50 => NULL(),      &
+                                  autoconversion80 => NULL(),                                &
+                                  accretion => NULL(), accretion50 => NULL(),                &
+                                  accretion80 => NULL(),                                     &
+                                  ACcoll => NULL(), APcoll => NULL(), AIcoll => NULL(),      &
+                                  activation => NULL(), Icehom => NULL(), Icedep => NULL(),  &
+                                  Iceimm => NULL(), drfrrate => NULL(), rmsplrate => NULL(),   &
+                                  Conda => NULL(), Condc => NULL(), Condp => NULL(), Condi => NULL()
+   LOGICAL :: salsa_driver_initialized = .FALSE.
    
 CONTAINS
 
@@ -90,24 +124,6 @@ CONTAINS
                                                            ! actual tendency due to new droplet formation.
       REAL, INTENT(out)   :: pa_nactd(nzp,nxp,nyp,ncld)   ! Same for number concentration
       INTEGER, INTENT(in) :: level                         ! thermodynamical level
-
-      ! Named pointers to get SALSA variables
-      TYPE(FloatArray3d), POINTER :: press => NULL(), tk => NULL(), rv => NULL(), &
-                                     rt => NULL(), rs => NULL(), rsi => NULL(),   &
-                                     pdn => NULL()
-      TYPE(FloatArray4d), POINTER :: naerop => NULL(), ncloudp => NULL(),   &
-                                     nprecpp => NULL(), nicep => NULL(),    &
-                                     naerot => NULL(), ncloudt => NULL(),   &
-                                     nprecpt => NULL(), nicet => NULL(),    &
-
-                                     maerop => NULL(), mcloudp => NULL(),   &
-                                     mprecpp => NULL(), micep => NULL(),    &
-                                     maerot => NULL(), mcloudt => NULL(),   &
-                                     mprecpt => NULL(), micet => NULL(),    &
-
-                                     indefp => NULL(),                      &
-                                     
-                                     gaerop => NULL(), gaerot => NULL()
             
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
               in_w(kbdim,klev), in_rsi(kbdim,klev)
@@ -120,17 +136,6 @@ CONTAINS
               zgocnv(kbdim,klev),  &
               zgocsv(kbdim,klev)
       
-      ! For process rate diagnostics
-      TYPE(FloatArray3d), POINTER :: autoconversion => NULL(), autoconversion50 => NULL(),      &
-                                     autoconversion80 => NULL(),                                &
-                                     accretion => NULL(), accretion50 => NULL(),                &
-                                     accretion80 => NULL(),                                     &
-                                     ACcoll => NULL(), APcoll => NULL(), AIcoll => NULL(),      &
-                                     activation => NULL(), Icehom => NULL(), Icedep => NULL(),  &
-                                     Iceimm => NULL(), Conda => NULL(), Condc => NULL(),        &
-                                     Condp => NULL(), Condi => NULL()
-
-
       ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !! As a local variable, it would be better to declare this info as REAL. Or then need to take care to initialize this,
       ! which is missing
@@ -156,66 +161,9 @@ CONTAINS
            CALL initialize_arrays(nwet,bin_numbers)
       IF (.NOT. cgsto_initialized) &
            CALL initialize_coagstorage(nzp,nxp,nyp)
-
-
-         
-      ! Get the pointers to variable arrays
-      CALL Diag%getData(1,press,name="press")
-      CALL Diag%getData(1,tk,name="temp")
-      CALL Diag%getData(1,rs,name="rsl")
-      IF (level == 5) &
-           CALL Diag%getData(1,rsi,name="rsi")
-      CALL Diag%getData(1,pdn,name="dn")
-      CALL Prog%getData(1,rv,name="rp")
-      CALL Prog%getData(2,rt,name="rp")
-      ! Note that maybe there could be a "getSeveral" method or something to make this less verbose?
-      CALL Prog%getData(1,naerop,name="naero")
-      CALL Prog%getData(2,naerot,name="naero")
-      CALL Prog%getData(1,ncloudp,name="ncloud")
-      CALL Prog%getData(2,ncloudt,name="ncloud")
-      CALL Prog%getData(1,nprecpp,name="nprecp")
-      CALL Prog%getData(2,nprecpt,name="nprecp")
-      IF (level == 5) THEN
-           CALL Prog%getData(1,nicep,name="nice")      
-           CALL Prog%getData(2,nicet,name="nice")
-      END IF
-           
-      CALL Prog%getData(1,maerop,name="maero")
-      CALL Prog%getData(2,maerot,name="maero")
-      CALL Prog%getData(1,mcloudp,name="mcloud")
-      CALL Prog%getData(2,mcloudt,name="mcloud")
-      CALL Prog%getData(1,mprecpp,name="mprecp")
-      CALL Prog%getData(2,mprecpt,name="mprecp")
-      IF (level == 5) THEN
-         CALL Prog%getData(1,micep,name="mice")
-         CALL Prog%getData(2,micet,name="mice")
-         IF (ice_theta_dist) CALL Prog%getData(1,indefp,name="indef")
-      END IF
-         
-      CALL Prog%getData(1,gaerop,name="gaero")
-      CALL Prog%getData(2,gaerot,name="gaero")
-
-      ! Get pointers to process rate output streams
-      CALL Diag%getData(1,autoconversion,name="s_m_autoc")
-      CALL Diag%getData(1,autoconversion50,name="s_m_autoc50")
-      CALL Diag%getData(1,autoconversion80,name="s_m_autoc80")
-      CALL Diag%getData(1,accretion,name="s_m_accr")
-      CALL Diag%getData(1,accretion50,name="s_m_accr50")
-      CALL Diag%getData(1,accretion80,name="s_m_accr80")
-      CALL Diag%getData(1,ACcoll,name="s_m_ACcoll_dry")
-      CALL Diag%getData(1,APcoll,name="s_m_APcoll_dry")
-      CALL Diag%getData(1,activation,name="s_n_activ")
-      IF (level == 5) THEN
-         CALL Diag%getData(1,AIcoll,name="s_m_AIcoll_dry")
-         CALL Diag%getData(1,Icehom,name="s_n_icehom")
-         CALL Diag%getData(1,Icedep,name="s_n_icedep")
-         CALL Diag%getData(1,Iceimm,name="s_n_iceimm")
-         CALL Diag%getData(1,condi,name="s_m_condi")
-      END IF
-      CALL Diag%getData(1,conda,name="s_m_conda")
-      CALL Diag%getData(1,condc,name="s_m_condc")
-      CALL Diag%getData(1,condp,name="s_m_condp")
-                     
+      IF (.NOT. salsa_driver_initialized) &
+           CALL initialize_salsa_driver(Diag,Prog,level)
+                                     
       in_p(:,:) = 0.; in_t(:,:) = 0.; in_rs(:,:) = 0.; in_rsi(:,:) = 0.; in_w(:,:) = 0.
       in_rv(:,:) = 0.; rv_old(:,:) = 0.
       
@@ -228,18 +176,18 @@ CONTAINS
             DO kk = nzp-1, 2, -1
 
                ! Set inputs
-               in_p(1,1) = press%d(kk,ii,jj)
-               in_t(1,1) = tk%d(kk,ii,jj)
-               in_rs(1,1) = rs%d(kk,ii,jj)
+               in_p(1,1) = ppress%d(kk,ii,jj)
+               in_t(1,1) = ptk%d(kk,ii,jj)
+               in_rs(1,1) = prs%d(kk,ii,jj)
                IF (level == 5) &
-                    in_rsi(1,1) = rsi%d(kk,ii,jj)
+                    in_rsi(1,1) = prsi%d(kk,ii,jj)
                in_w(1,1) = wp(kk,ii,jj)
 
                ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
                IF ( lsfreeRH%state ) THEN
-                  in_rv(1,1) = rv%d(kk,ii,jj)
+                  in_rv(1,1) = prv%d(kk,ii,jj)
                ELSE
-                  in_rv(1,1) = MIN(rv%d(kk,ii,jj), rs%d(kk,ii,jj)*rhlim)
+                  in_rv(1,1) = MIN(prv%d(kk,ii,jj), prs%d(kk,ii,jj)*rhlim)
                END IF
                rv_old(1,1) = in_rv(1,1)
        
@@ -249,56 +197,61 @@ CONTAINS
                ! Take a copies for the old values. Note that the order of the categories in these arrays is CRUCIAL.
                ! It follows the phase indexing in classSection. Use the derived type "old"
                ! Also make use of these when preparing SALSA inputs below. this is a bit verbose, but what are you gonna do...
-               npart(1)%d = naerop%d(kk,ii,jj,:)
-               npart(2)%d = ncloudp%d(kk,ii,jj,:)
-               npart(3)%d = nprecpp%d(kk,ii,jj,:)
+               npart(1)%d = pnaerop%d(kk,ii,jj,:)
+               npart(2)%d = pncloudp%d(kk,ii,jj,:)
+               npart(3)%d = pnprecpp%d(kk,ii,jj,:)
                IF (level == 5) &
-                    npart(4)%d = nicep%d(kk,ii,jj,:)
-               mpart(1)%d = maerop%d(kk,ii,jj,:)
-               mpart(2)%d = mcloudp%d(kk,ii,jj,:)
-               mpart(3)%d = mprecpp%d(kk,ii,jj,:)
+                    npart(4)%d = pnicep%d(kk,ii,jj,:)
+               mpart(1)%d = pmaerop%d(kk,ii,jj,:)
+               mpart(2)%d = pmcloudp%d(kk,ii,jj,:)
+               mpart(3)%d = pmprecpp%d(kk,ii,jj,:)
                IF (level == 5) &
-                    mpart(4)%d = micep%d(kk,ii,jj,:)
+                    mpart(4)%d = pmicep%d(kk,ii,jj,:)
                
                ! Make arranged pointers (not copies!) to tendency arrays in the same manner
-               ntend(1)%d => naerot%d(kk,ii,jj,:)
-               ntend(2)%d => ncloudt%d(kk,ii,jj,:)
-               ntend(3)%d => nprecpt%d(kk,ii,jj,:)
+               ntend(1)%d => pnaerot%d(kk,ii,jj,:)
+               ntend(2)%d => pncloudt%d(kk,ii,jj,:)
+               ntend(3)%d => pnprecpt%d(kk,ii,jj,:)
                IF (level == 5) &
-                    ntend(4)%d => nicet%d(kk,ii,jj,:)
-               mtend(1)%d => maerot%d(kk,ii,jj,:)
-               mtend(2)%d => mcloudt%d(kk,ii,jj,:)
-               mtend(3)%d => mprecpt%d(kk,ii,jj,:)
+                    ntend(4)%d => pnicet%d(kk,ii,jj,:)
+               mtend(1)%d => pmaerot%d(kk,ii,jj,:)
+               mtend(2)%d => pmcloudt%d(kk,ii,jj,:)
+               mtend(3)%d => pmprecpt%d(kk,ii,jj,:)
                IF (level == 5) &
-                    mtend(4)%d => micet%d(kk,ii,jj,:)               
+                    mtend(4)%d => pmicet%d(kk,ii,jj,:)               
                
                ! Update SALSA input arrays
                DO nb = 1,ntotal
                   icat = allSALSA(1,1,nb)%phase   ! Phase indentifier, this should correspond to index in bin_starts and bin_numbers, mpart and npart, ntend and mtend
                   IF (icat == 4 .AND. level < 5) EXIT  ! skip ice if level < 5; since ice gets the last index in classSection, we can use EXIT
                   
-                  nbloc = nb - bin_starts(icat) + 1
+                  nbloc = nb - bin_starts(icat) + 1   ! Bin number for current category
                   catnbins = bin_numbers(icat)
                   
                   ! Update volume concentrations. Note, rime handled separately below
-                  IF (icat < 4) THEN
+                  IF (icat < 4) THEN    ! Aerosol and liquid
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc) 
                         allSALSA(1,1,nb)%volc(nc) = mpart(icat)%d(str)*pdn%d(kk,ii,jj)/spec%rholiq(nc)                     
                      END DO
 
                      IF (level == 5 .AND. ice_theta_dist) THEN
-                        allSALSA(1,1,nb)%INdef = indefp%d(kk,ii,jj,nb)
+                        allSALSA(1,1,nb)%INdef = pindefp%d(kk,ii,jj,nb)
                      END IF
                      
-                  ELSE IF (icat == 4) THEN
+                  ELSE IF (icat == 4) THEN  ! Ice
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc)
                         allSALSA(1,1,nb)%volc(nc) = mpart(icat)%d(str)*pdn%d(kk,ii,jj)/spec%rhoice(nc)
                      END DO
                      str = getMassIndex(catnbins,nbloc,irim)
                      allSALSA(1,1,nb)%volc(irim) = mpart(icat)%d(str)*pdn%d(kk,ii,jj)/spec%rhori
-
+                     
+                     IF (lssecice%switch) THEN
+                        allSALSA(1,1,nb)%SIP_drfr = psipdrfrp%d(kk,ii,jj,nbloc)*pdn%d(kk,ii,jj)
+                        allSALSA(1,1,nb)%SIP_rmspl = psiprmsplp%d(kk,ii,jj,nbloc)*pdn%d(kk,ii,jj)
+                     END IF
+                        
                   END IF
 
                   ! Update number concentrations
@@ -321,11 +274,11 @@ CONTAINS
                                                   init_rh,in_t,.TRUE.)
 
                ! Convert to #/m3
-               zgso4(1,1) = gaerop%d(kk,ii,jj,1)*pdn%d(kk,ii,jj)
-               zghno3(1,1) = gaerop%d(kk,ii,jj,2)*pdn%d(kk,ii,jj)
-               zgnh3(1,1) = gaerop%d(kk,ii,jj,3)*pdn%d(kk,ii,jj)
-               zgocnv(1,1) = gaerop%d(kk,ii,jj,4)*pdn%d(kk,ii,jj)
-               zgocsv(1,1) = gaerop%d(kk,ii,jj,5)*pdn%d(kk,ii,jj)
+               zgso4(1,1) = pgaerop%d(kk,ii,jj,1)*pdn%d(kk,ii,jj)
+               zghno3(1,1) = pgaerop%d(kk,ii,jj,2)*pdn%d(kk,ii,jj)
+               zgnh3(1,1) = pgaerop%d(kk,ii,jj,3)*pdn%d(kk,ii,jj)
+               zgocnv(1,1) = pgaerop%d(kk,ii,jj,4)*pdn%d(kk,ii,jj)
+               zgocsv(1,1) = pgaerop%d(kk,ii,jj,5)*pdn%d(kk,ii,jj)
 
                ! Reset process rate diagnostics
                CALL rateDiag%Reset()
@@ -353,7 +306,7 @@ CONTAINS
                   catnbins = bin_numbers(icat)
 
                   ! Update mass tendencies
-                  IF (icat < 4) THEN
+                  IF (icat < 4) THEN   ! Aerosol and liquid
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc)
                         mtend(icat)%d(str) = mtend(icat)%d(str) + &
@@ -362,10 +315,10 @@ CONTAINS
                      END DO
 
                      IF (level == 5 .AND. ice_theta_dist) THEN
-                        indefp%d(kk,ii,jj,nb) = allSALSA(1,1,nb)%INdef 
+                        pindefp%d(kk,ii,jj,nb) = allSALSA(1,1,nb)%INdef 
                      END IF
                       
-                  ELSE IF (icat == 4) THEN
+                  ELSE IF (icat == 4) THEN ! Ice
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc)
                         mtend(icat)%d(str) = mtend(icat)%d(str) + &
@@ -376,6 +329,12 @@ CONTAINS
                      mtend(icat)%d(str) = mtend(icat)%d(str) + &
                           ( (allSALSA(1,1,nb)%volc(irim)*spec%rhori/pdn%d(kk,ii,jj)) -     &
                             mpart(icat)%d(str) ) / tstep
+
+                     IF ( lssecice%switch ) THEN
+                        psipdrfrp%d(kk,ii,jj,nbloc) = allSALSA(1,1,nb)%SIP_drfr/pdn%d(kk,ii,jj)
+                        psiprmsplp%d(kk,ii,jj,nbloc) = allSALSA(1,1,nb)%SIP_rmspl/pdn%d(kk,ii,jj)
+                     END IF
+                        
                   END IF
                         
                   ! Update number tendencies
@@ -395,24 +354,24 @@ CONTAINS
                END DO
 
                IF (lscndgas) THEN
-                  gaerot%d(kk,ii,jj,1) = gaerot%d(kk,ii,jj,1) + &
-                                          ( (zgso4(1,1)/pdn%d(kk,ii,jj)) - gaerop%d(kk,ii,jj,1) )/tstep
+                  pgaerot%d(kk,ii,jj,1) = pgaerot%d(kk,ii,jj,1) + &
+                                          ( (zgso4(1,1)/pdn%d(kk,ii,jj)) - pgaerop%d(kk,ii,jj,1) )/tstep
 
-                  gaerot%d(kk,ii,jj,2) = gaerot%d(kk,ii,jj,2) + &
-                                          ( (zghno3(1,1)/pdn%d(kk,ii,jj)) - gaerop%d(kk,ii,jj,2) )/tstep
+                  pgaerot%d(kk,ii,jj,2) = pgaerot%d(kk,ii,jj,2) + &
+                                          ( (zghno3(1,1)/pdn%d(kk,ii,jj)) - pgaerop%d(kk,ii,jj,2) )/tstep
 
-                  gaerot%d(kk,ii,jj,3) = gaerot%d(kk,ii,jj,3) + &
-                                          ( (zgnh3(1,1)/pdn%d(kk,ii,jj)) - gaerop%d(kk,ii,jj,3) )/tstep
+                  pgaerot%d(kk,ii,jj,3) = pgaerot%d(kk,ii,jj,3) + &
+                                          ( (zgnh3(1,1)/pdn%d(kk,ii,jj)) - pgaerop%d(kk,ii,jj,3) )/tstep
 
-                  gaerot%d(kk,ii,jj,4) = gaerot%d(kk,ii,jj,4) + &
-                                          ( (zgocnv(1,1)/pdn%d(kk,ii,jj)) - gaerop%d(kk,ii,jj,4) )/tstep
+                  pgaerot%d(kk,ii,jj,4) = pgaerot%d(kk,ii,jj,4) + &
+                                          ( (zgocnv(1,1)/pdn%d(kk,ii,jj)) - pgaerop%d(kk,ii,jj,4) )/tstep
 
-                  gaerot%d(kk,ii,jj,5) = gaerot%d(kk,ii,jj,5) + &
-                                          ( (zgocsv(1,1)/pdn%d(kk,ii,jj)) - gaerop%d(kk,ii,jj,5) )/tstep
+                  pgaerot%d(kk,ii,jj,5) = pgaerot%d(kk,ii,jj,5) + &
+                                          ( (zgocsv(1,1)/pdn%d(kk,ii,jj)) - pgaerop%d(kk,ii,jj,5) )/tstep
                END IF
 
                ! Tendency of water vapour mixing ratio 
-               rt%d(kk,ii,jj) = rt%d(kk,ii,jj) + &
+               prt%d(kk,ii,jj) = prt%d(kk,ii,jj) + &
                   ( in_rv(1,1) - rv_old(1,1) )/tstep
 
 
@@ -437,6 +396,12 @@ CONTAINS
                   Condi%d(kk,ii,jj) = ( rateDiag%Cond_i%volc(iwa)*spec%rhoic    +  &
                                         rateDiag%Cond_i%volc(irim)*spec%rhori ) /  &
                                         pdn%d(kk,ii,jj)
+
+                  IF (lssecice%switch) THEN
+                     drfrrate%d(kk,ii,jj) = rateDiag%drfrrate%numc/pdn%d(kk,ii,jj)
+                     rmsplrate%d(kk,ii,jj) = rateDiag%rmsplrate%numc/pdn%d(kk,ii,jj)
+                  END IF
+                     
                END IF
 
                ! If reduced coagulation kernel update frequency and is update timestep, store the updated kernels
@@ -453,23 +418,24 @@ CONTAINS
          mtend(icat)%d => NULL()
       END DO
       
-      press => NULL(); tk => NULL(); rv => NULL()
-      rt => NULL(); rs => NULL(); rsi => NULL()
-      pdn => NULL()
-      naerop => NULL(); ncloudp => NULL()
-      nprecpp => NULL(); nicep => NULL()
-      naerot => NULL(); ncloudt => NULL()
-      nprecpt => NULL(); nicet => NULL()
+      !press => NULL(); tk => NULL(); rv => NULL()
+      !rt => NULL(); rs => NULL(); rsi => NULL()
+      !pdn => NULL()
+      !naerop => NULL(); ncloudp => NULL()
+      !nprecpp => NULL(); nicep => NULL()
+      !naerot => NULL(); ncloudt => NULL()
+      !nprecpt => NULL(); nicet => NULL()
       
-      maerop => NULL(); mcloudp => NULL()
-      mprecpp => NULL(); micep => NULL()
-      maerot => NULL(); mcloudt => NULL()
-      mprecpt => NULL(); micet => NULL()
+      !maerop => NULL(); mcloudp => NULL()
+      !mprecpp => NULL(); micep => NULL()
+      !maerot => NULL(); mcloudt => NULL()
+      !mprecpt => NULL(); micet => NULL()
       
-      gaerop => NULL(); gaerot => NULL()     
+      !gaerop => NULL(); gaerot => NULL()     
 
-      indefp => NULL()
-
+      !indefp => NULL()
+      !sipdrfrp => NULL(); siprmsplp => NULL()
+      
       
    END SUBROUTINE run_SALSA
 
@@ -506,6 +472,88 @@ CONTAINS
      
    END SUBROUTINE set_SALSA_runtime
 
+   !
+   ! -----------------------------------------------------------
+   ! INITIALIZE_SALSA_INTERFACE
+   ! Connects the SALSA driver routine to host model arrays
+   ! 
+   SUBROUTINE initialize_salsa_driver(Diag,Prog,level)
+     TYPE(FieldArray), INTENT(inout) :: Diag, Prog
+     INTEGER, INTENT(in) :: level
+     
+     ! Get the pointers to variable arrays
+     CALL Diag%getData(1,ppress,name="press")
+     CALL Diag%getData(1,ptk,name="temp")
+     CALL Diag%getData(1,prs,name="rsl")
+     IF (level == 5) &
+          CALL Diag%getData(1,prsi,name="rsi")
+     CALL Diag%getData(1,pdn,name="dn")
+     CALL Prog%getData(1,prv,name="rp")
+     CALL Prog%getData(2,prt,name="rp")
+     ! Note that maybe there could be a "getSeveral" method or something to make this less verbose?
+     CALL Prog%getData(1,pnaerop,name="naero")
+     CALL Prog%getData(2,pnaerot,name="naero")
+     CALL Prog%getData(1,pncloudp,name="ncloud")
+     CALL Prog%getData(2,pncloudt,name="ncloud")
+     CALL Prog%getData(1,pnprecpp,name="nprecp")
+     CALL Prog%getData(2,pnprecpt,name="nprecp")
+     IF (level == 5) THEN
+        CALL Prog%getData(1,pnicep,name="nice")      
+        CALL Prog%getData(2,pnicet,name="nice")
+     END IF
+     
+     CALL Prog%getData(1,pmaerop,name="maero")
+     CALL Prog%getData(2,pmaerot,name="maero")
+     CALL Prog%getData(1,pmcloudp,name="mcloud")
+     CALL Prog%getData(2,pmcloudt,name="mcloud")
+     CALL Prog%getData(1,pmprecpp,name="mprecp")
+     CALL Prog%getData(2,pmprecpt,name="mprecp")
+     IF (level == 5) THEN
+        CALL Prog%getData(1,pmicep,name="mice")
+        CALL Prog%getData(2,pmicet,name="mice")
+        IF (ice_theta_dist) CALL Prog%getData(1,pindefp,name="indef")
+        
+        IF (lssecice%switch) THEN
+           CALL Prog%getData(1,psipdrfrp,name="sipdrfr")
+           CALL Prog%getData(1,psiprmsplp,name="siprmspl")
+        END IF
+        
+     END IF
+     
+     CALL Prog%getData(1,pgaerop,name="gaero")
+     CALL Prog%getData(2,pgaerot,name="gaero")
+     
+     ! Get pointers to process rate output streams
+     CALL Diag%getData(1,autoconversion,name="s_m_autoc")
+     CALL Diag%getData(1,autoconversion50,name="s_m_autoc50")
+     CALL Diag%getData(1,autoconversion80,name="s_m_autoc80")
+     CALL Diag%getData(1,accretion,name="s_m_accr")
+     CALL Diag%getData(1,accretion50,name="s_m_accr50")
+     CALL Diag%getData(1,accretion80,name="s_m_accr80")
+     CALL Diag%getData(1,ACcoll,name="s_m_ACcoll_dry")
+     CALL Diag%getData(1,APcoll,name="s_m_APcoll_dry")
+     CALL Diag%getData(1,activation,name="s_n_activ")
+     IF (level == 5) THEN
+        CALL Diag%getData(1,AIcoll,name="s_m_AIcoll_dry")
+        CALL Diag%getData(1,Icehom,name="s_n_icehom")
+        CALL Diag%getData(1,Icedep,name="s_n_icedep")
+        CALL Diag%getData(1,Iceimm,name="s_n_iceimm")
+        CALL Diag%getData(1,condi,name="s_m_condi")
+        
+        IF (lssecice%switch) THEN
+           CALL Diag%getData(1,drfrrate,name="s_n_sipdrfr")
+           CALL Diag%getData(1,rmsplrate,name="s_n_siprmspl")
+        END IF
+        
+     END IF
+     CALL Diag%getData(1,conda,name="s_m_conda")
+     CALL Diag%getData(1,condc,name="s_m_condc")
+     CALL Diag%getData(1,condp,name="s_m_condp")
+
+     salsa_driver_initialized = .TRUE.
+     
+   END SUBROUTINE initialize_salsa_driver
+   
    !
    ! -----------------------------------------------------------
    ! INITIALIZE_ARRAYS

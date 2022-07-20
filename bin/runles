@@ -15,16 +15,16 @@
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
 IsSeq=2 # 0 for mpi runs with CRAY, 1 for mpi runs with Puhti, 2 for sequential, 3 for mpi on laptop
 
-EXPNAME="UAE_fluxtest"  # Name of the experiment
+EXPNAME="UAE_siptest_all"  # Name of the experiment
 PROJECT="project_2003163"   # Project name, needed for resource allocation in PUHTI
 
 NPROCS=4          # Number of processors (for IsSeq==0)
 NNODES=7
 TWALL=48:00:00      # Required wallclock time for batch system
 
-NXP=40               # Number of points in X-direction (including "halo" points)
-NYP=5              # Number of points in Y-direction (including "halo" points)
-NZP=70              # Number of points in Z-direction
+NXP=5               # Number of points in X-direction (including "halo" points)
+NYP=40              # Number of points in Y-direction (including "halo" points)
+NZP=110              # Number of points in Z-direction
 DX=200.              # Resolution in X-direction (meters)
 DY=200.              # Resolution in Y-direction (meters)
 DZ=150.              # Resolution in Z-direction (meters)
@@ -82,10 +82,11 @@ cat > NAMELIST <<EOF
   deltay = ${DY}              ! Grid spacing in y
   deltaz = ${DZ}              ! Grid spacing in the vertical
   nxpart = .TRUE.             ! 
-  dzmax  = 1500.              ! Height above which start stretching vertical grid
+  dzmax  = 3000.              ! Height above which start stretching vertical grid
   dzrat  = 1.0                ! Factor for vertical grid stretching
   dtlong = ${DT}              ! Max. timestep
   distim = 100.               ! Timescale for the dissipation in sponge layer
+  nfpt = 20                   ! Number of Rayleigh friction points
   timmax = ${Texp}            ! Length of the simulation
   runtype = "INITIAL"         ! INITIAL or HISTORY (restart) run
   CCN = 100.e6                ! 
@@ -119,8 +120,8 @@ cat > NAMELIST <<EOF
   gaussian_flux_perturbation%switch = .TRUE.
   gaussian_flux_perturbation%t_start = 600.
   gaussian_flux_perturbation%t_end = 20000.
-  gaussian_flux_perturbation%amp_lhf = 1080.
-  gaussian_flux_perturbation%amp_shf = 1085.
+  gaussian_flux_perturbation%amp_lhf = 600.
+  gaussian_flux_perturbation%amp_shf = 600.
   gaussian_flux_perturbation%center = 0.,0.
   gaussian_flux_perturbation%sigma = 1200.
 
@@ -134,8 +135,8 @@ cat > NAMELIST <<EOF
   ts_intvl = 10.
   main_intvl = 60.
   varlist_main = 'rp','rc','temp','wq_sfc','wt_sfc','srp','rrate','Ni','Np','CDNC',
-                 'immThetaaea','immThetacba','immThetapba','indefaba','indefcba','indefpba',
-		 'Ncba','Npba','Niba'
+                 'immThetaaba','immThetacba','immThetapba','Ncba','Npba','Niba',
+                 's_n_sipdrfr','sipdrfr','s_n_siprmspl','siprmspl'
   !varlist_ps = 'rflx','sflx','lwup','lwdn','swup','swdn'
   !varlist_ts = 'ic_CDNC'
   TH_rrate = 30.
@@ -244,7 +245,7 @@ cat > NAMELIST <<EOF
    lsicemelt%switch = .TRUE.       ! Ice melting
 
    lssecice%switch = .TRUE.        ! Secondary ice production
-   lssecice%delay = 200.
+   lssecice%delay = 100.
 
    ! Sub-process switches: Coagulation
    lscgcc = .TRUE.       ! Self-collection of cloud droplets
@@ -289,6 +290,7 @@ cat > NAMELIST <<EOF
 
    ! Sub-process swithces: Secondary ice
    ice_halmos = .TRUE.         ! Rime splintering; Hallet-Mossop
+   ice_dropfrac = .TRUE.
 
    ! Misc switches
    lscheckarrays = .FALSE.
@@ -315,11 +317,11 @@ cat > NAMELIST <<EOF
 
    isdtyp = ${ISDTYP}
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
-   volDistA = 0.3, 0.7, 0.0, 0.0, 0.0, 0.0, 0.0
+   volDistA = 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)  
    sigmagA  = 1.28, 2.00, 2.0, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpgA     = 0.06, 0.28, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nA       = 1000., 500., 1., 0., 0., 0., 0.         ! Mode number concentrations in #/mg 
+   nA       = 200., 100., 1., 0., 0., 0., 0.         ! Mode number concentrations in #/mg 
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
    volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0

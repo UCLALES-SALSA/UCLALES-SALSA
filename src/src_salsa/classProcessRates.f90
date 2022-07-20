@@ -4,24 +4,26 @@ MODULE classProcessRates
   SAVE
     
   TYPE ProcessRates
-     TYPE(Rate), POINTER :: Autoconversion
+     TYPE(Rate), POINTER :: Autoconversion   ! Autoconversion rate, native bin category limits
      TYPE(Rate), POINTER :: Autoconversion50 ! For drops growing past 50um
      TYPE(Rate), POINTER :: Autoconversion80 ! For drops growing past 80um
-     TYPE(Rate), POINTER :: Accretion
+     TYPE(Rate), POINTER :: Accretion        ! Accretion rate, native bin category limits
      TYPE(Rate), POINTER :: Accretion50      ! By drops L.T. 50 um
-     TYPE(Rate), POINTER :: Accretion80      ! By drops L.T. 80 um
-     TYPE(Rate), POINTER :: ACcoll
-     TYPE(Rate), POINTER :: APcoll
-     TYPE(Rate), POINTER :: AIcoll     
-     TYPE(Rate), POINTER :: Activation
-     TYPE(Rate), POINTER :: Ice_hom
-     TYPE(Rate), POINTER :: Ice_imm
-     TYPE(Rate), POINTER :: Ice_dep
-     TYPE(Rate), POINTER :: Cond_a
-     TYPE(Rate), POINTER :: Cond_c
-     TYPE(Rate), POINTER :: Cond_p
-     TYPE(rate), POINTER :: Cond_i
-     CONTAINS
+     TYPE(Rate), POINTER :: Accretion80      ! By drops L.T. 80 um 
+     TYPE(Rate), POINTER :: ACcoll           ! Collection of aerosol by cloud droplets
+     TYPE(Rate), POINTER :: APcoll           ! Collection of aerosol by drizzle/precip
+     TYPE(Rate), POINTER :: AIcoll           ! Collection of aerosol by ice
+     TYPE(Rate), POINTER :: Activation       ! Cloud activation rate
+     TYPE(Rate), POINTER :: Ice_hom          ! Homogeneous freezing rate
+     TYPE(Rate), POINTER :: Ice_imm          ! Immersion freezing rate 
+     TYPE(Rate), POINTER :: Ice_dep          ! Deposition freezing rate
+     TYPE(Rate), POINTER :: Cond_a           ! Water condensation rate on aerosol
+     TYPE(Rate), POINTER :: Cond_c           ! Water condensation rate on cloud droplets
+     TYPE(Rate), POINTER :: Cond_p           ! Water condensation rate on drizzle/precip
+     TYPE(Rate), POINTER :: Cond_i           ! Water condensation rate on ice
+     TYPE(Rate), POINTER :: drfrrate         ! Secondary ice production by drop fracturing
+     TYPE(Rate), POINTER :: rmsplrate        ! Secondary ice production by rime plintering
+   CONTAINS
        PROCEDURE :: Reset
   END TYPE ProcessRates
   INTERFACE ProcessRates
@@ -40,7 +42,7 @@ MODULE classProcessRates
      PROCEDURE :: Rate_cnstr
   END INTERFACE Rate
 
-  INTEGER, PARAMETER :: nproc = 17
+  INTEGER, PARAMETER :: nproc = 19
   TYPE(Rate), TARGET :: Rates(nproc)
 
   
@@ -91,6 +93,10 @@ MODULE classProcessRates
       ProcessRates_cnstr%Cond_p => Rates(16)
       
       ProcessRates_cnstr%Cond_i => Rates(17)
+
+      ProcessRates_cnstr%drfrrate => Rates(18)
+      
+      ProcessRates_cnstr%rmsplrate => Rates(19)
       
     END FUNCTION ProcessRates_cnstr
 

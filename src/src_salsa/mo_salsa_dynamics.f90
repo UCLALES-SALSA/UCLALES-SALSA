@@ -72,10 +72,6 @@ CONTAINS
    !
    !                 3. Coagulation between drizzle bins acts like 1.
    !
-   !       ISSUES:
-   !           Process selection should be made smarter - now just lots of ifs
-   !           inside loops. Bad.
-   !
    !
    ! Interface:
    ! ----------
@@ -93,7 +89,6 @@ CONTAINS
    !
    !---------------------------------------------------------------------
 
-
    SUBROUTINE coagulation(kproma,kbdim,klev,   &
                           ptstep,ptemp,ppres   )
 
@@ -102,24 +97,23 @@ CONTAINS
                                 zccca, zccpa, zccia,                    &
                                 zccpc, zccic,                           &
                                 zccip
+
      USE mo_submctl, ONLY: ntotal,nbins,ncld,nprc,nice, &
                            spec,   &
                            lscgaa, lscgcc, lscgpp, lscgii, & 
                            lscgca, lscgpa, lscgia, & 
                            lscgpc, lscgic, &
                            lscgip,                         &
-                           lssecice, ice_halmos,           &
+                           lssecice, ice_halmos, ice_dropfrac,     &
                            lcgupdt, lscoag
-
 
       USE mo_salsa_coagulation_kernels
 
       USE mo_salsa_coagulation_processes
 
-      USE mo_salsa_secondary_ice, ONLY : halletmossop
+      USE mo_salsa_secondary_ice, ONLY : rimesplintering, dropfracturing
       
       IMPLICIT NONE
-
 
       !-- Input and output variables -------------
       INTEGER, INTENT(IN) ::        &
@@ -137,28 +131,16 @@ CONTAINS
       INTEGER :: ii,jj,bb
 
       LOGICAL :: any_aero, any_cloud, any_precp, any_ice
-
-      LOGICAL :: any_lt13(kbdim,klev), any_gt25(kbdim,klev)
       
-      ! For Hallet-Mossop
-      REAL :: drimdt(kbdim,klev,nice)  ! Volume change in rime due to liquid collection in the presense of liquid
-                                       ! hydrometeors with diameters both < 13um and >25um
-      REAL :: pre1, pre2, post1, post2
 
-      
+
       !-----------------------------------------------------------------------------
       !-- 1) Coagulation to coarse mode calculated in a simplified way: ------------
       !      CoagSink ~ Dp in continuum regime, thus we calculate
       !      'effective' number concentration of coarse particles
  
       !-- 2) Updating coagulation coefficients -------------------------------------
-      
-      nspec = spec%getNSpec(type="total")  ! Note this includes the rime index even if it is not used/present.
-                                           ! In classSection the volume concentration array is hardcoded to allocate
-                                           ! everything, so this doesn't matter, but is ofcourse extra work. So we
-                                           ! need extra work for this...
-      iri = spec%getIndex("rime")
-      
+            
       ! Since this is done here, it won't really be necessary in the subsequent coagulation routines
       ! (its called at least in coagulation_kernels)
       DO bb = 1,ntotal
@@ -174,63 +156,44 @@ CONTAINS
       IF (lscoag%mode == 1 .OR. lcgupdt ) &
            CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp)
       
-      any_aero = ANY( aero(:,:,:)%numc > aero(:,:,:)%nlim ) .AND. &
-                 ANY( [lscgaa,lscgca,lscgpa,lscgia] )
-      any_cloud = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim ) .AND. &
-                  ANY( [lscgcc,lscgca,lscgpc,lscgic] ) 
-      any_precp = ANY( precp(:,:,:)%numc > precp(:,:,:)%nlim ) .AND. &
-                  ANY( [lscgpp,lscgpa,lscgpc,lscgip])
-      any_ice = ANY( ice(:,:,:)%numc > ice(:,:,:)%nlim ) .AND. &
-                ANY( [lscgii,lscgia,lscgic,lscgip] )
-
-      any_lt13 = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim .AND. cloud(:,:,:)%dwet < 13.e-6, DIM=3 )
-      any_gt25 = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim .AND. cloud(:,:,:)%dwet > 25.e-6, DIM = 3 )   &
-            .OR. ANY( precp(:,:,:)%numc > precp(:,:,:)%nlim .AND. precp(:,:,:)%dwet > 25.e-6, DIM = 3 )
+      any_aero = ANY( [lscgaa,lscgca,lscgpa,lscgia] )
+      any_cloud = ANY( [lscgcc,lscgca,lscgpc,lscgic] ) 
+      any_precp = ANY( [lscgpp,lscgpa,lscgpc,lscgip] )
+      any_ice = ANY( [lscgii,lscgia,lscgic,lscgip] )
             
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !-- 3) New particle and volume concentrations after coagulation -------------
       !                 GENERALIZE THE PTEMP STATEMENT
       IF (any_ice .AND. ALL(ptemp < 273.15)) THEN
 
-         ! For H-M: Store the "old" rime volumes
-         drimdt(:,:,:) = ice(:,:,:)%volc(iri)
-         
+         nspec = spec%getNSpec(type="total")  ! Includes rime         
          CALL coag_ice(kbdim,klev,nspec,ptstep) 
-
-         ! For H-M: Take the change in rime after collection processes
-         drimdt(:,:,:) = ice(:,:,:)%volc(iri) - drimdt(:,:,:)
-
-         ! H-M rime splintering
-         IF (lssecice%state .AND. ice_halmos) &
-              CALL halletmossop(kbdim,kproma,klev,(any_lt13 .AND. any_gt25),ptemp,drimdt)
          
       END IF
 
-      ! Get new nspec that omits the rime. See comments in the beginning..
-      nspec = spec%getNSpec(type="wet")
-
-      pre1 = SUM(precp(1,1,:)%volc(1)) + sum(cloud(1,1,:)%volc(1))
-      pre2 = SUM(precp(1,1,:)%volc(2)) + SUM(cloud(1,1,:)%volc(2))
-      
-      ! POISTA MASSATARKASTELUT
-      IF (any_precp) THEN 
-         CALL coag_precp(kbdim,klev,nspec,ptstep)
-
-      END IF
-
-      post1 = SUM(precp(1,1,:)%volc(1)) + SUM(cloud(1,1,:)%volc(1))
-      post2 = SUM(precp(1,1,:)%volc(2)) + SUM(cloud(1,1,:)%volc(2))
-      !IF(any_precp) &
-      !     WRITE(*,*) "coag pre post rdiff ", pre1, pre2, post1, post2,   &
-      !                (post1-pre1)/pre1, (post2-pre2)/pre2
-      
-
+      ! Get new nspec that omits the rime. 
+      nspec = spec%getNSpec(type="wet")  
+     
+      IF (any_precp) &
+           CALL coag_precp(kbdim,klev,nspec,ptstep)
+         
       IF (any_aero) &
            CALL coag_aero(kbdim,klev,nspec,ptstep)
 
       IF (any_cloud) &
            CALL coag_cloud(kbdim,klev,nspec,ptstep)
 
+      ! Secondary ice processes
+      IF (lssecice%state) THEN
+         ! H-M rime splintering
+         IF (ice_halmos) &
+              CALL rimesplintering(kbdim,kproma,klev,ptemp,ptstep)
+         ! Drop fracturing: this makes use of the frozen liquid amount by drizzle in small ice bins. Thus it is imperative, that
+         ! the bin redistribution routine is NOT run between coagulation and the secondary ice parameterizations, as given here.
+         IF (ice_dropfrac) &
+              CALL dropfracturing(kbdim,kproma,klev,ptemp,ptstep)
+         
+      END IF
+         
       
    END SUBROUTINE coagulation
 

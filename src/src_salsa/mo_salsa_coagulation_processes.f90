@@ -417,11 +417,11 @@ MODULE mo_salsa_coagulation_processes
       USE mo_salsa_types, ONLY: zccpp, zccpa, zccpc, zccip
       INTEGER, INTENT(in) :: kbdim,klev,nspec
       REAL, INTENT(in) :: ptstep
-
+      
       INTEGER :: kk,ii,jj
       REAL :: zplusterm(nspec,kbdim,klev), zminusterm(kbdim,klev), zminus_self(kbdim,klev)
       REAL :: znum_slf(kbdim,klev), zvol_slf(nspec,kbdim,klev)
-      
+
       DO kk = 1,nprc
          IF ( ALL(precp(:,:,kk)%numc < precp(:,:,kk)%nlim) ) CYCLE
 
@@ -464,7 +464,7 @@ MODULE mo_salsa_coagulation_processes
          CALL applyCoagPrecp(kbdim,klev,nprc,nspec,kk,ptstep,precp,zplusterm,zminusterm,zminus_self,znum_slf,zvol_slf)
 
       END DO
-
+      
     END SUBROUTINE coag_precp
 
     !
@@ -475,12 +475,12 @@ MODULE mo_salsa_coagulation_processes
       USE mo_salsa_types, ONLY : zccii, zccia, zccic, zccip
       INTEGER, INTENT(in) :: kbdim,klev,nspec   ! nspec should contain all compounds including unrimed and rimed ice!
       REAL, INTENT(in) :: ptstep
-
+      
       INTEGER :: kk, index_b, index_a
       REAL :: zplusterm(nspec,kbdim,klev), zminusterm(kbdim,klev), zminus_self(kbdim,klev) 
       INTEGER :: iwa,irim
       REAL :: rhowa,rhoic,rhorime
-
+      
       iwa = spec%getIndex("H2O")
       irim = spec%getIndex("rime")
       rhowa = spec%rhowa
@@ -529,7 +529,7 @@ MODULE mo_salsa_coagulation_processes
                            zplusterm,zminusterm,zminus_self  )
 
       END DO
-
+      
     END SUBROUTINE coag_ice
     
     ! -----------------------------------------------------------------
@@ -703,6 +703,7 @@ MODULE mo_salsa_coagulation_processes
     ! -----------------------------------------------------------------
 
     SUBROUTINE accumulateSink(kbdim,klev,nbtrgt,nbcoll,itrgt,istr,iend,zcc,coll,sink,trgtphase,multp)
+      USE mo_salsa_secondary_ice, ONLY : nfrzn_hm, nfrzn_df, dlimit
       ! 
       ! The "direct" method, i.e. "larger" particle category collects "smaller" category.
       ! Here, the target refers always to the collected "smaller" particle category.
@@ -715,7 +716,7 @@ MODULE mo_salsa_coagulation_processes
       REAL,INTENT(inout) :: sink(kbdim,klev)
       INTEGER, INTENT(in) :: trgtphase    ! phase indentifier for the target particles
       REAL,INTENT(in), OPTIONAL :: multp
-
+      
       INTEGER :: ll,ii,jj,ix,ex
       REAL :: xx
       REAL :: nrate(kbdim,klev), nrate80(kbdim,klev), nrate_au80(kbdim,klev),  & ! For diagnostics
@@ -828,6 +829,39 @@ MODULE mo_salsa_coagulation_processes
             
          END IF
 
+      END IF
+
+      ! Diagnostics for secondary ice parameterizations
+      IF (coll(1,1,1)%phase == 4) THEN
+         DO ll = istr,iend
+            DO jj = 1,klev
+               DO ii = 1,kbdim
+                  IF (trgtphase == 3) THEN
+                     
+                     ! Drop fracturing: large drops (> 100 um) collected by small ice (< 100 um)
+                     IF ( coll(ii,jj,ll)%dwet < dlimit .AND. precp(ii,jj,itrgt)%dwet > dlimit ) THEN                  
+                        nfrzn_df(ii,jj,ll) = nfrzn_df(ii,jj,ll) +      &
+                             zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc
+                     END IF
+                     
+                     ! Hallet-Mossop with precp
+                     IF ( coll(ii,jj,ll)%dwet > dlimit .AND. precp(ii,jj,itrgt)%dwet < dlimit ) THEN
+                        nfrzn_hm(ii,jj,ll) = nfrzn_hm(ii,jj,ll) +      &
+                             zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc
+                     END IF
+                     
+                  ELSE IF (trgtphase == 2) THEN
+
+                     ! Hallet-Mossop with cloud droplets
+                     IF (coll(ii,jj,ll)%dwet > dlimit .AND. cloud(ii,jj,itrgt)%dwet < dlimit ) THEN
+                        nfrzn_hm(ii,jj,ll) = nfrzn_hm(ii,jj,ll) +      &
+                             zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc
+                     END IF
+                     
+                  END IF                  
+               END DO
+            END DO
+         END DO
       END IF
 
       
@@ -1094,6 +1128,7 @@ MODULE mo_salsa_coagulation_processes
     !----------
     SUBROUTINE accumulateSourcePhaseChange(kbdim,klev,nbtrgt,nbcoll,nspec,iice,iwa,itrgt,istr,iend,  &
                                            rhotrgt,rhocoll,zcc,coll,source)
+      USE mo_salsa_secondary_ice, ONLY : mfrzn_df, mfrzn_hm, dlimit
       !
       ! The direct method, where the "larger" particle category collects the "smaller" category.
       ! The target refers always to the "larger", collector category.
@@ -1104,13 +1139,13 @@ MODULE mo_salsa_coagulation_processes
       INTEGER,INTENT(in) :: nbtrgt, nbcoll   ! Number of bins in the target and collectee categories
       INTEGER,INTENT(in) :: nspec           ! Number of dry checmical compounds, including both unrimed and rimed ice 
       INTEGER,INTENT(in) :: iice,iwa            ! Index of the formed ice type, index of liquid water
-      INTEGER,INTENT(in) :: itrgt,istr,iend  ! Index of the target bin, start and end indices of the collectee bins
+      INTEGER,INTENT(in) :: itrgt,istr,iend  ! Index of the target bin, start and end indices of the collected bins
       REAL, INTENT(in)   :: zcc(kbdim,klev,nbcoll,nbtrgt)
       REAL, INTENT(in)   :: rhotrgt,rhocoll      ! Water densities for the target and collected categories 
-                                                 ! (typically liquid and frozen, respectively).
+                                                 ! (typically frozen and liquid, respectively).
       TYPE(Section), INTENT(in) :: coll(kbdim,klev,nbcoll) ! Collected particle properties
       REAL, INTENT(inout) :: source(nspec,kbdim,klev)
-
+      
       INTEGER :: ll,ii,jj
       INTEGER :: ndry
 
@@ -1125,6 +1160,29 @@ MODULE mo_salsa_coagulation_processes
          END DO
       END DO
 
+      ! Diagnostics for secondary ice production
+         DO ll = istr,iend
+            DO jj = 1,klev
+               DO ii = 1,kbdim
+                  IF ( ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN   ! Precp
+                     ! Drop fracturing: large drops (> 100 um) collected by small ice (< 100 um)
+                     IF ( ice(ii,jj,itrgt)%dwet < dlimit .AND. coll(ii,jj,ll)%dwet > dlimit ) THEN
+                        mfrzn_df(ii,jj,itrgt) = mfrzn_df(ii,jj,itrgt) +     &
+                             zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*ice(ii,jj,itrgt)%numc*rhocoll
+                     END IF
+
+                     ! Hallet-Mossop: small drops (< 100 um) collected by large ice (> 100 um)
+                     IF ( ice(ii,jj,itrgt)%dwet > dlimit .AND. coll(ii,jj,ll)%dwet < dlimit ) THEN
+                        mfrzn_hm(ii,jj,itrgt) = mfrzn_hm(ii,jj,itrgt) +     &
+                             zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*ice(ii,jj,itrgt)%numc*rhocoll
+                     END IF
+                                          
+                  END IF
+
+               END DO
+            END DO
+         END DO                  
+      
     END SUBROUTINE accumulateSourcePhaseChange
 
     ! ------------------------------------------

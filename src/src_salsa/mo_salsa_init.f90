@@ -487,7 +487,7 @@ CONTAINS
                              lscheckarrays,               &
                              fixINC,                      &
                              ice_hom, ice_imm, ice_dep,   &
-                             ice_halmos,                  &
+                             ice_halmos, ice_dropfrac,    &
                              ice_theta_dist,              &
                              lsfreeTheta, initMinTheta,   &
 
@@ -545,6 +545,7 @@ CONTAINS
          ice_imm,     &    ! .. for immersio freezing
          ice_dep,     &    ! .. for deposition freezing
          ice_halmos,  &    ! Secondary ice production by rime splintering; Hallet-Mossop
+         ice_dropfrac, &   ! Secondary ice prduction by drop fracturing; Lawson et al 2015
          
          lsdistupdate,  & ! Switch for size dsitribution update
          lscheckarrays, & ! Switch for runnin the array check routine in mo_salsa
@@ -614,6 +615,7 @@ CONTAINS
             ice_imm = .FALSE.
             ice_dep = .FALSE. 
             ice_halmos = .FALSE.
+            ice_dropfrac = .FALSE.
 
             
       END IF !level
@@ -725,7 +727,23 @@ CONTAINS
      
    END SUBROUTINE initialize_coag_kernels
 
+   !
+   ! ----------------------------------------------
+   ! 
+   
+   SUBROUTINE initialize_secondary_ice()
+     USE mo_salsa_secondary_ice, ONLY : nfrzn_hm, mfrzn_hm,    &
+                                        nfrzn_df, mfrzn_df
+     IMPLICIT NONE
+     
+     ALLOCATE(nfrzn_hm(kbdim,klev,nice),mfrzn_hm(kbdim,klev,nice))
+     ALLOCATE(nfrzn_df(kbdim,klev,nice),mfrzn_df(kbdim,klev,nice))
 
+     nfrzn_hm = 0.; mfrzn_hm = 0.
+     nfrzn_df = 0.; nfrzn_df = 0.
+     
+   END SUBROUTINE initialize_secondary_ice
+   
    
    !-------------------------------------------------------------------------------
    !
@@ -794,6 +812,10 @@ CONTAINS
 
       ! Allocate arrays for local coagulation kernels
       CALL initialize_coag_kernels()
+
+      ! Allocate tracking arrays for freezing drops for secondary ice parameterizations
+      ! (Don't have process switches set in coagulation so do this allocation in any case...)
+      CALL initialize_secondary_ice()
       
       IF ( ALLOCATED(dumaero) ) DEALLOCATE(dumaero)
       IF ( ALLOCATED(dumcloud)) DEALLOCATE(dumcloud)
