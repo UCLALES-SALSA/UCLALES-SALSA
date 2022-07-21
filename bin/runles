@@ -102,7 +102,7 @@ cat > NAMELIST <<EOF
   sed_cloud%delay = ${Tspinup}
   sed_precp%switch = .TRUE.          ! precipitation
   sed_precp%delay = ${Tspinup}  
-  sed_ice%switch = .FALSE.            ! ice particles
+  sed_ice%switch = .TRUE.            ! ice particles
   bulk_autoc%switch = .TRUE.
   bulk_autoc%delay = ${Tspinup}      ! Autoconversion switch for level = 1-3
   bulkScheme = 3                    ! 1: SB, 2: KK (mean radius autoc), 3: KK (rc nc exponential autoc)
@@ -228,7 +228,7 @@ cat > NAMELIST <<EOF
    lscoag%switch = .TRUE.
    lscoag%delay = ${Tspinup}
    lscoag%mode = 2   ! 1: update kernels every timestep, 2: reduced update freq
-   cgintvl = 10.     ! for mode = 2, update interval in seconds
+   cgintvl = 5.     ! for mode = 2, update interval in seconds
 
    lscnd%switch = .TRUE.
 

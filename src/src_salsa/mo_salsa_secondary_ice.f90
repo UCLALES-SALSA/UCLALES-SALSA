@@ -31,13 +31,15 @@ MODULE mo_salsa_secondary_ice
       INTEGER :: ii,jj,bb
       REAL :: dN  ! Number of splintered rime
       REAL :: dm  ! Mass of splintered rime
-      INTEGER :: iwa, iri
+      INTEGER :: iwa, iri,ndry
       LOGICAL :: lt13umgt25um(kbdim,klev)
       INTEGER :: splbin  ! Target bin for splinters
+      REAL :: frac
       
       iwa = spec%getIndex("H2O")
       iri = spec%getIndex("rime")
-
+      ndry = spec%getNSpec(type="dry")
+      
       ! Convert freezing rates to changes over timestep
       mfrzn_hm = mfrzn_hm * ptstep
       nfrzn_hm = nfrzn_hm * ptstep
@@ -63,7 +65,7 @@ MODULE mo_salsa_secondary_ice
          DO jj = 1,klev
             DO ii = 1,kproma
 
-               IF ( nfrzn_hm(ii,jj,bb) > 0. .AND. lt13umgt25um(ii,jj) ) THEN
+               IF ( nfrzn_hm(ii,jj,bb) > 0. .AND. ice(ii,jj,bb)%volc(iri) > 0. .AND. lt13umgt25um(ii,jj) ) THEN
                   dN = 0.
                   ! Number of generated splinters. The maximum rate is at 268.16 K
                   IF ( ptemp(ii,jj) < tmax .AND. ptemp(ii,jj) >= tmid ) THEN                     
@@ -76,8 +78,11 @@ MODULE mo_salsa_secondary_ice
                   dm = spec%rhori*dN*pi6*Dsplint**3
 
                   IF (ice(ii,jj,bb)%volc(iri) < dm/spec%rhori) WRITE(*,*) "SECICE HM FAIL " 
-                  
+
+                  ! Add the splinters
                   ice(ii,jj,splbin)%numc = ice(ii,jj,splbin)%numc + dN
+
+                  ! Just move the rime mass...
                   ice(ii,jj,splbin)%volc(iwa) = ice(ii,jj,splbin)%volc(iwa) + dm/spec%rhoic
                   ice(ii,jj,bb)%volc(iri) = ice(ii,jj,bb)%volc(iri) - dm/spec%rhori
 
@@ -122,7 +127,8 @@ MODULE mo_salsa_secondary_ice
       REAL :: dVb(nice)      ! Volume of fragments distributed to ice bins
       INTEGER :: bb,bb1,ii,jj,iri,iwa, nimax, npmax
       REAL :: icediams(nice), icebw(nice)
-
+      REAL :: frac
+      
       iwa = spec%getIndex("H2O")
       iri = spec%getIndex("rime")
 
@@ -167,17 +173,18 @@ MODULE mo_salsa_secondary_ice
                dVb(1:npmax) = dNb(1:npmax) * pi6*icediams(1:npmax)**3        ! Distributed volume of fragments: should be approx. indetical
                dm = SUM(dVb(1:npmax)*spec%rhori)                    ! Total mass of fragments assumimng they consist of rime
 
-               ! Remove the fragment mass
+               ! Move the fragments
                ! Total mass in fragments shouldn't exceed rime mass in current bin (something wrong if it does)
                IF (ice(ii,jj,bb)%volc(iri) < dm/spec%rhori) WRITE(*,*) "SECICE DF FAIL " 
-               ice(ii,jj,bb)%volc(iri) = ice(ii,jj,bb)%volc(iri) - dm/spec%rhori
-               
+                                             
                ! Allocate the fragments to ice bins
                ice(ii,jj,1:npmax)%numc = ice(ii,jj,1:npmax)%numc + dNb(1:npmax)  ! Should we also reduce the number in the ice source bins?
-                                                                                 ! Probably this doesn't matter very much and we have NO information
-                                                                                 ! about how many drops specifically fragment in the first place.
-               ice(ii,jj,1:npmax)%volc(iri) = ice(ii,jj,1:npmax)%volc(iri) + &   ! Again, fragments assumed to consist of rime.
-                    dVb(1:npmax)  
+                                                                                 ! Probably this doesn't matter very much and we have NO INFORMATION
+                                                                                 ! about how many drops specifically fragment in the first place.         
+               ! Just move the rime mass
+               ice(ii,jj,1:npmax)%volc(iri) = ice(ii,jj,1:npmax)%volc(iri) + dVb(1:npmax)
+               ice(ii,jj,bb)%volc(iri) = ice(ii,jj,bb)%volc(iri) - SUM(dVb(1:npmax))
+
 
                ! for diagnostics
                ice(ii,jj,1:npmax)%SIP_drfr = ice(ii,jj,1:npmax)%SIP_drfr + dNb(1:npmax)
