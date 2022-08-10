@@ -507,6 +507,8 @@ CONTAINS
 
       USE mo_ice_shape, ONLY : iceShapeAlpha, iceShapeBeta,   &
                                iceShapeGamma, iceShapeSigma
+      USE mo_salsa_secondary_ice, ONLY : dlice_df, dlliq_df, dlice_hm, dlliq_hm
+
       
       IMPLICIT NONE
 
@@ -545,7 +547,11 @@ CONTAINS
          ice_imm,     &    ! .. for immersio freezing
          ice_dep,     &    ! .. for deposition freezing
          ice_halmos,  &    ! Secondary ice production by rime splintering; Hallet-Mossop
+         dlice_hm,    &    ! Min ice diameter for Hallet-Mossop
+         dlliq_hm,    &    ! Max liquid diameter for Hallet-Mossop
          ice_dropfrac, &   ! Secondary ice prduction by drop fracturing; Lawson et al 2015
+         dlice_df,     &   ! Max ice diameter for drop fracturing
+         dlliq_df,     &   ! Min liquid diameter for drop fracturing
          
          lsdistupdate,  & ! Switch for size dsitribution update
          lscheckarrays, & ! Switch for runnin the array check routine in mo_salsa
@@ -740,7 +746,7 @@ CONTAINS
      ALLOCATE(nfrzn_df(kbdim,klev,nice),mfrzn_df(kbdim,klev,nice))
 
      nfrzn_hm = 0.; mfrzn_hm = 0.
-     nfrzn_df = 0.; nfrzn_df = 0.
+     nfrzn_df = 0.; mfrzn_df = 0.
      
    END SUBROUTINE initialize_secondary_ice
    

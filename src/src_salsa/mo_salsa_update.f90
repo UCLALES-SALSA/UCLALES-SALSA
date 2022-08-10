@@ -275,8 +275,9 @@ CONTAINS
                      
                         !-- Number fraction to be moved to the smaller bin
                         znfrac = min(1.,(precp(ii,jj,kk)%vlolim-zVilo) / (zVihi-zVilo))
-                        IF (znfrac < 0.) STOP 'Error, numc precp 0'
-
+                        IF (znfrac < 0.) THEN
+                           WRITE(*,*) 'Error, numc precp 0', precp(ii,jj,kk)%vlolim,zVilo,zVihi
+                        END IF
                         !-- Index for the smaller bin
                         mm = kk - 1
 

@@ -15,22 +15,22 @@
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
 IsSeq=2 # 0 for mpi runs with CRAY, 1 for mpi runs with Puhti, 2 for sequential, 3 for mpi on laptop
 
-EXPNAME="UAE_siptest_all"  # Name of the experiment
-PROJECT="project_2003163"   # Project name, needed for resource allocation in PUHTI
+EXPNAME="OMAA2019AUG12_siplimits"  # Name of the experiment
+PROJECT="project_2006025"   # Project name, needed for resource allocation in PUHTI
 
-NPROCS=4          # Number of processors (for IsSeq==0)
+NPROCS=256          # Number of processors (for IsSeq==0)
 NNODES=7
 TWALL=48:00:00      # Required wallclock time for batch system
 
 NXP=5               # Number of points in X-direction (including "halo" points)
-NYP=40              # Number of points in Y-direction (including "halo" points)
-NZP=110              # Number of points in Z-direction
+NYP=30              # Number of points in Y-direction (including "halo" points)
+NZP=150              # Number of points in Z-direction
 DX=200.              # Resolution in X-direction (meters)
 DY=200.              # Resolution in Y-direction (meters)
-DZ=150.              # Resolution in Z-direction (meters)
+DZ=100.              # Resolution in Z-direction (meters)
 DT=1.               # (max) Timestep length (seconds)
 Tspinup=0.        # Length of the spinup period (seconds)
-Texp=20000.         # Length of the experiment (seconds)
+Texp=14400.         # Length of the experiment (seconds)
 LEVEL=5             # Thermodynamic level ( 1-3 for bulk microphysics, 4- for SALSA )
 
 # FOR SALSA
@@ -83,10 +83,10 @@ cat > NAMELIST <<EOF
   deltaz = ${DZ}              ! Grid spacing in the vertical
   nxpart = .TRUE.             ! 
   dzmax  = 3000.              ! Height above which start stretching vertical grid
-  dzrat  = 1.0                ! Factor for vertical grid stretching
+  dzrat  = 1.005                ! Factor for vertical grid stretching
   dtlong = ${DT}              ! Max. timestep
   distim = 100.               ! Timescale for the dissipation in sponge layer
-  nfpt = 20                   ! Number of Rayleigh friction points
+  nfpt = 10                   ! Number of Rayleigh friction points
   timmax = ${Texp}            ! Length of the simulation
   runtype = "INITIAL"         ! INITIAL or HISTORY (restart) run
   CCN = 100.e6                ! 
@@ -94,7 +94,7 @@ cat > NAMELIST <<EOF
   prndtl = -0.333333         !
   filprf = '${EXPNAME}'       ! Output filename profile
   hfilin = 'UAE_Cu_restart_6.014400s' ! History file name
-  frqhis = 36000.
+  frqhis = 3600.
   !mcflg = .FALSE.             ! Do mass conservation statistics
 
   sed_aero%switch = .FALSE.          ! Calculate sedimentation of aerosol particles
@@ -103,6 +103,7 @@ cat > NAMELIST <<EOF
   sed_precp%switch = .TRUE.          ! precipitation
   sed_precp%delay = ${Tspinup}  
   sed_ice%switch = .TRUE.            ! ice particles
+  sed_ice%delay = ${Tspinup}
   bulk_autoc%switch = .TRUE.
   bulk_autoc%delay = ${Tspinup}      ! Autoconversion switch for level = 1-3
   bulkScheme = 3                    ! 1: SB, 2: KK (mean radius autoc), 3: KK (rc nc exponential autoc)
@@ -118,12 +119,12 @@ cat > NAMELIST <<EOF
   cntlat = 20.0
 
   gaussian_flux_perturbation%switch = .TRUE.
-  gaussian_flux_perturbation%t_start = 600.
-  gaussian_flux_perturbation%t_end = 20000.
+  gaussian_flux_perturbation%t_start = 1800.
+  gaussian_flux_perturbation%t_end = 14400.
   gaussian_flux_perturbation%amp_lhf = 600.
   gaussian_flux_perturbation%amp_shf = 600.
   gaussian_flux_perturbation%center = 0.,0.
-  gaussian_flux_perturbation%sigma = 1200.
+  gaussian_flux_perturbation%sigma = 2000.
 
 /
 
@@ -133,10 +134,9 @@ cat > NAMELIST <<EOF
   breakUndefOutput = .FALSE.
   ps_intvl = 60.
   ts_intvl = 10.
-  main_intvl = 60.
-  varlist_main = 'rp','rc','temp','wq_sfc','wt_sfc','srp','rrate','Ni','Np','CDNC',
-                 'immThetaaba','immThetacba','immThetapba','Ncba','Npba','Niba',
-                 's_n_sipdrfr','sipdrfr','s_n_siprmspl','siprmspl'
+  main_intvl = 600.
+  varlist_main = 'rp','rc','srp','ri','riri','temp','wq_sfc','wt_sfc','rrate','Naa','Ni','Np','CDNC',
+                 'immThetaaba','immThetacba','immThetapba','s_n_sipdrfr','s_n_siprmspl'
   !varlist_ps = 'rflx','sflx','lwup','lwdn','swup','swdn'
   !varlist_ts = 'ic_CDNC'
   TH_rrate = 30.
@@ -177,7 +177,7 @@ cat > NAMELIST <<EOF
 
 &radiation
   radsounding = 'datafiles/dsrt.lay'  
-  sfc_albedo = 0.1
+  sfc_albedo = 0.3
   laerorad = .FALSE. 
   useMcICA = .TRUE.
 /
@@ -289,8 +289,13 @@ cat > NAMELIST <<EOF
    iceShapeSigma = 1.97          ! A = gamma * D**SIGMA
 
    ! Sub-process swithces: Secondary ice
-   ice_halmos = .TRUE.         ! Rime splintering; Hallet-Mossop
+   ice_halmos = .FALSE.         ! Rime splintering; Hallet-Mossop
+   dlice_hm = 50.e-6            ! Min diameter for ice in Hallet-Mossop
+   dlliq_hm = 500.e-6           ! Max diameter for liquid in Hallet-Mossop
+
    ice_dropfrac = .TRUE.
+   dlice_df = 1.e-3             ! Max diameter for ice in drop fracturing
+   dlliq_df = 80.e-6            ! Min diameter for liquid in drop fracturing
 
    ! Misc switches
    lscheckarrays = .FALSE.
@@ -317,7 +322,7 @@ cat > NAMELIST <<EOF
 
    isdtyp = ${ISDTYP}
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
-   volDistA = 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0
+   volDistA = 0.9, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)  
    sigmagA  = 1.28, 2.00, 2.0, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpgA     = 0.06, 0.28, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers

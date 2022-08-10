@@ -703,7 +703,7 @@ MODULE mo_salsa_coagulation_processes
     ! -----------------------------------------------------------------
 
     SUBROUTINE accumulateSink(kbdim,klev,nbtrgt,nbcoll,itrgt,istr,iend,zcc,coll,sink,trgtphase,multp)
-      USE mo_salsa_secondary_ice, ONLY : nfrzn_hm, nfrzn_df, dlimit
+      USE mo_salsa_secondary_ice, ONLY : nfrzn_hm, nfrzn_df, dlice_df, dlliq_df, dlice_hm, dlliq_hm
       ! 
       ! The "direct" method, i.e. "larger" particle category collects "smaller" category.
       ! Here, the target refers always to the collected "smaller" particle category.
@@ -838,14 +838,14 @@ MODULE mo_salsa_coagulation_processes
                DO ii = 1,kbdim
                   IF (trgtphase == 3) THEN
                      
-                     ! Drop fracturing: large drops (> 100 um) collected by small ice (< 100 um)
-                     IF ( coll(ii,jj,ll)%dwet < dlimit .AND. precp(ii,jj,itrgt)%dwet > dlimit ) THEN                  
+                     ! Drop fracturing: large drops collected by small ice
+                     IF ( coll(ii,jj,ll)%dwet < dlice_df .AND. precp(ii,jj,itrgt)%dwet > dlliq_df ) THEN                  
                         nfrzn_df(ii,jj,ll) = nfrzn_df(ii,jj,ll) +      &
                              zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc
                      END IF
                      
                      ! Hallet-Mossop with precp
-                     IF ( coll(ii,jj,ll)%dwet > dlimit .AND. precp(ii,jj,itrgt)%dwet < dlimit ) THEN
+                     IF ( coll(ii,jj,ll)%dwet > dlice_hm .AND. precp(ii,jj,itrgt)%dwet < dlliq_hm ) THEN
                         nfrzn_hm(ii,jj,ll) = nfrzn_hm(ii,jj,ll) +      &
                              zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc
                      END IF
@@ -853,7 +853,7 @@ MODULE mo_salsa_coagulation_processes
                   ELSE IF (trgtphase == 2) THEN
 
                      ! Hallet-Mossop with cloud droplets
-                     IF (coll(ii,jj,ll)%dwet > dlimit .AND. cloud(ii,jj,itrgt)%dwet < dlimit ) THEN
+                     IF (coll(ii,jj,ll)%dwet > dlice_hm .AND. cloud(ii,jj,itrgt)%dwet < dlliq_hm ) THEN
                         nfrzn_hm(ii,jj,ll) = nfrzn_hm(ii,jj,ll) +      &
                              zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc
                      END IF
@@ -1128,7 +1128,7 @@ MODULE mo_salsa_coagulation_processes
     !----------
     SUBROUTINE accumulateSourcePhaseChange(kbdim,klev,nbtrgt,nbcoll,nspec,iice,iwa,itrgt,istr,iend,  &
                                            rhotrgt,rhocoll,zcc,coll,source)
-      USE mo_salsa_secondary_ice, ONLY : mfrzn_df, mfrzn_hm, dlimit
+      USE mo_salsa_secondary_ice, ONLY : mfrzn_df, mfrzn_hm, dlice_df, dlliq_df, dlice_hm, dlliq_hm
       !
       ! The direct method, where the "larger" particle category collects the "smaller" category.
       ! The target refers always to the "larger", collector category.
@@ -1165,14 +1165,14 @@ MODULE mo_salsa_coagulation_processes
             DO jj = 1,klev
                DO ii = 1,kbdim
                   IF ( ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN   ! Precp
-                     ! Drop fracturing: large drops (> 100 um) collected by small ice (< 100 um)
-                     IF ( ice(ii,jj,itrgt)%dwet < dlimit .AND. coll(ii,jj,ll)%dwet > dlimit ) THEN
+                     ! Drop fracturing: large drops collected by small ice
+                     IF ( ice(ii,jj,itrgt)%dwet < dlice_df .AND. coll(ii,jj,ll)%dwet > dlliq_df ) THEN
                         mfrzn_df(ii,jj,itrgt) = mfrzn_df(ii,jj,itrgt) +     &
                              zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*ice(ii,jj,itrgt)%numc*rhocoll
                      END IF
 
                      ! Hallet-Mossop: small drops (< 100 um) collected by large ice (> 100 um)
-                     IF ( ice(ii,jj,itrgt)%dwet > dlimit .AND. coll(ii,jj,ll)%dwet < dlimit ) THEN
+                     IF ( ice(ii,jj,itrgt)%dwet > dlice_hm .AND. coll(ii,jj,ll)%dwet < dlliq_hm ) THEN
                         mfrzn_hm(ii,jj,itrgt) = mfrzn_hm(ii,jj,itrgt) +     &
                              zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*ice(ii,jj,itrgt)%numc*rhocoll
                      END IF

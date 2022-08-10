@@ -68,11 +68,11 @@ MODULE mo_ice_shape
       ELSE IF (Mtot >= Mgr .AND. Mtot < Mcr) THEN
          ! Graupel
          getDiameter = D_spherical(rho_b,Mtot)
-      ELSE IF (Mtot > Mcr) THEN
+      ELSE IF (Mtot >= Mcr) THEN
          ! Partially rimed crystals
          getDiameter = D_nonsphericalRimed(Fr,Mtot)
       ELSE
-         WRITE(*,*) 'ICE SHAPE VAARIN 2'
+         WRITE(*,*) 'ICE SHAPE VAARIN 2',mrim,mpri,mtot,numc,Mth,Mgr,Mcr
       END IF
       
     END FUNCTION getDiameter      
