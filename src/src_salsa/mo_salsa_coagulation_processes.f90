@@ -10,6 +10,7 @@ MODULE mo_salsa_coagulation_processes
                          lscgpc, lscgic, & 
                          lscgip, & 
                          lsauto, &
+                         lssecice, &
                          spec
   USE classSection, ONLY : Section
   IMPLICIT NONE
@@ -832,7 +833,7 @@ MODULE mo_salsa_coagulation_processes
       END IF
 
       ! Diagnostics for secondary ice parameterizations
-      IF (coll(1,1,1)%phase == 4) THEN
+      IF (coll(1,1,1)%phase == 4 .AND. lssecice%state) THEN
          DO ll = istr,iend
             DO jj = 1,klev
                DO ii = 1,kbdim
@@ -1161,6 +1162,7 @@ MODULE mo_salsa_coagulation_processes
       END DO
 
       ! Diagnostics for secondary ice production
+      IF (lssecice%state) THEN
          DO ll = istr,iend
             DO jj = 1,klev
                DO ii = 1,kbdim
@@ -1182,7 +1184,8 @@ MODULE mo_salsa_coagulation_processes
                END DO
             END DO
          END DO                  
-      
+      END IF
+         
     END SUBROUTINE accumulateSourcePhaseChange
 
     ! ------------------------------------------

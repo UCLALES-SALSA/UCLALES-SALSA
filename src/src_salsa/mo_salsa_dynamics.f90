@@ -192,6 +192,7 @@ CONTAINS
          IF (ice_dropfrac) &
               CALL dropfracturing(kbdim,kproma,klev,ptemp,ptstep)
          
+         
       END IF
          
       

@@ -166,7 +166,8 @@ MODULE mo_salsa_secondary_ice
          DO jj = 1,klev
             DO ii = 1,kproma
                
-               IF (ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR. nfrzn_df(ii,jj,bb) < 1.e-6) CYCLE ! Outside temperature range, see Keinert et al 2020
+               IF ( ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR.  &    ! Outside temperature range, see Keinert et al 2020
+                    nfrzn_df(ii,jj,bb) < 1.e-6 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-23) CYCLE ! no collection/empty bin
 
                ! POISTA
                !WRITE(*,*) 'DO I STILL GO HERE SIP DF?'
@@ -219,7 +220,7 @@ MODULE mo_salsa_secondary_ice
                
                ! Move the fragments
                ! Total mass in fragments shouldn't exceed the mass in source bin (something wrong if it does)
-               IF (ice(ii,jj,bb)%volc(iri) < dm/spec%rhori) WRITE(*,*) "SECICE DF FAIL 0" 
+               IF ( SUM(ice(ii,jj,bb)%volc(:)) < SUM(dVb(1:npmax)) ) WRITE(*,*) "SECICE DF FAIL 0" 
                                              
                ! Allocate the fragments to ice bins
                ! The allocation of the fragments will both add and remove particles from at least partially overlapping bins
