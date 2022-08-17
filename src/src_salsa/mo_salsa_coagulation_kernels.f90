@@ -10,7 +10,7 @@ MODULE mo_salsa_coagulation_kernels
                          lscgaa, lscgcc, lscgpp, lscgii,      & 
                          lscgca, lscgpa, lscgia,              & 
                          lscgpc, lscgic,                      & 
-                         lscgip 
+                         lscgip
   USE classSection, ONLY : Section
   USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
   IMPLICIT NONE
@@ -176,7 +176,7 @@ MODULE mo_salsa_coagulation_kernels
 
     REAL FUNCTION coagc(pp1,pp2,temp,pres,kernel)
 
-      USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd 
+      USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd
       USE mo_particle_external_properties, ONLY : terminal_vel
 
       IMPLICIT NONE
@@ -234,6 +234,7 @@ MODULE mo_salsa_coagulation_kernels
            schm(2), &   ! Schmidt nubmer
            reyn(2), &    ! Reynolds number
            stok             ! Stokes number
+
       INTEGER :: lrg,sml
 
       INTEGER :: ns ! number of species

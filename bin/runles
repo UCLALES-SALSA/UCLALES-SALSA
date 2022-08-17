@@ -15,7 +15,7 @@
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
 IsSeq=2 # 0 for mpi runs with CRAY, 1 for mpi runs with Puhti, 2 for sequential, 3 for mpi on laptop
 
-EXPNAME="OMAA2019AUG12_siplimits"  # Name of the experiment
+EXPNAME="OMAA2019AUG12_Eaggtest"  # Name of the experiment
 PROJECT="project_2006025"   # Project name, needed for resource allocation in PUHTI
 
 NPROCS=256          # Number of processors (for IsSeq==0)
@@ -259,6 +259,11 @@ cat > NAMELIST <<EOF
    lscgii = .TRUE.       ! Self-collection of ice
    lscgip = .TRUE.       ! Ice collection of rain drops
 
+   ! Ice-ice aggregation efficiency range: assumed to be inversely proportional
+   ! to rime fraction within this range
+   Eiagg_max = 0.3
+   Eiagg_min = 0.05
+   
    ! Sub-process switches: Condensation
    lscndgas    = .FALSE.  ! --Aerosol precursor gas codensation
    lscndh2oae  = .TRUE.  ! --Condensation of water on aerosols (if FALSE, equilibrium assumed)

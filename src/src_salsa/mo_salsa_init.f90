@@ -477,6 +477,9 @@ CONTAINS
                              lscgia,lscgic,lscgii,  &
                              lscgip,  & 
 
+                             Eiagg_max, Eiagg_min,  &
+
+                             
                              cgintvl,               &
                              
                              lscndgas,                    &
@@ -536,6 +539,9 @@ CONTAINS
          lscgii,      & ! Collision-coalescence between ice particles
          lscgip,      & ! Collection of precipitation by ice particles
 
+         Eiagg_max,   & ! Max aggregation efficiency for ice-ice collisions
+         Eiagg_min,   & ! Min aggregation efficiency for ice-ice collisions
+         
          cgintvl,     & ! Interval for low freq coagulation kernel update
          
          lscndgas,    & ! Condensation of precursor gases

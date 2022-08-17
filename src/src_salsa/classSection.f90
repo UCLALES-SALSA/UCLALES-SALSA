@@ -40,6 +40,7 @@ MODULE classSection
      CONTAINS
        PROCEDURE :: updateDiameter
        PROCEDURE :: updateRhomean
+       PROCEDURE :: getRimeFraction
   END TYPE Section
   INTERFACE Section
      PROCEDURE :: cnstr
@@ -187,4 +188,33 @@ MODULE classSection
 
     END SUBROUTINE updateRhomean
 
+    !
+    ! Function getRimeFraction
+    !
+    ! Returns the rime mass fraction for ice bins
+    !
+    FUNCTION getRimeFraction(SELF)
+      CLASS(Section), INTENT(in) :: SELF
+      REAL :: getRimeFraction
+      
+      
+      INTEGER :: iwa,irim
+      
+      iwa = spec%getIndex("H2O")
+      irim = spec%getIndex("rime")
+      getRimeFraction = 0.
+
+      IF (SELF%phase == 4 .AND. SELF%volc(iwa) > 1.e-23 .AND. &  ! Is ice bin and is not empty
+          SELF%volc(irim) > 1.e-23 .AND. SELF%numc > SELF%nlim) THEN
+         
+         getRimeFraction = SELF%volc(irim)*spec%rhori /   &
+              (SELF%volc(iwa)*spec%rhoic + SELF%volc(irim)*spec%rhori)
+         
+      END IF
+
+      IF (getRimeFraction < 0. .OR. getRimeFraction > 1. ) &
+           WRITE(*,*) 'CLASS SECTION RIMEFRAC ERROR: ', getRimeFraction
+      
+    END FUNCTION getRimeFraction
+    
 END MODULE classSection

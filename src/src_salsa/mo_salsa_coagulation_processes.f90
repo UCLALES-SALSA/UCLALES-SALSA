@@ -705,6 +705,7 @@ MODULE mo_salsa_coagulation_processes
 
     SUBROUTINE accumulateSink(kbdim,klev,nbtrgt,nbcoll,itrgt,istr,iend,zcc,coll,sink,trgtphase,multp)
       USE mo_salsa_secondary_ice, ONLY : nfrzn_hm, nfrzn_df, dlice_df, dlliq_df, dlice_hm, dlliq_hm
+      USE mo_submctl, ONLY : Eiagg_max, Eiagg_min
       ! 
       ! The "direct" method, i.e. "larger" particle category collects "smaller" category.
       ! Here, the target refers always to the collected "smaller" particle category.
@@ -723,6 +724,12 @@ MODULE mo_salsa_coagulation_processes
       REAL :: nrate(kbdim,klev), nrate80(kbdim,klev), nrate_au80(kbdim,klev),  & ! For diagnostics
               nrate50(kbdim,klev), nrate_au50(kbdim,klev)
       REAL :: dnum, D
+      REAL :: Eagg(kbdim,klev,nbcoll)   !! Aggregation efficiency, for now only used for ice-ice
+      REAL :: rimfr
+      INTEGER :: iri,iwa
+      
+      iwa = spec%getIndex('H2O')
+      iri = spec%getIndex('rime')
       
       nrate = 0.
       nrate50 = 0.
@@ -738,11 +745,29 @@ MODULE mo_salsa_coagulation_processes
          xx = 1.0
       END IF
 
+      ! If ice-ice collision, determine aggregation efficiency.
+      ! Min and max values given from namelist. Assume the actual
+      ! value to be inversely proportional to rime fraction in this
+      ! range.
+      Eagg = 1.
+      IF ( coll(1,1,1)%phase == 4 .AND. trgtphase == 4 ) THEN
+         DO ll = istr,iend
+            DO jj = 1,klev
+               DO ii = 1,kbdim
+                  rimfr = MAX( coll(ii,jj,ll)%getRimeFraction(),    &
+                               coll(ii,jj,itrgt)%getRimeFraction()  )
+                  Eagg(ii,jj,ll) = Eiagg_max - rimfr * (Eiagg_max - Eiagg_min)
+               END DO               
+            END DO
+         END DO
+      END IF
+
+      
       ! Collection sink term and rate diagnostics according to bin regime limits
       DO ll = istr,iend
          DO jj = 1,klev
             DO ii = 1,kbdim
-               dnum = xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
+               dnum = Eagg(ii,jj,ll)*xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
                sink(ii,jj) = sink(ii,jj) + dnum
                nrate(ii,jj) = nrate(ii,jj) + dnum
             END DO
@@ -761,7 +786,7 @@ MODULE mo_salsa_coagulation_processes
             DO ll = ix,iend
                DO jj = 1,klev
                   DO ii = 1,kbdim
-                     dnum = xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
+                     dnum = Eagg(ii,jj,ll)*xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
                      nrate80(ii,jj) = nrate80(ii,jj) + dnum
                   END DO
                END DO
@@ -779,7 +804,7 @@ MODULE mo_salsa_coagulation_processes
                   DO ii = 1,kbdim
                      ! The resulting drop should have D >= 80um
                      IF ( D**3 + coll(ii,jj,ll)%dwet**3 >= (80.e-6)**3 ) THEN
-                        dnum = xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
+                        dnum = Eagg(ii,jj,ll)*xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
                         nrate_au80(ii,jj) = nrate_au80(ii,jj) + dnum
                      END IF
                   END DO
@@ -801,7 +826,7 @@ MODULE mo_salsa_coagulation_processes
             DO ll = ix,iend
                DO jj = 1,klev
                   DO ii = 1,kbdim
-                     dnum = xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
+                     dnum = Eagg(ii,jj,ll)*xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
                      nrate50(ii,jj) = nrate50(ii,jj) + dnum
                   END DO
                END DO
@@ -821,7 +846,7 @@ MODULE mo_salsa_coagulation_processes
                   DO ii = 1,kbdim
                      ! The resulting drop should have D >= 50um
                      IF ( D**3 + coll(ii,jj,ll)%dwet**3 >= (50.e-6)**3 ) THEN
-                        dnum = xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
+                        dnum = Eagg(ii,jj,ll)*xx*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc
                         nrate_au50(ii,jj) = nrate_au50(ii,jj) + dnum
                      END IF
                   END DO
@@ -842,21 +867,27 @@ MODULE mo_salsa_coagulation_processes
                      ! Drop fracturing: large drops collected by small ice
                      IF ( coll(ii,jj,ll)%dwet < dlice_df .AND. precp(ii,jj,itrgt)%dwet > dlliq_df ) THEN                  
                         nfrzn_df(ii,jj,ll) = nfrzn_df(ii,jj,ll) +      &
-                             zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc
+                            Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc
                      END IF
                      
                      ! Hallet-Mossop with precp
                      IF ( coll(ii,jj,ll)%dwet > dlice_hm .AND. precp(ii,jj,itrgt)%dwet < dlliq_hm ) THEN
                         nfrzn_hm(ii,jj,ll) = nfrzn_hm(ii,jj,ll) +      &
-                             zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc
+                             Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc
                      END IF
                      
                   ELSE IF (trgtphase == 2) THEN
 
+                     ! Drop fracturing: large drops collected by small ice
+                     IF (coll(ii,jj,ll)%dwet < dlice_df .AND. cloud(ii,jj,itrgt)%dwet > dlliq_df ) THEN
+                        nfrzn_df(ii,jj,ll) = nfrzn_df(ii,jj,ll) +      &
+                             Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc
+                     END IF
+                     
                      ! Hallet-Mossop with cloud droplets
                      IF (coll(ii,jj,ll)%dwet > dlice_hm .AND. cloud(ii,jj,itrgt)%dwet < dlliq_hm ) THEN
                         nfrzn_hm(ii,jj,ll) = nfrzn_hm(ii,jj,ll) +      &
-                             zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc
+                             Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc
                      END IF
                      
                   END IF                  
@@ -1166,7 +1197,7 @@ MODULE mo_salsa_coagulation_processes
          DO ll = istr,iend
             DO jj = 1,klev
                DO ii = 1,kbdim
-                  IF ( ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN   ! Precp
+                  IF ( ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN  
                      ! Drop fracturing: large drops collected by small ice
                      IF ( ice(ii,jj,itrgt)%dwet < dlice_df .AND. coll(ii,jj,ll)%dwet > dlliq_df ) THEN
                         mfrzn_df(ii,jj,itrgt) = mfrzn_df(ii,jj,itrgt) +     &
@@ -1191,11 +1222,9 @@ MODULE mo_salsa_coagulation_processes
     ! ------------------------------------------
 
     SUBROUTINE accumulateSourceIce(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,zcc,coll,source)
+      USE mo_submctl, ONLY : Eiagg_max, Eiagg_min
       !
-      ! This subroutine is for collection between different sized ice bins. It's similar to accumulateSourceRime
-      ! in every other aspect, except the rime contribution has to be taken from its dedicated field. All the source
-      ! terms regardles of the ice type are scaled to bulk pristine ice density for an easy conversion to mass in
-      ! applyCoagIce, so that the mass weighted densities can be obtained correctly.
+      ! This subroutine is for collection between different sized ice bins.
       !
       INTEGER, INTENT(in) :: kbdim,klev
       INTEGER, INTENT(in) :: nbtrgt,nbcoll
@@ -1207,10 +1236,29 @@ MODULE mo_salsa_coagulation_processes
 
       INTEGER :: ll,ii,jj
 
+      REAL :: Eagg(kbdim,klev,nbcoll)
+      REAL :: rimfr
+      
+     ! If ice-ice collision, determine aggregation efficiency.
+      ! Min and max values given from namelist. Assume the actual
+      ! value to be inversely proportional to rime fraction in this
+      ! range.
+      Eagg = 1.
       DO ll = istr,iend
          DO jj = 1,klev
             DO ii = 1,kbdim
-               source(1:nspec,ii,jj) = source(1:nspec,ii,jj) + zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec)
+               rimfr = MAX( coll(ii,jj,ll)%getRimeFraction(),    &
+                    coll(ii,jj,itrgt)%getRimeFraction()  )
+               Eagg(ii,jj,ll) = Eiagg_max - rimfr * (Eiagg_max - Eiagg_min)
+            END DO
+         END DO
+      END DO
+      
+      DO ll = istr,iend
+         DO jj = 1,klev
+            DO ii = 1,kbdim
+               source(1:nspec,ii,jj) = source(1:nspec,ii,jj) +   &
+                    Eagg(ii,jj,ll)*zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec)
             END DO
          END DO
       END DO

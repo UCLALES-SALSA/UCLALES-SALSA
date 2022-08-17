@@ -52,6 +52,12 @@ MODULE mo_submctl
   
   LOGICAL :: lcgupdt = .FALSE.      ! Switch for updating kernels with lscoag%mode = 2; Note: This is determined
                                     ! during runtime -> NOT a NAMELIST parameter!
+
+  ! Aggregation efficiency range for ice. Assumed to be inversely proportional to rime fraction
+  ! within this range
+  REAL :: Eiagg_max = 0.3
+  REAL :: Eiagg_min = 0.05
+
   
   ! Condensation subprocesses
   LOGICAL :: lscndgas   = .FALSE. ! Condensation of precursor gases
