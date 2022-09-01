@@ -16,14 +16,12 @@ MODULE mo_vbs_init
   CONTAINS
 
 SUBROUTINE init_vbs(nvbs_setup, laqsoa)
-    USE mo_vbs, ONLY : vbs_species, spec_moleweight, spec_density, spec_kappa, &
-	               & rate_o3_o1d_ave, maxdayfac, zenith
+    USE mo_vbs, ONLY : vbs_species, spec_moleweight, spec_density, spec_kappa
     USE mo_vbsctl, ONLY : vbs_voc_set, vbs_set, aqsoa_set,  &
             vbs_nvocs, vbs_ngroup, aqsoa_ngroup
-    USE mo_submctl, ONLY : dens, mws, diss, nspec, zspec, &
+    USE mo_submctl, ONLY : dens, mws, diss, nspec, zspec, moc, dissoc, rhooc, &
             nvocs, nvbs, naqsoa, mws_gas, ngases, zgas, &
-            id_oh, id_no3, id_o3, conc_oh, conc_no3, conc_o3, & 
-			ox_prescribed, ngases_diag, model_lat, start_doy
+            id_oh, id_no3, id_o3, conc_oh, conc_no3, conc_o3, ox_prescribed, ngases_diag
     ! Inputs
     LOGICAL, INTENT(IN) :: laqsoa
     INTEGER, INTENT(IN) :: nvbs_setup
@@ -31,12 +29,13 @@ SUBROUTINE init_vbs(nvbs_setup, laqsoa)
     INTEGER :: i, j
     CHARACTER(LEN=3) :: tmp
     INTEGER :: subm_naerospec=0, subm_ngasspec=0
-    real :: u0, rate_o3_o1d
+    REAL :: kappaoc
 
     ! 1) VBS initialization
     ! *********************
     ! VBS setup: define VOC, VBS and aqSOA sets and their physical properties
-    CALL vbs_species(nvbs_setup, laqsoa)
+    kappaoc=dissoc*( mws(1)/dens(1) )/( moc/rhooc )
+    CALL vbs_species(nvbs_setup, laqsoa, rhooc, moc, kappaoc)
 
     ! Set indexes: SALSA/LES species always before VBS species
     subm_naerospec = nspec+1 ! Water and other aerosol species
@@ -150,22 +149,6 @@ SUBROUTINE init_vbs(nvbs_setup, laqsoa)
         zspec(j)=tmp
     ENDDO
 
-    j = 0
-    rate_o3_o1d_ave = 0.
-    maxdayfac = 0.
-    do i = 0, 23
-        u0=zenith(model_lat, start_doy+i/24.)
-        IF (u0>0.)then
-            rate_o3_o1d = 6.073e-5 * u0**1.743 * exp(-0.474 / u0)
-            if(rate_o3_o1d > maxdayfac) maxdayfac = rate_o3_o1d
-            rate_o3_o1d_ave = rate_o3_o1d_ave + rate_o3_o1d
-        endif
-        j = j + 1
-    enddo
-    rate_o3_o1d_ave = rate_o3_o1d_ave / j
-    maxdayfac = maxdayfac / rate_o3_o1d_ave
-	
-	
 END SUBROUTINE init_vbs
 
 END MODULE mo_vbs_init

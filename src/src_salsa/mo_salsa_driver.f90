@@ -54,7 +54,7 @@ IMPLICIT NONE
   ! Jaakko Ahola, FMI, 2016
   !
   SUBROUTINE run_SALSA(pnx, pny, pnz, n4, nbins, ncld, nprc, nice, nsnw, &
-                       press, tk, rv, rt, rs, rsi, pdn, &
+                       press, tk, rv, rt, rs, rsi, pdn, edr, &
                        pa_naerop,  pa_naerot,  pa_maerop,  pa_maerot,   &
                        pa_ncloudp, pa_ncloudt, pa_mcloudp, pa_mcloudt,  &
                        pa_nprecpp, pa_nprecpt, pa_mprecpp, pa_mprecpt,  &
@@ -63,9 +63,9 @@ IMPLICIT NONE
                        pa_gasp,  pa_gast, prunmode, tstep, time, level, &
                        sflg, nstat, slist, sdata)
 
-    USE mo_submctl, ONLY : fn2b, fnp2b, pi6, rhoic, rhosn, rhowa, dens, &
-                               rhlim, lscndgas, ngases, mws_gas, nlim, prlim, nspec, maxnspec, &
-                               ngases_diag, zgas_diag
+    USE mo_submctl, ONLY : fn2b, fnp2b, rhoic, rhosn, dens, &
+                               rhlim, lscndgas, ngases, mws_gas, nspec, maxnspec, &
+                               ngases_diag, zgas_diag, set_vbs_diag, eddy_dis_rt
     USE mo_salsa, ONLY : salsa
     USE mo_salsa_properties, ONLY : equilibration
     IMPLICIT NONE
@@ -81,6 +81,7 @@ IMPLICIT NONE
                                rsi(pnz,pnx,pny)                 ! Water vapour saturation mixing ratio over ice
 
     REAL, INTENT(in)    :: pdn(pnz,pnx,pny)             ! Air density (for normalizing concentrations)
+    REAL, INTENT(inout) :: edr(pnz,pnx,pny)             ! Eddy dissipation rate for coagulation
 
     REAL, INTENT(in)    :: pa_naerop(pnz,pnx,pny,nbins),        & ! Aerosol number concentration (# kg-1)
                                pa_maerop(pnz,pnx,pny,n4*nbins),     & ! Aerosol mass concentration (kg kg-1)
@@ -127,7 +128,7 @@ IMPLICIT NONE
        ice_old(1,1,fnp2b), snow_old(1,1,nsnw)
 
     INTEGER :: jj,ii,kk,ss,str,end,nc
-    REAL, DIMENSION(kbdim,klev) :: in_p, in_t, in_rv, in_rs, in_rsi
+    REAL, DIMENSION(kbdim,klev) :: in_p, in_t, in_rv, in_rs, in_rsi, in_edr
     REAL :: rv_old(kbdim,klev), rho
     REAL :: out_sdata(kbdim,klev,nstat)
 
@@ -150,6 +151,12 @@ IMPLICIT NONE
     ! Set the SALSA runtime config
     CALL set_salsa_runtime(prunmode,time)
 
+    ! VBS settings for diagnostic oxidants and aqSOA photodissociation
+    CALL set_vbs_diag(time)
+
+    ! If eddy_dis_rt<0, then use that from LES
+    IF (eddy_dis_rt >= 0.) edr(:,:,:) = eddy_dis_rt
+
     ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of kg/kg (multiplied by pdn/divided by substance density)
     DO jj = 3,pny-2
        DO ii = 3,pnx-2
@@ -160,6 +167,7 @@ IMPLICIT NONE
              in_t(1,1) = tk(kk,ii,jj)
              in_rs(1,1) = rs(kk,ii,jj)
              in_rsi(1,1) = rsi(kk,ii,jj)
+             in_edr(1,1) = edr(kk,ii,jj)
 
              ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
              IF (prunmode < 3) THEN
@@ -245,7 +253,7 @@ IMPLICIT NONE
              ! ***************************************!
              CALL salsa(kbdim,  klev,                          &
                         in_p,   in_rv,  in_rs,  in_rsi,        &
-                        in_t,   tstep,  time,                  &
+                        in_t,   in_edr, tstep,                 &
                         zgas,   ngases+ngases_diag,            &
                         aero,   cloud,  precp,                 &
                         ice,    snow,                          &

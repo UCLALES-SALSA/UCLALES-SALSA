@@ -17,7 +17,7 @@ CONTAINS
 
   SUBROUTINE salsa(kbdim,  klev,                        &
                    ppres,  prv,    prs,    prsi,        &
-                   ptemp,  ptstep, petime,              &
+                   ptemp,  pedr,   ptstep,              &
                    pc_gas, ngas,                        &
                    paero,  pcloud, pprecp, pice, psnow, &
                    level, sflg, nstat, sdata, slist)
@@ -49,8 +49,8 @@ CONTAINS
     REAL, INTENT(in) ::            &
          ppres(kbdim,klev),            & ! atmospheric pressure at each grid point [Pa]
          ptemp(kbdim,klev),            & ! temperature at each grid point [K]
-         ptstep,                       & ! time step [s]
-         petime                          ! elapsed time [s]
+         pedr(kbdim,klev),             & ! eddy dissipation rate
+         ptstep                          ! time step [s]
 
     !-- Input variables that are changed within --------------------------------------
     REAL, INTENT(inout) ::      &
@@ -82,7 +82,7 @@ CONTAINS
        IF (sflg) CALL salsa_var_stat('coag',0)
        CALL coagulation(kbdim,  klev,                           &
                         paero,  pcloud, pprecp, pice, psnow,    &
-                        ptstep, ptemp,  ppres                   )
+                        ptstep, ptemp,  ppres, pedr             )
        IF (sflg) CALL salsa_var_stat('coag',1)
     ENDIF
 
@@ -97,7 +97,7 @@ CONTAINS
         ! Gas phase chemistry (oxidation)
         IF (sflg) CALL salsa_var_stat('oxid',0)
         CALL vbs_gas_phase_chem(kbdim, klev, &
-            ptemp, ptstep, petime, pc_gas, ngas)
+            ptemp, ptstep, pc_gas, ngas)
         IF (sflg) CALL salsa_var_stat('oxid',1)
 
         ! Condensation
@@ -232,7 +232,7 @@ CONTAINS
 
       ! 2a) The actual subroutine for doing the work for t_section types
       SUBROUTINE salsa_rate_stat(i,tchar,nb,curr,ncall,rhowa)
-        USE mo_submctl, ONLY : nspec, dens
+        USE mo_submctl, ONLY : dens
         IMPLICIT NONE
         ! Inputs
         INTEGER, intent (in) :: i ! the i:th output

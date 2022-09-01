@@ -33,7 +33,7 @@ MODULE mo_vbsctl
 
      ! define what fraction goes where
      ! (vector length depends on size of basis set)
-     REAL, ALLOCATABLE :: stoich_coeff(:) !Stoichiometric Coefficients
+     REAL, ALLOCATABLE :: stoich_coeff_oh(:), stoich_coeff_o3(:), stoich_coeff_no3(:) !Stoichiometric Coefficients
   END TYPE t_voc_prec
 
   ! Collection of the volatility base parameters

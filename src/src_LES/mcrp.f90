@@ -594,7 +594,7 @@ contains
                          nsnowp, nsnowt, msnowp, msnowt,   &
                          ustar, arate, crate, rrate, irate, srate, tlt )
 
-    USE mo_submctl, ONLY : nlim,prlim,rhowa,rhoic,rhosn
+    USE mo_submctl, ONLY : nlim,prlim
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,n4
@@ -669,7 +669,7 @@ contains
     ! Sedimentation for slow (non-precipitating) particles
     !-------------------------------------------------------
     IF (sed_aero) THEN
-       CALL DepositionAny(n1,n2,n3,n4,nbins,tk,a_dn,1500.,ustar,naerop,maerop,dzt,tstep,nlim,andiv,amdiv,andep,amdep,1)
+       CALL DepositionAny(n1,n2,n3,n4,nbins,tk,a_dn,ustar,naerop,maerop,dzt,tstep,nlim,andiv,amdiv,andep,amdep,1)
        remaer(:,:,:) = amdep(2,:,:,:)
 
        istr = 1
@@ -690,7 +690,7 @@ contains
     END IF ! sed_aero
 
     IF (sed_cloud) THEN
-       CALL DepositionAny(n1,n2,n3,n4,ncld,tk,a_dn,rhowa,ustar,ncloudp,mcloudp,dzt,tstep,nlim,cndiv,cmdiv,cndep,cmdep,2)
+       CALL DepositionAny(n1,n2,n3,n4,ncld,tk,a_dn,ustar,ncloudp,mcloudp,dzt,tstep,nlim,cndiv,cmdiv,cndep,cmdep,2)
        remcld(:,:,:) = cmdep(2,:,:,:)
 
        istr = 1
@@ -711,7 +711,7 @@ contains
     END IF ! sed_cloud
 
     IF (sed_ice) THEN
-       CALL DepositionAny(n1,n2,n3,n4,nice,tk,a_dn,rhoic,ustar,nicep,micep,dzt,tstep,prlim,indiv,imdiv,indep,imdep,4)
+       CALL DepositionAny(n1,n2,n3,n4,nice,tk,a_dn,ustar,nicep,micep,dzt,tstep,prlim,indiv,imdiv,indep,imdep,4)
        remice(:,:,:) = imdep(2,:,:,:)
 
        istr = 1
@@ -732,7 +732,7 @@ contains
     END IF ! sed_ice
 
     IF (sed_precp) THEN
-       CALL DepositionAny(n1,n2,n3,n4,nprc,tk,a_dn,rhowa,ustar,nprecpp,mprecpp,dzt,tstep,prlim,rndiv,rmdiv,rndep,rmdep,3)
+       CALL DepositionAny(n1,n2,n3,n4,nprc,tk,a_dn,ustar,nprecpp,mprecpp,dzt,tstep,prlim,rndiv,rmdiv,rndep,rmdep,3)
        remprc(:,:,:) = rmdep(2,:,:,:)
 
        istr = 1
@@ -753,7 +753,7 @@ contains
     END IF
 
     IF (sed_snow) THEN
-       CALL DepositionAny(n1,n2,n3,n4,nsnw,tk,a_dn,rhosn,ustar,nsnowp,msnowp,dzt,tstep,prlim,sndiv,smdiv,sndep,smdep,5)
+       CALL DepositionAny(n1,n2,n3,n4,nsnw,tk,a_dn,ustar,nsnowp,msnowp,dzt,tstep,prlim,sndiv,smdiv,sndep,smdep,5)
        remsnw(:,:,:) = smdep(2,:,:,:)
 
        istr = 1
@@ -782,14 +782,13 @@ contains
 
   ! -----------------------------------------------------------------
 
-  SUBROUTINE DepositionAny(n1,n2,n3,n4,nn,tk,adn,pdn,ustar,numc,mass,dzt,dt,clim,flxdivn,flxdivm,depflxn,depflxm,flag)
+  SUBROUTINE DepositionAny(n1,n2,n3,n4,nn,tk,adn,ustar,numc,mass,dzt,dt,clim,flxdivn,flxdivm,depflxn,depflxm,flag)
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3,n4       ! Grid numbers, number of chemical species
     INTEGER, INTENT(in) :: nn                ! Number of bins
     REAL, INTENT(in) :: tk(n1,n2,n3)         ! Absolute temprature
     REAL, INTENT(in) :: adn(n1,n2,n3)        ! Air density
-    REAL, INTENT(in) :: pdn                  ! Particle density
     REAL, INTENT(in) :: ustar(n2,n3)         ! Friction velocity
     REAL, INTENT(in) :: numc(n1,n2,n3,nn)    ! Particle number concentration
     REAL, INTENT(in) :: mass(n1,n2,n3,nn*n4) ! Particle mass mixing ratio
@@ -817,7 +816,7 @@ contains
     REAL :: mdiff                ! Particle diffusivity
     REAL :: rt, Sc, St
 
-    REAL :: pmass(n4), rwet, fd, frac
+    REAL :: pmass(n4), rwet, fd, frac, pdn
     flxdivm = 0.
     flxdivn = 0.
     depflxm = 0.
@@ -843,6 +842,9 @@ contains
                 !   bin = size bin
                 pmass(:)=mass(k,i,j,bin:(n4-1)*nn+bin:nn)/numc(k,i,j,bin)
                 rwet=calc_eff_radius(n4,pmass,flag)
+
+                ! Calculate effective density
+                pdn = sum(pmass(:))/(4./3.*pi*rwet**3.)
 
                 ! Terminal velocity
                 Kn = lambda/rwet

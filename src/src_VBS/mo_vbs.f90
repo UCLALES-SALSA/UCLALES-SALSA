@@ -22,14 +22,11 @@ MODULE mo_vbs
   REAL, PUBLIC, SAVE :: spec_moleweight(100), spec_density(100), spec_kappa(100)
 
   ! Initialize species
-  PUBLIC :: vbs_species, zenith
-  
-  REAL, PUBLIC, SAVE :: rate_o3_o1d_ave, maxdayfac  
-  
+  PUBLIC :: vbs_species
 
 CONTAINS
 
-  SUBROUTINE vbs_species(nvbs_setup,laqsoa)
+  SUBROUTINE vbs_species(nvbs_setup,laqsoa,densoc,mwoc,kappaoc)
 
      USE mo_vbsctl, ONLY: &
        t_voc_prec,         &
@@ -54,6 +51,7 @@ CONTAINS
 
     INTEGER, INTENT(IN) :: nvbs_setup
     LOGICAL, INTENT(IN) :: laqsoa
+    REAL, INTENT(IN) :: densoc, mwoc, kappaoc
 
     REAL, PARAMETER :: argas = 8.314472 ! [J/K/mol] molar/universal/ideal gas constant
 
@@ -87,11 +85,12 @@ CONTAINS
        ! allocating memory for the precursor properties:
        IF (.NOT. ALLOCATED(vbs_voc_set)) THEN
           ALLOCATE(vbs_voc_set(vbs_nvocs))!
-
           DO jv=1,vbs_nvocs
              ! allocating memory for the stoichiometric coefficients
-             IF (.NOT. ALLOCATED(vbs_voc_set(jv)%stoich_coeff)) THEN
-                ALLOCATE(vbs_voc_set(jv)%stoich_coeff(vbs_ngroup+aqsoa_ngroup))
+             IF (.NOT. ALLOCATED(vbs_voc_set(jv)%stoich_coeff_oh)) THEN
+                ALLOCATE(vbs_voc_set(jv)%stoich_coeff_oh(vbs_ngroup+aqsoa_ngroup), &
+                         vbs_voc_set(jv)%stoich_coeff_o3(vbs_ngroup+aqsoa_ngroup), &
+                         vbs_voc_set(jv)%stoich_coeff_no3(vbs_ngroup+aqsoa_ngroup))
              END IF
           END DO
        END IF
@@ -123,11 +122,15 @@ CONTAINS
        IF (laqsoa) THEN
           ! from Harri (hi NOx)
           !                            (  OC   ,  VBS1   ,  VBS10  , IEPOX , Glyx)
-          vbs_voc_set(1)%stoich_coeff=(/0.1, 0.037, 0.088, 0.0, 0.0/)
+          vbs_voc_set(1)%stoich_coeff_oh=(/0.1, 0.037, 0.088, 0.0, 0.0/)
+          vbs_voc_set(1)%stoich_coeff_o3=(/0.1, 0.037, 0.088, 0.0, 0.0/)
+          vbs_voc_set(1)%stoich_coeff_no3=(/0.1, 0.037, 0.088, 0.0, 0.0/)
        ELSE
           !                            (  OC      ,  VBS1   , VBS10    )
-          vbs_voc_set(1)%stoich_coeff=(/0.1, 0.037, 0.088/) ! from Harri (hi NOx)
-          !vbs_voc_set(1)%stoich_coeff=(/0.002, 0.003, 0.065/) ! from Harri (low NOx)
+          vbs_voc_set(1)%stoich_coeff_oh=(/0.1, 0.037, 0.088/) ! from Harri (hi NOx)
+          !vbs_voc_set(1)%stoich_coeff_oh=(/0.002, 0.003, 0.065/) ! from Harri (low NOx)
+          vbs_voc_set(1)%stoich_coeff_o3=(/0.1, 0.037, 0.088/)
+          vbs_voc_set(1)%stoich_coeff_no3=(/0.1, 0.037, 0.088/)
        ENDIF
 
        ! Isoprene (C5H8)
@@ -149,10 +152,14 @@ CONTAINS
        ! Stoichiometric Coefficients
        IF (laqsoa) THEN
           !                            (  OC   ,  VBS1    ,   VBS10  ,   IEPOX , Glyx)
-          vbs_voc_set(2)%stoich_coeff=(/0.0, 0.0295, 0.0453, 0.525, 0.04/)
+          vbs_voc_set(2)%stoich_coeff_oh=(/0.0, 0.0295, 0.0453, 0.525, 0.025/)
+          vbs_voc_set(2)%stoich_coeff_o3=(/0.0, 0.0295, 0.0453, 0.0, 0.0/)
+          vbs_voc_set(2)%stoich_coeff_no3=(/0.0, 0.0295, 0.0453, 0.0, 0.0/)
        ELSE
           !                            (  OC   ,  VBS1    , VBS10     )
-          vbs_voc_set(2)%stoich_coeff=(/0.0, 0.0295, 0.0453/)
+          vbs_voc_set(2)%stoich_coeff_oh=(/0.0, 0.0295, 0.0453/)
+          vbs_voc_set(2)%stoich_coeff_o3=(/0.0, 0.0295, 0.0453/)
+          vbs_voc_set(2)%stoich_coeff_no3=(/0.0, 0.0295, 0.0453/)
        ENDIF
 
        ! Toluene (TOL)
@@ -174,10 +181,14 @@ CONTAINS
        ! Stoichiometric Coefficients
        IF (laqsoa) THEN
           !                            (  OC    ,  VBS1 , VBS10 , IEPOX , Glyx    )
-          vbs_voc_set(3)%stoich_coeff=(/0.36, 0.0, 0.0, 0.0, 0.24/) ! to be reviewed
+          vbs_voc_set(3)%stoich_coeff_oh=(/0.36, 0.0, 0.0, 0.0, 0.24/) ! to be reviewed
+          vbs_voc_set(3)%stoich_coeff_o3=(/0.36, 0.0, 0.0, 0.0, 0.0/)
+          vbs_voc_set(3)%stoich_coeff_no3=(/0.36, 0.0, 0.0, 0.0, 0.0/)
        ELSE
           !                            (  OC    ,  VBS1 ,   VBS10)
-          vbs_voc_set(3)%stoich_coeff=(/0.36, 0.0, 0.0/) ! to be reviewed
+          vbs_voc_set(3)%stoich_coeff_oh=(/0.36, 0.0, 0.0/) ! to be reviewed
+          vbs_voc_set(3)%stoich_coeff_o3=(/0.36, 0.0, 0.0/)
+          vbs_voc_set(3)%stoich_coeff_no3=(/0.36, 0.0, 0.0/)
        ENDIF
 
        ! Xylene (XYL)
@@ -199,10 +210,14 @@ CONTAINS
        ! Stoichiometric Coefficients
        IF (laqsoa) THEN
           !                            (  OC    ,  VBS1 , VBS10 ,  IEPOX,  Glyx   )
-          vbs_voc_set(4)%stoich_coeff=(/0.30, 0.0, 0.0, 0.0, 0.25/) ! to be reviewed
+          vbs_voc_set(4)%stoich_coeff_oh=(/0.30, 0.0, 0.0, 0.0, 0.25/) ! to be reviewed
+          vbs_voc_set(4)%stoich_coeff_o3=(/0.30, 0.0, 0.0, 0.0, 0.0/)
+          vbs_voc_set(4)%stoich_coeff_no3=(/0.30, 0.0, 0.0, 0.0, 0.0/)
        ELSE
           !                            (  OC    ,  VBS1 , VBS10  )
-          vbs_voc_set(4)%stoich_coeff=(/0.30, 0.0, 0.0/) ! to be reviewed
+          vbs_voc_set(4)%stoich_coeff_oh=(/0.30, 0.0, 0.0/) ! to be reviewed
+          vbs_voc_set(4)%stoich_coeff_o3=(/0.30, 0.0, 0.0/)
+          vbs_voc_set(4)%stoich_coeff_no3=(/0.30, 0.0, 0.0/)
        ENDIF
 
        ! Benzene (BENZ)
@@ -224,10 +239,14 @@ CONTAINS
        ! Stoichiometric Coefficients
        IF (laqsoa) THEN
           !                            (  OC    ,  VBS1 , VBS10 , IEPOX ,  Glyx   )
-          vbs_voc_set(5)%stoich_coeff=(/0.37, 0.0, 0.0, 0.0, 0.35/) ! to be reviewed
+          vbs_voc_set(5)%stoich_coeff_oh=(/0.37, 0.0, 0.0, 0.0, 0.35/) ! to be reviewed
+          vbs_voc_set(5)%stoich_coeff_o3=(/0.37, 0.0, 0.0, 0.0, 0.0/)
+          vbs_voc_set(5)%stoich_coeff_no3=(/0.37, 0.0, 0.0, 0.0, 0.0/)
        ELSE
           !                            (  OC    ,  VBS1 , VBS10  )
-          vbs_voc_set(5)%stoich_coeff=(/0.37, 0.0, 0.0/) ! to be reviewed
+          vbs_voc_set(5)%stoich_coeff_oh=(/0.37, 0.0, 0.0/) ! to be reviewed
+          vbs_voc_set(5)%stoich_coeff_o3=(/0.37, 0.0, 0.0/)
+          vbs_voc_set(5)%stoich_coeff_no3=(/0.37, 0.0, 0.0/)
        ENDIF
 
        ! Volatility Basis set C*=0 ug/m3
@@ -272,9 +291,95 @@ CONTAINS
        vbs_set(3)%T0          = 298.               ! T0 [K]
        vbs_set(3)%Hvap_eff    = 30e3/argas        ! eff. evap. enthalpy [K]
 
+    CASE(2) ! VBS-only schemes
+       ! predetermined volatility bins
+       ! physical properties (density, mw, kappa) taken from SALSA organics
+
+       ! VBS scheme
+       vbs_ngroup = 5 ! Four semivolatile bins and one non-volatile bin
+       vbs_nvocs = 0  ! No VOCs or aqSOA
+
+       ! Defining VBS species
+       IF (.NOT. ALLOCATED(vbs_set)) ALLOCATE(vbs_set(vbs_ngroup))
+       ! equ. vapor conc. at T0 (ug=1e-9 kg converted to mol)
+       vbs_set(:)%C0 = (/0.0,1e-5,1e-3,1e-1,1e1/)*1e-9/mwoc ! C0 [mol/m3]
+       vbs_set(:)%T0 = 298. ! T0 [K]
+       vbs_set(:)%Hvap_eff = 30e3/argas ! eff. evap. enthalpy [K]
+       DO jv=1, vbs_ngroup
+            ! Physical properties from SALSA (mw from kg/mol to g/mol)
+            CALL new_species(mw=mwoc*1e3, density=densoc, kappa=kappaoc, idx=vbs_set(jv)%spid)
+       ENDDO
+
+    CASE(3) ! VBS scheme with VOCs
+       ! volatility bins based on VOC oxidation (the scheme from Farina et al., JGR, 2010)
+       ! physical properties (density, mw, kappa) taken from SALSA organics
+
+       ! VBS scheme
+       vbs_ngroup = 5 ! One non-volatile bin and four semivolatile bins from Farina et al. (2010)
+       vbs_nvocs = 2  ! Two VOCs (ALPH and ISOP), and aqSOA is possible
+
+       ! Defining the VOC species
+       IF (.NOT. ALLOCATED(vbs_voc_set)) THEN
+            ALLOCATE(vbs_voc_set(vbs_nvocs))
+            DO jv=1,vbs_nvocs
+                ALLOCATE(vbs_voc_set(jv)%stoich_coeff_oh(vbs_ngroup+aqsoa_ngroup), &
+                         vbs_voc_set(jv)%stoich_coeff_o3(vbs_ngroup+aqsoa_ngroup), &
+                         vbs_voc_set(jv)%stoich_coeff_no3(vbs_ngroup+aqsoa_ngroup))
+                vbs_voc_set(jv)%stoich_coeff_oh(:)=0.
+                vbs_voc_set(jv)%stoich_coeff_o3(:)=0.
+                vbs_voc_set(jv)%stoich_coeff_no3(:)=0.
+            END DO
+       END IF
+       ! ALPH (MTP)
+       ! Properties from Mielonen et al. (Atmosphere, 2018)
+       CALL new_species(mw=136., idx=vbs_voc_set(1)%spid)
+       vbs_voc_set(1)%k_0_OH     = 1.2E-11
+       vbs_voc_set(1)%Eact_p_OH  = 440.
+       vbs_voc_set(1)%k_0_O3     = 6.3E-16
+       vbs_voc_set(1)%Eact_p_O3  = -580.
+       vbs_voc_set(1)%k_0_NO3    = 1.2E-12
+       vbs_voc_set(1)%Eact_p_NO3 = 490.
+       ! Stoichiometric coefficients (Farina et al., Table 3):
+       vbs_voc_set(1)%stoich_coeff_oh(2:vbs_ngroup)  = (/0.07,0.06,0.24,0.41/) ! VOC + OH/O3 in low NOx
+       vbs_voc_set(1)%stoich_coeff_o3(2:vbs_ngroup)  = (/0.07,0.06,0.24,0.41/) ! VOC + OH/O3 in low NOx
+       vbs_voc_set(1)%stoich_coeff_no3(2:vbs_ngroup) = (/0.07,0.06,0.24,0.41/) ! VOC + NO3
+       ! ISOP (Isoprene)
+       CALL new_species(mw=68., idx=vbs_voc_set(2)%spid)
+       vbs_voc_set(2)%k_0_OH     = 2.7E-11
+       vbs_voc_set(2)%Eact_p_OH  = 390.
+       vbs_voc_set(2)%k_0_O3     = 1.03E-14
+       vbs_voc_set(2)%Eact_p_O3  = -1995.
+       vbs_voc_set(2)%k_0_NO3    = 3.15E-12
+       vbs_voc_set(2)%Eact_p_NO3 = -450.
+       ! Stoichiometric coefficients (Farina et al., Table 3):
+       vbs_voc_set(2)%stoich_coeff_oh(2:vbs_ngroup)  = (/0.02,0.02,0.0,0.0/)  ! VOC + OH/O3 in low NOx
+       vbs_voc_set(2)%stoich_coeff_o3(2:vbs_ngroup)  = (/0.02,0.02,0.0,0.0/)  ! VOC + OH/O3 in low NOx
+       vbs_voc_set(2)%stoich_coeff_no3(2:vbs_ngroup) = (/0.01,0.02,0.01,0.0/) ! Isoprene + NO3
+
+       ! aqSOA from VOCs (IEPOX and GLYX)
+       IF (laqsoa) THEN
+            ! Isoprene OH and O3 oxidation:
+            !   ISOP+OH (->0.7 ISOPOO->0.75 IEPOX) => 0.525 IEPOX + ... (Bates et al., 2014; k=2.7E-11*exp(390/T))
+            !   ISOP+OH => 0.025 GLYX (Jenkin et al., 2015)
+            vbs_voc_set(2)%stoich_coeff_oh(vbs_ngroup+1:vbs_ngroup+2)=(/0.525, 0.025/)
+            !   ISOP+O3 => 0.01 GLYX + ... (McNeill et al., 2012; k=1.23e-14*exp(-2013/T))
+            vbs_voc_set(2)%stoich_coeff_o3(vbs_ngroup+1:vbs_ngroup+2)=(/0.0, 0.01/)
+            ! Other (hard coded): IEPOX+OH => 0.24 GLYX + ... (Jacobs et al, 2013; see below)
+       ENDIF
+
+       ! Defining VBS species
+       IF (.NOT. ALLOCATED(vbs_set)) ALLOCATE(vbs_set(vbs_ngroup))
+       ! equ. vapor conc. at T0 (ug=1e-9 kg converted to mol)
+       vbs_set(:)%C0 = (/0.0,1.0,10.,100.,1000./)*1e-9/mwoc ! C0 [mol/m3]
+       vbs_set(:)%T0 = 298. ! T0 [K]
+       vbs_set(:)%Hvap_eff = 30e3/argas ! eff. evap. enthalpy [K]
+       DO jv=1, vbs_ngroup
+            ! Physical properties from SALSA (mw from kg/mol to g/mol)
+            CALL new_species(mw=mwoc*1e3, density=densoc, kappa=kappaoc, idx=vbs_set(jv)%spid)
+       ENDDO
 
     CASE DEFAULT
-       WRITE (6,'(a,i0)') &
+       WRITE (*,'(a,i0)') &
             'ERROR: No scheme is implemented for nvbs_setup =',&
             nvbs_setup
 
@@ -304,8 +409,8 @@ CONTAINS
        aqsoa_set(1)%Eff_henry_cloud   = 1.0E5        ! Effective Henry's constant for cloud droplets
        aqsoa_set(1)%Eff_henry_aerosol = 1.0E8        ! Effective Henry's constant for aerosols
        !OH
-       !aqsoa_set(1)%k_0_OH     = 1.25E-11 !pre-factor [m3/(mol*s)] ((Bates et al.. Average between cis and trans isomers)
-       aqsoa_set(1)%k_0_OH     = 3.56E-11 !pre-factor [m3/(mol*s)] ((Jacobs et al.. average between IEPOX1 and IEPOX4)
+       aqsoa_set(1)%k_0_OH     = 1.25E-11 !pre-factor [m3/(mol*s)] ((Bates et al.. Average between cis and trans isomers)
+       !aqsoa_set(1)%k_0_OH     = 3.56E-11 !pre-factor [m3/(mol*s)] ((Jacobs et al.. average between IEPOX1 and IEPOX4)
        aqsoa_set(1)%Eact_p_OH  = 0.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
        !O3
        aqsoa_set(1)%k_0_O3     = 0.0 !pre-factor [m3/(mol*s)]
@@ -330,14 +435,16 @@ CONTAINS
        aqsoa_set(2)%Eff_henry_cloud   = 4.19E5  ! Effective Henry's constant for cloud droplets
        aqsoa_set(2)%Eff_henry_aerosol = 3.0E8  ! Effective Henry's constant for aerosols (Kampf et al. 2013)
        !OH
-       aqsoa_set(2)%k_0_OH     = 0.0 !pre-factor [m3/(mol*s)]
-       aqsoa_set(2)%Eact_p_OH  = 0.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
+       aqsoa_set(2)%k_0_OH     = 3.1e-12 !pre-factor [m3/(mol*s)] (IUPAC)
+       aqsoa_set(2)%Eact_p_OH  = 340.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
        !O3
        aqsoa_set(2)%k_0_O3     = 0.0 !pre-factor [m3/(mol*s)]
        aqsoa_set(2)%Eact_p_O3  = 0.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
        !NO3
-       aqsoa_set(2)%k_0_NO3    = 6.E-13 !pre-factor [m3/(mol*s)]
-       aqsoa_set(2)%Eact_p_NO3 = -1900.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
+       !aqsoa_set(2)%k_0_NO3    = 6.E-13 !pre-factor [m3/(mol*s)] (McNeill et al., 2012)
+       !aqsoa_set(2)%Eact_p_NO3 = -2058.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
+       aqsoa_set(2)%k_0_NO3    = 4.E-16 !pre-factor [m3/(mol*s)] (IUPAC)
+       aqsoa_set(2)%Eact_p_NO3 = 0.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
        !Photodissociation
        aqsoa_set(2)%photodis   = 3.141593/2.*8.21E-5 !desctruction rate [% s-1] with sunlight
 
@@ -376,27 +483,5 @@ CONTAINS
 
   END SUBROUTINE new_species
 
- ! From LES/rad_driver.f90
-  ! ---------------------------------------------------------------------------
-  ! Return the cosine of the solar zenith angle give the decimal day and
-  ! the latitude
-  !
-  real function zenith(alat,time)
-
-    real, intent (in)  :: alat, time
-
-    real, parameter :: pi     = 3.14159265358979323846264338327
-    real :: lamda, d, sig, del, h, day
-
-    day    = floor(time)
-    lamda  = alat*pi/180.
-    d      = 2.*pi*int(time)/365.
-    sig    = d + pi/180.*(279.9340 + 1.914827*sin(d) - 0.7952*cos(d) &
-         &                      + 0.019938*sin(2.*d) - 0.00162*cos(2.*d))
-    del    = asin(sin(23.4439*pi/180.)*sin(sig))
-    h      = 2.*pi*((time-day)-0.5)
-    zenith = sin(lamda)*sin(del) + cos(lamda)*cos(del)*cos(h)
-
-  end function zenith
 
 END MODULE mo_vbs

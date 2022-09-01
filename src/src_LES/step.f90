@@ -134,7 +134,7 @@ contains
                      a_gaerop, a_gaerot,                                                &
                      nspec, nbins, ncld, nprc, nice, nsnw, &
                      nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
-                     ifSeaSpray, ifSeaVOC, sea_tspinup
+                     ifSeaSpray, ifSeaVOC, sea_tspinup, a_edr
 
     use stat, only : sflg, statistics, les_rate_stats, out_mcrp_data, out_mcrp_list, out_mcrp_nout, mcrp_var_save
     use sgsm, only : diffuse
@@ -205,7 +205,7 @@ contains
           CALL tend0(.TRUE.)
 
           CALL run_SALSA(nxp,nyp,nzp,n4,nbins,ncld,nprc,nice,nsnw, &
-                  a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,  &
+                  a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,a_edr, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -700,7 +700,7 @@ contains
   subroutine update_sclrs
 
     use grid, only : a_sp, a_st, a_qp, nscl, nxyzp, nxp, nyp, nzp, dzt, &
-         dtl, newsclr, isgstyp
+         dtl, newsclr, isgstyp, ngases
     use sgsm, only : tkeinit
     use util, only : sclrset
 
@@ -709,7 +709,7 @@ contains
     do n=1,nscl
        call newsclr(n)
        call update(nzp,nxp,nyp,a_sp,a_st,dtl)
-       call sclrset('mixd',nzp,nxp,nyp,a_sp,dzt)
+       call sclrset('cnst',nzp,nxp,nyp,a_sp,dzt)
     end do
 
     if (isgstyp == 2) then

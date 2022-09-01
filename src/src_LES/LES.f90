@@ -90,7 +90,7 @@ contains
     use util, only : fftinix,fftiniy
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon, &
-                    wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param
+                    wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param, ifVOCflx
     use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, frqrst, &
          strtim, radfrq, cntlat
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
@@ -139,7 +139,7 @@ contains
          ifSeaSpray, ifSeaVOC,      & ! marine emissions
          sea_tspinup,               & ! spinup time for marine emissions
          wtrChlA, ifPOCadd,         & ! chlorophyll alpha sea surface concentrations, if organic fraction is additive
-         wtrIsop, wtrMtrp,          & ! sea surface concentrations of isoprene and monoterpenes
+         wtrIsop, wtrMtrp, ifVOCflx,& ! sea surface concentrations of isoprene and monoterpenes, if flux is given instead
          ssa_param,                 & ! option for sea-spray aerosol source function parameterization
          sst    , dthcon , drtcon , & ! SSTs, surface flx parameters
          isgstyp, csx    , prndtl , & ! SGS model type, parameters

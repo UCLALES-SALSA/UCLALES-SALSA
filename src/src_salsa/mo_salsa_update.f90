@@ -60,56 +60,54 @@ CONTAINS
           DO WHILE(.NOT.within_bins)
              within_bins = .TRUE.
 
-             DO kk = fn2b-1,in1a,-1
+             DO kk = fn2b,in1a,-1
 
                 IF (paero(ii,jj,kk)%numc > nlim) THEN
-
-                   IF (kk == fn2a) CYCLE 
 
                    ! Dry volume
                    zvpart = sum(paero(ii,jj,kk)%volc(2:nn))/paero(ii,jj,kk)%numc
 
-                   ! Smallest bin cannot decrease
-                   IF (paero(ii,jj,kk)%vlolim > zvpart .AND. (kk == in1a .OR. kk == in2b)) CYCLE
-
-                   ! Decreasing bins
-                   IF(paero(ii,jj,kk)%vlolim > zvpart) THEN
-                      mm = kk - 1
-                      paero(ii,jj,mm)%numc = paero(ii,jj,mm)%numc + paero(ii,jj,kk)%numc 
-                      paero(ii,jj,kk)%numc = 0.
-                      paero(ii,jj,mm)%volc(:) = paero(ii,jj,mm)%volc(:) + paero(ii,jj,kk)%volc(:)
-                      paero(ii,jj,kk)%volc(:) = 0.
-                      CYCLE
-                   END IF
-
-                   !-- If size bin has not grown, cycle
-                   IF(zvpart <= pi6*paero(ii,jj,kk)%dmid**3) CYCLE
-
                    !-- volume ratio of the size bin
                    zVrat = paero(ii,jj,kk)%vhilim/paero(ii,jj,kk)%vlolim
-                
+
                    !-- particle volume at the low end of the bin
                    zVilo = 2.*zvpart/(1. + zVrat)
 
                    !-- particle volume at the high end of the bin
                    zVihi = zVrat * zVilo
-                   
-                   !-- volume in the grown bin which exceeds 
-                   !   the bin upper limit
-                   zVexc = 0.5*(zVihi + paero(ii,jj,kk)%vhilim)
 
-                   !-- number fraction to be moved to the larger bin
-                   znfrac = min(1.,(zVihi-paero(ii,jj,kk)%vhilim) / (zVihi - zVilo))
+                   ! Decreasing bins
+                   IF(zvpart<paero(ii,jj,kk)%vlolim .AND. (kk/=in1a .AND. kk/=in2b)) THEN
+                      !-- volume in the decreased bin which exceeds the bin lower limit
+                      zVexc = 0.5*(zVilo + paero(ii,jj,kk)%vlolim)
+
+                      !-- number fraction to be moved to the smaller bin
+                      znfrac = min(1.,(paero(ii,jj,kk)%vlolim-zVilo) / (zVihi - zVilo))
+
+                      !-- Index for the smaller bin
+                      mm = kk - 1
+                   ! Increasing bins
+                   ELSEIF (zvpart>pi6*paero(ii,jj,kk)%dmid**3 .AND. (kk/=fn2a .AND. kk/=fn2b)) THEN
+                      !-- volume in the grown bin which exceeds the bin upper limit
+                      zVexc = 0.5*(zVihi + paero(ii,jj,kk)%vhilim)
+
+                      !-- number fraction to be moved to the larger bin
+                      znfrac = min(1.,(zVihi-paero(ii,jj,kk)%vhilim) / (zVihi - zVilo))
+
+                      !-- Index for the larger bin
+                      mm = kk+1
+                   ELSE
+                      CYCLE
+                   END IF
 
                    !-- ignore irrelevant changes
                    IF (ABS(znfrac * paero(ii,jj,kk)%numc) < nlim) CYCLE
 
-                   !-- volume fraction to be moved to the larger bin
+                   !-- volume fraction to be moved
                    zvfrac = znfrac*zVexc/zvpart
 
                    IF(znfrac < 0.) STOP 'Error aerosol 0'
                    !-- update bin
-                   mm = kk+1
                    !-- volume
                    paero(ii,jj,mm)%volc(:) = paero(ii,jj,mm)%volc(:) + zvfrac * paero(ii,jj,kk)%volc(:)
 

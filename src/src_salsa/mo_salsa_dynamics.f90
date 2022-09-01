@@ -95,7 +95,7 @@ CONTAINS
 
   SUBROUTINE coagulation(kbdim,  klev,    &
                          paero,  pcloud, pprecp, pice, psnow,  &
-                         ptstep, ptemp,  ppres     )
+                         ptstep, ptemp,  ppres, pedr     )
 
     USE mo_submctl, ONLY:        &
          t_section,   & ! Datatypes for the cloud bin representation
@@ -111,7 +111,7 @@ CONTAINS
          lscgpp, lscgpa, lscgpc,     &
          lscgia, lscgic, lscgii, lscgip, &
          lscgsa, lscgsc, lscgsi, lscgsp, lscgss, &
-         nspec, maxnspec, CalcDimension
+         nspec, maxnspec, CalcDimension, CalcMass
 
     IMPLICIT NONE
 
@@ -131,7 +131,8 @@ CONTAINS
     REAL, INTENT(IN) ::         &
          ptstep,                    & ! time step [s]
          ptemp(kbdim,klev),         &
-         ppres(kbdim,klev)
+         ppres(kbdim,klev),         &
+         pedr(kbdim,klev)          ! eddy dissipation rate from LES
     !-- Local variables ------------------------
     INTEGER ::                      &
          ii,jj,kk,ll,mm,nn,cc,      & ! loop indices
@@ -170,8 +171,7 @@ CONTAINS
          zdice(nice),    & ! diameter for ice [m]
          zdsnow(nsnw)      ! diameter for snow [m]
 
-    REAL :: &
-         temppi,pressi
+    REAL :: temppi, pressi, edri
 
     LOGICAL :: any_cloud, any_precp, any_ice, any_snow
 
@@ -195,30 +195,31 @@ CONTAINS
            !-- Aerosol diameter [m] and mass [kg]; density of 1500 kg/m3 assumed
            CALL CalcDimension(fn2b,paero(ii,jj,1:fn2b),nlim,1)
            zdpart(1:fn2b) = MIN(paero(ii,jj,1:fn2b)%dwet, 30.e-6) ! Limit to 30 um
-           zmpart(1:fn2b) = pi6*(zdpart(1:fn2b)**3)*1500.
+           CALL CalcMass(zmpart,fn2b,paero(ii,jj,:),nlim,1)
 
            !-- Cloud droplet diameter and mass; Assume water density
            CALL CalcDimension(ncld,pcloud(ii,jj,1:ncld),nlim,2)
            zdcloud(1:ncld) = MIN(pcloud(ii,jj,1:ncld)%dwet, 2.e-4) ! Limit to 0.2 mm
-           zmcloud(1:ncld) = pi6*(zdcloud(1:ncld)**3)*rhowa
+           CALL CalcMass(zmcloud,ncld,pcloud(ii,jj,:),nlim,2)
 
            !-- Precipitation droplet diameter and mass
            CALL CalcDimension(nprc,pprecp(ii,jj,1:nprc),prlim,3)
            zdprecp(1:nprc) = MIN(pprecp(ii,jj,1:nprc)%dwet, 2.e-3) ! Limit to 2 mm
-           zmprecp(1:nprc) = pi6*(zdprecp(1:nprc)**3)*rhowa
+           CALL CalcMass(zmprecp,nprc,pprecp(ii,jj,:),prlim,3)
 
            !-- Ice particle diameter and mass - may not be spherical
            CALL CalcDimension(nice,pice(ii,jj,1:nice),prlim,4)
            zdice(1:nice) = MIN(pice(ii,jj,1:nice)%dwet, 2.e-3) ! Limit to 2 mm
-           zmice(1:nice) =   pi6*(zdice(1:nice)**3)*rhoic
+           CALL CalcMass(zmice,nice,pice(ii,jj,:),prlim,4)
 
            !-- Snow diameter and mass - may not be spherical
            CALL CalcDimension(nsnw,psnow(ii,jj,1:nsnw),prlim,5)
            zdsnow(1:nsnw) = MIN(psnow(ii,jj,1:nsnw)%dwet, 10.e-3) ! Limit to 10 mm
-           zmsnow(1:nsnw) =  pi6*(zdsnow(1:nsnw)**3)*rhosn
+           CALL CalcMass(zmsnow,nsnw,psnow(ii,jj,:),prlim,5)
 
            temppi=ptemp(ii,jj)
            pressi=ppres(ii,jj)
+           edri = pedr(ii,jj)
            zcc = 0.
            zcccc = 0.
            zccca = 0.
@@ -241,7 +242,7 @@ CONTAINS
                  IF (paero(ii,jj,mm)%numc<nlim) cycle
                  DO nn = mm,fn2b            ! larger colliding particle
                     IF (paero(ii,jj,nn)%numc<nlim) cycle
-                    zcc(mm,nn) = coagc(zdpart(mm),zdpart(nn),zmpart(mm),zmpart(nn),temppi,pressi,1,1,1)
+                    zcc(mm,nn) = coagc(zdpart(mm),zdpart(nn),zmpart(mm),zmpart(nn),temppi,pressi,edri,2,1,1)
                     zcc(nn,mm) = zcc(mm,nn)
                  END DO
               END DO
@@ -252,7 +253,7 @@ CONTAINS
                  IF (pcloud(ii,jj,mm)%numc<nlim) cycle
                  DO nn = mm,ncld
                     IF (pcloud(ii,jj,nn)%numc<nlim) cycle
-                    zcccc(mm,nn) = coagc(zdcloud(mm),zdcloud(nn),zmcloud(mm),zmcloud(nn),temppi,pressi,2,2,2)
+                    zcccc(mm,nn) = coagc(zdcloud(mm),zdcloud(nn),zmcloud(mm),zmcloud(nn),temppi,pressi,edri,2,2,2)
                     zcccc(nn,mm) = zcccc(mm,nn)
                  END DO
               END DO
@@ -263,7 +264,7 @@ CONTAINS
                  IF (pprecp(ii,jj,mm)%numc<prlim) cycle
                  DO nn = mm,nprc
                     IF (pprecp(ii,jj,nn)%numc<prlim) cycle
-                    zccpp(mm,nn) =  coagc(zdprecp(mm),zdprecp(nn),zmprecp(mm),zmprecp(nn),temppi,pressi,2,3,3)
+                    zccpp(mm,nn) =  coagc(zdprecp(mm),zdprecp(nn),zmprecp(mm),zmprecp(nn),temppi,pressi,edri,2,3,3)
                     zccpp(nn,mm) = zccpp(mm,nn)
                  END DO
               END DO
@@ -274,7 +275,7 @@ CONTAINS
                  IF (paero(ii,jj,mm)%numc<nlim) cycle
                  DO nn = 1,ncld
                     IF (pcloud(ii,jj,nn)%numc<nlim) cycle
-                    zccca(mm,nn) = coagc(zdpart(mm),zdcloud(nn),zmpart(mm),zmcloud(nn),temppi,pressi,2,1,2)
+                    zccca(mm,nn) = coagc(zdpart(mm),zdcloud(nn),zmpart(mm),zmcloud(nn),temppi,pressi,edri,2,1,2)
                  END DO
               END DO
            END IF
@@ -284,7 +285,7 @@ CONTAINS
                  IF (paero(ii,jj,mm)%numc<nlim) cycle
                  DO nn = 1,nprc
                     IF (pprecp(ii,jj,nn)%numc<prlim) cycle
-                    zccpa(mm,nn) = coagc(zdpart(mm),zdprecp(nn),zmpart(mm),zmprecp(nn),temppi,pressi,2,1,3)
+                    zccpa(mm,nn) = coagc(zdpart(mm),zdprecp(nn),zmpart(mm),zmprecp(nn),temppi,pressi,edri,2,1,3)
                  END DO
               END DO
            END IF
@@ -294,7 +295,7 @@ CONTAINS
                  IF (pcloud(ii,jj,mm)%numc<nlim) cycle
                  DO nn = 1,nprc
                     IF (pprecp(ii,jj,nn)%numc<prlim) cycle
-                    zccpc(mm,nn) = coagc(zdcloud(mm),zdprecp(nn),zmcloud(mm),zmprecp(nn),temppi,pressi,2,2,3)
+                    zccpc(mm,nn) = coagc(zdcloud(mm),zdprecp(nn),zmcloud(mm),zmprecp(nn),temppi,pressi,edri,2,2,3)
                   END DO
               END DO
            END IF
@@ -304,7 +305,7 @@ CONTAINS
                  IF (paero(ii,jj,mm)%numc<nlim) cycle
                  DO nn = 1,nice
                     IF (pice(ii,jj,nn)%numc<prlim) cycle
-                    zccia(mm,nn) =  coagc(zdpart(mm),zdice(nn),zmpart(mm),zmice(nn),temppi,pressi,2,1,4)
+                    zccia(mm,nn) =  coagc(zdpart(mm),zdice(nn),zmpart(mm),zmice(nn),temppi,pressi,edri,2,1,4)
                  END DO
               END DO
            END IF
@@ -314,7 +315,7 @@ CONTAINS
                  IF (pcloud(ii,jj,mm)%numc<nlim) cycle
                  DO nn = 1,nice
                     IF (pice(ii,jj,nn)%numc<prlim) cycle
-                    zccic(mm,nn) = coagc(zdcloud(mm),zdice(nn),zmcloud(mm),zmice(nn),temppi,pressi,2,2,4)
+                    zccic(mm,nn) = coagc(zdcloud(mm),zdice(nn),zmcloud(mm),zmice(nn),temppi,pressi,edri,2,2,4)
                  END DO
               END DO
            END IF
@@ -324,7 +325,7 @@ CONTAINS
                  IF (pice(ii,jj,mm)%numc<prlim) CYCLE
                  DO nn = mm,nice
                     IF (pice(ii,jj,nn)%numc<prlim) CYCLE
-                    zccii(mm,nn) = coagc(zdice(mm),zdice(nn),zmice(mm),zmice(nn),temppi,pressi,2,4,4)
+                    zccii(mm,nn) = coagc(zdice(mm),zdice(nn),zmice(mm),zmice(nn),temppi,pressi,edri,2,4,4)
                     zccii(nn,mm) = zccii(mm,nn)
                  END DO
               END DO
@@ -335,7 +336,7 @@ CONTAINS
                  IF (pprecp(ii,jj,mm)%numc<prlim) CYCLE
                  DO nn = 1,nice
                     IF (pice(ii,jj,nn)%numc<prlim) CYCLE
-                    zccip(mm,nn) = coagc(zdprecp(mm),zdice(nn),zmprecp(mm),zmice(nn),temppi,pressi,2,3,4)
+                    zccip(mm,nn) = coagc(zdprecp(mm),zdice(nn),zmprecp(mm),zmice(nn),temppi,pressi,edri,2,3,4)
                   END DO
               END DO
            END IF
@@ -345,7 +346,7 @@ CONTAINS
                  IF (psnow(ii,jj,mm)%numc<prlim) CYCLE
                  DO nn = mm,nsnw
                     IF (psnow(ii,jj,nn)%numc<prlim) CYCLE
-                    zccss(mm,nn) =  coagc(zdsnow(mm),zdsnow(nn),zmsnow(mm),zmsnow(nn),temppi,pressi,2,5,5)
+                    zccss(mm,nn) =  coagc(zdsnow(mm),zdsnow(nn),zmsnow(mm),zmsnow(nn),temppi,pressi,edri,2,5,5)
                     zccss(nn,mm) = zccss(mm,nn)
                  END DO
               END DO
@@ -356,7 +357,7 @@ CONTAINS
                  IF (paero(ii,jj,mm)%numc<nlim) CYCLE
                  DO nn = 1,nsnw
                     IF (psnow(ii,jj,nn)%numc<prlim) CYCLE
-                    zccsa(mm,nn) = coagc(zdpart(mm),zdsnow(nn),zmpart(mm),zmsnow(nn),temppi,pressi,2,1,5)
+                    zccsa(mm,nn) = coagc(zdpart(mm),zdsnow(nn),zmpart(mm),zmsnow(nn),temppi,pressi,edri,2,1,5)
                  END DO
               END DO
            END IF
@@ -366,7 +367,7 @@ CONTAINS
                  IF (pprecp(ii,jj,mm)%numc<prlim) CYCLE
                  DO nn = 1,nsnw
                     IF (psnow(ii,jj,nn)%numc<prlim) CYCLE
-                    zccsp(mm,nn) = coagc(zdprecp(mm),zdsnow(nn),zmprecp(mm),zmsnow(nn),temppi,pressi,2,3,5)
+                    zccsp(mm,nn) = coagc(zdprecp(mm),zdsnow(nn),zmprecp(mm),zmsnow(nn),temppi,pressi,edri,2,3,5)
                   END DO
               END DO
            END IF
@@ -376,7 +377,7 @@ CONTAINS
                  IF (pcloud(ii,jj,mm)%numc<nlim) CYCLE
                  DO nn = 1,nsnw
                     IF (psnow(ii,jj,nn)%numc<prlim) CYCLE
-                    zccsc(mm,nn) = coagc(zdcloud(mm),zdsnow(nn),zmcloud(mm),zmsnow(nn),temppi,pressi,2,2,5)
+                    zccsc(mm,nn) = coagc(zdcloud(mm),zdsnow(nn),zmcloud(mm),zmsnow(nn),temppi,pressi,edri,2,2,5)
                   END DO
               END DO
            END IF
@@ -386,7 +387,7 @@ CONTAINS
                  IF (pice(ii,jj,mm)%numc<prlim) CYCLE
                  DO nn = 1,nsnw
                     IF (psnow(ii,jj,nn)%numc<prlim) CYCLE
-                    zccsi(mm,nn) = coagc(zdice(mm),zdsnow(nn),zmice(mm),zmsnow(nn),temppi,pressi,2,4,5)
+                    zccsi(mm,nn) = coagc(zdice(mm),zdsnow(nn),zmice(mm),zmsnow(nn),temppi,pressi,edri,2,4,5)
                   END DO
               END DO
            END IF
@@ -1288,7 +1289,7 @@ CONTAINS
     REAL :: zbeta,zknud,zmfph2o
     REAL :: zact, zhlp1,zhlp2,zhlp3
     REAL :: adt,ttot
-    REAL :: dwet, dw(1), cap
+    REAL :: dwet, cap
     REAL :: zrh(kbdim,klev)
 
     REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
@@ -1675,7 +1676,7 @@ CONTAINS
   ! J. Tonttila, FMI, 05/2014
   !
   !-------------------------------------------------
-  REAL FUNCTION coagc(diam1,diam2,mass1,mass2,temp,pres,kernel,flag1,flag2)
+  REAL FUNCTION coagc(diam1,diam2,mass1,mass2,temp,pres,eddy_dis,kernel,flag1,flag2)
 
     USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rda, terminal_vel
 
@@ -1688,7 +1689,8 @@ CONTAINS
          mass1,  &   ! masses -"- [kg]
          mass2,  &
          temp,   &   ! ambient temperature [K]
-         pres        ! ambient pressure [fxm]
+         pres,   &   ! ambient pressure [fxm]
+         eddy_dis    ! eddy dissipation rate
 
     INTEGER, INTENT(in) :: kernel ! Select the type of kernel: 1 - aerosol-aerosol coagulation (the original version)
                                   !                            2 - hydrometeor-aerosol or hydrometeor-hydrometeor coagulation
@@ -1705,7 +1707,6 @@ CONTAINS
          mfp,    &   ! mean free path of air molecules [m]
          mdiam,  &   ! mean diameter of colliding particles [m]
          fmdist, &   ! distance of flux matching [m]
-         eddy_dis,&  ! Eddy dissipation time
          zecoll, &   ! Collition efficiency for graviational collection
          zev,    &   !
          zea,    &
@@ -1822,8 +1823,8 @@ CONTAINS
           END IF
 
           ! Turbulent Shear
-          eddy_dis=10.e-4 ! Values suggested by Sami - could be taken from the LES model?
           ztshear=(8.*pi*eddy_dis/(15.*vkin))**(1./2.)*(0.5*(diam(1)+diam(2)))**3.
+          ! Turbulent inertial motion
           zturbinert = pi*eddy_dis**(3./4.)/(grav*vkin**(1./4.)) &
                *(0.5*(diam(1)+diam(2)))**2.* ABS(termv(1)-termv(2))
 

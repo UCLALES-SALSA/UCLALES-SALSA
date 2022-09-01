@@ -55,6 +55,7 @@ module srfc
   ! Isoprene and monoterpene concentrations in the ocean surface layer
   real :: wtrIsop = -1.   ! mol/m3
   real :: wtrMtrp = -1.   ! mol/m3
+  logical :: ifVOCflx = .false.  ! If the value in namelist is flux instead of concentration
   ! Option for sea-spray aerosol source function parameterization
   integer :: ssa_param = 0
   ! Volume fraction of organic matter in sea spray
@@ -139,32 +140,39 @@ contains
             rhorho = rhooc/rhoss ! ratio of densities of marine organic matter and salt
         endif
         omf_max = 1./(1.+exp(-2.63e6*wtrChlA+0.18*u10_bar))
+    else
+        omf_max = 0.
+        rhorho = 1.
     endif
     ! Growth factor depends on organic volume fraction
     if (.not. allocated(ovf)) THEN
         ! first call
-        ALLOCATE(ovf(fn2a))
+        ALLOCATE(ovf(fn2a+1))
         ovf(:) = omf_max/(omf_max*(1.-rhorho)+rhorho)
     endif
 
-    ! Particle concentration tendency for each size bin
-    dcdt(:,:,:)=0.
-    DO k=in2a,fn2a ! Ignore 1a, because there is no sea salt
+    DO k=in2a,fn2a+1 ! Ignore 1a, because there is no sea salt
         ! Size dependent organic mass fraction from Gantt ea, 2011 (eq. 3)
         if(wtrChlA>0.)then
-            dia = (4.*(aerobins(k)**3+aerobins(k+1)**3))**(1./3.)*1.e6 ! bin volume-mean diameter in micrometers
-            ! Organic fraction is parameterized for particle diameter at 80% RH
+            dia=aerobins(k)*2.e6  !compute for bin borders, average later
+            ! Organic fraction is parameterized for particle aerodynamic diameter at 80% RH
             ! which depends on composition, so technically would need to iterate.
             ! However, hopefully it converges after limited nr of timesteps.
             ! Mean diameter at RH 80% ~2 x dry diameter for sea salt,
             ! organic part is assumed insoluble
-            dia80 = (dia**3*(ovf(k)+8.*(1.-ovf(k))))**(1./3.)
+            ! Correction factor from stokes diameter to aerodynamic diameter
+            ! is 1.07 for sea salt at 80% RH and 1.15 for dry OC, so on average 1.1
+            dia80 = (dia**3*(ovf(k)+8.*(1.-ovf(k))))**(1./3.)* 1.1
             omf = omf_max/(1.+0.03*exp(6.81*dia80))+0.03*omf_max
             ovf(k) = omf/(omf*(1.-rhorho)+rhorho)
         else
             ovf(k) = 0.
         endif
+    ENDDO
 
+    ! Particle concentration tendency for each size bin
+    dcdt(:,:,:)=0.
+    DO k=in2a,fn2a ! Ignore 1a, because there is no sea salt
         ! Mean flux: 0.5*(flx(k)+flx(k+1))
         ! From dFp/dlog(Dp) to dFp: multiply by log10(rad(k+1)/rad(k))
         ! Convert #/m^2/s to the rate of change in concentration (#/kg/s): multiply by 1/rho/dz
@@ -174,7 +182,7 @@ contains
 
             ! Different assumptions can be made about whether the organic fraction replaces the salt or is additive to it.
             ! If assumed additive, increase the emission flux accordingly
-            if(ifPOCadd) dcdt(i,j,k) = dcdt(i,j,k) / (1. - ovf(k))
+            if(ifPOCadd) dcdt(i,j,k) = dcdt(i,j,k) / (1. - 0.5*(ovf(k)+ovf(k+1)))
 
           enddo
         enddo
@@ -195,28 +203,28 @@ contains
         if(iss>0)then
             j = (iss-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*rhoss*(1.-ovf(k))
-            !  ... and just add water at 80% RH (D80 = 2 x Ddry)
+                                              & vdry*rhoss*(1.-0.5*(ovf(k)+ovf(k+1)))
+            !  ... and add water proportionally to the salt volume
             j = (ih2o-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*rhowa*(1.-ovf(k))*7.
+                                              & vdry*rhowa*(1.-0.5*(ovf(k)+ovf(k+1)))*7.
         endif
         ! .. organic fraction
         if (nvbs_setup>=0) then
             j = (vbs_set(1)%id_vols-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*spec_density(vbs_set(1)%spid)*(ovf(k))
+                                              & vdry*spec_density(vbs_set(1)%spid)*0.5*(ovf(k)+ovf(k+1))
         elseif(ioc>0)then
             j = (ioc-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*rhooc*(ovf(k))
+                                              & vdry*rhooc*0.5*(ovf(k)+ovf(k+1))
         endif
 
     ENDDO
 
     if (sflg) then
         ! Convert dcdt [#/kg/s] to flux [#/m^2/s] and take sum over bins
-        omf = SUM ( SUM( SUM(dcdt(:,:,:),DIM=3)*a_dn(2,:,:),DIM=2 ) )*(zm(3)-zm(2))/REAL((nxp-4)*(nyp-4))
+        omf = SUM ( SUM( SUM(dcdt(3:nxp-2,3:nyp-2,:),DIM=3)*a_dn(2,3:nxp-2,3:nyp-2),DIM=2 ) )*(zm(3)-zm(2))/REAL((nxp-4)*(nyp-4))
         call flux_stat(omf,'flx_aer')
         ! 10 m wind speed
         call flux_stat(u10_bar,'u10    ')
@@ -427,7 +435,7 @@ contains
     !
     ! Partial particle flux, dF/dDp(0.033,25C), Eq. 6
     flx = 1e6*exp(-0.09/(diam+3e-3))/(2.+exp(-5./diam))*(1.+0.05*diam**1.05)/diam**3* &
-        10.**(1.05*exp(-((0.27+log10(diam))/1.1)**2))
+        10.**(1.05*exp(-((0.27-log10(diam))/1.1)**2))
     !
     ! Convert from dF/dDp to dF/dlog10(Dp): multiply by Dp*ln(10)
     flux_sofiev=diam*log(10.)*flx*ftw*fsw*w
@@ -491,6 +499,10 @@ contains
     if(wtrIsop > 0.)then
       sc_ratio = schmidt_ref / schmidt_isoprene
       iGas = vbs_voc_set(2)%id_gas
+
+      if(ifVOCflx)then ! wtrIsop is flux in mol/m2/s, just convert to kg/m2/s
+        flxIsop = wtrIsop * spec_moleweight(iGas) /1000.
+      else
       ! First compute the transfer velocity (m/s)
 !          select case (transfer_velocity_type)
 !          case(Liss_Merlivat) ! Liss & Merlivat 1986
@@ -508,7 +520,8 @@ contains
 !            flxIsop = 0.
 !          end select
       ! Flux
-      flxIsop = flxIsop * wtrIsop * spec_moleweight(iGas) /1000.
+        flxIsop = flxIsop * wtrIsop * spec_moleweight(iGas) /1000.
+      endif
       DO j=3,nyp-2
         DO i=3,nxp-2
           a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxIsop / a_dn(2,i,j) / (zm(3)-zm(2))
@@ -531,10 +544,15 @@ contains
       ! Take average of a-pinene and limonene - 159.1
       schmidt_monoterp = schmidt_isoprene*(159.1/101.1)**0.6
       sc_ratio = schmidt_ref / schmidt_monoterp
-      ! Transfer velocity (m/s)
-      flxMtrp = 0.251*u10_bar*u10_bar*sc_ratio**p12 * per_sec*to_m
-      ! Flux
-      flxMtrp = flxMtrp * wtrMtrp * spec_moleweight(iGas) /1000.
+
+      if(ifVOCflx)then ! wtrIsop is flux in mol/m2/s, just convert to kg/m2/s
+        flxMtrp = wtrMtrp* spec_moleweight(iGas) /1000.
+      else
+        ! Transfer velocity (m/s)
+        flxMtrp = 0.251*u10_bar*u10_bar*sc_ratio**p12 * per_sec*to_m
+        ! Flux
+        flxMtrp = flxMtrp * wtrMtrp * spec_moleweight(iGas) /1000.
+      endif
       DO j=3,nyp-2
         DO i=3,nxp-2
           a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxMtrp / a_dn(2,i,j) / (zm(3)-zm(2))

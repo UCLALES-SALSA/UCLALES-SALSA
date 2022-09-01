@@ -2183,7 +2183,7 @@ contains
         user_ts_data(:) = 0.
     ENDIF
 
-    if (myid==0) print "(/' ',12('-'),'   Record ',I3,' to time series')",nrec1
+    if (myid==0) print "(/' ',12('-'),'   Record ',I4,' to time series')",nrec1
 
     iret = nf90_sync(ncid1)
     nrec1 = nrec1 + 1
@@ -2373,7 +2373,7 @@ contains
         user_ps_data(:,:) = 0.
     ENDIF
 
-    if (myid==0) print "(/' ',12('-'),'   Record ',I3,' to profiles')",nrec2
+    if (myid==0) print "(/' ',12('-'),'   Record ',I4,' to profiles')",nrec2
 
     iret  = nf90_sync(ncid2)
     nrec2 = nrec2+1
