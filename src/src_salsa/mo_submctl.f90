@@ -134,6 +134,7 @@ MODULE mo_submctl
   ! VOC oxidants
   LOGICAL :: ox_prescribed = .TRUE.              ! Prescribed or prognostic concentration fields
   INTEGER :: id_oh=-1, id_o3=-1, id_no3=-1       ! Indexes to gas phase
+  INTEGER :: id_isop=-1, id_mtp=-1               ! The same for isoprene and monoterpenes
   REAL :: conc_oh=-1., conc_o3=-1., conc_no3=-1. ! Initial concentrations (number mixing ratio)
   REAL :: zdayfac_oh=1., zdayfac_o3=1., znightfac_no3=1. ! Scaling factors for diurnal oxidant concentrations
   REAL :: zphotofac_aqsoa=0.                     ! The same for aqSOA photodissociation

@@ -700,7 +700,7 @@ contains
   subroutine update_sclrs
 
     use grid, only : a_sp, a_st, a_qp, nscl, nxyzp, nxp, nyp, nzp, dzt, &
-         dtl, newsclr, isgstyp, ngases
+         dtl, newsclr, isgstyp
     use sgsm, only : tkeinit
     use util, only : sclrset
 

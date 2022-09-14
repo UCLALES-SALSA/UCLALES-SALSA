@@ -18,15 +18,15 @@ MODULE mo_vbs
   IMPLICIT NONE
   PRIVATE
 
-  ! MW, density and kappa arrays
-  REAL, PUBLIC, SAVE :: spec_moleweight(100), spec_density(100), spec_kappa(100)
+  ! Isoprene and monoterpene indexes to VOC arrays
+  INTEGER, PUBLIC :: voc_id_isop=-1, voc_id_mtp=-1
 
   ! Initialize species
   PUBLIC :: vbs_species
 
 CONTAINS
 
-  SUBROUTINE vbs_species(nvbs_setup,laqsoa,densoc,mwoc,kappaoc)
+  SUBROUTINE vbs_species(nvbs_setup,laqsoa,densoc,mwoc,kappaoc,conc_voc)
 
      USE mo_vbsctl, ONLY: &
        t_voc_prec,         &
@@ -52,11 +52,11 @@ CONTAINS
     INTEGER, INTENT(IN) :: nvbs_setup
     LOGICAL, INTENT(IN) :: laqsoa
     REAL, INTENT(IN) :: densoc, mwoc, kappaoc
+    REAL, INTENT(INOUT) :: conc_voc(:)
 
     REAL, PARAMETER :: argas = 8.314472 ! [J/K/mol] molar/universal/ideal gas constant
 
     INTEGER :: jv
-    INTEGER :: spid_temp
 
     ! -----------------------------------------------------------------------
     ! executable procedure
@@ -103,10 +103,8 @@ CONTAINS
        ! Defining the VOC species
 
        ! Monoterpenes (APIN)
-       CALL new_species(&
-            mw          = 136.,                  &
-            idx         = vbs_voc_set(1)%spid &
-            )
+       vbs_voc_set(1)%mw = 136.
+       voc_id_mtp = 1
        !oxidation rates and their temperature dependence (Arrhenius)
        ! OH (data from IUPAC)
        vbs_voc_set(1)%k_0_OH     = 1.2E-11 ! pre-factor [m3/(mol*s)]
@@ -128,16 +126,14 @@ CONTAINS
        ELSE
           !                            (  OC      ,  VBS1   , VBS10    )
           vbs_voc_set(1)%stoich_coeff_oh=(/0.1, 0.037, 0.088/) ! from Harri (hi NOx)
-          !vbs_voc_set(1)%stoich_coeff_oh=(/0.002, 0.003, 0.065/) ! from Harri (low NOx)
           vbs_voc_set(1)%stoich_coeff_o3=(/0.1, 0.037, 0.088/)
           vbs_voc_set(1)%stoich_coeff_no3=(/0.1, 0.037, 0.088/)
+          !vbs_voc_set(1)%stoich_coeff_oh=(/0.002, 0.003, 0.065/) ! from Harri (low NOx)
        ENDIF
 
        ! Isoprene (C5H8)
-       CALL new_species(&
-            mw          = 68.,                   &
-            idx         = vbs_voc_set(2)%spid &
-          )
+       vbs_voc_set(2)%mw = 68.
+       voc_id_isop = 2
        !oxidation rates and their temperature dependence (Arrhenius)
        !OH
        vbs_voc_set(2)%k_0_OH     = 2.7E-11 !pre-factor [m3/(mol*s)]
@@ -153,8 +149,8 @@ CONTAINS
        IF (laqsoa) THEN
           !                            (  OC   ,  VBS1    ,   VBS10  ,   IEPOX , Glyx)
           vbs_voc_set(2)%stoich_coeff_oh=(/0.0, 0.0295, 0.0453, 0.525, 0.025/)
-          vbs_voc_set(2)%stoich_coeff_o3=(/0.0, 0.0295, 0.0453, 0.0, 0.0/)
-          vbs_voc_set(2)%stoich_coeff_no3=(/0.0, 0.0295, 0.0453, 0.0, 0.0/)
+          vbs_voc_set(2)%stoich_coeff_o3=(/0.0, 0.0295, 0.0453, 0.525, 0.025/)
+          vbs_voc_set(2)%stoich_coeff_no3=(/0.0, 0.0295, 0.0453, 0.525, 0.025/)
        ELSE
           !                            (  OC   ,  VBS1    , VBS10     )
           vbs_voc_set(2)%stoich_coeff_oh=(/0.0, 0.0295, 0.0453/)
@@ -163,10 +159,7 @@ CONTAINS
        ENDIF
 
        ! Toluene (TOL)
-       CALL new_species(&
-            mw          = 92.,                   &
-            idx         = vbs_voc_set(3)%spid &
-            )
+       vbs_voc_set(3)%mw = 92.
        !oxidation rates and their temperature dependence (Arrhenius)
        !OH
        vbs_voc_set(3)%k_0_OH     = 1.81E-12 !pre-factor [m3/(mol*s)]
@@ -182,8 +175,8 @@ CONTAINS
        IF (laqsoa) THEN
           !                            (  OC    ,  VBS1 , VBS10 , IEPOX , Glyx    )
           vbs_voc_set(3)%stoich_coeff_oh=(/0.36, 0.0, 0.0, 0.0, 0.24/) ! to be reviewed
-          vbs_voc_set(3)%stoich_coeff_o3=(/0.36, 0.0, 0.0, 0.0, 0.0/)
-          vbs_voc_set(3)%stoich_coeff_no3=(/0.36, 0.0, 0.0, 0.0, 0.0/)
+          vbs_voc_set(3)%stoich_coeff_o3=(/0.36, 0.0, 0.0, 0.0, 0.24/)
+          vbs_voc_set(3)%stoich_coeff_no3=(/0.36, 0.0, 0.0, 0.0, 0.24/)
        ELSE
           !                            (  OC    ,  VBS1 ,   VBS10)
           vbs_voc_set(3)%stoich_coeff_oh=(/0.36, 0.0, 0.0/) ! to be reviewed
@@ -192,10 +185,7 @@ CONTAINS
        ENDIF
 
        ! Xylene (XYL)
-       CALL new_species(&
-            mw          = 106.,                  &
-            idx         = vbs_voc_set(4)%spid &
-            )
+       vbs_voc_set(4)%mw = 106.
        !oxidation rates and their temperature dependence (Arrhenius)
        !OH
        vbs_voc_set(4)%k_0_OH     = 2.31E-11 !pre-factor [m3/(mol*s)]
@@ -211,8 +201,8 @@ CONTAINS
        IF (laqsoa) THEN
           !                            (  OC    ,  VBS1 , VBS10 ,  IEPOX,  Glyx   )
           vbs_voc_set(4)%stoich_coeff_oh=(/0.30, 0.0, 0.0, 0.0, 0.25/) ! to be reviewed
-          vbs_voc_set(4)%stoich_coeff_o3=(/0.30, 0.0, 0.0, 0.0, 0.0/)
-          vbs_voc_set(4)%stoich_coeff_no3=(/0.30, 0.0, 0.0, 0.0, 0.0/)
+          vbs_voc_set(4)%stoich_coeff_o3=(/0.30, 0.0, 0.0, 0.0, 0.25/)
+          vbs_voc_set(4)%stoich_coeff_no3=(/0.30, 0.0, 0.0, 0.0, 0.25/)
        ELSE
           !                            (  OC    ,  VBS1 , VBS10  )
           vbs_voc_set(4)%stoich_coeff_oh=(/0.30, 0.0, 0.0/) ! to be reviewed
@@ -221,10 +211,7 @@ CONTAINS
        ENDIF
 
        ! Benzene (BENZ)
-       CALL new_species(&
-            mw          = 66.,                   &
-            idx         = vbs_voc_set(5)%spid &
-            )
+       vbs_voc_set(5)%mw = 66.
        !oxidation rates and their temperature dependence (Arrhenius)
        !OH
        vbs_voc_set(5)%k_0_OH     = 2.33E-12 !pre-factor [m3/(mol*s)]
@@ -240,8 +227,8 @@ CONTAINS
        IF (laqsoa) THEN
           !                            (  OC    ,  VBS1 , VBS10 , IEPOX ,  Glyx   )
           vbs_voc_set(5)%stoich_coeff_oh=(/0.37, 0.0, 0.0, 0.0, 0.35/) ! to be reviewed
-          vbs_voc_set(5)%stoich_coeff_o3=(/0.37, 0.0, 0.0, 0.0, 0.0/)
-          vbs_voc_set(5)%stoich_coeff_no3=(/0.37, 0.0, 0.0, 0.0, 0.0/)
+          vbs_voc_set(5)%stoich_coeff_o3=(/0.37, 0.0, 0.0, 0.0, 0.35/)
+          vbs_voc_set(5)%stoich_coeff_no3=(/0.37, 0.0, 0.0, 0.0, 0.35/)
        ELSE
           !                            (  OC    ,  VBS1 , VBS10  )
           vbs_voc_set(5)%stoich_coeff_oh=(/0.37, 0.0, 0.0/) ! to be reviewed
@@ -250,44 +237,29 @@ CONTAINS
        ENDIF
 
        ! Volatility Basis set C*=0 ug/m3
-       CALL new_species(&
-            mw          = 186.,                      & ! to be reviewed
-            density     = 1320.,                     & ! to be reviewed
-            kappa       = 0.037,                     & ! Petters and Kreidenweis (2007)
-            idx         = spid_temp                     &
-            )
+       vbs_set(1)%mw    = 186.
+       vbs_set(1)%dens  = 1320.
+       vbs_set(1)%kappa = 0.1 ! 0.037
 
-       vbs_set(1)%spid        = spid_temp
-       vbs_set(1)%C0          = &                    ! equ. vapor con. at T0 [mol/m3]
-            0.0e-6/spec_moleweight(spid_temp)     ! [M]=g/mol
+       vbs_set(1)%C0          = 0.0e-6/vbs_set(1)%mw  ! equ. vapor con. at T0 [mol/m3]
        vbs_set(1)%T0          = 298               ! T0 [K]
        vbs_set(1)%Hvap_eff    = 30e3/argas        ! eff. evap. enthalpy [K]
 
        ! Volatility Basis set C*=1 ug/m3
-       CALL new_species(&
-            mw          = 186.,                      & ! to be reviewed
-            density     = 1320.,                     & ! to be reviewed
-            kappa       = 0.037,                     & ! Petters and Kreidenweis (2007)
-            idx         = spid_temp                     &
-            )
+       vbs_set(2)%mw    = 186.
+       vbs_set(2)%dens  = 1320.
+       vbs_set(2)%kappa = 0.037
 
-       vbs_set(2)%spid        = spid_temp
-       vbs_set(2)%C0          = &                    ! equ. vapor con. at T0 [mol/m3]
-            1.0e-6/spec_moleweight(spid_temp)      ! [M]=g/mol
+       vbs_set(2)%C0          = 1.0e-6/vbs_set(2)%mw  ! equ. vapor con. at T0 [mol/m3]
        vbs_set(2)%T0          = 298.               ! T0 [K]
        vbs_set(2)%Hvap_eff    = 30e3/argas        ! eff. evap. enthalpy [K]
 
        ! Volatility Basis set C*=10 ug/m3
-       CALL new_species(&
-            mw          = 186.,                      & ! to be reviewed
-            density     = 1320.,                     & ! to be reviewed
-            kappa       = 0.037,                     & !Petters and Kreidenweis (2007)
-            idx         = spid_temp                     &
-            )
+       vbs_set(3)%mw    = 186.
+       vbs_set(3)%dens  = 1320.
+       vbs_set(3)%kappa = 0.037
 
-       vbs_set(3)%spid        = spid_temp
-       vbs_set(3)%C0          = &                    ! equ. vapor con. at T0 [mol/m3]
-            10.0e-6/spec_moleweight(spid_temp)     ! [M]=g/mol
+       vbs_set(3)%C0          = 10.0e-6/vbs_set(3)%mw ! equ. vapor con. at T0 [mol/m3]
        vbs_set(3)%T0          = 298.               ! T0 [K]
        vbs_set(3)%Hvap_eff    = 30e3/argas        ! eff. evap. enthalpy [K]
 
@@ -305,21 +277,25 @@ CONTAINS
        vbs_set(:)%C0 = (/0.0,1e-5,1e-3,1e-1,1e1/)*1e-9/mwoc ! C0 [mol/m3]
        vbs_set(:)%T0 = 298. ! T0 [K]
        vbs_set(:)%Hvap_eff = 30e3/argas ! eff. evap. enthalpy [K]
-       DO jv=1, vbs_ngroup
-            ! Physical properties from SALSA (mw from kg/mol to g/mol)
-            CALL new_species(mw=mwoc*1e3, density=densoc, kappa=kappaoc, idx=vbs_set(jv)%spid)
-       ENDDO
+       ! Physical properties from SALSA (mw from kg/mol to g/mol)
+       vbs_set(:)%mw = mwoc*1e3
+       vbs_set(:)%dens = densoc
+       vbs_set(:)%kappa = kappaoc
 
     CASE(3) ! VBS scheme with VOCs
-       ! volatility bins based on VOC oxidation (the scheme from Farina et al., JGR, 2010)
-       ! physical properties (density, mw, kappa) taken from SALSA organics
+        ! volatility bins based on VOC oxidation scheme from Farina et al. (JGR, 2010)
+        ! one non-volatile bin added for non-volatile VOC oxidation products and for VBS(g) oxidation
+        ! oxidation rates are from Prank et al. (ACP, 2022) and Mielonen et al. (Atmosphere, 2018)
+        ! physical properties (density, mw, kappa) taken from SALSA organics
+        ! active VOCs selected based on NAMELIST input conc_voc(:)>1e-40
+        ! aqSOA is possible (either on or off)
 
-       ! VBS scheme
-       vbs_ngroup = 5 ! One non-volatile bin and four semivolatile bins from Farina et al. (2010)
-       vbs_nvocs = 2  ! Two VOCs (ALPH and ISOP), and aqSOA is possible
+        ! VBS scheme
+        vbs_ngroup = 5 ! One non-volatile bin and four semivolatile bins from Farina et al. (2010)
+        vbs_nvocs = COUNT(conc_voc(1:5)>1e-40)  ! VOCs: ALPH, ISOP, TOL, XYL, and BENZ
 
-       ! Defining the VOC species
-       IF (.NOT. ALLOCATED(vbs_voc_set)) THEN
+        ! Defining the VOC species
+        IF (.NOT. ALLOCATED(vbs_voc_set)) THEN
             ALLOCATE(vbs_voc_set(vbs_nvocs))
             DO jv=1,vbs_nvocs
                 ALLOCATE(vbs_voc_set(jv)%stoich_coeff_oh(vbs_ngroup+aqsoa_ngroup), &
@@ -329,54 +305,142 @@ CONTAINS
                 vbs_voc_set(jv)%stoich_coeff_o3(:)=0.
                 vbs_voc_set(jv)%stoich_coeff_no3(:)=0.
             END DO
-       END IF
-       ! ALPH (MTP)
-       ! Properties from Mielonen et al. (Atmosphere, 2018)
-       CALL new_species(mw=136., idx=vbs_voc_set(1)%spid)
-       vbs_voc_set(1)%k_0_OH     = 1.2E-11
-       vbs_voc_set(1)%Eact_p_OH  = 440.
-       vbs_voc_set(1)%k_0_O3     = 6.3E-16
-       vbs_voc_set(1)%Eact_p_O3  = -580.
-       vbs_voc_set(1)%k_0_NO3    = 1.2E-12
-       vbs_voc_set(1)%Eact_p_NO3 = 490.
-       ! Stoichiometric coefficients (Farina et al., Table 3):
-       vbs_voc_set(1)%stoich_coeff_oh(2:vbs_ngroup)  = (/0.07,0.06,0.24,0.41/) ! VOC + OH/O3 in low NOx
-       vbs_voc_set(1)%stoich_coeff_o3(2:vbs_ngroup)  = (/0.07,0.06,0.24,0.41/) ! VOC + OH/O3 in low NOx
-       vbs_voc_set(1)%stoich_coeff_no3(2:vbs_ngroup) = (/0.07,0.06,0.24,0.41/) ! VOC + NO3
-       ! ISOP (Isoprene)
-       CALL new_species(mw=68., idx=vbs_voc_set(2)%spid)
-       vbs_voc_set(2)%k_0_OH     = 2.7E-11
-       vbs_voc_set(2)%Eact_p_OH  = 390.
-       vbs_voc_set(2)%k_0_O3     = 1.03E-14
-       vbs_voc_set(2)%Eact_p_O3  = -1995.
-       vbs_voc_set(2)%k_0_NO3    = 3.15E-12
-       vbs_voc_set(2)%Eact_p_NO3 = -450.
-       ! Stoichiometric coefficients (Farina et al., Table 3):
-       vbs_voc_set(2)%stoich_coeff_oh(2:vbs_ngroup)  = (/0.02,0.02,0.0,0.0/)  ! VOC + OH/O3 in low NOx
-       vbs_voc_set(2)%stoich_coeff_o3(2:vbs_ngroup)  = (/0.02,0.02,0.0,0.0/)  ! VOC + OH/O3 in low NOx
-       vbs_voc_set(2)%stoich_coeff_no3(2:vbs_ngroup) = (/0.01,0.02,0.01,0.0/) ! Isoprene + NO3
+        END IF
 
-       ! aqSOA from VOCs (IEPOX and GLYX)
-       IF (laqsoa) THEN
-            ! Isoprene OH and O3 oxidation:
-            !   ISOP+OH (->0.7 ISOPOO->0.75 IEPOX) => 0.525 IEPOX + ... (Bates et al., 2014; k=2.7E-11*exp(390/T))
-            !   ISOP+OH => 0.025 GLYX (Jenkin et al., 2015)
-            vbs_voc_set(2)%stoich_coeff_oh(vbs_ngroup+1:vbs_ngroup+2)=(/0.525, 0.025/)
-            !   ISOP+O3 => 0.01 GLYX + ... (McNeill et al., 2012; k=1.23e-14*exp(-2013/T))
-            vbs_voc_set(2)%stoich_coeff_o3(vbs_ngroup+1:vbs_ngroup+2)=(/0.0, 0.01/)
-            ! Other (hard coded): IEPOX+OH => 0.24 GLYX + ... (Jacobs et al, 2013; see below)
-       ENDIF
+        jv=0
+        IF (conc_voc(1)>1e-40) THEN
+            jv=jv+1
+            ! ALPH (MTP)
+            vbs_voc_set(jv)%mw = 136
+            voc_id_mtp = jv
+            ! Oxidation rates [cm3/(molecule*s)] and their temperature dependence [T] (Prank et al., 2022)
+            vbs_voc_set(jv)%k_0_OH     = 1.2E-11
+            vbs_voc_set(jv)%Eact_p_OH  = 440.
+            vbs_voc_set(jv)%k_0_O3     = 6.3E-16
+            vbs_voc_set(jv)%Eact_p_O3  = -580.
+            vbs_voc_set(jv)%k_0_NO3    = 1.2E-12
+            vbs_voc_set(jv)%Eact_p_NO3 = 490.
+            ! Stoichiometric coefficients (Farina et al., Table 3):
+            vbs_voc_set(jv)%stoich_coeff_oh(2:vbs_ngroup)  = (/0.07,0.06,0.24,0.41/) ! VOC + OH/O3 in low NOx
+            vbs_voc_set(jv)%stoich_coeff_o3(2:vbs_ngroup)  = (/0.07,0.06,0.24,0.41/) ! VOC + OH/O3 in low NOx
+            vbs_voc_set(jv)%stoich_coeff_no3(2:vbs_ngroup) = (/0.07,0.06,0.24,0.41/) ! VOC + NO3
+            ! Source of non-volatile organics (Prank et al., 2022)
+            vbs_voc_set(jv)%stoich_coeff_oh(1)  = 0.1
+            vbs_voc_set(jv)%stoich_coeff_o3(1)  = 0.1
+            vbs_voc_set(jv)%stoich_coeff_no3(1) = 0.1
+            !
+            ! aqSOA: not from monoterpenes
+            !
+            ! Update conc_voc
+            IF (jv<1) conc_voc(jv)=conc_voc(1)
+        ENDIF
 
-       ! Defining VBS species
-       IF (.NOT. ALLOCATED(vbs_set)) ALLOCATE(vbs_set(vbs_ngroup))
-       ! equ. vapor conc. at T0 (ug=1e-9 kg converted to mol)
-       vbs_set(:)%C0 = (/0.0,1.0,10.,100.,1000./)*1e-9/mwoc ! C0 [mol/m3]
-       vbs_set(:)%T0 = 298. ! T0 [K]
-       vbs_set(:)%Hvap_eff = 30e3/argas ! eff. evap. enthalpy [K]
-       DO jv=1, vbs_ngroup
-            ! Physical properties from SALSA (mw from kg/mol to g/mol)
-            CALL new_species(mw=mwoc*1e3, density=densoc, kappa=kappaoc, idx=vbs_set(jv)%spid)
-       ENDDO
+        IF (conc_voc(2)>1e-40) THEN
+            jv=jv+1
+            ! ISOP (Isoprene)
+            vbs_voc_set(jv)%mw = 68.
+            voc_id_isop = jv
+            ! Oxidation rates [cm3/(molecule*s)] and their temperature dependence [T] (Prank et al., 2022)
+            vbs_voc_set(jv)%k_0_OH     = 2.7E-11
+            vbs_voc_set(jv)%Eact_p_OH  = 390.
+            vbs_voc_set(jv)%k_0_O3     = 1.03E-14
+            vbs_voc_set(jv)%Eact_p_O3  = -1995.
+            vbs_voc_set(jv)%k_0_NO3    = 3.15E-12
+            vbs_voc_set(jv)%Eact_p_NO3 = -450.
+            ! Stoichiometric coefficients (Farina et al., Table 3):
+            vbs_voc_set(jv)%stoich_coeff_oh(2:vbs_ngroup)  = (/0.02,0.02,0.0,0.0/)  ! VOC + OH/O3 in low NOx
+            vbs_voc_set(jv)%stoich_coeff_o3(2:vbs_ngroup)  = (/0.02,0.02,0.0,0.0/)  ! VOC + OH/O3 in low NOx
+            vbs_voc_set(jv)%stoich_coeff_no3(2:vbs_ngroup) = (/0.01,0.02,0.01,0.0/) ! Isoprene + NO3
+            !
+            ! aqSOA (IEPOX and GLYX) from isoprene OH and O3 oxidation:
+            IF (laqsoa) THEN
+                ! ISOP+OH (->0.7 ISOPOO->0.75 IEPOX) => 0.525 IEPOX + ... (Bates et al., 2014; k=2.7E-11*exp(390/T))
+                ! ISOP+OH => 0.025 GLYX (Jenkin et al., 2015)
+                vbs_voc_set(jv)%stoich_coeff_oh(vbs_ngroup+1:vbs_ngroup+2)=(/0.525, 0.025/)
+                ! ISOP+O3 => 0.01 GLYX + ... (McNeill et al., 2012; k=1.23e-14*exp(-2013/T))
+                vbs_voc_set(jv)%stoich_coeff_o3(vbs_ngroup+1:vbs_ngroup+2)=(/0.0, 0.01/)
+                ! Other (hard coded): IEPOX+OH => 0.24 GLYX + ... (Jacobs et al, 2013)
+            ENDIF
+            !
+            ! Update conc_voc
+            IF (jv<2) conc_voc(jv)=conc_voc(2)
+        ENDIF
+
+        IF (conc_voc(3)>1e-40) THEN
+            jv=jv+1
+            ! Toluene (TOL)
+            vbs_voc_set(jv)%mw = 92.
+            ! Oxidation rates [cm3/(molecule*s)] and their temperature dependence [T] (Mielonen et al., 2018)
+            vbs_voc_set(jv)%k_0_OH     = 1.81E-12
+            vbs_voc_set(jv)%Eact_p_OH  = 338.
+            vbs_voc_set(jv)%k_0_O3     = 0.0
+            vbs_voc_set(jv)%Eact_p_O3  = 0.0
+            vbs_voc_set(jv)%k_0_NO3    = 0.0
+            vbs_voc_set(jv)%Eact_p_NO3 = 0.0
+            ! Stoichiometric coefficients (Mielonen et al., 2018)
+            vbs_voc_set(jv)%stoich_coeff_oh(1) = 0.36 ! Non-volatile products from OH-oxidation
+            !
+            ! aqSOA: TOL + OH -> ... + 0.238 GLYX +...   k=1.81e-12*exp(338/T) (McNeil et al., 2012)
+            IF (laqsoa) vbs_voc_set(jv)%stoich_coeff_oh(vbs_ngroup+1:vbs_ngroup+2)=(/0.0, 0.24/)
+            !
+            ! Update conc_voc
+            IF (jv<3) conc_voc(jv)=conc_voc(3)
+        ENDIF
+
+        IF (conc_voc(4)>1e-40) THEN
+            jv=jv+1
+            ! Xylene (XYL)
+            vbs_voc_set(jv)%mw = 106.
+            ! Oxidation rates [cm3/(molecule*s)] and their temperature dependence [T] (Mielonen et al., 2018)
+            vbs_voc_set(jv)%k_0_OH     = 2.31E-11
+            vbs_voc_set(jv)%Eact_p_OH  = 0.0
+            vbs_voc_set(jv)%k_0_O3     = 0.0
+            vbs_voc_set(jv)%Eact_p_O3  = 0.0
+            vbs_voc_set(jv)%k_0_NO3    = 2.6E-16
+            vbs_voc_set(jv)%Eact_p_NO3 = 0.0
+            ! Stoichiometric coefficients (Mielonen et al., 2018)
+            vbs_voc_set(jv)%stoich_coeff_oh(1) = 0.30 ! Non-volatile products from OH-oxidation
+            !
+            ! aqSOA: XYL + OH -> ... + 0.247 GLYX + ...   k=1.43e-11 (McNeil et al., 2012)
+            IF (laqsoa) vbs_voc_set(jv)%stoich_coeff_oh(vbs_ngroup+1:vbs_ngroup+2)=(/0.0, 0.25/)
+            !
+            ! Update conc_voc
+            IF (jv<4) conc_voc(jv)=conc_voc(4)
+        ENDIF
+
+        IF (conc_voc(5)>1e-40) THEN
+            jv=jv+1
+            ! Benzene (BENZ)
+            vbs_voc_set(jv)%mw = 78.
+            ! Oxidation rates [cm3/(molecule*s)] and their temperature dependence [T] (Mielonen et al., 2018)
+            vbs_voc_set(jv)%k_0_OH     = 2.33E-12
+            vbs_voc_set(jv)%Eact_p_OH  = -193.
+            vbs_voc_set(jv)%k_0_O3     = 0.0
+            vbs_voc_set(jv)%Eact_p_O3  = 0.0
+            vbs_voc_set(jv)%k_0_NO3    = 0.0
+            vbs_voc_set(jv)%Eact_p_NO3 = 0.0
+            ! Stoichiometric coefficients (Mielonen et al., 2018)
+            vbs_voc_set(jv)%stoich_coeff_oh(1) = 0.37 ! Non-volatile products from OH-oxidation
+            !
+            ! aqSOA: BENZ + OH -> 0.35 GLYX (Mielonen et al., 2018)
+            IF (laqsoa) vbs_voc_set(jv)%stoich_coeff_oh(vbs_ngroup+1:vbs_ngroup+2)=(/0.0, 0.35/)
+            !
+            ! Update conc_voc
+            IF (jv<5) conc_voc(jv)=conc_voc(5)
+        ENDIF
+
+        IF (jv /= vbs_nvocs) STOP 'vbs_species: error in setting up VOC species!'
+
+        ! Defining VBS species
+        IF (.NOT. ALLOCATED(vbs_set)) ALLOCATE(vbs_set(vbs_ngroup))
+        ! equ. vapor conc. at T0 (ug=1e-9 kg converted to mol)
+        vbs_set(:)%C0 = (/0.0,1.0,10.,100.,1000./)*1e-9/mwoc ! C0 [mol/m3]
+        vbs_set(:)%T0 = 298. ! T0 [K]
+        vbs_set(:)%Hvap_eff = 30e3/argas ! eff. evap. enthalpy [K]
+        ! Physical properties from SALSA (mw from kg/mol to g/mol)
+        vbs_set(:)%mw = mwoc*1e3
+        vbs_set(:)%dens = densoc
+        vbs_set(:)%kappa = kappaoc
 
     CASE DEFAULT
        WRITE (*,'(a,i0)') &
@@ -397,91 +461,57 @@ CONTAINS
        END IF
 
        ! Isoprene epoxide (IEPOX)
-       CALL new_species(&
-            mw          = 118.,                      & ! to be reviewed
-            density     = 1320.,                     & ! to be reviewed
-            kappa       = 0.037,                     & !Petters and Kreidenweis (2007)
-            idx         = spid_temp                     &
-            )
+       aqsoa_set(1)%mw    = 118.
+       aqsoa_set(1)%dens  = 1320.
+       aqsoa_set(1)%kappa = 0.037
 
-       ! Physical parameters
-       aqsoa_set(1)%spid        = spid_temp
-       aqsoa_set(1)%Eff_henry_cloud   = 1.0E5        ! Effective Henry's constant for cloud droplets
-       aqsoa_set(1)%Eff_henry_aerosol = 1.0E8        ! Effective Henry's constant for aerosols
+       ! Effective Henry's law constants for cloud droplets and aerosols [M/atm]
+       aqsoa_set(1)%Eff_henry_cloud   = 1.0E5
+       aqsoa_set(1)%Eff_henry_aerosol = 1.0E8 ! Nguyen et al. (2014)
+       ! Oxidation rates [cm3/(molecule*s)] and their temperature dependence [T] (Arrhenius)
        !OH
-       aqsoa_set(1)%k_0_OH     = 1.25E-11 !pre-factor [m3/(mol*s)] ((Bates et al.. Average between cis and trans isomers)
-       !aqsoa_set(1)%k_0_OH     = 3.56E-11 !pre-factor [m3/(mol*s)] ((Jacobs et al.. average between IEPOX1 and IEPOX4)
-       aqsoa_set(1)%Eact_p_OH  = 0.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
+       aqsoa_set(1)%k_0_OH     = 1.25E-11 ! Bates et al. (2014): average between cis and trans isomers
+       !aqsoa_set(1)%k_0_OH     = 3.56E-11 ! Jacobs et al. (2013): average between IEPOX1 and IEPOX4)
+       aqsoa_set(1)%Eact_p_OH  = 0.0
        !O3
-       aqsoa_set(1)%k_0_O3     = 0.0 !pre-factor [m3/(mol*s)]
-       aqsoa_set(1)%Eact_p_O3  = 0.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
+       aqsoa_set(1)%k_0_O3     = 0.0
+       aqsoa_set(1)%Eact_p_O3  = 0.0
        !NO3
-       aqsoa_set(1)%k_0_NO3    = 0.0 !pre-factor [m3/(mol*s)]
-       aqsoa_set(1)%Eact_p_NO3 = 0.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
-       !Photodissociation
-       aqsoa_set(1)%photodis   = 0.0 !desctruction rate [% s-1] with sunlight
+       aqsoa_set(1)%k_0_NO3    = 0.0
+       aqsoa_set(1)%Eact_p_NO3 = 0.0
+       ! Photodissociation rate [1/s]
+       aqsoa_set(1)%photodis   = 0.0
 
 
        ! Glyoxal (Glyx)
-       CALL new_species(&
-            mw          = 58.,                      & ! to be reviewed
-            density     = 1320.,                     & ! to be reviewed
-            kappa       = 0.037,                     & !Petters and Kreidenweis (2007)
-            idx         = spid_temp                     &
-            )
+       aqsoa_set(2)%mw    = 58.
+       aqsoa_set(2)%dens  = 1320.
+       aqsoa_set(2)%kappa = 0.037
 
-       ! Physical parameters
-       aqsoa_set(2)%spid        = spid_temp
-       aqsoa_set(2)%Eff_henry_cloud   = 4.19E5  ! Effective Henry's constant for cloud droplets
-       aqsoa_set(2)%Eff_henry_aerosol = 3.0E8  ! Effective Henry's constant for aerosols (Kampf et al. 2013)
+       ! Effective Henry's law constants for cloud droplets and aerosols [M/atm]
+       aqsoa_set(2)%Eff_henry_cloud   = 4.19E5
+       aqsoa_set(2)%Eff_henry_aerosol = 3.0E8  ! Kampf et al. (2013)
+       ! Oxidation rates [cm3/(molecule*s)] and their temperature dependence [T] (Arrhenius)
        !OH
-       aqsoa_set(2)%k_0_OH     = 3.1e-12 !pre-factor [m3/(mol*s)] (IUPAC)
-       aqsoa_set(2)%Eact_p_OH  = 340.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
+       !aqsoa_set(2)%k_0_OH     = 11.4e-12 ! McNeill et al. (2012)
+       !aqsoa_set(2)%Eact_p_OH  = 0.0
+       aqsoa_set(2)%k_0_OH     = 3.1e-12 ! IUPAC
+       aqsoa_set(2)%Eact_p_OH  = 340.0
        !O3
-       aqsoa_set(2)%k_0_O3     = 0.0 !pre-factor [m3/(mol*s)]
-       aqsoa_set(2)%Eact_p_O3  = 0.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
+       aqsoa_set(2)%k_0_O3     = 0.0
+       aqsoa_set(2)%Eact_p_O3  = 0.0
        !NO3
-       !aqsoa_set(2)%k_0_NO3    = 6.E-13 !pre-factor [m3/(mol*s)] (McNeill et al., 2012)
-       !aqsoa_set(2)%Eact_p_NO3 = -2058.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
-       aqsoa_set(2)%k_0_NO3    = 4.E-16 !pre-factor [m3/(mol*s)] (IUPAC)
-       aqsoa_set(2)%Eact_p_NO3 = 0.0 !reduced activation energy [K*mol]: Eact_p = Eact/R
-       !Photodissociation
-       aqsoa_set(2)%photodis   = 3.141593/2.*8.21E-5 !desctruction rate [% s-1] with sunlight
+       !aqsoa_set(2)%k_0_NO3    = 6.E-13 ! McNeill et al. (2012)
+       !aqsoa_set(2)%Eact_p_NO3 = -2058.0
+       aqsoa_set(2)%k_0_NO3    = 4.E-16 ! IUPAC
+       aqsoa_set(2)%Eact_p_NO3 = 0.0
+       ! Photodissociation rate [1/s]
+       aqsoa_set(2)%photodis   = 0.0 !  3.141593/2.*8.21E-5
 
     END IF !laqsoa
 
     !<< thk
 
   END SUBROUTINE vbs_species
-
-
-
-  ! *****************************************
-  ! Simplified version of the original new_species for UCLALES-SALSA:
-  ! Take only the relevant parameters.
-  SUBROUTINE new_species(mw,density,kappa,idx)
-
-    REAL, INTENT(IN)           :: mw       ! Molecular weight (required for conversions)
-    REAL, INTENT(IN), OPTIONAL :: density  ! Density
-    REAL, INTENT(IN), OPTIONAL :: kappa    ! Kappa-Koehler coefficient
-    INTEGER, INTENT(OUT)       :: idx      ! index to species list
-
-    !--- Local counter for the total number of species defined
-    INTEGER :: i = 0
-
-    !--- executable procedure
-
-    ! Increment number of species instances and store data
-    i = i + 1
-
-    spec_moleweight(i) = mw
-    IF (PRESENT(density)) spec_density(i)=density
-    IF (PRESENT(kappa)) spec_kappa(i)=kappa
-
-    ! return current index
-    idx = i
-
-  END SUBROUTINE new_species
-
 
 END MODULE mo_vbs

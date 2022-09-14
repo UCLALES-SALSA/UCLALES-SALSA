@@ -76,10 +76,8 @@ contains
     ! Parameters
     use defs, only: vonk, g
     use grid, only: nxp, nyp, a_ustar, a_dn, zm, nbins, a_naerot, a_maerot
-    use mo_submctl, only: rhooc, rhoss, nvbs_setup, aerobins, in2a, fn2a, &
-                    in2b, pi6, iss, ioc, ih2o, rhowa, rhoss, rhooc, nvbs_setup
-    use mo_vbsctl, only: vbs_set
-    use mo_vbs, only: spec_density
+    use mo_submctl, only: aerobins, in2a, fn2a, &
+                    in2b, pi6, iss, ioc, ih2o, rhowa, rhoss, rhooc
     use stat, only: flux_stat, sflg
     use util, only : get_avg2dh
 
@@ -92,7 +90,7 @@ contains
     REAL :: flx(fn2a+1) ! Production rate for each size bin
     REAL :: dcdt(nxp,nyp,fn2a) ! Particle concentration tendency (#/kg/s)
 
-    IF (iss<1 .and. ioc<1 .and. nvbs_setup<1) STOP 'No sea spray species included!'
+    IF (iss<1 .or. (wtrChlA>0. .and. ioc<1)) STOP 'No sea spray species included!'
 
     ! Roughness height is needed for the 10 m wind speeds
     zs = zrough
@@ -134,11 +132,7 @@ contains
     ! Organic mass fraction grom Gantt ea (2011)
     ! conversion to mg from kg
     if(wtrChlA>0.)then
-        if(nvbs_setup > 0)then
-            rhorho = spec_density(vbs_set(1)%spid)/rhoss
-        else
-            rhorho = rhooc/rhoss ! ratio of densities of marine organic matter and salt
-        endif
+        rhorho = rhooc/rhoss ! ratio of densities of marine organic matter and salt
         omf_max = 1./(1.+exp(-2.63e6*wtrChlA+0.18*u10_bar))
     else
         omf_max = 0.
@@ -151,9 +145,9 @@ contains
         ovf(:) = omf_max/(omf_max*(1.-rhorho)+rhorho)
     endif
 
-    DO k=in2a,fn2a+1 ! Ignore 1a, because there is no sea salt
+    if(wtrChlA>0.)then
         ! Size dependent organic mass fraction from Gantt ea, 2011 (eq. 3)
-        if(wtrChlA>0.)then
+        DO k=in2a,fn2a+1 ! Ignore 1a, because there is no sea salt
             dia=aerobins(k)*2.e6  !compute for bin borders, average later
             ! Organic fraction is parameterized for particle aerodynamic diameter at 80% RH
             ! which depends on composition, so technically would need to iterate.
@@ -165,10 +159,10 @@ contains
             dia80 = (dia**3*(ovf(k)+8.*(1.-ovf(k))))**(1./3.)* 1.1
             omf = omf_max/(1.+0.03*exp(6.81*dia80))+0.03*omf_max
             ovf(k) = omf/(omf*(1.-rhorho)+rhorho)
-        else
-            ovf(k) = 0.
-        endif
-    ENDDO
+        ENDDO
+    else
+        ovf(:) = 0.
+    endif
 
     ! Particle concentration tendency for each size bin
     dcdt(:,:,:)=0.
@@ -210,11 +204,7 @@ contains
                                               & vdry*rhowa*(1.-0.5*(ovf(k)+ovf(k+1)))*7.
         endif
         ! .. organic fraction
-        if (nvbs_setup>=0) then
-            j = (vbs_set(1)%id_vols-1)*nbins + i
-            a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*spec_density(vbs_set(1)%spid)*0.5*(ovf(k)+ovf(k+1))
-        elseif(ioc>0)then
+        if(ioc>0)then
             j = (ioc-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
                                               & vdry*rhooc*0.5*(ovf(k)+ovf(k+1))
@@ -448,15 +438,14 @@ contains
     ! Parameters
     use defs, only: vonk, g
     use grid, only: nxp, nyp, a_ustar, a_dn, zm, a_gaerot
-    use mo_vbsctl, only: vbs_voc_set
-    use mo_vbs, only: spec_moleweight
+    use mo_submctl, only: id_mtp, id_isop, mws_gas
     use stat, only: flux_stat, sflg
     use util, only : get_avg2dh
     IMPLICIT NONE
     REAL, INTENT(IN) :: sst     ! Sea surface temperature (K)
 
     ! Local
-    INTEGER :: i, j, k
+    INTEGER :: i, j
     REAL :: usum, zs, u10_bar
     REAL :: u10(nxp,nyp)! whitecap cover, 10 m wind speed
     REAL :: flxIsop, flxMtrp ! Gas flux (kg/m2/s)
@@ -496,12 +485,12 @@ contains
     ! 1. Isoprene
     ! Palmer & Shaw, 2005
     schmidt_isoprene = 3913.15 - 162.13*temp_c + 2.67*temp_c**2 - 0.012*temp_c**3
-    if(wtrIsop > 0.)then
+    if(wtrIsop > 0. .and. id_isop>0)then
       sc_ratio = schmidt_ref / schmidt_isoprene
-      iGas = vbs_voc_set(2)%id_gas
+      iGas = id_isop
 
       if(ifVOCflx)then ! wtrIsop is flux in mol/m2/s, just convert to kg/m2/s
-        flxIsop = wtrIsop * spec_moleweight(iGas) /1000.
+        flxIsop = wtrIsop * mws_gas(iGas)
       else
       ! First compute the transfer velocity (m/s)
 !          select case (transfer_velocity_type)
@@ -520,7 +509,7 @@ contains
 !            flxIsop = 0.
 !          end select
       ! Flux
-        flxIsop = flxIsop * wtrIsop * spec_moleweight(iGas) /1000.
+        flxIsop = flxIsop * wtrIsop * mws_gas(iGas)
       endif
       DO j=3,nyp-2
         DO i=3,nxp-2
@@ -530,8 +519,8 @@ contains
     endif
 
     ! 2. Monoterpenes
-    if(wtrMtrp > 0.)then
-      iGas = vbs_voc_set(1)%id_gas
+    if(wtrMtrp > 0. .and. id_mtp>0)then
+      iGas = id_mtp
       ! Temperature dependent Schmidt numbers for monoterpenes do not seem to be available.
       ! Following Moore & Grozsko (1999), assume that the ratio of the diffusivities
       ! is inversely proportional to the ratio of the molar volumes to the power 0.6
@@ -546,12 +535,12 @@ contains
       sc_ratio = schmidt_ref / schmidt_monoterp
 
       if(ifVOCflx)then ! wtrIsop is flux in mol/m2/s, just convert to kg/m2/s
-        flxMtrp = wtrMtrp* spec_moleweight(iGas) /1000.
+        flxMtrp = wtrMtrp* mws_gas(iGas)
       else
         ! Transfer velocity (m/s)
         flxMtrp = 0.251*u10_bar*u10_bar*sc_ratio**p12 * per_sec*to_m
         ! Flux
-        flxMtrp = flxMtrp * wtrMtrp * spec_moleweight(iGas) /1000.
+        flxMtrp = flxMtrp * wtrMtrp * mws_gas(iGas)
       endif
       DO j=3,nyp-2
         DO i=3,nxp-2
