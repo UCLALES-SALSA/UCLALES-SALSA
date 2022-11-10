@@ -162,7 +162,7 @@ contains
   subroutine init_stat(time, filprf, expnme, nzp)
 
     use grid, only : nxp, nyp, nprc, nsnw, nspec, iradtyp, &
-        no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, &
+        no_b_bins, no_prog_cld, no_prog_prc, no_prog_ice, no_prog_snw, &
         sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, out_an_list, nv4_proc, &
         user_an_list, nv4_user, ifSeaSpray, ifSeaVOC
     use mpi_interface, only : myid, ver, author, info
@@ -322,7 +322,7 @@ contains
           s1_rem(ii+4)='rm'//TRIM(zspec(ee))//'ic'
           s1_rem(ii+5)='rm'//TRIM(zspec(ee))//'sn'
           s1_rem_bool(ii+1) = sed_aero
-          s1_rem_bool(ii+2) = sed_cloud
+          s1_rem_bool(ii+2) = sed_cloud .AND. (.NOT. no_prog_cld)
           s1_rem_bool(ii+3) = sed_precp .AND. (.NOT. no_prog_prc)
           s1_rem_bool(ii+4) = sed_ice .AND. (level>4) .AND. (.NOT. no_prog_ice)
           s1_rem_bool(ii+5) = sed_snow .AND. (level>4) .AND. (.NOT. no_prog_snw)
@@ -339,7 +339,7 @@ contains
 
        ! Cloud and ice histrograms
        s2_CldHist_bool=.FALSE.
-       IF (nout_cld>0) THEN
+       IF (nout_cld>0 .AND. .NOT. no_prog_cld) THEN
           s2_CldHist_bool(1) = .TRUE. ! A-bins
           s2_CldHist_bool(2) = .NOT. no_b_bins ! B-bins
           ! Add dimension
@@ -1292,7 +1292,7 @@ contains
              scr(i,j)=scr(i,j)+rr(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
 
              ! Rainy grid cell
-             if (rr(k,i,j) > 0.001e-3) then
+             if (rr(k,i,j) > 1e-8) then
                 nrsum = nrsum + nr(k,i,j)
                 nrcnt = nrcnt + 1.
              end if
@@ -1404,7 +1404,8 @@ contains
   ! Variable names are given in NAMELIST/user_ts_list and these must be defined in ncio.f90.
   ! Outputs are calculated here to array user_ts_data(nv1_user).
   subroutine ts_user_stats()
-    use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn
+    use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_rc, a_rpp, a_npp
+    USE defs, ONLY : pi, rowt
     INTEGER :: i
     REAL :: a(nzp,nxp,nyp)
     LOGICAL :: fail, mask(nzp,nxp,nyp), mass
@@ -1415,6 +1416,28 @@ contains
             ! Level 3 CCN as an example of output
             IF (level<4) THEN
                 user_ts_data(i) = CCN
+            ELSE
+                user_ts_data(i) = -999.
+            ENDIF
+        CASE ('Rcloud')
+            ! Level 3 cloud droplet radius
+            IF (level<4) THEN
+                a(:,:,:) = ( 0.75*a_rc(:,:,:)/(CCN*pi*rowt) )**(1./3.)
+                mask(:,:,:) = a_rc(:,:,:)>1e-5
+                user_ts_data(i) = get_avg_ts(nzp,nxp,nyp,a,dzt,cond=mask)
+            ELSE
+                user_ts_data(i) = -999.
+            ENDIF
+        CASE ('Rrain')
+            ! Level 3 rain drop radius
+            IF (level<4) THEN
+                mask = a_rpp > 1.e-8
+                WHERE (mask)
+                    a = ( 0.75*a_rpp/(a_npp*pi*rowt) )**(1./3.)
+                ELSEWHERE
+                    a = 0.
+                END WHERE
+                user_ts_data(i) = get_avg_ts(nzp,nxp,nyp,a,dzt,cond=mask)
             ELSE
                 user_ts_data(i) = -999.
             ENDIF
@@ -1680,7 +1703,7 @@ contains
 
     ! Level 3 rain mask and conditionally averaged rain droplet concentrations
     IF (level<4) THEN
-        WHERE (rr > 0.001e-3)
+        WHERE (rr > 1e-8)
            mask = 1.
         ELSEWHERE
            mask = 0.
@@ -1846,7 +1869,8 @@ contains
   ! Variable names are given in NAMELIST/user_ps_list and these must be defined in ncio.f90.
   ! Outputs are calculated here to array user_ps_data(nzp,nv2_user).
   subroutine ps_user_stats()
-    USE grid, ONLY : nzp, nxp, nyp, a_dn
+    USE grid, ONLY : nzp, nxp, nyp, a_dn, a_rc, CCN, a_rpp, a_npp
+    USE defs, ONLY : pi, rowt
     INTEGER :: i
     LOGICAL :: fail, mask(nzp,nxp,nyp)
     REAL :: a(nzp,nxp,nyp), a1(nzp)
@@ -1857,6 +1881,28 @@ contains
             ! Air density
             call get_avg3(nzp,nxp,nyp,a_dn,a1)
             user_ps_data(:,i)=user_ps_data(:,i)+a1(:)
+        CASE ('Rc_ic')
+            ! Level 3 cloud droplet radius
+            IF (level<4) THEN
+                a(:,:,:) = ( 0.75*a_rc(:,:,:)/(CCN*pi*rowt) )**(1./3.)
+                mask(:,:,:) = a_rc(:,:,:)>1e-5
+                ! Averaging
+                CALL get_avg3(nzp,nxp,nyp,a,a1,cond=mask)
+                user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
+            ENDIF
+        CASE ('Rr_ir')
+            ! Level 3 rain drop radius
+            IF (level<4) THEN
+                mask = a_rpp > 1.e-8
+                WHERE (mask)
+                    a = ( 0.75*a_rpp/(a_npp*pi*rowt) )**(1./3.)
+                ELSEWHERE
+                    a = 0.
+                END WHERE
+                ! Averaging
+                CALL get_avg3(nzp,nxp,nyp,a,a1,cond=mask)
+                user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
+            ENDIF
         CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_ps_list(i),a,mask)

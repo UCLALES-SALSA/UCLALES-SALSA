@@ -103,6 +103,7 @@ module grid
   real, allocatable :: xt(:), xm(:), yt(:), ym(:), zt(:), zm(:), dzt(:), dzm(:)
   real, allocatable :: u0(:), v0(:), pi0(:), pi1(:), th0(:), dn0(:), rt0(:)
   real, allocatable :: spng_wfct(:), spng_tfct(:)
+  REAL, ALLOCATABLE, target :: tmp_cldp(:,:,:,:), tmp_cldt(:,:,:,:)
   REAL, ALLOCATABLE, target :: tmp_prcp(:,:,:,:), tmp_prct(:,:,:,:)
   REAL, ALLOCATABLE, target :: tmp_icep(:,:,:,:), tmp_icet(:,:,:,:)
   REAL, ALLOCATABLE, target :: tmp_snwp(:,:,:,:), tmp_snwt(:,:,:,:)
@@ -157,6 +158,8 @@ module grid
 
   ! No prognostic b-bins for aerosol, cloud or ice
   LOGICAL :: no_b_bins = .FALSE.
+  ! No prognostic cloud
+  LOGICAL :: no_prog_cld = .FALSE.
   ! No prognostic rain
   LOGICAL :: no_prog_prc = .FALSE.
   ! No prognostic ice or snow (level=5)
@@ -362,7 +365,8 @@ contains
 
        ! Total number of prognostic SALSA variables (number and mass for each aerosol component + gases)
        nc = nspec+2
-       nsalsa = ngases + nc*nbins + nc*ncld
+       nsalsa = ngases + nc*nbins
+       IF (.NOT. no_prog_cld) nsalsa = nsalsa + nc*ncld
        IF (.NOT. no_prog_prc) nsalsa = nsalsa + nc*nprc
        IF (level>=5 .AND. .NOT. no_prog_ice) nsalsa = nsalsa + nc*nice
        IF (level>=5 .AND. .NOT. no_prog_snw) nsalsa = nsalsa + nc*nsnw
@@ -396,12 +400,25 @@ contains
        a_maerot => a_sclrt(:,:,:,zz+1:zz+nc*nbins)
        zz = zz+nc*nbins
 
-       a_ncloudp => a_sclrp(:,:,:,zz+1:zz+ncld)
-       a_ncloudt => a_sclrt(:,:,:,zz+1:zz+ncld)
-       zz = zz+ncld
-       a_mcloudp => a_sclrp(:,:,:,zz+1:zz+nc*ncld)
-       a_mcloudt => a_sclrt(:,:,:,zz+1:zz+nc*ncld)
-       zz = zz+nc*ncld
+       IF (.NOT. no_prog_cld) THEN
+          ! Prognostic cloud
+          a_ncloudp => a_sclrp(:,:,:,zz+1:zz+ncld)
+          a_ncloudt => a_sclrt(:,:,:,zz+1:zz+ncld)
+          zz = zz+ncld
+          a_mcloudp => a_sclrp(:,:,:,zz+1:zz+nc*ncld)
+          a_mcloudt => a_sclrt(:,:,:,zz+1:zz+nc*ncld)
+          zz = zz+nc*ncld
+       ELSE
+          ! Allocate zero arrays for pointers
+          ALLOCATE (tmp_cldp(nzp,nxp,nyp,(nc+1)*ncld), &
+                    tmp_cldt(nzp,nxp,nyp,(nc+1)*ncld))
+          tmp_cldp(:,:,:,:) = 0.
+          tmp_cldt(:,:,:,:) = 0.
+          a_ncloudp => tmp_cldp(:,:,:,1:ncld)
+          a_ncloudt => tmp_cldt(:,:,:,1:ncld)
+          a_mcloudp => tmp_cldp(:,:,:,ncld+1:(nc+1)*ncld)
+          a_mcloudt => tmp_cldt(:,:,:,ncld+1:(nc+1)*ncld)
+       ENDIF
 
        IF (.NOT. no_prog_prc) THEN
           ! Prognostic rain

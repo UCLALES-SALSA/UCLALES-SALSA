@@ -136,7 +136,7 @@ CONTAINS
          IF (sflg) CALL salsa_var_stat('cact',0)
          CALL cloud_activation(kbdim,  klev,          &
                                ptemp,  ppres, prv,    &
-                               prs,    paero, pcloud  )
+                               prs,    paero, pcloud, pprecp )
          IF (sflg) CALL salsa_var_stat('cact',1)
     ENDIF
 
@@ -193,7 +193,6 @@ CONTAINS
 
       ! 1) Master routine
       SUBROUTINE salsa_var_stat(prefix,ncall)
-        USE mo_submctl, ONLY : rhowa, rhoic, rhosn
         IMPLICIT NONE
         ! Input
         character (len=4), intent (in) :: prefix ! Process name
@@ -213,15 +212,15 @@ CONTAINS
                 ! The last (7th) character is phase (a, c, r, i, s or g)
                 SELECT CASE (nam(7:7))
                     CASE ('a')
-                        CALL salsa_rate_stat(i,nam(6:6),fn2b,paero,ncall,rhowa)
+                        CALL salsa_rate_stat(i,nam(6:6),fn2b,paero,ncall)
                     CASE ('c')
-                        CALL salsa_rate_stat(i,nam(6:6),ncld,pcloud,ncall,rhowa)
+                        CALL salsa_rate_stat(i,nam(6:6),ncld,pcloud,ncall)
                     CASE ('r')
-                        CALL salsa_rate_stat(i,nam(6:6),nprc,pprecp,ncall,rhowa)
+                        CALL salsa_rate_stat(i,nam(6:6),nprc,pprecp,ncall)
                     CASE ('i')
-                        CALL salsa_rate_stat(i,nam(6:6),nice,pice,ncall,rhoic)
+                        CALL salsa_rate_stat(i,nam(6:6),nice,pice,ncall)
                     CASE ('s')
-                        CALL salsa_rate_stat(i,nam(6:6),nsnw,psnow,ncall,rhosn)
+                        CALL salsa_rate_stat(i,nam(6:6),nsnw,psnow,ncall)
                     CASE ('g')
                         CALL salsa_rate_stat_gas(i,nam(6:6),ngas,pc_gas,ncall)
                 END SELECT
@@ -231,8 +230,8 @@ CONTAINS
       END SUBROUTINE salsa_var_stat
 
       ! 2a) The actual subroutine for doing the work for t_section types
-      SUBROUTINE salsa_rate_stat(i,tchar,nb,curr,ncall,rhowa)
-        USE mo_submctl, ONLY : dens
+      SUBROUTINE salsa_rate_stat(i,tchar,nb,curr,ncall)
+        USE mo_submctl, ONLY : rhowa
         IMPLICIT NONE
         ! Inputs
         INTEGER, intent (in) :: i ! the i:th output
@@ -240,7 +239,6 @@ CONTAINS
         INTEGER, INTENT(IN) :: nb ! number of bins
         TYPE(t_section), INTENT(in) :: curr(kbdim,klev,nb) ! current state of a hydrometeor
         INTEGER, INTENT(IN) :: ncall ! calling before (0) or after (1) the main function call
-        REAL, INTENT(IN) :: rhowa ! Density of water (liquid, ice or snow)
         ! Local
         INTEGER :: j
         !
@@ -272,8 +270,7 @@ CONTAINS
                     sdata(:,:,i) = SUM(curr(:,:,:)%volc(j),DIM=3)
                 ELSE
                     ! Difference multiplied by density (kg/m3)
-                    sdata(:,:,i) = (SUM(curr(:,:,:)%volc(j),DIM=3) - sdata(:,:,i))*dens(j)
-                    IF (j==1) sdata(:,:,i)=sdata(:,:,i)*rhowa/dens(j)
+                    sdata(:,:,i) = (SUM(curr(:,:,:)%volc(j),DIM=3) - sdata(:,:,i))*rhowa
                 ENDIF
         END SELECT
         !

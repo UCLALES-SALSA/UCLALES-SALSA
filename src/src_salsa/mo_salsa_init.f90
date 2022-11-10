@@ -417,6 +417,7 @@ CONTAINS
                                nlcgip,nlcgsa,nlcgsc,  &
                                nlcgsi,nlcgsp,nlcgss,  &
                                eddy_dis_rt,           &
+                               nlcgrain,              &
                                nlcnd,                 &
                                nlcndgas,              &
                                nlcndh2oae,nlcndh2ocl, &
@@ -429,6 +430,7 @@ CONTAINS
                                nlactiv,               &
                                nlactintst,            &
                                nlactbase,            &
+                               nlactprc,             &
                                nlicenucl,             &
                                fixinc, ice_source_opt,&
                                ice_hom, ice_imm, ice_dep, &
@@ -451,7 +453,6 @@ CONTAINS
                                mss, dissss, rhoss,    &
                                mdu, dissdu, rhodu,    &
                                mwa, disswa, rhowa,    &
-                               rhoic, rhosn,          &
                                conc_h2so4, conc_ocnv, &
                                nvbs_setup, laqsoa,    &
                                zvbs_k_OH, zvbs_Eact_p_OH, &
@@ -474,6 +475,7 @@ CONTAINS
          nlcgca,      & ! Cloud collection of aerosols
          nlcgpa,      & ! Collection of aerosols by precip
          nlcgpc,      & ! Collection of cloud droplets by rain
+         nlcgrain,    & ! Rain formation based on cloud-cloud collisions
          nlcgia,      & ! Ice collection of aerosols
          nlcgic,      & ! Collection of cloud droplets by ice particles
          nlcgii,      & ! Collision-coalescence between ice particles
@@ -501,6 +503,7 @@ CONTAINS
          nlactiv,       & ! Master switch for cloud droplet activation
          nlactbase,     & ! Switch for parameterized cloud base activation
          nlactintst,    & ! Switch for interstitial activation based on particle growth and host model S
+         nlactprc,      & ! Activated aerosol described with rain bins
 
          nlicenucl,     & ! Ice nucleation master switch
          fixinc,        & ! Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
@@ -535,7 +538,6 @@ CONTAINS
          mss, dissss, rhoss, & ! sea salt (NaCl)
          mdu, dissdu, rhodu, & ! mineral dust
          mwa, disswa, rhowa, & ! water
-         rhoic, rhosn,       & ! densitities of ice and snow
 
          conc_h2so4,    & ! Vapor phase concentration for sulfuric acid (#/kg)
          conc_ocnv,     & ! -||- non-volatile organics

@@ -610,6 +610,14 @@ contains
        if (itype==0) ncinfo = 'Ice cell counts'
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'time'
+    case('Rcloud')
+       if (itype==0) ncinfo = 'Conditionally sampled cloud droplet radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('Rrain')
+       if (itype==0) ncinfo = 'Conditionally sampled rain drop radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
     case('SS_max')
        if (itype==0) ncinfo = 'Maximum supersaturation'
        if (itype==1) ncinfo = '%'
@@ -975,6 +983,14 @@ contains
     case('frac_is')
        if (itype==0) ncinfo = 'Snow fraction'
        if (itype==1) ncinfo = '-'
+       if (itype==2) ncinfo = 'tttt'
+    case('Rc_ic')
+       if (itype==0) ncinfo = 'Conditionally sampled cloud droplet radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'tttt'
+    case('Rr_ir')
+       if (itype==0) ncinfo = 'Conditionally sampled rain drop radius'
+       if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttt'
     case('rr')
        if (itype==0) ncinfo = 'Rain water mixing ratio'

@@ -63,7 +63,7 @@ IMPLICIT NONE
                        pa_gasp,  pa_gast, prunmode, tstep, time, level, &
                        sflg, nstat, slist, sdata)
 
-    USE mo_submctl, ONLY : fn2b, fnp2b, rhoic, rhosn, dens, &
+    USE mo_submctl, ONLY : fn2b, fnp2b, dens, &
                                rhlim, lscndgas, ngases, mws_gas, nspec, maxnspec, &
                                ngases_diag, zgas_diag, set_vbs_diag, eddy_dis_rt
     USE mo_salsa, ONLY : salsa
@@ -186,7 +186,7 @@ IMPLICIT NONE
 
              ! Set volume concentrations
              DO nc=1,nspec+1
-                rho=dens(nc) ! Density - not valid for water in ice and snow
+                rho=dens(nc) ! Density - water equivalent for ice and snow
                 str = (nc-1)*nbins+1
                 end = nc*nbins
                 aero(1,1,1:nbins)%volc(nc) = pa_maerop(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rho
@@ -202,13 +202,11 @@ IMPLICIT NONE
                 precp(1,1,1:nprc)%volc(nc) = pa_mprecpp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rho
                 precp_old(1,1,1:nprc)%volc(nc) = precp(1,1,1:nprc)%volc(nc)
 
-                IF (nc==1) rho=rhoic ! Ice water
                 str = (nc-1)*nice+1
                 end = nc*nice
                 ice(1,1,1:nice)%volc(nc) = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rho
                 ice_old(1,1,1:nice)%volc(nc) = ice(1,1,1:nice)%volc(nc)
 
-                IF (nc==1) rho=rhosn ! Snow water
                 str = (nc-1)*nsnw+1
                 end = nc*nsnw
                 snow(1,1,1:nsnw)%volc(nc) = pa_msnowp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rho
@@ -293,13 +291,11 @@ IMPLICIT NONE
                 pa_mprecpt(kk,ii,jj,str:end) = pa_mprecpt(kk,ii,jj,str:end) + &
                      ( precp(1,1,1:nprc)%volc(nc) - precp_old(1,1,1:nprc)%volc(nc) )*rho/pdn(kk,ii,jj)/tstep
 
-                IF (nc==1) rho=rhoic
                 str = (nc-1)*nice+1
                 end = nc*nice
                 pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
                      ( ice(1,1,1:nice)%volc(nc) - ice_old(1,1,1:nice)%volc(nc) )*rho/pdn(kk,ii,jj)/tstep
 
-                IF (nc==1) rho=rhosn
                 str = (nc-1)*nsnw+1
                 end = nc*nsnw
                 pa_msnowt(kk,ii,jj,str:end) = pa_msnowt(kk,ii,jj,str:end) + &
@@ -336,6 +332,7 @@ IMPLICIT NONE
     USE mo_submctl, ONLY : nlcoag,                 &
                                nlcgaa,nlcgcc,nlcgpp,   &
                                nlcgca,nlcgpa,nlcgpc,   &
+                               nlcgrain,               &
                                nlcnd,                  &
                                nlcndgas,               &
                                nlcndh2oae, nlcndh2ocl, &
@@ -347,6 +344,7 @@ IMPLICIT NONE
                                lscoag,                 &
                                lscgaa,lscgcc,lscgpp,   &
                                lscgca,lscgpa,lscgpc,   &
+                               lscgrain,               &
                                lscnd,                  &
                                lscndgas,               &
                                lscndh2oae, lscndh2ocl, &
@@ -354,6 +352,7 @@ IMPLICIT NONE
                                lsauto,lsautosnow,      &
                                lsactiv,                &
                                lsactbase,lsactintst,   &
+                               lsactprc, nlactprc,     &
 
                                nlcgia,nlcgic,nlcgii,   &
                                nlcgip,nlcgsa,nlcgsc,   &
@@ -399,12 +398,14 @@ IMPLICIT NONE
     lscndh2ocl  = nlcndh2ocl
     lscndh2oic  = nlcndh2oic
 
+    lscgrain    = nlcgrain
     lsauto      = nlauto
     lsautosnow  = nlautosnow
 
     lsactiv     = nlactiv
     lsactbase   = nlactbase
     lsactintst  = nlactintst
+    lsactprc    = nlactprc
 
     lsicenucl  = nlicenucl
     lsicmelt    = nlicmelt

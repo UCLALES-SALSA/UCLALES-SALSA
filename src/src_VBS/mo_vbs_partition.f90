@@ -294,7 +294,7 @@ CONTAINS
 
     USE mo_submctl, ONLY : &
          pstand, pi, rg, surfw0,               & ! Constants
-         dens, mws, rhowa, rhoic, rhosn,       & ! Physics properties
+         dens, mws,                            & ! Physics properties
          laqsoa,                               & ! aqSOA partitioning (optional)
          ioc, iocg, moc, part_ocnv,            & ! NVOA partitioning (optional)
          iso, isog, msu, part_h2so4,           & ! Sulfate partitioning (optional)
@@ -415,7 +415,6 @@ CONTAINS
        IF (pice(jc)%numc>prlim) THEN
           jvc = jvc + 1
           zc_part_all(jvc,:)=pice(jc)%volc(1:nn)*dens(1:nn)/mws(1:nn)
-          zc_part_all(jvc,1)=zc_part_all(jvc,1)*rhoic/rhowa ! Correction for ice density
           zk_numc(jvc) = pice(jc)%numc
           zk_diam(jvc) = pice(jc)%dwet
        END IF
@@ -425,7 +424,6 @@ CONTAINS
        IF (psnow(jc)%numc>prlim) THEN
           jvc = jvc + 1
           zc_part_all(jvc,:)=psnow(jc)%volc(1:nn)*dens(1:nn)/mws(1:nn)
-          zc_part_all(jvc,1)=zc_part_all(jvc,1)*rhosn/rhowa ! Correction for snow density
           zk_numc(jvc) = psnow(jc)%numc
           zk_diam(jvc) = psnow(jc)%dwet
        END IF

@@ -885,9 +885,9 @@ contains
                      a_naerot,a_maerot,a_ncloudt,a_mcloudt,a_nprecpt,a_mprecpt,      &
                      a_nicet,a_micet,a_nsnowt,a_msnowt,a_gaerot, &
                      a_rh, a_temp, a_rhi, a_dn, level, dtl, &
-                     tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
+                     tmp_cldp, tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
     USE mo_submctl, ONLY : fn1a,in2a,fn2a, &
-                     diss, mws, dens, rhoic, rhosn, &
+                     diss, mws, dens, &
                      surfw0, rg, nlim, prlim, pi, pi6, &
                      lscndgas, part_h2so4, part_ocnv, iso, ioc, isog, iocg, &
                      aerobins, calc_correlation
@@ -1073,9 +1073,8 @@ contains
              DO bc = 1,nice
                 IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. &
                         a_micep(k,i,j,bc)<1e-8 ) THEN
-                   ! Diameter (assuming constant ice density)
-                   cd = ( (a_micep(k,i,j,bc)/rhoic+SUM(a_micep(k,i,j,nice+bc:nspec*nice+bc:nice)/dens(2:nn)) )/ &
-                            a_nicep(k,i,j,bc)/pi6)**(1./3.)
+                   ! Diameter (assuming water density for ice)
+                   cd = ( SUM(a_micep(k,i,j,bc:nspec*nice+bc:nice)/dens(1:nn))/a_nicep(k,i,j,bc)/pi6)**(1./3.)
 
                    ! Dry to total mass ratio
                    zvol = SUM( a_micep(k,i,j,nice+bc:nspec*nice+bc:nice) )/SUM( a_micep(k,i,j,bc:nspec*nice+bc:nice) )
@@ -1102,9 +1101,8 @@ contains
              DO bc = 1,nsnw
                 IF ( a_nsnowp(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. &
                         a_msnowp(k,i,j,bc)<1e-8 ) THEN
-                   ! Diameter (assuming constant snow density)
-                   cd = ( (a_msnowp(k,i,j,bc)/rhosn+SUM(a_msnowp(k,i,j,nsnw+bc:nspec*nsnw+bc:nsnw)/dens(2:nn)) )/ &
-                            a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
+                   ! Diameter (assuming water density for snow)
+                   cd = ( SUM(a_msnowp(k,i,j,bc:nspec*nsnw+bc:nsnw)/dens(1:nn))/a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
 
                    ! Dry to total mass ratio
                    zvol = SUM( a_msnowp(k,i,j,nsnw+bc:nspec*nsnw+bc:nsnw) )/SUM( a_msnowp(k,i,j,bc:nspec*nsnw+bc:nsnw) )
@@ -1206,6 +1204,9 @@ contains
 
 
     ! Check that ignored species or bins are not used
+    IF (ALLOCATED(tmp_cldp)) THEN
+        IF (ANY(tmp_cldp>nlim)) STOP 'Non-zero cloud even when disabled!'
+    ENDIF
     IF (ALLOCATED(tmp_prcp)) THEN
         IF (ANY(tmp_prcp>prlim)) STOP 'Non-zero rain even when disabled!'
     ENDIF
@@ -1234,6 +1235,7 @@ contains
     ! Aerosol and cloud droplets, regimes a and b
     a_rc(:,:,:) = SUM(a_maerop(:,:,:,1:nbins),DIM=4) + &
                   SUM(a_mcloudp(:,:,:,1:ncld),DIM=4)
+
     ! Precipitation
     a_srp(:,:,:) = SUM(a_mprecpp(:,:,:,1:nprc),DIM=4)
     a_snrp(:,:,:) = SUM(a_nprecpp(:,:,:,:),DIM=4)

@@ -53,10 +53,12 @@ MODULE mo_submctl
 
   LOGICAL :: nlauto     = .TRUE.,  lsauto     ! Autoconversion of cloud droplets (needs activation)
   LOGICAL :: nlautosnow = .TRUE.,  lsautosnow ! Autoconversion of ice particles to snow (needs activation)
+  LOGICAL :: nlcgrain = .FALSE.,   lscgrain   ! Rain formation based on cloud-cloud collisions
 
   LOGICAL :: nlactiv    = .TRUE.,  lsactiv    ! Cloud droplet activation master switch
   LOGICAL :: nlactintst = .TRUE.,  lsactintst ! Switch for interstitial activation
   LOGICAL :: nlactbase  = .FALSE., lsactbase  ! Switch for cloud base activation
+  LOGICAL :: nlactprc   = .FALSE., lsactprc   ! Put the resulting cloud droplet to rain bins
 
   LOGICAL :: nlicenucl  = .FALSE., lsicenucl  ! ice nucleation master switch
   LOGICAL :: nlicmelt   = .FALSE., lsicmelt   ! ice melting
@@ -256,8 +258,7 @@ MODULE mo_submctl
    mbc = 12.e-3,    dissbc = 0.0, rhobc = 2000., & ! black carbon
    mss = 58.44e-3,  dissss = 2.0, rhoss = 2165., & ! sea salt (NaCl)
    mdu = 100.e-3,   dissdu = 0.0, rhodu = 2650., & ! mineral dust
-   mwa = 18.016e-3, disswa = 1.0, rhowa = 1000., & ! water
-   rhoic = 917.,    rhosn = 300. ! densitities of ice and snow
+   mwa = 18.016e-3, disswa = 1.0, rhowa = 1000.    ! water
 
   REAL, PARAMETER :: & ! diameter of condensing molecule [m]
    d_sa = 5.539376964394570e-10, & ! H2SO4
@@ -325,10 +326,25 @@ contains
     INTEGER i
 
     ppart(:)%dwet = 2.e-10
-    DO i=1,n
-        IF (ppart(i)%numc>lim) &
-            ppart(i)%dwet=(SUM(ppart(i)%volc(:))/ppart(i)%numc/pi6)**(1./3.)
-    ENDDO
+
+    IF (flag==4) THEN
+        ! Ice: spherical, but with effective density of 917 kg/m3
+        DO i=1,n
+            IF (ppart(i)%numc>lim) &
+                ppart(i)%dwet=( (ppart(i)%volc(1)*rhowa/917.+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.)
+        ENDDO
+    ELSEIF (flag==5) THEN
+        ! Snow: spherical, but with effective density of 300 kg/m3
+        DO i=1,n
+            IF (ppart(i)%numc>lim) &
+                ppart(i)%dwet=( (ppart(i)%volc(1)*rhowa/300.+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.)
+        ENDDO
+    ELSE
+        DO i=1,n
+            IF (ppart(i)%numc>lim) &
+                ppart(i)%dwet=(SUM(ppart(i)%volc(:))/ppart(i)%numc/pi6)**(1./3.)
+        ENDDO
+    ENDIF
 
   END SUBROUTINE CalcDimension
   !
@@ -346,10 +362,6 @@ contains
     DO i=1,n
         IF (ppart(i)%numc<lim) THEN
             ! No particles
-        ELSEIF (flag==4) THEN   ! Ice
-            mass(i)=(ppart(i)%volc(1)*rhoic+SUM(ppart(i)%volc(2:)*dens(2:)))/ppart(i)%numc
-        ELSEIF (flag==5) THEN   ! Snow
-            mass(i)=(ppart(i)%volc(1)*rhosn+SUM(ppart(i)%volc(2:)*dens(2:)))/ppart(i)%numc
         ELSE
             mass(i)=SUM(ppart(i)%volc(:)*dens(:))/ppart(i)%numc
         ENDIF
@@ -365,11 +377,11 @@ contains
     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
 
     IF (flag==4) THEN   ! Ice
-        ! Spherical ice
-        calc_eff_radius=0.5*( (mass(1)/rhoic+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
+        ! Ice: spherical, but with effective density of 917 kg/m3
+        calc_eff_radius=0.5*( (mass(1)/917.+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
     ELSEIF (flag==5) THEN   ! Snow
-        ! Spherical snow
-        calc_eff_radius=0.5*( (mass(1)/rhosn+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
+        ! Snow: spherical, but with effective density of 300 kg/m3
+        calc_eff_radius=0.5*( (mass(1)/300.+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
     ELSE
         ! Radius from total volume of a spherical particle or aqueous droplet
         calc_eff_radius=0.5*( SUM(mass(:)/dens(1:n))/pi6)**(1./3.)
