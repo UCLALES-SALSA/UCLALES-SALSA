@@ -956,7 +956,7 @@ CONTAINS
    IMPLICIT NONE
 
    REAL, INTENT(inout) :: sendbuff
-   REAL, INTENT(in) :: rootid
+   INTEGER, INTENT(in) :: rootid
    INTEGER :: ierror
 
    CALL MPI_BCAST(sendbuff,1,MY_REAL,rootid,MPI_COMM_WORLD,ierror)

@@ -26,7 +26,7 @@ SRCSF90 = mo_salsa_math.f90 mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_clou
 	  aerosol_thermodynamics.f90 classSpecies.f90 classSection.f90 classProcessSwitch.f90 classBinLayout.f90      \
 	  classProcessRates.f90 defs.f90 $(seqmpi) LES.f90 ncio.f90 util.f90 grid.f90 thrm.f90 forc.f90 advf.f90      \
 	  advl.f90 srfc.f90 prss.f90 sgsm.f90 mcrp.f90 step.f90 init.f90 perturbation_forc.f90 nudg.f90                \
-	  nudg_defs.f90 constrain_SALSA.f90 rfft.f90 rad_solver.f90 rad_corkds.f90 rad_cldwtr.f90 rad_d4strm.f90      \
+	  nudg_defs.f90 constrain_SALSA.f90 rad_solver.f90 rad_corkds.f90 rad_cldwtr.f90 rad_d4strm.f90      \
 	  rad_driver.f90 radiation_main.f90 emission_main.f90 emission_init.f90 mo_lagrangian_tracker.f90             \
 	  emission_types.f90 mo_seasalt_emission.f90 exceptionHandling.f90 mo_aerorad_lut.f90                         \
 	  mo_salsa_optical_properties.f90 mo_particle_external_properties.f90 mo_ice_shape.f90                        \
@@ -35,19 +35,21 @@ SRCSF90 = mo_salsa_math.f90 mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_clou
           mo_ts_procedures.f90 classFieldArray.f90 mo_output.f90 $(seqmpihis) mo_field_state.f90 mo_field_init.f90    \
           mo_check_state.f90 mo_stats_finder.f90 mo_stats_parameters.f90 $(mpi_io) math_functions.f90
 
+
 OBJS =	$(SRCSF90:.f90=.o) $(SRCSF77:.f=.o)
+
 
 all: $(OUT)
 
 
 $(OUT): $(OBJS)
-	$(F90) $(FFLAGS) -o $@ $(OBJS) $(LIBS)
+	$(F90) $(FFLAGS) -o $@ $(OBJS) rfft.o $(LIBS)
+
+rfft.o: rfft.f90
+	$(F90) -c $(F77FLAGS) $<
 
 %.o: %.f90 
 	$(F90) -c $(FFLAGS) $<
-
-%.o: %.f
-	$(F90) -c $(F77FLAGS) $<
 
 #
 # Dependencies

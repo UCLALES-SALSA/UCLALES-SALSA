@@ -348,7 +348,7 @@ CONTAINS
          ! units and calculate  momentum fluxes from winds
          !
          CASE DEFAULT
-            !ffact = 1.  ! what is this? I guess doesn't matter at thhis point since it's 1
+            ffact = 1.  
             !wt_sfc%d(1,1)  = ffact* dthcon/(0.5*(dn0%d(1)+dn0%d(2))*cp)
             !wq_sfc%d(1,1)  = ffact* drtcon/(0.5*(dn0%d(1)+dn0%d(2))*alvl)
             lh_flx(:,:) = lh_flx(:,:) + dthcon

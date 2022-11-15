@@ -1,6 +1,6 @@
 ###############################################################
 #
-# Llocation of code (in $ROOT) and location where model is to be built $BIN
+# Location of code (in $ROOT) and location where model is to be built $BIN
 #
 ROOT      :=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 BIN       = $(ROOT)/bin
@@ -18,36 +18,26 @@ SRC_SHARED  =$(SRC)/src_shared
 SRC_IO      =$(SRC)/src_IO
 SRC_VARS    =$(SRC)/src_vars
 
-VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC_RAD):  \
-	$(SRC_EMIS):$(SRC_SHARED):$(SRC_IO):$(SRC_VARS): \
+VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC_RAD):   \
+        $(SRC_EMIS):$(SRC_SHARED):$(SRC_IO):$(SRC_VARS):  \
 	$(SRC)
 
 ECHO    = /bin/echo
 RM      = /bin/rm -f
 
-ARCHIVE = ar rs
-RANLIB =:
-SEQFFLAGS = -I$(SRC)
-MPIFFLAGS = -I$(SRC)
-MPI = /usr
+MPI = $(OPENMPI_INSTALL_ROOT)
+MPILIB = -L$(MPI)/lib -lmpi
+MPIINC = -I$(MPI)/include
 
-# Linking the mpi has slightly changed for newer linux & library versions.
-# Try switching between the two if it does not work.
-#MPILIB = -L$(MPI)/lib -lmpich
-MPILIB = -L$(MPI)/lib -lmpichfort
-
-# This also varies on different computers
-MPIINC = -I$(MPI)/include/x86_64-linux-gnu/mpich
-#MPIINC = -I$(MPI)/include/mpich
-NCDF = /usr
-NCDFLIB = -L$(NCDF)/lib -lnetcdf -lnetcdff
+NCDF = /appl/spack/v018/install-tree/oneapi-2022.1.0/netcdf-fortran-4.5.4-7urzny
+NCDFLIB = -L$(NCDF)/lib -lnetcdff
 NCDFINC = -I$(NCDF)/include
+
 LIBS = '$(NCDFLIB) $(MPILIB)'
-F90 = gfortran
-MPIF90 = mpif90
-FFLAGS = -O2 -fdefault-real-8 -std=f2008 -fbounds-check  -g -fcheck=all -Wall -Wtabs  -fbacktrace -ffpe-trap=invalid,zero,overflow
-F77FLAGS = -O2 -fdefault-real-8 -std=legacy
-SEQFFLAGS = -I$(SRC) $(NCDFINC)
+F90 = ifort
+MPIF90 = mpifort
+FFLAGS = -O2 -march=native -real-size 64 -fp-model precise #-stand f08 
+SEQFFLAGS = -I$(SRC) $(NCDFINC) $(MPIINC)
 MPIFFLAGS = -I$(SRC) $(NCDFINC) $(MPIINC)
 
 
@@ -66,8 +56,7 @@ mpi: $(LES_OUT_MPI)
 $(LES_OUT_SEQ): 
 	cd $(SRC); $(MAKE) LES_ARC=seq                      \
 	FFLAGS='$(FFLAGS) $(SEQFFLAGS)' F90=$(F90)          \
-	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_SEQ)           \
-	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL)                    \
+	OUT=$(LES_OUT_SEQ) LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) \
 	SRCLES=$(SRC_LES) SRCSALSA=$(SRC_SALSA)             \
 	SRCRAD=$(SRC_RAD) SRCEMIS=$(SRC_EMIS)               \
 	SRCSHARED=$(SRC_SHARED) SRCIO=$(SRC_IO)             \
@@ -76,8 +65,7 @@ $(LES_OUT_SEQ):
 $(LES_OUT_MPI):
 	cd $(SRC); $(MAKE) LES_ARC=mpi                      \
 	FFLAGS='$(FFLAGS) $(MPIFFLAGS)' F90=$(MPIF90)       \
-	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_MPI)           \
-	LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL)                    \
+	OUT=$(LES_OUT_MPI) LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) \
 	SRCLES=$(SRC_LES) SRCSALSA=$(SRC_SALSA)             \
 	SRCRAD=$(SRC_RAD) SRCEMIS=$(SRC_EMIS)               \
 	SRCSHARED=$(SRC_SHARED) SRCIO=$(SRC_IO)             \

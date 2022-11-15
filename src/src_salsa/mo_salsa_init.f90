@@ -489,8 +489,8 @@ CONTAINS
                              lsdistupdate,                &
                              lscheckarrays,               &
                              fixINC,                      &
-                             ice_hom, ice_imm, ice_dep,   &
-                             ice_halmos, ice_dropfrac,    &
+                             lsicehom, lsiceimm, lsicedep,   &
+                             lsicerimespln, lsicedropfrac,    &
                              ice_theta_dist,              &
                              lsfreeTheta, initMinTheta,   &
 
@@ -510,7 +510,7 @@ CONTAINS
 
       USE mo_ice_shape, ONLY : iceShapeAlpha, iceShapeBeta,   &
                                iceShapeGamma, iceShapeSigma
-      USE mo_salsa_secondary_ice, ONLY : dlice_df, dlliq_df, dlice_hm, dlliq_hm
+      USE mo_salsa_secondary_ice, ONLY : dlice_df, dlliq_df, dlice_rs, dlliq_rs
 
       
       IMPLICIT NONE
@@ -549,13 +549,13 @@ CONTAINS
          lscndh2oic,    & ! Condensation of water vapour on ice particles ! ice'n'snow
          lscndh2oae,    & ! Condensation of water vapour on aerosols (FALSE -> equilibrium calc.)
 
-         ice_hom,     &    ! Switch for homogeneous ice nucleation
-         ice_imm,     &    ! .. for immersio freezing
-         ice_dep,     &    ! .. for deposition freezing
-         ice_halmos,  &    ! Secondary ice production by rime splintering; Hallet-Mossop
-         dlice_hm,    &    ! Min ice diameter for Hallet-Mossop
-         dlliq_hm,    &    ! Max liquid diameter for Hallet-Mossop
-         ice_dropfrac, &   ! Secondary ice prduction by drop fracturing; Lawson et al 2015
+         lsicehom,     &    ! Switch for homogeneous ice nucleation
+         lsiceimm,     &    ! .. for immersio freezing
+         lsicedep,     &    ! .. for deposition freezing
+         lsicerimespln,  &    ! Secondary ice production by rime splintering
+         dlice_rs,    &    ! Min ice diameter for Hallet-Mossop
+         dlliq_rs,    &    ! Max liquid diameter for Hallet-Mossop
+         lsicedropfrac, &   ! Secondary ice prduction by drop fracturing
          dlice_df,     &   ! Max ice diameter for drop fracturing
          dlliq_df,     &   ! Min liquid diameter for drop fracturing
          
@@ -623,12 +623,11 @@ CONTAINS
             lssecice%switch = .FALSE.
 
             ice_theta_dist = .FALSE.
-            ice_hom = .FALSE.   
-            ice_imm = .FALSE.
-            ice_dep = .FALSE. 
-            ice_halmos = .FALSE.
-            ice_dropfrac = .FALSE.
-
+            lsicehom = .FALSE.   
+            lsiceimm = .FALSE.
+            lsicedep = .FALSE. 
+            lsicerimespln = .FALSE.
+            lsicedropfrac%switch = .FALSE.
             
       END IF !level
 
@@ -642,19 +641,24 @@ CONTAINS
    !
    SUBROUTINE associate_master_switches
      USE classProcessSwitch, ONLY : ProcessSwitch
-     USE mo_submctl, ONLY : Nmaster, lsmaster, lscoag, lscnd, lsauto,  &
-                            lsactiv, lsicenucl, lsicemelt, lssecice, lsfreeRH, &
-                            cgintvl
+     USE mo_submctl, ONLY : Nmaster, lsmaster, Nsub, lssub, lscoag, lscnd,     &
+                            lsauto, lsactiv, lsicenucl, lsicemelt, lssecice,   &
+                            lsfreeRH, cgintvl, lsicedropfrac
      IMPLICIT NONE
      
      INTEGER :: i
 
-     ! Initialize the values
+     ! Initialize the values for Master switches
      DO i = 1,Nmaster
         lsmaster(i) = ProcessSwitch()
      END DO
 
-     ! Associate pointers
+     ! Initialize the values for subprocess switches
+     DO i = 1,Nsub
+        lssub(i) = ProcessSwitch()
+     END DO
+          
+     ! Associate pointers for Master switches
      lscoag => lsmaster(1)
      lscnd => lsmaster(2)
      lsauto => lsmaster(3)
@@ -663,6 +667,9 @@ CONTAINS
      lsicemelt => lsmaster(6)
      lssecice => lsmaster(7)
 
+     ! Associate pointer for subprocess switches
+     lsicedropfrac => lssub(1)
+     
      ! Use this to initialize also other switches that use the ProcessSwitch type
      lsfreeRH = ProcessSwitch()
      lsfreeTheta = ProcessSwitch()
@@ -744,14 +751,14 @@ CONTAINS
    ! 
    
    SUBROUTINE initialize_secondary_ice()
-     USE mo_salsa_secondary_ice, ONLY : nfrzn_hm, mfrzn_hm,    &
+     USE mo_salsa_secondary_ice, ONLY : nfrzn_rs, mfrzn_rs,    &
                                         nfrzn_df, mfrzn_df
      IMPLICIT NONE
      
-     ALLOCATE(nfrzn_hm(kbdim,klev,nice),mfrzn_hm(kbdim,klev,nice))
+     ALLOCATE(nfrzn_rs(kbdim,klev,nice),mfrzn_rs(kbdim,klev,nice))
      ALLOCATE(nfrzn_df(kbdim,klev,nice),mfrzn_df(kbdim,klev,nice))
 
-     nfrzn_hm = 0.; mfrzn_hm = 0.
+     nfrzn_rs = 0.; mfrzn_rs = 0.
      nfrzn_df = 0.; mfrzn_df = 0.
      
    END SUBROUTINE initialize_secondary_ice

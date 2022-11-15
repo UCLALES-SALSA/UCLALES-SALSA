@@ -1,6 +1,6 @@
 MODULE mo_salsa_cloud_ice_SE
   USE mo_salsa_types, ONLY : liquid, ice, precp, rateDiag
-  USE mo_submctl, ONLY : nliquid, ira,fra, nprc, iia, fia, nice, pi6, ice_hom, ice_dep, ice_imm, spec,  &
+  USE mo_submctl, ONLY : nliquid, ira,fra, nprc, iia, fia, nice, pi6, lsicehom, lsicedep, lsiceimm, spec,  &
                          boltz, pi, planck, rg, avog, lsFreeTheta, initMinTheta,  lsicenucl,            &
                          mean_theta_imm, sigma_theta_imm, mean_theta_dep, sigma_theta_dep
   USE math_functions, ONLY : erfm1, f_gauss
@@ -72,7 +72,7 @@ MODULE mo_salsa_cloud_ice_SE
                 dins = liquid(ii,jj,kk)%ddry  ! Why do I call this dins...cant remember
                 ! Calculate homogeneous freezing here separately since it does not need contact angle integration
                 ! Homogeneous freezing
-                IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. ice_hom) THEN
+                IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. lsicehom) THEN
                    CALL J_hf(ptemp(ii,jj),Seq(ii,jj,kk),Jhom)
                    f_hom(ii,jj,kk) = 1. - EXP( -Jhom*pi6*(dwet**3-dins**3)*tstep )
                 END IF
@@ -82,7 +82,8 @@ MODULE mo_salsa_cloud_ice_SE
        END DO
 
        ! Immersion freezing
-       IF (ice_imm) THEN
+       IF (lsiceimm) THEN
+          nuc_mask = .FALSE.
           f_imm = 0.
           
           ! Update the low limit contact angle for the distribution integration
@@ -96,7 +97,8 @@ MODULE mo_salsa_cloud_ice_SE
        END IF
 
        ! Deposition freezing
-       IF (ice_dep) THEN
+       IF (lsicedep) THEN
+          nuc_mask = .FALSE.
           f_dep = 0.
           ! Update the low limit contact angle for the distribution integration          
           CALL low_theta(kproma,kbdim,klev,th00_dep,mean_theta_dep,sigma_theta_dep)
@@ -439,7 +441,6 @@ MODULE mo_salsa_cloud_ice_SE
              IF (liquid(ii,jj,kk)%numc < liquid(ii,jj,kk)%nlim) CYCLE  ! Not enough droplets
              IF ( SUM(liquid(ii,jj,kk)%volc(spec%ind_insoluble)) < minVin ) CYCLE ! Not enough IN material
              
-
              ! Determine the target ice bin
              !CALL liquid(ii,jj,kk)%updateDiameter(type="wet",limit=.TRUE.) This was just updated...
              dwet = liquid(ii,jj,kk)%dwet             
@@ -452,10 +453,9 @@ MODULE mo_salsa_cloud_ice_SE
              V_tot(ii,jj,kk)=frac(ii,jj,kk)*SUM( liquid(ii,jj,kk)%volc(1:ndry))
              ! DUST VOLUME FRACTION
              frac_DU(ii,jj,kk)=liquid(ii,jj,kk)%volc(I_DU)/SUM( liquid(ii,jj,kk)%volc(1:ndry))
-             
-             
-             frac2(ii,jj,kk)=frac(ii,jj,kk)
-             if(frac_DU(ii,jj,kk) <= 0.1) then                         ! JUST TO CHANGE ACTIVATED AMOUNT IN A-BINS
+                          
+             !frac2(ii,jj,kk)=frac(ii,jj,kk)
+             if(frac_DU(ii,jj,kk) <= 0.1) then                         ! JUST TO CHANGE ACTIVATED AMOUNT IN bins where dust fraction really low
                 frac2(ii,jj,kk)=frac(ii,jj,kk)*frac_DU(ii,jj,kk)
                 ncur0 = liquid(ii,jj,kk)%numc*frac_DU(ii,jj,kk)
              else
@@ -485,10 +485,11 @@ MODULE mo_salsa_cloud_ice_SE
              ELSE
                 
                 DO ss = 1,ndry
-                   IF (lsicenucl%state)  & ! Same as above
+                   IF (lsicenucl%state)  THEN ! Same as above
                         ice(ii,jj,bb)%volc(ss) =    &
                         MAX(0., ice(ii,jj,bb)%volc(ss) + liquid(ii,jj,kk)%volc(ss)*frac2(ii,jj,kk))
-                   
+                   END IF
+                        
                    liquid(ii,jj,kk)%volc(ss) =   &
                         MAX(0., liquid(ii,jj,kk)%volc(ss)*(1.-frac2(ii,jj,kk)))
                 END DO
@@ -497,10 +498,11 @@ MODULE mo_salsa_cloud_ice_SE
              ! Water (total ice)
              IF (ANY(liquid(ii,jj,kk)%phase == [1,2])) THEN
                 ! Aerosol or cloud droplets -> only pristine ice production
-                IF (lsicenucl%state) &   ! If mode=2 and state=False, do not produce new ice but just remove the aerosol/droplets
+                IF (lsicenucl%state) THEN   ! If mode=2 and state=False, do not produce new ice but just remove the aerosol/droplets
                      ice(ii,jj,bb)%volc(iwa) =   &
                      MAX(0.,ice(ii,jj,bb)%volc(iwa) + liquid(ii,jj,kk)%volc(iwa)*frac2(ii,jj,kk)*spec%rhowa/spec%rhoic)
-                
+                END IF
+                     
                 liquid(ii,jj,kk)%volc(iwa) = MAX(0., liquid(ii,jj,kk)%volc(iwa)*(1.-frac2(ii,jj,kk)))
 
              ELSE IF (liquid(ii,jj,kk)%phase == 3) THEN
@@ -513,9 +515,12 @@ MODULE mo_salsa_cloud_ice_SE
              END IF
              
              ! Number concentration
-             IF (lsicenucl%state) &
+             IF (lsicenucl%state) THEN
                   ice(ii,jj,bb)%numc = MAX(0.,ice(ii,jj,bb)%numc + liquid(ii,jj,kk)%numc*frac2(ii,jj,kk))
-             
+                  !WRITE(*,*) 'ICE 4 correct', frac2(ii,jj,kk), ice(ii,jj,bb)%numc, liquid(ii,jj,kk)%numc*frac2(ii,jj,kk),   &
+                  !     liquid(ii,jj,kk)%numc*(1.-frac2(ii,jj,kk))
+             END IF
+                  
              liquid(ii,jj,kk)%numc = MAX(0.,liquid(ii,jj,kk)%numc*(1.-frac2(ii,jj,kk)))
 
              !CALL ice(ii,jj,bb)%updateRhomean() ! probably not necessary here. Update where actually needed...
@@ -523,7 +528,10 @@ MODULE mo_salsa_cloud_ice_SE
           END DO
        END DO
     END DO
-             
+
+    !WRITE(*,*) 'ICE 1', SUM(ice(1,1,:)%numc), SUM(ice(1,1,:)%volc(iwa)) !, SUM(ice(1,1,:)%volc(iwa))/SUM(ice(1,1,:)%numc)
+    
+    
   END SUBROUTINE iceNucleation
 
   ! --------------------------------------

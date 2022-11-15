@@ -104,7 +104,7 @@ CONTAINS
                            lscgca, lscgpa, lscgia, & 
                            lscgpc, lscgic, &
                            lscgip,                         &
-                           lssecice, ice_halmos, ice_dropfrac,     &
+                           lssecice, lsicerimespln, lsicedropfrac,     &
                            lcgupdt, lscoag
 
       USE mo_salsa_coagulation_kernels
@@ -182,17 +182,36 @@ CONTAINS
       IF (any_cloud) &
            CALL coag_cloud(kbdim,klev,nspec,ptstep)
 
-      ! Secondary ice processes
+
+      ! THIS SHOULD NOT OCCUR, PROBABLY A SETUP PROBLEM? SEE IF THIS COULD BE REMOVED.
+      ! Sometimes small negative concentrations due to numerical inaccuracy occur;
+      ! Put them to zero here and print a warning if larger negative values are present
+      DO bb = 1,ntotal
+         DO jj = 1,klev
+            DO ii = 1,kproma
+               IF ( allSALSA(ii,jj,bb)%numc < -1.e-6)  &
+                    WRITE(*,*) 'WARNING SALSA_DYNAMICS; numc < -1e-6 ',ii,jj,bb,allSALSA(ii,jj,bb)%numc  
+               allSALSA(ii,jj,bb)%numc = MAX(0.,allSALSA(ii,jj,bb)%numc)
+               allSALSA(ii,jj,bb)%volc(:) = MAX(0.,allSALSA(ii,jj,bb)%volc(:))
+            END DO
+         END DO
+      END DO              
+      
+      ! Secondary ice processes.
+      ! These need information about the ice collected liquid drops; Therefore it is imperative, that
+      ! the bin redistribution routine is NOT called between coagulation and the secondary ice
+      ! parameterizations.
       IF (lssecice%state) THEN
-         ! H-M rime splintering
-         IF (ice_halmos) &
-              CALL rimesplintering(kbdim,kproma,klev,ptemp,ptstep)
-         ! Drop fracturing: this makes use of the frozen liquid amount by drizzle in small ice bins. Thus it is imperative, that
-         ! the bin redistribution routine is NOT run between coagulation and the secondary ice parameterizations, as given here.
-         IF (ice_dropfrac) &
-              CALL dropfracturing(kbdim,kproma,klev,ptemp,ptstep)
+
+         nspec = spec%getNSpec(type='total')
          
-         
+         ! Rime splintering
+         IF (lsicerimespln) &
+              CALL rimesplintering(kbdim,kproma,klev,nspec,ptemp,ptstep)
+         ! Drop fracturing:
+         IF (lsicedropfrac%state) &
+              CALL dropfracturing(kbdim,kproma,klev,nspec,ptemp,ptstep)
+                  
       END IF
          
       

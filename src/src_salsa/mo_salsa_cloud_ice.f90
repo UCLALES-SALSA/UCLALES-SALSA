@@ -2,7 +2,7 @@ MODULE mo_salsa_cloud_ice
   USE classSection, ONLY : Section
   USE mo_submctl, ONLY : in2a,fn2b, ira,fra, iia, fia, ncld, nprc, nice, pi, pi6,    & 
        nliquid, nfrozen,                        &
-       nlim, prlim, ice_hom, ice_imm, ice_dep,  &
+       nlim, prlim, lsicehom, lsiceimm, lsicedep,  &
        boltz, planck, rg, rd, avog,             &
        fixinc, spec,                            &
        lsicenucl
@@ -97,7 +97,7 @@ MODULE mo_salsa_cloud_ice
              
              ! Immersion freezing (not directly from aerosol)
              pf_imm = 0.
-             IF ( dins > dmin .AND. ice_imm .AND. ANY(phase == [2,3]) ) THEN
+             IF ( dins > dmin .AND. lsiceimm .AND. ANY(phase == [2,3]) ) THEN
                 jf = calc_Jhet(dins,ptemp(ii,jj),Sw_eq)
                 pf_imm = 1. - EXP( -jf*ptstep )
              END IF
@@ -105,7 +105,7 @@ MODULE mo_salsa_cloud_ice
              ! Deposition freezing
              pf_dep = 0.
              IF ( dins > dmin .AND. dwet-dins < dmin .AND. prv(ii,jj)/prs(ii,jj)<1.0 .AND. &
-                  phase == 1 .AND. ice_dep                           ) THEN
+                  phase == 1 .AND. lsicedep                           ) THEN
                 Si = prv(ii,jj)/prsi(ii,jj) ! Water vapor saturation ratio over ice
                 jf = calc_Jdep(dins,ptemp(ii,jj),Si)
                 pf_dep = 1. - EXP( -jf*ptstep )
@@ -113,7 +113,7 @@ MODULE mo_salsa_cloud_ice
              
              ! Homogeneous freezing
              pf_hom = 0.
-             IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. ice_hom) THEN
+             IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. lsicehom) THEN
                 jf = calc_Jhf(ptemp(ii,jj),Sw_eq)
                 pf_hom = 1. - EXP( -jf*pi6*(dwet**3 - dins**3)*ptstep )
              END IF

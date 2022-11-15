@@ -15,7 +15,7 @@
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
 IsSeq=2 # 0 for mpi runs with CRAY, 1 for mpi runs with Puhti, 2 for sequential, 3 for mpi on laptop
 
-EXPNAME="OMAA2019AUG12_Eaggtest"  # Name of the experiment
+EXPNAME="OMAA2019AUG12_fctest"  # Name of the experiment
 PROJECT="project_2006025"   # Project name, needed for resource allocation in PUHTI
 
 NPROCS=256          # Number of processors (for IsSeq==0)
@@ -83,7 +83,7 @@ cat > NAMELIST <<EOF
   deltaz = ${DZ}              ! Grid spacing in the vertical
   nxpart = .TRUE.             ! 
   dzmax  = 3000.              ! Height above which start stretching vertical grid
-  dzrat  = 1.005                ! Factor for vertical grid stretching
+  dzrat  = 1.00                ! Factor for vertical grid stretching
   dtlong = ${DT}              ! Max. timestep
   distim = 100.               ! Timescale for the dissipation in sponge layer
   nfpt = 10                   ! Number of Rayleigh friction points
@@ -136,7 +136,7 @@ cat > NAMELIST <<EOF
   ts_intvl = 10.
   main_intvl = 600.
   varlist_main = 'rp','rc','srp','ri','riri','temp','wq_sfc','wt_sfc','rrate','Naa','Ni','Np','CDNC',
-                 'immThetaaba','immThetacba','immThetapba','s_n_sipdrfr','s_n_siprmspl'
+                 'immThetaaba','immThetacba','immThetapba','s_n_sipdrfr','s_n_siprmspl','sipdrfr'
   !varlist_ps = 'rflx','sflx','lwup','lwdn','swup','swdn'
   !varlist_ts = 'ic_CDNC'
   TH_rrate = 30.
@@ -254,7 +254,7 @@ cat > NAMELIST <<EOF
    lscgaa = .FALSE.       ! Aerosol coagulation
    lscgca = .TRUE.       ! Cloud collection of aerosols
    lscgpa = .TRUE.       ! Rain collection of aerosols
-   lscgia = .TRUE.       ! Ice collection of aerosols
+   lscgia = .FALSE.       ! Ice collection of aerosols
    lscgic = .TRUE.       ! Ice collection of cloud droplets
    lscgii = .TRUE.       ! Self-collection of ice
    lscgip = .TRUE.       ! Ice collection of rain drops
@@ -271,9 +271,9 @@ cat > NAMELIST <<EOF
    lscndh2oic  = .TRUE.  ! --Condensation of water on ice particles
 
    ! Sub-process switches: Ice nucleation
-   ice_hom     = .FALSE.        ! Homogeneous freezing   
-   ice_imm     = .TRUE.        ! Immersion freezing
-   ice_dep     = .FALSE.        ! Deposition freezing
+   lsicehom     = .FALSE.        ! Homogeneous freezing   
+   lsiceimm     = .TRUE.        ! Immersion freezing
+   lsicedep     = .FALSE.        ! Deposition freezing
    ice_theta_dist = .TRUE.     ! Use contact angle distribution for the IN population
 
 
@@ -294,12 +294,13 @@ cat > NAMELIST <<EOF
    iceShapeSigma = 1.97          ! A = gamma * D**SIGMA
 
    ! Sub-process swithces: Secondary ice
-   ice_halmos = .FALSE.         ! Rime splintering; Hallet-Mossop
-   dlice_hm = 50.e-6            ! Min diameter for ice in Hallet-Mossop
-   dlliq_hm = 500.e-6           ! Max diameter for liquid in Hallet-Mossop
+   lsicerimespln = .FALSE.         ! Rime splintering; Hallet-Mossop
+   dlice_rs = 50.e-6            ! Min diameter for ice in Hallet-Mossop
+   dlliq_rs = 500.e-6           ! Max diameter for liquid in Hallet-Mossop
 
-   ice_dropfrac = .TRUE.
-   dlice_df = 1.e-3             ! Max diameter for ice in drop fracturing
+   lsicedropfrac%switch = .TRUE.
+   lsicedropfrac%mode = 2
+   dlice_df = 500.e-6             ! Max diameter for ice in drop fracturing
    dlliq_df = 80.e-6            ! Min diameter for liquid in drop fracturing
 
    ! Misc switches
@@ -327,18 +328,18 @@ cat > NAMELIST <<EOF
 
    isdtyp = ${ISDTYP}
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
-   volDistA = 0.9, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0
+   volDistA = 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)  
    sigmagA  = 1.28, 2.00, 2.0, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform)  
    dpgA     = 0.06, 0.28, 1.0, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
    nA       = 200., 100., 1., 0., 0., 0., 0.         ! Mode number concentrations in #/mg 
 
    ! The number of entries must comply with the max number of _compounds_ (excluding water, currently 7)
-   volDistB = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+   volDistB = 0.2, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0
    ! The number of entries must comply with the max number of _modes_ (currently 7)
    sigmagB  = 1.2, 1.7, 1.6, 2.0, 2.0, 2.0, 2.0      ! Geometric stdev for initial aerosol size distribution for isdtyp == 0 (uniform) 
-   dpgB     = 0.022, 0.12, 1.8, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
-   nB       = 0., 0., 0., 0., 0., 0., 0.             ! Mode number concentrations in #/mg 
+   dpgB     = 0.022, 0.5, 1.8, 0.2, 0.2, 0.2, 0.2   ! Mode mean diameters in micrometers
+   nB       = 0., 10., 0., 0., 0., 0., 0.             ! Mode number concentrations in #/mg 
 /
 
 EOF
@@ -375,9 +376,6 @@ cat > job.sh <<EOF
 #SBATCH --partition=fmi
 #SBATCH --ntasks=${NPROCS}
 #SBATCH --nodes=${NNODES}
-
-module load intel-mpi
-module load netcdf-fortran
 
 srun les.mpi 
 

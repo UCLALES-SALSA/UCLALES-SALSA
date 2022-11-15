@@ -417,26 +417,7 @@ CONTAINS
          ntend(icat)%d => NULL()
          mtend(icat)%d => NULL()
       END DO
-      
-      !press => NULL(); tk => NULL(); rv => NULL()
-      !rt => NULL(); rs => NULL(); rsi => NULL()
-      !pdn => NULL()
-      !naerop => NULL(); ncloudp => NULL()
-      !nprecpp => NULL(); nicep => NULL()
-      !naerot => NULL(); ncloudt => NULL()
-      !nprecpt => NULL(); nicet => NULL()
-      
-      !maerop => NULL(); mcloudp => NULL()
-      !mprecpp => NULL(); micep => NULL()
-      !maerot => NULL(); mcloudt => NULL()
-      !mprecpt => NULL(); micet => NULL()
-      
-      !gaerop => NULL(); gaerot => NULL()     
-
-      !indefp => NULL()
-      !sipdrfrp => NULL(); siprmsplp => NULL()
-      
-      
+              
    END SUBROUTINE run_SALSA
 
    !
@@ -454,11 +435,17 @@ CONTAINS
      INTEGER :: i
 
      ! All the non-interface parameters used below are found in mo_submctl
-     
+
+     ! Define master switch states
      DO i = 1,Nmaster
         IF( lsmaster(i)%switch .AND. time >= lsmaster(i)%delay ) lsmaster(i)%state = .TRUE.
      END DO
 
+     ! Define subprocess switch states
+     DO i = 1,Nsub
+        IF ( lssub(i)%switch .AND. time >= lssub(i)%delay ) lssub(i)%state = .TRUE.
+     END DO
+     
      ! Some other switches
      ! Constraining RH in condensation
      IF ( lsfreeRH%switch .AND. time > lsfreeRH%delay ) lsfreeRH%state = .TRUE.

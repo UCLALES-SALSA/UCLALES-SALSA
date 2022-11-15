@@ -25,18 +25,21 @@ VPATH = $(SRC_LES):$(SRC_SALSA):$(SRC_UTIL):$(SRC_RAD):   \
 ECHO    = /bin/echo
 RM      = /bin/rm -f
 
-MPI = /usr
-MPILIB =
-MPIINC =
+MPI = $(OPENMPI_INSTALL_ROOT)
+MPILIB = -L$(MPI)/lib -lmpi
+MPIINC = -I$(MPI)/include
+
 NCDF = $(NETCDF_FORTRAN_INSTALL_ROOT)
 NCDFLIB = -L$(NCDF)/lib -lnetcdff
 NCDFINC = -I$(NCDF)/include
-LIBS = '$(NCDFLIB)'
-F90 = ifort
+
+LIBS = '$(NCDFLIB)  $(MPILIB)'
+F90 = gfortran
 MPIF90 = mpif90
-FFLAGS = -O2 -march=native -real-size 64 -fp-model precise -stand f08 
+FFLAGS = -O2 -fdefault-real-8  -std=f2008
+F77FLAGS = -O2 -fdefault-real-8 -std=legacy
 SEQFFLAGS = -I$(SRC) $(NCDFINC)
-MPIFFLAGS = -I$(SRC) $(NCDFINC)
+MPIFFLAGS = -I$(SRC) $(NCDFINC) $(MPIINC)
 
 
 LES_OUT_MPI=$(BIN)/les.mpi
@@ -53,7 +56,8 @@ mpi: $(LES_OUT_MPI)
 
 $(LES_OUT_SEQ): 
 	cd $(SRC); $(MAKE) LES_ARC=seq                      \
-	FFLAGS='$(FFLAGS) $(SEQFFLAGS)' F90=$(F90)          \
+	FFLAGS='$(FFLAGS) $(SEQFFLAGS)'                     \
+	F77FLAGS='$(F77FLAGS)' F90=$(F90)       \
 	OUT=$(LES_OUT_SEQ) LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) \
 	SRCLES=$(SRC_LES) SRCSALSA=$(SRC_SALSA)             \
 	SRCRAD=$(SRC_RAD) SRCEMIS=$(SRC_EMIS)               \
@@ -62,7 +66,8 @@ $(LES_OUT_SEQ):
 
 $(LES_OUT_MPI):
 	cd $(SRC); $(MAKE) LES_ARC=mpi                      \
-	FFLAGS='$(FFLAGS) $(MPIFFLAGS)' F90=$(MPIF90)       \
+	FFLAGS='$(FFLAGS) $(MPIFFLAGS)'                     \
+	F77FLAGS='$(F77FLAGS)' F90=$(MPIF90)   \
 	OUT=$(LES_OUT_MPI) LIBS=$(LIBS) SRCUTIL=$(SRC_UTIL) \
 	SRCLES=$(SRC_LES) SRCSALSA=$(SRC_SALSA)             \
 	SRCRAD=$(SRC_RAD) SRCEMIS=$(SRC_EMIS)               \

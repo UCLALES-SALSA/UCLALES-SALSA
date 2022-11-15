@@ -61,15 +61,18 @@ MODULE mo_history
                     ndg_v%nudgetype,ndg_aero%nudgetype]
       
       CALL create_mpi_hist(trim(hname),fhist)
-
+      
       ! These values are identical for all processes -> write only from root
       CALL write_hist_mpi(4,globalInts,.TRUE.,fhist)
+      
       CALL write_hist_mpi(5,globalFloats,.TRUE.,fhist)
       CALL write_hist_mpi(5,nudgetypes,.TRUE.,fhist)
       ! Process specific parameters
-      CALL write_hist_mpi(3,localInts,.FALSE.,fhist)
+         
+      CALL write_hist_mpi(3,localInts,.FALSE.,fhist)      
+      
       CALL write_hist_mpi(5,localFloats,.FALSE.,fhist)
-
+      
       ! Basic state arrays - identical for all processses -> write only from root
       CALL write_hist_mpi(nzp,dn0%d,.TRUE.,fhist)
       CALL write_hist_mpi(nzp,th0%d,.TRUE.,fhist)
@@ -78,7 +81,7 @@ MODULE mo_history
       CALL write_hist_mpi(nzp,pi0%d,.TRUE.,fhist)
       CALL write_hist_mpi(nzp,pi1%d,.TRUE.,fhist)
       CALL write_hist_mpi(nzp,rt0%d,.TRUE.,fhist)
-
+      
       ! Grid displacements
       CALL write_hist_mpi(nxp,xt%d,.FALSE.,fhist)
       CALL write_hist_mpi(nxp,xm%d,.FALSE.,fhist)

@@ -14,27 +14,35 @@ MODULE mo_submctl
      INTEGER :: cur  ! Index for current distribution
      INTEGER :: par  ! Index for corresponding parallel distribution
   END TYPE t_parallelbin
-       
-  !Switches for SALSA aerosol microphysical processes
+
+  !
+  ! Master switches for SALSA aerosol microphysical processes
+  ! --------------------------------------------------------------
   INTEGER, PARAMETER :: Nmaster = 7
-  TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)  ! Array for master switches. The specific master switches are pointers to this array
-  TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation, mode = 1: calculate kernels every timestep,
-                                                       !              mode = 2: use reduced update freq
+  TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)     ! Array for master switches. The specific master switches are pointers to this array
+  TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation,      mode = 1: calculate kernels every timestep,
+                                                       !                   mode = 2: use reduced update freq
   TYPE(ProcessSwitch), POINTER :: lscnd => NULL()      ! Condensation
-  TYPE(ProcessSwitch), POINTER :: lsauto => NULL()     ! Autoconversion, mode = 1: parameterized simple autoconversion,
-                                                       !                 mode = 2: coagulation based precip formation
+  TYPE(ProcessSwitch), POINTER :: lsauto => NULL()     ! Autoconversion,   mode = 1: parameterized simple autoconversion,
+                                                       !                   mode = 2: coagulation based precip formation
   TYPE(ProcessSwitch), POINTER :: lsactiv => NULL()    ! Cloud activation, mode = 1: aerosol growth based activation,
                                                        !                   mode = 2: parameterized cloud base activation
-  TYPE(ProcessSwitch), POINTER :: lsicenucl => NULL()  ! Ice nucleation, mode = 1: With %switch=TRUE, %state=FALSE until %delay time is
-                                                       !                           reached and ice nucleation is not called, afterwards
-                                                       !                           %state=TRUE and ice nucleation is called as usual.
-                                                       !                 mode = 2: With %switch=TRUE, %state=FALSE until %delay time is reached,
-                                                       !                           but ice nucleation is called anyway. However, it will only
-                                                       !                           remove aerosol and not produce ice. After %delay, %state=TRUE
-                                                       !                           and ice nucleation will continue normal operation.
+  TYPE(ProcessSwitch), POINTER :: lsicenucl => NULL()  ! Ice nucleation,   mode = 1: With %switch=TRUE, %state=FALSE until %delay time is
+                                                       !                             reached and ice nucleation is not called, afterwards
+                                                       !                             %state=TRUE and ice nucleation is called as usual.
+                                                       !                   mode = 2: With %switch=TRUE, %state=FALSE until %delay time is reached,
+                                                       !                             but ice nucleation is called anyway. However, it will only
+                                                       !                             remove aerosol and not produce ice. After %delay, %state=TRUE
+                                                       !                             and ice nucleation will continue normal operation.
   TYPE(ProcessSwitch), POINTER :: lsicemelt => NULL()  ! Melting of ice
   TYPE(ProcessSwitch), POINTER :: lssecice => NULL()
-    
+
+
+  !
+  ! Subprocess switches for microphysical processes; Note that master switch set to FALSE overrides any setting
+  ! in the subprocess switches.
+  ! ---------------------------------------------------------------------------------------------------------------
+  
   ! Coagulation/collision subprocesses
   LOGICAL :: lscgaa  = .TRUE.  ! Coagulation between aerosols
   LOGICAL :: lscgcc  = .TRUE.  ! Collision-coalescence between cloud droplets
@@ -47,18 +55,6 @@ MODULE mo_submctl
   LOGICAL :: lscgii  = .TRUE.  ! Collision-coalescence between ice particles
   LOGICAL :: lscgip  = .TRUE.  ! Collection of precipitation by ice particles
 
-  ! Reduced coagulation kernel update frequency
-  REAL :: cgintvl = 10.             ! If lscoag%mode = 2, gives the coagulation kernel update interval in seconds.
-  
-  LOGICAL :: lcgupdt = .FALSE.      ! Switch for updating kernels with lscoag%mode = 2; Note: This is determined
-                                    ! during runtime -> NOT a NAMELIST parameter!
-
-  ! Aggregation efficiency range for ice. Assumed to be inversely proportional to rime fraction
-  ! within this range
-  REAL :: Eiagg_max = 0.3
-  REAL :: Eiagg_min = 0.05
-
-  
   ! Condensation subprocesses
   LOGICAL :: lscndgas   = .FALSE. ! Condensation of precursor gases
   LOGICAL :: lscndh2ocl = .TRUE.  ! Condensation of water vapour on clouds and precipitation
@@ -66,15 +62,31 @@ MODULE mo_submctl
   LOGICAL :: lscndh2oic = .TRUE.  ! Condensation of water vapour on ice and snow
 
   ! Ice nucleation subprocesses
-  LOGICAL :: ice_hom = .FALSE.        ! Homogeneous freezing
-  LOGICAL :: ice_imm = .FALSE.        ! Immersion freezing
-  LOGICAL :: ice_dep = .FALSE.        ! Deposition freezing
+  LOGICAL :: lsicehom = .FALSE.        ! Homogeneous freezing
+  LOGICAL :: lsiceimm = .FALSE.        ! Immersion freezing
+  LOGICAL :: lsicedep = .FALSE.        ! Deposition freezing
 
   ! Secondary ice subprocesses
-  LOGICAL :: ice_halmos = .FALSE.     ! Rime splintering; Hallet-Mossop
-  LOGICAL :: ice_dropfrac = .FALSE.   ! Drop fracturing SIP; Lawson et al 2015
+  LOGICAL :: lsicerimespln = .FALSE.                       ! Rime splintering; Hallet-Mossop
+  TYPE(ProcessSwitch), POINTER :: lsicedropfrac => NULL()  ! Drop fracturing SIP, %mode = 1: Lawson et al 2015,
+                                                           !                      %mode = 2: Phillips et al 2018
+
+  INTEGER, PARAMETER :: Nsub = 1
+  TYPE(ProcessSwitch), TARGET :: lssub(Nsub)  ! Holder for type ProcessSwitch subprocess switches (for most just the simple
+                                              ! logical switch is required)
+
   
+  ! ---------------------------------------------------------------------------------------------------------------
+  ! Reduced coagulation kernel update frequency
+  REAL :: cgintvl = 10.             ! If lscoag%mode = 2, gives the coagulation kernel update interval in seconds.
   
+  LOGICAL :: lcgupdt = .FALSE.      ! Switch for updating kernels with lscoag%mode = 2; Note: This is determined
+                                    ! during runtime -> NOT a NAMELIST parameter!
+  ! Aggregation efficiency range for ice. Assumed to be inversely proportional to rime fraction
+  ! within this range
+  REAL :: Eiagg_max = 0.3
+  REAL :: Eiagg_min = 0.05
+
   ! Contact angle distribution for ice nucleation:
   ! Use contact angle distributions for heterogeneous nucleation
   ! processes according to Savre and Ekman (2015).
