@@ -90,7 +90,7 @@ contains
     use util, only : fftinix,fftiniy
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon, &
-                    wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param, ifVOCflx
+                    wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param
     use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, frqrst, &
          strtim, radfrq, cntlat
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
@@ -102,9 +102,8 @@ contains
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau,  &
          nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau,  &
          nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, &
-         no_b_bins, no_prog_prc, no_prog_cld, no_prog_ice, no_prog_snw, &
-         anl_include, anl_exclude, out_an_list, user_an_list, &
-         ifSeaSpray, ifSeaVOC, sea_tspinup
+         no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, anl_include, anl_exclude, out_an_list, &
+         user_an_list, ifSeaSpray, ifSeaVOC, sea_tspinup
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
     use stat, only : ssam_intvl, savg_intvl, csflg, cs_include, cs_exclude, &
@@ -140,7 +139,7 @@ contains
          ifSeaSpray, ifSeaVOC,      & ! marine emissions
          sea_tspinup,               & ! spinup time for marine emissions
          wtrChlA, ifPOCadd,         & ! chlorophyll alpha sea surface concentrations, if organic fraction is additive
-         wtrIsop, wtrMtrp, ifVOCflx,& ! sea surface concentrations of isoprene and monoterpenes, if flux is given instead
+         wtrIsop, wtrMtrp,          & ! sea surface concentrations of isoprene and monoterpenes
          ssa_param,                 & ! option for sea-spray aerosol source function parameterization
          sst    , dthcon , drtcon , & ! SSTs, surface flx parameters
          isgstyp, csx    , prndtl , & ! SGS model type, parameters
@@ -166,7 +165,6 @@ contains
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, & ! Sedimentation (T/F)
          no_b_bins,          & ! no prognostic b-bins for aerosol, cloud or ice (level 4 or 5)
          no_prog_prc,        & ! no prognostic rain (level 4 or 5)
-         no_prog_cld,        & ! ... or cloud (level 4 or 5)
          no_prog_ice,        & ! ... or ice (level 5)
          no_prog_snw,        & ! ... or snow (level 5)
          out_an_list,        & ! Output statistics about selected LES and microphysical processes - 4D analysis files

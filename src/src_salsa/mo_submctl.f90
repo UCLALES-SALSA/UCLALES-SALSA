@@ -58,7 +58,6 @@ MODULE mo_submctl
   LOGICAL :: nlactiv    = .TRUE.,  lsactiv    ! Cloud droplet activation master switch
   LOGICAL :: nlactintst = .TRUE.,  lsactintst ! Switch for interstitial activation
   LOGICAL :: nlactbase  = .FALSE., lsactbase  ! Switch for cloud base activation
-  LOGICAL :: nlactprc   = .FALSE., lsactprc   ! Put the resulting cloud droplet to rain bins
 
   LOGICAL :: nlicenucl  = .FALSE., lsicenucl  ! ice nucleation master switch
   LOGICAL :: nlicmelt   = .FALSE., lsicmelt   ! ice melting
@@ -132,6 +131,7 @@ MODULE mo_submctl
   LOGICAL :: laqsoa = .FALSE.  ! Enable aqSOA formation
   INTEGER :: nvocs=0, nvbs=0, naqsoa=0 ! Number of VOCs, VBS species and aqSOA species
   REAL :: conc_voc(maxngas)=0., conc_vbsg(maxngas)=0., conc_aqsoag(maxngas)=0. ! Initial concetrations (kg/kg)
+  REAL :: gas_srfc_flx(maxngas)=0. ! Constant surface fluxes (kg/m2/s) for active VOCs and VBS(g) and aqSOA(g) species
   REAL :: zvbs_k_OH = 0., zvbs_Eact_p_OH =0. ! Rate coefficient for VBS(g) aging [cm3/#/s]
   ! VOC oxidants
   LOGICAL :: ox_prescribed = .TRUE.              ! Prescribed or prognostic concentration fields

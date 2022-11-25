@@ -352,7 +352,6 @@ IMPLICIT NONE
                                lsauto,lsautosnow,      &
                                lsactiv,                &
                                lsactbase,lsactintst,   &
-                               lsactprc, nlactprc,     &
 
                                nlcgia,nlcgic,nlcgii,   &
                                nlcgip,nlcgsa,nlcgsc,   &
@@ -405,7 +404,6 @@ IMPLICIT NONE
     lsactiv     = nlactiv
     lsactbase   = nlactbase
     lsactintst  = nlactintst
-    lsactprc    = nlactprc
 
     lsicenucl  = nlicenucl
     lsicmelt    = nlicmelt

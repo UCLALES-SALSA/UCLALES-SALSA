@@ -136,7 +136,7 @@ CONTAINS
          IF (sflg) CALL salsa_var_stat('cact',0)
          CALL cloud_activation(kbdim,  klev,          &
                                ptemp,  ppres, prv,    &
-                               prs,    paero, pcloud, pprecp )
+                               prs,    paero, pcloud  )
          IF (sflg) CALL salsa_var_stat('cact',1)
     ENDIF
 

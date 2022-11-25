@@ -170,12 +170,12 @@ CONTAINS
          zdsnow(nsnw)      ! diameter for snow [m]
 
     REAL :: temppi, pressi, edri
+    REAL :: num_coag(nprc), vol_cltd(nprc,nspec+1), V_new, zminusterm_c(ncld)
 
     LOGICAL :: any_cloud, any_precp, any_ice, any_snow
 
     !-----------------------------------------------------------------------------
 
-    IF (lscgrain) STOP 'Coagulation-based rain formation not implemented!'
     nt = nspec + 1 ! Total number of spcecies + water
 
      DO jj = 1,klev      ! vertical grid
@@ -729,6 +729,42 @@ CONTAINS
                    0.5*ptstep*zccpp(cc,cc)*pprecp(ii,jj,cc)%numc ) )
 
            END DO
+
+           ! Rain formation from cloud-cloud collisions
+           ! ------------------------------------------------
+           IF (lscgrain .AND. any_cloud) THEN
+              zminusterm_c(:)=0.
+              vol_cltd(:,:)=0.
+              num_coag(:)=0.
+              DO cc = 1, ncld
+                 IF (pcloud(ii,jj,cc)%numc<nlim) CYCLE
+                 DO ll = cc, ncld
+                    IF (pcloud(ii,jj,ll)%numc<nlim) CYCLE
+                    !
+                    V_new=pi6*(pcloud(ii,jj,cc)%dwet**3+pcloud(ii,jj,ll)%dwet**3)
+                    IF (V_new>pprecp(ii,jj,1)%vlolim) THEN
+                       ! Rain bin
+                       mm=COUNT(V_new>pprecp(ii,jj,:)%vlolim)
+                       ! New rain mass and number
+                       vol_cltd(mm,1:nt) = vol_cltd(mm,1:nt) + (pcloud(ii,jj,ll)%volc(1:nt)*pcloud(ii,jj,cc)%numc + &
+                                    pcloud(ii,jj,cc)%volc(1:nt)*pcloud(ii,jj,ll)%numc)*zcccc(ll,cc)
+                       num_coag(mm) = num_coag(mm) + zcccc(cc,ll)*pcloud(ii,jj,ll)%numc*pcloud(ii,jj,cc)%numc
+                       ! Remove the mass from the original cloud bins
+                       zminusterm_c(cc) = zminusterm_c(cc) + zcccc(cc,ll)*pcloud(ii,jj,ll)%numc
+                       zminusterm_c(ll) = zminusterm_c(ll) + zcccc(cc,ll)*pcloud(ii,jj,cc)%numc
+                    ENDIF
+                 ENDDO
+                 ! Update cloud bin cc
+                 pcloud(ii,jj,cc)%numc = pcloud(ii,jj,cc)%numc/( 1. + ptstep*zminusterm_c(cc))
+                 pcloud(ii,jj,cc)%volc(1:nt) = pcloud(ii,jj,cc)%volc(1:nt)/(1. + ptstep*zminusterm_c(cc))
+              ENDDO
+              ! Update rain
+              DO ll = 1,nprc
+                 pprecp(ii,jj,ll)%volc(1:nt) = pprecp(ii,jj,ll)%volc(1:nt) + ptstep*vol_cltd(ll,1:nt)
+                 pprecp(ii,jj,ll)%numc = pprecp(ii,jj,ll)%numc + ptstep*num_coag(ll)
+              END DO
+           ENDIF
+
 
            ! Ice particles, regime a
            ! ------------------------------------------------

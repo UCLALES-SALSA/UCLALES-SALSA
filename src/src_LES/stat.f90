@@ -162,7 +162,7 @@ contains
   subroutine init_stat(time, filprf, expnme, nzp)
 
     use grid, only : nxp, nyp, nprc, nsnw, nspec, iradtyp, &
-        no_b_bins, no_prog_cld, no_prog_prc, no_prog_ice, no_prog_snw, &
+        no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, &
         sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, out_an_list, nv4_proc, &
         user_an_list, nv4_user, ifSeaSpray, ifSeaVOC
     use mpi_interface, only : myid, ver, author, info
@@ -322,7 +322,7 @@ contains
           s1_rem(ii+4)='rm'//TRIM(zspec(ee))//'ic'
           s1_rem(ii+5)='rm'//TRIM(zspec(ee))//'sn'
           s1_rem_bool(ii+1) = sed_aero
-          s1_rem_bool(ii+2) = sed_cloud .AND. (.NOT. no_prog_cld)
+          s1_rem_bool(ii+2) = sed_cloud
           s1_rem_bool(ii+3) = sed_precp .AND. (.NOT. no_prog_prc)
           s1_rem_bool(ii+4) = sed_ice .AND. (level>4) .AND. (.NOT. no_prog_ice)
           s1_rem_bool(ii+5) = sed_snow .AND. (level>4) .AND. (.NOT. no_prog_snw)
@@ -339,7 +339,7 @@ contains
 
        ! Cloud and ice histrograms
        s2_CldHist_bool=.FALSE.
-       IF (nout_cld>0 .AND. .NOT. no_prog_cld) THEN
+       IF (nout_cld>0) THEN
           s2_CldHist_bool(1) = .TRUE. ! A-bins
           s2_CldHist_bool(2) = .NOT. no_b_bins ! B-bins
           ! Add dimension

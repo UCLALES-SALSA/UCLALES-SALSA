@@ -138,7 +138,7 @@ contains
 
     use stat, only : sflg, statistics, les_rate_stats, out_mcrp_data, out_mcrp_list, out_mcrp_nout, mcrp_var_save
     use sgsm, only : diffuse
-    use srfc, only : surface, marine_aero_flux, marine_gas_flux
+    use srfc, only : surface, marine_aero_flux, marine_gas_flux, srfc_gas_flux
     use thrm, only : thermo
     use mcrp, only : micro
     use prss, only : poisson
@@ -173,6 +173,8 @@ contains
         endif
         if(nvbs_setup>=0 .and. ifSeaVOC) then
             call marine_gas_flux(sst)
+        elseif (nvbs_setup>=0) THEN
+            CALL srfc_gas_flux()
         endif
         CALL tend_constrain(n4)
     END IF
@@ -885,7 +887,7 @@ contains
                      a_naerot,a_maerot,a_ncloudt,a_mcloudt,a_nprecpt,a_mprecpt,      &
                      a_nicet,a_micet,a_nsnowt,a_msnowt,a_gaerot, &
                      a_rh, a_temp, a_rhi, a_dn, level, dtl, &
-                     tmp_cldp, tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
+                     tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
     USE mo_submctl, ONLY : fn1a,in2a,fn2a, &
                      diss, mws, dens, &
                      surfw0, rg, nlim, prlim, pi, pi6, &
@@ -1204,9 +1206,6 @@ contains
 
 
     ! Check that ignored species or bins are not used
-    IF (ALLOCATED(tmp_cldp)) THEN
-        IF (ANY(tmp_cldp>nlim)) STOP 'Non-zero cloud even when disabled!'
-    ENDIF
     IF (ALLOCATED(tmp_prcp)) THEN
         IF (ANY(tmp_prcp>prlim)) STOP 'Non-zero rain even when disabled!'
     ENDIF
@@ -1235,7 +1234,6 @@ contains
     ! Aerosol and cloud droplets, regimes a and b
     a_rc(:,:,:) = SUM(a_maerop(:,:,:,1:nbins),DIM=4) + &
                   SUM(a_mcloudp(:,:,:,1:ncld),DIM=4)
-
     ! Precipitation
     a_srp(:,:,:) = SUM(a_mprecpp(:,:,:,1:nprc),DIM=4)
     a_snrp(:,:,:) = SUM(a_nprecpp(:,:,:,:),DIM=4)

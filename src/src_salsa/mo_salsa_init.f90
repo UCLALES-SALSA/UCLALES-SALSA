@@ -430,7 +430,6 @@ CONTAINS
                                nlactiv,               &
                                nlactintst,            &
                                nlactbase,            &
-                               nlactprc,             &
                                nlicenucl,             &
                                fixinc, ice_source_opt,&
                                ice_hom, ice_imm, ice_dep, &
@@ -461,6 +460,7 @@ CONTAINS
                                zdayfac_oh, zdayfac_o3, znightfac_no3, ox_conc_flag, &
                                zphotofac_aqsoa, aqsoa_photo_flag, &
                                conc_voc, conc_vbsg, conc_aqsoag, &
+                               gas_srfc_flx, &
                                cldbinlim, icebinlim
 
     IMPLICIT NONE
@@ -503,7 +503,6 @@ CONTAINS
          nlactiv,       & ! Master switch for cloud droplet activation
          nlactbase,     & ! Switch for parameterized cloud base activation
          nlactintst,    & ! Switch for interstitial activation based on particle growth and host model S
-         nlactprc,      & ! Activated aerosol described with rain bins
 
          nlicenucl,     & ! Ice nucleation master switch
          fixinc,        & ! Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
@@ -550,6 +549,7 @@ CONTAINS
          zdayfac_oh, zdayfac_o3, znightfac_no3, ox_conc_flag, & ! Scaling factors for oxidant concentrations
          zphotofac_aqsoa, aqsoa_photo_flag, & ! Scaling factor for aqSOA photodissociation
          conc_voc, conc_vbsg, conc_aqsoag, & ! Arrays for initial VOC(g), VBS(g) and aqSOA(g) concentrations (mass mixing ratios)
+         gas_srfc_flx,  & ! Constant surface fluxes (kg/m2/s) for active VOCs and VBS(g) and aqSOA(g) species
 
          cldbinlim,     & ! Output cloud bin diameter limits (microns)
          icebinlim        ! Output ice bin diameter limits (microns)

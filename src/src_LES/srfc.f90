@@ -55,7 +55,6 @@ module srfc
   ! Isoprene and monoterpene concentrations in the ocean surface layer
   real :: wtrIsop = -1.   ! mol/m3
   real :: wtrMtrp = -1.   ! mol/m3
-  logical :: ifVOCflx = .false.  ! If the value in namelist is flux instead of concentration
   ! Option for sea-spray aerosol source function parameterization
   integer :: ssa_param = 0
   ! Volume fraction of organic matter in sea spray
@@ -489,9 +488,6 @@ contains
       sc_ratio = schmidt_ref / schmidt_isoprene
       iGas = id_isop
 
-      if(ifVOCflx)then ! wtrIsop is flux in mol/m2/s, just convert to kg/m2/s
-        flxIsop = wtrIsop * mws_gas(iGas)
-      else
       ! First compute the transfer velocity (m/s)
 !          select case (transfer_velocity_type)
 !          case(Liss_Merlivat) ! Liss & Merlivat 1986
@@ -509,8 +505,7 @@ contains
 !            flxIsop = 0.
 !          end select
       ! Flux
-        flxIsop = flxIsop * wtrIsop * mws_gas(iGas)
-      endif
+      flxIsop = flxIsop * wtrIsop * mws_gas(iGas)
       DO j=3,nyp-2
         DO i=3,nxp-2
           a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxIsop / a_dn(2,i,j) / (zm(3)-zm(2))
@@ -533,15 +528,10 @@ contains
       ! Take average of a-pinene and limonene - 159.1
       schmidt_monoterp = schmidt_isoprene*(159.1/101.1)**0.6
       sc_ratio = schmidt_ref / schmidt_monoterp
-
-      if(ifVOCflx)then ! wtrIsop is flux in mol/m2/s, just convert to kg/m2/s
-        flxMtrp = wtrMtrp* mws_gas(iGas)
-      else
-        ! Transfer velocity (m/s)
-        flxMtrp = 0.251*u10_bar*u10_bar*sc_ratio**p12 * per_sec*to_m
-        ! Flux
-        flxMtrp = flxMtrp * wtrMtrp * mws_gas(iGas)
-      endif
+      ! Transfer velocity (m/s)
+      flxMtrp = 0.251*u10_bar*u10_bar*sc_ratio**p12 * per_sec*to_m
+      ! Flux
+      flxMtrp = flxMtrp * wtrMtrp * mws_gas(iGas)
       DO j=3,nyp-2
         DO i=3,nxp-2
           a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxMtrp / a_dn(2,i,j) / (zm(3)-zm(2))
@@ -556,6 +546,29 @@ contains
     endif
 
   END SUBROUTINE marine_gas_flux
+
+  ! --------------------------------------------------------------------------
+  ! Constant surface fluxes (kg/m2/s) for active VOCs and VBS(g) and aqSOA(g) species
+  !
+  SUBROUTINE srfc_gas_flux()
+    ! Parameters
+    use grid, only: nxp, nyp, a_dn, zm, a_gaerot
+    use mo_submctl, only: nvocs, nvbs, naqsoa, gas_srfc_flx
+    IMPLICIT NONE
+    INTEGER :: i, j, k
+
+    DO k=1,nvocs+nvbs+naqsoa ! Gases always in this order
+      IF (gas_srfc_flx(k)>0.) THEN
+        DO j=3,nyp-2
+          DO i=3,nxp-2
+            ! Mass mixing ratio tendency (kg/kg/s) due to surface flux (kg/m2/s)
+            a_gaerot(2,i,j,k) = a_gaerot(2,i,j,k) + gas_srfc_flx(k)/(a_dn(2,i,j)*(zm(3)-zm(2)))
+          ENDDO
+        ENDDO
+      ENDIF
+    ENDDO
+
+  END SUBROUTINE srfc_gas_flux
 
   !
   ! --------------------------------------------------------------------------

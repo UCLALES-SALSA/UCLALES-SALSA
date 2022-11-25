@@ -24,10 +24,10 @@ CONTAINS
 
   SUBROUTINE cloud_activation(kbdim, klev,           &
                               temp,   pres,  rv,     &
-                              rs,     paero, pcloud, pprcp )
+                              rs,     paero, pcloud  )
 
-    USE mo_submctl, ONLY : t_section, nbins, ncld, nprc, prlim, &
-              lsactintst, lsactbase, lsactprc
+    USE mo_submctl, ONLY : t_section, nbins, ncld, &
+              lsactintst, lsactbase
 
     IMPLICIT NONE
 
@@ -44,11 +44,7 @@ CONTAINS
     REAL, INTENT(in)    :: rs(kbdim,klev) ! Saturation vapor mixing ratio
 
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld),  &
-                                      pprcp(kbdim,klev,nprc),   &
                                       paero(kbdim,klev,nbins)
-
-    REAL :: V_tot
-    INTEGER :: ii, jj, kk, ibin
 
     ! -------------------------------------
     ! Interstitial activation
@@ -68,31 +64,8 @@ CONTAINS
 
     END IF
 
-    ! -----------------------------------
-    ! Cloud droplets described with rain bins
-    ! -----------------------------------
-    IF ( lsactprc .AND. ANY(pcloud(:,:,:)%numc>prlim) ) THEN
-        DO jj = 1,klev
-        DO ii = 1,kbdim
-            DO kk = 1,ncld
-                IF (pcloud(ii,jj,kk)%numc >prlim) THEN
-                    ! Total volume
-                    V_tot=SUM(pcloud(ii,jj,kk)%volc(:))/pcloud(ii,jj,kk)%numc
-                    ! Which rain bin
-                    ibin=MAX(1,COUNT(V_tot>pprcp(ii,jj,1:nprc)%vlolim))
-                    ! Add to rain
-                    pprcp(ii,jj,ibin)%volc(:)=pprcp(ii,jj,ibin)%volc(:)+pcloud(ii,jj,kk)%volc(:)
-                    pprcp(ii,jj,ibin)%numc=pprcp(ii,jj,ibin)%numc+pcloud(ii,jj,kk)%numc
-                ENDIF
-                ! Set cloud to zero
-                pcloud(ii,jj,kk)%volc(:)=0.
-                pcloud(ii,jj,kk)%numc=0.
-            ENDDO
-        ENDDO
-        ENDDO
-    END IF
-
   END SUBROUTINE cloud_activation
+
 
 ! -----------------------------------------------------------------
 
