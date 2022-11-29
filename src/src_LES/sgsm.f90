@@ -74,7 +74,7 @@ contains
          , a_temp, a_rsl, nscl, nxp, nyp    &
          , nzp, zm, dxi, dyi, dzt, dzm, dtl, th00, dn0  &
          , pi0, pi1, newsclr, level, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc &
-         , wq_sfc
+         , wq_sfc, a_edr
     USE defs, ONLY : cp, alvi
 
     use util, only         : get_avg3
@@ -127,9 +127,9 @@ contains
     !
     select case (isgstyp)
     case (1)
-       call smagor(nzp,nxp,nyp,sflg,dxi,dyi,dn0,a_tmp3,a_tmp2,a_tmp1,zm)
+       call smagor(nzp,nxp,nyp,sflg,dxi,dyi,dn0,a_tmp3,a_tmp2,a_tmp1,zm,a_edr)
     case (2)
-       call deardf(nzp,nxp,nyp,sflg,dxi,zm,dn0,a_qp,a_qt,a_tmp3,a_tmp2,a_tmp1)
+       call deardf(nzp,nxp,nyp,sflg,dxi,zm,dn0,a_qp,a_qt,a_tmp3,a_tmp2,a_tmp1,a_edr)
 
        call solv_tke(nzp,nxp,nyp,a_tmp3,a_tmp1,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi  &
             ,dtl)
@@ -279,7 +279,7 @@ contains
   ! timsteps, SGS energy, dissipation, viscosity, diffusivity and
   ! lengthscales are stored.
   !
-  subroutine smagor(n1,n2,n3,sflg,dxi,dyi,dn0,ri,kh,km,zm)
+  subroutine smagor(n1,n2,n3,sflg,dxi,dyi,dn0,ri,kh,km,zm,edr)
 
     use defs, only          : pi, vonk
     use stat, only          : tke_sgs
@@ -292,7 +292,7 @@ contains
     integer, intent(in) :: n1,n2,n3
     real, intent(in)    :: dxi,dyi,zm(n1),dn0(n1)
     real, intent(inout) :: ri(n1,n2,n3),kh(n1,n2,n3)
-    real, intent(out)   :: km(n1,n2,n3)
+    real, intent(out)   :: km(n1,n2,n3),edr(n1,n2,n3)
 
     real    :: delta,pr
 
@@ -327,6 +327,7 @@ contains
     call cyclics(n1,n2,n3,km,req)
     call cyclicc(n1,n2,n3,km,req)
 
+    edr(:,:,:) = kh(:,:,:)*km(:,:,:)
 
     if (sflg) then
        call get_cor3(n1,n2,n3,km,km,sz1)
@@ -388,7 +389,7 @@ contains
   !   yy =  ---
   !   zz = deform
   !
-  subroutine deardf(n1,n2,n3,sflg,dxi,zm,dn0,tke,tket,xx,zz,yy)
+  subroutine deardf(n1,n2,n3,sflg,dxi,zm,dn0,tke,tket,xx,zz,yy,edr)
 
     use defs, only : vonk
     use stat, only : tke_sgs
@@ -403,7 +404,7 @@ contains
     real, intent(in)    :: dxi,dn0(n1),zm(n1)
     real, intent(in)    :: tke(n1,n2,n3)
     real, intent(inout) :: xx(n1,n2,n3),zz(n1,n2,n3)
-    real, intent(out)   :: yy(n1,n2,n3),tket(n1,n2,n3)
+    real, intent(out)   :: yy(n1,n2,n3),tket(n1,n2,n3),edr(n1,n2,n3)
 
     real    :: ln,lm,ch
     !
@@ -419,6 +420,7 @@ contains
        sz5(k) = 0.
        sz4(k) = 0.
     end do
+    edr(:,:,:) = 0.
 
     do j=1,n3
        do i=1,n2
@@ -430,6 +432,7 @@ contains
              xx(k,i,j) = lm/(c_e1 + c_e2*lm/ln)
              yy(k,i,j) = cm*lm*sqrt(tke(k,i,j))*.5*(dn0(k)+dn0(k+1))
              zz(k,i,j) = ch*yy(k,i,j)
+             edr(k,i,j) = (tke(k,i,j)**1.5)/xx(k,i,j)
              if (sflg) then
                 sz6(k)  = sz6(k) + lm
                 sz5(k)  = sz5(k) + lm*ch

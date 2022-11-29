@@ -182,6 +182,7 @@ module grid
   REAL, ALLOCATABLE :: a_rhi(:,:,:)    ! Relative humidity over ice
   REAL, ALLOCATABLE :: a_rsi(:,:,:)    ! Water vapor saturation mixing ratio over ice
   REAL, ALLOCATABLE :: a_dn(:,:,:)     ! Air density
+  REAL, ALLOCATABLE :: a_edr(:,:,:)    ! Eddy dissipation rate
   !
   ! scratch arrays
   !
@@ -277,10 +278,11 @@ contains
        memsize = memsize + 5*nxyzp + nxyp
     end if
 
-    allocate (a_temp(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp))
+    allocate (a_temp(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp),a_edr(nzp,nxp,nyp))
     a_temp(:,:,:) = 0.
     a_rsl(:,:,:) = 0.
-    memsize = memsize + nxyzp*2
+    a_edr(:,:,:) = 0.
+    memsize = memsize + nxyzp*3
 
     ! Juha: Stuff that's allocated if SALSA is NOT used
     !-----------------------------------------------------
@@ -724,7 +726,7 @@ contains
     INTEGER, PARAMETER :: n_dims=14, n_base=13
     character(len=7) :: s_dims(n_dims) = (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     ','ym     ', & ! 1-7
-         'u0     ','v0     ','dn0    ','P_Rd12a','P_Rd2ab','P_Rwprc','P_Rwsnw'/)  ! 8-14
+         'u0     ','v0     ','dn0    ','B_Rd12a','B_Rd2ab','B_Rwprc','B_Rwsnw'/)  ! 8-14
     character(len=7) :: s_base(n_base) = (/ &
          'u      ','v      ','w      ','theta  ','p      ','stke   ','rflx   ', & ! 1-7
          'q      ','l      ','r      ','n      ','i      ','s      '/)            ! 8-13
@@ -772,9 +774,9 @@ contains
        ! Dimensions for bin dependent outputs
        lbinanl = ANY(INDEX(user_an_list,'B_')>0)
        b_dims(11) = lbinanl
-       b_dims(12) = lbinanl .AND. (.NOT. no_b_bins)
+       b_dims(12) = lbinanl
        b_dims(13) = lbinanl .AND. (.NOT. no_prog_prc)
-       b_dims(14) = lbinanl .AND. (level>4)
+       b_dims(14) = lbinanl .AND. (.NOT. no_prog_snw) .AND. (level>4)
 
        ! Merge logical and name arrays
        i=n_dims+n_base+nv4_proc+nv4_user+naddsc
@@ -897,6 +899,7 @@ contains
     REAL :: zvar(nzp,nxp,nyp)
     REAL :: a_Rawet(nzp,nxp,nyp,nbins), a_Rcwet(nzp,nxp,nyp,ncld),a_Rpwet(nzp,nxp,nyp,nprc), &
           a_Riwet(nzp,nxp,nyp,nice),a_Rswet(nzp,nxp,nyp,nsnw)
+    CHARACTER(LEN=3) :: nam
 
     icnt = (/nzp, nxp-4, nyp-4, 1/)
     icntaea = (/nzp, nxp-4, nyp-4, fn2a, 1 /)
@@ -936,16 +939,16 @@ contains
        iret = nf90_put_var(ncid0, VarID, dn0, start = (/nrec0/))
 
        IF (level >= 4) THEN
-          iret = nf90_inq_varid(ncid0,'P_Rd12a', VarID)
+          iret = nf90_inq_varid(ncid0,'B_Rd12a', VarID)
           IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, aerobins(in1a:fn2a), start = (/nrec0/))
 
-          iret = nf90_inq_varid(ncid0,'P_Rd2ab', VarID)
+          iret = nf90_inq_varid(ncid0,'B_Rd2ab', VarID)
           IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID, aerobins(in2a:fn2a), start = (/nrec0/))
 
-          iret = nf90_inq_varid(ncid0,'P_Rwprc', VarID)
+          iret = nf90_inq_varid(ncid0,'B_Rwprc', VarID)
           IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID, precpbins(1:nprc), start = (/nrec0/))
 
-          iret = nf90_inq_varid(ncid0,'P_Rwsnw', VarID)
+          iret = nf90_inq_varid(ncid0,'B_Rwsnw', VarID)
           IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID, snowbins(1:nsnw), start = (/nrec0/))
        END IF
     end if
@@ -969,6 +972,17 @@ contains
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_rflx(:,i1:i2,j1:j2), start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'stke', VarID) ! Subgrid TKE
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_qp(:,i1:i2,j1:j2), start=ibeg, count=icnt)
+
+    ! Additional scalars
+    IF (naddsc>0) THEN
+        DO bb=1,naddsc
+            write(nam,"('s',i2.2)") bb
+            iret = nf90_inq_varid(ncid0, nam, VarID)
+            ee=nscl-naddsc+bb
+            IF (iret == NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_sclrp(:,i1:i2,j1:j2,ee), &
+                start=ibeg,count=icnt)
+        ENDDO
+    ENDIF
 
     ! User-selected process rate outputs
     IF (nv4_proc>0) THEN

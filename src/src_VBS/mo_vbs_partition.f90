@@ -25,7 +25,7 @@ MODULE mo_vbs_partition
 CONTAINS
 
   SUBROUTINE vbs_gas_phase_chem(kbdim, klev,&
-       ptemp, tstep, etime, pc_gas, ngas)
+       ptemp, tstep, pc_gas, ngas)
 
     ! -----------------------------------------------------------------------
     !
@@ -45,16 +45,13 @@ CONTAINS
 
     ! use statements
     USE mo_submctl, ONLY : id_oh, id_o3, id_no3, &
-        model_lat, start_doy, avog
+        avog, zvbs_k_OH, zvbs_Eact_p_OH, &
+        zdayfac_oh, zdayfac_o3, znightfac_no3, zphotofac_aqsoa
 
     USE mo_vbsctl, ONLY: &
          t_vbs_group, t_voc_prec, t_aq_soa, & ! the VBS, VOC and aqSOA data structures
          vbs_set, aqsoa_set,vbs_voc_set,   &
          aqsoa_ngroup, vbs_ngroup, vbs_nvocs
-		 
-    USE mo_vbs, ONLY : rate_o3_o1d_ave, maxdayfac, zenith
-
-    use grid, only: iradtyp
 
     ! input/output parameters
     INTEGER,  INTENT(in) :: kbdim                    ! geographic block max number of locations
@@ -62,11 +59,10 @@ CONTAINS
     INTEGER,  INTENT(in) :: ngas                     ! number of gases
     REAL, INTENT(in) :: ptemp (kbdim,klev)           ! air temperature [K]
     REAL, INTENT(inOUT) :: pc_gas(kbdim,klev,ngas)   ! gas phase concentrations [mol/m3]
-    REAL, INTENT(IN) :: tstep, etime                 ! time step and elapsed time [s]
+    REAL, INTENT(IN) :: tstep                        ! time step [s]
 
     ! local variables
     TYPE(t_voc_prec), POINTER :: zprec  ! local copy for easier reading
-    TYPE(t_vbs_group), POINTER :: zbase ! local copy for easier reading
     TYPE(t_aq_soa), POINTER :: zaqsoa   ! local copy for easier reading
 
     ! Gas phase reactant concentrations
@@ -74,36 +70,22 @@ CONTAINS
          zc_oh(kbdim, klev),  & ! OH concentration at t+dt
          zc_o3(kbdim, klev),  & ! O3 concentration at t+dt
          zc_no3(kbdim, klev), & ! NO3 concentration at t+dt
-         zc_prec,             & ! VOC precursor concentation at t+dt
-         zc_aqsoa_prec          ! aqsoa concentation at t+dt
+         zc_prec                ! VOC/aqSOA precursor concentation at t+dt
 
     ! Gas phase reaction rates
     REAL ::     &
-         zr_rate_oh_prec,   & ! voc precursor reaction rate with OH [m3/(mol*s)]
-         zc_rate_oh_prec,   & ! voc precursor conversion rate due to OH [1/s]
-         zr_rate_o3_prec,   & ! voc precursor reaction rate with O3 [m3/(mol*s)]
-         zc_rate_o3_prec,   & ! voc precursor conversion rate due to O3 [1/s]
-         zr_rate_no3_prec,  & ! voc precursor reaction rate with NO3 [m3/(mol*s)]
-         zc_rate_no3_prec,  & ! voc precursor conversion rate due to NO3 [1/s]
-         zc_rate_tot_prec,  & ! voc precursor total conversion rate
-         zr_rate_oh_aqsoa,  & ! aqsoa reaction rate with OH [m3/(mol*s)]
-         zc_rate_oh_aqsoa,  & ! aqsoa conversion rate due to OH [1/s]
-         zr_rate_o3_aqsoa,  & ! aqsoa reaction rate with O3 [m3/(mol*s)]
-         zc_rate_o3_aqsoa,  & ! aqsoa conversion rate due to O3 [1/s]
-         zr_rate_no3_aqsoa, & ! aqsoa reaction rate with NO3 [m3/(mol*s)]
-         zc_rate_no3_aqsoa    ! aqsoa conversion rate due to NO3 [1/s]
+         zr_rate_oh,   & ! VOC/aqSOA precursor reaction rate with OH [m3/(mol*s)]
+         zc_rate_oh,   & ! VOC/aqSOA precursor conversion rate due to OH [1/s]
+         zr_rate_o3,   & ! VOC/aqSOA precursor reaction rate with O3 [m3/(mol*s)]
+         zc_rate_o3,   & ! VOC/aqSOA precursor conversion rate due to O3 [1/s]
+         zr_rate_no3,  & ! VOC/aqSOA precursor reaction rate with NO3 [m3/(mol*s)]
+         zc_rate_no3,  & ! VOC/aqSOA precursor conversion rate due to NO3 [1/s]
+         zc_rate_tot     ! VOC/aqSOA precursor total conversion rate
 
-    ! zloss/zproduction rates
+    ! zloss rate
     REAL :: &
-         zloss_prec,           & ! total zloss of precursor VOC
-         zloss_aqsoa,          & ! total zloss of aqsoa
-         zprodrate_aqsoa,      & ! zproduction rate for aqsoa
-         zlossoh_aqsoa,        & ! OH zloss of aqsoa
-         zlosso3_aqsoa,        & ! O3 zloss of aqsoa
-         zlossno3_aqsoa,       & ! NO3 zloss of aqsoa
-         zlossphoto_aqsoa        ! photodissociation zloss of aqsoa
+         zloss           ! total zloss of precursor VOC/aqSOA
 
-    REAL :: zdayfac, u0, znightfac
     INTEGER :: jk, jl, jb, jv
     INTEGER :: idt_prec, idt_base, idt_aqsoa
 
@@ -111,115 +93,132 @@ CONTAINS
     ! executable procedure
     ! -----------------------------------------------------------------------
 
-    ! Only the 4stream radiation scheme accounts for time of day, 
-    ! so here we use the prescribed value as te daily average and apply 
-    ! ozone photolysis rate as OH diurnal variation and opposite for NO3
-    ! For other schemes use the oxidants concentrations as prescribed in namelist  
-    
-    if(iradtyp > 2)then
-      ! Cosine of the solar zenith angle
-      u0=zenith(model_lat, start_doy+etime/86400.)
-      IF (u0<=0.)then
-    	zdayfac=0.
-      else
-        zdayfac = 6.073e-5 * u0**1.743 * exp(-0.474 / u0)
-        zdayfac = zdayfac / rate_o3_o1d_ave
-      endif
-      znightfac = (maxdayfac - zdayfac) / (maxdayfac - 1.)
-    else
-      zdayfac = 1.
-      znightfac = 1.
-    endif
-
     ! Obtain oxidant concentrations and scale for day/night time length. Also,
     ! convert mol/m^3 to #/cm^3, because the unit of prefactor k0 is cm^3/#/s.
     zc_oh(:,:)=0.
     zc_o3(:,:)=0.
     zc_no3(:,:)=0.
-    IF (id_oh>0)  zc_oh(:,:)=pc_gas(:,:,id_oh)*zdayfac*avog*1e-6
-    IF (id_o3>0)  zc_o3(:,:)=pc_gas(:,:,id_o3)*avog*1e-6   !*zdayfac
-    IF (id_no3>0) zc_no3(:,:)=pc_gas(:,:,id_no3)*znightfac*avog*1e-6
+    IF (id_oh>0)  zc_oh(:,:)=pc_gas(:,:,id_oh)*zdayfac_oh*avog*1e-6
+    IF (id_o3>0)  zc_o3(:,:)=pc_gas(:,:,id_o3)*zdayfac_o3*avog*1e-6
+    IF (id_no3>0) zc_no3(:,:)=pc_gas(:,:,id_no3)*znightfac_no3*avog*1e-6
 
-    DO jv = 1,vbs_nvocs
+    DO jk = 1,klev
+       DO jl = 1,kbdim
 
-       ! marking the precursor we currently process
-       zprec => vbs_voc_set(jv)
-       idt_prec = zprec%id_gas
+          ! VOC oxidation
+          DO jv = 1,vbs_nvocs
+              ! marking the precursor we currently process
+              zprec => vbs_voc_set(jv)
+              idt_prec = zprec%id_gas
 
-       DO jk = 1,klev
-          DO jl = 1,kbdim
-!print *, jv, pc_gas(jl,jk,idt_prec), pc_gas(jl,jk,id_oh), pc_gas(jl,jk,id_o3), pc_gas(jl,jk,id_no3), zdayfac !,zprec%k_0_OH,zprec%k_0_O3,zprec%k_0_NO3,ptemp(jl,jk)
               IF (pc_gas(jl,jk,idt_prec)<1e-20) CYCLE
 
               ! the precursor concentration in this grid cell [mol/m3]
               zc_prec = pc_gas(jl,jk,idt_prec)
 
               !---reaction rates k=k_0*exp(E_p/T) [cm^3/s]
-              zr_rate_oh_prec  = zprec%k_0_OH  * EXP(zprec%Eact_p_OH/ptemp(jl,jk))
-              zr_rate_o3_prec  = zprec%k_0_O3  * EXP(zprec%Eact_p_O3/ptemp(jl,jk))
-              zr_rate_no3_prec = zprec%k_0_NO3 * EXP(zprec%Eact_p_NO3/ptemp(jl,jk))
+              zr_rate_oh  = zprec%k_0_OH  * EXP(zprec%Eact_p_OH/ptemp(jl,jk))
+              zr_rate_o3  = zprec%k_0_O3  * EXP(zprec%Eact_p_O3/ptemp(jl,jk))
+              zr_rate_no3 = zprec%k_0_NO3 * EXP(zprec%Eact_p_NO3/ptemp(jl,jk))
 
               !---conversion rates k_x*c [1/s]
-              zc_rate_oh_prec  = zr_rate_oh_prec  * zc_oh(jl,jk)
-              zc_rate_o3_prec  = zr_rate_o3_prec  * zc_o3(jl,jk)
-              zc_rate_no3_prec = zr_rate_no3_prec * zc_no3(jl,jk)
+              zc_rate_oh  = zr_rate_oh  * zc_oh(jl,jk)
+              zc_rate_o3  = zr_rate_o3  * zc_o3(jl,jk)
+              zc_rate_no3 = zr_rate_no3 * zc_no3(jl,jk)
 
               !---total conversion rate [1/s]
-              zc_rate_tot_prec = zc_rate_oh_prec + zc_rate_o3_prec + zc_rate_no3_prec
+              zc_rate_tot = zc_rate_oh + zc_rate_o3 + zc_rate_no3
 
               !---amount of reacted voc [mol/m3]
-              zloss_prec = zc_prec * (1. - EXP(-zc_rate_tot_prec*tstep))
-			  
+              zloss = zc_prec * (1. - EXP(-zc_rate_tot*tstep))
+
+              IF (zloss<1e-20) CYCLE
+
               !---correcting concentration [mol/m3]
-              pc_gas(jl,jk,idt_prec) = pc_gas(jl,jk,idt_prec) - zloss_prec
+              pc_gas(jl,jk,idt_prec) = pc_gas(jl,jk,idt_prec) - zloss
 
               !---calculating the production of products
+
               DO jb = 1,vbs_ngroup
-                  ! marking the product we currently process
-                 zbase => vbs_set(jb)
+                 ! marking the product we currently process
                  idt_base = vbs_set(jb)%id_gas
 
                  !---correcting concentration
-                 pc_gas(jl,jk,idt_base) = pc_gas(jl,jk,idt_base) + zloss_prec * zprec%stoich_coeff(jb)
+                 pc_gas(jl,jk,idt_base) = pc_gas(jl,jk,idt_base) + zloss/zc_rate_tot * ( &
+                                            zc_rate_oh * zprec%stoich_coeff_oh(jb) + &
+                                            zc_rate_o3 * zprec%stoich_coeff_o3(jb) + &
+                                            zc_rate_no3 * zprec%stoich_coeff_no3(jb) )
               END DO !vbs_ngroup
 
               DO jb = 1 , aqsoa_ngroup
-                 zaqsoa => aqsoa_set(jb)
+                 ! marking the product we currently process
                  idt_aqsoa = aqsoa_set(jb)%id_gas
 
-                 ! the zproduction rate for jb
-                 zprodrate_aqsoa = zc_prec*(1.-EXP(-zc_rate_oh_prec*tstep))/tstep  &
-                              * zprec%stoich_coeff(jb+vbs_ngroup)
-                 if(jb.eq.2.and.jv.eq.2) zprodrate_aqsoa =  zprodrate_aqsoa +  & !Hard coded for ISOP+O3 -> 0.01 GLYX
-                            zc_prec*(1.-EXP(-zc_rate_o3_prec*tstep))/tstep &
-                             * zprec%stoich_coeff(jb+vbs_ngroup)*0.5
-                 if(jb.eq.2) zprodrate_aqsoa = zprodrate_aqsoa + 0.24*zlossoh_aqsoa/tstep !hard coded for EIPOX+OH->0.24*Glyoxal
-
-                 pc_gas(jl,jk,idt_aqsoa) = pc_gas(jl,jk,idt_aqsoa)+ zprodrate_aqsoa*tstep
-
-                 ! the gas phase loss rates for aqSOA
-                 !concentration
-                 zc_aqsoa_prec=pc_gas(jl,jk,idt_aqsoa)
-                 !---reaction rates k=k_0*exp(E_p/T); E_p=E/R
-                 zr_rate_oh_aqsoa   = zaqsoa%k_0_OH  * EXP(zaqsoa%Eact_p_OH /ptemp(jl,jk))
-                 zr_rate_o3_aqsoa   = zaqsoa%k_0_O3  * EXP(zaqsoa%Eact_p_O3 /ptemp(jl,jk))
-                 zr_rate_no3_aqsoa  = zaqsoa%k_0_NO3 * EXP(zaqsoa%Eact_p_NO3/ptemp(jl,jk))
-
-                 zc_rate_oh_aqsoa  = zr_rate_oh_aqsoa  * zc_oh(jl,jk)
-                 zc_rate_o3_aqsoa  = zr_rate_o3_aqsoa  * zc_o3(jl,jk)
-                 zc_rate_no3_aqsoa = zr_rate_no3_aqsoa * zc_no3(jl,jk)
-
-                 zlossoh_aqsoa    = zc_aqsoa_prec * (1. - EXP(-zc_rate_oh_aqsoa*tstep))
-                 zlosso3_aqsoa    = zc_aqsoa_prec * (1. - EXP(-zc_rate_o3_aqsoa*tstep))
-                 zlossno3_aqsoa   = zc_aqsoa_prec * (1. - EXP(-zc_rate_no3_aqsoa*tstep))
-                 zlossphoto_aqsoa = zc_aqsoa_prec * (1. - EXP(-zaqsoa%photodis *tstep))*(1.-zdayfac)
-                 zloss_aqsoa = zlossoh_aqsoa + zlosso3_aqsoa + zlossno3_aqsoa + zlossphoto_aqsoa
-
-                 pc_gas(jl,jk,idt_aqsoa) = pc_gas(jl,jk,idt_aqsoa) - zloss_aqsoa
+                 !---correcting concentration
+                 pc_gas(jl,jk,idt_aqsoa) = pc_gas(jl,jk,idt_aqsoa) + zloss/zc_rate_tot * ( &
+                                            zc_rate_oh * zprec%stoich_coeff_oh(jb+vbs_ngroup) + &
+                                            zc_rate_o3 * zprec%stoich_coeff_o3(jb+vbs_ngroup) + &
+                                            zc_rate_no3 * zprec%stoich_coeff_no3(jb+vbs_ngroup) )
               END DO
-          END DO !kbdim
-       END DO !klev
-  END DO !vbs_nvocs
+          END DO !vbs_nvocs
+
+          ! Gas phase losses for aqSOA
+          zc_rate_tot = 0.
+          DO jb = 1 , aqsoa_ngroup
+              ! marking the precursor we currently process
+              zaqsoa => aqsoa_set(jb)
+              idt_aqsoa = aqsoa_set(jb)%id_gas
+
+              ! hard coded for IEPOX+OH->0.24*Glyoxal
+              if (jb.eq.2 .AND. zc_rate_tot>1e-20) pc_gas(jl,jk,idt_aqsoa) = pc_gas(jl,jk,idt_aqsoa) +&
+                                                            zloss/zc_rate_tot * zc_rate_oh * 0.24
+
+              ! the precursor concentration in this grid cell [mol/m3]
+              zc_prec=pc_gas(jl,jk,idt_aqsoa)
+
+              !---reaction rates k=k_0*exp(E_p/T)
+              zr_rate_oh   = zaqsoa%k_0_OH  * EXP(zaqsoa%Eact_p_OH /ptemp(jl,jk))
+              zr_rate_o3   = zaqsoa%k_0_O3  * EXP(zaqsoa%Eact_p_O3 /ptemp(jl,jk))
+              zr_rate_no3  = zaqsoa%k_0_NO3 * EXP(zaqsoa%Eact_p_NO3/ptemp(jl,jk))
+
+              !---conversion rates k_x*c [1/s]
+              zc_rate_oh  = zr_rate_oh  * zc_oh(jl,jk)
+              zc_rate_o3  = zr_rate_o3  * zc_o3(jl,jk)
+              zc_rate_no3 = zr_rate_no3 * zc_no3(jl,jk)
+
+              !---total conversion rate [1/s]
+              zc_rate_tot = zc_rate_oh + zc_rate_o3 + zc_rate_no3 + &
+                        zaqsoa%photodis*zphotofac_aqsoa
+
+              !---amount of reacted aqSOA [mol/m3]
+              zloss = zc_prec * (1. - EXP(-zc_rate_tot*tstep))
+
+              !---correcting concentration
+              pc_gas(jl,jk,idt_aqsoa) = pc_gas(jl,jk,idt_aqsoa) - zloss
+          END DO !aqsoa_ngroup
+
+          ! VBS(g) aging by OH-oxidation
+          IF (zvbs_k_OH>1e-20 .AND. zc_oh(jl,jk)>0.) THEN
+              DO jb = 2,vbs_ngroup ! start from bin 2
+                  idt_base = vbs_set(jb)%id_gas
+
+                  ! initial concentration [mol/m3]
+                  zc_prec = pc_gas(jl,jk,idt_base)
+
+                  !---conversion rate k_x*c [1/s]
+                  zc_rate_oh = zvbs_k_OH*EXP(zvbs_Eact_p_OH/ptemp(jl,jk)) * zc_oh(jl,jk)
+
+                  !---amount of reacted [mol/m3]
+                  zloss = zc_prec * (1. - EXP(-zc_rate_oh*tstep))
+
+                  !---correcting concentrations [mol/m3]
+                  pc_gas(jl,jk,idt_base  ) = pc_gas(jl,jk,idt_base  ) - zloss
+                  pc_gas(jl,jk,idt_base-1) = pc_gas(jl,jk,idt_base-1) + zloss
+              END DO !vbs_ngroup
+          ENDIF
+
+       END DO !kbdim
+    END DO !klev
 
   END SUBROUTINE vbs_gas_phase_chem
 
@@ -295,7 +294,7 @@ CONTAINS
 
     USE mo_submctl, ONLY : &
          pstand, pi, rg, surfw0,               & ! Constants
-         dens, mws, rhowa, rhoic, rhosn,       & ! Physics properties
+         dens, mws,                            & ! Physics properties
          laqsoa,                               & ! aqSOA partitioning (optional)
          ioc, iocg, moc, part_ocnv,            & ! NVOA partitioning (optional)
          iso, isog, msu, part_h2so4,           & ! Sulfate partitioning (optional)
@@ -363,7 +362,7 @@ CONTAINS
 
     ! other
     INTEGER :: nbin_tot, nbin_aq, nbin_aer, iaqv, nn
-    REAL :: ztemp_sum, zdfvap, zmfp, p_lwc, p_awc, p_cwc, Heff, zdvap, zcvap_new
+    REAL :: ztemp_sum, zdfvap, zmfp, p_lwc, p_awc, p_cwc, Heff, zdvap, zcvap_new, oa
 
     ! -----------------------------------------------------------------------
     ! executable procedure
@@ -416,7 +415,6 @@ CONTAINS
        IF (pice(jc)%numc>prlim) THEN
           jvc = jvc + 1
           zc_part_all(jvc,:)=pice(jc)%volc(1:nn)*dens(1:nn)/mws(1:nn)
-          zc_part_all(jvc,1)=zc_part_all(jvc,1)*rhoic/rhowa ! Correction for ice density
           zk_numc(jvc) = pice(jc)%numc
           zk_diam(jvc) = pice(jc)%dwet
        END IF
@@ -426,7 +424,6 @@ CONTAINS
        IF (psnow(jc)%numc>prlim) THEN
           jvc = jvc + 1
           zc_part_all(jvc,:)=psnow(jc)%volc(1:nn)*dens(1:nn)/mws(1:nn)
-          zc_part_all(jvc,1)=zc_part_all(jvc,1)*rhosn/rhowa ! Correction for snow density
           zk_numc(jvc) = psnow(jc)%numc
           zk_diam(jvc) = psnow(jc)%dwet
        END IF
@@ -506,9 +503,10 @@ CONTAINS
           ! computing the new mole-fraction weighted, per-bin equilibrium vapor concentration
           zc_sat_part(:) = zc_sat(jg) ! x=1 for ice and snow
           DO jvc = 1,nbin_aq
-             ! Note: assuming an organic phase, so ignore all other than VBS species (POA could be included).
-             IF (sum(zc_part(:,jvc)) > 0.0) &
-                zc_sat_part(jvc) = zc_sat(jg)*zc_part(jg,jvc)/sum(zc_part(:,jvc))
+             ! Note: assuming an organic phase, so ignore all other than VBS species and POA.
+             oa = sum(zc_part(:,jvc))
+             if(ioc > 0) oa = oa + zc_part_all(jvc,ioc)
+             IF (oa > 0.0) zc_sat_part(jvc) = zc_sat(jg)*zc_part(jg,jvc)/oa
           END DO ! jvc
 
           ! computing the new gas phase concentration (16.71)

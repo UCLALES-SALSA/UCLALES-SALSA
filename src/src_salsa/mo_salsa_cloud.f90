@@ -547,7 +547,6 @@ CONTAINS
     USE mo_submctl, ONLY : t_section,   &
                                in2a, fn2b, fnp2a,  &
                                ncld, nprc, nice, nsnw,  &
-                               rhowa, rhoic, rhosn,  &
                                pi, nlim, prlim, &
                                calc_Sw_eq, &
                                ice_hom, ice_imm, ice_dep, &
@@ -650,24 +649,21 @@ CONTAINS
                     IF (ra<rb) bb = bb + fnp2a
                 ENDIF
                 ! Add to the matching ice bin
-                pice(ii,jj,bb)%volc(2:nn) = pice(ii,jj,bb)%volc(2:nn) + max(0., pprecp(ii,jj,kk)%volc(2:nn)*frac )
-                pice(ii,jj,bb)%volc(1) = pice(ii,jj,bb)%volc(1) + max(0., pprecp(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
+                pice(ii,jj,bb)%volc(1:nn) = pice(ii,jj,bb)%volc(1:nn) + max(0., pprecp(ii,jj,kk)%volc(1:nn)*frac )
                 pice(ii,jj,bb)%numc   = pice(ii,jj,bb)%numc + pprecp(ii,jj,kk)%numc*frac
             ELSEIF (ice_target_opt==0) THEN
                 ! Add to the matching snow bin
                 ss=1
-                zvol=(SUM(pprecp(ii,jj,kk)%volc(2:nn))+pprecp(ii,jj,kk)%volc(1)*rhowa/rhosn)/pprecp(ii,jj,kk)%numc
+                zvol=SUM(pprecp(ii,jj,kk)%volc(1:nn))/pprecp(ii,jj,kk)%numc
                 DO WHILE (zvol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                     ss=ss+1
                 ENDDO
-                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pprecp(ii,jj,kk)%volc(2:nn)*frac )
-                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pprecp(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pprecp(ii,jj,kk)%volc(1:nn)*frac )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pprecp(ii,jj,kk)%numc*frac
              ELSE
                 ! Add to the ss:th snow bin
                 ss=MIN(nsnw,ice_target_opt)
-                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pprecp(ii,jj,kk)%volc(2:nn)*frac )
-                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pprecp(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pprecp(ii,jj,kk)%volc(1:nn)*frac )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pprecp(ii,jj,kk)%numc*frac
             ENDIF
 
@@ -710,24 +706,21 @@ CONTAINS
             ! Move to the parallel ice bin or to a snow bin
             IF (ice_target_opt<0) THEN
                 ! Add to the matching ice bin
-                pice(ii,jj,kk)%volc(2:nn) = pice(ii,jj,kk)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                pice(ii,jj,kk)%volc(1) = pice(ii,jj,kk)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
+                pice(ii,jj,kk)%volc(1:nn) = pice(ii,jj,kk)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                 pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + pcloud(ii,jj,kk)%numc*frac
             ELSEIF (ice_target_opt==0) THEN
                 ! Add to the matching snow bin
                 ss=1
-                zvol=(SUM(pcloud(ii,jj,kk)%volc(2:nn))+pcloud(ii,jj,kk)%volc(1)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                zvol=SUM(pcloud(ii,jj,kk)%volc(1:nn))/pcloud(ii,jj,kk)%numc
                 DO WHILE (zvol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                     ss=ss+1
                 ENDDO
-                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pcloud(ii,jj,kk)%numc*frac
              ELSE
                 ! Add to the ss:th snow bin
                 ss=MIN(nsnw,ice_target_opt)
-                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + pcloud(ii,jj,kk)%numc*frac
             ENDIF
 
@@ -777,24 +770,21 @@ CONTAINS
             IF (ice_target_opt<0) THEN
                 ! Add to the matching ice bin
                 bb = kk-in2a+1
-                pice(ii,jj,bb)%volc(2:nn) = pice(ii,jj,bb)%volc(2:nn) + max(0., paero(ii,jj,kk)%volc(2:nn)*frac )
-                pice(ii,jj,bb)%volc(1) = pice(ii,jj,bb)%volc(1) + max(0., paero(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
+                pice(ii,jj,bb)%volc(1:nn) = pice(ii,jj,bb)%volc(1:nn) + max(0., paero(ii,jj,kk)%volc(1:nn)*frac )
                 pice(ii,jj,bb)%numc   = pice(ii,jj,bb)%numc + max(0., paero(ii,jj,kk)%numc*frac )
             ELSEIF (ice_target_opt==0) THEN
                 ! Add to the matching snow bin
                 ss=1
-                zvol=(SUM(paero(ii,jj,kk)%volc(2:nn))+paero(ii,jj,kk)%volc(1)*rhowa/rhosn)/paero(ii,jj,kk)%numc
+                zvol=SUM(paero(ii,jj,kk)%volc(1:nn))/paero(ii,jj,kk)%numc
                 DO WHILE (zvol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                     ss=ss+1
                 ENDDO
-                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., paero(ii,jj,kk)%volc(2:nn)*frac )
-                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., paero(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., paero(ii,jj,kk)%volc(1:nn)*frac )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + max(0., paero(ii,jj,kk)%numc*frac )
             ELSE
                 ! Add to the ss:th snow bin
                 ss=MIN(nsnw,ice_target_opt)
-                psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., paero(ii,jj,kk)%volc(2:nn)*frac )
-                psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., paero(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., paero(ii,jj,kk)%volc(1:nn)*frac )
                 psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + max(0., paero(ii,jj,kk)%numc*frac )
             ENDIF
 
@@ -989,7 +979,7 @@ CONTAINS
 
     USE mo_submctl, ONLY : t_section,      &
                     ncld, nice, nsnw, nspec, &
-                    rhowa, rhoic, rhosn,   &
+                    rhowa,  &
                     rda, nlim, prlim, &
                     fixinc, ice_source_opt, ice_target_opt
     IMPLICIT NONE
@@ -1047,23 +1037,20 @@ CONTAINS
 
                     IF (ice_target_opt<0) THEN
                         ! Add to the matching ice bin
-                        pice(ii,jj,kk)%volc(2:nn) = pice(ii,jj,kk)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                        pice(ii,jj,kk)%volc(1) = pice(ii,jj,kk)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
+                        pice(ii,jj,kk)%volc(1:nn) = pice(ii,jj,kk)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                         pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + dnice
                     ELSEIF (ice_target_opt==0) THEN
                         ! Add to the matching snow bin
                         ss=1
-                        vol=(SUM(pcloud(ii,jj,kk)%volc(2:nn))+pcloud(ii,jj,kk)%volc(1)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                        vol=SUM(pcloud(ii,jj,kk)%volc(1:nn))/pcloud(ii,jj,kk)%numc
                         DO WHILE (vol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                             ss=ss+1
                         ENDDO
-                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ELSE
                         ! Add to the ss:th snow bin
-                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ENDIF
 
@@ -1081,23 +1068,20 @@ CONTAINS
 
                     IF (ice_target_opt<0) THEN
                         ! Add to the matching ice bin
-                        pice(ii,jj,kk)%volc(2:nn) = pice(ii,jj,kk)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                        pice(ii,jj,kk)%volc(1) = pice(ii,jj,kk)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
+                        pice(ii,jj,kk)%volc(1:nn) = pice(ii,jj,kk)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                         pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + dnice
                     ELSEIF (ice_target_opt==0) THEN
                         ! Add to the matching snow bin
                         ss=1
-                        vol=(SUM(pcloud(ii,jj,kk)%volc(2:nn))+pcloud(ii,jj,kk)%volc(1)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                        vol=SUM(pcloud(ii,jj,kk)%volc(1:nn))/pcloud(ii,jj,kk)%numc
                         DO WHILE (vol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                             ss=ss+1
                         ENDDO
-                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ELSE
                         ! Add to the ss:th snow bin
-                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ENDIF
 
@@ -1114,23 +1098,20 @@ CONTAINS
 
                     IF (ice_target_opt<0) THEN
                         ! Add to the matching ice bin
-                        pice(ii,jj,kk)%volc(2:nn) = pice(ii,jj,kk)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                        pice(ii,jj,kk)%volc(1) = pice(ii,jj,kk)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhoic )
+                        pice(ii,jj,kk)%volc(1:nn) = pice(ii,jj,kk)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                         pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + dnice
                     ELSEIF (ice_target_opt==0) THEN
                         ! Add to the matching snow bin
                         ss=1
-                        vol=(SUM(pcloud(ii,jj,kk)%volc(2:nn))+pcloud(ii,jj,kk)%volc(1)*rhowa/rhosn)/pcloud(ii,jj,kk)%numc
+                        vol=SUM(pcloud(ii,jj,kk)%volc(1:nn))/pcloud(ii,jj,kk)%numc
                         DO WHILE (vol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
                             ss=ss+1
                         ENDDO
-                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ELSE
                         ! Add to the ss:th snow bin
-                        psnow(ii,jj,ss)%volc(2:nn) = psnow(ii,jj,ss)%volc(2:nn) + max(0., pcloud(ii,jj,kk)%volc(2:nn)*frac )
-                        psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + max(0., pcloud(ii,jj,kk)%volc(1)*frac*rhowa/rhosn )
+                        psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
                         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
                     ENDIF
 
@@ -1156,7 +1137,6 @@ CONTAINS
                                nsnw,        &
                                nprc,        &
                                nspec,       &
-                               rhowa, rhoic, rhosn,      &
                                prlim
 
     IMPLICIT NONE
@@ -1180,14 +1160,10 @@ CONTAINS
           DO kk = 1,nice
               ! Ice => cloud water (parallel bin)
               IF (pice(ii,jj,kk)%numc<prlim) CYCLE
-              DO ss = 2,nspec+1
+              DO ss = 1,nspec+1
                   pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) + pice(ii,jj,kk)%volc(ss)
                   pice(ii,jj,kk)%volc(ss) = 0.
               END DO
-              ss=1 ! Water
-              pcloud(ii,jj,kk)%volc(ss) = pcloud(ii,jj,kk)%volc(ss) + pice(ii,jj,kk)%volc(ss)*rhoic/rhowa
-              pice(ii,jj,kk)%volc(ss) = 0.
-
               pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc + pice(ii,jj,kk)%numc
               pice(ii,jj,kk)%numc = 0.
           END DO
@@ -1195,14 +1171,10 @@ CONTAINS
           DO kk =1,nsnw
               ! Snow => precipitation (bin 1)
               IF (psnow(ii,jj,kk)%numc<prlim) CYCLE
-              DO ss = 2,nspec+1
+              DO ss = 1,nspec+1
                   pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + psnow(ii,jj,kk)%volc(ss)
                   psnow(ii,jj,kk)%volc(ss) = 0.
               END DO
-              ss=1 ! Water
-              pprecp(ii,jj,1)%volc(ss) = pprecp(ii,jj,1)%volc(ss) + psnow(ii,jj,kk)%volc(ss)*rhosn/rhowa
-              psnow(ii,jj,kk)%volc(ss) = 0.
-
               pprecp(ii,jj,1)%numc = pprecp(ii,jj,1)%numc + psnow(ii,jj,kk)%numc
               psnow(ii,jj,kk)%numc = 0.
             END DO
@@ -1225,7 +1197,6 @@ CONTAINS
                                nsnw,        &
                                nspec,       &
                                pi6,         &
-                               rhosn, rhoic,       &
                                prlim,       &
                                autoc_snow_zd0, autoc_snow_sigmag
     IMPLICIT NONE
@@ -1257,13 +1228,10 @@ CONTAINS
                 IF ( Vrem > 0. .AND. Nrem > prlim) THEN
 
                    ! Put the mass and number to the first snow bin and remove from ice
-                   DO ss = 2,nspec+1
+                   DO ss = 1,nspec+1
                       psnow(ii,jj,1)%volc(ss) = psnow(ii,jj,1)%volc(ss) + pice(ii,jj,cc)%volc(ss)*(Nrem/Ntot)
                       pice(ii,jj,cc)%volc(ss) = pice(ii,jj,cc)%volc(ss)*(1. - (Nrem/Ntot))
                    END DO
-
-                   psnow(ii,jj,1)%volc(1) = psnow(ii,jj,1)%volc(1) + pice(ii,jj,cc)%volc(1)*(Vrem/Vtot)*rhoic/rhosn
-                   pice(ii,jj,cc)%volc(1) = pice(ii,jj,cc)%volc(1)*(1. - (Vrem/Vtot))
 
                    psnow(ii,jj,1)%numc = psnow(ii,jj,1)%numc + Nrem
                    pice(ii,jj,cc)%numc = pice(ii,jj,cc)%numc - Nrem

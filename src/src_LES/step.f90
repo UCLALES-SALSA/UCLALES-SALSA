@@ -134,11 +134,11 @@ contains
                      a_gaerop, a_gaerot,                                                &
                      nspec, nbins, ncld, nprc, nice, nsnw, &
                      nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
-                     ifSeaSpray, ifSeaVOC, sea_tspinup
+                     ifSeaSpray, ifSeaVOC, sea_tspinup, a_edr
 
     use stat, only : sflg, statistics, les_rate_stats, out_mcrp_data, out_mcrp_list, out_mcrp_nout, mcrp_var_save
     use sgsm, only : diffuse
-    use srfc, only : surface, marine_aero_flux, marine_gas_flux
+    use srfc, only : surface, marine_aero_flux, marine_gas_flux, srfc_gas_flux
     use thrm, only : thermo
     use mcrp, only : micro
     use prss, only : poisson
@@ -173,6 +173,8 @@ contains
         endif
         if(nvbs_setup>=0 .and. ifSeaVOC) then
             call marine_gas_flux(sst)
+        elseif (nvbs_setup>=0) THEN
+            CALL srfc_gas_flux()
         endif
         CALL tend_constrain(n4)
     END IF
@@ -205,7 +207,7 @@ contains
           CALL tend0(.TRUE.)
 
           CALL run_SALSA(nxp,nyp,nzp,n4,nbins,ncld,nprc,nice,nsnw, &
-                  a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,  &
+                  a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,a_edr, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -709,7 +711,7 @@ contains
     do n=1,nscl
        call newsclr(n)
        call update(nzp,nxp,nyp,a_sp,a_st,dtl)
-       call sclrset('mixd',nzp,nxp,nyp,a_sp,dzt)
+       call sclrset('cnst',nzp,nxp,nyp,a_sp,dzt)
     end do
 
     if (isgstyp == 2) then
@@ -887,7 +889,7 @@ contains
                      a_rh, a_temp, a_rhi, a_dn, level, dtl, &
                      tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
     USE mo_submctl, ONLY : fn1a,in2a,fn2a, &
-                     diss, mws, dens, rhoic, rhosn, &
+                     diss, mws, dens, &
                      surfw0, rg, nlim, prlim, pi, pi6, &
                      lscndgas, part_h2so4, part_ocnv, iso, ioc, isog, iocg, &
                      aerobins, calc_correlation
@@ -1073,9 +1075,8 @@ contains
              DO bc = 1,nice
                 IF ( a_nicep(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. &
                         a_micep(k,i,j,bc)<1e-8 ) THEN
-                   ! Diameter (assuming constant ice density)
-                   cd = ( (a_micep(k,i,j,bc)/rhoic+SUM(a_micep(k,i,j,nice+bc:nspec*nice+bc:nice)/dens(2:nn)) )/ &
-                            a_nicep(k,i,j,bc)/pi6)**(1./3.)
+                   ! Diameter (assuming water density for ice)
+                   cd = ( SUM(a_micep(k,i,j,bc:nspec*nice+bc:nice)/dens(1:nn))/a_nicep(k,i,j,bc)/pi6)**(1./3.)
 
                    ! Dry to total mass ratio
                    zvol = SUM( a_micep(k,i,j,nice+bc:nspec*nice+bc:nice) )/SUM( a_micep(k,i,j,bc:nspec*nice+bc:nice) )
@@ -1102,9 +1103,8 @@ contains
              DO bc = 1,nsnw
                 IF ( a_nsnowp(k,i,j,bc)*a_dn(k,i,j) > prlim .AND. a_rhi(k,i,j)<0.999 .AND. &
                         a_msnowp(k,i,j,bc)<1e-8 ) THEN
-                   ! Diameter (assuming constant snow density)
-                   cd = ( (a_msnowp(k,i,j,bc)/rhosn+SUM(a_msnowp(k,i,j,nsnw+bc:nspec*nsnw+bc:nsnw)/dens(2:nn)) )/ &
-                            a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
+                   ! Diameter (assuming water density for snow)
+                   cd = ( SUM(a_msnowp(k,i,j,bc:nspec*nsnw+bc:nsnw)/dens(1:nn))/a_nsnowp(k,i,j,bc)/pi6)**(1./3.)
 
                    ! Dry to total mass ratio
                    zvol = SUM( a_msnowp(k,i,j,nsnw+bc:nspec*nsnw+bc:nsnw) )/SUM( a_msnowp(k,i,j,bc:nspec*nsnw+bc:nsnw) )

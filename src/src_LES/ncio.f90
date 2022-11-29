@@ -610,6 +610,14 @@ contains
        if (itype==0) ncinfo = 'Ice cell counts'
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'time'
+    case('Rcloud')
+       if (itype==0) ncinfo = 'Conditionally sampled cloud droplet radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('Rrain')
+       if (itype==0) ncinfo = 'Conditionally sampled rain drop radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
     case('SS_max')
        if (itype==0) ncinfo = 'Maximum supersaturation'
        if (itype==1) ncinfo = '%'
@@ -976,6 +984,14 @@ contains
        if (itype==0) ncinfo = 'Snow fraction'
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'tttt'
+    case('Rc_ic')
+       if (itype==0) ncinfo = 'Conditionally sampled cloud droplet radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'tttt'
+    case('Rr_ir')
+       if (itype==0) ncinfo = 'Conditionally sampled rain drop radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'tttt'
     case('rr')
        if (itype==0) ncinfo = 'Rain water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
@@ -1008,19 +1024,19 @@ contains
     ! SALSA column statistics
     case('Nc')
        if (itype==0) ncinfo = 'Number-mean cloud droplet concentration'
-       if (itype==1) ncinfo = 'm'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('Nr')
        if (itype==0) ncinfo = 'Number-mean rain drop concentration'
-       if (itype==1) ncinfo = 'm'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('Ni')
        if (itype==0) ncinfo = 'Number-mean ice concentration'
-       if (itype==1) ncinfo = 'm'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('Ns')
        if (itype==0) ncinfo = 'Number-mean snow concentration'
-       if (itype==1) ncinfo = 'm'
+       if (itype==1) ncinfo = 'kg^-1'
        if (itype==2) ncinfo = 'tttt'
     case('Rwc')
        if (itype==0) ncinfo = 'Number-mean cloud droplet radius'
@@ -1070,6 +1086,16 @@ contains
        ncinfo=TRIM( get_rate_info(itype,trim(short_name),dims) )
        ! ... and some other species and bin-dependent SALSA variables
        IF (LEN(TRIM(ncinfo))<1) ncinfo=TRIM( get_salsa_info(itype,trim(short_name),dims) )
+       ! Additional scalars (3D only)
+       IF (LEN(TRIM(ncinfo))<1 .AND. short_name(1:1)=='s' .AND. dims==3) THEN
+          read (UNIT=short_name(2:3),FMT='(i2.2)',iostat=dims) scalar_number
+          IF (dims==0) THEN ! If valid name
+             write(v_lnm(8:9),'(i2.2)') scalar_number
+             if (itype==0) ncinfo = v_lnm
+             if (itype==1) ncinfo = 'kg/kg'
+             if (itype==2) ncinfo = 'tttt'
+          ENDIF
+       ENDIF
        IF (LEN(TRIM(ncinfo))<1) THEN
           if (myid==0) print *, 'ABORTING: ncinfo: variable not found ',trim(short_name)
           call appl_abort(0)

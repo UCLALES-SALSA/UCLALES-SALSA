@@ -53,6 +53,7 @@ MODULE mo_submctl
 
   LOGICAL :: nlauto     = .TRUE.,  lsauto     ! Autoconversion of cloud droplets (needs activation)
   LOGICAL :: nlautosnow = .TRUE.,  lsautosnow ! Autoconversion of ice particles to snow (needs activation)
+  LOGICAL :: nlcgrain = .FALSE.,   lscgrain   ! Rain formation based on cloud-cloud collisions
 
   LOGICAL :: nlactiv    = .TRUE.,  lsactiv    ! Cloud droplet activation master switch
   LOGICAL :: nlactintst = .TRUE.,  lsactintst ! Switch for interstitial activation
@@ -130,12 +131,18 @@ MODULE mo_submctl
   LOGICAL :: laqsoa = .FALSE.  ! Enable aqSOA formation
   INTEGER :: nvocs=0, nvbs=0, naqsoa=0 ! Number of VOCs, VBS species and aqSOA species
   REAL :: conc_voc(maxngas)=0., conc_vbsg(maxngas)=0., conc_aqsoag(maxngas)=0. ! Initial concetrations (kg/kg)
+  REAL :: gas_srfc_flx(maxngas)=0. ! Constant surface fluxes (kg/m2/s) for active VOCs and VBS(g) and aqSOA(g) species
+  REAL :: zvbs_k_OH = 0., zvbs_Eact_p_OH =0. ! Rate coefficient for VBS(g) aging [cm3/#/s]
   ! VOC oxidants
   LOGICAL :: ox_prescribed = .TRUE.              ! Prescribed or prognostic concentration fields
   INTEGER :: id_oh=-1, id_o3=-1, id_no3=-1       ! Indexes to gas phase
+  INTEGER :: id_isop=-1, id_mtp=-1               ! The same for isoprene and monoterpenes
   REAL :: conc_oh=-1., conc_o3=-1., conc_no3=-1. ! Initial concentrations (number mixing ratio)
+  REAL :: zdayfac_oh=1., zdayfac_o3=1., znightfac_no3=1. ! Scaling factors for diurnal oxidant concentrations
+  REAL :: zphotofac_aqsoa=0.                     ! The same for aqSOA photodissociation
+  INTEGER :: ox_conc_flag=0, aqsoa_photo_flag=0  ! Flags related to the scaling factors
   ! Communication between LES and SALSA/VBS
-  REAL :: model_lat, & ! Mean latitude from the model domain [deg]
+  REAL :: model_lat=31.5, & ! Mean latitude from the model domain [deg]
       start_doy=-1.    ! Decimal day of year [-]
 
 
@@ -147,16 +154,19 @@ MODULE mo_submctl
   ! in the LES input files to immediately generate cloud. Given in %/100.
   REAL :: rhlim = 1.20
 
+  ! Eddy dissipation rate - parameter for the turbulent component in coagulation
+  ! Negative value means take from LES, otherwise constant
+  real :: eddy_dis_rt = -10.e-4
 
   ! Define which aerosol species are used and their initial size distributions
   ! Initial aerosol species
   INTEGER :: nspec = 1 ! Does not include water
-  INTEGER, PARAMETER :: maxspec = 7
-  CHARACTER(len=3) :: listspec(maxspec) = (/'SO4','   ','   ','   ','   ','   ','   '/)
+  INTEGER, PARAMETER :: maxspec = 8
+  CHARACTER(len=3) :: listspec(maxspec) = (/'SO4','   ','   ','   ','   ','   ','   ','   '/)
 
   ! Volume fractions between aerosol species for A and B-bins
-  REAL :: volDistA(maxspec) = (/1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
-  REAL :: volDistB(maxspec) = (/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
+  REAL :: volDistA(maxspec) = (/1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
+  REAL :: volDistB(maxspec) = (/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
   ! Limit 1a composition to OC and/or SO4
   LOGICAL :: salsa1a_SO4_OC = .TRUE.
   ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
@@ -248,8 +258,7 @@ MODULE mo_submctl
    mbc = 12.e-3,    dissbc = 0.0, rhobc = 2000., & ! black carbon
    mss = 58.44e-3,  dissss = 2.0, rhoss = 2165., & ! sea salt (NaCl)
    mdu = 100.e-3,   dissdu = 0.0, rhodu = 2650., & ! mineral dust
-   mwa = 18.016e-3, disswa = 1.0, rhowa = 1000., & ! water
-   rhoic = 917.,    rhosn = 300. ! densitities of ice and snow
+   mwa = 18.016e-3, disswa = 1.0, rhowa = 1000.    ! water
 
   REAL, PARAMETER :: & ! diameter of condensing molecule [m]
    d_sa = 5.539376964394570e-10, & ! H2SO4
@@ -317,12 +326,48 @@ contains
     INTEGER i
 
     ppart(:)%dwet = 2.e-10
-    DO i=1,n
-        IF (ppart(i)%numc>lim) &
-            ppart(i)%dwet=(SUM(ppart(i)%volc(:))/ppart(i)%numc/pi6)**(1./3.)
-    ENDDO
+
+    IF (flag==4) THEN
+        ! Ice: spherical, but with effective density of 917 kg/m3
+        DO i=1,n
+            IF (ppart(i)%numc>lim) &
+                ppart(i)%dwet=( (ppart(i)%volc(1)*rhowa/917.+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.)
+        ENDDO
+    ELSEIF (flag==5) THEN
+        ! Snow: spherical, but with effective density of 300 kg/m3
+        DO i=1,n
+            IF (ppart(i)%numc>lim) &
+                ppart(i)%dwet=( (ppart(i)%volc(1)*rhowa/300.+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.)
+        ENDDO
+    ELSE
+        DO i=1,n
+            IF (ppart(i)%numc>lim) &
+                ppart(i)%dwet=(SUM(ppart(i)%volc(:))/ppart(i)%numc/pi6)**(1./3.)
+        ENDDO
+    ENDIF
 
   END SUBROUTINE CalcDimension
+  !
+  ! This function is for SALSA t_section arrays and assumes volume-based concentration units
+  SUBROUTINE CalcMass(mass,n,ppart,lim,flag)
+    IMPLICIT NONE
+    REAL, INTENT(OUT) :: mass(n)
+    INTEGER, INTENT(in) :: n
+    TYPE(t_section), INTENT(in) :: ppart(n)
+    REAL, INTENT(IN) :: lim
+    INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
+    INTEGER i
+
+    mass(:)=1e-30
+    DO i=1,n
+        IF (ppart(i)%numc<lim) THEN
+            ! No particles
+        ELSE
+            mass(i)=SUM(ppart(i)%volc(:)*dens(:))/ppart(i)%numc
+        ENDIF
+    ENDDO
+
+  END SUBROUTINE CalcMass
   !
   ! This function is for single LES size bin and assumes that concentration is given as mass per particle
   REAL FUNCTION calc_eff_radius(n,mass,flag)
@@ -332,11 +377,11 @@ contains
     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
 
     IF (flag==4) THEN   ! Ice
-        ! Spherical ice
-        calc_eff_radius=0.5*( (mass(1)/rhoic+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
+        ! Ice: spherical, but with effective density of 917 kg/m3
+        calc_eff_radius=0.5*( (mass(1)/917.+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
     ELSEIF (flag==5) THEN   ! Snow
-        ! Spherical snow
-        calc_eff_radius=0.5*( (mass(1)/rhosn+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
+        ! Snow: spherical, but with effective density of 300 kg/m3
+        calc_eff_radius=0.5*( (mass(1)/300.+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
     ELSE
         ! Radius from total volume of a spherical particle or aqueous droplet
         calc_eff_radius=0.5*( SUM(mass(:)/dens(1:n))/pi6)**(1./3.)
@@ -435,5 +480,100 @@ contains
     ENDIF
     find_gas_id=0
   END FUNCTION find_gas_id
+
+  ! Function for setting scaling factors for oxidant concentrations and aqSOA photodissociation
+  SUBROUTINE set_vbs_diag(etime)
+    REAL, INTENT(IN) :: etime ! Elapsed time (s)
+    !
+    ! Oxidants - only when diagnostic
+    IF (ox_prescribed) THEN
+        ! Calculate zdayfac_oh, zdayfac_o3 and znightfac_no3 based on ox_conc_flag
+        IF (ox_conc_flag==1) THEN
+            ! Diurnal scaling for OH and NOx
+            CALL calc_day_night_fac(etime,zdayfac_oh,znightfac_no3)
+        ELSEIF (ox_conc_flag==2) THEN
+            ! Diurnal scaling for all
+            CALL calc_day_night_fac(etime,zdayfac_oh,znightfac_no3)
+            zdayfac_o3=zdayfac_oh
+        ELSE
+            ! Default: constant as is
+        ENDIF
+    ENDIF
+    !
+    ! aqSOA photodissociation
+    IF (naqsoa>0) THEN
+        IF (aqsoa_photo_flag==1) THEN
+            ! Scaling based on cosine of the solar zenith angle; from 1 to 0
+            zphotofac_aqsoa=MAX(0., zenith(0., start_doy+etime/86400.) )
+        ELSEIF (aqsoa_photo_flag==2) THEN
+            ! Scaling based on cosine of the solar zenith angle; limits based on latitude
+            zphotofac_aqsoa=MAX(0., zenith(model_lat, start_doy+etime/86400.) )
+        ELSE
+            ! Default: constant as is
+        ENDIF
+    ENDIF
+    !
+    CONTAINS
+        ! Scaling based on 6.073e-5 * u0**1.743 * exp(-0.474 / u0),
+        ! where u0 is cosine of the solar zenith angle
+        SUBROUTINE calc_day_night_fac(etime,zdayfac,znightfac)
+            REAL, INTENT(IN) :: etime ! Elapsed time (s)
+            REAL, INTENT(OUT) :: zdayfac, znightfac
+            ! Local parameters
+            REAL, SAVE :: rate_ave=-999., maxdayfac=-999.
+            ! Local variables
+            REAL :: u0, rate
+            INTEGER :: i
+            !
+            ! Initilization
+            IF (rate_ave<-1.) THEN
+                rate_ave = 0.
+                maxdayfac = 0.
+                do i = 0, 23
+                    u0=zenith(model_lat, start_doy+i/24.)
+                    IF (u0>0.)then
+                        rate = 6.073e-5 * u0**1.743 * exp(-0.474 / u0)
+                        if(rate > maxdayfac) maxdayfac = rate
+                        rate_ave = rate_ave + rate
+                    endif
+                enddo
+                rate_ave = rate_ave / 24.
+                maxdayfac = maxdayfac / rate_ave
+            ENDIF
+            !
+            ! Cosine of the solar zenith angle
+            u0=zenith(model_lat, start_doy+etime/86400.)
+            IF (u0<=0.)then
+                zdayfac = 0.
+            else
+                zdayfac = 6.073e-5 * u0**1.743 * exp(-0.474 / u0)
+                zdayfac = zdayfac / rate_ave
+            endif
+            znightfac = (maxdayfac - zdayfac) / (maxdayfac - 1.)
+        END SUBROUTINE calc_day_night_fac
+        !
+        ! From LES/rad_driver.f90
+        ! ---------------------------------------------------------------------------
+        ! Return the cosine of the solar zenith angle give the decimal day and
+        ! the latitude
+        !
+        real function zenith(alat,time)
+
+            real, intent (in)  :: alat, time
+
+            real, parameter :: pi     = 3.14159265358979323846264338327
+            real :: lamda, d, sig, del, h, day
+
+            day    = floor(time)
+            lamda  = alat*pi/180.
+            d      = 2.*pi*int(time)/365.
+            sig    = d + pi/180.*(279.9340 + 1.914827*sin(d) - 0.7952*cos(d) &
+                 &                      + 0.019938*sin(2.*d) - 0.00162*cos(2.*d))
+            del    = asin(sin(23.4439*pi/180.)*sin(sig))
+            h      = 2.*pi*((time-day)-0.5)
+            zenith = sin(lamda)*sin(del) + cos(lamda)*cos(del)*cos(h)
+
+        end function zenith
+  END SUBROUTINE set_vbs_diag
 
 END MODULE mo_submctl

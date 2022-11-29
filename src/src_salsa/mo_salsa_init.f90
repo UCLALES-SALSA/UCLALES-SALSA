@@ -416,6 +416,8 @@ CONTAINS
                                nlcgia,nlcgic,nlcgii,  &
                                nlcgip,nlcgsa,nlcgsc,  &
                                nlcgsi,nlcgsp,nlcgss,  &
+                               eddy_dis_rt,           &
+                               nlcgrain,              &
                                nlcnd,                 &
                                nlcndgas,              &
                                nlcndh2oae,nlcndh2ocl, &
@@ -450,12 +452,15 @@ CONTAINS
                                mss, dissss, rhoss,    &
                                mdu, dissdu, rhodu,    &
                                mwa, disswa, rhowa,    &
-                               rhoic, rhosn,          &
                                conc_h2so4, conc_ocnv, &
                                nvbs_setup, laqsoa,    &
+                               zvbs_k_OH, zvbs_Eact_p_OH, &
                                ox_prescribed,         &
                                conc_oh, conc_o3, conc_no3, &
+                               zdayfac_oh, zdayfac_o3, znightfac_no3, ox_conc_flag, &
+                               zphotofac_aqsoa, aqsoa_photo_flag, &
                                conc_voc, conc_vbsg, conc_aqsoag, &
+                               gas_srfc_flx, &
                                cldbinlim, icebinlim
 
     IMPLICIT NONE
@@ -470,6 +475,7 @@ CONTAINS
          nlcgca,      & ! Cloud collection of aerosols
          nlcgpa,      & ! Collection of aerosols by precip
          nlcgpc,      & ! Collection of cloud droplets by rain
+         nlcgrain,    & ! Rain formation based on cloud-cloud collisions
          nlcgia,      & ! Ice collection of aerosols
          nlcgic,      & ! Collection of cloud droplets by ice particles
          nlcgii,      & ! Collision-coalescence between ice particles
@@ -479,6 +485,7 @@ CONTAINS
          nlcgsi,      & ! Collection of ice by snow
          nlcgsp,      & ! Collection of precipitation by snow
          nlcgss,      & ! Collision-coalescence between snow particles
+         eddy_dis_rt, & ! Eddy dissipation rate, negative means take from LES
 
          nlcnd,       & ! Condensation master switch
          nlcndgas,    & ! Condensation of H2SO4 and organic vapors
@@ -530,16 +537,19 @@ CONTAINS
          mss, dissss, rhoss, & ! sea salt (NaCl)
          mdu, dissdu, rhodu, & ! mineral dust
          mwa, disswa, rhowa, & ! water
-         rhoic, rhosn,       & ! densitities of ice and snow
 
          conc_h2so4,    & ! Vapor phase concentration for sulfuric acid (#/kg)
          conc_ocnv,     & ! -||- non-volatile organics
 
          nvbs_setup,    & ! Detailed secondary organic aerosol formation (VOC+oxidant => BVS(g) <=> VBS(s))
          laqsoa,        & ! Additional aqSOA formation
+         zvbs_k_OH, zvbs_Eact_p_OH, & ! Rate coefficient for VBS(g) aging
          ox_prescribed, & ! Oxidant concentrations can be fixed (diagnostic parameter)
          conc_oh, conc_o3, conc_no3, & ! Initial oxidant concentrations (number mixing ratios)
+         zdayfac_oh, zdayfac_o3, znightfac_no3, ox_conc_flag, & ! Scaling factors for oxidant concentrations
+         zphotofac_aqsoa, aqsoa_photo_flag, & ! Scaling factor for aqSOA photodissociation
          conc_voc, conc_vbsg, conc_aqsoag, & ! Arrays for initial VOC(g), VBS(g) and aqSOA(g) concentrations (mass mixing ratios)
+         gas_srfc_flx,  & ! Constant surface fluxes (kg/m2/s) for active VOCs and VBS(g) and aqSOA(g) species
 
          cldbinlim,     & ! Output cloud bin diameter limits (microns)
          icebinlim        ! Output ice bin diameter limits (microns)
@@ -601,7 +611,7 @@ CONTAINS
     USE step, ONLY : cntlat, strtim
     USE mo_vbs_init, ONLY : init_vbs
     IMPLICIT NONE
-    INTEGER :: ss
+    INTEGER :: ss, nvbs
 
     ! Remember to call 'define_salsa' for namelist paramers before calling this subroutine!
 
@@ -640,6 +650,7 @@ CONTAINS
     mws(ss)=mwa
     ih2o=ss
     ! .. then normal aerosol species
+    nvbs=0
     DO ss=2,nspec+1
          zspec(ss)=listspec(ss-1) ! Inputs do not include water
          SELECT CASE(listspec(ss-1))
@@ -678,20 +689,19 @@ CONTAINS
                 diss(ss)=dissnh
                 mws(ss)=mnh
                 inh=ss
-            CASE('VB1','VB2','VB3','VB4','VB5','VB6','VB7','VB8','VB9')
-                ! Volatility Basis Set (VBS) bins: their properties will be specified later in the VBS setup. However,
-                ! these species should be listed here when initial aerosol-phase volume fractions will be specified.
-                !dens(ss)=densoc
-                !diss(ss)=dissoc
-                !mw(ss)=mwoc
-                ! Volatility bin input concentrations are separate from the default aerosol input,
-                ! so do not change the counter!
-                nspec = nspec - 1
+            CASE('VB1','VB2','VB3','VB4','VB5','VB6','VB7','VB8','VB9','AQ1','AQ2')
+                ! Volatility Basis Set (VBS) bins and aqSOA species: their properties will be specified
+                ! later in the VBS setup. However, these species should be listed here when initial
+                ! aerosol-phase volume fractions are specified.
+                nvbs=nvbs + 1
             CASE DEFAULT
                 WRITE(*,*) 'Unkown species: '//TRIM(zspec(ss))
                 STOP
         END SELECT
     END DO
+    ! Volatility bin input concentrations are separate from the default aerosol input,
+    ! so do not change the counter!
+    nspec = nspec - nvbs
 
     ! --5) Gas phase chemistry
     ngases = 0

@@ -76,7 +76,7 @@ contains
           CALL SALSA_diag_update
           CALL thermo(level)
           CALL run_SALSA(nxp,nyp,nzp,n4,nbins,ncld,nprc,nice,nsnw,&
-                  a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,   &
+                  a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,a_edr,&
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
                   a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
@@ -736,7 +736,7 @@ contains
 
     USE mo_submctl, ONLY : pi6,in1a,in2a,in2b,fn1a,fn2a,fn2b,aerobins, &
                            nmod, sigmag, dpg, n, volDistA, volDistB, nf2a, isdtyp, &
-                           iso, ioc, nspec, dens, zspec, nlim, salsa1a_SO4_OC
+                           iso, ioc, nspec, dens, zspec, nlim, salsa1a_SO4_OC, maxspec
     USE mpi_interface, ONLY : myid
 
     IMPLICIT NONE
@@ -748,6 +748,9 @@ contains
     INTEGER :: ss,ee,i,j,k,nc
     CHARACTER(len=600) :: fmt
     LOGICAL :: bbins
+
+    ! Maximum number of named aerosol species (listspec, volDistA, volDistB)
+    IF (nspec>maxspec) STOP 'Error: nspec exceeds maxspec!'
 
     ! Bin mean aerosol particle volume
     core(1:fn2a) = 4.*pi6*(aerobins(1:fn2a)**3+aerobins(2:fn2a+1)**3) ! = 4/3*pi*(rmin**3+rmax**3)/2
