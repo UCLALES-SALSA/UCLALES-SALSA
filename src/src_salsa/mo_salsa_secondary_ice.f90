@@ -255,7 +255,7 @@ MODULE mo_salsa_secondary_ice
                     SUM(dVb(1:npmax)), SUM(ice(ii,jj,bb)%volc(1:nspec))
 
                IF ( SUM(dVb(1:npmax)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                    WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', &
+                    WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', &
                     SUM(dVb(1:npmax)), SUM(ice(ii,jj,bb)%volc(1:nspec))
                
                ! for diagnostics

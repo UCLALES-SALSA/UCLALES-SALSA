@@ -1082,43 +1082,46 @@ MODULE mo_salsa_coagulation_processes
 
       
       ! Additional diagnostics for Accretion by drizzle D > 80um
-      IF (trgtphase == 3 .AND. precpbins(itrgt) > 80.e-6) THEN
-         ex = iend
-         IF (coll(1,1,1)%phase == 3) ex = MIN(iend,COUNT(precpbins < 80.e-6)) 
-         IF ( coll(1,1,1)%phase == 2 .OR.   &
-              coll(1,1,1)%phase == 3        ) THEN
+      IF (trgtphase == 3) THEN
+         IF (precpbins(itrgt) > 80.e-6) THEN
+            ex = iend
+            IF (coll(1,1,1)%phase == 3) ex = MIN(iend,COUNT(precpbins < 80.e-6)) 
+            IF ( coll(1,1,1)%phase == 2 .OR.   &
+                 coll(1,1,1)%phase == 3        ) THEN
 
-            DO ll = istr,ex
-               DO jj = 1,klev
-                  DO ii = 1,kbdim
-                     dvol(1:nspec) = zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec) 
-                     vrate80(1:nspec,ii,jj) = vrate80(1:nspec,ii,jj) + dvol(1:nspec)
+               DO ll = istr,ex
+                  DO jj = 1,klev
+                     DO ii = 1,kbdim
+                        dvol(1:nspec) = zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec) 
+                        vrate80(1:nspec,ii,jj) = vrate80(1:nspec,ii,jj) + dvol(1:nspec)
+                     END DO
                   END DO
-               END DO                     
-            END DO
+               END DO
             
+            END IF
          END IF
       END IF
 
       ! Additional diagnostics for Accretion by drizzle D > 50um
-      IF (trgtphase == 3 .AND. precpbins(itrgt) > 50.e-6) THEN
-         ex = iend
-         IF (coll(1,1,1)%phase == 3) ex = MIN(iend,COUNT(precpbins < 50.e-6)) 
-         IF ( coll(1,1,1)%phase == 2 .OR.   &
-              coll(1,1,1)%phase == 3        ) THEN
+      IF (trgtphase == 3) THEN
+         IF (precpbins(itrgt) > 50.e-6) THEN
+            ex = iend
+            IF (coll(1,1,1)%phase == 3) ex = MIN(iend,COUNT(precpbins < 50.e-6)) 
+            IF ( coll(1,1,1)%phase == 2 .OR.   &
+                 coll(1,1,1)%phase == 3        ) THEN
 
-            DO ll = istr,ex
-               DO jj = 1,klev
-                  DO ii = 1,kbdim
-                     dvol(1:nspec) = zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec) 
-                     vrate50(1:nspec,ii,jj) = vrate50(1:nspec,ii,jj) + dvol(1:nspec)
+               DO ll = istr,ex
+                  DO jj = 1,klev
+                     DO ii = 1,kbdim
+                        dvol(1:nspec) = zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(1:nspec) 
+                        vrate50(1:nspec,ii,jj) = vrate50(1:nspec,ii,jj) + dvol(1:nspec)
+                     END DO
                   END DO
-               END DO                     
-            END DO
+               END DO
             
+            END IF
          END IF
       END IF
-
       
       ! Accumulate autoconversion and accretion diagnostics according to custom size limits
       IF (trgtphase == 3) THEN
