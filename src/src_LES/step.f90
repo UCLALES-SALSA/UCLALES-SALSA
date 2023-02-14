@@ -29,7 +29,6 @@ module step
   real    :: frqrst =  3600.
   real    :: frqanl =  3600.
   real    :: anl_start = -1.
-  real    :: radfrq =  0.
 
   real    :: time   =  0.
   real    :: strtim =  0.0

@@ -92,7 +92,7 @@ contains
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon, &
                     wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param
     use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, frqrst, &
-         strtim, radfrq, cntlat
+         strtim, cntlat
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level,     &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
@@ -134,7 +134,7 @@ contains
          runtype, hfilin , filprf , & ! type of run (INITIAL or HISTORY)
          frqhis , frqanl , frqrst , & ! freq of history/anal/restart writes
          outflg , anl_start,        & ! output flg, time to start saving analysis files
-         iradtyp, radfrq , strtim , & ! radiation type flag
+         iradtyp, strtim ,          & ! radiation type flag
          isfctyp, ubmin  , zrough , & ! surface parameterization type
          ifSeaSpray, ifSeaVOC,      & ! marine emissions
          sea_tspinup,               & ! spinup time for marine emissions

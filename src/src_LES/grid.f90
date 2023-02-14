@@ -39,6 +39,8 @@ module grid
   real              :: th00   = 288.       ! basic state temperature
 
   real              :: CCN = 150.e6        ! Number of CCN per kg
+  real              :: umean = 0.          ! Galilean transformation
+  real              :: vmean = 0.          ! Galilean transformation
 
   integer           :: igrdtyp = 1         ! vertical grid type
   integer           :: isgstyp = 1         ! sgs model type
@@ -48,10 +50,7 @@ module grid
   integer           :: nfpt = 10           ! number of rayleigh friction points
   real              :: distim = 300.0      ! dissipation timescale
 
-  real              :: sst=283.   ! Surface temperature      added by Zubair Maalick
-  real            :: W1 = 0.9   !Water content
-  real            :: W2 = 0.9
-  real            :: W3 = 0.9
+  real              :: sst=283.            ! Surface temperature
 
   LOGICAL :: sed_aero = .TRUE.,  &
              sed_cloud = .TRUE., &
@@ -99,7 +98,7 @@ module grid
   integer, private, save  ::  nrec0
 
   integer           :: nz, nxyzp, nxyp
-  real              :: dxi, dyi, dtl, umean, vmean, psrf
+  real              :: dxi, dyi, dtl, psrf
   real, allocatable :: xt(:), xm(:), yt(:), ym(:), zt(:), zm(:), dzt(:), dzm(:)
   real, allocatable :: u0(:), v0(:), pi0(:), pi1(:), th0(:), dn0(:), rt0(:)
   real, allocatable :: spng_wfct(:), spng_tfct(:)
@@ -506,8 +505,6 @@ contains
     wt_sfc(:,:) = 0.
     wq_sfc(:,:) = 0.
     obl(:,:) = 0.
-    umean = 0.
-    vmean = 0.
 
     memsize = memsize +  nxyzp*nscl*2 + 3*nxyp + nxyp*10
 
@@ -1342,7 +1339,7 @@ contains
     open(10,file=trim(hname), form='unformatted')
 
     write(10) time,th00,umean,vmean,dtl,level,isgstyp,iradtyp,nzp,nxp,nyp,nscl
-    write(10) xt, xm, yt, ym, zt, zm, dn0, th0, u0, v0, pi0, pi1, rt0, psrf,sst,W1,W2,W3 ! added by Zubair
+    write(10) xt, xm, yt, ym, zt, zm, dn0, th0, u0, v0, pi0, pi1, rt0, psrf
 
     write(10) a_ustar, a_tstar, a_rstar
 
@@ -1419,7 +1416,7 @@ contains
           call appl_abort(-1)
        end if
 
-       read (10) xt, xm, yt, ym, zt, zm, dn0, th0, u0, v0, pi0, pi1, rt0, psrf,sst,W1,W2,W3
+       read (10) xt, xm, yt, ym, zt, zm, dn0, th0, u0, v0, pi0, pi1, rt0, psrf
 
        read (10) a_ustar, a_tstar, a_rstar
 
