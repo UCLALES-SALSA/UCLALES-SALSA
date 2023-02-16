@@ -45,12 +45,16 @@ contains
 
     use grid, only : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_temp,  &
          a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
-         a_srp, a_ri, a_rsi, a_rhi, a_srs, a_dn
+         a_srp, a_ri, a_rsi, a_rhi, a_srs, a_dn, a_rip, a_rsp, a_rgp
     USE defs, ONLY : R
 
     integer, intent (in) :: level
 
     select case (level)
+    case (0)
+       a_ri = a_rip + a_rsp + a_rgp ! Total ice+snow+graupel
+       call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
+                     pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp,a_ri,a_rsi)
     case (1)
        call drythrm(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,   &
                     pi1,th00,a_rp,a_rv)
@@ -193,9 +197,9 @@ contains
 ! liquid water using a saturation adjustment for warm-phase systems; in
 ! addition, takes in the account the precipitable water when present
 !
-  subroutine satadjst(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs,rp)
+  subroutine satadjst(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs,rp,ri,rsi)
 
-    use defs, only : cp, cpr, alvl, ep, Rm, p00
+    use defs, only : cp, cpr, alvl, alvi, ep, Rm, p00
     use mpi_interface, only : appl_abort
 
     integer, intent (in) ::  n1,n2,n3
@@ -204,24 +208,27 @@ contains
     real, intent (in), dimension (n1)        :: pi0, pi1
     real, intent (in)                        :: th00
     real, intent (out), dimension (n1,n2,n3) :: rc, rv, rs, th, tk, p
-    real, intent (in), optional, dimension (n1,n2,n3) :: rp
+    real, intent (in), optional, dimension (n1,n2,n3) :: rp, ri
+    real, intent (out), optional, dimension (n1,n2,n3) :: rsi
 
     integer :: k, i, j, iterate
-    real    :: exner, tli, tx, txi, rsx, rcx, rpc, tx1, dtx
+    real    :: exner, tli, tx, txi, rsx, rcx, rpc, tx1, dtx, ric
     real, parameter :: epsln = 1.e-4
 
     rpc = 0.
+    ric = 0.
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1
              IF (PRESENT(rp)) rpc = MAX(0.,rp(k,i,j))
+             IF (PRESENT(ri)) ric = MAX(0.,ri(k,i,j))
              exner=(pi0(k)+pi1(k)+pp(k,i,j))/cp
              p(k,i,j) = p00 * (exner)**cpr
              ! Adjust tl and rt so that they are for cloud water only
-             tli=(tl(k,i,j)+th00)*exner+alvl/cp*rpc
+             tli=(tl(k,i,j)+th00)*exner+alvl/cp*rpc+alvi/cp*ric
              tx=tli
              rsx=rslf(p(k,i,j),tx) ! Saturation mixing ratio
-             rcx=max(rt(k,i,j)-rpc-rsx,0.) ! Cloud condensate mixing ratio
+             rcx=max(rt(k,i,j)-rpc-ric-rsx,0.) ! Cloud condensate mixing ratio
              if (rcx > 0.) then
                 dtx = 2.*epsln
                 iterate = 1
@@ -232,7 +239,7 @@ contains
                    dtx = abs(tx1-tx)
                    tx  = tx1
                    rsx=rslf(p(k,i,j),tx)
-                   rcx=max(rt(k,i,j)-rpc-rsx,0.)
+                   rcx=max(rt(k,i,j)-rpc-ric-rsx,0.)
                    iterate = iterate+1
                 enddo
                 if (dtx > epsln) then
@@ -243,10 +250,11 @@ contains
                 endif
              endif
              rc(k,i,j)=rcx
-             rv(k,i,j)=rt(k,i,j)-rpc-rc(k,i,j)
+             rv(k,i,j)=rt(k,i,j)-rpc-ric-rc(k,i,j)
              rs(k,i,j)=rsx
              tk(k,i,j)=tx
              th(k,i,j)=tk(k,i,j)/exner
+             IF (present(rsi)) rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))
           enddo
        enddo
     enddo
@@ -258,42 +266,46 @@ contains
 ! a function of temperature and pressure
 !
   real function rslf(p,t)
-
   real, intent (in) :: p, t
+  real ::  e
+  e=esl(t)
+  rslf=.622*e/(p-e)
+  end function rslf
+
+  real elemental function esl(t)
+  real, intent (in) :: t
   real, parameter :: c0=0.6105851e+03, c1=0.4440316e+02,    &
                      c2=0.1430341e+01, c3=0.2641412e-01,    &
                      c4=0.2995057e-03, c5=0.2031998e-05,    &
                      c6=0.6936113e-08, c7=0.2564861e-11,    &
                      c8=-.3704404e-13
-
-  real ::  esl, x
-
+  real  :: x
   x=min(max(-80.,t-273.16),50.)
   esl=c0+x*(c1+x*(c2+x*(c3+x*(c4+x*(c5+x*(c6+x*(c7+x*c8)))))))
-  rslf=.622*esl/(p-esl)
-
-  end function rslf
+  end function esl
 !
 ! ---------------------------------------------------------------------
 ! This function calculates the ice saturation vapor mixing ratio as a
 ! function of temperature and pressure
 !
   real function rsif(p,t)
-
   real, intent (in) :: p, t
+  real  :: e
+  e=esi(t)
+  rsif=.622*e/(p-e)
+  end function rsif
+
+  real elemental function esi(t)
+  real, intent (in) :: t
   real, parameter :: c0=0.6114327e+03, c1=0.5027041e+02,    &
                      c2=0.1875982e+01, c3=0.4158303e-01,    &
                      c4=0.5992408e-03, c5=0.5743775e-05,    &
                      c6=0.3566847e-07, c7=0.1306802e-09,    &
                      c8=0.2152144e-12
-
-  real  :: esi, x
-
+  real  :: x
   x=max(-80.,t-273.16)
   esi=c0+x*(c1+x*(c2+x*(c3+x*(c4+x*(c5+x*(c6+x*(c7+x*c8)))))))
-  rsif=.622*esi/(p-esi)
-
-  end function rsif
+  end function esi
 !
 ! -------------------------------------------------------------------------
 ! FLL_TKRS: Updates scratch arrays with temperature and saturation mixing
@@ -344,15 +356,6 @@ contains
   real    :: c1, c2, c3, tvk, tvkp1, rtbar, rsbar, aa, bb
 
   select case(level)
-  case (0)
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1-1
-              en2(k,i,j)=g*dzm(k)*((th(k+1,i,j)-th(k,i,j))/th00)
-          end do
-          en2(n1,i,j)=en2(n1-1,i,j)
-       end do
-    end do
   case (1)
     do j=3,n3-2
        do i=3,n2-2
@@ -387,7 +390,7 @@ contains
           en2(n1,i,j)=en2(n1-1,i,j)
        end do
     end do
-  case (3,4,5)
+  case (0,3,4,5)
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1-1

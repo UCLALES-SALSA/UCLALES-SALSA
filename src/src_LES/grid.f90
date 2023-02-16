@@ -125,6 +125,8 @@ module grid
                                             !      in order not to over-specify the problem.
   real, pointer :: a_rpp(:,:,:),a_rpt(:,:,:)
   real, pointer :: a_npp(:,:,:),a_npt(:,:,:)
+  real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! SB level 4 ice mass and number
+  real, pointer :: a_rsp(:,:,:),a_rst(:,:,:),a_rgp(:,:,:),a_rgt(:,:,:) ! SB level 4 snow and graupel mass
   real, pointer :: a_qp(:,:,:),a_qt(:,:,:)
   real, pointer :: a_sp(:,:,:),a_st(:,:,:)
 
@@ -199,7 +201,8 @@ module grid
   real, allocatable :: wt_sfc(:,:)
   real, allocatable :: wq_sfc(:,:)
   real, allocatable :: obl(:,:)
-  real, allocatable :: aerin(:,:,:), cldin(:,:,:), precip(:,:,:), icein(:,:,:), snowin(:,:,:), albedo(:,:)
+  real, allocatable :: aerin(:,:,:), cldin(:,:,:), precip(:,:,:), icein(:,:,:), snowin(:,:,:), grin(:,:,:)
+  real, allocatable :: albedo(:,:)
   !
   integer :: nscl = 1
   integer, save :: ncid0,ncid_s
@@ -286,21 +289,24 @@ contains
     ! Juha: Stuff that's allocated if SALSA is NOT used
     !-----------------------------------------------------
     IF (level < 4) THEN
-
-       if (level < 1) then
-            WRITE(*,*) 'Level < 1 not accepted!'
+       if (level < 0) then
+            WRITE(*,*) 'Level < 0 not accepted!'
             STOP
        end if
 
-       allocate (a_rv(nzp,nxp,nyp),a_rc(nzp,nxp,nyp),a_dn(nzp,nxp,nyp))
+       allocate (a_rv(nzp,nxp,nyp),a_rc(nzp,nxp,nyp),a_ri(nzp,nxp,nyp),a_dn(nzp,nxp,nyp))
        a_rv(:,:,:) = 0.
        a_rc(:,:,:) = 0.
+       a_ri(:,:,:) = 0.
        a_dn(:,:,:) = 0.
-       memsize = memsize + 3*nxyzp
+       memsize = memsize + 4*nxyzp
 
-       ! Prognostic scalars: temperature + total water + rain mass and number (level=3) + tke (isgstyp> 1) + additional scalars
+       ! Prognostic scalars: temperature + total water + tke (isgstyp> 1) + additional scalars + ...
+       !    rain mass and number (level=3) or
+       !    ice and rain rain mass and number, and snow and graupel mass (level=0)
        nscl = 2+naddsc
        if (level == 3) nscl = nscl+2 ! rain
+       if (level == 0) nscl = nscl+6 ! rain and ice, and snow and graupel mass
        if (isgstyp > 1) nscl = nscl+1 ! tke
 
        allocate (a_sclrp(nzp,nxp,nyp,nscl), a_sclrt(nzp,nxp,nyp,nscl))
@@ -312,11 +318,31 @@ contains
        a_tt=>a_sclrt(:,:,:,1)
        a_rp=>a_sclrp(:,:,:,2)
        a_rt=>a_sclrt(:,:,:,2)
-       if (level == 3) then
+       if (level == 3 .OR. level == 0) then
           a_rpp=>a_sclrp(:,:,:,3)
           a_rpt=>a_sclrt(:,:,:,3)
           a_npp=>a_sclrp(:,:,:,4)
           a_npt=>a_sclrt(:,:,:,4)
+       else
+          ALLOCATE (tmp_prcp(nzp,nxp,nyp,2),tmp_prct(nzp,nxp,nyp,2))
+          tmp_prcp=0.; tmp_prct=0.
+          a_rpp=>tmp_prcp(:,:,:,1)
+          a_rpt=>tmp_prct(:,:,:,1)
+          a_npp=>tmp_prcp(:,:,:,2)
+          a_npt=>tmp_prct(:,:,:,2)
+       end if
+       if (level == 0) then
+          allocate (a_rsi(nzp,nxp,nyp))
+          a_rsi(:,:,:) = 0.
+          !
+          a_nip => a_sclrp(:,:,:,5)
+          a_nit => a_sclrt(:,:,:,5)
+          a_rip => a_sclrp(:,:,:,6)
+          a_rit => a_sclrt(:,:,:,6)
+          a_rsp => a_sclrp(:,:,:,7)
+          a_rst => a_sclrt(:,:,:,7)
+          a_rgp => a_sclrp(:,:,:,8)
+          a_rgt => a_sclrt(:,:,:,8)
        end if
        if (isgstyp > 1) then
           a_qp=>a_sclrp(:,:,:,nscl - naddsc)
@@ -493,6 +519,12 @@ contains
        aerin = 0.
        icein = 0.
        snowin = 0.
+       memsize = memsize + nxyzp*3
+    elseif (level == 0) then
+       allocate(icein(nzp,nxp,nyp),snowin(nzp,nxp,nyp),grin(nzp,nxp,nyp))
+       icein = 0.
+       snowin = 0.
+       grin = 0.
        memsize = memsize + nxyzp*3
     end if
 
@@ -720,13 +752,13 @@ contains
     real, intent (in) :: time
     ! Dimensions (time, x, y, x, and SALSA bins) and constants (u0, v0, dn0) are saved
     ! during initialization, and common variables (u, v, w, theta, p) are always saved.
-    INTEGER, PARAMETER :: n_dims=14, n_base=13
+    INTEGER, PARAMETER :: n_dims=14, n_base=15
     character(len=7) :: s_dims(n_dims) = (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     ','ym     ', & ! 1-7
          'u0     ','v0     ','dn0    ','B_Rd12a','B_Rd2ab','B_Rwprc','B_Rwsnw'/)  ! 8-14
     character(len=7) :: s_base(n_base) = (/ &
          'u      ','v      ','w      ','theta  ','p      ','stke   ','rflx   ', & ! 1-7
-         'q      ','l      ','r      ','n      ','i      ','s      '/)            ! 8-13
+         'q      ','l      ','r      ','n      ','i      ','s      ','g      ','ni     '/) ! 8-15
     LOGICAL, SAVE :: b_dims(n_dims)=.TRUE., b_base(n_base)=.TRUE.
     CHARACTER (len=7), ALLOCATABLE :: sanal(:), stot(:)
     LOGICAL, ALLOCATABLE :: btot(:)
@@ -746,8 +778,8 @@ contains
 
     IF (level < 4) THEN  ! Standard operation for levels 1-3
         b_dims(11:14) = .FALSE. ! SALSA bins
-        b_base(10:11) = (level==3) ! Rain
-        b_base(12:13) = .FALSE. ! Ice and snow
+        b_base(10:11) = (level==3 .OR. level==0) ! Rain
+        b_base(12:15) = (level==0) ! Ice, snow and graupel
 
        ! Merge logical and name arrays
        i=n_dims+n_base+nv4_proc+nv4_user+naddsc
@@ -767,6 +799,7 @@ contains
     ELSE IF (level >= 4) THEN ! Operation with SALSA
        b_base(11)=.FALSE. ! Rain number
        b_base(12:13) = (level>4) ! Ice and snow
+       b_base(14:15) = .FALSE. ! SB outputs
 
        ! Dimensions for bin dependent outputs
        lbinanl = ANY(INDEX(user_an_list,'B_')>0)
@@ -1002,7 +1035,15 @@ contains
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rpp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        iret = nf90_inq_varid(ncid0,'n',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_npp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
-
+       ! Ice, snow and graupel
+       iret = nf90_inq_varid(ncid0,'i',VarID)
+       IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rip(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       iret = nf90_inq_varid(ncid0,'s',VarID)
+       IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rsp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       iret = nf90_inq_varid(ncid0,'g',VarID)
+       IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rgp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       iret = nf90_inq_varid(ncid0,'ni',VarID)
+       IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_nip(:,i1:i2,j1:j2),start=ibeg,count=icnt)
     ELSE IF (level >= 4) THEN ! Operation with SALSA
 
        ! Total water mixing ratio
@@ -1346,6 +1387,7 @@ contains
     write(10) a_pexnr
     write(10) a_press
     write(10) a_theta
+    write(10) a_edr
 
     write(10) a_up
     write(10) a_vp
@@ -1358,10 +1400,6 @@ contains
        call newsclr(n)
        write(10) a_sp
     end do
-
-    if ( allocated(a_rv)   ) write(10) a_rv
-    if ( allocated(a_rc)   ) write(10) a_rc
-    if ( allocated(a_rflx) ) write(10) a_rflx
 
     IF (nudge_theta/=0) write(10) theta_ref
     IF (nudge_rv/=0) write(10) rv_ref
@@ -1411,8 +1449,8 @@ contains
        open (10,file=trim(hname),status='old',form='unformatted')
        read (10) time,thx,umx,vmx,dtl,lvlx,isgsx,iradx,nzpx,nxpx,nypx,nsclx
 
-       if (nxpx /= nxp .or. nypx /= nyp .or. nzpx /= nzp)  then
-          if (myid == 0) print *, nxp, nyp, nzp, nxpx, nypx, nzpx
+       if (nxpx/=nxp .or. nypx/=nyp .or. nzpx/=nzp .or. lvlx/=level .or. nsclx/=nscl) then
+          if (myid == 0) print *, nxp, nyp, nzp, nxpx, nypx, nzpx, lvlx, level, nsclx, nscl
           call appl_abort(-1)
        end if
 
@@ -1423,6 +1461,7 @@ contains
        read (10) a_pexnr
        read (10) a_press
        read (10) a_theta
+       read (10) a_edr
 
        read (10) a_up
        read (10) a_vp
@@ -1433,33 +1472,8 @@ contains
 
        do n=1,nscl
           call newsclr(n)
-          if (n <= nsclx) read (10) a_sp
+          read (10) a_sp
        end do
-       do n=nscl+1,nsclx
-          read (10)
-       end do
-
-       if (lvlx > 0 .AND. lvlx < 4) then
-          if (level > 0 .AND. lvlx < 4) then
-             read (10) a_rv
-          else
-             read (10)
-          end if
-       end if
-       if (lvlx > 1) then
-          if (level > 1) then
-             read (10) a_rc
-          else
-             read (10)
-          end if
-       end if
-       if (iradx > 0) then
-          if (iradtyp > 0) then
-             read (10) a_rflx
-          else
-             read (10)
-          end if
-       end if
 
        IF (nudge_theta/=0) THEN
           ALLOCATE(theta_ref(nzp))

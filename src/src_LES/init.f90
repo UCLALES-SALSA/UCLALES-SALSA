@@ -97,10 +97,12 @@ contains
     else if (runtype == 'HISTORY') then
        if (isgstyp == 2) call tkeinit(nxyzp,a_qp)
        call hstart
-       ! Update diagnostic SALSA tracers
+       ! Update diagnostic tracers
        IF (level >= 4) THEN
           CALL SALSAInit
           CALL SALSA_diag_update
+          CALL thermo(level)
+       ELSE
           CALL thermo(level)
        END IF
     else
@@ -164,7 +166,7 @@ contains
 
     ! Juha: Added select-case for level 4
     SELECT CASE(level)
-       CASE(1,2,3)
+       CASE(0,1,2,3)
           if ( allocated (a_rv)) a_rv = a_rp
 
           if ( allocated (a_rc)) then
@@ -441,14 +443,8 @@ contains
     call htint(ns,us,hs,nzp,u0,zt)
     call htint(ns,vs,hs,nzp,v0,zt)
 
-    if (level >= 1) then
-       call htint(ns,rts,hs,nzp,rt0,zt)
-       rt0(1)=rt0(2)
-    else
-       do k=1,nzp
-          rt0(k)=0.
-       end do
-    end if
+    call htint(ns,rts,hs,nzp,rt0,zt)
+    rt0(1)=rt0(2)
     !
     ! calculate theta_v for an unsaturated layer, neglecting condensate here is
     ! okay as this is only used for the first estimate of pi1, which will be

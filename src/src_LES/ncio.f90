@@ -409,8 +409,16 @@ contains
        if (itype==0) ncinfo = 'Snow mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
+    case('g')
+       if (itype==0) ncinfo = 'Graupel mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
     case('n')
        if (itype==0) ncinfo = 'Rain-drop number mixing ratio'
+       if (itype==1) ncinfo = '#/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('ni')
+       if (itype==0) ncinfo = 'Ice crystal number mixing ratio'
        if (itype==1) ncinfo = '#/kg'
        if (itype==2) ncinfo = 'tttt'
     case('rv')
@@ -546,6 +554,10 @@ contains
        if (itype==0) ncinfo = 'Maximum snow water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'time'
+    case('gmax')
+       if (itype==0) ncinfo = 'Maximum graupel water mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'time'
     case('albedo')
        if (itype==0) ncinfo = 'Reflected (TOA) shortwave radiation'
        if (itype==1) ncinfo = '-'
@@ -556,6 +568,10 @@ contains
        if (itype==2) ncinfo = 'time'
     case('swp_bar','swp')
        if (itype==0) ncinfo = 'Snow-water path'
+       if (itype==1) ncinfo = 'kg/m^2'
+       if (itype==2) ncinfo = 'time'
+    case('gwp_bar','gwp')
+       if (itype==0) ncinfo = 'Graupel-water path'
        if (itype==1) ncinfo = 'kg/m^2'
        if (itype==2) ncinfo = 'time'
     case('prcp')
@@ -570,9 +586,21 @@ contains
        if (itype==0) ncinfo = 'Surface snow precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'time'
-    case('prcp_bc')
-       if (itype==0) ncinfo = 'Below cloud precipitation rate'
+    case('gprcp')
+       if (itype==0) ncinfo = 'Surface graupel precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'time'
+    case('prcp_bc')
+       if (itype==0) ncinfo = 'Rain water precipitation rate at the cloud base'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'time'
+    case('prcc_bc')
+       if (itype==0) ncinfo = 'Cloud water precipitation rate at the cloud base'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'time'
+    case('wvar_bc')
+       if (itype==0) ncinfo = 'Cloud base vertical velocity variance'
+       if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'time'
     case('CCN')
        if (itype==0) ncinfo = 'Cloud condensation nuclei'
@@ -608,6 +636,10 @@ contains
        if (itype==2) ncinfo = 'time'
     case('nicnt')
        if (itype==0) ncinfo = 'Ice cell counts'
+       if (itype==1) ncinfo = '#'
+       if (itype==2) ncinfo = 'time'
+    case('ngcnt')
+       if (itype==0) ncinfo = 'Graupel cell counts'
        if (itype==1) ncinfo = '#'
        if (itype==2) ncinfo = 'time'
     case('Rcloud')
@@ -984,6 +1016,10 @@ contains
        if (itype==0) ncinfo = 'Snow fraction'
        if (itype==1) ncinfo = '-'
        if (itype==2) ncinfo = 'tttt'
+    case('frac_ig')
+       if (itype==0) ncinfo = 'Graupel fraction'
+       if (itype==1) ncinfo = '-'
+       if (itype==2) ncinfo = 'tttt'
     case('Rc_ic')
        if (itype==0) ncinfo = 'Conditionally sampled cloud droplet radius'
        if (itype==1) ncinfo = 'm'
@@ -992,8 +1028,24 @@ contains
        if (itype==0) ncinfo = 'Conditionally sampled rain drop radius'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'tttt'
+    case('Ri_ii')
+       if (itype==0) ncinfo = 'Conditionally sampled ice radius'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'tttt'
     case('rr')
        if (itype==0) ncinfo = 'Rain water mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('ri')
+       if (itype==0) ncinfo = 'Ice water mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('rs')
+       if (itype==0) ncinfo = 'Snow water mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+       if (itype==2) ncinfo = 'tttt'
+    case('rg')
+       if (itype==0) ncinfo = 'Graupel water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
        if (itype==2) ncinfo = 'tttt'
     case('rrate')
@@ -1010,6 +1062,10 @@ contains
        if (itype==2) ncinfo = 'ttmt'
     case('srate')
        if (itype==0) ncinfo = 'Snow water deposition flux'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'ttmt'
+    case('grate')
+       if (itype==0) ncinfo = 'Graupel water deposition flux'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'ttmt'
     case('evap')
@@ -1210,6 +1266,7 @@ contains
         spec='snow'
     CASE('g')
         spec='gas'
+        IF (mixr) spec='graupel'
     CASE('t')
         spec='total'
     case default

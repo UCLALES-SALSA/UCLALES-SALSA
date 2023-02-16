@@ -33,6 +33,7 @@ module mcrp
        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
   use stat, only : sflg, updtst, acc_removal, cs_rem_set, out_mcrp_nout, out_mcrp_data, out_mcrp_list
   USE mo_submctl, ONLY : terminal_vel, calc_eff_radius
+  USE mcrp_ice, ONLY : micro_ice
   implicit none
 
   logical, parameter :: khairoutdinov = .False.
@@ -66,6 +67,8 @@ contains
     integer, intent (in) :: level
 
     select case (level)
+    case(0)
+       CALL micro_ice(4)
     case(2)
        IF (sflg) out_mcrp_data(:,:,:,:) = 0.
        if (sed_cloud)  &

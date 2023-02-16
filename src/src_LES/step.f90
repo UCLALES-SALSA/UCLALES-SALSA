@@ -191,21 +191,19 @@ contains
 
     call sponge(0)
 
-    if (level >= 1) then
+    call thermo(level)
 
-       call thermo(level)
+    call forcings(xtime,cntlat,sst)
 
-       call forcings(xtime,cntlat,sst)
+    IF (level>3) CALL tend_constrain(n4)
+    IF (sflg) CALL les_rate_stats('forc')
+    call update_sclrs
 
-       IF (level>3) CALL tend_constrain(n4)
-       IF (sflg) CALL les_rate_stats('forc')
-       call update_sclrs
+    IF (level >= 4) THEN
 
-       IF (level >= 4) THEN
+        CALL tend0(.TRUE.)
 
-          CALL tend0(.TRUE.)
-
-          CALL run_SALSA(nxp,nyp,nzp,n4,nbins,ncld,nprc,nice,nsnw, &
+        CALL run_SALSA(nxp,nyp,nzp,n4,nbins,ncld,nprc,nice,nsnw, &
                   a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,a_edr, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
@@ -215,15 +213,13 @@ contains
                   a_gaerop,  a_gaerot,  zrm, dtl, time, level, &
                   sflg, out_mcrp_nout, out_mcrp_list, out_mcrp_data)
 
-          CALL tend_constrain(n4)
-          IF (sflg) CALL les_rate_stats('mcrp')
-          call update_sclrs
+        CALL tend_constrain(n4)
+        IF (sflg) CALL les_rate_stats('mcrp')
+        call update_sclrs
 
-          ! Save user-selected details about SALSA microphysics
-          IF (sflg) CALL mcrp_var_save()
-       END IF
-
-    end if ! level
+        ! Save user-selected details about SALSA microphysics
+        IF (sflg) CALL mcrp_var_save()
+    END IF
 
     !-------------------------------------------
     ! "Deposition" timestep
@@ -236,11 +232,11 @@ contains
 
         IF (level >= 4) CALL tend_constrain(n4)
 
-        IF (sflg .AND. level == 3) CALL les_rate_stats('mcrp')
+        IF (sflg .AND. level < 4 ) CALL les_rate_stats('mcrp')
         IF (sflg .AND. level >= 4) CALL les_rate_stats('sedi')
 
         ! Save user-selected details about Seifert and Beheng microphysics
-        IF (sflg .AND. level == 3) CALL mcrp_var_save()
+        IF (sflg .AND. level < 4) CALL mcrp_var_save()
 
         CALL update_sclrs
     END IF
@@ -754,7 +750,7 @@ contains
 
     IF (level<4) THEN
        rv = a_rv ! Water vapor
-       rc = a_rc + a_rpp ! Total condensate (cloud + precipitation)
+       rc = a_rc + a_rpp + a_ri ! Total condensate (cloud + precipitation + total ice)
     ELSE
        rv = a_rp ! Water vapor
        rc = a_rc + a_srp + a_ri + a_srs ! Total condensed water (aerosol+cloud+precipitation+ice+snow)

@@ -47,7 +47,7 @@ contains
 
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, a_dn, iradtyp, a_rc    &
          , a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp  &
-         , a_rv, a_rpp, a_npp, CCN, pi0, pi1, level, a_maerop, &
+         , a_rv, a_rpp, a_npp, a_rip, a_nip, a_rsp, a_rgp, CCN, pi0, pi1, level, a_maerop, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
          nbins, ncld, nice, nprc, nsnw, a_fus, a_fds, a_fuir, a_fdir
     use mpi_interface, only : myid, appl_abort
@@ -83,7 +83,26 @@ contains
     case (3)
        ! Fu and Liou (1993) radiation code and case-dependent large-scale forcing
        !
-       IF (level <= 3) THEN
+       IF (level==0) THEN
+          ! Cloud (+rain)
+          znc(:,:,:) = CCN
+          zrc(:,:,:) = a_rc(:,:,:)
+          IF (RadPrecipBins > 0) THEN
+             zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
+             WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc*CCN))/zrc
+          ENDIF
+          ! Ice (+snow mass)
+          zri(:,:,:) = a_rip(:,:,:) ! Ice
+          zni(:,:,:) = a_nip(:,:,:)
+          IF (RadSnowBins>0) zri(:,:,:) = zri(:,:,:) + a_rsp(:,:,:)
+          ! Graupel mass separately
+
+          CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,grp=a_rgp, &
+               radsounding=radsounding, useMcICA=useMcICA, ConstPrs=RadConstPress)
+
+       ELSEIF (level <= 3) THEN
           znc(:,:,:) = CCN
           zrc(:,:,:) = a_rc(:,:,:) ! Cloud water
           IF (level == 3 .AND. RadPrecipBins > 0) THEN

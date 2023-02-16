@@ -21,7 +21,7 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 \
           defs.f90 $(seqmpi) rad_solver.f90 rad_corkds.f90 LES.f90 \
           rad_cldwtr.f90 rad_d4strm.f90 rad_driver.f90 \
           ncio.f90 util.f90 grid.f90 stat.f90 thrm.f90 forc.f90 advf.f90 \
-          advl.f90 srfc.f90 prss.f90 sgsm.f90 mcrp.f90 step.f90 init.f90 \
+          advl.f90 srfc.f90 prss.f90 sgsm.f90 mcrp.f90 mcrp_ice.f90 step.f90 init.f90 \
           rfft.f90 \
           mo_vbsctl.f90 mo_vbs.f90 mo_vbs_init.f90 mo_vbs_partition.f90
 SRCSF77 = 
@@ -59,7 +59,8 @@ advl.o: grid.o stat.o util.o
 srfc.o: grid.o stat.o defs.o thrm.o util.o $(seqmpi:.f90=.o)
 prss.o: grid.o stat.o defs.o util.o $(seqmpi:.f90=.o)
 sgsm.o: grid.o stat.o defs.o util.o thrm.o $(seqmpi:.f90=.o)
-mcrp.o: grid.o stat.o defs.o mo_submctl.o
+mcrp.o: grid.o stat.o defs.o mo_submctl.o mcrp_ice.o
+mcrp_ice.o: grid.o stat.o defs.o thrm.o
 step.o: grid.o stat.o util.o defs.o thrm.o sgsm.o srfc.o  \
         mcrp.o prss.o advf.o advl.o forc.o $(seqmpi:.f90=.o) \
         mo_salsa_driver.o mo_submctl.o

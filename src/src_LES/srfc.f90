@@ -614,7 +614,7 @@ contains
 
     ! Added by Juha
     SELECT CASE(level)
-       CASE(1,2,3)
+       CASE(0,1,2,3)
           rx = a_rv
        CASE(4,5)
           rx = a_rp
@@ -852,8 +852,7 @@ contains
              wspd(i,j)    = max(0.1,                                    &
                   sqrt((a_up(2,i,j)+umean)**2+(a_vp(2,i,j)+vmean)**2))
              if (ubmin > 0.) then
-                bflx = g*wt_sfc(1,1)/th00
-                if (level >= 2) bflx = bflx + g*ep2*wq_sfc(i,j)
+                bflx = g*wt_sfc(1,1)/th00 + g*ep2*wq_sfc(i,j)
                 a_ustar(i,j) = diag_ustar(zt(2),zs,bflx,wspd(i,j))
              else
                 a_ustar(i,j) = abs(ubmin)
