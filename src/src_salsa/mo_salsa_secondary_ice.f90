@@ -1,13 +1,13 @@
 MODULE mo_salsa_secondary_ice
-  USE mo_salsa_types, ONLY : ice,cloud,precp, rateDiag
-  USE mo_submctl, ONLY : nice, pi6, spec, icebins, lsicedropfrac
+
+
   IMPLICIT NONE
 
   SAVE
 
-  PUBLIC  :: rimesplintering, dropfracturing
-  PRIVATE :: df_lawson, df_phillips
-  
+  PRIVATE
+  PUBLIC  :: rimesplintering, dropfracturing, nfrzn_df, mfrzn_df, nfrzn_rs, mfrzn_rs, &
+             dlliq_df, dlice_rs, dlliq_rs
   
   ! Arrays to track the number and mass of frozen drops due to ice collection
   ! diagnosed from the coagulation routines for each timestep. Initialized in
@@ -16,8 +16,10 @@ MODULE mo_salsa_secondary_ice
   REAL, ALLOCATABLE :: nfrzn_df(:,:,:), mfrzn_df(:,:,:)
 
   ! Ice and liquid drop diameter limits for drop fracturing
-  REAL :: dlice_df = 1.e-3,    &  ! Max diameter for ice in drop fracturing
-          dlliq_df = 80.e-6       ! Min diameter for liquid in drop fracturing
+  !REAL :: dlice_df = 1.e-3,    &  ! Max diameter for ice in drop fracturing
+  !        dlliq_df = 80.e-6       ! Min diameter for liquid in drop fracturing
+  REAL :: dlliq_df = 100.e-6          ! Min droplet diameter for drop fracturing. Ice is expected to be more massive
+                                   ! than the freezing drop.
 
   REAL :: dlice_rs = 50.e-6,   &  ! Min diameter for ice in hallet-mossop
           dlliq_rs = 500.e-6      ! Max diameter for liquid in Hallet mossop; check appropriate value!!
@@ -32,6 +34,8 @@ MODULE mo_salsa_secondary_ice
   CONTAINS
 
     SUBROUTINE rimesplintering(kbdim,kproma,klev,nspec,ptemp,ptstep)
+      USE mo_salsa_types, ONLY : ice,cloud,precp, rateDiag
+      USE mo_submctl, ONLY : nice, pi6, spec, icebins
       ! The Hallet-Mossop secondary ice production by rime splintering
       INTEGER, INTENT(in) :: kbdim,kproma,klev,nspec  ! nspec should contain active compounds + rime
       REAL, INTENT(in) :: ptemp(kbdim,klev)
@@ -50,7 +54,6 @@ MODULE mo_salsa_secondary_ice
       INTEGER :: iwa, iri,ndry
       LOGICAL :: lt13umgt25um(kbdim,klev)
       INTEGER :: splbin  ! Target bin for splinters
-      REAL :: frac
       
       iwa = spec%getIndex("H2O")
       iri = spec%getIndex("rime")
@@ -134,7 +137,7 @@ MODULE mo_salsa_secondary_ice
          END DO
       END DO
       
-      ! Reset the tracking arrays
+      ! IMPORTANT: Reset the collection tracking arrays
       mfrzn_rs = 0.
       nfrzn_rs = 0.
       
@@ -142,7 +145,9 @@ MODULE mo_salsa_secondary_ice
 
     ! -------
 
-    SUBROUTINE dropfracturing(kbdim,kproma,klev,nspec,ptemp,ptstep)
+    SUBROUTINE dropfracturing(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
+      USE mo_salsa_types, ONLY : ice, rateDiag
+      USE mo_submctl, ONLY : nice, pi6, spec, icebins, lssipdropfrac
       !
       ! -------------------------------------------------------
       ! The drop fracturing SIP from Lawson et al. 2015
@@ -152,8 +157,8 @@ MODULE mo_salsa_secondary_ice
       ! and coagulation. Doing so would result in the loss of the required information on drop freezing.
       ! 
       ! -----------------------------------------------
-      INTEGER, INTENT(in) :: kbdim,kproma,klev,nspec   ! nspec should contain active compounds + rime
-      REAL, INTENT(in) :: ptemp(kbdim,klev)
+      INTEGER, INTENT(in) :: kbdim,kproma,klev,nspec   ! nspec should contain active compounds + rime, i.e. "total"
+      REAL, INTENT(in) :: ppres(kbdim,klev),ptemp(kbdim,klev)
       REAL, INTENT(in) :: ptstep
       REAL, PARAMETER :: tmin = 248.15, tmax = 271.15  ! Check these so the conform with the different formulations!!!
 
@@ -165,8 +170,8 @@ MODULE mo_salsa_secondary_ice
       INTEGER :: bb,bb1,ii,jj,iri,iwa, nimax, npmax
       REAL :: icediams(nice), icebw(nice)
       REAL :: fragvolc(kbdim,klev,nice,nspec), sinkvolc(kbdim,klev,nice,nspec) ! Volume to be added and removed
-      REAL :: fragnumc(kbdim,klev,nice)
-      REAL :: frac
+      REAL :: fragnumc(kbdim,klev,nice), sinknumc(kbdim,klev,nice)  ! Number to be added and removed
+      REAL :: v_i         ! Volume of single ice particle in a bin
       REAL, PARAMETER :: inf = HUGE(1.)
       
       iwa = spec%getIndex("H2O")
@@ -182,10 +187,12 @@ MODULE mo_salsa_secondary_ice
          icediams(bb) = ice(1,1,bb)%dmid
          icebw(bb) = ( (ice(1,1,bb)%vhilim/pi6)**(1./3) - (ice(1,1,bb)%vlolim/pi6)**(1./3))
       END DO
-      
-      ! Index of the largest ice bin which is assumed to trigger drop fracturing
-      nimax = COUNT(icediams <= dlice_df)
 
+      ! REMOVE IF NO LONGER USING FIXED ICE LIMITS
+      ! Index of the largest ice bin which is assumed to trigger drop fracturing
+      !nimax = COUNT(icediams <= dlice_df)
+
+      ! POISTA
       DO bb = 1,nice
          DO jj = 1,klev
             DO ii = 1,kproma
@@ -194,12 +201,15 @@ MODULE mo_salsa_secondary_ice
             END DO
          END DO
       END DO      
+      ! --------------------
+
       
       ! Initialize arrays
       fragvolc = 0.; sinkvolc = 0.
-      fragnumc = 0.
-      
-      DO bb = 1,nimax       ! Assume drop fracturing to take place from ice bins < dlice_df
+      fragnumc = 0.; sinknumc = 0.
+
+      ! NO MORE FIXED ICE LIMITS -> CHANGE NIMAX TO NICE
+      DO bb = 1,nice       ! Assume drop fracturing to take place from ice bins < dlice_df
          DO jj = 1,klev
             DO ii = 1,kproma
                
@@ -210,23 +220,27 @@ MODULE mo_salsa_secondary_ice
                ! Mean diameter of the frozen drops on current ice bin
                ddmean = (mfrzn_df(ii,jj,bb)/nfrzn_df(ii,jj,bb)/spec%rhowa/pi6)**(1./3.)
 
-               ! Limit to 5 mm and require the freezing drop diameter to be larger tha dlliq_df
-               ddmean = MIN(ddmean,5.e-3)                 
+               ! Limit to 1 mm and require the freezing drop diameter to be larger tha dlliq_df               
                IF ( ddmean < dlliq_df ) CYCLE  
+
+               ! POISTA
+               IF (ddmean < 20.e-6 .OR. ddmean > 1.e3) WRITE(*,*) 'ddmean error ',ddmean,bb,nimax,icediams(bb),icebw(bb)
+               IF (ddmean /= ddmean) WRITE(*,*) 'ddmean nan ',ddmean,bb,nimax,icediams(bb),icebw(bb)
+               ! -----------------
                
                ! Ice bin index corresponding to the mean frozen drop diameter minus one; Fragments are distributed to ice bins 1:npmax
                npmax = MAX(COUNT(icediams <= ddmean) - 1, 1) 
               
                ! Calculate the number of fragments generated per freezing droplet for current bin
-               IF (lsicedropfrac%mode == 1) THEN
-                  dN = df_lawson(nfrzn_df(ii,jj,bb),ddmean)
-               ELSE IF (lsicedropfrac%mode == 2) THEN
-                  dN = df_phillips(ptemp(ii,jj),nfrzn_df(ii,jj,bb),ddmean)
+               IF (lssipdropfrac%mode == 1) THEN
+                  dN = df_lawson(ptemp(ii,jj),nfrzn_df(ii,jj,bb),ddmean)
+               ELSE IF (lssipdropfrac%mode == 2) THEN
+                  dN = df_phillips_simple(ptemp(ii,jj),nfrzn_df(ii,jj,bb),ddmean)
+               ELSE IF (lssipdropfrac%mode == 3) THEN
+                  ! Updated diameter needed here
+                  CALL ice(ii,jj,bb)%updateDiameter(.TRUE.,type="all")
+                  dN = df_phillips_full(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb))
                END IF
-
-               ! Impose maximum value for the number of fragments. This is somewhat arbitrary, but perhaps the easiest way to constrain the
-               ! total mass of fragments, reducing the risk of overshooting the source bin concentration.
-               dN = MIN( dN, 1.e4 )
                
                ! Assume the mass of fragments distributed evenly to ice bins 1:npmax (Lawson et al 2015).
                ! For this, first distribute dN as d**-3.
@@ -236,7 +250,7 @@ MODULE mo_salsa_secondary_ice
                Nnorm = SUM(dNb(1:npmax)*icebw(1:npmax))              ! Normalization factor
 
                dNb(1:npmax) = dN * dNb(1:npmax)*icebw(1:npmax)/Nnorm ! Distributed bin concentrations of fragments
-               dNb = MERGE(0., dNb, dNb < ice(ii,jj,bb)%nlim)        ! Cutoff for spuriously small fragment numbers
+               dNb = MERGE(0., dNb, dNb < 1.)        ! Cutoff for small fragment numbers:: CHANGE FROM NLIM TO 0.001 L-1
                dVb(1:npmax) = dNb(1:npmax) * pi6*icediams(1:npmax)**3  ! Determine the fragment mass based on the ice bin diameters
                                              
                ! Allocate the fragments to temporary ice bins 
@@ -247,20 +261,30 @@ MODULE mo_salsa_secondary_ice
                        ice(ii,jj,bb)%volc(1:nspec)*( dVb(bb1)/SUM(ice(ii,jj,bb)%volc(1:nspec)) )                  
                END DO
 
-               sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) +   &
-                    ice(ii,jj,bb)%volc(1:nspec)* MIN((SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec))), 1.)  
+               ! Sink of volume from current bin
+               sinkvolc(ii,jj,bb,1:nspec) =   &
+                    ice(ii,jj,bb)%volc(1:nspec)* MIN( SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )  
 
+               ! Volume of a single ice particle in current bin for calculating the number concentration sink
+               v_i  = SUM(ice(ii,jj,bb)%volc(1:nspec))/ice(ii,jj,bb)%numc
+               
+               ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
+               sinknumc(ii,jj,bb) = SUM( sinkvolc(ii,jj,bb,1:nspec) ) / v_i
+
+               ! POISTA
                IF ( SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec)) > 1.)  &
                     WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
                     SUM(dVb(1:npmax)), SUM(ice(ii,jj,bb)%volc(1:nspec))
 
-               IF ( SUM(dVb(1:npmax)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                    WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', &
+               IF ( SUM(dVb(1:npmax)) > 0.9*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
+                    WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
                     SUM(dVb(1:npmax)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+               ! ---------------------------------------
                
                ! for diagnostics
                ice(ii,jj,1:npmax)%SIP_drfr = ice(ii,jj,1:npmax)%SIP_drfr + dNb(1:npmax)
-               CALL rateDiag%drfrrate%Accumulate(n=dN/ptstep)  
+               !if (dN > 1.) WRITE(*,*) 'hephep ', dN,ptstep,SUM(dNb)
+               CALL rateDiag%drfrrate%Accumulate(n=SUM(dNb)/ptstep)    ! miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
             END DO
          END DO
       END DO
@@ -269,31 +293,60 @@ MODULE mo_salsa_secondary_ice
       DO bb = 1,nice
          DO jj = 1,klev
             DO ii = 1,kproma
+               ! POISTA
                IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'fragnumc < 0'
-               IF (ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'fragvolc < 0'
+               IF ( ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'fragvolc < 0'
+               IF (fragnumc(ii,jj,bb) /= fragnumc(ii,jj,bb)) &
+                    WRITE(*,*) 'fragnumc nan',bb,dlliq_df
+               IF ( ANY(fragvolc(ii,jj,bb,:) /= fragvolc(ii,jj,bb,:)) ) &
+                    WRITE(*,*) 'fragvolc nan ',bb,dlliq_df,fragvolc(ii,jj,bb,:)
+               IF ( ANY(sinkvolc(ii,jj,bb,:) < 0. ) ) &
+                    WRITE(*,*) 'sinkvolc nega ',bb,dlliq_df,sinkvolc(ii,jj,bb,:)
+               IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
+                    WRITE(*,*) 'sinkvolc nan ',  bb,dlliq_df,sinkvolc(ii,jj,bb,:)
+               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'fragnumc > 1e5 ',bb,dlliq_df,fragnumc(ii,jj,bb)
+               ! ---------------------
                
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
+               ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc - sinknumc(ii,jj,bb)
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) + fragvolc(ii,jj,bb,1:nspec)
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
+               ! POISTA
                IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
                     WRITE(*,*) 'DROP FRAC NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
+               ! ---------------------------
             END DO
          END DO
       END DO
       
-      ! Reset the tracking arrays
+      ! IMPORTANT: Reset the collection tracking arrays
       mfrzn_df = 0.
       nfrzn_df = 0.
       
     END SUBROUTINE dropfracturing
+
     ! -----
-    PURE REAL FUNCTION df_lawson(nfrzn,ddmean)
+
+    REAL FUNCTION df_lawson(ptemp,nfrzn,ddmean)
+      USE math_functions, ONLY : f_gauss
+      ! ---------------------------------------------
+      ! Lawson et al. 2015 drop fracturing rate
+      !
+      REAL, INTENT(in) :: ptemp
       REAL, INTENT(in) :: nfrzn, ddmean
-      REAL, PARAMETER :: c1 = 2.5e-11, cexp = 4.
-      df_lawson = nfrzn * (c1 * (ddmean*1.e6)**cexp)
+      REAL, PARAMETER :: c1 = 2.5e-11, c2 = 0.2, cexp = 4., T0 = 258., Tsig = 10.
+      REAL :: hT
+      hT = f_gauss(ptemp,Tsig,T0)/f_gauss(T0,Tsig,T0)
+      IF (hT > 1.0 .OR. hT < 1.e-8) WRITE(*,*) 'HT VAARIN ',hT 
+      df_lawson = nfrzn * c2*hT * c1*(MIN(ddmean,1.e-3)*1.e6)**cexp ! c2*hT according to Sullivan et al. 2018
     END FUNCTION df_lawson
+
     ! -----
-    PURE REAL FUNCTION df_phillips(ptemp,nfrzn,ddmean)
+
+    REAL FUNCTION df_phillips_simple(ptemp,nfrzn,ddmean)
+      ! ------------------------------------------------------------
+      ! Simplified drop fracturing rate from Phillips et al 2018
+      !
       REAL, INTENT(in) :: ptemp, nfrzn, ddmean
       REAL :: hT
       REAL, PARAMETER :: tlims(5) = [-24., -20., -16., -10., -6.]+273.15 
@@ -311,11 +364,176 @@ MODULE mo_salsa_secondary_ice
          hT = (htv(5)-htv(4)) * ((ptemp-tlims(5))/4.) + htv(5)
       END IF
 
-      df_phillips = nfrzn * (c2 * hT * ddmean )           
-    END FUNCTION df_phillips
+      df_phillips_simple = nfrzn * (c2 * hT * ddmean )           
+    END FUNCTION df_phillips_simple
+
+    ! ------------------------------------
+
+   REAL FUNCTION df_phillips_full(nspec,ppres,ptemp,ddmean,pice)
+      USE classSection, ONLY : Section
+      USE mo_submctl, ONLY : spec,pi6
+
+      INTEGER, INTENT(in) :: nspec    ! Should contain nwet + rime, i.e. "total"
+      REAL, INTENT(in) :: ppres,ptemp,ddmean
+      TYPE(Section), INTENT(in) :: pice
+
+      REAL, PARAMETER :: dmin1=50.e-6, dmin2=150.e-6, Tmin = 267.15
+
+      REAL :: mrim,mpri,ncice  ! rimed and unrimed bin ice mix rats, ice number concentration
+      REAL :: mip,mdp          ! Masses of single ice crystal, single freezing drop
+      REAL :: rhoip            ! Bin mean ice density
+      REAL :: ddmeanx
+
+      df_phillips_full = 0.
+
+      mrim = pice%volc(nspec) * spec%rhori
+      mpri = SUM(pice%volc(1:nspec-1)) * spec%rhoic ! Cutting a little corners here with the volc...
+      ncice = pice%numc
+      
+      ! Single particle and drop masses
+      mip = (mrim+mpri)/ncice
+      mdp = spec%rhowa * pi6 * ddmean**3
+
+      IF (mdp > mip) THEN
+         !! Mode 1 drop fragmentation
+
+         !! This will take care of the "step functions" in Eq1 @ Phillips et al 2018
+         IF ( ddmean < dmin1 .AND. ptemp > Tmin ) RETURN 
+
+         ddmeanx = MIN(ddmean,1.6)
+      
+         df_phillips_full = df_phillips_mode1(ddmeanx,ptemp)
+
+      ELSE IF (mdp <= mip) THEN
+         !! Mode 2 
+
+         IF (ddmean < dmin2) RETURN
+         ddmeanx = ddmean
+         
+         rhoip = ( mrim*spec%rhori + mpri*spec%rhoic ) / ( mrim + mpri )
+
+         df_phillips_full = df_phillips_mode2(ppres,ptemp,ddmeanx,pice%dwet,pice%dnsp,mrim,mpri,ncice,rhoip,spec%rhowa)
+
+      END IF
+
+   END FUNCTION df_phillips_full
 
 
+   REAL FUNCTION df_phillips_mode1(ddmean,ptemp)     
+      ! ---------------------------------------------------------------------------
+      ! Mode 1 (small ice, big drop) drop fracturing rate from Phillips et al 2018
+      !
+      REAL, INTENT(in) :: ddmean, ptemp  !! ddmean in m, ptemp in K      
+      REAL :: T0, zeta, eta, beta
+      REAL :: tc
+      tc = ptemp-273.15      
+      df_phillips_mode1 = 0.      
 
+      T0 = ph_T0(ddmean)
+      zeta = ph_zeta(ddmean)
+      eta = ph_eta(ddmean)
+      beta = ph_beta(ddmean)      
+      df_phillips_mode1 = beta*tc + (zeta * eta**2) / &
+                          ( (tc-T0)**2 + eta**2 )               
+
+   END FUNCTION df_phillips_mode1
+
+   REAL FUNCTION df_phillips_mode2(ppres,ptemp,ddmean,disph,dinsph,mrim,mpri,ncice,rhoip,rhowa)
+      USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
+      USE mo_particle_external_properties, ONLY : terminal_vel
+      USE mo_submctl, ONLY : rd, pstand,pi6,pi,surfw0,cwa,alf
+      ! ---------------------------------------------------------------------------
+      ! Mode 2 (big ice, small drop) drop fracturing rate from Phillips et al 2018
+      !
+      REAL, INTENT(in) :: ptemp,ppres    ! ptemp in K
+      REAL, INTENT(in) :: ddmean         ! Freezing drop diameter in m
+      REAL, INTENT(in) :: disph, dinsph  ! Spherical quivalent and non-spherical (max) diameters of ice particles
+      REAL, INTENT(in) :: mrim, mpri      ! rimed and unrimed ice bin mixing ratios
+      REAL, INTENT(in) :: ncice          ! Ice bin number concentration
+      REAL, INTENT(in) :: rhoip          ! bin mean ice density
+      REAL, INTENT(in) :: rhowa          ! Water density
+
+      TYPE(t_shape_coeffs) :: ishape     ! Ice shape coefficients
+      REAL :: mip,mdp  ! Masses of single ice particle and the freezing drop
+      REAL :: vti,vtd  ! Terminal velocities of ice and drop
+      REAL :: rhoa     ! air density
+
+      ! This is repeating a LOT of the stuff already done once in coagulation kernels,
+      ! which is BS and sad... But can't do much about it currently.
+      REAL :: visc             ! Viscosity of air
+      REAL :: mfp, knud, beta  ! Mean free path, knudsen number and cunningham correction
+      REAL :: K0, DE, fT, tc
+
+      df_phillips_mode2 = 0.
+
+      rhoa = ppres/(rd*ptemp)
+      visc = (7.44523e-3*SQRT(ptemp**3))/(5093.*(ptemp+110.4)) ! viscosity of air [kg/(m s)]
+      mfp = (1.656e-10*ptemp+1.828e-8)*pstand/ppres
+
+      ! Get the terminal velocities
+      ! Ice
+      knud = 2.*mfp/dinsph
+      beta = 1.+knud*(1.142+0.558*exp(-0.999/knud))
+      CALL getShapeCoefficients(ishape,mpri,mrim,ncice)
+      vti = terminal_vel(disph,rhoip,rhoa,visc,beta,4,ishape,dinsph)
+
+      ! The droplet
+      knud = 2.*mfp/ddmean
+      beta = 1.+knud*(1.142+0.558*exp(-0.999/knud))      
+      vtd = terminal_vel(ddmean,rhowa,rhoa,visc,beta,3)
+
+      mip = (mrim+mpri)/ncice
+      mdp = rhowa*pi6*ddmean**3
+      K0 = 0.5 * (mip*mdp/(mdp + mip)) * (vtd - vti)**2
+      DE = K0 / (surfw0*pi*ddmean**2)
+      tc = ptemp-273.15
+      fT = -cwa*tc/alf
+
+      df_phillips_mode2 = 3.*MIN(4.*fT,1.) * (1.-fT) * MAX(DE-0.2,0.)
+
+   END FUNCTION df_phillips_mode2
+
+    REAL FUNCTION ph_beta(ddmean)
+      ! Polynomial for beta in Phillips et al 2018
+      REAL, INTENT(in) :: ddmean
+      REAL, PARAMETER :: c1 = -0.1839, c2 = -0.2017, c3 = -0.0512
+      REAL :: dx
+      ph_beta = 0.
+      IF (ddmean >= 0.4e-3 ) THEN
+         dx = LOG( MIN(ddmean*1.e3, 1.6) )
+         ph_beta = (c1*dx**2) + (c2*dx) + c3
+      END IF
+    END FUNCTION ph_beta
+    
+    REAL FUNCTION ph_zeta(ddmean)
+      ! Polynomial for zeta in Phillips et al. 2018
+      REAL, INTENT(in) :: ddmean
+      REAL, PARAMETER :: c1 = 2.4268, c2 = 3.3274, c3 = 2.0783, c4 = 1.2927
+      REAL :: dx, logzeta
+      dx = LOG( MAX( MIN(ddmean*1.e3, 1.6), 0.06 ) )
+      logzeta = (c1*dx**3) + (c2*dx**2) + (c3*dx) + c4
+      ph_zeta = 10.**logzeta
+    END FUNCTION ph_zeta
+    
+    REAL FUNCTION ph_eta(ddmean)
+      ! polynomial for eta in Phillips et al. 2018
+      REAL, INTENT(in) :: ddmean
+      REAL, PARAMETER :: c1 = 0.1242, c2 = -0.2316, c3 = -0.9874, c4 = -0.0827
+      REAL :: dx, logeta
+      dx = LOG( MAX( MIN(ddmean*1.e3, 1.6), 0.06 ) )
+      logeta = (c1*dx**3) + (c2*dx**2) + (c3*dx) + c4
+      ph_eta = 10.**logeta
+    END FUNCTION ph_eta
+
+    REAL FUNCTION ph_T0(ddmean)
+      ! Polynomia for T0 in Phillips et al. 2018
+      REAL, INTENT(in) :: ddmean
+      REAL, PARAMETER :: c1 = -1.3999, c2 = -5.3285, c3 = -3.9847, c4 = -15.0332
+      REAL :: dx
+      dx = LOG( MAX( MIN(ddmean*1.e3, 1.6), 0.06 ) )
+      ph_T0 = (c1*dx**3) + (c2*dx**2) + (c3*dx) + c4      
+    END FUNCTION ph_T0
+    
 
     
 END MODULE mo_salsa_secondary_ice

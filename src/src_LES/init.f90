@@ -40,6 +40,7 @@ MODULE init
    REAL                  :: zrand = 200.
    REAL                  :: zrndamp = 0.2 ! the amplitude of pseudorandom fluctuations
    CHARACTER  (len=80)   :: hfilin = 'test.'
+   CHARACTER (len=100)   :: sound_in_file = 'sound_in'
 
    !INTEGER               :: init_type = 1 ! Switch for how to initialize mixing: 1) random perturbations, 2) warm bubble
 
@@ -358,7 +359,7 @@ CONTAINS
       ! arrange the input sounding
       !
       IF (ps(1) == 0.) THEN
-         OPEN(1,file='sound_in',status='old',form='formatted')
+         OPEN(1,file=sound_in_file,status='old',form='formatted')
 
          DO ns = 1, nns
             READ(1,*,end=100) ps(ns),ts(ns),rts(ns),us(ns),vs(ns)

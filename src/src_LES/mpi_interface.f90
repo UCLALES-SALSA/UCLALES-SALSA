@@ -96,10 +96,14 @@ CONTAINS
       INTEGER :: ierror
       CHARACTER (len=8) :: date
 
-      CALL mpi_init(ierror)
-      CALL mpi_comm_size(MPI_COMM_WORLD, pecount, ierror)
-      CALL mpi_comm_rank(MPI_COMM_WORLD, myid, ierror)
+      ierror = 0
+            
+      CALL MPI_INIT(ierror)
 
+      CALL MPI_COMM_SIZE(MPI_COMM_WORLD, pecount, ierror)
+
+      CALL MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierror)
+      
       SELECT CASE (kind(0.0))
          CASE (4)
             nbytes = 4

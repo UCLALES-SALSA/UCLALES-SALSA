@@ -67,8 +67,8 @@ MODULE mo_submctl
   LOGICAL :: lsicedep = .FALSE.        ! Deposition freezing
 
   ! Secondary ice subprocesses
-  LOGICAL :: lsicerimespln = .FALSE.                       ! Rime splintering; Hallet-Mossop
-  TYPE(ProcessSwitch), POINTER :: lsicedropfrac => NULL()  ! Drop fracturing SIP, %mode = 1: Lawson et al 2015,
+  LOGICAL :: lssiprimespln = .FALSE.                       ! Rime splintering; Hallet-Mossop
+  TYPE(ProcessSwitch), POINTER :: lssipdropfrac => NULL()  ! Drop fracturing SIP, %mode = 1: Lawson et al 2015,
                                                            !                      %mode = 2: Phillips et al 2018
 
   INTEGER, PARAMETER :: Nsub = 1
@@ -239,6 +239,7 @@ MODULE mo_submctl
    pi     = 3.1415927,    & ! self explanatory
    pi6    = 0.5235988,    & ! pi/6
    cpa    = 1005.,        & ! specific heat of dry air, constant P (J/kg/K)
+   cwa    = 4200.,        & ! Specific heat capacity of lqiuid water (J/kg/K)
    mair   = 28.97e-3,     & ! molar mass of air (mol/kg)
    deltav = 1.096e-7,     & ! vapor jump length (m)
    deltaT = 2.16e-7,      & ! thermal jump length (m)
@@ -249,8 +250,9 @@ MODULE mo_submctl
   REAL, PARAMETER ::   &
    rd    = 287.04,     & ! gas constant for dry air (J/K/kg)
    rv    = 461.5,      & ! gas constant for water vapour (J/K/kg)
-   alv    = 2.5e6,   & ! latent heat for vaporisation (J/kg)
-   als    = 2.834e6      ! latent heat for sublimation (J/kg)
+   alv    = 2.5e6,     & ! latent heat of vaporisation (J/kg)
+   als    = 2.834e6,   & ! latent heat of sublimation (J/kg)
+   alf    = 3.3e5        ! Latent heat of freezing (J/kg)
 
   REAL, PARAMETER ::     & ! molar mass [kg/mol]
        msu = 98.08e-3,        & ! sulphate

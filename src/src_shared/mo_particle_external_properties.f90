@@ -122,7 +122,7 @@ MODULE mo_particle_external_properties
     ! - Snow and ice can be irregular and their densities can be size-dependent
     !
     ! Correct dimension is needed for irregular particles (e.g. ice) for calculating fall speed (deposition and coagulation)
-    ! and capacitance (condensation). Otherwise spherical assumed. This function is overloaded for LES and SALSA environments.
+    ! and capacitance (condensation). Otherwise spherical assumed. 
     !
     FUNCTION calcDiamLES(ns,numc,mass,flag,sph)
       IMPLICIT NONE

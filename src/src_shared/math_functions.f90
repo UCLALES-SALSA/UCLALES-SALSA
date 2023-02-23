@@ -33,7 +33,7 @@ MODULE math_functions
     ! ------------------------------------------------
     ! Normalized frequency from Gaussian distribution
     !
-    REAL FUNCTION f_gauss(x,sig,mean)
+    PURE REAL FUNCTION f_gauss(x,sig,mean)
       REAL, INTENT(in) :: x, sig, mean
       REAL :: a, b
       

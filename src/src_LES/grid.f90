@@ -23,7 +23,7 @@ MODULE grid
   USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice,     &
                          in1a, fn2a, in2b, fn2b, ica, icb, fca, fcb,  &
                          aerobins, cloudbins, precpbins, icebins,     &
-                         ice_theta_dist,lssecice,lsicerimespln,lsicedropfrac
+                         ice_theta_dist,lssecice
   
   IMPLICIT NONE
 

@@ -490,7 +490,7 @@ CONTAINS
                              lscheckarrays,               &
                              fixINC,                      &
                              lsicehom, lsiceimm, lsicedep,   &
-                             lsicerimespln, lsicedropfrac,    &
+                             lssiprimespln, lssipdropfrac,    &
                              ice_theta_dist,              &
                              lsfreeTheta, initMinTheta,   &
 
@@ -510,7 +510,7 @@ CONTAINS
 
       USE mo_ice_shape, ONLY : iceShapeAlpha, iceShapeBeta,   &
                                iceShapeGamma, iceShapeSigma
-      USE mo_salsa_secondary_ice, ONLY : dlice_df, dlliq_df, dlice_rs, dlliq_rs
+      USE mo_salsa_secondary_ice, ONLY : dlliq_df, dlice_rs, dlliq_rs ! REMOVE dlice_df
 
       
       IMPLICIT NONE
@@ -552,11 +552,10 @@ CONTAINS
          lsicehom,     &    ! Switch for homogeneous ice nucleation
          lsiceimm,     &    ! .. for immersio freezing
          lsicedep,     &    ! .. for deposition freezing
-         lsicerimespln,  &    ! Secondary ice production by rime splintering
+         lssiprimespln,  &    ! Secondary ice production by rime splintering
          dlice_rs,    &    ! Min ice diameter for Hallet-Mossop
          dlliq_rs,    &    ! Max liquid diameter for Hallet-Mossop
-         lsicedropfrac, &   ! Secondary ice prduction by drop fracturing
-         dlice_df,     &   ! Max ice diameter for drop fracturing
+         lssipdropfrac, &   ! Secondary ice prduction by drop fracturing
          dlliq_df,     &   ! Min liquid diameter for drop fracturing
          
          lsdistupdate,  & ! Switch for size dsitribution update
@@ -626,8 +625,8 @@ CONTAINS
             lsicehom = .FALSE.   
             lsiceimm = .FALSE.
             lsicedep = .FALSE. 
-            lsicerimespln = .FALSE.
-            lsicedropfrac%switch = .FALSE.
+            lssiprimespln = .FALSE.
+            lssipdropfrac%switch = .FALSE.
             
       END IF !level
 
@@ -643,7 +642,7 @@ CONTAINS
      USE classProcessSwitch, ONLY : ProcessSwitch
      USE mo_submctl, ONLY : Nmaster, lsmaster, Nsub, lssub, lscoag, lscnd,     &
                             lsauto, lsactiv, lsicenucl, lsicemelt, lssecice,   &
-                            lsfreeRH, cgintvl, lsicedropfrac
+                            lsfreeRH, cgintvl, lssipdropfrac
      IMPLICIT NONE
      
      INTEGER :: i
@@ -668,7 +667,7 @@ CONTAINS
      lssecice => lsmaster(7)
 
      ! Associate pointer for subprocess switches
-     lsicedropfrac => lssub(1)
+     lssipdropfrac => lssub(1)
      
      ! Use this to initialize also other switches that use the ProcessSwitch type
      lsfreeRH = ProcessSwitch()

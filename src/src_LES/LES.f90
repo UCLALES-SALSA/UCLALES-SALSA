@@ -106,7 +106,7 @@ CONTAINS
                                   lpback, pbncsrc, nfpt, distim, runtype, CCN,sst,W1,W2,W3, &
                                   cntlat, varlist_main, varlist_ps, varlist_ts
     USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
-                                  zrand, zrndamp
+                                  zrand, zrndamp, sound_in_file
     USE forc, ONLY              : div, case_name     ! Divergence, forcing case name
     USE radiation_main, ONLY    : radsounding,   &
                                   sfc_albedo,    &
@@ -153,6 +153,7 @@ CONTAINS
                                        ! perturbation. Default switch == FALSE.
          
     NAMELIST /initialization/      &
+         sound_in_file,            & ! Input sounding file name
          ipsflg, itsflg,           & ! sounding flags
          hs, ps, ts,               & ! sounding heights, pressure, temperature
          us, vs, rts,              & ! sounding E/W winds, water vapor

@@ -704,7 +704,7 @@ MODULE mo_salsa_coagulation_processes
     ! -----------------------------------------------------------------
 
     SUBROUTINE accumulateSink(kbdim,klev,nbtrgt,nbcoll,itrgt,istr,iend,zcc,coll,sink,trgtphase,multp)
-      USE mo_salsa_secondary_ice, ONLY : nfrzn_rs, nfrzn_df, dlice_df, dlliq_df, dlice_rs, dlliq_rs
+      USE mo_salsa_secondary_ice, ONLY : nfrzn_rs, nfrzn_df, dlliq_df, dlice_rs, dlliq_rs ! REMOVE dlice_df
       USE mo_submctl, ONLY : Eiagg_max, Eiagg_min
       ! 
       ! The "direct" method, i.e. "larger" particle category collects "smaller" category.
@@ -877,7 +877,7 @@ MODULE mo_salsa_coagulation_processes
                   IF (trgtphase == 3 .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim ) THEN
                      
                      ! Drop fracturing: large drops collected by small ice
-                     IF ( coll(ii,jj,ll)%dwet < dlice_df .AND. precp(ii,jj,itrgt)%dwet > dlliq_df .AND.  &
+                     IF ( coll(ii,jj,ll)%dwet < precp(ii,jj,itrgt)%dwet .AND. precp(ii,jj,itrgt)%dwet > dlliq_df .AND.  &    ! SWITCH dlice_df -> precp%dwet
                           precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim ) THEN                  
                         nfrzn_df(ii,jj,ll) = nfrzn_df(ii,jj,ll) +      &
                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc*   &
@@ -895,7 +895,7 @@ MODULE mo_salsa_coagulation_processes
                   ELSE IF (trgtphase == 2 .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim ) THEN
 
                      ! Drop fracturing: large drops collected by small ice
-                     IF (coll(ii,jj,ll)%dwet < dlice_df .AND. cloud(ii,jj,itrgt)%dwet > dlliq_df .AND.  &
+                     IF (coll(ii,jj,ll)%dwet < cloud(ii,jj,itrgt)%dwet .AND. cloud(ii,jj,itrgt)%dwet > dlliq_df .AND.  &  ! SWITCH dlice_df -> cloud%dwet
                          cloud(ii,jj,itrgt)%numc > cloud(ii,jj,itrgt)%nlim ) THEN
                         nfrzn_df(ii,jj,ll) = nfrzn_df(ii,jj,ll) +      &
                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc*   &
@@ -1183,7 +1183,7 @@ MODULE mo_salsa_coagulation_processes
     !----------
     SUBROUTINE accumulateSourcePhaseChange(kbdim,klev,nbtrgt,nbcoll,nspec,iice,iwa,itrgt,istr,iend,  &
                                            rhotrgt,rhocoll,zcc,coll,source)
-      USE mo_salsa_secondary_ice, ONLY : mfrzn_df, mfrzn_rs, dlice_df, dlliq_df, dlice_rs, dlliq_rs
+      USE mo_salsa_secondary_ice, ONLY : mfrzn_df, mfrzn_rs, dlliq_df, dlice_rs, dlliq_rs ! REMOVE dlice_df
       !
       ! The direct method, where the "larger" particle category collects the "smaller" category.
       ! The target refers always to the "larger", collector category.
@@ -1241,7 +1241,7 @@ MODULE mo_salsa_coagulation_processes
                DO ii = 1,kbdim
                   IF ( ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN  
                      ! Drop fracturing: large drops collected by small ice
-                     IF ( ice(ii,jj,itrgt)%dwet < dlice_df .AND. coll(ii,jj,ll)%dwet > dlliq_df ) THEN
+                     IF ( ice(ii,jj,itrgt)%dwet < coll(ii,jj,ll)%dwet .AND. coll(ii,jj,ll)%dwet > dlliq_df ) THEN  ! SWITCH dlice_df -> coll%dwet
                         mfrzn_df(ii,jj,itrgt) = mfrzn_df(ii,jj,itrgt) +     &
                              zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*ice(ii,jj,itrgt)%numc*rhocoll * fix_coag(ii,jj)
                      END IF

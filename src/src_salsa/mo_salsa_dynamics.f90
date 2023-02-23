@@ -104,7 +104,7 @@ CONTAINS
                            lscgca, lscgpa, lscgia, & 
                            lscgpc, lscgic, &
                            lscgip,                         &
-                           lssecice, lsicerimespln, lsicedropfrac,     &
+                           lssecice, lssiprimespln, lssipdropfrac,     &
                            lcgupdt, lscoag
 
       USE mo_salsa_coagulation_kernels
@@ -206,11 +206,11 @@ CONTAINS
          nspec = spec%getNSpec(type='total')
          
          ! Rime splintering
-         IF (lsicerimespln) &
+         IF (lssiprimespln) &
               CALL rimesplintering(kbdim,kproma,klev,nspec,ptemp,ptstep)
          ! Drop fracturing:
-         IF (lsicedropfrac%state) &
-              CALL dropfracturing(kbdim,kproma,klev,nspec,ptemp,ptstep)
+         IF (lssipdropfrac%state) &
+              CALL dropfracturing(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
                   
       END IF
          

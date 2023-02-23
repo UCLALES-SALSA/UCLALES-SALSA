@@ -83,7 +83,8 @@ MODULE mo_ps_state
   ! binned variables
   TYPE(FloatArray2d), TARGET :: ps_Dwaba, ps_Dwabb, ps_Dwcba, ps_Dwcbb, ps_Dwpba, ps_Dwiba
   TYPE(FloatArray2d), TARGET :: ps_Naba, ps_Nabb, ps_Ncba, ps_Ncbb, ps_Npba, ps_Niba
-
+  TYPE(FloatArray2d), TARGET :: ps_sipdrfr
+  
   ! Piggybacking slave microphysics diagnostics
   TYPE(FloatArray1d), TARGET :: ps_pb_rrate, ps_pb_rc,         &
                                 pspr_pb_rrate, psic_pb_rc
@@ -315,8 +316,16 @@ MODULE mo_ps_state
          ps_Niba = FloatArray2d()
          ps_Niba%onDemand => globalMeanProfileBinned
          pipeline => ps_Niba
-         CALL PS%newfield("Niba", "Ice binned number concentration", "#/kg", "zttice",   &
+         CALL PS%newField("Niba", "Ice binned number concentration", "#/kg", "zttice",   &
                           ANY(outputlist == "Niba"), pipeline)
+
+         pipeline => NULL()
+         ps_sipdrfr = FloatArray2d()
+         ps_sipdrfr%onDemand => globalMeanProfileBinned
+         pipeline => ps_sipdrfr
+         CALL PS%newField("sipdrfr","Drop fracturing SIP concentration", "#/kg", "zttice",  &
+                          ANY(outputlist == "sipdrfr"), pipeline)
+         
       END IF
 
       pipeline => NULL()
