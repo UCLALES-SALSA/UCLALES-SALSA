@@ -209,7 +209,7 @@ MODULE mo_salsa_secondary_ice
       fragnumc = 0.; sinknumc = 0.
 
       ! NO MORE FIXED ICE LIMITS -> CHANGE NIMAX TO NICE
-      DO bb = 1,nice       ! Assume drop fracturing to take place from ice bins < dlice_df
+      DO bb = 1,nice      
          DO jj = 1,klev
             DO ii = 1,kproma
                

@@ -147,6 +147,7 @@ cat > NAMELIST <<EOF
 ! -----------------------------------------------------------------------------------
 
 &initialization
+  sound_in_file     = 'sound_in_nascent_2023'
   iseed             = 3
   th00              = 300.    ! Reference temperature
   umean             = 0.                
@@ -294,14 +295,13 @@ cat > NAMELIST <<EOF
    iceShapeSigma = 1.97          ! A = gamma * D**SIGMA
 
    ! Sub-process swithces: Secondary ice
-   lsicerimespln = .FALSE.         ! Rime splintering; Hallet-Mossop
+   lssiprimespln = .FALSE.         ! Rime splintering; Hallet-Mossop
    dlice_rs = 50.e-6            ! Min diameter for ice in Hallet-Mossop
    dlliq_rs = 500.e-6           ! Max diameter for liquid in Hallet-Mossop
 
-   lsicedropfrac%switch = .TRUE.
+   lssipdropfrac%switch = .TRUE.
    lsicedropfrac%mode = 2
-   dlice_df = 500.e-6             ! Max diameter for ice in drop fracturing
-   dlliq_df = 80.e-6            ! Min diameter for liquid in drop fracturing
+   dlliq_df = 100.e-6            ! Min diameter for liquid in drop fracturing
 
    ! Misc switches
    lscheckarrays = .FALSE.

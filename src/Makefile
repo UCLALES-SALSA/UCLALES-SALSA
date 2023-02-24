@@ -165,7 +165,7 @@ mo_salsa_cloud.o: mo_salsa_types.o mo_submctl.o classSection.o mo_particle_exter
 mo_salsa_cloud_ice.o: mo_submctl.o mo_salsa_types.o mo_particle_external_properties.o mo_salsa_math.o math_functions.o
 mo_salsa_cloud_ice_SE.o: mo_submctl.o mo_salsa_types.o mo_salsa_math.o mo_particle_external_properties.o  \
 	                 classSection.o math_functions.o
-mo_salsa_secondary_ice.o: mo_salsa_types.o mo_submctl.o math_functions.o classsection.o mo_ice_shape.o \
+mo_salsa_secondary_ice.o: mo_salsa_types.o mo_submctl.o math_functions.o classSection.o mo_ice_shape.o \
                           mo_particle_external_properties.o 
 mo_salsa_sizedist.o: mo_salsa_types.o mo_submctl.o 
 mo_salsa.o: mo_submctl.o mo_salsa_dynamics.o mo_salsa_update.o \
