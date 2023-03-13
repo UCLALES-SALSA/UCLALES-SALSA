@@ -879,7 +879,7 @@ MODULE mo_salsa_coagulation_processes
                      ! Drop fracturing: large drops collected by small ice
                      IF ( coll(ii,jj,ll)%dwet < precp(ii,jj,itrgt)%dwet .AND. precp(ii,jj,itrgt)%dwet > dlliq_df .AND.  &    ! SWITCH dlice_df -> precp%dwet
                           precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim ) THEN                  
-                        nfrzn_df(ii,jj,ll) = nfrzn_df(ii,jj,ll) +      &
+                        nfrzn_df(ii,jj,itrgt,ll) = nfrzn_df(ii,jj,itrgt,ll) +      &
                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc*   &
                              fix_coag(ii,jj)
                      END IF
@@ -887,7 +887,7 @@ MODULE mo_salsa_coagulation_processes
                      ! Hallet-Mossop with precp
                      IF ( coll(ii,jj,ll)%dwet > dlice_rs .AND. precp(ii,jj,itrgt)%dwet < dlliq_rs .AND.  &
                           precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim ) THEN
-                        nfrzn_rs(ii,jj,ll) = nfrzn_rs(ii,jj,ll) +      &
+                        nfrzn_rs(ii,jj,itrgt,ll) = nfrzn_rs(ii,jj,itrgt,ll) +      &
                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc*   &
                              fix_coag(ii,jj)
                      END IF
@@ -897,7 +897,7 @@ MODULE mo_salsa_coagulation_processes
                      ! Drop fracturing: large drops collected by small ice
                      IF (coll(ii,jj,ll)%dwet < cloud(ii,jj,itrgt)%dwet .AND. cloud(ii,jj,itrgt)%dwet > dlliq_df .AND.  &  ! SWITCH dlice_df -> cloud%dwet
                          cloud(ii,jj,itrgt)%numc > cloud(ii,jj,itrgt)%nlim ) THEN
-                        nfrzn_df(ii,jj,ll) = nfrzn_df(ii,jj,ll) +      &
+                        nfrzn_df(ii,jj,1,ll) = nfrzn_df(ii,jj,1,ll) +      &  !! Check this binning, should it be calculated from actual dwet???
                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc*   &
                              fix_coag(ii,jj)
                      END IF
@@ -905,7 +905,7 @@ MODULE mo_salsa_coagulation_processes
                      ! Hallet-Mossop with cloud droplets
                      IF (coll(ii,jj,ll)%dwet > dlice_rs .AND. cloud(ii,jj,itrgt)%dwet < dlliq_rs .AND.  &
                          cloud(ii,jj,itrgt)%numc > cloud(ii,jj,itrgt)%nlim ) THEN
-                        nfrzn_rs(ii,jj,ll) = nfrzn_rs(ii,jj,ll) +      &
+                        nfrzn_rs(ii,jj,1,ll) = nfrzn_rs(ii,jj,1,ll) +      &   !!! CHECK BINNING, THIS WILL BE WRONG!
                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc*   &
                              fix_coag(ii,jj)
                      END IF
@@ -1203,7 +1203,7 @@ MODULE mo_salsa_coagulation_processes
       
       REAL :: fix_coag(kbdim,klev)    ! Correction term to limit the direct forward diagnostic towards the semi-implicit solution (?)
 
-      INTEGER :: ll,ii,jj
+      INTEGER :: ll,ii,jj, ix
       INTEGER :: ndry, nb
 
       ndry = spec%getNSpec(type="dry")
@@ -1242,13 +1242,23 @@ MODULE mo_salsa_coagulation_processes
                   IF ( ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN  
                      ! Drop fracturing: large drops collected by small ice
                      IF ( ice(ii,jj,itrgt)%dwet < coll(ii,jj,ll)%dwet .AND. coll(ii,jj,ll)%dwet > dlliq_df ) THEN  ! SWITCH dlice_df -> coll%dwet
-                        mfrzn_df(ii,jj,itrgt) = mfrzn_df(ii,jj,itrgt) +     &
+                        IF (coll(ii,jj,ll)%phase == 3) THEN
+                           ix = ll
+                        ELSE IF (coll(ii,jj,ll)%phase == 2) THEN
+                           ix = 1            ! CHECK THIS BINNING, GET FROM ACTUAL DWET IN CASE OF CLOUD DROPS??
+                        END IF
+                        mfrzn_df(ii,jj,ix,itrgt) = mfrzn_df(ii,jj,ix,itrgt) +     &
                              zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*ice(ii,jj,itrgt)%numc*rhocoll * fix_coag(ii,jj)
                      END IF
 
                      ! Hallet-Mossop: small drops collected by large ice
                      IF ( ice(ii,jj,itrgt)%dwet > dlice_rs .AND. coll(ii,jj,ll)%dwet < dlliq_rs ) THEN
-                        mfrzn_rs(ii,jj,itrgt) = mfrzn_rs(ii,jj,itrgt) +     &
+                        IF (coll(ii,jj,ll)%phase == 3) THEN
+                           ix = ll
+                        ELSE IF (coll(ii,jj,ll)%phase ==2 ) THEN
+                           ix = 1
+                        END IF
+                        mfrzn_rs(ii,jj,ix,itrgt) = mfrzn_rs(ii,jj,ix,itrgt) +     &
                              zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*ice(ii,jj,itrgt)%numc*rhocoll * fix_coag(ii,jj)
                      END IF
                                           

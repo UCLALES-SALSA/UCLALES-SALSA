@@ -11,9 +11,11 @@ MODULE mo_salsa_secondary_ice
   
   ! Arrays to track the number and mass of frozen drops due to ice collection
   ! diagnosed from the coagulation routines for each timestep. Initialized in
-  ! mo_salsa_init.
-  REAL, ALLOCATABLE :: nfrzn_rs(:,:,:), mfrzn_rs(:,:,:)
-  REAL, ALLOCATABLE :: nfrzn_df(:,:,:), mfrzn_df(:,:,:)
+  ! mo_salsa_init. Bin dimensions will be (nprc,nice). Possible contribution by 
+  ! cloud droplets will be put to the first bin or smth?? Should binnihs for rime splintering be
+  ! something else?? Check later!
+  REAL, ALLOCATABLE :: nfrzn_rs(:,:,:,:), mfrzn_rs(:,:,:,:)
+  REAL, ALLOCATABLE :: nfrzn_df(:,:,:,:), mfrzn_df(:,:,:,:)
 
   ! Ice and liquid drop diameter limits for drop fracturing
   !REAL :: dlice_df = 1.e-3,    &  ! Max diameter for ice in drop fracturing
@@ -55,87 +57,87 @@ MODULE mo_salsa_secondary_ice
       LOGICAL :: lt13umgt25um(kbdim,klev)
       INTEGER :: splbin  ! Target bin for splinters
       
-      iwa = spec%getIndex("H2O")
-      iri = spec%getIndex("rime")
-      ndry = spec%getNSpec(type="dry")
+!!      iwa = spec%getIndex("H2O")
+!!      iri = spec%getIndex("rime")
+!!      ndry = spec%getNSpec(type="dry")
       
       ! Convert freezing rates to changes over timestep
-      mfrzn_rs = mfrzn_rs * ptstep
-      nfrzn_rs = nfrzn_rs * ptstep
+!!      mfrzn_rs = mfrzn_rs * ptstep
+!!      nfrzn_rs = nfrzn_rs * ptstep
       
       ! Mask for where there are suitable size droplets present, i.e. smaller than 13um and larger than 25um
       ! The coagulation should have already been applied to the liquid bins, but with short timestep this is
       ! unlikely to fully empty the bin, so this is probably ok...
-      lt13umgt25um = .FALSE.
-      DO jj = 1,klev
-         DO ii = 1,kproma            
-            lt13umgt25um(ii,jj) = &
-                 ( ANY( cloud(ii,jj,:)%numc > cloud(ii,jj,:)%nlim .AND. cloud(ii,jj,:)%dwet < 13.e-6 ) .OR.    &
-                   ANY( precp(ii,jj,:)%numc > precp(ii,jj,:)%nlim .AND. precp(ii,jj,:)%dwet < 13.e-6 ) ) .AND. &
-                 ( ANY( cloud(ii,jj,:)%numc > cloud(ii,jj,:)%nlim .AND. cloud(ii,jj,:)%dwet > 25.e-6 ) .OR.    &
-                   ANY( precp(ii,jj,:)%numc > precp(ii,jj,:)%nlim .AND. precp(ii,jj,:)%dwet > 25.e-6 ) )
-         END DO
-      END DO
+!!      lt13umgt25um = .FALSE.
+!!      DO jj = 1,klev
+!!         DO ii = 1,kproma            
+!!            lt13umgt25um(ii,jj) = &
+!!                 ( ANY( cloud(ii,jj,:)%numc > cloud(ii,jj,:)%nlim .AND. cloud(ii,jj,:)%dwet < 13.e-6 ) .OR.    &
+!!                   ANY( precp(ii,jj,:)%numc > precp(ii,jj,:)%nlim .AND. precp(ii,jj,:)%dwet < 13.e-6 ) ) .AND. &
+!!                 ( ANY( cloud(ii,jj,:)%numc > cloud(ii,jj,:)%nlim .AND. cloud(ii,jj,:)%dwet > 25.e-6 ) .OR.    &
+!!                   ANY( precp(ii,jj,:)%numc > precp(ii,jj,:)%nlim .AND. precp(ii,jj,:)%dwet > 25.e-6 ) )
+!!         END DO
+!!      END DO
 
       ! Assuming splinter diameter as Dsplint, find the corresponding ice bin
-      splbin = MAX( COUNT(icebins < Dsplint), 1 )      
+!!      splbin = MAX( COUNT(icebins < Dsplint), 1 )      
 
       ! Initialize arrays
-      fragvolc = 0.; sinkvolc = 0.
-      fragnumc = 0.
+!!      fragvolc = 0.; sinkvolc = 0.
+!!      fragnumc = 0.
       
-      DO bb = 1,nice
-         DO jj = 1,klev
-            DO ii = 1,kproma
+!!      DO bb = 1,nice
+!!         DO jj = 1,klev
+!!            DO ii = 1,kproma
 
-               IF ( nfrzn_rs(ii,jj,bb) > 0. .AND. ice(ii,jj,bb)%volc(iri) > 0. .AND. lt13umgt25um(ii,jj) ) THEN
-                  dN = 0.
-                  ! Number of generated splinters. The maximum rate is at 268.16 K
-                  IF ( ptemp(ii,jj) < tmax .AND. ptemp(ii,jj) >= tmid ) THEN                     
-                     dN = c1 * mfrzn_rs(ii,jj,bb) * (tmax - ptemp(ii,jj))/(tmax-tmid) ! linear slope across the temp range                     
-                  ELSE IF ( ptemp(ii,jj) < tmid .AND. ptemp(ii,jj) >= tmin ) THEN                     
-                     dN = c1 * mfrzn_rs(ii,jj,bb) * (ptemp(ii,jj) - tmin)/(tmid-tmin)                     
-                  END IF
+!!               IF ( nfrzn_rs(ii,jj,bb) > 0. .AND. ice(ii,jj,bb)%volc(iri) > 0. .AND. lt13umgt25um(ii,jj) ) THEN
+!!                  dN = 0.
+!!                  ! Number of generated splinters. The maximum rate is at 268.16 K
+!!                  IF ( ptemp(ii,jj) < tmax .AND. ptemp(ii,jj) >= tmid ) THEN                     
+!!                     dN = c1 * mfrzn_rs(ii,jj,bb) * (tmax - ptemp(ii,jj))/(tmax-tmid) ! linear slope across the temp range                     
+!!                  ELSE IF ( ptemp(ii,jj) < tmid .AND. ptemp(ii,jj) >= tmin ) THEN                     
+!!                     dN = c1 * mfrzn_rs(ii,jj,bb) * (ptemp(ii,jj) - tmin)/(tmid-tmin)                     
+!!                  END IF
 
                   ! This will assume that the splinters consist of frozen spheres 10 um in diameter.
-                  dV = dN*pi6*Dsplint**3
+!!                  dV = dN*pi6*Dsplint**3
 
-                  IF (ice(ii,jj,bb)%volc(iri) < dV) WRITE(*,*) "SECICE HM FAIL " 
+!!                  IF (ice(ii,jj,bb)%volc(iri) < dV) WRITE(*,*) "SECICE HM FAIL " 
 
                   ! Allocate the fragments to temporary ice bins 
-                  fragnumc(ii,jj,splbin) = fragnumc(ii,jj,splbin) + dN
+!!                  fragnumc(ii,jj,splbin) = fragnumc(ii,jj,splbin) + dN
                      
-                  fragvolc(ii,jj,splbin,1:nspec) = fragvolc(ii,jj,splbin,1:nspec) +     &
-                       ice(ii,jj,bb)%volc(1:nspec)*MIN( dV/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )                  
+!!                  fragvolc(ii,jj,splbin,1:nspec) = fragvolc(ii,jj,splbin,1:nspec) +     &
+!!                       ice(ii,jj,bb)%volc(1:nspec)*MIN( dV/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )                  
 
-                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) +   &
-                       ice(ii,jj,bb)%volc(1:nspec)* MIN( dV/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )  
+!!                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) +   &
+!!                       ice(ii,jj,bb)%volc(1:nspec)* MIN( dV/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )  
                 
                   ! Secondary ice diagnostics
-                  ice(ii,jj,1)%SIP_rmspl = ice(ii,jj,1)%SIP_rmspl + dN                  
-                  CALL rateDiag%rmsplrate%Accumulate(n=dN/ptstep)
+!!                  ice(ii,jj,1)%SIP_rmspl = ice(ii,jj,1)%SIP_rmspl + dN                  
+!!                  CALL rateDiag%rmsplrate%Accumulate(n=dN/ptstep)
 
-               END IF
+!!               END IF
                   
-            END DO
-         END DO
-      END DO
-
+!!            END DO
+!!         END DO
+!!      END DO
+           
       ! Apply changes to bins
-      DO bb = 1,nice
-         DO jj = 1,klev
-            DO ii = 1,kproma
-               IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'fragnumc < 0'
-               IF (ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'fragvolc < 0'
+!!      DO bb = 1,nice
+!!         DO jj = 1,klev
+!!            DO ii = 1,kproma
+!!               IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'fragnumc < 0'
+!!               IF (ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'fragvolc < 0'
                
-               ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
-               ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) + fragvolc(ii,jj,bb,1:nspec)
-               ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
-               IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
-                    WRITE(*,*) 'RIME SPLNT NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
-            END DO
-         END DO
-      END DO
+!!               ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
+!!               ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) + fragvolc(ii,jj,bb,1:nspec)
+!!               ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
+!!               IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
+!!                    WRITE(*,*) 'RIME SPLNT NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
+!!            END DO
+!!         END DO
+!!      END DO
       
       ! IMPORTANT: Reset the collection tracking arrays
       mfrzn_rs = 0.
@@ -147,7 +149,7 @@ MODULE mo_salsa_secondary_ice
 
     SUBROUTINE dropfracturing(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
       USE mo_salsa_types, ONLY : ice, rateDiag
-      USE mo_submctl, ONLY : nice, pi6, spec, icebins, lssipdropfrac
+      USE mo_submctl, ONLY : nprc, nice, pi6, spec, icebins, lssipdropfrac
       !
       ! -------------------------------------------------------
       ! The drop fracturing SIP from Lawson et al. 2015
@@ -167,11 +169,12 @@ MODULE mo_salsa_secondary_ice
       REAL :: dN,dm          ! Total number and mass of fragments generated per ice bin
       REAL :: dNb(nice)      ! Number of fragments distributed to ice bins
       REAL :: dVb(nice)      ! Volume of fragments distributed to ice bins
-      INTEGER :: bb,bb1,ii,jj,iri,iwa, nimax, npmax
+      INTEGER :: cc,bb,bb1,ii,jj,iri,iwa, nimax, npmax
       REAL :: icediams(nice), icebw(nice)
       REAL :: fragvolc(kbdim,klev,nice,nspec), sinkvolc(kbdim,klev,nice,nspec) ! Volume to be added and removed
       REAL :: fragnumc(kbdim,klev,nice), sinknumc(kbdim,klev,nice)  ! Number to be added and removed
-      REAL :: v_i         ! Volume of single ice particle in a bin
+      REAL :: v_i                    ! Volume of single ice particle in a bin 
+      REAL :: sinkv(nspec)           ! sink volume for single collision
       REAL, PARAMETER :: inf = HUGE(1.)
       
       iwa = spec%getIndex("H2O")
@@ -207,84 +210,89 @@ MODULE mo_salsa_secondary_ice
       ! Initialize arrays
       fragvolc = 0.; sinkvolc = 0.
       fragnumc = 0.; sinknumc = 0.
+      sinkv = 0.
 
       ! NO MORE FIXED ICE LIMITS -> CHANGE NIMAX TO NICE
       DO bb = 1,nice       ! Assume drop fracturing to take place from ice bins < dlice_df
          DO jj = 1,klev
             DO ii = 1,kproma
+               DO cc = 1,nprc
+                  IF ( ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR.  &    ! Outside temperature range, see Keinert et al 2020
+                       nfrzn_df(ii,jj,cc,bb) < 1.e-6 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-23 .OR. &
+                       ice(ii,jj,bb)%numc < ice(ii,jj,bb)%nlim ) CYCLE ! no collection/empty bin
                
-               IF ( ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR.  &    ! Outside temperature range, see Keinert et al 2020
-                    nfrzn_df(ii,jj,bb) < 1.e-6 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-23 .OR. &
-                    ice(ii,jj,bb)%numc < ice(ii,jj,bb)%nlim ) CYCLE ! no collection/empty bin
-               
-               ! Mean diameter of the frozen drops on current ice bin
-               ddmean = (mfrzn_df(ii,jj,bb)/nfrzn_df(ii,jj,bb)/spec%rhowa/pi6)**(1./3.)
+                  ! Diameter of the frozen drops on current ice bin
+                  ddmean = (mfrzn_df(ii,jj,cc,bb)/nfrzn_df(ii,jj,cc,bb)/spec%rhowa/pi6)**(1./3.)
 
-               ! Limit to 1 mm and require the freezing drop diameter to be larger tha dlliq_df               
-               IF ( ddmean < dlliq_df ) CYCLE  
+                  !Require the freezing drop diameter to be larger tha dlliq_df
+                  IF ( ddmean < dlliq_df ) CYCLE  
 
-               ! POISTA
-               IF (ddmean < 20.e-6 .OR. ddmean > 1.e3) WRITE(*,*) 'ddmean error ',ddmean,bb,nimax,icediams(bb),icebw(bb)
-               IF (ddmean /= ddmean) WRITE(*,*) 'ddmean nan ',ddmean,bb,nimax,icediams(bb),icebw(bb)
-               ! -----------------
+                  ! POISTA
+                  IF (ddmean < 20.e-6 .OR. ddmean > 1.e3) WRITE(*,*) 'ddmean error ',ddmean,bb,nimax,icediams(bb),icebw(bb)
+                  IF (ddmean /= ddmean) WRITE(*,*) 'ddmean nan ',ddmean,bb,nimax,icediams(bb),icebw(bb)
+                  ! -----------------
                
-               ! Ice bin index corresponding to the mean frozen drop diameter minus one; Fragments are distributed to ice bins 1:npmax
-               npmax = MAX(COUNT(icediams <= ddmean) - 1, 1) 
+                  ! Ice bin index corresponding to the mean frozen drop diameter minus one; Fragments are distributed to ice bins 1:npmax
+                  npmax = MAX(COUNT(icediams <= ddmean) - 1, 1) 
               
-               ! Calculate the number of fragments generated per freezing droplet for current bin
-               IF (lssipdropfrac%mode == 1) THEN
-                  dN = df_lawson(ptemp(ii,jj),nfrzn_df(ii,jj,bb),ddmean)
-               ELSE IF (lssipdropfrac%mode == 2) THEN
-                  dN = df_phillips_simple(ptemp(ii,jj),nfrzn_df(ii,jj,bb),ddmean)
-               ELSE IF (lssipdropfrac%mode == 3) THEN
-                  ! Updated diameter needed here
-                  CALL ice(ii,jj,bb)%updateDiameter(.TRUE.,type="all")
-                  dN = df_phillips_full(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb))
-               END IF
-               
-               ! Assume the mass of fragments distributed evenly to ice bins 1:npmax (Lawson et al 2015).
-               ! For this, first distribute dN as d**-3.
-               dNb = 0.
-               dVb = 0.
-               dNb(1:npmax) = 1./(icediams(1:npmax)**3)              ! density function               
-               Nnorm = SUM(dNb(1:npmax)*icebw(1:npmax))              ! Normalization factor
+                  ! Calculate the number of fragments generated per freezing droplet for current bin
+                  IF (lssipdropfrac%mode == 1) THEN
+                     dN = df_lawson(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
+                  ELSE IF (lssipdropfrac%mode == 2) THEN
+                     dN = df_phillips_simple(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
+                  ELSE IF (lssipdropfrac%mode == 3) THEN
+                     ! Updated diameter needed here
+                     CALL ice(ii,jj,bb)%updateDiameter(.TRUE.,type="all")
+                     dN = df_phillips_full(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb))
+                  END IF
+     
+                  ! Assume the mass of fragments distributed evenly to ice bins 1:npmax (Lawson et al 2015).
+                  ! For this, first distribute dN as d**-3.
+                  dNb = 0.
+                  dVb = 0.
+                  dNb(1:npmax) = 1./(icediams(1:npmax)**3)              ! density function               
+                  Nnorm = SUM(dNb(1:npmax)*icebw(1:npmax))              ! Normalization factor
 
-               dNb(1:npmax) = dN * dNb(1:npmax)*icebw(1:npmax)/Nnorm ! Distributed bin concentrations of fragments
-               dNb = MERGE(0., dNb, dNb < 1.)        ! Cutoff for small fragment numbers:: CHANGE FROM NLIM TO 0.001 L-1
-               dVb(1:npmax) = dNb(1:npmax) * pi6*icediams(1:npmax)**3  ! Determine the fragment mass based on the ice bin diameters
+                  dNb(1:npmax) = dN * dNb(1:npmax)*icebw(1:npmax)/Nnorm ! Distributed bin concentrations of fragments
+                  dVb(1:npmax) = dNb(1:npmax) * pi6*icediams(1:npmax)**3  ! Determine the fragment mass based on the ice bin diameters
                                              
-               ! Allocate the fragments to temporary ice bins 
-               DO bb1 = 1,npmax
-                  fragnumc(ii,jj,bb1) = fragnumc(ii,jj,bb1) + dNb(bb1)
+                  ! Allocate the fragments to temporary ice bins 
+                  DO bb1 = 1,npmax
+                     fragnumc(ii,jj,bb1) = fragnumc(ii,jj,bb1) + dNb(bb1)
 
-                  fragvolc(ii,jj,bb1,1:nspec) = fragvolc(ii,jj,bb1,1:nspec) +     &
-                       ice(ii,jj,bb)%volc(1:nspec)*( dVb(bb1)/SUM(ice(ii,jj,bb)%volc(1:nspec)) )                  
+                     fragvolc(ii,jj,bb1,1:nspec) = fragvolc(ii,jj,bb1,1:nspec) +     &
+                          ice(ii,jj,bb)%volc(1:nspec)*( dVb(bb1)/SUM(ice(ii,jj,bb)%volc(1:nspec)) )                  
+                  END DO
+
+                  ! Sink of volume from current bin
+                  sinkv(1:nspec) = ice(ii,jj,bb)%volc(1:nspec)* MIN( SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )
+                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) + sinkv(1:nspec)
+
+                  ! Volume of a single ice particle in current bin for calculating the number concentration sink. This does not necessarily 
+                  ! provide an exact representation for the fracturing particle size, but works as a first approximation.
+                  v_i  = SUM(ice(ii,jj,bb)%volc(1:nspec))/ice(ii,jj,bb)%numc
+               
+                  ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
+                  sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i
+
+                  ! POISTA
+                  IF ( SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec)) > 1.)  &
+                     WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
+                     SUM(dVb(1:npmax)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+
+                  IF ( SUM(dVb(1:npmax)) > 0.9*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
+                     WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
+                     SUM(dVb(1:npmax)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+
+                  IF (0.9*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
+                     WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER', ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb) 
+                  ! ---------------------------------------
+               
+                  ! for diagnostics
+                  ice(ii,jj,1:npmax)%SIP_drfr = ice(ii,jj,1:npmax)%SIP_drfr + dNb(1:npmax)
+                  !if (dN > 1.) WRITE(*,*) 'hephep ', dN,ptstep,SUM(dNb)
+                  CALL rateDiag%drfrrate%Accumulate(n=SUM(dNb)/ptstep)    ! miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
                END DO
-
-               ! Sink of volume from current bin
-               sinkvolc(ii,jj,bb,1:nspec) =   &
-                    ice(ii,jj,bb)%volc(1:nspec)* MIN( SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )  
-
-               ! Volume of a single ice particle in current bin for calculating the number concentration sink
-               v_i  = SUM(ice(ii,jj,bb)%volc(1:nspec))/ice(ii,jj,bb)%numc
-               
-               ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
-               sinknumc(ii,jj,bb) = SUM( sinkvolc(ii,jj,bb,1:nspec) ) / v_i
-
-               ! POISTA
-               IF ( SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec)) > 1.)  &
-                    WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
-                    SUM(dVb(1:npmax)), SUM(ice(ii,jj,bb)%volc(1:nspec))
-
-               IF ( SUM(dVb(1:npmax)) > 0.9*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                    WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
-                    SUM(dVb(1:npmax)), SUM(ice(ii,jj,bb)%volc(1:nspec))
-               ! ---------------------------------------
-               
-               ! for diagnostics
-               ice(ii,jj,1:npmax)%SIP_drfr = ice(ii,jj,1:npmax)%SIP_drfr + dNb(1:npmax)
-               !if (dN > 1.) WRITE(*,*) 'hephep ', dN,ptstep,SUM(dNb)
-               CALL rateDiag%drfrrate%Accumulate(n=SUM(dNb)/ptstep)    ! miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
             END DO
          END DO
       END DO
@@ -304,7 +312,9 @@ MODULE mo_salsa_secondary_ice
                     WRITE(*,*) 'sinkvolc nega ',bb,dlliq_df,sinkvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
                     WRITE(*,*) 'sinkvolc nan ',  bb,dlliq_df,sinkvolc(ii,jj,bb,:)
-               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'fragnumc > 1e5 ',bb,dlliq_df,fragnumc(ii,jj,bb)
+               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'fragnumc > 1e5 ',bb,dlliq_df,fragnumc(ii,jj,bb),    &
+                    (SUM(mfrzn_df(ii,jj,:,bb))/SUM(nfrzn_df(ii,jj,:,bb))/spec%rhowa/pi6)**(1./3.), &
+                    SUM(nfrzn_df(ii,jj,:,bb)), ice(ii,jj,bb)%numc
                ! ---------------------
                
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
@@ -338,7 +348,7 @@ MODULE mo_salsa_secondary_ice
       REAL :: hT
       hT = f_gauss(ptemp,Tsig,T0)/f_gauss(T0,Tsig,T0)
       IF (hT > 1.0 .OR. hT < 1.e-8) WRITE(*,*) 'HT VAARIN ',hT 
-      df_lawson = nfrzn * c2*hT * c1*(MIN(ddmean,1.e-3)*1.e6)**cexp ! c2*hT according to Sullivan et al. 2018
+      df_lawson = nfrzn * c2*hT * c1*(MIN(ddmean,3.e-3)*1.e6)**cexp ! c2*hT according to Sullivan et al. 2018
     END FUNCTION df_lawson
 
     ! -----
