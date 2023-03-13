@@ -754,8 +754,8 @@ CONTAINS
                                         nfrzn_df, mfrzn_df
      IMPLICIT NONE
      
-     ALLOCATE(nfrzn_rs(kbdim,klev,nice),mfrzn_rs(kbdim,klev,nice))
-     ALLOCATE(nfrzn_df(kbdim,klev,nice),mfrzn_df(kbdim,klev,nice))
+     ALLOCATE(nfrzn_rs(kbdim,klev,nprc,nice),mfrzn_rs(kbdim,klev,nprc,nice))
+     ALLOCATE(nfrzn_df(kbdim,klev,nprc,nice),mfrzn_df(kbdim,klev,nprc,nice))
 
      nfrzn_rs = 0.; mfrzn_rs = 0.
      nfrzn_df = 0.; mfrzn_df = 0.
