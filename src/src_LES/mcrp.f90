@@ -20,7 +20,7 @@
 module mcrp
 
   use defs, only : alvl, alvi, rowt, pi, Rm, cp, kb, g, vonk
-  use grid, only : dtl, dzt, nxp, nyp, nzp,a_pexnr, a_rp, CCN,     &
+  use grid, only : lev_sb, dtl, dzt, nxp, nyp, nzp,a_pexnr, a_rp, CCN,     &
        a_dn, pi0, a_rt, a_tt, a_rpp, a_rpt, a_npp, a_npt, a_rv, a_rc, a_theta,  &
        a_press, a_temp, a_rsl, precip, a_dn, a_ustar,                  &
        a_naerop,  a_naerot,  a_maerop,  a_maerot,                               &
@@ -68,7 +68,8 @@ contains
 
     select case (level)
     case(0)
-       CALL micro_ice(4)
+       ! Seifert and Beheng microphysics
+       CALL micro_ice(lev_sb)
     case(2)
        IF (sflg) out_mcrp_data(:,:,:,:) = 0.
        if (sed_cloud)  &

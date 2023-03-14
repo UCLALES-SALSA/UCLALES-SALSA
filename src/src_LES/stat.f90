@@ -21,19 +21,20 @@
 module stat
 
   use ncio, only : open_nc, define_nc
-  use grid, only : level, maxn_list
+  use grid, only : level, lev_sb, maxn_list
   use util, only : get_avg3, get_cor3, get_var3, get_avg_ts, get_avg2dh, get_3rd3, &
                    HistDistr, get_zi_dmax, get_max_val, get_pustat_scalar, get_pustat_vector
+  use defs, only : rowt, pi
 
   implicit none
   private
 
   integer, parameter :: nvar1 = 35,               &
-                        nv1_ice = 15,             &
+                        nv1_ice = 22,             &
                         nv1_lvl4 = 5,             &
                         nv1_lvl5 = 12,            &
                         nvar2 = 96,               &
-                        nv2_ice = 12,             &
+                        nv2_ice = 21,             &
                         nv2_lvl4 = 0,             &
                         nv2_lvl5 = 7,             &
                         nv2_hist = 2,             &
@@ -70,10 +71,11 @@ module stat
        'prcp_bc','tkeint ','thl_int','prcc_bc','wvar_bc'/),         & !31
 
        s1_ice(nv1_ice) = (/ &
-       'iwp_bar','imax   ','nice   ','nicnt  ','iprcp  ',  & ! 1-5
-       'swp_bar','smax   ','nscnt  ','sprcp  ',  & ! 6-9
-       'gwp_bar','gmax   ','ngcnt  ','gprcp  ',  & ! 10-13
-       'SSi_max','thi_int'/), & ! 14
+       'iwp_bar','Rice   ','nice   ','nicnt  ','iprcp  ',  & ! 1-5
+       'swp_bar','Rsnow  ','nsnow  ','nscnt  ','sprcp  ',  & ! 6-10
+       'gwp_bar','Rgra   ','ngra   ','ngcnt  ','gprcp  ',  & ! 11-15
+       'hwp_bar','Rhail  ','nhail  ','nhcnt  ','hprcp  ',  & ! 16-20
+       'SSi_max','thi_int'/), & ! 21
 
        ! **** Bulk temporal statistics for SALSA ****
        s1_lvl4(nv1_lvl4) = (/       &
@@ -104,7 +106,9 @@ module stat
 
         s2_ice(nv2_ice)=(/ &
         'ri     ','Ni_ii  ','Ri_ii  ','frac_ii','irate  ', & ! 1
-        'rs     ','frac_is','srate  ','rg     ','frac_ig','grate  ','thi    '/), & ! 6
+        'rs     ','Ns_is  ','Rs_is  ','frac_is','srate  ', & ! 6
+        'rg     ','Ng_ig  ','Rg_ig  ','frac_ig','grate  ', & ! 11
+        'rh     ','Nh_ih  ','Rh_ih  ','frac_ih','hrate  ','thi    '/), & ! 16
 
         ! **** BULK PROFILE OUTPUT FOR SALSA ****
         s2_lvl4(nv2_lvl4), & ! Not used
@@ -156,13 +160,17 @@ module stat
 
   LOGICAL, SAVE :: lbinprof=.FALSE.
 
+  ! Calculating particle sizes (SB microphysics)
+  REAL, DIMENSION(0:4) :: x_min=1e-20, x_max=1., a_geo=(6./(pi*rowt))**(1./3.), b_geo=1./3., eps=1e-20
+  REAL :: ri_min=1e-10, ni_min=1e-10 ! Mass and number limits for ice statistics
+
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
        acc_tend, updtst, sfc_stat, flux_stat, close_stat, fill_scalar, &
        tke_sgs, sgsflxs, sgs_vel, comp_tke, acc_removal, cs_rem_set, csflg, &
        les_rate_stats, mcrp_var_save, out_cs_list, out_ps_list, out_ts_list, &
        cs_include, cs_exclude, ps_include, ps_exclude, ts_include, ts_exclude, &
        out_mcrp_data, out_mcrp_list, out_mcrp_nout, user_cs_list, user_ps_list, &
-       user_ts_list
+       user_ts_list, setSBradius
 
 contains
   !
@@ -194,6 +202,7 @@ contains
     LOGICAL :: s3_bool(nvar3), s3_lvl4_bool(nv3_lvl4), s3_lvl5_bool(nv3_lvl5)
     LOGICAL :: s1_rem_bool(5*(nspec+1))
     LOGICAL :: s2_CldHist_bool(nv2_hist), s2_IceHist_bool(nv2_hist)
+    LOGICAL :: tmp_bool(100)
 
     ! SALSA dimensions
     INTEGER, PARAMETER :: nv2_ndims = 6
@@ -254,8 +263,7 @@ contains
     IF ( level < 4 ) THEN
        ! Merge logical and name arrays
        ! a) Time series
-       i=nvar1+nv1_proc+nv1_user
-       IF (level==0) i=i+nv1_ice
+       i=nvar1+nv1_proc+nv1_user+nv1_ice
        ALLOCATE( s1bool(i), s1total(i) )
        i=1; e=nvar1
        s1bool(i:e)=s1_bool; s1total(i:e)=s1
@@ -267,13 +275,18 @@ contains
           i=e+1; e=e+nv1_user
           s1bool(i:e)=.TRUE.; s1total(i:e)=user_ts_list(1:nv1_user)
        ENDIF
-       IF (level==0) THEN
-          i=e+1; e=e+nv1_ice
-          s1bool(i:e)=.TRUE.; s1total(i:e)=s1_ice(1:nv1_ice)
+       IF (level==0 .AND. lev_sb==5) THEN
+          tmp_bool=.TRUE.
+       ELSEIF (level==0 .AND. lev_sb==4) THEN
+          tmp_bool=.TRUE.
+          tmp_bool((/8,13,16,17,18,19,20/))=.FALSE.
+       ELSE
+          tmp_bool=.FALSE.
        ENDIF
+       i=e+1; e=e+nv1_ice
+       s1bool(i:e)=tmp_bool(1:nv1_ice); s1total(i:e)=s1_ice(1:nv1_ice)
        ! b) Profiles
-       i=nvar2+nv2_proc+nv2_user
-       IF (level==0) i=i+nv2_ice
+       i=nvar2+nv2_proc+nv2_user+nv2_ice
        ALLOCATE( s2bool(i), s2total(i) )
        i=1; e=nvar2
        s2bool(i:e)=s2_bool; s2total(i:e)=s2
@@ -285,10 +298,16 @@ contains
           i=e+1; e=e+nv2_user
           s2bool(i:e)=.TRUE.; s2total(i:e)=user_ps_list(1:nv2_user)
        ENDIF
-       IF (level==0) THEN
-          i=e+1; e=e+nv2_ice
-          s2bool(i:e)=.TRUE.; s2total(i:e)=s2_ice(1:nv2_ice)
+       IF (level==0 .AND. lev_sb==5) THEN
+          tmp_bool=.TRUE.
+       ELSEIF (level==0 .AND. lev_sb==4) THEN
+          tmp_bool=.TRUE.
+          tmp_bool((/7,8,12,13,16,17,18,19,20/))=.FALSE.
+       ELSE
+          tmp_bool=.FALSE.
        ENDIF
+       i=e+1; e=e+nv2_ice
+       s2bool(i:e)=tmp_bool(1:nv2_ice); s2total(i:e)=s2_ice(1:nv2_ice)
        !
        IF (level==0) THEN
            ALLOCATE ( ssclr_ice(nv1_ice), svctr_ice(nzp,nv2_ice) )
@@ -1319,20 +1338,22 @@ contains
   ! subroutine ts_ice: computes and writes time sequence stats
   !
   subroutine ts_ice(n1,n2,n3)
-    USE grid, ONLY : a_rip, a_nip, a_rsp, a_rgp, a_rsi, a_rv, &
-        dzt, a_dn, zm, icein, snowin, grin, a_tp, th0, th00
+    USE grid, ONLY : a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, &
+        a_rsi, a_rv, dzt, a_dn, zm, icein, snowin, grin, hailin, a_tp, th0, th00
     integer, intent (in) :: n1,n2,n3
 
     integer :: i, j, k
-    real    :: scr(n2,n3), rhi(n1,n2,n3)
+    real    :: scr(n2,n3), a1(n1,n2,n3)
     LOGICAL :: mask(n1,n2,n3)
 
     ! Ice water path
     ssclr_ice(1) = get_avg_ts(n1,n2,n3,a_rip,dzt,dens=a_dn)
-    ! Maximum mixing ratios
-    ssclr_ice(2) = get_max_val(n1,n2,n3,a_rip)
-    ! Number concentration - requires mask
-    mask = (a_nip > 1.e-8)
+    ! Mask for number concentration and radius
+    mask = (a_nip > ni_min .OR. a_rip > ri_min)
+    ! Radius
+    CALL getSBradius(n1,n2,n3,a_nip,a_rip,1,a1)
+    ssclr_ice(2) = get_avg_ts(n1,n2,n3,a1,dzt,mask)
+    ! Number concentration
     ssclr_ice(3) = get_avg_ts(n1,n2,n3,a_nip,dzt,mask)
     ! Total number of icy grid cells
     k=COUNT( mask(2:n1,3:n2-2,3:n3-2) )
@@ -1341,27 +1362,42 @@ contains
     scr(:,:) = icein(2,:,:)
     ssclr_ice(5) = get_avg2dh(n2,n3,scr)
 
-    ! The same for snow (no number concentration)
+    ! The same for snow
     ssclr_ice(6) = get_avg_ts(n1,n2,n3,a_rsp,dzt,dens=a_dn)
-    ssclr_ice(7) = get_max_val(n1,n2,n3,a_rsp)
-    mask = (a_rsp > 1.e-8)
+    mask = (a_nsp > ni_min .OR. a_rsp > ri_min)
+    CALL getSBradius(n1,n2,n3,a_nsp,a_rsp,2,a1)
+    ssclr_ice(7) = get_avg_ts(n1,n2,n3,a1,dzt,mask)
+    ssclr_ice(8) = get_avg_ts(n1,n2,n3,a_nsp,dzt,mask)
     k=COUNT( mask(2:n1,3:n2-2,3:n3-2) )
-    ssclr_ice(8) = get_pustat_scalar('sum',REAL(k))
+    ssclr_ice(9) = get_pustat_scalar('sum',REAL(k))
     scr(:,:) = snowin(2,:,:)
-    ssclr_ice(9) = get_avg2dh(n2,n3,scr)
+    ssclr_ice(10) = get_avg2dh(n2,n3,scr)
 
-    ! The same for graupel (no number concentration)
-    ssclr_ice(10) = get_avg_ts(n1,n2,n3,a_rgp,dzt,dens=a_dn)
-    ssclr_ice(11) = get_max_val(n1,n2,n3,a_rgp)
-    mask = (a_rgp > 1.e-8)
+    ! The same for graupel
+    ssclr_ice(11) = get_avg_ts(n1,n2,n3,a_rgp,dzt,dens=a_dn)
+    mask = (a_ngp > ni_min .OR. a_rgp > ri_min)
+    CALL getSBradius(n1,n2,n3,a_ngp,a_rgp,3,a1)
+    ssclr_ice(12) = get_avg_ts(n1,n2,n3,a1,dzt,mask)
+    ssclr_ice(13) = get_avg_ts(n1,n2,n3,a_ngp,dzt,mask)
     k=COUNT( mask(2:n1,3:n2-2,3:n3-2) )
-    ssclr_ice(12) = get_pustat_scalar('sum',REAL(k))
+    ssclr_ice(14) = get_pustat_scalar('sum',REAL(k))
     scr(:,:) = grin(2,:,:)
-    ssclr_ice(13) = get_avg2dh(n2,n3,scr)
+    ssclr_ice(15) = get_avg2dh(n2,n3,scr)
+
+    ! The same for hail
+    ssclr_ice(16) = get_avg_ts(n1,n2,n3,a_rhp,dzt,dens=a_dn)
+    mask = (a_nhp > ni_min .OR. a_rhp > ri_min)
+    CALL getSBradius(n1,n2,n3,a_nsp,a_rsp,4,a1)
+    ssclr_ice(17) = get_avg_ts(n1,n2,n3,a1,dzt,mask)
+    ssclr_ice(18) = get_avg_ts(n1,n2,n3,a_nhp,dzt,mask)
+    k=COUNT( mask(2:n1,3:n2-2,3:n3-2) )
+    ssclr_ice(19) = get_pustat_scalar('sum',REAL(k))
+    scr(:,:) = hailin(2,:,:)
+    ssclr_ice(20) = get_avg2dh(n2,n3,scr)
 
     ! Maximum supersaturation over ice
-    WHERE(a_rsi>1e-10) rhi=a_rv/a_rsi
-    ssclr_ice(14) = (get_max_val(n1,n2,n3,rhi)-1.0)*100.
+    WHERE(a_rsi>1e-10) a1=a_rv/a_rsi
+    ssclr_ice(21) = (get_max_val(n1,n2,n3,a1)-1.0)*100.
 
     ! Integrated ice-liquid water potential temperature - change from th0
     scr = 0.
@@ -1372,7 +1408,7 @@ contains
           end do
        end do
     end do
-    ssclr_ice(15) = get_avg2dh(n2,n3,scr)
+    ssclr_ice(22) = get_avg2dh(n2,n3,scr)
 
   end subroutine ts_ice
   !
@@ -1748,24 +1784,23 @@ contains
   ! SUBROUTINE ACCUM_ice: Accumulates ice statistics.
   !
   subroutine accum_ice(n1,n2,n3)
-    use grid, ONLY : a_nip, a_rip, a_rsp, a_rgp, a_tp, icein, snowin, grin, th00
-    USE defs, ONLY : pi, rowt
+    use grid, ONLY : a_nip, a_rip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, &
+        a_tp, icein, snowin, grin, hailin, th00
     IMPLICIT NONE
 
     integer, intent (in) :: n1,n2,n3
-    real :: a1(n1,n2,n3), col(n1), eps=1e-20
+    real :: a1(n1,n2,n3), col(n1)
     LOGICAL :: mask(n1,n2,n3)
 
     ! Ice mass
     CALL get_avg3(n1,n2,n3,a_rip,col)
     svctr_ice(:,1) = svctr_ice(:,1) + col(:)
     ! Ice number - requires mask
-    mask = (a_nip > 1.e-8)
+    mask = (a_nip > ni_min .OR. a_rip > ri_min)
     CALL get_avg3(n1,n2,n3,a_nip,col,cond=mask)
     svctr_ice(:,2) = svctr_ice(:,2) + col(:)
     ! Ice radius
-    WHERE(mask) a1 = ( 0.75/(pi*rowt)*a_rip/(eps+a_nip) )**(1./3.)
-    !  a1(:,:,:) = ( 0.75/(pi*rowt)*a_rip(:,:,:)/(eps+a_nip(:,:,:)) )**(1./3.)
+    CALL getSBradius(n1,n2,n3,a_nip,a_rip,1,a1)
     CALL get_avg3(n1,n2,n3,a1,col,cond=mask)
     svctr_ice(:,3) = svctr_ice(:,3) + col(:)
     ! Fraction of icy grid cells
@@ -1776,29 +1811,54 @@ contains
     call get_avg3(n1,n2,n3,icein,col)
     svctr_ice(:,5) = svctr_ice(:,5) + col(:)
 
-    ! The same for snow (no number concentration)
+    ! The same for snow
     CALL get_avg3(n1,n2,n3,a_rsp,col)
     svctr_ice(:,6) = svctr_ice(:,6) + col(:)
-    mask = (a_rsp > 1.e-8)
-    a1 = merge(1., 0., mask)
-    CALL get_avg3(n1,n2,n3,a1,col)
+    mask = (a_nsp > ni_min .OR. a_rsp > ri_min)
+    CALL get_avg3(n1,n2,n3,a_nsp,col,cond=mask)
     svctr_ice(:,7) = svctr_ice(:,7) + col(:)
-    call get_avg3(n1,n2,n3,snowin,col)
+    CALL getSBradius(n1,n2,n3,a_nsp,a_rsp,2,a1)
+    CALL get_avg3(n1,n2,n3,a1,col,cond=mask)
     svctr_ice(:,8) = svctr_ice(:,8) + col(:)
-
-    ! The same for graupel (no number concentration)
-    CALL get_avg3(n1,n2,n3,a_rgp,col)
-    svctr_ice(:,9) = svctr_ice(:,9) + col(:)
-    mask = (a_rgp > 1.e-8)
     a1 = merge(1., 0., mask)
     CALL get_avg3(n1,n2,n3,a1,col)
+    svctr_ice(:,9) = svctr_ice(:,9) + col(:)
+    call get_avg3(n1,n2,n3,snowin,col)
     svctr_ice(:,10) = svctr_ice(:,10) + col(:)
-    call get_avg3(n1,n2,n3,grin,col)
+
+    ! The same for graupel
+    CALL get_avg3(n1,n2,n3,a_rgp,col)
     svctr_ice(:,11) = svctr_ice(:,11) + col(:)
+    mask = (a_ngp > ni_min .OR. a_rgp > ri_min)
+    CALL get_avg3(n1,n2,n3,a_nhp,col,cond=mask)
+    svctr_ice(:,12) = svctr_ice(:,12) + col(:)
+    CALL getSBradius(n1,n2,n3,a_ngp,a_rgp,3,a1)
+    CALL get_avg3(n1,n2,n3,a1,col,cond=mask)
+    svctr_ice(:,13) = svctr_ice(:,13) + col(:)
+    a1 = merge(1., 0., mask)
+    CALL get_avg3(n1,n2,n3,a1,col)
+    svctr_ice(:,14) = svctr_ice(:,14) + col(:)
+    call get_avg3(n1,n2,n3,grin,col)
+    svctr_ice(:,15) = svctr_ice(:,15) + col(:)
+
+    ! The same for hail
+    CALL get_avg3(n1,n2,n3,a_rhp,col)
+    svctr_ice(:,16) = svctr_ice(:,16) + col(:)
+    mask = (a_nhp > ni_min .OR. a_rhp > ri_min)
+    CALL get_avg3(n1,n2,n3,a_nhp,col,cond=mask)
+    svctr_ice(:,17) = svctr_ice(:,17) + col(:)
+    CALL getSBradius(n1,n2,n3,a_nhp,a_rhp,4,a1)
+    CALL get_avg3(n1,n2,n3,a1,col,cond=mask)
+    svctr_ice(:,18) = svctr_ice(:,18) + col(:)
+    a1 = merge(1., 0., mask)
+    CALL get_avg3(n1,n2,n3,a1,col)
+    svctr_ice(:,19) = svctr_ice(:,19) + col(:)
+    call get_avg3(n1,n2,n3,hailin,col)
+    svctr_ice(:,20) = svctr_ice(:,20) + col(:)
 
     ! Ice-liquid water potential temperature
     call get_avg3(n1,n2,n3,a_tp,col)
-    svctr_ice(:,12) = svctr_ice(:,12) + (col(:) + th00)
+    svctr_ice(:,21) = svctr_ice(:,21) + (col(:) + th00)
 
   end subroutine accum_ice
 
@@ -2804,6 +2864,40 @@ contains
 
   end subroutine updtst
 
+  ! ----------------------------------------------------------------------
+  ! Subroutines for calculating radius for Seifert & Beheng hydrometeors
+  ! Local parameters:
+  !     REAL, DIMENSION(0:4) :: x_min=1e-20, x_max=1., a_geo=(6./(pi*rowt))**(1./3.), b_geo=1./3., eps=1e-20
+  ! a) Set parameters
+  SUBROUTINE setSBradius(idno,my_x_min,my_x_max,my_a_geo,my_b_geo,my_eps)
+    INTEGER, INTENT(IN) :: idno
+    REAL, INTENT(IN) :: my_x_min,my_x_max,my_a_geo,my_b_geo,my_eps
+    x_min(idno)=my_x_min ! x_min < mass < x_max
+    x_max(idno)=my_x_max
+    a_geo(idno)=my_a_geo ! D=a_geo*(mass/num)**b_geo
+    b_geo(idno)=my_b_geo
+    eps(idno)=my_eps
+  END SUBROUTINE setSBradius
+  ! b) Get radius
+  SUBROUTINE getSBradius(n1,n2,n3,numc,mass,idno,zrad)
+    INTEGER, INTENT(IN) :: n1,n2,n3,idno
+    REAL, DIMENSION(n1,n2,n3), INTENT(IN) :: numc,mass
+    REAL, INTENT(OUT) :: zrad(n1,n2,n3)
+    ! Local parameters
+    INTEGER :: i, j, k
+    REAL :: x_c
+    ! Calculate
+    DO j = 3,n3-2
+        DO i = 3,n2-2
+            DO k = 1,n1
+                ! Mean mass
+                x_c = MIN(MAX(mass(k,i,j)/(numc(k,i,j)+eps(idno)),x_min(idno)),x_max(idno))
+                ! Radius
+                zrad(k,i,j) = 0.5*a_geo(idno)*x_c**b_geo(idno)
+            END DO
+        END DO
+    END DO
+  END SUBROUTINE getSBradius
 
   ! -------------------------------------------------------------------------
   ! Produce 3D outputs for further averaging based on user provided variable name:
