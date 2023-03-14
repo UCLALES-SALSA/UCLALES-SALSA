@@ -876,7 +876,7 @@ MODULE mo_salsa_coagulation_processes
                DO ii = 1,kbdim
                   IF (trgtphase == 3 .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim ) THEN
                      
-                     ! Drop fracturing: large drops collected by small ice; Possible for all parameterizations
+                     ! Drop fracturing: large drops collected by small ice; Possible for all drop fragment parameterizations
                      IF ( coll(ii,jj,ll)%dwet < precp(ii,jj,itrgt)%dwet .AND. precp(ii,jj,itrgt)%dwet > dlliq_df .AND.  &    ! SWITCH dlice_df -> precp%dwet
                           precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN                  
                         nfrzn_df(ii,jj,itrgt,ll) = nfrzn_df(ii,jj,itrgt,ll) +      &
@@ -894,7 +894,7 @@ MODULE mo_salsa_coagulation_processes
                      END IF
 
                      ! Hallet-Mossop with precp
-                     IF ( coll(ii,jj,ll)%dwet > dlice_rs .AND. precp(ii,jj,itrgt)%dwet < dlliq_rs .AND.  &
+                     IF ( coll(ii,jj,ll)%dwet > precp(ii,jj,itrgt)%dwet  .AND. coll(ii,jj,ll)%dwet > dlice_rs .AND.   &
                           precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim ) THEN
                         nfrzn_rs(ii,jj,itrgt,ll) = nfrzn_rs(ii,jj,itrgt,ll) +      &
                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc*   &
@@ -921,7 +921,7 @@ MODULE mo_salsa_coagulation_processes
                      END IF
 
                      ! Hallet-Mossop with cloud droplets
-                     IF (coll(ii,jj,ll)%dwet > dlice_rs .AND. cloud(ii,jj,itrgt)%dwet < dlliq_rs .AND.  &
+                     IF ( coll(ii,jj,ll)%dwet > cloud(ii,jj,itrgt)%dwet  .AND. coll(ii,jj,ll)%dwet > dlice_rs .AND.  &
                          cloud(ii,jj,itrgt)%numc > cloud(ii,jj,itrgt)%nlim ) THEN
                         nfrzn_rs(ii,jj,1,ll) = nfrzn_rs(ii,jj,1,ll) +      &   !!! CHECK BINNING, THIS WILL BE WRONG!
                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc*   &
@@ -1271,8 +1271,21 @@ MODULE mo_salsa_coagulation_processes
                              zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*ice(ii,jj,itrgt)%numc*rhocoll * fix_coag(ii,jj)
                      END IF
 
+                     ! Drop fracturing: drop collected by more massive ice; Possible for the full 2-mode Phillips et al
+                     IF ( lssipdropfrac%mode==3 .AND. &
+                          ice(ii,jj,itrgt)%dwet >= coll(ii,jj,ll)%dwet .AND. coll(ii,jj,ll)%dwet > dlliq_df .AND.  &   
+                          coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim .AND. ice(ii,jj,itrgt)%numc > ice(ii,jj,itrgt)%nlim ) THEN
+                        IF (coll(ii,jj,ll)%phase == 3) THEN
+                           ix = ll
+                        ELSE IF (coll(ii,jj,ll)%phase == 2) THEN
+                           ix = 1            ! CHECK THIS BINNING, GET FROM ACTUAL DWET IN CASE OF CLOUD DROPS??
+                        END IF
+                        mfrzn_df(ii,jj,ix,itrgt) = mfrzn_df(ii,jj,ix,itrgt) +     &
+                              zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%volc(iwa)*ice(ii,jj,itrgt)%numc*rhocoll * fix_coag(ii,jj)
+                     END IF
+
                      ! Hallet-Mossop: small drops collected by large ice
-                     IF ( ice(ii,jj,itrgt)%dwet > dlice_rs .AND. coll(ii,jj,ll)%dwet < dlliq_rs ) THEN
+                     IF ( ice(ii,jj,itrgt)%dwet > dlice_rs .AND. coll(ii,jj,ll)%dwet < ice(ii,jj,itrgt)%dwet ) THEN
                         IF (coll(ii,jj,ll)%phase == 3) THEN
                            ix = ll
                         ELSE IF (coll(ii,jj,ll)%phase ==2 ) THEN

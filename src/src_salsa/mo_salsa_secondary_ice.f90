@@ -23,21 +23,16 @@ MODULE mo_salsa_secondary_ice
   REAL :: dlliq_df = 100.e-6          ! Min droplet diameter for drop fracturing. Ice is expected to be more massive
                                    ! than the freezing drop.
 
-  REAL :: dlice_rs = 50.e-6,   &  ! Min diameter for ice in hallet-mossop
-          dlliq_rs = 500.e-6      ! Max diameter for liquid in Hallet mossop; check appropriate value!!
+  REAL :: dlice_rs = 100.e-6,   &  ! Min diameter for ice in hallet-mossop
+          dlliq_rs = 2000.e-6      ! Max diameter for liquid in Hallet mossop; check appropriate value!!
 
   
-  ! Diameter limit for ice and liquid bins. For Hallet-Mossop, require ice bin diameter > dlimit
-  ! and frozen drop diameter < dlimit. For drop fracturing, ice bin diameter < dlimit and frozen
-  ! drop diameter > dlimit. This is similar to Qu et al. (2022) and avoids overlap between the
-  ! two processes
-  !REAL, PARAMETER :: dlimit = 100.e-6   
   
   CONTAINS
 
     SUBROUTINE rimesplintering(kbdim,kproma,klev,nspec,ptemp,ptstep)
       USE mo_salsa_types, ONLY : ice,cloud,precp, rateDiag
-      USE mo_submctl, ONLY : nice, pi6, spec, icebins
+      USE mo_submctl, ONLY : nprc,nice, pi6, spec, icebins
       ! The Hallet-Mossop secondary ice production by rime splintering
       INTEGER, INTENT(in) :: kbdim,kproma,klev,nspec  ! nspec should contain active compounds + rime
       REAL, INTENT(in) :: ptemp(kbdim,klev)
@@ -50,20 +45,21 @@ MODULE mo_salsa_secondary_ice
       REAL :: fragvolc(kbdim,klev,nice,nspec), sinkvolc(kbdim,klev,nice,nspec) ! Volume to be added and removed
       REAL :: fragnumc(kbdim,klev,nice)
       
-      INTEGER :: ii,jj,bb
+      INTEGER :: ii,jj,bb,cc
       REAL :: dN  ! Number of splintered rime
       REAL :: dV  ! Mass of splintered rime
       INTEGER :: iwa, iri,ndry
       LOGICAL :: lt13umgt25um(kbdim,klev)
       INTEGER :: splbin  ! Target bin for splinters
+      REAL :: ddrop ! Freezing drop diameter
       
-!!      iwa = spec%getIndex("H2O")
-!!      iri = spec%getIndex("rime")
-!!      ndry = spec%getNSpec(type="dry")
+      iwa = spec%getIndex("H2O")
+      iri = spec%getIndex("rime")
+      ndry = spec%getNSpec(type="dry")
       
       ! Convert freezing rates to changes over timestep
-!!      mfrzn_rs = mfrzn_rs * ptstep
-!!      nfrzn_rs = nfrzn_rs * ptstep
+      mfrzn_rs = mfrzn_rs * ptstep
+      nfrzn_rs = nfrzn_rs * ptstep
       
       ! Mask for where there are suitable size droplets present, i.e. smaller than 13um and larger than 25um
       ! The coagulation should have already been applied to the liquid bins, but with short timestep this is
@@ -80,74 +76,82 @@ MODULE mo_salsa_secondary_ice
 !!      END DO
 
       ! Assuming splinter diameter as Dsplint, find the corresponding ice bin
-!!      splbin = MAX( COUNT(icebins < Dsplint), 1 )      
+      splbin = MAX( COUNT(icebins < Dsplint), 1 )      
 
       ! Initialize arrays
-!!      fragvolc = 0.; sinkvolc = 0.
-!!      fragnumc = 0.
+      fragvolc = 0.; sinkvolc = 0.
+      fragnumc = 0.
       
-!!      DO bb = 1,nice
-!!         DO jj = 1,klev
-!!            DO ii = 1,kproma
+      DO bb = 1,nice
+         DO jj = 1,klev
+            DO ii = 1,kproma
+               DO cc = 1,nprc
 
-!!               IF ( nfrzn_rs(ii,jj,bb) > 0. .AND. ice(ii,jj,bb)%volc(iri) > 0. .AND. lt13umgt25um(ii,jj) ) THEN
-!!                  dN = 0.
-!!                  ! Number of generated splinters. The maximum rate is at 268.16 K
-!!                  IF ( ptemp(ii,jj) < tmax .AND. ptemp(ii,jj) >= tmid ) THEN                     
-!!                     dN = c1 * mfrzn_rs(ii,jj,bb) * (tmax - ptemp(ii,jj))/(tmax-tmid) ! linear slope across the temp range                     
-!!                  ELSE IF ( ptemp(ii,jj) < tmid .AND. ptemp(ii,jj) >= tmin ) THEN                     
-!!                     dN = c1 * mfrzn_rs(ii,jj,bb) * (ptemp(ii,jj) - tmin)/(tmid-tmin)                     
-!!                  END IF
+                  IF ( ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR.  &    ! Outside temperature range, see Keinert et al 2020
+                       nfrzn_rs(ii,jj,cc,bb) < 1.e-6 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-23 .OR. &
+                       ice(ii,jj,bb)%numc < ice(ii,jj,bb)%nlim ) CYCLE ! no collection/empty bin
+
+
+                  ! Diameter of the frozen drops on current ice bin
+                  ddrop = (mfrzn_rs(ii,jj,cc,bb)/nfrzn_rs(ii,jj,cc,bb)/spec%rhowa/pi6)**(1./3.)
+
+                  ! Require freezing drop diameter to be larger than 25um
+                  IF (ddrop < 25.e-6) CYCLE
+
+                  dN = 0.
+                  ! Number of generated splinters. The maximum rate is at 268.16 K
+                  IF ( ptemp(ii,jj) < tmax .AND. ptemp(ii,jj) >= tmid ) THEN                     
+                     dN = c1 * mfrzn_rs(ii,jj,cc,bb) * (tmax - ptemp(ii,jj))/(tmax-tmid) ! linear slope across the temp range                     
+                  ELSE IF ( ptemp(ii,jj) < tmid .AND. ptemp(ii,jj) >= tmin ) THEN                     
+                     dN = c1 * mfrzn_rs(ii,jj,cc,bb) * (ptemp(ii,jj) - tmin)/(tmid-tmin)                     
+                  END IF
 
                   ! This will assume that the splinters consist of frozen spheres 10 um in diameter.
-!!                  dV = dN*pi6*Dsplint**3
-
-!!                  IF (ice(ii,jj,bb)%volc(iri) < dV) WRITE(*,*) "SECICE HM FAIL " 
+                  dV = dN*pi6*Dsplint**3
 
                   ! Allocate the fragments to temporary ice bins 
-!!                  fragnumc(ii,jj,splbin) = fragnumc(ii,jj,splbin) + dN
+                  fragnumc(ii,jj,splbin) = fragnumc(ii,jj,splbin) + dN
                      
-!!                  fragvolc(ii,jj,splbin,1:nspec) = fragvolc(ii,jj,splbin,1:nspec) +     &
-!!                       ice(ii,jj,bb)%volc(1:nspec)*MIN( dV/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )                  
+                  fragvolc(ii,jj,splbin,1:nspec) = fragvolc(ii,jj,splbin,1:nspec) +     &
+                       ice(ii,jj,bb)%volc(1:nspec)*MIN( dV/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )                  
 
-!!                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) +   &
-!!                       ice(ii,jj,bb)%volc(1:nspec)* MIN( dV/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )  
+                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) +   &
+                       ice(ii,jj,bb)%volc(1:nspec)*MIN( dV/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )  
                 
                   ! Secondary ice diagnostics
-!!                  ice(ii,jj,1)%SIP_rmspl = ice(ii,jj,1)%SIP_rmspl + dN                  
-!!                  CALL rateDiag%rmsplrate%Accumulate(n=dN/ptstep)
+                  ice(ii,jj,1)%SIP_rmspl = ice(ii,jj,1)%SIP_rmspl + dN                  
+                  CALL rateDiag%rmsplrate%Accumulate(n=dN/ptstep)
 
-!!               END IF
-                  
-!!            END DO
-!!         END DO
-!!      END DO
+               END DO
+            END DO
+         END DO
+      END DO
            
       ! Apply changes to bins
-!!      DO bb = 1,nice
-!!         DO jj = 1,klev
-!!            DO ii = 1,kproma
+      DO bb = 1,nice
+         DO jj = 1,klev
+            DO ii = 1,kproma
 !!               IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'fragnumc < 0'
 !!               IF (ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'fragvolc < 0'
                
-!!               ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
-!!               ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) + fragvolc(ii,jj,bb,1:nspec)
-!!               ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
+               ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
+               ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) + fragvolc(ii,jj,bb,1:nspec)
+               ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
 !!               IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
 !!                    WRITE(*,*) 'RIME SPLNT NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
-!!            END DO
-!!         END DO
-!!      END DO
+            END DO
+         END DO
+      END DO
       
       ! IMPORTANT: Reset the collection tracking arrays
       mfrzn_rs = 0.
       nfrzn_rs = 0.
       
-    END SUBROUTINE rimesplintering
+   END SUBROUTINE rimesplintering
 
     ! -------
 
-    SUBROUTINE dropfracturing(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
+   SUBROUTINE dropfracturing(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
       USE mo_salsa_types, ONLY : ice, rateDiag
       USE mo_submctl, ONLY : nprc, nice, pi6, spec, icebins, lssipdropfrac
       !
