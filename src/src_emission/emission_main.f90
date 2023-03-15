@@ -153,11 +153,13 @@ MODULE emission_main
       WRITE(*,*) '========================'
     END IF
 
-    ASSOCIATE( k1 => emd%emitLevMin, k2 => emd%emitLevMax )
+    ASSOCIATE( k1 => emd%emitLevMin, k2 => emd%emitLevMax,   &
+               x1 => emd%emitXmin, x2 => emd%emitXmax,       &
+               y1 => emd%emitYmin, y2 => emd%emitYmax )
     
       DO bb = 1,nbins
-         DO j = 1,nyp
-            DO i = 1,nxp
+         DO j = y1,y2
+            DO i = x1,x2
                DO k = k1,k2
 
                   ! With level 5 using the contact angle distribution for ice nucletion, update the
@@ -179,7 +181,6 @@ MODULE emission_main
                      END IF
                   END IF
                   ! --------------------------------------------------------------------------------
-
 
                   ! Emission contribution to number concentration
                   a_naerot%d(k,i,j,bb) = a_naerot%d(k,i,j,bb) + edt%numc(bb)

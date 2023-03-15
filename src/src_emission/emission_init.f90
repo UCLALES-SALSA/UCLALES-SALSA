@@ -7,7 +7,7 @@ MODULE emission_init
   USE mo_salsa_sizedist, ONLY : size_distribution
   USE util, ONLY : smaller, getMassIndex, closest, arr_resize
   USE exceptionHandling, ONLY : errorMessage
-  USE grid, ONLY : deltax, deltay
+  USE grid, ONLY : deltax, deltay,nxp,nyp
   USE mpi_interface, ONLY : myid
   IMPLICIT NONE
 
@@ -149,10 +149,12 @@ MODULE emission_init
       REAL    :: maxf
       
       
-      ASSOCIATE( emitLevMin => emd%emitLevMin,       &
-                 emitLevMax => emd%emitLevMax,       &
-                 emitHeightMin => emd%emitHeightMin, &
-                 emitHeightMax => emd%emitHeightMax  )
+      ASSOCIATE( emitLevMin => emd%emitLevMin,                        &
+                 emitLevMax => emd%emitLevMax,                        &
+                 emitHeightMin => emd%emitHeightMin,                  &
+                 emitHeightMax => emd%emitHeightMax,                  &
+                 emitXmin => emd%emitXmin, emitXmax => emd%emitXmax,  &  
+                 emitYmin => emd%emitYmin, emitYmax => emd%emitYmax)
         
         ! At least one of the height or level definitions in the emitConfig must be specified
         IF ( ALL( [emitLevMin, emitLevMax] == -999 ) .AND.  &
@@ -189,6 +191,16 @@ MODULE emission_init
            
         END IF
         
+        ! Lateral limits
+        IF (emitXmin < 0) emitXmin = 1
+        IF (emitYmin < 0) emitYmin = 1
+        IF (emitXmax < 0) emitXmax = nxp
+        IF (emitYmax < 0) emitYmax = nyp
+        emitXmin = MAX(MIN(emitXmin, nxp), 1)
+        emitXmax = MAX(MIN(emitXmax, nxp), 1)
+        emitYmin = MAX(MIN(emitYmin, nyp), 1)
+        emitYmax = MAX(MIN(emitYmax, nyp), 1)
+
       END ASSOCIATE
       
   END SUBROUTINE init_emission_heights
