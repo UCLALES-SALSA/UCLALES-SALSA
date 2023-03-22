@@ -43,7 +43,7 @@ module mcrp_ice
        iriming_ice_cloud=18, iriming_snow_cloud=19, iriming_grp_cloud=20, &
        iriming_ice_rain=21, iriming_snow_rain=22,iriming_grp_rain=23
   integer, dimension(23) :: microseq = (/1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23/)
-  real :: nin_set = 1.7e3
+  real :: nin_set = 0.
   !
   ! drop sizes definition is based on vanZanten (2005)
   ! cloud droplets' diameter: 2-50 e-6 m
@@ -886,7 +886,7 @@ contains
     integer :: k
     REAL :: nuc_r, nuc_n
     do k=1,n1
-        if (s_i(k) > 0.05 .AND. rc(k)>0.001e-3 .AND. nin(k)*ice%x_min>rthres) then
+        if (s_i(k) > 0.0 .AND. rc(k)>0.001e-3 .AND. nin(k)*ice%x_min>rthres) then
             nuc_n = nin(k) ! Number based on the fixed IN concentration
             nuc_r = MIN(rc(k), nuc_n*ice%x_min) ! Start with the lowest mass
             ! Note: x_min=1e-12, so there is always enough condensate (up to an ice concentration of 1000 #/L)

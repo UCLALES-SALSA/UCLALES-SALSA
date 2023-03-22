@@ -155,12 +155,6 @@ module mcrp_ice_sb
   REAL, PARAMETER :: T_nuc     = 273.2e+0 ! Temperatur ab der Eisnukleation einsetzt
   REAL, PARAMETER :: T_freeze  = 273.2e+0 ! Temperatur ab der Gefrieren einsetzt
 
-  LOGICAL, PARAMETER          :: use_mu_Dm_rain_evap = .TRUE.
-
-  ! ub: neue Parametrisierung des Gefrierens von Regen 
-  ! (Aufteilung in Eis und Hagel anstelle nur Hagel):
-  LOGICAL, PARAMETER          :: use_rain_freeze_uli = .TRUE.
-
   ! ub: Schalter, ob Konversion von ice und snow nur dann zu graupel 
   ! (gesteuert durch alpha_spacefilling), 
   ! wenn die riming-rate groesser als die Depositionsrate ist 
@@ -181,9 +175,11 @@ module mcrp_ice_sb
 
   LOGICAL                              :: enhanced_melting   = .TRUE.
 
+  LOGICAL                              :: drop_freeze = .TRUE.
+
   INTEGER                              :: ice_typ,nuc_i_typ,nuc_c_typ,cloud_typ
 
-  REAL                                 :: nin_set = 1.7e3
+  REAL                                 :: nin_set = 0.
 
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_04
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_c
@@ -299,10 +295,11 @@ CONTAINS
   SUBROUTINE init_seifert( )
     IMPLICIT NONE
     INTEGER :: mu_Dm_rain_typ, io, istat
+    TYPE(PARTICLE) :: cldw ! Temporary cloud to match with level 4
     namelist /micro/ &
-        graupel_shedding, hail_shedding, enhanced_melting, ice_multiplication, &
+        drop_freeze, graupel_shedding, hail_shedding, enhanced_melting, ice_multiplication, &
         ice_typ, nuc_i_typ, nuc_c_typ, cloud_typ, nin_set, &
-        cloud,rain,ice,snow,graupel
+        cldw,rain,ice,snow,graupel
 
     ! Default wolke_typ = 2403 = (ice_typ, nuc_i_typ, nuc_c_typ, cloud_typ)
     ! a) Warm clouds
@@ -322,7 +319,7 @@ CONTAINS
     !  1-7  Different INP concentration parameterizations applied to supercooled liquid clouds
 
     ! Default cloud, rain, ice, snow, graupel and hail
-    cloud = PARTICLE('cloud',  & !.name...Bezeichnung der Partikelklasse
+    cldw = PARTICLE('cloud',  & !.name...Bezeichnung der Partikelklasse
         1.000000, & !.nu.....Breiteparameter der Verteil.
         1.000000, & !.mu.....Exp.-parameter der Verteil.
         2.60e-10, & !.x_max..maximale Teilchenmasse D=80e-6m
@@ -452,6 +449,9 @@ CONTAINS
         read(io,nml=micro)
         close(io)
     ENDIF
+
+    ! Level 5 cloud
+    cloud = cldw
 
   END SUBROUTINE init_seifert
 
@@ -1029,8 +1029,8 @@ CONTAINS
     ! ub>>
     IF (use_ice_graupel_conv_uli) THEN
       ALLOCATE( deprate_ice(0:loc_ix,1:loc_iy,1:loc_iz), &
-           deprate_snow(0:loc_ix,1:loc_iy,1:loc_iz) )
-      ALLOCATE( rimeqcrate_ice(0:loc_ix,1:loc_iy,1:loc_iz), &
+           deprate_snow(0:loc_ix,1:loc_iy,1:loc_iz), &
+           rimeqcrate_ice(0:loc_ix,1:loc_iy,1:loc_iz), &
            rimencrate_ice(0:loc_ix,1:loc_iy,1:loc_iz), &
            rimeqirate_ice(0:loc_ix,1:loc_iy,1:loc_iz), &
            rimeqrrate_ice(0:loc_ix,1:loc_iy,1:loc_iz), &
@@ -1085,21 +1085,13 @@ CONTAINS
     ! ub>>
     IF (use_ice_graupel_conv_uli) THEN
       DEALLOCATE(deprate_ice,deprate_snow,&
-           rimeqcrate_ice,&
-           rimencrate_ice,&
-           rimeqirate_ice,&
-           rimeqrrate_ice,&
+           rimeqcrate_ice,rimencrate_ice,&
+           rimeqirate_ice,rimeqrrate_ice,&
            rimenrrate_ice,&
-           rimeqcrate_snow,&
-           rimencrate_snow,&
-           rimeqirate_snow,&
-           rimeqrrate_snow,&
-           rimenrrate_snow,&
-           d_id_sp,&
-           d_sd_sp,&
-           d_rd_sp_ice,&
-           d_rd_sp_snow &
-           )
+           rimeqcrate_snow,rimencrate_snow,&
+           rimeqirate_snow,rimeqrrate_snow,&
+           rimenrrate_snow, &
+           d_id_sp, d_sd_sp, d_rd_sp_ice, d_rd_sp_snow)
     END IF
     ! ub>>
     IF (sflg) DEALLOCATE( out_mcrp_data,tmp_rv,tmp_rc,tmp_nr,tmp_rr,&
@@ -1135,15 +1127,18 @@ CONTAINS
     DO k = 1, loc_iz
       DO j = 1, loc_iy
         DO i = 0, loc_ix
-          IF (T_0(i,j,k) < T_nuc .AND. s_i(i,j,k) > 0.0) THEN
-            nuc_n = 0.0
-            IF (nuc_typ == 0) THEN
-              ndiag = nin_set
-              nuc_n = MAX( ndiag - (n_ice(i,j,k)+n_snow(i,j,k)),0.0)
-            ELSEIF (nuc_typ < 8) THEN
-              ndiag = n_ice_diagnostic(T_0(i,j,k),MIN(s_i(i,j,k),0.25e0),nuc_typ)
-              nuc_n = MAX( ndiag - (n_ice(i,j,k)+n_snow(i,j,k)),0.0)
-            ENDIF
+          IF (nuc_typ==0 .AND. s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3) THEN
+            ! Cloud droplet freezing with fixed INP concentration
+            ndiag = MAX(nin_set*rho_0(i,j,k) - (n_ice(i,j,k)+n_snow(i,j,k)),0.0)
+            nuc_q = MIN(ndiag*ice%x_min, q_cloud(i,j,k))
+
+            q_ice(i,j,k) = q_ice(i,j,k) + nuc_q
+            n_ice(i,j,k) = n_ice(i,j,k) + nuc_q/ice%x_min
+            q_cloud(i,j,k) = q_cloud(i,j,k) - nuc_q
+            n_cloud(i,j,k) = n_cloud(i,j,k) - nuc_q/cloud%x_max
+          ELSEIF (0 < nuc_typ .AND. nuc_typ < 8 .AND. T_0(i,j,k) < T_nuc .AND. s_i(i,j,k) > 0.0) THEN
+            ndiag = n_ice_diagnostic(T_0(i,j,k),MIN(s_i(i,j,k),0.25e0),nuc_typ)
+            nuc_n = MAX( ndiag - (n_ice(i,j,k)+n_snow(i,j,k)),0.0)
 
             nuc_q = MIN(nuc_n * ice%x_min, q(i,j,k))
             !nuc_n = nuc_q / ice%x_min                !AXEL 20040416
@@ -1151,7 +1146,6 @@ CONTAINS
             n_ice(i,j,k) = n_ice(i,j,k) + nuc_n
             q_ice(i,j,k) = q_ice(i,j,k) + nuc_q
             q(i,j,k)     = q(i,j,k)     - nuc_q
-
           ENDIF
         ENDDO
       ENDDO
@@ -4797,6 +4791,8 @@ CONTAINS
     REAL, SAVE      :: c_r               !..Koeff. fuer mittlere Kapazitaet
     REAL, SAVE      :: a_q,b_q   !..Koeff. fuer mittleren Ventilationkoeff.
 
+    LOGICAL, PARAMETER :: use_mu_Dm_rain_evap = .TRUE.
+
     REAL, PARAMETER :: aa = 9.65e+00     ! in SI [m/s]
     REAL, PARAMETER :: bb = 1.03e+01     ! in SI [m/s]
     REAL, PARAMETER :: cc = 6.00e+02     ! in SI [1/m]
@@ -5394,7 +5390,7 @@ CONTAINS
       IF (sflg) CALL sb_var_stat('nucl') ! Ice nucleation
 
       ! Gefrieren der Wolkentropfen:
-      CALL cloud_freeze ()
+      IF (drop_freeze) CALL cloud_freeze ()
       IF (sflg) CALL sb_var_stat('frez') ! Cloud freezing
 
       CALL vapor_dep_relaxation(dt)
@@ -5423,7 +5419,6 @@ CONTAINS
       ENDIF
 
       IF (.NOT. use_ice_graupel_conv_uli) THEN 
-
         ! Old SB2006 scheme
 
         CALL ice_cloud_riming ()
@@ -5438,12 +5433,8 @@ CONTAINS
         IF (ice_typ > 1) CALL hail_rain_riming ()
 
       ELSE
-
         ! new scheme
 
-        ! in diesem Falle ist eine Umstellung der Reihenfolge sinnvoll, um moeglichst
-        ! einfach die positive Definitheit sicherzustellen:
-        
         ! Bereifen mit Wolkentropfen
         CALL ice_cloud_riming ()
         CALL snow_cloud_riming ()
@@ -5465,14 +5456,12 @@ CONTAINS
 
       ! Gefrieren der Regentropfen:
 
-      IF (use_rain_freeze_uli) THEN
-        ! new freezing scheme
-        ! with a partitioning into ice/graupel/hail
-!        CALL rain_freeze ()
+      IF (drop_freeze) THEN
+        ! new freezing scheme with a partitioning into ice/graupel/hail
         CALL rain_freeze_gamlook ()
-      ELSE
+        !CALL rain_freeze ()
         ! simpler SB2006 rain-to-graupel freezing scheme
-        CALL rain_freeze_old ()
+        !CALL rain_freeze_old ()
       END IF
       IF (sflg) CALL sb_var_stat('frez') ! Rain freezing
 
@@ -5666,15 +5655,9 @@ CONTAINS
       INTEGER          :: i, j, k
       REAL :: au, dt_cau, q_c
 
-      REAL, ALLOCATABLE, DIMENSION(:,:,:) :: rate_n,rate_q
-
-      ALLOCATE(rate_n(0:loc_ix,1:loc_iy,1:loc_iz),rate_q(0:loc_ix,1:loc_iy,1:loc_iz))
-
       !..Skalar-Initialisierung
       dt_cau = dt * C_au
 
-      rate_q = 0.0
-      rate_n = 0.0
       !..Autoconversionrate nach Kessler
       DO k = 1, loc_iz
         DO j = 1, loc_iy
@@ -5686,20 +5669,14 @@ CONTAINS
               au = MIN(q_c,au)
 
               !..Berechnung der H_2O-Komponenten
-              rate_n(i,j,k)  = au / x_s
-              rate_q(i,j,k)  = au
+              n_rain(i,j,k)  = n_rain(i,j,k)  + au / x_s
+              q_rain(i,j,k)  = q_rain(i,j,k)  + au
+              n_cloud(i,j,k) = n_cloud(i,j,k) - au / x_s * 2.0
+              q_cloud(i,j,k) = q_cloud(i,j,k) - au
             ENDIF
           END DO
         END DO
       END DO
-
-      !..Zeitintegration
-      n_rain  = n_rain  + rate_n 
-      q_rain  = q_rain  + rate_q
-      n_cloud = n_cloud - rate_n * 2.0
-      q_cloud = q_cloud - rate_q
-
-      DEALLOCATE(rate_n,rate_q)
 
     END SUBROUTINE autoconversionKS
 
@@ -5720,11 +5697,6 @@ CONTAINS
       INTEGER          :: i, j, k
       REAL :: ac,n_c,L_c,x_c,L_r
 
-      REAL, ALLOCATABLE, DIMENSION(:,:,:) :: rate_q,rate_n
-
-      ALLOCATE(rate_n(0:loc_ix,1:loc_iy,1:loc_iz),rate_q(0:loc_ix,1:loc_iy,1:loc_iz))
-      rate_n = 0.0
-      rate_q = 0.0
       !..Akkreszenzrate nach Kessler (siehe Dotzek, 1999, p. 39)
       DO k = 1, loc_iz
         DO j = 1, loc_iy
@@ -5739,19 +5711,13 @@ CONTAINS
               ac = MIN(L_c,ac)
 
               x_c = MIN(MAX(L_c/(N_c+eps),cloud%x_min),cloud%x_max) !..mittlere Masse in SI
-              rate_q(i,j,k)  = ac
-              rate_n(i,j,k)  = ac / x_c
+              q_rain(i,j,k)  = q_rain(i,j,k)  + ac
+              q_cloud(i,j,k) = q_cloud(i,j,k) - ac
+              n_cloud(i,j,k) = n_cloud(i,j,k) - ac / x_c
             ENDIF
           END DO
         END DO
       END DO
-
-      !..Zeitintegration
-      q_rain  = q_rain  + rate_q
-      q_cloud = q_cloud - rate_q
-      n_cloud = n_cloud - rate_n
-
-      DEALLOCATE(rate_n,rate_q)
 
     END SUBROUTINE accretionKS
 
@@ -5818,12 +5784,6 @@ CONTAINS
     REAL :: q_c, q_r, n_c, x_c, nu, mu, &
          & tau, phi, k_au, k_sc, x_s, au, sc, k_c, k_1, k_2
 
-    REAL, ALLOCATABLE, DIMENSION(:,:,:) :: rate_nc,rate_nr,rate_q
-
-    ALLOCATE(rate_q(0:loc_ix,1:loc_iy,1:loc_iz))
-    ALLOCATE(rate_nr(0:loc_ix,1:loc_iy,1:loc_iz))
-    ALLOCATE(rate_nc(0:loc_ix,1:loc_iy,1:loc_iz))
-
     !..Skalar-Initialisierung
 
     IF (cloud_typ <= 3) THEN
@@ -5864,10 +5824,6 @@ CONTAINS
       k_sc = k_c * moment_gamma(cloud,2)
     ENDIF
 
-    rate_q  = 0.0
-    rate_nc = 0.0
-    rate_nr = 0.0
-
     !..Parametrisierung nach Seifert und Beheng (2000)
     DO k = 1, loc_iz
       DO j = 1, loc_iy
@@ -5876,11 +5832,7 @@ CONTAINS
           IF (q_c > eps) THEN
             n_c = n_cloud(i,j,k)                                  !..Anzahldichte
             q_r = q_rain(i,j,k)                                   !..Fluessigwassergehalt
-            IF (nuc_c_typ .EQ. 0) THEN
-              x_c = q_c/qnc_const
-            ELSE
-              x_c = MIN(MAX(q_c/(n_c+eps),cloud%x_min),cloud%x_max) !..mittlere Masse in SI
-            end if
+            x_c = MIN(MAX(q_c/(n_c+eps),cloud%x_min),cloud%x_max) !..mittlere Masse in SI
 
             !..Berechnung der Autokonversionsrate nach SB2000
             !au  =  k_au * q_c**2 * x_c**2 * dt 
@@ -5895,22 +5847,15 @@ CONTAINS
             !sc = k_sc * q_c**2 * dt 
             sc = k_sc * q_c**2 * dt * rrho_c(i,j,k)
 
-            rate_q(i,j,k)  = au
-            rate_nr(i,j,k) = au / x_s
-            rate_nc(i,j,k) = MIN(n_c,sc)     !..Selfcollection und Autokonversion
+            q_rain(i,j,k) = q_rain(i,j,k) + au
+            n_rain(i,j,k) = n_rain(i,j,k)  + au / x_s
+            n_cloud(i,j,k) = n_cloud(i,j,k) - MIN(n_c,sc)
+            q_cloud(i,j,k) = q_cloud(i,j,k) - au
 
           ENDIF
         END DO
       END DO
     END DO
-
-    !..Zeitintegration
-    n_rain  = n_rain  + rate_nr 
-    q_rain  = q_rain  + rate_q
-    n_cloud = n_cloud - rate_nc
-    q_cloud = q_cloud - rate_q
-
-    DEALLOCATE(rate_nr,rate_nc,rate_q)
 
   END SUBROUTINE autoconversionSB
 
@@ -5936,13 +5881,7 @@ CONTAINS
     REAL :: ac
     REAL :: L_c, L_r, tau, phi, n_c, x_c
 
-    REAL, ALLOCATABLE, DIMENSION(:,:,:) :: rate_q,rate_n
-
-    ALLOCATE(rate_n(0:loc_ix,1:loc_iy,1:loc_iz),rate_q(0:loc_ix,1:loc_iy,1:loc_iz))
-
     x_c  = 4./3. * pi * rho_w * r_c**3     !..Mittlere Masse der Wolkentropfen
-    rate_n = 0.0
-    rate_q = 0.0
 
     !..Parametrisierung nach Seifert und Beheng (2001)
     DO k = 1, loc_iz
@@ -5963,19 +5902,14 @@ CONTAINS
             ac = MIN(L_c,ac)
 
             x_c = MIN(MAX(L_c/(n_c+eps),cloud%x_min),cloud%x_max)
-            rate_q(i,j,k)  = ac
-            rate_n(i,j,k)  = MIN(n_c,ac/x_c)
+
+            q_rain(i,j,k)  = q_rain(i,j,k)  + ac
+            q_cloud(i,j,k) = q_cloud(i,j,k) - ac
+            n_cloud(i,j,k) = n_cloud(i,j,k) - MIN(n_c,ac/x_c)
           ENDIF
         END DO
       END DO
     END DO
-
-    !..Zeitintegration
-    q_rain  = q_rain  + rate_q
-    q_cloud = q_cloud - rate_q
-    n_cloud = n_cloud - rate_n
-
-    DEALLOCATE(rate_n,rate_q)
 
   END SUBROUTINE accretionSB
 
@@ -6065,18 +5999,12 @@ CONTAINS
     INTEGER          :: i,j,k
     REAL :: q_c, x_c, k_a, x_s, au, nu_r
 
-    REAL, ALLOCATABLE, DIMENSION(:,:,:) :: rate_n,rate_q
-
-    ALLOCATE(rate_n(0:loc_ix,1:loc_iy,1:loc_iz),rate_q(0:loc_ix,1:loc_iy,1:loc_iz))
-
     !..Skalar-Initialisierung
     nu_r = 9.59
     x_s  = cloud%x_max                     !..Trennmasse
     x_c  = 4./3. * pi * rho_w * r_c**3     !..Mittlere Masse der Wolkentropfen
     k_a  = 6.0e+25 * nu_r**(-1.7)
 
-    rate_q = 0.0
-    rate_n = 0.0
     !..Parametrisierung nach Beheng (1994)
     DO k = 1, loc_iz
       DO j = 1, loc_iy
@@ -6088,20 +6016,14 @@ CONTAINS
             au = k_a * (x_c*1e3)**(3.3) * (q_c*1e-3)**(1.4) * dt * 1e3
             au = MIN(q_c,au)
 
-            rate_q(i,j,k) = au
-            rate_n(i,j,k) = au / x_s * 2.0
+            n_rain(i,j,k)  = n_rain(i,j,k)  + au / x_s * 2.0
+            q_rain(i,j,k)  = q_rain(i,j,k)  + au
+            q_cloud(i,j,k) = q_cloud(i,j,k) - au
 
           ENDIF
         END DO
       END DO
     END DO
-
-    !..Zeitintegration
-    n_rain  = n_rain  + rate_n
-    q_rain  = q_rain  + rate_q
-    q_cloud = q_cloud - rate_q
-
-    DEALLOCATE(rate_n,rate_q)
 
   END SUBROUTINE autoconversionKB
 
@@ -6121,11 +6043,6 @@ CONTAINS
     REAL :: ac
     REAL :: L_c, L_r
 
-    REAL, ALLOCATABLE, DIMENSION(:,:,:) :: rate_q
-
-    ALLOCATE(rate_q(0:loc_ix,1:loc_iy,1:loc_iz))
-
-    rate_q = 0.0
     !..Parametrisierung nach Seifert und Beheng (2000)
     DO k = 1, loc_iz
       DO j = 1, loc_iy
@@ -6140,17 +6057,12 @@ CONTAINS
 
             ac = MIN(L_c,ac)
 
-            rate_q(i,j,k)  = ac
+            q_rain(i,j,k)  = q_rain(i,j,k)  + ac
+            q_cloud(i,j,k) = q_cloud(i,j,k) - ac
           ENDIF
         END DO
       END DO
     END DO
-
-    !..Zeitintegration
-    q_rain  = q_rain  + rate_q
-    q_cloud = q_cloud - rate_q
-
-    DEALLOCATE(rate_q)
 
   END SUBROUTINE accretionKB
 
@@ -6169,16 +6081,10 @@ CONTAINS
     INTEGER          :: i,j,k
     REAL :: q_c, x_c, x_s, au
 
-    REAL, ALLOCATABLE, DIMENSION(:,:,:) :: rate_n,rate_q
-
-    ALLOCATE(rate_n(0:loc_ix,1:loc_iy,1:loc_iz),rate_q(0:loc_ix,1:loc_iy,1:loc_iz))
-
     !..Skalar-Initialisierung
     x_s  = cloud%x_max                     !..Trennmasse
     x_c  = 4./3. * pi * rho_w * r_c**3     !..Mittlere Masse der Wolkentropfen
 
-    rate_q = 0.0
-    rate_n = 0.0
     !..Parametrisierung nach  Khairoutdinov and Kogan (2000), MWR 128, 229-243
     DO k = 1, loc_iz
       DO j = 1, loc_iy
@@ -6190,20 +6096,14 @@ CONTAINS
             au = k_a * (q_c*1e-3)**(0.68) * (x_c*1e3)**(1.79) * dt *1e3
             au = MIN(q_c,au)
 
-            rate_q(i,j,k) = au
-            rate_n(i,j,k) = au / x_s * 2.0
+            n_rain(i,j,k)  = n_rain(i,j,k)  + au / x_s * 2.0
+            q_rain(i,j,k)  = q_rain(i,j,k)  + au
+            q_cloud(i,j,k) = q_cloud(i,j,k) - au
 
           ENDIF
         END DO
       END DO
     END DO
-
-    !..Zeitintegration
-    n_rain  = n_rain  + rate_n
-    q_rain  = q_rain  + rate_q
-    q_cloud = q_cloud - rate_q
-
-    DEALLOCATE(rate_n,rate_q)
 
   END SUBROUTINE autoconversionKK
 
@@ -6223,11 +6123,6 @@ CONTAINS
     REAL :: ac
     REAL :: L_c, L_r
 
-    REAL, ALLOCATABLE, DIMENSION(:,:,:) :: rate_q
-
-    ALLOCATE(rate_q(0:loc_ix,1:loc_iy,1:loc_iz))
-
-    rate_q = 0.0
     !..Parametrisierung nach Khairoutdinov and Kogan (2000), MWR 128, 229-243
     DO k = 1, loc_iz
       DO j = 1, loc_iy
@@ -6240,17 +6135,12 @@ CONTAINS
 
             ac = MIN(L_c,ac)
 
-            rate_q(i,j,k)  = ac
+            q_rain(i,j,k)  = q_rain(i,j,k)  + ac
+            q_cloud(i,j,k) = q_cloud(i,j,k) - ac
           ENDIF
         END DO
       END DO
     END DO
-
-    !..Zeitintegration
-    q_rain  = q_rain  + rate_q
-    q_cloud = q_cloud - rate_q
-
-    DEALLOCATE(rate_q)
 
   END SUBROUTINE accretionKK
 
