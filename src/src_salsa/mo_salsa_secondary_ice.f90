@@ -316,9 +316,9 @@ MODULE mo_salsa_secondary_ice
                fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
                ! POISTA
-               IF ( SUM(sinkvolc(ii,jj,bb,:))/SUM(ice(ii,jj,bb)%volc(1:nspec)) > 1.)  &
-                    WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
-                    SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+               !IF ( SUM(sinkvolc(ii,jj,bb,:))/SUM(ice(ii,jj,bb)%volc(1:nspec)) > 1.)  &
+               !     WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
+               !     SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
                
                IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.9*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
                     WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
