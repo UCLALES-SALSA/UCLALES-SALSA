@@ -177,8 +177,11 @@ MODULE mo_salsa_secondary_ice
       REAL :: icediams(nice), icebw(nice)
       REAL :: fragvolc(kbdim,klev,nice,nspec), sinkvolc(kbdim,klev,nice,nspec) ! Volume to be added and removed
       REAL :: fragnumc(kbdim,klev,nice), sinknumc(kbdim,klev,nice)  ! Number to be added and removed
+      REAL :: fragv_loc(nice,nspec)  !! Local fragment vol contributions per ice bin
+      REAL :: fragn_loc(nice)       !! Local fragment num contributions per ice bin
       REAL :: v_i                    ! Volume of single ice particle in a bin 
       REAL :: sinkv(nspec)           ! sink volume for single collision
+      REAL :: frconst                ! constraining fraction for limiting the mass sink to ragments
       REAL, PARAMETER :: inf = HUGE(1.)
       
       iwa = spec%getIndex("H2O")
@@ -220,6 +223,8 @@ MODULE mo_salsa_secondary_ice
       DO bb = 1,nice      
          DO jj = 1,klev
             DO ii = 1,kproma
+               fragv_loc = 0.
+               fragn_loc = 0.
                DO cc = 1,nprc
                   IF ( ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR.  &    ! Outside temperature range, see Keinert et al 2020
                        nfrzn_df(ii,jj,cc,bb) < 1.e-6 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-23 .OR. &
@@ -258,23 +263,22 @@ MODULE mo_salsa_secondary_ice
                   Nnorm = SUM(dNb(1:npmax)*icebw(1:npmax))              ! Normalization factor
 
                   dNb(1:npmax) = dN * dNb(1:npmax)*icebw(1:npmax)/Nnorm ! Distributed bin concentrations of fragments
-                  dVb(1:npmax) = dNb(1:npmax) * pi6*icediams(1:npmax)**3  ! Determine the fragment mass based on the ice bin diameters
-                                             
+                  dVb(1:npmax) = dNb(1:npmax) * pi6*icediams(1:npmax)**3  ! Determine the fragment mass based on the ice bin diameters                  
+                  
                   ! Allocate the fragments to temporary ice bins 
                   DO bb1 = 1,npmax
-                     fragnumc(ii,jj,bb1) = fragnumc(ii,jj,bb1) + dNb(bb1)
-
-                     fragvolc(ii,jj,bb1,1:nspec) = fragvolc(ii,jj,bb1,1:nspec) +     &
-                          ice(ii,jj,bb)%volc(1:nspec)*( dVb(bb1)/SUM(ice(ii,jj,bb)%volc(1:nspec)) )                  
+                     fragn_loc(bb1) = fragn_loc(bb1) + dNb(bb1)
+                     fragv_loc(bb1,1:nspec) = fragv_loc(bb1,1:nspec) +    &
+                          ice(ii,jj,bb)%volc(1:nspec)*( dVb(bb1)/SUM(ice(ii,jj,bb)%volc(1:nspec)) )                                      
                   END DO
 
                   ! Sink of volume from current bin
-                  sinkv(1:nspec) = ice(ii,jj,bb)%volc(1:nspec)* MIN( SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )
+                  sinkv(1:nspec) = ice(ii,jj,bb)%volc(1:nspec)* SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec))                  
                   sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) + sinkv(1:nspec)
 
                   ! Volume of a single ice particle in current bin for calculating the number concentration sink. This does not necessarily 
                   ! provide an exact representation for the fracturing particle size, but works as a first approximation.
-                  v_i  = SUM(ice(ii,jj,bb)%volc(1:nspec))/ice(ii,jj,bb)%numc
+                  v_i  = mfrzn_df(ii,jj,cc,bb)/nfrzn_df(ii,jj,cc,bb)/spec%rhori  !SUM(ice(ii,jj,bb)%volc(1:nspec))/ice(ii,jj,bb)%numc
                
                   ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
                   sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i
@@ -297,6 +301,36 @@ MODULE mo_salsa_secondary_ice
                   !if (dN > 1.) WRITE(*,*) 'hephep ', dN,ptstep,SUM(dNb)
                   CALL rateDiag%drfrrate%Accumulate(n=SUM(dNb)/ptstep)    ! miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
                END DO
+               
+               !! Safeguard: Allow the fragments to take up to 90% of the source ice bin mass
+               IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > 0.9 * SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
+                  frconst = 0.9 * SUM(ice(ii,jj,bb)%volc(1:nspec)) / SUM(sinkvolc(ii,jj,bb,1:nspec))
+                  fragv_loc = fragv_loc * frconst
+                  fragn_loc = fragn_loc * frconst
+                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) * frconst
+                  sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb) * frconst, 0.9*ice(ii,jj,bb)%numc) !! Additional constrain because for some reason
+                                                                                                 !! this still failed in the last bin...
+               END IF
+
+               fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
+               fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
+
+               ! POISTA
+               IF ( SUM(sinkvolc(ii,jj,bb,:))/SUM(ice(ii,jj,bb)%volc(1:nspec)) > 1.)  &
+                    WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
+                    SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+               
+               IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.9*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
+                    WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
+                    SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+
+               IF (0.9*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
+                    WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
+                    ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
+               ! ---------------------------------------
+
+
+               
             END DO
          END DO
       END DO
@@ -321,6 +355,9 @@ MODULE mo_salsa_secondary_ice
                     SUM(nfrzn_df(ii,jj,:,bb)), ice(ii,jj,bb)%numc
                ! ---------------------
                
+
+
+
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc - sinknumc(ii,jj,bb)
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) + fragvolc(ii,jj,bb,1:nspec)
