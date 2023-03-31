@@ -214,6 +214,7 @@ contains
         rs,rsi,s_i,r1,dn0,ti,nin_active, &
         tmp_rv,tmp_rc,tmp_nr,tmp_rr,tmp_ni,tmp_ri,tmp_rs,tmp_rg
     integer :: i, j, n
+    logical :: adj_cldw, adj_rain, adj_ice, adj_snow, adj_gra
 
     ! Statistics
     IF (sflg) out_mcrp_data(:,:,:,:) = 0.
@@ -221,7 +222,17 @@ contains
 
     do j=3,n3-2
        do i=3,n2-2
+          ! Adjust the original concentrations
+          if (sflg) CALL sb_var_stat() ! Reset statistics
+          call resetvar(cldw,rcld(1:n1,i,j))
           call resetvar(rain,rp(1:n1,i,j),np(1:n1,i,j))
+          if (level == 4) then
+             call resetvar(ice,ricep(1:n1,i,j),nicep(1:n1,i,j))
+             call resetvar(snow,rsnowp(1:n1,i,j))
+             call resetvar(graupel,rgrpp(1:n1,i,j))
+          end if
+          if (sflg) CALL sb_var_stat(24) ! Diagnostics
+
           tl = 0. ! Total loss of liquid water due to sedimention
           ti = 0. ! The same for ice, snow and graupel
           dn0 = dn(1:n1,i,j)
@@ -232,9 +243,6 @@ contains
           rrain = rp(1:n1,i,j)
           nrain = np(1:n1,i,j)
           if (level == 4) then
-             call resetvar(ice,ricep(1:n1,i,j),nicep(1:n1,i,j))
-             call resetvar(snow,rsnowp(1:n1,i,j))
-             call resetvar(graupel,rgrpp(1:n1,i,j))
              rsi = rsati(1:n1,i,j)
              s_i(1:n1) = rv(:)/rsi(:) - 1.0 ! S-1
              rice = ricep(1:n1,i,j)
@@ -254,120 +262,105 @@ contains
           end if
 
           do n=1,nprocess
-             if (sflg .AND. microseq(n)>0) CALL sb_var_stat() ! Reset statistics
+             if (microseq(n)==0) CYCLE
+             adj_cldw = .FALSE.; adj_rain = .FALSE.
+             adj_ice = .FALSE.; adj_snow = .FALSE.; adj_gra = .FALSE.
+             if (sflg) CALL sb_var_stat() ! Reset statistics
              select case(microseq(n))
              case(iwtrdff)
-                call resetvar(cldw,rc)
-                call resetvar(rain,rrain,nrain)
                 call wtr_dff_SB(n1,dn0,rrain,nrain,rs,rv,temp)
+                adj_rain = .TRUE.
              case(iauto)
-                call resetvar(cldw,rc)
-                call resetvar(rain,rrain,nrain)
                 call auto_SB(n1,dn0,rc,rrain,nrain,dissip(1:n1,i,j))
+                adj_cldw = .TRUE.; adj_rain = .TRUE.
              case(iaccr)
-                call resetvar(cldw,rc)
-                call resetvar(rain,rrain,nrain)
                 call accr_SB(n1,dn0,rc,rrain,nrain,dissip(1:n1,i,j))
+                adj_cldw = .TRUE.; adj_rain = .TRUE.
              case(isedimrd)
-                call resetvar(rain,rrain,nrain)
                 call sedim_rd(n1,dt,dn0,tl,rrain,nrain,prc_r(1:n1,i,j))
+                adj_rain = .TRUE.
              case(isedimcd)
-                call resetvar(cldw,rc)
                 call sedim_cd(n1,dt,dn0,tl,rc,prc_c(1:n1,i,j))
+                adj_cldw = .TRUE.
 
              case(iicenucnr)
-                call resetvar(cldw,rc)
-                call resetvar(ice,rice,nice)
-                call resetvar(snow,rsnow)
-                call resetvar(graupel,rgrp)
                 nin_active = nin_set - (nice + nsnow + ngrp) ! Target ice number
                 call fixed_in_isdac(n1,nin_active,rc,rice,nice,s_i)
                 !call n_icenuc(n1,nin_active,temp,s_i)
                 !call ice_nucleation(n1,nin_active,rc,rice,nice,temp,s_i)
+                adj_cldw = .TRUE.; adj_ice = .TRUE.
              case(iicenuc)
                 !call ice_nucleation_homhet(n1,ice,rv,rc,rice,nice,rsnow, nsnow,s_i,temp)
-
              case(ifreez)
-                call resetvar(cldw,rc)
-                call resetvar(rain,rrain,nrain)
                 call cloud_freeze(n1,rc,rice,nice,temp)
                 call rain_freeze(n1,rrain,nrain,rice,nice,rgrp,temp)
+                adj_cldw = .TRUE.; adj_rain = .TRUE.; adj_ice = .TRUE.; adj_gra = .TRUE.
+
              case(idep)
                 call deposition(n1, dn0, ice, snow, graupel,  rice, nice, rsnow, nsnow, rgrp, ngrp, rv, temp, rsi, s_i)
+                adj_ice = .TRUE.; adj_snow = .TRUE.; adj_gra = .TRUE.
              case(imelt_ice)
-                call resetvar(ice,rice,nice)
                 call melting(n1,ice,rice,nice,rc,rrain,nrain,temp)
+                adj_ice = .TRUE.; adj_rain = .TRUE.
              case(imelt_snow)
-                call resetvar(snow,rsnow)
                 call melting(n1,snow,rsnow,nsnow,rc,rrain,nrain,temp)
+                adj_snow = .TRUE.; adj_rain = .TRUE.
              case(imelt_grp)
-                call resetvar(graupel,rgrp)
                 call melting(n1,graupel,rgrp,ngrp,rc,rrain,nrain,temp)
+                adj_gra = .TRUE.; adj_rain = .TRUE.
              case(iself_ice)
-                call resetvar(ice,rice,nice)
                 call ice_selfcollection(n1,ice,snow,rice,rsnow,nice,dn0,temp,d_conv_is,r_crit_is,d_crit_is)
+                adj_ice = .TRUE.; adj_snow = .TRUE.
              case(icoll_ice_snow)
-                call resetvar(ice,rice,nice)
-                call resetvar(snow,rsnow)
                 call ice_collection(n1,dn0,ice,snow,rice,nice,rsnow,temp,r_crit_is)
+                adj_ice = .TRUE.; adj_snow = .TRUE.
              case(icoll_ice_grp)
-                call resetvar(ice,rice,nice)
-                call resetvar(graupel,rgrp)
                 call ice_collection(n1,dn0,ice,graupel,rice,nice,rgrp,temp,r_crit_is)
+                adj_ice = .TRUE.; adj_gra = .TRUE.
              case(icoll_snow_grp)
-                call resetvar(ice,rice,nice)
-                call resetvar(snow,rsnow)
-                call resetvar(graupel,rgrp)
                 call ice_collection(n1,dn0,snow,graupel,rsnow,nsnow,rgrp,temp,r_crit_is)
+                adj_snow = .TRUE.; adj_gra = .TRUE.
              case(iriming_ice_cloud)
-                call resetvar(cldw,rc)
-                call resetvar(ice,rice,nice)
                 call ice_cloud_riming(n1,dn0,cldw,ice,rc,rice,nice,rgrp,temp,d_coll_c,r_crit_c,d_crit_c,r_crit_ic, &
                         d_crit_ic,d_conv_ig,e_ic)
+                adj_ice = .TRUE.; adj_gra = .TRUE.; adj_cldw = .TRUE.
              case(iriming_snow_cloud)
-                call resetvar(snow,rsnow)
-                call resetvar(cldw,rc)
                 call ice_cloud_riming(n1,dn0,cldw,snow,rc,rsnow,nsnow,rgrp,temp,d_coll_c,r_crit_c,d_crit_c, &
                         r_crit_sc,d_crit_sc,d_conv_sg,e_sc)
+                adj_snow = .TRUE.; adj_gra = .TRUE.; adj_cldw = .TRUE.
              case(iriming_grp_cloud)
-                call resetvar(graupel,rgrp)
-                call resetvar(cldw,rc)
                 r1 = 0.
                 call ice_cloud_riming(n1,dn0,cldw,graupel,rc,rgrp,ngrp,r1,temp,d_coll_c,r_crit_c,d_crit_c,r_crit_gc, &
                         d_crit_gc,d_conv_sg,e_gc)
                 rgrp = rgrp + r1
+                adj_gra = .TRUE.; adj_cldw = .TRUE.
              case(iriming_ice_rain)
-                call resetvar(ice,rice,nice)
-                call resetvar(rain,rrain,nrain)
                 call ice_rain_riming(n1,rain,ice    ,rrain,nrain,rice ,nice ,rgrp,dn0,temp,r_crit,d_crit_r, r_crit_ir,d_crit_ir)
-                !             call ice_rain_riming(n1,rain,ice    ,rrain,nrain,rice ,nice ,rgrp,temp,d_crit_r,1e-2,1e-2,1e-2)
+                adj_ice = .TRUE.; adj_gra = .TRUE.; adj_rain = .TRUE.
              case(iriming_snow_rain)
-                call resetvar(snow,rsnow)
-                call resetvar(rain,rrain,nrain)
                 call ice_rain_riming(n1,rain,snow   ,rrain,nrain,rsnow,nsnow,rgrp,dn0,temp,r_crit,d_crit_r, r_crit_sr,d_crit_sr)
+                adj_snow = .TRUE.; adj_gra = .TRUE.; adj_rain = .TRUE.
              case(iriming_grp_rain)
-                call resetvar(graupel,rgrp)
-                call resetvar(rain,rrain,nrain)
                 r1 = 0.
                 call ice_rain_riming(n1,rain,graupel,rrain,nrain,rgrp ,ngrp,r1,dn0,temp,r_crit,d_crit_r, r_crit,0.)
                 rgrp = rgrp + r1
+                adj_gra = .TRUE.; adj_rain = .TRUE.
              case(ised_ice)
-                call resetvar(ice,rice,nice)
-                call resetvar(snow,rsnow)
-                call resetvar(graupel,rgrp)
                 call sedimentation (n1,dn0,ti,ice, rice,prc_i(1:n1,i,j),nice)
                 call sedimentation (n1,dn0,ti,snow,rsnow,prc_s(1:n1,i,j))
                 call sedimentation (n1,dn0,ti,graupel,rgrp,prc_g(1:n1,i,j))
+                adj_ice = .TRUE.; adj_snow = .TRUE.; adj_gra = .TRUE.
              end select
-             if (sflg .AND. microseq(n)>0) CALL sb_var_stat(microseq(n)) ! Collect statistics
+             if (sflg) CALL sb_var_stat(microseq(n)) ! Collect statistics
+             ! Adjust concentrations
+             if (sflg) CALL sb_var_stat() ! Reset statistics
+             if (adj_cldw) call resetvar(cldw,rc)
+             if (adj_rain) call resetvar(rain,rrain,nrain)
+             if (adj_ice)  call resetvar(ice,rice,nice)
+             if (adj_snow) call resetvar(snow,rsnow)
+             if (adj_gra)  call resetvar(graupel,rgrp)
+             if (sflg) CALL sb_var_stat(24) ! Diagnostics
           end do
-          call resetvar(cldw,rc)
-          call resetvar(rain,rrain,nrain)
-          if (level==4) then
-             call resetvar(ice,rice,nice)
-             call resetvar(snow,rsnow)
-             call resetvar(graupel,rgrp)
-          end if
 
           ! Change in ice-liquid potential temperature and total water due to sedimentation
           tlt(2:n1,i,j) =  tlt(2:n1,i,j) + (tl(2:n1)*alvl +ti(2:n1)*alvi)/(pi0(2:n1)+pi1(2:n1)+exner(2:n1,i,j))
@@ -395,12 +388,12 @@ contains
         IMPLICIT NONE
         INTEGER, INTENT(IN), OPTIONAL :: imicro
         ! Process names for microseq array
-        character (len=4) :: microseq_names(23)=(/ &
+        character (len=4) :: microseq_names(24)=(/ &
             'auto','coag','cond','sedi','sedi', & ! iauto = 1, iaccr = 2, iwtrdff = 3, , isedimrd = 4, isedimcd = 5
             'nucl','nucl','frez','cond', & ! iicenucnr = 6, iicenuc = 7, ifreez=8, idep=9
             'melt','melt','melt','sedi', & ! imelt_ice=10, imelt_snow=11, imelt_grp=12, ised_ice=13
             'coag','coag','coag','coag','coag', & ! iself_ice=14, ...
-            'coag','coag','coag','coag','coag'/)
+            'coag','coag','coag','coag','coag','diag'/) ! diagnostics=25
         ! Local
         character (len=4) :: prefix ! Process name
         INTEGER :: k
@@ -1852,23 +1845,6 @@ contains
     gfct = gamma
   end function gfct
 
-  real elemental function incgfct_upper(a,x)
-    !*******************************************************************************
-    !
-    ! upper incomplete gamma function
-    !
-    !              int(x)(oo) exp(-t) t^(a-1) dt
-    !
-    !*******************************************************************************
-
-    real, intent(in) :: a, x
-    real :: gam, gln
-
-    call gammq(a,x,gam,gln)
-    incgfct_upper = exp(gln) * gam
-
-  end function incgfct_upper
-
 
   real elemental function incgfct_lower(a,x)
     !*******************************************************************************
@@ -1887,20 +1863,6 @@ contains
     incgfct_lower = exp(gln) * gam
 
   end function incgfct_lower
-
-
-  real elemental function incgfct(a,x1,x2)
-    !*******************************************************************************
-    !
-    ! actual incomplete gamma-function
-    !
-    !*******************************************************************************
-
-    real, intent(in) :: a, x1, x2
-
-    incgfct = incgfct_lower(a,x2) - incgfct_lower(a,x1)
-
-  end function incgfct
 
   elemental subroutine gammp(a,x,gamma,gln)
 
@@ -1924,27 +1886,6 @@ contains
        gamma = 1.0e0 - gammcf
     endif
   end subroutine gammp
-
-  elemental subroutine gammq(a,x,gamma,gln)
-
-    real, intent(in) :: a, x
-    real, intent(out) :: gamma,gln
-    real :: gammcf, gamser
-
-    if (x.lt.0.0e0 .or. a .le. 0.0e0) then
-       gamma = 0.0e0
-       gln = 0.0e0
-       return
-    end if
-
-    if (x.lt.a+1.) then
-       call gser(gamser,a,x,gln)
-       gamma = 1.0e0 - gamser
-    else
-       call gcf(gammcf,a,x,gln)
-       gamma = gammcf
-    endif
-  end subroutine gammq
 
   real elemental function gammln(x)
     !*******************************************************************************
@@ -2200,7 +2141,7 @@ contains
             0.333333, & !.b_geo..coefficient of meteor geometry = 1/3
             3.75e+05, & !.a_vel..coefficient of fall velocity
             0.666667, & !.b_vel..coefficient of fall velocity
-            0.25     , &!.s_vel...dispersion of the fall velocity
+            0.0     , & !.s_vel...dispersion of the fall velocity
             0.780000, & !.a_ven..ventilation coefficient (PK, p.541)
             0.308000, & !.b_ven..ventilation coefficient (PK, p.541)
             2.0)        !.cap....capacity coefficient
@@ -2218,19 +2159,19 @@ contains
             0.333333, & !.b_geo..coefficient of meteor geometry = 1/3
             1.59e+02, & !.a_vel..coefficient of fall velocity
             0.266667, & !.b_vel..coefficient of fall velocity
-            0.25    , & !.s_vel...dispersion of the fall velocity
+            0.0     , & !.s_vel...dispersion of the fall velocity
             0.780000, & !.a_ven..ventilation coefficient (PK, p.541)
             0.308000, & !.b_ven..ventilation coefficient (PK, p.541)
             2.0)        !.cap....capacity coefficient
 
     ! Cloud ice properties
-    ice = PARTICLE('ice', &
+    ice = PARTICLE('ice', & ! iceCRY
             2, & !number of moments
             1, & !id number
             0., & !Number of droplets
             0.000000, & !.nu.....Width parameter of the distribution
             0.333333, & !.mu.....exponential parameter of the distribution
-            1.00e-07, & !.x_max..maximum particle mass D=???e-2m
+            5.00e-07, & !.x_max..maximum particle mass D=???e-2m
             1.00e-12, & !.x_min..minimale particler mass D=200e-6m
             3.303633, & !.a_geo..coefficient of meteor geometry
             0.476191, & !.b_geo..coefficient of meteor geometry = 1/2.1
@@ -2242,7 +2183,7 @@ contains
             2.0)        !.cap....capacity coefficient
 
     ! Snow properties
-    snow =  PARTICLE('snow', & ! after Andy Heymsfield (CRYSTAL-FACE)
+    snow =  PARTICLE('snow', & ! snowCRYSTAL
             1,  & !number of moments
             2,  & !id number
             2e6, & !Number of droplets
@@ -2260,7 +2201,7 @@ contains
             2.0)        !.cap....capacity coefficient
 
     ! Graupel properties
-    graupel = PARTICLE('graupel', & ! 'graupel'
+    graupel = PARTICLE('graupel', & ! graupelmedium
             1,  & !number of moments
             3,  & !id number
             2e5, &      !Number of droplets
@@ -2269,7 +2210,7 @@ contains
             1.00e-08, & !.x_max..maximum particle mass
             1.00e-08, & !.x_min..minimale particler mass
             1.10e-01, & !.a_geo..coefficient of meteor geometry
-            0.300000, & !.b_geo..coefficient of meteor geometry = 1/3.10
+            0.300000, & !.b_geo..coefficient of meteor geometry
             7.64e+01, & !.a_vel..coefficient of fall velocity
             0.255200, & !.b_vel..coefficient of fall velocity
             0.25    , & !.s_vel...dispersion of the fall velocity
@@ -2337,9 +2278,9 @@ contains
     ! some SB variables are renamed here
 
     USE mcrp_ice_sb, ONLY: loc_ix, loc_iy, loc_iz, dtx => dt, &
-            p_0, T_0, rho_k=>rho_0, S_i, q, q_cloud, qnc_const, &
-            q_ice, q_rain, q_snow, q_graupel, q_hail, &
-            n_ice, n_rain, n_snow, n_graupel, n_hail, &
+            p_0, T_0, rho_k=>rho_0, S_i, q, &
+            q_cloud, q_ice, q_rain, q_snow, q_graupel, q_hail, &
+            n_cloud, n_ice, n_rain, n_snow, n_graupel, n_hail, &
             alloc_driver, dealloc_driver, &
             alloc_wolken, dealloc_wolken, clouds, &
             sflgx => sflg, out_data => out_mcrp_data
@@ -2388,7 +2329,6 @@ contains
     !REAL,    PARAMETER :: eps = 1e-10
     LOGICAL, PARAMETER :: CGP_SEARCH = .true.
 
-    qnc_const = ccn
     dtx = dt
     sflgx = sflg .AND. out_mcrp_nout>0
 
@@ -2475,6 +2415,7 @@ contains
           S_i(i,j,k)   = qv(kk,jj,ii)/rsi(kk,jj,ii) - 1.0
 
           ! ... concentrations --> number densities
+          n_cloud(i,j,k)   = rho_k(i,j,k) * ccn ! Input only (diagnostic)
           n_rain(i,j,k)    = rho_k(i,j,k) * qnr(kk,jj,ii)
           n_ice(i,j,k)     = rho_k(i,j,k) * qni(kk,jj,ii)
           n_snow(i,j,k)    = rho_k(i,j,k) * qns(kk,jj,ii)

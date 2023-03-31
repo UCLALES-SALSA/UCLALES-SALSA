@@ -10,12 +10,6 @@ module mcrp_ice_sb
     IMPLICIT NONE
 
     PRIVATE
-
-!===============================================================================!
-! Ulrich Blahak, 18.3.2009:
-!
-! - rain_freeze_gamlook   (spectral partitioning of freezing rain; inc_gfct replaced by equidistant LUT)
-!
 !
 !===============================================================================!
 !
@@ -104,8 +98,6 @@ module mcrp_ice_sb
   ! ... spezielle Parameter des KAMM2-Wolkenmoduls
 
   REAL, PARAMETER :: r_c     = 12.0e-6         !..mittlerer Radius (bei 1-Moment)
-  REAL, PARAMETER :: rho_vel    = 0.5e0        !..Exponent in Dichtekorrektur
-  REAL, PARAMETER :: rho_vel_c  = 1.0e0        !..fuer Wolkentropfen
 
   ! ... spezielle Parameter des KAMM2-Wolkenmoduls (Eisphase)
 
@@ -155,79 +147,126 @@ module mcrp_ice_sb
   REAL, PARAMETER :: T_nuc     = 273.2e+0 ! Temperatur ab der Eisnukleation einsetzt
   REAL, PARAMETER :: T_freeze  = 273.2e+0 ! Temperatur ab der Gefrieren einsetzt
 
-  ! ub: Schalter, ob Konversion von ice und snow nur dann zu graupel 
-  ! (gesteuert durch alpha_spacefilling), 
-  ! wenn die riming-rate groesser als die Depositionsrate ist 
-  ! (ansonsten findet dies immer statt und wird nur durch alpha_spacefilling reguliert):
-  LOGICAL, PARAMETER          :: use_ice_graupel_conv_uli = .TRUE.
 
-  ! ... Parameter der Partikelklassen (Geometrie, Fallgeschwindigkeit, Verteilungfunktion, ...)
+  ! Adjustable parameters
+  ! =====================
 
-  TYPE(PARTICLE)                       :: cloud, rain, ice, snow, graupel, hail
+  ! Default cloud, rain, ice, snow, graupel and hail
+  TYPE(PARTICLE) :: cloud = PARTICLE('cloud', & !.name
+        1.000000, & !.nu
+        1.000000, & !.mu
+        2.60e-10, & !.x_max, D=80e-6m
+        4.20e-15, & !.x_min, D=2.e-6m
+        1.24e-01, & !.a_geo
+        0.333333, & !.b_geo
+        3.75e+05, & !.a_vel
+        0.666667, & !.b_vel
+        0.780000, & !.a_ven
+        0.308000, & !.b_ven
+        2.0)        !.cap
 
-  LOGICAL                              :: ice_multiplication = .TRUE.
+  TYPE(PARTICLE) :: rain = PARTICLE('rain', & !.name
+        1.000000, & !.nu
+        0.333333, & !.mu
+        3.00e-06, & !.x_max
+        2.60e-10, & !.x_min, D=80.e-6m
+        1.24e-01, & !.a_geo
+        0.333333, & !.b_geo
+        1.59e+02, & !.a_vel
+        0.266667, & !.b_vel
+        0.780000, & !.a_ven
+        0.308000, & !.b_ven
+        2.0)        !.cap
 
-  ! Graupel-Shedding: Das angefrorene Wasser wird bei T > T_shed, 
-  ! ggf. nach enhanced-melting, wieder abgeworfen und zu Regen.
-  ! Default is .false. for both parameter (see src_gscp)
-  LOGICAL                              :: graupel_shedding = .FALSE.
-  LOGICAL                              :: hail_shedding = .FALSE.
+  TYPE(PARTICLE) :: ice =PARTICLE('ice', & ! iceCRY
+         0.000000, & !.nu
+         0.333333, & !.mu
+         5.00e-07, & !.x_max
+         1.00e-12, & !.x_min, D=200e-6m
+         3.303633, & !.a_geo
+         0.476191, & !.b_geo
+         2.77e+01, & !.a_vel
+         0.215790, & !.b_vel
+         0.780000, & !.a_ven
+         0.308000, & !.b_ven
+         2.0)        !.cap
 
-  LOGICAL                              :: enhanced_melting   = .TRUE.
+  TYPE(PARTICLE) :: snow = PARTICLE('snow', & ! snowCRYSTAL
+         0.000000, & !.nu
+         0.333333, & !.mu
+         2.00e-07, & !.x_max
+         1.00e-12, & !.x_min
+         3.303633, & !.a_geo
+         0.476191, & !.b_geo
+         2.47e+02, & !.a_vel
+         0.333333, & !.b_vel
+         0.780000, & !.a_ven
+         0.308000, & !.b_ven
+         2.0)        !.cap
 
-  LOGICAL                              :: drop_freeze = .TRUE.
+  TYPE(PARTICLE) :: graupel = PARTICLE('graupel' ,& ! graupelmedium
+        1.000000, & !.nu
+        0.166666, & !.mu
+        1.00e-04, & !.x_max
+        2.60e-10, & !.x_min
+        1.10e-01, & !.a_geo
+        0.300000, & !.b_geo
+        7.64e+01, & !.a_vel
+        0.255200, & !.b_vel
+        0.780000, & !.a_ven
+        0.308000, & !.b_ven
+        2.0)        !.cap
 
-  INTEGER                              :: ice_typ,nuc_i_typ,nuc_c_typ,cloud_typ
+  TYPE(PARTICLE) :: hail = PARTICLE('hail' ,& ! hailNOPPEL
+        1.000000, & !.nu
+        0.333333, & !.mu
+        1.00e-02, & !.x_max
+        2.60e-10, & !.x_min
+        1.29e-01, & !.a_geo
+        0.333333, & !.b_geo
+        0.56e+02, & !.a_vel
+        0.212700, & !.b_vel
+        0.780000, & !.a_ven
+        0.308000, & !.b_ven
+        2.0)        !.cap
 
-  REAL                                 :: nin_set = 0.
+
+  ! An alternative method for ice/snow - cloud/rain riming
+  LOGICAL :: use_ice_graupel_conv_uli = .TRUE.
+
+  ! Hallett-Mossop ice multiplication: ice/snow/graupel/hail - cloud/rain riming -> ice
+  LOGICAL :: ice_multiplication = .TRUE.
+
+  ! Graupel/hail - cloud/rain riming produces rain at temperatures above T_shed (<T_3)
+  LOGICAL :: graupel_shedding = .FALSE.
+  LOGICAL :: hail_shedding = .FALSE.
+
+  ! Graupel/hail - cloud/rain riming produces rain at temperature above T_3
+  LOGICAL :: enhanced_melting   = .TRUE.
+
+  ! Allow freezing of cloud and rain drops
+  LOGICAL :: drop_freeze = .TRUE.
+
+  ! Cloud settings
+  INTEGER :: nuc_c_typ = 0 ! Currently the only possible parameter
+  !  0    Fixed CDNC as an input (model/CCN)
+  INTEGER :: cloud_typ = 3 ! Seifert and Beheng (2000) (2-moment-scheme)
+  !  0    No warm rain
+  !  1-8  Different autoconversion and accretion schemes
+  INTEGER :: ice_typ = 3 ! All ice species
+  !  0    No ice
+  !  >0   Ice, snow and graupel
+  !  >1   Ice, snow, graupel and hail
+  !  2    Ice/snow/graupel+rain=>graupel
+  !  3    Ice/snow/graupel+rain=>graupel (smaller rain drop) or hail (larger rain drop)
+  INTEGER :: nuc_i_typ = 0 ! INP as an input
+  !  0    Fixed INP (micro/nin_set) applied to supercooled liquid clouds
+  !  1-7  Different ice crystal concentration parameterizations
+  REAL :: nin_set = 0.
+
 
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_04
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_c
-
-  REAL, SAVE :: rain_cmu0,rain_cmu1,rain_cmu2,rain_cmu3,rain_cmu4,rain_gfak
-  INTEGER, SAVE :: rain_cmu5
-
-  REAL, SAVE :: qnc_const
-
-
-!MODULE gamma_functions_mp_seifert
-
-! UB_20081118>> structure for holding the data of a lookup table for the
-!               incomplete gamma function:
-
-  INTEGER, PARAMETER                     :: nlookup   = 2000    ! Internal number of bins (low res part)
-
-  INTEGER, PARAMETER                     :: nlookuphr = 10000   ! Internal number of bins (high res part)
-
-  ! dummy of internal number of bins (high res part) in case the high resolution part is not really needed:
-  INTEGER, PARAMETER                     :: nlookuphr_dummy = 10 
-
-  ! Type to hold the lookup table for the incomplete gamma functions.
-  ! The table is divided into a low resolution part, which spans the
-  ! whole range of x-values up to the 99.5 % x-value, and a high resolution part for the
-  ! smallest 1 % of these x-values, where the incomplete gamma function may increase
-  ! very rapidly and nonlinearily, depending on paramter a.
-  ! For some applications (e.g., Newtons Method in future subroutine 
-  ! graupel_hail_conv_wetgrowth_Dg_gamlook() ), this rapid change requires a much higher
-  ! accuracy of the table lookup as compared to be achievable with the low resolution table.
-  TYPE gamlookuptable
-    ! Number of bins in the tables:
-    INTEGER                              :: n           ! Internal number of bins (low res part)
-    INTEGER                              :: nhr         ! Internal number of bins (high res part)
-    REAL                     :: a           ! a-parameter
-    REAL, DIMENSION(:), POINTER :: x        ! vector of x-parameters (limit of integration) - 
-                                                        ! always starts at 0 and has equidistant dx (low resolution part)
-    REAL, DIMENSION(:), POINTER :: xhr      ! vector of x-parameters (limit of integration) - 
-                                                        ! always starts at 0 and has equidistant dxhr (high resolution part) 
-    REAL                     :: dx          ! dx   (low resolution part)
-    REAL                     :: dxhr        ! dxhr (high resolution part) 
-    REAL                     :: odx         ! one over dx 
-    REAL                     :: odxhr       ! one over dxhr 
-    REAL, DIMENSION(:), POINTER :: igf      ! value of the inc. gamma function at (a,x) (low res)
-    REAL, DIMENSION(:), POINTER :: igfhr    ! value of the inc. gamma function at (a,x) (high res)
-  END TYPE gamlookuptable
-! UB_20081118<<
-
 
 !MODULE wolken_driver
 
@@ -239,14 +278,9 @@ module mcrp_ice_sb
 
   ! ... Felder ...
   REAL, DIMENSION(:,:,:), ALLOCATABLE :: &
-       & q,                      &
        & q_cloud, q_ice, q_rain, q_graupel, q_snow, q_hail, &
        & n_cloud, n_ice, n_rain, n_graupel, n_snow, n_hail, &
-       & S_i
-
-  ! ... Grundzustandsvariablen ...
-  REAL, DIMENSION(:,:,:), ALLOCATABLE ::   &
-       & p_0, t_0, rho_0
+       & q, p_0, t_0, rho_0, S_i
 
   ! ub>>
   ! Speicherfelder fuer die Depositionsraten von Eis und Schnee fuer die
@@ -258,13 +292,6 @@ module mcrp_ice_sb
        d_id_sp, d_sd_sp, d_rd_sp_ice, d_rd_sp_snow
   ! ub<<
 
-  ! ... Variables for wet growth diameter lookup tables:
-  REAL, DIMENSION(:,:,:,:),   ALLOCATABLE :: &
-       & dmin_wg_g
-  REAL, DIMENSION(:),   ALLOCATABLE :: &
-       & pvec_wg_g, Tvec_wg_g, qwvec_wg_g, qivec_wg_g
-  INTEGER :: anzp_wg, anzT_wg, anzi_wg, anzw_wg
-
   ! Statistics
   LOGICAL :: sflg=.FALSE.
   INTEGER :: out_mcrp_nout = 0
@@ -274,10 +301,9 @@ module mcrp_ice_sb
     tmp_ni(:,:,:),tmp_ri(:,:,:),tmp_rs(:,:,:),tmp_ns(:,:,:),tmp_rg(:,:,:),tmp_ng(:,:,:), &
     tmp_rh(:,:,:),tmp_nh(:,:,:)
 
-  PUBLIC loc_ix, loc_iy, loc_iz, dt, &
-        p_0, T_0, rho_0, S_i, q, q_cloud, qnc_const, &
-        q_ice, q_rain, q_snow, q_graupel, q_hail, &
-        n_ice, n_rain, n_snow, n_graupel, n_hail, &
+  PUBLIC loc_ix, loc_iy, loc_iz, dt, p_0, T_0, rho_0, S_i, q, &
+        q_cloud, q_ice, q_rain, q_snow, q_graupel, q_hail, &
+        n_cloud, n_ice, n_rain, n_snow, n_graupel, n_hail, &
         init_seifert, alloc_driver, dealloc_driver, &
         alloc_wolken, dealloc_wolken, clouds, &
         particle, cloud, rain, ice, snow, graupel, hail, &
@@ -294,150 +320,16 @@ CONTAINS
 
   SUBROUTINE init_seifert( )
     IMPLICIT NONE
-    INTEGER :: mu_Dm_rain_typ, io, istat
+    INTEGER :: io, istat
     TYPE(PARTICLE) :: cldw ! Temporary cloud to match with level 4
     namelist /micro/ &
         drop_freeze, graupel_shedding, hail_shedding, enhanced_melting, ice_multiplication, &
+        use_ice_graupel_conv_uli, &
         ice_typ, nuc_i_typ, nuc_c_typ, cloud_typ, nin_set, &
         cldw,rain,ice,snow,graupel
 
-    ! Default wolke_typ = 2403 = (ice_typ, nuc_i_typ, nuc_c_typ, cloud_typ)
-    ! a) Warm clouds
-    nuc_c_typ = 0 ! Fixed CDNC as an input (nin_set)
-    cloud_typ = 3 ! Seifert and Beheng (2000) (2-moment-scheme)
-    !  0    No warm rain
-    !  1-8  Different autoconversion and accretion schemes
-    ! b) Ice clouds
-    ice_typ = 3 ! Either 2 or 3
-    !  0    No ice
-    !  >0   Ice, snow and graupel
-    !  >1   Ice, snow, graupel and hail
-    !  2    Ice/snow/graupel+rain=>graupel
-    !  3    Ice/snow/graupel+rain=>graupel (smaller rain drop) or hail (larger rain drop)
-    nuc_i_typ = 0 ! Should be 0
-    !  0    Fixed IN (input)
-    !  1-7  Different INP concentration parameterizations applied to supercooled liquid clouds
-
-    ! Default cloud, rain, ice, snow, graupel and hail
-    cldw = PARTICLE('cloud',  & !.name...Bezeichnung der Partikelklasse
-        1.000000, & !.nu.....Breiteparameter der Verteil.
-        1.000000, & !.mu.....Exp.-parameter der Verteil.
-        2.60e-10, & !.x_max..maximale Teilchenmasse D=80e-6m
-        4.20e-15, & !.x_min..minimale Teilchenmasse D=2.e-6m
-        1.24e-01, & !.a_geo..Koeff. Geometrie
-        0.333333, & !.b_geo..Koeff. Geometrie = 1/3
-        3.75e+05, & !.a_vel..Koeff. Fallgesetz
-        0.666667, & !.b_vel..Koeff. Fallgesetz
-        0.780000, & !.a_ven..Koeff. Ventilation (PK, S.541)
-        0.308000, & !.b_ven..Koeff. Ventilation (PK, S.541)
-        2.0)        !.cap....Koeff. Kapazitaet
-
-    rain = PARTICLE('rain', & !.name...Bezeichnung der Partikelklasse
-        1.000000, & !.nu.....Width parameter of the distribution
-        0.333333, & !.mu.....exponential parameter of the distribution
-        3.00e-06, & !.x_max..maximum particle mass
-        2.60e-10, & !.x_min..minimale particler mass D=80.e-6m
-        1.24e-01, & !.a_geo..coefficient of meteor geometry
-        0.333333, & !.b_geo..coefficient of meteor geometry = 1/3
-        1.59e+02, & !.a_vel..coefficient of fall velocity
-        0.266667, & !.b_vel..coefficient of fall velocity
-        0.780000, & !.a_ven..ventilation coefficient (PK, p.541)
-        0.308000, & !.b_ven..ventilation coefficient (PK, p.541)
-        2.0)        !.cap....capacity coefficient
-
-    ice =PARTICLE('ice', & !.name...Bezeichnung der Partikelklasse
-         0.000000, & !.nu...e..Breiteparameter der Verteil.
-         0.333333, & !.mu.....Exp.-parameter der Verteil.
-         1.00e-06, & !.x_max..maximale Teilchenmasse D=???e-2m
-         1.00e-12, & !.x_min..minimale Teilchenmasse D=200e-6m
-         0.835000, & !.a_geo..Koeff. Geometrie
-         0.390000, & !.b_geo..Koeff. Geometrie = 1/2.1
-         2.77e+01, & !.a_vel..Koeff. Fallgesetz
-         0.215790, & !.b_vel..Koeff. Fallgesetz = 0.41/1.9
-         0.780000, & !.a_ven..Koeff. Ventilation (PK, S.541)
-         0.308000, & !.b_ven..Koeff. Ventilation (PK, S.541)
-         2.0)        !.cap....Koeff. Kapazitaet
-
-    snow = PARTICLE('snow', & !.name...Bezeichnung der Partikelklasse
-         0.000000, & !.nu.....Breiteparameter der Verteil.
-         0.500000, & !.mu.....Exp.-parameter der Verteil.
-         2.00e-05, & !.x_max..maximale Teilchenmasse D=???e-2m
-         1.00e-10, & !.x_min..minimale Teilchenmasse D=200e-6m
-         2.400000, & !.a_geo..Koeff. Geometrie
-         0.455000, & !.b_geo..Koeff. Geometrie = 1/2.1
-         8.800000, & !.a_vel..Koeff. Fallgesetz
-         0.150000, & !.b_vel..Koeff. Fallgesetz
-         0.780000, & !.a_ven..Koeff. Ventilation (PK, S.541)
-         0.308000, & !.b_ven..Koeff. Ventilation (PK, S.541)
-         2.0)        !.cap....Koeff. Kapazitaet
-
-    graupel = PARTICLE('graupel' ,& !.name...Bezeichnung
-        1.000000, & !.nu.....Breiteparameter der Verteil.
-        0.333333, & !.mu.....Exp.-parameter der Verteil.
-        5.00e-04, & !.x_max..maximale Teilchenmasse
-        1.00e-09, & !.x_min..minimale Teilchenmasse
-        1.50e-01, & !.a_geo..Koeff. Geometrie
-        0.323000, & !.b_geo..Koeff. Geometrie = 1/3.10
-        0.32e+02, & !.a_vel..Koeff. Fallgesetz
-        0.180000, & !.b_vel..Koeff. Fallgesetz
-        0.780000, & !.a_ven..Koeff. Ventilation (PK, S.541)
-        0.308000, & !.b_ven..Koeff. Ventilation (PK, S.541)
-        2.0)        !.cap....Koeff. Kapazitaet
-
-    hail = PARTICLE('hail' ,& !.name...Bezeichnung
-        1.000000, & !.nu.....Breiteparameter der Verteil.
-        0.333333, & !.mu.....Exp.-parameter der Verteil.
-        1.00e-02, & !.x_max..maximale Teilchenmasse
-        2.60e-10, & !.x_min..minimale Teilchenmasse
-        1.29e-01, & !.a_geo..Koeff. Geometrie
-        0.333333, & !.b_geo..Koeff. Geometrie = 1/3
-        0.56e+02, & !.a_vel..Koeff. Fallgesetz
-        0.212700, & !.b_vel..Koeff. Fallgesetz
-        0.780000, & !.a_ven..Koeff. Ventilation (PK, S.541)
-        0.308000, & !.b_ven..Koeff. Ventilation (PK, S.541)
-        2.0)        !.cap....Koeff. Kapazitaet
-
-
-    mu_Dm_rain_typ = 1
-    IF (mu_Dm_rain_typ.EQ.0) THEN
-      !..constant mue value
-      rain_cmu0 = 0.0
-      rain_cmu1 = 0.0
-      rain_cmu2 = 1.0
-      rain_cmu3 = 1.0
-      rain_cmu4 = (rain%nu+1.0)/rain%b_geo - 1.0 ! <-- this is the (constant) mue value 
-      rain_cmu5 = 1
-      rain_gfak = -1.0  ! In this case gamma = 1 in rain_evaporation    
-    ELSEIF (mu_Dm_rain_typ.EQ.1) THEN
-      !..Axel's mu-Dm-relation for raindrops based on 1d-bin model
-      rain_cmu0 = 6.0             ! Axel's 2007 relation 
-      rain_cmu1 = 30.0            ! 
-      rain_cmu2 = 1.00e+3         ! 
-      rain_cmu3 = 1.10e-3         ! D_eq,break
-      rain_cmu4 = 1.0             ! 
-      rain_cmu5 = 2               ! exponent
-      rain_gfak = 1.0      
-    ELSEIF (mu_Dm_rain_typ.EQ.2) THEN
-      !..Modifikation of mu-Dm-relation for experiments with increased evaporation
-      rain_cmu0 = 11.0            ! instead of 6.0      
-      rain_cmu1 = 30.0            ! 
-      rain_cmu2 = 1.00e+3         ! 
-      rain_cmu3 = 1.10e-3         ! 
-      rain_cmu4 = 4.0             ! instead of 1.0  
-      rain_cmu5 = 2               ! 
-      rain_gfak = 0.5             ! instead of 1.0      
-    ELSEIF (mu_Dm_rain_typ.EQ.3) THEN
-      !..Jason Milbrandts mu-Dm-relation'
-      rain_cmu0 = 19.0           !
-      rain_cmu1 = 19.0           ! Jason Milbrandt's mu-Dm-relation for rain
-      rain_cmu2 = 0.60e+3        ! (Milbrandt&Yau 2005, JAS, Table 1)
-      rain_cmu3 = 1.80e-3        !
-      rain_cmu4 = 17.0           !
-      rain_cmu5 = 1              !
-      rain_gfak = -1.0  ! In this case gamma = 1 in rain_evaporation    
-    ENDIF
-      
-!<AS20080304
+    ! Copy default cloud to cldw
+    cldw = cloud
 
     ! read the optional microphysics namelist - overwrite the default parameters
     open(NEWUNIT=io,status='old',file='NAMELIST')
@@ -450,7 +342,7 @@ CONTAINS
         close(io)
     ENDIF
 
-    ! Level 5 cloud
+    ! Copy cloud back from cldw
     cloud = cldw
 
   END SUBROUTINE init_seifert
@@ -569,40 +461,6 @@ CONTAINS
     gammln = tmp + LOG(stp*ser/x)
     RETURN
   END FUNCTION gammln
-
-  REAL FUNCTION gfct2(x)
-  !*******************************************************************************
-  !                                                                              *
-  !       Gamma function taken from Press et al.,  Numerical Recipes (F77)
-  !
-  !       Gammafunktion aus Numerical Recipes (F77)                              *
-  !       (etwas umformuliert, aber dieselben Ergebnisse wie obige Originalfunktion)
-  !*******************************************************************************
-    IMPLICIT NONE
-      
-    REAL, INTENT(in) :: x
-    REAL, SAVE :: cof(6), stp, half, one, fpf
-    REAL :: xx,tmp,ser,gamma
-    INTEGER j
-      
-    DATA cof,stp/76.18009173e0,-86.50532033e0,24.01409822e0,  &
-          &     -1.231739516e0,.120858003e-2,-.536382e-5,2.50662827465e0/
-    DATA half,one,fpf/0.5e0,1.0e0,5.5e0/
-      
-    xx  = x  - one
-    tmp = xx + fpf
-    tmp = (xx + half) * LOG(tmp) - tmp
-    ser = one
-    DO j = 1,6
-       xx  = xx  + one
-       ser = ser + cof(j) / xx
-    ENDDO
-    gamma = tmp + LOG(stp*ser)
-    gamma = EXP(gamma)
-
-    gfct2 = gamma
-    RETURN
-  END FUNCTION gfct2
   
   !*******************************************************************************
   !
@@ -725,54 +583,6 @@ CONTAINS
     RETURN
   END FUNCTION gammp
 
-  REAL FUNCTION gammq(a,x,gln)
-
-    IMPLICIT NONE
-
-    REAL, INTENT(in) :: a, x
-    REAL, INTENT(out) :: gln
-    REAL :: gammcf, gamser
-
-    IF (x.LT.0.0 .OR. a .LE. 0.0) THEN
-      WRITE(*,*) 'ERROR in GAMMQ: bad arguments (MODULE gamma_functions, src_seifert.f90)'
-      gammq = 0.0
-      RETURN
-    END IF
-
-    IF (x.LT.a+1.) THEN
-      CALL gser(gamser,a,x,gln)
-      gammq = 1.0 - gamser
-    ELSE
-      CALL gcf(gammcf,a,x,gln)
-      gammq = gammcf
-    ENDIF
-    RETURN
-  END FUNCTION gammq
-
-  ! Ende diverse Hilfsfunktionen
-  !*******************************************************************************
-
-  !*******************************************************************************
-  !
-  ! Upper incomplete gamma function
-  !
-  ! Eigentliche obere unvollstaendige Gamma-Funktion, hier direkt
-  ! das Integral
-  !              int(x)(oo) exp(-t) t^(a-1) dt
-  !
-  !*******************************************************************************
-
-  REAL FUNCTION incgfct_upper(a,x)
-
-    IMPLICIT NONE
-
-    REAL, INTENT(in) :: a, x
-    REAL :: gam, gln
-    
-    gam = gammq(a,x,gln)
-    incgfct_upper = EXP(gln) * gam
-
-  END FUNCTION incgfct_upper
 
   !*******************************************************************************
   !
@@ -795,211 +605,6 @@ CONTAINS
     incgfct_lower = EXP(gln) * gam
 
   END FUNCTION incgfct_lower
-
-  !*******************************************************************************
-  !
-  ! Create Lookup-table vectors for the lower incomplete gamma function,
-  !              int(0)(x) exp(-t) t^(a-1) dt
-  ! as function of x at constant a. 
-  ! The table runs from x=0 to the 99.5 % - value of the normalized 
-  ! incomplete gamma function. This 99.5 % - value has been fitted
-  ! with high accuracy as function of a in the range a in [0;20], but can
-  ! safely be applied also to higher values of a. (Fit created with the
-  ! matlab-program "gamma_unvoll_lower_lookup.m" by Ulrich Blahak, 2008/11/13).
-  !
-  ! The last value in the table corresponds to x = infinity, so that
-  ! during the reconstruction of incgfct-values from the table,
-  ! the x-value can safely be truncated at the maximum table x-value.
-  !
-  !*******************************************************************************
-
-  SUBROUTINE incgfct_lower_lookupcreate(a,ltable,nl,nlhr)
-    IMPLICIT NONE
-
-    REAL, INTENT(in) :: a  ! value of a
-    TYPE(gamlookuptable), INTENT(inout) :: ltable
-    INTEGER, INTENT(in) :: nl, nlhr
-
-    INTEGER :: i, err
-
-    REAL, PARAMETER ::   &
-         c1 =  36.629433904824623e0, &
-         c2 = -0.119475603955226e0,  &
-         c3 =  0.339332937820052e0,  &
-         c4 =  1.156369000458310e0
-
-    ! Store parameters in the structure ltable:
-    ltable%a = a
-    ltable%n = nl
-    ltable%nhr = nlhr
-
-    ! Allocate Memory for the table vectors:
-    NULLIFY(ltable%x)
-    NULLIFY(ltable%xhr)
-    NULLIFY(ltable%igf)
-    NULLIFY(ltable%igfhr)
-
-    ALLOCATE(ltable%x(nl), STAT=err)
-    IF (err /= 0) THEN
-      WRITE (*,*) 'INCGFCT_LOWER_LOOKUPCREATE: Allocation error x'
-      STOP
-    END IF
-    ALLOCATE(ltable%xhr(nlhr), STAT=err)
-    IF (err /= 0) THEN
-      WRITE (*,*) 'INCGFCT_LOWER_LOOKUPCREATE: Allocation error xhr'
-      STOP
-    END IF
-    ALLOCATE(ltable%igf(nl), STAT=err)
-    IF (err /= 0) THEN
-      WRITE (*,*) 'INCGFCT_LOWER_LOOKUPCREATE: Allocation error igf'
-      STOP
-    END IF
-    ALLOCATE(ltable%igfhr(nlhr), STAT=err)
-    IF (err /= 0) THEN
-      WRITE (*,*) 'INCGFCT_LOWER_LOOKUPCREATE: Allocation error igfhr'
-      STOP
-    END IF
-
-    !==================================================================
-    ! low resolution part of the table:
-    !==================================================================
-
-    ! maximum x-value of the lookup table (99.5-%-value):
-    ltable%x(ltable%n-1) = c1 * ( 1.0 - EXP(c2*a**c3) ) + c4*a
-
-    ! create lookup table vectors:
-    ltable%dx = ltable%x(ltable%n-1) / (ltable%n-2.0)
-    ltable%odx = 1.0 / ltable%dx
-    DO i = 1, ltable%n - 1
-      ltable%x(i) = (i-1) * ltable%dx
-      ltable%igf(i) = incgfct_lower(a,ltable%x(i))
-    END DO
-
-    ! The last value is for x = infinity:
-    ltable%x(ltable%n) = (ltable%n-1) * ltable%dx
-    ltable%igf(ltable%n) = gfct2(a)
-
-    !==================================================================
-    ! high resolution part of the table (lowest 2 % of the X-values):
-    !==================================================================
-
-    ! create lookup table vectors:
-    ltable%dxhr = ltable%x(NINT(0.01*(ltable%n-1))) / (ltable%nhr-1.0)
-    ltable%odxhr = 1.0 / ltable%dxhr
-    DO i = 1, ltable%nhr
-      ltable%xhr(i) = (i-1) * ltable%dxhr
-      ltable%igfhr(i) = incgfct_lower(a,ltable%xhr(i))
-    END DO
-
-    RETURN
-  END SUBROUTINE incgfct_lower_lookupcreate
-
-  !*******************************************************************************
-  !
-  ! Retrieve values from a lookup table of the lower incomplete gamma function,
-  ! as function of x at a constant a, for which the lookup table has been 
-  ! created.
-  !
-  ! The last value in the table has to correspond to x = infinity, so that
-  ! during the reconstruction of incgfct-values from the table,
-  ! the x-value can safely be truncated at the maximum table x-value:
-  !
-  ! ltable%igf( ltable%x(ltable%n),...) = gfct(a)
-  !
-  ! Profiling with ifort on a Linux-PC shows, that table lookup for the
-  ! incompl. gamma-Funktion is faster by a factor of about 15 compared
-  ! to the original function without optimization (-O0). Using optimization
-  ! could change this ratio (we encoutered up to 300 depending on function inlining).
-  !
-  ! Concerning the accuracy, comparisons show that the results of table lookup
-  ! are accurate to within better than 0.1 % or even much less, except for
-  ! very small values of X, for which the absolute values are however very
-  ! close to 0. For X -> infinity (X > 99.5 % - value), accuracy may be 
-  ! somewhat reduced up to about 0.5 % ,
-  ! because the table is truncated at the 99.5 % value (second-last value)
-  ! and the last value is set to the ordinary gamma function.
-  !
-  ! This function only uses the low resolution part of the table!
-  !
-  !*******************************************************************************
-
-  REAL FUNCTION incgfct_lower_lookup(x, ltable)
-
-    IMPLICIT NONE
-
-    REAL, INTENT(in) :: x  ! value of x for table lookup
-    TYPE(gamlookuptable), INTENT(in) :: ltable
-
-    INTEGER :: iu, io
-    REAL :: xt
-
-    ! Trunkcate x to the range of the table:
-    xt = MAX(MIN(x, ltable%x(ltable%n)), 0.0)
-
-    ! calculate indices of the neighbouring regular x-values
-    ! in the table:
-    iu = MIN(FLOOR(xt * ltable%odx) + 1, ltable%n-1)
-    io = iu + 1
-
-    ! interpolate linearily and subtract from the ordinary gamma function to get the upper
-    ! incomplete gamma function:
-    incgfct_lower_lookup = ltable%igf(iu) + &
-         (ltable%igf(io) - ltable%igf(iu)) * ltable%odx * (xt-ltable%x(iu))
-
-  END FUNCTION incgfct_lower_lookup
-
-
-  !*******************************************************************************
-  !
-  ! Retrieve values of the upper incomplete gamma function 
-  ! from a lookup table of the lower incomplete gamma function,
-  ! as function of x at a constant a, for which the lookup table has been 
-  ! created.
-  !
-  ! The last value in the table has to correspond to x = infinity 
-  ! (the ordinary gamma function of a), so that
-  ! during the reconstruction of incgfct-values from the table,
-  ! the x-value can safely be truncated at the maximum table x-value:
-  !
-  ! ltable%igf( ltable%x(ltable%n),...) = gfct(a)
-  !
-  ! This function only uses the low resolution part of the table!
-  !
-  !*******************************************************************************
-
-  REAL FUNCTION incgfct_upper_lookup(x, ltable)
-
-    IMPLICIT NONE
-
-    REAL, INTENT(in) :: x  ! value of x for table lookup
-    TYPE(gamlookuptable), INTENT(in) :: ltable
-
-    INTEGER :: iu, io
-    REAL :: xt
-
-    ! Trunkcate x to the range of the table:
-    xt = MAX(MIN(x, ltable%x(ltable%n)), 0.0)
-
-    ! calculate indices of the neighbouring regular x-values
-    ! in the table:
-    iu = MIN(FLOOR(xt * ltable%odx) + 1, ltable%n-1)
-    io = iu + 1
-
-    ! interpolate lower inc. gamma function linearily and subtract from 
-    ! the ordinary gamma function to get the upper
-    ! incomplete gamma function:
-    incgfct_upper_lookup = ltable%igf(ltable%n) - ltable%igf(iu) -  &
-         (ltable%igf(io) - ltable%igf(iu)) * ltable%odx * (xt-ltable%x(iu))
-
-    ! Aufgrund von Rundungsfehlern (Differenz von 2 fast gleichen Zahlen) kann es beim table lookup passieren,
-    ! dass incgfct_upper_lookup(x, ltable) kleiner 0 wird, wenn eigentlich nahezu 0.0 herauskommen muesste.
-    ! Dies kommt vor allem dann vor, wenn x sehr gross ist.
-    ! Deswegen Begrenzung:
-
-    incgfct_upper_lookup = MAX(incgfct_upper_lookup, 0.0)
-
-    RETURN
-  END FUNCTION incgfct_upper_lookup
 
 !END MODULE gamma_functions_mp_seifert
 
@@ -1093,7 +698,7 @@ CONTAINS
            rimenrrate_snow, &
            d_id_sp, d_sd_sp, d_rd_sp_ice, d_rd_sp_snow)
     END IF
-    ! ub>>
+    ! ub<<
     IF (sflg) DEALLOCATE( out_mcrp_data,tmp_rv,tmp_rc,tmp_nr,tmp_rr,&
             tmp_ni,tmp_ri,tmp_rs,tmp_ns,tmp_rg,tmp_ng,tmp_rh,tmp_nh )
   END SUBROUTINE dealloc_driver
@@ -1129,7 +734,7 @@ CONTAINS
         DO i = 0, loc_ix
           IF (nuc_typ==0 .AND. s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3) THEN
             ! Cloud droplet freezing with fixed INP concentration
-            ndiag = MAX(nin_set*rho_0(i,j,k) - (n_ice(i,j,k)+n_snow(i,j,k)),0.0)
+            ndiag = MAX(nin_set*rho_0(i,j,k) - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0)
             nuc_q = MIN(ndiag*ice%x_min, q_cloud(i,j,k))
 
             q_ice(i,j,k) = q_ice(i,j,k) + nuc_q
@@ -1744,8 +1349,6 @@ CONTAINS
               q_graupel(i,j,k) = q_graupel(i,j,k) - shed_q
               q_rain(i,j,k)    = q_rain(i,j,k)    + shed_q                   
               n_rain(i,j,k)    = n_rain(i,j,k)    + shed_n
-            ELSE
-              shed_q = 0.0
             ENDIF
 
           ENDIF
@@ -1895,8 +1498,6 @@ CONTAINS
               q_hail(i,j,k) = q_hail(i,j,k) - shed_q
               q_rain(i,j,k) = q_rain(i,j,k) + shed_q                   
               n_rain(i,j,k) = n_rain(i,j,k) + shed_n
-            ELSE
-              shed_q = 0.0
             ENDIF
 
           ENDIF
@@ -2501,8 +2102,6 @@ CONTAINS
                 q_graupel(i,j,k) = q_graupel(i,j,k) - shed_q
                 q_rain(i,j,k)    = q_rain(i,j,k)    + shed_q                   
                 n_rain(i,j,k)    = n_rain(i,j,k)    + shed_n
-              ELSE
-                shed_q = 0.0
               ENDIF
 
             ELSE   ! T_a < T_3 .and. ice_typ >= 3 .and. D_g <= D_r
@@ -2569,8 +2168,6 @@ CONTAINS
                 q_hail(i,j,k)    = q_hail(i,j,k)    - shed_q
                 q_rain(i,j,k)    = q_rain(i,j,k)    + shed_q                   
                 n_rain(i,j,k)    = n_rain(i,j,k)    + shed_n
-              ELSE
-                shed_q = 0.0
               ENDIF
 
             ENDIF  ! T_a >= T_3 .or. ice_typ < 3
@@ -2720,8 +2317,6 @@ CONTAINS
               q_hail(i,j,k) = q_hail(i,j,k) - shed_q
               q_rain(i,j,k) = q_rain(i,j,k)    + shed_q                   
               n_rain(i,j,k) = n_rain(i,j,k)    + shed_n
-            ELSE
-              shed_q = 0.0
             ENDIF
 
           ENDIF
@@ -3395,7 +2990,7 @@ CONTAINS
               fr_n  = MAX(fr_n,fr_q/cloud%x_max)
               
               IF (nuc_c_typ .EQ. 0) THEN
-                fr_n = MAX(MIN(fr_n,qnc_const-n_ice(i,j,k)),0.)
+                fr_n = MAX(MIN(fr_n,n_cloud(i,j,k)-n_ice(i,j,k)),0.)
               ENDIF
               
               q_ice(i,j,k)   = q_ice(i,j,k)   + fr_q
@@ -3409,232 +3004,6 @@ CONTAINS
     END DO
 
   END SUBROUTINE cloud_freeze
-
-  SUBROUTINE rain_freeze_gamlook ()
-    !*******************************************************************************
-    !                                                                              *
-    ! Diese Routine behandelt das Gefrieren von Regentropfen                       *
-    ! 
-    ! Auftretende unvollst. gamma-Funktionen werden mittels lookup tables
-    ! effizienter berechnet als in rain_freeze()
-    !
-    !*******************************************************************************
-
-    IMPLICIT NONE
-
-    ! .. Local Variables ..
-    INTEGER                     :: i,j,k
-    INTEGER, SAVE               :: firstcall = 0
-    REAL            :: fr_q,fr_n,T_a,q_r,x_r,n_r,j_het, &
-         &  fr_q_i,fr_n_i,fr_q_g,fr_n_g,fr_q_h,fr_n_h,n_0,lam,xmax_ice,xmax_gr,fr_q_tmp,fr_n_tmp
-    REAL, PARAMETER :: a_HET = 6.5e-1 ! Messung nach Barklie and Gokhale (PK S.350)
-    REAL, PARAMETER :: b_HET = 2.0e+2 ! Messung nach Barklie and Gokhale (PK S.350)
-    REAL, PARAMETER :: eps  = 1.e-20
-
-    TYPE(gamlookuptable), SAVE :: ltable1, ltable2, ltable3
-
-    REAL, SAVE      :: coeff_z
-    REAL, SAVE :: nm1, nm2, nm3, g1, g2
-
-
-    IF (firstcall.NE.1) THEN
-      firstcall = 1
-      !..Koeff. fuer Reflektivitaet Z (2. Moment)
-      coeff_z = moment_gamma(rain,2)
-      nm1 = (rain%nu+1.0)/rain%mu
-      nm2 = (rain%nu+2.0)/rain%mu
-      nm3 = (rain%nu+3.0)/rain%mu
-      CALL incgfct_lower_lookupcreate(nm1, ltable1, nlookup, nlookuphr_dummy)
-      CALL incgfct_lower_lookupcreate(nm2, ltable2, nlookup, nlookuphr_dummy)
-      CALL incgfct_lower_lookupcreate(nm3, ltable3, nlookup, nlookuphr_dummy)
-      ! ordinary gamma function of nm1 is the last value in the lookup table 1:
-      g1 = ltable1%igf(ltable1%n)
-      ! ordinary gamma function of nm2 is the last value in the lookup table 2:
-      g2 = ltable2%igf(ltable2%n)
-    ENDIF
-
-    xmax_ice = ( (D_rainfrz_ig/rain%a_geo)**(1.0/rain%b_geo) ) ** rain%mu
-    xmax_gr  = ( (D_rainfrz_gh/rain%a_geo)**(1.0/rain%b_geo) ) ** rain%mu
-
-    !..Test auf Schmelzen oder Gefrieren von Regentropfen
-    DO k = 1, loc_iz
-      DO j = 1, loc_iy
-        DO i = 0, loc_ix
-          T_a = T_0(i,j,k)
-          q_r = q_rain(i,j,k)
-          n_r = n_rain(i,j,k)
-
-          IF (T_a < T_freeze) THEN
-            IF (q_r <= q_krit_fr) THEN
-              IF (T_a < T_f) THEN
-                fr_q = q_r                  !  Ausfrieren unterhalb T_f \approx -40 C
-                fr_n = n_r
-                fr_n_i= n_r
-                fr_q_i= q_r
-                fr_n_g= 0.0
-                fr_q_g= 0.0
-                fr_n_h= 0.0
-                fr_q_h= 0.0
-                ! UB_20080220>
-                fr_n_tmp = 1.0
-                fr_q_tmp = 1.0
-                ! <UB_20080220
-              ELSE
-                fr_q = 0.0
-                fr_n = 0.0
-                fr_n_i= 0.0
-                fr_q_i= 0.0
-                fr_n_g= 0.0
-                fr_q_g= 0.0
-                fr_n_h= 0.0
-                fr_q_h= 0.0
-                ! UB_20080220>
-                fr_n_tmp = 0.0
-                fr_q_tmp = 0.0
-                ! <UB_20080220
-              END IF
-            ELSE
-              x_r = MIN(MAX(q_r/(n_r+eps),rain%x_min),rain%x_max)
-              n_r = q_r / x_r
-              IF (T_a < T_f) THEN            !..Nur Eis
-!!! Diesen Zweig koennte man auch weglassen. ist zudem zwar quanitativ richtig, aber nicht konsistent zum
-!!! Grenzfall fuer komplettes Gefrieren der Rechnung im T_a >= T_f - Zweig weiter unten
-                fr_q = q_r                  !  Ausfrieren unterhalb T_f \approx -40 C
-                fr_n = n_r
-
-                ! ub>> Je nach Groesse werden die gefrorenen Regentropfen dem Wolkeneis zugeschlagen
-                !      oder dem Graupel oder Hagel. Hierzu erfolgt eine partielle Integration des Spektrums von 0
-                !      bis zu einer ersten Trennmasse xmax_ice (--> Eis), von dort bis zu xmax_gr (--> Graupel)
-                !      und von xmax_gr bis unendlich (--> Hagel).
-
-                lam = ( g1 / g2 * x_r)**(-rain%mu)
-                n_0 = rain%mu * n_r * lam**(nm1) / g1
-                fr_n_i = n_0/(rain%mu*lam**(nm1))* &
-                     incgfct_lower_lookup(lam*xmax_ice, ltable1)
-                fr_q_i = n_0/(rain%mu*lam**(nm2))* &
-                     incgfct_lower_lookup(lam*xmax_ice, ltable2)
-                fr_n_g = n_0/(rain%mu*lam**(nm1))* &
-                     incgfct_lower_lookup(lam*xmax_gr,  ltable1)
-                fr_q_g = n_0/(rain%mu*lam**(nm2))* &
-                     incgfct_lower_lookup(lam*xmax_gr,  ltable2)
-
-
-                fr_n_h = fr_n - fr_n_g
-                fr_q_h = fr_q - fr_q_g
-                fr_n_g = fr_n_g - fr_n_i
-                fr_q_g = fr_q_g - fr_q_i
-                fr_n_tmp = n_r/MAX(fr_n,n_r)
-                fr_q_tmp = q_r/MAX(fr_q,q_r)
-
-              ELSE                           !..Heterogenes Gefrieren
-                j_het = MAX(b_HET * ( EXP( a_HET * (T_3 - T_a)) - 1.0 ),0.) / rho_w * dt
-
-                ! ub>> Je nach Groesse werden die gefrorenen Regentropfen dem Wolkeneis zugeschlagen
-                !      oder dem Graupel oder Hagel. Hierzu erfolgt eine partielle Integration des Spektrums von 0
-                !      bis zu einer ersten Trennmasse xmax_ice (--> Eis), von dort bis zu xmax_gr (--> Graupel)
-                !      und von xmax_gr bis unendlich (--> Hagel).
-
-                IF (j_het >= 1e-20) THEN
-                  fr_n  = j_het * q_r
-                  fr_q  = j_het * q_r * x_r * coeff_z
-
-                  lam = ( g1 / g2 * x_r)**(-rain%mu)
-                  n_0 = rain%mu * n_r * lam**(nm1) / g1
-                  fr_n_i = j_het * n_0/(rain%mu*lam**(nm2))* &
-                       incgfct_lower_lookup(lam*xmax_ice, ltable2)
-                  fr_q_i = j_het * n_0/(rain%mu*lam**(nm3))* &
-                       incgfct_lower_lookup(lam*xmax_ice, ltable3)
-                  fr_n_g = j_het * n_0/(rain%mu*lam**(nm2))* &
-                       incgfct_lower_lookup(lam*xmax_gr,  ltable2)
-                  fr_q_g = j_het * n_0/(rain%mu*lam**(nm3))* &
-                       incgfct_lower_lookup(lam*xmax_gr,  ltable3)
-
-                  fr_n_h = fr_n - fr_n_g
-                  fr_q_h = fr_q - fr_q_g
-                  fr_n_g = fr_n_g - fr_n_i
-                  fr_q_g = fr_q_g - fr_q_i
-                  fr_n_tmp = n_r/MAX(fr_n,n_r)
-                  fr_q_tmp = q_r/MAX(fr_q,q_r)
-                ELSE
-                  fr_n= 0.0
-                  fr_q= 0.0
-                  fr_n_i= 0.0
-                  fr_q_i= 0.0
-                  fr_n_g= 0.0
-                  fr_q_g= 0.0
-                  ! UB_20080212>
-                  fr_n_h= 0.0
-                  fr_q_h= 0.0
-                  ! <UB_20080212
-                  fr_n_tmp = 0.0
-                  fr_q_tmp = 0.0
-                END IF
-
-              END IF
-
-              fr_n = fr_n * fr_n_tmp
-              fr_q = fr_q * fr_q_tmp
-
-              fr_n_i = fr_n_i * fr_n_tmp
-              fr_n_g = fr_n_g * fr_n_tmp
-              fr_n_h = fr_n_h * fr_n_tmp
-              fr_q_i = fr_q_i * fr_q_tmp
-              fr_q_g = fr_q_g * fr_q_tmp
-              fr_q_h = fr_q_h * fr_q_tmp
-
-            END IF
-
-            !..Berechnung der H2O-Komponenten
-
-            q_rain(i,j,k) = q_rain(i,j,k) - fr_q
-            n_rain(i,j,k) = n_r - fr_n
-
-
-            IF (ice_typ < 2) THEN 
-              ! ohne Hagelklasse,  gefrierender Regen wird Eis oder Graupel
-              q_ice(i,j,k) = q_ice(i,j,k)  + fr_q_i
-              n_ice(i,j,k) = n_ice(i,j,k)  + fr_n_i
-              q_graupel(i,j,k) = q_graupel(i,j,k)  + fr_q_h + fr_q_g
-              n_graupel(i,j,k) = n_graupel(i,j,k)  + fr_n_h + fr_n_g
-            ELSE
-              ! mit Hagelklasse, gefrierender Regen wird Eis, Graupel oder Hagel
-              q_ice(i,j,k) = q_ice(i,j,k)  + fr_q_i
-              n_ice(i,j,k) = n_ice(i,j,k)  + fr_n_i
-              q_graupel(i,j,k) = q_graupel(i,j,k)  + fr_q_g
-              n_graupel(i,j,k) = n_graupel(i,j,k)  + fr_n_g
-              q_hail(i,j,k) = q_hail(i,j,k)  + fr_q_h
-              n_hail(i,j,k) = n_hail(i,j,k)  + fr_n_h
-            ENDIF
-
-            IF (q_rain(i,j,k) < 0.0) THEN
-               if (abs(q_rain(i,j,k)).gt.1e-12) &
-                    WRITE (*,*) 'RAIN_FREEZE_GAMLOOK: Qrain < 0.0, ', i,j,k, q_rain(i,j,k), T_a, q_r, j_het, fr_q, fr_q_tmp
-               q_rain(i,j,k) = 0.0
-            END IF
-            IF (n_rain(i,j,k) < 0.0) THEN
-               if (abs(n_rain(i,j,k)).gt.1e-12) &
-                    WRITE (*,*) 'RAIN_FREEZE_GAMLOOK: Nrain < 0.0, ', i,j,k, n_rain(i,j,k), T_a, n_r, j_het, fr_n, fr_n_tmp
-               n_rain(i,j,k) = 0.0
-            END IF
-            IF (q_graupel(i,j,k) < 0.0) THEN
-              q_graupel(i,j,k) = 0.0
-            END IF
-            IF (n_graupel(i,j,k) < 0.0) THEN
-              n_graupel(i,j,k) = 0.0
-            END IF            
-            IF (q_hail(i,j,k) < 0.0) THEN
-              q_hail(i,j,k) = 0.0
-            END IF
-            IF (n_hail(i,j,k) < 0.0) THEN
-              n_hail(i,j,k) = 0.0
-            END IF            
-
-          END IF
-        END DO
-      END DO
-    END DO
-
-  END SUBROUTINE rain_freeze_gamlook
 
   SUBROUTINE rain_freeze ()
     !*******************************************************************************
@@ -4792,6 +4161,15 @@ CONTAINS
     REAL, SAVE      :: a_q,b_q   !..Koeff. fuer mittleren Ventilationkoeff.
 
     LOGICAL, PARAMETER :: use_mu_Dm_rain_evap = .TRUE.
+    REAL, PARAMETER :: & !..Axel's mu-Dm-relation for raindrops based on 1d-bin model
+      rain_cmu0 = 6.0, &     ! Axel's 2007 relation
+      rain_cmu1 = 30.0, &    !
+      rain_cmu2 = 1.00e+3, & !
+      rain_cmu3 = 1.10e-3, & ! D_eq,break
+      rain_cmu4 = 1.0, &     !
+      rain_gfak = 1.0
+    INTEGER, PARAMETER :: &
+      rain_cmu5 = 2          ! exponent
 
     REAL, PARAMETER :: aa = 9.65e+00     ! in SI [m/s]
     REAL, PARAMETER :: bb = 1.03e+01     ! in SI [m/s]
@@ -5125,214 +4503,6 @@ CONTAINS
 
   END SUBROUTINE snow_evaporation
 
-
-  ! wet growth Grenzdurchmesser fuer graupelhail2test in m:
-  FUNCTION dmin_wetgrowth_graupel(p_a,T_a,qw_a,qi_a)
-    IMPLICIT NONE
-
-    REAL :: dmin_wetgrowth_graupel
-    REAL, INTENT(in) :: p_a,T_a,qw_a,qi_a
-    REAL :: p_lok,T_lok,qw_lok,qi_lok
-    
-    INTEGER :: i
-    INTEGER :: iu, io, ju, jo, ku, ko, lu, lo
-
-    REAL :: hilf1(2,2,2,2), hilf2(2,2,2), hilf3(2,2), hilf4(2)
-
-    LOGICAL :: found_p, found_T, found_w, found_i
-
-    found_p = .FALSE.
-    found_T = .FALSE.
-    found_w = .FALSE.
-    found_i = .FALSE.
-    dmin_wetgrowth_graupel = 999.99
-
-    p_lok = MIN(MAX(p_a,pvec_wg_g(1)),pvec_wg_g(anzp_wg))
-    IF (p_a <= pvec_wg_g(1)) THEN
-      found_p = .TRUE.
-      iu = 1
-      io = 2
-    ELSE IF (p_a >= pvec_wg_g(anzp_wg)) THEN
-      found_p = .TRUE.
-      iu = anzp_wg - 1
-      io = anzp_wg
-    ELSE
-      iu = 1
-      DO i=1, anzp_wg-1
-        IF (p_a >= pvec_wg_g(i) .AND. p_a < pvec_wg_g(i+1)) THEN
-          iu = i
-          found_p = .TRUE.
-          EXIT
-        END IF
-      END DO
-      io = iu + 1
-    END IF
-
-    T_lok = MIN(MAX(T_a,Tvec_wg_g(1)),Tvec_wg_g(anzT_wg))
-    IF (T_a <= Tvec_wg_g(1)) THEN
-      found_T = .TRUE.
-      ju = 1
-      jo = 2
-    ELSE IF (T_a >= Tvec_wg_g(anzT_wg)) THEN
-      found_T = .TRUE.
-      dmin_wetgrowth_graupel = 0.0
-      RETURN
-    ELSE
-      ju = 1
-      DO i=1, anzT_wg-1
-        IF (T_a >= Tvec_wg_g(i) .AND. T_a < Tvec_wg_g(i+1)) THEN
-          ju = i
-          found_T = .TRUE.
-          EXIT
-        END IF
-      END DO
-      jo = ju + 1
-    END IF
-
-    qw_lok = MIN(MAX(qw_a,qwvec_wg_g(1)),qwvec_wg_g(anzw_wg))
-    IF (qw_a <= qwvec_wg_g(1)) THEN
-      found_w = .TRUE.
-      dmin_wetgrowth_graupel = 999.99
-      RETURN
-    ELSE IF (qw_a >= qwvec_wg_g(anzw_wg)) THEN
-      found_w = .TRUE.
-      ku = anzw_wg - 1
-      ko = anzw_wg
-    ELSE
-      ku = 1
-      DO i=1, anzw_wg-1
-        IF (qw_a >= qwvec_wg_g(i) .AND. qw_a < qwvec_wg_g(i+1)) THEN
-          ku = i
-          found_w = .TRUE.
-          EXIT
-        END IF
-      END DO
-      ko = ku + 1
-    END IF
-
-    qi_lok = MIN(MAX(qi_a,qivec_wg_g(1)),qivec_wg_g(anzi_wg))
-    IF (qi_a <= qivec_wg_g(1)) THEN
-      found_i = .TRUE.
-      lu = 1
-      lo = 2
-    ELSE IF (qi_a >= qivec_wg_g(anzi_wg)) THEN
-      found_i = .TRUE.
-      lu = anzi_wg - 1
-      lo = anzi_wg
-    ELSE
-      lu = 1
-      DO i=1, anzi_wg-1
-        IF (qi_a >= qivec_wg_g(i) .AND. qi_a < qivec_wg_g(i+1)) THEN
-          lu = i
-          found_i = .TRUE.
-          EXIT
-        END IF
-      END DO
-      lo = lu + 1
-    END IF
-
-    IF (.NOT.found_p .OR. .NOT.found_T .OR. .NOT.found_w .OR. .NOT. found_i) THEN
-      WRITE (*,*) 'Seifert dmin_wetgrowth_graupel: interpolation point not found in lookup table'
-      dmin_wetgrowth_graupel = 999.99
-    ELSE
-
-      ! Tetra-lineare Interpolation von Dmin:
-      hilf1 = dmin_wg_g(iu:io,ju:jo,ku:ko,lu:lo)
-      hilf2 = hilf1(1,:,:,:) + &
-           (hilf1(2,:,:,:)-hilf1(1,:,:,:)) / &
-           (pvec_wg_g(io)-pvec_wg_g(iu)) * (p_lok-pvec_wg_g(iu))
-      hilf3 = hilf2(1,:,:) + &
-           (hilf2(2,:,:)-hilf2(1,:,:)) / (Tvec_wg_g(jo)-Tvec_wg_g(ju)) * (T_lok-Tvec_wg_g(ju))
-      
-      hilf4 = hilf3(1,:) + &
-           (hilf3(2,:)-hilf3(1,:)) / (qwvec_wg_g(ko)-qwvec_wg_g(ku)) * (qw_lok-qwvec_wg_g(ku))
-      
-      dmin_wetgrowth_graupel = hilf4(1) + &
-           (hilf4(2)-hilf4(1)) / (qivec_wg_g(lo)-qivec_wg_g(lu)) * (qi_lok-qivec_wg_g(lu))
-      
-    END IF
-
-    RETURN
-
-  END FUNCTION dmin_wetgrowth_graupel
-
-  SUBROUTINE graupel_hail_conv_wet()
-    !*******************************************************************************
-    !                                                                              *
-    !       Berechnung des Wet Growth Umwandlungsprozesses von Graupel zu Hagel    *
-    !                                                                              *
-    !*******************************************************************************
-    IMPLICIT NONE
-
-    ! Locale Variablen 
-    INTEGER                     :: i,j,k
-    REAL            :: T_a, p_a, d_trenn, qw_a, qi_a, N_0, lam, xmin
-    REAL            :: q_g,n_g,x_g,d_g,q_c,q_r
-    REAL            :: conv_n, conv_q
-
-    REAL, PARAMETER :: eps = 1.e-20
-    REAL, PARAMETER :: eps2 = 1.e-12  ! UB_20081202
-
-
-    DO k = 1, loc_iz
-      DO j = 1, loc_iy
-        DO i = 0, loc_ix             
-          q_c = q_cloud(i,j,k)                                      !..Massendichte
-          q_r = q_rain(i,j,k)                                       !..Massendichte
-          q_g = q_graupel(i,j,k)                                    !..Massendichte
-          n_g = n_graupel(i,j,k)                                    !..Anzahldichte
-          x_g = MIN(MAX(q_g/(n_g+eps),graupel%x_min),graupel%x_max) !..mittlere Masse
-          D_g = graupel%a_geo * x_g**graupel%b_geo                  !..mittlerer Durchmesser
-          n_g = q_g / x_g
-
-          T_a = T_0(i,j,k)
-          p_a = p_0(i,j,k)
-
-          !.. Umgebungsgehalt unterkuehltes Wasser:
-          qw_a = q_r + q_c
-
-          IF (T_a < T_3 .AND. q_g > q_krit_gc .AND. qw_a > 1e-3) THEN
-
-            !.. Umgebungsgehalt Eispartikel (vernachl. werden Graupel und Hagel wg. geringer Kollisionseff.)
-            !.. koennte problematisch sein, weil in konvekt. Wolken viel mehr Graupel und Hagel enthalten ist!!!
-            qi_a = q_ice(i,j,k) + q_snow(i,j,k)
-            d_trenn = dmin_wetgrowth_graupel(p_a,T_a,qw_a,qi_a)
-
-            !.. Bereich im Graupelspektrum mit D > d_trenn wird zu Hagel:
-            if (d_trenn.gt.0) then
-             xmin = (d_trenn/graupel%a_geo)**(1.0/graupel%b_geo)
-            else
-             xmin=0.
-            end if
-! UB_20081202>>            IF (xmin > graupel%x_min .AND. d_trenn < 10.0 * D_g) THEN
-            IF (xmin > eps2 .AND. d_trenn < 10.0 * D_g) THEN
-
-              lam = ( gfct((graupel%nu+1.0)/graupel%mu) / gfct((graupel%nu+2.0)/graupel%mu) * x_g)**(-graupel%mu)
-              n_0 = graupel%mu * n_g * lam**((graupel%nu+1.0)/graupel%mu) / gfct((graupel%nu+1.0)/graupel%mu)
-              conv_n = n_0/(graupel%mu*lam**((graupel%nu+1.0)/graupel%mu))* &
-                   incgfct_upper((graupel%nu+1.0)/graupel%mu, lam*xmin**graupel%mu)
-              conv_q = n_0/(graupel%mu*lam**((graupel%nu+2.0)/graupel%mu))* &
-                   incgfct_upper((graupel%nu+2.0)/graupel%mu, lam*xmin**graupel%mu)
-              
-              conv_n = MIN(conv_n,n_g)
-              conv_q = MIN(conv_q,q_g)
-
-              q_graupel(i,j,k) = q_graupel(i,j,k) - conv_q
-              n_graupel(i,j,k) = n_g - conv_n
-
-              q_hail(i,j,k) = q_hail(i,j,k) + conv_q
-              n_hail(i,j,k) = n_hail(i,j,k) + conv_n
-
-            END IF
-          ENDIF
-        ENDDO
-      ENDDO
-    ENDDO
-
-  END SUBROUTINE graupel_hail_conv_wet
-
-
-
 !END MODULE wolken_eis
 
 !==============================================================================
@@ -5343,8 +4513,8 @@ CONTAINS
   SUBROUTINE clouds ()
     !*******************************************************************************
 
-    rrho_04 = (rho0/rho_0)**rho_vel
-    rrho_c  = (rho0/rho_0)**rho_vel_c
+    rrho_04 = sqrt(rho0/rho_0)
+    rrho_c  = rho0/rho_0
 
     IF (sflg) CALL sb_var_stat_reset() ! Reset
 
@@ -5366,9 +4536,7 @@ CONTAINS
     IF (sflg) CALL sb_var_stat('diag') ! Diagnostics
 
     IF (cloud_typ > 1 ) THEN
-      IF (nuc_c_typ .EQ. 0) THEN
-        n_cloud = qnc_const
-      ELSE
+      IF (nuc_c_typ .NE. 0) THEN
         WRITE(*,*) 'Fixed CDNC required!'
         STOP
       END IF
@@ -5410,7 +4578,7 @@ CONTAINS
 
       IF (ice_typ > 1) THEN
 
-        CALL graupel_hail_conv_wet ()
+        ! Disabled (31.3.2023): CALL graupel_hail_conv_wet ()
 
         CALL hail_ice_collection ()
 
@@ -5457,9 +4625,7 @@ CONTAINS
       ! Gefrieren der Regentropfen:
 
       IF (drop_freeze) THEN
-        ! new freezing scheme with a partitioning into ice/graupel/hail
-        CALL rain_freeze_gamlook ()
-        !CALL rain_freeze ()
+        CALL rain_freeze ()
         ! simpler SB2006 rain-to-graupel freezing scheme
         !CALL rain_freeze_old ()
       END IF
@@ -5835,8 +5001,8 @@ CONTAINS
             x_c = MIN(MAX(q_c/(n_c+eps),cloud%x_min),cloud%x_max) !..mittlere Masse in SI
 
             !..Berechnung der Autokonversionsrate nach SB2000
-            !au  =  k_au * q_c**2 * x_c**2 * dt 
-            au  = k_au * q_c**2 * x_c**2 * dt * rrho_c(i,j,k)
+            au  =  k_au * q_c**2 * x_c**2 * dt
+            !au  = k_au * q_c**2 * x_c**2 * dt * rrho_c(i,j,k)
             IF (q_c > 1.0e-6) THEN
               tau = MIN(MAX(1.0-q_c/(q_c+q_r+eps),eps),0.9)
               phi = k_1 * tau**k_2 * (1.0 - tau**k_2)**3
@@ -5881,8 +5047,6 @@ CONTAINS
     REAL :: ac
     REAL :: L_c, L_r, tau, phi, n_c, x_c
 
-    x_c  = 4./3. * pi * rho_w * r_c**3     !..Mittlere Masse der Wolkentropfen
-
     !..Parametrisierung nach Seifert und Beheng (2001)
     DO k = 1, loc_iz
       DO j = 1, loc_iy
@@ -5896,8 +5060,8 @@ CONTAINS
             !..Berechnung der Akkreszenzrate nach SB2001
             tau = MIN(MAX(1.0-L_c/(L_c+L_r+eps),eps),1.0)
             phi = (tau/(tau+k_1))**4
-            ac  = k_r *  L_c * L_r * phi * dt
-            !ac  = k_r *  L_c * L_r * phi  * rrho_04(i,j,k) * dt
+            !ac  = k_r *  L_c * L_r * phi * dt
+            ac  = k_r *  L_c * L_r * phi  * rrho_04(i,j,k) * dt
 
             ac = MIN(L_c,ac)
 
@@ -5972,11 +5136,11 @@ CONTAINS
             ENDIF
             sc = MIN(n_r,sc-br)
 
-            n_r  = n_r  - sc
+            n_rain(i,j,k)  = n_rain(i,j,k) - sc
 
             ! Untere und obere Schranke fuer d_rain bzw. n_rain
-            x_r = MIN(MAX(q_r/(n_r+eps),rain%x_min),rain%x_max) !..mittlere Masse in SI
-            n_rain(i,j,k) = q_rain(i,j,k) / x_r
+            !x_r = MIN(MAX(q_r/(n_r+eps),rain%x_min),rain%x_max) !..mittlere Masse in SI
+            !n_rain(i,j,k) = q_rain(i,j,k) / x_r
           ENDIF
         END DO
       END DO
