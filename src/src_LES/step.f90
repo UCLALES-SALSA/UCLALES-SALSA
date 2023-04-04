@@ -29,7 +29,6 @@ module step
   real    :: frqrst =  3600.
   real    :: frqanl =  3600.
   real    :: anl_start = -1.
-  real    :: radfrq =  0.
 
   real    :: time   =  0.
   real    :: strtim =  0.0
@@ -192,7 +191,7 @@ contains
 
     call sponge(0)
 
-    if (level >= 1) then
+    if (level >= 0) then
 
        call thermo(level)
 
@@ -237,11 +236,11 @@ contains
 
         IF (level >= 4) CALL tend_constrain(n4)
 
-        IF (sflg .AND. level == 3) CALL les_rate_stats('mcrp')
+        IF (sflg .AND. level < 4 ) CALL les_rate_stats('mcrp')
         IF (sflg .AND. level >= 4) CALL les_rate_stats('sedi')
 
         ! Save user-selected details about Seifert and Beheng microphysics
-        IF (sflg .AND. level == 3) CALL mcrp_var_save()
+        IF (sflg .AND. level < 4) CALL mcrp_var_save()
 
         CALL update_sclrs
     END IF
@@ -755,7 +754,7 @@ contains
 
     IF (level<4) THEN
        rv = a_rv ! Water vapor
-       rc = a_rc + a_rpp ! Total condensate (cloud + precipitation)
+       rc = a_rc + a_rpp + a_ri ! Total condensate (cloud + precipitation + total ice)
     ELSE
        rv = a_rp ! Water vapor
        rc = a_rc + a_srp + a_ri + a_srs ! Total condensed water (aerosol+cloud+precipitation+ice+snow)

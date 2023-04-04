@@ -29,10 +29,9 @@ module srfc
 
 ! Sami added ----->
 ! Initial values for surface properties
- ! real :: W1 = 0.9   !Water content      ... Definition in grid now because of restrat files
- ! real :: W2 = 0.9
- ! real :: W3 = 0.9
-
+  real ::  W1 = 0.9   !Water content
+  real ::  W2 = 0.9
+  real ::  W3 = 0.9
   real ::  B1 = 6.5
   real ::  B3 = 7.26
   real ::  K_s1 = 5.8e-5
@@ -590,7 +589,7 @@ contains
     use defs, only: vonk, p00, rcp, g, cp, alvl, ep2
     use grid, only: nzp, nxp, nyp, a_up, a_vp, a_theta, a_rv, a_rp, zt, psrf, th00  &
          , umean, vmean, a_ustar, a_tstar, a_rstar, uw_sfc, vw_sfc, ww_sfc    &
-         , wt_sfc, wq_sfc, obl, dn0, level,dtl, a_sflx, a_rflx, precip, W1,W2,W3
+         , wt_sfc, wq_sfc, obl, dn0, level,dtl, a_sflx, a_rflx, precip
     use thrm, only: rslf
     use stat, only: sfc_stat, sflg
     use mpi_interface, only : nypg, nxpg, double_array_par_sum
@@ -615,7 +614,7 @@ contains
 
     ! Added by Juha
     SELECT CASE(level)
-       CASE(1,2,3)
+       CASE(0,1,2,3)
           rx = a_rv
        CASE(4,5)
           rx = a_rp
@@ -853,8 +852,7 @@ contains
              wspd(i,j)    = max(0.1,                                    &
                   sqrt((a_up(2,i,j)+umean)**2+(a_vp(2,i,j)+vmean)**2))
              if (ubmin > 0.) then
-                bflx = g*wt_sfc(1,1)/th00
-                if (level >= 2) bflx = bflx + g*ep2*wq_sfc(i,j)
+                bflx = g*wt_sfc(1,1)/th00 + g*ep2*wq_sfc(i,j)
                 a_ustar(i,j) = diag_ustar(zt(2),zs,bflx,wspd(i,j))
              else
                 a_ustar(i,j) = abs(ubmin)

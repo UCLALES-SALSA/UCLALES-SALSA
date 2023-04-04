@@ -94,6 +94,10 @@ contains
           rx = a_rv ! Water vapor
           rxt = a_rp ! Water vapor + condensed water
           thl = a_tp ! Liquid water potential temperature
+       CASE(0)
+          rx = a_rv
+          rxt = a_rp
+          WHERE(a_temp>0.) thl = a_tp + (a_theta/a_temp)*alvi/cp*a_ri
        CASE(4)
           rx = a_rp
           rxt = a_rp + a_rc + a_srp
