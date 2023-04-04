@@ -47,7 +47,7 @@ contains
 
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, a_dn, iradtyp, pi0, pi1, level, &
          a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp, a_rv, a_rc, CCN, &
-         a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp,a_nhp, a_maerop, &
+         a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_rhp,a_nhp, a_maerop, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
          nbins, ncld, nice, nprc, nsnw, a_fus, a_fds, a_fuir, a_fdir
     use mpi_interface, only : myid, appl_abort

@@ -311,7 +311,7 @@ contains
        !    rain, ice, snow, graupel and hail mass and number (level=0 & lev_sb=5)
        nscl = 2+naddsc
        if (level == 3 .OR. level == 0) nscl = nscl+2 ! rain
-       if (level == 0 .AND. lev_sb ==4) nscl = nscl+4  ! + ice and snow and graupel mass
+       if (level == 0 .AND. lev_sb ==4) nscl = nscl+4 ! + ice and snow and graupel mass
        if (level == 0 .AND. lev_sb ==5) nscl = nscl+8 ! + ice, snow, graupel and hail
        if (isgstyp > 1) nscl = nscl+1 ! tke
 
@@ -790,8 +790,8 @@ contains
          'u0     ','v0     ','dn0    ','B_Rd12a','B_Rd2ab','B_Rwprc','B_Rwsnw'/)  ! 8-14
     character(len=7) :: s_base(n_base) = (/ &
          'u      ','v      ','w      ','theta  ','p      ','stke   ','rflx   ', & ! 1-7
-         'q      ','l      ','r      ','n      ','i      ','s      ','g      ','ni     ', & ! 8-15
-         'h      ','ns     ','ng     ','nh     '/) ! 16-19
+         'q      ','l      ','r      ','n      ','i      ','s      ','g      ', & ! 8-14
+         'ni     ','h      ','ns     ','ng     ','nh     '/) ! 15-19
     LOGICAL, SAVE :: b_dims(n_dims)=.TRUE., b_base(n_base)=.TRUE.
     CHARACTER (len=7), ALLOCATABLE :: sanal(:), stot(:)
     LOGICAL, ALLOCATABLE :: btot(:)

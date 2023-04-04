@@ -17,10 +17,6 @@
 ! Copyright 1999-2007, Bjorn B. Stevens, Dep't Atmos and Ocean Sci, UCLA
 !----------------------------------------------------------------------------
 !
-!!!!!!!!!!!!!!!!
-
-
-
 
 module mcrp_ice
 
@@ -49,11 +45,10 @@ module mcrp_ice
   ! cloud droplets' diameter: 2-50 e-6 m
   ! drizzle drops' diameter: 50-1000 e-6 m
   !
-  real, parameter    :: Kt = 2.5e-2    ! conductivity of heat [J/(sKm)]
-  real, parameter    :: Dv = 3.e-5     ! diffusivity of water vapor [m2/s]
+  real, parameter :: Kt = 2.5e-2    ! conductivity of heat [J/(sKm)]
+  real, parameter :: Dv = 3.e-5     ! diffusivity of water vapor [m2/s]
 
   real, parameter :: eps0 = 1e-20       ! small number
-  real, parameter :: eps1 = 1e-9        ! small number
   real, parameter :: rthres = 1e-20        ! small number
   real, parameter :: rho_0 = 1.21       ! air density at surface
 
@@ -66,13 +61,9 @@ module mcrp_ice
   real, parameter :: n_f  = 0.333        !..exponent of n_sc in the vent-coeff. (pk, p.541)
   real, parameter :: m_f  = 0.500        !..exponent of n_re in the vent-coeff. (pk, p.541)
   !
-  real, parameter :: a_e  = 2.18745584e1 !..const. in saturation pressure wrt ice
-  real, parameter :: a_w  = 1.72693882e1 !..const. in saturation pressure wrt water
-  real, parameter :: b_e  = 7.66000000e0 !..const. in saturation pressure wrt ice
-  real, parameter :: b_w  = 3.58600000e1 !..const. in saturation pressure wrt water
   real, parameter :: e_3  = 6.10780000e2 !..saturation pressure at melting temp.
   !
-  real, parameter :: c_mult     = 3.5d8    !..splintering coefficient
+  real, parameter :: c_mult     = 3.5e8    !..splintering coefficient
   real, parameter :: t_mult_min = 265.0    !..min temp. splintering
   real, parameter :: t_mult_max = 270.0    !..max temp. splintering
   real, parameter :: t_mult_opt = 268.0    !..opt temp. splintering
@@ -80,7 +71,6 @@ module mcrp_ice
   real, parameter :: e_ic  = 0.80              !..max. eff. for ice_cloud_riming
   real, parameter :: e_sc  = 0.80              !..max. eff. for snow_cloud_riming
   real, parameter :: e_gc  = 1.00              !..max. eff. for graupel_cloud_riming
-  real, parameter :: alpha_spacefilling = 0.1  !..space filling coef (max. 0.68)
 
   real, parameter :: r_crit_ic = 1.000e-5 ! r-critical value for ice_cloud_riming
   real, parameter :: d_crit_ic = 150.0e-6 ! e-critical value for ice_cloud_riming
@@ -92,13 +82,9 @@ module mcrp_ice
   real, parameter :: d_crit_sr = 100.0e-6 ! e-critical value for snow_rain_riming
   real, parameter :: r_crit_gc = 1.000e-6 ! r-critical value for graupel_cloud_riming
   real, parameter :: d_crit_gc = 100.0e-6 ! e-critical value for graupel_cloud_riming
-  real, parameter :: r_crit_c  = 1.000e-4 ! r-critical value else
   real, parameter :: r_crit    = 1.000e-9 ! r-critical value else
   real, parameter :: d_conv_sg = 200.0e-5 ! e-critical value
   real, parameter :: d_conv_ig = 200.0e-6 ! e-critical value
-  real, parameter :: d_crit_c  = 10.00e-6 ! e-critical value for cloud_collection
-  real, parameter :: d_crit_r  = 10.00e-6 ! e-critical value for cloud_collection
-  real, parameter :: d_coll_c  = 40.00e-6 ! max value for cloud_coll_eff
   real, parameter :: r_crit_is = 1.000e-4 ! r-critical value for ice_selfcollection
   real, parameter :: d_crit_is = 50.00e-6 ! e-critical value for ice_selfcollection
   real, parameter :: d_conv_is = 75.00e-6 ! e-critical value for ice_selfcollection
@@ -321,28 +307,25 @@ contains
                 call ice_collection(n1,dn0,snow,graupel,rsnow,nsnow,rgrp,temp,r_crit_is)
                 adj_snow = .TRUE.; adj_gra = .TRUE.
              case(iriming_ice_cloud)
-                call ice_cloud_riming(n1,dn0,cldw,ice,rc,rice,nice,rgrp,temp,d_coll_c,r_crit_c,d_crit_c,r_crit_ic, &
-                        d_crit_ic,d_conv_ig,e_ic)
+                call ice_cloud_riming(n1,dn0,cldw,ice,rc,rice,nice,rgrp,temp,r_crit_ic,d_crit_ic,d_conv_ig,e_ic)
                 adj_ice = .TRUE.; adj_gra = .TRUE.; adj_cldw = .TRUE.
              case(iriming_snow_cloud)
-                call ice_cloud_riming(n1,dn0,cldw,snow,rc,rsnow,nsnow,rgrp,temp,d_coll_c,r_crit_c,d_crit_c, &
-                        r_crit_sc,d_crit_sc,d_conv_sg,e_sc)
+                call ice_cloud_riming(n1,dn0,cldw,snow,rc,rsnow,nsnow,rgrp,temp,r_crit_sc,d_crit_sc,d_conv_sg,e_sc)
                 adj_snow = .TRUE.; adj_gra = .TRUE.; adj_cldw = .TRUE.
              case(iriming_grp_cloud)
                 r1 = 0.
-                call ice_cloud_riming(n1,dn0,cldw,graupel,rc,rgrp,ngrp,r1,temp,d_coll_c,r_crit_c,d_crit_c,r_crit_gc, &
-                        d_crit_gc,d_conv_sg,e_gc)
+                call ice_cloud_riming(n1,dn0,cldw,graupel,rc,rgrp,ngrp,r1,temp,r_crit_gc,d_crit_gc,d_conv_sg,e_gc)
                 rgrp = rgrp + r1
                 adj_gra = .TRUE.; adj_cldw = .TRUE.
              case(iriming_ice_rain)
-                call ice_rain_riming(n1,rain,ice    ,rrain,nrain,rice ,nice ,rgrp,dn0,temp,r_crit,d_crit_r, r_crit_ir,d_crit_ir)
+                call ice_rain_riming(n1,rain,ice    ,rrain,nrain,rice ,nice ,rgrp,dn0,temp,r_crit_ir,d_crit_ir)
                 adj_ice = .TRUE.; adj_gra = .TRUE.; adj_rain = .TRUE.
              case(iriming_snow_rain)
-                call ice_rain_riming(n1,rain,snow   ,rrain,nrain,rsnow,nsnow,rgrp,dn0,temp,r_crit,d_crit_r, r_crit_sr,d_crit_sr)
+                call ice_rain_riming(n1,rain,snow   ,rrain,nrain,rsnow,nsnow,rgrp,dn0,temp,r_crit_sr,d_crit_sr)
                 adj_snow = .TRUE.; adj_gra = .TRUE.; adj_rain = .TRUE.
              case(iriming_grp_rain)
                 r1 = 0.
-                call ice_rain_riming(n1,rain,graupel,rrain,nrain,rgrp ,ngrp,r1,dn0,temp,r_crit,d_crit_r, r_crit,0.)
+                call ice_rain_riming(n1,rain,graupel,rrain,nrain,rgrp ,ngrp,r1,dn0,temp,r_crit,0.)
                 rgrp = rgrp + r1
                 adj_gra = .TRUE.; adj_rain = .TRUE.
              case(ised_ice)
@@ -1189,8 +1172,8 @@ contains
     b_melt_r = vent_coeff_b(meteor,1)
 
     do k = 2,n1
-       t_a = tk(k) !wrf!+ t(k) + t_g(k)
-      e_a = esl(T_a)                                     !..Saturation pressure
+       t_a = tk(k)
+       e_a = esl(T_a)                                     !..Saturation pressure
 
        if (t_a > tmelt .and. r(k) > 0.0) then
 
@@ -1287,13 +1270,17 @@ contains
 
   end subroutine ice_selfcollection
 
-  subroutine ice_cloud_riming(n1,dn0,cloud,ice,r_c,r_i,n_i,r_g,tk,d_coll,r_crit_c,d_crit_c,r_crit_i,d_crit_i,d_conv,e_ic)
+  subroutine ice_cloud_riming(n1,dn0,cloud,ice,r_c,r_i,n_i,r_g,tk,r_crit_i,d_crit_i,d_conv,e_ic)
     integer, intent(in) :: n1
     type(particle), intent(in) :: cloud,ice
     real, dimension(n1), intent(inout) :: r_c,r_i,n_i,r_g
     real, dimension(n1), intent(in) :: dn0,tk
-    real, intent(in) :: d_coll,r_crit_c,d_crit_c,r_crit_i,d_crit_i,d_conv,e_ic
+    real, intent(in) :: r_crit_i,d_crit_i,d_conv,e_ic
     real, parameter :: e_min = 0.01              !..min. eff. fuer gc,ic,sc
+    real, parameter :: alpha_spacefilling = 0.1  !..space filling coef (max. 0.68)
+    real, parameter :: r_crit_c = 1.000e-4 ! r-critical value else
+    real, parameter :: d_crit_c = 10.00e-6 ! e-critical value for cloud_collection
+    real, parameter :: d_coll_c = 40.00e-6 ! max value for cloud_coll_eff
     real     :: x_i,d_i,v_i
     real     :: x_c,d_c,v_c,e_coll,x_coll_c
     real     :: rime_r
@@ -1324,9 +1311,9 @@ contains
     theta_r_ic =  theta(1,2,metnr)
     theta_r_cc =  theta(2,2,metnr)
 
-    x_coll_c = (d_coll/cldw%a_geo)**3          !..minimal mass for collection, limits rime_n
+    x_coll_c = (d_coll_c/cldw%a_geo)**3        !..minimal mass for collection, limits rime_n
 
-    const1 = e_ic/(d_coll - d_crit_c)
+    const1 = e_ic/(d_coll_c - d_crit_c)
     const2 = 1/x_coll_c
     const3 = 1/(t_mult_opt - t_mult_min)
     const4 = 1/(t_mult_opt - t_mult_max)
@@ -1353,8 +1340,8 @@ contains
 
           r_i(k)   = r_i(k)  + rime_r
           r_c(k) = r_c(k) - rime_r
-          ! ice multiplication after hallet and mossop
 
+          ! ice multiplication after hallet and mossop
           mult_r = 0.0
           if (tk(k) < tmelt .and. ice_multiplication .and. ice%moments == 2) then
              mult_1 = (tk(k) - t_mult_min)*const3
@@ -1362,43 +1349,46 @@ contains
              mult_1 = max(0.e0,min(mult_1,1.e0))
              mult_2 = max(0.e0,min(mult_2,1.e0))
              mult_n = c_mult * mult_1 * mult_2 * rime_r
+             mult_r = min(rime_r,mult_n * ice%x_min)
 
-             n_i(k)  = n_i(k)  + mult_n
+             n_i(k) = n_i(k)  + mult_n
+             r_i(k) = r_i(k)  + mult_r
           endif
 
           ! conversion ice -> graupel
-          conv_r = 0.0
-          conv_n = 0.0
+          if (d_i > d_conv) then
+             conv_r = (rime_r - mult_r) / ( const5 * (pi/6.0*roice*d_i**3/x_i - 1.0) )
+             ! d_i can't become smaller than d_conv_ig
+             conv_r = min(r_i(k)-n_i(k)*(d_conv_ig/ice%a_geo)**(1.0/ice%b_geo),conv_r)
+             conv_r = min(r_i(k),conv_r)
 
-             if (d_i > d_conv) then
-                conv_r = (rime_r - mult_r) / ( const5 * (pi/6.0*roice*d_i**3/x_i - 1.0) )
-                ! d_i can't become smaller than d_conv_ig
-                conv_r = min(r_i(k)-n_i(k)*(d_conv_ig/ice%a_geo)**(1.0/ice%b_geo),conv_r)
-                conv_r = min(r_i(k),conv_r)
+             r_i(k) = r_i(k) - conv_r
+             r_g(k) = r_g(k) + conv_r
+             if (ice%moments == 2) THEN
                 ! ub >>
                 x_i = min(max((r_i(k))/(n_i(k)+eps0),ice%x_min),ice%x_max)    !..mean mass incl. riming
                 ! ub <<
-                conv_n = conv_r / x_i
-                conv_n = min(n_i(k),conv_n)
+                conv_n = min(n_i(k), conv_r / x_i )
+
+                n_i(k) = n_i(k) - conv_n
              end if
+          end if
 
-          r_i(k) = r_i(k) - conv_r
-          r_g(k) = r_g(k) + conv_r
-
-          if (ice%moments == 2) n_i(k)     = n_i(k)     - conv_n
        endif
     enddo
 
   end subroutine ice_cloud_riming
 
-  subroutine ice_rain_riming(n1,rain,ice,r_r,n_r,r_i,n_i,r_g,dn0,tk,r_crit_r, d_crit_r,r_crit_i,d_crit_i)
+  subroutine ice_rain_riming(n1,rain,ice,r_r,n_r,r_i,n_i,r_g,dn0,tk,r_crit_i,d_crit_i)
     integer, intent(in) :: n1
     type(particle), intent(in) :: rain,ice
     real, dimension(n1), intent(inout) :: r_r,n_r,r_i,n_i,r_g
     real, dimension(n1), intent(in) :: dn0,tk
-    real, intent(in) :: r_crit_r,d_crit_r,r_crit_i,d_crit_i
-    real            :: x_i,d_i,v_i,d_id
-    real            :: x_r,d_r,v_r,d_rd
+    real, intent(in) :: r_crit_i,d_crit_i
+    real, parameter :: r_crit_r = 1.000e-9 ! r-critical value else
+    real, parameter :: d_crit_r = 10.00e-6 ! e-critical value for cloud_collection
+    real            :: x_i,d_i,v_i
+    real            :: x_r,d_r,v_r
     real            :: rime_n,rime_ri,rime_rr
     real            :: mult_n,mult_r,mult_1,mult_2
     real      :: delta_n_ii,delta_n_ir,           delta_n_rr
@@ -1447,20 +1437,17 @@ contains
     theta_r_ri = theta_r_ir
 
     do k = 1, n1
-
        x_r = min(max(r_r(k)/(n_r(k)+eps0),rain%x_min),rain%x_max)
        d_r = rain%a_geo * x_r**rain%b_geo
 
        x_i = min(max(r_i(k)/(n_i(k)+eps0),ice%x_min),ice%x_max)
        d_i = ice%a_geo * x_i**ice%b_geo
-       d_id = d_av_fakt_i(metnr) * d_i
 
        if (r_r(k) > r_crit_r  .and. d_r > d_crit_r .and. r_i(k) > r_crit_i .and. d_i > d_crit_i) then
           x_r = min(max(r_r(k)/(n_r(k)+eps0),rain%x_min),rain%x_max)
           v_i = ice%a_vel * x_i**ice%b_vel * dn0(k)
           d_r = rain%a_geo * x_r**rain%b_geo
           v_r = rain%a_vel * x_r**rain%b_vel * dn0(k)
-          d_rd = d_av_fakt_r * d_r
 
           rime_n  = pi/4.0 / dn0(k) * n_i(k) * n_r(k) * dt &
                &   * (delta_n_ii * d_i*d_i + delta_n_ir * d_i*d_r + delta_n_rr * d_r*d_r) &
@@ -1500,8 +1487,9 @@ contains
              n_i(k) = n_i(k)  + mult_n
              r_i(k) = r_i(k)  + mult_r
           endif
+
           if (tk(k) >= tmelt) then
-             if (d_id > d_rd) then
+             if (d_av_fakt_i(metnr) * d_i > d_av_fakt_r * d_r) then
                 ! rain is shedded from the ice
                 if (ice%moments==2) n_i(k) = n_i(k) + rime_n
                 n_r(k) = n_r(k) + rime_rr / x_r
