@@ -282,19 +282,6 @@ MODULE mo_salsa_secondary_ice
                
                   ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
                   sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i
-
-                  ! POISTA
-                  IF ( SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec)) > 1.)  &
-                     WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
-                     SUM(dVb(1:npmax)), SUM(ice(ii,jj,bb)%volc(1:nspec))
-
-                  IF ( SUM(dVb(1:npmax)) > 0.9*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                     WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
-                     SUM(dVb(1:npmax)), SUM(ice(ii,jj,bb)%volc(1:nspec))
-
-                  IF (0.9*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
-                     WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER', ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb) 
-                  ! ---------------------------------------
                
                   ! for diagnostics
                   ice(ii,jj,1:npmax)%SIP_drfr = ice(ii,jj,1:npmax)%SIP_drfr + dNb(1:npmax)
@@ -308,23 +295,25 @@ MODULE mo_salsa_secondary_ice
                   fragv_loc = fragv_loc * frconst
                   fragn_loc = fragn_loc * frconst
                   sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) * frconst
-                  sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb) * frconst, 0.9*ice(ii,jj,bb)%numc) !! Additional constrain because for some reason
-                                                                                                 !! this still failed in the last bin...
+                  sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) * frconst
                END IF
 
+               sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.9*ice(ii,jj,bb)%numc) !! Additional constrain because for some reason
+                                                                                    !! this still failed in the last bin...
+               
                fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
                fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
                ! POISTA
-               !IF ( SUM(sinkvolc(ii,jj,bb,:))/SUM(ice(ii,jj,bb)%volc(1:nspec)) > 1.)  &
-               !     WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
-               !     SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+               IF ( SUM(sinkvolc(ii,jj,bb,:))/SUM(ice(ii,jj,bb)%volc(1:nspec)) > 1.)  &
+                    WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
+                    SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
                
-               IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.9*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
+               IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.95*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
                     WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
                     SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
 
-               IF (0.9*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
+               IF (0.95*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
                     WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
                     ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
                ! ---------------------------------------
@@ -355,9 +344,6 @@ MODULE mo_salsa_secondary_ice
                     SUM(nfrzn_df(ii,jj,:,bb)), ice(ii,jj,bb)%numc
                ! ---------------------
                
-
-
-
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc - sinknumc(ii,jj,bb)
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) + fragvolc(ii,jj,bb,1:nspec)
