@@ -29,10 +29,10 @@ MODULE emission_types
                          emitHeightMax = -999.        ! Max height (m)
      INTEGER          :: emitLevMin = -999            ! Integer levels corresponding to the heights; If both heights and lev indices are specified,
      INTEGER          :: emitLevMax = -999            ! the level indices are preferred (so use one or the other...).
-     INTEGER          :: emitXmin = -999              ! Min and max X/"lat" indices; negative -> ignore and do whole domain (1...nxp)
-     INTEGER          :: emitXmax = -999
-     INTEGER          :: emitYmin = -999              ! Min and max Y/"lon" indices; negative -> ingnore and do whole domain (1...nyp)
-     INTEGER          :: emitYmax = -999
+     REAL             :: emitLatmin = -1.e6           ! Min and max X/"lon" offsets in meters for the emission area
+     REAL             :: emitLatmax = 1.e6
+     REAL             :: emitLonmin = -1.e6           ! Min and max Y/"lat" offsets in meters for the emission area
+     REAL             :: emitLonmax = 1.e6
 
      INTEGER          :: emitSizeDistType = 1         ! 1: Monochromatic aerosol, 2: modal size disribution (lognormal)
      REAL             :: emitDiam = 10.e-6,    &      ! Assumed (dry )diameter of the particles (mode diameter for emitType=2).

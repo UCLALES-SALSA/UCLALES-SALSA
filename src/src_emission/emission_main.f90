@@ -137,6 +137,7 @@ MODULE emission_main
   !                            at specified altitude and time.
   !
   SUBROUTINE custom_emission(edt,emd)
+    
     IMPLICIT NONE
     
     CHARACTER(len=50), PARAMETER :: name = "cloud_seeding"
@@ -153,13 +154,15 @@ MODULE emission_main
       WRITE(*,*) '========================'
     END IF
 
-    ASSOCIATE( k1 => emd%emitLevMin, k2 => emd%emitLevMax,   &
-               x1 => emd%emitXmin, x2 => emd%emitXmax,       &
-               y1 => emd%emitYmin, y2 => emd%emitYmax )
+    ASSOCIATE( k1 => emd%emitLevMin, k2 => emd%emitLevMax)
     
       DO bb = 1,nbins
-         DO j = y1,y2
-            DO i = x1,x2
+         DO j = 3,nyp-2
+            IF (yt%d(j) < emd%emitLatmin .OR. yt%d(j) > emd%emitLatmax) CYCLE
+
+            DO i = 3,nxp-2
+               IF (xt%d(i) < emd%emitLonmin .OR. xt%d(i) > emd%emitLonmax) CYCLE
+                
                DO k = k1,k2
 
                   ! With level 5 using the contact angle distribution for ice nucletion, update the

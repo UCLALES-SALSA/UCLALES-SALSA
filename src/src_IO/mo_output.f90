@@ -332,20 +332,18 @@ MODULE mo_output
 
          ! Axis variables
          ! -------------------------------------------   
-         CASE('time') ! Time is identical for all processes -> write only from root
+         CASE('time') 
             CALL varArray%getData(1,var0d,index=n)
             IF (ASSOCIATED(var0d%onDemand)) THEN  ! Check whether data is stored or obtained via on-demand function
                CALL var0d%onDemand(out0d)
             ELSE
                out0d = var0d%d
             END IF
-            IF (myid == mpiroot) &
-                 CALL stream%write_nc(vname,out0d,ibeg0d)
+            CALL stream%write_nc(vname,out0d,ibeg0d)
             
-         CASE('zt','zm') ! Vertical axis is indentical for all processes -> write only from root
+         CASE('zt','zm') 
             CALL varArray%getData(1,var1d,index=n)
-            IF (myid == mpiroot) &
-                 CALL stream%write_nc(vname,var1d%d(:),ibeg0d)
+            CALL stream%write_nc(vname,var1d%d(:),ibeg0d)
             
          CASE('xt','xm') ! Lateral axes are divided between processes -> write from all with appr. indices
             CALL varArray%getData(1,var1d,index=n)
@@ -355,10 +353,9 @@ MODULE mo_output
             CALL varArray%getData(1,var1d,index=n)
             CALL stream%write_nc(vname,var1d%d(j1:j2),ibeg0d)
 
-         CASE('aea','aeb','cla','clb','prc','ice') ! Bin axes identical -> only from root
+         CASE('aea','aeb','cla','clb','prc','ice') 
             CALL varArray%getData(1,var1d,index=n)
-            IF (myid == mpiroot) &
-                 CALL stream%write_nc(vname,var1d%d(:),ibeg0d)
+            CALL stream%write_nc(vname,var1d%d(:),ibeg0d)
             
          CASE('ztt','zmt') ! Time-height dimension is exclusively for ps-stream -> only from root
             CALL varArray%getData(1,var1d,index=n)

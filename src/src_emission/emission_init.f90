@@ -152,9 +152,7 @@ MODULE emission_init
       ASSOCIATE( emitLevMin => emd%emitLevMin,                        &
                  emitLevMax => emd%emitLevMax,                        &
                  emitHeightMin => emd%emitHeightMin,                  &
-                 emitHeightMax => emd%emitHeightMax,                  &
-                 emitXmin => emd%emitXmin, emitXmax => emd%emitXmax,  &  
-                 emitYmin => emd%emitYmin, emitYmax => emd%emitYmax)
+                 emitHeightMax => emd%emitHeightMax                   )
         
         ! At least one of the height or level definitions in the emitConfig must be specified
         IF ( ALL( [emitLevMin, emitLevMax] == -999 ) .AND.  &
@@ -190,16 +188,6 @@ MODULE emission_init
            emitHeightMax = zt%d(emitLevMax)
            
         END IF
-        
-        ! Lateral limits
-        IF (emitXmin < 0) emitXmin = 1
-        IF (emitYmin < 0) emitYmin = 1
-        IF (emitXmax < 0) emitXmax = nxp
-        IF (emitYmax < 0) emitYmax = nyp
-        emitXmin = MAX(MIN(emitXmin, nxp), 1)
-        emitXmax = MAX(MIN(emitXmax, nxp), 1)
-        emitYmin = MAX(MIN(emitYmin, nyp), 1)
-        emitYmax = MAX(MIN(emitYmax, nyp), 1)
 
       END ASSOCIATE
       
