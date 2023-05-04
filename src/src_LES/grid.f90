@@ -812,8 +812,8 @@ contains
     IF (level < 4) THEN  ! Standard operation for levels 1-3
         b_dims(11:14) = .FALSE. ! SALSA bins
         b_base(10:11) = (level==3 .OR. level==0) ! Rain
-        b_base(12:15) = (level==0 .AND. lev_sb==4) ! Ice, snow mass and graupel mass
-        b_base(12:19) = (level==0 .AND. lev_sb==5) ! Ice, snow, graupel and hail
+        b_base(12:15) = (level==0 .AND. lev_sb>=4) ! Ice, snow mass and graupel mass
+        b_base(16:19) = (level==0 .AND. lev_sb==5) ! Ice, snow, graupel and hail
 
        ! Merge logical and name arrays
        i=n_dims+n_base+nv4_proc+nv4_user+naddsc

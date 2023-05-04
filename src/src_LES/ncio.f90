@@ -1336,7 +1336,7 @@ contains
         spec='snow'
     CASE('g')
         spec='gas'
-        IF (mixr) spec='graupel'
+        IF (mixr .OR. numc) spec='graupel'
     CASE('h')
         spec='hail'
     CASE('t')

@@ -44,9 +44,6 @@ module mcrp_ice
   ! drop sizes definition is based on vanZanten (2005)
   ! cloud droplets' diameter: 2-50 e-6 m
   ! drizzle drops' diameter: 50-1000 e-6 m
-  !
-  real, parameter :: Kt = 2.5e-2    ! conductivity of heat [J/(sKm)]
-  real, parameter :: Dv = 3.e-5     ! diffusivity of water vapor [m2/s]
 
   real, parameter :: eps0 = 1e-20       ! small number
   real, parameter :: rthres = 1e-20        ! small number
@@ -60,9 +57,10 @@ module mcrp_ice
   real, parameter :: n_sc = 0.710        !..schmidt-number(pk, p.541)
   real, parameter :: n_f  = 0.333        !..exponent of n_sc in the vent-coeff. (pk, p.541)
   real, parameter :: m_f  = 0.500        !..exponent of n_re in the vent-coeff. (pk, p.541)
-  !
+
   real, parameter :: e_3  = 6.10780000e2 !..saturation pressure at melting temp.
-  !
+
+  ! Hallett-Mossop
   real, parameter :: c_mult     = 3.5e8    !..splintering coefficient
   real, parameter :: t_mult_min = 265.0    !..min temp. splintering
   real, parameter :: t_mult_max = 270.0    !..max temp. splintering
@@ -72,17 +70,16 @@ module mcrp_ice
   real, parameter :: e_sc  = 0.80              !..max. eff. for snow_cloud_riming
   real, parameter :: e_gc  = 1.00              !..max. eff. for graupel_cloud_riming
 
-  real, parameter :: r_crit_ic = 1.000e-5 ! r-critical value for ice_cloud_riming
-  real, parameter :: d_crit_ic = 150.0e-6 ! e-critical value for ice_cloud_riming
-  real, parameter :: r_crit_ir = 1.000e-5 ! r-critical value for ice_rain_riming
-  real, parameter :: d_crit_ir = 100.0e-6 ! e-critical value for ice_rain_riming
-  real, parameter :: r_crit_sc = 1.000e-5 ! r-critical value for snow_cloud_riming
-  real, parameter :: d_crit_sc = 150.0e-6 ! e-critical value for snow_cloud_riming
-  real, parameter :: r_crit_sr = 1.000e-5 ! r-critical value for snow_rain_riming
-  real, parameter :: d_crit_sr = 100.0e-6 ! e-critical value for snow_rain_riming
-  real, parameter :: r_crit_gc = 1.000e-6 ! r-critical value for graupel_cloud_riming
-  real, parameter :: d_crit_gc = 100.0e-6 ! e-critical value for graupel_cloud_riming
-  real, parameter :: r_crit    = 1.000e-9 ! r-critical value else
+  ! riming mixing ratio (r) and diameter (d) limits for ice, snow and grapel
+  real :: r_crit_ic = 1.000e-5, d_crit_ic = 150.0e-6 ! ice-cloud
+  real :: r_crit_ir = 1.000e-5, d_crit_ir = 100.0e-6 ! ice-rain
+  real :: r_crit_sc = 1.000e-5, d_crit_sc = 150.0e-6 ! snow-cloud
+  real :: r_crit_sr = 1.000e-5, d_crit_sr = 100.0e-6 ! snow-rain
+  real :: r_crit_gc = 1.000e-6, d_crit_gc = 100.0e-6 ! graupel-cloud
+  real :: r_crit_gr = 1.000e-9, d_crit_gr = 000.0e-6 ! graupel-rain
+  real :: r_crit_c = 1.000e-4 ! cloud in all above (d_crit_c=10 um)
+  real :: r_crit_r = 1.000e-9 ! rain in all above (d_crit_r=10 um)
+
   real, parameter :: d_conv_sg = 200.0e-5 ! e-critical value
   real, parameter :: d_conv_ig = 200.0e-6 ! e-critical value
   real, parameter :: r_crit_is = 1.000e-4 ! r-critical value for ice_selfcollection
@@ -271,7 +268,7 @@ contains
 
              case(iicenucnr)
                 nin_active = nin_set - (nice + nsnow + ngrp) ! Target ice number
-                call fixed_in_isdac(n1,nin_active,rc,rice,nice,s_i)
+                call fixed_in_cloud(n1,nin_active,rc,rice,nice,s_i)
                 !call n_icenuc(n1,nin_active,temp,s_i)
                 !call ice_nucleation(n1,nin_active,rc,rice,nice,temp,s_i)
                 adj_cldw = .TRUE.; adj_ice = .TRUE.
@@ -325,7 +322,7 @@ contains
                 adj_snow = .TRUE.; adj_gra = .TRUE.; adj_rain = .TRUE.
              case(iriming_grp_rain)
                 r1 = 0.
-                call ice_rain_riming(n1,rain,graupel,rrain,nrain,rgrp ,ngrp,r1,dn0,temp,r_crit,0.)
+                call ice_rain_riming(n1,rain,graupel,rrain,nrain,rgrp ,ngrp,r1,dn0,temp,r_crit_gr,d_crit_gr)
                 rgrp = rgrp + r1
                 adj_gra = .TRUE.; adj_rain = .TRUE.
              case(ised_ice)
@@ -480,8 +477,8 @@ contains
        if (rp(k) > 0. .and. rv(k) < rs(k)) then
           Xp = rp(k)/ (np(k)+eps0)
           Dp = ( Xp / prw )**(1./3.)
-          G = 1. / (1. / (dn0(k)*rs(k)*Dv) + &
-               alvl*(alvl/(Rm*tk(k))-1.) / (Kt*tk(k)))
+          G = 1. / (1. / (dn0(k)*rs(k)*d_v) + &
+               alvl*(alvl/(Rm*tk(k))-1.) / (k_t*tk(k)))
           S = rv(k)/rs(k) - 1.
 
           cerpt = 2. * pi * Dp * G * S * np(k) * dt
@@ -852,10 +849,9 @@ contains
   end subroutine sedim_cd
 
   ! ---------------------------------------------------------------------
-  ! ISDAC ice formation
-  ! - Given target ice number concentration for supersaturated (RH_ice > 105%) liquid (LWC > 0.001 g/kg) clouds
+  ! Fixed ice number concentration for supercooled (ice supersaturation > 0) clouds (LWC > 0.001 g/kg)
   !
-  subroutine fixed_in_isdac(n1,nin,rc,rice,nice,s_i)
+  subroutine fixed_in_cloud(n1,nin,rc,rice,nice,s_i)
     integer, intent(in) :: n1
     real, intent(in) , dimension(n1) :: nin,s_i
     real, intent(inout) , dimension(n1) :: rc,rice,nice
@@ -872,7 +868,7 @@ contains
       end if
     end do
 
-  end subroutine fixed_in_isdac
+  end subroutine fixed_in_cloud
 
   subroutine n_icenuc(n1,nin,tk,s_i)
     integer, intent(in) :: n1
@@ -1186,13 +1182,13 @@ contains
           fv_r = a_melt_r + b_melt_r * N_sc**n_f * N_re**m_f  !..mean Vent.coeff. water vapor
           !      fv_n = a_melt_n + b_melt_n * N_sc**n_f * N_re**m_f  !..mean Vent.coeff. water vapor
 
-          D_T  = Kt / (cp * rho_0)
+          D_T  = k_t / (cp * rho_0)
           fh_r = D_T / D_v * fv_r
           !       fh_n = D_T / D_v * fv_n
 
           melt   = 2.0*pi / (alvi-alvl) * D_m * nr(k) * dt
 
-          melt_h = melt * Kt * (T_a - tmelt)
+          melt_h = melt * k_t * (T_a - tmelt)
           melt_v = melt * D_v*alvl/Rm * (e_a/T_a - e_3/tmelt)
 
           melt_r = (melt_h * fh_r + melt_v * fv_r)
@@ -1278,17 +1274,16 @@ contains
     real, intent(in) :: r_crit_i,d_crit_i,d_conv,e_ic
     real, parameter :: e_min = 0.01              !..min. eff. fuer gc,ic,sc
     real, parameter :: alpha_spacefilling = 0.1  !..space filling coef (max. 0.68)
-    real, parameter :: r_crit_c = 1.000e-4 ! r-critical value else
     real, parameter :: d_crit_c = 10.00e-6 ! e-critical value for cloud_collection
     real, parameter :: d_coll_c = 40.00e-6 ! max value for cloud_coll_eff
     real     :: x_i,d_i,v_i
-    real     :: x_c,d_c,v_c,e_coll,x_coll_c
+    real     :: x_c,d_c,v_c,e_coll
     real     :: rime_r
     real     :: conv_n,conv_r
     real     :: mult_n,mult_r,mult_1,mult_2
     real     :: delta_r_ii,delta_r_ic,delta_r_cc
     real     :: theta_r_ii,theta_r_ic,theta_r_cc
-    real     :: const1,const2,const3,const4,const5
+    real     :: const1,const3,const4,const5
     real, dimension(2,2,3),save :: delta, theta
     logical, save :: firsttime(3) = .true.
     integer :: metnr, k
@@ -1311,10 +1306,7 @@ contains
     theta_r_ic =  theta(1,2,metnr)
     theta_r_cc =  theta(2,2,metnr)
 
-    x_coll_c = (d_coll_c/cldw%a_geo)**3        !..minimal mass for collection, limits rime_n
-
     const1 = e_ic/(d_coll_c - d_crit_c)
-    const2 = 1/x_coll_c
     const3 = 1/(t_mult_opt - t_mult_min)
     const4 = 1/(t_mult_opt - t_mult_max)
     const5 = alpha_spacefilling * rowt/roice
@@ -1385,8 +1377,7 @@ contains
     real, dimension(n1), intent(inout) :: r_r,n_r,r_i,n_i,r_g
     real, dimension(n1), intent(in) :: dn0,tk
     real, intent(in) :: r_crit_i,d_crit_i
-    real, parameter :: r_crit_r = 1.000e-9 ! r-critical value else
-    real, parameter :: d_crit_r = 10.00e-6 ! e-critical value for cloud_collection
+    real, parameter :: d_crit_r = 10.00e-6 ! e-critical value for rain_collection
     real            :: x_i,d_i,v_i
     real            :: x_r,d_r,v_r
     real            :: rime_n,rime_ri,rime_rr
@@ -2102,6 +2093,8 @@ contains
         drop_freeze, ice_melt, riming_cloud, riming_rain, coag_ice, coag_snow, coag_graupel, &
         khairoutdinov, turbulence, ice_multiplication, kessler, khairoutdinov_au, &
         nin_set, &
+        r_crit_ic, d_crit_ic, r_crit_ir, d_crit_ir, r_crit_sc, d_crit_sc, r_crit_sr, d_crit_sr, &
+        r_crit_gc, d_crit_gc, r_crit_gr, d_crit_gr, r_crit_c, r_crit_r, &
         cldw,rain,ice,snow,graupel
 
     nprocess = 0
