@@ -345,12 +345,7 @@ CONTAINS
         zc_part(vbs_ngroup,nbins+ncld+nprc+nice+nsnw),     & ! currect particle phase concentration [mol/m3]
         zc_tot(vbs_ngroup)                                   ! total concentration [mol/m3]
 
-    ! we divide the time step into increasing
-    ! sub-intervals, with
-    ! sum(dt_n) = pt_step and
-    ! dt_(n+1)=dt_n * ztime_fac
-    INTEGER, PARAMETER :: zn_steps = 10          ! amount of sub-time steps
-    REAL,PARAMETER :: ztime_fac = 1.5     ! sub-time step growth factor
+    INTEGER :: zn_steps          ! amount of sub-time steps
     REAL ::           zh                     ! current sub-time step length
 
     ! loop indices
@@ -487,7 +482,8 @@ CONTAINS
     END DO ! jg
 
     ! Starting the sub-time step iteration
-    zh=pt_step*(ztime_fac-1.)/(ztime_fac**real(zn_steps)-1.)
+    zn_steps=MAX(1,NINT(pt_step/0.1))
+    zh=pt_step/REAL(zn_steps)
 
     DO jt = 1, zn_steps ! loop over sub-time steps
        ! the particle phase concentrations [mol/m3] and
@@ -534,8 +530,6 @@ CONTAINS
           END IF
        END DO ! jg
 
-       ! increasing the time sub-step size
-       zh = zh*ztime_fac
     END DO ! jt
 
     ! mapping back to gas and particles

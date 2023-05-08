@@ -291,6 +291,7 @@ CONTAINS
         !
         ! Convert to integer - used as is
         READ(UNIT=tchar,FMT='(I1)') j
+        IF (j==0) j=10 ! Allow tenth gas
         ! Gas phase component j molar mixing ratio (mol/m3)
         IF (ncall==0) THEN
             sdata(:,:,i) = curr(:,:,j)

@@ -3175,6 +3175,7 @@ contains
         CASE ('g')
             ! Gas: scalar so just mass mixing ratio of component j
             READ(UNIT=tchar,FMT='(I1)') j
+            IF (j==0) j=10 ! Allow tenth gas
             tend=a_gaerot(:,:,:,j)
     END SELECT
     !
