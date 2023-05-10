@@ -227,7 +227,7 @@ MODULE mo_salsa_secondary_ice
                fragn_loc = 0.
                DO cc = 1,nprc
                   IF ( ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR.  &    ! Outside temperature range, see Keinert et al 2020
-                       nfrzn_df(ii,jj,cc,bb) < 1.e-6 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-23 .OR. &
+                       nfrzn_df(ii,jj,cc,bb) < 1.e-12 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-23 .OR. &
                        ice(ii,jj,bb)%numc < ice(ii,jj,bb)%nlim ) CYCLE ! no collection/empty bin
                
                   ! Diameter of the frozen drops on current ice bin
@@ -252,7 +252,7 @@ MODULE mo_salsa_secondary_ice
                   ELSE IF (lssipdropfrac%mode == 3) THEN
                      ! Updated diameter needed here
                      CALL ice(ii,jj,bb)%updateDiameter(.TRUE.,type="all")
-                     dN = df_phillips_full(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb))
+                     dN = df_phillips_full(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb)) * nfrzn_df(ii,jj,cc,bb)
                   END IF
      
                   ! Assume the mass of fragments distributed evenly to ice bins 1:npmax (Lawson et al 2015).
