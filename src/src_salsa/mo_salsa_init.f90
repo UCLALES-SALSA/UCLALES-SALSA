@@ -436,6 +436,8 @@ CONTAINS
                                icenucl_tstart,        &
                                ice_target_opt,        &
                                nlicmelt,              &
+                               nlsip_hm,              &
+                               hm_dmin_drop, hm_dmin_ice, &
                                rainbinlim,            &
                                snowbinlim,            &
                                nbin,reglim,           &
@@ -513,6 +515,8 @@ CONTAINS
          icenucl_tstart,& ! Start time (s) for ice formation
          ice_target_opt,& ! Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
          nlicmelt,      & ! Switch for ice and snow melting
+         nlsip_hm,      & ! Switch for Hallett-Mossop
+         hm_dmin_drop, hm_dmin_ice, & ! Drop and ice size limits for Hallett-Mossop
 
          rainbinlim,    & ! Rain bin limits (microns)
          snowbinlim,    & ! Snow bin limits (microns)

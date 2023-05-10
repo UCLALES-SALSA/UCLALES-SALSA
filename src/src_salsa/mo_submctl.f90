@@ -107,6 +107,10 @@ MODULE mo_submctl
   ! d) Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
   INTEGER :: ice_target_opt = -1 ! Default = parallel ice bins
 
+  ! Secondary ice production: Hallett-Mossop
+  LOGICAL :: nlsip_hm = .FALSE. ! Master switch (needs also coagulation)
+  REAL :: hm_dmin_drop=25e-5, hm_dmin_ice=25e-6 ! Minimum aerosol/cloud/rain drop and ice/snow diameters
+  REAL, SAVE, ALLOCATABLE :: rime_volc_ice(:,:,:), rime_volc_snw(:,:,:) ! Data arrays (rime water volume per m3)
 
   ! Gas phase parameters
   INTEGER, PARAMETER :: maxngas=15

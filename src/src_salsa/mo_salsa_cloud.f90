@@ -1265,6 +1265,64 @@ CONTAINS
 
   END FUNCTION cumlognorm
 
-
+  !  Secondary ice production: Hallett-Mossop or splintering during riming
+  SUBROUTINE sip_hm(kbdim,klev,pice,psnow,ptemp)
+    USE mo_submctl, ONLY : t_section, nice, nsnw, prlim, rhowa, &
+        rime_volc_ice, rime_volc_snw ! Accumulated rime (rime water volume concentration, m3/m3)
+    IMPLICIT NONE
+    ! Inputs/outputs
+    INTEGER, INTENT(in) :: kbdim,klev
+    TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
+    REAL, INTENT(in) :: ptemp(kbdim,klev)
+    ! Constants for Hallett-Mossop (following SB microphysics)
+    real, parameter :: c_mult     = 3.5e8  !..splintering coefficient (particles per kg of rime)
+    real, parameter :: t_mult_min = 265.0  !..min temp. splintering
+    real, parameter :: t_mult_max = 270.0  !..max temp. splintering
+    real, parameter :: t_mult_opt = 268.0  !..opt temp. splintering
+    ! Local parameters
+    INTEGER :: ii, jj, cc, bb
+    REAL :: fact, dN, vfrac
+    !
+    ! Add splinters to the first ice or snow bin
+    bb = 1
+    !
+    DO jj = 1,klev
+    DO ii = 1,kbdim
+        IF (t_mult_min<ptemp(ii,jj) .AND. ptemp(ii,jj)<t_mult_max) THEN
+            ! The number of splinters depends on temperature
+            IF (ptemp(ii,jj) > t_mult_opt) THEN
+                fact = c_mult * (t_mult_max - ptemp(ii,jj))/(t_mult_max-t_mult_opt)
+            ELSE
+                fact = c_mult * (ptemp(ii,jj) - t_mult_min)/(t_mult_opt-t_mult_min)
+            ENDIF
+            !
+            ! Ice collecting rime
+            DO cc = 1,nice
+                ! Splinters
+                dN=fact*rime_volc_ice(ii,jj,cc)*rhowa
+                IF (dN>prlim .AND. pice(ii,jj,cc)%numc>prlim) THEN
+                    ! Move dN splinters from ice bin cc to ice bin bb
+                    vfrac = MAX(0.,MIN(1., dN/pice(ii,jj,cc)%numc*(pice(ii,jj,bb)%dmid/pice(ii,jj,cc)%dmid)**3 ))
+                    pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
+                    pice(ii,jj,bb)%volc(:) = pice(ii,jj,bb)%volc(:) + vfrac*pice(ii,jj,cc)%volc(:)
+                    pice(ii,jj,cc)%volc(:) = (1.-vfrac)*pice(ii,jj,cc)%volc(:)
+                ENDIF
+            ENDDO
+            !
+            ! Snow collecting rime
+            DO cc = 1,nsnw
+                ! Splinters
+                dN=fact*rime_volc_snw(ii,jj,cc)*rhowa
+                IF (dN>prlim .AND. psnow(ii,jj,cc)%numc>prlim) THEN
+                    vfrac = MAX(0.,MIN(1., dN/psnow(ii,jj,cc)%numc*(psnow(ii,jj,bb)%dmid/psnow(ii,jj,cc)%dmid)**3 ))
+                    psnow(ii,jj,bb)%numc = psnow(ii,jj,bb)%numc + dN
+                    psnow(ii,jj,bb)%volc(:) = psnow(ii,jj,bb)%volc(:) + vfrac*psnow(ii,jj,cc)%volc(:)
+                    psnow(ii,jj,cc)%volc(:) = (1.-vfrac)*psnow(ii,jj,cc)%volc(:)
+                ENDIF
+            ENDDO
+        ENDIF
+    END DO
+    END DO
+  END SUBROUTINE sip_hm
 
 END MODULE mo_salsa_cloud

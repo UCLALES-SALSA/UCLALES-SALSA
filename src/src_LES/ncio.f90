@@ -1278,6 +1278,8 @@ contains
         pros='melting'
     ELSEIF ('frez_'==short_name(1:5)) THEN
         pros='freezing'
+    ELSEIF ('siph_'==short_name(1:5)) THEN
+        pros='Hallett-Mossop'
     ELSEIF ('dist_'==short_name(1:5)) THEN
         pros='distribution update'
     ELSEIF ('sedi_'==short_name(1:5)) THEN
