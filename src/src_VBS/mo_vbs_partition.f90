@@ -342,7 +342,7 @@ CONTAINS
         zc_sat(vbs_ngroup),                                & ! uncorrected saturation vapor concentration [mol/m3]
         zc_sat_part(nbins+ncld+nprc+nice+nsnw),            & ! mole-fraction corrected sat. vap. conc. per class
         zc_gas(vbs_ngroup),                                & ! current gas phase concentration [mol/m3]
-        zc_part(vbs_ngroup,nbins+ncld+nprc+nice+nsnw),     & ! currect particle phase concentration [mol/m3]
+        zc_part(vbs_ngroup+1,nbins+ncld+nprc+nice+nsnw),   & ! currect particle phase concentration [mol/m3]
         zc_tot(vbs_ngroup)                                   ! total concentration [mol/m3]
 
     INTEGER :: zn_steps          ! amount of sub-time steps
@@ -357,7 +357,7 @@ CONTAINS
 
     ! other
     INTEGER :: nbin_tot, nbin_aq, nbin_aer, iaqv, nn
-    REAL :: ztemp_sum, zdfvap, zmfp, p_lwc, p_awc, p_cwc, Heff, zdvap, zcvap_new, oa
+    REAL :: ztemp_sum, zdfvap, zmfp, p_lwc, p_awc, p_cwc, Heff, zdvap, zcvap_new
 
     ! -----------------------------------------------------------------------
     ! executable procedure
@@ -481,6 +481,16 @@ CONTAINS
        zc_tot(jg) = zc_gas(jg)+sum(zc_part(jg,:))
     END DO ! jg
 
+    ! Organic (and possibly other) solutes for condensed phase mole fractions
+    jg=vbs_ngroup+1 ! add after the VBS species
+    zc_part(jg,:) = 0.
+    ! add POA
+    if(ioc > 0) zc_part(jg,:) = zc_part_all(:,ioc)
+    ! add aqSOA
+    DO jc = 1,aqsoa_ngroup
+        zc_part(jg,:) = zc_part(jg,:) + zc_part_all(:,aqsoa_set(jc)%id_vols)
+    END DO
+
     ! Starting the sub-time step iteration
     zn_steps=MAX(1,NINT(pt_step/0.1))
     zh=pt_step/REAL(zn_steps)
@@ -493,41 +503,29 @@ CONTAINS
           ! if concentrations are too small, we skip
           IF (zc_tot(jg) < zeps) CYCLE
 
-          ! easier access
-          zgroup => vbs_set(jg)
-
-          ! computing the new mole-fraction weighted, per-bin equilibrium vapor concentration
-          zc_sat_part(:) = zc_sat(jg) ! x=1 for ice and snow
+          ! computing the new mole-fraction and Kelvin effect weighted equilibrium
+          ! vapor concentration for each aqueous bin (x=1 for ice and snow)
+          zc_sat_part(1:nbin_tot) = zc_sat(jg)*zs_prime(jg,1:nbin_tot)
           DO jvc = 1,nbin_aq
-             ! Note: assuming an organic phase, so ignore all other than VBS species and POA.
-             oa = sum(zc_part(:,jvc))
-             if(ioc > 0) oa = oa + zc_part_all(jvc,ioc)
-             IF (oa > 0.0) zc_sat_part(jvc) = zc_sat(jg)*zc_part(jg,jvc)/oa
+             zc_sat_part(jvc) = zc_sat_part(jvc)*zc_part(jg,jvc)/(sum(zc_part(:,jvc))+zeps)
           END DO ! jvc
 
-          ! computing the new gas phase concentration (16.71)
-          zc_gas(jg) = min(&
-               (zc_gas(jg)+zh*sum(zk_mass(1:nbin_tot)*zs_prime(jg,1:nbin_tot)*zc_sat_part(1:nbin_tot)))/(1.0+zh*zk_mass_tot),&
-               zc_tot(jg)&
-               )
+          ! first update gas phase concentration (16.71)
+          zc_gas(jg) = min(zc_tot(jg), &
+                (zc_gas(jg)+zh*sum(zk_mass(1:nbin_tot)*zc_sat_part(1:nbin_tot)))/(1.0+zh*zk_mass_tot) )
 
-          ! computing the new particle phase concentrations and correcting for negative
-          ! concentrations (16.69) + (16.72a)
+          ! then update particle phase concentrations (16.69) while limiting the changes
+          ! to +/-2% of the original value (no negative concentrations, but zero concentration
+          ! means no condensation, so add a small amount to the upper limit)
+          ! 1e-20 mol/m3=
           DO jvc = 1, nbin_tot
-             zc_part(jg,jvc)=max(&
-                  zc_part(jg,jvc)+zh*zk_mass(jvc)*(zc_gas(jg)-zs_prime(jg,jvc)*zc_sat_part(jvc)),&
-                  0.&
-                  )
+             zc_part(jg,jvc) = zc_part(jg,jvc)+min(max( zh*zk_mass(jvc)*(zc_gas(jg)-zc_sat_part(jvc)), &
+                    -0.02*zc_part(jg,jvc)),0.02*zc_part(jg,jvc)+zeps)
           END DO ! jvc
+          if (minval(zc_part(jg,1:nbin_tot))<zeps) write(*,*) jg,minval(zc_part(jg,1:nbin_tot)),maxval(zc_part(jg,1:nbin_tot))
 
-          ! correcting for too high particle concentrations
-          ztemp_sum = sum(zc_part(jg,:))
-          IF (ztemp_sum < zeps) THEN
-             zc_part(jg,:) = 0.0
-             zc_gas(jg)    = zc_tot(jg)
-          ELSE
-             zc_part(jg,:) = zc_part(jg,:)*(zc_tot(jg)-zc_gas(jg))/ztemp_sum
-          END IF
+          ! finally adjust gas phase concentration based on mass conservation (negative values set to zero)
+          zc_gas(jg) = MAX(0.,zc_tot(jg)-SUM(zc_part(jg,:)))
        END DO ! jg
 
     END DO ! jt

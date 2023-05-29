@@ -26,7 +26,7 @@ CONTAINS
     USE mo_vbs_partition, ONLY : vbs_gas_phase_chem, vbs_condensation
     USE mo_salsa_update, ONLY : distr_update
     USE mo_salsa_cloud, only : cloud_activation, autoconv2, autoconv_sb, &
-            autosnow, fixed_ice_driver, ice_nucl_driver, ice_melt, sip_hm
+            autosnow, fixed_ice_driver, ice_nucl_driver, het_ice_driver, ice_melt, sip_hm
 
     USE mo_submctl, ONLY :      &
          fn2b,ncld,nprc,nice,nsnw,nvbs,    &
@@ -35,7 +35,8 @@ CONTAINS
          nlcndh2ocl,nlcndh2oic,            &
          lsauto,auto_sb,lsautosnow,lsactiv,&
          lsicenucl,lsicmelt,lsdistupdate,  &
-         fixinc, ice_hom, ice_imm, ice_dep, nlsip_hm
+         fixinc, ice_hom, ice_imm, ice_dep, nlsip_hm, &
+         ice_par_cloud, ice_par_precp
 
     IMPLICIT NONE
 
@@ -165,6 +166,13 @@ CONTAINS
                           paero,pcloud,pprecp,pice,psnow, &
                           ptemp,prv,prs,prsi,ptstep)
         IF (sflg) CALL salsa_var_stat('nucl',1)
+    ELSEIF (lsicenucl .AND. (ice_par_cloud .OR. ice_par_precp)) THEN
+        ! Parameterized droplet freezing
+        IF (sflg) CALL salsa_var_stat('nucl',0)
+        CALL het_ice_driver(kbdim,klev,   &
+                          pcloud,pprecp,pice,psnow, &
+                          ptemp,ppres,prv,prsi,ptstep)
+        IF (sflg) CALL salsa_var_stat('nucl',1)
     ENDIF
 
     ! Melting of ice and snow
@@ -285,6 +293,7 @@ CONTAINS
 
       ! 2b) The same for gases (not a t_section type)
       SUBROUTINE salsa_rate_stat_gas(i,tchar,ng,curr,ncall)
+        USE mo_submctl, ONLY : mws_gas
         ! The list of requested outputs
         IMPLICIT NONE
         ! Inputs
@@ -303,7 +312,7 @@ CONTAINS
         IF (ncall==0) THEN
             sdata(:,:,i) = curr(:,:,j)
         ELSE
-            sdata(:,:,i) = curr(:,:,j) - sdata(:,:,i)
+            sdata(:,:,i) = (curr(:,:,j) - sdata(:,:,i))*mws_gas(j) ! Convert to kg/m3
         ENDIF
         !
       END SUBROUTINE salsa_rate_stat_gas

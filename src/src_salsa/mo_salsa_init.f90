@@ -435,9 +435,13 @@ CONTAINS
                                ice_hom, ice_imm, ice_dep, &
                                icenucl_tstart,        &
                                ice_target_opt,        &
+                               ice_par_cloud, ice_par_precp, &
                                nlicmelt,              &
                                nlsip_hm,              &
                                hm_dmin_drop, hm_dmin_ice, &
+                               rhoeff_ice, rhoeff_snow, &
+                               a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, &
+                               a_vel_ice, b_vel_ice, a_vel_snow, b_vel_snow, &
                                rainbinlim,            &
                                snowbinlim,            &
                                nbin,reglim,           &
@@ -514,9 +518,13 @@ CONTAINS
          ice_dep,       & ! deposition freezing mechanisms
          icenucl_tstart,& ! Start time (s) for ice formation
          ice_target_opt,& ! Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
+         ice_par_cloud, ice_par_precp, & ! Parameterized droplet freezing
          nlicmelt,      & ! Switch for ice and snow melting
          nlsip_hm,      & ! Switch for Hallett-Mossop
          hm_dmin_drop, hm_dmin_ice, & ! Drop and ice size limits for Hallett-Mossop
+         rhoeff_ice, rhoeff_snow, & ! Effective densities for calculating particle diameters (and velocities)
+         a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, & ! Alternative dimension: d=a*m**b
+         a_vel_ice, b_vel_ice, a_vel_snow, b_vel_snow, & ! Alternative velocity: v=a*m**b
 
          rainbinlim,    & ! Rain bin limits (microns)
          snowbinlim,    & ! Snow bin limits (microns)
