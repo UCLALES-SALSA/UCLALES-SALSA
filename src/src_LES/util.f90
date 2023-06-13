@@ -242,7 +242,7 @@ contains
   ! GET_AVG3: gets average across outer two dimensions at each
   ! point along inner dimension - calculated over all PUs
   !
-  subroutine get_avg3(n1,n2,n3,a,avg,normalize,cond)
+  subroutine get_avg3(n1,n2,n3,a,avg,normalize,cond,weight)
 
     use mpi_interface, only : nypg,nxpg,double_array_par_sum
 
@@ -251,6 +251,7 @@ contains
     real,intent(out) :: avg(n1)
     LOGICAL, OPTIONAL :: normalize
     LOGICAL, OPTIONAL :: cond(n1,n2,n3)
+    REAL, OPTIONAL :: weight(n1,n2,n3)
 
     integer      :: k,i,j
     real(kind=8) :: lavg(n1),gavg(n1),counts(n1), x
@@ -269,6 +270,29 @@ contains
                     gavg(k)=gavg(k)+a(k,i,j)
                     counts(k)=counts(k)+1.
                  ENDIF
+              end do
+           end do
+        end do
+        lavg = gavg
+        call double_array_par_sum(lavg,gavg,n1)
+        IF (norm) THEN
+            lavg = counts
+            call double_array_par_sum(lavg,counts,n1)
+            avg(:)=0.
+            do k=1,n1
+                IF (counts(k)>0.) avg(k) = real(gavg(k)/counts(k))
+            END DO
+        ELSE
+            avg(:)=REAL(gavg(:))
+        ENDIF
+    ELSEIF (present(weight)) THEN
+        gavg(:) = 0.
+        counts(:) = 0.
+        do j=3,n3-2
+           do i=3,n2-2
+              do k=1,n1
+                 gavg(k)=gavg(k)+a(k,i,j)*weight(k,i,j)
+                 counts(k)=counts(k)+weight(k,i,j)
               end do
            end do
         end do

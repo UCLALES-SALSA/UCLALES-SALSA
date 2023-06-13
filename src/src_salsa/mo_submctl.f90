@@ -102,7 +102,6 @@ MODULE mo_submctl
   INTEGER :: ice_source_opt = 1 ! Default = start from the largest bin
   ! b) Modelled ice nucleation
   LOGICAL :: ice_hom = .FALSE., ice_imm=.FALSE., ice_dep=.FALSE. ! Available ice nucleation modes
-  LOGICAL :: ice_par_cloud=.FALSE., ice_par_precp=.FALSE. ! Parameterized cloud and rain droplet freezing
   ! c) Start time (s) for ice formation
   REAL :: icenucl_tstart = 0. ! Default: right after initialization
   ! d) Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
@@ -140,6 +139,7 @@ MODULE mo_submctl
 
   ! Detailed SOA formation including gas phase oxidants, VOCs and VBS and aqSOA species
   INTEGER :: nvbs_setup = -1   ! VBS setup option (hard-coded schemes)
+  REAL :: soa_tstart = 0.      ! Spinup for SOA
   LOGICAL :: laqsoa = .FALSE.  ! Enable aqSOA formation
   INTEGER :: nvocs=0, nvbs=0, naqsoa=0 ! Number of VOCs, VBS species and aqSOA species
   REAL :: conc_voc(maxngas)=0., conc_vbsg(maxngas)=0., conc_aqsoag(maxngas)=0. ! Initial concetrations (kg/kg)

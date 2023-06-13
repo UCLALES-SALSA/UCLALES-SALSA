@@ -435,7 +435,6 @@ CONTAINS
                                ice_hom, ice_imm, ice_dep, &
                                icenucl_tstart,        &
                                ice_target_opt,        &
-                               ice_par_cloud, ice_par_precp, &
                                nlicmelt,              &
                                nlsip_hm,              &
                                hm_dmin_drop, hm_dmin_ice, &
@@ -460,6 +459,7 @@ CONTAINS
                                mwa, disswa, rhowa,    &
                                conc_h2so4, conc_ocnv, &
                                nvbs_setup, laqsoa,    &
+                               soa_tstart,            &
                                zvbs_k_OH, zvbs_Eact_p_OH, &
                                ox_prescribed,         &
                                conc_oh, conc_o3, conc_no3, &
@@ -518,7 +518,6 @@ CONTAINS
          ice_dep,       & ! deposition freezing mechanisms
          icenucl_tstart,& ! Start time (s) for ice formation
          ice_target_opt,& ! Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
-         ice_par_cloud, ice_par_precp, & ! Parameterized droplet freezing
          nlicmelt,      & ! Switch for ice and snow melting
          nlsip_hm,      & ! Switch for Hallett-Mossop
          hm_dmin_drop, hm_dmin_ice, & ! Drop and ice size limits for Hallett-Mossop
@@ -554,6 +553,7 @@ CONTAINS
          conc_ocnv,     & ! -||- non-volatile organics
 
          nvbs_setup,    & ! Detailed secondary organic aerosol formation (VOC+oxidant => BVS(g) <=> VBS(s))
+         soa_tstart,    & ! Spinup for SOA
          laqsoa,        & ! Additional aqSOA formation
          zvbs_k_OH, zvbs_Eact_p_OH, & ! Rate coefficient for VBS(g) aging
          ox_prescribed, & ! Oxidant concentrations can be fixed (diagnostic parameter)

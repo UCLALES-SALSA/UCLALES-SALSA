@@ -1127,134 +1127,6 @@ CONTAINS
   ! ------------------------------------------------------------
 
 
-  !***********************************************
-  !
-  ! Droplet freezing parameterization from UCLALES (see Pruppacher and Klett:
-  ! Microphysics of Clouds and Precipitation) combined with droplet fracturing
-  ! parameterization by Lawson et al. (J. Atmos. Sci., 72, 2429-2445, 2015).
-  !
-  !***********************************************
-  SUBROUTINE het_ice_driver(kbdim, klev,   &
-            pcloud, pprecp, pice, psnow, ptemp, ppres, prv, prsi, ptstep)
-
-    USE mo_submctl, ONLY : t_section,      &
-                    ncld, nprc, nice, nsnw, nspec, &
-                    rhowa, rda, nlim, prlim, pi6, &
-                    ice_par_cloud, ice_par_precp, ice_target_opt
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: kbdim,klev
-    REAL, INTENT(in) :: &
-                    ptemp(kbdim,klev), &
-                    ppres(kbdim,klev), &
-                    prv(kbdim,klev),   &
-                    prsi(kbdim,klev), ptstep
-    TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), pprecp(kbdim,klev,nprc), &
-                    pice(kbdim,klev,nsnw), psnow(kbdim,klev,nsnw)
-
-    ! Limits for ice formation
-    !   a) Minimum  water vapor satuturation ratio ove ice (-)
-    !   b) Minimum cloud water mixing ratio (kg/kg)
-    REAL, PARAMETER :: min_S_ice=1.0, min_rc=0.
-
-    INTEGER :: ii,jj,kk,ss,nn
-    REAL :: pdn, S_ice, rc, rr, dnice, dnice_sip, frac, vol
-
-    nn = nspec + 1 ! Aerosol species + water
-
-    ! Target snow bin when ice_target_opt>0
-    ss=MIN(nsnw,ice_target_opt)
-
-    DO ii = 1,kbdim
-    DO jj = 1,klev
-        pdn=ppres(ii,jj)/(rda*ptemp(ii,jj)) ! Air density (kg/m^3)
-        ! Conditions for ice nucleation
-        S_ice = prv(ii,jj)/prsi(ii,jj) ! Saturation with respect to ice
-        rc = sum( pcloud(ii,jj,:)%volc(1) )*rhowa/pdn ! Cloud water mixing ratio (kg/kg)
-        rr = sum( pprecp(ii,jj,:)%volc(1) )*rhowa/pdn ! Rain water mixing ratio (kg/kg)
-
-        IF (ice_par_cloud .AND. S_ice>min_S_ice .AND. rc>min_rc) THEN
-            ! Activate ice
-            DO kk = 1,ncld
-                IF(pcloud(ii,jj,kk)%numc > nlim) THEN
-                    vol = SUM(pcloud(ii,jj,kk)%volc(1:nn))/pcloud(ii,jj,kk)%numc
-                    frac =MAX(0.,MIN(1., 1.-exp( -2e2*vol*exp(-0.65*(ptemp(ii,jj)-273.15))*ptstep ) ))
-                    dnice = frac*pcloud(ii,jj,kk)%numc
-
-                    ! Secondary fragments (Lawson et al., J. Atmos. Sci., 72, 2429-2445, 2015):
-                    !   N/N_freeze=2.5e-11*(d/[1e-6 m])**4=2.5e13*(d/[m])**4
-                    !   Here minimum diameter is set to 30 um (v=1.41372e-14 m3) and d=(V/(pi/6))**(1/3)
-                    !   Note: target bin needs to be recalculated if there are significant amout of fragments
-                    dnice_sip = 0.
-                    IF (vol>1.41372e-14) dnice_sip = 2.5e13*(vol/pi6)**(4./3.)
-
-                    IF (dnice+dnice_sip<prlim) THEN
-                    ELSEIF (ice_target_opt<0) THEN
-                        ! Add to the matching ice bin
-                        vol=SUM(pice(ii,jj,kk)%volc(2:nn))/pice(ii,jj,kk)%numc*dnice/(dnice+dnice_sip) ! dry volume
-                        ss=MAX(1,COUNT(vol>pice(ii,jj,:)%vlolim))
-                        pice(ii,jj,kk)%volc(1:nn) = pice(ii,jj,kk)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
-                        pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + dnice + dnice_sip
-                    ELSEIF (ice_target_opt==0) THEN
-                        ! Add to the matching snow bin
-                        vol=SUM(pcloud(ii,jj,kk)%volc(1:nn))/pcloud(ii,jj,kk)%numc*dnice/(dnice+dnice_sip)
-                        ss=MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim))
-                        psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
-                        psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice + dnice_sip
-                    ELSE
-                        ! Add to the ss:th snow bin
-                        psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
-                        psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice + dnice_sip
-                    ENDIF
-
-                    pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - dnice
-                    pcloud(ii,jj,kk)%volc(1:nn) = pcloud(ii,jj,kk)%volc(1:nn) - max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
-                END IF
-            END DO
-        ENDIF
-
-        IF (ice_par_precp .AND. S_ice>min_S_ice .AND. rr>min_rc) THEN
-            ! Activate rain
-            DO kk = 1,nprc
-                IF(pprecp(ii,jj,kk)%numc > prlim) THEN
-                    vol = SUM(pprecp(ii,jj,kk)%volc(1:nn))/pprecp(ii,jj,kk)%numc
-                    frac =MAX(0.,MIN(1., 1.-exp( -2e2*vol*exp(-0.65*(ptemp(ii,jj)-273.15))*ptstep ) ))
-                    dnice = frac*pprecp(ii,jj,kk)%numc
-
-                    ! Secondary fragments
-                    dnice_sip = 0.
-                    IF (vol>1.41372e-14) dnice_sip = 2.5e13*(vol/pi6)**(4./3.)
-
-                    IF (dnice+dnice_sip<prlim) THEN
-                    ELSEIF (ice_target_opt<0) THEN
-                        ! Add to the matching ice bin
-                        vol=SUM(pprecp(ii,jj,kk)%volc(2:nn))/pprecp(ii,jj,kk)%numc*dnice/(dnice+dnice_sip) ! dry volume
-                        ss=MAX(1,COUNT(vol>pice(ii,jj,:)%vlolim))
-                        pice(ii,jj,ss)%volc(1:nn) = pice(ii,jj,ss)%volc(1:nn) + max(0., pprecp(ii,jj,kk)%volc(1:nn)*frac )
-                        pice(ii,jj,ss)%numc   = pice(ii,jj,ss)%numc + dnice + dnice_sip
-                    ELSEIF (ice_target_opt==0) THEN
-                        ! Add to the matching snow bin
-                        vol=SUM(pprecp(ii,jj,kk)%volc(1:nn))/pprecp(ii,jj,kk)%numc*dnice/(dnice+dnice_sip)
-                        ss=MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim))
-                        psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pprecp(ii,jj,kk)%volc(1:nn)*frac )
-                        psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice + dnice_sip
-                    ELSE
-                        ! Add to the ss:th snow bin
-                        psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pprecp(ii,jj,kk)%volc(1:nn)*frac )
-                        psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice + dnice_sip
-                    ENDIF
-
-                    pprecp(ii,jj,kk)%numc = pprecp(ii,jj,kk)%numc - dnice
-                    pprecp(ii,jj,kk)%volc(1:nn) = pprecp(ii,jj,kk)%volc(1:nn) - max(0., pprecp(ii,jj,kk)%volc(1:nn)*frac )
-                END IF
-            END DO
-        ENDIF
-    END DO
-    END DO
-  END SUBROUTINE het_ice_driver
-  ! ------------------------------------------------------------
-
-
   SUBROUTINE ice_melt(kbdim,klev,   &
                       pcloud,pice,pprecp,psnow, &
                       ptemp )
@@ -1395,7 +1267,7 @@ CONTAINS
 
   !  Secondary ice production: Hallett-Mossop or splintering during riming
   SUBROUTINE sip_hm(kbdim,klev,pice,psnow,ptemp)
-    USE mo_submctl, ONLY : t_section, nice, nsnw, prlim, rhowa, &
+    USE mo_submctl, ONLY : t_section, nice, nsnw, fnp2a, inp2b, prlim, rhowa, nspec, &
         rime_volc_ice, rime_volc_snw ! Accumulated rime (rime water volume concentration, m3/m3)
     IMPLICIT NONE
     ! Inputs/outputs
@@ -1409,10 +1281,13 @@ CONTAINS
     real, parameter :: t_mult_opt = 268.0  !..opt temp. splintering
     ! Local parameters
     INTEGER :: ii, jj, cc, bb
-    REAL :: fact, dN, vfrac
+    REAL :: fact, dN, vfrac, vol
     !
-    ! Add splinters to the first ice or snow bin
-    bb = 1
+    ! Add splinters to ...
+    ! a) bin containing, e.g., 10 um particles - ice bin wet size not known
+    ! b) the first ice or snow bin - this could mean small ice crystals
+    ! c) previous ice or snow bin - this cloud mean large ice crystals
+    ! d) bin index divided by two - sounds good
     !
     DO jj = 1,klev
     DO ii = 1,kbdim
@@ -1428,9 +1303,25 @@ CONTAINS
             DO cc = 1,nice
                 ! Splinters
                 dN=fact*rime_volc_ice(ii,jj,cc)*rhowa
-                IF (dN>prlim .AND. pice(ii,jj,cc)%numc>prlim) THEN
+                ! Exclude the first a and b bin (splinters could not be smaller)
+                IF (dN>prlim .AND. pice(ii,jj,cc)%numc>prlim .AND. cc/=1 .AND. cc/=inp2b) THEN
+                    ! Target bin: bin index divided by two
+                    !   inp2a,fnp2a,inp2b,fnp2b,
+                    IF (cc>fnp2a) THEN
+                        bb = fnp2a+FLOOR(0.5*(cc-fnp2a)) ! b-bins
+                    ELSE
+                        bb = FLOOR(0.5*cc) ! a-bins
+                    ENDIF
+                    ! Volume fraction to be removed (based on dry size)
+                    vfrac = dN/pice(ii,jj,cc)%numc*(pice(ii,jj,bb)%dmid/pice(ii,jj,cc)%dmid)**3
+                    ! Limit volume fraction to 0.1 to avoid large changes in mean dry size
+                    IF (vfrac>0.1) THEN
+                        vfrac = 0.1
+                        vol=vfrac*SUM(pice(ii,jj,cc)%volc(2:nspec+1))/dN ! splinter dry volume
+                        bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
+                        IF (cc>fnp2a) bb=bb+fnp2a
+                    ENDIF
                     ! Move dN splinters from ice bin cc to ice bin bb
-                    vfrac = MAX(0.,MIN(1., dN/pice(ii,jj,cc)%numc*(pice(ii,jj,bb)%dmid/pice(ii,jj,cc)%dmid)**3 ))
                     pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
                     pice(ii,jj,bb)%volc(:) = pice(ii,jj,bb)%volc(:) + vfrac*pice(ii,jj,cc)%volc(:)
                     pice(ii,jj,cc)%volc(:) = (1.-vfrac)*pice(ii,jj,cc)%volc(:)
@@ -1438,11 +1329,21 @@ CONTAINS
             ENDDO
             !
             ! Snow collecting rime
-            DO cc = 1,nsnw
+            DO cc = 2,nsnw ! Exclude the first bin
                 ! Splinters
                 dN=fact*rime_volc_snw(ii,jj,cc)*rhowa
                 IF (dN>prlim .AND. psnow(ii,jj,cc)%numc>prlim) THEN
-                    vfrac = MAX(0.,MIN(1., dN/psnow(ii,jj,cc)%numc*(psnow(ii,jj,bb)%dmid/psnow(ii,jj,cc)%dmid)**3 ))
+                    ! Target bin: bin index divided by two
+                    bb = FLOOR(0.5*cc)
+                    ! Volume fraction to be removed (based on wet size)
+                    vfrac = dN/psnow(ii,jj,cc)%numc*(psnow(ii,jj,bb)%dmid/psnow(ii,jj,cc)%dmid)**3
+                    ! Limit volume fraction to 0.1 to avoid large changes in mean wet size
+                    IF (vfrac>0.1) THEN
+                        vfrac = 0.1
+                        vol = vfrac*SUM(psnow(ii,jj,cc)%volc(1:nspec+1))/dN ! splinter wet volume
+                        bb = MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim)) ! bin
+                    ENDIF
+                    ! Move dN splinters from snow bin cc to snow bin bb
                     psnow(ii,jj,bb)%numc = psnow(ii,jj,bb)%numc + dN
                     psnow(ii,jj,bb)%volc(:) = psnow(ii,jj,bb)%volc(:) + vfrac*psnow(ii,jj,cc)%volc(:)
                     psnow(ii,jj,cc)%volc(:) = (1.-vfrac)*psnow(ii,jj,cc)%volc(:)

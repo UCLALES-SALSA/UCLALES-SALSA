@@ -490,6 +490,11 @@ CONTAINS
     DO jc = 1,aqsoa_ngroup
         zc_part(jg,:) = zc_part(jg,:) + zc_part_all(:,aqsoa_set(jc)%id_vols)
     END DO
+    ! add all
+    !zc_part(jg,:) = 0.
+    !DO jc = 1,nn
+    !    zc_part(jg,:) = zc_part(jg,:) + zc_part_all(:,jc)
+    !END DO
 
     ! Starting the sub-time step iteration
     zn_steps=MAX(1,NINT(pt_step/0.1))
@@ -522,7 +527,6 @@ CONTAINS
              zc_part(jg,jvc) = zc_part(jg,jvc)+min(max( zh*zk_mass(jvc)*(zc_gas(jg)-zc_sat_part(jvc)), &
                     -0.02*zc_part(jg,jvc)),0.02*zc_part(jg,jvc)+zeps)
           END DO ! jvc
-          if (minval(zc_part(jg,1:nbin_tot))<zeps) write(*,*) jg,minval(zc_part(jg,1:nbin_tot)),maxval(zc_part(jg,1:nbin_tot))
 
           ! finally adjust gas phase concentration based on mass conservation (negative values set to zero)
           zc_gas(jg) = MAX(0.,zc_tot(jg)-SUM(zc_part(jg,:)))

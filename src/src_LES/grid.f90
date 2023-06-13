@@ -1763,12 +1763,13 @@ contains
   ! SUBROUTINE meanRadius
   ! Gets the mean wet (total number of species = nspec+1) radius for particles.
   !
-  SUBROUTINE meanRadius(ipart,itype,rad)
+  SUBROUTINE meanRadius(ipart,itype,rad,ibin)
     USE mo_submctl, ONLY : fnp2a,inp2b,fn2a,in2b,nlim,prlim
     IMPLICIT NONE
 
     CHARACTER(len=*), INTENT(in) :: ipart
     CHARACTER(len=*), INTENT(in) :: itype
+    INTEGER, OPTIONAL, INTENT(in) :: ibin
     REAL, INTENT(out) :: rad(nzp,nxp,nyp)
 
     INTEGER :: istr,iend
@@ -1777,7 +1778,10 @@ contains
 
     SELECT CASE(ipart)
     CASE('aerosol')
-       IF (itype == 'ab') THEN ! Note: 1a, 2a and 2b combined
+       IF (present(ibin)) THEN ! bin ibin
+          istr = ibin
+          iend = ibin
+       ELSE IF (itype == 'ab') THEN ! Note: 1a, 2a and 2b combined
           istr = 1
           iend = nbins
        ELSE IF (itype == 'a') THEN ! Note: 1a and 2a combined
@@ -1791,7 +1795,10 @@ contains
        END IF
        CALL getRadius(istr,iend,nbins,nspec+1,a_naerop,a_maerop,nlim,rad,1)
     CASE('cloud')
-       IF (itype == 'ab') THEN
+       IF (present(ibin)) THEN
+          istr = ibin
+          iend = ibin
+       ELSE IF (itype == 'ab') THEN
           istr = 1
           iend = ncld
        ELSE IF (itype == 'a') THEN
@@ -1805,11 +1812,19 @@ contains
        END IF
        CALL getRadius(istr,iend,ncld,nspec+1,a_ncloudp,a_mcloudp,nlim,rad,2)
     CASE('precp')
-       istr = 1
-       iend = nprc
+       IF (present(ibin)) THEN
+          istr = ibin
+          iend = ibin
+       ELSE
+          istr = 1
+          iend = nprc
+       END IF
        CALL getRadius(istr,iend,nprc,nspec+1,a_nprecpp,a_mprecpp,prlim,rad,3)
     CASE('ice')
-       IF (itype == 'ab') THEN
+       IF (present(ibin)) THEN
+          istr = ibin
+          iend = ibin
+       ELSE IF (itype == 'ab') THEN
           istr = 1
           iend = nice
        ELSE IF (itype == 'a') THEN
@@ -1823,8 +1838,13 @@ contains
        END IF
        CALL getRadius(istr,iend,nice,nspec+1,a_nicep,a_micep,prlim,rad,4)
     CASE('snow')
-       istr = 1
-       iend = nsnw
+       IF (present(ibin)) THEN
+          istr = ibin
+          iend = ibin
+       ELSE
+          istr = 1
+          iend = nsnw
+       END IF
        CALL getRadius(istr,iend,nsnw,nspec+1,a_nsnowp,a_msnowp,prlim,rad,5)
     CASE DEFAULT
           STOP 'meanRadius: Invalid particle type'

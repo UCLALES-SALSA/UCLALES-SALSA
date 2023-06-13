@@ -889,7 +889,7 @@ CONTAINS
               DO ll = 1,ncld
                  zplusterm(1:nt) = zplusterm(1:nt) + zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1:nt)
                  ! Save rime for Hallett-Mossop
-                 IF (nlsip_hm .AND. zdpart(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
+                 IF (nlsip_hm .AND. zdcloud(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
                     rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
                         ptstep*zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
@@ -899,7 +899,7 @@ CONTAINS
               DO ll = 1,nprc
                  zplusterm(1:nt) = zplusterm(1:nt) + zccip(ll,cc)*pprecp(ii,jj,ll)%volc(1:nt)
                  ! Save rime for Hallett-Mossop
-                 IF (nlsip_hm .AND. zdpart(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
+                 IF (nlsip_hm .AND. zdprecp(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
                     rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
                         ptstep*zccip(ll,cc)*pprecp(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
@@ -953,7 +953,7 @@ CONTAINS
               DO ll = 1,ncld
                  zplusterm(1:nt) = zplusterm(1:nt) + zccsc(ll,cc)*pcloud(ii,jj,ll)%volc(1:nt)
                  ! Save rime for Hallett-Mossop
-                 IF (nlsip_hm .AND. zdpart(ll)>hm_dmin_drop .AND. zdsnow(cc)>hm_dmin_ice) THEN
+                 IF (nlsip_hm .AND. zdcloud(ll)>hm_dmin_drop .AND. zdsnow(cc)>hm_dmin_ice) THEN
                     rime_volc_snw(ii,jj,cc) = rime_volc_snw(ii,jj,cc) + &
                         ptstep*zccsc(ll,cc)*pcloud(ii,jj,ll)%volc(1)*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
@@ -963,7 +963,7 @@ CONTAINS
               DO ll = 1,nprc
                  zplusterm(1:nt) = zplusterm(1:nt) + zccsp(ll,cc)*pprecp(ii,jj,ll)%volc(1:nt)
                  ! Save rime for Hallett-Mossop
-                 IF (nlsip_hm .AND. zdpart(ll)>hm_dmin_drop .AND. zdsnow(cc)>hm_dmin_ice) THEN
+                 IF (nlsip_hm .AND. zdprecp(ll)>hm_dmin_drop .AND. zdsnow(cc)>hm_dmin_ice) THEN
                     rime_volc_snw(ii,jj,cc) = rime_volc_snw(ii,jj,cc) + &
                         ptstep*zccsp(ll,cc)*pprecp(ii,jj,ll)%volc(1)*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF

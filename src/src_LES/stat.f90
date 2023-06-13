@@ -725,6 +725,7 @@ contains
           rxv = a_rp
           xrpp = a_srp
           xnpp = a_snrp
+          thl = a_tp
           WHERE(a_temp>0) thl = a_tp + (a_theta/a_temp)*alvi/cp*(a_ri + a_srs)
        CASE DEFAULT
           rxt = a_rp
@@ -2067,10 +2068,10 @@ contains
   ! This is the same for bin dependent profile outputs
   subroutine ps_user_bin_stats()
     USE mo_submctl, ONLY : find_spec_id,fn2a,in2b,fn2b,fnp2a,inp2b,fnp2b,nprc,nsnw
-    use grid, ONLY : nzp,nxp,nyp,binSpecMixrat,a_naerop,a_ncloudp,a_nprecpp,a_nicep,a_nsnowp
+    use grid, ONLY : nzp,nxp,nyp,binSpecMixrat,meanRadius,a_naerop,a_ncloudp,a_nprecpp,a_nicep,a_nsnowp
     INTEGER :: i, j, k, ind, bb
     CHARACTER(LEN=7) :: short_name, nam
-    REAL :: a1(nzp,nxp,nyp), col(nzp)
+    REAL :: a1(nzp,nxp,nyp), w(nzp,nxp,nyp), col(nzp)
     !
     ind=1
     DO j=1,nv2_bin
@@ -2078,11 +2079,16 @@ contains
         short_name=s2_bin(j)
         i=LEN_TRIM(short_name)
         !
+        w(:,:,:)=1.
+        !
         ! Species name or N for number (radius is not valid)
         nam=short_name(3:i-2)
         IF (nam=='N  ') THEN
             ! Bin number concentration
             k=0
+        ELSEIF (nam=='R  ' .OR. nam=='Rw ') THEN
+            ! Bin radius
+            k=-1
         ELSE
             ! Species name
             k=find_spec_id(nam)
@@ -2100,11 +2106,15 @@ contains
                 IF (k>0) THEN
                     ! Bin mixing ratios for all species
                     CALL binSpecMixrat('aerosol',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    ! Bin radius (number mean)
+                    CALL meanRadius('aerosol','x',a1,ibin=bb)
+                    w(:,:,:)=a_naerop(:,:,:,bb)
                 ELSE
                     ! Bin number concentration
                     a1(:,:,:)=a_naerop(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2114,11 +2124,15 @@ contains
                 IF (k>0) THEN
                     ! Bin mixing ratios for all species
                     CALL binSpecMixrat('aerosol',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    ! Bin radius (number mean)
+                    CALL meanRadius('aerosol','x',a1,ibin=bb)
+                    w(:,:,:)=a_naerop(:,:,:,bb)
                 ELSE
                     ! Bin number concentration
                     a1(:,:,:)=a_naerop(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2127,10 +2141,13 @@ contains
             DO bb = 1,fnp2a
                 IF (k>0) THEN
                     CALL binSpecMixrat('cloud',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('cloud','x',a1,ibin=bb)
+                    w(:,:,:)=a_ncloudp(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_ncloudp(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2139,10 +2156,13 @@ contains
             DO bb = inp2b,fnp2b
                 IF (k>0) THEN
                     CALL binSpecMixrat('cloud',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('cloud','x',a1,ibin=bb)
+                    w(:,:,:)=a_ncloudp(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_ncloudp(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2151,10 +2171,13 @@ contains
             DO bb = 1,nprc
                 IF (k>0) THEN
                     CALL binSpecMixrat('precp',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('precp','x',a1,ibin=bb)
+                    w(:,:,:)=a_nprecpp(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_nprecpp(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2163,10 +2186,13 @@ contains
             DO bb = 1,fnp2a
                 IF (k>0) THEN
                     CALL binSpecMixrat('ice',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('ice','x',a1,ibin=bb)
+                    w(:,:,:)=a_nicep(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_nicep(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2175,10 +2201,13 @@ contains
             DO bb = inp2b,fnp2b
                 IF (k>0) THEN
                     CALL binSpecMixrat('ice',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('ice','x',a1,ibin=bb)
+                    w(:,:,:)=a_nicep(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_nicep(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2187,10 +2216,13 @@ contains
             DO bb = 1,nsnw
                 IF (k>0) THEN
                     CALL binSpecMixrat('snow',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('snow','x',a1,ibin=bb)
+                    w(:,:,:)=a_nsnowp(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_nsnowp(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
