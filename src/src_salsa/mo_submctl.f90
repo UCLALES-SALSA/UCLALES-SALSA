@@ -107,6 +107,17 @@ MODULE mo_submctl
   ! d) Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
   INTEGER :: ice_target_opt = -1 ! Default = parallel ice bins
 
+  ! Secondary ice production: Hallett-Mossop
+  LOGICAL :: nlsip_hm = .FALSE. ! Master switch (needs also coagulation)
+  REAL :: hm_dmin_drop=25e-5, hm_dmin_ice=25e-6 ! Minimum aerosol/cloud/rain drop and ice/snow diameters
+  REAL, SAVE, ALLOCATABLE :: rime_volc_ice(:,:,:), rime_volc_snw(:,:,:) ! Data arrays (rime water volume per m3)
+
+  ! Ice and snow mass-dimension-velocity parameterizations
+  !  Defaults:  d=(6/pi*sum(m(i)/rho(i)))**(1/3), v=12.0*sqrt(d)
+  REAL :: rhoeff_ice=917., rhoeff_snow=300.
+  !  Alternative: mass-based parameterizations
+  REAL :: a_geo_ice=-1., b_geo_ice=-1., a_geo_snow=-1., b_geo_snow=-1. ! Dimension: d=a*m**b
+  REAL :: a_vel_ice=-1., b_vel_ice=-1., a_vel_snow=-1., b_vel_snow=-1. ! Velocity: v=a*m**b
 
   ! Gas phase parameters
   INTEGER, PARAMETER :: maxngas=15
@@ -128,6 +139,7 @@ MODULE mo_submctl
 
   ! Detailed SOA formation including gas phase oxidants, VOCs and VBS and aqSOA species
   INTEGER :: nvbs_setup = -1   ! VBS setup option (hard-coded schemes)
+  REAL :: soa_tstart = 0.      ! Spinup for SOA
   LOGICAL :: laqsoa = .FALSE.  ! Enable aqSOA formation
   INTEGER :: nvocs=0, nvbs=0, naqsoa=0 ! Number of VOCs, VBS species and aqSOA species
   REAL :: conc_voc(maxngas)=0., conc_vbsg(maxngas)=0., conc_aqsoag(maxngas)=0. ! Initial concetrations (kg/kg)
@@ -280,7 +292,13 @@ contains
     ! Constants
     real, parameter :: rhoa_ref = 1.225 ! reference air density (kg/m^3)
 
-    IF (flag==4) THEN   ! Ice
+    IF (flag==4 .AND. a_vel_ice>0.) THEN
+        ! Ice crystal terminal fall speed: v=a*m**b
+        terminal_vel = a_vel_ice*(rhop*pi6*8.*radius**3)**b_vel_ice
+    ELSEIF (flag==5 .AND. a_vel_snow>0.) THEN
+        ! The same for snow
+        terminal_vel = a_vel_snow*(rhop*pi6*8.*radius**3)**b_vel_snow
+    ELSEIF (flag==4) THEN   ! Ice
         ! Ice crystal terminal fall speed from Ovchinnikov et al. (2014)
         !       Dimension D = 2*radius
         terminal_vel = 12.0*sqrt(2.0*radius)
@@ -327,17 +345,29 @@ contains
 
     ppart(:)%dwet = 2.e-10
 
-    IF (flag==4) THEN
-        ! Ice: spherical, but with effective density of 917 kg/m3
+    IF (flag==4 .AND. a_geo_ice>0.) THEN
+        ! Ice: d=a*m**b
         DO i=1,n
             IF (ppart(i)%numc>lim) &
-                ppart(i)%dwet=( (ppart(i)%volc(1)*rhowa/917.+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.)
+                ppart(i)%dwet=a_geo_ice*(SUM(ppart(i)%volc(:)*dens(:))/ppart(i)%numc)**b_geo_ice
+        ENDDO
+    ELSEIF (flag==5 .AND. a_geo_snow>0.) THEN
+        ! Snow: d=a*m**b
+        DO i=1,n
+            IF (ppart(i)%numc>lim) &
+                ppart(i)%dwet=a_geo_snow*(SUM(ppart(i)%volc(:)*dens(:))/ppart(i)%numc)**b_geo_snow
+        ENDDO
+    ELSEIF (flag==4) THEN
+        ! Ice: spherical, but with effective density of rhoeff_ice
+        DO i=1,n
+            IF (ppart(i)%numc>lim) &
+                ppart(i)%dwet=( (ppart(i)%volc(1)*rhowa/rhoeff_ice+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.)
         ENDDO
     ELSEIF (flag==5) THEN
-        ! Snow: spherical, but with effective density of 300 kg/m3
+        ! Snow: spherical, but with effective density of rhoeff_snow
         DO i=1,n
             IF (ppart(i)%numc>lim) &
-                ppart(i)%dwet=( (ppart(i)%volc(1)*rhowa/300.+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.)
+                ppart(i)%dwet=( (ppart(i)%volc(1)*rhowa/rhoeff_snow+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.)
         ENDDO
     ELSE
         DO i=1,n
@@ -376,12 +406,18 @@ contains
     REAL, INTENT(IN) :: mass(n) ! Mass (kg) per particle
     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
 
-    IF (flag==4) THEN   ! Ice
-        ! Ice: spherical, but with effective density of 917 kg/m3
-        calc_eff_radius=0.5*( (mass(1)/917.+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
+    IF (flag==4 .AND. a_geo_ice>0.) THEN
+        ! Ice: d=a*m**b
+        calc_eff_radius=0.5*a_geo_ice*SUM(mass(:))**b_geo_ice
+    ELSEIF (flag==5 .AND. a_geo_snow>0.) THEN
+        ! Snow: d=a*m**b
+        calc_eff_radius=0.5*a_geo_snow*SUM(mass(:))**b_geo_snow
+    ELSEIF (flag==4) THEN   ! Ice
+        ! Ice: spherical, but with effective density of rhoeff_ice
+        calc_eff_radius=0.5*( (mass(1)/rhoeff_ice+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
     ELSEIF (flag==5) THEN   ! Snow
-        ! Snow: spherical, but with effective density of 300 kg/m3
-        calc_eff_radius=0.5*( (mass(1)/300.+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
+        ! Snow: spherical, but with effective density of rhoeff_snow
+        calc_eff_radius=0.5*( (mass(1)/rhoeff_snow+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
     ELSE
         ! Radius from total volume of a spherical particle or aqueous droplet
         calc_eff_radius=0.5*( SUM(mass(:)/dens(1:n))/pi6)**(1./3.)

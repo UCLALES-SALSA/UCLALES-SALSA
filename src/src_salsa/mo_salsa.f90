@@ -26,7 +26,7 @@ CONTAINS
     USE mo_vbs_partition, ONLY : vbs_gas_phase_chem, vbs_condensation
     USE mo_salsa_update, ONLY : distr_update
     USE mo_salsa_cloud, only : cloud_activation, autoconv2, autoconv_sb, &
-            autosnow, fixed_ice_driver, ice_nucl_driver, ice_melt
+            autosnow, fixed_ice_driver, ice_nucl_driver, ice_melt, sip_hm
 
     USE mo_submctl, ONLY :      &
          fn2b,ncld,nprc,nice,nsnw,nvbs,    &
@@ -35,7 +35,7 @@ CONTAINS
          nlcndh2ocl,nlcndh2oic,            &
          lsauto,auto_sb,lsautosnow,lsactiv,&
          lsicenucl,lsicmelt,lsdistupdate,  &
-         fixinc, ice_hom, ice_imm, ice_dep
+         fixinc, ice_hom, ice_imm, ice_dep, nlsip_hm
 
     IMPLICIT NONE
 
@@ -84,6 +84,13 @@ CONTAINS
                         paero,  pcloud, pprecp, pice, psnow,    &
                         ptstep, ptemp,  ppres, pedr             )
        IF (sflg) CALL salsa_var_stat('coag',1)
+    ENDIF
+
+    ! Secondary ice production (Hallett-Mossop)
+    IF (lscoag .AND. nlsip_hm) THEN
+        IF (sflg) CALL salsa_var_stat('siph',0)
+        CALL sip_hm(kbdim, klev, pice, psnow, ptemp)
+        IF (sflg) CALL salsa_var_stat('siph',1)
     ENDIF
 
     ! Condensation of H2SO4 and non-volatile organic vapor
@@ -278,6 +285,7 @@ CONTAINS
 
       ! 2b) The same for gases (not a t_section type)
       SUBROUTINE salsa_rate_stat_gas(i,tchar,ng,curr,ncall)
+        USE mo_submctl, ONLY : mws_gas
         ! The list of requested outputs
         IMPLICIT NONE
         ! Inputs
@@ -291,11 +299,12 @@ CONTAINS
         !
         ! Convert to integer - used as is
         READ(UNIT=tchar,FMT='(I1)') j
+        IF (j==0) j=10 ! Allow tenth gas
         ! Gas phase component j molar mixing ratio (mol/m3)
         IF (ncall==0) THEN
             sdata(:,:,i) = curr(:,:,j)
         ELSE
-            sdata(:,:,i) = curr(:,:,j) - sdata(:,:,i)
+            sdata(:,:,i) = (curr(:,:,j) - sdata(:,:,i))*mws_gas(j) ! Convert to kg/m3
         ENDIF
         !
       END SUBROUTINE salsa_rate_stat_gas

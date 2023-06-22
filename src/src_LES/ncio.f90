@@ -1278,6 +1278,8 @@ contains
         pros='melting'
     ELSEIF ('frez_'==short_name(1:5)) THEN
         pros='freezing'
+    ELSEIF ('siph_'==short_name(1:5)) THEN
+        pros='Hallett-Mossop'
     ELSEIF ('dist_'==short_name(1:5)) THEN
         pros='distribution update'
     ELSEIF ('sedi_'==short_name(1:5)) THEN
@@ -1314,7 +1316,7 @@ contains
         mixr=.TRUE.
     CASE('t')
         temp=.TRUE.
-    CASE('1','2','3','4','5','6','7','8','9')
+    CASE('0','1','2','3','4','5','6','7','8','9')
         idc=short_name(i:i)
     case default
         get_rate_info=''
@@ -1336,7 +1338,7 @@ contains
         spec='snow'
     CASE('g')
         spec='gas'
-        IF (mixr) spec='graupel'
+        IF (mixr .OR. numc) spec='graupel'
     CASE('h')
         spec='hail'
     CASE('t')

@@ -110,7 +110,9 @@ CONTAINS
          lscgpp, lscgpa, lscgpc,     &
          lscgia, lscgic, lscgii, lscgip, &
          lscgsa, lscgsc, lscgsi, lscgsp, lscgss, &
-         nspec, CalcDimension, CalcMass, lscgrain
+         nspec, CalcDimension, CalcMass, lscgrain, &
+         nlsip_hm, rime_volc_ice, rime_volc_snw, &
+         hm_dmin_drop, hm_dmin_ice
 
     IMPLICIT NONE
 
@@ -175,6 +177,10 @@ CONTAINS
     LOGICAL :: any_cloud, any_precp, any_ice, any_snow
 
     !-----------------------------------------------------------------------------
+
+    IF (.NOT.ALLOCATED(rime_volc_ice)) ALLOCATE(rime_volc_ice(kbdim,klev,nice),rime_volc_snw(kbdim,klev,nsnw))
+    rime_volc_ice(:,:,:) = 0.
+    rime_volc_snw(:,:,:) = 0.
 
     nt = nspec + 1 ! Total number of spcecies + water
 
@@ -795,16 +801,31 @@ CONTAINS
               ! Volume gained from aerosol collection
               DO ll = in1a,fn2b
                  zplusterm(1:nt) = zplusterm(1:nt) + zccia(ll,cc)*paero(ii,jj,ll)%volc(1:nt)
+                 ! Save rime for Hallett-Mossop
+                 IF (nlsip_hm .AND. zdpart(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
+                    rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
+                        ptstep*zccia(ll,cc)*paero(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from cloud collection
               DO ll = 1,ncld
                  zplusterm(1:nt) = zplusterm(1:nt) + zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1:nt)
+                 ! Save rime for Hallett-Mossop
+                 IF (nlsip_hm .AND. zdcloud(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
+                    rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
+                        ptstep*zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from rain drops
               DO ll = 1,nprc
                  zplusterm(1:nt) = zplusterm(1:nt) + zccip(ll,cc)*pprecp(ii,jj,ll)%volc(1:nt)
+                 ! Save rime for Hallett-Mossop
+                 IF (nlsip_hm .AND. zdprecp(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
+                    rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
+                        ptstep*zccip(ll,cc)*pprecp(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from smaller ice particles in regime a
@@ -857,16 +878,31 @@ CONTAINS
               ! Volume gained from aerosol collection
               DO ll = in1a,fn2b
                  zplusterm(1:nt) = zplusterm(1:nt) + zccia(ll,cc)*paero(ii,jj,ll)%volc(1:nt)
+                 ! Save rime for Hallett-Mossop
+                 IF (nlsip_hm .AND. zdpart(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
+                    rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
+                        ptstep*zccia(ll,cc)*paero(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from cloud collection
               DO ll = 1,ncld
                  zplusterm(1:nt) = zplusterm(1:nt) + zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1:nt)
+                 ! Save rime for Hallett-Mossop
+                 IF (nlsip_hm .AND. zdcloud(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
+                    rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
+                        ptstep*zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from rain drops
               DO ll = 1,nprc
                  zplusterm(1:nt) = zplusterm(1:nt) + zccip(ll,cc)*pprecp(ii,jj,ll)%volc(1:nt)
+                 ! Save rime for Hallett-Mossop
+                 IF (nlsip_hm .AND. zdprecp(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
+                    rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
+                        ptstep*zccip(ll,cc)*pprecp(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from smaller ice particles in b
@@ -906,16 +942,31 @@ CONTAINS
               ! Volume gained by collection of aerosols
               DO ll = in1a,fn2b
                  zplusterm(1:nt) = zplusterm(1:nt) + zccsa(ll,cc)*paero(ii,jj,ll)%volc(1:nt)
+                 ! Save rime for Hallett-Mossop
+                 IF (nlsip_hm .AND. zdpart(ll)>hm_dmin_drop .AND. zdsnow(cc)>hm_dmin_ice) THEN
+                    rime_volc_snw(ii,jj,cc) = rime_volc_snw(ii,jj,cc) + &
+                        ptstep* zccsa(ll,cc)*paero(ii,jj,ll)%volc(1)*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained by collection of cloud droplets
               DO ll = 1,ncld
                  zplusterm(1:nt) = zplusterm(1:nt) + zccsc(ll,cc)*pcloud(ii,jj,ll)%volc(1:nt)
+                 ! Save rime for Hallett-Mossop
+                 IF (nlsip_hm .AND. zdcloud(ll)>hm_dmin_drop .AND. zdsnow(cc)>hm_dmin_ice) THEN
+                    rime_volc_snw(ii,jj,cc) = rime_volc_snw(ii,jj,cc) + &
+                        ptstep*zccsc(ll,cc)*pcloud(ii,jj,ll)%volc(1)*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained by collection of rain drops
               DO ll = 1,nprc
                  zplusterm(1:nt) = zplusterm(1:nt) + zccsp(ll,cc)*pprecp(ii,jj,ll)%volc(1:nt)
+                 ! Save rime for Hallett-Mossop
+                 IF (nlsip_hm .AND. zdprecp(ll)>hm_dmin_drop .AND. zdsnow(cc)>hm_dmin_ice) THEN
+                    rime_volc_snw(ii,jj,cc) = rime_volc_snw(ii,jj,cc) + &
+                        ptstep*zccsp(ll,cc)*pprecp(ii,jj,ll)%volc(1)*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained by collection of ice particles

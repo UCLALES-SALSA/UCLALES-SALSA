@@ -36,7 +36,7 @@ module stat
                         nvar2 = 96,               &
                         nv2_ice = 21,             &
                         nv2_lvl4 = 0,             &
-                        nv2_lvl5 = 7,             &
+                        nv2_lvl5 = 9,             &
                         nv2_hist = 2,             &
                         nvar3 = 20,               &
                         nv3_lvl4 = 0,             &
@@ -114,7 +114,7 @@ module stat
         s2_lvl4(nv2_lvl4), & ! Not used
 
         s2_lvl5(nv2_lvl5) = (/ &
-        'Ni_ii  ','frac_ii','irate  ','Ns_is  ','frac_is','srate  ','thi    '/), & ! 1-7
+        'ri     ','Ni_ii  ','frac_ii','irate  ','rs     ','Ns_is  ','frac_is','srate  ','thi    '/), & ! 1-9
 
         ! **** Cloud droplet and ice histograms
         s2_CldHist(nv2_hist) = (/'P_hNca ','P_hNcb '/), &
@@ -349,8 +349,8 @@ contains
        IF (no_prog_snw) s1_lvl5_bool(6:10)=.FALSE.
        s2_lvl4_bool(:) = .TRUE.
        s2_lvl5_bool(:) = (level>4)
-       IF (no_prog_ice) s2_lvl5_bool(1:3)=.FALSE.
-       IF (no_prog_snw) s2_lvl5_bool(4:6)=.FALSE.
+       IF (no_prog_ice) s2_lvl5_bool(1:4)=.FALSE.
+       IF (no_prog_snw) s2_lvl5_bool(5:8)=.FALSE.
 
        ! Surface emissions
        s1_lvl4_bool(2) = ifSeaSpray ! Aerosol
@@ -725,6 +725,7 @@ contains
           rxv = a_rp
           xrpp = a_srp
           xnpp = a_snrp
+          thl = a_tp
           WHERE(a_temp>0) thl = a_tp + (a_theta/a_temp)*alvi/cp*(a_ri + a_srs)
        CASE DEFAULT
           rxt = a_rp
@@ -1950,13 +1951,17 @@ contains
     REAL, DIMENSION(n1,n2,n3,fnp2b)     :: a_Rwet
     REAL, ALLOCATABLE                   :: hist(:,:)
 
+    ! Ice mass
+    CALL get_avg3(n1,n2,n3,a_ri,col)
+    svctr_lvl5(:,1) = svctr_lvl5(:,1) + col(:)
+
     ! Generate SALSA ice mask
     CALL bulkNumc('ice','ab',a1)
     icemask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_ri(:,:,:) > 1.e-8)
 
     ! Ice number concentration
     CALL get_avg3(n1,n2,n3,a1,col,cond=icemask)
-    svctr_lvl5(:,1) = svctr_lvl5(:,1) + col(:)
+    svctr_lvl5(:,2) = svctr_lvl5(:,2) + col(:)
     ! Fraction of icy grid cells
     WHERE(icemask)
         a1=1.
@@ -1964,18 +1969,21 @@ contains
         a1=0.
     ENDWHERE
     CALL get_avg3(n1,n2,n3,a1,col)
-    svctr_lvl5(:,2) = svctr_lvl5(:,2) + col(:)
+    svctr_lvl5(:,3) = svctr_lvl5(:,3) + col(:)
 
     ! Ice deposition flux
     call get_avg3(n1,n2,n3,icein,col)
-    svctr_lvl5(:,3) = svctr_lvl5(:,3) + col(:)
+    svctr_lvl5(:,4) = svctr_lvl5(:,4) + col(:)
 
-    ! The same for snow (mask, number concentration and fraction of snowy grid cells)
+    ! The same for snow (mass, mask, number concentration and fraction of snowy grid cells)
+    CALL get_avg3(n1,n2,n3,a_srs,col)
+    svctr_lvl5(:,5) = svctr_lvl5(:,5) + col(:)
+
     CALL bulkNumc('snow','a',a1)
     snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srs(:,:,:) > 1.e-8)
 
     CALL get_avg3(n1,n2,n3,a1,col,cond=snowmask)
-    svctr_lvl5(:,4) = svctr_lvl5(:,4) + col(:)
+    svctr_lvl5(:,6) = svctr_lvl5(:,6) + col(:)
 
     WHERE(snowmask)
         a1=1.
@@ -1983,14 +1991,14 @@ contains
         a1=0.
     ENDWHERE
     CALL get_avg3(n1,n2,n3,a1,col)
-    svctr_lvl5(:,5) = svctr_lvl5(:,5) + col(:)
+    svctr_lvl5(:,7) = svctr_lvl5(:,7) + col(:)
 
     call get_avg3(n1,n2,n3,snowin,col)
-    svctr_lvl5(:,6) = svctr_lvl5(:,6) + col(:)
+    svctr_lvl5(:,8) = svctr_lvl5(:,8) + col(:)
 
     ! Ice-liquid water potential temperature
     call get_avg3(n1,n2,n3,a_tp,col)
-    svctr_lvl5(:,7) = svctr_lvl5(:,7) + (col(:) + th00)
+    svctr_lvl5(:,9) = svctr_lvl5(:,9) + (col(:) + th00)
 
     ! Ice histograms
     ! --------------
@@ -2067,10 +2075,10 @@ contains
   ! This is the same for bin dependent profile outputs
   subroutine ps_user_bin_stats()
     USE mo_submctl, ONLY : find_spec_id,fn2a,in2b,fn2b,fnp2a,inp2b,fnp2b,nprc,nsnw
-    use grid, ONLY : nzp,nxp,nyp,binSpecMixrat,a_naerop,a_ncloudp,a_nprecpp,a_nicep,a_nsnowp
+    use grid, ONLY : nzp,nxp,nyp,binSpecMixrat,meanRadius,a_naerop,a_ncloudp,a_nprecpp,a_nicep,a_nsnowp
     INTEGER :: i, j, k, ind, bb
     CHARACTER(LEN=7) :: short_name, nam
-    REAL :: a1(nzp,nxp,nyp), col(nzp)
+    REAL :: a1(nzp,nxp,nyp), w(nzp,nxp,nyp), col(nzp)
     !
     ind=1
     DO j=1,nv2_bin
@@ -2078,11 +2086,16 @@ contains
         short_name=s2_bin(j)
         i=LEN_TRIM(short_name)
         !
+        w(:,:,:)=1.
+        !
         ! Species name or N for number (radius is not valid)
         nam=short_name(3:i-2)
         IF (nam=='N  ') THEN
             ! Bin number concentration
             k=0
+        ELSEIF (nam=='R  ' .OR. nam=='Rw ') THEN
+            ! Bin radius
+            k=-1
         ELSE
             ! Species name
             k=find_spec_id(nam)
@@ -2100,11 +2113,15 @@ contains
                 IF (k>0) THEN
                     ! Bin mixing ratios for all species
                     CALL binSpecMixrat('aerosol',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    ! Bin radius (number mean)
+                    CALL meanRadius('aerosol','x',a1,ibin=bb)
+                    w(:,:,:)=a_naerop(:,:,:,bb)
                 ELSE
                     ! Bin number concentration
                     a1(:,:,:)=a_naerop(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2114,11 +2131,15 @@ contains
                 IF (k>0) THEN
                     ! Bin mixing ratios for all species
                     CALL binSpecMixrat('aerosol',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    ! Bin radius (number mean)
+                    CALL meanRadius('aerosol','x',a1,ibin=bb)
+                    w(:,:,:)=a_naerop(:,:,:,bb)
                 ELSE
                     ! Bin number concentration
                     a1(:,:,:)=a_naerop(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2127,10 +2148,13 @@ contains
             DO bb = 1,fnp2a
                 IF (k>0) THEN
                     CALL binSpecMixrat('cloud',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('cloud','x',a1,ibin=bb)
+                    w(:,:,:)=a_ncloudp(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_ncloudp(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2139,10 +2163,13 @@ contains
             DO bb = inp2b,fnp2b
                 IF (k>0) THEN
                     CALL binSpecMixrat('cloud',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('cloud','x',a1,ibin=bb)
+                    w(:,:,:)=a_ncloudp(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_ncloudp(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2151,10 +2178,13 @@ contains
             DO bb = 1,nprc
                 IF (k>0) THEN
                     CALL binSpecMixrat('precp',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('precp','x',a1,ibin=bb)
+                    w(:,:,:)=a_nprecpp(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_nprecpp(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2163,10 +2193,13 @@ contains
             DO bb = 1,fnp2a
                 IF (k>0) THEN
                     CALL binSpecMixrat('ice',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('ice','x',a1,ibin=bb)
+                    w(:,:,:)=a_nicep(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_nicep(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2175,10 +2208,13 @@ contains
             DO bb = inp2b,fnp2b
                 IF (k>0) THEN
                     CALL binSpecMixrat('ice',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('ice','x',a1,ibin=bb)
+                    w(:,:,:)=a_nicep(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_nicep(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -2187,10 +2223,13 @@ contains
             DO bb = 1,nsnw
                 IF (k>0) THEN
                     CALL binSpecMixrat('snow',k,bb,a1)
+                ELSEIF (k<0) THEN
+                    CALL meanRadius('snow','x',a1,ibin=bb)
+                    w(:,:,:)=a_nsnowp(:,:,:,bb)
                 ELSE
                     a1(:,:,:)=a_nsnowp(:,:,:,bb)
                 ENDIF
-                CALL get_avg3(nzp,nxp,nyp,a1,col)
+                CALL get_avg3(nzp,nxp,nyp,a1,col,weight=w)
                 svctr_bin(:,ind) = svctr_bin(:,ind) + col(:)
                 ind=ind+1
             END DO
@@ -3175,6 +3214,7 @@ contains
         CASE ('g')
             ! Gas: scalar so just mass mixing ratio of component j
             READ(UNIT=tchar,FMT='(I1)') j
+            IF (j==0) j=10 ! Allow tenth gas
             tend=a_gaerot(:,:,:,j)
     END SELECT
     !

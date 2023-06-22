@@ -335,6 +335,7 @@ IMPLICIT NONE
                                nlcgrain,               &
                                nlcnd,                  &
                                nlcndgas,               &
+                               soa_tstart,             &
                                nlcndh2oae, nlcndh2ocl, &
                                nlcndh2oic,             &
                                nlauto,nlautosnow,      &
@@ -437,6 +438,9 @@ IMPLICIT NONE
           lsautosnow = .FALSE.
           lsicmelt   = .FALSE.
     ENDIF
+
+    ! Spinup for SOA
+    IF (time<soa_tstart) lscndgas = .FALSE.
 
   END SUBROUTINE set_SALSA_runtime
 

@@ -90,18 +90,13 @@ module mcrp_ice_sb
 
   REAL, PARAMETER :: e_3  = 6.10780000e2 !..Saettigungsdamppfdruck bei T = T_3
 
+  ! .. Hallett-Mossop
   REAL, PARAMETER :: C_mult     = 3.5e8    !..Koeff. fuer Splintering
   REAL, PARAMETER :: T_mult_min = 265.0    !..Minimale Temp. Splintering
   REAL, PARAMETER :: T_mult_max = 270.0    !..Maximale Temp. Splintering
   REAL, PARAMETER :: T_mult_opt = 268.0    !..Optimale Temp. Splintering
 
-  ! ... spezielle Parameter des KAMM2-Wolkenmoduls
-
-  REAL, PARAMETER :: r_c     = 12.0e-6         !..mittlerer Radius (bei 1-Moment)
-
-  ! ... spezielle Parameter des KAMM2-Wolkenmoduls (Eisphase)
-
-  REAL, PARAMETER :: e_ii  = 0.00              !..min. Eff.
+  ! .. collisions
   REAL, PARAMETER :: e_ic  = 0.80              !..max. Eff. fuer ice_cloud_riming
   REAL, PARAMETER :: e_sc  = 0.80              !..max. Eff. fuer snow_cloud_riming
   REAL, PARAMETER :: e_gc  = 1.00              !..max. Eff. fuer graupel_cloud_riming
@@ -112,40 +107,29 @@ module mcrp_ice_sb
   REAL, PARAMETER :: snow_s_vel = 0.25         !..Dispersion der Fallgeschw.
   REAL, PARAMETER :: r_shedding = 500.0e-6     !..mittlerer Radius Shedding
   REAL, PARAMETER :: T_shed = 263.2
-
-  ! rain_freeze: der Teil des Regenspektrums kleiner als D_rainfrz_ig
-  ! wird nach Gefrieren dem Eis zugeschlagen, der Teil von dort bis zu D_rainfrz_gh dem Graupel
-  ! und der Rest dem Hagel.
-  REAL, PARAMETER :: D_rainfrz_ig = 0.50e-3 !  rain --> ice oder graupel
-  REAL, PARAMETER :: D_rainfrz_gh = 1.25e-3 ! rain --> graupel oder hail
-
   REAL, PARAMETER :: q_krit_ii = 1.000e-6 ! q-Schwellenwert fuer ice_selfcollection 
   REAL, PARAMETER :: D_krit_ii = 100.0e-6 ! D-Schwellenwert fuer ice_selfcollection
   REAL, PARAMETER :: D_conv_ii = 75.00e-6 ! D-Schwellenwert fuer ice_selfcollection
-  REAL, PARAMETER :: q_krit_ic = 1.000e-5 ! q-Schwellenwert fuer ice_cloud_riming
-  REAL, PARAMETER :: D_krit_ic = 150.0e-6 ! D-Schwellenwert fuer ice_cloud_riming
-  REAL, PARAMETER :: q_krit_ir = 1.000e-5 ! q-Schwellenwert fuer ice_rain_riming
-  REAL, PARAMETER :: D_krit_ir = 100.0e-6 ! D-Schwellenwert fuer ice_rain_riming
-  REAL, PARAMETER :: q_krit_sc = 1.000e-5 ! q-Schwellenwert fuer snow_cloud_riming
-  REAL, PARAMETER :: D_krit_sc = 150.0e-6 ! D-Schwellenwert fuer snow_cloud_riming
-  REAL, PARAMETER :: q_krit_sr = 1.000e-5 ! q-Schwellenwert fuer snow_rain_riming
-  REAL, PARAMETER :: D_krit_sr = 100.0e-6 ! D-Schwellenwert fuer snow_rain_riming
-  REAL, PARAMETER :: q_krit_gc = 1.000e-6 ! q-Schwellenwert fuer graupel_cloud_riming
-  REAL, PARAMETER :: D_krit_gc = 100.0e-6 ! D-Schwellenwert fuer graupel_cloud_riming
-  REAL, PARAMETER :: q_krit_hc = 1.000e-6 ! q-Schwellenwert fuer hail_cloud_riming
-  REAL, PARAMETER :: D_krit_hc = 100.0e-6 ! D-Schwellenwert fuer hail_cloud_riming
-  REAL, PARAMETER :: q_krit_fr = 1.000e-6 ! q-Schwellenwert fuer rain_freeze
-  REAL, PARAMETER :: q_krit_c  = 1.000e-6 ! q-Schwellenwert sonst
+  ! .. riming mixing ratio (q) and diameter (D) limits
+  REAL :: q_krit_ic = 1.000e-5, D_krit_ic = 150.0e-6 ! ice in ice_cloud_riming
+  REAL :: q_krit_ir = 1.000e-5, D_krit_ir = 100.0e-6 ! ice in ice_rain_riming
+  REAL :: q_krit_sc = 1.000e-5, D_krit_sc = 150.0e-6 ! snow in snow_cloud_riming
+  REAL :: q_krit_sr = 1.000e-5, D_krit_sr = 100.0e-6 ! snow in snow_rain_riming
+  REAL :: q_krit_gc = 1.000e-6, D_krit_gc = 100.0e-6 ! graupel in graupel_cloud_riming
+  REAL :: q_krit_gr = 1.000e-9 ! graupel in graupel_rain_riming; no diameter limit
+  REAL :: q_krit_hc = 1.000e-6, D_krit_hc = 100.0e-6 ! hail in hail_cloud_riming
+  REAL :: q_krit_hr = 1.000e-9 ! hail in hail_rain_riming; no diameter limit
+  REAL :: q_krit_c  = 1.000e-6 ! cloud in all above; diameter limit is D_krit_c
+  REAL :: q_krit_r  = 1.000e-9 ! rain in all above; no diameter limit
+  ! .. other riming constants
   REAL, PARAMETER :: q_krit    = 1.000e-9 ! q-Schwellenwert sonst
   REAL, PARAMETER :: D_conv_sg = 200.0e-6 ! D-Schwellenwert
   REAL, PARAMETER :: D_conv_ig = 200.0e-6 ! D-Schwellenwert
-  REAL, PARAMETER :: x_conv    = 0.100e-9 ! minimale Graupel-/Hagelmasse riming
+  REAL, PARAMETER :: x_conv_g  = 0.100e-9 ! minimale Graupel-/Hagelmasse riming
   REAL, PARAMETER :: D_shed_g  = 3.000e-3 ! D-Schwellenwert fuer graupel_shedding
   REAL, PARAMETER :: D_shed_h  = 5.000e-3 ! D-Schwellenwert fuer hagel_shedding
   REAL, PARAMETER :: D_krit_c  = 10.00e-6 ! D-Schwellenwert fuer cloud_collection
   REAL, PARAMETER :: D_coll_c  = 40.00e-6 ! oberer Wert fuer cloud_coll_eff
-  REAL, PARAMETER :: T_nuc     = 273.2e+0 ! Temperatur ab der Eisnukleation einsetzt
-  REAL, PARAMETER :: T_freeze  = 273.2e+0 ! Temperatur ab der Gefrieren einsetzt
 
 
   ! Adjustable parameters
@@ -324,6 +308,8 @@ CONTAINS
         drop_freeze, graupel_shedding, hail_shedding, enhanced_melting, ice_multiplication, &
         use_ice_graupel_conv_uli, &
         ice_typ, cloud_typ, nin_set, &
+        q_krit_ic, D_krit_ic,  q_krit_ir, D_krit_ir, q_krit_sc, D_krit_sc, q_krit_sr, D_krit_sr, &
+        q_krit_gc, D_krit_gc, q_krit_gr, q_krit_hc, D_krit_hc, q_krit_hr, q_krit_c, q_krit_r, &
         cldw,rain,ice,snow,graupel
 
     ! Copy default cloud to cldw
@@ -722,7 +708,7 @@ CONTAINS
     IMPLICIT NONE
 
     ! Locale Variablen 
-    REAL    :: nuc_n, nuc_q, ndiag
+    REAL    :: nuc_q, ndiag
     INTEGER :: i,j,k
 
     DO k = 1, loc_iz
@@ -758,7 +744,7 @@ CONTAINS
 
     REAL            :: T_a             !..Absolute Temperatur
     REAL            :: q_i,n_i,x_i,d_i,v_i
-    REAL            :: q_c,n_c,x_c,d_c,v_c,e_coll,x_coll_c
+    REAL            :: q_c,n_c,x_c,d_c,v_c,e_coll
     REAL            :: rime_n,rime_q
     REAL            :: conv_n,conv_q
     REAL            :: mult_n,mult_q,mult_1,mult_2
@@ -766,7 +752,7 @@ CONTAINS
     REAL, SAVE      :: delta_q_ii,delta_q_ic,delta_q_cc
     REAL, SAVE      :: theta_n_ii,theta_n_ic,theta_n_cc
     REAL, SAVE      :: theta_q_ii,theta_q_ic,theta_q_cc
-    REAL            :: const1,const2,const3,const4,const5
+    REAL            :: const1,const3,const4,const5
 
     REAL, PARAMETER :: eps  = 1.e-20
 
@@ -788,10 +774,7 @@ CONTAINS
       firstcall = 1
     ENDIF
 
-    x_coll_c = (D_coll_c/cloud%a_geo)**3          !..Mindestmasse fuer collection, begrenzt rime_n
-
     const1 = e_ic/(D_coll_c - D_krit_c)
-    const2 = 1/x_coll_c
     const3 = 1/(T_mult_opt - T_mult_min)
     const4 = 1/(T_mult_opt - T_mult_max)
     const5 = alpha_spacefilling * rho_w/rho_ice
@@ -831,7 +814,6 @@ CONTAINS
             IF (.NOT.use_ice_graupel_conv_uli) THEN
 
               rime_q = MIN(q_c,rime_q)
-!ub              rime_n = MIN(n_c,MIN(rime_n,const2*rime_q))
               rime_n = MIN(n_c,rime_n)
 
               q_ice(i,j,k)   = q_ice(i,j,k)  + rime_q
@@ -861,19 +843,14 @@ CONTAINS
                 ! ub >>
                 x_i = MIN(MAX((q_ice(i,j,k))/(n_i+eps),ice%x_min),ice%x_max)    !..mittlere Masse incl. Riming
                 ! ub <<
-                conv_n = conv_q / MAX(x_i,x_conv) 
+                conv_n = conv_q / MAX(x_i,x_conv_g)
                 conv_n = MIN(n_ice(i,j,k),conv_n)
-              ELSE
-                conv_q = 0.0
-                conv_n = 0.0
+
+                q_ice(i,j,k)     = q_ice(i,j,k)     - conv_q
+                q_graupel(i,j,k) = q_graupel(i,j,k) + conv_q
+                n_ice(i,j,k)     = n_ice(i,j,k)     - conv_n
+                n_graupel(i,j,k) = n_graupel(i,j,k) + conv_n
               ENDIF
-
-              q_ice(i,j,k)     = q_ice(i,j,k)     - conv_q
-              q_graupel(i,j,k) = q_graupel(i,j,k) + conv_q
-
-              n_ice(i,j,k)     = n_ice(i,j,k)     - conv_n
-              n_graupel(i,j,k) = n_graupel(i,j,k) + conv_n
-              ! ub>>
 
             ELSE
 
@@ -1009,18 +986,14 @@ CONTAINS
                 ! ub >>
                 x_s = MIN(MAX((q_snow(i,j,k))/(n_s+eps),snow%x_min),snow%x_max)    !..mittlere Masse incl. Riming
                 ! ub <<
-                conv_n = conv_q / MAX(x_s,x_conv) 
+                conv_n = conv_q / MAX(x_s,x_conv_g)
                 conv_n = MIN(n_snow(i,j,k),conv_n)
-              ELSE
-                conv_q = 0.0
-                conv_n = 0.0
+
+                q_snow(i,j,k)    = q_snow(i,j,k)    - conv_q
+                q_graupel(i,j,k) = q_graupel(i,j,k) + conv_q
+                n_snow(i,j,k)    = n_snow(i,j,k)    - conv_n
+                n_graupel(i,j,k) = n_graupel(i,j,k) + conv_n
               ENDIF
-
-              q_snow(i,j,k)    = q_snow(i,j,k)    - conv_q
-              q_graupel(i,j,k) = q_graupel(i,j,k) + conv_q
-
-              n_snow(i,j,k)    = n_snow(i,j,k)    - conv_n
-              n_graupel(i,j,k) = n_graupel(i,j,k) + conv_n
 
             ELSE
 
@@ -1049,7 +1022,7 @@ CONTAINS
     INTEGER, SAVE               :: firstcall = 0
     REAL            :: T_a
     REAL            :: q_g,n_g,x_g,d_g,v_g
-    REAL            :: q_c,n_c,x_c,d_c,v_c,x_coll_c
+    REAL            :: q_c,n_c,x_c,d_c,v_c
     REAL            :: rime_n,rime_q,e_coll_n
     REAL            :: melt_n,melt_q,e_coll_q
     REAL            :: shed_n,shed_q,x_shed
@@ -1082,8 +1055,6 @@ CONTAINS
 
     x_shed = 4./3.*pi * rho_w * r_shedding**3     !..Mittlere Masse der Sheddingtropfen
 
-    x_coll_c = (D_coll_c/cloud%a_geo)**3          !..Mindestmasse fuer collection, begrenzt rime_n
-
     const1 = e_gc/(D_coll_c - D_krit_c)    
     const2 = 1.0/(T_mult_opt - T_mult_min)
     const3 = 1.0/(T_mult_opt - T_mult_max)
@@ -1101,8 +1072,7 @@ CONTAINS
           D_c = cloud%a_geo * x_c**cloud%b_geo                      !..mittlerer Durchmesser
           T_a = T_0(i,j,k)                                          !..abs. Temperatur
 
-          IF (q_c > q_krit_c .AND. q_g > q_krit_gc .AND. D_g > D_krit_gc .AND. &
-               & D_c > D_krit_c) THEN
+          IF (q_c > q_krit_c .AND. q_g > q_krit_gc .AND. D_g > D_krit_gc .AND. D_c > D_krit_c) THEN
 
             v_g = graupel%a_vel * x_g**graupel%b_vel * rrho_04(i,j,k) !..mittlere Sedimentationsgeschw.
             v_c = cloud%a_vel   * x_c**cloud%b_vel   * rrho_c(i,j,k)  !..mittlere Sedimentationsgeschw.
@@ -1119,7 +1089,6 @@ CONTAINS
                  &   * SQRT(theta_q_gg * v_g*v_g - theta_q_gc * v_g*v_c + theta_q_cc * v_c*v_c)
 
             rime_q = MIN(q_c,rime_q)
-!ub            rime_n = MIN(n_c,MIN(rime_n,rime_q/x_coll_c))
             rime_n = MIN(n_c,rime_n)
 
             q_graupel(i,j,k) = q_graupel(i,j,k) + rime_q
@@ -1128,7 +1097,6 @@ CONTAINS
 
             ! Eismultiplikation nach Hallet und Mossop
 
-            mult_q = 0.0
             IF (T_a < T_3 .AND. ice_multiplication) THEN
               mult_1 = const2*(T_a - T_mult_min) 
               mult_2 = const3*(T_a - T_mult_max) 
@@ -1165,7 +1133,6 @@ CONTAINS
             ! Shedding
 
             IF ((graupel_shedding .AND. D_g > D_shed_g .AND. T_a > T_shed) .OR. T_a > T_3 ) THEN
-              !IF (graupel_shedding .AND. T_a > T_shed ) THEN
               q_g = q_graupel(i,j,k)
               n_g = n_graupel(i,j,k)
               x_g = MIN(MAX(q_g/(n_g+eps),graupel%x_min),graupel%x_max) !..mittlere Masse in SI
@@ -1199,7 +1166,7 @@ CONTAINS
     INTEGER, SAVE               :: firstcall = 0
     REAL            :: T_a
     REAL            :: q_h,n_h,x_h,d_h,v_h
-    REAL            :: q_c,n_c,x_c,d_c,v_c,x_coll_c
+    REAL            :: q_c,n_c,x_c,d_c,v_c
     REAL            :: rime_n,rime_q,e_coll_n
     REAL            :: melt_n,melt_q,e_coll_q
     REAL            :: shed_n,shed_q,x_shed
@@ -1232,8 +1199,6 @@ CONTAINS
 
     x_shed = 4./3.*pi * rho_w * r_shedding**3     !..Mittlere Masse der Sheddingtropfen
 
-    x_coll_c = (D_coll_c/cloud%a_geo)**3          !..Mindestmasse fuer collection, begrenzt rime_n
-
     const1 = e_hc/(D_coll_c - D_krit_c)    
     const2 = 1.0/(T_mult_opt - T_mult_min)
     const3 = 1.0/(T_mult_opt - T_mult_max)
@@ -1251,8 +1216,7 @@ CONTAINS
           D_c = cloud%a_geo * x_c**cloud%b_geo                      !..mittlerer Durchmesser
           T_a = T_0(i,j,k)                                          !..abs. Temperatur
 
-          IF (q_c > q_krit_c .AND. q_h > q_krit_hc .AND. D_h > D_krit_hc .AND. &
-               & D_c > D_krit_c) THEN
+          IF (q_c > q_krit_c .AND. q_h > q_krit_hc .AND. D_h > D_krit_hc .AND. D_c > D_krit_c) THEN
 
             v_h = hail%a_vel * x_h**hail%b_vel * rrho_04(i,j,k) !..mittlere Sedimentationsgeschw.
             v_c = cloud%a_vel   * x_c**cloud%b_vel   * rrho_c(i,j,k)  !..mittlere Sedimentationsgeschw.
@@ -1269,7 +1233,6 @@ CONTAINS
                  &   * SQRT(theta_q_hh * v_h*v_h - theta_q_hc * v_h*v_c + theta_q_cc * v_c*v_c)
 
             rime_q = MIN(q_c,rime_q)
-!ub            rime_n = MIN(n_c,MIN(rime_n,rime_q/x_coll_c))
             rime_n = MIN(n_c,rime_n)
 
             q_hail(i,j,k)  = q_hail(i,j,k) + rime_q
@@ -1278,7 +1241,6 @@ CONTAINS
 
             ! Eismultiplikation nach Hallet und Mossop
 
-            mult_q = 0.0
             IF (T_a < T_3 .AND. ice_multiplication) THEN
               mult_1 = const2*(T_a - T_mult_min) 
               mult_2 = const3*(T_a - T_mult_max) 
@@ -1516,7 +1478,7 @@ CONTAINS
           D_i = ice%a_geo * x_i**ice%b_geo                     !..mittlerer Durchmesser
           D_id = D_av_fakt_i * D_i 
 
-          IF (q_r > q_krit .AND. q_i > q_krit_ir .AND. D_i > D_krit_ir) THEN
+          IF (q_r > q_krit_r .AND. q_i > q_krit_ir .AND. D_i > D_krit_ir) THEN
 
             x_r = MIN(MAX(q_r/(n_r+eps),rain%x_min),rain%x_max)  !..mittlere Masse in SI     
 
@@ -1680,7 +1642,7 @@ CONTAINS
 
           T_a = T_0(i,j,k)
 
-          IF (q_r > q_krit .AND. q_s > q_krit_sr .AND. D_s > D_krit_sr) THEN
+          IF (q_r > q_krit_r .AND. q_s > q_krit_sr .AND. D_s > D_krit_sr) THEN
 
             v_s = snow%a_vel * x_s**snow%b_vel * rrho_04(i,j,k)  !..mittlere Sedimentationsgeschw.
 
@@ -1844,7 +1806,7 @@ CONTAINS
           q_g = q_graupel(i,j,k)                                 !..Fluessigwassergehalt in SI
 
           T_a = T_0(i,j,k)
-          IF (q_r > q_krit .AND. q_g > q_krit) THEN
+          IF (q_r > q_krit_r .AND. q_g > q_krit_gr) THEN
 
             n_r = n_rain(i,j,k)                                 !..Anzahldichte in SI
             n_g = n_graupel(i,j,k)                              !..Anzahldichte in SI
@@ -1959,7 +1921,6 @@ CONTAINS
 
               ! Eismultiplikation nach Hallet und Mossop
 
-              mult_q = 0.0
               IF (T_a < T_3 .AND. ice_multiplication) THEN
                 mult_1 = (T_a - T_mult_min) * const3
                 mult_2 = (T_a - T_mult_max) * const4
@@ -1980,7 +1941,6 @@ CONTAINS
               D_h = hail%a_geo * x_h**hail%b_geo                        !..mittlerer Durchmesser
 
               IF (hail_shedding .AND. D_h > D_shed_h .AND. T_a > T_shed) THEN
-                ! ub                IF (graupel_shedding .AND. (D_g > D_shed_g .OR. T_a > T_shed) ) THEN
                 q_h = q_hail(i,j,k)
                 n_h = n_hail(i,j,k)
 
@@ -2061,7 +2021,7 @@ CONTAINS
           q_h = q_hail(i,j,k)                                    !..Fluessigwassergehalt in SI
 
           T_a = T_0(i,j,k)
-          IF (q_r > q_krit .AND. q_h > q_krit) THEN
+          IF (q_r > q_krit_r .AND. q_h > q_krit_hr) THEN
             n_r = n_rain(i,j,k)                                 !..Anzahldichte in SI
             n_h = n_hail(i,j,k)                                 !..Anzahldichte in SI
 
@@ -2092,7 +2052,6 @@ CONTAINS
 
             ! Eismultiplikation nach Hallet und Mossop
 
-            mult_q = 0.0
             IF (T_a < T_3 .AND. ice_multiplication) THEN
               mult_1 = (T_a - T_mult_min) * const3
               mult_2 = (T_a - T_mult_max) * const4
@@ -2128,7 +2087,6 @@ CONTAINS
             ! Shedding
 
             IF ((hail_shedding .AND. D_h > D_shed_h .AND. T_a > T_shed) .OR. T_a > T_3 ) THEN
-              ! ub                IF (hail_shedding .AND. (D_h > D_shed_h .OR. T_a > T_shed) ) THEN
               q_h = q_hail(i,j,k)
               n_h = n_hail(i,j,k)
               x_h = MIN(MAX(q_h/(n_h+eps),hail%x_min),hail%x_max) !..mittlere Masse in SI     
@@ -2174,12 +2132,12 @@ CONTAINS
     REAL            :: T_a             !..Absolute Temperatur
     REAL            :: n_i,x_i,d_i,D_id
     REAL            :: n_s,x_s,d_s,D_sd
-    REAL            :: x_coll_c,x_r
+    REAL            :: x_r
     REAL            :: D_rd
     REAL            :: rime_n,rime_q, rime_qr, rime_qs, rime_qi
     REAL            :: conv_n,conv_q
     REAL            :: mult_n,mult_q,mult_1,mult_2
-    REAL            :: const2,const3,const4,const5
+    REAL            :: const3,const4,const5
     REAL, SAVE      :: D_av_fakt_i,D_av_fakt_s
 
     REAL, PARAMETER :: eps  = 1.e-20
@@ -2190,9 +2148,6 @@ CONTAINS
       firstcall = 1
     END IF
 
-    x_coll_c = (D_coll_c/cloud%a_geo)**3          !..Mindestmasse fuer collection, begrenzt rime_n bei n_cloud
-
-    const2 = 1.0/x_coll_c
     const3 = 1.0/(T_mult_opt - T_mult_min)
     const4 = 1.0/(T_mult_opt - T_mult_max)
     const5 = alpha_spacefilling * rho_w/rho_ice
@@ -2274,7 +2229,6 @@ CONTAINS
               rime_q = rimeqcrate_ice(i,j,k)
               rime_n = rimencrate_ice(i,j,k)
               rime_q = MIN(q_cloud(i,j,k),rime_q)
-              !              rime_n = MIN(n_cloud(i,j,k),MIN(rime_n,const2*rime_q))
               rime_n = MIN(n_cloud(i,j,k),rime_n)
 
               q_ice(i,j,k)   = q_ice(i,j,k)  + rime_q
@@ -2300,18 +2254,14 @@ CONTAINS
                 conv_q = (rime_q - mult_q) / ( const5 * (pi/6.0*rho_ice*d_i**3/x_i - 1.0) )
                 conv_q = MIN(q_ice(i,j,k),conv_q)
                 x_i = MIN(MAX(q_ice(i,j,k)/(n_i+eps),ice%x_min),ice%x_max)    !..mittlere Masse incl. Riming
-                conv_n = conv_q / MAX(x_i,x_conv) 
+                conv_n = conv_q / MAX(x_i,x_conv_g)
                 conv_n = MIN(n_ice(i,j,k),conv_n)
-              ELSE
-                conv_q = 0.0
-                conv_n = 0.0
+
+                q_ice(i,j,k)     = q_ice(i,j,k)     - conv_q
+                q_graupel(i,j,k) = q_graupel(i,j,k) + conv_q
+                n_ice(i,j,k)     = n_ice(i,j,k)     - conv_n
+                n_graupel(i,j,k) = n_graupel(i,j,k) + conv_n
               ENDIF
-
-              q_ice(i,j,k)     = q_ice(i,j,k)     - conv_q
-              q_graupel(i,j,k) = q_graupel(i,j,k) + conv_q
-
-              n_ice(i,j,k)     = n_ice(i,j,k)     - conv_n
-              n_graupel(i,j,k) = n_graupel(i,j,k) + conv_n
 
             END IF
 
@@ -2497,18 +2447,14 @@ CONTAINS
                 conv_q = (rime_q - mult_q) / ( const5 * (pi/6.0*rho_ice*d_s**3/x_s - 1.0) )
                 conv_q = MIN(q_snow(i,j,k),conv_q)
                 x_s = MIN(MAX(q_snow(i,j,k)/(n_s+eps),snow%x_min),snow%x_max)    !..mittlere Masse incl. Riming
-                conv_n = conv_q / MAX(x_s,x_conv) 
+                conv_n = conv_q / MAX(x_s,x_conv_g)
                 conv_n = MIN(n_snow(i,j,k),conv_n)
-              ELSE
-                conv_q = 0.0
-                conv_n = 0.0
+
+                q_snow(i,j,k)    = q_snow(i,j,k)    - conv_q
+                q_graupel(i,j,k) = q_graupel(i,j,k) + conv_q
+                n_snow(i,j,k)    = n_snow(i,j,k)    - conv_n
+                n_graupel(i,j,k) = n_graupel(i,j,k) + conv_n
               ENDIF
-
-              q_snow(i,j,k)    = q_snow(i,j,k)    - conv_q
-              q_graupel(i,j,k) = q_graupel(i,j,k) + conv_q
-
-              n_snow(i,j,k)    = n_snow(i,j,k)    - conv_n
-              n_graupel(i,j,k) = n_graupel(i,j,k) + conv_n
 
             END IF
 
@@ -2847,6 +2793,9 @@ CONTAINS
     REAL            :: fr_q,fr_n,T_a,q_r,x_r,n_r,j_het,&
          &  fr_q_i,fr_n_i,fr_q_g,fr_n_g,fr_q_h,fr_n_h,n_0,lam,xmax_ice,xmax_gr,fr_q_tmp,fr_n_tmp
     REAL, SAVE      :: coeff_z
+    REAL, PARAMETER :: D_rainfrz_ig = 0.50e-3 ! rain --> ice oder graupel
+    REAL, PARAMETER :: D_rainfrz_gh = 1.25e-3 ! rain --> graupel oder hail
+    REAL, PARAMETER :: q_krit_fr = 1.000e-6 ! q-Schwellenwert fuer rain_freeze
     REAL, PARAMETER :: a_HET = 6.5e-1 ! Messung nach Barklie and Gokhale (PK S.350)
     REAL, PARAMETER :: b_HET = 2.0e+2 ! Messung nach Barklie and Gokhale (PK S.350)
     REAL, PARAMETER :: eps  = 1.e-20
@@ -2869,7 +2818,7 @@ CONTAINS
           q_r = q_rain(i,j,k)
           n_r = n_rain(i,j,k)
 
-          IF (T_a < T_freeze) THEN
+          IF (T_a < T_3) THEN
             IF (q_r <= q_krit_fr) THEN
               IF (T_a < T_f) THEN
                 fr_q = q_r                  !  Ausfrieren unterhalb T_f \approx -40 C
@@ -3056,6 +3005,7 @@ CONTAINS
     INTEGER, SAVE               :: firstcall = 0
     REAL            :: fr_q,fr_n,T_a,q_r,x_r,n_r,j_het
     REAL, SAVE      :: coeff_z
+    REAL, PARAMETER :: q_krit_fr = 1.000e-6 ! q-Schwellenwert fuer rain_freeze
     REAL, PARAMETER :: a_HET = 6.5e-1 ! Messung nach Barklie and Gokhale (PK S.350)
     REAL, PARAMETER :: b_HET = 2.0e+2 ! Messung nach Barklie and Gokhale (PK S.350)
     REAL, PARAMETER :: eps  = 1.e-20
@@ -3080,7 +3030,7 @@ CONTAINS
           T_a = T_0(i,j,k)
           q_r = q_rain(i,j,k)
           n_r = n_rain(i,j,k)
-          IF (T_a < T_freeze .AND. q_r > q_krit_fr) THEN
+          IF (T_a < T_3 .AND. q_r > q_krit_fr) THEN
             x_r = MIN(MAX(q_r/(n_r+eps),rain%x_min),rain%x_max)
             IF (T_a < T_f) THEN            !..Nur Eis
               fr_q = q_r                  !  Ausfrieren unterhalb T_f \approx -40 C
@@ -3186,9 +3136,6 @@ CONTAINS
               !.. Temperaturabhaengige Efficiency nach Cotton et al. (1986) 
               !   (siehe auch Straka, 1989; S. 53)
               e_coll = MIN(10**(0.035*(T_a-T_3)-0.7),0.2)
-              !.. Temperaturabhaengige Efficiency nach Lin et al. (1983)
-              !e_coll = MIN(exp(0.09*(T_a-T_3)),1.0)
-              !e_coll = MAX(e_ii,MIN(exp(0.09*(T_a-T_3)),1.0))
             END IF
 
 
@@ -3982,7 +3929,7 @@ CONTAINS
     INTEGER                     :: i,j,k
     INTEGER, SAVE               :: firstcall = 0
     REAL            :: T_a,p_a,e_sw,s_sw,g_d,eva,eva_q,eva_n
-    REAL            :: q_d,q_r,n_r,x_r,d_r,v_r,f_v,N_re,x_d,e_d,f_q
+    REAL            :: q_d,q_r,n_r,x_r,d_r,v_r,f_v,N_re,e_d,f_q
     REAL            :: mue,d_m,gamma_eva,lam,n0r,d_vtp,gfak
     REAL, SAVE      :: c_r               !..Koeff. fuer mittlere Kapazitaet
     REAL, SAVE      :: a_q,b_q   !..Koeff. fuer mittleren Ventilationkoeff.
@@ -4019,7 +3966,6 @@ CONTAINS
           q_d  = q(i,j,k)
           p_a  = p_0(i,j,k)
           T_a  = T_0(i,j,k)
-          x_d  = q(i,j,k) / rho_0(i,j,k)
           e_d  = q(i,j,k) * R_d * T_a
           e_sw = esl(T_a)
           s_sw = e_d / e_sw - 1.0  !..Uebersaettigung bzgl. Wasser
@@ -4147,7 +4093,7 @@ CONTAINS
     INTEGER                     :: i,j,k
     INTEGER, SAVE               :: firstcall = 0
     REAL            :: T_a,e_sw,s_sw,g_d,eva
-    REAL            :: q_d,q_g,n_g,x_g,d_g,v_g,f_v,N_re,x_d,e_d
+    REAL            :: q_d,q_g,n_g,x_g,d_g,v_g,f_v,N_re,e_d
     REAL, SAVE      :: c_g             !..Koeff. fuer mittlere Kapazitaet
     REAL, SAVE      :: a_f,b_f         !..Koeff. fuer mittleren Ventilationkoeff.
 
@@ -4167,7 +4113,6 @@ CONTAINS
           T_a  = T_0(i,j,k)
           IF(q_g > 0. .AND. T_a > T_3)THEN
             q_d = q(i,j,k)
-            x_d  = q(i,j,k) / rho_0(i,j,k)
             e_d  = q(i,j,k) * R_d * T_a 
             e_sw = esl(T_a)
             s_sw = e_d / e_sw - 1.0                   !..Uebersaettigung bzgl. Wasser
@@ -4211,7 +4156,7 @@ CONTAINS
     INTEGER                     :: i,j,k
     INTEGER, SAVE               :: firstcall = 0
     REAL            :: T_a,e_sw,s_sw,g_d,eva
-    REAL            :: q_d,q_h,n_h,x_h,d_h,v_h,f_v,N_re,x_d,e_d
+    REAL            :: q_d,q_h,n_h,x_h,d_h,v_h,f_v,N_re,e_d
     REAL, SAVE      :: c_h             !..Koeff. fuer mittlere Kapazitaet
     REAL, SAVE      :: a_f,b_f         !..Koeff. fuer mittleren Ventilationkoeff.
 
@@ -4231,7 +4176,6 @@ CONTAINS
           T_a  = T_0(i,j,k)
           IF(q_h > 0. .AND. T_a > T_3)THEN
             q_d = q(i,j,k)
-            x_d  = q(i,j,k) / rho_0(i,j,k)
             e_d  = q(i,j,k) * R_d * T_a 
             e_sw = esl(T_a)
             s_sw = e_d / e_sw - 1.0                   !..Uebersaettigung bzgl. Wasser
@@ -4274,7 +4218,7 @@ CONTAINS
     ! .. Local Variables ..
     INTEGER                     :: i,j,k
     INTEGER, SAVE               :: firstcall = 0
-    REAL            :: T_a,e_sw,s_sw,x_d,g_d,eva
+    REAL            :: T_a,e_sw,s_sw,g_d,eva
     REAL            :: q_d,q_s,n_s,x_s,d_s,v_s,f_v,N_re,e_d
     REAL, SAVE      :: c_s             !..Koeff. fuer mittlere Kapazitaet
     REAL, SAVE      :: a_f,b_f         !..Koeff. fuer mittleren Ventilationkoeff.
@@ -4295,7 +4239,6 @@ CONTAINS
           T_a  = T_0(i,j,k)
           IF(q_s > 0. .AND. T_a > T_3)THEN
             q_d = q(i,j,k)
-            x_d  = q(i,j,k) / rho_0(i,j,k)
             e_d  = q(i,j,k) * R_d * T_a 
             e_sw = esl(T_a)
             s_sw = e_d / e_sw - 1.0                   !..Uebersaettigung bzgl. Wasser
@@ -4984,6 +4927,7 @@ CONTAINS
     IMPLICIT NONE
 
     !..Parameter fuer Beheng (1994)
+    REAL, PARAMETER :: r_c  = 12.0e-6
     REAL, PARAMETER :: eps  = 1.00e-25
 
     !..Locale Variablen
@@ -5065,6 +5009,7 @@ CONTAINS
     !*******************************************************************************
     IMPLICIT NONE
 
+    REAL, PARAMETER :: r_c  = 12.0e-6
     REAL, PARAMETER :: eps  = 1.00e-25
     REAL, PARAMETER :: k_a  = 3.47e+07
 
@@ -5145,16 +5090,11 @@ CONTAINS
 
     REAL            :: dt_local
     REAL            :: D_vtp
-    REAL            :: q_g,n_g,x_g,D_g,conv_q,x_conv
-    ! ub>> 
-    REAL            :: weight
-    ! ub<<
     REAL            :: zdt,qvsidiff,Xi_i,Xfac
     REAL            :: tau_i_i,tau_s_i,tau_g_i,tau_h_i
     REAL, PARAMETER :: eps  = 1.e-20
 
     REAL, ALLOCATABLE, DIMENSION(:,:,:) :: s_si,g_i
-    REAL, ALLOCATABLE, DIMENSION(:,:,:) :: s_sw,g_w
     REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dep_ice
     REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dep_snow
     REAL, ALLOCATABLE, DIMENSION(:,:,:) :: dep_graupel, dep_graupel_n
@@ -5164,13 +5104,11 @@ CONTAINS
     REAL            :: T_a             !..Absolute Temperatur
     REAL            :: e_si            !..Wasserpartialdruck bei Eissaettigung
     REAL            :: e_sw            !..Wasserpartialdruck bei saettigung
-    REAL            :: x_d,e_d,p_a,dep_sum
+    REAL            :: e_d,p_a,dep_sum
     INTEGER                     :: i,j,k
 
     ALLOCATE(s_si(0:loc_ix,1:loc_iy,1:loc_iz))
-    ALLOCATE(s_sw(0:loc_ix,1:loc_iy,1:loc_iz))
     ALLOCATE(g_i(0:loc_ix,1:loc_iy,1:loc_iz))
-    ALLOCATE(g_w(0:loc_ix,1:loc_iy,1:loc_iz))
     ALLOCATE(dep_ice(0:loc_ix,1:loc_iy,1:loc_iz))
     ALLOCATE(dep_snow(0:loc_ix,1:loc_iy,1:loc_iz))
     ALLOCATE(dep_graupel(0:loc_ix,1:loc_iy,1:loc_iz))
@@ -5183,7 +5121,6 @@ CONTAINS
         DO i = 0, loc_ix
           p_a  = p_0(i,j,k)
           T_a  = T_0(i,j,k)
-          x_d  = q(i,j,k) / rho_0(i,j,k)
           e_d  = q(i,j,k) * R_d * T_a
           e_si = esi(T_a)
           e_sw = esl(T_a)
@@ -5217,8 +5154,6 @@ CONTAINS
     CALL vapor_deposition_snow()
     CALL vapor_deposition_graupel()
     IF (ice_typ > 1) CALL vapor_deposition_hail()
-
-    x_conv = (250e-6/snow%a_geo)**(1./snow%b_geo)
 
     zdt = 1.0/dt_local
 
@@ -5278,55 +5213,9 @@ CONTAINS
 
                 dep_sum = dep_ice(i,j,k) + dep_graupel(i,j,k) + dep_snow(i,j,k) + dep_hail(i,j,k)
 
-                IF (.FALSE.) THEN
-
-                   ! Zur Sicherheit: Pruefen auf Qx < 0.0:
-                   ! An dieser Stelle kann es vorkommen, dass ein |dep_xxx| > q_xxx ist, 
-                   ! und zwar im Falle sehr kleiner absoluter Werte.
-                   IF ( q_ice(i,j,k)+dep_ice(i,j,k) < 0.0 .OR. &
-                        q_snow(i,j,k)+dep_snow(i,j,k) < 0.0 .OR. &
-                        q_graupel(i,j,k)+dep_graupel(i,j,k) < 0.0 .OR. &
-                        q_hail(i,j,k)+dep_hail(i,j,k) < 0.0) THEN
-                      
-                      dep_hail(i,j,k)    = MAX(dep_hail(i,j,k),   -q_hail(i,j,k)   )
-                      dep_graupel(i,j,k) = MAX(dep_graupel(i,j,k),-q_graupel(i,j,k))
-                      dep_snow(i,j,k)    = MAX(dep_snow(i,j,k),   -q_snow(i,j,k)   )
-                      dep_ice(i,j,k)     = MAX(dep_ice(i,j,k),    -q_ice(i,j,k)    )
-                   END IF
-                
-                   IF (dep_sum > q(i,j,k) .AND. dep_sum > 0.0) THEN
-                      ! Kondensation begrenzen auf max. vorhandene Feuchtigkeit 
-                      ! (sollte aber nach dem vorhergegangenen Begrenzen wirklich nicht noetig sein ...):
-                      weight = q(i,j,k) / dep_sum
-                      dep_ice(i,j,k)     = weight * dep_ice(i,j,k)
-                      dep_snow(i,j,k)    = weight * dep_snow(i,j,k)
-                      dep_graupel(i,j,k) = weight * dep_graupel(i,j,k)
-                      dep_hail(i,j,k)    = weight * dep_hail(i,j,k)
-                      dep_sum = q(i,j,k)
-                   END IF
-                END IF
              END IF
              
-             n_g = n_graupel(i,j,k)
-             q_g = q_graupel(i,j,k)                  
-             x_g = MIN(MAX(q_g/(n_g+eps),graupel%x_min),graupel%x_max)
-             D_g = graupel%a_geo * x_g**graupel%b_geo   
-             ! TURNED OFF
-             IF (.FALSE. .AND. dep_graupel(i,j,k) > 0 .AND. D_g < 800e-6) THEN
-                !if (dep_graupel(i,j,k) > 0 .AND. D_g < 800e-6 .AND. q_cloud(i,j,k) < 1e-4) then
-                !..Graupel to snow conversion
-                conv_q = MIN(q_g, 3.0 * dep_graupel(i,j,k))
-                !conv_n = conv_q/x_g
-                !conv_n = MIN(n_g, 0.25 * dep_graupel_n(i,j,k))
-                q_snow(i,j,k)    = q_snow(i,j,k)    + conv_q
-                q_graupel(i,j,k) = q_graupel(i,j,k) - conv_q + dep_graupel(i,j,k)
-                n_snow(i,j,k)    = n_snow(i,j,k)    + conv_q / MIN(x_g,x_conv)
-                n_graupel(i,j,k) = n_graupel(i,j,k) - conv_q / x_g      
-             ELSE
-                q_graupel(i,j,k) = q_graupel(i,j,k) + dep_graupel(i,j,k)
-                conv_q = 0.0
-             ENDIF
-             
+             q_graupel(i,j,k) = q_graupel(i,j,k) + dep_graupel(i,j,k)
              q_ice(i,j,k)     = q_ice(i,j,k)     + dep_ice(i,j,k)
              q_snow(i,j,k)    = q_snow(i,j,k)    + dep_snow(i,j,k)
              IF (ice_typ > 1) q_hail(i,j,k)    = q_hail(i,j,k)    + dep_hail(i,j,k)    ! <hn
@@ -5343,7 +5232,7 @@ CONTAINS
       ENDDO
     ENDDO
 
-    DEALLOCATE(s_si,s_sw,g_i,g_w,dep_ice,dep_snow,dep_graupel,dep_graupel_n, &
+    DEALLOCATE(s_si,g_i,dep_ice,dep_snow,dep_graupel,dep_graupel_n, &
          &  dep_hail,dep_hail_n)
 
   CONTAINS
