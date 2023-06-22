@@ -36,7 +36,7 @@ module stat
                         nvar2 = 96,               &
                         nv2_ice = 21,             &
                         nv2_lvl4 = 0,             &
-                        nv2_lvl5 = 7,             &
+                        nv2_lvl5 = 9,             &
                         nv2_hist = 2,             &
                         nvar3 = 20,               &
                         nv3_lvl4 = 0,             &
@@ -114,7 +114,7 @@ module stat
         s2_lvl4(nv2_lvl4), & ! Not used
 
         s2_lvl5(nv2_lvl5) = (/ &
-        'Ni_ii  ','frac_ii','irate  ','Ns_is  ','frac_is','srate  ','thi    '/), & ! 1-7
+        'ri     ','Ni_ii  ','frac_ii','irate  ','rs     ','Ns_is  ','frac_is','srate  ','thi    '/), & ! 1-9
 
         ! **** Cloud droplet and ice histograms
         s2_CldHist(nv2_hist) = (/'P_hNca ','P_hNcb '/), &
@@ -349,8 +349,8 @@ contains
        IF (no_prog_snw) s1_lvl5_bool(6:10)=.FALSE.
        s2_lvl4_bool(:) = .TRUE.
        s2_lvl5_bool(:) = (level>4)
-       IF (no_prog_ice) s2_lvl5_bool(1:3)=.FALSE.
-       IF (no_prog_snw) s2_lvl5_bool(4:6)=.FALSE.
+       IF (no_prog_ice) s2_lvl5_bool(1:4)=.FALSE.
+       IF (no_prog_snw) s2_lvl5_bool(5:8)=.FALSE.
 
        ! Surface emissions
        s1_lvl4_bool(2) = ifSeaSpray ! Aerosol
@@ -1951,13 +1951,17 @@ contains
     REAL, DIMENSION(n1,n2,n3,fnp2b)     :: a_Rwet
     REAL, ALLOCATABLE                   :: hist(:,:)
 
+    ! Ice mass
+    CALL get_avg3(n1,n2,n3,a_ri,col)
+    svctr_lvl5(:,1) = svctr_lvl5(:,1) + col(:)
+
     ! Generate SALSA ice mask
     CALL bulkNumc('ice','ab',a1)
     icemask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_ri(:,:,:) > 1.e-8)
 
     ! Ice number concentration
     CALL get_avg3(n1,n2,n3,a1,col,cond=icemask)
-    svctr_lvl5(:,1) = svctr_lvl5(:,1) + col(:)
+    svctr_lvl5(:,2) = svctr_lvl5(:,2) + col(:)
     ! Fraction of icy grid cells
     WHERE(icemask)
         a1=1.
@@ -1965,18 +1969,21 @@ contains
         a1=0.
     ENDWHERE
     CALL get_avg3(n1,n2,n3,a1,col)
-    svctr_lvl5(:,2) = svctr_lvl5(:,2) + col(:)
+    svctr_lvl5(:,3) = svctr_lvl5(:,3) + col(:)
 
     ! Ice deposition flux
     call get_avg3(n1,n2,n3,icein,col)
-    svctr_lvl5(:,3) = svctr_lvl5(:,3) + col(:)
+    svctr_lvl5(:,4) = svctr_lvl5(:,4) + col(:)
 
-    ! The same for snow (mask, number concentration and fraction of snowy grid cells)
+    ! The same for snow (mass, mask, number concentration and fraction of snowy grid cells)
+    CALL get_avg3(n1,n2,n3,a_srs,col)
+    svctr_lvl5(:,5) = svctr_lvl5(:,5) + col(:)
+
     CALL bulkNumc('snow','a',a1)
     snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srs(:,:,:) > 1.e-8)
 
     CALL get_avg3(n1,n2,n3,a1,col,cond=snowmask)
-    svctr_lvl5(:,4) = svctr_lvl5(:,4) + col(:)
+    svctr_lvl5(:,6) = svctr_lvl5(:,6) + col(:)
 
     WHERE(snowmask)
         a1=1.
@@ -1984,14 +1991,14 @@ contains
         a1=0.
     ENDWHERE
     CALL get_avg3(n1,n2,n3,a1,col)
-    svctr_lvl5(:,5) = svctr_lvl5(:,5) + col(:)
+    svctr_lvl5(:,7) = svctr_lvl5(:,7) + col(:)
 
     call get_avg3(n1,n2,n3,snowin,col)
-    svctr_lvl5(:,6) = svctr_lvl5(:,6) + col(:)
+    svctr_lvl5(:,8) = svctr_lvl5(:,8) + col(:)
 
     ! Ice-liquid water potential temperature
     call get_avg3(n1,n2,n3,a_tp,col)
-    svctr_lvl5(:,7) = svctr_lvl5(:,7) + (col(:) + th00)
+    svctr_lvl5(:,9) = svctr_lvl5(:,9) + (col(:) + th00)
 
     ! Ice histograms
     ! --------------
