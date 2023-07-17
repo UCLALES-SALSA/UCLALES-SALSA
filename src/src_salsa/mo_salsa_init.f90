@@ -437,6 +437,7 @@ CONTAINS
                                ice_target_opt,        &
                                nlicmelt,              &
                                nlsip_hm,              &
+                               c_mult,                &
                                hm_dmin_drop, hm_dmin_ice, &
                                rhoeff_ice, rhoeff_snow, &
                                a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, &
@@ -520,6 +521,7 @@ CONTAINS
          ice_target_opt,& ! Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
          nlicmelt,      & ! Switch for ice and snow melting
          nlsip_hm,      & ! Switch for Hallett-Mossop
+         c_mult,        & ! Splintering coefficient (particles per kg of rime)
          hm_dmin_drop, hm_dmin_ice, & ! Drop and ice size limits for Hallett-Mossop
          rhoeff_ice, rhoeff_snow, & ! Effective densities for calculating particle diameters (and velocities)
          a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, & ! Alternative dimension: d=a*m**b

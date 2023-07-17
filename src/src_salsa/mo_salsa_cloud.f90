@@ -1267,7 +1267,7 @@ CONTAINS
 
   !  Secondary ice production: Hallett-Mossop or splintering during riming
   SUBROUTINE sip_hm(kbdim,klev,pice,psnow,ptemp)
-    USE mo_submctl, ONLY : t_section, nice, nsnw, fnp2a, inp2b, prlim, rhowa, nspec, &
+    USE mo_submctl, ONLY : t_section, nice, nsnw, fnp2a, inp2b, prlim, rhowa, nspec, c_mult, &
         rime_volc_ice, rime_volc_snw ! Accumulated rime (rime water volume concentration, m3/m3)
     IMPLICIT NONE
     ! Inputs/outputs
@@ -1275,7 +1275,7 @@ CONTAINS
     TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
     REAL, INTENT(in) :: ptemp(kbdim,klev)
     ! Constants for Hallett-Mossop (following SB microphysics)
-    real, parameter :: c_mult     = 3.5e8  !..splintering coefficient (particles per kg of rime)
+    !real, parameter :: c_mult     = 3.5e8  !..splintering coefficient (particles per kg of rime)
     real, parameter :: t_mult_min = 265.0  !..min temp. splintering
     real, parameter :: t_mult_max = 270.0  !..max temp. splintering
     real, parameter :: t_mult_opt = 268.0  !..opt temp. splintering

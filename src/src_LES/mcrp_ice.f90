@@ -61,7 +61,7 @@ module mcrp_ice
   real, parameter :: e_3  = 6.10780000e2 !..saturation pressure at melting temp.
 
   ! Hallett-Mossop
-  real, parameter :: c_mult     = 3.5e8    !..splintering coefficient
+  real            :: c_mult     = 3.5e8    !..splintering coefficient
   real, parameter :: t_mult_min = 265.0    !..min temp. splintering
   real, parameter :: t_mult_max = 270.0    !..max temp. splintering
   real, parameter :: t_mult_opt = 268.0    !..opt temp. splintering
@@ -2095,6 +2095,7 @@ contains
         nin_set, &
         r_crit_ic, d_crit_ic, r_crit_ir, d_crit_ir, r_crit_sc, d_crit_sc, r_crit_sr, d_crit_sr, &
         r_crit_gc, d_crit_gc, r_crit_gr, d_crit_gr, r_crit_c, r_crit_r, &
+        c_mult, &
         cldw,rain,ice,snow,graupel
 
     nprocess = 0

@@ -91,7 +91,7 @@ module mcrp_ice_sb
   REAL, PARAMETER :: e_3  = 6.10780000e2 !..Saettigungsdamppfdruck bei T = T_3
 
   ! .. Hallett-Mossop
-  REAL, PARAMETER :: C_mult     = 3.5e8    !..Koeff. fuer Splintering
+  REAL            :: C_mult     = 3.5e8    !..Koeff. fuer Splintering
   REAL, PARAMETER :: T_mult_min = 265.0    !..Minimale Temp. Splintering
   REAL, PARAMETER :: T_mult_max = 270.0    !..Maximale Temp. Splintering
   REAL, PARAMETER :: T_mult_opt = 268.0    !..Optimale Temp. Splintering
@@ -310,6 +310,7 @@ CONTAINS
         ice_typ, cloud_typ, nin_set, &
         q_krit_ic, D_krit_ic,  q_krit_ir, D_krit_ir, q_krit_sc, D_krit_sc, q_krit_sr, D_krit_sr, &
         q_krit_gc, D_krit_gc, q_krit_gr, q_krit_hc, D_krit_hc, q_krit_hr, q_krit_c, q_krit_r, &
+        c_mult, &
         cldw,rain,ice,snow,graupel
 
     ! Copy default cloud to cldw
