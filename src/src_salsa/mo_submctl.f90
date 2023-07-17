@@ -174,12 +174,12 @@ MODULE mo_submctl
   ! Define which aerosol species are used and their initial size distributions
   ! Initial aerosol species
   INTEGER :: nspec = 1 ! Does not include water
-  INTEGER, PARAMETER :: maxspec = 8
-  CHARACTER(len=3) :: listspec(maxspec) = (/'SO4','   ','   ','   ','   ','   ','   ','   '/)
+  INTEGER, PARAMETER :: maxspec = maxnspec - 1 ! Not including water
+  CHARACTER(len=3) :: listspec(maxspec) = 'SO4'
 
   ! Volume fractions between aerosol species for A and B-bins
-  REAL :: volDistA(maxspec) = (/1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
-  REAL :: volDistB(maxspec) = (/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
+  REAL :: volDistA(maxspec) = 1.0
+  REAL :: volDistB(maxspec) = 0.0
   ! Limit 1a composition to OC and/or SO4
   LOGICAL :: salsa1a_SO4_OC = .TRUE.
   ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
@@ -192,8 +192,8 @@ MODULE mo_submctl
   ! For isdtyp = 0
   INTEGER, PARAMETER :: nmod = 7
   REAL :: sigmag(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/),   & ! Stdev
-             dpg(nmod) = (/0.03,0.15,0.2,0.2,0.2,0.2,0.2/), & ! Mode diam in um
-               n(nmod) = (/1600.,640.,0.,0.,0.,0.,0./)        ! 1e6#/kg ~ #/cm3
+             dpg(nmod) = (/0.15,0.2,0.2,0.2,0.2,0.2,0.2/), & ! Mode diam in um
+               n(nmod) = (/640.,0.,0.,0.,0.,0.,0./)        ! 1e6#/kg ~ #/cm3
 
   ! Aerosol, cloud and ice bin limits (based on dry size)
   INTEGER, PARAMETER :: maxnreg = 5 ! maximum number of subregimes (the first is region 1 and the rest are for region 2)
