@@ -98,6 +98,7 @@ MODULE mo_submctl
   ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
   ! a) Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice/snow
   REAL :: fixinc = -1.0 ! Default = disabled
+  REAL :: fixed_ice_min_Si=1.05, fixed_ice_min_rc=1e-6 ! Thresholds
   ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
   INTEGER :: ice_source_opt = 1 ! Default = start from the largest bin
   ! b) Modelled ice nucleation

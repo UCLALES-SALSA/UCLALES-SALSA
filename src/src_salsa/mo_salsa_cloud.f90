@@ -981,7 +981,8 @@ CONTAINS
                     ncld, nice, nsnw, nspec, &
                     rhowa,  &
                     rda, nlim, prlim, &
-                    fixinc, ice_source_opt, ice_target_opt
+                    fixinc, fixed_ice_min_Si, fixed_ice_min_rc, &
+                    ice_source_opt, ice_target_opt
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kbdim,klev
@@ -992,11 +993,6 @@ CONTAINS
                     prsi(kbdim,klev)
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
                     pice(kbdim,klev,nsnw), psnow(kbdim,klev,nsnw)
-
-    ! Limits for ice formation
-    !   a) Minimum  water vapor satuturation ratio ove ice (-)
-    !   b) Minimum cloud water mixing ratio (kg/kg)
-    REAL, PARAMETER :: min_S_ice=1.05, min_rc=1e-6
 
     INTEGER :: ii,jj,kk,ss,nn
     REAL :: pdn, S_ice, rc, Ni0, vol, sumICE, dnice, frac
@@ -1013,7 +1009,7 @@ CONTAINS
         ! Conditions for ice nucleation
         S_ice = prv(ii,jj)/prsi(ii,jj) ! Saturation with respect to ice
         rc = sum( pcloud(ii,jj,:)%volc(1) )*rhowa/pdn ! Cloud water mixing ratio (kg/kg)
-        if ( S_ice < min_S_ice .OR. rc < min_rc ) cycle
+        if ( S_ice < fixed_ice_min_Si .OR. rc < fixed_ice_min_rc ) cycle
 
         ! Target number concentration of ice, converted to #/m^3
         Ni0 = fixinc * pdn
