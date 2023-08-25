@@ -153,10 +153,7 @@ MODULE classSection
     ! Subroutine updateRhomean
     !
     ! updateRhomean just gets the bulk mass weighted mean ice density
-    ! for partially rimed particles. Another subroutine should be added
-    ! where the particle shape is also taken into account for getting
-    ! the true effective density (once implemented, the effective
-    ! density is the one that should be used for fall velocities etc)
+    ! for partially rimed particles. 
     !
     ! -------------------------------------------------
     !
@@ -178,7 +175,7 @@ MODULE classSection
             mass_r = spec%rhori*SELF%volc(irim)
             mass_t = mass_p + mass_r
             SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/MAX(mass_t,7.e-25)
-            SELF%rhomean = MAX(SELF%rhomean, spec%rhowa)
+            SELF%rhomean = MIN(SELF%rhomean, spec%rhoic)
          ELSE
             SELF%rhomean = spec%rhoic
          END IF

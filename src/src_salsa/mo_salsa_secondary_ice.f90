@@ -244,7 +244,7 @@ MODULE mo_salsa_secondary_ice
                   ! Ice bin index corresponding to the mean frozen drop diameter minus one; Fragments are distributed to ice bins 1:npmax
                   npmax = MAX(COUNT(icediams <= ddmean) - 1, 1) 
               
-                  ! Calculate the number of fragments generated per freezing droplet for current bin
+                  ! Calculate the number of fragments generated for current bin
                   IF (lssipdropfrac%mode == 1) THEN
                      dN = df_lawson(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
                   ELSE IF (lssipdropfrac%mode == 2) THEN

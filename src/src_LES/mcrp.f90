@@ -1167,8 +1167,7 @@ MODULE mcrp
                    CALL getShapeCoefficients(shape,SUM(pmass(1:ns-1)),pmass(ns),zpn(bin))
                 END IF
                 
-                ! Calculate particle density based on dwet; for non-spherical ice this will get the "effective" density, which amy be
-                ! quite low for large non-spherical crystals
+                ! Calculate particle density based on dwet resulting in the bulk density (also in case of non-spherical ice)
                 zdn = SUM(pmass)/zpn(bin)/(pi6*dwet**3)
                 
                 ! Terminal velocity
