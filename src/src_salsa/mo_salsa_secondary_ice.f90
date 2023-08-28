@@ -6,8 +6,8 @@ MODULE mo_salsa_secondary_ice
   SAVE
 
   PRIVATE
-  PUBLIC  :: rimesplintering, dropfracturing, nfrzn_df, mfrzn_df, nfrzn_rs, mfrzn_rs, &
-             dlliq_df, dlice_rs, dlliq_rs
+  PUBLIC  :: rimesplintering, dropfracturing, secondary_ice, nfrzn_df, mfrzn_df, nfrzn_rs, mfrzn_rs, &
+             nimm_df,mimm_df,dlliq_df, dlice_rs, dlliq_rs
   
   ! Arrays to track the number and mass of frozen drops due to ice collection
   ! diagnosed from the coagulation routines for each timestep. Initialized in
@@ -36,8 +36,7 @@ MODULE mo_salsa_secondary_ice
       REAL, INTENT(in)    :: ppres(kbdim,klev), ptemp(kbdim,klev)
       REAL, INTENT(in)    :: ptstep 
 
-      REAL :: nspec 
-
+      INTEGER :: nspec 
 
       ! Secondary ice processes.
       ! These need information about the ice collected liquid drops; Therefore it is imperative, that
@@ -56,8 +55,6 @@ MODULE mo_salsa_secondary_ice
                   
       END IF
          
-
-
    END SUBROUTINE secondary_ice 
 
 
@@ -223,27 +220,16 @@ MODULE mo_salsa_secondary_ice
       mfrzn_df = mfrzn_df * ptstep
       nfrzn_df = nfrzn_df * ptstep
       
+      ! Sum up the contribution from immersion freezing;; SHOULD HAVE A SWITCH?
+      mfrzn_df = mfrzn_df + mimm_df * ptstep
+      nfrzn_df = nfrzn_df + nimm_df * ptstep 
+
       icediams = 0.  ! Need the ice bin center diameters and bin widths, is there a better way for this?
       icebw = 0.
       DO bb = 1,nice
          icediams(bb) = ice(1,1,bb)%dmid
          icebw(bb) = ( (ice(1,1,bb)%vhilim/pi6)**(1./3) - (ice(1,1,bb)%vlolim/pi6)**(1./3))
       END DO
-
-      ! REMOVE IF NO LONGER USING FIXED ICE LIMITS
-      ! Index of the largest ice bin which is assumed to trigger drop fracturing
-      !nimax = COUNT(icediams <= dlice_df)
-
-      ! POISTA
-      DO bb = 1,nice
-         DO jj = 1,klev
-            DO ii = 1,kproma
-               IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
-                    WRITE(*,*) 'DROP FRAC NEGA BEG', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
-            END DO
-         END DO
-      END DO      
-      ! --------------------
 
       
       ! Initialize arrays
@@ -267,11 +253,6 @@ MODULE mo_salsa_secondary_ice
 
                   !Require the freezing drop diameter to be larger tha dlliq_df
                   IF ( ddmean < dlliq_df ) CYCLE  
-
-                  ! POISTA
-                  IF (ddmean < 20.e-6 .OR. ddmean > 1.e3) WRITE(*,*) 'ddmean error ',ddmean,bb,nimax,icediams(bb),icebw(bb)
-                  IF (ddmean /= ddmean) WRITE(*,*) 'ddmean nan ',ddmean,bb,nimax,icediams(bb),icebw(bb)
-                  ! -----------------
                
                   ! Ice bin index corresponding to the mean frozen drop diameter minus one; Fragments are distributed to ice bins 1:npmax
                   npmax = MAX(COUNT(icediams <= ddmean) - 1, 1) 

@@ -19,6 +19,7 @@ MODULE mo_salsa
        lsauto,                    &
        lsactiv,                   &
        lsicenucl,                 &
+       lssecice,                  &
        lsicemelt,                  &
        lsdistupdate,              &
        lscheckarrays,             &

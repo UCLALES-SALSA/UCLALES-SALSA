@@ -1,7 +1,7 @@
 MODULE mo_salsa_cloud_ice_SE
   USE mo_salsa_types, ONLY : liquid, ice, precp, rateDiag
-  USE mo_submctl, ONLY : nliquid, ira,fra, nprc, iia, fia, nice, pi6, lsicehom, lsicedep, lsiceimm, spec,  &
-                         boltz, pi, planck, rg, avog, lsFreeTheta, initMinTheta,  lsicenucl,            &
+  USE mo_submctl, ONLY : nliquid, ira, fra, nprc, iia, fia, nice, pi6, lsicehom, lsicedep, lsiceimm, spec, &
+                         boltz, pi, planck, rg, avog, lsFreeTheta, initMinTheta,  lsicenucl,               &
                          mean_theta_imm, sigma_theta_imm, mean_theta_dep, sigma_theta_dep
   USE math_functions, ONLY : erfm1, f_gauss
   USE mo_particle_external_properties, ONLY : calcSweq
@@ -95,7 +95,7 @@ MODULE mo_salsa_cloud_ice_SE
           CALL gauss_legendre( kproma, kbdim, klev, ptemp, Seq, th00_imm,        &
                                mean_theta_imm, sigma_theta_imm, tstep, nuc_mask, 1, f_imm   )
 
-          CALL sipDiagnostics(kproma,kbim,klev,f_imm)
+          CALL sipDiagnostics(kproma,kbdim,klev,tstep,f_imm)
 
       END IF
 
@@ -594,33 +594,38 @@ MODULE mo_salsa_cloud_ice_SE
   END SUBROUTINE iceDiagnostics
 
 
-  SUBROUTINE sipDiagnostics(kproma,kbim,klev,pliq,f_imm)
+  SUBROUTINE sipDiagnostics(kproma,kbdim,klev,ptstep,f_imm)
 
       ! Must be called before iceNucleation, i.e. before concentration changes have been applied 
 
       USE mo_salsa_secondary_ice, ONLY : nimm_df, mimm_df
       INTEGER, INTENT(in) :: kproma,kbdim,klev
+      REAL, INTENT(in) :: ptstep
       REAL, INTENT(in) :: f_imm(kbdim,klev,nliquid)
 
-      INTEGER :: bb, kk  
+      INTEGER :: bb, kk, ii, jj, iwa
 
       ! Save the mass and number of the drop freezing by immersion during the timestep
 
+      iwa = spec%getIndex("H2O")
+
       DO kk = 1,nliquid
+         DO jj = 1,klev
+            DO ii = 1,kproma
+      
+               ! For now only take drizzle bins... could find a better way for this screening..
+               IF ( liquid(ii,jj,kk)%phase == 3) THEN 
 
-         ! For now only take drizzle bins... could find a better way for this screening..
-         IF ( liquid(1,1,kk)%phase == 3) THEN 
+                  ! Get the target ice bin
+                  bb = getIceBin(liquid(ii,jj,kk)%dwet)
 
-            ! Get the target ice bin
-            bb = getIceBin(liquid(1,1,...)%dwet)
+                  nimm_df(ii,jj,kk,bb) = liquid(ii,jj,kk)%numc * f_imm(ii,jj,kk) / ptstep
+                  mimm_df(ii,jj,kk,bb) = liquid(ii,jj,kk)%volc(iwa) * spec%rhowa * f_imm(ii,jj,kk) / ptstep      
 
+               END IF 
 
-            nimm_df(1,1,kk,bb) = liquid(1,1,kk)%numc * f_imm(1,1,kk)
-            mimm_df(1,1,kk,bb) = liquid(1,1,kk)%volc(iwa) * ... * f_imm(1,1,kk)       !! DEFINE iwa and rho
-
-
-         END IF 
-
+            END DO
+         END DO
       END DO
 
 

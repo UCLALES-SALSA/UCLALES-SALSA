@@ -751,7 +751,8 @@ CONTAINS
    
    SUBROUTINE initialize_secondary_ice()
      USE mo_salsa_secondary_ice, ONLY : nfrzn_rs, mfrzn_rs,    &
-                                        nfrzn_df, mfrzn_df
+                                        nfrzn_df, mfrzn_df,    &
+                                        nimm_df,  mimm_df
      IMPLICIT NONE
      
      ! Allocated and calculated (in coagulation_processes) always, could add the swtiches to these at some point?
