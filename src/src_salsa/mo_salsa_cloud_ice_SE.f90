@@ -94,7 +94,10 @@ MODULE mo_salsa_cloud_ice_SE
 
           CALL gauss_legendre( kproma, kbdim, klev, ptemp, Seq, th00_imm,        &
                                mean_theta_imm, sigma_theta_imm, tstep, nuc_mask, 1, f_imm   )
-       END IF
+
+          CALL sipDiagnostics(kproma,kbim,klev,f_imm)
+
+      END IF
 
        ! Deposition freezing
        IF (lsicedep) THEN
@@ -591,6 +594,38 @@ MODULE mo_salsa_cloud_ice_SE
   END SUBROUTINE iceDiagnostics
 
 
-  
+  SUBROUTINE sipDiagnostics(kproma,kbim,klev,pliq,f_imm)
+
+      ! Must be called before iceNucleation, i.e. before concentration changes have been applied 
+
+      USE mo_salsa_secondary_ice, ONLY : nimm_df, mimm_df
+      INTEGER, INTENT(in) :: kproma,kbdim,klev
+      REAL, INTENT(in) :: f_imm(kbdim,klev,nliquid)
+
+      INTEGER :: bb, kk  
+
+      ! Save the mass and number of the drop freezing by immersion during the timestep
+
+      DO kk = 1,nliquid
+
+         ! For now only take drizzle bins... could find a better way for this screening..
+         IF ( liquid(1,1,kk)%phase == 3) THEN 
+
+            ! Get the target ice bin
+            bb = getIceBin(liquid(1,1,...)%dwet)
+
+
+            nimm_df(1,1,kk,bb) = liquid(1,1,kk)%numc * f_imm(1,1,kk)
+            mimm_df(1,1,kk,bb) = liquid(1,1,kk)%volc(iwa) * ... * f_imm(1,1,kk)       !! DEFINE iwa and rho
+
+
+         END IF 
+
+      END DO
+
+
+  END SUBROUTINE sipDiagnostics
+
+
   
 END MODULE mo_salsa_cloud_ice_SE

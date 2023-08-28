@@ -12,15 +12,14 @@ MODULE mo_salsa_secondary_ice
   ! Arrays to track the number and mass of frozen drops due to ice collection
   ! diagnosed from the coagulation routines for each timestep. Initialized in
   ! mo_salsa_init. Bin dimensions will be (nprc,nice). Possible contribution by 
-  ! cloud droplets will be put to the first bin or smth?? Should binnihs for rime splintering be
+  ! cloud droplets will be put to the first bin or smth?? Should bins for rime splintering be
   ! something else?? Check later!
-  REAL, ALLOCATABLE :: nfrzn_rs(:,:,:,:), mfrzn_rs(:,:,:,:)
-  REAL, ALLOCATABLE :: nfrzn_df(:,:,:,:), mfrzn_df(:,:,:,:)
+  REAL, ALLOCATABLE :: nfrzn_rs(:,:,:,:), mfrzn_rs(:,:,:,:)   ! Number and mass diag for rime splintering from collisions
+  REAL, ALLOCATABLE :: nfrzn_df(:,:,:,:), mfrzn_df(:,:,:,:)   ! - '' - for drop fragmentation
+  REAL, ALLOCATABLE :: nimm_df(:,:,:,:), mimm_df(:,:,:,:)     ! Number and mass diag for drop fragmentation from immersion freezing
 
   ! Ice and liquid drop diameter limits for drop fracturing
-  !REAL :: dlice_df = 1.e-3,    &  ! Max diameter for ice in drop fracturing
-  !        dlliq_df = 80.e-6       ! Min diameter for liquid in drop fracturing
-  REAL :: dlliq_df = 100.e-6          ! Min droplet diameter for drop fracturing. Ice is expected to be more massive
+  REAL :: dlliq_df = 100.e-6       ! Min droplet diameter for drop fracturing. Ice is expected to be more massive
                                    ! than the freezing drop.
 
   REAL :: dlice_rs = 100.e-6,   &  ! Min diameter for ice in hallet-mossop
@@ -29,6 +28,39 @@ MODULE mo_salsa_secondary_ice
   
   
   CONTAINS
+
+   SUBROUTINE secondary_ice(kbdim,kproma,klev,ppres,ptemp,ptstep)
+      USE mo_submctl, ONLY : lssecice, lssiprimespln, lssipdropfrac,   &
+                             spec 
+      INTEGER, INTENT(in) :: kbdim,kproma,klev
+      REAL, INTENT(in)    :: ppres(kbdim,klev), ptemp(kbdim,klev)
+      REAL, INTENT(in)    :: ptstep 
+
+      REAL :: nspec 
+
+
+      ! Secondary ice processes.
+      ! These need information about the ice collected liquid drops; Therefore it is imperative, that
+      ! the bin redistribution routine is NOT called between coagulation and the secondary ice
+      ! parameterizations.
+      IF (lssecice%state) THEN
+
+         nspec = spec%getNSpec(type='total')
+         
+         ! Rime splintering
+         IF (lssiprimespln) &
+              CALL rimesplintering(kbdim,kproma,klev,nspec,ptemp,ptstep)
+         ! Drop fracturing:
+         IF (lssipdropfrac%state) &
+              CALL dropfracturing(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
+                  
+      END IF
+         
+
+
+   END SUBROUTINE secondary_ice 
+
+
 
     SUBROUTINE rimesplintering(kbdim,kproma,klev,nspec,ptemp,ptstep)
       USE mo_salsa_types, ONLY : ice,cloud,precp, rateDiag

@@ -754,11 +754,14 @@ CONTAINS
                                         nfrzn_df, mfrzn_df
      IMPLICIT NONE
      
+     ! Allocated and calculated (in coagulation_processes) always, could add the swtiches to these at some point?
      ALLOCATE(nfrzn_rs(kbdim,klev,nprc,nice),mfrzn_rs(kbdim,klev,nprc,nice))
      ALLOCATE(nfrzn_df(kbdim,klev,nprc,nice),mfrzn_df(kbdim,klev,nprc,nice))
+     ALLOCATE(nimm_df(kbdim,klev,nprc,nice),mimm_df(kbdim,klev,nprc,nice))
 
      nfrzn_rs = 0.; mfrzn_rs = 0.
      nfrzn_df = 0.; mfrzn_df = 0.
+     nimm_df = 0.; mimm_df = 0.
      
    END SUBROUTINE initialize_secondary_ice
    

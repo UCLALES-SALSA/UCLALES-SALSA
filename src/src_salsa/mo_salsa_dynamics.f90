@@ -104,14 +104,11 @@ CONTAINS
                            lscgca, lscgpa, lscgia, & 
                            lscgpc, lscgic, &
                            lscgip,                         &
-                           lssecice, lssiprimespln, lssipdropfrac,     &
                            lcgupdt, lscoag
 
       USE mo_salsa_coagulation_kernels
 
       USE mo_salsa_coagulation_processes
-
-      USE mo_salsa_secondary_ice, ONLY : rimesplintering, dropfracturing
       
       IMPLICIT NONE
 
@@ -197,23 +194,7 @@ CONTAINS
          END DO
       END DO              
       
-      ! Secondary ice processes.
-      ! These need information about the ice collected liquid drops; Therefore it is imperative, that
-      ! the bin redistribution routine is NOT called between coagulation and the secondary ice
-      ! parameterizations.
-      IF (lssecice%state) THEN
 
-         nspec = spec%getNSpec(type='total')
-         
-         ! Rime splintering
-         IF (lssiprimespln) &
-              CALL rimesplintering(kbdim,kproma,klev,nspec,ptemp,ptstep)
-         ! Drop fracturing:
-         IF (lssipdropfrac%state) &
-              CALL dropfracturing(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
-                  
-      END IF
-         
       
    END SUBROUTINE coagulation
 

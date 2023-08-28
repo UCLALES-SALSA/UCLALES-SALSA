@@ -7,6 +7,8 @@ MODULE mo_salsa
        ice_fixed_NC, ice_nucl => ice_nucl_driver,ice_melt
   USE mo_salsa_cloud_ice_SE, ONLY : ice_nucl_SE => ice_nucl_driver
   
+  USE mo_salsa_secondary_ice, ONLY : secondary_ice
+
   USE mo_submctl, ONLY :      &
        spec, &
        ncld,                      &
@@ -130,6 +132,9 @@ MODULE mo_salsa
      END IF
 
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"ICENUC")
+
+
+     IF (lssecice%state) CALL secondary_ice(kbdim,kproma,klev,ppres,ptemp,ptstep)
 
      ! Melting of ice and snow
      IF (lsicemelt%state) &
