@@ -489,8 +489,9 @@ CONTAINS
                              lsdistupdate,                &
                              lscheckarrays,               &
                              fixINC,                      &
-                             lsicehom, lsiceimm, lsicedep,   &
-                             lssiprimespln, lssipdropfrac,    &
+                             lsicehom, lsiceimm, lsicedep, &
+                             lssiprimespln, lssipdropfrac, &
+                             lssipicecollbreak,           &
                              ice_theta_dist,              &
                              lsfreeTheta, initMinTheta,   &
 
@@ -510,8 +511,9 @@ CONTAINS
 
       USE mo_ice_shape, ONLY : iceShapeAlpha, iceShapeBeta,   &
                                iceShapeGamma, iceShapeSigma
-      USE mo_salsa_secondary_ice, ONLY : dlliq_df, dlice_rs, dlliq_rs ! REMOVE dlice_df
-
+      USE mo_salsa_SIP_DF, ONLY: dlliq_df, dropfracturing
+      USE mo_salsa_SIP_RS, ONLY: dlliq_rs, dltemp_rs, rimesplintering
+      USE mo_salsa_SIP_IIBR, ONLY: iceicecollbreak
       
       IMPLICIT NONE
 
@@ -550,15 +552,16 @@ CONTAINS
          lscndh2oae,    & ! Condensation of water vapour on aerosols (FALSE -> equilibrium calc.)
 
          lsicehom,     &    ! Switch for homogeneous ice nucleation
-         lsiceimm,     &    ! .. for immersio freezing
-         lsicedep,     &    ! .. for deposition freezing
-         lssiprimespln,  &    ! Secondary ice production by rime splintering
-         dlice_rs,    &    ! Min ice diameter for Hallet-Mossop
-         dlliq_rs,    &    ! Max liquid diameter for Hallet-Mossop
-         lssipdropfrac, &   ! Secondary ice prduction by drop fracturing
-         dlliq_df,     &   ! Min liquid diameter for drop fracturing
+         lsiceimm,     &    ! Primary ice production by  immersion freezing
+         lsicedep,     &    ! Primary ice production by  deposition freezing
+         lssiprimespln,  &  ! Secondary ice production by rime splintering
+         dltemp_rs,    &    ! Type of temperature-dependence on the SIP-RS efficiency
+         dlliq_rs,    &     ! Max liquid diameter for Hallet-Mossop or rime splintering
+         lssipdropfrac, &   ! Secondary ice production by drop fracturing or fragmentation of freezing drops
+         dlliq_df,     &    ! Min liquid diameter for drop fracturing
+         lssipicecollbreak, &  ! Secondary ice production by ice ice collisional breakup
          
-         lsdistupdate,  & ! Switch for size dsitribution update
+         lsdistupdate,  & ! Switch for size distribution update
          lscheckarrays, & ! Switch for runnin the array check routine in mo_salsa
 
          fixINC,      &    ! fixed ice number concentration #/kg 
@@ -625,10 +628,11 @@ CONTAINS
             lsicehom = .FALSE.   
             lsiceimm = .FALSE.
             lsicedep = .FALSE. 
-            lssiprimespln = .FALSE.
+            lssiprimespln%switch = .FALSE.
             lssipdropfrac%switch = .FALSE.
+            lssipicecollbreak%switch = .FALSE.
             
-      END IF !level
+      END IF 
 
    END SUBROUTINE define_salsa
 
@@ -642,7 +646,8 @@ CONTAINS
      USE classProcessSwitch, ONLY : ProcessSwitch
      USE mo_submctl, ONLY : Nmaster, lsmaster, Nsub, lssub, lscoag, lscnd,     &
                             lsauto, lsactiv, lsicenucl, lsicemelt, lssecice,   &
-                            lsfreeRH, cgintvl, lssipdropfrac
+                            lsfreeRH, cgintvl,                                 &
+                            lssipdropfrac, lssipicecollbreak, lssiprimespln
      IMPLICIT NONE
      
      INTEGER :: i
@@ -668,6 +673,8 @@ CONTAINS
 
      ! Associate pointer for subprocess switches
      lssipdropfrac => lssub(1)
+     lssipicecollbreak => lssub(2)
+     lssiprimespln => lssub(3)
      
      ! Use this to initialize also other switches that use the ProcessSwitch type
      lsfreeRH = ProcessSwitch()
@@ -750,15 +757,19 @@ CONTAINS
    ! 
    
    SUBROUTINE initialize_secondary_ice()
-     USE mo_salsa_secondary_ice, ONLY : nfrzn_rs, mfrzn_rs,    &
-                                        nfrzn_df, mfrzn_df
+     USE mo_salsa_SIP_DF, ONLY: nfrzn_df, mfrzn_df
+     USE mo_salsa_SIP_RS, ONLY: nfrzn_rs, mfrzn_rs
+     USE mo_salsa_SIP_IIBR, ONLY:nii_ibr, mii_ibr
+     
      IMPLICIT NONE
      
      ALLOCATE(nfrzn_rs(kbdim,klev,nprc,nice),mfrzn_rs(kbdim,klev,nprc,nice))
      ALLOCATE(nfrzn_df(kbdim,klev,nprc,nice),mfrzn_df(kbdim,klev,nprc,nice))
-
+     ALLOCATE(nii_ibr(kbdim, klev, nice,nice),mii_ibr(kbdim, klev,nice,nice))
+     
      nfrzn_rs = 0.; mfrzn_rs = 0.
      nfrzn_df = 0.; mfrzn_df = 0.
+     nii_ibr  = 0.; mii_ibr  = 0.
      
    END SUBROUTINE initialize_secondary_ice
    

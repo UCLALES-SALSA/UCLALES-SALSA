@@ -23,6 +23,7 @@ MODULE classProcessRates
      TYPE(Rate), POINTER :: Cond_i           ! Water condensation rate on ice
      TYPE(Rate), POINTER :: drfrrate         ! Secondary ice production by drop fracturing
      TYPE(Rate), POINTER :: rmsplrate        ! Secondary ice production by rime plintering
+     TYPE(Rate), POINTER :: iibrrate         ! Secondary ice production by ice-ice collisional breakup
    CONTAINS
        PROCEDURE :: Reset
   END TYPE ProcessRates
@@ -42,7 +43,7 @@ MODULE classProcessRates
      PROCEDURE :: Rate_cnstr
   END INTERFACE Rate
 
-  INTEGER, PARAMETER :: nproc = 19
+  INTEGER, PARAMETER :: nproc = 20
   TYPE(Rate), TARGET :: Rates(nproc)
 
   
@@ -97,6 +98,8 @@ MODULE classProcessRates
       ProcessRates_cnstr%drfrrate => Rates(18)
       
       ProcessRates_cnstr%rmsplrate => Rates(19)
+
+      ProcessRates_cnstr%iibrrate => Rates(20)
       
     END FUNCTION ProcessRates_cnstr
 

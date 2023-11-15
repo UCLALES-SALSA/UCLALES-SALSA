@@ -36,6 +36,7 @@ MODULE classSection
      ! but currently not coupled with coagulation...
      REAL    :: SIP_drfr   ! Secondary ice due to drop fracturing. 
      REAL    :: SIP_rmspl  ! Secondary ice due to rime splintering
+     REAL    :: SIP_iibr   ! Secondary ice due to ice-ice collisional breakup
           
      CONTAINS
        PROCEDURE :: updateDiameter
@@ -175,7 +176,7 @@ MODULE classSection
             mass_r = spec%rhori*SELF%volc(irim)
             mass_t = mass_p + mass_r
             SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/MAX(mass_t,7.e-25)
-            SELF%rhomean = MIN(SELF%rhomean, spec%rhoic)
+            SELF%rhomean = MIN(SELF%rhomean, spec%rhoic) 
          ELSE
             SELF%rhomean = spec%rhoic
          END IF

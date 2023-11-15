@@ -73,7 +73,9 @@
                                   
                                   pindefp => NULL(),                      &
                                   
-                                  psipdrfrp => NULL(), psiprmsplp => NULL(), &
+                                  psipdrfrp => NULL(), psiprmspl => NULL(), &
+
+                                  psipiibr => NULL(), &
                                      
                                   pgaerop => NULL(), pgaerot => NULL()   
 
@@ -84,7 +86,8 @@
                                   accretion80 => NULL(),                                     &
                                   ACcoll => NULL(), APcoll => NULL(), AIcoll => NULL(),      &
                                   activation => NULL(), Icehom => NULL(), Icedep => NULL(),  &
-                                  Iceimm => NULL(), drfrrate => NULL(), rmsplrate => NULL(),   &
+                                  Iceimm => NULL(), drfrrate => NULL(), rmsplrate => NULL(), &
+                                  iibrrate => NULL(),                                        &
                                   Conda => NULL(), Condc => NULL(), Condp => NULL(), Condi => NULL()
    LOGICAL :: salsa_driver_initialized = .FALSE.
    
@@ -122,7 +125,7 @@ CONTAINS
       REAL, INTENT(in)    :: wp(nzp,nxp,nyp)
       REAL, INTENT(out)   :: pa_vactd(nzp,nxp,nyp,ns*ncld) ! mass concentrations of newly activated droplets for calculating the
                                                            ! actual tendency due to new droplet formation.
-      REAL, INTENT(out)   :: pa_nactd(nzp,nxp,nyp,ncld)   ! Same for number concentration
+      REAL, INTENT(out)   :: pa_nactd(nzp,nxp,nyp,ncld)    ! Same for number concentration
       INTEGER, INTENT(in) :: level                         ! thermodynamical level
             
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
@@ -249,7 +252,8 @@ CONTAINS
                      
                      IF (lssecice%switch) THEN
                         allSALSA(1,1,nb)%SIP_drfr = psipdrfrp%d(kk,ii,jj,nbloc)*pdn%d(kk,ii,jj)
-                        allSALSA(1,1,nb)%SIP_rmspl = psiprmsplp%d(kk,ii,jj,nbloc)*pdn%d(kk,ii,jj)
+                        allSALSA(1,1,nb)%SIP_rmspl= psiprmspl%d(kk,ii,jj,nbloc)*pdn%d(kk,ii,jj)
+                        allSALSA(1,1,nb)%SIP_iibr = psipiibr%d(kk,ii,jj,nbloc)*pdn%d(kk,ii,jj)
                      END IF
                         
                   END IF
@@ -332,7 +336,8 @@ CONTAINS
 
                      IF ( lssecice%switch ) THEN
                         psipdrfrp%d(kk,ii,jj,nbloc) = allSALSA(1,1,nb)%SIP_drfr/pdn%d(kk,ii,jj)
-                        psiprmsplp%d(kk,ii,jj,nbloc) = allSALSA(1,1,nb)%SIP_rmspl/pdn%d(kk,ii,jj)
+                        psiprmspl%d(kk,ii,jj,nbloc) = allSALSA(1,1,nb)%SIP_rmspl/pdn%d(kk,ii,jj)
+                        psipiibr%d(kk,ii,jj,nbloc) = allSALSA(1,1,nb)%SIP_iibr/pdn%d(kk,ii,jj)
                      END IF
                         
                   END IF
@@ -398,8 +403,9 @@ CONTAINS
                                         pdn%d(kk,ii,jj)
 
                   IF (lssecice%switch) THEN
-                     drfrrate%d(kk,ii,jj) = rateDiag%drfrrate%numc/pdn%d(kk,ii,jj)
+                     drfrrate%d(kk,ii,jj)  = rateDiag%drfrrate%numc/pdn%d(kk,ii,jj)
                      rmsplrate%d(kk,ii,jj) = rateDiag%rmsplrate%numc/pdn%d(kk,ii,jj)
+                     iibrrate%d(kk,ii,jj)  = rateDiag%iibrrate%numc/pdn%d(kk,ii,jj)
                   END IF
                      
                END IF
@@ -502,7 +508,8 @@ CONTAINS
         
         IF (lssecice%switch) THEN
            CALL Prog%getData(1,psipdrfrp,name="sipdrfr")
-           CALL Prog%getData(1,psiprmsplp,name="siprmspl")
+           CALL Prog%getData(1,psiprmspl,name="siprmspl")
+           CALL Prog%getData(1,psipiibr,name="sipiibr")
         END IF
         
      END IF
@@ -530,6 +537,7 @@ CONTAINS
         IF (lssecice%switch) THEN
            CALL Diag%getData(1,drfrrate,name="s_n_sipdrfr")
            CALL Diag%getData(1,rmsplrate,name="s_n_siprmspl")
+           CALL Diag%getData(1,iibrrate,name="s_n_sipiibr")
         END IF
         
      END IF
