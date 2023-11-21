@@ -19,7 +19,7 @@
 !
 module sgsm
 
-  use stat, only : sflg, updtst, acc_tend, sgsflxs, sgs_vel
+  use stat, only : sflg, updtst, sgsflxs
   use util, only : tridiff, noslip
   implicit none
 !
@@ -77,7 +77,7 @@ contains
          , wq_sfc, a_edr
     USE defs, ONLY : cp, alvi
 
-    use util, only         : get_avg3
+    use util, only         : get_avg3, get_cor3
     use mpi_interface, only: cyclics, cyclicc
     use thrm, only         : bruvais, fll_tkrs
 
@@ -141,8 +141,11 @@ contains
     !
     ! Diffuse momentum
     !
-    if (sflg) call acc_tend(nzp,nxp,nyp,a_uc,a_vc,a_wc,a_ut,a_vt,a_wt         &
-         ,sz4,sz5,sz6,1,'sgs')
+    if (sflg) then
+        call get_cor3(nzp,nxp,nyp,a_uc,a_ut,sz4)
+        call get_cor3(nzp,nxp,nyp,a_vc,a_vt,sz5)
+        call get_cor3(nzp,nxp,nyp,a_wc,a_wt,sz6)
+    endif
 
     call diff_prep(nzp,nxp,nyp,a_tmp5,a_tmp6,a_tmp4,a_tmp1)
     sxy1=0.; sxy2=0.
@@ -164,9 +167,22 @@ contains
     call cyclicc(nzp,nxp,nyp,a_ut,req)
 
     if (sflg) then
-       call sgs_vel(nzp,nxp,nyp,sz1,sz2,sz3)
-       call acc_tend(nzp,nxp,nyp,a_uc,a_vc,a_wc,a_ut,a_vt,a_wt,sz4,sz5,sz6    &
-            ,2,'sgs')
+       sz1(:)=sz1(:)/float((nxp-4)*(nyp-4))
+       sz2(:)=sz2(:)/float((nxp-4)*(nyp-4))
+       sz3(:)=sz3(:)/float((nxp-4)*(nyp-4))
+       call updtst(nzp,sz1,1,'sfs_uw ')
+       call updtst(nzp,sz2,1,'sfs_vw ')
+       call updtst(nzp,sz3,1,'sfs_ww ')
+       !
+       call get_cor3(nzp,nxp,nyp,a_uc,a_ut,sz3)
+       sz4(:)=sz4(:)-sz3(:)
+       call get_cor3(nzp,nxp,nyp,a_vc,a_vt,sz3)
+       sz5(:)=sz5(:)-sz3(:)
+       call get_cor3(nzp,nxp,nyp,a_wc,a_wt,sz3)
+       sz6(:)=sz6(:)-sz3(:)
+       call updtst(nzp,sz4,0,'diff_u ')
+       call updtst(nzp,sz5,0,'diff_v ')
+       call updtst(nzp,sz6,0,'diff_w ')
     end if
     !
     ! Diffuse scalars
@@ -186,13 +202,14 @@ contains
           call diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
                ,a_sp,a_tmp2,a_st,a_tmp1)
        end if
-       if (sflg) then
+       if (sflg .and. associated(a_sp,a_tp)) then
           call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
-          call updtst(nzp,'sgs',n,sz1,1)
-          if (associated(a_sp,a_tp))                                          &
-             call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'tl')
-          if (associated(a_sp,a_rp))                          &
-             call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'rt')
+          call updtst(nzp,sz1,1,'sfs_tw ')
+          call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'tl')
+       elseif (sflg .and. associated(a_sp,a_rp)) then
+          call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
+          call updtst(nzp,sz1,1,'sfs_qw ')
+         call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'rt')
        endif
        call cyclics(nzp,nxp,nyp,a_st,req)
        call cyclicc(nzp,nxp,nyp,a_st,req)
@@ -339,7 +356,7 @@ contains
        ! The product km and kh represent the local dissipation rate
        !
        call get_cor3(n1,n2,n3,km,kh,sz2)
-       call updtst(n1,'sgs',-2,sz2,1)      ! dissipation
+       call updtst(n1,sz2,1,'diss   ')     ! dissipation
        do k=1,n1
           !
           ! the factor 1/pi^2 probably represents the ratio of the constants
@@ -351,9 +368,9 @@ contains
           tke_sgs(k) = sz1(k)/(delta*pi*(csx**2))**2
           sz1(k) = 1./sqrt(1./(delta*csx)**2+1./(zm(k)*vonk+0.001)**2)
        end do
-       call updtst(n1,'sgs',-1,tke_sgs,1) ! sgs tke
-       call updtst(n1,'sgs',-5,sz1,1)      ! mixing length
-       call updtst(n1,'sgs',-6,sz1,1)      ! dissipation lengthscale
+       call updtst(n1,tke_sgs,1,'sfs_tke') ! sgs tke
+       call updtst(n1,sz1,1,'lmbd   ')     ! mixing length
+       call updtst(n1,sz1,1,'lmbde  ')     ! dissipation lengthscale
     end if
 
     do j=3,n3-2
@@ -374,9 +391,9 @@ contains
 
     if (sflg) then
        call get_avg3(n1,n2,n3,km,sz3)
-       call updtst(n1,'sgs',-3,sz3,1)  ! eddy viscosity
+       call updtst(n1,sz3,1,'km     ') ! eddy viscosity
        call get_avg3(n1,n2,n3,kh,sz2)
-       call updtst(n1,'sgs',-4,sz2,1)  ! eddy diffusivity
+       call updtst(n1,sz2,1,'kh     ') ! eddy diffusivity
     end if
 
   end subroutine smagor
@@ -459,12 +476,12 @@ contains
           sz4(k) = sz4(k)/real(n2*n3)
           tke_sgs(k) = sz1(k)
        end do
-       call updtst(n1,'sgs',-1,sz1,1)
-       call updtst(n1,'sgs',-2,sz4,1)
-       call updtst(n1,'sgs',-3,sz2,1)
-       call updtst(n1,'sgs',-4,sz3,1)
-       call updtst(n1,'sgs',-5,sz5,1)
-       call updtst(n1,'sgs',-6,sz6,1)
+       call updtst(n1,sz1,1,'sfs_tke')
+       call updtst(n1,sz4,1,'diss   ')
+       call updtst(n1,sz2,1,'km     ')
+       call updtst(n1,sz3,1,'kh     ')
+       call updtst(n1,sz5,1,'lmbd   ')
+       call updtst(n1,sz6,1,'lmbde  ')
     end if
 
   end subroutine deardf

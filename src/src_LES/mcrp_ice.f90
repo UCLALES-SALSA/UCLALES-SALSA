@@ -117,7 +117,7 @@ contains
   ! MICRO: sets up call to microphysics
   !
   subroutine micro_ice(level)
-    use grid, only : nxp, nyp, nzp, a_pexnr, pi0, pi1, &
+    use grid, only : nxp, nyp, nzp, a_theta, &
        a_rv, a_rc, a_temp, a_rsl, a_edr, a_rsi, a_dn, &
        a_rt, a_tt,a_rpp, a_rpt, a_npp, a_npt,  &
        a_rip, a_rit, a_nip, a_nit, & ! ice mass and number mixing ratio
@@ -149,21 +149,21 @@ contains
     case(2)
        ! Cloud droplets only
        if (sed_cloud) then
-          call mcrph(level,nzp,nxp,nyp,a_dn,a_pexnr,pi0,pi1,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+          call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip)
        end if
     case(3)
        ! Warm cloud: autoconversion (1), accretion (2), evaporation (3), and sedimentation (4-5)
-       call mcrph(level,nzp,nxp,nyp,a_dn,a_pexnr,pi0,pi1,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip)
     case(4)
        ! Mixed-phase cloud: ice nucleation (6-7), freezing (8), condensation/deposition (9),
        ! melting (10-12), sedimentation (13), and collisions (14-23)
-       call mcrph(level,nzp,nxp,nyp,a_dn,a_pexnr,pi0,pi1,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip,a_rsi,a_rit,a_nit,a_rst,a_rgt,a_rip,a_nip,a_rsp,a_rgp, &
             icein, snowin, grin)
     case(5)
-       call mcrph_sb(nzp,nxp,nyp,a_dn,a_pexnr,pi0,pi1,a_tt,a_rt,a_temp,a_rsi,a_rv,a_rc, &
+       call mcrph_sb(nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rsi,a_rv,a_rc, &
             a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, & ! rain, ice, snow, graupel and hail
             a_rpt, a_npt, a_rit, a_nit, a_rst, a_nst, a_rgt, a_ngt, a_rht, a_nht, &
             cldin, precip, icein, snowin, grin, hailin, sed_cloud, sed_precp, sed_ice)
@@ -175,19 +175,18 @@ contains
   ! MCRPH: calls microphysical parameterization
   !
 
-  subroutine mcrph(level,n1,n2,n3,dn,exner,pi0,pi1,tlt,rtt,tk,vapor,rsat,rcld,prc_c, &
+  subroutine mcrph(level,n1,n2,n3,dn,th,tlt,rtt,tk,vapor,rsat,rcld,prc_c, &
        rp,np,rpt,npt,dissip,prc_r,rsati, ricet,nicet,rsnowt,rgrpt,ricep,nicep,rsnowp,rgrpp, &
        prc_i, prc_s, prc_g)
 
     integer, intent (in) :: level,n1,n2,n3
-    real, dimension(n1), intent (in) :: pi0,pi1  !mean pressures
     real, dimension(n1,n2,n3), intent (inout) :: &
          tk, &   ! absolute temperature
          tlt, &  ! ice-liquid water potential temperature tendency
          rtt, &  ! total water tendency
          rsat, & ! saturation mixing ratio
          vapor, rcld, &       ! water vapor and cloud water mixing ratios (diagnostic)
-         exner, dn, dissip, & ! exner function, air density and dissipation rate
+         th, dn, dissip, &    ! potential temperature, air density and dissipation rate
          prc_c, prc_r, &      ! cloud and rain water precipitation rates
          np, rp, npt, rpt     ! rain drop number and rain water mixing ratio, and their tendencies
     real, dimension(n1,n2,n3), intent (inout), optional :: rsati,ricet,nicet,rsnowt,rgrpt,&
@@ -343,7 +342,7 @@ contains
           end do
 
           ! Change in ice-liquid potential temperature and total water due to sedimentation
-          tlt(2:n1,i,j) =  tlt(2:n1,i,j) + (tl(2:n1)*alvl +ti(2:n1)*alvi)/(pi0(2:n1)+pi1(2:n1)+exner(2:n1,i,j))
+          tlt(2:n1,i,j) =  tlt(2:n1,i,j) + (tl(2:n1)*alvl +ti(2:n1)*alvi)/cp*th(2:n1,i,j)/tk(2:n1,i,j)
           rtt(2:n1,i,j) = rtt(2:n1,i,j) - tl(2:n1) - ti(2:n1)
           ! Rain, ice, snow and graupel
           rpt(2:n1,i,j) = max(rpt(2:n1,i,j) +(rrain(2:n1) - rp(2:n1,i,j))/dt,-rp(2:n1,i,j)/dt)
@@ -2251,7 +2250,7 @@ contains
   !
   !==============================================================================
 
-  SUBROUTINE mcrph_sb(ke,je,ie,dn0,exner,pi0,pi1,tlt,rtt,tk,rsi,qvin,qcin, &
+  SUBROUTINE mcrph_sb(ke,je,ie,dn0,th,tlt,rtt,tk,rsi,qvin,qcin, &
        qrin, qnrin, qiin, qniin, qsin, qnsin, qgin, qngin, qhin, qnhin,  &
        qrtend, qnrtend, qitend, qnitend, qstend, qnstend, qgtend, qngtend, qhtend, qnhtend, &
        prec_c, prec_r, prec_i, prec_s, prec_g, prec_h, sed_cloud, sed_precp, sed_ice)
@@ -2273,12 +2272,8 @@ contains
 
     integer, intent (in) :: ie,je,ke
 
-    real, dimension(ke)      , intent (in)             :: &
-         pi0,   & ! base state pressure 1
-         pi1      ! base state pressure 2
-
     real, dimension(ke,je,ie), intent (in)          :: &
-         exner, & ! exner function
+         th,    & ! potential temperature
          tk,    & ! temperature
          dn0,   & ! density
          rsi
@@ -2390,7 +2385,7 @@ contains
 
           ! ... dynamics
           T_0(i,j,k)      = tk(kk,jj,ii)
-          p_0(i,j,k)      = p00 * ((pi0(kk)+pi1(kk)+exner(kk,jj,ii))/cp)**cpr
+          p_0(i,j,k)      = p00 * (tk(kk,jj,ii)/th(kk,jj,ii))**cpr
           rho_k(i,j,k)    = dn0(kk,jj,ii)
 
           ! .. the ice supersaturation
@@ -2524,7 +2519,7 @@ contains
              qnhtend(k,j,i) = qnhtend(k,j,i) + (qnh(k,j,i) - qnhin(k,j,i))/dt
 
              ! Change in ice-liquid potential temperature and total water due to sedimentation
-             tlt(k,j,i) = tlt(k,j,i) + (tl(k,j,i)*alvl +ti(k,j,i)*alvi)/(pi0(k)+pi1(k)+exner(k,j,i))
+             tlt(k,j,i) = tlt(k,j,i) + (tl(k,j,i)*alvl +ti(k,j,i)*alvi)/cp*th(k,j,i)/tk(k,j,i)
              rtt(k,j,i) = rtt(k,j,i) - tl(k,j,i) - ti(k,j,i)
           END DO
        END DO

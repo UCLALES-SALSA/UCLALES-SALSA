@@ -76,7 +76,7 @@ contains
     use grid, only: nxp, nyp, a_ustar, a_dn, zm, nbins, a_naerot, a_maerot
     use mo_submctl, only: aerobins, in2a, fn2a, &
                     in2b, pi6, iss, ioc, ih2o, rhowa, rhoss, rhooc
-    use stat, only: flux_stat, sflg
+    use stat, only: fill_scalar, sflg
     use util, only : get_avg2dh
 
     IMPLICIT NONE
@@ -213,9 +213,9 @@ contains
     if (sflg) then
         ! Convert dcdt [#/kg/s] to flux [#/m^2/s] and take sum over bins
         omf = SUM ( SUM( SUM(dcdt(3:nxp-2,3:nyp-2,:),DIM=3)*a_dn(2,3:nxp-2,3:nyp-2),DIM=2 ) )*(zm(3)-zm(2))/REAL((nxp-4)*(nyp-4))
-        call flux_stat(omf,'flx_aer')
+        call fill_scalar(omf,'flx_aer')
         ! 10 m wind speed
-        call flux_stat(u10_bar,'u10    ')
+        call fill_scalar(u10_bar,'u10    ')
     endif
 
   END SUBROUTINE marine_aero_flux
@@ -437,7 +437,7 @@ contains
     use defs, only: vonk, g
     use grid, only: nxp, nyp, a_ustar, a_dn, zm, a_gaerot
     use mo_submctl, only: id_mtp, id_isop, mws_gas
-    use stat, only: flux_stat, sflg
+    use stat, only: fill_scalar, sflg
     use util, only : get_avg2dh
     IMPLICIT NONE
     REAL, INTENT(IN) :: sst     ! Sea surface temperature (K)
@@ -539,9 +539,9 @@ contains
     endif
 
     if (sflg) then
-        call flux_stat(flxIsop,'flx_iso')
-        call flux_stat(flxMtrp,'flx_mt ')
-        call flux_stat(u10_bar,'u10    ')
+        call fill_scalar(flxIsop,'flx_iso')
+        call fill_scalar(flxMtrp,'flx_mt ')
+        call fill_scalar(u10_bar,'u10    ')
     endif
 
   END SUBROUTINE marine_gas_flux
@@ -591,26 +591,21 @@ contains
          , umean, vmean, a_ustar, a_tstar, a_rstar, uw_sfc, vw_sfc, ww_sfc    &
          , wt_sfc, wq_sfc, obl, dn0, level,dtl, a_sflx, a_rflx, precip
     use thrm, only: rslf
-    use stat, only: sfc_stat, sflg
-    use mpi_interface, only : nypg, nxpg, double_array_par_sum
-
+    use stat, only: fill_scalar, sflg
+    use util, only : get_avg2dh
 
     implicit none
-    real, optional, intent (inout) :: sst
+    real, intent (inout) :: sst
     real :: dtdz(nxp,nyp), drdz(nxp,nyp), usfc(nxp,nyp), vsfc(nxp,nyp)       &
          ,wspd(nxp,nyp), bfct(nxp,nyp)
     real :: rx(nzp,nxp,nyp)
-
 
     real :: total_sw, total_rw, total_la, total_se, total_pre  ! Sami added
     real :: C_heat,lambda ! Sami added
     real :: K1,K2,K3,Kmean1,Kmean2,fii_1,fii_2,fii_3,Q3,Q12,Q23,ff1  ! Sami added
 
-
-
     integer :: i, j, iterate
-    real    :: zs, bflx, ffact, sst1, bflx1, Vbulk, Vzt, usum
-    real (kind=8) :: bfl(2), bfg(2)
+    real    :: zs, bflx, ffact, sst1, bflx1, Vbulk, Vzt, bfg(2), usum
 
     ! Added by Juha
     SELECT CASE(level)
@@ -687,22 +682,11 @@ contains
     ! fix surface temperature to yield a constant surface buoyancy flux dthcon
     !
     case(4)
-
        Vzt   = 10.* (log(zt(2)/zrough)/log(10./zrough))
        Vbulk = Vzt * (vonk/log(zt(2)/zrough))**2
 
-       bfl(:) = 0.
-       do j=3,nyp-2
-          do i=3,nxp-2
-             bfl(1) = bfl(1)+a_theta(2,i,j)
-             bfl(2) = bfl(2)+rx(2,i,j) ! Juha: rx
-          end do
-       end do
-
-       call double_array_par_sum(bfl,bfg,2)
-
-       bfg(2) = bfg(2)/real((nxpg-4)*(nypg-4))
-       bfg(1) = bfg(1)/real((nxpg-4)*(nypg-4))
+       bfg(1) = get_avg2dh(nxp,nyp,a_theta(2,:,:))
+       bfg(2) = get_avg2dh(nxp,nyp,rx(2,:,:)) ! Juha: rx
 
        do iterate=1,5
           bflx  = ((sst -bfg(1)) + bfg(1)*ep2*(rslf(psrf,sst) -bfg(2))) &
@@ -736,18 +720,15 @@ contains
     ! temperature prediction model, Journal of applied meteorology, 30, 1991
     !
     case(5)
-
        total_sw = 0.0
        total_rw = 0.0
        total_la = 0.0
        total_se = 0.0
        total_pre = 0.0
        ffact = 1.
-
        !
        !   Calculate mean energy fluxes(Mean for each proceccors)
        !
-
         do j=3,nyp-2
            do i=3,nxp-2
               total_sw = total_sw+a_sflx(2,i,j)
@@ -763,15 +744,12 @@ contains
         total_se = total_se/real((nxp-4)*(nyp-4))
         total_pre = total_pre/real((nxp-4)*(nyp-4))
 
-
-        ! From energy fluxes calculate new sirface temperature
-        sst1 =sst
+        ! From energy fluxes calculate new surface temperature
         C_heat = 1.29e3*(840+4187*thetaS1*W1) ! Eq 33
         lambda=1.5e-7*C_heat
 
         ! Determine moisture at different depths in the ground
         !
-
         K1=K_s1*W1**(2.*B1+3.)
         K2=K_s1*W2**(2.*B1+3.)
         K3=K_s3*W3**(2.*B3+3.)
@@ -783,7 +761,6 @@ contains
         fii_3 = fii_s3*W3**(-B3)
 
         Q3 = K_s3*W3**(2.*B3+3.)*sin(0.05236) ! 3 degrees  Eq 8
-
         Q12 = Kmean1*2.*( (fii_1-fii_2)/(D1+D2)+1.0)
         Q23 = Kmean2*2.*( (fii_2-fii_3)/(D2+D3)+1.0)
 
@@ -791,20 +768,18 @@ contains
         W2 = W2+1./(thetaS2*D2)*(Q12-Q23)*dtl
         W3 = W3+1./(thetaS3*D3)*(Q23-Q3)*dtl
         !
+        ff1=1.0
+        IF(W1<0.75) ff1=W1/0.75
+        !
         !  Following is copied from case (2). No idea if this is valid or not..
         !
-
         call get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up,a_vp,umean,vmean)
         usum = 0.
         do j=3,nyp-2
            do i=3,nxp-2
-
-              dtdz(i,j) = a_theta(2,i,j) - sst1*(p00/psrf)**rcp
-
-              ff1=1.0
-              IF(W1<0.75) ff1=W1/0.75
+              dtdz(i,j) = a_theta(2,i,j) - sst*(p00/psrf)**rcp
               ! Flux of moisture is limited by water content.
-              drdz(i,j) = rx(2,i,j) - ff1*rslf(psrf,min(sst1,280.))
+              drdz(i,j) = rx(2,i,j) - ff1*rslf(psrf,min(sst,280.))
               !
               bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2)
               usum = usum + a_ustar(i,j)
@@ -818,10 +793,9 @@ contains
         call sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar  &
              ,uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
 
-           sst1 = sst1-(total_rw+total_la+total_se+((lambda*C_heat*7.27e-5/(2.0))**0.5*(SST1-280.0)))&
+        sst = sst-(total_rw+total_la+total_se+((lambda*C_heat*7.27e-5/(2.0))**0.5*(sst-280.0)))&
                 /(2.0e-2*C_heat+(lambda*C_heat/(2.0*7.27e-5))**0.5)*dtl
 
-           sst = sst1
     !
     ! fix thermodynamic fluxes at surface given values in energetic
     ! units and calculate momentum fluxes from similarity theory
@@ -869,7 +843,19 @@ contains
 
     end select
 
-    if (sflg) call sfc_stat(nxp,nyp,wt_sfc,wq_sfc,a_ustar,sst)
+    if (sflg) then
+        ! Surface temperature (K)
+        CALL fill_scalar(sst,'tsrf   ')
+        ! Friction velocity
+        usum = SUM(SUM(a_ustar(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))
+        CALL fill_scalar(usum,'ustar  ')
+        ! Sensible heat flux
+        usum = SUM(SUM(wt_sfc(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))*cp*(dn0(1)+dn0(2))*0.5
+        CALL fill_scalar(usum,'shf_bar')
+        ! Latent heat flux
+        usum = SUM(SUM(wq_sfc(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))*alvl*(dn0(1)+dn0(2))*0.5
+        CALL fill_scalar(usum,'lhf_bar')
+    endif
 
     return
   end subroutine surface

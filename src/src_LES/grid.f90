@@ -26,10 +26,7 @@ module grid
   integer           :: nxp = 132           ! number of x points
   integer           :: nyp = 132           ! number of y points
   integer           :: nzp = 105           ! number of z points
-
-
   logical           :: nxpart = .true.     ! number of processors in x
-
   real              :: deltax = 35.        ! dx for basic grid
   real              :: deltay = 35.        ! dy for basic grid
   real              :: deltaz = 17.5       ! dz for basic grid
@@ -37,11 +34,9 @@ module grid
   real              :: dzmax  = 1200.      ! height to start grid-stretching
   real              :: dtlong = 10.0       ! long timestep
   real              :: th00   = 288.       ! basic state temperature
-
   real              :: CCN = 150.e6        ! Number of CCN per kg
   real              :: umean = 0.          ! Galilean transformation
   real              :: vmean = 0.          ! Galilean transformation
-
   integer           :: igrdtyp = 1         ! vertical grid type
   integer           :: isgstyp = 1         ! sgs model type
   integer           :: iradtyp = 0         ! radiation model type
@@ -94,10 +89,6 @@ module grid
   INTEGER, SAVE :: nv4_proc=0, nv4_user=0
   REAL, SAVE, ALLOCATABLE :: out_an_data(:,:,:,:)
 
-  character (len=80), private :: fname
-
-  integer, private, save  ::  nrec0
-
   integer           :: nz, nxyzp, nxyp
   real              :: dxi, dyi, dtl, psrf
   real, allocatable :: xt(:), xm(:), yt(:), ym(:), zt(:), zm(:), dzt(:), dzm(:)
@@ -120,35 +111,25 @@ module grid
   !
   ! prognostic scalar variables
   !
-  real, pointer :: a_tp(:,:,:),a_tt(:,:,:)
-  real, pointer :: a_rp(:,:,:),a_rt(:,:,:)  !Juha: In standard version this is the TOTAL water content.
-                                            !      With SALSA this is taken as just the water VAPOUR content,
-                                            !      in order not to over-specify the problem.
-  real, pointer :: a_rpp(:,:,:),a_rpt(:,:,:)
-  real, pointer :: a_npp(:,:,:),a_npt(:,:,:)
-  real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! SB level 4 & 5 ice mass and number
+  real, pointer :: a_tp(:,:,:),a_tt(:,:,:) ! (Ice-)liquid water potential temperature
+  real, pointer :: a_rp(:,:,:),a_rt(:,:,:) ! Water vapour for SALSA; total water for SB
+  ! Seifert & Beheng tracers: mass (kg/kg) and number (#/kg)
+  real, pointer :: a_rpp(:,:,:),a_rpt(:,:,:),a_npp(:,:,:),a_npt(:,:,:) ! Rain
+  real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! SB level 4 & 5 ice
   real, pointer :: a_rsp(:,:,:),a_rst(:,:,:),a_nsp(:,:,:),a_nst(:,:,:) ! Snow
   real, pointer :: a_rgp(:,:,:),a_rgt(:,:,:),a_ngp(:,:,:),a_ngt(:,:,:) ! Graupel
   real, pointer :: a_rhp(:,:,:),a_rht(:,:,:),a_nhp(:,:,:),a_nht(:,:,:) ! Hail
+  ! Subgrid TKE and a scratch variable
   real, pointer :: a_qp(:,:,:),a_qt(:,:,:)
   real, pointer :: a_sp(:,:,:),a_st(:,:,:)
-
-  ! Juha: SALSA tracers
-  !---------------------------------------------------------------------------
-  ! -- Masses given in kg/kg, number concentrations in #/kg
-  ! -- Each size bin/species will be treated as a separate tracer.
-  ! -- NOTE: Volume concentration arrays are reduced to 4 dims.
-  !          The 4th dim contains all the size bins sequentially for
-  !          each aerosol species  + water
-
-  ! Prognostic tracers
-  ! -- Number concentrations
+  ! SALSA tracers
+  ! -- Number concentrations (#/kg)
   REAL, POINTER :: a_naerop(:,:,:,:), a_naerot(:,:,:,:),   &
                    a_ncloudp(:,:,:,:), a_ncloudt(:,:,:,:), &
                    a_nprecpp(:,:,:,:), a_nprecpt(:,:,:,:), &
                    a_nicep(:,:,:,:),   a_nicet(:,:,:,:), &
                    a_nsnowp(:,:,:,:),  a_nsnowt(:,:,:,:)
-  ! -- Volume concentrations
+  ! -- Mass concentrations (kg/kg)
   REAL, POINTER :: a_maerop(:,:,:,:), a_maerot(:,:,:,:),   &
                    a_mcloudp(:,:,:,:), a_mcloudt(:,:,:,:), &
                    a_mprecpp(:,:,:,:), a_mprecpt(:,:,:,:), &
@@ -181,20 +162,18 @@ module grid
   REAL, ALLOCATABLE :: a_snrp(:,:,:)   ! Total rain drop number mixing ratio (levels >=4)
   REAL, ALLOCATABLE :: a_srs(:,:,:)    ! Total snow water mixing ratio (level 5)
   REAL, ALLOCATABLE :: a_snrs(:,:,:)   ! Total snow number mixing ratio (level 5)
-  REAL, ALLOCATABLE :: a_rh(:,:,:)     ! Relative humidity
   REAL, ALLOCATABLE :: a_rsl(:,:,:)    ! Water vapor saturation mixing ratio
-  REAL, ALLOCATABLE :: a_rhi(:,:,:)    ! Relative humidity over ice
   REAL, ALLOCATABLE :: a_rsi(:,:,:)    ! Water vapor saturation mixing ratio over ice
   REAL, ALLOCATABLE :: a_dn(:,:,:)     ! Air density
   REAL, ALLOCATABLE :: a_edr(:,:,:)    ! Eddy dissipation rate
+  REAL, ALLOCATABLE :: a_temp(:,:,:)   ! Air temperature
   !
-  ! scratch arrays
-  !
+  ! radiation
   real, allocatable, dimension (:,:,:) :: a_rflx, a_sflx, &
-       a_fus, a_fds, a_fuir, a_fdir, &
-       a_temp
+       a_fus, a_fds, a_fuir, a_fdir
+  real, allocatable :: albedo(:,:)
   !
-  !
+  ! surface
   real, allocatable :: a_ustar(:,:)
   real, allocatable :: a_tstar(:,:)
   real, allocatable :: a_rstar(:,:)
@@ -204,11 +183,14 @@ module grid
   real, allocatable :: wt_sfc(:,:)
   real, allocatable :: wq_sfc(:,:)
   real, allocatable :: obl(:,:)
-  real, allocatable :: aerin(:,:,:), cldin(:,:,:), precip(:,:,:), icein(:,:,:), snowin(:,:,:), albedo(:,:)
-  real, allocatable :: grin(:,:,:), hailin(:,:,:)
+  !
+  ! microphysics/precipitation
+  real, allocatable, dimension(:,:,:) :: aerin, cldin, precip, icein, snowin, grin, hailin
   !
   integer :: nscl = 1
-  integer, save :: ncid0,ncid_s
+  integer, private, save :: ncid0
+  integer, private, save :: nrec0
+  character (len=80), private, save :: fname
   !
 contains
   !
@@ -283,11 +265,16 @@ contains
        memsize = memsize + 5*nxyzp + nxyp
     end if
 
-    allocate (a_temp(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp),a_edr(nzp,nxp,nyp))
+    allocate (a_temp(nzp,nxp,nyp),a_dn(nzp,nxp,nyp),a_edr(nzp,nxp,nyp), &
+        a_rc(nzp,nxp,nyp),a_rsl(nzp,nxp,nyp),a_ri(nzp,nxp,nyp),a_rsi(nzp,nxp,nyp))
     a_temp(:,:,:) = 0.
-    a_rsl(:,:,:) = 0.
+    a_dn(:,:,:) = 0.
     a_edr(:,:,:) = 0.
-    memsize = memsize + nxyzp*3
+    a_rc(:,:,:) = 0.
+    a_rsl(:,:,:) = 0.
+    a_ri(:,:,:) = 0.
+    a_rsi(:,:,:) = 0.
+    memsize = memsize + nxyzp*7
 
     ! Juha: Stuff that's allocated if SALSA is NOT used
     !-----------------------------------------------------
@@ -297,12 +284,9 @@ contains
             STOP
        end if
 
-       allocate (a_rv(nzp,nxp,nyp),a_rc(nzp,nxp,nyp),a_ri(nzp,nxp,nyp),a_dn(nzp,nxp,nyp))
+       allocate (a_rv(nzp,nxp,nyp))
        a_rv(:,:,:) = 0.
-       a_rc(:,:,:) = 0.
-       a_ri(:,:,:) = 0.
-       a_dn(:,:,:) = 0.
-       memsize = memsize + 4*nxyzp
+       memsize = memsize + nxyzp
 
        ! Prognostic scalars: temperature + total water + tke (isgstyp> 1) + additional scalars + ...
        !    rain mass and number (level=3) or
@@ -338,9 +322,6 @@ contains
           a_npt=>tmp_prct(:,:,:,2)
        end if
        if (level == 0) then
-          allocate (a_rsi(nzp,nxp,nyp))
-          a_rsi(:,:,:) = 0.
-          !
           if (lev_sb == 5) then
              a_rip => a_sclrp(:,:,:,5); a_rit => a_sclrt(:,:,:,5)
              a_nip => a_sclrp(:,:,:,6); a_nit => a_sclrt(:,:,:,6)
@@ -355,13 +336,15 @@ contains
              a_rip => a_sclrp(:,:,:,6); a_rit => a_sclrt(:,:,:,6)
              a_rsp => a_sclrp(:,:,:,7); a_rst => a_sclrt(:,:,:,7)
              a_rgp => a_sclrp(:,:,:,8); a_rgt => a_sclrt(:,:,:,8)
-             ALLOCATE (tmp_icep(nzp,nxp,nyp,4),tmp_icet(nzp,nxp,nyp,4)) ! Zero arrays
+             ALLOCATE (tmp_icep(nzp,nxp,nyp,4),tmp_icet(nzp,nxp,nyp,4))
+             tmp_icep(:,:,:,:) = 0.; tmp_icet(:,:,:,:) = 0.
              a_nsp => tmp_icep(:,:,:,1); a_nst => tmp_icet(:,:,:,1)
              a_ngp => tmp_icep(:,:,:,2); a_ngt => tmp_icet(:,:,:,2)
              a_rhp => tmp_icep(:,:,:,3); a_rht => tmp_icet(:,:,:,3)
              a_nhp => tmp_icep(:,:,:,4); a_nht => tmp_icet(:,:,:,4)
           elseif (lev_sb == 3) then
-             ALLOCATE (tmp_icep(nzp,nxp,nyp,8),tmp_icet(nzp,nxp,nyp,8)) ! Zero arrays
+             ALLOCATE (tmp_icep(nzp,nxp,nyp,8),tmp_icet(nzp,nxp,nyp,8))
+             tmp_icep(:,:,:,:) = 0.; tmp_icet(:,:,:,:) = 0.
              a_rip => tmp_icep(:,:,:,1); a_rit => tmp_icet(:,:,:,1)
              a_nip => tmp_icep(:,:,:,2); a_nit => tmp_icet(:,:,:,2)
              a_rsp => tmp_icep(:,:,:,3); a_rst => tmp_icet(:,:,:,3)
@@ -384,24 +367,13 @@ contains
     !---------------------------------------------------
     ELSE IF (level >= 4) THEN
 
-       allocate (a_rc(nzp,nxp,nyp), a_srp(nzp,nxp,nyp), a_snrp(nzp,nxp,nyp),     &
-                 a_rh(nzp,nxp,nyp),a_dn(nzp,nxp,nyp)  )
-
-       a_rc(:,:,:) = 0.
+       allocate ( a_srp(nzp,nxp,nyp), a_snrp(nzp,nxp,nyp), &
+                 a_srs(nzp,nxp,nyp), a_snrs(nzp,nxp,nyp) )
        a_srp(:,:,:) = 0.
        a_snrp(:,:,:) = 0.
-       a_rh(:,:,:) = 0.
-       a_dn(:,:,:) = 0.
-       memsize = memsize + 5*nxyzp
-
-       allocate (a_ri(nzp,nxp,nyp), a_rsi(nzp,nxp,nyp), a_rhi(nzp,nxp,nyp),      &
-                  a_srs(nzp,nxp,nyp), a_snrs(nzp,nxp,nyp)  )
-       a_ri(:,:,:) = 0.
-       a_rsi(:,:,:) = 0.
-       a_rhi(:,:,:) = 0.
        a_srs(:,:,:) = 0.
        a_snrs(:,:,:) = 0.
-       memsize = memsize + 5*nxyzp
+       memsize = memsize + 4*nxyzp
 
        ! Number of prognostic SALSA variables
        IF (no_b_bins) THEN

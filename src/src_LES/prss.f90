@@ -78,9 +78,8 @@ contains
     if (sflg) then
        call get_diverg(nzp,nxp,nyp,ix,iy,s1,a_up,a_vp,a_wp,dn0,dzt,dxi,dyi,  &
             dtl,mxdiv)
-       call fill_scalar(2,mxdiv)
+       call fill_scalar(mxdiv,'maxdiv ','max')
        call prs_cor(nzp,nxp,nyp,a_pexnr,a_up,a_vp,a_wp,dzm,dxi,dyi,th00)
-       call chk_tsplt(nzp,nxp,nyp,a_up,a_vp,a_wp,a_uc,a_vc,a_wc)
     end if
     deallocate (s1)
 
@@ -334,62 +333,35 @@ contains
   subroutine prs_cor(n1,n2,n3,p,u,v,w,dz,dx,dy,th00)
 
     use stat, only : updtst
-    use util, only : get_cor
 
     integer, intent (in) :: n1,n2,n3
     real, intent (in)    :: p(n1,n2,n3),dz(n1),dx,dy,th00
     real, intent (in)    :: u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
 
-    real, dimension (n2,n3) :: pgx, pgy, pgz, ufld, vfld, wfld
     real    :: fx, fy, fz, v1da(n1), v1db(n1), v1dc(n1)
-    integer :: i,j,k,ip1,jp1
+    integer :: i,j,k
 
     v1da = 0.0
     v1db = 0.0
     v1dc = 0.0
 
+    fx=dx*th00/float((n3-4)*(n2-4))
+    fy=dy*th00/float((n3-4)*(n2-4))
     do k=2,n1-1
-       fx=dx*th00
-       fy=dy*th00
-       fz=dz(k)*th00
-       do j=1,n3
-          do i=1,n2
-             ip1 = min(n2,i+1)
-             jp1 = min(n3,j+1)
-             pgx(i,j) = -fx*(p(k,ip1,j)-p(k,i,j))
-             pgy(i,j) = -fy*(p(k,i,jp1)-p(k,i,j))
-             pgz(i,j) = -fz*(p(k+1,i,j)-p(k,i,j))
-             ufld(i,j) = u(k,i,j)
-             vfld(i,j) = v(k,i,j)
-             wfld(i,j) = w(k,i,j)
+       fz=dz(k)*th00/float((n3-4)*(n2-4))
+       do j=3,n3-2
+          do i=3,n2-2
+             v1da(k) = v1da(k) + u(k,i,j)*(-fx*(p(k,i+1,j)-p(k,i,j)))
+             v1db(k) = v1db(k) + v(k,i,j)*(-fy*(p(k,i,j+1)-p(k,i,j)))
+             v1dc(k) = v1dc(k) + w(k,i,j)*(-fz*(p(k+1,i,j)-p(k,i,j)))
           end do
        end do
-       v1da(k) = get_cor(1,n2,n3,1,ufld,pgx)
-       v1db(k) = get_cor(1,n2,n3,1,vfld,pgy)
-       v1dc(k) = get_cor(1,n2,n3,1,wfld,pgz)
     enddo
-    call updtst(n1,'prs',1,v1da,1)
-    call updtst(n1,'prs',2,v1db,1)
-    call updtst(n1,'prs',3,v1dc,1)
+    call updtst(n1,v1da,1,'prs_u  ')
+    call updtst(n1,v1db,1,'prs_v  ')
+    call updtst(n1,v1dc,1,'prs_w  ')
 
   end subroutine prs_cor
-  !
-  ! --------------------------------------------------------------------
-  ! subroutine chk_tsplt
-  !
-  subroutine chk_tsplt(n1,n2,n3,up,vp,wp,uc,vc,wc)
-
-    integer, intent (in) :: n1,n2,n3
-    real, intent (in)    :: up(n1,n2,n3),vp(n1,n2,n3),wp(n1,n2,n3)
-    real, intent (in)    :: uc(n1,n2,n3),vc(n1,n2,n3),wc(n1,n2,n3)
-
-    real :: wmx,umx,vmx
-
-    wmx = maxval((wp-wc)/(wp+wc+1.e-5))
-    umx = maxval((up-uc)/(up+uc+1.e-5))
-    vmx = maxval((vp-vc)/(vp+vc+1.e-5))
-
-  end subroutine chk_tsplt
   !
   !----------------------------------------------------------------------
   ! Subroutine Asselin:  Applies the asselin filter in two stages 

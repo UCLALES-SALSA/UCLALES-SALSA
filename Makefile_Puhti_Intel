@@ -1,0 +1,98 @@
+###############################################################
+#
+# Location of code (in $ROOT) and location where model is to be built $BIN
+#
+ROOT      := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+ARCH      := $(shell uname)
+#
+# Generic Variables
+#
+BIN       =$(ROOT)/bin
+SRC       =$(ROOT)/src
+SRC_LES   =$(SRC)/src_LES
+SRC_SALSA =$(SRC)/src_salsa
+SRC_VBS   =$(SRC)/src_VBS
+
+ECHO    = /bin/echo
+RM      = /bin/rm -f
+
+# Intel modules
+# -------------
+# intel-oneapi-compilers-classic/2021.6.0
+# intel-oneapi-mpi/2021.6.0
+# netcdf-fortran/4.5.4
+# hdf5/1.12.2-mpi
+
+F90 = ifort
+MPIF90 = mpiifort
+
+NETCDFROOT = $(NETCDF_FORTRAN_INSTALL_ROOT)
+NETCDF_LIB = -L$(NETCDFROOT)/lib -lnetcdff
+NETCDF_INCLUDE = -I$(NETCDFROOT)/include
+HDF5ROOT = /appl/spack/v018/install-tree/intel-2021.6.0/hdf5-1.12.2-rzlc7b
+HDF5_LIB = -L$(HDF5ROOT)/lib -lhdf5_hl -lhdf5
+HDF5_INCLUDE = -I$(HDF5ROOT)/include
+# Libraries
+LIBS = '$(HDF5_LIB) $(NETCDF_LIB)'
+LIBFLAGS = -I$(SRC) $(HDF5_INCLUDE) $(NETCDF_INCLUDE)
+
+
+# Intel compiler options
+# ----------------------
+# Older versions needed "-fp-model precise" and sometimes "-integer-size 32" have been used
+# This works
+FFLAGS = -O2 -xHost -convert big_endian -real-size 64
+# Debug (original)
+#FFLAGS =  -O2 -xHost -convert big_endian -real-size 64 -fp-model precise -g -traceback -check bounds -fpe0
+# Debug (original gdb)
+#FFLAGS =  -O0 -xHost -convert big_endian -real-size 64 -fp-model precise -g -traceback -check bounds -fpe0 -debug all
+# Debug (newer)
+#FFLAGS =  -O0 -xHost -convert big_endian -real-size 64 -g -traceback -check all -ftrapuv -debug all -fpe0 -check noarg_temp_created
+
+
+LES_OUT_MPI=$(BIN)/les.mpi
+
+LES_OUT_SEQ=$(BIN)/les.seq
+
+default: mpi
+
+all:  mpi seq
+
+seq: $(LES_OUT_SEQ)
+
+mpi: $(LES_OUT_MPI)
+
+$(LES_OUT_SEQ): 
+	cd $(SRC); $(MAKE) LES_ARC=seq \
+	FFLAGS='$(FFLAGS) $(LIBFLAGS)' F90=$(F90) \
+	F77FLAGS='$(FFLAGS)' OUT=$(LES_OUT_SEQ) \
+	LIBS=$(LIBS) SRCUTIL=$(SRC_VBS) \
+	SRCLES=$(SRC_LES) SRCSALSA=$(SRC_SALSA)
+
+$(LES_OUT_MPI):
+	cd $(SRC); $(MAKE) LES_ARC=mpi \
+	FFLAGS='$(FFLAGS) $(LIBFLAGS)' F90=$(MPIF90) \
+	F77FLAGS='$(FFLAGS)' OUT=$(LES_OUT_MPI) \
+	LIBS=$(LIBS) SRCUTIL=$(SRC_VBS) \
+	SRCLES=$(SRC_LES) SRCSALSA=$(SRC_SALSA)
+
+.PHONY: $(LES_OUT_SEQ)
+.PHONY: $(LES_OUT_MPI)
+
+#
+# cleaning
+# --------------------
+#
+clean: cleanmpi cleanseq
+	$(RM) $(SRC)/*mod $(SRC)/*.o
+
+cleanmpi:
+	$(ECHO) "cleaning mpi model"
+	$(RM) core $(LES_OUT_MPI) $(SRC)/mpi/*mod $(LES_ARC_MPI)
+
+cleanseq:
+	$(ECHO) "clean sequential model"
+	$(RM) core $(LES_OUT_SEQ) $(SRC)/seq/*mod $(LES_ARC_SEQ)
+
+FORCE:
+.PRECIOUS: $(LIBS)

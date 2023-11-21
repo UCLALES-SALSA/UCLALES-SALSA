@@ -43,9 +43,9 @@ contains
 !
   subroutine thermo (level)
 
-    use grid, only : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_temp,  &
+    use grid, only : a_rc, a_rv, a_theta, a_pexnr, a_press, a_temp,  &
          a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
-         a_srp, a_ri, a_rsi, a_rhi, a_srs, a_dn, a_rip, a_rsp, a_rgp, a_rhp
+         a_srp, a_ri, a_rsi, a_srs, a_dn, a_rip, a_rsp, a_rgp, a_rhp
     USE defs, ONLY : R
 
     integer, intent (in) :: level
@@ -66,7 +66,7 @@ contains
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp)
     case (4:5)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
-                      a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_rsi,a_rhi,a_srs)
+                      a_temp,a_press,a_rsl,a_rc,a_srp,a_ri,a_rsi,a_srs)
     end select
 
     ! Air density
@@ -105,7 +105,7 @@ contains
 !            in SALSA.
 !
 
-  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,rsi,rhi,srs)
+  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rc,srp,ri,rsi,srs)
     USE defs, ONLY : cp, cpr, p00, alvl, alvi
     IMPLICIT NONE
 
@@ -118,14 +118,12 @@ contains
     REAL, INTENT(IN) :: rc(n1,n2,n3),  &  ! Total cloud condensate mix rat
                          srp(n1,n2,n3)            ! Precipitation mix rat
     REAL, INTENT(OUT) :: rs(n1,n2,n3),  &   ! Saturation mix rat
-                         rh(n1,n2,n3),  &     ! Relative humidity
+                         rsi(n1,n2,n3), &   ! Saturation mixing rat over ice
                          th(n1,n2,n3),  &     ! Potential temperature
                          tk(n1,n2,n3),  &     ! Absolute temperature
                          p(n1,n2,n3)           ! Air pressure
     REAL, INTENT(IN) :: ri(n1,n2,n3),  &  ! Total ice mixing rat (level 5 only)
                          srs(n1,n2,n3)      ! Total snow mix rat
-    REAL, INTENT(OUT) :: rsi(n1,n2,n3), & ! Saturation mixing rat over ice (level 5 only)
-                         rhi(n1,n2,n3)      ! relative humidity over ice
     REAL :: exner
     INTEGER :: k,i,j
     REAL :: thil
@@ -149,12 +147,7 @@ contains
 
              ! Saturation mixing ratio
              rs(k,i,j) = rslf(p(k,i,j),tk(k,i,j))
-             rh(k,i,j) = rv(k,i,j)/rs(k,i,j)
-
-             if(level==5) then
-                rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))
-                rhi(k,i,j) = rv(k,i,j)/rsi(k,i,j)
-             end if
+             rsi(k,i,j) = rsif(p(k,i,j),tk(k,i,j))
 
           END DO
        END DO

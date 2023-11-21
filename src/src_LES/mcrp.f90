@@ -292,7 +292,7 @@ contains
        end do
     end do
 
-    if (sflg) call updtst(n1,'prc',2,v1,1)
+    if (sflg) call updtst(n1,v1,1,'evap   ')
 
   end subroutine wtr_dff_SB
   !

@@ -483,7 +483,7 @@ contains
   !
   ! Statistics of a vector calculated over all PUs
   SUBROUTINE get_pustat_vector(op, n, sx, wx)
-    use mpi_interface, only : pecount, double_array_par_sum
+    use mpi_interface, only : pecount, double_array_par_sum, double_scalar_par_max
 
     CHARACTER(LEN=3) :: op        ! Operation
     integer, intent(in) :: n      ! Dimension
@@ -491,7 +491,7 @@ contains
     real, OPTIONAL, intent (in) :: wx(n) ! Weight (optional, for average only)
 
     INTEGER :: i
-    REAL(kind=8) :: lavg(n),gavg(n),sw(n)
+    REAL(kind=8) :: lavg(n),gavg(n),sw(n),xxl,xxg
 
     select case(op)
     CASE('avg')
@@ -521,6 +521,20 @@ contains
         lavg = sx
         call double_array_par_sum(lavg,gavg,n)
         sx(:) = REAL(gavg(:))
+    CASE('max')
+        ! Maximum
+        DO i=1,n
+            xxl = sx(i)
+            CALL double_scalar_par_max(xxl,xxg)
+            sx(i) = xxg
+        ENDDO
+    CASE('min')
+        ! Minimum
+        DO i=1,n
+            xxl = -1.*sx(i)
+            CALL double_scalar_par_max(xxl,xxg)
+            sx(i) = -1.*xxg
+        ENDDO
     case default
         WRITE(*,*) op
         STOP 'Bad option for get_pustat_vector!'
@@ -572,32 +586,6 @@ contains
     hist(:,:)=hist(:,:)/(real(nypg-4)*real(nxpg-4))
     !
   END SUBROUTINE HistDistr
-  !
-  !---------------------------------------------------------------------
-  ! function get_cor: gets mean correlation between two fields at a 
-  ! given level - calculated over all PUs
-  !
-  real function get_cor(n1,n2,n3,k,a,b)
-    use mpi_interface, only : nypg,nxpg,double_scalar_par_sum
-
-    integer, intent (in) :: n1,n2,n3,k
-    real, intent (in) :: a(n1,n2,n3),b(n1,n2,n3)
-
-    REAL(kind=8) :: lavg,gavg
-    integer :: i,j
-
-    get_cor=0.
-    do j=3,n3-2
-       do i=3,n2-2
-          get_cor=get_cor+a(k,i,j)*b(k,i,j)
-       end do
-    end do
-
-    lavg = get_cor
-    call double_scalar_par_sum(lavg,gavg)
-    get_cor = real(gavg)/real((nypg-4)*(nxpg-4))
-
-  end function get_cor
   !
   !---------------------------------------------------------------------
   ! function get_cor3: gets mean correlation accross outer two dimensions

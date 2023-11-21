@@ -311,7 +311,7 @@ CONTAINS
         q_krit_ic, D_krit_ic,  q_krit_ir, D_krit_ir, q_krit_sc, D_krit_sc, q_krit_sr, D_krit_sr, &
         q_krit_gc, D_krit_gc, q_krit_gr, q_krit_hc, D_krit_hc, q_krit_hr, q_krit_c, q_krit_r, &
         c_mult, &
-        cldw,rain,ice,snow,graupel
+        cldw,rain,ice,snow,graupel,hail
 
     ! Copy default cloud to cldw
     cldw = cloud
@@ -940,7 +940,7 @@ CONTAINS
             v_c = cloud%a_vel * x_c**cloud%b_vel * rrho_c(i,j,k)  !..mittlere Sedimentationsgeschw.
             v_s = snow%a_vel  * x_s**snow%b_vel  * rrho_04(i,j,k) !..mittlere Sedimentationsgeschw.
 
-            e_coll = MIN(e_ic, MAX(const1*(D_c - D_krit_c), e_min))
+            e_coll = MIN(e_sc, MAX(const1*(D_c - D_krit_c), e_min))
 
             rime_n = pi/4.0 * e_coll * n_s * n_c * dt & 
                  &   * (delta_n_ss * D_s**2 + delta_n_sc * D_s*D_c + delta_n_cc * D_c**2) &

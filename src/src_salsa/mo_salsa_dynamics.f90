@@ -1345,14 +1345,13 @@ CONTAINS
 
     REAL :: zkelvin(nbins), zkelvincd(ncld), zkelvinpd(nprc), &  ! Kelvin effects
                 zkelvinid(nice), zkelvinsd(nsnw)                      ! Kelvin effects ice'n'snow
-    REAL :: zcwsurfae(nbins), zcwsurfcd(ncld), zcwsurfpd(nprc), & ! Surface mole concentrations
-                zcwsurfid(nice), zcwsurfsd(nsnw)                 ! surface mole concentrations ice'n'snow
+    REAL :: zcwsurfae, zcwsurfcd, zcwsurfpd, zcwsurfid, zcwsurfsd ! Saturation mole concentrations
     REAL :: zmtae(nbins), zmtcd(ncld), zmtpd(nprc),      & ! Mass transfer coefficients
                 zmtid(nice), zmtsd(nsnw)
     REAL :: zwsatae(nbins), zwsatcd(ncld), zwsatpd(nprc), &  ! Water saturation ratios above
                 zwsatid(nice), zwsatsd(nsnw)                      ! ice'n'snow
     REAL :: zcwtot                                        ! Total water mole concentration
-    REAL :: zcwc, zcwn, zcwint                            ! Current and new water vapour mole concentrations
+    REAL :: zcwc, zcwint                   ! Current and new water vapour mole concentrations
     REAL :: zcwcae(nbins), zcwintae(nbins) ! Current and new water mole concentrations in aerosols
     REAL :: zcwccd(ncld), zcwintcd(ncld)   !     -  ''  -     in cloud droplets
     REAL :: zcwcpd(nprc), zcwintpd(nprc)   !     -  ''  -     in rain drops
@@ -1389,11 +1388,6 @@ CONTAINS
 
     prv(:,:) = prv(:,:) - ( zaelwc2(:,:) - zaelwc1(:,:) )/( ppres(:,:)*mair/(rg*ptemp(:,:)) )
 
-    zcwc = 0.; zcwint = 0.; zcwn = 0.
-    zcwcae = 0.; zcwccd = 0.; zcwcpd = 0.; zcwcid = 0.; zcwcsd = 0.;
-    zcwintae = 0.; zcwintcd = 0.; zcwintpd = 0.; zcwintid = 0.; zcwintsd = 0.
-    zwsatae = 0.; zwsatcd = 0.; zwsatpd = 0.; zwsatid = 0.; zwsatsd = 0.
-
     ! Steps in the substepping loop (default adt=2.e-2)
     nstep=MAX(1,NINT(ptstep/2.e-2))
     adt=ptstep/REAL(nstep)
@@ -1424,10 +1418,12 @@ CONTAINS
 
           ! -- Water vapour (Follows the analytical predictor method by Jacobson 2005)
           zkelvinpd = 1.; zkelvincd = 1.; zkelvin = 1.; zkelvinid = 1.; zkelvinsd = 1.
+          zwsatae = 0.; zwsatcd = 0.; zwsatpd = 0.; zwsatid = 0.; zwsatsd = 0.
+          zmtae = 0.; zmtcd = 0.; zmtpd = 0.; zmtid = 0.; zmtsd = 0.
 
           ! Cloud droplets --------------------------------------------------------------------------------
-          zmtcd(:) = 0.
-          zcwsurfcd(:) = 0.
+          ! Saturation mole concentration over flat surface
+          zcwsurfcd  = prs(ii,jj)*rhoair/mwa
           DO cc = 1,ncld
              IF (pcloud(ii,jj,cc)%numc > nlim .AND. lscndh2ocl) THEN
                 ! Wet diameter
@@ -1436,9 +1432,6 @@ CONTAINS
                 ! Activity + Kelvin effect
                 zact = acth2o(pcloud(ii,jj,cc))
                 zkelvincd(cc) = exp( 4.*surfw0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
-
-                ! Saturation mole concentration over flat surface
-                zcwsurfcd(cc) = prs(ii,jj)*rhoair/mwa
 
                 ! Equilibrium saturation ratio
                 zwsatcd(cc) = zact*zkelvincd(cc)
@@ -1450,7 +1443,7 @@ CONTAINS
 
                 ! Mass transfer according to Jacobson
                 zhlp1 = pcloud(ii,jj,cc)%numc*2.*pi*dwet*zdfh2o*zbeta
-                zhlp2 = mwa*zdfh2o*alv*zwsatcd(cc)*zcwsurfcd(cc)/(zthcond*ptemp(ii,jj))
+                zhlp2 = mwa*zdfh2o*alv*zwsatcd(cc)*zcwsurfcd/(zthcond*ptemp(ii,jj))
                 zhlp3 = ( (alv*mwa)/(rg*ptemp(ii,jj)) ) - 1.
 
                 zmtcd(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
@@ -1459,8 +1452,8 @@ CONTAINS
           END DO
 
           ! Rain drops --------------------------------------------------------------------------------
-          zmtpd(:) = 0.
-          zcwsurfpd(:) = 0.
+          ! Saturation mole concentration over flat surface
+          zcwsurfpd = prs(ii,jj)*rhoair/mwa
           DO cc = 1,nprc
              IF (pprecp(ii,jj,cc)%numc > prlim .AND. lscndh2ocl) THEN
                 ! Wet diameter
@@ -1469,9 +1462,6 @@ CONTAINS
                 ! Activity + Kelvin effect
                 zact = acth2o(pprecp(ii,jj,cc))
                 zkelvinpd(cc) = exp( 4.*surfw0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
-
-                ! Saturation mole concentrations over flat surface
-                zcwsurfpd(cc) = prs(ii,jj)*rhoair/mwa
 
                 ! Equilibrium saturation ratio
                 zwsatpd(cc) = zact*zkelvinpd(cc)
@@ -1483,7 +1473,7 @@ CONTAINS
 
                 ! Mass transfer according to Jacobson
                 zhlp1 = pprecp(ii,jj,cc)%numc*2.*pi*dwet*zdfh2o*zbeta
-                zhlp2 = mwa*zdfh2o*alv*zwsatpd(cc)*zcwsurfpd(cc)/(zthcond*ptemp(ii,jj))
+                zhlp2 = mwa*zdfh2o*alv*zwsatpd(cc)*zcwsurfpd/(zthcond*ptemp(ii,jj))
                 zhlp3 = ( (alv*mwa)/(rg*ptemp(ii,jj)) ) - 1.
 
                 zmtpd(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
@@ -1492,8 +1482,8 @@ CONTAINS
           END DO
 
           ! Ice particles --------------------------------------------------------------------------------
-          zmtid(:) = 0.
-          zcwsurfid(:) = 0.
+          ! Saturation mole concentration over flat surface
+          zcwsurfid = prsi(ii,jj)*rhoair/mwa
           DO cc = 1,nice
              IF (pice(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
                 ! Dimension
@@ -1511,9 +1501,6 @@ CONTAINS
                 zact = 1.0 ! Note: acth2o does not work for ice or snow!
                 zkelvinid(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
 
-                ! Saturation mole concentration over flat surface
-                zcwsurfid(cc) = prsi(ii,jj)*rhoair/mwa
-
                 ! Equilibrium saturation ratio
                 zwsatid(cc) = zact*zkelvinid(cc)
 
@@ -1524,7 +1511,7 @@ CONTAINS
 
                 ! Mass transfer according to Jacobson
                 zhlp1 = pice(ii,jj,cc)%numc*4.*pi*cap*zdfh2o*zbeta
-                zhlp2 = mwa*zdfh2o*als*zwsatid(cc)*zcwsurfid(cc)/(zthcond*ptemp(ii,jj))
+                zhlp2 = mwa*zdfh2o*als*zwsatid(cc)*zcwsurfid/(zthcond*ptemp(ii,jj))
                 zhlp3 = ( (als*mwa)/(rg*ptemp(ii,jj)) ) - 1.
 
                 zmtid(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
@@ -1533,8 +1520,8 @@ CONTAINS
           END DO
 
           ! Snow particles --------------------------------------------------------------------------------
-          zmtsd(:) = 0.
-          zcwsurfsd(:) = 0.
+          ! Saturation mole concentration over flat surface
+          zcwsurfsd= prsi(ii,jj)*rhoair/mwa
           DO cc = 1,nsnw
              IF (psnow(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
                 ! Dimension
@@ -1551,9 +1538,6 @@ CONTAINS
                 zact = 1.0 ! Note: acth2o does not work for ice or snow!
                 zkelvinsd(cc) = exp( 4.*surfi0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
 
-                ! Saturation mole concentrations over flat surface
-                zcwsurfsd(cc) = prsi(ii,jj)*rhoair/mwa
-
                 ! Equilibrium saturation ratio
                 zwsatsd(cc) = zact*zkelvinsd(cc)
 
@@ -1564,7 +1548,7 @@ CONTAINS
 
                 ! Mass transfer according to Jacobson
                 zhlp1 = psnow(ii,jj,cc)%numc*4.*pi*cap*zdfh2o*zbeta
-                zhlp2 = mwa*zdfh2o*als*zwsatsd(cc)*zcwsurfsd(cc)/(zthcond*ptemp(ii,jj))
+                zhlp2 = mwa*zdfh2o*als*zwsatsd(cc)*zcwsurfsd/(zthcond*ptemp(ii,jj))
                 zhlp3 = ( (als*mwa)/(rg*ptemp(ii,jj)) ) - 1.
 
                 zmtsd(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
@@ -1573,8 +1557,9 @@ CONTAINS
           END DO
 
           ! -- Aerosols: ------------------------------------------------------------------------------------
-          zmtae(:) = 0.
-          zcwsurfae(:) = 0.
+          ! Saturation mole concentration over flat surface
+          ! Limit the supersaturation to max 1.01 for the mass transfer EXPERIMENTAL
+          zcwsurfae =MAX(prs(ii,jj),prv(ii,jj)/1.01)*rhoair/mwa
           DO cc = nstr,nbins
              IF (paero(ii,jj,cc)%numc > nlim .AND. .NOT.aero_eq) THEN
                 ! Wet diameter
@@ -1583,11 +1568,6 @@ CONTAINS
                 ! Water activity + Kelvin effect
                 zact = acth2o(paero(ii,jj,cc))
                 zkelvin(cc) = exp( 4.*surfw0*mwa / (rg*ptemp(ii,jj)*rhowa*dwet) )
-
-                ! Saturation mole concentration over flat surface
-                ! Limit the supersaturation to max 1.01 for the mass transfer
-                ! EXPERIMENTAL
-                zcwsurfae(cc) = MAX(prs(ii,jj),prv(ii,jj)/1.01)*rhoair/mwa
 
                 ! Equilibrium saturation ratio
                 zwsatae(cc) = zact*zkelvin(cc)
@@ -1599,7 +1579,7 @@ CONTAINS
 
                 ! Mass transfer
                 zhlp1 = paero(ii,jj,cc)%numc*2.*pi*dwet*zdfh2o*zbeta
-                zhlp2 = mwa*zdfh2o*alv*zwsatae(cc)*zcwsurfae(cc)/(zthcond*ptemp(ii,jj))
+                zhlp2 = mwa*zdfh2o*alv*zwsatae(cc)*zcwsurfae/(zthcond*ptemp(ii,jj))
                 zhlp3 = ( (alv*mwa)/(rg*ptemp(ii,jj)) ) - 1.
 
                 zmtae(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
@@ -1628,11 +1608,11 @@ CONTAINS
           DO istep=1,nstep
 
              ! New vapor concentration
-             zhlp1 = zcwc + adt * ( SUM(zmtae(nstr:nbins)*zwsatae(nstr:nbins)*zcwsurfae(nstr:nbins))  + &
-                                    SUM(zmtcd(1:ncld)*zwsatcd(1:ncld)*zcwsurfcd(1:ncld))              + &
-                                    SUM(zmtpd(1:nprc)*zwsatpd(1:nprc)*zcwsurfpd(1:nprc))              + &
-                                    SUM(zmtid(1:nice)*zwsatid(1:nice)*zcwsurfid(1:nice))              + &
-                                    SUM(zmtsd(1:nsnw)*zwsatsd(1:nsnw)*zcwsurfsd(1:nsnw))              )
+             zhlp1 = zcwc + adt * ( SUM(zmtae(nstr:nbins)*zwsatae(nstr:nbins)*zcwsurfae) + &
+                                    SUM(zmtcd(1:ncld)*zwsatcd(1:ncld)*zcwsurfcd)         + &
+                                    SUM(zmtpd(1:nprc)*zwsatpd(1:nprc)*zcwsurfpd)         + &
+                                    SUM(zmtid(1:nice)*zwsatid(1:nice)*zcwsurfid)         + &
+                                    SUM(zmtsd(1:nsnw)*zwsatsd(1:nsnw)*zcwsurfsd)         )
 
              zhlp2 = 1. + adt * ( SUM(zmtae(nstr:nbins)) + SUM(zmtcd(1:ncld)) + SUM(zmtpd(1:nprc)) &
                                    + SUM(zmtid(1:nice)) + SUM(zmtsd(1:nsnw)) )
@@ -1641,7 +1621,7 @@ CONTAINS
 
              IF ( any_aero .AND. .NOT.aero_eq ) THEN
                 DO cc = nstr,nbins
-                   zcwintae(cc) = zcwcae(cc) + min(max(adt*zmtae(cc)*(zcwint - zwsatae(cc)*zcwsurfae(cc)), &
+                   zcwintae(cc) = zcwcae(cc) + min(max(adt*zmtae(cc)*(zcwint - zwsatae(cc)*zcwsurfae), &
                         -0.02*zcwcae(cc)),0.05*zcwcae(cc))
                    zwsatae(cc) = acth2o(paero(ii,jj,cc),zcwintae(cc))*zkelvin(cc)
                 END DO
@@ -1649,7 +1629,7 @@ CONTAINS
              END IF
              IF ( any_cloud ) THEN
                 DO cc = 1,ncld
-                   zcwintcd(cc) = zcwccd(cc) + min(max(adt*zmtcd(cc)*(zcwint - zwsatcd(cc)*zcwsurfcd(cc)), &
+                   zcwintcd(cc) = zcwccd(cc) + min(max(adt*zmtcd(cc)*(zcwint - zwsatcd(cc)*zcwsurfcd), &
                         -0.02*zcwccd(cc)),0.05*zcwccd(cc))
                    zwsatcd(cc) = acth2o(pcloud(ii,jj,cc),zcwintcd(cc))*zkelvincd(cc)
                 END DO
@@ -1657,7 +1637,7 @@ CONTAINS
              END IF
              IF ( any_prec ) THEN
                 DO cc = 1,nprc
-                   zcwintpd(cc) = zcwcpd(cc) + min(max(adt*zmtpd(cc)*(zcwint - zwsatpd(cc)*zcwsurfpd(cc)), &
+                   zcwintpd(cc) = zcwcpd(cc) + min(max(adt*zmtpd(cc)*(zcwint - zwsatpd(cc)*zcwsurfpd), &
                         -0.02*zcwcpd(cc)),0.05*zcwcpd(cc))
                    zwsatpd(cc) = acth2o(pprecp(ii,jj,cc),zcwintpd(cc))*zkelvinpd(cc)
                 END DO
@@ -1665,7 +1645,7 @@ CONTAINS
              END IF
              IF ( any_ice ) THEN
                 DO cc = 1,nice
-                   zcwintid(cc) = zcwcid(cc) + min(max(adt*zmtid(cc)*(zcwint - zwsatid(cc)*zcwsurfid(cc)), &
+                   zcwintid(cc) = zcwcid(cc) + min(max(adt*zmtid(cc)*(zcwint - zwsatid(cc)*zcwsurfid), &
                         -0.02*zcwcid(cc)),0.05*zcwcid(cc))
                    zwsatid(cc) = zkelvinid(cc)
                 END DO
@@ -1673,7 +1653,7 @@ CONTAINS
              END IF
              IF ( any_snow ) THEN
                 DO cc = 1,nsnw
-                   zcwintsd(cc) = zcwcsd(cc) + min(max(adt*zmtsd(cc)*(zcwint - zwsatsd(cc)*zcwsurfsd(cc)),&
+                   zcwintsd(cc) = zcwcsd(cc) + min(max(adt*zmtsd(cc)*(zcwint - zwsatsd(cc)*zcwsurfsd),&
                         -0.02*zcwcsd(cc)),0.05*zcwcsd(cc))
                    zwsatsd(cc) = zkelvinsd(cc)
                 END DO

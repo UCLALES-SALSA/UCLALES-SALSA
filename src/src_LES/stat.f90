@@ -158,15 +158,13 @@ module stat
   ! SALSA cloud, precipitation, ice and snow masks
   LOGICAL, allocatable :: cloudmask(:,:,:), rainmask(:,:,:), icemask(:,:,:), snowmask(:,:,:)
 
-  LOGICAL, SAVE :: lbinprof=.FALSE.
-
   ! Calculating particle sizes (SB microphysics)
   REAL, DIMENSION(0:4) :: x_min=1e-20, x_max=1., a_geo=(6./(pi*rowt))**(1./3.), b_geo=1./3., eps=1e-20
   REAL :: ri_min=1e-10, ni_min=1e-10 ! Mass and number limits for ice statistics
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
-       acc_tend, updtst, sfc_stat, flux_stat, close_stat, fill_scalar, &
-       tke_sgs, sgsflxs, sgs_vel, comp_tke, acc_removal, cs_rem_set, csflg, &
+       updtst, close_stat, fill_scalar, &
+       tke_sgs, sgsflxs, comp_tke, acc_removal, cs_rem_set, csflg, &
        les_rate_stats, mcrp_var_save, out_cs_list, out_ps_list, out_ts_list, &
        cs_include, cs_exclude, ps_include, ps_exclude, ts_include, ts_exclude, &
        out_mcrp_data, out_mcrp_list, out_mcrp_nout, user_cs_list, user_ps_list, &
@@ -379,8 +377,7 @@ contains
        ! SALSA dimensions
        !    s2_dims(nv2_ndims)=(/'B_Rd12a','B_Rd2ab','B_Rwprc','B_Rwsnw','P_hRc  ','P_hRi  '/)
        ! Bin dependent outputs
-       lbinprof = ANY(INDEX(user_ps_list,'B_')>0)
-       IF (lbinprof) THEN
+       IF ( ANY(INDEX(user_ps_list,'B_')>0) ) THEN
             s2_dims_bool(1:3)=.TRUE.
             s2_dims_bool(4)=(level>4)
        ENDIF
@@ -1070,7 +1067,7 @@ contains
   ! User-defined outputs (given in NAMELIST/user_cs_list)
   subroutine cs_user_stats()
     use netcdf
-    use grid, ONLY : CCN, nzp, nxp, nyp, a_dn, zm
+    use grid, ONLY : CCN, nzp, nxp, nyp, a_dn, zm, a_rp, a_rv, a_rsl, a_rsi
     INTEGER :: ii, i, j, k, n, iret, VarID
     REAL :: output(nxp,nyp), a(nzp,nxp,nyp)
     LOGICAL :: fail, mask(nzp,nxp,nyp), mass
@@ -1084,6 +1081,24 @@ contains
         CASE ('CCN')
             ! Level 3 CCN as an example of output
             output(:,:)=CCN
+        CASE ('SS_max')
+            ! Maximum supersaturation (%) over water
+            a=0.
+            IF (level<4) THEN
+                WHERE(a_rsl>1e-10) a=a_rv/a_rsl
+            ELSE
+                WHERE(a_rsl>1e-10) a=a_rp/a_rsl
+            ENDIF
+            output(:,:)=(MAXVAL(a,DIM=1)-1.0)*100.
+        CASE ('SSi_max')
+            ! Maximum supersaturation (%) over ice
+            a=0.
+            IF (level<4) THEN
+                WHERE(a_rsi>1e-10) a=a_rv/a_rsi
+            ELSE
+                WHERE(a_rsi>1e-10) a=a_rp/a_rsi
+            ENDIF
+            output(:,:)=(MAXVAL(a,DIM=1)-1.0)*100.
         CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_cs_list(ii),a,mask,is_mass=mass)
@@ -1419,7 +1434,7 @@ contains
   !  Some rewriting and adjusting by Juha Tonttila
   !
   SUBROUTINE ts_lvl4(n1,n2,n3)
-    USE grid, ONLY : bulkNumc, dzt, a_rh
+    USE grid, ONLY : bulkNumc, dzt, a_rp, a_rsl
     IMPLICIT NONE
     integer, intent(in) :: n1,n2,n3
     REAL :: a0(n1,n2,n3)
@@ -1438,7 +1453,8 @@ contains
     ssclr(30) = get_pustat_scalar('sum',REAL(k))
 
     ! Maximum supersaturation
-    ssclr_lvl4(1) = (get_max_val(n1,n2,n3,a_rh)-1.0)*100.
+    WHERE(a_rsl>1e-10) a0=a_rp/a_rsl
+    ssclr_lvl4(1) = (get_max_val(n1,n2,n3,a0)-1.0)*100.
 
   END SUBROUTINE ts_lvl4
   !
@@ -1447,7 +1463,7 @@ contains
   !  Implemented by Jaakko Ahola 15/12/2016
   !
   SUBROUTINE ts_lvl5(n1,n2,n3)
-    USE grid, ONLY : bulkNumc, dzt, a_dn, zm, a_ri, a_srs, icein, snowin, a_rhi, a_tp, th0, th00
+    USE grid, ONLY : bulkNumc, dzt, a_dn, zm, a_ri, a_srs, icein, snowin, a_rp, a_rsi, a_tp, th0, th00
     IMPLICIT NONE
     integer, intent(in) :: n1,n2,n3
     REAL :: a0(n1,n2,n3), scr(n2,n3)
@@ -1480,7 +1496,8 @@ contains
     ssclr_lvl5(10) = get_avg2dh(n2,n3,scr)
 
     ! Maximum supersaturation over ice
-    ssclr_lvl5(11) = (get_max_val(n1,n2,n3,a_rhi)-1.0)*100.
+    WHERE(a_rsi>1e-10) a0=a_rp/a_rsi
+    ssclr_lvl5(11) = (get_max_val(n1,n2,n3,a0)-1.0)*100.
 
     ! Integrated ice-liquid water potential temperature - change from th0
     scr = 0.
@@ -1502,7 +1519,7 @@ contains
   ! Variable names are given in NAMELIST/user_ts_list and these must be defined in ncio.f90.
   ! Outputs are calculated here to array user_ts_data(nv1_user).
   subroutine ts_user_stats()
-    use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_rc, a_rpp, a_npp
+    use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_rc, a_rpp, a_npp, a_rp, a_rv, a_rsl, a_rsi
     USE defs, ONLY : pi, rowt
     INTEGER :: i
     REAL :: a(nzp,nxp,nyp)
@@ -1539,6 +1556,24 @@ contains
             ELSE
                 user_ts_data(i) = -999.
             ENDIF
+        CASE ('SS_max')
+            ! Maximum supersaturation (%) over water
+            a=0.
+            IF (level<4) THEN
+                WHERE(a_rsl>1e-10) a=a_rv/a_rsl
+            ELSE
+                WHERE(a_rsl>1e-10) a=a_rp/a_rsl
+            ENDIF
+            user_ts_data(i) =(get_max_val(nzp,nxp,nyp,a)-1.0)*100.
+        CASE ('SSi_max')
+            ! Maximum supersaturation (%) over ice
+            a=0.
+            IF (level<4) THEN
+                WHERE(a_rsi>1e-10) a=a_rv/a_rsi
+            ELSE
+                WHERE(a_rsi>1e-10) a=a_rp/a_rsi
+            ENDIF
+            user_ts_data(i) =(get_max_val(nzp,nxp,nyp,a)-1.0)*100.
          CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_ts_list(i),a,mask,is_mass=mass)
@@ -2023,7 +2058,7 @@ contains
   ! Variable names are given in NAMELIST/user_ps_list and these must be defined in ncio.f90.
   ! Outputs are calculated here to array user_ps_data(nzp,nv2_user).
   subroutine ps_user_stats()
-    USE grid, ONLY : nzp, nxp, nyp, a_dn, a_rc, CCN, a_rpp, a_npp
+    USE grid, ONLY : nzp, nxp, nyp, a_dn, a_rc, CCN, a_rpp, a_npp, a_rv, a_rp, a_rsl, a_rsi
     USE defs, ONLY : pi, rowt
     INTEGER :: i
     LOGICAL :: fail, mask(nzp,nxp,nyp)
@@ -2035,7 +2070,7 @@ contains
             ! Air density
             call get_avg3(nzp,nxp,nyp,a_dn,a1)
             user_ps_data(:,i)=user_ps_data(:,i)+a1(:)
-        CASE ('Rc_ic')
+        CASE ('Rcloud','Rc_ic')
             ! Level 3 cloud droplet radius
             IF (level<4) THEN
                 a(:,:,:) = ( 0.75*a_rc(:,:,:)/(CCN*pi*rowt) )**(1./3.)
@@ -2044,7 +2079,7 @@ contains
                 CALL get_avg3(nzp,nxp,nyp,a,a1,cond=mask)
                 user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
             ENDIF
-        CASE ('Rr_ir')
+        CASE ('Rrain','Rr_ir')
             ! Level 3 rain drop radius
             IF (level<4) THEN
                 mask = a_rpp > 1.e-8
@@ -2057,6 +2092,50 @@ contains
                 CALL get_avg3(nzp,nxp,nyp,a,a1,cond=mask)
                 user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
             ENDIF
+        CASE ('SS_max')
+            ! Maximum supersaturation (%) over water
+            a=0.
+            IF (level<4) THEN
+                WHERE(a_rsl>1e-10) a=a_rv/a_rsl
+            ELSE
+                WHERE(a_rsl>1e-10) a=a_rp/a_rsl
+            ENDIF
+            a1(:)=MAXVAL(MAXVAL(a,DIM=3),DIM=2)
+            CALL get_pustat_vector('max', nzp, a)
+            user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
+        CASE ('SSi_max')
+            ! Maximum supersaturation (%) over ice
+            a=0.
+            IF (level<4) THEN
+                WHERE(a_rsi>1e-10) a=a_rv/a_rsi
+            ELSE
+                WHERE(a_rsi>1e-10) a=a_rp/a_rsi
+            ENDIF
+            a1(:)=MAXVAL(MAXVAL(a,DIM=3),DIM=2)
+            CALL get_pustat_vector('max', nzp, a)
+            user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
+        CASE ('SS_min')
+            ! Minimum supersaturation (%) over water
+            a=999.
+            IF (level<4) THEN
+                WHERE(a_rsl>1e-10) a=a_rv/a_rsl
+            ELSE
+                WHERE(a_rsl>1e-10) a=a_rp/a_rsl
+            ENDIF
+            a1(:)=MINVAL(MINVAL(a,DIM=3),DIM=2)
+            CALL get_pustat_vector('min', nzp, a)
+            user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
+        CASE ('SSi_min')
+            ! Minimum supersaturation (%) over ice
+            a=999.
+            IF (level<4) THEN
+                WHERE(a_rsi>1e-10) a=a_rv/a_rsi
+            ELSE
+                WHERE(a_rsi>1e-10) a=a_rp/a_rsi
+            ENDIF
+            a1(:)=MINVAL(MINVAL(a,DIM=3),DIM=2)
+            CALL get_pustat_vector('min', nzp, a)
+            user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_ps_list(i),a,mask)
@@ -2633,85 +2712,38 @@ contains
   end subroutine write_ps
   !
   ! ----------------------------------------------------------------------
-  ! subroutine: sfc_stat:  Updates statistical arrays with surface flux
-  ! variables
   !
-  subroutine sfc_stat(n2,n3,tflx,qflx,ustar,sst)
-    use defs, only : cp, alvl
-    USE grid, ONLY : dn0
-    integer, intent(in) :: n2,n3
-    real, intent(in), dimension(n2,n3) :: tflx, qflx, ustar
-    real, intent(in)    :: sst
-
-    ssclr(10) = sst
-    ssclr(11) = get_avg2dh(n2,n3,ustar)
-    ssclr(12) = get_avg2dh(n2,n3,tflx)*cp*(dn0(1)+dn0(2))*0.5
-    ssclr(13) = get_avg2dh(n2,n3,qflx)*alvl*(dn0(1)+dn0(2))*0.5
-
-  end subroutine sfc_stat
+  ! subroutine: fills scalar array based on variable name.
   !
-  ! ----------------------------------------------------------------------
-  ! Marine emissions
-  !
-  subroutine flux_stat(flx,vname)
-    use netcdf
-    IMPLICIT NONE
-    ! Inputs
-    real, intent(in) :: flx
-    character (len=7), intent (in) :: vname
+  subroutine fill_scalar(xval,vname,op,wg)
+     ! Inputs
+    real, intent(in) :: xval
+    character(len=7), intent (in) :: vname
+    CHARACTER(LEN=3), INTENT(IN), OPTIONAL :: op ! Optional operation; default='avg'
+    REAL, INTENT(IN), OPTIONAL :: wg ! Optional weight; default=none
     ! Local
     INTEGER :: i
+    CHARACTER(LEN=3) :: myop
     !
-    ! Is this output selected
-    DO i=1,nv1_lvl4
-        IF ( vname == s1_lvl4(i) ) THEN
-            ! Calculate domain mean
-            ssclr_lvl4(i) = get_pustat_scalar('avg', flx)
+    myop='avg'
+    IF (PRESENT(op)) myop=op
+    !
+    ! s1(1:nvar1)
+    DO i=1,nvar1
+        IF ( vname == s1(i) ) THEN
+            ! Output array found, calculate result over all PUs
+            IF (present(wg)) THEN
+                ssclr(i) = get_pustat_scalar(myop,xval,wg)
+            ELSE
+                ssclr(i) = get_pustat_scalar(myop,xval)
+            ENDIF
+            RETURN
         ENDIF
     ENDDO
-
-  end subroutine flux_stat
-  !
-  ! ----------------------------------------------------------------------
-  !
-  ! subroutine: fills scalar array based on index
-  ! 1: cfl; 2 max divergence
-  !
-  subroutine fill_scalar(index,xval)
-
-    integer, intent(in) :: index
-    real, intent (in)   :: xval
-
-    select case(index)
-    case(1)
-       ssclr(2) = get_pustat_scalar('max',xval) ! cfl
-    case(2)
-       ssclr(3) = get_pustat_scalar('max',xval) ! max div
-    end select
-
+    !
+    ! Could add s1_ice(1:nv1_ice), s1_lvl4(1:nv1_lvl4), s1_lvl5(1:nv1_lvl5),
+    ! user_ts_list(1:nv1_user) and out_ts_list(1:nv1_proc)
   end subroutine fill_scalar
-  !
-  ! ----------------------------------------------------------------------
-  ! subroutine: calculates the dissipation for output diagnostics, if
-  ! isgstyp equals 2 then le is passed in via diss
-  !
-  subroutine sgs_vel(n1,n2,n3,v1,v2,v3)
-
-    integer, intent(in) :: n1,n2,n3
-    real, intent(in)    :: v1(n1),v2(n1),v3(n1)
-    real :: v(n1)
-
-    v(:)=v1(:)/float((n2-4)*(n3-4))
-    CALL get_pustat_vector('avg', n1, v)
-    svctr(:,23)=svctr(:,23)+v(:)
-    v(:)=v2(:)/float((n2-4)*(n3-4))
-    CALL get_pustat_vector('avg', n1, v)
-    svctr(:,25)=svctr(:,25)+v(:)
-    v(:)=v3(:)/float((n2-4)*(n3-4))
-    CALL get_pustat_vector('avg', n1, v)
-    svctr(:,27)=svctr(:,27)+v(:)
-
-  end subroutine sgs_vel
   !
   ! --------------------------------------------------------------------------
   ! SGSFLXS: estimates the sgs rl and tv flux from the sgs theta_l and sgs r_t
@@ -2775,131 +2807,28 @@ contains
 
   end subroutine sgsflxs
   !
-  ! ----------------------------------------------------------------------
-  ! subroutine fill_tend: fills arrays with current value of tendencies
-  !
-  subroutine acc_tend(n1,n2,n3,f1,f2,f3,t1,t2,t3,v1,v2,v3,ic,routine)
-
-    integer, intent(in) :: n1,n2,n3,ic
-    real, intent(in)    :: f1(n1,n2,n3),f2(n1,n2,n3),f3(n1,n2,n3)
-    real, intent(in)    :: t1(n1,n2,n3),t2(n1,n2,n3),t3(n1,n2,n3)
-    real, intent(inout) :: v1(n1),v2(n1),v3(n1)
-    character (len=3)   :: routine
-
-    integer :: k,ii
-    real    :: x1(n1),x2(n1),x3(n1)
-
-    call get_cor3(n1,n2,n3,f1,t1,x1)
-    call get_cor3(n1,n2,n3,f2,t2,x2)
-    call get_cor3(n1,n2,n3,f3,t3,x3)
-
-    select case (routine)
-    case ('sgs')
-       ii = 39
-    case ('adv')
-       ii = 42
-    end select
-
-    select case (ic)
-    case (1)
-       do k=1,n1
-          v1(k) = x1(k)
-          v2(k) = x2(k)
-          v3(k) = x3(k)
-       end do
-    case (2)
-       do k=1,n1
-          svctr(k,ii)   = svctr(k,ii)   + (x1(k)-v1(k))
-          svctr(k,ii+1) = svctr(k,ii+1) + (x2(k)-v2(k))
-          svctr(k,ii+2) = svctr(k,ii+2) + (x3(k)-v3(k))
-       end do
-    end select
-
-  end subroutine acc_tend
-  !
   !---------------------------------------------------------------------
   ! subroutine updtst: updates appropriate statistical arrays
   !
-  subroutine updtst(n1,routine,nfld,values,ic)
+  subroutine updtst(n1,values,ic,nam)
 
-    integer, intent(in)            :: n1,nfld,ic
+    integer, intent(in)            :: n1,ic
     real, intent (in)              :: values(n1)
-    character (len=3), intent (in) :: routine
+    character (len=7), intent (in) :: nam
 
     integer :: nn
     REAL :: tmp(n1)
 
-    select case (routine)
-    case("sgs")
-       select case (nfld)
-       case (-6)
-          nn = 31 ! dissipation length-scale
-       case (-5)
-          nn = 30 ! mixing length
-       case (-4)
-          nn = 29 ! eddy diffusivity
-       case (-3)
-          nn = 28 ! eddy viscosity
-       case (-2)
-          nn = 38 ! dissipation
-       case (-1)
-          nn = 32 ! estimated sgs energy
-       case (1)
-          nn = 21 ! sgs tl flux
-       case (2)
-          nn = 54 ! sgs rt flux
-       case default
-          nn = 0
-       end select
-    case("adv")
-       select case (nfld)
-       case (-3)
-          nn = 26 ! adv w flux
-       case (-2)
-          nn = 24 ! adv v flux
-       case (-1)
-          nn = 22 ! adv u flux
-       case (0)
-          nn = 62 ! adv rl flux
-       case (1)
-          nn = 20 ! adv tl flux
-       case (2)
-          nn = 53 ! adv rt flux
-       case default
-          nn = 0
-       end select
-    case("prs")
-       select case (nfld)
-       case (1)
-          nn = 45 ! dpdx u corr
-       case (2)
-          nn = 46 ! dpdy v corr
-       case (3)
-          nn = 47 ! dpdz w corr
-       case default
-          nn = 0
-       end select
-    case("prc")
-       select case (nfld)
-       case (2)
-          nn = 88
-       case (3)
-          nn = 63
-       case default
-          nn = 0
-       end select
-    case default
-       nn = 0
-    end select
-
-    if (nn > 0) then
-       if (ic == 0) svctr(:,nn)=0.
-
-       ! Global
-       tmp(:)=values(:)
-       CALL get_pustat_vector('avg',n1,tmp)
-       svctr(:,nn)=svctr(:,nn)+tmp(:)
-    end if
+    DO nn=1,nvar2
+        IF (nam==s2(nn)) THEN
+            if (ic == 0) svctr(:,nn)=0.
+            ! Global
+            tmp(:)=values(:)
+            CALL get_pustat_vector('avg',n1,tmp)
+            svctr(:,nn)=svctr(:,nn)+tmp(:)
+            RETURN
+        ENDIF
+    ENDDO
 
   end subroutine updtst
 
