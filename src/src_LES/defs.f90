@@ -20,28 +20,23 @@
 !
 module defs
 
-  integer :: nv=1, nv1=2, mb=1
-  real    :: totalpower
-  real, parameter :: R      = 287.04
-  real, parameter :: Rm     = 461.5
-  real, parameter :: ep     = R/Rm
-  real, parameter :: ep2    = Rm/R - 1.
+  integer :: nv=1, nv1=2, mb=1 ! radiation
+  real, parameter :: Rd     = 287.04 ! gas constant for dry air
+  real, parameter :: Rm     = 461.5  ! ... and water vapor (J/K/kg)
+  real, parameter :: ep     = Rd/Rm
+  real, parameter :: ep2    = Rm/Rd - 1.
   real, parameter :: cp     = 1005.
-  real, parameter :: cv     = cp-R
-  real, parameter :: rcp    = R/cp
-  real, parameter :: cpr    = cp/R
+  real, parameter :: rcp    = Rd/cp
+  real, parameter :: cpr    = cp/Rd
   real, parameter :: g      = 9.81
   real, parameter :: p00    = 1.e+05
   real, parameter :: p00i   = 1./p00
   real, parameter :: omega  = 7.292e-05
   real, parameter :: alvl   = 2.5e+06  ! latent heat of vaporization
   real, parameter :: alvi   = 2.834e+06 ! latent heat of sublimation
-  real, parameter :: rowt   = 1.e+3 ! Radiation and level 3 microphysics
-  real, parameter :: roice  = 0.9e+3 ! Radiation only
+  real, parameter :: rowt   = 1.0e+3 ! radiation and SB microphysics
+  real, parameter :: roice  = 0.9e+3 ! radiation and SB microphysics
   real, parameter :: vonk   = 0.40
-  real, parameter :: stefan = 5.6696e-8
-  real, parameter :: SolarConstant  = 1.365d+3
-  real, parameter :: mair   = 28.967 ! molar mass of air
   real, parameter :: pi     = 3.14159265358979323846264338327
   real, parameter :: kb     = 1.3807e-23 !Boltzman constant
 

@@ -2716,7 +2716,7 @@ contains
   ! subroutine: fills scalar array based on variable name.
   !
   subroutine fill_scalar(xval,vname,op,wg)
-     ! Inputs
+    ! Inputs
     real, intent(in) :: xval
     character(len=7), intent (in) :: vname
     CHARACTER(LEN=3), INTENT(IN), OPTIONAL :: op ! Optional operation; default='avg'
@@ -3005,7 +3005,7 @@ contains
     CALL scalar_rate_stat(prefix//'_tt',nzp,nxp,nyp,a_tt,factor=cp)
     !
     ! Concentrations
-    IF (level==3) THEN
+    IF (level==3 .OR. level==0) THEN
         ! Level 3: total water (a_rt) and rain water mass and droplet number
         CALL scalar_rate_stat(prefix//'_rt',nzp,nxp,nyp,a_rt)
         CALL scalar_rate_stat(prefix//'_nr',nzp,nxp,nyp,a_npt)

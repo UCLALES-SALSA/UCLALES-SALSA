@@ -24,10 +24,11 @@ module radiation
   ! Juha Tonttila, FMI
 
 
-  use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv, SolarConstant
+  use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv
   use fuliou, only     : rad, set_random_offset, minSolarZenithCosForVis
   implicit none
 
+  real, parameter :: SolarConstant = 1.365e+3
   character (len=50) :: background = 'datafiles/dsrt.lay'
   LOGICAL :: McICA = .TRUE.
 
@@ -42,11 +43,11 @@ module radiation
 
   contains
 
-    subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn, pi0, pi1, dzm, &
-         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs)
+    subroutine d4stream(n1, n2, n3, u0, sknt, sfc_albedo, dn, pi0, pi1, dzm, pip, tk, rv, rc, nc, tt, &
+         rflx, sflx, afus, afds, afuir, afdir, albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs)
       use mpi_interface, only: myid, pecount
       integer, intent (in) :: n1, n2, n3
-      real, intent (in)    :: alat, time, sknt, sfc_albedo
+      real, intent (in)    :: u0, sknt, sfc_albedo
       real, dimension (n1), intent (in)                 :: pi0, pi1, dzm
       real, dimension (n1,n2,n3), intent (in)           :: dn, pip, tk, rv, rc, nc
       real, optional, dimension (n1,n2,n3), intent (in) :: rr, ice, nice, grp
@@ -56,7 +57,7 @@ module radiation
       real, intent (out)                                :: albedo(n2,n3)
 
       integer :: kk
-      real    :: ee, u0, xfact, prw, pri, p0(n1)
+      real    :: ee, xfact, prw, pri, p0(n1)
 
       IF (PRESENT(radsounding)) background = radsounding
       IF (PRESENT(useMcICA)) McICA = useMcICA
@@ -96,11 +97,6 @@ module radiation
       ! initialize surface albedo, emissivity and skin temperature.
       !
       ee = 1.0
-      !
-      ! determine the solar geometery, as measured by u0, the cosine of the
-      ! solar zenith angle
-      !
-      u0 = zenith(alat,time)
       !
       ! Avoid identical random numbers by adding an offset for each PU
       !     myid=0,1,2,...

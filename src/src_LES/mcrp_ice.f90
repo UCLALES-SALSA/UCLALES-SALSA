@@ -40,6 +40,7 @@ module mcrp_ice
        iriming_ice_rain=21, iriming_snow_rain=22,iriming_grp_rain=23
   integer, dimension(23) :: microseq = (/1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23/)
   real :: nin_set = 0.
+  LOGICAL :: firsttime=.TRUE.
   !
   ! drop sizes definition is based on vanZanten (2005)
   ! cloud droplets' diameter: 2-50 e-6 m
@@ -109,9 +110,23 @@ module mcrp_ice
   end type particle
   type(particle) :: cldw,rain,ice,snow,graupel,hail
 
-  PUBLIC micro_ice
+  PUBLIC micro_ice, init_micro_ice
 contains
-
+  !
+  ! ---------------------------------------------------------------------
+  ! Read NAMELIST inputs
+  !
+  subroutine init_micro_ice(level)
+    INTEGER, INTENT(IN) :: level
+    ! Read parameters
+    IF (level==5) THEN
+        CALL init_sb()
+    ELSEIF (2<=level .AND. level<=4) THEN
+        CALL initmcrp(level)
+    ENDIF
+    ! No need to do this again
+    firsttime=.FALSE.
+  end subroutine init_micro_ice
   !
   ! ---------------------------------------------------------------------
   ! MICRO: sets up call to microphysics
@@ -128,17 +143,8 @@ contains
        sed_cloud, sed_precp, sed_ice
 
     INTEGER, INTENT(IN) :: level
-    LOGICAL :: firsttime=.TRUE.
 
-    IF (firsttime) THEN
-        firsttime=.FALSE.
-        ! Read parameters
-        IF (level==5) THEN
-            CALL init_sb()
-        ELSEIF (2<=level .AND. level<=4) THEN
-            CALL initmcrp(level)
-        ENDIF
-    ENDIF
+    IF (firsttime) CALL init_micro_ice(level)
 
     ! Sedimentation flags (from module grid, which means that they can change) - for levels <5
     microseq(isedimcd)=MERGE(isedimcd,0,sed_cloud)
@@ -2264,7 +2270,8 @@ contains
             n_cloud, n_ice, n_rain, n_snow, n_graupel, n_hail, &
             alloc_driver, dealloc_driver, &
             alloc_wolken, dealloc_wolken, clouds, &
-            sflgx => sflg, out_data => out_mcrp_data
+            sflgx => sflg, out_data => out_mcrp_data, &
+            nout=>out_mcrp_nout, out_list=>out_mcrp_list
 
     IMPLICIT NONE
 
@@ -2308,6 +2315,12 @@ contains
 
     dtx = dt
     sflgx = sflg .AND. out_mcrp_nout>0
+
+    nout = out_mcrp_nout
+    IF (sflgx .AND. .NOT.ALLOCATED(out_list)) THEN
+        ALLOCATE(character(7) :: out_list(nout))
+        out_list(1:nout) = out_mcrp_list(1:nout)
+    ENDIF
 
     qv = qvin
     qc = qcin
@@ -2584,8 +2597,7 @@ contains
 
     USE mcrp_ice_sb, ONLY: init_seifert,myparticle=>particle, &
          mycloud=>cloud,myrain=>rain,myice=>ice, &
-         mysnow=>snow,mygraupel=>graupel,myhail=>hail, &
-         nout=>out_mcrp_nout, out_list=>out_mcrp_list
+         mysnow=>snow,mygraupel=>graupel,myhail=>hail
 
     call init_seifert()
 
@@ -2606,13 +2618,6 @@ contains
     CALL setSBradius(snow%no,snow%x_min,snow%x_max,snow%a_geo,snow%b_geo,eps0)
     CALL setSBradius(graupel%no,graupel%x_min,graupel%x_max,graupel%a_geo,graupel%b_geo,eps0)
     CALL setSBradius(hail%no,hail%x_min,hail%x_max,hail%a_geo,hail%b_geo,eps0)
-
-    ! Statistics
-    nout = out_mcrp_nout
-    IF (out_mcrp_nout>0) THEN
-        ALLOCATE(character(7) :: out_list(nout))
-        out_list(1:nout) = out_mcrp_list(1:nout)
-    ENDIF
 
     CONTAINS
 

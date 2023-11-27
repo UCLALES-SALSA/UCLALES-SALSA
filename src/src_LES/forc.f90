@@ -19,15 +19,14 @@
 !
 module forc
 
-  use defs, only      : cp
-  use radiation, only : d4stream
+  use defs, only      : cp, pi
+  use radiation, only : d4stream, zenith
   use stat, only : sflg
   implicit none
 
   ! these are now all namelist parameters
-  character (len=10) :: case_name = 'none'               
-  character (len=50) :: radsounding = 'datafiles/dsrt.lay'  ! Juha: Added so the radiation background sounding can be given
-                                                            ! from the NAMELIST
+  character (len=10) :: case_name = 'none'
+  character (len=50) :: radsounding = 'datafiles/dsrt.lay'
   REAL :: sfc_albedo = 0.05
   REAL :: div = 0., zmaxdiv = 1e6
   REAL :: xka = 119., fr0 = 96.2, fr1 = 61.2, alpha = 1.0
@@ -36,6 +35,7 @@ module forc
   LOGICAL :: RadConstPress = .FALSE. ! Keep constant pressure levels
   INTEGER :: RadPrecipBins = 0 ! Add precipitation bins to cloud water (for level 3 and up)
   INTEGER :: RadSnowBins = 0 ! Add snow bins to cloud ice (for level 5 and up)
+  REAL :: RadConstSZA = -360. ! Constant solar zenith angle (values between -180 and 180 degrees are accepted)
 
 contains
 
@@ -53,7 +53,7 @@ contains
     use mpi_interface, only : myid, appl_abort
 
     real, intent (in) :: time_in, cntlat, sst
-    REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
+    REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp), u0
 
     select case(iradtyp)
     case (0)
@@ -83,6 +83,15 @@ contains
     case (3)
        ! Fu and Liou (1993) radiation code and case-dependent large-scale forcing
        !
+       ! determine the cosine of the solar zenith angle
+       IF (-180. .LE. RadConstSZA .AND. RadConstSZA .LE. 180.) THEN
+          ! Fixed solar zenith angle
+          u0 = cos(RadConstSZA*pi/180.)
+       ELSE
+          ! Solar zenith angle based on latitude and decimal day of year
+          u0 = zenith(cntlat,time_in)
+       ENDIF
+       !
        IF (level==0) THEN
           ! Cloud (+rain)
           znc(:,:,:) = CCN
@@ -100,7 +109,7 @@ contains
           ENDIF
           ! Graupel mass separately
 
-          CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+          CALL d4stream(nzp, nxp, nyp, u0, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,grp=a_rgp, &
                radsounding=radsounding, useMcICA=useMcICA, ConstPrs=RadConstPress)
@@ -113,7 +122,7 @@ contains
              zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
              WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc*CCN))/zrc
           ENDIF
-          call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+          call d4stream(nzp, nxp, nyp, u0, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
                useMcICA=useMcICA, ConstPrs=RadConstPress)
@@ -127,7 +136,7 @@ contains
              zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
              znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
           ENDIF
-          CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+          CALL d4stream(nzp, nxp, nyp, u0, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
                useMcICA=useMcICA, ConstPrs=RadConstPress)
@@ -147,7 +156,7 @@ contains
              zri(:,:,:) = zri(:,:,:) + SUM(a_msnowp(:,:,:,1:min(RadSnowBins,nsnw)),DIM=4)
              zni(:,:,:) = zni(:,:,:) + SUM(a_nsnowp(:,:,:,1:min(RadSnowBins,nsnw)),DIM=4)
           ENDIF
-          CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+          CALL d4stream(nzp, nxp, nyp, u0, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
                useMcICA=useMcICA, ConstPrs=RadConstPress)

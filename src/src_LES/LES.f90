@@ -43,13 +43,12 @@ contains
   !
   subroutine driver
 
-    use grid, only          : define_grid, define_vars, level, nxp, nyp, nzp, nxpart
+    use grid, only          : define_grid, define_vars, level, lev_sb, nxp, nyp, nzp, nxpart
     use init, only          : initialize
     use step, only          : stepper
     use mpi_interface, only : init_mpi, define_decomp,                    &
          init_alltoall_reorder, appl_finalize
-
-    ! Added for SALSA
+    USE mcrp_ice, ONLY : init_micro_ice
     USE mo_salsa_init, ONLY : define_salsa, salsa_initialize
 
     implicit none
@@ -63,6 +62,8 @@ contains
     IF (level >= 4) CALL define_salsa(level) ! Read SALSA namelist etc.
 
     IF (level >= 4) CALL salsa_initialize ! All salsa variables are now initialized
+
+    IF (level == 0) CALL init_micro_ice(lev_sb) ! Read SB namelist
 
     call define_decomp(nxp, nyp, nxpart)
 
@@ -111,10 +112,12 @@ contains
          user_cs_list, user_ps_list, user_ts_list
     USE forc, ONLY : radsounding, case_name, sfc_albedo, &
          div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit, &
-         useMcICA,RadConstPress,RadPrecipBins,RadSnowBins
+         useMcICA,RadConstPress,RadPrecipBins,RadSnowBins,RadConstSZA
     use mpi_interface, only : myid, appl_abort, ver, author
 
     implicit none
+
+    INTEGER :: i
 
     namelist /model/  &
          expnme    ,       & ! experiment name
@@ -162,6 +165,7 @@ contains
          RadConstPress,      & ! keep constant pressure levels (T/F),
          RadPrecipBins,      & ! add precipitation bins to cloud water (0, 1, 2, 3,...)
          RadSnowBins,        & ! add snow bins to cloud ice (0, 1, 2, 3,...)
+         RadConstSZA,        & ! Optional fixed solar zenith angle for radiation (values between -180.0 and 180.0 degrees)
          sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, & ! Sedimentation (T/F)
          no_b_bins,          & ! no prognostic b-bins for aerosol, cloud or ice (level 4 or 5)
          no_prog_prc,        & ! no prognostic rain (level 4 or 5)
@@ -195,7 +199,8 @@ contains
     ! read namelist from specified file
     !
     open  (1,status='old',file='NAMELIST')
-    read  (1, nml=version)
+    read  (1, nml=version, iostat=i) ! Optional
+    if (i/=0) REWIND(1)
     read  (1, nml=model)
     close (1)
 

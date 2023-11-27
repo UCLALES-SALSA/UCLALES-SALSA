@@ -46,7 +46,7 @@ contains
     use grid, only : a_rc, a_rv, a_theta, a_pexnr, a_press, a_temp,  &
          a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
          a_srp, a_ri, a_rsi, a_srs, a_dn, a_rip, a_rsp, a_rgp, a_rhp
-    USE defs, ONLY : R
+    USE defs, ONLY : Rd
 
     integer, intent (in) :: level
 
@@ -70,7 +70,7 @@ contains
     end select
 
     ! Air density
-    a_dn(:,3:nxp-2,3:nyp-2) = a_press(:,3:nxp-2,3:nyp-2)/(R*a_temp(:,3:nxp-2,3:nyp-2))
+    a_dn(:,3:nxp-2,3:nyp-2) = a_press(:,3:nxp-2,3:nyp-2)/(Rd*a_temp(:,3:nxp-2,3:nyp-2))
 
   end subroutine thermo
 !
@@ -338,7 +338,7 @@ contains
 !
   subroutine bruvais(n1,n2,n3,level,th,tl,rt,rs,en2,dzm,th00)
 
-  use defs, only : g, R, cp, alvl, ep, ep2
+  use defs, only : g, Rm, cp, alvl, ep, ep2
 
   integer, intent (in) ::  n1, n2, n3, level
   real, intent (in)    ::  th(n1,n2,n3), tl(n1,n2,n3), rt(n1,n2,n3),         &
@@ -368,8 +368,8 @@ contains
               rsbar=0.5*(rs(k,i,j)+rs(k+1,i,j))
               kp1=min(n1-1,k+1)
               if (rt(k,i,j) > rs(k,i,j) .and. rt(kp1,i,j) > rs(kp1,i,j)) then
-                 c1=(1.+ep*alvl/R/th(k,i,j))/ep
-                 c2=ep*alvl*alvl/(R*cp*th(k,i,j)*th(k,i,j))
+                 c1=(1.+alvl/Rm/th(k,i,j))/ep
+                 c2=alvl*alvl/(Rm*cp*th(k,i,j)*th(k,i,j))
                  c3=alvl/(cp*th(k,i,j))
                  aa=(1. - rtbar + rsbar*c1)/(1. + c2*rsbar)
                  bb=(c3*aa - 1.)
@@ -391,8 +391,8 @@ contains
               rsbar=0.5*(rs(k,i,j)+rs(k+1,i,j))
               kp1=min(n1-1,k+2)
               if (rt(k,i,j) > rs(k,i,j) .and. rt(kp1,i,j) > rs(kp1,i,j)) then
-                 c1=(1.+ep*alvl/R/th(k,i,j))/ep
-                 c2=ep*alvl*alvl/(R*cp*th(k,i,j)*th(k,i,j))
+                 c1=(1.+alvl/Rm/th(k,i,j))/ep
+                 c2=alvl*alvl/(Rm*cp*th(k,i,j)*th(k,i,j))
                  c3=alvl/(cp*th(k,i,j))
                  aa=(1. - rtbar + rsbar*c1)/(1. + c2*rsbar)
                  bb=(c3*aa - 1.)
