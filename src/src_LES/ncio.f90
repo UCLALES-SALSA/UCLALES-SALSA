@@ -1402,19 +1402,19 @@ contains
             tmp='aeb'
         CASE('ca')
             phase='Cloud a-bin'
-            tmp='cla'
+            tmp='aeb'
         CASE('cb')
             phase='Cloud b-bin'
-            tmp='clb'
+            tmp='aeb'
         CASE('rt','pt')
             phase='Rain bin'
             tmp='prc'
         CASE('ia')
             phase='Ice a-bin'
-            tmp='ica'
+            tmp='aeb'
         CASE('ib')
             phase='Ice a-bin'
-            tmp='icb'
+            tmp='aeb'
         CASE('st')
             phase='Snow bin'
             tmp='snw'

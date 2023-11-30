@@ -48,17 +48,17 @@ module mcrp_ice
 
   real, parameter :: eps0 = 1e-20       ! small number
   real, parameter :: rthres = 1e-20        ! small number
-  real, parameter :: rho_0 = 1.21       ! air density at surface
 
   real, parameter :: prw = pi * rowt / 6.
-  real, parameter :: nu_l = 1.460e-5     !..kinem. visc. of air
+  real, parameter :: nu_l = 1.4086e-5    !..kinem. visc. of air
   real, parameter :: d_v  = 3.000e-5     !..diff. of water vapor
   real, parameter :: k_t  = 2.500e-2     !..heat conductivity
-
+  real, parameter :: rho_0 = 1.225       !..air density at surface
+  real, parameter :: tmelt = 273.15      !..melting temperature
+  real, parameter :: t_hn  = 233.0       !..homogeneous freezing temperature
   real, parameter :: n_sc = 0.710        !..schmidt-number(pk, p.541)
   real, parameter :: n_f  = 0.333        !..exponent of n_sc in the vent-coeff. (pk, p.541)
   real, parameter :: m_f  = 0.500        !..exponent of n_re in the vent-coeff. (pk, p.541)
-
   real, parameter :: e_3  = 6.10780000e2 !..saturation pressure at melting temp.
 
   ! Hallett-Mossop
@@ -73,11 +73,11 @@ module mcrp_ice
 
   ! riming mixing ratio (r) and diameter (d) limits for ice, snow and grapel
   real :: r_crit_ic = 1.000e-5, d_crit_ic = 150.0e-6 ! ice-cloud
-  real :: r_crit_ir = 1.000e-5, d_crit_ir = 100.0e-6 ! ice-rain
+  real :: r_crit_ir = 1.000e-5, d_crit_ir = 0.       ! ice-rain
   real :: r_crit_sc = 1.000e-5, d_crit_sc = 150.0e-6 ! snow-cloud
-  real :: r_crit_sr = 1.000e-5, d_crit_sr = 100.0e-6 ! snow-rain
-  real :: r_crit_gc = 1.000e-6, d_crit_gc = 100.0e-6 ! graupel-cloud
-  real :: r_crit_gr = 1.000e-9, d_crit_gr = 000.0e-6 ! graupel-rain
+  real :: r_crit_sr = 1.000e-5, d_crit_sr = 0.       ! snow-rain
+  real :: r_crit_gc = 1.000e-6, d_crit_gc = 150.0e-6 ! graupel-cloud
+  real :: r_crit_gr = 1.000e-9, d_crit_gr = 0.       ! graupel-rain
   real :: r_crit_c = 1.000e-4 ! cloud in all above (d_crit_c=10 um)
   real :: r_crit_r = 1.000e-9 ! rain in all above (d_crit_r=10 um)
 
@@ -87,8 +87,6 @@ module mcrp_ice
   real, parameter :: d_crit_is = 50.00e-6 ! e-critical value for ice_selfcollection
   real, parameter :: d_conv_is = 75.00e-6 ! e-critical value for ice_selfcollection
 
-  real, parameter :: tmelt  = 273.16
-  real, parameter :: t_hn   = 236.15
 
   type particle
      character(10) :: name
@@ -2164,7 +2162,7 @@ contains
             0.476191, & !.b_geo..coefficient of meteor geometry = 1/2.1
             2.77e+01, & !.a_vel..coefficient of fall velocity
             0.215790, & !.b_vel..coefficient of fall velocity = 0.41/1.9
-            0.25    , & !.s_vel...dispersion of the fall velocity
+            0.2     , & !.s_vel...dispersion of the fall velocity
             0.780000, & !.a_ven..ventilation coefficient (PK, p.541)
             0.308000, & !.b_ven..ventilation coefficient (PK, p.541)
             2.0)        !.cap....capacity coefficient
@@ -2182,7 +2180,7 @@ contains
             0.476191, & !.b_geo..coefficient of meteor geometry = 1/2.1
             2.47e+02, & !.a_vel..coefficient of fall velocity
             0.333333, & !.b_vel..coefficient of fall velocity
-            0.25    , & !.s_vel...dispersion of the fall velocity
+            0.2     , & !.s_vel...dispersion of the fall velocity
             0.780000, & !.a_ven..ventilation coefficient (PK, p.541)
             0.308000, & !.b_ven..ventilation coefficient (PK, p.541)
             2.0)        !.cap....capacity coefficient
@@ -2200,7 +2198,7 @@ contains
             0.300000, & !.b_geo..coefficient of meteor geometry
             7.64e+01, & !.a_vel..coefficient of fall velocity
             0.255200, & !.b_vel..coefficient of fall velocity
-            0.25    , & !.s_vel...dispersion of the fall velocity
+            0.0     , & !.s_vel...dispersion of the fall velocity
             0.780000, & !.a_ven..ventilation coefficient (PK, p.541)
             0.308000, & !.b_ven..ventilation coefficient (PK, p.541)
             2.0)        !.cap....capacity coefficient
