@@ -1302,7 +1302,6 @@ CONTAINS
                 ! Exclude the first a and b bin (splinters could not be smaller)
                 IF (dN>prlim .AND. pice(ii,jj,cc)%numc>prlim .AND. cc/=1 .AND. cc/=inp2b) THEN
                     ! Target bin: bin index divided by two
-                    !   inp2a,fnp2a,inp2b,fnp2b,
                     IF (cc>fnp2a) THEN
                         bb = fnp2a+FLOOR(0.5*(cc-fnp2a)) ! b-bins
                     ELSE

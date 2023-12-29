@@ -112,7 +112,7 @@ MODULE mo_submctl
   LOGICAL :: nlsip_hm = .FALSE. ! Master switch (needs also coagulation)
   REAL :: c_mult = 3.5e8  ! Splintering coefficient (particles per kg of rime)
   REAL :: hm_dmin_drop=25e-5, hm_dmin_ice=25e-6 ! Minimum aerosol/cloud/rain drop and ice/snow diameters
-  REAL, SAVE, ALLOCATABLE :: rime_volc_ice(:,:,:), rime_volc_snw(:,:,:) ! Data arrays (rime water volume per m3)
+  REAL, SAVE, ALLOCATABLE :: rime_volc_ice(:,:,:), rime_volc_snw(:,:,:) ! Rime water volume per m3
 
   ! Ice and snow mass-dimension-velocity parameterizations
   !  Defaults:  d=(6/pi*sum(m(i)/rho(i)))**(1/3), v=12.0*sqrt(d)

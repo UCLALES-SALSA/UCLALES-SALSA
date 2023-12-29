@@ -459,6 +459,9 @@ contains
     case('wmax')
        if (itype==0) ncinfo = 'Maximum vertical velocity'
        if (itype==1) ncinfo = 'm/s'
+    case('wmin')
+       if (itype==0) ncinfo = 'Minimum vertical velocity'
+       if (itype==1) ncinfo = 'm/s'
     case('wbase')
        if (itype==0) ncinfo = 'Cloud base vertical velocity'
        if (itype==1) ncinfo = 'm/s'
@@ -564,8 +567,11 @@ contains
     case('hwp_bar','hwp')
        if (itype==0) ncinfo = 'Hail-water path'
        if (itype==1) ncinfo = 'kg/m^2'
-    case('prcp')
-       if (itype==0) ncinfo = 'Surface precipitation rate'
+    case('rprcp','prcp')
+       if (itype==0) ncinfo = 'Surface rain precipitation rate'
+       if (itype==1) ncinfo = 'W/m^2'
+    case('cprcp','prcc')
+       if (itype==0) ncinfo = 'Surface cloud precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
     case('iprcp')
        if (itype==0) ncinfo = 'Surface ice precipitation rate'
@@ -658,6 +664,12 @@ contains
     case('SSi_min')
        if (itype==0) ncinfo = 'Minimum supersaturation over ice'
        if (itype==1) ncinfo = '%'
+    case('T_min')
+       if (itype==0) ncinfo = 'Minimum absolute temperature'
+       if (itype==1) ncinfo = 'K'
+    case('T_max')
+       if (itype==0) ncinfo = 'Maximum absolute temperature'
+       if (itype==1) ncinfo = 'K'
     case('thl_int')
        if (itype==0) ncinfo = 'Integrated liquid water potential temperature change'
        if (itype==1) ncinfo = 'Km'
@@ -977,33 +989,6 @@ contains
     case('rho_air')
        if (itype==0) ncinfo = 'Air density'
        if (itype==1) ncinfo = 'kg/m^3'
-
-    ! SALSA column statistics
-    case('Nc')
-       if (itype==0) ncinfo = 'Number-mean cloud droplet concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('Nr')
-       if (itype==0) ncinfo = 'Number-mean rain drop concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-    case('Ni')
-       if (itype==0) ncinfo = 'Number-mean ice concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-    case('Ns')
-       if (itype==0) ncinfo = 'Number-mean snow concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-    case('Rwc')
-       if (itype==0) ncinfo = 'Number-mean cloud droplet radius'
-       if (itype==1) ncinfo = 'm'
-    case('Rwr')
-       if (itype==0) ncinfo = 'Number-mean rain drop radius'
-       if (itype==1) ncinfo = 'm'
-    case('Rwi')
-       if (itype==0) ncinfo = 'Number-mean ice radius'
-       if (itype==1) ncinfo = 'm'
-    case('Rws')
-       if (itype==0) ncinfo = 'Number-mean snow radius'
-       if (itype==1) ncinfo = 'm'
 
     ! SALSA profile statistics
     case('P_hNca')
@@ -1478,7 +1463,11 @@ contains
             get_salsa_info = 'kg/m^2/s'
         ELSEIF (itype==2) THEN
             ! NetCDF dimensions
-            get_salsa_info = 'time'
+            IF (dims==0) THEN
+                get_salsa_info = 'time'
+            ELSE
+                get_salsa_info = 'tttt'
+            ENDIF
         ENDIF
     ENDIF
     END function get_salsa_info

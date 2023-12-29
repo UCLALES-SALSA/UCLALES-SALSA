@@ -29,18 +29,19 @@ module stat
   implicit none
   private
 
-  integer, parameter :: nvar1 = 35,               &
+  integer, parameter :: nvar1 = 37,               &
                         nv1_ice = 22,             &
                         nv1_lvl4 = 5,             &
                         nv1_lvl5 = 12,            &
-                        nvar2 = 96,               &
+                        nvar2 = 98,               &
                         nv2_ice = 21,             &
                         nv2_lvl4 = 0,             &
-                        nv2_lvl5 = 9,             &
+                        nv2_lvl5 = 11,            &
                         nv2_hist = 2,             &
-                        nvar3 = 20,               &
+                        nvar3 = 25,               &
+                        nv3_ice = 20,             &
                         nv3_lvl4 = 0,             &
-                        nv3_lvl5 = 6
+                        nv3_lvl5 = 10
 
   integer, save      :: nrec1, nrec2, nrec3, ncid1, ncid2, ncid3
   real, save         :: fsttm, lsttm, nsmp = 0
@@ -68,7 +69,8 @@ module stat
        'lhf_bar','zi_bar ','lwp_bar','lwp_var','zc     ','zb     ', & !13
        'cfrac  ','lmax   ','albedo ','nccnt  ','zcmn   ','zbmn   ', & !19
        'ncloud ','wvp_bar','rwp_bar','prcp   ','nrain  ','nrcnt  ', & !25
-       'prcp_bc','tkeint ','thl_int','prcc_bc','wvar_bc'/),         & !31
+       'prcp_bc','tkeint ','thl_int','prcc_bc','wvar_bc','Rcloud ', & !31
+       'Rrain  '/), & !37
 
        s1_ice(nv1_ice) = (/ &
        'iwp_bar','Rice   ','nice   ','nicnt  ','iprcp  ',  & ! 1-5
@@ -77,13 +79,12 @@ module stat
        'hwp_bar','Rhail  ','nhail  ','nhcnt  ','hprcp  ',  & ! 16-20
        'SSi_max','thi_int'/), & ! 21
 
-       ! **** Bulk temporal statistics for SALSA ****
        s1_lvl4(nv1_lvl4) = (/       &
        'SS_max ','flx_aer','flx_iso','flx_mt ','u10    '/), & ! 1-5
 
        s1_lvl5(nv1_lvl5) = (/  &
-       'iwp_bar','imax   ','nice   ','nicnt  ','iprcp  ',  & ! 1-5
-       'swp_bar','smax   ','nsnow  ','nscnt  ','sprcp  ',  & ! 6-10
+       'iwp_bar','Rice   ','nice   ','nicnt  ','iprcp  ',  & ! 1-5
+       'swp_bar','Rsnow  ','nsnow  ','nscnt  ','sprcp  ',  & ! 6-10
        'SSi_max','thi_int'/), & ! 11-12
 
         s2(nvar2)=(/                                                 &
@@ -102,7 +103,8 @@ module stat
         'wrt_cs1','cs2    ','cnt_cs2','w_cs2  ','tl_cs2 ','tv_cs2 ', & ! 73
         'rt_cs2 ','rc_cs2 ','wtl_cs2','wtv_cs2','wrt_cs2','rv     ', & ! 79
         'crate  ','frac_ic','Nc_ic  ','evap   ','rr     ','rrate  ', & ! 85
-        'frac_ir','Nr_ir  ','sw_up  ','sw_down','lw_up  ','lw_down'/), & ! 91, total 96
+        'frac_ir','Nr_ir  ','sw_up  ','sw_down','lw_up  ','lw_down', & ! 91
+        'Rc_ic  ','Rr_ir  '/), & ! 97, total 98
 
         s2_ice(nv2_ice)=(/ &
         'ri     ','Ni_ii  ','Ri_ii  ','frac_ii','irate  ', & ! 1
@@ -110,24 +112,36 @@ module stat
         'rg     ','Ng_ig  ','Rg_ig  ','frac_ig','grate  ', & ! 11
         'rh     ','Nh_ih  ','Rh_ih  ','frac_ih','hrate  ','thi    '/), & ! 16
 
-        ! **** BULK PROFILE OUTPUT FOR SALSA ****
         s2_lvl4(nv2_lvl4), & ! Not used
 
         s2_lvl5(nv2_lvl5) = (/ &
-        'ri     ','Ni_ii  ','frac_ii','irate  ','rs     ','Ns_is  ','frac_is','srate  ','thi    '/), & ! 1-9
+        'ri     ','Ni_ii  ','Ri_ii  ','frac_ii','irate  ', & ! 1-5
+        'rs     ','Ns_is  ','Rs_is  ','frac_is','srate  ', & ! 6-10
+        'thi    '/), & ! 11
 
         ! **** Cloud droplet and ice histograms
         s2_CldHist(nv2_hist) = (/'P_hNca ','P_hNcb '/), &
         s2_IceHist(nv2_hist) = (/'P_hNia ','P_hNib '/), &
 
         ! Column statistics
-       s3(nvar3)=(/ &
-       'time   ','xt     ','xm     ','yt     ','ym     ','lwp    ','rwp    ', & ! 1-7
-       'Nc     ','Nr     ','Rwc    ','Rwr    ','zb     ','zc     ','zi1    ', & ! 8-14
-       'lmax   ','wmax   ','wbase  ','prcp   ','prcp_bc','albedo '/), & ! 15-20
-       s3_lvl4(nv3_lvl4), & ! Not used
-       s3_lvl5(nv3_lvl5) = (/ &
-       'iwp    ','swp    ','Ni     ','Ns     ','Rwi    ','Rws    '/) ! 1-6
+        s3(nvar3)=(/ & ! Warm clouds
+        'time   ','xt     ','xm     ','yt     ','ym     ', & ! 1-5
+        'lwp    ','Nc_ic  ','Rc_ic  ','cprcp  ','nccnt  ', & ! 6-10
+        'rwp    ','Nr_ir  ','Rr_ir  ','rprcp  ','nrcnt  ', & ! 11-15
+        'zb     ','zc     ','zi1    ','lmax   ','albedo ', & ! 16-20
+        'wmin   ','wmax   ','wbase  ','prcp_bc','prcc_bc'/), & ! 21-25
+
+        s3_ice(nv3_ice)=(/ & ! Level 0 ice
+        'iwp    ','Ni_ii  ','Ri_ii  ','iprcp  ','nicnt  ', & ! 1-5
+        'swp    ','Ns_is  ','Rs_is  ','sprcp  ','nscnt  ', & ! 6-10
+        'gwp    ','Ng_ig  ','Rg_ig  ','gprcp  ','ngcnt  ', & ! 11-15
+        'hwp    ','Nh_ih  ','Rh_ih  ','hprcp  ','nhcnt  '/), & ! 16-20
+
+        s3_lvl4(nv3_lvl4), & ! Not used
+
+        s3_lvl5(nv3_lvl5) = (/ & ! Level 5 ice
+        'iwp    ','Ni_ii  ','Ri_ii  ','iprcp  ','nicnt  ', & ! 1-5
+        'swp    ','Ns_is  ','Rs_is  ','sprcp  ','nscnt  '/) ! 6-10
 
   real, save, allocatable   :: tke_sgs(:), tke_res(:), tke0(:), wtv_sgs(:),  &
        wtv_res(:), wrl_sgs(:), thvar(:), svctr(:,:), ssclr(:),               &
@@ -174,9 +188,7 @@ contains
   !
   ! ---------------------------------------------------------------------
   ! INIT_STAT:  This routine initializes the statistical arrays which
-  ! are user/problem defined.  Note that svctr is given 100 elements, and
-  ! elements 90 and above are used for computing the TKE budget. Hence
-  ! if (nvar2 >= 90 the program stops
+  ! are user/problem defined.
   !
   subroutine init_stat(time, filprf, expnme, nzp)
 
@@ -258,6 +270,9 @@ contains
     ALLOCATE ( user_ps_data(nzp,nv2_user), user_ts_data(nv1_user) )
     user_ps_data(:,:) = 0.; user_ts_data(:) = 0.
 
+    ! Cloud and rain masks for all levels
+    ALLOCATE ( cloudmask(nzp,nxp,nyp), rainmask(nzp,nxp,nyp) )
+
     IF ( level < 4 ) THEN
        ! Merge logical and name arrays
        ! a) Time series
@@ -321,8 +336,7 @@ contains
        ALLOCATE ( ssclr_lvl5(nv1_lvl5), svctr_lvl5(nzp,nv2_lvl5) )
        ALLOCATE ( ssclr_rem(nv1_rem) )
        ALLOCATE ( s1_rem(nv1_rem) )
-       ALLOCATE ( cloudmask(nzp,nxp,nyp), rainmask(nzp,nxp,nyp), &
-                  icemask(nzp,nxp,nyp), snowmask(nzp,nxp,nyp) )
+       ALLOCATE ( icemask(nzp,nxp,nyp), snowmask(nzp,nxp,nyp) )
        ! -- reset data arrays
        ssclr_lvl4(:) = 0.; svctr_lvl4(:,:) = 0.
        ssclr_lvl5(:) = 0.; svctr_lvl5(:,:) = 0.
@@ -347,8 +361,8 @@ contains
        IF (no_prog_snw) s1_lvl5_bool(6:10)=.FALSE.
        s2_lvl4_bool(:) = .TRUE.
        s2_lvl5_bool(:) = (level>4)
-       IF (no_prog_ice) s2_lvl5_bool(1:4)=.FALSE.
-       IF (no_prog_snw) s2_lvl5_bool(5:8)=.FALSE.
+       IF (no_prog_ice) s2_lvl5_bool(1:5)=.FALSE.
+       IF (no_prog_snw) s2_lvl5_bool(6:10)=.FALSE.
 
        ! Surface emissions
        s1_lvl4_bool(2) = ifSeaSpray ! Aerosol
@@ -528,13 +542,18 @@ contains
         s3_lvl4_bool=(level>=4)
         ! Level 5
         s3_lvl5_bool=(level>=5)
+        IF (no_prog_ice) s3_lvl5_bool(1:5)=.FALSE.
+        IF (no_prog_snw) s3_lvl5_bool(6:10)=.FALSE.
+        ! Level 0 ice
+        tmp_bool=(level==0 .AND. lev_sb>=4)
+        tmp_bool(16:20)=(level==0 .AND. lev_sb>=5) ! hail is for sb_lev=5
 
         ! Merge logical and name arrays (reuse s1 arrays)
         DEALLOCATE( s1bool, s1total )
         ! Default (mostly levels 3 & 4) parameters, specific level 4 and 5 parameters,
         ! removal statistics, process rate statistics and user outputs.
         ! Note: removal outputs are the same as those in the time series outputs!
-        i = nvar3 + nv3_lvl4 + nv3_lvl5 + nv1_rem+nv3_proc+nv3_user
+        i = nvar3 + nv3_lvl4 + nv3_lvl5 + nv3_ice + nv1_rem+nv3_proc+nv3_user
         ALLOCATE( s1bool(i), s1total(i) )
         i=1; e=nvar3
         s1total(i:e)=s3; s1bool(i:e)=s3_bool
@@ -545,6 +564,10 @@ contains
         IF (nv3_lvl5>0) THEN
             i=e+1; e=e+nv3_lvl5
             s1bool(i:e)=s3_lvl5_bool; s1total(i:e)=s3_lvl5
+        ENDIF
+        IF (nv3_ice>0) THEN
+            i=e+1; e=e+nv3_ice
+            s1bool(i:e)=tmp_bool(1:nv3_ice); s1total(i:e)=s3_ice
         ENDIF
         IF (nv1_rem>0) THEN
             i=e+1; e=e+nv1_rem
@@ -688,11 +711,11 @@ contains
   ! Modified for level 5
   ! Jaakko Ahola, FMI, 2016
   subroutine statistics(time)
-
+    use mo_submctl, only : nlim, prlim
     use grid, only : a_up, a_vp, a_wp, a_rc, a_theta, a_temp, a_rv           &
          , a_rp, a_tp, a_press, nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean            &
          , vmean, dn0, a_dn, cldin, precip, a_rpp, a_npp, CCN, iradtyp, a_rflx, a_sflx  &
-         , a_fus, a_fds, a_fuir, a_fdir, albedo, a_srp, a_snrp, a_ncloudp, a_ri, a_nicep, a_srs, a_snrs
+         , a_fus, a_fds, a_fuir, a_fdir, albedo, a_srp, a_snrp, a_ncloudp, a_ri, a_srs
     USE defs, ONLY : cp, alvi
 
     real, intent (in) :: time
@@ -733,6 +756,19 @@ contains
           thl = a_tp
     END SELECT
 
+    ! CDNC
+    rnt = CCN
+    IF (level>3) rnt = SUM(a_ncloudp,DIM=4)
+
+    ! Cloud and rain masks
+    IF (level<4) THEN
+        cloudmask(:,:,:) = ( rxl(:,:,:) > 1.e-5 )
+        rainmask(:,:,:) = ( xrpp(:,:,:) > 1.e-8 )
+    ELSE
+        cloudmask(:,:,:) = ( rnt(:,:,:) > nlim .AND. rxl(:,:,:) > 1.e-5 )
+        rainmask(:,:,:) = ( xnpp(:,:,:) > prlim .AND. xrpp(:,:,:) > 1.e-8 )
+    ENDIF
+
     if (nsmp == 0.) fsttm = time
     nsmp=nsmp+1.
     ssclr(14:nvar1) = -999.
@@ -747,8 +783,8 @@ contains
     elseif (iradtyp > 0) then
        call accum_rad(nzp, nxp, nyp, a_rflx)
     end if
-    call accum_cld(nzp, nxp, nyp, th00, a_wp, a_theta, thl, rxl, rxt, rxv, cldin, CCN, xrpp, xnpp, precip)
-    if (level ==0) call accum_ice(nzp, nxp, nyp)
+    call accum_cld(nzp, nxp, nyp, th00, a_wp, a_theta, thl, rxl, rxt, rxv, cldin, rnt, xrpp, xnpp, precip)
+    if (level ==0 .AND. (lev_sb==4 .OR. lev_sb==5)) call accum_ice(nzp, nxp, nyp)
     if (level >=4)  call accum_lvl4(nzp, nxp, nyp)
     if (level >=5)  call accum_lvl5(nzp, nxp, nyp)
     IF (nv2_user>0) call ps_user_stats()
@@ -757,8 +793,8 @@ contains
     ! scalar statistics
     !
     call set_ts(nzp, nxp, nyp, a_wp, a_theta, thl, dn0, zt,zm,dzt,th00,time)
-    CALL ts_cld(nzp, nxp, nyp, a_wp, a_dn, zm, zt, rxl, rxt, rxv, CCN, xrpp, xnpp, precip,cldin)
-    IF ( level ==0 ) CALL ts_ice(nzp, nxp, nyp)
+    CALL ts_cld(nzp, nxp, nyp, a_wp, a_dn, zm, zt, dzt, rxl, rxt, rxv, rnt, xrpp, xnpp, precip,cldin)
+    IF ( level ==0 .AND. (lev_sb==4 .OR. lev_sb==5) ) CALL ts_ice(nzp, nxp, nyp)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp)
     IF ( level >=5 ) CALL ts_lvl5(nzp, nxp, nyp)
     IF ( nv1_user>0 ) CALL ts_user_stats()
@@ -769,15 +805,14 @@ contains
     ! Column statistics
     !
     IF (csflg) THEN
-        ! Warm cloud statistics (xrpp and xnpp from above; CDNC is calculated below)
-        rnt = CCN
-        IF (level>3) rnt = SUM(a_ncloudp,DIM=4)
-        CALL set_cs_warm(nzp,nxp,nyp,a_rc,rnt,xrpp,xnpp,a_theta,a_wp,precip,a_dn,zm,zt,dzm)
+        ! Warm cloud statistics (rnt=CDNC, xrpp and xnpp from above)
+        CALL set_cs_warm(nzp,nxp,nyp,a_rc,rnt,xrpp,xnpp,a_theta,a_wp,cldin,precip,a_dn,zt,dzm)
 
         ! Ice cloud statistics
         IF (level==5) THEN
-            rnt = SUM(a_nicep,DIM=4)
-            CALL set_cs_cold(nzp,nxp,nyp,a_ri,rnt,a_srs,a_snrs,a_dn,zm)
+            CALL set_cs_lvl5(nzp,nxp,nyp)
+        ELSEIF (level==0 .AND. (lev_sb==4 .OR. lev_sb==5)) THEN
+            CALL set_cs_ice(nzp,nxp,nyp)
         ENDIF
 
         ! User-defined outputs
@@ -830,85 +865,38 @@ contains
   END SUBROUTINE cs_rem_set
   !
   ! Calculate warm cloud statistics
-  subroutine set_cs_warm(n1,n2,n3,rc,nc,rp,np,th,w,rrate,dn,zm,zt,dzm)
+  subroutine set_cs_warm(n1,n2,n3,rc,nc,rp,np,th,w,crate,rrate,dn,zt,dzm)
 
     use netcdf
-    use defs, only : rowt, pi
     use grid, only : meanRadius
 
     integer, intent(in) :: n1,n2,n3
     real, intent(in)    :: rc(n1,n2,n3),nc(n1,n2,n3),rp(n1,n2,n3),np(n1,n2,n3),th(n1,n2,n3)
-    real, intent(in)    :: w(n1,n2,n3),rrate(n1,n2,n3),dn(n1,n2,n3),zm(n1),zt(n1),dzm(n1)
-    REAL :: lwp(n2,n3), ncld(n2,n3), rcld(n2,n3), rwp(n2,n3), nrain(n2,n3), rrain(n2,n3), &
-            zb(n2,n3), zc(n2,n3), th1(n2,n3), lmax(n2,n3), prcp_bc(n2,n3), wbase(n2,n3), wmax(n2,n3)
-    REAL :: Rwc(n1,n2,n3), Rwr(n1,n2,n3)
+    real, intent(in)    :: w(n1,n2,n3),crate(n1,n2,n3),rrate(n1,n2,n3),dn(n1,n2,n3),zt(n1),dzm(n1)
+    REAL :: zb(n2,n3), zc(n2,n3), th1(n2,n3), prcp_bc(n2,n3), prcc_bc(n2,n3), wbase(n2,n3)
+    REAL :: a(n2,n3), a1(n1,n2,n3)
     integer :: i, j, k, iret, VarID, ibase, itop
-    real    :: cld, rn, sval, dmy
-
-    ! No outputs for level 1
-    IF (level<2) RETURN
-
-    ! Calculate wet radius
-    IF (level>3) THEN
-        CALL meanRadius('cloud','ab',Rwc)
-        CALL meanRadius('precp','ab',Rwr)
-    ELSE
-        ! r=n*rho*4/3*pi*r**3
-        WHERE (nc>0.)
-            Rwc=(0.75/(rowt*pi)*rc/nc)**(1./3.)
-        ELSEWHERE
-            Rwc=0.
-        END WHERE
-        WHERE (np>0.)
-            Rwr=(0.75/(rowt*pi)*rp/np)**(1./3.)
-        ELSEWHERE
-            Rwr=0.
-        END WHERE
-    ENDIF
+    real    :: sval, dmy
 
     ! Calculate stats
-    lwp=0.      ! LWP (kg/m^2)
-    ncld=0.     ! Average CDNC (#/kg)
-    rcld=0.     ! Average cloud droplet radius (m)
-    rwp=0.      ! RWP (kg/m^2)
-    nrain=0.    ! Average RDNC (#/kg)
-    rrain=0.    ! Average rain drop radius (m)
     zb=-999.    ! Cloud base height (m)
     zc=-999.    ! Cloud top height (m)
-    lmax=0.     ! Maximum liquid water mixing ratio (kg/kg)
     th1=0.      ! Height of the maximum theta gradient (m)
-    prcp_bc=-999. ! Precipitation rate at the cloud base (W/m^2)
+    prcp_bc=-999. ! Rain precipitation rate at the cloud base (W/m^2)
+    prcc_bc=-999. ! Cloud precipitation rate at the cloud base (W/m^2)
     wbase=-999.   ! Vertical velocity -||- (m/s)
-    wmax=0.     ! Maximum absolute vertical velocity (m/s)
     do j=3,n3-2
        do i=3,n2-2
-          cld=0.
-          rn=0.
           ibase=-1
           itop=-1
           sval = 0.
           do k=2,n1
-             lwp(i,j)=lwp(i,j)+rc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-             ! Number weighted averages of CDNC and cloud droplet radius
-             ncld(i,j)=ncld(i,j)+nc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*nc(k,i,j)
-             rcld(i,j)=rcld(i,j)+nc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*Rwc(k,i,j)
-             cld=cld+nc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
              ! The first and last cloudy (rc>1e-5 kg/kg) grid cell
              IF (rc(k,i,j)>0.01e-3) THEN
                 IF (ibase<0) ibase=k
                 itop=k
              END IF
              !
-             rwp(i,j)=rwp(i,j)+rp(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-             ! Number weighted average of RDNC and rain drop radius
-             nrain(i,j)=nrain(i,j)+np(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*np(k,i,j)
-             rrain(i,j)=rrain(i,j)+np(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*Rwr(k,i,j)
-             rn=rn+np(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-             !
-             ! Maximum liquid water mixing ratio
-             lmax(i,j) = max(lmax(i,j),rc(k,i,j))
-             ! Maximum absolute vertical velocity
-             IF (abs(wmax(i,j))<ABS(w(k,i,j))) wmax(i,j) = w(k,i,j)
              ! Height of the maximum theta gradient
              if (k<=n1-5) then
                 dmy = (th(k+1,i,j)-th(k,i,j))*dzm(k)
@@ -918,18 +906,6 @@ contains
                 end if
             ENDIF
           enddo
-          IF (cld>0.) THEN
-            ncld(i,j)=ncld(i,j)/cld
-            rcld(i,j)=rcld(i,j)/cld
-          ELSE
-            rcld(i,j)=-999.
-          END IF
-          IF (rn>0.) THEN
-            nrain(i,j)=nrain(i,j)/rn
-            rrain(i,j)=rrain(i,j)/rn
-          ELSE
-            rrain(i,j)=-999.
-          END IF
           IF (ibase>0) THEN
             ! Cloud base and top
             zb(i,j)=zt(ibase)
@@ -937,29 +913,12 @@ contains
             ! Cloud base vertical velocity and precipitation (taken from the level just below cloud base)
             wbase(i,j) = w(max(2,ibase-1),i,j)
             prcp_bc(i,j) = rrate(max(2,ibase-1),i,j)
+            prcc_bc(i,j) = crate(max(2,ibase-1),i,j)
           ENDIF
        end do
     end do
 
     ! Save the data
-
-    iret = nf90_inq_varid(ncid3,'lwp',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, lwp(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-
-    iret = nf90_inq_varid(ncid3,'rwp',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rwp(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-
-    iret = nf90_inq_varid(ncid3,'Nc',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, ncld(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-
-    iret = nf90_inq_varid(ncid3,'Nr',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nrain(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-
-    iret = nf90_inq_varid(ncid3,'Rwc',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rcld(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-
-    iret = nf90_inq_varid(ncid3,'Rwr',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rrain(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_inq_varid(ncid3,'zb',VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, zb(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
@@ -970,105 +929,304 @@ contains
     iret = nf90_inq_varid(ncid3,'zi1',VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, th1(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
-    iret = nf90_inq_varid(ncid3,'lmax',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, lmax(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-
-    iret = nf90_inq_varid(ncid3,'wmax',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, wmax(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-
     iret = nf90_inq_varid(ncid3,'wbase',VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, wbase(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
     iret = nf90_inq_varid(ncid3,'prcp_bc',VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, prcp_bc(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
+    iret = nf90_inq_varid(ncid3,'prcc_bc',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, prcc_bc(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+
+    iret = nf90_inq_varid(ncid3,'lmax',VarID)
+    IF (iret==NF90_NOERR) THEN
+        a=MAXVAL(rc,DIM=1)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+
+    iret = nf90_inq_varid(ncid3,'wmax',VarID)
+    IF (iret==NF90_NOERR) THEN
+        a=MAXVAL(w,DIM=1)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+
+    iret = nf90_inq_varid(ncid3,'wmin',VarID)
+    IF (iret==NF90_NOERR) THEN
+        a=MINVAL(w,DIM=1)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+
+    ! Liquid water path
+    iret = nf90_inq_varid(ncid3,'lwp',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,rc,a,dens=dn)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Radius, conditional average
+    iret = nf90_inq_varid(ncid3,'Rc_ic',VarID)
+    IF (iret==NF90_NOERR) THEN
+        ! Calculate wet radius
+        IF (level>3) THEN
+            CALL meanRadius('cloud','ab',a1)
+        ELSE
+            CALL getSBradius(n1,n2,n3,nc,rc,0,a1)
+        ENDIF
+        CALL get_avg_cs(n1,n2,n3,a1,a,cond=cloudmask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Number concentration, conditional average
+    iret = nf90_inq_varid(ncid3,'Nc_ic',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,nc,a,cond=cloudmask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Total number of cloudy grid cells
+    iret = nf90_inq_varid(ncid3,'nccnt',VarID)
+    IF (iret==NF90_NOERR) THEN
+        a(:,:)=COUNT( cloudmask, DIM=1 )
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Surface precipitation rate
+    iret = nf90_inq_varid(ncid3,'cprcp',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, crate(2,3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+
+    ! Rain water path
+    iret = nf90_inq_varid(ncid3,'rwp',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,rp,a,dens=dn)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Radius, conditional average
+    iret = nf90_inq_varid(ncid3,'Rr_ir',VarID)
+    IF (iret==NF90_NOERR) THEN
+        ! Calculate wet radius
+        IF (level>3) THEN
+            CALL meanRadius('precp','ab',a1)
+        ELSE
+            CALL getSBradius(n1,n2,n3,np,rp,0,a1)
+        ENDIF
+        CALL get_avg_cs(n1,n2,n3,a1,a,cond=rainmask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Number concentration, conditional average
+    iret = nf90_inq_varid(ncid3,'Nr_ir',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,np,a,cond=rainmask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Total number of rainy grid cells
+    iret = nf90_inq_varid(ncid3,'nrcnt',VarID)
+    IF (iret==NF90_NOERR) THEN
+        a(:,:)=COUNT( rainmask, DIM=1 )
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Surface precipitation rate
+    iret = nf90_inq_varid(ncid3,'rprcp',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rrate(2,3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+
   end subroutine set_cs_warm
 
   ! Calculate cold cloud statistics
-  subroutine set_cs_cold(n1,n2,n3,ri,ni,rs,ns,dn,zm)
-
+  ! a) SALSA level 5
+  subroutine set_cs_lvl5(n1,n2,n3)
+    USE grid, ONLY : meanRadius, bulkNumc, a_dn, a_ri, a_srs, icein, snowin
     use netcdf
-    use grid, only : meanRadius
+    integer, intent (in) :: n1,n2,n3
+    real    :: a(n2,n3), a1(n1,n2,n3)
+    INTEGER :: iret,VarID
 
-    integer, intent(in) :: n1,n2,n3
-    real, intent(in)    :: ri(n1,n2,n3),ni(n1,n2,n3),rs(n1,n2,n3),ns(n1,n2,n3)
-    real, intent(in)    :: dn(n1,n2,n3),zm(n1)
-    REAL :: iwp(n2,n3), nice(n2,n3), rice(n2,n3), swp(n2,n3), nsnow(n2,n3), rsnow(n2,n3)
-    REAL :: Rwi(n1,n2,n3), Rws(n1,n2,n3)
-    integer :: i, j, k, iret, VarID
-    real    :: ice, sn
-
-    ! No outputs for levels less than 5
-    IF (level<5) RETURN
-
-    ! Calculate wet radius
-    CALL meanRadius('ice','ab',Rwi)
-    CALL meanRadius('snow','ab',Rws)
-
-    ! Calculate stats
-    iwp=0.   ! IWP (kg/m^2)
-    nice=0.  ! Average ice number concentration (#/kg)
-    rice=0.  ! Average ice radius (m)
-    swp=0.   ! SWP (kg/m^2)
-    nsnow=0. ! Average snow number concentration (#/kg)
-    rsnow=0. ! Average snow radius (m)
-    do j=3,n3-2
-       do i=3,n2-2
-          ice=0.
-          sn=0.
-          do k=2,n1
-             iwp(i,j)=iwp(i,j)+ri(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-             ! Number weighted average of ice number concentration and radius
-             nice(i,j)=nice(i,j)+ni(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*ni(k,i,j)
-             rice(i,j)=rice(i,j)+ni(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*Rwi(k,i,j)
-             ice=ice+ni(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-             !
-             swp(i,j)=swp(i,j)+rs(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-             ! Number weighted average of snow number concentration and radius
-             nsnow(i,j)=nsnow(i,j)+ns(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*ns(k,i,j)
-             rsnow(i,j)=rsnow(i,j)+ns(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))*Rws(k,i,j)
-             sn=sn+ns(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
-          enddo
-          IF (ice>0.) THEN
-            nice(i,j)=nice(i,j)/ice
-            rice(i,j)=rice(i,j)/ice
-          ELSE
-            rice(i,j)=-999.
-          END IF
-          IF (sn>0.) THEN
-            nsnow(i,j)=nsnow(i,j)/sn
-            rsnow(i,j)=rsnow(i,j)/sn
-          ELSE
-            rsnow(i,j)=-999.
-          END IF
-       end do
-    end do
-
+    ! Ice water path
     iret = nf90_inq_varid(ncid3,'iwp',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, iwp(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,a_ri,a,dens=a_dn)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Radius, conditional average
+    iret = nf90_inq_varid(ncid3,'Ri_ii',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL meanRadius('ice','ab',a1)
+        a=-999.
+        CALL get_avg_cs(n1,n2,n3,a1,a,cond=icemask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Number concentration, conditional average
+    iret = nf90_inq_varid(ncid3,'Ni_ii',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL bulkNumc('ice','ab',a1)
+        a=-999.
+        CALL get_avg_cs(n1,n2,n3,a1,a,cond=icemask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Total number of icy grid cells
+    iret = nf90_inq_varid(ncid3,'nicnt',VarID)
+    IF (iret==NF90_NOERR) THEN
+        a(:,:)=COUNT( icemask, DIM=1 )
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Surface precipitation rate
+    iret = nf90_inq_varid(ncid3,'iprcp',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, icein(2,3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
+    ! The same for snow
     iret = nf90_inq_varid(ncid3,'swp',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, swp(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,a_srs,a,dens=a_dn)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Radius
+    iret = nf90_inq_varid(ncid3,'Rs_is',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL meanRadius('snow','ab',a1)
+        a=-999.
+        CALL get_avg_cs(n1,n2,n3,a1,a,cond=snowmask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Number concentration
+    iret = nf90_inq_varid(ncid3,'Ns_is',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL bulkNumc('snow','ab',a1)
+        a=-999.
+        CALL get_avg_cs(n1,n2,n3,a1,a,cond=snowmask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Total number
+    iret = nf90_inq_varid(ncid3,'nscnt',VarID)
+    IF (iret==NF90_NOERR) THEN
+        a(:,:)=COUNT( snowmask, DIM=1 )
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Surface precipitation rate
+    iret = nf90_inq_varid(ncid3,'sprcp',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, snowin(2,3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
-    iret = nf90_inq_varid(ncid3,'Ni',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nice(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+  end subroutine set_cs_lvl5
 
-    iret = nf90_inq_varid(ncid3,'Ns',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, nsnow(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+  ! b) Level 0 (SB 4 and 5) ice microphysics
+  SUBROUTINE set_cs_ice(n1,n2,n3)
+    USE grid, ONLY : a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, &
+        a_dn, icein, snowin, grin, hailin
+    use netcdf
+    integer, intent (in) :: n1,n2,n3
+    real    :: a(n2,n3), a1(n1,n2,n3)
+    INTEGER :: iret,VarID
+    LOGICAL :: mask(n1,n2,n3)
 
-    iret = nf90_inq_varid(ncid3,'Rwi',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rice(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ! Ice water path
+    iret = nf90_inq_varid(ncid3,'iwp',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,a_rip,a,dens=a_dn)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Mask for number concentration and radius
+    mask = (a_nip > ni_min .OR. a_rip > ri_min)
+    ! Radius, conditional average
+    iret = nf90_inq_varid(ncid3,'Ri_ii',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL getSBradius(n1,n2,n3,a_nip,a_rip,1,a1)
+        CALL get_avg_cs(n1,n2,n3,a1,a,cond=mask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Number concentration, conditional average
+    iret = nf90_inq_varid(ncid3,'Ni_ii',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,a_nip,a,cond=mask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Total number of icy grid cells
+    iret = nf90_inq_varid(ncid3,'nicnt',VarID)
+    IF (iret==NF90_NOERR) THEN
+        a(:,:)=COUNT( mask, DIM=1 )
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    ! Surface precipitation rate
+    iret = nf90_inq_varid(ncid3,'iprcp',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, icein(2,3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
-    iret = nf90_inq_varid(ncid3,'Rws',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, rsnow(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ! The same for snow
+    iret = nf90_inq_varid(ncid3,'swp',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,a_rsp,a,dens=a_dn)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    mask = (a_nsp > ni_min .OR. a_rsp > ri_min)
+    iret = nf90_inq_varid(ncid3,'Rs_is',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL getSBradius(n1,n2,n3,a_nsp,a_rsp,1,a1)
+        CALL get_avg_cs(n1,n2,n3,a1,a,cond=mask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    iret = nf90_inq_varid(ncid3,'Ns_is',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,a_nsp,a,cond=mask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    iret = nf90_inq_varid(ncid3,'nscnt',VarID)
+    IF (iret==NF90_NOERR) THEN
+        a(:,:)=COUNT( mask, DIM=1 )
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    iret = nf90_inq_varid(ncid3,'sprcp',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, snowin(2,3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
-  end subroutine set_cs_cold
+    ! The same for graupel
+    iret = nf90_inq_varid(ncid3,'gwp',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,a_rgp,a,dens=a_dn)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    mask = (a_ngp > ni_min .OR. a_rgp > ri_min)
+    iret = nf90_inq_varid(ncid3,'Rg_ig',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL getSBradius(n1,n2,n3,a_ngp,a_rgp,1,a1)
+        CALL get_avg_cs(n1,n2,n3,a1,a,cond=mask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    iret = nf90_inq_varid(ncid3,'Ng_ig',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,a_ngp,a,cond=mask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    iret = nf90_inq_varid(ncid3,'ngcnt',VarID)
+    IF (iret==NF90_NOERR) THEN
+        a(:,:)=COUNT( mask, DIM=1 )
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    iret = nf90_inq_varid(ncid3,'gprcp',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, grin(2,3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+
+    ! The same for hail
+    iret = nf90_inq_varid(ncid3,'hwp',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,a_rhp,a,dens=a_dn)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    mask = (a_nhp > ni_min .OR. a_rhp > ri_min)
+    iret = nf90_inq_varid(ncid3,'Rh_ih',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL getSBradius(n1,n2,n3,a_nhp,a_rhp,1,a1)
+        CALL get_avg_cs(n1,n2,n3,a1,a,cond=mask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    iret = nf90_inq_varid(ncid3,'Nh_ih',VarID)
+    IF (iret==NF90_NOERR) THEN
+        CALL get_avg_cs(n1,n2,n3,a_nhp,a,cond=mask)
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    iret = nf90_inq_varid(ncid3,'nhcnt',VarID)
+    IF (iret==NF90_NOERR) THEN
+        a(:,:)=COUNT( mask, DIM=1 )
+        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+    ENDIF
+    iret = nf90_inq_varid(ncid3,'hprcp',VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, hailin(2,3:n2-2,3:n3-2), start=(/1,1,nrec3/))
+
+  END SUBROUTINE set_cs_ice
 
   ! User-defined outputs (given in NAMELIST/user_cs_list)
   subroutine cs_user_stats()
     use netcdf
-    use grid, ONLY : CCN, nzp, nxp, nyp, a_dn, zm, a_rp, a_rv, a_rsl, a_rsi
-    INTEGER :: ii, i, j, k, n, iret, VarID
+    use grid, ONLY : CCN, nzp, nxp, nyp, a_dn, a_rv, a_rp, a_rsl, a_rsi, a_temp
+    INTEGER :: ii, iret, VarID
     REAL :: output(nxp,nyp), a(nzp,nxp,nyp)
     LOGICAL :: fail, mask(nzp,nxp,nyp), mass
     !
@@ -1099,6 +1257,9 @@ contains
                 WHERE(a_rsi>1e-10) a=a_rp/a_rsi
             ENDIF
             output(:,:)=(MAXVAL(a,DIM=1)-1.0)*100.
+        CASE ('T_min')
+            ! Minimum absolute temperature (K)
+            output(:,:)=MINVAL(a_temp,DIM=1)
         CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_cs_list(ii),a,mask,is_mass=mass)
@@ -1108,32 +1269,9 @@ contains
             ENDIF
             ! Calculate vertical integral when mass concentration, otherwise mean
             IF (mass) THEN
-                output(:,:)=0.
-                DO j=3,nyp-2
-                    DO i=3,nxp-2
-                        DO k=2,nzp
-                            IF (mask(k,i,j)) output(i,j)=output(i,j)+a(k,i,j)*a_dn(k,i,j)*(zm(k)-zm(k-1))
-                        ENDDO
-                    ENDDO
-                ENDDO
+                CALL get_avg_cs(nzp,nxp,nyp,a,output,cond=mask,dens=a_dn)
             ELSE
-                output(:,:)=0.
-                DO j=3,nyp-2
-                    DO i=3,nxp-2
-                        n=0
-                        DO k=2,nzp
-                            IF (mask(k,i,j)) THEN
-                                output(i,j)=output(i,j)+a(k,i,j)
-                                n=n+1
-                            ENDIF
-                        ENDDO
-                        IF (n>0) THEN
-                            output(i,j)=output(i,j)/REAL(n)
-                        ELSE
-                            output(i,j)=-999.
-                        ENDIF
-                    ENDDO
-                ENDDO
+                CALL get_avg_cs(nzp,nxp,nyp,a,output,cond=mask)
             ENDIF
         END SELECT
         ! Save
@@ -1144,7 +1282,7 @@ contains
   ! Other column statistics
   subroutine set_cs_other(time)
     use netcdf
-    USE grid, ONLY : nxp, nyp, xt, xm, yt, ym, albedo, precip, bulkMixrat
+    USE grid, ONLY : nxp, nyp, xt, xm, yt, ym, albedo
     ! Inputs
     REAL, INTENT(IN) :: time
     ! Local variables
@@ -1170,10 +1308,6 @@ contains
     iret = nf90_inq_varid(ncid3,'albedo',VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, albedo(3:nxp-2,3:nyp-2), start=(/1,1,nrec3/))
 
-    ! Surface precipitation
-    iret = nf90_inq_varid(ncid3,'prcp',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, precip(2,3:nxp-2,3:nyp-2), start=(/1,1,nrec3/))
-
     ! Level 4 and 5 removal/precipitation statistics (variable names are the same as those for ts)
     DO i = 1,nv1_rem
         iret = nf90_inq_varid(ncid3,s1_rem(i),VarID)
@@ -1191,7 +1325,75 @@ contains
     ! Update counter
     nrec3 = nrec3 + 1
   END subroutine set_cs_other
+  !
+  !---------------------------------------------------------------------
+  ! GET_AVG_CS: gets average field over vertical dimension.
+  !
+  SUBROUTINE get_avg_cs(n1,n2,n3,a,res,cond,dens)
+    USE grid, ONLY : zm ! Momentum points
+    integer, intent (in) :: n1, n2, n3
+    real, intent (in)   :: a(n1,n2,n3)
+    real, intent (OUT)  :: res(n2,n3)
+    logical, optional, intent(in) :: cond(n1,n2,n3) ! A flag for grid cells
+    real, optional, intent(in) :: dens(n1,n2,n3) ! Air density
+    integer :: i,j,k
+    real :: ztot
 
+    res(:,:) = 0.
+    IF (PRESENT(cond) .AND. PRESENT(dens)) THEN
+        ! Conditional vertical integral with density weights
+        DO j=3,n3-2
+            DO i=3,n2-2
+                DO k = 2,n1
+                    IF (cond(k,i,j)) THEN
+                        res(i,j) = res(i,j) + a(k,i,j)*dens(k,i,j)*(zm(k)-zm(k-1))
+                    END IF
+                END DO
+           END DO
+       END DO
+    ELSEIF (PRESENT(cond)) THEN
+        ! Conditional average
+        DO j=3,n3-2
+            DO i=3,n2-2
+                ztot = 0.
+                DO k = 2,n1
+                    IF (cond(k,i,j)) THEN
+                        res(i,j) = res(i,j) + a(k,i,j)*(zm(k)-zm(k-1))
+                        ztot = ztot + (zm(k)-zm(k-1))
+                    END IF
+                END DO
+                ! Grid weighted vertical average for columns with at least one available value
+                if (ztot>1e-10) THEN
+                    res(i,j) = res(i,j)/ztot
+                ELSE
+                    res(i,j) = -999.
+                END IF
+          END DO
+       END DO
+    ELSEIF (PRESENT(dens)) THEN
+       ! Vertical integral with density weights
+       DO j=3,n3-2
+          DO i=3,n2-2
+             DO k = 2,n1
+                res(i,j) = res(i,j) + a(k,i,j)*dens(k,i,j)*(zm(k)-zm(k-1))
+             END DO
+          END DO
+       END DO
+    ELSE
+       ! Average
+       DO j=3,n3-2
+          DO i=3,n2-2
+             ztot = 0.
+             DO k = 2,n1
+                res(i,j) = res(i,j) + a(k,i,j)*(zm(k)-zm(k-1))
+             END DO
+             ! Grid weighted vertical average
+             res(i,j) = res(i,j)/(zm(n1)-zm(1))
+          END DO
+       END DO
+    END IF
+
+  end SUBROUTINE get_avg_cs
   !
   ! -----------------------------------------------------------------------
   ! subroutine set_ts: computes and writes time sequence stats
@@ -1241,14 +1443,14 @@ contains
   ! -----------------------------------------------------------------------
   ! subroutine ts_cld: computes and writes time sequence stats
   !
-  subroutine ts_cld(n1,n2,n3,w,dn,zm,zt,rc,rt,rv,CCN,rr,nr,rrate,crate)
-
+  subroutine ts_cld(n1,n2,n3,w,dn,zm,zt,dzt,rc,rt,rv,nc,rr,nr,rrate,crate)
+    use grid, only : meanRadius
     integer, intent(in) :: n1,n2,n3
-    real, intent(in) :: dn(n1,n2,n3), zm(n1), zt(n1), rc(n1,n2,n3), rt(n1,n2,n3), rv(n1,n2,n3), CCN, &
-        rr(n1,n2,n3), nr(n1,n2,n3), rrate(n1,n2,n3), crate(n1,n2,n3), w(n1,n2,n3)
+    real, intent(in), DIMENSION(n1) :: zm, zt, dzt
+    real, intent(in), DIMENSION(n1,n2,n3) :: w, dn, rc, rt, rv, nc, rr, nr, rrate, crate
 
     integer :: k,i,j,n,m,l
-    real    :: scr(n2,n3), scr1(n2,n3), scr2(n2,n3), ct_sum, cb_sum, ct_max, cb_min, nrsum, rrcb, rccb, wvar
+    real    :: scr(n2,n3), scr1(n2,n3), scr2(n2,n3), ct_sum, cb_sum, ct_max, cb_min, rrcb, rccb, wvar, a(n1,n2,n3)
     INTEGER :: ct_tmp, cb_tmp
 
     ssclr(14) = get_zi_dmax(n1, n2, n3, rt, zt) ! height of the maximum total water gradient
@@ -1263,7 +1465,6 @@ contains
     cb_sum = 0.
     ct_max=  zt(1)  ! Maximum cloud top and minimum cloud base heights
     cb_min = zt(n1)
-    nrsum = 0.      ! Average rain drop concentration
     rrcb = 0.       ! Rain and cloud water precipitation rates at the cloud base
     rccb = 0.
     wvar = 0.       ! Cloud base vertical velocity variance
@@ -1273,15 +1474,14 @@ contains
           cb_tmp = n1
           do k=2,n1
              ! Cloudy grid cell
-             if (rc(k,i,j) > 1.e-5) then
+             if (cloudmask(k,i,j)) then
                 m = m+1
                 ct_tmp = max(ct_tmp,k)
                 cb_tmp = min(cb_tmp,k)
              end if
              ! Rainy grid cell
-             if (rr(k,i,j) > 1e-8) then
+             if (rainmask(k,i,j)) then
                 l = l +1
-                nrsum = nrsum + nr(k,i,j)
              end if
              ! LWP, RWP and WVP
              scr(i,j)=scr(i,j)+rc(k,i,j)*dn(k,i,j)*(zm(k)-zm(k-1))
@@ -1318,7 +1518,6 @@ contains
         ssclr(18) = get_pustat_scalar('min',cb_min) ! Minimum cloud base height
         ssclr(23) = get_pustat_scalar('avg',ct_sum,REAL(n)) ! Mean cloud top height
         ssclr(24) = get_pustat_scalar('avg',cb_sum,REAL(n)) ! Mean cloud base height
-        ssclr(25) = CCN
         ssclr(35) = get_pustat_scalar('avg',wvar,REAL(n))
     ELSE
         ssclr((/17,18,23,24,25,35/)) = -999.
@@ -1339,14 +1538,27 @@ contains
     scr(:,:) = rrate(2,:,:) + crate(2,:,:)
     ssclr(28) = get_avg2dh(n2,n3,scr)
 
-    ! average rain drop number concentration
-    ssclr(29) = get_pustat_scalar('avg',nrsum,REAL(l))
     ! total number of rain grid cells
     ssclr(30) = get_pustat_scalar('sum',REAL(l))
     ! average cloud base precipitation rate
     ssclr(31) = get_pustat_scalar('avg',rrcb/REAL((n3-4)*(n2-4)))
     ssclr(34) = get_pustat_scalar('avg',rccb/REAL((n3-4)*(n2-4)))
 
+    ! average cloud and rain drop number concentrations
+    ssclr(25) = get_avg_ts(n1,n2,n3,nc,dzt,cloudmask)
+    ssclr(29) = get_avg_ts(n1,n2,n3,nr,dzt,rainmask)
+    ! average radius
+    IF (level<4) THEN
+        CALL getSBradius(n1,n2,n3,nc,rc,0,a)
+        ssclr(36) = get_avg_ts(n1,n2,n3,a,dzt,cloudmask)
+        CALL getSBradius(n1,n2,n3,nr,rr,0,a)
+        ssclr(37) = get_avg_ts(n1,n2,n3,a,dzt,rainmask)
+    ELSE
+        CALL meanRadius('cloud','ab',a)
+        ssclr(36) = get_avg_ts(n1,n2,n3,a,dzt,cloudmask)
+        CALL meanRadius('precp','ab',a)
+        ssclr(37) = get_avg_ts(n1,n2,n3,a,dzt,rainmask)
+    ENDIF
 
   end subroutine ts_cld
   !
@@ -1412,6 +1624,7 @@ contains
     ssclr_ice(20) = get_avg2dh(n2,n3,scr)
 
     ! Maximum supersaturation over ice
+    a1=0.
     WHERE(a_rsi>1e-10) a1=a_rv/a_rsi
     ssclr_ice(21) = (get_max_val(n1,n2,n3,a1)-1.0)*100.
 
@@ -1434,25 +1647,13 @@ contains
   !  Some rewriting and adjusting by Juha Tonttila
   !
   SUBROUTINE ts_lvl4(n1,n2,n3)
-    USE grid, ONLY : bulkNumc, dzt, a_rp, a_rsl
+    USE grid, ONLY : a_rp, a_rsl
     IMPLICIT NONE
     integer, intent(in) :: n1,n2,n3
     REAL :: a0(n1,n2,n3)
-    INTEGER :: k
-
-    ! Update cloud droplet number concentrations and cloudy grid cell counts
-    CALL bulkNumc('cloud','ab',a0)
-    ssclr(25) = get_avg_ts(n1,n2,n3,a0,dzt,cloudmask)
-    k=COUNT( cloudmask(2:n1,3:n2-2,3:n3-2) )
-    ssclr(22) = get_pustat_scalar('sum',REAL(k))
-
-    ! Update rain droplet number concentration and rainy grid cell counts
-    CALL bulkNumc('precp','ab',a0)
-    ssclr(29) = get_avg_ts(n1,n2,n3,a0,dzt,rainmask)
-    k=COUNT( rainmask(2:n1,3:n2-2,3:n3-2) )
-    ssclr(30) = get_pustat_scalar('sum',REAL(k))
 
     ! Maximum supersaturation
+    a0=0.
     WHERE(a_rsl>1e-10) a0=a_rp/a_rsl
     ssclr_lvl4(1) = (get_max_val(n1,n2,n3,a0)-1.0)*100.
 
@@ -1463,7 +1664,7 @@ contains
   !  Implemented by Jaakko Ahola 15/12/2016
   !
   SUBROUTINE ts_lvl5(n1,n2,n3)
-    USE grid, ONLY : bulkNumc, dzt, a_dn, zm, a_ri, a_srs, icein, snowin, a_rp, a_rsi, a_tp, th0, th00
+    USE grid, ONLY : bulkNumc, meanRadius, dzt, a_dn, zm, a_ri, a_srs, icein, snowin, a_rp, a_rsi, a_tp, th0, th00
     IMPLICIT NONE
     integer, intent(in) :: n1,n2,n3
     REAL :: a0(n1,n2,n3), scr(n2,n3)
@@ -1473,9 +1674,11 @@ contains
     ssclr_lvl5(1) = get_avg_ts(n1,n2,n3,a_ri,dzt,dens=a_dn)
     ssclr_lvl5(6) = get_avg_ts(n1,n2,n3,a_srs,dzt,dens=a_dn)
 
-    ! Maximum ice and snow water mixing ratios
-    ssclr_lvl5(2) = get_max_val(n1,n2,n3,a_ri)
-    ssclr_lvl5(7) = get_max_val(n1,n2,n3,a_srs)
+    ! Ice and snow mean radius
+    CALL meanRadius('ice','ab',a0)
+    ssclr_lvl5(2) = get_avg_ts(n1,n2,n3,a0,dzt,icemask)
+    CALL meanRadius('snow','ab',a0)
+    ssclr_lvl5(7) = get_avg_ts(n1,n2,n3,a0,dzt,snowmask)
 
     ! Ice and snow number concentrations
     CALL bulkNumc('ice','ab',a0)
@@ -1496,6 +1699,7 @@ contains
     ssclr_lvl5(10) = get_avg2dh(n2,n3,scr)
 
     ! Maximum supersaturation over ice
+    a0=0.
     WHERE(a_rsi>1e-10) a0=a_rp/a_rsi
     ssclr_lvl5(11) = (get_max_val(n1,n2,n3,a0)-1.0)*100.
 
@@ -1519,10 +1723,9 @@ contains
   ! Variable names are given in NAMELIST/user_ts_list and these must be defined in ncio.f90.
   ! Outputs are calculated here to array user_ts_data(nv1_user).
   subroutine ts_user_stats()
-    use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_rc, a_rpp, a_npp, a_rp, a_rv, a_rsl, a_rsi
-    USE defs, ONLY : pi, rowt
+    use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_temp
     INTEGER :: i
-    REAL :: a(nzp,nxp,nyp)
+    REAL :: a(nzp,nxp,nyp), a1
     LOGICAL :: fail, mask(nzp,nxp,nyp), mass
     !
     DO i=1,nv1_user
@@ -1534,46 +1737,10 @@ contains
             ELSE
                 user_ts_data(i) = -999.
             ENDIF
-        CASE ('Rcloud')
-            ! Level 3 cloud droplet radius
-            IF (level<4) THEN
-                a(:,:,:) = ( 0.75*a_rc(:,:,:)/(CCN*pi*rowt) )**(1./3.)
-                mask(:,:,:) = a_rc(:,:,:)>1e-5
-                user_ts_data(i) = get_avg_ts(nzp,nxp,nyp,a,dzt,cond=mask)
-            ELSE
-                user_ts_data(i) = -999.
-            ENDIF
-        CASE ('Rrain')
-            ! Level 3 rain drop radius
-            IF (level<4) THEN
-                mask = a_rpp > 1.e-8
-                WHERE (mask)
-                    a = ( 0.75*a_rpp/(a_npp*pi*rowt) )**(1./3.)
-                ELSEWHERE
-                    a = 0.
-                END WHERE
-                user_ts_data(i) = get_avg_ts(nzp,nxp,nyp,a,dzt,cond=mask)
-            ELSE
-                user_ts_data(i) = -999.
-            ENDIF
-        CASE ('SS_max')
-            ! Maximum supersaturation (%) over water
-            a=0.
-            IF (level<4) THEN
-                WHERE(a_rsl>1e-10) a=a_rv/a_rsl
-            ELSE
-                WHERE(a_rsl>1e-10) a=a_rp/a_rsl
-            ENDIF
-            user_ts_data(i) =(get_max_val(nzp,nxp,nyp,a)-1.0)*100.
-        CASE ('SSi_max')
-            ! Maximum supersaturation (%) over ice
-            a=0.
-            IF (level<4) THEN
-                WHERE(a_rsi>1e-10) a=a_rv/a_rsi
-            ELSE
-                WHERE(a_rsi>1e-10) a=a_rp/a_rsi
-            ENDIF
-            user_ts_data(i) =(get_max_val(nzp,nxp,nyp,a)-1.0)*100.
+        CASE ('T_min')
+            ! Minimum absolute temperature (K)
+            a1=MINVAL(a_temp(:,3:nxp-2,3:nyp-2))
+            user_ts_data(i) = get_pustat_scalar('min',a1)
          CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_ts_list(i),a,mask,is_mass=mass)
@@ -1674,13 +1841,13 @@ contains
   !---------------------------------------------------------------------
   ! SUBROUTINE ACCUM_CLD: Accumulates cloud statistics.
   !
-  subroutine accum_cld(n1, n2, n3, th00, w, th, t, rl, rt, rv, crate, CCN, rr, nr, rrate)
-
+  subroutine accum_cld(n1, n2, n3, th00, w, th, t, rl, rt, rv, crate, nc, rr, nr, rrate)
+    use grid, only : meanRadius
     use defs, only : ep2
 
     integer, intent (in) :: n1,n2,n3
-    real, intent (in)                       :: th00, CCN
-    real, intent (in), dimension(n1,n2,n3)  :: w, th, t, rl, rt, rv, crate, rr, nr, rrate
+    real, intent (in)                      :: th00
+    real, intent (in), dimension(n1,n2,n3) :: w, th, t, rl, rt, rv, crate, nc, rr, nr, rrate
 
     real, dimension(n1,n2,n3) :: tv    ! Local variable
     integer                   :: k, i, j, kp1
@@ -1720,29 +1887,39 @@ contains
     call get_avg3(n1,n2,n3,rrate,a1)
     svctr(:,90)=svctr(:,90)+a1(:)
 
-    ! Level 3 cloud and rain statistics
+    ! cloud and rain statistics
+    ! Droplet number concentration
+    CALL get_avg3(n1,n2,n3,nc,a1,cond=cloudmask)
+    svctr(:,87) = svctr(:,87) + a1(:)
+    CALL get_avg3(n1,n2,n3,nr,a1,cond=rainmask)
+    svctr(:,92) = svctr(:,92) + a1(:)
+    ! Average radius
     IF (level<4) THEN
-        ! cloud
-        WHERE (rl > 1.e-5)
-           xy1 = 1.
-        ELSEWHERE
-           xy1 = 0.
-        END WHERE
-        call get_avg3(n1,n2,n3,xy1,a1)
-        svctr(:,86)=svctr(:,86) + a1(:)
-        svctr(:,87)=svctr(:,87) + CCN
-        ! rain
-        WHERE (rr > 1e-8)
-           xy1 = 1.
-        ELSEWHERE
-           xy1 = 0.
-        END WHERE
-        call get_avg3(n1,n2,n3,xy1,a1)
-        svctr(:,91)=svctr(:,91)+a1(:)
-        call get_avg3(n1,n2,n3,nr,a1,cond=(xy1>0.5))
-        svctr(:,92)=svctr(:,92)+a1(:)
+        CALL getSBradius(n1,n2,n3,nc,rl,0,xy1)
+        CALL getSBradius(n1,n2,n3,nr,rr,0,xy2)
+    ELSE
+        CALL meanRadius('cloud','ab',xy1)
+        CALL meanRadius('precp','ab',xy2)
     ENDIF
-
+    CALL get_avg3(n1,n2,n3,xy1,a1,cond=cloudmask)
+    svctr(:,97) = svctr(:,97) + a1(:)
+    CALL get_avg3(n1,n2,n3,xy2,a1,cond=rainmask)
+    svctr(:,98) = svctr(:,98) + a1(:)
+    ! Fraction of cloudy/rainy grid cells
+    WHERE(cloudmask)
+        xy1=1.
+    ELSEWHERE
+        xy1=0.
+    ENDWHERE
+    CALL get_avg3(n1,n2,n3,xy1,a1)
+    svctr(:,86) = svctr(:,86) + a1(:)
+    WHERE(rainmask)
+        xy1=1.
+    ELSEWHERE
+        xy1=0.
+    ENDWHERE
+    CALL get_avg3(n1,n2,n3,xy1,a1)
+    svctr(:,91) = svctr(:,91) + a1(:)
     !
     ! do some conditional sampling statistics: cloud, cloud-core
     !
@@ -1903,51 +2080,15 @@ contains
   ! on level 4 variables.
   !
   subroutine accum_lvl4(n1,n2,n3)
-    use mo_submctl, only : inp2a,fnp2a,inp2b,fnp2b,cldbinlim,nout_cld, &
-                     nlim,prlim ! Note: nlim and prlim in #/m^3, but close enough to #/kg for statistics
-    use grid, ONLY : bulkNumc, binSpecMixrat, getBinRadius, &
-                     a_rc, a_srp, nspec, ncld, a_mcloudp, a_ncloudp
+    use mo_submctl, only : inp2a,fnp2a,inp2b,fnp2b,cldbinlim,nout_cld,nlim
+    use grid, ONLY : getBinRadius, nspec, ncld, a_mcloudp, a_ncloudp
 
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: n1,n2,n3
 
-    REAL, DIMENSION(n1,n2,n3)           :: a1
-    REAL, DIMENSION(n1)                 :: col
     REAL, DIMENSION(n1,n2,n3,fnp2b)     :: a_Rwet
     REAL, ALLOCATABLE                   :: hist(:,:)
-
-    ! Generate SALSA cloud mask
-    CALL bulkNumc('cloud','ab',a1)
-    cloudmask(:,:,:) = ( a1(:,:,:) > nlim .AND. a_rc(:,:,:) > 1.e-5 )
-
-    ! Cloud droplet number concentration
-    CALL get_avg3(n1,n2,n3,a1,col,cond=cloudmask)
-    svctr(:,87) = svctr(:,87) + col(:)
-
-    ! Fraction of cloudy grid cells
-    WHERE(cloudmask)
-        a1=1.
-    ELSEWHERE
-        a1=0.
-    ENDWHERE
-    CALL get_avg3(n1,n2,n3,a1,col)
-    svctr(:,86) = svctr(:,86) + col(:)
-
-    ! The same for rain (mask, RDNC and fraction of rainy grid cells)
-    CALL bulkNumc('precp','a',a1)
-    rainmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srp(:,:,:) > 1.e-8 )
-
-    CALL get_avg3(n1,n2,n3,a1,col,cond=rainmask)
-    svctr(:,92) = svctr(:,92) + col(:)
-
-    WHERE(rainmask)
-        a1=1.
-    ELSEWHERE
-        a1=0.
-    ENDWHERE
-    CALL get_avg3(n1,n2,n3,a1,col)
-    svctr(:,91) = svctr(:,91) + col(:)
 
     ! Cloud droplet histograms
     ! ------------------------
@@ -1997,6 +2138,10 @@ contains
     ! Ice number concentration
     CALL get_avg3(n1,n2,n3,a1,col,cond=icemask)
     svctr_lvl5(:,2) = svctr_lvl5(:,2) + col(:)
+    ! Mean radius
+    CALL meanRadius('ice','ab',a1)
+    CALL get_avg3(n1,n2,n3,a1,col,cond=icemask)
+    svctr_lvl5(:,3) = svctr_lvl5(:,3) + col(:)
     ! Fraction of icy grid cells
     WHERE(icemask)
         a1=1.
@@ -2004,21 +2149,25 @@ contains
         a1=0.
     ENDWHERE
     CALL get_avg3(n1,n2,n3,a1,col)
-    svctr_lvl5(:,3) = svctr_lvl5(:,3) + col(:)
+    svctr_lvl5(:,4) = svctr_lvl5(:,4) + col(:)
 
     ! Ice deposition flux
     call get_avg3(n1,n2,n3,icein,col)
-    svctr_lvl5(:,4) = svctr_lvl5(:,4) + col(:)
+    svctr_lvl5(:,5) = svctr_lvl5(:,5) + col(:)
 
     ! The same for snow (mass, mask, number concentration and fraction of snowy grid cells)
     CALL get_avg3(n1,n2,n3,a_srs,col)
-    svctr_lvl5(:,5) = svctr_lvl5(:,5) + col(:)
+    svctr_lvl5(:,6) = svctr_lvl5(:,6) + col(:)
 
     CALL bulkNumc('snow','a',a1)
     snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srs(:,:,:) > 1.e-8)
 
     CALL get_avg3(n1,n2,n3,a1,col,cond=snowmask)
-    svctr_lvl5(:,6) = svctr_lvl5(:,6) + col(:)
+    svctr_lvl5(:,7) = svctr_lvl5(:,7) + col(:)
+
+    CALL meanRadius('snow','ab',a1)
+    CALL get_avg3(n1,n2,n3,a1,col,cond=snowmask)
+    svctr_lvl5(:,8) = svctr_lvl5(:,8) + col(:)
 
     WHERE(snowmask)
         a1=1.
@@ -2026,14 +2175,14 @@ contains
         a1=0.
     ENDWHERE
     CALL get_avg3(n1,n2,n3,a1,col)
-    svctr_lvl5(:,7) = svctr_lvl5(:,7) + col(:)
+    svctr_lvl5(:,9) = svctr_lvl5(:,9) + col(:)
 
     call get_avg3(n1,n2,n3,snowin,col)
-    svctr_lvl5(:,8) = svctr_lvl5(:,8) + col(:)
+    svctr_lvl5(:,10) = svctr_lvl5(:,10) + col(:)
 
     ! Ice-liquid water potential temperature
     call get_avg3(n1,n2,n3,a_tp,col)
-    svctr_lvl5(:,9) = svctr_lvl5(:,9) + (col(:) + th00)
+    svctr_lvl5(:,11) = svctr_lvl5(:,11) + (col(:) + th00)
 
     ! Ice histograms
     ! --------------
@@ -2058,8 +2207,7 @@ contains
   ! Variable names are given in NAMELIST/user_ps_list and these must be defined in ncio.f90.
   ! Outputs are calculated here to array user_ps_data(nzp,nv2_user).
   subroutine ps_user_stats()
-    USE grid, ONLY : nzp, nxp, nyp, a_dn, a_rc, CCN, a_rpp, a_npp, a_rv, a_rp, a_rsl, a_rsi
-    USE defs, ONLY : pi, rowt
+    USE grid, ONLY : nzp, nxp, nyp, a_dn, a_rv, a_rp, a_rsl, a_rsi, a_temp
     INTEGER :: i
     LOGICAL :: fail, mask(nzp,nxp,nyp)
     REAL :: a(nzp,nxp,nyp), a1(nzp)
@@ -2070,28 +2218,6 @@ contains
             ! Air density
             call get_avg3(nzp,nxp,nyp,a_dn,a1)
             user_ps_data(:,i)=user_ps_data(:,i)+a1(:)
-        CASE ('Rcloud','Rc_ic')
-            ! Level 3 cloud droplet radius
-            IF (level<4) THEN
-                a(:,:,:) = ( 0.75*a_rc(:,:,:)/(CCN*pi*rowt) )**(1./3.)
-                mask(:,:,:) = a_rc(:,:,:)>1e-5
-                ! Averaging
-                CALL get_avg3(nzp,nxp,nyp,a,a1,cond=mask)
-                user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
-            ENDIF
-        CASE ('Rrain','Rr_ir')
-            ! Level 3 rain drop radius
-            IF (level<4) THEN
-                mask = a_rpp > 1.e-8
-                WHERE (mask)
-                    a = ( 0.75*a_rpp/(a_npp*pi*rowt) )**(1./3.)
-                ELSEWHERE
-                    a = 0.
-                END WHERE
-                ! Averaging
-                CALL get_avg3(nzp,nxp,nyp,a,a1,cond=mask)
-                user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
-            ENDIF
         CASE ('SS_max')
             ! Maximum supersaturation (%) over water
             a=0.
@@ -2134,6 +2260,16 @@ contains
                 WHERE(a_rsi>1e-10) a=a_rp/a_rsi
             ENDIF
             a1(:)=MINVAL(MINVAL(a,DIM=3),DIM=2)
+            CALL get_pustat_vector('min', nzp, a)
+            user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
+        CASE ('T_max')
+            ! Maximum absolute temperature (K)
+            a1(:)=MAXVAL(MAXVAL(a_temp(:,3:nxp-2,3:nyp-2),DIM=3),DIM=2)
+            CALL get_pustat_vector('max', nzp, a)
+            user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
+        CASE ('T_min')
+            ! Minimum absolute temperature (K)
+            a1(:)=MINVAL(MINVAL(a_temp(:,3:nxp-2,3:nyp-2),DIM=3),DIM=2)
             CALL get_pustat_vector('min', nzp, a)
             user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE DEFAULT
@@ -2741,7 +2877,20 @@ contains
         ENDIF
     ENDDO
     !
-    ! Could add s1_ice(1:nv1_ice), s1_lvl4(1:nv1_lvl4), s1_lvl5(1:nv1_lvl5),
+    ! s1_lvl4(1:nv1_lvl4)
+    !DO i=1,nv1_lvl4
+    !    IF ( vname == s1_lvl4(i) ) THEN
+    !        ! Output array found, calculate result over all PUs
+    !        IF (present(wg)) THEN
+    !            ssclr(i) = get_pustat_scalar(myop,xval,wg)
+    !        ELSE
+    !            ssclr(i) = get_pustat_scalar(myop,xval)
+    !        ENDIF
+    !        RETURN
+    !    ENDIF
+    !ENDDO
+    !
+    ! Could add s1_ice(1:nv1_ice), s1_lvl5(1:nv1_lvl5),
     ! user_ts_list(1:nv1_user) and out_ts_list(1:nv1_proc)
   end subroutine fill_scalar
   !
