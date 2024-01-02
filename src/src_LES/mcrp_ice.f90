@@ -2116,7 +2116,7 @@ contains
     ! Cloudwater properties
     cldw = PARTICLE('cloudw', &! HN: made variable for seeding experiments
             1, & !number of moments
-            0, & !id number
+            -1, & !id number
             CCN, & !Number of droplets
             1.000000, & !.nu.....Width parameter of the distribution
             1.000000, & !.mu.....exponential parameter of the distribution
@@ -2225,6 +2225,7 @@ contains
     IF (.not.coag_graupel) microseq((/icoll_ice_grp,icoll_snow_grp,iriming_grp_cloud,iriming_grp_rain/))=0
 
     ! Set parameters for calculating sizes
+    CALL setSBradius(cldw%no,cldw%x_min,cldw%x_max,cldw%a_geo,cldw%b_geo,eps0)
     CALL setSBradius(rain%no,rain%x_min,rain%x_max,rain%a_geo,rain%b_geo,eps0)
     CALL setSBradius(ice%no,ice%x_min,ice%x_max,ice%a_geo,ice%b_geo,eps0)
     CALL setSBradius(snow%no,snow%x_min,snow%x_max,snow%a_geo,snow%b_geo,eps0)
@@ -2600,10 +2601,10 @@ contains
     call init_seifert()
 
     ! Copy particle properties for calculating sedimentation
-    cldw    = copy_particle(mycloud,0.00,0)
+    cldw    = copy_particle(mycloud,0.00,-1)
     rain    = copy_particle(myrain,0.00,0)
     ice     = copy_particle(myice,0.00,1)
-    snow    = copy_particle(mysnow,0.25,2)
+    snow    = copy_particle(mysnow,0.10,2)
     graupel = copy_particle(mygraupel,0.00,3)
     hail    = copy_particle(myhail,0.00,4)
 
@@ -2611,6 +2612,7 @@ contains
     cldw%nr = CCN
 
     ! Set parameters for calculating sizes
+    CALL setSBradius(cldw%no,cldw%x_min,cldw%x_max,cldw%a_geo,cldw%b_geo,eps0)
     CALL setSBradius(rain%no,rain%x_min,rain%x_max,rain%a_geo,rain%b_geo,eps0)
     CALL setSBradius(ice%no,ice%x_min,ice%x_max,ice%a_geo,ice%b_geo,eps0)
     CALL setSBradius(snow%no,snow%x_min,snow%x_max,snow%a_geo,snow%b_geo,eps0)

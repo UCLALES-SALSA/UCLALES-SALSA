@@ -171,9 +171,10 @@ module stat
 
   ! SALSA cloud, precipitation, ice and snow masks
   LOGICAL, allocatable :: cloudmask(:,:,:), rainmask(:,:,:), icemask(:,:,:), snowmask(:,:,:)
+  REAL :: ris_min=1e-8 ! Ice and snow mass limit (prlim is for number)
 
   ! Calculating particle sizes (SB microphysics)
-  REAL, DIMENSION(0:4) :: x_min=1e-20, x_max=1., a_geo=(6./(pi*rowt))**(1./3.), b_geo=1./3., eps=1e-20
+  REAL, DIMENSION(-1:4) :: x_min=1e-20, x_max=1., a_geo=(6./(pi*rowt))**(1./3.), b_geo=1./3., eps=1e-20
   REAL :: ri_min=1e-10, ni_min=1e-10 ! Mass and number limits for ice statistics
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
@@ -891,8 +892,8 @@ contains
           itop=-1
           sval = 0.
           do k=2,n1
-             ! The first and last cloudy (rc>1e-5 kg/kg) grid cell
-             IF (rc(k,i,j)>0.01e-3) THEN
+             ! The first and last cloudy grid cell
+             IF (cloudmask(k,i,j)) THEN
                 IF (ibase<0) ibase=k
                 itop=k
              END IF
@@ -969,7 +970,7 @@ contains
         IF (level>3) THEN
             CALL meanRadius('cloud','ab',a1)
         ELSE
-            CALL getSBradius(n1,n2,n3,nc,rc,0,a1)
+            CALL getSBradius(n1,n2,n3,nc,rc,-1,a1)
         ENDIF
         CALL get_avg_cs(n1,n2,n3,a1,a,cond=cloudmask)
         iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
@@ -1151,7 +1152,7 @@ contains
     mask = (a_nsp > ni_min .OR. a_rsp > ri_min)
     iret = nf90_inq_varid(ncid3,'Rs_is',VarID)
     IF (iret==NF90_NOERR) THEN
-        CALL getSBradius(n1,n2,n3,a_nsp,a_rsp,1,a1)
+        CALL getSBradius(n1,n2,n3,a_nsp,a_rsp,2,a1)
         CALL get_avg_cs(n1,n2,n3,a1,a,cond=mask)
         iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
     ENDIF
@@ -1177,7 +1178,7 @@ contains
     mask = (a_ngp > ni_min .OR. a_rgp > ri_min)
     iret = nf90_inq_varid(ncid3,'Rg_ig',VarID)
     IF (iret==NF90_NOERR) THEN
-        CALL getSBradius(n1,n2,n3,a_ngp,a_rgp,1,a1)
+        CALL getSBradius(n1,n2,n3,a_ngp,a_rgp,3,a1)
         CALL get_avg_cs(n1,n2,n3,a1,a,cond=mask)
         iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
     ENDIF
@@ -1203,7 +1204,7 @@ contains
     mask = (a_nhp > ni_min .OR. a_rhp > ri_min)
     iret = nf90_inq_varid(ncid3,'Rh_ih',VarID)
     IF (iret==NF90_NOERR) THEN
-        CALL getSBradius(n1,n2,n3,a_nhp,a_rhp,1,a1)
+        CALL getSBradius(n1,n2,n3,a_nhp,a_rhp,4,a1)
         CALL get_avg_cs(n1,n2,n3,a1,a,cond=mask)
         iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
     ENDIF
@@ -1549,7 +1550,7 @@ contains
     ssclr(29) = get_avg_ts(n1,n2,n3,nr,dzt,rainmask)
     ! average radius
     IF (level<4) THEN
-        CALL getSBradius(n1,n2,n3,nc,rc,0,a)
+        CALL getSBradius(n1,n2,n3,nc,rc,-1,a)
         ssclr(36) = get_avg_ts(n1,n2,n3,a,dzt,cloudmask)
         CALL getSBradius(n1,n2,n3,nr,rr,0,a)
         ssclr(37) = get_avg_ts(n1,n2,n3,a,dzt,rainmask)
@@ -1895,7 +1896,7 @@ contains
     svctr(:,92) = svctr(:,92) + a1(:)
     ! Average radius
     IF (level<4) THEN
-        CALL getSBradius(n1,n2,n3,nc,rl,0,xy1)
+        CALL getSBradius(n1,n2,n3,nc,rl,-1,xy1)
         CALL getSBradius(n1,n2,n3,nr,rr,0,xy2)
     ELSE
         CALL meanRadius('cloud','ab',xy1)
@@ -2133,7 +2134,7 @@ contains
 
     ! Generate SALSA ice mask
     CALL bulkNumc('ice','ab',a1)
-    icemask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_ri(:,:,:) > 1.e-8)
+    icemask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_ri(:,:,:) > ris_min)
 
     ! Ice number concentration
     CALL get_avg3(n1,n2,n3,a1,col,cond=icemask)
@@ -2160,7 +2161,7 @@ contains
     svctr_lvl5(:,6) = svctr_lvl5(:,6) + col(:)
 
     CALL bulkNumc('snow','a',a1)
-    snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srs(:,:,:) > 1.e-8)
+    snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srs(:,:,:) > ris_min)
 
     CALL get_avg3(n1,n2,n3,a1,col,cond=snowmask)
     svctr_lvl5(:,7) = svctr_lvl5(:,7) + col(:)
@@ -2266,12 +2267,12 @@ contains
             ! Maximum absolute temperature (K)
             a1(:)=MAXVAL(MAXVAL(a_temp(:,3:nxp-2,3:nyp-2),DIM=3),DIM=2)
             CALL get_pustat_vector('max', nzp, a)
-            user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
+            user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
         CASE ('T_min')
             ! Minimum absolute temperature (K)
             a1(:)=MINVAL(MINVAL(a_temp(:,3:nxp-2,3:nyp-2),DIM=3),DIM=2)
             CALL get_pustat_vector('min', nzp, a)
-            user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
+            user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
         CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_ps_list(i),a,mask)
