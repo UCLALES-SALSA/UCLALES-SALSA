@@ -887,10 +887,6 @@ contains
        if (itype==0) ncinfo = 'Total vertical flux of liquid water'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'mttt'
-    case('sed_lw')
-       if (itype==0) ncinfo = 'Sedimentation flux of r_l'
-       if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'mttt'
     case('cs1')
        if (itype==0) ncinfo = 'Fraction of cloudy columns (cs1)'
        if (itype==1) ncinfo = '-'
@@ -983,9 +979,6 @@ contains
        if (itype==0) ncinfo = 'Hail water deposition flux'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'mttt'
-    case('evap')
-       if (itype==0) ncinfo = 'Net evap of rain-water'
-       if (itype==1) ncinfo = 's^-1'
     case('rho_air')
        if (itype==0) ncinfo = 'Air density'
        if (itype==1) ncinfo = 'kg/m^3'

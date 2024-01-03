@@ -31,7 +31,7 @@ module mcrp
        nbins, ncld, nprc, nice, nsnw, nspec, &
        aerin, cldin, icein, snowin, &
        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow
-  use stat, only : sflg, updtst, acc_removal, cs_rem_set, out_mcrp_nout, out_mcrp_data, out_mcrp_list
+  use stat, only : sflg, acc_removal, cs_rem_set, out_mcrp_nout, out_mcrp_data, out_mcrp_list
   USE mo_submctl, ONLY : terminal_vel, calc_eff_radius
   USE mcrp_ice, ONLY : micro_ice
   implicit none
@@ -260,15 +260,7 @@ contains
     real, parameter    :: Dv = 3.e-5     ! diffusivity of water vapor [m2/s]
 
     integer             :: i, j, k
-    real                :: Xp, Dp, G, S, cerpt, cenpt, xnpts
-    real, dimension(n1) :: v1
-
-    if(sflg) then
-       xnpts = 1./((n3-4)*(n2-4))
-       do k=1,n1
-          v1(k) = 0.
-       end do
-    end if
+    real                :: Xp, Dp, G, S, cerpt, cenpt
 
     do j=3,n3-2
        do i=3,n2-2
@@ -286,13 +278,10 @@ contains
                 cenpt = cerpt * np(k,i,j) / rp(k,i,j)
                 rpt(k,i,j)=rpt(k,i,j) + cerpt
                 npt(k,i,j)=npt(k,i,j) + cenpt
-                if (sflg) v1(k) = v1(k) + cerpt * xnpts
              end if
           end do
        end do
     end do
-
-    if (sflg) call updtst(n1,v1,1,'evap   ')
 
   end subroutine wtr_dff_SB
   !

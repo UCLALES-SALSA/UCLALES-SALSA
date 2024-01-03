@@ -33,7 +33,7 @@ module stat
                         nv1_ice = 22,             &
                         nv1_lvl4 = 5,             &
                         nv1_lvl5 = 12,            &
-                        nvar2 = 98,               &
+                        nvar2 = 96,               &
                         nv2_ice = 21,             &
                         nv2_lvl4 = 0,             &
                         nv2_lvl5 = 11,            &
@@ -98,13 +98,12 @@ module stat
         'adv_v  ','adv_w  ','prs_u  ','prs_v  ','prs_w  ','prd_uw ', & ! 43
         'storage','q      ','q_2    ','q_3    ','tot_qw ','sfs_qw ', & ! 49
         'rflx   ','rflx2  ','sflx   ','sflx2  ','l      ','l_2    ', & ! 55
-        'l_3    ','tot_lw ','sed_lw ','cs1    ','cnt_cs1','w_cs1  ', & ! 61
+        'l_3    ','tot_lw ','rv     ','cs1    ','cnt_cs1','w_cs1  ', & ! 61
         'tl_cs1 ','tv_cs1 ','rt_cs1 ','rc_cs1 ','wtl_cs1','wtv_cs1', & ! 67
         'wrt_cs1','cs2    ','cnt_cs2','w_cs2  ','tl_cs2 ','tv_cs2 ', & ! 73
-        'rt_cs2 ','rc_cs2 ','wtl_cs2','wtv_cs2','wrt_cs2','rv     ', & ! 79
-        'crate  ','frac_ic','Nc_ic  ','evap   ','rr     ','rrate  ', & ! 85
-        'frac_ir','Nr_ir  ','sw_up  ','sw_down','lw_up  ','lw_down', & ! 91
-        'Rc_ic  ','Rr_ir  '/), & ! 97, total 98
+        'rt_cs2 ','rc_cs2 ','wtl_cs2','wtv_cs2','wrt_cs2','Rc_ic  ', & ! 79
+        'crate  ','frac_ic','Nc_ic  ','Rr_ir  ','rr     ','rrate  ', & ! 85
+        'frac_ir','Nr_ir  ','sw_up  ','sw_down','lw_up  ','lw_down'/), & ! 91, total 96
 
         s2_ice(nv2_ice)=(/ &
         'ri     ','Ni_ii  ','Ri_ii  ','frac_ii','irate  ', & ! 1
@@ -1874,7 +1873,7 @@ contains
 
     ! water vapor mixing ratio
     call get_avg3(n1,n2,n3,rv,a1)
-    svctr(:,84)=svctr(:,84) + a1(:)
+    svctr(:,63)=svctr(:,63) + a1(:)
 
     ! cloud water deposition flux
     call get_avg3(n1,n2,n3,crate,a1)
@@ -1903,9 +1902,9 @@ contains
         CALL meanRadius('precp','ab',xy2)
     ENDIF
     CALL get_avg3(n1,n2,n3,xy1,a1,cond=cloudmask)
-    svctr(:,97) = svctr(:,97) + a1(:)
+    svctr(:,84) = svctr(:,84) + a1(:)
     CALL get_avg3(n1,n2,n3,xy2,a1,cond=rainmask)
-    svctr(:,98) = svctr(:,98) + a1(:)
+    svctr(:,88) = svctr(:,88) + a1(:)
     ! Fraction of cloudy/rainy grid cells
     WHERE(cloudmask)
         xy1=1.
