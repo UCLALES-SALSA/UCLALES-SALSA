@@ -110,9 +110,9 @@ contains
     use stat, only : ssam_intvl, savg_intvl, csflg, cs_include, cs_exclude, &
          ps_include, ps_exclude, ts_include, ts_exclude, out_cs_list, out_ps_list, out_ts_list, &
          user_cs_list, user_ps_list, user_ts_list
-    USE forc, ONLY : radsounding, case_name, sfc_albedo, &
-         div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit, &
-         useMcICA,RadConstPress,RadPrecipBins,RadSnowBins,RadConstSZA
+    USE forc, ONLY : case_name, sfc_albedo, RadPrecipBins, RadSnowBins, &
+         div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit
+    USE radiation, ONLY : radsounding, useMcICA, RadConstPress, RadConstSZA
     use mpi_interface, only : myid, appl_abort, ver, author
 
     implicit none

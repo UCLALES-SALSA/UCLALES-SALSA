@@ -209,7 +209,7 @@ contains
        elseif (sflg .and. associated(a_sp,a_rp)) then
           call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
           call updtst(nzp,sz1,1,'sfs_qw ')
-         call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'rt')
+          call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'rt')
        endif
        call cyclics(nzp,nxp,nyp,a_st,req)
        call cyclicc(nzp,nxp,nyp,a_st,req)

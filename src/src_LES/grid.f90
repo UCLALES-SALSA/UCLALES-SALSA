@@ -803,8 +803,10 @@ contains
           btot(i:e)=.TRUE.; stot(i:e)=user_an_list(1:nv4_user)
        END IF
     ELSE IF (level >= 4) THEN ! Operation with SALSA
+       b_base(10)=.NOT.no_prog_prc ! Rain water
        b_base(11)=.FALSE. ! Rain number
-       b_base(12:13) = (level>4) ! Ice and snow
+       b_base(12) = (level>4 .AND. .NOT. no_prog_ice) ! Ice
+       b_base(13) = (level>4 .AND. .NOT. no_prog_snw) ! Snow
        b_base(14:19) = .FALSE. ! SB outputs
 
        ! Dimensions for bin dependent outputs

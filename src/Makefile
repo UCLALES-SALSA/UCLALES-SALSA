@@ -46,7 +46,7 @@ $(OUT): $(OBJS)
 # --------------------
 #
 LES.o: grid.o init.o step.o $(seqmpi:.f90=.o) util.o sgsm.o srfc.o \
-       stat.o forc.o mo_salsa_init.o mcrp_ice.o
+       stat.o forc.o mo_salsa_init.o mcrp_ice.o rad_d4strm.o
 ncio.o: $(seqmpi:.f90=.o)
 util.o: $(seqmpi:.f90=.o)
 defs.o:

@@ -47,7 +47,7 @@ module stat
   real, save         :: fsttm, lsttm, nsmp = 0
 
   logical            :: sflg = .false.
-  LOGICAL            :: csflg = .FALSE.
+  LOGICAL            :: csflg = .FALSE., cswrite = .FALSE.
   real               :: ssam_intvl = 30.   ! statistical sampling interval
   real               :: savg_intvl = 1800. ! statistical averaging interval
 
@@ -178,7 +178,7 @@ module stat
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
        updtst, close_stat, fill_scalar, &
-       tke_sgs, sgsflxs, comp_tke, acc_removal, cs_rem_set, csflg, &
+       tke_sgs, sgsflxs, comp_tke, acc_removal, cs_rem_set, csflg, cswrite, &
        les_rate_stats, mcrp_var_save, out_cs_list, out_ps_list, out_ts_list, &
        cs_include, cs_exclude, ps_include, ps_exclude, ts_include, ts_exclude, &
        out_mcrp_data, out_mcrp_list, out_mcrp_nout, user_cs_list, user_ps_list, &
@@ -804,7 +804,7 @@ contains
     !
     ! Column statistics
     !
-    IF (csflg) THEN
+    IF (cswrite) THEN
         ! Warm cloud statistics (rnt=CDNC, xrpp and xnpp from above)
         CALL set_cs_warm(nzp,nxp,nyp,a_rc,rnt,xrpp,xnpp,a_theta,a_wp,cldin,precip,a_dn,zt,dzm)
 
@@ -843,7 +843,7 @@ contains
 
     INTEGER :: si, tt
 
-    IF (.NOT.csflg) RETURN
+    IF (.NOT.cswrite) RETURN
 
     ! Calculate all removal fluxes and save those to scs_rm for later use
     DO si = 1,nspec+1 ! Aerosol species and water
@@ -3176,7 +3176,7 @@ contains
             ! Analysis data
             CALL calc_salsa_rate(i,4,out_an_list(i)(6:6),out_an_list(i)(7:7))
         ENDIF
-        IF (csflg .AND. prefix == out_cs_list(i)(1:4)) THEN
+        IF (cswrite .AND. prefix == out_cs_list(i)(1:4)) THEN
             ! Column statistics
             CALL calc_salsa_rate(i,3,out_cs_list(i)(6:6),out_cs_list(i)(7:7))
         ENDIF
@@ -3357,7 +3357,7 @@ contains
             ! Integrate over vertical dimension to get the domain mean
             IF ( vname == out_ts_list(i) ) out_ts_data(i) = SUM( col(2:n1)/dzt(2:n1) )*fact
         ENDIF
-        IF ( csflg .AND. vname == out_cs_list(i) ) THEN
+        IF ( cswrite .AND. vname == out_cs_list(i) ) THEN
             ! Column outputs are integrals over vertical dimension (per volume of air)
             area(:,:) = 0.
             do k=2,n1

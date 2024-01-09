@@ -1271,7 +1271,6 @@ CONTAINS
     TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
     REAL, INTENT(in) :: ptemp(kbdim,klev)
     ! Constants for Hallett-Mossop (following SB microphysics)
-    !real, parameter :: c_mult     = 3.5e8  !..splintering coefficient (particles per kg of rime)
     real, parameter :: t_mult_min = 265.0  !..min temp. splintering
     real, parameter :: t_mult_max = 270.0  !..max temp. splintering
     real, parameter :: t_mult_opt = 268.0  !..opt temp. splintering

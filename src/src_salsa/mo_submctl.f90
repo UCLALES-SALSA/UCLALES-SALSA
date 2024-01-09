@@ -52,7 +52,7 @@ MODULE mo_submctl
   LOGICAL :: nlcndgas   = .FALSE., lscndgas   ! Condensation of H2SO4 and organic vapors
 
   LOGICAL :: nlauto     = .TRUE.,  lsauto     ! Autoconversion of cloud droplets (needs activation)
-  LOGICAL :: nlautosnow = .TRUE.,  lsautosnow ! Autoconversion of ice particles to snow (needs activation)
+  LOGICAL :: nlautosnow = .FALSE., lsautosnow ! Autoconversion of ice particles to snow (needs activation)
   LOGICAL :: nlcgrain = .FALSE.,   lscgrain   ! Rain formation based on cloud-cloud collisions
 
   LOGICAL :: nlactiv    = .TRUE.,  lsactiv    ! Cloud droplet activation master switch

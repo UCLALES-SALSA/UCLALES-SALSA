@@ -51,7 +51,7 @@ contains
     use grid, only : dtl, zt, zm, nzp, dn0, u0, v0, &
          write_hist, write_anal, close_anal, &
          dtlong, nzp
-    use stat, only : sflg, savg_intvl, ssam_intvl, write_ps, close_stat
+    use stat, only : sflg, csflg, cswrite, savg_intvl, ssam_intvl, write_ps, close_stat
     use thrm, only : thermo
 
     real, parameter :: cfl_upper = 0.5
@@ -78,6 +78,7 @@ contains
        !    - After the first call (time=0)
        tplsdt = time + dtl ! Time after t_step
        sflg = (min(mod(tplsdt,ssam_intvl),mod(tplsdt,savg_intvl)) < dtl .or. tplsdt < 1.1*dtl)
+       cswrite = csflg .and. (mod(tplsdt,savg_intvl) < dtl .or. tplsdt < 1.1*dtl)
 
        call t_step
        time = time + dtl
