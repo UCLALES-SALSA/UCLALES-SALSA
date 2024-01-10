@@ -981,7 +981,8 @@ CONTAINS
                     ncld, nice, nsnw, nspec, &
                     rhowa,  &
                     rda, nlim, prlim, &
-                    fixinc, ice_source_opt, ice_target_opt
+                    fixinc, fixed_ice_min_Si, fixed_ice_min_rc, &
+                    ice_source_opt, ice_target_opt
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kbdim,klev
@@ -992,11 +993,6 @@ CONTAINS
                     prsi(kbdim,klev)
     TYPE(t_section), INTENT(inout) :: pcloud(kbdim,klev,ncld), &
                     pice(kbdim,klev,nsnw), psnow(kbdim,klev,nsnw)
-
-    ! Limits for ice formation
-    !   a) Minimum  water vapor satuturation ratio ove ice (-)
-    !   b) Minimum cloud water mixing ratio (kg/kg)
-    REAL, PARAMETER :: min_S_ice=1.05, min_rc=1e-6
 
     INTEGER :: ii,jj,kk,ss,nn
     REAL :: pdn, S_ice, rc, Ni0, vol, sumICE, dnice, frac
@@ -1013,7 +1009,7 @@ CONTAINS
         ! Conditions for ice nucleation
         S_ice = prv(ii,jj)/prsi(ii,jj) ! Saturation with respect to ice
         rc = sum( pcloud(ii,jj,:)%volc(1) )*rhowa/pdn ! Cloud water mixing ratio (kg/kg)
-        if ( S_ice < min_S_ice .OR. rc < min_rc ) cycle
+        if ( S_ice < fixed_ice_min_Si .OR. rc < fixed_ice_min_rc ) cycle
 
         ! Target number concentration of ice, converted to #/m^3
         Ni0 = fixinc * pdn
@@ -1267,7 +1263,7 @@ CONTAINS
 
   !  Secondary ice production: Hallett-Mossop or splintering during riming
   SUBROUTINE sip_hm(kbdim,klev,pice,psnow,ptemp)
-    USE mo_submctl, ONLY : t_section, nice, nsnw, fnp2a, inp2b, prlim, rhowa, nspec, &
+    USE mo_submctl, ONLY : t_section, nice, nsnw, fnp2a, inp2b, prlim, rhowa, nspec, c_mult, &
         rime_volc_ice, rime_volc_snw ! Accumulated rime (rime water volume concentration, m3/m3)
     IMPLICIT NONE
     ! Inputs/outputs
@@ -1275,7 +1271,6 @@ CONTAINS
     TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
     REAL, INTENT(in) :: ptemp(kbdim,klev)
     ! Constants for Hallett-Mossop (following SB microphysics)
-    real, parameter :: c_mult     = 3.5e8  !..splintering coefficient (particles per kg of rime)
     real, parameter :: t_mult_min = 265.0  !..min temp. splintering
     real, parameter :: t_mult_max = 270.0  !..max temp. splintering
     real, parameter :: t_mult_opt = 268.0  !..opt temp. splintering
@@ -1306,7 +1301,6 @@ CONTAINS
                 ! Exclude the first a and b bin (splinters could not be smaller)
                 IF (dN>prlim .AND. pice(ii,jj,cc)%numc>prlim .AND. cc/=1 .AND. cc/=inp2b) THEN
                     ! Target bin: bin index divided by two
-                    !   inp2a,fnp2a,inp2b,fnp2b,
                     IF (cc>fnp2a) THEN
                         bb = fnp2a+FLOOR(0.5*(cc-fnp2a)) ! b-bins
                     ELSE

@@ -19,7 +19,7 @@
 !
 module fuliou
 
-  use defs, only   : nv, nv1, mb, pi, totalpower, g, R, ep2
+  use defs, only   : nv, nv1, mb, pi, g, Rd, ep2
   use cldwtr, only : init_cldwtr, cloud_water, init_cldice, cloud_ice, init_cldgrp, cloud_grp
   use solver, only : qft
   use ckd
@@ -441,7 +441,7 @@ contains
 
     do  i = 1, nv
        tv = pt(i)*(1+0. + ep2*ph(i) )
-       dz(i) = (R/g) * tv * alog( pp(i+1) / pp(i) )
+       dz(i) = (Rd/g) * tv * alog( pp(i+1) / pp(i) )
     end do
     
   end subroutine thicks

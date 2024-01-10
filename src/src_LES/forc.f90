@@ -25,15 +25,11 @@ module forc
   implicit none
 
   ! these are now all namelist parameters
-  character (len=10) :: case_name = 'none'               
-  character (len=50) :: radsounding = 'datafiles/dsrt.lay'  ! Juha: Added so the radiation background sounding can be given
-                                                            ! from the NAMELIST
+  character (len=10) :: case_name = 'none'
   REAL :: sfc_albedo = 0.05
   REAL :: div = 0., zmaxdiv = 1e6
   REAL :: xka = 119., fr0 = 96.2, fr1 = 61.2, alpha = 1.0
   REAL :: rc_limit = 0.01e-3, rt_limit = 8e-3
-  LOGICAL :: useMcICA = .TRUE.
-  LOGICAL :: RadConstPress = .FALSE. ! Keep constant pressure levels
   INTEGER :: RadPrecipBins = 0 ! Add precipitation bins to cloud water (for level 3 and up)
   INTEGER :: RadSnowBins = 0 ! Add snow bins to cloud ice (for level 5 and up)
 
@@ -102,8 +98,7 @@ contains
 
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,grp=a_rgp, &
-               radsounding=radsounding, useMcICA=useMcICA, ConstPrs=RadConstPress)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,grp=a_rgp)
 
        ELSEIF (level <= 3) THEN
           znc(:,:,:) = CCN
@@ -115,8 +110,7 @@ contains
           ENDIF
           call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
-               useMcICA=useMcICA, ConstPrs=RadConstPress)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo)
 
        ELSE IF (level == 4) THEN
           ! Water is the first SALSA species
@@ -129,8 +123,7 @@ contains
           ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, radsounding=radsounding, &
-               useMcICA=useMcICA, ConstPrs=RadConstPress)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo)
 
        ELSE IF (level == 5) THEN
           ! Water is the first SALSA species
@@ -149,8 +142,7 @@ contains
           ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,radsounding=radsounding, &
-               useMcICA=useMcICA, ConstPrs=RadConstPress)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni)
 
        END IF
 

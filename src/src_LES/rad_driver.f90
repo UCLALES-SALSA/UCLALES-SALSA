@@ -24,43 +24,38 @@ module radiation
   ! Juha Tonttila, FMI
 
 
-  use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv, SolarConstant
+  use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv
   use fuliou, only     : rad, set_random_offset, minSolarZenithCosForVis
   implicit none
 
-  character (len=50) :: background = 'datafiles/dsrt.lay'
-  LOGICAL :: McICA = .TRUE.
+  real, parameter :: SolarConstant = 1.365e+3
 
-  LOGICAL :: ConstPress = .FALSE.
-  REAL, ALLOCATABLE, SAVE :: exner(:), pres(:)
+  ! NAMELIST parameters
+  character (len=50) :: radsounding = 'datafiles/dsrt.lay'
+  LOGICAL :: useMcICA = .TRUE.
+  LOGICAL :: RadConstPress = .FALSE. ! keep constant pressure levels
+  REAL :: RadConstSZA = -360. ! constant solar zenith angle (values between -180 and 180 degrees)
 
   logical, save     :: first_time = .True.
   real, allocatable, save ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
-       plwc(:), piwc(:), prwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:)
-
-  integer :: k,i,j, npts
+       plwc(:), piwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:)
 
   contains
 
     subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn, pi0, pi1, dzm, &
-         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs)
+         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, albedo, ice, nice, grp)
       use mpi_interface, only: myid, pecount
       integer, intent (in) :: n1, n2, n3
       real, intent (in)    :: alat, time, sknt, sfc_albedo
       real, dimension (n1), intent (in)                 :: pi0, pi1, dzm
       real, dimension (n1,n2,n3), intent (in)           :: dn, pip, tk, rv, rc, nc
-      real, optional, dimension (n1,n2,n3), intent (in) :: rr, ice, nice, grp
+      real, optional, dimension (n1,n2,n3), intent (in) :: ice, nice, grp
       real, dimension (n1,n2,n3), intent (inout)        :: tt, rflx, sflx, afus, afds, afuir, afdir
-      CHARACTER(len=50), OPTIONAL, INTENT(in)           :: radsounding
-      LOGICAL, OPTIONAL, INTENT(in)                     :: useMcICA, ConstPrs
       real, intent (out)                                :: albedo(n2,n3)
 
-      integer :: kk
+      integer :: kk, k, i, j, npts
       real    :: ee, u0, xfact, prw, pri, p0(n1)
-
-      IF (PRESENT(radsounding)) background = radsounding
-      IF (PRESENT(useMcICA)) McICA = useMcICA
-      IF (PRESENT(ConstPrs)) ConstPress = ConstPrs
+      real, allocatable, save :: exner(:), pres(:)
 
       if (first_time) then
          ! Possible to use constant LES pressure levels (fixed during the first call)
@@ -70,25 +65,24 @@ module radiation
          IF (.TRUE.) THEN
             ! Works well with the LES model
             p0(1:n1) = 0.01*pres(1:n1)
-            IF ( background == 'auto' ) THEN
+            IF ( radsounding == 'auto' ) THEN
                 ! Automatic profile generation
                 !   - Upper atmosphere (P > 179 hPa) from dsrt.lay
                 !   - log-log or lin-log interpolation between LES and the upper atmosphere
                 !   - Boundary layer ozone concentration fixed to 50 ppt
                 call setup_auto(n1,nv1,nv,p0,tk(n1,3,3),MAX(4e-7,rv(n1,3,3)),50e-9)
             ELSE
-                call setup_les(background,n1,nv1,nv,p0,tk(n1,3,3),MAX(4e-7,rv(n1,3,3)))
+                call setup_les(radsounding,n1,nv1,nv,p0,tk(n1,3,3),MAX(4e-7,rv(n1,3,3)))
             ENDIF
          ELSE
             p0(n1) = (p00*(pi0(n1)/cp)**cpr) / 100.
             p0(n1-1) = (p00*(pi0(n1-1)/cp)**cpr) / 100.
-            call setup(background,n1,npts,nv1,nv,p0)
+            call setup(radsounding,n1,npts,nv1,nv,p0)
          ENDIF
          first_time = .False.
          if (allocated(pre))   pre(:) = 0.
          if (allocated(pde))   pde(:) = 0.
          if (allocated(piwc)) piwc(:) = 0.
-         if (allocated(prwc)) prwc(:) = 0.
          if (allocated(plwc)) plwc(:) = 0.
          if (allocated(pgwc)) pgwc(:) = 0.
       end if
@@ -100,14 +94,20 @@ module radiation
       ! determine the solar geometery, as measured by u0, the cosine of the
       ! solar zenith angle
       !
-      u0 = zenith(alat,time)
+      IF (-180. .LE. RadConstSZA .AND. RadConstSZA .LE. 180.) THEN
+         ! Fixed solar zenith angle
+         u0 = cos(RadConstSZA*pi/180.)
+      ELSE
+         ! Solar zenith angle based on latitude and decimal day of year
+         u0 = zenith(alat,time)
+      ENDIF
       !
       ! Avoid identical random numbers by adding an offset for each PU
       !     myid=0,1,2,...
       !     (n3-4)*(n2-4) is the number of random numbers for each PU
       !     IR and optionally also visible wavelengths
       ! First, call random numbers to add offset for PUs before myid
-      IF (McICA .and. myid>0) THEN
+      IF (useMcICA .and. myid>0) THEN
         if (u0 > minSolarZenithCosForVis) THEN
             kk=myid*(n3-4)*(n2-4)*2
         ELSE
@@ -122,7 +122,7 @@ module radiation
       pri = (3.*sqrt(3.)/8.)*roice
       do j=3,n3-2
          do i=3,n2-2
-            IF (.NOT.ConstPress) THEN
+            IF (.NOT.RadConstPress) THEN
                 ! Grid cell pressures in the LES model (Pa)
                 exner(1:n1) = (pi0(1:n1)+pi1(1:n1)+pip(1:n1,i,j))/cp
                 pres(1:n1) = p00*( exner(1:n1) )**cpr
@@ -156,11 +156,6 @@ module radiation
                   plwc(kk) = 0.
                end if
 
-               ! Precipitation (not used at the moment)
-               if (present(rr)) then
-                  prwc(kk) = 1000.*dn(k,i,j)*rr(k,i,j)
-               end if
-
                ! Ice
                if (present(ice)) then
                   if ((ice(k,i,j).gt.0.).and.(nice(k,i,j).gt.0.)) then
@@ -180,24 +175,15 @@ module radiation
 
             end do
 
-            if (present(ice).and.present(rr).and.present(grp)) then
+            if (present(ice).and.present(grp)) then
                 call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, prwc=prwc, pgwc=pgwc)
-            ELSEif (present(ice).and.present(grp)) then
-                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, pgwc=pgwc)
-            ELSEif (present(ice).and.present(rr)) then
-                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, prwc=prwc)
+                     fds, fus, fdir, fuir, useMcICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, pgwc=pgwc)
             ELSEif (present(ice)) then
                 call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde)
-            ELSEif (present(rr)) then
-                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre, prwc=prwc)
+                     fds, fus, fdir, fuir, useMcICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde)
             else
                 call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                     fds, fus, fdir, fuir, McICA, plwc=plwc, pre=pre)
+                     fds, fus, fdir, fuir, useMcICA, plwc=plwc, pre=pre)
             end if
 
             do k=1,n1
@@ -225,7 +211,7 @@ module radiation
       end do
 
       ! Call random numbers to add offset for PUs after myid
-      IF (McICA .and. myid<pecount-1) THEN
+      IF (useMcICA .and. myid<pecount-1) THEN
         if (u0 > minSolarZenithCosForVis) THEN
             kk=(pecount-1-myid)*(n3-4)*(n2-4)*2
         ELSE
@@ -243,7 +229,7 @@ module radiation
   !
   subroutine setup(background,n1,npts,nv1,nv,zp)
 
-    character (len=19), intent (in) :: background
+    character (len=*), intent (in) :: background
     integer, intent (in) :: n1
     integer, intent (out):: npts,nv1,nv
     real, intent (in)    :: zp(n1)
@@ -312,7 +298,7 @@ module radiation
     ! pressure at the top of the sounding
     !
     allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1))
-    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv))
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),piwc(nv),pgwc(nv))
 
     if (blend) then
        pp(1:norig) = sp(1:norig)
@@ -349,7 +335,7 @@ module radiation
     use mpi_interface, only: myid
     implicit none
 
-    character (len=19), intent (in) :: background
+    character (len=*), intent (in) :: background
     integer, intent (in) :: n1
     integer, intent (out):: nv1,nv
     real, intent (in)    :: zp(n1), ttop, qtop
@@ -402,7 +388,7 @@ module radiation
     ! expect decreasing pressure grid (from TOA to surface)
     !
     allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
-    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
 
     po=0.
     IF (nb>0) THEN
@@ -528,7 +514,7 @@ module radiation
 
     ! Sounding and LES data
     allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
-    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
 
     IF (nb>0) THEN
         ! Levels above LES domain: copy background soundings
@@ -558,7 +544,7 @@ module radiation
     ! Print information about sounding
     IF (myid==0) THEN
         WRITE(*,'(/,/,20A)') '-------------------------------------------------'
-        WRITE(*,'(/2x,20A,/)') 'Reading Background Sounding: '//trim(background)
+        WRITE(*,'(/2x,20A,/)') 'Reading Background Sounding: '//trim(radsounding)
         WRITE(*,'(/2x,A7,4A10)') 'Source','p (hPa)','T (K)','q (g/kg)','O3 (ppm)'
 
         ! Calculate LES pressure levels ([zp]=hPa) and T and q for cell centers

@@ -51,7 +51,7 @@ contains
     use grid, only : dtl, zt, zm, nzp, dn0, u0, v0, &
          write_hist, write_anal, close_anal, &
          dtlong, nzp
-    use stat, only : sflg, savg_intvl, ssam_intvl, write_ps, close_stat
+    use stat, only : sflg, csflg, cswrite, savg_intvl, ssam_intvl, write_ps, close_stat
     use thrm, only : thermo
 
     real, parameter :: cfl_upper = 0.5
@@ -78,6 +78,7 @@ contains
        !    - After the first call (time=0)
        tplsdt = time + dtl ! Time after t_step
        sflg = (min(mod(tplsdt,ssam_intvl),mod(tplsdt,savg_intvl)) < dtl .or. tplsdt < 1.1*dtl)
+       cswrite = csflg .and. (mod(tplsdt,savg_intvl) < dtl .or. tplsdt < 1.1*dtl)
 
        call t_step
        time = time + dtl
@@ -668,7 +669,7 @@ contains
     cflmax =  cfll(nzp,nxp,nyp,a_up,a_vp,a_wp,dxi,dyi,dzt,dtl)
 
     if (cflmax > cflnum) print *, 'Warning CFL Violation :', cflmax
-    call fill_scalar(1,REAL(cflmax))
+    call fill_scalar(REAL(cflmax),'cfl    ','max')
 
   end subroutine cfl
   !
@@ -885,7 +886,7 @@ contains
                      a_nicep,a_micep,a_nsnowp,a_msnowp,a_gaerop, &
                      a_naerot,a_maerot,a_ncloudt,a_mcloudt,a_nprecpt,a_mprecpt,      &
                      a_nicet,a_micet,a_nsnowt,a_msnowt,a_gaerot, &
-                     a_rh, a_temp, a_rhi, a_dn, level, dtl, &
+                     a_rp, a_rsl, a_rsi, a_temp, a_dn, level, dtl, &
                      tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
     USE mo_submctl, ONLY : fn1a,in2a,fn2a, &
                      diss, mws, dens, &
@@ -899,8 +900,11 @@ contains
 
     INTEGER :: i,j,k,bc,ba,bb,s,sc,sa,nn
 
-    REAL :: zvol, ra, rb
+    REAL :: zvol, ra, rb, a_rh(nzp,nxp,nyp), a_rhi(nzp,nxp,nyp)
     REAL :: ns, cd
+
+    a_rh(:,3:nxp-2,3:nyp-2) = a_rp(:,3:nxp-2,3:nyp-2)/a_rsl(:,3:nxp-2,3:nyp-2)
+    a_rhi(:,3:nxp-2,3:nyp-2) = a_rp(:,3:nxp-2,3:nyp-2)/a_rsi(:,3:nxp-2,3:nyp-2)
 
     ! Change in concentrations due to diagnostics (e.g. release of cloud/rain/ice/snow into aerosol,
     ! cleaning particles without mass or negligible number concentration)

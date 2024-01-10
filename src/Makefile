@@ -46,7 +46,7 @@ $(OUT): $(OBJS)
 # --------------------
 #
 LES.o: grid.o init.o step.o $(seqmpi:.f90=.o) util.o sgsm.o srfc.o \
-       stat.o forc.o mo_salsa_init.o
+       stat.o forc.o mo_salsa_init.o mcrp_ice.o rad_d4strm.o
 ncio.o: $(seqmpi:.f90=.o)
 util.o: $(seqmpi:.f90=.o)
 defs.o:
@@ -56,7 +56,7 @@ thrm.o: grid.o defs.o $(seqmpi:.f90=.o) mo_submctl.o
 forc.o: grid.o defs.o stat.o util.o rad_driver.o mo_submctl.o $(seqmpi:.f90=.o)
 advf.o: grid.o stat.o util.o mo_submctl.o $(seqmpi:.f90=.o)
 advl.o: grid.o stat.o util.o
-srfc.o: grid.o stat.o defs.o thrm.o util.o $(seqmpi:.f90=.o)
+srfc.o: grid.o stat.o defs.o thrm.o util.o
 prss.o: grid.o stat.o defs.o util.o $(seqmpi:.f90=.o)
 sgsm.o: grid.o stat.o defs.o util.o thrm.o $(seqmpi:.f90=.o)
 mcrp.o: grid.o stat.o defs.o mo_submctl.o mcrp_ice.o

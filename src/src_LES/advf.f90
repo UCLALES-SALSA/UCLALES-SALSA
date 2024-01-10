@@ -31,7 +31,7 @@ contains
   ! times.
   !
   subroutine fadvect
-    use grid, only : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, newsclr  &
+    use grid, only : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, a_rp, a_tp, newsclr  &
          , nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtl  &
          , dzt, dzm, zt, dxi, dyi, isgstyp
     use stat, only      : sflg, updtst
@@ -48,7 +48,7 @@ contains
        call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.false.)
        call mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtl,.false.)
        call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-       call updtst(nzp,'adv',0,v1da,1)
+       call updtst(nzp,v1da,1,'tot_lw ')
     end if
     !
     ! loop through the scalar table, setting iscp and isct to the
@@ -61,11 +61,7 @@ contains
       IF ( ANY(a_sp /= 0.0 ) ) THEN ! TR added: no need to calculate advection for zero arrays
        a_tmp1=a_sp
 
-       if (isgstyp > 1 .and. associated(a_qp,a_sp)) then
-          iw= .true.
-       else
-          iw= .false.
-       end if
+       iw=(isgstyp > 1 .and. associated(a_qp,a_sp))
 
        call add_vel(nzp,nxp,nyp,a_tmp2,a_vp,a_vc,iw)
        call mamaos_y(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dyi,dtl)
@@ -75,18 +71,19 @@ contains
 
        call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,iw)
        call mamaos(nzp,nxp,nyp,a_tmp2,a_sp,a_tmp1,dzt,dzm,dn0,dtl,iw)
-       if (sflg) then
-          call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-          call updtst(nzp,'adv',n,v1da,1)
-       end if
 
        call advtnd(nzp,nxp,nyp,a_sp,a_tmp1,a_st,dtl)
       ELSEIF (sflg) THEN
        ! Averages & statistics even for zeros (might be non-zero elsewhere)
        a_tmp2(:,:,:)=0.
-       call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-       call updtst(nzp,'adv',n,v1da,1)
       ENDIF
+       if (sflg .and. associated(a_sp,a_tp)) then
+          call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+          call updtst(nzp,v1da,1,'tot_tw ')
+       elseif (sflg .and. associated(a_sp,a_rp)) then
+          call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+          call updtst(nzp,v1da,1,'tot_qw ')
+       end if
     end do
 
   end subroutine fadvect

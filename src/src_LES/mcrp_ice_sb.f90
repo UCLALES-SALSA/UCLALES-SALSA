@@ -4,7 +4,7 @@
 !===============================================================================!
 !
 module mcrp_ice_sb
-    use defs, only : pi
+    use defs, only : pi, rho_w=>rowt, rho_ice=>roice, L_wd=>alvl, L_ed=>alvi, R_d=>Rm, R_l=>Rd
     use thrm, only : esl, esi
 
     IMPLICIT NONE
@@ -65,22 +65,14 @@ module mcrp_ice_sb
 
   ! .. allgemeine physikalische Konstanten und Parameter ..
 
-  REAL, PARAMETER :: nu_l = 1.460e-5     !..Kinem. Visc. von Luft
+  REAL, PARAMETER :: nu_l = 1.4086e-5    !..Kinem. Visc. von Luft
   REAL, PARAMETER :: D_v  = 3.000e-5     !..Diffusivitaet von Wasserdampf
   REAL, PARAMETER :: K_T  = 2.500e-2     !..Waermeleitfaehigkeit     
-  REAL, PARAMETER :: L_ew = 3.330e+5     !..Schmelzwaerme     
-  REAL, PARAMETER :: L_ed = 2.830e+6     !..Sublimationswaerme     
-  REAL, PARAMETER :: L_wd = 2.500e+6     !..Verdampfungswaerme     
-  REAL, PARAMETER :: K_w  = 0.930e+0     !..Dielektrizitaetsfaktor Wasser
-  REAL, PARAMETER :: K_i  = 0.176e+0     !..Dielektrizitaetsfaktor Eis
+  REAL, PARAMETER :: L_ew = L_ed-L_wd    !..Schmelzwaerme
   REAL, PARAMETER :: rho0 = 1.225e+0     !..Norm-Luftdichte
-  REAL, PARAMETER :: T_3  = 2.732e+2     !..Tripelpunkt Wasser
+  REAL, PARAMETER :: T_3  = 2.7315e+2    !..Tripelpunkt Wasser
   REAL, PARAMETER :: T_f  = 2.330e+2     !..Bei T < T_f kein Fl.wasser
-  REAL, PARAMETER :: R_l  = 2.870e+2     !..Gaskonstante trockener Luft 
-  REAL, PARAMETER :: R_d  = 4.615e+2     !..Gaskonstante von Wasserdampf
-  REAL, PARAMETER :: c_w  = 4.218e+3     !..spezifische Waerme von Wasser
-  REAL, PARAMETER :: rho_w   = 1000.0    !..Materialdichte von Fluessigwasser
-  REAL, PARAMETER :: rho_ice = 900.0     !..Materialdichte von Eis
+  REAL, PARAMETER :: c_w  = 4.187e+3     !..spezifische Waerme von Wasser
 
   ! .. wolkenphysikalische Konstanten und Parameter ..
 
@@ -91,7 +83,7 @@ module mcrp_ice_sb
   REAL, PARAMETER :: e_3  = 6.10780000e2 !..Saettigungsdamppfdruck bei T = T_3
 
   ! .. Hallett-Mossop
-  REAL, PARAMETER :: C_mult     = 3.5e8    !..Koeff. fuer Splintering
+  REAL            :: C_mult     = 3.5e8    !..Koeff. fuer Splintering
   REAL, PARAMETER :: T_mult_min = 265.0    !..Minimale Temp. Splintering
   REAL, PARAMETER :: T_mult_max = 270.0    !..Maximale Temp. Splintering
   REAL, PARAMETER :: T_mult_opt = 268.0    !..Optimale Temp. Splintering
@@ -104,7 +96,7 @@ module mcrp_ice_sb
   REAL, PARAMETER :: e_min = 0.01              !..min. Eff. fuer gc,ic,sc
   REAL, PARAMETER :: alpha_spacefilling = 0.1  !..Raumerfuellungskoeff (max. 0.68)
   REAL, PARAMETER :: ice_s_vel  = 0.00         !..Dispersion der Fallgeschw. 
-  REAL, PARAMETER :: snow_s_vel = 0.25         !..Dispersion der Fallgeschw.
+  REAL, PARAMETER :: snow_s_vel = 0.10         !..Dispersion der Fallgeschw.
   REAL, PARAMETER :: r_shedding = 500.0e-6     !..mittlerer Radius Shedding
   REAL, PARAMETER :: T_shed = 263.2
   REAL, PARAMETER :: q_krit_ii = 1.000e-6 ! q-Schwellenwert fuer ice_selfcollection 
@@ -112,9 +104,9 @@ module mcrp_ice_sb
   REAL, PARAMETER :: D_conv_ii = 75.00e-6 ! D-Schwellenwert fuer ice_selfcollection
   ! .. riming mixing ratio (q) and diameter (D) limits
   REAL :: q_krit_ic = 1.000e-5, D_krit_ic = 150.0e-6 ! ice in ice_cloud_riming
-  REAL :: q_krit_ir = 1.000e-5, D_krit_ir = 100.0e-6 ! ice in ice_rain_riming
+  REAL :: q_krit_ir = 1.000e-5, D_krit_ir = 0.0      ! ice in ice_rain_riming
   REAL :: q_krit_sc = 1.000e-5, D_krit_sc = 150.0e-6 ! snow in snow_cloud_riming
-  REAL :: q_krit_sr = 1.000e-5, D_krit_sr = 100.0e-6 ! snow in snow_rain_riming
+  REAL :: q_krit_sr = 1.000e-5, D_krit_sr = 0.0      ! snow in snow_rain_riming
   REAL :: q_krit_gc = 1.000e-6, D_krit_gc = 100.0e-6 ! graupel in graupel_cloud_riming
   REAL :: q_krit_gr = 1.000e-9 ! graupel in graupel_rain_riming; no diameter limit
   REAL :: q_krit_hc = 1.000e-6, D_krit_hc = 100.0e-6 ! hail in hail_cloud_riming
@@ -135,8 +127,17 @@ module mcrp_ice_sb
   ! Adjustable parameters
   ! =====================
 
-  ! Default cloud, rain, ice, snow, graupel and hail
-  TYPE(PARTICLE) :: cloud = PARTICLE('cloud', & !.name
+  ! Default cloud, rain, ice, snow, graupel and hail from
+  ! 1) Seifert, A. and Beheng, K. D.: A two-moment cloud microphysics parameterization
+  !    for mixed-phase clouds. Part 1: Model description, Meteorol. Atmos. Phys., 92,
+  !    45-66, DOI: 10.1007/s00703-005-0112-4, 2006.
+  ! 2) Seifert, A., Kohler, C., and Beheng, K. D.: Aerosol-cloud-precipitation effects
+  !    over Germany as simulated by a convective-scale numerical weather prediction model,
+  !    Atmos. Chem. Phys., 12, 709-725, https://doi.org/10.5194/acp-12-709-2012, 2012.
+  ! 3) Seifert, A., Blahak, U., and Buhr, R.: On the analytic approximation of bulk
+  !    collision rates of non-spherical hydrometeors, Geosci. Model Dev., 7, 463-478,
+  !    https://doi.org/10.5194/gmd-7-463-2014, 2014.
+  TYPE(PARTICLE) :: cloud = PARTICLE('cloud', &
         1.000000, & !.nu
         1.000000, & !.mu
         2.60e-10, & !.x_max, D=80e-6m
@@ -149,67 +150,67 @@ module mcrp_ice_sb
         0.308000, & !.b_ven
         2.0)        !.cap
 
-  TYPE(PARTICLE) :: rain = PARTICLE('rain', & !.name
-        1.000000, & !.nu
+  TYPE(PARTICLE) :: rain = PARTICLE('rain', &
+        0.000000, & !.nu
         0.333333, & !.mu
         3.00e-06, & !.x_max
         2.60e-10, & !.x_min, D=80.e-6m
         1.24e-01, & !.a_geo
         0.333333, & !.b_geo
-        1.59e+02, & !.a_vel
-        0.266667, & !.b_vel
+        1.14e+02, & !.a_vel
+        0.234000, & !.b_vel
         0.780000, & !.a_ven
         0.308000, & !.b_ven
         2.0)        !.cap
 
-  TYPE(PARTICLE) :: ice =PARTICLE('ice', & ! iceCRY
+  TYPE(PARTICLE) :: ice =PARTICLE('ice', &
          0.000000, & !.nu
          0.333333, & !.mu
-         5.00e-07, & !.x_max
+         1.00e-06, & !.x_max
          1.00e-12, & !.x_min, D=200e-6m
-         3.303633, & !.a_geo
-         0.476191, & !.b_geo
-         2.77e+01, & !.a_vel
-         0.215790, & !.b_vel
+         0.835000, & !.a_geo
+         0.390000, & !.b_geo
+         27.70000, & !.a_vel
+         0.216000, & !.b_vel
          0.780000, & !.a_ven
          0.308000, & !.b_ven
          2.0)        !.cap
 
-  TYPE(PARTICLE) :: snow = PARTICLE('snow', & ! snowCRYSTAL
-         0.000000, & !.nu
-         0.333333, & !.mu
-         2.00e-07, & !.x_max
-         1.00e-12, & !.x_min
-         3.303633, & !.a_geo
-         0.476191, & !.b_geo
-         2.47e+02, & !.a_vel
-         0.333333, & !.b_vel
+  TYPE(PARTICLE) :: snow = PARTICLE('snow', &
+         1.000000, & !.nu
+         0.500000, & !.mu
+         2.00e-05, & !.x_max
+         1.00e-10, & !.x_min
+         2.400000, & !.a_geo
+         0.455000, & !.b_geo
+         8.800000, & !.a_vel
+         0.150000, & !.b_vel
          0.780000, & !.a_ven
          0.308000, & !.b_ven
          2.0)        !.cap
 
-  TYPE(PARTICLE) :: graupel = PARTICLE('graupel' ,& ! graupelmedium
-        1.000000, & !.nu
-        0.166666, & !.mu
-        1.00e-04, & !.x_max
-        2.60e-10, & !.x_min
-        1.10e-01, & !.a_geo
-        0.300000, & !.b_geo
-        7.64e+01, & !.a_vel
-        0.255200, & !.b_vel
-        0.780000, & !.a_ven
-        0.308000, & !.b_ven
-        2.0)        !.cap
-
-  TYPE(PARTICLE) :: hail = PARTICLE('hail' ,& ! hailNOPPEL
+  TYPE(PARTICLE) :: graupel = PARTICLE('graupel' ,&
         1.000000, & !.nu
         0.333333, & !.mu
-        1.00e-02, & !.x_max
-        2.60e-10, & !.x_min
-        1.29e-01, & !.a_geo
+        5.00e-04, & !.x_max
+        1.00e-09, & !.x_min
+        0.142000, & !.a_geo
+        0.314000, & !.b_geo
+        3.30e+01, & !.a_vel
+        0.187000, & !.b_vel
+        0.780000, & !.a_ven
+        0.308000, & !.b_ven
+        2.0)        !.cap
+
+  TYPE(PARTICLE) :: hail = PARTICLE('hail' ,&
+        1.000000, & !.nu
+        0.333333, & !.mu
+        1.00e-04, & !.x_max
+        2.60e-09, & !.x_min
+        1.34e-01, & !.a_geo
         0.333333, & !.b_geo
-        0.56e+02, & !.a_vel
-        0.212700, & !.b_vel
+        3.93e+01, & !.a_vel
+        0.167000, & !.b_vel
         0.780000, & !.a_ven
         0.308000, & !.b_ven
         2.0)        !.cap
@@ -310,7 +311,8 @@ CONTAINS
         ice_typ, cloud_typ, nin_set, &
         q_krit_ic, D_krit_ic,  q_krit_ir, D_krit_ir, q_krit_sc, D_krit_sc, q_krit_sr, D_krit_sr, &
         q_krit_gc, D_krit_gc, q_krit_gr, q_krit_hc, D_krit_hc, q_krit_hr, q_krit_c, q_krit_r, &
-        cldw,rain,ice,snow,graupel
+        c_mult, &
+        cldw,rain,ice,snow,graupel,hail
 
     ! Copy default cloud to cldw
     cldw = cloud
@@ -349,8 +351,6 @@ CONTAINS
 
     INTEGER        :: n
     TYPE(PARTICLE) :: parti
-
-    REAL, PARAMETER :: m_f   = 0.500   ! Koeff. Ventilationskoeff. (PK, S.541)
 
     vent_coeff_b = parti%b_ven                                                  & 
          & * gfct((parti%nu+n+(m_f+1.0)*parti%b_geo+m_f*parti%b_vel)/parti%mu)  &
@@ -708,13 +708,14 @@ CONTAINS
     IMPLICIT NONE
 
     ! Locale Variablen 
+    REAL, PARAMETER :: eps  = 1.e-20
     REAL    :: nuc_q, ndiag
     INTEGER :: i,j,k
 
     DO k = 1, loc_iz
       DO j = 1, loc_iy
         DO i = 0, loc_ix
-          IF (s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3) THEN
+          IF (s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3 .AND. nin_set*ice%x_min>eps) THEN
             ! Cloud droplet freezing with fixed INP concentration
             ndiag = MAX(nin_set*rho_0(i,j,k) - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0)
             nuc_q = MIN(ndiag*ice%x_min, q_cloud(i,j,k))
@@ -938,7 +939,7 @@ CONTAINS
             v_c = cloud%a_vel * x_c**cloud%b_vel * rrho_c(i,j,k)  !..mittlere Sedimentationsgeschw.
             v_s = snow%a_vel  * x_s**snow%b_vel  * rrho_04(i,j,k) !..mittlere Sedimentationsgeschw.
 
-            e_coll = MIN(e_ic, MAX(const1*(D_c - D_krit_c), e_min))
+            e_coll = MIN(e_sc, MAX(const1*(D_c - D_krit_c), e_min))
 
             rime_n = pi/4.0 * e_coll * n_s * n_c * dt & 
                  &   * (delta_n_ss * D_s**2 + delta_n_sc * D_s*D_c + delta_n_cc * D_c**2) &
@@ -2793,7 +2794,7 @@ CONTAINS
     REAL            :: fr_q,fr_n,T_a,q_r,x_r,n_r,j_het,&
          &  fr_q_i,fr_n_i,fr_q_g,fr_n_g,fr_q_h,fr_n_h,n_0,lam,xmax_ice,xmax_gr,fr_q_tmp,fr_n_tmp
     REAL, SAVE      :: coeff_z
-    REAL, PARAMETER :: D_rainfrz_ig = 0.50e-3 ! rain --> ice oder graupel
+    REAL, PARAMETER :: D_rainfrz_ig = 1.00e-3 ! rain --> ice oder graupel
     REAL, PARAMETER :: D_rainfrz_gh = 1.25e-3 ! rain --> graupel oder hail
     REAL, PARAMETER :: q_krit_fr = 1.000e-6 ! q-Schwellenwert fuer rain_freeze
     REAL, PARAMETER :: a_HET = 6.5e-1 ! Messung nach Barklie and Gokhale (PK S.350)

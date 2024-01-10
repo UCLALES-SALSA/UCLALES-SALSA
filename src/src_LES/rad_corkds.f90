@@ -19,7 +19,7 @@
 !
 module ckd
 
-  use defs, only : mair, nv, nv1, mb, totalpower
+  use defs, only : nv, nv1, mb
   implicit none
   private
 
@@ -27,6 +27,8 @@ module ckd
   logical, save      :: Initialized = .False.
   real, save         :: bllmx, brlmn
   integer, save      :: ngases
+  real, save         :: totalpower
+  real, parameter    :: mair = 28.967 ! molar mass of air
 
   TYPE ckd_properties
      character (len=5) :: name
@@ -49,7 +51,7 @@ module ckd
   public :: band_properties, bllmx, brlmn, &
             band, solar_bands, ir_bands, &
             init_ckd, gases, &
-            kg, llimit, rlimit, center, power, gPointWeight, isSolar
+            kg, llimit, rlimit, center, power, gPointWeight, isSolar, totalpower
 contains
   !
   ! ---------------------------------------------------------------------------

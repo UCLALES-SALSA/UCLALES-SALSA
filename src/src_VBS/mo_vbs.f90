@@ -283,6 +283,25 @@ CONTAINS
        vbs_set(:)%dens = densoc
        vbs_set(:)%kappa = kappaoc
 
+    CASE(5) ! VBS-only schemes
+       ! predetermined volatility bins
+       ! physical properties (density, mw, kappa) taken from SALSA organics
+
+       ! VBS scheme
+       vbs_ngroup = 8 ! Seven semivolatile bins and one non-volatile bin
+       vbs_nvocs = 0  ! No VOCs or aqSOA
+
+       ! Defining VBS species
+       IF (.NOT. ALLOCATED(vbs_set)) ALLOCATE(vbs_set(vbs_ngroup))
+       ! equ. vapor conc. at T0 (ug=1e-9 kg converted to mol)
+       vbs_set(:)%C0 = (/0.0,1e0,1e1,1e2,1e3,1e4,1e5,1e6/)*1e-9/mwoc ! C0 [mol/m3]
+       vbs_set(:)%T0 = 298. ! T0 [K]
+       vbs_set(:)%Hvap_eff = 30e3/argas ! eff. evap. enthalpy [K]
+       ! Physical properties from SALSA (mw from kg/mol to g/mol)
+       vbs_set(:)%mw = mwoc*1e3
+       vbs_set(:)%dens = densoc
+       vbs_set(:)%kappa = kappaoc
+
     CASE(3) ! VBS scheme with VOCs (Farina et al., J. Geophys. Res., 115, D09202, 2010)
         ! volatility bins based on VOC oxidation scheme from Farina et al. (JGR, 2010)
         ! one non-volatile bin added for non-volatile VOC oxidation products and for VBS(g) oxidation

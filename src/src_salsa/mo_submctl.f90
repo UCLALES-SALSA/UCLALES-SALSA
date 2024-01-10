@@ -52,7 +52,7 @@ MODULE mo_submctl
   LOGICAL :: nlcndgas   = .FALSE., lscndgas   ! Condensation of H2SO4 and organic vapors
 
   LOGICAL :: nlauto     = .TRUE.,  lsauto     ! Autoconversion of cloud droplets (needs activation)
-  LOGICAL :: nlautosnow = .TRUE.,  lsautosnow ! Autoconversion of ice particles to snow (needs activation)
+  LOGICAL :: nlautosnow = .FALSE., lsautosnow ! Autoconversion of ice particles to snow (needs activation)
   LOGICAL :: nlcgrain = .FALSE.,   lscgrain   ! Rain formation based on cloud-cloud collisions
 
   LOGICAL :: nlactiv    = .TRUE.,  lsactiv    ! Cloud droplet activation master switch
@@ -98,6 +98,7 @@ MODULE mo_submctl
   ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
   ! a) Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice/snow
   REAL :: fixinc = -1.0 ! Default = disabled
+  REAL :: fixed_ice_min_Si=1.05, fixed_ice_min_rc=1e-6 ! Thresholds
   ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
   INTEGER :: ice_source_opt = 1 ! Default = start from the largest bin
   ! b) Modelled ice nucleation
@@ -109,8 +110,9 @@ MODULE mo_submctl
 
   ! Secondary ice production: Hallett-Mossop
   LOGICAL :: nlsip_hm = .FALSE. ! Master switch (needs also coagulation)
+  REAL :: c_mult = 3.5e8  ! Splintering coefficient (particles per kg of rime)
   REAL :: hm_dmin_drop=25e-5, hm_dmin_ice=25e-6 ! Minimum aerosol/cloud/rain drop and ice/snow diameters
-  REAL, SAVE, ALLOCATABLE :: rime_volc_ice(:,:,:), rime_volc_snw(:,:,:) ! Data arrays (rime water volume per m3)
+  REAL, SAVE, ALLOCATABLE :: rime_volc_ice(:,:,:), rime_volc_snw(:,:,:) ! Rime water volume per m3
 
   ! Ice and snow mass-dimension-velocity parameterizations
   !  Defaults:  d=(6/pi*sum(m(i)/rho(i)))**(1/3), v=12.0*sqrt(d)
@@ -173,12 +175,12 @@ MODULE mo_submctl
   ! Define which aerosol species are used and their initial size distributions
   ! Initial aerosol species
   INTEGER :: nspec = 1 ! Does not include water
-  INTEGER, PARAMETER :: maxspec = 8
-  CHARACTER(len=3) :: listspec(maxspec) = (/'SO4','   ','   ','   ','   ','   ','   ','   '/)
+  INTEGER, PARAMETER :: maxspec = maxnspec - 1 ! Not including water
+  CHARACTER(len=3) :: listspec(maxspec) = 'SO4'
 
   ! Volume fractions between aerosol species for A and B-bins
-  REAL :: volDistA(maxspec) = (/1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
-  REAL :: volDistB(maxspec) = (/0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0/)
+  REAL :: volDistA(maxspec) = 1.0
+  REAL :: volDistB(maxspec) = 0.0
   ! Limit 1a composition to OC and/or SO4
   LOGICAL :: salsa1a_SO4_OC = .TRUE.
   ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
@@ -191,8 +193,8 @@ MODULE mo_submctl
   ! For isdtyp = 0
   INTEGER, PARAMETER :: nmod = 7
   REAL :: sigmag(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/),   & ! Stdev
-             dpg(nmod) = (/0.03,0.15,0.2,0.2,0.2,0.2,0.2/), & ! Mode diam in um
-               n(nmod) = (/1600.,640.,0.,0.,0.,0.,0./)        ! 1e6#/kg ~ #/cm3
+             dpg(nmod) = (/0.15,0.2,0.2,0.2,0.2,0.2,0.2/), & ! Mode diam in um
+               n(nmod) = (/640.,0.,0.,0.,0.,0.,0./)        ! 1e6#/kg ~ #/cm3
 
   ! Aerosol, cloud and ice bin limits (based on dry size)
   INTEGER, PARAMETER :: maxnreg = 5 ! maximum number of subregimes (the first is region 1 and the rest are for region 2)

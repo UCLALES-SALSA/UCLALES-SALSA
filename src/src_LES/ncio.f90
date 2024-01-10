@@ -169,11 +169,7 @@ contains
        do n=1,nVar
           select case(trim(ncinfo(2,sx(n),dimensions=dims)))
           case ('time')
-             if (sx(n)/='time' .and. dims == 2) then
-                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttt,VarID)
-             ELSE
-                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,timeID,VarID)
-             ENDIF
+             iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,timeID,VarID)
           case ('zt')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,ztID    ,VarID)
           case ('zm')
@@ -200,7 +196,7 @@ contains
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,hiID    ,VarID)
           case ('ttttaea')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttaea,VarID)
-          case ('ttttaeb','ttttcla','ttttclb','ttttica','tttticb')
+          case ('ttttaeb')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttaeb,VarID)
           case ('ttttprc')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttprc,VarID)
@@ -216,14 +212,16 @@ contains
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttt,VarID)
              ELSEIF (dims == 2) then
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttt,VarID)
-             else
+             elseif (dims == 1) then
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tt,VarID)
+             else
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,timeID,VarID)
              end if
           case ('mttt')
              if (dims == 3) then
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_mttt,VarID)
              else
-                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tt,VarID)
+                iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_mt,VarID)
              end if
           case ('tmtt')
              if (dims == 3) then
@@ -241,7 +239,7 @@ contains
              end if
           case ('ttztaea')
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztaea,VarID)
-          case ('ttztaeb','ttztcla','ttztclb','ttztica','ttzticb')
+          case ('ttztaeb')
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztaeb,VarID)
           case ('ttztprc')
                 iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttztprc,VarID)
@@ -292,9 +290,12 @@ contains
     integer :: scalar_number
     INTEGER :: dims
 
-    ! Number of dimensions in addition to time (0=*.ts.nc, 1=*.ps.nc, 3=*.nc)
+    ! Number of dimensions in addition to time (0=*.ts.nc, 1=*.ps.nc, 2=*.cs.nc, and 3=*.nc)
     dims = 1
     IF (PRESENT(dimensions)) dims = dimensions
+
+    ! Default dimension specification for thermo points
+    if (itype==2) ncinfo = 'tttt'
 
     select case (trim(short_name))
     case ('sxx')
@@ -302,7 +303,6 @@ contains
        write(v_lnm(8:9),'(i2.2)') scalar_number
        if (itype==0) ncinfo = v_lnm
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('time')
        if (itype==0) ncinfo = 'Time'
        if (itype==1) ncinfo = 's'
@@ -341,7 +341,7 @@ contains
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'B_Rd2ab'
     case('B_Rwprc')
-       if (itype==0) ncinfo = 'Precipitation size bins'
+       if (itype==0) ncinfo = 'Rain size bins'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'B_Rwprc'
     case('B_Rwsnw')
@@ -364,83 +364,66 @@ contains
     case('u')
        if (itype==0) ncinfo = 'Zonal wind'
        if (itype==1) ncinfo = 'm/s'
-       if (itype==2) ncinfo = 'mttt'
+       if (itype==2) ncinfo = 'tmtt'
     case('v')
        if (itype==0) ncinfo = 'Meridional wind'
        if (itype==1) ncinfo = 'm/s'
-       if (itype==2) ncinfo = 'tmtt'
+       if (itype==2) ncinfo = 'ttmt'
     case('w')
        if (itype==0) ncinfo = 'Vertical velocity'
        if (itype==1) ncinfo = 'm/s'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('thi')
        if (itype==0) ncinfo = 'Ice-liquid water potential temperature'
        if (itype==1) ncinfo = 'K'
-       if (itype==2) ncinfo = 'tttt'
     case('thl')
        if (itype==0) ncinfo = 'Liquid water potential temperature'
        if (itype==1) ncinfo = 'K'
-       if (itype==2) ncinfo = 'tttt'
     case('theta')
        if (itype==0) ncinfo = 'Potential temperature'
        if (itype==1) ncinfo = 'K'
-       if (itype==2) ncinfo = 'tttt'
     case('p')
        if (itype==0) ncinfo = 'Pressure'
        if (itype==1) ncinfo = 'Pa'
-       if (itype==2) ncinfo = 'tttt'
     case('q')
        if (itype==0) ncinfo = 'Total water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('l')
        if (itype==0) ncinfo = 'Liquid water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('r','rr')
        if (itype==0) ncinfo = 'Rain water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('i','ri')
        if (itype==0) ncinfo = 'Ice water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('s','rs')
        if (itype==0) ncinfo = 'Snow water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('g','rg')
        if (itype==0) ncinfo = 'Graupel water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('h','rh')
        if (itype==0) ncinfo = 'Hail water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('n')
        if (itype==0) ncinfo = 'Rain-drop number mixing ratio'
        if (itype==1) ncinfo = '#/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('ni')
        if (itype==0) ncinfo = 'Ice crystal number mixing ratio'
        if (itype==1) ncinfo = '#/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('ns')
        if (itype==0) ncinfo = 'Snow number mixing ratio'
        if (itype==1) ncinfo = '#/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('ng')
        if (itype==0) ncinfo = 'Graupel number mixing ratio'
        if (itype==1) ncinfo = '#/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('nh')
        if (itype==0) ncinfo = 'Hail number mixing ratio'
        if (itype==1) ncinfo = '#/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('rv')
        if (itype==0) ncinfo = 'Water vapor mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('stke')
        if (itype==0) ncinfo = 'Sub-filter scale TKE'
        if (itype==1) ncinfo = 'J/kg'
@@ -457,7 +440,6 @@ contains
     case('zi1_bar','zi1')
        if (itype==0) ncinfo = 'Height of maximum theta gradient'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
     case('zi2_bar')
        if (itype==0) ncinfo = 'Height of maximum theta variance'
        if (itype==1) ncinfo = 'm'
@@ -465,71 +447,57 @@ contains
     case('zi3_bar')
        if (itype==0) ncinfo = 'Height of minimum buoyancy flux'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
     case('vtke')
        if (itype==0) ncinfo = 'Vertical integral of total TKE'
        if (itype==1) ncinfo = 'kg/s'
-       if (itype==2) ncinfo = 'time'
     case('tkeint')
        if (itype==0) ncinfo = 'Vertical integral of total TKE non-weighted'
        if (itype==1) ncinfo = 'm3/s2'
-       if (itype==2) ncinfo = 'time'
     case('sfcbflx')
        if (itype==0) ncinfo = 'Surface Buoyancy Flux'
        if (itype==1) ncinfo = 'm/s^2'
-       if (itype==2) ncinfo = 'time'
     case('wmax')
        if (itype==0) ncinfo = 'Maximum vertical velocity'
        if (itype==1) ncinfo = 'm/s'
-       if (itype==2) ncinfo = 'time'
+    case('wmin')
+       if (itype==0) ncinfo = 'Minimum vertical velocity'
+       if (itype==1) ncinfo = 'm/s'
     case('wbase')
        if (itype==0) ncinfo = 'Cloud base vertical velocity'
        if (itype==1) ncinfo = 'm/s'
-       if (itype==2) ncinfo = 'time'
     case('tsrf')
        if (itype==0) ncinfo = 'Surface temperature'
        if (itype==1) ncinfo = 'K'
-       if (itype==2) ncinfo = 'time'
     case('ustar')
        if (itype==0) ncinfo = 'Surface friction velocity'
        if (itype==1) ncinfo = 'm/s'
-       if (itype==2) ncinfo = 'time'
     case('shf_bar')
        if (itype==0) ncinfo = 'Sensible heat flux'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'time'
     case('lhf_bar')
        if (itype==0) ncinfo = 'Latent heat flux'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'time'
     case('flx_aer')
        if (itype==0) ncinfo = 'Aerosol sea surface flux'
        if (itype==1) ncinfo = '#/m^2/s'
-       if (itype==2) ncinfo = 'time'
     case('flx_iso')
        if (itype==0) ncinfo = 'Isoprene sea surface flux'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
     case('flx_mt')
        if (itype==0) ncinfo = 'Monoterpene sea surface flux'
        if (itype==1) ncinfo = 'kg/m^2/s'
-       if (itype==2) ncinfo = 'time'
     case('u10')
-       if (itype==0) ncinfo = 'Average 10 m wind speed'
+       if (itype==0) ncinfo = 'Wind speed at 10 m'
        if (itype==1) ncinfo = 'm/s'
-       if (itype==2) ncinfo = 'time'
     case('zi_bar')
        if (itype==0) ncinfo = 'Height of maximum total water mixing ratio gradient'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
     case('wvp_bar')
        if (itype==0) ncinfo = 'Water vapor path'
        if (itype==1) ncinfo = 'kg/m^2'
-       if (itype==2) ncinfo = 'time'
     case('lwp_bar','lwp')
        if (itype==0) ncinfo = 'Liquid-water path'
        if (itype==1) ncinfo = 'kg/m^2'
-       if (itype==2) ncinfo = 'time'
     case('lwp_var')
        if (itype==0) ncinfo = 'Liquid-water path variance'
        if (itype==1) ncinfo = 'kg^2/m^4'
@@ -537,15 +505,12 @@ contains
     case('iwp_bar','iwp')
        if (itype==0) ncinfo = 'Ice-water path'
        if (itype==1) ncinfo = 'kg/m^2'
-       if (itype==2) ncinfo = 'time'
     case('zc')
        if (itype==0) ncinfo = 'Cloud-top height'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
     case('zb')
        if (itype==0) ncinfo = 'Cloud-base height'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
     case('zcmn')
        if (itype==0) ncinfo = 'Mean cloud-top height'
        if (itype==1) ncinfo = 'm'
@@ -554,78 +519,78 @@ contains
        if (itype==0) ncinfo = 'Mean cloud-base height'
        if (itype==1) ncinfo = 'm'
        if (itype==2) ncinfo = 'time'
-    case('cfrac')
+    case('cfrac','frac_ic')
        if (itype==0) ncinfo = 'Cloud fraction'
        if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'time'
+    case('frac_ir')
+       if (itype==0) ncinfo = 'Rain fraction'
+       if (itype==1) ncinfo = '-'
+    case('frac_ii')
+       if (itype==0) ncinfo = 'Ice fraction'
+       if (itype==1) ncinfo = '-'
+    case('frac_is')
+       if (itype==0) ncinfo = 'Snow fraction'
+       if (itype==1) ncinfo = '-'
+    case('frac_ig')
+       if (itype==0) ncinfo = 'Graupel fraction'
+       if (itype==1) ncinfo = '-'
+    case('frac_ih')
+       if (itype==0) ncinfo = 'Hail fraction'
+       if (itype==1) ncinfo = '-'
     case('lmax')
        if (itype==0) ncinfo = 'Maximum liquid water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'time'
     case('imax')
        if (itype==0) ncinfo = 'Maximum ice water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'time'
     case('smax')
        if (itype==0) ncinfo = 'Maximum snow water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'time'
     case('gmax')
        if (itype==0) ncinfo = 'Maximum graupel water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'time'
     case('hmax')
        if (itype==0) ncinfo = 'Maximum hail water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'time'
     case('albedo')
        if (itype==0) ncinfo = 'Reflected (TOA) shortwave radiation'
        if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'time'
     case('rwp_bar','rwp')
        if (itype==0) ncinfo = 'Rain-water path'
        if (itype==1) ncinfo = 'kg/m^2'
-       if (itype==2) ncinfo = 'time'
     case('swp_bar','swp')
        if (itype==0) ncinfo = 'Snow-water path'
        if (itype==1) ncinfo = 'kg/m^2'
-       if (itype==2) ncinfo = 'time'
     case('gwp_bar','gwp')
        if (itype==0) ncinfo = 'Graupel-water path'
        if (itype==1) ncinfo = 'kg/m^2'
-       if (itype==2) ncinfo = 'time'
     case('hwp_bar','hwp')
        if (itype==0) ncinfo = 'Hail-water path'
        if (itype==1) ncinfo = 'kg/m^2'
-       if (itype==2) ncinfo = 'time'
-    case('prcp')
-       if (itype==0) ncinfo = 'Surface precipitation rate'
+    case('rprcp','prcp')
+       if (itype==0) ncinfo = 'Surface rain precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'time'
+    case('cprcp','prcc')
+       if (itype==0) ncinfo = 'Surface cloud precipitation rate'
+       if (itype==1) ncinfo = 'W/m^2'
     case('iprcp')
        if (itype==0) ncinfo = 'Surface ice precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'time'
     case('sprcp')
        if (itype==0) ncinfo = 'Surface snow precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'time'
     case('gprcp')
        if (itype==0) ncinfo = 'Surface graupel precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'time'
     case('hprcp')
        if (itype==0) ncinfo = 'Surface hail precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'time'
     case('prcp_bc')
        if (itype==0) ncinfo = 'Rain water precipitation rate at the cloud base'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'time'
     case('prcc_bc')
        if (itype==0) ncinfo = 'Cloud water precipitation rate at the cloud base'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'time'
     case('wvar_bc')
        if (itype==0) ncinfo = 'Cloud base vertical velocity variance'
        if (itype==1) ncinfo = 'm^2/s^2'
@@ -633,87 +598,78 @@ contains
     case('CCN')
        if (itype==0) ncinfo = 'Cloud condensation nuclei'
        if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'time'
-    case('ncloud')
+    case('ncloud','Nc_ic')
        if (itype==0) ncinfo = 'Conditionally sampled cloud number mixing ratio'
        if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'time'
-    case('nrain')
+    case('nrain','Nr_ir')
        if (itype==0) ncinfo = 'Conditionally sampled rain number mixing ratio'
        if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'time'
-    case('nice')
+    case('nice','Ni_ii')
        if (itype==0) ncinfo = 'Conditionally sampled ice number mixing ratio'
        if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'time'
-    case('nsnow')
+    case('nsnow','Ns_is')
        if (itype==0) ncinfo = 'Conditionally sampled snow number mixing ratio'
        if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'time'
-    case('ngra')
+    case('ngra','Ng_ig')
        if (itype==0) ncinfo = 'Conditionally sampled graupel number mixing ratio'
        if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'time'
-    case('nhail')
+    case('nhail','Nh_ih')
        if (itype==0) ncinfo = 'Conditionally sampled hail number mixing ratio'
        if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'time'
     case('nrcnt')
        if (itype==0) ncinfo = 'Rain cell counts'
        if (itype==1) ncinfo = '#'
-       if (itype==2) ncinfo = 'time'
     case('nscnt')
        if (itype==0) ncinfo = 'Snow cell counts'
        if (itype==1) ncinfo = '#'
-       if (itype==2) ncinfo = 'time'
     case('nccnt')
        if (itype==0) ncinfo = 'Cloud cell counts'
        if (itype==1) ncinfo = '#'
-       if (itype==2) ncinfo = 'time'
     case('nicnt')
        if (itype==0) ncinfo = 'Ice cell counts'
        if (itype==1) ncinfo = '#'
-       if (itype==2) ncinfo = 'time'
     case('ngcnt')
        if (itype==0) ncinfo = 'Graupel cell counts'
        if (itype==1) ncinfo = '#'
-       if (itype==2) ncinfo = 'time'
     case('nhcnt')
        if (itype==0) ncinfo = 'Hail cell counts'
        if (itype==1) ncinfo = '#'
-       if (itype==2) ncinfo = 'time'
-    case('Rcloud')
+    case('Rcloud','Rc_ic')
        if (itype==0) ncinfo = 'Conditionally sampled cloud droplet radius'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
-    case('Rrain')
+    case('Rrain','Rr_ir')
        if (itype==0) ncinfo = 'Conditionally sampled rain drop radius'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
-    case('Rice')
+    case('Rice','Ri_ii')
        if (itype==0) ncinfo = 'Conditionally sampled ice radius'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
-    case('Rsnow')
+    case('Rsnow','Rs_is')
        if (itype==0) ncinfo = 'Conditionally sampled snow radius'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
-    case('Rgra')
+    case('Rgra','Rg_ig')
        if (itype==0) ncinfo = 'Conditionally sampled graupel radius'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
-    case('Rhail')
+    case('Rhail','Rh_ih')
        if (itype==0) ncinfo = 'Conditionally sampled hail radius'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
     case('SS_max')
        if (itype==0) ncinfo = 'Maximum supersaturation'
        if (itype==1) ncinfo = '%'
-       if (itype==2) ncinfo = 'time'
     case('SSi_max')
        if (itype==0) ncinfo = 'Maximum supersaturation over ice'
        if (itype==1) ncinfo = '%'
-       if (itype==2) ncinfo = 'time'
+    case('SS_min')
+       if (itype==0) ncinfo = 'Minimum supersaturation'
+       if (itype==1) ncinfo = '%'
+    case('SSi_min')
+       if (itype==0) ncinfo = 'Minimum supersaturation over ice'
+       if (itype==1) ncinfo = '%'
+    case('T_min')
+       if (itype==0) ncinfo = 'Minimum absolute temperature'
+       if (itype==1) ncinfo = 'K'
+    case('T_max')
+       if (itype==0) ncinfo = 'Maximum absolute temperature'
+       if (itype==1) ncinfo = 'K'
     case('thl_int')
        if (itype==0) ncinfo = 'Integrated liquid water potential temperature change'
        if (itype==1) ncinfo = 'Km'
@@ -738,119 +694,100 @@ contains
     case('u_2')
        if (itype==0) ncinfo = 'Variance of u wind'
        if (itype==1) ncinfo = 'm^2/s^2'
-       if (itype==2) ncinfo = 'tttt'
     case('v_2')
        if (itype==0) ncinfo = 'Variance of v wind'
        if (itype==1) ncinfo = 'm^2/s^2'
-       if (itype==2) ncinfo = 'tttt'
     case('w_2')
        if (itype==0) ncinfo = 'Second raw moment of w wind'
        if (itype==1) ncinfo = 'm^2/s^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('theta_2')
        if (itype==0) ncinfo = 'Variance of theta'
        if (itype==1) ncinfo = 'K^2'
-       if (itype==2) ncinfo = 'tttt'
     case('thl_2')
        if (itype==0) ncinfo = 'Variance of liquid water potential temperature'
        if (itype==1) ncinfo = 'K^2'
-       if (itype==2) ncinfo = 'tttt'
     case('thi_2')
        if (itype==0) ncinfo = 'Variance of ice-liquid water potential temperature'
        if (itype==1) ncinfo = 'K^2'
-       if (itype==2) ncinfo = 'tttt'
     case('w_3')
        if (itype==0) ncinfo = 'Third raw moment of w wind'
        if (itype==1) ncinfo = 'm^3/s^3'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('theta_3')
        if (itype==0) ncinfo = 'Third moment of theta'
        if (itype==1) ncinfo = 'K^3'
-       if (itype==2) ncinfo = 'tttt'
     case('thl_3')
        if (itype==0) ncinfo = 'Third moment of liquid water potential temperature'
        if (itype==1) ncinfo = 'K^3'
-       if (itype==2) ncinfo = 'tttt'
     case('thi_3')
        if (itype==0) ncinfo = 'Third moment of ice-liquid water potential temperature'
        if (itype==1) ncinfo = 'K^3'
-       if (itype==2) ncinfo = 'tttt'
     case('tot_tw')
        if (itype==0) ncinfo = 'Total vertical flux of theta'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('sfs_tw')
        if (itype==0) ncinfo = 'Sub-filter scale vertical flux of theta'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('tot_uw')
        if (itype==0) ncinfo = 'Total vertical flux of u-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('sfs_uw')
        if (itype==0) ncinfo = 'Sub-filter scale vertical flux of u-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('tot_vw')
        if (itype==0) ncinfo = 'Total vertical flux of v-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('sfs_vw')
        if (itype==0) ncinfo = 'Sub-filter scale vertical flux of v-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('tot_ww')
        if (itype==0) ncinfo = 'Total vertical flux of w-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('sfs_ww')
        if (itype==0) ncinfo = 'Sub-filter scale vertical flux of w-wind'
        if (itype==1) ncinfo = 'm^2/s^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('km')
        if (itype==0) ncinfo = 'Eddy viscosity'
        if (itype==1) ncinfo = 'm^2/s'
-       if (itype==2) ncinfo = 'ttmt'
     case('kh')
        if (itype==0) ncinfo = 'Eddy diffusivity'
        if (itype==1) ncinfo = 'm^2/s'
-       if (itype==2) ncinfo = 'ttmt'
     case('lmbd')
        if (itype==0) ncinfo = 'Mixing lengthscale'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'ttmt'
     case('lmbde')
        if (itype==0) ncinfo = 'Dissipation lengthscale'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'ttmt'
     case('sfs_tke')
        if (itype==0) ncinfo = 'Sub-filter scale TKE'
        if (itype==1) ncinfo = 'm^2/s^2'
-       if (itype==2) ncinfo = 'ttmt'
     case('sfs_boy')
        if (itype==0) ncinfo = 'Sub-filter scale buoyancy production of TKE'
        if (itype==1) ncinfo = 'm^2/s^3'
-       if (itype==2) ncinfo = 'ttmt'
     case('sfs_shr')
        if (itype==0) ncinfo = 'Sub-filter scale shear production of TKE'
        if (itype==1) ncinfo = 'm^2/s^3'
-       if (itype==2) ncinfo = 'tttt'
     case('boy_prd')
        if (itype==0) ncinfo = 'Buoyancy production of resolved TKE '
        if (itype==1) ncinfo = 'm^2/s^3'
-       if (itype==2) ncinfo = 'ttmt'
     case('shr_prd')
        if (itype==0) ncinfo = 'Shear production of resolved TKE'
        if (itype==1) ncinfo = 'm^2/s^3'
-       if (itype==2) ncinfo = 'tttt'
     case('trans')
        if (itype==0) ncinfo = 'Net transport of resolved TKE'
        if (itype==1) ncinfo = 'm^2/s^3'
-       if (itype==2) ncinfo = 'ttmt'
     case('diss')
        if (itype==0) ncinfo = 'Dissipation rate of resolved TKE'
        if (itype==1) ncinfo = 'm^2/s^3'
-       if (itype==2) ncinfo = 'ttmt'
     case('dff_u')
        if (itype==0) ncinfo = 'u(du/dt) from diffusion'
        if (itype==1) ncinfo = 'm^2/s^3'
@@ -894,290 +831,157 @@ contains
     case('storage')
        if (itype==0) ncinfo = 'Rate of increase of resolved TKE'
        if (itype==1) ncinfo = 'm^2/s^3'
-       if (itype==2) ncinfo = 'tttt'
     case('q_2')
        if (itype==0) ncinfo = 'Variance of total water'
        if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
     case('q_3')
        if (itype==0) ncinfo = 'Third moment of total water'
        if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
     case('tot_qw')
        if (itype==0) ncinfo = 'Total vertical flux of water'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('sfs_qw')
        if (itype==0) ncinfo = 'Sub-filter scale vertical flux of q'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('rflx')
        if (itype==0) ncinfo =  'Total Radiative flux'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('rflx2')
        if (itype==0) ncinfo = 'Variance of total radiative flux'
        if (itype==1) ncinfo = 'W^2/m^4'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('sflx')
        if (itype==0) ncinfo = 'Shortwave radiative flux'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('sflx2')
        if (itype==0) ncinfo = 'Variance of shortwave radiative flux'
        if (itype==1) ncinfo = 'W^2/m^4'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('sw_up')
        if (itype==0) ncinfo = 'Upwelling shortwave radiation'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('sw_down')
        if (itype==0) ncinfo = 'Downwelling shortwave radiation'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('lw_up')
        if (itype==0) ncinfo = 'Upwelling longwave radiation'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('lw_down')
        if (itype==0) ncinfo = 'Downwelling longwave radiation'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('l_2')
        if (itype==0) ncinfo = 'Variance of liquid water mixing ratio'
        if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
     case('l_3')
        if (itype==0) ncinfo = 'Third moment of liquid water mixing ratio'
        if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
     case('tot_lw')
        if (itype==0) ncinfo = 'Total vertical flux of liquid water'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
-    case('sed_lw')
-       if (itype==0) ncinfo = 'Sedimentation flux of r_l'
-       if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('cs1')
        if (itype==0) ncinfo = 'Fraction of cloudy columns (cs1)'
        if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
     case('cnt_cs1')
        if (itype==0) ncinfo = 'Number of cloudy columns (cs1)'
        if (itype==1) ncinfo = '#'
-       if (itype==2) ncinfo = 'tttt'
     case('w_cs1')
        if (itype==0) ncinfo = 'Average of w over cs1'
        if (itype==1) ncinfo = 'm/s'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('tl_cs1')
        if (itype==0) ncinfo = 'Average of theta_l over cs1'
        if (itype==1) ncinfo = 'K'
-       if (itype==2) ncinfo = 'ttmt'
     case('tv_cs1')
        if (itype==0) ncinfo = 'Average of theta_v over cs1'
        if (itype==1) ncinfo = 'K'
-       if (itype==2) ncinfo = 'tttt'
     case('rt_cs1')
        if (itype==0) ncinfo = 'Average of total water over cs1'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('rc_cs1')
        if (itype==0) ncinfo = 'Average of total condensate over cs1'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('wtl_cs1')
        if (itype==0) ncinfo = 'Average of vertical theta_l flux over cs1'
        if (itype==1) ncinfo = 'K*m/s'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('wtv_cs1')
        if (itype==0) ncinfo = 'Average of vertical theta_v flux over cs1'
        if (itype==1) ncinfo = 'K*m/s'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('wrt_cs1')
        if (itype==0) ncinfo = 'Average of vertical total water flux over cs1'
        if (itype==1) ncinfo = 'kg/kg*m/s'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('cs2')
        if (itype==0) ncinfo = 'Fraction of cloud core columns (cs2)'
        if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
     case('cnt_cs2')
        if (itype==0) ncinfo = 'Number of cloud core columns (cs2)'
        if (itype==1) ncinfo = '#'
-       if (itype==2) ncinfo = 'tttt'
     case('w_cs2')
        if (itype==0) ncinfo = 'Average of w over cs2'
        if (itype==1) ncinfo = 'm/s'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('tl_cs2')
        if (itype==0) ncinfo = 'Average of theta_l over cs2'
        if (itype==1) ncinfo = 'K'
-       if (itype==2) ncinfo = 'tttt'
     case('tv_cs2')
        if (itype==0) ncinfo = 'Average of theta_v over cs2'
        if (itype==1) ncinfo = 'K'
-       if (itype==2) ncinfo = 'tttt'
     case('rt_cs2')
        if (itype==0) ncinfo = 'Average of total water over cs2'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('rc_cs2')
        if (itype==0) ncinfo = 'Average of total condensate over cs2'
        if (itype==1) ncinfo = 'kg/kg'
-       if (itype==2) ncinfo = 'tttt'
     case('wtl_cs2')
        if (itype==0) ncinfo = 'Average of vertical theta_l flux over cs2'
        if (itype==1) ncinfo = 'K*m/s'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('wtv_cs2')
        if (itype==0) ncinfo = 'Average of vertical theta_v flux over cs2'
        if (itype==1) ncinfo = 'K*m/s'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('wrt_cs2')
        if (itype==0) ncinfo = 'Average of vertical total water flux over cs2'
        if (itype==1) ncinfo = 'kg/kg*m/s'
-       if (itype==2) ncinfo = 'ttmt'
-    case('Nc_ic')
-       if (itype==0) ncinfo = 'Conditionally sampled cloud droplet number concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('Nr_ir')
-       if (itype==0) ncinfo = 'Conditionally sampled rain drop number concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('Ni_ii')
-       if (itype==0) ncinfo = 'Conditionally sampled ice number concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('Ns_is')
-       if (itype==0) ncinfo = 'Conditionally sampled snow number concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('Ng_ig')
-       if (itype==0) ncinfo = 'Conditionally sampled graupel number concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('Nh_ih')
-       if (itype==0) ncinfo = 'Conditionally sampled hail number concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('frac_ic')
-       if (itype==0) ncinfo = 'Cloud fraction'
-       if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
-    case('frac_ir')
-       if (itype==0) ncinfo = 'Rain fraction'
-       if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
-    case('frac_ii')
-       if (itype==0) ncinfo = 'Ice fraction'
-       if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
-    case('frac_is')
-       if (itype==0) ncinfo = 'Snow fraction'
-       if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
-    case('frac_ig')
-       if (itype==0) ncinfo = 'Graupel fraction'
-       if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
-    case('frac_ih')
-       if (itype==0) ncinfo = 'Hail fraction'
-       if (itype==1) ncinfo = '-'
-       if (itype==2) ncinfo = 'tttt'
-    case('Rc_ic')
-       if (itype==0) ncinfo = 'Conditionally sampled cloud droplet radius'
-       if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'tttt'
-    case('Rr_ir')
-       if (itype==0) ncinfo = 'Conditionally sampled rain drop radius'
-       if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'tttt'
-    case('Ri_ii')
-       if (itype==0) ncinfo = 'Conditionally sampled ice radius'
-       if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'tttt'
-    case('Rs_is')
-       if (itype==0) ncinfo = 'Conditionally sampled snow radius'
-       if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'tttt'
-    case('Rg_ig')
-       if (itype==0) ncinfo = 'Conditionally sampled graupel radius'
-       if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'tttt'
-    case('Rh_ih')
-       if (itype==0) ncinfo = 'Conditionally sampled hail radius'
-       if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'tttt'
+       if (itype==2) ncinfo = 'mttt'
     case('rrate')
        if (itype==0) ncinfo = 'Rain water deposition flux'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('crate')
        if (itype==0) ncinfo = 'Cloud water deposition flux'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('irate')
        if (itype==0) ncinfo = 'Ice water deposition flux'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('srate')
        if (itype==0) ncinfo = 'Snow water deposition flux'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('grate')
        if (itype==0) ncinfo = 'Graupel water deposition flux'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
+       if (itype==2) ncinfo = 'mttt'
     case('hrate')
        if (itype==0) ncinfo = 'Hail water deposition flux'
        if (itype==1) ncinfo = 'W/m^2'
-       if (itype==2) ncinfo = 'ttmt'
-    case('evap')
-       if (itype==0) ncinfo = 'Net evap of rain-water'
-       if (itype==1) ncinfo = 's^-1'
-       if (itype==2) ncinfo = 'tttt'
+       if (itype==2) ncinfo = 'mttt'
     case('rho_air')
        if (itype==0) ncinfo = 'Air density'
        if (itype==1) ncinfo = 'kg/m^3'
-       if (itype==2) ncinfo = 'tttt'
-
-    ! SALSA column statistics
-    case('Nc')
-       if (itype==0) ncinfo = 'Number-mean cloud droplet concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('Nr')
-       if (itype==0) ncinfo = 'Number-mean rain drop concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('Ni')
-       if (itype==0) ncinfo = 'Number-mean ice concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('Ns')
-       if (itype==0) ncinfo = 'Number-mean snow concentration'
-       if (itype==1) ncinfo = 'kg^-1'
-       if (itype==2) ncinfo = 'tttt'
-    case('Rwc')
-       if (itype==0) ncinfo = 'Number-mean cloud droplet radius'
-       if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'tttt'
-    case('Rwr')
-       if (itype==0) ncinfo = 'Number-mean rain drop radius'
-       if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'tttt'
-    case('Rwi')
-       if (itype==0) ncinfo = 'Number-mean ice radius'
-       if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'tttt'
-    case('Rws')
-       if (itype==0) ncinfo = 'Number-mean snow radius'
-       if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'tttt'
 
     ! SALSA profile statistics
     case('P_hNca')
@@ -1576,19 +1380,19 @@ contains
             tmp='aeb'
         CASE('ca')
             phase='Cloud a-bin'
-            tmp='cla'
+            tmp='aeb'
         CASE('cb')
             phase='Cloud b-bin'
-            tmp='clb'
+            tmp='aeb'
         CASE('rt','pt')
             phase='Rain bin'
             tmp='prc'
         CASE('ia')
             phase='Ice a-bin'
-            tmp='ica'
+            tmp='aeb'
         CASE('ib')
             phase='Ice a-bin'
-            tmp='icb'
+            tmp='aeb'
         CASE('st')
             phase='Snow bin'
             tmp='snw'
@@ -1652,7 +1456,11 @@ contains
             get_salsa_info = 'kg/m^2/s'
         ELSEIF (itype==2) THEN
             ! NetCDF dimensions
-            get_salsa_info = 'time'
+            IF (dims==0) THEN
+                get_salsa_info = 'time'
+            ELSE
+                get_salsa_info = 'tttt'
+            ENDIF
         ENDIF
     ENDIF
     END function get_salsa_info

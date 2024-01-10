@@ -432,11 +432,14 @@ CONTAINS
                                nlactbase,            &
                                nlicenucl,             &
                                fixinc, ice_source_opt,&
+                               fixed_ice_min_Si,      &
+                               fixed_ice_min_rc,      &
                                ice_hom, ice_imm, ice_dep, &
                                icenucl_tstart,        &
                                ice_target_opt,        &
                                nlicmelt,              &
                                nlsip_hm,              &
+                               c_mult,                &
                                hm_dmin_drop, hm_dmin_ice, &
                                rhoeff_ice, rhoeff_snow, &
                                a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, &
@@ -512,6 +515,7 @@ CONTAINS
 
          nlicenucl,     & ! Ice nucleation master switch
          fixinc,        & ! Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
+         fixed_ice_min_Si, fixed_ice_min_rc, & ! Limits for Si and cloud water content
          ice_source_opt,& ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
          ice_hom,       & ! If fixinc is not set or it is not positive, ice nucleation can be modelled based on homogeneous, ...
          ice_imm,       & ! immersion and/or ...
@@ -520,6 +524,7 @@ CONTAINS
          ice_target_opt,& ! Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
          nlicmelt,      & ! Switch for ice and snow melting
          nlsip_hm,      & ! Switch for Hallett-Mossop
+         c_mult,        & ! Splintering coefficient (particles per kg of rime)
          hm_dmin_drop, hm_dmin_ice, & ! Drop and ice size limits for Hallett-Mossop
          rhoeff_ice, rhoeff_snow, & ! Effective densities for calculating particle diameters (and velocities)
          a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, & ! Alternative dimension: d=a*m**b

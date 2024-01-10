@@ -40,6 +40,7 @@ module mcrp_ice
        iriming_ice_rain=21, iriming_snow_rain=22,iriming_grp_rain=23
   integer, dimension(23) :: microseq = (/1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23/)
   real :: nin_set = 0.
+  LOGICAL :: firsttime=.TRUE.
   !
   ! drop sizes definition is based on vanZanten (2005)
   ! cloud droplets' diameter: 2-50 e-6 m
@@ -47,21 +48,21 @@ module mcrp_ice
 
   real, parameter :: eps0 = 1e-20       ! small number
   real, parameter :: rthres = 1e-20        ! small number
-  real, parameter :: rho_0 = 1.21       ! air density at surface
 
   real, parameter :: prw = pi * rowt / 6.
-  real, parameter :: nu_l = 1.460e-5     !..kinem. visc. of air
+  real, parameter :: nu_l = 1.4086e-5    !..kinem. visc. of air
   real, parameter :: d_v  = 3.000e-5     !..diff. of water vapor
   real, parameter :: k_t  = 2.500e-2     !..heat conductivity
-
+  real, parameter :: rho_0 = 1.225       !..air density at surface
+  real, parameter :: tmelt = 273.15      !..melting temperature
+  real, parameter :: t_hn  = 233.0       !..homogeneous freezing temperature
   real, parameter :: n_sc = 0.710        !..schmidt-number(pk, p.541)
   real, parameter :: n_f  = 0.333        !..exponent of n_sc in the vent-coeff. (pk, p.541)
   real, parameter :: m_f  = 0.500        !..exponent of n_re in the vent-coeff. (pk, p.541)
-
   real, parameter :: e_3  = 6.10780000e2 !..saturation pressure at melting temp.
 
   ! Hallett-Mossop
-  real, parameter :: c_mult     = 3.5e8    !..splintering coefficient
+  real            :: c_mult     = 3.5e8    !..splintering coefficient
   real, parameter :: t_mult_min = 265.0    !..min temp. splintering
   real, parameter :: t_mult_max = 270.0    !..max temp. splintering
   real, parameter :: t_mult_opt = 268.0    !..opt temp. splintering
@@ -72,11 +73,11 @@ module mcrp_ice
 
   ! riming mixing ratio (r) and diameter (d) limits for ice, snow and grapel
   real :: r_crit_ic = 1.000e-5, d_crit_ic = 150.0e-6 ! ice-cloud
-  real :: r_crit_ir = 1.000e-5, d_crit_ir = 100.0e-6 ! ice-rain
+  real :: r_crit_ir = 1.000e-5, d_crit_ir = 0.       ! ice-rain
   real :: r_crit_sc = 1.000e-5, d_crit_sc = 150.0e-6 ! snow-cloud
-  real :: r_crit_sr = 1.000e-5, d_crit_sr = 100.0e-6 ! snow-rain
-  real :: r_crit_gc = 1.000e-6, d_crit_gc = 100.0e-6 ! graupel-cloud
-  real :: r_crit_gr = 1.000e-9, d_crit_gr = 000.0e-6 ! graupel-rain
+  real :: r_crit_sr = 1.000e-5, d_crit_sr = 0.       ! snow-rain
+  real :: r_crit_gc = 1.000e-6, d_crit_gc = 150.0e-6 ! graupel-cloud
+  real :: r_crit_gr = 1.000e-9, d_crit_gr = 0.       ! graupel-rain
   real :: r_crit_c = 1.000e-4 ! cloud in all above (d_crit_c=10 um)
   real :: r_crit_r = 1.000e-9 ! rain in all above (d_crit_r=10 um)
 
@@ -86,8 +87,6 @@ module mcrp_ice
   real, parameter :: d_crit_is = 50.00e-6 ! e-critical value for ice_selfcollection
   real, parameter :: d_conv_is = 75.00e-6 ! e-critical value for ice_selfcollection
 
-  real, parameter :: tmelt  = 273.16
-  real, parameter :: t_hn   = 236.15
 
   type particle
      character(10) :: name
@@ -109,15 +108,29 @@ module mcrp_ice
   end type particle
   type(particle) :: cldw,rain,ice,snow,graupel,hail
 
-  PUBLIC micro_ice
+  PUBLIC micro_ice, init_micro_ice
 contains
-
+  !
+  ! ---------------------------------------------------------------------
+  ! Read NAMELIST inputs
+  !
+  subroutine init_micro_ice(level)
+    INTEGER, INTENT(IN) :: level
+    ! Read parameters
+    IF (level==5) THEN
+        CALL init_sb()
+    ELSEIF (2<=level .AND. level<=4) THEN
+        CALL initmcrp(level)
+    ENDIF
+    ! No need to do this again
+    firsttime=.FALSE.
+  end subroutine init_micro_ice
   !
   ! ---------------------------------------------------------------------
   ! MICRO: sets up call to microphysics
   !
   subroutine micro_ice(level)
-    use grid, only : nxp, nyp, nzp, a_pexnr, pi0, pi1, &
+    use grid, only : nxp, nyp, nzp, a_theta, &
        a_rv, a_rc, a_temp, a_rsl, a_edr, a_rsi, a_dn, &
        a_rt, a_tt,a_rpp, a_rpt, a_npp, a_npt,  &
        a_rip, a_rit, a_nip, a_nit, & ! ice mass and number mixing ratio
@@ -128,17 +141,8 @@ contains
        sed_cloud, sed_precp, sed_ice
 
     INTEGER, INTENT(IN) :: level
-    LOGICAL :: firsttime=.TRUE.
 
-    IF (firsttime) THEN
-        firsttime=.FALSE.
-        ! Read parameters
-        IF (level==5) THEN
-            CALL init_sb()
-        ELSEIF (2<=level .AND. level<=4) THEN
-            CALL initmcrp(level)
-        ENDIF
-    ENDIF
+    IF (firsttime) CALL init_micro_ice(level)
 
     ! Sedimentation flags (from module grid, which means that they can change) - for levels <5
     microseq(isedimcd)=MERGE(isedimcd,0,sed_cloud)
@@ -149,21 +153,21 @@ contains
     case(2)
        ! Cloud droplets only
        if (sed_cloud) then
-          call mcrph(level,nzp,nxp,nyp,a_dn,a_pexnr,pi0,pi1,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+          call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip)
        end if
     case(3)
        ! Warm cloud: autoconversion (1), accretion (2), evaporation (3), and sedimentation (4-5)
-       call mcrph(level,nzp,nxp,nyp,a_dn,a_pexnr,pi0,pi1,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip)
     case(4)
        ! Mixed-phase cloud: ice nucleation (6-7), freezing (8), condensation/deposition (9),
        ! melting (10-12), sedimentation (13), and collisions (14-23)
-       call mcrph(level,nzp,nxp,nyp,a_dn,a_pexnr,pi0,pi1,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip,a_rsi,a_rit,a_nit,a_rst,a_rgt,a_rip,a_nip,a_rsp,a_rgp, &
             icein, snowin, grin)
     case(5)
-       call mcrph_sb(nzp,nxp,nyp,a_dn,a_pexnr,pi0,pi1,a_tt,a_rt,a_temp,a_rsi,a_rv,a_rc, &
+       call mcrph_sb(nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rsi,a_rv,a_rc, &
             a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, & ! rain, ice, snow, graupel and hail
             a_rpt, a_npt, a_rit, a_nit, a_rst, a_nst, a_rgt, a_ngt, a_rht, a_nht, &
             cldin, precip, icein, snowin, grin, hailin, sed_cloud, sed_precp, sed_ice)
@@ -175,19 +179,18 @@ contains
   ! MCRPH: calls microphysical parameterization
   !
 
-  subroutine mcrph(level,n1,n2,n3,dn,exner,pi0,pi1,tlt,rtt,tk,vapor,rsat,rcld,prc_c, &
+  subroutine mcrph(level,n1,n2,n3,dn,th,tlt,rtt,tk,vapor,rsat,rcld,prc_c, &
        rp,np,rpt,npt,dissip,prc_r,rsati, ricet,nicet,rsnowt,rgrpt,ricep,nicep,rsnowp,rgrpp, &
        prc_i, prc_s, prc_g)
 
     integer, intent (in) :: level,n1,n2,n3
-    real, dimension(n1), intent (in) :: pi0,pi1  !mean pressures
     real, dimension(n1,n2,n3), intent (inout) :: &
          tk, &   ! absolute temperature
          tlt, &  ! ice-liquid water potential temperature tendency
          rtt, &  ! total water tendency
          rsat, & ! saturation mixing ratio
          vapor, rcld, &       ! water vapor and cloud water mixing ratios (diagnostic)
-         exner, dn, dissip, & ! exner function, air density and dissipation rate
+         th, dn, dissip, &    ! potential temperature, air density and dissipation rate
          prc_c, prc_r, &      ! cloud and rain water precipitation rates
          np, rp, npt, rpt     ! rain drop number and rain water mixing ratio, and their tendencies
     real, dimension(n1,n2,n3), intent (inout), optional :: rsati,ricet,nicet,rsnowt,rgrpt,&
@@ -343,7 +346,7 @@ contains
           end do
 
           ! Change in ice-liquid potential temperature and total water due to sedimentation
-          tlt(2:n1,i,j) =  tlt(2:n1,i,j) + (tl(2:n1)*alvl +ti(2:n1)*alvi)/(pi0(2:n1)+pi1(2:n1)+exner(2:n1,i,j))
+          tlt(2:n1,i,j) =  tlt(2:n1,i,j) + (tl(2:n1)*alvl +ti(2:n1)*alvi)/cp*th(2:n1,i,j)/tk(2:n1,i,j)
           rtt(2:n1,i,j) = rtt(2:n1,i,j) - tl(2:n1) - ti(2:n1)
           ! Rain, ice, snow and graupel
           rpt(2:n1,i,j) = max(rpt(2:n1,i,j) +(rrain(2:n1) - rp(2:n1,i,j))/dt,-rp(2:n1,i,j)/dt)
@@ -2095,6 +2098,7 @@ contains
         nin_set, &
         r_crit_ic, d_crit_ic, r_crit_ir, d_crit_ir, r_crit_sc, d_crit_sc, r_crit_sr, d_crit_sr, &
         r_crit_gc, d_crit_gc, r_crit_gr, d_crit_gr, r_crit_c, r_crit_r, &
+        c_mult, &
         cldw,rain,ice,snow,graupel
 
     nprocess = 0
@@ -2112,7 +2116,7 @@ contains
     ! Cloudwater properties
     cldw = PARTICLE('cloudw', &! HN: made variable for seeding experiments
             1, & !number of moments
-            0, & !id number
+            -1, & !id number
             CCN, & !Number of droplets
             1.000000, & !.nu.....Width parameter of the distribution
             1.000000, & !.mu.....exponential parameter of the distribution
@@ -2158,7 +2162,7 @@ contains
             0.476191, & !.b_geo..coefficient of meteor geometry = 1/2.1
             2.77e+01, & !.a_vel..coefficient of fall velocity
             0.215790, & !.b_vel..coefficient of fall velocity = 0.41/1.9
-            0.25    , & !.s_vel...dispersion of the fall velocity
+            0.2     , & !.s_vel...dispersion of the fall velocity
             0.780000, & !.a_ven..ventilation coefficient (PK, p.541)
             0.308000, & !.b_ven..ventilation coefficient (PK, p.541)
             2.0)        !.cap....capacity coefficient
@@ -2176,7 +2180,7 @@ contains
             0.476191, & !.b_geo..coefficient of meteor geometry = 1/2.1
             2.47e+02, & !.a_vel..coefficient of fall velocity
             0.333333, & !.b_vel..coefficient of fall velocity
-            0.25    , & !.s_vel...dispersion of the fall velocity
+            0.2     , & !.s_vel...dispersion of the fall velocity
             0.780000, & !.a_ven..ventilation coefficient (PK, p.541)
             0.308000, & !.b_ven..ventilation coefficient (PK, p.541)
             2.0)        !.cap....capacity coefficient
@@ -2194,7 +2198,7 @@ contains
             0.300000, & !.b_geo..coefficient of meteor geometry
             7.64e+01, & !.a_vel..coefficient of fall velocity
             0.255200, & !.b_vel..coefficient of fall velocity
-            0.25    , & !.s_vel...dispersion of the fall velocity
+            0.0     , & !.s_vel...dispersion of the fall velocity
             0.780000, & !.a_ven..ventilation coefficient (PK, p.541)
             0.308000, & !.b_ven..ventilation coefficient (PK, p.541)
             2.0)        !.cap....capacity coefficient
@@ -2221,6 +2225,7 @@ contains
     IF (.not.coag_graupel) microseq((/icoll_ice_grp,icoll_snow_grp,iriming_grp_cloud,iriming_grp_rain/))=0
 
     ! Set parameters for calculating sizes
+    CALL setSBradius(cldw%no,cldw%x_min,cldw%x_max,cldw%a_geo,cldw%b_geo,eps0)
     CALL setSBradius(rain%no,rain%x_min,rain%x_max,rain%a_geo,rain%b_geo,eps0)
     CALL setSBradius(ice%no,ice%x_min,ice%x_max,ice%a_geo,ice%b_geo,eps0)
     CALL setSBradius(snow%no,snow%x_min,snow%x_max,snow%a_geo,snow%b_geo,eps0)
@@ -2250,7 +2255,7 @@ contains
   !
   !==============================================================================
 
-  SUBROUTINE mcrph_sb(ke,je,ie,dn0,exner,pi0,pi1,tlt,rtt,tk,rsi,qvin,qcin, &
+  SUBROUTINE mcrph_sb(ke,je,ie,dn0,th,tlt,rtt,tk,rsi,qvin,qcin, &
        qrin, qnrin, qiin, qniin, qsin, qnsin, qgin, qngin, qhin, qnhin,  &
        qrtend, qnrtend, qitend, qnitend, qstend, qnstend, qgtend, qngtend, qhtend, qnhtend, &
        prec_c, prec_r, prec_i, prec_s, prec_g, prec_h, sed_cloud, sed_precp, sed_ice)
@@ -2264,7 +2269,8 @@ contains
             n_cloud, n_ice, n_rain, n_snow, n_graupel, n_hail, &
             alloc_driver, dealloc_driver, &
             alloc_wolken, dealloc_wolken, clouds, &
-            sflgx => sflg, out_data => out_mcrp_data
+            sflgx => sflg, out_data => out_mcrp_data, &
+            nout=>out_mcrp_nout, out_list=>out_mcrp_list
 
     IMPLICIT NONE
 
@@ -2272,12 +2278,8 @@ contains
 
     integer, intent (in) :: ie,je,ke
 
-    real, dimension(ke)      , intent (in)             :: &
-         pi0,   & ! base state pressure 1
-         pi1      ! base state pressure 2
-
     real, dimension(ke,je,ie), intent (in)          :: &
-         exner, & ! exner function
+         th,    & ! potential temperature
          tk,    & ! temperature
          dn0,   & ! density
          rsi
@@ -2312,6 +2314,12 @@ contains
 
     dtx = dt
     sflgx = sflg .AND. out_mcrp_nout>0
+
+    nout = out_mcrp_nout
+    IF (sflgx .AND. .NOT.ALLOCATED(out_list)) THEN
+        ALLOCATE(character(7) :: out_list(nout))
+        out_list(1:nout) = out_mcrp_list(1:nout)
+    ENDIF
 
     qv = qvin
     qc = qcin
@@ -2389,7 +2397,7 @@ contains
 
           ! ... dynamics
           T_0(i,j,k)      = tk(kk,jj,ii)
-          p_0(i,j,k)      = p00 * ((pi0(kk)+pi1(kk)+exner(kk,jj,ii))/cp)**cpr
+          p_0(i,j,k)      = p00 * (tk(kk,jj,ii)/th(kk,jj,ii))**cpr
           rho_k(i,j,k)    = dn0(kk,jj,ii)
 
           ! .. the ice supersaturation
@@ -2523,7 +2531,7 @@ contains
              qnhtend(k,j,i) = qnhtend(k,j,i) + (qnh(k,j,i) - qnhin(k,j,i))/dt
 
              ! Change in ice-liquid potential temperature and total water due to sedimentation
-             tlt(k,j,i) = tlt(k,j,i) + (tl(k,j,i)*alvl +ti(k,j,i)*alvi)/(pi0(k)+pi1(k)+exner(k,j,i))
+             tlt(k,j,i) = tlt(k,j,i) + (tl(k,j,i)*alvl +ti(k,j,i)*alvi)/cp*th(k,j,i)/tk(k,j,i)
              rtt(k,j,i) = rtt(k,j,i) - tl(k,j,i) - ti(k,j,i)
           END DO
        END DO
@@ -2588,16 +2596,15 @@ contains
 
     USE mcrp_ice_sb, ONLY: init_seifert,myparticle=>particle, &
          mycloud=>cloud,myrain=>rain,myice=>ice, &
-         mysnow=>snow,mygraupel=>graupel,myhail=>hail, &
-         nout=>out_mcrp_nout, out_list=>out_mcrp_list
+         mysnow=>snow,mygraupel=>graupel,myhail=>hail
 
     call init_seifert()
 
     ! Copy particle properties for calculating sedimentation
-    cldw    = copy_particle(mycloud,0.00,0)
+    cldw    = copy_particle(mycloud,0.00,-1)
     rain    = copy_particle(myrain,0.00,0)
     ice     = copy_particle(myice,0.00,1)
-    snow    = copy_particle(mysnow,0.25,2)
+    snow    = copy_particle(mysnow,0.10,2)
     graupel = copy_particle(mygraupel,0.00,3)
     hail    = copy_particle(myhail,0.00,4)
 
@@ -2605,18 +2612,12 @@ contains
     cldw%nr = CCN
 
     ! Set parameters for calculating sizes
+    CALL setSBradius(cldw%no,cldw%x_min,cldw%x_max,cldw%a_geo,cldw%b_geo,eps0)
     CALL setSBradius(rain%no,rain%x_min,rain%x_max,rain%a_geo,rain%b_geo,eps0)
     CALL setSBradius(ice%no,ice%x_min,ice%x_max,ice%a_geo,ice%b_geo,eps0)
     CALL setSBradius(snow%no,snow%x_min,snow%x_max,snow%a_geo,snow%b_geo,eps0)
     CALL setSBradius(graupel%no,graupel%x_min,graupel%x_max,graupel%a_geo,graupel%b_geo,eps0)
     CALL setSBradius(hail%no,hail%x_min,hail%x_max,hail%a_geo,hail%b_geo,eps0)
-
-    ! Statistics
-    nout = out_mcrp_nout
-    IF (out_mcrp_nout>0) THEN
-        ALLOCATE(character(7) :: out_list(nout))
-        out_list(1:nout) = out_mcrp_list(1:nout)
-    ENDIF
 
     CONTAINS
 
