@@ -11,16 +11,16 @@ MODULE mo_salsa_SIP_DF
   ! Arrays to track the number and mass of frozen drops due to ice collection
   ! diagnosed from the coagulation routines for each timestep. Initialized in
   ! mo_salsa_init. Bin dimensions will be (nprc,nice). Possible contribution by 
-  ! cloud droplets will be put to the first bin or smth?? Should binnihs for rime splintering be
-  ! something else?? Check later!
+  ! cloud droplets will be put to the first bin or smth?? 
+  
   REAL, ALLOCATABLE :: nfrzn_df(:,:,:,:), mfrzn_df(:,:,:,:)
 
-  ! Ice and liquid drop diameter limits for drop fracturing
-  !REAL :: dlice_df = 1.e-3,    &  ! Max diameter for ice in drop fracturing
-  !        dlliq_df = 80.e-6       ! Min diameter for liquid in drop fracturing
-  REAL :: dlliq_df = 100.e-6       ! Min droplet diameter for drop fracturing. Ice is expected to be more massive
-                                   ! than the freezing drop.
-
+  ! liquid drop diameter limits for drop fracturing
+  REAL ::  dlliq_df = 100.e-6      ! Min droplet diameter for drop fracturing.
+  ! In droplet-ice collisions freezing drops are always assumed to be
+  ! smaller than ice particles except in the case of 
+  ! SIP parameterization of Phillips-full in function df_phillips_full_total
+  ! If changes from published values are needed go to line 323
     
   CONTAINS
 
@@ -45,7 +45,7 @@ MODULE mo_salsa_SIP_DF
 
       REAL :: Nnorm          ! Normalization factor for distributing fragments
       REAL :: ddmean         ! Mean diameter of frozen drops per ice bin
-      REAL :: dN(nprc,nice)  ! Total number of fragments generated per ice bin per drop bin
+      REAL :: dN             ! Total number of fragments generated per ice bin per drop bin
       REAL :: dNb(nice)      ! Number of fragments distributed to ice bins
       REAL :: dVb(nice)      ! Volume of fragments distributed to ice bins
       INTEGER :: cc,bb,bb1,ii,jj,iri,iwa, nimax, npmax
@@ -74,10 +74,6 @@ MODULE mo_salsa_SIP_DF
          icebw(bb) = ( (ice(1,1,bb)%vhilim/pi6)**(1./3) - (ice(1,1,bb)%vlolim/pi6)**(1./3))
       END DO
 
-      ! REMOVE IF NO LONGER USING FIXED ICE LIMITS
-      ! Index of the largest ice bin which is assumed to trigger drop fracturing
-      !nimax = COUNT(icediams <= dlice_df)
-
       ! POISTA
       DO bb = 1,nice
          DO jj = 1,klev
@@ -95,8 +91,8 @@ MODULE mo_salsa_SIP_DF
       fragnumc = 0.; sinknumc = 0.
       sinkv = 0.
 
-      ! NO MORE FIXED ICE LIMITS -> CHANGE NIMAX TO NICE
-      DO bb = 1,nice      
+      !
+       DO bb = 1,nice      
          DO jj = 1,klev
             DO ii = 1,kproma
                fragv_loc = 0.
@@ -122,16 +118,18 @@ MODULE mo_salsa_SIP_DF
               
                   ! Calculate the number of fragments generated per freezing droplet for current bin
                   IF (lssipdropfrac%mode == 1) THEN
-                     dN(cc,bb) = df_lawson(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
+                     dN = df_lawson(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
                    ELSE IF (lssipdropfrac%mode == 2) THEN
-                     dN(cc,bb) = df_sullivan(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
+                     dN = df_sullivan(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
                   ELSE IF (lssipdropfrac%mode == 3) THEN
-                     dN(cc,bb)= df_phillips_simple(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
+                     dN = df_phillips_simple(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
                   ELSE IF (lssipdropfrac%mode == 4) THEN
                      ! Updated diameter needed here
                      CALL ice(ii,jj,bb)%updateDiameter(.TRUE.,type="all")
-                     dN(cc,bb)  = df_phillips_full_total(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb)) * nfrzn_df(ii,jj,cc,bb)
-                     !dNbig(cc,bb) = df_phillips_full_big(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb)) * nfrzn_df(ii,jj,cc,bb)
+                     dN = df_phillips_full_total(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb)) &
+                          * nfrzn_df(ii,jj,cc,bb)
+                     ! Functions to calculate the number of big fragments are also coded here. We do not use them.
+                     !dNbig = df_phillips_full_big(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb)) * nfrzn_df(ii,jj,cc,bb)
                   END IF
      
                   ! Assume the mass of fragments distributed evenly to ice bins 1:npmax (Lawson et al 2015).
@@ -196,9 +194,7 @@ MODULE mo_salsa_SIP_DF
                     WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
                     ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
                ! ---------------------------------------
-
-
-               
+           
             END DO
          END DO
       END DO
@@ -508,7 +504,7 @@ MODULE mo_salsa_SIP_DF
       CALL getShapeCoefficients(ishape,mpri,mrim,ncice)
       vti = terminal_vel(disph,rhoip,rhoa,visc,beta,4,ishape,dinsph)
 
-      ! The droplet
+      ! Droplet
       knud = 2.*mfp/ddmean
       beta = 1.+knud*(1.142+0.558*exp(-0.999/knud))      
       vtd = terminal_vel(ddmean,rhowa,rhoa,visc,beta,3)

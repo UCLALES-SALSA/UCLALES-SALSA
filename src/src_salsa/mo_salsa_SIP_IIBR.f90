@@ -24,15 +24,13 @@ MODULE mo_salsa_SIP_IIBR
       USE mo_salsa_types, ONLY : ice, rateDiag
       USE mo_submctl, ONLY : nice, pi6, spec, icebins, lssipicecollbreak
       USE classSection, ONLY : Section
-      ! -------------------------------------------------------
-      ! 
-      ! -----------------------------------------------
+      ! ---------------------------------------------------------------------------------------------
       INTEGER, INTENT(in) :: kbdim,kproma,klev,nspec   ! nspec should contain active compounds + rime
       REAL, INTENT(in) :: ptemp(kbdim,klev)
       REAL, INTENT(in) :: ppres(kbdim,klev)
       REAL, INTENT(in) :: ptstep
       REAL, PARAMETER :: tmin = 248.15, tmax = 270.15  ! following Takahashi et al. (1995) observations 
-      ! Check temperature limits  so the conform with the different formulations!!!
+     
       ! Takahashi, T., Nagao, Y., & Kushiyama, Y. (1995).
       ! Possible High Ice Particle Production during Graupel–Graupel Collisions.
       ! Journal of Atmospheric Sciences, 52(24), 4523–4527.
@@ -87,48 +85,48 @@ MODULE mo_salsa_SIP_IIBR
                      (SUM(ice(ii,jj,bb)%volc(:)) < 1.e-23).OR.(ice(ii,jj,bb)%numc  < ice(ii,jj,bb)%nlim).OR. &
                      (SUM(ice(ii,jj,cc)%volc(:)) < 1.e-23).OR.(ice(ii,jj,cc)%numc < ice(ii,jj,cc)%nlim)) CYCLE ! no collection/empty bin
                    
-                 ! If colliding particles have the same size, SIP can still occur
-                 ! Phillips el. 2017 was corrected by Sotiropoulou et al. 2021
-                 ! using an expression to account for underestimates of the collision energy in these cases
-                 ! Ice-ice collisions in the mo_salsa_coagulation_processes.f90 are also corrected for these cases
+                     ! If colliding particles have the same size, SIP can still occur
+                     ! Phillips el. 2017 was corrected by Sotiropoulou et al. 2021
+                     ! using an expression to account for underestimates of the collision energy in these cases
+                     ! Ice-ice collisions in the mo_salsa_coagulation_processes.f90 are also corrected for these cases
                  
-                 ! Ice bin index corresponding to the most fragile particle (smaller) minus one; Fragments are distributed to ice bins 1:npmax
-                 ! Ice multiplication factors are written in terms of the maximum length of the smaller particle
-                 ! We will assume that the maximum length is the spherical equivalent diameter obtained from the mass estimated with the effective density 
-                 ! Effective ice density. This should take into account non-spherical shape as well as the bulk ice composition
-                 !dinsphmin  = ((mii_ibr(ii,jj,bb,cc) / nii_ibr(ii,jj,bb,cc) / ice(ii,jj,cc)%rhoeff) / pi6)**(1./3.)
-                  !write( *, *) 'Effective density ', ice(ii,jj,bb)%rhoeff ! It is zero 
-                  !write(*,*) 'Mean density', ice(ii,jj,bb)%rhomean
-                  !write(*,*) 'nii_ibr', nii_ibr(ii,jj,cc,bb)
-                  !write(*,*) 'mii_ibr', mii_ibr(ii,jj,cc,bb)
+                     ! Ice bin index corresponding to the most fragile particle (smaller) minus one; Fragments are distributed to ice bins 1:npmax
+                     ! Ice multiplication factors are written in terms of the maximum length of the smaller particle
+                     ! We will assume that the maximum length is the spherical equivalent diameter obtained from the mass estimated with the effective density 
+                     ! Effective ice density. This should take into account non-spherical shape as well as the bulk ice composition
+                     !dinsphmin  = ((mii_ibr(ii,jj,bb,cc) / nii_ibr(ii,jj,bb,cc) / ice(ii,jj,cc)%rhoeff) / pi6)**(1./3.)
+                     !write( *, *) 'Effective density ', ice(ii,jj,bb)%rhoeff ! It is zero 
+                     !write(*,*) 'Mean density', ice(ii,jj,bb)%rhomean
+                     !write(*,*) 'nii_ibr', nii_ibr(ii,jj,cc,bb)
+                     !write(*,*) 'mii_ibr', mii_ibr(ii,jj,cc,bb)
 
-                  ! Volume of a single ice particle in current bin for calculating the number concentration sink. This does not necessarily 
-                  ! provide an exact representation for the fracturing particle size, but works as a first approximation
-                  ! QUESTION : Should we use here the rimed fraction weighted average based on this?             
-                  v_i  = mii_ibr(ii,jj,cc,bb) / nii_ibr(ii,jj,cc,bb) / ice(ii,jj,bb)%rhomean !to be consistent with dinsphmin calculation
+                     ! Volume of a single ice particle in current bin for calculating the number concentration sink. This does not necessarily 
+                     ! provide an exact representation for the fracturing particle size, but works as a first approximation
+                     ! QUESTION : Should we use here the rimed fraction weighted average based on this?             
+                     v_i  = mii_ibr(ii,jj,cc,bb) / nii_ibr(ii,jj,cc,bb) / ice(ii,jj,bb)%rhomean !to be consistent with dinsphmin calculation
                   
-                  dinsphmin  = (v_i / pi6)**(1./3.)
-                  ! dinsphmin is the spherical equivalent diameter for the smallest particle with rhomean
+                     dinsphmin  = (v_i / pi6)**(1./3.)
+                    ! dinsphmin is the spherical equivalent diameter for the smallest particle with rhomean
                   
-                  !write(*,*) 'Vi ', v_i
-                  !write(*,*) 'Nonspherical diameter ', dinsphmin
+                    !write(*,*) 'Vi ', v_i
+                    !write(*,*) 'Nonspherical diameter ', dinsphmin
                 
                  
-                  npmax = MAX(COUNT(icediams <= dinsphmin) - 1, 1) 
-                 ! write(*,*) 'Size bin below dinsphmin ', npmax
+                    npmax = MAX(COUNT(icediams <= dinsphmin) - 1, 1) 
+                    ! write(*,*) 'Size bin below dinsphmin ', npmax
                   
-                  dN = 0.
+                    dN = 0.
                   
-                 ! Calculate the ice multiplication factor or number of fragments generated per ice-ice collision event for current bin
-                  IF (lssipicecollbreak%mode == 1) THEN ! Sullivan et al 2018 based on Takahashi et al. 1995
-                     IMF = imf_sullivan(ptemp(ii,jj))
-                     dN  = IMF *nii_ibr(ii,jj,cc,bb)
+                    ! Calculate the ice multiplication factor or number of fragments generated per ice-ice collision event for current bin
+                    IF (lssipicecollbreak%mode == 1) THEN ! Sullivan et al 2018 based on Takahashi et al. 1995
+                       IMF = imf_sullivan(ptemp(ii,jj))
+                       dN  = IMF *nii_ibr(ii,jj,cc,bb)
                      
-                  ELSE IF (lssipicecollbreak%mode == 2) THEN  ! Sotiropoulou et al 2021 based on Sullivan et al 2018                   
-                     IMF = imf_sotiropoulou(ptemp(ii,jj),dinsphmin)
-                     dN  = IMF *nii_ibr(ii,jj,cc,bb) 
+                    ELSE IF (lssipicecollbreak%mode == 2) THEN  ! Sotiropoulou et al 2021 based on Sullivan et al 2018                   
+                       IMF = imf_sotiropoulou(ptemp(ii,jj),dinsphmin)
+                       dN  = IMF *nii_ibr(ii,jj,cc,bb) 
                      
-                  ELSE IF (lssipicecollbreak%mode == 3) THEN  ! Phillips et al 2017 corrected by Sotiropoulou et al 2020
+                    ELSE IF (lssipicecollbreak%mode == 3) THEN  ! Phillips et al 2017 corrected by Sotiropoulou et al 2020
                       ! disphmin is the spherical equivalent diameter for the smallest particle using rhomean
                       ! rhomean is the mean ice density for frozen particles. Takes into account only the bulk ice composition
                       disphmin  =  ((mii_ibr(ii,jj,cc,bb) / nii_ibr(ii,jj,cc,bb) / ice(ii,jj,bb)%rhomean) / pi6)**(1./3.)
@@ -157,17 +155,16 @@ MODULE mo_salsa_SIP_IIBR
                   DO bb1 = 1,npmax
                      fragn_loc(bb1) = fragn_loc(bb1) + dNb(bb1)
                      fragv_loc(bb1,1:nspec) = fragv_loc(bb1,1:nspec) +    &
-                          ice(ii,jj,bb)%volc(1:nspec)*( dVb(bb1)/SUM(ice(ii,jj,bb)%volc(1:nspec)) )                                      
+                         ice(ii,jj,bb)%volc(1:nspec)*( dVb(bb1)/SUM(ice(ii,jj,bb)%volc(1:nspec)) )                                      
                   END DO
 
                   ! Sink of volume from current bin
                   sinkv(1:nspec) = ice(ii,jj,bb)%volc(1:nspec)* SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec))                  
                   sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) + sinkv(1:nspec)
-
                                 
                   ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
                   sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i
-               
+              
                   ! for diagnostics
                   ice(ii,jj,1:npmax)%SIP_iibr = ice(ii,jj,1:npmax)%SIP_iibr + dNb(1:npmax)
                   !if (dN > 1.) WRITE(*,*) 'hephep ', dN,ptstep,SUM(dNb)
@@ -184,8 +181,8 @@ MODULE mo_salsa_SIP_IIBR
                END IF
 
                sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.9*ice(ii,jj,bb)%numc) !! Additional constrain because for some reason
-                                                                                    !! this still failed in the last bin...
-               
+                                                                                 !! this still failed in the last bin...
+              
                fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
                fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
@@ -195,14 +192,12 @@ MODULE mo_salsa_SIP_IIBR
                !     SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
                
                IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.95*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                    WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
-                    SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
-
+                  WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
+                  SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
                IF (0.95*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
-                    WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
+                       WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
                     ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
                ! ---------------------------------------
-              
             END DO
          END DO
       END DO
@@ -245,7 +240,7 @@ MODULE mo_salsa_SIP_IIBR
       
     END SUBROUTINE iceicecollbreak
     
-    ! -----
+    ! ----------------------------------------------------------------------------------------------------------------------
     PURE REAL FUNCTION imf_sullivan(ptemp)
       
       ! Sullivan, S. C., Hoose, C., Kiselev, A., Leisner, T., & Nenes, A. (2018).
@@ -266,10 +261,11 @@ MODULE mo_salsa_SIP_IIBR
     END FUNCTION imf_sullivan
     ! -----
 
-     ! -----
+    ! ------------------------------------------------------------------------------------------------------------------------
     PURE REAL FUNCTION imf_sotiropoulou(ptemp,dinsphmin)
       ! Sotiropoulou, G., Ickes, L., Nenes, A., & Ekman, A. M. L. (2021).
-      ! Ice multiplication from ice–ice collisions in the high Arctic: sensitivity to ice habit, rimed fraction, ice type and uncertainties in the numerical description of the process.
+      ! Ice multiplication from ice–ice collisions in the high Arctic: sensitivity to ice habit, rimed fraction,
+      ! ice type and uncertainties in the numerical description of the process.
       ! Atmospheric Chemistry and Physics, 21(12), 9741–9760. https://doi.org/10.5194/acp-21-9741-2021
       
       REAL, INTENT(in) :: ptemp
@@ -284,13 +280,13 @@ MODULE mo_salsa_SIP_IIBR
       ! D0:  0.02 m is the size of hail balls used by Takahashi et al. (1995)
       ! D is assumed to be the nonspherical diameter or maximum length of the smaller ice particle in the ice-ice colliding pair
 
-     ! question: Could we avoid the temperature comparison using the max. IMF becomes negative below Tmin = 252K
+      ! question: Could we avoid the temperature comparison using the max. IMF becomes negative below Tmin = 252K
       
       imf_sotiropoulou = MAX(0., fbr*(ptemp-Tmin)**1.2*exp(-(ptemp-Tmin)/5.)*dinsphmin/D0)
       
     END FUNCTION imf_sotiropoulou
     
-    ! ---------------------------------------------------------------------------------------------------------------
+    ! ------------------------------------------------------------------------------------------------------------------------
 
     REAL FUNCTION imf_phillips(ppres, ptemp,icelarge, icesmall, dinsphmin, disphmin) 
       ! Phillips, V. T. J., Yano, J.-I., & Khain, A. (2017).
@@ -366,22 +362,21 @@ MODULE mo_salsa_SIP_IIBR
            ! habits of ice, then all snow/crystals may be treated as dendrites
            ! between -12oC and -17oC and as spatial planar particles at other
            ! subzero temperatures" Section 5 in Phillips et al. 2017
-         IF (ptemp>Tmin .AND. ptemp<Tmax) THEN !treating ice particles as dendrites
-            C    = 3.09E6*psi ! C
-            g    = 0.5-0.25*rimfrac ! g
-            Nmax = 100. ! Nmax
-            Am   = 1.41E6*(1+100*rimfrac**2.)*(1+3.98e-5/dinsphmin**1.5) ! Am
-         ELSE ! treating ice as spatial planar particles
-            C    = 7.08E6*psi ! C
-            g    = 0.5-0.25*rimfrac ! g
-            Nmax = 100. ! Nmax
-            Am   = 1.58E7*(1+100*rimfrac**2.)*(1+1.33e-4/dinsphmin**1.5) ! Am
-         END IF
-       END IF
+          IF (ptemp>Tmin .AND. ptemp<Tmax) THEN !treating ice particles as dendrites
+             C    = 3.09E6*psi ! C
+             g    = 0.5-0.25*rimfrac ! g
+             Nmax = 100. ! Nmax
+             Am   = 1.41E6*(1+100*rimfrac**2.)*(1+3.98e-5/dinsphmin**1.5) ! Am
+          ELSE ! treating ice as spatial planar particles
+             C    = 7.08E6*psi ! C
+             g    = 0.5-0.25*rimfrac ! g
+             Nmax = 100. ! Nmax
+             Am   = 1.58E7*(1+100*rimfrac**2.)*(1+1.33e-4/dinsphmin**1.5) ! Am
+          END IF
+      END IF
       
       ! Equivalent-spherical surface area of the colliding particle with the smaller maximum dimension in 1/m2 
       alpha = pi * disphmin**2.
-
       ! Get K0
       K0 = kinetic_collision_energy(ppres,ptemp,icelarge,icesmall)
       
@@ -393,53 +388,53 @@ MODULE mo_salsa_SIP_IIBR
    ! ------------------------------------------------------------------------------------------------------------
    
    
-   ! --------------------------------------------------------------------------
+   ! ------------------------------------------------------------------------------------------------------------
      REAL FUNCTION kinetic_collision_energy(ppres,ptemp,pice1,pice2) result(K0) 
      
-      USE mo_submctl, ONLY : rd, pstand, pi, spec
-      USE classSection, ONLY : Section
+        USE mo_submctl, ONLY : rd, pstand, pi, spec
+        USE classSection, ONLY : Section
 
-      REAL, INTENT(in)  :: ptemp,ppres    ! ptemp in K and ppres in Pa
+        REAL, INTENT(in)  :: ptemp,ppres    ! ptemp in K and ppres in Pa
 
-      TYPE(Section), INTENT(in) :: pice1
-      TYPE(Section), INTENT(in) :: pice2
+        TYPE(Section), INTENT(in) :: pice1
+        TYPE(Section), INTENT(in) :: pice2
       
-      REAL :: m1, m2  ! Masses of  ice particles
-      REAL :: v1,v2   ! Terminal velocities of ice particles
+        REAL :: m1, m2  ! Masses of  ice particles
+        REAL :: v1,v2   ! Terminal velocities of ice particles
       
-      ! This is repeating a LOT of the stuff already done once in coagulation kernels,
-      ! which is BS and sad... But can't do much about it currently.
-      REAL :: visc             ! Viscosity of air [kg/(m s)]
-      REAL :: rhoa             ! air density      [kg/(m3)]      
-      REAL :: mfp              ! air mean free path [m]
+        ! This is repeating a LOT of the stuff already done once in coagulation kernels,
+        ! which is BS and sad... But can't do much about it currently.
+        REAL :: visc             ! Viscosity of air [kg/(m s)]
+        REAL :: rhoa             ! air density      [kg/(m3)]      
+        REAL :: mfp              ! air mean free path [m]
             
-      K0 = 0.
-      rhoa = ppres/(rd*ptemp)
-      visc = (7.44523e-3*SQRT(ptemp**3))/(5093.*(ptemp+110.4)) 
-      mfp = (1.656e-10*ptemp+1.828e-8)*pstand/ppres
+        K0 = 0.
+        rhoa = ppres/(rd*ptemp)
+        visc = (7.44523e-3*SQRT(ptemp**3))/(5093.*(ptemp+110.4)) 
+        mfp = (1.656e-10*ptemp+1.828e-8)*pstand/ppres
 	
-      ! Hydrometeor 1 in the colliding-pair
-      ! Get the ice particle terminal velocity 
-      v1 = getvelocity(pice1,visc,rhoa,mfp)
-      ! Get the ice particle mass
-      m1 = mip(pice1) 
+        ! Hydrometeor 1 in the colliding-pair
+        ! Get the ice particle terminal velocity 
+        v1 = getvelocity(pice1,visc,rhoa,mfp)
+        ! Get the ice particle mass
+        m1 = mip(pice1) 
       
-      ! Hydrometeor 2 in the colliding-pair
-      ! Get the ice particle terminal velocity 
-      v2 = getvelocity(pice2, visc,rhoa, mfp)
-      ! Get the ice particle mass
-      m2 = mip(pice2) 
+        ! Hydrometeor 2 in the colliding-pair
+        ! Get the ice particle terminal velocity 
+        v2 = getvelocity(pice2, visc,rhoa, mfp)
+        ! Get the ice particle mass
+        m2 = mip(pice2) 
       
-      ! Get the collision kinetic energy 
-      ! K0 = 0.5 * (m1*m2/(m1 + m2)) * (v1 - v2)**2
-      ! Sotipoulou et al 2020 includes a correction factor in these expressions
-      ! to account for underestimates when the terminal velocities are
-      ! too close or equal
-      K0 = 0.5 * (m1*m2/(m1+m2)) * (ABS((1.7*v1 - v2)**2.0 - 0.3*v1*v2))**0.5
+        ! Get the collision kinetic energy 
+        ! K0 = 0.5 * (m1*m2/(m1 + m2)) * (v1 - v2)**2
+        ! Sotipoulou et al 2020 includes a correction factor in these expressions
+        ! to account for underestimates when the terminal velocities are
+        ! too close or equal
+        K0 = 0.5 * (m1*m2/(m1+m2)) * (ABS((1.7*v1 - v2)**2.0 - 0.3*v1*v2))**0.5
       
      END FUNCTION kinetic_collision_energy
      
-     ! -----------------------------------------------------------------------------
+     ! ----------------------------------------------------------------------------------------------------------
      
      REAL FUNCTION getvelocity(pice, visc, rhoa, mfp) result(vt)
                 
@@ -475,28 +470,28 @@ MODULE mo_salsa_SIP_IIBR
         vt    = terminal_vel(pice%dwet,rhoip,rhoa,visc,beta,4,ishape,pice%dnsp)
      
      END FUNCTION getvelocity
-    ! ------------------------------------------------------------------------------
+    ! ----------------------------------------------------------------------------------------------------------
     
     REAL FUNCTION mip(pice)
          
-         USE mo_submctl, ONLY : spec
-         USE classSection, ONLY : Section
+       USE mo_submctl, ONLY : spec
+       USE classSection, ONLY : Section
+        
+       TYPE(Section), INTENT(in) :: pice 
+       REAL :: mrim,mpri,ncice  ! rimed and unrimed bin ice mass mix rats, ice number concentration in [1/kg]
+       INTEGER :: iwa, iri      ! compound index for water and rimed ice in the spec derived data 
          
-         TYPE(Section), INTENT(in) :: pice 
-         REAL :: mrim,mpri,ncice  ! rimed and unrimed bin ice mass mix rats, ice number concentration in [1/kg]
-         INTEGER :: iwa, iri      ! compound index for water and rimed ice in the spec derived data 
+       iwa = spec%getIndex('H2O')
+       iri = spec%getIndex('rime')
          
-         iwa = spec%getIndex('H2O')
-         iri = spec%getIndex('rime')
+       mrim = pice%volc(iri) * spec%rhori
+       mpri = SUM(pice%volc(1:iwa)) * spec%rhoic ! Cutting a little corners here with the volc...
+       ncice = pice%numc
          
-         mrim = pice%volc(iri) * spec%rhori
-         mpri = SUM(pice%volc(1:iwa)) * spec%rhoic ! Cutting a little corners here with the volc...
-         ncice = pice%numc
-         
-         ! Single particle mass
-         mip = (mrim+mpri)/ ncice ! Count mean mass for ice particles in the size bin [kg]
+       ! Single particle mass
+       mip = (mrim+mpri)/ ncice ! Count mean mass for ice particles in the size bin [kg]
              
     END FUNCTION mip
-    ! ------------------------------------------------------------------------------
+    ! -----------------------------------------------------------------------------------------------------------
     
 END MODULE mo_salsa_SIP_IIBR

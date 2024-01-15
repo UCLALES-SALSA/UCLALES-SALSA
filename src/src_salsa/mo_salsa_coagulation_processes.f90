@@ -862,10 +862,13 @@ MODULE mo_salsa_coagulation_processes
 
       END IF
 
-    ! Diagnostics for secondary ice parameterizations
-      IF (coll(1,1,1)%phase == 4 .AND. lssecice%state) THEN
+      ! -----------------------------------------------------------------------------------------------------------
+      ! Diagnostics for secondary ice parameterizations
+      ! REMEMBER ---> Here, the target refers always to the collected "smaller" particle category.
+      ! -----------------------------------------------------------------------------------------------------------
+    IF (coll(1,1,1)%phase == 4 .AND. lssecice%state) THEN
       
-         ! CHECK IF THIS WORKS...
+         ! 
          fix_coag = 1.
          DO jj = 1,klev
             DO ii = 1,kbdim
@@ -876,8 +879,7 @@ MODULE mo_salsa_coagulation_processes
          !----------------------------------------------------------------------------------------------------------
          ! Secondary ice production by ice-ice collisional breakup
          IF (lssipicecollbreak%state) THEN            
-            ! REMEMBER -->  CALL accumulateSink(kbdim,klev,nice,nice,kk,kk+1,fia,zccii,ice,zminusterm,4)
-            DO ll=istr,iend ! looping over the collector bins (particles larger than the target)
+            DO ll=istr,iend 
                DO jj= 1,klev
                   DO ii=1,kbdim
                      IF (trgtphase == 4 .AND. &
@@ -885,8 +887,8 @@ MODULE mo_salsa_coagulation_processes
                          ice(ii,jj,itrgt)%numc > ice(ii,jj,itrgt)%nlim) THEN
                           ! number of collisions between the smaller itrgt and the larger ll
                           ! Eagg is defined by the colliding particle with the higher rime fraction
-                          nii_ibr(ii,jj, ll,itrgt) =  nii_ibr(ii,jj, ll,itrgt) + &
-                               Eagg(ii,jj,ll)*zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%numc*ice(ii,jj,itrgt)%numc* &
+                          nii_ibr(ii,jj, itrgt, ll) =  nii_ibr(ii,jj, itrgt, ll) + &
+                               Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*ice(ii,jj,itrgt)%numc* &
                                fix_coag(ii,jj)
                        END IF
                   END DO
@@ -898,83 +900,81 @@ MODULE mo_salsa_coagulation_processes
          ! Secondary ice production by fragmentation of freezing drops
          IF (lssipdropfrac%state) THEN
           DO ll = istr,iend
-            DO jj = 1,klev ! REMEMBER -->  CALL accumulateSink(kbdim,klev,nice,nice,kk,kk+1,fia,zccii,ice,zminusterm,4)
+            DO jj = 1,klev ! REMEMBER --> coll(1,1,1)%phase == 4
                DO ii = 1,kbdim 
                   IF (lssipdropfrac%state) THEN                  
-                    IF (trgtphase == 3 .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim ) THEN
-                     ! Drop fracturing: large drops collected by small ice; Possible for all drop fragment parameterizations
-                     IF (coll(ii,jj,ll)%dwet < precp(ii,jj,itrgt)%dwet .AND. precp(ii,jj,itrgt)%dwet > dlliq_df .AND.  &    ! SWITCH dlice_df -> precp%dwet
-                          precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN                  
+                     IF (trgtphase == 3 .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
+                        ! Drop fracturing: large drops collected by small ice; Possible for all  parameterizations
+                        IF (coll(ii,jj,ll)%dwet < precp(ii,jj,itrgt)%dwet .AND. precp(ii,jj,itrgt)%dwet > dlliq_df .AND.  &   
+                            precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN                  
 
-                        nfrzn_df(ii,jj,itrgt,ll) = nfrzn_df(ii,jj,itrgt,ll) +      &
+                           nfrzn_df(ii,jj,itrgt,ll) = nfrzn_df(ii,jj,itrgt,ll) +      &
                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc*   &
                              fix_coag(ii,jj)
-                     END IF
-                     
-                     ! Drop fracturing: drop collected by more massive ice; Possible for the full 2-mode Phillips et al
-                     IF (lssipdropfrac%mode==4 .AND. &
-                         coll(ii,jj,ll)%dwet >= precp(ii,jj,itrgt)%dwet .AND. precp(ii,jj,itrgt)%dwet > dlliq_df .AND.  &    ! SWITCH dlice_df -> precp%dwet
-                         precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
+                        END IF
+                       ! Drop fracturing: drop collected by more massive ice; Possible for the full 2-mode Phillips et al
+                        IF (lssipdropfrac%mode==4 .AND. &
+                           coll(ii,jj,ll)%dwet >= precp(ii,jj,itrgt)%dwet .AND. precp(ii,jj,itrgt)%dwet > dlliq_df .AND.  &    
+                           precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
 
-                        nfrzn_df(ii,jj,itrgt,ll) = nfrzn_df(ii,jj,itrgt,ll) +      &
-                           Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc*   &
-                           fix_coag(ii,jj)
-                     END IF
-
+                           nfrzn_df(ii,jj,itrgt,ll) = nfrzn_df(ii,jj,itrgt,ll) +      &
+                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc*   &
+                              fix_coag(ii,jj)
+                        END IF
 
                      ELSE IF (trgtphase == 2 .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim ) THEN
 
-                     ! Drop fracturing: large drops collected by small ice; Possible for all parameterizations
-                     IF (coll(ii,jj,ll)%dwet < cloud(ii,jj,itrgt)%dwet .AND. cloud(ii,jj,itrgt)%dwet > dlliq_df .AND.  &  ! SWITCH dlice_df -> cloud%dwet
-                         cloud(ii,jj,itrgt)%numc > cloud(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
-                        nfrzn_df(ii,jj,1,ll) = nfrzn_df(ii,jj,1,ll) +      &
-                             Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc*   &
-                             fix_coag(ii,jj)
-                     END IF
+                        ! Drop fracturing: large drops collected by small ice; Possible for all parameterizations
+                        IF (coll(ii,jj,ll)%dwet < cloud(ii,jj,itrgt)%dwet .AND. cloud(ii,jj,itrgt)%dwet > dlliq_df .AND.  &  
+                            cloud(ii,jj,itrgt)%numc > cloud(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
+                           nfrzn_df(ii,jj,1,ll) = nfrzn_df(ii,jj,1,ll) +      &
+                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc*   &
+                              fix_coag(ii,jj)
+                        END IF
                      
-                     ! Drop fracturing: drop collected by more massive ice; Possible for the full 2-mode Phillips et al
-                     IF (lssipdropfrac%mode==4 .AND. &
-                         coll(ii,jj,ll)%dwet >= cloud(ii,jj,itrgt)%dwet .AND. cloud(ii,jj,itrgt)%dwet > dlliq_df .AND.  &    ! SWITCH dlice_df -> precp%dwet
-                         cloud(ii,jj,itrgt)%numc > cloud(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
-                        nfrzn_df(ii,jj,1,ll) = nfrzn_df(ii,jj,1,ll) +      &
-                           Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc*   &
-                           fix_coag(ii,jj)
-                     END IF
-                  END IF
-               END IF
-             END DO
-           END DO
-        END DO
-      END IF
-                    
-      !---------------------------------------------------------------------------------------------------------------------
-      ! Secondary ice production by rime splintering
-      ! SIP-RS is proportional to the riming growth of graupel or rate of accretion of droplets larger than 24 um in diameter Mossop (1976)
-      IF (lssiprimespln%state) THEN
-       DO ll=istr,iend 
-         DO jj = 1,klev
-            DO ii = 1,kbdim  
-               !
-                IF (trgtphase == 3) THEN !  CALL accumulateSink(kbdim,klev,nprc,nice,kk,iia,fia,zccip,ice,zminusterm,3)
-                     IF (coll(ii,jj,ll)%dwet >= precp(ii,jj,itrgt)%dwet .AND. precp(ii,jj,itrgt)%dwet > dlliq_rs .AND.  &    
-                         precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
-                        nfrzn_rs(ii,jj,itrgt,ll) = nfrzn_rs(ii,jj,itrgt,ll) +      &
-                           Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc*   &
-                           fix_coag(ii,jj)
-                     END IF
-                 ELSE IF (trgtphase ==2) THEN
-                     IF (coll(ii,jj,ll)%dwet >= cloud(ii,jj,itrgt)%dwet .AND. cloud(ii,jj,itrgt)%dwet > dlliq_rs .AND.  &    
-                         cloud(ii,jj,itrgt)%numc > cloud(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
-                        nfrzn_rs(ii,jj,1,ll) = nfrzn_rs(ii,jj,1,ll) +      &
-                           Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc*   &
-                           fix_coag(ii,jj)
+                        ! Drop fracturing: drop collected by more massive ice; Possible for the full 2-mode Phillips et al
+                        IF (lssipdropfrac%mode==4 .AND. &
+                            coll(ii,jj,ll)%dwet >= cloud(ii,jj,itrgt)%dwet .AND. cloud(ii,jj,itrgt)%dwet > dlliq_df .AND.  &    ! SWITCH dlice_df -> precp%dwet
+                            cloud(ii,jj,itrgt)%numc > cloud(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
+                            nfrzn_df(ii,jj,1,ll) = nfrzn_df(ii,jj,1,ll) +      &
+                              Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc*   &
+                              fix_coag(ii,jj)
+                        END IF
                      END IF
                   END IF
                END DO
             END DO
-         END DO
-      END IF
-      END IF
+          END DO
+         END IF
+                    
+         !---------------------------------------------------------------------------------------------------------------------
+         ! Secondary ice production by rime splintering
+         ! SIP-RS is proportional to the riming growth of graupel or rate of accretion of droplets larger than 24 um in diameter Mossop (1976)
+         IF (lssiprimespln%state) THEN
+            DO ll=istr,iend 
+              DO jj = 1,klev
+                 DO ii = 1,kbdim  
+                  !
+                   IF (trgtphase == 3) THEN !  REMEMBER -->  coll(1,1,1)%phase == 4
+                      IF (coll(ii,jj,ll)%dwet >= precp(ii,jj,itrgt)%dwet .AND. precp(ii,jj,itrgt)%dwet > dlliq_rs .AND.  &    
+                          precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
+                          nfrzn_rs(ii,jj,itrgt,ll) = nfrzn_rs(ii,jj,itrgt,ll) +      &
+                            Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc*   &
+                            fix_coag(ii,jj)
+                       END IF
+                   ELSE IF (trgtphase ==2) THEN
+                      IF (coll(ii,jj,ll)%dwet >= cloud(ii,jj,itrgt)%dwet .AND. cloud(ii,jj,itrgt)%dwet > dlliq_rs .AND.  &    
+                          cloud(ii,jj,itrgt)%numc > cloud(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
+                          nfrzn_rs(ii,jj,1,ll) = nfrzn_rs(ii,jj,1,ll) +      &
+                            Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*cloud(ii,jj,itrgt)%numc*   &
+                            fix_coag(ii,jj)
+                      END IF
+                   END IF
+                 END DO
+              END DO
+            END DO
+         END IF
+    END IF
       
    ! ------------------------------------------------------------------------------------------------------------------------   
       ! Accumulate autoconversion and accretion diagnostics according to custom size limits
@@ -1279,10 +1279,11 @@ MODULE mo_salsa_coagulation_processes
          END DO
       END DO
 
- ! ---------------------------------------------------------------------------------------------------------------
- ! Diagnostics for secondary ice production
- IF (lssecice%state) THEN
-         !! CHECK IF THIS ACTUALLY WORKS... 
+      ! ---------------------------------------------------------------------------------------------------------------
+      ! Diagnostics for secondary ice production
+      ! --------------------------------------------------------------------------------------------------------------
+     IF (lssecice%state) THEN
+         
          fix_coag = 1.
          IF (coll(1,1,1)%phase == 2) THEN
             DO jj = 1,klev
@@ -1310,7 +1311,7 @@ MODULE mo_salsa_coagulation_processes
           DO ll = istr,iend
             DO jj = 1,klev
                DO ii = 1,kbdim
-                  IF (ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN  
+                  IF (ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN   
                      ! Drop fracturing: large drops collected by small ice; Possible for all parameterizations
                      IF ( ice(ii,jj,itrgt)%dwet < coll(ii,jj,ll)%dwet .AND. coll(ii,jj,ll)%dwet > dlliq_df .AND. &
                           ice(ii,jj,itrgt)%numc > ice(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN  ! SWITCH dlice_df -> coll%dwet
@@ -1335,43 +1336,44 @@ MODULE mo_salsa_coagulation_processes
                         mfrzn_df(ii,jj,ix,itrgt) = mfrzn_df(ii,jj,ix,itrgt) +     &
                               zcc(ii,jj,ix,itrgt)*coll(ii,jj,ll)%volc(iwa)*ice(ii,jj,itrgt)%numc*rhocoll * fix_coag(ii,jj)
                      END IF                                         
-                 END IF
+                  END IF
                END DO
             END DO
           END DO                  
-       END IF
+         END IF
        
-      ! ------------------------------------------------------------------------------------------------------------------
-      ! Secondary ice production by rime splintering
-      ! REMEMBER:  The direct method, where the "larger" particle category collects the "smaller" category.
-      ! The target refers always to the "larger", collector category.
-      ! Volume gained from precip collection. Produces rimed ice
-      !   IF (lscgip) &
-      !        CALL accumulateSourcePhaseChange(kbdim,klev,nice,nprc,nspec,irim,iwa,kk,1,nprc,     &
-      !                                        rhorime,rhowa,zccip,precp,zplusterm)
+        ! ------------------------------------------------------------------------------------------------------------------
+        ! Secondary ice production by rime splintering
+        ! REMEMBER:  The direct method, where the "larger" particle category collects the "smaller" category.
+        ! The target refers always to the "larger", collector category.
+        ! Volume gained from precip collection. Produces rimed ice
+        !   IF (lscgip) &
+        !        CALL accumulateSourcePhaseChange(kbdim,klev,nice,nprc,nspec,irim,iwa,kk,1,nprc,     &
+        !                                        rhorime,rhowa,zccip,precp,zplusterm)
       
-      IF (lssiprimespln%state) THEN
-         DO ll = istr,iend 
-           DO jj = 1,klev
-             DO ii = 1,kbdim
-             IF (ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN  
-               IF (coll(ii,jj,ll)%dwet >= dlliq_rs .AND. coll(ii,jj,ll)%dwet < ice(ii,jj,itrgt)%dwet ) THEN
-                  IF (coll(ii,jj,ll)%phase == 3) THEN
-                     ix = ll
-                  ELSE IF (coll(ii,jj,ll)%phase ==2 ) THEN
-                     ix = 1
-                  END IF
-                  mfrzn_rs(ii,jj,ix,itrgt) = mfrzn_rs(ii,jj,ix,itrgt) +     &
+        IF (lssiprimespln%state) THEN
+           DO ll = istr,iend 
+             DO jj = 1,klev
+               DO ii = 1,kbdim
+                IF (ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN  
+                  IF (coll(ii,jj,ll)%dwet >= dlliq_rs .AND. coll(ii,jj,ll)%dwet < ice(ii,jj,itrgt)%dwet ) THEN
+                    IF (coll(ii,jj,ll)%phase == 3) THEN
+                       ix = ll
+                    ELSE IF (coll(ii,jj,ll)%phase ==2 ) THEN
+                       ix = 1
+                    END IF
+                    mfrzn_rs(ii,jj,ix,itrgt) = mfrzn_rs(ii,jj,ix,itrgt) +     &
                          zcc(ii,jj,ix,itrgt)*coll(ii,jj,ll)%volc(iwa)*ice(ii,jj,itrgt)%numc*rhocoll * fix_coag(ii,jj)
-               END IF
-            END IF
-         END DO
-      END DO
-   END DO
-END IF
+                  END IF
+                END IF
+              END DO
+             END DO
+           END DO
+        END IF
 
   !--------------------------------------------------------------------------------------------------------------------------
-    END IF
+     END IF
+  ! -------------------------------------------------------------------------------------------------------------------------
          
     END SUBROUTINE accumulateSourcePhaseChange
 

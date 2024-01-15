@@ -11,12 +11,10 @@ MODULE mo_salsa_SIP_RS
   ! Arrays to track the number and mass of frozen drops due to ice collection
   ! diagnosed from the coagulation routines for each timestep. Initialized in
   ! mo_salsa_init. Bin dimensions will be (nprc,nice). Possible contribution by 
-  ! cloud droplets will be put to the first bin or smth?? Should binnihs for rime splintering be
-  ! something else?? Check later!
+  ! cloud droplets will be put to the first bin or smth?? 
   REAL, ALLOCATABLE :: nfrzn_rs(:,:,:,:), mfrzn_rs(:,:,:,:)
 
   REAL :: dlliq_rs = 24.0e-6   ! Min droplet diameter for rime splintering. 
-  ! Ice is expected to be more massive than the freezing drop.
 
   INTEGER :: dltemp_rs = 5   ! Temperature-dependence for SIP-rime splintering efficiency
   
