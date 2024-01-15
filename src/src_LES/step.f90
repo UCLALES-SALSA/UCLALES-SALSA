@@ -134,7 +134,7 @@ contains
                      a_gaerop, a_gaerot,                                                &
                      nspec, nbins, ncld, nprc, nice, nsnw, &
                      nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn, &
-                     ifSeaSpray, ifSeaVOC, sea_tspinup, a_edr
+                     ifSeaSpray, ifSeaVOC, sea_tspinup, forc_tspinup, a_edr
 
     use stat, only : sflg, statistics, les_rate_stats, out_mcrp_data, out_mcrp_list, out_mcrp_nout, mcrp_var_save
     use sgsm, only : diffuse
@@ -196,7 +196,7 @@ contains
 
        call thermo(level)
 
-       call forcings(xtime,cntlat,sst)
+       IF (time >= forc_tspinup) call forcings(xtime,cntlat,sst)
 
        IF (level>3) CALL tend_constrain(n4)
        IF (sflg) CALL les_rate_stats('forc')

@@ -81,6 +81,7 @@ module grid
   character (len=7) :: runtype = 'INITIAL'! Run Type Selection
 
   REAL              :: Tspinup = 7200.    ! Spinup period in seconds (added by Juha)
+  REAL              :: forc_tspinup = 0.  ! Spin-up time (s) for forcings
 
   ! User control of analysis outputs
   INTEGER, PARAMETER :: maxn_list=100
