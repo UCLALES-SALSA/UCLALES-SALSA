@@ -50,6 +50,7 @@ contains
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
+    USE radiation, ONLY : RadNewSetup, rad_new_setup
 
     implicit none
 
@@ -58,6 +59,7 @@ contains
 
     if (runtype == 'INITIAL') then
        time=0.
+       call random_init
        call arrsnd
        call basic_state
        call fldinit
@@ -110,6 +112,8 @@ contains
        call appl_abort(0)
     end if ! runtype
 
+    ! New setup for the Fu-Liou radiation
+    IF (RadNewSetup .AND. iradtyp==3) CALL rad_new_setup(nzp,pi0,th0,rt0)
 
     call sponge_init
     call init_stat(time,filprf,expnme,nzp)
@@ -613,10 +617,9 @@ contains
   !
   subroutine random_pert(n1,n2,n3,zt,fld,xmag,kmx,target_name)
 
-    use mpi_interface, only :  nypg,nxpg,myid,wrxid,wryid,xoffset,yoffset, &
-         double_scalar_par_sum
+    use mpi_interface, only :  myid
 
-    use util, only : sclrset
+    use util, only : sclrset, get_pustat_scalar
     implicit none
 
     integer, intent(in) :: n1,n2,n3,kmx
@@ -624,32 +627,12 @@ contains
     real, intent(in)    :: zt(n1),xmag(n1)
     character(len=*), intent(in) :: target_name
 
-    real (kind=8) :: rand(3:n2-2,3:n3-2),  xx, xxl, tot
-    real (kind=8), allocatable :: rand_temp(:,:)
-
-    integer, dimension (:), allocatable :: seed
-
-    integer :: i,j,k,n2g,n3g,isize
-
-    rand=0.0
-    ! seed must be a double precision odd whole number greater than
-    ! or equal to 1.0 and less than 2**48.
-
-    call random_seed(size=isize)
-    allocate (seed(isize))
-    seed(:) = iseed
-    call random_seed(put=seed)
-    deallocate (seed)
-    n2g = nxpg
-    n3g = nypg
+    real :: rand(3:n2-2,3:n3-2), xx, xxl, tot
+    integer :: i,j,k
 
     tot =0.
     do k=2,kmx
-       allocate (rand_temp(3:n2g-2,3:n3g-2))
-       call random_number(rand_temp)
-       rand(3:n2-2, 3:n3-2)=rand_temp(3+xoffset(wrxid):n2+xoffset(wrxid)-2, &
-            3+yoffset(wryid):n3+yoffset(wryid)-2)
-       deallocate (rand_temp)
+       call random_number(rand)
 
        xx = 0.
        do j=3,n3-2
@@ -659,9 +642,9 @@ contains
           end do
        end do
 
-       xxl = xx
-       call double_scalar_par_sum(xxl,xx)
-       xx = xx/real((n2g-4)*(n3g-4))
+       xxl = xx/real((n2-4)*(n3-4))
+       xx = get_pustat_scalar('avg', xxl)
+
        IF (zrandnorm) fld(k,:,:)= fld(k,:,:) - xx
 
        tot = tot + xx/(kmx-1) ! Average perturbation
@@ -685,6 +668,18 @@ contains
          /3x,'and a magnitude of: ',E12.5)
   end subroutine random_pert
 
+  ! Initialize pseudo random numbers so that each PU will
+  ! have a different seed and random numbers
+  subroutine random_init
+    use mpi_interface, only: myid
+    integer :: i, n
+    integer, allocatable, dimension(:) :: seed
+    call random_seed(size=n)
+    allocate (seed(n))
+    seed = iseed * (/ (i, i = 1, n) /) + myid
+    call random_seed(put=seed)
+    deallocate (seed)
+  end subroutine random_init
 
   !
   !--------------------------------------------------------------------

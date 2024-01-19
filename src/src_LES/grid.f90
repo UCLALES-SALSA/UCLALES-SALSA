@@ -1372,6 +1372,7 @@ contains
     character (len=80) :: hname
 
     integer :: n, iblank
+    integer, allocatable, dimension(:) :: seed
     !
     ! create and open a new output file.
     !
@@ -1389,6 +1390,11 @@ contains
        iblank=index(hname,' ')
        write (hname(iblank:iblank+7),'(a1,i6.6,a1)') '.', int(time), 's'
     end select
+
+    call random_seed(size=n)
+    allocate (seed(n))
+    call random_seed(get=seed)
+
     !
     ! Write fields
     !
@@ -1412,6 +1418,9 @@ contains
     write(10) a_uc
     write(10) a_vc
     write(10) a_wc
+
+    write(10) n
+    write(10) seed
 
     do n=1,nscl
        call newsclr(n)
@@ -1449,6 +1458,7 @@ contains
 
     character (len=80) :: hname
     integer :: n, nxpx, nypx, nzpx, nsclx, iradx, isgsx, lvlx
+    integer, dimension(:), allocatable :: seed
     logical :: exans
     real :: umx, vmx, thx
     !
@@ -1486,6 +1496,11 @@ contains
        read (10) a_uc
        read (10) a_vc
        read (10) a_wc
+
+       read (10) n
+       allocate(seed(n))
+       read(10) seed
+       call random_seed(put=seed)
 
        do n=1,nscl
           call newsclr(n)
