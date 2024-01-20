@@ -105,7 +105,7 @@ MODULE classSpecies
   REAL, PARAMETER, PRIVATE    :: auxrhorime = 400.                                                 ! Bulk density of rimed ice
   REAL, TARGET, PRIVATE       :: t_auxrhoic = auxrhoic      ! workaround for pointer assignment - find a way to remove this
   REAL, TARGET, PRIVATE       :: t_auxrhorime = auxrhorime  ! workaround for pointer assignment - find a way to remove this
-  REAL, TARGET, PRIVATE       :: allRho(maxspec+2)  = [1830., 2000., 2000., 2650., 2165., &
+  REAL, TARGET, PRIVATE       :: allRho(maxspec+2)  = [1830., 1400., 2000., 2650., 2165., &
                                                        1479., 1530., 1000., auxrhorime]            ! Densities
   REAL, TARGET, PRIVATE       :: allDiss(maxspec+2) = [3., 1., 0., 0., 2., 1., 1., 1., 1.]         ! Dissociation factors 
   ! -------------------------------------------------------------------------------------------------------------------------

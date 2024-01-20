@@ -78,7 +78,7 @@ MODULE mo_submctl
                                                                !                                   %mode = 2: Sotiropoulou et al 2021,
                                                                !                                   %mode = 3: Phillips et al 2017
 
-  TYPE(ProcessSwitch), POINTER :: lssiprimespln => NULL()       ! Rime splintering SIP, %mode = 1: Hallet and Mossot 1974,
+  TYPE(ProcessSwitch), POINTER :: lssiprimespln => NULL()      ! Rime splintering SIP, %mode = 1: Hallet and Mossot 1974,
                                                                !                        %mode = 2: Mossop 1976
   INTEGER, PARAMETER :: Nsub = 3
   TYPE(ProcessSwitch), TARGET :: lssub(Nsub)  ! Holder for type ProcessSwitch subprocess switches (for most just the simple
@@ -278,7 +278,7 @@ MODULE mo_submctl
        rhosu = 1830.,         & ! sulphate
        rhono = 1479.,         & ! HNO3
        rhonh = 1530.,         & ! NH3
-       rhooc = 2000.,         & ! organic carbon
+       rhooc = 1400.,         & ! organic carbon
        rhobc = 2000.,         & ! black carbon
        rhoss = 2165.,         & ! sea salt (NaCl)
        rhodu = 2650.,         & ! mineral dust
