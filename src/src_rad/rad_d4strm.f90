@@ -29,7 +29,7 @@ MODULE fuliou
   IMPLICIT NONE
 
   LOGICAL, SAVE :: Initialized = .FALSE.
-  INTEGER :: iseed = 0
+  INTEGER :: iseed = 3
   REAL, PARAMETER :: minSolarZenithCosForVis = 1.e-4
 
 CONTAINS
