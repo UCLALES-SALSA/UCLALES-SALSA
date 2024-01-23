@@ -36,8 +36,6 @@ contains
   ! model on first call
   !
   subroutine rad_init
-    integer, dimension (:), allocatable :: seed
-    INTEGER :: isize
 
     if (.not.Initialized) then
        call init_ckd

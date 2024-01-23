@@ -104,7 +104,7 @@ contains
          nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau,  &
          nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, &
          no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, anl_include, anl_exclude, out_an_list, &
-         user_an_list, ifSeaSpray, ifSeaVOC, sea_tspinup, forc_tspinup
+         user_an_list, ifSeaSpray, ifSeaVOC, sea_tspinup
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
     use stat, only : ssam_intvl, savg_intvl, csflg, cs_include, cs_exclude, &
@@ -156,7 +156,6 @@ contains
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau, & ! Horizontal wind nudging
          nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau, & ! Horizontal wind nudging
          nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, & ! Aerosol number concentration nudging
-         forc_tspinup,           & ! Forcing spinup time (s)
          radsounding, case_name, & ! Name of the radiation sounding file and case name
          div, zmaxdiv,           & ! Divergence and maximum altitude
          xka, fr0, fr1, alpha,   & ! Parameters for GCSS radiation

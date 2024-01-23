@@ -1723,7 +1723,8 @@ contains
   ! Variable names are given in NAMELIST/user_ts_list and these must be defined in ncio.f90.
   ! Outputs are calculated here to array user_ts_data(nv1_user).
   subroutine ts_user_stats()
-    use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_temp
+    use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_temp, &
+        a_rflx, a_sflx, a_fuir, a_fdir
     INTEGER :: i
     REAL :: a(nzp,nxp,nyp), a1
     LOGICAL :: fail, mask(nzp,nxp,nyp), mass
@@ -1741,6 +1742,19 @@ contains
             ! Minimum absolute temperature (K)
             a1=MINVAL(a_temp(:,3:nxp-2,3:nyp-2))
             user_ts_data(i) = get_pustat_scalar('min',a1)
+         CASE ('drflx_c')
+            ! Total cloud radiative cooling (W/m2)
+            a1=calc_ctrc(a_rflx)
+            user_ts_data(i) = get_pustat_scalar('avg',a1)
+         CASE ('dsflx_c')
+            ! SW cloud radiative cooling (W/m2)
+            a1=calc_ctrc(a_sflx)
+            user_ts_data(i) = get_pustat_scalar('avg',a1)
+         CASE ('dlflx_c')
+            ! LW cloud radiative cooling (W/m2)
+            a=a_fuir-a_fdir
+            a1=calc_ctrc(a)
+            user_ts_data(i) = get_pustat_scalar('avg',a1)
          CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_ts_list(i),a,mask,is_mass=mass)
@@ -1757,6 +1771,30 @@ contains
         END SELECT
     ENDDO
     !
+    CONTAINS
+        ! Calculate cloud radiative cooling (top - base) for any radiative flux variable
+        REAL FUNCTION calc_ctrc(flx)
+            REAL, INTENT(IN) :: flx(nzp,nxp,nyp)
+            INTEGER :: i, j, k, n, ibase, itop
+            n=0
+            calc_ctrc=0.
+            do j=3,nyp-2
+                do i=3,nxp-2
+                    ibase=-1
+                    do k=2,nzp
+                        IF (cloudmask(k,i,j)) THEN
+                            IF (ibase<0) ibase=i
+                            itop=i
+                        ENDIF
+                    END DO
+                    IF (ibase>0) THEN
+                        calc_ctrc=calc_ctrc+flx(itop,i,j)-flx(ibase-1,i,j)
+                        n=n+1
+                    ENDIF
+                end do
+            end do
+            IF (n>0) calc_ctrc=calc_ctrc/FLOAT(n)
+        END FUNCTION calc_ctrc
   end subroutine ts_user_stats
 
   !

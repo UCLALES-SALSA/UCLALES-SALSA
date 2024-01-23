@@ -59,7 +59,7 @@ contains
 
     if (runtype == 'INITIAL') then
        time=0.
-       call random_init
+       call random_initialize
        call arrsnd
        call basic_state
        call fldinit
@@ -670,16 +670,21 @@ contains
 
   ! Initialize pseudo random numbers so that each PU will
   ! have a different seed and random numbers
-  subroutine random_init
+  subroutine random_initialize
     use mpi_interface, only: myid
     integer :: i, n
     integer, allocatable, dimension(:) :: seed
+    real :: rands(1000)
+    ! Initialize seed based on given iseed (not negative)
     call random_seed(size=n)
     allocate (seed(n))
-    seed = iseed * (/ (i, i = 1, n) /) + myid
+    seed = MAX(0,iseed) * (/ (i, i = 1, n) /) + myid
     call random_seed(put=seed)
     deallocate (seed)
-  end subroutine random_init
+    ! The first random numbers can be similar, so sample
+    ! those before the actual simulations start
+    call random_number(rands)
+  end subroutine random_initialize
 
   !
   !--------------------------------------------------------------------
