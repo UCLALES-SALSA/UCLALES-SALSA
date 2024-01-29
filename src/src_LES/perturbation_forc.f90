@@ -103,7 +103,7 @@ MODULE perturbation_forc
       ! time. The perturbations are ADDED to the existing background surface fluxes. Note
       ! that this should only be used with isfctyp=0, i.e. with fixed surface fluxes defined
       ! in the NAMELIST. 
-      ! -----------------------------------------------
+      ! -----------------------------------------------x
       !
       USE math_functions, ONLY : f_gauss_NN
       USE srfc, ONLY : lh_flx, sh_flx
@@ -118,7 +118,7 @@ MODULE perturbation_forc
          DO i = 3,nxp-2
             coord = [xt%d(i),yt%d(j)]
             dist_from_center = SQRT( SUM( (coord-SELF%center)**2 ) )
-            lh_flx(i,j) = lh_flx(i,j) + SELF%amp_lhf * f_gauss_NN(dist_from_center,SELF%sigma,0.)
+            lh_flx(i,j) = lh_flx(i,j) + SELF%amp_lhf * f_gauss_NN(dist_from_center,SELF%sigma,0.) 
             sh_flx(i,j) = sh_flx(i,j) + SELF%amp_shf * f_gauss_NN(dist_from_center,SELF%sigma,0.)                        
          END DO
       END DO                  

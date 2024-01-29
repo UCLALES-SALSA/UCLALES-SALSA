@@ -37,8 +37,8 @@ MODULE srfc
   ! Other module variables
   ! -----------------------------------------------------------
   ! Additional perturbation values for surface fluxes with isfctyp=0/default
-  REAL, ALLOCATABLE :: lh_flx(:,:)  ! Sensible heat Wm-2
-  REAL, ALLOCATABLE :: sh_flx(:,:)  ! Latent heat Wm-2
+  REAL, ALLOCATABLE :: lh_flx(:,:)  ! Latent heat Wm-2
+  REAL, ALLOCATABLE :: sh_flx(:,:)  ! Sensible heat Wm-2
   
   ! Sami added ----->
   ! Initial values for surface properties
@@ -349,10 +349,8 @@ CONTAINS
          !
          CASE DEFAULT
             ffact = 1.  
-            !wt_sfc%d(1,1)  = ffact* dthcon/(0.5*(dn0%d(1)+dn0%d(2))*cp)
-            !wq_sfc%d(1,1)  = ffact* drtcon/(0.5*(dn0%d(1)+dn0%d(2))*alvl)
-            lh_flx(:,:) = lh_flx(:,:) + dthcon
-            sh_flx(:,:) = sh_flx(:,:) + drtcon
+            lh_flx(:,:) = lh_flx(:,:) + drtcon
+            sh_flx(:,:) = sh_flx(:,:) + dthcon
                         
             IF (zrough <= 0.) THEN
                usum = 0.
@@ -369,8 +367,6 @@ CONTAINS
 
             DO j = 3, nyp-2
                DO i = 3, nxp-2
-                  !wt_sfc%d(i,j) = wt_sfc%d(1,1)
-                  !wq_sfc%d(i,j) = wq_sfc%d(1,1)
                   wt_sfc%d(i,j) = sh_flx(i,j)/(0.5*(dn0%d(1)+dn0%d(2))*cp)
                   wq_sfc%d(i,j) = lh_flx(i,j)/(0.5*(dn0%d(1)+dn0%d(2))*alvl)
                   
@@ -399,16 +395,6 @@ CONTAINS
             
       END SELECT
 
-      !IF ( mcflg ) THEN
-      !   !
-      !   ! Juha: Take moisture flux to mass budged statistics
-      !   mctmp(:,:) = wq_sfc(:,:)*(0.5*(a_dn(1,:,:)+a_dn(2,:,:)))
-      !   CALL acc_massbudged(nzp,nxp,nyp,2,dtlt,dzt,a_dn,       &
-      !                       revap=mctmp,ApVdom=mc_ApVdom)
-      !   !
-      !   !
-      !END IF !mcflg
-      !IF (sflg) CALL sfc_stat(nxp,nyp,wt_sfc,wq_sfc,a_ustar,sst)
 
       RETURN
    END SUBROUTINE surface
