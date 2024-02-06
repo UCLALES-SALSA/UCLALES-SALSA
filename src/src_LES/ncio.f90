@@ -555,6 +555,15 @@ contains
     case('albedo')
        if (itype==0) ncinfo = 'Reflected (TOA) shortwave radiation'
        if (itype==1) ncinfo = '-'
+    case('drflx_c')
+       if (itype==0) ncinfo = 'Total cloud radiative cooling'
+       if (itype==1) ncinfo = 'W/m^2'
+    case('dsflx_c')
+       if (itype==0) ncinfo = 'Shortwave cloud radiative cooling'
+       if (itype==1) ncinfo = 'W/m^2'
+    case('dlflx_c')
+       if (itype==0) ncinfo = 'Longwave cloud radiative cooling'
+       if (itype==1) ncinfo = 'W/m^2'
     case('rwp_bar','rwp')
        if (itype==0) ncinfo = 'Rain-water path'
        if (itype==1) ncinfo = 'kg/m^2'
@@ -567,10 +576,13 @@ contains
     case('hwp_bar','hwp')
        if (itype==0) ncinfo = 'Hail-water path'
        if (itype==1) ncinfo = 'kg/m^2'
-    case('rprcp','prcp')
+    case('prcp')
+       if (itype==0) ncinfo = 'Surface precipitation rate'
+       if (itype==1) ncinfo = 'W/m^2'
+    case('rprcp')
        if (itype==0) ncinfo = 'Surface rain precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
-    case('cprcp','prcc')
+    case('cprcp')
        if (itype==0) ncinfo = 'Surface cloud precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
     case('iprcp')

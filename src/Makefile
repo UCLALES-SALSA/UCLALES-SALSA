@@ -68,7 +68,7 @@ step.o: grid.o stat.o util.o defs.o thrm.o sgsm.o srfc.o  \
 init.o: grid.o stat.o util.o defs.o step.o sgsm.o thrm.o  \
 	$(seqmpi:.f90=.o) mo_submctl.o \
 	mo_salsa_driver.o mo_submctl.o \
-	ncio.o
+	ncio.o rad_d4strm.o
 rfft.o:
 rad_solver.o: defs.o
 rad_corkds.o: defs.o $(seqmpi:.f90=.o)

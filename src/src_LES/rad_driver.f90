@@ -25,7 +25,7 @@ module radiation
 
 
   use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv
-  use fuliou, only     : rad, set_random_offset, minSolarZenithCosForVis
+  use fuliou, only     : rad, rad_init, minSolarZenithCosForVis
   implicit none
 
   real, parameter :: SolarConstant = 1.365e+3
@@ -33,7 +33,7 @@ module radiation
   ! NAMELIST parameters
   character (len=50) :: radsounding = 'datafiles/dsrt.lay'
   LOGICAL :: useMcICA = .TRUE.
-  LOGICAL :: RadConstPress = .FALSE. ! keep constant pressure levels
+  LOGICAL :: RadNewSetup = .TRUE. ! use the new radiation setup method
   REAL :: RadConstSZA = -360. ! constant solar zenith angle (values between -180 and 180 degrees)
 
   logical, save     :: first_time = .True.
@@ -42,9 +42,46 @@ module radiation
 
   contains
 
+    subroutine rad_new_setup(n1,pi0,th0,rt0)
+      ! The new radiation setup method: initialize sounding profiles using basic state
+      ! properties including pressure, temperature and total water mixing ratio. This
+      ! means that the setup will be the same for restarts. This function initializes
+      ! also the radiative transfer solver.
+      integer, intent(in) :: n1
+      real, intent(in) :: pi0(n1), th0(n1), rt0(n1) ! Basic state p, theta and rt
+      real :: ttop, p0(n1)
+      !
+      ! Basic state pressure (hPa)
+      p0(:) = 0.01*(p00*(pi0(:)/cp)**cpr)
+      ! Basic state domain top temperature (K)
+      ttop = th0(n1)*pi0(n1)/cp
+      IF ( radsounding == 'auto' ) THEN
+        ! Automatic profile generation
+        !   - Upper atmosphere (P > 179 hPa) from dsrt.lay
+        !   - log-log or lin-log interpolation between LES and the upper atmosphere P, T and rt
+        !   - Boundary layer ozone concentration fixed to 50 ppt
+        call setup_auto(n1,nv1,nv,p0,ttop,MAX(4e-7,rt0(n1)),50e-9)
+      ELSE
+        ! Works well with the LES model
+        call setup_les(radsounding,n1,nv1,nv,p0,ttop,MAX(4e-7,rt0(n1)))
+      ENDIF
+      !
+      ! Hydrometeor properties set to zero (nothing above LES domain)
+      pre(:) = 0.
+      pde(:) = 0.
+      piwc(:) = 0.
+      plwc(:) = 0.
+      pgwc(:) = 0.
+      !
+      ! Initialize radiative transfer solver
+      CALL rad_init
+      !
+      ! Setup done
+      first_time = .False.
+    end subroutine rad_new_setup
+
     subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn, pi0, pi1, dzm, &
          pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, albedo, ice, nice, grp)
-      use mpi_interface, only: myid, pecount
       integer, intent (in) :: n1, n2, n3
       real, intent (in)    :: alat, time, sknt, sfc_albedo
       real, dimension (n1), intent (in)                 :: pi0, pi1, dzm
@@ -54,31 +91,12 @@ module radiation
       real, intent (out)                                :: albedo(n2,n3)
 
       integer :: kk, k, i, j, npts
-      real    :: ee, u0, xfact, prw, pri, p0(n1)
-      real, allocatable, save :: exner(:), pres(:)
+      real    :: ee, u0, xfact, prw, pri, p0(n1), exner(n1), pres(n1)
 
       if (first_time) then
-         ! Possible to use constant LES pressure levels (fixed during the first call)
-         ALLOCATE(exner(n1), pres(n1))
-         exner(1:n1) = (pi0(1:n1)+pi1(1:n1))/cp
-         pres(1:n1) = p00*( exner(1:n1) )**cpr
-         IF (.TRUE.) THEN
-            ! Works well with the LES model
-            p0(1:n1) = 0.01*pres(1:n1)
-            IF ( radsounding == 'auto' ) THEN
-                ! Automatic profile generation
-                !   - Upper atmosphere (P > 179 hPa) from dsrt.lay
-                !   - log-log or lin-log interpolation between LES and the upper atmosphere
-                !   - Boundary layer ozone concentration fixed to 50 ppt
-                call setup_auto(n1,nv1,nv,p0,tk(n1,3,3),MAX(4e-7,rv(n1,3,3)),50e-9)
-            ELSE
-                call setup_les(radsounding,n1,nv1,nv,p0,tk(n1,3,3),MAX(4e-7,rv(n1,3,3)))
-            ENDIF
-         ELSE
-            p0(n1) = (p00*(pi0(n1)/cp)**cpr) / 100.
-            p0(n1-1) = (p00*(pi0(n1-1)/cp)**cpr) / 100.
-            call setup(radsounding,n1,npts,nv1,nv,p0)
-         ENDIF
+         p0(n1) = (p00*(pi0(n1)/cp)**cpr) / 100.
+         p0(n1-1) = (p00*(pi0(n1-1)/cp)**cpr) / 100.
+         call setup(radsounding,n1,npts,nv1,nv,p0)
          first_time = .False.
          if (allocated(pre))   pre(:) = 0.
          if (allocated(pde))   pde(:) = 0.
@@ -102,31 +120,15 @@ module radiation
          u0 = zenith(alat,time)
       ENDIF
       !
-      ! Avoid identical random numbers by adding an offset for each PU
-      !     myid=0,1,2,...
-      !     (n3-4)*(n2-4) is the number of random numbers for each PU
-      !     IR and optionally also visible wavelengths
-      ! First, call random numbers to add offset for PUs before myid
-      IF (useMcICA .and. myid>0) THEN
-        if (u0 > minSolarZenithCosForVis) THEN
-            kk=myid*(n3-4)*(n2-4)*2
-        ELSE
-            kk=myid*(n3-4)*(n2-4) ! Without solar wavelengths
-        ENDIF
-        CALL set_random_offset( kk )
-      ENDIF
-      !
       ! call the radiation
       !
       prw = (4./3.)*pi*rowt
       pri = (3.*sqrt(3.)/8.)*roice
       do j=3,n3-2
          do i=3,n2-2
-            IF (.NOT.RadConstPress) THEN
-                ! Grid cell pressures in the LES model (Pa)
-                exner(1:n1) = (pi0(1:n1)+pi1(1:n1)+pip(1:n1,i,j))/cp
-                pres(1:n1) = p00*( exner(1:n1) )**cpr
-            ENDIF
+            ! Grid cell pressures in the LES model (Pa)
+            exner(1:n1) = (pi0(1:n1)+pi1(1:n1)+pip(1:n1,i,j))/cp
+            pres(1:n1) = p00*( exner(1:n1) )**cpr
 
             ! LES and background pressure levels must be separate (LES pressure levels will change)
             !      Tomi Raatikainen 17.6.2016 & 21.12.2016
@@ -210,15 +212,6 @@ module radiation
          end do
       end do
 
-      ! Call random numbers to add offset for PUs after myid
-      IF (useMcICA .and. myid<pecount-1) THEN
-        if (u0 > minSolarZenithCosForVis) THEN
-            kk=(pecount-1-myid)*(n3-4)*(n2-4)*2
-        ELSE
-            kk=(pecount-1-myid)*(n3-4)*(n2-4) ! Without solar wavelengths
-        ENDIF
-        CALL set_random_offset( kk )
-      ENDIF
     end subroutine d4stream
 
   ! ---------------------------------------------------------------------------

@@ -112,7 +112,7 @@ contains
          user_cs_list, user_ps_list, user_ts_list
     USE forc, ONLY : case_name, sfc_albedo, RadPrecipBins, RadSnowBins, &
          div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit
-    USE radiation, ONLY : radsounding, useMcICA, RadConstPress, RadConstSZA
+    USE radiation, ONLY : radsounding, useMcICA, RadNewSetup, RadConstSZA
     use mpi_interface, only : myid, appl_abort, ver, author
 
     implicit none
@@ -162,7 +162,7 @@ contains
          rc_limit, rt_limit,     & ! Inversion height thresholds for GCSS radiation
          sfc_albedo,         & ! Surface albedo
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
-         RadConstPress,      & ! keep constant pressure levels (T/F),
+         RadNewSetup,        & ! use the new radiation setup method (T/F),
          RadPrecipBins,      & ! add precipitation bins to cloud water (0, 1, 2, 3,...)
          RadSnowBins,        & ! add snow bins to cloud ice (0, 1, 2, 3,...)
          RadConstSZA,        & ! Optional fixed solar zenith angle for radiation (values between -180.0 and 180.0 degrees)
