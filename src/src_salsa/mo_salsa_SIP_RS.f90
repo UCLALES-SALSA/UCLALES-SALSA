@@ -64,7 +64,7 @@ MODULE mo_salsa_SIP_RS
       iri = spec%getIndex("rime")
 
       ! Assuming splinter diameter as Dsplint, find the corresponding ice bin
-      splbin = MAX( COUNT(icebins < Dsplint), 1 )      
+      splbin = MAX( COUNT(icebins < Dsplint), 1 )     
 
       ! Convert freezing rates to changes over timestep
       mfrzn_rs = mfrzn_rs * ptstep
@@ -101,80 +101,81 @@ MODULE mo_salsa_SIP_RS
                fragv_loc = 0.
                fragn_loc = 0.
                DO cc = 1,nprc
-                  IF ( ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR.  & 
-                       nfrzn_rs(ii,jj,cc,bb) < 1.e-16 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-27 .OR. &
-                       ice(ii,jj,bb)%numc < ice(ii,jj,bb)%nlim ) CYCLE ! no collection/empty bin
+                 IF ( ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR.  & 
+                     nfrzn_rs(ii,jj,cc,bb) < 1.e-16 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-27 .OR. &
+                     ice(ii,jj,bb)%numc < ice(ii,jj,bb)%nlim ) CYCLE ! no collection/empty bin
                
                  ! Spherical equivalent diameter of the frozen drops on current ice bin
-                  ddmean = (mfrzn_rs(ii,jj,cc,bb)/nfrzn_rs(ii,jj,cc,bb)/spec%rhowa/pi6)**(1./3.)
-
-                  !Require the freezing drop diameter to be larger tha dlliq_rs
-                  IF ( ddmean < dlliq_rs ) CYCLE  
-               
+                 ddmean = (mfrzn_rs(ii,jj,cc,bb)/nfrzn_rs(ii,jj,cc,bb)/spec%rhowa/pi6)**(1./3.)
+                 
+                 !Require the freezing drop diameter to be larger than dlliq_rs
+                 IF ( ddmean < dlliq_rs ) CYCLE                 
               
-                  ! Calculate the number of splinters generated per freezing droplet for current bin
-                  IF (lssiprimespln%mode == 1) THEN
-                     dN = rs_halletmossop(ptemp(ii,jj),mfrzn_rs(ii,jj,cc,bb))
-                   ELSE IF (lssiprimespln%mode == 2) THEN
-                     dN = rs_mossop(ptemp(ii,jj),nfrzn_rs(ii,jj,cc,bb))
-                  END IF
+                 ! Calculate the number of splinters generated per freezing droplet for current bin
+                 IF (lssiprimespln%mode == 1) THEN
+                    dN = rs_halletmossop(ptemp(ii,jj),mfrzn_rs(ii,jj,cc,bb))
+                 ELSE IF (lssiprimespln%mode == 2) THEN
+                    dN = rs_mossop(ptemp(ii,jj),nfrzn_rs(ii,jj,cc,bb))
+                 END IF
 
-                  ! Volume of a single ice particle in current bin for calculating the number concentration sink.
-                  v_i  = pi6*Dsplint**3
-       
-                  ! This will assume that the splinters consist of frozen spheres 10 um in diameter.
-                  dV = dN * v_i
+                 ! Volume of a single ice particle in current bin for calculating the number concentration sink.
+                 v_i  = pi6*Dsplint**3
+           
+                 ! This will assume that the splinters consist of frozen spheres 10 um in diameter.
+                 dV = dN * v_i
 
-                  ! Allocate the fragments to temporary ice bins 
-                  fragnumc(ii,jj,splbin) = fragnumc(ii,jj,splbin) + dN
+                 ! Allocate the fragments to temporary ice bins 
+                 fragnumc(ii,jj,splbin) = fragnumc(ii,jj,splbin) + dN
                      
-                  fragvolc(ii,jj,splbin,1:nspec) = fragvolc(ii,jj,splbin,1:nspec) +     &
+                 fragvolc(ii,jj,splbin,1:nspec) = fragvolc(ii,jj,splbin,1:nspec) +     &
                        ice(ii,jj,bb)%volc(1:nspec)*MIN( dV/SUM(ice(ii,jj,bb)%volc(1:nspec)), 1. )
 
-                  ! Sink of volume from current bin
-                  sinkv(1:nspec) = ice(ii,jj,bb)%volc(1:nspec)* MIN(dV/SUM(ice(ii,jj,bb)%volc(1:nspec)),1.0)
+                 ! Sink of volume from current bin
+                 sinkv(1:nspec) = ice(ii,jj,bb)%volc(1:nspec)* MIN(dV/SUM(ice(ii,jj,bb)%volc(1:nspec)),1.0)
                   
-                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) + sinkv(1:nspec)
+                 sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) + sinkv(1:nspec)
+                
+                 ! Sink of number concentration from current bin - assume that the splinter volume is equivalent to that of a sphere of 10 um
+                 sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i               
                   
-                 ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
-                  sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i               
+                 ! Secondary ice diagnostics
+                 ice(ii,jj,splbin)%SIP_rmspl = ice(ii,jj,splbin)%SIP_rmspl + dN
                   
-                  ! Secondary ice diagnostics
-                  ice(ii,jj,splbin)%SIP_rmspl = ice(ii,jj,splbin)%SIP_rmspl + dN
-                  
-                  CALL rateDiag%rmsplrate%Accumulate(n=dN/ptstep)
+                 CALL rateDiag%rmsplrate%Accumulate(n=dN/ptstep)
                   
                END DO
-               
-               !! Safeguard: Allow the fragments to take up to 90% of the source ice bin mass
-               IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > 0.9 * SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
-                  frconst = 0.9 * SUM(ice(ii,jj,bb)%volc(1:nspec)) / SUM(sinkvolc(ii,jj,bb,1:nspec))
+
+           
+               !! Safeguard: Allow the fragments to take up to 99% of the source ice bin mass
+               IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > 0.99 * SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
+                  frconst = 0.99 * SUM(ice(ii,jj,bb)%volc(1:nspec)) / SUM(sinkvolc(ii,jj,bb,1:nspec))
                   fragv_loc = fragv_loc * frconst
                   fragn_loc = fragn_loc * frconst
                   sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) * frconst
                   sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) * frconst
                END IF
 
-               sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.9*ice(ii,jj,bb)%numc) !! Additional constrain because for some reason
+               sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.99*ice(ii,jj,bb)%numc) !! Additional constrain because for some reason
                                                                                     !! this still failed in the last bin...
                
                fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
                fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
                ! POISTA           
-               IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.95*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
+               IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.99*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
                     WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
                     SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
 
-               IF (0.95*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
+               IF (0.99*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
                     WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
                     ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
                ! ---------------------------------------              
             END DO
          END DO
       END DO
-          
-      ! Apply changes to bins
+      
+
+       ! Apply changes to bins
       DO bb = 1,nice
          DO jj = 1,klev
             DO ii = 1,kproma
@@ -205,6 +206,7 @@ MODULE mo_salsa_SIP_RS
             END DO
          END DO
       END DO
+      
       
       ! IMPORTANT: Reset the collection tracking arrays
       mfrzn_rs = 0.
