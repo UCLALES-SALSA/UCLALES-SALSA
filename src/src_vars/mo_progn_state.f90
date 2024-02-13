@@ -61,6 +61,7 @@ MODULE mo_progn_state
   ! SIP tracers; passive, similar to the nucleated fractions
   TYPE(FloatArray4D), TARGET :: a_sipdrfrp, a_sipdrfrt     ! Drop fracturing sip
   TYPE(FloatArray4D), TARGET :: a_siprmsplp, a_siprmsplt   ! Rime splintering sip
+  TYPE(FloatArray4D), TARGET :: a_sipiibrp, a_sipiibrt     ! Ice-ice collisional breakup
   
   
   ! -- Gas compound tracers
@@ -388,9 +389,20 @@ MODULE mo_progn_state
                                "kg-1", "ttttice", ANY(outputlist == "siprmspl"), &
                                pipeline_p, in_t_data = pipeline_t                &
                                )
+            iscl = iscl + nice - 1
+
+            iscl = iscl + 1
+            pipeline_p => NULL(); pipeline_t => NULL()
+            a_sipiibrp = FloatArray4d(a_sclrp(:,:,:,iscl:iscl+nice-1))
+            a_sipiibrt = FloatArray4d(a_sclrt(:,:,:,iscl:iscl+nice-1))
+            pipeline_p => a_sipiibrp
+            pipeline_t => a_sipiibrt
+            CALL Prog%newField("sipiibr", "Ice-ice collisional breakup SIP tracer",        &
+                               "kg-1", "ttttice", ANY(outputlist == "sipiibr"), &
+                               pipeline_p, in_t_data = pipeline_t                &
+                               )
             iscl = iscl + nice - 1            
          END IF
-
 
          
       END IF

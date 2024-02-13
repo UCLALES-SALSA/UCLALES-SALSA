@@ -82,11 +82,12 @@ MODULE mo_diag_state
   TYPE(Floatarray3d), TARGET :: s_n_iceimm       ! 13: Total immersion freezing rate (number)
   TYPE(FloatArray3d), TARGET :: s_n_sipdrfr      ! 14: Total drop fracturing SIP rate (number)
   TYPE(FloatArray3d), TARGET :: s_n_siprmspl     ! 15: Total rime splintering SIP rate (number)
-  TYPE(FloatArray3d), TARGET :: s_m_conda        ! 16: Total condensation rate of water on aerosol (mass)
-  TYPE(FloatArray3d), TARGET :: s_m_condc        ! 17: Total condensation rate of water on cloud droplets (mass)
-  TYPE(FloatArray3d), TARGET :: s_m_condp        ! 18: Total condensation rate of water on precipitation (mass)
-  TYPE(FloatArray3d), TARGET :: s_m_condi        ! 19: Total condensation (deposition) rate of water on ice (mass)
-  INTEGER, PARAMETER :: nratediag3d_salsa = 19
+  TYPE(FloatArray3d), TARGET :: s_n_sipiibr      ! 16: Total ice-ice collisional breakup SIP rate (number)
+  TYPE(FloatArray3d), TARGET :: s_m_conda        ! 17: Total condensation rate of water on aerosol (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_condc        ! 18: Total condensation rate of water on cloud droplets (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_condp        ! 19: Total condensation rate of water on precipitation (mass)
+  TYPE(FloatArray3d), TARGET :: s_m_condi        ! 20: Total condensation (deposition) rate of water on ice (mass)
+  INTEGER, PARAMETER :: nratediag3d_salsa = 20
   
   ! Microphysical process rates from bulk microphysics.
   TYPE(FloatArray3d), TARGET :: b_m_autoc        ! 1: Bulk autoconversion rate (mass)
@@ -181,7 +182,7 @@ MODULE mo_diag_state
       pipeline => NULL()
       a_temp = FloatArray3d(a_diag3d(:,:,:,n3d))
       pipeline => a_temp
-      CALL Diag%newField("temp", "Abolute temperature", "K", "tttt",      &
+      CALL Diag%newField("temp", "Absolute temperature", "K", "tttt",      &
                          ANY(outputlist == "temp"), pipeline)
       
       memsize = memsize + nxyz
@@ -206,7 +207,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          a_rtot = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_rtot
-         CALL Diag%newField("rtot", "Total waer mixing ratio", "kg/kg", "tttt",  &
+         CALL Diag%newField("rtot", "Total water mixing ratio", "kg/kg", "tttt",  &
                             ANY(outputlist == "rtot"), pipeline)
       END IF
          
@@ -580,7 +581,14 @@ MODULE mo_diag_state
          s_n_siprmspl = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
          pipeline => s_n_siprmspl
          CALL Diag%newField("s_n_siprmspl", "Rime splintering SIP rate, number", "kg-1 s-1", "tttt",  &
-                            ANY(outputlist == "s_n_siprmspl"), pipeline)
+              ANY(outputlist == "s_n_siprmspl"), pipeline)
+
+         nr3d = nr3d + 1
+         pipeline => NULL()
+         s_n_sipiibr = FloatArray3d(a_rateDiag3d(:,:,:,nr3d))
+         pipeline => s_n_sipiibr
+         CALL Diag%newField("s_n_sipiibr", "Ice-ice collisional breakup SIP rate, number", "kg-1 s-1", "tttt", &
+                            ANY(outputlist == "s_n_sipiibr"), pipeline)
          
          nr3d = nr3d + 1
          pipeline => NULL()

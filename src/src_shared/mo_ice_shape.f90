@@ -10,8 +10,17 @@ MODULE mo_ice_shape
   ! Suggested values for shape parameters for non-spherical ice from Khvorostyanov and Curry 2002
   ! for "Crystal with sector-like branches". Can be specified from SALSA namelist. Mass coeffs changed
   ! to SI units. Also make sure to use SI units when specifying these in the namelist. Pretty much all the
-  ! articles report these in non-SI units!
-  
+  ! articles report these in non-SI units! 
+    ! Khvorostyanov, V. I.,  Curry, J. A. (2002).
+    ! Terminal Velocities of Droplets and Crystals: Power Laws with Continuous Parameters over the Size Spectrum.
+    ! Journal of the Atmospheric Sciences, 59(11), 1872–1884.
+    ! https://doi.org/10.1175/1520-0469(2002)059<1872:TVODAC>2.0.CO;2
+    ! model parameters in SI units reported in 
+    ! Buhl, J., Seifert, P., Radenz, M., Baars, H., & Ansmann, A. (2019). 
+    ! Ice crystal number concentration from lidar, cloud radar and radar wind profiler 
+    ! measurements. Atmospheric Measurement Techniques, 12(12), 6601–6617. 
+    ! https://doi.org/10.5194/amt-12-6601-2019
+
   ! For Mass: m = alpha * D ** beta
   REAL, SAVE :: iceShapeAlpha = 15.56999e-3
   REAL, SAVE :: iceShapeBeta = 2.02
@@ -20,10 +29,14 @@ MODULE mo_ice_shape
   REAL, SAVE :: iceShapeGamma = 0.55 ! Note that the gamma/sigma convection follows Khvorostyanov and Curry 2002, and is OPPOSITE to Morrison and Milbrandt 2015
   REAL, SAVE :: iceShapeSigma = 1.97
 
+
   TYPE t_shape_coeffs
      REAL :: alpha, beta, gamma, sigma     
   END TYPE t_shape_coeffs
-
+    ! Morrison, H., & Milbrandt, J. A. (2015). 
+    ! Parameterization of Cloud Microphysics Based on the Prediction of Bulk Ice Particle Properties. 
+    ! Part I: Scheme Description and Idealized Tests. Journal of the Atmospheric Sciences, 72(1), 287–311.
+    ! https://doi.org/https://doi.org/10.1175/JAS-D-14-0065.1
   
   CONTAINS
     !
@@ -48,7 +61,7 @@ MODULE mo_ice_shape
                  
       Mtot = ( mpri + mrim )/numc
       
-      Fr = MAX( MIN(mrim/(Mtot*numc),0.99),0.01 )
+      Fr = MAX( MIN(mrim/(Mtot*numc),0.999),0.01 )
       rho_b = getBulkRho(Fr)  ! This is taken for graupel density and is set as the bulk density for rime since we do not implement predicted graupel density.
       Dth = (pi6*spec%rhoic/iceShapeAlpha)**(1./(iceShapeBeta-3.))
       Dgr = (iceShapeAlpha/(pi6*rho_b))**(1./(3.-iceShapeBeta))
@@ -134,12 +147,13 @@ MODULE mo_ice_shape
       REAL, INTENT(in) :: mpri, mrim
       REAL, INTENT(in) :: numc
       
-      REAL :: Mtot,     &
+      REAL :: Mtot,         &
               Dth,Mth,      &
               Dgr,Mgr,      &
               Dcr,Mcr,      &
-              rho_b,    &
-              Fr
+              rho_b,        &
+              Fr,           &
+              hlp
 
       ! Initially, set values for spherical
       ishape%alpha = pi6*spec%rhoic
@@ -151,7 +165,7 @@ MODULE mo_ice_shape
                  
       Mtot = ( mpri + mrim )/numc
       
-      Fr = MAX( MIN(mrim/(Mtot*numc),0.99),0.01 )
+      Fr = MAX(MIN(mrim/(Mtot*numc),0.999),0.0)
       rho_b = getBulkRho(Fr)  ! "almost" like graupel density...
       Dth = (pi6*spec%rhoic/iceShapeAlpha)**(1./(iceShapeBeta-3.))
       Dgr = (iceShapeAlpha/(pi6*rho_b))**(1./(3.-iceShapeBeta))
@@ -161,14 +175,17 @@ MODULE mo_ice_shape
       Mcr = rho_b*pi6*Dcr**3
 
       ! Modify values for non-spherical particles
-      IF ( (Mtot >= Mth .AND. Mtot < Mgr) ) THEN
-        ishape%alpha = iceShapeAlpha; ishape%beta = iceShapeBeta
-        ishape%gamma = iceShapeGamma; ishape%sigma = iceShapeSigma         
+      IF (Mtot >= Mth .AND. Mtot < Mgr) THEN
+         ishape%alpha = iceShapeAlpha;
+         ishape%beta = iceShapeBeta
+         ishape%gamma = iceShapeGamma
+         ishape%sigma = iceShapeSigma
       ELSE IF  (Mtot > Mcr) THEN
-        ishape%alpha = iceShapeAlpha/(1.-Fr); ishape%beta = iceShapeBeta  ! As per Morrison & milbrandt 2015 Eq12
-        !! For the projected area coefs, just linearly interpolate between spherical and non-spherical even if it is pretty dirty
-        ishape%gamma = Fr*ishape%gamma + (1.-Fr)*iceShapeGamma
-        ishape%sigma = Fr*ishape%sigma + (1.-Fr)*iceShapeSigma
+         hlp = 1./(1.-Fr)
+         ishape%alpha = iceShapeAlpha*hlp;
+         ishape%beta  = iceShapeBeta
+         ishape%gamma = iceShapeGamma*(1.-Fr)+pi/4.*Fr
+         ishape%sigma = iceShapeSigma*(1.-Fr)+2.*Fr         
       END IF
       
     END SUBROUTINE getShapeCoefficients

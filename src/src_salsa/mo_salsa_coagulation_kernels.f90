@@ -366,7 +366,7 @@ MODULE mo_salsa_coagulation_kernels
          END IF
          
          ! Turbulent Shear; Chen et al. 2020 suggest 500 cm2 s-3 for turbulent cumulus
-         eddy_dis = 0.05 ! Values suggested by Sami - could be taken from the LES model?
+         eddy_dis=0.001   ! Silvia: 13-03-2023 Upper limit from M. D. Shupe et al.: Evaluation of turbulent dissipation rate retrievals 10.5194/amt-5-1375-2012
          ztshear = SQRT(8.*pi*eddy_dis/(15.*vkin))*(0.5*(diam(1)+diam(2)))**3
          zturbinert = pi*eddy_dis**(0.75) /(grav* SQRT(SQRT( vkin )))  &
               *(0.5*(diam(1)+diam(2)))**2* ABS(termv(1)-termv(2))

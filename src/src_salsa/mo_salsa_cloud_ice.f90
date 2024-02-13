@@ -448,8 +448,9 @@ MODULE mo_salsa_cloud_ice
              ice(ii,jj,kk)%volc(irim) = (1.-maxfrac)*ice(ii,jj,kk)%volc(irim)                
 
              ! Secondary ice diagnostics
-             ice(ii,jj,kk)%SIP_drfr = (1.-maxfrac)*ice(ii,jj,kk)%SIP_drfr
-             ice(ii,jj,kk)%SIP_rmspl = (1.-maxfrac)*ice(ii,jj,kk)%SIP_rmspl             
+             ice(ii,jj,kk)%SIP_drfr  = (1.-maxfrac)*ice(ii,jj,kk)%SIP_drfr
+             ice(ii,jj,kk)%SIP_rmspl = (1.-maxfrac)*ice(ii,jj,kk)%SIP_rmspl
+             ice(ii,jj,kk)%SIP_iibr  = (1.-maxfrac)*ice(ii,jj,kk)%SIP_iibr
           END DO
              
        END DO

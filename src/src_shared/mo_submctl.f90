@@ -35,7 +35,8 @@ MODULE mo_submctl
                                                        !                             remove aerosol and not produce ice. After %delay, %state=TRUE
                                                        !                             and ice nucleation will continue normal operation.
   TYPE(ProcessSwitch), POINTER :: lsicemelt => NULL()  ! Melting of ice
-  TYPE(ProcessSwitch), POINTER :: lssecice => NULL()
+  TYPE(ProcessSwitch), POINTER :: lssecice => NULL()   ! Secondary ice production by three mechanisms:
+                                                       ! rime splintering, fragmentation of freezing drops and ice-ice collisional breakup
 
 
   !
@@ -67,11 +68,19 @@ MODULE mo_submctl
   LOGICAL :: lsicedep = .FALSE.        ! Deposition freezing
 
   ! Secondary ice subprocesses
-  LOGICAL :: lssiprimespln = .FALSE.                       ! Rime splintering; Hallet-Mossop
+ 
   TYPE(ProcessSwitch), POINTER :: lssipdropfrac => NULL()  ! Drop fracturing SIP, %mode = 1: Lawson et al 2015,
-                                                           !                      %mode = 2: Phillips et al 2018
+                                                           !                      %mode = 2: Sullivan et al 2018,
+                                                           !                      %mode = 3: Phillips et al 2018 simple,
+                                                           !                      % mode= 4: Phillips et al 2018 full
+  
+  TYPE(ProcessSwitch), POINTER :: lssipicecollbreak => NULL()  ! Ice-ice collisional breakup  SIP, %mode = 1: Sullivan et al 2017,
+                                                               !                                   %mode = 2: Sotiropoulou et al 2021,
+                                                               !                                   %mode = 3: Phillips et al 2017
 
-  INTEGER, PARAMETER :: Nsub = 1
+  TYPE(ProcessSwitch), POINTER :: lssiprimespln => NULL()      ! Rime splintering SIP, %mode = 1: Hallet and Mossot 1974,
+                                                               !                        %mode = 2: Mossop 1976
+  INTEGER, PARAMETER :: Nsub = 3
   TYPE(ProcessSwitch), TARGET :: lssub(Nsub)  ! Holder for type ProcessSwitch subprocess switches (for most just the simple
                                               ! logical switch is required)
 
@@ -245,7 +254,7 @@ MODULE mo_submctl
    deltaT = 2.16e-7,      & ! thermal jump length (m)
    alphaT = 0.96,         & ! thermal accomodation coefficient
    alphac = 1.0,          & ! condensation coefficient
-   eps    = epsilon(1.0)       ! epsilon
+   eps    = epsilon(1.0)    ! epsilon
 
   REAL, PARAMETER ::   &
    rd    = 287.04,     & ! gas constant for dry air (J/K/kg)
@@ -269,7 +278,7 @@ MODULE mo_submctl
        rhosu = 1830.,         & ! sulphate
        rhono = 1479.,         & ! HNO3
        rhonh = 1530.,         & ! NH3
-       rhooc = 2000.,         & ! organic carbon
+       rhooc = 1400.,         & ! organic carbon
        rhobc = 2000.,         & ! black carbon
        rhoss = 2165.,         & ! sea salt (NaCl)
        rhodu = 2650.,         & ! mineral dust

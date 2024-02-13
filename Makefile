@@ -91,7 +91,7 @@ $(LES_OUT_MPI):
 # --------------------
 #
 clean: cleanmpi cleanseq 
-	$(RM) $(SRC)/*.mod $(SRC)/*.o
+	$(RM) $(SRC)/*mod $(SRC)/*.o
 
 cleanmpi:
 	$(ECHO) "cleaning mpi model"
