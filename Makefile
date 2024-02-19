@@ -29,7 +29,7 @@ ARCHIVE = ar rs
 RANLIB =:
 SEQFFLAGS = -I$(SRC)
 MPIFFLAGS = -I$(SRC)
-MPI = /usr
+MPI = /usr/lib/x86_64-linux-gnu
 
 # Linking the mpi has slightly changed for newer linux & library versions.
 # Try switching between the two if it does not work.

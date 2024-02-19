@@ -105,7 +105,7 @@ MODULE mo_progn_state
       a_rt = FloatArray3D(a_sclrt(:,:,:,iscl))
       pipeline_p => a_rp
       pipeline_t => a_rt
-      CALL Prog%newField( "rp","Progostic water vapor (lev4+) or total water content(lev3-)",   &
+      CALL Prog%newField( "rp","Prognostic water vapor (lev4+) or total water content(lev3-)",   &
                           "kg/kg", "tttt", ANY(outputlist == "rp"),                             &
                           pipeline_p, in_t_data = pipeline_t                                    &
                         )
