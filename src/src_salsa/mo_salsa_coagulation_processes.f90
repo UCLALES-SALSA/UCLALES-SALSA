@@ -882,15 +882,14 @@ MODULE mo_salsa_coagulation_processes
             DO ll=istr,iend 
                DO jj= 1,klev
                   DO ii=1,kbdim
-                     IF (trgtphase == 4 .AND. &
-                         coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim .AND. &
-                         ice(ii,jj,itrgt)%numc > ice(ii,jj,itrgt)%nlim) THEN
-                          ! number of collisions between the smaller itrgt and the larger ll
-                          ! Eagg is defined by the colliding particle with the higher rime fraction
-                          nii_ibr(ii,jj, itrgt, ll) =  nii_ibr(ii,jj, itrgt, ll) + &
-                               Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*ice(ii,jj,itrgt)%numc* &
-                               fix_coag(ii,jj)
-                       END IF
+                     IF (trgtphase == 4 .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim .AND. &
+                          ice(ii,jj,itrgt)%numc > ice(ii,jj,itrgt)%nlim) THEN
+                        ! number of collisions between the smaller itrgt and the larger ll
+                        ! Eagg is defined by the colliding particle with the higher rime fraction
+                        nii_ibr(ii,jj, ll,itrgt) =  nii_ibr(ii,jj, ll,itrgt) + &
+                             Eagg(ii,jj,ll)*zcc(ii,jj,ll,itrgt)*coll(ii,jj,ll)%numc*ice(ii,jj,itrgt)%numc* &
+                             fix_coag(ii,jj)
+                     END IF
                   END DO
                END DO
             END DO 
@@ -1380,7 +1379,7 @@ MODULE mo_salsa_coagulation_processes
     ! ------------------------------------------
 
     SUBROUTINE accumulateSourceIce(kbdim,klev,nbtrgt,nbcoll,nspec,itrgt,istr,iend,zcc,coll,source)
-      USE mo_submctl, ONLY : Eiagg_max, Eiagg_min
+      USE mo_submctl, ONLY : Eiagg_max, Eiagg_min, lssecice, lssipicecollbreak
       USE mo_salsa_SIP_IIBR, ONLY: mii_ibr
 
       !
@@ -1426,18 +1425,20 @@ MODULE mo_salsa_coagulation_processes
     ! Secondary ice production by ice-ice collisional breakup
     ! REMEMBER: CALL accumulateSourceIce(kbdim,klev,nice,nice,nspec,kk,iia,kk-1, &
     !                             zccii,ice,zplusterm)
-    ! Volume gained from smaller ice particles itrgt--> larger
-    IF (lssipicecollbreak%state) THEN
-        DO ll= istr, iend ! This loops over the smaller bins itrgt is the collector > collected
-           DO jj= 1, klev
-              DO ii=1, kbdim
-                 mii_ibr(ii,jj,itrgt,ll) =  mii_ibr(ii,jj,itrgt,ll)+ &
+    ! Volume gained from smaller ice particles itrgt--> larger 
+     IF (lssecice%state) THEN
+       IF (lssipicecollbreak%state) THEN
+         DO ll= istr, iend ! This loops over the smaller bins itrgt is the collector > collected
+            DO jj= 1, klev
+               DO ii=1, kbdim
+                  mii_ibr(ii,jj,itrgt,ll) =  mii_ibr(ii,jj,itrgt,ll)+ &
                       zcc(ii,jj,itrgt,ll)*(coll(ii,jj,ll)%volc(nspec-1)*spec%rhoic + &
                       coll(ii,jj,ll)%volc(nspec)*spec%rhori)*coll(ii,jj,itrgt)%numc                     
                END DO
-           END DO
-        END DO
-    END IF
+            END DO
+         END DO
+       END IF
+     END IF
          
     END SUBROUTINE accumulateSourceIce
 

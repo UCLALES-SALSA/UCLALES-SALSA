@@ -22,7 +22,7 @@ MODULE mo_salsa_SIP_IIBR
     
     SUBROUTINE iceicecollbreak(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
       USE mo_salsa_types, ONLY : ice, rateDiag
-      USE mo_submctl, ONLY : nice, pi6, spec, icebins, lssipicecollbreak
+      USE mo_submctl, ONLY : nice, pi6, spec, icebins, lssecice, lssipicecollbreak
       USE classSection, ONLY : Section
       ! ---------------------------------------------------------------------------------------------
       INTEGER, INTENT(in) :: kbdim,kproma,klev,nspec   ! nspec should contain active compounds + rime
@@ -30,7 +30,7 @@ MODULE mo_salsa_SIP_IIBR
       REAL, INTENT(in) :: ppres(kbdim,klev)
       REAL, INTENT(in) :: ptstep
       REAL, PARAMETER :: tmin = 248.15, tmax = 270.15  ! following Takahashi et al. (1995) observations 
-     
+      ! Check temperature limits  so the conform with the different formulations!!!
       ! Takahashi, T., Nagao, Y., & Kushiyama, Y. (1995).
       ! Possible High Ice Particle Production during Graupel–Graupel Collisions.
       ! Journal of Atmospheric Sciences, 52(24), 4523–4527.
@@ -80,10 +80,10 @@ MODULE mo_salsa_SIP_IIBR
                fragn_loc = 0.
                DO cc = bb, nice ! larger particles
                   IF((ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax) .OR. & ! Outside temperature range, see Takahashi et al. 1995 
-                       (nii_ibr(ii,jj,cc,bb) <1.e-12) .OR. &
+                       (nii_ibr(ii,jj,cc,bb) <1.e-20) .OR. &
                        (mii_ibr(ii,jj,cc,bb) <1.e-30) .OR. &
-                     (SUM(ice(ii,jj,bb)%volc(:)) < 1.e-23).OR.(ice(ii,jj,bb)%numc  < ice(ii,jj,bb)%nlim).OR. &
-                     (SUM(ice(ii,jj,cc)%volc(:)) < 1.e-23).OR.(ice(ii,jj,cc)%numc < ice(ii,jj,cc)%nlim)) CYCLE ! no collection/empty bin
+                     (SUM(ice(ii,jj,bb)%volc(:)) < 1.e-30).OR.(ice(ii,jj,bb)%numc  < ice(ii,jj,bb)%nlim).OR. &
+                     (SUM(ice(ii,jj,cc)%volc(:)) < 1.e-30).OR.(ice(ii,jj,cc)%numc < ice(ii,jj,cc)%nlim)) CYCLE ! no collection/empty bin
                    
                      ! If colliding particles have the same size, SIP can still occur
                      ! Phillips el. 2017 was corrected by Sotiropoulou et al. 2021
@@ -167,7 +167,7 @@ MODULE mo_salsa_SIP_IIBR
               
                   ! for diagnostics
                   ice(ii,jj,1:npmax)%SIP_iibr = ice(ii,jj,1:npmax)%SIP_iibr + dNb(1:npmax)
-                  !if (dN > 1.) WRITE(*,*) 'hephep ', dN,ptstep,SUM(dNb)
+                  
                   CALL rateDiag%iibrrate%Accumulate(n=SUM(dNb)/ptstep)    ! miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
                END DO
                
