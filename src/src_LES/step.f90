@@ -35,6 +35,7 @@ module step
   real    :: cntlat =  31.5 ! 30.0
   logical :: outflg = .true.
 
+  logical :: lsvarflg = .false.
 
 contains
   !
@@ -124,7 +125,7 @@ contains
   !
   subroutine t_step()
 
-    use grid, only : level, dtl, Tspinup, sst,                                          &
+    use grid, only : level, dtl, Tspinup, sst, u0, v0, umean, vmean,                    &
                      ! Added parameters for interfacing with SALSA
                      nxp, nyp, nzp, a_press, a_temp, a_rp, a_rt, a_rsl, a_rsi, a_dn,    &
                      a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,    &
@@ -145,7 +146,7 @@ contains
     use advf, only : fadvect
     use advl, only : ladvect
     use forc, only : forcings
-
+    use lsvar, only : varlscale
     USE mo_salsa_driver, ONLY : run_SALSA
     USE mo_submctl, ONLY : nvbs_setup
 
@@ -165,6 +166,13 @@ contains
     !----------------------------------------------------------------
     ! "Scalar" timestep
     CALL tend0(.FALSE.)
+
+    ! Large scale forcing based on specified SST and geostrophic winds
+    if (lsvarflg) THEN
+        call varlscale(time,sst,u0,v0)
+        u0(:) = u0(:) - umean
+        v0(:) = v0(:) - vmean
+    ENDIF
 
     call surface(sst)
     IF (level > 3 .AND. time >= sea_tspinup) THEN

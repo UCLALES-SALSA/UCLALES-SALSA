@@ -158,7 +158,8 @@ CONTAINS
                              pcloud, pice,   psnow,    &
                              ptemp,  ppres,  prv,  prsi)
         IF (sflg) CALL salsa_var_stat('nucl',1)
-    ELSEIF (lsicenucl .AND. (ice_hom .OR. ice_imm .OR. ice_dep)) THEN
+    ENDIF
+    IF (lsicenucl .AND. (ice_hom .OR. ice_imm .OR. ice_dep)) THEN
         ! Modelled ice nucleation
         IF (sflg) CALL salsa_var_stat('nucl',0)
         CALL ice_nucl_driver(kbdim,klev,   &

@@ -21,6 +21,7 @@ module srfc
 
   integer :: isfctyp = 0
   real    :: zrough =  0.001
+  real    :: zrough_t = -999. ! Optional roughness height for temperature
   real    :: ubmin  =  0.20
   real    :: dthcon = 100.0
   real    :: drtcon = 0.0
@@ -75,7 +76,7 @@ contains
     use defs, only: vonk, g
     use grid, only: nxp, nyp, a_ustar, a_dn, zm, nbins, a_naerot, a_maerot
     use mo_submctl, only: aerobins, in2a, fn2a, &
-                    in2b, pi6, iss, ioc, ih2o, rhowa, rhoss, rhooc
+                    in2b, pi6, iss, ioc, ih2o, dens, nspec
     use stat, only: fill_scalar, sflg
     use util, only : get_avg2dh
 
@@ -88,7 +89,14 @@ contains
     REAL :: flx(fn2a+1) ! Production rate for each size bin
     REAL :: dcdt(nxp,nyp,fn2a) ! Particle concentration tendency (#/kg/s)
 
-    IF (iss<1 .or. (wtrChlA>0. .and. ioc<1)) STOP 'No sea spray species included!'
+    IF (wtrChlA>0. .and. ioc<1) THEN
+        STOP 'No sea spray species (OC) included!'
+    ELSEIF (iss<1 .and. nspec==1) THEN
+        ! If single component aerosol, then use the only one available
+        iss=2
+    ELSEIF (iss<1) THEN
+        STOP 'No sea spray species (SS) included!'
+    ENDIF
 
     ! Roughness height is needed for the 10 m wind speeds
     zs = zrough
@@ -130,7 +138,7 @@ contains
     ! Organic mass fraction grom Gantt ea (2011)
     ! conversion to mg from kg
     if(wtrChlA>0.)then
-        rhorho = rhooc/rhoss ! ratio of densities of marine organic matter and salt
+        rhorho = dens(ioc)/dens(iss) ! ratio of densities of marine organic matter and salt
         omf_max = 1./(1.+exp(-2.63e6*wtrChlA+0.18*u10_bar))
     else
         omf_max = 0.
@@ -195,17 +203,17 @@ contains
         if(iss>0)then
             j = (iss-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*rhoss*(1.-0.5*(ovf(k)+ovf(k+1)))
+                                              & vdry*dens(iss)*(1.-0.5*(ovf(k)+ovf(k+1)))
             !  ... and add water proportionally to the salt volume
             j = (ih2o-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*rhowa*(1.-0.5*(ovf(k)+ovf(k+1)))*7.
+                                              & vdry*dens(ih2o)*(1.-0.5*(ovf(k)+ovf(k+1)))*7.
         endif
         ! .. organic fraction
         if(ioc>0)then
             j = (ioc-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*rhooc*0.5*(ovf(k)+ovf(k+1))
+                                              & vdry*dens(ioc)*0.5*(ovf(k)+ovf(k+1))
         endif
 
     ENDDO
@@ -615,6 +623,8 @@ contains
           rx = a_rp
     END SELECT
 
+    zs = -999. ! currently not set
+
     select case(isfctyp)
     !
     ! use prescribed surface gradients dthcon, drton from NAMELIST
@@ -855,6 +865,15 @@ contains
         ! Latent heat flux
         usum = SUM(SUM(wq_sfc(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))*alvl*(dn0(1)+dn0(2))*0.5
         CALL fill_scalar(usum,'lhf_bar')
+        ! *** optional ts-outputs ***
+        ! Obukhov lenght
+        usum = SUM(SUM(obl(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))
+        CALL fill_scalar(usum,'obl    ')
+        ! Surface pressure
+        CALL fill_scalar(psrf,'psrf   ')
+        ! Length scales
+        CALL fill_scalar(zs,'z0m    ') ! Momentum zrough or the actually calculated value
+        CALL fill_scalar(zrough_t,'z0t    ') ! Temperature roughness height
     endif
 
     return
@@ -994,12 +1013,14 @@ contains
 
     logical, save :: first_call=.True.
     integer :: i,j,iterate
-    real    :: lnz, klnz, betg
+    real    :: betg, z0t
     real    :: x, psi1, psi2, Lold, Ldif, zeff, zeta, lmo, dtv
     logical    :: exititer
 
-    lnz   = log(z/z0)
-    klnz  = vonk/lnz
+    ! Optional temperature roughness height
+    z0t=zrough_t
+    IF (zrough_t<0.) z0t=z0
+
     betg  = th00/g
 
     do j=3,n3-2
@@ -1010,8 +1031,8 @@ contains
           ! Neutral case
           !
           if (dtv == 0.) then
-             ustar(i,j) = u(i,j)*klnz
-             tstar(i,j) = dtv*klnz/pr
+             ustar(i,j) = u(i,j)*vonk/log(z/z0)
+             tstar(i,j) = dtv*vonk/log(z/z0t)/pr
              lmo        = -1.e10
 
           !
@@ -1021,8 +1042,8 @@ contains
           !
           else
              if ((runtype=='INITIAL' .and. first_call) .or. (tstar(i,j)*dtv <= 0.)) then
-                ustar(i,j) = u(i,j)*klnz
-                tstar(i,j) = dtv*klnz/pr
+                ustar(i,j) = u(i,j)*vonk/log(z/z0)
+                tstar(i,j) = dtv*vonk/log(z/z0t)/pr
                 lmo        = -1.e10
              end if
 
@@ -1062,7 +1083,7 @@ contains
 
                 ustar(i,j) = u(i,j)*vonk/(log(zeff/z0) - psi1)
                 if(ustar(i,j)<0.) ustar(i,j) = 0.1
-                tstar(i,j) = (dtv*vonk/pr)/(log(zeff/z0) - psi2)
+                tstar(i,j) = (dtv*vonk/pr)/(log(zeff/z0t) - psi2)
 
                 if(exititer) then
                    lmo        = zeff/5.

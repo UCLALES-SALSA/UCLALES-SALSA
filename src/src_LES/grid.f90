@@ -171,7 +171,7 @@ module grid
   ! radiation
   real, allocatable, dimension (:,:,:) :: a_rflx, a_sflx, &
        a_fus, a_fds, a_fuir, a_fdir
-  real, allocatable :: albedo(:,:)
+  real, allocatable, dimension (:,:) :: albedo, tau_gas, tau_liq, tau_ice
   !
   ! surface
   real, allocatable :: a_ustar(:,:)
@@ -254,15 +254,19 @@ contains
        memsize = memsize + nxyzp
     end if
     if (iradtyp >= 3) then
-       allocate (a_sflx(nzp,nxp,nyp),albedo(nxp,nyp))
+       allocate (a_sflx(nzp,nxp,nyp),albedo(nxp,nyp),tau_gas(nxp,nyp),tau_liq(nxp,nyp),tau_ice(nxp,nyp))
        a_sflx(:,:,:) = 0.
        albedo(:,:) = 0.
-       allocate (a_fus(nzp,nxp,nyp),a_fds(nzp,nxp,nyp),a_fuir(nzp,nxp,nyp),a_fdir(nzp,nxp,nyp))
+       tau_gas(:,:) = 0.
+       tau_liq(:,:) = 0.
+       tau_ice(:,:) = 0.
+
+       allocate (a_fus(nzp+1,nxp,nyp),a_fds(nzp+1,nxp,nyp),a_fuir(nzp+1,nxp,nyp),a_fdir(nzp+1,nxp,nyp))
        a_fus(:,:,:) = 0.
        a_fds(:,:,:) = 0.
        a_fuir(:,:,:) = 0.
        a_fdir(:,:,:) = 0.
-       memsize = memsize + 5*nxyzp + nxyp
+       memsize = memsize + 5*nxyzp + 8*nxyp
     end if
 
     allocate (a_temp(nzp,nxp,nyp),a_dn(nzp,nxp,nyp),a_edr(nzp,nxp,nyp), &

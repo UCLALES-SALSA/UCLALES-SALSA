@@ -26,6 +26,9 @@ module fuliou
 
   implicit none
 
+  ! Additional data: cumulative optical depths (gas, gas+liqud, gas+liquid+ice)
+  REAL, dimension(:), SAVE, ALLOCATABLE :: od_gas, od_liq, od_tot
+
   logical, save :: Initialized = .False.
   real, parameter :: minSolarZenithCosForVis = 1.e-4
 
@@ -42,6 +45,8 @@ contains
        call init_cldwtr
        call init_cldice
        call init_cldgrp
+       ALLOCATE(od_gas(nv), od_liq(nv), od_tot(nv))
+       od_gas=0.; od_liq=0.; od_tot=0.
        Initialized = .True.
     end if
 
@@ -170,11 +175,13 @@ contains
       ! Water vapor continuum optical depth
       !
       call gascon ( center(ir_bands(ib)), pp, pt, ph, TauNoGas )
+      od_gas=TauNoGas
       wNoGas = 0.; pfNoGas  = 0. 
       if (present(plwc)) then
         call cloud_water(ib + size(solar_bands), pre, plwc, dz, tw, ww, www)
         call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw, ww, www)
       end if
+      od_liq=TauNoGas
       if (present(piwc)) then
         call cloud_ice(ib + size(solar_bands), pde, piwc, dz, ti, wi, wwi)
         call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti, wi, wwi)
@@ -183,6 +190,7 @@ contains
         call cloud_grp(ib + size(solar_bands), pgwc, dz, tgr, wgr, wwgr)
         call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr, wwgr)
       end if 
+      od_tot=TauNoGas
       
       call planck(pt, pts, llimit(ir_bands(ib)), rlimit(ir_bands(ib)), bf)
 
@@ -316,6 +324,7 @@ contains
          call gascon ( center(solar_bands(ib)), pp, pt, ph, tgm )
          if(any(tgm > 0.)) &
            call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgm)
+         od_gas=od_gas+TauNoGas ! IR + visible
          !
          ! Cloud water
          !
@@ -323,6 +332,7 @@ contains
            call cloud_water(ib, pre, plwc, dz, tw, ww, www)
            call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw,ww,www)
          end if
+         od_liq=od_liq+TauNoGas
          if (present(piwc)) then
            call cloud_ice(ib, pde, piwc, dz, ti, wi, wwi)
            call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti,wi,wwi)
@@ -331,6 +341,7 @@ contains
            call cloud_grp(ib,pgwc, dz, tgr, wgr, wwgr)
            call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr,wwgr)
          end if 
+         od_tot=od_tot+TauNoGas
   
          gPointLoop: do ig =  ig1, ig2
            tau = tauNoGas; w = wNoGas; pf = pfNoGas

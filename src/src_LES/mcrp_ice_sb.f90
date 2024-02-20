@@ -715,9 +715,10 @@ CONTAINS
     DO k = 1, loc_iz
       DO j = 1, loc_iy
         DO i = 0, loc_ix
-          IF (s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3 .AND. nin_set*ice%x_min>eps) THEN
+          IF (s_i(i,j,k)>0.0 .AND. (q_cloud(i,j,k)+q_rain(i,j,k))*rho_0(i,j,k)>0.001e-3 .AND. &
+                T_0(i,j,k)<268.15 .AND. nin_set*ice%x_min>eps) THEN
             ! Cloud droplet freezing with fixed INP concentration
-            ndiag = MAX(nin_set*rho_0(i,j,k) - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0)
+            ndiag = MAX(nin_set - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0)
             nuc_q = MIN(ndiag*ice%x_min, q_cloud(i,j,k))
 
             q_ice(i,j,k) = q_ice(i,j,k) + nuc_q

@@ -477,6 +477,22 @@ contains
     case('lhf_bar')
        if (itype==0) ncinfo = 'Latent heat flux'
        if (itype==1) ncinfo = 'W/m^2'
+    case('obl')
+       if (itype==0) ncinfo = 'Obukhov length'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('psrf')
+       if (itype==0) ncinfo = 'Surface pressure'
+       if (itype==1) ncinfo = 'Pa'
+       if (itype==2) ncinfo = 'time'
+    case('z0m')
+       if (itype==0) ncinfo = 'Momentum roughness height'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
+    case('z0t')
+       if (itype==0) ncinfo = 'Temperature roughness height'
+       if (itype==1) ncinfo = 'm'
+       if (itype==2) ncinfo = 'time'
     case('flx_aer')
        if (itype==0) ncinfo = 'Aerosol sea surface flux'
        if (itype==1) ncinfo = '#/m^2/s'
@@ -564,6 +580,42 @@ contains
     case('dlflx_c')
        if (itype==0) ncinfo = 'Longwave cloud radiative cooling'
        if (itype==1) ncinfo = 'W/m^2'
+    CASE ('toa_swu')
+       if (itype==0) ncinfo = 'TOA shortwave up'
+       if (itype==1) ncinfo = 'W/m^2'
+    CASE ('toa_swd')
+       if (itype==0) ncinfo = 'TOA shortwave down'
+       if (itype==1) ncinfo = 'W/m^2'
+    CASE ('toa_lwu')
+       if (itype==0) ncinfo = 'TOA longwave up'
+       if (itype==1) ncinfo = 'W/m^2'
+    CASE ('toa_lwd')
+       if (itype==0) ncinfo = 'TOA longwave down'
+       if (itype==1) ncinfo = 'W/m^2'
+    CASE ('srf_swu')
+       if (itype==0) ncinfo = 'Surface shortwave up'
+       if (itype==1) ncinfo = 'W/m^2'
+    CASE ('srf_swd')
+       if (itype==0) ncinfo = 'Surface shortwave down'
+       if (itype==1) ncinfo = 'W/m^2'
+    CASE ('srf_lwu')
+       if (itype==0) ncinfo = 'Surface longwave up'
+       if (itype==1) ncinfo = 'W/m^2'
+    CASE ('srf_lwd')
+       if (itype==0) ncinfo = 'Surface longwave down'
+       if (itype==1) ncinfo = 'W/m^2'
+    CASE ('tau_tot')
+       if (itype==0) ncinfo = 'Total optical depth'
+       if (itype==1) ncinfo = '-'
+    CASE ('tau_gas')
+       if (itype==0) ncinfo = 'Optical depth due to gases'
+       if (itype==1) ncinfo = '-'
+    CASE ('tau_liq')
+       if (itype==0) ncinfo = 'Optical depth due to cloud liquid'
+       if (itype==1) ncinfo = '-'
+    CASE ('tau_ice')
+       if (itype==0) ncinfo = 'Optical depth due to cloud ice'
+       if (itype==1) ncinfo = '-'
     case('rwp_bar','rwp')
        if (itype==0) ncinfo = 'Rain-water path'
        if (itype==1) ncinfo = 'kg/m^2'
@@ -676,11 +728,20 @@ contains
     case('SSi_min')
        if (itype==0) ncinfo = 'Minimum supersaturation over ice'
        if (itype==1) ncinfo = '%'
+    case('SS_avg')
+       if (itype==0) ncinfo = 'Average supersaturation'
+       if (itype==1) ncinfo = '%'
+    case('SSi_avg')
+       if (itype==0) ncinfo = 'Average supersaturation over ice'
+       if (itype==1) ncinfo = '%'
     case('T_min')
        if (itype==0) ncinfo = 'Minimum absolute temperature'
        if (itype==1) ncinfo = 'K'
     case('T_max')
        if (itype==0) ncinfo = 'Maximum absolute temperature'
+       if (itype==1) ncinfo = 'K'
+    case('T_avg')
+       if (itype==0) ncinfo = 'Average absolute temperature'
        if (itype==1) ncinfo = 'K'
     case('thl_int')
        if (itype==0) ncinfo = 'Integrated liquid water potential temperature change'
@@ -800,6 +861,9 @@ contains
     case('diss')
        if (itype==0) ncinfo = 'Dissipation rate of resolved TKE'
        if (itype==1) ncinfo = 'm^2/s^3'
+    case('res_tke')
+       if (itype==0) ncinfo = 'Resolved TKE'
+       if (itype==1) ncinfo = 'm^2/s^2'
     case('dff_u')
        if (itype==0) ncinfo = 'u(du/dt) from diffusion'
        if (itype==1) ncinfo = 'm^2/s^3'
@@ -1024,6 +1088,8 @@ contains
     case default
        ! Automatically generated microphysical process rate statistics
        ncinfo=TRIM( get_rate_info(itype,trim(short_name),dims) )
+       ! ... and SB variables
+       IF (LEN(TRIM(ncinfo))<1) ncinfo=TRIM( get_sb_info(itype,trim(short_name),dims) )
        ! ... and some other species and bin-dependent SALSA variables
        IF (LEN(TRIM(ncinfo))<1) ncinfo=TRIM( get_salsa_info(itype,trim(short_name),dims) )
        ! Additional scalars (3D only)
@@ -1476,6 +1542,102 @@ contains
         ENDIF
     ENDIF
     END function get_salsa_info
+    !
+  ! ----------------------------------------------------------------------
+  ! Corresponding function that determines information related to SB variables.
+  !   name=<condition>//<species>//<bin>
+  !       condition: tc=total, ic=in cloud, ir=in rain, ii=in ice, is=in snow, ...
+  !       species: 1=water, R or Rw for mean radius and N for number concentration
+  !       bin: ct,it..
+  character (len=80) function get_sb_info(itype,short_name,dims)
+    implicit none
+    integer, intent (in) :: itype
+    character (len=*), intent (in) :: short_name
+    INTEGER, INTENT(IN) :: dims
+    character (len=20) :: phase, tmp
+    character (len=3) :: spec
+    integer :: i
+    !
+    get_sb_info = ''
+    i=LEN(TRIM(short_name))
+    IF (i<5 .OR. i>6) RETURN
+    spec='   '
+    !
+    ! Condition
+    SELECT CASE (short_name(1:2))
+    CASE('tc')
+        tmp=' '
+    CASE('ic')
+        tmp=' in cloud'
+    CASE('ir')
+        tmp=' in rain'
+    CASE('ii')
+        tmp=' in ice'
+    CASE('is')
+        tmp=' in snow'
+    CASE('ig')
+        tmp=' in graupel'
+    CASE('ih')
+        tmp=' in hail'
+    case default
+        RETURN
+    END SELECT
+    !
+    ! .. .and bin (total only)
+    SELECT CASE (short_name(i-1:i))
+    CASE('ct')
+        phase='total cloud'
+    CASE('rt','pt')
+        phase='total rain'
+    CASE('it')
+        phase='total ice'
+    CASE('st')
+        phase='total snow'
+    CASE('gt')
+        phase='total graupel'
+    CASE('ht')
+        phase='total hail'
+    case default
+        RETURN
+    END SELECT
+    !
+    ! Generate output
+    spec=short_name(3:i-2) ! "1", "N", "R" or "Rw"
+    if (itype==0) THEN
+        ! Long name
+        IF (spec=='N  ') THEN
+            get_sb_info = 'Mean number concentration of '//TRIM(phase)//tmp
+        ELSEIF (spec=='R  ' .OR. spec=='Rw ') THEN
+            get_sb_info = 'Mean radius of '//TRIM(phase)//tmp
+        ELSE
+            IF (dims==0 .OR. dims==2) THEN
+                get_sb_info = 'Vertically integrated '//TRIM(phase)//' '//TRIM(spec)//' mass'//tmp
+            ELSE
+                get_sb_info = 'Mean '//TRIM(phase)//' '//TRIM(spec)//' mass'//tmp
+            ENDIF
+        ENDIF
+    ELSEIF (itype==1) THEN
+        ! Unit
+        IF (spec=='N  ') THEN
+            get_sb_info = '#/kg'
+        ELSEIF (spec=='R  ' .OR. spec=='Rw ') THEN
+            get_sb_info = 'm'
+        ELSE
+            IF (dims==0 .OR. dims==2) THEN
+                get_sb_info = 'kg/m^2'
+            ELSE
+                get_sb_info = 'kg/kg'
+            ENDIF
+        ENDIF
+    ELSEIF (itype==2) THEN
+        ! NetCDF dimensions
+        IF (dims==0) THEN
+            get_sb_info = 'time'
+        ELSE
+            get_sb_info = 'tttt'
+        ENDIF
+    ENDIF
+  END function get_sb_info
   !
   ! ----------------------------------------------------------------------
   ! FUNCTIONS FOR READING AEROSOL SIZE DISTRIBUTIONS FROM A NETCDF FILE

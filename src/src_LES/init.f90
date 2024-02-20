@@ -44,13 +44,14 @@ contains
   !
   subroutine initialize
 
-    use step, only : time, outflg, salsa_diag_update, anl_start, nudging
+    use step, only : time, outflg, salsa_diag_update, anl_start, timmax, nudging, lsvarflg
     use stat, only : init_stat, sflg, out_mcrp_nout, out_mcrp_list
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
     USE radiation, ONLY : RadNewSetup, rad_new_setup
+    USE lsvar, ONLY : lsvar_init
 
     implicit none
 
@@ -123,7 +124,7 @@ contains
     if (outflg) then
        if (runtype == 'INITIAL') then
           !call write_hist(1, time)
-          call init_anal(time)
+          IF (anl_start<timmax) call init_anal(time)
           call thermo(level)
           IF (time >= anl_start) call write_anal(time)
        else
@@ -131,6 +132,8 @@ contains
           call write_hist(0, time)
        end if
     end if !outflg
+
+    if (lsvarflg) call lsvar_init(nzp,zm)
 
     return
   end subroutine initialize

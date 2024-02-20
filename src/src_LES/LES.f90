@@ -90,10 +90,10 @@ contains
 
     use util, only : fftinix,fftiniy
     use sgsm, only : csx, prndtl
-    use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon, &
+    use srfc, only : isfctyp, zrough, zrough_t, ubmin, dthcon, drtcon, &
                     wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param
     use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, frqrst, &
-         strtim, cntlat
+         strtim, cntlat, lsvarflg
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level, lev_sb, &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
@@ -139,6 +139,7 @@ contains
          outflg , anl_start,        & ! output flg, time to start saving analysis files
          iradtyp, strtim ,          & ! radiation type flag
          isfctyp, ubmin  , zrough , & ! surface parameterization type
+         zrough_t,                  & ! temperature roughness height
          ifSeaSpray, ifSeaVOC,      & ! marine emissions
          sea_tspinup,               & ! spinup time for marine emissions
          wtrChlA, ifPOCadd,         & ! chlorophyll alpha sea surface concentrations, if organic fraction is additive
@@ -157,6 +158,7 @@ contains
          nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau, & ! Horizontal wind nudging
          nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, & ! Aerosol number concentration nudging
          radsounding, case_name, & ! Name of the radiation sounding file and case name
+         lsvarflg,               & ! Read large scale forcings from an external data file
          div, zmaxdiv,           & ! Divergence and maximum altitude
          xka, fr0, fr1, alpha,   & ! Parameters for GCSS radiation
          rc_limit, rt_limit,     & ! Inversion height thresholds for GCSS radiation

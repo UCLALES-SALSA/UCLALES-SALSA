@@ -23,6 +23,7 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 \
           ncio.f90 util.f90 grid.f90 stat.f90 thrm.f90 forc.f90 advf.f90 \
           advl.f90 srfc.f90 prss.f90 sgsm.f90 mcrp.f90 mcrp_ice.f90 mcrp_ice_sb.f90 step.f90 init.f90 \
           rfft.f90 \
+          lsvar.f90 \
           mo_vbsctl.f90 mo_vbs.f90 mo_vbs_init.f90 mo_vbs_partition.f90
 SRCSF77 = 
 
@@ -64,12 +65,13 @@ mcrp_ice_sb.o: defs.o thrm.o
 mcrp_ice.o: grid.o stat.o defs.o thrm.o mcrp_ice_sb.o
 step.o: grid.o stat.o util.o defs.o thrm.o sgsm.o srfc.o  \
         mcrp.o prss.o advf.o advl.o forc.o $(seqmpi:.f90=.o) \
-        mo_salsa_driver.o mo_submctl.o
+        mo_salsa_driver.o mo_submctl.o lsvar.o
 init.o: grid.o stat.o util.o defs.o step.o sgsm.o thrm.o  \
 	$(seqmpi:.f90=.o) mo_submctl.o \
 	mo_salsa_driver.o mo_submctl.o \
-	ncio.o rad_d4strm.o
+	ncio.o rad_d4strm.o lsvar.o
 rfft.o:
+lsvar.o:
 rad_solver.o: defs.o
 rad_corkds.o: defs.o $(seqmpi:.f90=.o)
 rad_cldwtr.o: defs.o rad_corkds.o
