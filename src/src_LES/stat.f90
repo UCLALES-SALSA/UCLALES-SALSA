@@ -33,7 +33,7 @@ module stat
                         nv1_ice = 22,             &
                         nv1_lvl4 = 5,             &
                         nv1_lvl5 = 12,            &
-                        nvar2 = 96,               &
+                        nvar2 = 97,               &
                         nv2_ice = 21,             &
                         nv2_lvl4 = 0,             &
                         nv2_lvl5 = 11,            &
@@ -103,7 +103,8 @@ module stat
         'wrt_cs1','cs2    ','cnt_cs2','w_cs2  ','tl_cs2 ','tv_cs2 ', & ! 73
         'rt_cs2 ','rc_cs2 ','wtl_cs2','wtv_cs2','wrt_cs2','Rc_ic  ', & ! 79
         'crate  ','frac_ic','Nc_ic  ','Rr_ir  ','rr     ','rrate  ', & ! 85
-        'frac_ir','Nr_ir  ','sw_up  ','sw_down','lw_up  ','lw_down'/), & ! 91, total 96
+        'frac_ir','Nr_ir  ','sw_up  ','sw_down','lw_up  ','lw_down', & ! 91
+        'tot_iw '/), & ! 97
 
         s2_ice(nv2_ice)=(/ &
         'ri     ','Ni_ii  ','Ri_ii  ','frac_ii','irate  ', & ! 1
@@ -673,6 +674,7 @@ contains
 
   ! Set ouputs on or off based on list from user
   SUBROUTINE apply_user_outputs(set,list,n,out_list,out_flags,m)
+    use mpi_interface, only : myid
     IMPLICIT NONE
     ! Inputs
     LOGICAL, INTENT(IN) :: set ! Set true or false
@@ -693,7 +695,7 @@ contains
                     found=.TRUE.
                 ENDIF
             ENDDO
-            IF (.NOT.found) WRITE(*,*) 'Warning: '//TRIM(list(i))//' not found!',i
+            IF (myid==0 .AND. .NOT.found) WRITE(*,*) 'Warning: '//TRIM(list(i))//' not found!',i
         ENDIF
     ENDDO
   END SUBROUTINE apply_user_outputs
@@ -1903,7 +1905,7 @@ contains
     integer, intent (in) :: n1,n2,n3
     real, intent (in)    :: rflx(n1,n2,n3)
     real, optional, intent (in) :: sflx(n1,n2,n3), alb(n2,n3)
-    real, optional, intent (in) :: sup(n1,n2,n3), sdwn(n1,n2,n3), irup(n1,n2,n3), irdwn(n1,n2,n3)
+    real, optional, intent (in) :: sup(n1+1,n2,n3), sdwn(n1+1,n2,n3), irup(n1+1,n2,n3), irdwn(n1+1,n2,n3)
 
     integer :: k
     real    :: a1(n1),a2(n1)
@@ -1926,13 +1928,13 @@ contains
     end if
 
     if (present(sup)) then
-        call get_avg3(n1,n2,n3,sup,a1)
+        call get_avg3(n1,n2,n3,sup(1:n1,:,:),a1)
         svctr(:,93)=svctr(:,93) + a1(:)
-        call get_avg3(n1,n2,n3,sdwn,a1)
+        call get_avg3(n1,n2,n3,sdwn(1:n1,:,:),a1)
         svctr(:,94)=svctr(:,94) + a1(:)
-        call get_avg3(n1,n2,n3,irup,a1)
+        call get_avg3(n1,n2,n3,irup(1:n1,:,:),a1)
         svctr(:,95)=svctr(:,95) + a1(:)
-        call get_avg3(n1,n2,n3,irdwn,a1)
+        call get_avg3(n1,n2,n3,irdwn(1:n1,:,:),a1)
         svctr(:,96)=svctr(:,96) + a1(:)
     end if
 
@@ -2781,7 +2783,7 @@ contains
   subroutine  write_ps(n1,dn0,u0,v0,zm,zt,time)
 
     use netcdf
-    use defs, only : alvl, cp
+    use defs, only : cp
     USE mo_submctl, ONLY : in1a,in2a,fn2a, &
                                aerobins,precpbins,snowbins, &
                                nout_cld, cldbinlim, nout_ice, icebinlim
@@ -2802,10 +2804,8 @@ contains
        svctr(k,22) = svctr(k,22)+svctr(k,23)
        svctr(k,24) = svctr(k,24)+svctr(k,25)
        svctr(k,26) = svctr(k,26)+svctr(k,27)
-       svctr(k,53) = (svctr(k,53)+svctr(k,54))*alvl
+       svctr(k,53) = svctr(k,53)+svctr(k,54)
        svctr(k,21) = svctr(k,21)*cp
-       svctr(k,54) = svctr(k,54)*alvl
-       svctr(k,62) = svctr(k,62)*alvl
        svctr(k,37) = svctr(k,44) + svctr(k,47) +(                         &
             +svctr(k,45) + svctr(kp1,45) + svctr(k,46) + svctr(kp1,46)    &
             +svctr(k,42) + svctr(kp1,42) + svctr(k,43) + svctr(kp1,43)    &
@@ -3428,7 +3428,7 @@ contains
         CALL scalar_rate_stat(prefix//'_rr',nzp,nxp,nyp,a_rpt)
     ELSEIF (level>=4) THEN
         ! Level 4 and 5: water vapor (a_rt)
-        CALL scalar_rate_stat(prefix//'_rg',nzp,nxp,nyp,a_rt)
+        CALL scalar_rate_stat(prefix//'_rv',nzp,nxp,nyp,a_rt)
     ENDIF
     !
     ! b) LES variables related to SALSA

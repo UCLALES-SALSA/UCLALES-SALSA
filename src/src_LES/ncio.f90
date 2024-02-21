@@ -505,6 +505,9 @@ contains
     case('u10')
        if (itype==0) ncinfo = 'Wind speed at 10 m'
        if (itype==1) ncinfo = 'm/s'
+    case('wspd')
+       if (itype==0) ncinfo = 'Wind speed above surface'
+       if (itype==1) ncinfo = 'm/s'
     case('zi_bar')
        if (itype==0) ncinfo = 'Height of maximum total water mixing ratio gradient'
        if (itype==1) ncinfo = 'm'
@@ -915,11 +918,11 @@ contains
        if (itype==1) ncinfo = '-'
     case('tot_qw')
        if (itype==0) ncinfo = 'Total vertical flux of water'
-       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==1) ncinfo = 'kg/kg*m/s'
        if (itype==2) ncinfo = 'mttt'
     case('sfs_qw')
        if (itype==0) ncinfo = 'Sub-filter scale vertical flux of q'
-       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==1) ncinfo = 'kg/kg*m/s'
        if (itype==2) ncinfo = 'mttt'
     case('rflx')
        if (itype==0) ncinfo =  'Total Radiative flux'
@@ -961,7 +964,11 @@ contains
        if (itype==1) ncinfo = '-'
     case('tot_lw')
        if (itype==0) ncinfo = 'Total vertical flux of liquid water'
-       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==1) ncinfo = 'kg/kg*m/s'
+       if (itype==2) ncinfo = 'mttt'
+    case('tot_iw')
+       if (itype==0) ncinfo = 'Total vertical flux of ice water'
+       if (itype==1) ncinfo = 'kg/kg*m/s'
        if (itype==2) ncinfo = 'mttt'
     case('cs1')
        if (itype==0) ncinfo = 'Fraction of cloudy columns (cs1)'
@@ -1156,6 +1163,10 @@ contains
         pros='activation'
     ELSEIF ('nucl_'==short_name(1:5)) THEN
         pros='nucleation'
+    ELSEIF ('nucf_'==short_name(1:5)) THEN
+        pros='fixed ice nucleation'
+    ELSEIF ('nucm_'==short_name(1:5)) THEN
+        pros='modeled nucleation'
     ELSEIF ('melt_'==short_name(1:5)) THEN
         pros='melting'
     ELSEIF ('frez_'==short_name(1:5)) THEN
@@ -1225,6 +1236,8 @@ contains
         spec='hail'
     CASE('t')
         spec='total'
+    CASE('v')
+        spec='vapor'
     case default
         get_rate_info=''
         RETURN

@@ -874,6 +874,9 @@ contains
         ! Length scales
         CALL fill_scalar(zs,'z0m    ') ! Momentum zrough or the actually calculated value
         CALL fill_scalar(zrough_t,'z0t    ') ! Temperature roughness height
+        ! Surface winds
+        usum = SUM(SUM(wspd(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))
+        CALL fill_scalar(usum,'wspd   ')
     endif
 
     return
