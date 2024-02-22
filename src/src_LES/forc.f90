@@ -154,6 +154,7 @@ contains
 
        END IF
 
+       ! Back to default McICA
        useMcICA=McICA
 
        ! Case-dependent large-scale forcing

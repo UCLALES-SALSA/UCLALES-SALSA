@@ -1263,16 +1263,16 @@ contains
         CASE ('T_min')
             ! Minimum absolute temperature (K)
             output(:,:)=MINVAL(a_temp,DIM=1)
-         CASE ('tau_tot')
+        CASE ('tau_tot')
             ! Total optical depth
             output=tau_gas+tau_liq+tau_ice
         CASE ('tau_gas')
             ! Optical depth due to gases
             output=tau_gas
-         CASE ('tau_liq')
+        CASE ('tau_liq')
             ! Optical depth due to cloud liquid
             output=tau_liq
-         CASE ('tau_ice')
+        CASE ('tau_ice')
             ! Optical depth due to cloud ice
             output=tau_ice
         CASE DEFAULT
@@ -1739,7 +1739,7 @@ contains
   ! Outputs are calculated here to array user_ts_data(nv1_user).
   subroutine ts_user_stats()
     use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_temp, &
-        a_rflx, a_sflx, a_fuir, a_fdir, a_fus, a_fds, tau_gas, tau_liq, tau_ice
+        a_rflx, a_sflx, a_fuir, a_fdir, tau_gas, tau_liq, tau_ice
     INTEGER :: i
     REAL :: a(nzp,nxp,nyp), a1, fact
     LOGICAL :: fail, mask(nzp,nxp,nyp), mass
@@ -1771,45 +1771,13 @@ contains
             a=a_fuir-a_fdir
             a1=calc_ctrc(a)
             user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('toa_swu')
-            ! Top of atmosphere SW up (W/m2)
-            a1=SUM(SUM(a_fus(nzp+1,3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('toa_swd')
-            ! Top of atmosphere SW down (W/m2)
-            a1=SUM(SUM(a_fds(nzp+1,3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('toa_lwu')
-            ! Top of atmosphere LW up (W/m2)
-            a1=SUM(SUM(a_fuir(nzp+1,3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('toa_lwd')
-            ! Top of atmosphere LW down (W/m2)
-            a1=SUM(SUM(a_fdir(nzp+1,3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('srf_swu')
-            ! Surface SW up (W/m2)
-            a1=SUM(SUM(a_fus(2,3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('srf_swd')
-            ! Surface SW down (W/m2)
-            a1=SUM(SUM(a_fds(2,3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('srf_lwu')
-            ! Surface LW up (W/m2)
-            a1=SUM(SUM(a_fuir(2,3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('srf_lwd')
-            ! Surface LW down (W/m2)
-            a1=SUM(SUM(a_fdir(2,3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
          CASE ('tau_tot')
             ! Total optical depth
             a1=( SUM(SUM(tau_gas(3:nxp-2,3:nyp-2),DIM=2),DIM=1) + &
                  SUM(SUM(tau_liq(3:nxp-2,3:nyp-2),DIM=2),DIM=1) + &
                  SUM(SUM(tau_ice(3:nxp-2,3:nyp-2),DIM=2),DIM=1) )*fact
             user_ts_data(i) = get_pustat_scalar('avg',a1)
-        CASE ('tau_gas')
+         CASE ('tau_gas')
             ! Optical depth due to gases
             a1=SUM(SUM(tau_gas(3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
             user_ts_data(i) = get_pustat_scalar('avg',a1)
@@ -1908,7 +1876,7 @@ contains
     real, optional, intent (in) :: sup(n1+1,n2,n3), sdwn(n1+1,n2,n3), irup(n1+1,n2,n3), irdwn(n1+1,n2,n3)
 
     integer :: k
-    real    :: a1(n1),a2(n1)
+    real    :: a1(n1),a2(n1),a3(n1+1)
 
     call get_avg3(n1,n2,n3,rflx,a1)
     call get_var3(n1,n2,n3,rflx,a1,a2)
@@ -1928,14 +1896,23 @@ contains
     end if
 
     if (present(sup)) then
-        call get_avg3(n1,n2,n3,sup(1:n1,:,:),a1)
-        svctr(:,93)=svctr(:,93) + a1(:)
-        call get_avg3(n1,n2,n3,sdwn(1:n1,:,:),a1)
-        svctr(:,94)=svctr(:,94) + a1(:)
-        call get_avg3(n1,n2,n3,irup(1:n1,:,:),a1)
-        svctr(:,95)=svctr(:,95) + a1(:)
-        call get_avg3(n1,n2,n3,irdwn(1:n1,:,:),a1)
-        svctr(:,96)=svctr(:,96) + a1(:)
+        k=n1+1 ! The top of atmosphere
+        call get_avg3(k,n2,n3,sup,a3)
+        svctr(:,93)=svctr(:,93) + a3(1:n1)
+        CALL fill_scalar(a3(1),'srf_swu') ! Optional: surface SW up (W/m2)
+        CALL fill_scalar(a3(k),'toa_swu') ! Optional: top of atmosphere SW up (W/m2)
+        call get_avg3(k,n2,n3,sdwn,a3)
+        svctr(:,94)=svctr(:,94) + a3(1:n1)
+        CALL fill_scalar(a3(1),'srf_swd')
+        CALL fill_scalar(a3(k),'toa_swd')
+        call get_avg3(k,n2,n3,irup,a3)
+        svctr(:,95)=svctr(:,95) + a3(1:n1)
+        CALL fill_scalar(a3(1),'srf_lwu')
+        CALL fill_scalar(a3(k),'toa_lwu')
+        call get_avg3(k,n2,n3,irdwn,a3)
+        svctr(:,96)=svctr(:,96) + a3(1:n1)
+        CALL fill_scalar(a3(1),'srf_lwd')
+        CALL fill_scalar(a3(k),'toa_lwd')
     end if
 
   end subroutine accum_rad
@@ -3320,7 +3297,11 @@ contains
     SELECT case (short_name(i-1:i))
     CASE('ct')
         IF (numc) THEN
-            res(:,:,:)=CCN
+            WHERE (cloudmask)
+                res=CCN
+            ELSEWHERE
+                res=0.
+            END WHERE
         ELSEIF (mass) THEN
             res(:,:,:)=a_rc(:,:,:)
         ELSE

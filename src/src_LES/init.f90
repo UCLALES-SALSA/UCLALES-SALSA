@@ -266,9 +266,9 @@ contains
 
     integer :: k,kk
 
-    if (nfpt > 0) then
-       allocate (spng_tfct(max(1,nfpt)), spng_wfct(max(1,nfpt)))
+    allocate (spng_tfct(max(1,nfpt)), spng_wfct(max(1,nfpt)))
 
+    if (nfpt > 0) then
        do k=nzp-nfpt,nzp-1
           kk = k + 1 - (nzp-nfpt)
           spng_tfct(kk)=max(0.,(zm(nzp)-zt(k))/((zm(nzp)-zm(nzp-nfpt))*distim))
