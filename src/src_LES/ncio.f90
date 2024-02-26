@@ -471,10 +471,10 @@ contains
     case('ustar')
        if (itype==0) ncinfo = 'Surface friction velocity'
        if (itype==1) ncinfo = 'm/s'
-    case('shf_bar')
+    case('shf_bar','shf')
        if (itype==0) ncinfo = 'Sensible heat flux'
        if (itype==1) ncinfo = 'W/m^2'
-    case('lhf_bar')
+    case('lhf_bar','lhf')
        if (itype==0) ncinfo = 'Latent heat flux'
        if (itype==1) ncinfo = 'W/m^2'
     case('obl')
@@ -507,6 +507,12 @@ contains
        if (itype==1) ncinfo = 'm/s'
     case('wspd')
        if (itype==0) ncinfo = 'Wind speed above surface'
+       if (itype==1) ncinfo = 'm/s'
+    case('us')
+       if (itype==0) ncinfo = 'Surface zonal wind'
+       if (itype==1) ncinfo = 'm/s'
+    case('vs')
+       if (itype==0) ncinfo = 'Surface meridional wind'
        if (itype==1) ncinfo = 'm/s'
     case('zi_bar')
        if (itype==0) ncinfo = 'Height of maximum total water mixing ratio gradient'

@@ -1227,8 +1227,9 @@ contains
   ! User-defined outputs (given in NAMELIST/user_cs_list)
   subroutine cs_user_stats()
     use netcdf
+    USE defs, ONLY : alvl, cp
     use grid, ONLY : CCN, nzp, nxp, nyp, a_dn, a_rv, a_rp, a_rsl, a_rsi, a_temp, &
-        tau_gas, tau_liq, tau_ice
+        tau_gas, tau_liq, tau_ice, a_fuir, wq_sfc, wt_sfc, dn0, a_ustar, a_up, a_vp, umean, vmean
     INTEGER :: ii, iret, VarID
     REAL :: output(nxp,nyp), a(nzp,nxp,nyp)
     LOGICAL :: fail, mask(nzp,nxp,nyp), mass
@@ -1275,6 +1276,24 @@ contains
         CASE ('tau_ice')
             ! Optical depth due to cloud ice
             output=tau_ice
+        CASE('toa_lwu')
+            ! Top of atmosphere LW up
+            output=a_fuir(nzp+1,:,:)
+        CASE('lhf')
+            ! Latent heat flux
+            output=wq_sfc*alvl*(dn0(1)+dn0(2))*0.5
+        CASE('shf')
+            ! Sensible heat flux
+            output=wt_sfc*cp*(dn0(1)+dn0(2))*0.5
+        CASE('ustar')
+            ! Friction velocity
+            output=a_ustar
+        CASE('us')
+            ! Surface winf component u
+            output=a_up(2,:,:)+umean
+        CASE('vs')
+            ! Surface wind component v
+            output=a_vp(2,:,:)+vmean
         CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_cs_list(ii),a,mask,is_mass=mass)
@@ -3452,6 +3471,9 @@ contains
     ! Local
     INTEGER :: j, k
     REAL ::tend(nzp,nxp,nyp), tmp(nzp,nxp,nyp), col(nzp), area(nxp,nyp)
+    !
+    ! Water vapor and temperature elsewhere
+    IF (pchar=='v' .OR. tchar=='t') RETURN
     !
     SELECT CASE (pchar)
         CASE ('a')
