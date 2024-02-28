@@ -238,6 +238,9 @@ module mcrp_ice_sb
   INTEGER :: cloud_typ = 3 ! Seifert and Beheng (2000) (2-moment-scheme)
   !  0    No warm rain
   !  1-8  Different autoconversion and accretion schemes
+  INTEGER :: nuc_i_typ = 0
+  !  0  INP set to nin_set (a NAMELIST input)
+  !  1- Different parameterizations
   INTEGER :: ice_typ = 3 ! All ice species
   !  0    No ice
   !  >0   Ice, snow and graupel
@@ -247,6 +250,8 @@ module mcrp_ice_sb
 
   ! Fixed INP concentration (micro/nin_set) applied to supercooled liquid clouds
   REAL :: nin_set = 0.
+
+  REAL :: T_nuc = 273.15 ! Ice nucleation temperature maximum (K)
 
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_04
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_c
@@ -308,7 +313,7 @@ CONTAINS
     namelist /micro/ &
         drop_freeze, graupel_shedding, hail_shedding, enhanced_melting, ice_multiplication, &
         use_ice_graupel_conv_uli, &
-        ice_typ, cloud_typ, nin_set, &
+        ice_typ, cloud_typ, nuc_i_typ, T_nuc, nin_set, &
         q_krit_ic, D_krit_ic,  q_krit_ir, D_krit_ir, q_krit_sc, D_krit_sc, q_krit_sr, D_krit_sr, &
         q_krit_gc, D_krit_gc, q_krit_gr, q_krit_hc, D_krit_hc, q_krit_hr, q_krit_c, q_krit_r, &
         c_mult, &
@@ -709,16 +714,26 @@ CONTAINS
 
     ! Locale Variablen 
     REAL, PARAMETER :: eps  = 1.e-20
-    REAL    :: nuc_q, ndiag
+    REAL    :: nuc_q, ndiag, ns, x_c, area
     INTEGER :: i,j,k
 
     DO k = 1, loc_iz
       DO j = 1, loc_iy
         DO i = 0, loc_ix
-          IF (s_i(i,j,k)>0.0 .AND. (q_cloud(i,j,k)+q_rain(i,j,k))>0.001e-3*rho_0(i,j,k) .AND. &
-                T_0(i,j,k)<268.15 .AND. nin_set*ice%x_min>eps) THEN
-            ! Cloud droplet freezing with fixed INP concentration
-            ndiag = MAX(nin_set - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0)
+          IF (s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3 .AND. T_0(i,j,k)<T_nuc) THEN
+            ndiag = 0.
+            IF (nuc_i_typ==0 .AND. nin_set*ice%x_min>eps) THEN
+              ! Cloud droplet freezing with fixed INP concentration
+              !ndiag = MAX(nin_set*rho_0(i,j,k) - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0)
+              ndiag = MAX(nin_set - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0) ! COMBLE
+            ELSEIF (nuc_i_typ==1) THEN
+              ! Use surface area and temperature_based fit fig. 8 caption in McCluskey et al., JGR, 2018.
+              ns =exp(-0.545 * T_0(i,j,k) + 1.0125)*1e-4 ! m^-2
+              x_c = MIN(MAX(q_cloud(i,j,k)/(n_cloud(i,j,k)+eps),cloud%x_min),cloud%x_max) ! Mean mass
+              area = pi*( cloud%a_geo * x_c**cloud%b_geo )**2 ! area
+              ndiag = n_cloud(i,j,k)*(1.0-exp(-ns*area))
+            ENDIF
+
             nuc_q = MIN(ndiag*ice%x_min, q_cloud(i,j,k))
 
             q_ice(i,j,k) = q_ice(i,j,k) + nuc_q

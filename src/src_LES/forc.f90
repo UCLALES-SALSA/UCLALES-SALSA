@@ -20,8 +20,8 @@
 module forc
 
   use defs, only      : cp
-  use radiation, only : d4stream, useMcICA
-  use stat, only : sflg
+  use radiation, only : d4stream, calc_od, tau_gas, tau_liq, tau_ice
+  use stat, only : sflg, fill_scalar
   implicit none
 
   ! these are now all namelist parameters
@@ -42,8 +42,7 @@ contains
   subroutine forcings(time_in, cntlat, sst)
 
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, a_dn, iradtyp, pi0, pi1, level, &
-         a_rflx, a_sflx, albedo, tau_gas, tau_liq, tau_ice, &
-         a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp, a_rv, a_rc, CCN, &
+         a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp, a_rv, a_rc, CCN, &
          a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_rhp,a_nhp, a_maerop, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
          nbins, ncld, nice, nprc, nsnw, a_fus, a_fds, a_fuir, a_fdir
@@ -51,7 +50,6 @@ contains
 
     real, intent (in) :: time_in, cntlat, sst
     REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
-    LOGICAL :: McICA
 
     select case(iradtyp)
     case (0)
@@ -81,9 +79,7 @@ contains
     case (3)
        ! Fu and Liou (1993) radiation code and case-dependent large-scale forcing
        !
-       ! Full radiation calculations for statistics
-       McICA=useMcICA
-       useMcICA=.NOT.sflg
+       calc_od = sflg ! Optical depths for COMBLE
        !
        IF (level==0) THEN
           ! Cloud (+rain)
@@ -104,8 +100,7 @@ contains
 
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, tau_gas, tau_liq, tau_ice, &
-               ice=zri,nice=zni,grp=a_rgp)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,grp=a_rgp)
 
        ELSEIF (level <= 3) THEN
           znc(:,:,:) = CCN
@@ -117,7 +112,7 @@ contains
           ENDIF
           call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, tau_gas, tau_liq, tau_ice)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo)
 
        ELSE IF (level == 4) THEN
           ! Water is the first SALSA species
@@ -130,7 +125,7 @@ contains
           ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, tau_gas, tau_liq, tau_ice)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo)
 
        ELSE IF (level == 5) THEN
           ! Water is the first SALSA species
@@ -149,13 +144,18 @@ contains
           ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, tau_gas, tau_liq, tau_ice, &
-               ice=zri,nice=zni)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni)
 
        END IF
 
-       ! Back to default McICA
-       useMcICA=McICA
+       IF (calc_od) THEN
+            call fill_scalar(tau_gas,'tau_gas') ! Gas
+            call fill_scalar(tau_ice,'tau_tot') ! Gas+liquid+ice
+            tau_ice=tau_ice-tau_liq
+            call fill_scalar(tau_ice,'tau_ice') ! Ice only
+            tau_liq=tau_liq-tau_gas
+            call fill_scalar(tau_liq,'tau_liq') ! Liquid only
+       ENDIF
 
        ! Case-dependent large-scale forcing
        IF ( case_name /= 'none') THEN

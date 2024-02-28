@@ -27,13 +27,18 @@ module stat
   use defs, only : rowt, pi
 
   implicit none
+
+  interface fill_scalar
+    module procedure fill_scalar_scal, fill_scalar_2d
+  end interface
+
   private
 
   integer, parameter :: nvar1 = 37,               &
                         nv1_ice = 22,             &
                         nv1_lvl4 = 5,             &
                         nv1_lvl5 = 12,            &
-                        nvar2 = 97,               &
+                        nvar2 = 96,               &
                         nv2_ice = 21,             &
                         nv2_lvl4 = 0,             &
                         nv2_lvl5 = 11,            &
@@ -103,8 +108,7 @@ module stat
         'wrt_cs1','cs2    ','cnt_cs2','w_cs2  ','tl_cs2 ','tv_cs2 ', & ! 73
         'rt_cs2 ','rc_cs2 ','wtl_cs2','wtv_cs2','wrt_cs2','Rc_ic  ', & ! 79
         'crate  ','frac_ic','Nc_ic  ','Rr_ir  ','rr     ','rrate  ', & ! 85
-        'frac_ir','Nr_ir  ','sw_up  ','sw_down','lw_up  ','lw_down', & ! 91
-        'tot_iw '/), & ! 97
+        'frac_ir','Nr_ir  ','sw_up  ','sw_down','lw_up  ','lw_down'/), & ! 91, total 96
 
         s2_ice(nv2_ice)=(/ &
         'ri     ','Ni_ii  ','Ri_ii  ','frac_ii','irate  ', & ! 1
@@ -1227,9 +1231,8 @@ contains
   ! User-defined outputs (given in NAMELIST/user_cs_list)
   subroutine cs_user_stats()
     use netcdf
-    USE defs, ONLY : alvl, cp
     use grid, ONLY : CCN, nzp, nxp, nyp, a_dn, a_rv, a_rp, a_rsl, a_rsi, a_temp, &
-        tau_gas, tau_liq, tau_ice, a_fuir, wq_sfc, wt_sfc, dn0, a_ustar, a_up, a_vp, umean, vmean
+        a_fuir, a_up, a_vp, umean, vmean
     INTEGER :: ii, iret, VarID
     REAL :: output(nxp,nyp), a(nzp,nxp,nyp)
     LOGICAL :: fail, mask(nzp,nxp,nyp), mass
@@ -1264,32 +1267,11 @@ contains
         CASE ('T_min')
             ! Minimum absolute temperature (K)
             output(:,:)=MINVAL(a_temp,DIM=1)
-        CASE ('tau_tot')
-            ! Total optical depth
-            output=tau_gas+tau_liq+tau_ice
-        CASE ('tau_gas')
-            ! Optical depth due to gases
-            output=tau_gas
-        CASE ('tau_liq')
-            ! Optical depth due to cloud liquid
-            output=tau_liq
-        CASE ('tau_ice')
-            ! Optical depth due to cloud ice
-            output=tau_ice
         CASE('toa_lwu')
             ! Top of atmosphere LW up
             output=a_fuir(nzp+1,:,:)
-        CASE('lhf')
-            ! Latent heat flux
-            output=wq_sfc*alvl*(dn0(1)+dn0(2))*0.5
-        CASE('shf')
-            ! Sensible heat flux
-            output=wt_sfc*cp*(dn0(1)+dn0(2))*0.5
-        CASE('ustar')
-            ! Friction velocity
-            output=a_ustar
         CASE('us')
-            ! Surface winf component u
+            ! Surface wind component u
             output=a_up(2,:,:)+umean
         CASE('vs')
             ! Surface wind component v
@@ -1297,12 +1279,11 @@ contains
         CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_cs_list(ii),a,mask,is_mass=mass)
-            IF (fail) THEN
-                WRITE(*,*)" Error: failed to calculate '"//TRIM(user_cs_list(ii))//"' for cs output!"
-                STOP
-            ENDIF
             ! Calculate vertical integral when mass concentration, otherwise mean
-            IF (mass) THEN
+            IF (fail) THEN
+                ! These can be calculated elsewhere and saved using function fill_scalar
+                CYCLE
+            ELSEIF (mass) THEN
                 CALL get_avg_cs(nzp,nxp,nyp,a,output,cond=mask,dens=a_dn)
             ELSE
                 CALL get_avg_cs(nzp,nxp,nyp,a,output,cond=mask)
@@ -1758,12 +1739,11 @@ contains
   ! Outputs are calculated here to array user_ts_data(nv1_user).
   subroutine ts_user_stats()
     use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_temp, &
-        a_rflx, a_sflx, a_fuir, a_fdir, tau_gas, tau_liq, tau_ice
+        a_rflx, a_sflx, a_fuir, a_fdir
     INTEGER :: i
-    REAL :: a(nzp,nxp,nyp), a1, fact
+    REAL :: a(nzp,nxp,nyp), a1
     LOGICAL :: fail, mask(nzp,nxp,nyp), mass
     !
-    fact = 1./REAL((nxp-4)*(nyp-4))
     DO i=1,nv1_user
         SELECT CASE (user_ts_list(i))
         CASE ('CCN')
@@ -1789,24 +1769,6 @@ contains
             ! LW cloud radiative cooling (W/m2)
             a=a_fuir-a_fdir
             a1=calc_ctrc(a)
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('tau_tot')
-            ! Total optical depth
-            a1=( SUM(SUM(tau_gas(3:nxp-2,3:nyp-2),DIM=2),DIM=1) + &
-                 SUM(SUM(tau_liq(3:nxp-2,3:nyp-2),DIM=2),DIM=1) + &
-                 SUM(SUM(tau_ice(3:nxp-2,3:nyp-2),DIM=2),DIM=1) )*fact
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('tau_gas')
-            ! Optical depth due to gases
-            a1=SUM(SUM(tau_gas(3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('tau_liq')
-            ! Optical depth due to cloud liquid
-            a1=SUM(SUM(tau_liq(3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
-            user_ts_data(i) = get_pustat_scalar('avg',a1)
-         CASE ('tau_ice')
-            ! Optical depth due to cloud ice
-            a1=SUM(SUM(tau_ice(3:nxp-2,3:nyp-2),DIM=2),DIM=1)*fact
             user_ts_data(i) = get_pustat_scalar('avg',a1)
          CASE DEFAULT
             ! Pre-defined SALSA outputs
@@ -1918,20 +1880,20 @@ contains
         k=n1+1 ! The top of atmosphere
         call get_avg3(k,n2,n3,sup,a3)
         svctr(:,93)=svctr(:,93) + a3(1:n1)
-        CALL fill_scalar(a3(1),'srf_swu') ! Optional: surface SW up (W/m2)
-        CALL fill_scalar(a3(k),'toa_swu') ! Optional: top of atmosphere SW up (W/m2)
+        call fill_scalar(a3(1),'srf_swu') ! Optional: surface SW up (W/m2)
+        call fill_scalar(a3(k),'toa_swu') ! Optional: top of atmosphere SW up (W/m2)
         call get_avg3(k,n2,n3,sdwn,a3)
         svctr(:,94)=svctr(:,94) + a3(1:n1)
-        CALL fill_scalar(a3(1),'srf_swd')
-        CALL fill_scalar(a3(k),'toa_swd')
+        call fill_scalar(a3(1),'srf_swd')
+        call fill_scalar(a3(k),'toa_swd')
         call get_avg3(k,n2,n3,irup,a3)
         svctr(:,95)=svctr(:,95) + a3(1:n1)
-        CALL fill_scalar(a3(1),'srf_lwu')
-        CALL fill_scalar(a3(k),'toa_lwu')
+        call fill_scalar(a3(1),'srf_lwu')
+        call fill_scalar(a3(k),'toa_lwu')
         call get_avg3(k,n2,n3,irdwn,a3)
         svctr(:,96)=svctr(:,96) + a3(1:n1)
-        CALL fill_scalar(a3(1),'srf_lwd')
-        CALL fill_scalar(a3(k),'toa_lwd')
+        call fill_scalar(a3(1),'srf_lwd')
+        call fill_scalar(a3(k),'toa_lwd')
     end if
 
   end subroutine accum_rad
@@ -2977,7 +2939,34 @@ contains
   !
   ! subroutine: fills scalar array based on variable name.
   !
-  subroutine fill_scalar(xval,vname,op,wg)
+  ! 2D (x,y) arrays for both cs and ts outputs
+  subroutine fill_scalar_2d(xval,vname)
+    USE grid, ONLY : nxp, nyp
+    use netcdf
+    ! Inputs
+    real, intent(in) :: xval(nxp,nyp) ! 2D input data
+    character(len=7), intent (in) :: vname ! Output variable name
+    ! Local
+    INTEGER :: iret, VarID
+    REAL :: avg
+    !
+    ! ******** 2D outputs ********
+    ! Saved directly as is
+    IF (cswrite .AND. nv3_user>0) THEN
+        ! Test if variable is an output
+        iret = nf90_inq_varid(ncid3,vname,VarID)
+        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, xval(3:nxp-2,3:nyp-2), start=(/1,1,nrec3/))
+    ENDIF
+    !
+    ! ******** scalar outputs ********
+    ! Valid for horizontal averages
+    avg=SUM(SUM(xval(3:nxp-2,3:nyp-2),DIM=2))/FLOAT((nxp-4)*(nyp-4))
+    CALL fill_scalar_scal(avg,vname)
+    !
+  end subroutine fill_scalar_2d
+  !
+  ! Scalars for ts outputs
+  subroutine fill_scalar_scal(xval,vname,op,wg)
     ! Inputs
     real, intent(in) :: xval
     character(len=7), intent (in) :: vname
@@ -3029,7 +3018,7 @@ contains
         ENDIF
     ENDDO
     !
-  end subroutine fill_scalar
+  end subroutine fill_scalar_scal
   !
   ! --------------------------------------------------------------------------
   ! SGSFLXS: estimates the sgs rl and tv flux from the sgs theta_l and sgs r_t

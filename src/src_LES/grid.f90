@@ -171,7 +171,7 @@ module grid
   ! radiation
   real, allocatable, dimension (:,:,:) :: a_rflx, a_sflx, &
        a_fus, a_fds, a_fuir, a_fdir
-  real, allocatable, dimension (:,:) :: albedo, tau_gas, tau_liq, tau_ice
+  real, allocatable :: albedo(:,:)
   !
   ! surface
   real, allocatable :: a_ustar(:,:)
@@ -254,19 +254,16 @@ contains
        memsize = memsize + nxyzp
     end if
     if (iradtyp >= 3) then
-       allocate (a_sflx(nzp,nxp,nyp),albedo(nxp,nyp),tau_gas(nxp,nyp),tau_liq(nxp,nyp),tau_ice(nxp,nyp))
+       allocate (a_sflx(nzp,nxp,nyp),albedo(nxp,nyp))
        a_sflx(:,:,:) = 0.
        albedo(:,:) = 0.
-       tau_gas(:,:) = 0.
-       tau_liq(:,:) = 0.
-       tau_ice(:,:) = 0.
 
        allocate (a_fus(nzp+1,nxp,nyp),a_fds(nzp+1,nxp,nyp),a_fuir(nzp+1,nxp,nyp),a_fdir(nzp+1,nxp,nyp))
        a_fus(:,:,:) = 0.
        a_fds(:,:,:) = 0.
        a_fuir(:,:,:) = 0.
        a_fdir(:,:,:) = 0.
-       memsize = memsize + 5*nxyzp + 8*nxyp
+       memsize = memsize + 5*nxyzp + 5*nxyp
     end if
 
     allocate (a_temp(nzp,nxp,nyp),a_dn(nzp,nxp,nyp),a_edr(nzp,nxp,nyp), &
@@ -1014,6 +1011,8 @@ contains
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_rflx(:,i1:i2,j1:j2), start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'stke', VarID) ! Subgrid TKE
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_qp(:,i1:i2,j1:j2), start=ibeg, count=icnt)
+    iret = nf90_inq_varid(ncid0, 'diss', VarID) ! Dissipation rate
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_edr(:,i1:i2,j1:j2), start=ibeg, count=icnt)
 
     ! Additional scalars
     IF (naddsc>0) THEN
@@ -1275,10 +1274,10 @@ contains
         CASE DEFAULT
             ! Pre-defined 3D SALSA outputs
             fail = calc_user_data(user_an_list(i),output)
-            IF (fail) THEN
-                WRITE(*,*)" Error: failed to calculate '"//TRIM(user_an_list(i))//"' for analysis output!"
-                STOP
-            ENDIF
+            !IF (fail) THEN ! These can be calculated and saved elsewhere...
+            !    WRITE(*,*)" Error: failed to calculate '"//TRIM(user_an_list(i))//"' for analysis output!"
+            !    STOP
+            !ENDIF
         END SELECT
         ! Save
         iret = nf90_put_var(ncid0, VarID, output(:,3:nxp-2,3:nyp-2), &

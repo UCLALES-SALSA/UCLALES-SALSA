@@ -25,7 +25,7 @@ module radiation
 
 
   use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv
-  use fuliou, only     : rad, rad_init, minSolarZenithCosForVis, od_gas, od_liq, od_tot
+  use fuliou, only     : rad, rad_init, minSolarZenithCosForVis, rad_tau
   implicit none
 
   real, parameter :: SolarConstant = 1.365e+3
@@ -35,6 +35,9 @@ module radiation
   LOGICAL :: useMcICA = .TRUE.
   LOGICAL :: RadNewSetup = .TRUE. ! use the new radiation setup method
   REAL :: RadConstSZA = -360. ! constant solar zenith angle (values between -180 and 180 degrees)
+
+  logical, save :: calc_od = .FALSE.  ! Calculate optical depths
+  real, allocatable, save :: tau_gas(:,:), tau_liq(:,:), tau_ice(:,:)
 
   logical, save     :: first_time = .True.
   real, allocatable, save ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
@@ -81,8 +84,7 @@ module radiation
     end subroutine rad_new_setup
 
     subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn, pi0, pi1, dzm, &
-         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, albedo, &
-         tau_gas, tau_liq, tau_ice, ice, nice, grp)
+         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, albedo, ice, nice, grp)
       integer, intent (in) :: n1, n2, n3
       real, intent (in)    :: alat, time, sknt, sfc_albedo
       real, dimension (n1), intent (in)                 :: pi0, pi1, dzm
@@ -90,7 +92,7 @@ module radiation
       real, optional, dimension (n1,n2,n3), intent (in) :: ice, nice, grp
       real, dimension (n1,n2,n3), intent (inout)        :: tt, rflx, sflx
       real, dimension (n1+1,n2,n3), intent (inout)      :: afus, afds, afuir, afdir
-      real, dimension (n2,n3), intent (out)             :: albedo, tau_gas, tau_liq, tau_ice
+      real, intent (out)                                :: albedo(n2,n3)
 
       integer :: kk, k, i, j, npts
       real    :: ee, u0, xfact, prw, pri, p0(n1), exner(n1), pres(n1)
@@ -217,10 +219,27 @@ module radiation
                tt(k,i,j) = tt(k,i,j) - (rflx(k,i,j) - rflx(k-1,i,j))*xfact
             end do
 
-            ! Optical thickness
-            tau_gas(i,j) = SUM(od_gas)
-            tau_liq(i,j) = SUM(od_liq)-tau_gas(i,j)
-            tau_ice(i,j) = SUM(od_tot)-tau_liq(i,j)
+            IF (calc_od) THEN
+                ! Calculate optical depths
+                !
+                ! Allocate outputs
+                IF (.NOT.ALLOCATED(tau_gas)) THEN
+                    ALLOCATE(tau_gas(n2,n3), tau_liq(n2,n3), tau_ice(n2,n3))
+                    tau_gas=0.; tau_liq=0.; tau_ice=0.
+                ENDIF
+                !
+                ! Calculations
+                if (present(ice).and.present(grp)) then
+                    CALL rad_tau (pp, pt, ph, tau_gas(i,j), tau_liq(i,j), tau_ice(i,j), &
+                        plwc=plwc, pre=pre, piwc=piwc, pde=pde, pgwc=pgwc)
+                ELSEif (present(ice)) then
+                    CALL rad_tau (pp, pt, ph, tau_gas(i,j), tau_liq(i,j), tau_ice(i,j), &
+                        plwc=plwc, pre=pre, piwc=piwc, pde=pde)
+                ELSE
+                    CALL rad_tau (pp, pt, ph, tau_gas(i,j), tau_liq(i,j), tau_ice(i,j), &
+                        plwc=plwc, pre=pre)
+                end if
+             ENDIF
 
          end do
       end do

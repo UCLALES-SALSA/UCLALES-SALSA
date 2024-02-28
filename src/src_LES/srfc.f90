@@ -92,7 +92,7 @@ contains
     IF (wtrChlA>0. .and. ioc<1) THEN
         STOP 'No sea spray species (OC) included!'
     ELSEIF (iss<1 .and. nspec==1) THEN
-        ! If single component aerosol, then use the only one available
+        ! For single component aerosol use the one available
         iss=2
     ELSEIF (iss<1) THEN
         STOP 'No sea spray species (SS) included!'
@@ -857,26 +857,23 @@ contains
         ! Surface temperature (K)
         CALL fill_scalar(sst,'tsrf   ')
         ! Friction velocity
-        usum = SUM(SUM(a_ustar(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))
-        CALL fill_scalar(usum,'ustar  ')
+        CALL fill_scalar(a_ustar,'ustar  ')
         ! Sensible heat flux
-        usum = SUM(SUM(wt_sfc(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))*cp*(dn0(1)+dn0(2))*0.5
-        CALL fill_scalar(usum,'shf_bar')
+        drdz(:,:)=wt_sfc(:,:)*cp*(dn0(1)+dn0(2))*0.5
+        CALL fill_scalar(drdz,'shf_bar')
         ! Latent heat flux
-        usum = SUM(SUM(wq_sfc(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))*alvl*(dn0(1)+dn0(2))*0.5
-        CALL fill_scalar(usum,'lhf_bar')
+        drdz(:,:)=wq_sfc(:,:)*alvl*(dn0(1)+dn0(2))*0.5
+        CALL fill_scalar(drdz,'lhf_bar')
         ! *** optional ts-outputs ***
         ! Obukhov lenght
-        usum = SUM(SUM(obl(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))
-        CALL fill_scalar(usum,'obl    ')
+        CALL fill_scalar(obl,'obl    ')
         ! Surface pressure
         CALL fill_scalar(psrf,'psrf   ')
         ! Length scales
         CALL fill_scalar(zs,'z0m    ') ! Momentum zrough or the actually calculated value
         CALL fill_scalar(zrough_t,'z0t    ') ! Temperature roughness height
         ! Surface winds
-        usum = SUM(SUM(wspd(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))
-        CALL fill_scalar(usum,'wspd   ')
+        CALL fill_scalar(wspd,'wspd   ')
     endif
 
     return

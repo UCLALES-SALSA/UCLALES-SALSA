@@ -406,7 +406,7 @@ contains
     case('h','rh')
        if (itype==0) ncinfo = 'Hail water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-    case('n')
+    case('nr','n')
        if (itype==0) ncinfo = 'Rain-drop number mixing ratio'
        if (itype==1) ncinfo = '#/kg'
     case('ni')
@@ -471,16 +471,15 @@ contains
     case('ustar')
        if (itype==0) ncinfo = 'Surface friction velocity'
        if (itype==1) ncinfo = 'm/s'
-    case('shf_bar','shf')
+    case('shf_bar')
        if (itype==0) ncinfo = 'Sensible heat flux'
        if (itype==1) ncinfo = 'W/m^2'
-    case('lhf_bar','lhf')
+    case('lhf_bar')
        if (itype==0) ncinfo = 'Latent heat flux'
        if (itype==1) ncinfo = 'W/m^2'
     case('obl')
        if (itype==0) ncinfo = 'Obukhov length'
        if (itype==1) ncinfo = 'm'
-       if (itype==2) ncinfo = 'time'
     case('psrf')
        if (itype==0) ncinfo = 'Surface pressure'
        if (itype==1) ncinfo = 'Pa'
@@ -506,7 +505,7 @@ contains
        if (itype==0) ncinfo = 'Wind speed at 10 m'
        if (itype==1) ncinfo = 'm/s'
     case('wspd')
-       if (itype==0) ncinfo = 'Wind speed above surface'
+       if (itype==0) ncinfo = 'Surface wind speed'
        if (itype==1) ncinfo = 'm/s'
     case('us')
        if (itype==0) ncinfo = 'Surface zonal wind'
@@ -970,10 +969,6 @@ contains
        if (itype==1) ncinfo = '-'
     case('tot_lw')
        if (itype==0) ncinfo = 'Total vertical flux of liquid water'
-       if (itype==1) ncinfo = 'kg/kg*m/s'
-       if (itype==2) ncinfo = 'mttt'
-    case('tot_iw')
-       if (itype==0) ncinfo = 'Total vertical flux of ice water'
        if (itype==1) ncinfo = 'kg/kg*m/s'
        if (itype==2) ncinfo = 'mttt'
     case('cs1')

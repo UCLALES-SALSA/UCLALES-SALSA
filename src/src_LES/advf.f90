@@ -31,8 +31,7 @@ contains
   ! times.
   !
   subroutine fadvect
-    use grid, only : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc  &
-         , a_ri, a_rpp, a_srp, a_qp, a_rp, a_tp, newsclr, level  &
+    use grid, only : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, a_rp, a_tp, newsclr  &
          , nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtl  &
          , dzt, dzm, zt, dxi, dyi, isgstyp
     use stat, only      : sflg, updtst
@@ -45,22 +44,11 @@ contains
     ! diagnose liquid water flux
     !
     if (sflg) then
-       ! Liquid: aerosol+cloud+rain
-       if (level<4) then
-          a_tmp1=a_rc+a_rpp
-       else
-          a_tmp1=a_rc+a_srp
-       endif
+       a_tmp1=a_rc
        call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.false.)
        call mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtl,.false.)
        call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
        call updtst(nzp,v1da,1,'tot_lw ')
-       ! Ice: ice+snow+..
-       a_tmp1=a_ri
-       call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.false.)
-       call mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtl,.false.)
-       call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
-       call updtst(nzp,v1da,1,'tot_iw ')
     end if
     !
     ! loop through the scalar table, setting iscp and isct to the
