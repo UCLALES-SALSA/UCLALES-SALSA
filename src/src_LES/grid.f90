@@ -1274,10 +1274,12 @@ contains
         CASE DEFAULT
             ! Pre-defined 3D SALSA outputs
             fail = calc_user_data(user_an_list(i),output)
-            !IF (fail) THEN ! These can be calculated and saved elsewhere...
-            !    WRITE(*,*)" Error: failed to calculate '"//TRIM(user_an_list(i))//"' for analysis output!"
-            !    STOP
-            !ENDIF
+            IF (fail) THEN
+                ! These can be calculated and saved elsewhere...
+                CYCLE
+                WRITE(*,*)" Error: failed to calculate '"//TRIM(user_an_list(i))//"' for analysis output!"
+                STOP
+            ENDIF
         END SELECT
         ! Save
         iret = nf90_put_var(ncid0, VarID, output(:,3:nxp-2,3:nyp-2), &
