@@ -599,7 +599,7 @@ contains
          , umean, vmean, a_ustar, a_tstar, a_rstar, uw_sfc, vw_sfc, ww_sfc    &
          , wt_sfc, wq_sfc, obl, dn0, level,dtl, a_sflx, a_rflx, precip
     use thrm, only: rslf
-    use stat, only: fill_scalar, sflg
+    use stat, only: fill_scalar, fill_scalar_2d, sflg
     use util, only : get_avg2dh
 
     implicit none
@@ -857,23 +857,23 @@ contains
         ! Surface temperature (K)
         CALL fill_scalar(sst,'tsrf   ')
         ! Friction velocity
-        CALL fill_scalar(a_ustar,'ustar  ')
+        CALL fill_scalar_2d(a_ustar,'ustar  ')
         ! Sensible heat flux
         drdz(:,:)=wt_sfc(:,:)*cp*(dn0(1)+dn0(2))*0.5
-        CALL fill_scalar(drdz,'shf_bar')
+        CALL fill_scalar_2d(drdz,'shf_bar')
         ! Latent heat flux
         drdz(:,:)=wq_sfc(:,:)*alvl*(dn0(1)+dn0(2))*0.5
-        CALL fill_scalar(drdz,'lhf_bar')
+        CALL fill_scalar_2d(drdz,'lhf_bar')
         ! *** optional ts-outputs ***
         ! Obukhov lenght
-        CALL fill_scalar(obl,'obl    ')
+        CALL fill_scalar_2d(obl,'obl    ')
         ! Surface pressure
         CALL fill_scalar(psrf,'psrf   ')
         ! Length scales
         CALL fill_scalar(zs,'z0m    ') ! Momentum zrough or the actually calculated value
         CALL fill_scalar(zrough_t,'z0t    ') ! Temperature roughness height
         ! Surface winds
-        CALL fill_scalar(wspd,'wspd   ')
+        CALL fill_scalar_2d(wspd,'wspd   ')
     endif
 
     return

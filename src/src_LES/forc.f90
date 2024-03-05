@@ -21,7 +21,7 @@ module forc
 
   use defs, only      : cp
   use radiation, only : d4stream, calc_od, tau_gas, tau_liq, tau_ice
-  use stat, only : sflg, fill_scalar
+  use stat, only : sflg, fill_scalar_2d
   implicit none
 
   ! these are now all namelist parameters
@@ -83,7 +83,7 @@ contains
        !
        IF (level==0) THEN
           ! Cloud (+rain)
-          znc(:,:,:) = CCN
+          znc(:,:,:) = CCN/a_dn(:,:,:) ! COMBLE: CCN in #/m3
           zrc(:,:,:) = a_rc(:,:,:)
           IF (RadPrecipBins > 0) THEN
              zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
@@ -149,12 +149,12 @@ contains
        END IF
 
        IF (calc_od) THEN
-            call fill_scalar(tau_gas,'tau_gas') ! Gas
-            call fill_scalar(tau_ice,'tau_tot') ! Gas+liquid+ice
+            call fill_scalar_2d(tau_gas,'tau_gas') ! Gas
+            call fill_scalar_2d(tau_ice,'tau_tot') ! Gas+liquid+ice
             tau_ice=tau_ice-tau_liq
-            call fill_scalar(tau_ice,'tau_ice') ! Ice only
+            call fill_scalar_2d(tau_ice,'tau_ice') ! Ice only
             tau_liq=tau_liq-tau_gas
-            call fill_scalar(tau_liq,'tau_liq') ! Liquid only
+            call fill_scalar_2d(tau_liq,'tau_liq') ! Liquid only
        ENDIF
 
        ! Case-dependent large-scale forcing

@@ -76,7 +76,7 @@ module grid
   logical :: ifSeaVOC = .false.   ! Isoprene and monoterpenes
   real :: sea_tspinup = 0.        ! Spin-up time (s) for marine emissions
 
-  character (len=80):: expnme = 'Default' ! Experiment name
+  character (len=80):: expnme = ''        ! Experiment name
   character (len=80):: filprf = 'x'       ! File Prefix
   character (len=7) :: runtype = 'INITIAL'! Run Type Selection
 
@@ -1011,8 +1011,6 @@ contains
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_rflx(:,i1:i2,j1:j2), start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'stke', VarID) ! Subgrid TKE
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_qp(:,i1:i2,j1:j2), start=ibeg, count=icnt)
-    iret = nf90_inq_varid(ncid0, 'diss', VarID) ! Dissipation rate
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_edr(:,i1:i2,j1:j2), start=ibeg, count=icnt)
 
     ! Additional scalars
     IF (naddsc>0) THEN
@@ -1271,12 +1269,13 @@ contains
         CASE ('CCN')
            ! Level 3 CCN as an example of output
             output(:,:,:)=CCN
+        CASE ('diss')
+           ! Dissipation rate
+           output(:,:,:)=a_edr(:,:,:)
         CASE DEFAULT
             ! Pre-defined 3D SALSA outputs
             fail = calc_user_data(user_an_list(i),output)
             IF (fail) THEN
-                ! These can be calculated and saved elsewhere...
-                CYCLE
                 WRITE(*,*)" Error: failed to calculate '"//TRIM(user_an_list(i))//"' for analysis output!"
                 STOP
             ENDIF

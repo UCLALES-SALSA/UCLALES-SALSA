@@ -34,7 +34,7 @@ module init
   real                  :: zrndamp = 0.2 ! the amplitude of random temperature fluctuations
   real                  :: zrndampq = 5.0e-5 ! the amplitude of random humidity fluctuations
   logical               :: zrandnorm = .FALSE. ! normalize the data after inserting random fluctuations
-  character  (len=80)   :: hfilin = 'test.'
+  character  (len=80)   :: hfilin = ''
 
 contains
   !

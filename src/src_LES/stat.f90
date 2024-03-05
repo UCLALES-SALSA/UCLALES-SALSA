@@ -28,10 +28,6 @@ module stat
 
   implicit none
 
-  interface fill_scalar
-    module procedure fill_scalar_scal, fill_scalar_2d
-  end interface
-
   private
 
   integer, parameter :: nvar1 = 37,               &
@@ -182,7 +178,7 @@ module stat
   REAL :: ri_min=1e-10, ni_min=1e-10 ! Mass and number limits for ice statistics
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
-       updtst, close_stat, fill_scalar, &
+       updtst, close_stat, fill_scalar, fill_scalar_2d, &
        tke_sgs, sgsflxs, comp_tke, acc_removal, cs_rem_set, csflg, cswrite, &
        les_rate_stats, mcrp_var_save, out_cs_list, out_ps_list, out_ts_list, &
        cs_include, cs_exclude, ps_include, ps_exclude, ts_include, ts_exclude, &
@@ -1281,7 +1277,7 @@ contains
             fail = calc_user_data(user_cs_list(ii),a,mask,is_mass=mass)
             ! Calculate vertical integral when mass concentration, otherwise mean
             IF (fail) THEN
-                ! These can be calculated elsewhere and saved using function fill_scalar
+                ! These can be calculated elsewhere and saved using function fill_scalar_2d
                 CYCLE
             ELSEIF (mass) THEN
                 CALL get_avg_cs(nzp,nxp,nyp,a,output,cond=mask,dens=a_dn)
@@ -2961,12 +2957,12 @@ contains
     ! ******** scalar outputs ********
     ! Valid for horizontal averages
     avg=SUM(SUM(xval(3:nxp-2,3:nyp-2),DIM=2))/FLOAT((nxp-4)*(nyp-4))
-    CALL fill_scalar_scal(avg,vname)
+    CALL fill_scalar(avg,vname)
     !
   end subroutine fill_scalar_2d
   !
   ! Scalars for ts outputs
-  subroutine fill_scalar_scal(xval,vname,op,wg)
+  subroutine fill_scalar(xval,vname,op,wg)
     ! Inputs
     real, intent(in) :: xval
     character(len=7), intent (in) :: vname
@@ -3018,7 +3014,7 @@ contains
         ENDIF
     ENDDO
     !
-  end subroutine fill_scalar_scal
+  end subroutine fill_scalar
   !
   ! --------------------------------------------------------------------------
   ! SGSFLXS: estimates the sgs rl and tv flux from the sgs theta_l and sgs r_t

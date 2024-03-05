@@ -48,11 +48,11 @@ contains
        call date_and_time(date)
        iret = nf90_create(lfname,NF90_SHARE,ncid)
 
-       iret = nf90_put_att(ncid,NF90_GLOBAL,'title',ename)
+       if (len_trim(ename)>0) iret = nf90_put_att(ncid,NF90_GLOBAL,'title',ename)
        iret = nf90_put_att(ncid,NF90_GLOBAL,'history','Created on '//date)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'Source','UCLALES-SALSA '//trim(version))
-       if (len(author)>0) iret = nf90_put_att(ncid, NF90_GLOBAL, 'Author',trim(author)) ! Optional
-       if (len(info)>0) iret = nf90_put_att(ncid, NF90_GLOBAL, 'Info',trim(info)) ! Optional
+       if (len_trim(author)>0) iret = nf90_put_att(ncid, NF90_GLOBAL, 'Author',trim(author))
+       if (len_trim(info)>0) iret = nf90_put_att(ncid, NF90_GLOBAL, 'Info',trim(info))
        iret = nf90_put_att(ncid, NF90_GLOBAL, '_FillValue',-999.)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPTS',npts)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPROCS',pecount)

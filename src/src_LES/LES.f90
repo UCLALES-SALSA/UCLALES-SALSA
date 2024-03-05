@@ -206,6 +206,9 @@ contains
     read  (1, nml=model)
     close (1)
 
+    ! The default history file is the same as the default restart file (*.rst)
+    if (runtype == 'HISTORY' .AND. LEN_TRIM(hfilin)==0) hfilin=TRIM(filprf)//'.rst'
+
     !
     ! write file variable control to standard output
     !
