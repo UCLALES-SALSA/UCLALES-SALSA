@@ -2903,7 +2903,7 @@ contains
         DO n=1,nv2_proc
             iret = nf90_inq_varid(ncid2, out_ps_list(n), VarID)
             IF (iret == NF90_NOERR) THEN
-                ! Instantaneous, so no need to divide by nsmp: out_ps_data(:,n)=out_ps_data(:,n)/nsmp
+                out_ps_data(:,n)=out_ps_data(:,n)/nsmp
                 iret = nf90_put_var(ncid2,VarID,out_ps_data(:,n), start=(/1,nrec2/),count=(/n1,1/))
             ENDIF
         ENDDO
@@ -3567,8 +3567,8 @@ contains
         tmp(:,:,:) = tend(:,:,:)*a_dn(:,:,:)
         ! Average over horizontal dimensions
         CALL get_avg3(nzp,nxp,nyp,tmp,col)
-        ! Profile
-        out_ps_data(:,out_ind) = col(:)
+        ! Profile - will be averaged
+        out_ps_data(:,out_ind) = out_ps_data(:,out_ind) + col(:)
     ELSE
         ! Time series: averaged tendencies are weighted by air density
         tmp(:,:,:) = tend(:,:,:)*a_dn(:,:,:)
@@ -3608,7 +3608,7 @@ contains
             ! Average over horizontal dimensions
             CALL get_avg3(n1,n2,n3,tmp,col)
             ! Profile
-            IF ( vname == out_ps_list(i) ) out_ps_data(:,i) = col(:)*fact
+            IF ( vname == out_ps_list(i) ) out_ps_data(:,i) = out_ps_data(:,i)+col(:)*fact
             ! Integrate over vertical dimension to get the domain mean
             IF ( vname == out_ts_list(i) ) out_ts_data(i) = SUM( col(2:n1)/dzt(2:n1) )*fact
         ENDIF
