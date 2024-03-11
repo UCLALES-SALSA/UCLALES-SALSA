@@ -2404,7 +2404,8 @@ contains
           S_i(i,j,k)   = qv(kk,jj,ii)/rsi(kk,jj,ii) - 1.0
 
           ! ... concentrations --> number densities
-          n_cloud(i,j,k)   = ccn ! rho_k(i,j,k) * ccn ! Input only (diagnostic)
+          n_cloud(i,j,k)   = rho_k(i,j,k) * ccn ! Input only (diagnostic)
+          n_cloud(i,j,k)   = ccn ! COMBLE: concentration in #/m3
           n_rain(i,j,k)    = rho_k(i,j,k) * qnr(kk,jj,ii)
           n_ice(i,j,k)     = rho_k(i,j,k) * qni(kk,jj,ii)
           n_snow(i,j,k)    = rho_k(i,j,k) * qns(kk,jj,ii)

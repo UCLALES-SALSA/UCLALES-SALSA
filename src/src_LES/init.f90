@@ -267,6 +267,7 @@ contains
     integer :: k,kk
 
     allocate (spng_tfct(max(1,nfpt)), spng_wfct(max(1,nfpt)))
+    spng_tfct(:)=0.; spng_wfct(:)=0.
 
     if (nfpt > 0) then
        do k=nzp-nfpt,nzp-1

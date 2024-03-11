@@ -27,7 +27,6 @@ module stat
   use defs, only : rowt, pi
 
   implicit none
-
   private
 
   integer, parameter :: nvar1 = 37,               &
@@ -2283,7 +2282,7 @@ contains
                 WHERE(a_rsl>1e-10) a=a_rp/a_rsl
             ENDIF
             a1(:)=MAXVAL(MAXVAL(a,DIM=3),DIM=2)
-            CALL get_pustat_vector('max', nzp, a)
+            CALL get_pustat_vector('max', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE ('SSi_max')
             ! Maximum supersaturation (%) over ice
@@ -2294,7 +2293,7 @@ contains
                 WHERE(a_rsi>1e-10) a=a_rp/a_rsi
             ENDIF
             a1(:)=MAXVAL(MAXVAL(a,DIM=3),DIM=2)
-            CALL get_pustat_vector('max', nzp, a)
+            CALL get_pustat_vector('max', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE ('SS_min')
             ! Minimum supersaturation (%) over water
@@ -2305,7 +2304,7 @@ contains
                 WHERE(a_rsl>1e-10) a=a_rp/a_rsl
             ENDIF
             a1(:)=MINVAL(MINVAL(a,DIM=3),DIM=2)
-            CALL get_pustat_vector('min', nzp, a)
+            CALL get_pustat_vector('min', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE ('SSi_min')
             ! Minimum supersaturation (%) over ice
@@ -2316,7 +2315,7 @@ contains
                 WHERE(a_rsi>1e-10) a=a_rp/a_rsi
             ENDIF
             a1(:)=MINVAL(MINVAL(a,DIM=3),DIM=2)
-            CALL get_pustat_vector('min', nzp, a)
+            CALL get_pustat_vector('min', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE ('SS_avg')
             ! Average supersaturation (%) over water
@@ -2327,7 +2326,7 @@ contains
                 WHERE(a_rsl>1e-10) a=a_rp/a_rsl
             ENDIF
             a1(:)=SUM(SUM(a,DIM=3),DIM=2)/FLOAT((nxp-4)*(nyp-4))
-            CALL get_pustat_vector('avg', nzp, a)
+            CALL get_pustat_vector('avg', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE ('SSi_avg')
             ! Average supersaturation (%) over ice
@@ -2338,22 +2337,22 @@ contains
                 WHERE(a_rsl>1e-10) a=a_rp/a_rsi
             ENDIF
             a1(:)=SUM(SUM(a,DIM=3),DIM=2)/FLOAT((nxp-4)*(nyp-4))
-            CALL get_pustat_vector('avg', nzp, a)
+            CALL get_pustat_vector('avg', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE ('T_max')
             ! Maximum absolute temperature (K)
             a1(:)=MAXVAL(MAXVAL(a_temp(:,3:nxp-2,3:nyp-2),DIM=3),DIM=2)
-            CALL get_pustat_vector('max', nzp, a)
+            CALL get_pustat_vector('max', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
         CASE ('T_min')
             ! Minimum absolute temperature (K)
             a1(:)=MINVAL(MINVAL(a_temp(:,3:nxp-2,3:nyp-2),DIM=3),DIM=2)
-            CALL get_pustat_vector('min', nzp, a)
+            CALL get_pustat_vector('min', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
         CASE ('T_avg')
             ! Average absolute temperature (K)
             a1(:)=SUM(SUM(a_temp(:,3:nxp-2,3:nyp-2),DIM=3),DIM=2)/FLOAT((nxp-4)*(nyp-4))
-            CALL get_pustat_vector('avg', nzp, a)
+            CALL get_pustat_vector('avg', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
         CASE ('res_tke')
             ! Resolved TKE

@@ -45,6 +45,7 @@ module grid
   integer           :: naddsc  = 0         ! number of additional scalars;
   integer           :: nfpt = 10           ! number of rayleigh friction points
   real              :: distim = 300.0      ! dissipation timescale
+  logical           :: spongeinit = .true. ! sponge layer acts on initial profiles
 
   real              :: sst=283.            ! Surface temperature
 
@@ -257,7 +258,6 @@ contains
        allocate (a_sflx(nzp,nxp,nyp),albedo(nxp,nyp))
        a_sflx(:,:,:) = 0.
        albedo(:,:) = 0.
-
        allocate (a_fus(nzp+1,nxp,nyp),a_fds(nzp+1,nxp,nyp),a_fuir(nzp+1,nxp,nyp),a_fdir(nzp+1,nxp,nyp))
        a_fus(:,:,:) = 0.
        a_fds(:,:,:) = 0.

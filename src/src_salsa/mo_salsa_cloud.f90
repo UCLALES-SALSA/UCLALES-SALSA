@@ -1012,8 +1012,8 @@ CONTAINS
         if ( S_ice < fixed_ice_min_Si .OR. rc < fixed_ice_min_rc .OR. ptemp(ii,jj)>fixed_ice_max_T ) cycle
 
         ! Target number concentration of ice, converted to #/m^3
-        !Ni0 = fixinc * pdn
-        Ni0 = fixinc ! * pdn ! COMBLE
+        Ni0 = fixinc * pdn
+        Ni0 = fixinc ! COMBLE: concentration in #/m3
 
         ! Current ice number concentration (#/m^3)
         IF (ice_target_opt<0) THEN
