@@ -34,7 +34,7 @@ module init
   real                  :: zrndamp = 0.2 ! the amplitude of random temperature fluctuations
   real                  :: zrndampq = 5.0e-5 ! the amplitude of random humidity fluctuations
   logical               :: zrandnorm = .FALSE. ! normalize the data after inserting random fluctuations
-  character  (len=80)   :: hfilin = 'test.'
+  character  (len=80)   :: hfilin = ''
 
 contains
   !
@@ -263,9 +263,10 @@ contains
 
     integer :: k,kk
 
-    if (nfpt > 0) then
-       allocate (spng_tfct(max(1,nfpt)), spng_wfct(max(1,nfpt)))
+    allocate (spng_tfct(max(1,nfpt)), spng_wfct(max(1,nfpt)))
+    spng_tfct(:)=0.; spng_wfct(:)=0.
 
+    if (nfpt > 0) then
        do k=nzp-nfpt,nzp-1
           kk = k + 1 - (nzp-nfpt)
           spng_tfct(kk)=max(0.,(zm(nzp)-zt(k))/((zm(nzp)-zm(nzp-nfpt))*distim))
@@ -674,7 +675,7 @@ contains
     use mpi_interface, only: myid
     integer :: i, n
     integer, allocatable, dimension(:) :: seed
-    real :: rands(1000)
+    real :: rands
     ! Initialize seed based on given iseed (not negative)
     call random_seed(size=n)
     allocate (seed(n))
@@ -683,7 +684,9 @@ contains
     deallocate (seed)
     ! The first random numbers can be similar, so sample
     ! those before the actual simulations start
-    call random_number(rands)
+    do i=1,1000
+       call random_number(rands)
+    enddo
   end subroutine random_initialize
 
   !

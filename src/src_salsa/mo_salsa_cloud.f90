@@ -981,7 +981,7 @@ CONTAINS
                     ncld, nice, nsnw, nspec, &
                     rhowa,  &
                     rda, nlim, prlim, &
-                    fixinc, fixed_ice_min_Si, fixed_ice_min_rc, &
+                    fixinc, fixed_ice_min_Si, fixed_ice_min_rc, fixed_ice_max_T, &
                     ice_source_opt, ice_target_opt
     IMPLICIT NONE
 
@@ -1009,7 +1009,7 @@ CONTAINS
         ! Conditions for ice nucleation
         S_ice = prv(ii,jj)/prsi(ii,jj) ! Saturation with respect to ice
         rc = sum( pcloud(ii,jj,:)%volc(1) )*rhowa/pdn ! Cloud water mixing ratio (kg/kg)
-        if ( S_ice < fixed_ice_min_Si .OR. rc < fixed_ice_min_rc ) cycle
+        if ( S_ice < fixed_ice_min_Si .OR. rc < fixed_ice_min_rc .OR. ptemp(ii,jj)>fixed_ice_max_T ) cycle
 
         ! Target number concentration of ice, converted to #/m^3
         Ni0 = fixinc * pdn

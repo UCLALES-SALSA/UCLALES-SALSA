@@ -169,7 +169,7 @@ contains
     call surface(sst)
     IF (level > 3 .AND. time >= sea_tspinup) THEN
         if(ifSeaSpray)then
-          CALL marine_aero_flux(sst)
+          CALL marine_aero_flux(MAX(271.15,sst)) ! T>-2 C
         endif
         if(nvbs_setup>=0 .and. ifSeaVOC) then
             call marine_gas_flux(sst)
@@ -842,13 +842,16 @@ contains
   subroutine sponge (isponge)
 
     use grid, only : u0, v0, a_up, a_vp, a_wp, a_tp, a_ut, a_vt, a_wt, a_tt,&
-         nfpt, spng_tfct, spng_wfct, nzp, nxp, nyp, th0, th00
+         nfpt, spng_tfct, spng_wfct, nzp, nxp, nyp, th0, th00, spongeinit
+    use util, only : get_pustat_vector
 
     integer, intent (in) :: isponge
 
     integer :: i, j, k, kk
+    real :: tbar(nfpt),ubar(nfpt),vbar(nfpt), fact
 
     if (maxval(spng_tfct) > epsilon(1.) .and. nfpt > 1) then
+     if(spongeinit) then ! Nudge sponge layer back to initial profile (default)
        do j=3,nyp-2
           do i=3,nxp-2
              do k=nzp-nfpt,nzp-1
@@ -864,6 +867,34 @@ contains
              end do
           end do
        end do
+     else                 ! Nudge sponge layer to bulk value
+       fact = 1./float((nxp-4)*(nyp-4))
+       do k = nzp-nfpt,nzp-1
+          kk = k+1-(nzp-nfpt)
+          tbar(kk) = sum(a_tp(k,3:nxp-2,3:nyp-2))*fact
+          ubar(kk) = sum(a_up(k,3:nxp-2,3:nyp-2))*fact
+          vbar(kk) = sum(a_vp(k,3:nxp-2,3:nyp-2))*fact
+       end do
+
+       CALL get_pustat_vector('avg', nfpt, tbar)
+       CALL get_pustat_vector('avg', nfpt, ubar)
+       CALL get_pustat_vector('avg', nfpt, vbar)
+
+       do j=3,nyp-2
+          do i=3,nxp-2
+             do k=nzp-nfpt,nzp-1
+                kk = k+1-(nzp-nfpt)
+                if (isponge == 0) then
+                   a_tt(k,i,j)=a_tt(k,i,j) - spng_tfct(kk)*(a_tp(k,i,j)-tbar(kk))
+                else
+                   a_ut(k,i,j)=a_ut(k,i,j) - spng_tfct(kk)*(a_up(k,i,j)-ubar(kk))
+                   a_vt(k,i,j)=a_vt(k,i,j) - spng_tfct(kk)*(a_vp(k,i,j)-vbar(kk))
+                   a_wt(k,i,j)=a_wt(k,i,j) - spng_wfct(kk)*(a_wp(k,i,j))
+                end if
+             end do
+          end do
+       end do
+     end if
     end if
 
   end subroutine sponge

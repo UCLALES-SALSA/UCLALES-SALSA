@@ -248,6 +248,8 @@ module mcrp_ice_sb
   ! Fixed INP concentration (micro/nin_set) applied to supercooled liquid clouds
   REAL :: nin_set = 0.
 
+  REAL :: T_nuc = 273.15 ! Maximum temperature for ice nucleation (K)
+
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_04
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_c
 
@@ -308,7 +310,7 @@ CONTAINS
     namelist /micro/ &
         drop_freeze, graupel_shedding, hail_shedding, enhanced_melting, ice_multiplication, &
         use_ice_graupel_conv_uli, &
-        ice_typ, cloud_typ, nin_set, &
+        ice_typ, cloud_typ, T_nuc, nin_set, &
         q_krit_ic, D_krit_ic,  q_krit_ir, D_krit_ir, q_krit_sc, D_krit_sc, q_krit_sr, D_krit_sr, &
         q_krit_gc, D_krit_gc, q_krit_gr, q_krit_hc, D_krit_hc, q_krit_hr, q_krit_c, q_krit_r, &
         c_mult, &
@@ -715,7 +717,8 @@ CONTAINS
     DO k = 1, loc_iz
       DO j = 1, loc_iy
         DO i = 0, loc_ix
-          IF (s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3 .AND. nin_set*ice%x_min>eps) THEN
+          IF (s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3 .AND. T_0(i,j,k)<T_nuc .AND. &
+                nin_set*ice%x_min>eps) THEN
             ! Cloud droplet freezing with fixed INP concentration
             ndiag = MAX(nin_set*rho_0(i,j,k) - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0)
             nuc_q = MIN(ndiag*ice%x_min, q_cloud(i,j,k))

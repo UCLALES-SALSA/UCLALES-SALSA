@@ -96,7 +96,7 @@ contains
          strtim, cntlat
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level, lev_sb, &
-         filprf, expnme, iradtyp, igrdtyp, nfpt, distim, runtype, CCN,        &
+         filprf, expnme, iradtyp, igrdtyp, nfpt, distim, spongeinit, runtype, CCN, &
          Tspinup, sst, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, &
          nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
          nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau,  &
@@ -128,6 +128,7 @@ contains
          csflg,            & ! Column statistics flag
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
+         spongeinit      , & ! sponge back to initial profile or bulk values
          level  , lev_sb, CCN, & ! Microphysical model, Number of CCN per kg of air
          iseed  , zrand  , zrndamp, zrndampq, zrandnorm, & ! random seed
          nxp    , nyp    , nzp   ,  & ! number of x, y, z points
@@ -203,6 +204,9 @@ contains
     if (i/=0) REWIND(1)
     read  (1, nml=model)
     close (1)
+
+    ! The default history file is the same as the default restart file (*.rst)
+    if (runtype == 'HISTORY' .AND. LEN_TRIM(hfilin)==0) hfilin=TRIM(filprf)//'.rst'
 
     !
     ! write file variable control to standard output

@@ -151,20 +151,25 @@ CONTAINS
     !   Statistics: change in total ice/snow* water volume and ice/snow number concentration
     !   * ice nucleation can also produce snow and in this case snow formation rate is saved
     !     to the autoconversion variables (no ice category; autoconversion disabled)
-    IF (lsicenucl .AND. fixinc>=0.) THEN
+    IF (lsicenucl) THEN
+      IF (sflg) CALL salsa_var_stat('nucl',0) ! Total
+      IF (fixinc>=0.) THEN
         ! Fixed ice number concentration
-        IF (sflg) CALL salsa_var_stat('nucl',0)
+        IF (sflg) CALL salsa_var_stat('nucf',0) ! Fixed ice
         CALL fixed_ice_driver(kbdim, klev,             &
                              pcloud, pice,   psnow,    &
                              ptemp,  ppres,  prv,  prsi)
-        IF (sflg) CALL salsa_var_stat('nucl',1)
-    ELSEIF (lsicenucl .AND. (ice_hom .OR. ice_imm .OR. ice_dep)) THEN
+        IF (sflg) CALL salsa_var_stat('nucf',1)
+      ENDIF
+      IF (ice_hom .OR. ice_imm .OR. ice_dep) THEN
         ! Modelled ice nucleation
-        IF (sflg) CALL salsa_var_stat('nucl',0)
+        IF (sflg) CALL salsa_var_stat('nucm',0) ! Modelled ice
         CALL ice_nucl_driver(kbdim,klev,   &
                           paero,pcloud,pprecp,pice,psnow, &
                           ptemp,prv,prs,prsi,ptstep)
-        IF (sflg) CALL salsa_var_stat('nucl',1)
+        IF (sflg) CALL salsa_var_stat('nucm',1)
+      ENDIF
+      IF (sflg) CALL salsa_var_stat('nucl',1)
     ENDIF
 
     ! Melting of ice and snow

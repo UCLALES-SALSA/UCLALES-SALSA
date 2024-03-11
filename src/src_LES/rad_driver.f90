@@ -87,7 +87,8 @@ module radiation
       real, dimension (n1), intent (in)                 :: pi0, pi1, dzm
       real, dimension (n1,n2,n3), intent (in)           :: dn, pip, tk, rv, rc, nc
       real, optional, dimension (n1,n2,n3), intent (in) :: ice, nice, grp
-      real, dimension (n1,n2,n3), intent (inout)        :: tt, rflx, sflx, afus, afds, afuir, afdir
+      real, dimension (n1,n2,n3), intent (inout)        :: tt, rflx, sflx
+      real, dimension (n1+1,n2,n3), intent (inout)      :: afus, afds, afuir, afdir
       real, intent (out)                                :: albedo(n2,n3)
 
       integer :: kk, k, i, j, npts
@@ -197,6 +198,12 @@ module radiation
                sflx(k,i,j) = fus(kk)  - fds(kk)
                rflx(k,i,j) = sflx(k,i,j) + fuir(kk) - fdir(kk)
             end do
+
+            ! TOA fluxes (k=n1+1)
+            afus(k,i,j) = fus(1)
+            afds(k,i,j) = fds(1)
+            afuir(k,i,j) = fuir(1)
+            afdir(k,i,j) = fdir(1)
 
             if (u0 > minSolarZenithCosForVis) then
                albedo(i,j) = fus(1)/fds(1)
