@@ -133,6 +133,7 @@ contains
         case default
             STOP 'Sea-spray source function not supported!'
         end select
+        flx(k)=max(0.,flx(k))
     ENDDO
 
     ! Organic mass fraction grom Gantt ea (2011)
