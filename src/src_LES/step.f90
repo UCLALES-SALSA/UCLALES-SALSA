@@ -180,7 +180,7 @@ contains
     END IF
 
     IF (sflg) CALL les_rate_stats('srfc')
-    call update_sclrs
+    call update_sclrs(.TRUE.) ! Update edges for diffusion
     CALL tend0(.TRUE.)
 
     call diffuse
@@ -242,9 +242,9 @@ contains
 
         ! Save user-selected details about Seifert and Beheng microphysics
         IF (sflg .AND. level < 4) CALL mcrp_var_save()
-
-        CALL update_sclrs
     END IF
+
+    CALL update_sclrs (.TRUE.) ! Update edges for advection
 
     !-------------------------------------------
     ! "Advection" timestep
@@ -532,19 +532,14 @@ contains
   !
   subroutine tend0(sclonly)
 
-    use grid, only : a_ut, a_vt, a_wt, nscl, a_st, newsclr
+    use grid, only : a_ut, a_vt, a_wt, a_sclrt
 
     LOGICAL, INTENT(in) :: sclonly ! If true, only put scalar tendencies to zero
-
-    integer :: n
 
     IF( .NOT. sclonly) THEN
        a_ut=0.; a_vt=0.; a_wt=0.
     ENDIF
-    do n=1,nscl
-       call newsclr(n)
-       a_st=0.
-    end do
+    a_sclrt=0.
 
   end subroutine tend0
   !
@@ -699,19 +694,21 @@ contains
   ! subroutine update_sclrs:  Updates scalars by applying tendency and
   ! boundary conditions
   !
-  subroutine update_sclrs
+  subroutine update_sclrs(doedges)
 
     use grid, only : a_sp, a_st, a_qp, nscl, nxyzp, nxp, nyp, nzp, dzt, &
          dtl, newsclr, isgstyp
     use sgsm, only : tkeinit
     use util, only : sclrset
 
+    logical, optional, intent(in) :: doedges
+
     integer :: n
 
     do n=1,nscl
        call newsclr(n)
        call update(nzp,nxp,nyp,a_sp,a_st,dtl)
-       call sclrset('cnst',nzp,nxp,nyp,a_sp,dzt)
+       call sclrset('cnst',nzp,nxp,nyp,a_sp,dzt,doedges)
     end do
 
     if (isgstyp == 2) then
