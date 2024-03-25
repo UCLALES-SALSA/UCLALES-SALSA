@@ -31,7 +31,7 @@ contains
   ! gradient via extrapolation, or a zero-gradient condition depending
   ! on the flag, typically used to set boundary conditions for scalars
   !
-  subroutine sclrset(type,n1,n2,n3,a,dz)
+  subroutine sclrset(type,n1,n2,n3,a,dz,doedges)
 
     use mpi_interface, only : myid, appl_abort
 
@@ -39,9 +39,11 @@ contains
     real, intent(in), optional    :: dz(n1)
     real, intent(inout)           :: a(n1,n2,n3)
     character (len=4)             :: type
+    logical, optional, intent(in) :: doedges
 
     integer :: i,j,req(16)
     real :: dzf1,dzf2
+    logical :: edges
     select case (type)
     case ('grad')
        dzf1  = dz(2)/dz(1)
@@ -64,8 +66,13 @@ contains
        end do
     end do
 
-    call cyclics(n1,n2,n3,a,req)
-    call cyclicc(n1,n2,n3,a,req)
+    edges=.FALSE.
+    IF (PRESENT(doedges)) edges=doedges
+
+    if (edges) then
+       call cyclics(n1,n2,n3,a,req)
+       call cyclicc(n1,n2,n3,a,req)
+    endif
 
   end subroutine sclrset
   !
