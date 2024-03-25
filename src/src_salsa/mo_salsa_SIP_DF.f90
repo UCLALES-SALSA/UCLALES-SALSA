@@ -79,7 +79,7 @@ MODULE mo_salsa_SIP_DF
          DO jj = 1,klev
             DO ii = 1,kproma
                IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
-                    WRITE(*,*) 'DROP FRAC NEGA BEG', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
+                    WRITE(*,*) 'SIP-DF DROP FRAC NEGA BEG', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
             END DO
          END DO
       END DO      
@@ -99,7 +99,7 @@ MODULE mo_salsa_SIP_DF
                fragn_loc = 0.
                DO cc = 1,nprc
                   IF ( ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR.  &    ! Outside temperature range, see Keinert et al 2020
-                       nfrzn_df(ii,jj,cc,bb) < 1.e-12 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-23 .OR. &
+                       nfrzn_df(ii,jj,cc,bb) < 1.e-12 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-15 .OR. &
                        ice(ii,jj,bb)%numc < ice(ii,jj,bb)%nlim ) CYCLE ! no collection/empty bin
                
                   ! Diameter of the frozen drops on current ice bin
@@ -109,8 +109,8 @@ MODULE mo_salsa_SIP_DF
                   IF ( ddmean < dlliq_df ) CYCLE  
 
                   ! POISTA
-                  IF (ddmean < 20.e-6 .OR. ddmean > 1.e3) WRITE(*,*) 'ddmean error ',ddmean,bb,nimax,icediams(bb),icebw(bb)
-                  IF (ddmean /= ddmean) WRITE(*,*) 'ddmean nan ',ddmean,bb,nimax,icediams(bb),icebw(bb)
+                  IF (ddmean < 20.e-6 .OR. ddmean > 3.e3) WRITE(*,*) 'SIP-DF ddmean error ',ddmean,bb,nimax,icediams(bb),icebw(bb)
+                  IF (ddmean /= ddmean) WRITE(*,*) 'SIP-DF ddmean nan ',ddmean,bb,nimax,icediams(bb),icebw(bb)
                   ! -----------------
                
                   ! Ice bin index corresponding to the mean frozen drop diameter minus one; Fragments are distributed to ice bins 1:npmax
@@ -155,14 +155,14 @@ MODULE mo_salsa_SIP_DF
 
                   ! Volume of a single ice particle in current bin for calculating the number concentration sink. This does not necessarily 
                   ! provide an exact representation for the fracturing particle size, but works as a first approximation.
-                  v_i  = mfrzn_df(ii,jj,cc,bb)/nfrzn_df(ii,jj,cc,bb)/spec%rhori  !SUM(ice(ii,jj,bb)%volc(1:nspec))/ice(ii,jj,bb)%numc
+                  v_i  = mfrzn_df(ii,jj,cc,bb)/nfrzn_df(ii,jj,cc,bb)/spec%rhori  
                
                   ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
                   sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i
                
                   ! for diagnostics
                   ice(ii,jj,1:npmax)%SIP_drfr = ice(ii,jj,1:npmax)%SIP_drfr + dNb(1:npmax)
-                  !if (dN > 1.) WRITE(*,*) 'hephep ', dN,ptstep,SUM(dNb)
+                  
                   CALL rateDiag%drfrrate%Accumulate(n=SUM(dNb)/ptstep)    ! miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
               END DO
                
@@ -181,17 +181,13 @@ MODULE mo_salsa_SIP_DF
                fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
                fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
-               ! POISTA
-               !IF ( SUM(sinkvolc(ii,jj,bb,:))/MAX(SUM(ice(ii,jj,bb)%volc(1:nspec)),1.e-23) > 1.)  &
-               !     WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
-               !     SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
                
                IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.95*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                    WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
+                    WRITE(*,*)  'SIP-DF ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
                     SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
 
                IF (0.95*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
-                    WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
+                    WRITE(*,*) 'SIP-DF ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
                     ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
                ! ---------------------------------------
            
@@ -204,17 +200,17 @@ MODULE mo_salsa_SIP_DF
          DO jj = 1,klev
             DO ii = 1,kproma
                ! POISTA
-               IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'fragnumc < 0'
-               IF ( ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'fragvolc < 0'
+               IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'SIP-DF fragnumc < 0'
+               IF ( ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'SIP-DF fragvolc < 0'
                IF (fragnumc(ii,jj,bb) /= fragnumc(ii,jj,bb)) &
-                    WRITE(*,*) 'fragnumc nan',bb,dlliq_df
+                    WRITE(*,*) 'SIP-DF fragnumc nan',bb,dlliq_df
                IF ( ANY(fragvolc(ii,jj,bb,:) /= fragvolc(ii,jj,bb,:)) ) &
-                    WRITE(*,*) 'fragvolc nan ',bb,dlliq_df,fragvolc(ii,jj,bb,:)
+                    WRITE(*,*) 'SIP-DF fragvolc nan ',bb,dlliq_df,fragvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) < 0. ) ) &
-                    WRITE(*,*) 'sinkvolc nega ',bb,dlliq_df,sinkvolc(ii,jj,bb,:)
+                    WRITE(*,*) 'SIP-DF sinkvolc nega ',bb,dlliq_df,sinkvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
-                    WRITE(*,*) 'sinkvolc nan ',  bb,dlliq_df,sinkvolc(ii,jj,bb,:)
-               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'fragnumc > 1e5 ',bb,dlliq_df,fragnumc(ii,jj,bb),    &
+                    WRITE(*,*) 'SIP-DF sinkvolc nan ',  bb,dlliq_df,sinkvolc(ii,jj,bb,:)
+               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'SIP-DF fragnumc > 1e5 ',bb,dlliq_df,fragnumc(ii,jj,bb),    &
                     (SUM(mfrzn_df(ii,jj,:,bb))/SUM(nfrzn_df(ii,jj,:,bb))/spec%rhowa/pi6)**(1./3.), &
                     SUM(nfrzn_df(ii,jj,:,bb)), ice(ii,jj,bb)%numc
                ! ---------------------
@@ -225,7 +221,7 @@ MODULE mo_salsa_SIP_DF
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
                ! POISTA
                IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
-                    WRITE(*,*) 'DROP FRAC NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
+                    WRITE(*,*) 'SIP-DF DROP FRAC NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
                ! ---------------------------
             END DO
          END DO

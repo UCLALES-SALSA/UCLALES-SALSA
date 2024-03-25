@@ -80,10 +80,10 @@ MODULE mo_salsa_SIP_IIBR
                fragn_loc = 0.
                DO cc = bb, nice ! larger particles
                   IF((ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax) .OR. & ! Outside temperature range, see Takahashi et al. 1995 
-                       (nii_ibr(ii,jj,cc,bb) <1.e-20) .OR. &
-                       (mii_ibr(ii,jj,cc,bb) <1.e-30) .OR. &
-                     (SUM(ice(ii,jj,bb)%volc(:)) < 1.e-30).OR.(ice(ii,jj,bb)%numc  < ice(ii,jj,bb)%nlim).OR. &
-                     (SUM(ice(ii,jj,cc)%volc(:)) < 1.e-30).OR.(ice(ii,jj,cc)%numc < ice(ii,jj,cc)%nlim)) CYCLE ! no collection/empty bin
+                       (nii_ibr(ii,jj,cc,bb) <1.e-12) .OR. &
+                       (mii_ibr(ii,jj,cc,bb) <1.e-20) .OR. &
+                     (SUM(ice(ii,jj,bb)%volc(:)) < 1.e-15).OR.(ice(ii,jj,bb)%numc  < ice(ii,jj,bb)%nlim).OR. &
+                     (SUM(ice(ii,jj,cc)%volc(:)) < 1.e-15).OR.(ice(ii,jj,cc)%numc < ice(ii,jj,cc)%nlim)) CYCLE ! no collection/empty bin
                    
                      ! If colliding particles have the same size, SIP can still occur
                      ! Phillips el. 2017 was corrected by Sotiropoulou et al. 2021
@@ -124,6 +124,8 @@ MODULE mo_salsa_SIP_IIBR
                      
                     ELSE IF (lssipicecollbreak%mode == 2) THEN  ! Sotiropoulou et al 2021 based on Sullivan et al 2018                   
                        IMF = imf_sotiropoulou(ptemp(ii,jj),dinsphmin)
+                       ! Imposing an upper limit for IMF as Sotiropoulou et al. 2021
+                       ! IMF = min(IMF, 100.0)
                        dN  = IMF *nii_ibr(ii,jj,cc,bb) 
                      
                     ELSE IF (lssipicecollbreak%mode == 3) THEN  ! Phillips et al 2017 corrected by Sotiropoulou et al 2020
@@ -186,16 +188,12 @@ MODULE mo_salsa_SIP_IIBR
                fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
                fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
-               ! POISTA
-               !IF ( SUM(sinkvolc(ii,jj,bb,:))/MAX(SUM(ice(ii,jj,bb)%volc(1:nspec)),1.e-23) > 1.)  &
-               !     WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
-               !     SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
                
                IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.95*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                  WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
+                  WRITE(*,*)  'SIP-IIBR ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
                   SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
                IF (0.95*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
-                       WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
+                       WRITE(*,*) 'SIP-IIBR ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
                     ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
                ! ---------------------------------------
             END DO
@@ -207,17 +205,17 @@ MODULE mo_salsa_SIP_IIBR
          DO jj = 1,klev
             DO ii = 1,kproma
                ! POISTA
-               IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'fragnumc < 0'
-               IF ( ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'fragvolc < 0'
+               IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'SIP-IIBR fragnumc < 0'
+               IF ( ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'SIP-IIBR fragvolc < 0'
                IF (fragnumc(ii,jj,bb) /= fragnumc(ii,jj,bb)) &
-                    WRITE(*,*) 'fragnumc nan',bb
+                    WRITE(*,*) 'SIP-IIBR fragnumc nan',bb
                IF ( ANY(fragvolc(ii,jj,bb,:) /= fragvolc(ii,jj,bb,:)) ) &
-                    WRITE(*,*) 'fragvolc nan ',bb,fragvolc(ii,jj,bb,:)
+                    WRITE(*,*) 'SIP-IIBR fragvolc nan ',bb,fragvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) < 0. ) ) &
-                    WRITE(*,*) 'sinkvolc nega ',bb,sinkvolc(ii,jj,bb,:)
+                    WRITE(*,*) 'SIP-IIBR sinkvolc nega ',bb,sinkvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
-                    WRITE(*,*) 'sinkvolc nan ',  bb,sinkvolc(ii,jj,bb,:)
-               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'fragnumc > 1e5 ',bb,fragnumc(ii,jj,bb),    &
+                    WRITE(*,*) 'SIP-IIBR sinkvolc nan ',  bb,sinkvolc(ii,jj,bb,:)
+               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'SIP-IIBR fragnumc > 1e5 ',bb,fragnumc(ii,jj,bb),    &
                     (SUM(mii_ibr(ii,jj,:,bb))/SUM(nii_ibr(ii,jj,:,bb))/ice(ii,jj,cc)%rhomean/pi6)**(1./3.), &
                     SUM(nii_ibr(ii,jj,:,bb)), ice(ii,jj,bb)%numc
                ! ---------------------
