@@ -624,6 +624,9 @@ contains
     CASE ('tau_ice')
        if (itype==0) ncinfo = 'Optical depth due to cloud ice'
        if (itype==1) ncinfo = '-'
+    CASE ('frac_od')
+       if (itype==0) ncinfo = 'Cloud fraction based on optical depth'
+       if (itype==1) ncinfo = '-'
     case('rwp_bar','rwp')
        if (itype==0) ncinfo = 'Rain-water path'
        if (itype==1) ncinfo = 'kg/m^2'

@@ -18,11 +18,14 @@
 !----------------------------------------------------------------------------
 !
 module lsvar
+    implicit none
+    PRIVATE
 
     ! Large scale forcing parameters
     integer, SAVE :: nt, nz
     REAL, ALLOCATABLE :: t_ls(:), sst_ls(:), ugeo_ls(:,:), vgeo_ls(:,:)
 
+    public :: lsvar_init, varlscale
 contains
   !----------------------------------------------------------------------
   ! Read the forcing data
@@ -95,7 +98,6 @@ contains
   subroutine varlscale(time_in,sst,u0,v0)
     implicit none
     real, intent (in) :: time_in ! Time after spinup (s)
-    !integer, intent (in) :: nz
     real, intent(inout) :: sst
     real, intent(inout) :: u0(*),v0(*)
     real :: lf, hf
@@ -108,14 +110,14 @@ contains
         ! Use the first SST
         sst=sst_ls(1)
         ! ... and winds
-         u0(1:nz) = ugeo_ls(1:nz,1)
-         v0(1:nz) = vgeo_ls(1:nz,1)
+        u0(1:nz) = ugeo_ls(1:nz,1)
+        v0(1:nz) = vgeo_ls(1:nz,1)
     ELSEIF (k==nt) THEN
         ! Use the last SST
         sst=sst_ls(nt)
         ! ... and winds
-         u0(1:nz) = ugeo_ls(1:nz,nt)
-         v0(1:nz) = vgeo_ls(1:nz,nt)
+        u0(1:nz) = ugeo_ls(1:nz,nt)
+        v0(1:nz) = vgeo_ls(1:nz,nt)
     ELSE
         ! Interpolate between k and k+1
         hf=(time_in-t_ls(k))/(t_ls(k+1)-t_ls(k))
@@ -123,8 +125,8 @@ contains
         ! SST
         sst=lf*sst_ls(k)+hf*sst_ls(k+1)
         ! ...and winds
-         u0(1:nz) = lf*ugeo_ls(1:nz,k)+hf*ugeo_ls(1:nz,k+1)
-         v0(1:nz) = lf*vgeo_ls(1:nz,k)+hf*vgeo_ls(1:nz,k+1)
+        u0(1:nz) = lf*ugeo_ls(1:nz,k)+hf*ugeo_ls(1:nz,k+1)
+        v0(1:nz) = lf*vgeo_ls(1:nz,k)+hf*vgeo_ls(1:nz,k+1)
     ENDIF
    end subroutine varlscale
 

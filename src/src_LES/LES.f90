@@ -159,7 +159,7 @@ contains
          nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau, & ! Horizontal wind nudging
          nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, & ! Aerosol number concentration nudging
          radsounding, case_name, & ! Name of the radiation sounding file and case name
-         lsvarflg,               & ! Read large scale forcings from an external data file
+         lsvarflg,               & ! Read large scale forcings from external data files
          div, zmaxdiv,           & ! Divergence and maximum altitude
          xka, fr0, fr1, alpha,   & ! Parameters for GCSS radiation
          rc_limit, rt_limit,     & ! Inversion height thresholds for GCSS radiation

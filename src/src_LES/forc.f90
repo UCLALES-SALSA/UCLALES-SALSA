@@ -21,7 +21,7 @@ module forc
 
   use defs, only      : cp
   use radiation, only : d4stream, calc_od, tau_gas, tau_liq, tau_ice
-  use stat, only : sflg, fill_scalar_2d
+  use stat, only : sflg, fill_scalar, fill_scalar_2d
   implicit none
 
   ! these are now all namelist parameters
@@ -148,13 +148,15 @@ contains
 
        END IF
 
-       IF (calc_od) THEN
+       IF (calc_od) THEN ! COMBLE
             call fill_scalar_2d(tau_gas,'tau_gas') ! Gas
             call fill_scalar_2d(tau_ice,'tau_tot') ! Gas+liquid+ice
             tau_ice=tau_ice-tau_liq
             call fill_scalar_2d(tau_ice,'tau_ice') ! Ice only
             tau_liq=tau_liq-tau_gas
             call fill_scalar_2d(tau_liq,'tau_liq') ! Liquid only
+            ! Cloud fraction: columns with hydrometeor-only tau>2
+            call fill_scalar( COUNT(tau_liq+tau_ice>2.0)/REAL((nxp-4)*(nyp-4)),'frac_od')
        ENDIF
 
        ! Case-dependent large-scale forcing
