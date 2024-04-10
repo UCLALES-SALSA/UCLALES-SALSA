@@ -26,7 +26,7 @@ CONTAINS
     USE mo_vbs_partition, ONLY : vbs_gas_phase_chem, vbs_condensation
     USE mo_salsa_update, ONLY : distr_update
     USE mo_salsa_cloud, only : cloud_activation, autoconv2, autoconv_sb, &
-            autosnow, fixed_ice_driver, ice_nucl_driver, ice_melt, sip_hm
+            autosnow, fixed_ice_driver, ice_nucl_driver, ice_melt, sip_hm, sip_iibr
 
     USE mo_submctl, ONLY :      &
          fn2b,ncld,nprc,nice,nsnw,nvbs,    &
@@ -35,7 +35,7 @@ CONTAINS
          nlcndh2ocl,nlcndh2oic,            &
          lsauto,auto_sb,lsautosnow,lsactiv,&
          lsicenucl,lsicmelt,lsdistupdate,  &
-         fixinc, ice_hom, ice_imm, ice_dep, nlsip_hm
+         fixinc, ice_hom, ice_imm, ice_dep, nlsip_hm, nlsip_iibr
 
     IMPLICIT NONE
 
@@ -86,11 +86,16 @@ CONTAINS
        IF (sflg) CALL salsa_var_stat('coag',1)
     ENDIF
 
-    ! Secondary ice production (Hallett-Mossop)
-    IF (lscoag .AND. nlsip_hm) THEN
+    ! Secondary ice production
+    IF (lscoag .AND. nlsip_hm) THEN !  Hallett-Mossop
         IF (sflg) CALL salsa_var_stat('siph',0)
         CALL sip_hm(kbdim, klev, pice, psnow, ptemp)
         IF (sflg) CALL salsa_var_stat('siph',1)
+    ENDIF
+    IF (lscoag .AND. nlsip_iibr) THEN ! Ice-ice collisional breakup
+        IF (sflg) CALL salsa_var_stat('sipi',0)
+        CALL sip_iibr(kbdim, klev, pice, psnow, ptemp)
+        IF (sflg) CALL salsa_var_stat('sipi',1)
     ENDIF
 
     ! Condensation of H2SO4 and non-volatile organic vapor

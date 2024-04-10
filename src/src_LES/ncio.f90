@@ -1152,6 +1152,8 @@ contains
         pros='freezing'
     ELSEIF ('siph_'==short_name(1:5)) THEN
         pros='Hallett-Mossop'
+    ELSEIF ('sipi_'==short_name(1:5)) THEN
+        pros='Ice-ice collisional breakup'
     ELSEIF ('dist_'==short_name(1:5)) THEN
         pros='distribution update'
     ELSEIF ('sedi_'==short_name(1:5)) THEN

@@ -442,6 +442,8 @@ CONTAINS
                                nlsip_hm,              &
                                c_mult,                &
                                hm_dmin_drop, hm_dmin_ice, &
+                               nlsip_iibr,            &
+                               iibr_fbr, iibr_tmin, iibr_tmax, iibr_dref, &
                                rhoeff_ice, rhoeff_snow, &
                                a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, &
                                a_vel_ice, b_vel_ice, a_vel_snow, b_vel_snow, &
@@ -527,6 +529,8 @@ CONTAINS
          nlsip_hm,      & ! Switch for Hallett-Mossop
          c_mult,        & ! Splintering coefficient (particles per kg of rime)
          hm_dmin_drop, hm_dmin_ice, & ! Drop and ice size limits for Hallett-Mossop
+         nlsip_iibr,    & ! Switch for ice-ice collisional breakup
+         iibr_fbr, iibr_tmin, iibr_tmax, iibr_dref, & ! Parameters
          rhoeff_ice, rhoeff_snow, & ! Effective densities for calculating particle diameters (and velocities)
          a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, & ! Alternative dimension: d=a*m**b
          a_vel_ice, b_vel_ice, a_vel_snow, b_vel_snow, & ! Alternative velocity: v=a*m**b

@@ -108,11 +108,17 @@ MODULE mo_submctl
   ! d) Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
   INTEGER :: ice_target_opt = -1 ! Default = parallel ice bins
 
-  ! Secondary ice production: Hallett-Mossop
+  ! Secondary ice production
+  ! a) Hallett-Mossop
   LOGICAL :: nlsip_hm = .FALSE. ! Master switch (needs also coagulation)
   REAL :: c_mult = 3.5e8  ! Splintering coefficient (particles per kg of rime)
   REAL :: hm_dmin_drop=25e-5, hm_dmin_ice=25e-6 ! Minimum aerosol/cloud/rain drop and ice/snow diameters
   REAL, SAVE, ALLOCATABLE :: rime_volc_ice(:,:,:), rime_volc_snw(:,:,:) ! Rime water volume per m3
+  ! b) ice-ice collisional breakup
+  LOGICAL :: nlsip_iibr = .FALSE. ! Master switch (needs also coagulation)
+  REAL :: iibr_fbr = 280., iibr_tmin = 252., iibr_tmax=273.15, iibr_dref=0.02 ! Parameters
+  REAL, SAVE, ALLOCATABLE :: coll_rate_ii(:,:,:,:), coll_rate_si(:,:,:,:), &
+    coll_rate_ss(:,:,:,:) ! Collisions per m3
 
   ! Ice and snow mass-dimension-velocity parameterizations
   !  Defaults:  d=(6/pi*sum(m(i)/rho(i)))**(1/3), v=12.0*sqrt(d)

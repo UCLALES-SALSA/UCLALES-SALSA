@@ -112,7 +112,8 @@ CONTAINS
          lscgsa, lscgsc, lscgsi, lscgsp, lscgss, &
          nspec, CalcDimension, CalcMass, lscgrain, &
          nlsip_hm, rime_volc_ice, rime_volc_snw, &
-         hm_dmin_drop, hm_dmin_ice
+         hm_dmin_drop, hm_dmin_ice, &
+         nlsip_iibr, coll_rate_ii, coll_rate_si, coll_rate_ss
 
     IMPLICIT NONE
 
@@ -178,9 +179,15 @@ CONTAINS
 
     !-----------------------------------------------------------------------------
 
-    IF (.NOT.ALLOCATED(rime_volc_ice)) ALLOCATE(rime_volc_ice(kbdim,klev,nice),rime_volc_snw(kbdim,klev,nsnw))
+    IF (.NOT.ALLOCATED(rime_volc_ice)) ALLOCATE(rime_volc_ice(kbdim,klev,nice), &
+        rime_volc_snw(kbdim,klev,nsnw))
     rime_volc_ice(:,:,:) = 0.
     rime_volc_snw(:,:,:) = 0.
+    IF (.NOT.ALLOCATED(coll_rate_ii)) ALLOCATE(coll_rate_ii(kbdim,klev,nice,nice), &
+        coll_rate_si(kbdim,klev,nsnw,nice), coll_rate_ss(kbdim,klev,nsnw,nsnw))
+    coll_rate_ii(:,:,:,:) = 0.
+    coll_rate_si(:,:,:,:) = 0.
+    coll_rate_ss(:,:,:,:) = 0.
 
     nt = nspec + 1 ! Total number of spcecies + water
 
@@ -838,6 +845,20 @@ CONTAINS
                  zplusterm(1:nt) = zplusterm(1:nt) + zccii(ll,cc)*pice(ii,jj,ll)%volc(1:nt)
               END DO
 
+              ! Save ice-ice collisions for collisional breakup
+              IF (nlsip_iibr) THEN
+                 ! Smaller and equal (self) from regime a
+                 DO ll = inp2a,cc
+                    coll_rate_ii(ii,jj,cc,ll) = &
+                       ptstep*zccii(ll,cc)*pice(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 END DO
+                 ! Smaller and equal from regime b
+                 DO ll = inp2b,kk
+                    coll_rate_ii(ii,jj,cc,ll) = &
+                       ptstep*zccii(ll,cc)*pice(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 END DO
+              ENDIF
+
               ! Update the hydrometeor volume concentrations
               pice(ii,jj,cc)%volc(1:nt) = max(0., ( pice(ii,jj,cc)%volc(1:nt) +  &
                    ptstep*zplusterm(1:nt)*pice(ii,jj,cc)%numc ) /         &
@@ -915,6 +936,20 @@ CONTAINS
                  zplusterm(1:nt) = zplusterm(1:nt) + zccii(ll,cc)*pice(ii,jj,ll)%volc(1:nt)
               END DO
 
+              ! Save ice-ice collisions for collisional breakup
+              IF (nlsip_iibr) THEN
+                 ! Smaller from regime a
+                 DO ll = inp2b,cc-1
+                    coll_rate_ii(ii,jj,cc,ll) = &
+                       ptstep*zccii(ll,cc)*pice(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 END DO
+                 ! Smaller and equal (self) from regime b
+                 DO ll = inp2a,kk
+                    coll_rate_ii(ii,jj,cc,ll) = &
+                       ptstep*zccii(ll,cc)*pice(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 END DO
+              ENDIF
+
               ! Update the hydrometeor volume concentrations
               pice(ii,jj,cc)%volc(1:nt) = max(0.,( pice(ii,jj,cc)%volc(1:nt) +  &
                    ptstep*zplusterm(1:nt)*pice(ii,jj,cc)%numc ) /         &
@@ -978,6 +1013,20 @@ CONTAINS
               DO ll = 1,cc-1
                  zplusterm(1:nt) = zplusterm(1:nt) + zccss(ll,cc)*psnow(ii,jj,ll)%volc(1:nt)
               END DO
+
+              ! Save snow-ice and snow-snow collisions for collisional breakup
+              IF (nlsip_iibr) THEN
+                 ! Ice
+                 DO ll = 1,nice
+                    coll_rate_si(ii,jj,cc,ll) = &
+                       ptstep*zccsi(ll,cc)*pice(ii,jj,ll)%numc*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 END DO
+                 ! Smaller and equal (self) snow
+                 DO ll = 1,cc
+                    coll_rate_ss(ii,jj,cc,ll) = &
+                       ptstep*zccss(ll,cc)*psnow(ii,jj,ll)%numc*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 END DO
+              END IF
 
               ! Update the hydrometeor volume concentrations
               psnow(ii,jj,cc)%volc(1:nt) = max(0.,( psnow(ii,jj,cc)%volc(1:nt) +  &

@@ -1261,7 +1261,16 @@ CONTAINS
 
   END FUNCTION cumlognorm
 
-  !  Secondary ice production: Hallett-Mossop or splintering during riming
+  ! Secondary ice production: Hallett-Mossop or splintering during riming
+  !   Cotton, W. R., Tripoli,  G. J., Rauber, R. M., and Mulvihill, E. A.: Numerical Simulation of
+  !   the Effects of Varying Ice Crystal Nucleation Rates and Aggregation Processes on Orographic
+  !   Snowfall, J. Appl. Meteor. Climatol., 25, 1658-1680,
+  !   https://doi.org/10.1175/1520-0450(1986)025<1658:NSOTEO>2.0.CO;2, 1986.
+  !
+  !   Sotiropoulou, G., Vignon, E., Young, G., Morrison, H., O'Shea, S. J., Lachlan-Cope, T.,
+  !   Berne, A., and Nenes, A.: Secondary ice production in summer clouds over the Antarctic coast:
+  !   an underappreciated process in atmospheric models, Atmos. Chem. Phys., 21, 755-771,
+  !   https://doi.org/10.5194/acp-21-755-2021, 2021.
   SUBROUTINE sip_hm(kbdim,klev,pice,psnow,ptemp)
     USE mo_submctl, ONLY : t_section, nice, nsnw, fnp2a, inp2b, prlim, rhowa, nspec, c_mult, &
         rime_volc_ice, rime_volc_snw ! Accumulated rime (rime water volume concentration, m3/m3)
@@ -1298,54 +1307,212 @@ CONTAINS
             DO cc = 1,nice
                 ! Splinters
                 dN=fact*rime_volc_ice(ii,jj,cc)*rhowa
-                ! Exclude the first a and b bin (splinters could not be smaller)
-                IF (dN>prlim .AND. pice(ii,jj,cc)%numc>prlim .AND. cc/=1 .AND. cc/=inp2b) THEN
-                    ! Target bin: bin index divided by two
-                    IF (cc>fnp2a) THEN
-                        bb = fnp2a+FLOOR(0.5*(cc-fnp2a)) ! b-bins
+                IF (dN>prlim .AND. pice(ii,jj,cc)%numc>prlim) THEN
+                    IF (cc==1 .OR. cc/=inp2b) THEN
+                        ! Just increase the number concentration of the first bin
+                        pice(ii,jj,cc)%numc = pice(ii,jj,cc)%numc + dN
                     ELSE
-                        bb = FLOOR(0.5*cc) ! a-bins
+                        ! Target bin: bin index divided by two
+                        IF (cc>fnp2a) THEN
+                            bb = fnp2a+FLOOR(0.5*(cc-fnp2a)) ! b-bins
+                        ELSE
+                            bb = FLOOR(0.5*cc) ! a-bins
+                        ENDIF
+                        ! Volume fraction to be removed (based on dry size)
+                        vfrac = dN/pice(ii,jj,cc)%numc*(pice(ii,jj,bb)%dmid/pice(ii,jj,cc)%dmid)**3
+                        ! Limit volume fraction to 0.1 to avoid large changes in mean dry size
+                        IF (vfrac>0.1) THEN
+                            vfrac = 0.1
+                            vol=vfrac*SUM(pice(ii,jj,cc)%volc(2:nspec+1))/dN ! splinter dry volume
+                            bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
+                            IF (cc>fnp2a) bb=bb+fnp2a
+                        ENDIF
+                        ! Move dN splinters from ice bin cc to ice bin bb
+                        pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
+                        pice(ii,jj,bb)%volc(:) = pice(ii,jj,bb)%volc(:) + vfrac*pice(ii,jj,cc)%volc(:)
+                        pice(ii,jj,cc)%volc(:) = (1.-vfrac)*pice(ii,jj,cc)%volc(:)
                     ENDIF
-                    ! Volume fraction to be removed (based on dry size)
-                    vfrac = dN/pice(ii,jj,cc)%numc*(pice(ii,jj,bb)%dmid/pice(ii,jj,cc)%dmid)**3
-                    ! Limit volume fraction to 0.1 to avoid large changes in mean dry size
-                    IF (vfrac>0.1) THEN
-                        vfrac = 0.1
-                        vol=vfrac*SUM(pice(ii,jj,cc)%volc(2:nspec+1))/dN ! splinter dry volume
-                        bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
-                        IF (cc>fnp2a) bb=bb+fnp2a
-                    ENDIF
-                    ! Move dN splinters from ice bin cc to ice bin bb
-                    pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
-                    pice(ii,jj,bb)%volc(:) = pice(ii,jj,bb)%volc(:) + vfrac*pice(ii,jj,cc)%volc(:)
-                    pice(ii,jj,cc)%volc(:) = (1.-vfrac)*pice(ii,jj,cc)%volc(:)
                 ENDIF
             ENDDO
             !
             ! Snow collecting rime
-            DO cc = 2,nsnw ! Exclude the first bin
+            DO cc = 1,nsnw
                 ! Splinters
                 dN=fact*rime_volc_snw(ii,jj,cc)*rhowa
                 IF (dN>prlim .AND. psnow(ii,jj,cc)%numc>prlim) THEN
-                    ! Target bin: bin index divided by two
-                    bb = FLOOR(0.5*cc)
-                    ! Volume fraction to be removed (based on wet size)
-                    vfrac = dN/psnow(ii,jj,cc)%numc*(psnow(ii,jj,bb)%dmid/psnow(ii,jj,cc)%dmid)**3
-                    ! Limit volume fraction to 0.1 to avoid large changes in mean wet size
-                    IF (vfrac>0.1) THEN
-                        vfrac = 0.1
-                        vol = vfrac*SUM(psnow(ii,jj,cc)%volc(1:nspec+1))/dN ! splinter wet volume
-                        bb = MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim)) ! bin
-                    ENDIF
-                    ! Move dN splinters from snow bin cc to snow bin bb
-                    psnow(ii,jj,bb)%numc = psnow(ii,jj,bb)%numc + dN
-                    psnow(ii,jj,bb)%volc(:) = psnow(ii,jj,bb)%volc(:) + vfrac*psnow(ii,jj,cc)%volc(:)
-                    psnow(ii,jj,cc)%volc(:) = (1.-vfrac)*psnow(ii,jj,cc)%volc(:)
+                    IF (cc==1) THEN
+                        ! Just increase the number concentration of the first bin
+                        psnow(ii,jj,cc)%numc = psnow(ii,jj,cc)%numc + dN
+                    ELSE
+                        ! Target bin: bin index divided by two
+                        bb = FLOOR(0.5*cc)
+                        ! Volume fraction to be removed (based on wet size)
+                        vfrac = dN/psnow(ii,jj,cc)%numc*(psnow(ii,jj,bb)%dmid/psnow(ii,jj,cc)%dmid)**3
+                        ! Limit volume fraction to 0.1 to avoid large changes in mean wet size
+                        IF (vfrac>0.1) THEN
+                            vfrac = 0.1
+                            vol = vfrac*SUM(psnow(ii,jj,cc)%volc(1:nspec+1))/dN ! splinter wet volume
+                            bb = MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim)) ! bin
+                        ENDIF
+                        ! Move dN splinters from snow bin cc to snow bin bb
+                        psnow(ii,jj,bb)%numc = psnow(ii,jj,bb)%numc + dN
+                        psnow(ii,jj,bb)%volc(:) = psnow(ii,jj,bb)%volc(:) + vfrac*psnow(ii,jj,cc)%volc(:)
+                        psnow(ii,jj,cc)%volc(:) = (1.-vfrac)*psnow(ii,jj,cc)%volc(:)
+                   ENDIF
                 ENDIF
             ENDDO
         ENDIF
     END DO
     END DO
   END SUBROUTINE sip_hm
+
+  ! Secondary ice production: ice-ice collisional breakup
+  !   Sullivan, S. C., Hoose, C., Kiselev, A., Leisner, T., and Nenes, A.: Initiation of secondary
+  !   ice production in clouds, Atmos. Chem. Phys., 18, 1593-1610,
+  !   https://doi.org/10.5194/acp-18-1593-2018, 2018.
+  !
+  !   Sullivan, S. C., Barthlott, C., Crosier, J., Zhukov, I., Nenes, A., and Hoose, C.: The effect
+  !   of secondary ice production parameterization on the simulation of a cold frontal rainband,
+  !   Atmos. Chem. Phys., 18, 16461-16480, https://doi.org/10.5194/acp-18-16461-2018, 2018.
+  !
+  !   Sotiropoulou, G., Sullivan, S., Savre, J., Lloyd, G., Lachlan-Cope, T., Ekman, A. M. L., and
+  !   Nenes, A.: The impact of secondary ice production on Arctic stratocumulus, Atmos. Chem.
+  !   Phys., 20, 1301-1316, https://doi.org/10.5194/acp-20-1301-2020, 2020.
+  SUBROUTINE sip_iibr(kbdim,klev,pice,psnow,ptemp)
+    USE mo_submctl, ONLY : t_section, nice, nsnw, fnp2a, inp2b, prlim, nspec, &
+        iibr_fbr, iibr_tmin, iibr_tmax, iibr_dref, & ! Parameters
+        coll_rate_ii, coll_rate_si, coll_rate_ss ! Accumulated collisions (#/m3)
+    IMPLICIT NONE
+    ! Inputs/outputs
+    INTEGER, INTENT(in) :: kbdim,klev
+    TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
+    REAL, INTENT(in) :: ptemp(kbdim,klev)
+    ! Local parameters
+    INTEGER :: ii, jj, cc, bb, aa
+    REAL :: fact, scaler, dN, vfrac, vol
+    !
+    ! Size-scaling from Sotiropuolou et al. (2021): d/d0, where d0=0.02 m is the size of hail
+    ! balls in the experiments and d is the size of the ice particle that undergoes fracturing.
+    ! Here d is the the size of the collecting particle and d0=iibr_dref is adjustable parameter.
+    ! Zero or negative iibr_dref means that this scaling is not used.
+    scaler=1.
+    !
+    DO jj = 1,klev
+    DO ii = 1,kbdim
+        IF (iibr_tmin<ptemp(ii,jj) .AND. ptemp(ii,jj)<iibr_tmax .AND. iibr_fbr>0.) THEN
+            ! The number of splinters depends on temperature
+            fact= iibr_fbr*(ptemp(ii,jj)-iibr_tmin)**1.2*exp((iibr_tmin-ptemp(ii,jj))*0.2)
+            !
+            ! Ice-ice (smaller and equal) collisions producing ice
+            DO cc = 1,nice
+                ! New particles are taken from ice bin cc
+                IF (pice(ii,jj,cc)%numc<prlim) CYCLE
+                !
+                ! Size scaling based on collecting ice particle size
+                IF (iibr_dref>0.) scaler=pice(ii,jj,cc)%dwet/iibr_dref
+                !
+                DO aa = 1,nice
+                    ! New particles
+                    dN=fact*coll_rate_ii(ii,jj,cc,aa)*scaler
+                    IF (dN<prlim) CYCLE
+                    !
+                    IF (aa==1 .OR. aa==inp2b) THEN
+                        ! Just increase the number concentration of the first bin
+                        pice(ii,jj,aa)%numc = pice(ii,jj,aa)%numc + dN
+                    ELSE
+                        ! Target bin: bin index divided by two
+                        IF (aa>fnp2a) THEN
+                            bb = fnp2a+FLOOR(0.5*(aa-fnp2a)) ! b-bins
+                        ELSE
+                            bb = FLOOR(0.5*aa) ! a-bins
+                        ENDIF
+                        ! Volume fraction to be removed (based on dry size)
+                        vfrac = dN/pice(ii,jj,cc)%numc*(pice(ii,jj,bb)%dmid/pice(ii,jj,cc)%dmid)**3
+                        ! Limit volume fraction to 0.1 to avoid large changes in mean dry size
+                        IF (vfrac>0.1) THEN
+                            vfrac = 0.1
+                            vol=vfrac*SUM(pice(ii,jj,cc)%volc(2:nspec+1))/dN ! splinter dry volume
+                            bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
+                            IF (aa>fnp2a) bb=bb+fnp2a
+                        ENDIF
+                        ! Move dN splinters from ice bin cc to ice bin bb
+                        pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
+                        pice(ii,jj,bb)%volc(:) = pice(ii,jj,bb)%volc(:) + vfrac*pice(ii,jj,cc)%volc(:)
+                        pice(ii,jj,cc)%volc(:) = (1.-vfrac)*pice(ii,jj,cc)%volc(:)
+                    ENDIF
+                ENDDO
+            ENDDO
+            !
+            ! Snow-ice/snow collisions
+            DO cc = 1,nsnw
+                ! New particles are taken from snow bin cc
+                IF (psnow(ii,jj,cc)%numc<prlim) CYCLE
+                !
+                ! Size scaling based on collecting snow size
+                IF (iibr_dref>0.) scaler=psnow(ii,jj,cc)%dwet/iibr_dref
+                !
+                ! Snow-ice producing ice
+                DO aa = 1,nice
+                    ! New particles
+                    dN=fact*coll_rate_si(ii,jj,cc,aa)*scaler
+                    IF (dN<prlim) CYCLE
+                    !
+                    IF (aa==1 .OR. aa==inp2b) THEN
+                        ! Just increase the number concentration of the first bin
+                        pice(ii,jj,aa)%numc = pice(ii,jj,aa)%numc + dN
+                    ELSE
+                        ! Target bin: bin index divided by two
+                        IF (aa>fnp2a) THEN
+                            bb = fnp2a+FLOOR(0.5*(aa-fnp2a)) ! b-bins
+                        ELSE
+                            bb = FLOOR(0.5*aa) ! a-bins
+                        ENDIF
+                        ! Volume fraction to be removed (based on dry size)
+                        vfrac = dN/psnow(ii,jj,cc)%numc*(pice(ii,jj,bb)%dmid/psnow(ii,jj,cc)%dmid)**3
+                        ! Limit volume fraction to 0.1 to avoid large changes in mean dry size
+                        IF (vfrac>0.1) THEN
+                            vfrac = 0.1
+                            vol=vfrac*SUM(psnow(ii,jj,cc)%volc(2:nspec+1))/dN ! splinter dry volume
+                            bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
+                            IF (aa>fnp2a) bb=bb+fnp2a
+                        ENDIF
+                        ! Move dN splinters from snow bin cc to ice bin bb
+                        pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
+                        pice(ii,jj,bb)%volc(:) = pice(ii,jj,bb)%volc(:) + vfrac*psnow(ii,jj,cc)%volc(:)
+                        psnow(ii,jj,cc)%volc(:) = (1.-vfrac)*psnow(ii,jj,cc)%volc(:)
+                    ENDIF
+                ENDDO
+                !
+                ! Snow-snow producing snow
+                DO aa = 1,cc
+                    ! New particles
+                    dN=fact*coll_rate_ss(ii,jj,cc,aa)*scaler
+                    IF (dN<prlim) CYCLE
+                    !
+                    IF (aa==1) THEN
+                        ! Just increase the number concentration of the first bin
+                        psnow(ii,jj,aa)%numc = psnow(ii,jj,aa)%numc + dN
+                    ELSE
+                        ! Target bin: bin index divided by two
+                        bb = FLOOR(0.5*aa)
+                        ! Volume fraction to be removed (based on wet size)
+                        vfrac = dN/psnow(ii,jj,cc)%numc*(psnow(ii,jj,bb)%dmid/psnow(ii,jj,cc)%dmid)**3
+                        ! Limit volume fraction to 0.1 to avoid large changes in mean wet size
+                        IF (vfrac>0.1) THEN
+                            vfrac = 0.1
+                            vol = vfrac*SUM(psnow(ii,jj,cc)%volc(1:nspec+1))/dN ! splinter wet volume
+                            bb = MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim)) ! bin
+                        ENDIF
+                        ! Move dN splinters from snow bin cc to snow bin bb
+                        psnow(ii,jj,bb)%numc = psnow(ii,jj,bb)%numc + dN
+                        psnow(ii,jj,bb)%volc(:) = psnow(ii,jj,bb)%volc(:) + vfrac*psnow(ii,jj,cc)%volc(:)
+                        psnow(ii,jj,cc)%volc(:) = (1.-vfrac)*psnow(ii,jj,cc)%volc(:)
+                    ENDIF
+                ENDDO
+            ENDDO
+        ENDIF
+    END DO
+    END DO
+  END SUBROUTINE sip_iibr
 
 END MODULE mo_salsa_cloud
