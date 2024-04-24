@@ -113,6 +113,8 @@ CONTAINS
          nspec, CalcDimension, CalcMass, lscgrain, &
          nlsip_hm, rime_volc_ice, rime_volc_snw, &
          hm_dmin_drop, hm_dmin_ice, &
+         nlsip_df, coll_rate_ic, coll_rate_ir, coll_rate_sc, coll_rate_sr, &
+         df_dmin_drop, df_dmin_ice, &
          nlsip_iibr, coll_rate_ii, coll_rate_si, coll_rate_ss
 
     IMPLICIT NONE
@@ -179,12 +181,18 @@ CONTAINS
 
     !-----------------------------------------------------------------------------
 
-    IF (.NOT.ALLOCATED(rime_volc_ice)) ALLOCATE(rime_volc_ice(kbdim,klev,nice), &
-        rime_volc_snw(kbdim,klev,nsnw))
+    IF (.NOT.ALLOCATED(rime_volc_ice)) ALLOCATE( &
+        rime_volc_ice(kbdim,klev,nice), rime_volc_snw(kbdim,klev,nsnw), &
+        coll_rate_ic(kbdim,klev,nice,ncld), coll_rate_ir(kbdim,klev,nice,nprc), &
+        coll_rate_sc(kbdim,klev,nsnw,ncld), coll_rate_sr(kbdim,klev,nsnw,nprc), &
+        coll_rate_ii(kbdim,klev,nice,nice), coll_rate_si(kbdim,klev,nsnw,nice), &
+        coll_rate_ss(kbdim,klev,nsnw,nsnw) )
     rime_volc_ice(:,:,:) = 0.
     rime_volc_snw(:,:,:) = 0.
-    IF (.NOT.ALLOCATED(coll_rate_ii)) ALLOCATE(coll_rate_ii(kbdim,klev,nice,nice), &
-        coll_rate_si(kbdim,klev,nsnw,nice), coll_rate_ss(kbdim,klev,nsnw,nsnw))
+    coll_rate_ic(:,:,:,:) = 0.
+    coll_rate_ir(:,:,:,:) = 0.
+    coll_rate_sc(:,:,:,:) = 0.
+    coll_rate_sr(:,:,:,:) = 0.
     coll_rate_ii(:,:,:,:) = 0.
     coll_rate_si(:,:,:,:) = 0.
     coll_rate_ss(:,:,:,:) = 0.
@@ -823,6 +831,11 @@ CONTAINS
                     rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
                         ptstep*zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdcloud(ll)>df_dmin_drop .AND. zdice(cc)>df_dmin_ice) THEN
+                    coll_rate_ic(ii,jj,cc,ll) = &
+                        ptstep*zccic(ll,cc)*pcloud(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from rain drops
@@ -832,6 +845,11 @@ CONTAINS
                  IF (nlsip_hm .AND. zdprecp(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
                     rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
                         ptstep*zccip(ll,cc)*pprecp(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdprecp(ll)>df_dmin_drop .AND. zdice(cc)>df_dmin_ice) THEN
+                    coll_rate_ir(ii,jj,cc,ll) = &
+                        ptstep*zccip(ll,cc)*pprecp(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
               END DO
 
@@ -914,6 +932,11 @@ CONTAINS
                     rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
                         ptstep*zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdcloud(ll)>df_dmin_drop .AND. zdice(cc)>df_dmin_ice) THEN
+                    coll_rate_ic(ii,jj,cc,ll) = &
+                        ptstep*zccic(ll,cc)*pcloud(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from rain drops
@@ -923,6 +946,11 @@ CONTAINS
                  IF (nlsip_hm .AND. zdprecp(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
                     rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
                         ptstep*zccip(ll,cc)*pprecp(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdprecp(ll)>df_dmin_drop .AND. zdice(cc)>df_dmin_ice) THEN
+                    coll_rate_ir(ii,jj,cc,ll) = &
+                        ptstep*zccip(ll,cc)*pprecp(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
               END DO
 
@@ -992,6 +1020,11 @@ CONTAINS
                     rime_volc_snw(ii,jj,cc) = rime_volc_snw(ii,jj,cc) + &
                         ptstep*zccsc(ll,cc)*pcloud(ii,jj,ll)%volc(1)*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdcloud(ll)>df_dmin_drop .AND. zdsnow(cc)>df_dmin_ice) THEN
+                    coll_rate_sc(ii,jj,cc,ll) = &
+                        ptstep*zccsc(ll,cc)*pcloud(ii,jj,ll)%numc*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained by collection of rain drops
@@ -1001,6 +1034,11 @@ CONTAINS
                  IF (nlsip_hm .AND. zdprecp(ll)>hm_dmin_drop .AND. zdsnow(cc)>hm_dmin_ice) THEN
                     rime_volc_snw(ii,jj,cc) = rime_volc_snw(ii,jj,cc) + &
                         ptstep*zccsp(ll,cc)*pprecp(ii,jj,ll)%volc(1)*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdprecp(ll)>df_dmin_drop .AND. zdsnow(cc)>df_dmin_ice) THEN
+                    coll_rate_sr(ii,jj,cc,ll) = &
+                        ptstep*zccsp(ll,cc)*pprecp(ii,jj,ll)%numc*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
               END DO
 

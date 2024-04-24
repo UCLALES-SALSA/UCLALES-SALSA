@@ -87,6 +87,10 @@ module mcrp_ice_sb
   REAL, PARAMETER :: T_mult_min = 265.0    !..Minimale Temp. Splintering
   REAL, PARAMETER :: T_mult_max = 270.0    !..Maximale Temp. Splintering
   REAL, PARAMETER :: T_mult_opt = 268.0    !..Optimale Temp. Splintering
+  ! .. Ice-ice breakup
+  REAL            :: iibr_fbr = 280. ! Breakup coefficient
+  REAL, PARAMETER :: iibr_dref = 0.02 ! Size dependency
+  REAL, PARAMETER :: iibr_tmin = 252., iibr_tmax = 273.15 ! Temperature dependency
 
   ! .. collisions
   REAL, PARAMETER :: e_ic  = 0.80              !..max. Eff. fuer ice_cloud_riming
@@ -313,7 +317,7 @@ CONTAINS
         ice_typ, cloud_typ, T_nuc, nin_set, &
         q_krit_ic, D_krit_ic,  q_krit_ir, D_krit_ir, q_krit_sc, D_krit_sc, q_krit_sr, D_krit_sr, &
         q_krit_gc, D_krit_gc, q_krit_gr, q_krit_hc, D_krit_hc, q_krit_hr, q_krit_c, q_krit_r, &
-        c_mult, &
+        c_mult, iibr_fbr, &
         cldw,rain,ice,snow,graupel,hail
 
     ! Copy default cloud to cldw
@@ -3087,7 +3091,7 @@ CONTAINS
     INTEGER, SAVE               :: firstcall = 0
 
     REAL            :: T_a             !..absolute Temperatur
-    REAL            :: q_i,n_i,x_i,d_i,v_i,e_coll,x_conv
+    REAL            :: q_i,n_i,x_i,d_i,v_i,e_coll,x_conv,mult_n,mult_q
     REAL            :: self_n,self_q
     REAL            :: delta_n_11,delta_n_12,delta_n_22
     REAL            :: delta_q_11,delta_q_12,delta_q_22
@@ -3160,6 +3164,15 @@ CONTAINS
             n_ice(i,j,k)  = n_ice(i,j,k)  - self_n
             n_snow(i,j,k) = n_snow(i,j,k) + self_n / 2.0
 
+            ! Ice multiplication
+            IF (iibr_tmin < T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2) * self_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              n_snow(i,j,k) = n_snow(i,j,k) - mult_q
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3181,7 +3194,7 @@ CONTAINS
     INTEGER, SAVE               :: firstcall = 0
 
     REAL            :: T_a             !..Absolute Temperatur
-    REAL            :: q_s,n_s,x_s,d_s,v_s,e_coll
+    REAL            :: q_s,n_s,x_s,d_s,v_s,e_coll,mult_n,mult_q
     REAL            :: self_n
     REAL            :: delta_n_11,delta_n_12
     REAL            :: theta_n_11,theta_n_12
@@ -3239,6 +3252,15 @@ CONTAINS
             self_n = MIN(self_n,n_s)
 
             n_snow(i,j,k) = n_snow(i,j,k) - self_n
+
+            ! Ice multiplication
+            IF (iibr_tmin < T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2) * self_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_snow(i,j,k) = q_snow(i,j,k) - mult_q
+            ENDIF
 
           ENDIF
         ENDDO
@@ -3353,7 +3375,7 @@ CONTAINS
     REAL            :: T_a
     REAL            :: q_g,n_g,x_g,d_g,v_g
     REAL            :: q_s,n_s,x_s,d_s,v_s
-    REAL            :: coll_n,coll_q,e_coll
+    REAL            :: coll_n,coll_q,e_coll,mult_n,mult_q
     REAL, SAVE      :: delta_n_gg,delta_n_gs,delta_n_ss
     REAL, SAVE      :: delta_q_gg,delta_q_gs,delta_q_ss
     REAL, SAVE      :: theta_n_gg,theta_n_gs,theta_n_ss
@@ -3423,6 +3445,15 @@ CONTAINS
             q_snow(i,j,k)    = q_snow(i,j,k)    - coll_q
             n_snow(i,j,k)    = n_snow(i,j,k)    - coll_n
 
+            ! Ice multiplication
+            IF (iibr_tmin < T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2) * coll_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_graupel(i,j,k) = q_graupel(i,j,k) - mult_q
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3448,7 +3479,7 @@ CONTAINS
     REAL            :: T_a
     REAL            :: q_h,n_h,x_h,d_h,v_h
     REAL            :: q_s,n_s,x_s,d_s,v_s
-    REAL            :: coll_n,coll_q,e_coll
+    REAL            :: coll_n,coll_q,e_coll,mult_n,mult_q
     REAL, SAVE      :: delta_n_hh,delta_n_hs,delta_n_ss
     REAL, SAVE      :: delta_q_hh,delta_q_hs,delta_q_ss
     REAL, SAVE      :: theta_n_hh,theta_n_hs,theta_n_ss
@@ -3518,6 +3549,15 @@ CONTAINS
             q_snow(i,j,k) = q_snow(i,j,k) - coll_q
             n_snow(i,j,k) = n_snow(i,j,k) - coll_n
 
+            ! Ice multiplication
+            IF (iibr_tmin < T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2) * coll_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_hail(i,j,k) = q_hail(i,j,k) - mult_q
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3543,7 +3583,7 @@ CONTAINS
     REAL            :: T_a
     REAL            :: q_g,n_g,x_g,d_g,v_g
     REAL            :: q_i,n_i,x_i,d_i,v_i
-    REAL            :: coll_n,coll_q,e_coll
+    REAL            :: coll_n,coll_q,e_coll,mult_n,mult_q
     REAL, SAVE      :: delta_n_gg,delta_n_gi,delta_n_ii
     REAL, SAVE      :: delta_q_gg,delta_q_gi,delta_q_ii
     REAL, SAVE      :: theta_n_gg,theta_n_gi,theta_n_ii
@@ -3611,6 +3651,15 @@ CONTAINS
             q_ice(i,j,k)     = q_ice(i,j,k)     - coll_q
             n_ice(i,j,k)     = n_ice(i,j,k)     - coll_n
 
+            ! Ice multiplication
+            IF (iibr_tmin < T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2) * coll_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_graupel(i,j,k) = q_graupel(i,j,k) - mult_q
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3634,7 +3683,7 @@ CONTAINS
     REAL            :: T_a
     REAL            :: q_h,n_h,x_h,d_h,v_h
     REAL            :: q_i,n_i,x_i,d_i,v_i
-    REAL            :: coll_n,coll_q,e_coll
+    REAL            :: coll_n,coll_q,e_coll,mult_n,mult_q
     REAL, SAVE      :: delta_n_hh,delta_n_hi,delta_n_ii
     REAL, SAVE      :: delta_q_hh,delta_q_hi,delta_q_ii
     REAL, SAVE      :: theta_n_hh,theta_n_hi,theta_n_ii
@@ -3702,6 +3751,15 @@ CONTAINS
             q_ice(i,j,k)  = q_ice(i,j,k)  - coll_q
             n_ice(i,j,k)  = n_ice(i,j,k)  - coll_n
 
+            ! Ice multiplication
+            IF (iibr_tmin < T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2) * coll_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_hail(i,j,k) = q_hail(i,j,k) - mult_q
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3725,7 +3783,7 @@ CONTAINS
     REAL            :: T_a
     REAL            :: q_g,n_g,x_g,d_g,v_g
     REAL            :: q_i,n_i,x_i,d_i,v_i
-    REAL            :: coll_n,coll_q,e_coll
+    REAL            :: coll_n,coll_q,e_coll,mult_n,mult_q
     REAL, SAVE      :: delta_n_ss,delta_n_si,delta_n_ii
     REAL, SAVE      :: delta_q_ss,delta_q_si,delta_q_ii
     REAL, SAVE      :: theta_n_ss,theta_n_si,theta_n_ii
@@ -3798,6 +3856,15 @@ CONTAINS
             q_ice(i,j,k)  = q_ice(i,j,k)  - coll_q
             n_ice(i,j,k)  = n_ice(i,j,k)  - coll_n
 
+            ! Ice multiplication
+            IF (iibr_tmin < T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2) * coll_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_snow(i,j,k) = q_snow(i,j,k) - mult_q
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3818,7 +3885,7 @@ CONTAINS
     INTEGER, SAVE               :: firstcall = 0
 
     REAL            :: q_g,n_g,x_g,d_g,v_g
-    REAL            :: self_n
+    REAL            :: self_n,mult_n,mult_q
     REAL,SAVE       :: delta_n_11,delta_n_12
     REAL,SAVE       :: theta_n_11,theta_n_12
     REAL,SAVE       :: delta_n
@@ -3867,6 +3934,15 @@ CONTAINS
             self_n = MIN(self_n,n_g)
 
             n_graupel(i,j,k) = n_graupel(i,j,k) - self_n
+
+            ! Ice multiplication
+            IF (iibr_tmin < T_0(i,j,k) .AND. T_0(i,j,k)<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+              mult_n = iibr_fbr*(T_0(i,j,k)-iibr_tmin)**1.2*exp((iibr_tmin-T_0(i,j,k))*0.2) * self_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_graupel(i,j,k) = q_graupel(i,j,k) - mult_q
+            ENDIF
 
           ENDIF
         ENDDO
@@ -4360,6 +4436,8 @@ CONTAINS
 
       ENDIF
 
+      IF (sflg) CALL sb_var_stat('aggr') ! Collisions between solid particles: aggregation
+
       IF (.NOT. use_ice_graupel_conv_uli) THEN 
         ! Old SB2006 scheme
 
@@ -4394,7 +4472,7 @@ CONTAINS
 
       ENDIF
 
-      IF (sflg) CALL sb_var_stat('coag') ! Collisions
+      IF (sflg) CALL sb_var_stat('coag') ! Collisions between solid and liquid particles: riming
 
       ! Gefrieren der Regentropfen:
 

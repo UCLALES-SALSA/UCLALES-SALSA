@@ -1130,6 +1130,8 @@ contains
     ! Which process
     IF ('coag_'==short_name(1:5)) THEN
         pros='coagulation'
+    ELSEIF ('aggr_'==short_name(1:5)) THEN
+        pros='aggregation'
     ELSEIF ('oxid_'==short_name(1:5)) THEN
         pros='oxidation'
     ELSEIF ('ocon_'==short_name(1:5)) THEN
@@ -1152,8 +1154,10 @@ contains
         pros='freezing'
     ELSEIF ('siph_'==short_name(1:5)) THEN
         pros='Hallett-Mossop'
+    ELSEIF ('sipd_'==short_name(1:5)) THEN
+        pros='Droplet fragmentation'
     ELSEIF ('sipi_'==short_name(1:5)) THEN
-        pros='Ice-ice collisional breakup'
+        pros='Ice breakup'
     ELSEIF ('dist_'==short_name(1:5)) THEN
         pros='distribution update'
     ELSEIF ('sedi_'==short_name(1:5)) THEN
