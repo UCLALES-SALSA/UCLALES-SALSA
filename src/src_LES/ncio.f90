@@ -503,6 +503,12 @@ contains
     case('wspd')
        if (itype==0) ncinfo = 'Surface wind speed'
        if (itype==1) ncinfo = 'm/s'
+    case('us')
+       if (itype==0) ncinfo = 'Surface zonal wind'
+       if (itype==1) ncinfo = 'm/s'
+    case('vs')
+       if (itype==0) ncinfo = 'Surface meridional wind'
+       if (itype==1) ncinfo = 'm/s'
     case('zi_bar')
        if (itype==0) ncinfo = 'Height of maximum total water mixing ratio gradient'
        if (itype==1) ncinfo = 'm'

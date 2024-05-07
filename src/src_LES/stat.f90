@@ -1226,7 +1226,8 @@ contains
   ! User-defined outputs (given in NAMELIST/user_cs_list)
   subroutine cs_user_stats()
     use netcdf
-    use grid, ONLY : CCN, nzp, nxp, nyp, a_dn, a_rv, a_rp, a_rsl, a_rsi, a_temp
+    use grid, ONLY : CCN, nzp, nxp, nyp, a_dn, a_rv, a_rp, a_rsl, a_rsi, a_temp, &
+        a_fuir, a_up, a_vp, umean, vmean
     INTEGER :: ii, iret, VarID
     REAL :: output(nxp,nyp), a(nzp,nxp,nyp)
     LOGICAL :: fail, mask(nzp,nxp,nyp), mass
@@ -1261,6 +1262,15 @@ contains
         CASE ('T_min')
             ! Minimum absolute temperature (K)
             output(:,:)=MINVAL(a_temp,DIM=1)
+        CASE('toa_lwu')
+            ! Top of atmosphere LW up
+            output=a_fuir(nzp+1,:,:)
+        CASE('us')
+            ! Surface wind component u
+            output=a_up(2,:,:)+umean
+        CASE('vs')
+            ! Surface wind component v
+            output=a_vp(2,:,:)+vmean
         CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_cs_list(ii),a,mask,is_mass=mass)
