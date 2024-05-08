@@ -1161,9 +1161,9 @@ contains
     ELSEIF ('siph_'==short_name(1:5)) THEN
         pros='Hallett-Mossop'
     ELSEIF ('sipd_'==short_name(1:5)) THEN
-        pros='Droplet fragmentation'
+        pros='droplet fragmentation'
     ELSEIF ('sipi_'==short_name(1:5)) THEN
-        pros='Ice breakup'
+        pros='ice breakup'
     ELSEIF ('dist_'==short_name(1:5)) THEN
         pros='distribution update'
     ELSEIF ('sedi_'==short_name(1:5)) THEN

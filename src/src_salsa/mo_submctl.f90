@@ -128,7 +128,7 @@ MODULE mo_submctl
   REAL :: df_c_mult = 2.5e13 ! Fragmentation coefficient, default: 2.5e-11 1/um^4=2.5e13 1/m^4
   REAL :: df_tmin = 248.15, df_tmax = 271.15 ! Temperature dependency
   REAL :: df_frag_vfrac = 1e-3 ! Fragments smaller by an order of magnitude in size
-  REAL :: df_dmin_drop = 100e-6, df_dmin_ice = 0. ! Minimum cloud/rain drop and ice/snow diameters
+  REAL :: df_dmin_drop = 100e-6 ! Minimum cloud/rain drop diameter
   REAL, SAVE, ALLOCATABLE :: coll_rate_ic(:,:,:,:), coll_rate_ir(:,:,:,:), &
     coll_rate_sc(:,:,:,:), coll_rate_sr(:,:,:,:) ! Collisions per m3
 
