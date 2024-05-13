@@ -83,13 +83,16 @@ module mcrp_ice_sb
   REAL, PARAMETER :: e_3  = 6.10780000e2 !..Saettigungsdamppfdruck bei T = T_3
 
   ! .. Hallett-Mossop
+  LOGICAL         :: ice_multiplication = .TRUE.
   REAL            :: C_mult     = 3.5e8    !..Koeff. fuer Splintering
   REAL, PARAMETER :: T_mult_min = 265.0    !..Minimale Temp. Splintering
   REAL, PARAMETER :: T_mult_max = 270.0    !..Maximale Temp. Splintering
   REAL, PARAMETER :: T_mult_opt = 268.0    !..Optimale Temp. Splintering
   ! .. Ice-ice breakup
+  LOGICAL         :: iibr_ii=.TRUE., iibr_is=.TRUE., iibr_ig=.TRUE., &
+                     iibr_ih=.TRUE., iibr_ss=.TRUE., iibr_sg=.TRUE., &
+                     iibr_sh=.TRUE., iibr_gg=.TRUE.
   REAL            :: iibr_fbr = 280.       ! Breakup coefficient
-  LOGICAL         :: iibr_self = .FALSE.   ! Include self-collisions
   REAL, PARAMETER :: iibr_dref = 0.02      ! Size dependency
   REAL, PARAMETER :: iibr_tmin = 252.      ! Minimum temperature
   REAL, PARAMETER :: iibr_tmax = 273.15    ! Maximum temperature
@@ -224,9 +227,6 @@ module mcrp_ice_sb
   ! An alternative method for ice/snow - cloud/rain riming
   LOGICAL :: use_ice_graupel_conv_uli = .TRUE.
 
-  ! Hallett-Mossop ice multiplication: ice/snow/graupel/hail - cloud/rain riming -> ice
-  LOGICAL :: ice_multiplication = .TRUE.
-
   ! Graupel/hail - cloud/rain riming produces rain at temperatures above T_shed (<T_3)
   LOGICAL :: graupel_shedding = .FALSE.
   LOGICAL :: hail_shedding = .FALSE.
@@ -321,7 +321,7 @@ CONTAINS
         q_krit_ic, D_krit_ic,  q_krit_ir, D_krit_ir, q_krit_sc, D_krit_sc, q_krit_sr, D_krit_sr, &
         q_krit_gc, D_krit_gc, q_krit_gr, q_krit_hc, D_krit_hc, q_krit_hr, q_krit_c, q_krit_r, &
         q_krit_ii, D_krit_ii, q_krit, &
-        c_mult, iibr_fbr, iibr_self, &
+        c_mult, iibr_fbr, iibr_ii, iibr_is, iibr_ig, iibr_ih, iibr_ss, iibr_sg, iibr_sh, iibr_gg, &
         cldw,rain,ice,snow,graupel,hail
 
     ! Copy default cloud to cldw
@@ -3208,8 +3208,7 @@ CONTAINS
             n_snow(i,j,k) = n_snow(i,j,k) + self_n / 2.0
 
             ! Ice multiplication
-            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. &
-                    ice_multiplication .AND. iibr_self) THEN
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_ii) THEN
               mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_i/iibr_dref * self_n
               mult_q = mult_n * ice%x_min
               n_ice(i,j,k) = n_ice(i,j,k) + mult_n
@@ -3300,8 +3299,7 @@ CONTAINS
             n_snow(i,j,k) = n_snow(i,j,k) - self_n
 
             ! Ice multiplication
-            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. &
-                    ice_multiplication .AND. iibr_self) THEN
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_ss) THEN
               mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_s/iibr_dref * self_n
               mult_q = mult_n * ice%x_min
               n_ice(i,j,k) = n_ice(i,j,k) + mult_n
@@ -3495,7 +3493,7 @@ CONTAINS
             n_snow(i,j,k)    = n_snow(i,j,k)    - coll_n
 
             ! Ice multiplication
-            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_sg) THEN
               mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_g/iibr_dref * coll_n
               mult_q = mult_n * ice%x_min
               n_ice(i,j,k) = n_ice(i,j,k) + mult_n
@@ -3601,7 +3599,7 @@ CONTAINS
             n_snow(i,j,k) = n_snow(i,j,k) - coll_n
 
             ! Ice multiplication
-            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_sh) THEN
               mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_h/iibr_dref * coll_n
               mult_q = mult_n * ice%x_min
               n_ice(i,j,k) = n_ice(i,j,k) + mult_n
@@ -3705,7 +3703,7 @@ CONTAINS
             n_ice(i,j,k)     = n_ice(i,j,k)     - coll_n
 
             ! Ice multiplication
-            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_ig) THEN
               mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_g/iibr_dref * coll_n
               mult_q = mult_n * ice%x_min
               n_ice(i,j,k) = n_ice(i,j,k) + mult_n
@@ -3807,7 +3805,7 @@ CONTAINS
             n_ice(i,j,k)  = n_ice(i,j,k)  - coll_n
 
             ! Ice multiplication
-            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_ih) THEN
               mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_h/iibr_dref * coll_n
               mult_q = mult_n * ice%x_min
               n_ice(i,j,k) = n_ice(i,j,k) + mult_n
@@ -3914,7 +3912,7 @@ CONTAINS
             n_ice(i,j,k)  = n_ice(i,j,k)  - coll_n
 
             ! Ice multiplication
-            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. ice_multiplication) THEN
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_is) THEN
               mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_g/iibr_dref * coll_n
               mult_q = mult_n * ice%x_min
               n_ice(i,j,k) = n_ice(i,j,k) + mult_n
@@ -3943,6 +3941,7 @@ CONTAINS
     INTEGER                     :: i,j,k
     INTEGER, SAVE               :: firstcall = 0
 
+    REAL            :: T_a
     REAL            :: q_g,n_g,x_g,d_g,v_g
     REAL            :: self_n,mult_n,mult_q
     REAL,SAVE       :: delta_n_11,delta_n_12
@@ -3976,6 +3975,8 @@ CONTAINS
           q_g = q_graupel(i,j,k)
           n_g = n_graupel(i,j,k)                                       !..Anzahldichte in SI
           IF ( n_g > 0.0 ) THEN
+            T_a = T_0(i,j,k)
+
             x_g = MIN(MAX(q_g/(n_g+eps),graupel%x_min),graupel%x_max) !..mittlere Masse in SI
             D_g = graupel%a_geo * x_g**graupel%b_geo                  !..mittlerer Durchmesser
             v_g = graupel%a_vel * x_g**graupel%b_vel * rrho_04(i,j,k) !..mittlere Sedimentationsgeschw.
@@ -3983,7 +3984,7 @@ CONTAINS
             ! hn>> Korrektur:
             ! Faktor 1/2 ergaenzt
             ! ub>> efficiency von nassem Graupel etwas erhoeht:
-            IF (T_0(i,j,k) > T_3) THEN
+            IF (T_a > T_3) THEN
               self_n = pi/8.0 * e_gg_wet * coll_n * n_g**2 * D_g**2 * v_g * dt
             ELSE
               self_n = pi/8.0 * e_gg * coll_n * n_g**2 * D_g**2 * v_g * dt
@@ -3995,9 +3996,8 @@ CONTAINS
             n_graupel(i,j,k) = n_graupel(i,j,k) - self_n
 
             ! Ice multiplication
-            IF (iibr_tmin<T_0(i,j,k) .AND. T_0(i,j,k)<iibr_tmax .AND. iibr_fbr>0. .AND. &
-                    ice_multiplication .AND. iibr_self) THEN
-              mult_n = iibr_fbr*(T_0(i,j,k)-iibr_tmin)**1.2*exp((iibr_tmin-T_0(i,j,k))*0.2)*D_g/iibr_dref * self_n
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_gg) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_g/iibr_dref * self_n
               mult_q = mult_n * ice%x_min
               n_ice(i,j,k) = n_ice(i,j,k) + mult_n
               q_ice(i,j,k) = q_ice(i,j,k) + mult_q
