@@ -83,10 +83,19 @@ module mcrp_ice_sb
   REAL, PARAMETER :: e_3  = 6.10780000e2 !..Saettigungsdamppfdruck bei T = T_3
 
   ! .. Hallett-Mossop
+  LOGICAL         :: ice_multiplication = .TRUE.
   REAL            :: C_mult     = 3.5e8    !..Koeff. fuer Splintering
   REAL, PARAMETER :: T_mult_min = 265.0    !..Minimale Temp. Splintering
   REAL, PARAMETER :: T_mult_max = 270.0    !..Maximale Temp. Splintering
   REAL, PARAMETER :: T_mult_opt = 268.0    !..Optimale Temp. Splintering
+  ! .. Ice-ice breakup
+  LOGICAL         :: iibr_ii=.TRUE., iibr_is=.TRUE., iibr_ig=.TRUE., &
+                     iibr_ih=.TRUE., iibr_ss=.TRUE., iibr_sg=.TRUE., &
+                     iibr_sh=.TRUE., iibr_gg=.TRUE.
+  REAL            :: iibr_fbr = 280.       ! Breakup coefficient
+  REAL, PARAMETER :: iibr_dref = 0.02      ! Size dependency
+  REAL, PARAMETER :: iibr_tmin = 252.      ! Minimum temperature
+  REAL, PARAMETER :: iibr_tmax = 273.15    ! Maximum temperature
 
   ! .. collisions
   REAL, PARAMETER :: e_ic  = 0.80              !..max. Eff. fuer ice_cloud_riming
@@ -99,8 +108,7 @@ module mcrp_ice_sb
   REAL, PARAMETER :: snow_s_vel = 0.10         !..Dispersion der Fallgeschw.
   REAL, PARAMETER :: r_shedding = 500.0e-6     !..mittlerer Radius Shedding
   REAL, PARAMETER :: T_shed = 263.2
-  REAL, PARAMETER :: q_krit_ii = 1.000e-6 ! q-Schwellenwert fuer ice_selfcollection 
-  REAL, PARAMETER :: D_krit_ii = 100.0e-6 ! D-Schwellenwert fuer ice_selfcollection
+  REAL :: q_krit_ii = 1.000e-6, D_krit_ii = 100.0e-6 ! ice in ice_selfcollection
   REAL, PARAMETER :: D_conv_ii = 75.00e-6 ! D-Schwellenwert fuer ice_selfcollection
   ! .. riming mixing ratio (q) and diameter (D) limits
   REAL :: q_krit_ic = 1.000e-5, D_krit_ic = 150.0e-6 ! ice in ice_cloud_riming
@@ -114,7 +122,7 @@ module mcrp_ice_sb
   REAL :: q_krit_c  = 1.000e-6 ! cloud in all above; diameter limit is D_krit_c
   REAL :: q_krit_r  = 1.000e-9 ! rain in all above; no diameter limit
   ! .. other riming constants
-  REAL, PARAMETER :: q_krit    = 1.000e-9 ! q-Schwellenwert sonst
+  REAL :: q_krit    = 1.000e-9 ! q-Schwellenwert sonst
   REAL, PARAMETER :: D_conv_sg = 200.0e-6 ! D-Schwellenwert
   REAL, PARAMETER :: D_conv_ig = 200.0e-6 ! D-Schwellenwert
   REAL, PARAMETER :: x_conv_g  = 0.100e-9 ! minimale Graupel-/Hagelmasse riming
@@ -219,9 +227,6 @@ module mcrp_ice_sb
   ! An alternative method for ice/snow - cloud/rain riming
   LOGICAL :: use_ice_graupel_conv_uli = .TRUE.
 
-  ! Hallett-Mossop ice multiplication: ice/snow/graupel/hail - cloud/rain riming -> ice
-  LOGICAL :: ice_multiplication = .TRUE.
-
   ! Graupel/hail - cloud/rain riming produces rain at temperatures above T_shed (<T_3)
   LOGICAL :: graupel_shedding = .FALSE.
   LOGICAL :: hail_shedding = .FALSE.
@@ -247,6 +252,8 @@ module mcrp_ice_sb
 
   ! Fixed INP concentration (micro/nin_set) applied to supercooled liquid clouds
   REAL :: nin_set = 0.
+
+  REAL :: T_nuc = 273.15 ! Maximum temperature for ice nucleation (K)
 
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_04
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_c
@@ -283,6 +290,8 @@ module mcrp_ice_sb
   real, save, allocatable :: tmp_rv(:,:,:),tmp_rc(:,:,:),tmp_nr(:,:,:),tmp_rr(:,:,:), &
     tmp_ni(:,:,:),tmp_ri(:,:,:),tmp_rs(:,:,:),tmp_ns(:,:,:),tmp_rg(:,:,:),tmp_ng(:,:,:), &
     tmp_rh(:,:,:),tmp_nh(:,:,:)
+  ! Additional SIP statistics
+  real, save, allocatable :: stat_iibr_ni(:,:,:), stat_hm_ni(:,:,:)
 
   PUBLIC loc_ix, loc_iy, loc_iz, dt, p_0, T_0, rho_0, S_i, q, &
         q_cloud, q_ice, q_rain, q_snow, q_graupel, q_hail, &
@@ -308,10 +317,11 @@ CONTAINS
     namelist /micro/ &
         drop_freeze, graupel_shedding, hail_shedding, enhanced_melting, ice_multiplication, &
         use_ice_graupel_conv_uli, &
-        ice_typ, cloud_typ, nin_set, &
+        ice_typ, cloud_typ, T_nuc, nin_set, &
         q_krit_ic, D_krit_ic,  q_krit_ir, D_krit_ir, q_krit_sc, D_krit_sc, q_krit_sr, D_krit_sr, &
         q_krit_gc, D_krit_gc, q_krit_gr, q_krit_hc, D_krit_hc, q_krit_hr, q_krit_c, q_krit_r, &
-        c_mult, &
+        q_krit_ii, D_krit_ii, q_krit, &
+        c_mult, iibr_fbr, iibr_ii, iibr_is, iibr_ig, iibr_ih, iibr_ss, iibr_sg, iibr_sh, iibr_gg, &
         cldw,rain,ice,snow,graupel,hail
 
     ! Copy default cloud to cldw
@@ -664,6 +674,8 @@ CONTAINS
         tmp_rv=0.; tmp_rc=0.; tmp_nr=0.; tmp_rr=0.; tmp_ni=0.; tmp_ri=0.
         tmp_rs=0.; tmp_ns=0.; tmp_rg=0.; tmp_ng=0.; tmp_rh=0.; tmp_nh=0.
     ENDIF
+    ALLOCATE(stat_iibr_ni(0:loc_ix,1:loc_iy,1:loc_iz),stat_hm_ni(0:loc_ix,1:loc_iy,1:loc_iz) )
+    stat_iibr_ni=0; stat_hm_ni=0.
 
   END SUBROUTINE alloc_driver
 
@@ -685,6 +697,7 @@ CONTAINS
     ! ub<<
     IF (sflg) DEALLOCATE( out_mcrp_data,tmp_rv,tmp_rc,tmp_nr,tmp_rr,&
             tmp_ni,tmp_ri,tmp_rs,tmp_ns,tmp_rg,tmp_ng,tmp_rh,tmp_nh )
+    DEALLOCATE(stat_iibr_ni,stat_hm_ni)
   END SUBROUTINE dealloc_driver
 
 !END MODULE wolken_driver
@@ -715,7 +728,8 @@ CONTAINS
     DO k = 1, loc_iz
       DO j = 1, loc_iy
         DO i = 0, loc_ix
-          IF (s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3 .AND. nin_set*ice%x_min>eps) THEN
+          IF (s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3 .AND. T_0(i,j,k)<T_nuc .AND. &
+                nin_set*ice%x_min>eps) THEN
             ! Cloud droplet freezing with fixed INP concentration
             ndiag = MAX(nin_set*rho_0(i,j,k) - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0)
             nuc_q = MIN(ndiag*ice%x_min, q_cloud(i,j,k))
@@ -832,6 +846,8 @@ CONTAINS
                 mult_n = C_mult * mult_1 * mult_2 * rime_q
 
                 n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
               ENDIF
 
               ! Umwandlung ice -> graupel
@@ -975,6 +991,8 @@ CONTAINS
                 n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n
                 q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q
                 q_snow(i,j,k) = q_snow(i,j,k) - mult_q
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
               ENDIF
 
               ! Umwandlung snow -> graupel
@@ -1111,6 +1129,7 @@ CONTAINS
               q_ice(i,j,k)     = q_ice(i,j,k)     + mult_q
               q_graupel(i,j,k) = q_graupel(i,j,k) - mult_q
 
+              stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
             ENDIF
 
             ! enhancement of melting of graupel
@@ -1255,6 +1274,7 @@ CONTAINS
               q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q
               q_hail(i,j,k) = q_hail(i,j,k) - mult_q
 
+              stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
             ENDIF
 
             ! enhancement of melting of hail
@@ -1545,6 +1565,9 @@ CONTAINS
               ELSE
                 n_ice(i,j,k) = n_ice(i,j,k)  + mult_n  ! UB_20081120
                 q_ice(i,j,k) = q_ice(i,j,k)  + mult_q  ! UB_20081120
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
+
                 IF (ice_typ < 3) THEN
                   ! Eis + angefrorenes Regenwasser ergibt Graupel:
                   n_graupel(i,j,k) = n_graupel(i,j,k) + rime_n
@@ -1710,6 +1733,9 @@ CONTAINS
               ELSE
                 n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n ! UB_20081120
                 q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q ! UB_20081120
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
+
                 IF (ice_typ < 3) THEN
                   ! Schnee + angefrorenes Regenwasser ergibt Graupel:
                   n_graupel(i,j,k) = n_graupel(i,j,k) + rime_n
@@ -1855,6 +1881,8 @@ CONTAINS
                 n_ice(i,j,k)     = n_ice(i,j,k)     + mult_n
                 q_ice(i,j,k)     = q_ice(i,j,k)     + mult_q
                 q_graupel(i,j,k) = q_graupel(i,j,k) - mult_q
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
               ENDIF
 
               ! enhancement of melting of graupel
@@ -1934,6 +1962,8 @@ CONTAINS
                 n_ice(i,j,k)     = n_ice(i,j,k)  + mult_n
                 q_ice(i,j,k)     = q_ice(i,j,k)  + mult_q
                 q_hail(i,j,k)    = q_hail(i,j,k) - mult_q
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
               ENDIF
 
               ! Shedding
@@ -2065,6 +2095,8 @@ CONTAINS
               n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n
               q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q
               q_hail(i,j,k) = q_hail(i,j,k) - mult_q
+
+              stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
             ENDIF
 
             ! enhancement of melting of hail
@@ -2186,6 +2218,8 @@ CONTAINS
                 mult_n = C_mult * mult_1 * mult_2 * rime_q
 
                 n_ice(i,j,k) = n_ice(i,j,k)  + mult_n
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
               ENDIF
 
             END IF
@@ -2211,6 +2245,8 @@ CONTAINS
                 mult_n = C_mult * mult_1 * mult_2 * rime_q
                 
                 n_ice(i,j,k) = n_ice(i,j,k)  + mult_n
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
               ENDIF
               
             END IF
@@ -2247,6 +2283,8 @@ CONTAINS
                 mult_n = C_mult * mult_1 * mult_2 * rime_q
 
                 n_ice(i,j,k) = n_ice(i,j,k)  + mult_n              
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
               ENDIF
 
               ! Umwandlung ice -> graupel
@@ -2316,6 +2354,9 @@ CONTAINS
               ELSE
                 n_ice(i,j,k) = n_ice(i,j,k)  + mult_n  ! UB_20081120
                 q_ice(i,j,k) = q_ice(i,j,k)  + mult_q  ! UB_20081120
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
+
                 IF (ice_typ < 3) THEN
                   ! Eis + angefrorenes Regenwasser ergibt Graupel:
                   n_graupel(i,j,k) = n_graupel(i,j,k) + rime_n
@@ -2371,6 +2412,8 @@ CONTAINS
                 n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n
                 q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q
                 q_snow(i,j,k) = q_snow(i,j,k) - mult_q
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
               ENDIF
 
             END IF
@@ -2402,6 +2445,8 @@ CONTAINS
                 n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n
                 q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q
                 q_snow(i,j,k) = q_snow(i,j,k) - mult_q
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
               ENDIF
 
             END IF
@@ -2440,6 +2485,8 @@ CONTAINS
                 n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n
                 q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q
                 q_snow(i,j,k) = q_snow(i,j,k) - mult_q
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
               ENDIF
 
               ! Umwandlung snow -> graupel
@@ -2512,6 +2559,9 @@ CONTAINS
               ELSE
                 n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n ! UB_20081120
                 q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q ! UB_20081120
+
+                stat_hm_ni(i,j,k) = stat_hm_ni(i,j,k) + mult_n
+
                 IF (ice_typ < 3) THEN
                   ! Schnee + angefrorenes Regenwasser ergibt Graupel:
                   n_graupel(i,j,k) = n_graupel(i,j,k) + rime_n
@@ -3084,7 +3134,7 @@ CONTAINS
     INTEGER, SAVE               :: firstcall = 0
 
     REAL            :: T_a             !..absolute Temperatur
-    REAL            :: q_i,n_i,x_i,d_i,v_i,e_coll,x_conv
+    REAL            :: q_i,n_i,x_i,d_i,v_i,e_coll,x_conv,mult_n,mult_q
     REAL            :: self_n,self_q
     REAL            :: delta_n_11,delta_n_12,delta_n_22
     REAL            :: delta_q_11,delta_q_12,delta_q_22
@@ -3157,6 +3207,17 @@ CONTAINS
             n_ice(i,j,k)  = n_ice(i,j,k)  - self_n
             n_snow(i,j,k) = n_snow(i,j,k) + self_n / 2.0
 
+            ! Ice multiplication
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_ii) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_i/iibr_dref * self_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              n_snow(i,j,k) = n_snow(i,j,k) - mult_q
+
+              stat_iibr_ni(i,j,k) = stat_iibr_ni(i,j,k) + mult_n
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3178,7 +3239,7 @@ CONTAINS
     INTEGER, SAVE               :: firstcall = 0
 
     REAL            :: T_a             !..Absolute Temperatur
-    REAL            :: q_s,n_s,x_s,d_s,v_s,e_coll
+    REAL            :: q_s,n_s,x_s,d_s,v_s,e_coll,mult_n,mult_q
     REAL            :: self_n
     REAL            :: delta_n_11,delta_n_12
     REAL            :: theta_n_11,theta_n_12
@@ -3236,6 +3297,17 @@ CONTAINS
             self_n = MIN(self_n,n_s)
 
             n_snow(i,j,k) = n_snow(i,j,k) - self_n
+
+            ! Ice multiplication
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_ss) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_s/iibr_dref * self_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_snow(i,j,k) = q_snow(i,j,k) - mult_q
+
+              stat_iibr_ni(i,j,k) = stat_iibr_ni(i,j,k) + mult_n
+            ENDIF
 
           ENDIF
         ENDDO
@@ -3350,7 +3422,7 @@ CONTAINS
     REAL            :: T_a
     REAL            :: q_g,n_g,x_g,d_g,v_g
     REAL            :: q_s,n_s,x_s,d_s,v_s
-    REAL            :: coll_n,coll_q,e_coll
+    REAL            :: coll_n,coll_q,e_coll,mult_n,mult_q
     REAL, SAVE      :: delta_n_gg,delta_n_gs,delta_n_ss
     REAL, SAVE      :: delta_q_gg,delta_q_gs,delta_q_ss
     REAL, SAVE      :: theta_n_gg,theta_n_gs,theta_n_ss
@@ -3420,6 +3492,17 @@ CONTAINS
             q_snow(i,j,k)    = q_snow(i,j,k)    - coll_q
             n_snow(i,j,k)    = n_snow(i,j,k)    - coll_n
 
+            ! Ice multiplication
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_sg) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_g/iibr_dref * coll_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_graupel(i,j,k) = q_graupel(i,j,k) - mult_q
+
+              stat_iibr_ni(i,j,k) = stat_iibr_ni(i,j,k) + mult_n
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3445,7 +3528,7 @@ CONTAINS
     REAL            :: T_a
     REAL            :: q_h,n_h,x_h,d_h,v_h
     REAL            :: q_s,n_s,x_s,d_s,v_s
-    REAL            :: coll_n,coll_q,e_coll
+    REAL            :: coll_n,coll_q,e_coll,mult_n,mult_q
     REAL, SAVE      :: delta_n_hh,delta_n_hs,delta_n_ss
     REAL, SAVE      :: delta_q_hh,delta_q_hs,delta_q_ss
     REAL, SAVE      :: theta_n_hh,theta_n_hs,theta_n_ss
@@ -3515,6 +3598,17 @@ CONTAINS
             q_snow(i,j,k) = q_snow(i,j,k) - coll_q
             n_snow(i,j,k) = n_snow(i,j,k) - coll_n
 
+            ! Ice multiplication
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_sh) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_h/iibr_dref * coll_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_hail(i,j,k) = q_hail(i,j,k) - mult_q
+
+              stat_iibr_ni(i,j,k) = stat_iibr_ni(i,j,k) + mult_n
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3540,7 +3634,7 @@ CONTAINS
     REAL            :: T_a
     REAL            :: q_g,n_g,x_g,d_g,v_g
     REAL            :: q_i,n_i,x_i,d_i,v_i
-    REAL            :: coll_n,coll_q,e_coll
+    REAL            :: coll_n,coll_q,e_coll,mult_n,mult_q
     REAL, SAVE      :: delta_n_gg,delta_n_gi,delta_n_ii
     REAL, SAVE      :: delta_q_gg,delta_q_gi,delta_q_ii
     REAL, SAVE      :: theta_n_gg,theta_n_gi,theta_n_ii
@@ -3608,6 +3702,17 @@ CONTAINS
             q_ice(i,j,k)     = q_ice(i,j,k)     - coll_q
             n_ice(i,j,k)     = n_ice(i,j,k)     - coll_n
 
+            ! Ice multiplication
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_ig) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_g/iibr_dref * coll_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_graupel(i,j,k) = q_graupel(i,j,k) - mult_q
+
+              stat_iibr_ni(i,j,k) = stat_iibr_ni(i,j,k) + mult_n
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3631,7 +3736,7 @@ CONTAINS
     REAL            :: T_a
     REAL            :: q_h,n_h,x_h,d_h,v_h
     REAL            :: q_i,n_i,x_i,d_i,v_i
-    REAL            :: coll_n,coll_q,e_coll
+    REAL            :: coll_n,coll_q,e_coll,mult_n,mult_q
     REAL, SAVE      :: delta_n_hh,delta_n_hi,delta_n_ii
     REAL, SAVE      :: delta_q_hh,delta_q_hi,delta_q_ii
     REAL, SAVE      :: theta_n_hh,theta_n_hi,theta_n_ii
@@ -3699,6 +3804,17 @@ CONTAINS
             q_ice(i,j,k)  = q_ice(i,j,k)  - coll_q
             n_ice(i,j,k)  = n_ice(i,j,k)  - coll_n
 
+            ! Ice multiplication
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_ih) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_h/iibr_dref * coll_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_hail(i,j,k) = q_hail(i,j,k) - mult_q
+
+              stat_iibr_ni(i,j,k) = stat_iibr_ni(i,j,k) + mult_n
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3722,7 +3838,7 @@ CONTAINS
     REAL            :: T_a
     REAL            :: q_g,n_g,x_g,d_g,v_g
     REAL            :: q_i,n_i,x_i,d_i,v_i
-    REAL            :: coll_n,coll_q,e_coll
+    REAL            :: coll_n,coll_q,e_coll,mult_n,mult_q
     REAL, SAVE      :: delta_n_ss,delta_n_si,delta_n_ii
     REAL, SAVE      :: delta_q_ss,delta_q_si,delta_q_ii
     REAL, SAVE      :: theta_n_ss,theta_n_si,theta_n_ii
@@ -3795,6 +3911,17 @@ CONTAINS
             q_ice(i,j,k)  = q_ice(i,j,k)  - coll_q
             n_ice(i,j,k)  = n_ice(i,j,k)  - coll_n
 
+            ! Ice multiplication
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_is) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_g/iibr_dref * coll_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_snow(i,j,k) = q_snow(i,j,k) - mult_q
+
+              stat_iibr_ni(i,j,k) = stat_iibr_ni(i,j,k) + mult_n
+            ENDIF
+
           ENDIF
         ENDDO
       ENDDO
@@ -3814,8 +3941,9 @@ CONTAINS
     INTEGER                     :: i,j,k
     INTEGER, SAVE               :: firstcall = 0
 
+    REAL            :: T_a
     REAL            :: q_g,n_g,x_g,d_g,v_g
-    REAL            :: self_n
+    REAL            :: self_n,mult_n,mult_q
     REAL,SAVE       :: delta_n_11,delta_n_12
     REAL,SAVE       :: theta_n_11,theta_n_12
     REAL,SAVE       :: delta_n
@@ -3847,6 +3975,8 @@ CONTAINS
           q_g = q_graupel(i,j,k)
           n_g = n_graupel(i,j,k)                                       !..Anzahldichte in SI
           IF ( n_g > 0.0 ) THEN
+            T_a = T_0(i,j,k)
+
             x_g = MIN(MAX(q_g/(n_g+eps),graupel%x_min),graupel%x_max) !..mittlere Masse in SI
             D_g = graupel%a_geo * x_g**graupel%b_geo                  !..mittlerer Durchmesser
             v_g = graupel%a_vel * x_g**graupel%b_vel * rrho_04(i,j,k) !..mittlere Sedimentationsgeschw.
@@ -3854,7 +3984,7 @@ CONTAINS
             ! hn>> Korrektur:
             ! Faktor 1/2 ergaenzt
             ! ub>> efficiency von nassem Graupel etwas erhoeht:
-            IF (T_0(i,j,k) > T_3) THEN
+            IF (T_a > T_3) THEN
               self_n = pi/8.0 * e_gg_wet * coll_n * n_g**2 * D_g**2 * v_g * dt
             ELSE
               self_n = pi/8.0 * e_gg * coll_n * n_g**2 * D_g**2 * v_g * dt
@@ -3864,6 +3994,17 @@ CONTAINS
             self_n = MIN(self_n,n_g)
 
             n_graupel(i,j,k) = n_graupel(i,j,k) - self_n
+
+            ! Ice multiplication
+            IF (iibr_tmin<T_a .AND. T_a<iibr_tmax .AND. iibr_fbr>0. .AND. iibr_gg) THEN
+              mult_n = iibr_fbr*(T_a-iibr_tmin)**1.2*exp((iibr_tmin-T_a)*0.2)*D_g/iibr_dref * self_n
+              mult_q = mult_n * ice%x_min
+              n_ice(i,j,k) = n_ice(i,j,k) + mult_n
+              q_ice(i,j,k) = q_ice(i,j,k) + mult_q
+              q_graupel(i,j,k) = q_graupel(i,j,k) - mult_q
+
+              stat_iibr_ni(i,j,k) = stat_iibr_ni(i,j,k) + mult_n
+            ENDIF
 
           ENDIF
         ENDDO
@@ -4357,6 +4498,8 @@ CONTAINS
 
       ENDIF
 
+      IF (sflg) CALL sb_var_stat('aggr') ! Collisions between solid particles: aggregation
+
       IF (.NOT. use_ice_graupel_conv_uli) THEN 
         ! Old SB2006 scheme
 
@@ -4391,7 +4534,7 @@ CONTAINS
 
       ENDIF
 
-      IF (sflg) CALL sb_var_stat('coag') ! Collisions
+      IF (sflg) CALL sb_var_stat('coag') ! Collisions between solid and liquid particles: riming
 
       ! Gefrieren der Regentropfen:
 
@@ -4505,6 +4648,8 @@ CONTAINS
 
     IF (sflg) CALL sb_var_stat('diag') ! Diagnostics
 
+    IF (sflg) CALL sb_var_stat_add() ! Additional statistics
+
   CONTAINS
 
       ! Collecting statistical outputs from the Seifert and Beheng micophysics
@@ -4573,6 +4718,26 @@ CONTAINS
         CALL sb_var_stat_reset()
         !
       END SUBROUTINE sb_var_stat
+      ! 3) Additional statistics
+      SUBROUTINE sb_var_stat_add()
+        IMPLICIT NONE
+        ! Local
+        INTEGER :: k
+        !
+        IF (out_mcrp_nout==0) RETURN
+        !
+        ! Generate the requested ouputs
+        DO k=1,out_mcrp_nout
+            IF ('siph_ni' == out_mcrp_list(k)) THEN
+                ! Hallett-Mossop ice production rate
+                out_mcrp_data(:,:,:,k) = stat_hm_ni/dt
+            ELSEIF ('sipi_ni' == out_mcrp_list(k)) THEN
+                ! Ice-ice collisional breakup rate
+                out_mcrp_data(:,:,:,k) = stat_iibr_ni/dt
+            ENDIF
+        ENDDO
+        !
+      END SUBROUTINE sb_var_stat_add
 
     SUBROUTINE autoconversionKS ()
       !*******************************************************************************

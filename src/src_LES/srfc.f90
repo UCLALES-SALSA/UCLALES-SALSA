@@ -125,6 +125,7 @@ contains
         case default
             STOP 'Sea-spray source function not supported!'
         end select
+        flx(k)=max(0.,flx(k))
     ENDDO
 
     ! Organic mass fraction grom Gantt ea (2011)
@@ -591,7 +592,7 @@ contains
          , umean, vmean, a_ustar, a_tstar, a_rstar, uw_sfc, vw_sfc, ww_sfc    &
          , wt_sfc, wq_sfc, obl, dn0, level,dtl, a_sflx, a_rflx, precip
     use thrm, only: rslf
-    use stat, only: fill_scalar, sflg
+    use stat, only: fill_scalar, fill_scalar_2d, sflg
     use util, only : get_avg2dh
 
     implicit none
@@ -614,6 +615,8 @@ contains
        CASE(4,5)
           rx = a_rp
     END SELECT
+
+    zs = -999. ! currently not set
 
     select case(isfctyp)
     !
@@ -847,14 +850,22 @@ contains
         ! Surface temperature (K)
         CALL fill_scalar(sst,'tsrf   ')
         ! Friction velocity
-        usum = SUM(SUM(a_ustar(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))
-        CALL fill_scalar(usum,'ustar  ')
+        CALL fill_scalar_2d(a_ustar,'ustar  ')
         ! Sensible heat flux
-        usum = SUM(SUM(wt_sfc(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))*cp*(dn0(1)+dn0(2))*0.5
-        CALL fill_scalar(usum,'shf_bar')
+        drdz(:,:)=wt_sfc(:,:)*cp*(dn0(1)+dn0(2))*0.5
+        CALL fill_scalar_2d(drdz,'shf_bar')
         ! Latent heat flux
-        usum = SUM(SUM(wq_sfc(3:nxp-2,3:nyp-2),DIM=2))/float((nxp-4)*(nyp-4))*alvl*(dn0(1)+dn0(2))*0.5
-        CALL fill_scalar(usum,'lhf_bar')
+        drdz(:,:)=wq_sfc(:,:)*alvl*(dn0(1)+dn0(2))*0.5
+        CALL fill_scalar_2d(drdz,'lhf_bar')
+        ! *** optional ts-outputs ***
+        ! Obukhov lenght
+        CALL fill_scalar_2d(obl,'obl    ')
+        ! Surface pressure
+        CALL fill_scalar(psrf,'psrf   ')
+        ! Length scales
+        CALL fill_scalar(zs,'z0m    ') ! Momentum zrough or the actually calculated value
+        ! Surface winds
+        CALL fill_scalar_2d(wspd,'wspd   ')
     endif
 
     return

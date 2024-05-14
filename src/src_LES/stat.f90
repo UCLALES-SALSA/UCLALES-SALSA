@@ -177,7 +177,7 @@ module stat
   REAL :: ri_min=1e-10, ni_min=1e-10 ! Mass and number limits for ice statistics
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
-       updtst, close_stat, fill_scalar, &
+       updtst, close_stat, fill_scalar, fill_scalar_2d, &
        tke_sgs, sgsflxs, comp_tke, acc_removal, cs_rem_set, csflg, cswrite, &
        les_rate_stats, mcrp_var_save, out_cs_list, out_ps_list, out_ts_list, &
        cs_include, cs_exclude, ps_include, ps_exclude, ts_include, ts_exclude, &
@@ -673,6 +673,7 @@ contains
 
   ! Set ouputs on or off based on list from user
   SUBROUTINE apply_user_outputs(set,list,n,out_list,out_flags,m)
+    use mpi_interface, only : myid
     IMPLICIT NONE
     ! Inputs
     LOGICAL, INTENT(IN) :: set ! Set true or false
@@ -693,7 +694,7 @@ contains
                     found=.TRUE.
                 ENDIF
             ENDDO
-            IF (.NOT.found) WRITE(*,*) 'Warning: '//TRIM(list(i))//' not found!',i
+            IF (myid==0 .AND. .NOT.found) WRITE(*,*) 'Warning: '//TRIM(list(i))//' not found!',i
         ENDIF
     ENDDO
   END SUBROUTINE apply_user_outputs
@@ -1225,7 +1226,8 @@ contains
   ! User-defined outputs (given in NAMELIST/user_cs_list)
   subroutine cs_user_stats()
     use netcdf
-    use grid, ONLY : CCN, nzp, nxp, nyp, a_dn, a_rv, a_rp, a_rsl, a_rsi, a_temp
+    use grid, ONLY : CCN, nzp, nxp, nyp, a_dn, a_rv, a_rp, a_rsl, a_rsi, a_temp, &
+        a_fuir, a_up, a_vp, umean, vmean
     INTEGER :: ii, iret, VarID
     REAL :: output(nxp,nyp), a(nzp,nxp,nyp)
     LOGICAL :: fail, mask(nzp,nxp,nyp), mass
@@ -1260,15 +1262,23 @@ contains
         CASE ('T_min')
             ! Minimum absolute temperature (K)
             output(:,:)=MINVAL(a_temp,DIM=1)
+        CASE('toa_lwu')
+            ! Top of atmosphere LW up
+            output=a_fuir(nzp+1,:,:)
+        CASE('us')
+            ! Surface wind component u
+            output=a_up(2,:,:)+umean
+        CASE('vs')
+            ! Surface wind component v
+            output=a_vp(2,:,:)+vmean
         CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_cs_list(ii),a,mask,is_mass=mass)
-            IF (fail) THEN
-                WRITE(*,*)" Error: failed to calculate '"//TRIM(user_cs_list(ii))//"' for cs output!"
-                STOP
-            ENDIF
             ! Calculate vertical integral when mass concentration, otherwise mean
-            IF (mass) THEN
+            IF (fail) THEN
+                ! These can be calculated elsewhere and saved using function fill_scalar_2d
+                CYCLE
+            ELSEIF (mass) THEN
                 CALL get_avg_cs(nzp,nxp,nyp,a,output,cond=mask,dens=a_dn)
             ELSE
                 CALL get_avg_cs(nzp,nxp,nyp,a,output,cond=mask)
@@ -1758,12 +1768,10 @@ contains
          CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_ts_list(i),a,mask,is_mass=mass)
-            IF (fail) THEN
-                WRITE(*,*)" Error: failed to calculate '"//TRIM(user_ts_list(i))//"' for ts output!"
-                STOP
-            ENDIF
             ! Calculate vertical integral when mass concentration, otherwise mean
-            IF (mass) THEN
+            IF (fail) THEN
+                ! These can be calculated elsewhere and saved using function fill_scalar
+            ELSEIF (mass) THEN
                 user_ts_data(i) = get_avg_ts(nzp,nxp,nyp,a,dzt,cond=mask,dens=a_dn)
             ELSE
                 user_ts_data(i) = get_avg_ts(nzp,nxp,nyp,a,dzt,cond=mask)
@@ -1841,10 +1849,10 @@ contains
     integer, intent (in) :: n1,n2,n3
     real, intent (in)    :: rflx(n1,n2,n3)
     real, optional, intent (in) :: sflx(n1,n2,n3), alb(n2,n3)
-    real, optional, intent (in) :: sup(n1,n2,n3), sdwn(n1,n2,n3), irup(n1,n2,n3), irdwn(n1,n2,n3)
+    real, optional, intent (in) :: sup(n1+1,n2,n3), sdwn(n1+1,n2,n3), irup(n1+1,n2,n3), irdwn(n1+1,n2,n3)
 
     integer :: k
-    real    :: a1(n1),a2(n1)
+    real    :: a1(n1),a2(n1),a3(n1+1)
 
     call get_avg3(n1,n2,n3,rflx,a1)
     call get_var3(n1,n2,n3,rflx,a1,a2)
@@ -1864,14 +1872,23 @@ contains
     end if
 
     if (present(sup)) then
-        call get_avg3(n1,n2,n3,sup,a1)
-        svctr(:,93)=svctr(:,93) + a1(:)
-        call get_avg3(n1,n2,n3,sdwn,a1)
-        svctr(:,94)=svctr(:,94) + a1(:)
-        call get_avg3(n1,n2,n3,irup,a1)
-        svctr(:,95)=svctr(:,95) + a1(:)
-        call get_avg3(n1,n2,n3,irdwn,a1)
-        svctr(:,96)=svctr(:,96) + a1(:)
+        k=n1+1 ! The top of atmosphere
+        call get_avg3(k,n2,n3,sup,a3)
+        svctr(:,93)=svctr(:,93) + a3(1:n1)
+        call fill_scalar(a3(1),'srf_swu') ! Optional: surface SW up (W/m2)
+        call fill_scalar(a3(k),'toa_swu') ! Optional: top of atmosphere SW up (W/m2)
+        call get_avg3(k,n2,n3,sdwn,a3)
+        svctr(:,94)=svctr(:,94) + a3(1:n1)
+        call fill_scalar(a3(1),'srf_swd')
+        call fill_scalar(a3(k),'toa_swd')
+        call get_avg3(k,n2,n3,irup,a3)
+        svctr(:,95)=svctr(:,95) + a3(1:n1)
+        call fill_scalar(a3(1),'srf_lwu')
+        call fill_scalar(a3(k),'toa_lwu')
+        call get_avg3(k,n2,n3,irdwn,a3)
+        svctr(:,96)=svctr(:,96) + a3(1:n1)
+        call fill_scalar(a3(1),'srf_lwd')
+        call fill_scalar(a3(k),'toa_lwd')
     end if
 
   end subroutine accum_rad
@@ -2265,7 +2282,7 @@ contains
                 WHERE(a_rsl>1e-10) a=a_rp/a_rsl
             ENDIF
             a1(:)=MAXVAL(MAXVAL(a,DIM=3),DIM=2)
-            CALL get_pustat_vector('max', nzp, a)
+            CALL get_pustat_vector('max', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE ('SSi_max')
             ! Maximum supersaturation (%) over ice
@@ -2276,7 +2293,7 @@ contains
                 WHERE(a_rsi>1e-10) a=a_rp/a_rsi
             ENDIF
             a1(:)=MAXVAL(MAXVAL(a,DIM=3),DIM=2)
-            CALL get_pustat_vector('max', nzp, a)
+            CALL get_pustat_vector('max', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE ('SS_min')
             ! Minimum supersaturation (%) over water
@@ -2287,7 +2304,7 @@ contains
                 WHERE(a_rsl>1e-10) a=a_rp/a_rsl
             ENDIF
             a1(:)=MINVAL(MINVAL(a,DIM=3),DIM=2)
-            CALL get_pustat_vector('min', nzp, a)
+            CALL get_pustat_vector('min', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE ('SSi_min')
             ! Minimum supersaturation (%) over ice
@@ -2298,18 +2315,48 @@ contains
                 WHERE(a_rsi>1e-10) a=a_rp/a_rsi
             ENDIF
             a1(:)=MINVAL(MINVAL(a,DIM=3),DIM=2)
-            CALL get_pustat_vector('min', nzp, a)
+            CALL get_pustat_vector('min', nzp, a1)
+            user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
+        CASE ('SS_avg')
+            ! Average supersaturation (%) over water
+            a=0.
+            IF (level<4) THEN
+                WHERE(a_rsl>1e-10) a=a_rv/a_rsl
+            ELSE
+                WHERE(a_rsl>1e-10) a=a_rp/a_rsl
+            ENDIF
+            a1(:)=SUM(SUM(a,DIM=3),DIM=2)/FLOAT((nxp-4)*(nyp-4))
+            CALL get_pustat_vector('avg', nzp, a1)
+            user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
+        CASE ('SSi_avg')
+            ! Average supersaturation (%) over ice
+            a=0.
+            IF (level<4) THEN
+                WHERE(a_rsl>1e-10) a=a_rv/a_rsi
+            ELSE
+                WHERE(a_rsl>1e-10) a=a_rp/a_rsi
+            ENDIF
+            a1(:)=SUM(SUM(a,DIM=3),DIM=2)/FLOAT((nxp-4)*(nyp-4))
+            CALL get_pustat_vector('avg', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + (a1(:)-1.0)*100.
         CASE ('T_max')
             ! Maximum absolute temperature (K)
             a1(:)=MAXVAL(MAXVAL(a_temp(:,3:nxp-2,3:nyp-2),DIM=3),DIM=2)
-            CALL get_pustat_vector('max', nzp, a)
+            CALL get_pustat_vector('max', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
         CASE ('T_min')
             ! Minimum absolute temperature (K)
             a1(:)=MINVAL(MINVAL(a_temp(:,3:nxp-2,3:nyp-2),DIM=3),DIM=2)
-            CALL get_pustat_vector('min', nzp, a)
+            CALL get_pustat_vector('min', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
+        CASE ('T_avg')
+            ! Average absolute temperature (K)
+            a1(:)=SUM(SUM(a_temp(:,3:nxp-2,3:nyp-2),DIM=3),DIM=2)/FLOAT((nxp-4)*(nyp-4))
+            CALL get_pustat_vector('avg', nzp, a1)
+            user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
+        CASE ('res_tke')
+            ! Resolved TKE
+            user_ps_data(:,i) = user_ps_data(:,i) + tke_res(:)
         CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_ps_list(i),a,mask)
@@ -2689,7 +2736,7 @@ contains
   subroutine  write_ps(n1,dn0,u0,v0,zm,zt,time)
 
     use netcdf
-    use defs, only : alvl, cp
+    use defs, only : cp
     USE mo_submctl, ONLY : in1a,in2a,fn2a, &
                                aerobins,precpbins,snowbins, &
                                nout_cld, cldbinlim, nout_ice, icebinlim
@@ -2710,10 +2757,8 @@ contains
        svctr(k,22) = svctr(k,22)+svctr(k,23)
        svctr(k,24) = svctr(k,24)+svctr(k,25)
        svctr(k,26) = svctr(k,26)+svctr(k,27)
-       svctr(k,53) = (svctr(k,53)+svctr(k,54))*alvl
+       svctr(k,53) = svctr(k,53)+svctr(k,54)
        svctr(k,21) = svctr(k,21)*cp
-       svctr(k,54) = svctr(k,54)*alvl
-       svctr(k,62) = svctr(k,62)*alvl
        svctr(k,37) = svctr(k,44) + svctr(k,47) +(                         &
             +svctr(k,45) + svctr(kp1,45) + svctr(k,46) + svctr(kp1,46)    &
             +svctr(k,42) + svctr(kp1,42) + svctr(k,43) + svctr(kp1,43)    &
@@ -2857,7 +2902,7 @@ contains
         DO n=1,nv2_proc
             iret = nf90_inq_varid(ncid2, out_ps_list(n), VarID)
             IF (iret == NF90_NOERR) THEN
-                ! Instantaneous, so no need to divide by nsmp: out_ps_data(:,n)=out_ps_data(:,n)/nsmp
+                out_ps_data(:,n)=out_ps_data(:,n)/nsmp
                 iret = nf90_put_var(ncid2,VarID,out_ps_data(:,n), start=(/1,nrec2/),count=(/n1,1/))
             ENDIF
         ENDDO
@@ -2889,6 +2934,33 @@ contains
   !
   ! subroutine: fills scalar array based on variable name.
   !
+  ! 2D (x,y) arrays for both cs and ts outputs
+  subroutine fill_scalar_2d(xval,vname)
+    USE grid, ONLY : nxp, nyp
+    use netcdf
+    ! Inputs
+    real, intent(in) :: xval(nxp,nyp) ! 2D input data
+    character(len=7), intent (in) :: vname ! Output variable name
+    ! Local
+    INTEGER :: iret, VarID
+    REAL :: avg
+    !
+    ! ******** 2D outputs ********
+    ! Saved directly as is
+    IF (cswrite .AND. nv3_user>0) THEN
+        ! Test if variable is an output
+        iret = nf90_inq_varid(ncid3,vname,VarID)
+        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, xval(3:nxp-2,3:nyp-2), start=(/1,1,nrec3/))
+    ENDIF
+    !
+    ! ******** scalar outputs ********
+    ! Valid for horizontal averages
+    avg=SUM(SUM(xval(3:nxp-2,3:nyp-2),DIM=2))/FLOAT((nxp-4)*(nyp-4))
+    CALL fill_scalar(avg,vname)
+    !
+  end subroutine fill_scalar_2d
+  !
+  ! Scalars for ts outputs
   subroutine fill_scalar(xval,vname,op,wg)
     ! Inputs
     real, intent(in) :: xval
@@ -2915,21 +2987,32 @@ contains
         ENDIF
     ENDDO
     !
-    ! s1_lvl4(1:nv1_lvl4)
-    !DO i=1,nv1_lvl4
-    !    IF ( vname == s1_lvl4(i) ) THEN
-    !        ! Output array found, calculate result over all PUs
-    !        IF (present(wg)) THEN
-    !            ssclr(i) = get_pustat_scalar(myop,xval,wg)
-    !        ELSE
-    !            ssclr(i) = get_pustat_scalar(myop,xval)
-    !        ENDIF
-    !        RETURN
-    !    ENDIF
-    !ENDDO
+    ! user_ts_list(1:nv1_user)
+    DO i=1,nv1_user
+        IF ( vname == user_ts_list(i) ) THEN
+            ! Output array found, calculate result over all PUs
+            IF (present(wg)) THEN
+                user_ts_data(i) = get_pustat_scalar(myop,xval,wg)
+            ELSE
+                user_ts_data(i) = get_pustat_scalar(myop,xval)
+            ENDIF
+            RETURN
+        ENDIF
+    ENDDO
     !
-    ! Could add s1_ice(1:nv1_ice), s1_lvl5(1:nv1_lvl5),
-    ! user_ts_list(1:nv1_user) and out_ts_list(1:nv1_proc)
+    ! s1_lvl4(1:nv1_lvl4): sea-spray emissions are here
+    DO i=1,nv1_lvl4
+        IF ( vname == s1_lvl4(i) ) THEN
+            ! Output array found, calculate result over all PUs
+            IF (present(wg)) THEN
+                ssclr_lvl4(i) = get_pustat_scalar(myop,xval,wg)
+            ELSE
+                ssclr_lvl4(i) = get_pustat_scalar(myop,xval)
+            ENDIF
+            RETURN
+        ENDIF
+    ENDDO
+    !
   end subroutine fill_scalar
   !
   ! --------------------------------------------------------------------------
@@ -3073,6 +3156,12 @@ contains
     LOGICAL :: mass
     INTEGER :: i, k
     !
+    ! SB statistics elesewhere
+    IF (level<4) THEN
+        calc_user_data=calc_user_data_SB(short_name,res,mask,is_mass)
+        RETURN
+    ENDIF
+    !
     ! Return .true. if failed
     calc_user_data=.TRUE.
     !
@@ -3154,6 +3243,130 @@ contains
     ! All done
     calc_user_data = .FALSE.
   END FUNCTION calc_user_data
+  !
+  ! The same for SB microphysics
+  LOGICAL FUNCTION calc_user_data_SB(short_name,res,mask,is_mass)
+    use grid, ONLY : nzp,nxp,nyp, CCN, a_rc, a_npp, a_rpp, a_nip, a_rip, &
+        a_nsp, a_rsp, a_ngp, a_rgp, a_nhp, a_rhp
+    CHARACTER(LEN=7), INTENT(IN) :: short_name ! Variable name
+    REAL, INTENT(out) :: res(nzp,nxp,nyp)      ! Output data
+    LOGICAL, INTENT(out) :: mask(nzp,nxp,nyp)  ! ... and mask
+    LOGICAL, INTENT(out), OPTIONAL :: is_mass  ! True if the ouput is mass concentration
+    !
+    CHARACTER(LEN=7) :: nam
+    LOGICAL :: mass, numc
+    INTEGER :: i
+    !
+    ! Return .true. if failed
+    calc_user_data_SB=.TRUE.
+    !
+    ! String length (must be at least 5, e.g. tcNct)
+    i=LEN(TRIM(short_name))
+    IF (i<5) RETURN
+    !
+    ! Condition (2 chars): tc=total, ic=in-cloud, ir=in rain, ii=in ice, is=in snow,...
+    SELECT CASE (short_name(1:2))
+    CASE('tc')
+        mask=.TRUE.
+    CASE('ic')
+        mask=cloudmask
+    CASE('ir')
+        mask=rainmask
+    CASE('ii')
+        mask = (a_nip > ni_min .OR. a_rip > ri_min)
+    CASE('is')
+        mask = (a_nsp > ni_min .OR. a_rsp > ri_min)
+    CASE('ig')
+        mask = (a_ngp > ni_min .OR. a_rgp > ri_min)
+    CASE('ih')
+        mask = (a_nhp > ni_min .OR. a_rhp > ri_min)
+    case default
+        RETURN
+    END SELECT
+    !
+    ! Species name (1=water), N for number, or R for radius
+    mass=.FALSE.; numc=.FALSE.
+    nam=short_name(3:i-2)
+    IF (nam=='N  ') THEN
+        numc=.TRUE.
+    ELSEIF (nam=='1 ') THEN
+        mass=.TRUE.
+    ELSEIF (nam=='R  ' .OR. nam=='Rw ') THEN
+    ELSE
+        RETURN
+    ENDIF
+    !
+    ! Output species & bin: ct, rt, ...
+    SELECT case (short_name(i-1:i))
+    CASE('ct')
+        IF (numc) THEN
+            WHERE (cloudmask)
+                res=CCN
+            ELSEWHERE
+                res=0.
+            END WHERE
+        ELSEIF (mass) THEN
+            res(:,:,:)=a_rc(:,:,:)
+        ELSE
+            CALL getSBradius(nzp,nxp,nyp,a_nip,a_rip,-1,res)
+            ! Mean radius not defined (arbitarily set to zero) when there are no particles, so these must be ignored
+            WHERE(res<1e-20) mask=.FALSE.
+        ENDIF
+    CASE('rt','pt')
+        IF (numc) THEN
+            res(:,:,:)=a_npp(:,:,:)
+        ELSEIF (mass) THEN
+            res(:,:,:)=a_rpp(:,:,:)
+        ELSE
+            CALL getSBradius(nzp,nxp,nyp,a_npp,a_rpp,0,res)
+            WHERE(res<1e-20) mask=.FALSE.
+        ENDIF
+    CASE('it')
+        IF (numc) THEN
+            res(:,:,:)=a_nip(:,:,:)
+        ELSEIF (mass) THEN
+            res(:,:,:)=a_rip(:,:,:)
+        ELSE
+            CALL getSBradius(nzp,nxp,nyp,a_nip,a_rip,1,res)
+            WHERE(res<1e-20) mask=.FALSE.
+        ENDIF
+    CASE('st')
+        IF (numc) THEN
+            res(:,:,:)=a_nsp(:,:,:)
+        ELSEIF (mass) THEN
+            res(:,:,:)=a_rsp(:,:,:)
+        ELSE
+            CALL getSBradius(nzp,nxp,nyp,a_nsp,a_rsp,2,res)
+            WHERE(res<1e-20) mask=.FALSE.
+        ENDIF
+    CASE('gt')
+        IF (numc) THEN
+            res(:,:,:)=a_ngp(:,:,:)
+        ELSEIF (mass) THEN
+            res(:,:,:)=a_rgp(:,:,:)
+        ELSE
+            CALL getSBradius(nzp,nxp,nyp,a_ngp,a_rgp,3,res)
+            WHERE(res<1e-20) mask=.FALSE.
+        ENDIF
+    CASE('ht')
+        IF (numc) THEN
+            res(:,:,:)=a_nhp(:,:,:)
+        ELSEIF (mass) THEN
+            res(:,:,:)=a_rhp(:,:,:)
+        ELSE
+            CALL getSBradius(nzp,nxp,nyp,a_nhp,a_rhp,4,res)
+            WHERE(res<1e-20) mask=.FALSE.
+        ENDIF
+    case default
+        RETURN
+    END SELECT
+    !
+    ! Optional output
+    IF (present(is_mass)) is_mass=mass
+    !
+    ! All done
+    calc_user_data_SB = .FALSE.
+  END FUNCTION calc_user_data_SB
 
   ! -------------------------------------------------------------------------
   ! Produce user-requested (out_ts_list, out_ps_list, out_cs_list and out_an_list) outputs that give
@@ -3199,7 +3412,7 @@ contains
         CALL scalar_rate_stat(prefix//'_rr',nzp,nxp,nyp,a_rpt)
     ELSEIF (level>=4) THEN
         ! Level 4 and 5: water vapor (a_rt)
-        CALL scalar_rate_stat(prefix//'_rg',nzp,nxp,nyp,a_rt)
+        CALL scalar_rate_stat(prefix//'_rv',nzp,nxp,nyp,a_rt)
     ENDIF
     !
     ! b) LES variables related to SALSA
@@ -3242,6 +3455,9 @@ contains
     ! Local
     INTEGER :: j, k
     REAL ::tend(nzp,nxp,nyp), tmp(nzp,nxp,nyp), col(nzp), area(nxp,nyp)
+    !
+    ! Water vapor and temperature elsewhere
+    IF (pchar=='v' .OR. tchar=='t') RETURN
     !
     SELECT CASE (pchar)
         CASE ('a')
@@ -3350,8 +3566,8 @@ contains
         tmp(:,:,:) = tend(:,:,:)*a_dn(:,:,:)
         ! Average over horizontal dimensions
         CALL get_avg3(nzp,nxp,nyp,tmp,col)
-        ! Profile
-        out_ps_data(:,out_ind) = col(:)
+        ! Profile - will be averaged
+        out_ps_data(:,out_ind) = out_ps_data(:,out_ind) + col(:)
     ELSE
         ! Time series: averaged tendencies are weighted by air density
         tmp(:,:,:) = tend(:,:,:)*a_dn(:,:,:)
@@ -3391,7 +3607,7 @@ contains
             ! Average over horizontal dimensions
             CALL get_avg3(n1,n2,n3,tmp,col)
             ! Profile
-            IF ( vname == out_ps_list(i) ) out_ps_data(:,i) = col(:)*fact
+            IF ( vname == out_ps_list(i) ) out_ps_data(:,i) = out_ps_data(:,i)+col(:)*fact
             ! Integrate over vertical dimension to get the domain mean
             IF ( vname == out_ts_list(i) ) out_ts_data(i) = SUM( col(2:n1)/dzt(2:n1) )*fact
         ENDIF

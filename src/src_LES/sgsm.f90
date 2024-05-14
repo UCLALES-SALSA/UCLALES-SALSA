@@ -189,6 +189,7 @@ contains
     !
     do n=1,nscl
        call newsclr(n)
+      IF ( ANY(a_sp /= 0.0 ) ) THEN ! TR added: no need to calculate diffusion for zero arrays
        sxy1=0.
        sxy2=0.
        if ( associated(a_tp,a_sp) ) sxy1=wt_sfc
@@ -202,6 +203,10 @@ contains
           call diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
                ,a_sp,a_tmp2,a_st,a_tmp1)
        end if
+      ELSEIF (sflg) THEN
+       ! Averages & statistics even for zeros (might be non-zero elsewhere)
+       a_tmp1(:,:,:)=0.
+      ENDIF
        if (sflg .and. associated(a_sp,a_tp)) then
           call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
           call updtst(nzp,sz1,1,'sfs_tw ')
@@ -211,8 +216,6 @@ contains
           call updtst(nzp,sz1,1,'sfs_qw ')
           call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'rt')
        endif
-       call cyclics(nzp,nxp,nyp,a_st,req)
-       call cyclicc(nzp,nxp,nyp,a_st,req)
     enddo
 
   end subroutine diffuse

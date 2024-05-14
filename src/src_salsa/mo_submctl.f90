@@ -98,7 +98,7 @@ MODULE mo_submctl
   ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
   ! a) Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice/snow
   REAL :: fixinc = -1.0 ! Default = disabled
-  REAL :: fixed_ice_min_Si=1.05, fixed_ice_min_rc=1e-6 ! Thresholds
+  REAL :: fixed_ice_min_Si=1.05, fixed_ice_min_rc=1e-6, fixed_ice_max_T=273.15 ! Thresholds
   ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
   INTEGER :: ice_source_opt = 1 ! Default = start from the largest bin
   ! b) Modelled ice nucleation
@@ -108,11 +108,29 @@ MODULE mo_submctl
   ! d) Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
   INTEGER :: ice_target_opt = -1 ! Default = parallel ice bins
 
-  ! Secondary ice production: Hallett-Mossop
+  ! Secondary ice production
+  ! a) Hallett-Mossop
   LOGICAL :: nlsip_hm = .FALSE. ! Master switch (needs also coagulation)
-  REAL :: c_mult = 3.5e8  ! Splintering coefficient (particles per kg of rime)
-  REAL :: hm_dmin_drop=25e-5, hm_dmin_ice=25e-6 ! Minimum aerosol/cloud/rain drop and ice/snow diameters
+  REAL :: hm_c_mult = 3.5e8 ! Splintering coefficient (particles per kg of rime)
+  REAL :: hm_dmin_drop = 25e-5, hm_dmin_ice=25e-6 ! Minimum aerosol/cloud/rain drop and ice/snow diameters
+  REAL :: hm_frag_vfrac = 1e-3 ! Fragments smaller by an order of magnitude in size
   REAL, SAVE, ALLOCATABLE :: rime_volc_ice(:,:,:), rime_volc_snw(:,:,:) ! Rime water volume per m3
+  ! b) ice-ice collisional breakup
+  LOGICAL :: nlsip_iibr = .FALSE. ! Master switch (needs also coagulation)
+  REAL :: iibr_fbr = 280. ! Breakup coefficient
+  REAL :: iibr_dref = 0.02 ! Size dependency
+  REAL :: iibr_frag_vfrac = 1e-3 ! Fragments smaller by an order of magnitude in size (Phillips et al., 2017)
+  REAL :: iibr_tmin = 252., iibr_tmax = 273.15 ! Temperature dependency
+  REAL, SAVE, ALLOCATABLE :: coll_rate_ii(:,:,:,:), coll_rate_si(:,:,:,:), &
+    coll_rate_ss(:,:,:,:) ! Collisions per m3
+  ! c) droplet fragmentation during freezing
+  LOGICAL :: nlsip_df = .FALSE. ! Master switch (needs also coagulation)
+  REAL :: df_c_mult = 2.5e13 ! Fragmentation coefficient, default: 2.5e-11 1/um^4=2.5e13 1/m^4
+  REAL :: df_tmin = 248.15, df_tmax = 271.15 ! Temperature dependency
+  REAL :: df_frag_vfrac = 1e-3 ! Fragments smaller by an order of magnitude in size
+  REAL :: df_dmin_drop = 100e-6 ! Minimum cloud/rain drop diameter
+  REAL, SAVE, ALLOCATABLE :: coll_rate_ic(:,:,:,:), coll_rate_ir(:,:,:,:), &
+    coll_rate_sc(:,:,:,:), coll_rate_sr(:,:,:,:) ! Collisions per m3
 
   ! Ice and snow mass-dimension-velocity parameterizations
   !  Defaults:  d=(6/pi*sum(m(i)/rho(i)))**(1/3), v=12.0*sqrt(d)

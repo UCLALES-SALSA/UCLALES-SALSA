@@ -45,6 +45,7 @@ module grid
   integer           :: naddsc  = 0         ! number of additional scalars;
   integer           :: nfpt = 10           ! number of rayleigh friction points
   real              :: distim = 300.0      ! dissipation timescale
+  logical           :: spongeinit = .true. ! sponge layer acts on initial profiles
 
   real              :: sst=283.            ! Surface temperature
 
@@ -76,7 +77,7 @@ module grid
   logical :: ifSeaVOC = .false.   ! Isoprene and monoterpenes
   real :: sea_tspinup = 0.        ! Spin-up time (s) for marine emissions
 
-  character (len=80):: expnme = 'Default' ! Experiment name
+  character (len=80):: expnme = ''        ! Experiment name
   character (len=80):: filprf = 'x'       ! File Prefix
   character (len=7) :: runtype = 'INITIAL'! Run Type Selection
 
@@ -257,12 +258,12 @@ contains
        allocate (a_sflx(nzp,nxp,nyp),albedo(nxp,nyp))
        a_sflx(:,:,:) = 0.
        albedo(:,:) = 0.
-       allocate (a_fus(nzp,nxp,nyp),a_fds(nzp,nxp,nyp),a_fuir(nzp,nxp,nyp),a_fdir(nzp,nxp,nyp))
+       allocate (a_fus(nzp+1,nxp,nyp),a_fds(nzp+1,nxp,nyp),a_fuir(nzp+1,nxp,nyp),a_fdir(nzp+1,nxp,nyp))
        a_fus(:,:,:) = 0.
        a_fds(:,:,:) = 0.
        a_fuir(:,:,:) = 0.
        a_fdir(:,:,:) = 0.
-       memsize = memsize + 5*nxyzp + nxyp
+       memsize = memsize + 5*nxyzp + 5*nxyp
     end if
 
     allocate (a_temp(nzp,nxp,nyp),a_dn(nzp,nxp,nyp),a_edr(nzp,nxp,nyp), &
@@ -1268,6 +1269,9 @@ contains
         CASE ('CCN')
            ! Level 3 CCN as an example of output
             output(:,:,:)=CCN
+        CASE ('diss')
+           ! Dissipation rate
+           output(:,:,:)=a_edr(:,:,:)
         CASE DEFAULT
             ! Pre-defined 3D SALSA outputs
             fail = calc_user_data(user_an_list(i),output)
