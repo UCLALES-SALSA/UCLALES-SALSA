@@ -73,6 +73,7 @@
                                   
                                   pindefp => NULL(),                      &
                                   
+				  pchargeTimep => NULL(),                 &
                                   psipdrfrp => NULL(), psiprmspl => NULL(), &
 
                                   psipiibr => NULL(), &
@@ -108,8 +109,8 @@ CONTAINS
    ! Jaakko Ahola, FMI, 2016
    !
   SUBROUTINE run_SALSA(Diag, Prog, nzp, nxp, nyp, ns, wp,     &
-                       pa_nactd, pa_vactd, tstep, time,istp,  &
-                       level, initialize                      )
+                       pa_nactd, pa_vactd, tstep, time, istp,  &
+                       level, lcharge, initialize                      )
 
       USE mo_salsa, ONLY : salsa
       USE mo_salsa_properties, ONLY  : equilibration
@@ -123,10 +124,12 @@ CONTAINS
       INTEGER, INTENT(in) :: istp                                 ! Number of current timestep
       LOGICAL, INTENT(in) :: initialize                      
       REAL, INTENT(in)    :: wp(nzp,nxp,nyp)
+      INTEGER, INTENT(in) :: level                         ! thermodynamical level
+      LOGICAL, INTENT(in) :: lcharge                       ! Switch for charge emissions
       REAL, INTENT(out)   :: pa_vactd(nzp,nxp,nyp,ns*ncld) ! mass concentrations of newly activated droplets for calculating the
                                                            ! actual tendency due to new droplet formation.
       REAL, INTENT(out)   :: pa_nactd(nzp,nxp,nyp,ncld)    ! Same for number concentration
-      INTEGER, INTENT(in) :: level                         ! thermodynamical level
+      !INTEGER, INTENT(in) :: level                         ! thermodynamical level
             
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
               in_w(kbdim,klev), in_rsi(kbdim,klev)
@@ -165,7 +168,7 @@ CONTAINS
       IF (.NOT. cgsto_initialized) &
            CALL initialize_coagstorage(nzp,nxp,nyp)
       IF (.NOT. salsa_driver_initialized) &
-           CALL initialize_salsa_driver(Diag,Prog,level)
+           CALL initialize_salsa_driver(Diag,Prog,level,lcharge)
                                      
       in_p(:,:) = 0.; in_t(:,:) = 0.; in_rs(:,:) = 0.; in_rsi(:,:) = 0.; in_w(:,:) = 0.
       in_rv(:,:) = 0.; rv_old(:,:) = 0.
@@ -241,7 +244,9 @@ CONTAINS
                      IF (level == 5 .AND. ice_theta_dist) THEN
                         allSALSA(1,1,nb)%INdef = pindefp%d(kk,ii,jj,nb)
                      END IF
-                     
+
+                     IF (lcharge) allSALSA(1,1,nb)%chargeTime = pchargeTimep%d(kk,ii,jj,nb) ! IF THIS WILL BE MODIFIED INSIDE SALSA, ADD ALSO THE OUTPUT PART
+
                   ELSE IF (icat == 4) THEN  ! Ice
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc)
@@ -299,7 +304,7 @@ CONTAINS
                           in_p,   in_rv,  in_rs,  in_rsi,   &
                           in_t,   tstep,  zgso4,  zgocnv,   &
                           zgocsv, zghno3, zgnh3,  actd,     &
-                          in_w,   level                     )
+                          in_w,   level,  lcharge            )
 
                ! Update tendency arrays
                DO nb = 1,ntotal
@@ -470,9 +475,10 @@ CONTAINS
    ! INITIALIZE_SALSA_INTERFACE
    ! Connects the SALSA driver routine to host model arrays
    ! 
-   SUBROUTINE initialize_salsa_driver(Diag,Prog,level)
+   SUBROUTINE initialize_salsa_driver(Diag,Prog,level,lcharge)
      TYPE(FieldArray), INTENT(inout) :: Diag, Prog
      INTEGER, INTENT(in) :: level
+     LOGICAL, INTENT(in) :: lcharge
      
      ! Get the pointers to variable arrays
      CALL Diag%getData(1,ppress,name="press")
@@ -514,6 +520,8 @@ CONTAINS
         
      END IF
      
+     IF (lcharge) CALL Prog%getData(1,pchargeTimep,name="chargeTime")
+
      CALL Prog%getData(1,pgaerop,name="gaero")
      CALL Prog%getData(2,pgaerot,name="gaero")
      

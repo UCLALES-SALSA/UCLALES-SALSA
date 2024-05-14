@@ -38,7 +38,7 @@ MODULE emission_init
            END IF
            
            ! The aerosol species specified for emission MUST also be active in SALSA configuration
-           IF ( .NOT. spec%isUsed(emd%species) ) THEN
+           IF ( ANY(emd%emitType == [2,3]) .AND. .NOT. spec%isUsed(emd%species) ) THEN
               CALL errorMessage(global_name, name, &
                    'Attempt to emit <'//TRIM(emd%species)//'> but the compound '// &
                    'is not set to be used in the SALSA namelist.')
@@ -56,7 +56,7 @@ MODULE emission_init
               
               edt%numc(:) = 0.; edt%mass(:) = 0. ! i.e. do nothing
               
-           ELSE IF (emd%emitType >= 2) THEN 
+           ELSE IF (ANY(emd%emitType == [2,3])) THEN 
               
               ! Index limits for the regimes
               CALL regime_limits(emd%regime,st,en)
@@ -113,7 +113,7 @@ MODULE emission_init
               
            END IF
            
-           IF (emd%emitType == 3)  THEN
+           IF (ANY(emd%emitType == [3,5]))  THEN
               ASSOCIATE (emdT3 => emitType3(nprof))
                 CALL init_emitType3_map(emd%emitMap,x,y,z,emdT3%np)
                 CALL lagrangian_tracker(emdT3%ix,emdT3%iy,emdT3%iz,emdT3%t,emdT3%np, &

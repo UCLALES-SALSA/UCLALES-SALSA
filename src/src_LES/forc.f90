@@ -20,14 +20,15 @@
 MODULE forc
 
   USE grid, ONLY: nxp,nyp,nzp,iradtyp,lnudging,lemission,  &
-                  CCN,level
+                  CCN,level,dtlt
   USE mo_vector_state, ONLY : a_ut, a_up, a_vt, a_vp
   USE mo_field_state, ONLY : SALSA_tracers_4d                  
   USE mo_aux_state, ONLY : zm,zt,dzt,dzm,dn0,pi0,pi1
   USE mo_diag_state, ONLY : a_pexnr,a_temp,a_rv,a_rc,a_rflx,a_sflx,   &
                             a_fus,a_fds,a_fuir,a_fdir,albedo
   USE mo_progn_state, ONLY : a_tt,a_tp,a_rt,a_rp,a_rpp, a_npp,        &
-                             a_ncloudp,a_nprecpp,a_mprecpp,a_nicep  
+                             a_ncloudp,a_nprecpp,a_mprecpp,a_nicep,   &
+                             a_chargeTimet, a_chargeTimep  
   USE mpi_interface, ONLY : myid, appl_abort
   USE util, ONLY : get_avg2dh
   USE defs, ONLY      : cp
@@ -35,6 +36,7 @@ MODULE forc
   USE radiation_main, ONLY : rad_interface, useMcICA, iradtyp
   USE nudg, ONLY : nudging
   USE emission_main, ONLY : aerosol_emission
+  USE emission_types, ONLY : emitModes
   USE mo_structured_datatypes
   IMPLICIT NONE
 
@@ -91,6 +93,11 @@ CONTAINS
     !
     IF (lemission .AND. level >= 4) CALL aerosol_emission(time)
 
+    IF (ANY(emitModes(:)%emitType == 4) .OR. ANY(emitModes(:)%emitType == 5)) THEN
+        ! For particle charging, reduce the time tracer by one timestep where it is > 0
+        a_chargeTimet%d = a_chargeTimet%d - MIN(dtlt, a_chargeTimep%d)
+    END IF
+ 
     SELECT CASE(iradtyp)
     CASE (1)
        ! No radiation, just large-scale forcing. 

@@ -31,6 +31,11 @@ MODULE classSection
      REAL    :: dlim     ! Category specific diameter limit used e.g. in coagulation calculations
 
      REAL    :: INdef    ! IN nucleated fraction for lower limit contact angle
+     REAL    :: chargeTime  ! A time tracer for mapping particle charging effects on coalescence growth. Set to max timescale upon emission
+                            ! and the charging effect is assumed to decrease as a function of the time since emission. When chargeTime approaches
+                            ! zero, the effect will subside. Also will be zero where charge emission does not take place
+     REAL    :: chargeTimeMax  ! Max timescale for particle charging effects. Set at initialization
+     REAL    :: chargeCollEnh  ! Max assumed enhancement of coalescence rates by charging effects. set at initialization
 
      ! Secondary ice diagnostics: These are just added from the source, advected and removed upon evaporation/sedimentation/melting,
      ! but currently not coupled with coagulation...
@@ -67,6 +72,9 @@ MODULE classSection
       cnstr%rhomean = 0.
       cnstr%rhoeff = 0.
       cnstr%INdef = 0.
+      cnstr%chargeTime = 0.
+      cnstr%chargeTimeMax = 1000.
+      cnstr%chargeCollEnh = 0.
 
     END FUNCTION cnstr
 

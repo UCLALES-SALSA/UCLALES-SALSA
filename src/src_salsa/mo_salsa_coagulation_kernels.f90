@@ -18,79 +18,81 @@ MODULE mo_salsa_coagulation_kernels
   
   CONTAINS
   
-    SUBROUTINE update_coagulation_kernels(kbdim,klev,ppres,ptemp) 
+    SUBROUTINE update_coagulation_kernels(kbdim,klev,ppres,ptemp,lcharge) 
 
       INTEGER, INTENT(in) :: kbdim,klev
       REAL, INTENT(in) :: ppres(kbdim,klev), ptemp(kbdim,klev)
+      LOGICAL, INTENT(in) :: lcharge
 
       ! Aero-aero
       IF (lscgaa) THEN
          zccaa(:,:,:,:) = 0.
-         CALL buildKernelSelf( kbdim,klev,nbins,aero,ptemp,ppres,zccaa )
+         CALL buildKernelSelf( kbdim,klev,nbins,aero,ptemp,ppres,zccaa,lcharge )
       END IF
            
       ! Cloud-cloud 
       IF (lscgcc) THEN
          zcccc(:,:,:,:) = 0.
-         CALL buildKernelSelf( kbdim,klev,ncld,cloud,ptemp,ppres,zcccc )
+         CALL buildKernelSelf( kbdim,klev,ncld,cloud,ptemp,ppres,zcccc,lcharge )
       END IF
            
       ! Precp-precp
       IF (lscgpp) THEN
          zccpp(:,:,:,:) = 0.
-         CALL buildKernelSelf( kbdim,klev,nprc,precp,ptemp,ppres,zccpp )
+         CALL buildKernelSelf( kbdim,klev,nprc,precp,ptemp,ppres,zccpp,lcharge )
       END IF
       
       ! ice-ice
       IF (lscgii) THEN
          zccii(:,:,:,:) = 0.
-         CALL buildKernelSelf( kbdim,klev,nice,ice,ptemp,ppres,zccii )
+         CALL buildKernelSelf( kbdim,klev,nice,ice,ptemp,ppres,zccii,lcharge )
       END IF
       
       ! Aero-cloud
       IF (lscgca) THEN
          zccca(:,:,:,:) = 0.
-         CALL buildKernel( kbdim,klev,nbins,aero,ncld,cloud,ptemp,ppres,zccca )
+         CALL buildKernel( kbdim,klev,nbins,aero,ncld,cloud,ptemp,ppres,zccca,lcharge )
       END IF
          
       ! Aero-precp
       IF (lscgpa) THEN
          zccpa(:,:,:,:) = 0.
-         CALL buildKernel( kbdim,klev,nbins,aero,nprc,precp,ptemp,ppres,zccpa )
+         CALL buildKernel( kbdim,klev,nbins,aero,nprc,precp,ptemp,ppres,zccpa,lcharge )
       END IF
          
       ! Aero-ice
       IF (lscgia) THEN
          zccia(:,:,:,:) = 0.
-         CALL buildKernel( kbdim,klev,nbins,aero,nice,ice,ptemp,ppres,zccia )
+         CALL buildKernel( kbdim,klev,nbins,aero,nice,ice,ptemp,ppres,zccia,lcharge )
       END IF
          
       ! Cloud-precp
       IF (lscgpc) THEN
          zccpc(:,:,:,:) = 0.
-         CALL buildKernel( kbdim,klev,ncld,cloud,nprc,precp,ptemp,ppres,zccpc )
+         CALL buildKernel( kbdim,klev,ncld,cloud,nprc,precp,ptemp,ppres,zccpc,lcharge )
       END IF
          
       ! Cloud-ice
       IF (lscgic) THEN
          zccic(:,:,:,:) = 0.
-         CALL buildKernel( kbdim,klev,ncld,cloud,nice,ice,ptemp,ppres,zccic )
+         CALL buildKernel( kbdim,klev,ncld,cloud,nice,ice,ptemp,ppres,zccic,lcharge )
       END IF
          
       ! Precp-ice
       IF (lscgip) THEN
          zccip(:,:,:,:) = 0.
-         CALL buildKernel( kbdim,klev,nprc,precp,nice,ice,ptemp,ppres,zccip )
+         CALL buildKernel( kbdim,klev,nprc,precp,nice,ice,ptemp,ppres,zccip,lcharge )
       END IF
          
     END SUBROUTINE update_coagulation_kernels
 
     ! ----------------------
     
-    SUBROUTINE buildKernelSelf( kbdim,klev,nb1,part1,ptemp,ppres,zcc )
+    SUBROUTINE buildKernelSelf( kbdim,klev,nb1,part1,ptemp,ppres,zcc,lcharge )
       INTEGER, INTENT(in) :: kbdim,klev,nb1
       TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1)  ! inout because updates rho, D
       REAL, INTENT(in) :: ptemp(kbdim,klev),ppres(kbdim,klev)
+      LOGICAL, INTENT(in) :: lcharge
       REAL, INTENT(out) :: zcc(kbdim,klev,nb1,nb1)
 
       INTEGER :: mm,nn,ii,jj
@@ -114,7 +116,8 @@ MODULE mo_salsa_coagulation_kernels
                     IF (pp1(nn)%numc < pp1(nn)%nlim) CYCLE
                     
                     zcc(ii,jj,mm,nn) = coagc( pp1(mm),pp1(nn),            &
-                                              ptemp(ii,jj),ppres(ii,jj),2 )
+                                              ptemp(ii,jj),ppres(ii,jj),  & 
+                                              lcharge,2                   )
                     zcc(ii,jj,nn,mm) = zcc(ii,jj,mm,nn)
                  END DO
               END DO
@@ -128,12 +131,13 @@ MODULE mo_salsa_coagulation_kernels
 
     ! --------------------------
 
-    SUBROUTINE buildKernel( kbdim,klev,nb1,part1,nb2,part2,ptemp,ppres,zcc )
+    SUBROUTINE buildKernel( kbdim,klev,nb1,part1,nb2,part2,ptemp,ppres,zcc,lcharge )
       ! Always the "smaller" particle indices first
       INTEGER, INTENT(in) :: kbdim,klev
       INTEGER, INTENT(in) :: nb1, nb2
       TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1), part2(kbdim,klev,nb2) ! inout because updates rho, D 
       REAL, INTENT(in)    :: ptemp(kbdim,klev),ppres(kbdim,klev)
+      LOGICAL, INTENT(in) :: lcharge
       REAL, INTENT(out)   :: zcc(kbdim,klev,nb1,nb2)
      
       INTEGER :: mm,nn,ii,jj
@@ -160,7 +164,8 @@ MODULE mo_salsa_coagulation_kernels
                  DO nn = 1,nb2
                     IF (pp2(nn)%numc < pp2(nn)%nlim) CYCLE
                     zcc(ii,jj,mm,nn) = coagc( pp1(mm),pp2(nn),            &
-                                              ptemp(ii,jj),ppres(ii,jj),2 )
+                                              ptemp(ii,jj),ppres(ii,jj),  &
+                                              lcharge,2                   )
                  END DO
               END DO
               
@@ -174,7 +179,7 @@ MODULE mo_salsa_coagulation_kernels
 
     ! ==========================================
 
-    REAL FUNCTION coagc(pp1,pp2,temp,pres,kernel)
+    REAL FUNCTION coagc(pp1,pp2,temp,pres,lcharge,kernel)
 
       USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd
       USE mo_particle_external_properties, ONLY : terminal_vel
@@ -189,6 +194,7 @@ MODULE mo_salsa_coagulation_kernels
            temp,   &   ! ambient temperature [K]
            pres        ! ambient pressure [fxm]
       
+      LOGICAL, INTENT(in) :: lcharge  !! Whether particle charging effects are used.
       INTEGER, INTENT(in) :: kernel ! select the type of kernel: 1 - aerosol-aerosol coagulation (the original version)
       !                            2 - hydrometeor-aerosol or hydrometeor-hydrometeor coagulation
            
@@ -211,7 +217,7 @@ MODULE mo_salsa_coagulation_kernels
            zturbinert    ! turbulent inertia
 
       REAL :: diam1, diam2,       & ! Particle diameters; for ice this should be the effective max dimension
-              dsph1, dsph2, & ! Spherical equivalent diameters (important for calculating ice mass)
+              dsph1, dsph2,       & ! Spherical equivalent diameters (important for calculating ice mass)
               mass1, mass2,       & ! Masses of particles
               rhop1, rhop2,       & ! Particle densities; For ice this is the effective density (low for non-spherical)
               rhoiceb1, rhoiceb2   ! Bulk ice densities
@@ -366,7 +372,10 @@ MODULE mo_salsa_coagulation_kernels
          END IF
          
          ! Turbulent Shear; Chen et al. 2020 suggest 500 cm2 s-3 for turbulent cumulus
-         eddy_dis=0.001   ! Silvia: 13-03-2023 Upper limit from M. D. Shupe et al.: Evaluation of turbulent dissipation rate retrievals 10.5194/amt-5-1375-2012
+	 ! Silvia: 14-05-2026 From Pinky and Khain (2006) Physical processes in clouds .. (Book)
+         ! Table 3.3.4 Turbulent parameters and time/spatial scales of turbulent ﬂuctuations for clouds of different type
+         ! Stratiform clouds: 0.001 m2/s3 Cumulus: 0.02m2/s3 Cumulonimbus: 0.1 m2/s3
+         eddy_dis=0.1   
          ztshear = SQRT(8.*pi*eddy_dis/(15.*vkin))*(0.5*(diam(1)+diam(2)))**3
          zturbinert = pi*eddy_dis**(0.75) /(grav* SQRT(SQRT( vkin )))  &
               *(0.5*(diam(1)+diam(2)))**2* ABS(termv(1)-termv(2))
@@ -387,6 +396,15 @@ MODULE mo_salsa_coagulation_kernels
          ! Total coagulation kernel
          coagc = zbrown  + zbrconv + SQRT(zgrav**2 + ztshear**2 + zturbinert**2)
          
+         ! If particle charging effects are considered, enhance the collision kernel according to the 
+         ! charging timescale assigned for each bin
+         IF (lcharge) THEN
+            ! Take the average of the charging time tracer for the two colliding particles...
+            ! the max time and enhancement factors are the same for all.
+            !IF (pp1%chargeTime > 1.) WRITE(*,*) 0.5*(pp1%chargeTime + pp2%chargeTime)/pp1%chargeTimeMax,  pp1%chargeCollEnh
+            coagc = coagc + coagc*pp1%chargeCollEnh * 0.5*(pp1%chargeTime + pp2%chargeTime)/pp1%chargeTimeMax 
+         END IF
+
       END SELECT
       
     END FUNCTION coagc

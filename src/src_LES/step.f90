@@ -257,7 +257,8 @@ CONTAINS
       USE mo_salsa_driver, ONLY : run_SALSA
 
       USE constrain_SALSA, ONLY : SALSA_diagnostics, tend_constrain2
-      
+      USE emission_types, ONLY : emitModes
+
       LOGICAL, INTENT (out)      :: cflflg
       REAL(KIND=8), INTENT (out) :: cflmax
       INTEGER, INTENT(in) :: istp
@@ -265,6 +266,7 @@ CONTAINS
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
 
       INTEGER :: nspec
+      LOGICAL :: lcharge
       
          
 
@@ -307,23 +309,25 @@ CONTAINS
                   
          nspec = spec%getNSpec(type="wet") ! Aerosol components + water
             
+         lcharge = (ANY(emitModes(:)%emitType == 4) .OR. ANY(emitModes(:)%emitType == 5)) 
+
          IF ( nxp == 5 .AND. nyp == 5 ) THEN
             ! 1D -runs
             CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,nspec,   &
                            zwp,a_nactd,a_vactd,dtlt,      &
-                           time,istp,level,.FALSE.             )
+                           time,istp,level,lcharge,.FALSE.             )
          ELSE
             !! for 2D or 3D runs
             CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,nspec,   &
                            a_wp%d,a_nactd,a_vactd,dtlt,     &
-                           time,istp,level,.FALSE.             )
+                           time,istp,level,lcharge,.FALSE.             )
              
          END IF !nxp==5 and nyp == 5
 
          CALL tend_constrain2()
          CALL update_sclrs
          CALL tend0(.TRUE.)
-         CALL SALSA_diagnostics(.FALSE.)
+         CALL SALSA_diagnostics(.FALSE.,lcharge)
          CALL thermo(level)
 
       END IF ! level >= 4
@@ -336,7 +340,7 @@ CONTAINS
       IF (level >= 4) CALL tend_constrain2()
       CALL update_sclrs
       CALL tend0(.TRUE.)
-      IF (level >= 4) CALL SALSA_diagnostics(.TRUE.)
+      IF (level >= 4) CALL SALSA_diagnostics(.TRUE.,lcharge)
       CALL thermo(level)
 
       !-------------------------------------------
@@ -346,7 +350,7 @@ CONTAINS
       IF (level >= 4) CALL tend_constrain2()
       CALL update_sclrs
       CALL tend0(.TRUE.)
-      IF (level >= 4) CALL SALSA_diagnostics(.TRUE.)
+      IF (level >= 4) CALL SALSA_diagnostics(.TRUE.,lcharge)
       CALL thermo(level)
       
       CALL corlos
@@ -361,7 +365,7 @@ CONTAINS
 
       CALL cfl (cflflg, cflmax)
 
-      IF (level >= 4) CALL SALSA_diagnostics(.TRUE.)
+      IF (level >= 4) CALL SALSA_diagnostics(.TRUE.,lcharge)
       CALL thermo(level)
 
    END SUBROUTINE t_step

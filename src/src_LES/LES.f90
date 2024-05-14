@@ -52,6 +52,7 @@ CONTAINS
       
       ! Added for SALSA
       USE mo_salsa_init, ONLY : define_salsa, salsa_initialize
+      USE emission_types, ONLY : chargeTMax,chargeCollEnh
 
       IMPLICIT NONE
 
@@ -63,7 +64,7 @@ CONTAINS
 
       IF (level >= 4) CALL define_salsa(level) ! Read SALSA namelist etc.
 
-      IF (level >= 4) CALL salsa_initialize() ! All salsa variables and bin diameters are now initialized
+      IF (level >= 4) CALL salsa_initialize(chargeTmax,chargeCollEnh) ! All salsa variables and bin diameters are now initialized
       
       CALL define_decomp(nxp, nyp, nxpart)
 
@@ -99,7 +100,7 @@ CONTAINS
                                   strtim, radfrq
     USE nudg_defs, ONLY         : nudge_time, nudge_zmin, nudge_zmax,                                &
                                   ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
-    USE emission_types, ONLY    : emitModes, nEmissionModes, emitPristineIN
+    USE emission_types, ONLY    : emitModes, nEmissionModes, emitPristineIN,chargeCollEnh,chargeTMax
     USE grid, ONLY              : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                                   dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                                   filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
@@ -180,7 +181,9 @@ CONTAINS
     NAMELIST /emission/     &              
          nEmissionModes,    & ! Number of emission profiles to be used (max 5)
          emitPristineIN,    & ! Assume emitted IN are pristine in terms of contact angle integration in ice nucleation
-         emitModes            ! Emission configs
+         emitModes,         & ! Emission configs
+         chargeCollEnh,     & ! Max enhancement of coalescence by charging
+         chargeTMax           ! Max timescale for charging effects
     
     NAMELIST /surface/      &
          isfctyp,           &   ! Surface parameterization type

@@ -2,7 +2,8 @@ MODULE mo_progn_state
   USE classFieldArray
   USE mo_structured_datatypes, ONLY : FloatArray3d, FloatArray4d
   USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice, in1a,fn2a, in2b,fn2b,    &
-                         ica,fca, icb,fcb, ice_theta_dist, lssecice 
+                         nliquid, ica,fca, icb,fcb, ice_theta_dist, lssecice 
+  USE emission_types, ONLY : emitModes
   IMPLICIT NONE
 
   SAVE
@@ -56,7 +57,12 @@ MODULE mo_progn_state
   ! IN nucleated fractions, used for contact angle integration in ice nucleation.
   TYPE(FloatArray4D), TARGET :: a_indefp, a_indeft  ! These hold the values for all aerosol, cloud and precip bins.
                                                     ! For output, unpack these below similar to bin number concentrations.
+
   TYPE(FloatArray4D), TARGET :: a_indefaba, a_indefabb, a_indefcba, a_indefcbb, a_indefpba
+
+  TYPE(FloatArray4d), TARGET :: a_chargeTimep, a_chargeTimet  ! time dependent tracer mapping the particle charging effects on coalescence growth
+  TYPE(FloatArray4d), TARGET :: a_chargeTimeaba, a_chargetimeabb, a_chargeTimecba, a_chargeTimecbb, a_chargeTimepba
+
 
   ! SIP tracers; passive, similar to the nucleated fractions
   TYPE(FloatArray4D), TARGET :: a_sipdrfrp, a_sipdrfrt     ! Drop fracturing sip
@@ -404,8 +410,61 @@ MODULE mo_progn_state
             iscl = iscl + nice - 1            
          END IF
 
-         
-      END IF
+      END IF ! level == 5
+
+
+      ! For particle charge emissions
+      IF ( level >= 4 .AND.      &
+           (ANY(emitModes(:)%emitType == 4) .OR. ANY(emitModes(:)%emitType == 5)) ) THEN 
+          iscl = iscl + 1
+          pipeline_p => NULL(); pipeline_t => NULL()
+          a_chargeTimep = FloatArray4d(a_sclrp(:,:,:,iscl:iscl+nliquid-1))
+          a_chargeTimet = FloatArray4d(a_sclrt(:,:,:,iscl:iscl+nliquid-1))
+          pipeline_p => a_chargeTimep
+          pipeline_t => a_chargeTimet
+          CALL Prog%newField("chargeTime","Time tracer for particle charging",  &
+                             "1","N/A",.FALSE.,pipeline_p,in_t_data=pipeline_t  )
+
+          pipeline_p => NULL()
+          a_chargeTimeaba = FloatArray4d(a_chargeTimep%d(:,:,:,in1a:fn2a))
+          pipeline_p => a_chargeTimeaba
+          CALL Prog%newField("chargeTimeaba","Time tracer for particle charging, aero A",   &
+                             "1","ttttaea",ANY(outputlist == "chargeTimeaba"),              &
+                             pipeline_p)
+
+          pipeline_p => NULL()
+          a_chargeTimeabb = FloatArray4d(a_chargeTimep%d(:,:,:,in2b:fn2b))
+          pipeline_p => a_chargeTimeabb
+          CALL Prog%newField("chargeTimeabb","Time tracer for particle charging, aero B",   &
+                             "1","ttttaeb",ANY(outputlist == "chargeTimeabb"),              &
+                             pipeline_p)   
+                                       
+          pipeline_p => NULL()
+          a_chargeTimecba = FloatArray4d(a_chargeTimep%d(:,:,:,nbins+ica%cur:nbins+fca%cur))
+          pipeline_p => a_chargeTimecba
+          CALL Prog%newField("chargeTimecba","Time tracer for particle charging, cloud A",   &
+                             "1","ttttcla",ANY(outputlist == "chargeTimecba"),              &
+                             pipeline_p)   
+
+          pipeline_p => NULL()
+          a_chargeTimecbb = FloatArray4d(a_chargeTimep%d(:,:,:,nbins+icb%cur:nbins+fcb%cur))
+          pipeline_p => a_chargeTimecbb
+          CALL Prog%newField("chargeTimecbb","Time tracer for particle charging, cloud B",   &
+                             "1","ttttclb",ANY(outputlist == "chargeTimecbb"),              &
+                             pipeline_p)   
+
+          pipeline_p => NULL()
+          a_chargeTimepba = FloatArray4d(a_chargeTimep%d(:,:,:,nbins+ncld+1:nbins+ncld+nprc))
+          pipeline_p => a_chargeTimepba
+          CALL Prog%newField("chargeTimepba","Time tracer for particle charging, Precip",   &
+                             "1","ttttprc",ANY(outputlist == "chargeTimepba"),              &
+                             pipeline_p)   
+
+          iscl = iscl + nliquid - 1
+
+      END IF ! charge emissions
+
+
 
       IF (lpback) THEN
          iscl = iscl + 1

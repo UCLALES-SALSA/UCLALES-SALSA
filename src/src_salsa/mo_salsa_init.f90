@@ -789,12 +789,14 @@ CONTAINS
    ! Juha Tonttila (FMI) 2014
    !
    !-------------------------------------------------------------------------------
-   SUBROUTINE salsa_initialize()
+   SUBROUTINE salsa_initialize(chargeTmax,chargeCollEnh)
 
       !
       !-------------------------------------------------------------------------------
       IMPLICIT NONE
 
+      REAL, INTENT(in) :: chargeTmax ! Maximum timescale for particle charging, if active
+      REAL, INTENT(in) :: chargeCollEnh ! Max assumed enhancement of coalescence rates by charging effects
       ! Dummy size distributions just for setting everything up!!
       ! May not be the smartest or the fastest way, but revise later... 
       TYPE(Section), ALLOCATABLE :: dumaero(:,:,:), dumcloud(:,:,:), dumprecp(:,:,:), &
@@ -831,6 +833,8 @@ CONTAINS
       CALL set_icebins(dumice) 
 
       CALL set_masterbins(dumaero, dumcloud, dumprecp, dumice) 
+      allSALSA(:,:,:)%chargeTimeMax = chargeTmax  ! Set the maximum timescale for charge time that should come from emission submodels
+      allSALSA(:,:,:)%chargeCollEnh = chargeCollEnh ! Max charge effect on coalescence
 
       ! Initialize aerosol optical properties - uses settings from "spec"
       CALL initialize_optical_properties()

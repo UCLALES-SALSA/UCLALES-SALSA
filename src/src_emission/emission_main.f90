@@ -5,15 +5,16 @@ MODULE emission_main
   
   USE mo_seasalt_emission
 
-  USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, spec, pi6, prlim, &
-                         ice_theta_dist 
+  USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, nliquid, spec, pi6, prlim, &
+                         ice_theta_dist, ica, fca, icb, fcb, ncld, nprc
 
   USE mo_salsa_types, ONLY : aero
 
   USE mo_salsa_sizedist, ONLY : size_distribution  ! Could this be packaged somehow differently?
 
   USE mo_aux_state, ONLY : dzt,zt,xt,yt
-  USE mo_progn_state, ONLY : a_maerot, a_naerot, a_naerop, a_indefp, a_indeft
+  USE mo_progn_state, ONLY : a_maerot, a_naerot, a_naerop, a_indefp, a_indeft,  & 
+                             a_chargeTimep, a_chargeTimet, a_ncloudp, a_nprecpp
   USE mo_diag_state, ONLY : a_dn
   !USE mo_vector_state, ONLY : a_up, a_vp ! needed for the seasalt thing
   USE grid, ONLY: deltax, deltay, deltaz, dtlt, &                  
@@ -56,15 +57,18 @@ MODULE emission_main
          IF (emd%emitType == 2) THEN
             condition = getCondition(emd,time_in)
             IF (condition) CALL custom_emission(edt,emd)
-         END IF
-         
          !Ali, addition of emitType 3 
-         IF (emd%emitType == 3) THEN
+         ELSE IF (emd%emitType == 3) THEN
             emdT3 => emitType3(pr)
             conditionT3 = getConditionT3(emdT3,time_in)
-            IF (conditionT3 > 0) THEN
-               CALL custom_emission_typ3(edt,emd,emdT3,time_in,conditionT3)
-            END IF
+            IF (conditionT3 > 0) CALL custom_emission_typ3(edt,emd,emdT3,time_in,conditionT3)
+         ELSE IF (emd%emitType == 4) THEN
+            condition = getCondition(emd,time_in)
+            IF (condition) CALL custom_charging(edt,emd)   
+         ELSE IF (emd%emitType == 5) THEN
+            emdT3 => emitType3(pr)
+            conditionT3 = getConditionT3(emdT3,time_in)
+            IF (conditionT3 > 0) CALL charging_typ3(edt,emd,emdT3,time_in,conditionT3)
          END IF
          
        END ASSOCIATE
@@ -203,6 +207,77 @@ MODULE emission_main
 
   END SUBROUTINE custom_emission
  
+
+  !
+  ! ----------------------------------------------------------------
+  ! Subroutine custom_charging: Similar to custom emission, but
+  !                             instead of particles, set the particle
+  !                             charging max timescale to it's corresponding
+  !                             tracer in afected areas in order to track
+  !                             the expected enhancement in coalescence rates 
+  !                             (by boosting coagulation kernels).
+  !
+  SUBROUTINE custom_charging(edt,emd)
+   USE mo_derived_state, ONLY : Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba
+   USE emission_types, ONLY : chargeTMax
+   IMPLICIT NONE
+   
+   CHARACTER(len=50), PARAMETER :: name = "cloud_seeding"
+   
+   TYPE(EmitSizeDist), INTENT(in) :: edt  ! Emission data instance
+   TYPE(EmitConfig), INTENT(in) :: emd   ! Emission configuration instance
+   REAL :: hlp1, hlp2  ! helper variables
+   
+   INTEGER :: i,j,k,bb,ss,mm
+   REAL :: diam(nzp,nxp,nyp,nliquid), numb(nzp,nxp,nyp,nliquid)
+
+
+   IF (myid == 0) THEN
+     WRITE(*,*) '============================'
+     WRITE(*,*) 'CALCULATING CHARGE EMISSIONS'
+     WRITE(*,*) '============================'
+   END IF
+
+   diam = 0.
+   CALL Dwaba%onDemand("Dwaba",diam(:,:,:,in1a:fn2a),in1a,fn2a)
+   CALL Dwabb%onDemand("Dwabb",diam(:,:,:,in2b:fn2b),in2b,fn2b)
+   CALL Dwcba%onDemand("Dwcba",diam(:,:,:,nbins+ica%cur:nbins+fca%cur),ica%cur,fca%cur)
+   CALL Dwcbb%onDemand("Dwcbb",diam(:,:,:,nbins+icb%cur:nbins+fcb%cur),icb%cur,fcb%cur)
+   CALL Dwcbb%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
+   numb = 0.
+   numb(:,:,:,1:nbins) = a_naerop%d(:,:,:,1:nbins)
+   numb(:,:,:,nbins+1:nbins+ncld) = a_ncloudp%d(:,:,:,1:ncld)
+   numb(:,:,:,nbins+ncld+1:nbins+ncld+nprc) = a_nprecpp%d(:,:,:,1:nprc)
+
+   ASSOCIATE( k1 => emd%emitLevMin, k2 => emd%emitLevMax)
+   
+     DO bb = 1,nliquid
+        DO j = 3,nyp-2
+           IF (yt%d(j) < emd%emitLatmin .OR. yt%d(j) > emd%emitLatmax) CYCLE
+
+           DO i = 3,nxp-2
+              IF (xt%d(i) < emd%emitLonmin .OR. xt%d(i) > emd%emitLonmax) CYCLE
+               
+              DO k = k1,k2
+
+                  IF (diam(k,i,j,bb) < emd%chargeDmax .AND.  &
+                      diam(k,i,j,bb) > emd%chargeDmin .AND.  &
+                      numb(k,i,j,bb) > 1.                    ) THEN
+                     a_chargeTimep%d(k,i,j,bb) = 0.  ! If charging for some reason takes place on consecutive times in same location & bin,
+                                                   ! assume it being set back to chargeTmax
+                     a_chargeTimet%d(k,i,j,bb) = chargeTMax / dtlt
+                  END IF
+
+              END DO
+           END DO
+        END DO
+     END DO
+     
+   END ASSOCIATE
+
+ END SUBROUTINE custom_charging
+
+
  
 ! -----------------------------------------------------------------------------
 ! Subroutine custom_emission_typ3:
@@ -286,6 +361,94 @@ MODULE emission_main
     END ASSOCIATE
   END SUBROUTINE custom_emission_typ3
   
+
+
+! -----------------------------------------------------------------------------
+! Subroutine charging_typ3: Similar to emission type 3, but
+!                           instead of particles, set the particle
+!                           charging max timescale to it's corresponding
+!                           tracer in afected areas in order to track
+!                           the expected enhancement in coalescence rates 
+!                           (by boosting coagulation kernels).
+!
+  SUBROUTINE charging_typ3(edt,emd,emdT3,time,conditionT3)
+   USE mo_derived_state, ONLY : Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba
+   USE emission_types, ONLY : chargeTMax
+   IMPLICIT NONE
+ 
+   REAL, INTENT(in) :: time
+   CHARACTER(len=50), PARAMETER :: name = "charging_typ3"
+   INTEGER, INTENT(in) :: conditionT3
+   TYPE(EmitSizeDist), INTENT(in) :: edt       ! Emission data instance
+   TYPE(EmitConfig), INTENT(in) :: emd         ! Emission configuration instance
+   TYPE(EmitType3Config), INTENT(inout) :: emdT3  ! Emission type 3 configuration instance
+
+   REAL :: hlp1, hlp2
+   
+   INTEGER :: j,bb,ss,mm, xx,yy,zz1,zz2,k
+   REAL :: dt, t_str,t_end
+   INTEGER :: ind, i_str,i_end, di
+   REAL :: diam(nzp,nxp,nyp,nliquid), numb(nzp,nxp,nyp,nliquid)
+
+   ! The point source will always be in 1 PE at a time
+   WRITE(*,*) '=============================='
+   WRITE(*,*) 'CALCULATING CHARGING EMISSIONS'
+   WRITE(*,*) '=============================='
+   
+   diam = 0.
+   CALL Dwaba%onDemand("Dwaba",diam(:,:,:,in1a:fn2a),in1a,fn2a)
+   CALL Dwabb%onDemand("Dwabb",diam(:,:,:,in2b:fn2b),in2b,fn2b)
+   CALL Dwcba%onDemand("Dwcba",diam(:,:,:,nbins+ica%cur:nbins+fca%cur),ica%cur,fca%cur)
+   CALL Dwcbb%onDemand("Dwcbb",diam(:,:,:,nbins+icb%cur:nbins+fcb%cur),icb%cur,fcb%cur)
+   CALL Dwcbb%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
+   numb = 0.
+   numb(:,:,:,1:nbins) = a_naerop%d(:,:,:,1:nbins)
+   numb(:,:,:,nbins+1:nbins+ncld) = a_ncloudp%d(:,:,:,1:ncld)
+   numb(:,:,:,nbins+ncld+1:nbins+ncld+nprc) = a_nprecpp%d(:,:,:,1:nprc)
+
+
+   ASSOCIATE( ix => emdT3%ix, iy => emdT3%iy, iz => emdT3%iz, t => emdT3%t, np => emdT3%np, &
+              t_trac => emdT3%t_trac,t_in => emdT3%t_in, t_out => emdT3%t_out, &
+              z_expan_up => emd%z_expan_up, z_expan_dw => emd%z_expan_dw)
+     
+     t_str = MAX(t_in(conditionT3), t_trac)
+     t_end = MIN(t_out(conditionT3), (time + dtlt) )  
+     i_str = MAXLOC(t, 1, mask = t <= t_str)
+     i_end = MAXLOC(t, 1, mask = t < t_end)
+     
+     di = i_end - i_str + 1
+     
+     DO bb = 1,nliquid   
+        DO j = 1, di
+           
+           dt  = ( MIN(t_end, t(i_str+j)) - MAX(t_str, t(i_str+j-1)) )/dtlt
+           ind = i_str+j-1
+           xx = ix(ind); yy = iy(ind)
+           zz1 = iz(ind)-z_expan_dw; zz2 = iz(ind)+z_expan_up
+
+           DO k = zz1,zz2
+
+               IF (diam(k,xx,yy,bb) < emd%chargeDmax .AND.  &
+                   diam(k,xx,yy,bb) > emd%chargeDmin .AND.  &
+                   numb(k,xx,yy,bb) > 1.                    ) THEN
+
+                  a_chargeTimep%d(k,xx,yy,bb) = 0.  ! If charging for some reason takes place on consecutive times in same location & bin,
+                                                ! assume it being set back to chargeTmax
+                  a_chargeTimet%d(k,xx,yy,bb) = chargeTMax / dtlt
+               END IF
+
+           END DO
+        END DO
+     END DO
+     
+     t_trac = time + dtlt
+     
+   END ASSOCIATE
+ END SUBROUTINE charging_typ3
+
+
+
+
   ! ----------------------------------------------------------
   
   FUNCTION getCondition(emd,time)

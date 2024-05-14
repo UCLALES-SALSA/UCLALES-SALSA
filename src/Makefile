@@ -70,7 +70,7 @@ util.o: $(seqmpi:.f90=.o) rfft.o
 math_functions.o: 
 defs.o:
 grid.o: $(seqmpi:.f90=.o) mo_submctl.o     \
-	classFieldArray.o mo_aux_state.o
+	classFieldArray.o mo_aux_state.o emission_types.o
 thrm.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_aux_state.o \
         grid.o defs.o $(seqmpi:.f90=.o)
 forc.o: grid.o mo_aux_state.o mo_diag_state.o mo_progn_state.o mo_vector_state.o \
@@ -110,7 +110,7 @@ mo_field_init.o:  $(seqmpi:.f90=.o) mo_progn_state.o mo_diag_state.o mo_derived_
                   mo_aux_state.o mo_ts_state.o mo_ps_state.o mo_field_state.o mo_check_state.o grid.o
 mo_aux_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o
 mo_diag_state.o: classFieldArray.o mo_structured_datatypes.o util.o mo_submctl.o
-mo_progn_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o 
+mo_progn_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o emission_types.o 
 mo_vector_state.o: classFieldArray.o mo_structured_datatypes.o 
 mo_derived_state.o: classFieldArray.o mo_structured_datatypes.o mo_derived_procedures.o 
 mo_derived_procedures.o: mo_submctl.o util.o defs.o mo_particle_external_properties.o grid.o \
