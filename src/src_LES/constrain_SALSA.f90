@@ -50,7 +50,7 @@ MODULE constrain_SALSA
    SUBROUTINE SALSA_diagnostics(onlyDiag,lcharge)
      USE grid, ONLY : nxp,nyp,nzp,    &
                       level
-     USE mo_derived_procedures, ONLY : binMixrat ! Maybe at some point one could use the actual variables instead of this subroutine directly?
+     USE mo_derived_procedures, ONLY : binMixrat, binSpecMixrat! Maybe at some point one could use the actual variables instead of this subroutine directly?
      USE mo_submctl, ONLY : nbins,ncld,nprc,nice,ica,fca,icb,fcb,ira,fra,              &
                             in1a,fn2b,                        &
                             nice,iia,fia,                    &

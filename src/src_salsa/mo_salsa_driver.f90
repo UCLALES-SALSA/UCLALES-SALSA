@@ -238,7 +238,7 @@ CONTAINS
                   IF (icat < 4) THEN    ! Aerosol and liquid
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc) 
-                        allSALSA(1,1,nb)%volc(nc) = mpart(icat)%d(str)*pdn%d(kk,ii,jj)/spec%rholiq(nc)                     
+                        allSALSA(1,1,nb)%volc(nc) = mpart(icat)%d(str)*pdn%d(kk,ii,jj)/spec%rholiq(nc)
                      END DO
 
                      IF (level == 5 .AND. ice_theta_dist) THEN

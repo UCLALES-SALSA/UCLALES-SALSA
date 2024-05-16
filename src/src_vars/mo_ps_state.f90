@@ -71,7 +71,8 @@ MODULE mo_ps_state
                                 ps_aDUa, ps_aDUb, ps_cDUa, ps_cDUb, ps_pDUa, ps_iDUa,        &
                                 ps_aSSa, ps_aSSb, ps_cSSa, ps_cSSb, ps_pSSa, ps_iSSa,        &
                                 ps_aNOa, ps_aNOb, ps_cNOa, ps_cNOb, ps_pNOa, ps_iNOa,        &
-                                ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa
+                                ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa        
+                                
 
   ! Conditionally sampled profiles
   TYPE(FloatArray1d), TARGET :: psic_rc, psic_Naa, psic_Nab, psic_Nca, psic_Ncb, psic_CDNC, psic_CNC,   &
@@ -84,6 +85,7 @@ MODULE mo_ps_state
   TYPE(FloatArray2d), TARGET :: ps_Dwaba, ps_Dwabb, ps_Dwcba, ps_Dwcbb, ps_Dwpba, ps_Dwiba
   TYPE(FloatArray2d), TARGET :: ps_Naba, ps_Nabb, ps_Ncba, ps_Ncbb, ps_Npba, ps_Niba
   TYPE(FloatArray2d), TARGET :: ps_sipdrfr, ps_sipiibr, ps_siprmspl
+  TYPE(FloatArray2d), TARGET :: ps_maSO4a, ps_maSO4b, ps_mcSO4a, ps_mcSO4b, ps_mpSO4a, ps_miSO4a
   
   ! Piggybacking slave microphysics diagnostics
   TYPE(FloatArray1d), TARGET :: ps_pb_rrate, ps_pb_rc,         &
@@ -578,7 +580,44 @@ MODULE mo_ps_state
          ps_pSO4a%onDemand => globalMeanProfile
          pipeline => ps_pSO4a
          CALL PS%newField(ps_pSO4a%shortName, "Precipitation bulk SO4 mass", "kg/kg", "ztt",   &
-                          ANY(outputlist == ps_pSO4a%shortName), pipeline)
+              ANY(outputlist == ps_pSO4a%shortName), pipeline)
+
+         pipeline => NULL()
+         ps_maSO4a = FloatArray2d()
+         ps_maSO4a%onDemand => globalMeanProfileBinned
+         pipeline => ps_maSO4a
+         CALL PS%newField("maSO4a", "Aerosol A binned SO4 mass", "kg/kg", "zttaea",   &
+              ANY(outputlist == "maSO4a"), pipeline)
+
+         
+         pipeline => NULL()
+         ps_maSO4b = FloatArray2d()
+         ps_maSO4b%onDemand => globalMeanProfileBinned
+         pipeline => ps_maSO4b
+         CALL PS%newField("maSO4b", "Aerosol B binned SO4 mass", "kg/kg", "zttaeb",   &
+              ANY(outputlist == "maSO4b"), pipeline)
+
+         pipeline => NULL()
+         ps_mcSO4a = FloatArray2d()
+         ps_mcSO4a%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcSO4a
+         CALL PS%newField("mcSO4a", "Cloud A binned SO4 mass", "kg/kg", "zttcla",   &
+              ANY(outputlist == "mcSO4a"), pipeline)
+
+         pipeline => NULL()
+         ps_mcSO4b = FloatArray2d()
+         ps_mcSO4b%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcSO4b
+         CALL PS%newField("mcSO4b", "Cloud B binned SO4 mass", "kg/kg", "zttclb",   &
+              ANY(outputlist == "mcSO4b"), pipeline)
+
+         pipeline => NULL()
+         ps_mpSO4a = FloatArray2d()
+         ps_mpSO4a%onDemand => globalMeanProfileBinned
+         pipeline => ps_mpSO4a
+         CALL PS%newField("mpSO4a", "Precipitation binned SO4 mass", "kg/kg", "zttprc",   &
+              ANY(outputlist == "mpSO4a"), pipeline)
+
       END IF
 
       IF (level == 5) THEN
@@ -587,7 +626,15 @@ MODULE mo_ps_state
          ps_iSO4a%onDemand => globalMeanProfile
          pipeline => ps_iSO4a
          CALL PS%newField(ps_iSO4a%shortName, "Ice bulk SO4 mass", "kg/kg", "ztt",   &
-                          ANY(outputlist == ps_iSO4a%shortName), pipeline)
+              ANY(outputlist == ps_iSO4a%shortName), pipeline)
+         
+         pipeline => NULL()
+         ps_miSO4a = FloatArray2d()
+         ps_miSO4a%onDemand => globalMeanProfileBinned
+         pipeline => ps_miSO4a
+         CALL PS%newField("miSO4a", "Ice binned SO4 mass", "kg/kg", "zttice",   &
+              ANY(outputlist == "miSO4a"), pipeline)
+         
       END IF
 
       IF (level >= 4) THEN

@@ -37,7 +37,8 @@ MODULE mo_derived_procedures
             getReff,         &  ! Get the effective radius using all liquid hdrometeor > 2 um (level >= 4)
             getBinTotMass,   &  ! Get the binned total mass
             getGasConc,      &  ! Get the concentration of specific precursor gas
-            initContactAngle    ! Convert the IN nucleated fraction into the initial value for contact angle integration
+            initContactAngle,&  ! Convert the IN nucleated fraction into the initial value for contact angle integration
+            binSpecMixrat       ! Get binned mass of given aerosol constituent (level >= 4)
   
   CONTAINS
 
@@ -610,6 +611,8 @@ MODULE mo_derived_procedures
      
    END SUBROUTINE getBinTotMass
 
+! -------------------------------------------------------------------------------
+
    ! ----------------------------------------------------------------------------
    ! SUBROUTINE GETGASCONC: Gets the sseparate gas concentration for output
    !
@@ -690,50 +693,6 @@ MODULE mo_derived_procedures
      var => NULL()
      
    END SUBROUTINE initContactAngle
-
-   
-   
-   ! NONE OF THE BELOW IS YET ASSOCIATED WITH ANYTHING !!!!!!!!!!!!!!!!!!!!
-
-   
-   ! ----------------------------------------------
-   ! Subroutine binSpecMixrat: Calculate the mixing
-   ! ratio of selected aerosol species in individual
-   ! bins.
-   !
-   ! Juha Tonttila, FMI, 2015
-   SUBROUTINE binSpecMixrat(ipart,icomp,ibin,mixr)
-      USE mo_submctl, ONLY : ncld, nbins, nprc, nice
-      USE util, ONLY : getMassIndex
-
-      CHARACTER(len=*), INTENT(in) :: icomp  ! This should be either:
-                                             ! SO4,OC,NO,NH,BC,DU,SS,H2O.
-
-      CHARACTER(len=*), INTENT(in) :: ipart  ! This should be either:
-                                             ! aerosol,cloud,rain,ice
-      INTEGER, INTENT(in) :: ibin
-
-      REAL, INTENT(out)   :: mixr(nzp,nxp,nyp)
-
-      CHARACTER(len=20), PARAMETER :: name = "binSpecMixrat"
-
-      INTEGER :: mm
-
-      ! Determine multipliers
-      mm = spec%getIndex(icomp)
-
-      SELECT CASE(ipart)
-         CASE('aerosol')
-            mixr(:,:,:) = a_maerop%d(:,:,:,getMassIndex(nbins,ibin,mm))
-         CASE('cloud')
-            mixr(:,:,:) = a_mcloudp%d(:,:,:,getMassIndex(ncld,ibin,mm))
-         CASE('precp')
-            mixr(:,:,:) = a_mprecpp%d(:,:,:,getMassIndex(nprc,ibin,mm))
-         CASE('ice')
-            mixr(:,:,:) = a_micep%d(:,:,:,getMassIndex(nice,ibin,mm))
-      END SELECT
-
-   END SUBROUTINE binSpecMixrat
    !
    ! ----------------------------------------------
    ! Subroutine binMixrat: Calculate the total dry or wet
@@ -789,8 +748,73 @@ MODULE mo_derived_procedures
    END SUBROUTINE binMixrat
 
 
-   
+   ! -----------------------------------
+   ! Subroutine BinSpecMixrat: Find and calculate
+   ! the mass mixing ratio per bin of a given compound
+   ! in aerosol particles or hydrometeors
+   !
+   ! Juha Tonttila, FMI, 2015
+   ! Jaakko Ahola, FMI, 2015
+   SUBROUTINE binSpecMixrat(name,output,nstr,nend)
+     CHARACTER(len=*), INTENT(in) :: name
+     INTEGER, INTENT(in) :: nstr,nend
+     REAL, INTENT(out) :: output(nzp,nxp,nyp,nend-nstr+1)
+     CHARACTER(len=4) :: icomp
+     
+     INTEGER :: istr,iend,mm,cmax
 
+     iend = 0
+     istr = 0
+     
+     cmax = LEN_TRIM(name)
+     output = 0.
+     icomp = name(3:cmax-1)
+     mm = spec%getIndex(icomp)
+
+     ! Given in kg/kg
+     SELECT CASE(name(1:2))
+     CASE('ma') ! aerosol
+        SELECT CASE(name(cmax:cmax))
+        CASE('t') ! total
+           istr = getMassIndex(nbins,in1a,mm)   
+           iend = getMassIndex(nbins,fn2b,mm)    
+        CASE('a')
+           istr = getMassIndex(nbins,in1a,mm)
+           iend = getMassIndex(nbins,fn2a,mm)
+        CASE('b')
+           istr = getMassIndex(nbins,in2b,mm)
+           iend = getMassIndex(nbins,fn2b,mm)
+        END SELECT
+        output(:,:,:,:) = a_maerop%d(:,:,:,istr:iend)
+
+     CASE('mc') ! cloud
+        SELECT CASE(name(cmax:cmax))
+        CASE('t')
+           istr = getMassIndex(ncld,ica%cur,mm)
+           iend = getMassIndex(ncld,fcb%cur,mm)
+        CASE('a')
+           istr = getMassIndex(ncld,ica%cur,mm)  
+           iend = getMassIndex(ncld,fca%cur,mm)
+        CASE('b')
+           istr = getMassIndex(ncld,icb%cur,mm)
+           iend = getMassIndex(ncld,fcb%cur,mm)
+        END SELECT
+        output(:,:,:,:) = a_mcloudp%d(:,:,:,istr:iend)
+
+     CASE('mp')
+        istr = getMassIndex(nprc,ira,mm)
+        iend = getMassIndex(nprc,fra,mm)
+        output(:,:,:,:) = a_mprecpp%d(:,:,:,istr:iend)
+
+     CASE('mi')
+        istr = getMassIndex(nice,iia,mm)
+        iend = getMassIndex(nice,fia,mm)
+        output(:,:,:,:) = a_micep%d(:,:,:,istr:iend)
+     END SELECT
+
+     
+   END SUBROUTINE binSpecMixRat
+   
    
 END MODULE mo_derived_procedures
 
