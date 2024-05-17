@@ -1554,7 +1554,7 @@ CONTAINS
         pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
     ELSE
         ! Volume fraction to be removed (based on dry size)
-        vfrac = dN*SUM(pice(ii,jj,bb)%volc(:))/(pice(ii,jj,bb)%numc*SUM(pice(ii,jj,cc)%volc(:)))
+        vfrac = dN/pice(ii,jj,cc)%numc*(pice(ii,jj,bb)%dmid/pice(ii,jj,cc)%dmid)**3
         ! Move dN splinters from ice bin cc to ice bin bb
         pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
         pice(ii,jj,bb)%volc(:) = pice(ii,jj,bb)%volc(:) + vfrac*pice(ii,jj,cc)%volc(:)
@@ -1581,7 +1581,7 @@ CONTAINS
         psnow(ii,jj,bb)%numc = psnow(ii,jj,bb)%numc + dN
     ELSE
         ! Volume fraction to be removed (based on wet size)
-        vfrac = dN*SUM(psnow(ii,jj,bb)%volc(:))/(psnow(ii,jj,bb)%numc*SUM(psnow(ii,jj,cc)%volc(:)))
+        vfrac = dN/psnow(ii,jj,cc)%numc*(psnow(ii,jj,bb)%dmid/psnow(ii,jj,cc)%dmid)**3
         ! Move dN splinters from snow bin cc to snow bin bb
         psnow(ii,jj,bb)%numc = psnow(ii,jj,bb)%numc + dN
         psnow(ii,jj,bb)%volc(:) = psnow(ii,jj,bb)%volc(:) + vfrac*psnow(ii,jj,cc)%volc(:)
@@ -1591,7 +1591,7 @@ CONTAINS
   END SUBROUTINE snow2snow
 
   SUBROUTINE snow2ice(ii,jj,nice,nsnw,pice,psnow,dN,cc,bb)
-    USE mo_submctl, ONLY : t_section
+    USE mo_submctl, ONLY : t_section, pi6
     ! Inputs/outputs
     INTEGER, INTENT(in) :: ii, jj, nice, nsnw ! Dimensions
     INTEGER, INTENT(in) :: cc, bb ! Bin indices for the source snow (cc) and target ice (bb)
@@ -1604,7 +1604,7 @@ CONTAINS
     dN=MIN(dN,0.1*psnow(ii,jj,cc)%numc)
     !
     ! Volume fraction to be removed (based on dry size)
-    vfrac = dN*SUM(pice(ii,jj,bb)%volc(2:))/(pice(ii,jj,bb)%numc*SUM(psnow(ii,jj,cc)%volc(2:)))
+    vfrac = dN*pi6*pice(ii,jj,bb)%dmid**3/SUM(psnow(ii,jj,cc)%volc(2:))
     ! Move dN splinters from snow bin cc to ice bin bb
     pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
     pice(ii,jj,bb)%volc(:) = pice(ii,jj,bb)%volc(:) + vfrac*psnow(ii,jj,cc)%volc(:)
