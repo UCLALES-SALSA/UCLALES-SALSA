@@ -1,5 +1,13 @@
 !===============================================================================!
-! UCLALES code from https://github.com/uclales/uclales/blob/master/src/ice_sb.F90
+!
+! Two-moment bulk microphysics by Axel Seifert for UCLALES-SALSA
+!
+! March 12, 2023: modified the original UCLALES code obtained from
+! https://github.com/uclales/uclales/blob/master/src/ice_sb.F90
+! (last access: May 24, 2018) to work with UCLALES-SALSA.
+!
+! Tomi Raatikainen, Finnish Meteorological Institute, Helsinki, Finland
+! (tomi.raatikainen@fmi.fi)
 !
 !===============================================================================!
 !
