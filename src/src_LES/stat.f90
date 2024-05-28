@@ -30,16 +30,16 @@ module stat
   private
 
   integer, parameter :: nvar1 = 37,               &
-                        nv1_ice = 22,             &
+                        nv1_ice = 17,             &
                         nv1_lvl4 = 5,             &
                         nv1_lvl5 = 12,            &
                         nvar2 = 96,               &
-                        nv2_ice = 21,             &
+                        nv2_ice = 16,             &
                         nv2_lvl4 = 0,             &
                         nv2_lvl5 = 11,            &
                         nv2_hist = 2,             &
                         nvar3 = 25,               &
-                        nv3_ice = 20,             &
+                        nv3_ice = 15,             &
                         nv3_lvl4 = 0,             &
                         nv3_lvl5 = 10
 
@@ -76,7 +76,6 @@ module stat
        'iwp_bar','Rice   ','nice   ','nicnt  ','iprcp  ',  & ! 1-5
        'swp_bar','Rsnow  ','nsnow  ','nscnt  ','sprcp  ',  & ! 6-10
        'gwp_bar','Rgra   ','ngra   ','ngcnt  ','gprcp  ',  & ! 11-15
-       'hwp_bar','Rhail  ','nhail  ','nhcnt  ','hprcp  ',  & ! 16-20
        'SSi_max','thi_int'/), & ! 21
 
        s1_lvl4(nv1_lvl4) = (/       &
@@ -108,8 +107,7 @@ module stat
         s2_ice(nv2_ice)=(/ &
         'ri     ','Ni_ii  ','Ri_ii  ','frac_ii','irate  ', & ! 1
         'rs     ','Ns_is  ','Rs_is  ','frac_is','srate  ', & ! 6
-        'rg     ','Ng_ig  ','Rg_ig  ','frac_ig','grate  ', & ! 11
-        'rh     ','Nh_ih  ','Rh_ih  ','frac_ih','hrate  ','thi    '/), & ! 16
+        'rg     ','Ng_ig  ','Rg_ig  ','frac_ig','grate  ','thi    '/), & ! 16
 
         s2_lvl4(nv2_lvl4), & ! Not used
 
@@ -133,8 +131,7 @@ module stat
         s3_ice(nv3_ice)=(/ & ! Level 0 ice
         'iwp    ','Ni_ii  ','Ri_ii  ','iprcp  ','nicnt  ', & ! 1-5
         'swp    ','Ns_is  ','Rs_is  ','sprcp  ','nscnt  ', & ! 6-10
-        'gwp    ','Ng_ig  ','Rg_ig  ','gprcp  ','ngcnt  ', & ! 11-15
-        'hwp    ','Nh_ih  ','Rh_ih  ','hprcp  ','nhcnt  '/), & ! 16-20
+        'gwp    ','Ng_ig  ','Rg_ig  ','gprcp  ','ngcnt  '/), & ! 11-15
 
         s3_lvl4(nv3_lvl4), & ! Not used
 
@@ -292,7 +289,7 @@ contains
           tmp_bool=.TRUE.
        ELSEIF (level==0 .AND. lev_sb==4) THEN
           tmp_bool=.TRUE.
-          tmp_bool((/8,13,16,17,18,19,20/))=.FALSE.
+          tmp_bool((/8,13/))=.FALSE.
        ELSE
           tmp_bool=.FALSE.
        ENDIF
@@ -315,7 +312,7 @@ contains
           tmp_bool=.TRUE.
        ELSEIF (level==0 .AND. lev_sb==4) THEN
           tmp_bool=.TRUE.
-          tmp_bool((/7,8,12,13,16,17,18,19,20/))=.FALSE.
+          tmp_bool((/7,8,12,13/))=.FALSE.
        ELSE
           tmp_bool=.FALSE.
        ENDIF
@@ -546,7 +543,6 @@ contains
         IF (no_prog_snw) s3_lvl5_bool(6:10)=.FALSE.
         ! Level 0 ice
         tmp_bool=(level==0 .AND. lev_sb>=4)
-        tmp_bool(16:20)=(level==0 .AND. lev_sb>=5) ! hail is for sb_lev=5
 
         ! Merge logical and name arrays (reuse s1 arrays)
         DEALLOCATE( s1bool, s1total )
@@ -1104,8 +1100,8 @@ contains
 
   ! b) Level 0 (SB 4 and 5) ice microphysics
   SUBROUTINE set_cs_ice(n1,n2,n3)
-    USE grid, ONLY : a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, &
-        a_dn, icein, snowin, grin, hailin
+    USE grid, ONLY : a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, &
+        a_dn, icein, snowin, grin
     use netcdf
     integer, intent (in) :: n1,n2,n3
     real    :: a(n2,n3), a1(n1,n2,n3)
@@ -1194,32 +1190,6 @@ contains
     ENDIF
     iret = nf90_inq_varid(ncid3,'gprcp',VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, grin(2,3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-
-    ! The same for hail
-    iret = nf90_inq_varid(ncid3,'hwp',VarID)
-    IF (iret==NF90_NOERR) THEN
-        CALL get_avg_cs(n1,n2,n3,a_rhp,a,dens=a_dn)
-        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-    ENDIF
-    mask = (a_nhp > ni_min .OR. a_rhp > ri_min)
-    iret = nf90_inq_varid(ncid3,'Rh_ih',VarID)
-    IF (iret==NF90_NOERR) THEN
-        CALL getSBradius(n1,n2,n3,a_nhp,a_rhp,4,a1)
-        CALL get_avg_cs(n1,n2,n3,a1,a,cond=mask)
-        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-    ENDIF
-    iret = nf90_inq_varid(ncid3,'Nh_ih',VarID)
-    IF (iret==NF90_NOERR) THEN
-        CALL get_avg_cs(n1,n2,n3,a_nhp,a,cond=mask)
-        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-    ENDIF
-    iret = nf90_inq_varid(ncid3,'nhcnt',VarID)
-    IF (iret==NF90_NOERR) THEN
-        a(:,:)=COUNT( mask, DIM=1 )
-        iret = nf90_put_var(ncid3, VarID, a(3:n2-2,3:n3-2), start=(/1,1,nrec3/))
-    ENDIF
-    iret = nf90_inq_varid(ncid3,'hprcp',VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, hailin(2,3:n2-2,3:n3-2), start=(/1,1,nrec3/))
 
   END SUBROUTINE set_cs_ice
 
@@ -1576,8 +1546,8 @@ contains
   ! subroutine ts_ice: computes and writes time sequence stats
   !
   subroutine ts_ice(n1,n2,n3)
-    USE grid, ONLY : a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, &
-        a_rsi, a_rv, dzt, a_dn, zm, icein, snowin, grin, hailin, a_tp, th0, th00
+    USE grid, ONLY : a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, &
+        a_rsi, a_rv, dzt, a_dn, zm, icein, snowin, grin, a_tp, th0, th00
     integer, intent (in) :: n1,n2,n3
 
     integer :: i, j, k
@@ -1621,17 +1591,6 @@ contains
     ssclr_ice(14) = get_pustat_scalar('sum',REAL(k))
     scr(:,:) = grin(2,:,:)
     ssclr_ice(15) = get_avg2dh(n2,n3,scr)
-
-    ! The same for hail
-    ssclr_ice(16) = get_avg_ts(n1,n2,n3,a_rhp,dzt,dens=a_dn)
-    mask = (a_nhp > ni_min .OR. a_rhp > ri_min)
-    CALL getSBradius(n1,n2,n3,a_nsp,a_rsp,4,a1)
-    ssclr_ice(17) = get_avg_ts(n1,n2,n3,a1,dzt,mask)
-    ssclr_ice(18) = get_avg_ts(n1,n2,n3,a_nhp,dzt,mask)
-    k=COUNT( mask(2:n1,3:n2-2,3:n3-2) )
-    ssclr_ice(19) = get_pustat_scalar('sum',REAL(k))
-    scr(:,:) = hailin(2,:,:)
-    ssclr_ice(20) = get_avg2dh(n2,n3,scr)
 
     ! Maximum supersaturation over ice
     a1=0.
@@ -2052,8 +2011,8 @@ contains
   ! SUBROUTINE ACCUM_ice: Accumulates ice statistics.
   !
   subroutine accum_ice(n1,n2,n3)
-    use grid, ONLY : a_nip, a_rip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, &
-        a_tp, icein, snowin, grin, hailin, th00
+    use grid, ONLY : a_nip, a_rip, a_rsp, a_nsp, a_rgp, a_ngp, &
+        a_tp, icein, snowin, grin, th00
     IMPLICIT NONE
 
     integer, intent (in) :: n1,n2,n3
@@ -2098,7 +2057,7 @@ contains
     CALL get_avg3(n1,n2,n3,a_rgp,col)
     svctr_ice(:,11) = svctr_ice(:,11) + col(:)
     mask = (a_ngp > ni_min .OR. a_rgp > ri_min)
-    CALL get_avg3(n1,n2,n3,a_nhp,col,cond=mask)
+    CALL get_avg3(n1,n2,n3,a_ngp,col,cond=mask)
     svctr_ice(:,12) = svctr_ice(:,12) + col(:)
     CALL getSBradius(n1,n2,n3,a_ngp,a_rgp,3,a1)
     CALL get_avg3(n1,n2,n3,a1,col,cond=mask)
@@ -2108,21 +2067,6 @@ contains
     svctr_ice(:,14) = svctr_ice(:,14) + col(:)
     call get_avg3(n1,n2,n3,grin,col)
     svctr_ice(:,15) = svctr_ice(:,15) + col(:)
-
-    ! The same for hail
-    CALL get_avg3(n1,n2,n3,a_rhp,col)
-    svctr_ice(:,16) = svctr_ice(:,16) + col(:)
-    mask = (a_nhp > ni_min .OR. a_rhp > ri_min)
-    CALL get_avg3(n1,n2,n3,a_nhp,col,cond=mask)
-    svctr_ice(:,17) = svctr_ice(:,17) + col(:)
-    CALL getSBradius(n1,n2,n3,a_nhp,a_rhp,4,a1)
-    CALL get_avg3(n1,n2,n3,a1,col,cond=mask)
-    svctr_ice(:,18) = svctr_ice(:,18) + col(:)
-    a1 = merge(1., 0., mask)
-    CALL get_avg3(n1,n2,n3,a1,col)
-    svctr_ice(:,19) = svctr_ice(:,19) + col(:)
-    call get_avg3(n1,n2,n3,hailin,col)
-    svctr_ice(:,20) = svctr_ice(:,20) + col(:)
 
     ! Ice-liquid water potential temperature
     call get_avg3(n1,n2,n3,a_tp,col)
@@ -3247,7 +3191,7 @@ contains
   ! The same for SB microphysics
   LOGICAL FUNCTION calc_user_data_SB(short_name,res,mask,is_mass)
     use grid, ONLY : nzp,nxp,nyp, CCN, a_rc, a_npp, a_rpp, a_nip, a_rip, &
-        a_nsp, a_rsp, a_ngp, a_rgp, a_nhp, a_rhp
+        a_nsp, a_rsp, a_ngp, a_rgp
     CHARACTER(LEN=7), INTENT(IN) :: short_name ! Variable name
     REAL, INTENT(out) :: res(nzp,nxp,nyp)      ! Output data
     LOGICAL, INTENT(out) :: mask(nzp,nxp,nyp)  ! ... and mask
@@ -3278,8 +3222,6 @@ contains
         mask = (a_nsp > ni_min .OR. a_rsp > ri_min)
     CASE('ig')
         mask = (a_ngp > ni_min .OR. a_rgp > ri_min)
-    CASE('ih')
-        mask = (a_nhp > ni_min .OR. a_rhp > ri_min)
     case default
         RETURN
     END SELECT
@@ -3346,15 +3288,6 @@ contains
             res(:,:,:)=a_rgp(:,:,:)
         ELSE
             CALL getSBradius(nzp,nxp,nyp,a_ngp,a_rgp,3,res)
-            WHERE(res<1e-20) mask=.FALSE.
-        ENDIF
-    CASE('ht')
-        IF (numc) THEN
-            res(:,:,:)=a_nhp(:,:,:)
-        ELSEIF (mass) THEN
-            res(:,:,:)=a_rhp(:,:,:)
-        ELSE
-            CALL getSBradius(nzp,nxp,nyp,a_nhp,a_rhp,4,res)
             WHERE(res<1e-20) mask=.FALSE.
         ENDIF
     case default
