@@ -116,9 +116,10 @@ module grid
   real, pointer :: a_rp(:,:,:),a_rt(:,:,:) ! Water vapour for SALSA; total water for SB
   ! Seifert & Beheng tracers: mass (kg/kg) and number (#/kg)
   real, pointer :: a_rpp(:,:,:),a_rpt(:,:,:),a_npp(:,:,:),a_npt(:,:,:) ! Rain
-  real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! SB level 4 & 5 ice
+  real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! SB ice microphysics
   real, pointer :: a_rsp(:,:,:),a_rst(:,:,:),a_nsp(:,:,:),a_nst(:,:,:) ! Snow
   real, pointer :: a_rgp(:,:,:),a_rgt(:,:,:),a_ngp(:,:,:),a_ngt(:,:,:) ! Graupel
+  real, pointer :: a_rhp(:,:,:),a_rht(:,:,:),a_nhp(:,:,:),a_nht(:,:,:) ! Hail
   ! Subgrid TKE and a scratch variable
   real, pointer :: a_qp(:,:,:),a_qt(:,:,:)
   real, pointer :: a_sp(:,:,:),a_st(:,:,:)
@@ -185,7 +186,7 @@ module grid
   real, allocatable :: obl(:,:)
   !
   ! microphysics/precipitation
-  real, allocatable, dimension(:,:,:) :: aerin, cldin, precip, icein, snowin, grin
+  real, allocatable, dimension(:,:,:) :: aerin, cldin, precip, icein, snowin, grin, hailin
   !
   integer :: nscl = 1
   integer, private, save :: ncid0
@@ -293,10 +294,12 @@ contains
        !    rain mass and number (level=0 & lev_sb=3)
        !    rain and ice mass and number, and snow and graupel mass (level=0 & lev_sb=4)
        !    rain, ice, snow, and graupel mass and number (level=0 & lev_sb=5)
+       !    rain, ice, snow, graupel and hail mass and number (level=0 & lev_sb=6)
        nscl = 2+naddsc
        if (level == 3 .OR. level == 0) nscl = nscl+2 ! rain
        if (level == 0 .AND. lev_sb ==4) nscl = nscl+4 ! + ice and snow and graupel mass
-       if (level == 0 .AND. lev_sb ==5) nscl = nscl+6 ! + ice, snow, and graupel
+       if (level == 0 .AND. lev_sb ==5) nscl = nscl+6 ! + snow and graupel number
+       if (level == 0 .AND. lev_sb ==6) nscl = nscl+8 ! + hail
        if (isgstyp > 1) nscl = nscl+1 ! tke
 
        allocate (a_sclrp(nzp,nxp,nyp,nscl), a_sclrt(nzp,nxp,nyp,nscl))
@@ -322,24 +325,39 @@ contains
           a_npt=>tmp_prct(:,:,:,2)
        end if
        if (level == 0) then
-          if (lev_sb == 5) then
+          if (lev_sb == 6) then
              a_rip => a_sclrp(:,:,:,5); a_rit => a_sclrt(:,:,:,5)
              a_nip => a_sclrp(:,:,:,6); a_nit => a_sclrt(:,:,:,6)
              a_rsp => a_sclrp(:,:,:,7); a_rst => a_sclrt(:,:,:,7)
              a_nsp => a_sclrp(:,:,:,8); a_nst => a_sclrt(:,:,:,8)
              a_rgp => a_sclrp(:,:,:,9); a_rgt => a_sclrt(:,:,:,9)
              a_ngp => a_sclrp(:,:,:,10); a_ngt => a_sclrt(:,:,:,10)
+             a_rhp => a_sclrp(:,:,:,11); a_rht => a_sclrt(:,:,:,11)
+             a_nhp => a_sclrp(:,:,:,12); a_nht => a_sclrt(:,:,:,12)
+          elseif (lev_sb == 5) then
+             a_rip => a_sclrp(:,:,:,5); a_rit => a_sclrt(:,:,:,5)
+             a_nip => a_sclrp(:,:,:,6); a_nit => a_sclrt(:,:,:,6)
+             a_rsp => a_sclrp(:,:,:,7); a_rst => a_sclrt(:,:,:,7)
+             a_nsp => a_sclrp(:,:,:,8); a_nst => a_sclrt(:,:,:,8)
+             a_rgp => a_sclrp(:,:,:,9); a_rgt => a_sclrt(:,:,:,9)
+             a_ngp => a_sclrp(:,:,:,10); a_ngt => a_sclrt(:,:,:,10)
+             ALLOCATE (tmp_icep(nzp,nxp,nyp,2),tmp_icet(nzp,nxp,nyp,2))
+             tmp_icep(:,:,:,:) = 0.; tmp_icet(:,:,:,:) = 0.
+             a_rhp => tmp_icep(:,:,:,1); a_rht => tmp_icet(:,:,:,1)
+             a_nhp => tmp_icep(:,:,:,2); a_nht => tmp_icet(:,:,:,2)
           elseif (lev_sb == 4) then
              a_nip => a_sclrp(:,:,:,5); a_nit => a_sclrt(:,:,:,5)
              a_rip => a_sclrp(:,:,:,6); a_rit => a_sclrt(:,:,:,6)
              a_rsp => a_sclrp(:,:,:,7); a_rst => a_sclrt(:,:,:,7)
              a_rgp => a_sclrp(:,:,:,8); a_rgt => a_sclrt(:,:,:,8)
-             ALLOCATE (tmp_icep(nzp,nxp,nyp,2),tmp_icet(nzp,nxp,nyp,2))
+             ALLOCATE (tmp_icep(nzp,nxp,nyp,4),tmp_icet(nzp,nxp,nyp,4))
              tmp_icep(:,:,:,:) = 0.; tmp_icet(:,:,:,:) = 0.
              a_nsp => tmp_icep(:,:,:,1); a_nst => tmp_icet(:,:,:,1)
              a_ngp => tmp_icep(:,:,:,2); a_ngt => tmp_icet(:,:,:,2)
+             a_rhp => tmp_icep(:,:,:,3); a_rht => tmp_icet(:,:,:,3)
+             a_nhp => tmp_icep(:,:,:,4); a_nht => tmp_icet(:,:,:,4)
           elseif (lev_sb == 3) then
-             ALLOCATE (tmp_icep(nzp,nxp,nyp,6),tmp_icet(nzp,nxp,nyp,6))
+             ALLOCATE (tmp_icep(nzp,nxp,nyp,8),tmp_icet(nzp,nxp,nyp,8))
              tmp_icep(:,:,:,:) = 0.; tmp_icet(:,:,:,:) = 0.
              a_rip => tmp_icep(:,:,:,1); a_rit => tmp_icet(:,:,:,1)
              a_nip => tmp_icep(:,:,:,2); a_nit => tmp_icet(:,:,:,2)
@@ -347,6 +365,8 @@ contains
              a_nsp => tmp_icep(:,:,:,4); a_nst => tmp_icet(:,:,:,4)
              a_rgp => tmp_icep(:,:,:,5); a_rgt => tmp_icet(:,:,:,5)
              a_ngp => tmp_icep(:,:,:,6); a_ngt => tmp_icet(:,:,:,6)
+             a_rhp => tmp_icep(:,:,:,7); a_rht => tmp_icet(:,:,:,7)
+             a_nhp => tmp_icep(:,:,:,8); a_nht => tmp_icet(:,:,:,8)
           else
              WRITE(*,*) 'Invalid SB level (lev_sb) for level=0:',lev_sb
              STOP
@@ -518,11 +538,12 @@ contains
        snowin = 0.
        memsize = memsize + nxyzp*3
     elseif (level == 0) then
-       allocate(icein(nzp,nxp,nyp),snowin(nzp,nxp,nyp),grin(nzp,nxp,nyp))
+       allocate(icein(nzp,nxp,nyp),snowin(nzp,nxp,nyp),grin(nzp,nxp,nyp),hailin(nzp,nxp,nyp))
        icein = 0.
        snowin = 0.
        grin = 0.
-       memsize = memsize + nxyzp*3
+       hailin = 0.
+       memsize = memsize + nxyzp*4
     end if
 
     a_ustar(:,:) = 0.
@@ -749,14 +770,14 @@ contains
     real, intent (in) :: time
     ! Dimensions (time, x, y, x, and SALSA bins) and constants (u0, v0, dn0) are saved
     ! during initialization, and common variables (u, v, w, theta, p) are always saved.
-    INTEGER, PARAMETER :: n_dims=14, n_base=17
+    INTEGER, PARAMETER :: n_dims=14, n_base=19
     character(len=7) :: s_dims(n_dims) = (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     ','ym     ', & ! 1-7
          'u0     ','v0     ','dn0    ','B_Rd12a','B_Rd2ab','B_Rwprc','B_Rwsnw'/)  ! 8-14
     character(len=7) :: s_base(n_base) = (/ &
          'u      ','v      ','w      ','theta  ','p      ','stke   ','rflx   ', & ! 1-7
          'q      ','l      ','r      ','n      ','i      ','s      ','g      ', & ! 8-14
-         'ni     ','ns     ','ng     '/) ! 15-17
+         'ni     ','ns     ','ng     ','h      ','nh     '/) ! 15-19
     LOGICAL, SAVE :: b_dims(n_dims)=.TRUE., b_base(n_base)=.TRUE.
     CHARACTER (len=7), ALLOCATABLE :: sanal(:), stot(:)
     LOGICAL, ALLOCATABLE :: btot(:)
@@ -778,7 +799,8 @@ contains
         b_dims(11:14) = .FALSE. ! SALSA bins
         b_base(10:11) = (level==3 .OR. level==0) ! Rain
         b_base(12:15) = (level==0 .AND. lev_sb>=4) ! Ice, snow mass and graupel mass
-        b_base(16:17) = (level==0 .AND. lev_sb==5) ! Ice, snow, and graupel
+        b_base(16:17) = (level==0 .AND. lev_sb>=5) ! Ice, snow and graupel
+        b_base(18:19) = (level==0 .AND. lev_sb>=6) ! Ice, snow, graupel and hail
 
        ! Merge logical and name arrays
        i=n_dims+n_base+nv4_proc+nv4_user+naddsc
@@ -800,7 +822,7 @@ contains
        b_base(11)=.FALSE. ! Rain number
        b_base(12) = (level>4 .AND. .NOT. no_prog_ice) ! Ice
        b_base(13) = (level>4 .AND. .NOT. no_prog_snw) ! Snow
-       b_base(14:17) = .FALSE. ! SB outputs
+       b_base(14:19) = .FALSE. ! SB outputs
 
        ! Dimensions for bin dependent outputs
        lbinanl = ANY(INDEX(user_an_list,'B_')>0)
@@ -1036,7 +1058,7 @@ contains
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rpp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        iret = nf90_inq_varid(ncid0,'n',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_npp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
-       ! Ice, snow, and graupel
+       ! Ice, snow, graupel and hail
        iret = nf90_inq_varid(ncid0,'i',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rip(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        iret = nf90_inq_varid(ncid0,'ni',VarID)
@@ -1049,6 +1071,10 @@ contains
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rgp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        iret = nf90_inq_varid(ncid0,'ng',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_ngp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       iret = nf90_inq_varid(ncid0,'h',VarID)
+       IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rhp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       iret = nf90_inq_varid(ncid0,'nh',VarID)
+       IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_nhp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
     ELSE IF (level >= 4) THEN ! Operation with SALSA
 
        ! Total water mixing ratio

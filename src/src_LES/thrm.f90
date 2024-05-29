@@ -45,14 +45,14 @@ contains
 
     use grid, only : a_rc, a_rv, a_theta, a_pexnr, a_press, a_temp,  &
          a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
-         a_srp, a_ri, a_rsi, a_srs, a_dn, a_rip, a_rsp, a_rgp
+         a_srp, a_ri, a_rsi, a_srs, a_dn, a_rip, a_rsp, a_rgp, a_rhp
     USE defs, ONLY : Rd
 
     integer, intent (in) :: level
 
     select case (level)
     case (0)
-       a_ri = a_rip + a_rsp + a_rgp ! Total ice+snow+graupel
+       a_ri = a_rip + a_rsp + a_rgp + a_rhp ! Total ice+snow+graupel+hail
        call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp,a_ri,a_rsi)
     case (1)

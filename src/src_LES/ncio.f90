@@ -403,6 +403,9 @@ contains
     case('g','rg')
        if (itype==0) ncinfo = 'Graupel water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
+    case('h','rh')
+       if (itype==0) ncinfo = 'Hail water mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
     case('n')
        if (itype==0) ncinfo = 'Rain-drop number mixing ratio'
        if (itype==1) ncinfo = '#/kg'
@@ -414,6 +417,9 @@ contains
        if (itype==1) ncinfo = '#/kg'
     case('ng')
        if (itype==0) ncinfo = 'Graupel number mixing ratio'
+       if (itype==1) ncinfo = '#/kg'
+    case('nh')
+       if (itype==0) ncinfo = 'Hail number mixing ratio'
        if (itype==1) ncinfo = '#/kg'
     case('rv')
        if (itype==0) ncinfo = 'Water vapor mixing ratio'
@@ -548,6 +554,9 @@ contains
     case('frac_ig')
        if (itype==0) ncinfo = 'Graupel fraction'
        if (itype==1) ncinfo = '-'
+    case('frac_ih')
+       if (itype==0) ncinfo = 'Hail fraction'
+       if (itype==1) ncinfo = '-'
     case('lmax')
        if (itype==0) ncinfo = 'Maximum liquid water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
@@ -559,6 +568,9 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
     case('gmax')
        if (itype==0) ncinfo = 'Maximum graupel water mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+    case('hmax')
+       if (itype==0) ncinfo = 'Maximum hail water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
     case('albedo')
        if (itype==0) ncinfo = 'Reflected (TOA) shortwave radiation'
@@ -605,6 +617,9 @@ contains
     case('gwp_bar','gwp')
        if (itype==0) ncinfo = 'Graupel-water path'
        if (itype==1) ncinfo = 'kg/m^2'
+    case('hwp_bar','hwp')
+       if (itype==0) ncinfo = 'Hail-water path'
+       if (itype==1) ncinfo = 'kg/m^2'
     case('prcp')
        if (itype==0) ncinfo = 'Surface precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
@@ -622,6 +637,9 @@ contains
        if (itype==1) ncinfo = 'W/m^2'
     case('gprcp')
        if (itype==0) ncinfo = 'Surface graupel precipitation rate'
+       if (itype==1) ncinfo = 'W/m^2'
+    case('hprcp')
+       if (itype==0) ncinfo = 'Surface hail precipitation rate'
        if (itype==1) ncinfo = 'W/m^2'
     case('prcp_bc')
        if (itype==0) ncinfo = 'Rain water precipitation rate at the cloud base'
@@ -651,6 +669,9 @@ contains
     case('ngra','Ng_ig')
        if (itype==0) ncinfo = 'Conditionally sampled graupel number mixing ratio'
        if (itype==1) ncinfo = 'kg^-1'
+    case('nhail','Nh_ih')
+       if (itype==0) ncinfo = 'Conditionally sampled hail number mixing ratio'
+       if (itype==1) ncinfo = 'kg^-1'
     case('nrcnt')
        if (itype==0) ncinfo = 'Rain cell counts'
        if (itype==1) ncinfo = '#'
@@ -666,6 +687,9 @@ contains
     case('ngcnt')
        if (itype==0) ncinfo = 'Graupel cell counts'
        if (itype==1) ncinfo = '#'
+    case('nhcnt')
+       if (itype==0) ncinfo = 'Hail cell counts'
+       if (itype==1) ncinfo = '#'
     case('Rcloud','Rc_ic')
        if (itype==0) ncinfo = 'Conditionally sampled cloud droplet radius'
        if (itype==1) ncinfo = 'm'
@@ -680,6 +704,9 @@ contains
        if (itype==1) ncinfo = 'm'
     case('Rgra','Rg_ig')
        if (itype==0) ncinfo = 'Conditionally sampled graupel radius'
+       if (itype==1) ncinfo = 'm'
+    case('Rhail','Rh_ih')
+       if (itype==0) ncinfo = 'Conditionally sampled hail radius'
        if (itype==1) ncinfo = 'm'
     case('SS_max')
        if (itype==0) ncinfo = 'Maximum supersaturation'
@@ -1016,6 +1043,10 @@ contains
        if (itype==0) ncinfo = 'Graupel water deposition flux'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'mttt'
+    case('hrate')
+       if (itype==0) ncinfo = 'Hail water deposition flux'
+       if (itype==1) ncinfo = 'W/m^2'
+       if (itype==2) ncinfo = 'mttt'
     case('rho_air')
        if (itype==0) ncinfo = 'Air density'
        if (itype==1) ncinfo = 'kg/m^3'
@@ -1107,6 +1138,10 @@ contains
         pros='coagulation'
     ELSEIF ('aggr_'==short_name(1:5)) THEN
         pros='aggregation'
+    ELSEIF ('accr_'==short_name(1:5)) THEN
+        pros='accretion'
+    ELSEIF ('rimi_'==short_name(1:5)) THEN
+        pros='riming'
     ELSEIF ('oxid_'==short_name(1:5)) THEN
         pros='oxidation'
     ELSEIF ('ocon_'==short_name(1:5)) THEN
@@ -1192,6 +1227,8 @@ contains
     CASE('g')
         spec='gas'
         IF (mixr .OR. numc) spec='graupel'
+    CASE('h')
+        spec='hail'
     CASE('t')
         spec='total'
     CASE('v')
@@ -1548,6 +1585,8 @@ contains
         tmp=' in snow'
     CASE('ig')
         tmp=' in graupel'
+    CASE('ih')
+        tmp=' in hail'
     case default
         RETURN
     END SELECT
@@ -1564,6 +1603,8 @@ contains
         phase='total snow'
     CASE('gt')
         phase='total graupel'
+    CASE('ht')
+        phase='total hail'
     case default
         RETURN
     END SELECT
