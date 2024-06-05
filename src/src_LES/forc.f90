@@ -87,7 +87,7 @@ contains
           zrc(:,:,:) = a_rc(:,:,:)
           IF (RadPrecipBins > 0) THEN
              zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
-             WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc*CCN))/zrc
+             WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc/a_dn*CCN))/zrc ! COMBLE: CCN in #/m3
           ENDIF
           ! Ice (+snow and hail)
           zri(:,:,:) = a_rip(:,:,:) ! Ice

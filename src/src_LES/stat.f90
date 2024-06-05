@@ -758,7 +758,8 @@ contains
     END SELECT
 
     ! CDNC
-    rnt = CCN
+    rnt = CCN/a_dn ! COMBLE: concentration in #/m3
+    WHERE(rxl(:,:,:)<1.e-5) rnt=0. ! COMBLE
     IF (level>3) rnt = SUM(a_ncloudp,DIM=4)
 
     ! Cloud and rain masks
@@ -3247,7 +3248,7 @@ contains
   ! The same for SB microphysics
   LOGICAL FUNCTION calc_user_data_SB(short_name,res,mask,is_mass)
     use grid, ONLY : nzp,nxp,nyp, CCN, a_rc, a_npp, a_rpp, a_nip, a_rip, &
-        a_nsp, a_rsp, a_ngp, a_rgp, a_nhp, a_rhp
+        a_nsp, a_rsp, a_ngp, a_rgp, a_nhp, a_rhp, a_dn
     CHARACTER(LEN=7), INTENT(IN) :: short_name ! Variable name
     REAL, INTENT(out) :: res(nzp,nxp,nyp)      ! Output data
     LOGICAL, INTENT(out) :: mask(nzp,nxp,nyp)  ! ... and mask
@@ -3301,7 +3302,7 @@ contains
     CASE('ct')
         IF (numc) THEN
             WHERE (cloudmask)
-                res=CCN
+                res=CCN/a_dn(:,:,:) ! COMBLE: CCN in #/m3
             ELSEWHERE
                 res=0.
             END WHERE
