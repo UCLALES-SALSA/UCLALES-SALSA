@@ -112,7 +112,10 @@ CONTAINS
          lscgsa, lscgsc, lscgsi, lscgsp, lscgss, &
          nspec, CalcDimension, CalcMass, lscgrain, &
          nlsip_hm, rime_volc_ice, rime_volc_snw, &
-         hm_dmin_drop, hm_dmin_ice
+         hm_dmin_drop, hm_dmin_ice, &
+         nlsip_df, coll_rate_ic, coll_rate_ir, coll_rate_sc, coll_rate_sr, &
+         df_dmin_drop, &
+         nlsip_iibr, coll_rate_ii, coll_rate_si, coll_rate_ss
 
     IMPLICIT NONE
 
@@ -178,9 +181,21 @@ CONTAINS
 
     !-----------------------------------------------------------------------------
 
-    IF (.NOT.ALLOCATED(rime_volc_ice)) ALLOCATE(rime_volc_ice(kbdim,klev,nice),rime_volc_snw(kbdim,klev,nsnw))
+    IF (.NOT.ALLOCATED(rime_volc_ice)) ALLOCATE( &
+        rime_volc_ice(kbdim,klev,nice), rime_volc_snw(kbdim,klev,nsnw), &
+        coll_rate_ic(kbdim,klev,nice,ncld), coll_rate_ir(kbdim,klev,nice,nprc), &
+        coll_rate_sc(kbdim,klev,nsnw,ncld), coll_rate_sr(kbdim,klev,nsnw,nprc), &
+        coll_rate_ii(kbdim,klev,nice,nice), coll_rate_si(kbdim,klev,nsnw,nice), &
+        coll_rate_ss(kbdim,klev,nsnw,nsnw) )
     rime_volc_ice(:,:,:) = 0.
     rime_volc_snw(:,:,:) = 0.
+    coll_rate_ic(:,:,:,:) = 0.
+    coll_rate_ir(:,:,:,:) = 0.
+    coll_rate_sc(:,:,:,:) = 0.
+    coll_rate_sr(:,:,:,:) = 0.
+    coll_rate_ii(:,:,:,:) = 0.
+    coll_rate_si(:,:,:,:) = 0.
+    coll_rate_ss(:,:,:,:) = 0.
 
     nt = nspec + 1 ! Total number of spcecies + water
 
@@ -801,11 +816,6 @@ CONTAINS
               ! Volume gained from aerosol collection
               DO ll = in1a,fn2b
                  zplusterm(1:nt) = zplusterm(1:nt) + zccia(ll,cc)*paero(ii,jj,ll)%volc(1:nt)
-                 ! Save rime for Hallett-Mossop
-                 IF (nlsip_hm .AND. zdpart(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
-                    rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
-                        ptstep*zccia(ll,cc)*paero(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
-                 ENDIF
               END DO
 
               ! Volume gained from cloud collection
@@ -815,6 +825,11 @@ CONTAINS
                  IF (nlsip_hm .AND. zdcloud(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
                     rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
                         ptstep*zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdcloud(ll)>df_dmin_drop) THEN
+                    coll_rate_ic(ii,jj,cc,ll) = &
+                        ptstep*zccic(ll,cc)*pcloud(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
               END DO
 
@@ -826,16 +841,31 @@ CONTAINS
                     rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
                         ptstep*zccip(ll,cc)*pprecp(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdprecp(ll)>df_dmin_drop) THEN
+                    coll_rate_ir(ii,jj,cc,ll) = &
+                        ptstep*zccip(ll,cc)*pprecp(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from smaller ice particles in regime a
               DO ll = inp2a,cc-1
                  zplusterm(1:nt) = zplusterm(1:nt) + zccii(ll,cc)*pice(ii,jj,ll)%volc(1:nt)
+                 ! Save ice-ice collisions for collisional breakup (smaller only)
+                 IF (nlsip_iibr) THEN
+                    coll_rate_ii(ii,jj,cc,ll) = &
+                       ptstep*zccii(ll,cc)*pice(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from smaller or equal ice particles in regime b
               DO ll = inp2b,kk
                  zplusterm(1:nt) = zplusterm(1:nt) + zccii(ll,cc)*pice(ii,jj,ll)%volc(1:nt)
+                 ! Save ice-ice collisions for collisional breakup (smaller and equal)
+                 IF (nlsip_iibr) THEN
+                    coll_rate_ii(ii,jj,cc,ll) = &
+                       ptstep*zccii(ll,cc)*pice(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Update the hydrometeor volume concentrations
@@ -878,11 +908,6 @@ CONTAINS
               ! Volume gained from aerosol collection
               DO ll = in1a,fn2b
                  zplusterm(1:nt) = zplusterm(1:nt) + zccia(ll,cc)*paero(ii,jj,ll)%volc(1:nt)
-                 ! Save rime for Hallett-Mossop
-                 IF (nlsip_hm .AND. zdpart(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
-                    rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
-                        ptstep*zccia(ll,cc)*paero(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
-                 ENDIF
               END DO
 
               ! Volume gained from cloud collection
@@ -892,6 +917,11 @@ CONTAINS
                  IF (nlsip_hm .AND. zdcloud(ll)>hm_dmin_drop .AND. zdice(cc)>hm_dmin_ice) THEN
                     rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
                         ptstep*zccic(ll,cc)*pcloud(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdcloud(ll)>df_dmin_drop) THEN
+                    coll_rate_ic(ii,jj,cc,ll) = &
+                        ptstep*zccic(ll,cc)*pcloud(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
               END DO
 
@@ -903,16 +933,31 @@ CONTAINS
                     rime_volc_ice(ii,jj,cc) = rime_volc_ice(ii,jj,cc) + &
                         ptstep*zccip(ll,cc)*pprecp(ii,jj,ll)%volc(1)*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdprecp(ll)>df_dmin_drop) THEN
+                    coll_rate_ir(ii,jj,cc,ll) = &
+                        ptstep*zccip(ll,cc)*pprecp(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from smaller ice particles in b
               DO ll = inp2b,cc-1
                  zplusterm(1:nt) = zplusterm(1:nt) + zccii(ll,cc)*pice(ii,jj,ll)%volc(1:nt)
+                 ! Save ice-ice collisions for collisional breakup (smaller only)
+                 IF (nlsip_iibr) THEN
+                    coll_rate_ii(ii,jj,cc,ll) = &
+                       ptstep*zccii(ll,cc)*pice(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from smaller ice particles in a
               DO ll = inp2a,kk-1
                  zplusterm(1:nt) = zplusterm(1:nt) + zccii(ll,cc)*pice(ii,jj,ll)%volc(1:nt)
+                 ! Save ice-ice collisions for collisional breakup (smaller only)
+                 IF (nlsip_iibr) THEN
+                    coll_rate_ii(ii,jj,cc,ll) = &
+                       ptstep*zccii(ll,cc)*pice(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Update the hydrometeor volume concentrations
@@ -942,11 +987,6 @@ CONTAINS
               ! Volume gained by collection of aerosols
               DO ll = in1a,fn2b
                  zplusterm(1:nt) = zplusterm(1:nt) + zccsa(ll,cc)*paero(ii,jj,ll)%volc(1:nt)
-                 ! Save rime for Hallett-Mossop
-                 IF (nlsip_hm .AND. zdpart(ll)>hm_dmin_drop .AND. zdsnow(cc)>hm_dmin_ice) THEN
-                    rime_volc_snw(ii,jj,cc) = rime_volc_snw(ii,jj,cc) + &
-                        ptstep* zccsa(ll,cc)*paero(ii,jj,ll)%volc(1)*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
-                 ENDIF
               END DO
 
               ! Volume gained by collection of cloud droplets
@@ -956,6 +996,11 @@ CONTAINS
                  IF (nlsip_hm .AND. zdcloud(ll)>hm_dmin_drop .AND. zdsnow(cc)>hm_dmin_ice) THEN
                     rime_volc_snw(ii,jj,cc) = rime_volc_snw(ii,jj,cc) + &
                         ptstep*zccsc(ll,cc)*pcloud(ii,jj,ll)%volc(1)*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdcloud(ll)>df_dmin_drop) THEN
+                    coll_rate_sc(ii,jj,cc,ll) = &
+                        ptstep*zccsc(ll,cc)*pcloud(ii,jj,ll)%numc*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
               END DO
 
@@ -967,16 +1012,31 @@ CONTAINS
                     rime_volc_snw(ii,jj,cc) = rime_volc_snw(ii,jj,cc) + &
                         ptstep*zccsp(ll,cc)*pprecp(ii,jj,ll)%volc(1)*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
+                 ! Save collisions for droplet fracturing
+                 IF (nlsip_df .AND. zdprecp(ll)>df_dmin_drop) THEN
+                    coll_rate_sr(ii,jj,cc,ll) = &
+                        ptstep*zccsp(ll,cc)*pprecp(ii,jj,ll)%numc*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained by collection of ice particles
               DO ll = 1,nice
                  zplusterm(1:nt) = zplusterm(1:nt) + zccsi(ll,cc)*pice(ii,jj,ll)%volc(1:nt)
+                 ! Save snow-ice collisions for collisional breakup
+                 IF (nlsip_iibr) THEN
+                    coll_rate_si(ii,jj,cc,ll) = &
+                       ptstep*zccsi(ll,cc)*pice(ii,jj,ll)%numc*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Volume gained from smaller snow
               DO ll = 1,cc-1
                  zplusterm(1:nt) = zplusterm(1:nt) + zccss(ll,cc)*psnow(ii,jj,ll)%volc(1:nt)
+                 ! Save snow-snow collisions for collisional breakup (smaller only)
+                 IF (nlsip_iibr) THEN
+                    coll_rate_ss(ii,jj,cc,ll) = &
+                       ptstep*zccss(ll,cc)*psnow(ii,jj,ll)%numc*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+                 ENDIF
               END DO
 
               ! Update the hydrometeor volume concentrations

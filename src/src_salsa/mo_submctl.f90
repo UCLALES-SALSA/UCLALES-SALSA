@@ -108,11 +108,29 @@ MODULE mo_submctl
   ! d) Where to put new ice/snow: <0: parallel ice bin, 0: find matching snow bin, >0 snow bin specified by ice_target_opt
   INTEGER :: ice_target_opt = -1 ! Default = parallel ice bins
 
-  ! Secondary ice production: Hallett-Mossop
+  ! Secondary ice production
+  ! a) Hallett-Mossop
   LOGICAL :: nlsip_hm = .FALSE. ! Master switch (needs also coagulation)
-  REAL :: c_mult = 3.5e8  ! Splintering coefficient (particles per kg of rime)
-  REAL :: hm_dmin_drop=25e-5, hm_dmin_ice=25e-6 ! Minimum aerosol/cloud/rain drop and ice/snow diameters
+  REAL :: hm_c_mult = 3.5e8 ! Splintering coefficient (particles per kg of rime)
+  REAL :: hm_dmin_drop = 25e-5, hm_dmin_ice=25e-6 ! Minimum aerosol/cloud/rain drop and ice/snow diameters
+  REAL :: hm_frag_vfrac = 1e-3 ! Fragments smaller by an order of magnitude in size
   REAL, SAVE, ALLOCATABLE :: rime_volc_ice(:,:,:), rime_volc_snw(:,:,:) ! Rime water volume per m3
+  ! b) ice-ice collisional breakup
+  LOGICAL :: nlsip_iibr = .FALSE. ! Master switch (needs also coagulation)
+  REAL :: iibr_fbr = 280. ! Breakup coefficient
+  REAL :: iibr_dref = 0.02 ! Size dependency
+  REAL :: iibr_frag_vfrac = 1e-3 ! Fragments smaller by an order of magnitude in size (Phillips et al., 2017)
+  REAL :: iibr_tmin = 252., iibr_tmax = 273.15 ! Temperature dependency
+  REAL, SAVE, ALLOCATABLE :: coll_rate_ii(:,:,:,:), coll_rate_si(:,:,:,:), &
+    coll_rate_ss(:,:,:,:) ! Collisions per m3
+  ! c) droplet fragmentation during freezing
+  LOGICAL :: nlsip_df = .FALSE. ! Master switch (needs also coagulation)
+  REAL :: df_c_mult = 2.5e13 ! Fragmentation coefficient, default: 2.5e-11 1/um^4=2.5e13 1/m^4
+  REAL :: df_tmin = 248.15, df_tmax = 271.15 ! Temperature dependency
+  REAL :: df_frag_vfrac = 1e-3 ! Fragments smaller by an order of magnitude in size
+  REAL :: df_dmin_drop = 100e-6 ! Minimum cloud/rain drop diameter
+  REAL, SAVE, ALLOCATABLE :: coll_rate_ic(:,:,:,:), coll_rate_ir(:,:,:,:), &
+    coll_rate_sc(:,:,:,:), coll_rate_sr(:,:,:,:) ! Collisions per m3
 
   ! Ice and snow mass-dimension-velocity parameterizations
   !  Defaults:  d=(6/pi*sum(m(i)/rho(i)))**(1/3), v=12.0*sqrt(d)
