@@ -1157,6 +1157,10 @@ contains
         pros='coagulation'
     ELSEIF ('aggr_'==short_name(1:5)) THEN
         pros='aggregation'
+    ELSEIF ('accr_'==short_name(1:5)) THEN
+        pros='accretion'
+    ELSEIF ('rimi_'==short_name(1:5)) THEN
+        pros='riming'
     ELSEIF ('oxid_'==short_name(1:5)) THEN
         pros='oxidation'
     ELSEIF ('ocon_'==short_name(1:5)) THEN

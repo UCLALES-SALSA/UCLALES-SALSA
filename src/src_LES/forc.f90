@@ -94,7 +94,7 @@ contains
           zni(:,:,:) = a_nip(:,:,:)
           IF (RadSnowBins>0) THEN
              zri(:,:,:) = zri(:,:,:) + a_rsp(:,:,:) + a_rhp(:,:,:)
-             zni(:,:,:) = zni(:,:,:) + a_nsp(:,:,:)+ a_nhp(:,:,:)
+             zni(:,:,:) = zni(:,:,:) + a_nsp(:,:,:) + a_nhp(:,:,:)
           ENDIF
           ! Graupel mass separately
 
