@@ -223,7 +223,7 @@ contains
           dn0 = dn(1:n1,i,j)
           temp = tk(1:n1,i,j)
           rv = vapor(1:n1,i,j)
-          !nc = CCN
+          nc = CCN
           nc = CCN/dn(1:n1,i,j) ! COMBLE: concentration in #/m3
           rc = rcld(1:n1,i,j)
           rs = rsat(1:n1,i,j)
@@ -2373,8 +2373,8 @@ contains
     qs = qsin
     qg = qgin
     qh = qhin
-    !qnc = ccn ! Input only (diagnostic)
-    qnc = ccn/dn0(kk,jj,ii) ! COMBLE: concentration in #/m3
+    qnc = ccn ! Input only (diagnostic)
+    WHERE(dn0>0.) qnc = ccn/dn0 ! COMBLE: concentration in #/m3
     qnr = qnrin
     qni = qniin
     qns = qnsin

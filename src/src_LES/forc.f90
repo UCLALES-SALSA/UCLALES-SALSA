@@ -83,7 +83,8 @@ contains
        !
        IF (level==0) THEN
           ! Cloud (+rain)
-          znc(:,:,:) = CCN/a_dn(:,:,:) ! COMBLE: CCN in #/m3
+          znc(:,:,:) = CCN
+          WHERE(a_dn>0.) znc(:,:,:) = CCN/a_dn(:,:,:) ! COMBLE: CCN in #/m3
           zrc(:,:,:) = a_rc(:,:,:)
           IF (RadPrecipBins > 0) THEN
              zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)

@@ -737,7 +737,7 @@ CONTAINS
       DO j = 1, loc_iy
         DO i = 0, loc_ix
           IF (s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3 .AND. T_0(i,j,k)<T_nuc .AND. &
-                nin_set*ice%x_min>eps) THEN
+                nin_set*ice%x_min>eps) THEN ! COMBLE: qc+qr>1e-6 and T<268.15 K, but here limited to clouds
             ! Cloud droplet freezing with fixed INP concentration
             !ndiag = MAX(nin_set*rho_0(i,j,k) - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0)
             ndiag = MAX(nin_set - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0) ! COMBLE: concentration in #/m3
