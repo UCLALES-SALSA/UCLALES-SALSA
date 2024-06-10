@@ -92,7 +92,7 @@ CONTAINS
 
             n4 = spec%getNSpec(type="wet")
 
-            lcharge = ( ANY(emitModes%emitType == 4) .OR. ANY(emitModes%emitType == 5) ) 
+            lcharge = ( ANY(emitModes%emitType > 0) ) 
 
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,n4,   &

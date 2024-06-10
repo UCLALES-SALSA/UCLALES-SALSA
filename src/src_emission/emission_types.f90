@@ -17,7 +17,7 @@ MODULE emission_types
   TYPE  EmitConfig
      INTEGER          :: emitType = 1                 ! 1: Natural seasalt emissions, 2: custom artificial emissions
                                                       ! 3: artificial emission given by a map (moving source of airborne emission; Ali)
-                                                      ! 4: similar to 2, but for charge emission, 5: similar to 3, but for charge emission
+                                                      ! 4: similar to 2, but only charge emission without aerosols, 5: similar to 3, but only charge emission without aerosols
      INTEGER          :: regime = 1                   ! Destination bin regime for emitted aerosol. 1: A, 2: B; Not applied for charge emission (4,5)
      REAL             :: start_time = 0.,  &          ! Start time for emission (s)
                          end_time = 86400.            ! End time for emission (s)

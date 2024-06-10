@@ -91,13 +91,15 @@ CONTAINS
     ! Aerosol emissions
     ! --------------------
     !
-    IF (lemission .AND. level >= 4) CALL aerosol_emission(time)
+    IF (lemission .AND. level >= 4) THEN
+       CALL aerosol_emission(time)
 
-    IF (ANY(emitModes(:)%emitType == 4) .OR. ANY(emitModes(:)%emitType == 5)) THEN
-        ! For particle charging, reduce the time tracer by one timestep where it is > 0
-        a_chargeTimet%d = a_chargeTimet%d - MIN(dtlt, a_chargeTimep%d)
+       IF (ANY(emitModes(:)%emitType > 0)) THEN
+          ! For particle charging, reduce the time tracer by one timestep where it is > 0
+          a_chargeTimet%d = a_chargeTimet%d - MIN(dtlt, a_chargeTimep%d)
+       END IF
     END IF
- 
+    
     SELECT CASE(iradtyp)
     CASE (1)
        ! No radiation, just large-scale forcing. 

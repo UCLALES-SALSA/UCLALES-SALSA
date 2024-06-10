@@ -13,6 +13,7 @@ MODULE mo_salsa_coagulation_kernels
                          lscgip
   USE classSection, ONLY : Section
   USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
+  
   IMPLICIT NONE
 
   
@@ -220,7 +221,7 @@ MODULE mo_salsa_coagulation_kernels
               dsph1, dsph2,       & ! Spherical equivalent diameters (important for calculating ice mass)
               mass1, mass2,       & ! Masses of particles
               rhop1, rhop2,       & ! Particle densities; For ice this is the effective density (low for non-spherical)
-              rhoiceb1, rhoiceb2   ! Bulk ice densities
+              rhoiceb1, rhoiceb2    ! Bulk ice densities
               
       
       REAL, DIMENSION (2) :: &

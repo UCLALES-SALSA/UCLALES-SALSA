@@ -42,6 +42,7 @@
    TYPE(old)          :: npart(4), mpart(4)  ! To store the old values
    TYPE(FloatArray1d) :: ntend(4), mtend(4)  ! Arranged pointers to tendencies
    LOGICAL :: auxarr_initialized = .FALSE.
+  
    
    ! --------------------------------------------
 
@@ -129,8 +130,7 @@ CONTAINS
       REAL, INTENT(out)   :: pa_vactd(nzp,nxp,nyp,ns*ncld) ! mass concentrations of newly activated droplets for calculating the
                                                            ! actual tendency due to new droplet formation.
       REAL, INTENT(out)   :: pa_nactd(nzp,nxp,nyp,ncld)    ! Same for number concentration
-      !INTEGER, INTENT(in) :: level                         ! thermodynamical level
-            
+                  
       REAL :: in_p(kbdim,klev), in_t(kbdim,klev), in_rv(kbdim,klev), in_rs(kbdim,klev),&
               in_w(kbdim,klev), in_rsi(kbdim,klev)
       REAL :: rv_old(kbdim,klev)

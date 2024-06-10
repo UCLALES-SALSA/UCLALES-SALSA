@@ -56,8 +56,8 @@ MODULE mo_particle_external_properties
       REAL :: Re2,X,Y,NDa,Np,Bo,X3,Y3,Re3, temp
            
       terminal_vel = 0.
-      IF( ANY(flag == [1,2,3])) THEN
-         ! Aerosol and cloud and rain droplets
+      IF( ANY(flag == [1,2,3])) THEN    
+      ! Aerosol and cloud and rain droplets
          ! Modification to mo_salsa_dynamics 27.05.2023
          ! beta: Cc     = 1+2.51.*knud; knud = 2*mfpair/D 
          
@@ -86,22 +86,8 @@ MODULE mo_particle_external_properties
             terminal_vel = MIN(visc/rhoa/diam*Re3,9.2) 
             ! R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
             ! Note: this is valid up to 2 mm or 9 m/s (at 1000 mbar), where droplets start to break
-            ! Silvia_Note: This equation agrees with experiments up to 4 mm when the velocity reaches 9.2 m/s at 293 K rho_air = 1.2 kg m-3
-         END IF       
-         ! Previous code overestimates the settling velocity for droplets smaller than 1.2mm and introduces a sharp change at 80um
-         !IF (diam<80.0e-6) THEN
-            ! Stokes law with Cunningham slip correction factor
-          !  terminal_vel = (diam**2)*(rhop-rhoa)*grav*beta/(18.*visc)  ![m s-1]
-         !ELSE IF (diam<1.2e-3) THEN
-            ! Droplets from 40 um to 0.6 mm: linear dependence on particle radius and a correction for reduced pressure
-            !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
-          !  terminal_vel = 4.e3*diam*SQRT(rhoa_ref/rhoa)
-         !ELSE
-            ! Droplets larger than 0.6 mm: square root dependence on particle radius and a correction for reduced pressure
-            !   R.R. Rogers: A Short Course in Cloud Physics, Pergamon Press Ltd., 1979.
-            ! Note: this is valid up to 2 mm or 9 m/s (at 1000 mbar), where droplets start to break
-          !  terminal_vel = 2.01e2*SQRT( MIN(diam/2.,2.0e-3)*rhoa_ref/rhoa )
-          !END IF
+            ! Silvia_Note: This equation agrees with experiments up to 7 mm when the velocity reaches 9.2 m/s at 293 K rho_air = 1.2 kg m-3
+         END IF
       ELSE IF (flag==4) THEN   ! Ice
          ! Khvorostyanov and Curry 2002
          Vb = pi6*diam**3     ! Bulk volume of the particle obtained from spherical equivalent diameter

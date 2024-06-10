@@ -52,6 +52,8 @@ MODULE emission_main
     emdT3 => NULL()
     
     ! Loop over all specified emission profiles
+    ! All emission types include charge effects
+    ! Charge effects can be turned off in the runles chargeCollEnh= 0.
     DO pr = 1,nEmissionModes
        ASSOCIATE(emd => emitModes(pr), edt => emitData(pr))
          IF (emd%emitType == 2) THEN
@@ -133,15 +135,17 @@ MODULE emission_main
 
   !
   ! ----------------------------------------------------------------
-  ! Subroutine custom_emissio: "Customized" emission routine, mainly
+  ! Subroutine custom_emission:"Customized" emission routine, mainly
   !                            for simulating atnhropogenic emissions,
   !                            such as ship or aircraft emissions etc.
   !                            Support for point sources will be included
   !                            soon. Now only does domain-wide emissions
   !                            at specified altitude and time.
+  !                            Emission can be charged if ChargeCollEnh~0 (runles)
   !
   SUBROUTINE custom_emission(edt,emd)
-    
+    USE mo_derived_state, ONLY : Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba
+    USE emission_types, ONLY : chargeTMax
     IMPLICIT NONE
     
     CHARACTER(len=50), PARAMETER :: name = "cloud_seeding"
@@ -151,12 +155,26 @@ MODULE emission_main
     REAL :: hlp1, hlp2  ! helper variables
     
     INTEGER :: i,j,k,bb,ss,mm
+    REAL :: diam(nzp,nxp,nyp,nliquid), numb(nzp,nxp,nyp,nliquid)
+
     
     IF (myid == 0) THEN
-      WRITE(*,*) '========================'
-      WRITE(*,*) 'CALCULATING EMISSIONS'
-      WRITE(*,*) '========================'
+      WRITE(*,*) '================================='
+      WRITE(*,*) 'CALCULATING EMISSIONS WITH CHARGE'
+      WRITE(*,*) '================================='
     END IF
+    
+   diam = 0.
+   CALL Dwaba%onDemand("Dwaba",diam(:,:,:,in1a:fn2a),in1a,fn2a)
+   CALL Dwabb%onDemand("Dwabb",diam(:,:,:,in2b:fn2b),in2b,fn2b)
+   CALL Dwcba%onDemand("Dwcba",diam(:,:,:,nbins+ica%cur:nbins+fca%cur),ica%cur,fca%cur)
+   CALL Dwcbb%onDemand("Dwcbb",diam(:,:,:,nbins+icb%cur:nbins+fcb%cur),icb%cur,fcb%cur)
+   CALL Dwcbb%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
+   numb = 0.
+   numb(:,:,:,1:nbins) = a_naerop%d(:,:,:,1:nbins)
+   numb(:,:,:,nbins+1:nbins+ncld) = a_ncloudp%d(:,:,:,1:ncld)
+   numb(:,:,:,nbins+ncld+1:nbins+ncld+nprc) = a_nprecpp%d(:,:,:,1:nprc)
+
 
     ASSOCIATE( k1 => emd%emitLevMin, k2 => emd%emitLevMax)
     
@@ -197,6 +215,15 @@ MODULE emission_main
                      mm = getMassIndex(nbins,bb,ss)
                      a_maerot%d(k,i,j,mm) = a_maerot%d(k,i,j,mm) + edt%mass(mm)
                   END DO
+                  
+                  ! Charge effect 
+                  IF (diam(k,i,j,bb) < emd%chargeDmax .AND.  &
+                      diam(k,i,j,bb) > emd%chargeDmin .AND.  &
+                      numb(k,i,j,bb) > 1.                    ) THEN
+                     a_chargeTimep%d(k,i,j,bb) = 0.  ! If charging for some reason takes place on consecutive times in same location & bin,
+                                                   ! assume it being set back to chargeTmax
+                     a_chargeTimet%d(k,i,j,bb) = chargeTMax / dtlt
+                  END IF
 
                END DO
             END DO
@@ -283,6 +310,8 @@ MODULE emission_main
 ! Subroutine custom_emission_typ3:
 !
   SUBROUTINE custom_emission_typ3(edt,emd,emdT3,time,conditionT3)
+    USE mo_derived_state, ONLY : Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba
+    USE emission_types, ONLY : chargeTMax
     IMPLICIT NONE
   
     REAL, INTENT(in) :: time
@@ -297,13 +326,26 @@ MODULE emission_main
     INTEGER :: j,bb,ss,mm, xx,yy,zz1,zz2,k
     REAL :: dt, t_str,t_end
     INTEGER :: ind, i_str,i_end, di
-    
+    REAL :: diam(nzp,nxp,nyp,nliquid), numb(nzp,nxp,nyp,nliquid)
+
+   ! The point source will always be in 1 PE at a time
     IF (myid == 0) THEN
-       WRITE(*,*) '========================'
-       WRITE(*,*) 'CALCULATING EMISSIONS TYPE 3'
-       WRITE(*,*) '========================'
+       WRITE(*,*) '========================================'
+       WRITE(*,*) 'CALCULATING EMISSIONS TYPE 3 WITH CHARGE'
+       WRITE(*,*) '========================================'
     END IF
     
+    diam = 0.
+    CALL Dwaba%onDemand("Dwaba",diam(:,:,:,in1a:fn2a),in1a,fn2a)
+    CALL Dwabb%onDemand("Dwabb",diam(:,:,:,in2b:fn2b),in2b,fn2b)
+    CALL Dwcba%onDemand("Dwcba",diam(:,:,:,nbins+ica%cur:nbins+fca%cur),ica%cur,fca%cur)
+    CALL Dwcbb%onDemand("Dwcbb",diam(:,:,:,nbins+icb%cur:nbins+fcb%cur),icb%cur,fcb%cur)
+    CALL Dwcbb%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
+    numb = 0.
+    numb(:,:,:,1:nbins) = a_naerop%d(:,:,:,1:nbins)
+    numb(:,:,:,nbins+1:nbins+ncld) = a_ncloudp%d(:,:,:,1:ncld)
+    numb(:,:,:,nbins+ncld+1:nbins+ncld+nprc) = a_nprecpp%d(:,:,:,1:nprc)
+   
     ASSOCIATE( ix => emdT3%ix, iy => emdT3%iy, iz => emdT3%iz, t => emdT3%t, np => emdT3%np, &
                t_trac => emdT3%t_trac,t_in => emdT3%t_in, t_out => emdT3%t_out, &
                z_expan_up => emd%z_expan_up, z_expan_dw => emd%z_expan_dw)
@@ -352,6 +394,15 @@ MODULE emission_main
                   a_maerot%d(k,xx,yy,mm) = &
                        a_maerot%d(k,xx,yy,mm) + edt%mass(mm) * dt
                END DO
+               
+               IF (diam(k,xx,yy,bb) < emd%chargeDmax .AND.  &
+                   diam(k,xx,yy,bb) > emd%chargeDmin .AND.  &
+                   numb(k,xx,yy,bb) > 1.                    ) THEN
+
+                  a_chargeTimep%d(k,xx,yy,bb) = 0.  ! If charging for some reason takes place on consecutive times in same location & bin,
+                                                ! assume it being set back to chargeTmax
+                  a_chargeTimet%d(k,xx,yy,bb) = chargeTMax / dtlt
+               END IF               
             END DO
          END DO
       END DO
@@ -488,5 +539,6 @@ MODULE emission_main
   END FUNCTION getConditionT3
 ! -----------------------------------------------------------------------------
 !
-        
+
+       
 END MODULE emission_main

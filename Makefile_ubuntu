@@ -34,18 +34,22 @@ MPI = /usr
 # Linking the mpi has slightly changed for newer linux & library versions.
 # Try switching between the two if it does not work.
 #MPILIB = -L$(MPI)/lib -lmpich
-MPILIB = -L$(MPI)/lib -lmpichfort
+#MPILIB = -L$(MPI)/lib -lmpichfort
+MPILIB = -L$(MPI)/lib/x86_64-linux-gnu -lmpi
 
 # This also varies on different computers
-MPIINC = -I$(MPI)/include/x86_64-linux-gnu/mpich
+#MPIINC = -I$(MPI)/include/x86_64-linux-gnu/mpich
 #MPIINC = -I$(MPI)/include/mpich
+MPIINC = -I$(MPI)/include/x86_64-linux-gnu/openmpi
+
 NCDF = /usr
 NCDFLIB = -L$(NCDF)/lib -lnetcdf -lnetcdff
 NCDFINC = -I$(NCDF)/include
 LIBS = '$(NCDFLIB) $(MPILIB)'
 F90 = gfortran
 MPIF90 = mpif90
-FFLAGS = -O2 -fdefault-real-8 -std=f2008 -fbounds-check  -g -fcheck=all -Wall -Wtabs  -fbacktrace -ffpe-trap=invalid,zero,overflow
+#FFLAGS = -O2 -fdefault-real-8 -std=f2008 -fbounds-check  -g -fcheck=all -Wall -Wtabs  -fbacktrace -ffpe-trap=invalid,zero,overflow
+FFLAGS = -O2 -fdefault-real-8 -std=f2008 -fbounds-check  -g3 -fcheck=all -Wall -Wtabs  -fbacktrace -ffpe-trap=invalid,zero,overflow
 F77FLAGS = -O2 -fdefault-real-8 -std=legacy
 SEQFFLAGS = -I$(SRC) $(NCDFINC)
 MPIFFLAGS = -I$(SRC) $(NCDFINC) $(MPIINC)

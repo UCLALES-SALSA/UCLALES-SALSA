@@ -325,8 +325,8 @@ MODULE mo_progn_state
          IF (ice_theta_dist) THEN
             iscl = iscl + 1
             pipeline_p => NULL(); pipeline_t => NULL()
-            a_indefp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nliquid-1))
-            a_indeft = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nliquid-1))
+            a_indefp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nbins+ncld+nprc-1)) ! Could just use nliquid?
+            a_indeft = FloatArray4D(a_sclrt(:,:,:,iscl:iscl+nbins+ncld+nprc-1))
             pipeline_p => a_indefp
             pipeline_t => a_indeft
             CALL Prog%newField( "indef","IN nucleated fraction",       &
@@ -415,7 +415,7 @@ MODULE mo_progn_state
 
       ! For particle charge emissions
       IF ( level >= 4 .AND.      &
-           (ANY(emitModes(:)%emitType == 4) .OR. ANY(emitModes(:)%emitType == 5)) ) THEN 
+           (ANY(emitModes(:)%emitType>0)))  THEN 
           iscl = iscl + 1
           pipeline_p => NULL(); pipeline_t => NULL()
           a_chargeTimep = FloatArray4d(a_sclrp(:,:,:,iscl:iscl+nliquid-1))
