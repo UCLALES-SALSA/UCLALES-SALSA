@@ -43,13 +43,13 @@ contains
 
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, a_dn, iradtyp, pi0, pi1, level, &
          a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp, a_rv, a_rc, CCN, &
-         a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_rhp,a_nhp, a_maerop, &
+         a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, a_maerop, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
          nbins, ncld, nice, nprc, nsnw, a_fus, a_fds, a_fuir, a_fdir
     use mpi_interface, only : myid, appl_abort
 
     real, intent (in) :: time_in, cntlat, sst
-    REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
+    REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp), zrg(nzp,nxp,nyp)
 
     select case(iradtyp)
     case (0)
@@ -83,33 +83,58 @@ contains
        !
        IF (level==0) THEN
           ! Cloud (+rain)
-          znc(:,:,:) = CCN
-          WHERE(a_dn>0.) znc(:,:,:) = CCN/a_dn(:,:,:) ! COMBLE: CCN in #/m3
-          zrc(:,:,:) = a_rc(:,:,:)
-          IF (RadPrecipBins > 0) THEN
-             zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
-             WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc/a_dn*CCN))/zrc ! COMBLE: CCN in #/m3
+          IF (RadPrecipBins==0) THEN
+             zrc = a_rc
+             znc = CCN
+             WHERE(a_dn>0.) znc = CCN/a_dn ! COMBLE: CCN in #/m3
+          ELSE
+             zrc = a_rc + a_rpp
+             znc = a_npp
+             !WHERE (a_rc>0.) znc = znc + CCN
+             WHERE (a_rc>0.) znc = znc + CCN/a_dn ! COMBLE: CCN in #/m3
           ENDIF
-          ! Ice (+snow and hail)
-          zri(:,:,:) = a_rip(:,:,:) ! Ice
-          zni(:,:,:) = a_nip(:,:,:)
-          IF (RadSnowBins>0) THEN
-             zri(:,:,:) = zri(:,:,:) + a_rsp(:,:,:) + a_rhp(:,:,:)
-             zni(:,:,:) = zni(:,:,:) + a_nsp(:,:,:) + a_nhp(:,:,:)
+          ! Ice and graupel (+snow and hail)
+          IF (RadSnowBins==0) THEN
+             ! Separate ice and graupel
+             zri = a_rip
+             zni = a_nip
+             zrg = a_rgp
+          ELSEIF (RadSnowBins==1) THEN
+             ! Ice and combined graupel=graupel+snow+hail
+             zri = a_rip
+             zni = a_nip
+             zrg = a_rgp + a_rsp + a_rhp
+          ELSEIF (RadSnowBins==2) THEN
+             ! Combined ice=ice+snow+hail and graupel
+             zri = zri + a_rsp + a_rhp
+             zni = zni + a_nsp + a_nhp
+             zrg = a_rgp
+          ELSE
+             ! Combined ice=ice+snow+hail+graupel
+             zri = zri + a_rsp + a_rhp + a_rgp
+             zni = zni + a_nsp + a_nhp + a_ngp
           ENDIF
-          ! Graupel mass separately
 
-          CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+          IF (RadSnowBins<3) THEN
+             ! Graupel mass separately
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,grp=a_rgp)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,grp=zrg)
+          ELSE
+             ! Just (total) ice
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni)
+          ENDIF
 
        ELSEIF (level <= 3) THEN
           znc(:,:,:) = CCN
           zrc(:,:,:) = a_rc(:,:,:) ! Cloud water
           IF (level == 3 .AND. RadPrecipBins > 0) THEN
-             ! Include clouds and rain - number is a mass-mean for cloud and rain species
+             ! Include clouds and rain
              zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
-             WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc*CCN))/zrc
+             znc(:,:,:) = a_npp(:,:,:)
+             WHERE (a_rc>0.) znc = znc + CCN
           ENDIF
           call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &

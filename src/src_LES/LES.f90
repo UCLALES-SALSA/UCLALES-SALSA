@@ -94,7 +94,7 @@ contains
                     wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param
     use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, frqrst, &
          strtim, cntlat, lsvarflg
-    use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
+    use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, lmtr, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level, lev_sb, &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, spongeinit, runtype, CCN, &
          Tspinup, sst, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, &
@@ -122,6 +122,7 @@ contains
     namelist /model/  &
          expnme    ,       & ! experiment name
          nxpart    ,       & ! whether partition in x direction?
+         lmtr      ,       & ! advection limiter
          naddsc    ,       & ! Number of additional scalars
          savg_intvl,       & ! output statistics frequency
          ssam_intvl,       & ! integral accumulate/ts print frequency

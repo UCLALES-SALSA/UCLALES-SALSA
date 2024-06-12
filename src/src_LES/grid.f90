@@ -49,6 +49,8 @@ module grid
 
   real              :: sst=283.            ! Surface temperature
 
+  integer :: lmtr = 1 ! Advection limiter
+
   LOGICAL :: sed_aero = .TRUE.,  &
              sed_cloud = .TRUE., &
              sed_precp = .TRUE., &

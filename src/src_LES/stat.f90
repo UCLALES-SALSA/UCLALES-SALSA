@@ -766,7 +766,7 @@ contains
 
     ! CDNC
     rnt = CCN
-    WHERE(rxl(:,:,:)>0.) rnt = CCN/a_dn ! COMBLE: concentration in #/m3
+    WHERE(rxl>0.) rnt = CCN/a_dn ! COMBLE: concentration in #/m3
     IF (level>3) rnt = SUM(a_ncloudp,DIM=4)
 
     ! Cloud and rain masks
@@ -3310,7 +3310,7 @@ contains
         IF (numc) THEN
             WHERE (cloudmask)
                 !res=CCN
-                res=CCN/a_dn(:,:,:) ! COMBLE: CCN in #/m3
+                res=CCN/a_dn ! COMBLE: CCN in #/m3
             ELSEWHERE
                 res=0.
             END WHERE
