@@ -71,9 +71,8 @@ MODULE mo_ps_state
                                 ps_aDUa, ps_aDUb, ps_cDUa, ps_cDUb, ps_pDUa, ps_iDUa,        &
                                 ps_aSSa, ps_aSSb, ps_cSSa, ps_cSSb, ps_pSSa, ps_iSSa,        &
                                 ps_aNOa, ps_aNOb, ps_cNOa, ps_cNOb, ps_pNOa, ps_iNOa,        &
-                                ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa        
-                                
-
+                                ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa         
+                                        
   ! Conditionally sampled profiles
   TYPE(FloatArray1d), TARGET :: psic_rc, psic_Naa, psic_Nab, psic_Nca, psic_Ncb, psic_CDNC, psic_CNC,   &
                                 psic_Reff, psic_rh   
@@ -85,7 +84,13 @@ MODULE mo_ps_state
   TYPE(FloatArray2d), TARGET :: ps_Dwaba, ps_Dwabb, ps_Dwcba, ps_Dwcbb, ps_Dwpba, ps_Dwiba
   TYPE(FloatArray2d), TARGET :: ps_Naba, ps_Nabb, ps_Ncba, ps_Ncbb, ps_Npba, ps_Niba
   TYPE(FloatArray2d), TARGET :: ps_sipdrfr, ps_sipiibr, ps_siprmspl
-  TYPE(FloatArray2d), TARGET :: ps_maSO4a, ps_maSO4b, ps_mcSO4a, ps_mcSO4b, ps_mpSO4a, ps_miSO4a
+  TYPE(FloatArray2d), TARGET :: ps_maSO4a, ps_maSO4b, ps_mcSO4a, ps_mcSO4b, ps_mpSO4a, ps_miSO4a,  &
+                                ps_maOCa, ps_maOCb, ps_mcOCa, ps_mcOCb, ps_mpOCa, ps_miOCa,        &
+                                ps_maBCa, ps_maBCb, ps_mcBCa, ps_mcBCb, ps_mpBCa, ps_miBCa,        &
+                                ps_maDUa, ps_maDUb, ps_mcDUa, ps_mcDUb, ps_mpDUa, ps_miDUa,        &
+                                ps_maSSa, ps_maSSb, ps_mcSSa, ps_mcSSb, ps_mpSSa, ps_miSSa,        &
+                                ps_maNOa, ps_maNOb, ps_mcNOa, ps_mcNOb, ps_mpNOa, ps_miNOa,        &
+                                ps_maNHa, ps_maNHb, ps_mcNHa, ps_mcNHb, ps_mpNHa, ps_miNHa     
   
   ! Piggybacking slave microphysics diagnostics
   TYPE(FloatArray1d), TARGET :: ps_pb_rrate, ps_pb_rc,         &
@@ -708,6 +713,7 @@ MODULE mo_ps_state
          pipeline => ps_mpOCa
          CALL PS%newField("mpOCa", "Precipitation binned OC mass", "kg/kg", "zttprc",   &
               ANY(outputlist == "mpOCa"), pipeline)
+              
       END IF
          
       IF (level == 5) THEN
@@ -723,7 +729,8 @@ MODULE mo_ps_state
          ps_miOCa%onDemand => globalMeanProfileBinned
          pipeline => ps_miOCa
          CALL PS%newField("miOCa", "Ice binned OC mass", "kg/kg", "zttice",   &
-              ANY(outputlist == "miOCa"), pipeline)                
+              ANY(outputlist == "miOCa"), pipeline)    
+                          
       END IF
 
       IF (level >= 4) THEN
@@ -797,6 +804,7 @@ MODULE mo_ps_state
          pipeline => ps_mpBCa
          CALL PS%newField("mpBCa", "Precipitation binned BC mass", "kg/kg", "zttprc",   &
               ANY(outputlist == "mpBCa"), pipeline)
+              
       END IF
 
       IF (level == 5) THEN
@@ -978,6 +986,7 @@ MODULE mo_ps_state
          pipeline => ps_mpSSa
          CALL PS%newField("mpSSa", "Precipitation binned SS mass", "kg/kg", "zttprc",   &
               ANY(outputlist == "mpSSa"), pipeline)
+              
       END IF
 
       IF (level == 5) THEN
