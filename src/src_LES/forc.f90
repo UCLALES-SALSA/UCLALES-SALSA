@@ -111,8 +111,8 @@ contains
              zrg = a_rgp
           ELSE
              ! Combined ice=ice+snow+hail+graupel
-             zri = zri + a_rsp + a_rhp + a_rgp
-             zni = zni + a_nsp + a_nhp + a_ngp
+             zri = a_rip + a_rsp + a_rhp + a_rgp
+             zni = a_nip + a_nsp + a_nhp + a_ngp
           ENDIF
 
           IF (RadSnowBins<3) THEN
@@ -176,11 +176,10 @@ contains
 
        IF (calc_od) THEN ! COMBLE
             call fill_scalar_2d(tau_gas,'tau_gas') ! Gas
-            call fill_scalar_2d(tau_ice,'tau_tot') ! Gas+liquid+ice
-            tau_ice=tau_ice-tau_liq
-            call fill_scalar_2d(tau_ice,'tau_ice') ! Ice only
-            tau_liq=tau_liq-tau_gas
-            call fill_scalar_2d(tau_liq,'tau_liq') ! Liquid only
+            call fill_scalar_2d(tau_liq,'tau_liq') ! Liquid
+            call fill_scalar_2d(tau_ice,'tau_ice') ! Ice
+            tau_gas=tau_gas+tau_liq+tau_ice
+            call fill_scalar_2d(tau_gas,'tau_tot') ! Gas+liquid+ice
             ! Cloud fraction: columns with hydrometeor-only tau>2
             call fill_scalar( COUNT(tau_liq+tau_ice>2.0)/REAL((nxp-4)*(nyp-4)),'frac_od')
        ENDIF

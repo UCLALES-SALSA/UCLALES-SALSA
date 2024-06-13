@@ -371,26 +371,20 @@ contains
   ! and 14500 cm^-1, total power=619.6 W/m2). McICA is not used and cos(mu)=1. Other trace
   ! gases than water vapor are excluded.
   !
-  subroutine rad_tau (pp, pt, ph, tau_gas, tau_liq, tau_ice, &
-       plwc, pre, piwc, pde, pgwc )
+  subroutine rad_tau (pp, pt, ph, plwc, pre, piwc, pde, pgwc, &
+        tau_gas, tau_liq, tau_ice)
 
     real, intent (in)  :: pp (nv1) ! pressure at interfaces
-
     real, dimension(nv), intent (in)  :: &
          pt,   & ! temperature [K] at mid points
-         ph      ! humidity mixing ratio in kg/kg
-
-    real, intent (out)  :: &
-         tau_gas, & ! Gases only
-         tau_liq, & ! Gases + cloud liquid
-         tau_ice    ! Gases + cloud liquid+ cloud ice
-
-    real, optional, dimension(nv), intent (in)  :: &
+         ph,   & ! humidity mixing ratio in kg/kg
          plwc, & ! cloud liquid water content [g/m^3]
          pre,  & ! effective radius of cloud droplets [microns]
          piwc, & ! cloud ice water content [g/m^3]
          pde,  & ! effective diameter of ice particles [microns]
          pgwc    ! graupel water content
+
+    real, intent (out) :: tau_gas, tau_liq, tau_ice
 
     real, dimension (nv)   :: ti,wi,dz,tauNoGas,wNoGas
     real, dimension (nv,4) :: www, pfNoGas
@@ -406,26 +400,18 @@ contains
 
     ! Water vapor continuum
     call gascon ( center(solar_bands(ib)), pp, pt, ph, ti )
-    call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti)
+    tauNoGas = tauNoGas + ti
     tau_gas=SUM(TauNoGas) ! Sum over vertical levels
 
     ! Cloud water
-     if (present(plwc)) then
-        call cloud_water(ib, pre, plwc, dz, ti, wi, www)
-        call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti,wi,www)
-     end if
-     tau_liq=SUM(TauNoGas) ! Gas+liquid
+    call cloud_water(ib, pre, plwc, dz, ti, wi, www)
+    tau_liq=SUM(ti)
 
-    ! Cloud ice and graupel
-    if (present(piwc)) then
-        call cloud_ice(ib, pde, piwc, dz, ti, wi, www)
-        call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti,wi,www)
-    end if
-    if (present(pgwc)) then
-        call cloud_grp(ib,pgwc, dz, ti, wi, www)
-        call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti, wi,www)
-    end if
-    tau_ice=SUM(TauNoGas) ! Gas+liquid+ice
+    ! Cloud ice+graupel
+    call cloud_ice(ib, pde, piwc, dz, ti, wi, www)
+    tau_ice=SUM(ti)
+    call cloud_grp(ib,pgwc, dz, ti, wi, www)
+    tau_ice=tau_ice+SUM(ti)
 
   END subroutine rad_tau
   ! ----------------------------------------------------------------------

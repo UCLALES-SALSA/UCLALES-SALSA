@@ -229,16 +229,8 @@ module radiation
                 ENDIF
                 !
                 ! Calculations
-                if (present(ice).and.present(grp)) then
-                    CALL rad_tau (pp, pt, ph, tau_gas(i,j), tau_liq(i,j), tau_ice(i,j), &
-                        plwc=plwc, pre=pre, piwc=piwc, pde=pde, pgwc=pgwc)
-                ELSEif (present(ice)) then
-                    CALL rad_tau (pp, pt, ph, tau_gas(i,j), tau_liq(i,j), tau_ice(i,j), &
-                        plwc=plwc, pre=pre, piwc=piwc, pde=pde)
-                ELSE
-                    CALL rad_tau (pp, pt, ph, tau_gas(i,j), tau_liq(i,j), tau_ice(i,j), &
-                        plwc=plwc, pre=pre)
-                end if
+                CALL rad_tau (pp, pt, ph, plwc, pre, piwc, pde, pgwc, &
+                    tau_gas(i,j), tau_liq(i,j), tau_ice(i,j))
              ENDIF
 
          end do
