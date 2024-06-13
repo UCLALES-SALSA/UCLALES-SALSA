@@ -33,7 +33,7 @@ MODULE emission_types
      REAL             :: emitLonmin = -1.e6           ! Min and max Y/"lat" offsets in meters for the emission area
      REAL             :: emitLonmax = 1.e6
 
-     ! Particle characteristics not applied for chage emission (emitType 4,5)
+     ! Particle characteristics not applied for charge emission (emitType 4,5)
      INTEGER          :: emitSizeDistType = 1         ! 1: Monochromatic aerosol, 2: modal size disribution (lognormal)
      REAL             :: emitDiam = 10.e-6,    &      ! Assumed (dry )diameter of the particles (mode diameter for emitType=2).
                          emitNum  = 10000.            ! Number consentration of particles emitted per second #/m3/s (mode concentration for emitType=2)
@@ -68,7 +68,7 @@ MODULE emission_types
                                                              !       improve the IN efficiency of the target population.
 			                                                    ! FALSE: IN efficiency of target population remains intact. 
    REAL :: chargeTMax = 1000.                                ! Max timescale for particle charging effect in seconds for emitTypes 4,5.
-   REAL :: chargeCollEnh = 0.1                             ! Max assumed fractional enhancement for coalescence coeffs    
+   REAL :: chargeCollEnh = 0.0                               ! Max assumed fractional enhancement for coalescence coeffs    
    INTEGER :: nEmissionModes = 0                             ! Number of emission modes (max == maxemissionModes)
    TYPE(EmitConfig), TARGET :: emitModes(MaxEmissionModes)   ! Configuration instances for emission modes
    TYPE(EmitSizeDist), TARGET :: emitData(MaxEmissionModes)  ! Emission size distribution data for each setup/mode.

@@ -210,9 +210,9 @@ MODULE mo_salsa_SIP_DF
                     WRITE(*,*) 'SIP-DF sinkvolc nega ',bb,dlliq_df,sinkvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
                     WRITE(*,*) 'SIP-DF sinkvolc nan ',  bb,dlliq_df,sinkvolc(ii,jj,bb,:)
-               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'SIP-DF fragnumc > 1e5 ',bb,dlliq_df,fragnumc(ii,jj,bb),    &
+               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'SIP-DF fragnumc > 1e5 ',bb,cc, dlliq_df,fragnumc(ii,jj,bb),    &
                     (SUM(mfrzn_df(ii,jj,:,bb))/SUM(nfrzn_df(ii,jj,:,bb))/spec%rhowa/pi6)**(1./3.), &
-                    SUM(nfrzn_df(ii,jj,:,bb)), ice(ii,jj,bb)%numc
+                    SUM(nfrzn_df(ii,jj,:,bb)), SUM(mfrzn_df(ii,jj,:,bb)), ice(ii,jj,bb)%numc, ice(ii,jj,cc)%numc, ice(ii,jj,cc)%dwet
                ! ---------------------
                
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)

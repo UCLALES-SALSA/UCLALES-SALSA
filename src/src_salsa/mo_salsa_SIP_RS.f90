@@ -146,27 +146,27 @@ MODULE mo_salsa_SIP_RS
                END DO
 
            
-               !! Safeguard: Allow the fragments to take up to 90% of the source ice bin mass
-               IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > 0.9 * SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
-                  frconst = 0.90 * SUM(ice(ii,jj,bb)%volc(1:nspec)) / SUM(sinkvolc(ii,jj,bb,1:nspec))
+               !! Safeguard: Allow the fragments to take up to 99% of the source ice bin mass
+               IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > 0.99 * SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
+                  frconst = 0.99 * SUM(ice(ii,jj,bb)%volc(1:nspec)) / SUM(sinkvolc(ii,jj,bb,1:nspec))
                   fragv_loc = fragv_loc * frconst
                   fragn_loc = fragn_loc * frconst
                   sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) * frconst
                   sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) * frconst
                END IF
 
-               sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.90*ice(ii,jj,bb)%numc) !! Additional constrain because for some reason
+               sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.99*ice(ii,jj,bb)%numc) !! Additional constrain because for some reason
                                                                                     !! this still failed in the last bin...
                
                fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
                fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
                ! POISTA           
-               IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.95*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
+               IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.99*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
                     WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
                     SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
 
-               IF (0.95*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
+               IF (0.99*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
                     WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
                     ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
                ! ---------------------------------------              

@@ -125,7 +125,7 @@ MODULE mo_salsa_SIP_IIBR
                     ELSE IF (lssipicecollbreak%mode == 2) THEN  ! Sotiropoulou et al 2021 based on Sullivan et al 2018                   
                        IMF = imf_sotiropoulou(ptemp(ii,jj),dinsphmin)
                        ! Imposing an upper limit for IMF as Sotiropoulou et al. 2021
-                       ! IMF = min(IMF, 100.0)
+                       IMF = min(IMF, 100.0)
                        dN  = IMF *nii_ibr(ii,jj,cc,bb) 
                      
                     ELSE IF (lssipicecollbreak%mode == 3) THEN  ! Phillips et al 2017 corrected by Sotiropoulou et al 2020
@@ -215,9 +215,9 @@ MODULE mo_salsa_SIP_IIBR
                     WRITE(*,*) 'SIP-IIBR sinkvolc nega ',bb,sinkvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
                     WRITE(*,*) 'SIP-IIBR sinkvolc nan ',  bb,sinkvolc(ii,jj,bb,:)
-               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'SIP-IIBR fragnumc > 1e5 ',bb,fragnumc(ii,jj,bb),    &
+               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'SIP-IIBR fragnumc > 1e5 ',bb,cc, fragnumc(ii,jj,bb),    &
                     (SUM(mii_ibr(ii,jj,:,bb))/SUM(nii_ibr(ii,jj,:,bb))/ice(ii,jj,cc)%rhomean/pi6)**(1./3.), &
-                    SUM(nii_ibr(ii,jj,:,bb)), ice(ii,jj,bb)%numc
+                    SUM(nii_ibr(ii,jj,:,bb)),SUM(mii_ibr(ii,jj,:,bb)), ice(ii,jj,bb)%numc, ice(ii,jj,cc)%numc, ice(ii,jj,cc)%dwet
                ! ---------------------
                
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)

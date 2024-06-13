@@ -376,7 +376,9 @@ MODULE mo_salsa_coagulation_kernels
 	 ! Silvia: 14-05-2026 From Pinky and Khain (2006) Physical processes in clouds .. (Book)
          ! Table 3.3.4 Turbulent parameters and time/spatial scales of turbulent ﬂuctuations for clouds of different type
          ! Stratiform clouds: 0.001 m2/s3 Cumulus: 0.02m2/s3 Cumulonimbus: 0.1 m2/s3
-         eddy_dis=0.1   
+         ! eddy_dis=0.1   !Cumulonimbus
+	 eddy_dis = 0.001 !Stratiform clouds 
+	 ! eddy_dis=0.001   ! Silvia: 13-03-2023 Upper limit from M. D. Shupe et al.: Evaluation of turbulent dissipation rate retrievals 10.5194/amt-5-1375-2012
          ztshear = SQRT(8.*pi*eddy_dis/(15.*vkin))*(0.5*(diam(1)+diam(2)))**3
          zturbinert = pi*eddy_dis**(0.75) /(grav* SQRT(SQRT( vkin )))  &
               *(0.5*(diam(1)+diam(2)))**2* ABS(termv(1)-termv(2))
