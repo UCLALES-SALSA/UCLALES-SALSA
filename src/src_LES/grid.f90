@@ -165,7 +165,7 @@ CONTAINS
                                                                                  ! add one more tracer for the "IN deficit fraction"
          IF (level == 5 .AND. lssecice%switch) nsalsa = nsalsa + 3*nice
 
-         IF ( ANY(emitModes(:)%emitType >= 0) ) THEN
+         IF (ANY(emitModes(:)%emitType >= 1) ) THEN
             nsalsa = nsalsa + nliquid  ! for charge emission time tracer
          END IF
 

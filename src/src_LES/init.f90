@@ -67,6 +67,7 @@ CONTAINS
       USE constrain_SALSA, ONLY : SALSA_diagnostics
       USE mo_structured_datatypes
       USE mo_output, ONLY : init_main, write_main, init_ps, init_ts, write_ps
+      USE grid, ONLY : lemission 
       
       IMPLICIT NONE
 
@@ -92,7 +93,9 @@ CONTAINS
 
             n4 = spec%getNSpec(type="wet")
 
-            lcharge = ( ANY(emitModes%emitType > 0) ) 
+            !lcharge = ( ANY(emitModes%emitType > 0) ) 
+	     
+	    lcharge = (lemission .AND. ANY(emitModes%emitType > 1) ) 
 
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,n4,   &

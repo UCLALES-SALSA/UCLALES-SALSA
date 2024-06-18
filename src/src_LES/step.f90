@@ -50,7 +50,7 @@ CONTAINS
       USE mpi_interface, ONLY : myid, double_scalar_par_max, mpiroot
       USE mo_vector_state, ONLY : a_uc, a_vc, a_wc, a_up, a_vp, a_wp
       USE grid, ONLY : dtl, dtlt,  &
-                       dtlv, dtlong, nzp, nyp, nxp, level
+                       dtlv, dtlong, nzp, nyp, nxp, level, lemission
       USE thrm, ONLY : thermo
       USE mo_output, ONLY : write_main, close_main, write_ps, close_ps,    &
                             write_ts, close_ts, tsflg, psflg, ts_intvl,    &
@@ -241,7 +241,7 @@ CONTAINS
 
       USE grid, ONLY : level,lpback,dtlt,      &
                        nxp,nyp,nzp,   &
-                       a_nactd,  a_vactd
+                       a_nactd,  a_vactd, lemission
       USE mo_vector_state, ONLY : a_wp
       USE mo_field_state, ONLY : Diag, Prog
       USE sgsm, ONLY : diffuse
@@ -309,7 +309,10 @@ CONTAINS
                   
          nspec = spec%getNSpec(type="wet") ! Aerosol components + water
             
-         lcharge = (ANY(emitModes(:)%emitType >0)) 
+        
+         !lcharge = ( ANY(emitModes%emitType > 0) ) 
+	     
+	 lcharge = (lemission.AND.ANY(emitModes%emitType > 0) ) 
 
          IF ( nxp == 5 .AND. nyp == 5 ) THEN
             ! 1D -runs

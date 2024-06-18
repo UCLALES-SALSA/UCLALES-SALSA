@@ -2,8 +2,9 @@ MODULE mo_progn_state
   USE classFieldArray
   USE mo_structured_datatypes, ONLY : FloatArray3d, FloatArray4d
   USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice, in1a,fn2a, in2b,fn2b,    &
-                         nliquid, ica,fca, icb,fcb, ice_theta_dist, lssecice 
+                         nliquid, ica,fca, icb,fcb, ice_theta_dist, lssecice
   USE emission_types, ONLY : emitModes
+USE grid, ONLY          : lemission
   IMPLICIT NONE
 
   SAVE
@@ -415,7 +416,7 @@ MODULE mo_progn_state
 
       ! For particle charge emissions
       IF ( level >= 4 .AND.      &
-           (ANY(emitModes(:)%emitType>0)))  THEN 
+           (lemission .AND. (ANY(emitModes(:)%emitType>0))) ) THEN 
           iscl = iscl + 1
           pipeline_p => NULL(); pipeline_t => NULL()
           a_chargeTimep = FloatArray4d(a_sclrp(:,:,:,iscl:iscl+nliquid-1))

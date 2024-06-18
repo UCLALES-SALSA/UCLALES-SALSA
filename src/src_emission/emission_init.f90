@@ -38,7 +38,7 @@ MODULE emission_init
            END IF
            
            ! The aerosol species specified for emission MUST also be active in SALSA configuration
-           IF ( ANY(emd%emitType == [2,3]) .AND. .NOT. spec%isUsed(emd%species) ) THEN
+           IF ( .NOT. spec%isUsed(emd%species) ) THEN
               CALL errorMessage(global_name, name, &
                    'Attempt to emit <'//TRIM(emd%species)//'> but the compound '// &
                    'is not set to be used in the SALSA namelist.')
@@ -56,7 +56,7 @@ MODULE emission_init
               
               edt%numc(:) = 0.; edt%mass(:) = 0. ! i.e. do nothing
               
-           ELSE IF (ANY(emd%emitType == [2,3])) THEN 
+           ELSE IF (emd%emitType >= 2) THEN 
               
               ! Index limits for the regimes
               CALL regime_limits(emd%regime,st,en)

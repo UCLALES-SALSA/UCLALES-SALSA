@@ -59,9 +59,8 @@ MODULE constrain_SALSA
      USE util, ONLY : getMassIndex
      IMPLICIT NONE
 
-     LOGICAL, INTENT(in) :: onlyDiag ! If true, only update diagnostic concentrations and don't do anything else. Default value is FALSE.
+     LOGICAL, INTENT(in), OPTIONAL :: onlyDiag ! If true, only update diagnostic concentrations and don't do anything else. Default value is FALSE.    
      LOGICAL, INTENT(in) :: lcharge  ! Whether charge emissions are used
-      
 
      REAL, PARAMETER :: massTH = 1.e-25! Minimum mass threshold; corresponds to about a 1 nm particle == does not make sense
      
@@ -79,6 +78,12 @@ MODULE constrain_SALSA
      LOGICAL :: l_onlyDiag
      
      nspec = spec%getNSpec(type="wet") ! Aerosol species + water. For rime add +1
+
+     IF (PRESENT(onlyDiag)) THEN
+        l_onlyDiag = onlyDiag
+     ELSE
+        l_onlyDiag = .FALSE.
+     END IF
 
      ! Remove negative values
      a_naerop%d = MAX(0.,a_naerop%d)
