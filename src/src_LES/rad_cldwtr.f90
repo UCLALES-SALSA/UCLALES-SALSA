@@ -23,14 +23,16 @@ module cldwtr
   implicit none
   integer, save :: nsizes
   logical, save :: Initialized = .False.
+  logical, save :: rnInitialized = .False.
   logical, save :: iceInitialized = .False.
   logical, save :: grpInitialized = .False.
   integer, save :: mbs,mbir
 
   real, allocatable    :: re(:), fl(:), bz(:,:), wz(:,:), gz(:,:)
+  real, allocatable    :: brn(:), wrnf(:), grn(:)
   real, allocatable    :: ap(:,:), bp(:,:), cps(:,:,:), dps(:,:), cpir(:,:)
   real, allocatable    :: bg(:), wgf(:), gg(:)
-  real :: gwc
+  real :: gwc, rwc
 
 contains
   !
@@ -122,10 +124,12 @@ contains
 
   !
   !---------------------------------------------------------------------------
-  ! Subroutine cloud_init initialize data arrays for the cloud model,
-  ! checking for consistency between band structure of cloud model and CKD
-  !
-  subroutine init_cldgrp
+  ! The single-scattering  properties of graupel here are replaced by
+  ! those of aerosols (rural model of Shettle and Fenn, 1979 with 50%
+  ! relative humidity). The extinction coefficients are normalized to
+  ! a number of density of 1.5e10 particles/m**3.
+  !                        June 23, 1994
+  subroutine init_cldgrp_old
 
     integer, parameter  :: nrec = 21600
     integer             :: i
@@ -145,7 +149,56 @@ contains
 
     grpInitialized = .True.
 
+  end subroutine init_cldgrp_old
+
+
+  ! *********************************************************************
+  ! bg,  wgf  and  gg are  the  extinction  coefficient (1/km),  single
+  ! scattering  albedo  and  asymmetry  factor for the graupel. The size
+  ! distribution of graupel is in the form of a truncated constant-slope
+  ! gamma function (Manton and Cotton, 1977)  where rmin = 60 um, rmax =
+  ! 5000 um, rc = 500 um, density of graupel = 0.6 g/cm**3, and  graupel
+  ! water content (gwc) = 0.5 g/m**3.
+  !                        Jan. 19, 1993
+  ! *********************************************************************
+  subroutine init_cldgrp
+    gwc = 0.5
+    allocate (bg(mb),wgf(mb),gg(mb))
+    bg =  (/ 0.83939,0.83940,0.83940,0.83941,0.83946,0.83951,   &
+             0.83967,0.83979,0.83995,0.84029,0.84058,0.84097, &
+             0.84143,0.84286,0.84418,0.84825,0.85421,0.87477 /)
+    wgf = (/ 0.999911,0.97115,0.56192,0.53156,0.52579,0.53846,  &
+             0.53296,0.53017,0.53182,0.53180,0.52959,0.52446,&
+             0.52342,0.54914,0.55258,0.54307,0.53160,0.55474 /)
+    gg = (/  0.89218,0.89940,0.96820,0.97816,0.98141,0.96373,    &
+             0.97173,0.97559,0.97330,0.97327,0.97626,0.98274,  &
+             0.98396,0.94673,0.94213,0.95539,0.97097,0.93183 /)
+    grpInitialized = .True.
   end subroutine init_cldgrp
+
+  !  *********************************************************************
+  !  brn,  wrnf and  grn  are  the extinction coefficient (1/km),  single
+  !  scattering  albedo  and  asymmetry  factor  for  the rain.  The size
+  !  distribution of  rain  is  in the form of a truncated constant-slope
+  !  gamma function (Manton and Cotton, 1977)  where rmin = 60 um, rmax =
+  !  1800 um,  rc = 162 um,  density of water = 1 g/cm**3, and rain water
+  !  content (rwc) = 0.5 g/m**3.
+  !                         Jan. 19, 1993
+  !  *********************************************************************
+  subroutine init_cldrain
+    rwc = 0.5
+    allocate (brn(mb), wrnf(mb), grn(mb))
+    brn =  (/ 1.5377, 1.5377, 1.5379, 1.5385, 1.5396, 1.5417, &
+              1.5454, 1.5478, 1.5512, 1.5559, 1.5600, 1.5642, &
+              1.5647, 1.5741, 1.5862, 1.5993, 1.6149, 1.6765 /)
+    wrnf = (/ .999932, .97096, .74627, .56719, .53023, .53815, &
+              .53233, .52884, .53192, .52969, .52716, .52321, &
+              .51904, .53859, .55169, .55488, .55334, .55218 /)
+    grn =  (/ .88323, .89067, .92835, .96626, .97553, .96626, &
+              .97226, .97663, .97216, .97467, .97745, .98156, &
+              .98584, .96374, .94218, .93266, .92990, .90729 /)
+    rnInitialized = .True.
+  end subroutine init_cldrain
 
   ! -----------------------------------------------------------------------
   ! Subroutine cloud_water:  calculates the optical depth (tw), single 
@@ -199,8 +252,6 @@ contains
           ww(k) = 0.0
           gg    = 0.
        end if
-       if (ww(k).lt.0.) print*,'bad ww, ',ww(k),ib,k,cwmks
-       if (tw(k).lt.0.) print*,'bad tw, ',tw(k),ib,k,cwmks
     end do
 
     return
@@ -236,8 +287,6 @@ contains
              ap(2,ib) / fw1 + ap(3,ib) / fw2 )
          wi(k) = 1.0 - ( bp(1,ib) + bp(2,ib) * fw1 + &
              bp(3,ib) * fw2 + bp(4,ib) * fw3 )
-         if (wi(k).lt.0.) print*,'bad wi, ',wi(k),ib,k,bp(1,ib),bp(2,ib),bp(3,ib),bp(4,ib),fw1,fw2,fw3
-         if (ti(k).lt.0.) print*,'bad ti, ',ti(k),ib,k,cwmks,dz(k),ap(1,ib),ap(2,ib),ap(3,ib),fw1,fw2
          if ( ib .le. mbs ) then ! shortwave
            fd = dps(1,ib) + dps(2,ib) * fw1 + &
                dps(3,ib) * fw2 + dps(4,ib) * fw3
@@ -299,9 +348,9 @@ contains
     real, intent (out) :: tgr(nv), wgr(nv), wwgr(nv,4)
 
     integer :: i
-    real    :: cwmks
-    real    :: y1, y2, y3, y4, x1, x2, x3, x4, ibr, fd
-    if (.not.grpInitialized) stop 'TERMINATING: Ice not Initialized'
+    real    :: y1, y2, y3, y4, x1, x2, x3, x4
+
+    if (.not.grpInitialized) stop 'TERMINATING: Graupel not Initialized'
 
     x1 = gg(ib)
     x2 = x1 * gg(ib)
@@ -312,8 +361,7 @@ contains
     y3 = 7.0 * x3
     y4 = 9.0 * x4
     do i = 1, nv
-       cwmks = pcg(i)*1.e-3! convert to km
-       if ( cwmks .lt. 1.0e-8 ) then
+       if ( pcg(i) .lt. 1.0e-5 ) then
           tgr(i) = 0.0
           wgr(i) = 0.0
           wwgr(i,1) = 0.0
@@ -321,7 +369,7 @@ contains
           wwgr(i,3) = 0.0
           wwgr(i,4) = 0.0
        else
-          tgr(i) = dz(i) * cwmks * bg(ib) / gwc
+          tgr(i) = 1e-3 * dz(i) * pcg(i) * bg(ib) / gwc
           wgr(i) = wgf(ib)
           wwgr(i,1) = y1
           wwgr(i,2) = y2
@@ -331,6 +379,51 @@ contains
     end do
 
   end subroutine cloud_grp
+
+  ! *********************************************************************
+  ! trn, wrn, and wwrn are the optical depth, single scattering albedo,
+  ! and expansion coefficients of the phase function ( 1, 2, 3, and 4 )
+  ! due to the Mie scattering of rain for a given layer.
+  !                        Jan. 19, 1993
+  ! *********************************************************************
+  subroutine cloud_rain ( ib,prwc,dz,trn,wrn,wwrn )
+    implicit none
+    integer, intent (in) :: ib
+    real, dimension (nv), intent (in) :: prwc, dz
+    real, intent (out) :: trn(nv), wrn(nv), wwrn(nv,4)
+
+    integer :: i
+    real    :: x1, x2, x3, x4, y1, y2, y3, y4
+
+    if (.not.rnInitialized) stop 'TERMINATING: Rain not Initialized'
+
+    x1 = grn(ib)
+    x2 = x1 * grn(ib)
+    x3 = x2 * grn(ib)
+    x4 = x3 * grn(ib)
+    y1 = 3.0 * x1
+    y2 = 5.0 * x2
+    y3 = 7.0 * x3
+    y4 = 9.0 * x4
+    do i = 1, nv
+       if ( prwc(i) .lt. 1.0e-5 ) then
+          trn(i) = 0.0
+          wrn(i) = 0.0
+          wwrn(i,1) = 0.0
+          wwrn(i,2) = 0.0
+          wwrn(i,3) = 0.0
+          wwrn(i,4) = 0.0
+       else
+          trn(i) = 1e-3 * dz(i) * prwc(i) * brn(ib) / rwc
+          wrn(i) = wrnf(ib)
+          wwrn(i,1) = y1
+          wwrn(i,2) = y2
+          wwrn(i,3) = y3
+          wwrn(i,4) = y4
+       endif
+    end do
+
+  end subroutine cloud_rain
 
   ! ---------------------------------------------------------------------------
   ! linear interpolation between two points, returns indicies of the 
