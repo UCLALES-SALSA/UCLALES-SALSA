@@ -19,9 +19,9 @@
 !
 module advf
 
-  use grid, only : lmtr
-
   implicit none
+
+  integer :: lmtr = 1
 
 contains
   !

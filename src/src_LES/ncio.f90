@@ -612,9 +612,6 @@ contains
     CASE ('srf_lwd')
        if (itype==0) ncinfo = 'Surface longwave down'
        if (itype==1) ncinfo = 'W/m^2'
-    CASE ('tau_tot')
-       if (itype==0) ncinfo = 'Total optical depth'
-       if (itype==1) ncinfo = '-'
     CASE ('tau_gas')
        if (itype==0) ncinfo = 'Optical depth due to gases'
        if (itype==1) ncinfo = '-'

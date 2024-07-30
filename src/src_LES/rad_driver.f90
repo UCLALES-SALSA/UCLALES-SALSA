@@ -37,8 +37,8 @@ module radiation
   REAL :: RadConstSZA = -360. ! constant solar zenith angle (values between -180 and 180 degrees)
 
   logical, save :: calc_od = .FALSE.  ! Calculate optical depths
-  real, allocatable, save :: tau_gas(:,:), tau_liq(:,:), tau_ice(:,:), &
-       tau_cloud(:,:), tau_rain(:,:), tau_grp(:,:)
+  real, allocatable, save :: tau_gas(:,:), tau_cloud(:,:), tau_rain(:,:), &
+       tau_ice(:,:), tau_grp(:,:)
 
   logical, save     :: first_time = .True.
   real, allocatable, save ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
@@ -241,13 +241,12 @@ module radiation
                 !
                 ! Allocate outputs
                 IF (.NOT.ALLOCATED(tau_gas)) THEN
-                    ALLOCATE(tau_gas(n2,n3), tau_liq(n2,n3), tau_ice(n2,n3), &
-                        tau_cloud(n2,n3), tau_rain(n2,n3), tau_grp(n2,n3))
-                    tau_gas=0.; tau_liq=0.; tau_ice=0.
-                    tau_cloud=0.; tau_rain=0.; tau_grp=0.
+                    ALLOCATE(tau_gas(n2,n3), tau_cloud(n2,n3), tau_rain(n2,n3), &
+                        tau_ice(n2,n3), tau_grp(n2,n3))
+                    tau_gas=0.; tau_cloud=0.; tau_rain=0.; tau_ice=0.; tau_grp=0.
                 ENDIF
                 !
-                if (.NOT. present(rr)) prwc = 0.0
+                IF (.NOT. present(rr)) prwc = 0.0
                 IF (.NOT. present(ice)) THEN
                     piwc = 0.0
                     pde = 0.0
@@ -257,8 +256,6 @@ module radiation
                 ! Calculations
                 CALL rad_tau (pp, pt, ph, plwc, pre, prwc, piwc, pde, pgwc, &
                     tau_gas(i,j), tau_cloud(i,j), tau_rain(i,j), tau_ice(i,j), tau_grp(i,j))
-                tau_liq = tau_cloud + tau_rain
-                tau_ice = tau_ice + tau_grp
              ENDIF
 
          end do

@@ -20,7 +20,7 @@
 module forc
 
   use defs, only      : cp
-  use radiation, only : d4stream, calc_od, tau_gas, tau_liq, tau_ice
+  use radiation, only : d4stream, calc_od, tau_gas, tau_cloud, tau_rain, tau_ice, tau_grp
   use stat, only : sflg, fill_scalar, fill_scalar_2d
   implicit none
 
@@ -86,9 +86,9 @@ contains
           IF (RadPrecipBins==0) THEN
              ! Separate cloud and rain
              zrc = a_rc
-             znc = CCN
+             !znc = CCN
+             WHERE(a_rc>0.) znc = CCN/a_dn ! COMBLE: CCN in #/m3
              zrr = a_rpp
-             WHERE(a_dn>0.) znc = CCN/a_dn ! COMBLE: CCN in #/m3
           ELSE
              ! Combined liquid
              zrc = a_rc + a_rpp
@@ -143,16 +143,18 @@ contains
           ENDIF
 
        ELSEIF (level <= 3) THEN
-          IF (level == 3 .AND. RadPrecipBins > 0) THEN
-             ! Combined liquid
-             zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
-             znc(:,:,:) = a_npp(:,:,:)
-             WHERE (a_rc>0.) znc = znc + CCN
-             zrr(:,:,:) = 0.
+
+          IF (level == 3 .AND. RadPrecipBins == 0) THEN
+             ! Separate cloud and rain
+             zrc = a_rc
+             znc = CCN
+             zrr = a_rpp
           ELSE
-             zrc(:,:,:) = a_rc(:,:,:)
-             znc(:,:,:) = CCN
-             zrr(:,:,:) = a_rpp(:,:,:)
+             ! Combined liquid
+             zrc = a_rc + a_rpp
+             znc = a_npp
+             WHERE (a_rc>0.) znc = znc + CCN
+             zrr = 0.
           ENDIF
           call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
@@ -160,7 +162,6 @@ contains
 
        ELSE IF (level == 4) THEN
           ! Water is the first SALSA species
-          !zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
           zrc(:,:,:) = SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) ! Cloud droplets
           znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4)
           IF (RadPrecipBins>0) THEN ! Add precipitation bins
@@ -178,7 +179,6 @@ contains
 
        ELSE IF (level == 5) THEN
           ! Water is the first SALSA species
-          !zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
           zrc(:,:,:) = SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) ! Cloud droplets
           znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4)
           IF (RadPrecipBins>0) THEN ! Add precipitation bins
@@ -204,12 +204,12 @@ contains
 
        IF (calc_od) THEN ! COMBLE
             call fill_scalar_2d(tau_gas,'tau_gas') ! Gas
-            call fill_scalar_2d(tau_liq,'tau_liq') ! Liquid
-            call fill_scalar_2d(tau_ice,'tau_ice') ! Ice
-            tau_gas=tau_gas+tau_liq+tau_ice
-            call fill_scalar_2d(tau_gas,'tau_tot') ! Gas+liquid+ice
+            tau_cloud=tau_cloud+tau_rain ! Total liquid
+            call fill_scalar_2d(tau_cloud,'tau_liq')
+            tau_ice=tau_ice+tau_grp ! Total ice
+            call fill_scalar_2d(tau_ice,'tau_ice')
             ! Cloud fraction: columns with hydrometeor-only tau>2
-            call fill_scalar( COUNT(tau_liq+tau_ice>2.0)/REAL((nxp-4)*(nyp-4)),'frac_od')
+            call fill_scalar( COUNT(tau_cloud+tau_ice>2.0)/REAL((nxp-4)*(nyp-4)),'frac_od')
        ENDIF
 
        ! Case-dependent large-scale forcing
