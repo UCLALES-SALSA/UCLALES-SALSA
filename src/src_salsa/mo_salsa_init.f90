@@ -435,6 +435,7 @@ CONTAINS
                                fixed_ice_min_Si,      &
                                fixed_ice_min_rc,      &
                                fixed_ice_max_T,       &
+                               ice_inas,              &
                                ice_hom, ice_imm, ice_dep, &
                                icenucl_tstart,        &
                                ice_target_opt,        &
@@ -519,6 +520,7 @@ CONTAINS
 
          nlicenucl,     & ! Ice nucleation master switch
          fixinc,        & ! Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
+         ice_inas,      & ! INP concentration based on ice nucleation active site (INAS) parameterization
          fixed_ice_min_Si, fixed_ice_min_rc, fixed_ice_max_T, & ! Limits for Si, cloud water content and temperature
          ice_source_opt,& ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
          ice_hom,       & ! If fixinc is not set or it is not positive, ice nucleation can be modelled based on homogeneous, ...

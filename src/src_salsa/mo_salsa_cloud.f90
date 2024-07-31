@@ -1124,6 +1124,105 @@ CONTAINS
   ! ------------------------------------------------------------
 
 
+  !***********************************************
+  !
+  ! INP concentration based on nucleation site density parameterization by McCluskey, C. S., et al. (2018),
+  ! Marine and Terrestrial Organic Ice-Nucleating Particles in Pristine Marine to Continentally Influenced
+  ! Northeast Atlantic Air Masses, J. Geophys. Res.-Atmos., 123(11), 6196-6212, doi:10.1029/2017jd028033.
+  !
+  !***********************************************
+
+  SUBROUTINE ice_inas_driver(kbdim, klev,   &
+            paero, pcloud,  pice,   psnow, ptemp,  ppres,  prv,  prsi)
+
+    USE mo_submctl, ONLY : t_section,      &
+                    fn2b, ncld, nice, nsnw, nspec, &
+                    rhowa, rda, pi, nlim, prlim, &
+                    fixed_ice_min_Si, fixed_ice_min_rc, fixed_ice_max_T, &
+                    ice_target_opt
+    IMPLICIT NONE
+
+    INTEGER, INTENT(in) :: kbdim,klev
+    REAL, INTENT(in) :: &
+                    ptemp(kbdim,klev), &
+                    ppres(kbdim,klev), &
+                    prv(kbdim,klev),   &
+                    prsi(kbdim,klev)
+    TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,fn2b), &
+                    pcloud(kbdim,klev,ncld), &
+                    pice(kbdim,klev,nsnw), psnow(kbdim,klev,nsnw)
+
+    INTEGER :: ii,jj,kk,ss,nn
+    REAL :: pdn, S_ice, rc, ns, vol, sumICE, dnice, frac, inp(ncld)
+
+    nn = nspec + 1 ! Aerosol species + water
+
+    ! Target snow bin when ice_target_opt>0
+    ss=MIN(nsnw,ice_target_opt)
+
+    DO ii = 1,kbdim
+    DO jj = 1,klev
+        pdn=ppres(ii,jj)/(rda*ptemp(ii,jj)) ! Air density (kg/m^3)
+
+        ! Conditions for ice nucleation
+        S_ice = prv(ii,jj)/prsi(ii,jj) ! Saturation with respect to ice
+        rc = sum( pcloud(ii,jj,:)%volc(1) )*rhowa/pdn ! Cloud water mixing ratio (kg/kg)
+        if ( S_ice < fixed_ice_min_Si .OR. rc < fixed_ice_min_rc .OR. ptemp(ii,jj)>fixed_ice_max_T ) cycle
+
+        ! INAS
+        ns = exp(-0.545*(ptemp(ii,jj)-273.15) + 1.0125) ! m-2
+
+        ! Calculate INP concentration based on cloud droplets (no aerosol freezing)
+        inp=0.
+        DO kk = 1,ncld
+            IF(pcloud(ii,jj,kk)%numc > nlim) THEN
+                ! Here using dry radius
+                inp(kk) = pcloud(ii,jj,kk)%numc * ns*pi*pcloud(ii,jj,kk)%dmid**2
+            ENDIF
+        ENDDO
+
+        ! Calculate the INP excess = the number of new ice particles
+        dnice = SUM(inp) - SUM(pice(ii,jj,:)%numc) - SUM(psnow(ii,jj,:)%numc)
+
+        IF (dnice<prlim) CYCLE
+
+        ! New ice based on INP concentration
+        sumICE=SUM(inp)
+        inp=inp/sumICE*dnice
+        DO kk = 1,ncld
+            IF(pcloud(ii,jj,kk)%numc > nlim) THEN
+                dnice = MIN(inp(kk),pcloud(ii,jj,kk)%numc)
+                frac = dnice/pcloud(ii,jj,kk)%numc
+                IF (ice_target_opt<0) THEN
+                    ! Add to the matching ice bin
+                    pice(ii,jj,kk)%volc(1:nn) = pice(ii,jj,kk)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
+                    pice(ii,jj,kk)%numc   = pice(ii,jj,kk)%numc + dnice
+                ELSEIF (ice_target_opt==0) THEN
+                    ! Add to the matching snow bin
+                    ss=1
+                    vol=SUM(pcloud(ii,jj,kk)%volc(1:nn))/pcloud(ii,jj,kk)%numc
+                    DO WHILE (vol>psnow(ii,jj,ss)%vhilim .AND. ss<nsnw)
+                        ss=ss+1
+                    ENDDO
+                    psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
+                    psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
+                ELSE
+                    ! Add to the ss:th snow bin
+                    psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
+                    psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dnice
+                ENDIF
+
+                pcloud(ii,jj,kk)%numc = pcloud(ii,jj,kk)%numc - dnice
+                pcloud(ii,jj,kk)%volc(1:nn) = pcloud(ii,jj,kk)%volc(1:nn) - max(0., pcloud(ii,jj,kk)%volc(1:nn)*frac )
+            ENDIF
+        END DO
+    END DO
+    END DO
+
+  END SUBROUTINE ice_inas_driver
+  ! ------------------------------------------------------------
+
+
   SUBROUTINE ice_melt(kbdim,klev,   &
                       pcloud,pice,pprecp,psnow, &
                       ptemp )

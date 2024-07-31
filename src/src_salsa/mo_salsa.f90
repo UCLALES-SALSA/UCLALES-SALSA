@@ -26,7 +26,7 @@ CONTAINS
     USE mo_vbs_partition, ONLY : vbs_gas_phase_chem, vbs_condensation
     USE mo_salsa_update, ONLY : distr_update
     USE mo_salsa_cloud, only : cloud_activation, autoconv2, autoconv_sb, &
-            autosnow, fixed_ice_driver, ice_nucl_driver, ice_melt, sip_hm, sip_iibr, sip_df
+            autosnow, fixed_ice_driver, ice_inas_driver, ice_nucl_driver, ice_melt, sip_hm, sip_iibr, sip_df
 
     USE mo_submctl, ONLY :      &
          fn2b,ncld,nprc,nice,nsnw,nvbs,    &
@@ -35,7 +35,7 @@ CONTAINS
          nlcndh2ocl,nlcndh2oic,            &
          lsauto,auto_sb,lsautosnow,lsactiv,&
          lsicenucl,lsicmelt,lsdistupdate,  &
-         fixinc, ice_hom, ice_imm, ice_dep, nlsip_hm, nlsip_iibr, nlsip_df
+         fixinc, ice_inas, ice_hom, ice_imm, ice_dep, nlsip_hm, nlsip_iibr, nlsip_df
 
     IMPLICIT NONE
 
@@ -168,6 +168,14 @@ CONTAINS
         IF (sflg) CALL salsa_var_stat('nucf',0) ! Fixed ice
         CALL fixed_ice_driver(kbdim, klev,             &
                              pcloud, pice,   psnow,    &
+                             ptemp,  ppres,  prv,  prsi)
+        IF (sflg) CALL salsa_var_stat('nucf',1)
+      ENDIF
+      IF (ice_inas) THEN ! COMBLE
+        ! INP concentration based on ice nucleation active site (INAS) parameterization
+        IF (sflg) CALL salsa_var_stat('nucf',0) ! Use the same variable as for fixed ice
+        CALL ice_inas_driver(kbdim, klev,               &
+                             paero, pcloud, pice,   psnow, &
                              ptemp,  ppres,  prv,  prsi)
         IF (sflg) CALL salsa_var_stat('nucf',1)
       ENDIF
