@@ -38,7 +38,7 @@ module radiation
 
   logical, save     :: first_time = .True.
   real, allocatable, save ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
-       plwc(:), piwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:)
+       plwc(:), piwc(:), prwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:)
 
   contains
 
@@ -70,6 +70,7 @@ module radiation
       pre(:) = 0.
       pde(:) = 0.
       piwc(:) = 0.
+      prwc(:) = 0.
       plwc(:) = 0.
       pgwc(:) = 0.
       !
@@ -81,12 +82,12 @@ module radiation
     end subroutine rad_new_setup
 
     subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn, pi0, pi1, dzm, &
-         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, albedo, ice, nice, grp)
+         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, albedo, rr, ice, nice, grp)
       integer, intent (in) :: n1, n2, n3
       real, intent (in)    :: alat, time, sknt, sfc_albedo
       real, dimension (n1), intent (in)                 :: pi0, pi1, dzm
       real, dimension (n1,n2,n3), intent (in)           :: dn, pip, tk, rv, rc, nc
-      real, optional, dimension (n1,n2,n3), intent (in) :: ice, nice, grp
+      real, optional, dimension (n1,n2,n3), intent (in) :: rr, ice, nice, grp
       real, dimension (n1,n2,n3), intent (inout)        :: tt, rflx, sflx
       real, dimension (n1+1,n2,n3), intent (inout)      :: afus, afds, afuir, afdir
       real, intent (out)                                :: albedo(n2,n3)
@@ -102,6 +103,7 @@ module radiation
          if (allocated(pre))   pre(:) = 0.
          if (allocated(pde))   pde(:) = 0.
          if (allocated(piwc)) piwc(:) = 0.
+         if (allocated(prwc)) prwc(:) = 0.
          if (allocated(plwc)) plwc(:) = 0.
          if (allocated(pgwc)) pgwc(:) = 0.
       end if
@@ -159,6 +161,11 @@ module radiation
                   plwc(kk) = 0.
                end if
 
+               ! Rain
+               if (present(rr)) then
+                  prwc(kk) = 1000.*dn(k,i,j)*rr(k,i,j)
+               end if
+
                ! Ice
                if (present(ice)) then
                   if ((ice(k,i,j).gt.0.).and.(nice(k,i,j).gt.0.)) then
@@ -178,12 +185,21 @@ module radiation
 
             end do
 
-            if (present(ice).and.present(grp)) then
+            if (present(ice).and.present(rr).and.present(grp)) then
+                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                     fds, fus, fdir, fuir, useMcICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, prwc=prwc, pgwc=pgwc)
+            ELSEif (present(ice).and.present(grp)) then
                 call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
                      fds, fus, fdir, fuir, useMcICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, pgwc=pgwc)
+            ELSEif (present(ice).and.present(rr)) then
+                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                     fds, fus, fdir, fuir, useMcICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde, prwc=prwc)
             ELSEif (present(ice)) then
                 call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
                      fds, fus, fdir, fuir, useMcICA, plwc=plwc, pre=pre, piwc=piwc, pde=pde)
+            ELSEif (present(rr)) then
+                call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                     fds, fus, fdir, fuir, useMcICA, plwc=plwc, pre=pre, prwc=prwc)
             else
                 call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
                      fds, fus, fdir, fuir, useMcICA, plwc=plwc, pre=pre)
@@ -298,7 +314,7 @@ module radiation
     ! pressure at the top of the sounding
     !
     allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1))
-    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),piwc(nv),pgwc(nv))
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv))
 
     if (blend) then
        pp(1:norig) = sp(1:norig)
@@ -388,7 +404,7 @@ module radiation
     ! expect decreasing pressure grid (from TOA to surface)
     !
     allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
-    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
 
     po=0.
     IF (nb>0) THEN
@@ -514,7 +530,7 @@ module radiation
 
     ! Sounding and LES data
     allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
-    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
 
     IF (nb>0) THEN
         ! Levels above LES domain: copy background soundings

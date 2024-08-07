@@ -116,7 +116,7 @@ module grid
   real, pointer :: a_rp(:,:,:),a_rt(:,:,:) ! Water vapour for SALSA; total water for SB
   ! Seifert & Beheng tracers: mass (kg/kg) and number (#/kg)
   real, pointer :: a_rpp(:,:,:),a_rpt(:,:,:),a_npp(:,:,:),a_npt(:,:,:) ! Rain
-  real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! SB level 4 & 5 ice
+  real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! SB ice microphysics
   real, pointer :: a_rsp(:,:,:),a_rst(:,:,:),a_nsp(:,:,:),a_nst(:,:,:) ! Snow
   real, pointer :: a_rgp(:,:,:),a_rgt(:,:,:),a_ngp(:,:,:),a_ngt(:,:,:) ! Graupel
   real, pointer :: a_rhp(:,:,:),a_rht(:,:,:),a_nhp(:,:,:),a_nht(:,:,:) ! Hail
@@ -293,11 +293,13 @@ contains
        !    rain mass and number (level=3) or
        !    rain mass and number (level=0 & lev_sb=3)
        !    rain and ice mass and number, and snow and graupel mass (level=0 & lev_sb=4)
-       !    rain, ice, snow, graupel and hail mass and number (level=0 & lev_sb=5)
+       !    rain, ice, snow, and graupel mass and number (level=0 & lev_sb=5)
+       !    rain, ice, snow, graupel and hail mass and number (level=0 & lev_sb=6)
        nscl = 2+naddsc
        if (level == 3 .OR. level == 0) nscl = nscl+2 ! rain
        if (level == 0 .AND. lev_sb ==4) nscl = nscl+4 ! + ice and snow and graupel mass
-       if (level == 0 .AND. lev_sb ==5) nscl = nscl+8 ! + ice, snow, graupel and hail
+       if (level == 0 .AND. lev_sb ==5) nscl = nscl+6 ! + snow and graupel number
+       if (level == 0 .AND. lev_sb ==6) nscl = nscl+8 ! + hail
        if (isgstyp > 1) nscl = nscl+1 ! tke
 
        allocate (a_sclrp(nzp,nxp,nyp,nscl), a_sclrt(nzp,nxp,nyp,nscl))
@@ -323,7 +325,7 @@ contains
           a_npt=>tmp_prct(:,:,:,2)
        end if
        if (level == 0) then
-          if (lev_sb == 5) then
+          if (lev_sb == 6) then
              a_rip => a_sclrp(:,:,:,5); a_rit => a_sclrt(:,:,:,5)
              a_nip => a_sclrp(:,:,:,6); a_nit => a_sclrt(:,:,:,6)
              a_rsp => a_sclrp(:,:,:,7); a_rst => a_sclrt(:,:,:,7)
@@ -332,6 +334,17 @@ contains
              a_ngp => a_sclrp(:,:,:,10); a_ngt => a_sclrt(:,:,:,10)
              a_rhp => a_sclrp(:,:,:,11); a_rht => a_sclrt(:,:,:,11)
              a_nhp => a_sclrp(:,:,:,12); a_nht => a_sclrt(:,:,:,12)
+          elseif (lev_sb == 5) then
+             a_rip => a_sclrp(:,:,:,5); a_rit => a_sclrt(:,:,:,5)
+             a_nip => a_sclrp(:,:,:,6); a_nit => a_sclrt(:,:,:,6)
+             a_rsp => a_sclrp(:,:,:,7); a_rst => a_sclrt(:,:,:,7)
+             a_nsp => a_sclrp(:,:,:,8); a_nst => a_sclrt(:,:,:,8)
+             a_rgp => a_sclrp(:,:,:,9); a_rgt => a_sclrt(:,:,:,9)
+             a_ngp => a_sclrp(:,:,:,10); a_ngt => a_sclrt(:,:,:,10)
+             ALLOCATE (tmp_icep(nzp,nxp,nyp,2),tmp_icet(nzp,nxp,nyp,2))
+             tmp_icep(:,:,:,:) = 0.; tmp_icet(:,:,:,:) = 0.
+             a_rhp => tmp_icep(:,:,:,1); a_rht => tmp_icet(:,:,:,1)
+             a_nhp => tmp_icep(:,:,:,2); a_nht => tmp_icet(:,:,:,2)
           elseif (lev_sb == 4) then
              a_nip => a_sclrp(:,:,:,5); a_nit => a_sclrt(:,:,:,5)
              a_rip => a_sclrp(:,:,:,6); a_rit => a_sclrt(:,:,:,6)
@@ -764,7 +777,7 @@ contains
     character(len=7) :: s_base(n_base) = (/ &
          'u      ','v      ','w      ','theta  ','p      ','stke   ','rflx   ', & ! 1-7
          'q      ','l      ','r      ','n      ','i      ','s      ','g      ', & ! 8-14
-         'ni     ','h      ','ns     ','ng     ','nh     '/) ! 15-19
+         'ni     ','ns     ','ng     ','h      ','nh     '/) ! 15-19
     LOGICAL, SAVE :: b_dims(n_dims)=.TRUE., b_base(n_base)=.TRUE.
     CHARACTER (len=7), ALLOCATABLE :: sanal(:), stot(:)
     LOGICAL, ALLOCATABLE :: btot(:)
@@ -786,7 +799,8 @@ contains
         b_dims(11:14) = .FALSE. ! SALSA bins
         b_base(10:11) = (level==3 .OR. level==0) ! Rain
         b_base(12:15) = (level==0 .AND. lev_sb>=4) ! Ice, snow mass and graupel mass
-        b_base(16:19) = (level==0 .AND. lev_sb==5) ! Ice, snow, graupel and hail
+        b_base(16:17) = (level==0 .AND. lev_sb>=5) ! Ice, snow and graupel
+        b_base(18:19) = (level==0 .AND. lev_sb>=6) ! Ice, snow, graupel and hail
 
        ! Merge logical and name arrays
        i=n_dims+n_base+nv4_proc+nv4_user+naddsc

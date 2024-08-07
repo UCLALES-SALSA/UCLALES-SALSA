@@ -1,5 +1,13 @@
 !===============================================================================!
-! UCLALES code from https://github.com/uclales/uclales/blob/master/src/ice_sb.F90
+!
+! Two-moment bulk microphysics by Axel Seifert for UCLALES-SALSA
+!
+! March 12, 2023: modified the original UCLALES code obtained from
+! https://github.com/uclales/uclales/blob/master/src/ice_sb.F90
+! (last access: May 24, 2018) to work with UCLALES-SALSA.
+!
+! Tomi Raatikainen, Finnish Meteorological Institute, Helsinki, Finland
+! (tomi.raatikainen@fmi.fi)
 !
 !===============================================================================!
 !
@@ -4534,7 +4542,7 @@ CONTAINS
 
       ENDIF
 
-      IF (sflg) CALL sb_var_stat('coag') ! Collisions between solid and liquid particles: riming
+      IF (sflg) CALL sb_var_stat('rimi') ! Collisions between solid and liquid particles: riming
 
       ! Gefrieren der Regentropfen:
 
@@ -4590,7 +4598,7 @@ CONTAINS
       IF (sflg) CALL sb_var_stat('auto') ! Autoconversion
       CALL accretionSB ()
       CALL rain_selfcollectionSB ()
-      IF (sflg) CALL sb_var_stat('coag') ! Collisions
+      IF (sflg) CALL sb_var_stat('accr') ! Collisions
     ELSE IF (cloud_typ == 4) THEN
       CALL autoconversionKK ()   ! Khai.. and Kogan (2000)
       CALL accretionKK ()
@@ -5269,7 +5277,6 @@ CONTAINS
     ! Locale Variablen 
     REAL            :: T_a             !..Absolute Temperatur
     REAL            :: e_si            !..Wasserpartialdruck bei Eissaettigung
-    REAL            :: e_sw            !..Wasserpartialdruck bei saettigung
     REAL            :: e_d,p_a,dep_sum
     INTEGER                     :: i,j,k
 
@@ -5289,7 +5296,6 @@ CONTAINS
           T_a  = T_0(i,j,k)
           e_d  = q(i,j,k) * R_d * T_a
           e_si = esi(T_a)
-          e_sw = esl(T_a)
           s_si(i,j,k) = e_d / e_si - 1.0                    !..Uebersaettigung bzgl. Eis
           D_vtp = 8.7602e-5 * T_a**(1.81) / p_a
           IF (T_a < T_3) THEN

@@ -288,11 +288,14 @@ contains
           i=e+1; e=e+nv1_user
           s1bool(i:e)=.TRUE.; s1total(i:e)=user_ts_list(1:nv1_user)
        ENDIF
-       IF (level==0 .AND. lev_sb==5) THEN
+       IF (level==0 .AND. lev_sb==6) THEN
           tmp_bool=.TRUE.
+       ELSEIF (level==0 .AND. lev_sb==5) THEN
+          tmp_bool=.TRUE.
+          tmp_bool((/16,17,18,19,20/))=.FALSE.
        ELSEIF (level==0 .AND. lev_sb==4) THEN
           tmp_bool=.TRUE.
-          tmp_bool((/8,13,16,17,18,19,20/))=.FALSE.
+          tmp_bool((/7,8,12,13,16,17,18,19,20/))=.FALSE.
        ELSE
           tmp_bool=.FALSE.
        ENDIF
@@ -311,8 +314,11 @@ contains
           i=e+1; e=e+nv2_user
           s2bool(i:e)=.TRUE.; s2total(i:e)=user_ps_list(1:nv2_user)
        ENDIF
-       IF (level==0 .AND. lev_sb==5) THEN
+       IF (level==0 .AND. lev_sb==6) THEN
           tmp_bool=.TRUE.
+       ELSEIF (level==0 .AND. lev_sb==5) THEN
+          tmp_bool=.TRUE.
+          tmp_bool((/16,17,18,19,20/))=.FALSE.
        ELSEIF (level==0 .AND. lev_sb==4) THEN
           tmp_bool=.TRUE.
           tmp_bool((/7,8,12,13,16,17,18,19,20/))=.FALSE.
@@ -546,7 +552,8 @@ contains
         IF (no_prog_snw) s3_lvl5_bool(6:10)=.FALSE.
         ! Level 0 ice
         tmp_bool=(level==0 .AND. lev_sb>=4)
-        tmp_bool(16:20)=(level==0 .AND. lev_sb>=5) ! hail is for sb_lev=5
+        tmp_bool((/7,8,12,13/))=(level==0 .AND. lev_sb>=5) ! snow and graupel number is for lev_sb=5
+        tmp_bool(16:20)=(level==0 .AND. lev_sb>=6) ! hail is for lev_sb=6
 
         ! Merge logical and name arrays (reuse s1 arrays)
         DEALLOCATE( s1bool, s1total )
@@ -785,7 +792,7 @@ contains
        call accum_rad(nzp, nxp, nyp, a_rflx)
     end if
     call accum_cld(nzp, nxp, nyp, th00, a_wp, a_theta, thl, rxl, rxt, rxv, cldin, rnt, xrpp, xnpp, precip)
-    if (level ==0 .AND. (lev_sb==4 .OR. lev_sb==5)) call accum_ice(nzp, nxp, nyp)
+    if (level ==0 .AND. lev_sb>=4) call accum_ice(nzp, nxp, nyp)
     if (level >=4)  call accum_lvl4(nzp, nxp, nyp)
     if (level >=5)  call accum_lvl5(nzp, nxp, nyp)
     IF (nv2_user>0) call ps_user_stats()
@@ -795,7 +802,7 @@ contains
     !
     call set_ts(nzp, nxp, nyp, a_wp, a_theta, thl, dn0, zt,zm,dzt,th00,time)
     CALL ts_cld(nzp, nxp, nyp, a_wp, a_dn, zm, zt, dzt, rxl, rxt, rxv, rnt, xrpp, xnpp, precip,cldin)
-    IF ( level ==0 .AND. (lev_sb==4 .OR. lev_sb==5) ) CALL ts_ice(nzp, nxp, nyp)
+    IF ( level ==0 .AND. lev_sb>=4 ) CALL ts_ice(nzp, nxp, nyp)
     IF ( level >=4 ) CALL ts_lvl4(nzp, nxp, nyp)
     IF ( level >=5 ) CALL ts_lvl5(nzp, nxp, nyp)
     IF ( nv1_user>0 ) CALL ts_user_stats()
@@ -812,7 +819,7 @@ contains
         ! Ice cloud statistics
         IF (level==5) THEN
             CALL set_cs_lvl5(nzp,nxp,nyp)
-        ELSEIF (level==0 .AND. (lev_sb==4 .OR. lev_sb==5)) THEN
+        ELSEIF (level==0 .AND. lev_sb>=4) THEN
             CALL set_cs_ice(nzp,nxp,nyp)
         ENDIF
 
@@ -2098,7 +2105,7 @@ contains
     CALL get_avg3(n1,n2,n3,a_rgp,col)
     svctr_ice(:,11) = svctr_ice(:,11) + col(:)
     mask = (a_ngp > ni_min .OR. a_rgp > ri_min)
-    CALL get_avg3(n1,n2,n3,a_nhp,col,cond=mask)
+    CALL get_avg3(n1,n2,n3,a_ngp,col,cond=mask)
     svctr_ice(:,12) = svctr_ice(:,12) + col(:)
     CALL getSBradius(n1,n2,n3,a_ngp,a_rgp,3,a1)
     CALL get_avg3(n1,n2,n3,a1,col,cond=mask)

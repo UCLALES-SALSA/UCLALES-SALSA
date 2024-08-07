@@ -1138,6 +1138,10 @@ contains
         pros='coagulation'
     ELSEIF ('aggr_'==short_name(1:5)) THEN
         pros='aggregation'
+    ELSEIF ('accr_'==short_name(1:5)) THEN
+        pros='accretion'
+    ELSEIF ('rimi_'==short_name(1:5)) THEN
+        pros='riming'
     ELSEIF ('oxid_'==short_name(1:5)) THEN
         pros='oxidation'
     ELSEIF ('ocon_'==short_name(1:5)) THEN
@@ -1161,7 +1165,7 @@ contains
     ELSEIF ('siph_'==short_name(1:5)) THEN
         pros='Hallett-Mossop'
     ELSEIF ('sipd_'==short_name(1:5)) THEN
-        pros='droplet fragmentation'
+        pros='drop fragmentation'
     ELSEIF ('sipi_'==short_name(1:5)) THEN
         pros='ice breakup'
     ELSEIF ('dist_'==short_name(1:5)) THEN
