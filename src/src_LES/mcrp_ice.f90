@@ -1084,8 +1084,8 @@ contains
                 j_het = max(b_het * ( exp( a_het * (tmelt - tk(k))) - 1.0 ),0.) / rowt * dt
                 ! depending on their size, raindrops freeze to become either cloud ice or graupel
 
-
                 if (j_het >= 1-20) then
+                   fr_n  = j_het * r_r
                    fr_r  = fr_n * x_r * coeff_z
 
                    lam = ( gfct((rain%nu+1.0)/rain%mu) / gfct((rain%nu+2.0)/rain%mu) * x_r)**(-rain%mu)
@@ -1096,11 +1096,14 @@ contains
                         incgfct_lower((rain%nu+3.0)/rain%mu, lam*xmax_ice**rain%mu)
                    fr_n = min(fr_n,n_r)
                    fr_r = min(fr_r,r_r)
+                   fr_n_g = fr_n - fr_n_i
+                   fr_r_g = fr_r - fr_r_i
                 else
                    fr_n= 0.0
                    fr_r= 0.0
                    fr_n_i= 0.0
                    fr_r_i= 0.0
+                   fr_n_g= 0.0
                    fr_r_g= 0.0
                 end if
 
@@ -1133,7 +1136,7 @@ contains
     real :: dep_ice, dep_snow, dep_grp
     real :: tau_ice, tau_snow, tau_grp
     real :: tau_tot, factor, supsat, gi
-    integer :: metnr, k
+    integer :: k
     real, save :: b_n_i, a_f_i, b_f_i, b_n_s, a_f_s, b_f_s, b_n_g, a_f_g, b_f_g
     logical, save :: firsttime = .true.
 
@@ -1185,7 +1188,7 @@ contains
     type(particle), intent(in) :: meteor
     real, intent(in) :: r_g,n_g,s_i,dens,gi
     real, intent(in) :: a_f,b_f,b_n !..coeff. for av. ventilation coef.
-    real        :: x_g,d_g,v_g,f_v,f_n,n_re,f_v_fakt,vent_fakt
+    real        :: x_g,d_g,v_g,f_v,n_re,f_v_fakt,vent_fakt
     real        :: c_g                 !..coeff. for av. capacity
     dep = 0.
        if (r_g > rthres) then

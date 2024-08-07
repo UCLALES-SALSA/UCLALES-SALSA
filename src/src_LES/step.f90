@@ -23,6 +23,7 @@ module step
 
   integer :: istpfl = 1
   real    :: timmax = 18000.
+  real    :: wctime = 1.e10
   logical :: corflg = .false.
 
   real    :: frqhis =  9000.
@@ -57,8 +58,8 @@ contains
 
     real, parameter :: cfl_upper = 0.5
 
-    real    :: t1,t2,tplsdt
-    REAL(kind=8) :: cflmax,gcflmax
+    real    :: t0,t1,t2,tplsdt
+    REAL(kind=8) :: cflmax,gcflmax,etime
     integer :: istp, iret
     !
     ! Timestep loop for program
@@ -66,8 +67,9 @@ contains
     istp = 0
 
     call cpu_time(t1)
+    t0 = t1
 
-    do while (time < timmax)
+    do while (time < timmax .and. etime < wctime)
        ! Limit time step based on the Courant-Friedrichs-Lewy condition
        call cfl(cflmax)
        call double_scalar_par_max(cflmax,gcflmax)
@@ -103,12 +105,23 @@ contains
           istp = istp+1
           if (mod(istp,istpfl) == 0 ) THEN
               call cpu_time(t2) ! t2-t1 is the actual CPU time from the previous output
-              print "('   Timestep # ',i6," //     &
-                 "'   Model time(sec)=',f10.2,3x,'CPU time(sec)=',f8.3)",     &
-                 istp, time, t2-t1
+              if (wctime.gt.1e9) then
+                print "('   Timestep # ',i6," //     &
+                    "'   Model time(sec)=',f10.2,3x,'CPU time(sec)=',f8.3)",     &
+                    istp, time, t2-t1
+              else
+                print "('   Timestep # ',i6," //     &
+                    "'   Model time(sec)=',f10.2,3x,'CPU time(sec)=',f8.3,3x,'run time(sec)= ',f10.2)",     &
+                    istp, time, t2-t1, etime
+              end if
               call cpu_time(t1)
           ENDIF
        endif
+
+       ! Elapsed time (s), global maximum
+       call cpu_time(t2)
+       gcflmax = t2 - t0
+       call double_scalar_par_max(gcflmax,etime)
 
     enddo
 

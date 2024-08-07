@@ -93,7 +93,7 @@ contains
     use srfc, only : isfctyp, zrough, zrough_t, ubmin, dthcon, drtcon, &
                     wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param
     use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, frqrst, &
-         strtim, cntlat, lsvarflg
+         strtim, wctime, cntlat, lsvarflg
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level, lev_sb, &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, spongeinit, runtype, CCN, &
@@ -138,6 +138,7 @@ contains
          runtype, hfilin , filprf , & ! type of run (INITIAL or HISTORY)
          frqhis , frqanl , frqrst , & ! freq of history/anal/restart writes
          outflg , anl_start,        & ! output flg, time to start saving analysis files
+         wctime,                    & ! wall-clock time (s)
          iradtyp, strtim ,          & ! radiation type flag
          isfctyp, ubmin  , zrough , & ! surface parameterization type
          zrough_t,                  & ! temperature roughness height

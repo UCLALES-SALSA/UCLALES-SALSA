@@ -40,7 +40,7 @@ module mpi_interface
   integer :: myid, pecount, nxpg, nypg, nxg, nyg, nbytes, intsize, &
        MY_SIZE, MY_CMPLX
   integer :: xcomm, ycomm,commxid,commyid
-  integer :: nxnzp,nynzp,fftinix,fftiniy
+  integer :: nxnzp,nynzp
   integer :: wrxid, wryid, nxprocs, nyprocs
   integer, allocatable, dimension(:) :: xoffset, yoffset, nxpa, nypa, &
        nynza, nxnza
@@ -50,8 +50,7 @@ module mpi_interface
   integer, allocatable, dimension(:,:) :: ranktable,xtype,ytype,xdisp,&
        ydisp,xcount,ycount
 
-  integer :: stridetype,xstride,ystride,xystride,xylarry,xyzlarry,&
-       fxytype,fxyztype
+  integer :: xstride,ystride,xystride
 
   CHARACTER(len=80) :: ver='', author=''
   ! Additional, e.g. case specific, information
@@ -408,27 +407,12 @@ contains
        call mpi_type_commit(ytype(i,2),ierr)
     enddo
 
-    call MPI_TYPE_VECTOR(nyp-4,nzp*2,nxp*nzp,MY_SIZE,stridetype,ierr)
-    call MPI_TYPE_COMMIT(stridetype,ierr)
     call MPI_TYPE_VECTOR(nyp-4,nzp*2,nxp*nzp,MY_SIZE,xstride,ierr)
     call MPI_TYPE_COMMIT(xstride,ierr)
     call MPI_TYPE_VECTOR(2,nzp*(nxp-4),nxp*nzp,MY_SIZE,ystride,ierr)
     call MPI_TYPE_COMMIT(ystride,ierr)
     call MPI_TYPE_VECTOR(2,2*nzp,nxp*nzp,MY_SIZE,xystride,ierr)
     call MPI_TYPE_COMMIT(xystride,ierr)
-
-    call MPI_TYPE_VECTOR(nyp-4,nxp-4,nxpg-4,MY_SIZE,fxytype,ierr)
-    call MPI_TYPE_COMMIT(fxytype,ierr)
-
-    call MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,(nxpg-4)*nzp,MY_SIZE,fxyztype,ierr)
-    call MPI_TYPE_COMMIT(fxyztype,ierr)
-
-    call MPI_TYPE_VECTOR(nyp-4,nxp-4,nxp,MY_SIZE,xylarry,ierr)
-    call MPI_TYPE_COMMIT(xylarry,ierr)
-    call MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,nxp*nzp,MY_SIZE,xyzlarry,ierr)
-    call MPI_TYPE_COMMIT(xyzlarry,ierr)
-
-
 
   end subroutine init_alltoall_reorder
 
