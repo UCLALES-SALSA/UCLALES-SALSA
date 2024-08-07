@@ -171,7 +171,7 @@ contains
         ! Convert #/m^2/s to the rate of change in concentration (#/kg/s): multiply by 1/rho/dz
         DO j=3,nyp-2
           DO i=3,nxp-2
-            dcdt(i,j,k)=0.5*(flx(k)+flx(k+1))*log10(aerobins(k+1)/aerobins(k))/a_dn(2,i,j)/(zm(3)-zm(2))
+            dcdt(i,j,k)=0.5*(flx(k)+flx(k+1))*log10(aerobins(k+1)/aerobins(k))/a_dn(2,i,j)/(zm(2)-zm(1))
 
             ! Different assumptions can be made about whether the organic fraction replaces the salt or is additive to it.
             ! If assumed additive, increase the emission flux accordingly
@@ -213,7 +213,7 @@ contains
 
     if (sflg) then
         ! Convert dcdt [#/kg/s] to flux [#/m^2/s] and take sum over bins
-        omf = SUM ( SUM( SUM(dcdt(3:nxp-2,3:nyp-2,:),DIM=3)*a_dn(2,3:nxp-2,3:nyp-2),DIM=2 ) )*(zm(3)-zm(2))/REAL((nxp-4)*(nyp-4))
+        omf = SUM ( SUM( SUM(dcdt(3:nxp-2,3:nyp-2,:),DIM=3)*a_dn(2,3:nxp-2,3:nyp-2),DIM=2 ) )*(zm(2)-zm(1))/REAL((nxp-4)*(nyp-4))
         call fill_scalar(omf,'flx_aer')
         ! 10 m wind speed
         call fill_scalar(u10_bar,'u10    ')
@@ -508,7 +508,7 @@ contains
       flxIsop = flxIsop * wtrIsop * mws_gas(iGas)
       DO j=3,nyp-2
         DO i=3,nxp-2
-          a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxIsop / a_dn(2,i,j) / (zm(3)-zm(2))
+          a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxIsop / a_dn(2,i,j) / (zm(2)-zm(1))
         enddo
       enddo
     endif
@@ -534,7 +534,7 @@ contains
       flxMtrp = flxMtrp * wtrMtrp * mws_gas(iGas)
       DO j=3,nyp-2
         DO i=3,nxp-2
-          a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxMtrp / a_dn(2,i,j) / (zm(3)-zm(2))
+          a_gaerot(2,i,j,iGas) = a_gaerot(2,i,j,iGas) + flxMtrp / a_dn(2,i,j) / (zm(2)-zm(1))
         enddo
       enddo
     endif
@@ -562,7 +562,7 @@ contains
         DO j=3,nyp-2
           DO i=3,nxp-2
             ! Mass mixing ratio tendency (kg/kg/s) due to surface flux (kg/m2/s)
-            a_gaerot(2,i,j,k) = a_gaerot(2,i,j,k) + gas_srfc_flx(k)/(a_dn(2,i,j)*(zm(3)-zm(2)))
+            a_gaerot(2,i,j,k) = a_gaerot(2,i,j,k) + gas_srfc_flx(k)/(a_dn(2,i,j)*(zm(2)-zm(1)))
           ENDDO
         ENDDO
       ENDIF

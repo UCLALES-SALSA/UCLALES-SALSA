@@ -20,7 +20,8 @@
 module fuliou
 
   use defs, only   : nv, nv1, mb, pi, g, Rd, ep2
-  use cldwtr, only : init_cldwtr, cloud_water, init_cldice, cloud_ice, init_cldgrp, cloud_grp
+  use cldwtr, only : init_cldwtr, cloud_water, init_cldrain, cloud_rain, &
+    init_cldice, cloud_ice, init_cldgrp, cloud_grp
   use solver, only : qft
   use ckd
 
@@ -40,6 +41,7 @@ contains
     if (.not.Initialized) then
        call init_ckd
        call init_cldwtr
+       call init_cldrain
        call init_cldice
        call init_cldgrp
        Initialized = .True.
@@ -125,10 +127,10 @@ contains
     logical, parameter :: irWeighted = .False. 
 
     real, dimension (nv)   :: tw,ww,tg,dz,tauNoGas, wNoGas, Tau, w
-    real, dimension (nv)   :: ti,wi,tgr,wgr
+    real, dimension (nv)   :: trn,wrn,ti,wi,tgr,wgr
     real, dimension (nv1)  :: fu1, fd1, bf
     real, dimension (nv,4) :: www, pfNoGas, pf
-    real, dimension (nv,4) :: wwi,wwgr
+    real, dimension (nv,4) :: wwrn, wwi, wwgr
 
     integer :: ib, ig, k, ig1, ig2, ibandloop, iblimit
     real :: fuq2, xir_norm
@@ -174,6 +176,10 @@ contains
       if (present(plwc)) then
         call cloud_water(ib + size(solar_bands), pre, plwc, dz, tw, ww, www)
         call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw, ww, www)
+      end if
+      if (present(prwc)) then
+        call cloud_rain(ib + size(solar_bands), prwc, dz, trn, wrn, wwrn)
+        call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, trn, wrn, wwrn)
       end if
       if (present(piwc)) then
         call cloud_ice(ib + size(solar_bands), pde, piwc, dz, ti, wi, wwi)
@@ -254,12 +260,10 @@ contains
     logical, parameter :: solarWeighted = .false. ! Could be .true.?
 
     real, dimension (nv)   :: tw,ww,tg,tgm,dz, tauNoGas, wNoGas, tau, w
-    real, dimension (nv)   :: ti,wi
-    real, dimension (nv)   :: tgr,wgr
+    real, dimension (nv)   :: trn,wrn,ti,wi,tgr,wgr
     real, dimension (nv1)  :: fu1, fd1, bf
     real, dimension (nv,4) :: www, pfNoGas, pf
-    real, dimension (nv,4) :: wwi
-    real, dimension (nv,4) :: wwgr
+    real, dimension (nv,4) :: wwrn, wwi, wwgr
 
     real, dimension(:), allocatable, save :: bandWeights
 
@@ -322,6 +326,10 @@ contains
          if (present(plwc)) then
            call cloud_water(ib, pre, plwc, dz, tw, ww, www)
            call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw,ww,www)
+         end if
+         if (present(prwc)) then
+           call cloud_rain(ib, prwc, dz, trn, wrn, wwrn)
+           call combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, trn, wrn, wwrn)
          end if
          if (present(piwc)) then
            call cloud_ice(ib, pde, piwc, dz, ti, wi, wwi)

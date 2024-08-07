@@ -43,13 +43,13 @@ contains
 
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, a_dn, iradtyp, pi0, pi1, level, &
          a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp, a_rv, a_rc, CCN, &
-         a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_rhp,a_nhp, a_maerop, &
+         a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, a_maerop, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
          nbins, ncld, nice, nprc, nsnw, a_fus, a_fds, a_fuir, a_fdir
     use mpi_interface, only : myid, appl_abort
 
     real, intent (in) :: time_in, cntlat, sst
-    REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
+    REAL, DIMENSION(nzp,nxp,nyp) :: znc, zrc, zrr, zni, zri, zrg
 
     select case(iradtyp)
     case (0)
@@ -81,58 +81,109 @@ contains
        !
        IF (level==0) THEN
           ! Cloud (+rain)
-          znc(:,:,:) = CCN
-          zrc(:,:,:) = a_rc(:,:,:)
-          IF (RadPrecipBins > 0) THEN
-             zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
-             WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc*CCN))/zrc
+          IF (RadPrecipBins==0) THEN
+             ! Separate cloud and rain
+             zrc = a_rc
+             znc = CCN
+             zrr = a_rpp
+          ELSE
+             ! Combined liquid
+             zrc = a_rc + a_rpp
+             znc = a_npp
+             WHERE (a_rc>0.) znc = znc + CCN
+             zrr = 0.
           ENDIF
-          ! Ice (+snow and hail)
-          zri(:,:,:) = a_rip(:,:,:) ! Ice
-          zni(:,:,:) = a_nip(:,:,:)
-          IF (RadSnowBins>0) THEN
-             zri(:,:,:) = zri(:,:,:) + a_rsp(:,:,:) + a_rhp(:,:,:)
-             zni(:,:,:) = zni(:,:,:) + a_nsp(:,:,:) + a_nhp(:,:,:)
+          ! Ice and graupel (+snow and hail)
+          IF (RadSnowBins==0) THEN
+             ! Separate ice and graupel
+             zri = a_rip
+             zni = a_nip
+             zrg = a_rgp
+          ELSEIF (RadSnowBins==1) THEN
+             ! Ice and combined graupel=graupel+snow+hail
+             zri = a_rip
+             zni = a_nip
+             zrg = a_rgp + a_rsp + a_rhp
+          ELSEIF (RadSnowBins==2) THEN
+             ! Combined ice=ice+snow+hail and graupel
+             zri = a_rip + a_rsp + a_rhp
+             zni = a_nip + a_nsp + a_nhp
+             zrg = a_rgp
+          ELSE
+             ! Combined ice=ice+snow+hail+graupel
+             zri = a_rip + a_rsp + a_rhp + a_rgp
+             zni = a_nip + a_nsp + a_nhp + a_ngp
+             zrg = 0.
           ENDIF
-          ! Graupel mass separately
 
-          CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+          IF (ANY(zrg>0.)) THEN
+             ! Graupel mass separately
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni,grp=a_rgp)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr,ice=zri,nice=zni,grp=zrg)
+          ELSEIF (any(zni>0.)) THEN
+             ! Include ice
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr,ice=zri,nice=zni)
+          ELSEIF (any(zrr>0.)) THEN
+             ! Include rain
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr)
+          ELSE
+             ! Just cloud
+             CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
+               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo)
+          ENDIF
 
        ELSEIF (level <= 3) THEN
-          znc(:,:,:) = CCN
-          zrc(:,:,:) = a_rc(:,:,:) ! Cloud water
-          IF (level == 3 .AND. RadPrecipBins > 0) THEN
-             ! Include clouds and rain - number is a mass-mean for cloud and rain species
-             zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:)
-             WHERE (zrc>1e-10) znc = (max(0.,a_rpp*a_npp)+max(0.,a_rc*CCN))/zrc
+          IF (level == 3 .AND. RadPrecipBins == 0) THEN
+             ! Separate cloud and rain
+             zrc = a_rc
+             znc = CCN
+             zrr = a_rpp
+          ELSE
+             ! Combined liquid
+             zrc = a_rc + a_rpp
+             znc = a_npp
+             WHERE (a_rc>0.) znc = znc + CCN
+             zrr = 0.
           ENDIF
           call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr)
 
        ELSE IF (level == 4) THEN
           ! Water is the first SALSA species
-          !zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
           zrc(:,:,:) = SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) ! Cloud droplets
           znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4)
           IF (RadPrecipBins>0) THEN ! Add precipitation bins
              zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
              znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
           ENDIF
+          IF (RadPrecipBins<nprc) THEN
+             zrr(:,:,:) = SUM(a_mprecpp(:,:,:,RadPrecipBins+1:nprc),DIM=4)
+          ELSE
+             zrr(:,:,:) = 0.
+          ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr)
 
        ELSE IF (level == 5) THEN
           ! Water is the first SALSA species
-          !zrc(:,:,:) = a_rc(:,:,:) ! Cloud and aerosol water
           zrc(:,:,:) = SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) ! Cloud droplets
           znc(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4)
           IF (RadPrecipBins>0) THEN ! Add precipitation bins
              zrc(:,:,:) = zrc(:,:,:) + SUM(a_mprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
              znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp(:,:,:,1:min(RadPrecipBins,nprc)),DIM=4)
+          ENDIF
+          IF (RadPrecipBins<nprc) THEN
+             zrr(:,:,:) = SUM(a_mprecpp(:,:,:,RadPrecipBins+1:nprc),DIM=4)
+          ELSE
+             zrr(:,:,:) = 0.
           ENDIF
           zri(:,:,:) = SUM(a_micep(:,:,:,1:nice),DIM=4) ! Ice
           zni(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4)
@@ -142,7 +193,7 @@ contains
           ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, ice=zri,nice=zni)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr, ice=zri,nice=zni)
 
        END IF
 
