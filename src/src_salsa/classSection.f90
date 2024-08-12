@@ -131,7 +131,7 @@ MODULE classSection
             SELF%ddry = ( SUM(SELF%volc(1:ndry))/SELF%numc/pi6 )**(1./3.)
          END IF
 
-         IF (ANY(swtyp == ["ins","all"]) .AND. ALL( spec%ind_insoluble(:) > 0 )) THEN ! If there is any insoluble active, all the indices sohuld be > 0
+         IF (ANY(swtyp == ["ins","all"]) .AND. ALL( spec%ind_insoluble(:) > 0 )) THEN ! If there is any insoluble active, all the indices should be > 0
             SELF%dins = 1.e-10
             SELF%dins = ( SUM(SELF%volc(spec%ind_insoluble))/SELF%numc/pi6 )**(1./3.)
          END IF
@@ -175,7 +175,7 @@ MODULE classSection
       iwa = spec%getIndex("H2O")
       irim = spec%getIndex("rime")
 
-      SELF%rhomean = spec%rhoic
+      SELF%rhomean = spec%rhowa
       
       ! convert to masses -> get the mass mean density - this is needed for ice, for others it's always rhowa
       IF (SELF%phase > 3) THEN

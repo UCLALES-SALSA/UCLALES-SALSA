@@ -58,7 +58,7 @@ MODULE mo_salsa_SIP_DF
       REAL :: sinkv(nspec)           ! sink volume for single collision
       REAL :: frconst                ! constraining fraction for limiting the mass sink to ragments
       REAL, PARAMETER :: inf = HUGE(1.)
-      REAL :: dNbig
+      !REAL :: dNbig
       
       iwa = spec%getIndex("H2O")
       iri = spec%getIndex("rime")
@@ -101,21 +101,22 @@ MODULE mo_salsa_SIP_DF
                   IF ( ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR.  &    ! Outside temperature range, see Keinert et al 2020
                        nfrzn_df(ii,jj,cc,bb) < 1.e-12 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-15 .OR. &
                        ice(ii,jj,bb)%numc < ice(ii,jj,bb)%nlim ) CYCLE ! no collection/empty bin
-               
+                  
                   ! Diameter of the frozen drops on current ice bin
                   ddmean = (mfrzn_df(ii,jj,cc,bb)/nfrzn_df(ii,jj,cc,bb)/spec%rhowa/pi6)**(1./3.)
 
-                  !Require the freezing drop diameter to be larger tha dlliq_df
+                  !Require the freezing drop diameter to be larger than dlliq_df
                   IF ( ddmean < dlliq_df ) CYCLE  
 
                   ! POISTA
-                  IF (ddmean < 20.e-6 .OR. ddmean > 3.e3) WRITE(*,*) 'SIP-DF ddmean error ',ddmean,bb,nimax,icediams(bb),icebw(bb)
+                  IF (ddmean < 20.e-6 .OR. ddmean > 1.e-2) WRITE(*,*) 'SIP-DF ddmean error ',ddmean,bb,nimax,icediams(bb),icebw(bb)
                   IF (ddmean /= ddmean) WRITE(*,*) 'SIP-DF ddmean nan ',ddmean,bb,nimax,icediams(bb),icebw(bb)
                   ! -----------------
                
                   ! Ice bin index corresponding to the mean frozen drop diameter minus one; Fragments are distributed to ice bins 1:npmax
                   npmax = MAX(COUNT(icediams <= ddmean) - 1, 1) 
-              
+              	  IF (npmax <= 2) CYCLE ! ice particles smaller than 4um cannot experience fragmentation to even smaller particles       
+              	  
                   ! Calculate the number of fragments generated per freezing droplet for current bin
                   IF (lssipdropfrac%mode == 1) THEN
                      dN = df_lawson(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
@@ -125,11 +126,11 @@ MODULE mo_salsa_SIP_DF
                      dN = df_phillips_simple(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
                   ELSE IF (lssipdropfrac%mode == 4) THEN
                      ! Updated diameter needed here
-                     CALL ice(ii,jj,bb)%updateDiameter(.TRUE.,type="all")
-                     dN = df_phillips_full_total(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb)) &
-                          * nfrzn_df(ii,jj,cc,bb)
+                     !CALL ice(ii,jj,bb)%updateDiameter(.TRUE.,type="all")
+                     dN = df_phillips_full_total(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb), &
+                          nfrzn_df(ii,jj,cc,bb))
                      ! Functions to calculate the number of big fragments are also coded here. We do not use them.
-                     !dNbig = df_phillips_full_big(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb)) * nfrzn_df(ii,jj,cc,bb)
+                     !dNbig = df_phillips_full_big(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb), nfrzn_df(ii,jj,cc,bb))
                   END IF
      
                   ! Assume the mass of fragments distributed evenly to ice bins 1:npmax (Lawson et al 2015).
@@ -155,7 +156,7 @@ MODULE mo_salsa_SIP_DF
 
                   ! Volume of a single ice particle in current bin for calculating the number concentration sink. This does not necessarily 
                   ! provide an exact representation for the fracturing particle size, but works as a first approximation.
-                  v_i  = mfrzn_df(ii,jj,cc,bb)/nfrzn_df(ii,jj,cc,bb)/spec%rhori  
+                  v_i  = mfrzn_df(ii,jj,cc,bb)/nfrzn_df(ii,jj,cc,bb)/spec%rhowa
                
                   ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
                   sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i
@@ -166,31 +167,39 @@ MODULE mo_salsa_SIP_DF
                   CALL rateDiag%drfrrate%Accumulate(n=SUM(dNb)/ptstep)    ! miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
               END DO
                
-               !! Safeguard: Allow the fragments to take up to 90% of the source ice bin mass
-               IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > 0.9 * SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
-                  frconst = 0.9 * SUM(ice(ii,jj,bb)%volc(1:nspec)) / SUM(sinkvolc(ii,jj,bb,1:nspec))
-                  fragv_loc = fragv_loc * frconst
-                  fragn_loc = fragn_loc * frconst
-                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) * frconst
-                  sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) * frconst
-               END IF
+              
+            fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
+            fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
-               sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.9*ice(ii,jj,bb)%numc) !! Additional constrain because for some reason
-                                                                                    !! this still failed in the last bin...
-               
-               fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
-               fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
+            ! POISTA           
+            IF ( SUM(sinkvolc(ii,jj,bb,:)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
+                  WRITE(*,*)  'SIP-DRFR ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
+                  SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
 
-               
-               IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.95*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                    WRITE(*,*)  'SIP-DF ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
-                    SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+            IF (ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) THEN
+                  WRITE(*,*) 'SIP-DRFR ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
+                  ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
+                  sinknumc(ii,jj,bb) =  ice(ii,jj,bb)%numc
+                  sinkvolc(ii,jj,bb,1:nspec) = ice(ii,jj,bb)%volc(1:nspec)
+            END IF
+            ! ---------------------------------------       
+             !! Safeguard: Allow the fragments to take up to 99% of the source ice bin mass
+            IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
+               frconst = 0.99* SUM(ice(ii,jj,bb)%volc(1:nspec)) / SUM(sinkvolc(ii,jj,bb,1:nspec))
+               fragv_loc = fragv_loc * frconst
+               fragn_loc = fragn_loc * frconst
+               sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) * frconst
+               sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) * frconst
+               sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.99*ice(ii,jj,bb)%numc)
+            END IF
 
-               IF (0.95*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
-                    WRITE(*,*) 'SIP-DF ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
-                    ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
-               ! ---------------------------------------
-           
+            ! Confirming that the possible issue was solved
+            IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
+               WRITE(*,*) 'SIP-DRFR: SUM(sinkvolc(ii,jj,bb,1:nspec)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) '
+               WRITE(*,*) SUM(sinkvolc(ii,jj,bb,1:nspec)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+            END IF	
+            ! ---------------------------------------
+          
             END DO
          END DO
       END DO
@@ -210,15 +219,18 @@ MODULE mo_salsa_SIP_DF
                     WRITE(*,*) 'SIP-DF sinkvolc nega ',bb,dlliq_df,sinkvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
                     WRITE(*,*) 'SIP-DF sinkvolc nan ',  bb,dlliq_df,sinkvolc(ii,jj,bb,:)
-               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'SIP-DF fragnumc > 1e5 ',bb,cc, dlliq_df,fragnumc(ii,jj,bb),    &
-                    (SUM(mfrzn_df(ii,jj,:,bb))/SUM(nfrzn_df(ii,jj,:,bb))/spec%rhowa/pi6)**(1./3.), &
-                    SUM(nfrzn_df(ii,jj,:,bb)), SUM(mfrzn_df(ii,jj,:,bb)), ice(ii,jj,bb)%numc, ice(ii,jj,cc)%numc, ice(ii,jj,cc)%dwet
+               !IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'SIP-DF fragnumc > 1e5 ',bb,cc, dlliq_df,&
+                  !fragnumc(ii,jj,bb), ice(ii,jj,bb)%numc
                ! ---------------------
                
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc - sinknumc(ii,jj,bb)
+               ice(ii,jj,bb)%numc = MAX(0.,ice(ii,jj,bb)%numc)
+               
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) + fragvolc(ii,jj,bb,1:nspec)
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
+               ice(ii,jj,bb)%volc(1:nspec) = MAX(0., ice(ii,jj,bb)%volc(1:nspec))
+               
                ! POISTA
                IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
                     WRITE(*,*) 'SIP-DF DROP FRAC NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
@@ -262,6 +274,7 @@ MODULE mo_salsa_SIP_DF
       REAL, INTENT(in) :: nfrzn, ddmean
       REAL, PARAMETER :: c1 = 2.5e-11, c2 = 0.2, cexp = 4., T0 = 258., Tsig = 10.
       REAL :: hT
+
       hT = f_gauss(ptemp,Tsig,T0)/f_gauss(T0,Tsig,T0)
       IF (hT > 1.0 .OR. hT < 1.e-8) WRITE(*,*) 'HT VAARIN ',hT 
       df_sullivan = nfrzn * c2*hT * c1*(MIN(ddmean,3.e-3)*1.e6)**cexp ! c2*hT according to Sullivan et al. 2018
@@ -299,7 +312,7 @@ MODULE mo_salsa_SIP_DF
 
     ! ------------------------------------
 
-    REAL FUNCTION df_phillips_full_total(nspec,ppres,ptemp,ddmean,pice)
+    REAL FUNCTION df_phillips_full_total(nspec,ppres,ptemp,ddmean,pice,nfrzn)
       ! --------------------------------------------------------------------
       ! Phillips, V. T. J., Patade, S., Gutierrez, J., & Bansemer, A. (2018).
       ! Secondary Ice Production by Fragmentation of Freezing Drops: Formulation and Theory.
@@ -316,10 +329,11 @@ MODULE mo_salsa_SIP_DF
 
       REAL, PARAMETER :: dmin1=50.e-6, dmin2=150.e-6, Tmin = 267.15
 
-      REAL :: mrim,mpri,ncice  ! rimed and unrimed bin ice mix rats, ice number concentration
-      REAL :: mip,mdp          ! Masses of single ice crystal, single freezing drop
-      REAL :: rhoip            ! Bin mean ice density
-      REAL :: ddmeanx
+      REAL :: mrim,mpri,ncice   ! rimed and unrimed bin ice mix rats, ice number concentration
+      REAL :: mip,mdp           ! Masses of single ice crystal, single freezing drop
+      REAL :: rhoip             ! Bin mean ice density
+      REAL :: nfrzn             ! Number concentration of frozen droplets
+      REAL :: IMF               ! Ice multiplication factor
 
       df_phillips_full_total = 0.
 
@@ -337,27 +351,30 @@ MODULE mo_salsa_SIP_DF
          !! This will take care of the "step functions" in Eq1 @ Phillips et al 2018
          IF ( ddmean < dmin1 .AND. ptemp > Tmin ) RETURN 
 
-         ddmeanx = MIN(ddmean,1.6)
-
+         IMF = df_phillips_mode1_total(ddmean,ptemp)
+         IMF = MIN(IMF, 100.)
+         
          ! Total number of fragments or secondary ice particles
-         df_phillips_full_total = df_phillips_mode1_total(ddmeanx,ptemp)
+         df_phillips_full_total = IMF * nfrzn
 
        ELSE IF (mdp <= mip) THEN
          !! Mode 2 
 
          IF (ddmean < dmin2) RETURN
-         ddmeanx = ddmean
          
          rhoip = ( mrim*spec%rhori + mpri*spec%rhoic ) / ( mrim + mpri )
 
-         df_phillips_full_total = df_phillips_mode2(ppres,ptemp,ddmeanx,pice%dwet,pice%dnsp,mrim,mpri,ncice,rhoip,spec%rhowa)
+         IMF = df_phillips_mode2(ppres,ptemp,ddmean,pice%dwet,pice%dnsp,mrim,mpri,ncice,rhoip,spec%rhowa)
+         IMF = MIN(IMF, 100.)
+
+         df_phillips_full_total = IMF * nfrzn
 
       END IF
 
     END FUNCTION df_phillips_full_total
 
 
-       REAL FUNCTION df_phillips_full_big(nspec,ppres,ptemp,ddmean,pice)
+       REAL FUNCTION df_phillips_full_big(nspec,ppres,ptemp,ddmean,pice, nfrzn)
       ! --------------------------------------------------------------------
       ! Phillips, V. T. J., Patade, S., Gutierrez, J., & Bansemer, A. (2018).
       ! Secondary Ice Production by Fragmentation of Freezing Drops: Formulation and Theory.
@@ -374,11 +391,12 @@ MODULE mo_salsa_SIP_DF
 
       REAL, PARAMETER :: dmin1=50.e-6, dmin2=150.e-6, Tmin = 267.15
 
-      REAL :: mrim,mpri,ncice  ! rimed and unrimed bin ice mix rats, ice number concentration
-      REAL :: mip,mdp          ! Masses of single ice crystal, single freezing drop
-      REAL :: rhoip            ! Bin mean ice density
-      REAL :: ddmeanx
-
+      REAL :: mrim,mpri,ncice   ! rimed and unrimed bin ice mix rats, ice number concentration
+      REAL :: mip,mdp           ! Masses of single ice crystal, single freezing drop
+      REAL :: rhoip             ! Bin mean ice density
+      REAL :: nfrzn             ! Number concentration of frozen droplets
+      REAL :: IMF               ! Ice multiplication factor
+      
       df_phillips_full_big = 0.
 
       mrim = pice%volc(nspec) * spec%rhori
@@ -394,11 +412,11 @@ MODULE mo_salsa_SIP_DF
 
          !! This will take care of the "step functions" in Eq1 @ Phillips et al 2018
          IF ( ddmean < dmin1 .AND. ptemp > Tmin ) RETURN 
-
-         ddmeanx = MIN(ddmean,1.6)
-
+         IMF =  df_phillips_mode1_big(ddmean,ptemp)
+         IMF = MIN(IMF, 100.)
+         
          ! Total number of fragments or secondary ice particles
-         df_phillips_full_big = df_phillips_mode1_big(ddmeanx,ptemp)
+         df_phillips_full_big = IMF * nfrzn
 
        ELSE IF (mdp <= mip) THEN
          !! Mode 2 
