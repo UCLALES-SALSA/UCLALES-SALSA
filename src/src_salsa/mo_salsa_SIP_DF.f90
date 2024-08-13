@@ -126,7 +126,7 @@ MODULE mo_salsa_SIP_DF
                      dN = df_phillips_simple(ptemp(ii,jj),nfrzn_df(ii,jj,cc,bb),ddmean)
                   ELSE IF (lssipdropfrac%mode == 4) THEN
                      ! Updated diameter needed here
-                     !CALL ice(ii,jj,bb)%updateDiameter(.TRUE.,type="all")
+                     ! CALL ice(ii,jj,bb)%updateDiameter(.TRUE.,type="all") This update is now done in mo_coagulation processes.f90
                      dN = df_phillips_full_total(nspec,ppres(ii,jj),ptemp(ii,jj),ddmean,ice(ii,jj,bb), &
                           nfrzn_df(ii,jj,cc,bb))
                      ! Functions to calculate the number of big fragments are also coded here. We do not use them.
@@ -159,7 +159,7 @@ MODULE mo_salsa_SIP_DF
                   v_i  = mfrzn_df(ii,jj,cc,bb)/nfrzn_df(ii,jj,cc,bb)/spec%rhowa
                
                   ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
-                  sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i
+                  sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i 
                
                   ! for diagnostics
                   ice(ii,jj,1:npmax)%SIP_drfr = ice(ii,jj,1:npmax)%SIP_drfr + dNb(1:npmax)
