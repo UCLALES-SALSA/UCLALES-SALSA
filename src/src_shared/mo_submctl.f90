@@ -14,19 +14,36 @@ MODULE mo_submctl
      INTEGER :: cur  ! Index for current distribution
      INTEGER :: par  ! Index for corresponding parallel distribution
   END TYPE t_parallelbin
-       
-  !Switches for SALSA aerosol microphysical processes
+
+  !
+  ! Master switches for SALSA aerosol microphysical processes
+  ! --------------------------------------------------------------
   INTEGER, PARAMETER :: Nmaster = 7
-  TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)  ! Array for master switches. The specific master switches are pointers to this array
-  TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation
+  TYPE(ProcessSwitch), TARGET :: lsmaster(Nmaster)     ! Array for master switches. The specific master switches are pointers to this array
+  TYPE(ProcessSwitch), POINTER :: lscoag => NULL()     ! Coagulation,      mode = 1: calculate kernels every timestep,
+                                                       !                   mode = 2: use reduced update freq
   TYPE(ProcessSwitch), POINTER :: lscnd => NULL()      ! Condensation
-  TYPE(ProcessSwitch), POINTER :: lsauto => NULL()     ! Autoconversion, mode = 1: parameterized simple autoconversion, mode = 2: coagulation based precip formation
-  TYPE(ProcessSwitch), POINTER :: lsactiv => NULL()    ! Cloud activation, mode = 1: aerosol growth based activation, mode = 2: parameterized cloud base activation
-  TYPE(ProcessSwitch), POINTER :: lsicenucl => NULL()  ! Ice nucleation
+  TYPE(ProcessSwitch), POINTER :: lsauto => NULL()     ! Autoconversion,   mode = 1: parameterized simple autoconversion,
+                                                       !                   mode = 2: coagulation based precip formation
+  TYPE(ProcessSwitch), POINTER :: lsactiv => NULL()    ! Cloud activation, mode = 1: aerosol growth based activation,
+                                                       !                   mode = 2: parameterized cloud base activation
+  TYPE(ProcessSwitch), POINTER :: lsicenucl => NULL()  ! Ice nucleation,   mode = 1: With %switch=TRUE, %state=FALSE until %delay time is
+                                                       !                             reached and ice nucleation is not called, afterwards
+                                                       !                             %state=TRUE and ice nucleation is called as usual.
+                                                       !                   mode = 2: With %switch=TRUE, %state=FALSE until %delay time is reached,
+                                                       !                             but ice nucleation is called anyway. However, it will only
+                                                       !                             remove aerosol and not produce ice. After %delay, %state=TRUE
+                                                       !                             and ice nucleation will continue normal operation.
   TYPE(ProcessSwitch), POINTER :: lsicemelt => NULL()  ! Melting of ice
   TYPE(ProcessSwitch), POINTER :: lssecice => NULL()
-    
-  ! Collision subprocesses
+
+
+  !
+  ! Subprocess switches for microphysical processes; Note that master switch set to FALSE overrides any setting
+  ! in the subprocess switches.
+  ! ---------------------------------------------------------------------------------------------------------------
+  
+  ! Coagulation/collision subprocesses
   LOGICAL :: lscgaa  = .TRUE.  ! Coagulation between aerosols
   LOGICAL :: lscgcc  = .TRUE.  ! Collision-coalescence between cloud droplets
   LOGICAL :: lscgca  = .TRUE.  ! Cloud collection of aerosols
@@ -45,23 +62,49 @@ MODULE mo_submctl
   LOGICAL :: lscndh2oic = .TRUE.  ! Condensation of water vapour on ice and snow
 
   ! Ice nucleation subprocesses
-  LOGICAL :: ice_hom = .FALSE.        ! Homogeneous freezing
-  LOGICAL :: ice_imm = .FALSE.        ! Immersion freezing
-  LOGICAL :: ice_dep = .FALSE.        ! Deposition freezing
+  LOGICAL :: lsicehom = .FALSE.        ! Homogeneous freezing
+  LOGICAL :: lsiceimm = .FALSE.        ! Immersion freezing
+  LOGICAL :: lsicedep = .FALSE.        ! Deposition freezing
 
   ! Secondary ice subprocesses
-  LOGICAL :: ice_halmos = .FALSE.     ! Rime splintering; Hallet-Mossop
- 
+  LOGICAL :: lssiprimespln = .FALSE.                       ! Rime splintering; Hallet-Mossop
+  TYPE(ProcessSwitch), POINTER :: lssipdropfrac => NULL()  ! Drop fracturing SIP, %mode = 1: Lawson et al 2015,
+                                                           !                      %mode = 2: Phillips et al 2018
+
+  INTEGER, PARAMETER :: Nsub = 1
+  TYPE(ProcessSwitch), TARGET :: lssub(Nsub)  ! Holder for type ProcessSwitch subprocess switches (for most just the simple
+                                              ! logical switch is required)
+
   
+  ! ---------------------------------------------------------------------------------------------------------------
+  ! Reduced coagulation kernel update frequency
+  REAL :: cgintvl = 10.             ! If lscoag%mode = 2, gives the coagulation kernel update interval in seconds.
+  
+  LOGICAL :: lcgupdt = .FALSE.      ! Switch for updating kernels with lscoag%mode = 2; Note: This is determined
+                                    ! during runtime -> NOT a NAMELIST parameter!
+  ! Aggregation efficiency range for ice. Assumed to be inversely proportional to rime fraction
+  ! within this range
+  REAL :: Eiagg_max = 0.3
+  REAL :: Eiagg_min = 0.05
+
   ! Contact angle distribution for ice nucleation:
   ! Use contact angle distributions for heterogeneous nucleation
   ! processes according to Savre and Ekman (2015).
   ! initMinTheta is used to specify a minimum contact angle for the entire IN population
   ! during initial stages of the simulation. The period when initMinTheta is applied
   ! is from model initialization to ice_theta_dist%delay (in seconds)
-  LOGICAL :: ice_theta_dist = .TRUE.
-  TYPE(ProcessSwitch) :: lsFreeTheta
-  REAL :: initMinTheta = 0.
+  LOGICAL :: ice_theta_dist = .TRUE.   ! Use contact angle integration in ice nucleation
+  TYPE(ProcessSwitch) :: lsFreeTheta   ! Switch: Use freely evolving lower limit in contact angle integration
+                                       ! delay: Time until which the low limit contact for contact angle integration
+                                       !        is fixed as initMinTheta.
+  REAL :: initMinTheta = 0.            ! Fixed lower limit for contact angle integration
+
+  ! Contact angle distribution parameters for immersion freezing
+  REAL :: mean_theta_imm = 132. ! mean contact angle
+  REAL :: sigma_theta_imm = 20.  ! STD of the contact angle distribution.
+  ! Contact angle distribution parameters for deposition freezing
+  REAL :: mean_theta_dep = 15.5
+  REAL :: sigma_theta_dep = 1.4
   
   LOGICAL :: lsdistupdate = .TRUE.    ! Perform the size distribution update
   LOGICAL :: lscheckarrays = .FALSE.  ! Do some primitive error checking in the SALSA main program
@@ -183,8 +226,8 @@ MODULE mo_submctl
   ! classSection instances
   REAL, PARAMETER :: dlaero = 30.e-6,   &
                      dlcloud = 100.e-6, &
-                     dlprecp = 2.e-3,   &
-                     dlice   = 2.e-3
+                     dlprecp = 5.e-3,   &
+                     dlice   = 10.e-3
     
   REAL, PARAMETER ::     &
    avog   = 6.0221e+23,   & ! Avogadro number (#/mol)
@@ -196,6 +239,7 @@ MODULE mo_submctl
    pi     = 3.1415927,    & ! self explanatory
    pi6    = 0.5235988,    & ! pi/6
    cpa    = 1005.,        & ! specific heat of dry air, constant P (J/kg/K)
+   cwa    = 4200.,        & ! Specific heat capacity of lqiuid water (J/kg/K)
    mair   = 28.97e-3,     & ! molar mass of air (mol/kg)
    deltav = 1.096e-7,     & ! vapor jump length (m)
    deltaT = 2.16e-7,      & ! thermal jump length (m)
@@ -206,8 +250,9 @@ MODULE mo_submctl
   REAL, PARAMETER ::   &
    rd    = 287.04,     & ! gas constant for dry air (J/K/kg)
    rv    = 461.5,      & ! gas constant for water vapour (J/K/kg)
-   alv    = 2.5e6,   & ! latent heat for vaporisation (J/kg)
-   als    = 2.834e6      ! latent heat for sublimation (J/kg)
+   alv    = 2.5e6,     & ! latent heat of vaporisation (J/kg)
+   als    = 2.834e6,   & ! latent heat of sublimation (J/kg)
+   alf    = 3.3e5        ! Latent heat of freezing (J/kg)
 
   REAL, PARAMETER ::     & ! molar mass [kg/mol]
        msu = 98.08e-3,        & ! sulphate
@@ -264,6 +309,6 @@ MODULE mo_submctl
   
   REAL, PARAMETER :: &
    nlim = 1.,  & ! Number conc. limit (#/kg) for aerosol and cloud droplets 
-   prlim = 1.e-6 ! The same for precipitation and ice species for which concentrations are normally much lower [#/m3]
+   prlim = 1.e-6 ! The same for precipitation and ice species for which concentrations are normally much lower [#/kg]
   
 END MODULE mo_submctl

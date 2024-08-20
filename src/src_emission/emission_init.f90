@@ -7,7 +7,7 @@ MODULE emission_init
   USE mo_salsa_sizedist, ONLY : size_distribution
   USE util, ONLY : smaller, getMassIndex, closest, arr_resize
   USE exceptionHandling, ONLY : errorMessage
-  USE grid, ONLY : deltax, deltay
+  USE grid, ONLY : deltax, deltay,nxp,nyp
   USE mpi_interface, ONLY : myid
   IMPLICIT NONE
 
@@ -149,10 +149,10 @@ MODULE emission_init
       REAL    :: maxf
       
       
-      ASSOCIATE( emitLevMin => emd%emitLevMin,       &
-                 emitLevMax => emd%emitLevMax,       &
-                 emitHeightMin => emd%emitHeightMin, &
-                 emitHeightMax => emd%emitHeightMax  )
+      ASSOCIATE( emitLevMin => emd%emitLevMin,                        &
+                 emitLevMax => emd%emitLevMax,                        &
+                 emitHeightMin => emd%emitHeightMin,                  &
+                 emitHeightMax => emd%emitHeightMax                   )
         
         ! At least one of the height or level definitions in the emitConfig must be specified
         IF ( ALL( [emitLevMin, emitLevMax] == -999 ) .AND.  &
@@ -188,7 +188,7 @@ MODULE emission_init
            emitHeightMax = zt%d(emitLevMax)
            
         END IF
-        
+
       END ASSOCIATE
       
   END SUBROUTINE init_emission_heights

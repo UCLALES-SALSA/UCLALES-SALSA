@@ -57,6 +57,8 @@ CONTAINS
                             ps_intvl, main_intvl
       USE mo_history, ONLY : write_hist
       
+      USE perturbation_forc, ONLY : warm_bubble, gaussian_flux_perturbation
+      
       LOGICAL, PARAMETER :: StopOnCFLViolation = .FALSE.
       REAL, PARAMETER :: cfl_upper = 0.50, cfl_lower = 0.30
 
@@ -79,8 +81,21 @@ CONTAINS
 
          tsflg = ( mod(tplsdt,ts_intvl) < dtl .OR. time >= timmax .OR. time == dtl )
          psflg = ( mod(tplsdt,ps_intvl) < dtl .OR. time >= timmax .OR. time == dtl )
+
+         CALL set_LES_runtime()
+      
          
-         CALL t_step(cflflg,cflmax)
+         ! Create a warm bubble perturbation if required
+         IF ( warm_bubble%state ) THEN
+            CALL warm_bubble%run()
+         END IF
+
+         ! Create surface flux perturnations if required
+         IF ( gaussian_flux_perturbation%state ) THEN
+            CALL gaussian_flux_perturbation%run()
+         END IF
+                 
+         CALL t_step(cflflg,cflmax,istp)
 
          time = time + dtl
 
@@ -174,26 +189,46 @@ CONTAINS
    ! Subroutine set_LES_runtime: Set the status of process switches e.g.
    ! if they have a defined spinup time etc.
    !
-   SUBROUTINE set_LES_runtime(time)
+   SUBROUTINE set_LES_runtime()
      USE mcrp, ONLY : sed_aero,   &
                       sed_cloud,  &
                       sed_precp,  &
                       sed_ice,    &
                       bulk_autoc
-     USE grid, ONLY : level
+     USE grid, ONLY : level,dtl
+     USE perturbation_forc, ONLY : warm_bubble, gaussian_flux_perturbation
      IMPLICIT NONE
 
-     REAL, INTENT(in) :: time
-
+     sed_aero%state = .FALSE.
      IF ( sed_aero%switch .AND. time > sed_aero%delay ) sed_aero%state = .TRUE.
+
+     sed_cloud%state = .FALSE.
      IF ( sed_cloud%switch .AND. time > sed_cloud%delay ) sed_cloud%state = .TRUE.
+
+     sed_precp%state = .FALSE.
      IF ( sed_precp%switch .AND. time > sed_precp%delay ) sed_precp%state = .TRUE.
+
+     sed_ice%state = .FALSE.
      IF ( sed_ice%switch .AND. time > sed_ice%delay ) sed_ice%state = .TRUE.
+
+     bulk_autoc%state = .FALSE.
      IF ( bulk_autoc%switch .AND. time > bulk_autoc%delay ) bulk_autoc%state = .TRUE.
+
+     warm_bubble%state = .FALSE.
+     IF ( warm_bubble%switch .AND. MOD(time,warm_bubble%tstart) < dtl ) warm_bubble%state = .TRUE.
+
+     gaussian_flux_perturbation%state = .FALSE.
+     IF ( gaussian_flux_perturbation%switch .AND.    &
+          (gaussian_flux_perturbation%t_start <= time .AND.   &
+           gaussian_flux_perturbation%t_end > time)  ) gaussian_flux_perturbation%state=.TRUE. 
+     
+     
      IF (level < 5) THEN
         sed_ice%state = .FALSE.
      END IF
 
+
+     
    END SUBROUTINE set_LES_runtime
 
    !
@@ -202,9 +237,9 @@ CONTAINS
    ! routines.  Within many subroutines, data is accumulated during
    ! the course of a timestep for the purposes of statistical analysis.
    !
-   SUBROUTINE t_step(cflflg,cflmax)
+   SUBROUTINE t_step(cflflg,cflmax,istp)
 
-      USE grid, ONLY : level,dtlt,      &
+      USE grid, ONLY : level,lpback,dtlt,      &
                        nxp,nyp,nzp,   &
                        a_nactd,  a_vactd
       USE mo_vector_state, ONLY : a_wp
@@ -225,13 +260,13 @@ CONTAINS
       
       LOGICAL, INTENT (out)      :: cflflg
       REAL(KIND=8), INTENT (out) :: cflmax
-
+      INTEGER, INTENT(in) :: istp
+      
       REAL    :: zwp(nzp,nxp,nyp)  !! FOR SINGLE-COLUMN RUNS
 
       INTEGER :: nspec
-
+      
          
-      CALL set_LES_runtime(time)
 
       zwp = 0.5  ! single column run vertical velocity
 
@@ -264,18 +299,24 @@ CONTAINS
       ! -----------------------
       IF (level >= 4) THEN
 
+         ! ---------------------------------------------------------------------
+         ! With pigybacking setup, call the slave bulk microphysics before SALSA
+         ! Note that SALSA still requires the separate call to "micro" afterwards
+         ! because of sedimentation, which is a bit silly. 
+         IF (lpback) CALL micro(0)
+                  
          nspec = spec%getNSpec(type="wet") ! Aerosol components + water
             
          IF ( nxp == 5 .AND. nyp == 5 ) THEN
             ! 1D -runs
             CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,nspec,   &
                            zwp,a_nactd,a_vactd,dtlt,      &
-                           time,level,.FALSE.             )
+                           time,istp,level,.FALSE.             )
          ELSE
             !! for 2D or 3D runs
             CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,nspec,   &
                            a_wp%d,a_nactd,a_vactd,dtlt,     &
-                           time,level,.FALSE.             )
+                           time,istp,level,.FALSE.             )
              
          END IF !nxp==5 and nyp == 5
 
@@ -550,7 +591,7 @@ CONTAINS
    !
    SUBROUTINE sponge (isponge)
 
-      USE grid, ONLY : nfpt, spng_tfct, spng_wfct, nzp, nxp, nyp, th00
+      USE grid, ONLY : nfpt, spng_tfct, spng_wfct, nzp, nxp, nyp, th00, nfptbt, spng_tfctbt, spng_wfctbt
       USE mo_vector_state, ONLY : a_up, a_vp, a_wp, a_ut, a_vt, a_wt
       USE mo_progn_state, ONLY : a_tp, a_tt
       USE mo_aux_state, ONLY : u0, v0, th0
@@ -573,6 +614,20 @@ CONTAINS
                      a_wt%d(k,i,j) = a_wt%d(k,i,j) - spng_wfct(kk)*(a_wp%d(k,i,j))
                   END IF
                END DO
+
+               IF (nfptbt > 1) THEN
+                  DO k = 1, nfptbt
+                     kk = k
+                     IF (isponge == 0) THEN
+                        a_tt%d(k,i,j) = a_tt%d(k,i,j) - spng_tfctbt(kk)*                   &
+                                    (a_tp%d(k,i,j)-th0%d(k)+th00)
+                     ELSE
+                        a_ut%d(k,i,j) = a_ut%d(k,i,j) - spng_tfctbt(kk)*(a_up%d(k,i,j)-u0%d(k))
+                        a_vt%d(k,i,j) = a_vt%d(k,i,j) - spng_tfctbt(kk)*(a_vp%d(k,i,j)-v0%d(k))
+                        a_wt%d(k,i,j) = a_wt%d(k,i,j) - spng_wfctbt(kk)*(a_wp%d(k,i,j))
+                     END IF
+                  END DO
+               END IF
             END DO
          END DO
       END IF

@@ -72,10 +72,6 @@ CONTAINS
    !
    !                 3. Coagulation between drizzle bins acts like 1.
    !
-   !       ISSUES:
-   !           Process selection should be made smarter - now just lots of ifs
-   !           inside loops. Bad.
-   !
    !
    ! Interface:
    ! ----------
@@ -93,28 +89,31 @@ CONTAINS
    !
    !---------------------------------------------------------------------
 
-
    SUBROUTINE coagulation(kproma,kbdim,klev,   &
                           ptstep,ptemp,ppres   )
 
-     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA
+     USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA,      &
+                                zccaa, zcccc, zccpp, zccii,             &
+                                zccca, zccpa, zccia,                    &
+                                zccpc, zccic,                           &
+                                zccip
+
      USE mo_submctl, ONLY: ntotal,nbins,ncld,nprc,nice, &
                            spec,   &
                            lscgaa, lscgcc, lscgpp, lscgii, & 
                            lscgca, lscgpa, lscgia, & 
                            lscgpc, lscgic, &
                            lscgip,                         &
-                           lssecice, ice_halmos
-
+                           lssecice, lssiprimespln, lssipdropfrac,     &
+                           lcgupdt, lscoag
 
       USE mo_salsa_coagulation_kernels
 
       USE mo_salsa_coagulation_processes
 
-      USE mo_salsa_secondary_ice, ONLY : halletmossop
+      USE mo_salsa_secondary_ice, ONLY : rimesplintering, dropfracturing
       
       IMPLICIT NONE
-
 
       !-- Input and output variables -------------
       INTEGER, INTENT(IN) ::        &
@@ -132,38 +131,16 @@ CONTAINS
       INTEGER :: ii,jj,bb
 
       LOGICAL :: any_aero, any_cloud, any_precp, any_ice
-
-      LOGICAL :: any_lt13(kbdim,klev), any_gt25(kbdim,klev)
       
-      REAL :: zccaa(kbdim,klev,nbins,nbins),    & ! updated coagulation coefficients [m3/s]
-              zcccc(kbdim,klev,ncld,ncld),      & ! - '' - for collision-coalescence between cloud droplets [m3/s]
-              zccca(kbdim,klev,nbins,ncld),     & ! - '' - for cloud collection of aerosols [m3/s]
-              zccpc(kbdim,klev,ncld,nprc),      & ! - '' - for collection of cloud droplets by precip [m3/s]
-              zccpa(kbdim,klev,nbins,nprc),     & ! - '' - for collection of aerosols by precip
-              zccpp(kbdim,klev,nprc,nprc),      & ! - '' - for collision-coalescence between precip particles 
-              zccia(kbdim,klev,nbins,nice),     & ! - '' - for collection of aerosols by ice 
-              zccic(kbdim,klev,ncld,nice),      & ! - '' - for collection of cloud particles droplets by ice 
-              zccii(kbdim,klev,nice,nice),      & ! - '' - for aggregation between ice 
-              zccip(kbdim,klev,nprc,nice)         ! - '' - for collection of precip by ice
 
-      ! For Hallet-Mossop
-      REAL :: drimdt(kbdim,klev,nice)  ! Volume change in rime due to liquid collection in the presense of liquid
-                                       ! hydrometeors with diameters both < 13um and >25um
-      
+
       !-----------------------------------------------------------------------------
       !-- 1) Coagulation to coarse mode calculated in a simplified way: ------------
       !      CoagSink ~ Dp in continuum regime, thus we calculate
       !      'effective' number concentration of coarse particles
-
-      zccaa(:,:,:,:) = 0.; zcccc(:,:,:,:) = 0.; zccca(:,:,:,:) = 0.; zccpc(:,:,:,:) = 0.
-      zccpa(:,:,:,:) = 0.; zccpp(:,:,:,:) = 0.; zccia(:,:,:,:) = 0.; zccic(:,:,:,:) = 0.
-      zccii(:,:,:,:) = 0.; zccip(:,:,:,:) = 0.
  
       !-- 2) Updating coagulation coefficients -------------------------------------
-      
-      nspec = spec%getNSpec(type="total")
-      iri = spec%getIndex("rime")
-      
+            
       ! Since this is done here, it won't really be necessary in the subsequent coagulation routines
       ! (its called at least in coagulation_kernels)
       DO bb = 1,ntotal
@@ -173,52 +150,71 @@ CONTAINS
             END DO
          END DO
       END DO
+
+      ! Calculate new kernels every timestep if low freq updating is NOT used,
+      ! or when low freq IS used AND it is the update timestep.
+      IF (lscoag%mode == 1 .OR. lcgupdt ) &
+           CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp)
       
-      CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp,    &
-                                      zccaa, zcccc, zccca, zccpc, zccpa,  &
-                                      zccpp, zccia, zccic, zccii, zccip)
-
-      any_aero = ANY( aero(:,:,:)%numc > aero(:,:,:)%nlim ) .AND. &
-                 ANY( [lscgaa,lscgca,lscgpa,lscgia] )
-      any_cloud = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim ) .AND. &
-                  ANY( [lscgcc,lscgca,lscgpc,lscgic] ) 
-      any_precp = ANY( precp(:,:,:)%numc > precp(:,:,:)%nlim ) .AND. &
-                  ANY( [lscgpp,lscgpa,lscgpc,lscgip])
-      any_ice = ANY( ice(:,:,:)%numc > ice(:,:,:)%nlim ) .AND. &
-                ANY( [lscgii,lscgia,lscgic,lscgip] )
-
-      any_lt13 = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim .AND. cloud(:,:,:)%dwet < 13.e-6, DIM=3 )
-      any_gt25 = ANY( cloud(:,:,:)%numc > cloud(:,:,:)%nlim .AND. cloud(:,:,:)%dwet > 25.e-6, DIM = 3 )   &
-            .OR. ANY( precp(:,:,:)%numc > precp(:,:,:)%nlim .AND. precp(:,:,:)%dwet > 25.e-6, DIM = 3 )
+      any_aero = ANY( [lscgaa,lscgca,lscgpa,lscgia] )
+      any_cloud = ANY( [lscgcc,lscgca,lscgpc,lscgic] ) 
+      any_precp = ANY( [lscgpp,lscgpa,lscgpc,lscgip] )
+      any_ice = ANY( [lscgii,lscgia,lscgic,lscgip] )
             
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !-- 3) New particle and volume concentrations after coagulation -------------
       !                 GENERALIZE THE PTEMP STATEMENT
       IF (any_ice .AND. ALL(ptemp < 273.15)) THEN
 
-         ! For H-M: Store the "old" rime volumes
-         drimdt(:,:,:) = ice(:,:,:)%volc(iri)
-         
-         CALL coag_ice(kbdim,klev,nspec,ptstep,zccii,zccia,zccic,zccip)
-
-         ! For H-M: Take the change in rime after collection processes
-         drimdt(:,:,:) = ice(:,:,:)%volc(iri) - drimdt(:,:,:)
-
-         ! H-M rime splintering
-         IF (lssecice%state .AND. ice_halmos) &
-              CALL halletmossop(kbdim,kproma,klev,(any_lt13 .AND. any_gt25),ptemp,drimdt)
+         nspec = spec%getNSpec(type="total")  ! Includes rime         
+         CALL coag_ice(kbdim,klev,nspec,ptstep) 
          
       END IF
-         
-      IF (any_precp) &
-           CALL coag_precp(kbdim,klev,nspec,ptstep,zccpp,zccpa,zccpc,zccip)
 
+      ! Get new nspec that omits the rime. 
+      nspec = spec%getNSpec(type="wet")  
+     
+      IF (any_precp) &
+           CALL coag_precp(kbdim,klev,nspec,ptstep)
+         
       IF (any_aero) &
-           CALL coag_aero(kbdim,klev,nspec,ptstep,zccaa,zccca,zccpa,zccia)
+           CALL coag_aero(kbdim,klev,nspec,ptstep)
 
       IF (any_cloud) &
-           CALL coag_cloud(kbdim,klev,nspec,ptstep,zcccc,zccca,zccpc,zccic)
+           CALL coag_cloud(kbdim,klev,nspec,ptstep)
 
+
+      ! THIS SHOULD NOT OCCUR, PROBABLY A SETUP PROBLEM? SEE IF THIS COULD BE REMOVED.
+      ! Sometimes small negative concentrations due to numerical inaccuracy occur;
+      ! Put them to zero here and print a warning if larger negative values are present
+      DO bb = 1,ntotal
+         DO jj = 1,klev
+            DO ii = 1,kproma
+               IF ( allSALSA(ii,jj,bb)%numc < -1.e-6)  &
+                    WRITE(*,*) 'WARNING SALSA_DYNAMICS; numc < -1e-6 ',ii,jj,bb,allSALSA(ii,jj,bb)%numc  
+               allSALSA(ii,jj,bb)%numc = MAX(0.,allSALSA(ii,jj,bb)%numc)
+               allSALSA(ii,jj,bb)%volc(:) = MAX(0.,allSALSA(ii,jj,bb)%volc(:))
+            END DO
+         END DO
+      END DO              
+      
+      ! Secondary ice processes.
+      ! These need information about the ice collected liquid drops; Therefore it is imperative, that
+      ! the bin redistribution routine is NOT called between coagulation and the secondary ice
+      ! parameterizations.
+      IF (lssecice%state) THEN
+
+         nspec = spec%getNSpec(type='total')
+         
+         ! Rime splintering
+         IF (lssiprimespln) &
+              CALL rimesplintering(kbdim,kproma,klev,nspec,ptemp,ptstep)
+         ! Drop fracturing:
+         IF (lssipdropfrac%state) &
+              CALL dropfracturing(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
+                  
+      END IF
+         
+      
    END SUBROUTINE coagulation
 
 
@@ -723,8 +719,11 @@ CONTAINS
           in1a, in2a,  &
           fn2b,            &
           lscndh2oae, lscndh2ocl, lscndh2oic, &
-          alv, als 
+          alv, als, grav, rhoic, cpa
      USE mo_salsa_properties, ONLY : equilibration
+     USE mo_particle_external_properties, ONLY : mha1, mhb1
+     USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
+     USE mo_particle_external_properties, ONLY : calcDiamLES
      IMPLICIT NONE
 
       INTEGER, INTENT(in) :: kproma,kbdim,klev,krow
@@ -751,9 +750,9 @@ CONTAINS
       REAL :: zorgic(nice)                                  ! Original total ice mole concentration (not sure if this is really necessary,
                                                             ! could just use the "current" value if it wasn't updated in the substepping loop)
       REAL :: zorgri(nice)                                  ! The same for rime
-      
+
       REAL :: zdfh2o, zthcond,rhoair
-      REAL :: zbeta,zknud,zmfph2o
+      REAL :: zbeta,zknud,zmfph2o,zmfpth
       REAL :: zact, zhlp1,zhlp2,zhlp3
       REAL :: adt,ttot
       REAL :: dwet, cap
@@ -762,11 +761,22 @@ CONTAINS
       REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
 
       REAL :: dvice, dvrime, dvitot ! Volume change for pristine and rimed ice
+      REAL :: a1, b1, Re, c1, c2
+      REAL :: alphasph, betasph, gammasph, sigmasph
+      REAL :: mA   ! Mass and area relation ratio used in MH2005
+      REAL :: X, xqi, Sc, Prandtl     ! Best number, x in ventilation factor, Schmidth number
+      REAL :: dnsp ! Diameter of non-spherical ice
+      REAL :: zf, zfth !ventilation factor
+      REAL :: pmice ! particle ice mass
+      REAL :: alphaci, alphath, zbetath, zdfh2oC, zthcondC, cpm ! accomodation factor for ice
+      REAL :: kvis, avis ! Viscosity parameters
 
       INTEGER :: nstr
       INTEGER :: ii,jj,cc
       INTEGER :: counter      
-      INTEGER :: iwa,irim,nspec
+      INTEGER :: iwa,irim,nspec,flag
+
+      TYPE(t_shape_coeffs) :: shape ! Shape coefficients needed for ice
 
       REAL, ALLOCATABLE :: vrate(:)
       
@@ -816,6 +826,11 @@ CONTAINS
 
             zmfph2o = 3.*zdfh2o*sqrt(pi*spec%mwa/(8.*rg*ptemp(ii,jj))) ! mean free path
             zthcond = 0.023807 + 7.1128e-5*(ptemp(ii,jj) - 273.16) ! Thermal conductivity of air
+
+            ! specific heat of moist air at constant pressure
+            cpm = cpa * (1. + prv(ii,jj)*0.856)
+
+            zmfpth = 3.*zthcond/(rhoair*cpm)*sqrt(pi*mair/(8.*rg*ptemp(ii,jj))) ! mean free path for energy
 
             ! -- Water vapour (Follows the analytical predictor method by Jacobson 2005)
             zkelvinpd = 1.; zkelvincd = 1.; zkelvin = 1.; zkelvinic = 1.
@@ -911,8 +926,71 @@ CONTAINS
                   dwet = ice(ii,jj,cc)%dnsp
                   
                   ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
+                  
                   cap=0.5*dwet
+
+                  !write(*,*) "dwet:",dwet
+
+                  IF (dwet <= 20e-6) THEN
+                     cap=0.5*dwet
+                  ELSE IF (ptemp(ii,jj)<=240 .AND. dwet <= 50e-6) THEN
+                     cap=(0.5 + 0.25)/2*dwet
+                  ELSE IF (ptemp(ii,jj)<=240) THEN
+                     cap=0.25*dwet
+                  END IF
+
+                  zf = 1 ! Set as 1 for very small ice crystals
+                  avis = 1.8325e-5*(416.16/(ptemp(ii,jj)+120.0))*(ptemp(ii,jj)/296.16)**1.5
+                  kvis = avis/rhoair
+                  IF (dwet>1e-6) THEN
+                     ! atm modelling Eq.4.54
+
+
+                     !!!!!!!!!!!!!!! Experimental for ventilation coefficient
+                     ! Mithcell and Heymsfield 2005
+                     ! Ice cyrstals with spherical eq size below 40 um are considered as spherical
+                     IF (dwet<40e-6) THEN
+                        alphasph = pi6*rhoic
+                        betasph = 3.
+                        gammasph = pi/4.
+                        sigmasph = 2.    
+                        mA = alphasph*dwet**betasph / (gammasph*dwet**sigmasph)
+                        X = 2. * grav * rhoair / avis**2. * dwet**2. * mA !MH2005 eq. 8
+
+                        dnsp = dwet
+                        !write(*,*) "nspec",nspec,"nice",nice,"dwet",dwet,"dnsp",dnsp,"X",X
+                     ELSE 
+                        flag = 4
+                        CALL getShapeCoefficients( shape, SUM(ice(ii,jj,cc)%volc(1:nspec-1)*spec%rhoic),     &
+                                                   ice(ii,jj,cc)%volc(nspec)*spec%rhori,                      &
+                                                   ice(ii,jj,cc)%numc                                      )
+                        flag = 4
+                        dnsp=calcDiamLES(nspec,ice(ii,jj,cc)%numc,ice(ii,jj,cc)%volc(:)*spec%rhoic,flag,sph=.FALSE.) ! For non-spherical ice, this is the max diameter of the crystal
+                        mA = shape%alpha*dnsp**shape%beta / (shape%gamma*dnsp**shape%sigma) !Ratio of mass and area laws used in Mitchell eq. 8
+                        X = 2. * grav * rhoair / avis**2. * dnsp**2. * mA !MH2005 eq. 8
+                        !write(*,*) "alpha",shape%alpha,"gamma",shape%gamma,"nspec",nspec,"nice",nice,"dwet",dwet,"dnsp",dnsp,"X",X
+                     END IF
+
+                     !Calculation of Reynolds number according to the Re-X relationship defined in Mitchell and Heymsfield (2005)
+                     a1 = mha1(X)
+                     b1 = mhb1(X)
+                     Re = a1 * X**b1
                      
+                     Sc = kvis / zdfh2o ! Schmidt number
+                     xqi = Sc**(1./3.) * SQRT(Re) 
+
+                     c1 = 0.3005
+                     c2 = -0.0022
+
+                     IF (dwet<40e-6 .AND. xqi <= 1.4) THEN
+                        zf = 1 + 0.108*xqi**2.   ! Ventilation factor
+                     ELSE IF (dwet<40e-6 .AND. xqi > 1.4) THEN
+                        zf = 0.78 + 0.308*xqi
+                     ELSE
+                        zf = 1. + c1*xqi + c2*xqi**2.
+                     END IF
+                  END IF
+
                   ! Activity + Kelvin effect - edit when needed
                   !   Can be calculated just like for sperical homogenous particle or just ignored,
                   !   because these are not known for solid, irregular and non-homogenous particles.
@@ -928,18 +1006,66 @@ CONTAINS
                   ! Equilibrium saturation ratio
                   zwsatic(cc) = zact*zkelvinic(cc)
                   
+                  ! deposition coefficient for ice
+                  alphaci = 0.5
+
                   !-- transitional correction factor
                   zknud = 2.*zmfph2o/dwet
                   zbeta = (zknud + 1.)/(0.377*zknud+1.+4./ &
-                       (3.)*(zknud+zknud**2))
+                       (3.*alphaci)*(zknud+zknud**2))
+
+                  !write(*,*) "beta",zbeta
                   
+                  !zbeta = 1./(1. + (1.33 + 0.71/zknud) / (1. + 1./zknud) + 4./3. * (1. - alphaci) / alphaci)
+                  
+                  !write(*,*) "dwet",dwet,"dnsp",dnsp,"X",X,"beta",zbeta
+
+                  zdfh2oC = zdfh2o*zf*zbeta
+
+                  ! Knudsen number for energy
+                  zknud = 2.*zmfpth/dwet
+
+                  alphath = 0.96
+                  zbetath = (zknud + 1.)/(0.377*zknud+1.+4./ &
+                       (3.*alphath)*(zknud+zknud**2))
+                  !zbetath = 1./(1. + (1.33 + 0.71/zknud) / (1. + 1./zknud) + 4./3. * (1. - alphath) / alphath)
+
+                  cpm = cpa * (1 + prv(ii,jj)*0.856)
+                  Prandtl = avis/zthcond*cpm ! (modify to cp for moist air)
+
+                  zfth = 1
+                  IF (dwet>1e-6) THEN
+                     xqi = Prandtl**(1./3.) * SQRT(Re) 
+
+                     c1 = 0.3005
+                     c2 = -0.0022
+
+                     IF (dwet<40e-6 .AND. xqi <= 1.4) THEN
+                        zfth = 1 + 0.108*xqi**2.   ! Ventilation factor
+                     ELSE IF (dwet<40e-6 .AND. xqi > 1.4) THEN
+                        zfth = 0.78 + 0.308*xqi
+                     ELSE
+                        zfth = 1. + c1*xqi + c2*xqi**2.
+                     END IF
+                  END IF
+
+
+
+                  zthcondC = zthcond*zfth*zbetath
+
                   ! Mass transfer according to Jacobson
-                  zhlp1 = ice(ii,jj,cc)%numc*4.*pi*cap*zdfh2o*zbeta
-                  zhlp2 = spec%mwa*zdfh2o*als*zwsatic(cc)*zcwsurfic(cc)/(zthcond*ptemp(ii,jj)) 
+                  ! Not necessary due to proven unity
+                  !zhlp1 = ice(ii,jj,cc)%numc*4.*pi*cap*zdfh2oC
+                  !zhlp2 = zdfh2oC*als*zpvis/(zthcondC*ptemp(ii,jj))
+                  !zhlp3 = als*spec%mwa/(rg*ptemp(ii,jj)) - 1
+                  !zmtic(cc) = zhlp1/( zhlp2*zhlp3 + rg/spec%mwa * ptemp(ii,jj)) / spec%mwa
+
+                  ! Mass transfer according to Jacobson
+                  zhlp1 = ice(ii,jj,cc)%numc*4.*pi*cap*zdfh2oC
+                  zhlp2 = spec%mwa*zdfh2oC*als*zwsatic(cc)*zcwsurfic(cc)/(zthcondC*ptemp(ii,jj)) 
                   zhlp3 = ( (als*spec%mwa)/(rg*ptemp(ii,jj)) ) - 1.
-                  
                   zmtic(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
-                  
+
                END IF
             END DO
             
@@ -954,9 +1080,7 @@ CONTAINS
                   zkelvin(cc) = exp( 4.*surfw0*spec%mwa / (rg*ptemp(ii,jj)*spec%rhowa*dwet) )
 
                   ! Saturation mole concentration over flat surface
-                  ! Limit the supersaturation to max 1.01 for the mass transfer
-                  ! EXPERIMENTAL
-                  zcwsurfae(cc) = MAX(prs(ii,jj),prv(ii,jj)/1.01)*rhoair/spec%mwa
+                  zcwsurfae(cc) = prs(ii,jj)*rhoair/spec%mwa
 
                   ! Equilibrium saturation ratio
                   zwsatae(cc) = zact*zkelvin(cc)
@@ -987,7 +1111,7 @@ CONTAINS
             zcwcit(1:nice) = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa
             IF (spec%isUsed("rime")) &
                  zcwcit(1:nice) = zcwcit(1:nice) + ice(ii,jj,1:nice)%volc(irim)*spec%rhori/spec%mwa
-            
+
             ! Store original values of pristine and rimed ice to preserve info about composition
             zorgic = 0.; zorgri = 0.
             zorgic = ice(ii,jj,1:nice)%volc(iwa)*spec%rhoic/spec%mwa
@@ -1023,29 +1147,31 @@ CONTAINS
 
                IF ( ANY(aero(ii,jj,:)%numc > aero(ii,jj,:)%nlim) .AND. zrh(ii,jj) > 0.98 ) THEN
                   DO cc = nstr, nbins
+                     !zcwintae(cc) = zcwcae(cc) + MIN(MAX(adt*zmtae(cc)*(zcwint - zwsatae(cc)*zcwsurfae(cc)), &
+                     !                                -1.e-2*zcwtot), 1.e-2*zcwtot)
                      zcwintae(cc) = zcwcae(cc) + MIN(MAX(adt*zmtae(cc)*(zcwint - zwsatae(cc)*zcwsurfae(cc)), &
-                                                     -1.e-2*zcwtot), 1.e-2*zcwtot)   
+                                                      -1.e-1*zcwcae(cc)), 1.e-1*zcwcae(cc))  
                      zwsatae(cc) = acth2o(aero(ii,jj,cc),zcwintae(cc))*zkelvin(cc)
                   END DO
                END IF
                IF ( ANY(cloud(ii,jj,:)%numc > cloud(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, ncld
                      zcwintcd(cc) = zcwccd(cc) + MIN(MAX(adt*zmtcd(cc)*(zcwint - zwsatcd(cc)*zcwsurfcd(cc)), &
-                                                     -1.e-2*zcwtot), 1.e-2*zcwtot) 
+                                                        -1.e-1*zcwccd(cc)), 1.e-1*zcwccd(cc)) !-1.e-2*zcwtot), 1.e-2*zcwtot) 
                      zwsatcd(cc) = acth2o(cloud(ii,jj,cc),zcwintcd(cc))*zkelvincd(cc)
                   END DO
                END IF
                IF ( ANY(precp(ii,jj,:)%numc > precp(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, nprc
                      zcwintpd(cc) = zcwcpd(cc) + MIN(MAX(adt*zmtpd(cc)*(zcwint - zwsatpd(cc)*zcwsurfpd(cc)), &
-                                                     -1.e-2*zcwtot), 1.e-2*zcwtot) 
+                                                        -1.e-1*zcwcpd(cc)), 1.e-1*zcwcpd(cc)) !-1.e-2*zcwtot), 1.e-2*zcwtot) 
                      zwsatpd(cc) = acth2o(precp(ii,jj,cc),zcwintpd(cc))*zkelvinpd(cc)
                   END DO
                END IF
                IF ( ANY(ice(ii,jj,:)%numc > ice(ii,jj,:)%nlim) ) THEN
                   DO cc = 1, nice
                      zcwintit(cc) = zcwcit(cc) + MIN(MAX(adt*zmtic(cc)*(zcwint - zwsatic(cc)*zcwsurfic(cc)), &
-                                                     -1.e-2*zcwtot), 1.e-2*zcwtot) 
+                                                         -1.e-1*zcwcit(cc)), 1.e-1*zcwcit(cc)) !-1.e-2*zcwtot), 1.e-2*zcwtot) 
                      zwsatic(cc) = zkelvinic(cc)
                   END DO
                END IF

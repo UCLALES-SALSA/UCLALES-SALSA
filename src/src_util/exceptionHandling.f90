@@ -33,6 +33,4 @@ MODULE exceptionHandling
 
     END SUBROUTINE errorMessage
 
-
-
 END MODULE exceptionHandling

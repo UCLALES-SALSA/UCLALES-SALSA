@@ -45,8 +45,13 @@ CONTAINS
 !
   SUBROUTINE thermo (level)
 
-    USE mo_diag_state, ONLY : a_rc, a_rv, a_rh, a_theta, a_pexnr, a_press, a_temp, a_rsl, a_srp, a_ri, a_riri, a_rsi, a_rhi
-    USE mo_progn_state, ONLY : a_rp, a_tp, a_rpp
+    USE mo_diag_state, ONLY : a_rtot, a_rc, a_rv, a_rh, a_theta,    &
+                              a_pexnr, a_press, a_temp, a_rsl,      &
+                              a_srp, a_ri, a_riri, a_rsi, a_rhi,    &
+                              pb_theta, pb_temp, pb_rv, pb_rc,      &
+                              pb_rsl, pb_rh
+    USE mo_progn_state, ONLY : a_rp, a_tp, a_rpp,   &
+                               pb_rpp
     USE mo_aux_state, ONLY : pi0, pi1
     USE grid, ONLY : nxp, nyp, nzp, th00
 
@@ -65,6 +70,11 @@ CONTAINS
     CASE (4:5)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
                       a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_riri,a_rsi,a_rhi)
+    CASE (0) ! Piggybacking call to level 3 thermodynamics, when using
+             ! bulk microphysics as slave and SALSA as the primary scheme.
+       CALL satadjst3(nzp,nxp,nyp,a_pexnr,a_press,a_tp,pb_theta,pb_temp,pi0,  &
+                      pi1,th00,a_rtot,pb_rv,pb_rc,pb_rsl,pb_rpp,pb_rh)
+
     END SELECT
 
   END SUBROUTINE thermo
@@ -197,18 +207,21 @@ CONTAINS
 !
   SUBROUTINE satadjst(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs)
 
-    USE defs, ONLY : cp, cpr, alvl, ep, Rm, p00
-
+    USE defs, ONLY : cp, cpr, alvl, ep, Rm, R, p00
+    USE mo_diag_state, ONLY : a_dn
+    
     INTEGER, INTENT (in) ::  n1,n2,n3
 
     TYPE(FloatArray3d), INTENT (in)  :: pp, tl, rt
     TYPE(FloatArray1d), INTENT (in)  :: pi0, pi1
     REAL, INTENT (in)                :: th00
-    TYPE(FloatArray3d), INTENT (out) :: rc,rv,rs,th,tk,p
+    TYPE(FloatArray3d), INTENT (inout) :: rc,rv,rs,th,tk,p
 
     INTEGER :: k, i, j, iterate
     REAL    :: exner,til,x1,xx,yy,zz
 
+    rc%d = 0.; rv%d = 0.; rs%d = 0.; th%d = 0.; tk%d = 0.; p%d = 0.
+    
     DO j = 3, n3-2
        DO i = 3, n2-2
           DO k = 1, n1
@@ -232,6 +245,10 @@ CONTAINS
              rs%d(k,i,j) = yy
              tk%d(k,i,j) = xx
              th%d(k,i,j) = tk%d(k,i,j)/exner
+
+             ! True air density
+             a_dn%d(k,i,j) = p%d(k,i,j)/(R*tk%d(k,i,j)*(1+0.61*rv%d(k,i,j)))
+             
           END DO
        END DO
     END DO
@@ -245,7 +262,8 @@ CONTAINS
 !
   SUBROUTINE satadjst3(n1,n2,n3,pp,p,tl,th,tk,pi0,pi1,th00,rt,rv,rc,rs,rp,rh)
 
-    USE defs, ONLY : cp, cpr, alvl, ep, Rm, p00
+    USE mo_diag_state, ONLY : a_dn
+    USE defs, ONLY : cp, cpr, alvl, ep, Rm, R, p00
     USE mpi_interface, ONLY : myid, appl_abort
 
     INTEGER, INTENT (in) ::  n1,n2,n3
@@ -259,6 +277,8 @@ CONTAINS
     REAL    :: exner, tli, tx, txi, rsx, rcx, rpc, tx1, dtx
     REAL, PARAMETER :: epsln = 1.e-4
 
+    rc%d = 0.; rv%d = 0.; rs%d = 0.; th%d = 0.; tk%d = 0.; p%d=0. 
+    
     DO j = 3, n3-2
        DO i = 3, n2-2
           DO k = 1, n1
@@ -308,6 +328,10 @@ CONTAINS
              rh%d(k,i,j) = rv%d(k,i,j)/rs%d(k,i,j)
              tk%d(k,i,j) = tx
              th%d(k,i,j) = tk%d(k,i,j)/exner
+
+             ! True air density
+             a_dn%d(k,i,j) = p%d(k,i,j)/(R*tk%d(k,i,j)*(1+0.61*rv%d(k,i,j)))
+             
           END DO
        END DO
     END DO

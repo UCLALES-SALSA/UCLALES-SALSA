@@ -39,9 +39,12 @@ MODULE init
    REAL, DIMENSION(nns)  :: us,vs,ts,thds,ps,hs,rts,rss,tks,xs
    REAL                  :: zrand = 200.
    REAL                  :: zrndamp = 0.2 ! the amplitude of pseudorandom fluctuations
+   REAL                  :: zrndamp_rp = 5.e-7
+   REAL                  :: sigmabubble = 0., ampbubble = 0.
    CHARACTER  (len=80)   :: hfilin = 'test.'
+   CHARACTER (len=100)   :: sound_in_file = 'sound_in'
 
-   INTEGER               :: init_type = 1 ! Switch for how to initialize mixing: 1) random perturbations, 2) warm bubble
+   !INTEGER               :: init_type = 1 ! Switch for how to initialize mixing: 1) random perturbations, 2) warm bubble
 
 CONTAINS
    !
@@ -54,6 +57,7 @@ CONTAINS
       USE step, ONLY : time, outflg
       !USE stat, ONLY : init_stat, mcflg, acc_massbudged, salsa_b_bins
       USE sgsm, ONLY : tkeinit
+      USE srfc, ONLY : surface_initialize
       USE mpi_interface, ONLY : appl_abort, myid, mpiroot
       USE thrm, ONLY : thermo
       USE mo_salsa_driver, ONLY : run_SALSA
@@ -91,11 +95,11 @@ CONTAINS
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,n4,   &
                               zwp,a_nactd,a_vactd,dtlt,   &
-                              time,level,.TRUE.           )
+                              time,0,level,.TRUE.           )
             ELSE
                CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,n4,   &
                               a_wp%d,a_nactd,a_vactd,dtlt,  &
-                              time, level,.TRUE.          )
+                              time,0,level,.TRUE.          )
             END IF
             CALL SALSAInit
 
@@ -120,7 +124,13 @@ CONTAINS
      ! Initialize aerosol emissions
      ! -----------------------------
      IF (lemission .AND. level >= 4) CALL init_emission()
-          !
+
+     !
+     ! Initialize the surface scheme
+     ! ------------------------------
+     CALL surface_initialize()
+
+     !
      !IF (mcflg) THEN
      !   ! Juha:
      !   ! Calculate some numbers for mass concervation experiments
@@ -175,7 +185,8 @@ CONTAINS
       USE defs, ONLY : alvl, cpr, cp, p00
       USE sgsm, ONLY : tkeinit
       USE thrm, ONLY : thermo, rslf
-      USE init_warm_bubble, ONLY : warm_bubble
+      USE perturbation_forc, ONLY : gaussian_moisture_perturbation
+      !USE init_warm_bubble, ONLY : warm_bubble
 
       IMPLICIT NONE
 
@@ -250,30 +261,41 @@ CONTAINS
          END DO !j
       END SELECT
 
-      IF (init_type == 1) THEN
+     ! IF (init_type == 1) THEN
+      IF ( gaussian_moisture_perturbation%switch ) THEN
+         CALL gaussian_moisture_perturbation%run()
+      END IF
 
-         ! Initialize with random perturbations
+      ! Initialize with random perturbations
+      k = 1
+
+      DO WHILE( zt%d(k+1) <= zrand .AND. k+1 < nzp)
+         k = k+1
+         IF (zt%d(k)>6000) THEN
+            xran(k) = zrndamp
+         ELSE 
+            xran(k) = 0
+         END IF
+      END DO
+      
+      CALL random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
+
+      IF (associated(a_rp%d)) THEN
          k = 1
-
          DO WHILE( zt%d(k+1) <= zrand .AND. k+1 < nzp)
             k = k+1
-            xran(k) = zrndamp*(zrand - zt%d(k))/zrand
+            IF (zt%d(k)>6000) THEN
+               xran(k) = zrndamp_rp
+            ELSE
+               xran(k) = 0
+            END IF
          END DO
-
-         CALL random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
-
-         IF (associated(a_rp%d)) THEN
-            k = 1
-            DO WHILE( zt%d(k+1) <= zrand .AND. k+1 < nzp)
-               k = k+1
-               xran(k) = 5.0e-5*(zrand - zt%d(k))/zrand
-            END DO
-            CALL random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
-         END IF
-      ELSE IF (init_type == 2) THEN
-         ! Initialize with warm bubble (for convection)
-         CALL warm_bubble()
+         CALL random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
       END IF
+      !ELSE IF (init_type == 2) THEN
+      !   ! Initialize with warm bubble (for convection)
+      !   CALL warm_bubble()
+      !END IF
       a_wp%d = 0.
       IF(isgstyp == 2) CALL tkeinit(nxyzp,a_qp%d)
       !
@@ -306,6 +328,7 @@ CONTAINS
 
       IF (nfpt > 0) THEN
          ALLOCATE (spng_tfct(max(1,nfpt)), spng_wfct(max(1,nfpt)))
+         ALLOCATE (spng_tfctbt(max(1,nfpt)), spng_wfctbt(max(1,nfpt)))
 
          DO k = nzp-nfpt, nzp-1
             kk = k + 1 - (nzp-nfpt)
@@ -314,12 +337,22 @@ CONTAINS
             spng_tfct(kk) = max(0.,(1./distim - spng_tfct(kk)))
             spng_wfct(kk) = max(0.,(1./distim - spng_wfct(kk)))
          END DO
+      END IF 
+
+      IF (nfptbt > 0) THEN
+         DO k = 1, nfptbt
+            kk = k
+            spng_tfctbt(kk) = max(0.,(zm%d(nfptbt) - zt%d(k))/((zm%d(nfptbt))*distimbt))
+            spng_wfctbt(kk) = max(0.,(zm%d(nfptbt) - zm%d(k))/((zm%d(nfptbt))*distimbt))
+            spng_tfctbt(kk) = max(0.,(1./distimbt - spng_tfctbt(kk)))
+            spng_wfctbt(kk) = max(0.,(1./distimbt - spng_wfctbt(kk)))
+         END DO
 
          IF(myid == 0) THEN
             PRINT "(//' ',49('-')/)"
             PRINT '(2X,A17)', 'Sponge Layer Init '
-            PRINT '(3X,A12,F8.1,A1)', 'Starting at ', zt%d(nzp-nfpt), 'm'
-            PRINT '(3X,A18,F6.1,A1)', 'Minimum timescale ', 1/spng_wfct(nfpt),'s'
+            PRINT '(3X,A12,F8.1,A1)', 'Starting at ', zt%d(nzp-nfptbt), 'm'
+            PRINT '(3X,A18,F6.1,A1)', 'Minimum timescale ', 1/spng_wfct(nfptbt),'s'
          END IF
       END IF
 
@@ -351,7 +384,7 @@ CONTAINS
       ! arrange the input sounding
       !
       IF (ps(1) == 0.) THEN
-         OPEN(1,file='sound_in',status='old',form='formatted')
+         OPEN(1,file=sound_in_file,status='old',form='formatted')
 
          DO ns = 1, nns
             READ(1,*,end=100) ps(ns),ts(ns),rts(ns),us(ns),vs(ns)
@@ -916,7 +949,7 @@ CONTAINS
        END DO
 
     END IF
-
+    
     ! ----------------------------------------------------------
 
     !
@@ -960,6 +993,7 @@ CONTAINS
 
     IF (nreg > 1) THEN
        DO ss = 1,nspec_dry
+          ! The substitution ind(ss) is not necessary since theyre the same numbers
           CALL setAeroMass(spec%ind(ss),pvf2a,pvf2b,pndist,core,spec%rholiq(ss))
        END DO
     END IF
@@ -1011,7 +1045,7 @@ CONTAINS
 
     INTEGER :: ss,ee
     INTEGER :: i,j,k
-
+    
     DO k = 2, nzp ! DONT PUT STUFF INSIDE THE GROUND
        DO j = 1, nyp
           DO i = 1, nxp

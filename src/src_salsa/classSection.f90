@@ -30,12 +30,17 @@ MODULE classSection
      REAL    :: nlim     ! Lower limit for number concentration used in many calculations, depends on particle type
      REAL    :: dlim     ! Category specific diameter limit used e.g. in coagulation calculations
 
-     REAL    :: INdef    ! IN deficit ratio (for ice nucleation only)
+     REAL    :: INdef    ! IN nucleated fraction for lower limit contact angle
 
-     
+     ! Secondary ice diagnostics: These are just added from the source, advected and removed upon evaporation/sedimentation/melting,
+     ! but currently not coupled with coagulation...
+     REAL    :: SIP_drfr   ! Secondary ice due to drop fracturing. 
+     REAL    :: SIP_rmspl  ! Secondary ice due to rime splintering
+          
      CONTAINS
        PROCEDURE :: updateDiameter
        PROCEDURE :: updateRhomean
+       PROCEDURE :: getRimeFraction
   END TYPE Section
   INTERFACE Section
      PROCEDURE :: cnstr
@@ -148,10 +153,7 @@ MODULE classSection
     ! Subroutine updateRhomean
     !
     ! updateRhomean just gets the bulk mass weighted mean ice density
-    ! for partially rimed particles. Another subroutine should be added
-    ! where the particle shape is also taken into account for getting
-    ! the true effective density (once implemented, the effective
-    ! density is the one that should be used for fall velocities etc)
+    ! for partially rimed particles. 
     !
     ! -------------------------------------------------
     !
@@ -173,7 +175,7 @@ MODULE classSection
             mass_r = spec%rhori*SELF%volc(irim)
             mass_t = mass_p + mass_r
             SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/MAX(mass_t,7.e-25)
-            SELF%rhomean = MAX(SELF%rhomean, spec%rhowa)
+            SELF%rhomean = MIN(SELF%rhomean, spec%rhoic)
          ELSE
             SELF%rhomean = spec%rhoic
          END IF
@@ -183,4 +185,33 @@ MODULE classSection
 
     END SUBROUTINE updateRhomean
 
+    !
+    ! Function getRimeFraction
+    !
+    ! Returns the rime mass fraction for ice bins
+    !
+    FUNCTION getRimeFraction(SELF)
+      CLASS(Section), INTENT(in) :: SELF
+      REAL :: getRimeFraction
+      
+      
+      INTEGER :: iwa,irim
+      
+      iwa = spec%getIndex("H2O")
+      irim = spec%getIndex("rime")
+      getRimeFraction = 0.
+
+      IF (SELF%phase == 4 .AND. SELF%volc(iwa) > 1.e-23 .AND. &  ! Is ice bin and is not empty
+          SELF%volc(irim) > 1.e-23 .AND. SELF%numc > SELF%nlim) THEN
+         
+         getRimeFraction = SELF%volc(irim)*spec%rhori /   &
+              (SELF%volc(iwa)*spec%rhoic + SELF%volc(irim)*spec%rhori)
+         
+      END IF
+
+      IF (getRimeFraction < 0. .OR. getRimeFraction > 1. ) &
+           WRITE(*,*) 'CLASS SECTION RIMEFRAC ERROR: ', getRimeFraction
+      
+    END FUNCTION getRimeFraction
+    
 END MODULE classSection

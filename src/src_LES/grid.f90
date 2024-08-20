@@ -22,7 +22,8 @@ MODULE grid
   USE classFieldArray, ONLY : FieldArray
   USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice,     &
                          in1a, fn2a, in2b, fn2b, ica, icb, fca, fcb,  &
-                         aerobins, cloudbins, precpbins, icebins, ice_theta_dist
+                         aerobins, cloudbins, precpbins, icebins,     &
+                         ice_theta_dist,lssecice
   
   IMPLICIT NONE
 
@@ -48,8 +49,18 @@ MODULE grid
   REAL    :: cntlat =  31.5      ! Latitude for radiation
   
   LOGICAL :: lnudging = .FALSE.  ! Master switch for nudging scheme
+
   LOGICAL :: lemission = .FALSE. ! Master switch for aerosol emission
   
+  LOGICAL :: lpback = .FALSE.       ! Master switch for running bulk microphysics
+                                    ! in piggybacking mode, while level == 4
+  INTEGER :: pbncsrc = 0            ! Source of CDNC for piggybacking microphysics.
+                                    ! 0: use the constant CCN parameter
+                                    ! 1: Use the CNDC taken from master microphysics (SALSA)
+                                    !    gridpoint by gridpoint
+                                    ! 2: Use the CDNC taken from master microphysics (SALSA) 
+                                    !    as a domain mean
+
   INTEGER :: iradtyp
   INTEGER :: igrdtyp = 1         ! vertical grid type
   INTEGER :: isgstyp = 1         ! sgs model type
@@ -57,7 +68,9 @@ MODULE grid
   INTEGER :: naddsc  = 0         ! number of additional scalars;
   INTEGER :: nsalsa  = 0         ! Number of tracers for SALSA
   INTEGER :: nfpt = 10           ! number of rayleigh friction points
+  INTEGER :: nfptbt = 10         ! number of rayleigh friction points from the surface (cirrus edition)  
   REAL    :: distim = 300.0      ! dissipation timescale
+  REAL    :: distimbt = 300.0      ! dissipation timescale
   
   REAL    :: sst = 283.   ! Surface temperature      added by Zubair Maalick
   REAL    :: W1  = 0.9   ! Water content
@@ -76,7 +89,7 @@ MODULE grid
   INTEGER           :: nz, nxyzp, nxyp
   REAL              :: dxi, dyi, dtl, dtlv, dtlt, umean, vmean, psrf
 
-  REAL, ALLOCATABLE :: spng_wfct(:), spng_tfct(:)
+  REAL, ALLOCATABLE :: spng_wfct(:), spng_tfct(:), spng_wfctbt(:), spng_tfctbt(:)
   
   ! Some zero arrays ice with level < 5
   REAL, ALLOCATABLE, TARGET :: tmp_icep(:,:,:,:), tmp_icet(:,:,:,:)
@@ -150,8 +163,11 @@ CONTAINS
          nsalsa = (nc+1)*nbins + (nc+1)*ncld + (nc+1)*nprc + 5        ! (nc+1) for the mass tracers + number concentration
          IF (level == 5) nsalsa = nsalsa + (nc+1+1)*nice              ! (nc+1+1)*nice for RIMED ICE
          IF (level == 5 .AND. ice_theta_dist) nsalsa = nsalsa + nbins+ncld+nprc  ! If contact angle distributions for heterogeneous ice nucleation, 
-      END IF                                                          ! add one more tracer for the "IN deficit fraction"
+                                                                                 ! add one more tracer for the "IN deficit fraction"
+         IF (level == 5 .AND. lssecice%switch) nsalsa = nsalsa + 2.*nice
 
+      END IF
+         
       ! Initial condition vectors
       CALL setInitialProfiles(BasicState,nzp)
       CALL BasicState%getByOutputstatus(outBasicState)
@@ -180,7 +196,10 @@ CONTAINS
          ! Total number of prognostic scalars: temp + water vapor + tke(isgstyp>1) + SALSA
          nscl = 2 + nsalsa
          IF (isgstyp > 1) nscl = nscl+1
-
+         ! ... + bulk slave precip number and mass (lpback = .TRUE.)
+         IF (lpback) nscl = nscl + 2
+         
+         
          ALLOCATE (a_sclrp(nzp,nxp,nyp,nscl), a_sclrt(nzp,nxp,nyp,nscl))
          a_sclrp(:,:,:,:) = 0.
          a_sclrt(:,:,:,:) = 0.
@@ -217,7 +236,7 @@ CONTAINS
       CALL Axes%getByGroup("ts",AxesTS)
       CALL AxesPS%getByOutputstatus(outAxesPS)
       CALL AxesTS%getByOutputstatus(outAxesTS)
-               
+
       nxyzp = nxp*nyp*nzp
       nxyp  = nxp*nyp
 

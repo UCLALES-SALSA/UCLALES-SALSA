@@ -12,12 +12,12 @@ MODULE mo_ice_shape
   ! to SI units. Also make sure to use SI units when specifying these in the namelist. Pretty much all the
   ! articles report these in non-SI units!
   
-  ! For Mass:
+  ! For Mass: m = alpha * D ** beta
   REAL, SAVE :: iceShapeAlpha = 15.56999e-3
   REAL, SAVE :: iceShapeBeta = 2.02
 
-  ! For cross sectional area
-  REAL, SAVE :: iceShapeGamma = 0.55
+  ! For cross sectional area: A = gamma * D ** sigma
+  REAL, SAVE :: iceShapeGamma = 0.55 ! Note that the gamma/sigma convection follows Khvorostyanov and Curry 2002, and is OPPOSITE to Morrison and Milbrandt 2015
   REAL, SAVE :: iceShapeSigma = 1.97
 
   TYPE t_shape_coeffs
@@ -49,7 +49,7 @@ MODULE mo_ice_shape
       Mtot = ( mpri + mrim )/numc
       
       Fr = MAX( MIN(mrim/(Mtot*numc),0.99),0.01 )
-      rho_b = getBulkRho(Fr)  ! "almost" like graupel density...
+      rho_b = getBulkRho(Fr)  ! This is taken for graupel density and is set as the bulk density for rime since we do not implement predicted graupel density.
       Dth = (pi6*spec%rhoic/iceShapeAlpha)**(1./(iceShapeBeta-3.))
       Dgr = (iceShapeAlpha/(pi6*rho_b))**(1./(3.-iceShapeBeta))
       Dcr = ( (1./(1.-Fr))*iceShapeAlpha/(pi6*rho_b) )**(1./(3.-iceShapeBeta))
@@ -68,11 +68,11 @@ MODULE mo_ice_shape
       ELSE IF (Mtot >= Mgr .AND. Mtot < Mcr) THEN
          ! Graupel
          getDiameter = D_spherical(rho_b,Mtot)
-      ELSE IF (Mtot > Mcr) THEN
+      ELSE IF (Mtot >= Mcr) THEN
          ! Partially rimed crystals
          getDiameter = D_nonsphericalRimed(Fr,Mtot)
       ELSE
-         WRITE(*,*) 'ICE SHAPE VAARIN 2'
+         WRITE(*,*) 'ICE SHAPE VAARIN 2',mrim,mpri,mtot,numc,Mth,Mgr,Mcr
       END IF
       
     END FUNCTION getDiameter      
@@ -161,9 +161,14 @@ MODULE mo_ice_shape
       Mcr = rho_b*pi6*Dcr**3
 
       ! Modify values for non-spherical particles
-      IF ( (Mtot >= Mth .AND. Mtot < Mgr) .OR. (Mtot > Mcr) ) THEN
-         ishape%alpha = iceShapeAlpha; ishape%beta = iceShapeBeta
-         ishape%gamma = iceShapeGamma; ishape%sigma = iceShapeSigma         
+      IF ( (Mtot >= Mth .AND. Mtot < Mgr) ) THEN
+        ishape%alpha = iceShapeAlpha; ishape%beta = iceShapeBeta
+        ishape%gamma = iceShapeGamma; ishape%sigma = iceShapeSigma         
+      ELSE IF  (Mtot > Mcr) THEN
+        ishape%alpha = iceShapeAlpha/(1.-Fr); ishape%beta = iceShapeBeta  ! As per Morrison & milbrandt 2015 Eq12
+        !! For the projected area coefs, just linearly interpolate between spherical and non-spherical even if it is pretty dirty
+        ishape%gamma = Fr*ishape%gamma + (1.-Fr)*iceShapeGamma
+        ishape%sigma = Fr*ishape%sigma + (1.-Fr)*iceShapeSigma
       END IF
       
     END SUBROUTINE getShapeCoefficients

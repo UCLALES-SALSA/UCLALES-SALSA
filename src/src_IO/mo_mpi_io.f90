@@ -104,13 +104,13 @@ MODULE mo_mpi_io
       IF (onlyroot) THEN
          fhist%disp = fhist%disp + INT_SIZE
       ELSE
-         fhist%disp = fhist%disp + pecount*INT_SIZE
+         fhist%disp = fhist%disp + pecount * INT_SIZE
       END IF
          
     END SUBROUTINE write_hist_parameters_int
 
     !------------------------------------------------------------------------------------------------
-    ! SUBROUTINE WRITE_HIST_PARAMETERS_INT_1D: Write an individual parameter value, integer implementation
+    ! SUBROUTINE WRITE_HIST_PARAMETERS_INT_1D: Write 1d vectors, integer implementation
     !    
     SUBROUTINE write_hist_parameters_int_1d(nn,var,onlyroot,fhist)
       INTEGER, INTENT(in) :: nn
@@ -119,7 +119,7 @@ MODULE mo_mpi_io
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER :: lsize
       INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       lsize = nn
@@ -133,15 +133,17 @@ MODULE mo_mpi_io
       disp = fhist%disp
       IF (.NOT. onlyroot) &
            disp = fhist%disp + myid * lsize * INT_SIZE
-      
+
       IF (l_root .AND. onlyroot) &
-           CALL MPI_FILE_WRITE_AT(fhist%id, disp, var, nn,    &
+           CALL MPI_FILE_WRITE_AT(fhist%id, disp, var, lsize,    &
                                   MPI_INTEGER, MPI_STATUS_IGNORE, ierr  )
 
-      IF (l_root .AND. .NOT. onlyroot) &
-           CALL MPI_FILE_WRITE_AT_ALL(fhist%id, disp, var, nn,   &
-                                      MPI_INTEGER, MPI_STATUS_IGNORE, ierr)
-
+      IF (l_root .AND. .NOT. onlyroot) THEN
+         
+         CALL MPI_FILE_WRITE_AT_ALL(fhist%id, disp, var, lsize,   &
+                                    MPI_INTEGER, MPI_STATUS_IGNORE, ierr)
+      END IF
+                
       ! Update displacement
       IF (onlyroot) THEN
          fhist%disp = fhist%disp + lsize * INT_SIZE
@@ -199,7 +201,7 @@ MODULE mo_mpi_io
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER :: lsize
       INTEGER(KIND=MPI_OFFSET_KIND) :: disp
       
       lsize = nn
@@ -242,7 +244,7 @@ MODULE mo_mpi_io
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER :: lsize
       INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       lsize = n2*n3
@@ -285,7 +287,7 @@ MODULE mo_mpi_io
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER :: lsize
       INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       lsize = n1*n2*n3
@@ -351,7 +353,7 @@ MODULE mo_mpi_io
       LOGICAL, INTENT(in) :: onlyroot
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER :: lsize
       INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       lsize = nn
@@ -406,7 +408,7 @@ MODULE mo_mpi_io
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER :: lsize
       INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       lsize = nn
@@ -436,7 +438,7 @@ MODULE mo_mpi_io
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER :: lsize
       INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       lsize = n2*n3
@@ -467,7 +469,7 @@ MODULE mo_mpi_io
       TYPE(mpi_file_parameters), INTENT(inout) :: fhist
       LOGICAL :: l_root
       INTEGER :: ierr
-      INTEGER(KIND=MPI_OFFSET_KIND) :: lsize
+      INTEGER :: lsize
       INTEGER(KIND=MPI_OFFSET_KIND) :: disp
 
       lsize = n1*n2*n3

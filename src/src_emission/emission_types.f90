@@ -29,6 +29,10 @@ MODULE emission_types
                          emitHeightMax = -999.        ! Max height (m)
      INTEGER          :: emitLevMin = -999            ! Integer levels corresponding to the heights; If both heights and lev indices are specified,
      INTEGER          :: emitLevMax = -999            ! the level indices are preferred (so use one or the other...).
+     REAL             :: emitLatmin = -1.e6           ! Min and max X/"lon" offsets in meters for the emission area
+     REAL             :: emitLatmax = 1.e6
+     REAL             :: emitLonmin = -1.e6           ! Min and max Y/"lat" offsets in meters for the emission area
+     REAL             :: emitLonmax = 1.e6
 
      INTEGER          :: emitSizeDistType = 1         ! 1: Monochromatic aerosol, 2: modal size disribution (lognormal)
      REAL             :: emitDiam = 10.e-6,    &      ! Assumed (dry )diameter of the particles (mode diameter for emitType=2).
@@ -54,8 +58,13 @@ MODULE emission_types
      INTEGER :: np                  ! Number of points of emission trajectory intersecting with cell boundaries for each subdomain/processor
    END type EmitType3Config
 
-   INTEGER :: nEmissionModes = 0                             ! Number of emission modes (NAMELIST variable, max=5)
    INTEGER, PARAMETER :: maxEmissionModes = 5                ! Max number of emission modes
+
+   ! NAMELIST variables
+   LOGICAL :: emitPristineIN = .TRUE.                        ! TRUE: when aerosol emissions active, IN active particles 
+                                                             !       improve the IN efficiency of the target population.
+			                                     ! FALSE: IN efficiency of target population remains intact.    
+   INTEGER :: nEmissionModes = 0                             ! Number of emission modes (max == maxemissionModes)
    TYPE(EmitConfig), TARGET :: emitModes(MaxEmissionModes)   ! Configuration instances for emission modes
    TYPE(EmitSizeDist), TARGET :: emitData(MaxEmissionModes)  ! Emission size distribution data for each setup/mode.
    TYPE(EmitType3Config), TARGET :: emitType3(MaxEmissionModes)   ! Configuration instances for emission type 3

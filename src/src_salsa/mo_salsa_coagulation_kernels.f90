@@ -1,100 +1,104 @@
 MODULE mo_salsa_coagulation_kernels
   USE mo_salsa_types, ONLY : aero, cloud, precp, ice, & 
                              iaero, faero, icloud, fcloud, iprecp, fprecp,  &
-                             iice, fice
+                             iice, fice,                                    &
+                             zccaa, zcccc, zccpp, zccii,                    &
+                             zccca, zccpa, zccia,                           &
+                             zccpc, zccic,                                  &
+                             zccip
   USE mo_submctl, ONLY : nbins, ncld, nprc, nice, spec, pi6,  &
                          lscgaa, lscgcc, lscgpp, lscgii,      & 
                          lscgca, lscgpa, lscgia,              & 
                          lscgpc, lscgic,                      & 
-                         lscgip 
+                         lscgip
   USE classSection, ONLY : Section
   USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
   IMPLICIT NONE
 
+  
   CONTAINS
   
-    SUBROUTINE update_coagulation_kernels(kbdim,klev,ppres,ptemp,   &
-                                          zccaa, zcccc, zccca, zccpc, zccpa,  &
-                                          zccpp, zccia, zccic, zccii, zccip) 
+    SUBROUTINE update_coagulation_kernels(kbdim,klev,ppres,ptemp) 
 
       INTEGER, INTENT(in) :: kbdim,klev
       REAL, INTENT(in) :: ppres(kbdim,klev), ptemp(kbdim,klev)
-      REAL, INTENT(out) :: zccaa(kbdim,klev,nbins,nbins), zcccc(kbdim,klev,ncld,ncld),  &
-                           zccca(kbdim,klev,nbins,ncld), zccpc(kbdim,klev,ncld,nprc),   &
-                           zccpa(kbdim,klev,nbins,nprc), zccpp(kbdim,klev,nprc,nprc),   &
-                           zccia(kbdim,klev,nbins,nice), zccic(kbdim,klev,ncld,nice),   &
-                           zccii(kbdim,klev,nice,nice), zccip(kbdim,klev,nprc,nice)
 
       ! Aero-aero
-      zccaa(:,:,:,:) = 0.
-      IF (lscgaa) &
-           CALL buildKernelSelf( kbdim,klev,nbins,aero,ptemp,ppres,zccaa )
-
+      IF (lscgaa) THEN
+         zccaa(:,:,:,:) = 0.
+         CALL buildKernelSelf( kbdim,klev,nbins,aero,ptemp,ppres,zccaa )
+      END IF
+           
       ! Cloud-cloud 
-      zcccc(:,:,:,:) = 0.
-      IF (lscgcc) &
-           CALL buildKernelSelf( kbdim,klev,ncld,cloud,ptemp,ppres,zcccc )
-      
+      IF (lscgcc) THEN
+         zcccc(:,:,:,:) = 0.
+         CALL buildKernelSelf( kbdim,klev,ncld,cloud,ptemp,ppres,zcccc )
+      END IF
+           
       ! Precp-precp
-      zccpp(:,:,:,:) = 0.
-      IF (lscgpp) &
-           CALL buildKernelSelf( kbdim,klev,nprc,precp,ptemp,ppres,zccpp )
-
+      IF (lscgpp) THEN
+         zccpp(:,:,:,:) = 0.
+         CALL buildKernelSelf( kbdim,klev,nprc,precp,ptemp,ppres,zccpp )
+      END IF
+      
       ! ice-ice
-      zccii(:,:,:,:) = 0.
-      IF (lscgii) &
-           CALL buildKernelSelf( kbdim,klev,nice,ice,ptemp,ppres,zccii )
-
+      IF (lscgii) THEN
+         zccii(:,:,:,:) = 0.
+         CALL buildKernelSelf( kbdim,klev,nice,ice,ptemp,ppres,zccii )
+      END IF
+      
       ! Aero-cloud
-      zccca(:,:,:,:) = 0.
-      IF (lscgca) &
-           CALL buildKernel( kbdim,klev,nbins,aero,ncld,cloud,ptemp,ppres,zccca )
-
+      IF (lscgca) THEN
+         zccca(:,:,:,:) = 0.
+         CALL buildKernel( kbdim,klev,nbins,aero,ncld,cloud,ptemp,ppres,zccca )
+      END IF
+         
       ! Aero-precp
-      zccpa(:,:,:,:) = 0.
-      IF (lscgpa) &
-           CALL buildKernel( kbdim,klev,nbins,aero,nprc,precp,ptemp,ppres,zccpa )
-
+      IF (lscgpa) THEN
+         zccpa(:,:,:,:) = 0.
+         CALL buildKernel( kbdim,klev,nbins,aero,nprc,precp,ptemp,ppres,zccpa )
+      END IF
+         
       ! Aero-ice
-      zccia(:,:,:,:) = 0.
-      IF (lscgia) &
-           CALL buildKernel( kbdim,klev,nbins,aero,nice,ice,ptemp,ppres,zccia )
-
+      IF (lscgia) THEN
+         zccia(:,:,:,:) = 0.
+         CALL buildKernel( kbdim,klev,nbins,aero,nice,ice,ptemp,ppres,zccia )
+      END IF
+         
       ! Cloud-precp
-      zccpc(:,:,:,:) = 0.
-      IF (lscgpc) &
-           CALL buildKernel( kbdim,klev,ncld,cloud,nprc,precp,ptemp,ppres,zccpc )
-
+      IF (lscgpc) THEN
+         zccpc(:,:,:,:) = 0.
+         CALL buildKernel( kbdim,klev,ncld,cloud,nprc,precp,ptemp,ppres,zccpc )
+      END IF
+         
       ! Cloud-ice
-      zccic(:,:,:,:) = 0.
-      IF (lscgic) &
-           CALL buildKernel( kbdim,klev,ncld,cloud,nice,ice,ptemp,ppres,zccic )
-
+      IF (lscgic) THEN
+         zccic(:,:,:,:) = 0.
+         CALL buildKernel( kbdim,klev,ncld,cloud,nice,ice,ptemp,ppres,zccic )
+      END IF
+         
       ! Precp-ice
-      zccip(:,:,:,:) = 0.
-      IF (lscgip) &
-           CALL buildKernel( kbdim,klev,nprc,precp,nice,ice,ptemp,ppres,zccip )
-            
+      IF (lscgip) THEN
+         zccip(:,:,:,:) = 0.
+         CALL buildKernel( kbdim,klev,nprc,precp,nice,ice,ptemp,ppres,zccip )
+      END IF
+         
     END SUBROUTINE update_coagulation_kernels
 
     ! ----------------------
+    
     SUBROUTINE buildKernelSelf( kbdim,klev,nb1,part1,ptemp,ppres,zcc )
       INTEGER, INTENT(in) :: kbdim,klev,nb1
-      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1)
+      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1)  ! inout because updates rho, D
       REAL, INTENT(in) :: ptemp(kbdim,klev),ppres(kbdim,klev)
-      REAL, INTENT(inout) :: zcc(kbdim,klev,nb1,nb1)
-
-      REAL :: zdiam_mm, zmass_mm
-      
-      REAL :: zdiam(nb1), zmass(nb1)
+      REAL, INTENT(out) :: zcc(kbdim,klev,nb1,nb1)
 
       INTEGER :: mm,nn,ii,jj
 
+      zcc = 0.
+      
       DO jj = 1,klev
          DO ii = 1,kbdim
-            
-            zdiam(:) = 0.
-            zmass(:) = 0.
             
             ASSOCIATE ( pp1 => part1(ii,jj,1:nb1) )
               
@@ -102,8 +106,6 @@ MODULE mo_salsa_coagulation_kernels
                  CALL pp1(mm)%updateDiameter(limit=.TRUE.,type="all")
                  CALL pp1(mm)%updateRhomean()
               END DO
-
-              IF (pp1(1)%phase == 4) zdiam(1:nb1) = pp1(1:nb1)%dnsp ! for ice use nonspherical shape for the actual diameter
               
               DO mm = 1, nb1         ! smaller colliding particle                 
                  IF (pp1(mm)%numc < pp1(mm)%nlim) CYCLE
@@ -130,19 +132,16 @@ MODULE mo_salsa_coagulation_kernels
       ! Always the "smaller" particle indices first
       INTEGER, INTENT(in) :: kbdim,klev
       INTEGER, INTENT(in) :: nb1, nb2
-      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1), part2(kbdim,klev,nb2)
+      TYPE(Section), INTENT(inout) :: part1(kbdim,klev,nb1), part2(kbdim,klev,nb2) ! inout because updates rho, D 
       REAL, INTENT(in)    :: ptemp(kbdim,klev),ppres(kbdim,klev)
-      REAL, INTENT(inout)   :: zcc(kbdim,klev,nb1,nb2)
-      
-      REAL :: zdiam1(nb1), zdiam2(nb2), zmass1(nb1), zmass2(nb2)
-
+      REAL, INTENT(out)   :: zcc(kbdim,klev,nb1,nb2)
+     
       INTEGER :: mm,nn,ii,jj
 
+      zcc = 0.
+      
       DO jj = 1,klev
          DO ii = 1,kbdim
-            
-            zdiam1(:) = 0.; zdiam2(:) = 0.
-            zmass1(:) = 0.; zmass2(:) = 0.
             
             ASSOCIATE ( pp1 => part1(ii,jj,1:nb1), pp2 => part2(ii,jj,1:nb2) )
 
@@ -177,7 +176,7 @@ MODULE mo_salsa_coagulation_kernels
 
     REAL FUNCTION coagc(pp1,pp2,temp,pres,kernel)
 
-      USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd 
+      USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd
       USE mo_particle_external_properties, ONLY : terminal_vel
 
       IMPLICIT NONE
@@ -212,7 +211,7 @@ MODULE mo_salsa_coagulation_kernels
            zturbinert    ! turbulent inertia
 
       REAL :: diam1, diam2,       & ! Particle diameters; for ice this should be the effective max dimension
-              dicesph1, dicesph2, & ! Spherical equivalent diameters for ice
+              dsph1, dsph2, & ! Spherical equivalent diameters (important for calculating ice mass)
               mass1, mass2,       & ! Masses of particles
               rhop1, rhop2,       & ! Particle densities; For ice this is the effective density (low for non-spherical)
               rhoiceb1, rhoiceb2   ! Bulk ice densities
@@ -235,6 +234,7 @@ MODULE mo_salsa_coagulation_kernels
            schm(2), &   ! Schmidt nubmer
            reyn(2), &    ! Reynolds number
            stok             ! Stokes number
+
       INTEGER :: lrg,sml
 
       INTEGER :: ns ! number of species
@@ -252,19 +252,19 @@ MODULE mo_salsa_coagulation_kernels
       ns = spec%getNSpec(type="total") ! includes rime
       
       !-- 0) Initializing particle and ambient air variables --------------------
-      diam1 = MERGE(pp1%dnsp, pp1%dwet, pp1%phase == 4)
+      diam1 = MERGE(pp1%dnsp, pp1%dwet, pp1%phase == 4)  ! diam will be non-spherical for ice
       diam2 = MERGE(pp2%dnsp, pp2%dwet, pp2%phase == 4)
-      IF (pp1%phase == 4) dicesph1 = pp1%dwet
-      IF (pp2%phase == 4) dicesph2 = pp2%dwet
+      dsph1 = pp1%dwet  ! Spherial diameters for calculating mass
+      dsph2 = pp2%dwet
 
-      mass1 = pp1%rhomean*pi6*pp1%dwet**3
-      mass2 = pp2%rhomean*pi6*pp2%dwet**3
+      mass1 = pp1%rhomean*pi6*dsph1**3
+      mass2 = pp2%rhomean*pi6*dsph2**3
 
       ! If this is for self coagulation, put a minor offset on the particle diameters to account for
       ! the bin width
       IF ( ABS(pp1%dmid - pp2%dmid)/pp1%dmid < 1.e-2) THEN
-         diam1 = 0.9*diam2
-         mass1 = 0.7290*mass2 ! 0.7290 corresponds to 0.9*diameter ;;  NOTE this might cause some small error for ice!!
+         diam1 = 1.1*diam2
+         mass1 = 1.33*mass2 ! 1.33 corresponds roughly to factor 1.1 in diameter 
       END IF
 
       
@@ -337,15 +337,15 @@ MODULE mo_salsa_coagulation_kernels
          vkin  = visc/zrhoa           ! Kinematic viscosity of air [m2 s-1]
 
          IF (pp1%phase < 4) THEN         
-            termv(1) = terminal_vel(pp1%dwet,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase)
+            termv(1) = terminal_vel(diam1,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase)
          ELSE
-            termv(1) = terminal_vel(pp1%dwet,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase,shape1,pp1%dnsp)
+            termv(1) = terminal_vel(dsph1,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase,shape1,diam1)
          END IF
 
          IF (pp2%phase < 4) THEN
-            termv(2) = terminal_vel(pp2%dwet,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase)
+            termv(2) = terminal_vel(diam2,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase)
          ELSE
-            termv(2) = terminal_vel(pp2%dwet,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase,shape2,pp2%dnsp)
+            termv(2) = terminal_vel(dsph2,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase,shape2,diam2)
          END IF
          
          ! Reynolds number
@@ -365,8 +365,8 @@ MODULE mo_salsa_coagulation_kernels
             zbrconv = 0.45*zbrown*SQRT(reyn(lrg))*( schm(sml)**(1./3.) )
          END IF
          
-         ! Turbulent Shear
-         eddy_dis = 10.e-4 ! Values suggested by Sami - could be taken from the LES model?
+         ! Turbulent Shear; Chen et al. 2020 suggest 500 cm2 s-3 for turbulent cumulus
+         eddy_dis = 0.05 ! Values suggested by Sami - could be taken from the LES model?
          ztshear = SQRT(8.*pi*eddy_dis/(15.*vkin))*(0.5*(diam(1)+diam(2)))**3
          zturbinert = pi*eddy_dis**(0.75) /(grav* SQRT(SQRT( vkin )))  &
               *(0.5*(diam(1)+diam(2)))**2* ABS(termv(1)-termv(2))

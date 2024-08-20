@@ -457,7 +457,7 @@ MODULE radiation
     del    = asin(sin(23.4439*pi/180.)*sin(sig))
     h      = 2.*pi*((time-day)-0.5)
     zenith = sin(lamda)*sin(del) + cos(lamda)*cos(del)*cos(h)
-
+    !write(*,*) acos(zenith)*180/pi
   END FUNCTION zenith
 
 END MODULE radiation

@@ -39,20 +39,26 @@ MODULE mpi_interface
    !       whether MPI is used or not. Another option of course would be to use compiler directives,
    !       maye future work? However it will make the source code again a bit more messy.
    INTERFACE broadcast
-      MODULE PROCEDURE broadcastRealArray1d, broadcastRealArray3d, broadcastInteger
+      MODULE PROCEDURE broadcastFloatArray1d, broadcastFloatArray3d, broadcastInteger,broadcastFloat
    END INTERFACE broadcast
 
-   INTERFACE get_max_root
-      MODULE PROCEDURE get_scalar_integer_global_max_root
-   END INTERFACE get_max_root
+   INTERFACE get_mpi_max
+      MODULE PROCEDURE get_scalar_integer_global_max,  &
+                       get_scalar_float_global_max
+   END INTERFACE get_mpi_max
 
-   INTERFACE get_sum_root
-      MODULE PROCEDURE get_scalar_float_global_sum_root,    &
-                       get_scalar_integer_global_sum_root,  &
-                       get_1d_float_global_sum_root,        &
-                       get_1d_integer_global_sum_root,      &
-                       get_2d_float_global_sum_root
-   END INTERFACE get_sum_root
+   INTERFACE get_mpi_min
+      MODULE PROCEDURE get_scalar_integer_global_min,  &
+                       get_scalar_float_global_min
+   END INTERFACE get_mpi_min
+
+   INTERFACE get_mpi_sum
+      MODULE PROCEDURE get_scalar_float_global_sum,    &
+                       get_scalar_integer_global_sum,  &
+                       get_1d_float_global_sum,        &
+                       get_1d_integer_global_sum,      &
+                       get_2d_float_global_sum
+   END INTERFACE get_mpi_sum
 
    INTEGER, PARAMETER :: mpiroot = 0
    INTEGER :: REAL_SIZE, CMPLX_SIZE, INT_SIZE
@@ -309,64 +315,104 @@ CONTAINS
    END SUBROUTINE yshuffle
     !
     ! -------------------------------------------------------------------------
-    ! SUBROUTINE get_scalar_global_max_root
-    ! Get the global maximum across processes for a single scalar. The value is
-    ! stored only for the root process!
+    ! SUBROUTINE get_max_root
+    ! Get the global maximum across processes for a single scalar. By default and/or if
+    ! root=TRUE, the result is stored only for the root process (0 for others). If
+    ! root=FALSE, the result is scattered for all processes.
     ! 
-    SUBROUTINE get_scalar_integer_global_max_root(lmax,gmax)
+    SUBROUTINE get_scalar_integer_global_max(lmax,gmax,root)
+      INTEGER, INTENT(in) :: lmax
+      INTEGER, INTENT(out) :: gmax
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      gmax = lmax
+    END SUBROUTINE get_scalar_integer_global_max
+    ! --------------------------------------------------
+    SUBROUTINE get_scalar_float_global_max(lmax,gmax,root)
       REAL, INTENT(in) :: lmax
       REAL, INTENT(out) :: gmax
-      gmax=lmax
-    END SUBROUTINE get_scalar_integer_global_max_root
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      gmax = lmax
+    END SUBROUTINE get_scalar_float_global_max
+    
+    !
+    ! --------------------------------------------------------------------------
+    ! SUBROUTINE get_min_root
+    ! Get the global minimum across processes for a single scalar. By default and/or if
+    ! root=TRUE, the result is stored only for the root process (0 for others). If
+    ! root=FALSE, the result is scattered for all processes.
+    !
+    SUBROUTINE get_scalar_integer_global_min(lmin,gmin,root)
+      INTEGER, INTENT(in) :: lmin
+      INTEGER, INTENT(out) :: gmin
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      gmin = lmin
+    END SUBROUTINE get_scalar_integer_global_min
+    ! -------------------------------------------------
+    SUBROUTINE get_scalar_float_global_min(lmin,gmin,root)
+      REAL, INTENT(in) :: lmin
+      REAL, INTENT(out) :: gmin
+      LOGICAL, INTENT(in), OPTIONAL :: root
+      gmin = lmin
+    END SUBROUTINE get_scalar_float_global_min
 
     !
     ! --------------------------------------------------------------------
     ! SUBROUTINE get_scalar_global_sum_root   
-    ! Get the sum across processes for a single float scalar. The value
-    ! is stored only for the root process!
-    SUBROUTINE get_scalar_float_global_sum_root(lsum,gsum)
+    ! Get the sum across processes for a single float scalar. By default and/or if
+    ! root=TRUE, the result is stored only for the root process (0 for others). If
+    ! root=FALSE, the result is scattered for all processes.
+    !
+    SUBROUTINE get_scalar_float_global_sum(lsum,gsum,root)
       REAL, INTENT(in) :: lsum
       REAL, INTENT(out) :: gsum
+      LOGICAL, INTENT(in), OPTIONAL :: root
       gsum = lsum
-    END SUBROUTINE get_scalar_float_global_sum_root
+    END SUBROUTINE get_scalar_float_global_sum
     ! --------------------------------------
     ! SAme for integer
-    SUBROUTINE get_scalar_integer_global_sum_root(lsum,gsum)
+    SUBROUTINE get_scalar_integer_global_sum(lsum,gsum,root)
       INTEGER, INTENT(in) :: lsum
       INTEGER, INTENT(out) :: gsum
+      LOGICAL, INTENT(in), OPTIONAL :: root
       gsum = lsum
-    END SUBROUTINE get_scalar_integer_global_sum_root
+    END SUBROUTINE get_scalar_integer_global_sum
     !
     ! ------------------------------------------------------------------------
     ! SUBROUTINE get_1d_global_sum_root(lsum,gsum)
-    ! Get the sum across all processes for a 1 dimensional float array. The values
-    ! are stored only for the root process
-    SUBROUTINE get_1d_float_global_sum_root(n,lsum,gsum)
+    ! Get the sum across all processes for a 1 dimensional float array. By default and/or if
+    ! root=TRUE, the result is stored only for the root process (0 for others). If
+    ! root=FALSE, the result is scattered for all processes.
+    !
+    SUBROUTINE get_1d_float_global_sum(n,lsum,gsum,root)
       INTEGER, INTENT(in) :: n
       REAL, INTENT(in) :: lsum(n)
       REAL, INTENT(out) :: gsum(n)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       gsum = lsum
-    END SUBROUTINE get_1d_float_global_sum_root
+    END SUBROUTINE get_1d_float_global_sum
     ! -------------------------------------------------
     ! Same for integer
-    SUBROUTINE get_1d_integer_global_sum_root(n,lsum,gsum)
+    SUBROUTINE get_1d_integer_global_sum(n,lsum,gsum,root)
       INTEGER, INTENT(in) :: n
       INTEGER, INTENT(in) :: lsum(n)
       INTEGER, INTENT(out) :: gsum(n)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       gsum = lsum
-    END SUBROUTINE get_1d_integer_global_sum_root
+    END SUBROUTINE get_1d_integer_global_sum
     !
     !---------------------------------------------------------------------------
     ! SUBROUTINE get_2d_float_global_sum_root
-    ! Get the sum aross all processes for a 2 dimensional float array. The values
-    ! are stored only for the root process
+    ! Get the sum aross all processes for a 2 dimensional float array. By default and/or if
+    ! root=TRUE, the result is stored only for the root process (0 for others). If
+    ! root=FALSE, the result is scattered for all processes.
     !
-    SUBROUTINE get_2d_float_global_sum_root(n1,n2,lsum,gsum)
+    SUBROUTINE get_2d_float_global_sum(n1,n2,lsum,gsum,root)
       INTEGER, INTENT(in) :: n1,n2
       REAL, INTENT(in) :: lsum(n1,n2)
       REAL, INTENT(out) :: gsum(n1,n2)
+      LOGICAL, INTENT(in), OPTIONAL :: root
       gsum = lsum
-    END SUBROUTINE get_2d_float_global_sum_root
+    END SUBROUTINE get_2d_float_global_sum
 
     
    !
@@ -404,19 +450,19 @@ CONTAINS
    END SUBROUTINE double_array_par_sum
 
  ! Juha added: Broadcast real arrays and stuff (Need interface to cover everything!)
- SUBROUTINE broadcastRealArray1d(NNdims,rootid,sendbuff)
+ SUBROUTINE broadcastFloatArray1d(NNdims,rootid,sendbuff)
    IMPLICIT NONE
    INTEGER, INTENT(in) :: NNdims(1)
    INTEGER, INTENT(in) :: rootid
    REAL, INTENT(inout) :: sendbuff(NNdims(1))
- END SUBROUTINE 
+ END SUBROUTINE broadcastFloatArray1d
  
- SUBROUTINE broadcastRealArray3d(NNdims,rootid,sendbuff)
+ SUBROUTINE broadcastFloatArray3d(NNdims,rootid,sendbuff)
    IMPLICIT NONE
    INTEGER, INTENT(in) :: NNdims(3)
    INTEGER, INTENT(in) :: rootid
    REAL, INTENT(inout) :: sendbuff(NNdims(1),NNdims(2),NNdims(3))
- END SUBROUTINE broadcastRealArray3d
+ END SUBROUTINE broadcastFloatArray3d
 
  SUBROUTINE broadcastInteger(sendbuff,rootid)
    IMPLICIT NONE
@@ -424,4 +470,10 @@ CONTAINS
    INTEGER, INTENT(in) :: rootid
  END SUBROUTINE broadcastInteger
 
+ SUBROUTINE broadcastFloat(sendbuff,rootid)
+   IMPLICIT NONE
+   REAL, INTENT(inout) :: sendbuff
+   REAL, INTENT(in) :: rootid
+ END SUBROUTINE broadcastFloat
+ 
 END MODULE mpi_interface

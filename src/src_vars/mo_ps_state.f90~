@@ -4,45 +4,51 @@ MODULE mo_ps_state
   USE mo_ps_procedures
   IMPLICIT NONE
 
+  ! Contains variable definitions for profile statistics outputs.
+  ! STATISTICAL OUTPUT IS ONLY WRITTEN BY THE ROOT PROCESS, I.E. RANK=MPI_ROOT. THEREFORE MAKE SURE TO USE
+  ! MPI REDUCTION OPERATIONS TO DEFINE THE FINAL RESULT IN THE ROOT PROCESS.
+  
   ! Note some of these have to be stored in memory in order to calculate them in the physics routines,
   ! others are associated with and onDemand procedure to calculate the values upon output. The onDemand
   ! subroutines should be implemented in mo_ps_procedures and they must have identical IO interface (*name,*output).
 
   ! There are 3 ways to calculate the statistics:
   ! 1. For stats variables associated with an onDemand procedure but no storage, assume the stats variable to
-  !    have IDENTICAL NAME WITH THE CORRESPONDING FULL FIELD from where they are calculated (assuming there is one).
-  !    This allows you to use automatic fetching of data using mo_stats_finder in the subroutines associated with onDemand. 
-  ! 2. Stats variables associated with an onDemand procedure, but a UNIQUE name: An explicit paring of the stats variable
-  !    and the full field source variable must be defined in the onDemand procedure in mo_ps_procedures
+  !    have IDENTICAL SHORT NAME WITH THE CORRESPONDING FULL FIELD from where they are calculated (assuming there is one).
+  !    This allows you to use automatic fetching of data using mo_stats_finder in the subroutines found in mo_ps_procedures. 
+  ! 2. Stats variables associated with an onDemand procedure, but a UNIQUE short name: An explicit paring of the stats variable
+  !    and the full field source variable as well as the calculation of the statistic must be implemented in mo_ps_procedures
+  !    and associated with the onDemand procedure.
   ! 3. Stats variables associated with storage space and no onDemand procedure: calculate the values during the timestep
   !    flagged for statistics output (psflg in mo_output.f90) within the appropriate physics subroutine.
   !
-  ! Regarding 3), an accumulation scheme would be easy to implement, but for now is left for future.
-  ! Note that for all cases 1)-3), MPI reduction operations should be applied before writing output, since the statistics IO
-  ! WILL ONLY BE PERFORMED BY RANK=MPI_ROOT (from mpi_interface.f90).
+  ! Regarding 3), the likely case would be accumulation statistics, which require memory. These are yet to be implemented.
+  ! Note that for all cases 1)-3), MPI reduction operations should be applied before writing output, since the
+  ! statistics io will only be performed by rank=mpi_root (from mpi_interface.f90)
 
   ! Adding new variables:
   ! Declare your new TYPE(FloatArray1d) variable. Add initialization and registration of the variable to the TYPE(FieldArray) :: PS
   ! in the subroutine setPSVariables found below. Just check how other variables are defined and do the same. Only thing to consider
-  ! are the 3 points listed above.
-  !   - If you want to use onDemand, first see if mo_ps_procedures already has a suitable subroutine to calculate your variable.
-  !   - If so, and your variable fits point 1), just associate the onDemand variable in the initialization and you're good to go. Nothing else needed
-  !     (except adding the variable name to output list in the NAMELIST)
+  ! are the 3 ways to calculate the statistics listed above.
+  !   - If you want to use onDemand, first see if mo_ps_procedures already has a suitable subroutine to calculate your variable
+  !     (e.g. simple domain mean is already implemented).
+  !   - If so, and your variable fits point 1) for calculating the statistic, just associate the onDemand variable in the initialization
+  !     and you're good to go. Nothing else needed.
   !   - If instead you see a suitable subroutine but your variable fits point 2), you must add a new paring for your variable and a
-  !     source variable name in mo_ps_procedures. Again nothing else needed, except the NAMELIST entry
-  !   - Instead write your own subroutine in mo_ps_procedures and associate onDemand with that. Again nothing else needed
+  !     source variable name, and the calculation of the statistic in mo_ps_procedures.
   !   - If you don't want to use onDemand, associate the variable with the storage instead. Now you need to calculate the value during
-  !     a statistics timestep using the TYPE(FloatArray1d) variable you declared. Just make sure the end result is the global representative
-  !     value across all processes and defined for rank mpi_root !!
+  !     a statistics timestep, or accumulate the value over consecutive timesteps using the TYPE(FloatArray1d) variable you declared.
   
-  ! 3d variables
-  TYPE(FloatArray1d), TARGET :: ps_theta, ps_temp, ps_press,     &
-                                ps_rp, ps_rc, ps_srp, ps_rpp,    &
-                                ps_ri, ps_riri, ps_Naa, ps_Nab,  &
-                                ps_Nca, ps_Ncb, ps_Np, ps_Ni,    &
-                                ps_RH, ps_rsl, ps_RHI, ps_rsi,   &
-                                ps_dn,                           &
-
+  ! Regular 3d variables
+  ! Simple mean profiles
+  TYPE(FloatArray1d), TARGET :: ps_theta, ps_temp, ps_press, ps_pexnr,  &
+                                ps_rp, ps_rc, ps_srp, ps_rpp, ps_npp,   &
+                                ps_ri, ps_riri, ps_Naa, ps_Nab,         &
+                                ps_Nca, ps_Ncb, ps_Np, ps_Ni,           &
+                                ps_CDNC, ps_CNC, ps_Reff,               &                                
+                                ps_RH, ps_rsl, ps_RHI, ps_rsi,          &
+                                ps_dn,                                  &
+                                                                
                                 ps_rrate, ps_irate,              &
 
                                 ps_rflx, ps_sflx, ps_lwup,       &
@@ -59,6 +65,17 @@ MODULE mo_ps_state
                                 ps_aNOa, ps_aNOb, ps_cNOa, ps_cNOb, ps_pNOa, ps_iNOa,        &
                                 ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa
 
+  ! Conditionally sampled profiles
+  ! -- in-cloud averages. The corresponding 3d source variable (if available), is identified by the portion of the shortname following the prefix "ic_"
+  !    Just follow the example of existing variables... If 3d source variable not available, you have to define a dedicated subroutine to calculate the
+  !    statistic in mo_ps_procedures.
+  TYPE(FloatArray1d), TARGET :: psic_rc, psic_Naa, psic_Nab, psic_Nca, psic_Ncb, psic_CDNC, psic_CNC,   &
+                                psic_Reff
+  
+  ! -- mean across precipitating grid boxes
+  TYPE(FloatArray1d), TARGET :: pspr_rrate, pspr_srp, pspr_rpp, pspr_npp, pspr_Np  
+       
+
   ! binned variables
   TYPE(FloatArray2d), TARGET :: ps_Dwaba, ps_Dwabb, ps_Dwcba, ps_Dwcbb, ps_Dwpba, ps_Dwiba
   TYPE(FloatArray2d), TARGET :: ps_Naba, ps_Nabb, ps_Ncba, ps_Ncbb, ps_Npba, ps_Niba
@@ -72,6 +89,10 @@ MODULE mo_ps_state
       CLASS(*), POINTER :: pipeline => NULL()
       
 
+      !---------------------------------------
+      ! Simple domain mean profiles
+      !---------------------------------------
+      
       pipeline => NULL()
       ps_theta = FloatArray1d()
       ps_theta%onDemand => globalAvgProfile
@@ -94,6 +115,13 @@ MODULE mo_ps_state
                        ANY(outputlist == "press"), pipeline)
 
       pipeline => NULL()
+      ps_pexnr = FloatArray1d()
+      ps_pexnr%onDemand => globalAvgProfile
+      pipeline => ps_pexnr
+      CALL PS%newField("pexnr", "Exner function", "", "ztt",   &
+                       ANY(outputlist == "pexnr"), pipeline)      
+
+      pipeline => NULL()
       ps_rp = FloatArray1d()
       ps_rp%onDemand => globalAvgProfile
       pipeline => ps_rp
@@ -114,6 +142,14 @@ MODULE mo_ps_state
          pipeline => ps_rpp
          CALL PS%newField("rpp", "Precipitation mixing ratio", "kg/kg", "ztt",   &
               ANY(outputlist == "rpp"), pipeline)
+
+         pipeline => NULL()
+         ps_npp = FloatArray1d()
+         ps_npp%onDemand => globalAvgProfile
+         pipeline => ps_npp
+         CALL PS%newField("npp", "Precipitation number conc", "#/kg", "ztt",   &
+              ANY(outputlist == "npp"), pipeline)
+         
       END IF
       
       IF (level >= 4) THEN
@@ -211,6 +247,27 @@ MODULE mo_ps_state
          pipeline => ps_Npba
          CALL PS%newfield("Npba", "Precipitation binned number concentration", "#/kg", "zttprc",   &
                           ANY(outputlist == "Npba"), pipeline)
+
+         pipeline => NULL()
+         ps_CDNC = FloatArray1d()
+         ps_CDNC%onDemand => globalAvgProfile
+         pipeline => ps_CDNC
+         CALL PS%newfield("CDNC", "Cloud droplet number concentration", "m-3", "ztt",   &
+                          ANY(outputlist == "CDNC"), pipeline)
+
+         pipeline => NULL()
+         ps_CNC = FloatArray1d()
+         ps_CNC%onDemand => globalAvgProfile
+         pipeline => ps_CNC
+         CALL PS%newfield("CNC", "Hydrometeor number concentration", "m-3", "ztt",   &
+                          ANY(outputlist == "CNC"), pipeline)         
+
+         pipeline => NULL()
+         ps_Reff = FloatArray1d()
+         ps_Reff%onDemand => globalAvgProfile
+         pipeline => ps_Reff
+         CALL PS%newfield("Reff", "Droplet effective radius", "m", "ztt",   &
+                          ANY(outputlist == "Reff"), pipeline)         
          
       END IF
 
@@ -272,7 +329,7 @@ MODULE mo_ps_state
       ps_rrate  = FloatArray1d()
       ps_rrate%onDemand => globalAvgProfile
       pipeline => ps_rrate
-      CALL PS%newField("rrate", "Precipitation flux", "kg/m2s", "ztt",   &
+      CALL PS%newField("rrate", "Precipitation flux", "W m-2", "ztt",   &
                        ANY(outputlist == "rrate"), pipeline)
          
       IF (level == 5) THEN
@@ -280,7 +337,7 @@ MODULE mo_ps_state
          ps_irate = FloatArray1d()
          ps_irate%onDemand => globalAvgProfile
          pipeline => ps_irate
-         CALL PS%newField("irate", "Ice precipitation flux", "kg/m2s", "ztt",   &
+         CALL PS%newField("irate", "Ice precipitation flux", "W m-2", "ztt",   &
                           ANY(outputlist == "irate"), pipeline)
       END IF
 
@@ -738,6 +795,114 @@ MODULE mo_ps_state
                           ANY(outputlist == "iNHa"), pipeline)
       END IF
 
+      !---------------------------------------
+      ! In-cloud mean profiles
+      !---------------------------------------
+
+      pipeline => NULL()
+      psic_rc = FloatArray1d()
+      psic_rc%onDemand => incloudAvgProfile
+      pipeline => psic_rc
+      CALL PS%newField("ic_rc", "In-cloud cloud water mix rat", "kg/kg", "ztt",   &
+                       ANY(outputlist == "ic_rc"), pipeline)
+
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         psic_Naa = FloatArray1d()
+         psic_Naa%onDemand => incloudAvgProfile
+         pipeline => psic_Naa
+         CALL PS%newField("ic_Naa", "Interstitial aerosol A", "kg-1", "ztt",   &
+                          ANY(outputlist == "ic_Naa"), pipeline)
+
+         pipeline => NULL()
+         psic_Nab = FloatArray1d()
+         psic_Nab%onDemand => incloudAvgProfile
+         pipeline => psic_Nab
+         CALL PS%newField("ic_Nab", "Interstitial aerosol B", "kg-1", "ztt",   &
+                          ANY(outputlist == "ic_Nab"), pipeline)
+         
+         pipeline => NULL()
+         psic_Nca = FloatArray1d()
+         psic_Nca%onDemand => incloudAvgProfile
+         pipeline => psic_Nca
+         CALL PS%newField("ic_Nca", "Cloud droplets A in-cloud", "kg-1", "ztt",   &
+                          ANY(outputlist == "ic_Nca"), pipeline)
+
+         pipeline => NULL()
+         psic_Ncb = FloatArray1d()
+         psic_Ncb%onDemand => incloudAvgProfile
+         pipeline => psic_Ncb
+         CALL PS%newField("ic_Ncb", "Cloud droplets B in-cloud", "kg-1", "ztt",   &
+                          ANY(outputlist == "ic_Ncb"), pipeline)
+
+         pipeline => NULL()
+         psic_CDNC = FloatArray1d()
+         psic_CDNC%onDemand => incloudAvgProfile
+         pipeline => psic_CDNC
+         CALL PS%newField("ic_CDNC", "Cloud droplet number concentration in-cloud", "m-3", "ztt",   &
+                          ANY(outputlist == "ic_CDNC"), pipeline)
+
+         pipeline => NULL()
+         psic_CNC = FloatArray1d()
+         psic_CNC%onDemand => incloudAvgProfile
+         pipeline => psic_CNC
+         CALL PS%newField("ic_CNC", "Hydrometeor number concentration in-cloud", "m-3", "ztt",   &
+                          ANY(outputlist == "ic_CNC"), pipeline)        
+
+         pipeline => NULL()
+         psic_Reff = FloatArray1d()
+         psic_Reff%onDemand => incloudAvgProfile
+         pipeline => psic_Reff
+         CALL PS%newField("ic_Reff", "Droplet effective radius, in-cloud", "m", "ztt",   &
+                          ANY(outputlist == "ic_Reff"), pipeline)          
+         
+      END IF
+
+      !---------------------------------------
+      ! precipitating grid-box mean profiles
+      !---------------------------------------
+
+      pipeline => NULL()
+      pspr_rrate = FloatArray1d()
+      pspr_rrate%onDemand => precipAvgProfile
+      pipeline => pspr_rrate
+      CALL PS%newField("pr_rrate", "Conditionally avg precipitation flux", "W m-2", "ztt",   &
+                       ANY(outputlist == "pr_rrate"), pipeline)   
+
+      IF (level == 3) THEN
+         pipeline => NULL()
+         pspr_rpp = FloatArray1d()
+         pspr_rpp%onDemand => precipAvgProfile
+         pipeline => pspr_rpp
+         CALL PS%newField("pr_rpp", "Conditionally avg precip mix rat", "kg kg-1", "ztt",   &
+                          ANY(outputlist == "pr_rpp"), pipeline)   
+         
+         pipeline => NULL()
+         pspr_npp = FloatArray1d()
+         pspr_npp%onDemand => precipAvgProfile
+         pipeline => pspr_npp
+         CALL PS%newField("pr_npp", "Conditionally avg precip number", "kg-1", "ztt",   &
+                          ANY(outputlist == "pr_npp"), pipeline)   
+
+      END IF
+
+      IF (level >= 4) THEN
+         pipeline => NULL()
+         pspr_srp = FloatArray1d()
+         pspr_srp%onDemand => precipAvgProfile
+         pipeline => pspr_srp
+         CALL PS%newField("pr_srp", "Conditionally avg precip mix rat", "kg kg-1", "ztt",   &
+                          ANY(outputlist == "pr_srp"), pipeline)
+
+         pipeline => NULL()
+         pspr_Np = FloatArray1d()
+         pspr_Np%onDemand => precipAvgProfile
+         pipeline => pspr_Np
+         CALL PS%newField("pr_Np", "Conditionally avg precip number", "kg-1", "ztt",   &
+              ANY(outputlist == "pr_Np"), pipeline)           
+
+      END IF
+            
       pipeline => NULL()
       
     END SUBROUTINE setPSVariables

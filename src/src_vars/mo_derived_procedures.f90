@@ -1,26 +1,44 @@
 MODULE mo_derived_procedures
-  USE mo_submctl, ONLY : ica,fca,icb,fcb,ira,fra,     & 
-                         iia,fia,in1a,in2b,fn2a,fn2b, &
-                         nbins,ncld,nprc,nice,        &
-                         nlim, prlim,                 &
-                         spec, pi6
+  USE mo_submctl, ONLY : ica,fca,icb,fcb,ira,fra,          &  
+                         iia,fia,in1a,in2b,fn2a,fn2b,      &
+                         nbins,ncld,nprc,nice,             &
+                         nlim, prlim,                      &
+                         spec, pi6,                        & 
+                         mean_theta_imm, sigma_theta_imm,  &
+                         mean_theta_dep, sigma_theta_dep
   USE util, ONLY : getBinMassArray, getMassIndex
   USE defs, ONLY : cp, alvl
   USE mo_particle_external_properties, ONLY : calcDiamLES
   USE grid, ONLY : nzp,nxp,nyp,level
   USE mo_progn_state, ONLY : a_naerop, a_ncloudp, a_nprecpp, a_nicep,  &
                              a_maerop, a_mcloudp, a_mprecpp, a_micep,  &
-                             a_rp, a_rpp
+                             a_indefaba, a_indefabb, a_indefcba, a_indefcbb, a_indefpba, &
+                             a_rp, a_rpp, a_gaerop 
   USE mo_diag_state, ONLY : a_rc, a_ri, a_riri, a_srp, a_dn, wt_sfc, wq_sfc
   USE mo_aux_state, ONLY : dzt,dn0
   USE mo_structured_datatypes
+  USE math_functions, ONLY : erfm1
   IMPLICIT NONE
 
   PRIVATE
 
-  PUBLIC :: bulkNumc, totalWater, bulkDiameter, bulkMixrat, binMixrat, getBinDiameter, &
-            binIceDensities, waterPaths, surfaceFluxes, getCDNC, getCNC, getReff
-    
+  ! Procedures for derived output diagnostics currently implemented
+  PUBLIC :: bulkNumc,        &  ! Total number concentration of particles of given type (for level >= 4)
+            totalWater,      &  ! Total water mixing ratio (makes sense only for level >= 4, since with level <= 3 this is given by rp)
+            bulkDiameter,    &  ! Mean diameter of particles of given type (level >= 4)
+            bulkMixrat,      &  ! Total mixing ratio of given aerosol constituent (level >= 4)
+            binMixrat,       &  ! Binned mixing ratio of given aerosol constituent (level >= 4)
+            getBinDiameter,  &  ! Binned particle (wet) diameter (level >= 4)
+            binIceDensities, &  ! Get the binned ice particle effective densities (level = 5)
+            waterPaths,      &  ! Get waterpaths (lwp,iwp or rpw; level >= 2)
+            surfaceFluxes,   &  ! Diagnose surface fluxes in W/m2
+            getCDNC,         &  ! Diagnose the "real" CDNC ( 2 um < D < 80 um; level >= 4 )
+            getCNC,          &  ! Diagnose the "cloud number concentration" (D > 2 um; level >= 4)
+            getReff,         &  ! Get the effective radius using all liquid hdrometeor > 2 um (level >= 4)
+            getBinTotMass,   &  ! Get the binned total mass
+            getGasConc,      &  ! Get the concentration of specific precursor gas
+            initContactAngle    ! Convert the IN nucleated fraction into the initial value for contact angle integration
+  
   CONTAINS
 
    !
@@ -214,7 +232,10 @@ MODULE mo_derived_procedures
      REAL :: numlim
      
      nspec = spec%getNSpec(type="wet")
+     numlim = 0.
+     numc => NULL(); mass => NULL(); nb = 0.
 
+     
      SELECT CASE(name)
      CASE('Dwaba')
         flag = 1
@@ -457,14 +478,17 @@ MODULE mo_derived_procedures
      CALL getBinDiameter("Dwcbb",Dwcbb,icb%cur,fcb%cur)
      CALL getBinDiameter("Dwpba",Dwpba,ira,fra)
 
-     output = output + SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur), &
-                            DIM=4, MASK=(Dwcba > lowlim .AND. Dwcba < highlim) )  
+     output = output + &
+              a_dn%d(:,:,:) * SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur), &
+                                   DIM=4, MASK=(Dwcba > lowlim .AND. Dwcba < highlim) )  
      
-     output = output + SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur), &
-                            DIM=4, MASK=(Dwcbb > lowlim .AND. Dwcbb < highlim) )  
+     output = output + &
+              a_dn%d(:,:,:) * SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur), &
+                                   DIM=4, MASK=(Dwcbb > lowlim .AND. Dwcbb < highlim) )  
 
-     output = output + SUM( a_nprecpp%d(:,:,:,ira:fra), &
-                            DIM=4, MASK=(Dwpba > lowlim .AND. Dwpba < highlim) )       
+     output = output + &
+              a_dn%d(:,:,:) * SUM( a_nprecpp%d(:,:,:,ira:fra), &
+                                   DIM=4, MASK=(Dwpba > lowlim .AND. Dwpba < highlim) )       
    END SUBROUTINE getCDNC
      
    ! -----------------------------------------------------------
@@ -486,14 +510,17 @@ MODULE mo_derived_procedures
      CALL getBinDiameter("Dwcbb",Dwcbb,icb%cur,fcb%cur)
      CALL getBinDiameter("Dwpba",Dwpba,ira,fra)
 
-     output = output + SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur), &
-                            DIM=4, MASK=(Dwcba > lowlim) )  
+     output = output +   &
+              a_dn%d(:,:,:) * SUM( a_ncloudp%d(:,:,:,ica%cur:fca%cur), &
+                                   DIM=4, MASK=(Dwcba > lowlim) )  
      
-     output = output + SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur), &
-                            DIM=4, MASK=(Dwcbb > lowlim) )  
+     output = output +   &
+              a_dn%d(:,:,:) * SUM( a_ncloudp%d(:,:,:,icb%cur:fcb%cur), &
+                                   DIM=4, MASK=(Dwcbb > lowlim) )  
 
-     output = output + SUM( a_nprecpp%d(:,:,:,ira:fra), &
-                            DIM=4, MASK=(Dwpba > lowlim) )       
+     output = output +   &
+              a_dn%d(:,:,:) * SUM( a_nprecpp%d(:,:,:,ira:fra), &
+                                   DIM=4, MASK=(Dwpba > lowlim) )       
    END SUBROUTINE getCNC
 
    ! -----------------------------------------------------------
@@ -534,6 +561,137 @@ MODULE mo_derived_procedures
    END SUBROUTINE getReff
 
    ! -------------------------------------------------------------------------------
+
+   SUBROUTINE getBinTotMass(name,output,nstr,nend)
+     CHARACTER(len=*), INTENT(in) :: name
+     INTEGER, INTENT(in) :: nstr,nend
+     REAL, INTENT(out) :: output(nzp,nxp,nyp,nend-nstr+1)
+     REAL, POINTER :: parr(:,:,:,:)
+     REAL, ALLOCATABLE :: tmp(:)    
+     INTEGER :: nspec, i,j,k,bin
+     INTEGER :: nb
+
+     parr => NULL()
+     output = 0.
+     nspec = spec%getNSpec(type="wet") ! Update below if ice
+     
+     SELECT CASE(name)
+     CASE("Maba","Mabb")
+        parr => a_maerop%d(:,:,:,:)
+        nb = nbins
+     CASE("Mcba","Mcbb")
+        parr => a_mcloudp%d(:,:,:,:)
+        nb = ncld
+     CASE("Mpba")
+        parr => a_mprecpp%d(:,:,:,:)
+        nb = nprc
+     CASE("Miba")
+        parr => a_micep%d(:,:,:,:)
+        nspec = spec%getNSpec(type="total")
+        nb = nice
+     END SELECT
+     
+     ALLOCATE(tmp(nspec))
+     tmp = 0.
+     
+     DO bin = nstr,nend
+        DO j = 1,nyp
+           DO i = 1,nxp
+              DO k = 1,nzp
+                 CALL getBinMassArray(nb,nspec,bin,parr(k,i,j,:),tmp)
+                 output(k,i,j,bin-nstr+1) = SUM(tmp)
+              END DO
+           END DO
+        END DO
+     END DO
+     
+     DEALLOCATE(tmp)
+     parr => NULL()
+     
+   END SUBROUTINE getBinTotMass
+
+   ! ----------------------------------------------------------------------------
+   ! SUBROUTINE GETGASCONC: Gets the sseparate gas concentration for output
+   !
+   SUBROUTINE getGasConc(name,output)
+     CHARACTER(len=*), INTENT(in) :: name
+     REAL, INTENT(out) :: output(nzp,nxp,nyp)
+     INTEGER :: i
+     output = 0. 
+
+     SELECT CASE(name)
+     CASE("gSO4")
+        i = 1
+     CASE("gNO3")
+        i = 2
+     CASE("gNH4")
+        i = 3
+     CASE("gOCNV")
+        i = 4
+     CASE("gOCSV")
+        i = 5
+     END SELECT
+
+     output(:,:,:) = a_gaerop%d(:,:,:,i)
+     
+   END SUBROUTINE getGasConc
+
+   ! ----------------------------------------------------------------------------
+   ! SUBROUTINE INITCONTACTANGLE: Get the initial value for contact angle
+   ! integration in ice nucleation
+   !
+   SUBROUTINE initContactAngle(name,output,nstr,nend)
+     CHARACTER(len=*), INTENT(in) :: name
+     INTEGER, INTENT(in) :: nstr,nend
+     REAL, INTENT(out) :: output(nzp,nxp,nyp,nend-nstr+1)
+     REAL, POINTER :: var(:,:,:,:) 
+     REAL, PARAMETER :: sqrt2 = SQRT(2.)
+     REAL :: mean,sigma
+     INTEGER :: bin,i,j,k
+     
+     var => NULL()
+
+     ! Associate to the target values. Note that some tweaking with the indices is necessary
+     ! because of the indices the output routine assumes for binned variables...
+     SELECT CASE(name)
+     CASE("immThetaaba","depThetaaba")
+        var => a_indefaba%d(:,:,:,nstr:nend)
+     CASE("immThetaabb","depThetaabb")
+        var => a_indefabb%d(:,:,:,1:nend-nstr+1)    
+     CASE("immThetacba","depThetacba")
+        var => a_indefcba%d(:,:,:,nstr:nend)
+     CASE("immThetacbb","depThetacbb")
+        var => a_indefcbb%d(:,:,:,1:nend-nstr+1)
+     CASE("immThetapba","depThetapba")
+        var => a_indefpba%d(:,:,:,nstr:nend)
+     END SELECT
+        
+     IF (name(1:3) == "imm") THEN
+        mean = mean_theta_imm
+        sigma = sigma_theta_imm
+     ELSE IF (name(1:3) == "dep") THEN
+        mean = mean_theta_dep
+        sigma = sigma_theta_dep
+     END IF
+         
+     DO bin = nstr,nend
+        DO j = 1,nyp
+           DO i = 1,nxp
+              DO k = 1,nzp
+                 output(k,i,j,bin-nstr+1) = mean +     &
+                      sqrt2*sigma*erfm1( 2.*var(k,i,j,bin-nstr+1) - 1. )
+              END DO
+           END DO
+        END DO
+     END DO
+
+     output = MAX(0.,output)
+     
+     var => NULL()
+     
+   END SUBROUTINE initContactAngle
+
+   
    
    ! NONE OF THE BELOW IS YET ASSOCIATED WITH ANYTHING !!!!!!!!!!!!!!!!!!!!
 

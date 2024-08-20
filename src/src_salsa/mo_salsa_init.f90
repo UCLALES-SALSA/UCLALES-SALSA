@@ -329,7 +329,7 @@ CONTAINS
            
            ! ---------------------------------------------------------------------------------------
            ! Set the precipitation properties; unlike aerosol and cloud bins, the size distribution
-           ! goes according to the *wet* radius
+           ! goes according to the *wet* diameter
            ! ---------------------------------------------------------------------------------------
            DO bb = ira, fra
               dumprecp(ii,jj,bb)%vhilim = pi6*tmphilim(bb)**3
@@ -477,6 +477,11 @@ CONTAINS
                              lscgia,lscgic,lscgii,  &
                              lscgip,  & 
 
+                             Eiagg_max, Eiagg_min,  &
+
+                             
+                             cgintvl,               &
+                             
                              lscndgas,                    &
                              lscndh2oae,lscndh2ocl,       &
                              lscndh2oic,                  &
@@ -484,8 +489,8 @@ CONTAINS
                              lsdistupdate,                &
                              lscheckarrays,               &
                              fixINC,                      &
-                             ice_hom, ice_imm, ice_dep,   &
-                             ice_halmos,                  &
+                             lsicehom, lsiceimm, lsicedep,   &
+                             lssiprimespln, lssipdropfrac,    &
                              ice_theta_dist,              &
                              lsfreeTheta, initMinTheta,   &
 
@@ -496,11 +501,16 @@ CONTAINS
                              isdtyp,                      &
                              sigmagA,dpgA,nA,             &
                              sigmagB,dpgB,nB,             &
-                             lsfreeRH,rhlim
+                             lsfreeRH,rhlim,              &
+                             mean_theta_imm,              &
+                             sigma_theta_imm,             &
+                             mean_theta_dep,              &
+                             sigma_theta_dep
+
 
       USE mo_ice_shape, ONLY : iceShapeAlpha, iceShapeBeta,   &
                                iceShapeGamma, iceShapeSigma
-      USE mo_salsa_cloud_ice_SE, ONLY : mean_theta, sigma_theta
+      USE mo_salsa_secondary_ice, ONLY : dlliq_df, dlice_rs, dlliq_rs ! REMOVE dlice_df
 
       
       IMPLICIT NONE
@@ -529,15 +539,24 @@ CONTAINS
          lscgii,      & ! Collision-coalescence between ice particles
          lscgip,      & ! Collection of precipitation by ice particles
 
+         Eiagg_max,   & ! Max aggregation efficiency for ice-ice collisions
+         Eiagg_min,   & ! Min aggregation efficiency for ice-ice collisions
+         
+         cgintvl,     & ! Interval for low freq coagulation kernel update
+         
          lscndgas,    & ! Condensation of precursor gases
          lscndh2ocl,    & ! Condensation of water vapour on clouds (drizzle)
          lscndh2oic,    & ! Condensation of water vapour on ice particles ! ice'n'snow
          lscndh2oae,    & ! Condensation of water vapour on aerosols (FALSE -> equilibrium calc.)
 
-         ice_hom,     &    ! Switch for homogeneous ice nucleation
-         ice_imm,     &    ! .. for immersio freezing
-         ice_dep,     &    ! .. for deposition freezing
-         ice_halmos,  &    ! Secondary ice production by rime splintering; Hallet-Mossop
+         lsicehom,     &    ! Switch for homogeneous ice nucleation
+         lsiceimm,     &    ! .. for immersio freezing
+         lsicedep,     &    ! .. for deposition freezing
+         lssiprimespln,  &    ! Secondary ice production by rime splintering
+         dlice_rs,    &    ! Min ice diameter for Hallet-Mossop
+         dlliq_rs,    &    ! Max liquid diameter for Hallet-Mossop
+         lssipdropfrac, &   ! Secondary ice prduction by drop fracturing
+         dlliq_df,     &   ! Min liquid diameter for drop fracturing
          
          lsdistupdate,  & ! Switch for size dsitribution update
          lscheckarrays, & ! Switch for runnin the array check routine in mo_salsa
@@ -546,8 +565,10 @@ CONTAINS
          ice_theta_dist, & ! contact angle distributions
          lsfreeTheta,    & ! Switch for using initMinTheta
          initMinTheta,   & ! Initial minimum theta for initialization and spinup
-         mean_theta,     & ! Mean of the contact angle distribution
-         sigma_theta,    & ! standard deviation of the contact angle distribution
+         mean_theta_imm,   & ! Mean of the contact angle distribution for immersion frz
+         sigma_theta_imm,  & ! standard deviation of the contact angle distribution for immersion frz
+         mean_theta_dep,   & ! Mean of the contact angle distribution for deposition frz
+         sigma_theta_dep,  & ! standard deviation of the contact angle distribution for deposition frz
          iceShapeAlpha,  & ! m = ALPHA* D ** beta
          iceShapeBeta,   & ! m = alpha* D ** BETA
          iceShapeGamma,  & ! A = GAMMA* D ** sigma
@@ -600,6 +621,13 @@ CONTAINS
             lsicemelt%switch = .FALSE.
             lssecice%switch = .FALSE.
 
+            ice_theta_dist = .FALSE.
+            lsicehom = .FALSE.   
+            lsiceimm = .FALSE.
+            lsicedep = .FALSE. 
+            lssiprimespln = .FALSE.
+            lssipdropfrac%switch = .FALSE.
+            
       END IF !level
 
    END SUBROUTINE define_salsa
@@ -612,18 +640,24 @@ CONTAINS
    !
    SUBROUTINE associate_master_switches
      USE classProcessSwitch, ONLY : ProcessSwitch
-     USE mo_submctl, ONLY : Nmaster, lsmaster, lscoag, lscnd, lsauto,  &
-                            lsactiv, lsicenucl, lsicemelt, lssecice, lsfreeRH
+     USE mo_submctl, ONLY : Nmaster, lsmaster, Nsub, lssub, lscoag, lscnd,     &
+                            lsauto, lsactiv, lsicenucl, lsicemelt, lssecice,   &
+                            lsfreeRH, cgintvl, lssipdropfrac
      IMPLICIT NONE
      
      INTEGER :: i
 
-     ! Initialize the values
+     ! Initialize the values for Master switches
      DO i = 1,Nmaster
         lsmaster(i) = ProcessSwitch()
      END DO
 
-     ! Associate pointers
+     ! Initialize the values for subprocess switches
+     DO i = 1,Nsub
+        lssub(i) = ProcessSwitch()
+     END DO
+          
+     ! Associate pointers for Master switches
      lscoag => lsmaster(1)
      lscnd => lsmaster(2)
      lsauto => lsmaster(3)
@@ -632,10 +666,13 @@ CONTAINS
      lsicemelt => lsmaster(6)
      lssecice => lsmaster(7)
 
-     ! Use this to initialize also some other switches
+     ! Associate pointer for subprocess switches
+     lssipdropfrac => lssub(1)
+     
+     ! Use this to initialize also other switches that use the ProcessSwitch type
      lsfreeRH = ProcessSwitch()
      lsfreeTheta = ProcessSwitch()
-
+     
    END SUBROUTINE associate_master_switches
 
    ! ----------------------------------------
@@ -650,7 +687,82 @@ CONTAINS
      
    END SUBROUTINE setDefaultBinLayouts
    
+   ! ----------------------------------------
 
+   SUBROUTINE initialize_coag_kernels()
+     USE mo_salsa_types, ONLY : zccaa, zcccc, zccpp, zccii,      &
+                                zccca, zccpa, zccia,             &
+                                zccpc, zccic,                    &
+                                zccip
+     USE mo_submctl, ONLY :  lscgaa,lscgcc,lscgpp,  &
+                             lscgca,lscgpa,lscgpc,  &
+                             lscgia,lscgic,lscgii,  &
+                             lscgip
+     
+     IF (lscgaa) THEN
+        ALLOCATE(zccaa(kbdim,klev,nbins,nbins))
+        zccaa = 0.
+     END IF
+     IF (lscgcc) THEN
+        ALLOCATE(zcccc(kbdim,klev,ncld,ncld))
+        zcccc = 0.
+     END IF
+     IF (lscgpp) THEN
+        ALLOCATE(zccpp(kbdim,klev,nprc,nprc))
+        zccpp = 0.
+     END IF
+     IF (lscgii) THEN
+        ALLOCATE(zccii(kbdim,klev,nice,nice))
+        zccii = 0.
+     END IF
+        
+     IF (lscgca) THEN
+        ALLOCATE(zccca(kbdim,klev,nbins,ncld))
+        zccca = 0.
+     END IF
+     IF (lscgpa) THEN
+        ALLOCATE(zccpa(kbdim,klev,nbins,nprc))
+        zccpa = 0.
+     END IF
+     IF (lscgia) THEN
+        ALLOCATE(zccia(kbdim,klev,nbins,nice))
+        zccia = 0.
+     END IF
+        
+     IF (lscgpc) THEN
+        ALLOCATE(zccpc(kbdim,klev,ncld,nprc))
+        zccpc = 0.
+     END IF     
+     IF (lscgic) THEN
+        ALLOCATE(zccic(kbdim,klev,ncld,nice))
+        zccic = 0.
+     END IF
+     
+     IF (lscgip) THEN
+        ALLOCATE(zccip(kbdim,klev,nice,nprc))
+        zccip = 0.     
+     END IF
+     
+   END SUBROUTINE initialize_coag_kernels
+
+   !
+   ! ----------------------------------------------
+   ! 
+   
+   SUBROUTINE initialize_secondary_ice()
+     USE mo_salsa_secondary_ice, ONLY : nfrzn_rs, mfrzn_rs,    &
+                                        nfrzn_df, mfrzn_df
+     IMPLICIT NONE
+     
+     ALLOCATE(nfrzn_rs(kbdim,klev,nprc,nice),mfrzn_rs(kbdim,klev,nprc,nice))
+     ALLOCATE(nfrzn_df(kbdim,klev,nprc,nice),mfrzn_df(kbdim,klev,nprc,nice))
+
+     nfrzn_rs = 0.; mfrzn_rs = 0.
+     nfrzn_df = 0.; mfrzn_df = 0.
+     
+   END SUBROUTINE initialize_secondary_ice
+   
+   
    !-------------------------------------------------------------------------------
    !
    ! *****************************
@@ -715,6 +827,13 @@ CONTAINS
       ! Initialize the container for process rate diagnostics
       CALL Initialize_processrates()
       rateDiag = ProcessRates()
+
+      ! Allocate arrays for local coagulation kernels
+      CALL initialize_coag_kernels()
+
+      ! Allocate tracking arrays for freezing drops for secondary ice parameterizations
+      ! (Don't have process switches set in coagulation so do this allocation in any case...)
+      CALL initialize_secondary_ice()
       
       IF ( ALLOCATED(dumaero) ) DEALLOCATE(dumaero)
       IF ( ALLOCATED(dumcloud)) DEALLOCATE(dumcloud)

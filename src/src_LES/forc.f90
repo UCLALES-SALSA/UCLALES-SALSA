@@ -29,6 +29,7 @@ MODULE forc
   USE mo_progn_state, ONLY : a_tt,a_tp,a_rt,a_rp,a_rpp, a_npp,        &
                              a_ncloudp,a_nprecpp,a_mprecpp,a_nicep  
   USE mpi_interface, ONLY : myid, appl_abort
+  USE mo_submctl, ONLY : pi
   USE util, ONLY : get_avg2dh
   USE defs, ONLY      : cp
   !USE stat, ONLY      : sflg
@@ -36,14 +37,26 @@ MODULE forc
   USE nudg, ONLY : nudging
   USE emission_main, ONLY : aerosol_emission
   USE mo_structured_datatypes
+  USE classProcessSwitch, ONLY : ProcessSwitch
   IMPLICIT NONE
 
   ! these are now all namelist parameters
-  CHARACTER (len=10) :: case_name = 'none'               
+  CHARACTER (len=10) :: case_name = 'none'    
 
-  REAL    :: div = 0.
+  TYPE(ProcessSwitch) :: forcing           
+
+  REAL    :: div = 0., amp = 0., tphase = 0., largeforc = 0., pertmax = 0.
 
 CONTAINS
+  ! init_micro: initialize the sedimentation switches
+  ! 
+  SUBROUTINE init_forc_switches
+      IMPLICIT NONE
+      
+      ! Defaults are FALSE
+      forcing = ProcessSwitch()
+      
+  END SUBROUTINE init_forc_switches
   !
   ! -------------------------------------------------------------------
   ! Subroutine forcings:  calls the appropriate large-scale forcings.
@@ -56,6 +69,7 @@ CONTAINS
     REAL,  INTENT (in) :: time, strtim  ! time in seconds (since model start), strtim in decimal days
     REAL :: xka, fr0, fr1
     REAL :: time_decday
+    REAL :: shift, div, pertdz
 
     ! NOT FINISHED; PUT LARGE-SCALE FORCINGS/CASE-SPECIFIC STUFF IN THEIR OWN PACKAGES
 
@@ -126,6 +140,10 @@ CONTAINS
        !----------------------------------
        CALL rad_interface(time_decday)
        
+       ! Sinusoidal forcing of ascent
+       ! T=3.33333 h = 12000 s
+       !div = amp*sin(2*pi*1/tphase*time-pi/12) + 0.1
+
        IF ( case_name /= 'none') THEN
           CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
        END IF
@@ -135,7 +153,48 @@ CONTAINS
        !---
        CALL bellon(nzp, nxp, nyp, a_rflx, a_sflx, zt, dzt, dzm, a_tt, a_tp,&
                    a_rt, a_rp, a_ut%d, a_up%d, a_vt%d, a_vp%d)
+
+    CASE (5)
+   ! Radiation
+   !----------------------------------
+       CALL rad_interface(time_decday)
+       ! Sinusoidal forcing of ascent
+       IF (time >= forcing%delay) THEN
+         shift = asin(-largeforc/amp)
+         div = amp*sin(tphase*2*pi*(time-forcing%delay)+shift)+largeforc 
+       ELSE IF (time >= 1./(tphase*2.)-forcing%delay) THEN
+         div = 0
+       ELSE
+         div = 0
+       END IF
+
+       IF (trim(case_name) == 'sinu') THEN
+          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
+       END IF
+    CASE (6)
+   ! Radiation
+   !----------------------------------
+       CALL rad_interface(time_decday)
+       ! Sinusoidal forcing of ascent
+
+       pertdz = (time-forcing%delay)*largeforc
+       IF (pertdz >= pertmax) THEN
+         div = 0
+       ELSE IF (time >= forcing%delay) THEN
+         div = largeforc
+       ELSE 
+         div = 0
+       END IF
+       !write(*,*) "div",div,"pertdz",pertdz
+
+       IF (trim(case_name) == 'sinu') THEN
+          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
+       END IF
+
     END SELECT 
+
+
+
 
   END SUBROUTINE forcings
 
@@ -260,7 +319,7 @@ CONTAINS
 
     zig = 0.0; zil = 0.0; zibar = 0.0
     kp1 = 0
-    sf(:) = -zdiv*zt%d(:)*dzt%d(:)
+    sf(:) = zdiv*dzt%d(:)  !-zdiv*zt%d(:)*dzt%d(:)
     SELECT CASE (trim(case_name))
     CASE('default')
        !
@@ -290,6 +349,66 @@ CONTAINS
                    DO i = 3,n2-2
                       vart%d(2:n1-1,i,j,c) = vart%d(2:n1-1,i,j,c) -   &
                            (varp%d(3:n1,i,j,c) - varp%d(2:n1-1,i,j,c))*sf(2:n1-1)
+                   END DO
+                END DO
+             END DO
+          END DO
+
+          varp => NULL(); vart => NULL()
+          
+       END IF
+ 
+    CASE('sinu')
+
+       DO k = 2, n1-2
+          IF (zt%d(k) > 13000) THEN
+             sf(k) = 0.
+          ELSE IF (zt%d(k) < 3000) THEN
+             sf(k) = 0.
+          END IF
+       END DO
+       !
+       ! User specified divergence used as a simple large scle forcing for moisture and temperature fields
+       ! + also aerosol for level > 4
+       ! -------------------------------------------------------------------------------------------------
+       !
+       DO j = 3, n3-2
+          DO i = 3, n2-2
+             DO k = 2, n1-2
+                IF (sf(k)>0) THEN
+                   kp1 = k-1  !MAYBE CHANGE to kp1 = k-1
+                   tt%d(k,i,j) = tt%d(k,i,j) - (tl%d(k,i,j)-tl%d(kp1,i,j))*sf(k)
+                   rtt%d(k,i,j) = rtt%d(k,i,j) - (rt%d(k,i,j)-rt%d(kp1,i,j))*sf(k)
+                ELSE IF (sf(k)<=0) THEN
+                   kp1 = k+1
+                   tt%d(k,i,j) = tt%d(k,i,j) - (tl%d(kp1,i,j)-tl%d(k,i,j))*sf(k)
+                   rtt%d(k,i,j) = rtt%d(k,i,j) - (rt%d(kp1,i,j)-rt%d(k,i,j))*sf(k)
+                END IF
+             END DO
+          END DO
+       END DO
+
+       ! Some additional stuff needed for SALSA. a_salsa array has all the necessary tracers
+       ! and its association depends already on level, so no need to any extra checks here.
+       IF (level >= 4) THEN
+
+          DO b = 1,SALSA_tracers_4d%count
+             CALL SALSA_tracers_4d%getData(1,varp,index=b)
+             CALL SALSA_tracers_4d%getData(2,vart,index=b)
+             DO c = 1,SIZE(varp%d,DIM=4)
+                DO j = 3,n3-2
+                   DO i = 3,n2-2
+                      DO k = 3, n1-2
+                        IF (sf(k)>0) THEN
+                           kp1 = k-1
+                           vart%d(k,i,j,c) = vart%d(k,i,j,c) -   &
+                                    (varp%d(k,i,j,c)-varp%d(kp1,i,j,c))*sf(k) ! -1->-2
+                        ELSE IF (sf(k)<=0) THEN
+                           kp1 = k+1
+                           vart%d(k,i,j,c) = vart%d(k,i,j,c) -   &
+                                    (varp%d(kp1,i,j,c) - varp%d(k,i,j,c))*sf(k)
+                        END IF
+                      END DO
                    END DO
                 END DO
              END DO

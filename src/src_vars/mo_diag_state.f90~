@@ -53,6 +53,7 @@ MODULE mo_diag_state
   TYPE(FloatArray2D), TARGET :: wt_sfc               ! 8: 
   TYPE(FloatArray2D), TARGET :: wq_sfc               ! 9:
 
+  ! Do these need to be stored? If not, move to mo_derived_state?
   TYPE(FloatArray2D), TARGET :: a_sfcrrate           ! 10: Surface rain rate
   TYPE(FloatArray2D), TARGET :: a_sfcirate           ! 11: Surface frozen precipitation
   

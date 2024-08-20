@@ -46,9 +46,18 @@ MODULE util
   END INTERFACE get_gsum
 
   INTERFACE get_gmax  ! Global maximum
-     MODULE PROCEDURE get_gmax_float_3d
+     MODULE PROCEDURE get_gmax_float_3d,       &
+                      get_gmax_float_2d,       &
+                      get_gmax_profile_float_3d
   END INTERFACE get_gmax
 
+  INTERFACE get_gmin  ! Global minimum
+     MODULE PROCEDURE get_gmin_float_3d,       &
+                      get_gmin_float_2d,       &
+                      get_gmin_profile_float_3d
+  END INTERFACE
+
+  
   
   INTEGER, SAVE :: fftinix = 0, fftiniy = 0
   CHARACTER (len=6), PARAMETER :: vel_bc = 'frslip'
@@ -163,37 +172,112 @@ CONTAINS
     get_avg2dh = get_avg2dh/REAL((n3-4)*(n2-4))
     
   END FUNCTION get_avg2dh
-  
-  ! -----------------------------------------------------------------------
-  ! SUBROUTINE GET_GMAX_3d
-  ! Get the global maximum across all processes from a 3d field.
-  ! The result is defined (non-zero) only for the root process.
+
   !
-  SUBROUTINE get_gmax_float_3d(n1,n2,n3,a,amax)
-    USE mpi_interface, ONLY : get_max_root
+  ! -----------------------------------------------------------------------
+  ! SUBROUTINE GET_GMAX
+  ! Get the global maximum across all processes.
+  ! By default The result is defined (non-zero) only for the root process.
+  ! If root=False, the result is brodcast for other processes as well
+  !
+  SUBROUTINE get_gmax_float_3d(n1,n2,n3,a,amax,root)
+    USE mpi_interface, ONLY : get_mpi_max
     INTEGER, INTENT(in) :: n1,n2,n3
     REAL, INTENT(in) :: a(n1,n2,n3)
     REAL, INTENT(out) :: amax    
+    LOGICAL, INTENT(in), OPTIONAL :: root
     REAL :: lmax
     amax = 0.
     lmax = MAXVAL(a(:,3:n2-2,3:n3-2))
-    CALL get_max_root(lmax,amax)       
+    CALL get_mpi_max(lmax,amax,root)       
   END SUBROUTINE get_gmax_float_3d
-
+  ! ---------------------
+  SUBROUTINE get_gmax_float_2d(n2,n3,a,amax,root)
+    USE mpi_interface, ONLY : get_mpi_max
+    INTEGER, INTENT(in) :: n2,n3
+    REAL, INTENT(in) :: a(n2,n3)
+    REAL, INTENT(out) :: amax
+    LOGICAL, INTENT(in), OPTIONAL :: root
+    REAL :: lmax
+    amax = 0.
+    lmax = MAXVAL(a(3:n2-2,3:n3-2))
+    CALL get_mpi_max(lmax,amax,root)       
+  END SUBROUTINE get_gmax_float_2d
+  ! ---------------------
+  SUBROUTINE get_gmax_profile_float_3d(n1,n2,n3,a,amax,root)
+    ! Gets the global max level by level from a 3d field
+    USE mpi_interface, ONLY : get_mpi_max
+    INTEGER, INTENT(in) :: n1,n2,n3
+    REAL, INTENT(in) :: a(n1,n2,n3)
+    REAL, INTENT(out) :: amax(n1)
+    LOGICAL, INTENT(in), OPTIONAL :: root
+    REAL :: lmax
+    INTEGER :: k
+    amax = 0.
+    DO k = 1,n1
+       lmax = MAXVAL(a(k,2:n2-2,3:n3-2))
+       CALL get_mpi_max(lmax,amax(k),root)
+    END DO    
+  END SUBROUTINE get_gmax_profile_float_3d  
   !
-  ! --------------------------------------------------
+  ! -----------------------------------------------------------------------
+  ! SUBROUTINE GET_GMIN
+  ! Get the global minimum across all processes.
+  ! The result is defined (non-zero) only for the root process.
+  ! 
+  SUBROUTINE get_gmin_float_3d(n1,n2,n3,a,amin,root)
+    USE mpi_interface, ONLY : get_mpi_min
+    INTEGER, INTENT(in) :: n1,n2,n3
+    REAL, INTENT(in) :: a(n1,n2,n3)
+    REAL, INTENT(out) :: amin
+    LOGICAL, INTENT(in), OPTIONAL :: root
+    REAL :: lmin
+    amin = 0.
+    lmin = MINVAL(a(:,3:n2-2,3:n3-2))
+    CALL get_mpi_min(lmin,amin,root)           
+  END SUBROUTINE get_gmin_float_3d
+  ! ------------------
+  SUBROUTINE get_gmin_float_2d(n2,n3,a,amin,root)
+    USE mpi_interface, ONLY : get_mpi_min
+    INTEGER, INTENT(in) :: n2,n3
+    REAL, INTENT(in) :: a(n2,n3)
+    REAL, INTENT(out) :: amin
+    LOGICAL, INTENT(in), OPTIONAL :: root
+    REAL :: lmin
+    amin = 0.
+    lmin = MINVAL(a(3:n2-2,3:n3-2))
+    CALL get_mpi_min(lmin,amin,root)           
+  END SUBROUTINE get_gmin_float_2d
+  ! -------------------
+  SUBROUTINE get_gmin_profile_float_3d(n1,n2,n3,a,amin,root)
+    USE mpi_interface, ONLY : get_mpi_min
+    INTEGER, INTENT(in) :: n1,n2,n3
+    REAL, INTENT(in) :: a(n1,n2,n3)
+    REAL, INTENT(out) :: amin(n1)
+    LOGICAL, INTENT(in), OPTIONAL :: root
+    REAL :: lmin
+    INTEGER :: k
+    amin = 0.
+    DO k = 1,n1
+       lmin = MINVAL(a(k,3:n2-2,3:n3-2))
+       CALL get_mpi_min(lmin,amin(k),root)
+    END DO
+  END SUBROUTINE get_gmin_profile_float_3d
+  !
+  ! -----------------------------------------------------------------------
   ! SUBROTINE GET_SCALAR_GSUM_2d
   ! Get the global sum across all processes from a lateral
   ! 2d field. The result is defined only for the root process
   !
-  SUBROUTINE get_scalar_float_gsum_2d(n2,n3,a,asum)
-    USE mpi_interface, ONLY : get_sum_root
+  SUBROUTINE get_scalar_float_gsum_2d(n2,n3,a,asum,root)
+    USE mpi_interface, ONLY : get_mpi_sum
     INTEGER, INTENT(in) :: n2,n3
     REAL, INTENT(in) :: a(n2,n3)
     REAL, INTENT(out) :: asum
+    LOGICAL, INTENT(in), OPTIONAL :: root
     REAL :: lsum
     lsum = SUM(a(3:n2-2,3:n3-2))
-    CALL get_sum_root(lsum,asum)    
+    CALL get_mpi_sum(lsum,asum,root)    
   END SUBROUTINE get_scalar_float_gsum_2d
   
   !
@@ -202,12 +286,13 @@ CONTAINS
   ! Get the global sum across all processes from a 3d field.
   ! The result is defined (non-zero) only for the root process.
   !
-  SUBROUTINE get_scalar_float_gsum_3d(n1,n2,n3,a,asum,z_wght)
-    USE mpi_interface, ONLY : get_sum_root
+  SUBROUTINE get_scalar_float_gsum_3d(n1,n2,n3,a,asum,z_wght,root)
+    USE mpi_interface, ONLY : get_mpi_sum
     INTEGER, INTENT(in) :: n1,n2,n3
     REAL, INTENT(in) :: a(n1,n2,n3)
-    REAL, INTENT(in), OPTIONAL :: z_wght(n1) ! Optional: Fractional level thickness for weight factor with non-uniform vertical grid
     REAL, INTENT(out) :: asum
+    REAL, INTENT(in), OPTIONAL :: z_wght(n1) ! Optional: Fractional level thickness for weight factor with non-uniform vertical grid
+    LOGICAL, INTENT(in), OPTIONAL :: root
     REAL :: lsum
     INTEGER :: i,j
     LOGICAL :: usewght
@@ -223,7 +308,7 @@ CONTAINS
     ELSE
        lsum = SUM(a(:,3:n2-2,3:n3-2))
     END IF
-    CALL get_sum_root(lsum,asum)
+    CALL get_mpi_sum(lsum,asum,root)
   END SUBROUTINE get_scalar_float_gsum_3d
   !
   ! --------------------------------------------------------
@@ -231,27 +316,29 @@ CONTAINS
   ! Get the global sum across all processes at each model level
   ! from a 3d field. The result is defined (non-zero) only for the
   ! root process
-  SUBROUTINE get_profile_float_gsum_3d(n1,n2,n3,a,asum)
-    USE mpi_interface, ONLY : get_sum_root
+  SUBROUTINE get_profile_float_gsum_3d(n1,n2,n3,a,asum,root)
+    USE mpi_interface, ONLY : get_mpi_sum
     INTEGER, INTENT(in) :: n1,n2,n3
     REAL, INTENT(in) :: a(n1,n2,n3)
     REAL, INTENT(out) :: asum(n1)
+    LOGICAL, INTENT(in), OPTIONAL :: root
     REAL :: lsum(n1)
     asum = 0.
     lsum(1:n1) = SUM(SUM(a(1:n1,3:n2-2,3:n3-2),DIM=3),DIM=2)
-    CALL get_sum_root(n1,lsum,asum)
+    CALL get_mpi_sum(n1,lsum,asum,root)
   END SUBROUTINE get_profile_float_gsum_3d
   !---------------------------------------------------------
   ! same for integer
-  SUBROUTINE get_profile_integer_gsum_3d(n1,n2,n3,a,asum)
-    USE mpi_interface, ONLY : get_sum_root
+  SUBROUTINE get_profile_integer_gsum_3d(n1,n2,n3,a,asum,root)
+    USE mpi_interface, ONLY : get_mpi_sum
     INTEGER, INTENT(in) :: n1,n2,n3
     INTEGER, INTENT(in) :: a(n1,n2,n3)
     INTEGER, INTENT(out) :: asum(n1)
+    LOGICAL, INTENT(in), OPTIONAL :: root
     INTEGER :: lsum(n1)
     asum = 0
     lsum(1:n1) = SUM(SUM(a(1:n1,3:n2-2,3:n3-2),DIM=3),DIM=2)
-    CALL get_sum_root(n1,lsum,asum)
+    CALL get_mpi_sum(n1,lsum,asum,root)
   END SUBROUTINE get_profile_integer_gsum_3d
   !
   ! -----------------------------------------------------------
@@ -259,11 +346,12 @@ CONTAINS
   ! Get the global sum across all processes at each model level
   ! from a binned 3-dimensional field. The output shall be a sum
   ! across the model domain in each model level and each bin.
-  SUBROUTINE get_profile_float_gsum_3d_binned(n1,n2,n3,n4,a,asum)
-    USE mpi_interface, ONLY : get_sum_root
+  SUBROUTINE get_profile_float_gsum_3d_binned(n1,n2,n3,n4,a,asum,root)
+    USE mpi_interface, ONLY : get_mpi_sum
     INTEGER, INTENT(in) :: n1,n2,n3,n4
     REAL, INTENT(in) :: a(n1,n2,n3,n4)
     REAL, INTENT(out) :: asum(n1,n4)
+    LOGICAL, INTENT(in), OPTIONAL :: root
     REAL :: lsum(n1,n4)
     INTEGER :: bb
     asum = 0.
@@ -271,26 +359,43 @@ CONTAINS
     DO bb = 1,n4
        lsum(1:n1,bb) = SUM( SUM( a(1:n1,3:n2-2,3:n3-2,bb),DIM=3 ),DIM=2 )
     END DO
-    CALL get_sum_root(n1,n4,lsum,asum)    
+    CALL get_mpi_sum(n1,n4,lsum,asum,root)    
   END SUBROUTINE get_profile_float_gsum_3d_binned
   
   !
   ! ------------------------------------------------------------------
   ! GET_AVG2_ROOT: gets the global average for a 2d x-y field
   !! 
-  SUBROUTINE get_avg2_root(n2,n3,a,avg)
+  SUBROUTINE get_gavg2(n2,n3,a,avg,cond,root)
     USE mpi_interface, ONLY : nxpg,nypg  
     INTEGER, INTENT(in) :: n2,n3
     REAL, INTENT(in) :: a(n2,n3)
     REAL, INTENT(out) :: avg
+    LOGICAL, INTENT(in), OPTIONAL :: cond(n2,n3)
+    LOGICAL, INTENT(in), OPTIONAL :: root
+    REAL :: rcond(n2,n3)
+    REAL :: gcnts, gavg
     REAL :: x
-    avg = 0.
-    CALL get_gsum(n2,n3,a,avg)
-    x = 1./(REAL(nxpg-4)*REAL(nypg-4))
-    avg = avg*x    
-  END SUBROUTINE get_avg2_root
-  
 
+    avg = 0.
+    gavg = 0.
+    gcnts = 0.
+    rcond = 0.
+
+    IF (PRESENT(cond)) THEN
+       rcond(:,:) = MERGE(1.,0.,cond(:,:))
+       ! Get the global sum of values and counts 
+       CALL get_gsum(n2,n3,a*rcond,gavg,root)
+       CALL get_gsum(n2,n3,rcond,gcnts,root)
+       IF (gcnts > 0) avg = gavg/gcnts
+    ELSE
+       CALL get_gsum(n2,n3,a,avg,root)
+       x = 1./(REAL(nxpg-4)*REAL(nypg-4))
+       avg = avg*x    
+    END IF
+
+  END SUBROUTINE get_gavg2
+  
   !
   !---------------------------------------------------------------------
   ! GET_AVG4_ROOT: gets average field value from the whole domain
@@ -300,26 +405,41 @@ CONTAINS
     
   ! Weighting by layer thickness implemented for non-uniform vertical resolution
   !
-  SUBROUTINE get_avg4_root(n1,n2,n3,a,avg,dz,cond)
+  SUBROUTINE get_gavg4(n1,n2,n3,a,avg,dz,cond,root)
+    USE mpi_interface, ONLY : nxpg,nypg
     INTEGER, INTENT (in) :: n1, n2, n3
     REAL, INTENT(in)     :: dz(n1)  ! Reciprocal of layer depth!
     REAL, INTENT (in)    :: a(n1,n2,n3)
     REAL, INTENT(out)    :: avg
-    LOGICAL, OPTIONAL, INTENT(in) :: cond(n1,n2,n3)
+    LOGICAL, INTENT(in), OPTIONAL :: cond(n1,n2,n3)
+    LOGICAL, INTENT(in), OPTIONAL :: root
+    REAL :: rcond(n1,n2,n3)
     REAL :: dz_wght(n1)
-    REAL :: pavg(n1)
+    REAL :: gcnts(n1), gavg(n1)
+    REAL :: x
 
     avg = 0.
-    pavg = 0.
+    gavg(:) = 0.
+    gcnts(:) = 0.
 
-    ! first get the profile average, then do weighting with layer thickness for final result
-    CALL get_avg3_root(n1,n2,n3,a,pavg,cond)
-
-    dz_wght = 1./dz
-    dz_wght = dz_wght/SUM(dz_wght)
-    avg = SUM(pavg*dz_wght)
+    IF (PRESENT(cond)) THEN
+       rcond(:,:,:) = MERGE(1.,0.,cond(:,:,:))
+       ! Get the global sum of values and counts 
+       CALL get_gsum(n1,n2,n3,a*rcond,gavg,root)
+       CALL get_gsum(n1,n2,n3,rcond,gcnts,root)
+       gavg(:) = MERGE(gavg(:)/gcnts(:), 0., (gcnts(:) > 0.)) 
+    ELSE 
+       x = 1./(REAL(nypg-4)*REAL(nxpg-4))
+       CALL get_gsum(n1,n2,n3,a,gavg,root)
+       gavg(:) = gavg(:)*x
+       gcnts(:) = 1.
+    END IF
     
-  END SUBROUTINE get_avg4_root
+    dz_wght = 1./dz
+    dz_wght = MERGE((gcnts*dz_wght)/SUM(gcnts*dz_wght), 0., (gcnts > 0.))
+    avg = SUM(gavg*dz_wght)
+    
+  END SUBROUTINE get_gavg4
   !
 
 
@@ -328,12 +448,13 @@ CONTAINS
   ! point along inner dimension across all processes. The result
   ! is defined (non-zero) only for the root process
   !
-  SUBROUTINE get_avg3_root(n1,n2,n3,a,avg,cond)    
+  SUBROUTINE get_gavg3(n1,n2,n3,a,avg,cond,root)    
     USE mpi_interface, ONLY : nxpg,nypg    
     INTEGER,INTENT(in) :: n1,n2,n3
     REAL,INTENT(in)    :: a(n1,n2,n3)
     REAL,INTENT(out)   :: avg(n1)
     LOGICAL, OPTIONAL, INTENT(in)  :: cond(n1,n2,n3)
+    LOGICAL, OPTIONAL, INTENT(in) :: root
     REAL, ALLOCATABLE :: rcond(:,:,:)
     REAL :: gavg(n1),gcnts(n1),x
     
@@ -345,27 +466,28 @@ CONTAINS
        ALLOCATE(rcond(n1,n2,n3)); rcond = 0.
        rcond(:,:,:) = MERGE(1.,0.,cond(:,:,:))
        ! Get the global sum of values and counts 
-       CALL get_gsum(n1,n2,n3,a*rcond,gavg)
-       CALL get_gsum(n1,n2,n3,rcond,gcnts)
+       CALL get_gsum(n1,n2,n3,a*rcond,gavg,root)
+       CALL get_gsum(n1,n2,n3,rcond,gcnts,root)
        avg(:) = MERGE(gavg(:)/gcnts(:), 0., (gcnts(:) > 0.)) 
        DEALLOCATE(rcond)
     ELSE 
        x = 1./(REAL(nypg-4)*REAL(nxpg-4))
-       CALL get_gsum(n1,n2,n3,a,gavg)
+       CALL get_gsum(n1,n2,n3,a,gavg,root)
        avg(:) = gavg(:)*x
     END IF
        
-  END SUBROUTINE get_avg3_root
+  END SUBROUTINE get_gavg3
 
   ! --------------------------------------------------------------------
   ! GET_AVG3_BINNED_ROOT: Get the average across the outer two spatial
   ! dimensions along the inner dimensions in each size bin of a binned
   ! variable. The result is defined (non-zero) only for the root process.
-  SUBROUTINE get_avg3_binned_root(n1,n2,n3,n4,a,avg)
+  SUBROUTINE get_gavg3_binned(n1,n2,n3,n4,a,avg,root)
     USE mpi_interface, ONLY : nxpg,nypg
     INTEGER, INTENT(in) :: n1,n2,n3,n4
     REAL, INTENT(in)    :: a(n1,n2,n3,n4)
     REAL, INTENT(out)   :: avg(n1,n4)
+    LOGICAL, INTENT(in), OPTIONAL :: root
     REAL :: gavg(n1,n4), x
 
     avg = 0.; gavg = 0.
@@ -373,16 +495,32 @@ CONTAINS
     ! TODO: Add the possibility to use conditional averaging
     
     x = 1./(REAL(nypg-4)*REAL(nxpg-4))
-    CALL get_gsum(n1,n2,n3,n4,a,gavg)
+    CALL get_gsum(n1,n2,n3,n4,a,gavg,root)
     avg(:,:) = gavg(:,:)*x
         
-  END SUBROUTINE get_avg3_binned_root
+  END SUBROUTINE get_gavg3_binned
+
+  !
+  ! --------------------------------------------------------------------
+  ! GET_VAR3_ROOT: Gets the variance of the field across the outer
+  ! two spatial dimensions. The result is defined (non-zero) only
+  ! for the root process.
+  SUBROUTINE get_gvar3(n1,n2,n3,a,var,root)
+    INTEGER, INTENT(in) :: n1,n2,n3
+    REAL, INTENT(in) :: a(n1,n2,n3)
+    REAL, INTENT(out) :: var(n1)
+    LOGICAL, INTENT(in), OPTIONAL :: root
+    REAL :: abar(n1),asqb(n1)        
+    CALL get_gavg3(n1,n2,n3,a,abar,root=root)
+    CALL get_gavg3(n1,n2,n3,a**2,asqb,root=root)
+    var = asqb - abar**2    
+  END SUBROUTINE get_gvar3
   
   
   !---------------------------------------------------------------------
   ! GET_AVG3: gets average across outer two dimensions at each
   ! point along inner dimension across all processes. The result
-  ! is defined (non-zero) only for the root process
+  ! is defined (non-zero) only for the root process DEPRECATED; SHOULD REMOVE
   !
   SUBROUTINE get_avg3(n1,n2,n3,a,avg,normalize,cond)
     
@@ -448,6 +586,8 @@ CONTAINS
   !---------------------------------------------------------------------
   ! Function get_cor: gets mean correlation between two fields at a
   ! given level
+  !
+  ! What happens here actually? Not used anywhere though.
   !
   REAL FUNCTION get_cor(n1,n2,n3,k,a,b)
     
@@ -886,25 +1026,6 @@ CONTAINS
    !
    ! -----------------------------------------------------------------
    !
-   REAL FUNCTION cumlognorm(dg,sigmag,dpart)
-     
-     IMPLICIT NONE
-     ! Cumulative lognormal function
-     REAL, INTENT(in) :: dg
-     REAL, INTENT(in) :: sigmag
-     REAL, INTENT(in) :: dpart
-     
-     REAL :: hlp1,hlp2
-     
-     hlp1 = ( LOG(dpart) - LOG(dg) )
-     hlp2 = SQRT(2.)*LOG(sigmag)
-     cumlognorm = 0.5 + 0.5*ERF( hlp1/hlp2 )
-     
-   END FUNCTION cumlognorm
-   
-   !
-   !
-   !
    
    SUBROUTINE arr_resize_int(arr,newsize)
      INTEGER, ALLOCATABLE, INTENT(inout) :: arr(:)
@@ -1049,67 +1170,5 @@ CONTAINS
      
    END SUBROUTINE Extend_last_4d
    
-   ! -----------------------------------------
-
-   REAL FUNCTION V2D(vol,pi6)
-     ! Get volume from diameter for spherical particle
-     REAL, INTENT(in) :: vol
-     REAL, INTENT(in) :: pi6
-     V2D = (vol/pi6)**(1./3.)
-   END FUNCTION V2D
-
-   ! ------------------------------------------
-
-   REAL FUNCTION D2V(diam,pi6)
-     ! Get diameter from volume for spherical particle
-     REAL, INTENT(in) :: diam
-     REAL, INTENT(in) :: pi6
-     D2V = pi6*diam**3
-   END FUNCTION D2V
-   
-   ! ------------------------------------------
-
-   REAL FUNCTION erfm1(x)
-     ! Inverse error function - just quickly grabbed the Maclaurin series terms from wikipedia...
-     REAL, INTENT(in) :: x
-     !REAL, PARAMETER :: tt = 0.8862269254527579, t1 = 1., t3 = 0.2617993877991494,   &
-     !                   t5 = 0.14393173084921979, t7 = 0.09766361950392055,          &
-     !                   t9 = 0.07329907936638086, t11 = 0.05837250087858452
-     REAL, PARAMETER :: a = 0.140012 ! 0.147
-     REAL, PARAMETER :: pi = 3.14159265359
-     REAL :: sgn, t1, t2, t3, t4, t5,xx
-     
-     
-     sgn = 1.
-     IF (x < 0.) sgn = -1.
-     xx = MAX( MIN( x, 1.-1.e-6  ), -1.+1.e-6 )
-     t1 = LOG(1.-xx**2)
-     t2 = 2./(pi*a)
-     
-     t3 = t2 + 0.5*t1
-     t4 = t1/a
-     t5 = t2 + 0.5*t1
-     erfm1 = sgn * SQRT( SQRT(t3**2 - t4) - t5 )
-     
-     !erfm1 = x + t3*x**3 + t5*x**5 + t7*x**7 + t9*x**9 + t11*x**11
-     !erfm1 = erfm1*tt
-
-   END FUNCTION erfm1
-
-   ! ------------------------------------------
-   
-   REAL FUNCTION f_gauss(x,sig,mean)
-     USE mo_submctl, ONLY : pi
-     ! Normalized frequency from Gaussian distribution
-     REAL, INTENT(in) :: x, sig, mean
-     REAL :: a, b
-
-     a = SQRT(2.*pi)*sig
-     b = (x - mean)**2
-     b = b/(2.*sig**2)
-     
-     f_gauss = (1./a) * EXP(-b)          
-   END FUNCTION f_gauss
-
    
 END MODULE util

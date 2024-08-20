@@ -1,8 +1,8 @@
 MODULE constrain_SALSA
   USE mo_progn_state, ONLY : a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,   &
                              a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,   &
-                             a_nicep,  a_nicet,  a_micep,   a_micet, a_gaerop, a_indefp
-  USE mo_diag_state, ONLY : a_rc, a_srp, a_snrp, a_rh, a_temp, a_ri, a_riri, a_rhi
+                             a_nicep,  a_nicet,  a_micep,   a_micet, a_gaerop, a_indefp, a_rp
+  USE mo_diag_state, ONLY : a_rtot, a_rc, a_srp, a_snrp, a_rh, a_temp, a_ri, a_riri, a_rhi
   USE mo_aux_state, ONLY : aetot
   USE mo_submctl, ONLY : spec, nlim, prlim, ice_theta_dist
   USE grid, ONLY : level
@@ -221,7 +221,7 @@ MODULE constrain_SALSA
                        zdh2o = (zvol/pi6)**(1./3.)
                        
                        ! Lose the droplets if small
-                       IF ( zdh2o < MIN(0.1*cdprc,1.3e-5) .OR.   &
+                       IF ( zdh2o < MIN(0.2*cdprc,10.e-6) .OR.   &
                             a_mprecpp%d(k,i,j,mi) < massTH*a_nprecpp%d(k,i,j,bc) ) THEN
                           
                           ba = findDry4Wet(a_nprecpp,a_mprecpp,nprc,bc,k,i,j)
@@ -372,6 +372,9 @@ MODULE constrain_SALSA
     end = getMassIndex(nprc,fra,nc)
     a_srp%d(:,:,:) = SUM(a_mprecpp%d(:,:,:,str:end),DIM=4)
     a_snrp%d(:,:,:) = SUM(a_nprecpp%d(:,:,:,ira:fra),DIM=4)
+    ! Total water mix rat
+    a_rtot%d = a_rc%d + a_srp%d + a_rp%d
+
     ! ice
     IF (level == 5) THEN 
        str = getMassIndex(nice,iia,nc)
@@ -382,8 +385,10 @@ MODULE constrain_SALSA
        str = getMassIndex(nice,iia,nc)
        end = getMassIndex(nice,fia,nc)
        a_riri%d(:,:,:) = SUM(a_micep%d(:,:,:,str:end),DIM=4)
+       ! Update total water
+       a_rtot%d = a_rtot%d + a_ri%d + a_riri%d       
     END IF
-       
+        
   END SUBROUTINE SALSA_diagnostics
 
   !

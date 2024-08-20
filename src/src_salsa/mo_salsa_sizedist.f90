@@ -11,7 +11,7 @@ CONTAINS
          pi,                        &
          fn2b
 
-      USE mo_salsa_driver, ONLY : aero ! This is needed for size bins spacings
+      USE mo_salsa_types, ONLY : aero ! This is needed for size bins spacings
       IMPLICIT NONE
 
       !INTEGER, PARAMETER :: nmod = 7

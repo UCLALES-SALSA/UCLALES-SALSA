@@ -99,16 +99,15 @@ CONTAINS
                                   strtim, radfrq
     USE nudg_defs, ONLY         : nudge_time, nudge_zmin, nudge_zmax,                                &
                                   ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
-    USE emission_types, ONLY    : emitModes, nEmissionModes
+    USE emission_types, ONLY    : emitModes, nEmissionModes, emitPristineIN
     USE grid, ONLY              : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                                   dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                                   filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
-                                  nfpt, distim, runtype, CCN,sst,W1,W2,W3, &
+                                  lpback, pbncsrc, nfpt, distim, nfptbt, distimbt, runtype, CCN,sst,W1,W2,W3, &
                                   cntlat, varlist_main, varlist_ps, varlist_ts
     USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
-                                  zrand, zrndamp, init_type
-    USE init_warm_bubble, ONLY  : bubble_center, bubble_diameter, bubble_temp_ampl
-    USE forc, ONLY              : div, case_name     ! Divergence, forcing case name
+                                  zrand, zrndamp, zrndamp_rp, sound_in_file
+    USE forc, ONLY              : div, case_name, amp, tphase, largeforc, forcing, pertmax     ! Divergence, forcing case name
     USE radiation_main, ONLY    : radsounding,   &
                                   sfc_albedo,    &
                                   useMcICA,      &
@@ -116,10 +115,13 @@ CONTAINS
                                   RadConstPress, &
                                   RadPrecipBins
     USE mcrp, ONLY              : sed_aero, sed_cloud, sed_precp, sed_ice, init_mcrp_switches, &
-                                  bulk_autoc
+                                  bulk_autoc, bulkScheme
     USE mpi_interface, ONLY     : myid, appl_abort, ver, author
     USE mo_output, ONLY         : ts_intvl, ps_intvl, main_intvl
     USE mo_check_state, ONLY    : breakUndefOutput
+    USE mo_stats_parameters, ONLY : TH_rc, TH_rr, TH_ri, TH_rrate
+    USE perturbation_forc, ONLY : warm_bubble, gaussian_flux_perturbation, gaussian_moisture_perturbation
+
     
     IMPLICIT NONE
     
@@ -129,6 +131,7 @@ CONTAINS
          naddsc    ,       & ! Number of additional scalars
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
+         nfptbt   , distimbt , & ! rayleigh friction points, dissipation time from the surface (cirrus special case)
          level  , CCN    , & ! Microphysical model Number of CCN per kg of air
          nxp    , nyp    , nzp   ,  & ! number of x, y, z points
          deltax , deltay , deltaz , & ! delta x, y, z (meters)
@@ -140,20 +143,25 @@ CONTAINS
          iradtyp,                   & ! Radiation type
          isgstyp, csx    , prndtl , & ! SGS model type, parameters
          lnudging, lemission,       & ! master switch for nudging, aerosol emissions
+         lpback, pbncsrc,       & ! Switch for piggybacking microphysics, switch for fixed or SALSA CDNC with PB
          div, case_name, &            ! divergence for LEVEL 4
+         amp, tphase, largeforc, pertmax, &
          sed_aero, sed_cloud, sed_precp, sed_ice,  & ! Sedimentation (T/F)
-         bulk_autoc                                            ! autoconversion (and accretion) switch for level < 4 
-    
+         bulk_autoc,                & ! autoconversion (and accretion) switch for level < 4 
+         bulkScheme,                &  ! 1: SB, 2: KK (mean radius autoc), 3: KK (rc nc exponential autoc)
+         forcing,                   &
+         warm_bubble,               &  ! Parameters for setting up a warm bubble. Default switch == FALSE
+         gaussian_moisture_perturbation, & ! Parameters for setting up a horizontally gaussian moisture
+         gaussian_flux_perturbation    ! Parameters for setting up a horizontally gaussian surface flux
+                                       ! perturbation. Default switch == FALSE.
+         
     NAMELIST /initialization/      &
-         init_type,                & ! Type of initialization: 1: random perturbations, 2: warm bubble
-         bubble_center,            & ! Center coordinates for warm bubble (z,x,y) 
-         bubble_diameter,          & ! Diameter for warm bubble (z,x,y)   
-         bubble_temp_ampl,         & ! Temperature amplitude for the warm bubble, assume sinusoidal
+         sound_in_file,            & ! Input sounding file name
          ipsflg, itsflg,           & ! sounding flags
          hs, ps, ts,               & ! sounding heights, pressure, temperature
          us, vs, rts,              & ! sounding E/W winds, water vapor
          umean, vmean, th00,       & ! gallilean E/W wind, basic state
-         iseed, zrand, zrndamp       ! random seed
+         iseed, zrand, zrndamp, zrndamp_rp       ! random seed
     
     NAMELIST /radiation/           &
          radfrq,                   & ! radiation type flag RADFRQ NOT USED ANYWHERE, VARIABLE DECLARED IN STEP.F90
@@ -163,18 +171,19 @@ CONTAINS
          RadConstPress,            & ! keep constant pressure levels (T/F) 
          RadPrecipBins               ! add precipitation bins cloud water (0, 1, 2, 3,...)
     
-    NAMELIST /nudge/   &
-         nudge_time,                       & ! Total nudging time (independent of spin-up)
-         nudge_zmin, nudge_zmax,           & ! Altitude (m) range for nudging
-         ndg_theta,                        & ! Temperature nudging
-         ndg_rv,                           & ! Water vapor mixing ratio nudging
-         ndg_u,                            & ! wind nudging
-         ndg_v,                            & ! Horizontal wind nudging
-         ndg_aero                             ! Aerosol number concentration nudging
+    NAMELIST /nudge/               &
+         nudge_time,               & ! Total nudging time (independent of spin-up)
+         nudge_zmin, nudge_zmax,   & ! Altitude (m) range for nudging
+         ndg_theta,                & ! Temperature nudging
+         ndg_rv,                   & ! Water vapor mixing ratio nudging
+         ndg_u,                    & ! wind nudging
+         ndg_v,                    & ! Horizontal wind nudging
+         ndg_aero                    ! Aerosol number concentration nudging
     
-    NAMELIST /emission/ &              
-         nEmissionModes,      & ! Number of emission profiles to be used (max 5)
-         emitModes              ! Emission configs
+    NAMELIST /emission/     &              
+         nEmissionModes,    & ! Number of emission profiles to be used (max 5)
+         emitPristineIN,    & ! Assume emitted IN are pristine in terms of contact angle integration in ice nucleation
+         emitModes            ! Emission configs
     
     NAMELIST /surface/      &
          isfctyp,           &   ! Surface parameterization type
@@ -192,14 +201,18 @@ CONTAINS
          lConstSoilHeatCap      ! Keep soil heat capacity con
     
     NAMELIST /output/       &
-         breakUndefOutput,  &
-         ts_intvl,          &
-         ps_intvl,          &
-         main_intvl,        &
-         varlist_main,      &
-         varlist_ps,        &
-         varlist_ts
-
+         breakUndefOutput,  &   ! Stop the model if undefined output variables are entered to varlists (T/F)
+         ts_intvl,          &   ! Output interval for TS statistics (s)
+         ps_intvl,          &   ! Output interval for PS statistics (s)
+         main_intvl,        &   ! Output interval for the main analysis files (s)
+         varlist_main,      &   ! List of variables for the main analysis output
+         varlist_ps,        &   ! List of variables for the PS statistics output
+         varlist_ts,        &   ! List of variables for the TS statistics output
+         TH_rc,             &   ! Threshold for cloud water mix rat for conditional averaging
+         TH_rr,             &   ! Threshold for drizzle/rain mix rat for conditional averaging
+         TH_ri,             &   ! Threshold for ice mix rat for conditional averaging
+         TH_rrate               ! Threshold for precip rate for conditional averaging
+         
     NAMELIST /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author
     
@@ -263,22 +276,27 @@ CONTAINS
        ! Do some cursory error checking in namelist variables
        !
        IF (laerorad .AND. level < 4) THEN 
-          IF (myid ==0) WRITE(*,*) "WARNING: laerorad=TRUE valid only for level >= 4, setting to FALSE"
+          WRITE(*,*) "WARNING: laerorad=TRUE valid only for level >= 4, setting to FALSE"
           laerorad = .FALSE.
        END IF
        
        IF (MIN(nxp,nyp) < 5) THEN
-          IF (myid == 0) PRINT *, '  ABORTING: min(nxp,nyp) must be > 4.'
+          PRINT *, '  ABORTING: min(nxp,nyp) must be > 4.'
           CALL appl_abort(0)
        END IF
        
        IF (nzp < 3 ) THEN
-          IF (myid == 0) PRINT *, '  ABORTING: nzp must be > 2 '
+          PRINT *, '  ABORTING: nzp must be > 2 '
           CALL appl_abort(0)
        END IF
        
        IF (cntlat < -90. .OR. cntlat > 90.) THEN
-          IF (myid == 0) PRINT *, '  ABORTING: central latitude out of bounds.'
+          PRINT *, '  ABORTING: central latitude out of bounds.'
+          CALL appl_abort(0)
+       END IF
+       
+       IF (lpback .AND. level /= 4) THEN
+          WRITE(*,*) "ABORTING: lpback=TRUE currently valid only with level=4"
           CALL appl_abort(0)
        END IF
     END IF
