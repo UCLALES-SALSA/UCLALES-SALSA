@@ -326,7 +326,10 @@ CONTAINS
                      IF (level == 5 .AND. ice_theta_dist) THEN
                         pindefp%d(kk,ii,jj,nb) = allSALSA(1,1,nb)%INdef 
                      END IF
-                      
+                     
+                     ! Sami 14-08-2024: 
+                     IF (lcharge) pchargeTimep%d(kk,ii,jj,nb) = allSALSA(1,1,nb)%chargeTime   !Update charge changes
+                     
                   ELSE IF (icat == 4) THEN ! Ice
                      DO nc = 1,nwet
                         str = getMassIndex(catnbins,nbloc,nc)

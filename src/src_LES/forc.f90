@@ -96,7 +96,7 @@ CONTAINS
 
        IF (ANY(emitModes(:)%emitType > 0)) THEN
           ! For particle charging, reduce the time tracer by one timestep where it is > 0
-          a_chargeTimet%d = a_chargeTimet%d - MIN(dtlt, a_chargeTimep%d)
+          a_chargeTimet%d = MAX(0.,a_chargeTimet%d - MIN(dtlt, a_chargeTimep%d))
        END IF
     END IF
     

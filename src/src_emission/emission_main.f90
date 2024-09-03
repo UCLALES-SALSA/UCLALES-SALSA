@@ -159,11 +159,11 @@ MODULE emission_main
 
     
     IF (myid == 0) THEN
-      WRITE(*,*) '================================='
-      WRITE(*,*) 'CALCULATING EMISSIONS WITH CHARGE'
-      WRITE(*,*) '================================='
-    END IF
-    
+      WRITE(*,*) '========================================'
+      WRITE(*,*) 'CALCULATING EMISSIONS WITH CHARGE TYPE=2'
+      WRITE(*,*) '========================================'
+    END IF   
+
    diam = 0.
    CALL Dwaba%onDemand("Dwaba",diam(:,:,:,in1a:fn2a),in1a,fn2a)
    CALL Dwabb%onDemand("Dwabb",diam(:,:,:,in2b:fn2b),in2b,fn2b)
@@ -175,62 +175,64 @@ MODULE emission_main
    numb(:,:,:,nbins+1:nbins+ncld) = a_ncloudp%d(:,:,:,1:ncld)
    numb(:,:,:,nbins+ncld+1:nbins+ncld+nprc) = a_nprecpp%d(:,:,:,1:nprc)
 
-
     ASSOCIATE( k1 => emd%emitLevMin, k2 => emd%emitLevMax)
     
-      DO bb = 1,nbins
+      DO bb = 1,nliquid
          DO j = 3,nyp-2
             IF (yt%d(j) < emd%emitLatmin .OR. yt%d(j) > emd%emitLatmax) CYCLE
 
             DO i = 3,nxp-2
                IF (xt%d(i) < emd%emitLonmin .OR. xt%d(i) > emd%emitLonmax) CYCLE
                 
-               DO k = k1,k2
+            	DO k = k1,k2
+		     	IF (bb <= nbins) THEN
+ 
+			  ! With level 5 using the contact angle distribution for ice nucletion, update the
+			  ! IN nucleated fraction assuming emitted particles contain IN and comprise pirstine INP.
+			  ! this contributuion can also be switched off using
+			  ! --------------------------------------------------------------------------------
+			  IF (level == 5 .AND. ice_theta_dist .AND. emitPristineIN) THEN
+			     hlp1 = 0.; hlp2 = 0.
+			     IF (a_naerop%d(k,i,j,bb) < prlim) THEN
+				! Check for empty bins with a rather small limit. This should minimize the contact angle for current bin
+				a_indeft%d(k,i,j,bb) = a_indeft%d(k,i,j,bb) - a_indefp%d(k,i,j,bb)/dtlt
+			     ELSE
+				! hlp1 and hlp2 gets the new IN nucleated fraction after emission, i.e. emission should decrease it
+				hlp1 = (a_naerop%d(k,i,j,bb)*a_indefp%d(k,i,j,bb) + edt%numc(bb)*0.*dtlt) ! latter term obv. symbolic...
+				hlp2 = (a_naerop%d(k,i,j,bb)+edt%numc(bb)*dtlt)
+				! Conver the emission contribution into tendency
+				a_indeft%d(k,i,j,bb) = a_indeft%d(k,i,j,bb) +  &
+				     ( (hlp1 / hlp2) - a_indefp%d(k,i,j,bb) ) / dtlt
+			     END IF
+			  END IF
+			  ! --------------------------------------------------------------------------------
 
-                  ! With level 5 using the contact angle distribution for ice nucletion, update the
-                  ! IN nucleated fraction assuming emitted particles contain IN and comprise pirstine INP.
-                  ! this contributuion can also be switched off using
-                  ! --------------------------------------------------------------------------------
-                  IF (level == 5 .AND. ice_theta_dist .AND. emitPristineIN) THEN
-                     hlp1 = 0.; hlp2 = 0.
-                     IF (a_naerop%d(k,i,j,bb) < prlim) THEN
-                        ! Check for empty bins with a rather small limit. This should minimize the contact angle for current bin
-                        a_indeft%d(k,i,j,bb) = a_indeft%d(k,i,j,bb) - a_indefp%d(k,i,j,bb)/dtlt
-                     ELSE
-                        ! hlp1 and hlp2 gets the new IN nucleated fraction after emission, i.e. emission should decrease it
-                        hlp1 = (a_naerop%d(k,i,j,bb)*a_indefp%d(k,i,j,bb) + edt%numc(bb)*0.*dtlt) ! latter term obv. symbolic...
-                        hlp2 = (a_naerop%d(k,i,j,bb)+edt%numc(bb)*dtlt)
-                        ! Conver the emission contribution into tendency
-                        a_indeft%d(k,i,j,bb) = a_indeft%d(k,i,j,bb) +  &
-                             ( (hlp1 / hlp2) - a_indefp%d(k,i,j,bb) ) / dtlt
-                     END IF
-                  END IF
-                  ! --------------------------------------------------------------------------------
+			  ! Emission contribution to number concentration
+			  a_naerot%d(k,i,j,bb) = a_naerot%d(k,i,j,bb) + edt%numc(bb)
 
-                  ! Emission contribution to number concentration
-                  a_naerot%d(k,i,j,bb) = a_naerot%d(k,i,j,bb) + edt%numc(bb)
+			  ! Contribution to particle composition
+			  DO ss = 1,spec%getNSpec(type="wet")
+			     mm = getMassIndex(nbins,bb,ss)
+			     a_maerot%d(k,i,j,mm) = a_maerot%d(k,i,j,mm) + edt%mass(mm)
+			  END DO
 
-                  ! Contribution to particle composition
-                  DO ss = 1,spec%getNSpec(type="wet")
-                     mm = getMassIndex(nbins,bb,ss)
-                     a_maerot%d(k,i,j,mm) = a_maerot%d(k,i,j,mm) + edt%mass(mm)
-                  END DO
-                  
-                  ! Charge effect 
-                  IF (diam(k,i,j,bb) < emd%chargeDmax .AND.  &
-                      diam(k,i,j,bb) > emd%chargeDmin .AND.  &
-                      numb(k,i,j,bb) > 1.                    ) THEN
-                     a_chargeTimep%d(k,i,j,bb) = 0.  ! If charging for some reason takes place on consecutive times in same location & bin,
-                                                   ! assume it being set back to chargeTmax
-                     a_chargeTimet%d(k,i,j,bb) = chargeTMax / dtlt
-                  END IF
+		        END IF
+                
+			IF (diam(k,i,j,bb) < emd%chargeDmax .AND.  &
+		              diam(k,i,j,bb) > emd%chargeDmin .AND.  &
+		              numb(k,i,j,bb) > 1.                    ) THEN
+		             a_chargeTimep%d(k,i,j,bb) = 0.  ! If charging for some reason takes place on consecutive times in same location & bin,
+		                                           ! assume it being set back to chargeTmax
+		             a_chargeTimet%d(k,i,j,bb) = chargeTMax / dtlt
 
-               END DO
+		        END IF
+               
+	     	END DO
             END DO
          END DO
       END DO
-      
-    END ASSOCIATE
+
+   END ASSOCIATE   
 
   END SUBROUTINE custom_emission
  
@@ -260,9 +262,9 @@ MODULE emission_main
 
 
    IF (myid == 0) THEN
-     WRITE(*,*) '============================'
-     WRITE(*,*) 'CALCULATING CHARGE EMISSIONS'
-     WRITE(*,*) '============================'
+     WRITE(*,*) '==================================='
+     WRITE(*,*) 'CALCULATING CHARGE EMISSIONS TYPE=4'
+     WRITE(*,*) '==================================='
    END IF
 
    diam = 0.
@@ -331,7 +333,7 @@ MODULE emission_main
    ! The point source will always be in 1 PE at a time
     IF (myid == 0) THEN
        WRITE(*,*) '========================================'
-       WRITE(*,*) 'CALCULATING EMISSIONS TYPE 3 WITH CHARGE'
+       WRITE(*,*) 'CALCULATING EMISSIONS WITH CHARGE TYPE=3'
        WRITE(*,*) '========================================'
     END IF
     
@@ -357,7 +359,7 @@ MODULE emission_main
       
       di = i_end - i_str + 1
       
-      DO bb = 1,nbins   
+      DO bb = 1,nliquid   
          DO j = 1, di
             
             dt  = ( MIN(t_end, t(i_str+j)) - MAX(t_str, t(i_str+j-1)) )/dtlt
@@ -366,43 +368,53 @@ MODULE emission_main
             zz1 = iz(ind)-z_expan_dw; zz2 = iz(ind)+z_expan_up
 
             DO k = zz1,zz2
-               a_naerot%d(k,xx,yy,bb) = &
-                    a_naerot%d(k,xx,yy,bb) + edt%numc(bb) * dt
-               ! If level=5 and ice_theta_dist=TRUE, relax the ice nucleation IN "deficit"
-               ! ratio used for evolving contact angle by taking number wghted avg and
-               ! assuming zero for the emitted population. This is executed regardless of
-               ! the emitted species, but the information is only used for ice nucleating
-               ! species. Aerosol comes first in the indeft array.
-               IF (level == 5 .AND. ice_theta_dist) THEN
-                  hlp1 = 0; hlp2 = 0.
-                  IF (a_naerop%d(k,xx,yy,bb) < prlim) THEN
-                     ! Check for empty bins with a rather small limit. This should minimize the contact angle for current bin
-                     a_indeft%d(k,xx,yy,bb) = a_indeft%d(k,xx,yy,bb) - a_indefp%d(k,xx,yy,bb)/dtlt
-                  ELSE                  
-                     hlp1 = (a_naerop%d(k,xx,yy,bb)* &
-                          a_indefp%d(k,xx,yy,bb) + edt%numc(bb)*0.*dt)
-                     hlp2 = (a_naerop%d(k,xx,yy,bb) + edt%numc(bb)*dt)
-                     
-                     a_indeft%d(k,xx,yy,bb) = &
-                          a_indeft%d(k,xx,yy,bb) +  &                 
-                          ( (hlp1 / hlp2) - a_indefp%d(k,xx,yy,bb) ) / dt
-                  END IF
-               END IF
-                  
-               DO ss = 1,spec%getNSpec(type="wet")
-                  mm = getMassIndex(nbins,bb,ss)
-                  a_maerot%d(k,xx,yy,mm) = &
-                       a_maerot%d(k,xx,yy,mm) + edt%mass(mm) * dt
-               END DO
+            
+            	IF (bb <= nbins) THEN
+		       a_naerot%d(k,xx,yy,bb) = &
+		            a_naerot%d(k,xx,yy,bb) + edt%numc(bb) * dt
+		       ! If level=5 and ice_theta_dist=TRUE, relax the ice nucleation IN "deficit"
+		       ! ratio used for evolving contact angle by taking number wghted avg and
+		       ! assuming zero for the emitted population. This is executed regardless of
+		       ! the emitted species, but the information is only used for ice nucleating
+		       ! species. Aerosol comes first in the indeft array.
+		       IF (level == 5 .AND. ice_theta_dist) THEN
+		          hlp1 = 0; hlp2 = 0.
+		          IF (a_naerop%d(k,xx,yy,bb) < prlim) THEN
+		             ! Check for empty bins with a rather small limit. This should minimize the contact angle for current bin
+		             a_indeft%d(k,xx,yy,bb) = a_indeft%d(k,xx,yy,bb) - a_indefp%d(k,xx,yy,bb)/dtlt
+		          ELSE                  
+		             hlp1 = (a_naerop%d(k,xx,yy,bb)* &
+		                  a_indefp%d(k,xx,yy,bb) + edt%numc(bb)*0.*dt)
+		             hlp2 = (a_naerop%d(k,xx,yy,bb) + edt%numc(bb)*dt)
+		             
+		             a_indeft%d(k,xx,yy,bb) = &
+		                  a_indeft%d(k,xx,yy,bb) +  &                 
+		                  ( (hlp1 / hlp2) - a_indefp%d(k,xx,yy,bb) ) / dt
+		          END IF
+		       END IF
+		          
+		       DO ss = 1,spec%getNSpec(type="wet")
+		          mm = getMassIndex(nbins,bb,ss)
+		          a_maerot%d(k,xx,yy,mm) = &
+		               a_maerot%d(k,xx,yy,mm) + edt%mass(mm) * dt
+		       END DO
+		END IF
+		       
                
-               IF (diam(k,xx,yy,bb) < emd%chargeDmax .AND.  &
+                IF (diam(k,xx,yy,bb) < emd%chargeDmax .AND.  &
                    diam(k,xx,yy,bb) > emd%chargeDmin .AND.  &
                    numb(k,xx,yy,bb) > 1.                    ) THEN
-
+                   
+		  !write(*,*) 'a_chargeTimep%d(k,xx,yy,bb)',a_chargeTimep%d(k,xx,yy,bb) This comes from the previous timestep
+		  
                   a_chargeTimep%d(k,xx,yy,bb) = 0.  ! If charging for some reason takes place on consecutive times in same location & bin,
                                                 ! assume it being set back to chargeTmax
                   a_chargeTimet%d(k,xx,yy,bb) = chargeTMax / dtlt
-               END IF               
+                  
+                  ! write(*,*) 'dtlt', dtlt ! This is DT in the runles
+                  ! write(*,*) 'a_chargeTimet%d(k,xx,yy,bb)',k,xx,yy,bb,a_chargeTimet%d(k,xx,yy,bb)
+                  
+                END IF               
             END DO
          END DO
       END DO
@@ -443,7 +455,7 @@ MODULE emission_main
 
    ! The point source will always be in 1 PE at a time
    WRITE(*,*) '=============================='
-   WRITE(*,*) 'CALCULATING CHARGING EMISSIONS'
+   WRITE(*,*) 'CALCULATING CHARGING EMISSIONS TYPE=5'
    WRITE(*,*) '=============================='
    
    diam = 0.

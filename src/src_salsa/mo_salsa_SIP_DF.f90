@@ -109,7 +109,7 @@ MODULE mo_salsa_SIP_DF
                   IF ( ddmean < dlliq_df ) CYCLE  
 
                   ! POISTA
-                  IF (ddmean < 20.e-6 .OR. ddmean > 1.e-2) WRITE(*,*) 'SIP-DF ddmean error ',ddmean,bb,nimax,icediams(bb),icebw(bb)
+                  IF (ddmean < 20.e-6 .OR. ddmean > 1.e-1) WRITE(*,*) 'SIP-DF ddmean error ',ddmean,bb,nimax,icediams(bb),icebw(bb)
                   IF (ddmean /= ddmean) WRITE(*,*) 'SIP-DF ddmean nan ',ddmean,bb,nimax,icediams(bb),icebw(bb)
                   ! -----------------
                
