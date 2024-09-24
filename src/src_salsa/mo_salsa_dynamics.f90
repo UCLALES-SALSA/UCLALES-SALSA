@@ -90,7 +90,8 @@ CONTAINS
    !---------------------------------------------------------------------
 
    SUBROUTINE coagulation(kproma,kbdim,klev,   &
-                          ptstep,ptemp,ppres   )
+                          ptstep,ptemp,ppres,  &   
+                          lcharge              )
 
      USE mo_salsa_types, ONLY : aero, cloud, precp, ice, allSALSA,      &
                                 zccaa, zcccc, zccpp, zccii,             &
@@ -123,6 +124,7 @@ CONTAINS
          ptstep,                    & ! time step [s]
          ptemp(kbdim,klev),         &
          ppres(kbdim,klev)
+      LOGICAL, INTENT(in) :: lcharge
       !-- Local variables ------------------------
 
       INTEGER :: nspec, iri
@@ -152,7 +154,7 @@ CONTAINS
       ! Calculate new kernels every timestep if low freq updating is NOT used,
       ! or when low freq IS used AND it is the update timestep.
       IF (lscoag%mode == 1 .OR. lcgupdt ) &
-           CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp)
+           CALL update_coagulation_kernels(kbdim,klev,ppres,ptemp,lcharge)
       
       any_aero = ANY( [lscgaa,lscgca,lscgpa,lscgia] )
       any_cloud = ANY( [lscgcc,lscgca,lscgpc,lscgic] ) 

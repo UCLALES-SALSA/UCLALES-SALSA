@@ -20,7 +20,7 @@ MODULE mo_salsa_SIP_IIBR
  
   CONTAINS
     
-    SUBROUTINE iceicecollbreak(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
+   SUBROUTINE iceicecollbreak(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
       USE mo_salsa_types, ONLY : ice, rateDiag
       USE mo_submctl, ONLY : nice, pi6, spec, icebins, lssecice, lssipicecollbreak
       USE classSection, ONLY : Section
@@ -54,7 +54,11 @@ MODULE mo_salsa_SIP_IIBR
       
       REAL :: dinsphmin  ! Non-spherical diameter (maximum length) of the smaller ice particle in the colliding pair or most fragile
       REAL :: disphmin   ! Spherical equivalent diameter of the smaller ice particle in the colliding pair or most fragile
-     
+
+      ! These are for checking purposes
+      ! REAL :: dMean(nice) ! Mean size of the fragment in each bin
+      ! REAL :: icediamslo(nice), icediamshi(nice) ! Low and high limits in bin diameter
+      
       ! Convert collision rates to changes over timestep  (ice-ice collision rates)
       mii_ibr = mii_ibr * ptstep ! mass gained from smaller ice particles
       nii_ibr = nii_ibr * ptstep ! collisions from the accumulateSink as collection by larger ice and self-coagulation
@@ -65,6 +69,8 @@ MODULE mo_salsa_SIP_IIBR
       DO bb = 1,nice
          icediams(bb) = ice(1,1,bb)%dmid
          icebw(bb) = ( (ice(1,1,bb)%vhilim/pi6)**(1./3) - (ice(1,1,bb)%vlolim/pi6)**(1./3))
+         !icediamslo(bb) = (ice(1,1,bb)%vlolim/pi6)**(1./3) 
+         !icediamshi(bb) = (ice(1,1,bb)%vhilim/pi6)**(1./3)
       END DO
  
       ! Initialize arrays
@@ -78,154 +84,173 @@ MODULE mo_salsa_SIP_IIBR
             DO ii = 1,kproma
                fragv_loc = 0.
                fragn_loc = 0.
-               DO cc = bb, nice ! larger particles
-                  IF((ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax) .OR. & ! Outside temperature range, see Takahashi et al. 1995 
-                       (nii_ibr(ii,jj,cc,bb) <1.e-20) .OR. &
-                       (mii_ibr(ii,jj,cc,bb) <1.e-30) .OR. &
-                     (SUM(ice(ii,jj,bb)%volc(:)) < 1.e-30).OR.(ice(ii,jj,bb)%numc  < ice(ii,jj,bb)%nlim).OR. &
-                     (SUM(ice(ii,jj,cc)%volc(:)) < 1.e-30).OR.(ice(ii,jj,cc)%numc < ice(ii,jj,cc)%nlim)) CYCLE ! no collection/empty bin
-                   
-                     ! If colliding particles have the same size, SIP can still occur
-                     ! Phillips el. 2017 was corrected by Sotiropoulou et al. 2021
-                     ! using an expression to account for underestimates of the collision energy in these cases
-                     ! Ice-ice collisions in the mo_salsa_coagulation_processes.f90 are also corrected for these cases
-                 
-                     ! Ice bin index corresponding to the most fragile particle (smaller) minus one; Fragments are distributed to ice bins 1:npmax
-                     ! Ice multiplication factors are written in terms of the maximum length of the smaller particle
-                     ! We will assume that the maximum length is the spherical equivalent diameter obtained from the mass estimated with the effective density 
-                     ! Effective ice density. This should take into account non-spherical shape as well as the bulk ice composition
-                     !dinsphmin  = ((mii_ibr(ii,jj,bb,cc) / nii_ibr(ii,jj,bb,cc) / ice(ii,jj,cc)%rhoeff) / pi6)**(1./3.)
-                     !write( *, *) 'Effective density ', ice(ii,jj,bb)%rhoeff ! It is zero 
-                     !write(*,*) 'Mean density', ice(ii,jj,bb)%rhomean
-                     !write(*,*) 'nii_ibr', nii_ibr(ii,jj,cc,bb)
-                     !write(*,*) 'mii_ibr', mii_ibr(ii,jj,cc,bb)
-
-                     ! Volume of a single ice particle in current bin for calculating the number concentration sink. This does not necessarily 
-                     ! provide an exact representation for the fracturing particle size, but works as a first approximation
-                     ! QUESTION : Should we use here the rimed fraction weighted average based on this?             
-                     v_i  = mii_ibr(ii,jj,cc,bb) / nii_ibr(ii,jj,cc,bb) / ice(ii,jj,bb)%rhomean !to be consistent with dinsphmin calculation
-                  
-                     dinsphmin  = (v_i / pi6)**(1./3.)
-                    ! dinsphmin is the spherical equivalent diameter for the smallest particle with rhomean
-                  
-                    !write(*,*) 'Vi ', v_i
-                    !write(*,*) 'Nonspherical diameter ', dinsphmin
-                
-                 
-                    npmax = MAX(COUNT(icediams <= dinsphmin) - 1, 1) 
-                    ! write(*,*) 'Size bin below dinsphmin ', npmax
-                  
-                    dN = 0.
-                  
-                    ! Calculate the ice multiplication factor or number of fragments generated per ice-ice collision event for current bin
-                    IF (lssipicecollbreak%mode == 1) THEN ! Sullivan et al 2018 based on Takahashi et al. 1995
-                       IMF = imf_sullivan(ptemp(ii,jj))
-                       dN  = IMF *nii_ibr(ii,jj,cc,bb)
-                     
-                    ELSE IF (lssipicecollbreak%mode == 2) THEN  ! Sotiropoulou et al 2021 based on Sullivan et al 2018                   
-                       IMF = imf_sotiropoulou(ptemp(ii,jj),dinsphmin)
-                       dN  = IMF *nii_ibr(ii,jj,cc,bb) 
-                     
-                    ELSE IF (lssipicecollbreak%mode == 3) THEN  ! Phillips et al 2017 corrected by Sotiropoulou et al 2020
-                      ! disphmin is the spherical equivalent diameter for the smallest particle using rhomean
-                      ! rhomean is the mean ice density for frozen particles. Takes into account only the bulk ice composition
-                      disphmin  =  ((mii_ibr(ii,jj,cc,bb) / nii_ibr(ii,jj,cc,bb) / ice(ii,jj,bb)%rhomean) / pi6)**(1./3.)
-                      !
-                      IMF = imf_phillips(ppres(ii,jj), ptemp(ii,jj),ice(ii,jj,bb), ice(ii,jj,cc), dinsphmin,disphmin) 
-                      dN  = IMF *nii_ibr(ii,jj,cc,bb)
-                  END IF
-
-                  !write(*,*) 'IMF ', IMF
-                  !write(*,*) 'dN ',  dN
-                  
-                  ! Assume the mass of fragments distributed evenly to ice bins 1:npmax (Lawson et al 2015).
-                  ! For this, first distribute dN as d**-3.
-                  dNb = 0.
-                  dVb = 0.
-                  dNb(1:npmax) = 1./(icediams(1:npmax)**3)              ! density function               
-                  Nnorm = SUM(dNb(1:npmax)*icebw(1:npmax))              ! Normalization factor
-
-                  dNb(1:npmax) = dN * dNb(1:npmax)*icebw(1:npmax)/Nnorm ! Distributed bin concentrations of fragments
-                  dVb(1:npmax) = dNb(1:npmax) * pi6*icediams(1:npmax)**3! Determine the fragment mass based on the ice bin diameters                  
-
-                  !write(*,*) 'dNb ', dNb
-                  !write(*,*) 'dVb ', dVb
-                  
-                  ! Allocate the fragments to temporary ice bins 
-                  DO bb1 = 1,npmax
-                     fragn_loc(bb1) = fragn_loc(bb1) + dNb(bb1)
-                     fragv_loc(bb1,1:nspec) = fragv_loc(bb1,1:nspec) +    &
-                         ice(ii,jj,bb)%volc(1:nspec)*( dVb(bb1)/SUM(ice(ii,jj,bb)%volc(1:nspec)) )                                      
-                  END DO
-
-                  ! Sink of volume from current bin
-                  sinkv(1:nspec) = ice(ii,jj,bb)%volc(1:nspec)* SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec))                  
-                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) + sinkv(1:nspec)
-                                
-                  ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
-                  sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i
-              
-                  ! for diagnostics
-                  ice(ii,jj,1:npmax)%SIP_iibr = ice(ii,jj,1:npmax)%SIP_iibr + dNb(1:npmax)
-                  
-                  CALL rateDiag%iibrrate%Accumulate(n=SUM(dNb)/ptstep)    ! miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
-               END DO
+              DO cc = bb, nice ! larger particles
                
-               !! Safeguard: Allow the fragments to take up to 90% of the source ice bin mass
-               IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > 0.9 * SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
-                  frconst = 0.9 * SUM(ice(ii,jj,bb)%volc(1:nspec)) / SUM(sinkvolc(ii,jj,bb,1:nspec))
-                  fragv_loc = fragv_loc * frconst
-                  fragn_loc = fragn_loc * frconst
-                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) * frconst
-                  sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) * frconst
+               IF((ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax) .OR. & ! Outside temperature range, see Takahashi et al. 1995 
+                       (nii_ibr(ii,jj,cc,bb) <1.e-12) .OR. &
+                       (mii_ibr(ii,jj,cc,bb) <1.e-15) .OR. &
+                       (SUM(ice(ii,jj,bb)%volc(:)) < 1.e-15).OR.(ice(ii,jj,bb)%numc  < ice(ii,jj,bb)%nlim).OR. &
+                       (SUM(ice(ii,jj,cc)%volc(:)) < 1.e-15).OR.(ice(ii,jj,cc)%numc <  ice(ii,jj,cc)%nlim)) CYCLE ! no collection/empty bin
+                   
+               ! If colliding particles have the same size, SIP can still occur
+               ! Phillips el. 2017 was corrected by Sotiropoulou et al. 2021
+               ! using an expression to account for underestimates of the collision energy in these cases
+               ! Ice-ice collisions in the mo_salsa_coagulation_processes.f90 are also corrected for these cases
+
+               ! Ice bin index corresponding to the most fragile particle (smaller) minus one  because fragments 
+               ! are smaller and must be distributed to ice bins 1:npmax
+               ! Ice multiplication factors are written in terms of the maximum length of the smaller particle
+               ! We will assume that the maximum length is the spherical equivalent diameter obtained from the mass 
+               ! estimated with the effective density 
+               ! Effective ice density. This should take into account non-spherical shape as well as the bulk ice composition
+               !dinsphmin  = ((mii_ibr(ii,jj,bb,cc) / nii_ibr(ii,jj,bb,cc) / ice(ii,jj,cc)%rhoeff) / pi6)**(1./3.)
+               !write( *, *) 'Effective density ', ice(ii,jj,bb)%rhoeff ! It is zero at this point
+               !write(*,*) 'Mean density', ice(ii,jj,bb)%rhomean
+               !write(*,*) 'nii_ibr', nii_ibr(ii,jj,cc,bb)
+               !write(*,*) 'mii_ibr', mii_ibr(ii,jj,cc,bb)
+
+               ! Volume of a single ice particle in current bin for calculating the number concentration sink. This does not necessarily 
+               ! provide an exact representation for the fracturing particle size, but works as a first approximation
+               !  
+               CALL ice(ii,jj,bb)%updateDiameter(.TRUE.,type="all") 
+                       
+               v_i  = mii_ibr(ii,jj,cc,bb) / nii_ibr(ii,jj,cc,bb) / ice(ii,jj,bb)%rhomean !to be consistent with dinsphmin calculation
+
+               dinsphmin  = (v_i / pi6)**(1./3.)             
+               
+               ! dinsphmin is the spherical equivalent diameter for the smallest particle with rhomean
+               !write(*,*) 'Vi ', v_i
+               !write(*,*) 'Nonspherical diameter ', dinsphmin
+
+               npmax = COUNT(icediams <= dinsphmin)-1              
+
+               IF (npmax <= 2) CYCLE ! ice particles smaller than 4um cannot experience fragmentation to even smaller particles
+               !write(*,*) 'Size bin below dinsphmin ', npmax
+                  
+               dN = 0.
+            
+               ! Calculate the ice multiplication factor or number of fragments generated per ice-ice collision event for current bin
+               ! Imposing an upper limit for IMF equal to 100. as Sotiropoulou et al. 2021
+
+               IF (lssipicecollbreak%mode == 1) THEN ! Sullivan et al 2018 based on Takahashi et al. 1995
+                     IMF = imf_sullivan(ptemp(ii,jj))
+		     IMF = min(IMF, 100.0)
+                     dN  = IMF *nii_ibr(ii,jj,cc,bb)
+               
+               ELSE IF (lssipicecollbreak%mode == 2) THEN  ! Sotiropoulou et al 2021 based on Sullivan et al 2018                   
+                     IMF = imf_sotiropoulou(ptemp(ii,jj),dinsphmin)
+                     IMF = min(IMF, 100.0)
+                     dN  = IMF *nii_ibr(ii,jj,cc,bb) 
+               
+               ELSE IF (lssipicecollbreak%mode == 3) THEN  ! Phillips et al 2017 corrected by Sotiropoulou et al 2020
+                     ! disphmin is the spherical equivalent diameter for the smallest particle using rhomean
+                     ! rhomean is the mean ice density for frozen particles. Takes into account only the bulk ice composition                     
+                     disphmin  =  ((mii_ibr(ii,jj,cc,bb) / nii_ibr(ii,jj,cc,bb) / ice(ii,jj,bb)%rhomean) / pi6)**(1./3.)
+                     IMF = imf_phillips(ppres(ii,jj), ptemp(ii,jj),ice(ii,jj,bb), ice(ii,jj,cc), dinsphmin,disphmin) 
+                     IMF = min(IMF, 100.0)
+                     dN  = IMF *nii_ibr(ii,jj,cc,bb)
+
                END IF
 
-               sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.9*ice(ii,jj,bb)%numc) !! Additional constrain because for some reason
-                                                                                 !! this still failed in the last bin...
-              
-               fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
-               fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
-
-               ! POISTA
-               !IF ( SUM(sinkvolc(ii,jj,bb,:))/MAX(SUM(ice(ii,jj,bb)%volc(1:nspec)),1.e-23) > 1.)  &
-               !     WRITE(*,*) 'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS', &
-               !     SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+               !write(*,*) 'IMF ', IMF
+               !write(*,*) 'dN ',  dN
                
-               IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.95*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                  WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
-                  SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
-               IF (0.95*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
-                       WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
-                    ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
-               ! ---------------------------------------
+               ! Assume the mass of fragments distributed evenly to ice bins 1:npmax (Lawson et al 2015).
+               ! For this, first distribute dN as d**-3.
+               dNb = 0.
+               dVb = 0.
+               dNb(1:npmax) = 1./(icediams(1:npmax)**3)              ! density function               
+               Nnorm = SUM(dNb(1:npmax)*icebw(1:npmax))              ! Normalization factor
+
+               dNb(1:npmax) = dN * dNb(1:npmax)*icebw(1:npmax)/Nnorm ! Distributed bin concentrations of fragments
+               dVb(1:npmax) = dNb(1:npmax) * pi6*icediams(1:npmax)**3! Determine the fragment mass based on the ice bin diameters                          
+               
+               ! Allocate the fragments to temporary ice bins 
+               DO bb1 = 1,npmax
+                     fragn_loc(bb1) = fragn_loc(bb1) + dNb(bb1)
+                     fragv_loc(bb1,1:nspec) = fragv_loc(bb1,1:nspec) +    &
+                  ice(ii,jj,bb)%volc(1:nspec)*( dVb(bb1)/SUM(ice(ii,jj,bb)%volc(1:nspec)) )                                      
+               END DO
+
+              ! Sink of volume from current bin
+               sinkv(1:nspec) = ice(ii,jj,bb)%volc(1:nspec)* SUM(dVb(1:npmax))/SUM(ice(ii,jj,bb)%volc(1:nspec))                  
+               sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) + sinkv(1:nspec)
+ 
+              ! Sink of number concentration from current bin - assume that the volume of single ice crystal stays constant through the process
+              sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i
+
+              ! for diagnostics
+              ice(ii,jj,1:npmax)%SIP_iibr = ice(ii,jj,1:npmax)%SIP_iibr + dNb(1:npmax)
+            
+              CALL rateDiag%iibrrate%Accumulate(n=SUM(dNb)/ptstep)    ! miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
+              
             END DO
-         END DO
+
+	    
+            fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
+            fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
+
+            ! POISTA           
+            IF ( SUM(sinkvolc(ii,jj,bb,:)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
+                  WRITE(*,*)  'SIP-IIBR ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
+                  SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+
+            IF (ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) THEN
+                  WRITE(*,*) 'SIP-IIBR ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
+                  ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
+                  sinknumc(ii,jj,bb) =  ice(ii,jj,bb)%numc
+                  sinkvolc(ii,jj,bb,1:nspec) = ice(ii,jj,bb)%volc(1:nspec)
+            END IF
+            ! ---------------------------------------       
+             !! Safeguard: Allow the fragments to take up to 99% of the source ice bin mass
+            IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
+               frconst = 0.99* SUM(ice(ii,jj,bb)%volc(1:nspec)) / SUM(sinkvolc(ii,jj,bb,1:nspec))
+               fragv_loc = fragv_loc * frconst
+               fragn_loc = fragn_loc * frconst
+               sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) * frconst
+               sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) * frconst
+               sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.99*ice(ii,jj,bb)%numc)
+            END IF
+
+            ! Confirming that the possible issue was solved
+            IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
+               WRITE(*,*) 'SIP-IIBR: SUM(sinkvolc(ii,jj,bb,1:nspec)) > SUM(ice(ii,jj,bb)%volc(1:nspec))'
+               WRITE(*,*) SUM(sinkvolc(ii,jj,bb,1:nspec)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+            END IF	
+               
+            ! ---------------------------------------
+           END DO
       END DO
+   END DO
           
       ! Apply changes to bins
       DO bb = 1,nice
          DO jj = 1,klev
             DO ii = 1,kproma
                ! POISTA
-               IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'fragnumc < 0'
-               IF ( ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'fragvolc < 0'
+               IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'SIP-IIBR fragnumc < 0'
+               IF ( ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'SIP-IIBR fragvolc < 0'
                IF (fragnumc(ii,jj,bb) /= fragnumc(ii,jj,bb)) &
-                    WRITE(*,*) 'fragnumc nan',bb
+                    WRITE(*,*) 'SIP-IIBR fragnumc nan',bb
                IF ( ANY(fragvolc(ii,jj,bb,:) /= fragvolc(ii,jj,bb,:)) ) &
-                    WRITE(*,*) 'fragvolc nan ',bb,fragvolc(ii,jj,bb,:)
+                    WRITE(*,*) 'SIP-IIBR fragvolc nan ',bb,fragvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) < 0. ) ) &
-                    WRITE(*,*) 'sinkvolc nega ',bb,sinkvolc(ii,jj,bb,:)
+                    WRITE(*,*) 'SIP-IIBR sinkvolc nega ',bb,sinkvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
-                    WRITE(*,*) 'sinkvolc nan ',  bb,sinkvolc(ii,jj,bb,:)
-               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'fragnumc > 1e5 ',bb,fragnumc(ii,jj,bb),    &
-                    (SUM(mii_ibr(ii,jj,:,bb))/SUM(nii_ibr(ii,jj,:,bb))/ice(ii,jj,cc)%rhomean/pi6)**(1./3.), &
-                    SUM(nii_ibr(ii,jj,:,bb)), ice(ii,jj,bb)%numc
+                    WRITE(*,*) 'SIP-IIBR sinkvolc nan ',  bb,sinkvolc(ii,jj,bb,:)
+               !IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'SIP-IIBR fragnumc > 1e5 ',bb,cc, fragnumc(ii,jj,bb), &
+               !     nii_ibr(ii,jj,cc,bb), mii_ibr(ii,jj,cc,bb), ice(ii,jj,bb)%numc, &
+               !     ice(ii,jj,bb)%dwet , ice(ii,jj,bb)%dnsp
                ! ---------------------
                
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc - sinknumc(ii,jj,bb)
+               ice(ii,jj,bb)%numc = MAX(0.,ice(ii,jj,bb)%numc)
+               
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) + fragvolc(ii,jj,bb,1:nspec)
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
+               ice(ii,jj,bb)%volc(1:nspec) = MAX(0., ice(ii,jj,bb)%volc(1:nspec))
+               
                ! POISTA
                IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
                     WRITE(*,*) 'DROP FRAC NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb

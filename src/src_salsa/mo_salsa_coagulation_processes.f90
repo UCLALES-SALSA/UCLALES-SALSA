@@ -882,8 +882,9 @@ MODULE mo_salsa_coagulation_processes
             DO ll=istr,iend 
                DO jj= 1,klev
                   DO ii=1,kbdim
-                     IF (trgtphase == 4 .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim .AND. &
-                          ice(ii,jj,itrgt)%numc > ice(ii,jj,itrgt)%nlim) THEN
+                     IF (trgtphase == 4 .AND.ice(ii,jj,itrgt)%dnsp < coll(ii,jj,ll)%dnsp .AND. &
+                       ice(ii,jj,itrgt)%numc > ice(ii,jj,itrgt)%nlim .AND. & 
+                       coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN  
                         ! number of collisions between the smaller itrgt and the larger ll
                         ! Eagg is defined by the colliding particle with the higher rime fraction
                         nii_ibr(ii,jj, ll,itrgt) =  nii_ibr(ii,jj, ll,itrgt) + &
@@ -1287,19 +1288,22 @@ MODULE mo_salsa_coagulation_processes
          IF (coll(1,1,1)%phase == 2) THEN
             DO jj = 1,klev
                DO ii = 1,kbdim
-                  fix_coag(ii,jj) = MAX( 1. - SUM( zcc(ii,jj,1:ncld,itrgt)*coll(ii,jj,1:ncld)%numc ), 0.1 ) 
+                  fix_coag(ii,jj) = MAX( 1. - SUM( zcc(ii,jj,1:ncld,itrgt)*coll(ii,jj,1:ncld)%numc ), 0.1 )
+                  CALL ice(ii,jj,itrgt)%updateDiameter(.TRUE.,type="all") 
                END DO
             END DO
          ELSE IF (coll(1,1,1)%phase == 3) THEN
             DO jj = 1,klev
                DO ii = 1,kbdim
                   fix_coag(ii,jj) = MAX( 1. - SUM( zcc(ii,jj,1:nprc,itrgt)*coll(ii,jj,1:nprc)%numc ), 0.1 ) 
+                  CALL ice(ii,jj,itrgt)%updateDiameter(.TRUE.,type="all")
                END DO
             END DO
          ELSEIF (coll(1,1,1)%phase == 4) THEN
             DO jj=1,klev
                DO ii=1,kbdim
                   fix_coag(ii,jj) = MAX(1. - SUM(zcc(ii,jj,1:nice,itrgt)*coll(ii,jj,1:nice)%numc), 0.1)
+                  CALL ice(ii,jj,itrgt)%updateDiameter(.TRUE.,type="all")
                END DO
             END DO 
          END IF
@@ -1312,7 +1316,7 @@ MODULE mo_salsa_coagulation_processes
                DO ii = 1,kbdim
                   IF (ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN   
                      ! Drop fracturing: large drops collected by small ice; Possible for all parameterizations
-                     IF ( ice(ii,jj,itrgt)%dwet < coll(ii,jj,ll)%dwet .AND. coll(ii,jj,ll)%dwet > dlliq_df .AND. &
+                     IF ( ice(ii,jj,itrgt)%dnsp < coll(ii,jj,ll)%dwet .AND. coll(ii,jj,ll)%dwet > dlliq_df .AND. &
                           ice(ii,jj,itrgt)%numc > ice(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN  ! SWITCH dlice_df -> coll%dwet
                         IF (coll(ii,jj,ll)%phase == 3) THEN
                            ix = ll
@@ -1325,7 +1329,7 @@ MODULE mo_salsa_coagulation_processes
 
                      ! Drop fracturing: drop collected by more massive ice; Possible for the full 2-mode Phillips et al
                      IF (lssipdropfrac%mode==4 .AND. &
-                          ice(ii,jj,itrgt)%dwet >= coll(ii,jj,ll)%dwet .AND. coll(ii,jj,ll)%dwet > dlliq_df .AND.  &   
+                          ice(ii,jj,itrgt)%dnsp >= coll(ii,jj,ll)%dwet .AND. coll(ii,jj,ll)%dwet > dlliq_df .AND.  &   
                           coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim .AND. ice(ii,jj,itrgt)%numc > ice(ii,jj,itrgt)%nlim ) THEN
                         IF (coll(ii,jj,ll)%phase == 3) THEN
                            ix = ll
@@ -1355,7 +1359,7 @@ MODULE mo_salsa_coagulation_processes
              DO jj = 1,klev
                DO ii = 1,kbdim
                 IF (ANY(coll(ii,jj,ll)%phase ==  [2,3])) THEN  
-                  IF (coll(ii,jj,ll)%dwet >= dlliq_rs .AND. coll(ii,jj,ll)%dwet < ice(ii,jj,itrgt)%dwet ) THEN
+                  IF (coll(ii,jj,ll)%dwet >= dlliq_rs .AND. coll(ii,jj,ll)%dwet < ice(ii,jj,itrgt)%dnsp ) THEN
                     IF (coll(ii,jj,ll)%phase == 3) THEN
                        ix = ll
                     ELSE IF (coll(ii,jj,ll)%phase ==2 ) THEN
@@ -1426,14 +1430,19 @@ MODULE mo_salsa_coagulation_processes
     ! REMEMBER: CALL accumulateSourceIce(kbdim,klev,nice,nice,nspec,kk,iia,kk-1, &
     !                             zccii,ice,zplusterm)
     ! Volume gained from smaller ice particles itrgt--> larger 
-     IF (lssecice%state) THEN
+     IF (lssecice%state) THEN         
        IF (lssipicecollbreak%state) THEN
          DO ll= istr, iend ! This loops over the smaller bins itrgt is the collector > collected
             DO jj= 1, klev
                DO ii=1, kbdim
-                  mii_ibr(ii,jj,itrgt,ll) =  mii_ibr(ii,jj,itrgt,ll)+ &
-                      zcc(ii,jj,itrgt,ll)*(coll(ii,jj,ll)%volc(nspec-1)*spec%rhoic + &
-                      coll(ii,jj,ll)%volc(nspec)*spec%rhori)*coll(ii,jj,itrgt)%numc                     
+               	   CALL ice(ii,jj,itrgt)%updateDiameter(.TRUE.,type="all")
+                   IF (ice(ii,jj,itrgt)%dnsp > coll(ii,jj,ll)%dnsp .AND. &
+                       ice(ii,jj,itrgt)%numc > ice(ii,jj,itrgt)%nlim .AND. & 
+                       coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN  
+                          mii_ibr(ii,jj,itrgt,ll) =  mii_ibr(ii,jj,itrgt,ll)+ &
+                            Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*(coll(ii,jj,ll)%volc(nspec-1)*spec%rhoic + &
+                            coll(ii,jj,ll)%volc(nspec)*spec%rhori)*coll(ii,jj,itrgt)%numc
+                   END IF                    
                END DO
             END DO
          END DO

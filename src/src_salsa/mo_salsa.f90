@@ -42,10 +42,10 @@ MODULE mo_salsa
 
  CONTAINS
 
-   SUBROUTINE salsa(kproma,   kbdim,    klev,    krow,       &
-                    ppres,    prv, prs, prsi,    ptemp,  ptstep,     &
-                    pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,    &
-                    pc_nh3,   pactd,    pw,      level )
+   SUBROUTINE salsa(kproma,   kbdim,    klev,    krow,             &
+                    ppres,    prv, prs, prsi,    ptemp,  ptstep,   &
+                    pc_h2so4, pc_ocnv,  pc_ocsv, pc_hno3,          & 
+                    pc_nh3,   pactd,    pw,      level, lcharge    )
      
      IMPLICIT NONE
 
@@ -80,6 +80,8 @@ MODULE mo_salsa
      
      INTEGER, INTENT(in) :: level                         ! thermodynamical level
      
+     LOGICAL, INTENT(in) :: lcharge
+
      !-- Local variables ------------------------------------------------------------------
      
      INTEGER :: zpbl(kbdim)            ! Planetary boundary layer top level
@@ -88,8 +90,9 @@ MODULE mo_salsa
      
      ! Coagulation
      IF (lscoag%state) &
-          CALL coagulation( kproma, kbdim,  klev,                   &
-                            ptstep, ptemp,  ppres   )
+          CALL coagulation( kproma, kbdim,  klev,    &
+                            ptstep, ptemp,  ppres,   &                        
+                            lcharge                  )
      
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"COAG")
 

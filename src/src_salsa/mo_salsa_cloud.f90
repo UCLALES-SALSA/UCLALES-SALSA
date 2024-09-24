@@ -1155,6 +1155,21 @@ CONTAINS
             
             ! Apply the number and mass activated to aerosol and cloud bins 
             DO cb = 1, fcb%cur - ica%cur + 1
+               ! 
+               IF(zact(cb)%numc >0.) THEN
+               		zcld(cb)%chargeTime = (zact(cb)%numc*zaer(cb)%chargeTimeMax+zcld(cb)%numc*zcld(cb)%chargeTime)/ &
+                    		(zact(cb)%numc+zcld(cb)%numc)
+               		!write(*,*) 'zcld(cb)%chargeTime', zcld(cb)%chargeTime 
+               		!write(*,*) 'zcld(cb)%numc', zcld(cb)%numc
+               		
+               		!write(*,*) 'zaer(cb)%chargeTime', zaer(cb)%chargeTime
+               		!write(*,*) 'zact(cb)%numc', zact(cb)%numc
+               		
+               		!zcld(cb)%chargeTime = (zact(cb)%numc*zaer(cb)%chargeTime+zcld(cb)%numc*zcld(cb)%chargeTime)/ &
+                    		!(zact(cb)%numc+zcld(cb)%numc)                    		
+                        !write(*,*) 'After zcld(cb)%chargeTime', zcld(cb)%chargeTime 
+               END IF
+
                zaer(cb)%numc = MAX(0., zaer(cb)%numc - zact(cb)%numc)
                zcld(cb)%numc = zcld(cb)%numc + zact(cb)%numc
                DO ss = 1,nwet

@@ -40,6 +40,13 @@ MODULE mo_derived_state
   ! SALSA related variables
   TYPE(FloatArray4d), TARGET :: Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba, Dwiba     ! Binned wet diameters  
   TYPE(FloatArray4d), TARGET :: Maba, Mabb, Mcba, Mcbb, Mpba, Miba           ! Binned particle/droplet total masses
+  TYPE(FloatArray4d), TARGET :: maSO4a, maSO4b, mcSO4a, mcSO4b, mpSO4a, miSO4a  ! Sulfate mass concentration in aerosols and hydrometeors in kg/kg
+  TYPE(FloatArray4d), TARGET :: maOCa, maOCb, mcOCa, mcOCb, mpOCa, miOCa        ! Organic carbon mass concentration in aerosols and hydrometeors in kg/kg
+  TYPE(FloatArray4d), TARGET :: maBCa, maBCb, mcBCa, mcBCb, mpBCa, miBCa        ! Black carbon mass concentration in aerosols and hydrometeors in kg/kg
+  TYPE(FloatArray4d), TARGET :: maDUa, maDUb, mcDUa, mcDUb, mpDUa, miDUa        ! Dust mass concentration in aerosols and hydrometeors
+  TYPE(FloatArray4d), TARGET :: maSSa, maSSb, mcSSa, mcSSb, mpSSa, miSSa        ! Sea salt mass concentration in aerosols and hydrometeors
+  TYPE(FloatArray4d), TARGET :: maNOa, maNOb, mcNOa, mcNOb, mpNOa, miNOa        ! Nitrate mass concentration in aerosols and hydrometeors
+  TYPE(FloatArray4d), TARGET :: maNHa, maNHb, mcNHa, mcNHb, mpNHa, miNHa        ! Ammonia mass concentration in aerosols and hydrometeors
     
   ! Some binned diagnostics
   TYPE(FloatArray4d), TARGET :: irhob, irhoe ! Bulk mean and effective ice densities
@@ -314,7 +321,208 @@ MODULE mo_derived_state
          pipeline => Mpba
          CALL Derived%newField("Mpba", "Bin total mass, precip", "kg/kg", "ttttprc",   &
                                ANY(outputlist == "Mpba"), pipeline                     )
+	
+	 pipeline => NULL()
+         maSO4a = FloatArray4d()
+         maSO4a%onDemand => binSpecMixrat
+         pipeline => maSO4a
+         CALL Derived%newField("maSO4a", "Binned mass SO4 in aerosol A", "kg/kg", 'ttttaea',   &
+                               ANY(outputlist == "maSO4a"), pipeline              )
+         
+         pipeline => NULL()
+         maOCa = FloatArray4d()
+         maOCa%onDemand => binSpecMixrat
+         pipeline => maOCa
+         CALL Derived%newField("maOCa", "Binned mass OC in aerosol A", "kg/kg", 'ttttaea',   &
+                               ANY(outputlist == "maOCa"), pipeline              )
+                               
+         pipeline => NULL()
+         maBCa = FloatArray4d()
+         maBCa%onDemand => binSpecMixrat
+         pipeline => maBCa
+         CALL Derived%newField("maBCa", "Binned mass BC in aerosol A", "kg/kg", 'ttttaea',   &
+                               ANY(outputlist == "maBCa"), pipeline              )
+         
+         pipeline => NULL()
+         maDUa = FloatArray4d()
+         maDUa%onDemand => binSpecMixrat
+         pipeline => maDUa
+         CALL Derived%newField("maDUa", "Binned mass DU in aerosol A", "kg/kg", 'ttttaea',   &
+                               ANY(outputlist == "maDUa"), pipeline              )                      
+         
+         pipeline => NULL()
+         maSSa = FloatArray4d()
+         maSSa%onDemand => binSpecMixrat
+         pipeline => maSSa
+         CALL Derived%newField("maSSa", "Binned mass Sea salt in aerosol A", "kg/kg", 'ttttaea',   &
+                               ANY(outputlist == "maSSa"), pipeline              )                      
+      
+         pipeline => NULL()
+         maNOa = FloatArray4d()
+         maNOa%onDemand => binSpecMixrat
+         pipeline => maNOa
+         CALL Derived%newField("maNOa", "Binned mass nitrate in aerosol A", "kg/kg", 'ttttaea',   &
+                               ANY(outputlist == "maNOa"), pipeline              )
+           
+         pipeline => NULL()
+         maNHa = FloatArray4d()
+         maNHa%onDemand => binSpecMixrat
+         pipeline => maNHa
+         CALL Derived%newField("maNHa", "Binned mass ammonia in aerosol A", "kg/kg", 'ttttaea',   &
+                               ANY(outputlist == "maNHa"), pipeline              )	
 
+         pipeline => NULL()
+         maSO4b = FloatArray4d()
+         maSO4b%onDemand => binSpecMixrat
+         pipeline => maSO4b
+         CALL Derived%newField("maSO4b", "Binned mass SO4 in aerosol B", "kg/kg", 'ttttaeb',   &
+                               ANY(outputlist == "maSO4b"), pipeline              )
+         
+         pipeline => NULL()
+         maOCb = FloatArray4d()
+         maOCb%onDemand => binSpecMixrat
+         pipeline => maOCb
+         CALL Derived%newField("maOCb", "Binned mass OC in aerosol B", "kg/kg", 'ttttaeb',   &
+                               ANY(outputlist == "maOCb"), pipeline              )
+                               
+         pipeline => NULL()
+         maBCb = FloatArray4d()
+         maBCb%onDemand => binSpecMixrat
+         pipeline => maBCb
+         CALL Derived%newField("maBCb", "Binned mass BC in aerosol B", "kg/kg", 'ttttaeb',   &
+                               ANY(outputlist == "maBCb"), pipeline              )
+         
+         pipeline => NULL()
+         maDUb = FloatArray4d()
+         maDUb%onDemand => binSpecMixrat
+         pipeline => maDUb
+         CALL Derived%newField("maDUb", "Binned mass DU in aerosol B", "kg/kg", 'ttttaeb',   &
+                               ANY(outputlist == "maDUb"), pipeline              )                      
+         
+         pipeline => NULL()
+         maSSb = FloatArray4d()
+         maSSb%onDemand => binSpecMixrat
+         pipeline => maSSb
+         CALL Derived%newField("maSSb", "Binned mass Sea salt in aerosol B", "kg/kg", 'ttttaeb',   &
+                               ANY(outputlist == "maSSb"), pipeline              )                      
+      
+         pipeline => NULL()
+         maNOb = FloatArray4d()
+         maNOb%onDemand => binSpecMixrat
+         pipeline => maNOb
+         CALL Derived%newField("maNOb", "Binned mass nitrate in aerosol B", "kg/kg", 'ttttaeb',   &
+                               ANY(outputlist == "maNOb"), pipeline              )
+           
+         pipeline => NULL()
+         maNHb = FloatArray4d()
+         maNHb%onDemand => binSpecMixrat
+         pipeline => maNHb
+         CALL Derived%newField("maNHb", "Binned mass ammonia in aerosol B", "kg/kg", 'ttttaeb',   &
+                               ANY(outputlist == "maNHb"), pipeline              )
+
+         mcSO4a = FloatArray4d()
+         mcSO4a%onDemand => binSpecMixrat
+         pipeline => mcSO4a
+         CALL Derived%newField("mcSO4a", "Binned mass SO4 in cloud A", "kg/kg", 'ttttcla',   &
+                               ANY(outputlist == "mcSO4a"), pipeline              )
+         
+         pipeline => NULL()
+         mcOCa = FloatArray4d()
+         mcOCa%onDemand => binSpecMixrat
+         pipeline => mcOCa
+         CALL Derived%newField("mcOCa", "Binned mass OC in cloud A", "kg/kg", 'ttttcla',   &
+                               ANY(outputlist == "mcOCa"), pipeline              )
+                               
+         pipeline => NULL()
+         mcBCa = FloatArray4d()
+         mcBCa%onDemand => binSpecMixrat
+         pipeline => mcBCa
+         CALL Derived%newField("mcBCa", "Binned mass BC in cloud A", "kg/kg", 'ttttcla',   &
+                               ANY(outputlist == "mcBCa"), pipeline              )
+         
+         pipeline => NULL()
+         mcDUa = FloatArray4d()
+         mcDUa%onDemand => binSpecMixrat
+         pipeline => mcDUa
+         CALL Derived%newField("mcDUa", "Binned mass DU in cloud A", "kg/kg", 'ttttcla',   &
+                               ANY(outputlist == "mcDUa"), pipeline              )                      
+         
+         pipeline => NULL()
+         mcSSa = FloatArray4d()
+         mcSSa%onDemand => binSpecMixrat
+         pipeline => mcSSa
+         CALL Derived%newField("mcSSa", "Binned mass Sea salt in cloud A", "kg/kg", 'ttttcla',   &
+                               ANY(outputlist == "mcSSa"), pipeline              )                      
+      
+         pipeline => NULL()
+         mcNOa = FloatArray4d()
+         mcNOa%onDemand => binSpecMixrat
+         pipeline => mcNOa
+         CALL Derived%newField("mcNOa", "Binned mass nitrate in cloud A", "kg/kg", 'ttttcla',   &
+                               ANY(outputlist == "mcNOa"), pipeline              )
+           
+         pipeline => NULL()
+         mcNHa = FloatArray4d()
+         mcNHa%onDemand => binSpecMixrat
+         pipeline => mcNHa
+         CALL Derived%newField("mcNHa", "Binned mass ammonia in cloud A", "kg/kg", 'ttttcla',   &
+                               ANY(outputlist == "mcNHa"), pipeline              )
+
+         pipeline => NULL()
+         mcSO4b = FloatArray4d()
+         mcSO4b%onDemand => binSpecMixrat
+         pipeline => mcSO4b
+         CALL Derived%newField("mcSO4b", "Binned mass SO4 in clouds B", "kg/kg", 'ttttclb',   &
+                               ANY(outputlist == "mcSO4b"), pipeline                )
+
+         pipeline => NULL()
+         mpSO4a = FloatArray4d()
+         mpSO4a%onDemand => binSpecMixrat
+         pipeline => mpSO4a
+         CALL Derived%newField("mpSO4a", "Binned mass SO4 in precip", "kg/kg", 'ttttprc',   &
+                               ANY(outputlist == "mpSO4a"), pipeline              )
+         
+         pipeline => NULL()
+         mpOCa = FloatArray4d()
+         mpOCa%onDemand => binSpecMixrat
+         pipeline => mpOCa
+         CALL Derived%newField("mpOCa", "Binned mass OC in precip", "kg/kg", 'ttttprc',   &
+                               ANY(outputlist == "mpOCa"), pipeline              )
+                               
+         pipeline => NULL()
+         mpBCa = FloatArray4d()
+         mpBCa%onDemand => binSpecMixrat
+         pipeline => mpBCa
+         CALL Derived%newField("mpBCa", "Binned mass BC in precip", "kg/kg", 'ttttprc',   &
+                               ANY(outputlist == "mpBCa"), pipeline              )
+         
+         pipeline => NULL()
+         mpDUa = FloatArray4d()
+         mpDUa%onDemand => binSpecMixrat
+         pipeline => mpDUa
+         CALL Derived%newField("mpDUa", "Binned mass DU in precip", "kg/kg", 'ttttprc',   &
+                               ANY(outputlist == "mpDUa"), pipeline              )                      
+         
+         pipeline => NULL()
+         mpSSa = FloatArray4d()
+         mpSSa%onDemand => binSpecMixrat
+         pipeline => mpSSa
+         CALL Derived%newField("mpSSa", "Binned mass Sea salt in precip", "kg/kg", 'ttttprc',   &
+                               ANY(outputlist == "mpSSa"), pipeline              )                      
+      
+         pipeline => NULL()
+         mpNOa = FloatArray4d()
+         mpNOa%onDemand => binSpecMixrat
+         pipeline => mpNOa
+         CALL Derived%newField("mpNOa", "Binned mass nitrate in precip", "kg/kg", 'ttttprc',   &
+                               ANY(outputlist == "mpNOa"), pipeline              )
+           
+         pipeline => NULL()
+         mpNHa = FloatArray4d()
+         mpNHa%onDemand => binSpecMixrat
+         pipeline => mpNHa
+         CALL Derived%newField("mpNHa", "Binned mass ammonia in precip", "kg/kg", 'ttttprc',   &
+                               ANY(outputlist == "mpNHa"), pipeline              )
       END IF
 
       IF (level == 5) THEN
@@ -332,6 +540,55 @@ MODULE mo_derived_state
          CALL Derived%newField("Miba", "Bin total mass, ice", "m", "ttttice",       &
                                ANY(outputlist == "Miba"), pipeline                  )
 
+         pipeline => NULL()
+         miSO4a = FloatArray4d()
+         miSO4a%onDemand => binSpecMixrat
+         pipeline => miSO4a
+         CALL Derived%newField("miSO4a", "Binned mass SO4 in ice", "kg/kg", 'ttttice',   &
+                               ANY(outputlist == "miSO4a"), pipeline              )
+         
+         pipeline => NULL()
+         miOCa = FloatArray4d()
+         miOCa%onDemand => binSpecMixrat
+         pipeline => miOCa
+         CALL Derived%newField("miOCa", "Binned mass OC in ice", "kg/kg", 'ttttice',   &
+                               ANY(outputlist == "miOCa"), pipeline              )
+         
+         pipeline => NULL()
+         miBCa = FloatArray4d()
+         miBCa%onDemand => binSpecMixrat
+         pipeline => miBCa
+         CALL Derived%newField("miBCa", "Binned mass BC in ice", "kg/kg", 'ttttice',   &
+                               ANY(outputlist == "miBCa"), pipeline              )
+         
+         pipeline => NULL()
+         miDUa = FloatArray4d()
+         miDUa%onDemand => binSpecMixrat
+         pipeline => miDUa
+         CALL Derived%newField("miDUa", "Binned mass DU in ice", "kg/kg", 'ttttice',   &
+                               ANY(outputlist == "miDUa"), pipeline              )
+         
+         pipeline => NULL()
+         miSSa = FloatArray4d()
+         miSSa%onDemand => binSpecMixrat
+         pipeline => miSSa
+         CALL Derived%newField("miSSa", "Binned mass SS in ice", "kg/kg", 'ttttice',   &
+                               ANY(outputlist == "miSSa"), pipeline              )
+         
+         pipeline => NULL()
+         miNOa = FloatArray4d()
+         miNOa%onDemand => binSpecMixrat
+         pipeline => miNOa
+         CALL Derived%newField("miNOa", "Binned mass NO in ice", "kg/kg", 'ttttice',   &
+                               ANY(outputlist == "miNOa"), pipeline              )
+                               
+         pipeline => NULL()
+         miNHa = FloatArray4d()
+         miNHa%onDemand => binSpecMixrat
+         pipeline => miNHa
+         CALL Derived%newField("miNHa", "Binned mass NH in ice", "kg/kg", 'ttttice',   &
+                               ANY(outputlist == "miNHa"), pipeline              )
+                               
       END IF
 
       IF (level >= 4) THEN

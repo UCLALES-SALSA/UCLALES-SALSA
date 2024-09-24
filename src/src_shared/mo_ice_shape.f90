@@ -61,7 +61,7 @@ MODULE mo_ice_shape
                  
       Mtot = ( mpri + mrim )/numc
       
-      Fr = MAX( MIN(mrim/(Mtot*numc),0.999),0.01 )
+      Fr = MAX( MIN(mrim/(Mtot*numc),0.9999),0.0001 )
       rho_b = getBulkRho(Fr)  ! This is taken for graupel density and is set as the bulk density for rime since we do not implement predicted graupel density.
       Dth = (pi6*spec%rhoic/iceShapeAlpha)**(1./(iceShapeBeta-3.))
       Dgr = (iceShapeAlpha/(pi6*rho_b))**(1./(3.-iceShapeBeta))
@@ -165,7 +165,7 @@ MODULE mo_ice_shape
                  
       Mtot = ( mpri + mrim )/numc
       
-      Fr = MAX(MIN(mrim/(Mtot*numc),0.999),0.0)
+      Fr = MAX(MIN(mrim/(Mtot*numc),0.9999),0.0001)
       rho_b = getBulkRho(Fr)  ! "almost" like graupel density...
       Dth = (pi6*spec%rhoic/iceShapeAlpha)**(1./(iceShapeBeta-3.))
       Dgr = (iceShapeAlpha/(pi6*rho_b))**(1./(3.-iceShapeBeta))

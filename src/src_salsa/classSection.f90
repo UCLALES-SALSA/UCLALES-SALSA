@@ -31,6 +31,11 @@ MODULE classSection
      REAL    :: dlim     ! Category specific diameter limit used e.g. in coagulation calculations
 
      REAL    :: INdef    ! IN nucleated fraction for lower limit contact angle
+     REAL    :: chargeTime  ! A time tracer for mapping particle charging effects on coalescence growth. Set to max timescale upon emission
+                            ! and the charging effect is assumed to decrease as a function of the time since emission. When chargeTime approaches
+                            ! zero, the effect will subside. Also will be zero where charge emission does not take place
+     REAL    :: chargeTimeMax  ! Max timescale for particle charging effects. Set at initialization
+     REAL    :: chargeCollEnh  ! Max assumed enhancement of coalescence rates by charging effects. set at initialization
 
      ! Secondary ice diagnostics: These are just added from the source, advected and removed upon evaporation/sedimentation/melting,
      ! but currently not coupled with coagulation...
@@ -67,6 +72,9 @@ MODULE classSection
       cnstr%rhomean = 0.
       cnstr%rhoeff = 0.
       cnstr%INdef = 0.
+      cnstr%chargeTime = 0.
+      cnstr%chargeTimeMax = 1000.
+      cnstr%chargeCollEnh = 0.
 
     END FUNCTION cnstr
 
@@ -123,7 +131,7 @@ MODULE classSection
             SELF%ddry = ( SUM(SELF%volc(1:ndry))/SELF%numc/pi6 )**(1./3.)
          END IF
 
-         IF (ANY(swtyp == ["ins","all"]) .AND. ALL( spec%ind_insoluble(:) > 0 )) THEN ! If there is any insoluble active, all the indices sohuld be > 0
+         IF (ANY(swtyp == ["ins","all"]) .AND. ALL( spec%ind_insoluble(:) > 0 )) THEN ! If there is any insoluble active, all the indices should be > 0
             SELF%dins = 1.e-10
             SELF%dins = ( SUM(SELF%volc(spec%ind_insoluble))/SELF%numc/pi6 )**(1./3.)
          END IF
@@ -167,7 +175,7 @@ MODULE classSection
       iwa = spec%getIndex("H2O")
       irim = spec%getIndex("rime")
 
-      SELF%rhomean = spec%rhoic
+      SELF%rhomean = spec%rhowa
       
       ! convert to masses -> get the mass mean density - this is needed for ice, for others it's always rhowa
       IF (SELF%phase > 3) THEN

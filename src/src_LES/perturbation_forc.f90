@@ -103,7 +103,7 @@ MODULE perturbation_forc
       ! time. The perturbations are ADDED to the existing background surface fluxes. Note
       ! that this should only be used with isfctyp=0, i.e. with fixed surface fluxes defined
       ! in the NAMELIST. 
-      ! -----------------------------------------------x
+      ! -----------------------------------------------
       !
       USE math_functions, ONLY : f_gauss_NN
       USE srfc, ONLY : lh_flx, sh_flx

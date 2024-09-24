@@ -20,10 +20,11 @@
 MODULE grid
   
   USE classFieldArray, ONLY : FieldArray
-  USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice,     &
+  USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice, nliquid,    &
                          in1a, fn2a, in2b, fn2b, ica, icb, fca, fcb,  &
                          aerobins, cloudbins, precpbins, icebins,     &
                          ice_theta_dist,lssecice
+   USE emission_types, ONLY : emitModes
   
   IMPLICIT NONE
 
@@ -162,7 +163,11 @@ CONTAINS
          IF (level == 5) nsalsa = nsalsa + (nc+1+1)*nice              ! (nc+1+1)*nice for RIMED ICE
          IF (level == 5 .AND. ice_theta_dist) nsalsa = nsalsa + nbins+ncld+nprc  ! If contact angle distributions for heterogeneous ice nucleation, 
                                                                                  ! add one more tracer for the "IN deficit fraction"
-         IF (level == 5 .AND. lssecice%switch) nsalsa = nsalsa + 3.*nice
+         IF (level == 5 .AND. lssecice%switch) nsalsa = nsalsa + 3*nice
+
+         IF (ANY(emitModes(:)%emitType >= 1) ) THEN
+            nsalsa = nsalsa + nliquid  ! for charge emission time tracer
+         END IF
 
       END IF
          

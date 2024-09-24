@@ -71,8 +71,8 @@ MODULE mo_ps_state
                                 ps_aDUa, ps_aDUb, ps_cDUa, ps_cDUb, ps_pDUa, ps_iDUa,        &
                                 ps_aSSa, ps_aSSb, ps_cSSa, ps_cSSb, ps_pSSa, ps_iSSa,        &
                                 ps_aNOa, ps_aNOb, ps_cNOa, ps_cNOb, ps_pNOa, ps_iNOa,        &
-                                ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa
-
+                                ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa         
+                                        
   ! Conditionally sampled profiles
   TYPE(FloatArray1d), TARGET :: psic_rc, psic_Naa, psic_Nab, psic_Nca, psic_Ncb, psic_CDNC, psic_CNC,   &
                                 psic_Reff, psic_rh   
@@ -84,6 +84,13 @@ MODULE mo_ps_state
   TYPE(FloatArray2d), TARGET :: ps_Dwaba, ps_Dwabb, ps_Dwcba, ps_Dwcbb, ps_Dwpba, ps_Dwiba
   TYPE(FloatArray2d), TARGET :: ps_Naba, ps_Nabb, ps_Ncba, ps_Ncbb, ps_Npba, ps_Niba
   TYPE(FloatArray2d), TARGET :: ps_sipdrfr, ps_sipiibr, ps_siprmspl
+  TYPE(FloatArray2d), TARGET :: ps_maSO4a, ps_maSO4b, ps_mcSO4a, ps_mcSO4b, ps_mpSO4a, ps_miSO4a,  &
+                                ps_maOCa, ps_maOCb, ps_mcOCa, ps_mcOCb, ps_mpOCa, ps_miOCa,        &
+                                ps_maBCa, ps_maBCb, ps_mcBCa, ps_mcBCb, ps_mpBCa, ps_miBCa,        &
+                                ps_maDUa, ps_maDUb, ps_mcDUa, ps_mcDUb, ps_mpDUa, ps_miDUa,        &
+                                ps_maSSa, ps_maSSb, ps_mcSSa, ps_mcSSb, ps_mpSSa, ps_miSSa,        &
+                                ps_maNOa, ps_maNOb, ps_mcNOa, ps_mcNOb, ps_mpNOa, ps_miNOa,        &
+                                ps_maNHa, ps_maNHb, ps_mcNHa, ps_mcNHb, ps_mpNHa, ps_miNHa     
   
   ! Piggybacking slave microphysics diagnostics
   TYPE(FloatArray1d), TARGET :: ps_pb_rrate, ps_pb_rc,         &
@@ -578,7 +585,44 @@ MODULE mo_ps_state
          ps_pSO4a%onDemand => globalMeanProfile
          pipeline => ps_pSO4a
          CALL PS%newField(ps_pSO4a%shortName, "Precipitation bulk SO4 mass", "kg/kg", "ztt",   &
-                          ANY(outputlist == ps_pSO4a%shortName), pipeline)
+              ANY(outputlist == ps_pSO4a%shortName), pipeline)
+
+         pipeline => NULL()
+         ps_maSO4a = FloatArray2d()
+         ps_maSO4a%onDemand => globalMeanProfileBinned
+         pipeline => ps_maSO4a
+         CALL PS%newField("maSO4a", "Aerosol A binned SO4 mass", "kg/kg", "zttaea",   &
+              ANY(outputlist == "maSO4a"), pipeline)
+
+         
+         pipeline => NULL()
+         ps_maSO4b = FloatArray2d()
+         ps_maSO4b%onDemand => globalMeanProfileBinned
+         pipeline => ps_maSO4b
+         CALL PS%newField("maSO4b", "Aerosol B binned SO4 mass", "kg/kg", "zttaeb",   &
+              ANY(outputlist == "maSO4b"), pipeline)
+
+         pipeline => NULL()
+         ps_mcSO4a = FloatArray2d()
+         ps_mcSO4a%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcSO4a
+         CALL PS%newField("mcSO4a", "Cloud A binned SO4 mass", "kg/kg", "zttcla",   &
+              ANY(outputlist == "mcSO4a"), pipeline)
+
+         pipeline => NULL()
+         ps_mcSO4b = FloatArray2d()
+         ps_mcSO4b%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcSO4b
+         CALL PS%newField("mcSO4b", "Cloud B binned SO4 mass", "kg/kg", "zttclb",   &
+              ANY(outputlist == "mcSO4b"), pipeline)
+
+         pipeline => NULL()
+         ps_mpSO4a = FloatArray2d()
+         ps_mpSO4a%onDemand => globalMeanProfileBinned
+         pipeline => ps_mpSO4a
+         CALL PS%newField("mpSO4a", "Precipitation binned SO4 mass", "kg/kg", "zttprc",   &
+              ANY(outputlist == "mpSO4a"), pipeline)
+
       END IF
 
       IF (level == 5) THEN
@@ -587,7 +631,15 @@ MODULE mo_ps_state
          ps_iSO4a%onDemand => globalMeanProfile
          pipeline => ps_iSO4a
          CALL PS%newField(ps_iSO4a%shortName, "Ice bulk SO4 mass", "kg/kg", "ztt",   &
-                          ANY(outputlist == ps_iSO4a%shortName), pipeline)
+              ANY(outputlist == ps_iSO4a%shortName), pipeline)
+         
+         pipeline => NULL()
+         ps_miSO4a = FloatArray2d()
+         ps_miSO4a%onDemand => globalMeanProfileBinned
+         pipeline => ps_miSO4a
+         CALL PS%newField("miSO4a", "Ice binned SO4 mass", "kg/kg", "zttice",   &
+              ANY(outputlist == "miSO4a"), pipeline)
+         
       END IF
 
       IF (level >= 4) THEN
@@ -625,6 +677,43 @@ MODULE mo_ps_state
          pipeline => ps_pOCa
          CALL PS%newField(ps_pOCa%shortName, "Precipitation bulk OC mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_pOCa%shortName), pipeline)
+         
+         pipeline => NULL()
+         ps_maOCa = FloatArray2d()
+         ps_maOCa%onDemand => globalMeanProfileBinned
+         pipeline => ps_maOCa
+         CALL PS%newField("maOCa", "Aerosol A binned OC mass", "kg/kg", "zttaea",   &
+              ANY(outputlist == "maOCa"), pipeline)
+
+         
+         pipeline => NULL()
+         ps_maOCb = FloatArray2d()
+         ps_maOCb%onDemand => globalMeanProfileBinned
+         pipeline => ps_maOCb
+         CALL PS%newField("maOCb", "Aerosol B binned OC mass", "kg/kg", "zttaeb",   &
+              ANY(outputlist == "maOCb"), pipeline)
+
+         pipeline => NULL()
+         ps_mcOCa = FloatArray2d()
+         ps_mcOCa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcOCa
+         CALL PS%newField("mcOCa", "Cloud A binned OC mass", "kg/kg", "zttcla",   &
+              ANY(outputlist == "mcOCa"), pipeline)
+
+         pipeline => NULL()
+         ps_mcOCb = FloatArray2d()
+         ps_mcOCb%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcOCb
+         CALL PS%newField("mcOCb", "Cloud B binned OC mass", "kg/kg", "zttclb",   &
+              ANY(outputlist == "mcOCb"), pipeline)
+
+         pipeline => NULL()
+         ps_mpOCa = FloatArray2d()
+         ps_mpOCa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mpOCa
+         CALL PS%newField("mpOCa", "Precipitation binned OC mass", "kg/kg", "zttprc",   &
+              ANY(outputlist == "mpOCa"), pipeline)
+              
       END IF
          
       IF (level == 5) THEN
@@ -634,6 +723,14 @@ MODULE mo_ps_state
          pipeline => ps_iOCa
          CALL PS%newField(ps_iOCa%shortName, "Ice bulk OC mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_iOCa%shortName), pipeline)
+         
+         pipeline => NULL()
+         ps_miOCa = FloatArray2d()
+         ps_miOCa%onDemand => globalMeanProfileBinned
+         pipeline => ps_miOCa
+         CALL PS%newField("miOCa", "Ice binned OC mass", "kg/kg", "zttice",   &
+              ANY(outputlist == "miOCa"), pipeline)    
+                          
       END IF
 
       IF (level >= 4) THEN
@@ -671,6 +768,43 @@ MODULE mo_ps_state
          pipeline => ps_pBCa
          CALL PS%newField(ps_pBCa%shortName, "Precipitation bulk BC mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_pBCa%shortName), pipeline)
+                          
+         pipeline => NULL()
+         ps_maBCa = FloatArray2d()
+         ps_maBCa%onDemand => globalMeanProfileBinned
+         pipeline => ps_maBCa
+         CALL PS%newField("maBCa", "Aerosol A binned BC mass", "kg/kg", "zttaea",   &
+              ANY(outputlist == "maBCa"), pipeline)
+
+         
+         pipeline => NULL()
+         ps_maBCb = FloatArray2d()
+         ps_maBCb%onDemand => globalMeanProfileBinned
+         pipeline => ps_maBCb
+         CALL PS%newField("maBCb", "Aerosol B binned BC mass", "kg/kg", "zttaeb",   &
+              ANY(outputlist == "maBCb"), pipeline)
+
+         pipeline => NULL()
+         ps_mcBCa = FloatArray2d()
+         ps_mcBCa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcBCa
+         CALL PS%newField("mcBCa", "Cloud A binned BC mass", "kg/kg", "zttcla",   &
+              ANY(outputlist == "mcBCa"), pipeline)
+
+         pipeline => NULL()
+         ps_mcBCb = FloatArray2d()
+         ps_mcBCb%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcBCb
+         CALL PS%newField("mcBCb", "Cloud B binned BC mass", "kg/kg", "zttclb",   &
+              ANY(outputlist == "mcBCb"), pipeline)
+
+         pipeline => NULL()
+         ps_mpBCa = FloatArray2d()
+         ps_mpBCa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mpBCa
+         CALL PS%newField("mpBCa", "Precipitation binned BC mass", "kg/kg", "zttprc",   &
+              ANY(outputlist == "mpBCa"), pipeline)
+              
       END IF
 
       IF (level == 5) THEN
@@ -680,6 +814,14 @@ MODULE mo_ps_state
          pipeline => ps_iBCa
          CALL PS%newField(ps_iBCa%shortName, "Ice bulk BC mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_iBCa%shortName), pipeline)
+         
+         pipeline => NULL()
+         ps_miBCa = FloatArray2d()
+         ps_miBCa%onDemand => globalMeanProfileBinned
+         pipeline => ps_miBCa
+         CALL PS%newField("miBCa", "Ice binned BC mass", "kg/kg", "zttice",   &
+              ANY(outputlist == "miBCa"), pipeline)
+              
       END IF
 
       IF (level >= 4) THEN
@@ -717,6 +859,43 @@ MODULE mo_ps_state
          pipeline => ps_pDUa
          CALL PS%newField(ps_pDUa%shortName, "Precipitation bulk DU mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_pDUa%shortName), pipeline)
+         
+         pipeline => NULL()
+         ps_maDUa = FloatArray2d()
+         ps_maDUa%onDemand => globalMeanProfileBinned
+         pipeline => ps_maDUa
+         CALL PS%newField("maDUa", "Aerosol A binned DU mass", "kg/kg", "zttaea",   &
+              ANY(outputlist == "maDUa"), pipeline)
+
+         
+         pipeline => NULL()
+         ps_maDUb = FloatArray2d()
+         ps_maDUb%onDemand => globalMeanProfileBinned
+         pipeline => ps_maDUb
+         CALL PS%newField("maDUb", "Aerosol B binned DU mass", "kg/kg", "zttaeb",   &
+              ANY(outputlist == "maDUb"), pipeline)
+
+         pipeline => NULL()
+         ps_mcDUa = FloatArray2d()
+         ps_mcDUa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcDUa
+         CALL PS%newField("mcDUa", "Cloud A binned DU mass", "kg/kg", "zttcla",   &
+              ANY(outputlist == "mcDUa"), pipeline)
+
+         pipeline => NULL()
+         ps_mcDUb = FloatArray2d()
+         ps_mcDUb%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcDUb
+         CALL PS%newField("mcDUb", "Cloud B binned DU mass", "kg/kg", "zttclb",   &
+              ANY(outputlist == "mcDUb"), pipeline)
+
+         pipeline => NULL()
+         ps_mpDUa = FloatArray2d()
+         ps_mpDUa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mpDUa
+         CALL PS%newField("mpDUa", "Precipitation binned DU mass", "kg/kg", "zttprc",   &
+              ANY(outputlist == "mpDUa"), pipeline)
+         
       END IF
 
       IF (level == 5) THEN
@@ -726,6 +905,14 @@ MODULE mo_ps_state
          pipeline => ps_iDUa
          CALL PS%newField(ps_iDUa%shortName, "Ice bulk DU mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_iDUa%shortName), pipeline)
+         
+         pipeline => NULL()
+         ps_miDUa = FloatArray2d()
+         ps_miDUa%onDemand => globalMeanProfileBinned
+         pipeline => ps_miDUa
+         CALL PS%newField("miDUa", "Ice binned DU mass", "kg/kg", "zttice",   &
+              ANY(outputlist == "miDUa"), pipeline)
+              
       END IF
 
       IF (level >= 4) THEN
@@ -763,7 +950,43 @@ MODULE mo_ps_state
          pipeline => ps_pSSa
          CALL PS%newField(ps_pSSa%shortName, "Precipitation bulk SS mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_pSSa%shortName), pipeline)
+                          
+         pipeline => NULL()
+         ps_maSSa = FloatArray2d()
+         ps_maSSa%onDemand => globalMeanProfileBinned
+         pipeline => ps_maSSa
+         CALL PS%newField("maSSa", "Aerosol A binned SS mass", "kg/kg", "zttaea",   &
+              ANY(outputlist == "maSSa"), pipeline)
 
+         
+         pipeline => NULL()
+         ps_maSSb = FloatArray2d()
+         ps_maSSb%onDemand => globalMeanProfileBinned
+         pipeline => ps_maSSb
+         CALL PS%newField("maSSb", "Aerosol B binned SS mass", "kg/kg", "zttaeb",   &
+              ANY(outputlist == "maSSb"), pipeline)
+
+         pipeline => NULL()
+         ps_mcSSa = FloatArray2d()
+         ps_mcSSa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcSSa
+         CALL PS%newField("mcSSa", "Cloud A binned SS mass", "kg/kg", "zttcla",   &
+              ANY(outputlist == "mcSSa"), pipeline)
+
+         pipeline => NULL()
+         ps_mcSSb = FloatArray2d()
+         ps_mcSSb%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcSSb
+         CALL PS%newField("mcSSb", "Cloud B binned SS mass", "kg/kg", "zttclb",   &
+              ANY(outputlist == "mcSSb"), pipeline)
+
+         pipeline => NULL()
+         ps_mpSSa = FloatArray2d()
+         ps_mpSSa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mpSSa
+         CALL PS%newField("mpSSa", "Precipitation binned SS mass", "kg/kg", "zttprc",   &
+              ANY(outputlist == "mpSSa"), pipeline)
+              
       END IF
 
       IF (level == 5) THEN
@@ -773,6 +996,14 @@ MODULE mo_ps_state
          pipeline => ps_iSSa
          CALL PS%newField(ps_iSSa%shortName, "Ice bulk SS mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_iSSa%shortName), pipeline)
+         
+         pipeline => NULL()
+         ps_miSSa = FloatArray2d()
+         ps_miSSa%onDemand => globalMeanProfileBinned
+         pipeline => ps_miSSa
+         CALL PS%newField("miSSa", "Ice binned SS mass", "kg/kg", "zttice",   &
+              ANY(outputlist == "miSSa"), pipeline)
+         
       END IF
 
       IF (level >= 4) THEN
@@ -810,6 +1041,43 @@ MODULE mo_ps_state
          pipeline => ps_pNOa
          CALL PS%newField(ps_pNOa%shortName, "Precipitation bulk NO mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_pNOa%shortName), pipeline)
+                  
+         pipeline => NULL()
+         ps_maNOa = FloatArray2d()
+         ps_maNOa%onDemand => globalMeanProfileBinned
+         pipeline => ps_maNOa
+         CALL PS%newField("maNOa", "Aerosol A binned NO mass", "kg/kg", "zttaea",   &
+              ANY(outputlist == "maNOa"), pipeline)
+
+         
+         pipeline => NULL()
+         ps_maNOb = FloatArray2d()
+         ps_maNOb%onDemand => globalMeanProfileBinned
+         pipeline => ps_maNOb
+         CALL PS%newField("maNOb", "Aerosol B binned NO mass", "kg/kg", "zttaeb",   &
+              ANY(outputlist == "maNOb"), pipeline)
+
+         pipeline => NULL()
+         ps_mcNOa = FloatArray2d()
+         ps_mcNOa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcNOa
+         CALL PS%newField("mcNOa", "Cloud A binned NO mass", "kg/kg", "zttcla",   &
+              ANY(outputlist == "mcNOa"), pipeline)
+
+         pipeline => NULL()
+         ps_mcNOb = FloatArray2d()
+         ps_mcNOb%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcNOb
+         CALL PS%newField("mcNOb", "Cloud B binned NO mass", "kg/kg", "zttclb",   &
+              ANY(outputlist == "mcNOb"), pipeline)
+
+         pipeline => NULL()
+         ps_mpNOa = FloatArray2d()
+         ps_mpNOa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mpNOa
+         CALL PS%newField("mpNOa", "Precipitation binned NO mass", "kg/kg", "zttprc",   &
+              ANY(outputlist == "mpNOa"), pipeline)
+         
       END IF
 
       IF (level == 5) THEN
@@ -819,6 +1087,14 @@ MODULE mo_ps_state
          pipeline => ps_iNOa
          CALL PS%newField(ps_iNOa%shortName, "Ice bulk NO mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_iNOa%shortName), pipeline)
+         
+         pipeline => NULL()
+         ps_miNOa = FloatArray2d()
+         ps_miNOa%onDemand => globalMeanProfileBinned
+         pipeline => ps_miNOa
+         CALL PS%newField("miNOa", "Ice binned NO mass", "kg/kg", "zttice",   &
+              ANY(outputlist == "miNOa"), pipeline)
+              
       END IF
 
       IF (level >= 4) THEN
@@ -857,6 +1133,43 @@ MODULE mo_ps_state
          pipeline => ps_pNHa
          CALL PS%newField(ps_pNHa%shortName, "Precipitation bulk NH mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_pNHa%shortName), pipeline)
+         
+         pipeline => NULL()
+         ps_maNHa = FloatArray2d()
+         ps_maNHa%onDemand => globalMeanProfileBinned
+         pipeline => ps_maNHa
+         CALL PS%newField("maNHa", "Aerosol A binned NH mass", "kg/kg", "zttaea",   &
+              ANY(outputlist == "maNHa"), pipeline)
+
+         
+         pipeline => NULL()
+         ps_maNHb = FloatArray2d()
+         ps_maNHb%onDemand => globalMeanProfileBinned
+         pipeline => ps_maNHb
+         CALL PS%newField("maNHb", "Aerosol B binned NH mass", "kg/kg", "zttaeb",   &
+              ANY(outputlist == "maNHb"), pipeline)
+
+         pipeline => NULL()
+         ps_mcNHa = FloatArray2d()
+         ps_mcNHa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcNHa
+         CALL PS%newField("mcNHa", "Cloud A binned NH mass", "kg/kg", "zttcla",   &
+              ANY(outputlist == "mcNHa"), pipeline)
+
+         pipeline => NULL()
+         ps_mcNHb = FloatArray2d()
+         ps_mcNHb%onDemand => globalMeanProfileBinned
+         pipeline => ps_mcNHb
+         CALL PS%newField("mcNHb", "Cloud B binned NH mass", "kg/kg", "zttclb",   &
+              ANY(outputlist == "mcNHb"), pipeline)
+
+         pipeline => NULL()
+         ps_mpNHa = FloatArray2d()
+         ps_mpNHa%onDemand => globalMeanProfileBinned
+         pipeline => ps_mpNHa
+         CALL PS%newField("mpNHa", "Precipitation binned NH mass", "kg/kg", "zttprc",   &
+              ANY(outputlist == "mpNHa"), pipeline)
+         
       END IF
 
       IF (level == 5) THEN
@@ -866,6 +1179,14 @@ MODULE mo_ps_state
          pipeline => ps_iNHa
          CALL PS%newField(ps_iNHa%shortName, "Ice bulk NH mass", "kg/kg", "ztt",   &
                           ANY(outputlist == ps_iNHa%shortName), pipeline)
+                          
+      	 pipeline => NULL()
+         ps_miNHa = FloatArray2d()
+         ps_miNHa%onDemand => globalMeanProfileBinned
+         pipeline => ps_miNHa
+         CALL PS%newField("miNHa", "Ice binned NH mass", "kg/kg", "zttice",   &
+              ANY(outputlist == "miNHa"), pipeline)
+      
       END IF
 
       !---------------------------------------

@@ -109,18 +109,22 @@ MODULE emission_init
               END IF
               
               ! Set up the emission levels. This will preferentially use the level indices, except if they're not given by the namelist
-              CALL init_emission_heights(emd)
+              !CALL init_emission_heights(emd)
               
-           END IF
+           !END IF
            
-           IF (emd%emitType == 3)  THEN
-              ASSOCIATE (emdT3 => emitType3(nprof))
+             IF (ANY(emd%emitType == [3,5]))  THEN
+                ASSOCIATE (emdT3 => emitType3(nprof))
                 CALL init_emitType3_map(emd%emitMap,x,y,z,emdT3%np)
                 CALL lagrangian_tracker(emdT3%ix,emdT3%iy,emdT3%iz,emdT3%t,emdT3%np, &
                                         emdT3%t_in,emdT3%t_out,emdT3%t_trac,         &
                                         emd%scS,emd%start_time,emd%end_time,x,y,z    )
-              END ASSOCIATE
-           END IF
+              END ASSOCIATE           
+             ELSE              
+              ! Set up the emission levels. This will preferentially use the level indices, except if they're not given by the namelist
+                CALL init_emission_heights(emd)
+             END IF
+          END IF 
            
          END ASSOCIATE
          

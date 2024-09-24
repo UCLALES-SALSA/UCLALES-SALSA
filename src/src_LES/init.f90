@@ -63,15 +63,18 @@ CONTAINS
       USE util, ONLY : maskactiv
       USE nudg, ONLY : init_nudg
       USE emission_init, ONLY : init_emission
+      USE emission_types, ONLY : emitModes
       USE constrain_SALSA, ONLY : SALSA_diagnostics
       USE mo_structured_datatypes
       USE mo_output, ONLY : init_main, write_main, init_ps, init_ts, write_ps
+      USE grid, ONLY : lemission 
       
       IMPLICIT NONE
 
       ! Local variables for SALSA basic state
       REAL    :: zwp(nzp,nxp,nyp)
       INTEGER :: n4
+      LOGICAL :: lcharge
 
       ! Set vertical velocity as 0.5 m/s to intialize cloud microphysical properties with
       ! SALSA
@@ -90,14 +93,18 @@ CONTAINS
 
             n4 = spec%getNSpec(type="wet")
 
+            !lcharge = ( ANY(emitModes%emitType > 0) ) 
+	     
+	    lcharge = (lemission .AND. ANY(emitModes%emitType > 1) ) 
+
             IF ( nxp == 5 .AND. nyp == 5 ) THEN
                CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,n4,   &
                               zwp,a_nactd,a_vactd,dtlt,   &
-                              time,0,level,.TRUE.           )
+                              time,0,level,lcharge,.TRUE.           )
             ELSE
                CALL run_SALSA(Diag,Prog,nzp,nxp,nyp,n4,   &
                               a_wp%d,a_nactd,a_vactd,dtlt,  &
-                              time,0,level,.TRUE.          )
+                              time,0,level,lcharge,.TRUE.          )
             END IF
             CALL SALSAInit
 
@@ -143,7 +150,7 @@ CONTAINS
      ! Diagnostic calculations that should take place (with SALSA) both for INITIAL and HISTORY
      IF ( (level >= 4) ) THEN
         !CALL thermo(level)
-        CALL SALSA_diagnostics(onlyDiag=.TRUE.)
+        CALL SALSA_diagnostics(.TRUE.,lcharge)
         CALL thermo(level)
      END IF
      !

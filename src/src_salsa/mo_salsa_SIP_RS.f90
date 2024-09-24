@@ -54,7 +54,7 @@ MODULE mo_salsa_SIP_RS
       REAL :: fragnumc(kbdim,klev,nice), sinknumc(kbdim,klev,nice)  ! Number to be added and removed
       REAL :: fragv_loc(nice,nspec)  !! Local fragment vol contributions per ice bin
       REAL :: fragn_loc(nice)       !! Local fragment num contributions per ice bin
-      REAL :: v_i                    ! Volume of single ice particle in a bin 
+      REAL :: v_i                    ! Volume of a secondary ice particle
       REAL :: sinkv(nspec)           ! sink volume for single collision
       REAL :: frconst                ! constraining fraction for limiting the mass sink to fragments
       REAL, PARAMETER :: inf = HUGE(1.)
@@ -102,8 +102,8 @@ MODULE mo_salsa_SIP_RS
                fragn_loc = 0.
                DO cc = 1,nprc
                  IF ( ptemp(ii,jj) < tmin .OR. ptemp(ii,jj) > tmax .OR.  & 
-                     nfrzn_rs(ii,jj,cc,bb) < 1.e-16 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-27 .OR. &
-                     ice(ii,jj,bb)%numc < ice(ii,jj,bb)%nlim ) CYCLE ! no collection/empty bin
+                     nfrzn_rs(ii,jj,cc,bb) < 1.e-12 .OR. SUM(ice(ii,jj,bb)%volc(:)) < 1.e-15 .OR. &
+                     ice(ii,jj,bb)%numc < ice(ii,jj,bb)%nlim .OR. bb < splbin + 2 ) CYCLE ! no collection/empty bin
                
                  ! Spherical equivalent diameter of the frozen drops on current ice bin
                  ddmean = (mfrzn_rs(ii,jj,cc,bb)/nfrzn_rs(ii,jj,cc,bb)/spec%rhowa/pi6)**(1./3.)
@@ -118,10 +118,12 @@ MODULE mo_salsa_SIP_RS
                     dN = rs_mossop(ptemp(ii,jj),nfrzn_rs(ii,jj,cc,bb))
                  END IF
 
-                 ! Volume of a single ice particle in current bin for calculating the number concentration sink.
-                 v_i  = pi6*Dsplint**3
-           
-                 ! This will assume that the splinters consist of frozen spheres 10 um in diameter.
+                 ! Volume of a splinter for calculating the number concentration sink.
+                 !v_i  = pi6*Dsplint**3 ! 5.235987755982989e-16 if spherical
+           	 v_i = 3.405365461487051e-16 ! as hexagonal column of bulk ice 917 kg m3, similar to an hexag. plate
+           	 ! v_i = 110.7983.*(10e-6).^2.91/917 Buhl et al. 2019, Atmos. Meas. Tech., 12, 6601–6617, 2019
+           	 
+                 ! This will assume that the splinters consist of hexagonal columns of 10e-6 m of maximum length 
                  dV = dN * v_i
 
                  ! Allocate the fragments to temporary ice bins 
@@ -135,8 +137,10 @@ MODULE mo_salsa_SIP_RS
                   
                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) + sinkv(1:nspec)
                 
-                 ! Sink of number concentration from current bin - assume that the splinter volume is equivalent to that of a sphere of 10 um
-                 sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) + SUM( sinkv(1:nspec) ) / v_i               
+                 ! Sink of number concentration from current bin 
+                 ! must correspond to the particle number needed to produce sinkv
+                 ! according to the bin mean volume                
+                 sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) +  SUM(sinkv(1:nspec))/(pi6 * ddmean**3.0)
                   
                  ! Secondary ice diagnostics
                  ice(ii,jj,splbin)%SIP_rmspl = ice(ii,jj,splbin)%SIP_rmspl + dN
@@ -145,37 +149,44 @@ MODULE mo_salsa_SIP_RS
                   
                END DO
 
-           
-               !! Safeguard: Allow the fragments to take up to 99% of the source ice bin mass
-               IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > 0.99 * SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
-                  frconst = 0.99 * SUM(ice(ii,jj,bb)%volc(1:nspec)) / SUM(sinkvolc(ii,jj,bb,1:nspec))
-                  fragv_loc = fragv_loc * frconst
-                  fragn_loc = fragn_loc * frconst
-                  sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) * frconst
-                  sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) * frconst
-               END IF
-
-               sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.99*ice(ii,jj,bb)%numc) !! Additional constrain because for some reason
-                                                                                    !! this still failed in the last bin...
                
-               fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
-               fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
+            fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
+            fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
-               ! POISTA           
-               IF ( SUM(sinkvolc(ii,jj,bb,:)) > 0.99*SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                    WRITE(*,*)  'SEC ICE ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
-                    SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+            ! POISTA           
+            IF ( SUM(sinkvolc(ii,jj,bb,:)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
+                  WRITE(*,*)  'SIP-RS ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
+                  SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
 
-               IF (0.99*ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) &
-                    WRITE(*,*) 'SEC ICE ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
-                    ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
-               ! ---------------------------------------              
+            IF (ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) THEN
+                  WRITE(*,*) 'SIP-RS ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
+                  ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
+                  sinknumc(ii,jj,bb) =  ice(ii,jj,bb)%numc
+                  sinkvolc(ii,jj,bb,1:nspec) = ice(ii,jj,bb)%volc(1:nspec)
+            END IF
+            ! ---------------------------------------       
+             !! Safeguard: Allow the fragments to take up to 99% of the source ice bin mass
+            IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
+               frconst = 0.99* SUM(ice(ii,jj,bb)%volc(1:nspec)) / SUM(sinkvolc(ii,jj,bb,1:nspec))
+               fragv_loc = fragv_loc * frconst
+               fragn_loc = fragn_loc * frconst
+               sinkvolc(ii,jj,bb,1:nspec) = sinkvolc(ii,jj,bb,1:nspec) * frconst
+               sinknumc(ii,jj,bb) = sinknumc(ii,jj,bb) * frconst
+               sinknumc(ii,jj,bb) = MIN(sinknumc(ii,jj,bb), 0.99*ice(ii,jj,bb)%numc)
+            END IF
+
+            ! Confirming that the possible issue was solved
+            IF ( SUM(sinkvolc(ii,jj,bb,1:nspec)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) ) THEN
+               WRITE(*,*) 'SIP-RS: SUM(sinkvolc(ii,jj,bb,1:nspec)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) '
+               WRITE(*,*) SUM(sinkvolc(ii,jj,bb,1:nspec)), SUM(ice(ii,jj,bb)%volc(1:nspec))
+            END IF	
+                   
             END DO
          END DO
       END DO
       
 
-       ! Apply changes to bins
+      ! Apply changes to bins
       DO bb = 1,nice
          DO jj = 1,klev
             DO ii = 1,kproma
@@ -190,15 +201,19 @@ MODULE mo_salsa_SIP_RS
                     WRITE(*,*) 'sinkvolc nega ',bb,dlliq_rs,sinkvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
                     WRITE(*,*) 'sinkvolc nan ',  bb,dlliq_rs,sinkvolc(ii,jj,bb,:)
-               IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'fragnumc > 1e5 ',bb,dlliq_rs,fragnumc(ii,jj,bb),    &
-                    (SUM(mfrzn_rs(ii,jj,:,bb))/SUM(nfrzn_rs(ii,jj,:,bb))/spec%rhowa/pi6)**(1./3.), &
-                    SUM(nfrzn_rs(ii,jj,:,bb)), ice(ii,jj,bb)%numc
+               !IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'fragnumc > 1e5 ',bb,dlliq_rs,fragnumc(ii,jj,bb),    &
+                   ! (SUM(mfrzn_rs(ii,jj,:,bb))/SUM(nfrzn_rs(ii,jj,:,bb))/spec%rhowa/pi6)**(1./3.), &
+                    !SUM(nfrzn_rs(ii,jj,:,bb)), ice(ii,jj,bb)%numc
                ! ---------------------
                
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc - sinknumc(ii,jj,bb)
+               ice(ii,jj,bb)%numc = MAX(0.,ice(ii,jj,bb)%numc)
+               
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) + fragvolc(ii,jj,bb,1:nspec)
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
+               ice(ii,jj,bb)%volc(1:nspec) = MAX(0., ice(ii,jj,bb)%volc(1:nspec))
+               
                ! POISTA
                IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
                     WRITE(*,*) 'DROP FRAC NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb

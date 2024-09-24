@@ -1,7 +1,9 @@
 MODULE constrain_SALSA
   USE mo_progn_state, ONLY : a_naerop, a_naerot, a_ncloudp, a_ncloudt, a_nprecpp, a_nprecpt,   &
                              a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,   &
-                             a_nicep,  a_nicet,  a_micep,   a_micet, a_gaerop, a_indefp, a_rp
+                             a_nicep,  a_nicet,  a_micep,   a_micet, a_gaerop, a_indefp, a_rp,  &
+                             ! The time tracers for particles charging are put to zero upon evaporation
+                             a_chargeTimep
   USE mo_diag_state, ONLY : a_rtot, a_rc, a_srp, a_snrp, a_rh, a_temp, a_ri, a_riri, a_rhi
   USE mo_aux_state, ONLY : aetot
   USE mo_submctl, ONLY : spec, nlim, prlim, ice_theta_dist
@@ -45,10 +47,10 @@ MODULE constrain_SALSA
    ! Juha Tonttila, FMI, 2014
    ! Tomi Raatikainen, FMI, 2016
 
-   SUBROUTINE SALSA_diagnostics(onlyDiag)
+   SUBROUTINE SALSA_diagnostics(onlyDiag,lcharge)
      USE grid, ONLY : nxp,nyp,nzp,    &
                       level
-     USE mo_derived_procedures, ONLY : binMixrat ! Maybe at some point one could use the actual variables instead of this subroutine directly?
+     USE mo_derived_procedures, ONLY : binMixrat, binSpecMixrat! Maybe at some point one could use the actual variables instead of this subroutine directly?
      USE mo_submctl, ONLY : nbins,ncld,nprc,nice,ica,fca,icb,fcb,ira,fra,              &
                             in1a,fn2b,                        &
                             nice,iia,fia,                    &
@@ -57,7 +59,8 @@ MODULE constrain_SALSA
      USE util, ONLY : getMassIndex
      IMPLICIT NONE
 
-     LOGICAL, INTENT(in), OPTIONAL :: onlyDiag ! If true, only update diagnostic concentrations and don't do anything else. Default value is FALSE.
+     LOGICAL, INTENT(in), OPTIONAL :: onlyDiag ! If true, only update diagnostic concentrations and don't do anything else. Default value is FALSE.    
+     LOGICAL, INTENT(in) :: lcharge  ! Whether charge emissions are used
 
      REAL, PARAMETER :: massTH = 1.e-25! Minimum mass threshold; corresponds to about a 1 nm particle == does not make sense
      
@@ -107,6 +110,7 @@ MODULE constrain_SALSA
                     IF (a_naerop%d(k,i,j,bc) > 0. .AND. SUM(a_maerop%d(k,i,j,bc:mi:nbins)) <= 0.) THEN
                        a_naerop%d(k,i,j,bc) = 0.
                        a_maerop%d(k,i,j,bc:mi:nbins) = 0.
+                       IF (lcharge) a_chargeTimep%d(k,i,j,bc) = 0.
                     END IF
                  END DO
                  
@@ -116,6 +120,7 @@ MODULE constrain_SALSA
                     IF (a_ncloudp%d(k,i,j,bc) > 0. .AND. SUM(a_mcloudp%d(k,i,j,bc:mi:ncld)) <= 0.) THEN
                        a_ncloudp%d(k,i,j,bc) = 0.
                        a_mcloudp%d(k,i,j,bc:mi:ncld) = 0.
+                       IF (lcharge) a_chargeTimep%d(k,i,j,nbins+bc) = 0.
                     END IF
                  END DO ! ncld
                  
@@ -125,6 +130,7 @@ MODULE constrain_SALSA
                     IF (a_nprecpp%d(k,i,j,bc) > 0. .AND. a_mprecpp%d(k,i,j,mi) <= 0.) THEN
                        a_nprecpp%d(k,i,j,bc) = 0.
                        a_mprecpp%d(k,i,j,bc:mi:nprc) = 0.
+                       IF (lcharge) a_chargeTimep%d(k,i,j,nbins+ncld+bc) = 0.
                     END IF
                  END DO ! nprc
                  
@@ -190,6 +196,8 @@ MODULE constrain_SALSA
                              a_mcloudp%d(k,i,j,sc) = 0.
                           END DO
                           
+                          IF (lcharge) a_chargeTimep%d(k,i,j,nbins+bc) = 0.
+
                        END IF ! critical diameter
                     END IF  ! nlim
                     
@@ -238,6 +246,8 @@ MODULE constrain_SALSA
                              a_mprecpp%d(k,i,j,sc) = 0.
                           END DO
                           
+                          IF (lcharge) a_chargeTimep%d(k,i,j,nbins+ncld+bc) = 0.
+
                        END IF ! Critical diameter
                        
                     END IF ! prlim

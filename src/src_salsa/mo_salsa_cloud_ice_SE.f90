@@ -19,7 +19,7 @@ MODULE mo_salsa_cloud_ice_SE
   !
 
 
-  ! This contains the ice nucleation paramterization procedures according
+  ! This contains the ice nucleation parameterization procedures according
   ! to Savre and Ekman 2015
 
   

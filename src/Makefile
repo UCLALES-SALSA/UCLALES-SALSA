@@ -70,7 +70,7 @@ util.o: $(seqmpi:.f90=.o) rfft.o
 math_functions.o: 
 defs.o:
 grid.o: $(seqmpi:.f90=.o) mo_submctl.o     \
-	classFieldArray.o mo_aux_state.o
+	classFieldArray.o mo_aux_state.o emission_types.o
 thrm.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_aux_state.o \
         grid.o defs.o $(seqmpi:.f90=.o)
 forc.o: grid.o mo_aux_state.o mo_diag_state.o mo_progn_state.o mo_vector_state.o \
@@ -110,7 +110,7 @@ mo_field_init.o:  $(seqmpi:.f90=.o) mo_progn_state.o mo_diag_state.o mo_derived_
                   mo_aux_state.o mo_ts_state.o mo_ps_state.o mo_field_state.o mo_check_state.o grid.o
 mo_aux_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o
 mo_diag_state.o: classFieldArray.o mo_structured_datatypes.o util.o mo_submctl.o
-mo_progn_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o 
+mo_progn_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o emission_types.o 
 mo_vector_state.o: classFieldArray.o mo_structured_datatypes.o 
 mo_derived_state.o: classFieldArray.o mo_structured_datatypes.o mo_derived_procedures.o 
 mo_derived_procedures.o: mo_submctl.o util.o defs.o mo_particle_external_properties.o grid.o \
@@ -176,13 +176,14 @@ mo_salsa_SIP_IIBR.o: mo_salsa_types.o mo_submctl.o classSection.o mo_ice_shape.o
 mo_salsa_sizedist.o: mo_salsa_types.o mo_submctl.o 
 mo_salsa.o: mo_submctl.o mo_salsa_dynamics.o mo_salsa_update.o \
 	    mo_salsa_cloud.o classSection.o mo_salsa_cloud_ice.o mo_salsa_cloud_ice_SE.o\
-            mo_salsa_secondary_ice.o 
+            mo_salsa_secondary_ice.o grid.o
 mo_salsa_dynamics.o: mo_salsa_types.o mo_submctl.o mo_salsa_nucleation.o \
                      mo_salsa_properties.o aerosol_thermodynamics.o \
                      classSection.o mo_particle_external_properties.o \
-	             mo_salsa_coagulation_kernels.o mo_salsa_coagulation_processes.o  
+	             mo_salsa_coagulation_kernels.o mo_salsa_coagulation_processes.o  \
+	             mo_salsa_secondary_ice.o
 mo_salsa_coagulation_kernels.o: mo_salsa_types.o mo_submctl.o classSection.o mo_particle_external_properties.o mo_ice_shape.o
-mo_salsa_coagulation_processes.o: mo_salsa_types.o mo_submctl.o classSection.o mo_particle_external_properties.o  
+mo_salsa_coagulation_processes.o: mo_salsa_types.o mo_submctl.o classSection.o mo_particle_external_properties.o 
 mo_salsa_nucleation.o: mo_salsa_types.o mo_submctl.o 
 mo_salsa_properties.o: mo_salsa_types.o mo_submctl.o
 mo_salsa_optical_properties.o: classSpecies.o mo_submctl.o

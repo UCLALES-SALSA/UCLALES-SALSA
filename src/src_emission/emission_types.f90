@@ -16,15 +16,14 @@ MODULE emission_types
   !
   TYPE  EmitConfig
      INTEGER          :: emitType = 1                 ! 1: Natural seasalt emissions, 2: custom artificial emissions
-                                                      ! Ali, addition of emission type 3
-                                                      ! 3: artificial emission given by a map (moving source of airborne emission)
-                                                      ! Ali, addition of emission type 3
-     INTEGER          :: regime = 1                   ! Destination bin regime for emitted aerosol. 1: A, 2: B
+                                                      ! 3: artificial emission given by a map (moving source of airborne emission; Ali)
+                                                      ! 4: similar to 2, but only charge emission without aerosols, 5: similar to 3, but only charge emission without aerosols
+     INTEGER          :: regime = 1                   ! Destination bin regime for emitted aerosol. 1: A, 2: B; Not applied for charge emission (4,5)
      REAL             :: start_time = 0.,  &          ! Start time for emission (s)
                          end_time = 86400.            ! End time for emission (s)
 
      ! Parameters below valid for emitType > 1
-     CHARACTER(len=3) :: species = 'SS '              ! Which aerosol species to emit (must conform to names in src_salsa/classSpecies)
+     CHARACTER(len=3) :: species = 'SS '              ! Which aerosol species to emit (must conform to names in src_salsa/classSpecies); Not applied for charge emission (4,5)
      REAL             :: emitHeightMin = -999.,  &    ! Min height of airborne emissions (m)
                          emitHeightMax = -999.        ! Max height (m)
      INTEGER          :: emitLevMin = -999            ! Integer levels corresponding to the heights; If both heights and lev indices are specified,
@@ -34,18 +33,22 @@ MODULE emission_types
      REAL             :: emitLonmin = -1.e6           ! Min and max Y/"lat" offsets in meters for the emission area
      REAL             :: emitLonmax = 1.e6
 
+     ! Particle characteristics not applied for charge emission (emitType 4,5)
      INTEGER          :: emitSizeDistType = 1         ! 1: Monochromatic aerosol, 2: modal size disribution (lognormal)
      REAL             :: emitDiam = 10.e-6,    &      ! Assumed (dry )diameter of the particles (mode diameter for emitType=2).
                          emitNum  = 10000.            ! Number consentration of particles emitted per second #/m3/s (mode concentration for emitType=2)
      REAL             :: emitSigma = 2.0              ! Geometric standard deviation for emitSizeDist=2
      ! Ali, addition of emission type 3
-     CHARACTER(len=40):: emitMap = ''                 ! Name of the file providing all location of emission (only for emitType = 3)
-     REAL             :: scS = 60.                    ! Source speed (m/s) (only for emitType = 3)
+     CHARACTER(len=40):: emitMap = ''                 ! Name of the file providing all location of emission (only for emitType = 3,5)
+     REAL             :: scS = 60.                    ! Source speed (m/s) (only for emitType = 3,5)
      INTEGER          :: z_expan_up = 0               ! Epands the emission map to adjacent cells above the given map
      INTEGER          :: z_expan_dw = 0               ! Epands the emission map to adjacent cells down the given map      
-     ! /
-  END TYPE EmitConfig
+     ! Parameters for particle charge emission (types 4,5)
+     REAL :: chargeDmax = 100.e-6 ! Charge emission takes place for droplets whose wet diameter is between chargeDmin and chargeDmax.
+     REAL :: chargeDmin = 1.e-6 
 
+  END TYPE EmitConfig
+  
   ! Ali, addition of emission type 3; this basically extends EmitConfig?
    TYPE EmitType3Config
      INTEGER, ALLOCATABLE :: ix(:)  ! x Index of source location, calculated based on 'emitMap' and computational grid
@@ -63,10 +66,12 @@ MODULE emission_types
    ! NAMELIST variables
    LOGICAL :: emitPristineIN = .TRUE.                        ! TRUE: when aerosol emissions active, IN active particles 
                                                              !       improve the IN efficiency of the target population.
-			                                     ! FALSE: IN efficiency of target population remains intact.    
+			                                                    ! FALSE: IN efficiency of target population remains intact. 
+   REAL :: chargeTMax = 1000.                                ! Max timescale for particle charging effect in seconds for emitTypes 4,5.
+   REAL :: chargeCollEnh = 0.0                               ! Max assumed fractional enhancement for coalescence coeffs    
    INTEGER :: nEmissionModes = 0                             ! Number of emission modes (max == maxemissionModes)
    TYPE(EmitConfig), TARGET :: emitModes(MaxEmissionModes)   ! Configuration instances for emission modes
    TYPE(EmitSizeDist), TARGET :: emitData(MaxEmissionModes)  ! Emission size distribution data for each setup/mode.
-   TYPE(EmitType3Config), TARGET :: emitType3(MaxEmissionModes)   ! Configuration instances for emission type 3
+   TYPE(EmitType3Config), TARGET :: emitType3(MaxEmissionModes)   ! Configuration instances for emission type 3;;; These are supposed to be namelist entries, so why is this listed here?
    
 END MODULE emission_types

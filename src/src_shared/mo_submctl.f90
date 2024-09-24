@@ -118,6 +118,9 @@ MODULE mo_submctl
   LOGICAL :: lsdistupdate = .TRUE.    ! Perform the size distribution update
   LOGICAL :: lscheckarrays = .FALSE.  ! Do some primitive error checking in the SALSA main program
 
+
+  REAL :: chargeTMax = 1000.   ! Max timescale for particle charging effect in seconds.
+
   ! RH Limit:
   ! If lsfreeRH=FALSE, use RH constrained by *rhlim* for SALSA processes. Otherwise use the predicted value.
   ! If lsfreeTH=TRUE and lsfreeRH%delay > 0, the constrain is active until that time, and predicted rh is used after the delay time.
