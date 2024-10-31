@@ -1237,15 +1237,15 @@ MODULE mcrp
                                    
                 ! Put the drops to new positions (may be partially the original grid cell as well!)
                 IF (fdos*dzt%d(kf) > 0.5) THEN  ! Reduce numerical diffusion
-                   prnchg(kf-1,bin) = prnchg(kf-1,bin) + prnumc
-                   DO ni = 1,ns
-                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + pmass(ni)
+                   prnchg(kf-1,bin) = prnchg(kf-1,bin) + prnumc*dzt%d(kf-1)/dzt%d(k)
+                    DO ni = 1,ns
+                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + pmass(ni)*dzt%d(kf-1)/dzt%d(k)
                    END DO
                 ELSE
-                   prnchg(kf-1,bin) = prnchg(kf-1,bin) + ( fdos*dzt%d(kf) )*prnumc
+                   prnchg(kf-1,bin) = prnchg(kf-1,bin) + ( fdos*dzt%d(kf) )*prnumc*dzt%d(kf-1)/dzt%d(kf)
                    prnchg(kf,bin) = prnchg(kf,bin) + ( 1. - fdos*dzt%d(kf) )*prnumc
                    DO ni = 1,ns
-                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + ( fdos*dzt%d(kf) )*pmass(ni)
+                      prvchg(kf-1,bin,ni) = prvchg(kf-1,bin,ni) + ( fdos*dzt%d(kf) )*pmass(ni)*dzt%d(kf-1)/dzt%d(kf)
                       prvchg(kf,bin,ni) = prvchg(kf,bin,ni) + ( 1. - fdos*dzt%d(kf) )*pmass(ni)
                    END DO
                 END IF ! diffusion
