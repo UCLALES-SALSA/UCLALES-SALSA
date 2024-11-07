@@ -735,6 +735,12 @@ contains
     case('T_avg')
        if (itype==0) ncinfo = 'Average absolute temperature'
        if (itype==1) ncinfo = 'K'
+    case('T_min_c')
+       if (itype==0) ncinfo = 'In-cloud minimum absolute temperature'
+       if (itype==1) ncinfo = 'K'
+    case('T_max_c')
+       if (itype==0) ncinfo = 'In-cloud maximum absolute temperature'
+       if (itype==1) ncinfo = 'K'
     case('thl_int')
        if (itype==0) ncinfo = 'Integrated liquid water potential temperature change'
        if (itype==1) ncinfo = 'Km'

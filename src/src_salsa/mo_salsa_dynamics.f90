@@ -110,7 +110,7 @@ CONTAINS
          lscgpp, lscgpa, lscgpc,     &
          lscgia, lscgic, lscgii, lscgip, &
          lscgsa, lscgsc, lscgsi, lscgsp, lscgss, &
-         nspec, CalcDimension, CalcMass, lscgrain, &
+         nspec, CalcDimension, lscgrain, &
          nlsip_hm, rime_volc_ice, rime_volc_snw, &
          hm_dmin_drop, hm_dmin_ice, &
          nlsip_df, coll_rate_ic, coll_rate_ir, coll_rate_sc, coll_rate_sr, &
@@ -213,27 +213,27 @@ CONTAINS
            !-- Aerosol diameter [m] and mass [kg]; density of 1500 kg/m3 assumed
            CALL CalcDimension(fn2b,paero(ii,jj,1:fn2b),nlim,1)
            zdpart(1:fn2b) = paero(ii,jj,1:fn2b)%dwet
-           CALL CalcMass(zmpart,fn2b,paero(ii,jj,:),nlim,1)
+           CALL CalcMass(zmpart,fn2b,paero(ii,jj,:),nlim)
 
            !-- Cloud droplet diameter and mass; Assume water density
            CALL CalcDimension(ncld,pcloud(ii,jj,1:ncld),nlim,2)
            zdcloud(1:ncld) = pcloud(ii,jj,1:ncld)%dwet
-           CALL CalcMass(zmcloud,ncld,pcloud(ii,jj,:),nlim,2)
+           CALL CalcMass(zmcloud,ncld,pcloud(ii,jj,:),nlim)
 
            !-- Precipitation droplet diameter and mass
            CALL CalcDimension(nprc,pprecp(ii,jj,1:nprc),prlim,3)
            zdprecp(1:nprc) = pprecp(ii,jj,1:nprc)%dwet
-           CALL CalcMass(zmprecp,nprc,pprecp(ii,jj,:),prlim,3)
+           CALL CalcMass(zmprecp,nprc,pprecp(ii,jj,:),prlim)
 
            !-- Ice particle diameter and mass - may not be spherical
            CALL CalcDimension(nice,pice(ii,jj,1:nice),prlim,4)
            zdice(1:nice) = pice(ii,jj,1:nice)%dwet
-           CALL CalcMass(zmice,nice,pice(ii,jj,:),prlim,4)
+           CALL CalcMass(zmice,nice,pice(ii,jj,:),prlim)
 
            !-- Snow diameter and mass - may not be spherical
            CALL CalcDimension(nsnw,psnow(ii,jj,1:nsnw),prlim,5)
            zdsnow(1:nsnw) = psnow(ii,jj,1:nsnw)%dwet
-           CALL CalcMass(zmsnow,nsnw,psnow(ii,jj,:),prlim,5)
+           CALL CalcMass(zmsnow,nsnw,psnow(ii,jj,:),prlim)
 
            temppi=ptemp(ii,jj)
            pressi=ppres(ii,jj)
@@ -1055,9 +1055,28 @@ CONTAINS
 
   END SUBROUTINE coagulation
 
+  ! This function is for SALSA t_section arrays and assumes volume-based concentration units
+  SUBROUTINE CalcMass(mass,n,ppart,lim)
+    USE mo_submctl, ONLY : t_section, dens
+    IMPLICIT NONE
+    REAL, INTENT(OUT) :: mass(n)
+    INTEGER, INTENT(in) :: n
+    TYPE(t_section), INTENT(in) :: ppart(n)
+    REAL, INTENT(IN) :: lim
+    INTEGER i
+
+    mass(:)=1e-30
+    DO i=1,n
+        IF (ppart(i)%numc<lim) THEN
+            ! No particles
+        ELSE
+            mass(i)=SUM(ppart(i)%volc(:)*dens(:))/ppart(i)%numc
+        ENDIF
+    ENDDO
+
+  END SUBROUTINE CalcMass
 
 
- 
 
   ! fxm: calculated for empty bins too
   ! fxm: same diffusion coefficients and mean free paths used for sulphuric acid
@@ -1426,21 +1445,19 @@ CONTAINS
 
     REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
 
-    INTEGER :: nstr,nstep,istep
+    INTEGER :: nstep,istep
     INTEGER :: ii,jj,cc
-    LOGICAL aero_eq, any_aero, any_cloud, any_prec, any_ice, any_snow
+    LOGICAL aero_eq(kbdim,klev), any_aero, any_cloud, any_prec, any_ice, any_snow
 
     zrh(:,:) = prv(:,:)/prs(:,:)
 
-    ! Calculate the condensation only for 2a/2b aerosol bins
-    nstr = in2a
 
     ! Save the current aerosol water content
     zaelwc1(:,:) = SUM(paero(:,:,in1a:fn2b)%volc(1),DIM=3)*rhowa
 
     ! If RH < 98 % or dynamic condensation for aerosol is switched off,
     ! do equilibrium for all aerosol bins, but otherwise just 1a.
-    aero_eq = zrh(1,1) < 0.98 .OR. .NOT. lscndh2oae ! Equilibrium for 2a and 2b?
+    aero_eq(:,:) = zrh(:,:) < 0.98 .OR. .NOT. lscndh2oae ! Equilibrium for 2a and 2b?
     CALL equilibration(kbdim,klev,zrh,ptemp,paero,aero_eq)
 
     ! The new aerosol water content after equilibrium calculation
@@ -1464,7 +1481,7 @@ CONTAINS
           IF ( .NOT. ( &
                 ((any_cloud .OR. any_prec) .AND. lscndh2ocl) .OR. &
                 ((any_ice .OR. any_snow) .AND. lscndh2oic) .OR. &
-                (any_aero .AND. .NOT.aero_eq) &
+                (any_aero .AND. .NOT.aero_eq(ii,jj)) &
                 ) ) CYCLE
 
           rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
@@ -1620,8 +1637,8 @@ CONTAINS
           ! Saturation mole concentration over flat surface
           ! Limit the supersaturation to max 1.01 for the mass transfer EXPERIMENTAL
           zcwsurfae =MAX(prs(ii,jj),prv(ii,jj)/1.01)*rhoair/mwa
-          DO cc = nstr,nbins
-             IF (paero(ii,jj,cc)%numc > nlim .AND. .NOT.aero_eq) THEN
+          DO cc = in2a,nbins
+             IF (paero(ii,jj,cc)%numc > nlim .AND. .NOT.aero_eq(ii,jj)) THEN
                 ! Wet diameter
                 dwet=( SUM(paero(ii,jj,cc)%volc(:))/paero(ii,jj,cc)%numc/pi6 )**(1./3.)
 
@@ -1668,24 +1685,24 @@ CONTAINS
           DO istep=1,nstep
 
              ! New vapor concentration
-             zhlp1 = zcwc + adt * ( SUM(zmtae(nstr:nbins)*zwsatae(nstr:nbins)*zcwsurfae) + &
+             zhlp1 = zcwc + adt * ( SUM(zmtae(in2a:nbins)*zwsatae(in2a:nbins)*zcwsurfae) + &
                                     SUM(zmtcd(1:ncld)*zwsatcd(1:ncld)*zcwsurfcd)         + &
                                     SUM(zmtpd(1:nprc)*zwsatpd(1:nprc)*zcwsurfpd)         + &
                                     SUM(zmtid(1:nice)*zwsatid(1:nice)*zcwsurfid)         + &
                                     SUM(zmtsd(1:nsnw)*zwsatsd(1:nsnw)*zcwsurfsd)         )
 
-             zhlp2 = 1. + adt * ( SUM(zmtae(nstr:nbins)) + SUM(zmtcd(1:ncld)) + SUM(zmtpd(1:nprc)) &
+             zhlp2 = 1. + adt * ( SUM(zmtae(in2a:nbins)) + SUM(zmtcd(1:ncld)) + SUM(zmtpd(1:nprc)) &
                                    + SUM(zmtid(1:nice)) + SUM(zmtsd(1:nsnw)) )
              zcwint = zhlp1/zhlp2
              zcwint = MIN(zcwint,zcwtot)
 
-             IF ( any_aero .AND. .NOT.aero_eq ) THEN
-                DO cc = nstr,nbins
+             IF ( any_aero .AND. .NOT.aero_eq(ii,jj) ) THEN
+                DO cc = in2a,nbins
                    zcwintae(cc) = zcwcae(cc) + min(max(adt*zmtae(cc)*(zcwint - zwsatae(cc)*zcwsurfae), &
                         -0.02*zcwcae(cc)),0.05*zcwcae(cc))
                    zwsatae(cc) = acth2o(paero(ii,jj,cc),zcwintae(cc))*zkelvin(cc)
                 END DO
-                zcwintae(nstr:nbins) = MAX(zcwintae(nstr:nbins),0.)
+                zcwintae(in2a:nbins) = MAX(zcwintae(in2a:nbins),0.)
              END IF
              IF ( any_cloud ) THEN
                 DO cc = 1,ncld

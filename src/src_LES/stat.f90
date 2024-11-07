@@ -20,11 +20,11 @@
 !
 module stat
 
-  use ncio, only : open_nc, define_nc
   use grid, only : level, lev_sb, maxn_list
   use util, only : get_avg3, get_cor3, get_var3, get_avg_ts, get_avg2dh, get_3rd3, &
                    HistDistr, get_zi_dmax, get_max_val, get_pustat_scalar, get_pustat_vector
   use defs, only : rowt, pi
+  use netcdf
 
   implicit none
   private
@@ -192,6 +192,7 @@ contains
   !
   subroutine init_stat(time, filprf, expnme, nzp)
 
+    use ncio, only : open_nc, define_nc
     use grid, only : nxp, nyp, nprc, nsnw, nspec, iradtyp, &
         no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, &
         sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, out_an_list, nv4_proc, &
@@ -875,7 +876,6 @@ contains
   ! Calculate warm cloud statistics
   subroutine set_cs_warm(n1,n2,n3,rc,nc,rp,np,th,w,crate,rrate,dn,zt,dzm)
 
-    use netcdf
     use grid, only : meanRadius
 
     integer, intent(in) :: n1,n2,n3
@@ -1038,7 +1038,6 @@ contains
   ! a) SALSA level 5
   subroutine set_cs_lvl5(n1,n2,n3)
     USE grid, ONLY : meanRadius, bulkNumc, a_dn, a_ri, a_srs, icein, snowin
-    use netcdf
     integer, intent (in) :: n1,n2,n3
     real    :: a(n2,n3), a1(n1,n2,n3)
     INTEGER :: iret,VarID
@@ -1113,7 +1112,6 @@ contains
   SUBROUTINE set_cs_ice(n1,n2,n3)
     USE grid, ONLY : a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, &
         a_dn, icein, snowin, grin, hailin
-    use netcdf
     integer, intent (in) :: n1,n2,n3
     real    :: a(n2,n3), a1(n1,n2,n3)
     INTEGER :: iret,VarID
@@ -1232,7 +1230,6 @@ contains
 
   ! User-defined outputs (given in NAMELIST/user_cs_list)
   subroutine cs_user_stats()
-    use netcdf
     use grid, ONLY : CCN, nzp, nxp, nyp, a_dn, a_rv, a_rp, a_rsl, a_rsi, a_temp, &
         a_fuir, a_up, a_vp, umean, vmean
     INTEGER :: ii, iret, VarID
@@ -1269,6 +1266,14 @@ contains
         CASE ('T_min')
             ! Minimum absolute temperature (K)
             output(:,:)=MINVAL(a_temp,DIM=1)
+        CASE ('T_min_c')
+            ! In-cloud minimum absolute temperature (K)
+            output(:,:)=MINVAL(a_temp,DIM=1,MASK=cloudmask)
+            WHERE(output>1e3) output=-999.0 ! If no cloud
+        CASE ('T_max_c')
+            ! In-cloud maximum absolute temperature (K)
+            output(:,:)=MAXVAL(a_temp,DIM=1,MASK=cloudmask)
+            WHERE(output<0.0) output=-999.0 ! If no cloud
         CASE('toa_lwu')
             ! Top of atmosphere LW up
             output=a_fuir(nzp+1,:,:)
@@ -1298,7 +1303,6 @@ contains
 
   ! Other column statistics
   subroutine set_cs_other(time)
-    use netcdf
     USE grid, ONLY : nxp, nyp, xt, xm, yt, ym, albedo
     ! Inputs
     REAL, INTENT(IN) :: time
@@ -1632,7 +1636,7 @@ contains
     ! The same for hail
     ssclr_ice(16) = get_avg_ts(n1,n2,n3,a_rhp,dzt,dens=a_dn)
     mask = (a_nhp > ni_min .OR. a_rhp > ri_min)
-    CALL getSBradius(n1,n2,n3,a_nsp,a_rsp,4,a1)
+    CALL getSBradius(n1,n2,n3,a_nhp,a_rhp,4,a1)
     ssclr_ice(17) = get_avg_ts(n1,n2,n3,a1,dzt,mask)
     ssclr_ice(18) = get_avg_ts(n1,n2,n3,a_nhp,dzt,mask)
     k=COUNT( mask(2:n1,3:n2-2,3:n3-2) )
@@ -1759,6 +1763,16 @@ contains
             ! Minimum absolute temperature (K)
             a1=MINVAL(a_temp(:,3:nxp-2,3:nyp-2))
             user_ts_data(i) = get_pustat_scalar('min',a1)
+        CASE ('T_min_c')
+            ! In-cloud minimum absolute temperature (K)
+            a1=MINVAL(a_temp(:,3:nxp-2,3:nyp-2),MASK=cloudmask(:,3:nxp-2,3:nyp-2))
+            user_ts_data(i) = get_pustat_scalar('min',a1)
+            IF (user_ts_data(i)>1e3) user_ts_data(i)=-999.0 ! If no cloud
+        CASE ('T_max_c')
+            ! In-cloud maximum absolute temperature (K)
+            a1=MAXVAL(a_temp(:,3:nxp-2,3:nyp-2),MASK=cloudmask(:,3:nxp-2,3:nyp-2))
+            user_ts_data(i) = get_pustat_scalar('max',a1)
+            IF (user_ts_data(i)<0.0) user_ts_data(i)=-999.0 ! If no cloud
          CASE ('drflx_c')
             ! Total cloud radiative cooling (W/m2)
             a1=calc_ctrc(a_rflx)
@@ -1952,8 +1966,10 @@ contains
     ! cloud and rain statistics
     ! Droplet number concentration
     CALL get_avg3(n1,n2,n3,nc,a1,cond=cloudmask)
+    CALL fix_missing_ps(svctr(:,87),a1(:)) ! Masked values are filled with current average
     svctr(:,87) = svctr(:,87) + a1(:)
     CALL get_avg3(n1,n2,n3,nr,a1,cond=rainmask)
+    CALL fix_missing_ps(svctr(:,92),a1(:))
     svctr(:,92) = svctr(:,92) + a1(:)
     ! Average radius
     IF (level<4) THEN
@@ -1964,8 +1980,10 @@ contains
         CALL meanRadius('precp','ab',xy2)
     ENDIF
     CALL get_avg3(n1,n2,n3,xy1,a1,cond=cloudmask)
+    CALL fix_missing_ps(svctr(:,84),a1(:))
     svctr(:,84) = svctr(:,84) + a1(:)
     CALL get_avg3(n1,n2,n3,xy2,a1,cond=rainmask)
+    CALL fix_missing_ps(svctr(:,88),a1(:))
     svctr(:,88) = svctr(:,88) + a1(:)
     ! Fraction of cloudy/rainy grid cells
     WHERE(cloudmask)
@@ -2073,10 +2091,12 @@ contains
     ! Ice number - requires mask
     mask = (a_nip > ni_min .OR. a_rip > ri_min)
     CALL get_avg3(n1,n2,n3,a_nip,col,cond=mask)
+    CALL fix_missing_ps(svctr_ice(:,2),col(:))
     svctr_ice(:,2) = svctr_ice(:,2) + col(:)
     ! Ice radius
     CALL getSBradius(n1,n2,n3,a_nip,a_rip,1,a1)
     CALL get_avg3(n1,n2,n3,a1,col,cond=mask)
+    CALL fix_missing_ps(svctr_ice(:,3),col(:))
     svctr_ice(:,3) = svctr_ice(:,3) + col(:)
     ! Fraction of icy grid cells
     a1 = merge(1., 0., mask)
@@ -2091,9 +2111,11 @@ contains
     svctr_ice(:,6) = svctr_ice(:,6) + col(:)
     mask = (a_nsp > ni_min .OR. a_rsp > ri_min)
     CALL get_avg3(n1,n2,n3,a_nsp,col,cond=mask)
+    CALL fix_missing_ps(svctr_ice(:,7),col(:))
     svctr_ice(:,7) = svctr_ice(:,7) + col(:)
     CALL getSBradius(n1,n2,n3,a_nsp,a_rsp,2,a1)
     CALL get_avg3(n1,n2,n3,a1,col,cond=mask)
+    CALL fix_missing_ps(svctr_ice(:,8),col(:))
     svctr_ice(:,8) = svctr_ice(:,8) + col(:)
     a1 = merge(1., 0., mask)
     CALL get_avg3(n1,n2,n3,a1,col)
@@ -2106,9 +2128,11 @@ contains
     svctr_ice(:,11) = svctr_ice(:,11) + col(:)
     mask = (a_ngp > ni_min .OR. a_rgp > ri_min)
     CALL get_avg3(n1,n2,n3,a_ngp,col,cond=mask)
+    CALL fix_missing_ps(svctr_ice(:,12),col(:))
     svctr_ice(:,12) = svctr_ice(:,12) + col(:)
     CALL getSBradius(n1,n2,n3,a_ngp,a_rgp,3,a1)
     CALL get_avg3(n1,n2,n3,a1,col,cond=mask)
+    CALL fix_missing_ps(svctr_ice(:,13),col(:))
     svctr_ice(:,13) = svctr_ice(:,13) + col(:)
     a1 = merge(1., 0., mask)
     CALL get_avg3(n1,n2,n3,a1,col)
@@ -2121,9 +2145,11 @@ contains
     svctr_ice(:,16) = svctr_ice(:,16) + col(:)
     mask = (a_nhp > ni_min .OR. a_rhp > ri_min)
     CALL get_avg3(n1,n2,n3,a_nhp,col,cond=mask)
+    CALL fix_missing_ps(svctr_ice(:,17),col(:))
     svctr_ice(:,17) = svctr_ice(:,17) + col(:)
     CALL getSBradius(n1,n2,n3,a_nhp,a_rhp,4,a1)
     CALL get_avg3(n1,n2,n3,a1,col,cond=mask)
+    CALL fix_missing_ps(svctr_ice(:,18),col(:))
     svctr_ice(:,18) = svctr_ice(:,18) + col(:)
     a1 = merge(1., 0., mask)
     CALL get_avg3(n1,n2,n3,a1,col)
@@ -2199,10 +2225,12 @@ contains
 
     ! Ice number concentration
     CALL get_avg3(n1,n2,n3,a1,col,cond=icemask)
+    CALL fix_missing_ps(svctr_lvl5(:,2),col(:))
     svctr_lvl5(:,2) = svctr_lvl5(:,2) + col(:)
     ! Mean radius
     CALL meanRadius('ice','ab',a1)
     CALL get_avg3(n1,n2,n3,a1,col,cond=icemask)
+    CALL fix_missing_ps(svctr_lvl5(:,3),col(:))
     svctr_lvl5(:,3) = svctr_lvl5(:,3) + col(:)
     ! Fraction of icy grid cells
     WHERE(icemask)
@@ -2225,10 +2253,12 @@ contains
     snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a_srs(:,:,:) > ris_min)
 
     CALL get_avg3(n1,n2,n3,a1,col,cond=snowmask)
+    CALL fix_missing_ps(svctr_lvl5(:,7),col(:))
     svctr_lvl5(:,7) = svctr_lvl5(:,7) + col(:)
 
     CALL meanRadius('snow','ab',a1)
     CALL get_avg3(n1,n2,n3,a1,col,cond=snowmask)
+    CALL fix_missing_ps(svctr_lvl5(:,8),col(:))
     svctr_lvl5(:,8) = svctr_lvl5(:,8) + col(:)
 
     WHERE(snowmask)
@@ -2361,6 +2391,20 @@ contains
             a1(:)=SUM(SUM(a_temp(:,3:nxp-2,3:nyp-2),DIM=3),DIM=2)/FLOAT((nxp-4)*(nyp-4))
             CALL get_pustat_vector('avg', nzp, a1)
             user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
+        CASE ('T_max_c')
+            ! In-cloud maximum absolute temperature (K)
+            a1(:)=MAXVAL(MAXVAL(a_temp(:,3:nxp-2,3:nyp-2),DIM=3,MASK=cloudmask(:,3:nxp-2,3:nyp-2)),DIM=2)
+            CALL get_pustat_vector('max', nzp, a1)
+            WHERE(a1<0.) a1=0. ! Set masked values to zero
+            CALL fix_missing_ps(user_ps_data(:,i),a1(:))
+            user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
+        CASE ('T_min_c')
+            ! In-cloud minimum absolute temperature (K)
+            a1(:)=MINVAL(MINVAL(a_temp(:,3:nxp-2,3:nyp-2),DIM=3,MASK=cloudmask(:,3:nxp-2,3:nyp-2)),DIM=2)
+            CALL get_pustat_vector('min', nzp, a1)
+            WHERE(a1>1e3) a1=0. ! Set masked values to zero
+            CALL fix_missing_ps(user_ps_data(:,i),a1(:))
+            user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
         CASE ('res_tke')
             ! Resolved TKE
             user_ps_data(:,i) = user_ps_data(:,i) + tke_res(:)
@@ -2373,6 +2417,7 @@ contains
             ENDIF
             ! Averaging
             CALL get_avg3(nzp,nxp,nyp,a,a1,cond=mask)
+            CALL fix_missing_ps(user_ps_data(:,i),a1(:)) ! Assume that zero means missing value
             user_ps_data(:,i) = user_ps_data(:,i) + a1(:)
         END SELECT
     ENDDO
@@ -2548,6 +2593,21 @@ contains
     !
   END subroutine ps_user_bin_stats
   !
+  ! Account for masked values when accumulating profile variables
+  SUBROUTINE fix_missing_ps(curr,new)
+    use grid, ONLY : nzp
+    REAL, INTENT(IN) :: curr(nzp)   ! Current profile data where masked values are zeros
+    REAL, INTENT(INOUT) :: new(nzp) ! New data where masked values are zeros
+    INTEGER :: i
+    !
+    IF (nsmp>1) THEN
+        DO i=1,nzp
+            ! If the new value is missing (zero) and the current data is available (non-zero)
+            ! then just use the current average (curr is sum of nspm-1 values)
+            IF (ABS(new(i))<1e-15 .AND. ABS(curr(i))>1e-15) new(i)=curr(i)/REAL(nsmp-1)
+        ENDDO
+    ENDIF
+  END SUBROUTINE fix_missing_ps
   !
   !
   subroutine comp_tke(n1,n2,n3,dzm,th00,u,v,w,s)
@@ -2668,7 +2728,6 @@ contains
   !
   subroutine write_ts
 
-    use netcdf
     use mpi_interface, only : myid
 
     integer :: iret, n, VarID
@@ -2742,7 +2801,6 @@ contains
   !
   subroutine  write_ps(n1,dn0,u0,v0,zm,zt,time)
 
-    use netcdf
     use defs, only : cp
     USE mo_submctl, ONLY : in1a,in2a,fn2a, &
                                aerobins,precpbins,snowbins, &
@@ -2944,7 +3002,6 @@ contains
   ! 2D (x,y) arrays for both cs and ts outputs
   subroutine fill_scalar_2d(xval,vname)
     USE grid, ONLY : nxp, nyp
-    use netcdf
     ! Inputs
     real, intent(in) :: xval(nxp,nyp) ! 2D input data
     character(len=7), intent (in) :: vname ! Output variable name
@@ -2962,7 +3019,7 @@ contains
     !
     ! ******** scalar outputs ********
     ! Valid for horizontal averages
-    avg=SUM(SUM(xval(3:nxp-2,3:nyp-2),DIM=2))/FLOAT((nxp-4)*(nyp-4))
+    avg=SUM(xval(3:nxp-2,3:nyp-2))/FLOAT((nxp-4)*(nyp-4))
     CALL fill_scalar(avg,vname)
     !
   end subroutine fill_scalar_2d
@@ -3695,8 +3752,6 @@ contains
   ! -------------------------------------------------------------------------
   !
   integer function close_stat()
-
-    use netcdf
 
     close_stat = nf90_close(ncid1) + nf90_close(ncid2)
     IF (csflg) close_stat = close_stat + nf90_close(ncid3)

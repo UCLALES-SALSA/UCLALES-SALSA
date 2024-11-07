@@ -26,7 +26,8 @@ CONTAINS
     USE mo_vbs_partition, ONLY : vbs_gas_phase_chem, vbs_condensation
     USE mo_salsa_update, ONLY : distr_update
     USE mo_salsa_cloud, only : cloud_activation, autoconv2, autoconv_sb, &
-            autosnow, fixed_ice_driver, ice_nucl_driver, ice_melt, sip_hm, sip_iibr, sip_df
+            autosnow, fixed_ice_driver,  param_ice_driver, ice_nucl_driver, ice_melt, &
+            sip_hm, sip_iibr, sip_df
 
     USE mo_submctl, ONLY :      &
          fn2b,ncld,nprc,nice,nsnw,nvbs,    &
@@ -35,7 +36,8 @@ CONTAINS
          nlcndh2ocl,nlcndh2oic,            &
          lsauto,auto_sb,lsautosnow,lsactiv,&
          lsicenucl,lsicmelt,lsdistupdate,  &
-         fixinc, ice_hom, ice_imm, ice_dep, nlsip_hm, nlsip_iibr, nlsip_df
+         fixinc, ice_diag, ice_hom, ice_imm, ice_dep, &
+         nlsip_hm, nlsip_iibr, nlsip_df
 
     IMPLICIT NONE
 
@@ -152,8 +154,7 @@ CONTAINS
     IF (lsactiv ) THEN
          IF (sflg) CALL salsa_var_stat('cact',0)
          CALL cloud_activation(kbdim,  klev,          &
-                               ptemp,  ppres, prv,    &
-                               prs,    paero, pcloud  )
+                               ptemp, prv, prs, paero, pcloud)
          IF (sflg) CALL salsa_var_stat('cact',1)
     ENDIF
 
@@ -163,12 +164,20 @@ CONTAINS
     !     to the autoconversion variables (no ice category; autoconversion disabled)
     IF (lsicenucl) THEN
       IF (sflg) CALL salsa_var_stat('nucl',0) ! Total
-      IF (fixinc>=0.) THEN
-        ! Fixed ice number concentration
+      IF (fixinc>=0. .OR. ice_diag<0) THEN
+        ! Fixed (fixinc>0.0) or diagnostic (ice_diag<0) ice number concentration
         IF (sflg) CALL salsa_var_stat('nucf',0) ! Fixed ice
         CALL fixed_ice_driver(kbdim, klev,             &
                              pcloud, pice,   psnow,    &
-                             ptemp,  ppres,  prv,  prsi)
+                             ptemp,  ppres,  prv, prs, prsi)
+        IF (sflg) CALL salsa_var_stat('nucf',1)
+      ENDIF
+     IF (ice_diag>0) THEN
+        ! Various other ice formation parameterizations
+        IF (sflg) CALL salsa_var_stat('nucf',0) ! Use the same variable as for fixed ice
+        CALL param_ice_driver(kbdim, klev,             &
+                             paero, pcloud, pprecp, pice, psnow, &
+                             ice_diag, ptemp, ppres, prv, prs, prsi)
         IF (sflg) CALL salsa_var_stat('nucf',1)
       ENDIF
       IF (ice_hom .OR. ice_imm .OR. ice_dep) THEN

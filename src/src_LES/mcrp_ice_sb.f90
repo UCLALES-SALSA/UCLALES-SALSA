@@ -258,10 +258,17 @@ module mcrp_ice_sb
   !  2    Ice/snow/graupel+rain=>graupel
   !  3    Ice/snow/graupel+rain=>graupel (smaller rain drop) or hail (larger rain drop)
 
-  ! Fixed INP concentration (micro/nin_set) applied to supercooled liquid clouds
-  REAL :: nin_set = 0.
+  ! Ice formation
+  INTEGER :: nuc_i_typ = 0
+  !  0    Fixed INP concentration: nin_set*exp(nin_slope*(273.15-T))
+  !  >0   Different ice nucleation parameterizations
+
+  ! Fixed INP concentration (micro/nin_set & nin_slope) applied to supercooled liquid clouds
+  REAL :: nin_set = 0., nin_slope = 0.
 
   REAL :: T_nuc = 273.15 ! Maximum temperature for ice nucleation (K)
+  REAL :: Si_nuc = 0.0   ! Minimum ice supersaturation
+  REAL :: rc_nuc = 1e-6  ! Minimum cloud water mixing ratio (kg/m3)
 
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_04
   REAL, DIMENSION (:,:,:), ALLOCATABLE :: rrho_c
@@ -325,7 +332,7 @@ CONTAINS
     namelist /micro/ &
         drop_freeze, graupel_shedding, hail_shedding, enhanced_melting, ice_multiplication, &
         use_ice_graupel_conv_uli, &
-        ice_typ, cloud_typ, T_nuc, nin_set, &
+        ice_typ, cloud_typ, T_nuc, Si_nuc, rc_nuc, nuc_i_typ, nin_set, nin_slope, &
         q_krit_ic, D_krit_ic,  q_krit_ir, D_krit_ir, q_krit_sc, D_krit_sc, q_krit_sr, D_krit_sr, &
         q_krit_gc, D_krit_gc, q_krit_gr, q_krit_hc, D_krit_hc, q_krit_hr, q_krit_c, q_krit_r, &
         q_krit_ii, D_krit_ii, q_krit, &
@@ -728,18 +735,25 @@ CONTAINS
     !*******************************************************************************
     IMPLICIT NONE
 
-    ! Locale Variablen 
-    REAL, PARAMETER :: eps  = 1.e-20
-    REAL    :: nuc_q, ndiag
+    ! Locale Variablen
+    REAL    :: nin, nuc_q, ndiag
     INTEGER :: i,j,k
 
     DO k = 1, loc_iz
       DO j = 1, loc_iy
         DO i = 0, loc_ix
-          IF (s_i(i,j,k)>0.0 .AND. q_cloud(i,j,k)>0.001e-3 .AND. T_0(i,j,k)<T_nuc .AND. &
-                nin_set*ice%x_min>eps) THEN
+          IF (s_i(i,j,k)>Si_nuc .AND. q_cloud(i,j,k)>rc_nuc .AND. T_0(i,j,k)<T_nuc) THEN
+            IF (nuc_i_typ==0) THEN
+               ! Constant ice number concentration (#/kg) converted to #/m3
+               nin = nin_set*EXP(nin_slope*(T_3-T_0(i,j,k)))*rho_0(i,j,k)
+            ELSE
+               ! Temperature and/or saturation dependent parameterizations for
+               ! ice concentration (#/m3)
+               nin = n_ice_diagnostic(T_0(i,j,k),s_i(i,j,k),nuc_i_typ)
+            ENDIF
+
             ! Cloud droplet freezing with fixed INP concentration
-            ndiag = MAX(nin_set*rho_0(i,j,k) - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0)
+            ndiag = MAX(nin - (n_ice(i,j,k)+n_snow(i,j,k)+n_graupel(i,j,k)+n_hail(i,j,k)),0.0)
             nuc_q = MIN(ndiag*ice%x_min, q_cloud(i,j,k))
 
             q_ice(i,j,k) = q_ice(i,j,k) + nuc_q
@@ -752,6 +766,142 @@ CONTAINS
     ENDDO
 
   END SUBROUTINE ice_nucleation
+
+  REAL FUNCTION n_ice_diagnostic(T_a,S_i,nuc_typ)
+    IMPLICIT NONE
+
+    INTEGER :: nuc_typ
+    REAL    :: T_a, S_i
+    REAL    :: S_w
+
+    IF (nuc_typ == 1) THEN
+      n_ice_diagnostic = n_ice_fletcher(T_a)
+    ELSEIF (nuc_typ == 2) THEN
+      n_ice_diagnostic = n_ice_meyers(MIN(S_i,0.25))
+    ELSEIF (nuc_typ == 3) THEN
+      ! Constraints suggested by Hugh Morrison:
+      IF (S_i >= 0.08 .OR. T_a <= 265.16) THEN
+        n_ice_diagnostic = n_ice_cooper(T_a)
+      ELSE
+        n_ice_diagnostic = 0.0
+      END IF
+    ELSEIF (nuc_typ == 4) THEN
+      S_w = 0.0 ! In-cloud, so saturated with respect to water
+      n_ice_diagnostic = n_ice_huffmann_vali(T_a,S_w,S_i)
+    ELSEIF (nuc_typ == 5) THEN
+      n_ice_diagnostic = n_ice_fletcher_contact(T_a)
+    ELSEIF (nuc_typ == 6) THEN
+      n_ice_diagnostic = n_ice_meyers_contact(T_a,S_i)
+    ENDIF
+
+  END FUNCTION n_ice_diagnostic
+
+  REAL FUNCTION n_ice_fletcher(T_a)
+    ! Diagnostische Beziehung fuer Anzahldichte der Eisteilchen nach Fletcher (1962)
+    ! mit Temperaturlimit nach Reisner et al. (1998)
+    IMPLICIT NONE
+
+    REAL            :: T_a            !..Absolute Temperatur
+    REAL, PARAMETER :: T_m = 246.00   !..Temperaturlimit
+    REAL, PARAMETER :: N_0 = 1.0e-2
+    REAL, PARAMETER :: k_f = 0.6
+
+    n_ice_fletcher = N_0 * EXP( - k_f * (MAX(T_a,T_m) - T_3) )
+
+    RETURN
+  END FUNCTION n_ice_fletcher
+
+  REAL FUNCTION n_ice_meyers(S)
+    ! Diagnostische Beziehung fuer Anzahldichte der Eisteilchen nach Meyers (1992)
+    IMPLICIT NONE
+
+    REAL            :: S              !..Uebersaettigung bzgl. Eis
+    REAL, PARAMETER :: a_d = -0.639
+    REAL, PARAMETER :: b_d = 12.960
+    REAL, PARAMETER :: N_0 = 1.0e+3
+
+    n_ice_meyers = N_0 * EXP( a_d + b_d * S )
+
+    RETURN
+  END FUNCTION n_ice_meyers
+
+  REAL FUNCTION n_ice_cooper(T_a)
+    ! Diagnostische Beziehung fuer Anzahldichte der Eisteilchen nach Cooper (1986)
+    ! (siehe auch Rasmussen et al 2002, JAS; Thompson etal 2004, MWR)
+    IMPLICIT NONE
+
+    REAL            :: T_a            !..Absolute Temperatur
+! ub>> Suggestion by Hugh Morrison and Roy Rasmussen and Greg Thompson:
+!    REAL, PARAMETER :: T_m = 233.00   !..Temperaturlimit
+    REAL, PARAMETER :: T_m = 238.15   !..Temperaturlimit -35 Grad C
+! ub<<
+    REAL, PARAMETER :: N_0 = 5.0
+    REAL, PARAMETER :: k_f = 0.304
+
+! weiteres limit: hoechstens 500 IN pro Liter
+    n_ice_cooper = MIN( 5.0e5, N_0 * EXP( k_f * (T_3 - MAX(T_a,T_m)) ) )
+
+    RETURN
+  END FUNCTION n_ice_cooper
+
+  REAL FUNCTION n_ice_huffmann_vali(T_a,S_w,S_i)
+    ! Diagnostische Beziehung fuer Anzahldichte der Eisteilchen nach Fletcher (1962)
+    ! und Huffmann und Vali (1973) (siehe auch Murakami, 1990)
+    ! mit Temperaturlimit nach Reisner et al. (1998)
+    IMPLICIT NONE
+
+    REAL            :: T_a            !..Absolute Temperatur
+    REAL            :: S_w, S_i
+    REAL, PARAMETER :: T_m = 246.00   !..Temperaturlimit
+    REAL, PARAMETER :: N_0 = 1.0e-2
+    REAL, PARAMETER :: k_f = 0.6
+    REAL, PARAMETER :: B   = 4.5
+
+    REAL            :: S_0
+
+    S_0 = S_w/S_i*(S_i+1.0)-1.0
+
+    n_ice_huffmann_vali = N_0 * (S_i/S_0)**B * EXP( - k_f * (MAX(T_a,T_m) - T_3) )
+
+  END FUNCTION n_ice_huffmann_vali
+
+  REAL FUNCTION n_ice_fletcher_contact(T_a)
+    ! Diagnostische Beziehung fuer Anzahldichte der Eisteilchen nach Fletcher (1962)
+    ! mit Temperaturlimit nach Reisner et al. (1998)
+    ! + Contactnukleation Meyers (1992)
+    IMPLICIT NONE
+
+    REAL            :: T_a            !..Absolute Temperatur
+    REAL, PARAMETER :: T_m = 246.00   !..Temperaturlimit
+    REAL, PARAMETER :: N_f = 1.0e-2
+    REAL, PARAMETER :: k_f = 0.6
+    REAL, PARAMETER :: c = -2.8
+    REAL, PARAMETER :: d = 0.262
+    REAL, PARAMETER :: N_m = 1.0e3
+
+    n_ice_fletcher_contact = N_f * EXP( - k_f * (MAX(T_a,T_m) - T_3) ) &
+                           + N_m * EXP( c + d * (T_a - T_3) )
+
+    RETURN
+  END FUNCTION n_ice_fletcher_contact
+
+  REAL FUNCTION n_ice_meyers_contact(T_a,S)
+    ! Diagnostische Beziehung fuer Anzahldichte der Eisteilchen nach Meyers (1992)
+    IMPLICIT NONE
+
+    REAL            :: S,T_a
+    REAL, PARAMETER :: N_0 = 1.0e+3
+    REAL, PARAMETER :: N_m = 1.0e+3
+    REAL, PARAMETER :: a_d = -0.639
+    REAL, PARAMETER :: b_d = 12.960
+    REAL, PARAMETER :: c_d = -2.8
+    REAL, PARAMETER :: d_d = 0.262
+
+    n_ice_meyers_contact = N_0 * EXP( a_d + b_d * S )         &
+                         + N_m * EXP( c_d + d_d * (T_3 - T_a) )
+
+    RETURN
+  END FUNCTION n_ice_meyers_contact
 
   SUBROUTINE ice_cloud_riming()
     !*******************************************************************************

@@ -127,24 +127,10 @@ IMPLICIT NONE
     TYPE(t_section) :: aero_old(1,1,fn2b), cloud_old(1,1,fnp2b), precp_old(1,1,nprc), &
        ice_old(1,1,fnp2b), snow_old(1,1,nsnw)
 
-    INTEGER :: jj,ii,kk,ss,str,end,nc
+    INTEGER :: jj,ii,kk,str,end,nc
     REAL, DIMENSION(kbdim,klev) :: in_p, in_t, in_rv, in_rs, in_rsi, in_edr
     REAL :: rv_old(kbdim,klev), rho
     REAL :: out_sdata(kbdim,klev,nstat)
-
-    ! Number is always set, but mass can be uninitialized
-    DO ss = 1,maxnspec
-       aero(:,:,:)%volc(ss) = 0.
-       cloud(:,:,:)%volc(ss) = 0.
-       precp(:,:,:)%volc(ss) = 0.
-       ice(:,:,:)%volc(ss) = 0.
-       snow(:,:,:)%volc(ss) = 0.
-       aero_old(:,:,:)%volc(ss) = 0.
-       cloud_old(:,:,:)%volc(ss) = 0.
-       precp_old(:,:,:)%volc(ss) = 0.
-       ice_old(:,:,:)%volc(ss) = 0.
-       snow_old(:,:,:)%volc(ss) = 0.
-    END DO
 
     IF (sflg .AND. nstat>0) sdata(:,:,:,:) = 0.
 
@@ -243,7 +229,7 @@ IMPLICIT NONE
 
 
              ! If this is an initialization call, calculate the equilibrium particle
-             If (prunmode == 1) CALL equilibration(kbdim,klev,init_rh,in_t,aero,.TRUE.)
+             If (prunmode == 1) CALL equilibration(kbdim,klev,init_rh,in_t,aero,init_rh>0.)
 
 
              ! ***************************************!

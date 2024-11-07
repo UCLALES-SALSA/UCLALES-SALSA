@@ -96,8 +96,10 @@ MODULE mo_submctl
 
 
   ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
-  ! a) Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice/snow
-  REAL :: fixinc = -1.0 ! Default = disabled
+  ! a) Constant (fixinc > 0 #/kg) or diagnosed (ice_diag /= 0) ice number concentration is
+  ! maintained by converting cloud droplets to ice/snow
+  REAL :: fixinc = -1.0, fixinc_slope = 0.0 ! Default = disabled
+  INTEGER :: ice_diag = 0 ! Default = disabled
   REAL :: fixed_ice_min_Si=1.05, fixed_ice_min_rc=1e-6, fixed_ice_max_T=273.15 ! Thresholds
   ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
   INTEGER :: ice_source_opt = 1 ! Default = start from the largest bin
@@ -398,27 +400,6 @@ contains
 
   END SUBROUTINE CalcDimension
   !
-  ! This function is for SALSA t_section arrays and assumes volume-based concentration units
-  SUBROUTINE CalcMass(mass,n,ppart,lim,flag)
-    IMPLICIT NONE
-    REAL, INTENT(OUT) :: mass(n)
-    INTEGER, INTENT(in) :: n
-    TYPE(t_section), INTENT(in) :: ppart(n)
-    REAL, INTENT(IN) :: lim
-    INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
-    INTEGER i
-
-    mass(:)=1e-30
-    DO i=1,n
-        IF (ppart(i)%numc<lim) THEN
-            ! No particles
-        ELSE
-            mass(i)=SUM(ppart(i)%volc(:)*dens(:))/ppart(i)%numc
-        ENDIF
-    ENDDO
-
-  END SUBROUTINE CalcMass
-  !
   ! This function is for single LES size bin and assumes that concentration is given as mass per particle
   REAL FUNCTION calc_eff_radius(n,mass,flag)
     IMPLICIT NONE
@@ -453,16 +434,6 @@ contains
     REAL, INTENT(IN) :: T ! Absolute temperature (K)
     REAL :: dwet
 
-    !   #  Name Diss
-    !   1   SO4   3
-    !   2   OC     1
-    !   3   BC     0
-    !   4   DU    0
-    !   5   SS     2
-    !   6   NO    1
-    !   7   NH    1
-    !   8   H2O
-
     ! Wet diameter
     dwet=(SUM(part%volc(:))/part%numc/pi6)**(1./3.)
 
@@ -490,26 +461,10 @@ contains
   REAL FUNCTION calc_correlation(x,y,n)
     INTEGER :: n
     REAL :: x(n), y(n)
-    REAL :: sx, sy, sx2, sy2, sxy
-    INTEGER :: i
     IF (n<=1) THEN
         calc_correlation = 0.
     ELSE
         calc_correlation = (SUM(x*y)*n-SUM(x)*SUM(y))/( SQRT(SUM(x**2)*n-SUM(x)**2)*SQRT(SUM(y**2)*n-SUM(y)**2) )
-    ENDIF
-    RETURN
-    sx=0.; sy=0.; sx2=0.; sy2=0.; sxy=0.
-    DO i=1,n
-        sx=sx+x(i)
-        sy=sy+y(i)
-        sx2=sx2+x(i)**2
-        sy2=sy2+y(i)**2
-        sxy=x(i)*y(i)
-    ENDDO
-    IF (sx2*n-sx**2<eps .OR. sy2*n-sy**2<eps) THEN
-        calc_correlation = 0.
-    ELSE
-        calc_correlation = ( sxy*n-sx*sy )/( SQRT(sx2*n-sx**2)*SQRT(sy2*n-sy**2) )
     ENDIF
   END FUNCTION calc_correlation
 

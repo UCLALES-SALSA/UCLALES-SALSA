@@ -39,7 +39,7 @@ module mcrp_ice
        iriming_ice_cloud=18, iriming_snow_cloud=19, iriming_grp_cloud=20, &
        iriming_ice_rain=21, iriming_snow_rain=22,iriming_grp_rain=23
   integer, dimension(23) :: microseq = (/1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23/)
-  real :: nin_set = 0.
+  real :: nin_set = 0., nin_slope = 0.
   LOGICAL :: firsttime=.TRUE.
   !
   ! drop sizes definition is based on vanZanten (2005)
@@ -274,7 +274,8 @@ contains
                 adj_cldw = .TRUE.
 
              case(iicenucnr)
-                nin_active = nin_set - (nice + nsnow + ngrp) ! Target ice number
+                nin_active = nin_set*EXP(nin_slope*(273.15-temp)) - &
+                             (nice + nsnow + ngrp) ! Target ice numbe
                 call fixed_in_cloud(n1,nin_active,rc,rice,nice,s_i)
                 !call n_icenuc(n1,nice,temp,s_i)
                 !call ice_nucleation(n1,nin_active,rc,rice,nice,temp,s_i)
@@ -2140,7 +2141,7 @@ contains
     namelist /micro/ &
         drop_freeze, ice_melt, riming_cloud, riming_rain, coag_ice, coag_snow, coag_graupel, &
         khairoutdinov, turbulence, ice_multiplication, kessler, khairoutdinov_au, &
-        nin_set, &
+        nin_set, nin_slope, &
         r_crit_ic, d_crit_ic, r_crit_ir, d_crit_ir, r_crit_sc, d_crit_sc, r_crit_sr, d_crit_sr, &
         r_crit_gc, d_crit_gc, r_crit_gr, d_crit_gr, r_crit_c, r_crit_r, d_conv_ig, d_conv_sg, &
         r_crit_is, d_crit_is, &
