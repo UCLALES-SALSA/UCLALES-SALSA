@@ -1404,9 +1404,7 @@ CONTAINS
                                surfw0, surfi0, rg,           &
                                pi, pi6, prlim, nlim,      &
                                massacc,avog,  &
-                               in1a,in2a,  &
-                               fn2b,            &
-                               lscndh2oae, lscndh2ocl, lscndh2oic, &
+                               in1a, in2a, fn2b, &
                                alv, als, CalcDimension
     USE mo_salsa_properties, ONLY : equilibration
     IMPLICIT NONE
@@ -1439,26 +1437,21 @@ CONTAINS
     REAL :: zdfh2o, zthcond,rhoair
     REAL :: zbeta,zknud,zmfph2o
     REAL :: zact, zhlp1,zhlp2,zhlp3
-    REAL :: adt
-    REAL :: dwet, cap
-    REAL :: zrh(kbdim,klev)
-
-    REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
-
+    REAL :: adt, dwet, cap
+    REAL :: zrh(kbdim,klev), zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
     INTEGER :: nstep,istep
     INTEGER :: ii,jj,cc
-    LOGICAL aero_eq(kbdim,klev), any_aero, any_cloud, any_prec, any_ice, any_snow
+    LOGICAL :: aero_eq, any_aero, any_cloud, any_prec, any_ice, any_snow
+    LOGICAL :: aero_eqs(kbdim,klev)
 
     zrh(:,:) = prv(:,:)/prs(:,:)
-
 
     ! Save the current aerosol water content
     zaelwc1(:,:) = SUM(paero(:,:,in1a:fn2b)%volc(1),DIM=3)*rhowa
 
-    ! If RH < 98 % or dynamic condensation for aerosol is switched off,
-    ! do equilibrium for all aerosol bins, but otherwise just 1a.
-    aero_eq(:,:) = zrh(:,:) < 0.98 .OR. .NOT. lscndh2oae ! Equilibrium for 2a and 2b?
-    CALL equilibration(kbdim,klev,zrh,ptemp,paero,aero_eq)
+    ! If RH < 98 % do equilibrium for all aerosol bins, but otherwise just 1a.
+    aero_eqs(:,:) = zrh(:,:) < 0.98
+    CALL equilibration(kbdim,klev,zrh,ptemp,paero,aero_eqs)
 
     ! The new aerosol water content after equilibrium calculation
     zaelwc2(:,:) = SUM(paero(:,:,in1a:fn2b)%volc(1),DIM=3)*rhowa
@@ -1472,16 +1465,16 @@ CONTAINS
     DO jj = 1,klev
        DO ii = 1,kbdim
 
+          aero_eq = aero_eqs(ii,jj)
+
           any_aero = ANY(paero(ii,jj,:)%numc > nlim)
           any_cloud = ANY(pcloud(ii,jj,:)%numc > nlim)
           any_prec = ANY(pprecp(ii,jj,:)%numc > prlim)
           any_ice = ANY(pice(ii,jj,:)%numc > prlim)
           any_snow = ANY(psnow(ii,jj,:)%numc > prlim)
 
-          IF ( .NOT. ( &
-                ((any_cloud .OR. any_prec) .AND. lscndh2ocl) .OR. &
-                ((any_ice .OR. any_snow) .AND. lscndh2oic) .OR. &
-                (any_aero .AND. .NOT.aero_eq(ii,jj)) &
+          IF ( .NOT. ( any_cloud .OR. any_prec .OR. any_ice .OR. any_snow .OR. &
+                (any_aero .AND. .NOT.aero_eq) &
                 ) ) CYCLE
 
           rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
@@ -1502,7 +1495,7 @@ CONTAINS
           ! Saturation mole concentration over flat surface
           zcwsurfcd  = prs(ii,jj)*rhoair/mwa
           DO cc = 1,ncld
-             IF (pcloud(ii,jj,cc)%numc > nlim .AND. lscndh2ocl) THEN
+             IF (pcloud(ii,jj,cc)%numc > nlim) THEN
                 ! Wet diameter
                 dwet=( SUM(pcloud(ii,jj,cc)%volc(:))/pcloud(ii,jj,cc)%numc/pi6 )**(1./3.)
 
@@ -1532,7 +1525,7 @@ CONTAINS
           ! Saturation mole concentration over flat surface
           zcwsurfpd = prs(ii,jj)*rhoair/mwa
           DO cc = 1,nprc
-             IF (pprecp(ii,jj,cc)%numc > prlim .AND. lscndh2ocl) THEN
+             IF (pprecp(ii,jj,cc)%numc > prlim) THEN
                 ! Wet diameter
                 dwet=( SUM(pprecp(ii,jj,cc)%volc(:))/pprecp(ii,jj,cc)%numc/pi6 )**(1./3.)
 
@@ -1562,7 +1555,7 @@ CONTAINS
           ! Saturation mole concentration over flat surface
           zcwsurfid = prsi(ii,jj)*rhoair/mwa
           DO cc = 1,nice
-             IF (pice(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
+             IF (pice(ii,jj,cc)%numc > prlim) THEN
                 ! Dimension
                 CALL CalcDimension(1,pice(ii,jj,cc),prlim,4)
                 dwet=pice(ii,jj,cc)%dwet
@@ -1600,7 +1593,7 @@ CONTAINS
           ! Saturation mole concentration over flat surface
           zcwsurfsd= prsi(ii,jj)*rhoair/mwa
           DO cc = 1,nsnw
-             IF (psnow(ii,jj,cc)%numc > prlim .AND. lscndh2oic) THEN
+             IF (psnow(ii,jj,cc)%numc > prlim) THEN
                 ! Dimension
                 CALL CalcDimension(1,psnow(ii,jj,cc),prlim,5)
                 dwet=psnow(ii,jj,cc)%dwet
@@ -1638,7 +1631,7 @@ CONTAINS
           ! Limit the supersaturation to max 1.01 for the mass transfer EXPERIMENTAL
           zcwsurfae =MAX(prs(ii,jj),prv(ii,jj)/1.01)*rhoair/mwa
           DO cc = in2a,nbins
-             IF (paero(ii,jj,cc)%numc > nlim .AND. .NOT.aero_eq(ii,jj)) THEN
+             IF (paero(ii,jj,cc)%numc > nlim .AND. .NOT.aero_eq) THEN
                 ! Wet diameter
                 dwet=( SUM(paero(ii,jj,cc)%volc(:))/paero(ii,jj,cc)%numc/pi6 )**(1./3.)
 
@@ -1696,7 +1689,7 @@ CONTAINS
              zcwint = zhlp1/zhlp2
              zcwint = MIN(zcwint,zcwtot)
 
-             IF ( any_aero .AND. .NOT.aero_eq(ii,jj) ) THEN
+             IF ( any_aero .AND. .NOT.aero_eq ) THEN
                 DO cc = in2a,nbins
                    zcwintae(cc) = zcwcae(cc) + min(max(adt*zmtae(cc)*(zcwint - zwsatae(cc)*zcwsurfae), &
                         -0.02*zcwcae(cc)),0.05*zcwcae(cc))

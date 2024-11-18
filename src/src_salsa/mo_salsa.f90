@@ -26,17 +26,17 @@ CONTAINS
     USE mo_vbs_partition, ONLY : vbs_gas_phase_chem, vbs_condensation
     USE mo_salsa_update, ONLY : distr_update
     USE mo_salsa_cloud, only : cloud_activation, autoconv2, autoconv_sb, &
-            autosnow, fixed_ice_driver,  param_ice_driver, ice_nucl_driver, ice_melt, &
+            autosnow, fixed_ice_driver, param_ice_driver, ice_nucl_driver, ice_melt, &
+            clean_missing, ReleaseDrops, ReleaseIce, ReleaseAerosol, &
             sip_hm, sip_iibr, sip_df
 
     USE mo_submctl, ONLY :      &
          fn2b,ncld,nprc,nice,nsnw,nvbs,    &
          t_section,part_h2so4,part_ocnv,   &
-         lscoag,lscnd,lscndgas,nlcndh2oae, &
-         nlcndh2ocl,nlcndh2oic,            &
+         lscoag,lscnd,lscndgas,            &
          lsauto,auto_sb,lsautosnow,lsactiv,&
          lsicenucl,lsicmelt,lsdistupdate,  &
-         fixinc, ice_diag, ice_hom, ice_imm, ice_dep, &
+         lsdiag, fixinc, ice_diag, ice_hom, ice_imm, ice_dep, &
          nlsip_hm, nlsip_iibr, nlsip_df
 
     IMPLICIT NONE
@@ -129,7 +129,7 @@ CONTAINS
 
     ! Condensation of water vapor
     !   Statistics: change in total water volume concentration for each hydrometeor (m^3/m^3)
-    IF (lscnd .AND. (nlcndh2ocl .OR. nlcndh2oae .OR. nlcndh2oic)) THEN
+    IF (lscnd) THEN
         IF (sflg) CALL salsa_var_stat('cond',0)
         CALL gpparth2o(kbdim, klev, &
             paero, pcloud, pprecp, pice, psnow, &
@@ -171,8 +171,7 @@ CONTAINS
                              pcloud, pice,   psnow,    &
                              ptemp,  ppres,  prv, prs, prsi)
         IF (sflg) CALL salsa_var_stat('nucf',1)
-      ENDIF
-     IF (ice_diag>0) THEN
+      ELSEIF (ice_diag>0) THEN
         ! Various other ice formation parameterizations
         IF (sflg) CALL salsa_var_stat('nucf',0) ! Use the same variable as for fixed ice
         CALL param_ice_driver(kbdim, klev,             &
@@ -214,6 +213,26 @@ CONTAINS
                            paero,  pcloud, pprecp,  &
                            pice, psnow, level       )
         IF (sflg) CALL salsa_var_stat('dist',1)
+    ENDIF
+
+    ! Diagnostics:
+    ! 1) remove particles that have no number or mass
+    ! 2) release cloud, rain, ice, and snow back to aerosol
+    IF (lsdiag) THEN
+        IF (sflg) CALL salsa_var_stat('diag',0)
+        ! Clouds and aerosol always
+        CALL clean_missing(kbdim,klev,fn2b,paero)
+        CALL clean_missing(kbdim,klev,ncld,pcloud)
+        CALL clean_missing(kbdim,klev,nprc,pprecp)
+        CALL ReleaseDrops(kbdim,klev,paero,pcloud,pprecp,prv,prs,ptemp)
+        CALL ReleaseAerosol(kbdim,klev,paero,pc_gas,ngas)
+        ! Ice and snow when level=5
+        IF (level==5) THEN
+            CALL clean_missing(kbdim,klev,nice,pice)
+            CALL clean_missing(kbdim,klev,nsnw,psnow)
+            CALL ReleaseIce(kbdim,klev,paero,pice,psnow,prv,prsi)
+        ENDIF
+        IF (sflg) CALL salsa_var_stat('diag',1)
     ENDIF
 
 

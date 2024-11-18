@@ -70,7 +70,7 @@ contains
   subroutine diffuse
 
     use grid, only : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt    &
-         , a_rv, a_rc, a_rp, a_ri, a_srp, a_srs, a_tp, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta  &
+         , a_rv, a_rc, a_rp, a_ri, a_tp, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta  &
          , a_temp, a_rsl, nscl, nxp, nyp    &
          , nzp, zm, dxi, dyi, dzt, dzm, dtl, th00, dn0  &
          , pi0, pi1, newsclr, level, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc &
@@ -100,12 +100,12 @@ contains
           WHERE(a_temp>0.) thl = a_tp + (a_theta/a_temp)*alvi/cp*a_ri
        CASE(4)
           rx = a_rp
-          rxt = a_rp + a_rc + a_srp
+          rxt = a_rp + a_rc
           thl = a_tp
        CASE(5)
           rx = a_rp
-          rxt = a_rp + a_rc + a_srp + a_ri + a_srs
-          WHERE(a_temp>0.) thl = a_tp + (a_theta/a_temp)*alvi/cp*(a_ri + a_srs)
+          rxt = a_rp + a_rc + a_ri
+          WHERE(a_temp>0.) thl = a_tp + (a_theta/a_temp)*alvi/cp*a_ri
     END SELECT
 
 

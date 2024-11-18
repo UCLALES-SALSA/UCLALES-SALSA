@@ -35,7 +35,7 @@ CONTAINS
          Sw(kbdim,klev),      & ! equilibrium saturation ratio [-]
          temp(kbdim,klev)       ! temperature [K]
 
-    LOGICAL, INTENT(in) :: init(kbdim,klev)  ! TRUE: update water content for 2a and 2b bins in addition to 1a
+    LOGICAL, INTENT(in) :: init(kbdim,klev) ! 1a always, but 2a and 2b bins only when init = .TRUE.
 
     !-- inpu/output variables -------------
     TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,fn2b) ! SALSA aerosol

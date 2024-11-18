@@ -213,7 +213,7 @@ contains
 
     if (sflg) then
         ! Convert dcdt [#/kg/s] to flux [#/m^2/s] and take sum over bins
-        omf = SUM ( SUM( SUM(dcdt(3:nxp-2,3:nyp-2,:),DIM=3)*a_dn(2,3:nxp-2,3:nyp-2),DIM=2 ) )*(zm(2)-zm(1))/REAL((nxp-4)*(nyp-4))
+        omf = SUM ( SUM(dcdt(3:nxp-2,3:nyp-2,:),DIM=3)*a_dn(2,3:nxp-2,3:nyp-2) )*(zm(2)-zm(1))/REAL((nxp-4)*(nyp-4))
         call fill_scalar(omf,'flx_aer')
         ! 10 m wind speed
         call fill_scalar(u10_bar,'u10    ')

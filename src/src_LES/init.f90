@@ -19,8 +19,6 @@
 !
 module init
 
-  use grid
-
   integer, parameter    :: nns = 500
   integer               :: ns
   integer               :: iseed = 0
@@ -44,18 +42,16 @@ contains
   !
   subroutine initialize
 
-    use step, only : time, outflg, salsa_diag_update, anl_start, nudging
-    use stat, only : init_stat, sflg, out_mcrp_nout, out_mcrp_list
+    use grid, only : level, runtype, isgstyp, iradtyp, filprf, expnme, nzp, nxyzp, &
+                     a_qp, pi0, th0, rt0, dtl, write_hist, init_anal, write_anal
+    use step, only : time, outflg, anl_start, nudging
+    use stat, only : init_stat
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE mo_salsa_driver, ONLY : run_SALSA
     USE radiation, ONLY : RadNewSetup, rad_new_setup
-
     implicit none
-
-    ! Local variables for SALSA basic state
-    INTEGER :: n4
 
     if (runtype == 'INITIAL') then
        time=0.
@@ -64,33 +60,13 @@ contains
        call basic_state
        call fldinit
 
-       ! If SALSA is used, call SALSA with full configuration once before beginning
-       ! spin-up period to set up aerosol and cloud fields.
        IF (level >= 4) THEN
-
-          n4 = nspec+1 ! Aerosol components + water
-
           ! Initialize SALSA species
           CALL aerosol_init
           CALL init_gas_tracers
 
           ! Update diagnostic SALSA tracers
-          CALL SALSA_diag_update
           CALL thermo(level)
-          CALL run_SALSA(nxp,nyp,nzp,n4,nbins,ncld,nprc,nice,nsnw,&
-                  a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,a_edr,&
-                  a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
-                  a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
-                  a_nprecpp, a_nprecpt, a_mprecpp, a_mprecpt,  &
-                  a_nicep,   a_nicet,   a_micep,   a_micet,    &
-                  a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,   &
-                  a_gaerop,  a_gaerot,  1, dtl, time, level,   &
-                  sflg, out_mcrp_nout, out_mcrp_list)
-
-          CALL SALSAInit
-          CALL SALSA_diag_update
-          CALL thermo(level)
-
        END IF !level >= 4
 
        ! Initialize nudging
@@ -100,13 +76,7 @@ contains
        if (isgstyp == 2) call tkeinit(nxyzp,a_qp)
        call hstart
        ! Update diagnostic tracers
-       IF (level >= 4) THEN
-          CALL SALSAInit
-          CALL SALSA_diag_update
-          CALL thermo(level)
-       ELSE
-          CALL thermo(level)
-       END IF
+       CALL thermo(level)
     else
        if (myid == 0) print *,'  ABORTING:  Invalid Runtype'
        call appl_abort(0)
@@ -143,6 +113,9 @@ contains
   !
   subroutine fldinit
 
+    use grid, only : level, isgstyp, nzp, nxp, nyp, nxyzp, a_up, a_vp, a_wp, &
+                     a_uc, a_vc, a_wc, a_tp, a_rp, a_rv, a_theta, a_pexnr, &
+                     a_qp, a_ustar, a_rc, pi0, pi1, u0, v0, rt0, th0, th00, zt
     use defs, only : alvl, cpr, cp, p00
     use sgsm, only : tkeinit
     use thrm, only : thermo, rslf
@@ -257,6 +230,7 @@ contains
   !
   subroutine sponge_init
 
+    use grid, only : nzp, zt, zm, spng_tfct, spng_wfct, distim, nfpt
     use mpi_interface, only: myid
 
     implicit none
@@ -293,6 +267,7 @@ contains
   !
   subroutine arrsnd
 
+    use grid, only          : nzp,zt
     use defs, only          : p00,p00i,cp,cpr,rcp,Rd,g,ep2,alvl,Rm,ep
     use thrm, only          : rslf
     use mpi_interface, only : appl_abort, myid
@@ -427,6 +402,7 @@ contains
   !
   subroutine basic_state
 
+    use grid, only : nzp,zt,dzm,pi0,pi1,dn0,rt0,u0,v0,th0,th00,psrf,umean,vmean
     use defs, only : cp, rcp, cpr, Rd, g, p00, p00i, ep2
     use mpi_interface, only : myid
 
@@ -570,6 +546,7 @@ contains
   !
   subroutine hstart
 
+    use grid, only : ngases, read_hist
     use step, only : time
     use mpi_interface, only : myid
 
@@ -689,41 +666,6 @@ contains
     enddo
   end subroutine random_initialize
 
-  !
-  !--------------------------------------------------------------------
-  ! CLDINIT: Apply the tendencies from the initialization call of SALSA
-  !          instantaneously to account for the basic state thermodynamics
-  !          and microphysics.
-  !
-  ! Juha Tonttila, FMI, 2014
-  !
-  SUBROUTINE SALSAInit
-    IMPLICIT NONE
-    INTEGER :: k,i,j
-
-    DO j=1,nyp
-       DO i=1,nxp
-          DO k=1,nzp ! Apply tendencies
-             a_naerop(k,i,j,:) = MAX( a_naerop(k,i,j,:)   + dtl*a_naerot(k,i,j,:), 0. )
-             a_ncloudp(k,i,j,:) = MAX( a_ncloudp(k,i,j,:) + dtl*a_ncloudt(k,i,j,:), 0. )
-             a_nprecpp(k,i,j,:) = MAX( a_nprecpp(k,i,j,:) + dtl*a_nprecpt(k,i,j,:), 0. )
-             a_maerop(k,i,j,:)  = MAX( a_maerop(k,i,j,:)  + dtl*a_maerot(k,i,j,:), 0. )
-             a_mcloudp(k,i,j,:) = MAX( a_mcloudp(k,i,j,:) + dtl*a_mcloudt(k,i,j,:), 0. )
-             a_mprecpp(k,i,j,:) = MAX( a_mprecpp(k,i,j,:) + dtl*a_mprecpt(k,i,j,:), 0. )
-             a_gaerop(k,i,j,:)  = MAX( a_gaerop(k,i,j,:)  + dtl*a_gaerot(k,i,j,:), 0. )
-             a_rp(k,i,j) = a_rp(k,i,j) + dtl*a_rt(k,i,j)
-
-             IF(level < 5) cycle
-
-             a_nicep(k,i,j,:)   = MAX( a_nicep(k,i,j,:)   + dtl*a_nicet(k,i,j,:), 0. )
-             a_nsnowp(k,i,j,:)  = MAX( a_nsnowp(k,i,j,:)  + dtl*a_nsnowt(k,i,j,:), 0. )
-             a_micep(k,i,j,:)   = MAX( a_micep(k,i,j,:)   + dtl*a_micet(k,i,j,:), 0. )
-             a_msnowp(k,i,j,:)  = MAX( a_msnowp(k,i,j,:)  + dtl*a_msnowt(k,i,j,:), 0. )
-          END DO
-       END DO
-    END DO
-
-  END SUBROUTINE SALSAInit
 
   ! --------------------------------------------------------------------------------------------------
   ! Replacement for SUBROUTINE init_aero_sizedist (init.f90): initilize altitude-dependent aerosol
@@ -733,9 +675,11 @@ contains
   !
   SUBROUTINE aerosol_init
 
-    USE mo_submctl, ONLY : pi6,in1a,in2a,in2b,fn1a,fn2a,fn2b,aerobins, &
+    USE grid, ONLY : nzp,nxp,nyp,nbins,a_naerop,a_maerop,no_b_bins,a_dn,zt
+    use thrm, only : rslf
+    USE mo_submctl, ONLY : pi6,in1a,in2a,in2b,fn1a,fn2a,fn2b,aerobins,maxspec, &
                            nmod, sigmag, dpg, n, volDistA, volDistB, nf2a, isdtyp, &
-                           iso, ioc, nspec, dens, zspec, nlim, salsa1a_SO4_OC, maxspec
+                           iso, ioc, nspec, dens, diss, mws, zspec, nlim, salsa1a_SO4_OC
     USE mpi_interface, ONLY : myid
 
     IMPLICIT NONE
@@ -743,7 +687,7 @@ contains
     REAL :: pndist(nzp,fn2a)                          ! Aerosol size dist as a function of height
     REAL :: pvf2a(nzp,nspec), pvf2b(nzp,nspec)        ! Mass distributions of aerosol species for a and b-bins
     REAL :: pnf2a(nzp)                                ! Number fraction for bins 2a
-    REAL :: mass(2*nspec), factor
+    REAL :: mass(2*nspec), factor, sw, ns
     INTEGER :: ss,ee,i,j,k,nc
     CHARACTER(len=600) :: fmt
     LOGICAL :: bbins
@@ -856,6 +800,19 @@ contains
                    a_maerop(k,i,j,nc:nspec*nbins+nc:nbins) = 0.
                 END IF
              END DO
+
+             ! Initialize aerosol water. This is not included in the water budged, so set
+             ! the concentation based on low equilibrium saturation of 0.3 or ambient
+             ! which ever is lower. Equilibrium without Kelvin effect:
+             !    sw=xw=nw/(nw+sum(ni*dissi)) => nw=sum(ni*dissi)*sw/(1-sw)
+             ! Ambient saturation based on the basic state
+             sw = MIN(0.3, rts(k)/rslf(ps(k),tks(k)) )
+             DO nc = 1,nbins
+                IF (a_naerop(k,i,j,nc)*a_dn(k,i,j) > nlim) THEN
+                   ns = SUM(a_maerop(k,i,j,nbins+nc:nspec*nbins+nc:nbins)*diss(2:nspec+1)/mws(2:nspec+1))
+                   a_maerop(k,i,j,nc) = ns*sw/(1.0-sw)
+                END IF
+             END DO
           END DO ! i
        END DO ! j
     END DO ! k
@@ -956,6 +913,7 @@ contains
   ! number concentration fractions between a and b bins
   !
   SUBROUTINE READ_AERO_INPUT(ppndist,ppvf2a,ppvf2b,ppnf2a)
+    USE grid, ONLY : zt, nzp
     USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
     USE mo_submctl, ONLY : fn2a, nspec, maxspec, nmod
     USE mpi_interface, ONLY : appl_abort, myid
@@ -1064,6 +1022,7 @@ contains
   !
   SUBROUTINE init_gas_tracers
     USE mpi_interface, ONLY : myid
+    USE grid, ONLY : nzp, zt, ngases, a_gaerop
     USE mo_submctl, ONLY : avog, mws_gas, zgas, &
         part_h2so4, conc_h2so4, part_ocnv, conc_ocnv, &
         ox_prescribed, conc_oh, conc_o3, conc_no3, mair, &

@@ -275,7 +275,7 @@ contains
 
              case(iicenucnr)
                 nin_active = nin_set*EXP(nin_slope*(273.15-temp)) - &
-                             (nice + nsnow + ngrp) ! Target ice numbe
+                             (nice + nsnow + ngrp) ! Target ice number
                 call fixed_in_cloud(n1,nin_active,rc,rice,nice,s_i)
                 !call n_icenuc(n1,nice,temp,s_i)
                 !call ice_nucleation(n1,nin_active,rc,rice,nice,temp,s_i)

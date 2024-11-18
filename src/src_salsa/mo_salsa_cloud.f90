@@ -25,8 +25,7 @@ CONTAINS
   SUBROUTINE cloud_activation(kbdim, klev,           &
                               temp, rv, rs, paero, pcloud)
 
-    USE mo_submctl, ONLY : t_section, nbins, ncld, &
-              lsactintst, lsactbase
+    USE mo_submctl, ONLY : t_section, nbins, ncld
 
     IMPLICIT NONE
 
@@ -41,12 +40,12 @@ CONTAINS
     ! -------------------------------------
     ! Interstitial activation
     ! -------------------------------------
-    IF ( lsactintst ) CALL actInterst(kbdim,klev,paero,pcloud,rv,rs,temp)
+    CALL actInterst(kbdim,klev,paero,pcloud,rv,rs,temp)
 
     ! -----------------------------------
     ! Activation at cloud base
     ! -----------------------------------
-    IF ( lsactbase ) STOP 'Cloud base activation not supported!'
+    ! Cloud base activation not supported!
 
   END SUBROUTINE cloud_activation
 ! -----------------------------------------------------------------
@@ -77,14 +76,12 @@ CONTAINS
     REAL, INTENT(IN) :: prv(kbdim,klev),prs(kbdim,klev)  ! Water vapour and saturation mixin ratios
     REAL, INTENT(in) :: temp(kbdim,klev)  ! Absolute temperature
 
-    TYPE(t_section) :: pactd(ncld) ! Local variable
-
     REAL :: paa        ! Coefficient for Kelvin effect
 
     REAL :: zdcstar,zvcstar   ! Critical diameter/volume corresponding to S_LES
-    REAL :: zactvol           ! Total volume of the activated particles
+    REAL :: zactvol,zactn     ! Total volume of the activated particles
 
-    REAL :: Nact, Vact(nspec+1)  ! Helper variables for transferring the activated particles
+    REAL :: Nact(ncld), Vact(ncld,nspec+1) ! Helper variables for transferring the activated particles
 
     REAL :: Nmid, Nim1, Nip1     ! Bin number concentrations in current and adjacent bins
     REAL :: dNmid, dNim1, dNip1  ! Density function value of the number distribution for current and adjacent bins
@@ -103,9 +100,7 @@ CONTAINS
     REAL :: V01,V02           ! Origin values for wet particle volume slopes
     REAL :: Nnorm, Vnorm      ! Normalization factors for number and volume integrals
 
-    REAL :: vcut,vint1,vint2  ! cut volume, integration limit volumes
-    LOGICAL :: intrange(4)    ! Logical table for integration ranges depending on the shape of the wet size profile:
-                                  ! [Vlo -- vint1][vint1 -- Vmid][Vmid -- vint2][vint1 -- Vhi]
+    REAL :: vint1,vint2       ! integration limit volumes
     INTEGER :: cb,ab, ii,jj,ss,nn
 
     nn = nspec+1 ! Aerosol species + water
@@ -126,21 +121,21 @@ CONTAINS
           ! but dry particles should not be moved to cloud bins. Otherwise just assume that there
           ! is enough soluble material so that the current approach is valid.
 
+          Nact(:) = 0.
+          Vact(:,:) = 0.
+
           ! Loop over cloud droplet (and aerosol) bins
           DO cb = inp2a, fnp2b
              ab = fn1a + cb
-             pactd(cb)%numc = 0.d0
-             pactd(cb)%volc(:) =0.d0
              ! Dry particles are not activated (volume 1e-28 m^3 is less than that in a 1 nm droplet)
              IF ( paero(ii,jj,ab)%numc < nlim .OR. paero(ii,jj,ab)%volc(1)<paero(ii,jj,ab)%numc*1e-28 ) CYCLE
-             intrange = .FALSE.
 
              ! Define some parameters
              Nmid = paero(ii,jj,ab)%numc     ! Number concentration at the current bin center
              Vwmid = SUM(paero(ii,jj,ab)%volc(1:nn))/Nmid  ! Wet volume at the current bin center
              Vmid = SUM(paero(ii,jj,ab)%volc(2:nn))/Nmid ! Dry volume at the current bin center
-             Vlo = Vmid*paero(ii,jj,ab)%vratiolo        ! Dry vol at low limit
-             Vhi = Vmid*paero(ii,jj,ab)%vratiohi        ! Dry vol at high limit
+             Vlo = Vmid*paero(ii,jj,ab)%vlolim/paero(ii,jj,ab)%vmid ! Dry vol at low limit
+             Vhi = Vmid*paero(ii,jj,ab)%vhilim/paero(ii,jj,ab)%vmid ! Dry vol at high limit
 
              ! Number concentrations and volumes at adjacent bins (check for sizedistribution boundaries)
              IF (ab==in1a .OR. ab==in2b) THEN
@@ -155,11 +150,11 @@ CONTAINS
                       Vim1 = SUM(paero(ii,jj,ab-1)%volc(2:nn))/Nim1
                       Vwim1 = SUM(paero(ii,jj,ab-1)%volc(1:nn))/Nim1
                    ELSE
-                      Vim1 = pi6*paero(ii,jj,ab-1)%dmid**3
-                      Vwim1 = pi6*paero(ii,jj,ab-1)%dmid**3
+                      Vim1 = paero(ii,jj,ab-1)%vmid
+                      Vwim1 = Vim1
                    END IF
-                   Vlom1 = Vim1*paero(ii,jj,ab-1)%vratiolo
-                   Vhim1 = Vim1*paero(ii,jj,ab-1)%vratiohi
+                   Vlom1 = Vim1*paero(ii,jj,ab-1)%vlolim/paero(ii,jj,ab-1)%vmid
+                   Vhim1 = Vim1*paero(ii,jj,ab-1)%vhilim/paero(ii,jj,ab-1)%vmid
              END IF
              IF (ab==fn2a .OR. ab==fn2b ) THEN
                    Nip1 = nlim
@@ -173,11 +168,11 @@ CONTAINS
                       Vip1 = SUM(paero(ii,jj,ab+1)%volc(2:nn))/Nip1
                       Vwip1 = SUM(paero(ii,jj,ab+1)%volc(1:nn))/Nip1
                    ELSE
-                      Vip1 = pi6*paero(ii,jj,ab+1)%dmid**3
-                      Vwip1 = pi6*paero(ii,jj,ab+1)%dmid**3
+                      Vip1 = paero(ii,jj,ab+1)%vmid
+                      Vwip1 = Vip1
                    END IF
-                   Vlop1 = Vip1*paero(ii,jj,ab+1)%vratiolo
-                   Vhip1 = Vip1*paero(ii,jj,ab+1)%vratiohi
+                   Vlop1 = Vip1*paero(ii,jj,ab+1)%vlolim/paero(ii,jj,ab+1)%vmid
+                   Vhip1 = Vip1*paero(ii,jj,ab+1)%vhilim/paero(ii,jj,ab+1)%vmid
              END IF
 
              ! Keeping things smooth...
@@ -200,106 +195,79 @@ CONTAINS
              ! Find out dry vol integration boundaries based on *zvcstar*:
              IF ( zvcstar < Vwlo .AND. zvcstar < Vwmid .AND. zvcstar < Vwhi ) THEN
                 ! Whole bin activates
-                vint1 = Vlo
-                vint2 = Vhi
-
-                intrange(1:4) = .TRUE.
-
+                Nact(cb) = paero(ii,jj,ab)%numc
+                Vact(cb,1:nn) = paero(ii,jj,ab)%volc(1:nn)
              ELSE IF ( zvcstar > Vwlo .AND. zvcstar > Vwmid .AND. zvcstar > Vwhi) THEN
                 ! None activates
-                vint1 = 999.
-                vint2 = 999.
-
-                intrange(1:4) = .FALSE.
-
              ELSE
                 ! Partial activation:
                  ! Slope1
-                vcut = (zvcstar - V01)/zs1  ! Where the wet size profile intersects the critical size (slope 1)
-                IF (vcut < Vlo .OR. vcut > Vmid) THEN
+                vint1 = (zvcstar - V01)/zs1  ! Where the wet size profile intersects the critical size (slope 1)
+                IF (vint1 < Vlo .OR. vint1 > Vmid) THEN
                    ! intersection volume outside the current size range -> set as the lower limit
                    vint1 = Vlo
-                ELSE
-                   vint1 = vcut
                 END IF
 
                 ! Slope2
-                vcut = (zvcstar - V02)/zs2  ! Where the wet size profile intersects the critical size (slope 2)
-                IF (vcut < Vmid .OR. vcut > Vhi) THEN
+                vint2 = (zvcstar - V02)/zs2  ! Where the wet size profile intersects the critical size (slope 2)
+                IF (vint2 < Vmid .OR. vint2 > Vhi) THEN
                    ! Intersection volume outside the current size range -> set as the lower limit
                    vint2 = Vmid
-                ELSE
-                   vint2 = vcut
                 END IF
 
-                ! Determine which size ranges have wet volume larger than the critical
-                intrange(1) = ( Vwlo > zvcstar )
-                intrange(2) = ( Vwmid > zvcstar )
-                intrange(3) = ( Vwmid > zvcstar )
-                intrange(4) = ( Vwhi > zvcstar )
+                ! Number concentration profiles within bins and integration for number of activated:
+                ! -----------------------------------------------------------------------------------
+                ! get density distribution values for number concentration
+                dNim1 = Nim1/(Vhim1-Vlom1)
+                dNip1 = Nip1/(Vhip1-Vlop1)
+                dNmid = Nmid/(Vhi-Vlo)
 
+                ! Get slopes
+                zs1 = ( dNmid - dNim1 )/( Vmid - Vim1 )
+                zs2 = ( dNip1 - dNmid )/( Vip1 - Vmid )
+
+                N01 = dNmid - zs1*Vmid  ! Origins
+                N02 = dNmid - zs2*Vmid  !
+
+                ! Define normalization factors
+                Nnorm = intgN(zs1,N01,Vlo,Vmid) + intgN(zs2,N02,Vmid,Vhi)
+                Vnorm = intgV(zs1,N01,Vlo,Vmid) + intgV(zs2,N02,Vmid,Vhi)
+
+                ! Accumulated variables
+                zactn = 0.
+                zactvol = 0.
+
+                ! Integration over each size range within a bin
+                IF ( Vwlo > zvcstar ) THEN
+                   zactn = zactn + intgN(zs1,N01,Vlo,vint1)
+                   zactvol = zactvol + intgV(zs1,N01,Vlo,vint1)
+                END IF
+
+                IF ( Vwmid > zvcstar ) THEN
+                   zactn = zactn + intgN(zs1,N01,vint1,Vmid)
+                   zactvol = zactvol + intgV(zs1,N01,vint1,Vmid)
+                   zactn = zactn + intgN(zs2,N02,Vmid,vint2)
+                   zactvol = zactvol + intgV(zs2,N02,Vmid,vint2)
+                END IF
+
+                IF ( Vwhi > zvcstar ) THEN
+                   zactn = zactn + intgN(zs2,N02,vint2,Vhi)
+                   zactvol = zactvol + intgV(zs2,N02,vint2,Vhi)
+                END IF
+
+                ! Store the number concentration and mass of activated particles for current bins
+                Nact(cb) = MIN(zactn/Nnorm*paero(ii,jj,ab)%numc,paero(ii,jj,ab)%numc)
+                Vact(cb,1:nn) = MIN(zactvol/Vnorm*paero(ii,jj,ab)%volc(1:nn),paero(ii,jj,ab)%volc(1:nn))
              END IF
-
-             ! Number concentration profiles within bins and integration for number of activated:
-             ! -----------------------------------------------------------------------------------
-             ! get density distribution values for number concentration
-             dNim1 = Nim1/(Vhim1-Vlom1)
-             dNip1 = Nip1/(Vhip1-Vlop1)
-             dNmid = Nmid/(Vhi-Vlo)
-
-             ! Get slopes
-             zs1 = ( dNmid - dNim1 )/( Vmid - Vim1 )
-             zs2 = ( dNip1 - dNmid )/( Vip1 - Vmid )
-
-             N01 = dNmid - zs1*Vmid  ! Origins
-             N02 = dNmid - zs2*Vmid  !
-
-             ! Define normalization factors
-             Nnorm = intgN(zs1,N01,Vlo,Vmid) + intgN(zs2,N02,Vmid,Vhi)
-             Vnorm = intgV(zs1,N01,Vlo,Vmid) + intgV(zs2,N02,Vmid,Vhi)
-
-             ! Accumulated variables
-             zactvol = 0.
-             Nact = 0.
-             Vact(:) = 0.
-
-             ! Integration over each size range within a bin
-             IF ( intrange(1) ) THEN
-                Nact = Nact + (Nmid/Nnorm)*intgN(zs1,N01,Vlo,vint1)
-                zactvol = zactvol + (Nmid*Vmid/Vnorm)*intgV(zs1,N01,Vlo,vint1)
-             END IF
-
-             IF ( intrange(2) ) THEN
-                Nact = Nact + (Nmid/Nnorm)*intgN(zs1,N01,vint1,Vmid)
-                zactvol = zactvol + (Nmid*Vmid/Vnorm)*intgV(zs1,N01,vint1,Vmid)
-             END IF
-
-             IF ( intrange(3) ) THEN
-                Nact = Nact + (Nmid/Nnorm)*intgN(zs2,N02,Vmid,vint2)
-                zactvol = zactvol + (Nmid*Vmid/Vnorm)*intgV(zs2,N02,Vmid,vint2)
-             END IF
-
-             IF ( intrange(4) ) THEN
-                Nact = Nact + (Nmid/Nnorm)*intgN(zs2,N02,vint2,Vhi)
-                zactvol = zactvol + (Nmid*Vmid/Vnorm)*intgV(zs2,N02,vint2,Vhi)
-             END IF
-
-             DO ss = 1,nn
-                Vact(ss) = zactvol*( paero(ii,jj,ab)%volc(ss)/(Vmid*Nmid) )
-             END DO
-
-             ! Store the number concentration and mass of activated particles for current bins
-             pactd(cb)%numc = MIN(Nact,Nmid)
-             pactd(cb)%volc(1:nn) = MIN(Vact(1:nn),paero(ii,jj,ab)%volc(1:nn))
 
           END DO ! cb
 
           ! Apply the number and mass activated to aerosol and cloud bins
-          paero(ii,jj,in2a:fn2b)%numc = MAX(0., paero(ii,jj,in2a:fn2b)%numc - pactd(inp2a:fnp2b)%numc)
-          pcloud(ii,jj,inp2a:fnp2b)%numc = pcloud(ii,jj,inp2a:fnp2b)%numc + pactd(inp2a:fnp2b)%numc
+          paero(ii,jj,in2a:)%numc = MAX(0., paero(ii,jj,in2a:)%numc - Nact(1:))
+          pcloud(ii,jj,:)%numc = pcloud(ii,jj,:)%numc + Nact(:)
           DO ss = 1,nn
-             paero(ii,jj,in2a:fn2b)%volc(ss) = MAX(0., paero(ii,jj,in2a:fn2b)%volc(ss) - pactd(inp2a:fnp2b)%volc(ss))
-             pcloud(ii,jj,inp2a:fnp2b)%volc(ss) = pcloud(ii,jj,inp2a:fnp2b)%volc(ss) + pactd(inp2a:fnp2b)%volc(ss)
+             paero(ii,jj,in2a:)%volc(ss) = MAX(0., paero(ii,jj,in2a:)%volc(ss) - Vact(1:,ss))
+             pcloud(ii,jj,:)%volc(ss) = pcloud(ii,jj,:)%volc(ss) + Vact(:,ss)
           END DO
 
        END DO ! ii
@@ -327,6 +295,256 @@ CONTAINS
     REAL, INTENT(in) :: ikk,icc,ilow,ihigh
     intgV = (1./3.)*ikk*MAX(ihigh**3 - ilow**3,0.) + 0.5*icc*MAX(ihigh**2 - ilow**2,0.)
   END FUNCTION intgV
+
+
+  ! ------------------------------------------------
+  SUBROUTINE ReleaseDrops(kbdim,klev,paero,pcloud,pprecp,prv,prs,ptemp)
+    !
+    ! Release cloud and rain drops back to aerosol when they have become small enough
+    !
+    USE mo_submctl, ONLY :  t_section,nbins,ncld,nprc,rg,surfw0,pi6,pi,nlim,prlim, &
+                diss,dens,mws,fn1a,in2a,fn2a,in2b,nspec,calc_correlation
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: kbdim,klev
+    TYPE(t_section), INTENT(INOUT) :: paero(kbdim,klev,nbins), &
+                pcloud(kbdim,klev,ncld),pprecp(kbdim,klev,nprc)
+    REAL, INTENT(IN) :: prv(kbdim,klev),prs(kbdim,klev),ptemp(kbdim,klev)
+    REAL :: paa, ns, cd, zvol, ra, rb, vol
+    INTEGER :: ii,jj,kk,ab,bb,nn
+
+    nn = nspec+1 ! Aerosol species + water
+
+    DO jj = 1,klev
+      DO ii = 1,kbdim
+        IF ( prv(ii,jj)/prs(ii,jj) >= 0.999 ) CYCLE
+        ! For calculating critical droplet diameter
+        paa =rg*ptemp(ii,jj)/(2.*pi*surfw0)
+
+        ! Loop over cloud droplet (and aerosol) bins
+        DO kk = 1,ncld
+            IF ( pcloud(ii,jj,kk)%numc>nlim .AND. pcloud(ii,jj,kk)%volc(1)<1e-8 ) THEN
+                ! Critical droplet diameter
+                ns = SUM( pcloud(ii,jj,kk)%volc(2:nn)*diss(2:nn)*dens(2:nn)/mws(2:nn) )/pcloud(ii,jj,kk)%numc
+                cd = 3.*SQRT(ns*paa)
+                ! Wet diameter
+                zvol = (SUM(pcloud(ii,jj,kk)%volc(1:nn))/pcloud(ii,jj,kk)%numc/pi6)**(1./3.)
+                ! Lose the droplets if smaller than 0.2*critical diameter or 2 um or if there is no water
+                IF ( zvol < MAX(0.2*cd,2.e-6) .OR. pcloud(ii,jj,kk)%volc(1)<1e-28*pcloud(ii,jj,kk)%numc ) THEN
+                    ab = fn1a + kk ! Index for parallel aerosol bin
+                    ! Move the number of particles from cloud to aerosol bins
+                    paero(ii,jj,ab)%numc = paero(ii,jj,ab)%numc + pcloud(ii,jj,kk)%numc
+                    pcloud(ii,jj,kk)%numc = 0.0
+                    ! Move ccn material back to aerosol regime (including water)
+                    paero(ii,jj,ab)%volc(1:nn) = paero(ii,jj,ab)%volc(1:nn) + pcloud(ii,jj,kk)%volc(1:nn)
+                    pcloud(ii,jj,kk)%volc(1:nn) = 0.0
+                END IF
+            END IF
+        END DO
+
+        ! Loop over precipitation bins
+        DO kk = 1,nprc
+            IF ( pprecp(ii,jj,kk)%numc>prlim .AND. pprecp(ii,jj,kk)%volc(1)<1e-9 ) THEN
+                ! Critical droplet diameter
+                ns = SUM( pprecp(ii,jj,kk)%volc(2:nn)*diss(2:nn)*dens(2:nn)/mws(2:nn) )/pprecp(ii,jj,kk)%numc
+                cd = 3.*SQRT(ns*paa)
+                ! Wet diameter
+                zvol = (SUM(pprecp(ii,jj,kk)%volc(1:nn))/pprecp(ii,jj,kk)%numc/pi6)**(1./3.)
+
+               ! Lose the droplets if smaller than 0.02*critical diameter or 2 um or if there is no water
+               IF ( zvol < MAX(0.02*cd,2.e-6) .OR. pprecp(ii,jj,kk)%volc(1)<1e-28*pprecp(ii,jj,kk)%numc ) THEN
+                    ! Move evaporating precipitation to aerosol bin based on dry radius and chemical composition
+
+                    ! 1) Matching a-bin
+                    vol=SUM(pprecp(ii,jj,kk)%volc(2:nn))/pprecp(ii,jj,kk)%numc
+                    ab=MAX(1,COUNT(vol>paero(ii,jj,1:fn2a)%vlolim)) ! Aerosol a-bin
+                    ! Corresponding b bin
+                    bb=ab-in2a+in2b
+                    ! 2) Select a or b bin
+                    IF (ab<in2a .OR. paero(ii,jj,bb)%numc<=nlim) THEN
+                        ! Empty b bin so select a
+                        !ab = ab
+                    ELSEIF (paero(ii,jj,ab)%numc<=nlim) THEN
+                        ! Empty a bin so select b
+                        ab = bb
+                    ELSE
+                        ! Both are present - find bin based on compositional similarity
+                        ra = calc_correlation(paero(ii,jj,ab)%volc(2:nn),pprecp(ii,jj,kk)%volc(2:nn),nspec)
+                        rb = calc_correlation(paero(ii,jj,bb)%volc(2:nn),pprecp(ii,jj,kk)%volc(2:nn),nspec)
+                        IF (ra<rb) ab = bb
+                    ENDIF
+
+                    ! Move the number of particles from rain to aerosol bins
+                    paero(ii,jj,ab)%numc = paero(ii,jj,ab)%numc + pprecp(ii,jj,kk)%numc
+                    pprecp(ii,jj,kk)%numc = 0.0
+                    ! Move ccn material back to aerosol regime (including water)
+                    paero(ii,jj,ab)%volc(1:nn) = paero(ii,jj,ab)%volc(1:nn) + pprecp(ii,jj,kk)%volc(1:nn)
+                    pprecp(ii,jj,kk)%volc(1:nn) = 0.0
+                END IF
+            END IF
+        END DO
+      END DO
+    END DO
+
+  END SUBROUTINE ReleaseDrops
+
+  ! ------------------------------------------------
+  SUBROUTINE ReleaseIce(kbdim,klev,paero,pice,psnow,prv,prsi)
+    !
+    ! Release ice and snow back to aerosol when they have become small enough
+    !
+    USE mo_submctl, ONLY : t_section,nbins,nice,nsnw,pi6,nlim,prlim, &
+                fn1a,in2a,fn2a,in2b,nspec,calc_correlation
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: kbdim,klev
+    TYPE(t_section), INTENT(INOUT) :: paero(kbdim,klev,nbins), &
+                pice(kbdim,klev,nice),psnow(kbdim,klev,nsnw)
+    REAL, INTENT(IN) :: prv(kbdim,klev),prsi(kbdim,klev)
+    REAL :: diam, vrat, zvol, ra, rb
+    INTEGER :: ii,jj,kk,ab,bb,nn
+
+    nn = nspec+1 ! Aerosol species + water
+
+    DO jj = 1,klev
+      DO ii = 1,kbdim
+        IF ( prv(ii,jj)/prsi(ii,jj) >= 0.999 ) CYCLE
+
+        ! Loop over ice (and aerosol) bins
+        DO kk = 1, nice
+            IF ( pice(ii,jj,kk)%numc>prlim .AND. pice(ii,jj,kk)%volc(1)<1e-11 ) THEN
+                ! Diameter (assuming water density for ice)
+                diam = (SUM(pice(ii,jj,kk)%volc(1:nn))/pice(ii,jj,kk)%numc/pi6)**(1./3.)
+                ! Dry to total volume ratio
+                vrat = SUM(pice(ii,jj,kk)%volc(2:nn))/SUM(pice(ii,jj,kk)%volc(1:nn))
+                ! Ice and snow don't have a critical size, but lose particles smaller than 2e-6 m
+                ! and particles which dry to total mass ratio is more than 0.5
+                IF ( vrat>0.5 .OR. diam<2e-6 ) THEN
+                    ab = fn1a + kk ! Index for parallel aerosol bin
+                    ! Move the number of particles from ice to aerosol bins
+                    paero(ii,jj,ab)%numc = paero(ii,jj,ab)%numc + pice(ii,jj,kk)%numc
+                    pice(ii,jj,kk)%numc = 0.0
+                    ! Move ccn material back to aerosol regime (including water)
+                    paero(ii,jj,ab)%volc(1:nn) = paero(ii,jj,ab)%volc(1:nn) + pice(ii,jj,kk)%volc(1:nn)
+                    pice(ii,jj,kk)%volc(1:nn) = 0.0
+                END IF
+            END IF
+        END DO
+
+        ! Loop over snow bins
+        DO kk = 1,nsnw
+            IF ( psnow(ii,jj,kk)%numc > prlim .AND. psnow(ii,jj,kk)%volc(1)<1e-11 ) THEN
+                ! Diameter (assuming water density for snow)
+                diam =(SUM(psnow(ii,jj,kk)%volc(1:nn))/psnow(ii,jj,kk)%numc/pi6)**(1./3.)
+                ! Dry to total volume ratio
+                vrat = SUM(psnow(ii,jj,kk)%volc(2:nn))/SUM(psnow(ii,jj,kk)%volc(1:nn))
+                ! Lose particles smaller than 2e-6 m and particles which dry to total
+                ! mass ratio is more than 0.5
+                IF ( vrat>0.5  .OR. diam<2.e-6 ) THEN
+                    ! Move snow to aerosol bin based on dry radius and chemical composition
+
+                    ! 1) Matching a-bin
+                    zvol=SUM(psnow(ii,jj,kk)%volc(2:nn))/psnow(ii,jj,kk)%numc
+                    ab=MAX(1,COUNT(zvol>paero(ii,jj,1:fn2a)%vlolim)) ! Aerosol a-bin
+                    ! Corresponding b bin
+                    bb=ab-in2a+in2b
+                    ! 2) Select a or b bin
+                    IF (ab<in2a .OR. paero(ii,jj,bb)%numc<=nlim) THEN
+                        ! Empty b bin or 1a, so select a
+                        !ab = ab
+                    ELSEIF (paero(ii,jj,ab)%numc<=nlim) THEN
+                        ! Empty a bin so select b
+                        ab = bb
+                    ELSE
+                        ! Both are present - find bin based on compositional similarity
+                        ra = calc_correlation(paero(ii,jj,ab)%volc(2:nn),psnow(ii,jj,kk)%volc(2:nn),nspec)
+                        rb = calc_correlation(paero(ii,jj,bb)%volc(2:nn),psnow(ii,jj,kk)%volc(2:nn),nspec)
+                        IF (ra<rb) ab = bb
+                    ENDIF
+
+                    ! Move the number of particles from rain to aerosol bins
+                    paero(ii,jj,ab)%numc = paero(ii,jj,ab)%numc + psnow(ii,jj,kk)%numc
+                    psnow(ii,jj,kk)%numc = 0.0
+                    ! Move ccn material back to aerosol regime (including water)
+                    paero(ii,jj,ab)%volc(1:nn) = paero(ii,jj,ab)%volc(1:nn) + psnow(ii,jj,kk)%volc(1:nn)
+                    psnow(ii,jj,kk)%volc(1:nn) = 0.0
+                END IF
+            END IF
+        END DO
+      END DO
+    END DO
+
+  END SUBROUTINE ReleaseIce
+
+  ! ------------------------------------------------
+  SUBROUTINE ReleaseAerosol(kbdim,klev,paero,pc_gas,ngas)
+    !
+    ! Remove or release aerosol back to gas phase when they have become small enough
+    !
+    USE mo_submctl, ONLY : t_section, nbins, nspec, pi6, nlim, &
+            lscndgas, part_h2so4, isog, iso, part_ocnv, iocg, ioc
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: kbdim,klev,ngas
+    TYPE(t_section), INTENT(INOUT) :: paero(kbdim,klev,nbins)
+    REAL, INTENT(INOUT) :: pc_gas(kbdim,klev,ngas)
+    REAL ::  zvol
+    INTEGER :: ii,jj,kk,nn
+
+    nn = nspec+1 ! Aerosol species + water
+
+    DO jj = 1,klev
+      DO ii = 1,kbdim
+        ! Loop over aerosol bins
+        DO kk = 1,nbins
+            IF (paero(ii,jj,kk)%numc > nlim) THEN
+                ! Dry volume
+                zvol = SUM(paero(ii,jj,kk)%volc(2:nn))/paero(ii,jj,kk)%numc
+
+                ! Particles smaller than 0.1 nm diameter are set to zero
+                IF ( zvol < pi6*1.e-30 ) THEN
+                    ! Volatile species to the gas phase
+                    IF (lscndgas .AND. part_h2so4 .AND. isog>0 .AND. iso>0) THEN
+                        pc_gas(kbdim,klev,isog) = pc_gas(kbdim,klev,isog) + paero(ii,jj,kk)%volc(iso)
+                    END IF
+                    IF (lscndgas .AND. part_ocnv .AND. iocg>0 .AND. ioc>0) THEN
+                        pc_gas(kbdim,klev,iocg) = pc_gas(kbdim,klev,iocg) + paero(ii,jj,kk)%volc(ioc)
+                    END IF
+
+                    ! Mass and number to zero (insolube species and water are lost)
+                    paero(ii,jj,kk)%volc(1:nn) = 0.
+                    paero(ii,jj,kk)%numc = 0.
+                END IF
+            END IF
+        END DO
+      END DO
+    END DO
+
+  END SUBROUTINE ReleaseAerosol
+
+
+  SUBROUTINE clean_missing(kbdim,klev,n,psect)
+    !
+    ! Remove negative number concentration values
+    ! and particles that have number but no volume (or mass).
+    !
+    USE mo_submctl, ONLY : t_section
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: kbdim,klev,n
+    TYPE(t_section), INTENT(INOUT) :: psect(kbdim,klev,n)
+    INTEGER :: ii,jj,kk
+
+    DO jj = 1,klev
+      DO ii = 1,kbdim
+        DO kk = 1,n
+            psect(ii,jj,kk)%numc = MAX(0.0,psect(ii,jj,kk)%numc)
+            IF (psect(ii,jj,kk)%numc > 0. .AND. SUM(psect(ii,jj,kk)%volc(:)) <= 0.) THEN
+                psect(ii,jj,kk)%numc = 0.0
+                psect(ii,jj,kk)%volc(:) = 0.0
+            END IF
+        END DO
+      END DO
+    END DO
+
+  END SUBROUTINE clean_missing
+
 
 
   !-----------------------------------------
@@ -409,7 +627,6 @@ CONTAINS
     USE mo_submctl, ONLY : t_section,   &
                                ncld,        &
                                nprc,        &
-                               pi6,         &
                                nlim, prlim, &
                                rhowa
     IMPLICIT NONE
@@ -487,9 +704,9 @@ CONTAINS
             ! Note: must move all to this bin
         ELSE
             ! Add rain drops to the specified bin (e.g. the first bin, the bin with 65-100 um rain drops, or any other bin) and
-            ! calculate number based on that: N*pi/6*Dmid**3=V => N=V/(pi/6*Dmid**3)
+            ! calculate number based on that: N*Vmid=V => N=V/Vmid
             io=iout ! The default bin
-            Nrem=Vrem/(pi6*pprecp(ii,jj,io)%dmid**3)
+            Nrem=Vrem/pprecp(ii,jj,io)%vmid
             ! Determine fact: Nrem=SUM(fact*Nc(i)*Vrem/Vtot)=fact*Ntot*Vrem/Vtot
             fact=MIN(1.,Nrem/Ntot*Vtot/Vrem) ! Limited to 1
         END IF
@@ -1808,7 +2025,7 @@ CONTAINS
         pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
     ELSE
         ! Volume fraction to be removed (based on dry size)
-        vfrac = dN/pice(ii,jj,cc)%numc*(pice(ii,jj,bb)%dmid/pice(ii,jj,cc)%dmid)**3
+        vfrac = dN/pice(ii,jj,cc)%numc*(pice(ii,jj,bb)%Vmid/pice(ii,jj,cc)%Vmid)
         ! Move dN splinters from ice bin cc to ice bin bb
         pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
         pice(ii,jj,bb)%volc(:) = pice(ii,jj,bb)%volc(:) + vfrac*pice(ii,jj,cc)%volc(:)
@@ -1835,7 +2052,7 @@ CONTAINS
         psnow(ii,jj,bb)%numc = psnow(ii,jj,bb)%numc + dN
     ELSE
         ! Volume fraction to be removed (based on wet size)
-        vfrac = dN/psnow(ii,jj,cc)%numc*(psnow(ii,jj,bb)%dmid/psnow(ii,jj,cc)%dmid)**3
+        vfrac = dN/psnow(ii,jj,cc)%numc*(psnow(ii,jj,bb)%vmid/psnow(ii,jj,cc)%vmid)
         ! Move dN splinters from snow bin cc to snow bin bb
         psnow(ii,jj,bb)%numc = psnow(ii,jj,bb)%numc + dN
         psnow(ii,jj,bb)%volc(:) = psnow(ii,jj,bb)%volc(:) + vfrac*psnow(ii,jj,cc)%volc(:)
@@ -1845,7 +2062,7 @@ CONTAINS
   END SUBROUTINE snow2snow
 
   SUBROUTINE snow2ice(ii,jj,nice,nsnw,pice,psnow,dN,cc,bb)
-    USE mo_submctl, ONLY : t_section, pi6
+    USE mo_submctl, ONLY : t_section
     ! Inputs/outputs
     INTEGER, INTENT(in) :: ii, jj, nice, nsnw ! Dimensions
     INTEGER, INTENT(in) :: cc, bb ! Bin indices for the source snow (cc) and target ice (bb)
@@ -1858,7 +2075,7 @@ CONTAINS
     dN=MIN(dN,0.1*psnow(ii,jj,cc)%numc)
     !
     ! Volume fraction to be removed (based on dry size)
-    vfrac = dN*pi6*pice(ii,jj,bb)%dmid**3/SUM(psnow(ii,jj,cc)%volc(2:))
+    vfrac = dN*pice(ii,jj,bb)%vmid/SUM(psnow(ii,jj,cc)%volc(2:))
     ! Move dN splinters from snow bin cc to ice bin bb
     pice(ii,jj,bb)%numc = pice(ii,jj,bb)%numc + dN
     pice(ii,jj,bb)%volc(:) = pice(ii,jj,bb)%volc(:) + vfrac*psnow(ii,jj,cc)%volc(:)

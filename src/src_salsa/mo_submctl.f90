@@ -9,9 +9,7 @@ MODULE mo_submctl
   TYPE t_section
      REAL :: vhilim,     & ! bin volume at the high limit
                  vlolim,     & ! - '' - at the low limit
-                 vratiohi,   & ! volume ratio between the center and high limit
-                 vratiolo,   & ! - '' - and the low limit
-                 dmid,       & ! bin middle diameter
+                 vmid,       & ! bin middle volume
                  !******************************************************
                  ! ^ Do NOT change the stuff above after initialization !
                  !******************************************************
@@ -46,9 +44,6 @@ MODULE mo_submctl
   LOGICAL :: nlcgss  = .TRUE., lscgss ! Collision-coalescence between snow particles
 
   LOGICAL :: nlcnd      = .TRUE.,  lscnd      ! Condensation master switch
-  LOGICAL :: nlcndh2ocl = .TRUE.,  lscndh2ocl ! Condensation of water vapour on clouds and precipitation
-  LOGICAL :: nlcndh2oae = .TRUE.,  lscndh2oae ! Condensation of water vapour on aerosol particles (FALSE -> equilibrium calc.)
-  LOGICAL :: nlcndh2oic = .TRUE.,  lscndh2oic ! Condensation of water vapour on ice and snow
   LOGICAL :: nlcndgas   = .FALSE., lscndgas   ! Condensation of H2SO4 and organic vapors
 
   LOGICAL :: nlauto     = .TRUE.,  lsauto     ! Autoconversion of cloud droplets (needs activation)
@@ -56,34 +51,17 @@ MODULE mo_submctl
   LOGICAL :: nlcgrain = .FALSE.,   lscgrain   ! Rain formation based on cloud-cloud collisions
 
   LOGICAL :: nlactiv    = .TRUE.,  lsactiv    ! Cloud droplet activation master switch
-  LOGICAL :: nlactintst = .TRUE.,  lsactintst ! Switch for interstitial activation
-  LOGICAL :: nlactbase  = .FALSE., lsactbase  ! Switch for cloud base activation
 
   LOGICAL :: nlicenucl  = .FALSE., lsicenucl  ! ice nucleation master switch
   LOGICAL :: nlicmelt   = .FALSE., lsicmelt   ! ice melting
 
   ! Other switches
   LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
+  LOGICAL :: lsdiag = .TRUE.        ! Perform diagnostic drop/ice to aerosol relaese and clean negative values
 
 
   ! ---------------------------------------------------------------------------------------------------------
   ! 3) Parameters and options for SALSA microphysics
-
-  ! New particle formation or nucleation
-  INTEGER :: nsnucl = 0             ! Choice of the nucleation scheme:
-                                    ! 0 = off   
-                                    ! 1 = binary nucleation
-                                    ! 2 = activation type nucleation
-                                    ! 3 = kinetic nucleation
-                                    ! 4 = ternary nucleation
-                                    ! 5 = nucleation with ORGANICs
-                                    ! 6 = activation type of nucleation with H2SO4+ORG
-                                    ! 7 = heteromolecular nucleation with H2SO4*ORG
-                                    ! 8 = homomolecular nucleation of  H2SO4 + 
-                                    !           heteromolecular nucleation with H2SO4*ORG
-                                    ! 9 = homomolecular nucleation of  H2SO4 and ORG + 
-                                    !           heteromolecular nucleation with H2SO4*ORG
-
 
   ! Autoconversion
   !   Cloud to rain

@@ -156,13 +156,9 @@ module grid
   real, allocatable, target :: a_theta(:,:,:)  ! dry potential temp (k)
   real, allocatable :: a_pexnr(:,:,:)  ! perturbation exner func
   real, allocatable :: a_press(:,:,:)  ! pressure (hpa)
-  real, allocatable :: a_rc(:,:,:)     ! Cloud (level<=3) or aerosol+cloud (level>=4) water mixing ratio
+  real, allocatable :: a_rc(:,:,:)     ! Cloud (level<=3) or aerosol+cloud+rain (level>=4) water mixing ratio
   real, allocatable :: a_ri(:,:,:)     ! Total ice water mixing ratio
   real, allocatable :: a_rv(:,:,:)     ! Water vapor mixing ratio (levels < 4)
-  REAL, ALLOCATABLE :: a_srp(:,:,:)    ! Total rain water mixing ratio (levels >= 4)
-  REAL, ALLOCATABLE :: a_snrp(:,:,:)   ! Total rain drop number mixing ratio (levels >=4)
-  REAL, ALLOCATABLE :: a_srs(:,:,:)    ! Total snow water mixing ratio (level 5)
-  REAL, ALLOCATABLE :: a_snrs(:,:,:)   ! Total snow number mixing ratio (level 5)
   REAL, ALLOCATABLE :: a_rsl(:,:,:)    ! Water vapor saturation mixing ratio
   REAL, ALLOCATABLE :: a_rsi(:,:,:)    ! Water vapor saturation mixing ratio over ice
   REAL, ALLOCATABLE :: a_dn(:,:,:)     ! Air density
@@ -380,14 +376,6 @@ contains
     !Juha: Stuff that's allocated when SALSA is used
     !---------------------------------------------------
     ELSE IF (level >= 4) THEN
-
-       allocate ( a_srp(nzp,nxp,nyp), a_snrp(nzp,nxp,nyp), &
-                 a_srs(nzp,nxp,nyp), a_snrs(nzp,nxp,nyp) )
-       a_srp(:,:,:) = 0.
-       a_snrp(:,:,:) = 0.
-       a_srs(:,:,:) = 0.
-       a_snrs(:,:,:) = 0.
-       memsize = memsize + 4*nxyzp
 
        ! Number of prognostic SALSA variables
        IF (no_b_bins) THEN
@@ -1019,8 +1007,6 @@ contains
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_press(:,i1:i2,j1:j2), start=ibeg, count=icnt)
 
     ! Common variables (optional)
-    iret = nf90_inq_varid(ncid0,'l',VarID) ! Liquid water
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_rc(:,i1:i2,j1:j2), start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'rflx', VarID) ! Total radiative flux
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_rflx(:,i1:i2,j1:j2), start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'stke', VarID) ! Subgrid TKE
@@ -1053,6 +1039,12 @@ contains
        ! Total water
        iret = nf90_inq_varid(ncid0,'q',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ! Liquid water = cloud + rain
+       iret = nf90_inq_varid(ncid0,'l',VarID)
+       IF (iret==NF90_NOERR) THEN
+          zvar=a_rc+a_rpp
+          iret = nf90_put_var(ncid0, VarID, zvar(:,i1:i2,j1:j2), start=ibeg, count=icnt)
+       ENDIF
        ! Rain water mixing ratio and number concentration
        iret = nf90_inq_varid(ncid0,'r',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rpp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
@@ -1081,27 +1073,35 @@ contains
        iret = nf90_inq_varid(ncid0,'q',VarID)
        IF (iret==NF90_NOERR) THEN
           zvar(:,:,:) = a_rp(:,:,:) + &   ! Water vapor
-                            a_rc(:,:,:) + &   ! Aerosol + cloud water
-                            a_srp(:,:,:) + &   ! Rain water
-                            a_ri(:,:,:) + & ! Ice water (level 5)
-                            a_srs(:,:,:)      ! Snow water (level 5)
+                        a_rc(:,:,:) + &   ! Aerosol + cloud + rain water
+                        a_ri(:,:,:)       ! Ice + snow water (level 5)
           iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        END IF
 
+       ! Liquid water mixing ratio
+       iret = nf90_inq_varid(ncid0,'l',VarID)
+       IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+
        ! Rain water mixing ratio
        iret = nf90_inq_varid(ncid0,'r',VarID)
-       IF (iret==NF90_NOERR) &
-          iret = nf90_put_var(ncid0,VarID,a_srp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_mprecpp(:,:,:,1:nprc),DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ENDIF
 
        ! Ice water mixing ratio
        iret = nf90_inq_varid(ncid0,'i',VarID)
-       IF (iret==NF90_NOERR) &
-          iret = nf90_put_var(ncid0,VarID,a_ri(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_micep(:,:,:,1:nice),DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ENDIF
 
        ! Snow water mixing ratio
        iret = nf90_inq_varid(ncid0,'s',VarID)
-       IF (iret==NF90_NOERR) &
-          iret = nf90_put_var(ncid0,VarID,a_srs(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_msnowp(:,:,:,1:nsnw),DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ENDIF
 
 
        !  All bin-dependent outputs are calculated here
