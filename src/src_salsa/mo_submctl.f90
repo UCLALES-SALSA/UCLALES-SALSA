@@ -27,37 +27,25 @@ MODULE mo_submctl
   ! circumstances such as spinup period etc.
 
   LOGICAL :: nlcoag  = .TRUE., lscoag ! Coagulation master switch
-  LOGICAL :: nlcgaa  = .TRUE., lscgaa ! Coagulation between aerosols
-  LOGICAL :: nlcgcc  = .TRUE., lscgcc ! Collision-coalescence between cloud droplets
-  LOGICAL :: nlcgca  = .TRUE., lscgca ! Cloud collection of aerosols
-  LOGICAL :: nlcgpc  = .TRUE., lscgpc ! Collection of cloud droplets by rain
-  LOGICAL :: nlcgpa  = .TRUE., lscgpa ! Collection of aerosols by rain
-  LOGICAL :: nlcgpp  = .TRUE., lscgpp ! Collision between rain drops
-  LOGICAL :: nlcgia  = .TRUE., lscgia ! Ice collection of aerosols
-  LOGICAL :: nlcgic  = .TRUE., lscgic ! Collection of cloud droplets by ice particles
-  LOGICAL :: nlcgii  = .TRUE., lscgii ! Collision-coalescence between ice particles
-  LOGICAL :: nlcgip  = .TRUE., lscgip ! Collection of precipitation by ice particles
-  LOGICAL :: nlcgsa  = .TRUE., lscgsa ! Collection of aerosols by snow
-  LOGICAL :: nlcgsc  = .TRUE., lscgsc ! Collection of cloud droplets by snow
-  LOGICAL :: nlcgsi  = .TRUE., lscgsi ! Collection of ice by snow
-  LOGICAL :: nlcgsp  = .TRUE., lscgsp ! Collection of precipitation by snow
-  LOGICAL :: nlcgss  = .TRUE., lscgss ! Collision-coalescence between snow particles
+  LOGICAL :: lscgaa, lscgcc, lscgpp, & ! Collisions between particle types (default=T)
+             lscgca, lscgpa, lscgpc, &
+             lscgia, lscgic, lscgii, &
+             lscgip, lscgsa, lscgsc, &
+             lscgsi, lscgsp, lscgss
+  LOGICAL :: lscgrain ! Rain formation based on cloud-cloud collisions (default=F)
 
   LOGICAL :: nlcnd      = .TRUE.,  lscnd      ! Condensation master switch
   LOGICAL :: nlcndgas   = .FALSE., lscndgas   ! Condensation of H2SO4 and organic vapors
-
-  LOGICAL :: nlauto     = .TRUE.,  lsauto     ! Autoconversion of cloud droplets (needs activation)
-  LOGICAL :: nlautosnow = .FALSE., lsautosnow ! Autoconversion of ice particles to snow (needs activation)
-  LOGICAL :: nlcgrain = .FALSE.,   lscgrain   ! Rain formation based on cloud-cloud collisions
-
   LOGICAL :: nlactiv    = .TRUE.,  lsactiv    ! Cloud droplet activation master switch
+  LOGICAL :: nlauto     = .TRUE.,  lsauto     ! Autoconversion of cloud droplets
 
   LOGICAL :: nlicenucl  = .FALSE., lsicenucl  ! ice nucleation master switch
   LOGICAL :: nlicmelt   = .FALSE., lsicmelt   ! ice melting
+  LOGICAL :: nlautosnow = .FALSE., lsautosnow ! Autoconversion of ice particles to snow
 
   ! Other switches
-  LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
-  LOGICAL :: lsdiag = .TRUE.        ! Perform diagnostic drop/ice to aerosol relaese and clean negative values
+  LOGICAL :: lsdistupdate ! Perform the size distribution update (default=T)
+  LOGICAL :: lsdiag       ! Perform diagnostic drop/ice to aerosol relaese and clean negative values (default=T)
 
 
   ! ---------------------------------------------------------------------------------------------------------
@@ -181,18 +169,17 @@ MODULE mo_submctl
   REAL :: volDistB(maxspec) = 0.0
   ! Limit 1a composition to OC and/or SO4
   LOGICAL :: salsa1a_SO4_OC = .TRUE.
-  ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
-  REAL :: nf2a = 1.0
 
   ! Type of the input aerosol size distribution
   !     0 - Uniform, log-normal size distribution parameters given in the NAMELIST
-  !     1 - Read vertical profile of those from an input file
+  !  else - Read vertical profile of those from an input file
   INTEGER :: isdtyp = 0
   ! For isdtyp = 0
   INTEGER, PARAMETER :: nmod = 7
-  REAL :: sigmag(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/),   & ! Stdev
-             dpg(nmod) = (/0.15,0.2,0.2,0.2,0.2,0.2,0.2/), & ! Mode diam in um
-               n(nmod) = (/640.,0.,0.,0.,0.,0.,0./)        ! 1e6#/kg ~ #/cm3
+  ! Number concentration (1e6 #/kg), mode diameter (1e-6 m) and STD for a and b bins
+  REAL :: nA(nmod) = (/640.,0.0,0.0,0.0,0.0,0.0,0.0/),     nB(nmod) = 0.0, & ! Number
+        dpgA(nmod) = (/0.15,0.2,0.2,0.2,0.2,0.2,0.2/),   dpgB(nmod) = 0.0, & ! Mode diameter
+     sigmagA(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/), sigmagB(nmod) = 0.0    ! STD
 
   ! Aerosol, cloud and ice bin limits (based on dry size)
   INTEGER, PARAMETER :: maxnreg = 5 ! maximum number of subregimes (the first is region 1 and the rest are for region 2)

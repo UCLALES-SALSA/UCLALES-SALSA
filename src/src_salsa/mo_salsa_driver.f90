@@ -286,75 +286,30 @@ IMPLICIT NONE
   ! Juha Tonttila, FMI, 2014
   !
   SUBROUTINE set_SALSA_runtime(prunmode,time)
-    USE mo_submctl, ONLY : nlcoag,                 &
-                               nlcgaa,nlcgcc,nlcgpp,   &
-                               nlcgca,nlcgpa,nlcgpc,   &
-                               nlcgrain,               &
-                               nlcnd,                  &
-                               nlcndgas,               &
-                               soa_tstart,             &
-                               nlauto,nlautosnow,      &
-                               nlactiv,                &
-
-                               lscoag,                 &
-                               lscgaa,lscgcc,lscgpp,   &
-                               lscgca,lscgpa,lscgpc,   &
-                               lscgrain,               &
-                               lscnd,                  &
-                               lscndgas,               &
-                               lsauto,lsautosnow,      &
-                               lsactiv,                &
-
-                               nlcgia,nlcgic,nlcgii,   &
-                               nlcgip,nlcgsa,nlcgsc,   &
-                               nlcgsi,nlcgsp,nlcgss,   &
-                               nlcnd,                  &
-                               nlicenucl,              &
-                               nlicmelt,               &
-                               icenucl_tstart,         &
-
-                               lscgia,lscgic,lscgii,   &
-                               lscgip,lscgsa,lscgsc,   &
-                               lscgsi,lscgsp,lscgss,   &
-                               lsicenucl,              &
-                               lsicmelt
-
+    USE mo_submctl, ONLY : nlcoag,     lscoag,     &
+                           nlcnd,      lscnd,      &
+                           nlcndgas,   lscndgas,   &
+                           soa_tstart,             &
+                           nlauto,     lsauto,     &
+                           nlactiv,    lsactiv,    &
+                           nlicenucl,  lsicenucl,  &
+                           nlautosnow, lsautosnow, &
+                           nlicmelt,   lsicmelt,   &
+                           icenucl_tstart
     IMPLICIT NONE
 
     LOGICAL, INTENT(in) :: prunmode
     REAL, INTENT(in) :: time
 
     ! Apply runtime settings
-
     lscoag      = nlcoag
-    lscgaa      = nlcgaa
-    lscgcc      = nlcgcc
-    lscgpp      = nlcgpp
-    lscgca      = nlcgca
-    lscgpa      = nlcgpa
-    lscgpc      = nlcgpc
-    lscgia      = nlcgia
-    lscgic      = nlcgic
-    lscgii      = nlcgii
-    lscgip      = nlcgip
-    lscgsa      = nlcgsa
-    lscgsc      = nlcgsc
-    lscgsi      = nlcgsi
-    lscgsp      = nlcgsp
-    lscgss      = nlcgss
-
     lscnd       = nlcnd
     lscndgas    = nlcndgas
-
-    lscgrain    = nlcgrain
     lsauto      = nlauto
     lsautosnow  = nlautosnow
-
     lsactiv     = nlactiv
-
-    lsicenucl  = nlicenucl
+    lsicenucl   = nlicenucl
     lsicmelt    = nlicmelt
-
 
     ! Adjustments for spinup
     IF (prunmode) THEN
@@ -374,6 +329,5 @@ IMPLICIT NONE
     IF (time<soa_tstart) lscndgas = .FALSE.
 
   END SUBROUTINE set_SALSA_runtime
-
 
 END MODULE mo_salsa_driver

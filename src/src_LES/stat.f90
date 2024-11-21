@@ -193,7 +193,7 @@ contains
   subroutine init_stat(time, filprf, expnme, nzp)
 
     use ncio, only : open_nc, define_nc
-    use grid, only : nxp, nyp, nprc, nsnw, nspec, iradtyp, &
+    use grid, only : nxp, nyp, nprc, nsnw, nspt, iradtyp, &
         no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, &
         sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, out_an_list, nv4_proc, &
         user_an_list, nv4_user, ifSeaSpray, ifSeaVOC
@@ -211,7 +211,7 @@ contains
     LOGICAL :: s1_bool(nvar1), s1_lvl4_bool(nv1_lvl4), s1_lvl5_bool(nv1_lvl5)
     LOGICAL :: s2_bool(nvar2), s2_lvl4_bool(nv2_lvl4), s2_lvl5_bool(nv2_lvl5)
     LOGICAL :: s3_bool(nvar3), s3_lvl4_bool(nv3_lvl4), s3_lvl5_bool(nv3_lvl5)
-    LOGICAL :: s1_rem_bool(5*(nspec+1))
+    LOGICAL :: s1_rem_bool(5*nspt)
     LOGICAL :: s2_CldHist_bool(nv2_hist), s2_IceHist_bool(nv2_hist)
     LOGICAL :: tmp_bool(100)
 
@@ -337,7 +337,7 @@ contains
     ELSE IF ( level >= 4 ) THEN
        ! Additional arrays for SALSA
        ! -- dimensions
-       nv1_rem = 5*(nspec+1)  ! Removal with aerosol, cloud, rain, ice and snow
+       nv1_rem = 5*nspt ! Removal with aerosol, cloud, rain, ice and snow
        ! -- allocate
        ALLOCATE ( ssclr_lvl4(nv1_lvl4), svctr_lvl4(nzp,nv2_lvl4) )
        ALLOCATE ( ssclr_lvl5(nv1_lvl5), svctr_lvl5(nzp,nv2_lvl5) )
@@ -381,7 +381,7 @@ contains
        ! 2) Microphysical process rate statistics (both ts and ps)
 
        ! 3) Removal; dry, cloud, precipitation, ice and snow
-       DO ee=1,nspec+1 ! Aerosol species and water
+       DO ee=1,nspt ! Aerosol species and water
           ii = (ee-1)*5
           s1_rem(ii+1)='rm'//TRIM(zspec(ee))//'dr'
           s1_rem(ii+2)='rm'//TRIM(zspec(ee))//'cl'
@@ -1781,8 +1781,8 @@ contains
                     ibase=-1
                     do k=2,nzp
                         IF (cloudmask(k,i,j)) THEN
-                            IF (ibase<0) ibase=i
-                            itop=i
+                            IF (ibase<0) ibase=k
+                            itop=k
                         ENDIF
                     END DO
                     IF (ibase>0) THEN
@@ -2137,8 +2137,8 @@ contains
   ! on level 4 variables.
   !
   subroutine accum_lvl4(n1,n2,n3)
-    use mo_submctl, only : inp2a,fnp2a,inp2b,fnp2b,cldbinlim,nout_cld,nlim
-    use grid, ONLY : getBinRadius, nspec, ncld, a_mcloudp, a_ncloudp
+    use mo_submctl, only : fnp2a,inp2b,fnp2b,cldbinlim,nout_cld,nlim
+    use grid, ONLY : getBinRadius, nspt, ncld, a_mcloudp, a_ncloudp
 
     IMPLICIT NONE
 
@@ -2152,9 +2152,9 @@ contains
     IF (nout_cld>0) THEN
         ALLOCATE(hist(n1,nout_cld))
         ! Cloud droplet bin wet radius
-        CALL getBinRadius(ncld,nspec+1,a_ncloudp,a_mcloudp,nlim,a_Rwet,2)
+        CALL getBinRadius(ncld,nspt,a_ncloudp,a_mcloudp,nlim,a_Rwet,2)
         ! Histograms (regime A)
-        CALL HistDistr(n1,n2,n3,fnp2a,a_Rwet(:,:,:,inp2a:fnp2a),a_ncloudp(:,:,:,inp2a:fnp2a),cldbinlim,nout_cld,hist)
+        CALL HistDistr(n1,n2,n3,fnp2a,a_Rwet(:,:,:,1:fnp2a),a_ncloudp(:,:,:,1:fnp2a),cldbinlim,nout_cld,hist)
         svctr_ch(:,:,1) = svctr_ch(:,:,1) + hist(:,:)
         ! Histograms (regime B)
         IF (ncld==fnp2b) THEN
@@ -2170,10 +2170,10 @@ contains
   ! on level 5 variables.
   !
   subroutine accum_lvl5(n1,n2,n3)
-    use mo_submctl, only : inp2a,fnp2a,inp2b,fnp2b,icebinlim,nout_ice, &
+    use mo_submctl, only : fnp2a,inp2b,fnp2b,icebinlim,nout_ice, &
                      prlim ! Note: prlim in #/m^3, but close enough to #/kg for statistics
     use grid, ONLY : bulkNumc, bulkMixrat, meanRadius, binSpecMixrat, getBinRadius, &
-                     nspec, nice, a_micep, a_nicep, nsnw, a_msnowp, icein, snowin, a_tp, th00
+                     nspt, nice, a_micep, a_nicep, nsnw, a_msnowp, icein, snowin, a_tp, th00
 
     IMPLICIT NONE
 
@@ -2252,9 +2252,9 @@ contains
     IF (nout_ice>0) THEN
         ALLOCATE(hist(n1,nout_ice))
         ! Cloud droplet bin wet radius
-        CALL getBinRadius(nice,nspec+1,a_nicep,a_micep,prlim,a_Rwet,4)
+        CALL getBinRadius(nice,nspt,a_nicep,a_micep,prlim,a_Rwet,4)
         ! Histograms (regime A)
-        CALL HistDistr(n1,n2,n3,fnp2a,a_Rwet(:,:,:,inp2a:fnp2a),a_nicep(:,:,:,inp2a:fnp2a),icebinlim,nout_ice,hist)
+        CALL HistDistr(n1,n2,n3,fnp2a,a_Rwet(:,:,:,1:fnp2a),a_nicep(:,:,:,1:fnp2a),icebinlim,nout_ice,hist)
         svctr_ih(:,:,1) = svctr_ih(:,:,1) + hist(:,:)
         ! Histograms (regime B)
         IF (nice==fnp2b) THEN
@@ -2773,8 +2773,7 @@ contains
   subroutine  write_ps(n1,dn0,u0,v0,zm,zt,time)
 
     use defs, only : cp
-    USE mo_submctl, ONLY : in1a,in2a,fn2a, &
-                               aerobins,precpbins,snowbins, &
+    USE mo_submctl, ONLY : in2a,fn2a,aerobins,precpbins,snowbins, &
                                nout_cld, cldbinlim, nout_ice, icebinlim
     USE grid, ONLY : nprc,nsnw
     use mpi_interface, only : myid
@@ -2827,7 +2826,7 @@ contains
        IF (level >= 4) THEN
           iret = nf90_inq_varid(ncid2,'B_Rd12a',VarID) ! 1a+2a
           IF (iret == NF90_NOERR) &
-                iret = nf90_put_var(ncid2,VarID,aerobins(in1a:fn2a),start=(/nrec2/))
+                iret = nf90_put_var(ncid2,VarID,aerobins(1:fn2a),start=(/nrec2/))
           iret = nf90_inq_varid(ncid2,'B_Rd2ab',VarID) ! 2a = 2b
           IF (iret == NF90_NOERR) &
                 iret = nf90_put_var(ncid2,VarID,aerobins(in2a:fn2a),start=(/nrec2/))

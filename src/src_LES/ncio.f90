@@ -6,8 +6,7 @@ module ncio
   implicit none
   private
 
-  public :: open_nc, define_nc, ncinfo, &
-            open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
+  public :: open_nc, define_nc, ncinfo
 
 contains
   !
@@ -1652,75 +1651,5 @@ contains
         ENDIF
     ENDIF
   END function get_sb_info
-  !
-  ! ----------------------------------------------------------------------
-  ! FUNCTIONS FOR READING AEROSOL SIZE DISTRIBUTIONS FROM A NETCDF FILE
-  !
-  SUBROUTINE open_aero_nc(ncid,nc_levs,nc_nspec,nc_nmod)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(out) :: ncid,nc_levs,nc_nspec,nc_nmod
-    INTEGER :: iret, did
-
-    ! Open file
-    iret = nf90_open('aerosol_in.nc',NF90_NOWRITE,ncid)
-
-    ! Inquire the number of input levels
-    iret = nf90_inq_dimid(ncid,'levs',did)
-    iret = nf90_inquire_dimension(ncid,did,len=nc_levs)
-
-    iret = nf90_inq_dimid(ncid,'nspec',did)
-    iret = nf90_inquire_dimension(ncid,did,len=nc_nspec)
-
-    iret = nf90_inq_dimid(ncid,'nmod',did)
-    iret = nf90_inquire_dimension(ncid,did,len=nc_nmod)
-
-  END SUBROUTINE open_aero_nc
-  !
-  ! ---------------------------------------------------
-  !
-  SUBROUTINE read_aero_nc_1d(ncid,name,d1,var)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in)           :: ncid, d1
-    CHARACTER(len=*), INTENT(in) :: name
-    REAL, INTENT(out)             :: var(d1)
-
-    INTEGER :: iret,vid
-
-    iret = nf90_inq_varid(ncid,name,vid)
-    iret = nf90_get_var(ncid,vid,var)
-
-  END SUBROUTINE read_aero_nc_1d
-  !
-  ! ---------------------------------------------------
-  !
-  SUBROUTINE read_aero_nc_2d(ncid,name,d1,d2,var)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in)           :: ncid, d1,d2
-    CHARACTER(len=*), INTENT(in) :: name
-    REAL, INTENT(out)             :: var(d1,d2)
-
-
-    INTEGER :: iret, vid
-
-    iret = nf90_inq_varid(ncid,name,vid)
-    iret = nf90_get_var(ncid,vid,var)
-
-  END SUBROUTINE read_aero_nc_2d
-  !
-  ! -----------------------------------------------------
-  !
-  SUBROUTINE close_aero_nc(ncid)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: ncid
-
-    INTEGER :: iret
-
-    iret = nf90_close(ncid)
-
-  END SUBROUTINE close_aero_nc
 
 end module ncio

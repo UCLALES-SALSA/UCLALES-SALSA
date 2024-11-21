@@ -24,10 +24,7 @@ module init
   integer               :: iseed = 0
   integer               :: ipsflg = 1
   integer               :: itsflg = 1
-       ! itsflg = 0 :potential temperature in kelvin
-       !          1 :liquid water potential temperature in kelvin
-       !          2 :temperature
-  real, dimension(nns)  :: us,vs,ts,thds,ps,hs,rts,rss,tks,xs
+  real, dimension(nns)  :: us,vs,ts,thds,ps=0.0,hs=0.0,rts,tks
   real                  :: zrand = 200.
   real                  :: zrndamp = 0.2 ! the amplitude of random temperature fluctuations
   real                  :: zrndampq = 5.0e-5 ! the amplitude of random humidity fluctuations
@@ -275,7 +272,8 @@ contains
     implicit none
 
     integer :: k, iterate
-    real    :: tavg, zold2, zold1, x1, xx, yy, zz, til
+    real    :: tavg, zold2, zold1, x1, xx, yy, zz, til, xs(nns)
+    LOGICAL :: fex
     character (len=245) :: fm0 = &
          "(/,' -------------------------------------------------',/,"       //&
          "'  Sounding Input: ',//,7x,'ps',9x,'hs',7x,'ts',6x ,'thds',6x," // &
@@ -285,14 +283,40 @@ contains
     !
     ! arrange the input sounding
     !
-    if (ps(1) == 0.) then
+    INQUIRE(FILE='sound_in',EXIST=fex)
+    if (ps(1) == 0. .AND. fex) then
        open (1,file='sound_in',status='old',form='formatted')
        do ns=1,nns
-          read (1,*,end=100) ps(ns),ts(ns),rts(ns),us(ns),vs(ns)
+          read (1,*,iostat=k) ps(ns),ts(ns),rts(ns),us(ns),vs(ns)
+          if (k<0) exit ! End of file
        end do
        close (1)
+    ELSEif (ps(1) == 0. .AND. hs(1) > 0.) then
+        ! If the NAMELIST contains hs where hs(1) is surface pressure and the rest
+        ! are heights in meters (like ps with ipsflg=1) then hs is used to interpolate
+        ! ps and the other inputs (ts, rts, us and vs) to the model grid.
+        !
+        ! Count the number of data values
+        ns=1
+        do while (hs(ns) > 0. .and. ns <= nns)
+           ns = ns+1
+        end do
+        ns=ns-1
+        ! Altitude grid
+        ipsflg = 1
+        ps(2:nzp) = zt(2:nzp)
+        ps(1) = hs(1) ! surface pressure (mbar)
+        hs(1) = 0.0   ! surface height (m)
+        ! Interpolate
+        xs(1:ns)=ts(1:ns)
+        call htint(ns,xs,hs(1:ns),nzp,ts(1:nzp),zt)
+        xs(1:ns)=rts(1:ns)
+        call htint(ns,xs,hs(1:ns),nzp,rts(1:nzp),zt)
+        xs(1:ns)=us(1:ns)
+        call htint(ns,xs,hs(1:ns),nzp,us(1:nzp),zt)
+        xs(1:ns)=vs(1:ns)
+        call htint(ns,xs,hs(1:ns),nzp,vs(1:nzp),zt)
     end if
-100 continue
 
     ns=1
     do while (ps(ns) /= 0. .and. ns <= nns)
@@ -677,16 +701,15 @@ contains
 
     USE grid, ONLY : nzp,nxp,nyp,nbins,a_naerop,a_maerop,no_b_bins,a_dn,zt
     use thrm, only : rslf
-    USE mo_submctl, ONLY : pi6,in1a,in2a,in2b,fn1a,fn2a,fn2b,aerobins,maxspec, &
-                           nmod, sigmag, dpg, n, volDistA, volDistB, nf2a, isdtyp, &
+    USE mo_submctl, ONLY : pi6,in2a,in2b,fn1a,fn2a,fn2b,aerobins,maxspec,nmod,isdtyp, &
+                           sigmagA, dpgA, nA, volDistA, sigmagB, dpgB, nB, volDistB, &
                            iso, ioc, nspec, dens, diss, mws, zspec, nlim, salsa1a_SO4_OC
     USE mpi_interface, ONLY : myid
 
     IMPLICIT NONE
-    REAL :: core(fn2a), nsect(fn2a)                   ! Size of the bin mid aerosol particle, local aerosol size dist
-    REAL :: pndist(nzp,fn2a)                          ! Aerosol size dist as a function of height
-    REAL :: pvf2a(nzp,nspec), pvf2b(nzp,nspec)        ! Mass distributions of aerosol species for a and b-bins
-    REAL :: pnf2a(nzp)                                ! Number fraction for bins 2a
+    REAL :: core(fn2a), nsect(fn2a)            ! Bin mid dry volume, local aerosol size dist
+    REAL :: pndist(nzp,fn2b)                   ! Aerosol size dist as a function of height
+    REAL :: pvf2a(nzp,nspec), pvf2b(nzp,nspec) ! Volume distributions of aerosol species for a and b-bins
     REAL :: mass(2*nspec), factor, sw, ns
     INTEGER :: ss,ee,i,j,k,nc
     CHARACTER(len=600) :: fmt
@@ -701,7 +724,6 @@ contains
     ! Set concentrations to zero
     pndist = 0.
     pvf2a = 0.; pvf2b = 0.
-    pnf2a = 0.
 
     a_maerop(:,:,:,:)=0.0
     a_naerop(:,:,:,:)=0.0
@@ -709,38 +731,36 @@ contains
     !
     ! Read  size distributions and compositions
     ! ----------------------------------------------------------
-    IF (isdtyp == 1) THEN
-       ! Altitude dependent profiles from text or NetCDF files
-
-       CALL READ_AERO_INPUT(pndist,pvf2a,pvf2b,pnf2a)
-
-    ELSE IF (isdtyp == 0) THEN
+    IF (isdtyp == 0) THEN
        ! Uniform profiles based on NAMELIST parameters
 
        ! Mass fractions for species in a and b-bins
+       IF (ANY(volDistA(1:nspec)>0.0)) volDistA=volDistA/SUM(volDistA(1:nspec)) ! Normalize
+       IF (ANY(volDistB(1:nspec)>0.0)) volDistB=volDistB/SUM(volDistB(1:nspec)) ! Normalize
        DO ss = 1,nspec
           pvf2a(:,ss) = volDistA(ss)
           pvf2b(:,ss) = volDistB(ss)
        END DO
 
-       ! Number fraction for 2a
-       pnf2a(:) = nf2a
-       !
-       ! Uniform aerosol size distribution with height.
-       ! Using distribution parameters (n, dpg and sigmag) from the SALSA namelist
-       !
        ! Convert to SI
-       n = n*1.e6
-       dpg = dpg*1.e-6
-       CALL size_distribution(nmod, n, dpg, sigmag, nsect)
+       nA = nA*1.e6; nB = nB*1.e6
+       dpgA = dpgA*1.e-6; dpgB = dpgB*1.e-6
+       ! Size distributions
+       CALL size_distribution(nmod, nA, dpgA, sigmagA, nsect)
        DO ss = 1,fn2a
           pndist(:,ss) = nsect(ss)
        END DO
-
+       CALL size_distribution(nmod, nB, dpgB, sigmagB, nsect)
+       DO ss = in2b,fn2b
+          pndist(:,ss) = nsect(ss+fn2a-fn2b)
+       END DO
+    ELSE
+       ! Altitude dependent profiles from text or NetCDF files
+       CALL read_aero_input(pndist,pvf2a,pvf2b)
     END IF
 
     ! Are b-bins used? If not, these can be disabled.
-    bbins = ANY(pnf2a(:)<1.)
+    bbins = ANY(pndist(:,in2b:)>nlim)
     IF (no_b_bins .AND. bbins) STOP 'Error: non-zero initial concentrations for disabled b-bins!'
 
     !
@@ -752,19 +772,16 @@ contains
           DO i = 1,nxp
 
              ! a) Number concentrations
-             ! Region 1
-             a_naerop(k,i,j,in1a:fn1a) = pndist(k,in1a:fn1a)
+             ! 1a and 2a
+             a_naerop(k,i,j,1:fn2a) = pndist(k,1:fn2a)
+             ! 2b
+             IF (bbins) a_naerop(k,i,j,in2b:fn2b) = pndist(k,in2b:fn2b)
 
-             ! Region 2
-             a_naerop(k,i,j,in2a:fn2a) = max(0.0,pnf2a(k))*pndist(k,in2a:fn2a)
-             IF (bbins) a_naerop(k,i,j,in2b:fn2b) = max(0.0,1.0-pnf2a(k))*pndist(k,in2a:fn2a)
-
-             !
              ! b) Aerosol mass concentrations
              DO nc=1,nspec
                 ! 1a and 2a
-                ss = nc*nbins + in1a; ee = nc*nbins + fn2a
-                a_maerop(k,i,j,ss:ee) = a_naerop(k,i,j,in1a:fn2a)*max(0.0,pvf2a(k,nc))*core(in1a:fn2a)*dens(nc+1)
+                ss = nc*nbins + 1; ee = nc*nbins + fn2a
+                a_maerop(k,i,j,ss:ee) = a_naerop(k,i,j,1:fn2a)*max(0.0,pvf2a(k,nc))*core(1:fn2a)*dens(nc+1)
                 ! 2b
                 IF (bbins) THEN
                    ss = nc*nbins + in2b; ee = nc*nbins + fn2b
@@ -783,7 +800,7 @@ contains
                 ! Update mass concentrations
                 DO nc=1,nspec
                     ! 1a and 2a
-                    ss = nc*nbins + in1a; ee = nc*nbins + fn1a
+                    ss = nc*nbins + 1; ee = nc*nbins + fn1a
                     IF (nc==iso-1 .OR. nc==ioc-1) THEN
                         a_maerop(k,i,j,ss:ee) = a_maerop(k,i,j,ss:ee)/factor
                     ELSE
@@ -852,16 +869,16 @@ contains
         ENDDO
         ! Total number and mass
         DO i=1,nspec
-            mass(i)=SUM( a_maerop(2,3,3,i*nbins+in1a:i*nbins+fn2a) )*1e9
+            mass(i)=SUM( a_maerop(2,3,3,i*nbins+1:i*nbins+fn2a) )*1e9
             IF (bbins) mass(nspec+i)=SUM( a_maerop(2,3,3,i*nbins+in2b:i*nbins+fn2b) )*1e9
         ENDDO
         WRITE(*,'(A)')'    --------------------------'
         WRITE(fmt,"(A11,I2,A13,I2,A7)") "(A19,F11.2,",nspec,"ES12.3,F11.2,",nspec,"ES12.3)"
         IF (bbins) THEN
-            WRITE(*,fmt) 'total', SUM(a_naerop(2,3,3,in1a:fn2a))*1.e-6, mass(1:nspec), &
+            WRITE(*,fmt) 'total', SUM(a_naerop(2,3,3,1:fn2a))*1.e-6, mass(1:nspec), &
                                   SUM(a_naerop(2,3,3,in2b:fn2b))*1.e-6, mass(nspec+1:2*nspec)
         ELSE
-            WRITE(*,fmt) 'total', SUM(a_naerop(2,3,3,in1a:fn2a))*1.e-6, mass(1:nspec)
+            WRITE(*,fmt) 'total', SUM(a_naerop(2,3,3,1:fn2a))*1.e-6, mass(1:nspec)
         ENDIF
     ELSEIF (myid == 0) THEN
         WRITE(*,'(/,A)') 'Aerosol properties from file aerosol_in'
@@ -894,15 +911,15 @@ contains
         DO k=1,nzp
             ! Calculate mass (1e-6g/kg)
             DO i=1,nspec
-                mass(i)=SUM( a_maerop(k,3,3,i*nbins+in1a:i*nbins+fn2a) )*1e9
+                mass(i)=SUM( a_maerop(k,3,3,i*nbins+1:i*nbins+fn2a) )*1e9
                 IF (bbins) mass(nspec+i)=SUM( a_maerop(k,3,3,i*nbins+in2b:i*nbins+fn2b) )*1e9
             ENDDO
             ! Print
             IF (bbins)  THEN
-                WRITE(*,fmt) zt(k), SUM(a_naerop(k,3,3,in1a:fn2a))*1.e-6, mass(1:nspec), &
+                WRITE(*,fmt) zt(k), SUM(a_naerop(k,3,3,1:fn2a))*1.e-6, mass(1:nspec), &
                                 SUM(a_naerop(k,3,3,in2b:fn2b))*1.e-6, mass(nspec+1:2*nspec)
             ELSE
-                WRITE(*,fmt) zt(k), SUM(a_naerop(k,3,3,in1a:fn2a))*1.e-6, mass(1:nspec)
+                WRITE(*,fmt) zt(k), SUM(a_naerop(k,3,3,1:fn2a))*1.e-6, mass(1:nspec)
             ENDIF
         ENDDO
     ENDIF
@@ -912,75 +929,120 @@ contains
   ! Reads vertical profiles of aerosol size distribution parameters, aerosol species volume fractions and
   ! number concentration fractions between a and b bins
   !
-  SUBROUTINE READ_AERO_INPUT(ppndist,ppvf2a,ppvf2b,ppnf2a)
+  SUBROUTINE read_aero_input(ppndist,ppvf2a,ppvf2b)
+    USE netcdf
     USE grid, ONLY : zt, nzp
-    USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
-    USE mo_submctl, ONLY : fn2a, nspec, maxspec, nmod
+    USE mo_submctl, ONLY : in2a, fn2a, in2b, fn2b, nspec, nmod, isdtyp
     USE mpi_interface, ONLY : appl_abort, myid
     IMPLICIT NONE
 
-    REAL, INTENT(out) :: ppndist(nzp,fn2a)                    ! Aerosol size dist as a function of height
+    REAL, INTENT(out) :: ppndist(nzp,fn2b)                    ! Aerosol size dist as a function of height
     REAL, INTENT(out) :: ppvf2a(nzp,nspec), ppvf2b(nzp,nspec) ! Volume distributions of aerosol species for a and b-bins
-    REAL, INTENT(out) :: ppnf2a(nzp)                          ! Number fraction for bins 2a
 
     REAL :: nsect(fn2a)
 
     INTEGER :: ncid, k, i
-    INTEGER :: nc_levs=500, nc_nspec, nc_nmod
+    INTEGER :: nc_levs, nc_nspec, nc_nmod
 
     ! Stuff that will be read from the file
     REAL, ALLOCATABLE :: zlevs(:),        &  ! Levels in meters
-                         zvolDistA(:,:),  &  ! Volume distribution of aerosol species in a
-                         zvoldistB(:,:),  &  ! ... and b bins
-                         znf2a(:),        &  ! Number fraction for bins 2a
-                         zn(:,:),         &  ! Aerosol mode number concentrations
-                         zsigmag(:,:),    &  ! Geometric standard deviations
-                         zdpg(:,:),       &  ! Mode mean diameters
+                         zvolDistA(:,:), zvoldistB(:,:), & ! Volume fractions of species
+                         znA(:,:),       znB(:,:),       & ! Aerosol mode number concentrations
+                         zsigmagA(:,:),  zsigmagB(:,:),  & ! Geometric standard deviations
+                         zdpgA(:,:),     zdpgB(:,:),     & ! Mode mean diameters
+                         znf2a(:), &         ! Number fraction for bins 2a (optional)
                          znsect(:,:)         ! Helper for binned number concentrations
     LOGICAL :: READ_NC
 
     ! Read the NetCDF input when it is available
     INQUIRE(FILE='aerosol_in.nc',EXIST=READ_NC)
 
-    ! Allocate input variables
-    ALLOCATE( zlevs(nc_levs),              &
-              zvolDistA(nc_levs,maxspec),  &
-              zvolDistB(nc_levs,maxspec),  &
-              znf2a(nc_levs),              &
-              zn(nc_levs,nmod),            &
-              zsigmag(nc_levs,nmod),       &
-              zdpg(nc_levs,nmod)           )
-    zlevs = 0.; zvolDistA = 0.; zvolDistB = 0.; znf2a = 0.; zn = 0.; zsigmag = 0.; zdpg = 0.
-
     IF (READ_NC) THEN
        ! Open the input file
        CALL open_aero_nc(ncid, nc_levs, nc_nspec, nc_nmod)
 
+       ! Allocate arrays
+       ALLOCATE(zlevs(nc_levs),              znf2a(nc_levs),              &
+                zvolDistA(nc_levs,nc_nspec), zvolDistB(nc_levs,nc_nspec), &
+                znA(nc_levs,nc_nmod),        znB(nc_levs,nc_nmod),        &
+                zsigmagA(nc_levs,nc_nmod),   zsigmagB(nc_levs,nc_nmod),   &
+                zdpgA(nc_levs,nc_nmod),      zdpgB(nc_levs,nc_nmod)       )
+
        ! Read the aerosol profile data
        CALL read_aero_nc_1d(ncid,'levs',nc_levs,zlevs)
-       CALL read_aero_nc_2d(ncid,'volDistA',nc_levs,maxspec,zvolDistA)
-       CALL read_aero_nc_2d(ncid,'volDistB',nc_levs,maxspec,zvolDistB)
-       CALL read_aero_nc_1d(ncid,'nf2a',nc_levs,znf2a)
-       CALL read_aero_nc_2d(ncid,'n',nc_levs,nmod,zn)
-       CALL read_aero_nc_2d(ncid,'dpg',nc_levs,nmod,zdpg)
-       CALL read_aero_nc_2d(ncid,'sigmag',nc_levs,nmod,zsigmag)
+       CALL read_aero_nc_2d(ncid,'volDistA',nc_levs,nc_nspec,zvolDistA)
+       CALL read_aero_nc_2d(ncid,'volDistB',nc_levs,nc_nspec,zvolDistB)
+       ! Original and revised formats
+       CALL test_aero_var(ncid,'nf2a',READ_NC)
+       IF (READ_NC) THEN
+          ! Original
+          CALL read_aero_nc_1d(ncid,'nf2a',nc_levs,znf2a)
+          CALL read_aero_nc_2d(ncid,'n',nc_levs,nc_nmod,znA)
+          CALL read_aero_nc_2d(ncid,'dpg',nc_levs,nc_nmod,zdpgA)
+          CALL read_aero_nc_2d(ncid,'sigmag',nc_levs,nc_nmod,zsigmagA)
+          ! Calculate a and b bin distribution parameters
+          DO i=1,nc_levs
+             znB(i,:)=znA(i,:)*MAX(0.,MIN(1.,(1.-znf2a(i))))
+             znA(i,:)=znA(i,:)*MAX(0.,MIN(1.,znf2a(i)))
+          ENDDO
+          zdpgB=zdpgA
+          zsigmagB=zsigmagA
+       ELSE
+          ! Revised
+          CALL read_aero_nc_2d(ncid,'nA',nc_levs,nc_nmod,znA)
+          CALL read_aero_nc_2d(ncid,'nB',nc_levs,nc_nmod,znB)
+          CALL read_aero_nc_2d(ncid,'dpgA',nc_levs,nc_nmod,zdpgA)
+          CALL read_aero_nc_2d(ncid,'dpgB',nc_levs,nc_nmod,zdpgB)
+          CALL read_aero_nc_2d(ncid,'sigmagA',nc_levs,nc_nmod,zsigmagA)
+          CALL read_aero_nc_2d(ncid,'sigmagB',nc_levs,nc_nmod,zsigmagB)
+       ENDIF
 
        CALL close_aero_nc(ncid)
     ELSE
        ! Read the profile data from a text file
+
+       ! Allocate arrays
+       nc_levs=500
+       ALLOCATE(zlevs(nc_levs),           znf2a(nc_levs),           &
+                zvolDistA(nc_levs,nspec), zvolDistB(nc_levs,nspec), &
+                znA(nc_levs,nmod),        znB(nc_levs,nmod),        &
+                zsigmagA(nc_levs,nmod),   zsigmagB(nc_levs,nmod),   &
+                zdpgA(nc_levs,nmod),      zdpgB(nc_levs,nmod)       )
+
        open (11,file='aerosol_in',status='old',form='formatted')
-       do i=1,nc_levs
-          read (11,*,end=100) zlevs(i)
-          read (11,*,end=100) (zvolDistA(i,k),k=1,nspec) ! Note: reads just "nspec" values from the current line
-          read (11,*,end=100) (zvolDistB(i,k),k=1,nspec) ! -||-
-          read (11,*,end=100) (zn(i,k),k=1,nmod)
-          read (11,*,end=100) (zdpg(i,k),k=1,nmod)
-          read (11,*,end=100) (zsigmag(i,k),k=1,nmod)
-          read (11,*,end=100) znf2a(i)
-       end do
-100    continue
-       close (11)
-       !
+       IF (isdtyp==1) THEN
+          ! The original format
+          do i=1,nc_levs
+             read (ncid,*,iostat=k) zlevs(i)
+             if (k<0) exit ! End of file
+             read (ncid,*) (zvolDistA(i,k),k=1,nspec)
+             read (ncid,*) (zvolDistB(i,k),k=1,nspec)
+             read (ncid,*) (znA(i,k),k=1,nmod)
+             read (ncid,*) (zdpgA(i,k),k=1,nmod)
+             read (ncid,*) (zsigmagA(i,k),k=1,nmod)
+             read (ncid,*) znf2a(i)
+             ! b-bins
+             znB(i,:) = znA(i,:)*MAX(0.,MIN(1.,(1.-znf2a(i))))
+             znA(i,:) = znA(i,:)*MAX(0.,MIN(1.,znf2a(i)))
+          end do
+          zdpgB(:,:) = zdpgA(:,:)
+          zsigmagB(:,:) = zsigmagA(:,:)
+       ELSE ! isdtyp==2
+          ! Revised format
+          do i=1,nc_levs
+             read (11,*,IOSTAT=k) zlevs(i)
+             if (k<0) exit ! End of file
+             read (11,*) (zvolDistA(i,k),k=1,nspec)
+             read (11,*) (zvolDistB(i,k),k=1,nspec)
+             read (11,*) (znA(i,k),k=1,nmod)
+             read (11,*) (znB(i,k),k=1,nmod)
+             read (11,*) (zdpgA(i,k),k=1,nmod)
+             read (11,*) (zdpgB(i,k),k=1,nmod)
+             read (11,*) (zsigmagA(i,k),k=1,nmod)
+             read (11,*) (zsigmagB(i,k),k=1,nmod)
+          end do
+       ENDIF
+       close (ncid)
        ! The true number of altitude levels
        nc_levs=i-1
     END IF
@@ -992,27 +1054,86 @@ contains
     END IF
 
     ! Convert to SI
-    zn = zn*1.e6
-    zdpg = zdpg*1.e-6
+    znA = znA*1.e6; znB = znB*1.e6
+    zdpgA = zdpgA*1.e-6; zdpgB = zdpgB*1.e-6
 
     ! Get the binned size distribution
-    ALLOCATE( znsect(nc_levs,fn2a) )
+    ALLOCATE( znsect(nc_levs,fn2b) )
     znsect = 0.
     DO k = 1,nc_levs
-       CALL size_distribution(nmod,zn(k,:),zdpg(k,:),zsigmag(k,:),nsect)
-       znsect(k,:) = nsect(:)
+       CALL size_distribution(nmod,znA(k,:),zdpgA(k,:),zsigmagA(k,:),nsect)
+       znsect(k,1:fn2a) = nsect(:)
+       CALL size_distribution(nmod,znB(k,:),zdpgB(k,:),zsigmagB(k,:),nsect)
+       znsect(k,in2b:fn2b) = nsect(in2a:fn2a)
     END DO
 
     ! Interpolate the input variables to model levels
     ! ------------------------------------------------
     CALL htint2d(nc_levs,zvolDistA(1:nc_levs,1:nspec),zlevs(1:nc_levs),nzp,ppvf2a,zt,nspec)
     CALL htint2d(nc_levs,zvolDistB(1:nc_levs,1:nspec),zlevs(1:nc_levs),nzp,ppvf2b,zt,nspec)
-    CALL htint2d(nc_levs,znsect(1:nc_levs,:),zlevs(1:nc_levs),nzp,ppndist,zt,fn2a)
-    CALL htint(nc_levs,znf2a(1:nc_levs),zlevs(1:nc_levs),nzp,ppnf2a,zt)
+    CALL htint2d(nc_levs,znsect(1:nc_levs,:),zlevs(1:nc_levs),nzp,ppndist,zt,fn2b)
 
-    DEALLOCATE( zlevs, zvolDistA, zvolDistB, znf2a, zn, zsigmag, zdpg, znsect )
+    DEALLOCATE( zlevs, zvolDistA, zvolDistB, znf2a, znA, zsigmagA, zdpgA, &
+        znB, zsigmagB, zdpgB, znsect )
 
-  END SUBROUTINE READ_AERO_INPUT
+  CONTAINS
+      !
+      ! ----------------------------------------------------------------------
+      ! Functions for reading aerosol inputs from a NetCDF file
+      !
+      SUBROUTINE open_aero_nc(ncid,nc_levs,nc_nspec,nc_nmod)
+        IMPLICIT NONE
+        INTEGER, INTENT(out) :: ncid,nc_levs,nc_nspec,nc_nmod
+        INTEGER :: iret, did
+        ! Open file
+        iret = nf90_open('aerosol_in.nc',NF90_NOWRITE,ncid)
+        ! Inquire the number of input levels
+        iret = nf90_inq_dimid(ncid,'levs',did)
+        iret = nf90_inquire_dimension(ncid,did,len=nc_levs)
+        iret = nf90_inq_dimid(ncid,'nspec',did)
+        iret = nf90_inquire_dimension(ncid,did,len=nc_nspec)
+        iret = nf90_inq_dimid(ncid,'nmod',did)
+        iret = nf90_inquire_dimension(ncid,did,len=nc_nmod)
+      END SUBROUTINE open_aero_nc
+      !
+      SUBROUTINE test_aero_var(ncid,name,noerr)
+        IMPLICIT NONE
+        INTEGER, INTENT(in)           :: ncid
+        CHARACTER(len=*), INTENT(in) :: name
+        LOGICAL, INTENT(out)          :: noerr
+        INTEGER :: iret,vid
+        iret = nf90_inq_varid(ncid,name,vid)
+        noerr = iret==nf90_noerr
+      END SUBROUTINE test_aero_var
+      !
+      SUBROUTINE read_aero_nc_1d(ncid,name,d1,var)
+        IMPLICIT NONE
+        INTEGER, INTENT(in)           :: ncid, d1
+        CHARACTER(len=*), INTENT(in) :: name
+        REAL, INTENT(out)             :: var(d1)
+        INTEGER :: iret,vid
+        iret = nf90_inq_varid(ncid,name,vid)
+        iret = nf90_get_var(ncid,vid,var)
+      END SUBROUTINE read_aero_nc_1d
+      !
+      SUBROUTINE read_aero_nc_2d(ncid,name,d1,d2,var)
+        IMPLICIT NONE
+        INTEGER, INTENT(in)           :: ncid, d1,d2
+        CHARACTER(len=*), INTENT(in) :: name
+        REAL, INTENT(out)             :: var(d1,d2)
+        INTEGER :: iret, vid
+        iret = nf90_inq_varid(ncid,name,vid)
+        iret = nf90_get_var(ncid,vid,var)
+      END SUBROUTINE read_aero_nc_2d
+      !
+      SUBROUTINE close_aero_nc(ncid)
+        IMPLICIT NONE
+        INTEGER, INTENT(in) :: ncid
+        INTEGER :: iret
+        iret = nf90_close(ncid)
+      END SUBROUTINE close_aero_nc
+
+  END SUBROUTINE read_aero_input
 
   !
   !------------------------------------------------------------------

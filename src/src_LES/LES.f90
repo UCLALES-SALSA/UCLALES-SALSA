@@ -45,7 +45,7 @@ contains
 
     use grid, only          : define_grid, define_vars, level, lev_sb, nxp, nyp, nzp, nxpart
     use init, only          : initialize
-    use step, only          : stepper
+    use step, only          : stepper,cntlat,strtim
     use mpi_interface, only : init_mpi, define_decomp,                    &
          init_alltoall_reorder, appl_finalize
     USE mcrp_ice, ONLY : init_micro_ice
@@ -61,7 +61,7 @@ contains
 
     IF (level >= 4) CALL define_salsa(level) ! Read SALSA namelist etc.
 
-    IF (level >= 4) CALL salsa_initialize ! All salsa variables are now initialized
+    IF (level >= 4) CALL salsa_initialize(cntlat,strtim)
 
     IF (level == 0) CALL init_micro_ice(lev_sb) ! Read SB namelist
 
@@ -88,7 +88,6 @@ contains
   !
   subroutine define_parm
 
-    use util, only : fftinix,fftiniy
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon, &
                     wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param
@@ -188,14 +187,6 @@ contains
     namelist /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author
 
-    ps       = 0.
-    ts       = th00
-    !
-    ! these are for initializing the temp variables used in ffts in x and y
-    ! directions.
-    !
-      fftinix=1
-      fftiniy=1
     !
     ! read namelist from specified file
     !

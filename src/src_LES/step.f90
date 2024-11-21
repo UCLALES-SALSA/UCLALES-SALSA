@@ -129,7 +129,7 @@ contains
                      a_maerop, a_maerot, a_mcloudp, a_mcloudt, a_mprecpp, a_mprecpt,    &
                      a_nicep,  a_nicet,  a_micep,  a_micet,                             &
                      a_nsnowp, a_nsnowt, a_msnowp, a_msnowt,                            &
-                     a_gaerop, a_gaerot, nspec, nbins, ncld, nprc, nice, nsnw,          &
+                     a_gaerop, a_gaerot, nspt, nbins, ncld, nprc, nice, nsnw,           &
                      nudge_theta, nudge_rv, nudge_u, nudge_v, nudge_ccn,                &
                      ifSeaSpray, ifSeaVOC, sea_tspinup
     use stat, only : sflg, statistics, les_rate_stats, out_mcrp_data, out_mcrp_list, &
@@ -148,7 +148,6 @@ contains
 
     real :: xtime
     LOGICAL :: zrm
-    INTEGER :: n4
 
     xtime = time/86400. + strtim
 
@@ -191,12 +190,10 @@ contains
         call update_sclrs
         CALL tend0(.TRUE.)
 
-        n4 = nspec + 1 ! Aerosol components + water
-
         ! The runmode parameter zrm is used by SALSA only
         zrm = time < Tspinup
 
-        CALL run_SALSA(nxp,nyp,nzp,n4,nbins,ncld,nprc,nice,nsnw, &
+        CALL run_SALSA(nxp,nyp,nzp,nspt,nbins,ncld,nprc,nice,nsnw, &
                   a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,a_edr, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,  &
@@ -289,7 +286,7 @@ contains
     use grid, only : level, dtl, nxp, nyp, nzp, nbins, ncld, nice, &
                 zt, a_rp, a_rt, a_rc, a_ri, &
                 a_naerop, a_naerot, a_ncloudp, a_nicep, &
-                nspec, a_dn, a_maerop, a_maerot, &
+                nspt, a_dn, a_maerop, a_maerot, &
                 a_tp, a_tt, a_up, a_ut, a_vp, a_vt, &
                 !th0, th00, rt0, u0, v0, &
                 nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
@@ -387,12 +384,12 @@ contains
         ! Target aerosol concentration = aerosol(t)+cloud(t)+ice(t)
         aero_target(:,:,:,:)=a_naerop(:,:,:,:)
         aero_target(:,:,:,in2a:nbins)=aero_target(:,:,:,in2a:nbins)+a_ncloudp(:,:,:,1:ncld)
-        IF (level==5) aero_target(:,:,:,in2a:nbins)=aero_target(:,:,:,in2a:nbins)-a_nicep(:,:,:,1:nice)
+        IF (level==5) aero_target(:,:,:,in2a:nbins)=aero_target(:,:,:,in2a:nbins)+a_nicep(:,:,:,1:nice)
         ! Apply to sectional data
         CALL nudge_any_2d(nxp,nyp,nzp,nbins,zt,aero_target,a_naerot,aero_ref,dtl,time,nudge_ccn, &
             nudge_ccn_time,nudge_ccn_zmin,nudge_ccn_zmax,nudge_ccn_tau)
         ! Change aerosol mass so that the mean dry and wet sizes are unchanged
-        CALL adj_salsa_maerot(nxp,nyp,nzp,nbins,nspec,nlim,a_dn,a_naerop,a_naerot,a_maerop,a_maerot)
+        CALL adj_salsa_maerot(nxp,nyp,nzp,nbins,nspt-1,nlim,a_dn,a_naerop,a_naerot,a_maerop,a_maerot)
     ENDIF
 
   END SUBROUTINE nudging
@@ -780,7 +777,7 @@ contains
   SUBROUTINE sedim_SALSA()
     USE mo_submctl, ONLY : nlim,prlim
     use defs, only : alvl, alvi
-    use grid, only : nzp, nxp, nyp, nspec, nbins, ncld, nprc, nice, nsnw,  &
+    use grid, only : nzp, nxp, nyp, nspt, nbins, ncld, nprc, nice, nsnw,   &
                         sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, &
                         level, dtl, dzt, a_dn, a_temp, a_theta,            &
                         a_naerop,  a_naerot,  a_maerop,  a_maerot,         &
@@ -790,27 +787,24 @@ contains
                         a_nsnowp,  a_nsnowt,  a_msnowp,  a_msnowt,         &
                         a_ustar, a_tt
     IMPLICIT NONE
-    INTEGER :: n4
 
-    ! Total number of species
-    n4=nspec+1
     ! Ice only when level=5
     sed_snow = sed_snow .AND. level==5
     sed_ice = sed_ice .AND. level==5
 
-    IF (sed_aero ) CALL DepositionAny(nzp,nxp,nyp,n4,nbins,a_temp,a_theta,a_dn,a_ustar,dzt, &
+    IF (sed_aero ) CALL DepositionAny(nzp,nxp,nyp,nspt,nbins,a_temp,a_theta,a_dn,a_ustar,dzt, &
                             a_naerop,a_maerop,a_naerot,a_maerot,a_tt,dtl,nlim,alvl,1)
 
-    IF (sed_cloud) CALL DepositionAny(nzp,nxp,nyp,n4,ncld,a_temp,a_theta,a_dn,a_ustar,dzt, &
+    IF (sed_cloud) CALL DepositionAny(nzp,nxp,nyp,nspt,ncld,a_temp,a_theta,a_dn,a_ustar,dzt, &
                             a_ncloudp,a_mcloudp,a_ncloudt,a_mcloudt,a_tt,dtl,nlim,alvl,2)
 
-    IF (sed_precp) CALL DepositionAny(nzp,nxp,nyp,n4,nprc,a_temp,a_theta,a_dn,a_ustar,dzt, &
+    IF (sed_precp) CALL DepositionAny(nzp,nxp,nyp,nspt,nprc,a_temp,a_theta,a_dn,a_ustar,dzt, &
                             a_nprecpp,a_mprecpp,a_nprecpt,a_mprecpt,a_tt,dtl,prlim,alvl,3)
 
-    IF (sed_ice  ) CALL DepositionAny(nzp,nxp,nyp,n4,nice,a_temp,a_theta,a_dn,a_ustar,dzt, &
+    IF (sed_ice  ) CALL DepositionAny(nzp,nxp,nyp,nspt,nice,a_temp,a_theta,a_dn,a_ustar,dzt, &
                             a_nicep,a_micep,a_nicet,a_micet,a_tt,dtl,prlim,alvi,4)
 
-    IF (sed_snow ) CALL DepositionAny(nzp,nxp,nyp,n4,nsnw,a_temp,a_theta,a_dn,a_ustar,dzt, &
+    IF (sed_snow ) CALL DepositionAny(nzp,nxp,nyp,nspt,nsnw,a_temp,a_theta,a_dn,a_ustar,dzt, &
                             a_nsnowp,a_msnowp,a_nsnowt,a_msnowt,a_tt,dtl,prlim,alvi,5)
 
   END SUBROUTINE !sedim_SALSA
