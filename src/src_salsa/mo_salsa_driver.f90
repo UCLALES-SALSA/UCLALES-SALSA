@@ -25,7 +25,7 @@ IMPLICIT NONE
   TYPE(t_section), ALLOCATABLE :: aero(:,:,:)  ! Aerosol properties
   TYPE(t_section), ALLOCATABLE :: precp(:,:,:) ! Precipitation properties
   TYPE(t_section), ALLOCATABLE :: ice(:,:,:) ! ice properties
-  TYPE(t_section), ALLOCATABLE :: snow(:,:,:) ! snow aka. ice precip. properties
+  TYPE(t_section), ALLOCATABLE :: snow(:,:,:) ! snow properties
 
    ! --------------------------------------------
 
@@ -42,12 +42,6 @@ IMPLICIT NONE
   !
   ! Partially adobted form the original SALSA boxmodel version.
   !
-  ! Now takes masses in as kg/kg from LES!! Converted to m3/m3 for SALSA
-  !
-  ! 05/2016 Juha: This routine is still pretty much in its original shape. 
-  !               It's dumb as a mule and twice as ugly, so implementation of
-  !               an improved solution is necessary sooner or later.
-  !
   ! Juha Tonttila, FMI, 2014
   ! Jaakko Ahola, FMI, 2016
   !
@@ -61,7 +55,7 @@ IMPLICIT NONE
                        pa_gasp,  pa_gast, prunmode, tstep, time, level, &
                        sflg, nstat, slist, sdata)
 
-    USE mo_submctl, ONLY : dens, rhlim, lscndgas, ngases, mws_gas, nspec, &
+    USE mo_submctl, ONLY : dens, rhlim, lscndgas, ngases, mws_gas, &
                                ngases_diag, zgas_diag, set_vbs_diag, eddy_dis_rt
     USE mo_salsa, ONLY : salsa
     IMPLICIT NONE
@@ -133,7 +127,7 @@ IMPLICIT NONE
     ! If eddy_dis_rt<0, then use that from LES
     IF (eddy_dis_rt >= 0.) edr(:,:,:) = eddy_dis_rt
 
-    ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of kg/kg (multiplied by pdn/divided by substance density)
+    ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of #/kg or kg/kg
     DO jj = 3,pny-2
        DO ii = 3,pnx-2
           DO kk = pnz-1,2,-1
@@ -161,7 +155,7 @@ IMPLICIT NONE
              rv_old(1,1) = in_rv(1,1)
 
              ! Set volume concentrations
-             DO nc=1,nspec+1
+             DO nc=1,n4
                 rho=pdn(kk,ii,jj)/dens(nc) ! rho_air/rho
                 str = (nc-1)*nbins+1
                 end = nc*nbins
@@ -231,7 +225,7 @@ IMPLICIT NONE
              pa_nsnowt(kk,ii,jj,1:nsnw) = pa_nsnowt(kk,ii,jj,1:nsnw) + &
                   ( snow(1,1,1:nsnw)%numc/pdn(kk,ii,jj) - pa_nsnowp(kk,ii,jj,1:nsnw) )/tstep
 
-             DO nc=1,nspec+1
+             DO nc=1,n4
                 rho=dens(nc)/pdn(kk,ii,jj) ! rho/rho_air
                 str = (nc-1)*nbins+1
                 end = nc*nbins
@@ -265,11 +259,9 @@ IMPLICIT NONE
                         ( zgas(1,1,1:ngases)/pdn(kk,ii,jj)*mws_gas(1:ngases) - pa_gasp(kk,ii,jj,1:ngases) )/tstep
              ENDIF
 
-
-             ! Tendency of water vapour mixing ratio is obtained from the change in RH during SALSA run.
-             ! Assumes no temperature change during SALSA run.
-             rt(kk,ii,jj) = rt(kk,ii,jj) + &
-                  ( in_rv(1,1) - rv_old(1,1) )/tstep
+             ! Tendency of water vapour mixing ratio (no change in ice-liquid water
+             ! potential temperature)
+             rt(kk,ii,jj) = rt(kk,ii,jj) + ( in_rv(1,1) - rv_old(1,1) )/tstep
 
           END DO ! kk
        END DO ! ii

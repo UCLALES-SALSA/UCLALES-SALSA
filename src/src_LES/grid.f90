@@ -20,9 +20,11 @@
 module grid
 
   use ncio, only : open_nc, define_nc
-
   implicit none
-  !
+
+  !----------------------------------------------------------------------
+  ! NAMELIST parameters
+
   integer           :: nxp = 132           ! number of x points
   integer           :: nyp = 132           ! number of y points
   integer           :: nzp = 105           ! number of z points
@@ -42,18 +44,19 @@ module grid
   integer           :: iradtyp = 0         ! radiation model type
   integer           :: level   = 0         ! thermodynamic level
   integer           :: lev_sb = 5          ! thermodynamic level for SB microphysics (level=0)
+  REAL              :: Tspinup = 7200.     ! microphysics spinup period (SALSA and SB)
   integer           :: naddsc  = 0         ! number of additional scalars;
   integer           :: nfpt = 10           ! number of rayleigh friction points
   real              :: distim = 300.0      ! dissipation timescale
   logical           :: spongeinit = .true. ! sponge layer acts on initial profiles
-
   real              :: sst=283.            ! Surface temperature
+  character (len=80):: expnme = ''         ! Experiment name
+  character (len=80):: filprf = 'x'        ! File prefix
+  character (len=7) :: runtype = 'INITIAL' ! Run type selection (INITIAL or HISTORY)
 
-  LOGICAL :: sed_aero = .TRUE.,  &
-             sed_cloud = .TRUE., &
-             sed_precp = .TRUE., &
-             sed_ice = .TRUE., &
-             sed_snow = .TRUE.
+  ! Sedimentation
+  LOGICAL :: sed_aero = .TRUE. ! SALSA only
+  LOGICAL :: sed_cloud = .TRUE., sed_precp = .TRUE., sed_ice = .TRUE. ! SALSA and SB
 
   ! Nudging options
   !   1 = soft nudging with fixed nudging constant applied only for the specified time period
@@ -69,28 +72,27 @@ module grid
   REAL :: nudge_u_time=3600., nudge_u_zmin=-1.e10, nudge_u_zmax=1.e10, nudge_u_tau=300.
   REAL :: nudge_v_time=3600., nudge_v_zmin=-1.e10, nudge_v_zmax=1.e10, nudge_v_tau=300.
   REAL :: nudge_ccn_time=3600., nudge_ccn_zmin=-1.e10, nudge_ccn_zmax=1.e10, nudge_ccn_tau=300.
-  real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
-  LOGICAL, SAVE :: nudge_init=.TRUE.
 
-  ! Marine emissions
+  ! SALSA options for reducing the number of prognostic variables
+  LOGICAL :: no_b_bins = .FALSE.   ! No prognostic b-bins for aerosol, cloud or ice
+  LOGICAL :: no_prog_prc = .FALSE. ! No prognostic rain
+  LOGICAL :: no_prog_ice = .FALSE. ! No prognostic ice or snow (level=5)
+  LOGICAL :: no_prog_snw = .FALSE.
+
+  ! Marine emission options (SALSA)
   logical :: ifSeaSpray = .false. ! Aerosol
   logical :: ifSeaVOC = .false.   ! Isoprene and monoterpenes
   real :: sea_tspinup = 0.        ! Spin-up time (s) for marine emissions
-
-  character (len=80):: expnme = ''        ! Experiment name
-  character (len=80):: filprf = 'x'       ! File Prefix
-  character (len=7) :: runtype = 'INITIAL'! Run Type Selection
-
-  REAL              :: Tspinup = 7200.    ! Spinup period in seconds (added by Juha)
 
   ! User control of analysis outputs
   INTEGER, PARAMETER :: maxn_list=100
   CHARACTER(len=7), dimension(maxn_list), SAVE :: anl_include='       ', anl_exclude='       '
   CHARACTER(len=7), dimension(maxn_list), SAVE :: out_an_list='       ', user_an_list='       '
-  INTEGER, SAVE :: nv4_proc=0, nv4_user=0
-  REAL, SAVE, ALLOCATABLE :: out_an_data(:,:,:,:)
 
-  integer           :: nz, nxyzp, nxyp
+  !----------------------------------------------------------------------
+  ! Internal parameters
+
+  integer           :: nxyzp
   real              :: dxi, dyi, dtl, psrf
   real, allocatable :: xt(:), xm(:), yt(:), ym(:), zt(:), zm(:), dzt(:), dzm(:)
   real, allocatable :: u0(:), v0(:), pi0(:), pi1(:), th0(:), dn0(:), rt0(:)
@@ -112,17 +114,21 @@ module grid
   !
   ! prognostic scalar variables
   !
+  ! Data arrays
+  integer :: nscl = 1
+  real, allocatable, target :: a_sclrp(:,:,:,:),a_sclrt(:,:,:,:)
+  !
+  ! Pointers
   real, pointer :: a_tp(:,:,:),a_tt(:,:,:) ! (Ice-)liquid water potential temperature
   real, pointer :: a_rp(:,:,:),a_rt(:,:,:) ! Water vapour for SALSA; total water for SB
+  real, pointer :: a_qp(:,:,:),a_qt(:,:,:) ! Subgrid TKE
+  real, pointer :: a_sp(:,:,:),a_st(:,:,:) ! A scratch variable
   ! Seifert & Beheng tracers: mass (kg/kg) and number (#/kg)
   real, pointer :: a_rpp(:,:,:),a_rpt(:,:,:),a_npp(:,:,:),a_npt(:,:,:) ! Rain
-  real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! SB ice microphysics
+  real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! Ice
   real, pointer :: a_rsp(:,:,:),a_rst(:,:,:),a_nsp(:,:,:),a_nst(:,:,:) ! Snow
   real, pointer :: a_rgp(:,:,:),a_rgt(:,:,:),a_ngp(:,:,:),a_ngt(:,:,:) ! Graupel
   real, pointer :: a_rhp(:,:,:),a_rht(:,:,:),a_nhp(:,:,:),a_nht(:,:,:) ! Hail
-  ! Subgrid TKE and a scratch variable
-  real, pointer :: a_qp(:,:,:),a_qt(:,:,:)
-  real, pointer :: a_sp(:,:,:),a_st(:,:,:)
   ! SALSA tracers
   ! -- Number concentrations (#/kg)
   REAL, POINTER :: a_naerop(:,:,:,:), a_naerot(:,:,:,:),   &
@@ -138,19 +144,9 @@ module grid
                    a_msnowp(:,:,:,:), a_msnowt(:,:,:,:)
   ! -- Gas compound tracers
   REAL, POINTER :: a_gaerop(:,:,:,:), a_gaerot(:,:,:,:)
-  ! -- Local (LES) dimensions
+  ! -- Local dimensions
   INTEGER :: nbins=0,ncld=0,nice=0,nprc=0,nsnw=0,nspt=0,ngases=0
-
-  ! No prognostic b-bins for aerosol, cloud or ice
-  LOGICAL :: no_b_bins = .FALSE.
-  ! No prognostic rain
-  LOGICAL :: no_prog_prc = .FALSE.
-  ! No prognostic ice or snow (level=5)
-  LOGICAL :: no_prog_ice = .FALSE.
-  LOGICAL :: no_prog_snw = .FALSE.
-
-  real, allocatable, target :: a_sclrp(:,:,:,:),a_sclrt(:,:,:,:)
-   !
+  !
   ! 3d diagnostic quantities
   !
   real, allocatable, target :: a_theta(:,:,:)  ! dry potential temp (k)
@@ -171,23 +167,21 @@ module grid
   real, allocatable :: albedo(:,:)
   !
   ! surface
-  real, allocatable :: a_ustar(:,:)
-  real, allocatable :: a_tstar(:,:)
-  real, allocatable :: a_rstar(:,:)
-  real, allocatable :: uw_sfc(:,:)
-  real, allocatable :: vw_sfc(:,:)
-  real, allocatable :: ww_sfc(:,:)
-  real, allocatable :: wt_sfc(:,:)
-  real, allocatable :: wq_sfc(:,:)
-  real, allocatable :: obl(:,:)
+  real, allocatable, dimension (:,:) :: a_ustar, a_tstar, a_rstar, uw_sfc, &
+                                        vw_sfc, ww_sfc, wt_sfc, wq_sfc, obl
+  !
+  ! nudging
+  real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
+  LOGICAL, SAVE :: nudge_init=.TRUE.
   !
   ! microphysics/precipitation
   real, allocatable, dimension(:,:,:) :: aerin, cldin, precip, icein, snowin, grin, hailin
   !
-  integer :: nscl = 1
-  integer, private, save :: ncid0
-  integer, private, save :: nrec0
+  ! 3D outputs
+  integer, private, save :: ncid0, nrec0
   character (len=80), private, save :: fname
+  REAL, SAVE, ALLOCATABLE :: out_an_data(:,:,:,:)
+  integer, save :: nv4_proc=0, nv4_user=0
   !
 contains
   !
@@ -203,10 +197,9 @@ contains
     USE mo_submctl, ONLY : fn2a,fn2b,fnp2a,fnp2b, & ! Indexes for SALSA
         nspec,snprc=>nprc,snsnw=>nsnw,sngases=>ngases
 
-    integer :: memsize
-    INTEGER :: zz
-    INTEGER :: nc
-    INTEGER :: nsalsa
+    integer :: memsize, zz, nc, nsalsa, nxyp
+
+    nxyp = nxp*nyp
 
     ! Juha: Stuff that's allocated for all configurations
     !----------------------------------------------------------
@@ -554,7 +547,7 @@ contains
     use mpi_interface, only: xoffset, yoffset, wrxid, wryid, nxpg, nypg,   &
          appl_abort, myid
 
-    integer :: i,j,k,kmax,nchby
+    integer :: i,j,k,kmax,nchby,nz
     real    :: dzrfm,dz,zb,dzmin
     real    :: zmnvc(-1:nzp+1)
     character (len=51) :: &
@@ -566,7 +559,6 @@ contains
          fm6 = '("   thermo level: ",i3)                        '
 
     nxyzp  = nxp*nyp*nzp
-    nxyp   = nxp*nyp
 
     nz= nzp-1
     dzmin = 0.
@@ -746,7 +738,7 @@ contains
   subroutine init_anal(time)
 
     use mpi_interface, only :myid, ver, author, info
-    USE mo_submctl, ONLY : fn1a,fn2a,fn2b
+    USE mo_submctl, ONLY : fn1a,fn2a
     IMPLICIT NONE
     real, intent (in) :: time
     ! Dimensions (time, x, y, x, and SALSA bins) and constants (u0, v0, dn0) are saved
@@ -891,7 +883,7 @@ contains
        call define_nc( ncid0, nrec0, nvar0, sanal, n1=nzp, n2=nxp-4, n3=nyp-4)
     ELSE IF (lbinanl) THEN
        call define_nc( ncid0, nrec0, nvar0, sanal, n1=nzp, n2=nxp-4, n3=nyp-4,  &
-                       n1a=fn1a,n2a=fn2a-fn1a, n2b=fn2b-fn2a, nprc=nprc, nsnw=nsnw )
+                       n1a=fn1a, n2ab=fn2a-fn1a, nprc=nprc, nsnw=nsnw )
     END IF
     if (myid == 0) print *,'   ...starting record: ', nrec0
 

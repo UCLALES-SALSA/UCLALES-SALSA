@@ -195,10 +195,10 @@ contains
     use ncio, only : open_nc, define_nc
     use grid, only : nxp, nyp, nprc, nsnw, nspt, iradtyp, &
         no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, &
-        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, out_an_list, nv4_proc, &
+        sed_aero, sed_cloud, sed_precp, sed_ice, out_an_list, nv4_proc, &
         user_an_list, nv4_user, ifSeaSpray, ifSeaVOC
     use mpi_interface, only : myid, ver, author, info
-    use mo_submctl, only : fn1a,fn2a,fn2b,fnp2a,nout_cld,nout_ice,zspec
+    use mo_submctl, only : fn1a,fn2a,fnp2a,nout_cld,nout_ice,zspec
 
     character (len=80), intent (in) :: filprf, expnme
     integer, intent (in)            :: nzp
@@ -392,7 +392,7 @@ contains
           s1_rem_bool(ii+2) = sed_cloud
           s1_rem_bool(ii+3) = sed_precp .AND. (.NOT. no_prog_prc)
           s1_rem_bool(ii+4) = sed_ice .AND. (level>4) .AND. (.NOT. no_prog_ice)
-          s1_rem_bool(ii+5) = sed_snow .AND. (level>4) .AND. (.NOT. no_prog_snw)
+          s1_rem_bool(ii+5) = sed_ice .AND. (level>4) .AND. (.NOT. no_prog_snw)
        ENDDO
 
        ! SALSA dimensions
@@ -523,10 +523,10 @@ contains
             call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp)
         ELSEIF (level<5) THEN
             call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp,  &
-                n1a=fn1a, n2a=fn2a-fn1a, n2b=fn2b-fn2a, nprc=nprc, nchist=nout_cld)
+                n1a=fn1a, n2ab=fn2a-fn1a, nprc=nprc, nchist=nout_cld)
         ELSE
             call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp,  &
-                n1a=fn1a, n2a=fn2a-fn1a, n2b=fn2b-fn2a, nprc=nprc, nchist=nout_cld, &
+                n1a=fn1a, n2ab=fn2a-fn1a, nprc=nprc, nchist=nout_cld, &
                 nsnw=nsnw, nihist=nout_ice)
         ENDIF
         print *, '   ...starting record: ', nrec2

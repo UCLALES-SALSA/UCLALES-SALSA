@@ -96,7 +96,7 @@ contains
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level, lev_sb, &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, spongeinit, runtype, CCN, &
-         Tspinup, sst, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, &
+         Tspinup, sst, sed_aero, sed_cloud, sed_precp, sed_ice, &
          nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
          nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau,  &
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau,  &
@@ -166,7 +166,7 @@ contains
          RadPrecipBins,      & ! add precipitation bins to cloud water (0, 1, 2, 3,...)
          RadSnowBins,        & ! add snow bins to cloud ice (0, 1, 2, 3,...)
          RadConstSZA,        & ! Optional fixed solar zenith angle for radiation (values between -180.0 and 180.0 degrees)
-         sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, & ! Sedimentation (T/F)
+         sed_aero, sed_cloud, sed_precp, sed_ice, & ! Sedimentation (T/F)
          no_b_bins,          & ! no prognostic b-bins for aerosol, cloud or ice (level 4 or 5)
          no_prog_prc,        & ! no prognostic rain (level 4 or 5)
          no_prog_ice,        & ! ... or ice (level 5)

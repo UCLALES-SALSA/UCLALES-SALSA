@@ -778,7 +778,7 @@ contains
     USE mo_submctl, ONLY : nlim,prlim
     use defs, only : alvl, alvi
     use grid, only : nzp, nxp, nyp, nspt, nbins, ncld, nprc, nice, nsnw,   &
-                        sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, &
+                        sed_aero, sed_cloud, sed_precp, sed_ice,           &
                         level, dtl, dzt, a_dn, a_temp, a_theta,            &
                         a_naerop,  a_naerot,  a_maerop,  a_maerot,         &
                         a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,        &
@@ -789,7 +789,6 @@ contains
     IMPLICIT NONE
 
     ! Ice only when level=5
-    sed_snow = sed_snow .AND. level==5
     sed_ice = sed_ice .AND. level==5
 
     IF (sed_aero ) CALL DepositionAny(nzp,nxp,nyp,nspt,nbins,a_temp,a_theta,a_dn,a_ustar,dzt, &
@@ -804,7 +803,7 @@ contains
     IF (sed_ice  ) CALL DepositionAny(nzp,nxp,nyp,nspt,nice,a_temp,a_theta,a_dn,a_ustar,dzt, &
                             a_nicep,a_micep,a_nicet,a_micet,a_tt,dtl,prlim,alvi,4)
 
-    IF (sed_snow ) CALL DepositionAny(nzp,nxp,nyp,nspt,nsnw,a_temp,a_theta,a_dn,a_ustar,dzt, &
+    IF (sed_ice )  CALL DepositionAny(nzp,nxp,nyp,nspt,nsnw,a_temp,a_theta,a_dn,a_ustar,dzt, &
                             a_nsnowp,a_msnowp,a_nsnowt,a_msnowt,a_tt,dtl,prlim,alvi,5)
 
   END SUBROUTINE !sedim_SALSA

@@ -84,13 +84,13 @@ contains
   ! precipitation particles.
   !
   subroutine define_nc(ncID, nRec, nVar, sx, n1, n2, n3, &
-                       n1a, n2a, n2b, nprc, nsnw, nchist, nihist)
+                       n1a, n2ab, nprc, nsnw, nchist, nihist)
 
     integer, intent (in)           :: nVar, ncID
     integer, intent (inout)        :: nRec
     character (len=7), intent (in) :: sx(nVar)
     integer, optional, intent (in) :: n1, n2, n3,            &
-                                      n1a,n2a,n2b,nprc,nsnw, &
+                                      n1a,n2ab,nprc,nsnw, &
                                       nchist,nihist
 
     integer, save :: timeID=0, ztID=0, zmID=0, xtID=0, xmID=0, ytID=0, ymID=0,&
@@ -125,9 +125,9 @@ contains
           iret = nf90_def_dim(ncID, 'ym', n3, ymID)
           IF (.not.present(n1)) dims = 2
        end if
-       IF (PRESENT(n1a) .AND. PRESENT(n2a) .AND. PRESENT(n2b)) THEN
-          iret = nf90_def_dim(ncID, 'B_Rd12a', n1a+n2a, aeaID) ! 1a+2a (a-aerosol only)
-          iret = nf90_def_dim(ncID, 'B_Rd2ab', n2b, aebID) ! 2a and 2b (all other species)
+       IF (PRESENT(n1a) .AND. PRESENT(n2ab)) THEN
+          iret = nf90_def_dim(ncID, 'B_Rd12a', n1a+n2ab, aeaID) ! 1a+2a (a-aerosol only)
+          iret = nf90_def_dim(ncID, 'B_Rd2ab', n2ab, aebID) ! 2a and 2b (all other species)
        END IF
        IF (PRESENT(nprc)) THEN
           iret = nf90_def_dim(ncID, 'B_Rwprc', nprc, prcID)
