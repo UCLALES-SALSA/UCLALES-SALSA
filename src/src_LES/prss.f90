@@ -136,8 +136,7 @@ contains
     call trdprs(n1,ix,iy,s1,dn0,dzt,dzm,dx,dy)
     call get_fft_twodim(ix,iy,n1,s1,wsvx,wsvy,+1)
 
-    call fll_prs(n1,n2,n3,ix,iy,pp,s1)
-    call prs_grd(n1,n2,n3,pp,u,v,w,dzm,dx,dy,dtlt)
+    call prs_grad(n1,n2,n3,ix,iy,s1,pp,u,v,w,dzm,dx,dy,dtlt)
 
     call velset(n1,n2,n3,u,v,w)
 
@@ -159,11 +158,10 @@ contains
     complex, intent (out) :: s1(ix,iy,n1)
 
     integer :: k,i,j,l,m
-    real    :: xf,yf,zf,wf1,wf2,dtv,dti
+    real    :: xf,yf,zf,wf1,wf2,dti
 
     s1(:,:,:) = (0.0,0.0)
-    dtv=dt*2.
-    dti=1./dtv
+    dti=1./(dt*2.)
     m=0
     do j=3,n3-2
        m=m+1
@@ -192,15 +190,20 @@ contains
   end subroutine get_diverg
   !
   !----------------------------------------------------------------------
-  ! subroutine fll_prs: writes the pressure to the appropriate array
+  ! subroutine prs_grad: writes the pressure to the appropriate array and
+  ! calculates the pressure gradient contribution to the tendency
   !
-  subroutine fll_prs(n1,n2,n3,ix,iy,pp,s1)  
+  subroutine prs_grad(n1,n2,n3,ix,iy,s1,pp,u,v,w,dz,dx,dy,dt)
 
     use mpi_interface, only : cyclics,cyclicc
 
-    integer :: n1,n2,n3,ix,iy,k,i,j,l,m,req(16)
-    real :: pp(n1,n2,n3)
-    complex :: s1(ix,iy,n1)
+    integer, intent (in) :: n1,n2,n3,ix,iy
+    real, intent (in)    :: dz(n1),dx,dy,dt
+    real, intent (inout) :: u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
+    real, intent (out)   :: pp(n1,n2,n3)
+    complex, intent (in) :: s1(ix,iy,n1)
+
+    integer :: i,j,k,l,m,req(16)
 
     pp(:,:,:)=0.0
     do k=2,n1-1
@@ -217,13 +220,23 @@ contains
     call cyclics(n1,n2,n3,pp,req)
     call cyclicc(n1,n2,n3,pp,req)
 
-  end subroutine fll_prs
+    do j=1,n3-1
+       do i=1,n2-1
+          do k=2,n1-1
+             if(k /= n1-1)w(k,i,j)=w(k,i,j)-dz(k)*2.*dt*(pp(k+1,i,j)-pp(k,i,j))
+             u(k,i,j)=u(k,i,j)-dx*2.*dt*(pp(k,i+1,j)-pp(k,i,j))
+             v(k,i,j)=v(k,i,j)-dy*2.*dt*(pp(k,i,j+1)-pp(k,i,j))
+          enddo
+       enddo
+    enddo
+
+  end subroutine prs_grad
   !
   !---------------------------------------------------------------------
   ! TRDPRS: solves for the wave number (l,m) component of 
   ! pressure in a vertical column using a tri-diagonal solver.
   !
-  subroutine trdprs(n1,ix,iy,s1,dn0,dzt,dzm,dx,dy)  
+  subroutine trdprs(n1,ix,iy,s1,dn0,dzt,dzm,dx,dy)
 
     use mpi_interface, only : yoffset, nypg, xoffset, wrxid, wryid, nxpg
     use util, only          : tridiff
@@ -237,21 +250,26 @@ contains
 
     integer :: k,l,m
     real    :: fctl,fctm,xl,xm,af,cf
+    integer :: xof, yof
+
     fctl=2.*pi/float(nxpg-4)
     fctm=2.*pi/float(nypg-4)
 
+    xof=xoffset(wrxid)
+    yof=yoffset(wryid)
+
     do l=1,ix
-          if(l+xoffset(wrxid) .le. (nxpg-4)/2+1) then
-            xl=float(l-1+xoffset(wrxid))
+          if(l+xof .le. int((nxpg-4)/2)+1) then
+            xl=float(l-1+xof)
           else
-             xl=float(l-(nxpg-4)-1+xoffset(wrxid))
+             xl=float(l-(nxpg-4)-1+xof)
           endif
       
        do m=1,iy
-          if(m+yoffset(wryid) .le. (nypg-4)/2+1) then
-             xm=float(m-1+yoffset(wryid))
+          if(m+yof .le. int((nypg-4)/2)+1) then
+             xm=float(m-1+yof)
           else
-             xm=float(m-(nypg-4)-1+yoffset(wryid))
+             xm=float(m-(nypg-4)-1+yof)
           endif
           wv(l,m)=2.*((cos(fctl*xl)-1.)*dx*dx + (cos(fctm*xm)-1.)*dy*dy)
        enddo
@@ -285,8 +303,8 @@ contains
 
        do k=2,n1-1
           do l=1,ix
-             if (m+yoffset(wryid)+l+xoffset(wrxid)>2) bk(l,k)=aimag(s1(l,m,k))
-             if (m+yoffset(wryid)+l+xoffset(wrxid)>2) s1(l,m,k)=xk(l,k)
+             if (m+yof+l+xof>2) bk(l,k)=aimag(s1(l,m,k))
+             if (m+yof+l+xof>2) s1(l,m,k)=xk(l,k)
           enddo
        enddo
       
@@ -294,7 +312,7 @@ contains
 
        do k=2,n1-1
           do l=1,ix
-             if (m+yoffset(wryid)+l+xoffset(wrxid) > 2)                &
+             if (m+yof+l+xof > 2)                &
                   s1(l,m,k)=cmplx(real(s1(l,m,k)),xk(l,k))
           enddo
        enddo
@@ -302,29 +320,6 @@ contains
     enddo
 
   end subroutine trdprs
-  !
-  !---------------------------------------------------------------------
-  ! Subroutine Prs_grd: apply the pressure gradient term
-  !
-  subroutine prs_grd(n1,n2,n3,p,u,v,w,dz,dx,dy,dtlt)
-
-    integer, intent (in) :: n1,n2,n3
-    real, intent (in)    :: p(n1,n2,n3),dz(n1),dx,dy,dtlt
-    real, intent (inout) :: u(n1,n2,n3),v(n1,n2,n3),w(n1,n2,n3)
-
-    integer :: i,j,k
-
-    do j=1,n3-1
-       do i=1,n2-1
-          do k=2,n1-1
-             if(k /= n1-1)w(k,i,j)=w(k,i,j)-dz(k)*2.*dtlt*(p(k+1,i,j)-p(k,i,j))
-             u(k,i,j)=u(k,i,j)-dx*2.*dtlt*(p(k,i+1,j)-p(k,i,j))
-             v(k,i,j)=v(k,i,j)-dy*2.*dtlt*(p(k,i,j+1)-p(k,i,j))
-          enddo
-       enddo
-    enddo
-
-  end subroutine prs_grd
   !
   !---------------------------------------------------------------------
   ! Subroutine Prs_cor: correlate the pressure tendency with velocity

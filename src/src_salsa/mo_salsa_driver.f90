@@ -20,14 +20,12 @@ IMPLICIT NONE
   INTEGER, PARAMETER :: kbdim = 1
   INTEGER, PARAMETER :: klev = 1
 
-  REAL, PARAMETER :: init_rh(kbdim,klev) = 0.3
-
   ! -- Local hydrometeor properties (set up in aero initialize)
   TYPE(t_section), ALLOCATABLE :: cloud(:,:,:) ! cloud properties
   TYPE(t_section), ALLOCATABLE :: aero(:,:,:)  ! Aerosol properties
   TYPE(t_section), ALLOCATABLE :: precp(:,:,:) ! Precipitation properties
   TYPE(t_section), ALLOCATABLE :: ice(:,:,:) ! ice properties
-  TYPE(t_section), ALLOCATABLE :: snow(:,:,:) ! snow aka. ice precip. properties
+  TYPE(t_section), ALLOCATABLE :: snow(:,:,:) ! snow properties
 
    ! --------------------------------------------
 
@@ -44,12 +42,6 @@ IMPLICIT NONE
   !
   ! Partially adobted form the original SALSA boxmodel version.
   !
-  ! Now takes masses in as kg/kg from LES!! Converted to m3/m3 for SALSA
-  !
-  ! 05/2016 Juha: This routine is still pretty much in its original shape. 
-  !               It's dumb as a mule and twice as ugly, so implementation of
-  !               an improved solution is necessary sooner or later.
-  !
   ! Juha Tonttila, FMI, 2014
   ! Jaakko Ahola, FMI, 2016
   !
@@ -63,11 +55,9 @@ IMPLICIT NONE
                        pa_gasp,  pa_gast, prunmode, tstep, time, level, &
                        sflg, nstat, slist, sdata)
 
-    USE mo_submctl, ONLY : fn2b, fnp2b, dens, &
-                               rhlim, lscndgas, ngases, mws_gas, nspec, maxnspec, &
+    USE mo_submctl, ONLY : dens, rhlim, lscndgas, ngases, mws_gas, &
                                ngases_diag, zgas_diag, set_vbs_diag, eddy_dis_rt
     USE mo_salsa, ONLY : salsa
-    USE mo_salsa_properties, ONLY : equilibration
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: pnx,pny,pnz,n4, &                ! Dimensions: x,y,z,number of chemical species
@@ -96,9 +86,7 @@ IMPLICIT NONE
 
     REAL, INTENT(in)    :: pa_gasp(pnz,pnx,pny,ngases)   ! Gaseous tracer concentration [kg kg-1)
 
-    INTEGER, INTENT(in) :: prunmode                      ! 1: Initialization call
-                                                         ! 2: Spinup period call
-                                                         ! 3: Regular runtime call
+    LOGICAL, INTENT(in) :: prunmode                      ! Spinup (T) or regular (F) call
     INTEGER, INTENT(in) :: level                         ! thermodynamical level
 
     LOGICAL, INTENT(IN) :: sflg                          ! statistics sampling flag
@@ -123,28 +111,10 @@ IMPLICIT NONE
     ! -- Local gas concentrations [mol m-3]
     REAL :: zgas(kbdim,klev,ngases+ngases_diag)
 
-    ! Helper arrays for calculating the rates of change
-    TYPE(t_section) :: aero_old(1,1,fn2b), cloud_old(1,1,fnp2b), precp_old(1,1,nprc), &
-       ice_old(1,1,fnp2b), snow_old(1,1,nsnw)
-
-    INTEGER :: jj,ii,kk,ss,str,end,nc
+    INTEGER :: jj,ii,kk,str,end,nc
     REAL, DIMENSION(kbdim,klev) :: in_p, in_t, in_rv, in_rs, in_rsi, in_edr
     REAL :: rv_old(kbdim,klev), rho
     REAL :: out_sdata(kbdim,klev,nstat)
-
-    ! Number is always set, but mass can be uninitialized
-    DO ss = 1,maxnspec
-       aero(:,:,:)%volc(ss) = 0.
-       cloud(:,:,:)%volc(ss) = 0.
-       precp(:,:,:)%volc(ss) = 0.
-       ice(:,:,:)%volc(ss) = 0.
-       snow(:,:,:)%volc(ss) = 0.
-       aero_old(:,:,:)%volc(ss) = 0.
-       cloud_old(:,:,:)%volc(ss) = 0.
-       precp_old(:,:,:)%volc(ss) = 0.
-       ice_old(:,:,:)%volc(ss) = 0.
-       snow_old(:,:,:)%volc(ss) = 0.
-    END DO
 
     IF (sflg .AND. nstat>0) sdata(:,:,:,:) = 0.
 
@@ -157,7 +127,7 @@ IMPLICIT NONE
     ! If eddy_dis_rt<0, then use that from LES
     IF (eddy_dis_rt >= 0.) edr(:,:,:) = eddy_dis_rt
 
-    ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of kg/kg (multiplied by pdn/divided by substance density)
+    ! Convert input concentrations for SALSA into #/m3 or m3/m3 instead of #/kg or kg/kg
     DO jj = 3,pny-2
        DO ii = 3,pnx-2
           DO kk = pnz-1,2,-1
@@ -170,7 +140,7 @@ IMPLICIT NONE
              in_edr(1,1) = edr(kk,ii,jj)
 
              ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
-             IF (prunmode < 3) THEN
+             IF (prunmode) THEN
                 IF (rhlim>2.0) THEN
                     ! Time-dependent water vapor mixing ratio limit: initially limited to saturation and exponential
                     ! relaxation towards current mixing ratio. Here rhlim is the relaxation time [s].
@@ -185,50 +155,35 @@ IMPLICIT NONE
              rv_old(1,1) = in_rv(1,1)
 
              ! Set volume concentrations
-             DO nc=1,nspec+1
-                rho=dens(nc) ! Density - water equivalent for ice and snow
+             DO nc=1,n4
+                rho=pdn(kk,ii,jj)/dens(nc) ! rho_air/rho
                 str = (nc-1)*nbins+1
                 end = nc*nbins
-                aero(1,1,1:nbins)%volc(nc) = pa_maerop(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rho
-                aero_old(1,1,1:nbins)%volc(nc) = aero(1,1,1:nbins)%volc(nc)
+                aero(1,1,1:nbins)%volc(nc) = pa_maerop(kk,ii,jj,str:end)*rho
 
                 str = (nc-1)*ncld+1
                 end = nc*ncld
-                cloud(1,1,1:ncld)%volc(nc) = pa_mcloudp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rho
-                cloud_old(1,1,1:ncld)%volc(nc) = cloud(1,1,1:ncld)%volc(nc)
+                cloud(1,1,1:ncld)%volc(nc) = pa_mcloudp(kk,ii,jj,str:end)*rho
 
                 str = (nc-1)*nprc+1
                 end = nc*nprc
-                precp(1,1,1:nprc)%volc(nc) = pa_mprecpp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rho
-                precp_old(1,1,1:nprc)%volc(nc) = precp(1,1,1:nprc)%volc(nc)
+                precp(1,1,1:nprc)%volc(nc) = pa_mprecpp(kk,ii,jj,str:end)*rho
 
                 str = (nc-1)*nice+1
                 end = nc*nice
-                ice(1,1,1:nice)%volc(nc) = pa_micep(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rho
-                ice_old(1,1,1:nice)%volc(nc) = ice(1,1,1:nice)%volc(nc)
+                ice(1,1,1:nice)%volc(nc) = pa_micep(kk,ii,jj,str:end)*rho
 
                 str = (nc-1)*nsnw+1
                 end = nc*nsnw
-                snow(1,1,1:nsnw)%volc(nc) = pa_msnowp(kk,ii,jj,str:end)*pdn(kk,ii,jj)/rho
-                snow_old(1,1,1:nsnw)%volc(nc) = snow(1,1,1:nsnw)%volc(nc)
-
+                snow(1,1,1:nsnw)%volc(nc) = pa_msnowp(kk,ii,jj,str:end)*rho
              END DO
 
              ! Number concentrations and particle sizes
              aero(1,1,1:nbins)%numc = pa_naerop(kk,ii,jj,1:nbins)*pdn(kk,ii,jj)
-             aero_old(1,1,1:nbins)%numc = aero(1,1,1:nbins)%numc
-
              cloud(1,1,1:ncld)%numc = pa_ncloudp(kk,ii,jj,1:ncld)*pdn(kk,ii,jj)
-             cloud_old(1,1,1:ncld)%numc = cloud(1,1,1:ncld)%numc
-
              precp(1,1,1:nprc)%numc = pa_nprecpp(kk,ii,jj,1:nprc)*pdn(kk,ii,jj)
-             precp_old(1,1,1:nprc)%numc = precp(1,1,1:nprc)%numc
-
              ice(1,1,1:nice)%numc = pa_nicep(kk,ii,jj,1:nice)*pdn(kk,ii,jj)
-             ice_old(1,1,1:nice)%numc = ice(1,1,1:nice)%numc
-
              snow(1,1,1:nsnw)%numc = pa_nsnowp(kk,ii,jj,1:nsnw)*pdn(kk,ii,jj)
-             snow_old(1,1,1:nsnw)%numc = snow(1,1,1:nsnw)%numc
 
 
              ! Condensable gases (sulfate and organics)
@@ -240,10 +195,6 @@ IMPLICIT NONE
                     zgas(1,1,ngases+1:ngases+ngases_diag) = zgas_diag(1:ngases_diag)*pdn(kk,ii,jj)
                 ENDIF
              ENDIF
-
-
-             ! If this is an initialization call, calculate the equilibrium particle
-             If (prunmode == 1) CALL equilibration(kbdim,klev,init_rh,in_t,aero,.TRUE.)
 
 
              ! ***************************************!
@@ -264,42 +215,42 @@ IMPLICIT NONE
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)
              pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &
-                  ( aero(1,1,1:nbins)%numc - aero_old(1,1,1:nbins)%numc )/pdn(kk,ii,jj)/tstep
+                  ( aero(1,1,1:nbins)%numc/pdn(kk,ii,jj) - pa_naerop(kk,ii,jj,1:nbins) )/tstep
              pa_ncloudt(kk,ii,jj,1:ncld) = pa_ncloudt(kk,ii,jj,1:ncld) + &
-                  ( cloud(1,1,1:ncld)%numc - cloud_old(1,1,1:ncld)%numc )/pdn(kk,ii,jj)/tstep
+                  ( cloud(1,1,1:ncld)%numc/pdn(kk,ii,jj) - pa_ncloudp(kk,ii,jj,1:ncld) )/tstep
              pa_nprecpt(kk,ii,jj,1:nprc) = pa_nprecpt(kk,ii,jj,1:nprc) + &
-                  ( precp(1,1,1:nprc)%numc - precp_old(1,1,1:nprc)%numc )/pdn(kk,ii,jj)/tstep
+                  ( precp(1,1,1:nprc)%numc/pdn(kk,ii,jj) - pa_nprecpp(kk,ii,jj,1:nprc) )/tstep
              pa_nicet(kk,ii,jj,1:nice) = pa_nicet(kk,ii,jj,1:nice) + &
-                  ( ice(1,1,1:nice)%numc - ice_old(1,1,1:nice)%numc )/pdn(kk,ii,jj)/tstep
+                  ( ice(1,1,1:nice)%numc/pdn(kk,ii,jj) - pa_nicep(kk,ii,jj,1:nice) )/tstep
              pa_nsnowt(kk,ii,jj,1:nsnw) = pa_nsnowt(kk,ii,jj,1:nsnw) + &
-                  ( snow(1,1,1:nsnw)%numc - snow_old(1,1,1:nsnw)%numc )/pdn(kk,ii,jj)/tstep
+                  ( snow(1,1,1:nsnw)%numc/pdn(kk,ii,jj) - pa_nsnowp(kk,ii,jj,1:nsnw) )/tstep
 
-             DO nc=1,nspec+1
-                rho=dens(nc)
+             DO nc=1,n4
+                rho=dens(nc)/pdn(kk,ii,jj) ! rho/rho_air
                 str = (nc-1)*nbins+1
                 end = nc*nbins
                 pa_maerot(kk,ii,jj,str:end) = pa_maerot(kk,ii,jj,str:end) + &
-                     ( aero(1,1,1:nbins)%volc(nc) - aero_old(1,1,1:nbins)%volc(nc) )*rho/pdn(kk,ii,jj)/tstep
+                     ( aero(1,1,1:nbins)%volc(nc)*rho - pa_maerop(kk,ii,jj,str:end) )/tstep
 
                 str = (nc-1)*ncld+1
                 end = nc*ncld
                 pa_mcloudt(kk,ii,jj,str:end) = pa_mcloudt(kk,ii,jj,str:end) + &
-                     ( cloud(1,1,1:ncld)%volc(nc) - cloud_old(1,1,1:ncld)%volc(nc) )*rho/pdn(kk,ii,jj)/tstep
+                     ( cloud(1,1,1:ncld)%volc(nc)*rho - pa_mcloudp(kk,ii,jj,str:end) )/tstep
 
                 str = (nc-1)*nprc+1
                 end = nc*nprc
                 pa_mprecpt(kk,ii,jj,str:end) = pa_mprecpt(kk,ii,jj,str:end) + &
-                     ( precp(1,1,1:nprc)%volc(nc) - precp_old(1,1,1:nprc)%volc(nc) )*rho/pdn(kk,ii,jj)/tstep
+                     ( precp(1,1,1:nprc)%volc(nc)*rho - pa_mprecpp(kk,ii,jj,str:end) )/tstep
 
                 str = (nc-1)*nice+1
                 end = nc*nice
                 pa_micet(kk,ii,jj,str:end) = pa_micet(kk,ii,jj,str:end) + &
-                     ( ice(1,1,1:nice)%volc(nc) - ice_old(1,1,1:nice)%volc(nc) )*rho/pdn(kk,ii,jj)/tstep
+                     ( ice(1,1,1:nice)%volc(nc)*rho - pa_micep(kk,ii,jj,str:end) )/tstep
 
                 str = (nc-1)*nsnw+1
                 end = nc*nsnw
                 pa_msnowt(kk,ii,jj,str:end) = pa_msnowt(kk,ii,jj,str:end) + &
-                     ( snow(1,1,1:nsnw)%volc(nc) - snow_old(1,1,1:nsnw)%volc(nc) )*rho/pdn(kk,ii,jj)/tstep
+                     ( snow(1,1,1:nsnw)%volc(nc)*rho - pa_msnowp(kk,ii,jj,str:end) )/tstep
              END DO
 
              IF (lscndgas .AND. ngases>0) THEN
@@ -308,11 +259,9 @@ IMPLICIT NONE
                         ( zgas(1,1,1:ngases)/pdn(kk,ii,jj)*mws_gas(1:ngases) - pa_gasp(kk,ii,jj,1:ngases) )/tstep
              ENDIF
 
-
-             ! Tendency of water vapour mixing ratio is obtained from the change in RH during SALSA run.
-             ! Assumes no temperature change during SALSA run.
-             rt(kk,ii,jj) = rt(kk,ii,jj) + &
-                  ( in_rv(1,1) - rv_old(1,1) )/tstep
+             ! Tendency of water vapour mixing ratio (no change in ice-liquid water
+             ! potential temperature)
+             rt(kk,ii,jj) = rt(kk,ii,jj) + ( in_rv(1,1) - rv_old(1,1) )/tstep
 
           END DO ! kk
        END DO ! ii
@@ -329,108 +278,37 @@ IMPLICIT NONE
   ! Juha Tonttila, FMI, 2014
   !
   SUBROUTINE set_SALSA_runtime(prunmode,time)
-    USE mo_submctl, ONLY : nlcoag,                 &
-                               nlcgaa,nlcgcc,nlcgpp,   &
-                               nlcgca,nlcgpa,nlcgpc,   &
-                               nlcgrain,               &
-                               nlcnd,                  &
-                               nlcndgas,               &
-                               soa_tstart,             &
-                               nlcndh2oae, nlcndh2ocl, &
-                               nlcndh2oic,             &
-                               nlauto,nlautosnow,      &
-                               nlactiv,                &
-                               nlactbase,nlactintst,   &
-
-                               lscoag,                 &
-                               lscgaa,lscgcc,lscgpp,   &
-                               lscgca,lscgpa,lscgpc,   &
-                               lscgrain,               &
-                               lscnd,                  &
-                               lscndgas,               &
-                               lscndh2oae, lscndh2ocl, &
-                               lscndh2oic,             &
-                               lsauto,lsautosnow,      &
-                               lsactiv,                &
-                               lsactbase,lsactintst,   &
-
-                               nlcgia,nlcgic,nlcgii,   &
-                               nlcgip,nlcgsa,nlcgsc,   &
-                               nlcgsi,nlcgsp,nlcgss,   &
-                               nlcnd,                  &
-                               nlicenucl,              &
-                               nlicmelt,               &
-                               icenucl_tstart,         &
-
-                               lscgia,lscgic,lscgii,   &
-                               lscgip,lscgsa,lscgsc,   &
-                               lscgsi,lscgsp,lscgss,   &
-                               lsicenucl,              &
-                               lsicmelt
-
+    USE mo_submctl, ONLY : nlcoag,     lscoag,     &
+                           nlcnd,      lscnd,      &
+                           nlcndgas,   lscndgas,   &
+                           soa_tstart,             &
+                           nlauto,     lsauto,     &
+                           nlactiv,    lsactiv,    &
+                           nlicenucl,  lsicenucl,  &
+                           nlautosnow, lsautosnow, &
+                           nlicmelt,   lsicmelt,   &
+                           icenucl_tstart
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: prunmode
+    LOGICAL, INTENT(in) :: prunmode
     REAL, INTENT(in) :: time
 
     ! Apply runtime settings
-
     lscoag      = nlcoag
-    lscgaa      = nlcgaa
-    lscgcc      = nlcgcc
-    lscgpp      = nlcgpp
-    lscgca      = nlcgca
-    lscgpa      = nlcgpa
-    lscgpc      = nlcgpc
-    lscgia      = nlcgia
-    lscgic      = nlcgic
-    lscgii      = nlcgii
-    lscgip      = nlcgip
-    lscgsa      = nlcgsa
-    lscgsc      = nlcgsc
-    lscgsi      = nlcgsi
-    lscgsp      = nlcgsp
-    lscgss      = nlcgss
-
     lscnd       = nlcnd
     lscndgas    = nlcndgas
-    lscndh2oae  = nlcndh2oae
-    lscndh2ocl  = nlcndh2ocl
-    lscndh2oic  = nlcndh2oic
-
-    lscgrain    = nlcgrain
     lsauto      = nlauto
     lsautosnow  = nlautosnow
-
     lsactiv     = nlactiv
-    lsactbase   = nlactbase
-    lsactintst  = nlactintst
-
-    lsicenucl  = nlicenucl
+    lsicenucl   = nlicenucl
     lsicmelt    = nlicmelt
 
-
-    ! Adjustments for initialization and spinup
-
-    SELECT CASE(prunmode)
-
-       CASE(1) ! Initialization
-
+    ! Adjustments for spinup
+    IF (prunmode) THEN
           lscoag      = .FALSE.
           lsauto      = .FALSE.
           lsautosnow  = .FALSE.
-          lsactbase   = .FALSE.
-          lsactintst  = nlactintst
-          lsicenucl  = .FALSE.
-          lsicmelt    = .FALSE.
-
-       CASE(2)  ! Spinup period
-
-          lscoag      = .FALSE.
-          lsauto      = .FALSE.
-          lsautosnow  = .FALSE.
-
-    END SELECT
+    ENDIF
 
     ! Ice formation has an additional spinup time (no ice formation => no autoconversion or melting)
     IF (time<icenucl_tstart) THEN
@@ -443,6 +321,5 @@ IMPLICIT NONE
     IF (time<soa_tstart) lscndgas = .FALSE.
 
   END SUBROUTINE set_SALSA_runtime
-
 
 END MODULE mo_salsa_driver

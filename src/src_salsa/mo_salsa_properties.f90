@@ -35,7 +35,7 @@ CONTAINS
          Sw(kbdim,klev),      & ! equilibrium saturation ratio [-]
          temp(kbdim,klev)       ! temperature [K]
 
-    LOGICAL, INTENT(in) :: init  ! TRUE: update water content for 2a and 2b bins in addition to 1a
+    LOGICAL, INTENT(in) :: init(kbdim,klev) ! 1a always, but 2a and 2b bins only when init = .TRUE.
 
     !-- inpu/output variables -------------
     TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,fn2b) ! SALSA aerosol
@@ -53,14 +53,13 @@ CONTAINS
          zdold,  &   ! Old droplet diameter [m]
          zrh         ! Current saturation ratio [-]
 
-    ! 1a always, but 2a and 2b bins only when init = .TRUE.
-    last = fn1a
-    IF (init) last = fn2b
-
     ! Loop over all aerosol bins
-    DO kk = in1a,last
-      DO jj = 1,klev      ! vertical grid
-         DO ii = 1,kbdim ! horizontal grid
+    DO jj = 1,klev      ! vertical grid
+      DO ii = 1,kbdim ! horizontal grid
+         ! 1a always, but 2a and 2b bins only when init = .TRUE.
+         last = MERGE(fn2b,fn1a,init(ii,jj))
+
+         DO kk = in1a,last
 
             IF (paero(ii,jj,kk)%numc > nlim) THEN
 

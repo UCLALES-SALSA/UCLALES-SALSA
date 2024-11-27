@@ -22,7 +22,6 @@ module util
   use mpi_interface, only : cyclics, cyclicc
   implicit none
 
-  integer, save :: fftinix=0, fftiniy=0
   logical, parameter  :: noslip = .false.
 
 contains
@@ -777,6 +776,7 @@ contains
 
     integer :: k, j, i
     complex :: atmp((nx+1)*(ny+1)*(nz+1)),btmp(ny,nx,nz)
+    integer, save :: fftinix=1, fftiniy=1
 
     call xshuffle(a,atmp,nx,ny,nz,1)
     call fft1dc(nxg,nynzp,atmp,wsavex,isgn,fftinix)

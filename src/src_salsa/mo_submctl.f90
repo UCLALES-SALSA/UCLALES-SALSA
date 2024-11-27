@@ -9,9 +9,7 @@ MODULE mo_submctl
   TYPE t_section
      REAL :: vhilim,     & ! bin volume at the high limit
                  vlolim,     & ! - '' - at the low limit
-                 vratiohi,   & ! volume ratio between the center and high limit
-                 vratiolo,   & ! - '' - and the low limit
-                 dmid,       & ! bin middle diameter
+                 vmid,       & ! bin middle volume
                  !******************************************************
                  ! ^ Do NOT change the stuff above after initialization !
                  !******************************************************
@@ -29,61 +27,29 @@ MODULE mo_submctl
   ! circumstances such as spinup period etc.
 
   LOGICAL :: nlcoag  = .TRUE., lscoag ! Coagulation master switch
-  LOGICAL :: nlcgaa  = .TRUE., lscgaa ! Coagulation between aerosols
-  LOGICAL :: nlcgcc  = .TRUE., lscgcc ! Collision-coalescence between cloud droplets
-  LOGICAL :: nlcgca  = .TRUE., lscgca ! Cloud collection of aerosols
-  LOGICAL :: nlcgpc  = .TRUE., lscgpc ! Collection of cloud droplets by rain
-  LOGICAL :: nlcgpa  = .TRUE., lscgpa ! Collection of aerosols by rain
-  LOGICAL :: nlcgpp  = .TRUE., lscgpp ! Collision between rain drops
-  LOGICAL :: nlcgia  = .TRUE., lscgia ! Ice collection of aerosols
-  LOGICAL :: nlcgic  = .TRUE., lscgic ! Collection of cloud droplets by ice particles
-  LOGICAL :: nlcgii  = .TRUE., lscgii ! Collision-coalescence between ice particles
-  LOGICAL :: nlcgip  = .TRUE., lscgip ! Collection of precipitation by ice particles
-  LOGICAL :: nlcgsa  = .TRUE., lscgsa ! Collection of aerosols by snow
-  LOGICAL :: nlcgsc  = .TRUE., lscgsc ! Collection of cloud droplets by snow
-  LOGICAL :: nlcgsi  = .TRUE., lscgsi ! Collection of ice by snow
-  LOGICAL :: nlcgsp  = .TRUE., lscgsp ! Collection of precipitation by snow
-  LOGICAL :: nlcgss  = .TRUE., lscgss ! Collision-coalescence between snow particles
+  LOGICAL :: lscgaa, lscgcc, lscgpp, & ! Collisions between particle types (default=T)
+             lscgca, lscgpa, lscgpc, &
+             lscgia, lscgic, lscgii, &
+             lscgip, lscgsa, lscgsc, &
+             lscgsi, lscgsp, lscgss
+  LOGICAL :: lscgrain ! Rain formation based on cloud-cloud collisions (default=F)
 
   LOGICAL :: nlcnd      = .TRUE.,  lscnd      ! Condensation master switch
-  LOGICAL :: nlcndh2ocl = .TRUE.,  lscndh2ocl ! Condensation of water vapour on clouds and precipitation
-  LOGICAL :: nlcndh2oae = .TRUE.,  lscndh2oae ! Condensation of water vapour on aerosol particles (FALSE -> equilibrium calc.)
-  LOGICAL :: nlcndh2oic = .TRUE.,  lscndh2oic ! Condensation of water vapour on ice and snow
   LOGICAL :: nlcndgas   = .FALSE., lscndgas   ! Condensation of H2SO4 and organic vapors
-
-  LOGICAL :: nlauto     = .TRUE.,  lsauto     ! Autoconversion of cloud droplets (needs activation)
-  LOGICAL :: nlautosnow = .FALSE., lsautosnow ! Autoconversion of ice particles to snow (needs activation)
-  LOGICAL :: nlcgrain = .FALSE.,   lscgrain   ! Rain formation based on cloud-cloud collisions
-
   LOGICAL :: nlactiv    = .TRUE.,  lsactiv    ! Cloud droplet activation master switch
-  LOGICAL :: nlactintst = .TRUE.,  lsactintst ! Switch for interstitial activation
-  LOGICAL :: nlactbase  = .FALSE., lsactbase  ! Switch for cloud base activation
+  LOGICAL :: nlauto     = .TRUE.,  lsauto     ! Autoconversion of cloud droplets
 
   LOGICAL :: nlicenucl  = .FALSE., lsicenucl  ! ice nucleation master switch
   LOGICAL :: nlicmelt   = .FALSE., lsicmelt   ! ice melting
+  LOGICAL :: nlautosnow = .FALSE., lsautosnow ! Autoconversion of ice particles to snow
 
   ! Other switches
-  LOGICAL :: lsdistupdate = .TRUE.  ! Perform the size distribution update
+  LOGICAL :: lsdistupdate ! Perform the size distribution update (default=T)
+  LOGICAL :: lsdiag       ! Perform diagnostic drop/ice to aerosol relaese and clean negative values (default=T)
 
 
   ! ---------------------------------------------------------------------------------------------------------
   ! 3) Parameters and options for SALSA microphysics
-
-  ! New particle formation or nucleation
-  INTEGER :: nsnucl = 0             ! Choice of the nucleation scheme:
-                                    ! 0 = off   
-                                    ! 1 = binary nucleation
-                                    ! 2 = activation type nucleation
-                                    ! 3 = kinetic nucleation
-                                    ! 4 = ternary nucleation
-                                    ! 5 = nucleation with ORGANICs
-                                    ! 6 = activation type of nucleation with H2SO4+ORG
-                                    ! 7 = heteromolecular nucleation with H2SO4*ORG
-                                    ! 8 = homomolecular nucleation of  H2SO4 + 
-                                    !           heteromolecular nucleation with H2SO4*ORG
-                                    ! 9 = homomolecular nucleation of  H2SO4 and ORG + 
-                                    !           heteromolecular nucleation with H2SO4*ORG
-
 
   ! Autoconversion
   !   Cloud to rain
@@ -96,8 +62,10 @@ MODULE mo_submctl
 
 
   ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
-  ! a) Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice/snow
-  REAL :: fixinc = -1.0 ! Default = disabled
+  ! a) Constant (fixinc > 0 #/kg) or diagnosed (ice_diag /= 0) ice number concentration is
+  ! maintained by converting cloud droplets to ice/snow
+  REAL :: fixinc = -1.0, fixinc_slope = 0.0 ! Default = disabled
+  INTEGER :: ice_diag = 0 ! Default = disabled
   REAL :: fixed_ice_min_Si=1.05, fixed_ice_min_rc=1e-6, fixed_ice_max_T=273.15 ! Thresholds
   ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
   INTEGER :: ice_source_opt = 1 ! Default = start from the largest bin
@@ -201,18 +169,17 @@ MODULE mo_submctl
   REAL :: volDistB(maxspec) = 0.0
   ! Limit 1a composition to OC and/or SO4
   LOGICAL :: salsa1a_SO4_OC = .TRUE.
-  ! Number fraction allocated to a-bins in regime 2 (b-bins will get 1-nf2a)
-  REAL :: nf2a = 1.0
 
   ! Type of the input aerosol size distribution
   !     0 - Uniform, log-normal size distribution parameters given in the NAMELIST
-  !     1 - Read vertical profile of those from an input file
+  !  else - Read vertical profile of those from an input file
   INTEGER :: isdtyp = 0
   ! For isdtyp = 0
   INTEGER, PARAMETER :: nmod = 7
-  REAL :: sigmag(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/),   & ! Stdev
-             dpg(nmod) = (/0.15,0.2,0.2,0.2,0.2,0.2,0.2/), & ! Mode diam in um
-               n(nmod) = (/640.,0.,0.,0.,0.,0.,0./)        ! 1e6#/kg ~ #/cm3
+  ! Number concentration (1e6 #/kg), mode diameter (1e-6 m) and STD for a and b bins
+  REAL :: nA(nmod) = (/640.,0.0,0.0,0.0,0.0,0.0,0.0/),     nB(nmod) = 0.0, & ! Number
+        dpgA(nmod) = (/0.15,0.2,0.2,0.2,0.2,0.2,0.2/),   dpgB(nmod) = 0.0, & ! Mode diameter
+     sigmagA(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/), sigmagB(nmod) = 0.0    ! STD
 
   ! Aerosol, cloud and ice bin limits (based on dry size)
   INTEGER, PARAMETER :: maxnreg = 5 ! maximum number of subregimes (the first is region 1 and the rest are for region 2)
@@ -398,27 +365,6 @@ contains
 
   END SUBROUTINE CalcDimension
   !
-  ! This function is for SALSA t_section arrays and assumes volume-based concentration units
-  SUBROUTINE CalcMass(mass,n,ppart,lim,flag)
-    IMPLICIT NONE
-    REAL, INTENT(OUT) :: mass(n)
-    INTEGER, INTENT(in) :: n
-    TYPE(t_section), INTENT(in) :: ppart(n)
-    REAL, INTENT(IN) :: lim
-    INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
-    INTEGER i
-
-    mass(:)=1e-30
-    DO i=1,n
-        IF (ppart(i)%numc<lim) THEN
-            ! No particles
-        ELSE
-            mass(i)=SUM(ppart(i)%volc(:)*dens(:))/ppart(i)%numc
-        ENDIF
-    ENDDO
-
-  END SUBROUTINE CalcMass
-  !
   ! This function is for single LES size bin and assumes that concentration is given as mass per particle
   REAL FUNCTION calc_eff_radius(n,mass,flag)
     IMPLICIT NONE
@@ -453,16 +399,6 @@ contains
     REAL, INTENT(IN) :: T ! Absolute temperature (K)
     REAL :: dwet
 
-    !   #  Name Diss
-    !   1   SO4   3
-    !   2   OC     1
-    !   3   BC     0
-    !   4   DU    0
-    !   5   SS     2
-    !   6   NO    1
-    !   7   NH    1
-    !   8   H2O
-
     ! Wet diameter
     dwet=(SUM(part%volc(:))/part%numc/pi6)**(1./3.)
 
@@ -490,26 +426,10 @@ contains
   REAL FUNCTION calc_correlation(x,y,n)
     INTEGER :: n
     REAL :: x(n), y(n)
-    REAL :: sx, sy, sx2, sy2, sxy
-    INTEGER :: i
     IF (n<=1) THEN
         calc_correlation = 0.
     ELSE
         calc_correlation = (SUM(x*y)*n-SUM(x)*SUM(y))/( SQRT(SUM(x**2)*n-SUM(x)**2)*SQRT(SUM(y**2)*n-SUM(y)**2) )
-    ENDIF
-    RETURN
-    sx=0.; sy=0.; sx2=0.; sy2=0.; sxy=0.
-    DO i=1,n
-        sx=sx+x(i)
-        sy=sy+y(i)
-        sx2=sx2+x(i)**2
-        sy2=sy2+y(i)**2
-        sxy=x(i)*y(i)
-    ENDDO
-    IF (sx2*n-sx**2<eps .OR. sy2*n-sy**2<eps) THEN
-        calc_correlation = 0.
-    ELSE
-        calc_correlation = ( sxy*n-sx*sy )/( SQRT(sx2*n-sx**2)*SQRT(sy2*n-sy**2) )
     ENDIF
   END FUNCTION calc_correlation
 

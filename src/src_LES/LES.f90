@@ -45,7 +45,7 @@ contains
 
     use grid, only          : define_grid, define_vars, level, lev_sb, nxp, nyp, nzp, nxpart
     use init, only          : initialize
-    use step, only          : stepper
+    use step, only          : stepper,cntlat,strtim
     use mpi_interface, only : init_mpi, define_decomp,                    &
          init_alltoall_reorder, appl_finalize
     USE mcrp_ice, ONLY : init_micro_ice
@@ -61,7 +61,7 @@ contains
 
     IF (level >= 4) CALL define_salsa(level) ! Read SALSA namelist etc.
 
-    IF (level >= 4) CALL salsa_initialize ! All salsa variables are now initialized
+    IF (level >= 4) CALL salsa_initialize(cntlat,strtim)
 
     IF (level == 0) CALL init_micro_ice(lev_sb) ! Read SB namelist
 
@@ -88,7 +88,6 @@ contains
   !
   subroutine define_parm
 
-    use util, only : fftinix,fftiniy
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon, &
                     wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param
@@ -97,7 +96,7 @@ contains
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level, lev_sb, &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, spongeinit, runtype, CCN, &
-         Tspinup, sst, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, &
+         Tspinup, sst, sed_aero, sed_cloud, sed_precp, sed_ice, &
          nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
          nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau,  &
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau,  &
@@ -167,7 +166,7 @@ contains
          RadPrecipBins,      & ! add precipitation bins to cloud water (0, 1, 2, 3,...)
          RadSnowBins,        & ! add snow bins to cloud ice (0, 1, 2, 3,...)
          RadConstSZA,        & ! Optional fixed solar zenith angle for radiation (values between -180.0 and 180.0 degrees)
-         sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, & ! Sedimentation (T/F)
+         sed_aero, sed_cloud, sed_precp, sed_ice, & ! Sedimentation (T/F)
          no_b_bins,          & ! no prognostic b-bins for aerosol, cloud or ice (level 4 or 5)
          no_prog_prc,        & ! no prognostic rain (level 4 or 5)
          no_prog_ice,        & ! ... or ice (level 5)
@@ -188,14 +187,6 @@ contains
     namelist /version/  &
          ver, author        ! Information about UCLALES-SALSA version and author
 
-    ps       = 0.
-    ts       = th00
-    !
-    ! these are for initializing the temp variables used in ffts in x and y
-    ! directions.
-    !
-      fftinix=1
-      fftiniy=1
     !
     ! read namelist from specified file
     !

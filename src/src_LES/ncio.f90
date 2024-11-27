@@ -6,8 +6,7 @@ module ncio
   implicit none
   private
 
-  public :: open_nc, define_nc, ncinfo, &
-            open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
+  public :: open_nc, define_nc, ncinfo
 
 contains
   !
@@ -85,13 +84,13 @@ contains
   ! precipitation particles.
   !
   subroutine define_nc(ncID, nRec, nVar, sx, n1, n2, n3, &
-                       n1a, n2a, n2b, nprc, nsnw, nchist, nihist)
+                       n1a, n2ab, nprc, nsnw, nchist, nihist)
 
     integer, intent (in)           :: nVar, ncID
     integer, intent (inout)        :: nRec
     character (len=7), intent (in) :: sx(nVar)
     integer, optional, intent (in) :: n1, n2, n3,            &
-                                      n1a,n2a,n2b,nprc,nsnw, &
+                                      n1a,n2ab,nprc,nsnw, &
                                       nchist,nihist
 
     integer, save :: timeID=0, ztID=0, zmID=0, xtID=0, xmID=0, ytID=0, ymID=0,&
@@ -126,9 +125,9 @@ contains
           iret = nf90_def_dim(ncID, 'ym', n3, ymID)
           IF (.not.present(n1)) dims = 2
        end if
-       IF (PRESENT(n1a) .AND. PRESENT(n2a) .AND. PRESENT(n2b)) THEN
-          iret = nf90_def_dim(ncID, 'B_Rd12a', n1a+n2a, aeaID) ! 1a+2a (a-aerosol only)
-          iret = nf90_def_dim(ncID, 'B_Rd2ab', n2b, aebID) ! 2a and 2b (all other species)
+       IF (PRESENT(n1a) .AND. PRESENT(n2ab)) THEN
+          iret = nf90_def_dim(ncID, 'B_Rd12a', n1a+n2ab, aeaID) ! 1a+2a (a-aerosol only)
+          iret = nf90_def_dim(ncID, 'B_Rd2ab', n2ab, aebID) ! 2a and 2b (all other species)
        END IF
        IF (PRESENT(nprc)) THEN
           iret = nf90_def_dim(ncID, 'B_Rwprc', nprc, prcID)
@@ -734,6 +733,12 @@ contains
        if (itype==1) ncinfo = 'K'
     case('T_avg')
        if (itype==0) ncinfo = 'Average absolute temperature'
+       if (itype==1) ncinfo = 'K'
+    case('T_min_c')
+       if (itype==0) ncinfo = 'In-cloud minimum absolute temperature'
+       if (itype==1) ncinfo = 'K'
+    case('T_max_c')
+       if (itype==0) ncinfo = 'In-cloud maximum absolute temperature'
        if (itype==1) ncinfo = 'K'
     case('thl_int')
        if (itype==0) ncinfo = 'Integrated liquid water potential temperature change'
@@ -1646,75 +1651,5 @@ contains
         ENDIF
     ENDIF
   END function get_sb_info
-  !
-  ! ----------------------------------------------------------------------
-  ! FUNCTIONS FOR READING AEROSOL SIZE DISTRIBUTIONS FROM A NETCDF FILE
-  !
-  SUBROUTINE open_aero_nc(ncid,nc_levs,nc_nspec,nc_nmod)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(out) :: ncid,nc_levs,nc_nspec,nc_nmod
-    INTEGER :: iret, did
-
-    ! Open file
-    iret = nf90_open('aerosol_in.nc',NF90_NOWRITE,ncid)
-
-    ! Inquire the number of input levels
-    iret = nf90_inq_dimid(ncid,'levs',did)
-    iret = nf90_inquire_dimension(ncid,did,len=nc_levs)
-
-    iret = nf90_inq_dimid(ncid,'nspec',did)
-    iret = nf90_inquire_dimension(ncid,did,len=nc_nspec)
-
-    iret = nf90_inq_dimid(ncid,'nmod',did)
-    iret = nf90_inquire_dimension(ncid,did,len=nc_nmod)
-
-  END SUBROUTINE open_aero_nc
-  !
-  ! ---------------------------------------------------
-  !
-  SUBROUTINE read_aero_nc_1d(ncid,name,d1,var)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in)           :: ncid, d1
-    CHARACTER(len=*), INTENT(in) :: name
-    REAL, INTENT(out)             :: var(d1)
-
-    INTEGER :: iret,vid
-
-    iret = nf90_inq_varid(ncid,name,vid)
-    iret = nf90_get_var(ncid,vid,var)
-
-  END SUBROUTINE read_aero_nc_1d
-  !
-  ! ---------------------------------------------------
-  !
-  SUBROUTINE read_aero_nc_2d(ncid,name,d1,d2,var)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in)           :: ncid, d1,d2
-    CHARACTER(len=*), INTENT(in) :: name
-    REAL, INTENT(out)             :: var(d1,d2)
-
-
-    INTEGER :: iret, vid
-
-    iret = nf90_inq_varid(ncid,name,vid)
-    iret = nf90_get_var(ncid,vid,var)
-
-  END SUBROUTINE read_aero_nc_2d
-  !
-  ! -----------------------------------------------------
-  !
-  SUBROUTINE close_aero_nc(ncid)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: ncid
-
-    INTEGER :: iret
-
-    iret = nf90_close(ncid)
-
-  END SUBROUTINE close_aero_nc
 
 end module ncio

@@ -103,9 +103,7 @@ CONTAINS
                  dd = dd+1
                  aero(ii,jj,dd)%vlolim = pi6*(reglim(vv)*ratio**(real(cc-1)/nbin(vv)))**3
                  aero(ii,jj,dd)%vhilim = pi6*(reglim(vv)*ratio**(real(cc)/nbin(vv)))**3
-                 aero(ii,jj,dd)%dmid = ( (aero(ii,jj,dd)%vhilim + aero(ii,jj,dd)%vlolim) /(2.*pi6) )**(1./3.)
-                 aero(ii,jj,dd)%vratiohi = aero(ii,jj,dd)%vhilim/(pi6*aero(ii,jj,dd)%dmid**3)
-                 aero(ii,jj,dd)%vratiolo = aero(ii,jj,dd)%vlolim/(pi6*aero(ii,jj,dd)%dmid**3)
+                 aero(ii,jj,dd)%vmid = (aero(ii,jj,dd)%vhilim + aero(ii,jj,dd)%vlolim)*0.5
               END DO
           END DO
           IF (vv<3 .OR. dd/=fn2a) THEN
@@ -117,12 +115,10 @@ CONTAINS
           !-- 2) same values for subregime 2b
           aero(ii,jj,in2b:fn2b)%vlolim = aero(ii,jj,in2a:fn2a)%vlolim
           aero(ii,jj,in2b:fn2b)%vhilim = aero(ii,jj,in2a:fn2a)%vhilim
-          aero(ii,jj,in2b:fn2b)%dmid = aero(ii,jj,in2a:fn2a)%dmid
-          aero(ii,jj,in2b:fn2b)%vratiohi = aero(ii,jj,in2a:fn2a)%vratiohi
-          aero(ii,jj,in2b:fn2b)%vratiolo = aero(ii,jj,in2a:fn2a)%vratiolo
+          aero(ii,jj,in2b:fn2b)%vmid = aero(ii,jj,in2a:fn2a)%vmid
 
           ! Initialize the wet diameter with the bin dry diameter to avoid numerical proplems later
-          aero(ii,jj,:)%dwet = aero(ii,jj,:)%dmid
+          aero(ii,jj,:)%dwet = (aero(ii,jj,:)%vmid/pi6)**(1./3.)
 
           ! Set volume and number concentrations to zero
           aero(ii,jj,:)%numc = 0.
@@ -217,13 +213,11 @@ CONTAINS
           ! -------------------------------------------------
           cloud(ii,jj,1:)%vhilim = aero(ii,jj,in2a:)%vhilim
           cloud(ii,jj,1:)%vlolim = aero(ii,jj,in2a:)%vlolim
-          cloud(ii,jj,1:)%vratiohi = aero(ii,jj,in2a:)%vratiohi
-          cloud(ii,jj,1:)%vratiolo = aero(ii,jj,in2a:)%vratiolo
-          cloud(ii,jj,1:)%dmid = aero(ii,jj,in2a:)%dmid
+          cloud(ii,jj,1:)%vmid = aero(ii,jj,in2a:)%vmid
 
           ! Initialize the droplet diameter ("wet diameter") as the dry
           ! mid diameter of the nucleus to avoid problems later.
-          cloud(ii,jj,:)%dwet = cloud(ii,jj,:)%dmid
+          cloud(ii,jj,1:)%dwet = aero(ii,jj,in2a:)%dwet
 
           ! Initialize the volume and number concentrations for clouds.
           ! First "real" values are only obtained upon the first calculation
@@ -239,12 +233,10 @@ CONTAINS
           ! ---------------------------------------------------------------------------------------
           precp(ii,jj,:)%vhilim = pi6*rainbinlim(2:nprc+1)**3
           precp(ii,jj,:)%vlolim = pi6*rainbinlim(1:nprc)**3
-          precp(ii,jj,:)%dmid = ( (precp(ii,jj,:)%vlolim + precp(ii,jj,:)%vhilim) / (2.*pi6) )**(1./3.)
-          precp(ii,jj,:)%vratiohi = precp(ii,jj,:)%vhilim / ( pi6*precp(ii,jj,:)%dmid**3 )
-          precp(ii,jj,:)%vratiolo = precp(ii,jj,:)%vlolim / ( pi6*precp(ii,jj,:)%dmid**3 )
+          precp(ii,jj,:)%vmid = (precp(ii,jj,:)%vlolim + precp(ii,jj,:)%vhilim)*0.5
 
           ! Initialize the wet diameter as the bin mid diameter
-          precp(ii,jj,:)%dwet = precp(ii,jj,:)%dmid
+          precp(ii,jj,:)%dwet = (precp(ii,jj,:)%vmid/pi6)**(1./3.)
 
           DO cc = 1,maxnspec
              precp(ii,jj,:)%volc(cc) = 0.
@@ -337,12 +329,10 @@ CONTAINS
           ! -------------------------------------------------
           ice(ii,jj,1:)%vhilim = aero(ii,jj,in2a:)%vhilim
           ice(ii,jj,1:)%vlolim = aero(ii,jj,in2a:)%vlolim
-          ice(ii,jj,1:)%vratiohi = aero(ii,jj,in2a:)%vratiohi
-          ice(ii,jj,1:)%vratiolo = aero(ii,jj,in2a:)%vratiolo
-          ice(ii,jj,1:)%dmid = aero(ii,jj,in2a:)%dmid
+          ice(ii,jj,1:)%vmid = aero(ii,jj,in2a:)%vmid
 
           ! Initialize the "wet" diameter as the dry mid diameter of the nucleus
-          ice(ii,jj,:)%dwet = ice(ii,jj,:)%dmid
+          ice(ii,jj,1:)%dwet = aero(ii,jj,in2a:)%dwet
 
           ! Initialize the volume and number concentrations for ice.
           DO cc = 1,maxnspec
@@ -357,12 +347,10 @@ CONTAINS
 
           snow(ii,jj,:)%vhilim = pi6*snowbinlim(2:nsnw+1)**3
           snow(ii,jj,:)%vlolim = pi6*snowbinlim(1:nsnw)**3
-          snow(ii,jj,:)%dmid = ( (snow(ii,jj,:)%vlolim + snow(ii,jj,:)%vhilim) / (2.*pi6) )**(1./3.)
-          snow(ii,jj,:)%vratiohi = snow(ii,jj,:)%vhilim / ( pi6*snow(ii,jj,:)%dmid**3 )
-          snow(ii,jj,:)%vratiolo = snow(ii,jj,:)%vlolim / ( pi6*snow(ii,jj,:)%dmid**3 )
+          snow(ii,jj,:)%vmid = (snow(ii,jj,:)%vlolim + snow(ii,jj,:)%vhilim)*0.5
 
           ! Initialize the wet diameter as the bin mid diameter
-          snow(ii,jj,:)%dwet = snow(ii,jj,:)%dmid
+          snow(ii,jj,:)%dwet = (snow(ii,jj,:)%vmid/pi6)**(1./3.)
 
           DO cc = 1,maxnspec
              snow(ii,jj,:)%volc(cc) = 0.
@@ -411,25 +399,21 @@ CONTAINS
   SUBROUTINE define_salsa(level)
 
     USE mo_submctl, ONLY : nlcoag,                &
-                               nlcgaa,nlcgcc,nlcgpp,  &
-                               nlcgca,nlcgpa,nlcgpc,  &
-                               nlcgia,nlcgic,nlcgii,  &
-                               nlcgip,nlcgsa,nlcgsc,  &
-                               nlcgsi,nlcgsp,nlcgss,  &
+                               lscgaa,lscgcc,lscgpp,  &
+                               lscgca,lscgpa,lscgpc,  &
+                               lscgia,lscgic,lscgii,  &
+                               lscgip,lscgsa,lscgsc,  &
+                               lscgsi,lscgsp,lscgss,  &
+                               lscgrain,              &
                                eddy_dis_rt,           &
-                               nlcgrain,              &
                                nlcnd,                 &
                                nlcndgas,              &
-                               nlcndh2oae,nlcndh2ocl, &
-                               nlcndh2oic,            &
                                rhlim,                 &
                                nlauto,nlautosnow,     &
                                auto_sb,               &
                                autoc_rain_zd0, autoc_rain_sigmag, &
                                autoc_snow_zd0, autoc_snow_sigmag, &
                                nlactiv,               &
-                               nlactintst,            &
-                               nlactbase,            &
                                nlicenucl,             &
                                fixinc, ice_source_opt,&
                                fixed_ice_min_Si,      &
@@ -448,14 +432,16 @@ CONTAINS
                                rhoeff_ice, rhoeff_snow, &
                                a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, &
                                a_vel_ice, b_vel_ice, a_vel_snow, b_vel_snow, &
+                               lsdistupdate, lsdiag,  &
                                rainbinlim,            &
                                snowbinlim,            &
                                nbin,reglim,           &
                                nspec,listspec,        &
                                volDistA, volDistB,    &
                                salsa1a_SO4_OC,        &
-                               nf2a, isdtyp,          &
-                               sigmag,dpg,n,          &
+                               isdtyp, nmod,          &
+                               sigmagA,dpgA,nA,       &
+                               sigmagB,dpgB,nB,       &
                                msu, disssu, rhosu,    &
                                mno, dissno, rhono,    &
                                mnh, dissnh, rhonh,    &
@@ -480,6 +466,21 @@ CONTAINS
 
     INTEGER, INTENT(in) :: level
 
+    ! Coagulation between paticle types - set the defaults
+    LOGICAL :: nlcgaa=.TRUE., nlcgcc=.TRUE., nlcgpp=.TRUE., &
+               nlcgca=.TRUE., nlcgpa=.TRUE., nlcgpc=.TRUE., &
+               nlcgia=.TRUE., nlcgic=.TRUE., nlcgii=.TRUE., &
+               nlcgip=.TRUE., nlcgsa=.TRUE., nlcgsc=.TRUE., &
+               nlcgsi=.TRUE., nlcgsp=.TRUE., nlcgss=.TRUE.
+    LOGICAL :: nlcgrain=.FALSE. ! Rain formation based on cloud-cloud collisions
+
+    ! Other switches
+    LOGICAL :: nldistupdate = .TRUE.
+    LOGICAL :: nldiag = .TRUE.
+
+    ! The old approach for defining size distributions
+    REAL :: nf2a = 1.0, sigmag(nmod) = 2.0, dpg(nmod) = 0.15, n(nmod) = 0.0
+
     NAMELIST /salsa/  &
          nlcoag,      & ! Coagulation master switch
          nlcgaa,      & ! Coagulation between aerosols
@@ -502,9 +503,6 @@ CONTAINS
 
          nlcnd,       & ! Condensation master switch
          nlcndgas,    & ! Condensation of H2SO4 and organic vapors
-         nlcndh2ocl,  & ! Condensation of water vapour on clouds and drizzle
-         nlcndh2oic,  & ! Condensation of water vapour on ice and snow particles
-         nlcndh2oae,  & ! Condensation of water vapour on aerosols (FALSE -> equilibrium calc.)
          rhlim,       & ! Upper limit RH/100 during initialization and spinup
 
          nlauto,        & ! Switch for autoconversion of cloud droplets to rain
@@ -514,8 +512,6 @@ CONTAINS
          autoc_snow_zd0, autoc_snow_sigmag, & ! Ice to snow autoconversion parameters
 
          nlactiv,       & ! Master switch for cloud droplet activation
-         nlactbase,     & ! Switch for parameterized cloud base activation
-         nlactintst,    & ! Switch for interstitial activation based on particle growth and host model S
 
          nlicenucl,     & ! Ice nucleation master switch
          fixinc,        & ! Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
@@ -537,6 +533,8 @@ CONTAINS
          a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, & ! Alternative dimension: d=a*m**b
          a_vel_ice, b_vel_ice, a_vel_snow, b_vel_snow, & ! Alternative velocity: v=a*m**b
 
+         nldistupdate, nldiag, & ! Other switches
+
          rainbinlim,    & ! Rain bin limits (microns)
          snowbinlim,    & ! Snow bin limits (microns)
          nbin,          & ! Number of bins used for the 1a and 2a aerosol size regimes (1d table with length 2)
@@ -547,10 +545,9 @@ CONTAINS
          volDistA,      & ! Initial relative contribution [0-1] of each species to particle volume in a-bins.
          volDistB,      & ! Same as above but for b-bins
          salsa1a_SO4_OC,& ! Limit 1a composition to OC and/or SO4
-         nf2a,          & ! Number fraction of particles allocated to a-bins in regime 2. b-bins will get 1-nf2a
-         sigmag,        & ! Stdev for the 7 initial lognormal modes
-         dpg,           & ! Mean diameter for the 7 initial lognormal modes
-         n,             & ! Number concentration for the 7 initial lognormal modes
+         sigmag, dpg, n, nf2a, & ! STD, mode diameter, total number, and fraction of particles in a-bins
+         sigmagA, dpgA, nA, & ! STD, mode diameter and number for a-bins
+         sigmagB, dpgB, nB, & ! STD, mode diameter and number for b-bins
 
          msu, disssu, rhosu, & ! Physical properties of the species; sulphate
          mno, dissno, rhono, & ! HNO3
@@ -584,22 +581,41 @@ CONTAINS
     CLOSE(11)
 
 
+    ! Coagulation between particle types
+    lscgaa = nlcgaa ! Coagulation between aerosols
+    lscgcc = nlcgcc ! Collision-coalescence between cloud droplets
+    lscgpp = nlcgpp ! Collisions between rain drops
+    lscgca = nlcgca ! Cloud collection of aerosols
+    lscgpa = nlcgpa ! Collection of aerosols by precip
+    lscgpc = nlcgpc ! Collection of cloud droplets by rain
+    lscgia = nlcgia .AND. level==5 ! Ice collection of aerosols
+    lscgic = nlcgic .AND. level==5 ! Collection of cloud droplets by ice particles
+    lscgii = nlcgii .AND. level==5 ! Collision-coalescence between ice particles
+    lscgip = nlcgip .AND. level==5 ! Collection of precipitation by ice particles
+    lscgsa = nlcgsa .AND. level==5 ! Collection of aerosols by snow
+    lscgsc = nlcgsc .AND. level==5 ! Collection of cloud droplets by snow
+    lscgsi = nlcgsi .AND. level==5 ! Collection of ice by snow
+    lscgsp = nlcgsp .AND. level==5 ! Collection of precipitation by snow
+    lscgss = nlcgss .AND. level==5 ! Collision-coalescence between snow particles
+    lscgrain = nlcgrain
+
+    ! Other switches
+    lsdistupdate = nldistupdate ! Perform the size distribution update
+    lsdiag = nldiag             ! Perform diagnostic drop/ice to aerosol release and clean negative values
+
+    ! Old initial aerosol size distribution definition
+    IF (ANY(n>1e-6) .AND. isdtyp==0) THEN
+        sigmagA = sigmag
+        sigmagB = sigmag
+        dpgA = dpg
+        dpgB = dpg
+        nA = n*MAX(0.0,MIN(1.0,nf2a))
+        nB = n*MAX(0.0,MIN(1.0,(1.0-nf2a)))
+    ENDIF
+
     ! if thermodynamical level is less than 5, set all ice process switches to false
     IF(level < 5) THEN
-          nlcgia      = .false.
-          nlcgic      = .false.
-          nlcgii      = .false.
-          nlcgip      = .false.
-          nlcgsa      = .false.
-          nlcgsc      = .false.
-          nlcgsi      = .false.
-          nlcgsp      = .false.
-          nlcgss      = .false.
-
-          nlcndh2oic  = .false.
-
           nlautosnow  = .false.
-
           nlicenucl   = .false.
           nlicmelt    = .false.
     END IF !level
@@ -620,7 +636,7 @@ CONTAINS
   ! Juha Tonttila (FMI) 2014
   !
   !-------------------------------------------------------------------------------
-  SUBROUTINE salsa_initialize()
+  SUBROUTINE salsa_initialize(cntlat,strtim)
 
     !
     !-------------------------------------------------------------------------------
@@ -632,9 +648,9 @@ CONTAINS
                            nlcndgas,ngases,zgas,mws_gas, &
                            conc_h2so4,conc_ocnv,part_h2so4,part_ocnv,isog,iocg, &
                            nvbs_setup,laqsoa, model_lat, start_doy
-    USE step, ONLY : cntlat, strtim
     USE mo_vbs_init, ONLY : init_vbs
     IMPLICIT NONE
+    REAL, INTENT(IN) :: cntlat, strtim
     INTEGER :: ss, nvbs
 
     ! Remember to call 'define_salsa' for namelist paramers before calling this subroutine!
