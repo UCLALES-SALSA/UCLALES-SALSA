@@ -6,6 +6,7 @@ MODULE mo_salsa
   USE mo_salsa_cloud_ice, ONLY : &
        ice_fixed_NC, ice_nucl => ice_nucl_driver,ice_melt
   USE mo_salsa_cloud_ice_SE, ONLY : ice_nucl_SE => ice_nucl_driver
+  USE mo_salsa_cloud_ice_DET, ONLY : ice_nucl_DET => ice_nucl_driver
   
   USE mo_submctl, ONLY :      &
        spec, &
@@ -21,7 +22,8 @@ MODULE mo_salsa
        lsdistupdate,              &
        lscheckarrays,             &
        lsicehom, lsiceimm, lsicedep, &
-       ice_theta_dist
+       ice_theta_dist,             &
+       ice_deterministic
   USE mo_salsa_types, ONLY : allSALSA,ice
   
   IMPLICIT NONE
@@ -121,6 +123,9 @@ MODULE mo_salsa
            ! Modelled ice nucleation
            IF (ice_theta_dist) THEN
               CALL ice_nucl_SE(kproma,kbdim,klev,       &
+                               ptemp,prv,prs,prsi,ptstep)
+           ELSE IF (ice_deterministic) THEN
+              CALL ice_nucl_DET(kproma,kbdim,klev,       &
                                ptemp,prv,prs,prsi,ptstep)
            ELSE
               CALL ice_nucl(kproma,kbdim,klev,        &

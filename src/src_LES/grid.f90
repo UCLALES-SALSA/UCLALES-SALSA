@@ -23,7 +23,7 @@ MODULE grid
   USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice,     &
                          in1a, fn2a, in2b, fn2b, ica, icb, fca, fcb,  &
                          aerobins, cloudbins, precpbins, icebins,     &
-                         ice_theta_dist,lssecice
+                         ice_theta_dist,ice_deterministic,lssecice
   
   IMPLICIT NONE
 
@@ -162,7 +162,7 @@ CONTAINS
          nc = spec%getNSpec(type="wet")
          nsalsa = (nc+1)*nbins + (nc+1)*ncld + (nc+1)*nprc + 5        ! (nc+1) for the mass tracers + number concentration
          IF (level == 5) nsalsa = nsalsa + (nc+1+1)*nice              ! (nc+1+1)*nice for RIMED ICE
-         IF (level == 5 .AND. ice_theta_dist) nsalsa = nsalsa + nbins+ncld+nprc  ! If contact angle distributions for heterogeneous ice nucleation, 
+         IF (level == 5 .AND. (ice_theta_dist .OR. ice_deterministic)) nsalsa = nsalsa + nbins+ncld+nprc  ! If contact angle distributions for heterogeneous ice nucleation, 
                                                                                  ! add one more tracer for the "IN deficit fraction"
          IF (level == 5 .AND. lssecice%switch) nsalsa = nsalsa + 2.*nice
 

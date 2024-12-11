@@ -235,7 +235,7 @@ CONTAINS
                         allSALSA(1,1,nb)%volc(nc) = mpart(icat)%d(str)*pdn%d(kk,ii,jj)/spec%rholiq(nc)                     
                      END DO
 
-                     IF (level == 5 .AND. ice_theta_dist) THEN
+                     IF (level == 5 .AND. (ice_theta_dist .OR. ice_deterministic)) THEN
                         allSALSA(1,1,nb)%INdef = pindefp%d(kk,ii,jj,nb)
                      END IF
                      
@@ -314,7 +314,7 @@ CONTAINS
                                mpart(icat)%d(str) ) / tstep
                      END DO
 
-                     IF (level == 5 .AND. ice_theta_dist) THEN
+                     IF (level == 5 .AND. (ice_theta_dist .OR. ice_deterministic)) THEN
                         pindefp%d(kk,ii,jj,nb) = allSALSA(1,1,nb)%INdef 
                      END IF
                       
@@ -498,7 +498,7 @@ CONTAINS
      IF (level == 5) THEN
         CALL Prog%getData(1,pmicep,name="mice")
         CALL Prog%getData(2,pmicet,name="mice")
-        IF (ice_theta_dist) CALL Prog%getData(1,pindefp,name="indef")
+        IF (ice_theta_dist .OR. ice_deterministic) CALL Prog%getData(1,pindefp,name="indef")
         
         IF (lssecice%switch) THEN
            CALL Prog%getData(1,psipdrfrp,name="sipdrfr")

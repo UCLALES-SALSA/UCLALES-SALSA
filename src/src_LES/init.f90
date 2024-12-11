@@ -503,747 +503,748 @@ CONTAINS
     END IF
 
     RETURN
- END SUBROUTINE arrsnd
- !
- !----------------------------------------------------------------------
- ! BASIC_STATE: This routine computes the basic state values
- ! of pressure, density, moisture and temperature.  The basic state
- ! temperature is assumed to be a the volume weighted average value of
- ! the sounding
- !
- SUBROUTINE basic_state
-
-    USE defs, ONLY : cp, rcp, cpr, r, g, p00, p00i, ep2
-    USE mpi_interface, ONLY : myid
-    USE thrm, ONLY : rslf
-
-    IMPLICIT NONE
-
-    INTEGER :: k
-    REAL    :: v1da(nzp), v1db(nzp), v1dc(nzp), exner, zrh(nzp),ztk(nzp)
-
-    CHARACTER (len=328) :: fmt =  &
-       "(/,' -------------------------------------------------',/,"     //&
-       "'  Basic State: ',//,4X,'Z',6X,'U0',6X,'V0',6X,'DN0',6X,' P0'"   //&
-       ",6X,'PRESS',4X,'TH0',6X,'THV',5X,'RT0','RH',/,3X,'(m)',5X,'(m/s)'"     //&
-       ",3X,'(m/s)',2X,'(kg/m3)',2X,'(J/kgK)',4X,'(Pa)',5X,'(K)',5X"      //&
-       ",'(K)',4X,'(g/kg)',4X,'1',4X,'K',//,(1X,F7.1,2F8.2,F8.3,2F10.2,2F8.2,F7.2,F7.2,F7.2))"
-
-    CALL htint(ns,thds,hs,nzp,th0%d,zt%d)
-    CALL htint(ns,us,hs,nzp,u0%d,zt%d)
-    CALL htint(ns,vs,hs,nzp,v0%d,zt%d)
-
-    IF (level >= 1) THEN
-       CALL htint(ns,rts,hs,nzp,rt0%d,zt%d)
-       rt0%d(1) = rt0%d(2)
-    ELSE
-       DO k = 1, nzp
-          rt0%d(k) = 0.
-       END DO
-    END IF
-    !
-    ! calculate theta_v for an unsaturated layer, neglecting condensate here is
-    ! okay as this is only used for the first estimate of pi1, which will be
-    ! updated in a consistent manner on the first dynamic timestep
-    !
-    DO k = 1, nzp
-       v1dc(k) = th0%d(k) * (1.+ep2*rt0%d(k)) ! theta_v assuming unsaturated
-    END DO
-    !
-    ! calculate pressure for actual initial state
-    !
-    pi1%d(1) = cp*(ps(1)*p00i)**rcp+g*(hs(1)-zt%d(1))/v1dc(1)
-    DO k = 2, nzp
-       pi1%d(k) = pi1%d(k-1)-g/(dzm%d(k-1)*0.5*(v1dc(k)+v1dc(k-1)))
-    END DO
-    !
-    ! calculate hydrostatic exner function associated with th00 constant along
-    ! with associated basic state density
-    !
-    pi0%d(1) = cp*(ps(1)*p00i)**rcp + g*(hs(1)-zt%d(1))/th00
-    dn0%d(1) = ((cp**(1.-cpr))*p00)/(r*th00*pi0%d(1)**(1.-cpr))
-    DO k = 2, nzp
-       pi0%d(k) = pi0%d(1) + g*(zt%d(1) - zt%d(k))/th00
-       dn0%d(k) = ((cp**(1.-cpr))*p00)/(r*th00*pi0%d(k)**(1.-cpr))
-       u0%d(k) = u0%d(k)-umean
-       v0%d(k) = v0%d(k)-vmean
-    END DO
-    !
-    ! define pi1 as the difference between pi associated with th0 and pi
-    ! associated with th00, thus satisfying pi1+pi0 = pi = cp*(p/p00)**(R/cp)
-    !
-    DO k = 1, nzp
-       pi1%d(k) = pi1%d(k)-pi0%d(k)
-    END DO
-    !
-    DO k = 1, nzp
-       exner = (pi0%d(k) + pi1%d(k))/cp
-       v1db(k) = p00*(exner)**cpr      ! pressure
-       v1da(k) = p00*(pi0%d(k)/cp)**cpr  ! pressure associated with pi0
-    END DO
-
-    u0%d(1) = u0%d(2)
-    v0%d(1) = v0%d(2)
-    psrf  = ps(1)
-
-    ! Juha: For debugging
-    zrh = 0.
-    ztk = 0.
-    DO k = 1,nzp
-       exner = (pi0%d(k) + pi1%d(k))/cp
-       ztk(k) = th0%d(k)*(v1db(k)*p00i)**rcp
-       zrh(k) = 100.*rt0%d(k)/rslf(v1db(k),ztk(k))
-    END DO
-       
-    IF(myid == 0) WRITE(*,fmt) (zt%d(k),u0%d(k),v0%d(k),dn0%d(k),v1da(k),v1db(k), &
-                                th0%d(k),v1dc(k),rt0%d(k)*1000.,zrh(k),ztk(k),k=1,nzp)  ! rt0(k)*1000.
-
-    RETURN
- END SUBROUTINE basic_state
- !
- !---------------------------------------------------------------------
- ! HTINT: Height interpolation of field on one grid, to field on another
- !
- SUBROUTINE htint(na,xa,za,nb,xb,zb)
-
-    IMPLICIT NONE
-    INTEGER, INTENT (in) :: na, nb
-    REAL, INTENT (in)    :: xa(na),za(na),zb(nb)
-    REAL, INTENT (out)   :: xb(nb)
-
-    INTEGER :: l, k
-    REAL    :: wt
-
-    l = 1
-    DO k = 1, nb
-       IF (zb(k) <= za(na)) THEN
-          DO WHILE ( zb(k) > za(l+1) .AND. l < na)
-             l = l+1
-          END DO
-          wt = (zb(k)-za(l))/(za(l+1)-za(l))
-          xb(k) = xa(l)+(xa(l+1)-xa(l))*wt
-       ELSE
-          wt = (zb(k)-za(na))/(za(na-1)-za(na))
-          xb(k) = xa(na)+(xa(na-1)-xa(na))*wt
-       END IF
-    END DO
-
-    RETURN
- END SUBROUTINE htint
- !
- ! -----------------------------------------------------------------------
- ! HTINT2d: Same as HTINT but for 2d variables
- !
- SUBROUTINE htint2d(na,xa,za,nb,xb,zb,nx)
-    IMPLICIT NONE
-
-    INTEGER, INTENT (in) :: na, nb, nx
-    REAL, INTENT (in)    :: xa(na,nx),za(na),zb(nb)
-    REAL, INTENT (out)   :: xb(nb,nx)
-
-    INTEGER :: l, k, i
-    REAL    :: wt
-
-    xb = 0.
-    DO i = 1, nx
-       l = 1
-       DO k = 2, nb
-          IF (zb(k) <= za(na)) THEN
-             DO WHILE ( zb(k) > za(l+1) .AND. l < na)
-                l = l+1
-             END DO
-             wt = (zb(k)-za(l))/(za(l+1)-za(l))
-             xb(k,i) = xa(l,i)+(xa(l+1,i)-xa(l,i))*wt
-          ELSE
-             wt = (zb(k)-za(na))/(za(na-1)-za(na))
-             xb(k,i) = xa(na,i)+(xa(na-1,i)-xa(na,i))*wt
-          END IF
-       END DO
-    END DO
-
- END SUBROUTINE htint2d
-
- !
- !----------------------------------------------------------------------
- ! HSTART:  This subroutine reads a history file and does
- ! a history start
- !
- SUBROUTINE hstart
-
-    USE step, ONLY : time
-    USE mpi_interface, ONLY : myid
-
-    IMPLICIT NONE
-
-    IF(myid == 0) &
-         PRINT "(//' ',49('-')/,' ',/,' History restart, preparing for model state input from: ',A60)",hfilin
-    
-    CALL read_hist(time, hfilin)
-
-    dtlv = 2.*dtl
-    dtlt = dtl
-
-    IF(myid == 0) &
-       PRINT "(//' ',49('-')/,' ',/,' History read from: ',A60)",hfilin
-
-    RETURN
- END SUBROUTINE hstart
- !
- !----------------------------------------------------------------------
- ! RANDOM_PERT: initialize field between k=2 and kmx with a
- ! random perturbation of specified magnitude
- !
- SUBROUTINE random_pert(n1,n2,n3,zt,fld,xmag,kmx)
-
-    USE mpi_interface, ONLY : nypg,nxpg,myid,wrxid,wryid,xoffset,yoffset, &
-                              double_scalar_par_sum
-
-    USE util, ONLY : sclrset
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: n1,n2,n3,kmx
-    TYPE(FloatArray3d), INTENT(inout) :: fld
-    TYPE(FloatArray1d), INTENT(in) :: zt
-    REAL, INTENT(in)    :: xmag(n1)
-
-    REAL (kind=8) :: rand(3:n2-2,3:n3-2),  xx, xxl
-    REAL (kind=8), ALLOCATABLE :: rand_temp(:,:)
-
-    INTEGER, DIMENSION (:), ALLOCATABLE :: seed
-
-    INTEGER :: i,j,k,n2g,n3g,isize
-    REAL :: hep
-    
-    rand = 0.0
-    ! seed must be a double precision odd whole number greater than
-    ! or equal to 1.0 and less than 2**48.
-
-    CALL random_seed(size=isize)
-    ALLOCATE (seed(isize))
-    seed(:) = iseed
-    CALL random_seed(put=seed)
-    DEALLOCATE (seed)
-    n2g = nxpg
-    n3g = nypg
-
-    DO k = 2, kmx
-       ALLOCATE (rand_temp(3:n2g-2,3:n3g-2))
-       CALL random_number(rand_temp)
-       rand(3:n2-2, 3:n3-2) = rand_temp(3+xoffset(wrxid):n2+xoffset(wrxid)-2, &
-                              3+yoffset(wryid):n3+yoffset(wryid)-2)
-       DEALLOCATE (rand_temp)
-       xx = 0. 
-       DO j = 3, n3-2
-          DO i = 3, n2-2
-             fld%d(k,i,j) = fld%d(k,i,j) + rand(i,j)*xmag(k)
-             xx = xx + rand(i,j)*xmag(k)
-          END DO
-       END DO
-       xxl = xx
-       CALL double_scalar_par_sum(xxl,xx)
-       xx = xx/REAL((n2g-4)*(n3g-4))
-       fld%d(k,:,:)= fld%d(k,:,:) - xx
-    END DO
-
-    IF(myid == 0) THEN
-       PRINT *
-       PRINT *,'-------------------------------------------------'
-       PRINT 600,zt%d(kmx),rand(3,3),xx
-       PRINT *,'-------------------------------------------------'
-    END IF
-    CALL sclrset('cnst',n1,n2,n3,fld%d)
-    RETURN
-
-600 FORMAT(2x,'Inserting random temperature perturbations',      &
-           /3x,'Below: ',F7.2,' meters;',                        &
-           /3x,'with test value of: ',E12.5,                     &
-           /3x,'and a magnitude of: ',E12.5)
- END SUBROUTINE random_pert
-
-
- !
- !--------------------------------------------------------------------
- ! CLDINIT: Apply the tendencies from the initialization call of SALSA
- !          instantaneously to account for the basic state thermodynamics
- !          and microphysics.
- !
- ! Juha Tonttila, FMI, 2014
- !
- SUBROUTINE SALSAInit
-    USE mo_submctl, ONLY : ncld,nbins,nice
-    USE util, ONLY : getMassIndex
-    IMPLICIT NONE
-    INTEGER :: k,i,j,bb,nc
-
-    DO j = 3, nyp-2
-       DO i = 3, nxp-2
-          DO k = 2, nzp ! Apply tendencies
-             a_naerop%d(k,i,j,:)  = MAX( a_naerop%d(k,i,j,:)  + dtlt*a_naerot%d(k,i,j,:), 0. )
-             a_ncloudp%d(k,i,j,:) = MAX( a_ncloudp%d(k,i,j,:) + dtlt*a_ncloudt%d(k,i,j,:), 0. )
-             a_nprecpp%d(k,i,j,:) = MAX( a_nprecpp%d(k,i,j,:) + dtlt*a_nprecpt%d(k,i,j,:), 0. )
-             a_maerop%d(k,i,j,:)  = MAX( a_maerop%d(k,i,j,:)  + dtlt*a_maerot%d(k,i,j,:), 0. )
-             a_mcloudp%d(k,i,j,:) = MAX( a_mcloudp%d(k,i,j,:) + dtlt*a_mcloudt%d(k,i,j,:), 0. )
-             a_mprecpp%d(k,i,j,:) = MAX( a_mprecpp%d(k,i,j,:) + dtlt*a_mprecpt%d(k,i,j,:), 0. )
-             a_gaerop%d(k,i,j,:)  = MAX( a_gaerop%d(k,i,j,:)  + dtlt*a_gaerot%d(k,i,j,:), 0. )
-             a_rp%d(k,i,j) = a_rp%d(k,i,j) + dtlt*a_rt%d(k,i,j)
-
-             IF(level == 5) THEN 
-                a_nicep%d(k,i,j,:)   = MAX( a_nicep%d(k,i,j,:)   + dtlt*a_nicet%d(k,i,j,:), 0. )
-                a_micep%d(k,i,j,:)   = MAX( a_micep%d(k,i,j,:)   + dtlt*a_micet%d(k,i,j,:), 0. )
-             END IF
-
-          END DO
-       END DO
-    END DO
-
-    nc = spec%getIndex('H2O')
-    ! Activation + diagnostic array initialization
-    ! Clouds and aerosols
-    a_rc%d(:,:,:) = 0.
-    DO bb = 1, ncld
-       a_rc%d(:,:,:) = a_rc%d(:,:,:) + a_mcloudp%d(:,:,:,getMassIndex(ncld,bb,nc))
-    END DO
-    DO bb = 1, nbins
-       a_rc%d(:,:,:) = a_rc%d(:,:,:) + a_maerop%d(:,:,:,getMassIndex(nbins,bb,nc))
-    END DO
-    
-    ! Ice
-    IF ( level == 5 ) THEN
-       a_ri%d(:,:,:) = 0.
-       a_riri%d(:,:,:) = 0.
-       DO bb = 1, nice
-          a_ri%d(:,:,:) = a_ri%d(:,:,:) + a_micep%d(:,:,:,getMassIndex(nice,bb,nc))
-          a_riri%d(:,:,:) = a_riri%d(:,:,:) + a_micep%d(:,:,:,getMassIndex(nice,bb,nc+1))
-       END DO
-    END IF
-    
- END SUBROUTINE SALSAInit
-
- ! --------------------------------------------------------------------------------------------------
- ! Replacement for subroutine init_aero_sizedist (init.f90): initilize altitude-dependent aerosol
- ! size distributions and compositions.
- !
- ! Tomi Raatikainen, FMI, 29.2.2016
- !
- SUBROUTINE aerosol_init()
-
-    USE mo_salsa_sizedist, ONLY : size_distribution
-    USE mo_salsa_types, ONLY : aero
-    USE mo_submctl, ONLY : pi6, nmod, nbins, nspec_dry, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
-                           sigmagA, dpgA, nA, sigmagB, dpgB, nB, volDistA, volDistB, nreg,isdtyp
-    USE mpi_interface, ONLY : myid
-    USE util, ONLY : getMassIndex
-
-    IMPLICIT NONE
-    REAL :: core(nbins), nsectA(1,1,nbins), nsectB(1,1,nbins)   ! Size of the bin mid aerosol particle, local aerosol size dist
-    REAL :: pndist(nzp,nbins)                         ! Aerosol size dist as a function of height
-    REAL :: pvf2a(nzp,nspec_dry), pvf2b(nzp,nspec_dry)        ! Mass distributions of aerosol species for a and b-bins
-    REAL :: pvfOC1a(nzp)                              ! Mass distribution between SO4 and OC in 1a
-    INTEGER :: ss,ee,i,j,k
-    INTEGER :: iso4 = -1, ioc = -1, ibc = -1, idu = -1, &
-               iss = -1, inh = -1, ino = -1
-
-    CHARACTER(len=600) :: fmt = &
-       "(/,' -------------------------------------------------',/," // &
-       "' Initial aerosol profile: ',//, 4X, 'Height', 6X, 'Na', 9X, 'Nb'," // &
-       "7X, 'SO4a', 8X, 'OCa', 9X, 'BCa', 9X, 'DUa', 9X, 'SSa', 9X, 'NH3a', 8X, 'HNO3a'," // &
-       "7X, 'SO4b', 8X, 'OCb', 9X, 'BCb', 9X, 'DUb', 9X, 'SSb', 9X, 'NH3b', 8X, 'HNO3b'//," // &
-       "(3F10.2,14ES12.3))"
-    !
-    ! Bin mean aerosol particle volume
-    core = 0.
-    core(1:nbins) = pi6 * aero(1,1,1:nbins)%dmid**3
-
-    ! Set concentrations to zero
-    pndist = 0.
-    pvf2a = 0.; pvf2b = 0.
-    pvfOC1a = 0.
-
-    a_maerop%d(:,:,:,:) = 0.0
-    a_naerop%d(:,:,:,:) = 0.0
-
-    ! Indices (-1 = not used)
-    i = 0
-    IF (spec%isUsed('SO4')) THEN
-       iso4 = spec%getIndex('SO4')
-       i = i+1
-    END IF
-    IF (spec%isUsed('OC')) THEN
-       ioc = spec%getIndex('OC')
-       i = i+1
-    END IF
-    IF (spec%isUsed('BC')) THEN
-       ibc = spec%getIndex('BC')
-       i = i+1
-    END IF
-    IF (spec%isUsed('DU')) THEN
-       idu = spec%getIndex('DU')
-       i = i+1
-    END IF
-    IF (spec%isUsed('SS')) THEN
-       iss = spec%getIndex('SS')
-       i = i+1
-    END IF
-    IF (spec%isUsed('NO')) THEN
-       ino = spec%getIndex('NO')
-       i = i+1
-    END IF
-    IF (spec%isUsed('NH')) THEN
-       inh = spec%getIndex('NH')
-       i = i+1
-    END IF
-
-    ! All species must be known
-    IF (i /= nspec_dry) THEN
-       WRITE(*,*) i,nspec_dry
-       STOP 'Unknown aerosol species given in the initialization!'
-    END IF
-
-    !
-    ! Altitude dependent size distributions and compositions.
-    ! Read and interpolate/extrapolate size distribution and composition for altitude level k: z=(zt(k)
-    ! ---------------------------------------------------------------------------------------------------
-    IF (isdtyp == 1) THEN
-
-       CALL READ_AERO_INPUT(pndist,pvfOC1a,pvf2a,pvf2b)
-
-    !
-    ! Uniform profiles based on namelist parameters
-    ! ---------------------------------------------------------------------------------------------------
-    ELSE IF (isdtyp == 0) THEN
-
-       IF (spec%isUsed("OC") .AND. spec%isUsed("SO4")) THEN
-          ! Both are there, so use the given "massDistrA"
-          pvfOC1a(:) = volDistA(spec%getIndex("OC"))/(volDistA(spec%getIndex("OC"))+volDistA(spec%getIndex("SO4"))) ! Normalize
-       ELSE IF (spec%isUsed("OC")) THEN
-          ! Pure OC
-          pvfOC1a(:) = 1.0
-       ELSE IF (spec%isUSed("SO4")) THEN
-          ! Pure SO4
-          pvfOC1a(:) = 0.0
-       ELSE
-          STOP 'Either OC or SO4 must be active for aerosol region 1a!'
-       END IF
-
-       ! Mass fractions for species in a and b-bins
-       DO ss = 1,nspec_dry
-          pvf2a(:,ss) = volDistA(ss)
-          pvf2b(:,ss) = volDistB(ss)
-       END DO
-
-       !
-       ! Uniform aerosol size distribution with height.
-       ! Using distribution parameters (n, dpg and sigmag) from the SALSA namelist
-       !
-       ! Convert to SI
-       nsectA = 0.
-       nsectB = 0.
-       nA = nA*1.e6
-       nB = nB*1.e6
-       dpgA = dpgA*1.e-6
-       dpgB = dpgB*1.e-6 
-       CALL size_distribution(1,1,1, nmod, in1a, fn2a, nA, dpgA, sigmagA, nsectA)
-       CALL size_distribution(1,1,1, nmod, in2b, fn2b, nB, dpgB, sigmagB, nsectB)
-       DO ss = 1, nbins
-          pndist(:,ss) = nsectA(1,1,ss) + nsectB(1,1,ss)
-       END DO
-
-    END IF
-    
-    ! ----------------------------------------------------------
-
-    !
-    ! Initialize concentrations
-    ! ----------------------------------------------------------
-    DO k = 2, nzp  ! DONT PUT STUFF INSIDE THE GROUND
-       DO j = 1, nyp
-          DO i = 1, nxp
-
-             ! a) Number concentrations
-             ! Region 1
-             a_naerop%d(k,i,j,in1a:fn1a) = pndist(k,in1a:fn1a)
-
-             ! Region 2
-             IF (nreg > 1) THEN
-                a_naerop%d(k,i,j,in2a:fn2a) = pndist(k,in2a:fn2a)
-                a_naerop%d(k,i,j,in2b:fn2b) = pndist(k,in2b:fn2b)
-             END IF
-
-             !
-             ! b) Aerosol mass concentrations
-             ! bin regime 1, done here separately because of the SO4/OC convention
-             ! SO4
-             IF (spec%isUsed("SO4")) THEN
-                ss = getMassIndex(nbins,in1a,spec%getIndex("SO4")); ee = getMassIndex(nbins,fn1a,spec%getIndex("SO4"))
-                a_maerop%d(k,i,j,ss:ee) = max(0.0,1.0-pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*spec%rhosu
-             END IF
-             ! OC
-             IF (spec%isUsed("OC")) THEN
-                ss = getMassIndex(nbins,in1a,spec%getIndex("OC")); ee = getMassIndex(nbins,fn1a,spec%getIndex("OC"))
-                a_maerop%d(k,i,j,ss:ee) = max(0.0,pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*spec%rhooc
-             END IF
-
-          END DO ! i
-       END DO ! j
-    END DO ! k
-
-    !
-    ! c) Aerosol mass concentrations
-    ! bin regime 2
-
-    IF (nreg > 1) THEN
-       DO ss = 1,nspec_dry
-          ! The substitution ind(ss) is not necessary since theyre the same numbers
-          CALL setAeroMass(spec%ind(ss),pvf2a,pvf2b,pndist,core,spec%rholiq(ss))
-       END DO
-    END IF
-       
-    ! Put out some info about the initial state
-    ! ---------------------------------------------------------------------------------------------------------------------
-    IF (myid == 0)                   WRITE(*,*) ''
-    IF (myid == 0 .AND. isdtyp == 0) WRITE(*,*) 'AEROSOL PROPERTIES TAKEN FROM A NAMELIST'
-    IF (myid == 0 .AND. isdtyp == 1) WRITE(*,*) 'AEROSOL PROPERTIES READ FROM aerosol_in.nc'
-
-    IF (myid == 0) WRITE(*,fmt) &
-       ( zt%d(k), SUM(a_naerop%d(k,3,3,in1a:fn2a))*1.e-6, SUM(a_naerop%d(k,3,3,in2b:fn2b))*1.e-6,                 &
-
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(iso4-1,0)*nbins+in1a:MAX(iso4-1,0)*nbins+fn2a) ), -999., iso4>0 ),    &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(ioc-1,0)*nbins+in1a:MAX(ioc-1,0)*nbins+fn2a) ), -999., ioc>0 ),       &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(ibc-1,0)*nbins+in1a:MAX(ibc-1,0)*nbins+fn2a) ), -999., ibc>0 ),       &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(idu-1,0)*nbins+in1a:MAX(idu-1,0)*nbins+fn2a) ), -999., idu>0 ),       &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(iss-1,0)*nbins+in1a:MAX(iss-1,0)*nbins+fn2a) ), -999., iss>0 ),       &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(ino-1,0)*nbins+in1a:MAX(ino-1,0)*nbins+fn2a) ), -999., ino>0 ),       &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(inh-1,0)*nbins+in1a:MAX(inh-1,0)*nbins+fn2a) ), -999., inh>0 ),       &
-
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(iso4-1,0)*nbins+in2b:MAX(iso4-1,0)*nbins+fn2b) ), -999., iso4>0 ),    &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(ioc-1,0)*nbins+in2b:MAX(ioc-1,0)*nbins+fn2b) ), -999., ioc>0 ),       &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(ibc-1,0)*nbins+in2b:MAX(ibc-1,0)*nbins+fn2b) ), -999., ibc>0 ),       &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(idu-1,0)*nbins+in2b:MAX(idu-1,0)*nbins+fn2b) ), -999., idu>0 ),       &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(iss-1,0)*nbins+in2b:MAX(iss-1,0)*nbins+fn2b) ), -999., iss>0 ),       &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(ino-1,0)*nbins+in2b:MAX(ino-1,0)*nbins+fn2b) ), -999., ino>0 ),       &
-       MERGE( SUM( a_maerop%d(k,3,3,MAX(inh-1,0)*nbins+in2b:MAX(inh-1,0)*nbins+fn2b) ), -999., inh>0 ),       &
-       k=1,nzp )
-
- END SUBROUTINE aerosol_init
-
- !
- ! ----------------------------------------------------------
- ! Sets the mass concentrations to aerosol arrays in 2a and 2b
- !
- !
- SUBROUTINE setAeroMass(ispec,ppvf2a,ppvf2b,ppndist,pcore,prho)
-    USE mo_submctl, ONLY : nbins, in2a,fn2a,in2b,fn2b,nspec_dry
-    USE util, ONLY : getMassIndex
-    
-    IMPLICIT NONE
-    
-    INTEGER, INTENT(in) :: ispec                             ! Aerosol species index
-    REAL, INTENT(in) :: ppvf2a(nzp,nspec_dry), ppvf2b(nzp,nspec_dry) ! Mass distributions for a and b bins
-    REAL, INTENT(in) :: ppndist(nzp,nbins)                   ! Aerosol size distribution
-    REAL, INTENT(in) :: pcore(nbins)                         ! Aerosol bin mid core volume
-    REAL, INTENT(in) :: prho                                 ! Aerosol density
-
-    INTEGER :: ss,ee
-    INTEGER :: i,j,k
-    
-    DO k = 2, nzp ! DONT PUT STUFF INSIDE THE GROUND
-       DO j = 1, nyp
-          DO i = 1, nxp
-             ! 2a
-             ss = getMassIndex(nbins,in2a,ispec); ee = getMassIndex(nbins,fn2a,ispec)
-             a_maerop%d(k,i,j,ss:ee) =      &
-                max( 0.0,ppvf2a(k,ispec) ) * &
-                ppndist(k,in2a:fn2a)*pcore(in2a:fn2a)*prho
-             ! 2b
-             ss = getMassIndex(nbins,in2b,ispec); ee = getMassIndex(nbins,fn2b,ispec)
-             a_maerop%d(k,i,j,ss:ee) =      &
-                max( 0.0,ppvf2b(k,ispec) ) * &
-                ppndist(k,in2b:fn2b)*pcore(in2b:fn2b)*prho
-          END DO
-       END DO
-    END DO
-
- END SUBROUTINE setAeroMass
- !
- ! -------------------------------------------------------------------------
- ! Reads vertical profiles of aerosol size distribution parameters, aerosol species volume fractions and
- ! number concentration fractions between a and b bins
- !
- SUBROUTINE READ_AERO_INPUT(ppndist,ppvfOC1a,ppvf2a,ppvf2b)
-    USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_nc
-    USE mo_submctl, ONLY : nbins, in1a, fn2a, in2b, fn2b,  &
-                           nspec_dry, maxspec, nmod
-    USE mo_salsa_sizedist, ONLY : size_distribution
-    USE mpi_interface, ONLY : appl_abort, myid
-    IMPLICIT NONE
-
-    REAL, INTENT(out) :: ppndist(nzp,nbins)                   ! Aerosol size dist as a function of height
-    REAL, INTENT(out) :: ppvf2a(nzp,nspec_dry), ppvf2b(nzp,nspec_dry) ! Volume distributions of aerosol species for a and b-bins
-    REAL, INTENT(out) :: ppvfOC1a(nzp)                        ! Volume distribution between SO4 and OC in 1a
-
-    REAL :: nsectA(1,1,nbins), nsectB(1,1,nbins)
-
-    INTEGER :: ncid, k, i
-    INTEGER :: nc_levs=500, nc_nspec, nc_nmod
-
-    REAL :: pndistA(nzp,nbins), pndistB(nzp,nbins)
-
-    ! Stuff that will be read from the file
-    REAL, ALLOCATABLE :: zlevs(:),        &  ! Levels in meters
-                         zvolDistA(:,:),  &  ! Volume distribution of aerosol species in a and b bins
-                         zvoldistB(:,:),  &  ! (Don't mess these with the ones in namelist.salsa -
-                                             !  they are not used here!)
-                         znA(:,:),         &  ! Aerosol mode number concentrations, regime A
-                         zsigmagA(:,:),    &  ! Geometric standard deviations, regime A
-                         zdpgA(:,:),       &  ! Mode mean diameters, regime A
-                         znB(:,:),         &  ! number concentration for regime B
-                         zsigmagB(:,:),    &  ! getometric std, regime B
-                         zdpgB(:,:),       &  ! Mode mean diameter, regime B
-                         znsectA(:,:),     &  ! Helper for binned number concentrations regime A
-                         znsectB(:,:),     &  ! - '' - regime B
-                         helper(:,:)         ! nspec helper
-    LOGICAL :: READ_NC
-
-    ! Read the NetCDF input when it is available
-    INQUIRE(FILE='datafiles/aerosol_in.nc',EXIST=READ_NC)
-
-    ! Open the input file
-    IF (READ_NC) CALL open_aero_nc(ncid, nc_levs, nc_nspec, nc_nmod)
-    
-    ! Check that the input dimensions are compatible with SALSA initialization
-    ! ....
-
-    ! Allocate input variables
-    ALLOCATE( zlevs(nc_levs),              &
-              zvolDistA(nc_levs,maxspec),  &
-              zvolDistB(nc_levs,maxspec),  &
-              znA(nc_levs,nc_nmod),           &
-              zsigmagA(nc_levs,nc_nmod),      &
-              zdpgA(nc_levs,nc_nmod),         &
-              znB(nc_levs,nc_nmod),           &
-              zsigmagB(nc_levs,nc_nmod),      &
-              zdpgB(nc_levs,nc_nmod),         &
-        ! Couple of helper arrays
-              znsectA(nc_levs,nbins),      &
-              znsectB(nc_levs,nbins),      &
-              helper(nc_levs,nspec_dry)    )
-
-    zlevs = 0.; zvolDistA = 0.; zvolDistB = 0.; znA = 0.; zsigmagA = 0.
-    zdpgA = 0.; znB = 0.; zsigmagB = 0.; zdpgB = 0.; znsectA = 0.; znsectB = 0.; helper = 0.
-
-    IF (READ_NC) THEN
-       ! Read the aerosol profile data
-       CALL read_aero_nc_1d(ncid,'levs',nc_levs,zlevs)
-       CALL read_aero_nc_2d(ncid,'volDistA',nc_levs,maxspec,zvolDistA)
-       CALL read_aero_nc_2d(ncid,'volDistB',nc_levs,maxspec,zvolDistB)
-       CALL read_aero_nc_2d(ncid,'nA',nc_levs,nc_nmod,znA)
-       CALL read_aero_nc_2d(ncid,'nB',nc_levs,nc_nmod,znB)
-       CALL read_aero_nc_2d(ncid,'dpgA',nc_levs,nc_nmod,zdpgA)
-       CALL read_aero_nc_2d(ncid,'dpgB',nc_levs,nc_nmod,zdpgB)
-       CALL read_aero_nc_2d(ncid,'sigmagA',nc_levs,nc_nmod,zsigmagA)
-       CALL read_aero_nc_2d(ncid,'sigmagB',nc_levs,nc_nmod,zsigmagB)
-
-       CALL close_nc(ncid)
-       
-    ELSE
-       ! Read the profile data from a text file
-       OPEN(11,file='aerosol_in',status='old',form='formatted')
-       DO i = 1, nc_levs
-          READ(11,*,end=100) zlevs(i)
-          READ(11,*,end=100) (zvolDistA(i,k),k=1,nspec_dry) ! Note: reads just "nspec_dry" values from the current line
-          READ(11,*,end=100) (zvolDistB(i,k),k=1,nspec_dry) ! -||-
-          READ(11,*,end=100) (znA(i,k),k=1,nmod)
-          READ(11,*,end=100) (znB(i,k),k=1,nmod)
-          READ(11,*,end=100) (zdpgA(i,k),k=1,nmod)
-          READ(11,*,end=100) (zdpgB(i,k),k=1,nmod)
-          READ(11,*,end=100) (zsigmagA(i,k),k=1,nmod)
-          READ(11,*,end=100) (zsigmagB(i,k),k=1,nmod)
-       END DO
-100 CONTINUE
-    CLOSE(11)
-    !
-    ! The true number of altitude levels
-    nc_levs = i-1
- END IF
- !
- IF (zlevs(nc_levs) < zt%d(nzp)) THEN
-    IF (myid == 0) PRINT *, '  ABORTING: Model top above aerosol sounding top'
-    IF (myid == 0) PRINT '(2F12.2)', zlevs(nc_levs), zt%d(nzp)
-    CALL appl_abort(0)
- END IF
-
- ! Convert to SI
- znA = znA*1.e6
- znB = znB*1.e6
- zdpgA = zdpgA*1.e-6
- zdpgB = zdpgB*1.e-6
-
- ! Get the binned size distribution
- znsectA = 0.
- znsectB = 0.
- DO k = 1, nc_levs
-    CALL size_distribution(1,1,1,nmod,in1a,fn2a,znA(k,:),zdpgA(k,:),zsigmagA(k,:),nsectA)
-    CALL size_distribution(1,1,1,nmod,in2b,fn2b,znB(k,:),zdpgB(k,:),zsigmagB(k,:),nsectB)
-    znsectA(k,:) = nsectA(1,1,:)
-    znsectB(k,:) = nsectB(1,1,:)
- END DO
-
- ! Interpolate the input variables to model levels
- ! ------------------------------------------------
- CALL htint2d(nc_levs,zvolDistA(1:nc_levs,1:nspec_dry),zlevs(1:nc_levs),nzp,ppvf2a,zt%d,nspec_dry)
- CALL htint2d(nc_levs,zvolDistB(1:nc_levs,1:nspec_dry),zlevs(1:nc_levs),nzp,ppvf2b,zt%d,nspec_dry)
- CALL htint2d(nc_levs,znsectA(1:nc_levs,:),zlevs(1:nc_levs),nzp,pndistA,zt%d,nbins)
- CALL htint2d(nc_levs,znsectB(1:nc_levs,:),zlevs(1:nc_levs),nzp,pndistB,zt%d,nbins)
- ppndist = pndistA + pndistB
-
- ! Since 1a bins by SALSA convention can only contain SO4 or OC,
- ! get renormalized mass fractions.
- ! --------------------------------------------------------------
- ppvfOC1a = 0.
- IF (spec%isUsed("OC") .AND. spec%isUsed("SO4")) THEN
-    ! Both are there, so use the given "massDistrA"
-    ppvfOC1a(2:nzp) = ppvf2a(2:nzp,spec%getIndex("OC"))/(ppvf2a(2:nzp,spec%getIndex("OC"))+ppvf2a(2:nzp,spec%getIndex("SO4"))) ! Normalize
- ELSE IF (spec%isUsed("OC")) THEN
-    ! Pure OC
-    ppvfOC1a(2:nzp) = 1.0
- ELSE IF (spec%isUsed("SO4")) THEN
-    ! Pure SO4
-    ppvfOC1a(2:nzp) = 0.0
- ELSE
-    STOP 'Either OC or SO4 must be active for aerosol region 1a!'
- END IF
-
- DEALLOCATE( zlevs, zvolDistA, zvolDistB, znA, znB, zsigmagA, zsigmagB, zdpgA, zdpgB, znsectA, znsectB, helper )
-
- END SUBROUTINE READ_AERO_INPUT
-
- !
- !------------------------------------------------------------------
- ! INIT_GAS_TRACERS: Set initial values for gas compound tracers
- !
- ! Juha Tonttila, FMI, 2014
- !
- SUBROUTINE init_gas_tracers
-    IMPLICIT NONE
-
-    INTEGER :: j,i,k
-
-    ! These could be read from a file
-    ! Taken as molecules/kg
-    DO j = 1, nyp
-       DO i = 1, nxp
-          DO k = 1, nzp
-             a_gaerop%d(k,i,j,1) = 5.E14/dn0%d(k) !SO4
-             a_gaerop%d(k,i,j,2) = 0./dn0%d(k)    !NO3
-             a_gaerop%d(k,i,j,3) = 0./dn0%d(k)    !NH4
-             a_gaerop%d(k,i,j,4) = 5.E14/dn0%d(k) !OCNV
-             a_gaerop%d(k,i,j,5) = 1.E14/dn0%d(k) !OCSV
-          END DO
-       END DO
-    END DO
-
-
- END SUBROUTINE init_gas_tracers
+   END SUBROUTINE arrsnd
+   !
+   !----------------------------------------------------------------------
+   ! BASIC_STATE: This routine computes the basic state values
+   ! of pressure, density, moisture and temperature.  The basic state
+   ! temperature is assumed to be a the volume weighted average value of
+   ! the sounding
+   !
+   SUBROUTINE basic_state
+
+      USE defs, ONLY : cp, rcp, cpr, r, g, p00, p00i, ep2
+      USE mpi_interface, ONLY : myid
+      USE thrm, ONLY : rslf
+
+      IMPLICIT NONE
+
+      INTEGER :: k
+      REAL    :: v1da(nzp), v1db(nzp), v1dc(nzp), exner, zrh(nzp),ztk(nzp)
+
+      CHARACTER (len=328) :: fmt =  &
+         "(/,' -------------------------------------------------',/,"     //&
+         "'  Basic State: ',//,4X,'Z',6X,'U0',6X,'V0',6X,'DN0',6X,' P0'"   //&
+         ",6X,'PRESS',4X,'TH0',6X,'THV',5X,'RT0','RH',/,3X,'(m)',5X,'(m/s)'"     //&
+         ",3X,'(m/s)',2X,'(kg/m3)',2X,'(J/kgK)',4X,'(Pa)',5X,'(K)',5X"      //&
+         ",'(K)',4X,'(g/kg)',4X,'1',4X,'K',//,(1X,F7.1,2F8.2,F8.3,2F10.2,2F8.2,F7.2,F7.2,F7.2))"
+
+      CALL htint(ns,thds,hs,nzp,th0%d,zt%d)
+      CALL htint(ns,us,hs,nzp,u0%d,zt%d)
+      CALL htint(ns,vs,hs,nzp,v0%d,zt%d)
+
+      IF (level >= 1) THEN
+         CALL htint(ns,rts,hs,nzp,rt0%d,zt%d)
+         rt0%d(1) = rt0%d(2)
+      ELSE
+         DO k = 1, nzp
+            rt0%d(k) = 0.
+         END DO
+      END IF
+      !
+      ! calculate theta_v for an unsaturated layer, neglecting condensate here is
+      ! okay as this is only used for the first estimate of pi1, which will be
+      ! updated in a consistent manner on the first dynamic timestep
+      !
+      DO k = 1, nzp
+         v1dc(k) = th0%d(k) * (1.+ep2*rt0%d(k)) ! theta_v assuming unsaturated
+      END DO
+      !
+      ! calculate pressure for actual initial state
+      !
+      pi1%d(1) = cp*(ps(1)*p00i)**rcp+g*(hs(1)-zt%d(1))/v1dc(1)
+      DO k = 2, nzp
+         pi1%d(k) = pi1%d(k-1)-g/(dzm%d(k-1)*0.5*(v1dc(k)+v1dc(k-1)))
+      END DO
+      !
+      ! calculate hydrostatic exner function associated with th00 constant along
+      ! with associated basic state density
+      !
+      pi0%d(1) = cp*(ps(1)*p00i)**rcp + g*(hs(1)-zt%d(1))/th00
+      dn0%d(1) = ((cp**(1.-cpr))*p00)/(r*th00*pi0%d(1)**(1.-cpr))
+      DO k = 2, nzp
+         pi0%d(k) = pi0%d(1) + g*(zt%d(1) - zt%d(k))/th00
+         dn0%d(k) = ((cp**(1.-cpr))*p00)/(r*th00*pi0%d(k)**(1.-cpr))
+         u0%d(k) = u0%d(k)-umean
+         v0%d(k) = v0%d(k)-vmean
+      END DO
+      !
+      ! define pi1 as the difference between pi associated with th0 and pi
+      ! associated with th00, thus satisfying pi1+pi0 = pi = cp*(p/p00)**(R/cp)
+      !
+      DO k = 1, nzp
+         pi1%d(k) = pi1%d(k)-pi0%d(k)
+      END DO
+      !
+      DO k = 1, nzp
+         exner = (pi0%d(k) + pi1%d(k))/cp
+         v1db(k) = p00*(exner)**cpr      ! pressure
+         v1da(k) = p00*(pi0%d(k)/cp)**cpr  ! pressure associated with pi0
+      END DO
+
+      u0%d(1) = u0%d(2)
+      v0%d(1) = v0%d(2)
+      psrf  = ps(1)
+
+      ! Juha: For debugging
+      zrh = 0.
+      ztk = 0.
+      DO k = 1,nzp
+         exner = (pi0%d(k) + pi1%d(k))/cp
+         ztk(k) = th0%d(k)*(v1db(k)*p00i)**rcp
+         zrh(k) = 100.*rt0%d(k)/rslf(v1db(k),ztk(k))
+      END DO
+         
+      IF(myid == 0) WRITE(*,fmt) (zt%d(k),u0%d(k),v0%d(k),dn0%d(k),v1da(k),v1db(k), &
+                                 th0%d(k),v1dc(k),rt0%d(k)*1000.,zrh(k),ztk(k),k=1,nzp)  ! rt0(k)*1000.
+
+      RETURN
+   END SUBROUTINE basic_state
+   !
+   !---------------------------------------------------------------------
+   ! HTINT: Height interpolation of field on one grid, to field on another
+   !
+   SUBROUTINE htint(na,xa,za,nb,xb,zb)
+
+      IMPLICIT NONE
+      INTEGER, INTENT (in) :: na, nb
+      REAL, INTENT (in)    :: xa(na),za(na),zb(nb)
+      REAL, INTENT (out)   :: xb(nb)
+
+      INTEGER :: l, k
+      REAL    :: wt
+
+      l = 1
+      DO k = 1, nb
+         IF (zb(k) <= za(na)) THEN
+            DO WHILE ( zb(k) > za(l+1) .AND. l < na)
+               l = l+1
+            END DO
+            wt = (zb(k)-za(l))/(za(l+1)-za(l))
+            xb(k) = xa(l)+(xa(l+1)-xa(l))*wt
+         ELSE
+            wt = (zb(k)-za(na))/(za(na-1)-za(na))
+            xb(k) = xa(na)+(xa(na-1)-xa(na))*wt
+         END IF
+      END DO
+
+      RETURN
+   END SUBROUTINE htint
+   !
+   ! -----------------------------------------------------------------------
+   ! HTINT2d: Same as HTINT but for 2d variables
+   !
+   SUBROUTINE htint2d(na,xa,za,nb,xb,zb,nx)
+      IMPLICIT NONE
+
+      INTEGER, INTENT (in) :: na, nb, nx
+      REAL, INTENT (in)    :: xa(na,nx),za(na),zb(nb)
+      REAL, INTENT (out)   :: xb(nb,nx)
+
+      INTEGER :: l, k, i
+      REAL    :: wt
+
+      xb = 0.
+      DO i = 1, nx
+         l = 1
+         DO k = 2, nb
+            IF (zb(k) <= za(na)) THEN
+               DO WHILE ( zb(k) > za(l+1) .AND. l < na)
+                  l = l+1
+               END DO
+               wt = (zb(k)-za(l))/(za(l+1)-za(l))
+               xb(k,i) = xa(l,i)+(xa(l+1,i)-xa(l,i))*wt
+            ELSE
+               wt = (zb(k)-za(na))/(za(na-1)-za(na))
+               xb(k,i) = xa(na,i)+(xa(na-1,i)-xa(na,i))*wt
+            END IF
+         END DO
+      END DO
+
+   END SUBROUTINE htint2d
+
+   !
+   !----------------------------------------------------------------------
+   ! HSTART:  This subroutine reads a history file and does
+   ! a history start
+   !
+   SUBROUTINE hstart
+
+      USE step, ONLY : time
+      USE mpi_interface, ONLY : myid
+
+      IMPLICIT NONE
+
+      IF(myid == 0) &
+            PRINT "(//' ',49('-')/,' ',/,' History restart, preparing for model state input from: ',A60)",hfilin
+      
+      CALL read_hist(time, hfilin)
+
+      dtlv = 2.*dtl
+      dtlt = dtl
+
+      IF(myid == 0) &
+         PRINT "(//' ',49('-')/,' ',/,' History read from: ',A60)",hfilin
+
+      RETURN
+   END SUBROUTINE hstart
+   !
+   !----------------------------------------------------------------------
+   ! RANDOM_PERT: initialize field between k=2 and kmx with a
+   ! random perturbation of specified magnitude
+   !
+   SUBROUTINE random_pert(n1,n2,n3,zt,fld,xmag,kmx)
+
+      USE mpi_interface, ONLY : nypg,nxpg,myid,wrxid,wryid,xoffset,yoffset, &
+                                 double_scalar_par_sum
+
+      USE util, ONLY : sclrset
+      IMPLICIT NONE
+
+      INTEGER, INTENT(in) :: n1,n2,n3,kmx
+      TYPE(FloatArray3d), INTENT(inout) :: fld
+      TYPE(FloatArray1d), INTENT(in) :: zt
+      REAL, INTENT(in)    :: xmag(n1)
+
+      REAL (kind=8) :: rand(3:n2-2,3:n3-2),  xx, xxl
+      REAL (kind=8), ALLOCATABLE :: rand_temp(:,:)
+
+      INTEGER, DIMENSION (:), ALLOCATABLE :: seed
+
+      INTEGER :: i,j,k,n2g,n3g,isize
+      REAL :: hep
+      
+      rand = 0.0
+      ! seed must be a double precision odd whole number greater than
+      ! or equal to 1.0 and less than 2**48.
+
+      CALL random_seed(size=isize)
+      ALLOCATE (seed(isize))
+      seed(:) = iseed
+      CALL random_seed(put=seed)
+      DEALLOCATE (seed)
+      n2g = nxpg
+      n3g = nypg
+
+      DO k = 2, kmx
+         ALLOCATE (rand_temp(3:n2g-2,3:n3g-2))
+         CALL random_number(rand_temp)
+         rand(3:n2-2, 3:n3-2) = rand_temp(3+xoffset(wrxid):n2+xoffset(wrxid)-2, &
+                                 3+yoffset(wryid):n3+yoffset(wryid)-2)
+         DEALLOCATE (rand_temp)
+         xx = 0. 
+         DO j = 3, n3-2
+            DO i = 3, n2-2
+               fld%d(k,i,j) = fld%d(k,i,j) + rand(i,j)*xmag(k)
+               xx = xx + rand(i,j)*xmag(k)
+            END DO
+         END DO
+         xxl = xx
+         CALL double_scalar_par_sum(xxl,xx)
+         xx = xx/REAL((n2g-4)*(n3g-4))
+         fld%d(k,:,:)= fld%d(k,:,:) - xx
+      END DO
+
+      IF(myid == 0) THEN
+         PRINT *
+         PRINT *,'-------------------------------------------------'
+         PRINT 600,zt%d(kmx),rand(3,3),xx
+         PRINT *,'-------------------------------------------------'
+      END IF
+      CALL sclrset('cnst',n1,n2,n3,fld%d)
+      RETURN
+
+   600 FORMAT(2x,'Inserting random temperature perturbations',      &
+            /3x,'Below: ',F7.2,' meters;',                        &
+            /3x,'with test value of: ',E12.5,                     &
+            /3x,'and a magnitude of: ',E12.5)
+   END SUBROUTINE random_pert
+
+
+   !
+   !--------------------------------------------------------------------
+   ! CLDINIT: Apply the tendencies from the initialization call of SALSA
+   !          instantaneously to account for the basic state thermodynamics
+   !          and microphysics.
+   !
+   ! Juha Tonttila, FMI, 2014
+   !
+   SUBROUTINE SALSAInit
+      USE mo_submctl, ONLY : ncld,nbins,nice
+      USE util, ONLY : getMassIndex
+      IMPLICIT NONE
+      INTEGER :: k,i,j,bb,nc
+
+      DO j = 3, nyp-2
+         DO i = 3, nxp-2
+            DO k = 2, nzp ! Apply tendencies
+               a_naerop%d(k,i,j,:)  = MAX( a_naerop%d(k,i,j,:)  + dtlt*a_naerot%d(k,i,j,:), 0. )
+               a_ncloudp%d(k,i,j,:) = MAX( a_ncloudp%d(k,i,j,:) + dtlt*a_ncloudt%d(k,i,j,:), 0. )
+               a_nprecpp%d(k,i,j,:) = MAX( a_nprecpp%d(k,i,j,:) + dtlt*a_nprecpt%d(k,i,j,:), 0. )
+               a_maerop%d(k,i,j,:)  = MAX( a_maerop%d(k,i,j,:)  + dtlt*a_maerot%d(k,i,j,:), 0. )
+               a_mcloudp%d(k,i,j,:) = MAX( a_mcloudp%d(k,i,j,:) + dtlt*a_mcloudt%d(k,i,j,:), 0. )
+               a_mprecpp%d(k,i,j,:) = MAX( a_mprecpp%d(k,i,j,:) + dtlt*a_mprecpt%d(k,i,j,:), 0. )
+               a_gaerop%d(k,i,j,:)  = MAX( a_gaerop%d(k,i,j,:)  + dtlt*a_gaerot%d(k,i,j,:), 0. )
+               a_rp%d(k,i,j) = a_rp%d(k,i,j) + dtlt*a_rt%d(k,i,j)
+
+               IF(level == 5) THEN 
+                  a_nicep%d(k,i,j,:)   = MAX( a_nicep%d(k,i,j,:)   + dtlt*a_nicet%d(k,i,j,:), 0. )
+                  a_micep%d(k,i,j,:)   = MAX( a_micep%d(k,i,j,:)   + dtlt*a_micet%d(k,i,j,:), 0. )
+               END IF
+
+            END DO
+         END DO
+      END DO
+
+      nc = spec%getIndex('H2O')
+      ! Activation + diagnostic array initialization
+      ! Clouds and aerosols
+      a_rc%d(:,:,:) = 0.
+      DO bb = 1, ncld
+         a_rc%d(:,:,:) = a_rc%d(:,:,:) + a_mcloudp%d(:,:,:,getMassIndex(ncld,bb,nc))
+      END DO
+      DO bb = 1, nbins
+         a_rc%d(:,:,:) = a_rc%d(:,:,:) + a_maerop%d(:,:,:,getMassIndex(nbins,bb,nc))
+      END DO
+      
+      ! Ice
+      IF ( level == 5 ) THEN
+         a_ri%d(:,:,:) = 0.
+         a_riri%d(:,:,:) = 0.
+         DO bb = 1, nice
+            a_ri%d(:,:,:) = a_ri%d(:,:,:) + a_micep%d(:,:,:,getMassIndex(nice,bb,nc))
+            a_riri%d(:,:,:) = a_riri%d(:,:,:) + a_micep%d(:,:,:,getMassIndex(nice,bb,nc+1))
+         END DO
+      END IF
+      
+   END SUBROUTINE SALSAInit
+
+   ! --------------------------------------------------------------------------------------------------
+   ! Replacement for subroutine init_aero_sizedist (init.f90): initilize altitude-dependent aerosol
+   ! size distributions and compositions.
+   !
+   ! Tomi Raatikainen, FMI, 29.2.2016
+   !
+   SUBROUTINE aerosol_init()
+
+      USE mo_salsa_sizedist, ONLY : size_distribution
+      USE mo_salsa_types, ONLY : aero
+      USE mo_submctl, ONLY : pi6, nmod, nbins, nspec_dry, in1a,in2a,in2b,fn1a,fn2a,fn2b,  &
+                              sigmagA, dpgA, nA, sigmagB, dpgB, nB, volDistA, volDistB, nreg,isdtyp
+      USE mpi_interface, ONLY : myid
+      USE util, ONLY : getMassIndex
+
+      IMPLICIT NONE
+      REAL :: core(nbins), nsectA(1,1,nbins), nsectB(1,1,nbins)   ! Size of the bin mid aerosol particle, local aerosol size dist
+      REAL :: pndist(nzp,nbins)                         ! Aerosol size dist as a function of height
+      REAL :: pvf2a(nzp,nspec_dry), pvf2b(nzp,nspec_dry)        ! Mass distributions of aerosol species for a and b-bins
+      REAL :: pvfOC1a(nzp)                              ! Mass distribution between SO4 and OC in 1a
+      INTEGER :: ss,ee,i,j,k
+      INTEGER :: iso4 = -1, ioc = -1, ibc = -1, idu = -1, &
+                  iss = -1, inh = -1, ino = -1
+
+      CHARACTER(len=600) :: fmt = &
+         "(/,' -------------------------------------------------',/," // &
+         "' Initial aerosol profile: ',//, 4X, 'Height', 6X, 'Na', 9X, 'Nb'," // &
+         "7X, 'SO4a', 8X, 'OCa', 9X, 'BCa', 9X, 'DUa', 9X, 'SSa', 9X, 'NH3a', 8X, 'HNO3a'," // &
+         "7X, 'SO4b', 8X, 'OCb', 9X, 'BCb', 9X, 'DUb', 9X, 'SSb', 9X, 'NH3b', 8X, 'HNO3b'//," // &
+         "(3F10.2,14ES12.3))"
+      !
+      ! Bin mean aerosol particle volume
+      core = 0.
+      core(1:nbins) = pi6 * aero(1,1,1:nbins)%dmid**3
+
+      ! Set concentrations to zero
+      pndist = 0.
+      pvf2a = 0.; pvf2b = 0.
+      pvfOC1a = 0.
+
+      a_maerop%d(:,:,:,:) = 0.0
+      a_naerop%d(:,:,:,:) = 0.0
+
+      ! Indices (-1 = not used)
+      i = 0
+      IF (spec%isUsed('SO4')) THEN
+         iso4 = spec%getIndex('SO4')
+         i = i+1
+      END IF
+      IF (spec%isUsed('OC')) THEN
+         ioc = spec%getIndex('OC')
+         i = i+1
+      END IF
+      IF (spec%isUsed('BC')) THEN
+         ibc = spec%getIndex('BC')
+         i = i+1
+      END IF
+      IF (spec%isUsed('DU')) THEN
+         idu = spec%getIndex('DU')
+         i = i+1
+      END IF
+      IF (spec%isUsed('SS')) THEN
+         iss = spec%getIndex('SS')
+         i = i+1
+      END IF
+      IF (spec%isUsed('NO')) THEN
+         ino = spec%getIndex('NO')
+         i = i+1
+      END IF
+      IF (spec%isUsed('NH')) THEN
+         inh = spec%getIndex('NH')
+         i = i+1
+      END IF
+
+      ! All species must be known
+      IF (i /= nspec_dry) THEN
+         WRITE(*,*) i,nspec_dry
+         STOP 'Unknown aerosol species given in the initialization!'
+      END IF
+
+      !
+      ! Altitude dependent size distributions and compositions.
+      ! Read and interpolate/extrapolate size distribution and composition for altitude level k: z=(zt(k)
+      ! ---------------------------------------------------------------------------------------------------
+      IF (isdtyp == 1) THEN
+
+         CALL READ_AERO_INPUT(pndist,pvfOC1a,pvf2a,pvf2b)
+
+      !
+      ! Uniform profiles based on namelist parameters
+      ! ---------------------------------------------------------------------------------------------------
+      ELSE IF (isdtyp == 0) THEN
+
+         IF (spec%isUsed("OC") .AND. spec%isUsed("SO4")) THEN
+            ! Both are there, so use the given "massDistrA"
+            pvfOC1a(:) = volDistA(spec%getIndex("OC"))/(volDistA(spec%getIndex("OC"))+volDistA(spec%getIndex("SO4"))) ! Normalize
+         ELSE IF (spec%isUsed("OC")) THEN
+            ! Pure OC
+            pvfOC1a(:) = 1.0
+         ELSE IF (spec%isUSed("SO4")) THEN
+            ! Pure SO4
+            pvfOC1a(:) = 0.0
+         ELSE
+            STOP 'Either OC or SO4 must be active for aerosol region 1a!'
+         END IF
+
+         ! Mass fractions for species in a and b-bins
+         DO ss = 1,nspec_dry
+            pvf2a(:,ss) = volDistA(ss)
+            pvf2b(:,ss) = volDistB(ss)
+         END DO
+
+         !
+         ! Uniform aerosol size distribution with height.
+         ! Using distribution parameters (n, dpg and sigmag) from the SALSA namelist
+         !
+         ! Convert to SI
+         nsectA = 0.
+         nsectB = 0.
+         nA = nA*1.e6
+         nB = nB*1.e6
+         dpgA = dpgA*1.e-6
+         dpgB = dpgB*1.e-6 
+         CALL size_distribution(1,1,1, nmod, in1a, fn2a, nA, dpgA, sigmagA, nsectA)
+         CALL size_distribution(1,1,1, nmod, in2b, fn2b, nB, dpgB, sigmagB, nsectB)
+         DO ss = 1, nbins
+            pndist(:,ss) = nsectA(1,1,ss) + nsectB(1,1,ss)
+         END DO
+
+      END IF
+      
+      ! ----------------------------------------------------------
+
+      !
+      ! Initialize concentrations
+      ! ----------------------------------------------------------
+      DO k = 2, nzp  ! DONT PUT STUFF INSIDE THE GROUND
+         DO j = 1, nyp
+            DO i = 1, nxp
+
+               ! a) Number concentrations
+               ! Region 1
+               a_naerop%d(k,i,j,in1a:fn1a) = pndist(k,in1a:fn1a)/dn0%d(k)   ! Convert #/m3 to #/kg 
+
+               ! Region 2
+               IF (nreg > 1) THEN
+                  a_naerop%d(k,i,j,in2a:fn2a) = pndist(k,in2a:fn2a)/dn0%d(k)
+                  a_naerop%d(k,i,j,in2b:fn2b) = pndist(k,in2b:fn2b)/dn0%d(k)
+               END IF
+
+               !
+               ! b) Aerosol mass concentrations
+               ! bin regime 1, done here separately because of the SO4/OC convention
+               ! SO4
+               IF (spec%isUsed("SO4")) THEN
+                  ss = getMassIndex(nbins,in1a,spec%getIndex("SO4")); ee = getMassIndex(nbins,fn1a,spec%getIndex("SO4"))
+                  a_maerop%d(k,i,j,ss:ee) = max(0.0,1.0-pvfOC1a(k))*pndist(k,in1a:fn1a)/dn0%d(k)*core(in1a:fn1a)*spec%rhosu
+               END IF
+               ! OC
+               IF (spec%isUsed("OC")) THEN
+                  ss = getMassIndex(nbins,in1a,spec%getIndex("OC")); ee = getMassIndex(nbins,fn1a,spec%getIndex("OC"))
+                  a_maerop%d(k,i,j,ss:ee) = max(0.0,pvfOC1a(k))*pndist(k,in1a:fn1a)/dn0%d(k)*core(in1a:fn1a)*spec%rhooc
+               END IF
+
+            END DO ! i
+         END DO ! j
+      END DO ! k
+
+      !
+      ! c) Aerosol mass concentrations
+      ! bin regime 2
+
+      IF (nreg > 1) THEN
+         DO ss = 1,nspec_dry
+            ! The substitution ind(ss) is not necessary since theyre the same numbers
+            CALL setAeroMass(spec%ind(ss),pvf2a,pvf2b,pndist,core,spec%rholiq(ss),dn0%d)
+         END DO
+      END IF
+         
+      ! Put out some info about the initial state
+      ! ---------------------------------------------------------------------------------------------------------------------
+      IF (myid == 0)                   WRITE(*,*) ''
+      IF (myid == 0 .AND. isdtyp == 0) WRITE(*,*) 'AEROSOL PROPERTIES TAKEN FROM A NAMELIST'
+      IF (myid == 0 .AND. isdtyp == 1) WRITE(*,*) 'AEROSOL PROPERTIES READ FROM aerosol_in.nc'
+
+      IF (myid == 0) WRITE(*,fmt) &
+         ( zt%d(k), SUM(a_naerop%d(k,3,3,in1a:fn2a))*1.e-6, SUM(a_naerop%d(k,3,3,in2b:fn2b))*1.e-6,                 &
+
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(iso4-1,0)*nbins+in1a:MAX(iso4-1,0)*nbins+fn2a) ), -999., iso4>0 ),    &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(ioc-1,0)*nbins+in1a:MAX(ioc-1,0)*nbins+fn2a) ), -999., ioc>0 ),       &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(ibc-1,0)*nbins+in1a:MAX(ibc-1,0)*nbins+fn2a) ), -999., ibc>0 ),       &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(idu-1,0)*nbins+in1a:MAX(idu-1,0)*nbins+fn2a) ), -999., idu>0 ),       &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(iss-1,0)*nbins+in1a:MAX(iss-1,0)*nbins+fn2a) ), -999., iss>0 ),       &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(ino-1,0)*nbins+in1a:MAX(ino-1,0)*nbins+fn2a) ), -999., ino>0 ),       &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(inh-1,0)*nbins+in1a:MAX(inh-1,0)*nbins+fn2a) ), -999., inh>0 ),       &
+
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(iso4-1,0)*nbins+in2b:MAX(iso4-1,0)*nbins+fn2b) ), -999., iso4>0 ),    &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(ioc-1,0)*nbins+in2b:MAX(ioc-1,0)*nbins+fn2b) ), -999., ioc>0 ),       &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(ibc-1,0)*nbins+in2b:MAX(ibc-1,0)*nbins+fn2b) ), -999., ibc>0 ),       &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(idu-1,0)*nbins+in2b:MAX(idu-1,0)*nbins+fn2b) ), -999., idu>0 ),       &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(iss-1,0)*nbins+in2b:MAX(iss-1,0)*nbins+fn2b) ), -999., iss>0 ),       &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(ino-1,0)*nbins+in2b:MAX(ino-1,0)*nbins+fn2b) ), -999., ino>0 ),       &
+         MERGE( SUM( a_maerop%d(k,3,3,MAX(inh-1,0)*nbins+in2b:MAX(inh-1,0)*nbins+fn2b) ), -999., inh>0 ),       &
+         k=1,nzp )
+
+   END SUBROUTINE aerosol_init
+
+   !
+   ! ----------------------------------------------------------
+   ! Sets the mass concentrations to aerosol arrays in 2a and 2b
+   !
+   !
+   SUBROUTINE setAeroMass(ispec,ppvf2a,ppvf2b,ppndist,pcore,prho,rhoair)
+      USE mo_submctl, ONLY : nbins, in2a,fn2a,in2b,fn2b,nspec_dry
+      USE util, ONLY : getMassIndex
+      
+      IMPLICIT NONE
+      
+      INTEGER, INTENT(in) :: ispec                             ! Aerosol species index
+      REAL, INTENT(in) :: ppvf2a(nzp,nspec_dry), ppvf2b(nzp,nspec_dry) ! Mass distributions for a and b bins
+      REAL, INTENT(in) :: ppndist(nzp,nbins)                   ! Aerosol size distribution
+      REAL, INTENT(in) :: pcore(nbins)                         ! Aerosol bin mid core volume
+      REAL, INTENT(in) :: prho                                 ! Aerosol density
+      REAL, INTENT(in) :: rhoair(nzp)
+
+      INTEGER :: ss,ee
+      INTEGER :: i,j,k
+      
+      DO k = 2, nzp ! DONT PUT STUFF INSIDE THE GROUND
+         DO j = 1, nyp
+            DO i = 1, nxp
+               ! 2a
+               ss = getMassIndex(nbins,in2a,ispec); ee = getMassIndex(nbins,fn2a,ispec)
+               a_maerop%d(k,i,j,ss:ee) =      &
+                  max( 0.0,ppvf2a(k,ispec) ) * &
+                  ppndist(k,in2a:fn2a)/rhoair(k)*pcore(in2a:fn2a)*prho
+               ! 2b
+               ss = getMassIndex(nbins,in2b,ispec); ee = getMassIndex(nbins,fn2b,ispec)
+               a_maerop%d(k,i,j,ss:ee) =      &
+                  max( 0.0,ppvf2b(k,ispec) ) * &
+                  ppndist(k,in2b:fn2b)/rhoair(k)*pcore(in2b:fn2b)*prho
+            END DO
+         END DO
+      END DO
+
+   END SUBROUTINE setAeroMass
+   !
+   ! -------------------------------------------------------------------------
+   ! Reads vertical profiles of aerosol size distribution parameters, aerosol species volume fractions and
+   ! number concentration fractions between a and b bins
+   !
+   SUBROUTINE READ_AERO_INPUT(ppndist,ppvfOC1a,ppvf2a,ppvf2b)
+      USE ncio, ONLY : open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_nc
+      USE mo_submctl, ONLY : nbins, in1a, fn2a, in2b, fn2b,  &
+                              nspec_dry, maxspec, nmod
+      USE mo_salsa_sizedist, ONLY : size_distribution
+      USE mpi_interface, ONLY : appl_abort, myid
+      IMPLICIT NONE
+
+      REAL, INTENT(out) :: ppndist(nzp,nbins)                   ! Aerosol size dist as a function of height
+      REAL, INTENT(out) :: ppvf2a(nzp,nspec_dry), ppvf2b(nzp,nspec_dry) ! Volume distributions of aerosol species for a and b-bins
+      REAL, INTENT(out) :: ppvfOC1a(nzp)                        ! Volume distribution between SO4 and OC in 1a
+
+      REAL :: nsectA(1,1,nbins), nsectB(1,1,nbins)
+
+      INTEGER :: ncid, k, i
+      INTEGER :: nc_levs=500, nc_nspec, nc_nmod
+
+      REAL :: pndistA(nzp,nbins), pndistB(nzp,nbins)
+
+      ! Stuff that will be read from the file
+      REAL, ALLOCATABLE :: zlevs(:),        &  ! Levels in meters
+                           zvolDistA(:,:),  &  ! Volume distribution of aerosol species in a and b bins
+                           zvoldistB(:,:),  &  ! (Don't mess these with the ones in namelist.salsa -
+                                                !  they are not used here!)
+                           znA(:,:),         &  ! Aerosol mode number concentrations, regime A
+                           zsigmagA(:,:),    &  ! Geometric standard deviations, regime A
+                           zdpgA(:,:),       &  ! Mode mean diameters, regime A
+                           znB(:,:),         &  ! number concentration for regime B
+                           zsigmagB(:,:),    &  ! getometric std, regime B
+                           zdpgB(:,:),       &  ! Mode mean diameter, regime B
+                           znsectA(:,:),     &  ! Helper for binned number concentrations regime A
+                           znsectB(:,:),     &  ! - '' - regime B
+                           helper(:,:)         ! nspec helper
+      LOGICAL :: READ_NC
+
+      ! Read the NetCDF input when it is available
+      INQUIRE(FILE='datafiles/aerosol_in.nc',EXIST=READ_NC)
+
+      ! Open the input file
+      IF (READ_NC) CALL open_aero_nc(ncid, nc_levs, nc_nspec, nc_nmod)
+      
+      ! Check that the input dimensions are compatible with SALSA initialization
+      ! ....
+
+      ! Allocate input variables
+      ALLOCATE( zlevs(nc_levs),              &
+               zvolDistA(nc_levs,maxspec),  &
+               zvolDistB(nc_levs,maxspec),  &
+               znA(nc_levs,nc_nmod),           &
+               zsigmagA(nc_levs,nc_nmod),      &
+               zdpgA(nc_levs,nc_nmod),         &
+               znB(nc_levs,nc_nmod),           &
+               zsigmagB(nc_levs,nc_nmod),      &
+               zdpgB(nc_levs,nc_nmod),         &
+         ! Couple of helper arrays
+               znsectA(nc_levs,nbins),      &
+               znsectB(nc_levs,nbins),      &
+               helper(nc_levs,nspec_dry)    )
+
+      zlevs = 0.; zvolDistA = 0.; zvolDistB = 0.; znA = 0.; zsigmagA = 0.
+      zdpgA = 0.; znB = 0.; zsigmagB = 0.; zdpgB = 0.; znsectA = 0.; znsectB = 0.; helper = 0.
+
+      IF (READ_NC) THEN
+         ! Read the aerosol profile data
+         CALL read_aero_nc_1d(ncid,'levs',nc_levs,zlevs)
+         CALL read_aero_nc_2d(ncid,'volDistA',nc_levs,maxspec,zvolDistA)
+         CALL read_aero_nc_2d(ncid,'volDistB',nc_levs,maxspec,zvolDistB)
+         CALL read_aero_nc_2d(ncid,'nA',nc_levs,nc_nmod,znA)
+         CALL read_aero_nc_2d(ncid,'nB',nc_levs,nc_nmod,znB)
+         CALL read_aero_nc_2d(ncid,'dpgA',nc_levs,nc_nmod,zdpgA)
+         CALL read_aero_nc_2d(ncid,'dpgB',nc_levs,nc_nmod,zdpgB)
+         CALL read_aero_nc_2d(ncid,'sigmagA',nc_levs,nc_nmod,zsigmagA)
+         CALL read_aero_nc_2d(ncid,'sigmagB',nc_levs,nc_nmod,zsigmagB)
+
+         CALL close_nc(ncid)
+         
+      ELSE
+         ! Read the profile data from a text file
+         OPEN(11,file='aerosol_in',status='old',form='formatted')
+         DO i = 1, nc_levs
+            READ(11,*,end=100) zlevs(i)
+            READ(11,*,end=100) (zvolDistA(i,k),k=1,nspec_dry) ! Note: reads just "nspec_dry" values from the current line
+            READ(11,*,end=100) (zvolDistB(i,k),k=1,nspec_dry) ! -||-
+            READ(11,*,end=100) (znA(i,k),k=1,nmod)
+            READ(11,*,end=100) (znB(i,k),k=1,nmod)
+            READ(11,*,end=100) (zdpgA(i,k),k=1,nmod)
+            READ(11,*,end=100) (zdpgB(i,k),k=1,nmod)
+            READ(11,*,end=100) (zsigmagA(i,k),k=1,nmod)
+            READ(11,*,end=100) (zsigmagB(i,k),k=1,nmod)
+         END DO
+   100 CONTINUE
+      CLOSE(11)
+      !
+      ! The true number of altitude levels
+      nc_levs = i-1
+   END IF
+   !
+   IF (zlevs(nc_levs) < zt%d(nzp)) THEN
+      IF (myid == 0) PRINT *, '  ABORTING: Model top above aerosol sounding top'
+      IF (myid == 0) PRINT '(2F12.2)', zlevs(nc_levs), zt%d(nzp)
+      CALL appl_abort(0)
+   END IF
+
+   ! Convert to SI
+   znA = znA*1.e6
+   znB = znB*1.e6
+   zdpgA = zdpgA*1.e-6
+   zdpgB = zdpgB*1.e-6
+
+   ! Get the binned size distribution
+   znsectA = 0.
+   znsectB = 0.
+   DO k = 1, nc_levs
+      CALL size_distribution(1,1,1,nmod,in1a,fn2a,znA(k,:),zdpgA(k,:),zsigmagA(k,:),nsectA)
+      CALL size_distribution(1,1,1,nmod,in2b,fn2b,znB(k,:),zdpgB(k,:),zsigmagB(k,:),nsectB)
+      znsectA(k,:) = nsectA(1,1,:)
+      znsectB(k,:) = nsectB(1,1,:)
+   END DO
+
+   ! Interpolate the input variables to model levels
+   ! ------------------------------------------------
+   CALL htint2d(nc_levs,zvolDistA(1:nc_levs,1:nspec_dry),zlevs(1:nc_levs),nzp,ppvf2a,zt%d,nspec_dry)
+   CALL htint2d(nc_levs,zvolDistB(1:nc_levs,1:nspec_dry),zlevs(1:nc_levs),nzp,ppvf2b,zt%d,nspec_dry)
+   CALL htint2d(nc_levs,znsectA(1:nc_levs,:),zlevs(1:nc_levs),nzp,pndistA,zt%d,nbins)
+   CALL htint2d(nc_levs,znsectB(1:nc_levs,:),zlevs(1:nc_levs),nzp,pndistB,zt%d,nbins)
+   ppndist = pndistA + pndistB
+
+   ! Since 1a bins by SALSA convention can only contain SO4 or OC,
+   ! get renormalized mass fractions.
+   ! --------------------------------------------------------------
+   ppvfOC1a = 0.
+   IF (spec%isUsed("OC") .AND. spec%isUsed("SO4")) THEN
+      ! Both are there, so use the given "massDistrA"
+      ppvfOC1a(2:nzp) = ppvf2a(2:nzp,spec%getIndex("OC"))/(ppvf2a(2:nzp,spec%getIndex("OC"))+ppvf2a(2:nzp,spec%getIndex("SO4"))) ! Normalize
+   ELSE IF (spec%isUsed("OC")) THEN
+      ! Pure OC
+      ppvfOC1a(2:nzp) = 1.0
+   ELSE IF (spec%isUsed("SO4")) THEN
+      ! Pure SO4
+      ppvfOC1a(2:nzp) = 0.0
+   ELSE
+      STOP 'Either OC or SO4 must be active for aerosol region 1a!'
+   END IF
+
+   DEALLOCATE( zlevs, zvolDistA, zvolDistB, znA, znB, zsigmagA, zsigmagB, zdpgA, zdpgB, znsectA, znsectB, helper )
+
+   END SUBROUTINE READ_AERO_INPUT
+
+   !
+   !------------------------------------------------------------------
+   ! INIT_GAS_TRACERS: Set initial values for gas compound tracers
+   !
+   ! Juha Tonttila, FMI, 2014
+   !
+   SUBROUTINE init_gas_tracers
+      IMPLICIT NONE
+
+      INTEGER :: j,i,k
+
+      ! These could be read from a file
+      ! Taken as molecules/kg
+      DO j = 1, nyp
+         DO i = 1, nxp
+            DO k = 1, nzp
+               a_gaerop%d(k,i,j,1) = 5.E14/dn0%d(k) !SO4
+               a_gaerop%d(k,i,j,2) = 0./dn0%d(k)    !NO3
+               a_gaerop%d(k,i,j,3) = 0./dn0%d(k)    !NH4
+               a_gaerop%d(k,i,j,4) = 5.E14/dn0%d(k) !OCNV
+               a_gaerop%d(k,i,j,5) = 1.E14/dn0%d(k) !OCSV
+            END DO
+         END DO
+      END DO
+
+
+   END SUBROUTINE init_gas_tracers
 
 
  END MODULE init

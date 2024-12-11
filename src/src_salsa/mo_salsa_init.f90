@@ -492,6 +492,7 @@ CONTAINS
                              lsicehom, lsiceimm, lsicedep,   &
                              lssiprimespln, lssipdropfrac,    &
                              ice_theta_dist,              &
+                             ice_deterministic,          &
                              lsfreeTheta, initMinTheta,   &
 
                              bloPrc,                      &                            
@@ -563,6 +564,7 @@ CONTAINS
 
          fixINC,      &    ! fixed ice number concentration #/kg 
          ice_theta_dist, & ! contact angle distributions
+         ice_deterministic, & ! Switch for deterministic heterogeneous nucleation scheme
          lsfreeTheta,    & ! Switch for using initMinTheta
          initMinTheta,   & ! Initial minimum theta for initialization and spinup
          mean_theta_imm,   & ! Mean of the contact angle distribution for immersion frz
@@ -622,6 +624,7 @@ CONTAINS
             lssecice%switch = .FALSE.
 
             ice_theta_dist = .FALSE.
+            ice_deterministic = .FALSE.
             lsicehom = .FALSE.   
             lsiceimm = .FALSE.
             lsicedep = .FALSE. 

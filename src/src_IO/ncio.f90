@@ -492,8 +492,33 @@ MODULE ncio
     !
     !
 
+ ! FUNCTIONS FOR READING ERA5 DATA FROM A NETCDF FILE
+ !
+
 
  !
+
+ SUBROUTINE open_ERA5_nc(ncid,nc_levs,nc_times)
+    IMPLICIT NONE
+
+    INTEGER, INTENT(out) :: ncid,nc_levs,nc_times
+    INTEGER :: iret, did
+
+    ! Open file
+    iret = nf90_open('datafiles/UCLALES_era5.nc',NF90_NOWRITE,ncid)
+
+    ! Inquire the number of input levels
+    iret = nf90_inq_dimid(ncid,'z',did)
+    iret = nf90_inquire_dimension(ncid,did,len=nc_levs)
+
+    iret = nf90_inq_dimid(ncid,'time',did)
+    iret = nf90_inquire_dimension(ncid,did,len=nc_times)
+
+    !iret = nf90_inq_dimid(ncid,'nmod',did)
+    !iret = nf90_inquire_dimension(ncid,did,len=nc_nmod)
+
+ END SUBROUTINE open_ERA5_nc
+
  ! ----------------------------------------------------------------------
  ! FUNCTIONS FOR READING AEROSOL SIZE DISTRIBUTIONS FROM A NETCDF FILE
  !
@@ -576,6 +601,7 @@ MODULE ncio
    iret = nf90_sync(fid)
    
  END SUBROUTINE sync_nc
+
 
  
 

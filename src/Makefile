@@ -19,7 +19,7 @@ else
 	mpi_io = 
 endif
 
-SRCSF90 = mo_salsa_math.f90 mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa_cloud_ice_SE.f90   \
+SRCSF90 = mo_salsa_math.f90 mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa_cloud_ice_DET.f90 mo_salsa_cloud_ice_SE.f90   \
 	  mo_salsa_secondary_ice.f90 mo_salsa_sizedist.f90 mo_salsa_dynamics.f90 mo_salsa_coagulation_kernels.f90     \
 	  mo_salsa_coagulation_processes.f90 mo_salsa.f90 mo_salsa_driver.f90 mo_salsa_init.f90                       \
 	  mo_salsa_nucleation.f90 mo_salsa_properties.f90 mo_salsa_types.f90 mo_submctl.f90                           \
@@ -164,6 +164,8 @@ mo_salsa_cloud.o: mo_salsa_types.o mo_submctl.o classSection.o mo_particle_exter
 	          mo_salsa_math.o math_functions.o
 mo_salsa_cloud_ice.o: mo_submctl.o mo_salsa_types.o mo_particle_external_properties.o mo_salsa_math.o math_functions.o
 mo_salsa_cloud_ice_SE.o: mo_submctl.o mo_salsa_types.o mo_salsa_math.o mo_particle_external_properties.o  \
+	                 classSection.o math_functions.o
+mo_salsa_cloud_ice_DET.o: mo_submctl.o mo_salsa_types.o mo_salsa_math.o mo_particle_external_properties.o  \
 	                 classSection.o math_functions.o
 mo_salsa_secondary_ice.o: mo_salsa_types.o mo_submctl.o math_functions.o classSection.o mo_ice_shape.o \
                           mo_particle_external_properties.o 

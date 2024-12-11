@@ -93,7 +93,8 @@ MODULE mo_submctl
   ! initMinTheta is used to specify a minimum contact angle for the entire IN population
   ! during initial stages of the simulation. The period when initMinTheta is applied
   ! is from model initialization to ice_theta_dist%delay (in seconds)
-  LOGICAL :: ice_theta_dist = .TRUE.   ! Use contact angle integration in ice nucleation
+  LOGICAL :: ice_theta_dist = .TRUE.   ! Use contact angle integration in ice nucleation 
+  LOGICAL :: ice_deterministic = .TRUE.   ! Use determinstic ice nucleation scheme for heterogeneous nucleation
   TYPE(ProcessSwitch) :: lsFreeTheta   ! Switch: Use freely evolving lower limit in contact angle integration
                                        ! delay: Time until which the low limit contact for contact angle integration
                                        !        is fixed as initMinTheta.

@@ -27,10 +27,9 @@ MODULE forc
   USE mo_diag_state, ONLY : a_pexnr,a_temp,a_rv,a_rc,a_rflx,a_sflx,   &
                             a_fus,a_fds,a_fuir,a_fdir,albedo
   USE mo_progn_state, ONLY : a_tt,a_tp,a_rt,a_rp,a_rpp, a_npp,        &
-                             a_ncloudp,a_nprecpp,a_mprecpp,a_nicep,   &
-                             a_indefp, a_indeft    
+                             a_ncloudp,a_nprecpp,a_mprecpp,a_nicep  
   USE mpi_interface, ONLY : myid, appl_abort
-  USE mo_submctl, ONLY : pi,ice_theta_dist,ice_deterministic
+  USE mo_submctl, ONLY : pi
   USE util, ONLY : get_avg2dh
   USE defs, ONLY      : cp
   !USE stat, ONLY      : sflg
@@ -39,6 +38,7 @@ MODULE forc
   USE emission_main, ONLY : aerosol_emission
   USE mo_structured_datatypes
   USE classProcessSwitch, ONLY : ProcessSwitch
+  USE init, ONLY : htint
   IMPLICIT NONE
 
   ! these are now all namelist parameters
@@ -71,6 +71,7 @@ CONTAINS
     REAL :: xka, fr0, fr1
     REAL :: time_decday
     REAL :: shift, div, pertdz
+    TYPE(FloatArray1d) :: subs_forcing
 
     ! NOT FINISHED; PUT LARGE-SCALE FORCINGS/CASE-SPECIFIC STUFF IN THEIR OWN PACKAGES
 
@@ -170,7 +171,7 @@ CONTAINS
        END IF
 
        IF (trim(case_name) == 'sinu') THEN
-          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt, a_ut%d, a_up%d, a_vt%d, a_vp%d,a_indefp,a_indeft)
+          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
        END IF
     CASE (6)
    ! Radiation
@@ -179,16 +180,17 @@ CONTAINS
        ! Sinusoidal forcing of ascent
 
        pertdz = (time-forcing%delay)*largeforc
-       IF (ABS(pertdz) >= pertmax) THEN
+       IF (pertdz >= pertmax) THEN
          div = 0
        ELSE IF (time >= forcing%delay) THEN
          div = largeforc
        ELSE 
          div = 0
        END IF
+       !write(*,*) "div",div,"pertdz",pertdz
 
        IF (trim(case_name) == 'sinu') THEN
-          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt, a_ut%d, a_up%d, a_vt%d, a_vp%d,a_indefp,a_indeft)
+          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
        END IF
     CASE (7)
    ! Radiation
@@ -196,10 +198,16 @@ CONTAINS
        CALL rad_interface(time_decday)
        ! Sinusoidal forcing of ascent
 
-       pertdz = (time-forcing%delay)*largeforc
+       IF ((time - forcing%delay)>=0) THEN
+         READ_ERA5_INPUT(time-forcing%delay)
+       
        IF (time >= forcing%delay) THEN
-         CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt, a_ut%d, a_up%d, a_vt%d, a_vp%d,a_indefp,a_indeft)
+         subs_forcing = largesw
+       ELSE
+         subs_forcing = 0
        END IF
+
+       CALL era5_forcing(nzp,nxp,nyp,zt,dzt,dzm,subs_forcing,a_tp,a_rp,a_tt,a_rt)
 
     END SELECT 
 
@@ -301,13 +309,101 @@ CONTAINS
 
   END SUBROUTINE smoke_rad
   !
+
+  ! Subroutine for applying 1d forcing to domain
+  SUBROUTINE era5_forcing(n1,n2,n3,zt,dzt,dzm,subs,tl,rt,tt,rtt)
+
+    USE mpi_interface, ONLY : pecount, double_scalar_par_sum,myid, appl_abort
+    !USE stat, ONLY : get_zi
+
+    INTEGER, INTENT (in) :: n1,n2, n3
+    TYPE(FloatArray1d), INTENT (in)      :: zt, dzt, dzm
+    !REAL, INTENT(in)                     :: zdiv
+    TPYE(FloatArray1d), INTENT (in)      :: subs
+    TYPE(FloatArray3d), INTENT (in)      :: tl, rt
+    TYPE(FloatArray3d), INTENT (inout)   :: tt, rtt
+
+    TYPE(FloatArray4d), POINTER :: varp => NULL(), vart => NULL()
+    
+    INTEGER :: i,j,k,kp1,b,c
+    REAL, DIMENSION (n1) :: sf
+    REAL, PARAMETER :: zmx_sub = 2260. ! originally 2260.
+
+    REAL (kind=8) :: zig, zil
+    REAL          :: zibar
+
+    zig = 0.0; zil = 0.0; zibar = 0.0
+    kp1 = 0
+    sf(:) = zdiv*dzt%d(:)  !-zdiv*zt%d(:)*dzt%d(:)
+
+   DO k = 2, n1-2
+      IF (zt%d(k) > MAXVAL(zt%d)-500) THEN
+         sf(k) = 0.
+      !ELSE IF (zt%d(k) < 3000) THEN
+      !   sf(k) = 0.
+      END IF
+   END DO
+   !
+   ! User specified divergence used as a simple large scle forcing for moisture and temperature fields
+   ! + also aerosol for level > 4
+   ! -------------------------------------------------------------------------------------------------
+   !
+   DO j = 3, n3-2
+      DO i = 3, n2-2
+         DO k = 2, n1-2
+            IF (sf(k)>0) THEN
+               kp1 = k-1  !MAYBE CHANGE to kp1 = k-1
+               tt%d(k,i,j) = tt%d(k,i,j) - (tl%d(k,i,j)-tl%d(kp1,i,j))*sf(k)
+               rtt%d(k,i,j) = rtt%d(k,i,j) - (rt%d(k,i,j)-rt%d(kp1,i,j))*sf(k)
+            ELSE IF (sf(k)<=0) THEN
+               kp1 = k+1
+               tt%d(k,i,j) = tt%d(k,i,j) - (tl%d(kp1,i,j)-tl%d(k,i,j))*sf(k)
+               rtt%d(k,i,j) = rtt%d(k,i,j) - (rt%d(kp1,i,j)-rt%d(k,i,j))*sf(k)
+            END IF
+         END DO
+      END DO
+   END DO
+
+   ! Some additional stuff needed for SALSA. a_salsa array has all the necessary tracers
+   ! and its association depends already on level, so no need to any extra checks here.
+   IF (level >= 4) THEN
+
+      DO b = 1,SALSA_tracers_4d%count
+         CALL SALSA_tracers_4d%getData(1,varp,index=b)
+         CALL SALSA_tracers_4d%getData(2,vart,index=b)
+         DO c = 1,SIZE(varp%d,DIM=4)
+            DO j = 3,n3-2
+               DO i = 3,n2-2
+                  DO k = 3, n1-2
+                  IF (sf(k)>0) THEN
+                     kp1 = k-1
+                     vart%d(k,i,j,c) = vart%d(k,i,j,c) -   &
+                              (varp%d(k,i,j,c)-varp%d(kp1,i,j,c))*sf(k) ! -1->-2
+                  ELSE IF (sf(k)<=0) THEN
+                     kp1 = k+1
+                     vart%d(k,i,j,c) = vart%d(k,i,j,c) -   &
+                              (varp%d(kp1,i,j,c) - varp%d(k,i,j,c))*sf(k)
+                  END IF
+                  END DO
+               END DO
+            END DO
+         END DO
+      END DO
+
+      varp => NULL(); vart => NULL()
+      
+   END IF
+
+  END SUBROUTINE era5_forcing
+
+
   ! -------------------------------------------------------------------
   ! Subroutine case_forcing: adjusts tendencies according to a specified
   ! large scale forcing.  Normally CASE (run) specific.
   ! 
   ! BTW: None of the arguments in the subroutine call are really necessary, since they are all imported 
   !      globally to this module.
-  SUBROUTINE case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,tl,rt,tt,rtt,ut,u,vt,v,indefp,indeft)
+  SUBROUTINE case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,tl,rt,tt,rtt)
 
     USE mpi_interface, ONLY : pecount, double_scalar_par_sum,myid, appl_abort
     !USE stat, ONLY : get_zi
@@ -317,8 +413,6 @@ CONTAINS
     REAL, INTENT(in)                     :: zdiv
     TYPE(FloatArray3d), INTENT (in)      :: tl, rt
     TYPE(FloatArray3d), INTENT (inout)   :: tt, rtt
-    REAL, DIMENSION(n1, n2, n3), INTENT(INOUT), OPTIONAL :: ut, u, vt, v
-    TYPE(FloatArray4d), INTENT (inout), OPTIONAL   :: indefp,indeft
 
     TYPE(FloatArray4d), POINTER :: varp => NULL(), vart => NULL()
     
@@ -391,14 +485,10 @@ CONTAINS
                    kp1 = k-1  !MAYBE CHANGE to kp1 = k-1
                    tt%d(k,i,j) = tt%d(k,i,j) - (tl%d(k,i,j)-tl%d(kp1,i,j))*sf(k)
                    rtt%d(k,i,j) = rtt%d(k,i,j) - (rt%d(k,i,j)-rt%d(kp1,i,j))*sf(k)
-                   ut(k,i,j) = ut(k,i,j) - (u(k,i,j)-u(kp1,i,j))*sf(k)
-                   vt(k,i,j) = vt(k,i,j) - (v(k,i,j)-v(kp1,i,j))*sf(k)
                 ELSE IF (sf(k)<=0) THEN
                    kp1 = k+1
                    tt%d(k,i,j) = tt%d(k,i,j) - (tl%d(kp1,i,j)-tl%d(k,i,j))*sf(k)
                    rtt%d(k,i,j) = rtt%d(k,i,j) - (rt%d(kp1,i,j)-rt%d(k,i,j))*sf(k)
-                   ut(k,i,j) = ut(k,i,j) - (u(kp1,i,j)-u(k,i,j))*sf(k)
-                   vt(k,i,j) = vt(k,i,j) - (v(kp1,i,j)-v(k,i,j))*sf(k)
                 END IF
              END DO
           END DO
@@ -408,31 +498,27 @@ CONTAINS
        ! and its association depends already on level, so no need to any extra checks here.
        IF (level >= 4) THEN
 
-         DO b = 1,SALSA_tracers_4d%count
-            CALL SALSA_tracers_4d%getData(1,varp,index=b)
-            CALL SALSA_tracers_4d%getData(2,vart,index=b)
-            DO c = 1,SIZE(varp%d,DIM=4)
-               DO j = 3,n3-2
-                  DO i = 3,n2-2
-                     DO k = 3, n1-2
-                     IF (sf(k)>0) THEN
-                        kp1 = k-1
-                        vart%d(k,i,j,c) = vart%d(k,i,j,c) -   &
-                                 (varp%d(k,i,j,c)-varp%d(kp1,i,j,c))*sf(k) ! -1->-2
-                        IF (ice_theta_dist .OR. ice_deterministic)   &
-                           indeft%d(k,i,j,c) = indeft%d(k,i,j,c) -  (indefp%d(k,i,j,c) - indefp%d(kp1,i,j,c))*sf(k)
-                     ELSE IF (sf(k)<=0) THEN
-                        kp1 = k+1
-                        vart%d(k,i,j,c) = vart%d(k,i,j,c) -   &
-                                 (varp%d(kp1,i,j,c) - varp%d(k,i,j,c))*sf(k)
-                        IF (ice_theta_dist .OR. ice_deterministic)   &
-                           indeft%d(k,i,j,c) = indeft%d(k,i,j,c) -  (indefp%d(kp1,i,j,c) - indefp%d(k,i,j,c))*sf(k)
-                     END IF
-                     END DO
-                  END DO
-               END DO
-            END DO
-         END DO
+          DO b = 1,SALSA_tracers_4d%count
+             CALL SALSA_tracers_4d%getData(1,varp,index=b)
+             CALL SALSA_tracers_4d%getData(2,vart,index=b)
+             DO c = 1,SIZE(varp%d,DIM=4)
+                DO j = 3,n3-2
+                   DO i = 3,n2-2
+                      DO k = 3, n1-2
+                        IF (sf(k)>0) THEN
+                           kp1 = k-1
+                           vart%d(k,i,j,c) = vart%d(k,i,j,c) -   &
+                                    (varp%d(k,i,j,c)-varp%d(kp1,i,j,c))*sf(k) ! -1->-2
+                        ELSE IF (sf(k)<=0) THEN
+                           kp1 = k+1
+                           vart%d(k,i,j,c) = vart%d(k,i,j,c) -   &
+                                    (varp%d(kp1,i,j,c) - varp%d(k,i,j,c))*sf(k)
+                        END IF
+                      END DO
+                   END DO
+                END DO
+             END DO
+          END DO
 
           varp => NULL(); vart => NULL()
           
@@ -662,6 +748,93 @@ CONTAINS
   END SUBROUTINE bellon
 
 
+  SUBROUTINE READ_ERA5_INPUT(time)
+    USE ncio, ONLY : open_era5_nc, read_aero_nc_2d, read_aero_nc_1d, close_nc
+    !USE mo_submctl, ONLY : nbins, in1a, fn2a, in2b, fn2b,  &
+    !                       nspec_dry, maxspec, nmod
+    !USE mo_salsa_sizedist, ONLY : size_distribution
+    USE mpi_interface, ONLY : appl_abort, myid
+    IMPLICIT NONE
+
+    REAL, INTENT(out) :: largesw(nzp)
+
+    !REAL, INTENT(out) :: ppndist(nzp,nbins)                   ! Aerosol size dist as a function of height
+    !REAL, INTENT(out) :: ppvf2a(nzp,nspec_dry), ppvf2b(nzp,nspec_dry) ! Volume distributions of aerosol species for a and b-bins
+    !REAL, INTENT(out) :: ppvfOC1a(nzp)                        ! Volume distribution between SO4 and OC in 1a
+
+    !REAL :: nsectA(1,1,nbins), nsectB(1,1,nbins)
+
+    INTEGER :: ncid, k, i
+    INTEGER :: nc_levs=500, nc_nspec, nc_nmod
+
+    !REAL :: pndistA(nzp,nbins), pndistB(nzp,nbins)
+
+    ! Stuff that will be read from the file
+    REAL, ALLOCATABLE :: zlevs(:),        &  ! Levels in meters
+                         time_s(:),        &  ! Time in seconds
+                         zqt(:,:),  &  ! Total water mixing ratio
+                         zlpt(:,:),  &  ! Liquid potential temperature
+                         zu(:,:),         &  ! Horizontal wind U
+                         zv(:,:),    &  ! V
+                         zw(:,:),       &  ! Vertical wind
+                         helper(:,:)         ! nspec helper
+    LOGICAL :: READ_NC
+
+    ! Read the NetCDF input when it is available
+    INQUIRE(FILE='datafiles/UCLALES_era5.nc',EXIST=READ_NC)
+
+    ! Open the input file
+    IF (READ_NC) CALL open_era5_nc(ncid, nc_levs, nc_times)
+
+
+    ! Check that the input dimensions are compatible with SALSA initialization
+    ! ....
+
+    ! Allocate input variables
+    ALLOCATE( zlevs(nc_levs),              &
+              time_s(nc_times),              &
+              zqt(nc_times,nc_levs),  &
+              zlpt(nc_times,nc_levs),  &
+              zu(nc_times,nc_levs),           &
+              zv(nc_times,nc_levs),      &
+              zw(nc_times,nc_levs)
+              helper(nc_times,nc_levs)    )
+
+    zlevs = 0.; time_s = 0.; zqt = 0.; zlpt = 0.; zu = 0.; zv = 0.; helper = 0.
+
+    IF (READ_NC) THEN
+      ! Read the aerosol profile data
+      CALL read_aero_nc_1d(ncid,'z',nc_levs,zlevs)
+      CALL read_aero_nc_1d(ncid,'time',nc_times,time_s)
+      CALL read_aero_nc_2d(ncid,'qt',nc_times,nc_levs,zqt)
+      CALL read_aero_nc_2d(ncid,'thl',nc_times,nc_levs,zlpt)
+      CALL read_aero_nc_2d(ncid,'u',nc_times,nc_levs,zu)
+      CALL read_aero_nc_2d(ncid,'v',nc_times,nc_levs,zv)
+      CALL read_aero_nc_2d(ncid,'w',nc_times,nc_levs,zw)
+    END IF
+
+   !
+   IF (zlevs(nc_levs) < zt%d(nzp)) THEN
+      IF (myid == 0) PRINT *, '  ABORTING: Model top above aerosol sounding top'
+      IF (myid == 0) PRINT '(2F12.2)', zlevs(nc_levs), zt%d(nzp)
+      CALL appl_abort(0)
+   END IF
+
+
+   ! Interpolate the input variables to model levels
+   ! ------------------------------------------------
+
+
+
+   CALL htint2d(nc_levs,zqt(1:nc_times,1:nc_levs),zlevs(1:nc_levs),nzp,rv_ref,zt%d,nc_times)
+   CALL htint2d(nc_levs,zlpt(1:nc_times,1:nc_levs),zlevs(1:nc_levs),nzp,theta_ref,zt%d,nc_times)
+   CALL htint2d(nc_levs,zu(1:nc_times,1:nc_levs),zlevs(1:nc_levs),nzp,u_ref,zt%d,nc_times)
+   CALL htint2d(nc_levs,zv(1:nc_times,1:nc_levs),zlevs(1:nc_levs),nzp,v_ref,zt%d,nc_times)
+   CALL htint2d(nc_levs,zw(1:nc_times,1:nc_levs),zlevs(1:nc_levs),nzp,largesw,zt%d,nc_times)
+
+   DEALLOCATE( zlevs, time_s, zqt, zlpt, zu, zv, zw, helper )
+
+  END SUBROUTINE READ_ERA5_INPUT
 
 
   ! POISTA:: ::
@@ -746,8 +919,6 @@ CONTAINS
       END SELECT
 
    END FUNCTION get_zi
-
-
 
 
   
