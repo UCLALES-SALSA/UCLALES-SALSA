@@ -105,7 +105,7 @@ CONTAINS
                                   dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                                   filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
                                   lpback, pbncsrc, nfpt, distim, runtype, CCN,sst,W1,W2,W3, &
-                                  cntlat, varlist_main, varlist_ps, varlist_ts
+                                  cntlat, varlist_main, varlist_ps, varlist_ts, eddy_dis
     USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                                   zrand, zrndamp, sound_in_file
     USE forc, ONLY              : div, case_name     ! Divergence, forcing case name
@@ -146,12 +146,13 @@ CONTAINS
          lpback, pbncsrc,       & ! Switch for piggybacking microphysics, switch for fixed or SALSA CDNC with PB
          div, case_name, &            ! divergence for LEVEL 4
          sed_aero, sed_cloud, sed_precp, sed_ice,  & ! Sedimentation (T/F)
-         bulk_autoc,                & ! autoconversion (and accretion) switch for level < 4 
+         bulk_autoc,                &  ! autoconversion (and accretion) switch for level < 4 
          bulkScheme,                &  ! 1: SB, 2: KK (mean radius autoc), 3: KK (rc nc exponential autoc)
-
+         eddy_dis,                  &  ! rate of TKE dissipation
          warm_bubble,               &  ! Parameters for setting up a warm bubble. Default switch == FALSE
          gaussian_flux_perturbation    ! Parameters for setting up a horizontally gaussian surface flux
                                        ! perturbation. Default switch == FALSE.
+    
          
     NAMELIST /initialization/      &
          sound_in_file,            & ! Input sounding file name

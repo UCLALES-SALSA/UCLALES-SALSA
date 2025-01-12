@@ -1,0 +1,209 @@
+MODULE mo_seasalt_emissions
+
+
+! Calculate particle flux, dF/dlogDp, for each size bin limit
+  
+! This module is built upon the routine /src_LES/srfc.f90 in 
+! https://github.com/UCLALES-SALSA/UCLALES-SALSA/tree/IceDevelOrg
+! updated and maintained by Tomi Raatikainen, FMI-Helsinki  
+  
+  IMPLICIT NONE
+
+  SAVE
+
+  PRIVATE
+  PUBLIC  :: seasalt_emissions
+
+
+  CONTAINS
+  
+  SUBROUTINE seasalt_emissions(kbdim,kproma,klev,nspec,ptstep)
+   USE defs, ONLY: vonk, g
+   USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, spec, prlim, &
+                          ice_theta_dist, ica, fca, icb, fcb, lsssaemiss
+   USE mo_progn_state, ONLY : a_maerot, a_naerot, a_naerop, a_indefp, a_indeft
+   USE mo_diag_state, ONLY : a_ustar, a_temp
+   USE grid, ONLY: deltax, deltay, deltaz, dtlt, &                  
+                  nxp,nyp,nzp, level
+   USE mo_salsa_types, ONLY : aero, rateDiag
+   USE classSection, ONLY : Section
+   USE mo_salsa_sizedist, ONLY: size_distribution
+   USE util, ONLY : getMassIndex
+   
+  ! ------- 
+   INTEGER, INTENT(in) :: kbdim,kproma,klev,nspec   ! nspec should contain active compounds in dry state
+   REAL, INTENT(in)  :: ptstep
+   REAL, INTENT(out) :: dFssa_dlogDp(kbdim,klev,nbins) !ssa number concentration per bin per m2 per s
+   REAL, INTENT(out) :: dMssa_dlogDp(kbdim,klev,nbins,nspec) ! ssa number concentration per bin per m2 per s
+   REAL, INTENT(out) :: dNssa(kbdim,klev,nbins)! Total number of ssa particles per bin in the timestep
+   !
+   INTEGER :: ii,jj
+   REAL :: zrough =  0.1e-3  ! Aerodynamic Roughness length (meters, check!) given in the runles
+   REAL :: ubmin  =  0.20
+   REAL :: usum, zs,deltaz,vonk,g, 
+   REAL :: u10m(kbdim,klev)
+   REAL :: t2m(kbdim,klev)
+   REAL :: dF(nbins)
+   REAL :: dN(nbins)
+   REAL :: dM(nbins,nspec)
+      
+     
+   IF (lsssaemiss%state) THEN
+     
+        ! Calculate u10 m speed
+        zs = zrough
+	IF (zrough <= 0.) THEN 
+	usum = 0.
+	DO jj=3,nyp-2
+	    DO ii=3,nxp-2
+		usum = usum + a_ustar(ii,jj)
+	    END DO
+	ENDDO
+	usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
+	zs = max(0.0001,(0.016/g)*usum**2)
+	ENDIF
+        u10m(:,:) = a_ustar(:,:)/vonk*log(10.0/zs)
+ 
+        ! Temperature at 2 m, typically used to compare against other models
+        ! It can be better. Now just a simple linear interpolation
+        t2m(:,:) =  (a_temp(2,:,:)-a_temp(1,:,:))./deltaz * (2-zt(2)) + a_temp(2,:,:))   
+
+        
+	DO jj = 1,klev
+            DO ii = 1,kproma           	
+                ! Parameterization of aerosol number in the surface layer based on eddy covariance flux method
+		IF (lsssaemiss%mode == 1) THEN 
+			! Salter et al. (2015) combined with Nilsson et al. (2001) 
+                        ! as in Lapere et al. (2024)
+                        ! dF/dlogDp from Eq.9 in #/m2/s and then transformed into dF
+                        ! Binned number concentration in #/s as dN = (dN/dlogDp)*dlogDp
+                        dF = salter(u10m(ii,jj), t2m(ii,jj)) *deltax *deltay
+     
+		!ELSE IF (lsssaemiss%mode == 2) THEN 
+		END IF
+		
+                dN = dF * ptstep! ssa particle number generated per bin during the timestep in #
+
+                ! Add number and mass concentrations to the main aerosol variable
+                CALL ssa_emission(dN, dM)
+
+         	! for diagnostics
+                
+	        aero(ii,jj,1:nbins)%ssa_Nemiss         = aero(ii,jj,1:npmax)%ssa_Nemiss + dN(1:nbins)
+                aero(ii,jj,1:nbins,1:nspec)%ssa_Memiss = aero(ii,jj,1:nbins,1:nspec)%ssa_Memiss + dM(1:nbins,1:nspec)
+
+               CALL rateDiag%ssa_rate%Accumulate(n=SUM(dF))
+         
+            END DO
+         END DO
+
+         ! IMPORTANT : Reset the collection tracking arrays
+         dN = 0.
+         dM = 0.
+         dF = 0.   
+      
+   END IF
+   
+  END SUBROUTINE seasalt_emissions
+
+  REAL FUNCTION salter(u10m, T) 
+	!Salter, M. E., Zieger, P., Acosta Navarro, J. C., Grythe, H., Kirkevåg, A., Rosati, B., Riipinen, I., & Nilsson, E. D. (2015). 
+	! An empirically derived inorganic sea spray source function incorporating sea surface temperature. 
+	! Atmospheric Chemistry and Physics, 15(19), 11047–11066. https://doi.org/10.5194/acp-15-11047-2015	
+	
+    USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, spec, prlim
+    USE mo_salsa_sizedist, ONLY : size_distribution
+                           	
+    REAL, PARAMETER :: nmod = 3
+    REAL, PARAMETER, DIMENSION(3) :: dpg = [0.095, 0.60, 1.50] ! dry diameter in microns
+    REAL, PARAMETER, DIMENSION(3) :: sigmag = [2.10, 1.72, 1.60]
+    REAL, PARAMETER, DIMENSION(3) :: A = [-5.2169e5, 0., 0.]
+    REAL, PARAMETER, DIMENSION(3) :: B = [3.31725e7, 7.374e5, 1.421e4]
+    REAL, PARAMETER, DIMENSION(3) :: C = [-6.95275e8,-2.4803e7, 1.4662e7]
+    REAL, PARAMETER, DIMENSION(3) :: D = [1.0684e10, 7.7373e8, 1.7075e8]
+    
+    REAL, INTENT(in) :: u10m ! u at 10 m height
+    REAL, INTENT(in) :: T    ! T at 2m height
+    
+    REAL, INTENT(out), DIMENSION(nbins) :: salter ! binned particle flux in # per m2 per  second
+    
+    REAL :: Fent, Ni
+    REAL, DIMENSION(3) :: n = [0.,0.,0.]
+    		    
+        Fent = 2.0e-8*u10m**3.41 
+        n(1)= Fent * (A(1)*T**3 + B(1)*T**2 + C(1)*T + D(1))
+	n(2)= Fent * (A(2)*T**3 + B(2)*T**2 + C(2)*T + D(2))
+	n(3)= Fent * (A(3)*T**3 + B(3)*T**2 + C(3)*T + D(3))
+	! Here dF/dlogDp is generated and transformed into dF 
+	CALL size_distribution(1,1,1, nmod, in1a, fn2a, n, dpg, sigmag, salter)
+                                 
+  END FUNCTION
+
+  
+  SUBROUTINE ssa_mass(dN_ssa)
+  
+  ! Based on 
+  ! Wintertime Arctic Sea Spray Aerosol Composition Controlled by Sea Ice Lead Microbiology
+  ! Rachel M. Kirpes, Daniel Bonanno, Nathaniel W. May, Matthew Fraund, Anna J. Barget, Ryan C. Moffet, Andrew   P. Ault, and Kerri A. Pratt
+  ! ACS Central Science 2019 5 (11), 1760-1767
+  ! DOI: 10.1021/acscentsci.9b00541 
+  
+  USE mo_submctl, ONLY : pi6, nmod, nbins, nspec_dry, in1a,in2a,in2b,fn1a,fn2a,fn2b,spec, maxspec
+  USE mo_salsa_types, ONLY : aero
+  USE mo_progn_state, ONLY : a_maerot, a_naerot, a_naerop, a_indefp, a_indeft
+  USE mo_diag_state, ONLY : a_rh
+  USE util, ONLY : getMassIndex
+
+  REAL, PARAMETER, DIMENSION(2) :: pvfOC1a = 0.45 ! particle volume fraction of organic carbon in regime A, mean value in Kirpes (2019) 
+  REAL :: core(nbins) ! Dry-size based particle volume
+  REAL :: dN_ssa(nbins) ! binned number concentration in #/m3 added per time step into the first model layer from SSA emissions
+  INTEGER :: i, j, ss, ee
+  REAL :: kappa_SSA, kappa_OC, kappa_SS
+    
+  ! Bin mean aerosol particle volume
+  core = 0.
+  core(1:nbins) = pi6 * aero(1,1,1:nbins)%dmid**3
+  
+  DO j = 1, nyp
+  	DO i = 1, nxp
+  	     ! Contribution to number concentrations
+             ! No SSA particles are added to regime B
+             a_naerop%d(2,i,j,in1a:fn1a) = a_naerop%d(2,i,j,in1a:fn1a) + dN_ssa(in1a:fn1a)
+             ! Contribution to particle composition based on dry size assuming spheres 
+  	     IF (spec%isUsed("OC")) THEN
+     		ss = getMassIndex(nbins,in1a,spec%getIndex("OC")); 
+     		ee = getMassIndex(nbins,fn1a,spec%getIndex("OC"))
+     		a_maerot%d(2,i,j,ss:ee) = a_maerot%d(2,i,j,ss:ee) + pvfOC1a*dN_ssa(in1a:fn1a)*core(in1a:fn1a)*spec%rhooc
+     	     ELSE
+       	        STOP 'With SSA emissions OC must be an aerosol constituent of particles in regime A'
+  	     END IF
+  	     
+  	     IF (spec%isUsed("SS")) THEN
+     		ss = getMassIndex(nbins,in1a,spec%getIndex("SS")); 
+     		ee = getMassIndex(nbins,fn1a,spec%getIndex("SS"))
+     		a_maerot%d(2,i,j,ss:ee) = a_maerot%d(2,i,j,ss:ee) + (1-pvfOC1a)*dN_ssa(in1a:fn1a)*core(in1a:fn1a)*spec%rhoss
+     	     ELSE
+     	        STOP 'With SSA emissions SS must be an aerosol constituent of particles in regime A' 
+             END IF
+
+             ! Water from hygroscopic growth at relative humidity according to kappa-Köhler theory
+             ! kappa based on volumetric fractions using kappa_NaCl --> SeaSalt(SS) and kappa_OC --> organic matter
+
+             kappa_SS = 1.1  ! at RH=90%  Zieger et al. 2017 Nature communications DOI: 10.1038/ncomms15883 kappa_NaCl = 1.2
+             kappa_OC = 0.04 ! +- 0.06 -- > organic matter Kawana et al. 2022 JGR DOI: 10.1029/2021JD035979
+
+             kappa_SSA = kappa_SS * (1-pvfOC1a) +  kappa_OC * pvfOC1a
+
+             
+
+             
+             
+           
+        END DO 
+  END DO
+  
+END SUBROUTINE ssa_mass
+
+ REAL FUNCTION rtsafe
+  
+ END MODULE mo_seasalt_emissions

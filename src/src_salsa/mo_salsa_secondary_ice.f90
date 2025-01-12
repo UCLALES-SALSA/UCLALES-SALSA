@@ -3,7 +3,7 @@ MODULE mo_salsa_secondary_ice
  
   CONTAINS
 
-   SUBROUTINE secondary_ice(kbdim,kproma,klev,ppres,ptemp,ptstep)
+   SUBROUTINE secondary_ice(kbdim,kproma,klev,ppres,ptemp,ptstep, prv,prsi)
      USE mo_submctl, ONLY : lssecice, lssiprimespln, lssipdropfrac, &
           lssipicecollbreak, spec
       USE mo_salsa_SIP_DF, ONLY: dropfracturing
@@ -13,7 +13,8 @@ MODULE mo_salsa_secondary_ice
       INTEGER, INTENT(in) :: kbdim,kproma,klev
       REAL, INTENT(in)    :: ppres(kbdim,klev), ptemp(kbdim,klev)
       REAL, INTENT(in)    :: ptstep 
-
+      REAL, INTENT(in)    :: prv(kbdim,klev), prsi(kbdim,klev)
+      
       INTEGER :: nspec 
 
       ! Secondary ice processes.
@@ -32,7 +33,7 @@ MODULE mo_salsa_secondary_ice
             CALL dropfracturing(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
          ! Ice-ice collisional breakup
          IF (lssipicecollbreak%state) &
-            CALL iceicecollbreak(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
+            CALL iceicecollbreak(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep,prv,prsi)
          
       END IF
          

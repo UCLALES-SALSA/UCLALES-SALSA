@@ -77,7 +77,7 @@
 				  pchargeTimep => NULL(),                 &
                                   psipdrfrp => NULL(), psiprmspl => NULL(), &
 
-                                  psipiibr => NULL(), &
+                                  psipiibrp => NULL(), &
                                      
                                   pgaerop => NULL(), pgaerot => NULL()   
 
@@ -258,7 +258,7 @@ CONTAINS
                      IF (lssecice%switch) THEN
                         allSALSA(1,1,nb)%SIP_drfr = psipdrfrp%d(kk,ii,jj,nbloc)*pdn%d(kk,ii,jj)
                         allSALSA(1,1,nb)%SIP_rmspl= psiprmspl%d(kk,ii,jj,nbloc)*pdn%d(kk,ii,jj)
-                        allSALSA(1,1,nb)%SIP_iibr = psipiibr%d(kk,ii,jj,nbloc)*pdn%d(kk,ii,jj)
+                        allSALSA(1,1,nb)%SIP_iibr = psipiibrp%d(kk,ii,jj,nbloc)*pdn%d(kk,ii,jj)
                      END IF
                         
                   END IF
@@ -345,7 +345,7 @@ CONTAINS
                      IF ( lssecice%switch ) THEN
                         psipdrfrp%d(kk,ii,jj,nbloc) = allSALSA(1,1,nb)%SIP_drfr/pdn%d(kk,ii,jj)
                         psiprmspl%d(kk,ii,jj,nbloc) = allSALSA(1,1,nb)%SIP_rmspl/pdn%d(kk,ii,jj)
-                        psipiibr%d(kk,ii,jj,nbloc) = allSALSA(1,1,nb)%SIP_iibr/pdn%d(kk,ii,jj)
+                        psipiibrp%d(kk,ii,jj,nbloc) = allSALSA(1,1,nb)%SIP_iibr/pdn%d(kk,ii,jj)
                      END IF
                         
                   END IF
@@ -518,7 +518,7 @@ CONTAINS
         IF (lssecice%switch) THEN
            CALL Prog%getData(1,psipdrfrp,name="sipdrfr")
            CALL Prog%getData(1,psiprmspl,name="siprmspl")
-           CALL Prog%getData(1,psipiibr,name="sipiibr")
+           CALL Prog%getData(1,psipiibrp,name="sipiibr")
         END IF
         
      END IF

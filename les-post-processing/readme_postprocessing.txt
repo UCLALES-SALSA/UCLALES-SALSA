@@ -28,11 +28,12 @@ gfortran -O2 -I/usr/include -o ./pples combine.f90 -lnetcdff
 
 ! To have just 4D variables run
 
-gfortran -O2 -I/usr/include -o ./pples combine_nobinned.f90 -lnetcdff
+gfortran -O2 -I/usr/include -o ./pples_nobinned combine_nobinned.f90 -lnetcdff
 
 --
-! Binned variables can be processed separately using ..
+! Binned variables can be processed separately using combined_binned.f90
 
+gfortran -O2 -I/usr/include -o ./pple_binned combine_binned.f90 -lnetcdff
 
 
 ************************************************************************************
@@ -40,10 +41,14 @@ gfortran -O2 -I/usr/include -o ./pples combine_nobinned.f90 -lnetcdff
 ! Run
 ./pples  <file name prefix> <key1=value1 key2=value2 ...>
 
-! Example
+! Examples
 ./pples SPICULE_20210605_RF04b_control_L5 deflate_level=4
 
 --
+./pples_nobinned SPICULE_20210605_RF04b_control_L5 deflate_level=4
+
+--
+./pples_binned SPICULE_20210605_RF04b_control_L5 deflate_level=4 variable_name=Ncba
 
 ************************************************************************************
 !                  To compile the fortran routine in Puhti
@@ -63,8 +68,9 @@ gfortran -O2 -I/usr/include -o ./pples combine_nobinned.f90 -lnetcdff
 !    ./pples <file name prefix>
 ! b) Puhti
 !  Compile
-!    module load intel/19.0.4
-!    module load netcdf-fortran/4.4.4
+!    module swap gcc intel-oneapi-compilers-classic
+!    module load intel-oneapi-mpi/2021.6.0
+!    module load netcdf-fortran/4.5.4
 !    ifort -O2 -o ./pples combine.f90 -lnetcdff
 !  Run
 !    srun --ntasks=1 --time=00:0:10 --partition=<partition> --account=<project> pples <file name prefix> <key1=value1 key2=value2 ...>

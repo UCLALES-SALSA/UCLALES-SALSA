@@ -270,6 +270,8 @@ CONTAINS
     zig = 0.0; zil = 0.0; zibar = 0.0
     kp1 = 0
     sf(:) = -zdiv*zt%d(:)*dzt%d(:)
+
+    
     SELECT CASE (trim(case_name))
     CASE('default')
        !

@@ -10,9 +10,11 @@ MODULE mo_salsa_coagulation_kernels
                          lscgaa, lscgcc, lscgpp, lscgii,      & 
                          lscgca, lscgpa, lscgia,              & 
                          lscgpc, lscgic,                      & 
-                         lscgip
+                         lscgip, eddy_dis
   USE classSection, ONLY : Section
   USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
+
+ 
   
   IMPLICIT NONE
 
@@ -182,7 +184,7 @@ MODULE mo_salsa_coagulation_kernels
 
     REAL FUNCTION coagc(pp1,pp2,temp,pres,lcharge,kernel)
 
-      USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd
+      USE mo_submctl, ONLY : pi, pi6, boltz, pstand, grav, rd, eddy_dis
       USE mo_particle_external_properties, ONLY : terminal_vel
 
       IMPLICIT NONE
@@ -207,7 +209,6 @@ MODULE mo_salsa_coagulation_kernels
            mfp,      &   ! mean free path of air molecules [m]
            mdiam,    &   ! mean diameter of colliding particles [m]
            fmdist,   &   ! distance of flux matching [m]
-           eddy_dis, &   ! Eddy dissipation time
            zecoll,   &   ! Collision efficiency for graviational collection
            zev,      &   !
            zea,      &
@@ -372,13 +373,19 @@ MODULE mo_salsa_coagulation_kernels
             zbrconv = 0.45*zbrown*SQRT(reyn(lrg))*( schm(sml)**(1./3.) )
          END IF
          
-         ! Turbulent Shear; Chen et al. 2020 suggest 500 cm2 s-3 for turbulent cumulus
-	 ! Silvia: 14-05-2026 From Pinky and Khain (2006) Physical processes in clouds .. (Book)
-         ! Table 3.3.4 Turbulent parameters and time/spatial scales of turbulent ﬂuctuations for clouds of different type
-         ! Stratiform clouds: 0.001 m2/s3 Cumulus: 0.02m2/s3 Cumulonimbus: 0.1 m2/s3
-         eddy_dis=0.1   !Cumulonimbus
-	 ! eddy_dis = 0.001 !Stratiform clouds 
-	 ! eddy_dis=0.001   ! Silvia: 13-03-2023 Upper limit from M. D. Shupe et al.: Evaluation of turbulent dissipation rate retrievals 10.5194/amt-5-1375-2012
+        ! eddy_dis rate of dissipation of turbulent kinetic energy per gram of medium (m2/s3)
+        ! See equation 16.35-36 in Jacobson, FAM
+        ! Values vary between 3cm2/s3 (clear air) and 2000cm2/s3 (cumulus convection)  
+        ! The parameter is given in the runles
+        ! Silvia: 14-05-2026
+        ! From Pinky and Khain (2006) Physical processes in clouds .. (Book)
+        ! Table 3.3.4 Turbulent parameters and time/spatial scales of turbulent ﬂuctuations for clouds of different type
+        ! Stratiform clouds: 0.001 m2/s3 Cumulus: 0.02m2/s3 Cumulonimbus: 0.1 m2/s3
+        !
+        ! Chen et al. 2020 suggest 500 cm2 s-3 for turbulent cumulus
+        ! Shupe et al.: Evaluation of turbulent dissipation rate retrievals 10.5194/amt-5-1375-2012
+        ! eddy_dis = 0.001 upper limit in Artic stratiform clouds
+                 
          ztshear = SQRT(8.*pi*eddy_dis/(15.*vkin))*(0.5*(diam(1)+diam(2)))**3
          zturbinert = pi*eddy_dis**(0.75) /(grav* SQRT(SQRT( vkin )))  &
               *(0.5*(diam(1)+diam(2)))**2* ABS(termv(1)-termv(2))

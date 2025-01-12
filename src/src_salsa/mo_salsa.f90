@@ -97,7 +97,7 @@ MODULE mo_salsa
      IF (lscheckarrays) CALL check_arrays(kbdim,klev,"COAG")
 
      ! Secondary ice production
-     IF (lssecice%state) CALL secondary_ice(kbdim, kproma, klev, ppres, ptemp, ptstep)
+     IF (lssecice%state) CALL secondary_ice(kbdim, kproma, klev, ppres, ptemp, ptstep, prv, prsi)
      
      ! Condensation
      IF (lscnd%state) &

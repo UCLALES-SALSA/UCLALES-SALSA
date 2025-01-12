@@ -121,6 +121,20 @@ MODULE mo_submctl
 
   REAL :: chargeTMax = 1000.   ! Max timescale for particle charging effect in seconds.
 
+  ! eddy_dis rate of dissipation of turbulent kinetic energy per gram of medium (m2/s3)
+        ! See equation 16.35-36 in Jacobson, FAM
+        ! Values vary between 3cm2/s3 (clear air) and 2000cm2/s3 (cumulus convection)  
+        ! The parameter is given in the runles
+        ! Silvia: 14-05-2026
+        ! From Pinky and Khain (2006) Physical processes in clouds .. (Book)
+        ! Table 3.3.4 Turbulent parameters and time/spatial scales of turbulent ﬂuctuations for clouds of different type
+        ! Stratiform clouds: 0.001 m2/s3 Cumulus: 0.02m2/s3 Cumulonimbus: 0.1 m2/s3
+        !
+        ! Chen et al. 2020 suggest 500 cm2 s-3 for turbulent cumulus
+        ! Shupe et al.: Evaluation of turbulent dissipation rate retrievals 10.5194/amt-5-1375-2012
+        ! eddy_dis = 0.001 upper limit in Artic stratiform clouds
+  REAL :: eddy_dis = 0.001      
+
   ! RH Limit:
   ! If lsfreeRH=FALSE, use RH constrained by *rhlim* for SALSA processes. Otherwise use the predicted value.
   ! If lsfreeTH=TRUE and lsfreeRH%delay > 0, the constrain is active until that time, and predicted rh is used after the delay time.

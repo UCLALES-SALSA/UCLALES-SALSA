@@ -20,7 +20,7 @@ MODULE mo_salsa_SIP_IIBR
  
   CONTAINS
     
-   SUBROUTINE iceicecollbreak(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep)
+   SUBROUTINE iceicecollbreak(kbdim,kproma,klev,nspec,ppres,ptemp,ptstep,prv,prsi)
       USE mo_salsa_types, ONLY : ice, rateDiag
       USE mo_submctl, ONLY : nice, pi6, spec, icebins, lssecice, lssipicecollbreak
       USE classSection, ONLY : Section
@@ -28,6 +28,8 @@ MODULE mo_salsa_SIP_IIBR
       INTEGER, INTENT(in) :: kbdim,kproma,klev,nspec   ! nspec should contain active compounds + rime
       REAL, INTENT(in) :: ptemp(kbdim,klev)
       REAL, INTENT(in) :: ppres(kbdim,klev)
+      REAL, INTENT(in) :: prv(kbdim,klev)
+      REAL, INTENT(in) :: prsi(kbdim,klev)
       REAL, INTENT(in) :: ptstep
       REAL, PARAMETER :: tmin = 248.15, tmax = 270.15  ! following Takahashi et al. (1995) observations 
       ! Check temperature limits  so the conform with the different formulations!!!
@@ -45,11 +47,12 @@ MODULE mo_salsa_SIP_IIBR
       REAL :: icediams(nice), icebw(nice)
       REAL :: fragvolc(kbdim,klev,nice,nspec), sinkvolc(kbdim,klev,nice,nspec) ! Volume to be added and removed
       REAL :: fragnumc(kbdim,klev,nice), sinknumc(kbdim,klev,nice)  ! Number to be added and removed
-      REAL :: fragv_loc(nice,nspec)  !! Local fragment vol contributions per ice bin
-      REAL :: fragn_loc(nice)       !! Local fragment num contributions per ice bin
+      REAL :: fragv_loc(nice,nspec)  ! Local fragment vol contributions per ice bin
+      REAL :: fragn_loc(nice)        ! Local fragment num contributions per ice bin
       REAL :: v_i                    ! Volume of single ice particle in a bin 
       REAL :: sinkv(nspec)           ! sink volume for single collision
       REAL :: frconst                ! constraining fraction for limiting the mass sink to fragments
+      REAL :: ssi                    ! supersaturation ratio over ice
       REAL, PARAMETER :: inf = HUGE(1.)
       
       REAL :: dinsphmin  ! Non-spherical diameter (maximum length) of the smaller ice particle in the colliding pair or most fragile
@@ -134,22 +137,23 @@ MODULE mo_salsa_SIP_IIBR
 
                IF (lssipicecollbreak%mode == 1) THEN ! Sullivan et al 2018 based on Takahashi et al. 1995
                      IMF = imf_sullivan(ptemp(ii,jj))
-		     IMF = min(IMF, 100.0)
+		     IMF = MIN(IMF, 100.0)
                      dN  = IMF *nii_ibr(ii,jj,cc,bb)
                
                ELSE IF (lssipicecollbreak%mode == 2) THEN  ! Sotiropoulou et al 2021 based on Sullivan et al 2018                   
                      IMF = imf_sotiropoulou(ptemp(ii,jj),dinsphmin)
-                     IMF = min(IMF, 100.0)
+                     IMF = MIN(IMF, 100.0)
                      dN  = IMF *nii_ibr(ii,jj,cc,bb) 
                
                ELSE IF (lssipicecollbreak%mode == 3) THEN  ! Phillips et al 2017 corrected by Sotiropoulou et al 2020
                      ! disphmin is the spherical equivalent diameter for the smallest particle using rhomean
                      ! rhomean is the mean ice density for frozen particles. Takes into account only the bulk ice composition                     
                      disphmin  =  ((mii_ibr(ii,jj,cc,bb) / nii_ibr(ii,jj,cc,bb) / ice(ii,jj,bb)%rhomean) / pi6)**(1./3.)
-                     IMF = imf_phillips(ppres(ii,jj), ptemp(ii,jj),ice(ii,jj,bb), ice(ii,jj,cc), dinsphmin,disphmin) 
-                     IMF = min(IMF, 100.0)
+                     ssi = MAX(0.,prv(ii,jj) / prsi(ii,jj) - 1.0) ! supersaturation ratio over ice
+                     IMF = imf_phillips_mod(ppres(ii,jj), ptemp(ii,jj),ice(ii,jj,bb), ice(ii,jj,cc), dinsphmin,disphmin,ssi) 
+                     IMF = MIN(IMF, 600.0)
                      dN  = IMF *nii_ibr(ii,jj,cc,bb)
-
+                     
                END IF
 
                !write(*,*) 'IMF ', IMF
@@ -190,7 +194,7 @@ MODULE mo_salsa_SIP_IIBR
             fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
             fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
-            ! POISTA           
+            !            
             IF ( SUM(sinkvolc(ii,jj,bb,:)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
                   WRITE(*,*)  'SIP-IIBR ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
                   SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
@@ -227,7 +231,7 @@ MODULE mo_salsa_SIP_IIBR
       DO bb = 1,nice
          DO jj = 1,klev
             DO ii = 1,kproma
-               ! POISTA
+               ! 
                IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'SIP-IIBR fragnumc < 0'
                IF ( ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'SIP-IIBR fragvolc < 0'
                IF (fragnumc(ii,jj,bb) /= fragnumc(ii,jj,bb)) &
@@ -251,7 +255,7 @@ MODULE mo_salsa_SIP_IIBR
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
                ice(ii,jj,bb)%volc(1:nspec) = MAX(0., ice(ii,jj,bb)%volc(1:nspec))
                
-               ! POISTA
+               ! 
                IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
                     WRITE(*,*) 'DROP FRAC NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
                ! ---------------------------
@@ -280,8 +284,11 @@ MODULE mo_salsa_SIP_IIBR
       ! imf_sullivan: ice multiplication factor or number of secondary ice particles generated by ice-ice collision event
 
       ! IMF becomes negative below Tmin = 252K in this parameterization, then is set to zero
-      
-      imf_sullivan = max(0.,fbr*(ptemp-Tmin)**1.2*exp(-(ptemp-Tmin)/5.)) !Table 1 in Sullivan et al. (2018)
+      IF (ptemp < Tmin) THEN
+         imf_sullivan = 0.
+      ELSE    
+         imf_sullivan = max(0.,fbr*(ptemp-Tmin)**1.2*exp(-(ptemp-Tmin)/5.)) !Table 1 in Sullivan et al. (2018)
+      END IF
       
     END FUNCTION imf_sullivan
     ! -----
@@ -305,13 +312,112 @@ MODULE mo_salsa_SIP_IIBR
       ! D0:  0.02 m is the size of hail balls used by Takahashi et al. (1995)
       ! D is assumed to be the nonspherical diameter or maximum length of the smaller ice particle in the ice-ice colliding pair
 
-      ! question: Could we avoid the temperature comparison using the max. IMF becomes negative below Tmin = 252K
-      
-      imf_sotiropoulou = MAX(0., fbr*(ptemp-Tmin)**1.2*exp(-(ptemp-Tmin)/5.)*dinsphmin/D0)
+      ! IMF becomes negative below Tmin = 252K in this parameterization, then is set to zero
+      IF (ptemp <= Tmin) THEN
+         imf_sotiropoulou = 0.0
+      ELSE      
+         imf_sotiropoulou = MAX(0., fbr*(ptemp-Tmin)**1.2*exp(-(ptemp-Tmin)/5.)*dinsphmin/D0)
+      END IF
       
     END FUNCTION imf_sotiropoulou
     
     ! ------------------------------------------------------------------------------------------------------------------------
+
+    REAL FUNCTION imf_phillips_mod(pres, temp,icelarge, icesmall, dinsphmin, disphmin,ssi) 
+      ! Phillips, V. T. J., Yano, J.-I., & Khain, A. (2017).
+      ! Ice Multiplication by Breakup in Ice–Ice Collisions. Part I: Theoretical Formulation.
+      ! Journal of the Atmospheric Sciences, 74(6), 1705–1719. https://doi.org/10.1175/JAS-D-
+      !  All equations reported in Table 1
+      !
+      ! Silvia 07-01-25: Model parameters were changed to those derived from experiments by
+      ! Grzegorczyk, et al. (2023). Fragmentation of ice particles: laboratory experiments on
+      ! graupel–graupel and graupel–snowflake collisions.
+      ! Atmospheric Chemistry and Physics, 23(20), 13505–13521.
+      ! https://doi.org/10.5194/acp-23-13505-2023
+      ! The parameterizations included here comes from their implementation shown in
+      ! Grzegorczyk, et al. (2025). Investigating secondary ice production in a deep convective cloud with a 3D bin microphysics model: Part I
+      ! Sensitivity study of microphysical processes representations. Atmospheric Research, 313, 107774.
+      ! https://doi.org/https://doi.org/10.1016/j.atmosres.2024.107774
+      ! Expressions in Table 2 are corrected following a personal communication with the author
+            
+      USE mo_submctl, ONLY : pi, spec
+      USE classSection, ONLY : Section
+      
+      REAL, INTENT(in) :: pres, temp
+      REAL, INTENT(in) :: ssi ! supersaturation over ice ssi = (1- rhi)
+      
+      TYPE(Section), INTENT(in) :: icelarge
+      TYPE(Section), INTENT(in) :: icesmall !ice particle that undergoes fracturing, or smaller ice particle in the ice-ice colliding pair
+
+      REAL :: dinsphmin ! Maximum length of the ice particle that undergoes fracturing, or smaller ice particle in the ice-ice colliding pair
+      REAL :: disphmin  ! Spherical-equivalent diameter of the smaller ice particle (most fragile)  
+ 
+      REAL :: K0        ! Kinetic collision energy of the ice-ice pair
+      REAL :: mrim,mpri ! rimed and unrimed bin ice mass mix rats
+      REAL :: rimfrac   ! fraction of rimed ice in the size bin of the smaller ice particle in the colliding pair      
+      REAL :: alpha     ! Equivalent-spherical surface area of the colliding particle with the smaller maximum dimension in 1/m2 
+
+       
+     
+      REAL, PARAMETER :: T0=258.15   ! T0 = -15 celsius Minimal temperature for ice-ice collision breakup to occur
+      REAL :: C=0.                ! parameters(1) C, Asperity-fragility coefficient in 1/J
+      REAL :: g=0.                ! parameters(2) gamma, Exponent in scheme for breakup (Eq.13), dimensionless
+      REAL :: Nmax=0.             ! parameters(3) Nmax, Maximum number of fragments per ice-ice collision
+      REAL :: Am=0.               ! parameters(4) Am, Measure of number density of breakable asperities in region of contact in 1/m^2
+      REAL :: a0=0.               ! Maximum of Am or number density of breakable asperities in region of contact          
+      INTEGER :: iwa,iri
+
+      iwa = spec%getIndex("H2O")
+      iri = spec%getIndex("rime")
+      
+      ! Getting the rimed fraction (by mass) of the more fragile particle in the colliding pair
+      mrim = icesmall%volc(iri) * spec%rhori
+      mpri = SUM(icesmall%volc(1:iwa)) * spec%rhoic ! Cutting a little corners here with the volc...
+      rimfrac = mrim / (mrim + mpri)
+      
+      ! Calculating Am or number density of breakable asperities in region of contact
+      IF (rimfrac> 0.5) THEN ! Rimed particles
+         ! Interpolation of the properties found for graupel-graupel collisions
+         ! as well as graupel-graupel with dendrite collisions
+            a0   = exp(14.74*ssi + 14.28) ! m-2 
+            C    = exp(20.15*ssi + 13.78) ! J-1
+            g    = ssi + 0.55  ! gamma in the paper dimensionless
+            Nmax = 600. ! Nmax
+            Am   = a0/3.+MAX(2./3.*a0-1./9.*a0*ABS(temp-T0),0.) ! Am
+      ELSE ! Unrimed particles rimfrac<0.5
+           ! Using properties for graupel-snowflake collisions
+             a0   = 4.75E7 ! m2
+             C    = 1.0E08 ! J-1
+             g    = 0.78   ! g
+             Nmax = 500.   ! Nmax
+             Am   = a0/3.+MAX(2./3.*a0-1./9.*a0*ABS(temp-T0),0.) ! m-2
+      END IF
+      
+      ! Equivalent-spherical surface area of the colliding particle with the smaller maximum dimension in 1/m2 
+      alpha = pi * disphmin**2.
+      ! Get K0
+      K0 = kinetic_collision_energy(pres,temp,icelarge,icesmall)
+
+      !WRITE(*,*) 'K0', K0
+      !WRITE(*,*) 'disphmin', disphmin
+      !WRITE(*,*) 'rimfrac', rimfrac
+      !WRITE(*,*) 'temp',temp
+      !WRITE(*,*) 'ssi' , ssi
+      !WRITE(*,*) 'a0', a0
+      !WRITE(*,*) 'C', C
+      !WRITE(*,*) 'g' , g
+      !WRITE(*,*) 'Nmax',Nmax
+      !WRITE(*,*) 'Am', Am
+      !WRITE(*,*) 'alpha',alpha
+      
+      ! Ice multiplication factor or number of secondary ice particles produced per ice-ice collision    
+      imf_phillips_mod =  MIN(alpha*Am*(1-exp(-(C*K0/alpha/Am)**g)),Nmax)
+        
+     END FUNCTION imf_phillips_mod
+
+   ! ------------------------------------------------------------------------------------------------------------
+   
+   ! ------------------------------------------------------------------------------------------------------------------------
 
     REAL FUNCTION imf_phillips(ppres, ptemp,icelarge, icesmall, dinsphmin, disphmin) 
       ! Phillips, V. T. J., Yano, J.-I., & Khain, A. (2017).
@@ -411,9 +517,6 @@ MODULE mo_salsa_SIP_IIBR
      END FUNCTION imf_phillips
 
    ! ------------------------------------------------------------------------------------------------------------
-   
-   
-   ! ------------------------------------------------------------------------------------------------------------
      REAL FUNCTION kinetic_collision_energy(ppres,ptemp,pice1,pice2) result(K0) 
      
         USE mo_submctl, ONLY : rd, pstand, pi, spec
@@ -455,7 +558,7 @@ MODULE mo_salsa_SIP_IIBR
         ! Sotipoulou et al 2020 includes a correction factor in these expressions
         ! to account for underestimates when the terminal velocities are
         ! too close or equal
-        K0 = 0.5 * (m1*m2/(m1+m2)) * (ABS((1.7*v1 - v2)**2.0 - 0.3*v1*v2))**0.5
+        K0 = (m1*m2/(m1+m2)) * (1.7*(v1 - v2)**2.0 + 0.3*v1*v2)
       
      END FUNCTION kinetic_collision_energy
      

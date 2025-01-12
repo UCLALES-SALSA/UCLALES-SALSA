@@ -23,7 +23,7 @@ MODULE grid
   USE mo_submctl, ONLY : spec, nbins, ncld, nprc, nice, nliquid,    &
                          in1a, fn2a, in2b, fn2b, ica, icb, fca, fcb,  &
                          aerobins, cloudbins, precpbins, icebins,     &
-                         ice_theta_dist,lssecice
+                         ice_theta_dist,lssecice, eddy_dis
    USE emission_types, ONLY : emitModes
   
   IMPLICIT NONE
@@ -75,6 +75,7 @@ MODULE grid
   REAL    :: W1  = 0.9   ! Water content
   REAL    :: W2  = 0.9
   REAL    :: W3  = 0.9
+    
   
   CHARACTER (len=150) :: expnme = 'Default' ! Experiment name
   CHARACTER (len=150) :: filprf = 'x'       ! File Prefix
