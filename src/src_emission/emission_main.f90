@@ -331,11 +331,11 @@ MODULE emission_main
     REAL :: diam(nzp,nxp,nyp,nliquid), numb(nzp,nxp,nyp,nliquid)
 
    ! The point source will always be in 1 PE at a time
-    IF (myid == 0) THEN
+    !IF (myid == 0) THEN
        WRITE(*,*) '========================================'
        WRITE(*,*) 'CALCULATING EMISSIONS WITH CHARGE TYPE=3'
        WRITE(*,*) '========================================'
-    END IF
+    !END IF
     
     diam = 0.
     CALL Dwaba%onDemand("Dwaba",diam(:,:,:,in1a:fn2a),in1a,fn2a)
