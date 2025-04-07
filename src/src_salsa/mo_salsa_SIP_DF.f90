@@ -74,7 +74,7 @@ MODULE mo_salsa_SIP_DF
          icebw(bb) = ( (ice(1,1,bb)%vhilim/pi6)**(1./3) - (ice(1,1,bb)%vlolim/pi6)**(1./3))
       END DO
 
-      ! POISTA
+      ! This works just for debugging 
       DO bb = 1,nice
          DO jj = 1,klev
             DO ii = 1,kproma
@@ -164,14 +164,14 @@ MODULE mo_salsa_SIP_DF
                   ! for diagnostics
                   ice(ii,jj,1:npmax)%SIP_drfr = ice(ii,jj,1:npmax)%SIP_drfr + dNb(1:npmax)
                   
-                  CALL rateDiag%drfrrate%Accumulate(n=SUM(dNb)/ptstep)    ! miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
+                  CALL rateDiag%drfrrate%Accumulate(n=SUM(dNb)/ptstep)    !Juha: miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
               END DO
                
               
             fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
             fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
-            ! POISTA           
+            !These are just warning for debugging. Possible issues solved in L187
             IF ( SUM(sinkvolc(ii,jj,bb,:)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
                   WRITE(*,*)  'SIP-DRFR ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
                   SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
@@ -208,7 +208,7 @@ MODULE mo_salsa_SIP_DF
       DO bb = 1,nice
          DO jj = 1,klev
             DO ii = 1,kproma
-               ! POISTA
+               ! these are just warnings for debugging
                IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'SIP-DF fragnumc < 0'
                IF ( ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'SIP-DF fragvolc < 0'
                IF (fragnumc(ii,jj,bb) /= fragnumc(ii,jj,bb)) &
@@ -219,8 +219,6 @@ MODULE mo_salsa_SIP_DF
                     WRITE(*,*) 'SIP-DF sinkvolc nega ',bb,dlliq_df,sinkvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
                     WRITE(*,*) 'SIP-DF sinkvolc nan ',  bb,dlliq_df,sinkvolc(ii,jj,bb,:)
-               !IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'SIP-DF fragnumc > 1e5 ',bb,cc, dlliq_df,&
-                  !fragnumc(ii,jj,bb), ice(ii,jj,bb)%numc
                ! ---------------------
                
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
@@ -231,7 +229,7 @@ MODULE mo_salsa_SIP_DF
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
                ice(ii,jj,bb)%volc(1:nspec) = MAX(0., ice(ii,jj,bb)%volc(1:nspec))
                
-               ! POISTA
+               ! This is just a warning for debugging
                IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
                     WRITE(*,*) 'SIP-DF DROP FRAC NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
                ! ---------------------------
@@ -499,8 +497,7 @@ MODULE mo_salsa_SIP_DF
       REAL :: vti,vtd  ! Terminal velocities of ice and drop
       REAL :: rhoa     ! air density
 
-      ! This is repeating a LOT of the stuff already done once in coagulation kernels,
-      ! which is BS and sad... But can't do much about it currently.
+      !
       REAL :: visc             ! Viscosity of air
       REAL :: mfp, knud, beta  ! Mean free path, knudsen number and cunningham correction
       REAL :: K0, DE, fT, tc

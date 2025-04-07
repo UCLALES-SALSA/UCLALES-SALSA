@@ -186,7 +186,7 @@ MODULE mo_salsa_SIP_IIBR
               ! for diagnostics
               ice(ii,jj,1:npmax)%SIP_iibr = ice(ii,jj,1:npmax)%SIP_iibr + dNb(1:npmax)
             
-              CALL rateDiag%iibrrate%Accumulate(n=SUM(dNb)/ptstep)    ! miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
+              CALL rateDiag%iibrrate%Accumulate(n=SUM(dNb)/ptstep)    ! Juha: miks tanne tulee 0??? NOTE: syotin vakioarvoa subroutinen alussa, se kylla toimi.
               
             END DO
 
@@ -194,7 +194,7 @@ MODULE mo_salsa_SIP_IIBR
             fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
             fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
-            !            
+            !These are just warnings for debugging. Possible issues solved in L210            
             IF ( SUM(sinkvolc(ii,jj,bb,:)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
                   WRITE(*,*)  'SIP-IIBR ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
                   SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
@@ -242,9 +242,6 @@ MODULE mo_salsa_SIP_IIBR
                     WRITE(*,*) 'SIP-IIBR sinkvolc nega ',bb,sinkvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
                     WRITE(*,*) 'SIP-IIBR sinkvolc nan ',  bb,sinkvolc(ii,jj,bb,:)
-               !IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'SIP-IIBR fragnumc > 1e5 ',bb,cc, fragnumc(ii,jj,bb), &
-               !     nii_ibr(ii,jj,cc,bb), mii_ibr(ii,jj,cc,bb), ice(ii,jj,bb)%numc, &
-               !     ice(ii,jj,bb)%dwet , ice(ii,jj,bb)%dnsp
                ! ---------------------
                
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
@@ -255,7 +252,7 @@ MODULE mo_salsa_SIP_IIBR
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
                ice(ii,jj,bb)%volc(1:nspec) = MAX(0., ice(ii,jj,bb)%volc(1:nspec))
                
-               ! 
+               ! This is a just a warning for debugging
                IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
                     WRITE(*,*) 'DROP FRAC NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
                ! ---------------------------
@@ -397,18 +394,6 @@ MODULE mo_salsa_SIP_IIBR
       alpha = pi * disphmin**2.
       ! Get K0
       K0 = kinetic_collision_energy(pres,temp,icelarge,icesmall)
-
-      !WRITE(*,*) 'K0', K0
-      !WRITE(*,*) 'disphmin', disphmin
-      !WRITE(*,*) 'rimfrac', rimfrac
-      !WRITE(*,*) 'temp',temp
-      !WRITE(*,*) 'ssi' , ssi
-      !WRITE(*,*) 'a0', a0
-      !WRITE(*,*) 'C', C
-      !WRITE(*,*) 'g' , g
-      !WRITE(*,*) 'Nmax',Nmax
-      !WRITE(*,*) 'Am', Am
-      !WRITE(*,*) 'alpha',alpha
       
       ! Ice multiplication factor or number of secondary ice particles produced per ice-ice collision    
       imf_phillips_mod =  MIN(alpha*Am*(1-exp(-(C*K0/alpha/Am)**g)),Nmax)

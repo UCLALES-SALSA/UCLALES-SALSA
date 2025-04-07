@@ -18,7 +18,7 @@ MODULE mo_salsa_SIP_RS
 
   INTEGER :: dltemp_rs = 5   ! Temperature-dependence for SIP-rime splintering efficiency
   
-  REAL, PARAMETER :: Dsplint = 10.e-6  ! Assumed splinter diameter
+  REAL, PARAMETER :: Dsplint = 10.e-6  ! Assumed splinter diameter. It goes to the closest bin (e.g.~8th)
 
     
   CONTAINS
@@ -77,17 +77,6 @@ MODULE mo_salsa_SIP_RS
          icebw(bb) = ( (ice(1,1,bb)%vhilim/pi6)**(1./3) - (ice(1,1,bb)%vlolim/pi6)**(1./3))
       END DO
 
-    ! POISTA
-      DO bb = 1,nice
-         DO jj = 1,klev
-            DO ii = 1,kproma
-               IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
-                    WRITE(*,*) 'DROP FRAC NEGA BEG', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
-            END DO
-         END DO
-      END DO      
-      ! --------------------
-
       
       ! Initialize arrays
       fragvolc = 0.; sinkvolc = 0.
@@ -119,7 +108,6 @@ MODULE mo_salsa_SIP_RS
                  END IF
 
                  ! Volume of a splinter for calculating the number concentration sink.
-                 !v_i  = pi6*Dsplint**3 ! 5.235987755982989e-16 if spherical
            	 v_i = 3.405365461487051e-16 ! as hexagonal column of bulk ice 917 kg m3, similar to an hexag. plate
            	 ! v_i = 110.7983.*(10e-6).^2.91/917 Buhl et al. 2019, Atmos. Meas. Tech., 12, 6601–6617, 2019
            	 
@@ -153,13 +141,13 @@ MODULE mo_salsa_SIP_RS
             fragnumc(ii,jj,:) = fragnumc(ii,jj,:) + fragn_loc(:)
             fragvolc(ii,jj,:,:) = fragvolc(ii,jj,:,:) + fragv_loc(:,:)
 
-            ! POISTA           
+            ! These are just warnings, if so, corrections are applied in L157 and s.s.           
             IF ( SUM(sinkvolc(ii,jj,bb,:)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                  WRITE(*,*)  'SIP-RS ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
+                  WRITE(*,*)  'SIP-RS WARNING: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
                   SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
 
             IF (ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) THEN
-                  WRITE(*,*) 'SIP-RS ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
+                  WRITE(*,*) 'SIP-RS WARNING: NUMBER SINK EXCEEED BIN NUMBER',  &
                   ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
                   sinknumc(ii,jj,bb) =  ice(ii,jj,bb)%numc
                   sinkvolc(ii,jj,bb,1:nspec) = ice(ii,jj,bb)%volc(1:nspec)
@@ -190,7 +178,7 @@ MODULE mo_salsa_SIP_RS
       DO bb = 1,nice
          DO jj = 1,klev
             DO ii = 1,kproma
-               ! POISTA
+               ! These are just warnings to facilitate debugging
                IF (fragnumc(ii,jj,bb) < 0.) WRITE(*,*) 'fragnumc < 0'
                IF ( ANY(fragvolc(ii,jj,bb,:) < 0.) ) WRITE(*,*) 'fragvolc < 0'
                IF (fragnumc(ii,jj,bb) /= fragnumc(ii,jj,bb)) &
@@ -201,9 +189,6 @@ MODULE mo_salsa_SIP_RS
                     WRITE(*,*) 'sinkvolc nega ',bb,dlliq_rs,sinkvolc(ii,jj,bb,:)
                IF ( ANY(sinkvolc(ii,jj,bb,:) /= sinkvolc(ii,jj,bb,:)) ) &
                     WRITE(*,*) 'sinkvolc nan ',  bb,dlliq_rs,sinkvolc(ii,jj,bb,:)
-               !IF (fragnumc(ii,jj,bb) > 1.e5) WRITE(*,*) 'fragnumc > 1e5 ',bb,dlliq_rs,fragnumc(ii,jj,bb),    &
-                   ! (SUM(mfrzn_rs(ii,jj,:,bb))/SUM(nfrzn_rs(ii,jj,:,bb))/spec%rhowa/pi6)**(1./3.), &
-                    !SUM(nfrzn_rs(ii,jj,:,bb)), ice(ii,jj,bb)%numc
                ! ---------------------
                
                ice(ii,jj,bb)%numc = ice(ii,jj,bb)%numc + fragnumc(ii,jj,bb)
@@ -214,7 +199,7 @@ MODULE mo_salsa_SIP_RS
                ice(ii,jj,bb)%volc(1:nspec) = ice(ii,jj,bb)%volc(1:nspec) - sinkvolc(ii,jj,bb,1:nspec)
                ice(ii,jj,bb)%volc(1:nspec) = MAX(0., ice(ii,jj,bb)%volc(1:nspec))
                
-               ! POISTA
+               ! This is just a warning to facilitate debugging
                IF ( ANY(ice(ii,jj,bb)%volc(1:nspec) < 0.) )  &
                     WRITE(*,*) 'DROP FRAC NEGA END', SUM(ice(ii,jj,bb)%volc(1:nspec)), ice(ii,jj,bb)%numc, bb
                ! ---------------------------
