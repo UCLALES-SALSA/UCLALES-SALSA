@@ -73,8 +73,8 @@ contains
 
     call define_vars
 
-    call initialize ! Added initialization of aerosol size distributions here + a single call
-                    ! for SALSA to set up cloud microphysics
+    call initialize
+
     call stepper
 
     call appl_finalize(ierror)
@@ -106,17 +106,15 @@ contains
          user_an_list, ifSeaSpray, ifSeaVOC, sea_tspinup
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
-    use stat, only : ssam_intvl, savg_intvl, csflg, cs_include, cs_exclude, &
+    use stat, only : ssam_intvl, savg_intvl, csflg, cs_start, cs_include, cs_exclude, &
          ps_include, ps_exclude, ts_include, ts_exclude, out_cs_list, out_ps_list, out_ts_list, &
-         user_cs_list, user_ps_list, user_ts_list
+         user_cs_list, user_ps_list, user_ts_list, wbinlim
     USE forc, ONLY : case_name, sfc_albedo, RadPrecipBins, RadSnowBins, &
          div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit
     USE radiation, ONLY : radsounding, useMcICA, RadNewSetup, RadConstSZA
-    use mpi_interface, only : myid, appl_abort, ver, author
+    use mpi_interface, only : myid, appl_abort
 
     implicit none
-
-    INTEGER :: i
 
     namelist /model/  &
          expnme    ,       & ! experiment name
@@ -124,7 +122,7 @@ contains
          naddsc    ,       & ! Number of additional scalars
          savg_intvl,       & ! output statistics frequency
          ssam_intvl,       & ! integral accumulate/ts print frequency
-         csflg,            & ! Column statistics flag
+         csflg, cs_start,  & ! Column statistics flag and time to start saving data
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          spongeinit      , & ! sponge back to initial profile or bulk values
@@ -182,17 +180,12 @@ contains
          user_an_list,       & ! User-defined outputs, 4D analysis files
          user_cs_list,       & ! - column statistics
          user_ps_list,       & ! - profile statistics
-         user_ts_list          ! - time series statistics
-
-    namelist /version/  &
-         ver, author        ! Information about UCLALES-SALSA version and author
-
+         user_ts_list,       & ! - time series statistics
+         wbinlim               ! Vertical velocity bins
     !
     ! read namelist from specified file
     !
     open  (1,status='old',file='NAMELIST')
-    read  (1, nml=version, iostat=i) ! Optional
-    if (i/=0) REWIND(1)
     read  (1, nml=model)
     close (1)
 

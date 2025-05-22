@@ -737,7 +737,7 @@ contains
   !
   subroutine init_anal(time)
 
-    use mpi_interface, only :myid, ver, author, info
+    use mpi_interface, only :myid
     USE mo_submctl, ONLY : fn1a,fn2a
     IMPLICIT NONE
     real, intent (in) :: time
@@ -877,7 +877,7 @@ contains
     fname =  trim(filprf)
     if(myid == 0) print                                                  &
             "(//' ',49('-')/,' ',/,'   Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(btot)
-    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid0, nrec0, ver, author, info)
+    call open_nc( fname, expnme, time, ncid0, nrec0)
 
     IF (level < 4 .OR. .NOT. lbinanl) THEN
        call define_nc( ncid0, nrec0, nvar0, sanal, n1=nzp, n2=nxp-4, n3=nyp-4)

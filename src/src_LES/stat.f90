@@ -22,14 +22,15 @@ module stat
 
   use grid, only : level, lev_sb, maxn_list
   use util, only : get_avg3, get_cor3, get_var3, get_avg_ts, get_avg2dh, get_3rd3, &
-                   HistDistr, get_zi_dmax, get_max_val, get_pustat_scalar, get_pustat_vector
+                   HistDistr, get_zi_dmax, get_max_val, get_pustat_scalar, get_pustat_vector, &
+                   HistDistr_1d, HistDistr_3d
   use defs, only : rowt, pi
   use netcdf
 
   implicit none
   private
 
-  integer, parameter :: nvar1 = 37,               &
+  integer, parameter :: nvar1 = 38,               &
                         nv1_ice = 22,             &
                         nv1_lvl4 = 5,             &
                         nv1_lvl5 = 12,            &
@@ -38,6 +39,7 @@ module stat
                         nv2_lvl4 = 0,             &
                         nv2_lvl5 = 11,            &
                         nv2_hist = 2,             &
+                        nv_whist = 2,             &
                         nvar3 = 25,               &
                         nv3_ice = 20,             &
                         nv3_lvl4 = 0,             &
@@ -48,6 +50,7 @@ module stat
 
   logical            :: sflg = .false.
   LOGICAL            :: csflg = .FALSE., cswrite = .FALSE.
+  real               :: cs_start = -1.     ! time to start saving cs data
   real               :: ssam_intvl = 30.   ! statistical sampling interval
   real               :: savg_intvl = 1800. ! statistical averaging interval
 
@@ -69,8 +72,8 @@ module stat
        'lhf_bar','zi_bar ','lwp_bar','lwp_var','zc     ','zb     ', & !13
        'cfrac  ','lmax   ','albedo ','nccnt  ','zcmn   ','zbmn   ', & !19
        'ncloud ','wvp_bar','rwp_bar','prcp   ','nrain  ','nrcnt  ', & !25
-       'prcp_bc','tkeint ','thl_int','prcc_bc','wvar_bc','Rcloud ', & !31
-       'Rrain  '/), & !37
+       'prcp_bc','tkeint ','thl_int','prcc_bc','wavg_bc','wvar_bc', & !31
+       'Rcloud ','Rrain  '/), & !37
 
        s1_ice(nv1_ice) = (/ &
        'iwp_bar','Rice   ','nice   ','nicnt  ','iprcp  ',  & ! 1-5
@@ -86,6 +89,10 @@ module stat
        'iwp_bar','Rice   ','nice   ','nicnt  ','iprcp  ',  & ! 1-5
        'swp_bar','Rsnow  ','nsnow  ','nscnt  ','sprcp  ',  & ! 6-10
        'SSi_max','thi_int'/), & ! 11-12
+
+        ! Vertical velocity histograms
+        s1_whist(nv_whist)=(/'wb_hist','wbins  '/), & ! ts: cloud base
+        s2_whist(nv_whist)=(/'w_hist ','wbins  '/), & ! ps: for each level
 
         s2(nvar2)=(/                                                 &
         'time   ','zt     ','zm     ','dn0    ','u0     ','v0     ', & ! 1
@@ -151,8 +158,8 @@ module stat
        ssclr_rem(:),                                                         &
        ! Bin dependent SALSA outputs
        svctr_bin(:,:),                                                       &
-       ! Cloud and ice histograms
-       svctr_ch(:,:,:), svctr_ih(:,:,:),                                     &
+       ! Cloud and ice size distributions and vertical velocity histograms
+       svctr_ch(:,:,:), svctr_ih(:,:,:), svctr_wh(:,:), ssclr_wh(:),         &
        ! User-selected process rate outputs
        out_cs_data(:,:,:), out_ps_data(:,:), out_ts_data(:),                 &
        out_mcrp_data(:,:,:,:),                                               &
@@ -176,13 +183,17 @@ module stat
   REAL, DIMENSION(-1:4) :: x_min=1e-20, x_max=1., a_geo=(6./(pi*rowt))**(1./3.), b_geo=1./3., eps=1e-20
   REAL :: ri_min=1e-10, ni_min=1e-10 ! Mass and number limits for ice statistics
 
+  ! Vertical velocity bins
+  REAL :: wbinlim(101)=-1e10
+  INTEGER :: nwbins = 0
+
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
        updtst, close_stat, fill_scalar, fill_scalar_2d, &
-       tke_sgs, sgsflxs, comp_tke, SALSA_precip_stats, csflg, cswrite, &
+       tke_sgs, sgsflxs, comp_tke, SALSA_precip_stats, csflg, cs_start, cswrite, &
        les_rate_stats, mcrp_var_save, out_cs_list, out_ps_list, out_ts_list, &
        cs_include, cs_exclude, ps_include, ps_exclude, ts_include, ts_exclude, &
        out_mcrp_data, out_mcrp_list, out_mcrp_nout, user_cs_list, user_ps_list, &
-       user_ts_list, setSBradius
+       user_ts_list, setSBradius, wbinlim
 
 contains
   !
@@ -197,7 +208,7 @@ contains
         no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, &
         sed_aero, sed_cloud, sed_precp, sed_ice, out_an_list, nv4_proc, &
         user_an_list, nv4_user, ifSeaSpray, ifSeaVOC
-    use mpi_interface, only : myid, ver, author, info
+    use mpi_interface, only : myid
     use mo_submctl, only : fn1a,fn2a,fnp2a,nout_cld,nout_ice,zspec
 
     character (len=80), intent (in) :: filprf, expnme
@@ -274,10 +285,18 @@ contains
     ! Cloud and rain masks for all levels
     ALLOCATE ( cloudmask(nzp,nxp,nyp), rainmask(nzp,nxp,nyp) )
 
+    ! Vertical velocity histograms
+    nwbins = COUNT(wbinlim>-1000.)-1 ! Note: wbinlim contains bin limits
+    IF (nwbins>0) THEN
+        ALLOCATE ( svctr_wh(nzp,nwbins), ssclr_wh(nwbins) )
+        svctr_wh(:,:) = 0.
+        ssclr_wh(:) = 0.
+    ENDIF
+
     IF ( level < 4 ) THEN
        ! Merge logical and name arrays
        ! a) Time series
-       i=nvar1+nv1_proc+nv1_user+nv1_ice
+       i=nvar1+nv1_proc+nv1_user+nv1_ice+nv_whist
        ALLOCATE( s1bool(i), s1total(i) )
        i=1; e=nvar1
        s1bool(i:e)=s1_bool; s1total(i:e)=s1
@@ -302,8 +321,10 @@ contains
        ENDIF
        i=e+1; e=e+nv1_ice
        s1bool(i:e)=tmp_bool(1:nv1_ice); s1total(i:e)=s1_ice(1:nv1_ice)
+       i=e+1; e=e+nv_whist
+       s1bool(i:e)=(nwbins>0); s1total(i:e)=s1_whist(1:nv_whist)
        ! b) Profiles
-       i=nvar2+nv2_proc+nv2_user+nv2_ice
+       i=nvar2+nv2_proc+nv2_user+nv2_ice+nv_whist
        ALLOCATE( s2bool(i), s2total(i) )
        i=1; e=nvar2
        s2bool(i:e)=s2_bool; s2total(i:e)=s2
@@ -328,6 +349,8 @@ contains
        ENDIF
        i=e+1; e=e+nv2_ice
        s2bool(i:e)=tmp_bool(1:nv2_ice); s2total(i:e)=s2_ice(1:nv2_ice)
+       i=e+1; e=e+nv_whist
+       s2bool(i:e)=(nwbins>0); s2total(i:e)=s2_whist(1:nv_whist)
        !
        IF (level==0) THEN
            ALLOCATE ( ssclr_ice(nv1_ice), svctr_ice(nzp,nv2_ice) )
@@ -421,7 +444,7 @@ contains
 
         ! Merge logical and name arrays
         ! a) Time series
-        i=nvar1+nv1_lvl4+nv1_lvl5+nv1_rem+nv1_proc+nv1_user
+        i=nvar1+nv1_lvl4+nv1_lvl5+nv1_rem+nv1_proc+nv1_user+nv_whist
         ALLOCATE( s1bool(i), s1total(i) )
         i=1; e=nvar1
         s1bool(i:e)=s1_bool; s1total(i:e)=s1
@@ -439,8 +462,10 @@ contains
             i=e+1; e=e+nv1_user
             s1bool(i:e)=.TRUE.; s1total(i:e)=user_ts_list(1:nv1_user)
         ENDIF
+        i=e+1; e=e+nv_whist
+        s1bool(i:e)=(nwbins>0); s1total(i:e)=s1_whist(1:nv_whist)
         ! b) Profiles
-        i=nvar2+nv2_lvl4+nv2_lvl5+2*nv2_hist+nv2_ndims+nv2_proc+nv2_user
+        i=nvar2+nv2_lvl4+nv2_lvl5+2*nv2_hist+nv2_ndims+nv2_proc+nv2_user+nv_whist
         ALLOCATE( s2bool(i), s2total(i) )
         i=1; e=nvar2
         s2bool(i:e)=s2_bool; s2total(i:e)=s2
@@ -462,6 +487,8 @@ contains
             i=e+1; e=e+nv2_user
             s2bool(i:e)=.TRUE.; s2total(i:e)=user_ps_list(1:nv2_user)
         ENDIF
+        i=e+1; e=e+nv_whist
+        s2bool(i:e)=(nwbins>0); s2total(i:e)=s2_whist(1:nv_whist)
         !
         ! Move bin dependent profile outputs from user_ps_list to s2_bin.
         ! Also, determine the output size i.e. the number of bins.
@@ -508,26 +535,24 @@ contains
     if (myid == 0) THEN
         fname =  trim(filprf)//'.ts'
         print "(//' ',49('-')/,' ',/,'  Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(s1bool)
-        call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid1, nrec1, ver, author, info, par=.FALSE.)
-        ! Juha: Modified for SALSA output
-        call define_nc( ncid1, nrec1, COUNT(s1bool), PACK(s1Total,s1bool))
+        call open_nc( fname, expnme, time, ncid1, nrec1, par=.FALSE.)
+        call define_nc( ncid1, nrec1, COUNT(s1bool), PACK(s1Total,s1bool), nwhist=nwbins)
         print *, '   ...starting record: ', nrec1
     ENDIF
 
     if (myid == 0) then
         fname =  trim(filprf)//'.ps'
         print "(//' ',49('-')/,' ',/,'  Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(s2bool)
-        call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid2, nrec2, ver, author, info, par=.FALSE.)
-        ! Juha: Modified due to SALSA output
+        call open_nc( fname, expnme, time, ncid2, nrec2, par=.FALSE.)
         IF (level<4) THEN
-            call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp)
+            call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp, nwhist=nwbins)
         ELSEIF (level<5) THEN
             call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp,  &
-                n1a=fn1a, n2ab=fn2a-fn1a, nprc=nprc, nchist=nout_cld)
+                n1a=fn1a, n2ab=fn2a-fn1a, nprc=nprc, nchist=nout_cld, nwhist=nwbins)
         ELSE
             call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp,  &
                 n1a=fn1a, n2ab=fn2a-fn1a, nprc=nprc, nchist=nout_cld, &
-                nsnw=nsnw, nihist=nout_ice)
+                nsnw=nsnw, nihist=nout_ice, nwhist=nwbins)
         ENDIF
         print *, '   ...starting record: ', nrec2
     ENDIF
@@ -598,7 +623,7 @@ contains
         fname =  trim(filprf)//'.cs'
         if(myid == 0) print                                                  &
             "(//' ',49('-')/,' ',/,'  Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(s1bool)
-        call open_nc( fname, expnme, time,(nxp-4)*(nyp-4), ncid3, nrec3, ver, author, info)
+        call open_nc( fname, expnme, time, ncid3, nrec3)
         call define_nc( ncid3, nrec3, COUNT(s1bool), PACK(s1Total,s1bool), n2=nxp-4, n3=nyp-4)
         if (myid == 0) print *, '   ...starting record: ', nrec3
     ENDIF
@@ -1437,7 +1462,8 @@ contains
     real, intent(in), DIMENSION(n1,n2,n3) :: w, dn, rc, rt, rv, nc, rr, nr, rrate, crate
 
     integer :: k,i,j,n,m,l
-    real    :: scr(n2,n3), scr1(n2,n3), scr2(n2,n3), ct_sum, cb_sum, ct_max, cb_min, rrcb, rccb, wvar, a(n1,n2,n3)
+    real    :: scr(n2,n3), scr1(n2,n3), scr2(n2,n3), ct_sum, cb_sum, ct_max, cb_min, &
+        rrcb, rccb, wavg, wvar, a(n1,n2,n3), wb(n2*n2)
     INTEGER :: ct_tmp, cb_tmp
 
     ssclr(14) = get_zi_dmax(n1, n2, n3, rt, zt) ! height of the maximum total water gradient
@@ -1454,6 +1480,7 @@ contains
     cb_min = zt(n1)
     rrcb = 0.       ! Rain and cloud water precipitation rates at the cloud base
     rccb = 0.
+    wavg = 0.       ! Cloud base mean vertical velocity
     wvar = 0.       ! Cloud base vertical velocity variance
     do j=3,n3-2
        do i=3,n2-2
@@ -1485,7 +1512,10 @@ contains
              ! Precipitation from the lowest cloudy grid cell (no cloud = zero precipitation)
              rrcb = rrcb + rrate(cb_tmp,i,j)
              rccb = rccb + crate(cb_tmp,i,j)
-             ! Cloud base vertical velocity variance (zero mean assumed)
+             ! Cloud base vertical velocity histogram
+             wb(n) = w(cb_tmp,i,j)
+             ! Cloud base vertical velocity mean and variance
+             wavg = wavg + w(cb_tmp,i,j)
              wvar = wvar + w(cb_tmp,i,j)**2
           ENDIF
        end do
@@ -1505,9 +1535,10 @@ contains
         ssclr(18) = get_pustat_scalar('min',cb_min) ! Minimum cloud base height
         ssclr(23) = get_pustat_scalar('avg',ct_sum,REAL(n)) ! Mean cloud top height
         ssclr(24) = get_pustat_scalar('avg',cb_sum,REAL(n)) ! Mean cloud base height
-        ssclr(35) = get_pustat_scalar('avg',wvar,REAL(n))
+        ssclr(35) = get_pustat_scalar('avg',wavg,REAL(n)) ! Mean vertical velocity
+        ssclr(36) = get_pustat_scalar('avg',wvar,REAL(n))-ssclr(35)**2 ! Vertical velocity variance
     ELSE
-        ssclr((/17,18,23,24,25,35/)) = -999.
+        ssclr((/17,18,23,24,25,35,36/)) = -999.
     ENDIF
 
     ! liquid water path (without precipitation)
@@ -1537,15 +1568,18 @@ contains
     ! average radius
     IF (level<4) THEN
         CALL getSBradius(n1,n2,n3,nc,rc,-1,a)
-        ssclr(36) = get_avg_ts(n1,n2,n3,a,dzt,cloudmask)
+        ssclr(37) = get_avg_ts(n1,n2,n3,a,dzt,cloudmask)
         CALL getSBradius(n1,n2,n3,nr,rr,0,a)
-        ssclr(37) = get_avg_ts(n1,n2,n3,a,dzt,rainmask)
+        ssclr(38) = get_avg_ts(n1,n2,n3,a,dzt,rainmask)
     ELSE
         CALL meanRadius('cloud','ab',a)
-        ssclr(36) = get_avg_ts(n1,n2,n3,a,dzt,cloudmask)
+        ssclr(37) = get_avg_ts(n1,n2,n3,a,dzt,cloudmask)
         CALL meanRadius('precp','ab',a)
-        ssclr(37) = get_avg_ts(n1,n2,n3,a,dzt,rainmask)
+        ssclr(38) = get_avg_ts(n1,n2,n3,a,dzt,rainmask)
     ENDIF
+
+    ! Cloud base vertical velocity histogram
+    IF (nwbins>0) CALL HistDistr_1d(n,wb,wbinlim(1:nwbins+1),nwbins,ssclr_wh)
 
   end subroutine ts_cld
   !
@@ -1965,6 +1999,9 @@ contains
     ENDWHERE
     CALL get_avg3(n1,n2,n3,xy1,a1)
     svctr(:,91) = svctr(:,91) + a1(:)
+    !
+    ! Vertical velocity histogram
+    IF (nwbins>0) CALL HistDistr_3d(n1,n2,n3,w,wbinlim(1:nwbins+1),nwbins,svctr_wh)
     !
     ! do some conditional sampling statistics: cloud, cloud-core
     !
@@ -2667,6 +2704,18 @@ contains
     use mpi_interface, only : myid
 
     integer :: iret, n, VarID
+    REAL, ALLOCATABLE :: rmid(:)
+
+    ! Constants (bin limits,...)
+    if (nrec1 == 1) then
+          iret = nf90_inq_varid(ncid1,'wbins',VarID)
+          IF (iret == NF90_NOERR) THEN
+              ALLOCATE(rmid(nwbins))
+              rmid(:)=0.5*(wbinlim(1:nwbins)+wbinlim(2:nwbins+1))
+              iret = nf90_put_var(ncid1,VarID,rmid,start=(/nrec1/))
+              DEALLOCATE(rmid)
+          END IF
+    ENDIF
 
     do n=1,nvar1
        iret = nf90_inq_varid(ncid1, s1(n), VarID)
@@ -2723,6 +2772,14 @@ contains
         ENDDO
         user_ts_data(:) = 0.
     ENDIF
+
+    ! Cloud base vertical velocity histogram
+    IF (nwbins>0) THEN
+        iret = nf90_inq_varid(ncid1, s1_whist(1), VarID)
+        IF (iret == NF90_NOERR) &
+            iret = nf90_put_var(ncid1, VarID, ssclr_wh(:), start=(/1,nrec1/), count=(/nwbins,1/))
+        svctr_wh(:,:) = 0.
+    END IF
 
     if (myid==0) print "(/' ',12('-'),'   Record ',I4,' to time series')",nrec1
 
@@ -2816,6 +2873,13 @@ contains
               iret = nf90_put_var(ncid2,VarID,rmid,start=(/nrec2/))
               DEALLOCATE(rmid)
           END IF
+          iret = nf90_inq_varid(ncid2,'wbins',VarID)
+          IF (iret == NF90_NOERR) THEN
+              ALLOCATE(rmid(nwbins))
+              rmid(:)=0.5*(wbinlim(1:nwbins)+wbinlim(2:nwbins+1))
+              iret = nf90_put_var(ncid2,VarID,rmid,start=(/nrec2/))
+              DEALLOCATE(rmid)
+          END IF
        END IF
     end if
 
@@ -2896,6 +2960,13 @@ contains
         IF (iret == NF90_NOERR) &
             iret = nf90_put_var(ncid2,VarID,svctr_ih(:,:,2), start=(/1,1,nrec2/), count=(/n1,nout_ice,1/))
         svctr_ih(:,:,:) = 0.
+    END IF
+
+    IF (nwbins>0) THEN
+        iret = nf90_inq_varid(ncid2, s2_whist(1), VarID)
+        IF (iret == NF90_NOERR) &
+            iret = nf90_put_var(ncid2,VarID,svctr_wh(:,:), start=(/1,1,nrec2/), count=(/n1,nwbins,1/))
+        svctr_wh(:,:) = 0.
     END IF
 
     IF (nv2_proc>0) THEN
