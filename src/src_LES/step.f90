@@ -47,12 +47,10 @@ contains
   subroutine stepper
 
     use mpi_interface, only : myid, double_scalar_par_max
-
-    use grid, only : dtl, zt, zm, nzp, dn0, u0, v0, &
-         write_hist, write_anal, close_anal, &
-         dtlong, nzp
-    use stat, only : sflg, csflg, cswrite, savg_intvl, ssam_intvl, write_ps, close_stat
-
+    use grid, only : dtl, zt, zm, dzt, nzp, dxi, dyi, nxp, nyp, a_up, a_vp, a_wp, &
+         dn0, u0, v0, write_hist, write_anal, close_anal, dtlong
+    use stat, only : sflg, csflg, cswrite, cs_start, savg_intvl, ssam_intvl, &
+         write_ps, close_stat, fill_scalar
     real, parameter :: cfl_upper = 0.5
 
     real    :: t1,t2,tplsdt
@@ -67,9 +65,12 @@ contains
 
     do while (time < timmax)
        ! Limit time step based on the Courant-Friedrichs-Lewy condition
-       call cfl(cflmax)
+       cflmax = cfll(nzp,nxp,nyp,a_up,a_vp,a_wp,dxi,dyi,dzt,dtl)
        call double_scalar_par_max(cflmax,gcflmax)
+       if (cflmax>0.9999*gcflmax .and. cflmax>0.95) &
+            print *, 'Warning CFL Violation :', cflmax, dtl, myid
        cflmax = gcflmax
+       call fill_scalar(REAL(cflmax),'cfl    ','max')
        dtl = min(dtlong,dtl*cfl_upper/(cflmax+epsilon(1.)))
 
        ! Determine when to compute statistics
@@ -77,7 +78,7 @@ contains
        !    - After the first call (time=0)
        tplsdt = time + dtl ! Time after t_step
        sflg = (min(mod(tplsdt,ssam_intvl),mod(tplsdt,savg_intvl)) < dtl .or. tplsdt < 1.1*dtl)
-       cswrite = csflg .and. (mod(tplsdt,savg_intvl) < dtl .or. tplsdt < 1.1*dtl)
+       cswrite = csflg .and. (mod(tplsdt,savg_intvl) < dtl .or. tplsdt < 1.1*dtl) .and. tplsdt >= cs_start
 
        call t_step
        time = time + dtl
@@ -110,7 +111,7 @@ contains
 
     enddo
 
-    call write_hist(1, time)
+    IF (outflg) call write_hist(1, time)
     iret = close_anal()
     iret = close_stat()
 
@@ -500,24 +501,6 @@ contains
   end subroutine tend0
   !
   !----------------------------------------------------------------------
-  ! Subroutine cfl: Driver for calling CFL computation subroutine
-  !
-  subroutine cfl(cflmax)
-
-    use grid, only : a_up,a_vp,a_wp,nxp,nyp,nzp,dxi,dyi,dzt,dtl
-    use stat, only : fill_scalar
-
-    real(KIND=8), intent (out)   :: cflmax
-    real, parameter :: cflnum=0.95
-
-    cflmax =  cfll(nzp,nxp,nyp,a_up,a_vp,a_wp,dxi,dyi,dzt,dtl)
-
-    if (cflmax > cflnum) print *, 'Warning CFL Violation :', cflmax
-    call fill_scalar(REAL(cflmax),'cfl    ','max')
-
-  end subroutine cfl
-  !
-  !----------------------------------------------------------------------
   ! Subroutine cfll: Gets the peak CFL number
   !
   real(KIND=8) function cfll(n1,n2,n3,u,v,w,dxi,dyi,dzt,dtlt)
@@ -531,7 +514,7 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1
-             cfll=max(cfll, dtlt*2.* max(abs(u(k,i,j)*dxi),             &
+             cfll=max(cfll, dtlt * max(abs(u(k,i,j)*dxi),             &
                   abs(v(k,i,j)*dyi), abs(w(k,i,j)*dzt(k))))
           end do
        end do

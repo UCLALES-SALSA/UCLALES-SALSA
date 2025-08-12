@@ -593,6 +593,70 @@ contains
     !
   END SUBROUTINE HistDistr
   !
+  ! Vertical velocity histograms
+  SUBROUTINE HistDistr_3d(n1,n2,n3,w,wbins,nout,hist)
+    use mpi_interface, only : double_array_par_sum
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: n1, n2, n3, nout ! Dimensions
+    REAL, INTENT(IN) :: w(n1,n2,n3) ! Vertical velocity
+    REAL, INTENT(IN) :: wbins(nout+1) ! Bin limits
+    REAL, INTENT(INOUT) :: hist(n1,nout) ! Output histogram (cumulative)
+    REAL :: wmin, wmax
+    INTEGER :: i, j, k, ii
+    real(kind=8) :: lavg(n1*nout),gavg(n1*nout)
+    !
+    ! Include values that are within the bin limits
+    wmin=wbins(1)
+    wmax=wbins(nout+1)
+    !
+    lavg=0.
+    do j=3,n3-2
+       do i=3,n2-2
+          do k=2,n1
+            IF (wmin<=w(k,i,j) .AND. w(k,i,j)<=wmax) THEN
+                ii=MAX(1,COUNT(w(k,i,j)>wbins))
+                ii=k+ii*n1
+                lavg(ii)=lavg(ii)+1.
+            ENDIF
+          ENDDO
+       ENDDO
+    ENDDO
+    !
+    ! Sum over PUs
+    call double_array_par_sum(lavg,gavg,n1*nout)
+    hist = hist + RESHAPE( gavg, (/n1,nout/) )
+    !
+  END SUBROUTINE HistDistr_3d
+  !
+  SUBROUTINE HistDistr_1d(n,w,wbins,nout,hist)
+    use mpi_interface, only : double_array_par_sum
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: n, nout ! Dimensions
+    REAL, INTENT(IN) :: w(*) ! Vertical velocity
+    REAL, INTENT(IN) :: wbins(nout+1) ! Bin limits
+    REAL, INTENT(OUT) :: hist(nout) ! Output histogram
+    REAL :: wmin, wmax
+    INTEGER :: k, ii
+    real(kind=8) :: lavg(nout),gavg(nout)
+    !
+    ! Include values that are within the bin limits
+    wmin=wbins(1)
+    wmax=wbins(nout+1)
+    !
+    lavg=0.
+    do k=1,n
+        IF (wmin<=w(k) .AND. w(k)<=wmax) THEN
+            ii=MAX(1,COUNT(w(k)>wbins))
+            lavg(ii)=lavg(ii)+1.
+        ENDIF
+    ENDDO
+    !
+    ! Sum over PUs
+    call double_array_par_sum(lavg,gavg,nout)
+    hist = gavg
+    !
+  END SUBROUTINE HistDistr_1d
+  !
   !---------------------------------------------------------------------
   ! function get_cor3: gets mean correlation accross outer two dimensions
   ! at each point along inner dimension - calculated over all PUs
