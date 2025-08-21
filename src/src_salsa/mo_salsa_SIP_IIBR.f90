@@ -200,7 +200,7 @@ MODULE mo_salsa_SIP_IIBR
                   SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
 
             IF (ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) THEN
-                  WRITE(*,*) 'SIP-IIBR ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
+                  WRITE(*,*) 'SIP-IIBR Warning: NUMBER SINK EXCEEED BIN NUMBER',  &
                   ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
                   sinknumc(ii,jj,bb) =  ice(ii,jj,bb)%numc
                   sinkvolc(ii,jj,bb,1:nspec) = ice(ii,jj,bb)%volc(1:nspec)

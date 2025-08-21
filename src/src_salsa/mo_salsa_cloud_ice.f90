@@ -38,7 +38,10 @@ MODULE mo_salsa_cloud_ice
     ! Which species are allowed to freeze
     LOGICAL, PARAMETER :: aerosol_ice = .TRUE., cloud_ice = .TRUE., precip_ice = .TRUE.
     ! Maximum temperature (K) for homogeneous nucleation
-    REAL, PARAMETER :: tmax_homog=243.15  ! Juha: Isnt this a bit high?
+    ! REAL, PARAMETER :: tmax_homog=243.15  ! Juha: Isnt this a bit high?
+    REAL, PARAMETER ::  tmax_homog=237.9     ! Silvia: 21-08-2025 Mean value of the range in...
+    ! DOI: 10.1039/D2CP03896J (Paper) Phys. Chem. Chem. Phys., 2022, 24, 28213-28221
+    ! https://pubs.rsc.org/en/content/articlehtml/2022/cp/d2cp03896j
 
     REAL, PARAMETER :: dmin = 1.e-10 ! Diameter limit
 

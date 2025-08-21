@@ -109,7 +109,7 @@ MODULE mo_salsa_SIP_DF
                   IF ( ddmean < dlliq_df ) CYCLE  
 
                   ! POISTA
-                  IF (ddmean < 20.e-6 .OR. ddmean > 1.e-1) WRITE(*,*) 'SIP-DF ddmean error ',ddmean,bb,nimax,icediams(bb),icebw(bb)
+                  IF (ddmean < 20.e-6 .OR. ddmean > 1.e-1) WRITE(*,*) 'SIP-DF ddmean Warning ',ddmean,bb,nimax,icediams(bb),icebw(bb)
                   IF (ddmean /= ddmean) WRITE(*,*) 'SIP-DF ddmean nan ',ddmean,bb,nimax,icediams(bb),icebw(bb)
                   ! -----------------
                
@@ -173,11 +173,11 @@ MODULE mo_salsa_SIP_DF
 
             !These are just warning for debugging. Possible issues solved in L187
             IF ( SUM(sinkvolc(ii,jj,bb,:)) > SUM(ice(ii,jj,bb)%volc(1:nspec)) )     &
-                  WRITE(*,*)  'SIP-DRFR ERROR: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
+                  WRITE(*,*)  'SIP-DRFR Warning: FRAGMENT MASS EXCEEDS BIN MASS 2', & 
                   SUM(sinkvolc(ii,jj,bb,:)), SUM(fragvolc(ii,jj,:,:)), SUM(ice(ii,jj,bb)%volc(1:nspec))
 
             IF (ice(ii,jj,bb)%numc < sinknumc(ii,jj,bb)) THEN
-                  WRITE(*,*) 'SIP-DRFR ERROR: NUMBER SINK EXCEEED BIN NUMBER',  &
+                  WRITE(*,*) 'SIP-DRFR Warning: NUMBER SINK EXCEEED BIN NUMBER',  &
                   ice(ii,jj,bb)%numc, sinknumc(ii,jj,bb), bb, SUM(fragnumc(ii,jj,:)) 
                   sinknumc(ii,jj,bb) =  ice(ii,jj,bb)%numc
                   sinkvolc(ii,jj,bb,1:nspec) = ice(ii,jj,bb)%volc(1:nspec)

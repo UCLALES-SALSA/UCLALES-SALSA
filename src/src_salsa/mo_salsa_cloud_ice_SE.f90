@@ -40,7 +40,10 @@ MODULE mo_salsa_cloud_ice_SE
     REAL :: dwet, dins
     REAL, PARAMETER :: dmin = 1.e-10
     REAL, PARAMETER :: Vmin = pi6*(1.e-10)**3
-    REAL, PARAMETER :: tmax_homog = 243.15  ! Juha: Isnt this a bit high?   
+   ! REAL, PARAMETER :: tmax_homog = 243.15  ! Juha: Isnt this a bit high?
+    REAL, PARAMETER ::  tmax_homog=237.9     ! Silvia: 21-08-2025 Mean value of the range in ...
+    ! DOI: 10.1039/D2CP03896J (Paper) Phys. Chem. Chem. Phys., 2022, 24, 28213-28221
+    ! https://pubs.rsc.org/en/content/articlehtml/2022/cp/d2cp03896j 
     LOGICAL :: nuc_mask(kbdim,klev,nliquid) ! Mask for conditions on different ice nucleation processes    
 
     
