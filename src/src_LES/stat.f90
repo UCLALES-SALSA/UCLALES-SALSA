@@ -30,7 +30,7 @@ module stat
   implicit none
   private
 
-  integer, parameter :: nvar1 = 38,               &
+  integer, parameter :: nvar1 = 41,               &
                         nv1_ice = 22,             &
                         nv1_lvl4 = 5,             &
                         nv1_lvl5 = 12,            &
@@ -73,7 +73,7 @@ module stat
        'cfrac  ','lmax   ','albedo ','nccnt  ','zcmn   ','zbmn   ', & !19
        'ncloud ','wvp_bar','rwp_bar','prcp   ','nrain  ','nrcnt  ', & !25
        'prcp_bc','tkeint ','thl_int','prcc_bc','wavg_bc','wvar_bc', & !31
-       'Rcloud ','Rrain  '/), & !37
+       'wp_bc  ','wp2_bc ','wp_frac','Rcloud ','Rrain  '/), & !37
 
        s1_ice(nv1_ice) = (/ &
        'iwp_bar','Rice   ','nice   ','nicnt  ','iprcp  ',  & ! 1-5
@@ -1463,7 +1463,7 @@ contains
 
     integer :: k,i,j,n,m,l
     real    :: scr(n2,n3), scr1(n2,n3), scr2(n2,n3), ct_sum, cb_sum, ct_max, cb_min, &
-        rrcb, rccb, wavg, wvar, a(n1,n2,n3), wb(n2*n2)
+        rrcb, rccb, wavg, wvar, wpos, w2pos, npos, a(n1,n2,n3), wb(n2*n3)
     INTEGER :: ct_tmp, cb_tmp
 
     ssclr(14) = get_zi_dmax(n1, n2, n3, rt, zt) ! height of the maximum total water gradient
@@ -1482,6 +1482,9 @@ contains
     rccb = 0.
     wavg = 0.       ! Cloud base mean vertical velocity
     wvar = 0.       ! Cloud base vertical velocity variance
+    wpos = 0.       ! Mean positive updraft velocity at the cloud base
+    w2pos = 0.      ! Velocity weighted mean positive updraft velocity at the cloud base
+    npos = 0.
     do j=3,n3-2
        do i=3,n2-2
           ct_tmp = 1
@@ -1517,6 +1520,12 @@ contains
              ! Cloud base vertical velocity mean and variance
              wavg = wavg + w(cb_tmp,i,j)
              wvar = wvar + w(cb_tmp,i,j)**2
+             ! Positive velocities
+             IF (w(cb_tmp,i,j)>0.0) THEN
+                wpos = wpos + w(cb_tmp,i,j)
+                w2pos = w2pos + w(cb_tmp,i,j)**2
+                npos = npos + 1.
+            ENDIF
           ENDIF
        end do
     end do
@@ -1539,6 +1548,16 @@ contains
         ssclr(36) = get_pustat_scalar('avg',wvar,REAL(n))-ssclr(35)**2 ! Vertical velocity variance
     ELSE
         ssclr((/17,18,23,24,25,35,36/)) = -999.
+    ENDIF
+
+    ! Fraction of columns with positive cloud base velocity
+    ssclr(39) = get_pustat_scalar('sum',npos/REAL((n3-4)*(n2-4)))
+    IF (ssclr(39)>0.) THEN
+        ssclr(37) = get_pustat_scalar('avg',wpos,npos)
+        ssclr(38) = get_pustat_scalar('avg',w2pos,npos)
+    ELSE
+        ssclr(37) = -999.
+        ssclr(38) = -999.
     ENDIF
 
     ! liquid water path (without precipitation)
@@ -1568,14 +1587,14 @@ contains
     ! average radius
     IF (level<4) THEN
         CALL getSBradius(n1,n2,n3,nc,rc,-1,a)
-        ssclr(37) = get_avg_ts(n1,n2,n3,a,dzt,cloudmask)
+        ssclr(40) = get_avg_ts(n1,n2,n3,a,dzt,cloudmask)
         CALL getSBradius(n1,n2,n3,nr,rr,0,a)
-        ssclr(38) = get_avg_ts(n1,n2,n3,a,dzt,rainmask)
+        ssclr(41) = get_avg_ts(n1,n2,n3,a,dzt,rainmask)
     ELSE
         CALL meanRadius('cloud','ab',a)
-        ssclr(37) = get_avg_ts(n1,n2,n3,a,dzt,cloudmask)
+        ssclr(40) = get_avg_ts(n1,n2,n3,a,dzt,cloudmask)
         CALL meanRadius('precp','ab',a)
-        ssclr(38) = get_avg_ts(n1,n2,n3,a,dzt,rainmask)
+        ssclr(41) = get_avg_ts(n1,n2,n3,a,dzt,rainmask)
     ENDIF
 
     ! Cloud base vertical velocity histogram

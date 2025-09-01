@@ -665,6 +665,18 @@ contains
        if (itype==0) ncinfo = 'Cloud base vertical velocity variance'
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'time'
+    case('wp_bc')
+       if (itype==0) ncinfo = 'Mean positive cloud base vertical velocity'
+       if (itype==1) ncinfo = 'm/s'
+       if (itype==2) ncinfo = 'time'
+    case('wp2_bc')
+       if (itype==0) ncinfo = 'Velocity-weighted positive cloud base vertical velocity'
+       if (itype==1) ncinfo = 'm/s'
+       if (itype==2) ncinfo = 'time'
+    case('wp_frac')
+       if (itype==0) ncinfo = 'Fraction of columns with positive cloud base vertical velocity'
+       if (itype==1) ncinfo = '-'
+       if (itype==2) ncinfo = 'time'
     case('wb_hist')
        if (itype==0) ncinfo = 'Histogram of cloud base vertical velocity'
        if (itype==1) ncinfo = 'm/s'
