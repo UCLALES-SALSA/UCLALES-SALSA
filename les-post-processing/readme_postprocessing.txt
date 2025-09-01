@@ -31,9 +31,16 @@ gfortran -O2 -I/usr/include -o ./pples combine.f90 -lnetcdff
 gfortran -O2 -I/usr/include -o ./pples_nobinned combine_nobinned.f90 -lnetcdff
 
 --
+! You can use combined_4d_single_var.f90 to include just one 4D variables (e.g. rc(t,x,y,z)).
+
+! To have just 4D variables run
+
+gfortran -O2 -I/usr/include -o ./pples_4d_single_var combine_4d_single_var.f90 -lnetcdff
+
+--
 ! Binned variables can be processed separately using combined_binned.f90
 
-gfortran -O2 -I/usr/include -o ./pple_binned combine_binned.f90 -lnetcdff
+gfortran -O2 -I/usr/include -o ./pples_binned combine_binned.f90 -lnetcdff
 
 
 ************************************************************************************
@@ -46,6 +53,9 @@ gfortran -O2 -I/usr/include -o ./pple_binned combine_binned.f90 -lnetcdff
 
 --
 ./pples_nobinned SPICULE_20210605_RF04b_control_L5 deflate_level=4
+
+--
+./pples_4d_single_var SPICULE_20210605_RF04b_control_L5 deflate_level=4 variable_name=wwind
 
 --
 ./pples_binned SPICULE_20210605_RF04b_control_L5 deflate_level=4 variable_name=Ncba
@@ -108,7 +118,10 @@ module load netcdf-fortran/4.5.4
 !  Run 
 !    srun --ntasks=1 --time=00:0:10 --partition=<partition> --account=<project> pples <file name prefix> <key1=value1 key2=value2 ...>
 
-! Example
+! Examples
 !  srun pples OMAA2019AUG12_lowcape2_phfull_M22_charge_hr11 deflate_level=4
+!  srun pples_binned OMAA2019AUG12_lowcape2_phfull_M22_charge_hr11 deflate_level=4 variable_name=Ncba
+!  srun pples_binned OMAA2019AUG12_lowcape2_phfull_M22_charge_hr11 deflate_level=4 variable_name=Dwcba
+!  srun pples_4d_single_var OMAA2019AUG12_lowcape2_phfull_M22_charge_hr11 deflate_level=4 variable_name=wwind
 ------------------------------------------------------------------------------------
 
