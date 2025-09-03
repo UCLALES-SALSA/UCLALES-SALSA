@@ -6,22 +6,22 @@ module ncio
   implicit none
   private
 
-  public :: open_nc, define_nc, ncinfo, &
-            open_aero_nc, read_aero_nc_1d, read_aero_nc_2d, close_aero_nc
+  ! Additional, e.g. case specific, information
+  CHARACTER(len=180), PARAMETER :: info=''
+
+  public :: open_nc, define_nc, ncinfo
 
 contains
   !
   ! ----------------------------------------------------------------------
   ! Subroutine Open_NC: Opens a NetCDF File and identifies starting record
   !
-  subroutine open_nc (fname, ename, time, npts, ncid, nrec, version, author, info, par)
+  subroutine open_nc (fname, ename, time, ncid, nrec, par)
 
-    integer, intent(in)             :: npts
     integer, intent(out)            :: ncid
     integer, intent(out)            :: nrec
     real, intent (in)               :: time
     character (len=80), intent (in) :: fname, ename
-    CHARACTER(LEN=80) :: version, author, info
     logical, optional, intent(in) :: par
 
     real, allocatable :: xtimes(:)
@@ -50,11 +50,9 @@ contains
 
        if (len_trim(ename)>0) iret = nf90_put_att(ncid,NF90_GLOBAL,'title',ename)
        iret = nf90_put_att(ncid,NF90_GLOBAL,'history','Created on '//date)
-       iret = nf90_put_att(ncid, NF90_GLOBAL, 'Source','UCLALES-SALSA '//trim(version))
-       if (len_trim(author)>0) iret = nf90_put_att(ncid, NF90_GLOBAL, 'Author',trim(author))
+       iret = nf90_put_att(ncid, NF90_GLOBAL, 'Source','UCLALES-SALSA')
        if (len_trim(info)>0) iret = nf90_put_att(ncid, NF90_GLOBAL, 'Info',trim(info))
        iret = nf90_put_att(ncid, NF90_GLOBAL, '_FillValue',-999.)
-       iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPTS',npts)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'NPROCS',pecount)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'PROCID',myid)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'IO_version',1.2)
@@ -85,24 +83,25 @@ contains
   ! precipitation particles.
   !
   subroutine define_nc(ncID, nRec, nVar, sx, n1, n2, n3, &
-                       n1a, n2a, n2b, nprc, nsnw, nchist, nihist)
+                       n1a, n2ab, nprc, nsnw, nchist, nihist, nwhist)
 
     integer, intent (in)           :: nVar, ncID
     integer, intent (inout)        :: nRec
     character (len=7), intent (in) :: sx(nVar)
     integer, optional, intent (in) :: n1, n2, n3,            &
-                                      n1a,n2a,n2b,nprc,nsnw, &
-                                      nchist,nihist
+                                      n1a,n2ab,nprc,nsnw, &
+                                      nchist,nihist,nwhist
 
     integer, save :: timeID=0, ztID=0, zmID=0, xtID=0, xmID=0, ytID=0, ymID=0,&
          dim_mttt(4) = 0, dim_tmtt(4) = 0, dim_ttmt(4) = 0, dim_tttt(4) = 0  ,&
          dim_tt(2)  = 0, dim_mt(2)  = 0
 
     ! Juha: added
-    INTEGER, SAVE :: aeaID=0, aebID=0, prcID=0, snowID=0, hcID=0, hiID=0,                &
+    INTEGER, SAVE :: aeaID=0, aebID=0, prcID=0, snowID=0, hcID=0, hiID=0, hwID=0,        &
          dim_ttttaea(5) = 0, dim_ttttaeb(5) = 0, dim_ttttprc(5) = 0, dim_ttttsnw(5) = 0, & ! z, x, y, bin, time
          dim_ttztaea(3) = 0, dim_ttztaeb(3) = 0, dim_ttztprc(3) = 0, dim_ttztsnw(3) = 0, & ! z, bin, time
-         dim_tttzhct(3) = 0, dim_tttzhit(3) = 0, & ! z, histogram_bins, time
+         dim_tttzhct(3) = 0, dim_tttzhit(3) = 0, dim_tttzhw(3) = 0, & ! z, histogram_bins, time
+         dim_ttthw(2) = 0, & ! histogram_bins, time
          dim_ttt(3) = 0    ! x, y, time
 
     character (len=7) :: xnm
@@ -126,9 +125,9 @@ contains
           iret = nf90_def_dim(ncID, 'ym', n3, ymID)
           IF (.not.present(n1)) dims = 2
        end if
-       IF (PRESENT(n1a) .AND. PRESENT(n2a) .AND. PRESENT(n2b)) THEN
-          iret = nf90_def_dim(ncID, 'B_Rd12a', n1a+n2a, aeaID) ! 1a+2a (a-aerosol only)
-          iret = nf90_def_dim(ncID, 'B_Rd2ab', n2b, aebID) ! 2a and 2b (all other species)
+       IF (PRESENT(n1a) .AND. PRESENT(n2ab)) THEN
+          iret = nf90_def_dim(ncID, 'B_Rd12a', n1a+n2ab, aeaID) ! 1a+2a (a-aerosol only)
+          iret = nf90_def_dim(ncID, 'B_Rd2ab', n2ab, aebID) ! 2a and 2b (all other species)
        END IF
        IF (PRESENT(nprc)) THEN
           iret = nf90_def_dim(ncID, 'B_Rwprc', nprc, prcID)
@@ -141,6 +140,9 @@ contains
        END IF
        IF (PRESENT(nihist)) THEN
           IF (nihist>0) iret = nf90_def_dim(ncID, 'P_hRi', nihist, hiID)
+       END IF
+       IF (PRESENT(nwhist)) THEN
+          IF (nwhist>0) iret = nf90_def_dim(ncID, 'wbins', nwhist, hwID)
        END IF
 
        dim_tt = (/ztID,timeID/)
@@ -163,6 +165,8 @@ contains
        ! Histograms
        dim_tttzhct = (/ztID,hcID,timeID/)
        dim_tttzhit = (/ztID,hiID,timeID/)
+       dim_tttzhw = (/ztID,hwID,timeID/)
+       dim_ttthw = (/hwID,timeID/)
        ! Column statistics
        dim_ttt = (/xtID,ytID,timeID/)
 
@@ -194,6 +198,8 @@ contains
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,hcID    ,VarID)
           CASE ('hir')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,hiID    ,VarID)
+          CASE ('hwm')
+             iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,hwID    ,VarID)
           case ('ttttaea')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttttaea,VarID)
           case ('ttttaeb')
@@ -206,6 +212,10 @@ contains
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttzhct,VarID)
           case ('tttzhit')
              iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttzhit,VarID)
+          case ('ttthw')
+             iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_ttthw,VarID)
+          case ('tttzhw')
+             iret=nf90_def_var(ncID,sx(n),NF90_FLOAT,dim_tttzhw,VarID)
           ! ---
           case ('tttt')
              if (dims == 3) then
@@ -663,10 +673,38 @@ contains
     case('prcc_bc')
        if (itype==0) ncinfo = 'Cloud water precipitation rate at the cloud base'
        if (itype==1) ncinfo = 'W/m^2'
+    case('wavg_bc')
+       if (itype==0) ncinfo = 'Cloud base average vertical velocity'
+       if (itype==1) ncinfo = 'm/s'
+       if (itype==2) ncinfo = 'time'
     case('wvar_bc')
        if (itype==0) ncinfo = 'Cloud base vertical velocity variance'
        if (itype==1) ncinfo = 'm^2/s^2'
        if (itype==2) ncinfo = 'time'
+    case('wp_bc')
+       if (itype==0) ncinfo = 'Mean positive cloud base vertical velocity'
+       if (itype==1) ncinfo = 'm/s'
+       if (itype==2) ncinfo = 'time'
+    case('wp2_bc')
+       if (itype==0) ncinfo = 'Velocity-weighted positive cloud base vertical velocity'
+       if (itype==1) ncinfo = 'm/s'
+       if (itype==2) ncinfo = 'time'
+    case('wp_frac')
+       if (itype==0) ncinfo = 'Fraction of columns with positive cloud base vertical velocity'
+       if (itype==1) ncinfo = '-'
+       if (itype==2) ncinfo = 'time'
+    case('wb_hist')
+       if (itype==0) ncinfo = 'Histogram of cloud base vertical velocity'
+       if (itype==1) ncinfo = 'm/s'
+       if (itype==2) ncinfo = 'ttthw'
+    case('w_hist')
+       if (itype==0) ncinfo = 'Histogram of vertical velocity'
+       if (itype==1) ncinfo = 'm/s'
+       if (itype==2) ncinfo = 'tttzhw'
+    case('wbins')
+       if (itype==0) ncinfo = 'Vertical velocity bin mean'
+       if (itype==1) ncinfo = 'm/s'
+       if (itype==2) ncinfo = 'hwm'
     case('CCN')
        if (itype==0) ncinfo = 'Cloud condensation nuclei'
        if (itype==1) ncinfo = 'kg^-1'
@@ -750,6 +788,12 @@ contains
        if (itype==1) ncinfo = 'K'
     case('T_avg')
        if (itype==0) ncinfo = 'Average absolute temperature'
+       if (itype==1) ncinfo = 'K'
+    case('T_min_c')
+       if (itype==0) ncinfo = 'In-cloud minimum absolute temperature'
+       if (itype==1) ncinfo = 'K'
+    case('T_max_c')
+       if (itype==0) ncinfo = 'In-cloud maximum absolute temperature'
        if (itype==1) ncinfo = 'K'
     case('thl_int')
        if (itype==0) ncinfo = 'Integrated liquid water potential temperature change'
@@ -1662,75 +1706,5 @@ contains
         ENDIF
     ENDIF
   END function get_sb_info
-  !
-  ! ----------------------------------------------------------------------
-  ! FUNCTIONS FOR READING AEROSOL SIZE DISTRIBUTIONS FROM A NETCDF FILE
-  !
-  SUBROUTINE open_aero_nc(ncid,nc_levs,nc_nspec,nc_nmod)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(out) :: ncid,nc_levs,nc_nspec,nc_nmod
-    INTEGER :: iret, did
-
-    ! Open file
-    iret = nf90_open('aerosol_in.nc',NF90_NOWRITE,ncid)
-
-    ! Inquire the number of input levels
-    iret = nf90_inq_dimid(ncid,'levs',did)
-    iret = nf90_inquire_dimension(ncid,did,len=nc_levs)
-
-    iret = nf90_inq_dimid(ncid,'nspec',did)
-    iret = nf90_inquire_dimension(ncid,did,len=nc_nspec)
-
-    iret = nf90_inq_dimid(ncid,'nmod',did)
-    iret = nf90_inquire_dimension(ncid,did,len=nc_nmod)
-
-  END SUBROUTINE open_aero_nc
-  !
-  ! ---------------------------------------------------
-  !
-  SUBROUTINE read_aero_nc_1d(ncid,name,d1,var)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in)           :: ncid, d1
-    CHARACTER(len=*), INTENT(in) :: name
-    REAL, INTENT(out)             :: var(d1)
-
-    INTEGER :: iret,vid
-
-    iret = nf90_inq_varid(ncid,name,vid)
-    iret = nf90_get_var(ncid,vid,var)
-
-  END SUBROUTINE read_aero_nc_1d
-  !
-  ! ---------------------------------------------------
-  !
-  SUBROUTINE read_aero_nc_2d(ncid,name,d1,d2,var)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in)           :: ncid, d1,d2
-    CHARACTER(len=*), INTENT(in) :: name
-    REAL, INTENT(out)             :: var(d1,d2)
-
-
-    INTEGER :: iret, vid
-
-    iret = nf90_inq_varid(ncid,name,vid)
-    iret = nf90_get_var(ncid,vid,var)
-
-  END SUBROUTINE read_aero_nc_2d
-  !
-  ! -----------------------------------------------------
-  !
-  SUBROUTINE close_aero_nc(ncid)
-    IMPLICIT NONE
-
-    INTEGER, INTENT(in) :: ncid
-
-    INTEGER :: iret
-
-    iret = nf90_close(ncid)
-
-  END SUBROUTINE close_aero_nc
 
 end module ncio

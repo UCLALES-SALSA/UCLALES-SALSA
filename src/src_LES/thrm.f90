@@ -45,7 +45,9 @@ contains
 
     use grid, only : a_rc, a_rv, a_theta, a_pexnr, a_press, a_temp,  &
          a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
-         a_srp, a_ri, a_rsi, a_srs, a_dn, a_rip, a_rsp, a_rgp, a_rhp
+         a_maerop, a_mcloudp, a_mprecpp, a_micep, a_msnowp, &
+         nbins, ncld, nprc, nice, nsnw, &
+         a_ri, a_rsi, a_dn, a_rip, a_rsp, a_rgp, a_rhp
     USE defs, ONLY : Rd
 
     integer, intent (in) :: level
@@ -65,8 +67,15 @@ contains
        call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp)
     case (4:5)
-       CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
-                      a_temp,a_press,a_rsl,a_rc,a_srp,a_ri,a_rsi,a_srs)
+       ! Update diagnostic variables: total liquid and ice
+       a_rc(:,:,:) = SUM(a_maerop(:,:,:,1:nbins),DIM=4) + &
+                     SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) + &
+                     SUM(a_mprecpp(:,:,:,1:nprc),DIM=4)
+       a_ri(:,:,:) = SUM(a_micep(:,:,:,1:nice),DIM=4) + &
+                     SUM(a_msnowp(:,:,:,1:nsnw),DIM=4)
+
+       CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_tp,a_theta, &
+                      a_temp,a_press,a_rsl,a_rc,a_ri,a_rsi)
     end select
 
     ! Air density
@@ -105,25 +114,19 @@ contains
 !            in SALSA.
 !
 
-  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rc,srp,ri,rsi,srs)
+  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,tl,th,tk,p,rs,rc,ri,rsi)
     USE defs, ONLY : cp, cpr, p00, alvl, alvi
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: level,n1,n2,n3
-    REAL, INTENT(in) :: rv(n1,n2,n3),   &     ! Water vapour mixing ratio
-                        pp(n1,n2,n3),   &     ! Exner function
-                        tl(n1,n2,n3)          ! liquid potential temp
-    REAL, INTENT(in) :: th00
-    REAL, INTENT(in) :: pi0(n1),pi1(n1)
-    REAL, INTENT(IN) :: rc(n1,n2,n3),  &  ! Total cloud condensate mix rat
-                         srp(n1,n2,n3)            ! Precipitation mix rat
+    REAL, INTENT(in) :: pp(n1,n2,n3),pi0(n1),pi1(n1)
+    REAL, INTENT(in) :: th00,tl(n1,n2,n3)
+    REAL, INTENT(IN) :: rc(n1,n2,n3), ri(n1,n2,n3) ! Total liquid and ice mixing ratios
     REAL, INTENT(OUT) :: rs(n1,n2,n3),  &   ! Saturation mix rat
                          rsi(n1,n2,n3), &   ! Saturation mixing rat over ice
                          th(n1,n2,n3),  &     ! Potential temperature
                          tk(n1,n2,n3),  &     ! Absolute temperature
                          p(n1,n2,n3)           ! Air pressure
-    REAL, INTENT(IN) :: ri(n1,n2,n3),  &  ! Total ice mixing rat (level 5 only)
-                         srs(n1,n2,n3)      ! Total snow mix rat
     REAL :: exner
     INTEGER :: k,i,j
     REAL :: thil
@@ -139,9 +142,9 @@ contains
 
              ! Potential and absolute temperatures
 
-             th(k,i,j) = thil + (alvl*( rc(k,i,j) + srp(k,i,j) ))/cp/exner
+             th(k,i,j) = thil + rc(k,i,j)*alvl/(cp*exner)
 
-             if(level==5) th(k,i,j) = th(k,i,j) + (alvi*( ri(k,i,j)+ srs(k,i,j) ))/cp/exner
+             if(level==5) th(k,i,j) = th(k,i,j) + ri(k,i,j)*alvi/(cp*exner)
 
              tk(k,i,j) = th(k,i,j)*exner
 

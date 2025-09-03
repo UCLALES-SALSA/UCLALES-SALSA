@@ -24,7 +24,7 @@ module radiation
   ! Juha Tonttila, FMI
 
 
-  use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv
+  use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv, ep2, Rd, g
   use fuliou, only     : rad, rad_init, minSolarZenithCosForVis, rad_tau
   implicit none
 
@@ -35,6 +35,9 @@ module radiation
   LOGICAL :: useMcICA = .TRUE.
   LOGICAL :: RadNewSetup = .TRUE. ! use the new radiation setup method
   REAL :: RadConstSZA = -360. ! constant solar zenith angle (values between -180 and 180 degrees)
+  REAL :: rad_lwp=0.0, rad_reff=10.0 ! Optional clouds to be added above LES domain
+  REAL :: rad_iwp=0.0, rad_ieff=100.0
+  INTEGER :: rad_nlev=2, rad_ilev=2
 
   logical, save :: calc_od = .FALSE.  ! Calculate optical depths
   real, allocatable, save :: tau_gas(:,:), tau_cloud(:,:), tau_rain(:,:), &
@@ -53,7 +56,8 @@ module radiation
       ! also the radiative transfer solver.
       integer, intent(in) :: n1
       real, intent(in) :: pi0(n1), th0(n1), rt0(n1) ! Basic state p, theta and rt
-      real :: ttop, p0(n1)
+      real :: ttop, p0(n1), dz
+      integer :: i
       !
       ! Basic state pressure (hPa)
       p0(:) = 0.01*(p00*(pi0(:)/cp)**cpr)
@@ -77,6 +81,22 @@ module radiation
       prwc(:) = 0.
       plwc(:) = 0.
       pgwc(:) = 0.
+      !
+      ! Optional background clouds above LES domain
+      IF (rad_lwp>1e-10) THEN ! Liquid cloud
+        ! LES fills values from level nv-n1+2 onwards
+        i=(nv-n1+1)-rad_nlev ! Leave rad_nlev levels between LES and the cloud
+        !   LWP[g/m2] = LWC[g/m3]*dz[m]
+        dz = (Rd/g) * pt(i)*(1.0+ep2*ph(i)) * alog( pp(i+1) / pp(i) ) ! dz (m)
+        plwc(i) = rad_lwp/dz ! g/m3
+        pre(i) = min(max(rad_reff,4.18),31.23) ! um
+      ENDIF
+      IF (rad_iwp>1e-10) THEN ! Ice cloud
+        i=(nv-n1+1)-rad_ilev ! Leave rad_ilev levels between LES and the cloud
+        dz = (Rd/g) * pt(i)*(1.0+ep2*ph(i)) * alog( pp(i+1) / pp(i) ) ! dz (m)
+        piwc(i) = rad_iwp/dz ! g/m3
+        pde(i) = min(max(rad_ieff,20.),120.) ! um
+      ENDIF
       !
       ! Initialize radiative transfer solver
       CALL rad_init

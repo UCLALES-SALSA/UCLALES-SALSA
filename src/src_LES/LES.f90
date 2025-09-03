@@ -45,7 +45,7 @@ contains
 
     use grid, only          : define_grid, define_vars, level, lev_sb, nxp, nyp, nzp, nxpart
     use init, only          : initialize
-    use step, only          : stepper
+    use step, only          : stepper,cntlat,strtim
     use mpi_interface, only : init_mpi, define_decomp,                    &
          init_alltoall_reorder, appl_finalize
     USE mcrp_ice, ONLY : init_micro_ice
@@ -61,7 +61,7 @@ contains
 
     IF (level >= 4) CALL define_salsa(level) ! Read SALSA namelist etc.
 
-    IF (level >= 4) CALL salsa_initialize ! All salsa variables are now initialized
+    IF (level >= 4) CALL salsa_initialize(cntlat,strtim)
 
     IF (level == 0) CALL init_micro_ice(lev_sb) ! Read SB namelist
 
@@ -73,8 +73,8 @@ contains
 
     call define_vars
 
-    call initialize ! Added initialization of aerosol size distributions here + a single call
-                    ! for SALSA to set up cloud microphysics
+    call initialize
+
     call stepper
 
     call appl_finalize(ierror)
@@ -88,16 +88,15 @@ contains
   !
   subroutine define_parm
 
-    use util, only : fftinix,fftiniy
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, zrough_t, ubmin, dthcon, drtcon, &
                     wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param
     use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, frqrst, &
-         strtim, wctime, cntlat, lsvarflg
+         strtim, cntlat, lsvarflg
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level, lev_sb, &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, spongeinit, runtype, CCN, &
-         Tspinup, sst, sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, &
+         Tspinup, sst, sed_aero, sed_cloud, sed_precp, sed_ice, &
          nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
          nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau,  &
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau,  &
@@ -107,17 +106,16 @@ contains
          user_an_list, ifSeaSpray, ifSeaVOC, sea_tspinup
     use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
          zrand, zrndamp, zrndampq, zrandnorm
-    use stat, only : ssam_intvl, savg_intvl, csflg, cs_include, cs_exclude, &
+    use stat, only : ssam_intvl, savg_intvl, csflg, cs_start, cs_include, cs_exclude, &
          ps_include, ps_exclude, ts_include, ts_exclude, out_cs_list, out_ps_list, out_ts_list, &
-         user_cs_list, user_ps_list, user_ts_list
+         user_cs_list, user_ps_list, user_ts_list, wbinlim
     USE forc, ONLY : case_name, sfc_albedo, RadPrecipBins, RadSnowBins, &
          div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit
-    USE radiation, ONLY : radsounding, useMcICA, RadNewSetup, RadConstSZA
-    use mpi_interface, only : myid, appl_abort, ver, author
+    USE radiation, ONLY : radsounding, useMcICA, RadNewSetup, RadConstSZA, &
+         rad_lwp, rad_reff, rad_nlev, rad_iwp, rad_ieff, rad_ilev
+    use mpi_interface, only : myid, appl_abort
 
     implicit none
-
-    INTEGER :: i
 
     namelist /model/  &
          expnme    ,       & ! experiment name
@@ -125,7 +123,7 @@ contains
          naddsc    ,       & ! Number of additional scalars
          savg_intvl,       & ! output statistics frequency
          ssam_intvl,       & ! integral accumulate/ts print frequency
-         csflg,            & ! Column statistics flag
+         csflg, cs_start,  & ! Column statistics flag and time to start saving data
          corflg , cntlat , & ! coriolis flag
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          spongeinit      , & ! sponge back to initial profile or bulk values
@@ -138,7 +136,6 @@ contains
          runtype, hfilin , filprf , & ! type of run (INITIAL or HISTORY)
          frqhis , frqanl , frqrst , & ! freq of history/anal/restart writes
          outflg , anl_start,        & ! output flg, time to start saving analysis files
-         wctime,                    & ! wall-clock time (s)
          iradtyp, strtim ,          & ! radiation type flag
          isfctyp, ubmin  , zrough , & ! surface parameterization type
          zrough_t,                  & ! temperature roughness height
@@ -170,7 +167,9 @@ contains
          RadPrecipBins,      & ! add precipitation bins to cloud water (0, 1, 2, 3,...)
          RadSnowBins,        & ! add snow bins to cloud ice (0, 1, 2, 3,...)
          RadConstSZA,        & ! Optional fixed solar zenith angle for radiation (values between -180.0 and 180.0 degrees)
-         sed_aero, sed_cloud, sed_precp, sed_ice, sed_snow, & ! Sedimentation (T/F)
+         rad_lwp, rad_reff, rad_nlev, & ! Optional liquid clouds above the LES domain
+         rad_iwp, rad_ieff, rad_ilev, & ! Optional ice clouds above the LES domain
+         sed_aero, sed_cloud, sed_precp, sed_ice, & ! Sedimentation (T/F)
          no_b_bins,          & ! no prognostic b-bins for aerosol, cloud or ice (level 4 or 5)
          no_prog_prc,        & ! no prognostic rain (level 4 or 5)
          no_prog_ice,        & ! ... or ice (level 5)
@@ -186,25 +185,12 @@ contains
          user_an_list,       & ! User-defined outputs, 4D analysis files
          user_cs_list,       & ! - column statistics
          user_ps_list,       & ! - profile statistics
-         user_ts_list          ! - time series statistics
-
-    namelist /version/  &
-         ver, author        ! Information about UCLALES-SALSA version and author
-
-    ps       = 0.
-    ts       = th00
-    !
-    ! these are for initializing the temp variables used in ffts in x and y
-    ! directions.
-    !
-      fftinix=1
-      fftiniy=1
+         user_ts_list,       & ! - time series statistics
+         wbinlim               ! Vertical velocity bins
     !
     ! read namelist from specified file
     !
     open  (1,status='old',file='NAMELIST')
-    read  (1, nml=version, iostat=i) ! Optional
-    if (i/=0) REWIND(1)
     read  (1, nml=model)
     close (1)
 

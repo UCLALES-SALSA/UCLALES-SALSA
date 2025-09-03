@@ -20,9 +20,11 @@
 module grid
 
   use ncio, only : open_nc, define_nc
-
   implicit none
-  !
+
+  !----------------------------------------------------------------------
+  ! NAMELIST parameters
+
   integer           :: nxp = 132           ! number of x points
   integer           :: nyp = 132           ! number of y points
   integer           :: nzp = 105           ! number of z points
@@ -42,18 +44,19 @@ module grid
   integer           :: iradtyp = 0         ! radiation model type
   integer           :: level   = 0         ! thermodynamic level
   integer           :: lev_sb = 5          ! thermodynamic level for SB microphysics (level=0)
+  REAL              :: Tspinup = 7200.     ! microphysics spinup period (SALSA and SB)
   integer           :: naddsc  = 0         ! number of additional scalars;
   integer           :: nfpt = 10           ! number of rayleigh friction points
   real              :: distim = 300.0      ! dissipation timescale
   logical           :: spongeinit = .true. ! sponge layer acts on initial profiles
-
   real              :: sst=283.            ! Surface temperature
+  character (len=80):: expnme = ''         ! Experiment name
+  character (len=80):: filprf = 'x'        ! File prefix
+  character (len=7) :: runtype = 'INITIAL' ! Run type selection (INITIAL or HISTORY)
 
-  LOGICAL :: sed_aero = .TRUE.,  &
-             sed_cloud = .TRUE., &
-             sed_precp = .TRUE., &
-             sed_ice = .TRUE., &
-             sed_snow = .TRUE.
+  ! Sedimentation
+  LOGICAL :: sed_aero = .TRUE. ! SALSA only
+  LOGICAL :: sed_cloud = .TRUE., sed_precp = .TRUE., sed_ice = .TRUE. ! SALSA and SB
 
   ! Nudging options
   !   1 = soft nudging with fixed nudging constant applied only for the specified time period
@@ -69,28 +72,27 @@ module grid
   REAL :: nudge_u_time=3600., nudge_u_zmin=-1.e10, nudge_u_zmax=1.e10, nudge_u_tau=300.
   REAL :: nudge_v_time=3600., nudge_v_zmin=-1.e10, nudge_v_zmax=1.e10, nudge_v_tau=300.
   REAL :: nudge_ccn_time=3600., nudge_ccn_zmin=-1.e10, nudge_ccn_zmax=1.e10, nudge_ccn_tau=300.
-  real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
-  LOGICAL, SAVE :: nudge_init=.TRUE.
 
-  ! Marine emissions
+  ! SALSA options for reducing the number of prognostic variables
+  LOGICAL :: no_b_bins = .FALSE.   ! No prognostic b-bins for aerosol, cloud or ice
+  LOGICAL :: no_prog_prc = .FALSE. ! No prognostic rain
+  LOGICAL :: no_prog_ice = .FALSE. ! No prognostic ice or snow (level=5)
+  LOGICAL :: no_prog_snw = .FALSE.
+
+  ! Marine emission options (SALSA)
   logical :: ifSeaSpray = .false. ! Aerosol
   logical :: ifSeaVOC = .false.   ! Isoprene and monoterpenes
   real :: sea_tspinup = 0.        ! Spin-up time (s) for marine emissions
-
-  character (len=80):: expnme = ''        ! Experiment name
-  character (len=80):: filprf = 'x'       ! File Prefix
-  character (len=7) :: runtype = 'INITIAL'! Run Type Selection
-
-  REAL              :: Tspinup = 7200.    ! Spinup period in seconds (added by Juha)
 
   ! User control of analysis outputs
   INTEGER, PARAMETER :: maxn_list=100
   CHARACTER(len=7), dimension(maxn_list), SAVE :: anl_include='       ', anl_exclude='       '
   CHARACTER(len=7), dimension(maxn_list), SAVE :: out_an_list='       ', user_an_list='       '
-  INTEGER, SAVE :: nv4_proc=0, nv4_user=0
-  REAL, SAVE, ALLOCATABLE :: out_an_data(:,:,:,:)
 
-  integer           :: nz, nxyzp, nxyp
+  !----------------------------------------------------------------------
+  ! Internal parameters
+
+  integer           :: nxyzp
   real              :: dxi, dyi, dtl, psrf
   real, allocatable :: xt(:), xm(:), yt(:), ym(:), zt(:), zm(:), dzt(:), dzm(:)
   real, allocatable :: u0(:), v0(:), pi0(:), pi1(:), th0(:), dn0(:), rt0(:)
@@ -112,17 +114,21 @@ module grid
   !
   ! prognostic scalar variables
   !
+  ! Data arrays
+  integer :: nscl = 1
+  real, allocatable, target :: a_sclrp(:,:,:,:),a_sclrt(:,:,:,:)
+  !
+  ! Pointers
   real, pointer :: a_tp(:,:,:),a_tt(:,:,:) ! (Ice-)liquid water potential temperature
   real, pointer :: a_rp(:,:,:),a_rt(:,:,:) ! Water vapour for SALSA; total water for SB
+  real, pointer :: a_qp(:,:,:),a_qt(:,:,:) ! Subgrid TKE
+  real, pointer :: a_sp(:,:,:),a_st(:,:,:) ! A scratch variable
   ! Seifert & Beheng tracers: mass (kg/kg) and number (#/kg)
   real, pointer :: a_rpp(:,:,:),a_rpt(:,:,:),a_npp(:,:,:),a_npt(:,:,:) ! Rain
-  real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! SB ice microphysics
+  real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! Ice
   real, pointer :: a_rsp(:,:,:),a_rst(:,:,:),a_nsp(:,:,:),a_nst(:,:,:) ! Snow
   real, pointer :: a_rgp(:,:,:),a_rgt(:,:,:),a_ngp(:,:,:),a_ngt(:,:,:) ! Graupel
   real, pointer :: a_rhp(:,:,:),a_rht(:,:,:),a_nhp(:,:,:),a_nht(:,:,:) ! Hail
-  ! Subgrid TKE and a scratch variable
-  real, pointer :: a_qp(:,:,:),a_qt(:,:,:)
-  real, pointer :: a_sp(:,:,:),a_st(:,:,:)
   ! SALSA tracers
   ! -- Number concentrations (#/kg)
   REAL, POINTER :: a_naerop(:,:,:,:), a_naerot(:,:,:,:),   &
@@ -138,31 +144,17 @@ module grid
                    a_msnowp(:,:,:,:), a_msnowt(:,:,:,:)
   ! -- Gas compound tracers
   REAL, POINTER :: a_gaerop(:,:,:,:), a_gaerot(:,:,:,:)
-  ! -- Local (LES) dimensions
-  INTEGER :: nbins=0,ncld=0,nice=0,nprc=0,nsnw=0,nspec=0,ngases=0
-
-  ! No prognostic b-bins for aerosol, cloud or ice
-  LOGICAL :: no_b_bins = .FALSE.
-  ! No prognostic rain
-  LOGICAL :: no_prog_prc = .FALSE.
-  ! No prognostic ice or snow (level=5)
-  LOGICAL :: no_prog_ice = .FALSE.
-  LOGICAL :: no_prog_snw = .FALSE.
-
-  real, allocatable, target :: a_sclrp(:,:,:,:),a_sclrt(:,:,:,:)
-   !
+  ! -- Local dimensions
+  INTEGER :: nbins=0,ncld=0,nice=0,nprc=0,nsnw=0,nspt=0,ngases=0
+  !
   ! 3d diagnostic quantities
   !
   real, allocatable, target :: a_theta(:,:,:)  ! dry potential temp (k)
   real, allocatable :: a_pexnr(:,:,:)  ! perturbation exner func
   real, allocatable :: a_press(:,:,:)  ! pressure (hpa)
-  real, allocatable :: a_rc(:,:,:)     ! Cloud (level<=3) or aerosol+cloud (level>=4) water mixing ratio
+  real, allocatable :: a_rc(:,:,:)     ! Cloud (level<=3) or aerosol+cloud+rain (level>=4) water mixing ratio
   real, allocatable :: a_ri(:,:,:)     ! Total ice water mixing ratio
   real, allocatable :: a_rv(:,:,:)     ! Water vapor mixing ratio (levels < 4)
-  REAL, ALLOCATABLE :: a_srp(:,:,:)    ! Total rain water mixing ratio (levels >= 4)
-  REAL, ALLOCATABLE :: a_snrp(:,:,:)   ! Total rain drop number mixing ratio (levels >=4)
-  REAL, ALLOCATABLE :: a_srs(:,:,:)    ! Total snow water mixing ratio (level 5)
-  REAL, ALLOCATABLE :: a_snrs(:,:,:)   ! Total snow number mixing ratio (level 5)
   REAL, ALLOCATABLE :: a_rsl(:,:,:)    ! Water vapor saturation mixing ratio
   REAL, ALLOCATABLE :: a_rsi(:,:,:)    ! Water vapor saturation mixing ratio over ice
   REAL, ALLOCATABLE :: a_dn(:,:,:)     ! Air density
@@ -175,35 +167,23 @@ module grid
   real, allocatable :: albedo(:,:)
   !
   ! surface
-  real, allocatable :: a_ustar(:,:)
-  real, allocatable :: a_tstar(:,:)
-  real, allocatable :: a_rstar(:,:)
-  real, allocatable :: uw_sfc(:,:)
-  real, allocatable :: vw_sfc(:,:)
-  real, allocatable :: ww_sfc(:,:)
-  real, allocatable :: wt_sfc(:,:)
-  real, allocatable :: wq_sfc(:,:)
-  real, allocatable :: obl(:,:)
+  real, allocatable, dimension (:,:) :: a_ustar, a_tstar, a_rstar, uw_sfc, &
+                                        vw_sfc, ww_sfc, wt_sfc, wq_sfc, obl
+  !
+  ! nudging
+  real, save, allocatable :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:)
+  LOGICAL, SAVE :: nudge_init=.TRUE.
   !
   ! microphysics/precipitation
   real, allocatable, dimension(:,:,:) :: aerin, cldin, precip, icein, snowin, grin, hailin
   !
-  integer :: nscl = 1
-  integer, private, save :: ncid0
-  integer, private, save :: nrec0
+  ! 3D outputs
+  integer, private, save :: ncid0, nrec0
   character (len=80), private, save :: fname
+  REAL, SAVE, ALLOCATABLE :: out_an_data(:,:,:,:)
+  integer, save :: nv4_proc=0, nv4_user=0
   !
 contains
-  !
-  ! Copy SALSA parameters to LES
-  SUBROUTINE copy_salsa_pars(nspec_out,nprc_out,nsnw_out,ngases_out)
-    USE mo_submctl, ONLY : nspec,nprc,nsnw,ngases
-    INTEGER, INTENT(OUT) :: nspec_out, nprc_out, nsnw_out, ngases_out
-    nspec_out=nspec
-    nprc_out=nprc
-    nsnw_out=nsnw
-    ngases_out=ngases
-  END SUBROUTINE copy_salsa_pars
   !
   !----------------------------------------------------------------------
   ! SUBROUTINE define_vars
@@ -214,12 +194,12 @@ contains
   subroutine define_vars
 
     use mpi_interface, only :myid
-    USE mo_submctl, ONLY : fn2a,fn2b,fnp2a,fnp2b ! Indexes for SALSA
+    USE mo_submctl, ONLY : fn2a,fn2b,fnp2a,fnp2b, & ! Indexes for SALSA
+        nspec,snprc=>nprc,snsnw=>nsnw,sngases=>ngases
 
-    integer :: memsize
-    INTEGER :: zz
-    INTEGER :: nc
-    INTEGER :: nsalsa
+    integer :: memsize, zz, nc, nsalsa, nxyp
+
+    nxyp = nxp*nyp
 
     ! Juha: Stuff that's allocated for all configurations
     !----------------------------------------------------------
@@ -381,14 +361,6 @@ contains
     !---------------------------------------------------
     ELSE IF (level >= 4) THEN
 
-       allocate ( a_srp(nzp,nxp,nyp), a_snrp(nzp,nxp,nyp), &
-                 a_srs(nzp,nxp,nyp), a_snrs(nzp,nxp,nyp) )
-       a_srp(:,:,:) = 0.
-       a_snrp(:,:,:) = 0.
-       a_srs(:,:,:) = 0.
-       a_snrs(:,:,:) = 0.
-       memsize = memsize + 4*nxyzp
-
        ! Number of prognostic SALSA variables
        IF (no_b_bins) THEN
           ! No b-bins for LES, but full arrays are needed for SALSA
@@ -400,10 +372,13 @@ contains
           ncld=fnp2b
           nice=fnp2b
        ENDIF
-       CALL copy_salsa_pars(nspec,nprc,nsnw,ngases)
+       nspt=nspec+1 ! Total number of species (including water)
+       nprc=snprc
+       nsnw=snsnw
+       ngases=sngases
 
        ! Total number of prognostic SALSA variables (number and mass for each aerosol component + gases)
-       nc = nspec+2
+       nc = nspt+1
        nsalsa = ngases + nc*nbins + nc*ncld
        IF (.NOT. no_prog_prc) nsalsa = nsalsa + nc*nprc
        IF (level>=5 .AND. .NOT. no_prog_ice) nsalsa = nsalsa + nc*nice
@@ -429,40 +404,39 @@ contains
        end if
 
        !JT: Set the pointers for prognostic SALSA variables (levels 4 & 5)
-       nc = nspec+1
        zz = 2
        a_naerop => a_sclrp(:,:,:,zz+1:zz+nbins)
        a_naerot => a_sclrt(:,:,:,zz+1:zz+nbins)
        zz = zz+nbins
-       a_maerop => a_sclrp(:,:,:,zz+1:zz+nc*nbins)
-       a_maerot => a_sclrt(:,:,:,zz+1:zz+nc*nbins)
-       zz = zz+nc*nbins
+       a_maerop => a_sclrp(:,:,:,zz+1:zz+nspt*nbins)
+       a_maerot => a_sclrt(:,:,:,zz+1:zz+nspt*nbins)
+       zz = zz+nspt*nbins
 
        a_ncloudp => a_sclrp(:,:,:,zz+1:zz+ncld)
        a_ncloudt => a_sclrt(:,:,:,zz+1:zz+ncld)
        zz = zz+ncld
-       a_mcloudp => a_sclrp(:,:,:,zz+1:zz+nc*ncld)
-       a_mcloudt => a_sclrt(:,:,:,zz+1:zz+nc*ncld)
-       zz = zz+nc*ncld
+       a_mcloudp => a_sclrp(:,:,:,zz+1:zz+nspt*ncld)
+       a_mcloudt => a_sclrt(:,:,:,zz+1:zz+nspt*ncld)
+       zz = zz+nspt*ncld
 
        IF (.NOT. no_prog_prc) THEN
           ! Prognostic rain
           a_nprecpp => a_sclrp(:,:,:,zz+1:zz+nprc)
           a_nprecpt => a_sclrt(:,:,:,zz+1:zz+nprc)
           zz = zz+nprc
-          a_mprecpp => a_sclrp(:,:,:,zz+1:zz+nc*nprc)
-          a_mprecpt => a_sclrt(:,:,:,zz+1:zz+nc*nprc)
-          zz = zz+nc*nprc
+          a_mprecpp => a_sclrp(:,:,:,zz+1:zz+nspt*nprc)
+          a_mprecpt => a_sclrt(:,:,:,zz+1:zz+nspt*nprc)
+          zz = zz+nspt*nprc
        ELSE
           ! Allocate zero arrays for pointers
-          ALLOCATE (tmp_prcp(nzp,nxp,nyp,(nc+1)*nprc), &
-                    tmp_prct(nzp,nxp,nyp,(nc+1)*nprc))
+          ALLOCATE (tmp_prcp(nzp,nxp,nyp,(nspt+1)*nprc), &
+                    tmp_prct(nzp,nxp,nyp,(nspt+1)*nprc))
           tmp_prcp(:,:,:,:) = 0.
           tmp_prct(:,:,:,:) = 0.
           a_nprecpp => tmp_prcp(:,:,:,1:nprc)
           a_nprecpt => tmp_prct(:,:,:,1:nprc)
-          a_mprecpp => tmp_prcp(:,:,:,nprc+1:(nc+1)*nprc)
-          a_mprecpt => tmp_prct(:,:,:,nprc+1:(nc+1)*nprc)
+          a_mprecpp => tmp_prcp(:,:,:,nprc+1:(nspt+1)*nprc)
+          a_mprecpt => tmp_prct(:,:,:,nprc+1:(nspt+1)*nprc)
        ENDIF
 
        IF (level>=5 .AND. .NOT.no_prog_ice) THEN
@@ -470,19 +444,19 @@ contains
           a_nicep => a_sclrp(:,:,:,zz+1:zz+nice)
           a_nicet => a_sclrt(:,:,:,zz+1:zz+nice)
           zz = zz+nice
-          a_micep => a_sclrp(:,:,:,zz+1:zz+nc*nice)
-          a_micet => a_sclrt(:,:,:,zz+1:zz+nc*nice)
-          zz = zz+nc*nice
+          a_micep => a_sclrp(:,:,:,zz+1:zz+nspt*nice)
+          a_micet => a_sclrt(:,:,:,zz+1:zz+nspt*nice)
+          zz = zz+nspt*nice
        ELSE
           ! Allocate zero arrays for pointers
-          ALLOCATE (tmp_icep(nzp,nxp,nyp,(nc+1)*nice), &
-                    tmp_icet(nzp,nxp,nyp,(nc+1)*nice))
+          ALLOCATE (tmp_icep(nzp,nxp,nyp,(nspt+1)*nice), &
+                    tmp_icet(nzp,nxp,nyp,(nspt+1)*nice))
           tmp_icep(:,:,:,:) = 0.
           tmp_icet(:,:,:,:) = 0.
           a_nicep => tmp_icep(:,:,:,1:nice)
           a_nicet => tmp_icet(:,:,:,1:nice)
-          a_micep => tmp_icep(:,:,:,nice+1:(nc+1)*nice)
-          a_micet => tmp_icet(:,:,:,nice+1:(nc+1)*nice)
+          a_micep => tmp_icep(:,:,:,nice+1:(nspt+1)*nice)
+          a_micet => tmp_icet(:,:,:,nice+1:(nspt+1)*nice)
        ENDIF
 
        IF (level>=5 .AND. .NOT.no_prog_snw) THEN
@@ -490,19 +464,19 @@ contains
           a_nsnowp => a_sclrp(:,:,:,zz+1:zz+nsnw)
           a_nsnowt => a_sclrt(:,:,:,zz+1:zz+nsnw)
           zz = zz+nsnw
-          a_msnowp => a_sclrp(:,:,:,zz+1:zz+nc*nsnw)
-          a_msnowt => a_sclrt(:,:,:,zz+1:zz+nc*nsnw)
-          zz = zz+nc*nsnw
+          a_msnowp => a_sclrp(:,:,:,zz+1:zz+nspt*nsnw)
+          a_msnowt => a_sclrt(:,:,:,zz+1:zz+nspt*nsnw)
+          zz = zz+nspt*nsnw
        ELSE
           ! Allocate zero arrays for pointers
-          ALLOCATE (tmp_snwp(nzp,nxp,nyp,(nc+1)*nsnw), &
-                    tmp_snwt(nzp,nxp,nyp,(nc+1)*nsnw))
+          ALLOCATE (tmp_snwp(nzp,nxp,nyp,(nspt+1)*nsnw), &
+                    tmp_snwt(nzp,nxp,nyp,(nspt+1)*nsnw))
           tmp_snwp(:,:,:,:) = 0.
           tmp_snwt(:,:,:,:) = 0.
           a_nsnowp => tmp_snwp(:,:,:,1:nsnw)
           a_nsnowt => tmp_snwt(:,:,:,1:nsnw)
-          a_msnowp => tmp_snwp(:,:,:,nsnw+1:(nc+1)*nsnw)
-          a_msnowt => tmp_snwt(:,:,:,nsnw+1:(nc+1)*nsnw)
+          a_msnowp => tmp_snwp(:,:,:,nsnw+1:(nspt+1)*nsnw)
+          a_msnowt => tmp_snwt(:,:,:,nsnw+1:(nspt+1)*nsnw)
        ENDIF
 
        IF (ngases>0) THEN
@@ -573,7 +547,7 @@ contains
     use mpi_interface, only: xoffset, yoffset, wrxid, wryid, nxpg, nypg,   &
          appl_abort, myid
 
-    integer :: i,j,k,kmax,nchby
+    integer :: i,j,k,kmax,nchby,nz
     real    :: dzrfm,dz,zb,dzmin
     real    :: zmnvc(-1:nzp+1)
     character (len=51) :: &
@@ -585,7 +559,6 @@ contains
          fm6 = '("   thermo level: ",i3)                        '
 
     nxyzp  = nxp*nyp*nzp
-    nxyp   = nxp*nyp
 
     nz= nzp-1
     dzmin = 0.
@@ -764,8 +737,8 @@ contains
   !
   subroutine init_anal(time)
 
-    use mpi_interface, only :myid, ver, author, info
-    USE mo_submctl, ONLY : fn1a,fn2a,fn2b
+    use mpi_interface, only :myid
+    USE mo_submctl, ONLY : fn1a,fn2a
     IMPLICIT NONE
     real, intent (in) :: time
     ! Dimensions (time, x, y, x, and SALSA bins) and constants (u0, v0, dn0) are saved
@@ -904,13 +877,13 @@ contains
     fname =  trim(filprf)
     if(myid == 0) print                                                  &
             "(//' ',49('-')/,' ',/,'   Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(btot)
-    call open_nc( fname, expnme, time, (nxp-4)*(nyp-4), ncid0, nrec0, ver, author, info)
+    call open_nc( fname, expnme, time, ncid0, nrec0)
 
     IF (level < 4 .OR. .NOT. lbinanl) THEN
        call define_nc( ncid0, nrec0, nvar0, sanal, n1=nzp, n2=nxp-4, n3=nyp-4)
     ELSE IF (lbinanl) THEN
        call define_nc( ncid0, nrec0, nvar0, sanal, n1=nzp, n2=nxp-4, n3=nyp-4,  &
-                       n1a=fn1a,n2a=fn2a-fn1a, n2b=fn2b-fn2a, nprc=nprc, nsnw=nsnw )
+                       n1a=fn1a, n2ab=fn2a-fn1a, nprc=nprc, nsnw=nsnw )
     END IF
     if (myid == 0) print *,'   ...starting record: ', nrec0
 
@@ -938,8 +911,7 @@ contains
   subroutine write_anal(time)
     use netcdf
     use mpi_interface, only : myid, appl_abort
-    USE mo_submctl, ONLY : in1a,in2a,fn2a,in2b,fn2b, &
-                               inp2a,fnp2a,inp2b,fnp2b, &
+    USE mo_submctl, ONLY : in2a,fn2a,in2b,fn2b,fnp2a,inp2b,fnp2b, &
                                aerobins, precpbins, snowbins, &
                                nlim, prlim, &
                                zspec
@@ -993,7 +965,7 @@ contains
 
        IF (level >= 4) THEN
           iret = nf90_inq_varid(ncid0,'B_Rd12a', VarID)
-          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, aerobins(in1a:fn2a), start = (/nrec0/))
+          IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, aerobins(1:fn2a), start = (/nrec0/))
 
           iret = nf90_inq_varid(ncid0,'B_Rd2ab', VarID)
           IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID, aerobins(in2a:fn2a), start = (/nrec0/))
@@ -1019,8 +991,6 @@ contains
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_press(:,i1:i2,j1:j2), start=ibeg, count=icnt)
 
     ! Common variables (optional)
-    iret = nf90_inq_varid(ncid0,'l',VarID) ! Liquid water
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_rc(:,i1:i2,j1:j2), start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'rflx', VarID) ! Total radiative flux
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_rflx(:,i1:i2,j1:j2), start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'stke', VarID) ! Subgrid TKE
@@ -1053,6 +1023,12 @@ contains
        ! Total water
        iret = nf90_inq_varid(ncid0,'q',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ! Liquid water = cloud + rain
+       iret = nf90_inq_varid(ncid0,'l',VarID)
+       IF (iret==NF90_NOERR) THEN
+          zvar=a_rc+a_rpp
+          iret = nf90_put_var(ncid0, VarID, zvar(:,i1:i2,j1:j2), start=ibeg, count=icnt)
+       ENDIF
        ! Rain water mixing ratio and number concentration
        iret = nf90_inq_varid(ncid0,'r',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rpp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
@@ -1081,27 +1057,35 @@ contains
        iret = nf90_inq_varid(ncid0,'q',VarID)
        IF (iret==NF90_NOERR) THEN
           zvar(:,:,:) = a_rp(:,:,:) + &   ! Water vapor
-                            a_rc(:,:,:) + &   ! Aerosol + cloud water
-                            a_srp(:,:,:) + &   ! Rain water
-                            a_ri(:,:,:) + & ! Ice water (level 5)
-                            a_srs(:,:,:)      ! Snow water (level 5)
+                        a_rc(:,:,:) + &   ! Aerosol + cloud + rain water
+                        a_ri(:,:,:)       ! Ice + snow water (level 5)
           iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        END IF
 
+       ! Liquid water mixing ratio
+       iret = nf90_inq_varid(ncid0,'l',VarID)
+       IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+
        ! Rain water mixing ratio
        iret = nf90_inq_varid(ncid0,'r',VarID)
-       IF (iret==NF90_NOERR) &
-          iret = nf90_put_var(ncid0,VarID,a_srp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_mprecpp(:,:,:,1:nprc),DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ENDIF
 
        ! Ice water mixing ratio
        iret = nf90_inq_varid(ncid0,'i',VarID)
-       IF (iret==NF90_NOERR) &
-          iret = nf90_put_var(ncid0,VarID,a_ri(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_micep(:,:,:,1:nice),DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ENDIF
 
        ! Snow water mixing ratio
        iret = nf90_inq_varid(ncid0,'s',VarID)
-       IF (iret==NF90_NOERR) &
-          iret = nf90_put_var(ncid0,VarID,a_srs(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_msnowp(:,:,:,1:nsnw),DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ENDIF
 
 
        !  All bin-dependent outputs are calculated here
@@ -1109,7 +1093,7 @@ contains
        ! Aerosol bin number concentration (regimes A and B)
        iret = nf90_inq_varid(ncid0,'B_Naa',VarID)
        IF (iret==NF90_NOERR) &
-          iret = nf90_put_var(ncid0,VarId,a_naerop(:,i1:i2,j1:j2,in1a:fn2a),start=ibegsd,count=icntaea)
+          iret = nf90_put_var(ncid0,VarId,a_naerop(:,i1:i2,j1:j2,1:fn2a),start=ibegsd,count=icntaea)
        iret = nf90_inq_varid(ncid0,'B_Nab',VarID)
        IF (iret==NF90_NOERR) &
           iret = nf90_put_var(ncid0,VarID,a_naerop(:,i1:i2,j1:j2,in2b:fn2b),start=ibegsd,count=icntaeb)
@@ -1117,19 +1101,19 @@ contains
        ! Aerosol bin wet radius (regimes A and B)
        iret = nf90_inq_varid(ncid0,'B_Rwaa',VarID)
        IF (iret==NF90_NOERR) THEN
-          CALL getBinRadius(nbins,nspec+1,a_naerop,a_maerop,nlim,a_Rawet,1)
-          iret = nf90_put_var(ncid0,VarID,a_Rawet(:,i1:i2,j1:j2,in1a:fn2a),start=ibegsd,count=icntaea)
+          CALL getBinRadius(nbins,nspt,a_naerop,a_maerop,nlim,a_Rawet,1)
+          iret = nf90_put_var(ncid0,VarID,a_Rawet(:,i1:i2,j1:j2,1:fn2a),start=ibegsd,count=icntaea)
        END IF
        iret = nf90_inq_varid(ncid0,'B_Rwab',VarID)
        IF (iret==NF90_NOERR) THEN
-          CALL getBinRadius(nbins,nspec+1,a_naerop,a_maerop,nlim,a_Rawet,1)
+          CALL getBinRadius(nbins,nspt,a_naerop,a_maerop,nlim,a_Rawet,1)
           iret = nf90_put_var(ncid0,VarID,a_Rawet(:,i1:i2,j1:j2,in2b:fn2b),start=ibegsd,count=icntaeb)
        END IF
 
        ! Cloud droplet bin number concentration (regimes A and B)
        iret = nf90_inq_varid(ncid0,'B_Nca',VarID)
        IF (iret==NF90_NOERR) &
-          iret = nf90_put_var(ncid0,VarID,a_ncloudp(:,i1:i2,j1:j2,inp2a:fnp2a),start=ibegsd,count=icntaeb)
+          iret = nf90_put_var(ncid0,VarID,a_ncloudp(:,i1:i2,j1:j2,1:fnp2a),start=ibegsd,count=icntaeb)
        iret = nf90_inq_varid(ncid0,'B_Ncb',VarID)
        IF (iret==NF90_NOERR) &
           iret = nf90_put_var(ncid0,VarID,a_ncloudp(:,i1:i2,j1:j2,inp2b:fnp2b),start=ibegsd,count=icntaeb)
@@ -1137,12 +1121,12 @@ contains
        ! Cloud droplet bin wet radius (regimes A and B)
        iret = nf90_inq_varid(ncid0,'B_Rwca',VarID)
        IF (iret==NF90_NOERR) THEN
-          CALL getBinRadius(ncld,nspec+1,a_ncloudp,a_mcloudp,nlim,a_Rcwet,2)
-          iret = nf90_put_var(ncid0,VarID,a_Rcwet(:,i1:i2,j1:j2,inp2a:fnp2a),start=ibegsd,count=icntaeb)
+          CALL getBinRadius(ncld,nspt,a_ncloudp,a_mcloudp,nlim,a_Rcwet,2)
+          iret = nf90_put_var(ncid0,VarID,a_Rcwet(:,i1:i2,j1:j2,1:fnp2a),start=ibegsd,count=icntaeb)
        END IF
        iret = nf90_inq_varid(ncid0,'B_Rwcb',VarID)
        IF (iret==NF90_NOERR) THEN
-          CALL getBinRadius(ncld,nspec+1,a_ncloudp,a_mcloudp,nlim,a_Rcwet,2)
+          CALL getBinRadius(ncld,nspt,a_ncloudp,a_mcloudp,nlim,a_Rcwet,2)
           iret = nf90_put_var(ncid0,VarID,a_Rcwet(:,i1:i2,j1:j2,inp2b:fnp2b),start=ibegsd,count=icntaeb)
        END IF
 
@@ -1154,14 +1138,14 @@ contains
        ! Rain drop bin wet radius
        iret = nf90_inq_varid(ncid0,'B_Rwpt',VarID)
        IF (iret==NF90_NOERR) THEN
-          CALL getBinRadius(nprc,nspec+1,a_nprecpp,a_mprecpp,prlim,a_Rpwet,3)
+          CALL getBinRadius(nprc,nspt,a_nprecpp,a_mprecpp,prlim,a_Rpwet,3)
           iret = nf90_put_var(ncid0,VarID,a_Rpwet(:,i1:i2,j1:j2,1:nprc),start=ibegsd,count=icntpr)
        END IF
 
        ! Ice bin number concentration (regimes A and B)
        iret = nf90_inq_varid(ncid0,'B_Nia',VarID)
        IF (iret==NF90_NOERR) &
-          iret = nf90_put_var(ncid0,VarID,a_nicep(:,i1:i2,j1:j2,inp2a:fnp2a),start=ibegsd,count=icntaeb)
+          iret = nf90_put_var(ncid0,VarID,a_nicep(:,i1:i2,j1:j2,1:fnp2a),start=ibegsd,count=icntaeb)
        iret = nf90_inq_varid(ncid0,'B_Nib',VarID)
        IF (iret==NF90_NOERR) &
           iret = nf90_put_var(ncid0,VarID,a_nicep(:,i1:i2,j1:j2,inp2b:fnp2b),start=ibegsd,count=icntaeb)
@@ -1169,12 +1153,12 @@ contains
        ! Ice bin wet radius (regimes A and B)
        iret = nf90_inq_varid(ncid0,'B_Rwia',VarID)
        IF (iret==NF90_NOERR) THEN
-          CALL getBinRadius(nice,nspec+1,a_nicep,a_micep,prlim,a_Riwet,4)
-          iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,inp2a:fnp2a),start=ibegsd,count=icntaeb)
+          CALL getBinRadius(nice,nspt,a_nicep,a_micep,prlim,a_Riwet,4)
+          iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,1:fnp2a),start=ibegsd,count=icntaeb)
        END IF
        iret = nf90_inq_varid(ncid0,'B_Rwib',VarID)
        IF (iret==NF90_NOERR) THEN
-          CALL getBinRadius(nice,nspec+1,a_nicep,a_micep,prlim,a_Riwet,4)
+          CALL getBinRadius(nice,nspt,a_nicep,a_micep,prlim,a_Riwet,4)
           iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,inp2b:fnp2b),start=ibegsd,count=icntaeb)
        END IF
 
@@ -1186,19 +1170,19 @@ contains
        ! Snow bin wet radius
        iret = nf90_inq_varid(ncid0,'B_Rwst',VarID)
        IF (iret==NF90_NOERR) THEN
-          CALL getBinRadius(nsnw,nspec+1,a_nsnowp,a_msnowp,prlim,a_Rswet,5)
+          CALL getBinRadius(nsnw,nspt,a_nsnowp,a_msnowp,prlim,a_Rswet,5)
           iret = nf90_put_var(ncid0,VarID,a_Rswet(:,i1:i2,j1:j2,1:nsnw),start=ibegsd,count=icntsn)
        END IF
 
 
-       DO ee=1,nspec+1 ! Aerosol species and water
+       DO ee=1,nspt ! Aerosol species and water
           ! Mixing ratios for each bin
           iret = nf90_inq_varid(ncid0,'B_'//TRIM(zspec(ee))//'aa',VarID)
           IF (iret==NF90_NOERR) THEN
-             DO bb = in1a,fn2a
+             DO bb = 1,fn2a
                 CALL binSpecMixrat('aerosol',ee,bb,a_Rawet(:,:,:,bb))
             END DO
-            iret = nf90_put_var(ncid0,VarID,a_Rawet(:,i1:i2,j1:j2,in1a:fn2a),start=ibegsd,count=icntaea)
+            iret = nf90_put_var(ncid0,VarID,a_Rawet(:,i1:i2,j1:j2,1:fn2a),start=ibegsd,count=icntaea)
           ENDIF
           iret = nf90_inq_varid(ncid0,'B_'//TRIM(zspec(ee))//'ab',VarID)
           IF (iret==NF90_NOERR) THEN
@@ -1210,10 +1194,10 @@ contains
 
           iret = nf90_inq_varid(ncid0,'B_'//TRIM(zspec(ee))//'ca',VarID)
           IF (iret==NF90_NOERR) THEN
-             DO bb = inp2a,fnp2a
+             DO bb = 1,fnp2a
                 CALL binSpecMixrat('cloud',ee,bb,a_Rcwet(:,:,:,bb))
             END DO
-            iret = nf90_put_var(ncid0,VarID,a_Rcwet(:,i1:i2,j1:j2,inp2a:fnp2a),start=ibegsd,count=icntaeb)
+            iret = nf90_put_var(ncid0,VarID,a_Rcwet(:,i1:i2,j1:j2,1:fnp2a),start=ibegsd,count=icntaeb)
           ENDIF
           iret = nf90_inq_varid(ncid0,'B_'//TRIM(zspec(ee))//'cb',VarID)
           IF (iret==NF90_NOERR) THEN
@@ -1233,10 +1217,10 @@ contains
 
           iret = nf90_inq_varid(ncid0,'B_'//TRIM(zspec(ee))//'ia',VarID)
           IF (iret==NF90_NOERR) THEN
-             DO bb = inp2a,fnp2a
+             DO bb = 1,fnp2a
                 CALL binSpecMixrat('ice',ee,bb,a_Riwet(:,:,:,bb))
             END DO
-            iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,inp2a:fnp2a),start=ibegsd,count=icntaeb)
+            iret = nf90_put_var(ncid0,VarID,a_Riwet(:,i1:i2,j1:j2,1:fnp2a),start=ibegsd,count=icntaeb)
           ENDIF
           iret = nf90_inq_varid(ncid0,'B_'//TRIM(zspec(ee))//'ib',VarID)
           IF (iret==NF90_NOERR) THEN
@@ -1593,7 +1577,7 @@ contains
   SUBROUTINE bulkMixrat(mm,ipart,itype,mixrat)
     USE mo_submctl, ONLY : fnp2a,inp2b,in2b,fn2a
 
-    INTEGER, INTENT(in) :: mm ! Index to an active species (1, 2,... nspec+1)
+    INTEGER, INTENT(in) :: mm ! Index to an active species (1, 2,... nspt)
     CHARACTER(len=*), INTENT(in) :: ipart  ! This should be aerosol, cloud, rain, ice or snow
     CHARACTER(len=*), INTENT(in) :: itype  ! Select bin regime: a or b
     REAL, INTENT(out) :: mixrat(nzp,nxp,nyp)
@@ -1668,7 +1652,7 @@ contains
   ! Juha Tonttila, FMI, 2015
   SUBROUTINE binSpecMixrat(ipart,mm,ibin,mixr)
 
-    INTEGER, INTENT(in) :: mm ! Index to an active species (1, 2,... nspec+1)
+    INTEGER, INTENT(in) :: mm ! Index to an active species (1, 2,... nspt)
     CHARACTER(len=*), INTENT(in) :: ipart  ! This should be aerosol, cloud, rain, ice or snow
     INTEGER, INTENT(in) :: ibin
     REAL, INTENT(out) :: mixr(nzp,nxp,nyp)
@@ -1768,7 +1752,7 @@ contains
   !
   ! -------------------------------------------------
   ! SUBROUTINE meanRadius
-  ! Gets the mean wet (total number of species = nspec+1) radius for particles.
+  ! Gets the mean wet (total number of species = nspt) radius for particles.
   !
   SUBROUTINE meanRadius(ipart,itype,rad,ibin)
     USE mo_submctl, ONLY : fnp2a,inp2b,fn2a,in2b,nlim,prlim
@@ -1800,7 +1784,7 @@ contains
        ELSE
           STOP 'meanRadius: Invalid bin regime selection (aerosol)'
        END IF
-       CALL getRadius(istr,iend,nbins,nspec+1,a_naerop,a_maerop,nlim,rad,1)
+       CALL getRadius(istr,iend,nbins,nspt,a_naerop,a_maerop,nlim,rad,1)
     CASE('cloud')
        IF (present(ibin)) THEN
           istr = ibin
@@ -1817,7 +1801,7 @@ contains
        ELSE
           STOP 'meanRadius: Invalid bin regime selection (cloud)'
        END IF
-       CALL getRadius(istr,iend,ncld,nspec+1,a_ncloudp,a_mcloudp,nlim,rad,2)
+       CALL getRadius(istr,iend,ncld,nspt,a_ncloudp,a_mcloudp,nlim,rad,2)
     CASE('precp')
        IF (present(ibin)) THEN
           istr = ibin
@@ -1826,7 +1810,7 @@ contains
           istr = 1
           iend = nprc
        END IF
-       CALL getRadius(istr,iend,nprc,nspec+1,a_nprecpp,a_mprecpp,prlim,rad,3)
+       CALL getRadius(istr,iend,nprc,nspt,a_nprecpp,a_mprecpp,prlim,rad,3)
     CASE('ice')
        IF (present(ibin)) THEN
           istr = ibin
@@ -1843,7 +1827,7 @@ contains
        ELSE
           STOP 'meanRadius: Invalid bin regime selection (ice)'
        END IF
-       CALL getRadius(istr,iend,nice,nspec+1,a_nicep,a_micep,prlim,rad,4)
+       CALL getRadius(istr,iend,nice,nspt,a_nicep,a_micep,prlim,rad,4)
     CASE('snow')
        IF (present(ibin)) THEN
           istr = ibin
@@ -1852,7 +1836,7 @@ contains
           istr = 1
           iend = nsnw
        END IF
-       CALL getRadius(istr,iend,nsnw,nspec+1,a_nsnowp,a_msnowp,prlim,rad,5)
+       CALL getRadius(istr,iend,nsnw,nspt,a_nsnowp,a_msnowp,prlim,rad,5)
     CASE DEFAULT
           STOP 'meanRadius: Invalid particle type'
     END SELECT

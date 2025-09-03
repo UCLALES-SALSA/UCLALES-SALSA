@@ -143,7 +143,6 @@ contains
           ENDIF
 
        ELSEIF (level <= 3) THEN
-
           IF (level == 3 .AND. RadPrecipBins == 0) THEN
              ! Separate cloud and rain
              zrc = a_rc

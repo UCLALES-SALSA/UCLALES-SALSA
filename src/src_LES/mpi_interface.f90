@@ -52,10 +52,6 @@ module mpi_interface
 
   integer :: xstride,ystride,xystride
 
-  CHARACTER(len=80) :: ver='', author=''
-  ! Additional, e.g. case specific, information
-  CHARACTER(len=180), PARAMETER :: info=''
-
 contains
   !
   !----------------------------------------------------------------------
@@ -96,7 +92,6 @@ contains
     if (myid == 0) print "(/1x,75('-'),/2x,A22,/2x,A15,I2,A15,I2,A14)", &
          'UCLALES-SALSA '//date, 'Computing using',nbytes,' byte reals and', &
          intsize," byte integers"
-    if (myid == 0 .and. len(info)>0) print *, ' '//trim(info)
 
   end subroutine init_mpi
   !

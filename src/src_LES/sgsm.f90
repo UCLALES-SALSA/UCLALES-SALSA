@@ -46,12 +46,8 @@ contains
 
     integer, intent (in) :: n1, n2, n3
 
-    integer :: nm
-
-    nm = n1-1
-
-    allocate(sxy1(n2,n3), sxy2(n2,n3), sxy3(n2,n3), sxz1(n2,nm), sxz2(n2,nm))
-    allocate(sxz3(n2,nm), sxz4(n2,nm), sxz5(n2,nm), sxz6(n2,nm))
+    allocate(sxy1(n2,n3), sxy2(n2,n3), sxy3(n2,n3), sxz1(n2,n1), sxz2(n2,n1))
+    allocate(sxz3(n2,n1), sxz4(n2,n1), sxz5(n2,n1), sxz6(n2,n1))
     allocate(szx1(n1,n2), szx2(n1,n2), szx3(n1,n2), szx4(n1,n2), szx5(n1,n2))
     allocate(sz1(n1),sz2(n1),sz3(n1),sz4(n1),sz5(n1),sz6(n1),sz7(n1),sz8(n1))
 
@@ -70,7 +66,7 @@ contains
   subroutine diffuse
 
     use grid, only : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt    &
-         , a_rv, a_rc, a_rp, a_ri, a_srp, a_srs, a_tp, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta  &
+         , a_rv, a_rc, a_rp, a_ri, a_tp, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta  &
          , a_temp, a_rsl, nscl, nxp, nyp    &
          , nzp, zm, dxi, dyi, dzt, dzm, dtl, th00, dn0  &
          , pi0, pi1, newsclr, level, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc &
@@ -100,12 +96,12 @@ contains
           WHERE(a_temp>0.) thl = a_tp + (a_theta/a_temp)*alvi/cp*a_ri
        CASE(4)
           rx = a_rp
-          rxt = a_rp + a_rc + a_srp
+          rxt = a_rp + a_rc
           thl = a_tp
        CASE(5)
           rx = a_rp
-          rxt = a_rp + a_rc + a_srp + a_ri + a_srs
-          WHERE(a_temp>0.) thl = a_tp + (a_theta/a_temp)*alvi/cp*(a_ri + a_srs)
+          rxt = a_rp + a_rc + a_ri
+          WHERE(a_temp>0.) thl = a_tp + (a_theta/a_temp)*alvi/cp*a_ri
     END SELECT
 
 
@@ -134,9 +130,7 @@ contains
        call smagor(nzp,nxp,nyp,sflg,dxi,dyi,dn0,a_tmp3,a_tmp2,a_tmp1,zm,a_edr)
     case (2)
        call deardf(nzp,nxp,nyp,sflg,dxi,zm,dn0,a_qp,a_qt,a_tmp3,a_tmp2,a_tmp1,a_edr)
-
-       call solv_tke(nzp,nxp,nyp,a_tmp3,a_tmp1,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi  &
-            ,dtl)
+       call solv_tke(nzp,nxp,nyp,a_tmp3,a_tmp1,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi,dtl)
     end select
     !
     ! Diffuse momentum
@@ -317,7 +311,6 @@ contains
     real, intent(in)    :: dxi,dyi,zm(n1),dn0(n1)
     real, intent(inout) :: ri(n1,n2,n3),kh(n1,n2,n3)
     real, intent(out)   :: km(n1,n2,n3),edr(n1,n2,n3)
-
     real    :: delta,pr
 
     pr    = abs(prndtl)
@@ -351,8 +344,6 @@ contains
     call cyclics(n1,n2,n3,km,req)
     call cyclicc(n1,n2,n3,km,req)
 
-    edr(:,:,:) = kh(:,:,:)*km(:,:,:)
-
     if (sflg) then
        call get_cor3(n1,n2,n3,km,km,sz1)
        !
@@ -379,6 +370,10 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1
+            !
+            ! The product km and kh represent the local dissipation rate
+            !
+            edr(k,i,j) = km(k,i,j)*kh(k,i,j)
             !
             ! What is known as the 'physical' eddy diffusivity, Kh, is yet calculated from Km
             !

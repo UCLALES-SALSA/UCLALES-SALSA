@@ -76,7 +76,7 @@ contains
     use defs, only: vonk, g
     use grid, only: nxp, nyp, a_ustar, a_dn, zm, nbins, a_naerot, a_maerot
     use mo_submctl, only: aerobins, in2a, fn2a, &
-                    in2b, pi6, iss, ioc, ih2o, dens, nspec
+                    in2b, pi6, iss, ioc, ih2o, rhowa, rhoss, rhooc
     use stat, only: fill_scalar, sflg
     use util, only : get_avg2dh
 
@@ -89,14 +89,7 @@ contains
     REAL :: flx(fn2a+1) ! Production rate for each size bin
     REAL :: dcdt(nxp,nyp,fn2a) ! Particle concentration tendency (#/kg/s)
 
-    IF (wtrChlA>0. .and. ioc<1) THEN
-        STOP 'No sea spray species (OC) included!'
-    ELSEIF (iss<1 .and. nspec==1) THEN
-        ! For single component aerosol use the one available
-        iss=2
-    ELSEIF (iss<1) THEN
-        STOP 'No sea spray species (SS) included!'
-    ENDIF
+    IF (iss<1 .or. (wtrChlA>0. .and. ioc<1)) STOP 'No sea spray species included!'
 
     ! Roughness height is needed for the 10 m wind speeds
     zs = zrough
@@ -139,7 +132,7 @@ contains
     ! Organic mass fraction grom Gantt ea (2011)
     ! conversion to mg from kg
     if(wtrChlA>0.)then
-        rhorho = dens(ioc)/dens(iss) ! ratio of densities of marine organic matter and salt
+        rhorho = rhooc/rhoss ! ratio of densities of marine organic matter and salt
         omf_max = 1./(1.+exp(-2.63e6*wtrChlA+0.18*u10_bar))
     else
         omf_max = 0.
@@ -204,24 +197,24 @@ contains
         if(iss>0)then
             j = (iss-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*dens(iss)*(1.-0.5*(ovf(k)+ovf(k+1)))
+                                              & vdry*rhoss*(1.-0.5*(ovf(k)+ovf(k+1)))
             !  ... and add water proportionally to the salt volume
             j = (ih2o-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*dens(ih2o)*(1.-0.5*(ovf(k)+ovf(k+1)))*7.
+                                              & vdry*rhowa*(1.-0.5*(ovf(k)+ovf(k+1)))*7.
         endif
         ! .. organic fraction
         if(ioc>0)then
             j = (ioc-1)*nbins + i
             a_maerot(2,:,:,j) = a_maerot(2,:,:,j) + dcdt(:,:,k)* &
-                                              & vdry*dens(ioc)*0.5*(ovf(k)+ovf(k+1))
+                                              & vdry*rhooc*0.5*(ovf(k)+ovf(k+1))
         endif
 
     ENDDO
 
     if (sflg) then
         ! Convert dcdt [#/kg/s] to flux [#/m^2/s] and take sum over bins
-        omf = SUM ( SUM( SUM(dcdt(3:nxp-2,3:nyp-2,:),DIM=3)*a_dn(2,3:nxp-2,3:nyp-2),DIM=2 ) )*(zm(2)-zm(1))/REAL((nxp-4)*(nyp-4))
+        omf = SUM ( SUM(dcdt(3:nxp-2,3:nyp-2,:),DIM=3)*a_dn(2,3:nxp-2,3:nyp-2) )*(zm(2)-zm(1))/REAL((nxp-4)*(nyp-4))
         call fill_scalar(omf,'flx_aer')
         ! 10 m wind speed
         call fill_scalar(u10_bar,'u10    ')
