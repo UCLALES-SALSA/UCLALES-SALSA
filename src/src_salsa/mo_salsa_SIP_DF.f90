@@ -109,8 +109,8 @@ MODULE mo_salsa_SIP_DF
                   IF ( ddmean < dlliq_df ) CYCLE  
 
                   ! POISTA
-                  IF (ddmean < 20.e-6 .OR. ddmean > 1.e-1) WRITE(*,*) 'SIP-DF ddmean Warning ',ddmean,bb,nimax,icediams(bb),icebw(bb)
-                  IF (ddmean /= ddmean) WRITE(*,*) 'SIP-DF ddmean nan ',ddmean,bb,nimax,icediams(bb),icebw(bb)
+                  IF (ddmean < 20.e-6 .OR. ddmean > 1.e-1) WRITE(*,*) 'SIP-DF-ddmean,Warning',ddmean,bb,nimax,icediams(bb),icebw(bb)
+                  IF (ddmean /= ddmean) WRITE(*,*) 'SIP-DF-ddmean-nan',ddmean,bb,nimax,icediams(bb),icebw(bb)
                   ! -----------------
                
                   ! Ice bin index corresponding to the mean frozen drop diameter minus one; Fragments are distributed to ice bins 1:npmax

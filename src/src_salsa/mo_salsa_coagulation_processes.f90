@@ -960,7 +960,7 @@ MODULE mo_salsa_coagulation_processes
                           precp(ii,jj,itrgt)%numc > precp(ii,jj,itrgt)%nlim .AND. coll(ii,jj,ll)%numc > coll(ii,jj,ll)%nlim) THEN
                           nfrzn_rs(ii,jj,itrgt,ll) = nfrzn_rs(ii,jj,itrgt,ll) +      &
                             Eagg(ii,jj,ll)*zcc(ii,jj,itrgt,ll)*coll(ii,jj,ll)%numc*precp(ii,jj,itrgt)%numc*   &
-                            fix_coag(ii,jj)
+                            fix_coag(ii,jj)                         
                        END IF
                    ELSE IF (trgtphase ==2) THEN
                       IF (coll(ii,jj,ll)%dwet >= cloud(ii,jj,itrgt)%dwet .AND. cloud(ii,jj,itrgt)%dwet > dlliq_rs .AND.  &    
