@@ -91,7 +91,7 @@ module radiation
         i=(nv-n1+1)-rad_ilev ! Leave rad_ilev levels between LES and the cloud
         dz = (Rd/g) * pt(i)*(1.0+ep2*ph(i)) * alog( pp(i+1) / pp(i) ) ! dz (m)
         piwc(i) = rad_iwp/dz ! g/m3
-        pde(i) = min(max(rad_ieff,20.),180.) ! um
+        pde(i) = min(max(rad_ieff,20.),120.) ! um
       ENDIF
       !
       ! Initialize radiative transfer solver
@@ -191,7 +191,7 @@ module radiation
                   if ((ice(k,i,j).gt.0.).and.(nice(k,i,j).gt.0.)) then
                      piwc(kk) = 1000.*dn(k,i,j)*ice(k,i,j)
                      pde(kk)  = 1.e6*(piwc(kk)/(1000.*pri*nice(k,i,j)*dn(k,i,j)))**(1./3.)
-                     pde(kk)=min(max(pde(kk),20.),180.)
+                     pde(kk)=min(max(pde(kk),20.),120.)
                   else
                      piwc(kk) = 0.0
                      pde(kk)  = 0.0
