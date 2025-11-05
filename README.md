@@ -1,6 +1,12 @@
 # UCLALES-SALSA
 
-This description covers UCLALES-SALSA branch **IceDevelOrg** (https://github.com/UCLALES-SALSA/UCLALES-SALSA/tree/IceDevelOrg).
+This description covers UCLALES-SALSA branch **IceDevelOrg** (https://github.com/UCLALES-SALSA/UCLALES-SALSA/tree/IceDevelOrg) and branches originating from that.
+
+Branch **comble_dev** contains modifications needed for the COMBLE-MIP simulations (https://arm-development.github.io/comble-mip/README.html).
+- For SB simulations, see commit 54eb6cac9d4cae0ed6dadc2749b816a512e6afcf (Mon Jun 10 15:48:53 2024 +0300).
+- For SALSA simulations, see commit f56146f1f8fd5471fbdded63ac2e058bd5c9445f (Wed Jul 31 11:44:41 2024 +0300).
+
+Reference: Juliano, T.W., et al.: The Cold-Air Outbreaks in the Marine Boundary Layer Experiment model-observation intercomparison project (COMBLE-MIP), Part I: Model specification, observational constraints, and preliminary findings, Manuscrip in preparation, 2025.
 
 ## Description
 UCLALES-SALSA (Tonttila et al., 2017; Ahola et al., 2020) is a Large-Eddy Simulator (LES) coupled with a detailed sectional aerosol microphysics module SALSA (Kokkola et al., 2008) extended for cloud, rain, and ice microphysics. This version of SALSA includes semi-volatile organics (Prank et al., 2022) described with the Volatility Basis Set (VBS) approach. SALSA and all modifications and components related to the coupled UCLALES-SALSA have been designed and developed by the Finnish Meteorological Institute (see the MIT license in this directory).
@@ -32,5 +38,6 @@ The bin directory contains a sample NAMELIST (*NAMELIST_sample*) and sounding (*
 - Stevens, R. G., Loewe, K., Dearden, C., Dimitrelos, A., Possner, A., Eirund, G. K., Raatikainen, T., Hill, A. A., Shipway, B. J., Wilkinson, J., Romakkaniemi, S., Tonttila, J., Laaksonen, A., Korhonen, H., Connolly, P., Lohmann, U., Hoose, C., Ekman, A. M. L., Carslaw, K. S., and Field, P. R.: A model intercomparison of CCN-limited tenuous clouds in the high Arctic, Atmos. Chem. Phys., 18, 11041-11071, https://doi.org/10.5194/acp-18-11041-2018, 2018.
 - Ahola, J., Korhonen, H., Tonttila, J., Romakkaniemi, S., Kokkola, H., and Raatikainen, T.: Modelling mixed-phase clouds with the large-eddy model UCLALES-SALSA, Atmos. Chem. Phys., 20, 11639-11654, https://doi.org/10.5194/acp-20-11639-2020, 2020.
 - Prank, M., Tonttila, J., Ahola, J., Kokkola, H., Kuhn, T., Romakkaniemi, S., and Raatikainen, T.: Impacts of marine organic emissions on low-level stratiform clouds - a large eddy simulator study, Atmos. Chem. Phys., 22, 10971-10992, https://doi.org/10.5194/acp-22-10971-2022, 2022.
+- Prank, M., Tonttila, J., Shang, X., Romakkaniemi, S., and Raatikainen, T.: Can pollen affect precipitation?, Atmos. Chem. Phys., 25, 183-197, https://doi.org/10.5194/acp-25-183-2025, 2025.
 - Ahola, J., Raatikainen, T., Alper, M. E., Keskinen, J.-P., Kokkola, H., Kukkurainen, A., Lipponen, A., Liu, J., Nordling, K., Partanen, A.-I., Romakkaniemi, S., Raisanen, P., Tonttila, J., and Korhonen, H.: Technical note: Parameterising cloud base updraft velocity of marine stratocumuli, Atmos. Chem. Phys., 22, 4523-4537, https://doi.org/10.5194/acp-22-4523-2022, 2022.
 - Raatikainen, T., Prank, M., Ahola, J., Kokkola, H., Tonttila, J., and Romakkaniemi, S.: The effect of marine ice-nucleating particles on mixed-phase clouds, Atmos. Chem. Phys., 22, 3763-3778, https://doi.org/10.5194/acp-22-3763-2022, 2022.
