@@ -80,7 +80,7 @@ advf.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_vector_sta
 	mo_aux_state.o grid.o util.o mo_submctl.o $(seqmpi:.f90=.o)	
 advl.o: mo_structured_datatypes.o grid.o mo_vector_state.o mo_aux_state.o util.o 
 srfc.o: mo_structured_datatypes.o defs.o mo_diag_state.o mo_aux_state.o     \
-        mo_vector_state.o mo_progn_state.o grid.o thrm.o defs.o $(seqmpi:.f90=.o) 
+        mo_vector_state.o mo_progn_state.o grid.o thrm.o defs.o emission_init.o $(seqmpi:.f90=.o) 
 prss.o: defs.o mo_structured_datatypes.o mo_aux_state.o mo_vector_state.o mo_diag_state.o    \
         grid.o util.o $(seqmpi:.f90=.o)
 sgsm.o: util.o mo_structured_datatypes.o mo_aux_state.o mo_diag_state.o  \

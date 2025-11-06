@@ -15,10 +15,9 @@ MODULE mo_aux_state
   ! Initialization profiles
   TYPE(FloatArray1d), TARGET :: u0, v0, pi0, pi1, th0, dn0, rt0
   REAL, ALLOCATABLE, TARGET :: a_basicstate(:)
-
-  
+        
   CONTAINS
-
+   
     SUBROUTINE setInitialProfiles(BasicState,nzp)
       INTEGER, INTENT(in) :: nzp
       TYPE(FieldArray), INTENT(inout) :: BasicState

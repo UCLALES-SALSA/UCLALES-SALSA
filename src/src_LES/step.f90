@@ -34,7 +34,7 @@ MODULE step
   REAL    :: radfrq =  0.
   
   REAL    :: time   =  0.
-  REAL    :: strtim =  0.0    ! In decimal days, 0.5 mid-day
+  REAL    :: strtim =  0.0    ! In julian days, 0.5 mid-day of January,01st
   LOGICAL :: outflg = .TRUE.
   
 CONTAINS
@@ -49,8 +49,8 @@ CONTAINS
 
       USE mpi_interface, ONLY : myid, double_scalar_par_max, mpiroot
       USE mo_vector_state, ONLY : a_uc, a_vc, a_wc, a_up, a_vp, a_wp
-      USE grid, ONLY : dtl, dtlt,  &
-                       dtlv, dtlong, nzp, nyp, nxp, level, lemission
+      USE grid, ONLY : dtl, dtlt, dtlv, dtlong, nzp, nyp, nxp, &
+                       level, lemission, isfctyp
       USE thrm, ONLY : thermo
       USE mo_output, ONLY : write_main, close_main, write_ps, close_ps,    &
                             write_ts, close_ts, tsflg, psflg, ts_intvl,    &
@@ -58,6 +58,8 @@ CONTAINS
       USE mo_history, ONLY : write_hist
       
       USE perturbation_forc, ONLY : warm_bubble, gaussian_flux_perturbation
+      
+      USE mo_diag_state, ONLY : a_ignitiontime
       
       LOGICAL, PARAMETER :: StopOnCFLViolation = .FALSE.
       REAL, PARAMETER :: cfl_upper = 0.50, cfl_lower = 0.30
@@ -90,13 +92,13 @@ CONTAINS
             CALL warm_bubble%run()
          END IF
 
-         ! Create surface flux perturnations if required
+         ! Create surface flux perturbations if required
          IF ( gaussian_flux_perturbation%state ) THEN
             CALL gaussian_flux_perturbation%run()
          END IF
                  
          CALL t_step(cflflg,cflmax,istp)
-
+         
          time = time + dtl
 
          CALL double_scalar_par_max(cflmax,gcflmax)
@@ -123,7 +125,7 @@ CONTAINS
 
          IF ((mod(tplsdt,main_intvl) < dtl .OR. time >= timmax) .AND. outflg) THEN
             CALL thermo(level)
-            CALL write_main(time)
+            CALL write_main(time)            
          END IF
 
          IF (cflflg) THEN
@@ -140,16 +142,19 @@ CONTAINS
                CALL cpu_time(t1)
             END IF
          END IF
-
+ 
       END DO
 
       CALL write_hist(1, time)
+      
+      
       CALL close_main()
       IF (myid == mpiroot) THEN
          CALL close_ps()
-         CALL close_ts()
+         CALL close_ts()         
       END IF
-         
+      
+      
    END SUBROUTINE stepper
    !
    !----------------------------------------------------------------------
@@ -241,11 +246,11 @@ CONTAINS
 
       USE grid, ONLY : level,lpback,dtlt,      &
                        nxp,nyp,nzp,   &
-                       a_nactd,  a_vactd, lemission
+                       a_nactd,  a_vactd, lemission, isfctyp
       USE mo_vector_state, ONLY : a_wp
       USE mo_field_state, ONLY : Diag, Prog
       USE sgsm, ONLY : diffuse
-      USE srfc, ONLY : surface
+      USE srfc, ONLY : surface, update_ignition
       USE thrm, ONLY : thermo
       USE mcrp, ONLY : micro
       USE prss, ONLY : poisson
@@ -267,8 +272,6 @@ CONTAINS
 
       INTEGER :: nspec
       LOGICAL :: lcharge
-      
-         
 
       zwp = 0.5  ! single column run vertical velocity
 
@@ -283,10 +286,10 @@ CONTAINS
       IF (level >= 4) THEN
          a_vactd = 0.
          a_nactd = 0.
-      END IF
-
-      CALL surface()
-
+      END IF 
+              
+      CALL surface(time,dtlt) 
+                              
       CALL diffuse
 
       CALL sponge(0)
@@ -370,6 +373,7 @@ CONTAINS
 
       IF (level >= 4) CALL SALSA_diagnostics(.TRUE.,lcharge)
       CALL thermo(level)
+      
 
    END SUBROUTINE t_step
    !

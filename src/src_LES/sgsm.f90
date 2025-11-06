@@ -63,7 +63,7 @@ CONTAINS
   ! ---------------------------------------------------------------------
   ! Subroutine DIFFUSE: Driver for calculating sub-grid fluxes (thus it
   ! includes call to surface routines)  Depending on value of ISGSTYP,
-  ! the model computes diffusivities based on smaorinsky equilibrium model
+  ! the model computes diffusivities based on smagorinsky equilibrium model
   ! or a subgrid tke model.
   !
   ! Modified for Level 4:

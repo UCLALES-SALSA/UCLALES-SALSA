@@ -31,9 +31,13 @@ MODULE mo_diag_state
                                 a_fuir, a_fdir       ! 21, 22:
   TYPE(FloatArray3D), TARGET :: a_rrate              ! 23: Precipitation flux
   TYPE(FloatArray3D), TARGET :: a_irate              ! 24: Precipitation flux, frozen
+  TYPE(FloatArray3D), TARGET :: a_todsw, a_todlw,  &   ! 25, 26: total optical depth in sw and lw bands
+  				a_codsw, a_codlw,  &   ! 27, 28: cloud optical depth in sw and lw bands
+ 				a_aodsw, a_aodlw,  &   ! 29, 30: aerosol optical depth in sw and lw bands
+				a_iodsw, a_iodlw       ! 31, 32: aerosol optical depth in sw and lw bands
 
   REAL, ALLOCATABLE, TARGET :: a_diag3d(:,:,:,:) 
-  INTEGER, PARAMETER :: ndiag3d = 24   ! Remember to update if adding new variables!!
+  INTEGER, PARAMETER :: ndiag3d = 32   ! Remember to update if adding new variables!!
 
   !-------------------------------------------------------------------
   ! Binned diagnostic variables mainly for output
@@ -53,14 +57,29 @@ MODULE mo_diag_state
   TYPE(FloatArray2D), TARGET :: ww_sfc               ! 7:
   TYPE(FloatArray2D), TARGET :: wt_sfc               ! 8: 
   TYPE(FloatArray2D), TARGET :: wq_sfc               ! 9:
+  
 
   ! -------------------------------------------------------------------------------
   ! Do these need to be stored? If not, move to mo_derived_state?
-  TYPE(FloatArray2D), TARGET :: a_sfcrrate           ! 10: Surface rain rate
-  TYPE(FloatArray2D), TARGET :: a_sfcirate           ! 11: Surface frozen precipitation
+  TYPE(FloatArray2D), TARGET :: a_sfcrrate           ! 10: Surface rain rate in W/m2
+  TYPE(FloatArray2D), TARGET :: a_sfcirate           ! 11: Surface frozen precipitation in W/m2
+  TYPE(FloatArray2D), TARGET :: a_tskin              ! 12: Surrogate of Skin temperature in K (WORK IN PROGRESS, not available)
+  TYPE(FloatArray2D), TARGET :: a_qskin              ! 13: Surrogate of Skin moisture in kg water/kg moist air (WORK IN PROGRESS, not available)
+  TYPE(FloatArray2D), TARGET :: a_fgi                ! 14: Initial total mass of ground fuel in kg/m2
+  TYPE(FloatArray2D), TARGET :: a_weight             ! 15: Weighting parameter for slope of mass loss curve
+  TYPE(FloatArray2D), TARGET :: a_fcz0               ! 16: Roughness length for vertical wind log interpolation in m
+  TYPE(FloatArray2D), TARGET :: a_fuelmcg            ! 17: Fuel ground moisture content or Mf in kg/kg dry fuel
+  TYPE(FloatArray2D), TARGET :: a_ignitiontime       ! 18: Time of ignition in s
+  TYPE(FloatArray2D), TARGET :: a_fuelburnt          ! 19: Mass of fuel that has been burnt during the time interval in kg
+  TYPE(FloatArray2D), TARGET :: a_firespread         ! 20: Fire spread rate with wind effects R0 in m/s
+  TYPE(FloatArray2D), TARGET :: a_areaburnt          ! 21: Area burnt from the grid cell
+  TYPE(FloatArray2D), TARGET :: a_phiwc              ! 22: Wind coefficient C (premultiplied by R0) in m/s
+  TYPE(FloatArray2D), TARGET :: a_phiwb              ! 23: Wind exponent in the fire spread rate R
+  TYPE(FloatArray2D), TARGET :: a_tcrit              ! 24: Time at which the cell is completely ignited
+  TYPE(FloatArray2D), TARGET :: a_R0                 ! 25: Fire spread rate without wind effects R0 in m/s
   
   REAL, ALLOCATABLE, TARGET :: a_diag2d(:,:,:)
-  INTEGER, PARAMETER :: ndiag2d = 11  ! Remember to update if adding new variables!!
+  INTEGER, PARAMETER :: ndiag2d = 25      ! Remember to update if adding new variables!!
   
   ! --------------------------------------------------------------------------------------------------------------------------------------------------
   ! Microphysical process rates from SALSA -- they need to be stored during the timestep because they cannot be simply diagnosed afterwards
@@ -380,6 +399,75 @@ MODULE mo_diag_state
          CALL Diag%newField("irate", "Frozen precipitation flux", "W/m2", "tttt",    &
                             ANY(outputlist == "irate"), pipeline) 
       END IF
+      
+      IF (iradtyp >= 3) THEN
+         memsize = memsize + nxy
+         n3d = n3d+1
+         pipeline => NULL()
+         a_todsw = FloatArray3d(a_diag3d(:,:,:,n3d))
+         pipeline => a_todsw
+         CALL Diag%newField("todsw", "Total optical depth Shortwave", "", "tttt",   &
+                            ANY(outputlist == "todsw"), pipeline) 
+         
+         memsize = memsize + nxy
+         n3d = n3d+1
+         pipeline => NULL()
+         a_todlw = FloatArray3d(a_diag3d(:,:,:,n3d))
+         pipeline => a_todlw
+         CALL Diag%newField("todlw", "Total optical depth Longwave", "", "tttt",   &
+                            ANY(outputlist == "todlw"), pipeline) 
+         
+         memsize = memsize + nxy
+         n3d = n3d+1
+         pipeline => NULL()
+         a_codsw = FloatArray3d(a_diag3d(:,:,:,n3d))
+         pipeline => a_codsw
+         CALL Diag%newField("codsw", "Cloud optical depth Shortwave", "", "tttt",   &
+                            ANY(outputlist == "codsw"), pipeline) 
+         
+         memsize = memsize + nxy
+         n3d = n3d+1
+         pipeline => NULL()
+         a_codlw = FloatArray3d(a_diag3d(:,:,:,n3d))
+         pipeline => a_codlw
+         CALL Diag%newField("codlw", "Cloud optical depth Longwave", "", "tttt",   &
+                            ANY(outputlist == "codlw"), pipeline) 
+         
+        
+	memsize = memsize + nxy
+	n3d = n3d+1
+	pipeline => NULL()
+	a_aodsw = FloatArray3d(a_diag3d(:,:,:,n3d))
+	pipeline => a_aodsw
+	CALL Diag%newField("aodsw", "Aerosol optical depth Shortwave", "", "tttt",   &
+		            ANY(outputlist == "aodsw"), pipeline) 
+	 
+	memsize = memsize + nxy
+	n3d = n3d+1
+	pipeline => NULL()
+	a_aodlw = FloatArray3d(a_diag3d(:,:,:,n3d))
+	pipeline => a_aodlw
+	CALL Diag%newField("aodlw", "Aerosol optical depth Longwave", "", "tttt",   &
+		            ANY(outputlist == "aodlw"), pipeline) 
+	 
+	memsize = memsize + nxy
+	n3d = n3d+1
+	pipeline => NULL()
+	a_iodsw = FloatArray3d(a_diag3d(:,:,:,n3d))
+	pipeline => a_iodsw
+	CALL Diag%newField("iodsw", "Ice optical depth Shortwave", "", "tttt",   &
+		            ANY(outputlist == "iodsw"), pipeline) 
+	 
+	memsize = memsize + nxy
+	n3d = n3d+1
+	pipeline => NULL()
+	a_iodlw = FloatArray3d(a_diag3d(:,:,:,n3d))
+	pipeline => a_iodlw
+	CALL Diag%newField("iodlw", "Ice optical depth Longwave", "", "tttt",   &
+		            ANY(outputlist == "iodlw"), pipeline)                           
+                            
+      END IF
+      
 
       ! First diag2d entry
       IF (iradtyp >= 3) THEN
@@ -473,7 +561,119 @@ MODULE mo_diag_state
          CALL Diag%newField("sfcirate", "Surface frozen precip", "W m-2", "xtytt",    &
                             ANY(outputlist == "sfcirate"), pipeline)
       END IF
+      
+      memsize = memsize + nxy
+      n2d = n2d+1
+      pipeline => NULL()
+      a_tskin = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_tskin
+      CALL Diag%newField("t_skin", "Skin temperature", "K", "xtytt",     &
+                         ANY(outputlist == "tskin"), pipeline)
+      
+      memsize = memsize + nxy
+      n2d = n2d+1
+      pipeline => NULL()
+      a_qskin = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_qskin
+      CALL Diag%newField("q_skin", "Skin moisture", "kgkg", "xtytt",     &
+                         ANY(outputlist == "qskin"), pipeline)
+      
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_fgi = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_fgi
+      CALL Diag%newField("fgi","Initial total mass of ground fuel","kg/m2","xtytt",    &
+                         ANY(outputlist == "fgi"), pipeline)
+                         
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_weight = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_weight
+      CALL Diag%newField("weight","Weighting parameter for slope of mass loss curve","s","xtytt",   &
+                         ANY(outputlist == "weight"), pipeline)
+      
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_fcz0 = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_fcz0
+      CALL Diag%newField("fcz0","Roughness length for vertical wind log interpolation","m","xtytt",   &
+                         ANY(outputlist == "fcz0"), pipeline)
+      
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_fuelmcg = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_fuelmcg
+      CALL Diag%newField("fuelmcg","Fuel ground moisture content or Mf","kg/kg of dry fuel","xtytt",   &
+                         ANY(outputlist == "fuelmcg"), pipeline)
+      
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_ignitiontime = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_ignitiontime
+      CALL Diag%newField("ignitiontime","Ignition time","s","xtytt",   &
+                         ANY(outputlist == "ignitiontime"), pipeline)
 
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_fuelburnt = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_fuelburnt
+      CALL Diag%newField("fuelburnt","Fuel burnt","kg","xtytt",   &
+                         ANY(outputlist == "fuelburnt"), pipeline)
+
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_firespread= FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_firespread
+      CALL Diag%newField("firespread","Fire Spread rate with wind effects R0(1+phiwc*Vh**phiwb)","m/s","xtytt",   &
+                         ANY(outputlist == "firespread"), pipeline)   
+                         
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_areaburnt= FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_areaburnt
+      CALL Diag%newField("areaburnt","Area burnt","m2","xtytt",   &
+                         ANY(outputlist == "areaburnt"), pipeline)    
+      
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_phiwc = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_phiwc
+      CALL Diag%newField("phiwc","Coefficient for wind effects premultiplied by R0","m/s","xtytt",   &
+                         ANY(outputlist == "phiwc"), pipeline)    
+       
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_phiwb = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_phiwc
+      CALL Diag%newField("phiwb","Exponent for wind effects","","xtytt",   &
+                         ANY(outputlist == "phiwb"), pipeline)                    
+                         
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_tcrit = FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_tcrit
+      CALL Diag%newField("tcrit","Critical time at which all cell is ignited","s","xtytt",   &
+                         ANY(outputlist == "tcrit"), pipeline)     
+                         
+      memsize = memsize + nxy                   
+      n2d = n2d+1
+      pipeline => NULL()
+      a_R0= FloatArray2d(a_diag2d(:,:,n2d))
+      pipeline => a_R0
+      CALL Diag%newField("R0","Fire Spread rate without wind effects","m/s","xtytt",   &
+                         ANY(outputlist == "R0"), pipeline)               
+      
       ! -----------------------------------
       ! Process rate diagnostics
 

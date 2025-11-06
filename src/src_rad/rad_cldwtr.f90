@@ -506,6 +506,7 @@ CONTAINS
           ! Mass bin indices
           istr = getMassIndex(nbins,1,ss)
           iend = getMassIndex(nbins,nbins,ss)
+          !WRITE(*,*) 'Species', spec%names(ss)
           ! Volumes for each species, 0 if not used or if nothing present
           volc(ss,1:nbins) = MERGE( (maerobin(kk,istr:iend))/spec%rholiq(ss), &
                                     0.,                                       &

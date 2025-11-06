@@ -80,7 +80,7 @@ MODULE mpi_interface
                                            ydisp,xcount,ycount
 
    INTEGER :: stridetype,xstride,ystride,xystride,xylarry,xyzlarry,&
-              fxytype,fxyztype
+              fxytype,fxyztype, row_type, col_type
 
    CHARACTER(len=80) :: ver='', author=''
    ! Additional, e.g. case specific, information
@@ -537,7 +537,7 @@ CONTAINS
    !
    !
    ! ---------------------------------------------------------------------
-   ! Subroutine cyclicc: comits excahnging cyclic boundary conditions
+   ! Subroutine cyclicc: comits exchanging cyclic boundary conditions
    SUBROUTINE cyclicc(n1,n2,n3,var,req)
 
       INTEGER :: ierror, stats(MPI_STATUS_SIZE,16)
@@ -548,6 +548,79 @@ CONTAINS
 
    END SUBROUTINE cyclicc
 
+  ! ---------------------------------------------------------------------
+  ! Subroutine cyclicc: comits exchanging cyclic boundary conditions
+   SUBROUTINE cyclicc2d(n2,n3,var,req)
+
+      INTEGER :: ierror, stats(MPI_STATUS_SIZE,8)
+      INTEGER :: req(8),n2,n3
+      REAL    :: var(n2,n3)
+
+      CALL mpi_waitall(8,req,stats,ierror)
+
+   END SUBROUTINE cyclicc2d
+ ! --------------------------------------------------------------------------
+ SUBROUTINE cyclics2d(n2,n3,var,req)
+   
+   IMPLICIT NONE
+   
+   INTEGER, INTENT(in) :: n2,n3
+   REAL, INTENT(inout) :: var(n2,n3)
+   INTEGER :: req(8)
+   INTEGER :: ierror, stats(MPI_STATUS_SIZE,8)
+   INTEGER :: pxfwd, pxback, pyfwd, pyback
+   INTEGER :: pxyne, pxyse, pxynw, pxysw
+   
+   IF (nypg == 5) THEN
+   	var(:,1) = var(:,3)
+   	var(:,2) = var(:,3)
+   	var(:,4) = var(:,3)
+   	var(:,5) = var(:,3)   	
+   END IF
+   
+   IF (nxpg == 5) THEN
+   	var(1,:) = var(3,:)
+   	var(2,:) = var(3,:)
+   	var(4,:) = var(3,:)
+   	var(5,:) = var(3,:)
+   END IF
+   
+   pxfwd  = ranktable(wrxid+1,wryid) ! bottom
+   pxback = ranktable(wrxid-1,wryid) ! top
+   pyfwd  = ranktable(wrxid,wryid+1) ! right
+   pyback = ranktable(wrxid,wryid-1) ! left
+   
+   pxyne = ranktable(wrxid+1,wryid+1)
+   pxyse = ranktable(wrxid+1,wryid-1)
+   pxynw = ranktable(wrxid-1,wryid+1)
+   pxysw = ranktable(wrxid-1,wryid-1)
+   
+   CALL MPI_TYPE_VECTOR(n3-4, 1, n2, MY_REAL, row_type, ierror)
+   CALL MPI_TYPE_COMMIT(row_type,ierror)
+   
+   CALL MPI_TYPE_CONTIGUOUS(n2-4, MY_REAL, col_type, ierror)
+   CALL MPI_TYPE_COMMIT(col_type,ierror)
+   
+   ! left to right
+   CALL mpi_isend(var(3,3), 1, col_type, pyfwd, 140, MPI_COMM_WORLD, req(1), ierror)
+   CALL mpi_irecv(var(3,n3-2), 1, col_type, pyback, 140, MPI_COMM_WORLD, req(2), ierror)
+                
+   ! right to left
+   CALL mpi_isend(var(3,n3-2), 1, col_type, pyback, 130, MPI_COMM_WORLD, req(3), ierror)
+   CALL mpi_irecv(var(3,3), 1, col_type, pyfwd, 130, MPI_COMM_WORLD, req(4), ierror)
+   
+   ! top to bottom
+   CALL mpi_isend(var(3,3), 1, row_type, pxfwd, 120, MPI_COMM_WORLD, req(5), ierror)
+   CALL mpi_irecv(var(n2-2,3), 1, row_type, pxback, 120, MPI_COMM_WORLD, req(6), ierror)
+                   
+   ! bottom to top
+   CALL mpi_isend(var(n2-2,3), 1, row_type, pxback, 110, MPI_COMM_WORLD, req(7), ierror)
+   CALL mpi_irecv(var(3,3), 1, row_type, pxfwd, 110, MPI_COMM_WORLD, req(8), ierror)
+   
+   END SUBROUTINE cyclics2d  
+   
+   
+   ! -------------------------------------------------------------------
    SUBROUTINE appl_abort(apperr)
 
       INTEGER :: apperr,ierr

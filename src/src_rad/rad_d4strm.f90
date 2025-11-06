@@ -85,7 +85,9 @@ CONTAINS
   ! defined by input ckd file
   !
   SUBROUTINE rad (as, u0, ss, pts, ee, pp, pt, ph, po, fds, fus, fdir, fuir, &
-                  McICA, nspec, plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc needed?
+                  McICA, nspec, plwc, pre, piwc, pde, pgwc, maerobin, naerobin, &
+                  todir, codir, aodir, iodir, tods, cods, aods, iods) ! prwc needed?
+                  
 
     INTEGER, INTENT(in) :: nspec
     REAL, INTENT(in) :: pp (nv1) ! pressure at interfaces
@@ -100,7 +102,7 @@ CONTAINS
          pre,  & ! effective radius of cloud droplets [microns]
          piwc, & ! cloud ice water content [g/m^3]
          pde,  & ! effective diameter of ice particles [microns]
-         !prwc, & ! rain water content [g/m^3]
+         !prwc, & ! rain water content [g/m^3] prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
          pgwc    ! graupel water content
 
     REAL, OPTIONAL, INTENT(in) :: maerobin(nv,nspec*nbins),  & !  maerobin(:,:), naerobin(:,:)
@@ -118,12 +120,18 @@ CONTAINS
     REAL, DIMENSION(nv1), INTENT (out) ::  &
          fds, fus,  & ! downward and upward solar flux
          fdir, fuir   ! downward and upward ir flux
+    
+    REAL, DIMENSION(nv), INTENT (out) ::  &
+         todir, codir, aodir, iodir,  & !total, cloud, aerosol and ice optical depth ir
+         tods, cods, aods, iods         !total, cloud, aerosol and ice optical depth visible
 
     CALL rad_ir(nspec,pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
-                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc
+                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin,  &
+                 todir, codir,aodir,iodir) ! prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
 
     CALL rad_vis(nspec,as, u0, ss, pp, pt, ph, po, fds, fus, McICA, &
-                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc
+                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin,    &
+                 tods,cods,aods,iods) ! prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
 
   END SUBROUTINE rad
 
@@ -133,7 +141,9 @@ CONTAINS
   ! defined by input ckd file
   !
   SUBROUTINE rad_ir (nspec,pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
-                     plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc needed?
+                     plwc, pre, piwc, pde, pgwc, maerobin, naerobin,   &
+                     tod, cod, aod, iod) ! prwc needed?
+
 
     INTEGER, INTENT(in) :: nspec
     REAL, INTENT(in) :: pp (nv1) ! pressure at interfaces
@@ -160,11 +170,18 @@ CONTAINS
 
     REAL, DIMENSION(nv1), INTENT (out) :: &
          fdir, fuir   ! downward and upward ir flux
+    
+    REAL, DIMENSION(nv), INTENT (out) :: &
+         tod, &   ! total optical depth IR
+         cod, &   ! cloud optical depth IR
+         aod, iod ! aerosol optical depth IR
+         
+
 
     ! ----------------------------------------
     LOGICAL, PARAMETER :: irWeighted = .FALSE. 
 
-    REAL, DIMENSION (nv)   :: tw,ww,tg,dz,tauNoGas, wNoGas, Tau, w
+    REAL, DIMENSION (nv)   :: tw,ww,tg,dz,TauNoGas, wNoGas, tau, w
     REAL, DIMENSION (nv)   :: taer,waer
     REAL, DIMENSION (nv)   :: ti,wi,tgr,wgr
     REAL, DIMENSION (nv1)  :: fu1, fd1, bf
@@ -174,19 +191,20 @@ CONTAINS
 
     INTEGER :: ib, ig, k, ig1, ig2, ibandloop, iblimit
     REAL    :: fuq2, xir_norm
-    REAL, DIMENSION(:), ALLOCATABLE, SAVE :: bandWeights
+    REAL, DIMENSION(:), ALLOCATABLE, SAVE ::bandweights
     REAL    :: randomNumber
+    REAL, DIMENSION(nv) ::  aaod, acod, atod, aiod, atodg ! auxiliary variables
     ! ----------------------------------------
 
     IF (.NOT. Initialized) CALL rad_init()
 
     IF(.NOT. allocated(bandweights)) THEN 
       ALLOCATE(bandweights(size(ir_bands)))
-      CALL computeIRBandWeights(ir_bands, irWeighted, bandWeights)
+      CALL computeIRBandWeights(ir_bands, irWeighted,bandweights)
     END IF
-    
-    fdir(:) = 0.0; fuir(:) = 0.0
 
+    fdir(:) = 0.0; fuir(:) = 0.0
+    
     CALL thicks(pp, pt, ph, dz) 
 
     IF (McICA) THEN
@@ -195,13 +213,18 @@ CONTAINS
        !   in the loop through the spectrum below. 
        !
        CALL random_number(randomNumber)
-       CALL select_bandg(ir_bands, bandweights, randomNumber, ib, ig1) 
+       CALL select_bandg(ir_bands,bandweights, randomNumber, ib, ig1) 
        ig2 = ig1
        iblimit = 1
     ELSE
        iblimit = size(ir_bands)
+       !CALL computeIRBandWeights(ir_bands, .TRUE.,bandweights)
     END IF
-
+   
+    tod(:) = 0.0; cod(:) = 0.0; aod(:)= 0.0; iod(:)= 0.0
+    
+    atod= 0.0; acod = 0.0; aaod= 0.0; aiod= 0.0; atodg=0.0
+    
     bandLoop: DO ibandloop = 1, iblimit
       IF (.NOT. McICA) THEN
          ib  = ibandloop
@@ -216,49 +239,78 @@ CONTAINS
       wNoGas = 0.; pfNoGas  = 0. 
       IF (present(plwc)) THEN
         CALL cloud_water(ib + size(solar_bands), pre, plwc, dz, tw, ww, www)
-        CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw, ww, www)
+        CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw, ww, www) 
+        acod = tw       
       END IF
       IF (present(piwc)) THEN
         CALL cloud_ice(ib + size(solar_bands), pde, piwc, dz, ti, wi, wwi)
         CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti, wi, wwi)
+        aiod = ti
       END IF
       IF (present(pgwc)) THEN
         CALL cloud_grp(ib + size(solar_bands), pgwc, dz, tgr, wgr, wwgr)
+        aiod = aiod + tgr
         CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr, wwgr)
       END IF 
       IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
+
          CALL aero_rad(ib + size(solar_bands), nbins, nspec, maerobin, naerobin, &
                        dz, taer, waer, wwaer)
          CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, taer, waer, wwaer)
+	 aaod = taer
       END IF
 
       CALL planck(pt, pts, llimit(ir_bands(ib)), rlimit(ir_bands(ib)), bf)
-
+      
+      atod  = TauNoGas
+      
       gPointLoop: DO ig = ig1, ig2
          tau = TauNoGas; w = wNoGas; pf = pfNoGas
+         
          CALL gases (ir_bands(ib), ig, pp, pt, ph, po, tg )
          CALL combineOpticalProperties(tau, w, pf, tg)
-
-         !
+	 
          ! Solver expects cumulative optical depth
-         !
+         !            
          DO k = 2, nv
-           tau(k) = tau(k) + tau(k - 1)
+               tau(k) = tau(k) + tau(k - 1)
          END DO
+         
+         
          CALL qft (.FALSE., ee, 0., 0., bf, tau, w, pf(:, 1), pf(:, 2),      &
                    pf(:, 3), pf(:, 4), fu1, fd1)
 
          IF (McICA) THEN 
             xir_norm = 1./bandweights(ib)
          ELSE
-            xir_norm = gPointWeight(ir_bands(ib), ig)
+            xir_norm = gPointWeight(ir_bands(ib), ig)            
          END IF
-
+         
          fdir(:) = fdir(:) + fd1(:) * xir_norm
-         fuir(:) = fuir(:) + fu1(:) * xir_norm
+         fuir(:) = fuir(:) + fu1(:) * xir_norm    
+         
       END DO gPointLoop
+    
+     tod(:)  = tod(:)  + atod(:)*bandweights(ib)
+     cod(:)  = cod(:)  + acod(:)*bandweights(ib)
+     aod(:)  = aod(:)  + aaod(:)*bandweights(ib)     
+     iod(:)  = iod(:)  + aiod(:)*bandweights(ib)
+            
+     !WRITE(*,*) 'IR-ib', ib 
+     !WRITE(*,*) 'IR WF',bandweights(ib)
+      
+     atod= 0.0; acod = 0.0; aaod= 0.0; aiod= 0.0
+      
     END DO bandLoop
-    !
+    
+    ! Solver expects cumulative optical depth          
+    DO k = 2, nv
+	cod(k) = cod(k) + cod(k-1)
+	aod(k) = aod(k) + aod(k-1)  
+	iod(k) = iod(k) + iod(k-1)
+	tod(k) = tod(k) + tod(k-1)
+    END DO
+
     ! fuq2 is the surface emitted flux in the band 0 - 280 cm**-1 with a
     ! hk of 0.03.
     !
@@ -271,7 +323,9 @@ CONTAINS
   !
 
   SUBROUTINE rad_vis (nspec,as, u0, ss, pp, pt, ph, po, fds, fus, McICA,  &
-                      plwc, pre, piwc, pde, pgwc, maerobin, naerobin ) !prwc needed?
+                      plwc, pre, piwc, pde, pgwc, maerobin, naerobin, &
+                      tod,cod,aod,iod ) !prwc needed?
+
 
     INTEGER, INTENT(in) :: nspec
     REAL, INTENT(in) :: pp (nv1) ! pressure at interfaces
@@ -300,11 +354,16 @@ CONTAINS
 
     REAL, DIMENSION(nv1), INTENT (out)::  &
          fds, fus    ! downward and upward solar flux
+         
+    REAL, DIMENSION(nv), INTENT (out) :: &
+         tod, &   ! total optical depth VIS
+         cod, &   ! cloud optical depth VIS
+         aod, iod ! aerosol optical depth VIS
 
     ! ----------------------------------------
     LOGICAL, PARAMETER :: solarWeighted = .FALSE. ! Could be .TRUE.?
 
-    REAL, DIMENSION(nv)   :: tw,ww,tg,tgm,dz, tauNoGas, wNoGas, tau, w
+    REAL, DIMENSION(nv)   :: tw,ww,tg,tgm,dz, TauNoGas, wNoGas, tau, w
     REAL, DIMENSION(nv)   :: ti,wi
     REAL, DIMENSION (nv)  :: taer,waer
     REAL, DIMENSION(nv)   :: tgr,wgr
@@ -313,8 +372,8 @@ CONTAINS
     REAL, DIMENSION(nv,4) :: wwi
     REAL, DIMENSION(nv,4) :: wwgr
     REAL, DIMENSION (nv,4):: wwaer
-
-    REAL, DIMENSION(:), ALLOCATABLE, SAVE :: bandWeights
+    REAL, DIMENSION (nv)  :: aaod, acod, atod, aiod ! auxiliary variables
+    REAL, DIMENSION(:), ALLOCATABLE, SAVE ::bandweights
 
     INTEGER :: ib, ig, k, ig1, ig2, ibandloop, iblimit
     REAL    :: fuq1, xs_norm
@@ -323,15 +382,20 @@ CONTAINS
 
     IF (.NOT.Initialized) CALL rad_init()
 
+  
     IF (.NOT. allocated(bandweights)) THEN 
       ALLOCATE(bandweights(size(solar_bands)))
-      CALL computeSolarBandWeights(solar_bands, solarWeighted, bandWeights)
+      CALL computeSolarBandWeights(solar_bands, solarWeighted,bandweights)
     END IF
+    
     
     fds(:) = 0.0
     fus(:) = 0.0
     bf(:)  = 0.0
     
+    tod(:) = 0.0; cod(:) = 0.0; aod(:)= 0.0; iod(:)= 0.0
+    atod(:) = 0.0; acod(:) = 0.0; aaod(:)= 0.0; aiod(:)= 0.0
+     
     IF(u0 > minSolarZenithCosForVis) THEN
       CALL thicks(pp, pt, ph, dz) 
   
@@ -341,11 +405,12 @@ CONTAINS
          ! limits in the loop through the spectrum below. 
          !
          CALL random_number(randomNumber)
-         CALL select_bandg(solar_bands, bandweights, randomNumber, ib, ig1) 
+         CALL select_bandg(solar_bands,bandweights, randomNumber, ib, ig1) 
          ig2 = ig1
          iblimit = 1 
       ELSE
          iblimit = size(solar_bands)
+         CALL computeSolarBandWeights(solar_bands, .TRUE.,bandweights)
       END IF
   
       bandLoop: DO ibandloop = 1, iblimit
@@ -361,7 +426,7 @@ CONTAINS
          !
          ! Rayleigh scattering
          !
-         CALL rayle ( ib, u0, power(solar_bands(ib)), pp, pt, dz, tauNoGas, &
+         CALL rayle ( ib, u0, power(solar_bands(ib)), pp, pt, dz, TauNoGas, &
                       wNoGas, pfNoGas)
          !
          ! Water vapor continuum
@@ -375,41 +440,56 @@ CONTAINS
          IF (present(plwc)) THEN
            CALL cloud_water(ib, pre, plwc, dz, tw, ww, www)
            CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw,ww,www)
+           acod = tw
          END IF
          IF (present(piwc)) THEN
            CALL cloud_ice(ib, pde, piwc, dz, ti, wi, wwi)
            CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti,wi,wwi)
+           aiod = ti
          END IF
          IF (present(pgwc)) THEN
            CALL cloud_grp(ib,pgwc, dz, tgr, wgr, wwgr)
            CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr,wwgr)
+           aiod = aiod + tgr
          END IF 
          IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
             CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer)
             CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, taer, waer, wwaer)
+            aaod = taer
          END IF
- 
+         
+         atod  = TauNoGas
+          
          gPointLoop: DO ig = ig1, ig2
             tau = TauNoGas; w = wNoGas; pf = pfNoGas
             CALL gases (solar_bands(ib), ig, pp, pt, ph, po, tg )
             CALL combineOpticalProperties(tau, w, pf, tg)
             
-
             ! Solver expects cumulative optical depth
-            !
+            !            
             DO k = 2, nv
                tau(k) = tau(k) + tau(k - 1)
             END DO
+ 
             CALL qft (.TRUE., 0., as, u0, bf, tau, w, pf(:, 1), pf(:, 2),    &
                       pf(:, 3), pf(:, 4), fu1, fd1)
             IF (McICA) THEN 
-               xs_norm = power(solar_bands(ib))/ bandweights(ib)
-            ELSE
+               xs_norm = power(solar_bands(ib))/bandweights(ib)
+            ELSE               
                xs_norm = gPointWeight(solar_bands(ib), ig)*power(solar_bands(ib))
             END IF
+            
             fds(:) = fds(:) + fd1(:) * xs_norm
-            fus(:) = fus(:) + fu1(:) * xs_norm
+            fus(:) = fus(:) + fu1(:) * xs_norm  
+ 
          END DO gPointLoop
+                     
+	cod(:)  = cod(:)  + acod(:)*bandweights(ib)
+	aod(:)  = aod(:)  + aaod(:)*bandweights(ib)
+	tod(:)  = tod(:)  + atod(:)*bandweights(ib)
+	iod(:)  = iod(:)  + aiod(:)*bandweights(ib)       
+         
+        atod(:) = 0.0; acod(:) = 0.0; aaod(:)= 0.0; aiod(:)= 0.0
       END DO bandLoop
       !
       ! In this model, we used the solar spectral irradiance determined by
@@ -420,7 +500,16 @@ CONTAINS
       fuq1 = ss / totalpower
       fds(:)  = fds(:)*fuq1
       fus(:)  = fus(:)*fuq1
-
+      
+      ! Solver expects cumulative optical depth
+      !            
+      DO k = 2, nv
+            cod(k) = cod(k) + cod(k-1)
+            aod(k) = aod(k) + aod(k-1)  
+            iod(k) = iod(k) + iod(k-1)
+            tod(k) = tod(k) + tod(k-1)
+      END DO
+      
     END IF 
   END SUBROUTINE rad_vis
   ! ----------------------------------------------------------------------
@@ -431,12 +520,12 @@ CONTAINS
   ! point, which is given by g_prob.  Note g_prob sums to unity for both
   ! the solar bands (power > 0.) and the infrared bands respectively.
   ! 
-  SUBROUTINE select_bandg(bands, bandweights, randomNumber, i, j)
+  SUBROUTINE select_bandg(bands,bandweights, randomNumber, i, j)
     TYPE(band_properties), &
           DIMENSION(:),    &
              INTENT(in)  :: bands
     REAL, DIMENSION(:), &
-             INTENT(in)  :: bandweights
+             INTENT(in)  ::bandweights
     REAL,    INTENT(in)  :: randomNumber
     INTEGER, INTENT(out) :: i, j
 
@@ -444,7 +533,7 @@ CONTAINS
     
     i = 1; j = 1
     ! The probability contained in the first g point of the first band
-    cumulative = gPointWeight(bands(i), j) * bandweights(i)
+    cumulative = gPointWeight(bands(i), j) *bandweights(i)
 
     DO WHILE (randomNumber > cumulative .AND. cumulative < 1.0)
        j = j+1
@@ -452,7 +541,7 @@ CONTAINS
           i = i+1
           j = 1
        END IF
-       cumulative = cumulative + gPointWeight(bands(i), j) * bandweights(i)
+       cumulative = cumulative + gPointWeight(bands(i), j) *bandweights(i)
     END DO
   END SUBROUTINE select_bandg
 
@@ -628,11 +717,11 @@ CONTAINS
   END SUBROUTINE planck
   !
   ! ---------------------------------------------------------------------------
-  SUBROUTINE computeIRBandWeights(bands, weighted, bandweights)
+  SUBROUTINE computeIRBandWeights(bands, weighted,bandweights)
     TYPE(band_properties), &
           DIMENSION(:), INTENT(in)  :: bands
     LOGICAL,            INTENT(in)  :: weighted
-    REAL, DIMENSION(:), INTENT(out) :: bandweights
+    REAL, DIMENSION(:), INTENT(out) ::bandweights
     
     INTEGER :: ib
     !
@@ -647,18 +736,18 @@ CONTAINS
     
     IF (weighted) THEN
        DO ib = 1, size(bands)
-         bandweights(ib) = (llimit(bands(ib)) - rlimit(bands(ib)))/(bllmx-brlmn)
+       	bandweights(ib) = (llimit(bands(ib)) - rlimit(bands(ib)))/(bllmx-brlmn)
        END DO 
     ELSE
-       bandweights(:) = 1./(REAL(size(bands)))
+     bandweights(:) = 1./(REAL(size(bands)))
     END IF
   END SUBROUTINE computeIRBandWeights
   ! ---------------------------------------------------------------------------
-  SUBROUTINE computeSolarBandWeights(bands, weighted, bandweights)
+  SUBROUTINE computeSolarBandWeights(bands, weighted,bandweights)
     TYPE(band_properties), &
           DIMENSION(:), INTENT(in)  :: bands
     LOGICAL,            INTENT(in)  :: weighted
-    REAL, DIMENSION(:), INTENT(out) :: bandweights
+    REAL, DIMENSION(:), INTENT(out) ::bandweights
     
     INTEGER :: i
     !
@@ -671,9 +760,9 @@ CONTAINS
     IF(any(.NOT. isSolar(bands))) STOP "Can't compute solar band weights in IR"
 
     IF(weighted) THEN 
-       bandweights(:) = (/ (power(bands(i))/totalpower, i = 1, size(bands)) /)
+     bandweights(:) = (/ (power(bands(i))/totalpower, i = 1, size(bands)) /)
     ELSE 
-       bandweights(:) = 1./(REAL(size(bands)))
+     bandweights(:) = 1./(REAL(size(bands)))
     END IF
   END SUBROUTINE computeSolarBandWeights
 

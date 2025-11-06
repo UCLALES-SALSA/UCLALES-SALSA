@@ -133,7 +133,8 @@ MODULE mo_submctl
         ! Chen et al. 2020 suggest 500 cm2 s-3 for turbulent cumulus
         ! Shupe et al.: Evaluation of turbulent dissipation rate retrievals 10.5194/amt-5-1375-2012
         ! eddy_dis = 0.001 upper limit in Artic stratiform clouds
-  REAL :: eddy_dis = 0.001      
+  REAL :: eddy_dis = 0.001     
+  REAL :: sst=300. 
 
   ! RH Limit:
   ! If lsfreeRH=FALSE, use RH constrained by *rhlim* for SALSA processes. Otherwise use the predicted value.

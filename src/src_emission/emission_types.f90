@@ -18,6 +18,7 @@ MODULE emission_types
      INTEGER          :: emitType = 1                 ! 1: Natural seasalt emissions, 2: custom artificial emissions
                                                       ! 3: artificial emission given by a map (moving source of airborne emission; Ali)
                                                       ! 4: similar to 2, but only charge emission without aerosols, 5: similar to 3, but only charge emission without aerosols
+                                                      ! 6 : aerosol emissions produced by burning vegetation
      INTEGER          :: regime = 1                   ! Destination bin regime for emitted aerosol. 1: A, 2: B; Not applied for charge emission (4,5)
      REAL             :: start_time = 0.,  &          ! Start time for emission (s)
                          end_time = 86400.            ! End time for emission (s)
@@ -36,13 +37,13 @@ MODULE emission_types
      ! Particle characteristics not applied for charge emission (emitType 4,5)
      INTEGER          :: emitSizeDistType = 1         ! 1: Monochromatic aerosol, 2: modal size disribution (lognormal)
      REAL             :: emitDiam = 10.e-6,    &      ! Assumed (dry )diameter of the particles (mode diameter for emitType=2).
-                         emitNum  = 10000.            ! Number consentration of particles emitted per second #/m3/s (mode concentration for emitType=2)
+                         emitNum  = 10000.            ! Number concentration of particles emitted per second #/m3/s (mode concentration for emitType=2)
      REAL             :: emitSigma = 2.0              ! Geometric standard deviation for emitSizeDist=2
      ! Ali, addition of emission type 3
      CHARACTER(len=40):: emitMap = ''                 ! Name of the file providing all location of emission (only for emitType = 3,5)
      REAL             :: scS = 60.                    ! Source speed (m/s) (only for emitType = 3,5)
-     INTEGER          :: z_expan_up = 0               ! Epands the emission map to adjacent cells above the given map
-     INTEGER          :: z_expan_dw = 0               ! Epands the emission map to adjacent cells down the given map      
+     INTEGER          :: z_expan_up = 0               ! Expands the emission map to adjacent cells above the given map
+     INTEGER          :: z_expan_dw = 0               ! Expands the emission map to adjacent cells down the given map      
      ! Parameters for particle charge emission (types 4,5)
      REAL :: chargeDmax = 100.e-6 ! Charge emission takes place for droplets whose wet diameter is between chargeDmin and chargeDmax.
      REAL :: chargeDmin = 1.e-6 
@@ -61,7 +62,7 @@ MODULE emission_types
      INTEGER :: np                  ! Number of points of emission trajectory intersecting with cell boundaries for each subdomain/processor
    END type EmitType3Config
 
-   INTEGER, PARAMETER :: maxEmissionModes = 5                ! Max number of emission modes
+   INTEGER, PARAMETER :: maxEmissionModes = 6                ! Max number of emission modes
 
    ! NAMELIST variables
    LOGICAL :: emitPristineIN = .TRUE.                        ! TRUE: when aerosol emissions active, IN active particles 

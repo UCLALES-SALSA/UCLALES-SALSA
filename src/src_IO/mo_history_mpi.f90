@@ -37,7 +37,7 @@ MODULE mo_history
       INTEGER :: globalInts(4)  ! just to reduce the number of separate mpi write calls
       REAL    :: globalFloats(5)
       INTEGER :: localInts(3)
-      REAL    :: localFloats(5)
+      REAL    :: localFloats(6)
       INTEGER :: nudgetypes(5)  ! Aerosol missing - needs some special stuff
       !
       ! create and open a new output file.
@@ -56,7 +56,7 @@ MODULE mo_history
       globalInts = [level,isgstyp,iradtyp,nscl]
       globalFloats = [time,th00,umean,vmean,dtl]
       localInts = [nzp,nxp,nyp]
-      localFloats = [psrf,sst,W1,W2,W3]
+      localFloats = [psrf,sst,W1,W2,W3,cmbcnst]
       nudgetypes = [ndg_theta%nudgetype,ndg_rv%nudgetype,ndg_u%nudgetype,   &
                     ndg_v%nudgetype,ndg_aero%nudgetype]
       
@@ -93,8 +93,23 @@ MODULE mo_history
       ! 2d fields
       CALL write_hist_mpi(nxp,nyp,a_ustar%d,.FALSE.,fhist)
       CALL write_hist_mpi(nxp,nyp,a_tstar%d,.FALSE.,fhist)
-      CALL write_hist_mpi(nxp,nyp,a_rstar%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_rstar%d,.FALSE.,fhist)      
       
+      CALL write_hist_mpi(nxp,nyp,a_tskin%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_qskin%d,.FALSE.,fhist)        
+      CALL write_hist_mpi(nxp,nyp,a_fgi%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_weight%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_fcz0%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_fuelmcg%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_ignitiontime%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_fuelburnt%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_firespread%d,.FALSE.,fhist)      
+      CALL write_hist_mpi(nxp,nyp,a_areaburnt%d,.FALSE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_phiwc%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_phiwb%d,.TRUE.,fhist)
+      CALL write_hist_mpi(nxp,nyp,a_tcrit%d,.FALSE.,fhist)  
+      CALL write_hist_mpi(nxp,nyp,a_R0%d,.TRUE.,fhist)  
+            
       ! 3d fields
       CALL write_hist_mpi(nzp,nxp,nyp,a_pexnr%d,.FALSE.,fhist)
       CALL write_hist_mpi(nzp,nxp,nyp,a_press%d,.FALSE.,fhist)
@@ -244,7 +259,21 @@ MODULE mo_history
          CALL read_hist_mpi(nxp,nyp,a_ustar%d,.FALSE.,fhist)
          CALL read_hist_mpi(nxp,nyp,a_tstar%d,.FALSE.,fhist)
          CALL read_hist_mpi(nxp,nyp,a_rstar%d,.FALSE.,fhist)
-         
+	 CALL read_hist_mpi(nxp,nyp,a_tskin%d,.FALSE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_qskin%d,.FALSE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_fgi%d,.TRUE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_weight%d,.TRUE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_fcz0%d,.TRUE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_fuelmcg%d,.TRUE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_ignitiontime%d,.FALSE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_fuelburnt%d,.FALSE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_firespread%d,.FALSE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_areaburnt%d,.FALSE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_phiwc%d,.TRUE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_phiwb%d,.TRUE.,fhist)
+	 CALL read_hist_mpi(nxp,nyp,a_tcrit%d,.FALSE.,fhist)
+         CALL read_hist_mpi(nxp,nyp,a_R0%d,.TRUE.,fhist)
+	          
          ! 3d fields         
          CALL read_hist_mpi(nzp,nxp,nyp,a_pexnr%d,.FALSE.,fhist)
          CALL read_hist_mpi(nzp,nxp,nyp,a_press%d,.FALSE.,fhist)
@@ -317,5 +346,6 @@ MODULE mo_history
       END IF
 
    END SUBROUTINE read_hist
+   
 
 END MODULE mo_history

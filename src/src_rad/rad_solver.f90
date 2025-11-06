@@ -240,7 +240,10 @@ CONTAINS
 	! This too? -Juha
       !y = 0.
       !IF( (t1-t0)/u0 < 300)  y = exp ( -   ( t1 - t0 ) / u0 ) !Stop denormal AZ
+      
       y = exp ( - ( t1 - t0 ) / u0 )
+      
+      
       fw = 0.5 * f0
       DO i = 1, 4
          IF ( solar ) THEN
@@ -633,7 +636,7 @@ CONTAINS
    ! Subroutine qft: Delta 4-stream solver for fluxes
    !
    SUBROUTINE qft (solar, ee, as, u0, bf, tt, ww, ww1, ww2, ww3, ww4, ffu, ffd)
-
+ 
       LOGICAL, INTENT (in) :: solar
       REAL, INTENT (in)    :: ee, as, u0
       REAL, DIMENSION (nv), INTENT (in)   :: tt,ww,ww1,ww2,ww3,ww4

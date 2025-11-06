@@ -306,7 +306,7 @@ CONTAINS
    END SUBROUTINE select_gas
    !
    ! ---------------------------------------------------------------------------
-   ! Subroutine qk: interpolates the gasesous absorption coefficients in units
+   ! Subroutine qk: interpolates the gaseous absorption coefficients in units
    ! of (cm-atm)**-1 to the given temperature and pressure in each layer
    ! following: ln k = a + b * ( t - tbase ) + c * ( t - tbase ) ** 2 in
    ! temperature and  linear interpolation in pressure.
@@ -335,8 +335,11 @@ CONTAINS
             DO WHILE ( pmid >= stanp(i1) .AND. i1 < np)
                i1 = i1 + 1
             END DO
-            y1 = (pt(k)-tbase)
-            y2 = y1 * y1
+            y1 = (pt(k)-tbase) 
+            IF (y1 > 65.) THEN 
+               y1 = 65. ! max temp = tbase+65=245+65=310K 
+            END IF  
+            y2 = y1 * y1            
             x2 = exp (coefki(1,i1) + coefki(2,i1)*y1 + coefki(3,i1)*y2)
             IF (i1 > 1) THEN
                x1 = exp (coefki(1,i1-1) + coefki(2,i1-1)*y1 + coefki(3,i1-1)*y2)

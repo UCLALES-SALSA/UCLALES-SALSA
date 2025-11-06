@@ -275,7 +275,7 @@ CONTAINS
 
     INTEGER :: k, i, j, iterate
     REAL    :: exner, tli, tx, txi, rsx, rcx, rpc, tx1, dtx
-    REAL, PARAMETER :: epsln = 1.e-4
+    REAL, PARAMETER :: epsln = 1.e-4 
 
     rc%d = 0.; rv%d = 0.; rs%d = 0.; th%d = 0.; tk%d = 0.; p%d=0. 
     

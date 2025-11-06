@@ -49,6 +49,7 @@ MODULE perturbation_forc
      CONTAINS
        PROCEDURE :: run => run_gaussian_flux_perturbation       
   END TYPE t_gaussian_flux_perturbation
+  
 
   ! Set these from namelist
   TYPE(t_warm_bubble) :: warm_bubble
@@ -123,6 +124,7 @@ MODULE perturbation_forc
          END DO
       END DO                  
     END SUBROUTINE run_gaussian_flux_perturbation
+    
 
     
 END MODULE perturbation_forc

@@ -28,6 +28,7 @@ MODULE init
    USE mo_field_state, ONLY : Prog,Diag  ! Note if you import PS and TS you'll have a problem with namespace!
    USE mo_history, ONLY : read_hist, write_hist
    
+   
    INTEGER, PARAMETER    :: nns = 1500
    INTEGER               :: ns
    INTEGER               :: iseed = 0
@@ -43,6 +44,7 @@ MODULE init
    CHARACTER (len=100)   :: sound_in_file = 'sound_in'
 
    !INTEGER               :: init_type = 1 ! Switch for how to initialize mixing: 1) random perturbations, 2) warm bubble
+
 
 CONTAINS
    !
@@ -80,12 +82,13 @@ CONTAINS
       ! SALSA
       zwp(:,:,:) = 0.5
 
+    
       IF (runtype == 'INITIAL') THEN
          time = 0.
          CALL arrsnd
-         CALL basic_state
+         CALL basic_state       
          CALL fldinit ! Juha: aerosol size distributions are initialized here.
-                      !       Also thermodynamics!
+                      !       Also thermodynamics!                
 
          ! If SALSA is used, call SALSA with full configuration once before beginning
          ! spin-up period to set up aerosol and cloud fields.
@@ -134,11 +137,11 @@ CONTAINS
      ! Initialize the surface scheme
      ! ------------------------------
      CALL surface_initialize()
-
+          
      !
      !IF (mcflg) THEN
      !   ! Juha:
-     !   ! Calculate some numbers for mass concervation experiments
+     !   ! Calculate some numbers for mass conservation experiments
      !   mc_Vdom = deltax*deltay*deltaz*(nxp-4)*(nyp-4)*(nzp-1)
      !   mc_Adom = deltax*deltay*(nxp-4)*(nyp-4)
      !   mc_ApVdom = mc_Adom/mc_Vdom
@@ -305,6 +308,8 @@ CONTAINS
       a_uc%d = a_up%d
       a_vc%d = a_vp%d
       a_wc%d = a_wp%d
+      
+      
 
       RETURN
    END SUBROUTINE fldinit
@@ -1226,6 +1231,7 @@ CONTAINS
 
 
  END SUBROUTINE init_gas_tracers
+ 
 
 
  END MODULE init

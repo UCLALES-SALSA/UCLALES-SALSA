@@ -24,11 +24,10 @@ MODULE grid
                          in1a, fn2a, in2b, fn2b, ica, icb, fca, fcb,  &
                          aerobins, cloudbins, precpbins, icebins,     &
                          ice_theta_dist,lssecice, eddy_dis
-   USE emission_types, ONLY : emitModes
-  
+  USE emission_types, ONLY : emitModes
+   
   IMPLICIT NONE
 
-  SAVE
   
   CHARACTER(len=10), PARAMETER :: global_name = "grid"
   !
@@ -65,6 +64,7 @@ MODULE grid
   INTEGER :: iradtyp
   INTEGER :: igrdtyp = 1         ! vertical grid type
   INTEGER :: isgstyp = 1         ! sgs model type
+  INTEGER :: isfctyp = 0         ! surface flux parameterization type
   INTEGER :: level   = 0         ! thermodynamic level
   INTEGER :: naddsc  = 0         ! number of additional scalars;
   INTEGER :: nsalsa  = 0         ! Number of tracers for SALSA
@@ -72,11 +72,13 @@ MODULE grid
   REAL    :: distim = 300.0      ! dissipation timescale
   
   REAL    :: sst = 283.   ! Surface temperature      added by Zubair Maalick
-  REAL    :: W1  = 0.9   ! Water content
+  REAL    :: W1  = 0.9    ! Water content
   REAL    :: W2  = 0.9
   REAL    :: W3  = 0.9
-    
-  
+  !REAL, PARAMETER :: cmbcnst = 0.8e+06 !# J/kg dry fuel (Ewald et al 2024, litter as short needles from Norway spruce)
+  REAL, PARAMETER :: cmbcnst = 17.433e+06  !The energy released per unit fuel burned for cellulosic
+					   ! fuels (constant; 1.7433e7 J kg-1).WRF-Fire user guide
+   
   CHARACTER (len=150) :: expnme = 'Default' ! Experiment name
   CHARACTER (len=150) :: filprf = 'x'       ! File Prefix
   CHARACTER (len=7)  :: runtype = 'INITIAL'! Run Type SELECTion
@@ -103,6 +105,7 @@ MODULE grid
   
   ! Some stuff for cloud base activation (not recommended)
   REAL, ALLOCATABLE :: a_vactd(:,:,:,:), a_nactd(:,:,:,:)
+  !
   
   !---------------------------------------------------------------------------
 
@@ -136,8 +139,8 @@ MODULE grid
   !
   INTEGER :: nscl = 1
   INTEGER :: memsize
-  !
   
+
 CONTAINS
    !
    !----------------------------------------------------------------------
@@ -148,10 +151,10 @@ CONTAINS
    !
    SUBROUTINE define_vars
      USE mo_aux_state, ONLY : setInitialProfiles
-
+     
       CHARACTER(len=20), PARAMETER :: name = "define_vars"
       INTEGER :: nc
-      
+         
       ! Instanciate the field arrays
       BasicState = FieldArray()
       
@@ -177,6 +180,7 @@ CONTAINS
       CALL BasicState%getByOutputstatus(outBasicState)
 
       memsize = 2*nxyzp ! complexarray in pressure solver
+      
 
       ! Juha: Allocate the main scalar arrays
       !-----------------------------------------------------
@@ -203,12 +207,13 @@ CONTAINS
          ! ... + bulk slave precip number and mass (lpback = .TRUE.)
          IF (lpback) nscl = nscl + 2
          
-         
          ALLOCATE (a_sclrp(nzp,nxp,nyp,nscl), a_sclrt(nzp,nxp,nyp,nscl))
          a_sclrp(:,:,:,:) = 0.
          a_sclrt(:,:,:,:) = 0.
 
       END IF ! level
+      
+       
            
    END SUBROUTINE define_vars
    !
@@ -251,7 +256,7 @@ CONTAINS
       ALLOCATE(wsavex(4*nxpg+100),wsavey(4*nypg+100))
       wsavex = 0.0
       wsavey = 0.0
-
+      
       !
       ! define xm array for grid 1 from deltax
       !
@@ -438,6 +443,7 @@ CONTAINS
 
       RETURN
    END SUBROUTINE newsclr
+  
 
 
 

@@ -20,6 +20,7 @@ USE grid, ONLY          : lemission
   TYPE(FloatArray3D), TARGET :: a_rpp,a_rpt ! Precipitation mixing ratio for level < 4
   TYPE(FloatArray3D), TARGET :: a_npp,a_npt ! Precipitation mnumber for level < 4
   TYPE(FloatArray3D), TARGET :: a_qp,a_qt   ! TKE for sgstyp > 1 (Deardorff)
+ 
   
   ! SALSA tracers
   !---------------------------------------------------------------------------
@@ -492,9 +493,7 @@ USE grid, ONLY          : lemission
       pipeline_p => NULL()
       pipeline_t => NULL()
             
-    END SUBROUTINE setPrognosticVariables
-
-    
+    END SUBROUTINE setPrognosticVariables   
 
 
     

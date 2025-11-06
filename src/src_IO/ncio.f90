@@ -16,6 +16,7 @@ MODULE ncio
   
   PUBLIC :: close_nc, sync_nc, &  
             open_aero_nc, read_aero_nc_1d, read_aero_nc_2d,  &
+            open_surf_nc, read_surf_nc_2d, &
             StreamDef
 
 
@@ -554,7 +555,7 @@ MODULE ncio
  !
 
  ! -------------------------------------------
- ! Closig and syncing with files on disk
+ ! Closing and syncing with files on disk
  !
  SUBROUTINE close_nc(fid)
    IMPLICIT NONE
@@ -578,5 +579,47 @@ MODULE ncio
  END SUBROUTINE sync_nc
 
  
+  ! ----------------------------------------------------------------------
+ ! FUNCTIONS FOR READING SURFACE PROPERTIES FROM A NETCDF FILE
+ ! Silvia:23-09-2025
+ 
+ SUBROUTINE open_surf_nc(ncid,nxp,nyp)
+    IMPLICIT NONE
+
+    INTEGER, INTENT(out) :: ncid,nxp,nyp
+    INTEGER :: iret, did
+    	
+    ! Open file
+    iret = nf90_open('datafiles/surface_in.nc',NF90_NOWRITE,ncid)
+
+    ! Inquire the number of input levels
+    iret = nf90_inq_dimid(ncid,'xt',did)
+    iret = nf90_inquire_dimension(ncid,did,len=nxp)
+
+    iret = nf90_inq_dimid(ncid,'yt',did)
+    iret = nf90_inquire_dimension(ncid,did,len=nyp)
+
+
+ END SUBROUTINE open_surf_nc
+ !
+  ! ---------------------------------------------------
+ !
+ SUBROUTINE read_surf_nc_2d(ncid,name,d1,d2,var)
+   IMPLICIT NONE
+   
+   INTEGER, INTENT(in)           :: ncid, d1,d2
+   CHARACTER(len=*), INTENT(in) :: name
+   REAL, INTENT(out)             :: var(d1,d2)
+   
+   INTEGER :: iret, vid
+   
+   iret = nf90_inq_varid(ncid,name,vid)
+   iret = nf90_get_var(ncid,vid,var)
+   
+ END SUBROUTINE read_surf_nc_2d
+ !
+ ! -----------------------------------------------------
+ 
+ ! ---------------------------------------------------
 
  END MODULE ncio

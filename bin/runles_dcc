@@ -169,16 +169,19 @@ cat > NAMELIST <<EOF
                               ! 3: CD, CH, surface temp and moisture prescribed
                               ! 4: Buoyancy flux prescribed 
                               ! 5: Soil moisture-surface model Acs et al. J.App.Met, 30,1991
+                              ! 6: Like 0 but include perturbation in surface fluxes due to vegetation fire
+                              !    You must include a surface description as surface_in.nc
+                              !    It can be coupled with aerosol emissions by setting emitType = 6 in level=4
   dthcon            = 30.     ! Surface sensible heat flux in Wm-2 if isfctyp=0 
   drtcon            = 50.     ! Surface latent heat flux in Wm-2 if isfctyp=0
   zrough            = 0.11    ! Aerodynamic Roughness Length 
-  ubmin             = -0.21
+  ubmin             = 0.21
   sst               = 300.65  
-  C_heat            = 2.e6
+  C_heat            = 3.244092E6 !1290*(840+4187*0.4) KEMPPINEN ET AL. 10.1029/2022WR032719
   deepSoilTemp      = 288.8
-  W1                = 0.4
-  W2                = 0.4
-  W3                = 0.4
+  W1                = 0.3643  ! 0.2/0.5490 
+  W2                = 0.3643
+  W3                = 0.4     ! 0.1952/0.488
   lConstSoilWater   = .TRUE.
   lConstSoilHeatCap = .TRUE. 
 /
@@ -217,23 +220,24 @@ cat > NAMELIST <<EOF
   chargeCollEnh = 0.0
   chargeTMax = 9900.
 
-  emitModes(1)%emitType = 3           ! 1: SSA, Not available yet 2: Aerosol emission constant between HeightMin and HeightMax
+  emitModes(1)%emitType = 6           ! 1: SSA, Not available yet 2: Aerosol emission constant between HeightMin and HeightMax
                                       ! 3: Following trajectory given in Emit_map, with or without electrostatic enhancement of collision kernels (EECK)
                                       ! 4: Just charge emission (EECK) constant between HeightMin and HeightMax for droplets between chargeDmin and chargeDmax
-                                      ! 4: Just charge emission (EECK) following trajectory given in Emit_map
+                                      ! 5: Just charge emission (EECK) following trajectory given in Emit_map
+                                      ! 6: Aerosol emission from vegetation fire, it must be coupled with isfctyp=6 you must include a surface description 
   emitModes(1)%emitSizeDistType = 2   ! 1: Monochromatic 2: Lognormal mode
-  emitModes(1)%start_time = 5100.       
-  emitModes(1)%end_time = 6300.
+  emitModes(1)%start_time = 2400.     ! If isfctyp=6 fire this is the first ignition time
+  emitModes(1)%end_time = 7200.       ! If isfctyp=6 fire this is the ending time for the burning
   emitModes(1)%regime = 1
-  emitModes(1)%species = "SO4"
-  emitModes(1)%emitDiam = 5.e-6
-  emitModes(1)%emitNum = 1.08E8
-  emitModes(1)%emitSigma = 1.3
-  emitModes(1)%emitHeightMin = 900.
-  emitModes(1)%emitHeightMax = 1000.
+  emitModes(1)%species = "OC"
+  emitModes(1)%emitDiam = 0.04e-6
+  emitModes(1)%emitNum = 0.8E11       ! If isfctyp=6 fire this number does not matter, it changes internally depending on kg of burnt fuel
+  emitModes(1)%emitSigma = 1.35
+  emitModes(1)%emitHeightMin = 5.
+  emitModes(1)%emitHeightMax = 10.
   emitModes(1)%chargeDmax = 100.e-6
   emitModes(1)%chargeDmin = 1.e-8
-  emitModes(1)%emitMap = "datafiles/Emit_map_seed2"
+  emitModes(1)%emitMap = "datafiles/Emit_map_seed2" ! this is valid just for emitType=3 or 5
  
   
 /

@@ -1,8 +1,12 @@
 
 MODULE radiation_main
   USE mo_aux_state, ONLY : dzt, dn0, pi0, pi1
-  USE mo_diag_state, ONLY : a_pexnr, a_temp, a_rv, a_rc, a_ri, a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo
-  USE mo_progn_state, ONLY : a_tt, a_rp, a_npp, a_rpp, a_maerop, a_naerop, a_ncloudp, a_nprecpp, a_mprecpp, a_nicep
+  USE mo_diag_state, ONLY : a_pexnr, a_temp, a_rv, a_rc, a_ri, a_rflx, a_sflx, &
+  			    a_fus, a_fds, a_fuir, a_fdir, albedo, &
+  			    a_todlw, a_codlw, a_aodlw, a_iodlw,   & 
+  			    a_todsw, a_codsw, a_aodsw, a_iodsw
+  USE mo_progn_state, ONLY : a_tt, a_rp, a_npp, a_rpp, &
+  			     a_maerop, a_naerop, a_ncloudp, a_nprecpp, a_mprecpp, a_nicep
   USE grid, ONLY : iradtyp, nxp, nyp, nzp,       &
                    sst, cntlat, CCN, level
 
@@ -50,9 +54,11 @@ MODULE radiation_main
          CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo, &
               dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rv%d, zrc, znc, a_tt%d,  &
               a_rflx%d, a_sflx%d, a_fus%d, a_fds%d, a_fuir%d, a_fdir%d, albedo%d, radsounding=radsounding, &
-              useMcICA=useMcICA, ConstPrs=RadConstPress)
+              useMcICA=useMcICA, ConstPrs=RadConstPress, &
+              todlw=a_todlw%d, codlw=a_codlw%d, aodlw= a_aodlw%d,iodlw=a_iodlw%d,& 
+              todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d)
          
-      !
+      ! 
       ! Level 4
       ! -----------
       ELSE IF (level == 4) THEN
@@ -65,20 +71,24 @@ MODULE radiation_main
          END IF
          IF (laerorad) THEN
             CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo,   &
-                          dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rp%d,  &
+           	          dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rp%d,  &
                           zrc, znc, a_tt%d, a_rflx%d, a_sflx%d, a_fus%d, a_fds%d,   &
                           a_fuir%d, a_fdir%d, albedo%d, radsounding=radsounding,    &
                           useMcICA=useMcICA, ConstPrs=RadConstPress,                &
-                          maerop=a_maerop%d, naerop=a_naerop%d)
+                          maerop=a_maerop%d, naerop=a_naerop%d,                     &
+                          todlw=a_todlw%d, codlw=a_codlw%d, aodlw= a_aodlw%d,iodlw=a_iodlw%d,& 
+                          todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d)
          ELSE
             CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo,   &
                           dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rp%d,  &
                           zrc, znc, a_tt%d, a_rflx%d, a_sflx%d, a_fus%d, a_fds%d,   &
                           a_fuir%d, a_fdir%d, albedo%d, radsounding=radsounding,    &
-                          useMcICA=useMcICA, ConstPrs=RadConstPress)
+                          useMcICA=useMcICA, ConstPrs=RadConstPress,                &
+                          todlw=a_todlw%d, codlw=a_codlw%d, aodlw= a_aodlw%d,iodlw=a_iodlw%d,& 
+                          todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d)
          END IF
 
-      !
+      ! 
       ! Level 5
       ! ----------
       ELSE IF (level == 5) THEN
@@ -96,8 +106,9 @@ MODULE radiation_main
                        zrc, znc, a_tt%d, a_rflx%d, a_sflx%d, a_fus%d, a_fds%d,   &
                        a_fuir%d, a_fdir%d, albedo%d, ice=zri,nice=zni,           &
                        radsounding=radsounding,useMcICA=useMcICA,                &
-                       ConstPrs=RadConstPress, maerop=a_maerop%d,                &
-                       naerop=a_naerop%d)
+                       ConstPrs=RadConstPress, maerop=a_maerop%d, naerop=a_naerop%d,&
+                       todlw=a_todlw%d, codlw=a_codlw%d, aodlw= a_aodlw%d,iodlw=a_iodlw%d,& 
+                       todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d)
       END IF
 
 

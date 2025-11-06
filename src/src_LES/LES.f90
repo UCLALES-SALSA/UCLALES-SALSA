@@ -43,10 +43,11 @@ CONTAINS
    !
    SUBROUTINE driver
 
-      USE grid, ONLY          : define_grid, define_vars, level, nxp, nyp, nzp, nxpart
+      USE grid, ONLY          : define_grid, define_vars, level, nxp, nyp, nzp, nxpart, &
+                                isfctyp
       USE init, ONLY          : initialize
       USE mo_field_init, ONLY : initialize_FieldArrays
-      USE step, ONLY          : stepper
+      USE step, ONLY          : stepper, time
       USE mpi_interface, ONLY : init_mpi, define_decomp,                    &
                                 init_alltoall_reorder, appl_finalize
       
@@ -80,6 +81,7 @@ CONTAINS
                       ! for SALSA to set up cloud microphysics
 
       CALL stepper
+      
 
       CALL appl_finalize(ierror)
 
@@ -94,7 +96,7 @@ CONTAINS
 
     USE util, ONLY              : fftinix,fftiniy
     USE sgsm, ONLY              : csx, prndtl
-    USE srfc, ONLY              : isfctyp, zrough, ubmin, dthcon, drtcon, C_heat,          &
+    USE srfc, ONLY              : isfctyp, zrough, ubmin, sst, dthcon, drtcon, C_heat,          &
                                   deepSoilTemp, lConstSoilWater, lConstSoilHeatCap
     USE step, ONLY              : timmax, istpfl, corflg, outflg, frqhis,                    &
                                   strtim, radfrq
@@ -104,8 +106,8 @@ CONTAINS
     USE grid, ONLY              : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart,                     &
                                   dtlong, dzrat,dzmax, th00, umean, vmean, naddsc, level,            &
                                   filprf, expnme, isgstyp, igrdtyp, iradtyp, lnudging, lemission,    &
-                                  lpback, pbncsrc, nfpt, distim, runtype, CCN,sst,W1,W2,W3, &
-                                  cntlat, varlist_main, varlist_ps, varlist_ts, eddy_dis
+                                  lpback, pbncsrc, nfpt, distim, runtype, CCN,W1,W2,W3,sst, &
+                                  cntlat, varlist_main, varlist_ps, varlist_ts, eddy_dis, cmbcnst
     USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                                   zrand, zrndamp, sound_in_file
     USE forc, ONLY              : div, case_name     ! Divergence, forcing case name
