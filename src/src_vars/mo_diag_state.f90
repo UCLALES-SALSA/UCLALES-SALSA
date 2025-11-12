@@ -34,10 +34,11 @@ MODULE mo_diag_state
   TYPE(FloatArray3D), TARGET :: a_todsw, a_todlw,  &   ! 25, 26: total optical depth in sw and lw bands
   				a_codsw, a_codlw,  &   ! 27, 28: cloud optical depth in sw and lw bands
  				a_aodsw, a_aodlw,  &   ! 29, 30: aerosol optical depth in sw and lw bands
-				a_iodsw, a_iodlw       ! 31, 32: aerosol optical depth in sw and lw bands
+				a_iodsw, a_iodlw, &    ! 31, 32: aerosol optical depth in sw and lw bands
+				a_aodsw470             ! 33: aerosol optical depth between 400 nm and 540 nm
 
   REAL, ALLOCATABLE, TARGET :: a_diag3d(:,:,:,:) 
-  INTEGER, PARAMETER :: ndiag3d = 32   ! Remember to update if adding new variables!!
+  INTEGER, PARAMETER :: ndiag3d = 33   ! Remember to update if adding new variables!!
 
   !-------------------------------------------------------------------
   ! Binned diagnostic variables mainly for output
@@ -464,7 +465,15 @@ MODULE mo_diag_state
 	a_iodlw = FloatArray3d(a_diag3d(:,:,:,n3d))
 	pipeline => a_iodlw
 	CALL Diag%newField("iodlw", "Ice optical depth Longwave", "", "tttt",   &
-		            ANY(outputlist == "iodlw"), pipeline)                           
+		            ANY(outputlist == "iodlw"), pipeline)    
+        
+        memsize = memsize + nxy
+	n3d = n3d+1
+	pipeline => NULL()
+	a_aodsw470 = FloatArray3d(a_diag3d(:,:,:,n3d))
+	pipeline => a_aodsw470
+	CALL Diag%newField("aodsw470", "Aerosol optical depth at 400nm-540nm", "", "tttt",   &
+		            ANY(outputlist == "aodsw470"), pipeline)                         
                             
       END IF
       

@@ -207,10 +207,10 @@ MODULE mo_submctl
 
   REAL ::                       &
        reglim(nreg+2) =                            & ! low/high diameter limits
-       (/ 3.e-9, 4.e-8, 7.e-7, 1.5e-5 /) ! of main size regimes [m]
+       (/ 3.e-9, 4.e-8, 7.e-7, 1.0e-5 /) ! of main size regimes [m]
 
   INTEGER :: &
-       nbin(nreg) = (/ 3, 8 /)   ! number of bins in each main regime
+       nbin(nreg) = (/ 3, 7 /)   ! number of bins in each main regime
     
   INTEGER ::      & ! start index for bin regimes
        in1a,          & ! regime 1a
@@ -296,7 +296,7 @@ MODULE mo_submctl
        rhosu = 1830.,         & ! sulphate
        rhono = 1479.,         & ! HNO3
        rhonh = 1530.,         & ! NH3
-       rhooc = 1400.,         & ! organic carbon
+       rhooc = 1200.,         & ! organic carbon
        rhobc = 2000.,         & ! black carbon
        rhoss = 2165.,         & ! sea salt (NaCl)
        rhodu = 2650.,         & ! mineral dust

@@ -410,7 +410,7 @@ CONTAINS
   ! Calculates the optical depth (taer), single scattering albedo (waer) and phase function (wwaer(4)) for given
   ! binned aerosol mass and number concentration arrays using lookup tables for optical properties.
   SUBROUTINE aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer)
-    USE ckd, ONLY : band, center, IsSolar
+    USE ckd, ONLY : band, center, IsSolar, llimit, rlimit
     USE util, ONLY : getMassIndex,closest
     USE mo_salsa_optical_properties, ONLY : aerRefrIBands_SW, aerRefrIBands_LW,  &
                                             riReSW, riImSW, riReLW, riImLW
@@ -464,6 +464,8 @@ CONTAINS
     wwaer_bin = 0.
 
     lambda_r = center(band(ib))
+    
+    
     IF (1./lambda_r > aerRefrIbands_SW(1)) THEN
        ! Get the refractive indices from the LW tables for the current band
        refi_ind = closest(aerRefrIbands_LW,1./lambda_r)
@@ -506,7 +508,10 @@ CONTAINS
           ! Mass bin indices
           istr = getMassIndex(nbins,1,ss)
           iend = getMassIndex(nbins,nbins,ss)
-          !WRITE(*,*) 'Species', spec%names(ss)
+          
+          !WRITE(*,*) '#-band, center, left, right', ib, center(band(ib)), llimit(band(ib)), rlimit(band(ib))
+          !WRITE(*,*) 'Species, n+ki', spec%names(ss), refrRe_all(ss),refrIm_all(ss)
+          
           ! Volumes for each species, 0 if not used or if nothing present
           volc(ss,1:nbins) = MERGE( (maerobin(kk,istr:iend))/spec%rholiq(ss), &
                                     0.,                                       &

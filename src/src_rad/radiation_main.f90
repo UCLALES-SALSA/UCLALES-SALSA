@@ -4,7 +4,7 @@ MODULE radiation_main
   USE mo_diag_state, ONLY : a_pexnr, a_temp, a_rv, a_rc, a_ri, a_rflx, a_sflx, &
   			    a_fus, a_fds, a_fuir, a_fdir, albedo, &
   			    a_todlw, a_codlw, a_aodlw, a_iodlw,   & 
-  			    a_todsw, a_codsw, a_aodsw, a_iodsw
+  			    a_todsw, a_codsw, a_aodsw, a_iodsw, a_aodsw470
   USE mo_progn_state, ONLY : a_tt, a_rp, a_npp, a_rpp, &
   			     a_maerop, a_naerop, a_ncloudp, a_nprecpp, a_mprecpp, a_nicep
   USE grid, ONLY : iradtyp, nxp, nyp, nzp,       &
@@ -56,7 +56,7 @@ MODULE radiation_main
               a_rflx%d, a_sflx%d, a_fus%d, a_fds%d, a_fuir%d, a_fdir%d, albedo%d, radsounding=radsounding, &
               useMcICA=useMcICA, ConstPrs=RadConstPress, &
               todlw=a_todlw%d, codlw=a_codlw%d, aodlw= a_aodlw%d,iodlw=a_iodlw%d,& 
-              todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d)
+              todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d, aodsw470=a_aodsw470%d)
          
       ! 
       ! Level 4
@@ -77,7 +77,8 @@ MODULE radiation_main
                           useMcICA=useMcICA, ConstPrs=RadConstPress,                &
                           maerop=a_maerop%d, naerop=a_naerop%d,                     &
                           todlw=a_todlw%d, codlw=a_codlw%d, aodlw= a_aodlw%d,iodlw=a_iodlw%d,& 
-                          todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d)
+                          todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d,&
+                          aodsw470=a_aodsw470%d)
          ELSE
             CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo,   &
                           dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rp%d,  &
@@ -85,7 +86,8 @@ MODULE radiation_main
                           a_fuir%d, a_fdir%d, albedo%d, radsounding=radsounding,    &
                           useMcICA=useMcICA, ConstPrs=RadConstPress,                &
                           todlw=a_todlw%d, codlw=a_codlw%d, aodlw= a_aodlw%d,iodlw=a_iodlw%d,& 
-                          todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d)
+                          todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d,&
+                          aodsw470=a_aodsw470%d)
          END IF
 
       ! 
@@ -108,7 +110,8 @@ MODULE radiation_main
                        radsounding=radsounding,useMcICA=useMcICA,                &
                        ConstPrs=RadConstPress, maerop=a_maerop%d, naerop=a_naerop%d,&
                        todlw=a_todlw%d, codlw=a_codlw%d, aodlw= a_aodlw%d,iodlw=a_iodlw%d,& 
-                       todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d)
+                       todsw=a_todsw%d, codsw=a_codsw%d, aodsw= a_aodsw%d,iodsw=a_iodsw%d,&
+                       aodsw470=a_aodsw470%d)
       END IF
 
 

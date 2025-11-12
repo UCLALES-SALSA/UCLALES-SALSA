@@ -84,11 +84,11 @@ MODULE srfc
   REAL :: deepSoilTemp = 280.            ! Assumed deep soil layer temperature
   LOGICAL :: lConstSoilWater = .FALSE.   ! Keep the value(s) of surface water content constant (as specified in NAMELIST)
   LOGICAL :: lConstSoilHeatCap = .FALSE. ! Keep the value of surface heat capacity constant (as specified in NAMELIST)
-  
-  
+ 
   PUBLIC 
   REAL, ALLOCATABLE, SAVE :: firespreadg(:,:), ignitiontimeg(:,:), areaburntg(:,:)
-  
+  REAL, ALLOCATABLE, SAVE :: ignitiontimecell(:,:,:), areaignitedcell(:,:,:)
+ 
   
 CONTAINS
   
@@ -104,8 +104,8 @@ CONTAINS
     
     WRITE(*,*) 'Initial', nxp,nyp
        
-    IF (isfctyp==6) CALL surface_state()     
-  
+    IF (isfctyp==6) CALL surface_state()
+            
     
   END SUBROUTINE surface_initialize
   
@@ -171,18 +171,24 @@ CONTAINS
 
       REAL :: mctmp(nxp,nyp) ! Helper for mass conservation statistics    
       
-      REAL :: tt
+      REAL :: tt                  ! time in seconds after ignition time
       REAL,  INTENT (in) :: time  ! time in seconds (since model start)
       REAL,  INTENT (in) :: dtl   ! dtlt seconds since previous timestep
       REAL :: fraction_burnt      ! Fraction of fuel(i.e. vegetation) burnt (time, time+dtl)
       REAL :: total_la_fire       ! latent heat coming from moisture evaporation 
       REAL :: total_se_fire       ! sensible heat coming from combustion
       REAL :: total_aer_fire      ! mass of aerosol produced by fire
-      REAL :: area_new            ! area burnt between time and time+dtl
+      REAL :: area_burnt_cell     ! area burnt between time and time+dtl
+      REAL :: fuel_burnt          ! fuel burnt per time step in a cell
+      REAL :: fbcell              ! fraction of the cell burning
+      INTEGER :: kk
             
       mctmp = 0.
       fraction_burnt = 0.
       tt = 0.
+      fuel_burnt = 0.
+      fbcell= 0.
+      
       
       ! Added by Juha
       SELECT CASE(level)
@@ -445,40 +451,120 @@ CONTAINS
 	  ! Looping through the surface
             DO j = 3, nyp-2
                DO i = 3, nxp-2  
-                  ! The cell has fuel (vegetation) and it is ignited                            
-                  IF (a_fgi%d(i,j)>0 .AND. time > a_ignitiontime%d(i,j)) THEN 
-                       tt = time-a_ignitiontime%d(i,j)  
-                       ! The fire moves at the same velocity in x and y directions
-                       ! as a enlarging square
-                       area_new = MAX(((tt+dtl)*a_firespread%d(i,j))**2 -  &
-                  	                     (tt*a_firespread%d(i,j))**2, 0.)    
-                       ! Cumulative area burnt                                            
-                       a_areaburnt%d(i,j) =  a_areaburnt%d(i,j) + area_new 
-                       ! Checking if the cell has burnt completely    
-          	       IF (a_areaburnt%d(i,j)>=deltax*deltay) a_areaburnt%d(i,j) = deltax*deltay   
-          	                       
-		       ! Similar to Mandel et al. 2011 using the fraction of remaining fuel
-                       fraction_burnt = EXP(-tt/a_weight%d(i,j)) - EXP(-(tt+dtl)/a_weight%d(i,j))                       
-                       a_fuelburnt%d(i,j) = a_areaburnt%d(i,j)*a_fgi%d(i,j)*fraction_burnt
-                       
-                       ! for debugging purposes
-                       !WRITE(*,*) 'dtl, firespread',dtl, a_firespread%d(i,j)
-                       !WRITE(*,*) 'area_new, area_burnt', area_new, a_areaburnt%d(i,j)
-                       !WRITE(*,*) 'fuelburnt',a_fuelburnt%d(i,j)    
-                                                            	   			     
-		       ! Calculating the surface fluxes coming from combustion
-		       ! If the cell does not have fuel(i.e. vegetation) fgi =0
-		       ! Average sensible heat released in time interval (t, t+Deltat) Mandel-2011-Eq.4 in W/m2
-		       total_se_fire = a_fgi%d(i,j)*fraction_burnt/dtl * 1/(1+a_fuelmcg%d(i,j))*cmbcnst
-		       ! Average latent heat released in time interval (t, t+Deltat) Mandel-2011-Eq.5 in W/m2
-		       total_la_fire = a_fgi%d(i,j)*fraction_burnt/dtl * (a_fuelmcg%d(i,j)+0.56)/(1+a_fuelmcg%d(i,j))*alvl		
+                  ! The cell has fuel (vegetation) and it is ignited   
+                  ! If the cell does not have fuel(i.e. vegetation) fgi =0                         
+                  IF (a_fgi%d(i,j)>0 .AND. time > a_ignitiontime%d(i,j)) THEN   
+                       ! Fraction of the cell ignited
+                       fbcell = a_areaburnt%d(i,j)/(deltax*deltay)
+                       IF      (fbcell<=0.05 .AND. time > a_ignitiontime%d(i,j)) THEN 
+			  		ignitiontimecell(i,j,1) = a_ignitiontime%d(i,j)  
+		       ELSEIF  ((fbcell>0.05 .AND. fbcell <= 0.1) .AND. (time > ignitiontimecell(i,j,1) .AND. &  
+		       			ignitiontimecell(i,j,2) > 1.E12)) THEN 
+		                  ignitiontimecell(i,j,2) = time		       		                                          
+		       ELSEIF  ((fbcell>0.1 .AND. fbcell <= 0.15) .AND. (time > ignitiontimecell(i,j,2) .AND. &
+			  		ignitiontimecell(i,j,3) > 1.E12)) THEN 
+		                  ignitiontimecell(i,j,3) = time
+		       ELSEIF  ((fbcell>0.15 .AND. fbcell <= 0.2) .AND. (time > ignitiontimecell(i,j,3) .AND. &
+			  		ignitiontimecell(i,j,4) > 1.E12)) THEN 
+		                  ignitiontimecell(i,j,4) = time           
+		       ELSEIF  ((fbcell>0.2 .AND. fbcell <= 0.25) .AND. (time > ignitiontimecell(i,j,4).AND. & 
+		          		ignitiontimecell(i,j,5) > 1.E12)) THEN 
+		                  ignitiontimecell(i,j,5) = time
+		       ELSEIF  ((fbcell>0.25 .AND. fbcell <= 0.30) .AND. (time > ignitiontimecell(i,j,5).AND. &
+		          		ignitiontimecell(i,j,6) > 1.E12)) THEN 
+		                  ignitiontimecell(i,j,6) = time
+		       ELSEIF  ((fbcell>0.30 .AND. fbcell <= 0.35) .AND. (time > ignitiontimecell(i,j,6).AND. &
+		          		ignitiontimecell(i,j,7) > 1.E12)) THEN 
+		                  ignitiontimecell(i,j,7) = time 
+		       ELSEIF  ((fbcell>0.35 .AND. fbcell <= 0.4) .AND. (time > ignitiontimecell(i,j,7).AND. &
+		          		ignitiontimecell(i,j,8) > 1.E12)) THEN 
+		                  ignitiontimecell(i,j,8) = time
+		       ELSEIF  ((fbcell>0.4 .AND. fbcell <= 0.45) .AND. (time > ignitiontimecell(i,j,8).AND. &
+		          	 	ignitiontimecell(i,j,9) > 1.E12)) THEN 
+		                  ignitiontimecell(i,j,9) = time  
+		       ELSEIF  ((fbcell>0.45 .AND. fbcell <= 0.5) .AND. (time > ignitiontimecell(i,j,9).AND. &
+		          		ignitiontimecell(i,j,10) > 1.E12)) THEN   
+		                  ignitiontimecell(i,j,10) = time
+		       ELSEIF  ((fbcell>0.5 .AND. fbcell <= 0.55) .AND. (time > ignitiontimecell(i,j,10).AND. &
+		          		ignitiontimecell(i,j,11) > 1.E12)) THEN   
+		                  ignitiontimecell(i,j,11) = time  
+		       ELSEIF  ((fbcell>0.55 .AND. fbcell < 0.60) .AND. (time > ignitiontimecell(i,j,11).AND. &
+		          		ignitiontimecell(i,j,12) > 1.E12)) THEN   
+		                  ignitiontimecell(i,j,12) = time
+		       ELSEIF  ((fbcell>0.6 .AND. fbcell < 0.65) .AND. (time > ignitiontimecell(i,j,12).AND. &
+		          		ignitiontimecell(i,j,13) > 1.E12)) THEN   
+		                  ignitiontimecell(i,j,13) = time
+		       ELSEIF  ((fbcell>0.65 .AND. fbcell < 0.7) .AND. (time > ignitiontimecell(i,j,13).AND. &
+		          		ignitiontimecell(i,j,14) > 1.E12)) THEN   
+		                  ignitiontimecell(i,j,14) = time                      
+		       ELSEIF  ((fbcell>0.7 .AND. fbcell < 0.75) .AND. (time > ignitiontimecell(i,j,14).AND. &
+		          		ignitiontimecell(i,j,15) > 1.E12)) THEN   
+		                  ignitiontimecell(i,j,15) = time             
+		       ELSEIF  ((fbcell>0.75 .AND. fbcell < 0.8) .AND. (time > ignitiontimecell(i,j,15).AND. &
+		          		ignitiontimecell(i,j,16) > 1.E12)) THEN   
+		                  ignitiontimecell(i,j,16) = time            
+		       ELSEIF  ((fbcell>0.8 .AND. fbcell < 0.85) .AND. (time > ignitiontimecell(i,j,16).AND. &
+		          		ignitiontimecell(i,j,17) > 1.E12)) THEN   
+		                  ignitiontimecell(i,j,17) = time    
+		       ELSEIF  ((fbcell>0.85 .AND. fbcell < 0.9) .AND. (time > ignitiontimecell(i,j,17).AND. &
+		          		ignitiontimecell(i,j,18) > 1.E12)) THEN   
+		                  ignitiontimecell(i,j,18) = time  
+		       ELSEIF  ((fbcell>0.9 .AND. fbcell < 0.95) .AND. (time > ignitiontimecell(i,j,18).AND. &
+		          		ignitiontimecell(i,j,19) > 1.E12)) THEN   
+		                  ignitiontimecell(i,j,19) = time 
+		       ELSEIF  ((fbcell>0.95 .AND. fbcell < 0.999) .AND. (time > ignitiontimecell(i,j,19).AND. &
+		          		ignitiontimecell(i,j,20) > 1.E12)) THEN   
+		                  ignitiontimecell(i,j,20) = time                             
+		       ELSEIF  (fbcell >= 0.999 .AND. ignitiontimecell(i,j,20)>1.0E12) THEN		          		 
+		                  ignitiontimecell(i,j,20) = time     
+		       END IF
+		              	       	    
+          	       fuel_burnt = 0.
+          	       total_se_fire = 0.
+          	       total_la_fire = 0.
+          	       area_burnt_cell = 0.
+          	       DO kk=1,20          	          
+          	          IF (time > ignitiontimecell(i,j,kk)) THEN           	                
+			  	tt = time -ignitiontimecell(i,j,kk)	
+			  	! Similar to Mandel et al. 2011 using the fraction of remaining fuel		  	
+			  	fraction_burnt = (EXP(-tt/a_weight%d(i,j)) - EXP(-(tt+dtl)/a_weight%d(i,j))) 
+			  	! The fire moves at the same velocity in x and y directions
+                       		! as a growing circle
+			  	IF (areaignitedcell(i,j,kk) < deltax*deltay/20) THEN	  	
+			  	    areaignitedcell(i,j,kk) = areaignitedcell(i,j,kk) + & 
+			  	              MAX(pi*((tt+dtl)*a_firespread%d(i,j))**2 - &
+                  	                          pi*(tt*a_firespread%d(i,j))**2, 0.)
+			  	ELSE 			  				  	              
+			  	    areaignitedcell(i,j,kk) = deltax*deltay/20	  				  				  	
+			  	END IF
+			  	!
+			  	fuel_burnt = fuel_burnt + areaignitedcell(i,j,kk)*a_fgi%d(i,j)*fraction_burnt       	                                                               
+                          	! for checking purposes
+                          	!WRITE(*,*) 'kk, ignitiontimecell', kk, a_ignitiontime%d(i,j), ignitiontimecell(i,j,kk)        
+                          	!WRITE(*,*) 'area_burnt_cell, area_burnt', areaignitedcell(i,j,kk), area_burnt_cell
+                          	!WRITE(*,*) 'fuelburnt',fuel_burnt                                                           	   			     
+		          	! Calculating the surface fluxes coming from combustion		          	
+		          	! Average sensible heat released in time interval (t, t+Deltat) Mandel-2011-Eq.4 in W/m2
+		          	total_se_fire = total_se_fire + a_fgi%d(i,j)*fraction_burnt/dtl * &
+		          	                1/(1+a_fuelmcg%d(i,j))*cmbcnst
+		          	! Average latent heat released in time interval (t, t+Deltat) Mandel-2011-Eq.5 in W/m2
+		          	total_la_fire = total_la_fire + a_fgi%d(i,j)*fraction_burnt/dtl* &
+		          	                (a_fuelmcg%d(i,j)+0.56)/(1+a_fuelmcg%d(i,j))*alvl	
+		          	tt = 0.
+		          	fraction_burnt = 0.
+		          	area_burnt_cell = area_burnt_cell + areaignitedcell(i,j,kk) 		          	
+		          END IF
+		       END DO
+		       
+		       !WRITE(*,*) 'area_burnt_cell, area_burnt', areaignitedcell(i,j,:)
+		       a_fuelburnt%d(i,j) = fuel_burnt
+		       a_areaburnt%d(i,j) = MIN(area_burnt_cell, deltax*deltay)
+		       a_tcrit%d(i,j) = ignitiontimecell(i,j,20)
 		       sh_flx(i,j) = sh_flx(i,j) + total_se_fire 
 		       lh_flx(i,j) = lh_flx(i,j) + total_la_fire		
-		       ! WRITE(*,*) 'sh_fire, lh_fire', total_se_fire, total_la_fire
-		       total_la_fire = 0.
-		       total_se_fire = 0.    	                         
+		       !WRITE(*,*) 'sh_fire, lh_fire', total_se_fire, total_la_fire 		                 
 		 END IF
-		 	  		   
+		 		 	  		   
                  wt_sfc%d(i,j) = sh_flx(i,j)/(0.5*(dn0%d(1)+dn0%d(2))*cp)
                  wq_sfc%d(i,j) = lh_flx(i,j)/(0.5*(dn0%d(1)+dn0%d(2))*alvl)                  
                   
@@ -499,17 +585,22 @@ CONTAINS
             END DO
           END DO
           
+                 
+          ! Updating area burnt
+          CALL cyclics2d(nxp,nyp,a_areaburnt%d,req)
+          
           ! Checking if fire had spread across cells
           CALL update_ignition(time) 
           
-          ! Updating ignition time
-          CALL cyclics2d(nxp,nyp,a_ignitiontime%d,req)
+          CALL cyclics2d(nxp,nyp,a_ignitiontime%d,req)     
+          
+          CALL cyclicc2d(nxp,nyp,a_areaburnt%d,req)               	  
 	  CALL cyclicc2d(nxp,nyp,a_ignitiontime%d,req)
+
                    
 	  ! Reset for next timestep
 	  lh_flx = 0.
 	  sh_flx = 0.
-         
          !
          ! fix thermodynamic fluxes at surface given values in energetic
          ! units and calculate  momentum fluxes from winds
@@ -660,7 +751,7 @@ CONTAINS
    ! where zeta = z/lmo and lmo = (theta_rev/g*vonk) * (ustar^2/tstar)
    !
    ! Ref: Businger, 1973, Turbulent Transfer in the Atmospheric Surface
-   ! Layer, in Workshop on Micormeteorology, pages 67-100.
+   ! Layer, in Workshop on Micrometeorology, pages 67-100.
    !
    ! Code writen March, 1999 by Bjorn Stevens
    !
@@ -792,11 +883,11 @@ CONTAINS
 ! ------------------------------------------------------------------------------------
 ! Subroutine: update_ignition_time
 ! If a cell has burnt completely, the fire spreads to surrounding cells 
-! as long as there is a positive gradient in the spread rate
-! 
+! as long as there is a positive gradient in the spread rate and
+! the ignition time is below the non-ignited flag of 1.0E15 s
 
 SUBROUTINE update_ignition(time)              
-   USE mo_diag_state, ONLY: a_ignitiontime, a_areaburnt, a_firespread
+   USE mo_diag_state, ONLY: a_ignitiontime, a_areaburnt, a_firespread,a_fgi
    IMPLICIT NONE
    INTEGER :: i, j
    REAL, INTENT(IN) :: time
@@ -825,10 +916,10 @@ SUBROUTINE update_ignition(time)
      END DO
    END DO 
    
-   a_ignitiontime%d(1,:) = a_ignitiontime%d(2,:)
+   a_ignitiontime%d(1,:) = a_ignitiontime%d(2,:) 
    a_ignitiontime%d(nxp,:) = a_ignitiontime%d(nxp-1,:)
-   a_ignitiontime%d(:,1) = a_ignitiontime%d(:,nyp-1)
-   a_ignitiontime%d(:,nyp) = a_ignitiontime%d(:,nyp-1) 
+   a_ignitiontime%d(:,1) = a_ignitiontime%d(:,nyp-1) 
+   a_ignitiontime%d(:,nyp) = a_ignitiontime%d(:,nyp)
    
 END SUBROUTINE update_ignition
 
@@ -845,7 +936,7 @@ SUBROUTINE surface_state()
   			   a_fuelmcg, a_ignitiontime, a_fuelburnt, &
   			   a_firespread, a_areaburnt, a_phiwc, a_phiwb, & 
   			   a_tcrit, a_R0
-  USE grid, ONLY: sst, psrf
+  USE grid, ONLY: sst, psrf,nxp,nyp
   
   IMPLICIT NONE
   LOGICAL :: READ_NC
@@ -862,18 +953,23 @@ SUBROUTINE surface_state()
   ! Open the input file
   IF (READ_NC) CALL open_surf_nc(ncid, nxp_global, nyp_global) 
   
-  WRITE(*,*) 'Internal', nxp_global,nyp_global 
-  WRITE(*,*) 'ranktable',ranktable
-  WRITE(*,*) 'wrxid,wryid', wrxid, wryid
+  ! For checking purposes
+  !WRITE(*,*) 'Internal', nxp_global,nyp_global 
+  !WRITE(*,*) 'ranktable',ranktable
+  !WRITE(*,*) 'wrxid,wryid', wrxid, wryid
   
  ! Allocate input variables
   ALLOCATE(fgig(nxp_global,nyp_global), weightg(nxp_global,nyp_global), fcz0g(nxp_global,nyp_global))
   ALLOCATE(fuelmcgg(nxp_global,nyp_global), phiwcg(nxp_global,nyp_global), phiwbg(nxp_global,nyp_global))
   ALLOCATE(R0g(nxp_global,nyp_global))
   
-  ALLOCATE(firespreadg(nxp_global,nyp_global),ignitiontimeg(nxp_global,nyp_global),areaburntg(nxp_global,nyp_global))    
+  ALLOCATE(firespreadg(nxp_global,nyp_global),ignitiontimeg(nxp_global,nyp_global),areaburntg(nxp_global,nyp_global)) 
+  ALLOCATE(ignitiontimecell(nxp,nyp,20))
+  ALLOCATE(areaignitedcell(nxp,nyp,20))
  
   areaburntg = 0.
+  ignitiontimecell = 1.0E15
+  areaignitedcell = 0.
   
   IF (READ_NC) THEN
      ! Read the surface properties
@@ -908,7 +1004,8 @@ SUBROUTINE surface_state()
   jstart = MAX(wryid * (nyp_global-2)/nyprocs, 1) 
   jend   = MIN((wryid+1)*(nyp_global-2)/nyprocs+3, nyp_global)
   
-  WRITE(*,*) 'istart,iend, jstart,jend', istart,iend, jstart,jend
+  ! for checking purposes
+  !WRITE(*,*) 'istart,iend, jstart,jend', istart,iend, jstart,jend
   
   a_fgi%d    = fgig(istart:iend,jstart:jend)
   a_weight%d = weightg(istart:iend,jstart:jend)/0.8514 !Mandel 2011 Eq.3
@@ -924,13 +1021,11 @@ SUBROUTINE surface_state()
   a_areaburnt%d  = 0.
   a_phiwc%d = phiwcg(istart:iend,jstart:jend)
   a_phiwb%d = phiwbg(istart:iend,jstart:jend)  
-  a_tcrit%d  = 0.
+  a_tcrit%d  = 1.0E15 ! Same as no fire 
   a_firespread%d = R0g(istart:iend,jstart:jend)
+  ignitiontimecell(:,:,1) = ignitiontimeg(istart:iend,jstart:jend)
   
 END SUBROUTINE surface_state
    
  
 END MODULE srfc
-
-
-

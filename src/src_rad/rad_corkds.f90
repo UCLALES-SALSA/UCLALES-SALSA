@@ -389,6 +389,7 @@ CONTAINS
       TYPE(band_properties), INTENT(in) :: thisBand
     
       center = (thisBand%llimit + thisBand%rlimit) / 2.
+      
    END FUNCTION center
    !
    ! ----------------------------------------------------------------------
