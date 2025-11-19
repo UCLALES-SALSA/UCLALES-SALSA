@@ -28,10 +28,10 @@ MODULE forc
                             a_fus,a_fds,a_fuir,a_fdir,albedo
   USE mo_progn_state, ONLY : a_tt,a_tp,a_rt,a_rp,a_rpp, a_npp,        &
                              a_ncloudp,a_nprecpp,a_mprecpp,a_nicep,   &
-                             a_chargeTimet, a_chargeTimep  
+                             a_chargeTimet, a_chargeTimep, a_maerop, a_maerot 
   USE mpi_interface, ONLY : myid, appl_abort
-  USE util, ONLY : get_avg2dh
-  USE defs, ONLY      : cp
+  USE util, ONLY : get_avg2dh, getMassIndex
+  USE defs, ONLY      : cp,alvl
   !USE stat, ONLY      : sflg
   USE radiation_main, ONLY : rad_interface, useMcICA, iradtyp
   USE nudg, ONLY : nudging
@@ -57,8 +57,10 @@ CONTAINS
     
     REAL,  INTENT (in) :: time, strtim  ! time in seconds (since model start), strtim in decimal days
     REAL :: xka, fr0, fr1
-    REAL :: time_decday
-
+    REAL :: time_decday, change_mass(nzp,nxp,nyp),exner(nzp)
+    INTEGER :: nc, end, str, i, j
+    
+    
     ! NOT FINISHED; PUT LARGE-SCALE FORCINGS/CASE-SPECIFIC STUFF IN THEIR OWN PACKAGES
 
     time_decday = time/86400. + strtim
@@ -92,8 +94,22 @@ CONTAINS
     ! --------------------
     !
     IF (lemission .AND. level >= 4) THEN
+       ! Liquid water content
+       nc = spec%getIndex('H2O')
+       ! Aerosols, regimes a and b
+       str = getMassIndex(nbins,in1a,nc)
+       end = getMassIndex(nbins,fn2b,nc)
+       change_mass(:,:,:) = SUM(a_maerot%d(:,:,:,str:end),DIM=4)
+       
        CALL aerosol_emission(time)
-
+    ! Sami R.: October 2025 modify to account for water evaporation during emission
+       change_mass(:,:,:)=SUM(a_maerot%d(:,:,:,str:end),DIM=4)- change_mass(:,:,:)
+       DO j = 3, nxp-2
+          DO i = 3, nyp-2
+             exner(:) = (pi0%d(:) + pi1%d(:) + a_pexnr%d(:,j,i))/cp
+             a_tp%d(:,j,i)=a_tp%d(:,j,i)-change_mass(:,j,i)*alvl/cp/exner
+          END DO
+       END DO
        IF (ANY(emitModes(:)%emitType > 0)) THEN
           ! For particle charging, reduce the time tracer by one timestep where it is > 0
           a_chargeTimet%d = MAX(0.,a_chargeTimet%d - MIN(dtlt, a_chargeTimep%d))
