@@ -102,7 +102,7 @@ CONTAINS
        change_mass(:,:,:) = SUM(a_maerot%d(:,:,:,str:end),DIM=4)
        
        CALL aerosol_emission(time)
-    ! Sami R.: October 2025 modify to account for water evaporation during emission
+    ! Sami R.: October 2025 to account for water added with the aerosol emission
        change_mass(:,:,:)=SUM(a_maerot%d(:,:,:,str:end),DIM=4)- change_mass(:,:,:)
        DO j = 3, nxp-2
           DO i = 3, nyp-2
