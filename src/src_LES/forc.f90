@@ -38,6 +38,7 @@ MODULE forc
   USE emission_main, ONLY : aerosol_emission
   USE emission_types, ONLY : emitModes
   USE mo_structured_datatypes
+  USE mo_submctl, ONLY : nbins,in1a,fn2b,spec
   IMPLICIT NONE
 
   ! these are now all namelist parameters
