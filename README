@@ -1,35 +1,23 @@
-
-UCLALES-SALSA is a Large-Eddy model coupled with a detailed sectional 
-microphysics module for aerosol, clouds and precipitation. The core model
-UCLALES is the work of Stevens et al. (2005 @ Mon. Wea. Rev.). SALSA
-and all modifications and components related to the coupled UCLALES-SALSA have
-been designed and developed by the Finnish Meteorological Institute.
-
-To install this model, simply type 
-   >> git clone https://github.com/UCLALES-SALSA/UCLALES-SALSA.git
-and run 
-   >> make seq
-or
-   >> make mpi
-depending if you want a sequential build for single-processor runs
-or an MPI build for parallel multiprocessor runs. Note that you
-probably have to adjust the paths to MPI and NetCDF libraries in the
-makefile found in the model root folder. Makefile_ubuntu and 
-Makefile_CRAY provide examples for a simple ubuntu workstation and
-a Cray supercomputing cluster. The code compiles correctly at least 
-with GCC. Intel compilers should work, too.
-
-After compiling the model, the executable is found in the bin-folder
-together with the runscript "runles". This should be used for both
-parallel and sequential runs. You probably need to adjust the generation
-of the file job.sh at the end of the script according to the specifics 
-of your local batch system. The bin folder contains all the necessary files
-to perform a testrun.
-
-Case specific runscripts and sound-in files used in publications
-will be available in another repository at 
-  https://github.com/UCLALES-SALSA/CONFIGURATION-FILES
-For simple cases, just replace the runscript and sound-in files
-in the bin-directory of the model with the case-specific ones. If 
-anything more elaborate is necessary, this will be documented with 
-the case-specific configuration files.
+** Description
+UCLALES-SALSA (University of California Los Angeles Large Eddy Simulation model–Sectional Aerosol module for Large Scale Applications) is a large-eddy model that employs a sectional representation of aerosol and hydrometeor microphysics to simulate the size-resolved condensation/deposition of water as well as hydrometeor aggregation rates between different aerosol and hydrometeor types.
+Aerosol size-composition effects are accounted for using a microphysical scheme based on aerosol dry particle size and mixing state. Wet sizes are used to evaluate transitions from aerosol particles to cloud droplets, or from cloud droplets to rain droplets in the collision between droplets as described in Tonttila et al. (2017) and Tonttila et al. (2021).
+Ice particles are represented as a single ice "free" category with time-evolving mass and particle projected area laws based on the concept of filling in with rime used in the predicted particle properties (P3) scheme of Morrison and Milbrandt (2015). Primary ice production pathway includes homogeneous ice nucleation, and heterogeneous ice nucleation through the immersion, deposition, and contact freezing mechanisms described in Tonttila et al. (2022). Secondary ice production pathways include the mechanisms of rime splintering, droplet shattering and ice-ice collisional breakup described in Calderón et al. (2025).
+The UCLALES core is based on the modelling framework of Stevens et al. (2005) available from its repository (https://github.com/uclales/uclales/tree/master)
+All modifications and components related to the coupled UCLALES-SALSA have been designed and developed by the Finnish Meteorological Institute.
+The master branch of UCLALES-SALSA now contains all the updates included in the UCLALES-SALSA DEV v2.0.2 plus an improved forc.f90 function to account for wetted aerosol seeding during the simulation.
+The cloud scheme in UCLALES-SALSA is shown in https://github.com/UCLALES-SALSA/UCLALES-SALSA/releases/tag/v2.1 
+** Installation: To install this model, simply type
+  git clone https://github.com/UCLALES-SALSA/UCLALES-SALSA.git
+  and run
+  make seq
+  or
+  make mpi
+depending if you want a sequential build for single-processor runs or an MPI build for parallel multiprocessor runs. Note that you probably have to adjust the paths to MPI and NetCDF libraries in the makefile found in the model root folder. Makefile_ubuntu and Makefile_CRAY provide examples for a simple ubuntu workstation and a Cray supercomputing cluster. The code compiles correctly at least with GCC. Intel compilers should work, too. After compiling the model, the executable is found in the bin-folder together with the runscript "runles". This should be used for both parallel and sequential runs. You probably need to adjust the generation of the file job.sh at the end of the script according to the specifics of your local batch system. The bin folder contains all the necessary files to perform a testrun.
+** Post-processing: Detailed information to perform post-processing operations are included in the /les-post-processing/readme_postpprocessing.txt 
+** References
+1. Stevens, B., and Coauthors, 2005: Evaluation of Large-Eddy Simulations via Observations of Nocturnal Marine Stratocumulus. Mon. Wea. Rev., 133, 1443–1462, https://doi.org/10.1175/MWR2930.1. 
+2. Tonttila, J., Maalick, Z., Raatikainen, T., Kokkola, H., Kühn, T., and Romakkaniemi, S.: UCLALES–SALSA v1.0: a large-eddy model with interactive sectional microphysics for aerosol, clouds and precipitation, Geosci. Model Dev., 10, 169–188, https://doi.org/10.5194/gmd-10-169-2017, 2017. 
+3. Tonttila, J., Afzalifar, A., Kokkola, H., Raatikainen, T., Korhonen, H., and Romakkaniemi, S.: Precipitation enhancement in stratocumulus clouds through airborne seeding: sensitivity analysis by UCLALES-SALSA, Atmos. Chem. Phys., 21, 1035–1048, https://doi.org/10.5194/acp-21-1035-2021, 2021. 
+4. Morrison, H., and J. A. Milbrandt, 2015: Parameterization of Cloud Microphysics Based on the Prediction of Bulk Ice Particle Properties. Part I: Scheme Description and Idealized Tests. J. Atmos. Sci., 72, 287–311, https://doi.org/10.1175/JAS-D-14-0065.1. 
+5. Tonttila, J., A. Korpinen, H. Kokkola, S. Romakkaniemi, C. Fortelius, and H. Korhonen, 2022: Interaction between Hygroscopic Seeding and Mixed-Phase Microphysics in Convective Clouds. J. Appl. Meteor. Climatol., 61, 1533–1547, https://doi.org/10.1175/JAMC-D-21-0183.1. 
+6. Calderón, S. M., Hyttinen, N., Kokkola, H., Raatikainen, T., Lawson, R. P., and Romakkaniemi, S.: Secondary ice formation in cumulus congestus clouds: insights from observations and aerosol-aware large-eddy simulations, Atmos. Chem. Phys., 25, 14479–14500, https://doi.org/10.5194/acp-25-14479-2025, 2025. 
