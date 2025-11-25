@@ -43,7 +43,7 @@ CONTAINS
 ! is passed in to allow level of diagnosis to be determined by call rather
 ! than by runtype
 !
-  SUBROUTINE thermo (level)
+  SUBROUTINE thermo (level,position)
 
     USE mo_diag_state, ONLY : a_rtot, a_rc, a_rv, a_rh, a_theta,    &
                               a_pexnr, a_press, a_temp, a_rsl,      &
@@ -56,6 +56,7 @@ CONTAINS
     USE grid, ONLY : nxp, nyp, nzp, th00
 
     INTEGER, INTENT (in) :: level
+    CHARACTER(len=*), INTENT(in) :: position ! For debugging
     
     SELECT CASE (level)
     CASE DEFAULT
@@ -69,12 +70,11 @@ CONTAINS
                       pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp,a_rh)
     CASE (4:5)
        CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_rp,a_tp,a_theta, &
-                      a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_riri,a_rsi,a_rhi)
+                      a_temp,a_press,a_rsl,a_rh,a_rc,a_srp,a_ri,a_riri,a_rsi,a_rhi,position)
     CASE (0) ! Piggybacking call to level 3 thermodynamics, when using
              ! bulk microphysics as slave and SALSA as the primary scheme.
        CALL satadjst3(nzp,nxp,nyp,a_pexnr,a_press,a_tp,pb_theta,pb_temp,pi0,  &
                       pi1,th00,a_rtot,pb_rv,pb_rc,pb_rsl,pb_rpp,pb_rh)
-
     END SELECT
 
   END SUBROUTINE thermo
@@ -111,7 +111,7 @@ CONTAINS
   !            in SALSA.
   !
 
-  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,riri,rsi,rhi)
+  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,rv,tl,th,tk,p,rs,rh,rc,srp,ri,riri,rsi,rhi,pos)
     USE defs, ONLY : R, cp, cpr, p00, alvl, alvi
     USE mo_diag_state, ONLY : a_dn
     IMPLICIT NONE
@@ -133,6 +133,7 @@ CONTAINS
     TYPE(FloatArray3d), INTENT(in)  :: riri    ! Rimed ice condensate mix rat
     TYPE(FloatArray3d), INTENT(inout) :: rsi, &  ! Saturation mix rat over ice
                                        rhi     ! relative humidity over ice
+    CHARACTER(len=*), INTENT(in) :: pos
     REAL    :: exner
     INTEGER :: k,i,j
     REAL    :: thil
@@ -160,10 +161,35 @@ CONTAINS
                  rsi%d(k,i,j) = rsif(p%d(k,i,j),tk%d(k,i,j))
                  rhi%d(k,i,j) = rv%d(k,i,j)/rsi%d(k,i,j)
              END IF
-
+             IF (a_dn%d(k,i,j) < 0.0) THEN
+                WRITE(*,*) "CHECK FLG 1, WARNING: negative air density at ", k, i, j, " with value ", a_dn%d(k,i,j)
+             END IF
              ! True air density
              a_dn%d(k,i,j) = p%d(k,i,j)/(R*tk%d(k,i,j)*(1+0.61*rv%d(k,i,j)))
+             IF ( (a_dn%d(k,i,j) < 0)   .OR.  &
+                  (thil < 0) .OR. (p%d(k,i,j) < 0) .OR. &
+                  (ri%d(k,i,j) < 0)) THEN
+                WRITE(*,*) "CHECK FLG 2, WARNING: negative air density at ", k, i, j, " with value ", a_dn%d(k,i,j)
+                WRITE(*,*) "Pressure: ", p%d(k,i,j), " Temperature: ", tk%d(k,i,j), " Water vapour mixing ratio: ", rv%d(k,i,j)
+                WRITE(*,*) "Potential temperature: ", th%d(k,i,j), " Liquid potential temperature: ", thil
+                WRITE(*,*) "Saturation mixing ratio: ", rs%d(k,i,j), " Relative humidity: ", rh%d(k,i,j)
+                IF (level == 5) THEN
+                     WRITE(*,*) "Saturation mixing ratio over ice: ", rsi%d(k,i,j), " Relative humidity over ice: ", rhi%d(k,i,j)
+                     WRITE(*,*) "Pristine ice condensate mixing ratio: ", ri%d(k,i,j), " Rimed: ", riri%d(k,i,j)
+                END IF
+                STOP 'TERMINATING: Negative values detected'
+             ELSE IF ( (a_dn%d(k,i,j) /= a_dn%d(k,i,j))   .OR.  &
+                  (tl%d(k,i,j) /= tl%d(k,i,j)) .OR. (p%d(k,i,j) /= p%d(k,i,j)) .OR. &
+                  (rv%d(k,i,j) /= rv%d(k,i,j)) .OR. (ri%d(k,i,j) /= ri%d(k,i,j))) THEN
 
+               WRITE(*,*) "NaN found at ",TRIM(pos)
+               IF (a_dn%d(k,i,j) /= a_dn%d(k,i,j)) WRITE(*,*) "NaN in a_dn at ",k,i,j
+               IF (tl%d(k,i,j) /= tl%d(k,i,j))     WRITE(*,*) "NaN in tl",k,i,j
+               IF (p%d(k,i,j) /= p%d(k,i,j))       WRITE(*,*) "NaN in p",k,i,j
+               IF (rv%d(k,i,j) /= rv%d(k,i,j))     WRITE(*,*) "NaN in rv",k,i,j
+               IF (ri%d(k,i,j) /= ri%d(k,i,j))     WRITE(*,*) "NaN in ri",k,i,j
+               IF (TRIM(pos) == "TSTEP END") STOP 'TERMINATING: NaN issue detected'
+             END IF
           END DO
        END DO
     END DO

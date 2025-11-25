@@ -224,7 +224,10 @@ CONTAINS
                mtend(2)%d => pmcloudt%d(kk,ii,jj,:)
                mtend(3)%d => pmprecpt%d(kk,ii,jj,:)
                IF (level == 5) &
-                    mtend(4)%d => pmicet%d(kk,ii,jj,:)               
+                    mtend(4)%d => pmicet%d(kk,ii,jj,:)   
+
+               IF ( pnaerop%d(kk,ii,jj,1) < -1.e-6)  &
+                  WRITE(*,*) 'CHECK AT POINTER COPY, WARNING SALSA_DRIVER; numc < -1e-6 ',ii,jj,kk,pnaerop%d(kk,ii,jj,1)            
                
                ! Update SALSA input arrays
                DO nb = 1,ntotal
@@ -241,7 +244,7 @@ CONTAINS
                         allSALSA(1,1,nb)%volc(nc) = mpart(icat)%d(str)*pdn%d(kk,ii,jj)/spec%rholiq(nc)
                      END DO
 
-                     IF (level == 5 .AND. ice_theta_dist) THEN
+                     IF (level == 5 .AND. (ice_theta_dist .OR. ice_deterministic)) THEN
                         allSALSA(1,1,nb)%INdef = pindefp%d(kk,ii,jj,nb)
                      END IF
 
@@ -275,6 +278,11 @@ CONTAINS
                   ELSE
                      allSALSA(1,1,nb)%core = pi6*(allSALSA(1,1,nb)%dmid)**3
                   END IF 
+
+                  IF ( allSALSA(1,1,nb)%numc < -1.e-6) THEN
+                    WRITE(*,*) 'WARNING SALSA_DRIVER_UPDATEVOL; numc < -1e-6 ',ii,jj,kk,nb,icat,nbloc
+                    WRITE(*,*) allSALSA(1,1,nb)%numc,pdn%d(kk,ii,jj),npart(icat)%d(nbloc)
+                  END IF
                   
                END DO
                        
@@ -284,6 +292,8 @@ CONTAINS
 
                ! Convert to #/m3
                zgso4(1,1) = pgaerop%d(kk,ii,jj,1)*pdn%d(kk,ii,jj)
+               IF ( zgso4(1,1) < -1.e-6)  &
+                  WRITE(*,*) 'WARNING SALSA_DRIVER CONVERT ZGSO4; numc < -1e-6 ',ii,jj,kk,zgso4(1,1)  
                zghno3(1,1) = pgaerop%d(kk,ii,jj,2)*pdn%d(kk,ii,jj)
                zgnh3(1,1) = pgaerop%d(kk,ii,jj,3)*pdn%d(kk,ii,jj)
                zgocnv(1,1) = pgaerop%d(kk,ii,jj,4)*pdn%d(kk,ii,jj)
@@ -323,7 +333,7 @@ CONTAINS
                                mpart(icat)%d(str) ) / tstep
                      END DO
 
-                     IF (level == 5 .AND. ice_theta_dist) THEN
+                     IF (level == 5 .AND. (ice_theta_dist .OR. ice_deterministic)) THEN
                         pindefp%d(kk,ii,jj,nb) = allSALSA(1,1,nb)%INdef 
                      END IF
                      
@@ -513,7 +523,7 @@ CONTAINS
      IF (level == 5) THEN
         CALL Prog%getData(1,pmicep,name="mice")
         CALL Prog%getData(2,pmicet,name="mice")
-        IF (ice_theta_dist) CALL Prog%getData(1,pindefp,name="indef")
+        IF (ice_theta_dist .OR. ice_deterministic) CALL Prog%getData(1,pindefp,name="indef")
         
         IF (lssecice%switch) THEN
            CALL Prog%getData(1,psipdrfrp,name="sipdrfr")

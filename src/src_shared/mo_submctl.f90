@@ -103,6 +103,10 @@ MODULE mo_submctl
   ! during initial stages of the simulation. The period when initMinTheta is applied
   ! is from model initialization to ice_theta_dist%delay (in seconds)
   LOGICAL :: ice_theta_dist = .TRUE.   ! Use contact angle integration in ice nucleation
+  LOGICAL :: ice_deterministic = .TRUE.   ! Use determinstic ice nucleation scheme for heterogeneous nucleation
+  INTEGER :: dinscheme = 0 ! Deposition ice nucleation scheme:
+                               ! 0 = Ullrich et al. (2017) scheme
+                               ! 1 = Phillips et al. (2013) scheme
   TYPE(ProcessSwitch) :: lsFreeTheta   ! Switch: Use freely evolving lower limit in contact angle integration
                                        ! delay: Time until which the low limit contact for contact angle integration
                                        !        is fixed as initMinTheta.
@@ -144,7 +148,7 @@ MODULE mo_submctl
   ! 1) Switches for aerosol microphysical processes ------------------------
   INTEGER, PARAMETER :: nmod = 7
 
-  INTEGER :: nsnucl = 0             ! Choice of the nucleation scheme:
+  INTEGER :: nsnucl = 9             ! Choice of the nucleation scheme:
                                     ! 0 = off
                                     ! 1 = binary nucleation
                                     ! 2 = activation type nucleation
@@ -206,7 +210,7 @@ MODULE mo_submctl
 
   REAL ::                       &
        reglim(nreg+2) =                            & ! low/high diameter limits
-       (/ 3.e-9, 4.e-8, 7.e-7, 1.e-5 /) ! of main size regimes [m]
+       (/ 3.e-9, 4.e-8, 7.e-7, 1.5e-5 /) ! of main size regimes [m]
 
   INTEGER :: &
        nbin(nreg) = (/ 3, 7 /)   ! number of bins in each main regime

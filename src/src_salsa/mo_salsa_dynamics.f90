@@ -703,8 +703,11 @@ CONTAINS
           in1a, in2a,  &
           fn2b,            &
           lscndh2oae, lscndh2ocl, lscndh2oic, &
-          alv, als 
+          alv, als, grav, rhoic, cpa
      USE mo_salsa_properties, ONLY : equilibration
+     USE mo_particle_external_properties, ONLY : mha1, mhb1
+     USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
+     USE mo_particle_external_properties, ONLY : calcDiamLES
      IMPLICIT NONE
 
       INTEGER, INTENT(in) :: kproma,kbdim,klev,krow
@@ -733,7 +736,7 @@ CONTAINS
       REAL :: zorgri(nice)                                  ! The same for rime
       
       REAL :: zdfh2o, zthcond,rhoair
-      REAL :: zbeta,zknud,zmfph2o
+      REAL :: zbeta,zknud,zmfph2o,zmfpth
       REAL :: zact, zhlp1,zhlp2,zhlp3
       REAL :: adt,ttot
       REAL :: dwet, cap
@@ -742,11 +745,21 @@ CONTAINS
       REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
 
       REAL :: dvice, dvrime, dvitot ! Volume change for pristine and rimed ice
+      REAL :: a1, b1, Re, c1, c2
+      REAL :: alphasph, betasph, gammasph, sigmasph
+      REAL :: mA   ! Mass and area relation ratio used in MH2005
+      REAL :: X, xqi, Sc, Prandtl     ! Best number, x in ventilation factor, Schmidth number
+      REAL :: dnsp ! Diameter of non-spherical ice
+      REAL :: zf, zfth !ventilation factor
+      REAL :: pmice ! particle ice mass
+      REAL :: alphaci, alphath, zbetath, zdfh2oC, zthcondC, cpm ! accomodation factor for ice
+      REAL :: kvis, avis ! Viscosity parameters
 
       INTEGER :: nstr
       INTEGER :: ii,jj,cc
       INTEGER :: counter      
-      INTEGER :: iwa,irim,nspec
+      INTEGER :: iwa,irim,nspec,flag
+      TYPE(t_shape_coeffs) :: shape ! Shape coefficients needed for ice
 
       REAL, ALLOCATABLE :: vrate(:)
       
@@ -796,6 +809,11 @@ CONTAINS
 
             zmfph2o = 3.*zdfh2o*sqrt(pi*spec%mwa/(8.*rg*ptemp(ii,jj))) ! mean free path
             zthcond = 0.023807 + 7.1128e-5*(ptemp(ii,jj) - 273.16) ! Thermal conductivity of air
+
+            ! specific heat of moist air at constant pressure
+            cpm = cpa * (1. + prv(ii,jj)*0.856)
+
+            zmfpth = 3.*zthcond/(rhoair*cpm)*sqrt(pi*mair/(8.*rg*ptemp(ii,jj))) ! mean free path for energy
 
             ! -- Water vapour (Follows the analytical predictor method by Jacobson 2005)
             zkelvinpd = 1.; zkelvincd = 1.; zkelvin = 1.; zkelvinic = 1.
@@ -892,7 +910,66 @@ CONTAINS
                   
                   ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
                   cap=0.5*dwet
+                  IF (dwet <= 20e-6) THEN
+                     cap=0.5*dwet
+                  ELSE IF (ptemp(ii,jj)<=240 .AND. dwet <= 50e-6) THEN
+                     cap=(0.5 + 0.25)/2*dwet
+                  ELSE IF (ptemp(ii,jj)<=240) THEN
+                     cap=0.25*dwet
+                  END IF
+
+                  zf = 1 ! Set as 1 for very small ice crystals
+                  avis = 1.8325e-5*(416.16/(ptemp(ii,jj)+120.0))*(ptemp(ii,jj)/296.16)**1.5
+                  kvis = avis/rhoair
+                  IF (dwet>1e-6) THEN
+                     ! atm modelling Eq.4.54
+
+
+                     !!!!!!!!!!!!!!! Experimental for ventilation coefficient
+                     ! Mithcell and Heymsfield 2005
+                     ! Ice cyrstals with spherical eq size below 40 um are considered as spherical
+                     IF (dwet<40e-6) THEN
+                        alphasph = pi6*rhoic
+                        betasph = 3.
+                        gammasph = pi/4.
+                        sigmasph = 2.    
+                        mA = alphasph*dwet**betasph / (gammasph*dwet**sigmasph)
+                        X = 2. * grav * rhoair / avis**2. * dwet**2. * mA !MH2005 eq. 8
+
+                        dnsp = dwet
+                        !write(*,*) "nspec",nspec,"nice",nice,"dwet",dwet,"dnsp",dnsp,"X",X
+                     ELSE 
+                        flag = 4
+                        CALL getShapeCoefficients( shape, SUM(ice(ii,jj,cc)%volc(1:nspec-1)*spec%rhoic),     &
+                                                   ice(ii,jj,cc)%volc(nspec)*spec%rhori,                      &
+                                                   ice(ii,jj,cc)%numc                                      )
+                        flag = 4
+                        dnsp=calcDiamLES(nspec,ice(ii,jj,cc)%numc,ice(ii,jj,cc)%volc(:)*spec%rhoic,flag,sph=.FALSE.) ! For non-spherical ice, this is the max diameter of the crystal
+                        mA = shape%alpha*dnsp**shape%beta / (shape%gamma*dnsp**shape%sigma) !Ratio of mass and area laws used in Mitchell eq. 8
+                        X = 2. * grav * rhoair / avis**2. * dnsp**2. * mA !MH2005 eq. 8
+                        !write(*,*) "alpha",shape%alpha,"gamma",shape%gamma,"nspec",nspec,"nice",nice,"dwet",dwet,"dnsp",dnsp,"X",X
+                     END IF
+                     !
+                     !Calculation of Reynolds number according to the Re-X relationship defined in Mitchell and Heymsfield (2005)
+                     a1 = mha1(X)
+                     b1 = mhb1(X)
+                     Re = a1 * X**b1
                      
+                     Sc = kvis / zdfh2o ! Schmidt number
+                     xqi = Sc**(1./3.) * SQRT(Re) 
+
+                     c1 = 0.3005
+                     c2 = -0.0022
+
+                     IF (dwet<40e-6 .AND. xqi <= 1.4) THEN
+                        zf = 1 + 0.108*xqi**2.   ! Ventilation factor
+                     ELSE IF (dwet<40e-6 .AND. xqi > 1.4) THEN
+                        zf = 0.78 + 0.308*xqi
+                     ELSE
+                        zf = 1. + c1*xqi + c2*xqi**2.
+                     END IF
+                  END IF
+
                   ! Activity + Kelvin effect - edit when needed
                   !   Can be calculated just like for sperical homogenous particle or just ignored,
                   !   because these are not known for solid, irregular and non-homogenous particles.
@@ -907,17 +984,65 @@ CONTAINS
                   
                   ! Equilibrium saturation ratio
                   zwsatic(cc) = zact*zkelvinic(cc)
+
+                  ! deposition coefficient for ice
+                  alphaci = 0.5
                   
                   !-- transitional correction factor
                   zknud = 2.*zmfph2o/dwet
                   zbeta = (zknud + 1.)/(0.377*zknud+1.+4./ &
-                       (3.)*(zknud+zknud**2))
+                       (3.*alphaci)*(zknud+zknud**2))
+
+                  !write(*,*) "beta",zbeta
                   
+                  !zbeta = 1./(1. + (1.33 + 0.71/zknud) / (1. + 1./zknud) + 4./3. * (1. - alphaci) / alphaci)
+                  
+                  !write(*,*) "dwet",dwet,"dnsp",dnsp,"X",X,"beta",zbeta
+
+                  zdfh2oC = zdfh2o*zf*zbeta
+
+                  ! Knudsen number for energy
+                  zknud = 2.*zmfpth/dwet
+
+                  alphath = 0.96
+                  zbetath = (zknud + 1.)/(0.377*zknud+1.+4./ &
+                       (3.*alphath)*(zknud+zknud**2))
+                  !zbetath = 1./(1. + (1.33 + 0.71/zknud) / (1. + 1./zknud) + 4./3. * (1. - alphath) / alphath)
+
+                  cpm = cpa * (1 + prv(ii,jj)*0.856)
+                  Prandtl = avis/zthcond*cpm ! (modify to cp for moist air)
+
+                  zfth = 1
+                  IF (dwet>1e-6) THEN
+                     xqi = Prandtl**(1./3.) * SQRT(Re) 
+
+                     c1 = 0.3005
+                     c2 = -0.0022
+
+                     IF (dwet<40e-6 .AND. xqi <= 1.4) THEN
+                        zfth = 1 + 0.108*xqi**2.   ! Ventilation factor
+                     ELSE IF (dwet<40e-6 .AND. xqi > 1.4) THEN
+                        zfth = 0.78 + 0.308*xqi
+                     ELSE
+                        zfth = 1. + c1*xqi + c2*xqi**2.
+                     END IF
+                  END IF
+
+
+
+                  zthcondC = zthcond*zfth*zbetath
+
                   ! Mass transfer according to Jacobson
-                  zhlp1 = ice(ii,jj,cc)%numc*4.*pi*cap*zdfh2o*zbeta
-                  zhlp2 = spec%mwa*zdfh2o*als*zwsatic(cc)*zcwsurfic(cc)/(zthcond*ptemp(ii,jj)) 
+                  ! Not necessary due to proven unity
+                  !zhlp1 = ice(ii,jj,cc)%numc*4.*pi*cap*zdfh2oC
+                  !zhlp2 = zdfh2oC*als*zpvis/(zthcondC*ptemp(ii,jj))
+                  !zhlp3 = als*spec%mwa/(rg*ptemp(ii,jj)) - 1
+                  !zmtic(cc) = zhlp1/( zhlp2*zhlp3 + rg/spec%mwa * ptemp(ii,jj)) / spec%mwa
+
+                  ! Mass transfer according to Jacobson
+                  zhlp1 = ice(ii,jj,cc)%numc*4.*pi*cap*zdfh2oC
+                  zhlp2 = spec%mwa*zdfh2oC*als*zwsatic(cc)*zcwsurfic(cc)/(zthcondC*ptemp(ii,jj)) 
                   zhlp3 = ( (als*spec%mwa)/(rg*ptemp(ii,jj)) ) - 1.
-                  
                   zmtic(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
                   
                END IF

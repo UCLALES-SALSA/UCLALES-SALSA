@@ -32,7 +32,8 @@ MODULE nudg
     IF (ndg_theta%nudgetype > 0) THEN
        !Ali, if it is not allocated during reading a history file
        IF (.NOT.ALLOCATED(theta_ref) )  ALLOCATE(theta_ref(nzp))
-       theta_ref(:) = a_tp%d(:,3,3)
+       !theta_ref(:) = a_tp%d(:,3,3)
+       theta_ref(:) = SUM(SUM(a_tp%d, dim=3),dim=2) / (nxp*nyp) ! Horizontal perturbation filtered
     END IF
     !
     ! Water vapor mixing ratio based on total water
@@ -158,12 +159,12 @@ MODULE nudg
       LOGICAL :: nudgelev(nz)
       LOGICAL :: master_condition
 
-      master_condition = ( time < nudge_time .OR.   &
+      master_condition = ( time < ndg_var%nudge_time .OR.   &
                            ndg_var%tau_max_continue )
 
       IF ( master_condition ) THEN
 
-         nudgelev(:) = ( nudge_zmin <= zt(:) .AND. zt(:) <= nudge_zmax )
+         nudgelev(:) = ( ndg_var%nudge_zmin <= zt(:) .AND. zt(:) <= ndg_var%nudge_zmax )
          tauloc = ndg_var%f_tau(time)
          !
          IF (ndg_var%nudgetype == 1) THEN
@@ -217,12 +218,12 @@ MODULE nudg
      LOGICAL :: nudgelev(nz)
      LOGICAL :: master_condition
      
-     master_condition = ( time < nudge_time .OR.   &
+     master_condition = ( time < ndg_var%nudge_time .OR.   &
                           ndg_var%tau_max_continue )
      
      IF ( master_condition ) THEN
         
-        nudgelev(:) = ( nudge_zmin <= zt(:) .AND. zt(:) <= nudge_zmax )
+        nudgelev(:) = ( ndg_var%nudge_zmin <= zt(:) .AND. zt(:) <= ndg_var%nudge_zmax )
         tauloc = ndg_var%f_tau(time)
         !
         IF (ndg_var%nudgetype == 1) THEN

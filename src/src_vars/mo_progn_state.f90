@@ -323,7 +323,7 @@ USE grid, ONLY          : lemission
          iscl = iscl + nice*(nspec+1) - 1
          
          
-         IF (ice_theta_dist) THEN
+         !IF (ice_theta_dist) THEN
             iscl = iscl + 1
             pipeline_p => NULL(); pipeline_t => NULL()
             a_indefp = FloatArray4D(a_sclrp(:,:,:,iscl:iscl+nbins+ncld+nprc-1)) ! Could just use nliquid?
@@ -371,7 +371,7 @@ USE grid, ONLY          : lemission
                                pipeline_p)
                         
             iscl = iscl + nbins+ncld+nprc - 1
-         END IF
+         !END IF
 
          IF (lssecice%switch) THEN
             iscl = iscl + 1

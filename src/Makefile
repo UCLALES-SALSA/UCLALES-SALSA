@@ -19,7 +19,7 @@ else
 	mpi_io = 
 endif
 
-SRCSF90 = mo_salsa_math.f90 mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa_cloud_ice_SE.f90   \
+SRCSF90 = mo_salsa_math.f90 mo_salsa_update.f90 mo_salsa_cloud.f90 mo_salsa_cloud_ice.f90 mo_salsa_cloud_ice_DET.f90 mo_salsa_cloud_ice_SE.f90   \
 	  mo_salsa_secondary_ice.f90 mo_salsa_sizedist.f90 mo_salsa_dynamics.f90 mo_salsa_coagulation_kernels.f90     \
           mo_salsa_SIP_DF.f90 mo_salsa_SIP_RS.f90 mo_salsa_SIP_IIBR.f90                                               \
 	  mo_salsa_coagulation_processes.f90 mo_salsa.f90 mo_salsa_driver.f90 mo_salsa_init.f90                       \
@@ -60,7 +60,7 @@ LES.o: $(seqmpi:.f90=.o) grid.o init.o step.o mo_salsa_init.o \
        util.o sgsm.o srfc.o nudg_defs.o emission_types.o perturbation_forc.o   \
        forc.o radiation_main.o mcrp.o mo_output.o mo_stats_parameters.o
 
-ncio.o: $(seqmpi:.f90=.o) classFieldArray.o
+ncio.o: $(seqmpi:.f90=.o) classFieldArray.o forc.o
 mo_output.o: $(seqmpi:.f90=.o) ncio.o grid.o classFieldArray.o mo_structured_datatypes.o  \
 	     mo_submctl.o mo_field_state.o
 $(seqmpihis:.f90=.o): $(seqmpi:.f90=.o) grid.o nudg_defs.o mo_progn_state.o   \
@@ -75,7 +75,7 @@ thrm.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_aux_state.
         grid.o defs.o $(seqmpi:.f90=.o)
 forc.o: grid.o mo_aux_state.o mo_diag_state.o mo_progn_state.o mo_vector_state.o \
 	mo_field_state.o util.o defs.o radiation_main.o nudg.o emission_main.o \
-	mo_structured_datatypes.o $(seqmpi:.f90=.o)
+	mo_structured_datatypes.o ncio.o $(seqmpi:.f90=.o)
 advf.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_vector_state.o   \
 	mo_aux_state.o grid.o util.o mo_submctl.o $(seqmpi:.f90=.o)	
 advl.o: mo_structured_datatypes.o grid.o mo_vector_state.o mo_aux_state.o util.o 
@@ -164,6 +164,8 @@ mo_submctl.o: classSpecies.o classProcessSwitch.o classBinLayout.o
 mo_salsa_cloud.o: mo_salsa_types.o mo_submctl.o classSection.o mo_particle_external_properties.o   \
 	          mo_salsa_math.o math_functions.o
 mo_salsa_cloud_ice.o: mo_submctl.o mo_salsa_types.o mo_particle_external_properties.o mo_salsa_math.o math_functions.o
+mo_salsa_cloud_ice_DET.o: mo_submctl.o mo_salsa_types.o mo_salsa_math.o mo_particle_external_properties.o  \
+	                 classSection.o math_functions.o
 mo_salsa_cloud_ice_SE.o: mo_submctl.o mo_salsa_types.o mo_salsa_math.o mo_particle_external_properties.o  \
 	                 classSection.o math_functions.o
 mo_salsa_secondary_ice.o: mo_submctl.o mo_salsa_SIP_DF.o mo_salsa_SIP_RS.o mo_salsa_SIP_IIBR.o

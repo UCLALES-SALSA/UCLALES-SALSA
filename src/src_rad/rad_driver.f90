@@ -205,7 +205,13 @@ MODULE radiation
             !   CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
             !             fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
             !             piwc=piwc, pde=pde, prwc=prwc)
-            IF (PRESENT(ice)) THEN
+
+            IF (PRESENT(ice) .AND. PRESENT(maerop) .AND. PRESENT(naerop)) THEN
+               !WRITE(*,*) "Aero rad invoked"
+               CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
+                         fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
+                         piwc=piwc, pde=pde, maerobin=maerobin, naerobin=naerobin)
+            ELSE IF ( PRESENT(ice) ) THEN
                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
                          fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
                          piwc=piwc, pde=pde)

@@ -50,9 +50,31 @@ MODULE perturbation_forc
        PROCEDURE :: run => run_gaussian_flux_perturbation       
   END TYPE t_gaussian_flux_perturbation
 
+!!!!!!!!!!!!!!!!!!!!!!! Gaussian moisture perturbation
+  TYPE rp_gaussian_moisture_perturbation
+     ! Set up a 3d sinusoidal temperature perturbation. This is intended to be only
+     ! called on a single timestep for the affected area.
+
+     ! NAMELIST parameters
+     ! -------------------------------------------------------
+     LOGICAL :: switch = .FALSE.              ! Whether to use or not
+     REAL :: t_start = 0.                      ! time in seconds when the bubble is created
+     REAL :: center(2) = [0.,0.]    ! Center location of the perturbation in meters from domain center
+     REAL :: amprp = 0.0                  ! mixing ratio (kg/kg)
+     REAL :: sigma = 400.          ! Standard deviation of the area distribution of perturbation
+     ! ------------------------------------------------------------------------------
+     ! Other parameters
+     LOGICAL :: state                                ! runtime process switch dpending on the logical switch and time specs
+     
+     CONTAINS
+       PROCEDURE :: run => run_gaussian_moisture_perturbation
+  END TYPE rp_gaussian_moisture_perturbation
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
   ! Set these from namelist
   TYPE(t_warm_bubble) :: warm_bubble
   TYPE(t_gaussian_flux_perturbation) :: gaussian_flux_perturbation
+  TYPE(rp_gaussian_moisture_perturbation) :: gaussian_moisture_perturbation
     
   ! -----------------------------------------------------------------
   ! Contains routines and parameters for setting up a warm bubble in 
@@ -124,5 +146,34 @@ MODULE perturbation_forc
       END DO                  
     END SUBROUTINE run_gaussian_flux_perturbation
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    SUBROUTINE run_gaussian_moisture_perturbation(SELF)
+      USE math_functions, ONLY : f_gauss_NN
+      USE mo_progn_state, ONLY : a_rp
+      IMPLICIT NONE
+      CLASS(rp_gaussian_moisture_perturbation), INTENT(in) :: SELF
+      INTEGER :: i,j,k
+      REAL :: dist_from_center
+      REAL :: coord(2)
+
+      WRITE(*,*) '------------------------------'
+      WRITE(*,*) 'INITIALIZING GAUSSIAN MOISTURE'
+      WRITE(*,*) '------------------------------'
+
+      coord = 0.
+
+      DO j = 3,nyp-2
+         DO i = 3,nxp-2
+            DO k = 2,nzp
+               coord = [xt%d(i),yt%d(j)]
+               dist_from_center = SQRT( SUM( (coord-SELF%center)**2 ) )               
+               a_rp%d(k,i,j) = a_rp%d(k,i,j) +   &
+                     SELF%amprp*a_rp%d(k,i,j)*f_gauss_NN(dist_from_center,SELF%sigma,0.)
+                       !SIN( (1.-total_dist_norm)*0.5*pi )*SELF%temp_ampl           
+            END DO
+         END DO
+      END DO
+    END SUBROUTINE run_gaussian_moisture_perturbation
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
 END MODULE perturbation_forc

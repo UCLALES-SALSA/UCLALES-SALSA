@@ -27,7 +27,7 @@ MODULE radiation_main
       
       INTEGER :: nspec
       REAL :: znc(nzp,nxp,nyp), zrc(nzp,nxp,nyp), zni(nzp,nxp,nyp), zri(nzp,nxp,nyp)
-      
+
       nspec = spec%getNSpec(type="wet")  
       nspec = MAX(1,nspec) ! This is to avoid some problems with LEV3 even though not actually even used. 
                            ! Avoids the need for more switches
@@ -91,13 +91,23 @@ MODULE radiation_main
          END IF
          zni(:,:,:) = SUM(a_nicep%d(:,:,:,:),DIM=4) ! Ice
          zri(:,:,:) = a_ri%d(:,:,:) ! Ice (no aerosol ice?)
-         CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo,   &
-                       dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rp%d,  &
-                       zrc, znc, a_tt%d, a_rflx%d, a_sflx%d, a_fus%d, a_fds%d,   &
-                       a_fuir%d, a_fdir%d, albedo%d, ice=zri,nice=zni,           &
-                       radsounding=radsounding,useMcICA=useMcICA,                &
-                       ConstPrs=RadConstPress, maerop=a_maerop%d,                &
-                       naerop=a_naerop%d)
+         IF (laerorad) THEN
+            CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo,   &
+                        dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rp%d,  &
+                        zrc, znc, a_tt%d, a_rflx%d, a_sflx%d, a_fus%d, a_fds%d,   &
+                        a_fuir%d, a_fdir%d, albedo%d, ice=zri,nice=zni,           &
+                        radsounding=radsounding,useMcICA=useMcICA,                &
+                        ConstPrs=RadConstPress, maerop=a_maerop%d,                &
+                        naerop=a_naerop%d)
+         ELSE
+            CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo,   &
+                        dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rp%d,  &
+                        zrc, znc, a_tt%d, a_rflx%d, a_sflx%d, a_fus%d, a_fds%d,   &
+                        a_fuir%d, a_fdir%d, albedo%d, ice=zri,nice=zni,           &
+                        radsounding=radsounding,useMcICA=useMcICA,                &
+                        ConstPrs=RadConstPress)
+         END IF
+
       END IF
 
 

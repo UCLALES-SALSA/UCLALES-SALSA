@@ -147,7 +147,7 @@ MODULE mcrp
       
       ! Call with level = 0 updates the diagnostic pb-variables using saturation adjustment to be
       ! consistent with the level 3 microphysics used as the "slave" scheme
-      CALL thermo(0)
+      CALL thermo(0,"PB_MCRP")
 
       ! Diagnose cdnc from SALSA
       pbcdnc = 0.

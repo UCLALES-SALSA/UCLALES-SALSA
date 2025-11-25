@@ -296,16 +296,17 @@ CONTAINS
 
     INTEGER :: ibr,k
     REAL    :: gg, cwmks
-    REAL    :: fw1, fw2, fw3, wf1, wf2, wf3, wf4, x1, x2, x3, x4,  fd
+    REAL    :: fw1, fw2, fw3, wf1, wf2, wf3, wf4, x1, x2, x3, x4,  fd, pde_lim
 
     IF (.NOT. iceInitialized) STOP 'TERMINATING: Ice not Initialized'
 
     DO k = 1, nv
        cwmks = pci(k)!here we don't need the factor 1000
        IF ( (cwmks >= 1.e-5) .AND. (pde(k) > 0.) ) THEN
-         fw1 = pde(k)
-         fw2 = fw1 * pde(k)
-         fw3 = fw2 * pde(k)
+         pde_lim = min(max(pde(k),20.),120.) ! Kasper: Limited ice effective size to 120 microns prevent blowup of coefficients
+         fw1 = pde_lim
+         fw2 = fw1 * pde_lim
+         fw3 = fw2 * pde_lim
          ti(k) = dz(k) * cwmks * ( ap(1,ib) + &
                  ap(2,ib) / fw1 + ap(3,ib) / fw2 )
          wi(k) = 1.0 - ( bp(1,ib) + bp(2,ib) * fw1 + &
@@ -450,6 +451,8 @@ CONTAINS
 
     REAL :: TH = 1.e-30
 
+    INTEGER :: iwa ! index for H2O
+
     REAL, POINTER :: aer_nre(:) => NULL(), aer_nim(:) => NULL(),          &
                      aer_alpha(:) => NULL(), aer_sigma(:,:,:) => NULL(),  &
                      aer_asym(:,:,:) => NULL(), aer_omega(:,:,:) => NULL()
@@ -462,6 +465,8 @@ CONTAINS
     taer_bin = 0.
     waer_bin = 0.
     wwaer_bin = 0.
+
+    iwa = spec%getIndex("H2O")
 
     lambda_r = center(band(ib))
     IF (1./lambda_r > aerRefrIbands_SW(1)) THEN
@@ -502,21 +507,31 @@ CONTAINS
 
        ! Loop over chemical species
        DO ss = 1,nspec
+          !IF (ss == iwa) THEN ! Skip water compound contribution since it is included in the cloud_rad
+          !  volc(ss,1:nbins) = 0.0
+          !ELSE
+         ! Mass bin indices
+         istr = getMassIndex(nbins,1,ss)
+         iend = getMassIndex(nbins,nbins,ss)
+         ! Volumes for each species, 0 if not used or if nothing present
+         volc(ss,1:nbins) = MERGE( (maerobin(kk,istr:iend))/spec%rholiq(ss), &
+                              0.,                                       &
+                              (naerobin(kk,1:nbins) > nlim )            )
+          !END IF
 
-          ! Mass bin indices
-          istr = getMassIndex(nbins,1,ss)
-          iend = getMassIndex(nbins,nbins,ss)
-          ! Volumes for each species, 0 if not used or if nothing present
-          volc(ss,1:nbins) = MERGE( (maerobin(kk,istr:iend))/spec%rholiq(ss), &
-                                    0.,                                       &
-                                    (naerobin(kk,1:nbins) > nlim )            )
+         !  ! Mass bin indices
+         !  istr = getMassIndex(nbins,1,ss)
+         !  iend = getMassIndex(nbins,nbins,ss)
+         !  ! Volumes for each species, 0 if not used or if nothing present
+         !  volc(ss,1:nbins) = MERGE( (maerobin(kk,istr:iend))/spec%rholiq(ss), &
+         !                            0.,                                       &
+         !                            (naerobin(kk,1:nbins) > nlim )            )
        END DO
 
        voltot(1:nbins) = SUM(volc(1:nspec,1:nbins),DIM=1)
        
        ! loop over bins
        DO bb = 1,nbins
-
           ! Check if empty bin
           IF (naerobin(kk,bb) < nlim .OR. voltot(bb) < 1.e-30) CYCLE
           

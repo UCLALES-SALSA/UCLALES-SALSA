@@ -15,7 +15,7 @@ MODULE ncio
   PRIVATE
   
   PUBLIC :: close_nc, sync_nc, &  
-            open_aero_nc, read_aero_nc_1d, read_aero_nc_2d,  &
+            open_aero_nc, open_era5_nc, read_aero_nc_1d, read_aero_nc_2d,  &
             StreamDef
 
 
@@ -493,7 +493,33 @@ MODULE ncio
     !
 
 
+ ! FUNCTIONS FOR READING ERA5 DATA FROM A NETCDF FILE
  !
+
+
+ !
+
+ SUBROUTINE open_era5_nc(ncid,nc_levs,nc_times)
+    USE forc, ONLY: nudging_file
+    IMPLICIT NONE
+
+    INTEGER, INTENT(out) :: ncid,nc_levs,nc_times
+    INTEGER :: iret, did
+
+    ! Open file
+    iret = nf90_open(nudging_file,NF90_NOWRITE,ncid)
+
+    ! Inquire the number of input levels
+    iret = nf90_inq_dimid(ncid,'z',did)
+    iret = nf90_inquire_dimension(ncid,did,len=nc_levs)
+
+    iret = nf90_inq_dimid(ncid,'time',did)
+    iret = nf90_inquire_dimension(ncid,did,len=nc_times)
+
+    !iret = nf90_inq_dimid(ncid,'nmod',did)
+    !iret = nf90_inquire_dimension(ncid,did,len=nc_nmod)
+
+ END SUBROUTINE open_era5_nc
  ! ----------------------------------------------------------------------
  ! FUNCTIONS FOR READING AEROSOL SIZE DISTRIBUTIONS FROM A NETCDF FILE
  !
@@ -546,7 +572,20 @@ MODULE ncio
    INTEGER :: iret, vid
    
    iret = nf90_inq_varid(ncid,name,vid)
+
+   IF (iret /= nf90_noerr) THEN
+      PRINT *, 'Error finding variable: ', name
+      PRINT *, 'NetCDF error code: ', iret
+      STOP
+   END IF
+
    iret = nf90_get_var(ncid,vid,var)
+
+   IF (iret /= nf90_noerr) THEN
+        PRINT *, 'Error reading variable: ', name
+        PRINT *, 'NetCDF error code: ', iret
+        STOP
+   END IF
    
  END SUBROUTINE read_aero_nc_2d
  !

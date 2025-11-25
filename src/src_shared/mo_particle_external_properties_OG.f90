@@ -1,5 +1,5 @@
 MODULE mo_particle_external_properties
-  USE mo_submctl, ONLY : pi, pi6, eps, rg, surfw0, grav, spec
+  USE mo_submctl, ONLY : pi6, eps, rg, surfw0, grav, spec
   USE classSection, ONLY : Section
   USE mo_ice_shape, ONLY : getDiameter, t_shape_coeffs
   IMPLICIT NONE
@@ -39,7 +39,7 @@ MODULE mo_particle_external_properties
     ! The function requires the surface tension of pure water to account for changes
     ! in droplet shape when large droplets fall
     ! Functions and references are included in the correspondent section
-    !!
+    ! 
     REAL FUNCTION terminal_vel(diam,rhop,rhoa,visc,beta,flag,shape,dnsp)
       IMPLICIT NONE
       REAL, INTENT(in) :: diam,  &      ! Particle diameter; for ice this should be the spherical equivalent diameter
@@ -54,9 +54,6 @@ MODULE mo_particle_external_properties
 
       REAL :: Vb, Ap   ! Bulk volume, cross sectional area (should revise Ap for nonspherical ice!!!)
       REAL :: Re2,X,Y,NDa,Np,Bo,X3,Y3,Re3, temp
-      REAL :: mA   ! Mass and area relation ratio used in MH2005
-      REAL :: Xb     ! Best number
-      REAL :: alphasph, betasph, gammasph, sigmasph ! Coefficients for spherical equivalent ice particles
            
       terminal_vel = 0.
       IF( ANY(flag == [1,2,3])) THEN    
@@ -92,69 +89,73 @@ MODULE mo_particle_external_properties
             ! Silvia_Note: This equation agrees with experiments up to 7 mm when the velocity reaches 9.2 m/s at 293 K rho_air = 1.2 kg m-3
          END IF
       ELSE IF (flag==4) THEN   ! Ice
-         ! Mithcell and Heymsfield 2005
-         ! Ice cyrstals with spherical eq size below 40 um are considered as spherical
-         IF (diam<40e-6) THEN
-            alphasph = pi6*rhop
-            betasph = 3.
-            gammasph = pi/4.
-            sigmasph = 2.    
-            mA = alphasph*dnsp**betasph / (gammasph*dnsp**sigmasph)
-         ELSE 
-            mA = shape%alpha*dnsp**shape%beta / (shape%gamma*dnsp**shape%sigma) !Ratio of mass and area laws used in Mitchell eq. 8
-         END IF
-
-         X = 2. * grav * rhoa / visc**2 * dnsp**2 * mA !MH2005 eq. 8
-
-         terminal_vel = mhVt(dnsp,X,visc,rhoa)           
+         ! Khvorostyanov and Curry 2002
+         Vb = pi6*diam**3     ! Bulk volume of the particle obtained from spherical equivalent diameter
+         Ap = shape%gamma*dnsp**shape%sigma
+         X = ( 2. * Vb * (rhop - rhoa) * grav * dnsp**2 ) /  &
+              ( Ap * rhoa * visc**2 )
+         terminal_vel = kcVt(shape,dnsp,X,visc,rhoa)                 
       END IF
       
-    END FUNCTION terminal_vel 
+    END FUNCTION terminal_vel
+    
     !--
-    REAL FUNCTION mh1213(X)
-      ! Calculate the term needed in 6 and 7 in Mitchell and Heymsfield 2005
+    REAL FUNCTION kc1213(X)
+      ! Calculate the term needed in 2.12 and 2.13 in Khvorostyanov and Curry 2002
       REAL, INTENT(in) :: X
-      REAL, PARAMETER :: c0 = 0.6, delta = 5.83 !(MH2005)
-      REAL:: C1
-      C1 = 4 / (delta**2 * SQRT(c0))
-      mh1213 = SQRT( 1 + C1*SQRT(X))      
-    END FUNCTION mh1213
-
+      REAL, PARAMETER :: c1 = 0.0902 !(KC2002)
+      kc1213 = SQRT(1. + c1*SQRT(X))      
+    END FUNCTION kc1213
     !--
-    REAL FUNCTION mha1(X)
-      ! Calculate a1 term in 6 in Mitchell and Heymsfield 2005
+    REAL FUNCTION kcbre(X)
+      ! b_Re from 2.12 in KC2002
       REAL, INTENT(in) :: X
-      REAL, PARAMETER :: a0 = 1.7e-3, b0 = 0.8, c0 = 0.6, delta = 5.83 !(MH2005)
-      REAL:: C2
-
-      C2 = delta**2/4
-      mha1 = C2 * (mh1213(X) - 1)**2 - a0 * X**b0
-      mha1 = mha1 / (X**mhb1(X))
-    END FUNCTION mha1
-
+      REAL, PARAMETER :: c1 = 0.0902 !(KC2002)
+      kcbre = 0.5 * c1 * SQRT(X)
+      kcbre = kcbre / ( kc1213(X) - 1. )
+      kcbre = kcbre / kc1213(X)
+    END FUNCTION kcbre
     !--
-    REAL FUNCTION mhb1(X)
-      ! Calculate a1 term in 7 in Mitchell and Heymsfield 2005
+    REAL FUNCTION kcare(X)
+      ! a_Re from 2.13 in KC2002
       REAL, INTENT(in) :: X
-      REAL, PARAMETER :: a0 = 1.7e-3, b0 = 0.8, c0 = 0.6, delta = 5.83 !(MH2005)
-      REAL:: C1, C2
-      C1 = 4 / (delta**2 * SQRT(c0))
-      C2 = delta**2/4
-
-      mhb1 = C1 * SQRT(X)
-      mhb1 = mhb1/(2 * (mh1213(X) - 1) * mh1213(X))
-      mhb1 = mhb1 - a0 * b0 * X**b0/(C2 * (mh1213(X) - 1)**2)
-    END FUNCTION mhb1
-
-    REAL FUNCTION mhVt(D,X,visc,rhoa)
-      ! 5 in MH2005
+      REAL, PARAMETER :: delta0 = 9.06, c1 = 0.0902 !(KC2002)
+      REAL :: bre
+      bre = kcbre(X)
+      kcare = 0.25*delta0**2
+      kcare = kcare * (kc1213(X) - 1.)**2
+      kcare = kcare / (X**bre)
+    END FUNCTION kcare
+    !--
+    REAL FUNCTION kcAv(shape,X,visc,rhoa)
+      ! 2.24 from KC2002
+      TYPE(t_shape_coeffs), INTENT(in) :: shape
+      REAL, INTENT(in) :: X,visc, rhoa
+      REAL :: are, bre
+      are = kcare(X)
+      bre = kcbre(X)      
+      kcAv = are * visc**(1.-2.*bre)
+      kcAv = kcAv * ( (2.*shape%alpha*grav)/(rhoa*shape%gamma) )**bre      
+    END FUNCTION kcAv
+    !--
+    REAL FUNCTION kcBv(shape,X)
+      ! 2.25 from KC2002
+      TYPE(t_shape_coeffs), INTENT(in) :: shape
+      REAL, INTENT(in) :: X
+      REAL :: bre
+      bre = kcbre(X)
+      kcBv = bre * (shape%beta - shape%sigma + 2.) - 1.
+    END FUNCTION kcBv
+    !--
+    REAL FUNCTION kcVt(shape,D,X,visc,rhoa)
+      ! 2.23 from KC2002
+      TYPE(t_shape_coeffs), INTENT(in) :: shape
       REAL, INTENT(in) :: D, X, visc, rhoa     
-      REAL :: a1, b1, Re
-      a1 = mha1(X)
-      b1 = mhb1(X)
-      Re = a1 * X**b1
-      mhVt = Re * visc / (D * rhoa) 
-    END FUNCTION mhVt
+      REAL :: Av, Bv      
+      Av = kcAv(shape,X,visc,rhoa)
+      Bv = kcBv(shape,X)
+      kcVt = Av * D**Bv
+    END FUNCTION kcVt
       
     
     !

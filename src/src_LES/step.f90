@@ -83,7 +83,6 @@ CONTAINS
          psflg = ( mod(tplsdt,ps_intvl) < dtl .OR. time >= timmax .OR. time == dtl )
 
          CALL set_LES_runtime()
-      
          
          ! Create a warm bubble perturbation if required
          IF ( warm_bubble%state ) THEN
@@ -118,11 +117,11 @@ CONTAINS
          IF (tsflg) &
               CALL write_ts(time)
          
-         IF ((mod(tplsdt,frqhis) < dtl .OR. time >= timmax) .AND. outflg)   &
+         IF (((mod(tplsdt,frqhis) < dtl) .OR. time >= timmax) .AND. outflg)   &
             CALL write_hist(2, time)
 
          IF ((mod(tplsdt,main_intvl) < dtl .OR. time >= timmax) .AND. outflg) THEN
-            CALL thermo(level)
+            CALL thermo(level,"WRITE STEP")
             CALL write_main(time)
          END IF
 
@@ -259,6 +258,8 @@ CONTAINS
       USE constrain_SALSA, ONLY : SALSA_diagnostics, tend_constrain2
       USE emission_types, ONLY : emitModes
 
+      USE radiation_main, ONLY : rad_interface, useMcICA, iradtyp
+
       LOGICAL, INTENT (out)      :: cflflg
       REAL(KIND=8), INTENT (out) :: cflmax
       INTEGER, INTENT(in) :: istp
@@ -295,7 +296,7 @@ CONTAINS
 
       CALL update_sclrs
       CALL tend0(.TRUE.)
-      CALL thermo(level)
+      CALL thermo(level,"RAD&FORCING")
 
       ! SALSA timestep
       ! -----------------------
@@ -331,7 +332,7 @@ CONTAINS
          CALL update_sclrs
          CALL tend0(.TRUE.)
          CALL SALSA_diagnostics(.FALSE.,lcharge)
-         CALL thermo(level)
+         CALL thermo(level,"SALSA")
 
       END IF ! level >= 4
 
@@ -344,7 +345,7 @@ CONTAINS
       CALL update_sclrs
       CALL tend0(.TRUE.)
       IF (level >= 4) CALL SALSA_diagnostics(.TRUE.,lcharge)
-      CALL thermo(level)
+      CALL thermo(level,"SALSA DEPO")
 
       !-------------------------------------------
       ! "Advection" timestep
@@ -354,7 +355,7 @@ CONTAINS
       CALL update_sclrs
       CALL tend0(.TRUE.)
       IF (level >= 4) CALL SALSA_diagnostics(.TRUE.,lcharge)
-      CALL thermo(level)
+      CALL thermo(level,"SALSA ADV")
       
       CALL corlos
 
@@ -369,7 +370,7 @@ CONTAINS
       CALL cfl (cflflg, cflmax)
 
       IF (level >= 4) CALL SALSA_diagnostics(.TRUE.,lcharge)
-      CALL thermo(level)
+      CALL thermo(level,"TSTEP END")
 
    END SUBROUTINE t_step
    !
@@ -458,7 +459,13 @@ CONTAINS
 
       DO n = 1, nscl
          CALL newsclr(n)
+         IF ((n == 1) .AND. (MINVAL(a_sp) < -290)) THEN
+            WRITE(*,*) 'FLAG 1, WARNING at update_sclrs: Negative temperature', MINVAL(a_sp)
+         END IF
          CALL update(nzp,nxp,nyp,a_sp,a_st,dtlt)
+         IF ((n == 1) .AND. (MINVAL(a_sp) < -290)) THEN
+            WRITE(*,*) 'FLAG 2, WARNING at update_sclrs: Negative temperature', MINVAL(a_sp)
+         END IF
          CALL sclrset('mixd',nzp,nxp,nyp,a_sp,dzt%d)
       END DO
 

@@ -6,7 +6,7 @@ MODULE constrain_SALSA
                              a_chargeTimep
   USE mo_diag_state, ONLY : a_rtot, a_rc, a_srp, a_snrp, a_rh, a_temp, a_ri, a_riri, a_rhi
   USE mo_aux_state, ONLY : aetot
-  USE mo_submctl, ONLY : spec, nlim, prlim, ice_theta_dist
+  USE mo_submctl, ONLY : spec, nlim, prlim, ice_theta_dist, ice_deterministic
   USE grid, ONLY : level
   USE mo_structured_datatypes
   IMPLICIT NONE
@@ -30,7 +30,7 @@ MODULE constrain_SALSA
       END DO
       varp => NULL(); vart => NULL()
 
-      IF (ice_theta_dist .AND. level > 4)   &
+      IF ((ice_theta_dist .OR. ice_deterministic) .AND. level > 4)   &
            a_indefp%d(:,:,:,:) = MIN( MAX( a_indefp%d(:,:,:,:),0. ),1. )
       
    END SUBROUTINE tend_constrain2
@@ -46,6 +46,7 @@ MODULE constrain_SALSA
    !
    ! Juha Tonttila, FMI, 2014
    ! Tomi Raatikainen, FMI, 2016
+   ! Kasper Juurikkala, FMI, 2024
 
    SUBROUTINE SALSA_diagnostics(onlyDiag,lcharge)
      USE grid, ONLY : nxp,nyp,nzp,    &
@@ -74,6 +75,7 @@ MODULE constrain_SALSA
      REAL :: zdrms, zwams
      REAL :: mice_tot   ! Variable for total ice mass
      REAL :: vice_tot   ! Variable for total ice vol
+     REAL :: fracevap  ! Fraction of evaporated INPs during the evaporation of ice crystals
 
      LOGICAL :: l_onlyDiag
      
@@ -286,12 +288,16 @@ MODULE constrain_SALSA
                           IF ( zvol>0.5 .OR. cdice < 2.e-6 ) THEN
                              
                              ! Find the aerosol bin corresponding to the composition of the IN the current bin
-                             ba = findDry4Wet(a_nicep,a_micep,nice,bc,k,i,j)                     
+                             ba = findDry4Wet(a_nicep,a_micep,nice,bc,k,i,j,.TRUE.)                    
                              
                              ! Move the number of particles from ice to aerosol bins
                              a_naerop%d(k,i,j,ba) = a_naerop%d(k,i,j,ba) + a_nicep%d(k,i,j,bc)
+                             ! Kasper! Updated to support updating the frozen fraction
+                             fracevap = a_nicep%d(k,i,j,bc) / a_naerop%d(k,i,j,ba)
                              a_nicep%d(k,i,j,bc) = 0.
-                             
+
+                             ! Update frozen fraction of the aerosol population after increase in aerosol number. Released aerosols contribute as FF=0.
+                             a_indefp%d(k,i,j,ba) = (1 - fracevap) * a_indefp%d(k,i,j,ba)
                              ! Move mass material back to aerosol regime (including water)
                              DO s = 1,nspec
                                 sc = getMassIndex(nice,bc,s)
@@ -405,7 +411,7 @@ MODULE constrain_SALSA
   ! ----------------------------------------------------------------------
   !
 
-  INTEGER FUNCTION findDry4Wet(nevap,mevap,nb,ib,iz,ix,iy)
+  INTEGER FUNCTION findDry4Wet(nevap,mevap,nb,ib,iz,ix,iy,IsIce)
     USE mo_submctl, ONLY : in2a,fn2a,nbins,pi6
     USE util, ONLY :  calc_correlation, getMassIndex
     IMPLICIT NONE
@@ -421,6 +427,8 @@ MODULE constrain_SALSA
     REAL :: ra, rb ! Correlation coefficients for a and b aerosol bins
 
     INTEGER :: ndry
+
+    LOGICAL, INTENT(in), OPTIONAL :: IsIce !For ice, b bins are automatically selected
     
     ! This function finds a suitable aerosol bin for evaporating
     ! precipitation or ice bins
@@ -443,7 +451,9 @@ MODULE constrain_SALSA
     bb = fn2a + (ba - in2a)
     
     ! 2) Select a or b bin
-    IF (a_naerop%d(iz,ix,iy,bb) <= nlim) THEN
+    IF (PRESENT(IsIce) .AND. IsIce) THEN
+       findDry4Wet = bb
+    ELSE IF (a_naerop%d(iz,ix,iy,bb) <= nlim) THEN
        ! Empty b bin so select a, i.e. do nothing here
        findDry4Wet = ba
     ELSE IF (a_naerop%d(iz,ix,iy,ba) <= nlim) THEN

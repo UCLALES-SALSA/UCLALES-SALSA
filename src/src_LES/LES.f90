@@ -107,8 +107,8 @@ CONTAINS
                                   lpback, pbncsrc, nfpt, distim, runtype, CCN,sst,W1,W2,W3, &
                                   cntlat, varlist_main, varlist_ps, varlist_ts, eddy_dis
     USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
-                                  zrand, zrndamp, sound_in_file
-    USE forc, ONLY              : div, case_name     ! Divergence, forcing case name
+                                  zrand, zrndamp, sound_in_file, zrndamp_rp
+    USE forc, ONLY              : div, case_name, amp, tphase, largeforc, forcing, pertmax, z_forcing_min, nudging_file ! Divergence, forcing case name
     USE radiation_main, ONLY    : radsounding,   &
                                   sfc_albedo,    &
                                   useMcICA,      &
@@ -121,7 +121,7 @@ CONTAINS
     USE mo_output, ONLY         : ts_intvl, ps_intvl, main_intvl
     USE mo_check_state, ONLY    : breakUndefOutput
     USE mo_stats_parameters, ONLY : TH_rc, TH_rr, TH_ri, TH_rrate
-    USE perturbation_forc, ONLY : warm_bubble, gaussian_flux_perturbation
+    USE perturbation_forc, ONLY : warm_bubble, gaussian_flux_perturbation, gaussian_moisture_perturbation
 
     
     IMPLICIT NONE
@@ -145,11 +145,16 @@ CONTAINS
          lnudging, lemission,       & ! master switch for nudging, aerosol emissions
          lpback, pbncsrc,       & ! Switch for piggybacking microphysics, switch for fixed or SALSA CDNC with PB
          div, case_name, &            ! divergence for LEVEL 4
+         amp, tphase, largeforc, pertmax, &
+         z_forcing_min, & 
+         nudging_file, &               ! Input nudging file
          sed_aero, sed_cloud, sed_precp, sed_ice,  & ! Sedimentation (T/F)
          bulk_autoc,                &  ! autoconversion (and accretion) switch for level < 4 
          bulkScheme,                &  ! 1: SB, 2: KK (mean radius autoc), 3: KK (rc nc exponential autoc)
+         forcing,                   &
          eddy_dis,                  &  ! rate of TKE dissipation
          warm_bubble,               &  ! Parameters for setting up a warm bubble. Default switch == FALSE
+         gaussian_moisture_perturbation, & ! Parameters for setting up a horizontally gaussian moisture
          gaussian_flux_perturbation    ! Parameters for setting up a horizontally gaussian surface flux
                                        ! perturbation. Default switch == FALSE.
     
@@ -160,7 +165,7 @@ CONTAINS
          hs, ps, ts,               & ! sounding heights, pressure, temperature
          us, vs, rts,              & ! sounding E/W winds, water vapor
          umean, vmean, th00,       & ! gallilean E/W wind, basic state
-         iseed, zrand, zrndamp       ! random seed
+         iseed, zrand, zrndamp, zrndamp_rp       ! random seed       ! random seed
     
     NAMELIST /radiation/           &
          radfrq,                   & ! radiation type flag RADFRQ NOT USED ANYWHERE, VARIABLE DECLARED IN STEP.F90

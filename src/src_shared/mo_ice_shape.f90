@@ -103,7 +103,7 @@ MODULE mo_ice_shape
     !
     REAL FUNCTION getBulkRho(Fr)
       REAL, INTENT(in) :: Fr
-      getBulkRho = spec%rhori !Fr*spec%rhori + (1.-Fr)*spec%rhoic
+      getBulkRho = Fr*spec%rhori + (1.-Fr)*spec%rhoic
     END FUNCTION getBulkRho
     !
     !-------------------------------------------------------------

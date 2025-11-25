@@ -85,8 +85,8 @@ CONTAINS
          boltz,        & ! Boltzmann constant [J/K]
          nlim,         & ! lowest possible particle conc. in a bin [#/m3]
     
-         mvsu,         & ! sulphate 
-                         ! density [kg/m3]
+         mvwa,         & ! Silvia 07-08-2025: molar volume of water  
+                         ! 
          
          surfw0,       & ! surface tension of water [J/m2]
          epsoc!,       !& ! fxm
@@ -231,7 +231,7 @@ CONTAINS
                                SUM(zvpart(6:7))/pi6               + &
                                zcore/pi6                          )**(1./3.)
 
-                     zke = exp(2.*surfw0*mvsu/(boltz*ptemp(ii,jj)*zdwet))
+                     zke = exp(2.*surfw0*mvwa/(boltz*ptemp(ii,jj)*zdwet)) ! Silvia 07-08-2025: Molar volume of water. It was mvsu
                      !-- Kelvin effect
                    
                      count = count + 1
@@ -346,7 +346,7 @@ CONTAINS
                                   zcore/pi6                          )**(1./3.)
 
                         !-- Kelvin effect
-                        zke = exp(2.*surfw0*mvsu/(boltz*ptemp(ii,jj)*zdwet))
+                        zke = exp(2.*surfw0*mvwa/(boltz*ptemp(ii,jj)*zdwet)) ! Silvia 07-08-2025: Molar volume of water. It was mvsu
 
                         count = count + 1
                         IF (count > 100) THEN

@@ -14,8 +14,11 @@ MODULE nudg_defs
   IMPLICIT NONE
 
   TYPE t_nudge
+    REAL :: nudge_time = 1000.  ! Nudging time (s)
     REAL :: tau_min = 300.      ! Minimum and maximum tau for changing relaxation time schemes (tau_type = 1-3)
     REAL :: tau_max = 300.
+    REAL :: nudge_zmin = -1.e10
+    REAL :: nudge_zmax = 1.e10
     LOGICAL :: tau_max_continue = .FALSE. ! Continue nudging with tau_max after the actual nudging time period?
                                             ! Valid for tau_type = 1-3
     INTEGER :: tau_type = 0     ! 0: constant, 1: linear increase,   
@@ -27,7 +30,8 @@ MODULE nudg_defs
 
   END TYPE t_nudge
 
-  REAL, ALLOCATABLE :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:), aero_target(:,:)
+  REAL, ALLOCATABLE :: theta_ref(:), rv_ref(:), u_ref(:), v_ref(:), aero_ref(:,:), aero_target(:,:), wlarge_ref(:), &
+                      uadv_ref(:), vadv_ref(:), tladv_ref(:), rtadv_ref(:), wlarge_new(:), wlarge_old(:), last_read_time
   TYPE(t_nudge) :: ndg_theta, ndg_rv, ndg_u, ndg_v, ndg_aero
 
    REAL, PARAMETER :: global_tau_min = 300.

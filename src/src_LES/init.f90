@@ -39,6 +39,8 @@ MODULE init
    REAL, DIMENSION(nns)  :: us,vs,ts,thds,ps,hs,rts,rss,tks,xs
    REAL                  :: zrand = 200.
    REAL                  :: zrndamp = 0.2 ! the amplitude of pseudorandom fluctuations
+   REAL                  :: zrndamp_rp = 5.e-7
+   REAL                  :: sigmabubble = 0., ampbubble = 0.
    CHARACTER  (len=80)   :: hfilin = 'test.'
    CHARACTER (len=100)   :: sound_in_file = 'sound_in'
 
@@ -151,20 +153,20 @@ CONTAINS
      IF ( (level >= 4) ) THEN
         !CALL thermo(level)
         CALL SALSA_diagnostics(.TRUE.,lcharge)
-        CALL thermo(level)
+        CALL thermo(level,"SALSA INIT")
      END IF
      !
       ! write analysis and history files from restart if appropriate
       !
       IF (outflg) THEN
          IF (runtype == 'INITIAL') THEN
-            CALL write_hist(1, time)
+            !CALL write_hist(1, time)
             CALL init_main(time)
             IF (myid == mpiroot) THEN
                CALL init_ps(time)
                CALL init_ts(time)
             END IF
-            CALL thermo(level)
+            CALL thermo(level,"INIT WRITE")
             CALL write_main(time)
          ELSE
             CALL init_main(time+dtl)
@@ -190,6 +192,7 @@ CONTAINS
       USE defs, ONLY : alvl, cpr, cp, p00
       USE sgsm, ONLY : tkeinit
       USE thrm, ONLY : thermo, rslf
+      USE perturbation_forc, ONLY : gaussian_moisture_perturbation
       !USE init_warm_bubble, ONLY : warm_bubble
 
       IMPLICIT NONE
@@ -266,13 +269,16 @@ CONTAINS
       END SELECT
 
      ! IF (init_type == 1) THEN
+      IF ( gaussian_moisture_perturbation%switch ) THEN
+         CALL gaussian_moisture_perturbation%run()
+      END IF
 
       ! Initialize with random perturbations
       k = 1
 
       DO WHILE( zt%d(k+1) <= zrand .AND. k+1 < nzp)
          k = k+1
-         xran(k) = zrndamp*(zrand - zt%d(k))/zrand
+         xran(k) = zrndamp
       END DO
       
       CALL random_pert(nzp,nxp,nyp,zt,a_tp,xran,k)
@@ -281,7 +287,7 @@ CONTAINS
          k = 1
          DO WHILE( zt%d(k+1) <= zrand .AND. k+1 < nzp)
             k = k+1
-            xran(k) = 5.0e-5*(zrand - zt%d(k))/zrand
+            xran(k) = zrndamp_rp
          END DO
          CALL random_pert(nzp,nxp,nyp,zt,a_rp,xran,k)
       END IF
@@ -294,7 +300,7 @@ CONTAINS
       !
       ! initialize thermodynamic fields
       !
-      CALL thermo (level)
+      CALL thermo (level,"INIT THERMO")
       !
       ! Initialize aerosol size distributions
       !
@@ -943,12 +949,12 @@ CONTAINS
 
              ! a) Number concentrations
              ! Region 1
-             a_naerop%d(k,i,j,in1a:fn1a) = pndist(k,in1a:fn1a)
+             a_naerop%d(k,i,j,in1a:fn1a) = pndist(k,in1a:fn1a)/dn0%d(k)   ! Convert #/m3 to #/kg 
 
              ! Region 2
              IF (nreg > 1) THEN
-                a_naerop%d(k,i,j,in2a:fn2a) = pndist(k,in2a:fn2a)
-                a_naerop%d(k,i,j,in2b:fn2b) = pndist(k,in2b:fn2b)
+                a_naerop%d(k,i,j,in2a:fn2a) = pndist(k,in2a:fn2a)/dn0%d(k)
+                a_naerop%d(k,i,j,in2b:fn2b) = pndist(k,in2b:fn2b)/dn0%d(k)
              END IF
 
              !
@@ -957,12 +963,12 @@ CONTAINS
              ! SO4
              IF (spec%isUsed("SO4")) THEN
                 ss = getMassIndex(nbins,in1a,spec%getIndex("SO4")); ee = getMassIndex(nbins,fn1a,spec%getIndex("SO4"))
-                a_maerop%d(k,i,j,ss:ee) = max(0.0,1.0-pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*spec%rhosu
+                a_maerop%d(k,i,j,ss:ee) = max(0.0,1.0-pvfOC1a(k))*pndist(k,in1a:fn1a)/dn0%d(k)*core(in1a:fn1a)*spec%rhosu
              END IF
              ! OC
              IF (spec%isUsed("OC")) THEN
                 ss = getMassIndex(nbins,in1a,spec%getIndex("OC")); ee = getMassIndex(nbins,fn1a,spec%getIndex("OC"))
-                a_maerop%d(k,i,j,ss:ee) = max(0.0,pvfOC1a(k))*pndist(k,in1a:fn1a)*core(in1a:fn1a)*spec%rhooc
+                a_maerop%d(k,i,j,ss:ee) = max(0.0,pvfOC1a(k))*pndist(k,in1a:fn1a)/dn0%d(k)*core(in1a:fn1a)*spec%rhooc
              END IF
 
           END DO ! i
@@ -976,7 +982,7 @@ CONTAINS
     IF (nreg > 1) THEN
        DO ss = 1,nspec_dry
           ! The substitution ind(ss) is not necessary since theyre the same numbers
-          CALL setAeroMass(spec%ind(ss),pvf2a,pvf2b,pndist,core,spec%rholiq(ss))
+          CALL setAeroMass(spec%ind(ss),pvf2a,pvf2b,pndist,core,spec%rholiq(ss),dn0%d)
        END DO
     END IF
        
@@ -1013,7 +1019,7 @@ CONTAINS
  ! Sets the mass concentrations to aerosol arrays in 2a and 2b
  !
  !
- SUBROUTINE setAeroMass(ispec,ppvf2a,ppvf2b,ppndist,pcore,prho)
+ SUBROUTINE setAeroMass(ispec,ppvf2a,ppvf2b,ppndist,pcore,prho,rhoair)
     USE mo_submctl, ONLY : nbins, in2a,fn2a,in2b,fn2b,nspec_dry
     USE util, ONLY : getMassIndex
     
@@ -1024,6 +1030,7 @@ CONTAINS
     REAL, INTENT(in) :: ppndist(nzp,nbins)                   ! Aerosol size distribution
     REAL, INTENT(in) :: pcore(nbins)                         ! Aerosol bin mid core volume
     REAL, INTENT(in) :: prho                                 ! Aerosol density
+    REAL, INTENT(in) :: rhoair(nzp)
 
     INTEGER :: ss,ee
     INTEGER :: i,j,k
@@ -1035,12 +1042,12 @@ CONTAINS
              ss = getMassIndex(nbins,in2a,ispec); ee = getMassIndex(nbins,fn2a,ispec)
              a_maerop%d(k,i,j,ss:ee) =      &
                 max( 0.0,ppvf2a(k,ispec) ) * &
-                ppndist(k,in2a:fn2a)*pcore(in2a:fn2a)*prho
+                ppndist(k,in2a:fn2a)/rhoair(k)*pcore(in2a:fn2a)*prho
              ! 2b
              ss = getMassIndex(nbins,in2b,ispec); ee = getMassIndex(nbins,fn2b,ispec)
              a_maerop%d(k,i,j,ss:ee) =      &
                 max( 0.0,ppvf2b(k,ispec) ) * &
-                ppndist(k,in2b:fn2b)*pcore(in2b:fn2b)*prho
+                ppndist(k,in2b:fn2b)/rhoair(k)*pcore(in2b:fn2b)*prho
           END DO
        END DO
     END DO
