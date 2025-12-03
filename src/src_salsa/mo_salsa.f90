@@ -96,12 +96,12 @@ CONTAINS
     ENDIF
     IF (lscoag .AND. nlsip_iibr) THEN ! Ice-ice collisional breakup
         IF (sflg) CALL salsa_var_stat('sipi',0)
-        CALL sip_iibr(kbdim, klev, pice, psnow, ptemp)
+        CALL sip_iibr(kbdim, klev, pice, psnow, ptemp, prv, prsi)
         IF (sflg) CALL salsa_var_stat('sipi',1)
     ENDIF
     IF (lscoag .AND. nlsip_df) THEN ! Droplet fragmentation during freezing
         IF (sflg) CALL salsa_var_stat('sipd',0)
-        CALL sip_df(kbdim, klev, pcloud, pprecp, pice, psnow, ptemp)
+        CALL sip_df(kbdim, klev, pcloud, pprecp, pice, psnow, ptemp, ppres)
         IF (sflg) CALL salsa_var_stat('sipd',1)
     ENDIF
 

@@ -406,6 +406,7 @@ CONTAINS
                                lscgsi,lscgsp,lscgss,  &
                                lscgrain,              &
                                eddy_dis_rt,           &
+                               coag_Es_id, coag_Es_ii, &
                                nlcnd,                 &
                                nlcndgas,              &
                                rhlim,                 &
@@ -426,9 +427,9 @@ CONTAINS
                                nlsip_hm,              &
                                hm_c_mult, hm_dmin_drop, hm_dmin_ice, hm_frag_vfrac, &
                                nlsip_iibr,            &
-                               iibr_fbr, iibr_tmin, iibr_tmax, iibr_dref, iibr_frag_vfrac, &
+                               iibr_frag_vfrac, iibr_rime_frac, &
                                nlsip_df,              &
-                               df_c_mult, df_tmin, df_tmax, df_dmin_drop, df_frag_vfrac, &
+                               df_dmin_drop, df_frag_vfrac, &
                                rhoeff_ice, rhoeff_snow, &
                                a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, &
                                a_vel_ice, b_vel_ice, a_vel_snow, b_vel_snow, &
@@ -500,6 +501,8 @@ CONTAINS
          nlcgsp,      & ! Collection of precipitation by snow
          nlcgss,      & ! Collision-coalescence between snow particles
          eddy_dis_rt, & ! Eddy dissipation rate, negative means take from LES
+         coag_Es_id,  & ! Sticking efficiencies for ice/snow-aerosol/cloud/rain collisions
+         coag_Es_ii,  & ! Sticking efficiencies for ice/snow-ice/snow collisions
 
          nlcnd,       & ! Condensation master switch
          nlcndgas,    & ! Condensation of H2SO4 and organic vapors
@@ -526,9 +529,9 @@ CONTAINS
          nlsip_hm,      & ! Switch for Hallett-Mossop
          hm_c_mult, hm_dmin_drop, hm_dmin_ice, hm_frag_vfrac, & ! Parameters
          nlsip_iibr,    & ! Switch for ice-ice collisional breakup
-         iibr_fbr, iibr_tmin, iibr_tmax, iibr_dref, iibr_frag_vfrac, & ! Parameters
+         iibr_frag_vfrac, iibr_rime_frac, & ! Parameters
          nlsip_df,      & ! Switch for droplet fragmentation during freezing
-         df_c_mult, df_tmin, df_tmax, df_dmin_drop, df_frag_vfrac, & ! Parameters
+         df_dmin_drop, df_frag_vfrac, & ! Parameters
          rhoeff_ice, rhoeff_snow, & ! Effective densities for calculating particle diameters (and velocities)
          a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, & ! Alternative dimension: d=a*m**b
          a_vel_ice, b_vel_ice, a_vel_snow, b_vel_snow, & ! Alternative velocity: v=a*m**b

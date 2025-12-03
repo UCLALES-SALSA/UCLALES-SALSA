@@ -110,6 +110,7 @@ CONTAINS
          lscgpp, lscgpa, lscgpc,     &
          lscgia, lscgic, lscgii, lscgip, &
          lscgsa, lscgsc, lscgsi, lscgsp, lscgss, &
+         coag_Es_id, coag_Es_ii, &
          nspec, CalcDimension, lscgrain, &
          nlsip_hm, rime_volc_ice, rime_volc_snw, &
          hm_dmin_drop, hm_dmin_ice, &
@@ -326,6 +327,7 @@ CONTAINS
                     zccia(mm,nn) =  coagc(zdpart(mm),zdice(nn),zmpart(mm),zmice(nn),temppi,pressi,edri,1,4)
                  END DO
               END DO
+              zccia(:,:)=zccia(:,:)*coag_Es_id
            END IF
           !  collection of cloud droplets by ice
            IF (lscgic .AND. any_ice .AND. any_cloud) THEN
@@ -336,6 +338,7 @@ CONTAINS
                     zccic(mm,nn) = coagc(zdcloud(mm),zdice(nn),zmcloud(mm),zmice(nn),temppi,pressi,edri,2,4)
                  END DO
               END DO
+              zccic(:,:)=zccic(:,:)*coag_Es_id
            END IF
            !  collisions between ice particles
            IF (lscgii .AND. any_ice) THEN
@@ -347,6 +350,7 @@ CONTAINS
                     zccii(nn,mm) = zccii(mm,nn)
                  END DO
               END DO
+              zccii(:,:)=zccii(:,:)*coag_Es_ii
            END IF
            !  collection of precip by ice-collision
            IF (lscgip .AND. any_precp .AND. any_ice) THEN
@@ -357,6 +361,7 @@ CONTAINS
                     zccip(mm,nn) = coagc(zdprecp(mm),zdice(nn),zmprecp(mm),zmice(nn),temppi,pressi,edri,3,4)
                   END DO
               END DO
+              zccip(:,:)=zccip(:,:)*coag_Es_id
            END IF
            ! Self-collection of snow
            IF (lscgss .AND. any_snow) THEN
@@ -368,6 +373,7 @@ CONTAINS
                     zccss(nn,mm) = zccss(mm,nn)
                  END DO
               END DO
+              zccss(:,:)=zccss(:,:)*coag_Es_ii
            END IF
            ! Collection of aerosols by snow
            IF (lscgsa .AND. any_snow) THEN
@@ -378,6 +384,7 @@ CONTAINS
                     zccsa(mm,nn) = coagc(zdpart(mm),zdsnow(nn),zmpart(mm),zmsnow(nn),temppi,pressi,edri,1,5)
                  END DO
               END DO
+              zccsa(:,:)=zccsa(:,:)*coag_Es_id
            END IF
            ! collection of precip by snow
            IF (lscgsp .AND. any_precp .AND. any_snow) THEN
@@ -388,6 +395,7 @@ CONTAINS
                     zccsp(mm,nn) = coagc(zdprecp(mm),zdsnow(nn),zmprecp(mm),zmsnow(nn),temppi,pressi,edri,3,5)
                   END DO
               END DO
+              zccsp(:,:)=zccsp(:,:)*coag_Es_id
            END IF
            ! collection of cloud droples by snow
            IF (lscgsc .AND. any_cloud .AND. any_snow) THEN
@@ -398,6 +406,7 @@ CONTAINS
                     zccsc(mm,nn) = coagc(zdcloud(mm),zdsnow(nn),zmcloud(mm),zmsnow(nn),temppi,pressi,edri,2,5)
                   END DO
               END DO
+              zccsc(:,:)=zccsc(:,:)*coag_Es_id
            END IF
            ! collection of ice by snow
            IF (lscgsi .AND. any_ice .AND. any_snow) THEN
@@ -408,6 +417,7 @@ CONTAINS
                     zccsi(mm,nn) = coagc(zdice(mm),zdsnow(nn),zmice(mm),zmsnow(nn),temppi,pressi,edri,4,5)
                  END DO
               END DO
+              zccsi(:,:)=zccsi(:,:)*coag_Es_ii
            END IF
 
            !-- 2) New particle and volume concentrations after coagulation --------------
@@ -851,12 +861,17 @@ CONTAINS
               ! Volume gained from smaller ice particles in regime a
               DO ll = inp2a,cc-1
                  zplusterm(1:nt) = zplusterm(1:nt) + zccii(ll,cc)*pice(ii,jj,ll)%volc(1:nt)
-                 ! Save ice-ice collisions for collisional breakup (smaller only)
+                 ! Save ice-ice collisions for collisional breakup
                  IF (nlsip_iibr) THEN
                     coll_rate_ii(ii,jj,cc,ll) = &
                        ptstep*zccii(ll,cc)*pice(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
               END DO
+              ! Save ice-ice self-collisions for collisional breakup (ll=cc)
+              IF (nlsip_iibr) THEN
+                    coll_rate_ii(ii,jj,cc,ll) = &
+                       ptstep*zccii(ll,cc)*pice(ii,jj,ll)%numc*pice(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+              ENDIF
 
               ! Volume gained from smaller or equal ice particles in regime b
               DO ll = inp2b,kk
@@ -1038,6 +1053,11 @@ CONTAINS
                        ptstep*zccss(ll,cc)*psnow(ii,jj,ll)%numc*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
                  ENDIF
               END DO
+              ! Save snow-snow self-collisions for collisional breakup (ll=cc)
+              IF (nlsip_iibr) THEN
+                 coll_rate_ss(ii,jj,cc,ll) = &
+                    ptstep*zccss(ll,cc)*psnow(ii,jj,ll)%numc*psnow(ii,jj,cc)%numc/(1.+ptstep*zminusterm)
+              ENDIF
 
               ! Update the hydrometeor volume concentrations
               psnow(ii,jj,cc)%volc(1:nt) = max(0.,( psnow(ii,jj,cc)%volc(1:nt) +  &

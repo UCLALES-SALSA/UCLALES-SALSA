@@ -1087,7 +1087,7 @@ CONTAINS
     ENDIF
 
 ! UB_20090316: re-invent constx 
-    const1 = e_ic/(D_coll_c - D_krit_c)
+    const1 = e_sc/(D_coll_c - D_krit_c)
     const3 = 1/(T_mult_opt - T_mult_min)
     const4 = 1/(T_mult_opt - T_mult_max)
     const5 = alpha_spacefilling * rho_w/rho_ice
