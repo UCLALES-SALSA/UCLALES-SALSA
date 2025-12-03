@@ -46,7 +46,6 @@ contains
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
-    USE mo_salsa_driver, ONLY : run_SALSA
     USE radiation, ONLY : RadNewSetup, rad_new_setup
     implicit none
 
@@ -576,7 +575,6 @@ contains
 
     USE mo_submctl, ONLY : ox_prescribed, conc_oh, conc_o3, conc_no3, mair, &
         ngases_diag, zgas_diag
-    use mpi_interface, only : appl_abort
 
     implicit none
  
