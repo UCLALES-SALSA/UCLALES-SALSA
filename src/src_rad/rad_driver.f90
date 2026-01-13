@@ -233,7 +233,7 @@ MODULE radiation
                          todir=todir, codir=codir, aodir=aodir,iodir=iodir, &
                          tods=tods, cods=cods, aods=aods, iods=iods, aod470=aod470)
             END IF
-	    
+	        
             DO k = 1, n1
                kk = nv1 - (k-1)
                afus(k,i,j)  = fus(kk)
@@ -253,7 +253,8 @@ MODULE radiation
                iodsw(k,i,j) = iods(kk)
                aodsw470(k,i,j) = aod470(kk)
             END DO
-
+            
+            
             IF (u0 > minSolarZenithCosForVis) THEN
                albedo(i,j) = fus(1)/fds(1)
             ELSE

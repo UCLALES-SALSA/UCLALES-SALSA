@@ -49,7 +49,7 @@ MODULE mo_diag_state
   !----------------------------------------------------------------------------
   ! Two dimensional variables that need to be stored during the timestep
   !
-  TYPE(FloatArray2D), TARGET :: albedo               ! 1: Albedo, CHECK DEFINITION
+  TYPE(FloatArray2D), TARGET :: albedo               ! 1: Surface albedo as fus(1)/fds(1) Upwelling shortwave flux/Downwelling shortwave flux
   TYPE(FloatArray2D), TARGET :: a_ustar              ! 2: Friction velocity
   TYPE(FloatArray2D), TARGET :: a_tstar              ! 3: turbulent temperature scale 
   TYPE(FloatArray2D), TARGET :: a_rstar              ! 4: turbulent moisture scale
@@ -485,7 +485,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          albedo = FloatArray2d(a_diag2d(:,:,n2d))  
          pipeline => albedo
-         CALL Diag%newField("albedo", "Albedo", "1", "xtytt",     &
+         CALL Diag%newField("albedo", "Surface albedo", "1", "xtytt",     &
                             ANY(outputlist == "albedo"), pipeline)
       END IF
          

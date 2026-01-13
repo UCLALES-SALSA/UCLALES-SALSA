@@ -258,7 +258,7 @@ CONTAINS
       
       IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
          CALL aero_rad(ib + size(solar_bands), nbins, nspec, maerobin, naerobin, &
-                       dz, taer, waer, wwaer)
+                       dz, taer, waer, wwaer, .FALSE.)
          CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, taer, waer, wwaer)
 	 aaod = taer
       END IF
@@ -362,7 +362,7 @@ CONTAINS
          tod, &      ! total optical depth VIS
          cod, &      ! cloud optical depth VIS
          aod, iod, & ! aerosol optical depth VIS
-         aod470      ! aerosol optical depth 470 nm
+         aod470      ! aerosol optical depth 470 nm (460 nm is the closest one)
 
     ! ----------------------------------------
     LOGICAL, PARAMETER :: solarWeighted = .FALSE. ! Could be .TRUE.?
@@ -458,7 +458,7 @@ CONTAINS
            aiod = aiod + tgr
          END IF 
          IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
-            CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer)
+            CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer, .FALSE.)
             CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, taer, waer, wwaer)
             aaod = taer
          END IF
@@ -509,11 +509,13 @@ CONTAINS
       fus(:)  = fus(:)*fuq1
       
       ! Aerosol optical depth at 470 nm
+      ! 460 nm is the middle point 
+      ! in band 390nm-530nm from src_salsa/mo_salsa_optical_properties.f90
       IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
-            ! Band16  [left, center, right] = 400, 470, 540
-            ! Band15  [left, center, right] = 540, 605, 670
-	    CALL aero_rad(16, nbins, nspec, maerobin, naerobin, &
-                       dz, aod470, waer470, wwaer470)   
+            ! The calculation internally selects optical properties
+            ! at the closest wavelength in the LUT-SW
+	    CALL aero_rad(1, nbins, nspec, maerobin, naerobin, &
+                       dz, aod470, waer470, wwaer470, .TRUE.)   
             !WRITE(*,*) 'taer470',taer470           
 	    DO k = 2, nv
 	       aod470(k) = aod470(k) + aod470(k-1)
@@ -597,7 +599,7 @@ CONTAINS
     !
     ! Adds optical properties to running sum
     !   If ssa and/or w[1-4] are not present we assume the new medium is 
-    ! strictly absorbring
+    ! strictly absorbing
     ! 
     IF(present(ssaToAdd) .AND. present(pfToAdd)) THEN
        DO j = 1, size(pF, 2) 

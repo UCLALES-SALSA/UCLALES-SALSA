@@ -36,7 +36,7 @@ MODULE cldwtr
 
   ! Juha:
   ! Lookup table variables for aerosol optical properties for radiation calculations
-  ! Real and imaginary parts of refractive indices, size parameter, extinction crossection, asymmetry parameter and omega???
+  ! Real and imaginary parts of refractive indices, size parameter, extinction crossection, asymmetry parameter and omega
   REAL, ALLOCATABLE, TARGET :: aer_nre_LW(:), aer_nim_LW(:), aer_alpha_LW(:),   &
                        aer_sigma_LW(:,:,:), aer_asym_LW(:,:,:), aer_omega_LW(:,:,:)
   REAL, ALLOCATABLE, TARGET :: aer_nre_SW(:), aer_nim_SW(:), aer_alpha_SW(:),   &
@@ -409,7 +409,7 @@ CONTAINS
 
   ! Calculates the optical depth (taer), single scattering albedo (waer) and phase function (wwaer(4)) for given
   ! binned aerosol mass and number concentration arrays using lookup tables for optical properties.
-  SUBROUTINE aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer)
+  SUBROUTINE aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer,laod470)
     USE ckd, ONLY : band, center, IsSolar, llimit, rlimit
     USE util, ONLY : getMassIndex,closest
     USE mo_salsa_optical_properties, ONLY : aerRefrIBands_SW, aerRefrIBands_LW,  &
@@ -423,7 +423,7 @@ CONTAINS
     REAL, INTENT(in) :: dz(nv)
     REAL, INTENT(out) :: taer(nv), waer(nv), wwaer(nv,4)   ! optical depth, single scattering albedo, phase function
 
-    REAL :: lambda_r   ! Center wavenumber for current band 1/cm
+    REAL :: lambda_r   ! center of the wavelength bin in cm
 
     REAL            :: volc(nspec,nbins)                         ! Corresponding particle volume concentrations for each bin (0 if not used)
     REAL            :: voltot(nbins)                                 ! Total particle volume for each bin                          
@@ -444,11 +444,12 @@ CONTAINS
 
     INTEGER :: refi_ind  ! index for the vector with refractive indices for each wavelength
 
-    ! Bunch of other idices (for loops)
+    ! Bunch of other indices (for loops)
     INTEGER :: ss,kk, istr,iend
     INTEGER :: bb
 
     REAL :: TH = 1.e-30
+    LOGICAL, INTENT(in) :: laod470 ! switch for aerosol optical depth calculations at 470 nm
 
     REAL, POINTER :: aer_nre(:) => NULL(), aer_nim(:) => NULL(),          &
                      aer_alpha(:) => NULL(), aer_sigma(:,:,:) => NULL(),  &
@@ -463,11 +464,19 @@ CONTAINS
     waer_bin = 0.
     wwaer_bin = 0.
 
-    lambda_r = center(band(ib))
+    IF (laod470 .EQV. .FALSE.) THEN 
+    	lambda_r = center(band(ib)) 
+    ELSE
+        !  Band:   1:   619.60 Wm^-2, between 50000. and 14500. cm^-1
+        !  1 gase(s): and  10 g-points
+        !  200 nm - 689.7 nm
+        lambda_r = 1/4.6E-05 ! wavenumber in cm-1 for lambda=460 nm ~ 470nm
+    END IF
     
     
     IF (1./lambda_r > aerRefrIbands_SW(1)) THEN
-       ! Get the refractive indices from the LW tables for the current band
+       ! Get the refractive indices from the LUT-LW for the current band
+       ! Bands were given as wavenumber in cm-1, see them the simulation initialization
        refi_ind = closest(aerRefrIbands_LW,1./lambda_r)
 
        refrRe_all(:) = riReLW(:,refi_ind)
@@ -481,7 +490,7 @@ CONTAINS
        aer_omega => aer_omega_LW(:,:,:)
 
     ELSE
-       ! Get the refractive indices from the SW tables fr the current band
+       ! Get the refractive indices from the LUT-SW for the current band
        refi_ind = closest(aerRefrIbands_SW,1./lambda_r)
 
        refrRe_all(:) = riReSW(:,refi_ind)
@@ -509,7 +518,7 @@ CONTAINS
           istr = getMassIndex(nbins,1,ss)
           iend = getMassIndex(nbins,nbins,ss)
           
-          !WRITE(*,*) '#-band, center, left, right', ib, center(band(ib)), llimit(band(ib)), rlimit(band(ib))
+          !WRITE(*,*) '#-band, wavenumber bin in cm-1 center, left, right', ib, center(band(ib)), llimit(band(ib)), rlimit(band(ib))
           !WRITE(*,*) 'Species, n+ki', spec%names(ss), refrRe_all(ss),refrIm_all(ss)
           
           ! Volumes for each species, 0 if not used or if nothing present
@@ -530,7 +539,8 @@ CONTAINS
           volmean_refrRe = SUM(volc(1:nspec,bb)*refrRe_all(1:nspec))/voltot(bb)
           volmean_refrIm = SUM(volc(1:nspec,bb)*refrIm_all(1:nspec))/voltot(bb)
              
-          ! size parameter in current bin
+          ! Size parameter in current bin sizeparam=alpha=x=pi*D/lambda= pi*D*lambda_r
+          ! Since lambda_r is in cm-1  volume mean diameter of the bin from m to cm 
           sizeparam = 1.e2*lambda_r*pi*(((voltot(bb)/naerobin(kk,bb))/pi6)**(1./3.))
         
           ! Corresponding lookup table indices
@@ -539,33 +549,54 @@ CONTAINS
           i_alpha = closest(aer_alpha,sizeparam)
 
           ! Binned optical properties
-          ! Optical depth             
-          taer_bin(kk,bb) = 1.e-6*naerobin(kk,bb) * dz(kk)*1.e2 * aer_sigma(i_re,i_im,i_alpha) * (1./lambda_r)**2
+          
+          ! LUT tables were build using the size parameter alpha=x=2*pi*radius/lambda as independent variable
+          ! Internally sigma = pi*x**2*Qext and it was already corrected by *1/(4pi**2) but additional
+          ! renormalization is needed because the program is written in x
+          ! aer_sigma(i_re, i_im, i_alpha) still 
+          ! needs to be renormalized by multiplying by lambda**2 = (1./lambda_r)**2
+          ! and transformed from cm to m
+          
+          ! Bin contribution to the extinction coefficient of the model layer 
+          ! bext_aer(kk,bb) = (aer_sigma(i_re,i_im,i_alpha)* 1.0e-4*(1./lambda_r)**2)*naerobin(kk,bb)
+          
+          ! Bin contribution to optical depth of the model layer 
+          ! taer_bin(kk,bb) = bext_aer(kk,bb)*dz(kk)
+          taer_bin(kk,bb) = (aer_sigma(i_re,i_im,i_alpha)* 1.0e-4*(1./lambda_r)**2)*naerobin(kk,bb)*dz(kk)
 
-          ! Single scattering albedo
-          waer_bin(kk,bb) = taer_bin(kk,bb) * aer_omega(i_re,i_im,i_alpha)
-
+          ! Bin contribution to the scattering coefficient of the model layer 
+          ! bscat= bext*omega
+          ! bscat_aer(kk,bb) = bext_aer(kk,bb)*aer_omega(i_re,i_im,i_alpha)
+          ! It can also be calculated using the optical depth
+          waer_bin(kk,bb) = taer_bin(kk,bb) * aer_omega(i_re,i_im,i_alpha) 
+          
+          ! Bin contribution to the asymmetry parameter weighted by the scattering coefficient          
+          ! gaer_bin(kk,bb) = aer_asym(i_re,i_im,i_alpha) * bscat_aer(kk,bb)
           ! Phase function moments
-          wwaer_bin(kk,bb,1) = waer_bin(kk,bb) * 3.*aer_asym(i_re,i_im,i_alpha) 
+          wwaer_bin(kk,bb,1) = waer_bin(kk,bb)  * 3.*aer_asym(i_re,i_im,i_alpha) 
 
-          wwaer_bin(kk,bb,2) = waer_bin(kk,bb) * 5.*aer_asym(i_re,i_im,i_alpha)**2
+          wwaer_bin(kk,bb,2) = waer_bin(kk,bb)  * 5.*aer_asym(i_re,i_im,i_alpha)**2
 
-          wwaer_bin(kk,bb,3) = waer_bin(kk,bb) * 7.*aer_asym(i_re,i_im,i_alpha)**3
+          wwaer_bin(kk,bb,3) = waer_bin(kk,bb)  * 7.*aer_asym(i_re,i_im,i_alpha)**3
 
-          wwaer_bin(kk,bb,4) = waer_bin(kk,bb) * 9.*aer_asym(i_re,i_im,i_alpha)**4
+          wwaer_bin(kk,bb,4) = waer_bin(kk,bb)  * 9.*aer_asym(i_re,i_im,i_alpha)**4
 
        END DO
 
-       ! Integrate and normalize
+       ! Integrate and normalize 
        taer(kk) = SUM(taer_bin(kk,1:nbins))
+       !extin_aer(kk) = taer(kk)/dz(kk) ! It could also be SUM(bext_aer(kk,1:nbins))
+       !scat_aer(kk) = SUM(bscat_aer(kk,1:nbins))
  
        IF (taer(kk) < TH) THEN
           ! Avoid normalization by zero
           taer(kk) = 0.
           waer(kk) = 0.
           wwaer(kk,1:4) = 0.
+          !scat_aer(kk) = 0.
+          !extin_aer(kk) = 0.
        ELSE
-          waer(kk) = SUM(waer_bin(kk,1:nbins))/taer(kk)
+          waer(kk) = SUM(waer_bin(kk,1:nbins))/taer(kk) ! It could also be waer(kk) = scat_aer(kk) / extin_aer(kk)
           wwaer(kk,1:4) = SUM(wwaer_bin(kk,1:nbins,1:4),DIM=1)/waer(kk)
        END IF
 
@@ -581,7 +612,7 @@ CONTAINS
   END SUBROUTINE aero_rad
 
   ! ---------------------------------------------------------------------------
-  ! linear interpolation between two points, returns indicies of the
+  ! linear interpolation between two points, returns indices of the
   ! interpolation points and weights
   !
   SUBROUTINE interpolate(x,ny,y,i1,i2,alpha)
