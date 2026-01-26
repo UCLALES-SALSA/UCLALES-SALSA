@@ -587,16 +587,15 @@ CONTAINS
           
                  
           ! Updating area burnt
-          CALL cyclics2d(nxp,nyp,a_areaburnt%d,req)
+          CALL cyclics2d(nxp,nyp,a_areaburnt%d,req)                
+          CALL cyclicc2d(nxp,nyp,a_areaburnt%d,req) 
           
           ! Checking if fire had spread across cells
-          CALL update_ignition(time) 
-          
-          CALL cyclics2d(nxp,nyp,a_ignitiontime%d,req)     
-          
-          CALL cyclicc2d(nxp,nyp,a_areaburnt%d,req)               	  
-	  CALL cyclicc2d(nxp,nyp,a_ignitiontime%d,req)
-
+          CALL update_ignition(time)   	  
+	  
+	  CALL cyclics2d(nxp,nyp,a_ignitiontime%d,req)     
+          CALL cyclicc2d(nxp,nyp,a_ignitiontime%d,req)             
+	  
                    
 	  ! Reset for next timestep
 	  lh_flx = 0.
@@ -954,9 +953,10 @@ SUBROUTINE surface_state()
   IF (READ_NC) CALL open_surf_nc(ncid, nxp_global, nyp_global) 
   
   ! For checking purposes
-  !WRITE(*,*) 'Internal', nxp_global,nyp_global 
-  !WRITE(*,*) 'ranktable',ranktable
+  WRITE(*,*) 'Internal', nxp_global,nyp_global 
+  WRITE(*,*) 'ranktable',ranktable
   !WRITE(*,*) 'wrxid,wryid', wrxid, wryid
+  WRITE(*,*) 'xoffset, yoffset',xoffset,yoffset
   
  ! Allocate input variables
   ALLOCATE(fgig(nxp_global,nyp_global), weightg(nxp_global,nyp_global), fcz0g(nxp_global,nyp_global))
@@ -1005,7 +1005,7 @@ SUBROUTINE surface_state()
   jend   = MIN((wryid+1)*(nyp_global-2)/nyprocs+3, nyp_global)
   
   ! for checking purposes
-  !WRITE(*,*) 'istart,iend, jstart,jend', istart,iend, jstart,jend
+  WRITE(*,*) 'istart,iend, jstart,jend', istart,iend, jstart,jend
   
   a_fgi%d    = fgig(istart:iend,jstart:jend)
   a_weight%d = weightg(istart:iend,jstart:jend)/0.8514 !Mandel 2011 Eq.3

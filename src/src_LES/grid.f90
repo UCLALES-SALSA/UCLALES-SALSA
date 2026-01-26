@@ -257,6 +257,9 @@ CONTAINS
       wsavex = 0.0
       wsavey = 0.0
       
+      write(*,*) 'xoffset, yoffset, wrxid, wryid, nxpg, nypg'
+      write(*,*) xoffset, yoffset, wrxid, wryid, nxpg, nypg
+      
       !
       ! define xm array for grid 1 from deltax
       !
