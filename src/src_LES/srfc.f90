@@ -451,7 +451,8 @@ CONTAINS
 	  ! Looping through the surface
             DO j = 3, nyp-2
                DO i = 3, nxp-2  
-                  ! The cell has fuel (vegetation) and it is ignited   
+                  ! The cell has fuel (vegetation) and it is ignited
+                  ! Each cell is divided in 20 fractions and fire spreads progressively
                   ! If the cell does not have fuel(i.e. vegetation) fgi =0                         
                   IF (a_fgi%d(i,j)>0 .AND. time > a_ignitiontime%d(i,j)) THEN   
                        ! Fraction of the cell ignited
@@ -546,10 +547,12 @@ CONTAINS
 		          	! Calculating the surface fluxes coming from combustion		          	
 		          	! Average sensible heat released in time interval (t, t+Deltat) Mandel-2011-Eq.4 in W/m2
 		          	total_se_fire = total_se_fire + a_fgi%d(i,j)*fraction_burnt/dtl * &
-		          	                1/(1+a_fuelmcg%d(i,j))*cmbcnst
+                                                1/(1+a_fuelmcg%d(i,j))*cmbcnst * &
+                                                areaignitedcell(i,j,kk)/(deltax*deltay/20)
 		          	! Average latent heat released in time interval (t, t+Deltat) Mandel-2011-Eq.5 in W/m2
 		          	total_la_fire = total_la_fire + a_fgi%d(i,j)*fraction_burnt/dtl* &
-		          	                (a_fuelmcg%d(i,j)+0.56)/(1+a_fuelmcg%d(i,j))*alvl	
+                                                (a_fuelmcg%d(i,j)+0.56)/(1+a_fuelmcg%d(i,j))*alvl* &
+                                                areaignitedcell(i,j,kk)/(deltax*deltay/20)
 		          	tt = 0.
 		          	fraction_burnt = 0.
 		          	area_burnt_cell = area_burnt_cell + areaignitedcell(i,j,kk) 		          	
@@ -953,10 +956,10 @@ SUBROUTINE surface_state()
   IF (READ_NC) CALL open_surf_nc(ncid, nxp_global, nyp_global) 
   
   ! For checking purposes
-  WRITE(*,*) 'Internal', nxp_global,nyp_global 
-  WRITE(*,*) 'ranktable',ranktable
+  !WRITE(*,*) 'Internal', nxp_global,nyp_global 
+  !WRITE(*,*) 'ranktable',ranktable
   !WRITE(*,*) 'wrxid,wryid', wrxid, wryid
-  WRITE(*,*) 'xoffset, yoffset',xoffset,yoffset
+  !WRITE(*,*) 'xoffset, yoffset',xoffset,yoffset
   
  ! Allocate input variables
   ALLOCATE(fgig(nxp_global,nyp_global), weightg(nxp_global,nyp_global), fcz0g(nxp_global,nyp_global))
@@ -1005,7 +1008,7 @@ SUBROUTINE surface_state()
   jend   = MIN((wryid+1)*(nyp_global-2)/nyprocs+3, nyp_global)
   
   ! for checking purposes
-  WRITE(*,*) 'istart,iend, jstart,jend', istart,iend, jstart,jend
+  !WRITE(*,*) 'istart,iend, jstart,jend', istart,iend, jstart,jend
   
   a_fgi%d    = fgig(istart:iend,jstart:jend)
   a_weight%d = weightg(istart:iend,jstart:jend)/0.8514 !Mandel 2011 Eq.3
