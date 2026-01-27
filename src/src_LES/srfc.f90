@@ -548,16 +548,19 @@ CONTAINS
 		          	! Average sensible heat released in time interval (t, t+Deltat) Mandel-2011-Eq.4 in W/m2
 		          	total_se_fire = total_se_fire + a_fgi%d(i,j)*fraction_burnt/dtl * &
                                                 1/(1+a_fuelmcg%d(i,j))*cmbcnst * &
-                                                areaignitedcell(i,j,kk)/(deltax*deltay/20)
+                                                areaignitedcell(i,j,kk)
 		          	! Average latent heat released in time interval (t, t+Deltat) Mandel-2011-Eq.5 in W/m2
 		          	total_la_fire = total_la_fire + a_fgi%d(i,j)*fraction_burnt/dtl* &
                                                 (a_fuelmcg%d(i,j)+0.56)/(1+a_fuelmcg%d(i,j))*alvl* &
-                                                areaignitedcell(i,j,kk)/(deltax*deltay/20)
+                                                areaignitedcell(i,j,kk)
 		          	tt = 0.
 		          	fraction_burnt = 0.
 		          	area_burnt_cell = area_burnt_cell + areaignitedcell(i,j,kk) 		          	
 		          END IF
 		       END DO
+		       
+		       total_la_fire = total_la_fire /  (deltax*deltay)
+		       total_se_fire = total_se_fire /  (deltax*deltay)
 		       
 		       !WRITE(*,*) 'area_burnt_cell, area_burnt', areaignitedcell(i,j,:)
 		       a_fuelburnt%d(i,j) = fuel_burnt
