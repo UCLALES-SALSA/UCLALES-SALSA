@@ -1,5 +1,5 @@
 MODULE mo_particle_external_properties
-  USE mo_submctl, ONLY : pi6, eps, rg, surfw0, grav, spec
+  USE mo_submctl, ONLY : pi6, eps, rg, surfw0, grav, spec, pi
   USE classSection, ONLY : Section
   USE mo_ice_shape, ONLY : getDiameter, t_shape_coeffs
   IMPLICIT NONE
@@ -98,6 +98,40 @@ MODULE mo_particle_external_properties
       END IF
       
     END FUNCTION terminal_vel
+    
+    
+    !--
+    ! This function calculates the cross-sectional area using Morrison and Milbrand (2015) 
+    ! Morrison, H., & Milbrandt, J. A. (2015). 
+    ! Parameterization of Cloud Microphysics Based on the Prediction of Bulk Ice Particle Properties. 
+    ! Part I: Scheme Description and Idealized Tests. Journal of the Atmospheric Sciences, 72(1), 287–311.
+    ! https://doi.org/https://doi.org/10.1175/JAS-D-14-0065.1
+    
+    ! cross_sec_area = gamma*D**sigma 
+    ! For ice particles gamma and sigma changes linearly between those of 
+    ! pristine crystals (given in the runles) 
+    ! and spherical ones when the ice rime fraction increases from 0 to 1
+    
+    REAL FUNCTION cross_sec_area(D,flag, shape) 
+	IMPLICIT NONE
+	
+	REAL, INTENT(in) :: D          ! Particle diameter; for ice this should be the spherical equivalent diameter
+        INTEGER, INTENT(in) :: flag    ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4)
+        TYPE(t_shape_coeffs), INTENT(in), OPTIONAL :: shape ! Shape coefficients needed for ice
+        
+        IF( ANY(flag == [1,2,3])) THEN    
+           ! Aerosol and cloud and rain droplets
+           ! diam is dwet and we assume spherical droplets
+           cross_sec_area = pi/4 * D**2
+        ELSE IF (flag==4) THEN   
+           ! Ice   
+           ! diam is dnsp non-spherical diameter
+           cross_sec_area = shape%gamma*D**shape%sigma
+        END IF          
+    
+    END FUNCTION cross_sec_area
+    
+    
     
     !--
     REAL FUNCTION kc1213(X)

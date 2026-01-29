@@ -38,7 +38,7 @@ MODULE mo_field_init
       CALL setVectorVariables(Vector,varlist_main,nzp,nxp,nyp)
       CALL setDiagnosticVariables(Diag,varlist_main,memsize,level,iradtyp,lpback,nzp,nxp,nyp)      
       CALL setDerivedVariables(Derived,varlist_main,level)
-      CALL setPSVariables(PS,varlist_ps,level,lpback)
+      CALL setPSVariables(PS,varlist_ps,level,lpback, iradtyp)
       CALL setTSVariables(TS,varlist_ts,level,lpback)
 
       F_main = SIZE(varlist_main)

@@ -44,7 +44,8 @@ MODULE mo_diag_state
   ! Binned diagnostic variables mainly for output
   !
   TYPE(FloatArray4d), TARGET :: d_VtPrc, d_VtIce ! Precipitation and ice terminal fall velocities
-  REAL, ALLOCATABLE, TARGET :: d_binned(:,:,:,:)
+  TYPE(FloatArray4d), TARGET :: d_AtPrc, d_AtIce ! Precipitation and ice cross sectional area
+  REAL, ALLOCATABLE, TARGET :: d_binned(:,:,:,:), d2_binned(:,:,:,:) ! Auxiliary arrays
   
   !----------------------------------------------------------------------------
   ! Two dimensional variables that need to be stored during the timestep
@@ -169,10 +170,12 @@ MODULE mo_diag_state
       
       nbinned = 0
       IF ( level >= 4) THEN
-         IF ( level >= 4) nbinned = nbinned + nprc
+         nbinned = nbinned + nprc
          IF ( level > 4) nbinned = nbinned + nice
          ALLOCATE(d_binned(nzp,nxp,nyp,nbinned))
+         ALLOCATE(d2_binned(nzp,nxp,nyp,nbinned))
          d_binned = 0.
+         d2_binned = 0.
          n4db = 0
       END IF
          
@@ -472,7 +475,7 @@ MODULE mo_diag_state
 	pipeline => NULL()
 	a_aodsw470 = FloatArray3d(a_diag3d(:,:,:,n3d))
 	pipeline => a_aodsw470
-	CALL Diag%newField("aodsw470", "Aerosol optical depth at 400nm-540nm", "", "tttt",   &
+	CALL Diag%newField("aodsw470", "Aerosol optical depth band 400nm-540nm", "", "tttt",   &
 		            ANY(outputlist == "aodsw470"), pipeline)                         
                             
       END IF
@@ -892,6 +895,25 @@ MODULE mo_diag_state
          pipeline => d_VtIce
          CALL Diag%newField("VtIce", "Terminal fall speed of ice", "m/s", "ttttice",   &
                             ANY(outputlist == "VtIce"), pipeline)
+         n4db = n4db + nice
+      END IF
+      
+      n4db = 1
+      IF ( level >= 4) THEN
+         pipeline => NULL()
+         d_AtPrc = FloatArray4d(d2_binned(:,:,:,n4db:n4db+nprc-1))
+         pipeline => d_AtPrc
+         CALL Diag%newField("AtPrc", "Droplet cross sectional area", "m**2", "ttttprc",   &
+                            ANY(outputlist == "AtPrc"), pipeline)
+         n4db = n4db + nprc
+      END IF
+
+      IF (level > 4) THEN
+         pipeline => NULL()
+         d_AtIce = FloatArray4d(d2_binned(:,:,:,n4db:n4db+nice-1))
+         pipeline => d_AtIce
+         CALL Diag%newField("AtIce", "Ice cross sectional area", "m**2", "ttttice",   &
+                            ANY(outputlist == "AtIce"), pipeline)
          n4db = n4db + nice
       END IF
 

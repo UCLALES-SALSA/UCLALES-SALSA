@@ -31,6 +31,8 @@ MODULE mcrp
   !USE stat, ONLY : sflg, updtst, acc_removal, mcflg, acc_massbudged, cs_rem_set
   USE classProcessSwitch, ONLY : ProcessSwitch
   USE mo_structured_datatypes
+  
+  
   IMPLICIT NONE
    
   INTEGER :: bulkScheme = 1   ! Select bulk microphysics parameterizations:
@@ -88,7 +90,7 @@ MODULE mcrp
       USE mo_diag_state, ONLY : a_rv,a_rc,a_theta,     &
                                 a_temp,a_rsl,a_dn,a_ustar,             &
                                 a_rrate, a_irate, a_sfcrrate, a_sfcirate,   &
-                                d_VtPrc, d_VtIce
+                                d_VtPrc, d_VtIce, d_AtPrc, d_AtIce
       USE mo_progn_state, ONLY : a_rp,a_tp,a_rt,a_tt,a_rpp,a_rpt,a_npp,a_npt
       USE mo_aux_state, ONLY : dn0
       INTEGER, INTENT(in) :: level
@@ -105,7 +107,7 @@ MODULE mcrp
          nspec = spec%getNSpec(type="wet")
          ! Import tracers directly and not via arguments because theres so many...
          CALL sedim_SALSA(nspec,level,a_ustar,a_temp,a_theta,a_dn,a_rrate,   &
-                          a_sfcrrate,a_irate,a_sfcirate,d_VtPrc,d_VtIce,a_tt )
+                          a_sfcrrate,a_irate,a_sfcirate,d_VtPrc,d_VtIce,a_tt, d_AtPrc,d_AtIce)
                          
       CASE(0) ! For piggybacking call to level 3 microphysics. pb_mcrph just wraps the necessary calls to thermo and mcrph
          CALL pb_mcrph(dn0)
@@ -742,8 +744,9 @@ MODULE mcrp
     ! Juha: Rain is now treated completely separately (20151013)
     !
     ! Jaakko: Modified for the use of ice and snow bins
+    ! 
     SUBROUTINE sedim_SALSA(nspec,level,ustar,tk,th,adn,rrate,sfcrrate,    &
-                           irate,sfcirate,VtPrc,VtIce,tlt                 )
+                           irate,sfcirate,VtPrc,VtIce,tlt, AtPrc, AtIce   )
       USE util, ONLY : getMassIndex
       USE mo_progn_state, ONLY :  a_naerop,  a_naerot,  a_maerop,  a_maerot,         &
                                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,        &
@@ -761,7 +764,8 @@ MODULE mcrp
       TYPE(FloatArray3d), INTENT(inout) :: tlt
       TYPE(FloatArray3d), INTENT(inout) :: rrate,irate
       TYPE(FloatArray2d), INTENT(inout) :: sfcrrate, sfcirate
-      TYPE(FloatArray4d), INTENT(inout) :: VtPrc,VtIce
+      TYPE(FloatArray4d), INTENT(inout) :: VtPrc,VtIce ! droplets and ice terminal velocities
+      TYPE(FloatArray4d), INTENT(inout) :: AtPrc,AtIce ! droplets and ice cross-sectional areas
       
       INTEGER :: i,j,k,nc,istr,iend
 
@@ -846,7 +850,7 @@ MODULE mcrp
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
       IF (sed_precp%state) THEN
          CALL DepositionFast(nprc,nspec,tk,adn,a_nprecpp,a_mprecpp,   &
-                             prnt,prmt,remprc,rrate,sfcrrate,VtPrc,3  )
+                             prnt,prmt,remprc,rrate,sfcrrate,VtPrc,3,AtPrc)
          
          a_nprecpt%d(:,:,:,:) = a_nprecpt%d(:,:,:,:) + prnt(:,:,:,:)/dtlt
          a_mprecpt%d(:,:,:,:) = a_mprecpt%d(:,:,:,:) + prmt(:,:,:,:)/dtlt
@@ -872,7 +876,7 @@ MODULE mcrp
       
       IF (sed_ice%state .AND. level == 5) THEN                          
          CALL DepositionFast(nice,nspec+1,tk,adn,a_nicep,a_micep,     &
-                             irnt,irmt,remice,irate,sfcirate,VtIce,4  )
+                             irnt,irmt,remice,irate,sfcirate,VtIce,4,AtIce)
          
          a_nicet%d(:,:,:,:) = a_nicet%d(:,:,:,:) + irnt(:,:,:,:)/dtlt
          a_micet%d(:,:,:,:) = a_micet%d(:,:,:,:) + irmt(:,:,:,:)/dtlt
@@ -1070,8 +1074,8 @@ MODULE mcrp
 
 
   !------------------------------------------------------------------
-  SUBROUTINE DepositionFast(nb,ns,tk,adn,numc,mass,prnt,prvt,remprc,rate,srate,Vt,flag)
-    USE mo_particle_external_properties, ONLY : calcDiamLES, terminal_vel
+  SUBROUTINE DepositionFast(nb,ns,tk,adn,numc,mass,prnt,prvt,remprc,rate,srate,Vt,flag,At)
+    USE mo_particle_external_properties, ONLY : calcDiamLES, terminal_vel, cross_sec_area
     USE util, ONLY : getBinMassArray
     USE mo_submctl, ONLY : nlim,prlim,pi6
     USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
@@ -1088,6 +1092,7 @@ MODULE mcrp
     TYPE(FloatArray3d), INTENT(inout) :: rate ! Precip rate (W/m^2)
     TYPE(FloatArray2d), INTENT(inout) :: srate ! Surface precip rate (W/m^2)
     TYPE(FloatArray4d), INTENT(inout) :: Vt   ! Binned particle terminal velocity
+    TYPE(FloatArray4d), INTENT(inout) :: At   ! Binned cross sectional area
     
     INTEGER :: k,i,j,bin
     INTEGER :: istr,iend
@@ -1102,7 +1107,7 @@ MODULE mcrp
     REAL :: lambda      ! Mean free path
     REAL :: avis,kvis   ! Air viscosity, kinematic viscosity
     REAL :: va          ! Thermal speed of air molecule
-    REAL :: vc
+    REAL :: vc, ac      ! Auxiliary variables for velocity and area calculations
 
     ! For precipitation:
     REAL :: fd,fdmax,fdos ! Fall distance for rain drops, max fall distance, overshoot from nearest grid level
@@ -1126,7 +1131,9 @@ MODULE mcrp
     IF (ANY(flag == [3,4])) clim = prlim
 
     ! Zero the output diagnostics for terminal velocity
+    ! Zero the output diagnostics for cross sectional area
     Vt%d = 0.
+    At%d = 0.
     
     remprc(:,:,:) = 0.
     prnt(:,:,:,:) = 0.
@@ -1176,11 +1183,16 @@ MODULE mcrp
                 
                 IF (flag < 4) THEN
                    vc = terminal_vel(dwet,zdn,adn%d(k,i,j),avis,GG,flag)
+                   ! shape parameters for spheres are internally chosen
+                   ac = cross_sec_area(dwet,flag) 
                 ELSE
                    vc = terminal_vel(dwet,zdn,adn%d(k,i,j),avis,GG,flag,shape,dnsp)
+                   ac = cross_sec_area(dnsp,flag,shape)
                 END IF
+                
                 ! Diagnostics
                 Vt%d(k,i,j,bin) = vc
+                At%d(k,i,j,bin) = ac  
                 
                 ! Determine output flux for current level: Find the closest level to which the
                 ! current drop parcel can fall within 1 timestep. If the lowest atmospheric level

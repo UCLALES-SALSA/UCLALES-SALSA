@@ -70,7 +70,7 @@ MODULE mo_ice_shape
       Mgr = rho_b*pi6*Dgr**3
       Mcr = rho_b*pi6*Dcr**3
          
-      IF (Mgr < Mth .OR. Mgr > Mcr) WRITE(*,*) 'ICE SHAPE VAARIN', Dth, Dgr, Dcr
+      IF (Mgr < Mth .OR. Mgr > Mcr) WRITE(*,*) 'WRONG ICE SHAPE', Dth, Dgr, Dcr
       
       IF ( Mtot < Mth ) THEN
          ! Small spherical particles
@@ -85,7 +85,7 @@ MODULE mo_ice_shape
          ! Partially rimed crystals
          getDiameter = D_nonsphericalRimed(Fr,Mtot)
       ELSE
-         WRITE(*,*) 'ICE SHAPE VAARIN 2',mrim,mpri,mtot,numc,Mth,Mgr,Mcr
+         WRITE(*,*) 'WRONG ICE SHAPE 2',mrim,mpri,mtot,numc,Mth,Mgr,Mcr
       END IF
       
     END FUNCTION getDiameter      

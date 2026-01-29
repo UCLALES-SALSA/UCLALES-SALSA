@@ -71,7 +71,9 @@ MODULE mo_ps_state
                                 ps_aDUa, ps_aDUb, ps_cDUa, ps_cDUb, ps_pDUa, ps_iDUa,        &
                                 ps_aSSa, ps_aSSb, ps_cSSa, ps_cSSb, ps_pSSa, ps_iSSa,        &
                                 ps_aNOa, ps_aNOb, ps_cNOa, ps_cNOb, ps_pNOa, ps_iNOa,        &
-                                ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa         
+                                ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa,        &
+                                ps_todsw, ps_todlw, ps_codsw, ps_codlw, ps_aodsw, ps_aodlw,  &
+                                ps_iodsw, ps_iodlw, ps_aodsw470        
                                         
   ! Conditionally sampled profiles
   TYPE(FloatArray1d), TARGET :: psic_rc, psic_Naa, psic_Nab, psic_Nca, psic_Ncb, psic_CDNC, psic_CNC,   &
@@ -121,10 +123,10 @@ MODULE mo_ps_state
     
   CONTAINS
 
-    SUBROUTINE setPSVariables(PS,outputlist,level,lpback)
+    SUBROUTINE setPSVariables(PS,outputlist,level,lpback,iradtyp)
       TYPE(FieldArray), INTENT(inout) :: PS
       CHARACTER(len=*), INTENT(in)   :: outputlist(:)
-      INTEGER, INTENT(in)             :: level
+      INTEGER, INTENT(in)             :: level, iradtyp
       LOGICAL, INTENT(in)             :: lpback
       CLASS(*), POINTER :: pipeline => NULL()
       
@@ -1187,6 +1189,73 @@ MODULE mo_ps_state
          CALL PS%newField("miNHa", "Ice binned NH mass", "kg/kg", "zttice",   &
               ANY(outputlist == "miNHa"), pipeline)
       
+      END IF
+      
+      IF (iradtyp >= 3) THEN
+      
+      	 pipeline => NULL()
+         ps_todsw = FloatArray1d("todsw")
+         ps_todsw%onDemand => globalMeanProfile
+         pipeline => ps_todsw
+         CALL PS%newField(ps_todsw%shortName, "Total optical depth Shortwave", "", "ztt",   &
+                       ANY(outputlist == ps_todsw%shortName), pipeline)
+                       
+         pipeline => NULL()
+         ps_todlw = FloatArray1d("todlw")
+         ps_todlw%onDemand => globalMeanProfile
+         pipeline => ps_todlw
+         CALL PS%newField(ps_todlw%shortName, "Total optical depth Longwave", "", "ztt",   &
+                       ANY(outputlist == ps_todlw%shortName), pipeline)     
+                       
+         pipeline => NULL()
+         ps_codsw = FloatArray1d("codsw")
+         ps_codsw%onDemand => globalMeanProfile
+         pipeline => ps_codsw
+         CALL PS%newField(ps_codsw%shortName, "Cloud optical depth Shortwave", "", "ztt",   &
+                       ANY(outputlist == ps_codsw%shortName), pipeline)
+                       
+         pipeline => NULL()
+         ps_codlw = FloatArray1d("codlw")
+         ps_codlw%onDemand => globalMeanProfile
+         pipeline => ps_codlw
+         CALL PS%newField(ps_codlw%shortName, "Cloud optical depth Longwave", "", "ztt",   &
+                       ANY(outputlist == ps_codlw%shortName), pipeline)   
+         
+         pipeline => NULL()
+         ps_aodsw = FloatArray1d("aodsw")
+         ps_aodsw%onDemand => globalMeanProfile
+         pipeline => ps_aodsw
+         CALL PS%newField(ps_aodsw%shortName, "Aerosol optical depth Shortwave", "", "ztt",   &
+                       ANY(outputlist == ps_aodsw%shortName), pipeline)
+                       
+         pipeline => NULL()
+         ps_aodlw = FloatArray1d("aodlw")
+         ps_aodlw%onDemand => globalMeanProfile
+         pipeline => ps_aodlw
+         CALL PS%newField(ps_aodlw%shortName, "Aerosol optical depth Longwave", "", "ztt",   &
+                       ANY(outputlist == ps_aodlw%shortName), pipeline)  
+         
+         pipeline => NULL()
+         ps_iodsw = FloatArray1d("iodsw")
+         ps_iodsw%onDemand => globalMeanProfile
+         pipeline => ps_iodsw
+         CALL PS%newField(ps_iodsw%shortName, "Ice optical depth Shortwave", "", "ztt",   &
+                       ANY(outputlist == ps_iodsw%shortName), pipeline)
+                       
+         pipeline => NULL()
+         ps_iodlw = FloatArray1d("iodlw")
+         ps_iodlw%onDemand => globalMeanProfile
+         pipeline => ps_iodlw
+         CALL PS%newField(ps_iodlw%shortName, "Ice optical depth Longwave", "", "ztt",   &
+                       ANY(outputlist == ps_iodlw%shortName), pipeline)  
+                       
+         pipeline => NULL()
+         ps_aodsw470 = FloatArray1d("aodsw470")
+         ps_aodsw470%onDemand => globalMeanProfile
+         pipeline => ps_aodsw470
+         CALL PS%newField(ps_aodsw470%shortName, "Aerosol optical depth band 400nm-540nm", "", "ztt",   &
+                       ANY(outputlist == ps_aodsw470%shortName), pipeline)               
+         
       END IF
 
       !---------------------------------------
