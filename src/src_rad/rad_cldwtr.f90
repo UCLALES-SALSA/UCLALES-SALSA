@@ -426,7 +426,7 @@ CONTAINS
     REAL :: lambda_r   ! center of the wavelength bin in cm
 
     REAL            :: volc(nspec,nbins)                         ! Corresponding particle volume concentrations for each bin (0 if not used)
-    REAL            :: voltot(nbins)                                 ! Total particle volume for each bin                          
+    REAL            :: voltot(nbins)                             ! Total particle volume for each bin                          
 
     ! Refractive index for each chemical (closest to current band from tables in submctl)
     REAL              :: refrRe_all(nspec), refrIm_all(nspec)
@@ -470,7 +470,7 @@ CONTAINS
         !  Band:   1:   619.60 Wm^-2, between 50000. and 14500. cm^-1
         !  1 gase(s): and  10 g-points
         !  200 nm - 689.7 nm
-        lambda_r = 1/4.6E-05 ! wavenumber in cm-1 for lambda=460 nm ~ 470nm
+        lambda_r = 1/4.7E-05 ! wavenumber in cm-1 for lambda=470nm
     END IF
     
     

@@ -102,7 +102,7 @@ CONTAINS
     lh_flx = 0.
     sh_flx = 0. 
     
-    WRITE(*,*) 'Initial', nxp,nyp
+    !WRITE(*,*) 'Initial', nxp,nyp
        
     IF (isfctyp==6) CALL surface_state()
             

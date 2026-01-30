@@ -122,8 +122,8 @@ CONTAINS
          fdir, fuir   ! downward and upward ir flux
     
     REAL, DIMENSION(nv), INTENT (out) ::  &
-         todir, codir, aodir, iodir,  &  !total, cloud, aerosol and ice optical depth ir
-         tods, cods, aods, iods, aod470 !total, cloud, aerosol and ice optical depth visible
+         todir, codir, aodir, iodir,  &  !total, cloud, aerosol and ice optical depth SW short IR 1.9um-2.5um
+         tods, cods, aods, iods, aod470  !total, cloud, aerosol and ice optical depth SW 200 nm-690nm
 
     CALL rad_ir(nspec,pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
                  plwc, pre, piwc, pde, pgwc, maerobin, naerobin,  &
@@ -223,7 +223,6 @@ CONTAINS
    
     tod(:) = 0.0; cod(:) = 0.0; aod(:)= 0.0; iod(:)= 0.0
     
-    atod= 0.0; acod = 0.0; aaod= 0.0; aiod= 0.0; atodg=0.0
     
     bandLoop: DO ibandloop = 1, iblimit
       IF (.NOT. McICA) THEN
@@ -240,19 +239,16 @@ CONTAINS
       
       IF (present(plwc)) THEN
         CALL cloud_water(ib + size(solar_bands), pre, plwc, dz, tw, ww, www)
-        CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw, ww, www) 
-        acod = tw       
+        CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw, ww, www)        
       END IF
       
       IF (present(piwc)) THEN
         CALL cloud_ice(ib + size(solar_bands), pde, piwc, dz, ti, wi, wwi)
         CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti, wi, wwi)
-        aiod = ti
       END IF
       
       IF (present(pgwc)) THEN
         CALL cloud_grp(ib + size(solar_bands), pgwc, dz, tgr, wgr, wwgr)
-        aiod = aiod + tgr
         CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr, wwgr)
       END IF 
       
@@ -260,12 +256,9 @@ CONTAINS
          CALL aero_rad(ib + size(solar_bands), nbins, nspec, maerobin, naerobin, &
                        dz, taer, waer, wwaer, .FALSE.)
          CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, taer, waer, wwaer)
-	 aaod = taer
       END IF
 
       CALL planck(pt, pts, llimit(ir_bands(ib)), rlimit(ir_bands(ib)), bf)
-      
-      atod  = TauNoGas
       
       gPointLoop: DO ig = ig1, ig2
          tau = TauNoGas; w = wNoGas; pf = pfNoGas
@@ -294,17 +287,59 @@ CONTAINS
          
       END DO gPointLoop
     
-     tod(:)  = tod(:)  + atod(:)*bandweights(ib)
-     cod(:)  = cod(:)  + acod(:)*bandweights(ib)
-     aod(:)  = aod(:)  + aaod(:)*bandweights(ib)     
-     iod(:)  = iod(:)  + aiod(:)*bandweights(ib)
-            
-     !WRITE(*,*) 'IR-ib', ib 
-     !WRITE(*,*) 'IR WF',bandweights(ib)
-      
-     atod= 0.0; acod = 0.0; aaod= 0.0; aiod= 0.0
       
     END DO bandLoop
+    
+    ! fuq2 is the surface emitted flux in the band 0 - 280 cm**-1 with a
+    ! hk of 0.03.
+    !
+    fuq2 = bf(nv1) * 0.03 * pi * ee
+    fuir(:) = fuir(:) + fuq2
+    
+    ! --------------------------------------------------------------------------
+    ! - Calculation of optical properties in the mid-wave IR band
+    !  including 4 um to 5.2 um
+    !  Mid-Wave/Fire Detection (3.66–4.08 \(\mu m\)) 
+    !  Bands in this range are specialized for detecting hot spots and fires.
+    !  Band:   7:     0.00 Wm^-2, between  2500. and  1900. cm^-1
+    !  1 gase(s): and   2 g-points
+    !  Select a single band and g-point (ib, ig1) and use these as the limits
+    !  in the loop through the spectrum below. 
+    ib  = 1
+    ig1 = 1
+    ig2 = kg(ir_bands(1))
+    
+    ! For checking purposes
+    !WRITE(*,*) 'IR-ib', ib 
+    !WRITE(*,*) 'IR WF',bandweights(ib)
+    !WRITE(*,*)  llimit(ir_bands(ib)), rlimit(ir_bands(ib))
+    
+    ! Water vapor continuum optical depth    !
+    CALL gascon ( center(ir_bands(ib)), pp, pt, ph, tod)
+ 
+    ! Cloud water
+    IF (present(plwc)) THEN
+        CALL cloud_water(ib + size(solar_bands), pre, plwc, dz, cod, ww, www)
+        tod = tod + cod       
+    END IF
+    
+    ! Ice
+    IF (present(piwc)) THEN
+        CALL cloud_ice(ib + size(solar_bands), pde, piwc, dz, iod, wi, wwi)
+        tod = tod + iod
+    END IF      
+    IF (present(pgwc)) THEN
+        CALL cloud_grp(ib + size(solar_bands), pgwc, dz, tgr, wgr, wwgr)
+        iod = iod + tgr
+        tod = tod + tgr
+    END IF 
+     
+    ! Aerosol
+    IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
+         CALL aero_rad(ib + size(solar_bands), nbins, nspec, maerobin, naerobin, &
+                       dz, aod, waer, wwaer, .FALSE.)
+         tod = tod + aod
+    END IF
     
     ! Solver expects cumulative optical depth          
     DO k = 2, nv
@@ -314,11 +349,6 @@ CONTAINS
 	tod(k) = tod(k) + tod(k-1)
     END DO
 
-    ! fuq2 is the surface emitted flux in the band 0 - 280 cm**-1 with a
-    ! hk of 0.03.
-    !
-    fuq2 = bf(nv1) * 0.03 * pi * ee
-    fuir(:) = fuir(:) + fuq2
   END SUBROUTINE rad_ir
   ! ----------------------------------------------------------------------
   ! Subroutine rad_vis: Computes radiative fluxes using a band structure 
@@ -359,10 +389,11 @@ CONTAINS
          fds, fus    ! downward and upward solar flux
          
     REAL, DIMENSION(nv), INTENT (out) :: &
-         tod, &      ! total optical depth VIS
-         cod, &      ! cloud optical depth VIS
-         aod, iod, & ! aerosol optical depth VIS
-         aod470      ! aerosol optical depth 470 nm (460 nm is the closest one)
+         tod, &      ! total optical depth in 200 nm - 689 nm band (1)
+         cod, &      ! cloud optical depthin 200 nm - 689 nm band (1)
+         aod, &      ! aerosol optical depth in 200 nm - 689 nm band (1)
+         iod, &      ! ice optical depth in 200 nm - 689 nm band (1)
+         aod470      ! aerosol optical depth 470 nm 
 
     ! ----------------------------------------
     LOGICAL, PARAMETER :: solarWeighted = .FALSE. ! Could be .TRUE.?
@@ -376,7 +407,6 @@ CONTAINS
     REAL, DIMENSION(nv,4) :: wwi
     REAL, DIMENSION(nv,4) :: wwgr
     REAL, DIMENSION (nv,4):: wwaer, wwaer470
-    REAL, DIMENSION (nv)  :: aaod, acod, atod, aiod ! auxiliary variables
     REAL, DIMENSION(:), ALLOCATABLE, SAVE ::bandweights
 
     INTEGER :: ib, ig, k, ig1, ig2, ibandloop, iblimit
@@ -398,7 +428,6 @@ CONTAINS
     bf(:)  = 0.0
     
     tod(:) = 0.0; cod(:) = 0.0; aod(:)= 0.0; iod(:)= 0.0
-    atod(:) = 0.0; acod(:) = 0.0; aaod(:)= 0.0; aiod(:)= 0.0
     aod470(:) = 0.0
     
     IF(u0 > minSolarZenithCosForVis) THEN
@@ -445,26 +474,20 @@ CONTAINS
          IF (present(plwc)) THEN
            CALL cloud_water(ib, pre, plwc, dz, tw, ww, www)
            CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tw,ww,www)
-           acod = tw
          END IF
          IF (present(piwc)) THEN
            CALL cloud_ice(ib, pde, piwc, dz, ti, wi, wwi)
            CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, ti,wi,wwi)
-           aiod = ti
          END IF
          IF (present(pgwc)) THEN
            CALL cloud_grp(ib,pgwc, dz, tgr, wgr, wwgr)
            CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr,wwgr)
-           aiod = aiod + tgr
          END IF 
          IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
             CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer, .FALSE.)
             CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, taer, waer, wwaer)
-            aaod = taer
          END IF
          
-         atod  = TauNoGas
-          
          gPointLoop: DO ig = ig1, ig2
             tau = TauNoGas; w = wNoGas; pf = pfNoGas
             CALL gases (solar_bands(ib), ig, pp, pt, ph, po, tg )
@@ -489,13 +512,6 @@ CONTAINS
  
          END DO gPointLoop
                      
-	cod(:)  = cod(:)  + acod(:)*bandweights(ib)
-	aod(:)  = aod(:)  + aaod(:)*bandweights(ib)
-	tod(:)  = tod(:)  + atod(:)*bandweights(ib)
-	iod(:)  = iod(:)  + aiod(:)*bandweights(ib)       
-         
-        atod(:) = 0.0; acod(:) = 0.0; aaod(:)= 0.0; aiod(:)= 0.0
-        
       END DO bandLoop
       
       !
@@ -508,20 +524,47 @@ CONTAINS
       fds(:)  = fds(:)*fuq1
       fus(:)  = fus(:)*fuq1
       
-      ! Aerosol optical depth at 470 nm
-      ! 460 nm is the middle point 
-      ! in band 390nm-530nm from src_salsa/mo_salsa_optical_properties.f90
-      IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
-            ! The calculation internally selects optical properties
-            ! at the closest wavelength in the LUT-SW
-	    CALL aero_rad(1, nbins, nspec, maerobin, naerobin, &
-                       dz, aod470, waer470, wwaer470, .TRUE.)   
-            !WRITE(*,*) 'taer470',taer470           
-	    DO k = 2, nv
-	       aod470(k) = aod470(k) + aod470(k-1)
-	    END DO                 
+      !---------------------------------------------------------------------
+      !-- Calculations of optical properties in the first band
+      ! including the visible range from 200 nm to 689 nm 
+      ! Band:   1:   619.60 Wm^-2, between 50000. and 14500. cm^-1
+      !              1 gase(s): and  10 g-points
+      ! Select a single band and g-point (ib, ig1) and use these as the limits
+      !   in the loop through the spectrum below. 
+      ib  = 1
+      ig1 = 1
+      ig2 = kg(solar_bands(ib))  
+      iblimit = size(solar_bands) 
+      ! Rayleigh scattering              
+      CALL rayle ( ib, u0, power(solar_bands(ib)), pp, pt, dz, tod, &
+                      wNoGas, pfNoGas)
+      ! Water vapor continuum         !
+      CALL gascon ( center(solar_bands(ib)), pp, pt, ph, tgm )
+      IF(any(tgm > 0.)) &
+           tod = tod +tgm
+         
+      ! Cloud water
+      IF (present(plwc)) THEN
+           CALL cloud_water(ib, pre, plwc, dz, cod, ww, www)
+           tod = tod + cod
       END IF
          
+      ! Ice
+      IF (present(piwc)) THEN
+           CALL cloud_ice(ib, pde, piwc, dz, iod, wi, wwi)
+           tod = tod + iod
+      END IF
+      IF (present(pgwc)) THEN
+           CALL cloud_grp(ib,pgwc, dz, tgr, wgr, wwgr)
+           iod = iod + tgr
+           tod = tod + tgr
+      END IF 
+      
+      IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
+            CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, aod, waer, wwaer, .FALSE.)
+            tod = tod + aod
+      END IF  
+
       ! Solver expects cumulative optical depth
       !            
       DO k = 2, nv
@@ -530,6 +573,20 @@ CONTAINS
             iod(k) = iod(k) + iod(k-1)
             tod(k) = tod(k) + tod(k-1)
       END DO
+      
+      ! Aerosol optical depth at 470 nm
+      ! 460 nm is the middle point 
+      ! in band 390nm-530nm from src_salsa/mo_salsa_optical_properties.f90
+      IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
+            ! The calculation internally selects optical properties
+            ! at the closest wavelength in the LUT-SW
+	    CALL aero_rad(1, nbins, nspec, maerobin, naerobin, &
+                       dz, aod470, waer470, wwaer470, .TRUE.)           
+	    DO k = 2, nv
+	       aod470(k) = aod470(k) + aod470(k-1)
+	    END DO                 
+      END IF
+      
       
     END IF 
   END SUBROUTINE rad_vis
