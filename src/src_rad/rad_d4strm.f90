@@ -426,7 +426,6 @@ CONTAINS
     fds(:) = 0.0
     fus(:) = 0.0
     bf(:)  = 0.0
-    
     tod(:) = 0.0; cod(:) = 0.0; aod(:)= 0.0; iod(:)= 0.0
     aod470(:) = 0.0
     
@@ -535,6 +534,9 @@ CONTAINS
       ig1 = 1
       ig2 = kg(solar_bands(ib))  
       iblimit = size(solar_bands) 
+      tgm = 0.
+      tgr = 0.
+      
       ! Rayleigh scattering              
       CALL rayle ( ib, u0, power(solar_bands(ib)), pp, pt, dz, tod, &
                       wNoGas, pfNoGas)
@@ -585,8 +587,7 @@ CONTAINS
 	    DO k = 2, nv
 	       aod470(k) = aod470(k) + aod470(k-1)
 	    END DO                 
-      END IF
-      
+      END IF      
       
     END IF 
   END SUBROUTINE rad_vis

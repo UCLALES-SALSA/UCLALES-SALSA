@@ -150,7 +150,7 @@ CONTAINS
       nypa(0) = nyg
 
       !
-      !  offsets for ecah processor in x and y, for a given grid (nxp x nyp)
+      !  offsets for each processor in x and y, for a given grid (nxp x nyp)
       !
       ! FIX ? -1
       ALLOCATE(xoffset(0:nxprocs),yoffset(0:nyprocs))

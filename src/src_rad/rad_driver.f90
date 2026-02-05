@@ -253,7 +253,16 @@ MODULE radiation
                iodsw(k,i,j) = iods(kk)
                aodsw470(k,i,j) = aod470(kk)
             END DO
-            
+            ! just to be sure zero values at z< 0 m
+            todlw(1,i,j) = 0.
+            codlw(1,i,j) = 0.
+            aodlw(1,i,j) = 0.
+            iodlw(1,i,j) = 0.
+            todsw(1,i,j) = 0.
+            codsw(1,i,j) = 0.
+            aodsw(1,i,j) = 0.
+            iodsw(1,i,j) = 0.
+            aodsw470(1,i,j) = 0.
             
             IF (u0 > minSolarZenithCosForVis) THEN
                albedo(i,j) = fus(1)/fds(1)
