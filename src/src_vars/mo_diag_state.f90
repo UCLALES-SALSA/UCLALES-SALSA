@@ -651,7 +651,7 @@ MODULE mo_diag_state
       pipeline => NULL()
       a_areaburnt= FloatArray2d(a_diag2d(:,:,n2d))
       pipeline => a_areaburnt
-      CALL Diag%newField("areaburnt","Area burnt","m2","xtytt",   &
+      CALL Diag%newField("areaburnt","Area burnt (cumulative in time)","m2","xtytt",   &
                          ANY(outputlist == "areaburnt"), pipeline)    
       
       memsize = memsize + nxy                   
@@ -916,7 +916,7 @@ MODULE mo_diag_state
                             ANY(outputlist == "AtIce"), pipeline)
          n4db = n4db + nice
       END IF
-
+      
       ! Piggybacking variables for "slave" microphysics
       IF (lpback) THEN
          npb3d = npb3d + 1

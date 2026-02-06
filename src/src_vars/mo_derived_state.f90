@@ -523,6 +523,8 @@ MODULE mo_derived_state
          pipeline => mpNHa
          CALL Derived%newField("mpNHa", "Binned mass ammonia in precip", "kg/kg", 'ttttprc',   &
                                ANY(outputlist == "mpNHa"), pipeline              )
+             
+         
       END IF
 
       IF (level == 5) THEN
@@ -537,7 +539,7 @@ MODULE mo_derived_state
          Miba = FloatArray4d()
          Miba%onDemand => getBinTotMass
          pipeline => Miba
-         CALL Derived%newField("Miba", "Bin total mass, ice", "m", "ttttice",       &
+         CALL Derived%newField("Miba", "Bin total mass, ice", "kg/kg", "ttttice",       &
                                ANY(outputlist == "Miba"), pipeline                  )
 
          pipeline => NULL()

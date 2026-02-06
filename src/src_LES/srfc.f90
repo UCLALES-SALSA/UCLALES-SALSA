@@ -102,8 +102,6 @@ CONTAINS
     lh_flx = 0.
     sh_flx = 0. 
     
-    !WRITE(*,*) 'Initial', nxp,nyp
-       
     IF (isfctyp==6) CALL surface_state()
             
     
@@ -939,13 +937,14 @@ SUBROUTINE surface_state()
   			   a_fuelmcg, a_ignitiontime, a_fuelburnt, &
   			   a_firespread, a_areaburnt, a_phiwc, a_phiwb, & 
   			   a_tcrit, a_R0
-  USE grid, ONLY: sst, psrf,nxp,nyp
+  USE grid, ONLY: sst, psrf,nxp,nyp, deltax, deltay, runtype
   
   IMPLICIT NONE
   LOGICAL :: READ_NC
   INTEGER :: ncid, nvar,nxp_global,nyp_global
-  INTEGER :: istart, iend, jstart, jend
-  REAL :: rskin
+  INTEGER :: istart, iend, jstart, jend, i, j, kk
+  REAL :: rskin, remainder
+  INTEGER :: nbcell 
 	
   REAL, ALLOCATABLE :: fgig(:,:), weightg(:,:), fcz0g(:,:), R0g(:,:)
   REAL, ALLOCATABLE :: fuelmcgg(:,:), phiwcg(:,:), phiwbg(:,:) 
@@ -970,64 +969,93 @@ SUBROUTINE surface_state()
   ALLOCATE(firespreadg(nxp_global,nyp_global),ignitiontimeg(nxp_global,nyp_global),areaburntg(nxp_global,nyp_global)) 
   ALLOCATE(ignitiontimecell(nxp,nyp,20))
   ALLOCATE(areaignitedcell(nxp,nyp,20))
- 
-  areaburntg = 0.
   ignitiontimecell = 1.0E15
-  areaignitedcell = 0.
-  
-  IF (READ_NC) THEN
-     ! Read the surface properties
-     CALL read_surf_nc_2d(ncid, 'fgi', nxp_global, nyp_global, fgig)
-     CALL read_surf_nc_2d(ncid, 'weight', nxp_global, nyp_global, weightg)
-     CALL read_surf_nc_2d(ncid, 'fcz0',  nxp_global, nyp_global,fcz0g)
-     CALL read_surf_nc_2d(ncid, 'fuelmcg',  nxp_global, nyp_global, fuelmcgg)
-     CALL read_surf_nc_2d(ncid, 'ignitiontime', nxp_global, nyp_global, ignitiontimeg)	     
-     CALL read_surf_nc_2d(ncid, 'R0', nxp_global, nyp_global, R0g)
-     CALL read_surf_nc_2d(ncid, 'phiwc', nxp_global, nyp_global, phiwcg)
-     CALL read_surf_nc_2d(ncid, 'phiwb', nxp_global, nyp_global, phiwbg)
-     CALL close_nc(ncid)
-     WRITE(*,*) 'Surface properties read successfully from datafiles/surface_in.nc'
-  ELSE
-     WRITE(*,*) 'No datafiles/surface_in.nc was read'
-     WRITE(*,*) 'No fuel or vegetation in the model domain'
-     WRITE(*,*) 'No surface_in.nc found — using defaults.'
-     fgig = 0.0
-     weightg = 7.
-     fcz0g = 0.1
-     fuelmcgg = 0.0
-     ignitiontimeg =1.0E15 ! No fire because time<ignitiontime, then no fire
-     R0g = 0.0
-     phiwcg = 0.0
-     phiwbg= 1.0	  
-  END IF
+  areaignitedcell = 0.  
  
-  firespreadg = R0g
-  
-  istart = MAX(wrxid * (nxp_global-2)/nxprocs ,1)
-  iend   = MIN((wrxid+1)*(nxp_global-2)/nxprocs+ 3, nxp_global)
-  jstart = MAX(wryid * (nyp_global-2)/nyprocs, 1) 
-  jend   = MIN((wryid+1)*(nyp_global-2)/nyprocs+3, nyp_global)
-  
-  ! for checking purposes
-  !WRITE(*,*) 'istart,iend, jstart,jend', istart,iend, jstart,jend
-  
-  a_fgi%d    = fgig(istart:iend,jstart:jend)
-  a_weight%d = weightg(istart:iend,jstart:jend)/0.8514 !Mandel 2011 Eq.3
-  a_fcz0%d   = fcz0g(istart:iend,jstart:jend)
-  a_fuelmcg%d = fuelmcgg(istart:iend,jstart:jend)
-  a_ignitiontime%d = ignitiontimeg(istart:iend,jstart:jend)
-  a_tskin%d = sst
-  ! Assuming saturated surface
-  rskin = rslf(psrf,sst) 
-  a_qskin%d  = rskin / (1 + rskin) 
-  a_fuelburnt%d =0.
-  a_R0%d = R0g(istart:iend,jstart:jend)
-  a_areaburnt%d  = 0.
-  a_phiwc%d = phiwcg(istart:iend,jstart:jend)
-  a_phiwb%d = phiwbg(istart:iend,jstart:jend)  
-  a_tcrit%d  = 1.0E15 ! Same as no fire 
-  a_firespread%d = R0g(istart:iend,jstart:jend)
-  ignitiontimecell(:,:,1) = ignitiontimeg(istart:iend,jstart:jend)
+  IF (runtype == 'INITIAL') THEN
+   	areaburntg = 0.
+          WRITE(*,*) 'Runtype INITIAL reading surface properties from datafiles/surface_in.nc '
+	  IF (READ_NC) THEN
+	     ! Read the surface properties
+	     CALL read_surf_nc_2d(ncid, 'fgi', nxp_global, nyp_global, fgig)
+	     CALL read_surf_nc_2d(ncid, 'weight', nxp_global, nyp_global, weightg)
+	     CALL read_surf_nc_2d(ncid, 'fcz0',  nxp_global, nyp_global,fcz0g)
+	     CALL read_surf_nc_2d(ncid, 'fuelmcg',  nxp_global, nyp_global, fuelmcgg)
+	     CALL read_surf_nc_2d(ncid, 'ignitiontime', nxp_global, nyp_global, ignitiontimeg)	     
+	     CALL read_surf_nc_2d(ncid, 'R0', nxp_global, nyp_global, R0g)
+	     CALL read_surf_nc_2d(ncid, 'phiwc', nxp_global, nyp_global, phiwcg)
+	     CALL read_surf_nc_2d(ncid, 'phiwb', nxp_global, nyp_global, phiwbg)
+	     CALL close_nc(ncid)
+	     WRITE(*,*) 'Surface properties read successfully from datafiles/surface_in.nc'
+	  ELSE
+	     WRITE(*,*) 'No datafiles/surface_in.nc was read'
+	     WRITE(*,*) 'No fuel or vegetation in the model domain'
+	     WRITE(*,*) 'No surface_in.nc found — using defaults.'
+	     fgig = 0.0
+	     weightg = 7.
+	     fcz0g = 0.1
+	     fuelmcgg = 0.0
+	     ignitiontimeg =1.0E15 ! No fire because time<ignitiontime, then no fire
+	     R0g = 0.0
+	     phiwcg = 0.0
+	     phiwbg= 1.0	  
+	  END IF
+	  
+	  istart = MAX(wrxid * (nxp_global-2)/nxprocs ,1)
+	  iend   = MIN((wrxid+1)*(nxp_global-2)/nxprocs+ 3, nxp_global)
+	  jstart = MAX(wryid * (nyp_global-2)/nyprocs, 1) 
+	  jend   = MIN((wryid+1)*(nyp_global-2)/nyprocs+3, nyp_global)
+	  
+	  ! for checking purposes
+	  !WRITE(*,*) 'istart,iend, jstart,jend', istart,iend, jstart,jend
+	 
+	  firespreadg = R0g	  
+	  a_fgi%d    = fgig(istart:iend,jstart:jend)
+	  a_weight%d = weightg(istart:iend,jstart:jend)/0.8514 !Mandel 2011 Eq.3
+	  a_fcz0%d   = fcz0g(istart:iend,jstart:jend)
+	  a_fuelmcg%d = fuelmcgg(istart:iend,jstart:jend)
+	  a_ignitiontime%d = ignitiontimeg(istart:iend,jstart:jend)
+	  a_tskin%d = sst
+	  ! Assuming saturated surface
+	  rskin = rslf(psrf,sst) 
+	  a_qskin%d  = rskin / (1 + rskin) 
+	  a_fuelburnt%d =0.
+	  a_R0%d = R0g(istart:iend,jstart:jend)
+	  a_areaburnt%d  = 0.
+	  a_phiwc%d = phiwcg(istart:iend,jstart:jend)
+	  a_phiwb%d = phiwbg(istart:iend,jstart:jend)  
+	  a_tcrit%d  = 1.0E15 ! Same as no fire 
+	  a_firespread%d = R0g(istart:iend,jstart:jend)
+	  ignitiontimecell(:,:,1) = ignitiontimeg(istart:iend,jstart:jend)    
+  ELSE
+          !WRITE(*,*) 'Runtype HISTORY updating surface properties'
+          DO j = 1, nyp
+             DO i = 1, nxp
+                IF (a_areaburnt%d(i,j)>0.) THEN 
+                   ! Number of sub-grid cells ignited 
+                   nbcell = NINT(a_areaburnt%d(i,j)/(deltax*deltay/20))
+                   remainder = MOD(a_areaburnt%d(i,j),(deltax*deltay/20))                      
+                   IF (nbcell >1) THEN
+          	      DO kk=1, nbcell
+             	         areaignitedcell(i,j,kk)  = (deltax*deltay/20)
+             	         ignitiontimecell(i,j,kk) = a_ignitiontime%d(i,j)*kk/nbcell
+             	      END DO
+             	      IF (remainder >0.) THEN
+             	         areaignitedcell(i,j,nbcell+1) = a_areaburnt%d(i,j) - & 
+             	            nbcell*(deltax*deltay/20)
+             	         ignitiontimecell(i,j,nbcell+1) = a_ignitiontime%d(i,j)
+             	      END IF
+             	   ELSE IF (nbcell == 0) THEN
+             	      areaignitedcell(i,j,1)  = a_areaburnt%d(i,j)
+             	      ignitiontimecell(i,j,1) = a_ignitiontime%d(i,j)                	      	 
+             	   END IF
+             	END IF
+             	IF (a_areaburnt%d(i,j)>= deltax*deltay) THEN
+             	   ignitiontimecell(i,j,20) = a_tcrit%d(i,j)     
+                END IF             	    
+             END DO 
+          END DO          
+   END IF
   
 END SUBROUTINE surface_state
    
