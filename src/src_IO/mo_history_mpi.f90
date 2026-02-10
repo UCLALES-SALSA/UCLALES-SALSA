@@ -111,6 +111,9 @@ MODULE mo_history
       CALL write_hist_mpi(nxp,nyp,a_R0%d,.TRUE.,fhist)  
             
       ! 3d fields
+      CALL write_hist_mpi(nxp,nyp,20,a_ignitiontimecell%d,.FALSE.,fhist)  
+      CALL write_hist_mpi(nxp,nyp,20,a_areaignitedcell%d,.FALSE.,fhist)
+      !
       CALL write_hist_mpi(nzp,nxp,nyp,a_pexnr%d,.FALSE.,fhist)
       CALL write_hist_mpi(nzp,nxp,nyp,a_press%d,.FALSE.,fhist)
       CALL write_hist_mpi(nzp,nxp,nyp,a_theta%d,.FALSE.,fhist)
@@ -274,7 +277,10 @@ MODULE mo_history
 	 CALL read_hist_mpi(nxp,nyp,a_tcrit%d,.FALSE.,fhist)
          CALL read_hist_mpi(nxp,nyp,a_R0%d,.TRUE.,fhist)
 	          
-         ! 3d fields         
+         ! 3d fields      
+         CALL read_hist_mpi(nxp,nyp,20,a_ignitiontimecell%d,.FALSE.,fhist)  
+         CALL read_hist_mpi(nxp,nyp,20,a_areaignitedcell%d,.FALSE.,fhist)  
+         !   
          CALL read_hist_mpi(nzp,nxp,nyp,a_pexnr%d,.FALSE.,fhist)
          CALL read_hist_mpi(nzp,nxp,nyp,a_press%d,.FALSE.,fhist)
          CALL read_hist_mpi(nzp,nxp,nyp,a_theta%d,.FALSE.,fhist)

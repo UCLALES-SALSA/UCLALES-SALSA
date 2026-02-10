@@ -31,7 +31,7 @@ MODULE srfc
   USE mpi_interface, ONLY : myid
   USE mo_diag_state, ONLY: a_tskin, a_qskin, a_fgi, a_weight, a_fcz0, a_fuelmcg, &
   			   a_ignitiontime, a_fuelburnt, a_firespread, a_areaburnt, &
-  			   a_phiwc, a_phiwb, a_tcrit, a_R0
+  			   a_phiwc, a_phiwb, a_tcrit, a_R0, a_ignitiontimecell
   USE ncio, ONLY : open_surf_nc, read_surf_nc_2d, close_nc
   USE thrm, ONLY: rslf
   USE emission_init, ONLY: regime_limits
@@ -87,7 +87,7 @@ MODULE srfc
  
   PUBLIC 
   REAL, ALLOCATABLE, SAVE :: firespreadg(:,:), ignitiontimeg(:,:), areaburntg(:,:)
-  REAL, ALLOCATABLE, SAVE :: ignitiontimecell(:,:,:), areaignitedcell(:,:,:)
+  !REAL, ALLOCATABLE, SAVE :: areaignitedcell(:,:,:)
  
   
 CONTAINS
@@ -139,7 +139,8 @@ CONTAINS
                                a_tskin, a_qskin, &
                                a_fgi, a_weight, a_fcz0, a_fuelmcg, & 
                                a_ignitiontime, a_fuelburnt, a_firespread, &
-                               a_areaburnt, a_phiwc, a_phiwb, a_tcrit, a_R0                    
+                               a_areaburnt, a_phiwc, a_phiwb, a_tcrit, a_R0, &
+                               a_ignitiontimecell, a_areaignitedcell                   
      USE mo_aux_state, ONLY : zt, dn0, xt, yt
      USE mo_progn_state, ONLY : a_rp
      USE mo_vector_state, ONLY : a_up, a_vp
@@ -456,66 +457,66 @@ CONTAINS
                        ! Fraction of the cell ignited
                        fbcell = a_areaburnt%d(i,j)/(deltax*deltay)
                        IF      (fbcell<=0.05 .AND. time > a_ignitiontime%d(i,j)) THEN 
-			  		ignitiontimecell(i,j,1) = a_ignitiontime%d(i,j)  
-		       ELSEIF  ((fbcell>0.05 .AND. fbcell <= 0.1) .AND. (time > ignitiontimecell(i,j,1) .AND. &  
-		       			ignitiontimecell(i,j,2) > 1.E12)) THEN 
-		                  ignitiontimecell(i,j,2) = time		       		                                          
-		       ELSEIF  ((fbcell>0.1 .AND. fbcell <= 0.15) .AND. (time > ignitiontimecell(i,j,2) .AND. &
-			  		ignitiontimecell(i,j,3) > 1.E12)) THEN 
-		                  ignitiontimecell(i,j,3) = time
-		       ELSEIF  ((fbcell>0.15 .AND. fbcell <= 0.2) .AND. (time > ignitiontimecell(i,j,3) .AND. &
-			  		ignitiontimecell(i,j,4) > 1.E12)) THEN 
-		                  ignitiontimecell(i,j,4) = time           
-		       ELSEIF  ((fbcell>0.2 .AND. fbcell <= 0.25) .AND. (time > ignitiontimecell(i,j,4).AND. & 
-		          		ignitiontimecell(i,j,5) > 1.E12)) THEN 
-		                  ignitiontimecell(i,j,5) = time
-		       ELSEIF  ((fbcell>0.25 .AND. fbcell <= 0.30) .AND. (time > ignitiontimecell(i,j,5).AND. &
-		          		ignitiontimecell(i,j,6) > 1.E12)) THEN 
-		                  ignitiontimecell(i,j,6) = time
-		       ELSEIF  ((fbcell>0.30 .AND. fbcell <= 0.35) .AND. (time > ignitiontimecell(i,j,6).AND. &
-		          		ignitiontimecell(i,j,7) > 1.E12)) THEN 
-		                  ignitiontimecell(i,j,7) = time 
-		       ELSEIF  ((fbcell>0.35 .AND. fbcell <= 0.4) .AND. (time > ignitiontimecell(i,j,7).AND. &
-		          		ignitiontimecell(i,j,8) > 1.E12)) THEN 
-		                  ignitiontimecell(i,j,8) = time
-		       ELSEIF  ((fbcell>0.4 .AND. fbcell <= 0.45) .AND. (time > ignitiontimecell(i,j,8).AND. &
-		          	 	ignitiontimecell(i,j,9) > 1.E12)) THEN 
-		                  ignitiontimecell(i,j,9) = time  
-		       ELSEIF  ((fbcell>0.45 .AND. fbcell <= 0.5) .AND. (time > ignitiontimecell(i,j,9).AND. &
-		          		ignitiontimecell(i,j,10) > 1.E12)) THEN   
-		                  ignitiontimecell(i,j,10) = time
-		       ELSEIF  ((fbcell>0.5 .AND. fbcell <= 0.55) .AND. (time > ignitiontimecell(i,j,10).AND. &
-		          		ignitiontimecell(i,j,11) > 1.E12)) THEN   
-		                  ignitiontimecell(i,j,11) = time  
-		       ELSEIF  ((fbcell>0.55 .AND. fbcell < 0.60) .AND. (time > ignitiontimecell(i,j,11).AND. &
-		          		ignitiontimecell(i,j,12) > 1.E12)) THEN   
-		                  ignitiontimecell(i,j,12) = time
-		       ELSEIF  ((fbcell>0.6 .AND. fbcell < 0.65) .AND. (time > ignitiontimecell(i,j,12).AND. &
-		          		ignitiontimecell(i,j,13) > 1.E12)) THEN   
-		                  ignitiontimecell(i,j,13) = time
-		       ELSEIF  ((fbcell>0.65 .AND. fbcell < 0.7) .AND. (time > ignitiontimecell(i,j,13).AND. &
-		          		ignitiontimecell(i,j,14) > 1.E12)) THEN   
-		                  ignitiontimecell(i,j,14) = time                      
-		       ELSEIF  ((fbcell>0.7 .AND. fbcell < 0.75) .AND. (time > ignitiontimecell(i,j,14).AND. &
-		          		ignitiontimecell(i,j,15) > 1.E12)) THEN   
-		                  ignitiontimecell(i,j,15) = time             
-		       ELSEIF  ((fbcell>0.75 .AND. fbcell < 0.8) .AND. (time > ignitiontimecell(i,j,15).AND. &
-		          		ignitiontimecell(i,j,16) > 1.E12)) THEN   
-		                  ignitiontimecell(i,j,16) = time            
-		       ELSEIF  ((fbcell>0.8 .AND. fbcell < 0.85) .AND. (time > ignitiontimecell(i,j,16).AND. &
-		          		ignitiontimecell(i,j,17) > 1.E12)) THEN   
-		                  ignitiontimecell(i,j,17) = time    
-		       ELSEIF  ((fbcell>0.85 .AND. fbcell < 0.9) .AND. (time > ignitiontimecell(i,j,17).AND. &
-		          		ignitiontimecell(i,j,18) > 1.E12)) THEN   
-		                  ignitiontimecell(i,j,18) = time  
-		       ELSEIF  ((fbcell>0.9 .AND. fbcell < 0.95) .AND. (time > ignitiontimecell(i,j,18).AND. &
-		          		ignitiontimecell(i,j,19) > 1.E12)) THEN   
-		                  ignitiontimecell(i,j,19) = time 
-		       ELSEIF  ((fbcell>0.95 .AND. fbcell < 0.999) .AND. (time > ignitiontimecell(i,j,19).AND. &
-		          		ignitiontimecell(i,j,20) > 1.E12)) THEN   
-		                  ignitiontimecell(i,j,20) = time                             
-		       ELSEIF  (fbcell >= 0.999 .AND. ignitiontimecell(i,j,20)>1.0E12) THEN		          		 
-		                  ignitiontimecell(i,j,20) = time     
+			  		a_ignitiontimecell%d(i,j,1) = a_ignitiontime%d(i,j)  
+		       ELSEIF  ((fbcell>0.05 .AND. fbcell <= 0.1) .AND. (time > a_ignitiontimecell%d(i,j,1) .AND. &  
+		       			a_ignitiontimecell%d(i,j,2) > 1.E12)) THEN 
+		                  a_ignitiontimecell%d(i,j,2) = time		       		                                          
+		       ELSEIF  ((fbcell>0.1 .AND. fbcell <= 0.15) .AND. (time > a_ignitiontimecell%d(i,j,2) .AND. &
+			  		a_ignitiontimecell%d(i,j,3) > 1.E12)) THEN 
+		                  a_ignitiontimecell%d(i,j,3) = time
+		       ELSEIF  ((fbcell>0.15 .AND. fbcell <= 0.2) .AND. (time > a_ignitiontimecell%d(i,j,3) .AND. &
+			  		a_ignitiontimecell%d(i,j,4) > 1.E12)) THEN 
+		                  a_ignitiontimecell%d(i,j,4) = time           
+		       ELSEIF  ((fbcell>0.2 .AND. fbcell <= 0.25) .AND. (time > a_ignitiontimecell%d(i,j,4).AND. & 
+		          		a_ignitiontimecell%d(i,j,5) > 1.E12)) THEN 
+		                  a_ignitiontimecell%d(i,j,5) = time
+		       ELSEIF  ((fbcell>0.25 .AND. fbcell <= 0.30) .AND. (time > a_ignitiontimecell%d(i,j,5).AND. &
+		          		a_ignitiontimecell%d(i,j,6) > 1.E12)) THEN 
+		                  a_ignitiontimecell%d(i,j,6) = time
+		       ELSEIF  ((fbcell>0.30 .AND. fbcell <= 0.35) .AND. (time > a_ignitiontimecell%d(i,j,6).AND. &
+		          		a_ignitiontimecell%d(i,j,7) > 1.E12)) THEN 
+		                  a_ignitiontimecell%d(i,j,7) = time 
+		       ELSEIF  ((fbcell>0.35 .AND. fbcell <= 0.4) .AND. (time > a_ignitiontimecell%d(i,j,7).AND. &
+		          		a_ignitiontimecell%d(i,j,8) > 1.E12)) THEN 
+		                  a_ignitiontimecell%d(i,j,8) = time
+		       ELSEIF  ((fbcell>0.4 .AND. fbcell <= 0.45) .AND. (time > a_ignitiontimecell%d(i,j,8).AND. &
+		          	 	a_ignitiontimecell%d(i,j,9) > 1.E12)) THEN 
+		                  a_ignitiontimecell%d(i,j,9) = time  
+		       ELSEIF  ((fbcell>0.45 .AND. fbcell <= 0.5) .AND. (time > a_ignitiontimecell%d(i,j,9).AND. &
+		          		a_ignitiontimecell%d(i,j,10) > 1.E12)) THEN   
+		                  a_ignitiontimecell%d(i,j,10) = time
+		       ELSEIF  ((fbcell>0.5 .AND. fbcell <= 0.55) .AND. (time > a_ignitiontimecell%d(i,j,10).AND. &
+		          		a_ignitiontimecell%d(i,j,11) > 1.E12)) THEN   
+		                  a_ignitiontimecell%d(i,j,11) = time  
+		       ELSEIF  ((fbcell>0.55 .AND. fbcell < 0.60) .AND. (time > a_ignitiontimecell%d(i,j,11).AND. &
+		          		a_ignitiontimecell%d(i,j,12) > 1.E12)) THEN   
+		                  a_ignitiontimecell%d(i,j,12) = time
+		       ELSEIF  ((fbcell>0.6 .AND. fbcell < 0.65) .AND. (time > a_ignitiontimecell%d(i,j,12).AND. &
+		          		a_ignitiontimecell%d(i,j,13) > 1.E12)) THEN   
+		                  a_ignitiontimecell%d(i,j,13) = time
+		       ELSEIF  ((fbcell>0.65 .AND. fbcell < 0.7) .AND. (time > a_ignitiontimecell%d(i,j,13).AND. &
+		          		a_ignitiontimecell%d(i,j,14) > 1.E12)) THEN   
+		                  a_ignitiontimecell%d(i,j,14) = time                      
+		       ELSEIF  ((fbcell>0.7 .AND. fbcell < 0.75) .AND. (time > a_ignitiontimecell%d(i,j,14).AND. &
+		          		a_ignitiontimecell%d(i,j,15) > 1.E12)) THEN   
+		                  a_ignitiontimecell%d(i,j,15) = time             
+		       ELSEIF  ((fbcell>0.75 .AND. fbcell < 0.8) .AND. (time > a_ignitiontimecell%d(i,j,15).AND. &
+		          		a_ignitiontimecell%d(i,j,16) > 1.E12)) THEN   
+		                  a_ignitiontimecell%d(i,j,16) = time            
+		       ELSEIF  ((fbcell>0.8 .AND. fbcell < 0.85) .AND. (time > a_ignitiontimecell%d(i,j,16).AND. &
+		          		a_ignitiontimecell%d(i,j,17) > 1.E12)) THEN   
+		                  a_ignitiontimecell%d(i,j,17) = time    
+		       ELSEIF  ((fbcell>0.85 .AND. fbcell < 0.9) .AND. (time > a_ignitiontimecell%d(i,j,17).AND. &
+		          		a_ignitiontimecell%d(i,j,18) > 1.E12)) THEN   
+		                  a_ignitiontimecell%d(i,j,18) = time  
+		       ELSEIF  ((fbcell>0.9 .AND. fbcell < 0.95) .AND. (time > a_ignitiontimecell%d(i,j,18).AND. &
+		          		a_ignitiontimecell%d(i,j,19) > 1.E12)) THEN   
+		                  a_ignitiontimecell%d(i,j,19) = time 
+		       ELSEIF  ((fbcell>=0.95) .AND. (time > a_ignitiontimecell%d(i,j,19).AND. &
+		          		a_ignitiontimecell%d(i,j,20) > 1.E12)) THEN   
+		                  a_ignitiontimecell%d(i,j,20) = time                             
+		       !ELSEIF  (fbcell >= 0.99) .OR. a_ignitiontimecell%d(i,j,20) > 1.E12)) THEN   	          		 
+		                  !a_ignitiontimecell%d(i,j,20) = time  
 		       END IF
 		              	       	    
           	       fuel_burnt = 0.
@@ -523,45 +524,45 @@ CONTAINS
           	       total_la_fire = 0.
           	       area_burnt_cell = 0.
           	       DO kk=1,20          	          
-          	          IF (time > ignitiontimecell(i,j,kk)) THEN           	                
-			  	tt = time -ignitiontimecell(i,j,kk)	
+          	          IF (time > a_ignitiontimecell%d(i,j,kk)) THEN           	                
+			  	tt = time -a_ignitiontimecell%d(i,j,kk)	
 			  	! Similar to Mandel et al. 2011 using the fraction of remaining fuel		  	
 			  	fraction_burnt = (EXP(-tt/a_weight%d(i,j)) - EXP(-(tt+dtl)/a_weight%d(i,j))) 
 			  	! The fire moves at the same velocity in x and y directions
                        		! as a growing circle
-			  	IF (areaignitedcell(i,j,kk) < deltax*deltay/20) THEN	  	
-			  	    areaignitedcell(i,j,kk) = areaignitedcell(i,j,kk) + & 
+			  	IF (a_areaignitedcell%d(i,j,kk) < deltax*deltay/20) THEN	  	
+			  	    a_areaignitedcell%d(i,j,kk) = a_areaignitedcell%d(i,j,kk) + & 
 			  	              MAX(pi*((tt+dtl)*a_firespread%d(i,j))**2 - &
                   	                          pi*(tt*a_firespread%d(i,j))**2, 0.)
 			  	ELSE 			  				  	              
-			  	    areaignitedcell(i,j,kk) = deltax*deltay/20	  				  				  	
+			  	    a_areaignitedcell%d(i,j,kk) = deltax*deltay/20	  				  				  	
 			  	END IF
 			  	!
-			  	fuel_burnt = fuel_burnt + areaignitedcell(i,j,kk)*a_fgi%d(i,j)*fraction_burnt       	                                                               
+			  	fuel_burnt = fuel_burnt + a_areaignitedcell%d(i,j,kk)*a_fgi%d(i,j)*fraction_burnt       	                                                               
                           	! for checking purposes
-                          	!WRITE(*,*) 'kk, ignitiontimecell', kk, a_ignitiontime%d(i,j), ignitiontimecell(i,j,kk)        
-                          	!WRITE(*,*) 'area_burnt_cell, area_burnt', areaignitedcell(i,j,kk), area_burnt_cell
+                          	!WRITE(*,*) 'kk, a_ignitiontimecell%d', kk, a_ignitiontime%d(i,j), a_ignitiontimecell%d(i,j,kk)        
+                          	!WRITE(*,*) 'area_burnt_cell, area_burnt', a_areaignitedcell%d(i,j,kk), area_burnt_cell
                           	!WRITE(*,*) 'fuelburnt',fuel_burnt                                                           	   			     
 		          	! Calculating the surface fluxes coming from combustion		          	
 		          	! Average sensible heat released in time interval (t, t+Deltat) Mandel-2011-Eq.4 in W/m2
 		          	total_se_fire = total_se_fire + a_fgi%d(i,j)*fraction_burnt/dtl * &
                                                 1/(1+a_fuelmcg%d(i,j))*cmbcnst * &
-                                                areaignitedcell(i,j,kk)/(deltax*deltay)
+                                                a_areaignitedcell%d(i,j,kk)/(deltax*deltay)
 		          	! Average latent heat released in time interval (t, t+Deltat) Mandel-2011-Eq.5 in W/m2
 		          	! Heat fluxes must be diluted along the grid cell 
 		          	total_la_fire = total_la_fire + a_fgi%d(i,j)*fraction_burnt/dtl* &
                                                 (a_fuelmcg%d(i,j)+0.56)/(1+a_fuelmcg%d(i,j))*alvl* &
-                                                areaignitedcell(i,j,kk)/(deltax*deltay)
+                                                a_areaignitedcell%d(i,j,kk)/(deltax*deltay)
 		          	tt = 0.
 		          	fraction_burnt = 0.
-		          	area_burnt_cell = area_burnt_cell + areaignitedcell(i,j,kk) 		          	
+		          	area_burnt_cell = area_burnt_cell + a_areaignitedcell%d(i,j,kk) 		          	
 		          END IF
 		       END DO
 		       
-		       !WRITE(*,*) 'area_burnt_cell, area_burnt', areaignitedcell(i,j,:)
+		       !WRITE(*,*) 'area_burnt_cell, area_burnt', a_areaignitedcell%d(i,j,:)
 		       a_fuelburnt%d(i,j) = fuel_burnt
 		       a_areaburnt%d(i,j) = MIN(area_burnt_cell, deltax*deltay)
-		       a_tcrit%d(i,j) = ignitiontimecell(i,j,20)
+		       a_tcrit%d(i,j) = a_ignitiontimecell%d(i,j,20)
 		       sh_flx(i,j) = sh_flx(i,j) + total_se_fire 
 		       lh_flx(i,j) = lh_flx(i,j) + total_la_fire		
 		       !WRITE(*,*) 'sh_fire, lh_fire', total_se_fire, total_la_fire 		                 
@@ -921,7 +922,7 @@ SUBROUTINE update_ignition(time)
    a_ignitiontime%d(nxp,:) = a_ignitiontime%d(nxp-1,:)
    a_ignitiontime%d(:,1) = a_ignitiontime%d(:,nyp-1) 
    a_ignitiontime%d(:,nyp) = a_ignitiontime%d(:,nyp)
-   
+       
 END SUBROUTINE update_ignition
 
 
@@ -936,7 +937,7 @@ SUBROUTINE surface_state()
   USE mo_diag_state, ONLY: a_tskin, a_qskin, a_fgi, a_weight, a_fcz0, & 
   			   a_fuelmcg, a_ignitiontime, a_fuelburnt, &
   			   a_firespread, a_areaburnt, a_phiwc, a_phiwb, & 
-  			   a_tcrit, a_R0
+  			   a_tcrit, a_R0, a_ignitiontimecell, a_areaignitedcell
   USE grid, ONLY: sst, psrf,nxp,nyp, deltax, deltay, runtype
   
   IMPLICIT NONE
@@ -966,14 +967,12 @@ SUBROUTINE surface_state()
   ALLOCATE(fuelmcgg(nxp_global,nyp_global), phiwcg(nxp_global,nyp_global), phiwbg(nxp_global,nyp_global))
   ALLOCATE(R0g(nxp_global,nyp_global))
   
-  ALLOCATE(firespreadg(nxp_global,nyp_global),ignitiontimeg(nxp_global,nyp_global),areaburntg(nxp_global,nyp_global)) 
-  ALLOCATE(ignitiontimecell(nxp,nyp,20))
-  ALLOCATE(areaignitedcell(nxp,nyp,20))
-  ignitiontimecell = 1.0E15
-  areaignitedcell = 0.  
+  ALLOCATE(firespreadg(nxp_global,nyp_global),ignitiontimeg(nxp_global,nyp_global),areaburntg(nxp_global,nyp_global))  
  
   IF (runtype == 'INITIAL') THEN
    	areaburntg = 0.
+   	a_ignitiontimecell%d = 1.0E15
+   	a_areaignitedcell%d = 0.
           WRITE(*,*) 'Runtype INITIAL reading surface properties from datafiles/surface_in.nc '
 	  IF (READ_NC) THEN
 	     ! Read the surface properties
@@ -1026,36 +1025,11 @@ SUBROUTINE surface_state()
 	  a_phiwb%d = phiwbg(istart:iend,jstart:jend)  
 	  a_tcrit%d  = 1.0E15 ! Same as no fire 
 	  a_firespread%d = R0g(istart:iend,jstart:jend)
-	  ignitiontimecell(:,:,1) = ignitiontimeg(istart:iend,jstart:jend)    
-  ELSE
+	  a_ignitiontimecell%d(:,:,1) = ignitiontimeg(istart:iend,jstart:jend)    
+  !ELSE
           !WRITE(*,*) 'Runtype HISTORY updating surface properties'
-          DO j = 1, nyp
-             DO i = 1, nxp
-                IF (a_areaburnt%d(i,j)>0.) THEN 
-                   ! Number of sub-grid cells ignited 
-                   nbcell = NINT(a_areaburnt%d(i,j)/(deltax*deltay/20))
-                   remainder = MOD(a_areaburnt%d(i,j),(deltax*deltay/20))                      
-                   IF (nbcell >1) THEN
-          	      DO kk=1, nbcell
-             	         areaignitedcell(i,j,kk)  = (deltax*deltay/20)
-             	         ignitiontimecell(i,j,kk) = a_ignitiontime%d(i,j)*kk/nbcell
-             	      END DO
-             	      IF (remainder >0.) THEN
-             	         areaignitedcell(i,j,nbcell+1) = a_areaburnt%d(i,j) - & 
-             	            nbcell*(deltax*deltay/20)
-             	         ignitiontimecell(i,j,nbcell+1) = a_ignitiontime%d(i,j)
-             	      END IF
-             	   ELSE IF (nbcell == 0) THEN
-             	      areaignitedcell(i,j,1)  = a_areaburnt%d(i,j)
-             	      ignitiontimecell(i,j,1) = a_ignitiontime%d(i,j)                	      	 
-             	   END IF
-             	END IF
-             	IF (a_areaburnt%d(i,j)>= deltax*deltay) THEN
-             	   ignitiontimecell(i,j,20) = a_tcrit%d(i,j)     
-                END IF             	    
-             END DO 
-          END DO          
-   END IF
+          ! a_ignitiontimecell and a_areaignitedcell were saved as diagnostic variables
+  END IF
   
 END SUBROUTINE surface_state
    

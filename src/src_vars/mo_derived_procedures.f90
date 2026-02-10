@@ -34,7 +34,7 @@ MODULE mo_derived_procedures
             surfaceFluxes,   &  ! Diagnose surface fluxes in W/m2
             getCDNC,         &  ! Diagnose the "real" CDNC ( 2 um < D < 80 um; level >= 4 )
             getCNC,          &  ! Diagnose the "cloud number concentration" (D > 2 um; level >= 4)
-            getReff,         &  ! Get the effective radius using all liquid hdrometeor > 2 um (level >= 4)
+            getReff,         &  ! Get the effective radius using all liquid hydrometeor > 2 um (level >= 4)
             getBinTotMass,   &  ! Get the binned total mass
             getGasConc,      &  ! Get the concentration of specific precursor gas
             initContactAngle,&  ! Convert the IN nucleated fraction into the initial value for contact angle integration

@@ -54,13 +54,11 @@ MODULE mo_diag_state
   TYPE(FloatArray2D), TARGET :: a_ustar              ! 2: Friction velocity
   TYPE(FloatArray2D), TARGET :: a_tstar              ! 3: turbulent temperature scale 
   TYPE(FloatArray2D), TARGET :: a_rstar              ! 4: turbulent moisture scale
-  TYPE(FloatArray2D), TARGET :: uw_sfc               ! 5: Surface fluxes
-  TYPE(FloatArray2D), TARGET :: vw_sfc               ! 6: 
-  TYPE(FloatArray2D), TARGET :: ww_sfc               ! 7:
-  TYPE(FloatArray2D), TARGET :: wt_sfc               ! 8: 
-  TYPE(FloatArray2D), TARGET :: wq_sfc               ! 9:
-  
-
+  TYPE(FloatArray2D), TARGET :: uw_sfc               ! 5: Surface fluxes -> kinem. turbulent flux u
+  TYPE(FloatArray2D), TARGET :: vw_sfc               ! 6: Kinematic turbulent flux v
+  TYPE(FloatArray2D), TARGET :: ww_sfc               ! 7: Kinematic turbulent flux w
+  TYPE(FloatArray2D), TARGET :: wt_sfc               ! 8: Sensible heat flux
+  TYPE(FloatArray2D), TARGET :: wq_sfc               ! 9: Latent heat flux
   ! -------------------------------------------------------------------------------
   ! Do these need to be stored? If not, move to mo_derived_state?
   TYPE(FloatArray2D), TARGET :: a_sfcrrate           ! 10: Surface rain rate in W/m2
@@ -83,6 +81,11 @@ MODULE mo_diag_state
   REAL, ALLOCATABLE, TARGET :: a_diag2d(:,:,:)
   INTEGER, PARAMETER :: ndiag2d = 25      ! Remember to update if adding new variables!!
   
+  ! Ignition time in surface sub-grid cells
+  TYPE(FloatArray3d), TARGET :: a_ignitiontimecell   ! Ignition time in sub-grid cells 
+  TYPE(FloatArray3d), TARGET :: a_areaignitedcell    ! Burning area in sub-grid cells 
+  REAL, ALLOCATABLE, TARGET ::  d_sbgcell(:,:,:)     ! xt yt sbg
+  REAL, ALLOCATABLE, TARGET ::  d2_sbgcell(:,:,:)    ! xt yt sbg
   ! --------------------------------------------------------------------------------------------------------------------------------------------------
   ! Microphysical process rates from SALSA -- they need to be stored during the timestep because they cannot be simply diagnosed afterwards
   ! For now, these are BULK process rates only for water/ice, except where indicated otherwise !! Number concentration rate given for particle formation processes,
@@ -157,7 +160,11 @@ MODULE mo_diag_state
       a_diag2d = 0.
       n3d = 0
       n2d = 0
-
+ 
+     ALLOCATE(d_sbgcell(nxp,nyp,20), d2_sbgcell(nxp,nyp,20))
+     d_sbgcell  = 0.
+     d2_sbgcell = 0.
+     
       IF (level < 4) THEN
          ALLOCATE(a_rateDiag3d(nzp,nxp,nyp,nratediag3d_bulk))
       ELSE IF (level >= 4 .AND. .NOT. lpback) THEN
@@ -685,6 +692,19 @@ MODULE mo_diag_state
       pipeline => a_R0
       CALL Diag%newField("R0","Fire Spread rate without wind effects","m/s","xtytt",   &
                          ANY(outputlist == "R0"), pipeline)               
+      
+      pipeline => NULL()
+      a_ignitiontimecell = FloatArray3d(d_sbgcell(:,:,1:20)) !Fixed sub-grid division
+      pipeline => a_ignitiontimecell
+      CALL Diag%newField("ignitiontimesbg", "Ignition time in sub-grid cells", "s", "xtytsbg",   &
+                            ANY(outputlist == "ignitiontimesbg"), pipeline)
+      
+      pipeline => NULL()
+      a_areaignitedcell = FloatArray3d(d2_sbgcell(:,:,1:20)) !Fixed sub-grid division
+      pipeline => a_areaignitedcell
+      CALL Diag%newField("areaignitedsbg", "Burning area in sub-grid cells", "m2", "xtytsbg",   &
+                            ANY(outputlist == "areaignitedsbg"), pipeline)  
+  
       
       ! -----------------------------------
       ! Process rate diagnostics

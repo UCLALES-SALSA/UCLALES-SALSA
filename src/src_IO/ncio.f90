@@ -40,10 +40,13 @@ MODULE ncio
      INTEGER :: timeID=0, ztID=0, zmID=0, xtID=0, xmID=0, ytID=0, ymID=0
      ! Dimensions IDs (SALSA bin axes)
      INTEGER :: aeaID=0, claID=0, aebID=0, clbID=0, prcID=0, iceID=0  
-
+     
+     ! Dimension IDs (sub-grid array) 
+     INTEGER :: sbgID=0
+     
      ! Dimension environment arrays used for variable definitions
-     INTEGER :: dim_mttt(4) = 0, dim_tmtt(4) = 0, dim_ttmt(4) = 0, dim_tttt(4) = 0,  &
-                dim_ztt(2)  = 0, dim_zmt(2)  = 0, dim_xtytt(3) = 0,                  &
+     INTEGER :: dim_mttt(4) = 0, dim_tmtt(4) = 0, dim_ttmt(4) = 0, dim_tttt(4) = 0,   &
+                dim_ztt(2)  = 0, dim_zmt(2)  = 0, dim_xtytt(3) = 0, dim_xtytsbg(3)=0, &
                 dim_ttttaea(5) = 0, dim_ttttcla(5) = 0,    &
                 dim_ttttaeb(5) = 0, dim_ttttclb(5) = 0,    &
                 dim_ttttprc(5) = 0, dim_ttttice(5) = 0,    &
@@ -139,13 +142,13 @@ MODULE ncio
     SUBROUTINE define_nc_dims(SELF,n1,n2,n3, &
                               inae_a,incld_a,  &
                               inprc,inae_b,    &
-                              incld_b,inice    )
+                              incld_b,inice,insbg)
 
       CLASS(StreamDef), INTENT(inout) :: SELF
       INTEGER, OPTIONAL, INTENT (in) :: n1, n2, n3    
       INTEGER, OPTIONAL, INTENT(in)  :: inae_a,incld_a,inprc, &
                                         inae_b,incld_b,       &
-                                        inice            
+                                        inice,insbg            
       INTEGER :: iret, VarID
 
       
@@ -182,6 +185,9 @@ MODULE ncio
       IF (present(inice)) THEN
          iret = nf90_def_dim(SELF%ncid, 'ice', inice, SELF%iceID)
       END IF
+       IF (present(insbg)) THEN
+         iret = nf90_def_dim(SELF%ncid, 'sbg', insbg, SELF%sbgID)
+      END IF
       
       SELF%dim_xtytt = [SELF%xtID,SELF%ytID,SELF%timeID]
       SELF%dim_ztt = [SELF%ztID,SELF%timeID]
@@ -190,6 +196,9 @@ MODULE ncio
       SELF%dim_mttt= [SELF%zmID,SELF%xtID,SELF%ytID,SELF%timeID]  ! zpoint
       SELF%dim_tmtt= [SELF%ztID,SELF%xmID,SELF%ytID,SELF%timeID]  ! upoint
       SELF%dim_ttmt= [SELF%ztID,SELF%xtID,SELF%ymID,SELF%timeID]  ! ypoint
+      ! Silvia: sub-grid dimension for isfctyp=6 vegetation fire case 08-02-26
+      ! sbg : divides the grid cell in 20 sub-cells of equal size
+      SELF%dim_xtytsbg = [SELF%xtID,SELF%ytID,SELF%sbgID]
       
       ! Juha: dimension environments for size distribution variables
       SELF%dim_ttttaea = [SELF%ztID,SELF%xtID,SELF%ytID,SELF%aeaID,SELF%timeID]
@@ -338,6 +347,8 @@ MODULE ncio
          iret = nf90_def_var(SELF%ncid,name,NF90_FLOAT,SELF%prcID,VarID)
       CASE ('ice')
          iret = nf90_def_var(SELF%ncid,name,NF90_FLOAT,SELF%iceID,VarID)
+      CASE ('sbg')
+         iret = nf90_def_var(SELF%ncid,name,NF90_FLOAT,SELF%sbgID,VarID)  
       ! //
       ! Binned 3d output   
       CASE ('ttttaea')
@@ -366,6 +377,9 @@ MODULE ncio
       ! Regular 2d output (x-y)
       CASE ('xtytt')
          iret = nf90_def_var(SELF%ncid,name,NF90_FLOAT,SELF%dim_xtytt,VarID)
+      ! Regular 2d output (x-y) + sub-grid division
+      CASE ('xtytsbg')
+         iret = nf90_def_var(SELF%ncid,name,NF90_FLOAT,SELF%dim_xtytsbg,VarID)   
       ! //
       ! Binned time series
       CASE ('taea')

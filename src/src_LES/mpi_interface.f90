@@ -595,10 +595,10 @@ CONTAINS
    pxynw = ranktable(wrxid-1,wryid+1)
    pxysw = ranktable(wrxid-1,wryid-1)
    
-   CALL MPI_TYPE_VECTOR(n2-4,1,n2,MY_REAL, row_type, ierror)
+   CALL MPI_TYPE_VECTOR(n2-4,2,n2,MY_REAL, row_type, ierror)
    CALL MPI_TYPE_COMMIT(row_type,ierror)
    
-   CALL MPI_TYPE_CONTIGUOUS(n3-4, MY_REAL, col_type, ierror)
+   CALL MPI_TYPE_CONTIGUOUS(2*(n3-4), MY_REAL, col_type, ierror)
    CALL MPI_TYPE_COMMIT(col_type,ierror)
    
    ! left to right
@@ -606,18 +606,20 @@ CONTAINS
    CALL mpi_irecv(var(3,n3-1), 1, col_type, pyback, 140, MPI_COMM_WORLD, req(2), ierror)
                    
    ! right to left
-   CALL mpi_isend(var(3,n3-2), 1, col_type, pyback, 130, MPI_COMM_WORLD, req(3), ierror)
+   CALL mpi_isend(var(3,n3-3), 1, col_type, pyback, 130, MPI_COMM_WORLD, req(3), ierror)
    CALL mpi_irecv(var(3,1), 1, col_type, pyfwd, 130, MPI_COMM_WORLD, req(4), ierror)
 
-   ! top to bottom
+   ! bottom to top
    CALL mpi_isend(var(3,3), 1, row_type, pxfwd, 120, MPI_COMM_WORLD, req(5), ierror) 
    CALL mpi_irecv(var(n2-1,3), 1, row_type, pxback, 120, MPI_COMM_WORLD, req(6), ierror)
                    
-   ! bottom to top
+   ! top to bottom
    CALL mpi_isend(var(n2-2,3), 1, row_type, pxback, 110, MPI_COMM_WORLD, req(7), ierror) 
    CALL mpi_irecv(var(1,3), 1, row_type, pxfwd, 110, MPI_COMM_WORLD, req(8), ierror)
    
-      
+   CALL MPI_TYPE_FREE(row_type, ierror)
+   CALL MPI_TYPE_FREE(col_type, ierror)   
+   
    END SUBROUTINE cyclics2d  
    
    
