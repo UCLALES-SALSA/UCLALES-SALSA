@@ -515,8 +515,6 @@ CONTAINS
 		       ELSEIF  ((fbcell>=0.95) .AND. (time > a_ignitiontimecell%d(i,j,19).AND. &
 		          		a_ignitiontimecell%d(i,j,20) > 1.E12)) THEN   
 		                  a_ignitiontimecell%d(i,j,20) = time                             
-		       !ELSEIF  (fbcell >= 0.99) .OR. a_ignitiontimecell%d(i,j,20) > 1.E12)) THEN   	          		 
-		                  !a_ignitiontimecell%d(i,j,20) = time  
 		       END IF
 		              	       	    
           	       fuel_burnt = 0.
@@ -895,9 +893,9 @@ SUBROUTINE update_ignition(time)
    REAL, INTENT(IN) :: time
     
    DO j = 2, nyp-1
-     DO i = 2, nxp-1 	                              
+     DO i = 2, nxp-1	                              
 	IF (a_areaburnt%d(i,j)>=deltax*deltay) THEN
-   	   IF (a_firespread%d(i,j+1)>a_firespread%d(i,j).AND. a_ignitiontime%d(i,j+1)>1.E12) THEN   	    	   	   
+   	   IF (a_firespread%d(i,j+1)>a_firespread%d(i,j).AND. a_ignitiontime%d(i,j+1)>1.E12 ) THEN   	    	   	   
    	      a_ignitiontime%d(i,j+1)   = time
    	   ELSE IF (a_firespread%d(i,j-1)>a_firespread%d(i,j).AND. a_ignitiontime%d(i,j-1)>1.E12) THEN
    	      a_ignitiontime%d(i,j-1)   = time
@@ -918,11 +916,6 @@ SUBROUTINE update_ignition(time)
      END DO
    END DO 
    
-   a_ignitiontime%d(1,:) = a_ignitiontime%d(2,:) 
-   a_ignitiontime%d(nxp,:) = a_ignitiontime%d(nxp-1,:)
-   a_ignitiontime%d(:,1) = a_ignitiontime%d(:,nyp-1) 
-   a_ignitiontime%d(:,nyp) = a_ignitiontime%d(:,nyp)
-       
 END SUBROUTINE update_ignition
 
 

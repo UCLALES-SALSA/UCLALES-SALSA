@@ -80,7 +80,7 @@ MODULE mpi_interface
                                            ydisp,xcount,ycount
 
    INTEGER :: stridetype,xstride,ystride,xystride,xylarry,xyzlarry,&
-              fxytype,fxyztype, row_type, col_type
+              fxytype,fxyztype, col_type, row_type
 
    CHARACTER(len=80) :: ver='', author=''
    ! Additional, e.g. case specific, information
@@ -460,6 +460,12 @@ CONTAINS
       CALL MPI_TYPE_COMMIT(xylarry,ierr)
       CALL MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,nxp*nzp,MY_REAL,xyzlarry,ierr)
       CALL MPI_TYPE_COMMIT(xyzlarry,ierr)
+      
+      !CALL MPI_TYPE_VECTOR(2,nxp,nxp,MY_REAL,row_type,ierr)
+      !CALL MPI_TYPE_COMMIT(row_type,ierr)
+      
+      !CALL MPI_TYPE_VECTOR(nyp-4,2,nxp,MY_REAL,col_type,ierr)
+      !CALL MPI_TYPE_COMMIT(col_type,ierr)
 
    END SUBROUTINE init_alltoall_reorder
 
@@ -569,7 +575,6 @@ CONTAINS
    INTEGER :: req(8)
    INTEGER :: ierror, stats(MPI_STATUS_SIZE,8)
    INTEGER :: pxfwd, pxback, pyfwd, pyback
-   INTEGER :: pxyne, pxyse, pxynw, pxysw
    
    IF (nypg == 5) THEN
    	var(:,1) = var(:,3)
@@ -585,41 +590,46 @@ CONTAINS
    	var(5,:) = var(3,:)
    END IF
    
-   pxfwd  = ranktable(wrxid+1,wryid) ! bottom
-   pxback = ranktable(wrxid-1,wryid) ! top
-   pyfwd  = ranktable(wrxid,wryid+1) ! right
-   pyback = ranktable(wrxid,wryid-1) ! left
-   
-   pxyne = ranktable(wrxid+1,wryid+1)
-   pxyse = ranktable(wrxid+1,wryid-1)
-   pxynw = ranktable(wrxid-1,wryid+1)
-   pxysw = ranktable(wrxid-1,wryid-1)
-   
-   CALL MPI_TYPE_VECTOR(n2-4,2,n2,MY_REAL, row_type, ierror)
+   pxfwd  = ranktable(wrxid+1,wryid) ! right
+   pxback = ranktable(wrxid-1,wryid) ! left
+   pyfwd  = ranktable(wrxid,wryid+1) ! up
+   pyback = ranktable(wrxid,wryid-1) ! down
+                
+   CALL MPI_TYPE_VECTOR(2,n2-4,n2,MY_REAL, row_type, ierror)
    CALL MPI_TYPE_COMMIT(row_type,ierror)
    
-   CALL MPI_TYPE_CONTIGUOUS(2*(n3-4), MY_REAL, col_type, ierror)
+   CALL MPI_TYPE_VECTOR(n3-4,2,n2,MY_REAL, col_type, ierror)
    CALL MPI_TYPE_COMMIT(col_type,ierror)
    
-   ! left to right
-   CALL mpi_isend(var(3,3), 1, col_type, pyfwd, 140, MPI_COMM_WORLD, req(1), ierror)
-   CALL mpi_irecv(var(3,n3-1), 1, col_type, pyback, 140, MPI_COMM_WORLD, req(2), ierror)
-                   
-   ! right to left
-   CALL mpi_isend(var(3,n3-3), 1, col_type, pyback, 130, MPI_COMM_WORLD, req(3), ierror)
-   CALL mpi_irecv(var(3,1), 1, col_type, pyfwd, 130, MPI_COMM_WORLD, req(4), ierror)
+   
+   CALL mpi_isend(var(n2-3,3),1,col_type, pxfwd, 101, &
+                     MPI_COMM_WORLD, req(1), ierror)
+   
+   CALL mpi_isend(var(1,3), 1, col_type, pxback, 102, &
+                     MPI_COMM_WORLD, req(2), ierror)    
+    
+   CALL mpi_irecv(var(n2-3,3), 1, col_type, pxfwd, 102, &
+                     MPI_COMM_WORLD, req(3), ierror)
+   
+   CALL mpi_irecv(var(1,3), 1, col_type, pxback, 101, &
+                     MPI_COMM_WORLD, req(4), ierror) 
+      
+   
+   CALL mpi_isend(var(3,3), 1, row_type, pyback, 104, &
+                     MPI_COMM_WORLD, req(5), ierror)                
+   
+   CALL mpi_irecv(var(3,n3-1), 1, row_type, pyfwd, 104, &
+                     MPI_COMM_WORLD, req(6), ierror) 
+   
+   
+   CALL mpi_isend(var(3,n3-3), 1,row_type, pyfwd, 105, &
+                     MPI_COMM_WORLD, req(7), ierror)
+                     
+   CALL mpi_irecv(var(3,1), 1, row_type, pyback, 105, &
+                     MPI_COMM_WORLD, req(8), ierror) 
+   
 
-   ! bottom to top
-   CALL mpi_isend(var(3,3), 1, row_type, pxfwd, 120, MPI_COMM_WORLD, req(5), ierror) 
-   CALL mpi_irecv(var(n2-1,3), 1, row_type, pxback, 120, MPI_COMM_WORLD, req(6), ierror)
-                   
-   ! top to bottom
-   CALL mpi_isend(var(n2-2,3), 1, row_type, pxback, 110, MPI_COMM_WORLD, req(7), ierror) 
-   CALL mpi_irecv(var(1,3), 1, row_type, pxfwd, 110, MPI_COMM_WORLD, req(8), ierror)
-   
-   CALL MPI_TYPE_FREE(row_type, ierror)
-   CALL MPI_TYPE_FREE(col_type, ierror)   
-   
+                     
    END SUBROUTINE cyclics2d  
    
    
