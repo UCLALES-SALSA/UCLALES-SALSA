@@ -38,7 +38,7 @@ MODULE mo_derived_procedures
             getBinTotMass,   &  ! Get the binned total mass
             getGasConc,      &  ! Get the concentration of specific precursor gas
             initContactAngle,&  ! Convert the IN nucleated fraction into the initial value for contact angle integration
-            binSpecMixrat       ! Get binned mass of given aerosol constituent (level >= 4)
+            binSpecMixrat     ! Get binned mass of given aerosol constituent (level >= 4)
   
   CONTAINS
 
@@ -420,7 +420,7 @@ MODULE mo_derived_procedures
      nspec = spec%getNSpec(type="total")
      ALLOCATE(pmass(nspec))
      pmass = 0.
-
+     ! sph=false enables calculation of non-spherical ice diameter. This will only affect ice.
      sphtype = .FALSE.
      IF (name == "irhob") sphtype = .TRUE.
      
@@ -441,7 +441,7 @@ MODULE mo_derived_procedures
      DEALLOCATE(pmass)
      
    END SUBROUTINE binIceDensities
-
+   
    ! ------------------------------------------
 
    SUBROUTINE surfaceFluxes(name,output)

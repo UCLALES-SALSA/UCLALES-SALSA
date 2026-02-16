@@ -45,7 +45,9 @@ MODULE mo_diag_state
   !
   TYPE(FloatArray4d), TARGET :: d_VtPrc, d_VtIce ! Precipitation and ice terminal fall velocities
   TYPE(FloatArray4d), TARGET :: d_AtPrc, d_AtIce ! Precipitation and ice cross sectional area
+  TYPE(FloatArray4d), TARGET :: d_ArPrc, d_ArIce ! Precipitation and ice particles aspect ratio
   REAL, ALLOCATABLE, TARGET :: d_binned(:,:,:,:), d2_binned(:,:,:,:) ! Auxiliary arrays
+  REAL, ALLOCATABLE, TARGET :: d3_binned(:,:,:,:)
   
   !----------------------------------------------------------------------------
   ! Two dimensional variables that need to be stored during the timestep
@@ -181,8 +183,10 @@ MODULE mo_diag_state
          IF ( level > 4) nbinned = nbinned + nice
          ALLOCATE(d_binned(nzp,nxp,nyp,nbinned))
          ALLOCATE(d2_binned(nzp,nxp,nyp,nbinned))
+         ALLOCATE(d3_binned(nzp,nxp,nyp,nbinned))
          d_binned = 0.
          d2_binned = 0.
+         d3_binned = 0.
          n4db = 0
       END IF
          
@@ -904,7 +908,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          d_VtPrc = FloatArray4d(d_binned(:,:,:,n4db:n4db+nprc-1))
          pipeline => d_VtPrc
-         CALL Diag%newField("VtPrc", "Terminal fall speed of precip", "m/s", "ttttprc",   &
+         CALL Diag%newField("VtPrc", "Terminal fall speed of raindrops", "m/s", "ttttprc",   &
                             ANY(outputlist == "VtPrc"), pipeline)
          n4db = n4db + nprc
       END IF
@@ -913,7 +917,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          d_VtIce = FloatArray4d(d_binned(:,:,:,n4db:n4db+nice-1))
          pipeline => d_VtIce
-         CALL Diag%newField("VtIce", "Terminal fall speed of ice", "m/s", "ttttice",   &
+         CALL Diag%newField("VtIce", "Terminal fall speed of ice particles", "m/s", "ttttice",   &
                             ANY(outputlist == "VtIce"), pipeline)
          n4db = n4db + nice
       END IF
@@ -923,7 +927,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          d_AtPrc = FloatArray4d(d2_binned(:,:,:,n4db:n4db+nprc-1))
          pipeline => d_AtPrc
-         CALL Diag%newField("AtPrc", "Droplet cross sectional area", "m**2", "ttttprc",   &
+         CALL Diag%newField("AtPrc", "Raindrop cross sectional area", "m**2", "ttttprc",   &
                             ANY(outputlist == "AtPrc"), pipeline)
          n4db = n4db + nprc
       END IF
@@ -932,8 +936,26 @@ MODULE mo_diag_state
          pipeline => NULL()
          d_AtIce = FloatArray4d(d2_binned(:,:,:,n4db:n4db+nice-1))
          pipeline => d_AtIce
-         CALL Diag%newField("AtIce", "Ice cross sectional area", "m**2", "ttttice",   &
+         CALL Diag%newField("AtIce", "Ice particle cross sectional area", "m**2", "ttttice",   &
                             ANY(outputlist == "AtIce"), pipeline)
+         n4db = n4db + nice
+      END IF
+      
+      n4db = 1
+      IF ( level >= 4) THEN
+         pipeline => NULL()
+         d_ArPrc= FloatArray4d(d3_binned(:,:,:,n4db:n4db+nprc-1))
+         pipeline => d_ArPrc
+         CALL Diag%newField("ArPrc", "Effective aspect ratio of raindrops", "", "ttttprc",   &
+                            ANY(outputlist == "ArPrc"), pipeline)
+         n4db = n4db + nprc
+      END IF
+      IF ( level > 4) THEN
+         pipeline => NULL()
+         d_ArIce = FloatArray4d(d3_binned(:,:,:,n4db:n4db+nice-1))
+         pipeline => d_ArIce
+         CALL Diag%newField("ArIce", "Effective aspect ratio of ice particles", "", "ttttice",   &
+                            ANY(outputlist == "ArIce"), pipeline)
          n4db = n4db + nice
       END IF
       

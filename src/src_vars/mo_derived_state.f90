@@ -50,7 +50,7 @@ MODULE mo_derived_state
     
   ! Some binned diagnostics
   TYPE(FloatArray4d), TARGET :: irhob, irhoe ! Bulk mean and effective ice densities
-
+  
   ! Initial values for contact angle integration in immersion and deposition freezing
   TYPE(FloatArray4d), TARGET :: immThetaaba, immThetaabb, immThetacba, immThetacbb, immThetapba,    &
                                 depThetaaba, depThetaabb, depThetacba, depThetacbb, depThetapba

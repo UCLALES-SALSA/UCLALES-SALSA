@@ -90,7 +90,7 @@ MODULE mcrp
       USE mo_diag_state, ONLY : a_rv,a_rc,a_theta,     &
                                 a_temp,a_rsl,a_dn,a_ustar,             &
                                 a_rrate, a_irate, a_sfcrrate, a_sfcirate,   &
-                                d_VtPrc, d_VtIce, d_AtPrc, d_AtIce
+                                d_VtPrc, d_VtIce, d_AtPrc, d_AtIce, d_ArPrc, d_ArIce
       USE mo_progn_state, ONLY : a_rp,a_tp,a_rt,a_tt,a_rpp,a_rpt,a_npp,a_npt
       USE mo_aux_state, ONLY : dn0
       INTEGER, INTENT(in) :: level
@@ -107,7 +107,7 @@ MODULE mcrp
          nspec = spec%getNSpec(type="wet")
          ! Import tracers directly and not via arguments because theres so many...
          CALL sedim_SALSA(nspec,level,a_ustar,a_temp,a_theta,a_dn,a_rrate,   &
-                          a_sfcrrate,a_irate,a_sfcirate,d_VtPrc,d_VtIce,a_tt, d_AtPrc,d_AtIce)
+                          a_sfcrrate,a_irate,a_sfcirate,d_VtPrc,d_VtIce,a_tt, d_AtPrc,d_AtIce, d_ArPrc, d_ArIce)
                          
       CASE(0) ! For piggybacking call to level 3 microphysics. pb_mcrph just wraps the necessary calls to thermo and mcrph
          CALL pb_mcrph(dn0)
@@ -746,7 +746,7 @@ MODULE mcrp
     ! Jaakko: Modified for the use of ice and snow bins
     ! 
     SUBROUTINE sedim_SALSA(nspec,level,ustar,tk,th,adn,rrate,sfcrrate,    &
-                           irate,sfcirate,VtPrc,VtIce,tlt, AtPrc, AtIce   )
+                           irate,sfcirate,VtPrc,VtIce,tlt, AtPrc, AtIce, ArPrc, ArIce)
       USE util, ONLY : getMassIndex
       USE mo_progn_state, ONLY :  a_naerop,  a_naerot,  a_maerop,  a_maerot,         &
                                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,        &
@@ -766,6 +766,8 @@ MODULE mcrp
       TYPE(FloatArray2d), INTENT(inout) :: sfcrrate, sfcirate
       TYPE(FloatArray4d), INTENT(inout) :: VtPrc,VtIce ! droplets and ice terminal velocities
       TYPE(FloatArray4d), INTENT(inout) :: AtPrc,AtIce ! droplets and ice cross-sectional areas
+      TYPE(FloatArray4d), INTENT(inout) :: ArIce       ! Aspect ratio of ice particles
+      TYPE(FloatArray4d), INTENT(inout) :: ArPrc       ! Aspect ratio of raindrops For now =1
       
       INTEGER :: i,j,k,nc,istr,iend
 
@@ -850,7 +852,7 @@ MODULE mcrp
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
       IF (sed_precp%state) THEN
          CALL DepositionFast(nprc,nspec,tk,adn,a_nprecpp,a_mprecpp,   &
-                             prnt,prmt,remprc,rrate,sfcrrate,VtPrc,3,AtPrc)
+                             prnt,prmt,remprc,rrate,sfcrrate,VtPrc,3,AtPrc, ArPrc)
          
          a_nprecpt%d(:,:,:,:) = a_nprecpt%d(:,:,:,:) + prnt(:,:,:,:)/dtlt
          a_mprecpt%d(:,:,:,:) = a_mprecpt%d(:,:,:,:) + prmt(:,:,:,:)/dtlt
@@ -876,7 +878,7 @@ MODULE mcrp
       
       IF (sed_ice%state .AND. level == 5) THEN                          
          CALL DepositionFast(nice,nspec+1,tk,adn,a_nicep,a_micep,     &
-                             irnt,irmt,remice,irate,sfcirate,VtIce,4,AtIce)
+                             irnt,irmt,remice,irate,sfcirate,VtIce,4,AtIce,ArIce)
          
          a_nicet%d(:,:,:,:) = a_nicet%d(:,:,:,:) + irnt(:,:,:,:)/dtlt
          a_micet%d(:,:,:,:) = a_micet%d(:,:,:,:) + irmt(:,:,:,:)/dtlt
@@ -1074,7 +1076,7 @@ MODULE mcrp
 
 
   !------------------------------------------------------------------
-  SUBROUTINE DepositionFast(nb,ns,tk,adn,numc,mass,prnt,prvt,remprc,rate,srate,Vt,flag,At)
+  SUBROUTINE DepositionFast(nb,ns,tk,adn,numc,mass,prnt,prvt,remprc,rate,srate,Vt,flag,At,Ar)
     USE mo_particle_external_properties, ONLY : calcDiamLES, terminal_vel, cross_sec_area
     USE util, ONLY : getBinMassArray
     USE mo_submctl, ONLY : nlim,prlim,pi6
@@ -1093,6 +1095,7 @@ MODULE mcrp
     TYPE(FloatArray2d), INTENT(inout) :: srate ! Surface precip rate (W/m^2)
     TYPE(FloatArray4d), INTENT(inout) :: Vt   ! Binned particle terminal velocity
     TYPE(FloatArray4d), INTENT(inout) :: At   ! Binned cross sectional area
+    TYPE(FloatArray4d), INTENT(inout) :: Ar   ! Aspect ratio
     
     INTEGER :: k,i,j,bin
     INTEGER :: istr,iend
@@ -1107,7 +1110,8 @@ MODULE mcrp
     REAL :: lambda      ! Mean free path
     REAL :: avis,kvis   ! Air viscosity, kinematic viscosity
     REAL :: va          ! Thermal speed of air molecule
-    REAL :: vc, ac      ! Auxiliary variables for velocity and area calculations
+    REAL :: vc, ac      ! Auxiliary variables for velocity, area calculations
+    REAL :: aspr,rhoice ! Auxiliary variables for aspect ratio calculations
 
     ! For precipitation:
     REAL :: fd,fdmax,fdos ! Fall distance for rain drops, max fall distance, overshoot from nearest grid level
@@ -1167,7 +1171,7 @@ MODULE mcrp
                 ! Calculate wet size
                 CALL getBinMassArray(nb,ns,bin,zpm,pmass)
                 IF (flag < 4) THEN
-                   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.)   
+                   dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.) 
                 ELSE
                    dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.) 
                    dnsp=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.FALSE.) ! For non-spherical ice, this is the max diameter of the crystal
@@ -1185,14 +1189,28 @@ MODULE mcrp
                    vc = terminal_vel(dwet,zdn,adn%d(k,i,j),avis,GG,flag)
                    ! shape parameters for spheres are internally chosen
                    ac = cross_sec_area(dwet,flag) 
+                   aspr = 1.
                 ELSE
                    vc = terminal_vel(dwet,zdn,adn%d(k,i,j),avis,GG,flag,shape,dnsp)
                    ac = cross_sec_area(dnsp,flag,shape)
+                   rhoice = SUM(pmass)/zpn(bin)/(pi6*dnsp**3)
+                   aspr = SUM(pmass) / rhoice / ac / dnsp
                 END IF
                 
                 ! Diagnostics
                 Vt%d(k,i,j,bin) = vc
                 At%d(k,i,j,bin) = ac  
+                Ar%d(k,i,j,bin) = aspr
+                 ! Aspect-Ratio=Effective-thickness/Lateral-length for ice particles
+		     ! Assumed to correspond to the following dimensions
+		     ! Aspratio = eff_thick / L
+		     ! Effective-thickness: thickness of a ficticious plate
+		     ! that have the same mass/cross-sectional area
+		     ! eff_thick = Miba/irhoe/AtIce
+		     ! Lateral-length: non-spherical diameter or maximum dimension
+		     ! L ~ Dwiba
+		     ! iasprat = Miba/irhoe/AtIce/Dwiba
+                
                 
                 ! Determine output flux for current level: Find the closest level to which the
                 ! current drop parcel can fall within 1 timestep. If the lowest atmospheric level

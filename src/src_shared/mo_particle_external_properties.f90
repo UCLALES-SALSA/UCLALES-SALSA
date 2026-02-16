@@ -131,8 +131,6 @@ MODULE mo_particle_external_properties
     
     END FUNCTION cross_sec_area
     
-    
-    
     !--
     REAL FUNCTION kc1213(X)
       ! Calculate the term needed in 2.12 and 2.13 in Khvorostyanov and Curry 2002
