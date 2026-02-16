@@ -437,11 +437,12 @@ CONTAINS
             total_la_fire = 0.
 	    total_se_fire = 0.            
           
-          ! Field of fire spread rates affected by horizontal wind velocity R = Ro(1+phiw)                      
+          ! Field of fire spread rates affected by surface horizontal wind velocity R = Ro(1+phiw)    
+            CALL get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up%d,a_vp%d,umean,vmean)               
             DO j = 3, nyp-2
                   DO i = 3, nxp-2
-                     wspd(i,j) = max(0.1, &
-                                sqrt((a_up%d(2,i,j)+umean)**2+(a_vp%d(2,i,j)+vmean)**2))                    	
+                     !wspd(i,j) = max(0.1, &
+                                !sqrt((a_up%d(2,i,j)+umean)**2+(a_vp%d(2,i,j)+vmean)**2))                 	
                      a_firespread%d(i,j) = a_R0%d(i,j) + a_phiwc%d(i,j)*(MIN(wspd(i,j),6.0)*60/0.3048)**a_phiwb%d(i,j)  
                      ! Coen et al. (2013) wspd capped at 6 m/s         
                   END DO
@@ -585,8 +586,7 @@ CONTAINS
                  a_tstar%d(i,j) = wt_sfc%d(i,j)/a_ustar%d(i,j)
             END DO
           END DO
-          
-                 
+             
           ! Updating area burnt
           CALL cyclics2d(nxp,nyp,a_areaburnt%d,req)                
           CALL cyclicc2d(nxp,nyp,a_areaburnt%d,req) 
@@ -596,8 +596,7 @@ CONTAINS
 	  
 	  CALL cyclics2d(nxp,nyp,a_ignitiontime%d,req)     
           CALL cyclicc2d(nxp,nyp,a_ignitiontime%d,req)             
-	  
-                   
+        
 	  ! Reset for next timestep
 	  lh_flx = 0.
 	  sh_flx = 0.
