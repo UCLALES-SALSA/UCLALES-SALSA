@@ -705,6 +705,8 @@ CONTAINS
           lscndh2oae, lscndh2ocl, lscndh2oic, &
           alv, als 
      USE mo_salsa_properties, ONLY : equilibration
+     
+     
      IMPLICIT NONE
 
       INTEGER, INTENT(in) :: kproma,kbdim,klev,krow
@@ -890,9 +892,26 @@ CONTAINS
                   ! Wet diameter
                   dwet = ice(ii,jj,cc)%dnsp
                   
-                  ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
-                  cap=0.5*dwet
-                     
+                  ! Capacitance of ice crystals depending on aspect ratio
+                  !  ! Aspect-Ratio=Effective-thickness/Lateral-length for ice particles
+		     ! Assumed to correspond to the following dimensions
+		     ! Aspratio = eff_thick / L
+		     ! Effective-thickness: thickness of a ficticious plate
+		     ! that have the same mass/cross-sectional area
+		     ! eff_thick = Miba/irhoe/AtIce
+		     ! Lateral-length: non-spherical diameter or maximum dimension
+		     ! L ~ hydrometeor%dnsp maximum length
+		     ! iasprat = Miba/irhoe/AtIce/dnsph
+                  
+                  
+                   !CALL getShapeCoefficients(shape,SUM(pmass(1:ns-1)),pmass(ns),zpn(bin))
+                   ! shape parameters for spheres are internally chosen
+                  ! ac = cross_sec_area(ice(ii,jj,cc)%dwet,ice(ii,jj,cc)%phase) 
+                  ! vc = terminal_vel(ice(ii,jj,cc)%dwet,ice(ii,jj,cc)%rhomean,adn%d(k,i,j),avis,GG,ice(ii,jj,cc)%phase,shape,ice(ii,jj,cc)%dnsp)
+                  ! ac = cross_sec_area(dnsp,flag,shape)
+                  ! rhoice = SUM(pmass)/zpn(bin)/(pi6*dnsp**3)
+                  ! aspr = SUM(pmass) / rhoice / ac / dnsp 
+                  cap = 0.5*dwet  
                   ! Activity + Kelvin effect - edit when needed
                   !   Can be calculated just like for sperical homogenous particle or just ignored,
                   !   because these are not known for solid, irregular and non-homogenous particles.
@@ -915,6 +934,7 @@ CONTAINS
                   
                   ! Mass transfer according to Jacobson
                   zhlp1 = ice(ii,jj,cc)%numc*4.*pi*cap*zdfh2o*zbeta
+                  
                   zhlp2 = spec%mwa*zdfh2o*als*zwsatic(cc)*zcwsurfic(cc)/(zthcond*ptemp(ii,jj)) 
                   zhlp3 = ( (als*spec%mwa)/(rg*ptemp(ii,jj)) ) - 1.
                   

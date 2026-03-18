@@ -1208,8 +1208,8 @@ MODULE mcrp
 		     ! that have the same mass/cross-sectional area
 		     ! eff_thick = Miba/irhoe/AtIce
 		     ! Lateral-length: non-spherical diameter or maximum dimension
-		     ! L ~ Dwiba
-		     ! iasprat = Miba/irhoe/AtIce/Dwiba
+		     ! L ~ hydrometeor%dnsp maximum length
+		     ! iasprat = Miba/irhoe/AtIce/dnsph
                 
                 
                 ! Determine output flux for current level: Find the closest level to which the
