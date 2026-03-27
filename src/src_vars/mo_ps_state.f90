@@ -2,6 +2,7 @@ MODULE mo_ps_state
   USE classFieldArray
   USE mo_structured_datatypes
   USE mo_ps_procedures
+  USE mo_submctl, ONLY : ice_theta_dist
   IMPLICIT NONE
 
   ! Contains variable definitions for profile statistics outputs.
@@ -83,6 +84,7 @@ MODULE mo_ps_state
   ! binned variables
   TYPE(FloatArray2d), TARGET :: ps_Dwaba, ps_Dwabb, ps_Dwcba, ps_Dwcbb, ps_Dwpba, ps_Dwiba
   TYPE(FloatArray2d), TARGET :: ps_Naba, ps_Nabb, ps_Ncba, ps_Ncbb, ps_Npba, ps_Niba
+  TYPE(FloatArray2d), TARGET :: ps_indefaba, ps_indefabb, ps_indefcba, ps_indefcbb, ps_indefpba
   TYPE(FloatArray2d), TARGET :: ps_sipdrfr, ps_sipiibr, ps_siprmspl
   TYPE(FloatArray2d), TARGET :: ps_maSO4a, ps_maSO4b, ps_mcSO4a, ps_mcSO4b, ps_mpSO4a, ps_miSO4a,  &
                                 ps_maOCa, ps_maOCb, ps_mcOCa, ps_mcOCb, ps_mpOCa, ps_miOCa,        &
@@ -548,7 +550,49 @@ MODULE mo_ps_state
          ps_Dwiba%onDemand => globalMeanProfileBinned
          pipeline => ps_Dwiba
          CALL PS%newField("Dwiba", "Ice binned diameter", "m", "zttice",    &
-                          ANY(outputlist == "Dwiba"), pipeline)         
+                          ANY(outputlist == "Dwiba"), pipeline) 
+
+         IF (ice_theta_dist) THEN
+            pipeline => NULL()
+            ps_indefaba = FloatArray2d()
+            ps_indefaba%onDemand => globalMeanProfileBinned
+            pipeline => ps_indefaba
+            CALL PS%newField("indefaba","IN nucleated fraction, aero A",     &
+                               "1","ttttaea",ANY(outputlist == "indefaba"),    &
+                               pipeline) 
+
+            pipeline => NULL()
+            ps_indefabb = FloatArray2d()
+            ps_indefabb%onDemand => globalMeanProfileBinned
+            pipeline => ps_indefabb
+            CALL PS%newField("indefabb","IN nucleated fraction, aero B",     &
+                               "1","ttttaeb",ANY(outputlist == "indefabb"),    &
+                               pipeline)   
+
+            pipeline => NULL()
+            ps_indefcba = FloatArray2d()
+            ps_indefcba%onDemand => globalMeanProfileBinned
+            pipeline => ps_indefcba
+            CALL PS%newField("indefcba","IN nucleated fraction, cloud A",     &
+                               "1","ttttcla",ANY(outputlist == "indefcba"),    &
+                               pipeline)              
+            
+            pipeline => NULL()
+            ps_indefcbb = FloatArray2d()
+            ps_indefcbb%onDemand => globalMeanProfileBinned
+            pipeline => ps_indefcbb
+            CALL PS%newField("indefcbb","IN nucleated fraction, cloud B",   &
+                               "1","ttttclb",ANY(outputlist == "indefcbb"),   &
+                               pipeline)
+            
+            pipeline => NULL()
+            ps_indefpba = FloatArray2d()
+            ps_indefpba%onDemand => globalMeanProfileBinned
+            pipeline => ps_indefpba
+            CALL PS%newField("indefpba","IN nucleated fraction, precip",    &
+                               "1","ttttprc",ANY(outputlist == "indefpba"),   &
+                               pipeline)
+         END IF        
       END IF
 
       IF (level >= 4) THEN

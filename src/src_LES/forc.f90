@@ -45,7 +45,6 @@ MODULE forc
 
   ! these are now all namelist parameters
   CHARACTER (len=10) :: case_name = 'none'          
-  CHARACTER (len=100)   :: nudging_file
 
   TYPE(ProcessSwitch) :: forcing           
 
@@ -238,7 +237,7 @@ CONTAINS
          ! END IF
 
          CALL era5_forcing(nzp,nxp,nyp,zt,dzt,dzm,wlarge_new,a_tp,a_rp,a_tt,a_rt, a_ut%d, a_up%d, a_vt%d, a_vp%d, &
-            a_indefp,a_indeft, tladv_ref, rtadv_ref, uadv_ref, vadv_ref)
+            a_indefp,a_indeft)!, tladv_ref, rtadv_ref, uadv_ref, vadv_ref)
        END IF
     CASE (8)
    ! Radiation
@@ -259,7 +258,7 @@ CONTAINS
          END IF
          
          CALL era5_forcing(nzp,nxp,nyp,zt,dzt,dzm,wlarge_new,a_tp,a_rp,a_tt,a_rt, a_ut%d, a_up%d, a_vt%d, a_vp%d, &
-            a_indefp,a_indeft, tladv_ref, rtadv_ref, uadv_ref, vadv_ref)
+            a_indefp,a_indeft)!,  tladv_ref, rtadv_ref, uadv_ref, vadv_ref)
        END IF
     END SELECT 
 
@@ -360,7 +359,7 @@ CONTAINS
   !
 
   ! Subroutine for applying 1d forcing to domain
-  SUBROUTINE era5_forcing(n1,n2,n3,zt,dzt,dzm,subs,tl,rt,tt,rtt, ut,u,vt,v,indefp,indeft,tladv,rtadv,uadv,vadv)
+  SUBROUTINE era5_forcing(n1,n2,n3,zt,dzt,dzm,subs,tl,rt,tt,rtt, ut,u,vt,v,indefp,indeft)!,tladv,rtadv,uadv,vadv)
 
     USE mpi_interface, ONLY : pecount, double_scalar_par_sum,myid, appl_abort
     !USE stat, ONLY : get_zi
@@ -369,7 +368,7 @@ CONTAINS
     TYPE(FloatArray1d), INTENT (in)      :: zt, dzt, dzm
     !REAL, INTENT(in)                     :: zdiv
     REAL, INTENT (in)      :: subs(n1)
-    REAL, INTENT (in)      :: tladv(n1), rtadv(n1), uadv(n1), vadv(n1)
+    !REAL, INTENT (in)      :: tladv(n1), rtadv(n1), uadv(n1), vadv(n1)
     REAL, DIMENSION (n1, n2, n3), INTENT (inout) :: ut,u,vt,v
     TYPE(FloatArray3d), INTENT (in)      :: tl, rt
     TYPE(FloatArray3d), INTENT (inout)   :: tt, rtt
@@ -421,14 +420,14 @@ CONTAINS
                kp1 = k-1  !MAYBE CHANGE to kp1 = k-1
                tt%d(k,i,j) = tt%d(k,i,j) - (tl%d(k,i,j)-tl%d(kp1,i,j))*sf(k) ! + tladv(k)
                rtt%d(k,i,j) = rtt%d(k,i,j) - (rt%d(k,i,j)-rt%d(kp1,i,j))*sf(k) ! + rtadv(k)
-               ut(k,i,j) = ut(k,i,j) - (u(k,i,j)-u(kp1,i,j))*sf(k) ! + uadv(k)
-               vt(k,i,j) = vt(k,i,j) - (v(k,i,j)-v(kp1,i,j))*sf(k) ! + vadv(k)
+               !ut(k,i,j) = ut(k,i,j) - (u(k,i,j)-u(kp1,i,j))*sf(k) ! + uadv(k)
+               !vt(k,i,j) = vt(k,i,j) - (v(k,i,j)-v(kp1,i,j))*sf(k) ! + vadv(k)
             ELSE IF (sf(k)<=0) THEN
                kp1 = k+1
                tt%d(k,i,j) = tt%d(k,i,j) - (tl%d(kp1,i,j)-tl%d(k,i,j))*sf(k) ! + tladv(k)
                rtt%d(k,i,j) = rtt%d(k,i,j) - (rt%d(kp1,i,j)-rt%d(k,i,j))*sf(k) ! + rtadv(k)
-               ut(k,i,j) = ut(k,i,j) - (u(kp1,i,j)-u(k,i,j))*sf(k) ! + uadv(k)
-               vt(k,i,j) = vt(k,i,j) - (v(kp1,i,j)-v(k,i,j))*sf(k) ! + vadv(k)
+               !ut(k,i,j) = ut(k,i,j) - (u(kp1,i,j)-u(k,i,j))*sf(k) ! + uadv(k)
+               !vt(k,i,j) = vt(k,i,j) - (v(kp1,i,j)-v(k,i,j))*sf(k) ! + vadv(k)
             END IF
          END DO
       END DO
@@ -849,6 +848,7 @@ CONTAINS
     USE ncio, ONLY : open_era5_nc, read_aero_nc_2d, read_aero_nc_1d, close_nc
     USE mpi_interface, ONLY : appl_abort, myid
     USE grid, ONLY : th00
+    USE, intrinsic :: ieee_arithmetic
     IMPLICIT NONE
 
     REAL, INTENT(in) :: model_time
@@ -870,14 +870,11 @@ CONTAINS
                          ztladv(:,:), &  ! Liquid potential temperature advection
                          zrtadv(:,:), &  ! Total water advection
                          helper(:,:)         ! nspec helper
-    LOGICAL :: READ_NC
+    !LOGICAL :: READ_NC
 
-    
-    ! Read the NetCDF input when it is available
-    INQUIRE(FILE=TRIM(nudging_file),EXIST=READ_NC)
 
     ! Open the input file
-    IF (READ_NC) CALL open_era5_nc(ncid, nc_levs, nc_times)
+    CALL open_era5_nc(ncid, nc_levs, nc_times)
 
     era5_t = INT(model_time/900.) + 1
     
@@ -892,30 +889,30 @@ CONTAINS
               zu(nc_levs,nc_times),           &
               zv(nc_levs,nc_times),      &
               zw(nc_levs,nc_times),       &
-              zuadv(nc_levs,nc_times), &
-              zvadv(nc_levs,nc_times), &
-              ztladv(nc_levs,nc_times), &
-              zrtadv(nc_levs,nc_times), &
+              !zuadv(nc_levs,nc_times), &
+              !zvadv(nc_levs,nc_times), &
+              !ztladv(nc_levs,nc_times), &
+              !zrtadv(nc_levs,nc_times), &
               helper(nc_levs,nc_times)    )
 
-    zlevs = 0.; time_s = 0.; zqt = 0.; zlpt = 0.; zu = 0.; zv = 0.; helper = 0.
+    zlevs = 0.; time_s = 0.; zqt = 0.; zlpt = 0.; zu = 0.; zv = 0.; zw = 0.; helper = 0.
 
-    IF (READ_NC) THEN
+    !IF (READ_NC) THEN
       ! Read the aerosol profile data
-      CALL read_aero_nc_1d(ncid,'z',nc_levs,zlevs)
-      CALL read_aero_nc_1d(ncid,'time',nc_times,time_s)
-      CALL read_aero_nc_2d(ncid,'q',nc_levs,nc_times,zqt)
-      CALL read_aero_nc_2d(ncid,'thl',nc_levs,nc_times,zlpt)
-      CALL read_aero_nc_2d(ncid,'u',nc_levs,nc_times,zu)
-      CALL read_aero_nc_2d(ncid,'v',nc_levs,nc_times,zv)
-      CALL read_aero_nc_2d(ncid,'w',nc_levs,nc_times,zw)
-      CALL read_aero_nc_2d(ncid,'uadv',nc_levs,nc_times,zuadv)
-      CALL read_aero_nc_2d(ncid,'vadv',nc_levs,nc_times,zvadv)
-      CALL read_aero_nc_2d(ncid,'ptadv',nc_levs,nc_times,ztladv)
-      CALL read_aero_nc_2d(ncid,'qtadv',nc_levs,nc_times,zrtadv)
+    CALL read_aero_nc_1d(ncid,'z',nc_levs,zlevs)
+    CALL read_aero_nc_1d(ncid,'time',nc_times,time_s)
+    CALL read_aero_nc_2d(ncid,'q',nc_levs,nc_times,zqt)
+    CALL read_aero_nc_2d(ncid,'thl',nc_levs,nc_times,zlpt)
+    CALL read_aero_nc_2d(ncid,'u',nc_levs,nc_times,zu)
+    CALL read_aero_nc_2d(ncid,'v',nc_levs,nc_times,zv)
+    CALL read_aero_nc_2d(ncid,'w',nc_levs,nc_times,zw)
+    !CALL read_aero_nc_2d(ncid,'uadv',nc_levs,nc_times,zuadv)
+    !CALL read_aero_nc_2d(ncid,'vadv',nc_levs,nc_times,zvadv)
+    !CALL read_aero_nc_2d(ncid,'ptadv',nc_levs,nc_times,ztladv)
+    !CALL read_aero_nc_2d(ncid,'qtadv',nc_levs,nc_times,zrtadv)
 
-      CALL close_nc(ncid)
-    END IF
+    CALL close_nc(ncid)
+    !END IF
 
    !
    IF (zlevs(nc_levs) < zt%d(nzp)) THEN
@@ -933,25 +930,27 @@ CONTAINS
    IF (.NOT.ALLOCATED(u_ref) ) ALLOCATE(u_ref(nzp))
    IF (.NOT.ALLOCATED(v_ref) ) ALLOCATE(v_ref(nzp))
    IF (.NOT.ALLOCATED(wlarge_ref) ) ALLOCATE(wlarge_ref(nzp))
-   IF (.NOT.ALLOCATED(tladv_ref) ) ALLOCATE(tladv_ref(nzp))
-   IF (.NOT.ALLOCATED(rtadv_ref) ) ALLOCATE(rtadv_ref(nzp))
-   IF (.NOT.ALLOCATED(uadv_ref) ) ALLOCATE(uadv_ref(nzp))
-   IF (.NOT.ALLOCATED(vadv_ref) ) ALLOCATE(vadv_ref(nzp))
+   !IF (.NOT.ALLOCATED(tladv_ref) ) ALLOCATE(tladv_ref(nzp))
+   !IF (.NOT.ALLOCATED(rtadv_ref) ) ALLOCATE(rtadv_ref(nzp))
+   !IF (.NOT.ALLOCATED(uadv_ref) ) ALLOCATE(uadv_ref(nzp))
+   !IF (.NOT.ALLOCATED(vadv_ref) ) ALLOCATE(vadv_ref(nzp))
 
    CALL htint(nc_levs,zqt(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,rv_ref,zt%d)
    CALL htint(nc_levs,zlpt(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,theta_ref,zt%d)
    CALL htint(nc_levs,zu(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,u_ref,zt%d)
    CALL htint(nc_levs,zv(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,v_ref,zt%d)
    CALL htint(nc_levs,zw(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,wlarge_ref,zt%d)
-   CALL htint(nc_levs,zuadv(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,uadv_ref,zt%d)
-   CALL htint(nc_levs,zvadv(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,vadv_ref,zt%d)
-   CALL htint(nc_levs,ztladv(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,tladv_ref,zt%d)
-   CALL htint(nc_levs,zrtadv(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,rtadv_ref,zt%d)
+   !CALL htint(nc_levs,zuadv(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,uadv_ref,zt%d)
+   !CALL htint(nc_levs,zvadv(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,vadv_ref,zt%d)
+   !CALL htint(nc_levs,ztladv(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,tladv_ref,zt%d)
+   !CALL htint(nc_levs,zrtadv(1:nc_levs,era5_t),zlevs(1:nc_levs),nzp,rtadv_ref,zt%d)
+
+   WHERE (ieee_is_nan(wlarge_ref)) wlarge_ref = 0.0
 
    ! Convert liquid potential temperature (th - th00)
    theta_ref = theta_ref - th00
 
-   DEALLOCATE( zlevs, time_s, zqt, zlpt, zu, zv, zw, zuadv, zvadv, ztladv, zrtadv , helper )
+   DEALLOCATE( zlevs, time_s, zqt, zlpt, zu, zv, zw, helper )!, zuadv, zvadv, ztladv, zrtadv , helper )
 
   END SUBROUTINE READ_ERA5_INPUT
 

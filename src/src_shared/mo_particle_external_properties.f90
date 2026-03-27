@@ -98,15 +98,17 @@ MODULE mo_particle_external_properties
             alphasph = pi6*rhop
             betasph = 3.
             gammasph = pi/4.
-            sigmasph = 2.    
-            mA = alphasph*dnsp**betasph / (gammasph*dnsp**sigmasph)
+            sigmasph = 2.   
+            mA = alphasph*diam**betasph / (gammasph*diam**sigmasph)
+            X = 2. * grav * rhoa / visc**2 * diam**2 * mA !MH2005 eq. 8
+            terminal_vel = mhVt(diam,X,visc,rhoa)       
          ELSE 
             mA = shape%alpha*dnsp**shape%beta / (shape%gamma*dnsp**shape%sigma) !Ratio of mass and area laws used in Mitchell eq. 8
+            X = 2. * grav * rhoa / visc**2 * dnsp**2 * mA !MH2005 eq. 8
+            terminal_vel = mhVt(dnsp,X,visc,rhoa)   
          END IF
 
-         X = 2. * grav * rhoa / visc**2 * dnsp**2 * mA !MH2005 eq. 8
-
-         terminal_vel = mhVt(dnsp,X,visc,rhoa)           
+        
       END IF
       
     END FUNCTION terminal_vel 

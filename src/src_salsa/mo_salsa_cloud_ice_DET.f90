@@ -123,13 +123,18 @@ MODULE mo_salsa_cloud_ice_DET
              IF ( dins > dmin .AND. prv(ii,jj)/prs(ii,jj)<1.0 .AND. &
                   phase == 1 .AND. lsicedep                           ) THEN
                 !write(*,*) 'Depositon nucleation!'
-                !Si = prv(ii,jj)/prsi(ii,jj) ! Water vapor saturation ratio over ice
                 IF (dinscheme == 0) THEN
                   jf = calc_Jdep(dins,ptemp(ii,jj),Si)
                   pf_dep = 1. - EXP( -pi*dins**2*jf )
                 ELSE IF (dinscheme == 1) THEN
                   jf = calc_Jdep_Phi13(dins,ptemp(ii,jj),Si,nnum,omega)
                   pf_dep = 1. - EXP(- jf)
+                ELSE IF (dinscheme == 2) THEN
+                  pf_dep = calc_Jdep_WJ25(dins,ptemp(ii,jj),Si)
+                  !pf_dep = jf !1. - EXP(-jf)
+                ELSE IF (dinscheme == 3) THEN
+                  jf = calc_Jdep_H14(dins,ptemp(ii,jj),Si)
+                  pf_dep = 1. - EXP( -pi*dins**2*jf )
                 END IF
                 
              END IF
@@ -204,22 +209,159 @@ MODULE mo_salsa_cloud_ice_DET
     
     calc_Jhet= exp(150.577-0.517*temp)
   END FUNCTION calc_Jhet
-  
-  
-  REAL FUNCTION calc_Jdep(rn,temp,Si)
-    ! The rate of germ formation (#/s) through deposition freezing following
-    ! Khvorostyanov and Curry, Geophys. Res. Lett., 27, 4081-4084, 2000 [KC00]
-    ! Additional parameters from
-    ! Hoose et al., J. Atmos. Sci., 67, 2483-2503, 2010 [Ho10]
 
+  REAL FUNCTION calc_Jdep_H14(rn,temp,Si)
     ! Changed all radiuses to diameters
+    ! Parametrization based on Hiranuma et al. 2014 for surrogate dust
+    !Atmos. Chem. Phys., 14, 13145–13158, 2014
+    !doi:10.5194/acp-14-13145-2014
+    IMPLICIT NONE
+    REAL, INTENT(in) :: rn,temp,Si
+    REAL, PARAMETER :: & ! Case-dependent parameters for IDEAL dust 200nm R2=0.89
+         alpha = -3.777E13, &
+         beta = -7.818E11, &
+         gamma = 4.252E11, &
+         delta = -4.598E9, &
+         epsilon = 6.952E9, &
+         zeta = -1.111E9, &
+         eta = -2.966E6, &
+         iota = 2.135E7, &
+         kappa = -1.729E7, &
+         lamda = -9.438E5, &
+         T0 = 273.15 ! 0 C in Kelvins
+    REAL :: Tc
+    calc_Jdep_H14 = 0.
+   
+    Tc = temp-T0 ! Temperature in Celsius
+   
+    ! Must have a core and supersaturation over ice
+    IF (rn<1e-10 .OR. Si<1.0001) RETURN
+    IF (temp > 237) RETURN ! Parametrization only valid up to 237 K
+
+    calc_Jdep_H14 = alpha + beta*Tc + gamma*Si*100 + delta*Tc**2 + epsilon*Tc*Si*100 + zeta*(Si*100)**2 + &
+                     eta*Tc**3 + iota*Tc**2*Si*100 + kappa*Tc*(Si*100)**2 + lamda*(Si*100)**3
+    
+  END FUNCTION calc_Jdep_H14
+  
+  REAL FUNCTION calc_Jdep_WJ25(rn,temp,Si)
+    ! Changed all radiuses to diameters
+    ! Parametrization based on fit done for SPIN measurements with (Illite, Kaolinite, Quartz and Feldspar)
+    
+    IMPLICIT NONE
+    REAL, INTENT(in) :: rn,temp,Si
+    REAL, PARAMETER :: & ! Case-dependent parameters for IDEAL dust 200nm R2=0.89
+         a1_200nm = -43.66549, &
+         b1_200nm = 0.00364, &
+         c1_200nm = -241.61849, &
+         d1_200nm = 8.56218, &
+         f1_200nm = -0.21112, &
+         g1_200nm = 8.58952, &
+         h1_200nm = 0.00080, &
+         i1_200nm = 171.10887, &
+         a2_200nm = -10.04112, &
+         b2_200nm = 0.02806, &
+         d2_200nm = 12.37117 , &
+         f2_200nm = 2.57586, &
+         tcut_200nm = 239.17740, &
+         k_200nm = 0.10000
+    REAL, PARAMETER :: & ! Case-dependent parameters for IDEAL dust 400nm R2=0.9052
+         a1_400nm = -24.52866, &
+         b1_400nm = 0.00206, &
+         c1_400nm = -256.45775, &
+         d1_400nm = 6.86452, &
+         f1_400nm = -0.15521, &
+         g1_400nm = 6.88409, &
+         h1_400nm = 0.00045, &
+         i1_400nm = 153.35149, &
+         a2_400nm = -8.35656, &
+         b2_400nm = 0.00445, &
+         d2_400nm = 28.52578 , &
+         f2_400nm = 36.33777, &
+         tcut_400nm = 243.07208, &
+         k_400nm = 0.10000
+    REAL, PARAMETER :: & ! Case-dependent parameters for IDEAL dust 800nm R2=0.8135
+         a1_800nm = -25.25723, &
+         b1_800nm = 0.00036, &
+         c1_800nm = -285.98999, &
+         d1_800nm = 5.12040, &
+         f1_800nm = -0.33332, &
+         g1_800nm = 5.22363, &
+         h1_800nm = 0.00046, &
+         i1_800nm = 492.33570, &
+         a2_800nm = -12.75046, &
+         b2_800nm = 1.60273, &
+         d2_800nm = 242.63024 , &
+         f2_800nm = 1.00000, &
+         tcut_800nm = 250.00000, &
+         k_800nm = 0.10276
+    REAL :: vlow_200, vhigh_200, w_200, vlow_400, vhigh_400, w_400, &
+    vlow_800, vhigh_800, w_800, FF_200, FF_400, FF_800, interp_FF,weight_size
+    
+    calc_Jdep_WJ25 = 0.
+    
+    ! Must have a core and supersaturation over ice
+    IF (rn<1e-10 .OR. Si<1.0001) RETURN
+    
+    
+    ! Low temperature model below cut-off temperature
+    vlow_200 = a1_200nm + b1_200nm * (Si-1)**(1./d1_200nm) * (temp+c1_200nm) * &
+               f1_200nm * (Si-1)**(1./g1_200nm) * (temp + i1_200nm) + h1_200nm*temp**2
+    ! High temperature model
+    vhigh_200 = a2_200nm + b2_200nm * (Si-1)**(1./f2_200nm) * (temp - d2_200nm)
+    ! Sigmoid transition weight
+    w_200 = 1.0/(1.0 + EXP(k_200nm*(temp-tcut_200nm)))
+    FF_200 = w_200*vlow_200 + (1-w_200)*vhigh_200
+
+    ! Low temperature model below cut-off temperature
+    vlow_400 = a1_400nm + b1_400nm * (Si-1)**(1./d1_400nm) * (temp+c1_400nm) * &
+               f1_400nm * (Si-1)**(1./g1_400nm) * (temp + i1_400nm) + h1_400nm*temp**2
+    ! High temperature model
+    vhigh_400 = a2_400nm + b2_400nm * (Si-1)**(1./f2_400nm) * (temp - d2_400nm)
+    ! Sigmoid transition weight
+    w_400 = 1.0/(1.0 + EXP(k_400nm*(temp-tcut_400nm)))
+    FF_400 = w_400*vlow_400 + (1-w_400)*vhigh_400
+
+    ! Low temperature model below cut-off temperature
+    vlow_800 = a1_800nm + b1_800nm * (Si-1)**(1./d1_800nm) * (temp+c1_800nm) * &
+               f1_800nm * (Si-1)**(1./g1_800nm) * (temp + i1_800nm) + h1_800nm*temp**2
+    ! High temperature model
+    vhigh_800 = a2_800nm + b2_800nm * (Si-1)**(1./f2_800nm) * (temp - d2_800nm)
+    ! Sigmoid transition weight
+    w_800 = 1.0/(1.0 + EXP(k_800nm*(temp-tcut_800nm)))
+    FF_800 = w_800*vlow_800 + (1-w_800)*vhigh_800
+
+
+    IF (rn > 100.e-9 .AND. rn <= 400.e-9) THEN
+        ! Interpolate between 200nm and 400nm
+        weight_size = (rn - 100.e-9) / (400.e-9 - 100.e-9)
+        interp_FF = 10**((1.0 - weight_size) * FF_200 + weight_size * FF_400) ! Convert log FF to linear
+    ELSE IF (rn > 400.e-9) THEN
+        ! Interpolate between 400nm and 800nm
+        weight_size = (rn - 400.e-9) / (800.e-9 - 400.e-9)
+        interp_FF = (1.0 - weight_size) * FF_400 + weight_size * FF_800
+        IF (interp_FF < FF_400) THEN !
+           ! Ensure that the FF does not decrease with increasing particle size (can happen due to fits)
+           interp_FF = FF_400
+        END IF
+        interp_FF = 10**interp_FF ! Convert log FF to linear
+    ELSE    ! 
+        interp_FF = 0.0
+    ENDIF
+    
+    IF (interp_FF >= 1.0) THEN
+      calc_Jdep_WJ25 = 0.999999
+    ELSE IF (interp_FF > 0.0) THEN
+      calc_Jdep_WJ25 = interp_FF
+    ELSE
+      calc_Jdep_WJ25 = 0.0
+    ENDIF
+  END FUNCTION calc_Jdep_WJ25
+
+  REAL FUNCTION calc_Jdep(rn,temp,Si)
     
     IMPLICIT NONE
     REAL, INTENT(in) :: rn,temp,Si
     
-    REAL :: Tc
-    REAL, PARAMETER :: & ! Constants
-         T0 = 273.15 ! 0 C in Kelvins
     REAL, PARAMETER :: & ! Case-dependent parameters
          alpha_d = 285.692, &
          beta_d = 0.017, &
@@ -231,8 +373,6 @@ MODULE mo_salsa_cloud_ice_DET
     
     ! Must have a core and supersaturation over ice
     IF (rn<1e-10 .OR. Si<1.0001) RETURN
-    
-    Tc = temp-T0 ! Temperature in Celsius
     
     calc_Jdep = exp(alpha_d*(Si-1)**(1./4.)*cos(beta_d*(temp-gamma_d))**2*(pi/2.-atan(kappa_d*(temp-lamda_d)))/pi)
  
@@ -328,7 +468,7 @@ MODULE mo_salsa_cloud_ice_DET
     
     Mu = H_x*Xi*(nnum/omega)*pi*rn**2
 
-    calc_Jdep_Phi13 = 1-EXP(-Mu)
+    calc_Jdep_Phi13 = Mu
  
   END FUNCTION calc_Jdep_Phi13
   

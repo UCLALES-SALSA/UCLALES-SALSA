@@ -906,49 +906,47 @@ CONTAINS
             DO cc = 1, nice
                IF (ice(ii,jj,cc)%numc > ice(ii,jj,cc)%nlim .AND. lscndh2oic .AND. ptemp(ii,jj) < 273.15) THEN
                   ! Wet diameter
-                  dwet = ice(ii,jj,cc)%dnsp
+                  dwet = ice(ii,jj,cc)%dwet !ice(ii,jj,cc)%dnsp ! wrong variable was loaded in
+
+                  !!!!!!!!!!!!!!! Experimental for ventilation coefficient
+                  ! Mithcell and Heymsfield 2005
+                  ! Ice cyrstals with spherical eq size below 40 um are considered as spherical
+                  avis = 1.8325e-5*(416.16/(ptemp(ii,jj)+120.0))*(ptemp(ii,jj)/296.16)**1.5 !viscosity
+                  kvis = avis/rhoair
+                  IF (dwet<40e-6) THEN
+                     alphasph = pi6*rhoic
+                     betasph = 3.
+                     gammasph = pi/4.
+                     sigmasph = 2.    
+                     mA = alphasph*dwet**betasph / (gammasph*dwet**sigmasph)
+                     X = 2. * grav * rhoair / avis**2. * dwet**2. * mA !MH2005 eq. 8
+
+                     dnsp = dwet
+                     !write(*,*) "nspec",nspec,"nice",nice,"dwet",dwet,"dnsp",dnsp,"X",X
+                  ELSE 
+                     CALL getShapeCoefficients( shape, SUM(ice(ii,jj,cc)%volc(1:nspec-1)*spec%rhoic),     &
+                                                ice(ii,jj,cc)%volc(nspec)*spec%rhori,                      &
+                                                ice(ii,jj,cc)%numc                                      )
+                     flag = 4
+                     dnsp=calcDiamLES(nspec,ice(ii,jj,cc)%numc,ice(ii,jj,cc)%volc(:)*spec%rhoic,flag,sph=.FALSE.) ! For non-spherical ice, this is the max diameter of the crystal
+                     mA = shape%alpha*dnsp**shape%beta / (shape%gamma*dnsp**shape%sigma) !Ratio of mass and area laws used in Mitchell eq. 8
+                     X = 2. * grav * rhoair / avis**2. * dnsp**2. * mA !MH2005 eq. 8
+                  END IF
                   
                   ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
-                  cap=0.5*dwet
+                  cap=0.5*dnsp
                   IF (dwet <= 20e-6) THEN
                      cap=0.5*dwet
                   ELSE IF (ptemp(ii,jj)<=240 .AND. dwet <= 50e-6) THEN
-                     cap=(0.5 + 0.25)/2*dwet
+                     cap=(0.5*dwet + 0.25*dnsp)/2
                   ELSE IF (ptemp(ii,jj)<=240) THEN
-                     cap=0.25*dwet
+                     cap=0.25*dnsp
                   END IF
 
                   zf = 1 ! Set as 1 for very small ice crystals
-                  avis = 1.8325e-5*(416.16/(ptemp(ii,jj)+120.0))*(ptemp(ii,jj)/296.16)**1.5
-                  kvis = avis/rhoair
                   IF (dwet>1e-6) THEN
                      ! atm modelling Eq.4.54
 
-
-                     !!!!!!!!!!!!!!! Experimental for ventilation coefficient
-                     ! Mithcell and Heymsfield 2005
-                     ! Ice cyrstals with spherical eq size below 40 um are considered as spherical
-                     IF (dwet<40e-6) THEN
-                        alphasph = pi6*rhoic
-                        betasph = 3.
-                        gammasph = pi/4.
-                        sigmasph = 2.    
-                        mA = alphasph*dwet**betasph / (gammasph*dwet**sigmasph)
-                        X = 2. * grav * rhoair / avis**2. * dwet**2. * mA !MH2005 eq. 8
-
-                        dnsp = dwet
-                        !write(*,*) "nspec",nspec,"nice",nice,"dwet",dwet,"dnsp",dnsp,"X",X
-                     ELSE 
-                        flag = 4
-                        CALL getShapeCoefficients( shape, SUM(ice(ii,jj,cc)%volc(1:nspec-1)*spec%rhoic),     &
-                                                   ice(ii,jj,cc)%volc(nspec)*spec%rhori,                      &
-                                                   ice(ii,jj,cc)%numc                                      )
-                        flag = 4
-                        dnsp=calcDiamLES(nspec,ice(ii,jj,cc)%numc,ice(ii,jj,cc)%volc(:)*spec%rhoic,flag,sph=.FALSE.) ! For non-spherical ice, this is the max diameter of the crystal
-                        mA = shape%alpha*dnsp**shape%beta / (shape%gamma*dnsp**shape%sigma) !Ratio of mass and area laws used in Mitchell eq. 8
-                        X = 2. * grav * rhoair / avis**2. * dnsp**2. * mA !MH2005 eq. 8
-                        !write(*,*) "alpha",shape%alpha,"gamma",shape%gamma,"nspec",nspec,"nice",nice,"dwet",dwet,"dnsp",dnsp,"X",X
-                     END IF
                      !
                      !Calculation of Reynolds number according to the Re-X relationship defined in Mitchell and Heymsfield (2005)
                      a1 = mha1(X)
@@ -986,7 +984,9 @@ CONTAINS
                   zwsatic(cc) = zact*zkelvinic(cc)
 
                   ! deposition coefficient for ice
-                  alphaci = 0.5
+                  alphaci = 0.2 ! Lamb et al. (2023)
+
+                  
                   
                   !-- transitional correction factor
                   zknud = 2.*zmfph2o/dwet

@@ -108,7 +108,8 @@ CONTAINS
                                   cntlat, varlist_main, varlist_ps, varlist_ts, eddy_dis
     USE init, ONLY              : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,             &
                                   zrand, zrndamp, sound_in_file, zrndamp_rp
-    USE forc, ONLY              : div, case_name, amp, tphase, largeforc, forcing, pertmax, z_forcing_min, nudging_file ! Divergence, forcing case name
+    USE forc, ONLY              : div, case_name, amp, tphase, largeforc, forcing, pertmax, z_forcing_min ! Divergence, forcing case name
+    USE ncio, ONLY              : nudging_file
     USE radiation_main, ONLY    : radsounding,   &
                                   sfc_albedo,    &
                                   useMcICA,      &

@@ -6,6 +6,8 @@ MODULE ncio
   
   IMPLICIT NONE
 
+  CHARACTER (len=100)   :: nudging_file
+
 !  INTERFACE write_nc
 !     MODULE PROCEDURE write_nc_0d, write_nc_1d,   &
 !                      write_nc_2d, write_nc_3d,   &
@@ -16,7 +18,7 @@ MODULE ncio
   
   PUBLIC :: close_nc, sync_nc, &  
             open_aero_nc, open_era5_nc, read_aero_nc_1d, read_aero_nc_2d,  &
-            StreamDef
+            StreamDef, nudging_file
 
 
   TYPE StreamDef
@@ -500,11 +502,15 @@ MODULE ncio
  !
 
  SUBROUTINE open_era5_nc(ncid,nc_levs,nc_times)
-    USE forc, ONLY: nudging_file
     IMPLICIT NONE
 
     INTEGER, INTENT(out) :: ncid,nc_levs,nc_times
     INTEGER :: iret, did
+
+    LOGICAL :: READ_NC
+
+   ! Read the NetCDF input when it is available
+    INQUIRE(FILE=TRIM(nudging_file),EXIST=READ_NC)
 
     ! Open file
     iret = nf90_open(nudging_file,NF90_NOWRITE,ncid)

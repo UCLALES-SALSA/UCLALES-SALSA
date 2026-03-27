@@ -56,11 +56,11 @@ rfft.o: rfft.f90
 # Dependencies
 # --------------------
 #
-LES.o: $(seqmpi:.f90=.o) grid.o init.o step.o mo_salsa_init.o \
+LES.o: $(seqmpi:.f90=.o) grid.o ncio.o init.o step.o mo_salsa_init.o \
        util.o sgsm.o srfc.o nudg_defs.o emission_types.o perturbation_forc.o   \
        forc.o radiation_main.o mcrp.o mo_output.o mo_stats_parameters.o
 
-ncio.o: $(seqmpi:.f90=.o) classFieldArray.o forc.o
+ncio.o: $(seqmpi:.f90=.o) classFieldArray.o
 mo_output.o: $(seqmpi:.f90=.o) ncio.o grid.o classFieldArray.o mo_structured_datatypes.o  \
 	     mo_submctl.o mo_field_state.o
 $(seqmpihis:.f90=.o): $(seqmpi:.f90=.o) grid.o nudg_defs.o mo_progn_state.o   \
@@ -75,7 +75,7 @@ thrm.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_aux_state.
         grid.o defs.o $(seqmpi:.f90=.o)
 forc.o: grid.o mo_aux_state.o mo_diag_state.o mo_progn_state.o mo_vector_state.o \
 	mo_field_state.o util.o defs.o radiation_main.o nudg.o emission_main.o \
-	mo_structured_datatypes.o ncio.o $(seqmpi:.f90=.o)
+	mo_structured_datatypes.o $(seqmpi:.f90=.o)
 advf.o: mo_structured_datatypes.o mo_diag_state.o mo_progn_state.o mo_vector_state.o   \
 	mo_aux_state.o grid.o util.o mo_submctl.o $(seqmpi:.f90=.o)	
 advl.o: mo_structured_datatypes.o grid.o mo_vector_state.o mo_aux_state.o util.o 
