@@ -80,7 +80,7 @@ MODULE mpi_interface
                                            ydisp,xcount,ycount
 
    INTEGER :: stridetype,xstride,ystride,xystride,xylarry,xyzlarry,&
-              fxytype,fxyztype, col_type, row_type
+              fxytype,fxyztype, col_type, row_type, corner_type
 
    CHARACTER(len=80) :: ver='', author=''
    ! Additional, e.g. case specific, information
@@ -363,7 +363,7 @@ CONTAINS
 
       INTEGER, INTENT(in) :: nxp,nyp,nzp
 
-      INTEGER :: nx, ny, i, j, k, ii, jj, ierr, cnt, typesize,nynzg, nxnzg
+      INTEGER :: nx, ny, i, j, k, ii, jj, ierr, cnt, typesize,nynzg, nxnzg,ierror
 
       nx  = max(1,nxp-4)
       ny  = max(1,nyp-4)
@@ -460,12 +460,15 @@ CONTAINS
       CALL MPI_TYPE_COMMIT(xylarry,ierr)
       CALL MPI_TYPE_VECTOR(nyp-4,(nxp-4)*nzp,nxp*nzp,MY_REAL,xyzlarry,ierr)
       CALL MPI_TYPE_COMMIT(xyzlarry,ierr)
-      
-      !CALL MPI_TYPE_VECTOR(2,nxp,nxp,MY_REAL,row_type,ierr)
-      !CALL MPI_TYPE_COMMIT(row_type,ierr)
-      
-      !CALL MPI_TYPE_VECTOR(nyp-4,2,nxp,MY_REAL,col_type,ierr)
-      !CALL MPI_TYPE_COMMIT(col_type,ierr)
+
+      CALL MPI_TYPE_VECTOR(2,nxp-4,nxp,MY_REAL, row_type, ierror)
+      CALL MPI_TYPE_COMMIT(row_type,ierror)
+
+      CALL MPI_TYPE_VECTOR(nyp-4,2,nxp,MY_REAL, col_type, ierror)
+      CALL MPI_TYPE_COMMIT(col_type,ierror)
+
+      CALL MPI_TYPE_VECTOR(2,2,nxp,MY_REAL,corner_type,ierror)
+      CALL MPI_TYPE_COMMIT(corner_type,ierror)
 
    END SUBROUTINE init_alltoall_reorder
 
@@ -554,82 +557,105 @@ CONTAINS
 
    END SUBROUTINE cyclicc
 
-  ! ---------------------------------------------------------------------
-  ! Subroutine cyclicc: comits exchanging cyclic boundary conditions
+  
+  
+   ! ---------------------------------------------------------------------
+   ! Subroutine cyclicc2d: comits exchanging cyclic boundary conditions
    SUBROUTINE cyclicc2d(n2,n3,var,req)
 
-      INTEGER :: ierror, stats(MPI_STATUS_SIZE,8)
-      INTEGER :: req(8),n2,n3
+      INTEGER :: ierror, stats(MPI_STATUS_SIZE,16)
+      INTEGER :: req(16),n2,n3
       REAL    :: var(n2,n3)
 
-      CALL mpi_waitall(8,req,stats,ierror)
+      CALL mpi_waitall(16,req,stats,ierror)
 
    END SUBROUTINE cyclicc2d
- ! --------------------------------------------------------------------------
- SUBROUTINE cyclics2d(n2,n3,var,req)
-   
-   IMPLICIT NONE
-   
-   INTEGER, INTENT(in) :: n2,n3
-   REAL, INTENT(inout) :: var(n2,n3)
-   INTEGER :: req(8)
-   INTEGER :: ierror, stats(MPI_STATUS_SIZE,8)
-   INTEGER :: pxfwd, pxback, pyfwd, pyback
-   
-   IF (nypg == 5) THEN
-   	var(:,1) = var(:,3)
-   	var(:,2) = var(:,3)
-   	var(:,4) = var(:,3)
-   	var(:,5) = var(:,3)   	
-   END IF
-   
-   IF (nxpg == 5) THEN
-   	var(1,:) = var(3,:)
-   	var(2,:) = var(3,:)
-   	var(4,:) = var(3,:)
-   	var(5,:) = var(3,:)
-   END IF
-   
-   pxfwd  = ranktable(wrxid+1,wryid) ! right
-   pxback = ranktable(wrxid-1,wryid) ! left
-   pyfwd  = ranktable(wrxid,wryid+1) ! up
-   pyback = ranktable(wrxid,wryid-1) ! down
-                
-   CALL MPI_TYPE_VECTOR(2,n2-4,n2,MY_REAL, row_type, ierror)
-   CALL MPI_TYPE_COMMIT(row_type,ierror)
-   
-   CALL MPI_TYPE_VECTOR(n3-4,2,n2,MY_REAL, col_type, ierror)
-   CALL MPI_TYPE_COMMIT(col_type,ierror)
    
    
-   CALL mpi_isend(var(n2-3,3),1,col_type, pxfwd, 101, &
-                     MPI_COMM_WORLD, req(1), ierror)
-   
-   CALL mpi_isend(var(1,3), 1, col_type, pxback, 102, &
-                     MPI_COMM_WORLD, req(2), ierror)    
-    
-   CALL mpi_irecv(var(n2-3,3), 1, col_type, pxfwd, 102, &
-                     MPI_COMM_WORLD, req(3), ierror)
-   
-   CALL mpi_irecv(var(1,3), 1, col_type, pxback, 101, &
-                     MPI_COMM_WORLD, req(4), ierror) 
-      
-   
-   CALL mpi_isend(var(3,3), 1, row_type, pyback, 104, &
-                     MPI_COMM_WORLD, req(5), ierror)                
-   
-   CALL mpi_irecv(var(3,n3-1), 1, row_type, pyfwd, 104, &
-                     MPI_COMM_WORLD, req(6), ierror) 
    
    
-   CALL mpi_isend(var(3,n3-3), 1,row_type, pyfwd, 105, &
-                     MPI_COMM_WORLD, req(7), ierror)
-                     
-   CALL mpi_irecv(var(3,1), 1, row_type, pyback, 105, &
-                     MPI_COMM_WORLD, req(8), ierror) 
+   ! --------------------------------------------------------------------------
+   SUBROUTINE cyclics2d(n2,n3,var,req)
    
+	   IMPLICIT NONE
+	   
+	   INTEGER, INTENT(in) :: n2,n3
+	   REAL, INTENT(inout) :: var(n2,n3)
+	   INTEGER :: req(16)
+	   INTEGER :: ierror, stats(MPI_STATUS_SIZE,16)
+	   INTEGER :: pxfwd, pxback, pyfwd, pyback
+	   INTEGER :: pxyne,pxyse,pxynw,pxysw
 
-                     
+	   IF (nypg == 5) THEN
+	   	var(:,1) = var(:,3)
+	   	var(:,2) = var(:,3)
+	   	var(:,4) = var(:,3)
+	   	var(:,5) = var(:,3)   	
+	   END IF
+	   
+	   IF (nxpg == 5) THEN
+	   	var(1,:) = var(3,:)
+	   	var(2,:) = var(3,:)
+	   	var(4,:) = var(3,:)
+	   	var(5,:) = var(3,:)
+	   END IF
+	   
+	   pxfwd  = ranktable(wrxid+1,wryid) ! right
+	   pxback = ranktable(wrxid-1,wryid) ! left
+	   pyfwd  = ranktable(wrxid,wryid+1) ! up
+	   pyback = ranktable(wrxid,wryid-1) ! down
+	   pxyne = ranktable(wrxid+1,wryid+1)
+           pxyse = ranktable(wrxid+1,wryid-1)
+           pxynw = ranktable(wrxid-1,wryid+1)
+           pxysw = ranktable(wrxid-1,wryid-1)
+		        
+
+	   
+	   CALL mpi_isend(var(n2-3,3),1,col_type, pxfwd, 101, &
+		             MPI_COMM_WORLD, req(1), ierror)
+	   
+	   CALL mpi_isend(var(1,3), 1, col_type, pxback, 102, &
+		             MPI_COMM_WORLD, req(2), ierror)    
+	    
+	   CALL mpi_irecv(var(n2-1,3), 1, col_type, pxfwd, 102, &
+		             MPI_COMM_WORLD, req(3), ierror)
+	   
+	   CALL mpi_irecv(var(1,3), 1, col_type, pxback, 101, &
+		             MPI_COMM_WORLD, req(4), ierror) 
+	      
+	   
+	   CALL mpi_isend(var(3,3), 1, row_type, pyback, 103, &
+		             MPI_COMM_WORLD, req(5), ierror)                
+	   
+	   CALL mpi_irecv(var(3,n3-1), 1, row_type, pyfwd, 103, &
+		             MPI_COMM_WORLD, req(6), ierror) 
+	   
+	   CALL mpi_isend(var(3,n3-3), 1,row_type, pyfwd, 104, &
+		             MPI_COMM_WORLD, req(7), ierror)
+		             
+	   CALL mpi_irecv(var(3,1), 1, row_type, pyback, 104, &
+		             MPI_COMM_WORLD, req(8), ierror) 
+
+	   CALL mpi_isend(var(n2-3,n3-3), 1,corner_type, pxyne, 105, &
+		             MPI_COMM_WORLD, req(9), ierror)
+	   CALL mpi_irecv(var(1,1), 1, corner_type, pxysw, 105, &
+		             MPI_COMM_WORLD, req(10), ierror)
+
+           CALL mpi_isend(var(n2-3,3), 1,corner_type, pxyse, 107, &
+		             MPI_COMM_WORLD, req(11), ierror)
+	   CALL mpi_irecv(var(1,n3-1), 1, corner_type, pxynw, 107, &
+		             MPI_COMM_WORLD, req(12), ierror)
+
+           CALL mpi_isend(var(3,n3-3), 1,corner_type, pxynw, 108, &
+		             MPI_COMM_WORLD, req(13), ierror)
+	   CALL mpi_irecv(var(n2-1,1), 1, corner_type, pxyse, 108, &
+		             MPI_COMM_WORLD, req(14), ierror) 
+               
+           CALL mpi_isend(var(3,3), 1,corner_type, pxysw, 106, &
+		             MPI_COMM_WORLD, req(15), ierror)
+	   CALL mpi_irecv(var(n2-1,n3-1), 1, corner_type, pxyne, 106, &
+		             MPI_COMM_WORLD, req(16), ierror) 
+
    END SUBROUTINE cyclics2d  
    
    

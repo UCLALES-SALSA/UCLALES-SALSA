@@ -47,7 +47,7 @@ MODULE mo_history
       
       WRITE(10) time,th00,umean,vmean,dtl,level,isgstyp,iradtyp,nzp,nxp,nyp,nscl
       WRITE(10) xt%d, xm%d, yt%d, ym%d, zt%d, zm%d, dn0%d, th0%d, u0%d, v0%d, pi0%d, &
-                pi1%d, rt0%d, psrf,sst,W1,W2,W3, cmbcnst
+                pi1%d, rt0%d, psrf,sst,W1,W2,W3
       
       WRITE(10) a_ustar%d, a_tstar%d, a_rstar%d
             
@@ -156,7 +156,7 @@ MODULE mo_history
          END IF
          
          READ(10) xt%d, xm%d, yt%d, ym%d, zt%d, zm%d, dn0%d, th0%d, u0%d, v0%d, &
-         	  pi0%d, pi1%d, rt0%d, psrf,sst,W1,W2,W3,cmbcnst
+         	  pi0%d, pi1%d, rt0%d, psrf,sst,W1,W2,W3
          
          READ(10) a_ustar%d, a_tstar%d, a_rstar%d
          

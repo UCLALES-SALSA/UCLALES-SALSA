@@ -215,18 +215,18 @@ CONTAINS
          var(:,5,:) = var(:,3,:)
       END IF
 
-      var(:,:2,:) = var(:,n2-3:n2-2,:)
-      var(:,n2-1:,:) = var(:,3:4,:)
+      var(:,:2,:) = var(:,n2-3:n2-2,:) !mpi 130
+      var(:,n2-1:,:) = var(:,3:4,:)    !mpi 140
 
-      var(:,:,:2) = var(:,:,n3-3:n3-2)
-      var(:,:,n3-1:) = var(:,:,3:4)
-      var(:,:2,:2) = var(:,n2-3:n2-2,n3-3:n3-2)
-      var(:,n2-1:,n3-1:) = var(:,3:4,3:4)
+      var(:,:,:2) = var(:,:,n3-3:n3-2) !mpi 120
+      var(:,:,n3-1:) = var(:,:,3:4)    !mpi 110
+      var(:,:2,:2) = var(:,n2-3:n2-2,n3-3:n3-2) !mpi 150
+      var(:,n2-1:,n3-1:) = var(:,3:4,3:4) ! mpi180
     
    END SUBROUTINE cyclics
    !
    ! ---------------------------------------------------------------------
-   ! Subroutine cyclicc: comits excahnging cyclic boundary conditions
+   ! Subroutine cyclicc: comits exchanging cyclic boundary conditions
    SUBROUTINE cyclicc(n1,n2,n3,var,req)
 
       INTEGER :: n1,n2,n3,req(16)
@@ -234,7 +234,51 @@ CONTAINS
 
    END SUBROUTINE cyclicc
    !
+   
    ! ---------------------------------------------------------------------
+   ! Subroutine cyclicc2d: comits exchanging cyclic boundary conditions
+   SUBROUTINE cyclicc2d(n2,n3,var,req)
+
+      INTEGER :: req(16),n2,n3
+      REAL    :: var(n2,n3)
+
+   END SUBROUTINE cyclicc2d
+   ! ---------------------------------------------------------------------
+   
+   ! --------------------------------------------------------------------------
+   SUBROUTINE cyclics2d(n2,n3,var,req)
+   
+	   IMPLICIT NONE
+	   
+	   INTEGER, INTENT(in) :: n2,n3,req(16)
+	   REAL, INTENT(inout) :: var(n2,n3)
+	   
+	   
+	   IF (n3 == 5) THEN
+	   	var(:,1) = var(:,3)
+	   	var(:,2) = var(:,3)
+	   	var(:,4) = var(:,3)
+	   	var(:,5) = var(:,3)   	
+	   END IF
+	   
+	   IF (n2 == 5) THEN
+	   	var(1,:) = var(3,:)
+	   	var(2,:) = var(3,:)
+	   	var(4,:) = var(3,:)
+	   	var(5,:) = var(3,:)
+	   END IF
+	   
+	   var(:2,:) = var(n2-3:n2-2,:) !mpi101
+      	   var(n2-1:,:) = var(3:4,:)    !mpi102
+
+           var(:,:2) = var(:,n3-3:n3-2) !mpi104
+           var(:,n3-1:) = var(:,3:4)    !mpi103
+           var(:2,:2) = var(n2-3:n2-2,n3-3:n3-2) ! mpi105
+           var(n2-1:,n3-1:) = var(3:4,3:4)       ! mpi106
+               
+   END SUBROUTINE cyclics2d  
+   
+   
    SUBROUTINE appl_abort(ierr)
 
       INTEGER :: ierr

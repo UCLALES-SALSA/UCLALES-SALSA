@@ -28,14 +28,13 @@ MODULE srfc
   USE util, ONLY: getMassIndex
   USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, nliquid, spec, prlim, &
                          ice_theta_dist, ica, fca, icb, fcb, ncld, nprc, ice_theta_dist
-  USE mpi_interface, ONLY : myid
+  USE mpi_interface
   USE mo_diag_state, ONLY: a_tskin, a_qskin, a_fgi, a_weight, a_fcz0, a_fuelmcg, &
   			   a_ignitiontime, a_fuelburnt, a_firespread, a_areaburnt, &
   			   a_phiwc, a_phiwb, a_tcrit, a_R0, a_ignitiontimecell
   USE ncio, ONLY : open_surf_nc, read_surf_nc_2d, close_nc
   USE thrm, ONLY: rslf
   USE emission_init, ONLY: regime_limits
-  USE mo_mpi_io, ONLY: write_hist_field_2d
   
   
   IMPLICIT NONE
@@ -150,7 +149,7 @@ CONTAINS
                      !mc_ApVdom, deltaz
       !USE stat, ONLY: sfc_stat, sflg, mcflg, acc_massbudged
      USE mpi_interface, ONLY : nypg, nxpg, double_array_par_sum, & 
-                               cyclics2d, cyclicc2d
+                               cyclicc2d,cyclics2d
       
 
       IMPLICIT NONE
@@ -163,7 +162,7 @@ CONTAINS
       REAL :: K1,K2,K3,Kmean1,Kmean2,fii_1,fii_2,fii_3,Q3,Q12,Q23,ff1  ! Sami added
       
      
-      INTEGER :: i, j, iterate, req(8)
+      INTEGER :: i, j, iterate, req(16)
       REAL    :: zs, bflx, ffact, sst1, bflx1, Vbulk, Vzt, usum
       REAL (kind=8) :: bfl(2), bfg(2)
       
@@ -215,7 +214,8 @@ CONTAINS
                           a_rstar)
             CALL sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar,  &
                          uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
-
+	
+	!----------------------------------------------------------------
             !
             ! get fluxes from profiles
             !
@@ -237,10 +237,13 @@ CONTAINS
                           a_rstar)
             CALL sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar,  &
                          uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
-             !
-             ! get fluxes from bulk formulae with coefficients given by dthcon and
-             ! drtcon
-             !
+  
+  
+        !----------------------------------------------------------------
+        !
+        ! get fluxes from bulk formulae with coefficients given by dthcon and
+        ! drtcon
+        !
          CASE(3)
             CALL get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up%d,a_vp%d,umean,vmean)
             DO j = 3, nyp-2
@@ -259,9 +262,12 @@ CONTAINS
             END DO
             CALL sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar,  &
                          uw_sfc,vw_sfc,wt_sfc,wq_sfc,ww_sfc)
-             !
-             ! fix surface temperature to yield a constant surface buoyancy flux
-             !
+                         
+                         
+	!----------------------------------------------------------------
+        !
+        ! fix surface temperature to yield a constant surface buoyancy flux
+        !
          CASE(4)
 
             Vzt   = 10.* (log(zt%d(2)/zrough)/log(10./zrough))
@@ -307,7 +313,9 @@ CONTAINS
                   a_tstar%d(i,j) = wt_sfc%d(i,j)/a_ustar%d(i,j)
                END DO
             END DO
-
+            
+            
+	!----------------------------------------------------------------
          CASE(5)
 
             !
@@ -406,7 +414,7 @@ CONTAINS
 
             sst = sst1
          
-
+	!----------------------------------------------------------------
 	CASE(6)
         
          !
@@ -601,6 +609,7 @@ CONTAINS
 	  lh_flx = 0.
 	  sh_flx = 0.
          !
+         !----------------------------------------------------------------
          ! fix thermodynamic fluxes at surface given values in energetic
          ! units and calculate  momentum fluxes from winds
          !
@@ -925,7 +934,7 @@ END SUBROUTINE update_ignition
 SUBROUTINE surface_state()
   USE ncio, ONLY : open_surf_nc, read_surf_nc_2d, close_nc  
   USE mpi_interface, ONLY : xoffset, yoffset, wrxid, wryid, nxpg, nypg,   &
-                            myid, nyprocs, nxprocs, ranktable
+                            myid, nyprocs, nxprocs
   USE mo_diag_state, ONLY: a_tskin, a_qskin, a_fgi, a_weight, a_fcz0, & 
   			   a_fuelmcg, a_ignitiontime, a_fuelburnt, &
   			   a_firespread, a_areaburnt, a_phiwc, a_phiwb, & 
@@ -950,7 +959,6 @@ SUBROUTINE surface_state()
   
   ! For checking purposes
   !WRITE(*,*) 'Internal', nxp_global,nyp_global 
-  !WRITE(*,*) 'ranktable',ranktable
   !WRITE(*,*) 'wrxid,wryid', wrxid, wryid
   !WRITE(*,*) 'xoffset, yoffset',xoffset,yoffset
   
