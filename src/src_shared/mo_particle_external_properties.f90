@@ -44,7 +44,7 @@ MODULE mo_particle_external_properties
       IMPLICIT NONE
       REAL, INTENT(in) :: diam,  &      ! Particle diameter; for ice this should be the spherical equivalent diameter
                           rhop          ! Bulk density of particle
-      REAL, INTENT(in) :: rhoa, visc, beta ! Air density, viscocity and Cunningham correction factor
+      REAL, INTENT(in) :: rhoa, visc, beta ! Air density, viscosity and Cunningham correction factor
       INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4)
       TYPE(t_shape_coeffs), INTENT(in), OPTIONAL :: shape ! Shape coefficients needed for ice
       REAL, INTENT(in), OPTIONAL :: dnsp                  ! Maximum diameter of non-spherical ice particle
@@ -100,9 +100,9 @@ MODULE mo_particle_external_properties
     END FUNCTION terminal_vel
     
     
-    !--
-    ! This function calculates the cross-sectional area using Morrison and Milbrand (2015) 
-    ! Morrison, H., & Milbrandt, J. A. (2015). 
+    !-----------------------------------------------------------------------------------------------
+    ! This function calculates the cross-sectional area using shape parameters derived from the implemented
+    ! Morrison, H., & Milbrandt, J. A. (2015). src/src_shared/mp_ice_shape.f90
     ! Parameterization of Cloud Microphysics Based on the Prediction of Bulk Ice Particle Properties. 
     ! Part I: Scheme Description and Idealized Tests. Journal of the Atmospheric Sciences, 72(1), 287–311.
     ! https://doi.org/https://doi.org/10.1175/JAS-D-14-0065.1
@@ -112,10 +112,10 @@ MODULE mo_particle_external_properties
     ! pristine crystals (given in the runles) 
     ! and spherical ones when the ice rime fraction increases from 0 to 1
     
-    REAL FUNCTION cross_sec_area(D,flag, shape) 
+    REAL FUNCTION cross_sec_area(D,flag,shape) 
 	IMPLICIT NONE
 	
-	REAL, INTENT(in) :: D          ! Particle diameter; for ice this should be the spherical equivalent diameter
+	REAL, INTENT(in) :: D          ! Particle diameter
         INTEGER, INTENT(in) :: flag    ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4)
         TYPE(t_shape_coeffs), INTENT(in), OPTIONAL :: shape ! Shape coefficients needed for ice
         
@@ -125,13 +125,102 @@ MODULE mo_particle_external_properties
            cross_sec_area = pi/4 * D**2
         ELSE IF (flag==4) THEN   
            ! Ice   
-           ! diam is dnsp non-spherical diameter
+           ! D for non-spherical ice is defined as the maximum particle length or dimension
            cross_sec_area = shape%gamma*D**shape%sigma
         END IF          
     
     END FUNCTION cross_sec_area
     
-    !--
+    !-----------------------------------------------------------------------------------------------
+    ! This function calculates the capacitance of droplets and ice crystals using information in 
+    ! Pruppacher, H., & Klett, J. (1997). Microphysics of clouds and precipitation. Springer. 
+    ! Equations 13-77 to 13-79
+    REAL FUNCTION capacitance(D,flag, aspect_ratio) 
+        IMPLICIT NONE
+	
+	REAL, INTENT(in) :: D          ! Particle diameter for phase <4, nonspherical diameter for ice
+        INTEGER, INTENT(in) :: flag    ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4)
+        REAL, INTEGER(in) :: aspect_ratio
+        REAL :: eccentricity, c
+        
+        ! capacitance in the units of D meters 
+        
+        IF( ANY(flag == [1,2,3])) THEN    
+           ! Aerosol and cloud and rain droplets
+           ! diam is dwet and we assume spherical droplets
+           ! 
+           capacitance = 1.0
+        ELSE IF (flag==4) THEN   
+           ! Ice   
+           ! D for non-spherical ice is defined as the maximum particle length or dimension
+           ! aspect_ratio = c/a = [mass/irhoe/cross_sec_area]/dnsp
+           c = aspect_ratio * D  ! a= D
+           IF (aspect_ratio < 0.999) THEN ! oblate
+              eccentricity = SQRT(1-aspect_ratio**2)
+              capacitance = D * eccentricity / ASIN(eccentricity)
+           ELSE IF (aspect_ratio >=0.999 .AND. aspect_ratio < 1.001) THEN ! sphere
+              capacitance = D
+           ELSE IF (aspect_ratio > 1.001) THEN ! prolate
+              eccentricity = SQRT(1-aspect_ratio**(-2))
+              capacitance = c * eccentricity / LOG(aspect_ratio) / (1+eccentricity)
+           END IF
+        END IF        
+           
+    END FUNCTION capacitance
+    
+    !-----------------------------------------------------------------------------------------------
+    REAL FUNCTION ventilation_factor(diam,rhop,rhoa,visc,beta,flag,shape,dnsp,zdfh2o,aspect_ratio)
+       IMPLICIT NONE
+       REAL, INTENT(in) :: diam,  &      ! Particle diameter; for ice this should be the spherical equivalent diameter
+                          rhop          ! Bulk density of particle
+       REAL, INTENT(in) :: rhoa, visc, beta ! Air density, viscosity and Cunningham correction factor
+       INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4)
+       TYPE(t_shape_coeffs), INTENT(in), OPTIONAL :: shape ! Shape coefficients needed for ice
+       REAL, INTENT(in), OPTIONAL :: dnsp                  ! Maximum diameter of non-spherical ice particle
+       REAL, INTENT(in) :: zdfh2o           ! Diffusion coefficient of water vapor in air (m2/s)
+       REAL, INTENT(in) :: aspect_ratio
+      
+       ! Constants
+       REAL, PARAMETER :: rhoa_ref = 1.225 ! reference air density (kg/m^3)
+      
+       REAL :: kvisc, velocity, reynolds_number, schmidt_number, xqi,fv
+      
+       velocity = terminal_vel(diam,rhop,rhoa,visc,beta,flag,shape,dnsp)
+       
+       kvisc = visc/rhoa
+       schmidt_number = kvisc / zdfh2o
+       
+       fv = 1.0
+       ventilation_factor = 1.0 
+       
+       IF( ANY(flag == [1,2,3])) THEN    
+           ! Aerosol and cloud and rain droplets
+           ! diam is dwet and we assume spherical droplets
+           ! 
+           reynolds_number = velocity*diam / kvisc
+           xqi = schmidt_number**(1./3.) * SQRT(reynolds_number)  
+           ventilation_factor = 
+       ELSE IF (flag==4) THEN ! Ice particles
+           reynolds_number = velocity*dnsp / kvisc
+           xqi = schmidt_number**(1./3.) * SQRT(reynolds_number)  
+           ! Pruppacher, H., & Klett, J. (1997). Microphysics of clouds and precipitation. Springer.
+           ! fv ventilation coefficient for idealized snow crystals ~ hexagonal plates
+           ! Reynolds number must be defined for dnsp, related to the particle projected_area A=gamma*dnsp**sigma
+           ! Welss, J.‐N., Siewert, C., & Seifert, A.(2024). Explicit habit‐prediction in the Lagrangian 
+           ! super‐particle ice microphysics model McSnow. 
+           ! Journal of Advances in Modeling Earth Systems, 16, e2023MS003805. https://doi.org/10.1029/2023MS003805  
+           IF (xqi < 1.0) THEN
+              fv = 1. + 0.14*xqi**2 ! PK eq-13-88
+              ventilation_factor = fv + 2.8E-3*xqi**1.5 / aspect_ratio ! Welss eq.34
+           ELSE
+              fv = 0.86 + 0.28*xqi ! PK eq-13-89
+              ventilation_factor = fv + 2.8E-2*xqi * aspect_ratio    ! Welss eq.34
+           END IF           
+       END IF
+      
+    
+    END FUNCTION ventilation factor
+    !-----------------------------------------------------------------------------------------------
     REAL FUNCTION kc1213(X)
       ! Calculate the term needed in 2.12 and 2.13 in Khvorostyanov and Curry 2002
       REAL, INTENT(in) :: X

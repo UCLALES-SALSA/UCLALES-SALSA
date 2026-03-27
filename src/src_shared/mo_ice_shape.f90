@@ -154,7 +154,10 @@ MODULE mo_ice_shape
               rho_b,        &
               Fr,           &
               hlp
-
+      ! Shape coefficients defined as
+      ! particle_mass = alpha*D**beta
+      ! projected_area = gamma*D**sigma 
+      
       ! Initially, set values for spherical
       ishape%alpha = pi6*spec%rhoic
       ishape%beta = 3.

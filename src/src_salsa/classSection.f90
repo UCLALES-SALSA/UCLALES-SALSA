@@ -147,7 +147,7 @@ MODULE classSection
 
       IF (limit) THEN
          IF (ANY(swtyp == ["nsp","all"])) &
-              SELF%dnsp = MIN(SELF%dwet,SELF%dlim) 
+              SELF%dnsp = MIN(SELF%dnsp,SELF%dlim) 
          IF (ANY(swtyp == ["wet","all"])) &
               SELF%dwet = MIN(SELF%dwet,SELF%dlim)
          IF (ANY(swtyp == ["dry","all"])) &

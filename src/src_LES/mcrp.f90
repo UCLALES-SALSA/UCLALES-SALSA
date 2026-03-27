@@ -878,7 +878,7 @@ MODULE mcrp
       
       IF (sed_ice%state .AND. level == 5) THEN                          
          CALL DepositionFast(nice,nspec+1,tk,adn,a_nicep,a_micep,     &
-                             irnt,irmt,remice,irate,sfcirate,VtIce,4,AtIce,ArIce)
+                             irnt,irmt,remice,irate,sfcirate,VtIce,4,AtIce,ArIce,nc)
          
          a_nicet%d(:,:,:,:) = a_nicet%d(:,:,:,:) + irnt(:,:,:,:)/dtlt
          a_micet%d(:,:,:,:) = a_micet%d(:,:,:,:) + irmt(:,:,:,:)/dtlt
@@ -1076,14 +1076,14 @@ MODULE mcrp
 
 
   !------------------------------------------------------------------
-  SUBROUTINE DepositionFast(nb,ns,tk,adn,numc,mass,prnt,prvt,remprc,rate,srate,Vt,flag,At,Ar)
+  SUBROUTINE DepositionFast(nb,ns,tk,adn,numc,mass,prnt,prvt,remprc,rate,srate,Vt,flag,At,Ar,nc)
     USE mo_particle_external_properties, ONLY : calcDiamLES, terminal_vel, cross_sec_area
     USE util, ONLY : getBinMassArray
     USE mo_submctl, ONLY : nlim,prlim,pi6
     USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: ns,nb
+    INTEGER, INTENT(in) :: ns,nb, nc ! number of species, number of bins in the category, spec%getIndex('H2O')
     TYPE(FloatArray3d), INTENT(in) :: tk
     TYPE(FloatArray3d), INTENT(in) :: adn
     TYPE(FloatArray4d), INTENT(in) :: numc
@@ -1130,9 +1130,17 @@ MODULE mcrp
     REAL :: zdneff               ! Effective density for non-spherical
 
     TYPE(t_shape_coeffs) :: shape ! Used for ice
+    INTEGER :: iwa,irim,nspec, ibc, idu
+    REAL :: masspristineice
+
     
     clim = nlim
     IF (ANY(flag == [3,4])) clim = prlim
+    
+    iwa  = spec%getIndex("H2O")
+    irim = spec%getIndex("rime")                    
+    ibc = spec%getIndex("BC",notFoundValue=0)
+    idu = spec%getIndex("DU",notFoundValue=0)  
 
     ! Zero the output diagnostics for terminal velocity
     ! Zero the output diagnostics for cross sectional area
@@ -1166,8 +1174,7 @@ MODULE mcrp
              pmass = 0.
              ! Precipitation bin loop
              DO bin = 1,nb
-                IF (zpn(bin) < clim) CYCLE
-
+                IF (zpn(bin) < clim) CYCLE                
                 ! Calculate wet size
                 CALL getBinMassArray(nb,ns,bin,zpm,pmass)
                 IF (flag < 4) THEN
@@ -1175,10 +1182,18 @@ MODULE mcrp
                 ELSE
                    dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.) 
                    dnsp=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.FALSE.) ! For non-spherical ice, this is the max diameter of the crystal
-                   CALL getShapeCoefficients(shape,SUM(pmass(1:ns-1)),pmass(ns),zpn(bin))
+                   !iwa = spec%getIndex("H2O") --> nc calculated in the main call
+                   !irim = spec%getIndex("rime") --> ns given as input
+                   !the subroutine getShapeCoefficients(ishape,masspristineice,massrimedice,numc)
+                   masspristineice= mass%d(k,i,j,nc)
+                   IF ( ibc > 0 ) masspristineice = masspristineice + ice(ii,jj,cc)%volc(ibc)*spec%rhobc
+             	   IF ( idu > 0 ) masspristineice = masspristineice + ice(ii,jj,cc)%volc(idu)*spec%rhodu                
+                   CALL getShapeCoefficients(shape,masspristineice,mass%d(k,i,j,ns),zpn(bin))
+                   masspristineice=0.
                 END IF
                 
                 ! Calculate particle density based on dwet resulting in the bulk density (also in case of non-spherical ice)
+                ! This is how the effective density is calculated in src/src_vars/mo_derived_procedures.f90
                 zdn = SUM(pmass)/zpn(bin)/(pi6*dwet**3)
                 
                 ! Terminal velocity
@@ -1201,7 +1216,7 @@ MODULE mcrp
                 Vt%d(k,i,j,bin) = vc
                 At%d(k,i,j,bin) = ac  
                 Ar%d(k,i,j,bin) = aspr
-                 ! Aspect-Ratio=Effective-thickness/Lateral-length for ice particles
+                ! Aspect-Ratio=Effective-thickness/Lateral-length for ice particles
 		     ! Assumed to correspond to the following dimensions
 		     ! Aspratio = eff_thick / L
 		     ! Effective-thickness: thickness of a ficticious plate

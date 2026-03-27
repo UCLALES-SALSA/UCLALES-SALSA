@@ -455,9 +455,9 @@ CONTAINS
             zdvoloc = 0.
 
             !-- 1) Properties of air and condensing gases --------------------
-            zvisc  = (7.44523e-3*SQRT(ptemp(ii,jj)**3))/(5093.*(ptemp(ii,jj)+110.4))      ! viscosity of air [kg/(m s)]
+            zvisc  = (7.44523e-3*SQRT(ptemp(ii,jj)**3))/(5093.*(ptemp(ii,jj)+110.4))  ! viscosity of air [kg/(m s)]
             zdfvap = 5.1111e-10*ptemp(ii,jj)**1.75*pstand/ppres(ii,jj)                ! diffusion coefficient [m2/s]
-            zmfp   = 3.*zdfvap*sqrt(pi*spec%msu/(8.*rg*ptemp(ii,jj)))                      ! mean free path [m]
+            zmfp   = 3.*zdfvap*sqrt(pi*spec%msu/(8.*rg*ptemp(ii,jj)))                 ! mean free path [m]
 
             !-- 2) Transition regime correction factor for particles ---------
             !
@@ -703,10 +703,11 @@ CONTAINS
           in1a, in2a,  &
           fn2b,            &
           lscndh2oae, lscndh2ocl, lscndh2oic, &
-          alv, als 
+          alv, als, pstand
      USE mo_salsa_properties, ONLY : equilibration
-     
-     
+     USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
+     USE mo_particle_external_properties, ONLY : capacitance
+ 
      IMPLICIT NONE
 
       INTEGER, INTENT(in) :: kproma,kbdim,klev,krow
@@ -744,20 +745,26 @@ CONTAINS
       REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
 
       REAL :: dvice, dvrime, dvitot ! Volume change for pristine and rimed ice
-
+      REAL :: massice, rhoice,dnsp,aspect_ratio, visc,mfp
+      
       INTEGER :: nstr
       INTEGER :: ii,jj,cc
       INTEGER :: counter      
-      INTEGER :: iwa,irim,nspec
+      INTEGER :: iwa,irim,nspec, ibc, idu
 
       REAL, ALLOCATABLE :: vrate(:)
+      
+      TYPE(t_shape_coeffs) :: shape ! Used for ice
       
       zrh(:,:) = prv(:,:)/prs(:,:)
       
       iwa = spec%getIndex("H2O")
       irim = spec%getIndex("rime")
-      nspec = spec%getNSpec(type="total")
-
+      nspec = spec%getNSpec(type="total")                      
+      ibc = spec%getIndex("BC",notFoundValue=0)
+      idu = spec%getIndex("DU",notFoundValue=0)  
+      
+      
       ! For diagnostics
       ALLOCATE(vrate(nspec))
       
@@ -790,6 +797,9 @@ CONTAINS
                 ) ) CYCLE
 
             rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
+            
+            visc = (7.44523e-3*SQRT(ptemp(ii,jj)**3))/(5093.*(ptemp(ii,jj)+110.4)) ! viscosity of air [kg/(m s)] 
+            mfp = (1.656e-10*ptemp(ii,jj)+1.828e-8)*pstand/ppres(ii,jj) ! mean free path of air
 
             ! Diffusion coef
             zdfh2o = ( 5./(16.*avog*rhoair*1.e-3*(3.11e-8)**2) ) * &
@@ -889,31 +899,47 @@ CONTAINS
             ! Ice particles --------------------------------------------------------------------------------
             DO cc = 1, nice
                IF (ice(ii,jj,cc)%numc > ice(ii,jj,cc)%nlim .AND. lscndh2oic .AND. ptemp(ii,jj) < 273.15) THEN
-                  ! Wet diameter
-                  dwet = ice(ii,jj,cc)%dnsp
-                  
+                  ! Maximum length
+                  dnsp = ice(ii,jj,cc)%dnsp  ! This was updated before coagulation
+                  dwet = ice(ii,jj,cc)%dwet
+                  ! Ice particle mass                                  
+                  massice = spec%rhoic*ice(ii,jj,cc)%volc(iwa)+spec%rhori*ice(ii,jj,cc)%volc(irim)
+                  !                 
+             	  IF ( ibc > 0 ) massice = massice + ice(ii,jj,cc)%volc(ibc)*spec%rhobc
+             	  IF ( idu > 0 ) massice = massice + ice(ii,jj,cc)%volc(idu)*spec%rhodu
+                  ! Ice particle density 
+                  ! This is how the effective density is calculated in src/src_vars/mo_derived_procedures.f90
+                  rhoice = massice/ice(ii,jj,cc)%numc/(pi6*dnsp**3)
+                  ! Ice particle cross sectional area
+                  ! the subroutine getShapeCoefficients(ishape,masspristineice,massrimedice,numc)
+                  CALL getShapeCoefficients(shape,spec%rhoic*ice(ii,jj,cc)%volc(iwa),spec%rhori*ice(ii,jj,cc)%volc(irim),ice(ii,jj,cc)%numc)
+                   ! Ice particle aspect ratio  
+	           ! D for non-spherical ice is defined as the maximum particle length or dimension
+	           ! Assumed to correspond to the following dimensions
+		   ! aspect_ratio = eff_thick / L
+		   ! Effective-thickness: thickness of a ficticious plate
+		   ! that have the same volume/cross-sectional area
+		   ! eff_thick = mass/irhoe/cross_sec_area
+		   ! Lateral-length: non-spherical diameter or maximum dimension
+		   ! L ~ hydrometeor%dnsp or maximum length
+		   ! aspect_ratio = [mass/irhoe/cross_sec_area]/dnsp
+                  aspect_ratio = massice/ rhoice / (shape%gamma*D**shape%gamma) / dnsp
+    
                   ! Capacitance of ice crystals depending on aspect ratio
-                  !  ! Aspect-Ratio=Effective-thickness/Lateral-length for ice particles
-		     ! Assumed to correspond to the following dimensions
-		     ! Aspratio = eff_thick / L
-		     ! Effective-thickness: thickness of a ficticious plate
-		     ! that have the same mass/cross-sectional area
-		     ! eff_thick = Miba/irhoe/AtIce
-		     ! Lateral-length: non-spherical diameter or maximum dimension
-		     ! L ~ hydrometeor%dnsp maximum length
-		     ! iasprat = Miba/irhoe/AtIce/dnsph
+                  IF (aspect_ratio aspect_ratio > 0.) THEN !
+                     cap = capacitance(dnsp,ice(ii,jj,cc)%phase, aspect_ratio)
+                     WRITE(*,*) 'cap,rho,shape,d', cap, rhoice,shape,dnsp
+                  ELSE
+                    WRITE(*,*) 'Error Aspect ratio is negative',mass,rhoice,shape,dnsp
+                  END
                   
+		  ! knud = 2.*mfp/dnsp
+		  beta = 1.+(2.*mfp/dnsp)*(1.142+0.558*exp(-0.999/(2.*mfp/dnsp)))
+                  ! Ventilation factor  
+                  fv = ventilation_factor(dwet,rhoice,rhoair,visc,beta,ice(ii,jj,cc)%phase,shape,dnsp,zdfh2o,aspect_ratio)                  
                   
-                   !CALL getShapeCoefficients(shape,SUM(pmass(1:ns-1)),pmass(ns),zpn(bin))
-                   ! shape parameters for spheres are internally chosen
-                  ! ac = cross_sec_area(ice(ii,jj,cc)%dwet,ice(ii,jj,cc)%phase) 
-                  ! vc = terminal_vel(ice(ii,jj,cc)%dwet,ice(ii,jj,cc)%rhomean,adn%d(k,i,j),avis,GG,ice(ii,jj,cc)%phase,shape,ice(ii,jj,cc)%dnsp)
-                  ! ac = cross_sec_area(dnsp,flag,shape)
-                  ! rhoice = SUM(pmass)/zpn(bin)/(pi6*dnsp**3)
-                  ! aspr = SUM(pmass) / rhoice / ac / dnsp 
-                  cap = 0.5*dwet  
                   ! Activity + Kelvin effect - edit when needed
-                  !   Can be calculated just like for sperical homogenous particle or just ignored,
+                  !   Can be calculated just like for spherical homogenous particle or just ignored,
                   !   because these are not known for solid, irregular and non-homogenous particles.
                   !   Ice may not be that far from a sphere, but most particles are large and at least
                   !   growing particles are covered by a layer of pure ice.
@@ -941,6 +967,7 @@ CONTAINS
                   zmtic(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
                   
                END IF
+               massice=0.
             END DO
             
             ! -- Aerosols: ------------------------------------------------------------------------------------
