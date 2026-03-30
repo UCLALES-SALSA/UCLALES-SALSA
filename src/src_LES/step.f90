@@ -33,8 +33,6 @@ module step
   real    :: time   =  0.
   real    :: strtim =  0.0
   real    :: cntlat =  31.5 ! 30.0
-  logical :: outflg = .true.
-
 
 contains
   !
@@ -51,6 +49,7 @@ contains
          dn0, u0, v0, write_hist, write_anal, close_anal, dtlong
     use stat, only : sflg, csflg, cswrite, cs_start, savg_intvl, ssam_intvl, &
          write_ps, close_stat, fill_scalar
+    use modcross, only : lcross, frqcross, triggercross, close_cross
     real, parameter :: cfl_upper = 0.5
 
     real    :: t1,t2,tplsdt
@@ -88,15 +87,19 @@ contains
             call write_ps(nzp,dn0,u0,v0,zm,zt,time)
 
        ! Write restarts (*.<time>s and *.rst)
-       if (mod(tplsdt,frqhis) < dtl .and. outflg)   &
+       if (mod(tplsdt,frqhis) < dtl)   &
             call write_hist(2, time)
 
-       if (mod(tplsdt,frqrst) < dtl .and. outflg)   &
+       if (mod(tplsdt,frqrst) < dtl)   &
             call write_hist(1, time)
 
        ! Write analysis files
-       if (mod(tplsdt,frqanl) < dtl .and. outflg .and. time >= anl_start)   &
+       if (mod(tplsdt,frqanl) < dtl .and. time >= anl_start)   &
             call write_anal(time)
+
+       ! Write cross sections
+       if ((mod(tplsdt,frqcross) < dtl .or. tplsdt < 1.1*dtl) .and. lcross)   &
+            call triggercross(time)
 
        if(myid == 0) then
           istp = istp+1
@@ -111,9 +114,9 @@ contains
 
     enddo
 
-    IF (outflg) call write_hist(1, time)
     iret = close_anal()
     iret = close_stat()
+    IF (lcross) call close_cross()
 
   end subroutine stepper
   !
@@ -283,7 +286,7 @@ contains
   ! TR 22.3.2017
   !
   SUBROUTINE nudging(time)
-
+    USE util, ONLY : get_avg3
     use grid, only : level, dtl, nxp, nyp, nzp, nbins, ncld, nice, &
                 zt, a_rp, a_rt, a_rc, a_ri, &
                 a_naerop, a_naerot, a_ncloudp, a_nicep, &
@@ -300,18 +303,21 @@ contains
 
     IMPLICIT NONE
     REAL, INTENT(IN) :: time
-    REAL :: aero_target(nzp,nxp,nyp,nbins)
+    REAL :: aero_target(nzp,nxp,nyp,nbins), tmp(nzp,nxp,nyp)
 
     ! Initialization
     IF (nudge_init) THEN
         ! Note: the first temperature and humidity values can include random
         ! perturbations, so could take the target values from soundings (th0, rt0).
         ! There are no wind perturbations, but can still could use u0 and v0.
+        ! Alternatively, the domain mean state is always a safe choise.
         !
         ! (Liquid water) potential temperature: nudge towards initial theta
         IF (nudge_theta/=0) THEN
             ALLOCATE(theta_ref(nzp))
-            theta_ref(:)=a_tp(:,3,3)
+            ! The mean state
+            CALL get_avg3(nzp,nxp,nyp,a_tp,theta_ref)
+            !theta_ref(:)=a_tp(:,3,3)
             !theta_ref(:)=th0(:)-th00 ! Initial state from soundings
         ENDIF
         !
@@ -321,10 +327,13 @@ contains
         IF (nudge_rv/=0)  THEN
             ALLOCATE(rv_ref(nzp))
             IF (level>3) THEN
-                rv_ref(:)=a_rp(:,3,3)+a_rc(:,3,3)+a_ri(:,3,3)
+                tmp(:,:,:)=a_rp(:,:,:)+a_rc(:,:,:)+a_ri(:,:,:)
             ELSE ! Levels 0-3
-                rv_ref(:)=a_rp(:,3,3) ! This includes all
+                tmp(:,:,:)=a_rp(:,:,:) ! This includes all
             ENDIF
+            ! The mean state
+            CALL get_avg3(nzp,nxp,nyp,tmp,rv_ref)
+            !rv_ref(:)=tmp(:,3,3)
             !rv_ref(:)=rt0(:) ! Initial state from soundings
         ENDIF
         !
@@ -733,10 +742,13 @@ contains
   ! SALSA_diagnostics
   !
   SUBROUTINE SALSA_diagnostics()
-    USE grid, ONLY : tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
-    USE mo_submctl, ONLY : prlim
+    USE grid, ONLY : tmp_cldp, tmp_prcp, tmp_icep, tmp_snwp, tmp_gasp
+    USE mo_submctl, ONLY : nlim, prlim
 
     ! Check that ignored species or bins are not used
+    IF (ALLOCATED(tmp_cldp)) THEN
+        IF (ANY(tmp_cldp>nlim)) STOP 'Non-zero cloud even when disabled!'
+    ENDIF
     IF (ALLOCATED(tmp_prcp)) THEN
         IF (ANY(tmp_prcp>prlim)) STOP 'Non-zero rain even when disabled!'
     ENDIF

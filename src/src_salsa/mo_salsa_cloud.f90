@@ -303,7 +303,7 @@ CONTAINS
     ! Release cloud and rain drops back to aerosol when they have become small enough
     !
     USE mo_submctl, ONLY :  t_section,nbins,ncld,nprc,rg,surfw0,pi6,pi,nlim,prlim, &
-                diss,dens,mws,fn1a,in2a,fn2a,in2b,nspec,calc_correlation
+                diss,dens,mws,fn1a,in2a,fn2a,in2b,nspec,calc_correlation,rain2aer_opt
     IMPLICIT NONE
     INTEGER, INTENT(IN) :: kbdim,klev
     TYPE(t_section), INTENT(INOUT) :: paero(kbdim,klev,nbins), &
@@ -360,7 +360,13 @@ CONTAINS
                     ! Corresponding b bin
                     bb=ab-in2a+in2b
                     ! 2) Select a or b bin
-                    IF (ab<in2a .OR. paero(ii,jj,bb)%numc<=nlim) THEN
+                    IF (rain2aer_opt>0) THEN
+                        ! Force a-bins
+                        !ab = ab
+                    ELSEIF (rain2aer_opt<0) THEN
+                        ! Force b-bins
+                        ab=MAX(bb,in2b)
+                    ELSEIF (ab<in2a .OR. paero(ii,jj,bb)%numc<=nlim) THEN
                         ! Empty b bin so select a
                         !ab = ab
                     ELSEIF (paero(ii,jj,ab)%numc<=nlim) THEN
@@ -393,7 +399,7 @@ CONTAINS
     ! Release ice and snow back to aerosol when they have become small enough
     !
     USE mo_submctl, ONLY : t_section,nbins,nice,nsnw,pi6,nlim,prlim, &
-                fn1a,in2a,fn2a,in2b,nspec,calc_correlation
+                fn1a,in2a,fn2a,in2b,nspec,calc_correlation,snow2aer_opt
     IMPLICIT NONE
     INTEGER, INTENT(IN) :: kbdim,klev
     TYPE(t_section), INTENT(INOUT) :: paero(kbdim,klev,nbins), &
@@ -447,7 +453,13 @@ CONTAINS
                     ! Corresponding b bin
                     bb=ab-in2a+in2b
                     ! 2) Select a or b bin
-                    IF (ab<in2a .OR. paero(ii,jj,bb)%numc<=nlim) THEN
+                    IF (snow2aer_opt>0) THEN
+                        ! Force a-bins
+                        !ab = ab
+                    ELSEIF (snow2aer_opt<0) THEN
+                        ! Force b-bins
+                        ab=MAX(bb,in2b)
+                    ELSEIF (ab<in2a .OR. paero(ii,jj,bb)%numc<=nlim) THEN
                         ! Empty b bin or 1a, so select a
                         !ab = ab
                     ELSEIF (paero(ii,jj,ab)%numc<=nlim) THEN
@@ -757,10 +769,9 @@ CONTAINS
     INTEGER, INTENT(in) :: kbdim,klev
     REAL, INTENT(in) :: ptstep
     REAL, INTENT(in) :: ptemp(kbdim,klev),  &
-                            prv(kbdim,klev),    &
                             prs(kbdim,klev),    &
                             prsi(kbdim,klev)
-
+    REAL, INTENT(inout) :: prv(kbdim,klev)
     TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,fn2b), &
                                       pcloud(kbdim,klev,ncld), &
                                       pprecp(kbdim,klev,nprc), &
@@ -902,7 +913,7 @@ CONTAINS
             dN = paero(ii,jj,kk)%numc*frac
 
             ! Move to the parallel ice bin or to a snow bin
-            IF (dN>prlim) CALL aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dN)
+            IF (dN>prlim) CALL aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dN,prv)
 
         END DO
 
@@ -1245,12 +1256,13 @@ CONTAINS
                     pcloud(kbdim,klev,ncld), pprecp(kbdim,klev,nprc), &
                     pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
     REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev), &
-                    prv(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev)
+                    prs(kbdim,klev), prsi(kbdim,klev)
+    REAL, INTENT(inout) :: prv(kbdim,klev)
 
     IF (0<iopt .AND. iopt<=10) THEN
         ! 1-10: INAS parameterizations
         CALL ice_inas_driver(kbdim, klev, paero, pcloud, pprecp, pice, psnow, &
-                iopt, ptemp, ppres, prv, prsi)
+                iopt, ptemp, prv, prs, prsi)
     ELSEIF (10<iopt .AND. iopt<=20) THEN
         ! 11-20: Other parameterizations
         CALL cloud_freeze_driver(kbdim, klev, pcloud, pprecp, pice, psnow, &
@@ -1268,103 +1280,144 @@ CONTAINS
   ! distribution. The INP excess will freeze.
   !
   SUBROUTINE ice_inas_driver(kbdim, klev, paero, pcloud, pprecp, pice, psnow, &
-            iopt, ptemp, ppres, prv, prsi)
+            iopt, ptemp, prv, prs, prsi)
 
     USE mo_submctl, ONLY : t_section, in2a, nbins, ncld, nprc, nice, nsnw, &
-                    rhowa, rda, pi, nlim, prlim, &
-                    fixed_ice_min_Si, fixed_ice_min_rc, fixed_ice_max_T
+                    pi, nlim, prlim, idu, ibc, nspec, &
+                    fixed_ice_min_Si, fixed_ice_max_T
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kbdim, klev, iopt
     TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,nbins),  &
                     pcloud(kbdim,klev,ncld), pprecp(kbdim,klev,nprc), &
                     pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
-    REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev), &
-                    prv(kbdim,klev), prsi(kbdim,klev)
+    REAL, INTENT(in) :: ptemp(kbdim,klev), &
+                    prs(kbdim,klev), prsi(kbdim,klev)
+    REAL, INTENT(inout) :: prv(kbdim,klev) ! kg/m3
 
-    INTEGER :: ii,jj,kk
-    REAL :: pdn, S_ice, rc, ns, sumICE, dnice, inp_a(nbins), inp_c(ncld), inp_r(nprc)
+    INTEGER :: ii,jj,kk,iv1,iv2
+    REAL :: S_ice, S_w, ns, area, sumICE, dnice, inp_a(nbins), inp_c(ncld), inp_r(nprc)
+    REAL :: amin=3.14159e-16 ! Minimum diameter 10 nm
+    LOGICAL :: dep
+
+    IF (idu>0) THEN
+        ! Dust is present, so use that as INP
+        iv1=idu
+        iv2=idu
+    ELSEIF (ibc>0) THEN
+        ! BC is present, so use that as INP
+        iv1=ibc
+        iv2=ibc
+    ELSE
+        ! No insolubles, so use the dry particle as INP
+        iv1=2
+        iv2=nspec+1
+    ENDIF
 
     DO ii = 1,kbdim
     DO jj = 1,klev
-        pdn=ppres(ii,jj)/(rda*ptemp(ii,jj)) ! Air density (kg/m^3)
-
         ! Conditions for ice nucleation
         S_ice = prv(ii,jj)/prsi(ii,jj) ! Saturation with respect to ice
-        rc = sum( pcloud(ii,jj,:)%volc(1) )*rhowa/pdn ! Cloud water mixing ratio (kg/kg)
-        if ( S_ice < fixed_ice_min_Si .OR. rc < fixed_ice_min_rc .OR. ptemp(ii,jj)>fixed_ice_max_T ) cycle
+        S_w = prv(ii,jj)/prs(ii,jj) ! ... and water
+        if ( S_ice < fixed_ice_min_Si .OR. ptemp(ii,jj)>fixed_ice_max_T ) cycle
 
         ! INAS
-        IF (iopt==1) THEN
+        dep = .FALSE.
+        ns = 0.0
+        IF (iopt==1 .AND. S_w>1.0) THEN
             ! McCluskey, C. S., et al. (2018), Marine and Terrestrial Organic Ice-Nucleating
             ! Particles in Pristine Marine to Continentally Influenced Northeast Atlantic Air
             ! Masses, J. Geophys. Res.-Atmos., 123(11), 6196-6212, doi:10.1029/2017jd028033.
+            ! Immersion freezing parameterization - for cloud and rain droplets at RH>100 %
             ns = exp(-0.545*(ptemp(ii,jj)-273.15) + 1.0125) ! m-2
-        ELSE
-            STOP 'INAS parameterization not supported!'
+        ELSEIF (ANY(iopt==[2,7]) .AND. S_w>1.0) THEN
+            ! Ullrich, R., et al. (2017): A New Ice Nucleation Active Site Parameterization for Desert
+            ! Dust and Soot. J. Atmos. Sci., 74, 699-717, https://doi.org/10.1175/JAS-D-16-0074.1.
+            ! Immersion freezing on desert dust (Eq. 5) - for cloud and rain droplets at RH>100 %
+            ns = exp(150.577-0.517*ptemp(ii,jj)) ! m-2
+        ELSEIF (ANY(iopt==[4,7]) .AND. S_w<1.0) THEN
+            ! Ullrich, R., et al. (2017): A New Ice Nucleation Active Site Parameterization for Desert
+            ! Dust and Soot. J. Atmos. Sci., 74, 699-717, https://doi.org/10.1175/JAS-D-16-0074.1.
+            ! Deposition nucleation on desert dust (Eq. 7) - for dry aerosol at RH<100 %
+            ns = exp(285.692*(S_ice-1.0)**(1./4.)*cos(0.017*(ptemp(ii,jj)-256.692))**2* &
+                 (pi/2.-atan(0.08*(ptemp(ii,jj)-200.745)))/pi) ! m-2
+            dep = .TRUE.
         ENDIF
 
-        ! Calculate INP concentration based on ...
-        ! a) aerosol - currently not included
-        inp_a=0.
-        DO kk = in2a,nbins
-            IF(paero(ii,jj,kk)%numc > nlim) THEN
-                ! Here using dry surface area calculated from dry volume:
-                !   V=pi/6*D^3=pi/6*(A/pi)^(3/2) => A=pi*(V*6/pi)^(2/3)
-                inp_a(kk) = paero(ii,jj,kk)%numc*ns*pi* &
-                        (6.0/pi*SUM(paero(ii,jj,kk)%volc(2:))/paero(ii,jj,kk)%numc)**(2./3.)
-            ENDIF
-        ENDDO
-        ! b) cloud droplets
-        inp_c=0.
-        DO kk = 1,ncld
-            IF(pcloud(ii,jj,kk)%numc > nlim) THEN
-                ! Dry surface area
-                inp_c(kk) = pcloud(ii,jj,kk)%numc*ns*pi* &
-                        (6.0/pi*SUM(pcloud(ii,jj,kk)%volc(2:))/pcloud(ii,jj,kk)%numc)**(2./3.)
-            ENDIF
-        ENDDO
-        ! c) rain drops
-        inp_r=0.
-        DO kk = 1,nprc
-            IF(pprecp(ii,jj,kk)%numc > prlim) THEN
-                ! Dry surface area
-                inp_r(kk) = pprecp(ii,jj,kk)%numc*ns*pi* &
-                        (6.0/pi*SUM(pprecp(ii,jj,kk)%volc(2:))/pprecp(ii,jj,kk)%numc)**(2./3.)
-            ENDIF
-        ENDDO
+        ! Stop if these are not effective
+        IF (ns<100.) CYCLE
 
-        ! Calculate the INP excess = the number of new ice particles
-        sumICE = SUM(inp_a) + SUM(inp_c) + SUM(inp_r)
-        dnice = sumICE - SUM(pice(ii,jj,:)%numc) - SUM(psnow(ii,jj,:)%numc)
+        IF (dep) THEN
+            ! Deposition freezing for dry aerosol
+            inp_a=0.
+            DO kk = in2a,nbins
+                IF(paero(ii,jj,kk)%numc > nlim) THEN
+                    ! INP surface area per particle
+                    !   A=pi*D**2=pi*(6/pi*V/N)**(2/3)
+                    area = pi*(6.0/pi*SUM(paero(ii,jj,kk)%volc(iv1:iv2))/paero(ii,jj,kk)%numc)**(2./3.)
+                    ! Activated fraction, 1.0-exp(-ns*area), should be less than 0.99 (or ns*area<4.6)
+                    IF (area>amin) inp_a(kk) = paero(ii,jj,kk)%numc*(1.0-exp(-MIN(4.6,ns*area)))
+                ENDIF
+            ENDDO
 
-        IF (dnice<prlim) CYCLE
+            ! Calculate the INP excess = the number of new ice particles
+            sumICE = SUM(inp_a)
+            dnice = sumICE - SUM(pice(ii,jj,:)%numc) - SUM(psnow(ii,jj,:)%numc)
 
-        ! New ice based on normalized INP concentrations
-        ! a) Aerosol
-        inp_a=inp_a/sumICE*dnice
-        DO kk = in2a,nbins
-            IF(paero(ii,jj,kk)%numc > nlim .AND. inp_a(kk) > prlim) THEN
-                dnice = MIN(inp_a(kk),paero(ii,jj,kk)%numc)
-                CALL aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dnice)
-            ENDIF
-        END DO
-        ! b) Cloud
-        inp_c=inp_c/sumICE*dnice
-        DO kk = 1,ncld
-            IF(pcloud(ii,jj,kk)%numc > nlim .AND. inp_c(kk) > prlim) THEN
-                dnice = MIN(inp_c(kk),pcloud(ii,jj,kk)%numc)
-                CALL cloud2ice_snow(kbdim,klev,pcloud,pice,psnow,ii,jj,kk,dnice)
-            ENDIF
-        END DO
-        ! c) Rain
-        inp_r=inp_r/sumICE*dnice
-        DO kk = 1,nprc
-            IF(pprecp(ii,jj,kk)%numc > nlim .AND. inp_r(kk) > prlim) THEN
-                dnice = MIN(inp_r(kk),pprecp(ii,jj,kk)%numc)
-                CALL rain2ice_snow(kbdim,klev,pprecp,pice,psnow,ii,jj,kk,dnice)
-            ENDIF
-        END DO
+            IF (dnice<prlim) CYCLE
+
+            ! Limiter: max 1 % of the current ice (or 10 #/m3 if there is no pre-existing ice)
+            dnice= MIN(dnice,MAX(0.01*(SUM(pice(ii,jj,:)%numc)+SUM(psnow(ii,jj,:)%numc)),10.))
+
+            ! New ice based on normalized INP concentrations
+            inp_a=inp_a/sumICE*dnice
+            DO kk = in2a,nbins
+                IF(inp_a(kk) > prlim) THEN
+                    dnice = MIN(inp_a(kk),paero(ii,jj,kk)%numc)
+                    CALL aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dnice,prv)
+                ENDIF
+            END DO
+        ELSE
+            ! Immersion freezing for ...
+            ! a) cloud droplets
+            inp_c=0.
+            DO kk = 1,ncld
+                IF(pcloud(ii,jj,kk)%numc > nlim) THEN
+                    area = pi*(6.0/pi*SUM(pcloud(ii,jj,kk)%volc(iv1:iv2))/pcloud(ii,jj,kk)%numc)**(2./3.)
+                    IF (area>amin) inp_c(kk) = pcloud(ii,jj,kk)%numc*(1.0-exp(-MIN(4.6,ns*area)))
+                ENDIF
+            ENDDO
+            ! b) rain drops
+            inp_r=0.
+            DO kk = 1,nprc
+                IF(pprecp(ii,jj,kk)%numc > prlim) THEN
+                    area = pi*(6.0/pi*SUM(pprecp(ii,jj,kk)%volc(iv1:iv2))/pprecp(ii,jj,kk)%numc)**(2./3.)
+                    IF (area>amin) inp_r(kk) = pprecp(ii,jj,kk)%numc*(1.0-exp(-MIN(4.6,ns*area)))
+                ENDIF
+            ENDDO
+
+            ! Calculate the INP excess = the number of new ice particles
+            sumICE = SUM(inp_c) + SUM(inp_r)
+            dnice = sumICE - SUM(pice(ii,jj,:)%numc) - SUM(psnow(ii,jj,:)%numc)
+
+            IF (dnice<prlim) CYCLE
+
+            ! New ice based on normalized INP concentrations
+            inp_c=inp_c/sumICE*dnice
+            DO kk = 1,ncld
+                IF(inp_c(kk) > prlim) THEN
+                    dnice = MIN(inp_c(kk),pcloud(ii,jj,kk)%numc)
+                    CALL cloud2ice_snow(kbdim,klev,pcloud,pice,psnow,ii,jj,kk,dnice)
+                ENDIF
+            END DO
+            inp_r=inp_r/sumICE*dnice
+            DO kk = 1,nprc
+                IF(inp_r(kk) > prlim) THEN
+                    dnice = MIN(inp_r(kk),pprecp(ii,jj,kk)%numc)
+                    CALL rain2ice_snow(kbdim,klev,pprecp,pice,psnow,ii,jj,kk,dnice)
+                ENDIF
+            END DO
+        ENDIF
     END DO
     END DO
 
@@ -1448,9 +1501,9 @@ CONTAINS
 
 
   ! Move frozen aerosol to ice or snow bins
-  SUBROUTINE aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dN)
+  SUBROUTINE aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dN,rv)
     USE mo_submctl, ONLY : t_section, nbins, nice, nsnw, &
-            fn1a, nspec, ice_target_opt
+            fn1a, nspec, ice_target_opt, rhowa
     IMPLICIT NONE
     ! Inputs/outputs
     INTEGER, INTENT(in) :: kbdim,klev
@@ -1458,8 +1511,9 @@ CONTAINS
                                       pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
     INTEGER, INTENT(in) :: ii, jj, kk ! Aerosol bin
     REAL, INTENT(inout) :: dN ! Change in number concentration
+    REAL, INTENT(inout) :: rv(kbdim,klev) ! Water vapor mixing ratio (kg/m3)
     ! Local
-    REAL :: frac, vol
+    REAL :: frac, vol, dvw
     INTEGER :: nn, ss
     !
     nn = nspec + 1 ! Aerosol species + water
@@ -1472,18 +1526,40 @@ CONTAINS
         ss = MAX(1,kk-fn1a) ! subtract 1a aerosol bins
         pice(ii,jj,ss)%volc(1:nn) = pice(ii,jj,ss)%volc(1:nn) + paero(ii,jj,kk)%volc(1:nn)*frac
         pice(ii,jj,ss)%numc   = pice(ii,jj,ss)%numc + dN
+        ! If there is no deposited water, add a small amount to allow condensation
+        IF (pice(ii,jj,ss)%volc(1)<1e-20) THEN
+            ! Volume of 1 nm coating: V=pi/6*D^3 => dV=pi/2*D^2*dD
+            ! But not more than 1 % of the water vapor
+            dvw = MIN(1.5708e-9*paero(ii,jj,kk)%dwet**2*dN,rv(ii,jj)/rhowa*0.01)
+            pice(ii,jj,ss)%volc(1) = pice(ii,jj,ss)%volc(1) + dvw
+            rv(ii,jj) = rv(ii,jj) - dvw*rhowa ! Mixing ratio in kg/m3
+        ENDIF
     ELSEIF (ice_target_opt==0) THEN
         ! Add to the matching snow bin - based on wet volume
         vol=SUM(paero(ii,jj,kk)%volc(1:nn))/paero(ii,jj,kk)%numc
         ss =MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim))
-
         psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + paero(ii,jj,kk)%volc(1:nn)*frac
         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dN
+        IF (vol<psnow(ii,jj,ss)%vlolim) THEN
+            ! New ice is smaller than the minimum volume of the first snow bin (ss=1): add water
+            dvw = MIN((psnow(ii,jj,ss)%vlolim-vol)*dN,rv(ii,jj)/rhowa*0.01)
+            psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + dvw
+            rv(ii,jj) = rv(ii,jj) - dvw*rhowa
+        ELSEIF (psnow(ii,jj,ss)%volc(1)<1e-20) THEN
+            dvw = MIN(1.5708e-9*paero(ii,jj,kk)%dwet**2*dN,rv(ii,jj)/rhowa*0.01)
+            psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + dvw
+            rv(ii,jj) = rv(ii,jj) - dvw*rhowa
+        ENDIF
     ELSE
         ! Add to the ss:th snow bin
         ss=MIN(nsnw,ice_target_opt)
         psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + paero(ii,jj,kk)%volc(1:nn)*frac
         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dN
+        IF (psnow(ii,jj,ss)%volc(1)<1e-20) THEN
+            dvw = MIN(1.5708e-9*paero(ii,jj,kk)%dwet**2*dN,rv(ii,jj)/rhowa*0.01)
+            psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + dvw
+            rv(ii,jj) = rv(ii,jj) - dvw*rhowa
+        ENDIF
     ENDIF
     !
     paero(ii,jj,kk)%numc = paero(ii,jj,kk)%numc - dN

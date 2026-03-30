@@ -250,7 +250,7 @@ contains
        j = 5 - i
        a1(i,j) = 1.0
     end do
-    dt = t1 - t0
+    dt = min(100., max(-100.,t1 - t0))
     x = exp ( - fk1 * dt )
     y = exp ( - fk2 * dt )
     aa(1,4,1) = y
@@ -579,7 +579,7 @@ contains
     integer :: k
     real    :: tt0, f, fw, dt(nv)
 
-    tt0 = 0.0;f = 0.0; fw = 0.0; dt = 0.0; k = 0
+    tt0 = 0.0
     do  k = 1, nv
        f = ww4(k) / 9.0
        fw = 1.0 - f * ww(k) 
@@ -612,7 +612,6 @@ contains
     real    :: x(4), fi(4), a4(4,4,nv), z4(4,nv), g4(4,nv)
     real    :: tkm1, fw3, fw4, y1, xy, xas, xee
     real, parameter :: fw1 = 0.6638960, fw2 = 2.4776962
-    t = 0.0; w = 0.0; w1 = 0.0; w2 = 0.0; w3 = 0.0; u0a = 0.0; f0a = 0.0; fk1 = 0.0; fk2 = 0.0;
 
     call adjust(tt,ww,ww1,ww2,ww3,ww4,t,w,w1,w2,w3)
 
@@ -648,15 +647,15 @@ contains
           xy = 1.0
        else
           kk = k - 1
-          y1 = t(kk) - tkm1
+          y1 = min(100., max(-100.,t(kk) - tkm1))
           x(1) = exp ( - fk2(kk) * y1 )
           x(2) = exp ( - fk1(kk) * y1 )
           x(3) = 1.0
           x(4) = 1.0
           if (solar) y1 = t(kk)
           xy =  exp ( - y1 / u0a(kk) )
+          tkm1 = t(kk)
        endif
-       if (kk > 1) tkm1 = t(kk)
 
        do  jj = 1, 4
           fi(jj) = z4(jj,kk) * xy

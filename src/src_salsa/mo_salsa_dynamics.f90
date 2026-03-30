@@ -1423,7 +1423,7 @@ CONTAINS
                                rhowa, mwa, mair,     &
                                surfw0, surfi0, rg,           &
                                pi, pi6, prlim, nlim,      &
-                               massacc,avog,  &
+                               cap_ice,massacc,avog,  &
                                in1a, in2a, fn2b, &
                                alv, als, CalcDimension
     USE mo_salsa_properties, ONLY : equilibration
@@ -1476,7 +1476,7 @@ CONTAINS
     ! The new aerosol water content after equilibrium calculation
     zaelwc2(:,:) = SUM(paero(:,:,in1a:fn2b)%volc(1),DIM=3)*rhowa
 
-    prv(:,:) = prv(:,:) - ( zaelwc2(:,:) - zaelwc1(:,:) )/( ppres(:,:)*mair/(rg*ptemp(:,:)) )
+    prv(:,:) = prv(:,:) - ( zaelwc2(:,:) - zaelwc1(:,:) )
 
     ! Steps in the substepping loop (default adt=2.e-2)
     nstep=MAX(1,NINT(ptstep/2.e-2))
@@ -1513,7 +1513,7 @@ CONTAINS
 
           ! Cloud droplets --------------------------------------------------------------------------------
           ! Saturation mole concentration over flat surface
-          zcwsurfcd  = prs(ii,jj)*rhoair/mwa
+          zcwsurfcd  = prs(ii,jj)/mwa
           DO cc = 1,ncld
              IF (pcloud(ii,jj,cc)%numc > nlim) THEN
                 ! Wet diameter
@@ -1543,7 +1543,7 @@ CONTAINS
 
           ! Rain drops --------------------------------------------------------------------------------
           ! Saturation mole concentration over flat surface
-          zcwsurfpd = prs(ii,jj)*rhoair/mwa
+          zcwsurfpd = prs(ii,jj)/mwa
           DO cc = 1,nprc
              IF (pprecp(ii,jj,cc)%numc > prlim) THEN
                 ! Wet diameter
@@ -1573,15 +1573,15 @@ CONTAINS
 
           ! Ice particles --------------------------------------------------------------------------------
           ! Saturation mole concentration over flat surface
-          zcwsurfid = prsi(ii,jj)*rhoair/mwa
+          zcwsurfid = prsi(ii,jj)/mwa
           DO cc = 1,nice
              IF (pice(ii,jj,cc)%numc > prlim) THEN
                 ! Dimension
                 CALL CalcDimension(1,pice(ii,jj,cc),prlim,4)
                 dwet=pice(ii,jj,cc)%dwet
 
-                ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
-                cap=0.5*dwet
+                ! Capacitance (analogous to the liquid radius for spherical particles)
+                cap=dwet/cap_ice
 
                 ! Activity + Kelvin effect - edit when needed
                 !   Can be calculated just like for sperical homogenous particle or just ignored,
@@ -1611,15 +1611,15 @@ CONTAINS
 
           ! Snow particles --------------------------------------------------------------------------------
           ! Saturation mole concentration over flat surface
-          zcwsurfsd= prsi(ii,jj)*rhoair/mwa
+          zcwsurfsd= prsi(ii,jj)/mwa
           DO cc = 1,nsnw
              IF (psnow(ii,jj,cc)%numc > prlim) THEN
                 ! Dimension
                 CALL CalcDimension(1,psnow(ii,jj,cc),prlim,5)
                 dwet=psnow(ii,jj,cc)%dwet
 
-                ! Capacitance (analogous to the liquid radius for spherical particles) - edit when needed
-                cap=0.5*dwet
+                ! Capacitance (analogous to the liquid radius for spherical particles)
+                cap=dwet/cap_ice
 
                 ! Activity + Kelvin effect
                 !   Can be calculated just like for sperical homogenous particle or just ignored,
@@ -1649,7 +1649,7 @@ CONTAINS
           ! -- Aerosols: ------------------------------------------------------------------------------------
           ! Saturation mole concentration over flat surface
           ! Limit the supersaturation to max 1.01 for the mass transfer EXPERIMENTAL
-          zcwsurfae =MAX(prs(ii,jj),prv(ii,jj)/1.01)*rhoair/mwa
+          zcwsurfae =MAX(prs(ii,jj),prv(ii,jj)/1.01)/mwa
           DO cc = in2a,nbins
              IF (paero(ii,jj,cc)%numc > nlim .AND. .NOT.aero_eq) THEN
                 ! Wet diameter
@@ -1678,7 +1678,7 @@ CONTAINS
           END DO
 
           ! Current mole concentrations
-          zcwc = prv(ii,jj)*rhoair/mwa
+          zcwc = prv(ii,jj)/mwa
           zcwcae(1:nbins) = paero(ii,jj,1:nbins)%volc(1)*rhowa/mwa
           zcwccd(1:ncld) = pcloud(ii,jj,1:ncld)%volc(1)*rhowa/mwa
           zcwcpd(1:nprc) = pprecp(ii,jj,1:nprc)%volc(1)*rhowa/mwa
@@ -1763,7 +1763,7 @@ CONTAINS
 
           END DO ! ADT
 
-          prv(ii,jj) = zcwint*mwa/rhoair
+          prv(ii,jj) = zcwint*mwa
 
           paero(ii,jj,1:nbins)%volc(1) = max(0.,zcwintae(1:nbins)*mwa/rhowa)
           pcloud(ii,jj,1:ncld)%volc(1) = max(0.,zcwintcd(1:ncld)*mwa/rhowa)

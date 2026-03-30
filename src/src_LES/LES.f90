@@ -91,10 +91,10 @@ contains
     use sgsm, only : csx, prndtl
     use srfc, only : isfctyp, zrough, ubmin, dthcon, drtcon, &
                     wtrChlA, ifPOCadd, wtrIsop, wtrMtrp, ssa_param
-    use step, only : timmax, istpfl, corflg, outflg, frqanl, anl_start, frqhis, frqrst, &
+    use step, only : timmax, istpfl, corflg, frqanl, anl_start, frqhis, frqrst, &
          strtim, cntlat
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
-         dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, level, lev_sb, &
+         dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, addscnme, level, lev_sb, &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, spongeinit, runtype, CCN, &
          Tspinup, sst, sed_aero, sed_cloud, sed_precp, sed_ice, &
          nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
@@ -102,10 +102,11 @@ contains
          nudge_u, nudge_u_time, nudge_u_zmin, nudge_u_zmax, nudge_u_tau,  &
          nudge_v, nudge_v_time, nudge_v_zmin, nudge_v_zmax, nudge_v_tau,  &
          nudge_ccn, nudge_ccn_time, nudge_ccn_zmin, nudge_ccn_zmax, nudge_ccn_tau, &
-         no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, anl_include, anl_exclude, out_an_list, &
-         user_an_list, ifSeaSpray, ifSeaVOC, sea_tspinup
-    use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin,   &
-         zrand, zrndamp, zrndampq, zrandnorm
+         no_b_bins, no_prog_cld, no_prog_prc, no_prog_ice, no_prog_snw, &
+         anl_include, anl_exclude, out_an_list, &
+         user_an_list, ifSeaSpray, ifSeaVOC, sea_tspinup,   &
+         zrand, zrndamp, zrndampq, zrandnorm, zrandopt
+    use init, only : us, vs, ts, rts, ps, hs, ipsflg, itsflg,iseed, hfilin, sound_in_file
     use stat, only : ssam_intvl, savg_intvl, csflg, cs_start, cs_include, cs_exclude, &
          ps_include, ps_exclude, ts_include, ts_exclude, out_cs_list, out_ps_list, out_ts_list, &
          user_cs_list, user_ps_list, user_ts_list, wbinlim
@@ -113,6 +114,7 @@ contains
          div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit
     USE radiation, ONLY : radsounding, useMcICA, RadNewSetup, RadConstSZA, &
          rad_lwp, rad_reff, rad_nlev, rad_iwp, rad_ieff, rad_ilev
+    use modcross, only : frqcross, lcross, lxy, lxz, lyz, xcross, ycross, zcross, crossvars
     use mpi_interface, only : myid, appl_abort
 
     implicit none
@@ -121,6 +123,7 @@ contains
          expnme    ,       & ! experiment name
          nxpart    ,       & ! whether partition in x direction?
          naddsc    ,       & ! Number of additional scalars
+         addscnme  ,       & ! Input file name for initializing additional scalars
          savg_intvl,       & ! output statistics frequency
          ssam_intvl,       & ! integral accumulate/ts print frequency
          csflg, cs_start,  & ! Column statistics flag and time to start saving data
@@ -128,14 +131,18 @@ contains
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          spongeinit      , & ! sponge back to initial profile or bulk values
          level  , lev_sb, CCN, & ! Microphysical model, Number of CCN per kg of air
-         iseed  , zrand  , zrndamp, zrndampq, zrandnorm, & ! random seed
+         iseed  , zrand  , zrndamp, zrndampq, zrandnorm, zrandopt, & ! random seed
          nxp    , nyp    , nzp   ,  & ! number of x, y, z points
          deltax , deltay , deltaz , & ! delta x, y, z (meters)
          dzrat  , dzmax  , igrdtyp, & ! stretched grid parameters
          timmax , dtlong , istpfl , & ! timestep control
          runtype, hfilin , filprf , & ! type of run (INITIAL or HISTORY)
          frqhis , frqanl , frqrst , & ! freq of history/anal/restart writes
-         outflg , anl_start,        & ! output flg, time to start saving analysis files
+         anl_start,                 & ! time to start saving analysis files
+         frqcross, lcross,          & ! cross section frequency and master flag
+         crossvars,                 & ! list of variables
+         lxy, lxz, lyz,             & ! flags for x-y, x-z and y-z cross sections
+         zcross, ycross, xcross,    & ! fixed coordinate(s) for cross sections
          iradtyp, strtim ,          & ! radiation type flag
          isfctyp, ubmin  , zrough , & ! surface parameterization type
          ifSeaSpray, ifSeaVOC,      & ! marine emissions
@@ -146,6 +153,7 @@ contains
          sst    , dthcon , drtcon , & ! SSTs, surface flx parameters
          isgstyp, csx    , prndtl , & ! SGS model type, parameters
          ipsflg , itsflg ,          & ! sounding flags
+         sound_in_file,             & ! sounding input file name
          hs     , ps     , ts    ,  & ! sounding heights, pressure, temperature
          us     , vs     , rts   ,  & ! sounding E/W winds, water vapor
          umean  , vmean  , th00,    & ! gallilean E/W wind, basic state
@@ -169,6 +177,7 @@ contains
          rad_iwp, rad_ieff, rad_ilev, & ! Optional ice clouds above the LES domain
          sed_aero, sed_cloud, sed_precp, sed_ice, & ! Sedimentation (T/F)
          no_b_bins,          & ! no prognostic b-bins for aerosol, cloud or ice (level 4 or 5)
+         no_prog_cld,        & ! no prognostic cloud (level 4 or 5)
          no_prog_prc,        & ! no prognostic rain (level 4 or 5)
          no_prog_ice,        & ! ... or ice (level 5)
          no_prog_snw,        & ! ... or snow (level 5)
@@ -204,7 +213,7 @@ contains
        else
           write (*,600) expnme, timmax
        end if
-       if (outflg) write (*,602) filprf, frqhis, frqrst, frqanl, Tspinup
+       write (*,602) filprf, frqhis, frqrst, frqanl, Tspinup
        !
        ! do some cursory error checking in namelist variables
        !

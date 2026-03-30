@@ -59,7 +59,7 @@ contains
        ! No radiation, just case-dependent large-scale forcing
        !
        IF ( case_name /= 'none' ) THEN
-          call case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
+          call case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,time_in,a_tp,a_rp,a_tt,a_rt)
        END IF
 
     case (2)
@@ -199,7 +199,7 @@ contains
 
        ! Case-dependent large-scale forcing
        IF ( case_name /= 'none') THEN
-          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
+          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,time_in,a_tp,a_rp,a_tt,a_rt)
        END IF
 
     case default
@@ -366,7 +366,7 @@ contains
   ! subroutine case_forcing: adjusts tendencies according to a specified
   ! large scale forcing.  Normally case (run) specific.
   !
-  subroutine case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,tl,rt,tt,rtt)
+  subroutine case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,time_doy,tl,rt,tt,rtt)
 
     use mpi_interface, only : myid, appl_abort
     use util, only : get_zi_val
@@ -374,7 +374,7 @@ contains
 
     integer, intent (in):: n1,n2, n3
     real, dimension (n1), intent (in)          :: zt, dzt, dzm
-    real, intent(in)                           :: zdiv
+    real, intent(in)                           :: zdiv, time_doy
     real, dimension (n1,n2,n3), intent (in)    :: tl, rt
     real, dimension (n1,n2,n3), intent (inout) :: tt, rtt
 
@@ -566,11 +566,6 @@ contains
                 enddo
             enddo
         enddo
-        !
-    CASE ('amazon')
-        ! Amazon
-        ! --------
-        ! - to be added -
         !
     case default
        if (myid == 0) print *, '  ABORTING: inproper call to radiation'

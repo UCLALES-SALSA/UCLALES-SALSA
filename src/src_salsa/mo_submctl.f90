@@ -13,7 +13,7 @@ MODULE mo_submctl
                  !******************************************************
                  ! ^ Do NOT change the stuff above after initialization !
                  !******************************************************
-                 dwet,       & ! Wet diameter or mean droplet diameter
+                 dwet,       & ! Droplet wet diameter or ice particle maximum dimension
                  volc(maxnspec),  & ! Volume concentrations of water + aerosol species (water always the first)
                  numc          ! Number concentration of particles/droplets
   END TYPE t_section
@@ -60,6 +60,8 @@ MODULE mo_submctl
   REAL :: autoc_snow_zd0 = 250.e-6 ! Ice-snow diameter limit
   REAL :: autoc_snow_sigmag = 1.2 ! Assumed log-normal ice particle size distribution width
 
+  ! Snow/rain to aerosol relaese: override the default method based on chemical similarity
+  INTEGER :: rain2aer_opt=0, snow2aer_opt=0 ! Force a-bin if >0, force b-bin if <0
 
   ! Options for ice nucleation (when master switch nlicenucl = .TRUE,)
   ! a) Constant (fixinc > 0 #/kg) or diagnosed (ice_diag /= 0) ice number concentration is
@@ -97,11 +99,17 @@ MODULE mo_submctl
     coll_rate_sc(:,:,:,:), coll_rate_sr(:,:,:,:) ! Collisions per m3
 
   ! Ice and snow mass-dimension-velocity parameterizations
-  !  Defaults:  d=(6/pi*sum(m(i)/rho(i)))**(1/3), v=12.0*sqrt(d)
-  REAL :: rhoeff_ice=917., rhoeff_snow=300.
-  !  Alternative: mass-based parameterizations
-  REAL :: a_geo_ice=-1., b_geo_ice=-1., a_geo_snow=-1., b_geo_snow=-1. ! Dimension: d=a*m**b
-  REAL :: a_vel_ice=-1., b_vel_ice=-1., a_vel_snow=-1., b_vel_snow=-1. ! Velocity: v=a*m**b
+  !  Defaults: d=(6/pi*sum(m(i)/rho(i)))**(1/3) and v=12.0*sqrt(d),
+  !  where rho_ice=917 kg/m3 and rho_snow=300 kg/m3 (ISDAC)
+  ! Dimension: d=a*m**b
+  REAL :: a_geo_ice=0.127706, b_geo_ice=1.0/3.0, a_geo_snow= 0.185336, b_geo_snow=1.0/6.0
+  ! Velocity: v=a*m**b
+  REAL :: a_vel_ice=4.28831, b_vel_ice=1.0/3.0, a_vel_snow=5.16608, b_vel_snow=1.0/6.0
+  ! Optional: area for velocity parameterization by Mitchell and Heymsfield (2005)
+  REAL :: a_avel_ice=-1., b_avel_ice=-1., a_avel_snow=-1., b_avel_snow=-1. ! A=a*m**b
+
+  ! Capacitance for water vapor deposition on ice and snow
+  REAL :: cap_ice = 2.0
 
   ! Gas phase parameters
   INTEGER, PARAMETER :: maxngas=15
@@ -157,6 +165,13 @@ MODULE mo_submctl
   ! Sticking efficiencies for ice/snow-drop and ice/snow-ice/snow collisions
   real :: coag_Es_id = 1.0, coag_Es_ii = 1.0
 
+  ! Type of the input aerosol size distribution
+  !     0 - Uniform, log-normal size distribution parameters given in the NAMELIST
+  !     1 - Read vertical profiles of those from an input file - the original format (based on nf2a)
+  !  else - Read vertical profiles of those from an input file - the new format (A and B bins separately)
+  INTEGER :: isdtyp = 0
+  CHARACTER(len=80) :: aerosol_in_file = 'aerosol_in.nc'
+
   ! Define which aerosol species are used and their initial size distributions
   ! Initial aerosol species
   INTEGER :: nspec = 1 ! Does not include water
@@ -166,16 +181,13 @@ MODULE mo_submctl
   ! Volume fractions between aerosol species for A and B-bins
   REAL :: volDistA(maxspec) = 1.0
   REAL :: volDistB(maxspec) = 0.0
+  ! Use the true initial aerosol volume instead of the bin mean volume
+  LOGICAL :: calc_init_vol = .FALSE.
   ! Limit 1a composition to OC and/or SO4
   LOGICAL :: salsa1a_SO4_OC = .TRUE.
 
-  ! Type of the input aerosol size distribution
-  !     0 - Uniform, log-normal size distribution parameters given in the NAMELIST
-  !  else - Read vertical profile of those from an input file
-  INTEGER :: isdtyp = 0
-  ! For isdtyp = 0
-  INTEGER, PARAMETER :: nmod = 7
   ! Number concentration (1e6 #/kg), mode diameter (1e-6 m) and STD for a and b bins
+  INTEGER, PARAMETER :: nmod = 7
   REAL :: nA(nmod) = (/640.,0.0,0.0,0.0,0.0,0.0,0.0/),     nB(nmod) = 0.0, & ! Number
         dpgA(nmod) = (/0.15,0.2,0.2,0.2,0.2,0.2,0.2/),   dpgB(nmod) = 0.0, & ! Mode diameter
      sigmagA(nmod) = (/2.0,2.0,2.0,2.0,2.0,2.0,2.0/), sigmagB(nmod) = 0.0    ! STD
@@ -256,7 +268,8 @@ MODULE mo_submctl
    mbc = 12.e-3,    dissbc = 0.0, rhobc = 2000., & ! black carbon
    mss = 58.44e-3,  dissss = 2.0, rhoss = 2165., & ! sea salt (NaCl)
    mdu = 100.e-3,   dissdu = 0.0, rhodu = 2650., & ! mineral dust
-   mwa = 18.016e-3, disswa = 1.0, rhowa = 1000.    ! water
+   mwa = 18.016e-3, disswa = 1.0, rhowa = 1000., & ! water
+   rhoic = 917.                                    ! ice
 
   REAL, PARAMETER :: & ! diameter of condensing molecule [m]
    d_sa = 5.539376964394570e-10, & ! H2SO4
@@ -280,10 +293,17 @@ contains
 
     IF (flag==4 .AND. a_vel_ice>0.) THEN
         ! Ice crystal terminal fall speed: v=a*m**b
-        terminal_vel = a_vel_ice*(rhop*pi6*8.*radius**3)**b_vel_ice
+        terminal_vel = a_vel_ice*(rhop*pi6*8.*radius**3)**b_vel_ice * sqrt(rhoa_ref/rhoa)
+    ELSEIF (flag==4 .AND. a_avel_ice>0.) THEN
+        ! Ice crystal terminal fall speed based on Mitchell and Heymsfield (2005)
+        terminal_vel = terminal_vel_mh2005(radius,rhop,rhoa,visc,a_geo_ice,b_geo_ice, &
+                            a_avel_ice,b_avel_ice)
     ELSEIF (flag==5 .AND. a_vel_snow>0.) THEN
         ! The same for snow
-        terminal_vel = a_vel_snow*(rhop*pi6*8.*radius**3)**b_vel_snow
+        terminal_vel = a_vel_snow*(rhop*pi6*8.*radius**3)**b_vel_snow * sqrt(rhoa_ref/rhoa)
+    ELSEIF (flag==5 .AND. a_avel_snow>0.) THEN
+        terminal_vel = terminal_vel_mh2005(radius,rhop,rhoa,visc,a_geo_snow,b_geo_snow, &
+                            a_avel_snow,b_avel_snow)
     ELSEIF (flag==4) THEN   ! Ice
         ! Ice crystal terminal fall speed from Ovchinnikov et al. (2014)
         !       Dimension D = 2*radius
@@ -310,6 +330,54 @@ contains
     ENDIF
   END FUNCTION terminal_vel
 
+  ! Mitchell and Heymsfield (2005)
+  REAL FUNCTION terminal_vel_mh2005(radius,rhop,rhoa,visc,a_geo,b_geo,a_area,b_area)
+    IMPLICIT NONE
+    REAL, INTENT(in) :: radius, rhop    ! Particle bulk radius and density
+    REAL, INTENT(in) :: rhoa, visc      ! Air density and viscocity
+    REAL, INTENT(in) :: a_geo, b_geo    ! Dimension: d=a*m**b
+    REAL, INTENT(in) :: a_area, b_area  ! Area: a=a*m**b
+    !
+    ! Local parameters
+    REAL :: m, A, dnsp, X, Re
+    !
+    ! Ice mass
+    m = rhop*4./3.*pi*radius**3
+    ! Maximum dimension of the non-spherical ice: d=a*m**b
+    dnsp = a_geo*m**b_geo
+    !
+    ! Non-spherical projected area: A=a*m**b
+    A = a_area*m**b_area
+    !
+    ! MH2005 eq. 8
+    X = 2. * grav * rhoa / visc**2 * dnsp**2 * m/A
+    ! Eq. 5
+    Re = calc_Re(X)
+    !
+    ! Eqs 10-12
+    terminal_vel_mh2005 =Re * visc / (dnsp * rhoa)
+    !
+    CONTAINS
+      ! Calculate Reynolds number
+      REAL FUNCTION calc_Re(X)
+        REAL, INTENT(in) :: X
+        REAL, PARAMETER :: a0 = 1.7e-3, b0 = 0.8, c0 = 0.6, delta = 5.83
+        REAL, PARAMETER :: C1 = 4 / (delta**2 * SQRT(c0)) ! Eqs 6 and 7: C1, C2
+        REAL, PARAMETER :: C2 = delta**2/4
+        REAL :: mh1213, a1, b1
+        !
+        ! Eqs 6 and 7:  SQRT(1+C1*SQRT(X))
+        mh1213 = SQRT( 1 + C1*SQRT(X))
+        ! Eq. 7
+        b1 = C1 * SQRT(X)/(2 * (mh1213 - 1) * mh1213) - &
+                a0 * b0 * X**b0/(C2 * (mh1213 - 1)**2)
+        ! Eq. 6
+        a1 = (C2 * (mh1213 - 1)**2 - a0 * X**b0)/ (X**b1)
+        ! Eq. 5
+        calc_Re = a1 * X**b1
+      END FUNCTION calc_Re
+  END FUNCTION terminal_vel_mh2005
+
   !********************************************************************
   ! Functions for calculating dimension (or wet diameter) for any particle type
   ! - Aerosol, cloud and rain are spherical
@@ -331,29 +399,19 @@ contains
 
     ppart(:)%dwet = 2.e-10
 
-    IF (flag==4 .AND. a_geo_ice>0.) THEN
+    IF (flag==4) THEN
         ! Ice: d=a*m**b
         DO i=1,n
             IF (ppart(i)%numc>lim) &
-                ppart(i)%dwet=a_geo_ice*(SUM(ppart(i)%volc(:)*dens(:))/ppart(i)%numc)**b_geo_ice
+                ppart(i)%dwet=MAX( a_geo_ice*(SUM(ppart(i)%volc(:)*dens(:))/ppart(i)%numc)**b_geo_ice, &
+                    ((ppart(i)%volc(1)*rhowa/rhoic+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.) )
         ENDDO
-    ELSEIF (flag==5 .AND. a_geo_snow>0.) THEN
+    ELSEIF (flag==5) THEN
         ! Snow: d=a*m**b
         DO i=1,n
             IF (ppart(i)%numc>lim) &
-                ppart(i)%dwet=a_geo_snow*(SUM(ppart(i)%volc(:)*dens(:))/ppart(i)%numc)**b_geo_snow
-        ENDDO
-    ELSEIF (flag==4) THEN
-        ! Ice: spherical, but with effective density of rhoeff_ice
-        DO i=1,n
-            IF (ppart(i)%numc>lim) &
-                ppart(i)%dwet=( (ppart(i)%volc(1)*rhowa/rhoeff_ice+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.)
-        ENDDO
-    ELSEIF (flag==5) THEN
-        ! Snow: spherical, but with effective density of rhoeff_snow
-        DO i=1,n
-            IF (ppart(i)%numc>lim) &
-                ppart(i)%dwet=( (ppart(i)%volc(1)*rhowa/rhoeff_snow+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.)
+                ppart(i)%dwet=MAX( a_geo_snow*(SUM(ppart(i)%volc(:)*dens(:))/ppart(i)%numc)**b_geo_snow, &
+                    ((ppart(i)%volc(1)*rhowa/rhoic+SUM(ppart(i)%volc(2:)))/ppart(i)%numc/pi6)**(1./3.) )
         ENDDO
     ELSE
         DO i=1,n
@@ -371,18 +429,14 @@ contains
     REAL, INTENT(IN) :: mass(n) ! Mass (kg) per particle
     INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud (2), precipitation (3), ice (4) and snow (5)
 
-    IF (flag==4 .AND. a_geo_ice>0.) THEN
-        ! Ice: d=a*m**b
-        calc_eff_radius=0.5*a_geo_ice*SUM(mass(:))**b_geo_ice
-    ELSEIF (flag==5 .AND. a_geo_snow>0.) THEN
-        ! Snow: d=a*m**b
-        calc_eff_radius=0.5*a_geo_snow*SUM(mass(:))**b_geo_snow
-    ELSEIF (flag==4) THEN   ! Ice
-        ! Ice: spherical, but with effective density of rhoeff_ice
-        calc_eff_radius=0.5*( (mass(1)/rhoeff_ice+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
-    ELSEIF (flag==5) THEN   ! Snow
-        ! Snow: spherical, but with effective density of rhoeff_snow
-        calc_eff_radius=0.5*( (mass(1)/rhoeff_snow+SUM(mass(2:)/dens(2:n)))/pi6)**(1./3.)
+    IF (flag==4) THEN
+        ! Ice: d=a*m**b or at least the effective radius
+        calc_eff_radius=0.5*MAX( a_geo_ice*SUM(mass(:))**b_geo_ice, &
+                    ((mass(1)/rhoic+SUM(mass(2:n)/dens(2:n)))/pi6)**(1./3.) )
+    ELSEIF (flag==5) THEN
+        ! Snow: d=a*m**b or at least the effective radius
+        calc_eff_radius=0.5*MAX( a_geo_snow*SUM(mass(:))**b_geo_snow, &
+                    ((mass(1)/rhoic+SUM(mass(2:n)/dens(2:n)))/pi6)**(1./3.) )
     ELSE
         ! Radius from total volume of a spherical particle or aqueous droplet
         calc_eff_radius=0.5*( SUM(mass(:)/dens(1:n))/pi6)**(1./3.)

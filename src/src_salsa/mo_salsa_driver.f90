@@ -27,6 +27,10 @@ IMPLICIT NONE
   TYPE(t_section), ALLOCATABLE :: ice(:,:,:) ! ice properties
   TYPE(t_section), ALLOCATABLE :: snow(:,:,:) ! snow properties
 
+  ! Local copy of cumulative outputs
+  REAL, ALLOCATABLE, SAVE :: out_cum_data(:,:,:,:)
+  REAL, SAVE :: time_tot = 0.0
+
    ! --------------------------------------------
 
 
@@ -57,7 +61,7 @@ IMPLICIT NONE
 
     USE mo_submctl, ONLY : dens, rhlim, lscndgas, ngases, mws_gas, &
                                ngases_diag, zgas_diag, set_vbs_diag, eddy_dis_rt
-    USE mo_salsa, ONLY : salsa
+    USE mo_salsa, ONLY : salsa, out_inst_data
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: pnx,pny,pnz,n4, &                ! Dimensions: x,y,z,number of chemical species
@@ -118,6 +122,12 @@ IMPLICIT NONE
 
     IF (sflg .AND. nstat>0) sdata(:,:,:,:) = 0.
 
+    IF (nstat>0 .AND. .NOT.ALLOCATED(out_cum_data)) THEN
+        ALLOCATE(out_cum_data(pnz,pnx,pny,SIZE(out_inst_data)))
+        out_cum_data(:,:,:,:) = 0.0
+        time_tot = 0.0
+    ENDIF
+
     ! Set the SALSA runtime config
     CALL set_salsa_runtime(prunmode,time)
 
@@ -135,8 +145,8 @@ IMPLICIT NONE
              ! Set inputs
              in_p(1,1) = press(kk,ii,jj)
              in_t(1,1) = tk(kk,ii,jj)
-             in_rs(1,1) = rs(kk,ii,jj)
-             in_rsi(1,1) = rsi(kk,ii,jj)
+             in_rs(1,1) = rs(kk,ii,jj)*pdn(kk,ii,jj) ! kg/m3
+             in_rsi(1,1) = rsi(kk,ii,jj)*pdn(kk,ii,jj) ! kg/m3
              in_edr(1,1) = edr(kk,ii,jj)
 
              ! For initialization and spinup, limit the RH with the parameter rhlim (assign in namelist.salsa)
@@ -153,6 +163,7 @@ IMPLICIT NONE
                 in_rv(1,1) = rv(kk,ii,jj)
              END IF
              rv_old(1,1) = in_rv(1,1)
+             in_rv(1,1) = in_rv(1,1)*pdn(kk,ii,jj) ! kg/m3
 
              ! Set volume concentrations
              DO nc=1,n4
@@ -212,6 +223,8 @@ IMPLICIT NONE
              ! Output statistics (mixing ratios from m^3/m^3 to kg/kg and concentrations from 1/m^3 to 1/kg;
              ! also converted to rates by dividing by the time step)
              IF (sflg .AND. nstat>0) sdata(kk,ii,jj,:) = out_sdata(1,1,:)/pdn(kk,ii,jj)/tstep
+             ! Cumulative outputs will be divided by the total time
+             IF (nstat>0) out_cum_data(kk,ii,jj,:) = out_cum_data(kk,ii,jj,:) + out_inst_data(:)/pdn(kk,ii,jj)
 
              ! Calculate tendencies (convert back to #/kg or kg/kg)
              pa_naerot(kk,ii,jj,1:nbins) = pa_naerot(kk,ii,jj,1:nbins) + &
@@ -261,13 +274,59 @@ IMPLICIT NONE
 
              ! Tendency of water vapour mixing ratio (no change in ice-liquid water
              ! potential temperature)
-             rt(kk,ii,jj) = rt(kk,ii,jj) + ( in_rv(1,1) - rv_old(1,1) )/tstep
+             rt(kk,ii,jj) = rt(kk,ii,jj) + ( in_rv(1,1)/pdn(kk,ii,jj) - rv_old(1,1) )/tstep
 
           END DO ! kk
        END DO ! ii
     END DO ! jj
 
+    ! Collect cumulative statistics
+    time_tot = time_tot + tstep
+    IF (sflg .AND. nstat>0) CALL cum_var_stat(pnz,pnx,pny,nstat,slist,sdata)
+
   END SUBROUTINE run_SALSA
+
+  SUBROUTINE cum_var_stat(pnz,pnx,pny,nstat,slist,sdata)
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: pnz,pnx,pny,nstat
+    CHARACTER(LEN=7), DIMENSION(:), INTENT(IN) :: slist
+    REAL, INTENT(INOUT) :: sdata(pnz,pnx,pny,nstat)
+    ! Local
+    INTEGER :: k
+    !
+    ! Generate the requested ouputs
+    DO k=1,nstat
+        SELECT CASE (slist(k) )
+        CASE('csrs_ni','csrs_ns') ! RS SIP
+            sdata(:,:,:,k) = out_cum_data(:,:,:,1)/time_tot
+        CASE('csii_ni','csii_ns') ! IIBR SIP
+            sdata(:,:,:,k) = out_cum_data(:,:,:,2)/time_tot
+        CASE('csdf_ni','csdf_ns') ! DF SIP
+            sdata(:,:,:,k) = out_cum_data(:,:,:,3)/time_tot
+        CASE('caut_nc') ! Autoconversion
+            sdata(:,:,:,k) = out_cum_data(:,:,:,4)/time_tot
+        CASE('ccac_nc') ! Cloud activation
+            sdata(:,:,:,k) = out_cum_data(:,:,:,5)/time_tot
+        CASE('cnuf_ni','cnuf_ns') ! Deterministic ice nucleation
+            sdata(:,:,:,k) = out_cum_data(:,:,:,6)/time_tot
+        CASE('cnum_ni','cnum_ns') ! Modelled (CNT) ice nucleation
+            sdata(:,:,:,k) = out_cum_data(:,:,:,7)/time_tot
+        CASE('cmel_ni','cmel_ns') ! Ice and snow melting
+            sdata(:,:,:,k) = out_cum_data(:,:,:,8)/time_tot
+        CASE('cdia_nc') ! Diagnostics, cloud
+            sdata(:,:,:,k) = out_cum_data(:,:,:,9)/time_tot
+        CASE('cdia_nr') ! Diagnostics, rain
+            sdata(:,:,:,k) = out_cum_data(:,:,:,10)/time_tot
+        CASE('cdia_ni','cdia_ns') ! Diagnostics, ice and snow
+            sdata(:,:,:,k) = out_cum_data(:,:,:,11)/time_tot
+        END SELECT
+    ENDDO
+    !
+    ! Reset time and data
+    time_tot = 0.0
+    out_cum_data(:,:,:,:) = 0.0
+    !
+  END SUBROUTINE cum_var_stat
 
   !
   !---------------------------------------------------------------

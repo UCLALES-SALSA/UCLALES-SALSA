@@ -25,11 +25,7 @@ module init
   integer               :: ipsflg = 1
   integer               :: itsflg = 1
   real, dimension(nns)  :: us,vs,ts,thds,ps=0.0,hs=0.0,rts,tks
-  real                  :: zrand = 200.
-  real                  :: zrndamp = 0.2 ! the amplitude of random temperature fluctuations
-  real                  :: zrndampq = 5.0e-5 ! the amplitude of random humidity fluctuations
-  logical               :: zrandnorm = .FALSE. ! normalize the data after inserting random fluctuations
-  character  (len=80)   :: hfilin = ''
+  character  (len=80)   :: hfilin = '', sound_in_file = 'sound_in'
 
 contains
   !
@@ -40,13 +36,14 @@ contains
   subroutine initialize
 
     use grid, only : level, runtype, isgstyp, iradtyp, filprf, expnme, nzp, nxyzp, &
-                     a_qp, pi0, th0, rt0, dtl, write_hist, init_anal, write_anal
-    use step, only : time, outflg, anl_start, nudging
+                     a_qp, pi0, th0, rt0, dtl, write_hist, init_anal, write_anal, dtlong
+    use step, only : timmax, time, anl_start, frqanl, nudging
     use stat, only : init_stat
     use sgsm, only : tkeinit
     use mpi_interface, only : appl_abort, myid
     use thrm, only : thermo
     USE radiation, ONLY : RadNewSetup, rad_new_setup
+    use modcross, only : lcross, initcross, triggercross
     implicit none
 
     if (runtype == 'INITIAL') then
@@ -64,6 +61,9 @@ contains
           ! Update diagnostic SALSA tracers
           CALL thermo(level)
        END IF !level >= 4
+
+       ! Initialize additional scalar fields
+       CALL init_add_scalars()
 
        ! Initialize nudging
        CALL nudging(time)
@@ -83,20 +83,17 @@ contains
 
     call sponge_init
     call init_stat(time,filprf,expnme,nzp)
+    IF (lcross) call initcross(time, filprf)
     !
     ! write analysis and history files from restart if appropriate
     !
-    if (outflg) then
-       if (runtype == 'INITIAL') then
-          !call write_hist(1, time)
-          call init_anal(time)
-          call thermo(level)
-          IF (time >= anl_start) call write_anal(time)
-       else
-          call init_anal(time+dtl)
-          call write_hist(0, time)
-       end if
-    end if !outflg
+    if (runtype == 'INITIAL') then
+       if (frqanl<timmax+dtlong) call init_anal(time)
+       call thermo(level)
+       IF (frqanl<timmax+dtlong .AND. time >= anl_start) call write_anal(time)
+    else
+       if (frqanl<timmax+dtlong) call init_anal(time+dtl)
+    end if
 
     return
   end subroutine initialize
@@ -111,7 +108,8 @@ contains
 
     use grid, only : level, isgstyp, nzp, nxp, nyp, nxyzp, a_up, a_vp, a_wp, &
                      a_uc, a_vc, a_wc, a_tp, a_rp, a_rv, a_theta, a_pexnr, &
-                     a_qp, a_ustar, a_rc, pi0, pi1, u0, v0, rt0, th0, th00, zt
+                     a_qp, a_ustar, a_rc, pi0, pi1, u0, v0, rt0, th0, th00, zt, &
+                     zrand, zrndamp, zrndampq, zrandnorm, zrandopt
     use defs, only : alvl, cpr, cp, p00
     use sgsm, only : tkeinit
     use thrm, only : thermo, rslf
@@ -119,7 +117,7 @@ contains
     implicit none
 
     integer :: i,j,k
-    real    :: exner, pres, tk, rc, xran(nzp)
+    real    :: exner, pres, tk, rc
 
     call htint(ns,ts,hs,nzp,th0,zt)
 
@@ -192,21 +190,11 @@ contains
 
     END SELECT
 
-    k=1
-    do while( zt(k+1) <= zrand .and. k+1 < nzp)
-       k=k+1
-       xran(k) = zrndamp*(zrand - zt(k))/zrand
-    end do
-    call random_pert(nzp,nxp,nyp,zt,a_tp,xran,k,'temperature')
+    if (abs(zrndamp)>1e-10 .AND. zrand>zt(2)) &
+       call random_pert(nzp,nxp,nyp,zt,a_tp,zrand,zrndamp,zrandnorm,zrandopt,'temperature')
 
-    if (associated(a_rp)) then
-       k=1
-       do while( zt(k+1) <= zrand .and. k+1 < nzp)
-          k=k+1
-          xran(k) = zrndampq*(zrand - zt(k))/zrand
-       end do
-       call random_pert(nzp,nxp,nyp,zt,a_rp,xran,k,'humidity')
-    end if
+    if (abs(zrndampq)>1e-10 .AND. zrand>zt(2)) &
+       call random_pert(nzp,nxp,nyp,zt,a_rp,zrand,zrndampq,zrandnorm,zrandopt,'humidity')
 
     a_wp=0.
     if(isgstyp == 2) call tkeinit(nxyzp,a_qp)
@@ -248,7 +236,7 @@ contains
        if(myid == 0) then
           print "(//' ',49('-')/)"
           print '(2X,A17)', 'Sponge Layer Init '
-          print '(3X,A12,F6.1,A1)', 'Starting at ', zt(nzp-nfpt), 'm'
+          print '(3X,A12,F7.1,A1)', 'Starting at ', zt(nzp-nfpt), 'm'
           print '(3X,A18,F6.1,A1)', 'Minimum timescale ', 1/spng_wfct(nfpt),'s'
        end if
     end if
@@ -273,18 +261,18 @@ contains
     integer :: k, iterate
     real    :: tavg, zold2, zold1, x1, xx, yy, zz, til, xs(nns)
     LOGICAL :: fex
-    character (len=245) :: fm0 = &
+    character (len=249) :: fm0 = &
          "(/,' -------------------------------------------------',/,"       //&
-         "'  Sounding Input: ',//,7x,'ps',9x,'hs',7x,'ts',6x ,'thds',6x," // &
+         "'  Sounding Input: ',A80,//,7x,'ps',9x,'hs',7x,'ts',6x ,'thds',6x," // &
          "'us',7x,'vs',7x,'rts',5x,'rel hum',/,6x,'(Pa)',7X,'(m)',6X,'(K)'"// &
          ",6X,'(K)',6X,'(m/s)',4X,'(m/s)',3X,'(kg/kg)',5X,'(%)',/,1x/)"
     character (len=36) :: fm1 = "(f11.1,f10.1,2f9.2,2f9.2,f10.5,f9.1)"
     !
     ! arrange the input sounding
     !
-    INQUIRE(FILE='sound_in',EXIST=fex)
+    INQUIRE(FILE=sound_in_file,EXIST=fex)
     if (ps(1) == 0. .AND. fex) then
-       open (1,file='sound_in',status='old',form='formatted')
+       open (1,file=sound_in_file,status='old',form='formatted')
        do ns=1,nns
           read (1,*,iostat=k) ps(ns),ts(ns),rts(ns),us(ns),vs(ns)
           if (k<0) exit ! End of file
@@ -410,7 +398,7 @@ contains
     end do
 
     if(myid == 0) then
-       write(6,fm0)
+       write(6,fm0) sound_in_file
        write(6,fm1)(ps(k),hs(k),tks(k),thds(k),us(k),vs(k),rts(k),xs(k),k=1,ns)
     endif
 
@@ -612,40 +600,50 @@ contains
   end subroutine hstart
   !
   !----------------------------------------------------------------------
-  ! RANDOM_PERT: initialize field between k=2 and kmx with a
+  ! RANDOM_PERT: initialize field below zmax with a
   ! random perturbation of specified magnitude
   !
-  subroutine random_pert(n1,n2,n3,zt,fld,xmag,kmx,target_name)
+  subroutine random_pert(n1,n2,n3,zt,fld,zmax,ampmax,normalize,opt,target_name)
 
     use mpi_interface, only :  myid
 
     use util, only : sclrset, get_pustat_scalar
     implicit none
 
-    integer, intent(in) :: n1,n2,n3,kmx
+    integer, intent(in) :: n1,n2,n3
     real, intent(inout) :: fld(n1,n2,n3)
-    real, intent(in)    :: zt(n1),xmag(n1)
+    real, intent(in)    :: zt(n1),zmax,ampmax
+    logical, intent(in) :: normalize
+    integer, intent(in) :: opt
     character(len=*), intent(in) :: target_name
 
-    real :: rand(3:n2-2,3:n3-2), xx, xxl, tot
-    integer :: i,j,k
+    real :: rand(3:n2-2,3:n3-2), xx, xxl, tot, xmag
+    integer :: i,j,k,kmx
 
     tot =0.
+    kmx = COUNT(zt(:)<zmax)
     do k=2,kmx
        call random_number(rand)
 
+       if (opt==0) then
+          ! Linear decrease from surface up to zmax
+          xmag = ampmax*(zmax - zt(k))/zmax
+       else
+          ! Constant amplitude
+          xmag = ampmax
+       endif
        xx = 0.
        do j=3,n3-2
           do i=3,n2-2
-             fld(k,i,j) = fld(k,i,j) + rand(i,j)*xmag(k)
-             xx = xx + rand(i,j)*xmag(k)
+             fld(k,i,j) = fld(k,i,j) + rand(i,j)*xmag
+             xx = xx + rand(i,j)*xmag
           end do
        end do
 
        xxl = xx/real((n2-4)*(n3-4))
        xx = get_pustat_scalar('avg', xxl)
 
-       IF (zrandnorm) fld(k,:,:)= fld(k,:,:) - xx
+       IF (normalize) fld(k,:,:)= fld(k,:,:) - xx
 
        tot = tot + xx/(kmx-1) ! Average perturbation
     end do
@@ -663,7 +661,7 @@ contains
     return
 
 600 format( &
-         /3x,'Below: ',F7.2,' meters;',                        &
+         /3x,'Below: ',F7.1,' meters;',                        &
          /3x,'with test value of: ',E12.5,                     &
          /3x,'and a magnitude of: ',E12.5)
   end subroutine random_pert
@@ -688,6 +686,54 @@ contains
     enddo
   end subroutine random_initialize
 
+  ! --------------------------------------------------------------------------------------------------
+  ! Initialize additional prognostic fields
+  SUBROUTINE init_add_scalars()
+    USE grid, ONLY : nzp, zt, addscnme, naddsc, a_ap
+    USE mpi_interface, ONLY : appl_abort, myid
+    IMPLICIT NONE
+    INTEGER :: k, i
+    REAL :: tmp(nzp,naddsc)
+    CHARACTER(LEN=15) :: fmt
+    !
+    IF (LEN_TRIM(addscnme)==0) THEN
+        ! Data file name not provided
+        RETURN
+    ELSEIF (naddsc==0) THEN
+        ! Additional scalars must be used
+        IF (myid==0) print *, '  ABORTING: Additional scalars not initialized'
+        CALL appl_abort(0)
+    ENDIF
+    !
+    ! Read the input data
+    CALL read_input_array(addscnme,nzp,zt,naddsc,tmp,i)
+    IF (i/=1) THEN
+        ! Failed
+        IF (myid==0) print *, '  ABORTING: Reading initial values for additional scalars failed'
+        CALL appl_abort(0)
+    ENDIF
+    !
+    ! Set initial values
+    DO i=1,naddsc
+        DO k=1,nzp
+            a_ap(k,:,:,i)=tmp(k,i)
+        ENDDO
+    ENDDO
+    !
+    if (myid == 0) THEN
+        WRITE(fmt,"('(F10.1,',I2,'E12.3)')") naddsc
+        WRITE(*,*)' '
+        WRITE(*,*) "  Initializing 3D fields from "//TRIM(addscnme)
+        WRITE(*,*) "    z (m)      values"
+        DO i=2,4
+            WRITE(*,fmt=fmt) zt(i), (a_ap(i,3,3,k),k=1,naddsc)
+        ENDDO
+        WRITE(*,*) "    ..."
+        DO i=nzp-2,nzp-1
+            WRITE(*,fmt=fmt) zt(i), (a_ap(i,3,3,k),k=1,naddsc)
+        ENDDO
+    ENDIF
+  END SUBROUTINE init_add_scalars
 
   ! --------------------------------------------------------------------------------------------------
   ! Replacement for SUBROUTINE init_aero_sizedist (init.f90): initilize altitude-dependent aerosol
@@ -701,12 +747,13 @@ contains
     use thrm, only : rslf
     USE mo_submctl, ONLY : pi6,in2a,in2b,fn1a,fn2a,fn2b,aerobins,maxspec,nmod,isdtyp, &
                            sigmagA, dpgA, nA, volDistA, sigmagB, dpgB, nB, volDistB, &
-                           iso, ioc, nspec, dens, diss, mws, zspec, nlim, salsa1a_SO4_OC
+                           iso, ioc, nspec, dens, diss, mws, zspec, nlim, salsa1a_SO4_OC, &
+                           calc_init_vol, aerosol_in_file
     USE mpi_interface, ONLY : myid
 
     IMPLICIT NONE
-    REAL :: core(fn2a), nsect(fn2a)            ! Bin mid dry volume, local aerosol size dist
-    REAL :: pndist(nzp,fn2b)                   ! Aerosol size dist as a function of height
+    REAL :: core(fn2b), nsect(fn2a), vsect(fn2a) ! Bin mid dry volume, local aerosol size dist
+    REAL :: pndist(nzp,fn2b), pvdist(nzp,fn2b) ! Aerosol size and volume dists as a function of height
     REAL :: pvf2a(nzp,nspec), pvf2b(nzp,nspec) ! Volume distributions of aerosol species for a and b-bins
     REAL :: mass(2*nspec), factor, sw, ns
     INTEGER :: ss,ee,i,j,k,nc
@@ -718,9 +765,10 @@ contains
 
     ! Bin mean aerosol particle volume
     core(1:fn2a) = 4.*pi6*(aerobins(1:fn2a)**3+aerobins(2:fn2a+1)**3) ! = 4/3*pi*(rmin**3+rmax**3)/2
+    core(in2b:fn2b) = core(in2a:fn2a)
 
     ! Set concentrations to zero
-    pndist = 0.
+    pndist = 0.; pvdist = 0.
     pvf2a = 0.; pvf2b = 0.
 
     a_maerop(:,:,:,:)=0.0
@@ -744,17 +792,19 @@ contains
        nA = nA*1.e6; nB = nB*1.e6
        dpgA = dpgA*1.e-6; dpgB = dpgB*1.e-6
        ! Size distributions
-       CALL size_distribution(nmod, nA, dpgA, sigmagA, nsect)
+       CALL size_distribution(nmod, nA, dpgA, sigmagA, nsect, vaero=vsect)
        DO ss = 1,fn2a
           pndist(:,ss) = nsect(ss)
+          pvdist(:,ss) = vsect(ss)
        END DO
-       CALL size_distribution(nmod, nB, dpgB, sigmagB, nsect)
+       CALL size_distribution(nmod, nB, dpgB, sigmagB, nsect, vaero=vsect)
        DO ss = in2b,fn2b
           pndist(:,ss) = nsect(ss+fn2a-fn2b)
+          pvdist(:,ss) = vsect(ss+fn2a-fn2b)
        END DO
     ELSE
        ! Altitude dependent profiles from text or NetCDF files
-       CALL read_aero_input(pndist,pvf2a,pvf2b)
+       CALL read_aero_input(pndist,pvdist,pvf2a,pvf2b)
     END IF
 
     ! Are b-bins used? If not, these can be disabled.
@@ -765,6 +815,9 @@ contains
     ! Initialize concentrations
     ! ----------------------------------------------------------
     DO k = 2,nzp
+       ! Can use the true aerosol volume from size distributions,
+       ! while the default volume is based on the bin mid volume:
+       IF (.NOT.calc_init_vol) pvdist(k,:) = pndist(k,:) * core(:)
 
        DO j = 1,nyp
           DO i = 1,nxp
@@ -779,11 +832,11 @@ contains
              DO nc=1,nspec
                 ! 1a and 2a
                 ss = nc*nbins + 1; ee = nc*nbins + fn2a
-                a_maerop(k,i,j,ss:ee) = a_naerop(k,i,j,1:fn2a)*max(0.0,pvf2a(k,nc))*core(1:fn2a)*dens(nc+1)
+                a_maerop(k,i,j,ss:ee) = pvdist(k,1:fn2a)*max(0.0,pvf2a(k,nc))*dens(nc+1)
                 ! 2b
                 IF (bbins) THEN
                    ss = nc*nbins + in2b; ee = nc*nbins + fn2b
-                   a_maerop(k,i,j,ss:ee) = a_naerop(k,i,j,in2b:fn2b)*max(0.0,pvf2b(k,nc))*core(in2a:fn2a)*dens(nc+1)
+                   a_maerop(k,i,j,ss:ee) = pvdist(k,in2b:fn2b)*max(0.0,pvf2b(k,nc))*dens(nc+1)
                 ENDIF
              END DO
 
@@ -879,7 +932,7 @@ contains
             WRITE(*,fmt) 'total', SUM(a_naerop(2,3,3,1:fn2a))*1.e-6, mass(1:nspec)
         ENDIF
     ELSEIF (myid == 0) THEN
-        WRITE(*,'(/,A)') 'Aerosol properties from file aerosol_in'
+        WRITE(*,'(/,A)') 'Aerosol properties from file '//TRIM(aerosol_in_file)
 
         ! Are b-bins used?
         IF (no_b_bins) THEN
@@ -927,17 +980,17 @@ contains
   ! Reads vertical profiles of aerosol size distribution parameters, aerosol species volume fractions and
   ! number concentration fractions between a and b bins
   !
-  SUBROUTINE read_aero_input(ppndist,ppvf2a,ppvf2b)
+  SUBROUTINE read_aero_input(ppndist,ppvdist,ppvf2a,ppvf2b)
     USE netcdf
     USE grid, ONLY : zt, nzp
-    USE mo_submctl, ONLY : in2a, fn2a, in2b, fn2b, nspec, nmod, isdtyp
+    USE mo_submctl, ONLY : in2a, fn2a, in2b, fn2b, nspec, nmod, isdtyp, aerosol_in_file
     USE mpi_interface, ONLY : appl_abort, myid
     IMPLICIT NONE
 
-    REAL, INTENT(out) :: ppndist(nzp,fn2b)                    ! Aerosol size dist as a function of height
+    REAL, INTENT(out) :: ppndist(nzp,fn2b), ppvdist(nzp,fn2b) ! Aerosol size and volume dists as a function of height
     REAL, INTENT(out) :: ppvf2a(nzp,nspec), ppvf2b(nzp,nspec) ! Volume distributions of aerosol species for a and b-bins
 
-    REAL :: nsect(fn2a)
+    REAL :: nsect(fn2a), vsect(fn2a)
 
     INTEGER :: ncid, k, i
     INTEGER :: nc_levs, nc_nspec, nc_nmod
@@ -949,13 +1002,17 @@ contains
                          zsigmagA(:,:),  zsigmagB(:,:),  & ! Geometric standard deviations
                          zdpgA(:,:),     zdpgB(:,:),     & ! Mode mean diameters
                          znf2a(:), &         ! Number fraction for bins 2a (optional)
-                         znsect(:,:)         ! Helper for binned number concentrations
+                         znsect(:,:), zvsect(:,:) ! Helper for binned number and volume concentrations
     LOGICAL :: READ_NC
 
     ! Read the NetCDF input when it is available
-    INQUIRE(FILE='aerosol_in.nc',EXIST=READ_NC)
+    INQUIRE(FILE=aerosol_in_file,EXIST=READ_NC)
+    IF (.NOT. READ_NC) then
+       if (myid == 0) print *, '  ABORTING: Aerosol input file '//TRIM(aerosol_in_file)//' not found'
+       call appl_abort(0)
+    END IF
 
-    IF (READ_NC) THEN
+    IF (READ_NC .AND. INDEX(aerosol_in_file,'.nc')>0) THEN
        ! Open the input file
        CALL open_aero_nc(ncid, nc_levs, nc_nspec, nc_nmod)
 
@@ -971,8 +1028,7 @@ contains
        CALL read_aero_nc_2d(ncid,'volDistA',nc_levs,nc_nspec,zvolDistA)
        CALL read_aero_nc_2d(ncid,'volDistB',nc_levs,nc_nspec,zvolDistB)
        ! Original and revised formats
-       CALL test_aero_var(ncid,'nf2a',READ_NC)
-       IF (READ_NC) THEN
+       IF (isdtyp==1) THEN
           ! Original
           CALL read_aero_nc_1d(ncid,'nf2a',nc_levs,znf2a)
           CALL read_aero_nc_2d(ncid,'n',nc_levs,nc_nmod,znA)
@@ -1000,14 +1056,14 @@ contains
        ! Read the profile data from a text file
 
        ! Allocate arrays
-       nc_levs=500
+       nc_levs=1000
        ALLOCATE(zlevs(nc_levs),           znf2a(nc_levs),           &
                 zvolDistA(nc_levs,nspec), zvolDistB(nc_levs,nspec), &
                 znA(nc_levs,nmod),        znB(nc_levs,nmod),        &
                 zsigmagA(nc_levs,nmod),   zsigmagB(nc_levs,nmod),   &
-                zdpgA(nc_levs,nmod),      zdpgB(nc_levs,nmod)       )
+                zdpgA(nc_levs,nmod),      zdpgB(nc_levs,nmod), SOURCE=0.0 )
 
-       open (11,file='aerosol_in',status='old',form='formatted')
+       open (11,file=aerosol_in_file,status='old',form='formatted')
        IF (isdtyp==1) THEN
           ! The original format
           do i=1,nc_levs
@@ -1040,7 +1096,7 @@ contains
              read (11,*) (zsigmagB(i,k),k=1,nmod)
           end do
        ENDIF
-       close (ncid)
+       close (11)
        ! The true number of altitude levels
        nc_levs=i-1
     END IF
@@ -1056,13 +1112,16 @@ contains
     zdpgA = zdpgA*1.e-6; zdpgB = zdpgB*1.e-6
 
     ! Get the binned size distribution
-    ALLOCATE( znsect(nc_levs,fn2b) )
+    ALLOCATE( znsect(nc_levs,fn2b), zvsect(nc_levs,fn2b) )
     znsect = 0.
+    zvsect = 0.
     DO k = 1,nc_levs
-       CALL size_distribution(nmod,znA(k,:),zdpgA(k,:),zsigmagA(k,:),nsect)
+       CALL size_distribution(nmod,znA(k,:),zdpgA(k,:),zsigmagA(k,:),nsect,vaero=vsect)
        znsect(k,1:fn2a) = nsect(:)
-       CALL size_distribution(nmod,znB(k,:),zdpgB(k,:),zsigmagB(k,:),nsect)
+       zvsect(k,1:fn2a) = vsect(:)
+       CALL size_distribution(nmod,znB(k,:),zdpgB(k,:),zsigmagB(k,:),nsect,vaero=vsect)
        znsect(k,in2b:fn2b) = nsect(in2a:fn2a)
+       zvsect(k,in2b:fn2b) = vsect(in2a:fn2a)
     END DO
 
     ! Interpolate the input variables to model levels
@@ -1070,9 +1129,10 @@ contains
     CALL htint2d(nc_levs,zvolDistA(1:nc_levs,1:nspec),zlevs(1:nc_levs),nzp,ppvf2a,zt,nspec)
     CALL htint2d(nc_levs,zvolDistB(1:nc_levs,1:nspec),zlevs(1:nc_levs),nzp,ppvf2b,zt,nspec)
     CALL htint2d(nc_levs,znsect(1:nc_levs,:),zlevs(1:nc_levs),nzp,ppndist,zt,fn2b)
+    CALL htint2d(nc_levs,zvsect(1:nc_levs,:),zlevs(1:nc_levs),nzp,ppvdist,zt,fn2b)
 
     DEALLOCATE( zlevs, zvolDistA, zvolDistB, znf2a, znA, zsigmagA, zdpgA, &
-        znB, zsigmagB, zdpgB, znsect )
+        znB, zsigmagB, zdpgB, znsect, zvsect )
 
   CONTAINS
       !
@@ -1084,7 +1144,7 @@ contains
         INTEGER, INTENT(out) :: ncid,nc_levs,nc_nspec,nc_nmod
         INTEGER :: iret, did
         ! Open file
-        iret = nf90_open('aerosol_in.nc',NF90_NOWRITE,ncid)
+        iret = nf90_open(aerosol_in_file,NF90_NOWRITE,ncid)
         ! Inquire the number of input levels
         iret = nf90_inq_dimid(ncid,'levs',did)
         iret = nf90_inquire_dimension(ncid,did,len=nc_levs)
@@ -1093,16 +1153,6 @@ contains
         iret = nf90_inq_dimid(ncid,'nmod',did)
         iret = nf90_inquire_dimension(ncid,did,len=nc_nmod)
       END SUBROUTINE open_aero_nc
-      !
-      SUBROUTINE test_aero_var(ncid,name,noerr)
-        IMPLICIT NONE
-        INTEGER, INTENT(in)           :: ncid
-        CHARACTER(len=*), INTENT(in) :: name
-        LOGICAL, INTENT(out)          :: noerr
-        INTEGER :: iret,vid
-        iret = nf90_inq_varid(ncid,name,vid)
-        noerr = iret==nf90_noerr
-      END SUBROUTINE test_aero_var
       !
       SUBROUTINE read_aero_nc_1d(ncid,name,d1,var)
         IMPLICIT NONE
@@ -1340,19 +1390,22 @@ contains
   !
   ! From module mo_salsa_sizedist
   !
-  SUBROUTINE size_distribution(nmod, n, dpg, sigmag, naero)
+  SUBROUTINE size_distribution(nmod, n, dpg, sigmag, naero, aaero, vaero)
     USE mo_submctl, ONLY : pi, fn2a, aerobins
     IMPLICIT NONE
 
     INTEGER, INTENT(IN) :: nmod ! number of modes
     REAL, INTENT(IN) :: n(nmod), dpg(nmod), sigmag(nmod) ! Mode number concentration, mean diameter and width
     REAL, INTENT(OUT) :: naero(fn2a) ! number concentration
+    REAL, INTENT(OUT), OPTIONAL :: aaero(fn2a), vaero(fn2a) ! area and volume concentrations
 
     !-- local variables
     REAL :: deltadp,d1,d2,delta_d,dmid
-    INTEGER :: kk,ib
+    INTEGER :: kk,ib, im
 
     naero(:)=0.
+    IF (present(aaero)) aaero(:)=0.0
+    IF (present(vaero)) vaero(:)=0.0
     DO kk = 1, fn2a ! Bin
         d1 = aerobins(kk)*2.
         d2 = aerobins(kk+1)*2.
@@ -1362,13 +1415,27 @@ contains
             d2=d1+delta_d
             dmid=(d1+d2)/2.
             deltadp = log(d2/d1)
-            !-- size distribution
-            !   ntot = total number, total area, or total volume concentration
-            !   dpg = geometric-mean number, area, or volume diameter
-            !   n(kk) = number, area, or volume concentration in a bin
-            naero(kk) = naero(kk)+sum(n*deltadp/        &
-                 (sqrt(2.*pi)*log(sigmag))*                   &
-                 exp(-log(dmid/dpg)**2/(2.*log(sigmag)**2)))
+            DO im=1,nmod
+                !-- size distribution
+                !   ntot = total number, total area, or total volume concentration
+                !   dpg = geometric-mean number, area, or volume diameter
+                !   n(kk) = number, area, or volume concentration in a bin
+                IF (n(im)>1e-20) THEN
+                    naero(kk) = naero(kk)+n(im)*deltadp/(sqrt(2.*pi)*log(sigmag(im)))* &
+                        exp(-log(dmid/dpg(im))**2/(2.*log(sigmag(im))**2))
+                    ! Optional outputs: area and volume
+                    IF (present(aaero)) THEN
+                        aaero(kk) = aaero(kk)+pi*dmid**2* &
+                                    n(im)*deltadp/(sqrt(2.*pi)*log(sigmag(im)))* &
+                                    exp(-log(dmid/dpg(im))**2/(2.*log(sigmag(im))**2))
+                    ENDIF
+                    IF (present(vaero)) THEN
+                        vaero(kk) = vaero(kk)+pi/6.0*dmid**3* &
+                                    n(im)*deltadp/(sqrt(2.*pi)*log(sigmag(im)))* &
+                                    exp(-log(dmid/dpg(im))**2/(2.*log(sigmag(im))**2))
+                    ENDIF
+                ENDIF
+            END DO
         END DO
     END DO
   END SUBROUTINE size_distribution

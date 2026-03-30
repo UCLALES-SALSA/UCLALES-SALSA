@@ -130,7 +130,7 @@ contains
   !
   subroutine micro_ice(level)
     use grid, only : nxp, nyp, nzp, a_theta, &
-       a_rv, a_rc, a_temp, a_rsl, a_edr, a_rsi, a_dn, &
+       a_rv, a_rc, a_temp, a_rsl, a_edr, a_rsi, a_dn, a_ap, naddsc, &
        a_rt, a_tt,a_rpp, a_rpt, a_npp, a_npt,  &
        a_rip, a_rit, a_nip, a_nit, & ! ice mass and number mixing ratio
        a_rsp, a_rst, a_nsp, a_nst, & ! snow
@@ -167,9 +167,10 @@ contains
             a_rsp,a_nsp,a_rgp,a_ngp, icein, snowin, grin)
     case(6)
        call mcrph_sb(nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rsi,a_rv,a_rc, &
-            a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, & ! rain, ice, snow, graupel and hail
+            a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, &
             a_rpt, a_npt, a_rit, a_nit, a_rst, a_nst, a_rgt, a_ngt, a_rht, a_nht, &
-            cldin, precip, icein, snowin, grin, hailin, sed_cloud, sed_precp, sed_ice)
+            cldin, precip, icein, snowin, grin, hailin, sed_cloud, sed_precp, sed_ice, &
+            a_ap, naddsc)
    end select
 
   end subroutine micro_ice
@@ -197,7 +198,7 @@ contains
 
     real, dimension(n1) :: tl,temp,rv,nc,rc,nrain,rrain,nice,rice,nsnow,rsnow,ngrp,rgrp, &
         rs,rsi,s_i,r1,r2,dn0,ti,nin_active,mult_n,mult_r, &
-        tmp_rv,tmp_rc,tmp_nr,tmp_rr,tmp_ni,tmp_ri,tmp_ns,tmp_rs,tmp_ng,tmp_rg
+        tmp_rv,tmp_nc,tmp_rc,tmp_nr,tmp_rr,tmp_ni,tmp_ri,tmp_ns,tmp_rs,tmp_ng,tmp_rg
     integer :: i, j, n
     logical :: adj_cldw, adj_rain, adj_ice, adj_snow, adj_gra
 
@@ -429,6 +430,7 @@ contains
         ! a) The first call - save current concentrations
         IF (.NOT.present(imicro)) THEN
             tmp_rv = rv ! Water vapor
+            tmp_nc = nc ! CDNC
             tmp_rc = rc ! Cloud water mixing ratio
             tmp_nr = nrain ! Rain drop number
             tmp_rr = rrain ! Rain water mixing ratio
@@ -447,6 +449,9 @@ contains
             IF ( prefix//'_rv' == out_mcrp_list(k) ) THEN
                 ! Water vapor (diagnostic)
                 out_mcrp_data(:,i,j,k) = out_mcrp_data(:,i,j,k) + (rv - tmp_rv)/dt
+            ELSEIF ( prefix//'_nc' == out_mcrp_list(k) ) THEN
+                ! CDNC (fixed)
+                out_mcrp_data(:,i,j,k) = out_mcrp_data(:,i,j,k) + (nc - tmp_nc)/dt
             ELSEIF ( prefix//'_rc' == out_mcrp_list(k) ) THEN
                 ! Cloud water (diagnostic)
                 out_mcrp_data(:,i,j,k) = out_mcrp_data(:,i,j,k) + (rc - tmp_rc)/dt
@@ -2306,25 +2311,27 @@ contains
   SUBROUTINE mcrph_sb(ke,je,ie,dn0,th,tlt,rtt,tk,rsi,qvin,qcin, &
        qrin, qnrin, qiin, qniin, qsin, qnsin, qgin, qngin, qhin, qnhin,  &
        qrtend, qnrtend, qitend, qnitend, qstend, qnstend, qgtend, qngtend, qhtend, qnhtend, &
-       prec_c, prec_r, prec_i, prec_s, prec_g, prec_h, sed_cloud, sed_precp, sed_ice)
+       prec_c, prec_r, prec_i, prec_s, prec_g, prec_h, sed_cloud, sed_precp, sed_ice, &
+       adds, nadds)
 
     ! Note that in F90 local variables overwrite global ones, nevertheless
     ! some SB variables are renamed here
 
     USE mcrp_ice_sb, ONLY: loc_ix, loc_iy, loc_iz, dtx => dt, &
-            p_0, T_0, rho_k=>rho_0, S_i, q, &
+            p_0, T_0, rho_k=>rho_0, S_i, q, addsclr, naddsclr, &
             q_cloud, q_ice, q_rain, q_snow, q_graupel, q_hail, &
             n_cloud, n_ice, n_rain, n_snow, n_graupel, n_hail, &
             alloc_driver, dealloc_driver, &
             alloc_wolken, dealloc_wolken, clouds, &
             sflgx => sflg, out_data => out_mcrp_data, &
-            nout=>out_mcrp_nout, out_list=>out_mcrp_list
+            nout=>out_mcrp_nout, out_list=>out_mcrp_list, &
+            out_inst_data, out_inst_nout
 
     IMPLICIT NONE
 
     ! Declare variables in argument list
 
-    integer, intent (in) :: ie,je,ke
+    integer, intent (in) :: ie,je,ke,nadds
 
     real, dimension(ke,je,ie), intent (in)          :: &
          th,    & ! potential temperature
@@ -2342,6 +2349,7 @@ contains
     real, dimension(ke,je,ie), intent (out) :: &
          prec_c, prec_r, prec_i, prec_s, prec_g, prec_h
     LOGICAL, INTENT(IN) :: sed_cloud, sed_precp, sed_ice
+    real, dimension(ke,je,ie,nadds), intent (in) :: adds
 
     ! ... Local Variables
 
@@ -2350,10 +2358,14 @@ contains
 
     INTEGER        :: i,j,k,ii,jj,kk,ntsedi
     REAL :: hlp
-    REAL, DIMENSION(ke,je,ie) :: tmp_rc, tmp_nr, tmp_rr, &
+    REAL, DIMENSION(ke,je,ie) :: tmp_nc, tmp_rc, tmp_nr, tmp_rr, &
           tmp_ni, tmp_ri, tmp_ns, tmp_rs, tmp_ng, tmp_rg, tmp_nh, tmp_rh
 
     INTEGER, DIMENSION(:), AllOCATABLE     :: ilm,jlm,klm
+
+    ! Local copy of cumulative outputs
+    REAL, ALLOCATABLE, SAVE :: out_cum_data(:,:,:,:)
+    REAL, SAVE :: time_tot = 0.0
 
     ! using eps=0 increases runtime, but may remove artifacts
     REAL,    PARAMETER :: eps = 0.0
@@ -2361,12 +2373,18 @@ contains
     LOGICAL, PARAMETER :: CGP_SEARCH = .true.
 
     dtx = dt
+    naddsclr = nadds
     sflgx = sflg .AND. out_mcrp_nout>0
 
     nout = out_mcrp_nout
     IF (sflgx .AND. .NOT.ALLOCATED(out_list)) THEN
         ALLOCATE(character(7) :: out_list(nout))
         out_list(1:nout) = out_mcrp_list(1:nout)
+    ENDIF
+
+    IF(.NOT. ALLOCATED(out_cum_data)) THEN
+        ALLOCATE (out_cum_data(ke,je,ie,out_inst_nout))
+        out_cum_data=0.0
     ENDIF
 
     qv = qvin
@@ -2468,6 +2486,9 @@ contains
           q_snow(i,j,k)    = rho_k(i,j,k) * qs(kk,jj,ii)
           q_graupel(i,j,k) = rho_k(i,j,k) * qg(kk,jj,ii)
           q_hail(i,j,k)    = rho_k(i,j,k) * qh(kk,jj,ii)
+
+          ! ... additional prognostic (concentration) inputs
+          IF (nadds>0) addsclr(i,j,k,1:nadds) = rho_k(i,j,k) * adds(kk,jj,ii,1:nadds)
        enddo
 
        ! .. this subroutine calculates all the microphysical sources and sinks
@@ -2498,6 +2519,8 @@ contains
 
           ! ... statistics
           IF (sflgx) out_mcrp_data(kk,jj,ii,:) = hlp * out_data(i,j,k,:)
+          ! Cumulative data from all time steps
+          out_cum_data(kk,jj,ii,:) = out_cum_data(kk,jj,ii,:) + hlp * out_inst_data(i,j,k,:)
        ENDDO
 
        deallocate(ilm,jlm,klm)
@@ -2551,6 +2574,9 @@ contains
     end do
     IF (sflgx) CALL sb_var_stat()
 
+    time_tot = time_tot + dt
+    IF (sflgx) CALL sb_var_stat_cum(time_tot)
+
     WHERE (qv < 0.0) qv = 0.0
     WHERE (qc < 0.0) qc = 0.0
     WHERE (qr < 0.0) qr = 0.0
@@ -2591,7 +2617,7 @@ contains
       !     Main program: out_mcrp_nout, out_mcrp_data, out_mcrp_list
       ! 1) Save the current state
       SUBROUTINE sb_var_stat_reset()
-        tmp_rc = qc ! Cloud water mixing ratio
+        tmp_nc = qnc; tmp_rc = qc ! CDNC and cloud water mixing ratio
         tmp_nr = qnr; tmp_rr = qr ! Rain drop number and mixing ratio
         tmp_ni = qni; tmp_ri = qi ! Ice
         tmp_ns = qns; tmp_rs = qs ! Snow
@@ -2603,7 +2629,10 @@ contains
         character (len=4) :: prefix='sedi' ! Process name
         INTEGER :: k
         DO k=1,out_mcrp_nout
-            IF ( prefix//'_rc' == out_mcrp_list(k) ) THEN
+            IF ( prefix//'_nc' == out_mcrp_list(k) ) THEN
+                ! CDNC (typically fixed)
+                out_mcrp_data(:,:,:,k) = out_mcrp_data(:,:,:,k) + (qnc - tmp_nc)/dt
+            ELSEIF ( prefix//'_rc' == out_mcrp_list(k) ) THEN
                 ! Cloud water (diagnostic)
                 out_mcrp_data(:,:,:,k) = out_mcrp_data(:,:,:,k) + (qc - tmp_rc)/dt
             ELSEIF ( prefix//'_nr' == out_mcrp_list(k) ) THEN
@@ -2639,6 +2668,40 @@ contains
             ENDIF
         ENDDO
       END SUBROUTINE sb_var_stat
+      ! 3) Cumulative statistics based on instantaneous outputs
+      SUBROUTINE sb_var_stat_cum(time_tot)
+        IMPLICIT NONE
+        REAL, INTENT(INOUT) :: time_tot
+        INTEGER :: k
+        ! Generate the requested ouputs
+        DO k=1,out_mcrp_nout
+            SELECT CASE (out_mcrp_list(k) )
+            CASE('csrs_ni') ! RS SIP
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,1)/time_tot
+            CASE('csii_ni') ! IIBR SIP
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,2)/time_tot
+            CASE('caut_nr') ! Autoconversion
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,3)/time_tot
+            CASE('cnuc_ni') ! Ice nucleation
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,4)/time_tot
+            CASE('cfre_ni') ! Cloud freezing
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,5)/time_tot
+            CASE('cmel_ni') ! Ice melt
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,6)/time_tot
+            CASE('cdia_nc') ! Diagnostics, cloud
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,7)/time_tot
+            CASE('cdia_nr') ! Diagnostics, rain
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,8)/time_tot
+            CASE('cdia_ni') ! Diagnostics, ice
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,9)/time_tot
+            END SELECT
+        ENDDO
+        !
+        ! Reset time and data
+        time_tot = 0.0
+        out_cum_data(:,:,:,:) = 0.0
+        !
+      END SUBROUTINE sb_var_stat_cum
   END SUBROUTINE mcrph_sb
 
   SUBROUTINE init_sb

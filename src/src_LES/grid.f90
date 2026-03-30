@@ -53,6 +53,14 @@ module grid
   character (len=80):: expnme = ''         ! Experiment name
   character (len=80):: filprf = 'x'        ! File prefix
   character (len=7) :: runtype = 'INITIAL' ! Run type selection (INITIAL or HISTORY)
+  character (len=100):: addscnme = ''      ! Input file name for additional scalars
+
+  ! Apply random perturbations to initial temperature and moisture profiles
+  real              :: zrand = 200.        ! maximum altitude
+  real              :: zrndamp = 0.2       ! the amplitude of random temperature fluctuations
+  real              :: zrndampq = 5.0e-5   ! the amplitude of random humidity fluctuations
+  logical           :: zrandnorm = .FALSE. ! normalize the data after inserting random fluctuations
+  integer           :: zrandopt = 0        ! type of random perturbations
 
   ! Sedimentation
   LOGICAL :: sed_aero = .TRUE. ! SALSA only
@@ -75,6 +83,7 @@ module grid
 
   ! SALSA options for reducing the number of prognostic variables
   LOGICAL :: no_b_bins = .FALSE.   ! No prognostic b-bins for aerosol, cloud or ice
+  LOGICAL :: no_prog_cld = .FALSE. ! No prognostic clouds
   LOGICAL :: no_prog_prc = .FALSE. ! No prognostic rain
   LOGICAL :: no_prog_ice = .FALSE. ! No prognostic ice or snow (level=5)
   LOGICAL :: no_prog_snw = .FALSE.
@@ -97,6 +106,7 @@ module grid
   real, allocatable :: xt(:), xm(:), yt(:), ym(:), zt(:), zm(:), dzt(:), dzm(:)
   real, allocatable :: u0(:), v0(:), pi0(:), pi1(:), th0(:), dn0(:), rt0(:)
   real, allocatable :: spng_wfct(:), spng_tfct(:)
+  REAL, ALLOCATABLE, target :: tmp_cldp(:,:,:,:), tmp_cldt(:,:,:,:)
   REAL, ALLOCATABLE, target :: tmp_prcp(:,:,:,:), tmp_prct(:,:,:,:)
   REAL, ALLOCATABLE, target :: tmp_icep(:,:,:,:), tmp_icet(:,:,:,:)
   REAL, ALLOCATABLE, target :: tmp_snwp(:,:,:,:), tmp_snwt(:,:,:,:)
@@ -123,6 +133,7 @@ module grid
   real, pointer :: a_rp(:,:,:),a_rt(:,:,:) ! Water vapour for SALSA; total water for SB
   real, pointer :: a_qp(:,:,:),a_qt(:,:,:) ! Subgrid TKE
   real, pointer :: a_sp(:,:,:),a_st(:,:,:) ! A scratch variable
+  real, pointer :: a_ap(:,:,:,:),a_at(:,:,:,:) ! Additional scalars
   ! Seifert & Beheng tracers: mass (kg/kg) and number (#/kg)
   real, pointer :: a_rpp(:,:,:),a_rpt(:,:,:),a_npp(:,:,:),a_npt(:,:,:) ! Rain
   real, pointer :: a_rip(:,:,:),a_rit(:,:,:),a_nip(:,:,:),a_nit(:,:,:) ! Ice
@@ -379,7 +390,8 @@ contains
 
        ! Total number of prognostic SALSA variables (number and mass for each aerosol component + gases)
        nc = nspt+1
-       nsalsa = ngases + nc*nbins + nc*ncld
+       nsalsa = ngases + nc*nbins
+       IF (.NOT. no_prog_cld) nsalsa = nsalsa + nc*ncld
        IF (.NOT. no_prog_prc) nsalsa = nsalsa + nc*nprc
        IF (level>=5 .AND. .NOT. no_prog_ice) nsalsa = nsalsa + nc*nice
        IF (level>=5 .AND. .NOT. no_prog_snw) nsalsa = nsalsa + nc*nsnw
@@ -412,12 +424,25 @@ contains
        a_maerot => a_sclrt(:,:,:,zz+1:zz+nspt*nbins)
        zz = zz+nspt*nbins
 
-       a_ncloudp => a_sclrp(:,:,:,zz+1:zz+ncld)
-       a_ncloudt => a_sclrt(:,:,:,zz+1:zz+ncld)
-       zz = zz+ncld
-       a_mcloudp => a_sclrp(:,:,:,zz+1:zz+nspt*ncld)
-       a_mcloudt => a_sclrt(:,:,:,zz+1:zz+nspt*ncld)
-       zz = zz+nspt*ncld
+       IF (.NOT. no_prog_cld) THEN
+          ! Prognostic cloud
+          a_ncloudp => a_sclrp(:,:,:,zz+1:zz+ncld)
+          a_ncloudt => a_sclrt(:,:,:,zz+1:zz+ncld)
+          zz = zz+ncld
+          a_mcloudp => a_sclrp(:,:,:,zz+1:zz+nspt*ncld)
+          a_mcloudt => a_sclrt(:,:,:,zz+1:zz+nspt*ncld)
+          zz = zz+nspt*ncld
+       ELSE
+          ! Allocate zero arrays for pointers
+          ALLOCATE (tmp_cldp(nzp,nxp,nyp,(nspt+1)*ncld), &
+                    tmp_cldt(nzp,nxp,nyp,(nspt+1)*ncld))
+          tmp_cldp(:,:,:,:) = 0.
+          tmp_cldt(:,:,:,:) = 0.
+          a_ncloudp => tmp_cldp(:,:,:,1:ncld)
+          a_ncloudt => tmp_cldt(:,:,:,1:ncld)
+          a_mcloudp => tmp_cldp(:,:,:,ncld+1:(nspt+1)*ncld)
+          a_mcloudt => tmp_cldt(:,:,:,ncld+1:(nspt+1)*ncld)
+       ENDIF
 
        IF (.NOT. no_prog_prc) THEN
           ! Prognostic rain
@@ -492,6 +517,12 @@ contains
           a_gaerot => tmp_gast(:,:,:,:)
        ENDIF
     END IF ! level
+
+    ! Additional scalars
+    IF (naddsc>0) THEN
+        a_ap => a_sclrp(:,:,:,nscl-naddsc+1:nscl)
+        a_at => a_sclrt(:,:,:,nscl-naddsc+1:nscl)
+    ENDIF
 
     !----------------------------------------------------
 
@@ -765,7 +796,7 @@ contains
 
 
     ! Allocate data for user selected process rate outputs (see init_stat in stat.f90)
-    ALLOCATE ( out_an_data(nzp,nxp,nyp,nv4_proc) )
+    IF (.NOT.ALLOCATED(out_an_data)) ALLOCATE ( out_an_data(nzp,nxp,nyp,nv4_proc) )
     out_an_data(:,:,:,:) = 0.
 
     IF (level < 4) THEN  ! Standard operation for levels 1-3
@@ -876,7 +907,7 @@ contains
 
     fname =  trim(filprf)
     if(myid == 0) print                                                  &
-            "(//' ',49('-')/,' ',/,'   Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(btot)
+            "(//' ',49('-')/,' ',/,'   Initializing: ',A26,'  N=',I3)",trim(fname),COUNT(btot)
     call open_nc( fname, expnme, time, ncid0, nrec0)
 
     IF (level < 4 .OR. .NOT. lbinanl) THEN
