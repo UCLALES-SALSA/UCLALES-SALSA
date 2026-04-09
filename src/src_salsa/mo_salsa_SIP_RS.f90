@@ -48,7 +48,7 @@ MODULE mo_salsa_SIP_RS
       REAL :: ddmean      ! Mean diameter of frozen drops per ice bin
       REAL :: dN,dV       ! Total number and  volume of fragments generated per ice bin
    
-      INTEGER :: cc,bb,bb1,ii,jj,iri,iwa, nimax
+      INTEGER :: cc,bb,bb1,ii,jj,nimax
       REAL :: icediams(nice), icebw(nice)
       REAL :: fragvolc(kbdim,klev,nice,nspec), sinkvolc(kbdim,klev,nice,nspec) ! Volume to be added and removed
       REAL :: fragnumc(kbdim,klev,nice), sinknumc(kbdim,klev,nice)  ! Number to be added and removed
@@ -59,9 +59,6 @@ MODULE mo_salsa_SIP_RS
       REAL :: frconst                ! constraining fraction for limiting the mass sink to fragments
       REAL, PARAMETER :: inf = HUGE(1.)
       INTEGER :: splbin  ! Target bin for splinters
- 
-      iwa = spec%getIndex("H2O")
-      iri = spec%getIndex("rime")
 
       ! Assuming splinter diameter as Dsplint, find the corresponding ice bin
       splbin = MAX( COUNT(icebins < Dsplint), 1 )     

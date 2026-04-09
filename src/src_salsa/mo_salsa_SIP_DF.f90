@@ -48,7 +48,7 @@ MODULE mo_salsa_SIP_DF
       REAL :: dN             ! Total number of fragments generated per ice bin per drop bin
       REAL :: dNb(nice)      ! Number of fragments distributed to ice bins
       REAL :: dVb(nice)      ! Volume of fragments distributed to ice bins
-      INTEGER :: cc,bb,bb1,ii,jj,iri,iwa, nimax, npmax
+      INTEGER :: cc,bb,bb1,ii,jj,nimax, npmax
       REAL :: icediams(nice), icebw(nice)
       REAL :: fragvolc(kbdim,klev,nice,nspec), sinkvolc(kbdim,klev,nice,nspec) ! Volume to be added and removed
       REAL :: fragnumc(kbdim,klev,nice), sinknumc(kbdim,klev,nice)  ! Number to be added and removed
@@ -60,9 +60,6 @@ MODULE mo_salsa_SIP_DF
       REAL, PARAMETER :: inf = HUGE(1.)
       !REAL :: dNbig
       
-      iwa = spec%getIndex("H2O")
-      iri = spec%getIndex("rime")
-
       ! Convert freezing rates to changes over timestep
       mfrzn_df = mfrzn_df * ptstep
       nfrzn_df = nfrzn_df * ptstep
@@ -332,11 +329,13 @@ MODULE mo_salsa_SIP_DF
       REAL :: rhoip             ! Bin mean ice density
       REAL :: nfrzn             ! Number concentration of frozen droplets
       REAL :: IMF               ! Ice multiplication factor
-
+      
       df_phillips_full_total = 0.
-
-      mrim = pice%volc(nspec) * spec%rhori
-      mpri = SUM(pice%volc(1:nspec-1)) * spec%rhoic ! Cutting a little corners here with the volc...
+      
+      ! iwa = nspec-1 irim=nspec
+      mrim = pice%volc(nspec) * spec%rhori  
+      mpri = SUM(pice%volc(1:nspec-1) * spec%rhoice(1:nspec-1))
+      
       ncice = pice%numc
       
       ! Single particle and drop masses
@@ -395,10 +394,13 @@ MODULE mo_salsa_SIP_DF
       REAL :: nfrzn             ! Number concentration of frozen droplets
       REAL :: IMF               ! Ice multiplication factor
       
-      df_phillips_full_big = 0.
 
-      mrim = pice%volc(nspec) * spec%rhori
-      mpri = SUM(pice%volc(1:nspec-1)) * spec%rhoic ! Cutting a little corners here with the volc...
+      df_phillips_full_big = 0.
+      
+      ! iwa = nspec-1 irim=nspec
+      mrim = pice%volc(nspec) * spec%rhori  
+      mpri = SUM(pice%volc(1:nspec-1) * spec%rhoice(1:nspec-1))
+      
       ncice = pice%numc
       
       ! Single particle and drop masses
@@ -505,7 +507,7 @@ MODULE mo_salsa_SIP_DF
       df_phillips_mode2 = 0.
 
       rhoa = ppres/(rd*ptemp)
-      visc = (7.44523e-3*SQRT(ptemp**3))/(5093.*(ptemp+110.4)) ! viscosity of air [kg/(m s)]
+      visc = (7.44523e-3*SQRT(ptemp**3))/(5093.*(ptemp+110.4)) ! viscosity of air [kg/(m s)] Hinds,p.25 ~ Jacobson FAM eq.4-54
       mfp = (1.656e-10*ptemp+1.828e-8)*pstand/ppres
 
       ! Get the terminal velocities

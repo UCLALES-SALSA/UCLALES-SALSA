@@ -98,9 +98,9 @@ MODULE classSection
       INTEGER :: nwet, ndry, nnsp
       REAL :: mpri,mrim
 
-      nwet = spec%getNSpec(type="wet")
+      nwet = spec%getNSpec(type="wet")   ! This is equal to nnsp-1
       ndry = spec%getNspec(type="dry")
-      nnsp = spec%getNSpec(type='total')
+      nnsp = spec%getNSpec(type='total') ! This is equal to irim = spec%getIndex("rime")  
       
       IF ( .NOT. PRESENT(type) ) THEN
          swtyp = "wet"
@@ -113,9 +113,9 @@ MODULE classSection
             ! Non-spherical diameter - only relevant for ice. Make sure to not use with liquid categories, since ice densities are implicitly assumed
             SELF%dnsp = 1.e-10
             IF (SELF%phase == 4) THEN
-               mpri = SUM(SELF%volc(1:nwet)*spec%rhoice(1:nwet))
-               mrim = SELF%volc(nnsp)*spec%rhori
-               SELF%dnsp = getDiameter( mpri,mrim,SELF%numc )
+               mpri = SUM(SELF%volc(1:nwet) * spec%rhoice(1:nwet))
+               mrim = SELF%volc(nnsp) * spec%rhori 
+               SELF%dnsp = getDiameter(mpri,mrim,SELF%numc )
             END IF
          END IF
          
@@ -168,22 +168,20 @@ MODULE classSection
     !
     SUBROUTINE updateRhomean(SELF)
       CLASS(Section), INTENT(inout) :: SELF
+      INTEGER :: nnsp
       REAL :: mass_p, mass_r, mass_t
-
-      INTEGER :: iwa,irim
       
-      iwa = spec%getIndex("H2O")
-      irim = spec%getIndex("rime")
-
+      nnsp = spec%getNSpec(type='total') ! This is equal to irim = spec%getIndex("rime")  
       SELF%rhomean = spec%rhowa
       
       ! convert to masses -> get the mass mean density - this is needed for ice, for others it's always rhowa
       IF (SELF%phase > 3) THEN
          IF (SELF%numc > SELF%nlim) THEN
-            mass_p = spec%rhoic*SELF%volc(iwa)
-            mass_r = spec%rhori*SELF%volc(irim)
+            mass_p = SUM(SELF%volc(1:nnsp-1) * spec%rhoice(1:nnsp-1))
+            mass_r = SELF%volc(nnsp) * spec%rhori 
             mass_t = mass_p + mass_r
-            SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/MAX(mass_t,7.e-25)
+            ! Minimal mass do not move
+            SELF%rhomean = (mass_p*spec%rhoic + mass_r*spec%rhori)/MAX(mass_t,7.e-25)  
             SELF%rhomean = MIN(SELF%rhomean, spec%rhoic) 
          ELSE
             SELF%rhomean = spec%rhoic
@@ -202,25 +200,26 @@ MODULE classSection
     FUNCTION getRimeFraction(SELF)
       CLASS(Section), INTENT(in) :: SELF
       REAL :: getRimeFraction
-      
-      
-      INTEGER :: iwa,irim
-      
-      iwa = spec%getIndex("H2O")
-      irim = spec%getIndex("rime")
+      REAL :: mass_p, mass_r, mass_t
+      INTEGER :: nnsp 
+              
       getRimeFraction = 0.
-
-      IF (SELF%phase == 4 .AND. SELF%volc(iwa) > 1.e-23 .AND. &  ! Is ice bin and is not empty
-          SELF%volc(irim) > 1.e-23 .AND. SELF%numc > SELF%nlim) THEN
-         
-         getRimeFraction = SELF%volc(irim)*spec%rhori /   &
-              (SELF%volc(iwa)*spec%rhoic + SELF%volc(irim)*spec%rhori)
-         
+      nnsp = spec%getNSpec(type='total') ! This is equal to irim = spec%getIndex("rime")  
+      
+      IF (SELF%phase == 4 .AND. SELF%volc(nnsp-1) > 1.e-23 .AND. &  ! Is ice bin and is not empty
+          SELF%volc(nnsp) > 1.e-23 .AND. SELF%numc > SELF%nlim) THEN
+          mass_p = SUM(SELF%volc(1:nnsp-1) * spec%rhoice(1:nnsp-1))
+          mass_r = SELF%volc(nnsp) * spec%rhori 
+          mass_t = mass_p + mass_r
+          ! Minimal mass do not move
+          getRimeFraction = mass_r / MAX(mass_t, 7.e-25)         
       END IF
 
       IF (getRimeFraction < 0. .OR. getRimeFraction > 1. ) &
            WRITE(*,*) 'CLASS SECTION RIMEFRAC ERROR: ', getRimeFraction
       
     END FUNCTION getRimeFraction
+    
+    !
     
 END MODULE classSection

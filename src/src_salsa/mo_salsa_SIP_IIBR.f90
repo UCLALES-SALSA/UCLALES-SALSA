@@ -150,7 +150,7 @@ MODULE mo_salsa_SIP_IIBR
                      ! rhomean is the mean ice density for frozen particles. Takes into account only the bulk ice composition                     
                      disphmin  =  ((mii_ibr(ii,jj,cc,bb) / nii_ibr(ii,jj,cc,bb) / ice(ii,jj,bb)%rhomean) / pi6)**(1./3.)
                      ssi = MAX(0.,prv(ii,jj) / prsi(ii,jj) - 1.0) ! supersaturation ratio over ice
-                     IMF = imf_phillips_mod(ppres(ii,jj), ptemp(ii,jj),ice(ii,jj,bb), ice(ii,jj,cc), dinsphmin,disphmin,ssi) 
+                     IMF = imf_phillips_mod(ppres(ii,jj), ptemp(ii,jj),ice(ii,jj,bb), ice(ii,jj,cc), dinsphmin,disphmin,ssi,nspec) 
                      IMF = MIN(IMF, 600.0)
                      dN  = IMF *nii_ibr(ii,jj,cc,bb)
                      
@@ -320,7 +320,7 @@ MODULE mo_salsa_SIP_IIBR
     
     ! ------------------------------------------------------------------------------------------------------------------------
 
-    REAL FUNCTION imf_phillips_mod(pres, temp,icelarge, icesmall, dinsphmin, disphmin,ssi) 
+    REAL FUNCTION imf_phillips_mod(pres, temp,icelarge, icesmall, dinsphmin, disphmin,ssi,nspec) 
       ! Phillips, V. T. J., Yano, J.-I., & Khain, A. (2017).
       ! Ice Multiplication by Breakup in Ice–Ice Collisions. Part I: Theoretical Formulation.
       ! Journal of the Atmospheric Sciences, 74(6), 1705–1719. https://doi.org/10.1175/JAS-D-
@@ -342,6 +342,7 @@ MODULE mo_salsa_SIP_IIBR
       
       REAL, INTENT(in) :: pres, temp
       REAL, INTENT(in) :: ssi ! supersaturation over ice ssi = (1- rhi)
+      INTEGER, INTENT(in) :: nspec   ! nspec should contain active compounds + rime
       
       TYPE(Section), INTENT(in) :: icelarge
       TYPE(Section), INTENT(in) :: icesmall !ice particle that undergoes fracturing, or smaller ice particle in the ice-ice colliding pair
@@ -362,14 +363,12 @@ MODULE mo_salsa_SIP_IIBR
       REAL :: Nmax=0.             ! parameters(3) Nmax, Maximum number of fragments per ice-ice collision
       REAL :: Am=0.               ! parameters(4) Am, Measure of number density of breakable asperities in region of contact in 1/m^2
       REAL :: a0=0.               ! Maximum of Am or number density of breakable asperities in region of contact          
-      INTEGER :: iwa,iri
-
-      iwa = spec%getIndex("H2O")
-      iri = spec%getIndex("rime")
       
-      ! Getting the rimed fraction (by mass) of the more fragile particle in the colliding pair
-      mrim = icesmall%volc(iri) * spec%rhori
-      mpri = SUM(icesmall%volc(1:iwa)) * spec%rhoic ! Cutting a little corners here with the volc...
+      ! rimfrac is rimed fraction (by mass) of the more fragile particle in the colliding pair (smallest)
+      ! iwa = nspec-1 irim=nspec
+      mrim = icesmall%volc(nspec) * spec%rhori  
+      mpri = SUM(icesmall%volc(1:nspec-1) * spec%rhoice(1:nspec-1))
+ 
       rimfrac = mrim / (mrim + mpri)
       
       ! Calculating Am or number density of breakable asperities in region of contact
@@ -393,7 +392,7 @@ MODULE mo_salsa_SIP_IIBR
       ! Equivalent-spherical surface area of the colliding particle with the smaller maximum dimension in 1/m2 
       alpha = pi * disphmin**2.
       ! Get K0
-      K0 = kinetic_collision_energy(pres,temp,icelarge,icesmall)
+      K0 = kinetic_collision_energy(pres,temp,icelarge,icesmall,nspec)
       
       ! Ice multiplication factor or number of secondary ice particles produced per ice-ice collision    
       imf_phillips_mod =  MIN(alpha*Am*(1-exp(-(C*K0/alpha/Am)**g)),Nmax)
@@ -404,7 +403,7 @@ MODULE mo_salsa_SIP_IIBR
    
    ! ------------------------------------------------------------------------------------------------------------------------
 
-    REAL FUNCTION imf_phillips(ppres, ptemp,icelarge, icesmall, dinsphmin, disphmin) 
+    REAL FUNCTION imf_phillips(ppres, ptemp,icelarge, icesmall, dinsphmin, disphmin,nspec) 
       ! Phillips, V. T. J., Yano, J.-I., & Khain, A. (2017).
       ! Ice Multiplication by Breakup in Ice–Ice Collisions. Part I: Theoretical Formulation.
       ! Journal of the Atmospheric Sciences, 74(6), 1705–1719. https://doi.org/10.1175/JAS-D-
@@ -414,7 +413,7 @@ MODULE mo_salsa_SIP_IIBR
       USE classSection, ONLY : Section
       
       REAL, INTENT(in) :: ppres, ptemp
-      
+      INTEGER, INTENT(in) :: nspec   ! nspec should contain active compounds + rime
       TYPE(Section), INTENT(in) :: icelarge
       TYPE(Section), INTENT(in) :: icesmall !ice particle that undergoes fracturing, or smaller ice particle in the ice-ice colliding pair
 
@@ -436,15 +435,13 @@ MODULE mo_salsa_SIP_IIBR
       REAL :: g=0.                ! parameters(2) gamma, Exponent in scheme for breakup (Eq.13), dimensionless
       REAL :: Nmax=0.             ! parameters(3) Nmax, Maximum number of fragments per ice-ice collision
       REAL :: Am=0.               ! parameters(4) Am, Measure of number density of breakable asperities in region of contact in 1/m^2
-      REAL :: a0=0.               ! Maximum of Am or number density of breakable asperities in region of contact          
-      INTEGER :: iwa,iri
-
-      iwa = spec%getIndex("H2O")
-      iri = spec%getIndex("rime")
+      REAL :: a0=0.               ! Maximum of Am or number density of breakable asperities in region of contact        
       
-      ! Getting the rimed fraction (by mass) of the more fragile particle in the colliding pair
-      mrim = icesmall%volc(iri) * spec%rhori
-      mpri = SUM(icesmall%volc(1:iwa)) * spec%rhoic ! Cutting a little corners here with the volc...
+      ! rimfrac is rimed fraction (by mass) of the more fragile particle in the colliding pair (smallest)
+      ! iwa = nspec-1 irim=nspec
+      mrim = icesmall%volc(nspec) * spec%rhori  
+      mpri = SUM(icesmall%volc(1:nspec-1) * spec%rhoice(1:nspec-1))
+      
       rimfrac = mrim / (mrim + mpri)
       
       !  Getting the model parameters needed to calculate Am or number density of breakable asperities in region of contact
@@ -494,7 +491,7 @@ MODULE mo_salsa_SIP_IIBR
       ! Equivalent-spherical surface area of the colliding particle with the smaller maximum dimension in 1/m2 
       alpha = pi * disphmin**2.
       ! Get K0
-      K0 = kinetic_collision_energy(ppres,ptemp,icelarge,icesmall)
+      K0 = kinetic_collision_energy(ppres,ptemp,icelarge,icesmall,nspec)
       
       ! Ice multiplication factor or number of secondary ice particles produced per ice-ice collision    
       imf_phillips =  MIN(alpha*Am*(1-exp(-(C*K0/alpha/Am)**g)),Nmax)
@@ -502,18 +499,18 @@ MODULE mo_salsa_SIP_IIBR
      END FUNCTION imf_phillips
 
    ! ------------------------------------------------------------------------------------------------------------
-     REAL FUNCTION kinetic_collision_energy(ppres,ptemp,pice1,pice2) result(K0) 
+     REAL FUNCTION kinetic_collision_energy(ppres,ptemp,pice1,pice2,nspec) result(K0) 
      
         USE mo_submctl, ONLY : rd, pstand, pi, spec
         USE classSection, ONLY : Section
 
         REAL, INTENT(in)  :: ptemp,ppres    ! ptemp in K and ppres in Pa
-
+	INTEGER, INTENT(in) :: nspec        ! nspec should contain active compounds + rime
         TYPE(Section), INTENT(in) :: pice1
         TYPE(Section), INTENT(in) :: pice2
       
-        REAL :: m1, m2  ! Masses of  ice particles
-        REAL :: v1,v2   ! Terminal velocities of ice particles
+        REAL :: m1(2), m2(2)  ! Masses of  ice particles 1:pristine 2:rimed
+        REAL :: v1,v2         ! Terminal velocities of ice particles
       
         ! This is repeating a LOT of the stuff already done once in coagulation kernels,
         ! which is BS and sad... But can't do much about it currently.
@@ -523,33 +520,40 @@ MODULE mo_salsa_SIP_IIBR
             
         K0 = 0.
         rhoa = ppres/(rd*ptemp)
+        ! viscosity of air [kg/(m s)] Hinds,p.25 ~ Jacobson FAM eq.4-54
         visc = (7.44523e-3*SQRT(ptemp**3))/(5093.*(ptemp+110.4)) 
         mfp = (1.656e-10*ptemp+1.828e-8)*pstand/ppres
 	
         ! Hydrometeor 1 in the colliding-pair
-        ! Get the ice particle terminal velocity 
-        v1 = getvelocity(pice1,visc,rhoa,mfp)
         ! Get the ice particle mass
-        m1 = mip(pice1) 
+        m1(1) = SUM(pice1%volc(1:nspec-1) * spec%rhoice(1:nspec-1)) 
+        m1(2) = pice1%volc(nspec) * spec%rhori 
+        ! Get the ice particle terminal velocity        
+        v1 = getvelocity(pice1,visc,rhoa,mfp,m1)
       
         ! Hydrometeor 2 in the colliding-pair
-        ! Get the ice particle terminal velocity 
-        v2 = getvelocity(pice2, visc,rhoa, mfp)
         ! Get the ice particle mass
-        m2 = mip(pice2) 
+        m2(1) = SUM(pice2%volc(1:nspec-1) * spec%rhoice(1:nspec-1)) 
+        m2(2) = pice2%volc(nspec) * spec%rhori  
+        ! Get the ice particle terminal velocity 
+        v2 = getvelocity(pice2, visc,rhoa, mfp,m2)
       
         ! Get the collision kinetic energy 
         ! K0 = 0.5 * (m1*m2/(m1 + m2)) * (v1 - v2)**2
         ! Sotipoulou et al 2020 includes a correction factor in these expressions
         ! to account for underestimates when the terminal velocities are
         ! too close or equal
-        K0 = (m1*m2/(m1+m2)) * (1.7*(v1 - v2)**2.0 + 0.3*v1*v2)
+        ! Single particle mass are calculated as count mean mass in the size bin [kg]
+        ! mip = (mrim+mpri)/ ncice 
+        K0 = ((SUM(m1)/pice1%numc*SUM(m2)/pice2%numc)/  &
+             (SUM(m1)/pice1%numc+SUM(m2)/pice2%numc)) &
+             * (1.7*(v1 - v2)**2.0 + 0.3*v1*v2)
       
      END FUNCTION kinetic_collision_energy
      
      ! ----------------------------------------------------------------------------------------------------------
      
-     REAL FUNCTION getvelocity(pice, visc, rhoa, mfp) result(vt)
+     REAL FUNCTION getvelocity(pice, visc, rhoa, mfp,massice) result(vt)
                 
         USE mo_submctl, ONLY : spec
         USE mo_particle_external_properties, ONLY : terminal_vel
@@ -557,25 +561,22 @@ MODULE mo_salsa_SIP_IIBR
         USE classSection, ONLY : Section
         
         TYPE(Section), INTENT(in) :: pice
-        
-        REAL :: visc             ! Viscosity of air [kg/(m s)]
-        REAL :: rhoa             ! air density      [kg/(m3)]      
-        REAL :: mfp              ! air mean free path [m]
+        REAL, INTENT(in) :: massice(2) ! Mass of  ice particles 1:pristine 2:rimed
+        REAL, INTENT(in) :: visc             ! Viscosity of air [kg/(m s)]
+        REAL, INTENT(in) :: rhoa             ! air density      [kg/(m3)]      
+        REAL, INTENT(in) :: mfp              ! air mean free path [m]
         
         TYPE(t_shape_coeffs) :: ishape ! Ice shape coefficients
         REAL :: knud, beta       ! Particle knudsen number and Cunningham correction
         REAL :: rhoip            ! rimed fraction weighted average density of ice particle   
         REAL :: mrim,mpri,ncice  ! rimed and unrimed bin ice mass mix rats, ice number concentration
-
-        INTEGER :: iwa, iri      ! compound index for water and rimed ice in the spec derived data 
-         
-        iwa = spec%getIndex('H2O')
-        iri = spec%getIndex('rime')
+	
+        mrim = massice(2)
+        mpri = massice(1)        
 
         knud  = 2.*mfp/pice%dnsp
         beta  = 1.+knud*(1.142+0.558*exp(-0.999/knud)) 
-        mrim  = pice%volc(iri) * spec%rhori
-        mpri  = SUM(pice%volc(1:iwa)) * spec%rhoic ! Cutting a little corners here with the volc...
+        
         ncice = pice%numc
         rhoip = (mrim*spec%rhori + mpri*spec%rhoic ) / ( mrim + mpri )
         CALL getShapeCoefficients(ishape,mpri,mrim,ncice)
@@ -584,27 +585,5 @@ MODULE mo_salsa_SIP_IIBR
      
      END FUNCTION getvelocity
     ! ----------------------------------------------------------------------------------------------------------
-    
-    REAL FUNCTION mip(pice)
-         
-       USE mo_submctl, ONLY : spec
-       USE classSection, ONLY : Section
-        
-       TYPE(Section), INTENT(in) :: pice 
-       REAL :: mrim,mpri,ncice  ! rimed and unrimed bin ice mass mix rats, ice number concentration in [1/kg]
-       INTEGER :: iwa, iri      ! compound index for water and rimed ice in the spec derived data 
-         
-       iwa = spec%getIndex('H2O')
-       iri = spec%getIndex('rime')
-         
-       mrim = pice%volc(iri) * spec%rhori
-       mpri = SUM(pice%volc(1:iwa)) * spec%rhoic ! Cutting a little corners here with the volc...
-       ncice = pice%numc
-         
-       ! Single particle mass
-       mip = (mrim+mpri)/ ncice ! Count mean mass for ice particles in the size bin [kg]
-             
-    END FUNCTION mip
-    ! -----------------------------------------------------------------------------------------------------------
     
 END MODULE mo_salsa_SIP_IIBR

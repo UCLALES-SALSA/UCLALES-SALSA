@@ -499,7 +499,7 @@ CONTAINS
              zCc_2 = 1.+zknud_2*(1.142+0.558*exp(-0.999/zknud_2))
 
              zmyy = 1.81e-5*(ptemp(ii,jj)/293.)**(0.74) !
-             ! gas dynamic viscosity, viscocity(air @20C) = 1.81e-5 N/m2 *s (Hinds, p. 25)
+             ! gas dynamic viscosity, viscosity(air @20C) = 1.81e-5 N/m2 *s (Hinds, p. 25)
 
              zDc_c = boltz*ptemp(ii,jj)*zCc_c/(3.*pi*zmyy*zdcrit(ii,jj))  ! D1, Diffusion coefficient of zdcrit-particle, [m2/s]
              zDc_x = boltz*ptemp(ii,jj)*zCc_x/(3.*pi*zmyy*reglim(1))     ! D1, Diffusion coefficient of dx-particle

@@ -706,7 +706,8 @@ CONTAINS
           alv, als, pstand
      USE mo_salsa_properties, ONLY : equilibration
      USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
-     USE mo_particle_external_properties, ONLY : capacitance
+     USE mo_particle_external_properties, ONLY : capacitance, ventilation_factor
+     USE classSection, ONLY : Section
  
      IMPLICIT NONE
 
@@ -750,9 +751,11 @@ CONTAINS
       INTEGER :: nstr
       INTEGER :: ii,jj,cc
       INTEGER :: counter      
-      INTEGER :: iwa,irim,nspec, ibc, idu
+      INTEGER :: iwa,irim,nspec
 
       REAL, ALLOCATABLE :: vrate(:)
+      
+      REAL :: vf ! ventilation factor used for ice 
       
       TYPE(t_shape_coeffs) :: shape ! Used for ice
       
@@ -761,9 +764,7 @@ CONTAINS
       iwa = spec%getIndex("H2O")
       irim = spec%getIndex("rime")
       nspec = spec%getNSpec(type="total")                      
-      ibc = spec%getIndex("BC",notFoundValue=0)
-      idu = spec%getIndex("DU",notFoundValue=0)  
-      
+      vf = 1.0
       
       ! For diagnostics
       ALLOCATE(vrate(nspec))
@@ -798,7 +799,7 @@ CONTAINS
 
             rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
             
-            visc = (7.44523e-3*SQRT(ptemp(ii,jj)**3))/(5093.*(ptemp(ii,jj)+110.4)) ! viscosity of air [kg/(m s)] 
+            visc = (7.44523e-3*SQRT(ptemp(ii,jj)**3))/(5093.*(ptemp(ii,jj)+110.4)) ! viscosity of air [kg/(m s)] Hinds,p.25 ~ Jacobson FAM eq.4-54
             mfp = (1.656e-10*ptemp(ii,jj)+1.828e-8)*pstand/ppres(ii,jj) ! mean free path of air
 
             ! Diffusion coef
@@ -902,42 +903,39 @@ CONTAINS
                   ! Maximum length
                   dnsp = ice(ii,jj,cc)%dnsp  ! This was updated before coagulation
                   dwet = ice(ii,jj,cc)%dwet
+                  
                   ! Ice particle mass                                  
-                  massice = spec%rhoic*ice(ii,jj,cc)%volc(iwa)+spec%rhori*ice(ii,jj,cc)%volc(irim)
-                  !                 
-             	  IF ( ibc > 0 ) massice = massice + ice(ii,jj,cc)%volc(ibc)*spec%rhobc
-             	  IF ( idu > 0 ) massice = massice + ice(ii,jj,cc)%volc(idu)*spec%rhodu
+                  massice = SUM(ice(ii,jj,cc)%volc(1:iwa)* spec%rhoice(1:iwa)) + & 
+                                ice(ii,jj,cc)%volc(irim) * spec%rhori
                   ! Ice particle density 
-                  ! This is how the effective density is calculated in src/src_vars/mo_derived_procedures.f90
-                  rhoice = massice/ice(ii,jj,cc)%numc/(pi6*dnsp**3)
+                  ! This comes from classSection.f90 mass fraction weigthed (pristine vs. rime ice)
+                  rhoice = ice(ii,jj,cc)%rhomean
                   ! Ice particle cross sectional area
                   ! the subroutine getShapeCoefficients(ishape,masspristineice,massrimedice,numc)
-                  CALL getShapeCoefficients(shape,spec%rhoic*ice(ii,jj,cc)%volc(iwa),spec%rhori*ice(ii,jj,cc)%volc(irim),ice(ii,jj,cc)%numc)
-                   ! Ice particle aspect ratio  
-	           ! D for non-spherical ice is defined as the maximum particle length or dimension
-	           ! Assumed to correspond to the following dimensions
-		   ! aspect_ratio = eff_thick / L
-		   ! Effective-thickness: thickness of a ficticious plate
-		   ! that have the same volume/cross-sectional area
-		   ! eff_thick = mass/irhoe/cross_sec_area
-		   ! Lateral-length: non-spherical diameter or maximum dimension
-		   ! L ~ hydrometeor%dnsp or maximum length
-		   ! aspect_ratio = [mass/irhoe/cross_sec_area]/dnsp
-                  aspect_ratio = massice/ rhoice / (shape%gamma*D**shape%gamma) / dnsp
-    
+                  CALL getShapeCoefficients(shape, SUM(ice(ii,jj,cc)%volc(1:iwa) * spec%rhoice(1:iwa)), &
+                                     ice(ii,jj,cc)%volc(irim)*spec%rhori,ice(ii,jj,cc)%numc)
+                  ! Ice particle aspect ratio  
+	          ! D for non-spherical ice is defined as the maximum particle length 
+	          ! D is related to particle projected area then dnsp~a
+		  ! aspect_ratio = c/a = polar radius /equatorial radius
+		  ! c should correspond to the volume of the spheroid with eq.radius a
+		  ! c = Vspheroid / (4/3*pi*a**2)  Vspheroid = (massice/numc)/rhoice 
+                  aspect_ratio = 2 * (massice/ice(ii,jj,cc)%numc)/ rhoice / (pi/3*dnsp**3)                  
                   ! Capacitance of ice crystals depending on aspect ratio
-                  IF (aspect_ratio aspect_ratio > 0.) THEN !
-                     cap = capacitance(dnsp,ice(ii,jj,cc)%phase, aspect_ratio)
-                     WRITE(*,*) 'cap,rho,shape,d', cap, rhoice,shape,dnsp
+                  IF (aspect_ratio > 0.) THEN !
+                     !cap = 0.5*dnsp 
+                     cap = capacitance(dnsp,ice(ii,jj,cc)%phase, aspect_ratio)                     
                   ELSE
-                    WRITE(*,*) 'Error Aspect ratio is negative',mass,rhoice,shape,dnsp
-                  END
-                  
+                    WRITE(*,*) 'Error Aspect ratio is negative',massice,rhoice,shape,dnsp
+                  END IF
+                                    
 		  ! knud = 2.*mfp/dnsp
-		  beta = 1.+(2.*mfp/dnsp)*(1.142+0.558*exp(-0.999/(2.*mfp/dnsp)))
+		  zbeta = 1.+(2.*mfp/dnsp)*(1.142+0.558*exp(-0.999/(2.*mfp/dnsp)))
                   ! Ventilation factor  
-                  fv = ventilation_factor(dwet,rhoice,rhoair,visc,beta,ice(ii,jj,cc)%phase,shape,dnsp,zdfh2o,aspect_ratio)                  
+                  vf = ventilation_factor(dwet,rhoice,rhoair,visc,zbeta,ice(ii,jj,cc)%phase,shape,dnsp,zdfh2o,aspect_ratio)  
                   
+                  !WRITE(*,*) ptemp(ii,jj),dwet,dnsp,rhoice,aspect_ratio,cap,vf 
+                                
                   ! Activity + Kelvin effect - edit when needed
                   !   Can be calculated just like for spherical homogenous particle or just ignored,
                   !   because these are not known for solid, irregular and non-homogenous particles.
@@ -959,7 +957,7 @@ CONTAINS
                        (3.)*(zknud+zknud**2))
                   
                   ! Mass transfer according to Jacobson
-                  zhlp1 = ice(ii,jj,cc)%numc*4.*pi*cap*zdfh2o*zbeta
+                  zhlp1 = ice(ii,jj,cc)%numc*4.*pi*cap*zdfh2o*zbeta*vf
                   
                   zhlp2 = spec%mwa*zdfh2o*als*zwsatic(cc)*zcwsurfic(cc)/(zthcond*ptemp(ii,jj)) 
                   zhlp3 = ( (als*spec%mwa)/(rg*ptemp(ii,jj)) ) - 1.

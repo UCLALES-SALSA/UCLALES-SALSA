@@ -90,7 +90,10 @@ MODULE mo_particle_external_properties
          END IF
       ELSE IF (flag==4) THEN   ! Ice
          ! Khvorostyanov and Curry 2002
-         Vb = pi6*diam**3     ! Bulk volume of the particle obtained from spherical equivalent diameter
+         ! mp = rhoeff*Vsphere --> Vb*rhop with rhop = rhoeff
+         ! rhoeff: mass divided by the volume of a circumscribed sphere whose 
+         ! diameter is equal to the particle maximum dimension D=dnsp
+         Vb = pi6*dnsp**3     
          Ap = shape%gamma*dnsp**shape%sigma
          X = ( 2. * Vb * (rhop - rhoa) * grav * dnsp**2 ) /  &
               ( Ap * rhoa * visc**2 )
@@ -140,7 +143,7 @@ MODULE mo_particle_external_properties
 	
 	REAL, INTENT(in) :: D          ! Particle diameter for phase <4, nonspherical diameter for ice
         INTEGER, INTENT(in) :: flag    ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3), ice (4)
-        REAL, INTEGER(in) :: aspect_ratio
+        REAL, INTENT(in) :: aspect_ratio
         REAL :: eccentricity, c
         
         ! capacitance in the units of D meters 
@@ -149,20 +152,25 @@ MODULE mo_particle_external_properties
            ! Aerosol and cloud and rain droplets
            ! diam is dwet and we assume spherical droplets
            ! 
-           capacitance = 1.0
+           capacitance = D/2
         ELSE IF (flag==4) THEN   
-           ! Ice   
-           ! D for non-spherical ice is defined as the maximum particle length or dimension
-           ! aspect_ratio = c/a = [mass/irhoe/cross_sec_area]/dnsp
-           c = aspect_ratio * D  ! a= D
+          ! Ice   
+          ! D for non-spherical ice is defined as the maximum particle length or dimension
+          ! Ice particle aspect ratio  
+          ! D for non-spherical ice is defined as the maximum particle length 
+          ! D is related to particle projected area then dnsp~a
+	  ! aspect_ratio = c/a = polar radius /equatorial radius
+	  ! c should correspond to the volume of the spheroid with eq.radius a
+	  ! c = Vspheroid / (4/3*pi*a**2)  Vspheroid = (massice/numc)/rhoice 
+          ! c = aspect_ratio * D/2  ! a= D/2
            IF (aspect_ratio < 0.999) THEN ! oblate
               eccentricity = SQRT(1-aspect_ratio**2)
-              capacitance = D * eccentricity / ASIN(eccentricity)
+              capacitance = D/2 * eccentricity / ASIN(eccentricity)
            ELSE IF (aspect_ratio >=0.999 .AND. aspect_ratio < 1.001) THEN ! sphere
-              capacitance = D
+              capacitance = D/2
            ELSE IF (aspect_ratio > 1.001) THEN ! prolate
               eccentricity = SQRT(1-aspect_ratio**(-2))
-              capacitance = c * eccentricity / LOG(aspect_ratio) / (1+eccentricity)
+              capacitance = (D/2 * aspect_ratio) * eccentricity / LOG(aspect_ratio) / (1+eccentricity)
            END IF
         END IF        
            
@@ -180,8 +188,6 @@ MODULE mo_particle_external_properties
        REAL, INTENT(in) :: zdfh2o           ! Diffusion coefficient of water vapor in air (m2/s)
        REAL, INTENT(in) :: aspect_ratio
       
-       ! Constants
-       REAL, PARAMETER :: rhoa_ref = 1.225 ! reference air density (kg/m^3)
       
        REAL :: kvisc, velocity, reynolds_number, schmidt_number, xqi,fv
       
@@ -193,13 +199,22 @@ MODULE mo_particle_external_properties
        fv = 1.0
        ventilation_factor = 1.0 
        
-       IF( ANY(flag == [1,2,3])) THEN    
+       IF (flag == 3) THEN ! raindroplets  
            ! Aerosol and cloud and rain droplets
            ! diam is dwet and we assume spherical droplets
-           ! 
+           ! ventilation effects are just important for raindrops
            reynolds_number = velocity*diam / kvisc
            xqi = schmidt_number**(1./3.) * SQRT(reynolds_number)  
-           ventilation_factor = 
+           ! Pruppacher, H., & Klett, J. (1997). Microphysics of clouds and precipitation. Springer.
+           IF (diam <= 60.E-6 .AND. xqi<1.4) THEN 
+           	ventilation_factor = 1.00 + 0.108*xqi**2 ! eq.13-60
+           ELSE IF ((diam > 60.E-6 .AND. diam <= 1500.E-6) .AND. &
+                    (xqi>=1.4 .AND. xqi <=51.4)) THEN
+                 ventilation_factor = 0.78 + 0.308*xqi   ! eq. 13-61           
+           ELSE
+           	 ventilation_factor = 1.0           
+           END IF              
+           
        ELSE IF (flag==4) THEN ! Ice particles
            reynolds_number = velocity*dnsp / kvisc
            xqi = schmidt_number**(1./3.) * SQRT(reynolds_number)  
@@ -217,9 +232,9 @@ MODULE mo_particle_external_properties
               ventilation_factor = fv + 2.8E-2*xqi * aspect_ratio    ! Welss eq.34
            END IF           
        END IF
-      
+          
+    END FUNCTION ventilation_factor
     
-    END FUNCTION ventilation factor
     !-----------------------------------------------------------------------------------------------
     REAL FUNCTION kc1213(X)
       ! Calculate the term needed in 2.12 and 2.13 in Khvorostyanov and Curry 2002
@@ -293,26 +308,35 @@ MODULE mo_particle_external_properties
       INTEGER, INTENT(IN) :: flag ! Parameter for identifying aerosol (1), cloud droplets (2), precip (3) and ice (4) particle phases
       REAL, INTENT(IN) :: numc, mass(ns)
       LOGICAL, OPTIONAL, INTENT(in) :: sph
-      REAL :: calcDiamLES
+      REAL :: calcDiamLES, mass_p, mass_r
       
       LOGICAL :: l_sph
       
       ! By default, calculate diameter assuming spherical particles (relevant for ice)
+      ! To keep consistency these are the indexes of bc and du 
+      ! cnstr%rhobc  => allRho(3)
+      ! cnstr%rhodu  => allRho(4)
+      
       l_sph = .TRUE.
       IF (PRESENT(sph)) l_sph = sph
       
       calcDiamLES=0.
 
-      IF (numc < 1.e-15) RETURN
+      IF (numc < 1.e-6) RETURN
             
       IF (flag==4) THEN   ! Ice
+         mass_p = SUM(mass(1:ns-1))
+         mass_r = mass(ns)
          IF (l_sph) THEN
             ! Spherical equivalent for ice
+            ! rhoice = vector containing all dry species plus ice and rimed ice
+            !       e.g. [rhooc rhodu rhoic rhori]   
             calcDiamLES = ( SUM(mass(1:ns)/spec%rhoice(1:ns))/numc/pi6 )**(1./3.)
          ELSE
             ! non-spherical ice
-            ! Get the effective ice diameter, i.e. the max diameter for non-spherical ice            
-            calcDiamLES = getDiameter( SUM(mass(1:ns-1)),mass(ns),numc )
+            ! Get the effective ice diameter, i.e. the max diameter for non-spherical ice 
+            ! getDiameter(mpri,mrim,numc)           
+            calcDiamLES = getDiameter( mass_p, mass_r, numc)
          END IF
       ELSE
          ! Radius from total volume of a spherical particle or aqueous droplet

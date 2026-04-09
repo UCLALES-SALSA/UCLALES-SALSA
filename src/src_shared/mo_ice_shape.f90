@@ -26,7 +26,11 @@ MODULE mo_ice_shape
   REAL, SAVE :: iceShapeBeta = 2.02
 
   ! For cross sectional area: A = gamma * D ** sigma
-  REAL, SAVE :: iceShapeGamma = 0.55 ! Note that the gamma/sigma convection follows Khvorostyanov and Curry 2002, and is OPPOSITE to Morrison and Milbrandt 2015
+  ! parameterizations of m and A e.g. Mitchell (1996) gives model parameters 
+  ! in the CGS (centimeter–gram–second) notation and must be converted to tthe SI system
+  ! Check Atmos. Meas. Tech., 12, 6601–6617, 2019
+
+  REAL, SAVE :: iceShapeGamma = 0.479 
   REAL, SAVE :: iceShapeSigma = 1.97
 
 

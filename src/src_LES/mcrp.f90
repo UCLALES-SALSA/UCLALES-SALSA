@@ -800,6 +800,8 @@ MODULE mcrp
          irate%d = 0.; sfcirate%d = 0.
       END IF
       
+      nc = spec%getIndex('H2O')
+      
       ! Sedimentation for slow (non-precipitating) particles
       !-------------------------------------------------------
       IF (sed_aero%state) THEN
@@ -811,7 +813,7 @@ MODULE mcrp
          a_maerot%d = a_maerot%d - amdiv
 
          ! Account for changes in liquid water pot temperature
-         nc = spec%getIndex('H2O')
+         !nc = spec%getIndex('H2O')
          istr = getMassIndex(nbins,1,nc)
          iend = getMassIndex(nbins,nbins,nc)
          DO j = 3,nyp-2
@@ -834,7 +836,7 @@ MODULE mcrp
          a_mcloudt%d = a_mcloudt%d - cmdiv
          
          ! Account for changes in liquid water pot temperature
-         nc = spec%getIndex('H2O')
+         !nc = spec%getIndex('H2O')
          istr = getMassIndex(ncld,1,nc)
          iend = getMassIndex(ncld,ncld,nc)
          DO j = 3,nyp-2
@@ -852,11 +854,11 @@ MODULE mcrp
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
       IF (sed_precp%state) THEN
          CALL DepositionFast(nprc,nspec,tk,adn,a_nprecpp,a_mprecpp,   &
-                             prnt,prmt,remprc,rrate,sfcrrate,VtPrc,3,AtPrc, ArPrc)
+                             prnt,prmt,remprc,rrate,sfcrrate,VtPrc,3,AtPrc, ArPrc,nc)
          
          a_nprecpt%d(:,:,:,:) = a_nprecpt%d(:,:,:,:) + prnt(:,:,:,:)/dtlt
          a_mprecpt%d(:,:,:,:) = a_mprecpt%d(:,:,:,:) + prmt(:,:,:,:)/dtlt
-         nc = spec%getIndex('H2O')
+         !nc = spec%getIndex('H2O')
          ! Surface precipitation W m-2
          !istr = getMassIndex(nprc,1,nc); iend = getMassIndex(nprc,nprc,nc)
          !sfcrrate%d(:,:) = SUM(remprc(:,:,istr:iend),DIM=3)*alvl
@@ -883,7 +885,7 @@ MODULE mcrp
          a_nicet%d(:,:,:,:) = a_nicet%d(:,:,:,:) + irnt(:,:,:,:)/dtlt
          a_micet%d(:,:,:,:) = a_micet%d(:,:,:,:) + irmt(:,:,:,:)/dtlt
 
-         nc = spec%getIndex('H2O')
+         !nc = spec%getIndex('H2O')
          ! Surface frozen precipitation as mm/h (liquid equivalent)
          !istr = getMassIndex(nice,1,nc); iend = getMassIndex(nice,nice,nc)
          !sfcirate%d(:,:) = SUM(remice(:,:,istr:iend),DIM=3)*3600.
@@ -1111,7 +1113,7 @@ MODULE mcrp
     REAL :: avis,kvis   ! Air viscosity, kinematic viscosity
     REAL :: va          ! Thermal speed of air molecule
     REAL :: vc, ac      ! Auxiliary variables for velocity, area calculations
-    REAL :: aspr,rhoice ! Auxiliary variables for aspect ratio calculations
+    REAL :: aspr        ! Auxiliary variables for aspect ratio calculations
 
     ! For precipitation:
     REAL :: fd,fdmax,fdos ! Fall distance for rain drops, max fall distance, overshoot from nearest grid level
@@ -1127,21 +1129,14 @@ MODULE mcrp
     
     REAL :: zpm(nb*ns), zpn(nb)  ! Bin mass and number arrays to clean things up
     REAL :: zdn                  ! Particle density
-    REAL :: zdneff               ! Effective density for non-spherical
+    REAL :: rhomean              ! Ice density weighted by the rime fraction 
 
     TYPE(t_shape_coeffs) :: shape ! Used for ice
-    INTEGER :: iwa,irim,nspec, ibc, idu
-    REAL :: masspristineice
 
     
     clim = nlim
     IF (ANY(flag == [3,4])) clim = prlim
     
-    iwa  = spec%getIndex("H2O")
-    irim = spec%getIndex("rime")                    
-    ibc = spec%getIndex("BC",notFoundValue=0)
-    idu = spec%getIndex("DU",notFoundValue=0)  
-
     ! Zero the output diagnostics for terminal velocity
     ! Zero the output diagnostics for cross sectional area
     Vt%d = 0.
@@ -1166,7 +1161,7 @@ MODULE mcrp
              avis = 1.8325e-5*(416.16/(tk%d(k,i,j)+120.0))*(tk%d(k,i,j)/296.16)**1.5
              kvis = avis/adn%d(k,i,j) 
              va = sqrt(8.*kb*tk%d(k,i,j)/(pi*M)) ! thermal speed of air molecule
-             lambda = 2.*avis/(adn%d(k,i,j)*va) !mean free path
+             lambda = 2.*avis/(adn%d(k,i,j)*va)  !mean free path
 
              zpm(:) = mass%d(k,i,j,:)
              zpn(:) = numc%d(k,i,j,:)
@@ -1174,9 +1169,14 @@ MODULE mcrp
              pmass = 0.
              ! Precipitation bin loop
              DO bin = 1,nb
+                vc = 0.
+                ac = 0.
+                aspr = 0.
+                
                 IF (zpn(bin) < clim) CYCLE                
                 ! Calculate wet size
                 CALL getBinMassArray(nb,ns,bin,zpm,pmass)
+                
                 IF (flag < 4) THEN
                    dwet=calcDiamLES(ns,zpn(bin),pmass,flag,sph=.TRUE.) 
                 ELSE
@@ -1185,47 +1185,43 @@ MODULE mcrp
                    !iwa = spec%getIndex("H2O") --> nc calculated in the main call
                    !irim = spec%getIndex("rime") --> ns given as input
                    !the subroutine getShapeCoefficients(ishape,masspristineice,massrimedice,numc)
-                   masspristineice= mass%d(k,i,j,nc)
-                   IF ( ibc > 0 ) masspristineice = masspristineice + ice(ii,jj,cc)%volc(ibc)*spec%rhobc
-             	   IF ( idu > 0 ) masspristineice = masspristineice + ice(ii,jj,cc)%volc(idu)*spec%rhodu                
-                   CALL getShapeCoefficients(shape,masspristineice,mass%d(k,i,j,ns),zpn(bin))
-                   masspristineice=0.
+                   !masspristineice= SUM(pmass(1:nc))  massrimedice = pmass(ns)
+                   rhomean = (SUM(pmass(1:nc))*spec%rhoic +pmass(ns)*spec%rhori)/MAX(SUM(pmass),7.e-25)  
+                   CALL getShapeCoefficients(shape,SUM(pmass(1:nc)),pmass(ns),zpn(bin))               
                 END IF
                 
-                ! Calculate particle density based on dwet resulting in the bulk density (also in case of non-spherical ice)
-                ! This is how the effective density is calculated in src/src_vars/mo_derived_procedures.f90
-                zdn = SUM(pmass)/zpn(bin)/(pi6*dwet**3)
-                
-                ! Terminal velocity
-                Kn = 2.*lambda/dwet   !lambda/rwet
-                GG = 1.+ Kn*(A+B*exp(-C/Kn))
-                
+                ! Terminal velocity                
                 IF (flag < 4) THEN
-                   vc = terminal_vel(dwet,zdn,adn%d(k,i,j),avis,GG,flag)
+                   Kn = 2.*lambda/dwet   !lambda/rwet
+                   GG = 1.+ Kn*(A+B*exp(-C/Kn))
+                   zdn = SUM(pmass)/zpn(bin)/(pi6*dwet**3)
+		   vc = terminal_vel(dwet,zdn,adn%d(k,i,j),avis,GG,flag)
                    ! shape parameters for spheres are internally chosen
                    ac = cross_sec_area(dwet,flag) 
                    aspr = 1.
                 ELSE
-                   vc = terminal_vel(dwet,zdn,adn%d(k,i,j),avis,GG,flag,shape,dnsp)
-                   ac = cross_sec_area(dnsp,flag,shape)
-                   rhoice = SUM(pmass)/zpn(bin)/(pi6*dnsp**3)
-                   aspr = SUM(pmass) / rhoice / ac / dnsp
+                   Kn = 2.*lambda/dnsp   
+                   GG = 1.+ Kn*(A+B*exp(-C/Kn))
+                   ! Ice particle density
+                   ! rhop= rhoeff: mass divided by the volume of a circumscribed sphere whose 
+                   ! diameter is equal to the particle maximum dimension D = dnsp
+                   zdn = SUM(pmass)/zpn(bin)/(pi6*dnsp**3)
+		   vc = terminal_vel(dwet,zdn,adn%d(k,i,j),avis,GG,flag,shape,dnsp)
+                   ac = cross_sec_area(dnsp,flag,shape) 
+                  ! Ice particle aspect ratio  
+	          ! D for non-spherical ice is defined as the maximum particle length 
+	          ! D is related to particle projected area then dnsp~a
+		  ! aspect_ratio = c/a = polar radius /equatorial radius
+		  ! c should correspond to the volume of the spheroid with eq.radius a
+		  ! c = Vspheroid / (4/3*pi*a**2)  Vspheroid = (massice/numc)/rhoice 
+                  !aspect_ratio = 2 * (massice/ice(ii,jj,cc)%numc)/ rhoice / (pi/3*dnsp**3)                          
+                   aspr = 2*(SUM(pmass)/zpn(bin)) / rhomean / (pi/3*dnsp**3)  
                 END IF
                 
                 ! Diagnostics
                 Vt%d(k,i,j,bin) = vc
                 At%d(k,i,j,bin) = ac  
-                Ar%d(k,i,j,bin) = aspr
-                ! Aspect-Ratio=Effective-thickness/Lateral-length for ice particles
-		     ! Assumed to correspond to the following dimensions
-		     ! Aspratio = eff_thick / L
-		     ! Effective-thickness: thickness of a ficticious plate
-		     ! that have the same mass/cross-sectional area
-		     ! eff_thick = Miba/irhoe/AtIce
-		     ! Lateral-length: non-spherical diameter or maximum dimension
-		     ! L ~ hydrometeor%dnsp maximum length
-		     ! iasprat = Miba/irhoe/AtIce/dnsph
-                
+                Ar%d(k,i,j,bin) = aspr            
                 
                 ! Determine output flux for current level: Find the closest level to which the
                 ! current drop parcel can fall within 1 timestep. If the lowest atmospheric level

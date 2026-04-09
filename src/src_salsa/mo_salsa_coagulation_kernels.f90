@@ -222,9 +222,10 @@ MODULE mo_salsa_coagulation_kernels
               dsph1, dsph2,       & ! Spherical equivalent diameters (important for calculating ice mass)
               mass1, mass2,       & ! Masses of particles
               rhop1, rhop2,       & ! Particle densities; For ice this is the effective density (low for non-spherical)
-              rhoiceb1, rhoiceb2    ! Bulk ice densities
-              
-      
+              rhoiceb1, rhoiceb2, & ! Bulk ice densities
+              masspri1, massrim1, & ! mass of pristine ice and rimed ice in particle 1 
+              masspri2, massrim2    ! mass of pristine ice and rimed ice in particle 2 
+
       REAL, DIMENSION (2) :: &
            diam,   &   ! diameters of particles [m]
            mpart,  &   ! masses of particles [kg]
@@ -237,6 +238,8 @@ MODULE mo_salsa_coagulation_kernels
            omega,  &   !
            tva,    &   ! temporary variable [m]
            flux        ! flux in continuum and free molec. regime [m/s]
+           
+           
       
       REAL ::  &
            schm(2), &   ! Schmidt nubmer
@@ -258,15 +261,25 @@ MODULE mo_salsa_coagulation_kernels
       !-------------------------------------------------------------------------------
 
       ns = spec%getNSpec(type="total") ! includes rime
+      ! iwa = ns-1 irim=ns
       
       !-- 0) Initializing particle and ambient air variables --------------------
+      
+      IF (pp1%phase == 4) &
+        masspri1 = SUM(pp1%volc(1:ns-1) * spec%rhoice(1:ns-1))
+        massrim1 = pp1%volc(ns) * spec%rhori     
+
+      IF (pp2%phase == 4) &
+        masspri2 = SUM(pp2%volc(1:ns-1) * spec%rhoice(1:ns-1))
+        massrim2 = pp2%volc(ns) * spec%rhori 
+      
       diam1 = MERGE(pp1%dnsp, pp1%dwet, pp1%phase == 4)  ! diam will be non-spherical for ice
       diam2 = MERGE(pp2%dnsp, pp2%dwet, pp2%phase == 4)
-      dsph1 = pp1%dwet  ! Spherial diameters for calculating mass
+      dsph1 = pp1%dwet  
       dsph2 = pp2%dwet
-
-      mass1 = pp1%rhomean*pi6*dsph1**3
-      mass2 = pp2%rhomean*pi6*dsph2**3
+      
+      mass1 = MERGE(masspri1+massrim1,pp1%rhomean*pi6*dsph1**3,pp1%phase == 4)
+      mass2 = MERGE(masspri2+massrim2,pp2%rhomean*pi6*dsph2**3,pp1%phase == 4)
 
       ! If this is for self coagulation, put a minor offset on the particle diameters to account for
       ! the bin width
@@ -279,7 +292,7 @@ MODULE mo_salsa_coagulation_kernels
       diam  = (/ diam1, diam2 /)       ! particle diameters [m]
       mpart = (/ mass1, mass2 /)       ! particle masses [kg]
       
-      visc = (7.44523e-3*SQRT(temp**3))/(5093.*(temp+110.4)) ! viscosity of air [kg/(m s)]
+      visc = (7.44523e-3*SQRT(temp**3))/(5093.*(temp+110.4))  ! viscosity of air [kg/(m s)] Hinds,p.25 ~ Jacobson FAM eq.4-54
       
       mfp = (1.656e-10*temp+1.828e-8)*pstand/pres ! mean free path of air [m]
       
@@ -328,17 +341,6 @@ MODULE mo_salsa_coagulation_kernels
          IF (diam(1) >= diam(2)) THEN
             lrg = 1; sml = 2
          END IF
-
-         IF (pp1%phase == 4) &
-              CALL getShapeCoefficients( shape1, SUM(pp1%volc(1:ns-1)*spec%rhoic),     &
-                                         pp1%volc(ns)*spec%rhori,                      &
-                                         pp1%numc                                      )
-
-         IF (pp2%phase == 4) &
-              CALL getShapeCoefficients( shape2, SUM(pp2%volc(1:ns-1)*spec%rhoic),     &
-                                         pp2%volc(ns)*spec%rhori,                      &
-                                         pp2%numc                                      )
-         
          
          zrhoa = pres/(rd*temp)       ! Density of air
          zrhop = mpart/(pi6*diam**3)  ! Density of particles; For ice this is the effective density using the non-spherical diameter
@@ -347,12 +349,15 @@ MODULE mo_salsa_coagulation_kernels
          IF (pp1%phase < 4) THEN         
             termv(1) = terminal_vel(diam1,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase)
          ELSE
+            CALL getShapeCoefficients(shape1,masspri1,massrim1,pp1%numc)
             termv(1) = terminal_vel(dsph1,pp1%rhomean,zrhoa,visc,beta(1),pp1%phase,shape1,diam1)
+            
          END IF
 
          IF (pp2%phase < 4) THEN
             termv(2) = terminal_vel(diam2,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase)
          ELSE
+            CALL getShapeCoefficients(shape2,masspri2,massrim2,pp2%numc)
             termv(2) = terminal_vel(dsph2,pp2%rhomean,zrhoa,visc,beta(2),pp2%phase,shape2,diam2)
          END IF
          
@@ -422,4 +427,4 @@ MODULE mo_salsa_coagulation_kernels
 
 
  
-END MODULE mo_salsa_coagulation_kernels
+END MODULE mo_salsa_coagulation_kernels 
