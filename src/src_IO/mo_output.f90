@@ -60,17 +60,17 @@ MODULE mo_output
       CALL StreamMain%open_nc(fname,expnme,time,npoints,ver,author,info)
 
       IF (level < 4) THEN
-         CALL StreamMain%define_nc_dims(n1=nzp,n2=nxp-4,n3=nyp-4,insbg=20)
+         CALL StreamMain%define_nc_dims(n1=nzp,n2=nxp-4,n3=nyp-4)
       ELSE IF (level == 4) THEN
          CALL StreamMain%define_nc_dims(n1=nzp,n2=nxp-4,n3=nyp-4,                  &
                                         inae_a=fn2a,inae_b=fn2b-fn2a,              &
                                         incld_a=fca%cur,incld_b=fcb%cur-fca%cur,   &
-                                        inprc=nprc,insbg=20                        )               
+                                        inprc=nprc                       )               
       ELSE IF (level == 5) THEN
          CALL StreamMain%define_nc_dims(n1=nzp,n2=nxp-4,n3=nyp-4,                  &
                                         inae_a=fn2a,inae_b=fn2b-fn2a,              &
                                         incld_a=fca%cur,incld_b=fcb%cur-fca%cur,   &                              
-                                        inprc=nprc,inice=nice,insbg=20             )              
+                                        inprc=nprc,inice=nice             )              
       END IF
 
       CALL StreamMain%define_nc_vars([outProg,outDiag,outDerived,outVector,outAxes])
@@ -379,14 +379,6 @@ MODULE mo_output
             END IF
             CALL stream%write_nc(vname,out2d(i1:i2,j1:j2),ibeg2d,icnt=icnt2d)
          
-         CASE('xtytsbg')
-            CALL varArray%getData(1,var3d,index=n)
-            IF (ASSOCIATED(var2d%onDemand)) THEN
-               CALL var3d%onDemand(vname,out3d)
-            ELSE
-               out3d = var3d%d
-            END IF
-            CALL stream%write_nc(vname,out2d(i1:i2,j1:j2),ibeg2d,icnt=icnt2d)
             
          CASE('zttaea','zttaeb','zttcla','zttclb','zttprc','zttice') ! Binned time-height for ps-stream -> from root
             CALL getSDdim(varArray%list(n)%dimension,nstr,nend) ! Check the start and end indices for the bins

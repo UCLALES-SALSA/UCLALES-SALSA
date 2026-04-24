@@ -59,7 +59,6 @@ CONTAINS
       
       USE perturbation_forc, ONLY : warm_bubble, gaussian_flux_perturbation
       
-      USE mo_diag_state, ONLY : a_ignitiontime
       
       LOGICAL, PARAMETER :: StopOnCFLViolation = .FALSE.
       REAL, PARAMETER :: cfl_upper = 0.50, cfl_lower = 0.30
@@ -250,7 +249,7 @@ CONTAINS
       USE mo_vector_state, ONLY : a_wp
       USE mo_field_state, ONLY : Diag, Prog
       USE sgsm, ONLY : diffuse
-      USE srfc, ONLY : surface, update_ignition
+      USE srfc, ONLY : surface
       USE thrm, ONLY : thermo
       USE mcrp, ONLY : micro
       USE prss, ONLY : poisson

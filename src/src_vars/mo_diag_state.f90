@@ -65,29 +65,10 @@ MODULE mo_diag_state
   ! Do these need to be stored? If not, move to mo_derived_state?
   TYPE(FloatArray2D), TARGET :: a_sfcrrate           ! 10: Surface rain rate in W/m2
   TYPE(FloatArray2D), TARGET :: a_sfcirate           ! 11: Surface frozen precipitation in W/m2
-  TYPE(FloatArray2D), TARGET :: a_tskin              ! 12: Surrogate of Skin temperature in K (WORK IN PROGRESS, not available)
-  TYPE(FloatArray2D), TARGET :: a_qskin              ! 13: Surrogate of Skin moisture in kg water/kg moist air (WORK IN PROGRESS, not available)
-  TYPE(FloatArray2D), TARGET :: a_fgi                ! 14: Initial total mass of ground fuel in kg/m2
-  TYPE(FloatArray2D), TARGET :: a_weight             ! 15: Weighting parameter for slope of mass loss curve
-  TYPE(FloatArray2D), TARGET :: a_fcz0               ! 16: Roughness length for vertical wind log interpolation in m
-  TYPE(FloatArray2D), TARGET :: a_fuelmcg            ! 17: Fuel ground moisture content or Mf in kg/kg dry fuel
-  TYPE(FloatArray2D), TARGET :: a_ignitiontime       ! 18: Time of ignition in s
-  TYPE(FloatArray2D), TARGET :: a_fuelburnt          ! 19: Mass of fuel that has been burnt during the time interval in kg
-  TYPE(FloatArray2D), TARGET :: a_firespread         ! 20: Fire spread rate with wind effects R0 in m/s
-  TYPE(FloatArray2D), TARGET :: a_areaburnt          ! 21: Area burnt from the grid cell
-  TYPE(FloatArray2D), TARGET :: a_phiwc              ! 22: Wind coefficient C (premultiplied by R0) in m/s
-  TYPE(FloatArray2D), TARGET :: a_phiwb              ! 23: Wind exponent in the fire spread rate R
-  TYPE(FloatArray2D), TARGET :: a_tcrit              ! 24: Time at which the cell is completely ignited
-  TYPE(FloatArray2D), TARGET :: a_R0                 ! 25: Fire spread rate without wind effects R0 in m/s
   
   REAL, ALLOCATABLE, TARGET :: a_diag2d(:,:,:)
-  INTEGER, PARAMETER :: ndiag2d = 25      ! Remember to update if adding new variables!!
+  INTEGER, PARAMETER :: ndiag2d = 11      ! Remember to update if adding new variables!!
   
-  ! Ignition time in surface sub-grid cells
-  TYPE(FloatArray3d), TARGET :: a_ignitiontimecell   ! Ignition time in sub-grid cells 
-  TYPE(FloatArray3d), TARGET :: a_areaignitedcell    ! Burning area in sub-grid cells 
-  REAL, ALLOCATABLE, TARGET ::  d_sbgcell(:,:,:)     ! xt yt sbg
-  REAL, ALLOCATABLE, TARGET ::  d2_sbgcell(:,:,:)    ! xt yt sbg
   ! --------------------------------------------------------------------------------------------------------------------------------------------------
   ! Microphysical process rates from SALSA -- they need to be stored during the timestep because they cannot be simply diagnosed afterwards
   ! For now, these are BULK process rates only for water/ice, except where indicated otherwise !! Number concentration rate given for particle formation processes,
@@ -163,9 +144,6 @@ MODULE mo_diag_state
       n3d = 0
       n2d = 0
  
-     ALLOCATE(d_sbgcell(nxp,nyp,20), d2_sbgcell(nxp,nyp,20))
-     d_sbgcell  = 0.
-     d2_sbgcell = 0.
      
       IF (level < 4) THEN
          ALLOCATE(a_rateDiag3d(nzp,nxp,nyp,nratediag3d_bulk))
@@ -584,131 +562,6 @@ MODULE mo_diag_state
          CALL Diag%newField("sfcirate", "Surface frozen precip", "W m-2", "xtytt",    &
                             ANY(outputlist == "sfcirate"), pipeline)
       END IF
-      
-      memsize = memsize + nxy
-      n2d = n2d+1
-      pipeline => NULL()
-      a_tskin = FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_tskin
-      CALL Diag%newField("t_skin", "Skin temperature", "K", "xtytt",     &
-                         ANY(outputlist == "tskin"), pipeline)
-      
-      memsize = memsize + nxy
-      n2d = n2d+1
-      pipeline => NULL()
-      a_qskin = FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_qskin
-      CALL Diag%newField("q_skin", "Skin moisture", "kgkg", "xtytt",     &
-                         ANY(outputlist == "qskin"), pipeline)
-      
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_fgi = FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_fgi
-      CALL Diag%newField("fgi","Initial total mass of ground fuel","kg/m2","xtytt",    &
-                         ANY(outputlist == "fgi"), pipeline)
-                         
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_weight = FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_weight
-      CALL Diag%newField("weight","Weighting parameter for slope of mass loss curve","s","xtytt",   &
-                         ANY(outputlist == "weight"), pipeline)
-      
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_fcz0 = FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_fcz0
-      CALL Diag%newField("fcz0","Roughness length for vertical wind log interpolation","m","xtytt",   &
-                         ANY(outputlist == "fcz0"), pipeline)
-      
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_fuelmcg = FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_fuelmcg
-      CALL Diag%newField("fuelmcg","Fuel ground moisture content or Mf","kg/kg of dry fuel","xtytt",   &
-                         ANY(outputlist == "fuelmcg"), pipeline)
-      
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_ignitiontime = FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_ignitiontime
-      CALL Diag%newField("ignitiontime","Ignition time","s","xtytt",   &
-                         ANY(outputlist == "ignitiontime"), pipeline)
-
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_fuelburnt = FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_fuelburnt
-      CALL Diag%newField("fuelburnt","Fuel burnt","kg","xtytt",   &
-                         ANY(outputlist == "fuelburnt"), pipeline)
-
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_firespread= FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_firespread
-      CALL Diag%newField("firespread","Fire Spread rate with wind effects R0(1+phiwc*Vh**phiwb)","m/s","xtytt",   &
-                         ANY(outputlist == "firespread"), pipeline)   
-                         
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_areaburnt= FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_areaburnt
-      CALL Diag%newField("areaburnt","Area burnt (cumulative in time)","m2","xtytt",   &
-                         ANY(outputlist == "areaburnt"), pipeline)    
-      
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_phiwc = FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_phiwc
-      CALL Diag%newField("phiwc","Coefficient for wind effects premultiplied by R0","m/s","xtytt",   &
-                         ANY(outputlist == "phiwc"), pipeline)    
-       
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_phiwb = FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_phiwc
-      CALL Diag%newField("phiwb","Exponent for wind effects","","xtytt",   &
-                         ANY(outputlist == "phiwb"), pipeline)                    
-                         
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_tcrit = FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_tcrit
-      CALL Diag%newField("tcrit","Critical time at which all cell is ignited","s","xtytt",   &
-                         ANY(outputlist == "tcrit"), pipeline)     
-                         
-      memsize = memsize + nxy                   
-      n2d = n2d+1
-      pipeline => NULL()
-      a_R0= FloatArray2d(a_diag2d(:,:,n2d))
-      pipeline => a_R0
-      CALL Diag%newField("R0","Fire Spread rate without wind effects","m/s","xtytt",   &
-                         ANY(outputlist == "R0"), pipeline)               
-      
-      pipeline => NULL()
-      a_ignitiontimecell = FloatArray3d(d_sbgcell(:,:,1:20)) !Fixed sub-grid division
-      pipeline => a_ignitiontimecell
-      CALL Diag%newField("ignitiontimesbg", "Ignition time in sub-grid cells", "s", "xtytsbg",   &
-                            ANY(outputlist == "ignitiontimesbg"), pipeline)
-      
-      pipeline => NULL()
-      a_areaignitedcell = FloatArray3d(d2_sbgcell(:,:,1:20)) !Fixed sub-grid division
-      pipeline => a_areaignitedcell
-      CALL Diag%newField("areaignitedsbg", "Burning area in sub-grid cells", "m2", "xtytsbg",   &
-                            ANY(outputlist == "areaignitedsbg"), pipeline)  
-  
       
       ! -----------------------------------
       ! Process rate diagnostics

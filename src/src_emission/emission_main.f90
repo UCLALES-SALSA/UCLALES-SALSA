@@ -15,7 +15,7 @@ MODULE emission_main
   USE mo_aux_state, ONLY : dzt,zt,xt,yt
   USE mo_progn_state, ONLY : a_maerot, a_naerot, a_naerop, a_indefp, a_indeft,  & 
                              a_chargeTimep, a_chargeTimet, a_ncloudp, a_nprecpp
-  USE mo_diag_state, ONLY : a_dn, a_fuelburnt
+  USE mo_diag_state, ONLY : a_dn
  
   !USE mo_vector_state, ONLY : a_up, a_vp ! needed for the seasalt thing
   USE grid, ONLY: deltax, deltay, deltaz, dtlt, &                  
@@ -72,9 +72,6 @@ MODULE emission_main
             emdT3 => emitType3(pr)
             conditionT3 = getConditionT3(emdT3,time_in)
             IF (conditionT3 > 0) CALL charging_typ3(edt,emd,emdT3,time_in,conditionT3)
-         ELSE IF (emd%emitType == 6) THEN
-            condition = getCondition(emd,time_in)
-            IF (condition) CALL aerosol_fire_emission(edt,emd)
          END IF
          
        END ASSOCIATE
@@ -511,81 +508,6 @@ MODULE emission_main
      
    END ASSOCIATE
  END SUBROUTINE charging_typ3
-
-! ----------------------------------------------------------------------------------------------------------------------
-! Subroutine aerosol_fire_emission: uses the mass of fuel burnt to calculate
-!                           aerosol emissions using inputs from 
-!                           runles including the geometric mode diameter and,
-!                           the geometric standard deviation, together with
-!                           chemical species emitted.
-!                           
-  SUBROUTINE aerosol_fire_emission(edt,emd)
-
-   USE mo_diag_state, ONLY : a_fuelburnt
-   IMPLICIT NONE
-   
-   CHARACTER(len=50), PARAMETER :: name = "forest fire"
-   
-   TYPE(EmitSizeDist), INTENT(in) :: edt ! Emission data instance
-   TYPE(EmitConfig), INTENT(in) :: emd   ! Emission configuration instance
-   REAL :: hlp1, hlp2  ! helper variables
-   
-   INTEGER :: i,j,k,bb,ss,mm, ibin
-
-
-   IF (myid == 0) THEN
-     WRITE(*,*) '==================================='
-     WRITE(*,*) 'CALCULATING CHARGE EMISSIONS TYPE=6'
-     WRITE(*,*) '==================================='
-   END IF
-
-
-   ASSOCIATE( k1 => emd%emitLevMin, k2 => emd%emitLevMax)
-   ! Index limits for the regimes
-  
-   DO j = 3,nyp-2  
-      DO i = 3,nxp-2
-        IF (a_fuelburnt%d(i,j)== 0.) CYCLE              	              	
-        DO k = k1,k2
-	   DO bb = 1,nliquid
-		IF (bb <= nbins) THEN 
-		  ! With level 5 using the contact angle distribution for ice nucleation, update the
-		  ! IN nucleated fraction assuming emitted particles contain IN and comprise pristine INP.
-		  ! this contribution can also be switched off using
-		  ! --------------------------------------------------------------------------------
-		  IF (level == 5 .AND. ice_theta_dist .AND. emitPristineIN) THEN
-		     hlp1 = 0.; hlp2 = 0.
-		     IF (a_naerop%d(k,i,j,bb) < prlim) THEN
-			! Check for empty bins with a rather small limit. This should minimize the contact angle for current bin
-			a_indeft%d(k,i,j,bb) = a_indeft%d(k,i,j,bb) - a_indefp%d(k,i,j,bb)/dtlt
-		     ELSE
-			! hlp1 and hlp2 gets the new IN nucleated fraction after emission, i.e. emission should decrease it
-			hlp1 = (a_naerop%d(k,i,j,bb)*a_indefp%d(k,i,j,bb) + a_fuelburnt%d(i,j)*edt%numc(bb)*0.*dtlt) ! latter term obv. symbolic...
-			hlp2 = (a_naerop%d(k,i,j,bb)+a_fuelburnt%d(i,j)*edt%numc(bb)*dtlt)
-			! Conver the emission contribution into tendency
-			a_indeft%d(k,i,j,bb) = a_indeft%d(k,i,j,bb) +  &
-			     ( (hlp1 / hlp2) - a_indefp%d(k,i,j,bb) ) / dtlt
-		     END IF
-		  END IF
-		  ! --------------------------------------------------------------------------------
-		  ! Emission contribution to number concentration
-		  a_naerot%d(k,i,j,bb) = a_naerot%d(k,i,j,bb) + a_fuelburnt%d(i,j)*edt%numc(bb)
-
-		  ! Contribution to particle composition
-		  DO ss = 1,spec%getNSpec(type="wet")
-		     mm = getMassIndex(nbins,bb,ss)
-		     a_maerot%d(k,i,j,mm) = a_maerot%d(k,i,j,mm) + a_fuelburnt%d(i,j)*edt%mass(mm)
-		  END DO
-		END IF
-	  END DO
-	END DO
-      END DO
-   END DO
-
- END ASSOCIATE   
-
-  
-END SUBROUTINE aerosol_fire_emission
 
 
   ! ----------------------------------------------------------

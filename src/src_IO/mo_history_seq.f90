@@ -51,12 +51,6 @@ MODULE mo_history
       
       WRITE(10) a_ustar%d, a_tstar%d, a_rstar%d
             
-      WRITE(10) a_tskin%d, a_qskin%d, a_fgi%d, a_weight%d, a_fcz0%d, & 
-      		a_fuelmcg%d, a_ignitiontime%d, a_fuelburnt%d, &
-      		a_firespread%d, a_areaburnt%d, &
-      		a_phiwc%d, a_phiwb%d, a_tcrit%d, a_R0%d, & 
-      		a_ignitiontimecell%d, a_areaignitedcell%d
-      
       WRITE(10) a_pexnr%d
       WRITE(10) a_press%d
       WRITE(10) a_theta%d
@@ -159,11 +153,6 @@ MODULE mo_history
          	  pi0%d, pi1%d, rt0%d, psrf,sst,W1,W2,W3
          
          READ(10) a_ustar%d, a_tstar%d, a_rstar%d
-         
-         READ(10) a_tskin%d, a_qskin%d,a_fgi%d, a_weight%d, &
-         	  a_fcz0%d, a_fuelmcg%d, a_ignitiontime%d, a_fuelburnt%d, &
-         	  a_firespread%d, a_areaburnt%d, a_phiwc%d, a_phiwb%d, & 
-         	  a_tcrit%d, a_R0%d, a_ignitiontimecell%d, a_areaignitedcell%d
          
          READ(10) a_pexnr%d
          READ(10) a_press%d

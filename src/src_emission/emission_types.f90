@@ -18,7 +18,7 @@ MODULE emission_types
      INTEGER          :: emitType = 1                 ! 1: Natural seasalt emissions, 2: custom artificial emissions
                                                       ! 3: artificial emission given by a map (moving source of airborne emission; Ali)
                                                       ! 4: similar to 2, but only charge emission without aerosols, 5: similar to 3, but only charge emission without aerosols
-                                                      ! 6 : aerosol emissions produced by burning vegetation
+
      INTEGER          :: regime = 1                   ! Destination bin regime for emitted aerosol. 1: A, 2: B; Not applied for charge emission (4,5)
      REAL             :: start_time = 0.,  &          ! Start time for emission (s)
                          end_time = 86400.            ! End time for emission (s)
@@ -41,7 +41,7 @@ MODULE emission_types
      REAL             :: emitSigma = 2.0              ! Geometric standard deviation for emitSizeDist=2
      ! Ali, addition of emission type 3
      CHARACTER(len=40):: emitMap = ''                 ! Name of the file providing all location of emission (only for emitType = 3,5)
-     REAL             :: scS = 60.                    ! Source speed (m/s) (only for emitType = 3,5)
+     REAL             :: scS = 1.11                   ! Source speed (m/s) (only for emitType = 3,5) If plain ~50-60 m/s, drone=1-10 m/s
      INTEGER          :: z_expan_up = 0               ! Expands the emission map to adjacent cells above the given map
      INTEGER          :: z_expan_dw = 0               ! Expands the emission map to adjacent cells down the given map      
      ! Parameters for particle charge emission (types 4,5)

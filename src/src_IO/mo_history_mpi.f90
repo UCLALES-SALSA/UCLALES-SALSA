@@ -95,24 +95,8 @@ MODULE mo_history
       CALL write_hist_mpi(nxp,nyp,a_tstar%d,.FALSE.,fhist)
       CALL write_hist_mpi(nxp,nyp,a_rstar%d,.FALSE.,fhist)      
       
-      CALL write_hist_mpi(nxp,nyp,a_tskin%d,.FALSE.,fhist)
-      CALL write_hist_mpi(nxp,nyp,a_qskin%d,.FALSE.,fhist)        
-      CALL write_hist_mpi(nxp,nyp,a_fgi%d,.TRUE.,fhist)
-      CALL write_hist_mpi(nxp,nyp,a_weight%d,.TRUE.,fhist)
-      CALL write_hist_mpi(nxp,nyp,a_fcz0%d,.TRUE.,fhist)
-      CALL write_hist_mpi(nxp,nyp,a_fuelmcg%d,.TRUE.,fhist)
-      CALL write_hist_mpi(nxp,nyp,a_ignitiontime%d,.FALSE.,fhist)
-      CALL write_hist_mpi(nxp,nyp,a_fuelburnt%d,.FALSE.,fhist)
-      CALL write_hist_mpi(nxp,nyp,a_firespread%d,.FALSE.,fhist)      
-      CALL write_hist_mpi(nxp,nyp,a_areaburnt%d,.FALSE.,fhist)
-      CALL write_hist_mpi(nxp,nyp,a_phiwc%d,.TRUE.,fhist)
-      CALL write_hist_mpi(nxp,nyp,a_phiwb%d,.TRUE.,fhist)
-      CALL write_hist_mpi(nxp,nyp,a_tcrit%d,.FALSE.,fhist)  
-      CALL write_hist_mpi(nxp,nyp,a_R0%d,.TRUE.,fhist)  
             
       ! 3d fields
-      CALL write_hist_mpi(nxp,nyp,20,a_ignitiontimecell%d,.FALSE.,fhist)  
-      CALL write_hist_mpi(nxp,nyp,20,a_areaignitedcell%d,.FALSE.,fhist)
       !
       CALL write_hist_mpi(nzp,nxp,nyp,a_pexnr%d,.FALSE.,fhist)
       CALL write_hist_mpi(nzp,nxp,nyp,a_press%d,.FALSE.,fhist)
@@ -262,24 +246,9 @@ MODULE mo_history
          CALL read_hist_mpi(nxp,nyp,a_ustar%d,.FALSE.,fhist)
          CALL read_hist_mpi(nxp,nyp,a_tstar%d,.FALSE.,fhist)
          CALL read_hist_mpi(nxp,nyp,a_rstar%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_tskin%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_qskin%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_fgi%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_weight%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_fcz0%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_fuelmcg%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_ignitiontime%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_fuelburnt%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_firespread%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_areaburnt%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_phiwc%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_phiwb%d,.FALSE.,fhist)
-	 CALL read_hist_mpi(nxp,nyp,a_tcrit%d,.FALSE.,fhist)
-         CALL read_hist_mpi(nxp,nyp,a_R0%d,.FALSE.,fhist)
+
 	          
          ! 3d fields      
-         CALL read_hist_mpi(nxp,nyp,20,a_ignitiontimecell%d,.FALSE.,fhist)  
-         CALL read_hist_mpi(nxp,nyp,20,a_areaignitedcell%d,.FALSE.,fhist)  
          !   
          CALL read_hist_mpi(nzp,nxp,nyp,a_pexnr%d,.FALSE.,fhist)
          CALL read_hist_mpi(nzp,nxp,nyp,a_press%d,.FALSE.,fhist)
