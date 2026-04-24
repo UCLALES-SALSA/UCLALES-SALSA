@@ -706,7 +706,7 @@ CONTAINS
           alv, als, pstand
      USE mo_salsa_properties, ONLY : equilibration
      USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
-     USE mo_particle_external_properties, ONLY : capacitance, ventilation_factor
+     USE mo_particle_external_properties, ONLY : capacitance, ventilation_factor, terminal_vel
      USE classSection, ONLY : Section
  
      IMPLICIT NONE
@@ -746,7 +746,7 @@ CONTAINS
       REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
 
       REAL :: dvice, dvrime, dvitot ! Volume change for pristine and rimed ice
-      REAL :: massice, rhoice,dnsp,aspect_ratio, visc,mfp
+      REAL :: massice, rhoice,dnsp,aspect_ratio, visc,mfp, u_ms,rhop
       
       INTEGER :: nstr
       INTEGER :: ii,jj,cc
@@ -923,7 +923,6 @@ CONTAINS
                   aspect_ratio = 2 * (massice/ice(ii,jj,cc)%numc)/ rhoice / (pi/3*dnsp**3)                  
                   ! Capacitance of ice crystals depending on aspect ratio
                   IF (aspect_ratio > 0.) THEN !
-                     !cap = 0.5*dnsp 
                      cap = capacitance(dnsp,ice(ii,jj,cc)%phase, aspect_ratio)                     
                   ELSE
                     WRITE(*,*) 'Error Aspect ratio is negative',massice,rhoice,shape,dnsp
@@ -933,8 +932,6 @@ CONTAINS
 		  zbeta = 1.+(2.*mfp/dnsp)*(1.142+0.558*exp(-0.999/(2.*mfp/dnsp)))
                   ! Ventilation factor  
                   vf = ventilation_factor(dwet,rhoice,rhoair,visc,zbeta,ice(ii,jj,cc)%phase,shape,dnsp,zdfh2o,aspect_ratio)  
-                  
-                  !WRITE(*,*) ptemp(ii,jj),dwet,dnsp,rhoice,aspect_ratio,cap,vf 
                                 
                   ! Activity + Kelvin effect - edit when needed
                   !   Can be calculated just like for spherical homogenous particle or just ignored,

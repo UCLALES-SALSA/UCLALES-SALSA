@@ -1026,9 +1026,48 @@ SUBROUTINE surface_state()
 	  a_tcrit%d  = 1.0E15 ! Same as no fire 
 	  a_firespread%d = R0g(istart:iend,jstart:jend)
 	  a_ignitiontimecell%d(:,:,1) = ignitiontimeg(istart:iend,jstart:jend)    
-  !ELSE
-          !WRITE(*,*) 'Runtype HISTORY updating surface properties'
-          ! a_ignitiontimecell and a_areaignitedcell were saved as diagnostic variables
+  ELSE
+          WRITE(*,*) 'Runtype HISTORY reading surface properties from datafiles/surface_in.nc '
+	  IF (READ_NC) THEN
+	     ! Read the surface properties
+	     CALL read_surf_nc_2d(ncid, 'fgi', nxp_global, nyp_global, fgig)
+	     CALL read_surf_nc_2d(ncid, 'weight', nxp_global, nyp_global, weightg)
+	     CALL read_surf_nc_2d(ncid, 'fcz0',  nxp_global, nyp_global,fcz0g)
+	     CALL read_surf_nc_2d(ncid, 'fuelmcg',  nxp_global, nyp_global, fuelmcgg)
+	     CALL read_surf_nc_2d(ncid, 'ignitiontime', nxp_global, nyp_global, ignitiontimeg)	     
+	     CALL read_surf_nc_2d(ncid, 'R0', nxp_global, nyp_global, R0g)
+	     CALL read_surf_nc_2d(ncid, 'phiwc', nxp_global, nyp_global, phiwcg)
+	     CALL read_surf_nc_2d(ncid, 'phiwb', nxp_global, nyp_global, phiwbg)
+	     CALL close_nc(ncid)
+	     WRITE(*,*) 'Surface properties read successfully from datafiles/surface_in.nc'
+	  ELSE
+	     WRITE(*,*) 'No datafiles/surface_in.nc was read'
+	     WRITE(*,*) 'No fuel or vegetation in the model domain'
+	     WRITE(*,*) 'No surface_in.nc found — using defaults.'
+	     fgig = 0.0
+	     weightg = 7.
+	     fcz0g = 0.1
+	     fuelmcgg = 0.0
+	     ignitiontimeg =1.0E15 ! No fire because time<ignitiontime, then no fire
+	     R0g = 0.0
+	     phiwcg = 0.0
+	     phiwbg= 1.0	  
+	  END IF
+	  
+	  istart = MAX(wrxid * (nxp_global-2)/nxprocs ,1)
+	  iend   = MIN((wrxid+1)*(nxp_global-2)/nxprocs+ 3, nxp_global)
+	  jstart = MAX(wryid * (nyp_global-2)/nyprocs, 1) 
+	  jend   = MIN((wryid+1)*(nyp_global-2)/nyprocs+3, nyp_global)
+	 
+	  firespreadg = R0g	  
+	  a_fgi%d    = fgig(istart:iend,jstart:jend)
+	  a_weight%d = weightg(istart:iend,jstart:jend)/0.8514 !Mandel 2011 Eq.3
+	  a_fcz0%d   = fcz0g(istart:iend,jstart:jend)
+	  a_fuelmcg%d = fuelmcgg(istart:iend,jstart:jend)
+	  a_R0%d = R0g(istart:iend,jstart:jend)
+	  a_phiwc%d = phiwcg(istart:iend,jstart:jend)
+	  a_phiwb%d = phiwbg(istart:iend,jstart:jend)  
+	  a_firespread%d = R0g(istart:iend,jstart:jend)  
   END IF
   
 END SUBROUTINE surface_state
