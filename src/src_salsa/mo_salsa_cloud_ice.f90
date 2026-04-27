@@ -113,7 +113,7 @@ MODULE mo_salsa_cloud_ice
              
              ! Homogeneous freezing
              pf_hom = 0.
-             IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. lsicehom) THEN
+             IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. lsicehom%state) THEN
                 jf = calc_Jhf(ptemp(ii,jj),Sw_eq)
                 pf_hom = 1. - EXP( -jf*pi6*(dwet**3 - dins**3)*ptstep )
              END IF

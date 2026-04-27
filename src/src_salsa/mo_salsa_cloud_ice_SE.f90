@@ -72,7 +72,7 @@ MODULE mo_salsa_cloud_ice_SE
                 dins = liquid(ii,jj,kk)%ddry  ! Why do I call this dins...cant remember
                 ! Calculate homogeneous freezing here separately since it does not need contact angle integration
                 ! Homogeneous freezing
-                IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. lsicehom) THEN
+                IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. lsicehom%state) THEN
                    CALL J_hf(ptemp(ii,jj),Seq(ii,jj,kk),Jhom)
                    f_hom(ii,jj,kk) = 1. - EXP( -Jhom*pi6*(dwet**3-dins**3)*tstep )
                 END IF

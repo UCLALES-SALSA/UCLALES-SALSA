@@ -630,7 +630,7 @@ CONTAINS
 
             ice_theta_dist = .FALSE.
             ice_deterministic = .FALSE.
-            lsicehom = .FALSE.   
+            lsicehom%switch = .FALSE.   
             lsiceimm = .FALSE.
             lsicedep = .FALSE. 
             lssiprimespln%switch = .FALSE.
@@ -652,7 +652,7 @@ CONTAINS
      USE mo_submctl, ONLY : Nmaster, lsmaster, Nsub, lssub, lscoag, lscnd,     &
                             lsauto, lsactiv, lsicenucl, lsicemelt, lssecice,   &
                             lsfreeRH, cgintvl,                                 &
-                            lssipdropfrac, lssipicecollbreak, lssiprimespln
+                            lssipdropfrac, lssipicecollbreak, lssiprimespln, lsicehom
      IMPLICIT NONE
      
      INTEGER :: i
@@ -676,10 +676,13 @@ CONTAINS
      lsicemelt => lsmaster(6)
      lssecice => lsmaster(7)
 
+     
+
      ! Associate pointer for subprocess switches
      lssipdropfrac => lssub(1)
      lssipicecollbreak => lssub(2)
      lssiprimespln => lssub(3)
+     lsicehom => lssub(4)
      
      ! Use this to initialize also other switches that use the ProcessSwitch type
      lsfreeRH = ProcessSwitch()

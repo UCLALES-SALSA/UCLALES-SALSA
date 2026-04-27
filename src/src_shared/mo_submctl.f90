@@ -63,7 +63,8 @@ MODULE mo_submctl
   LOGICAL :: lscndh2oic = .TRUE.  ! Condensation of water vapour on ice and snow
 
   ! Ice nucleation subprocesses
-  LOGICAL :: lsicehom = .FALSE.        ! Homogeneous freezing
+  !LOGICAL :: lsicehom = .FALSE.        ! Homogeneous freezing
+  TYPE(ProcessSwitch), POINTER :: lsicehom => NULL()
   LOGICAL :: lsiceimm = .FALSE.        ! Immersion freezing
   LOGICAL :: lsicedep = .FALSE.        ! Deposition freezing
 
@@ -80,7 +81,7 @@ MODULE mo_submctl
 
   TYPE(ProcessSwitch), POINTER :: lssiprimespln => NULL()      ! Rime splintering SIP, %mode = 1: Hallet and Mossot 1974,
                                                                !                        %mode = 2: Mossop 1976
-  INTEGER, PARAMETER :: Nsub = 3
+  INTEGER, PARAMETER :: Nsub = 4 !3
   TYPE(ProcessSwitch), TARGET :: lssub(Nsub)  ! Holder for type ProcessSwitch subprocess switches (for most just the simple
                                               ! logical switch is required)
 

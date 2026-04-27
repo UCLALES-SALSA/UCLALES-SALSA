@@ -122,11 +122,11 @@ MODULE mo_salsa
 
      ! Ice nucleation
      IF (lsicenucl%state .OR. lsicenucl%mode == 2) THEN ! If mode=2, call even if state=false
-        IF (fixinc>0. .AND. .NOT. ANY([lsicehom,lsiceimm,lsicedep])) THEN
+        IF (fixinc>0. .AND. .NOT. ANY([lsicehom%state,lsiceimm,lsicedep])) THEN
            ! Fixed ice number concentration
            CALL  ice_fixed_NC(kproma, kbdim, klev,   &
                               ptemp,  ppres,  prv,  prsi)
-        ELSE IF (ANY([lsicehom,lsiceimm,lsicedep])) THEN
+        ELSE IF (ANY([lsicehom%state,lsiceimm,lsicedep])) THEN
            ! Modelled ice nucleation
            IF (ice_theta_dist) THEN
               CALL ice_nucl_SE(kproma,kbdim,klev,       &

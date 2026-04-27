@@ -43,11 +43,11 @@ MODULE mo_salsa_cloud_ice_DET
 
     REAL, PARAMETER :: dmin = 1.e-10 ! Diameter limit
 
-    REAL :: frac
+    REAL :: frac, frac_HET
 
     INTEGER :: ii,jj,kk,ss,bb
     REAL :: pf_imm, pf_dep, pf_hom, jf, ns
-    REAL :: nnum, omega
+    !REAL :: nnum, omega
     REAL :: Sw_eq, Si, zvol, ra, rb
     REAL :: ddry, dwet, dins
 
@@ -84,11 +84,13 @@ MODULE mo_salsa_cloud_ice_DET
              IF (ptemp(ii,jj) > 273.15) CYCLE
              IF (liquid(ii,jj,kk)%numc < liquid(ii,jj,kk)%nlim) CYCLE
 
-             IF (dinscheme == 1 .AND. lsicedep) THEN
+             !IF (dinscheme == 1 .AND. lsicedep) THEN
                ! Part of Phillips 2013 schem to calculate the number of IN per unit surface area of insoluble material
-               nnum = SUM(liquid(ii,jj,in2b:fn2b)%numc/(1-liquid(ii,jj,in2b:fn2b)%indef))
-               omega = SUM((liquid(ii,jj,in2b:fn2b)%ddry)**2*pi*liquid(ii,jj,in2b:fn2b)%numc/(1-liquid(ii,jj,in2b:fn2b)%indef))
-             END IF
+               !nnum = SUM(liquid(ii,jj,in2b:fn2b)%numc/(1-liquid(ii,jj,in2b:fn2b)%indef))
+               !omega = SUM((liquid(ii,jj,in2b:fn2b)%ddry)**2*pi*liquid(ii,jj,in2b:fn2b)%numc/(1-liquid(ii,jj,in2b:fn2b)%indef))
+             !END IF
+
+
 
              phase = liquid(ii,jj,kk)%phase
              
@@ -127,12 +129,9 @@ MODULE mo_salsa_cloud_ice_DET
                   jf = calc_Jdep(dins,ptemp(ii,jj),Si)
                   pf_dep = 1. - EXP( -pi*dins**2*jf )
                 ELSE IF (dinscheme == 1) THEN
-                  jf = calc_Jdep_Phi13(dins,ptemp(ii,jj),Si,nnum,omega)
+                  jf = calc_Jdep_Phi13(dins,ptemp(ii,jj),Si)!,nnum,omega)
                   pf_dep = 1. - EXP(- jf)
                 ELSE IF (dinscheme == 2) THEN
-                  pf_dep = calc_Jdep_WJ25(dins,ptemp(ii,jj),Si)
-                  !pf_dep = jf !1. - EXP(-jf)
-                ELSE IF (dinscheme == 3) THEN
                   jf = calc_Jdep_H14(dins,ptemp(ii,jj),Si)
                   pf_dep = 1. - EXP( -pi*dins**2*jf )
                 END IF
@@ -140,26 +139,35 @@ MODULE mo_salsa_cloud_ice_DET
              END IF
              
              ! Total fraction of particles nucleating ice
-             frac = MAX(0., MIN(0.99,pf_imm+pf_dep))
+             frac = MAX(0., MIN(0.99,MAX(pf_imm,pf_dep)))
              ! Determine the target ice bin
              bb = getIceBin(dwet)
 
-
              CALL iceNucleation(ii,jj,bb,ndry,iwa,irim,liquid(ii,jj,kk),frac)
-
+             
+             frac_HET = frac
              
              ! Homogeneous freezing
              pf_hom = 0.
-             IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. lsicehom) THEN
+             IF (dwet-dins > dmin .AND. ptemp(ii,jj) < tmax_homog .AND. lsicehom%state) THEN
                 !Si = prv(ii,jj)/prsi(ii,jj) ! Water vapor saturation ratio over ice
                 jf = calc_Jhf(ptemp(ii,jj),Sw_eq,Si)
                 pf_hom = 1. - EXP( -jf*pi6*(dwet**3 - dins**3)*ptstep )
              END IF
-
+             
+             frac = 0.
              frac = MAX(0., MIN(0.99,pf_hom))
 
              CALL iceNucleation_hom(ii,jj,bb,ndry,iwa,irim,liquid(ii,jj,kk),frac)
- 
+             
+             ! Calculate frozen fraction that actually nucleated ice and update diagnostics
+             IF (pf_imm > pf_dep) THEN
+               pf_imm = frac_HET
+               pf_dep = 0.
+             ELSE IF (pf_dep > pf_imm) THEN
+               pf_imm = 0.
+               pf_dep = frac_HET
+             END IF
              CALL iceDiagnostics(liquid(ii,jj,kk),pf_imm,pf_dep,pf_hom)
              
              CALL ice(ii,jj,bb)%updateRhomean()
@@ -243,120 +251,6 @@ MODULE mo_salsa_cloud_ice_DET
     
   END FUNCTION calc_Jdep_H14
   
-  REAL FUNCTION calc_Jdep_WJ25(rn,temp,Si)
-    ! Changed all radiuses to diameters
-    ! Parametrization based on fit done for SPIN measurements with (Illite, Kaolinite, Quartz and Feldspar)
-    
-    IMPLICIT NONE
-    REAL, INTENT(in) :: rn,temp,Si
-    REAL, PARAMETER :: & ! Case-dependent parameters for IDEAL dust 200nm R2=0.89
-         a1_200nm = -43.66549, &
-         b1_200nm = 0.00364, &
-         c1_200nm = -241.61849, &
-         d1_200nm = 8.56218, &
-         f1_200nm = -0.21112, &
-         g1_200nm = 8.58952, &
-         h1_200nm = 0.00080, &
-         i1_200nm = 171.10887, &
-         a2_200nm = -10.04112, &
-         b2_200nm = 0.02806, &
-         d2_200nm = 12.37117 , &
-         f2_200nm = 2.57586, &
-         tcut_200nm = 239.17740, &
-         k_200nm = 0.10000
-    REAL, PARAMETER :: & ! Case-dependent parameters for IDEAL dust 400nm R2=0.9052
-         a1_400nm = -24.52866, &
-         b1_400nm = 0.00206, &
-         c1_400nm = -256.45775, &
-         d1_400nm = 6.86452, &
-         f1_400nm = -0.15521, &
-         g1_400nm = 6.88409, &
-         h1_400nm = 0.00045, &
-         i1_400nm = 153.35149, &
-         a2_400nm = -8.35656, &
-         b2_400nm = 0.00445, &
-         d2_400nm = 28.52578 , &
-         f2_400nm = 36.33777, &
-         tcut_400nm = 243.07208, &
-         k_400nm = 0.10000
-    REAL, PARAMETER :: & ! Case-dependent parameters for IDEAL dust 800nm R2=0.8135
-         a1_800nm = -25.25723, &
-         b1_800nm = 0.00036, &
-         c1_800nm = -285.98999, &
-         d1_800nm = 5.12040, &
-         f1_800nm = -0.33332, &
-         g1_800nm = 5.22363, &
-         h1_800nm = 0.00046, &
-         i1_800nm = 492.33570, &
-         a2_800nm = -12.75046, &
-         b2_800nm = 1.60273, &
-         d2_800nm = 242.63024 , &
-         f2_800nm = 1.00000, &
-         tcut_800nm = 250.00000, &
-         k_800nm = 0.10276
-    REAL :: vlow_200, vhigh_200, w_200, vlow_400, vhigh_400, w_400, &
-    vlow_800, vhigh_800, w_800, FF_200, FF_400, FF_800, interp_FF,weight_size
-    
-    calc_Jdep_WJ25 = 0.
-    
-    ! Must have a core and supersaturation over ice
-    IF (rn<1e-10 .OR. Si<1.0001) RETURN
-    
-    
-    ! Low temperature model below cut-off temperature
-    vlow_200 = a1_200nm + b1_200nm * (Si-1)**(1./d1_200nm) * (temp+c1_200nm) * &
-               f1_200nm * (Si-1)**(1./g1_200nm) * (temp + i1_200nm) + h1_200nm*temp**2
-    ! High temperature model
-    vhigh_200 = a2_200nm + b2_200nm * (Si-1)**(1./f2_200nm) * (temp - d2_200nm)
-    ! Sigmoid transition weight
-    w_200 = 1.0/(1.0 + EXP(k_200nm*(temp-tcut_200nm)))
-    FF_200 = w_200*vlow_200 + (1-w_200)*vhigh_200
-
-    ! Low temperature model below cut-off temperature
-    vlow_400 = a1_400nm + b1_400nm * (Si-1)**(1./d1_400nm) * (temp+c1_400nm) * &
-               f1_400nm * (Si-1)**(1./g1_400nm) * (temp + i1_400nm) + h1_400nm*temp**2
-    ! High temperature model
-    vhigh_400 = a2_400nm + b2_400nm * (Si-1)**(1./f2_400nm) * (temp - d2_400nm)
-    ! Sigmoid transition weight
-    w_400 = 1.0/(1.0 + EXP(k_400nm*(temp-tcut_400nm)))
-    FF_400 = w_400*vlow_400 + (1-w_400)*vhigh_400
-
-    ! Low temperature model below cut-off temperature
-    vlow_800 = a1_800nm + b1_800nm * (Si-1)**(1./d1_800nm) * (temp+c1_800nm) * &
-               f1_800nm * (Si-1)**(1./g1_800nm) * (temp + i1_800nm) + h1_800nm*temp**2
-    ! High temperature model
-    vhigh_800 = a2_800nm + b2_800nm * (Si-1)**(1./f2_800nm) * (temp - d2_800nm)
-    ! Sigmoid transition weight
-    w_800 = 1.0/(1.0 + EXP(k_800nm*(temp-tcut_800nm)))
-    FF_800 = w_800*vlow_800 + (1-w_800)*vhigh_800
-
-
-    IF (rn > 100.e-9 .AND. rn <= 400.e-9) THEN
-        ! Interpolate between 200nm and 400nm
-        weight_size = (rn - 100.e-9) / (400.e-9 - 100.e-9)
-        interp_FF = 10**((1.0 - weight_size) * FF_200 + weight_size * FF_400) ! Convert log FF to linear
-    ELSE IF (rn > 400.e-9) THEN
-        ! Interpolate between 400nm and 800nm
-        weight_size = (rn - 400.e-9) / (800.e-9 - 400.e-9)
-        interp_FF = (1.0 - weight_size) * FF_400 + weight_size * FF_800
-        IF (interp_FF < FF_400) THEN !
-           ! Ensure that the FF does not decrease with increasing particle size (can happen due to fits)
-           interp_FF = FF_400
-        END IF
-        interp_FF = 10**interp_FF ! Convert log FF to linear
-    ELSE    ! 
-        interp_FF = 0.0
-    ENDIF
-    
-    IF (interp_FF >= 1.0) THEN
-      calc_Jdep_WJ25 = 0.999999
-    ELSE IF (interp_FF > 0.0) THEN
-      calc_Jdep_WJ25 = interp_FF
-    ELSE
-      calc_Jdep_WJ25 = 0.0
-    ENDIF
-  END FUNCTION calc_Jdep_WJ25
-
   REAL FUNCTION calc_Jdep(rn,temp,Si)
     
     IMPLICIT NONE
@@ -378,17 +272,17 @@ MODULE mo_salsa_cloud_ice_DET
  
   END FUNCTION calc_Jdep
 
-  REAL FUNCTION calc_Jdep_Phi13(rn,temp,Si,nnum,omega)
+  REAL FUNCTION calc_Jdep_Phi13(rn,temp,Si)!,nnum,omega)
     ! Deposition freezing
     
     IMPLICIT NONE
     REAL, INTENT(in) :: temp,            & ! Temperature in K
                         rn,           & ! Diameter of the insoluble aerosol
-                        Si,           & ! Equilibrium saturation ratio
-                        nnum,          & ! B-bin number concentration (insoluble)
-                        omega            ! B-bin surface area (insoluble)
+                        Si !,           & ! Equilibrium saturation ratio
+                        !nnum,          & ! B-bin number concentration (insoluble)
+                        !omega            ! B-bin surface area (insoluble)
     
-    REAL :: Tc, act_energy, sigma_iv, d_g, sf, crit_energy
+    REAL :: Tc, act_energy, sigma_iv, d_g, sf, crit_energy, nnum
 
     REAL, PARAMETER :: & ! Constants
          C = 1.7e10, & ! Constant (1.7e11 dyn cm^-2 = 1.7e11*1e-5/1e-4 N m^-2 = 1.7e10 N m^-2)
@@ -408,7 +302,8 @@ MODULE mo_salsa_cloud_ice_DET
          Sw_0 = 0.97, &
          h = 0.15, &
          gamma = 2., &
-         alpha = 0.666667
+         alpha = 0.666667, &
+         omega = 2E-6
     REAL :: thrad, costh   ! Contact angle in radians, cosine of contact angle
 
     REAL :: fc_comp1, fc_comp2, fc, wvp, Sw_r, H_comp1, H_x, Xi, Mu, x_cub, Si_0
@@ -421,6 +316,10 @@ MODULE mo_salsa_cloud_ice_DET
     Tc = temp-T0 ! Temperature in Celsius
 
     x_cub = b0 + b1*Tc + b2*Tc**2 + b3*Tc**3
+    
+    IF (Tc > -35.) RETURN
+    ! CDFC reference activity below -35 C
+    nnum = 1000*(exp(12.96*(Si-1.1)))**0.3/0.76*2
 
     Si_0 = 1+10**x_cub
 
@@ -739,7 +638,7 @@ MODULE mo_salsa_cloud_ice_DET
     INTEGER, INTENT(in) :: ii,jj,iice
     INTEGER, INTENT(in) :: iwa, irim, ndry
     TYPE(Section), INTENT(inout) :: pliq  ! Liquid particle properties
-    REAL, INTENT(in)          :: frac  ! Fraction of nucleated particles from liquid phase
+    REAL, INTENT(inout)          :: frac  ! Fraction of nucleated particles from liquid phase
     REAL :: f0, frac2, V_tot, frac_DU, f1
     INTEGER :: ss, idu
 
@@ -776,18 +675,18 @@ MODULE mo_salsa_cloud_ice_DET
     IF(frac_DU <= 0.1 ) then
       IF (lsicenucl%state)  &    ! If mode=2 and state=false, do not produce new ice but just remove the aerosol
             ice(ii,jj,iice)%volc(idu) =    &
-            MAX(0., ice(ii,jj,iice)%volc(idu) + V_tot*frac2) ! was frac_DU
+            MAX(0., ice(ii,jj,iice)%volc(idu) + V_tot*f1) ! was frac_DU
       
          pliq%volc(idu) =   &
-            MAX(0., pliq%volc(idu)-V_tot*frac2) ! was frac_DU
+            MAX(0., pliq%volc(idu)-V_tot*f1) ! was frac_DU
     ELSE
       IF (lsicenucl%state) &   !  If mode=2 and state=FALSE, do not produce new ice, just remove aerosol/droplets
-            ice(ii,jj,iice)%volc(idu) = MAX(0., ice(ii,jj,iice)%volc(idu) + pliq%volc(idu)*frac2)
-      pliq%volc(idu) = MAX(0., pliq%volc(idu)*(1.-frac2))
+            ice(ii,jj,iice)%volc(idu) = MAX(0., ice(ii,jj,iice)%volc(idu) + pliq%volc(idu)*f1)
+      pliq%volc(idu) = MAX(0., pliq%volc(idu)*(1.-f1))
       !DO ss = 1,ndry
       !   IF (lsicenucl%state) &   !  If mode=2 and state=FALSE, do not produce new ice, just remove aerosol/droplets
-      !         ice(ii,jj,iice)%volc(ss) = MAX(0., ice(ii,jj,iice)%volc(ss) + pliq%volc(ss)*frac2)
-      !   pliq%volc(ss) = MAX(0., pliq%volc(ss)*(1.-frac2))
+      !         ice(ii,jj,iice)%volc(ss) = MAX(0., ice(ii,jj,iice)%volc(ss) + pliq%volc(ss)*f1)
+      !   pliq%volc(ss) = MAX(0., pliq%volc(ss)*(1.-f1))
       !END DO
     END IF
     
@@ -795,19 +694,22 @@ MODULE mo_salsa_cloud_ice_DET
     IF (ANY(pliq%phase == [1,2])) THEN
        ! Aerosol or cloud droplets -> only pristine ice production
        IF (lsicenucl%state) &   ! If mode=2 and state=FALSE, do not produce new ice, just remove aerosol/droplets
-            ice(ii,jj,iice)%volc(iwa) = MAX(0.,ice(ii,jj,iice)%volc(iwa) + pliq%volc(iwa)*frac2*spec%rhowa/spec%rhoic)
-       pliq%volc(iwa) = MAX(0., pliq%volc(iwa)*(1.-frac2))
+            ice(ii,jj,iice)%volc(iwa) = MAX(0.,ice(ii,jj,iice)%volc(iwa) + pliq%volc(iwa)*f1*spec%rhowa/spec%rhoic)
+       pliq%volc(iwa) = MAX(0., pliq%volc(iwa)*(1.-f1))
     ELSE IF (pliq%phase == 3) THEN
        ! Precip -> rimed ice
        IF (lsicenucl%state) &   ! Same as above
-            ice(ii,jj,iice)%volc(irim) = MAX(0.,ice(ii,jj,iice)%volc(irim) + pliq%volc(iwa)*frac2*spec%rhowa/spec%rhori)
-       pliq%volc(iwa) = MAX(0., pliq%volc(iwa)*(1.-frac2))
+            ice(ii,jj,iice)%volc(irim) = MAX(0.,ice(ii,jj,iice)%volc(irim) + pliq%volc(iwa)*f1*spec%rhowa/spec%rhori)
+       pliq%volc(iwa) = MAX(0., pliq%volc(iwa)*(1.-f1))
     END IF
     
     ! Number concentration
     IF (lsicenucl%state) &   ! Same as above
-         ice(ii,jj,iice)%numc = MAX(0.,ice(ii,jj,iice)%numc + pliq%numc*frac2)
-    pliq%numc = MAX(0.,pliq%numc*(1.-frac2))
+         ice(ii,jj,iice)%numc = MAX(0.,ice(ii,jj,iice)%numc + pliq%numc*f1)
+    pliq%numc = MAX(0.,pliq%numc*(1.-f1))
+
+    ! Update frac for diagnostics
+    frac = f1
     
   END SUBROUTINE iceNucleation
 
