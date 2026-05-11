@@ -288,7 +288,7 @@ MODULE mo_submctl
        moc = 150.e-3,         & ! organic carbon
        mbc = 12.e-3,          & ! black carbon
        mss = 58.44e-3,        & ! sea salt (NaCl)
-       mdu = 234.77e-3,       & ! 100e-3 mineral dust changed to AgI
+       mdu = 100.0e-3,        & ! mineral dust
        mwa = 18.016e-3,       & ! water
        mas = 132.14e-3,       & ! ammoniums sulphate ((NH4)2SO4)
        !
@@ -296,10 +296,10 @@ MODULE mo_submctl
        rhosu = 1830.,         & ! sulphate
        rhono = 1479.,         & ! HNO3
        rhonh = 1530.,         & ! NH3
-       rhooc = 1200.,         & ! organic carbon
+       rhooc = 1300.,         & ! organic carbon
        rhobc = 2000.,         & ! black carbon
        rhoss = 2165.,         & ! sea salt (NaCl)
-       rhodu = 5660.,         & ! 2650 mineral dust changed to AgI 
+       rhodu = 2650.,         & ! mineral dust 
        rhowa = 1000.,         & ! water
        rhoic = 917.,          & ! ice
        !
