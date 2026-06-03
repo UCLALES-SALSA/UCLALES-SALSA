@@ -1000,13 +1000,19 @@ SUBROUTINE surface_state()
 	     phiwbg= 1.0	  
 	  END IF
 	  
-	  istart = MAX(wrxid * (nxp_global-2)/nxprocs ,1)
-	  iend   = MIN((wrxid+1)*(nxp_global-2)/nxprocs+ 3, nxp_global)
-	  jstart = MAX(wryid * (nyp_global-2)/nyprocs, 1) 
-	  jend   = MIN((wryid+1)*(nyp_global-2)/nyprocs+3, nyp_global)
+	  ! for checking purposes
+	  !WRITE(*,*) 'xoffset,yoffset',xoffset, yoffset
 	  
+	  istart = xoffset(wrxid) + 1
+	  iend   = xoffset(wrxid) + size(a_fgi%d,1)
+	  jstart = yoffset(wryid) + 1   
+	  jend   = yoffset(wryid) + size(a_fgi%d,2)
+	 
 	  ! for checking purposes
 	  !WRITE(*,*) 'istart,iend, jstart,jend', istart,iend, jstart,jend
+	  !WRITE(*,*) 'myid, istart, iend, iend-istart+1',myid, istart, iend, iend-istart+1
+	  !WRITE(*,*) 'myid, jstart, jend, jend-jstart+1',myid, jstart, jend, jend-jstart+1
+	  !WRITE(*,*) 'myid, shape(a_fgi%d)',myid, shape(a_fgi%d)
 	 
 	  firespreadg = R0g	  
 	  a_fgi%d    = fgig(istart:iend,jstart:jend)
@@ -1054,10 +1060,10 @@ SUBROUTINE surface_state()
 	     phiwbg= 1.0	  
 	  END IF
 	  
-	  istart = MAX(wrxid * (nxp_global-2)/nxprocs ,1)
-	  iend   = MIN((wrxid+1)*(nxp_global-2)/nxprocs+ 3, nxp_global)
-	  jstart = MAX(wryid * (nyp_global-2)/nyprocs, 1) 
-	  jend   = MIN((wryid+1)*(nyp_global-2)/nyprocs+3, nyp_global)
+	  istart = xoffset(wrxid) + 1
+	  iend   = xoffset(wrxid) + size(a_fgi%d,1)
+	  jstart = yoffset(wryid) + 1   
+	  jend   = yoffset(wryid) + size(a_fgi%d,2)
 	 
 	  firespreadg = R0g	  
 	  a_fgi%d    = fgig(istart:iend,jstart:jend)
