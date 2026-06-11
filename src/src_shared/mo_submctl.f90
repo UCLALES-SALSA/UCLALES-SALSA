@@ -288,7 +288,7 @@ MODULE mo_submctl
        moc = 150.e-3,         & ! organic carbon
        mbc = 12.e-3,          & ! black carbon
        mss = 58.44e-3,        & ! sea salt (NaCl)
-       mdu = 100.0e-3,        & ! mineral dust
+       mdu = 234.77e-3,       & ! AgI for seeding purposes instead of 100 mineral dust
        mwa = 18.016e-3,       & ! water
        mas = 132.14e-3,       & ! ammoniums sulphate ((NH4)2SO4)
        !
@@ -299,7 +299,7 @@ MODULE mo_submctl
        rhooc = 1300.,         & ! organic carbon
        rhobc = 2000.,         & ! black carbon
        rhoss = 2165.,         & ! sea salt (NaCl)
-       rhodu = 2650.,         & ! mineral dust 
+       rhodu = 5660.,         & ! AgI for seeding purposes instead of mineral dust 2650
        rhowa = 1000.,         & ! water
        rhoic = 917.,          & ! ice
        !

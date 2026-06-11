@@ -98,14 +98,14 @@ MODULE classSpecies
                                                                  'NO  ','NH  ','H2O ','rime']                        ! Names of all possible compounds.
   CHARACTER(len=4), TARGET, PRIVATE   :: allNamesInsoluble(maxins) = ['BC ','DU ']                                   ! Names of all possible insoluble compounds
   CHARACTER(len=4), TARGET, PRIVATE   :: allNamesSoluble(maxsol)   = ['SO4','OC ','SS ','NO ','NH ']                 ! Names of all possible soluble compounds
-  REAL, TARGET, PRIVATE               :: allMM(maxspec+2)   = [98.08e-3, 150.e-3, 12.e-3, 100.e-3,    &                 
+  REAL, TARGET, PRIVATE               :: allMM(maxspec+2)   = [98.08e-3, 150.e-3, 12.e-3, 234.77e-3,    &            ! Switching props from dust to AgI     
                                                                58.44e-3, 62.01e-3, 18.04e-3, 18.016e-3, 18.016e-3]   ! Molecular masses
   
   REAL, PARAMETER, PRIVATE    :: auxrhoic = 917.                                                   ! Bulk density of ice
   REAL, PARAMETER, PRIVATE    :: auxrhorime = 400.                                                 ! Bulk density of rimed ice
   REAL, TARGET, PRIVATE       :: t_auxrhoic = auxrhoic      ! workaround for pointer assignment - find a way to remove this
   REAL, TARGET, PRIVATE       :: t_auxrhorime = auxrhorime  ! workaround for pointer assignment - find a way to remove this
-  REAL, TARGET, PRIVATE       :: allRho(maxspec+2)  = [1830., 1300., 2000., 2650., 2165., &
+  REAL, TARGET, PRIVATE       :: allRho(maxspec+2)  = [1830., 1300., 2000., 5660., 2165., &        ! Switching props from dust to AgI  
                                                        1479., 1530., 1000., auxrhorime]            ! Densities
   REAL, TARGET, PRIVATE       :: allDiss(maxspec+2) = [3., 1., 0., 0., 2., 1., 1., 1., 1.]         ! Dissociation factors 
   ! -------------------------------------------------------------------------------------------------------------------------
