@@ -448,7 +448,7 @@ CONTAINS
     INTEGER :: ss,kk, istr,iend
     INTEGER :: bb
 
-    REAL :: TH = 1.e-30
+    REAL :: TH = 1.e-30, Qext
     LOGICAL, INTENT(in) :: laod470 ! switch for aerosol optical depth calculations at 470 nm
 
     REAL, POINTER :: aer_nre(:) => NULL(), aer_nim(:) => NULL(),          &
@@ -563,6 +563,9 @@ CONTAINS
           ! Bin contribution to optical depth of the model layer 
           ! taer_bin(kk,bb) = bext_aer(kk,bb)*dz(kk)
           taer_bin(kk,bb) = (aer_sigma(i_re,i_im,i_alpha)* 1.0e-4*(1./lambda_r)**2)*naerobin(kk,bb)*dz(kk)
+          ! For checking purposes declare Qext or bext as real 
+          !Qext =  aer_sigma(i_re,i_im,i_alpha)* 1.0e-4*(1./lambda_r)**2/(((voltot(bb)/naerobin(kk,bb))/pi6)**(2./3.))
+          !WRITE(*,*) bb, (((voltot(bb)/naerobin(kk,bb))/pi6)**(1./3.)), sizeparam, Qext                             
 
           ! Bin contribution to the scattering coefficient of the model layer 
           ! bscat= bext*omega
