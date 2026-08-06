@@ -13,11 +13,15 @@
 !    gfortran -O2 -I/usr/include -o ./pples combine.f90 -lnetcdff
 !  Run
 !    ./pples <file name prefix>
-! b) Puhti
-!  Compile
+! b) Puhti/Roihu
+!  Compile (Puhti)
 !    module load intel/19.0.4
 !    module load netcdf-fortran/4.4.4
 !    ifort -O2 -o ./pples combine.f90 -lnetcdff
+!  Compile (Roihu)
+!    module load netcdf-fortran/4.6.2
+!    module load hdf5/1.14.6
+!    gfortran -O2 -fdefault-real-8 -I/$NETCDF_FORTRAN_INSTROOT/include -o ./pples combine.f90 -lnetcdff
 !  Run
 !    srun --ntasks=1 --time=00:0:10 --partition=<partition> --account=<project> pples <file name prefix> <key1=value1 key2=value2 ...>
 !  Examples

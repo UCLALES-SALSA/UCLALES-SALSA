@@ -3777,7 +3777,7 @@ contains
         ssclr_rem(tt) = get_pustat_scalar('avg', SUM(depflxm(2,:,:,str:end))/REAL((n3-4)*(n2-4)) )
         !
         ! Column removal rates for each species
-        scs_rm(:,:,tt) = SUM(depflxm(2,:,:,str:end),DIM=3)
+        IF (csflg .AND. nv1_rem>0) scs_rm(:,:,tt) = SUM(depflxm(2,:,:,str:end),DIM=3)
     ENDDO
     !
     ! 3D water fluxes (W/m^2)
