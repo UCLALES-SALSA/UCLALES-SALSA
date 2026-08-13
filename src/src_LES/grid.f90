@@ -774,14 +774,14 @@ contains
     real, intent (in) :: time
     ! Dimensions (time, x, y, x, and SALSA bins) and constants (u0, v0, dn0) are saved
     ! during initialization, and common variables (u, v, w, theta, p) are always saved.
-    INTEGER, PARAMETER :: n_dims=14, n_base=19
+    INTEGER, PARAMETER :: n_dims=14, n_base=21
     character(len=7) :: s_dims(n_dims) = (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     ','ym     ', & ! 1-7
          'u0     ','v0     ','dn0    ','B_Rd12a','B_Rd2ab','B_Rwprc','B_Rwsnw'/)  ! 8-14
     character(len=7) :: s_base(n_base) = (/ &
          'u      ','v      ','w      ','theta  ','p      ','stke   ','rflx   ', & ! 1-7
-         'q      ','l      ','r      ','n      ','i      ','s      ','g      ', & ! 8-14
-         'ni     ','ns     ','ng     ','h      ','nh     '/) ! 15-19
+         'q      ','l      ','rc     ','nc     ','rr     ','nr     ','ri     ', & ! 8-14
+         'ni     ','rs     ','ns     ','rg     ','ng     ','rh     ','nh     '/)  ! 15-21
     LOGICAL, SAVE :: b_dims(n_dims)=.TRUE., b_base(n_base)=.TRUE.
     CHARACTER (len=7), ALLOCATABLE :: sanal(:), stot(:)
     LOGICAL, ALLOCATABLE :: btot(:)
@@ -801,10 +801,11 @@ contains
 
     IF (level < 4) THEN  ! Standard operation for levels 1-3
         b_dims(11:14) = .FALSE. ! SALSA bins
-        b_base(10:11) = (level==3 .OR. level==0) ! Rain
-        b_base(12:15) = (level==0 .AND. lev_sb>=4) ! Ice, snow mass and graupel mass
-        b_base(16:17) = (level==0 .AND. lev_sb>=5) ! Ice, snow and graupel
-        b_base(18:19) = (level==0 .AND. lev_sb>=6) ! Ice, snow, graupel and hail
+        b_base(10:11) = (/.TRUE.,.FALSE./) ! Cloud
+        b_base(12:13) = (level==3 .OR. level==0) ! Rain
+        b_base((/14,15,16,18/)) = (level==0 .AND. lev_sb>=4) ! Ice, snow mass and graupel mass
+        b_base((/17,19/)) = (level==0 .AND. lev_sb>=5) ! Ice, snow and graupel
+        b_base(20:21) = (level==0 .AND. lev_sb>=6) ! Ice, snow, graupel and hail
 
        ! Merge logical and name arrays
        i=n_dims+n_base+nv4_proc+nv4_user+naddsc
@@ -822,16 +823,16 @@ contains
           btot(i:e)=.TRUE.; stot(i:e)=user_an_list(1:nv4_user)
        END IF
     ELSE IF (level >= 4) THEN ! Operation with SALSA
-       b_base(10)=.NOT.no_prog_prc ! Rain water
-       b_base(11)=.FALSE. ! Rain number
-       b_base(12) = (level>4 .AND. .NOT. no_prog_ice) ! Ice
-       b_base(13) = (level>4 .AND. .NOT. no_prog_snw) ! Snow
-       b_base(14:19) = .FALSE. ! SB outputs
+       b_base(10:11) = .NOT.no_prog_cld ! Cloud
+       b_base(12:13) = .NOT.no_prog_prc ! Rain
+       b_base(14:15) = (level>4 .AND. .NOT. no_prog_ice) ! Ice
+       b_base(16:17) = (level>4 .AND. .NOT. no_prog_snw) ! Snow
+       b_base(18:21) = .FALSE. ! SB outputs
 
        ! Dimensions for bin dependent outputs
        lbinanl = ANY(INDEX(user_an_list,'B_')>0)
        b_dims(11) = lbinanl
-       b_dims(12) = lbinanl
+       b_dims(12) = lbinanl .AND. (.NOT. no_b_bins)
        b_dims(13) = lbinanl .AND. (.NOT. no_prog_prc)
        b_dims(14) = lbinanl .AND. (.NOT. no_prog_snw) .AND. (level>4)
 
@@ -1060,25 +1061,29 @@ contains
           zvar=a_rc+a_rpp
           iret = nf90_put_var(ncid0, VarID, zvar(:,i1:i2,j1:j2), start=ibeg, count=icnt)
        ENDIF
+       ! Cloud water mixing ratio and number concentration
+       iret = nf90_inq_varid(ncid0,'rc',VarID)
+       IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ! Constant cloud droplet number not saved
        ! Rain water mixing ratio and number concentration
-       iret = nf90_inq_varid(ncid0,'r',VarID)
+       iret = nf90_inq_varid(ncid0,'rr',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rpp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
-       iret = nf90_inq_varid(ncid0,'n',VarID)
+       iret = nf90_inq_varid(ncid0,'nr',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_npp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        ! Ice, snow, graupel and hail
-       iret = nf90_inq_varid(ncid0,'i',VarID)
+       iret = nf90_inq_varid(ncid0,'ri',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rip(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        iret = nf90_inq_varid(ncid0,'ni',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_nip(:,i1:i2,j1:j2),start=ibeg,count=icnt)
-       iret = nf90_inq_varid(ncid0,'s',VarID)
+       iret = nf90_inq_varid(ncid0,'rs',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rsp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        iret = nf90_inq_varid(ncid0,'ns',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_nsp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
-       iret = nf90_inq_varid(ncid0,'g',VarID)
+       iret = nf90_inq_varid(ncid0,'rg',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rgp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        iret = nf90_inq_varid(ncid0,'ng',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_ngp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
-       iret = nf90_inq_varid(ncid0,'h',VarID)
+       iret = nf90_inq_varid(ncid0,'rh',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rhp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        iret = nf90_inq_varid(ncid0,'nh',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_nhp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
@@ -1097,27 +1102,53 @@ contains
        iret = nf90_inq_varid(ncid0,'l',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
 
-       ! Rain water mixing ratio
-       iret = nf90_inq_varid(ncid0,'r',VarID)
+       ! Cloud water mixing ratio and total number
+       iret = nf90_inq_varid(ncid0,'rc',VarID)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_mcloudp(:,:,:,1:ncld),DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ENDIF
+       iret = nf90_inq_varid(ncid0,'nc',VarID)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_ncloudp(:,:,:,:),DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ENDIF
+
+       ! Rain
+       iret = nf90_inq_varid(ncid0,'rr',VarID)
        IF (iret==NF90_NOERR) THEN
           zvar(:,:,:) = SUM(a_mprecpp(:,:,:,1:nprc),DIM=4)
           iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        ENDIF
+       iret = nf90_inq_varid(ncid0,'nr',VarID)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_nprecpp(:,:,:,:),DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ENDIF
 
-       ! Ice water mixing ratio
-       iret = nf90_inq_varid(ncid0,'i',VarID)
+       ! Ice
+       iret = nf90_inq_varid(ncid0,'ri',VarID)
        IF (iret==NF90_NOERR) THEN
           zvar(:,:,:) = SUM(a_micep(:,:,:,1:nice),DIM=4)
           iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        ENDIF
+       iret = nf90_inq_varid(ncid0,'ni',VarID)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_nicep(:,:,:,:),DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ENDIF
 
-       ! Snow water mixing ratio
-       iret = nf90_inq_varid(ncid0,'s',VarID)
+       ! Snow
+       iret = nf90_inq_varid(ncid0,'rs',VarID)
        IF (iret==NF90_NOERR) THEN
           zvar(:,:,:) = SUM(a_msnowp(:,:,:,1:nsnw),DIM=4)
           iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        ENDIF
-
+       iret = nf90_inq_varid(ncid0,'ns',VarID)
+       IF (iret==NF90_NOERR) THEN
+          zvar(:,:,:) = SUM(a_nsnowp(:,:,:,:),DIM=4)
+          iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
+       ENDIF
 
        !  All bin-dependent outputs are calculated here
 

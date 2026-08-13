@@ -5195,7 +5195,7 @@ CONTAINS
           L_c = q_cloud(i,j,k) !..Fluessigwassergehalt
           L_r = q_rain(i,j,k)  !..Fluessigwassergehalt
 
-          IF (L_c > 0.0.AND.L_r > 0.0) THEN
+          IF (L_c > eps .AND. L_r > eps) THEN
 
             !..Berechnung der Akkreszenzrate nach SB2001
             tau = MIN(MAX(1.0-L_c/(L_c+L_r+eps),eps),1.0)
@@ -5342,6 +5342,7 @@ CONTAINS
 
     !..Parameter fuer Beheng (1994)
     REAL, PARAMETER :: k_r = 6.00e+00   ! Parameter Kernel
+    REAL, PARAMETER :: eps = 1.00e-25
 
     !..Lokale Variablen
     INTEGER          :: i,j,k
@@ -5355,7 +5356,7 @@ CONTAINS
           L_c = q_cloud(i,j,k) !..Fluessigwassergehalt
           L_r = q_rain(i,j,k)  !..Fluessigwassergehalt
 
-          IF (L_c > 0.0.AND.L_r > 0.0) THEN
+          IF (L_c > eps .AND. L_r > eps) THEN
             !..Berechnung der Akkreszenzrate nach Beheng 1994
 
             ac = k_r *  L_c * L_r * dt
@@ -5423,6 +5424,7 @@ CONTAINS
 
     REAL, PARAMETER :: k_a = 5.32e+05
     !REAL, PARAMETER :: k_a = 6.70e+01
+    REAL, PARAMETER :: eps = 1.00e-25
 
     !..Lokale Variablen
     INTEGER          :: i,j,k
@@ -5436,7 +5438,7 @@ CONTAINS
           L_c = q_cloud(i,j,k) !..Fluessigwassergehalt
           L_r = q_rain(i,j,k)  !..Fluessigwassergehalt
 
-          IF (L_c > 0.0 .AND. L_r > 0.0) THEN
+          IF (L_c > eps .AND. L_r > eps) THEN
             ac  = k_a *  (L_c * L_r * 1e-6)**1.15 * dt * 1e3
 
             ac = MIN(L_c,ac)

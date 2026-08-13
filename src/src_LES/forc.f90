@@ -69,9 +69,7 @@ contains
           zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:) ! Liquid water mixing ratio - radiative effects
           znc(:,:,:) = a_rp(:,:,:) ! Total water mixing ratio - for determining inversion height
        ELSE
-          zrc(:,:,:) = SUM(a_maerop(:,:,:,1:nbins),DIM=4) + &
-                       SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) + &
-                       SUM(a_mprecpp(:,:,:,1:nprc),DIM=4) ! Aerosol, cloud and rain water
+          zrc(:,:,:) = a_rc(:,:,:) ! Aerosol, cloud and rain water
           znc(:,:,:) = a_rp(:,:,:) + zrc(:,:,:) ! Water vapor and liquid water, but no ice or snow
        ENDIF
        call new_gcss_rad(nzp, nxp, nyp, zrc, znc, a_rflx)

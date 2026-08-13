@@ -52,21 +52,20 @@ contains
 
     integer, intent (in) :: level
 
-    select case (level)
-    case (0)
+    if (level==0) then
        a_ri = a_rip + a_rsp + a_rgp + a_rhp ! Total ice+snow+graupel+hail
        call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp,a_ri,a_rsi)
-    case (1)
+    elseif (level==1) then
        call drythrm(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,   &
                     pi1,th00,a_rp,a_rv)
-    case (2)
+    elseif (level==2) then
        call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl)
-    case (3)
+    elseif (level==3) then
        call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp)
-    case (4:5)
+    else
        ! Update diagnostic variables: total liquid and ice
        a_rc(:,:,:) = SUM(a_maerop(:,:,:,1:nbins),DIM=4) + &
                      SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) + &
@@ -74,9 +73,9 @@ contains
        a_ri(:,:,:) = SUM(a_micep(:,:,:,1:nice),DIM=4) + &
                      SUM(a_msnowp(:,:,:,1:nsnw),DIM=4)
 
-       CALL SALSAthrm(level,nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_tp,a_theta, &
+       CALL prog_thrm(nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_tp,a_theta, &
                       a_temp,a_press,a_rsl,a_rc,a_ri,a_rsi)
-    end select
+    end if
 
     ! Air density
     a_dn(:,3:nxp-2,3:nyp-2) = a_press(:,3:nxp-2,3:nyp-2)/(Rd*a_temp(:,3:nxp-2,3:nyp-2))
@@ -106,19 +105,15 @@ contains
 
 !
 !----------------------------------------------------------------------
-! SALSAthrm: Calculates potential and absolute temperatures, pressure,
-!            and total cloud/rain water mixing ratios with microphysics
-!            provided by the SALSA model. NOTE, no saturation adjustment
-!            takes place -> the resulting water vapour mixing ratio
-!            can be supersaturated, allowing the microphysical calculations
-!            in SALSA.
+! prog_thrm: Calculates potential and absolute temperatures, pressure,
+!            and total cloud/rain water mixing ratios when water vapour
+!            mixing ratio is prognostic
 !
-
-  SUBROUTINE SALSAthrm(level,n1,n2,n3,pp,pi0,pi1,th00,tl,th,tk,p,rs,rc,ri,rsi)
+  SUBROUTINE prog_thrm(n1,n2,n3,pp,pi0,pi1,th00,tl,th,tk,p,rs,rc,ri,rsi)
     USE defs, ONLY : cp, cpr, p00, alvl, alvi
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: level,n1,n2,n3
+    INTEGER, INTENT(in) :: n1,n2,n3
     REAL, INTENT(in) :: pp(n1,n2,n3),pi0(n1),pi1(n1)
     REAL, INTENT(in) :: th00,tl(n1,n2,n3)
     REAL, INTENT(IN) :: rc(n1,n2,n3), ri(n1,n2,n3) ! Total liquid and ice mixing ratios
@@ -142,9 +137,7 @@ contains
 
              ! Potential and absolute temperatures
 
-             th(k,i,j) = thil + rc(k,i,j)*alvl/(cp*exner)
-
-             if(level==5) th(k,i,j) = th(k,i,j) + ri(k,i,j)*alvi/(cp*exner)
+             th(k,i,j) = thil + (rc(k,i,j)*alvl + ri(k,i,j)*alvi)/(cp*exner)
 
              tk(k,i,j) = th(k,i,j)*exner
 
@@ -156,7 +149,7 @@ contains
        END DO
     END DO
 
-  END SUBROUTINE SALSAthrm
+  END SUBROUTINE prog_thrm
 !
 ! -------------------------------------------------------------------------
 ! DRYTHRM:  this routine calculates theta, and pressure for

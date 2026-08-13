@@ -50,27 +50,29 @@ contains
   ! ---------------------------------------------------------------------
   ! MICRO: sets up call to microphysics
   !
-  subroutine micro(level)
+  subroutine micro(level,zrm)
     use mcrp_ice, only : micro_ice
     use stat, only : sflg, out_mcrp_data
     use grid, only : lev_sb,nzp,nxp,nyp,dtl,dzt,a_dn,a_theta,a_temp,a_rv, &
                   a_rsl, a_rc,CCN,a_rpp,a_npp,a_rp,a_rt,a_tt,a_rpt,a_npt, &
                   cldin,precip,sed_cloud,sed_precp
     integer, intent (in) :: level
+    logical, intent (in) :: zrm
 
-    select case (level)
-    case(0)
+    ! Reset microphysical outputs
+    if (sflg) out_mcrp_data(:,:,:,:) = 0.
+
+    if (zrm) then
+       ! Spin-up, do nothing
+    elseif (level==0) then
        ! Seifert and Beheng microphysics
        CALL micro_ice(lev_sb)
-    case(2)
-       IF (sflg) out_mcrp_data(:,:,:,:) = 0.
-       if (sed_cloud)  &
-            call sedim_cd(nzp,nxp,nyp,dtl,dzt,a_dn,a_theta,a_temp,a_rc,CCN,cldin,a_rt,a_tt)
-    case(3)
-       IF (sflg) out_mcrp_data(:,:,:,:) = 0.
+    elseif (level==2 .AND. sed_cloud) then
+       call sedim_cd(nzp,nxp,nyp,dtl,dzt,a_dn,a_theta,a_temp,a_rc,CCN,cldin,a_rt,a_tt)
+    elseif (level==3) then
        call mcrph(nzp,nxp,nyp,dtl,dzt,a_dn,a_theta,a_temp,a_rv,a_rsl,a_rc,CCN,a_rpp, &
                   a_npp,cldin,precip,a_rp,a_rt,a_tt,a_rpt,a_npt,sed_cloud,sed_precp)
-    end select
+    endif
 
   end subroutine micro
 
@@ -94,7 +96,7 @@ contains
     ! Microphysics following Seifert Beheng (2001, 2005)
 
     ! Diagnostics (ignoring/avoiding negative values, and changes in number due to minimum and maximum volumes)
-    if(sflg) CALL sb_var_stat('diag',2) ! Use rain concentrations
+    if(sflg) CALL sb_var_stat('diag',2) ! Use concentrations
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1
@@ -106,38 +108,39 @@ contains
     if(sflg) CALL sb_var_stat('diag',3) ! ... simple difference
 
     ! Condensation/evaporation
-    if(sflg) CALL sb_var_stat('cond',0) ! Use rain tendencies
+    if(sflg) CALL sb_var_stat('cond',0) ! Use tendencies
     call wtr_dff_SB(n1,n2,n3,dn,rp,np,rs,rv,tk,rpt,npt)
     if(sflg) CALL sb_var_stat('cond',1) ! ... simple difference
 
     ! Autoconversion
-    if(sflg) CALL sb_var_stat('auto',0) ! Use rain tendencies
+    if(sflg) CALL sb_var_stat('auto',0) ! Use tendencies
     call auto_SB(n1,n2,n3,dn,rc,ccn,rp,rpt,npt)
     if(sflg) CALL sb_var_stat('auto',1) ! ... simple difference
 
     ! Accretion - coagulation
-    if(sflg) CALL sb_var_stat('coag',0) ! Use rain tendenciess
+    if(sflg) CALL sb_var_stat('coag',0) ! Use tendenciess
     call accr_SB(n1,n2,n3,dn,rc,rp,np,rpt,npt)
     if(sflg) CALL sb_var_stat('coag',1) ! ... simple difference
 
     ! Apply tendencies
-    if(sflg) CALL sb_var_stat('diag',2) ! Use rain concentrations
+    rp(:,:,:) = rp(:,:,:) + rpt(:,:,:)*dtl
+    np(:,:,:) = np(:,:,:) + npt(:,:,:)*dtl
+    rpt(:,:,:)= 0.
+    npt(:,:,:)= 0.
+    ! Diagnostics
+    if(sflg) CALL sb_var_stat('diag',2) ! Use concentrations
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1-1
-             rp(k,i,j) = rp(k,i,j) + max(-rp(k,i,j)/dtl,rpt(k,i,j))*dtl
-             np(k,i,j) = np(k,i,j) + max(-np(k,i,j)/dtl,npt(k,i,j))*dtl
              rp(k,i,j) = max(0., rp(k,i,j))
              np(k,i,j) = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
           end do
        end do
     end do
-    if(sflg) CALL sb_var_stat('diag',4) ! ... the real change compared with the tendency
-    rpt(:,:,:)= 0.
-    npt(:,:,:)= 0.
+    if(sflg) CALL sb_var_stat('diag',3) ! ... simple difference
 
     ! Sedimentation
-    if(sflg) CALL sb_var_stat('sedi',0) ! Use rain and total water tendencies
+    if(sflg) CALL sb_var_stat('sedi',0) ! Use tendencies
     rrate(:,:,:)=0.
     if (sed_precp) call sedim_rd(n1,n2,n3,dtl,dzt,dn,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
 
@@ -189,9 +192,6 @@ contains
                 ELSEIF (flag==3) THEN
                     ! Calculate the change in absolute concentrations (divide by time step)
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (np(:,:,:) - tmp_nr(:,:,:))/dtl
-                ELSEIF (flag==4) THEN
-                    ! Compare the actual change in absolute concetration to the expected change
-                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (np(:,:,:) - tmp_nr(:,:,:))/dtl - npt(:,:,:)
                 ENDIF
             ELSEIF ( prefix//'_rr' == out_mcrp_list(i) ) THEN
                 ! Rain mixing ratio (a_rpt and a_rpp)
@@ -199,8 +199,6 @@ contains
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rpt(:,:,:) - tmp_rr(:,:,:))
                 ELSEIF (flag==3) THEN
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rp(:,:,:) - tmp_rr(:,:,:))/dtl
-                ELSEIF (flag==4) THEN
-                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rp(:,:,:) - tmp_rr(:,:,:))/dtl - rpt(:,:,:)
                 ENDIF
             ELSEIF ( prefix//'_rt' == out_mcrp_list(i) ) THEN
                 ! Total water (a_rt and a_rp)
@@ -208,8 +206,6 @@ contains
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rtt(:,:,:) - tmp_rt(:,:,:))
                 ELSEIF (flag==3) THEN
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rtp(:,:,:) - tmp_rt(:,:,:))/dtl
-                ELSEIF (flag==4) THEN
-                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rtp(:,:,:) - tmp_rt(:,:,:))/dtl - rtt(:,:,:)
                 ENDIF
             ELSEIF ( prefix//'_rc' == out_mcrp_list(i) ) THEN
                 ! Cloud water - diagnostic: when water vapor mixing ratio is constant, rc = const + rt - rr
@@ -217,7 +213,6 @@ contains
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rtt(:,:,:)-rpt(:,:,:) - (tmp_rt(:,:,:)-tmp_rr(:,:,:)))
                 ELSEIF (flag==3) THEN
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rtp(:,:,:)-rp(:,:,:) - (tmp_rt(:,:,:)-tmp_rr(:,:,:)))/dtl
-                ELSEIF (flag==4) THEN
                 ENDIF
             ENDIF
         ENDDO

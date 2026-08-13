@@ -415,6 +415,9 @@ contains
     case('h','rh')
        if (itype==0) ncinfo = 'Hail water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
+    case('nc')
+       if (itype==0) ncinfo = 'Cloud droplet number mixing ratio'
+       if (itype==1) ncinfo = '#/kg'
     case('n','nr')
        if (itype==0) ncinfo = 'Rain-drop number mixing ratio'
        if (itype==1) ncinfo = '#/kg'

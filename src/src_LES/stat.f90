@@ -763,7 +763,7 @@ contains
     SELECT CASE(level)
        CASE (0,3)
           rxt = a_rp ! Total water (vapor + condensed water and ice) = q
-          rxl = a_rc ! Cloud water (+aerosol), but no precipitation or ice
+          rxl = a_rc ! Cloud water
           rxv = a_rv ! Water vapor
           xrpp = a_rpp ! Rain water
           xnpp = a_npp ! Rain number
@@ -794,8 +794,11 @@ contains
     END SELECT
 
     ! CDNC
-    rnt = CCN
-    IF (level>3) rnt = SUM(a_ncloudp,DIM=4)
+    IF (level>3) THEN
+        rnt = SUM(a_ncloudp,DIM=4)
+    ELSE
+        rnt = CCN
+    ENDIF
 
     ! Cloud and rain masks
     IF (level<4) THEN
@@ -1770,6 +1773,7 @@ contains
   ! Outputs are calculated here to array user_ts_data(nv1_user).
   subroutine ts_user_stats()
     use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_temp, &
+        a_rsl, a_rv, &
         a_rflx, a_sflx, a_fuir, a_fdir
     INTEGER :: i
     REAL :: a(nzp,nxp,nyp), a1
@@ -1784,6 +1788,12 @@ contains
             ELSE
                 user_ts_data(i) = -999.
             ENDIF
+        CASE ('SS_max')
+            ! Maximum supersaturation
+            a=0.
+            WHERE(a_rsl>1e-10) a=a_rv/a_rsl
+            a1 = (MAXVAL(a)-1.0)*100.0
+            user_ts_data(i) = get_pustat_scalar('max',a1)
         CASE ('T_min')
             ! Minimum absolute temperature (K)
             a1=MINVAL(a_temp(:,3:nxp-2,3:nyp-2))

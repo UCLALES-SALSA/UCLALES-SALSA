@@ -155,6 +155,8 @@ contains
 
     xtime = time/86400. + strtim
 
+    zrm = time < Tspinup
+
     ! Reset ALL tendencies here.
     !----------------------------------------------------------------
     ! "Scalar" timestep
@@ -194,9 +196,6 @@ contains
         call update_sclrs
         CALL tend0(.TRUE.)
 
-        ! The runmode parameter zrm is used by SALSA only
-        zrm = time < Tspinup
-
         CALL run_SALSA(nxp,nyp,nzp,nspt,nbins,ncld,nprc,nice,nsnw, &
                   a_press,a_temp,a_rp,a_rt,a_rsl,a_rsi,a_dn,a_edr, &
                   a_naerop,  a_naerot,  a_maerop,  a_maerot,   &
@@ -220,12 +219,11 @@ contains
         ! Sedimentation (not during spinup)
         IF (time >= Tspinup) CALL sedim_SALSA
         IF (sflg) CALL les_rate_stats('sedi')
-    ELSEIF (time >= Tspinup) THEN
-        ! Don't perform level 3 microphysics during spinup
+    ELSE
         call update_sclrs
         CALL tend0(.TRUE.)
 
-        CALL micro(level)
+        CALL micro(level,zrm)
 
         IF (sflg) CALL les_rate_stats('mcrp')
 
