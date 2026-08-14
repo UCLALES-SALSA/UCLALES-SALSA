@@ -47,24 +47,48 @@ contains
          a_rsl, a_rp, a_tp, nxp, nyp, nzp, th00, pi0, pi1,a_rpp,   &
          a_maerop, a_mcloudp, a_mprecpp, a_micep, a_msnowp, &
          nbins, ncld, nprc, nice, nsnw, &
-         a_ri, a_rsi, a_dn, a_rip, a_rsp, a_rgp, a_rhp
+         a_ri, a_rsi, a_dn, a_rip, a_rsp, a_rgp, a_rhp, &
+         prog_cloud, a_rcp, a_ncp, CCN
     USE defs, ONLY : Rd
 
     integer, intent (in) :: level
 
-    if (level==0) then
+    if (level<4 .AND. prog_cloud) then
+        ! Prognostic cloud
+        ! Update diagnostic variables: total liquid and ice
+        a_rc = a_rcp + a_rpp
+        IF (level==0) a_ri = a_rip + a_rsp + a_rgp + a_rhp
+        CALL prog_thrm(nzp,nxp,nyp,a_pexnr,pi0,pi1,th00,a_tp,a_theta, &
+                      a_temp,a_press,a_rsl,a_rc,a_ri,a_rsi)
+        ! Water vapor
+        a_rv = a_rp - a_rc - a_ri
+        ! For SB, a_rc is just cloud water
+        a_rc = a_rcp
+    elseif (level==0) then
        a_ri = a_rip + a_rsp + a_rgp + a_rhp ! Total ice+snow+graupel+hail
        call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp,a_ri,a_rsi)
+       ! Cloud water and fixed CDNC
+       a_rcp = a_rc
+       a_ncp = 0.0
+       where (a_rcp>0.0) a_ncp = CCN
     elseif (level==1) then
        call drythrm(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,   &
                     pi1,th00,a_rp,a_rv)
     elseif (level==2) then
        call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl)
+       ! Cloud water and fixed CDNC
+       a_rcp = a_rc
+       a_ncp = 0.0
+       where (a_rcp>0.0) a_ncp = CCN
     elseif (level==3) then
        call satadjst(nzp,nxp,nyp,a_pexnr,a_press,a_tp,a_theta,a_temp,pi0,  &
                      pi1,th00,a_rp,a_rv,a_rc,a_rsl,a_rpp)
+       ! Cloud water and fixed CDNC
+       a_rcp = a_rc
+       a_ncp = 0.0
+       where (a_rcp>0.0) a_ncp = CCN
     else
        ! Update diagnostic variables: total liquid and ice
        a_rc(:,:,:) = SUM(a_maerop(:,:,:,1:nbins),DIM=4) + &

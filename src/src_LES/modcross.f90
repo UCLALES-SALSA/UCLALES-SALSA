@@ -257,7 +257,7 @@ contains
     use grid, only : level, nxp, nyp, nzp, dzm, dzt, a_up, a_vp, a_wp, umean, vmean, & 
         a_press, a_qp, a_theta, a_temp, a_tp, a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, &
         a_rv, a_rsl, a_rsi, a_rp, a_rc, a_ri, a_ap, &
-        ccn, a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, & ! SB microphysics
+        a_ncp, a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, & ! SB microphysics
         a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, & ! SALSA
         ncld, nprc, nice, nsnw
     USE defs, ONLY : cp, alvi
@@ -382,7 +382,7 @@ contains
         ENDIF
       case('nc') ! CDNC
         IF (level<4) THEN
-            interp = CCN
+            interp = a_ncp
         ELSE
             interp = SUM(a_ncloudp,DIM=4)
         ENDIF

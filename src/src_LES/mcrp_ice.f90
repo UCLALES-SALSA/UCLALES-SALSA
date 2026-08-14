@@ -130,7 +130,8 @@ contains
   !
   subroutine micro_ice(level)
     use grid, only : nxp, nyp, nzp, a_theta, &
-       a_rv, a_rc, a_temp, a_rsl, a_edr, a_rsi, a_dn, a_ap, naddsc, &
+       a_rv, a_temp, a_rsl, a_edr, a_rsi, a_dn, a_ap, naddsc, &
+       a_rc, a_ncp, a_rct, a_nct, &
        a_rt, a_tt,a_rpp, a_rpt, a_npp, a_npt,  &
        a_rip, a_rit, a_nip, a_nit, & ! ice mass and number mixing ratio
        a_rsp, a_rst, a_nsp, a_nst, & ! snow
@@ -152,23 +153,23 @@ contains
     case(2)
        ! Cloud droplets only
        if (sed_cloud) then
-          call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+          call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,a_ncp,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip)
        end if
     case(3)
        ! Warm cloud: autoconversion (1), accretion (2), evaporation (3), and sedimentation (4-5)
-       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,a_ncp,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip)
     case(4,5)
        ! Mixed-phase cloud: ice nucleation (6-7), freezing (8), condensation/deposition (9),
        ! melting (10-12), sedimentation (13), and collisions (14-23)
-       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,a_ncp,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip,a_rsi,a_rit,a_nit,a_rst,a_nst,a_rgt,a_ngt,a_rip,a_nip, &
             a_rsp,a_nsp,a_rgp,a_ngp, icein, snowin, grin)
     case(6)
-       call mcrph_sb(nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rsi,a_rv,a_rc, &
-            a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, &
-            a_rpt, a_npt, a_rit, a_nit, a_rst, a_nst, a_rgt, a_ngt, a_rht, a_nht, &
+       call mcrph_sb(nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rsi,a_rv, &
+            a_rc,  a_ncp, a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, &
+            a_rct, a_nct, a_rpt, a_npt, a_rit, a_nit, a_rst, a_nst, a_rgt, a_ngt, a_rht, a_nht, &
             cldin, precip, icein, snowin, grin, hailin, sed_cloud, sed_precp, sed_ice, &
             a_ap, naddsc)
    end select
@@ -179,7 +180,7 @@ contains
   ! MCRPH: calls microphysical parameterization
   !
 
-  subroutine mcrph(level,n1,n2,n3,dn,th,tlt,rtt,tk,vapor,rsat,rcld,prc_c, &
+  subroutine mcrph(level,n1,n2,n3,dn,th,tlt,rtt,tk,vapor,rsat,rcld,ncld,prc_c, &
        rp,np,rpt,npt,dissip,prc_r,rsati, ricet,nicet,rsnowt,nsnowt,rgrpt,ngrpt, &
        ricep,nicep,rsnowp,nsnowp,rgrpp,ngrpp, prc_i, prc_s, prc_g)
 
@@ -189,7 +190,7 @@ contains
          tlt, &  ! ice-liquid water potential temperature tendency
          rtt, &  ! total water tendency
          rsat, & ! saturation mixing ratio
-         vapor, rcld, &       ! water vapor and cloud water mixing ratios (diagnostic)
+         vapor, rcld, ncld, & ! water vapor and cloud water mixing ratios (diagnostic)
          th, dn, dissip, &    ! potential temperature, air density and dissipation rate
          prc_c, prc_r, &      ! cloud and rain water precipitation rates
          np, rp, npt, rpt     ! rain drop number and rain water mixing ratio, and their tendencies
@@ -210,7 +211,7 @@ contains
        do i=3,n2-2
           ! Adjust the original concentrations
           if (sflg) CALL sb_var_stat() ! Reset statistics
-          call resetvar(cldw,rcld(1:n1,i,j))
+          call resetvar(cldw,rcld(1:n1,i,j),ncld(1:n1,i,j))
           call resetvar(rain,rp(1:n1,i,j),np(1:n1,i,j))
           if (level >= 4) then
              call resetvar(ice,ricep(1:n1,i,j),nicep(1:n1,i,j))
@@ -224,7 +225,7 @@ contains
           dn0 = dn(1:n1,i,j)
           temp = tk(1:n1,i,j)
           rv = vapor(1:n1,i,j)
-          nc = CCN
+          nc = ncld(1:n1,i,j)
           rc = rcld(1:n1,i,j)
           rs = rsat(1:n1,i,j)
           rrain = rp(1:n1,i,j)
@@ -366,7 +367,7 @@ contains
              if (sflg) CALL sb_var_stat(microseq(n)) ! Collect statistics
              ! Adjust concentrations
              if (sflg) CALL sb_var_stat() ! Reset statistics
-             if (adj_cldw) call resetvar(cldw,rc)
+             if (adj_cldw) call resetvar(cldw,rc,nc)
              if (adj_rain) call resetvar(rain,rrain,nrain)
              if (adj_ice)  call resetvar(ice,rice,nice)
              if (adj_snow) call resetvar(snow,rsnow,nsnow)
@@ -2308,9 +2309,10 @@ contains
   !
   !==============================================================================
 
-  SUBROUTINE mcrph_sb(ke,je,ie,dn0,th,tlt,rtt,tk,rsi,qvin,qcin, &
-       qrin, qnrin, qiin, qniin, qsin, qnsin, qgin, qngin, qhin, qnhin,  &
-       qrtend, qnrtend, qitend, qnitend, qstend, qnstend, qgtend, qngtend, qhtend, qnhtend, &
+  SUBROUTINE mcrph_sb(ke,je,ie,dn0,th,tlt,rtt,tk,rsi,qvin, &
+       qcin, qncin, qrin, qnrin, qiin, qniin, qsin, qnsin, qgin, qngin, qhin, qnhin,  &
+       qctend, qnctend, qrtend, qnrtend, qitend, qnitend, qstend, qnstend, qgtend, &
+       qngtend, qhtend, qnhtend, &
        prec_c, prec_r, prec_i, prec_s, prec_g, prec_h, sed_cloud, sed_precp, sed_ice, &
        adds, nadds)
 
@@ -2340,11 +2342,11 @@ contains
          rsi
 
     real, dimension(ke,je,ie), intent (in) ::  &
-         qvin,qcin,qrin,qnrin,qiin,qniin,qsin,qnsin,qgin,qngin,qhin,qnhin
+         qvin,qcin,qncin,qrin,qnrin,qiin,qniin,qsin,qnsin,qgin,qngin,qhin,qnhin
 
     real, dimension(ke,je,ie), intent (inout) ::  &
          tlt, rtt,   & ! tendency of liquid water potential temperature and total water
-         qrtend,qnrtend,qitend,qnitend,qstend,qnstend,qgtend,qngtend,qhtend,qnhtend
+         qctend,qnctend,qrtend,qnrtend,qitend,qnitend,qstend,qnstend,qgtend,qngtend,qhtend,qnhtend
 
     real, dimension(ke,je,ie), intent (out) :: &
          prec_c, prec_r, prec_i, prec_s, prec_g, prec_h
@@ -2394,7 +2396,7 @@ contains
     qs = qsin
     qg = qgin
     qh = qhin
-    qnc = ccn ! Input only (diagnostic)
+    qnc = qncin
     qnr = qnrin
     qni = qniin
     qns = qnsin
@@ -2593,12 +2595,14 @@ contains
     DO i=3,ie-2
        DO j=3,je-2
           DO k=2,ke-1
+             qctend(k,j,i)  = max(qctend(k,j,i) + (qc(k,j,i) - qcin(k,j,i))/dt,-qcin(k,j,i)/dt)
              qrtend(k,j,i)  = max(qrtend(k,j,i) + (qr(k,j,i) - qrin(k,j,i))/dt,-qrin(k,j,i)/dt)
              qitend(k,j,i)  = max(qitend(k,j,i) + (qi(k,j,i) - qiin(k,j,i))/dt,-qiin(k,j,i)/dt)
              qstend(k,j,i)  = max(qstend(k,j,i) + (qs(k,j,i) - qsin(k,j,i))/dt,-qsin(k,j,i)/dt)
              qgtend(k,j,i)  = max(qgtend(k,j,i) + (qg(k,j,i) - qgin(k,j,i))/dt,-qgin(k,j,i)/dt)
              qhtend(k,j,i)  = max(qhtend(k,j,i) + (qh(k,j,i) - qhin(k,j,i))/dt,-qhin(k,j,i)/dt)
 
+             qnctend(k,j,i) = qnctend(k,j,i) + (qnc(k,j,i) - qncin(k,j,i))/dt
              qnrtend(k,j,i) = qnrtend(k,j,i) + (qnr(k,j,i) - qnrin(k,j,i))/dt
              qnitend(k,j,i) = qnitend(k,j,i) + (qni(k,j,i) - qniin(k,j,i))/dt
              qnstend(k,j,i) = qnstend(k,j,i) + (qns(k,j,i) - qnsin(k,j,i))/dt

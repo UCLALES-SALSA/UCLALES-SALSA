@@ -5324,6 +5324,7 @@ CONTAINS
             n_rain(i,j,k)  = n_rain(i,j,k)  + au / x_s * 2.0
             q_rain(i,j,k)  = q_rain(i,j,k)  + au
             q_cloud(i,j,k) = q_cloud(i,j,k) - au
+            n_cloud(i,j,k) = n_cloud(i,j,k) - au / x_c
 
           ENDIF
         END DO
@@ -5364,6 +5365,7 @@ CONTAINS
             ac = MIN(L_c,ac)
 
             q_rain(i,j,k)  = q_rain(i,j,k)  + ac
+            n_cloud(i,j,k) = n_cloud(i,j,k) - ac*n_cloud(i,j,k)/q_cloud(i,j,k)
             q_cloud(i,j,k) = q_cloud(i,j,k) - ac
           ENDIF
         END DO
@@ -5405,6 +5407,7 @@ CONTAINS
 
             n_rain(i,j,k)  = n_rain(i,j,k)  + au / x_s * 2.0
             q_rain(i,j,k)  = q_rain(i,j,k)  + au
+            n_cloud(i,j,k) = n_cloud(i,j,k) - au*n_cloud(i,j,k)/q_cloud(i,j,k)
             q_cloud(i,j,k) = q_cloud(i,j,k) - au
 
           ENDIF
@@ -5444,6 +5447,7 @@ CONTAINS
             ac = MIN(L_c,ac)
 
             q_rain(i,j,k)  = q_rain(i,j,k)  + ac
+            n_cloud(i,j,k) = n_cloud(i,j,k) - ac*n_cloud(i,j,k)/q_cloud(i,j,k)
             q_cloud(i,j,k) = q_cloud(i,j,k) - ac
           ENDIF
         END DO

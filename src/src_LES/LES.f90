@@ -96,6 +96,7 @@ contains
     use grid, only : deltaz, deltay, deltax, nzp, nyp, nxp, nxpart, &
          dtlong, dzrat,dzmax, th00, umean, vmean, isgstyp, naddsc, addscnme, level, lev_sb, &
          filprf, expnme, iradtyp, igrdtyp, nfpt, distim, spongeinit, runtype, CCN, &
+         prog_cloud, ntot, dpg, sigmag, kappa, &
          Tspinup, sst, sed_aero, sed_cloud, sed_precp, sed_ice, &
          nudge_theta, nudge_theta_time, nudge_theta_zmin, nudge_theta_zmax, nudge_theta_tau, &
          nudge_rv, nudge_rv_time, nudge_rv_zmin, nudge_rv_zmax, nudge_rv_tau,  &
@@ -131,6 +132,7 @@ contains
          nfpt   , distim , & ! rayleigh friction points, dissipation time
          spongeinit      , & ! sponge back to initial profile or bulk values
          level  , lev_sb, CCN, & ! Microphysical model, Number of CCN per kg of air
+         prog_cloud, ntot, dpg, sigmag, kappa, & ! Aerosol description for prognostic clouds
          iseed  , zrand  , zrndamp, zrndampq, zrandnorm, zrandopt, & ! random seed
          nxp    , nyp    , nzp   ,  & ! number of x, y, z points
          deltax , deltay , deltaz , & ! delta x, y, z (meters)

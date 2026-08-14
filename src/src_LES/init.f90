@@ -109,6 +109,7 @@ contains
     use grid, only : level, isgstyp, nzp, nxp, nyp, nxyzp, a_up, a_vp, a_wp, &
                      a_uc, a_vc, a_wc, a_tp, a_rp, a_rv, a_theta, a_pexnr, &
                      a_qp, a_ustar, a_rc, pi0, pi1, u0, v0, rt0, th0, th00, zt, &
+                     a_rcp, a_ncp, ccn, &
                      zrand, zrndamp, zrndampq, zrandnorm, zrandopt
     use defs, only : alvl, cpr, cp, p00
     use sgsm, only : tkeinit
@@ -151,6 +152,8 @@ contains
                          rc  = max(0.,a_rp(k,i,j)-rslf(pres,tk))
                          a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
                          a_rv(k,i,j) = a_rp(k,i,j)-rc
+                         a_rcp(k,i,j) = rc
+                         if (rc>1e-10) a_ncp(k,i,j) = ccn ! Initial value
                       end if
                       if (itsflg == 2) then
                          tk    = th0(k)
@@ -158,6 +161,8 @@ contains
                          rc  = max(0.,a_rp(k,i,j)-rslf(pres,tk))
                          a_tp(k,i,j) = a_theta(k,i,j)*exp(-(alvl/cp)*rc/tk) - th00
                          a_rv(k,i,j) = a_rp(k,i,j)-rc
+                         a_rcp(k,i,j) = rc
+                         if (rc>1e-10) a_ncp(k,i,j) = ccn
                       end if
                    end do
                 end do

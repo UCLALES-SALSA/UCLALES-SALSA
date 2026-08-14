@@ -751,7 +751,7 @@ contains
     use mo_submctl, only : nlim, prlim
     use grid, only : a_up, a_vp, a_wp, a_rc, a_theta, a_temp, a_rv, a_rp, a_tp, a_press, &
          nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean, vmean, dn0, a_dn, cldin, precip,  &
-         a_rpp, a_npp, CCN, iradtyp, a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir,       &
+         a_rpp, a_npp, a_ncp, iradtyp, a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir,     &
          albedo, a_ri, a_ncloudp, a_mcloudp, ncld, a_mprecpp, a_nprecpp, nprc
     USE defs, ONLY : cp, alvi
 
@@ -797,7 +797,7 @@ contains
     IF (level>3) THEN
         rnt = SUM(a_ncloudp,DIM=4)
     ELSE
-        rnt = CCN
+        rnt = a_ncp
     ENDIF
 
     ! Cloud and rain masks
@@ -3366,7 +3366,7 @@ contains
   !
   ! The same for SB microphysics
   LOGICAL FUNCTION calc_user_data_SB(short_name,res,mask,is_mass)
-    use grid, ONLY : nzp,nxp,nyp, CCN, a_rc, a_npp, a_rpp, a_nip, a_rip, &
+    use grid, ONLY : nzp,nxp,nyp, a_ncp, a_rcp, a_npp, a_rpp, a_nip, a_rip, &
         a_nsp, a_rsp, a_ngp, a_rgp, a_nhp, a_rhp
     CHARACTER(LEN=7), INTENT(IN) :: short_name ! Variable name
     REAL, INTENT(out) :: res(nzp,nxp,nyp)      ! Output data
@@ -3420,15 +3420,11 @@ contains
     SELECT case (short_name(i-1:i))
     CASE('ct')
         IF (numc) THEN
-            WHERE (cloudmask)
-                res=CCN
-            ELSEWHERE
-                res=0.
-            END WHERE
+            res(:,:,:)=a_ncp(:,:,:)
         ELSEIF (mass) THEN
-            res(:,:,:)=a_rc(:,:,:)
+            res(:,:,:)=a_rcp(:,:,:)
         ELSE
-            CALL getSBradius(nzp,nxp,nyp,a_nip,a_rip,-1,res)
+            CALL getSBradius(nzp,nxp,nyp,a_ncp,a_rcp,-1,res)
             ! Mean radius not defined (arbitarily set to zero) when there are no particles, so these must be ignored
             WHERE(res<1e-20) mask=.FALSE.
         ENDIF
@@ -3511,8 +3507,8 @@ contains
   ! b) LES is has data (tendencies) for outputs (several function calls from t_step in step.f90)
   SUBROUTINE les_rate_stats(prefix)
     USE grid, ONLY : out_an_list, nxp, nyp, nzp, level, &
-                     a_tt, a_rt, a_rpt, a_npt, a_rit, a_nit, a_rst, a_nst, &
-                     a_rgt, a_ngt, a_rht, a_nht
+                     a_tt, a_rt, a_rct, a_nct, a_rpt, a_npt, a_rit, a_nit, &
+                     a_rst, a_nst, a_rgt, a_ngt, a_rht, a_nht
     use defs, only : cp
     IMPLICIT NONE
     ! Input
@@ -3528,7 +3524,10 @@ contains
     ! Concentrations
     IF (level==0) THEN
         ! Level 0: total water (a_rt), rain, ice, snow, graupel and hail
+        ! Prognostic clouds are possible
         CALL scalar_rate_stat(prefix//'_rt',nzp,nxp,nyp,a_rt)
+        CALL scalar_rate_stat(prefix//'_nc',nzp,nxp,nyp,a_nct)
+        CALL scalar_rate_stat(prefix//'_rc',nzp,nxp,nyp,a_rct)
         CALL scalar_rate_stat(prefix//'_nr',nzp,nxp,nyp,a_npt)
         CALL scalar_rate_stat(prefix//'_rr',nzp,nxp,nyp,a_rpt)
         CALL scalar_rate_stat(prefix//'_ni',nzp,nxp,nyp,a_nit)
@@ -3541,7 +3540,10 @@ contains
         CALL scalar_rate_stat(prefix//'_rh',nzp,nxp,nyp,a_rht)
     ELSEIF (level<=3) THEN
         ! Level 3: total water (a_rt) and rain water mass and droplet number
+        ! Prognostic clouds are possible
         CALL scalar_rate_stat(prefix//'_rt',nzp,nxp,nyp,a_rt)
+        CALL scalar_rate_stat(prefix//'_nc',nzp,nxp,nyp,a_nct)
+        CALL scalar_rate_stat(prefix//'_rc',nzp,nxp,nyp,a_rct)
         CALL scalar_rate_stat(prefix//'_nr',nzp,nxp,nyp,a_npt)
         CALL scalar_rate_stat(prefix//'_rr',nzp,nxp,nyp,a_rpt)
     ELSEIF (level>=4) THEN

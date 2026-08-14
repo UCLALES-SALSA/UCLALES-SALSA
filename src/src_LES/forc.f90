@@ -42,7 +42,7 @@ contains
   subroutine forcings(time_in, cntlat, sst)
 
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, a_dn, iradtyp, pi0, pi1, level, &
-         a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp, a_rv, a_rc, CCN, &
+         a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp, a_rv, a_rc, a_ncp, &
          a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, a_maerop, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
          nbins, ncld, nice, nprc, nsnw, a_fus, a_fds, a_fuir, a_fdir
@@ -82,13 +82,13 @@ contains
           IF (RadPrecipBins==0) THEN
              ! Separate cloud and rain
              zrc = a_rc
-             znc = CCN
+             znc = a_ncp
              zrr = a_rpp
           ELSE
              ! Combined liquid
              zrc = a_rc + a_rpp
              znc = a_npp
-             WHERE (a_rc>0.) znc = znc + CCN
+             WHERE (a_rc>0.) znc = znc + a_ncp
              zrr = 0.
           ENDIF
           ! Ice and graupel (+snow and hail)
@@ -140,13 +140,13 @@ contains
           IF (level == 3 .AND. RadPrecipBins == 0) THEN
              ! Separate cloud and rain
              zrc = a_rc
-             znc = CCN
+             znc = a_ncp
              zrr = a_rpp
           ELSE
              ! Combined liquid
              zrc = a_rc + a_rpp
              znc = a_npp
-             WHERE (a_rc>0.) znc = znc + CCN
+             WHERE (a_rc>0.) znc = znc + a_ncp
              zrr = 0.
           ENDIF
           call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
