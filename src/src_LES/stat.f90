@@ -188,7 +188,7 @@ module stat
   INTEGER :: nwbins = 0
 
   public :: sflg, ssam_intvl, savg_intvl, statistics, init_stat, write_ps,   &
-       updtst, close_stat, fill_scalar, fill_scalar_2d, &
+       updtst, close_stat, fill_scalar, fill_scalar_2d, calc_user_data, &
        tke_sgs, sgsflxs, comp_tke, SALSA_precip_stats, csflg, cs_start, cswrite, &
        les_rate_stats, mcrp_var_save, out_cs_list, out_ps_list, out_ts_list, &
        cs_include, cs_exclude, ps_include, ps_exclude, ts_include, ts_exclude, &
@@ -207,7 +207,7 @@ contains
     use grid, only : nxp, nyp, nprc, nsnw, nspt, iradtyp, &
         no_b_bins, no_prog_prc, no_prog_ice, no_prog_snw, &
         sed_aero, sed_cloud, sed_precp, sed_ice, out_an_list, nv4_proc, &
-        user_an_list, nv4_user, ifSeaSpray, ifSeaVOC
+        out_an_data, user_an_list, nv4_user, ifSeaSpray, ifSeaVOC
     use mpi_interface, only : myid
     use mo_submctl, only : fn1a,fn2a,fnp2a,nout_cld,nout_ice,zspec
 
@@ -265,6 +265,8 @@ contains
     ! Allocate data arrays (analysis data located in module grid)
     ALLOCATE ( out_cs_data(nxp,nyp,nv3_proc), out_ps_data(nzp,nv2_proc), out_ts_data(nv1_proc) )
     out_cs_data(:,:,:) = 0.; out_ps_data(:,:) = 0.; out_ts_data(:) = 0.
+    IF (.NOT.ALLOCATED(out_an_data)) ALLOCATE ( out_an_data(nzp,nxp,nyp,nv4_proc) )
+    out_an_data(:,:,:,:) = 0.
     ! Find those process rate outputs that require raw 3D data from microphysics (SALSA or S&B)
     out_mcrp_nout=0
     CALL add_mcrp_list(out_mcrp_nout,out_mcrp_list,out_ts_list,maxn_list)
@@ -521,6 +523,7 @@ contains
             IF (nv2_bin>0) THEN
                 i=SUM(nv2_bin_len(1:nv2_bin))
                 ALLOCATE(svctr_bin(nzp,i))
+                svctr_bin(:,:)=0.0
             ENDIF
         ENDIF
 
@@ -534,7 +537,7 @@ contains
 
     if (myid == 0) THEN
         fname =  trim(filprf)//'.ts'
-        print "(//' ',49('-')/,' ',/,'  Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(s1bool)
+        print "(//' ',49('-')/,' ',/,'  Initializing: ',A26,'  N=',I3)",trim(fname),COUNT(s1bool)
         call open_nc( fname, expnme, time, ncid1, nrec1, par=.FALSE.)
         call define_nc( ncid1, nrec1, COUNT(s1bool), PACK(s1Total,s1bool), nwhist=nwbins)
         print *, '   ...starting record: ', nrec1
@@ -542,7 +545,7 @@ contains
 
     if (myid == 0) then
         fname =  trim(filprf)//'.ps'
-        print "(//' ',49('-')/,' ',/,'  Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(s2bool)
+        print "(//' ',49('-')/,' ',/,'  Initializing: ',A26,'  N=',I3)",trim(fname),COUNT(s2bool)
         call open_nc( fname, expnme, time, ncid2, nrec2, par=.FALSE.)
         IF (level<4) THEN
             call define_nc( ncid2, nrec2, COUNT(s2bool), PACK(s2Total,s2bool), n1=nzp, nwhist=nwbins)
@@ -622,7 +625,7 @@ contains
 
         fname =  trim(filprf)//'.cs'
         if(myid == 0) print                                                  &
-            "(//' ',49('-')/,' ',/,'  Initializing: ',A20,'  N=',I3)",trim(fname),COUNT(s1bool)
+            "(//' ',49('-')/,' ',/,'  Initializing: ',A26,'  N=',I3)",trim(fname),COUNT(s1bool)
         call open_nc( fname, expnme, time, ncid3, nrec3)
         call define_nc( ncid3, nrec3, COUNT(s1bool), PACK(s1Total,s1bool), n2=nxp-4, n3=nyp-4)
         if (myid == 0) print *, '   ...starting record: ', nrec3
@@ -690,7 +693,7 @@ contains
             ! Do not include LES items (any prefix used in the calls from t_step/step.f90)
             short=add(i)(1:4)
             IF (short=='srfc' .OR. short=='diff' .OR. short=='forc' .OR. short=='mcrp' .OR. &
-                short=='advf' .OR. short=='nudg' .OR. (level>3 .AND. (short=='diag' .OR. short=='sedi')) ) CYCLE
+                short=='advf' .OR. short=='nudg' .OR. (level>3 .AND. short=='sedi') ) CYCLE
             ! Check that there are no duplicates
             dupl=.FALSE.
             DO k=1,j
@@ -748,7 +751,7 @@ contains
     use mo_submctl, only : nlim, prlim
     use grid, only : a_up, a_vp, a_wp, a_rc, a_theta, a_temp, a_rv, a_rp, a_tp, a_press, &
          nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean, vmean, dn0, a_dn, cldin, precip,  &
-         a_rpp, a_npp, CCN, iradtyp, a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir,       &
+         a_rpp, a_npp, a_ncp, iradtyp, a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir,     &
          albedo, a_ri, a_ncloudp, a_mcloudp, ncld, a_mprecpp, a_nprecpp, nprc
     USE defs, ONLY : cp, alvi
 
@@ -760,7 +763,7 @@ contains
     SELECT CASE(level)
        CASE (0,3)
           rxt = a_rp ! Total water (vapor + condensed water and ice) = q
-          rxl = a_rc ! Cloud water (+aerosol), but no precipitation or ice
+          rxl = a_rc ! Cloud water
           rxv = a_rv ! Water vapor
           xrpp = a_rpp ! Rain water
           xnpp = a_npp ! Rain number
@@ -791,9 +794,11 @@ contains
     END SELECT
 
     ! CDNC
-    rnt = CCN
-    WHERE(rxl>0.) rnt = CCN/a_dn ! COMBLE: concentration in #/m3
-    IF (level>3) rnt = SUM(a_ncloudp,DIM=4)
+    IF (level>3) THEN
+        rnt = SUM(a_ncloudp,DIM=4)
+    ELSE
+        rnt = a_ncp
+    ENDIF
 
     ! Cloud and rain masks
     IF (level<4) THEN
@@ -1552,10 +1557,10 @@ contains
     ENDIF
 
     ! Fraction of columns with positive cloud base velocity
-    ssclr(39) = get_pustat_scalar('sum',npos/REAL((n3-4)*(n2-4)))
+    ssclr(39) = get_pustat_scalar('avg',npos/REAL((n3-4)*(n2-4)))
     IF (ssclr(39)>0.) THEN
         ssclr(37) = get_pustat_scalar('avg',wpos,npos)
-        ssclr(38) = get_pustat_scalar('avg',w2pos,npos)
+        ssclr(38) = get_pustat_scalar('avg',w2pos,npos)/ssclr(37) ! sum(w**2)/sum(w)
     ELSE
         ssclr(37) = -999.
         ssclr(38) = -999.
@@ -1768,6 +1773,7 @@ contains
   ! Outputs are calculated here to array user_ts_data(nv1_user).
   subroutine ts_user_stats()
     use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_temp, &
+        a_rsl, a_rv, &
         a_rflx, a_sflx, a_fuir, a_fdir
     INTEGER :: i
     REAL :: a(nzp,nxp,nyp), a1
@@ -1782,6 +1788,12 @@ contains
             ELSE
                 user_ts_data(i) = -999.
             ENDIF
+        CASE ('SS_max')
+            ! Maximum supersaturation
+            a=0.
+            WHERE(a_rsl>1e-10) a=a_rv/a_rsl
+            a1 = (MAXVAL(a)-1.0)*100.0
+            user_ts_data(i) = get_pustat_scalar('max',a1)
         CASE ('T_min')
             ! Minimum absolute temperature (K)
             a1=MINVAL(a_temp(:,3:nxp-2,3:nyp-2))
@@ -1896,7 +1908,7 @@ contains
     real, optional, intent (in) :: sup(n1+1,n2,n3), sdwn(n1+1,n2,n3), irup(n1+1,n2,n3), irdwn(n1+1,n2,n3)
 
     integer :: k
-    real    :: a1(n1),a2(n1),a3(n1+1)
+    real    :: a1(n1),a2(n1),a3(n1+1),sw_up,sw_down
 
     call get_avg3(n1,n2,n3,rflx,a1)
     call get_var3(n1,n2,n3,rflx,a1,a2)
@@ -1921,10 +1933,12 @@ contains
         svctr(:,93)=svctr(:,93) + a3(1:n1)
         call fill_scalar(a3(1),'srf_swu') ! Optional: surface SW up (W/m2)
         call fill_scalar(a3(k),'toa_swu') ! Optional: top of atmosphere SW up (W/m2)
+        sw_up=a3(k)
         call get_avg3(k,n2,n3,sdwn,a3)
         svctr(:,94)=svctr(:,94) + a3(1:n1)
         call fill_scalar(a3(1),'srf_swd')
         call fill_scalar(a3(k),'toa_swd')
+        sw_down=a3(k)
         call get_avg3(k,n2,n3,irup,a3)
         svctr(:,95)=svctr(:,95) + a3(1:n1)
         call fill_scalar(a3(1),'srf_lwu')
@@ -1933,6 +1947,9 @@ contains
         svctr(:,96)=svctr(:,96) + a3(1:n1)
         call fill_scalar(a3(1),'srf_lwd')
         call fill_scalar(a3(k),'toa_lwd')
+        !
+        ! Use mean fluxes to calculate TOA SW albedo (=sup/sdwn) - useful when using McICA
+        if (sw_down>0.0) ssclr(21)=sw_up/sw_down
     end if
 
   end subroutine accum_rad
@@ -2864,6 +2881,14 @@ contains
        iret = nf90_put_var(ncid2, VarID, u0, start = (/nrec2/))
        iret = nf90_inq_varid(ncid2, s2(6), VarID)
        iret = nf90_put_var(ncid2, VarID, v0, start = (/nrec2/))
+       ! Vertical velocity
+       iret = nf90_inq_varid(ncid2,'wbins',VarID)
+       IF (iret == NF90_NOERR) THEN
+          ALLOCATE(rmid(nwbins))
+          rmid(:)=0.5*(wbinlim(1:nwbins)+wbinlim(2:nwbins+1))
+          iret = nf90_put_var(ncid2,VarID,rmid,start=(/nrec2/))
+          DEALLOCATE(rmid)
+       END IF
        ! Juha: For SALSA
        IF (level >= 4) THEN
           iret = nf90_inq_varid(ncid2,'B_Rd12a',VarID) ! 1a+2a
@@ -2890,13 +2915,6 @@ contains
           IF (iret == NF90_NOERR) THEN
               ALLOCATE(rmid(nout_ice))
               rmid(:)=0.5*(icebinlim(1:nout_ice)+icebinlim(2:nout_ice+1))
-              iret = nf90_put_var(ncid2,VarID,rmid,start=(/nrec2/))
-              DEALLOCATE(rmid)
-          END IF
-          iret = nf90_inq_varid(ncid2,'wbins',VarID)
-          IF (iret == NF90_NOERR) THEN
-              ALLOCATE(rmid(nwbins))
-              rmid(:)=0.5*(wbinlim(1:nwbins)+wbinlim(2:nwbins+1))
               iret = nf90_put_var(ncid2,VarID,rmid,start=(/nrec2/))
               DEALLOCATE(rmid)
           END IF
@@ -3235,7 +3253,7 @@ contains
   !                R for mean radius and N for number concentration
   !       bin: aa,ab,at,ca,cb,ct,rt,ia,ib,it,st,gt (aerosol/cloud/rain/ice/snow/gas a-bins/b-bins/total)
   LOGICAL FUNCTION calc_user_data(short_name,res,mask,is_mass)
-    use grid, ONLY : nzp,nxp,nyp,bulkNumc,bulkMixrat,meanRadius,a_gaerop
+    use grid, ONLY : nzp,nxp,nyp,bulkNumc,bulkMixrat,meanRadius,a_gaerop, naddsc, a_ap
     USE mo_submctl, ONLY : find_gas_id, find_spec_id
     CHARACTER(LEN=7), INTENT(IN) :: short_name ! Variable name
     REAL, INTENT(out) :: res(nzp,nxp,nyp)      ! Output data
@@ -3245,6 +3263,18 @@ contains
     CHARACTER(LEN=7) :: spec, bin, nam
     LOGICAL :: mass
     INTEGER :: i, k
+    !
+    ! Additional scalars: s01, s02, ...
+    IF (short_name(1:1)=='s' .AND. LEN_TRIM(short_name)==3) THEN
+        read (UNIT=short_name(2:3),FMT='(i2.2)',iostat=i) k
+        IF (i==0 .AND. k>=1 .AND. k<=naddsc) THEN ! If valid name
+            res(:,:,:) = a_ap(:,:,:,k)
+            mask(:,:,:) = .TRUE.
+            calc_user_data=.FALSE. ! OK
+            IF (PRESENT(is_mass)) is_mass=.TRUE. ! Considered as mass for vertical integrals
+            RETURN
+        ENDIF
+    ENDIF
     !
     ! SB statistics elesewhere
     IF (level<4) THEN
@@ -3336,8 +3366,8 @@ contains
   !
   ! The same for SB microphysics
   LOGICAL FUNCTION calc_user_data_SB(short_name,res,mask,is_mass)
-    use grid, ONLY : nzp,nxp,nyp, CCN, a_rc, a_npp, a_rpp, a_nip, a_rip, &
-        a_nsp, a_rsp, a_ngp, a_rgp, a_nhp, a_rhp, a_dn
+    use grid, ONLY : nzp,nxp,nyp, a_ncp, a_rcp, a_npp, a_rpp, a_nip, a_rip, &
+        a_nsp, a_rsp, a_ngp, a_rgp, a_nhp, a_rhp
     CHARACTER(LEN=7), INTENT(IN) :: short_name ! Variable name
     REAL, INTENT(out) :: res(nzp,nxp,nyp)      ! Output data
     LOGICAL, INTENT(out) :: mask(nzp,nxp,nyp)  ! ... and mask
@@ -3390,16 +3420,11 @@ contains
     SELECT case (short_name(i-1:i))
     CASE('ct')
         IF (numc) THEN
-            WHERE (cloudmask)
-                !res=CCN
-                res=CCN/a_dn ! COMBLE: CCN in #/m3
-            ELSEWHERE
-                res=0.
-            END WHERE
+            res(:,:,:)=a_ncp(:,:,:)
         ELSEIF (mass) THEN
-            res(:,:,:)=a_rc(:,:,:)
+            res(:,:,:)=a_rcp(:,:,:)
         ELSE
-            CALL getSBradius(nzp,nxp,nyp,a_nip,a_rip,-1,res)
+            CALL getSBradius(nzp,nxp,nyp,a_ncp,a_rcp,-1,res)
             ! Mean radius not defined (arbitarily set to zero) when there are no particles, so these must be ignored
             WHERE(res<1e-20) mask=.FALSE.
         ENDIF
@@ -3482,7 +3507,8 @@ contains
   ! b) LES is has data (tendencies) for outputs (several function calls from t_step in step.f90)
   SUBROUTINE les_rate_stats(prefix)
     USE grid, ONLY : out_an_list, nxp, nyp, nzp, level, &
-                     a_tt, a_rt,a_rpt, a_npt
+                     a_tt, a_rt, a_rct, a_nct, a_rpt, a_npt, a_rit, a_nit, &
+                     a_rst, a_nst, a_rgt, a_ngt, a_rht, a_nht
     use defs, only : cp
     IMPLICIT NONE
     ! Input
@@ -3496,9 +3522,28 @@ contains
     CALL scalar_rate_stat(prefix//'_tt',nzp,nxp,nyp,a_tt,factor=cp)
     !
     ! Concentrations
-    IF (level==3 .OR. level==0) THEN
-        ! Level 3: total water (a_rt) and rain water mass and droplet number
+    IF (level==0) THEN
+        ! Level 0: total water (a_rt), rain, ice, snow, graupel and hail
+        ! Prognostic clouds are possible
         CALL scalar_rate_stat(prefix//'_rt',nzp,nxp,nyp,a_rt)
+        CALL scalar_rate_stat(prefix//'_nc',nzp,nxp,nyp,a_nct)
+        CALL scalar_rate_stat(prefix//'_rc',nzp,nxp,nyp,a_rct)
+        CALL scalar_rate_stat(prefix//'_nr',nzp,nxp,nyp,a_npt)
+        CALL scalar_rate_stat(prefix//'_rr',nzp,nxp,nyp,a_rpt)
+        CALL scalar_rate_stat(prefix//'_ni',nzp,nxp,nyp,a_nit)
+        CALL scalar_rate_stat(prefix//'_ri',nzp,nxp,nyp,a_rit)
+        CALL scalar_rate_stat(prefix//'_ns',nzp,nxp,nyp,a_nst)
+        CALL scalar_rate_stat(prefix//'_rs',nzp,nxp,nyp,a_rst)
+        CALL scalar_rate_stat(prefix//'_ng',nzp,nxp,nyp,a_ngt)
+        CALL scalar_rate_stat(prefix//'_rg',nzp,nxp,nyp,a_rgt)
+        CALL scalar_rate_stat(prefix//'_nh',nzp,nxp,nyp,a_nht)
+        CALL scalar_rate_stat(prefix//'_rh',nzp,nxp,nyp,a_rht)
+    ELSEIF (level<=3) THEN
+        ! Level 3: total water (a_rt) and rain water mass and droplet number
+        ! Prognostic clouds are possible
+        CALL scalar_rate_stat(prefix//'_rt',nzp,nxp,nyp,a_rt)
+        CALL scalar_rate_stat(prefix//'_nc',nzp,nxp,nyp,a_nct)
+        CALL scalar_rate_stat(prefix//'_rc',nzp,nxp,nyp,a_rct)
         CALL scalar_rate_stat(prefix//'_nr',nzp,nxp,nyp,a_npt)
         CALL scalar_rate_stat(prefix//'_rr',nzp,nxp,nyp,a_rpt)
     ELSEIF (level>=4) THEN
@@ -3653,8 +3698,8 @@ contains
         ENDDO
         out_cs_data(:,:,out_ind) = area(:,:)
     ELSEIF (out_id==2) THEN
-        ! Profiles: averaged tendencies are weighted by air density
-        tmp(:,:,:) = tend(:,:,:)*a_dn(:,:,:)
+        ! Profiles: averaged tendencies (not weighted by air density)
+        tmp(:,:,:) = tend(:,:,:) !*a_dn(:,:,:)
         ! Average over horizontal dimensions
         CALL get_avg3(nzp,nxp,nyp,tmp,col)
         ! Profile - will be averaged
@@ -3692,15 +3737,21 @@ contains
             ! Analysis data as is (per mass of air)
             out_an_data(:,:,:,i) = tend(:,:,:)*fact
         ENDIF
-        IF ( vname == out_ts_list(i) .OR. vname == out_ps_list(i) ) THEN
+        IF ( vname == out_ps_list(i) ) THEN
+            ! Averaged tendencies (not weighted by air density)
+            tmp(:,:,:) = tend(:,:,:) !*a_dn(:,:,:)
+            ! Average over horizontal dimensions
+            CALL get_avg3(n1,n2,n3,tmp,col)
+            ! Profile
+            out_ps_data(:,i) = out_ps_data(:,i)+col(:)*fact
+        ENDIF
+        IF ( vname == out_ts_list(i) ) THEN
             ! Averaged tendencies are weighted by air density
             tmp(:,:,:) = tend(:,:,:)*a_dn(:,:,:)
             ! Average over horizontal dimensions
             CALL get_avg3(n1,n2,n3,tmp,col)
-            ! Profile
-            IF ( vname == out_ps_list(i) ) out_ps_data(:,i) = out_ps_data(:,i)+col(:)*fact
             ! Integrate over vertical dimension to get the domain mean
-            IF ( vname == out_ts_list(i) ) out_ts_data(i) = SUM( col(2:n1)/dzt(2:n1) )*fact
+            out_ts_data(i) = SUM( col(2:n1)/dzt(2:n1) )*fact
         ENDIF
         IF ( cswrite .AND. vname == out_cs_list(i) ) THEN
             ! Column outputs are integrals over vertical dimension (per volume of air)
@@ -3738,7 +3789,7 @@ contains
         ssclr_rem(tt) = get_pustat_scalar('avg', SUM(depflxm(2,:,:,str:end))/REAL((n3-4)*(n2-4)) )
         !
         ! Column removal rates for each species
-        scs_rm(:,:,tt) = SUM(depflxm(2,:,:,str:end),DIM=3)
+        IF (csflg .AND. nv1_rem>0) scs_rm(:,:,tt) = SUM(depflxm(2,:,:,str:end),DIM=3)
     ENDDO
     !
     ! 3D water fluxes (W/m^2)

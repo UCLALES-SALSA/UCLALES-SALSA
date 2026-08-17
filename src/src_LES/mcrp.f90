@@ -50,54 +50,230 @@ contains
   ! ---------------------------------------------------------------------
   ! MICRO: sets up call to microphysics
   !
-  subroutine micro(level)
+  subroutine micro(level,zrm)
     use mcrp_ice, only : micro_ice
     use stat, only : sflg, out_mcrp_data
-    use grid, only : lev_sb,nzp,nxp,nyp,dtl,dzt,a_dn,a_theta,a_temp,a_rv, &
-                  a_rsl, a_rc,CCN,a_rpp,a_npp,a_rp,a_rt,a_tt,a_rpt,a_npt, &
-                  cldin,precip,sed_cloud,sed_precp
+    use grid, only : lev_sb,nzp,nxp,nyp,dtl,dzt,a_dn,a_theta,a_temp,a_rv,a_rsl, &
+                  a_rcp,a_ncp,a_rpp,a_npp,a_rp,a_rt,a_tt,a_nct,a_rct,a_rpt,a_npt, &
+                  cldin,precip,sed_cloud,sed_precp,prog_cloud
     integer, intent (in) :: level
+    logical, intent (in) :: zrm
 
-    select case (level)
-    case(0)
+    ! Reset microphysical outputs
+    if (sflg) out_mcrp_data(:,:,:,:) = 0.
+
+    ! Prognostic clouds (CDNC and supersaturation) before microphysics
+    if (prog_cloud) call calc_prog_clouds()
+
+    if (zrm) then
+       ! Spin-up, do nothing else but prognostic clouds
+    elseif (level==0) then
        ! Seifert and Beheng microphysics
        CALL micro_ice(lev_sb)
-    case(2)
-       IF (sflg) out_mcrp_data(:,:,:,:) = 0.
-       if (sed_cloud)  &
-            call sedim_cd(nzp,nxp,nyp,dtl,dzt,a_dn,a_theta,a_temp,a_rc,CCN,cldin,a_rt,a_tt)
-    case(3)
-       IF (sflg) out_mcrp_data(:,:,:,:) = 0.
-       call mcrph(nzp,nxp,nyp,dtl,dzt,a_dn,a_theta,a_temp,a_rv,a_rsl,a_rc,CCN,a_rpp, &
-                  a_npp,cldin,precip,a_rp,a_rt,a_tt,a_rpt,a_npt,sed_cloud,sed_precp)
-    end select
+       if (.not. prog_cloud) then
+          a_nct(:,:,:)=0.0
+          a_rct(:,:,:)=0.0
+       endif
+    elseif (level==2 .AND. sed_cloud) then
+       call sedim_cd(nzp,nxp,nyp,dtl,dzt,a_dn,a_theta,a_temp,a_rcp,a_ncp,cldin,a_rt,a_tt,a_rct,a_nct)
+    elseif (level==3) then
+       call mcrph(nzp,nxp,nyp,dtl,dzt,a_dn,a_theta,a_temp,a_rv,a_rsl,a_rcp,a_ncp,a_rpp, &
+                  a_npp,cldin,precip,a_rp,a_rt,a_tt,a_rpt,a_npt,a_rct,a_nct,sed_cloud,sed_precp)
+    endif
 
   end subroutine micro
+
+  !
+  ! Additional SUBROUTINES for prognostic CDNC and supersaturation: cloud activation
+  ! and water vapor condensation/evaporation to/from cloud droplets
+  !
+  ! The main program calling activation and condensation
+  SUBROUTINE calc_prog_clouds()
+    use stat, only : sflg, out_mcrp_data, out_mcrp_nout, out_mcrp_list
+    use grid, only :nzp,nxp,nyp,dtl,a_dn,a_temp,a_rv,a_rsl,a_rcp,a_ncp,a_nct,a_rct
+    !
+    ! Cloud activation: calculate tendencies a_rct and a_nct
+    CALL ActSupSat(nzp,nxp,nyp,dtl,a_temp,a_rsl,a_rv,a_ncp,a_rct,a_nct)
+    ! Update clouds
+    a_ncp=a_ncp+a_nct*dtl
+    a_rcp=a_rcp+a_rct*dtl
+    IF (sflg) CALL check_act_stats('cact')
+    !
+    ! Prognostic CDNC requires calculating water vapor condensation on cloud droplets
+    CALL wtr_dff_cloud(nzp,nxp,nyp,dtl,a_dn,a_temp,a_rsl,a_rv,a_rcp,a_ncp,a_rct,a_nct)
+    ! Update clouds
+    a_ncp=a_ncp+a_nct*dtl
+    a_rcp=a_rcp+a_rct*dtl
+    IF (sflg) CALL check_act_stats('cond')
+    !
+    ! Reset
+    a_rct=0.0
+    a_nct=0.0
+    !
+    CONTAINS
+      SUBROUTINE check_act_stats(prefix)
+        character (len=4), intent (in) :: prefix ! Process name
+        INTEGER :: i
+        ! Find the requested ouput
+        DO i=1,out_mcrp_nout
+            IF ( prefix//'_nc' == out_mcrp_list(i) ) THEN
+                ! Cloud number
+                out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + a_nct(:,:,:)
+            ELSEIF ( prefix//'_rc' == out_mcrp_list(i) ) THEN
+                ! Cloud mass
+                out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + a_rct(:,:,:)
+            ENDIF
+        ENDDO
+      END SUBROUTINE check_act_stats
+  END SUBROUTINE calc_prog_clouds
+  !
+  ! 1) Activation based on supersaturation
+  SUBROUTINE ActSupSat(nz,nx,ny,dt,temp,rs,rv,nc,rct,nct)
+    ! Cloud activation based on supersaturation
+    use grid, only : ntot,dpg,sigmag,kappa
+    !-- Input and output variables ----------
+    INTEGER, INTENT(in) :: nz,nx,ny
+    REAL, DIMENSION(nz,nx,ny), INTENT(in) :: temp,rs,nc
+    REAL, INTENT(in) :: dt
+    REAL, DIMENSION(nz,nx,ny), INTENT(inout) :: rv
+    REAL, DIMENSION(nz,nx,ny), INTENT(out) :: rct, nct
+    !-- local variables --------------
+    REAL, PARAMETER :: surfw0 = 0.073
+    INTEGER :: ii, jj, kk, n
+    REAL :: ss, aa, dc(3), nact, dn
+    !
+    ! Include modes that have some particles
+    n=COUNT(ntot>1e-10)
+    !
+    ! Reset
+    rct(:,:,:) = 0.0
+    nct(:,:,:) = 0.0
+    !
+    DO kk = 3, ny-2
+    DO jj = 3, nx-2
+        DO ii = 2, nz
+            ! No activation if saturation ratio is low
+            IF (rv(ii,jj,kk)<1.0001*rs(ii,jj,kk)) CYCLE
+            !
+            ! Supersaturation (-) - limited to 0.1=10 %
+            ss=MIN(0.1, rv(ii,jj,kk)/rs(ii,jj,kk)-1.0 )
+            !
+            ! The coefficient of the curvature effect
+            aa = 4.*surfw0/(Rm*rowt*temp(ii,jj,kk))
+            !
+            ! The dry radius [um] of the smallest activated particle for each mode
+            dc(1:n) = aa/3.*(4/(kappa(1:n)*ss**2))**(1./3.)*1e6
+            !
+            ! Total number of activated [#/kg]
+            nact=SUM(ntot(1:n)*0.5*( 1.0-erf( log(dc(1:n)/dpg(1:n))/(sqrt(2.)*log(sigmag(1:n))) ) ))*1e6
+            !
+            ! Activate if this is larger than the current CDNC. The number of new droplets
+            ! is limited by the water vapor excess.
+            dn = MIN( nact - nc(ii,jj,kk), (rv(ii,jj,kk)-rs(ii,jj,kk))/X_min )
+            IF (dn>1e-3) THEN
+                nct(ii,jj,kk) = dn/dt
+                rct(ii,jj,kk) = dn/dt*X_min
+                !
+                ! Activation consumes water vapor (diagnostic)
+                rv(ii,jj,kk) = rv(ii,jj,kk) - dn*X_min
+            ENDIF
+       END DO ! ii
+    END DO ! jj
+    END DO ! kk
+  END SUBROUTINE ActSupSat
+  !
+  ! 2) Diffusion limited condensation/evaporation to/from cloud droplets
+  subroutine wtr_dff_cloud(n1,n2,n3,dt,dn,tk,rs,rv,rc,nc,rct,nct)
+    integer, intent (in) :: n1,n2,n3
+    real, intent (in)    :: dt, dn(n1,n2,n3), tk(n1,n2,n3), rs(n1,n2,n3),  &
+                            nc(n1,n2,n3), rc(n1,n2,n3)
+    real, intent (inout) :: rv(n1,n2,n3)
+    real, intent (out) :: rct(n1,n2,n3), nct(n1,n2,n3)
+    ! Constants
+    real :: Kt = 2.5e-2 ! conductivity of heat [J/(sKm)]
+    real :: Dv = 3.e-5  ! diffusivity of water vapor [m2/s]
+    real :: zbeta = 1.0 ! transitional correction
+    real, parameter :: surfw0 = 0.073
+    ! Local variables
+    integer :: i, j, k
+    real :: Xp, Dp, zkelv, zknud, G, S
+    !
+    ! Reset
+    rct(:,:,:) = 0.0
+    nct(:,:,:) = 0.0
+    !
+    do j=3,n3-2
+       do i=3,n2-2
+          do k=2,n1
+             if (nc(k,i,j) > 1e-3 .AND. rc(k,i,j)>1e-10) then
+                Xp = rc(k,i,j)/ nc(k,i,j)
+                Xp = MIN(MAX(Xp,X_min),X_bnd)
+                Dp = ( Xp / prw )**(1./3.)
+
+                !  Kelvin effect needed for activation and initial droplet growth
+                zkelv = exp( 4.*surfw0 / (Rm*tk(k,i,j)*rowt*Dp) )
+
+                ! Diffusion coefficient [m2/s], Jacobson (8.14)
+                ! Dv = 2.11e-5 * (temp/273.15)^1.9 * 101325/press =>
+                Dv = 2.73e-5/dn(k,i,j)*(tk(k,i,j)/273.15)**0.94
+                ! Thermal conductivity of dry air [J/m/s/K], Jacobson (2.5)
+                Kt = 0.023807 + 7.1128e-5*(tk(k,i,j)-273.15)
+
+                ! Transitional correction factor
+                zknud = 2.*( Dv*3.*sqrt(pi/(8.*Rm*tk(k,i,j))) )/Dp
+                zbeta = (zknud + 1.)/(1.+0.377*zknud+4./(3.)*(zknud+zknud**2))
+
+                G = zbeta / (1. / (dn(k,i,j)*rs(k,i,j)*Dv) + &
+                     alvl*zkelv*(alvl/(Rm*tk(k,i,j))-1.) / (Kt*tk(k,i,j)))
+                S = rv(k,i,j)/rs(k,i,j) - zkelv
+
+                rct(k,i,j) = 2. * pi * Dp * G * S * nc(k,i,j)
+
+                IF (rc(k,i,j)+rct(k,i,j)*dt<1e-10) THEN
+                    rct(k,i,j)=-rc(k,i,j)/dt
+                    nct(k,i,j)=-nc(k,i,j)/dt
+                ELSEIF ( (rc(k,i,j)+rct(k,i,j)*dt)/nc(k,i,j)<X_min ) THEN
+                    nct(k,i,j)=((rc(k,i,j)+rct(k,i,j)*dt)/X_min-nc(k,i,j))/dt
+                ENDIF
+
+                ! Update diagnostic water vapor
+                rv(k,i,j) = rv(k,i,j)-rct(k,i,j)*dt
+             end if
+          end do
+       end do
+    end do
+    !
+  end subroutine wtr_dff_cloud
+
 
   !
   ! ---------------------------------------------------------------------
   ! MCRPH: calls microphysical parameterization
   !
-  subroutine mcrph(n1,n2,n3,dtl,dzt,dn,th,tk,rv,rs,rc,ccn,rp,np,crate,rrate,  &
-       rtp,rtt,tlt,rpt,npt,sed_cloud,sed_precp)
+  subroutine mcrph(n1,n2,n3,dtl,dzt,dn,th,tk,rv,rs,rc,nc,rp,np,crate,rrate,  &
+       rtp,rtt,tlt,rpt,npt,rct,nct,sed_cloud,sed_precp)
     use stat, only : sflg, out_mcrp_nout, out_mcrp_data, out_mcrp_list
+    USE grid, ONLY : prog_cloud
     integer, intent (in) :: n1,n2,n3
-    real, intent (in)                         :: dtl, dzt(n1), ccn
+    real, intent (in)                         :: dtl, dzt(n1)
     real, dimension(n1,n2,n3), intent (in)    :: dn, th, tk, rv, rs
-    real, dimension(n1,n2,n3), intent (inout) :: rc, rp, np, rpt, npt, rtp, rtt, tlt
+    real, dimension(n1,n2,n3), intent (inout) :: rc, nc, rp, np, rpt, npt, rtp, rct, nct, rtt, tlt
     real, intent (out)                        :: crate(n1,n2,n3), rrate(n1,n2,n3)
     logical, intent (in)                      :: sed_cloud, sed_precp
 
     integer :: i, j, k
+    REAL :: tmp_rv(n1,n2,n3), tmp_nc(n1,n2,n3), tmp_rc(n1,n2,n3)
     REAL :: tmp_nr(n1,n2,n3), tmp_rr(n1,n2,n3), tmp_rt(n1,n2,n3)
     !
     ! Microphysics following Seifert Beheng (2001, 2005)
 
     ! Diagnostics (ignoring/avoiding negative values, and changes in number due to minimum and maximum volumes)
-    if(sflg) CALL sb_var_stat('diag',2) ! Use rain concentrations
+    if(sflg) CALL sb_var_stat('diag',2) ! Use concentrations
     do j=3,n3-2
        do i=3,n2-2
           do k=1,n1
+             rc(k,i,j) = max(0., rc(k,i,j))
+             nc(k,i,j) = max(min(rc(k,i,j)/X_min,nc(k,i,j)),rc(k,i,j)/X_bnd)
              rp(k,i,j) = max(0., rp(k,i,j))
              np(k,i,j) = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
           end do
@@ -106,44 +282,52 @@ contains
     if(sflg) CALL sb_var_stat('diag',3) ! ... simple difference
 
     ! Condensation/evaporation
-    if(sflg) CALL sb_var_stat('cond',0) ! Use rain tendencies
+    if(sflg) CALL sb_var_stat('cond',0) ! Use tendencies
     call wtr_dff_SB(n1,n2,n3,dn,rp,np,rs,rv,tk,rpt,npt)
     if(sflg) CALL sb_var_stat('cond',1) ! ... simple difference
 
     ! Autoconversion
-    if(sflg) CALL sb_var_stat('auto',0) ! Use rain tendencies
-    call auto_SB(n1,n2,n3,dn,rc,ccn,rp,rpt,npt)
+    if(sflg) CALL sb_var_stat('auto',0) ! Use tendencies
+    call auto_SB(n1,n2,n3,dn,rc,nc,rp,rpt,npt,rct,nct)
     if(sflg) CALL sb_var_stat('auto',1) ! ... simple difference
 
     ! Accretion - coagulation
-    if(sflg) CALL sb_var_stat('coag',0) ! Use rain tendenciess
-    call accr_SB(n1,n2,n3,dn,rc,rp,np,rpt,npt)
+    if(sflg) CALL sb_var_stat('coag',0) ! Use tendenciess
+    call accr_SB(n1,n2,n3,dn,rc,nc,rp,np,rpt,npt,rct,nct)
     if(sflg) CALL sb_var_stat('coag',1) ! ... simple difference
 
     ! Apply tendencies
-    if(sflg) CALL sb_var_stat('diag',2) ! Use rain concentrations
+    rp(:,:,:) = rp(:,:,:) + rpt(:,:,:)*dtl
+    np(:,:,:) = np(:,:,:) + npt(:,:,:)*dtl
+    IF (prog_cloud) THEN ! Only if prognostic clouds
+        rc(:,:,:) = rc(:,:,:) + rct(:,:,:)*dtl
+        nc(:,:,:) = nc(:,:,:) + nct(:,:,:)*dtl
+    ENDIF
+    rpt(:,:,:)= 0.
+    npt(:,:,:)= 0.
+    rct(:,:,:)= 0.
+    nct(:,:,:)= 0.
+    ! Diagnostics
+    if(sflg) CALL sb_var_stat('diag',2) ! Use concentrations
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1-1
-             rp(k,i,j) = rp(k,i,j) + max(-rp(k,i,j)/dtl,rpt(k,i,j))*dtl
-             np(k,i,j) = np(k,i,j) + max(-np(k,i,j)/dtl,npt(k,i,j))*dtl
+             rc(k,i,j) = max(0., rc(k,i,j))
+             nc(k,i,j) = max(min(rc(k,i,j)/X_min,nc(k,i,j)),rc(k,i,j)/X_bnd)
              rp(k,i,j) = max(0., rp(k,i,j))
              np(k,i,j) = max(min(rp(k,i,j)/X_bnd,np(k,i,j)),rp(k,i,j)/X_max)
           end do
        end do
     end do
-    if(sflg) CALL sb_var_stat('diag',4) ! ... the real change compared with the tendency
-    rpt(:,:,:)= 0.
-    npt(:,:,:)= 0.
+    if(sflg) CALL sb_var_stat('diag',3) ! ... simple difference
 
     ! Sedimentation
-    if(sflg) CALL sb_var_stat('sedi',0) ! Use rain and total water tendencies
+    if(sflg) CALL sb_var_stat('sedi',0) ! Use tendencies
     rrate(:,:,:)=0.
     if (sed_precp) call sedim_rd(n1,n2,n3,dtl,dzt,dn,rp,np,tk,th,rrate,rtt,tlt,rpt,npt)
 
-    ! Note: rc is not updated after autoconversion and accretion!
     crate(:,:,:)=0.
-    if (sed_cloud) call sedim_cd(n1,n2,n3,dtl,dzt,dn,th,tk,rc,ccn,crate,rtt,tlt)
+    if (sed_cloud) call sedim_cd(n1,n2,n3,dtl,dzt,dn,th,tk,rc,nc,crate,rtt,tlt,rct,nct)
     if(sflg) CALL sb_var_stat('sedi',1) ! ... simple difference
 
   CONTAINS
@@ -166,12 +350,18 @@ contains
         ! a) The first call
         IF (flag==0) THEN
             ! Save current tendency
+            tmp_rv(:,:,:) = rv(:,:,:)  ! Water vapor - diagnostic, so use concentration instead
+            tmp_nc(:,:,:) = nct(:,:,:) ! Cloud droplet number
+            tmp_rc(:,:,:) = rct(:,:,:) ! Cloud water mixing ratio
             tmp_nr(:,:,:) = npt(:,:,:) ! Rain drop number
             tmp_rr(:,:,:) = rpt(:,:,:) ! Rain water mixing ratio
             tmp_rt(:,:,:) = rtt(:,:,:) ! Total water mixing ratio
             RETURN
         ELSEIF (flag==2) THEN
             ! Save current absolute concentration
+            tmp_rv(:,:,:) = rv(:,:,:)
+            tmp_nc(:,:,:) = nc(:,:,:)
+            tmp_rc(:,:,:) = rc(:,:,:)
             tmp_nr(:,:,:) = np(:,:,:)
             tmp_rr(:,:,:) = rp(:,:,:)
             tmp_rt(:,:,:) = rtp(:,:,:)
@@ -181,7 +371,32 @@ contains
         ! b) The second call
         ! Find the requested ouput
         DO i=1,out_mcrp_nout
-            IF ( prefix//'_nr' == out_mcrp_list(i) ) THEN
+            IF ( prefix//'_rv' == out_mcrp_list(i) ) THEN
+                ! Water vapor
+                IF (flag==1) THEN
+                    ! Calculate the change in tendency - diagnostic, so use concentration instead
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rv(:,:,:) - tmp_rv(:,:,:))/dtl
+                ELSEIF (flag==3) THEN
+                    ! Calculate the change in absolute concentrations (divide by time step)
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rv(:,:,:) - tmp_rv(:,:,:))/dtl
+                ENDIF
+            ELSEIF ( prefix//'_nc' == out_mcrp_list(i) ) THEN
+                ! Cloud number (a_nct or a_ncp)
+                IF (flag==1) THEN
+                    ! Calculate the change in tendency
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (nct(:,:,:) - tmp_nc(:,:,:))
+                ELSEIF (flag==3) THEN
+                    ! Calculate the change in absolute concentrations (divide by time step)
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (nc(:,:,:) - tmp_nc(:,:,:))/dtl
+                ENDIF
+            ELSEIF ( prefix//'_rc' == out_mcrp_list(i) ) THEN
+                ! Cloud water mixing ratio (a_rct and a_rcp)
+                IF (flag==1) THEN
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rct(:,:,:) - tmp_rc(:,:,:))
+                ELSEIF (flag==3) THEN
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rc(:,:,:) - tmp_rc(:,:,:))/dtl
+                ENDIF
+            ELSEIF ( prefix//'_nr' == out_mcrp_list(i) ) THEN
                 ! Rain number (a_npt or a_npp)
                 IF (flag==1) THEN
                     ! Calculate the change in tendency
@@ -189,9 +404,6 @@ contains
                 ELSEIF (flag==3) THEN
                     ! Calculate the change in absolute concentrations (divide by time step)
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (np(:,:,:) - tmp_nr(:,:,:))/dtl
-                ELSEIF (flag==4) THEN
-                    ! Compare the actual change in absolute concetration to the expected change
-                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (np(:,:,:) - tmp_nr(:,:,:))/dtl - npt(:,:,:)
                 ENDIF
             ELSEIF ( prefix//'_rr' == out_mcrp_list(i) ) THEN
                 ! Rain mixing ratio (a_rpt and a_rpp)
@@ -199,8 +411,6 @@ contains
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rpt(:,:,:) - tmp_rr(:,:,:))
                 ELSEIF (flag==3) THEN
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rp(:,:,:) - tmp_rr(:,:,:))/dtl
-                ELSEIF (flag==4) THEN
-                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rp(:,:,:) - tmp_rr(:,:,:))/dtl - rpt(:,:,:)
                 ENDIF
             ELSEIF ( prefix//'_rt' == out_mcrp_list(i) ) THEN
                 ! Total water (a_rt and a_rp)
@@ -208,16 +418,6 @@ contains
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rtt(:,:,:) - tmp_rt(:,:,:))
                 ELSEIF (flag==3) THEN
                     out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rtp(:,:,:) - tmp_rt(:,:,:))/dtl
-                ELSEIF (flag==4) THEN
-                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rtp(:,:,:) - tmp_rt(:,:,:))/dtl - rtt(:,:,:)
-                ENDIF
-            ELSEIF ( prefix//'_rc' == out_mcrp_list(i) ) THEN
-                ! Cloud water - diagnostic: when water vapor mixing ratio is constant, rc = const + rt - rr
-                IF (flag==1) THEN
-                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rtt(:,:,:)-rpt(:,:,:) - (tmp_rt(:,:,:)-tmp_rr(:,:,:)))
-                ELSEIF (flag==3) THEN
-                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rtp(:,:,:)-rp(:,:,:) - (tmp_rt(:,:,:)-tmp_rr(:,:,:)))/dtl
-                ELSEIF (flag==4) THEN
                 ENDIF
             ENDIF
         ENDDO
@@ -273,11 +473,11 @@ contains
   ! be reformulated for f(x)=A*x**(nu_c)*exp(-Bx**(mu)), where formu=1/3
   ! one would get a gamma dist in drop diam -> faster rain formation.
   !
-  subroutine auto_SB(n1,n2,n3,dn,rc,CCN,rp,rpt,npt)
+  subroutine auto_SB(n1,n2,n3,dn,rc,nc,rp,rpt,npt,rct,nct)
 
     integer, intent (in) :: n1,n2,n3
-    real, intent (in)    :: dn(n1,n2,n3), rc(n1,n2,n3), CCN, rp(n1,n2,n3)
-    real, intent (inout) :: rpt(n1,n2,n3), npt(n1,n2,n3)
+    real, intent (in)    :: dn(n1,n2,n3), rc(n1,n2,n3), nc(n1,n2,n3), rp(n1,n2,n3)
+    real, intent (inout) :: rpt(n1,n2,n3), npt(n1,n2,n3), rct(n1,n2,n3), nct(n1,n2,n3)
 
     real, parameter :: nu_c  = 0           ! width parameter of cloud DSD
     real, parameter :: k_c  = 9.44e+9      ! Long-Kernel
@@ -296,7 +496,7 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1-1
-             Xc = rc(k,i,j)/(CCN+eps0)
+             Xc = rc(k,i,j)/(nc(k,i,j)+eps0)
              if (Xc > 0.) then
                 Xc = MIN(MAX(Xc,X_min),X_bnd)
                 au = k_au * dn(k,i,j) * rc(k,i,j)**2 * Xc**2
@@ -320,6 +520,8 @@ contains
                 rpt(k,i,j) = rpt(k,i,j) + au
                 npt(k,i,j) = npt(k,i,j) + au/X_bnd
                 !
+                rct(k,i,j) = rct(k,i,j) - au
+                nct(k,i,j) = nct(k,i,j) - au/Xc
              end if
           end do
        end do
@@ -333,11 +535,11 @@ contains
   ! an alternative formulation for accretion only, following
   ! Khairoutdinov and Kogan
   !
-  subroutine accr_SB(n1,n2,n3,dn,rc,rp,np,rpt,npt)
+  subroutine accr_SB(n1,n2,n3,dn,rc,nc,rp,np,rpt,npt,rct,nct)
 
     integer, intent (in) :: n1,n2,n3
-    real, intent (in)    :: rc(n1,n2,n3), rp(n1,n2,n3), np(n1,n2,n3), dn(n1,n2,n3)
-    real, intent (inout) :: rpt(n1,n2,n3),npt(n1,n2,n3)
+    real, intent (in)    :: rc(n1,n2,n3), nc(n1,n2,n3), rp(n1,n2,n3), np(n1,n2,n3), dn(n1,n2,n3)
+    real, intent (inout) :: rpt(n1,n2,n3),npt(n1,n2,n3),rct(n1,n2,n3),nct(n1,n2,n3)
 
     real, parameter :: k_r = 5.78
     real, parameter :: k_1 = 5.e-4
@@ -345,7 +547,7 @@ contains
     real, parameter :: Eac = 1.15    ! accretion exponent in KK param.
 
     integer :: i, j, k
-    real    :: tau, phi, ac, sc
+    real    :: tau, phi, ac, sc, Xc
 
     do j=3,n3-2
        do i=3,n2-2
@@ -363,6 +565,11 @@ contains
                 end if
                 !
                 rpt(k,i,j) = rpt(k,i,j) + ac
+                !
+                Xc = rc(k,i,j)/(nc(k,i,j)+eps0)
+                Xc = MIN(MAX(Xc,X_min),X_bnd)
+                rct(k,i,j) = rct(k,i,j) - ac
+                nct(k,i,j) = nct(k,i,j) - ac/Xc
              end if
 
              ! self-collection
@@ -508,20 +715,20 @@ contains
   ! SEDIM_CD: calculates the cloud-droplet sedimentation flux and its effect
   ! on the evolution of r_t and theta_l assuming a log-normal distribution
   !
-  subroutine sedim_cd(n1,n2,n3,dt,dzt,dens,th,tk,rc,CCN,rrate,rtt,tlt)
+  subroutine sedim_cd(n1,n2,n3,dt,dzt,dens,th,tk,rc,nc,rrate,rtt,tlt,rct,nct)
 
     integer, intent (in):: n1,n2,n3
-    real, intent (in)   :: dt, dzt(n1), CCN
-    real, intent (in),   dimension(n1,n2,n3) :: dens,th,tk,rc
+    real, intent (in)   :: dt, dzt(n1)
+    real, intent (in),   dimension(n1,n2,n3) :: dens,th,tk,rc,nc
     real, intent (inout),dimension(n1,n2,n3) :: rrate
-    real, intent (inout),dimension(n1,n2,n3) :: rtt,tlt
+    real, intent (inout),dimension(n1,n2,n3) :: rtt,tlt,rct,nct
 
     real, parameter :: c = 1.19e8 ! Stokes fall velocity coef [m^-1 s^-1]
     real, parameter :: sgg = 1.2  ! geometric standard dev of cloud droplets
 
     integer :: i, j, k, kp1
     real    :: Dc, Xc, vc, flxdiv
-    real    :: rfl(n1)
+    real    :: rfl(n1), nfl(n1)
 
     !
     ! calculate the precipitation flux and its effect on r_t and theta_l
@@ -529,19 +736,25 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           rfl(:) = 0.
+          nfl(:) = 0.
           do k=n1-1,2,-1
              if (rc(k,i,j) > 0.) then
-                Xc = rc(k,i,j) / CCN
+                Xc = rc(k,i,j) / (nc(k,i,j)+eps0)
                 Dc = ( Xc / prw )**(1./3.)
                 Dc = MIN(MAX(Dc,D_min),D_bnd)
                 vc = min(c*(Dc*0.5)**2 * exp(5.0*(log(sgg))**2),1./(dzt(k)*dt))
                 rfl(k) = - dens(k,i,j) * rc(k,i,j) * vc
+                !vc =min( c*(Dc*0.5)**2 * exp(2.0*(log(sgg))**2),1./(dzt(k)*dt)) ! Check!
+                vc =min( c*(Dc*0.5)**2 * exp(-1.0*(log(sgg))**2),1./(dzt(k)*dt)) ! Check!
+                nfl(k) = - dens(k,i,j) * nc(k,i,j) * vc
              end if
              !
              kp1=k+1
              flxdiv = (rfl(kp1)-rfl(k))*dzt(k)/dens(k,i,j)
              rtt(k,i,j) = rtt(k,i,j)-flxdiv
+             rct(k,i,j) = rct(k,i,j)-flxdiv
              tlt(k,i,j) = tlt(k,i,j)+flxdiv*(alvl/cp)*th(k,i,j)/tk(k,i,j)
+             nct(k,i,j) = nct(k,i,j)-(nfl(kp1)-nfl(k))*dzt(k)/dens(k,i,j)
              rrate(k,i,j) = rrate(k,i,j) -rfl(k) * alvl
           end do
        end do

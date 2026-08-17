@@ -406,6 +406,7 @@ CONTAINS
                                lscgsi,lscgsp,lscgss,  &
                                lscgrain,              &
                                eddy_dis_rt,           &
+                               coag_Es_id, coag_Es_ii, &
                                nlcnd,                 &
                                nlcndgas,              &
                                rhlim,                 &
@@ -415,6 +416,7 @@ CONTAINS
                                autoc_snow_zd0, autoc_snow_sigmag, &
                                nlactiv,               &
                                nlicenucl,             &
+                               ice_diag,              &
                                fixinc, ice_source_opt,&
                                fixed_ice_min_Si,      &
                                fixed_ice_min_rc,      &
@@ -426,20 +428,24 @@ CONTAINS
                                nlsip_hm,              &
                                hm_c_mult, hm_dmin_drop, hm_dmin_ice, hm_frag_vfrac, &
                                nlsip_iibr,            &
-                               iibr_fbr, iibr_tmin, iibr_tmax, iibr_dref, iibr_frag_vfrac, &
+                               iibr_frag_vfrac, iibr_rime_frac, &
                                nlsip_df,              &
-                               df_c_mult, df_tmin, df_tmax, df_dmin_drop, df_frag_vfrac, &
-                               rhoeff_ice, rhoeff_snow, &
+                               df_dmin_drop, df_frag_vfrac, &
                                a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, &
                                a_vel_ice, b_vel_ice, a_vel_snow, b_vel_snow, &
+                               a_avel_ice, b_avel_ice, a_avel_snow, b_avel_snow, &
+                               cap_ice,               &
                                lsdistupdate, lsdiag,  &
+                               rain2aer_opt, snow2aer_opt, &
                                rainbinlim,            &
                                snowbinlim,            &
                                nbin,reglim,           &
                                nspec,listspec,        &
                                volDistA, volDistB,    &
+                               calc_init_vol,         &
                                salsa1a_SO4_OC,        &
                                isdtyp, nmod,          &
+                               aerosol_in_file,       &
                                sigmagA,dpgA,nA,       &
                                sigmagB,dpgB,nB,       &
                                msu, disssu, rhosu,    &
@@ -450,6 +456,7 @@ CONTAINS
                                mss, dissss, rhoss,    &
                                mdu, dissdu, rhodu,    &
                                mwa, disswa, rhowa,    &
+                               rhoic,                 &
                                conc_h2so4, conc_ocnv, &
                                nvbs_setup, laqsoa,    &
                                soa_tstart,            &
@@ -500,6 +507,8 @@ CONTAINS
          nlcgsp,      & ! Collection of precipitation by snow
          nlcgss,      & ! Collision-coalescence between snow particles
          eddy_dis_rt, & ! Eddy dissipation rate, negative means take from LES
+         coag_Es_id,  & ! Sticking efficiencies for ice/snow-aerosol/cloud/rain collisions
+         coag_Es_ii,  & ! Sticking efficiencies for ice/snow-ice/snow collisions
 
          nlcnd,       & ! Condensation master switch
          nlcndgas,    & ! Condensation of H2SO4 and organic vapors
@@ -514,6 +523,7 @@ CONTAINS
          nlactiv,       & ! Master switch for cloud droplet activation
 
          nlicenucl,     & ! Ice nucleation master switch
+         ice_diag,      & ! Different ice nucleation/freezing parameterizations
          fixinc,        & ! Constant ice number concentration (fixinc > 0 #/kg) is maintained by converting cloud droplets to ice
          fixed_ice_min_Si, fixed_ice_min_rc, fixed_ice_max_T, & ! Limits for Si, cloud water content and temperature
          ice_source_opt,& ! Cloud freezing order: >0: start from the largest bin, 0: all bins evenly, <0: start from the smallest bin
@@ -526,14 +536,17 @@ CONTAINS
          nlsip_hm,      & ! Switch for Hallett-Mossop
          hm_c_mult, hm_dmin_drop, hm_dmin_ice, hm_frag_vfrac, & ! Parameters
          nlsip_iibr,    & ! Switch for ice-ice collisional breakup
-         iibr_fbr, iibr_tmin, iibr_tmax, iibr_dref, iibr_frag_vfrac, & ! Parameters
+         iibr_frag_vfrac, iibr_rime_frac, & ! Parameters
          nlsip_df,      & ! Switch for droplet fragmentation during freezing
-         df_c_mult, df_tmin, df_tmax, df_dmin_drop, df_frag_vfrac, & ! Parameters
-         rhoeff_ice, rhoeff_snow, & ! Effective densities for calculating particle diameters (and velocities)
-         a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, & ! Alternative dimension: d=a*m**b
-         a_vel_ice, b_vel_ice, a_vel_snow, b_vel_snow, & ! Alternative velocity: v=a*m**b
+         df_dmin_drop, df_frag_vfrac, & ! Parameters
+         a_geo_ice, b_geo_ice, a_geo_snow, b_geo_snow, & ! Dimension: d=a*m**b
+         a_vel_ice, b_vel_ice, a_vel_snow, b_vel_snow, & ! Velocity: v=a*m**b
+         a_avel_ice, b_avel_ice, a_avel_snow, b_avel_snow, & ! Optional area for velocity: A=a*m**b
+         cap_ice,       & ! Capacitance for water vapor deposition on ice and snow
 
          nldistupdate, nldiag, & ! Other switches
+
+         rain2aer_opt, snow2aer_opt, & ! Override the default method for aerosol bin search
 
          rainbinlim,    & ! Rain bin limits (microns)
          snowbinlim,    & ! Snow bin limits (microns)
@@ -542,8 +555,10 @@ CONTAINS
          nspec,         & ! Number of aerosol species used in the model
          listspec,      & ! List of strings specifying the names of the aerosol species that are active.
          isdtyp,        & ! Type of initial size distribution: 0 - uniform; 1 - vertical profile, read from file
+         aerosol_in_file, & ! Aerosol input file name
          volDistA,      & ! Initial relative contribution [0-1] of each species to particle volume in a-bins.
          volDistB,      & ! Same as above but for b-bins
+         calc_init_vol, & ! Use the true initial aerosol volume instead of the bin mean volume
          salsa1a_SO4_OC,& ! Limit 1a composition to OC and/or SO4
          sigmag, dpg, n, nf2a, & ! STD, mode diameter, total number, and fraction of particles in a-bins
          sigmagA, dpgA, nA, & ! STD, mode diameter and number for a-bins
@@ -557,6 +572,7 @@ CONTAINS
          mss, dissss, rhoss, & ! sea salt (NaCl)
          mdu, dissdu, rhodu, & ! mineral dust
          mwa, disswa, rhowa, & ! water
+         rhoic,              & ! ice
 
          conc_h2so4,    & ! Vapor phase concentration for sulfuric acid (#/kg)
          conc_ocnv,     & ! -||- non-volatile organics

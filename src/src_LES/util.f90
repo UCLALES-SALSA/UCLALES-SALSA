@@ -163,81 +163,67 @@ contains
     LOGICAL, OPTIONAL, INTENT(in) :: cond(n1,n2,n3)
     REAL, OPTIONAL, INTENT(in) :: dens(n1,n2,n3)
     
-    integer :: i,j,k, npnt
+    integer :: i,j,k
     REAL :: ztmp,ztot
-    REAL(kind=8) :: lavg,gavg,nn
+    REAL(kind=8) :: lavg,gavg
 
-    npnt = 0
-    get_avg_ts=0.
     IF (PRESENT(cond) .AND. PRESENT(dens)) THEN
        ! Conditional vertical integral with density weights
+       ztot = REAL((n2-4)*(n3-4))
+       ztmp = 0.
        DO j=3,n3-2
           DO i=3,n2-2
-             ztmp = 0.
              DO k = 2,n1
                 IF (cond(k,i,j)) ztmp = ztmp + a(k,i,j)*(dens(k,i,j)/dz(k))
              END DO
-             ! Vertical integral, so no need to normalize
-             get_avg_ts = get_avg_ts + ztmp
-             npnt = npnt + 1
           END DO
        END DO
     ELSEIF (PRESENT(cond)) THEN
        ! Conditional average
+       ztot = 0.
+       ztmp = 0.
        DO j=3,n3-2
           DO i=3,n2-2
-             ztot = 0.
-             ztmp = 0.
              DO k = 2,n1
                 IF (cond(k,i,j)) THEN
                    ztmp = ztmp + a(k,i,j)*(1./dz(k))
                    ztot = ztot + (1./dz(k))
                 END IF
              END DO
-             ! Grid weighted vertical average for columns with at least one available value
-             if (ztot /=0.0 ) THEN
-                get_avg_ts = get_avg_ts + ztmp/ztot
-                npnt = npnt + 1
-             END IF
           END DO
        END DO
     ELSEIF (PRESENT(dens)) THEN
        ! Vertical integral with density weights
+       ztot = REAL((n2-4)*(n3-4))
+       ztmp = 0.
        DO j=3,n3-2
           DO i=3,n2-2
-             ztmp = 0.
              DO k = 2,n1
                 ztmp = ztmp + a(k,i,j)*(dens(k,i,j)/dz(k))
              END DO
-             ! Vertical integral, so no need to normalize
-             get_avg_ts = get_avg_ts + ztmp
-             npnt = npnt + 1
           END DO
        END DO
     ELSE
        ! Average
+       ztot = 0.
+       ztmp = 0.
        DO j=3,n3-2
           DO i=3,n2-2
-             ztot = 0.
-             ztmp = 0.
              DO k = 2,n1
                 ztmp = ztmp + a(k,i,j)*(1./dz(k))
                 ztot = ztot + (1./dz(k))
              END DO
-             ! Grid weighted vertical average
-             get_avg_ts = get_avg_ts + ztmp/ztot
-             npnt = npnt + 1
           END DO
        END DO
     END IF
 
-    lavg = REAL(npnt)
+    lavg = ztot
     call double_scalar_par_sum(lavg,gavg)
     IF (gavg>0.) THEN
-        nn = gavg ! npnt
-        lavg = get_avg_ts
+        ztot = gavg
+        lavg = ztmp
         call double_scalar_par_sum(lavg,gavg)
-        get_avg_ts = real(gavg/nn)
+        get_avg_ts = real(gavg/ztot)
     ELSE
         get_avg_ts = -999.
     ENDIF

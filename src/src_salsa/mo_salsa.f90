@@ -10,8 +10,10 @@ MODULE mo_salsa
 
   PRIVATE
 
+  REAL :: out_inst_data(11)=0.0
+
   ! -- subroutines
-  PUBLIC :: salsa
+  PUBLIC :: salsa, out_inst_data
 
 CONTAINS
 
@@ -57,9 +59,9 @@ CONTAINS
     !-- Input variables that are changed within --------------------------------------
     REAL, INTENT(inout) ::      &
          pc_gas(kbdim,klev,ngas),   & ! gas phase concentrations at each grid point [mol/m3]
-         prv(kbdim,klev),           & ! Water vapour mixing ratio  [kg/kg]
-         prs(kbdim,klev),           & ! Saturation mixing ratio    [kg/kg]
-         prsi(kbdim,klev)             ! Saturation mixing ratio over ice   [kg/kg]
+         prv(kbdim,klev),           & ! Water vapour mixing ratio  [kg/m3]
+         prs(kbdim,klev),           & ! Saturation mixing ratio    [kg/m3]
+         prsi(kbdim,klev)             ! Saturation mixing ratio over ice   [kg/m3]
 
     TYPE(t_section), INTENT(inout) :: &
          pcloud(kbdim,klev,ncld),     &
@@ -91,18 +93,24 @@ CONTAINS
     ! Secondary ice production
     IF (lscoag .AND. nlsip_hm) THEN !  Hallett-Mossop
         IF (sflg) CALL salsa_var_stat('siph',0)
+        out_inst_data(1) = SUM(pice%numc)+SUM(psnow%numc)
         CALL sip_hm(kbdim, klev, pice, psnow, ptemp)
         IF (sflg) CALL salsa_var_stat('siph',1)
+        out_inst_data(1) = SUM(pice%numc)+SUM(psnow%numc) - out_inst_data(1)
     ENDIF
     IF (lscoag .AND. nlsip_iibr) THEN ! Ice-ice collisional breakup
         IF (sflg) CALL salsa_var_stat('sipi',0)
-        CALL sip_iibr(kbdim, klev, pice, psnow, ptemp)
+        out_inst_data(2) = SUM(pice%numc)+SUM(psnow%numc)
+        CALL sip_iibr(kbdim, klev, pice, psnow, ptemp, prv, prsi)
         IF (sflg) CALL salsa_var_stat('sipi',1)
+        out_inst_data(2) = SUM(pice%numc)+SUM(psnow%numc) - out_inst_data(2)
     ENDIF
     IF (lscoag .AND. nlsip_df) THEN ! Droplet fragmentation during freezing
         IF (sflg) CALL salsa_var_stat('sipd',0)
-        CALL sip_df(kbdim, klev, pcloud, pprecp, pice, psnow, ptemp)
+        out_inst_data(3) = SUM(pice%numc)+SUM(psnow%numc)
+        CALL sip_df(kbdim, klev, pcloud, pprecp, pice, psnow, ptemp, ppres)
         IF (sflg) CALL salsa_var_stat('sipd',1)
+        out_inst_data(3) = SUM(pice%numc)+SUM(psnow%numc) - out_inst_data(3)
     ENDIF
 
     ! Condensation of H2SO4 and non-volatile organic vapor
@@ -141,21 +149,25 @@ CONTAINS
     !   Statistics: change in total rain water volume (=change in cloud water) and rain drop number concentration
     IF (lsauto) THEN
          IF (sflg) CALL salsa_var_stat('auto',0)
+         out_inst_data(4) = SUM(pprecp%numc)
          IF (auto_sb) THEN
             CALL autoconv_sb(kbdim,klev,ptstep,pcloud,pprecp)
          ELSE
             CALL autoconv2(kbdim,klev,pcloud, pprecp)
          ENDIF
          IF (sflg) CALL salsa_var_stat('auto',1)
+         out_inst_data(4) = SUM(pprecp%numc) - out_inst_data(4)
     ENDIF
 
     ! Cloud activation
     !   Statistics: change in total cloud water volume (=change in cloud water) and cloud drop number concentration
     IF (lsactiv ) THEN
          IF (sflg) CALL salsa_var_stat('cact',0)
+         out_inst_data(5) = SUM(pcloud%numc)
          CALL cloud_activation(kbdim,  klev,          &
                                ptemp, prv, prs, paero, pcloud)
          IF (sflg) CALL salsa_var_stat('cact',1)
+         out_inst_data(5) = SUM(pcloud%numc) - out_inst_data(5)
     ENDIF
 
     ! Ice nucleation
@@ -164,6 +176,7 @@ CONTAINS
     !     to the autoconversion variables (no ice category; autoconversion disabled)
     IF (lsicenucl) THEN
       IF (sflg) CALL salsa_var_stat('nucl',0) ! Total
+      out_inst_data(6) = SUM(pice%numc)+SUM(psnow%numc)
       IF (fixinc>=0. .OR. ice_diag<0) THEN
         ! Fixed (fixinc>0.0) or diagnostic (ice_diag<0) ice number concentration
         IF (sflg) CALL salsa_var_stat('nucf',0) ! Fixed ice
@@ -179,6 +192,8 @@ CONTAINS
                              ice_diag, ptemp, ppres, prv, prs, prsi)
         IF (sflg) CALL salsa_var_stat('nucf',1)
       ENDIF
+      out_inst_data(7) = SUM(pice%numc)+SUM(psnow%numc)
+      out_inst_data(6) = out_inst_data(7) - out_inst_data(6)
       IF (ice_hom .OR. ice_imm .OR. ice_dep) THEN
         ! Modelled ice nucleation
         IF (sflg) CALL salsa_var_stat('nucm',0) ! Modelled ice
@@ -188,14 +203,17 @@ CONTAINS
         IF (sflg) CALL salsa_var_stat('nucm',1)
       ENDIF
       IF (sflg) CALL salsa_var_stat('nucl',1)
+      out_inst_data(7) = SUM(pice%numc)+SUM(psnow%numc) - out_inst_data(7)
     ENDIF
 
     ! Melting of ice and snow
     !   Statistics: change in total ice and snow water volume and number concentrations
     IF (lsicmelt) THEN
          IF (sflg) CALL salsa_var_stat('melt',0)
+         out_inst_data(8) = SUM(pice%numc)+SUM(psnow%numc)
          CALL ice_melt(kbdim,klev,pcloud,pice,pprecp,psnow,ptemp)
          IF (sflg) CALL salsa_var_stat('melt',1)
+         out_inst_data(8) = SUM(pice%numc)+SUM(psnow%numc) - out_inst_data(8)
     ENDIF
 
     ! Snow formation ~ autoconversion from ice
@@ -220,17 +238,23 @@ CONTAINS
     ! 2) release cloud, rain, ice, and snow back to aerosol
     IF (lsdiag) THEN
         IF (sflg) CALL salsa_var_stat('diag',0)
+        out_inst_data(9) = SUM(pcloud%numc)
+        out_inst_data(10) = SUM(pprecp%numc)
         ! Clouds and aerosol always
         CALL clean_missing(kbdim,klev,fn2b,paero)
         CALL clean_missing(kbdim,klev,ncld,pcloud)
         CALL clean_missing(kbdim,klev,nprc,pprecp)
         CALL ReleaseDrops(kbdim,klev,paero,pcloud,pprecp,prv,prs,ptemp)
         CALL ReleaseAerosol(kbdim,klev,paero,pc_gas,ngas)
+        out_inst_data(9) = SUM(pcloud%numc) - out_inst_data(9)
+        out_inst_data(10) = SUM(pprecp%numc) - out_inst_data(10)
         ! Ice and snow when level=5
         IF (level==5) THEN
+            out_inst_data(11) = SUM(pice%numc)+SUM(psnow%numc)
             CALL clean_missing(kbdim,klev,nice,pice)
             CALL clean_missing(kbdim,klev,nsnw,psnow)
             CALL ReleaseIce(kbdim,klev,paero,pice,psnow,prv,prsi)
+            out_inst_data(11) = SUM(pice%numc)+SUM(psnow%numc) - out_inst_data(11)
         ENDIF
         IF (sflg) CALL salsa_var_stat('diag',1)
     ENDIF

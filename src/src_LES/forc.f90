@@ -42,7 +42,7 @@ contains
   subroutine forcings(time_in, cntlat, sst)
 
     use grid, only: nxp, nyp, nzp, zm, zt, dzt, dzm, a_dn, iradtyp, pi0, pi1, level, &
-         a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp, a_rv, a_rc, CCN, &
+         a_rflx, a_sflx, albedo, a_tt, a_tp, a_rt, a_rp, a_pexnr, a_temp, a_rv, a_rc, a_ncp, &
          a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, a_maerop, &
          a_ncloudp, a_mcloudp, a_nprecpp, a_mprecpp, a_nicep, a_micep, a_nsnowp, a_msnowp, &
          nbins, ncld, nice, nprc, nsnw, a_fus, a_fds, a_fuir, a_fdir
@@ -59,7 +59,7 @@ contains
        ! No radiation, just case-dependent large-scale forcing
        !
        IF ( case_name /= 'none' ) THEN
-          call case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
+          call case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,time_in,a_tp,a_rp,a_tt,a_rt)
        END IF
 
     case (2)
@@ -69,9 +69,7 @@ contains
           zrc(:,:,:) = a_rc(:,:,:) + a_rpp(:,:,:) ! Liquid water mixing ratio - radiative effects
           znc(:,:,:) = a_rp(:,:,:) ! Total water mixing ratio - for determining inversion height
        ELSE
-          zrc(:,:,:) = SUM(a_maerop(:,:,:,1:nbins),DIM=4) + &
-                       SUM(a_mcloudp(:,:,:,1:ncld),DIM=4) + &
-                       SUM(a_mprecpp(:,:,:,1:nprc),DIM=4) ! Aerosol, cloud and rain water
+          zrc(:,:,:) = a_rc(:,:,:) ! Aerosol, cloud and rain water
           znc(:,:,:) = a_rp(:,:,:) + zrc(:,:,:) ! Water vapor and liquid water, but no ice or snow
        ENDIF
        call new_gcss_rad(nzp, nxp, nyp, zrc, znc, a_rflx)
@@ -86,15 +84,13 @@ contains
           IF (RadPrecipBins==0) THEN
              ! Separate cloud and rain
              zrc = a_rc
-             !znc = CCN
-             WHERE(a_rc>0.) znc = CCN/a_dn ! COMBLE: CCN in #/m3
+             znc = a_ncp
              zrr = a_rpp
           ELSE
              ! Combined liquid
              zrc = a_rc + a_rpp
              znc = a_npp
-             !WHERE (a_rc>0.) znc = znc + CCN
-             WHERE (a_rc>0.) znc = znc + CCN/a_dn ! COMBLE: CCN in #/m3
+             WHERE (a_rc>0.) znc = znc + a_ncp
              zrr = 0.
           ENDIF
           ! Ice and graupel (+snow and hail)
@@ -146,13 +142,13 @@ contains
           IF (level == 3 .AND. RadPrecipBins == 0) THEN
              ! Separate cloud and rain
              zrc = a_rc
-             znc = CCN
+             znc = a_ncp
              zrr = a_rpp
           ELSE
              ! Combined liquid
              zrc = a_rc + a_rpp
              znc = a_npp
-             WHERE (a_rc>0.) znc = znc + CCN
+             WHERE (a_rc>0.) znc = znc + a_ncp
              zrr = 0.
           ENDIF
           call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
@@ -213,7 +209,7 @@ contains
 
        ! Case-dependent large-scale forcing
        IF ( case_name /= 'none') THEN
-          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,a_tp,a_rp,a_tt,a_rt)
+          CALL case_forcing(nzp,nxp,nyp,zt,dzt,dzm,div,time_in,a_tp,a_rp,a_tt,a_rt)
        END IF
 
     case default
@@ -380,7 +376,7 @@ contains
   ! subroutine case_forcing: adjusts tendencies according to a specified
   ! large scale forcing.  Normally case (run) specific.
   !
-  subroutine case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,tl,rt,tt,rtt)
+  subroutine case_forcing(n1,n2,n3,zt,dzt,dzm,zdiv,time_doy,tl,rt,tt,rtt)
 
     use mpi_interface, only : myid, appl_abort
     use util, only : get_zi_val
@@ -388,7 +384,7 @@ contains
 
     integer, intent (in):: n1,n2, n3
     real, dimension (n1), intent (in)          :: zt, dzt, dzm
-    real, intent(in)                           :: zdiv
+    real, intent(in)                           :: zdiv, time_doy
     real, dimension (n1,n2,n3), intent (in)    :: tl, rt
     real, dimension (n1,n2,n3), intent (inout) :: tt, rtt
 
@@ -580,11 +576,6 @@ contains
                 enddo
             enddo
         enddo
-        !
-    CASE ('amazon')
-        ! Amazon
-        ! --------
-        ! - to be added -
         !
     case default
        if (myid == 0) print *, '  ABORTING: inproper call to radiation'

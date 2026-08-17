@@ -195,7 +195,7 @@ module radiation
                   if ((ice(k,i,j).gt.0.).and.(nice(k,i,j).gt.0.)) then
                      piwc(kk) = 1000.*dn(k,i,j)*ice(k,i,j)
                      pde(kk)  = 1.e6*(piwc(kk)/(1000.*pri*nice(k,i,j)*dn(k,i,j)))**(1./3.)
-                     pde(kk)=min(max(pde(kk),20.),180.)
+                     pde(kk)=min(max(pde(kk),20.),120.)
                   else
                      piwc(kk) = 0.0
                      pde(kk)  = 0.0

@@ -24,7 +24,8 @@ SRCSF90 = mo_salsa_update.f90 mo_salsa_cloud.f90 \
           advl.f90 srfc.f90 prss.f90 sgsm.f90 mcrp.f90 mcrp_ice.f90 mcrp_ice_sb.f90 step.f90 init.f90 \
           rfft.f90 \
           lsvar.f90 \
-          mo_vbsctl.f90 mo_vbs.f90 mo_vbs_init.f90 mo_vbs_partition.f90
+          mo_vbsctl.f90 mo_vbs.f90 mo_vbs_init.f90 mo_vbs_partition.f90 \
+          modcross.f90
 SRCSF77 = 
 
 
@@ -47,17 +48,18 @@ $(OUT): $(OBJS)
 # --------------------
 #
 LES.o: grid.o init.o step.o $(seqmpi:.f90=.o) util.o sgsm.o srfc.o \
-       stat.o forc.o mo_salsa_init.o mcrp_ice.o rad_d4strm.o
+       stat.o forc.o mo_salsa_init.o mcrp_ice.o rad_d4strm.o modcross.o
 ncio.o: $(seqmpi:.f90=.o)
 util.o: $(seqmpi:.f90=.o)
 defs.o:
 grid.o: ncio.o $(seqmpi:.f90=.o) mo_submctl.o
 stat.o: ncio.o grid.o util.o defs.o mo_submctl.o $(seqmpi:.f90=.o)
+modcross.o: $(seqmpi:.f90=.o) ncio.o grid.o defs.o stat.o
 thrm.o: grid.o defs.o $(seqmpi:.f90=.o)
 forc.o: grid.o defs.o stat.o util.o rad_driver.o $(seqmpi:.f90=.o)
 advf.o: grid.o stat.o util.o $(seqmpi:.f90=.o)
 advl.o: grid.o stat.o util.o
-srfc.o: grid.o stat.o defs.o thrm.o util.o
+srfc.o: grid.o stat.o defs.o thrm.o util.o mo_submctl.o
 prss.o: grid.o stat.o defs.o util.o $(seqmpi:.f90=.o)
 sgsm.o: grid.o stat.o defs.o util.o thrm.o $(seqmpi:.f90=.o)
 mcrp.o: grid.o stat.o defs.o mcrp_ice.o
@@ -65,10 +67,10 @@ mcrp_ice_sb.o: defs.o thrm.o
 mcrp_ice.o: grid.o stat.o defs.o thrm.o mcrp_ice_sb.o
 step.o: grid.o stat.o util.o defs.o thrm.o sgsm.o srfc.o  \
         mcrp.o prss.o advf.o advl.o forc.o $(seqmpi:.f90=.o) \
-        mo_salsa_driver.o mo_submctl.o lsvar.o
+        mo_salsa_driver.o mo_submctl.o modcross.o lsvar.o
 init.o: grid.o stat.o util.o defs.o step.o sgsm.o thrm.o  \
 	$(seqmpi:.f90=.o) mo_submctl.o \
-	mo_salsa_driver.o ncio.o rad_d4strm.o lsvar.o
+	ncio.o rad_d4strm.o modcross.o lsvar.o
 rfft.o:
 lsvar.o:
 rad_solver.o: defs.o
@@ -78,7 +80,7 @@ rad_d4strm.o: defs.o rad_solver.o \
 	      rad_corkds.o rad_cldwtr.o
 rad_driver.o: defs.o rad_d4strm.o $(seqmpi:.f90=.o)
 $(seqmpi:.f90=.o):
-mo_salsa_driver.o: mo_submctl.o mo_salsa.o mo_salsa_properties.o
+mo_salsa_driver.o: mo_submctl.o mo_salsa.o
 mo_salsa_init.o: mo_submctl.o mo_salsa_driver.o mo_vbs_init.o
 mo_submctl.o: 
 mo_salsa_cloud.o: mo_submctl.o

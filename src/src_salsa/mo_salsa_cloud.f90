@@ -303,7 +303,7 @@ CONTAINS
     ! Release cloud and rain drops back to aerosol when they have become small enough
     !
     USE mo_submctl, ONLY :  t_section,nbins,ncld,nprc,rg,surfw0,pi6,pi,nlim,prlim, &
-                diss,dens,mws,fn1a,in2a,fn2a,in2b,nspec,calc_correlation
+                diss,dens,mws,fn1a,in2a,fn2a,in2b,nspec,calc_correlation,rain2aer_opt
     IMPLICIT NONE
     INTEGER, INTENT(IN) :: kbdim,klev
     TYPE(t_section), INTENT(INOUT) :: paero(kbdim,klev,nbins), &
@@ -360,7 +360,13 @@ CONTAINS
                     ! Corresponding b bin
                     bb=ab-in2a+in2b
                     ! 2) Select a or b bin
-                    IF (ab<in2a .OR. paero(ii,jj,bb)%numc<=nlim) THEN
+                    IF (rain2aer_opt>0) THEN
+                        ! Force a-bins
+                        !ab = ab
+                    ELSEIF (rain2aer_opt<0) THEN
+                        ! Force b-bins
+                        ab=MAX(bb,in2b)
+                    ELSEIF (ab<in2a .OR. paero(ii,jj,bb)%numc<=nlim) THEN
                         ! Empty b bin so select a
                         !ab = ab
                     ELSEIF (paero(ii,jj,ab)%numc<=nlim) THEN
@@ -393,7 +399,7 @@ CONTAINS
     ! Release ice and snow back to aerosol when they have become small enough
     !
     USE mo_submctl, ONLY : t_section,nbins,nice,nsnw,pi6,nlim,prlim, &
-                fn1a,in2a,fn2a,in2b,nspec,calc_correlation
+                fn1a,in2a,fn2a,in2b,nspec,calc_correlation,snow2aer_opt
     IMPLICIT NONE
     INTEGER, INTENT(IN) :: kbdim,klev
     TYPE(t_section), INTENT(INOUT) :: paero(kbdim,klev,nbins), &
@@ -447,7 +453,13 @@ CONTAINS
                     ! Corresponding b bin
                     bb=ab-in2a+in2b
                     ! 2) Select a or b bin
-                    IF (ab<in2a .OR. paero(ii,jj,bb)%numc<=nlim) THEN
+                    IF (snow2aer_opt>0) THEN
+                        ! Force a-bins
+                        !ab = ab
+                    ELSEIF (snow2aer_opt<0) THEN
+                        ! Force b-bins
+                        ab=MAX(bb,in2b)
+                    ELSEIF (ab<in2a .OR. paero(ii,jj,bb)%numc<=nlim) THEN
                         ! Empty b bin or 1a, so select a
                         !ab = ab
                     ELSEIF (paero(ii,jj,ab)%numc<=nlim) THEN
@@ -757,10 +769,9 @@ CONTAINS
     INTEGER, INTENT(in) :: kbdim,klev
     REAL, INTENT(in) :: ptstep
     REAL, INTENT(in) :: ptemp(kbdim,klev),  &
-                            prv(kbdim,klev),    &
                             prs(kbdim,klev),    &
                             prsi(kbdim,klev)
-
+    REAL, INTENT(inout) :: prv(kbdim,klev)
     TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,fn2b), &
                                       pcloud(kbdim,klev,ncld), &
                                       pprecp(kbdim,klev,nprc), &
@@ -902,7 +913,7 @@ CONTAINS
             dN = paero(ii,jj,kk)%numc*frac
 
             ! Move to the parallel ice bin or to a snow bin
-            IF (dN>prlim) CALL aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dN)
+            IF (dN>prlim) CALL aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dN,prv)
 
         END DO
 
@@ -1121,7 +1132,7 @@ CONTAINS
             Ni0 = n_ice_diagnostic(ABS(ice_diag),ptemp(ii,jj),prv(ii,jj),prs(ii,jj),prsi(ii,jj))
         ELSE
             ! Target number concentration of ice, converted to #/m^3
-            Ni0 = fixinc*EXP(fixinc_slope*(273.15-ptemp(ii,jj))) * pdn
+            !Ni0 = fixinc*EXP(fixinc_slope*(273.15-ptemp(ii,jj))) * pdn
             Ni0 = fixinc ! COMBLE: concentration in #/m3
         ENDIF
 
@@ -1246,12 +1257,13 @@ CONTAINS
                     pcloud(kbdim,klev,ncld), pprecp(kbdim,klev,nprc), &
                     pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
     REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev), &
-                    prv(kbdim,klev), prs(kbdim,klev), prsi(kbdim,klev)
+                    prs(kbdim,klev), prsi(kbdim,klev)
+    REAL, INTENT(inout) :: prv(kbdim,klev)
 
     IF (0<iopt .AND. iopt<=10) THEN
         ! 1-10: INAS parameterizations
         CALL ice_inas_driver(kbdim, klev, paero, pcloud, pprecp, pice, psnow, &
-                iopt, ptemp, ppres, prv, prsi)
+                iopt, ptemp, prv, prs, prsi)
     ELSEIF (10<iopt .AND. iopt<=20) THEN
         ! 11-20: Other parameterizations
         CALL cloud_freeze_driver(kbdim, klev, pcloud, pprecp, pice, psnow, &
@@ -1269,103 +1281,144 @@ CONTAINS
   ! distribution. The INP excess will freeze.
   !
   SUBROUTINE ice_inas_driver(kbdim, klev, paero, pcloud, pprecp, pice, psnow, &
-            iopt, ptemp, ppres, prv, prsi)
+            iopt, ptemp, prv, prs, prsi)
 
     USE mo_submctl, ONLY : t_section, in2a, nbins, ncld, nprc, nice, nsnw, &
-                    rhowa, rda, pi, nlim, prlim, &
-                    fixed_ice_min_Si, fixed_ice_min_rc, fixed_ice_max_T
+                    pi, nlim, prlim, idu, ibc, nspec, &
+                    fixed_ice_min_Si, fixed_ice_max_T
     IMPLICIT NONE
 
     INTEGER, INTENT(in) :: kbdim, klev, iopt
     TYPE(t_section), INTENT(inout) :: paero(kbdim,klev,nbins),  &
                     pcloud(kbdim,klev,ncld), pprecp(kbdim,klev,nprc), &
                     pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
-    REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev), &
-                    prv(kbdim,klev), prsi(kbdim,klev)
+    REAL, INTENT(in) :: ptemp(kbdim,klev), &
+                    prs(kbdim,klev), prsi(kbdim,klev)
+    REAL, INTENT(inout) :: prv(kbdim,klev) ! kg/m3
 
-    INTEGER :: ii,jj,kk
-    REAL :: pdn, S_ice, rc, ns, sumICE, dnice, inp_a(nbins), inp_c(ncld), inp_r(nprc)
+    INTEGER :: ii,jj,kk,iv1,iv2
+    REAL :: S_ice, S_w, ns, area, sumICE, dnice, inp_a(nbins), inp_c(ncld), inp_r(nprc)
+    REAL :: amin=3.14159e-16 ! Minimum diameter 10 nm
+    LOGICAL :: dep
+
+    IF (idu>0) THEN
+        ! Dust is present, so use that as INP
+        iv1=idu
+        iv2=idu
+    ELSEIF (ibc>0) THEN
+        ! BC is present, so use that as INP
+        iv1=ibc
+        iv2=ibc
+    ELSE
+        ! No insolubles, so use the dry particle as INP
+        iv1=2
+        iv2=nspec+1
+    ENDIF
 
     DO ii = 1,kbdim
     DO jj = 1,klev
-        pdn=ppres(ii,jj)/(rda*ptemp(ii,jj)) ! Air density (kg/m^3)
-
         ! Conditions for ice nucleation
         S_ice = prv(ii,jj)/prsi(ii,jj) ! Saturation with respect to ice
-        rc = sum( pcloud(ii,jj,:)%volc(1) )*rhowa/pdn ! Cloud water mixing ratio (kg/kg)
-        if ( S_ice < fixed_ice_min_Si .OR. rc < fixed_ice_min_rc .OR. ptemp(ii,jj)>fixed_ice_max_T ) cycle
+        S_w = prv(ii,jj)/prs(ii,jj) ! ... and water
+        if ( S_ice < fixed_ice_min_Si .OR. ptemp(ii,jj)>fixed_ice_max_T ) cycle
 
         ! INAS
-        IF (iopt==1) THEN
+        dep = .FALSE.
+        ns = 0.0
+        IF (iopt==1 .AND. S_w>1.0) THEN
             ! McCluskey, C. S., et al. (2018), Marine and Terrestrial Organic Ice-Nucleating
             ! Particles in Pristine Marine to Continentally Influenced Northeast Atlantic Air
             ! Masses, J. Geophys. Res.-Atmos., 123(11), 6196-6212, doi:10.1029/2017jd028033.
+            ! Immersion freezing parameterization - for cloud and rain droplets at RH>100 %
             ns = exp(-0.545*(ptemp(ii,jj)-273.15) + 1.0125) ! m-2
-        ELSE
-            STOP 'INAS parameterization not supported!'
+        ELSEIF (ANY(iopt==[2,7]) .AND. S_w>1.0) THEN
+            ! Ullrich, R., et al. (2017): A New Ice Nucleation Active Site Parameterization for Desert
+            ! Dust and Soot. J. Atmos. Sci., 74, 699-717, https://doi.org/10.1175/JAS-D-16-0074.1.
+            ! Immersion freezing on desert dust (Eq. 5) - for cloud and rain droplets at RH>100 %
+            ns = exp(150.577-0.517*ptemp(ii,jj)) ! m-2
+        ELSEIF (ANY(iopt==[4,7]) .AND. S_w<1.0) THEN
+            ! Ullrich, R., et al. (2017): A New Ice Nucleation Active Site Parameterization for Desert
+            ! Dust and Soot. J. Atmos. Sci., 74, 699-717, https://doi.org/10.1175/JAS-D-16-0074.1.
+            ! Deposition nucleation on desert dust (Eq. 7) - for dry aerosol at RH<100 %
+            ns = exp(285.692*(S_ice-1.0)**(1./4.)*cos(0.017*(ptemp(ii,jj)-256.692))**2* &
+                 (pi/2.-atan(0.08*(ptemp(ii,jj)-200.745)))/pi) ! m-2
+            dep = .TRUE.
         ENDIF
 
-        ! Calculate INP concentration based on ...
-        ! a) aerosol - currently not included
-        inp_a=0.
-        DO kk = in2a,nbins
-            IF(paero(ii,jj,kk)%numc > nlim) THEN
-                ! Here using dry surface area calculated from dry volume:
-                !   V=pi/6*D^3=pi/6*(A/pi)^(3/2) => A=pi*(V*6/pi)^(2/3)
-                inp_a(kk) = paero(ii,jj,kk)%numc*ns*pi* &
-                        (6.0/pi*SUM(paero(ii,jj,kk)%volc(2:))/paero(ii,jj,kk)%numc)**(2./3.)
-            ENDIF
-        ENDDO
-        ! b) cloud droplets
-        inp_c=0.
-        DO kk = 1,ncld
-            IF(pcloud(ii,jj,kk)%numc > nlim) THEN
-                ! Dry surface area
-                inp_c(kk) = pcloud(ii,jj,kk)%numc*ns*pi* &
-                        (6.0/pi*SUM(pcloud(ii,jj,kk)%volc(2:))/pcloud(ii,jj,kk)%numc)**(2./3.)
-            ENDIF
-        ENDDO
-        ! c) rain drops
-        inp_r=0.
-        DO kk = 1,nprc
-            IF(pprecp(ii,jj,kk)%numc > prlim) THEN
-                ! Dry surface area
-                inp_r(kk) = pprecp(ii,jj,kk)%numc*ns*pi* &
-                        (6.0/pi*SUM(pprecp(ii,jj,kk)%volc(2:))/pprecp(ii,jj,kk)%numc)**(2./3.)
-            ENDIF
-        ENDDO
+        ! Stop if these are not effective
+        IF (ns<100.) CYCLE
 
-        ! Calculate the INP excess = the number of new ice particles
-        sumICE = SUM(inp_a) + SUM(inp_c) + SUM(inp_r)
-        dnice = sumICE - SUM(pice(ii,jj,:)%numc) - SUM(psnow(ii,jj,:)%numc)
+        IF (dep) THEN
+            ! Deposition freezing for dry aerosol
+            inp_a=0.
+            DO kk = in2a,nbins
+                IF(paero(ii,jj,kk)%numc > nlim) THEN
+                    ! INP surface area per particle
+                    !   A=pi*D**2=pi*(6/pi*V/N)**(2/3)
+                    area = pi*(6.0/pi*SUM(paero(ii,jj,kk)%volc(iv1:iv2))/paero(ii,jj,kk)%numc)**(2./3.)
+                    ! Activated fraction, 1.0-exp(-ns*area), should be less than 0.99 (or ns*area<4.6)
+                    IF (area>amin) inp_a(kk) = paero(ii,jj,kk)%numc*(1.0-exp(-MIN(4.6,ns*area)))
+                ENDIF
+            ENDDO
 
-        IF (dnice<prlim) CYCLE
+            ! Calculate the INP excess = the number of new ice particles
+            sumICE = SUM(inp_a)
+            dnice = sumICE - SUM(pice(ii,jj,:)%numc) - SUM(psnow(ii,jj,:)%numc)
 
-        ! New ice based on normalized INP concentrations
-        ! a) Aerosol
-        inp_a=inp_a/sumICE*dnice
-        DO kk = in2a,nbins
-            IF(paero(ii,jj,kk)%numc > nlim .AND. inp_a(kk) > prlim) THEN
-                dnice = MIN(inp_a(kk),paero(ii,jj,kk)%numc)
-                CALL aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dnice)
-            ENDIF
-        END DO
-        ! b) Cloud
-        inp_c=inp_c/sumICE*dnice
-        DO kk = 1,ncld
-            IF(pcloud(ii,jj,kk)%numc > nlim .AND. inp_c(kk) > prlim) THEN
-                dnice = MIN(inp_c(kk),pcloud(ii,jj,kk)%numc)
-                CALL cloud2ice_snow(kbdim,klev,pcloud,pice,psnow,ii,jj,kk,dnice)
-            ENDIF
-        END DO
-        ! c) Rain
-        inp_r=inp_r/sumICE*dnice
-        DO kk = 1,nprc
-            IF(pprecp(ii,jj,kk)%numc > nlim .AND. inp_r(kk) > prlim) THEN
-                dnice = MIN(inp_r(kk),pprecp(ii,jj,kk)%numc)
-                CALL rain2ice_snow(kbdim,klev,pprecp,pice,psnow,ii,jj,kk,dnice)
-            ENDIF
-        END DO
+            IF (dnice<prlim) CYCLE
+
+            ! Limiter: max 1 % of the current ice (or 10 #/m3 if there is no pre-existing ice)
+            dnice= MIN(dnice,MAX(0.01*(SUM(pice(ii,jj,:)%numc)+SUM(psnow(ii,jj,:)%numc)),10.))
+
+            ! New ice based on normalized INP concentrations
+            inp_a=inp_a/sumICE*dnice
+            DO kk = in2a,nbins
+                IF(inp_a(kk) > prlim) THEN
+                    dnice = MIN(inp_a(kk),paero(ii,jj,kk)%numc)
+                    CALL aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dnice,prv)
+                ENDIF
+            END DO
+        ELSE
+            ! Immersion freezing for ...
+            ! a) cloud droplets
+            inp_c=0.
+            DO kk = 1,ncld
+                IF(pcloud(ii,jj,kk)%numc > nlim) THEN
+                    area = pi*(6.0/pi*SUM(pcloud(ii,jj,kk)%volc(iv1:iv2))/pcloud(ii,jj,kk)%numc)**(2./3.)
+                    IF (area>amin) inp_c(kk) = pcloud(ii,jj,kk)%numc*(1.0-exp(-MIN(4.6,ns*area)))
+                ENDIF
+            ENDDO
+            ! b) rain drops
+            inp_r=0.
+            DO kk = 1,nprc
+                IF(pprecp(ii,jj,kk)%numc > prlim) THEN
+                    area = pi*(6.0/pi*SUM(pprecp(ii,jj,kk)%volc(iv1:iv2))/pprecp(ii,jj,kk)%numc)**(2./3.)
+                    IF (area>amin) inp_r(kk) = pprecp(ii,jj,kk)%numc*(1.0-exp(-MIN(4.6,ns*area)))
+                ENDIF
+            ENDDO
+
+            ! Calculate the INP excess = the number of new ice particles
+            sumICE = SUM(inp_c) + SUM(inp_r)
+            dnice = sumICE - SUM(pice(ii,jj,:)%numc) - SUM(psnow(ii,jj,:)%numc)
+
+            IF (dnice<prlim) CYCLE
+
+            ! New ice based on normalized INP concentrations
+            inp_c=inp_c/sumICE*dnice
+            DO kk = 1,ncld
+                IF(inp_c(kk) > prlim) THEN
+                    dnice = MIN(inp_c(kk),pcloud(ii,jj,kk)%numc)
+                    CALL cloud2ice_snow(kbdim,klev,pcloud,pice,psnow,ii,jj,kk,dnice)
+                ENDIF
+            END DO
+            inp_r=inp_r/sumICE*dnice
+            DO kk = 1,nprc
+                IF(inp_r(kk) > prlim) THEN
+                    dnice = MIN(inp_r(kk),pprecp(ii,jj,kk)%numc)
+                    CALL rain2ice_snow(kbdim,klev,pprecp,pice,psnow,ii,jj,kk,dnice)
+                ENDIF
+            END DO
+        ENDIF
     END DO
     END DO
 
@@ -1449,9 +1502,9 @@ CONTAINS
 
 
   ! Move frozen aerosol to ice or snow bins
-  SUBROUTINE aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dN)
+  SUBROUTINE aero2ice_snow(kbdim,klev,paero,pice,psnow,ii,jj,kk,dN,rv)
     USE mo_submctl, ONLY : t_section, nbins, nice, nsnw, &
-            fn1a, nspec, ice_target_opt
+            fn1a, nspec, ice_target_opt, rhowa
     IMPLICIT NONE
     ! Inputs/outputs
     INTEGER, INTENT(in) :: kbdim,klev
@@ -1459,8 +1512,9 @@ CONTAINS
                                       pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
     INTEGER, INTENT(in) :: ii, jj, kk ! Aerosol bin
     REAL, INTENT(inout) :: dN ! Change in number concentration
+    REAL, INTENT(inout) :: rv(kbdim,klev) ! Water vapor mixing ratio (kg/m3)
     ! Local
-    REAL :: frac, vol
+    REAL :: frac, vol, dvw
     INTEGER :: nn, ss
     !
     nn = nspec + 1 ! Aerosol species + water
@@ -1473,18 +1527,40 @@ CONTAINS
         ss = MAX(1,kk-fn1a) ! subtract 1a aerosol bins
         pice(ii,jj,ss)%volc(1:nn) = pice(ii,jj,ss)%volc(1:nn) + paero(ii,jj,kk)%volc(1:nn)*frac
         pice(ii,jj,ss)%numc   = pice(ii,jj,ss)%numc + dN
+        ! If there is no deposited water, add a small amount to allow condensation
+        IF (pice(ii,jj,ss)%volc(1)<1e-20) THEN
+            ! Volume of 1 nm coating: V=pi/6*D^3 => dV=pi/2*D^2*dD
+            ! But not more than 1 % of the water vapor
+            dvw = MIN(1.5708e-9*paero(ii,jj,kk)%dwet**2*dN,rv(ii,jj)/rhowa*0.01)
+            pice(ii,jj,ss)%volc(1) = pice(ii,jj,ss)%volc(1) + dvw
+            rv(ii,jj) = rv(ii,jj) - dvw*rhowa ! Mixing ratio in kg/m3
+        ENDIF
     ELSEIF (ice_target_opt==0) THEN
         ! Add to the matching snow bin - based on wet volume
         vol=SUM(paero(ii,jj,kk)%volc(1:nn))/paero(ii,jj,kk)%numc
         ss =MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim))
-
         psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + paero(ii,jj,kk)%volc(1:nn)*frac
         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dN
+        IF (vol<psnow(ii,jj,ss)%vlolim) THEN
+            ! New ice is smaller than the minimum volume of the first snow bin (ss=1): add water
+            dvw = MIN((psnow(ii,jj,ss)%vlolim-vol)*dN,rv(ii,jj)/rhowa*0.01)
+            psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + dvw
+            rv(ii,jj) = rv(ii,jj) - dvw*rhowa
+        ELSEIF (psnow(ii,jj,ss)%volc(1)<1e-20) THEN
+            dvw = MIN(1.5708e-9*paero(ii,jj,kk)%dwet**2*dN,rv(ii,jj)/rhowa*0.01)
+            psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + dvw
+            rv(ii,jj) = rv(ii,jj) - dvw*rhowa
+        ENDIF
     ELSE
         ! Add to the ss:th snow bin
         ss=MIN(nsnw,ice_target_opt)
         psnow(ii,jj,ss)%volc(1:nn) = psnow(ii,jj,ss)%volc(1:nn) + paero(ii,jj,kk)%volc(1:nn)*frac
         psnow(ii,jj,ss)%numc   = psnow(ii,jj,ss)%numc + dN
+        IF (psnow(ii,jj,ss)%volc(1)<1e-20) THEN
+            dvw = MIN(1.5708e-9*paero(ii,jj,kk)%dwet**2*dN,rv(ii,jj)/rhowa*0.01)
+            psnow(ii,jj,ss)%volc(1) = psnow(ii,jj,ss)%volc(1) + dvw
+            rv(ii,jj) = rv(ii,jj) - dvw*rhowa
+        ENDIF
     ENDIF
     !
     paero(ii,jj,kk)%numc = paero(ii,jj,kk)%numc - dN
@@ -1739,6 +1815,7 @@ CONTAINS
   !***********************************************
 
   ! Hallett-Mossop or splintering during riming
+  ! *******************************************
   !   Cotton, W. R., Tripoli,  G. J., Rauber, R. M., and Mulvihill, E. A.: Numerical Simulation of
   !   the Effects of Varying Ice Crystal Nucleation Rates and Aggregation Processes on Orographic
   !   Snowfall, J. Appl. Meteor. Climatol., 25, 1658-1680,
@@ -1808,105 +1885,385 @@ CONTAINS
     END DO
   END SUBROUTINE sip_hm
 
+
   ! Droplet fragmentation during freezing
-  !   Sullivan, S. C., Hoose, C., Kiselev, A., Leisner, T., and Nenes, A.: Initiation of secondary
-  !   ice production in clouds, Atmos. Chem. Phys., 18, 1593-1610,
-  !   https://doi.org/10.5194/acp-18-1593-2018, 2018.
-  SUBROUTINE sip_df(kbdim,klev,pcloud,pprecp,pice,psnow,ptemp)
-    USE mo_submctl, ONLY : t_section, ncld, nprc, nice, nsnw, fnp2a, prlim, nlim, pi, &
-        df_c_mult, df_tmin, df_tmax, df_frag_vfrac, & ! Parameters
+  ! *************************************
+  SUBROUTINE sip_df(kbdim,klev,pcloud,pprecp,pice,psnow,ptemp,ppres)
+    USE mo_submctl, ONLY : t_section, ncld, nprc, nice, nsnw, fnp2a, prlim, nlim, &
+        df_frag_vfrac, & ! Parameters
         coll_rate_ic, coll_rate_ir, coll_rate_sc, coll_rate_sr ! Accumulated collisions (#/m3)
     IMPLICIT NONE
     ! Inputs/outputs
     INTEGER, INTENT(in) :: kbdim,klev
     TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
     TYPE(t_section), INTENT(in) ::  pcloud(kbdim,klev,ncld), pprecp(kbdim,klev,nprc)
-    REAL, INTENT(in) :: ptemp(kbdim,klev)
+    REAL, INTENT(in) :: ptemp(kbdim,klev), ppres(kbdim,klev)
     ! Local parameters
     INTEGER :: ii, jj, cc, bb, aa
-    REAL :: fact, dN, vol
+    REAL :: imf, dN, vol
     !
     DO jj = 1,klev
     DO ii = 1,kbdim
-        IF (df_tmin<ptemp(ii,jj) .AND. ptemp(ii,jj)<df_tmax) THEN
-            ! The number of fragments depends on temperature: 0.2*f(T;m=258 K,s=10 K)
-            fact=0.2/(10.*sqrt(2.*pi))*exp(-0.5*((ptemp(ii,jj)-258.)/10.)**2)
+        ! Ice-cloud/rain collisions producing ice
+        DO cc = 1,nice
+            ! New particles are taken from ice bin cc
+            IF (pice(ii,jj,cc)%numc<prlim) CYCLE
             !
-            ! Ice-cloud/rain collisions producing ice
-            DO cc = 1,nice
-                ! New particles are taken from snow bin cc
-                IF (pice(ii,jj,cc)%numc<prlim) CYCLE
+            ! Ice-cloud
+            DO aa = 1,ncld
+                IF (pcloud(ii,jj,aa)%numc<nlim .OR. coll_rate_ic(ii,jj,cc,aa)<1e-20) CYCLE
                 !
-                ! Ice-cloud
-                DO aa = 1,ncld
-                    ! New particles
-                    dN=df_c_mult*(pcloud(ii,jj,aa)%dwet**4)*fact*coll_rate_ic(ii,jj,cc,aa)
-                    IF (dN<prlim .OR. pcloud(ii,jj,aa)%numc<nlim) CYCLE
-                    !
-                    ! Fragment dry volume
-                    vol=df_frag_vfrac*SUM(pcloud(ii,jj,aa)%volc(2:))/pcloud(ii,jj,aa)%numc
-                    ! Ice a-bin
-                    bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
-                    IF (cc>fnp2a) bb=bb+fnp2a
-                    !
-                    CALL ice2ice(ii,jj,nice,pice,dN,cc,bb)
-                ENDDO
+                ! Ice multiplification factor
+                imf = imf_df(pcloud(ii,jj,aa),pice(ii,jj,cc),ptemp(ii,jj),ppres(ii,jj),2,4)
                 !
-                ! Ice-rain
-                DO aa = 1,nprc
-                    ! New particles
-                    dN=df_c_mult*(pprecp(ii,jj,aa)%dwet**4)*fact*coll_rate_ir(ii,jj,cc,aa)
-                    IF (dN<prlim .OR. pprecp(ii,jj,aa)%numc<prlim) CYCLE
-                    !
-                    ! Fragment dry volume
-                    vol=df_frag_vfrac*SUM(pprecp(ii,jj,aa)%volc(2:))/pprecp(ii,jj,aa)%numc
-                    ! Ice a-bin
-                    bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
-                    IF (cc>fnp2a) bb=bb+fnp2a
-                    !
-                    CALL ice2ice(ii,jj,nice,pice,dN,cc,bb)
-                ENDDO
+                ! Multiply by the collection rate
+                dN=imf*coll_rate_ic(ii,jj,cc,aa)
+                IF (dN<prlim) CYCLE
+                !
+                ! Fragment dry volume
+                vol=df_frag_vfrac*SUM(pcloud(ii,jj,aa)%volc(2:))/pcloud(ii,jj,aa)%numc
+                ! Ice a-bin or parallel b-bin
+                bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
+                IF (cc>fnp2a) bb=bb+fnp2a
+                !
+                CALL ice2ice(ii,jj,nice,pice,dN,cc,bb)
             ENDDO
             !
-            ! Snow-cloud/rain collisions producing snow
-            DO cc = 1,nsnw
-                ! New particles are taken from snow bin cc
-                IF (psnow(ii,jj,cc)%numc<prlim) CYCLE
+            ! Ice-rain
+            DO aa = 1,nprc
+                IF (pprecp(ii,jj,aa)%numc<prlim .OR. coll_rate_ir(ii,jj,cc,aa)<1e-20) CYCLE
                 !
-                ! Snow-cloud
-                DO aa = 1,ncld
-                    ! New particles
-                    dN=df_c_mult*(pcloud(ii,jj,aa)%dwet**4)*fact*coll_rate_sc(ii,jj,cc,aa)
-                    IF (dN<prlim .OR. pcloud(ii,jj,aa)%numc<nlim) CYCLE
-                    !
-                    ! Fragment wet volume
-                    vol=df_frag_vfrac*SUM(pcloud(ii,jj,aa)%volc(:))/pcloud(ii,jj,aa)%numc
-                    ! Snow bin
-                    bb=MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim))
-                    !
-                    CALL snow2snow(ii,jj,nsnw,psnow,dN,cc,bb)
-                ENDDO
+                imf = imf_df(pprecp(ii,jj,aa),pice(ii,jj,cc),ptemp(ii,jj),ppres(ii,jj),3,4)
                 !
-                ! Snow-rain
-                DO aa = 1,nprc
-                    ! New particles
-                    dN=df_c_mult*(pprecp(ii,jj,aa)%dwet**4)*fact*coll_rate_sr(ii,jj,cc,aa)
-                    IF (dN<prlim .OR. pprecp(ii,jj,aa)%numc<prlim) CYCLE
-                    !
-                    ! Fragment wet volume
-                    vol=df_frag_vfrac*SUM(pprecp(ii,jj,aa)%volc(:))/pprecp(ii,jj,aa)%numc
-                    ! Snow bin
-                    bb=MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim))
-                    !
-                    CALL snow2snow(ii,jj,nsnw,psnow,dN,cc,bb)
-                ENDDO
+                dN=imf*coll_rate_ir(ii,jj,cc,aa)
+                IF (dN<prlim) CYCLE
+                !
+                vol=df_frag_vfrac*SUM(pprecp(ii,jj,aa)%volc(2:))/pprecp(ii,jj,aa)%numc
+                bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
+                IF (cc>fnp2a) bb=bb+fnp2a
+                !
+                CALL ice2ice(ii,jj,nice,pice,dN,cc,bb)
             ENDDO
-        ENDIF
+        ENDDO
+        !
+        ! Snow-cloud/rain collisions producing snow
+        DO cc = 1,nsnw
+            ! New particles are taken from snow bin cc
+            IF (psnow(ii,jj,cc)%numc<prlim) CYCLE
+            !
+            ! Snow-cloud
+            DO aa = 1,ncld
+                IF (pcloud(ii,jj,aa)%numc<nlim .OR. coll_rate_sc(ii,jj,cc,aa)<1e-20) CYCLE
+                !
+                imf = imf_df(pcloud(ii,jj,aa),psnow(ii,jj,cc),ptemp(ii,jj),ppres(ii,jj),2,5)
+                !
+                dN=imf*coll_rate_sc(ii,jj,cc,aa)
+                IF (dN<prlim) CYCLE
+                !
+                ! Fragment wet volume
+                vol=df_frag_vfrac*SUM(pcloud(ii,jj,aa)%volc(:))/pcloud(ii,jj,aa)%numc
+                ! Snow bin
+                bb=MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim))
+                !
+                CALL snow2snow(ii,jj,nsnw,psnow,dN,cc,bb)
+            ENDDO
+            !
+            ! Snow-rain
+            DO aa = 1,nprc
+                IF (pprecp(ii,jj,aa)%numc<prlim .OR. coll_rate_sr(ii,jj,cc,aa)<1e-20) CYCLE
+                !
+                imf = imf_df(pprecp(ii,jj,aa),psnow(ii,jj,cc),ptemp(ii,jj),ppres(ii,jj),3,5)
+                !
+                dN=imf*coll_rate_sr(ii,jj,cc,aa)
+                IF (dN<prlim) CYCLE
+                !
+                vol=df_frag_vfrac*SUM(pprecp(ii,jj,aa)%volc(:))/pprecp(ii,jj,aa)%numc
+                bb=MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim))
+                !
+                CALL snow2snow(ii,jj,nsnw,psnow,dN,cc,bb)
+            ENDDO
+        ENDDO
     END DO
     END DO
   END SUBROUTINE sip_df
+  !
+  REAL FUNCTION imf_df(pdrop,pice,ptemp,ppres,flagd,flagi)
+    USE mo_submctl, ONLY : t_section
+    TYPE(t_section), INTENT(in) :: pdrop,pice
+    REAL, INTENT(in) :: ptemp,ppres
+    INTEGER, INTENT(in) :: flagd,flagi
+    !
+    ! ****** Option 1 ******
+    ! - Requires Ddrop>100e-6 m
+    !imf_df = df_sullivan(ptemp,pdrop%dwet)
+    !
+    !****** Option 2 ******
+    ! - Requires Ddrop>50e-6 m
+    ! - Sticking efficiency of 1 is assumed for crystal-drop collisions
+    ! - For mode 1 (large drop) produces both tiny and big splinters while for mode 2 (large ice)
+    !   all fragments have a mass of 0.001*mdrop
+    imf_df = df_phillips_total(pdrop,pice,ptemp,ppres,flagd,flagi)
+    !
+  END FUNCTION imf_df
+  !
+  ! SIP-DF by
+  !   Sullivan, S. C., Hoose, C., Kiselev, A., Leisner, T., and Nenes, A.: Initiation of secondary
+  !   ice production in clouds, Atmos. Chem. Phys., 18, 1593-1610,
+  !   https://doi.org/10.5194/acp-18-1593-2018, 2018.
+  REAL FUNCTION df_sullivan(ptemp,dwet)
+    USE mo_submctl, ONLY : pi
+    REAL, INTENT(in) :: ptemp, dwet
+    ! Local parameters
+    REAL, PARAMETER :: c_mult = 2.5e13 ! Fragmentation coefficient, default: 2.5e-11 1/um^4=2.5e13 1/m^4
+    REAL :: dwet_min = 100e-6 ! Minimum cloud/rain drop diameter
+    !
+    IF (dwet>dwet_min) THEN
+        ! The number of fragments depends on temperature: 0.2*f(T;m=258 K,s=10 K)
+        !df_sullivan=c_mult*dwet**4 * 0.2/(10.*sqrt(2.*pi))*exp(-0.5*((ptemp-258.)/10.)**2)
+        ! Update: term 10.*sqrt(2.*pi) is left out based on Fig. S2.
+        df_sullivan=c_mult*dwet**4 * 0.2*exp(-0.5*((ptemp-258.)/10.)**2)
+    ELSE
+        df_sullivan=0.0
+    ENDIF
+    !
+  END FUNCTION df_sullivan
+  !
+  !
+  ! SIP-DF by
+  !   Phillips, V. T. J., S. Patade, J. Gutierrez, and A. Bansemer, 2018: Secondary Ice Production
+  !   by Fragmentation of Freezing Drops: Formulation and Theory. J. Atmos. Sci., 75, 3031-3070,
+  !   https://doi.org/10.1175/JAS-D-17-0190.1.
+  REAL FUNCTION df_phillips_total(pdrop,pice,ptemp,ppres,flagd,flagi)
+    ! Total number of ice fragments from drop fracturing based on Phillips et al. (2018)
+    USE mo_submctl, ONLY : t_section, dens
+    TYPE(t_section), INTENT(in) :: pdrop,pice
+    REAL, INTENT(in) :: ptemp,ppres
+    INTEGER, INTENT(in) :: flagd,flagi
+    REAL :: md, mi
+    !
+    ! Mass of the drop and ice
+    md = SUM(pdrop%volc(:)*dens(:))/pdrop%numc
+    mi = SUM(pice%volc(:)*dens(:))/pice%numc
+    !
+    IF (md>mi .AND. pdrop%dwet>50e-6 .AND. ptemp<270.15) THEN
+        ! The number of RF fragments per frozen drop (mode 1)
+        !   m_droplet>m_ice, D_drop>50 um, and T<270.15 K
+        df_phillips_total = df_phillips_mode1(pdrop%dwet,ptemp)
+    ELSEIF (mi>md .AND. pdrop%dwet>150e-6) THEN
+        ! The number of big RF fragments per frozen drop (mode 2)
+        !   m_ice>m_droplet and D_drop>150 um
+        df_phillips_total=df_phillips_mode2(ppres,ptemp,pdrop%dwet,pice%dwet,md,mi,flagd,flagi)
+    ELSE
+        df_phillips_total=0.0
+    ENDIF
+  END FUNCTION df_phillips_total
+  !
+  REAL FUNCTION df_phillips_mode1(dd,ptemp)
+    ! Mode 1 (small ice, big drop) from Phillips et al. (2018)
+    REAL, INTENT(in) :: dd, ptemp ! dd in m, T in K
+    REAL :: tc, T0, zeta, eta, beta, dx
+    !
+    ! Temperature (C)
+    tc = ptemp-273.15
+    !
+    ! Table 3
+    dx = LOG10( MAX( MIN(dd*1.e3, 1.6), 0.06 ) )
+    T0 =  -1.3999*dx**3-5.3285*dx**2-3.9847*dx-15.0332
+    zeta = 10.**(2.4268*dx**3+3.3274*dx**2+2.0783*dx+1.2927)
+    eta = 10.**(0.1242*dx**3-0.2316*dx**2-0.9874*dx-0.0827)
+    IF (dd >= 0.4e-3 ) THEN
+        dx = LOG10( MIN(dd*1.e3, 1.6) )
+        beta = -0.1839*dx**2-0.2017*dx-0.0512
+    ELSE
+        beta = 0.0
+    END IF
+    !
+    ! Equation 1
+    df_phillips_mode1 = beta*Tc + (zeta * eta**2)/( (Tc-T0)**2 + eta**2 )
+    !
+    ! Ksi(D) is interpolated between 50 and 60 um so that Ksi(50 um)=0 and Ksi(60 um)=1
+    df_phillips_mode1 = df_phillips_mode1 * cubic_interpolation(dd,50e-6,60e-6)
+    !
+    ! Omega(Tc) is interpolated between -3 C and -6 C so that Omega(-3)=0 and Omega(-6)=1
+    df_phillips_mode1 = df_phillips_mode1 * cubic_interpolation(-Tc,3.,6.)
+    !
+    ! Extrapolation for droplets larger that 1.6 mm
+    IF (dd>1.6e-3) df_phillips_mode1 = df_phillips_mode1 * dd/1.6e-3
+    !
+  END FUNCTION df_phillips_mode1
+  !
+  REAL FUNCTION cubic_interpolation(y,y1,y2)
+    REAL, INTENT(IN) :: y,y1,y2
+    REAL :: A, B, a0, a1, a2, a3
+    !
+    IF (y<=y1) THEN
+        cubic_interpolation = 0.0
+    ELSEIF (y>=y2) THEN
+        cubic_interpolation = 1.0
+    ELSE
+        A=-6.0/(y2-y1)**3
+        B=A*y1**3/6.0-A*y1**2*y2/2.0
+        a0=B
+        a1=A*y1*y2
+        a2=-A*(y1+y2)/2.0
+        a3=A/3.0
+        cubic_interpolation = a0+a1*y+a2*y**2+a3*y**3
+    ENDIF
+    !
+  END FUNCTION cubic_interpolation
+  !
+  REAL FUNCTION df_phillips_mode2(ppres,ptemp,ddp,dip,mdp,mip,flagd,flagi)
+    ! Mode 2 (big ice, small drop) from Phillips et al. (2018)
+    USE mo_submctl, ONLY : rda, pi6, pi, surfw0, terminal_vel
+    REAL, INTENT(in) :: ptemp, ppres       ! Temperature (K) and pressure (Pa)
+    REAL, INTENT(in) :: ddp, dip, mdp, mip ! Freezing drop diameter in m
+    INTEGER, INTENT(IN) :: flagd, flagi    ! Type flags
+    REAL, PARAMETER :: &
+        cwa = 4200., & ! Specific heat capacity of liquid water (J/kg/K)
+        alf = 3.3e5 ! Specific latent heat of freezing (J/kg)
+    REAL :: rhoa, visc, beta, rhoip, rhodp, vti, vtd
+    REAL :: K0, DE, fT
+    !
+    ! Density of air
+    rhoa = ppres/(rda*ptemp)
+    ! Viscosity of air [kg/(m s)]
+    visc = (7.44523e-3*ptemp**1.5)/(5093.*(ptemp+110.4))
+    ! Assume that Cunningham correction factor (beta) is one for both liquid and ice
+    beta = 1.
+    ! Density of particles
+    rhoip = mip/(pi6*dip*3)
+    rhodp = mdp/(pi6*ddp**3)
+    ! Terminal velocities
+    vti = terminal_vel(dip*0.5,rhoip,rhoa,visc,beta,flagi)
+    vtd = terminal_vel(ddp*0.5,rhodp,rhoa,visc,beta,flagd)
+    !
+    K0 = 0.5 * (mip*mdp/(mdp + mip)) * (vtd - vti)**2
+    DE = K0 / (surfw0*pi*ddp**2) ! Eq. 6
+    ! The fraction frozen at the end of stage 1 of freezing
+    fT = -cwa*(ptemp-273.15)/alf
+    !
+    ! Equation 7
+    df_phillips_mode2 = 3.*MIN(4.*fT,1.) * (1.-fT) * MAX(DE-0.2,0.)
+    !
+  END FUNCTION df_phillips_mode2
+
 
   ! Ice-ice collisional breakup
+  ! ***************************
+  SUBROUTINE sip_iibr(kbdim,klev,pice,psnow,ptemp,prv,prsi)
+    USE mo_submctl, ONLY : t_section, nice, nsnw, fnp2a, prlim, &
+        iibr_frag_vfrac, & ! Parameters
+        coll_rate_ii, coll_rate_si, coll_rate_ss ! Accumulated collisions (#/m3)
+    IMPLICIT NONE
+    ! Inputs/outputs
+    INTEGER, INTENT(in) :: kbdim,klev
+    TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
+    REAL, INTENT(in) :: ptemp(kbdim,klev), prv(kbdim,klev), prsi(kbdim,klev)
+    ! Local parameters
+    INTEGER :: ii, jj, cc, bb, aa
+    REAL :: dN, vol, ssi, imf
+    !
+    DO jj = 1,klev
+    DO ii = 1,kbdim
+        ! Supersaturation over ice
+        ssi = MAX(0.,prv(ii,jj)/prsi(ii,jj)-1.0)
+        !
+        ! Ice-ice collisions producing ice
+        !   coll_rate_ii(ii,jj,cc,aa) means that ice(cc) is collecting smaller particles ice(aa)
+        DO cc = 1,nice
+            ! New particles are taken from ice bin cc
+            IF (pice(ii,jj,cc)%numc<prlim) CYCLE
+            !
+            DO aa = 1,nice ! need to examine all bins (a & b)
+                IF (pice(ii,jj,aa)%numc<prlim .OR. coll_rate_ii(ii,jj,cc,aa)<1e-20) CYCLE
+                !
+                ! Ice multiplification factor
+                imf = imf_iibr(pice(ii,jj,aa), pice(ii,jj,cc), ptemp(ii,jj), ssi, 4, 4)
+                !
+                ! New ice particles
+                dN=imf*coll_rate_ii(ii,jj,cc,aa)
+                IF (dN<prlim) CYCLE
+                !
+                ! Fragment dry volume
+                vol=iibr_frag_vfrac*SUM(pice(ii,jj,aa)%volc(2:))/pice(ii,jj,aa)%numc
+                ! Ice a-bin or parallel b-bin
+                bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
+                IF (aa>fnp2a) bb=bb+fnp2a
+                !
+                CALL ice2ice(ii,jj,nice,pice,dN,cc,bb)
+            ENDDO
+        ENDDO
+        !
+        ! Snow-ice/snow collisions
+        DO cc = 1,nsnw
+            ! New particles are taken from snow bin cc
+            IF (psnow(ii,jj,cc)%numc<prlim) CYCLE
+            !
+            ! Snow-ice producing ice
+            !   coll_rate_si(ii,jj,cc,aa) means that snow(cc) is collecting ice(aa)
+            DO aa = 1,nice ! need to examine all bins
+                IF (pice(ii,jj,aa)%numc<prlim .OR. coll_rate_si(ii,jj,cc,aa)<1e-20) CYCLE
+                !
+                imf = imf_iibr(psnow(ii,jj,cc), pice(ii,jj,aa), ptemp(ii,jj), ssi, 5, 4)
+                !
+                dN=imf*coll_rate_si(ii,jj,cc,aa)
+                IF (dN<prlim) CYCLE
+                !
+                ! Fragment dry volume
+                vol=iibr_frag_vfrac*SUM(pice(ii,jj,aa)%volc(2:))/pice(ii,jj,aa)%numc
+                ! Ice a-bin or parallel b-bin
+                bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
+                IF (aa>fnp2a) bb=bb+fnp2a
+                !
+                CALL snow2ice(ii,jj,nice,nsnw,pice,psnow,dN,cc,bb)
+            ENDDO
+            !
+            ! Snow-snow producing snow
+            !    coll_rate_ss(ii,jj,cc,aa) means that snow(cc) is collecting smaller snow(aa), where aa=1:cc are non-zero
+            DO aa = 1,cc
+                IF (psnow(ii,jj,aa)%numc<prlim .OR. coll_rate_ss(ii,jj,cc,aa)<1e-20) CYCLE
+                !
+                imf = imf_iibr(psnow(ii,jj,cc), psnow(ii,jj,aa), ptemp(ii,jj), ssi, 5, 5)
+                !
+                ! New particles
+                dN=imf*coll_rate_ss(ii,jj,cc,aa)
+                IF (dN<prlim) CYCLE
+                !
+                ! Fragment wet volume
+                vol=iibr_frag_vfrac*SUM(psnow(ii,jj,aa)%volc(:))/psnow(ii,jj,aa)%numc
+                bb=MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim))
+                !
+                CALL snow2snow(ii,jj,nsnw,psnow,dN,cc,bb)
+            ENDDO
+        ENDDO
+    END DO
+    END DO
+  END SUBROUTINE sip_iibr
+  !
+  REAL FUNCTION imf_iibr(ice1, ice2, ptemp, ssi, flag1, flag2)
+    USE mo_submctl, ONLY : t_section, coag_Es_ii
+    TYPE(t_section), INTENT(in) :: ice1, ice2
+    REAL, INTENT(in) :: ptemp, ssi
+    INTEGER, INTENT(IN) :: flag1, flag2
+    !
+    ! ****** Option 1 ******
+    ! Ice multiplification factor based on Sotiropoulou et al. (2021)
+    ! - Conditions not limited
+    !imf_iibr = iibr_sotiropoulou(ice1, ptemp)
+    !
+    !****** Option 2 ******
+    ! Ice multiplification factor based on Phillips et al. (2017) or Grzegorczyk et al. (2025)
+    ! - Type I collisions only
+    ! - Phillips (2017) accounts for all collisions (Eagg is omitted) while Grzegorczyk et al. (2025)
+    !   accounts for collisions where ice crystals are not sticking together, so collisions rates
+    !  (or ice multiplification factors) need to be modified accordingly.
+    ! - Conditions not limited
+    imf_iibr = iibr_phillips_t1(ice1, ice2, ptemp, ssi, flag1, flag2, coag_Es_ii)
+    !
+  END FUNCTION imf_iibr
+  !
+  !
+  ! SIP-IIBR by
   !   Sullivan, S. C., Hoose, C., Kiselev, A., Leisner, T., and Nenes, A.: Initiation of secondary
   !   ice production in clouds, Atmos. Chem. Phys., 18, 1593-1610,
   !   https://doi.org/10.5194/acp-18-1593-2018, 2018.
@@ -1918,95 +2275,119 @@ CONTAINS
   !   Sotiropoulou, G., Sullivan, S., Savre, J., Lloyd, G., Lachlan-Cope, T., Ekman, A. M. L., and
   !   Nenes, A.: The impact of secondary ice production on Arctic stratocumulus, Atmos. Chem.
   !   Phys., 20, 1301-1316, https://doi.org/10.5194/acp-20-1301-2020, 2020.
-  SUBROUTINE sip_iibr(kbdim,klev,pice,psnow,ptemp)
-    USE mo_submctl, ONLY : t_section, nice, nsnw, fnp2a, prlim, &
-        iibr_fbr, iibr_tmin, iibr_tmax, iibr_dref, iibr_frag_vfrac, & ! Parameters
-        coll_rate_ii, coll_rate_si, coll_rate_ss ! Accumulated collisions (#/m3)
-    IMPLICIT NONE
-    ! Inputs/outputs
-    INTEGER, INTENT(in) :: kbdim,klev
-    TYPE(t_section), INTENT(inout) :: pice(kbdim,klev,nice), psnow(kbdim,klev,nsnw)
-    REAL, INTENT(in) :: ptemp(kbdim,klev)
+  !
+  !   Sotiropoulou, G., Vignon, E., Young, G., Morrison, H., O'Shea, S. J., Lachlan-Cope, T.,
+  !   Berne, A., and Nenes, A.: Secondary ice production in summer clouds over the Antarctic coast:
+  !   an underappreciated process in atmospheric models, Atmos. Chem. Phys., 21, 755-771,
+  !   https://doi.org/10.5194/acp-21-755-2021, 2021.
+  REAL FUNCTION iibr_sotiropoulou(ice, ptemp)
+    USE mo_submctl, ONLY : t_section
+    TYPE(t_section), INTENT(in) :: ice
+    REAL, INTENT(IN) :: ptemp
     ! Local parameters
-    INTEGER :: ii, jj, cc, bb, aa
-    REAL :: fact, scaler, dN, vol
+    REAL, PARAMETER :: fbr = 280. ! Breakup coefficient
+    REAL, PARAMETER :: dref = 0.02 ! Size dependency
+    REAL, PARAMETER :: tmin = 252. ! Minumum temperature
     !
-    ! Size-scaling from Sotiropuolou et al. (2021): d/d0, where d0=0.02 m is the size of hail
-    ! balls in the experiments and d is the size of the ice particle that undergoes fracturing.
-    ! Here d is the the size of the collecting particle and d0=iibr_dref is adjustable parameter.
-    ! Zero or negative iibr_dref means that this scaling is not used.
-    scaler=1.
+    ! The number of splinters depends on temperature
+    IF (tmin<ptemp) THEN
+        iibr_sotiropoulou = fbr*(ptemp-tmin)**1.2*exp((tmin-ptemp)*0.2)
+        !
+        ! Size-scaling from Sotiropoulou et al. (2021): d/d0, where d0=0.02 m is the size of hail
+        ! balls in the experiments and d is the size of the ice particle that undergoes fracturing.
+        ! Here d is the the size of the collecting particle
+        iibr_sotiropoulou = iibr_sotiropoulou * ice%dwet/dref
+    ELSE
+        iibr_sotiropoulou = 0.0
+    ENDIF
     !
-    DO jj = 1,klev
-    DO ii = 1,kbdim
-        IF (iibr_tmin<ptemp(ii,jj) .AND. ptemp(ii,jj)<iibr_tmax .AND. iibr_fbr>0.) THEN
-            ! The number of splinters depends on temperature
-            fact= iibr_fbr*(ptemp(ii,jj)-iibr_tmin)**1.2*exp((iibr_tmin-ptemp(ii,jj))*0.2)
-            !
-            ! Ice-ice (smaller and equal) collisions producing ice
-            DO cc = 1,nice
-                ! New particles are taken from ice bin cc
-                IF (pice(ii,jj,cc)%numc<prlim) CYCLE
-                !
-                ! Size scaling based on collecting ice particle size
-                IF (iibr_dref>0.) scaler=pice(ii,jj,cc)%dwet/iibr_dref
-                !
-                DO aa = 1,nice
-                    ! New particles
-                    dN=fact*coll_rate_ii(ii,jj,cc,aa)*scaler
-                    IF (dN<prlim) CYCLE
-                    !
-                    ! Fragment dry volume
-                    vol=iibr_frag_vfrac*SUM(pice(ii,jj,aa)%volc(2:))/pice(ii,jj,aa)%numc
-                    ! Ice a-bin
-                    bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
-                    IF (aa>fnp2a) bb=bb+fnp2a
-                    !
-                    CALL ice2ice(ii,jj,nice,pice,dN,cc,aa)
-                ENDDO
-            ENDDO
-            !
-            ! Snow-ice/snow collisions
-            DO cc = 1,nsnw
-                ! New particles are taken from snow bin cc
-                IF (psnow(ii,jj,cc)%numc<prlim) CYCLE
-                !
-                ! Size scaling based on collecting snow size
-                IF (iibr_dref>0.) scaler=psnow(ii,jj,cc)%dwet/iibr_dref
-                !
-                ! Snow-ice producing ice
-                DO aa = 1,nice
-                    ! New particles
-                    dN=fact*coll_rate_si(ii,jj,cc,aa)*scaler
-                    IF (dN<prlim) CYCLE
-                    !
-                    ! Fragment dry volume
-                    vol=iibr_frag_vfrac*SUM(pice(ii,jj,aa)%volc(2:))/pice(ii,jj,aa)%numc
-                    ! Ice a-bin
-                    bb=MAX(1,COUNT(vol>pice(ii,jj,1:fnp2a)%vlolim))
-                    IF (aa>fnp2a) bb=bb+fnp2a
-                    !
-                    CALL snow2ice(ii,jj,nice,nsnw,pice,psnow,dN,cc,aa)
-                ENDDO
-                !
-                ! Snow-snow producing snow
-                DO aa = 1,cc
-                    ! New particles
-                    dN=fact*coll_rate_ss(ii,jj,cc,aa)*scaler
-                    IF (dN<prlim) CYCLE
-                    !
-                    ! Fragment wet volume
-                    vol=iibr_frag_vfrac*SUM(psnow(ii,jj,aa)%volc(:))/psnow(ii,jj,aa)%numc
-                    ! Snow bin
-                    bb=MAX(1,COUNT(vol>psnow(ii,jj,:)%vlolim))
-                    !
-                    CALL snow2snow(ii,jj,nsnw,psnow,dN,cc,aa)
-                ENDDO
-            ENDDO
-        ENDIF
-    END DO
-    END DO
-  END SUBROUTINE sip_iibr
+  END FUNCTION iibr_sotiropoulou
+  !
+  !
+  ! SIP-IIBR by
+  !   Phillips, V. T. J., J. Yano, and A. Khain, 2017: Ice Multiplication by Breakup in Ice-Ice
+  !   Collisions. Part I: Theoretical Formulation. J. Atmos. Sci., 74, 1705-1719,
+  !   https://doi.org/10.1175/JAS-D-16-0224.1.
+  ! Revised parameters from
+  !   Grzegorczyk, P., Wobrock,, W., Canzi, A., Niquet, L, Tridon, F, Planche, C.: Investigating
+  !   secondary ice production in a deep convective cloud with a 3D bin microphysics model:
+  !   Part I - Sensitivity study of microphysical processes representations, Atmospheric
+  !   Research, 313, 107774, 2025, https://doi.org/10.1016/j.atmosres.2024.107774.
+  REAL FUNCTION iibr_phillips_t1(ice1, ice2, ptemp, ssi, flag1, flag2, Eagg)
+    ! Type I collisions of graupel with graupel/hail or graupel with hail (Phillips et al., 2017)
+    USE mo_submctl, ONLY : t_section, pi, pi6, terminal_vel, dens, rhowa, iibr_rime_frac
+    TYPE(t_section), INTENT(in) :: ice1, ice2
+    REAL, INTENT(in) :: ptemp, ssi, Eagg
+    INTEGER, INTENT(IN) :: flag1, flag2
+    REAL, PARAMETER :: rhoic=917. ! Density of bulk ice
+    REAL :: D, alpha, C, g, a0, Am, K0
+    REAL :: rhoa, visc, beta, m1, m2, rho1, rho2, v1, v2
+    !
+    ! Colliding particle has smaller maximum dimension
+    IF (ice1%dwet>ice2%dwet) THEN
+        ! The maximum dimension for the smaller colliding particle
+        D=MAX(5e-4,MIN(5e-3,ice2%dwet)) ! 0.5 mm < D < 5 mm
+        ! Equivalent-spherical surface area
+        alpha=pi * ( rhowa/rhoic*SUM(ice2%volc(:))/(ice2%numc*pi6) )**(2./3.)
+    ELSE
+        D=MAX(5e-4,MIN(5e-3,ice1%dwet))
+        alpha=pi * ( rhowa/rhoic*SUM(ice1%volc(:))/(ice1%numc*pi6) )**(2./3.)
+    ENDIF
+    !
+    ! Parameters
+    IF (iibr_rime_frac<0.0) THEN
+        ! Phillips et al. (2017) Table 1 (Type I)
+        C = 6.30e6 * 3.5e-3
+        g = 0.3
+        a0 = 3.78e4*(1.+0.0079/D**1.5)
+    ELSEIF (iibr_rime_frac>0.5) THEN
+        ! Grzegorczyk et al. (2025) - rimed particles
+        C = exp(20.15*ssi + 13.78)
+        g = ssi + 0.55
+        a0 = exp(14.74*ssi + 14.28)
+    ELSE
+        ! Grzegorczyk et al. (2025) - unrimed particles
+        ! Note: correct values given in Calderon et al. (2025): Secondary ice formation in cumulus
+        ! congestus clouds: insights from observations and aerosol-aware large-eddy simulations,
+        ! Atmos. Chem. Phys., 25, 14479-14500,  https://doi.org/10.5194/acp-25-14479-2025, 2025.
+        C = 1.0E08
+        g = 0.78
+        a0 = 4.75E7
+    END IF
+    !
+    ! Am at -15 C=258.15 K
+    Am = a0/3.+MAX(2./3.*a0-1./9.*a0*ABS(ptemp-258.15),0.)
+    !
+    ! Terminal velocities: air properties and Cunningham correction factor are not needed for ice/snow
+    rhoa=1.3
+    visc=1.7e-5
+    beta = 1.0
+    ! Mass of particles - prognostic
+    m1 = SUM(ice1%volc(:)*dens(:))/ice1%numc
+    m2 = SUM(ice2%volc(:)*dens(:))/ice2%numc
+    ! Density of particles - based on Dwet
+    rho1 = m1/(pi6*ice1%dwet**3)
+    rho2 = m2/(pi6*ice2%dwet**3)
+    ! Terminal velocities
+    v1 = terminal_vel(ice1%dwet*0.5,rho1,rhoa,visc,beta,flag1)
+    v2 = terminal_vel(ice2%dwet*0.5,rho2,rhoa,visc,beta,flag2)
+    ! Collision kinetic energy
+    K0 = 0.5*(m1*m2/(m1+m2)) * (v1 - v2)**2
+    !
+    ! Ice multiplication factor or number of secondary ice particles produced per ice-ice collision
+    iibr_phillips_t1 = alpha*Am*(1.0-exp(-(C*K0/(alpha*Am))**g))
+    !
+    ! Correction based on aggregation efficiency (Eagg), whicih is included in collision rates
+    IF (iibr_rime_frac<0.0) THEN
+        ! Omit Eagg, so divide the rate by Eagg. Eagg must be > 0 (non-zero coagulation kernels).
+        iibr_phillips_t1 = iibr_phillips_t1/Eagg
+    ELSE
+        ! The rate should include collisions where crystals are not sticking together, so multiply
+        ! by (1-Eagg)/Eagg. Eagg must be > 0 (non-zero coagulation kernels) and <1 (no SIP).
+        iibr_phillips_t1 = iibr_phillips_t1*(1.-Eagg)/Eagg
+    ENDIF
+  END FUNCTION iibr_phillips_t1
+
 
   SUBROUTINE ice2ice(ii,jj,nice,pice,dN,cc,bb)
     USE mo_submctl, ONLY : t_section

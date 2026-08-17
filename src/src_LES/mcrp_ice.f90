@@ -21,7 +21,7 @@
 module mcrp_ice
 
   use defs, only : alvl, alvi, rowt, roice, pi, Rm, cp, p00, cpr
-  use grid, only : dt => dtl, dxi, dyi, dzi_t => dzt, ccn
+  use grid, only : dt => dtl, dxi, dyi, dzi_t => dzt
   use thrm, only : esl, esi
   use stat, only : sflg, out_mcrp_nout, out_mcrp_data, out_mcrp_list, setSBradius
   implicit none
@@ -130,7 +130,8 @@ contains
   !
   subroutine micro_ice(level)
     use grid, only : nxp, nyp, nzp, a_theta, &
-       a_rv, a_rc, a_temp, a_rsl, a_edr, a_rsi, a_dn, &
+       a_rv, a_temp, a_rsl, a_edr, a_rsi, a_dn, a_ap, naddsc, &
+       a_rc, a_ncp, a_rct, a_nct, &
        a_rt, a_tt,a_rpp, a_rpt, a_npp, a_npt,  &
        a_rip, a_rit, a_nip, a_nit, & ! ice mass and number mixing ratio
        a_rsp, a_rst, a_nsp, a_nst, & ! snow
@@ -152,24 +153,25 @@ contains
     case(2)
        ! Cloud droplets only
        if (sed_cloud) then
-          call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+          call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,a_ncp,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip)
        end if
     case(3)
        ! Warm cloud: autoconversion (1), accretion (2), evaporation (3), and sedimentation (4-5)
-       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,a_ncp,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip)
     case(4,5)
        ! Mixed-phase cloud: ice nucleation (6-7), freezing (8), condensation/deposition (9),
        ! melting (10-12), sedimentation (13), and collisions (14-23)
-       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,cldin,a_rpp, &
+       call mcrph(level,nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rv,a_rsl,a_rc,a_ncp,cldin,a_rpp, &
             a_npp,a_rpt,a_npt,a_edr,precip,a_rsi,a_rit,a_nit,a_rst,a_nst,a_rgt,a_ngt,a_rip,a_nip, &
             a_rsp,a_nsp,a_rgp,a_ngp, icein, snowin, grin)
     case(6)
-       call mcrph_sb(nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rsi,a_rv,a_rc, &
-            a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, & ! rain, ice, snow, graupel and hail
-            a_rpt, a_npt, a_rit, a_nit, a_rst, a_nst, a_rgt, a_ngt, a_rht, a_nht, &
-            cldin, precip, icein, snowin, grin, hailin, sed_cloud, sed_precp, sed_ice)
+       call mcrph_sb(nzp,nxp,nyp,a_dn,a_theta,a_tt,a_rt,a_temp,a_rsi,a_rv, &
+            a_rc,  a_ncp, a_rpp, a_npp, a_rip, a_nip, a_rsp, a_nsp, a_rgp, a_ngp, a_rhp, a_nhp, &
+            a_rct, a_nct, a_rpt, a_npt, a_rit, a_nit, a_rst, a_nst, a_rgt, a_ngt, a_rht, a_nht, &
+            cldin, precip, icein, snowin, grin, hailin, sed_cloud, sed_precp, sed_ice, &
+            a_ap, naddsc)
    end select
 
   end subroutine micro_ice
@@ -178,7 +180,7 @@ contains
   ! MCRPH: calls microphysical parameterization
   !
 
-  subroutine mcrph(level,n1,n2,n3,dn,th,tlt,rtt,tk,vapor,rsat,rcld,prc_c, &
+  subroutine mcrph(level,n1,n2,n3,dn,th,tlt,rtt,tk,vapor,rsat,rcld,ncld,prc_c, &
        rp,np,rpt,npt,dissip,prc_r,rsati, ricet,nicet,rsnowt,nsnowt,rgrpt,ngrpt, &
        ricep,nicep,rsnowp,nsnowp,rgrpp,ngrpp, prc_i, prc_s, prc_g)
 
@@ -188,7 +190,7 @@ contains
          tlt, &  ! ice-liquid water potential temperature tendency
          rtt, &  ! total water tendency
          rsat, & ! saturation mixing ratio
-         vapor, rcld, &       ! water vapor and cloud water mixing ratios (diagnostic)
+         vapor, rcld, ncld, & ! water vapor and cloud water mixing ratios (diagnostic)
          th, dn, dissip, &    ! potential temperature, air density and dissipation rate
          prc_c, prc_r, &      ! cloud and rain water precipitation rates
          np, rp, npt, rpt     ! rain drop number and rain water mixing ratio, and their tendencies
@@ -197,7 +199,7 @@ contains
 
     real, dimension(n1) :: tl,temp,rv,nc,rc,nrain,rrain,nice,rice,nsnow,rsnow,ngrp,rgrp, &
         rs,rsi,s_i,r1,r2,dn0,ti,nin_active,mult_n,mult_r, &
-        tmp_rv,tmp_rc,tmp_nr,tmp_rr,tmp_ni,tmp_ri,tmp_ns,tmp_rs,tmp_ng,tmp_rg
+        tmp_rv,tmp_nc,tmp_rc,tmp_nr,tmp_rr,tmp_ni,tmp_ri,tmp_ns,tmp_rs,tmp_ng,tmp_rg
     integer :: i, j, n
     logical :: adj_cldw, adj_rain, adj_ice, adj_snow, adj_gra
 
@@ -209,7 +211,7 @@ contains
        do i=3,n2-2
           ! Adjust the original concentrations
           if (sflg) CALL sb_var_stat() ! Reset statistics
-          call resetvar(cldw,rcld(1:n1,i,j))
+          call resetvar(cldw,rcld(1:n1,i,j),ncld(1:n1,i,j))
           call resetvar(rain,rp(1:n1,i,j),np(1:n1,i,j))
           if (level >= 4) then
              call resetvar(ice,ricep(1:n1,i,j),nicep(1:n1,i,j))
@@ -223,8 +225,7 @@ contains
           dn0 = dn(1:n1,i,j)
           temp = tk(1:n1,i,j)
           rv = vapor(1:n1,i,j)
-          !nc = CCN
-          nc = CCN/dn(1:n1,i,j) ! COMBLE: concentration in #/m3
+          nc = ncld(1:n1,i,j)
           rc = rcld(1:n1,i,j)
           rs = rsat(1:n1,i,j)
           rrain = rp(1:n1,i,j)
@@ -265,7 +266,7 @@ contains
                 call auto_SB(n1,dn0,rc,nc,rrain,nrain,dissip(1:n1,i,j))
                 adj_cldw = .TRUE.; adj_rain = .TRUE.
              case(iaccr)
-                call accr_SB(n1,dn0,rc,rrain,nrain,dissip(1:n1,i,j))
+                call accr_SB(n1,dn0,rc,nc,rrain,nrain,dissip(1:n1,i,j))
                 adj_cldw = .TRUE.; adj_rain = .TRUE.
              case(isedimrd)
                 call sedim_rd(n1,dt,dn0,tl,rrain,nrain,prc_r(1:n1,i,j))
@@ -275,12 +276,14 @@ contains
                 adj_cldw = .TRUE.
 
              case(iicenucnr)
-                !nin_active = nin_set*EXP(nin_slope*(273.15-temp)) - &
-                !             (nice + nsnow + ngrp) ! Target ice number
-                nin_active = nin_set/dn0 - (nice + nsnow + ngrp) ! COMBLE: concentration in #/m3
-                call fixed_in_cloud(n1,nin_active,rc,rice,nice,s_i)
+                nin_active = nin_set*EXP(nin_slope*(273.15-temp)) - &
+                             (nice + nsnow + ngrp) ! Target ice number
+                ! COMBLE: use this if the concentration is already in #/m3
+                nin_active = nin_set/dn0*EXP(nin_slope*(273.15-temp)) - &
+                             (nice + nsnow + ngrp) ! Target ice number
+                call fixed_in_cloud(n1,nin_active,rc,nc,rice,nice,s_i)
                 !call n_icenuc(n1,nice,temp,s_i)
-                !call ice_nucleation(n1,nin_active,rc,rice,nice,temp,s_i)
+                !call ice_nucleation(n1,nin_active,rc,nc,rice,nice,temp,s_i)
                 adj_cldw = .TRUE.; adj_ice = .TRUE.
              case(iicenuc)
                 !call ice_nucleation_homhet(n1,ice,rv,rc,rice,nice,rsnow, nsnow,s_i,temp)
@@ -293,14 +296,14 @@ contains
                 call deposition(n1, dn0, ice, snow, graupel,  rice, nice, rsnow, nsnow, rgrp, ngrp, rv, temp, rsi, s_i)
                 adj_ice = .TRUE.; adj_snow = .TRUE.; adj_gra = .TRUE.
              case(imelt_ice)
-                call melting(n1,ice,rice,nice,rc,rrain,nrain,temp)
-                adj_ice = .TRUE.; adj_rain = .TRUE.
+                call melting(n1,ice,rice,nice,rc,nc,rrain,nrain,temp)
+                adj_ice = .TRUE.; adj_rain = .TRUE.; adj_cldw = .TRUE.
              case(imelt_snow)
-                call melting(n1,snow,rsnow,nsnow,rc,rrain,nrain,temp)
-                adj_snow = .TRUE.; adj_rain = .TRUE.
+                call melting(n1,snow,rsnow,nsnow,rc,nc,rrain,nrain,temp)
+                adj_snow = .TRUE.; adj_rain = .TRUE.; adj_cldw = .TRUE.
              case(imelt_grp)
-                call melting(n1,graupel,rgrp,ngrp,rc,rrain,nrain,temp)
-                adj_gra = .TRUE.; adj_rain = .TRUE.
+                call melting(n1,graupel,rgrp,ngrp,rc,nc,rrain,nrain,temp)
+                adj_gra = .TRUE.; adj_rain = .TRUE.; adj_cldw = .TRUE.
              case(iself_ice)
                 call ice_selfcollection(n1,ice,snow,rice,rsnow,nice,nsnow,dn0,temp,d_conv_is,r_crit_is,d_crit_is)
                 adj_ice = .TRUE.; adj_snow = .TRUE.
@@ -367,7 +370,7 @@ contains
              if (sflg) CALL sb_var_stat(microseq(n)) ! Collect statistics
              ! Adjust concentrations
              if (sflg) CALL sb_var_stat() ! Reset statistics
-             if (adj_cldw) call resetvar(cldw,rc)
+             if (adj_cldw) call resetvar(cldw,rc,nc)
              if (adj_rain) call resetvar(rain,rrain,nrain)
              if (adj_ice)  call resetvar(ice,rice,nice)
              if (adj_snow) call resetvar(snow,rsnow,nsnow)
@@ -431,6 +434,7 @@ contains
         ! a) The first call - save current concentrations
         IF (.NOT.present(imicro)) THEN
             tmp_rv = rv ! Water vapor
+            tmp_nc = nc ! CDNC
             tmp_rc = rc ! Cloud water mixing ratio
             tmp_nr = nrain ! Rain drop number
             tmp_rr = rrain ! Rain water mixing ratio
@@ -447,10 +451,13 @@ contains
         prefix=microseq_names(imicro)
         DO k=1,out_mcrp_nout
             IF ( prefix//'_rv' == out_mcrp_list(k) ) THEN
-                ! Water vapor (diagnostic)
+                ! Water vapor
                 out_mcrp_data(:,i,j,k) = out_mcrp_data(:,i,j,k) + (rv - tmp_rv)/dt
+            ELSEIF ( prefix//'_nc' == out_mcrp_list(k) ) THEN
+                ! CDNC
+                out_mcrp_data(:,i,j,k) = out_mcrp_data(:,i,j,k) + (nc - tmp_nc)/dt
             ELSEIF ( prefix//'_rc' == out_mcrp_list(k) ) THEN
-                ! Cloud water (diagnostic)
+                ! Cloud water
                 out_mcrp_data(:,i,j,k) = out_mcrp_data(:,i,j,k) + (rc - tmp_rc)/dt
             ELSEIF ( prefix//'_nr' == out_mcrp_list(k) ) THEN
                 ! Rain number
@@ -672,12 +679,13 @@ contains
           rp(k) = rp(k) + au
           rc(k) = rc(k) - au
           np(k) = np(k) + au/cldw%x_max
+          nc(k) = nc(k) - au/Xc
        end if
     end do
 
   end subroutine auto_SB
 
-  subroutine accr_SB(n1,dn0,rc,rp,np,diss)
+  subroutine accr_SB(n1,dn0,rc,nc,rp,np,diss)
     !
     ! ---------------------------------------------------------------------
     ! ACCR_SB calculates the evolution of mass mxng-ratio due to accretion
@@ -686,7 +694,7 @@ contains
     ! Khairoutdinov and Kogan
     !
     integer, intent (in) :: n1
-    real, intent (inout)    :: rc(n1), rp(n1), np(n1)
+    real, intent (inout)    :: rc(n1), nc(n1), rp(n1), np(n1)
     real, intent (in)    :: dn0(n1),diss(n1)
 
     real, parameter :: k_r0 = 5.78
@@ -696,7 +704,7 @@ contains
     real, parameter :: Eac = 1.15    ! accretion exponent in KK param.
 
     integer :: k
-    real    :: tau, phi, ac, sc, k_r, epsilon
+    real    :: tau, phi, ac, sc, k_r, epsilon, Xc
 
     do k=2,n1-1
        if (rp(k) > 0.) then
@@ -728,8 +736,11 @@ contains
              !
              ac    = ac * dt
              ac    = min(ac, rc(k))
+             Xc = rc(k)/(nc(k)+eps0)
+             Xc = MIN(MAX(Xc,cldw%x_min),cldw%x_max)
              rp(k) = rp(k) + ac
              rc(k) = rc(k) - ac
+             nc(k) = nc(k) - ac/Xc
           end if
 
           ! selfcollection
@@ -888,12 +899,12 @@ contains
 
     integer ::  k, kp1
     real    :: Dc, Xc, vc, flxdiv
-    real    :: rfl(n1)
+    real    :: rfl(n1), nfl(n1)
 
     !
     ! calculate the precipitation flux and its effect on r_t and theta_l
     !
-    rfl = 0.
+    rfl = 0.; nfl = 0.
     do k=n1-1,2,-1
       if (rc(k) > 0.) then
         Xc = rc(k) / nc(k)
@@ -903,11 +914,14 @@ contains
         !vc = min(c*(Dc*0.5)**2 * exp(5*(log(1.3))**2),1./(dzi_t(k)*dt))
         rfl(k) = - rc(k) * vc
         !
+        vc =min(c*(Dc*0.5)**2 * exp(-1.0*(log(sgg))**2),1./(dzi_t(k)*dt))
+        nfl(k) = - nc(k) * vc
       end if
       kp1=k+1
       flxdiv = (rfl(kp1)-rfl(k))*dzi_t(k)/dn0(k)
       rc(k) = rc(k)-flxdiv*dt
       tl(k) = tl(k)+flxdiv*dt
+      nc(k) = nc(k)-(nfl(kp1)-nfl(k))*dzi_t(k)/dn0(k)*dt
       rrate(k)    = -rfl(k) * alvl
     end do
 
@@ -916,10 +930,10 @@ contains
   ! ---------------------------------------------------------------------
   ! Fixed ice number concentration for supercooled (ice supersaturation > 0) clouds (LWC > 0.001 g/kg)
   !
-  subroutine fixed_in_cloud(n1,nin,rc,rice,nice,s_i)
+  subroutine fixed_in_cloud(n1,nin,rc,nc,rice,nice,s_i)
     integer, intent(in) :: n1
     real, intent(in) , dimension(n1) :: nin,s_i
-    real, intent(inout) , dimension(n1) :: rc,rice,nice
+    real, intent(inout) , dimension(n1) :: rc,nc,rice,nice
     integer :: k
     REAL :: nuc_r, nuc_n
     do k=1,n1
@@ -930,6 +944,7 @@ contains
             nice(k) = nice(k) + nuc_n ! Update ice number
             rice(k) = rice(k) + nuc_r ! Update ice water mass
             rc(k) = rc(k) - nuc_r ! Update cloud water mass
+            nc(k) = nc(k) - nuc_r/cldw%x_max ! Update cloud number
       end if
     end do
 
@@ -950,9 +965,9 @@ contains
 
   end subroutine n_icenuc
 
-  subroutine ice_nucleation(n1,nin,rc,rice,nice,tk,s_i)
+  subroutine ice_nucleation(n1,nin,rc,nc,rice,nice,tk,s_i)
     integer,intent(in) :: n1
-    real, intent(inout),dimension(n1) :: nin, rc, nice, rice
+    real, intent(inout),dimension(n1) :: nin, rc, nc, nice, rice
     real,intent(in), dimension(n1) :: tk, s_i
     real :: nuc_n, nuc_r
     integer :: k
@@ -968,6 +983,7 @@ contains
              nice(k) = nice(k) + nuc_n
              rice(k) = rice(k) + nuc_r
              rc(k) = rc(k) - nuc_r
+             nc(k)= nc(k) - nuc_r/cldw%x_max
           end if
        endif
     end do
@@ -1012,10 +1028,11 @@ contains
              frr  = frn * xc * facg
           end if
           frr  = min(frr,rc)
+          frn  = min(frn,frr/cldw%x_max)
           !         if (frq>eps0)  frn  = cldw%nr*frq/rc
           rcloud(k) = rcloud(k) - frr
+          ncloud(k) = ncloud(k) - frn
 
-          frn  = min(frn,frr/cldw%x_max)
           rice(k)   = rice(k)   + frr
           nice(k)   = nice(k)   + frn
 
@@ -1210,11 +1227,11 @@ contains
 
   end function dep
 
-  subroutine melting(n1,meteor,r,nr,rcld,rrain,nrain,tk)
+  subroutine melting(n1,meteor,r,nr,rcld,ncld,rrain,nrain,tk)
     integer, intent(in) :: n1
     real,dimension(n1),intent(in) :: tk
     type(particle), intent(in) :: meteor
-    real,dimension(n1),intent(inout)  ::r,nr,rrain,nrain,rcld
+    real,dimension(n1),intent(inout)  ::r,nr,rrain,nrain,rcld,ncld
     integer                     :: k
     real            :: x_m,d_m,v_m,t_a,n_re,d_t,e_a
     real            :: melt,melt_v,melt_h,melt_n,melt_r
@@ -1256,15 +1273,14 @@ contains
 
           melt_n = MIN(MAX( (melt_r - r(k)) / x_m + nr(k), 0.0e0), nr(k))
 
-          melt_r = MIN(r(k),melt_r)
-          melt_n = MIN(nr(k),melt_n)
+          melt_r = MAX(0.,MIN(r(k),melt_r))
+          melt_n = MAX(0.,MIN(nr(k),melt_n))
 
-          melt_r = MAX(0.e0,melt_r)
-          melt_n = MAX(0.e0,melt_n)
           r(k) = r(k) - melt_r
           nr(k) = nr(k) - melt_n
           if(x_m<cldw%x_max) then
              rcld(k)    = rcld(k)    + melt_r
+             ncld(k)    = ncld(k)    + melt_n
           else
              rrain(k)    = rrain(k)    + melt_r
              nrain(k)    = nrain(k)    + melt_n
@@ -1398,6 +1414,7 @@ contains
 
           r_i(k)   = r_i(k)  + rime_r
           r_c(k) = r_c(k) - rime_r
+          n_c(k) = n_c(k) - rime_r/x_c
 
           ! ice multiplication after hallet and mossop
           if (tk(k) < tmelt .and. ice_multiplication) then
@@ -2124,17 +2141,12 @@ contains
 
   subroutine resetvar(meteor,mass,num)
     type(particle),intent(in)        :: meteor
-    real, dimension(:), intent(inout) :: mass
-    real, dimension(:), intent(inout), optional :: num
+    real, dimension(:), intent(inout) :: mass, num
 
-    where (mass < 0.)
+    where (mass < 0. .OR. num < 0.)
        mass = 0.
+       num = 0.
     end where
-    if (present(num)) then
-       where (num < 0.)
-          num = 0.
-       end where
-    end if
   end subroutine resetvar
 
   subroutine initmcrp(level)
@@ -2305,28 +2317,31 @@ contains
   !
   !==============================================================================
 
-  SUBROUTINE mcrph_sb(ke,je,ie,dn0,th,tlt,rtt,tk,rsi,qvin,qcin, &
-       qrin, qnrin, qiin, qniin, qsin, qnsin, qgin, qngin, qhin, qnhin,  &
-       qrtend, qnrtend, qitend, qnitend, qstend, qnstend, qgtend, qngtend, qhtend, qnhtend, &
-       prec_c, prec_r, prec_i, prec_s, prec_g, prec_h, sed_cloud, sed_precp, sed_ice)
+  SUBROUTINE mcrph_sb(ke,je,ie,dn0,th,tlt,rtt,tk,rsi,qvin, &
+       qcin, qncin, qrin, qnrin, qiin, qniin, qsin, qnsin, qgin, qngin, qhin, qnhin,  &
+       qctend, qnctend, qrtend, qnrtend, qitend, qnitend, qstend, qnstend, qgtend, &
+       qngtend, qhtend, qnhtend, &
+       prec_c, prec_r, prec_i, prec_s, prec_g, prec_h, sed_cloud, sed_precp, sed_ice, &
+       adds, nadds)
 
     ! Note that in F90 local variables overwrite global ones, nevertheless
     ! some SB variables are renamed here
 
     USE mcrp_ice_sb, ONLY: loc_ix, loc_iy, loc_iz, dtx => dt, &
-            p_0, T_0, rho_k=>rho_0, S_i, q, &
+            p_0, T_0, rho_k=>rho_0, S_i, q, addsclr, naddsclr, &
             q_cloud, q_ice, q_rain, q_snow, q_graupel, q_hail, &
             n_cloud, n_ice, n_rain, n_snow, n_graupel, n_hail, &
             alloc_driver, dealloc_driver, &
             alloc_wolken, dealloc_wolken, clouds, &
             sflgx => sflg, out_data => out_mcrp_data, &
-            nout=>out_mcrp_nout, out_list=>out_mcrp_list
+            nout=>out_mcrp_nout, out_list=>out_mcrp_list, &
+            out_inst_data, out_inst_nout
 
     IMPLICIT NONE
 
     ! Declare variables in argument list
 
-    integer, intent (in) :: ie,je,ke
+    integer, intent (in) :: ie,je,ke,nadds
 
     real, dimension(ke,je,ie), intent (in)          :: &
          th,    & ! potential temperature
@@ -2335,15 +2350,16 @@ contains
          rsi
 
     real, dimension(ke,je,ie), intent (in) ::  &
-         qvin,qcin,qrin,qnrin,qiin,qniin,qsin,qnsin,qgin,qngin,qhin,qnhin
+         qvin,qcin,qncin,qrin,qnrin,qiin,qniin,qsin,qnsin,qgin,qngin,qhin,qnhin
 
     real, dimension(ke,je,ie), intent (inout) ::  &
          tlt, rtt,   & ! tendency of liquid water potential temperature and total water
-         qrtend,qnrtend,qitend,qnitend,qstend,qnstend,qgtend,qngtend,qhtend,qnhtend
+         qctend,qnctend,qrtend,qnrtend,qitend,qnitend,qstend,qnstend,qgtend,qngtend,qhtend,qnhtend
 
     real, dimension(ke,je,ie), intent (out) :: &
          prec_c, prec_r, prec_i, prec_s, prec_g, prec_h
     LOGICAL, INTENT(IN) :: sed_cloud, sed_precp, sed_ice
+    real, dimension(ke,je,ie,nadds), intent (in) :: adds
 
     ! ... Local Variables
 
@@ -2352,10 +2368,14 @@ contains
 
     INTEGER        :: i,j,k,ii,jj,kk,ntsedi
     REAL :: hlp
-    REAL, DIMENSION(ke,je,ie) :: tmp_rc, tmp_nr, tmp_rr, &
+    REAL, DIMENSION(ke,je,ie) :: tmp_nc, tmp_rc, tmp_nr, tmp_rr, &
           tmp_ni, tmp_ri, tmp_ns, tmp_rs, tmp_ng, tmp_rg, tmp_nh, tmp_rh
 
     INTEGER, DIMENSION(:), AllOCATABLE     :: ilm,jlm,klm
+
+    ! Local copy of cumulative outputs
+    REAL, ALLOCATABLE, SAVE :: out_cum_data(:,:,:,:)
+    REAL, SAVE :: time_tot = 0.0
 
     ! using eps=0 increases runtime, but may remove artifacts
     REAL,    PARAMETER :: eps = 0.0
@@ -2363,12 +2383,18 @@ contains
     LOGICAL, PARAMETER :: CGP_SEARCH = .true.
 
     dtx = dt
+    naddsclr = nadds
     sflgx = sflg .AND. out_mcrp_nout>0
 
     nout = out_mcrp_nout
     IF (sflgx .AND. .NOT.ALLOCATED(out_list)) THEN
         ALLOCATE(character(7) :: out_list(nout))
         out_list(1:nout) = out_mcrp_list(1:nout)
+    ENDIF
+
+    IF(.NOT. ALLOCATED(out_cum_data)) THEN
+        ALLOCATE (out_cum_data(ke,je,ie,out_inst_nout))
+        out_cum_data=0.0
     ENDIF
 
     qv = qvin
@@ -2378,8 +2404,7 @@ contains
     qs = qsin
     qg = qgin
     qh = qhin
-    !qnc = ccn ! Input only (diagnostic)
-    WHERE(dn0>0.) qnc = ccn/dn0 ! COMBLE: concentration in #/m3
+    qnc = qncin
     qnr = qnrin
     qni = qniin
     qns = qnsin
@@ -2471,6 +2496,9 @@ contains
           q_snow(i,j,k)    = rho_k(i,j,k) * qs(kk,jj,ii)
           q_graupel(i,j,k) = rho_k(i,j,k) * qg(kk,jj,ii)
           q_hail(i,j,k)    = rho_k(i,j,k) * qh(kk,jj,ii)
+
+          ! ... additional prognostic (concentration) inputs
+          IF (nadds>0) addsclr(i,j,k,1:nadds) = rho_k(i,j,k) * adds(kk,jj,ii,1:nadds)
        enddo
 
        ! .. this subroutine calculates all the microphysical sources and sinks
@@ -2501,6 +2529,8 @@ contains
 
           ! ... statistics
           IF (sflgx) out_mcrp_data(kk,jj,ii,:) = hlp * out_data(i,j,k,:)
+          ! Cumulative data from all time steps
+          out_cum_data(kk,jj,ii,:) = out_cum_data(kk,jj,ii,:) + hlp * out_inst_data(i,j,k,:)
        ENDDO
 
        deallocate(ilm,jlm,klm)
@@ -2554,6 +2584,9 @@ contains
     end do
     IF (sflgx) CALL sb_var_stat()
 
+    time_tot = time_tot + dt
+    IF (sflgx) CALL sb_var_stat_cum(time_tot)
+
     WHERE (qv < 0.0) qv = 0.0
     WHERE (qc < 0.0) qc = 0.0
     WHERE (qr < 0.0) qr = 0.0
@@ -2570,12 +2603,14 @@ contains
     DO i=3,ie-2
        DO j=3,je-2
           DO k=2,ke-1
+             qctend(k,j,i)  = max(qctend(k,j,i) + (qc(k,j,i) - qcin(k,j,i))/dt,-qcin(k,j,i)/dt)
              qrtend(k,j,i)  = max(qrtend(k,j,i) + (qr(k,j,i) - qrin(k,j,i))/dt,-qrin(k,j,i)/dt)
              qitend(k,j,i)  = max(qitend(k,j,i) + (qi(k,j,i) - qiin(k,j,i))/dt,-qiin(k,j,i)/dt)
              qstend(k,j,i)  = max(qstend(k,j,i) + (qs(k,j,i) - qsin(k,j,i))/dt,-qsin(k,j,i)/dt)
              qgtend(k,j,i)  = max(qgtend(k,j,i) + (qg(k,j,i) - qgin(k,j,i))/dt,-qgin(k,j,i)/dt)
              qhtend(k,j,i)  = max(qhtend(k,j,i) + (qh(k,j,i) - qhin(k,j,i))/dt,-qhin(k,j,i)/dt)
 
+             qnctend(k,j,i) = qnctend(k,j,i) + (qnc(k,j,i) - qncin(k,j,i))/dt
              qnrtend(k,j,i) = qnrtend(k,j,i) + (qnr(k,j,i) - qnrin(k,j,i))/dt
              qnitend(k,j,i) = qnitend(k,j,i) + (qni(k,j,i) - qniin(k,j,i))/dt
              qnstend(k,j,i) = qnstend(k,j,i) + (qns(k,j,i) - qnsin(k,j,i))/dt
@@ -2594,7 +2629,7 @@ contains
       !     Main program: out_mcrp_nout, out_mcrp_data, out_mcrp_list
       ! 1) Save the current state
       SUBROUTINE sb_var_stat_reset()
-        tmp_rc = qc ! Cloud water mixing ratio
+        tmp_nc = qnc; tmp_rc = qc ! CDNC and cloud water mixing ratio
         tmp_nr = qnr; tmp_rr = qr ! Rain drop number and mixing ratio
         tmp_ni = qni; tmp_ri = qi ! Ice
         tmp_ns = qns; tmp_rs = qs ! Snow
@@ -2606,7 +2641,10 @@ contains
         character (len=4) :: prefix='sedi' ! Process name
         INTEGER :: k
         DO k=1,out_mcrp_nout
-            IF ( prefix//'_rc' == out_mcrp_list(k) ) THEN
+            IF ( prefix//'_nc' == out_mcrp_list(k) ) THEN
+                ! CDNC (typically fixed)
+                out_mcrp_data(:,:,:,k) = out_mcrp_data(:,:,:,k) + (qnc - tmp_nc)/dt
+            ELSEIF ( prefix//'_rc' == out_mcrp_list(k) ) THEN
                 ! Cloud water (diagnostic)
                 out_mcrp_data(:,:,:,k) = out_mcrp_data(:,:,:,k) + (qc - tmp_rc)/dt
             ELSEIF ( prefix//'_nr' == out_mcrp_list(k) ) THEN
@@ -2642,6 +2680,40 @@ contains
             ENDIF
         ENDDO
       END SUBROUTINE sb_var_stat
+      ! 3) Cumulative statistics based on instantaneous outputs
+      SUBROUTINE sb_var_stat_cum(time_tot)
+        IMPLICIT NONE
+        REAL, INTENT(INOUT) :: time_tot
+        INTEGER :: k
+        ! Generate the requested ouputs
+        DO k=1,out_mcrp_nout
+            SELECT CASE (out_mcrp_list(k) )
+            CASE('csrs_ni') ! RS SIP
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,1)/time_tot
+            CASE('csii_ni') ! IIBR SIP
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,2)/time_tot
+            CASE('caut_nr') ! Autoconversion
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,3)/time_tot
+            CASE('cnuc_ni') ! Ice nucleation
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,4)/time_tot
+            CASE('cfre_ni') ! Cloud freezing
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,5)/time_tot
+            CASE('cmel_ni') ! Ice melt
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,6)/time_tot
+            CASE('cdia_nc') ! Diagnostics, cloud
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,7)/time_tot
+            CASE('cdia_nr') ! Diagnostics, rain
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,8)/time_tot
+            CASE('cdia_ni') ! Diagnostics, ice
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,9)/time_tot
+            END SELECT
+        ENDDO
+        !
+        ! Reset time and data
+        time_tot = 0.0
+        out_cum_data(:,:,:,:) = 0.0
+        !
+      END SUBROUTINE sb_var_stat_cum
   END SUBROUTINE mcrph_sb
 
   SUBROUTINE init_sb

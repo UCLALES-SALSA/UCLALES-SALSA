@@ -4,6 +4,7 @@
 !
 ! Versions
 !   20200316    The first version
+!   20260129    Modified for slizes (xy, xz and yz)
 !
 ! Compile and run
 ! ===============
@@ -12,11 +13,15 @@
 !    gfortran -O2 -I/usr/include -o ./pples combine.f90 -lnetcdff
 !  Run
 !    ./pples <file name prefix>
-! b) Puhti
-!  Compile
+! b) Puhti/Roihu
+!  Compile (Puhti)
 !    module load intel/19.0.4
 !    module load netcdf-fortran/4.4.4
 !    ifort -O2 -o ./pples combine.f90 -lnetcdff
+!  Compile (Roihu)
+!    module load netcdf-fortran/4.6.2
+!    module load hdf5/1.14.6
+!    gfortran -O2 -fdefault-real-8 -I/$NETCDF_FORTRAN_INSTROOT/include -o ./pples combine.f90 -lnetcdff
 !  Run
 !    srun --ntasks=1 --time=00:0:10 --partition=<partition> --account=<project> pples <file name prefix> <key1=value1 key2=value2 ...>
 !  Examples
@@ -28,11 +33,11 @@ PROGRAM combine
     IMPLICIT NONE
 
     ! Current version of this file
-    CHARACTER(LEN=8), PARAMETER :: version='20200316'
+    CHARACTER(LEN=8), PARAMETER :: version='20260129'
 
     CHARACTER(len=100) :: fname, iname, oname, vname, aname
     character (len=8)  :: date
-    INTEGER :: ii, jj, kk, i, j, imax, jmax, n, nmax
+    INTEGER :: ii, jj, kk, i, j, imin, imax, jmin, jmax, n, nmax
     INTEGER :: ncid, ncid_src, iret, ityp
     INTEGER :: ndims, nvars, natt
     INTEGER , DIMENSION(5):: iarray, dims, fst, lst ! Max 5 dimensions
@@ -75,11 +80,21 @@ PROGRAM combine
     ! ************************ Check the input data ************************
     !
     WRITE(*,*) "Checking files '"//TRIM(fname)//"'..."
-    ! Count the number of files (0:imax and 0:jmax)
+    ! Count the number of files (imin:imax and jmin:jmax)
     ! The first file
-    i=0;  j=0
-    WRITE(iname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',i,j,'.nc'
-    INQUIRE(FILE=iname, EXIST=file_exists)
+    file_exists = .FALSE.
+    DO i=0,9999
+        DO j=0,9999
+            WRITE(iname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',i,j,'.nc'
+            INQUIRE(FILE=iname, EXIST=file_exists)
+            IF (file_exists) THEN
+                imin=i
+                jmin=j
+                EXIT
+            ENDIF
+        ENDDO
+        IF (file_exists) EXIT
+    ENDDO
     IF (.NOT. file_exists) THEN
         WRITE(*,*) 'Examining file '//iname
         STOP 'Data not found!'
@@ -95,12 +110,12 @@ PROGRAM combine
     ! Dimension j
     file_exists= .TRUE.
     Do WHILE (file_exists)
-        i=0
+        i=imin
         j=j+1
         WRITE(iname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',i,j,'.nc'
         INQUIRE(FILE=iname, EXIST=file_exists)
         IF (file_exists) THEN
-            DO i=0,imax
+            DO i=imin,imax
                 WRITE(iname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',i,j,'.nc'
                 INQUIRE(FILE=iname, EXIST=file_exists)
                 IF (.NOT. file_exists) THEn
@@ -111,10 +126,10 @@ PROGRAM combine
         ENDIF
     ENDDO
     jmax=j-1
-    IF (imax==0 .AND. jmax==0) THEN
+    IF (imax-imin==0 .AND. jmax-jmin==0) THEN
         STOP 'Only one file found?'
     ENDIF
-    WRITE(*,'(A8,I3,A6)') '  Found ',(imax+1)*(jmax+1),' files'
+    WRITE(*,'(A8,I3,A6)') '  Found ',(imax-imin+1)*(jmax-jmin+1),' files'
     WRITE(*,*) 'Done'
     !
     ! ************************ Define output file ************************
@@ -122,7 +137,7 @@ PROGRAM combine
     WRITE(*,*) ' '
     WRITE(*,*) 'Defining output netCDF...'
     ! Open the first input file for reading some basic information
-    i=0; j=0
+    i=imin; j=jmin
     WRITE(iname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',i,j,'.nc'
     iret = nf90_open(iname,NF90_NOWRITE,ncid_src)
     IF (iret/=nf90_noerr) THEN
@@ -144,9 +159,9 @@ PROGRAM combine
     IF (shuffle>0 .OR. deflate>0) THEN
         ! Compression requires netCDF4
         ii=nf90_netcdf4
-    ELSEIF ((imax+1)*(jmax+1)*jj>2e9) THEN
+    ELSEIF ((imax-imin+1)*(jmax-jmin+1)*jj>2e9) THEN
         WRITE(*,"('   Warning: file size exceeds 2 GB (total approx. ',F3.1, ' GB) - changing to netCDF4')") &
-                REAL((imax+1)*(jmax+1)*jj/1073741824)
+                REAL((imax-imin+1)*(jmax-jmin+1)*jj/1073741824)
         ! Format supporting large data files : nf90_64bit_offset and nf90_netcdf4
         !ii=nf90_64bit_offset ! Not readable by Igor?
         ii=nf90_netcdf4 ! This works
@@ -178,8 +193,8 @@ PROGRAM combine
     ALLOCATE( indices(1:ndims,0:imax,0:jmax), ind_old(ndims), dimsize_new(ndims), dimsize_old(ndims) )
     DO ii=1,ndims
         ! All files
-        DO i=0,imax
-            DO j=0,jmax
+        DO i=imin,imax
+            DO j=jmin,jmax
                 ! Source
                 WRITE(iname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',i,j,'.nc'
                 iret = nf90_open(iname,NF90_NOWRITE,ncid_src)
@@ -189,7 +204,7 @@ PROGRAM combine
                     STOP 'Error in opening data file!'
                 ENDIF
                 ! Source data
-                IF (j==0 .AND. i==0) THEN
+                IF (j==jmin .AND. i==imin) THEN
                     ! Length of dimension
                     iret = nf90_inquire_dimension(ncid_src,ii,name=vname,len=n)
                     !
@@ -243,7 +258,7 @@ PROGRAM combine
         iret = nf90_def_var(ncid,TRIM(vname),xtype=ityp,dimids=jj,varid=kk)
         !
         ! Copy attributes
-        i=0; j=0
+        i=imin; j=jmin
         WRITE(iname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',i,j,'.nc'
         iret = nf90_open(iname,NF90_NOWRITE,ncid_src)
         iret = nf90_inq_varid(ncid_src,TRIM(vname),jj)
@@ -262,7 +277,7 @@ PROGRAM combine
     !
     !
     ! b) Other variables
-    i=0; j=0
+    i=imin; j=jmin
     WRITE(iname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',i,j,'.nc'
     iret = nf90_open(iname,NF90_NOWRITE,ncid_src)
     DO ii=1,nvars
@@ -316,8 +331,8 @@ PROGRAM combine
         jj = ind_old(ii)
         !
         ! All files
-        DO i=0,imax
-            DO j=0,jmax
+        DO i=imin,imax
+            DO j=jmin,jmax
                 ! Source
                 WRITE(iname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',i,j,'.nc'
                 iret = nf90_open(iname,NF90_NOWRITE,ncid_src)
@@ -349,7 +364,7 @@ PROGRAM combine
     WRITE(*,*) 'Creating variables...'
     DO ii=1,nvars
         ! The first source file
-        i=0; j=0
+        i=imin; j=jmin
         WRITE(iname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',i,j,'.nc'
         iret = nf90_open(iname,NF90_NOWRITE,ncid_src)
         !
@@ -371,8 +386,8 @@ PROGRAM combine
         iret = nf90_close(ncid_src)
         !
         ! All files
-        DO i=0,imax
-            DO j=0,jmax
+        DO i=imin,imax
+            DO j=jmin,jmax
                 ! Source
                 WRITE(iname,'(a,a1,i4.4,i4.4,a3)') trim(fname),'.',i,j,'.nc'
                 iret = nf90_open(iname,NF90_NOWRITE,ncid_src)

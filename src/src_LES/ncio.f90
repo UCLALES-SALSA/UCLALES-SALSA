@@ -47,7 +47,6 @@ contains
     if (.not.exans) then
        call date_and_time(date)
        iret = nf90_create(lfname,NF90_SHARE,ncid)
-
        if (len_trim(ename)>0) iret = nf90_put_att(ncid,NF90_GLOBAL,'title',ename)
        iret = nf90_put_att(ncid,NF90_GLOBAL,'history','Created on '//date)
        iret = nf90_put_att(ncid, NF90_GLOBAL, 'Source','UCLALES-SALSA')
@@ -61,14 +60,16 @@ contains
        iret = nf90_inquire(ncid, unlimitedDimId = RecordDimID)
        iret = nf90_inquire_dimension(ncid, RecordDimID, len=nrec)
        iret = nf90_inq_varid(ncid,'time',VarID)
-       allocate (xtimes(nrec+1))
-       iret = nf90_get_var(ncid, VarId, xtimes(1:nrec))
-       ncall = 1
-       do while(ncall <= nrec .and. xtimes(ncall) < time + 0.01)
-          ncall=ncall+1
-       end do
-       deallocate(xtimes)
-       IF (time<0.01) ncall=1 ! If time about 0 s, then start from record 1
+       if (nrec==0 .or. time<0.01) then
+          ! File exists but does not contain data or time about 0 s, so start from record 1
+          ncall = 1
+       else
+          ! Find the record number based on time
+          allocate (xtimes(nrec))
+          iret = nf90_get_var(ncid, VarId, xtimes)
+          ncall = count(xtimes < time-0.01)+1
+          deallocate(xtimes)
+       end IF
     end if
     nrec = ncall
     iret = nf90_sync(ncid)
@@ -291,13 +292,10 @@ contains
   !
   character (len=80) function ncinfo(itype,short_name,dimensions)
 
-    character (len=40) :: v_lnm ='scalar xx mixing ratio                  '
-
     integer, intent (in) :: itype
     character (len=*), intent (in) :: short_name
     integer, optional, intent (in) :: dimensions
 
-    integer :: scalar_number
     INTEGER :: dims
 
     ! Number of dimensions in addition to time (0=*.ts.nc, 1=*.ps.nc, 2=*.cs.nc, and 3=*.nc)
@@ -308,11 +306,6 @@ contains
     if (itype==2) ncinfo = 'tttt'
 
     select case (trim(short_name))
-    case ('sxx')
-       read (short_name(2:3),'(i2.2)') scalar_number
-       write(v_lnm(8:9),'(i2.2)') scalar_number
-       if (itype==0) ncinfo = v_lnm
-       if (itype==1) ncinfo = 'kg/kg'
     case('time')
        if (itype==0) ncinfo = 'Time'
        if (itype==1) ncinfo = 's'
@@ -392,6 +385,9 @@ contains
     case('theta')
        if (itype==0) ncinfo = 'Potential temperature'
        if (itype==1) ncinfo = 'K'
+    case('temp')
+       if (itype==0) ncinfo = 'Absolute temperature'
+       if (itype==1) ncinfo = 'K'
     case('p')
        if (itype==0) ncinfo = 'Pressure'
        if (itype==1) ncinfo = 'Pa'
@@ -400,6 +396,9 @@ contains
        if (itype==1) ncinfo = 'kg/kg'
     case('l')
        if (itype==0) ncinfo = 'Liquid water mixing ratio'
+       if (itype==1) ncinfo = 'kg/kg'
+    case('rc')
+       if (itype==0) ncinfo = 'Cloud water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
     case('r','rr')
        if (itype==0) ncinfo = 'Rain water mixing ratio'
@@ -416,7 +415,10 @@ contains
     case('h','rh')
        if (itype==0) ncinfo = 'Hail water mixing ratio'
        if (itype==1) ncinfo = 'kg/kg'
-    case('n')
+    case('nc')
+       if (itype==0) ncinfo = 'Cloud droplet number mixing ratio'
+       if (itype==1) ncinfo = '#/kg'
+    case('n','nr')
        if (itype==0) ncinfo = 'Rain-drop number mixing ratio'
        if (itype==1) ncinfo = '#/kg'
     case('ni')
@@ -762,6 +764,12 @@ contains
     case('Rhail','Rh_ih')
        if (itype==0) ncinfo = 'Conditionally sampled hail radius'
        if (itype==1) ncinfo = 'm'
+    case('SS')
+       if (itype==0) ncinfo = 'Supersaturation'
+       if (itype==1) ncinfo = '%'
+    case('SSi')
+       if (itype==0) ncinfo = 'Supersaturation over ice'
+       if (itype==1) ncinfo = '%'
     case('SS_max')
        if (itype==0) ncinfo = 'Maximum supersaturation'
        if (itype==1) ncinfo = '%'
@@ -1144,16 +1152,8 @@ contains
        IF (LEN(TRIM(ncinfo))<1) ncinfo=TRIM( get_sb_info(itype,trim(short_name),dims) )
        ! ... and some other species and bin-dependent SALSA variables
        IF (LEN(TRIM(ncinfo))<1) ncinfo=TRIM( get_salsa_info(itype,trim(short_name),dims) )
-       ! Additional scalars (3D only)
-       IF (LEN(TRIM(ncinfo))<1 .AND. short_name(1:1)=='s' .AND. dims==3) THEN
-          read (UNIT=short_name(2:3),FMT='(i2.2)',iostat=dims) scalar_number
-          IF (dims==0) THEN ! If valid name
-             write(v_lnm(8:9),'(i2.2)') scalar_number
-             if (itype==0) ncinfo = v_lnm
-             if (itype==1) ncinfo = 'kg/kg'
-             if (itype==2) ncinfo = 'tttt'
-          ENDIF
-       ENDIF
+       ! Additional scalars
+       IF (LEN(TRIM(ncinfo))<1) ncinfo=TRIM( get_addsclr_info(itype,trim(short_name),dims) )
        IF (LEN(TRIM(ncinfo))<1) THEN
           if (myid==0) print *, 'ABORTING: ncinfo: variable not found ',trim(short_name)
           call appl_abort(0)
@@ -1169,7 +1169,7 @@ contains
   !
   ! 1) Units
   !     *.ts.nc: average column integrated rate of change
-  !     *.ps.nc: average rate of change per volume
+  !     *.ps.nc: average rate of change per mass of air (used to be volume)
   !     *.nc: rate of change
   ! 2) Examples of names
   !     diag_ri     Change in ice water mixing ratio due to diagnostics
@@ -1208,31 +1208,31 @@ contains
         pros='condensation'
     ELSEIF ('cond_'==short_name(1:5)) THEN
         pros='condensation'
-    ELSEIF ('auto_'==short_name(1:5)) THEN
+    ELSEIF ('auto_'==short_name(1:5) .OR. 'caut_'==short_name(1:5)) THEN
         pros='autoconversion'
-    ELSEIF ('act_'==short_name(1:4) .OR. 'cact_'==short_name(1:5)) THEN
+    ELSEIF ('cact_'==short_name(1:5) .OR. 'ccac_'==short_name(1:5)) THEN
         pros='activation'
-    ELSEIF ('nucl_'==short_name(1:5)) THEN
+    ELSEIF ('nucl_'==short_name(1:5) .OR. 'cnuc_'==short_name(1:5)) THEN
         pros='nucleation'
-    ELSEIF ('nucf_'==short_name(1:5)) THEN
+    ELSEIF ('nucf_'==short_name(1:5) .OR. 'cnuf_'==short_name(1:5)) THEN
         pros='fixed ice nucleation'
-    ELSEIF ('nucm_'==short_name(1:5)) THEN
+    ELSEIF ('nucm_'==short_name(1:5) .OR. 'cnum_'==short_name(1:5)) THEN
         pros='modeled nucleation'
-    ELSEIF ('melt_'==short_name(1:5)) THEN
+    ELSEIF ('melt_'==short_name(1:5) .OR. 'cmel_'==short_name(1:5)) THEN
         pros='melting'
-    ELSEIF ('frez_'==short_name(1:5)) THEN
+    ELSEIF ('frez_'==short_name(1:5) .OR. 'cfre_'==short_name(1:5)) THEN
         pros='freezing'
-    ELSEIF ('siph_'==short_name(1:5)) THEN
+    ELSEIF ('siph_'==short_name(1:5) .OR. 'csrs_'==short_name(1:5)) THEN
         pros='Hallett-Mossop'
-    ELSEIF ('sipd_'==short_name(1:5)) THEN
+    ELSEIF ('sipd_'==short_name(1:5) .OR. 'csdf_'==short_name(1:5)) THEN
         pros='drop fragmentation'
-    ELSEIF ('sipi_'==short_name(1:5)) THEN
+    ELSEIF ('sipi_'==short_name(1:5) .OR. 'csii_'==short_name(1:5)) THEN
         pros='ice breakup'
     ELSEIF ('dist_'==short_name(1:5)) THEN
         pros='distribution update'
     ELSEIF ('sedi_'==short_name(1:5)) THEN
         pros='sedimentation'
-    ELSEIF ('diag_'==short_name(1:5)) THEN
+    ELSEIF ('diag_'==short_name(1:5) .OR. 'cdia_'==short_name(1:5)) THEN
         pros='diagnostics'
     ELSEIF ('advf_'==short_name(1:5)) THEN
         pros='advection'
@@ -1313,7 +1313,7 @@ contains
                 get_rate_info='Change in column '//TRIM(spec)//' component #'//idc//' mixing ratio due to '//TRIM(pros)
             ENDIF
         ELSEIF (dims==1 .OR. dims==3) THEN
-            ! Profiles give the average rate per volume (#/m^3/s or kg/m^3/s), so just different unit
+            ! Profiles give the average rate per mass of air (#/kg/s or kg/kg/s)
             ! 3D data in original units (#/kg/s or kg/kg/s)
             IF (numc) THEN
                 get_rate_info='Change in '//TRIM(spec)//' number concentration due to '//TRIM(pros)
@@ -1338,16 +1338,8 @@ contains
             ELSE
                 get_rate_info = 'kg/m^2/s'
             ENDIF
-        ELSEIF (dims==1) THEN
-            ! Profiles give the average rate per volume (#/m^3/s or kg/m^3/s)
-            IF (numc) THEN
-                get_rate_info = '#/m^3/s'
-            ELSEIF (temp) THEN
-                get_rate_info = 'W/m^3'
-            ELSE
-                get_rate_info = 'kg/m^3/s'
-            ENDIF
-        ELSEIF (dims==3) THEN
+        ELSEIF (dims==1 .OR. dims==3) THEN
+            ! Profiles give the average rate per mass of air (#/kg/s or kg/kg/s)
             ! 3D data in original units (#/kg/s or kg/kg/s)
             IF (numc) THEN
                 get_rate_info = '#/kg/s'
@@ -1706,5 +1698,54 @@ contains
         ENDIF
     ENDIF
   END function get_sb_info
+
+  ! ----------------------------------------------------------------------
+  ! Information about additional scalars (s01, s02,...)
+  character (len=80) function get_addsclr_info(itype,short_name,dims)
+    implicit none
+    integer, intent (in) :: itype
+    character (len=*), intent (in) :: short_name
+    INTEGER, INTENT(IN) :: dims
+    integer :: istat, scalar_number
+    !
+    get_addsclr_info = ''
+    !
+    IF (LEN_TRIM(short_name)==3 .AND. short_name(1:1)=='s') THEN
+        read (UNIT=short_name(2:3),FMT='(i2.2)',iostat=istat) scalar_number
+        IF (istat==0) THEN ! If valid name
+            IF (itype==2) THEN
+                ! NetCDF dimensions
+                IF (dims==0) THEN
+                    ! Time series
+                    get_addsclr_info = 'time'
+                ELSE
+                    ! Other
+                    get_addsclr_info = 'tttt'
+                ENDIF
+            ELSEIF (itype==1) THEN
+                ! Unit - not known
+                IF (dims==0 .OR. dims==2) THEN
+                    ! Vertical integral (x/m^2)
+                    get_addsclr_info = 'x/m^2'
+                ELSE
+                    ! Mixing ratio (x)
+                    get_addsclr_info = 'x'
+                ENDIF
+             ELSE
+                ! Long name
+                IF (dims==0 .OR. dims==2) THEN
+                    ! Vertical integral
+                    get_addsclr_info = 'Vertically integrated scalar '//short_name(2:3)//' mixing ratio'
+                ELSEIF (dims==1) THEN
+                    ! Profiles
+                    get_addsclr_info = 'Horizontally averaged scalar '//short_name(2:3)//' mixing ratio'
+                ELSE
+                    ! 3D
+                    get_addsclr_info = 'Scalar '//short_name(2:3)//' mixing ratio'
+                ENDIF
+            ENDIF
+        ENDIF
+    ENDIF
+  END function get_addsclr_info
 
 end module ncio
