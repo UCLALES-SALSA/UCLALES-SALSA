@@ -199,7 +199,7 @@ MODULE mo_particle_external_properties
        fv = 1.0
        ventilation_factor = 1.0 
        
-       IF (flag == 3) THEN ! raindroplets  
+       IF (ANY(flag == [2,3])) THEN 
            ! Aerosol and cloud and rain droplets
            ! diam is dwet and we assume spherical droplets
            ! ventilation effects are just important for raindrops
