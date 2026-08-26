@@ -104,6 +104,10 @@ module mcrp_ice_sb
   REAL, PARAMETER :: iibr_dref = 0.02      ! Size dependency
   REAL, PARAMETER :: iibr_tmin = 252.      ! Minimum temperature
   REAL, PARAMETER :: iibr_tmax = 273.15    ! Maximum temperature
+  ! ... Droplet fragmentation
+  LOGICAL         :: df_ir=.TRUE., df_sr=.TRUE., df_gr=.TRUE., df_hr=.TRUE.
+  REAL            :: df_c_mult = 2.5e13 ! Fragmentation coefficient (2.5e-11 1/um^4=2.5e13 1/m^4)
+  REAL, PARAMETER :: df_dwet_min = 100e-6 ! Minimum rain drop diameter
 
   ! .. collisions
   REAL, PARAMETER :: e_ic  = 0.80              !..max. Eff. fuer ice_cloud_riming
@@ -310,7 +314,7 @@ module mcrp_ice_sb
     tmp_rh(:,:,:),tmp_nh(:,:,:),tmp_rv(:,:,:)
   ! Additional instantaneous statistics - fixed order of variables
   real, save, allocatable :: out_inst_data(:,:,:,:)
-  integer, parameter :: out_inst_nout = 9
+  integer, parameter :: out_inst_nout = 10
 
   PUBLIC loc_ix, loc_iy, loc_iz, dt, p_0, T_0, rho_0, S_i, q, &
         q_cloud, q_ice, q_rain, q_snow, q_graupel, q_hail, &
@@ -342,6 +346,7 @@ CONTAINS
         q_krit_gc, D_krit_gc, q_krit_gr, q_krit_hc, D_krit_hc, q_krit_hr, q_krit_c, q_krit_r, &
         q_krit_ii, D_krit_ii, q_krit, &
         c_mult, iibr_fbr, iibr_ii, iibr_is, iibr_ig, iibr_ih, iibr_ss, iibr_sg, iibr_sh, iibr_gg, &
+        df_c_mult, df_ir, df_sr, df_gr, df_hr, &
         cldw,rain,ice,snow,graupel,hail
 
     ! Copy default cloud to cldw
@@ -1635,6 +1640,25 @@ CONTAINS
     
   END FUNCTION D_average_factor
 
+  ! SIP-DF by
+  !   Sullivan, S. C., Hoose, C., Kiselev, A., Leisner, T., and Nenes, A.: Initiation of secondary
+  !   ice production in clouds, Atmos. Chem. Phys., 18, 1593-1610,
+  !   https://doi.org/10.5194/acp-18-1593-2018, 2018.
+  REAL FUNCTION df_sullivan(ptemp,dwet)
+    USE mo_submctl, ONLY : pi
+    REAL, INTENT(in) :: ptemp, dwet
+    !
+    IF (dwet>df_dwet_min .AND. df_c_mult>0.0) THEN
+        ! The number of fragments depends on temperature: 0.2*f(T;m=258 K,s=10 K)
+        !df_sullivan=c_mult*dwet**4 * 0.2/(10.*sqrt(2.*pi))*exp(-0.5*((ptemp-258.)/10.)**2)
+        ! Update: term 10.*sqrt(2.*pi) is left out based on Fig. S2.
+        df_sullivan=df_c_mult*dwet**4 * 0.2*exp(-0.5*((ptemp-258.)/10.)**2)
+    ELSE
+        df_sullivan=0.0
+    ENDIF
+    !
+  END FUNCTION df_sullivan
+
   SUBROUTINE ice_rain_riming()
     !*******************************************************************************
     !                                                                              *
@@ -1748,6 +1772,17 @@ CONTAINS
                 mult_n = C_mult * mult_1 * mult_2 * rime_qr
                 mult_q = mult_n * ice%x_min
                 mult_q = MIN(rime_qr,mult_q)
+
+                out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
+              ENDIF
+
+              ! Droplet fragmentation during freezing
+              IF (df_c_mult>0.0 .AND. T_a < T_3 .AND. df_ir) THEN
+                mult_1 = df_sullivan(T_a,D_r) * rime_n
+                mult_n = mult_n + mult_1
+                mult_q = MIN(rime_qr, mult_n * ice%x_min)
+
+                out_inst_data(i,j,k,10) = out_inst_data(i,j,k,10) + mult_1
               ENDIF
 
               IF (T_a >= T_3) THEN
@@ -1765,8 +1800,6 @@ CONTAINS
               ELSE
                 n_ice(i,j,k) = n_ice(i,j,k)  + mult_n  ! UB_20081120
                 q_ice(i,j,k) = q_ice(i,j,k)  + mult_q  ! UB_20081120
-
-                out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
 
                 IF (ice_typ < 3) THEN
                   ! Eis + angefrorenes Regenwasser ergibt Graupel:
@@ -1916,6 +1949,16 @@ CONTAINS
                 mult_q = mult_n * ice%x_min
                 mult_q = MIN(rime_qr,mult_q)
 
+                out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
+              ENDIF
+
+              ! Droplet fragmentation during freezing
+              IF (df_c_mult>0.0 .AND. T_a < T_3 .AND. df_sr) THEN
+                mult_1 = df_sullivan(T_a,D_r) * rime_n
+                mult_n = mult_n + mult_1
+                mult_q = MIN(rime_qr, mult_n * ice%x_min)
+
+                out_inst_data(i,j,k,10) = out_inst_data(i,j,k,10) + mult_1
               ENDIF
 
               IF (T_a >= T_3) THEN
@@ -1933,8 +1976,6 @@ CONTAINS
               ELSE
                 n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n ! UB_20081120
                 q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q ! UB_20081120
-
-                out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
 
                 IF (ice_typ < 3) THEN
                   ! Schnee + angefrorenes Regenwasser ergibt Graupel:
@@ -2085,6 +2126,18 @@ CONTAINS
                 out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
               ENDIF
 
+              ! Droplet fragmentation during freezing
+              IF (df_c_mult>0.0 .AND. T_a < T_3 .AND. df_gr) THEN
+                mult_n = df_sullivan(T_a,D_r) * rime_n
+                mult_q = MIN(rime_qr, mult_n * ice%x_min)
+
+                n_ice(i,j,k)     = n_ice(i,j,k)     + mult_n
+                q_ice(i,j,k)     = q_ice(i,j,k)     + mult_q
+                q_graupel(i,j,k) = q_graupel(i,j,k) - mult_q
+
+                out_inst_data(i,j,k,10) = out_inst_data(i,j,k,10) + mult_n
+              ENDIF
+
               ! enhancement of melting of graupel
 
               IF (T_a > T_3 .AND. enhanced_melting) THEN
@@ -2164,6 +2217,18 @@ CONTAINS
                 q_hail(i,j,k)    = q_hail(i,j,k) - mult_q
 
                 out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
+              ENDIF
+
+              ! Droplet fragmentation during freezing
+              IF (df_c_mult>0.0 .AND. T_a < T_3 .AND. df_gr) THEN
+                mult_n = df_sullivan(T_a,D_r) * rime_n
+                mult_q = MIN(rime_qr, mult_n * ice%x_min)
+
+                n_ice(i,j,k)     = n_ice(i,j,k)  + mult_n
+                q_ice(i,j,k)     = q_ice(i,j,k)  + mult_q
+                q_hail(i,j,k)    = q_hail(i,j,k) - mult_q
+
+                out_inst_data(i,j,k,10) = out_inst_data(i,j,k,10) + mult_n
               ENDIF
 
               ! Shedding
@@ -2297,6 +2362,18 @@ CONTAINS
               q_hail(i,j,k) = q_hail(i,j,k) - mult_q
 
               out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
+            ENDIF
+
+            ! Droplet fragmentation during freezing
+            IF (df_c_mult>0.0 .AND. T_a < T_3 .AND. df_hr) THEN
+              mult_n = df_sullivan(T_a,D_r) * rime_n
+              mult_q = MIN(rime_q, mult_n * ice%x_min)
+
+              n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n
+              q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q
+              q_hail(i,j,k) = q_hail(i,j,k) - mult_q
+
+              out_inst_data(i,j,k,10) = out_inst_data(i,j,k,10) + mult_n
             ENDIF
 
             ! enhancement of melting of hail
@@ -2448,6 +2525,14 @@ CONTAINS
 
                 out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
               ENDIF
+
+              ! Droplet fragmentation during freezing
+              IF (df_c_mult>0.0 .AND. T_a < T_3 .AND. df_ir) THEN
+                D_rd = d_rd_sp_ice(i,j,k)
+                mult_n = df_sullivan(T_a,D_rd) * rime_n
+                n_ice(i,j,k) = n_ice(i,j,k)  + mult_n
+                out_inst_data(i,j,k,10) = out_inst_data(i,j,k,10) + mult_n
+              ENDIF
               
             END IF
 
@@ -2536,8 +2621,17 @@ CONTAINS
                 mult_n = C_mult * mult_1 * mult_2 * rime_qr
                 mult_q = mult_n * ice%x_min
                 mult_q = MIN(rime_qr,mult_q)
+
+                out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
               ENDIF
 
+              ! Droplet fragmentation during freezing
+              IF (df_c_mult>0.0 .AND. T_a < T_3 .AND. df_ir) THEN
+                mult_1 = df_sullivan(T_a,D_rd) * rime_n
+                mult_n = mult_n + mult_1
+                mult_q = MIN(rime_qr, mult_n * ice%x_min)
+                out_inst_data(i,j,k,10) = out_inst_data(i,j,k,10) + mult_1
+              ENDIF
 
               IF (T_a >= T_3) THEN
                 IF (D_id > D_rd) THEN
@@ -2554,8 +2648,6 @@ CONTAINS
               ELSE
                 n_ice(i,j,k) = n_ice(i,j,k)  + mult_n  ! UB_20081120
                 q_ice(i,j,k) = q_ice(i,j,k)  + mult_q  ! UB_20081120
-
-                out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
 
                 IF (ice_typ < 3) THEN
                   ! Eis + angefrorenes Regenwasser ergibt Graupel:
@@ -2647,6 +2739,17 @@ CONTAINS
                 q_snow(i,j,k) = q_snow(i,j,k) - mult_q
 
                 out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
+              ENDIF
+
+              ! Droplet fragmentation during freezing
+              IF (df_c_mult>0.0 .AND. T_a < T_3 .AND. df_sr) THEN
+                D_rd = d_rd_sp_snow(i,j,k)
+                mult_n = df_sullivan(T_a,D_rd) * rime_n
+                mult_q = MIN(rime_q,mult_n * ice%x_min)
+                n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n
+                q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q
+                q_snow(i,j,k) = q_snow(i,j,k) - mult_q
+                out_inst_data(i,j,k,10) = out_inst_data(i,j,k,10) + mult_n
               ENDIF
 
             END IF
@@ -2742,6 +2845,16 @@ CONTAINS
                 mult_q = mult_n * ice%x_min
                 mult_q = MIN(rime_qr,mult_q)
 
+                out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
+              ENDIF
+
+              ! Droplet fragmentation during freezing
+              IF (df_c_mult>0.0 .AND. T_a < T_3 .AND. df_sr) THEN
+                mult_1 = df_sullivan(T_a,D_rd) * rime_n
+                mult_n = mult_n + mult_1
+                mult_q = MIN(rime_q,mult_n * ice%x_min)
+
+                out_inst_data(i,j,k,10) = out_inst_data(i,j,k,10) + mult_1
               ENDIF
 
               IF (T_a >= T_3) THEN
@@ -2759,8 +2872,6 @@ CONTAINS
               ELSE
                 n_ice(i,j,k)  = n_ice(i,j,k)  + mult_n ! UB_20081120
                 q_ice(i,j,k)  = q_ice(i,j,k)  + mult_q ! UB_20081120
-
-                out_inst_data(i,j,k,1) = out_inst_data(i,j,k,1) + mult_n
 
                 IF (ice_typ < 3) THEN
                   ! Schnee + angefrorenes Regenwasser ergibt Graupel:
@@ -4938,6 +5049,9 @@ CONTAINS
             ELSEIF ('sipi_ni' == out_mcrp_list(k)) THEN
                 ! Ice-ice collisional breakup rate
                 out_mcrp_data(:,:,:,k) = out_inst_data(:,:,:,2)/dt
+            ELSEIF ('sipd_ni' == out_mcrp_list(k)) THEN
+                ! Droplet fragmentation during freezing
+                out_mcrp_data(:,:,:,k) = out_inst_data(:,:,:,10)/dt
             ENDIF
         ENDDO
         !

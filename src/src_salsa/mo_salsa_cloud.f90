@@ -2018,7 +2018,9 @@ CONTAINS
     !
     IF (dwet>dwet_min) THEN
         ! The number of fragments depends on temperature: 0.2*f(T;m=258 K,s=10 K)
-        df_sullivan=c_mult*dwet**4 * 0.2/(10.*sqrt(2.*pi))*exp(-0.5*((ptemp-258.)/10.)**2)
+        !df_sullivan=c_mult*dwet**4 * 0.2/(10.*sqrt(2.*pi))*exp(-0.5*((ptemp-258.)/10.)**2)
+        ! Update: term 10.*sqrt(2.*pi) is left out based on Fig. S2.
+        df_sullivan=c_mult*dwet**4 * 0.2*exp(-0.5*((ptemp-258.)/10.)**2)
     ELSE
         df_sullivan=0.0
     ENDIF

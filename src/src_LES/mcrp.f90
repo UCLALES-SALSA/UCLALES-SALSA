@@ -262,7 +262,7 @@ contains
     logical, intent (in)                      :: sed_cloud, sed_precp
 
     integer :: i, j, k
-    REAL :: tmp_nc(n1,n2,n3), tmp_rc(n1,n2,n3)
+    REAL :: tmp_rv(n1,n2,n3), tmp_nc(n1,n2,n3), tmp_rc(n1,n2,n3)
     REAL :: tmp_nr(n1,n2,n3), tmp_rr(n1,n2,n3), tmp_rt(n1,n2,n3)
     !
     ! Microphysics following Seifert Beheng (2001, 2005)
@@ -350,6 +350,7 @@ contains
         ! a) The first call
         IF (flag==0) THEN
             ! Save current tendency
+            tmp_rv(:,:,:) = rv(:,:,:)  ! Water vapor - diagnostic, so use concentration instead
             tmp_nc(:,:,:) = nct(:,:,:) ! Cloud droplet number
             tmp_rc(:,:,:) = rct(:,:,:) ! Cloud water mixing ratio
             tmp_nr(:,:,:) = npt(:,:,:) ! Rain drop number
@@ -358,6 +359,7 @@ contains
             RETURN
         ELSEIF (flag==2) THEN
             ! Save current absolute concentration
+            tmp_rv(:,:,:) = rv(:,:,:)
             tmp_nc(:,:,:) = nc(:,:,:)
             tmp_rc(:,:,:) = rc(:,:,:)
             tmp_nr(:,:,:) = np(:,:,:)
@@ -369,7 +371,16 @@ contains
         ! b) The second call
         ! Find the requested ouput
         DO i=1,out_mcrp_nout
-            IF ( prefix//'_nc' == out_mcrp_list(i) ) THEN
+            IF ( prefix//'_rv' == out_mcrp_list(i) ) THEN
+                ! Water vapor
+                IF (flag==1) THEN
+                    ! Calculate the change in tendency - diagnostic, so use concentration instead
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rv(:,:,:) - tmp_rv(:,:,:))/dtl
+                ELSEIF (flag==3) THEN
+                    ! Calculate the change in absolute concentrations (divide by time step)
+                    out_mcrp_data(:,:,:,i) = out_mcrp_data(:,:,:,i) + (rv(:,:,:) - tmp_rv(:,:,:))/dtl
+                ENDIF
+            ELSEIF ( prefix//'_nc' == out_mcrp_list(i) ) THEN
                 ! Cloud number (a_nct or a_ncp)
                 IF (flag==1) THEN
                     ! Calculate the change in tendency

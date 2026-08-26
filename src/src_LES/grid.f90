@@ -796,12 +796,12 @@ contains
     USE mo_submctl, ONLY : fn1a,fn2a
     IMPLICIT NONE
     real, intent (in) :: time
-    ! Dimensions (time, x, y, x, and SALSA bins) and constants (u0, v0, dn0) are saved
-    ! during initialization, and common variables (u, v, w, theta, p) are always saved.
-    INTEGER, PARAMETER :: n_dims=14, n_base=21
+    ! Dimensions (time, x, y, x, and SALSA bins) are saved during initialization
+    ! and common variables (u, v, w, theta, p) are always saved.
+    INTEGER, PARAMETER :: n_dims=11, n_base=21
     character(len=7) :: s_dims(n_dims) = (/ &
          'time   ','zt     ','zm     ','xt     ','xm     ','yt     ','ym     ', & ! 1-7
-         'u0     ','v0     ','dn0    ','B_Rd12a','B_Rd2ab','B_Rwprc','B_Rwsnw'/)  ! 8-14
+         'B_Rd12a','B_Rd2ab','B_Rwprc','B_Rwsnw'/)  ! 8-11
     character(len=7) :: s_base(n_base) = (/ &
          'u      ','v      ','w      ','theta  ','p      ','stke   ','rflx   ', & ! 1-7
          'q      ','l      ','rc     ','nc     ','rr     ','nr     ','ri     ', & ! 8-14
@@ -824,7 +824,7 @@ contains
     out_an_data(:,:,:,:) = 0.
 
     IF (level < 4) THEN  ! Standard operation for levels 1-3
-        b_dims(11:14) = .FALSE. ! SALSA bins
+        b_dims(8:11) = .FALSE. ! SALSA bins
         b_base(10:11) = (/.TRUE.,prog_cloud/) ! Cloud
         b_base(12:13) = (level==3 .OR. level==0) ! Rain
         b_base((/14,15,16,18/)) = (level==0 .AND. lev_sb>=4) ! Ice, snow mass and graupel mass
@@ -855,10 +855,10 @@ contains
 
        ! Dimensions for bin dependent outputs
        lbinanl = ANY(INDEX(user_an_list,'B_')>0)
-       b_dims(11) = lbinanl
-       b_dims(12) = lbinanl .AND. (.NOT. no_b_bins)
-       b_dims(13) = lbinanl .AND. (.NOT. no_prog_prc)
-       b_dims(14) = lbinanl .AND. (.NOT. no_prog_snw) .AND. (level>4)
+       b_dims(8) = lbinanl
+       b_dims(9) = lbinanl .AND. (.NOT. no_b_bins)
+       b_dims(10) = lbinanl .AND. (.NOT. no_prog_prc)
+       b_dims(11) = lbinanl .AND. (.NOT. no_prog_snw) .AND. (level>4)
 
        ! Merge logical and name arrays
        i=n_dims+n_base+nv4_proc+nv4_user+naddsc
@@ -998,7 +998,7 @@ contains
     iret = nf90_inq_varid(ncid0, 'time', VarID)
     iret = nf90_put_var(ncid0, VarID, time, start=(/nrec0/))
 
-    ! Dimensions and constants
+    ! Dimensions
     if (nrec0 == 1) then
        iret = nf90_inq_varid(ncid0, 'zt', VarID)
        iret = nf90_put_var(ncid0, VarID, zt, start = (/nrec0/))
@@ -1012,12 +1012,6 @@ contains
        iret = nf90_put_var(ncid0, VarID, yt(j1:j2), start = (/nrec0/))
        iret = nf90_inq_varid(ncid0, 'ym', VarID)
        iret = nf90_put_var(ncid0, VarID, ym(j1:j2), start = (/nrec0/))
-       iret = nf90_inq_varid(ncid0, 'u0', VarID)
-       iret = nf90_put_var(ncid0, VarID, u0, start = (/nrec0/))
-       iret = nf90_inq_varid(ncid0, 'v0', VarID)
-       iret = nf90_put_var(ncid0, VarID, v0, start = (/nrec0/))
-       iret = nf90_inq_varid(ncid0, 'dn0', VarID)
-       iret = nf90_put_var(ncid0, VarID, dn0, start = (/nrec0/))
 
        IF (level >= 4) THEN
           iret = nf90_inq_varid(ncid0,'B_Rd12a', VarID)
@@ -1036,9 +1030,9 @@ contains
 
     ! Always saved: u, v, w, theta, P
     iret = nf90_inq_varid(ncid0, 'u', VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_up(:,i1:i2,j1:j2), start=ibeg, count=icnt)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_up(:,i1:i2,j1:j2)+umean, start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'v', VarID)
-    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_vp(:,i1:i2,j1:j2), start=ibeg, count=icnt)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_vp(:,i1:i2,j1:j2)+vmean, start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'w', VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_wp(:,i1:i2,j1:j2), start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'theta', VarID)
