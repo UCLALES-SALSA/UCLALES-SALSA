@@ -45,7 +45,7 @@ module stat
                         nv3_lvl4 = 0,             &
                         nv3_lvl5 = 10
 
-  integer, save      :: nrec1, nrec2, nrec3, ncid1, ncid2, ncid3
+  integer, save      :: nrec1=0, nrec2, nrec3, ncid1=-1, ncid2, ncid3
   real, save         :: fsttm, lsttm, nsmp = 0
 
   logical            :: sflg = .false.
@@ -748,6 +748,7 @@ contains
   ! Modified for level 5
   ! Jaakko Ahola, FMI, 2016
   subroutine statistics(time)
+    use mpi_interface, only : myid
     use mo_submctl, only : nlim, prlim
     use grid, only : a_up, a_vp, a_wp, a_rc, a_theta, a_temp, a_rv, a_rp, a_tp, a_press, &
          nxp, nyp, nzp, dzm, dzt, zm, zt, th00, umean, vmean, dn0, a_dn, cldin, precip,  &
@@ -839,7 +840,7 @@ contains
     IF ( level >=5 ) CALL ts_lvl5(nzp, nxp, nyp)
     IF ( nv1_user>0 ) CALL ts_user_stats()
 
-    call write_ts
+    IF (myid==0) call write_ts
 
     !
     ! Column statistics
@@ -2738,8 +2739,6 @@ contains
   !
   subroutine write_ts
 
-    use mpi_interface, only : myid
-
     integer :: iret, n, VarID
     REAL, ALLOCATABLE :: rmid(:)
 
@@ -2818,7 +2817,7 @@ contains
         svctr_wh(:,:) = 0.
     END IF
 
-    if (myid==0) print "(/' ',12('-'),'   Record ',I4,' to time series')",nrec1
+    print "(/' ',12('-'),'   Record ',I4,' to time series')",nrec1
 
     iret = nf90_sync(ncid1)
     nrec1 = nrec1 + 1
@@ -2868,9 +2867,9 @@ contains
 
     ! Time
     iret = nf90_inq_VarID(ncid2, s2(1), VarID)
-    iret = nf90_put_var(ncid2, VarID, time, start=(/nrec2/))
+    IF (iret == NF90_NOERR) iret = nf90_put_var(ncid2, VarID, time, start=(/nrec2/))
     ! Constants (grid dimensions, bin limits,...)
-    if (nrec2 == 1) then
+    if (nrec2 == 1 .and. myid == 0) then
        iret = nf90_inq_varid(ncid2, s2(2), VarID)
        iret = nf90_put_var(ncid2, VarID, zt, start = (/nrec2/))
        iret = nf90_inq_varid(ncid2, s2(3), VarID)
@@ -2922,11 +2921,11 @@ contains
     end if
 
     iret = nf90_inq_VarID(ncid2, s2(7), VarID)
-    iret = nf90_put_var(ncid2, VarID, fsttm, start=(/nrec2/))
+    IF (iret == NF90_NOERR) iret = nf90_put_var(ncid2, VarID, fsttm, start=(/nrec2/))
     iret = nf90_inq_VarID(ncid2, s2(8), VarID)
-    iret = nf90_put_var(ncid2, VarID, lsttm, start=(/nrec2/))
+    IF (iret == NF90_NOERR) iret = nf90_put_var(ncid2, VarID, lsttm, start=(/nrec2/))
     iret = nf90_inq_VarID(ncid2, s2(9), VarID)
-    iret = nf90_put_var(ncid2, VarID, nsmp,  start=(/nrec2/))
+    IF (iret == NF90_NOERR) iret = nf90_put_var(ncid2, VarID, nsmp,  start=(/nrec2/))
 
     do n=10,nvar2
        iret = nf90_inq_varid(ncid2, s2(n), VarID)

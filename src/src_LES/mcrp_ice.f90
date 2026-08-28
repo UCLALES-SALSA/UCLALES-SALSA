@@ -211,12 +211,12 @@ contains
        do i=3,n2-2
           ! Adjust the original concentrations
           if (sflg) CALL sb_var_stat() ! Reset statistics
-          call resetvar(cldw,rcld(1:n1,i,j),ncld(1:n1,i,j))
-          call resetvar(rain,rp(1:n1,i,j),np(1:n1,i,j))
+          call resetvar(rcld(1:n1,i,j),ncld(1:n1,i,j))
+          call resetvar(rp(1:n1,i,j),np(1:n1,i,j))
           if (level >= 4) then
-             call resetvar(ice,ricep(1:n1,i,j),nicep(1:n1,i,j))
-             call resetvar(snow,rsnowp(1:n1,i,j),nsnowp(1:n1,i,j))
-             call resetvar(graupel,rgrpp(1:n1,i,j),ngrpp(1:n1,i,j))
+             call resetvar(ricep(1:n1,i,j),nicep(1:n1,i,j))
+             call resetvar(rsnowp(1:n1,i,j),nsnowp(1:n1,i,j))
+             call resetvar(rgrpp(1:n1,i,j),ngrpp(1:n1,i,j))
           end if
           if (sflg) CALL sb_var_stat(24) ! Diagnostics
 
@@ -370,11 +370,11 @@ contains
              if (sflg) CALL sb_var_stat(microseq(n)) ! Collect statistics
              ! Adjust concentrations
              if (sflg) CALL sb_var_stat() ! Reset statistics
-             if (adj_cldw) call resetvar(cldw,rc,nc)
-             if (adj_rain) call resetvar(rain,rrain,nrain)
-             if (adj_ice)  call resetvar(ice,rice,nice)
-             if (adj_snow) call resetvar(snow,rsnow,nsnow)
-             if (adj_gra)  call resetvar(graupel,rgrp,ngrp)
+             if (adj_cldw) call resetvar(rc,nc)
+             if (adj_rain) call resetvar(rrain,nrain)
+             if (adj_ice)  call resetvar(rice,nice)
+             if (adj_snow) call resetvar(rsnow,nsnow)
+             if (adj_gra)  call resetvar(rgrp,ngrp)
              if (sflg) CALL sb_var_stat(24) ! Diagnostics
              if (sflg .and. (n==iriming_ice_cloud .or. n==iriming_snow_cloud .or. &
                     n==iriming_grp_cloud .or. n==iriming_ice_rain .or. &
@@ -2139,10 +2139,8 @@ contains
 
   end function d_average_factor
 
-  subroutine resetvar(meteor,mass,num)
-    type(particle),intent(in)        :: meteor
+  subroutine resetvar(mass,num)
     real, dimension(:), intent(inout) :: mass, num
-
     where (mass < 0. .OR. num < 0.)
        mass = 0.
        num = 0.
@@ -2388,7 +2386,7 @@ contains
 
     nout = out_mcrp_nout
     IF (sflgx .AND. .NOT.ALLOCATED(out_list)) THEN
-        ALLOCATE(character(7) :: out_list(nout))
+        ALLOCATE(out_list(nout))
         out_list(1:nout) = out_mcrp_list(1:nout)
     ENDIF
 
@@ -2481,7 +2479,7 @@ contains
           S_i(i,j,k)   = qv(kk,jj,ii)/rsi(kk,jj,ii) - 1.0
 
           ! ... concentrations --> number densities
-          n_cloud(i,j,k)   = rho_k(i,j,k) * qnc(kk,jj,ii) ! Input only (diagnostic)
+          n_cloud(i,j,k)   = rho_k(i,j,k) * qnc(kk,jj,ii)
           n_rain(i,j,k)    = rho_k(i,j,k) * qnr(kk,jj,ii)
           n_ice(i,j,k)     = rho_k(i,j,k) * qni(kk,jj,ii)
           n_snow(i,j,k)    = rho_k(i,j,k) * qns(kk,jj,ii)
@@ -2521,6 +2519,7 @@ contains
           qh(kk,jj,ii) = hlp * q_hail(i,j,k)
 
           ! ... number concentrations
+          qnc(kk,jj,ii) = hlp * n_cloud(i,j,k)
           qnr(kk,jj,ii) = hlp * n_rain(i,j,k)
           qni(kk,jj,ii) = hlp * n_ice(i,j,k)
           qns(kk,jj,ii) = hlp * n_snow(i,j,k)
@@ -2692,6 +2691,8 @@ contains
                 out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,1)/time_tot
             CASE('csii_ni') ! IIBR SIP
                 out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,2)/time_tot
+            CASE('csdf_ni') ! DF SIP
+                out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,10)/time_tot
             CASE('caut_nr') ! Autoconversion
                 out_mcrp_data(:,:,:,k) = out_cum_data(:,:,:,3)/time_tot
             CASE('cnuc_ni') ! Ice nucleation
