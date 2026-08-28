@@ -577,9 +577,9 @@ contains
     real, dimension (nv), intent (out):: t,w,w1,w2,w3
 
     integer :: k
-    real    :: tt0, f, fw, dt(nv)
+    real    :: tt0, f, fw, dt
 
-    tt0 = 0.0
+    tt0 = 0.0; dt = 0.0
     do  k = 1, nv
        f = ww4(k) / 9.0
        fw = 1.0 - f * ww(k) 
@@ -587,12 +587,9 @@ contains
        w2(k) = ( ww2(k) - 5.0 * f ) / ( 1.0 - f )
        w3(k) = ( ww3(k) - 7.0 * f ) / ( 1.0 - f )
        w(k) = ( 1.0 - f ) * ww(k) / fw
-       dt(k) = (tt(k) - tt0) * fw
+       dt = dt + (tt(k) - tt0) * fw
+       t(k) = dt
        tt0 = tt(k)
-    end do
-    t(1) = dt(1)
-    do k = 2, nv
-       t(k) = dt(k) + t(k-1)
     end do
 
   end subroutine adjust

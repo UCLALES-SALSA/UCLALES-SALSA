@@ -118,6 +118,7 @@ module grid
   REAL, ALLOCATABLE, target :: tmp_icep(:,:,:,:), tmp_icet(:,:,:,:)
   REAL, ALLOCATABLE, target :: tmp_snwp(:,:,:,:), tmp_snwt(:,:,:,:)
   REAL, ALLOCATABLE, target :: tmp_gasp(:,:,:,:), tmp_gast(:,:,:,:)
+  REAL, ALLOCATABLE, target :: tmp_sclp(:,:,:,:), tmp_sclt(:,:,:,:)
   !
   ! velocity variables (past, current and tendency)
   !
@@ -546,6 +547,13 @@ contains
     IF (naddsc>0) THEN
         a_ap => a_sclrp(:,:,:,nscl-naddsc+1:nscl)
         a_at => a_sclrt(:,:,:,nscl-naddsc+1:nscl)
+    ELSE
+        ! Allocate zero arrays for pointers
+        ALLOCATE (tmp_sclp(nzp,nxp,nyp,0),tmp_sclt(nzp,nxp,nyp,0))
+        tmp_sclp = 0.
+        tmp_sclt = 0.
+        a_ap => tmp_sclp(:,:,:,:)
+        a_at => tmp_sclt(:,:,:,:)
     ENDIF
 
     !----------------------------------------------------

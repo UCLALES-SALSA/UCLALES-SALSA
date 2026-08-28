@@ -2010,7 +2010,7 @@ CONTAINS
   !   ice production in clouds, Atmos. Chem. Phys., 18, 1593-1610,
   !   https://doi.org/10.5194/acp-18-1593-2018, 2018.
   REAL FUNCTION df_sullivan(ptemp,dwet)
-    USE mo_submctl, ONLY : pi
+    !USE mo_submctl, ONLY : pi
     REAL, INTENT(in) :: ptemp, dwet
     ! Local parameters
     REAL, PARAMETER :: c_mult = 2.5e13 ! Fragmentation coefficient, default: 2.5e-11 1/um^4=2.5e13 1/m^4

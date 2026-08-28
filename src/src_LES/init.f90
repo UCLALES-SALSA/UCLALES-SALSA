@@ -1072,14 +1072,14 @@ contains
        IF (isdtyp==1) THEN
           ! The original format
           do i=1,nc_levs
-             read (ncid,*,iostat=k) zlevs(i)
+             read (11,*,iostat=k) zlevs(i)
              if (k<0) exit ! End of file
-             read (ncid,*) (zvolDistA(i,k),k=1,nspec)
-             read (ncid,*) (zvolDistB(i,k),k=1,nspec)
-             read (ncid,*) (znA(i,k),k=1,nmod)
-             read (ncid,*) (zdpgA(i,k),k=1,nmod)
-             read (ncid,*) (zsigmagA(i,k),k=1,nmod)
-             read (ncid,*) znf2a(i)
+             read (11,*) (zvolDistA(i,k),k=1,nspec)
+             read (11,*) (zvolDistB(i,k),k=1,nspec)
+             read (11,*) (znA(i,k),k=1,nmod)
+             read (11,*) (zdpgA(i,k),k=1,nmod)
+             read (11,*) (zsigmagA(i,k),k=1,nmod)
+             read (11,*) znf2a(i)
              ! b-bins
              znB(i,:) = znA(i,:)*MAX(0.,MIN(1.,(1.-znf2a(i))))
              znA(i,:) = znA(i,:)*MAX(0.,MIN(1.,znf2a(i)))

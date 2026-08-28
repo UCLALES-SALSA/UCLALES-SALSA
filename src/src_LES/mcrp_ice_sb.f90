@@ -308,7 +308,7 @@ module mcrp_ice_sb
   LOGICAL :: sflg=.FALSE.
   INTEGER :: out_mcrp_nout = 0
   real, save, allocatable :: out_mcrp_data(:,:,:,:)
-  CHARACTER(LEN=:), SAVE, ALLOCATABLE :: out_mcrp_list(:)
+  CHARACTER(LEN=7), DIMENSION(:), SAVE, ALLOCATABLE :: out_mcrp_list
   real, save, allocatable :: tmp_nc(:,:,:),tmp_rc(:,:,:),tmp_nr(:,:,:),tmp_rr(:,:,:), &
     tmp_ni(:,:,:),tmp_ri(:,:,:),tmp_rs(:,:,:),tmp_ns(:,:,:),tmp_rg(:,:,:),tmp_ng(:,:,:), &
     tmp_rh(:,:,:),tmp_nh(:,:,:),tmp_rv(:,:,:)
@@ -753,7 +753,7 @@ CONTAINS
     IMPLICIT NONE
 
     ! Locale Variablen
-    REAL    :: ns, nin, nuc_q, ndiag, S_w
+    REAL    :: ns, nin, nuc_q, ndiag
     INTEGER :: i,j,k
 
     DO k = 1, loc_iz
@@ -1645,7 +1645,6 @@ CONTAINS
   !   ice production in clouds, Atmos. Chem. Phys., 18, 1593-1610,
   !   https://doi.org/10.5194/acp-18-1593-2018, 2018.
   REAL FUNCTION df_sullivan(ptemp,dwet)
-    USE mo_submctl, ONLY : pi
     REAL, INTENT(in) :: ptemp, dwet
     !
     IF (dwet>df_dwet_min .AND. df_c_mult>0.0) THEN
@@ -2129,7 +2128,7 @@ CONTAINS
               ! Droplet fragmentation during freezing
               IF (df_c_mult>0.0 .AND. T_a < T_3 .AND. df_gr) THEN
                 mult_n = df_sullivan(T_a,D_r) * rime_n
-                mult_q = MIN(rime_qr, mult_n * ice%x_min)
+                mult_q = MIN(rime_q, mult_n * ice%x_min)
 
                 n_ice(i,j,k)     = n_ice(i,j,k)     + mult_n
                 q_ice(i,j,k)     = q_ice(i,j,k)     + mult_q
@@ -2852,7 +2851,7 @@ CONTAINS
               IF (df_c_mult>0.0 .AND. T_a < T_3 .AND. df_sr) THEN
                 mult_1 = df_sullivan(T_a,D_rd) * rime_n
                 mult_n = mult_n + mult_1
-                mult_q = MIN(rime_q,mult_n * ice%x_min)
+                mult_q = MIN(rime_qr,mult_n * ice%x_min)
 
                 out_inst_data(i,j,k,10) = out_inst_data(i,j,k,10) + mult_1
               ENDIF
@@ -5226,6 +5225,11 @@ CONTAINS
       k_c  = 30.00e+9  !..CC-Kernel
       k_1  = 4.00e+2   !..Parameter fuer Phi-Fkt.
       k_2  = 0.70e+0   !..Parameter fuer Phi-Fkt.
+    ELSE
+      !..Not defined
+      k_c = 0.0
+      k_1 = 0.0
+      k_2 = 0.0
     ENDIF
 
     nu    = cloud%nu
@@ -5369,7 +5373,7 @@ CONTAINS
           n_r = n_rain(i,j,k)    !..Anzahldichte
           q_r = q_rain(i,j,k)    !..Fluessigwassergehalt
 
-          IF (q_r > 0.0) THEN
+          IF (q_r > eps .AND. n_r > eps) THEN
             x_r = MIN(MAX(q_r/(n_r+eps),rain%x_min),rain%x_max)
             D_r = rain%a_geo * x_r**rain%b_geo
             !lam = lambda_gamma(rain,x_r)
