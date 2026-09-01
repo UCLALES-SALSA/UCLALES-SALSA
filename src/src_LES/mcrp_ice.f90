@@ -608,7 +608,7 @@ contains
     real, parameter :: rc0 = 1.e-3   ! kg/kg Kessler scheme
 
     integer :: k
-    real    :: k_au0,k_au, Xc, Dc, au, tau, phi, kc_alf, kc_rad, kc_sig, Re, epsilon, l
+    real    :: k_au0,k_au, k_sc, Xc, Dc, au, tau, phi, sc, kc_alf, kc_rad, kc_sig, Re, epsilon, l
 
     !
     ! Calculate the effect of turbulence on the autoconversion/
@@ -616,8 +616,9 @@ contains
     !
     nu_c = cldw%nu
     k_au0  = kc_0 / (20.*cldw%x_max) * (nu_c+2.)*(nu_c+4.)/(nu_c+1.)**2
+    k_sc  = kc_0 * (nu_c+2.0)/(nu_c+1.0)
     do k=2,n1-1
-       if (rc(k) > 0.) then
+       if (rc(k) > eps0 .and. nc(k) > eps0) then
           Xc = rc(k)/(nc(k)+eps0)
 
           if (turbulence) then
@@ -671,12 +672,15 @@ contains
              end if
           end if
           !
+          ! Autoconversion and selfcollection
+          sc = k_sc * dn0(k) * rc(k)**2 *dt
+          !
           au    = au * dt
           au    = min(au,rc(k))
           rp(k) = rp(k) + au
           rc(k) = rc(k) - au
           np(k) = np(k) + au/cldw%x_max
-          nc(k) = nc(k) - au/Xc
+          nc(k) = nc(k) - sc !au/Xc
        end if
     end do
 
