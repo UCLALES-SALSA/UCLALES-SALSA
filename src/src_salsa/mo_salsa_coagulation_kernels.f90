@@ -298,7 +298,7 @@ MODULE mo_salsa_coagulation_kernels
       
       !-- 2) Slip correction factor for small particles -------------------------
       
-      knud = 2.*mfp/diam                                    ! Knudsen number
+      knud = 2.*mfp/diam                           ! Knudsen number
       beta = 1.+knud*(1.142+0.558*exp(-0.999/knud))! Cunningham correction factor
       ! (Allen and Raabe, Aerosol Sci. Tech. 4, 269)
       

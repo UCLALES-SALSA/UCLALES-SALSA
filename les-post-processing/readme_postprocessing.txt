@@ -82,6 +82,9 @@ gfortran -O2 -I/usr/include -o ./pples_binned combine_binned.f90 -lnetcdff
 !    module load intel-oneapi-mpi/2021.6.0
 !    module load netcdf-fortran/4.5.4
 !    ifort -O2 -o ./pples combine.f90 -lnetcdff
+! c) Roihu
+     gfortran -O2 $(nf-config --fflags) -o ./pples combine.f90 $(nf-config --flibs)
+     
 !  Run
 !    srun --ntasks=1 --time=00:0:10 --partition=<partition> --account=<project> pples <file name prefix> <key1=value1 key2=value2 ...>
 !  Examples

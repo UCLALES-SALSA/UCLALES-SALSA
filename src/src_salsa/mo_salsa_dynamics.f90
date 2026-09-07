@@ -703,10 +703,12 @@ CONTAINS
           in1a, in2a,  &
           fn2b,            &
           lscndh2oae, lscndh2ocl, lscndh2oic, &
-          alv, als, pstand
+          alv, als, pstand,cpa,rd,rv
      USE mo_salsa_properties, ONLY : equilibration
      USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
-     USE mo_particle_external_properties, ONLY : capacitance, ventilation_factor, terminal_vel
+     USE mo_particle_external_properties, ONLY : capacitance, & 
+         ventilation_factor, thermal_ventilation_factor,terminal_vel, &
+         Dveff
      USE classSection, ONLY : Section
  
      IMPLICIT NONE
@@ -736,11 +738,11 @@ CONTAINS
                                                             ! could just use the "current" value if it wasn't updated in the substepping loop)
       REAL :: zorgri(nice)                                  ! The same for rime
       
-      REAL :: zdfh2o, zthcond,rhoair
-      REAL :: zbeta,zknud,zmfph2o
+      REAL :: zdfh2o, zthcond,rhoair,ssi,zmfpth,zdfh2oc, zthcondc
+      REAL :: zbeta,zknud,zmfph2o,knud,Cunninghamc
       REAL :: zact, zhlp1,zhlp2,zhlp3
       REAL :: adt,ttot
-      REAL :: dwet, cap
+      REAL :: dwet, cap,cpm,alpham,alphat
       REAL :: zrh(kbdim,klev)
 
       REAL :: zaelwc1(kbdim,klev), zaelwc2(kbdim,klev)
@@ -755,7 +757,8 @@ CONTAINS
 
       REAL, ALLOCATABLE :: vrate(:)
       
-      REAL :: vf ! ventilation factor used for ice 
+      REAL :: vf  ! ventilation factor used for ice and raindroplets
+      REAL :: vft ! thermal ventilation factor used for ice and raindroplets
       
       TYPE(t_shape_coeffs) :: shape ! Used for ice
       
@@ -765,6 +768,7 @@ CONTAINS
       irim = spec%getIndex("rime")
       nspec = spec%getNSpec(type="total")                      
       vf = 1.0
+      vft = 1.0
       
       ! For diagnostics
       ALLOCATE(vrate(nspec))
@@ -797,18 +801,20 @@ CONTAINS
                 (ANY(aero(ii,jj,:)%numc > nlim) .AND. zrh(ii,jj) > 0.98 .AND. lscndh2oae) &
                 ) ) CYCLE
 
-            rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))
-            
+            ! Inert carrying gas properties
+            rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))            
             visc = (7.44523e-3*SQRT(ptemp(ii,jj)**3))/(5093.*(ptemp(ii,jj)+110.4)) ! viscosity of air [kg/(m s)] Hinds,p.25 ~ Jacobson FAM eq.4-54
             mfp = (1.656e-10*ptemp(ii,jj)+1.828e-8)*pstand/ppres(ii,jj) ! mean free path of air
-
+            zthcond = 0.023807 + 7.1128e-5*(ptemp(ii,jj) - 273.16)     ! Thermal conductivity of air Jacobson FAM eq.2.3
+            zmfpth  = 3.*zthcond*sqrt(pi*mair/(8.*rg*ptemp(ii,jj)))    ! Thermal mean free path Jacobson FAM eq.17.29
+            cpm = cpa*(1+1.84*prv(ii,jj)) ! Heat capacity of moist air  Stull Meteorology eq.3I3 
+            
+            !Condensing gas properties
             ! Diffusion coef
             zdfh2o = ( 5./(16.*avog*rhoair*1.e-3*(3.11e-8)**2) ) * &
                SQRT( rg*1.e7*ptemp(ii,jj)*mair*1.e3*(spec%mwa+mair)*1.e3/( 2.*pi*spec%mwa*1.e3 ) )
             zdfh2o = zdfh2o*1.e-4
-
-            zmfph2o = 3.*zdfh2o*sqrt(pi*spec%mwa/(8.*rg*ptemp(ii,jj))) ! mean free path
-            zthcond = 0.023807 + 7.1128e-5*(ptemp(ii,jj) - 273.16) ! Thermal conductivity of air
+            zmfph2o = 3.*zdfh2o*sqrt(pi*spec%mwa/(8.*rg*ptemp(ii,jj))) ! mean free path of condensing gas                  
 
             ! -- Water vapour (Follows the analytical predictor method by Jacobson 2005)
             zkelvinpd = 1.; zkelvincd = 1.; zkelvin = 1.; zkelvinic = 1.
@@ -851,14 +857,26 @@ CONTAINS
                   ! Equilibrium saturation ratio
                   zwsatcd(cc) = zact*zkelvincd(cc)
 
-                  !-- transitional correction factor
+                  !-- transitional correction factor 
+                  ! Fuchs, N. A.; Sutugin, A. G. Highly Dispersed Aerosols.; Ann Arbor Science Publishers: Ann Arbor, MI, 1970.                 
+                  ! mass accommodation coefficient alpham                  
+                  alpham = 1.0 ! for cloud and rain droplets as in Atmos. Chem. Phys., 5, 461–464, 2005
+                  vf = 1
+                  vft = 1      
+                  ! corrections for transition regime and ventilation effects on diffusion coefficient
                   zknud = 2.*zmfph2o/dwet
                   zbeta = (zknud + 1.)/(0.377*zknud+1.+4./ &
-                          (3.)*(zknud+zknud**2))
-
-                  ! Mass transfer according to Jacobson
-                  zhlp1 = cloud(ii,jj,cc)%numc*2.*pi*dwet*zdfh2o*zbeta
-                  zhlp2 = spec%mwa*zdfh2o*alv*zwsatcd(cc)*zcwsurfcd(cc)/(zthcond*ptemp(ii,jj))
+                          (3.*alpham)*(zknud+zknud**2))                  
+		  zdfh2oc = zdfh2o*zbeta*vf                              
+                  ! corrections for transition regime and ventilation effects on thermal conductivity
+                  zknud = 2.*zmfpth/dwet
+                  alphat = 1. ! for cloud and rain droplets as in Atmos. Chem. Phys., 5, 461–464, 2005
+                  zbeta = (zknud + 1.)/(0.377*zknud+1.+4./ &
+                       (3.*alphat)*(zknud+zknud**2))
+                  zthcondc = zthcond*zbeta*vft
+                  ! Mass transfer including all corrections
+                  zhlp1 = cloud(ii,jj,cc)%numc*2.*pi*dwet*zdfh2oc
+                  zhlp2 = spec%mwa*zdfh2oc*alv*zwsatcd(cc)*zcwsurfcd(cc)/(zthcondc*ptemp(ii,jj))
                   zhlp3 = ( (alv*spec%mwa)/(rg*ptemp(ii,jj)) ) - 1.
 
                   zmtcd(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
@@ -883,17 +901,44 @@ CONTAINS
                   zwsatpd(cc) = zact*zkelvinpd(cc)
 
                   !-- transitional correction factor
+                  ! Fuchs, N. A.; Sutugin, A. G. Highly Dispersed Aerosols.; Ann Arbor Science Publishers: Ann Arbor, MI, 1970.
+                  ! as in Atmos. Chem. Phys., 5, 461–464, 2005
+                  ! mass accommodation coefficient alpham                  
+                  alpham = 1.0 ! for cloud and rain droplets as in Atmos. Chem. Phys., 5, 461–464, 2005
+                  ! Ventilation factor  
+                  ! phase =3 for raindrops
+                  aspect_ratio = 1.0
+                 ! Shape coefficients (not needed but kept here for consistency) 
+                 ! for spherical shape
+		  shape%alpha = pi6*spec%rhowa
+		  shape%beta = 3.
+		  shape%gamma = pi/4.
+		  shape%sigma = 2.  
+		  knud = 2.*mfp/dwet                         ! Knudsen number
+		  ! Cunningham correction factor (Allen and Raabe, Aerosol Sci. Tech. 4, 269)
+      		  Cunninghamc = 1.+knud*(1.142+0.558*exp(-0.999/knud))
+                  vf = ventilation_factor(dwet,spec%rhowa,rhoair,visc,Cunninghamc,3,shape,& 
+                       dwet,zdfh2o,aspect_ratio)                    
+                  ! Thermal ventilation factor 
+                  vft = thermal_ventilation_factor(dwet,spec%rhowa,rhoair,visc,Cunninghamc,3,shape,& 
+                        dwet,zthcond,aspect_ratio,cpm)
+                  ! corrections for transition regime and ventilation effects on diffusion coefficient
                   zknud = 2.*zmfph2o/dwet
                   zbeta = (zknud + 1.)/(0.377*zknud+1.+4./ &
-                          (3.)*(zknud+zknud**2))
-
-                  ! Mass transfer according to Jacobson
-                  zhlp1 = precp(ii,jj,cc)%numc*2.*pi*dwet*zdfh2o*zbeta
-                  zhlp2 = spec%mwa*zdfh2o*alv*zwsatpd(cc)*zcwsurfpd(cc)/(zthcond*ptemp(ii,jj))
+                          (3.*alpham)*(zknud+zknud**2))                  
+		  zdfh2oc = zdfh2o*zbeta*vf                              
+                  ! corrections for transition regime and ventilation effects on thermal conductivity
+                  zknud = 2.*zmfpth/dwet
+                  alphat = 1. ! for cloud and rain droplets as in Atmos. Chem. Phys., 5, 461–464, 2005
+                  zbeta = (zknud + 1.)/(0.377*zknud+1.+4./ &
+                       (3.*alphat)*(zknud+zknud**2))
+                  zthcondc = zthcond*zbeta*vft
+                  ! Mass transfer including all corrections
+                  zhlp1 = precp(ii,jj,cc)%numc*2.*pi*dwet*zdfh2oc
+                  zhlp2 = spec%mwa*zdfh2oc*alv*zwsatpd(cc)*zcwsurfpd(cc)/(zthcondc*ptemp(ii,jj))
                   zhlp3 = ( (alv*spec%mwa)/(rg*ptemp(ii,jj)) ) - 1.
 
                   zmtpd(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
-
                END IF
             END DO
 
@@ -927,12 +972,15 @@ CONTAINS
                   ELSE
                     WRITE(*,*) 'Error Aspect ratio is negative',massice,rhoice,shape,dnsp
                   END IF
-                                    
-		  ! knud = 2.*mfp/dnsp
-		  zbeta = 1.+(2.*mfp/dnsp)*(1.142+0.558*exp(-0.999/(2.*mfp/dnsp)))
-                  ! Ventilation factor  
-                  vf = ventilation_factor(dwet,rhoice,rhoair,visc,zbeta,ice(ii,jj,cc)%phase,shape,dnsp,zdfh2o,aspect_ratio)  
-                                
+		  knud = 2.*mfp/dnsp                        ! Knudsen number
+		  ! Cunningham correction factor (Allen and Raabe, Aerosol Sci. Tech. 4, 269)
+      		  Cunninghamc = 1.+knud*(1.142+0.558*exp(-0.999/knud))
+                  ! Ventilation factor  phase=4 for ice
+                  vf = ventilation_factor(dwet,rhoice,rhoair,visc,Cunninghamc,4,shape,& 
+                       dnsp,zdfh2o,aspect_ratio)  
+                  ! Thermal ventilation factor 
+                  vft = thermal_ventilation_factor(dwet,spec%rhowa,rhoair,visc,Cunninghamc,&
+                        4,shape,dwet,zthcond,aspect_ratio,cpm)    
                   ! Activity + Kelvin effect - edit when needed
                   !   Can be calculated just like for spherical homogenous particle or just ignored,
                   !   because these are not known for solid, irregular and non-homogenous particles.
@@ -949,14 +997,32 @@ CONTAINS
                   zwsatic(cc) = zact*zkelvinic(cc)
                   
                   !-- transitional correction factor
-                  zknud = 2.*zmfph2o/dwet
+                  ! Fuchs, N. A.; Sutugin, A. G. Highly Dispersed Aerosols.; Ann Arbor Science Publishers: Ann Arbor, MI, 1970.
+                  ! as in Atmos. Chem. Phys., 5, 461–464, 2005
+                  ! 
+                  ! corrections for transition regime and ventilation effects on diffusion coefficient
+                  ssi = MAX(0.,prv(ii,jj) / prsi(ii,jj) - 1.0) ! supersaturation ratio over ice
+                  alpham = 1.0
+                  IF (ssi>0) THEN
+                  	zdfh2oc = Dveff(ptemp(ii,jj),ppres(ii,jj),ssi,dnsp,aspect_ratio,&
+                  	zmfph2o,zdfh2o,zthcond,cap)
+                  	alpham = zdfh2oc/zdfh2o
+                  END IF                  
+                  !zknud = 2.*zmfph2o/dnsp
+                  !zbeta = (zknud + 1.)/(0.377*zknud+1.+4./ &
+                     ! (3.*alpham)*(zknud+zknud**2)) 
+                  !zdfh2oc = zdfh2o*zbeta*vf    
+                  zdfh2oc = zdfh2oc*vf      
+                  ! corrections for transition regime and ventilation effects on thermal conductivity
+                  zknud = 2.*zmfpth/dnsp
+                  alphat = alpham
                   zbeta = (zknud + 1.)/(0.377*zknud+1.+4./ &
-                       (3.)*(zknud+zknud**2))
-                  
-                  ! Mass transfer according to Jacobson
-                  zhlp1 = ice(ii,jj,cc)%numc*4.*pi*cap*zdfh2o*zbeta*vf
-                  
-                  zhlp2 = spec%mwa*zdfh2o*als*zwsatic(cc)*zcwsurfic(cc)/(zthcond*ptemp(ii,jj)) 
+                       (3.*alphat)*(zknud+zknud**2))
+                  zthcondc = zthcond*zbeta*vft
+                  !IF (ssi>0) WRITE(*,*) ptemp(ii,jj),ssi,dwet,dnsp,rhoice,aspect_ratio,cap,vf,vft,alpham,zbeta
+                  ! Mass transfer including all corrections
+                  zhlp1 = ice(ii,jj,cc)%numc*4.*pi*cap*zdfh2oc                 
+                  zhlp2 = spec%mwa*zdfh2oc*als*zwsatic(cc)*zcwsurfic(cc)/(zthcondc*ptemp(ii,jj)) 
                   zhlp3 = ( (als*spec%mwa)/(rg*ptemp(ii,jj)) ) - 1.
                   
                   zmtic(cc) = zhlp1/( zhlp2*zhlp3 + 1. )
