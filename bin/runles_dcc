@@ -13,17 +13,17 @@
 ###############################################################
 
 # -------------------------------------------------- <USER SPECIFIED INFORMATION>
-IsSeq=1 # 0 for mpi runs with CRAY, 1 for mpi runs with Puhti, 2 for sequential, 3 for mpi on laptop
+IsSeq=1 # 0 for mpi runs with CRAY, 1 for mpi runs with Roihu, 2 for sequential, 3 for mpi on laptop
 
 EXPNAME="campaign_case_date_aaa"  # Name of the experiment
 PROJECT="project_xxxxx"   # Project name, needed for resource allocation in PUHTI
 
-NPROCS=256            # Number of processors (for IsSeq==0)
+NPROCS=384          # Number of processors (for IsSeq==0)
 NNODES=7
 TWALL=24:00:00      # Required wallclock time for batch system
 
-NXP=100             # Number of points in X-direction (including "halo" points)
-NYP=100             # Number of points in Y-direction (including "halo" points)
+NXP=196             # Number of points in X-direction (including "halo" points)
+NYP=196             # Number of points in Y-direction (including "halo" points)
 NZP=200             # Number of points in Z-direction
 DX=300.             # Resolution in X-direction (meters)
 DY=300.             # Resolution in Y-direction (meters)
@@ -412,12 +412,13 @@ cat > job.sh <<EOF
 #SBATCH --job-name=${EXPNAME}
 #SBATCH --account=${PROJECT}
 #SBATCH --time=${TWALL}
-#SBATCH --mem-per-cpu=4G
-#SBATCH --partition=fmi
+#SBATCH --mem-per-cpu=2G
+#SBATCH --partition=small
 #SBATCH --ntasks=${NPROCS}
 #SBATCH --nodes=${NNODES}
+#SBATCH --ntasks-per-node=384 --cpus-per-task=1
 #SBATCH --mail-type=FAIL,END
-#SBATCH --mail-user=silvia.calderon@fmi.fi
+#SBATCH --mail-user=username@fmi.fi
 
 module load intel-mpi
 module load netcdf-fortran
