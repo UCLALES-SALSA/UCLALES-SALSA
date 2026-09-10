@@ -2,7 +2,7 @@ MODULE mo_diag_state
   USE util, ONLY : Extend_last
   USE classFieldArray
   USE mo_structured_datatypes, ONLY : FloatArray2d, FloatArray3d, FloatArray4d
-  USE mo_submctl, ONLY : nprc, nice
+  USE mo_submctl, ONLY : nprc, nice, nsbg
   IMPLICIT NONE
 
   SAVE
@@ -162,8 +162,8 @@ MODULE mo_diag_state
       a_diag2d = 0.
       n3d = 0
       n2d = 0
- 
-     ALLOCATE(d_sbgcell(nxp,nyp,20), d2_sbgcell(nxp,nyp,20))
+     
+     ALLOCATE(d_sbgcell(nxp,nyp,nsbg), d2_sbgcell(nxp,nyp,nsbg))
      d_sbgcell  = 0.
      d2_sbgcell = 0.
      
@@ -698,13 +698,13 @@ MODULE mo_diag_state
                          ANY(outputlist == "R0"), pipeline)               
       
       pipeline => NULL()
-      a_ignitiontimecell = FloatArray3d(d_sbgcell(:,:,1:20)) !Fixed sub-grid division
+      a_ignitiontimecell = FloatArray3d(d_sbgcell) !Fixed sub-grid division
       pipeline => a_ignitiontimecell
       CALL Diag%newField("ignitiontimesbg", "Ignition time in sub-grid cells", "s", "xtytsbg",   &
                             ANY(outputlist == "ignitiontimesbg"), pipeline)
       
       pipeline => NULL()
-      a_areaignitedcell = FloatArray3d(d2_sbgcell(:,:,1:20)) !Fixed sub-grid division
+      a_areaignitedcell = FloatArray3d(d2_sbgcell) !Fixed sub-grid division
       pipeline => a_areaignitedcell
       CALL Diag%newField("areaignitedsbg", "Burning area in sub-grid cells", "m2", "xtytsbg",   &
                             ANY(outputlist == "areaignitedsbg"), pipeline)  

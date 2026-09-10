@@ -273,7 +273,7 @@ CONTAINS
          ym%d(j) = ym%d(j-1)+deltay
       END DO
       ym%d(nyp) = 2*ym%d(nyp-1)-ym%d(nyp-2)
-      
+ 
       !
       !      define where the momentum points will lie in vertical
       !

@@ -8,7 +8,7 @@ MODULE mo_aux_state
   SAVE
   
   ! LES grid displacements and spacings
-  TYPE(FloatArray1d), TARGET :: xt, xm, yt, ym, zt, zm, dzt, dzm  
+  TYPE(FloatArray1d), TARGET :: xt, xm, yt, ym, zt, zm, dzt, dzm
   TYPE(FloatArray1d), TARGET :: aea, aeb, aetot, cla, clb, cltot, prc, ice
   REAL, ALLOCATABLE, TARGET :: a_grid(:)
   
@@ -93,6 +93,7 @@ MODULE mo_aux_state
            nvar = nvar + nice
       ALLOCATE(a_grid(nvar))
       a_grid(:) = 0.
+      
       
       n1 = 1; n2 = nxp
       pipeline => NULL()

@@ -46,7 +46,7 @@ MODULE ncio
      
      ! Dimension environment arrays used for variable definitions
      INTEGER :: dim_mttt(4) = 0, dim_tmtt(4) = 0, dim_ttmt(4) = 0, dim_tttt(4) = 0,   &
-                dim_ztt(2)  = 0, dim_zmt(2)  = 0, dim_xtytt(3) = 0, dim_xtytsbg(3)=0, &
+                dim_ztt(2)  = 0, dim_zmt(2)  = 0, dim_xtytt(3) = 0, dim_xtytsbg(4)=0, &
                 dim_ttttaea(5) = 0, dim_ttttcla(5) = 0,    &
                 dim_ttttaeb(5) = 0, dim_ttttclb(5) = 0,    &
                 dim_ttttprc(5) = 0, dim_ttttice(5) = 0,    &
@@ -185,7 +185,7 @@ MODULE ncio
       IF (present(inice)) THEN
          iret = nf90_def_dim(SELF%ncid, 'ice', inice, SELF%iceID)
       END IF
-       IF (present(insbg)) THEN
+      IF (present(insbg)) THEN
          iret = nf90_def_dim(SELF%ncid, 'sbg', insbg, SELF%sbgID)
       END IF
       
@@ -198,7 +198,7 @@ MODULE ncio
       SELF%dim_ttmt= [SELF%ztID,SELF%xtID,SELF%ymID,SELF%timeID]  ! ypoint
       ! Silvia: sub-grid dimension for isfctyp=6 vegetation fire case 08-02-26
       ! sbg : divides the grid cell in 20 sub-cells of equal size
-      SELF%dim_xtytsbg = [SELF%xtID,SELF%ytID,SELF%sbgID]
+      SELF%dim_xtytsbg = [SELF%xtID,SELF%ytID,SELF%sbgID,SELF%timeID]
       
       ! Juha: dimension environments for size distribution variables
       SELF%dim_ttttaea = [SELF%ztID,SELF%xtID,SELF%ytID,SELF%aeaID,SELF%timeID]
@@ -349,6 +349,7 @@ MODULE ncio
          iret = nf90_def_var(SELF%ncid,name,NF90_FLOAT,SELF%iceID,VarID)
       CASE ('sbg')
          iret = nf90_def_var(SELF%ncid,name,NF90_FLOAT,SELF%sbgID,VarID)  
+         
       ! //
       ! Binned 3d output   
       CASE ('ttttaea')

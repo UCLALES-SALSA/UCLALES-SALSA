@@ -238,6 +238,9 @@ MODULE mo_submctl
   INTEGER ::   iia, & ! ice particles, first
                fia ! ice particles, last
   INTEGER ::   nice   ! Total number of ice bins
+  
+  ! Silvia: number of subgrid divisions 08-09-2026
+  INTEGER ::   nsbg = 20
     
   INTEGER :: ntotal  ! Total number of bins across all active particle types
   INTEGER :: nliquid ! Total number of bins across liquid particle types

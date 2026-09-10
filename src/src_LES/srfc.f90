@@ -31,7 +31,8 @@ MODULE srfc
   USE mpi_interface
   USE mo_diag_state, ONLY: a_tskin, a_qskin, a_fgi, a_weight, a_fcz0, a_fuelmcg, &
   			   a_ignitiontime, a_fuelburnt, a_firespread, a_areaburnt, &
-  			   a_phiwc, a_phiwb, a_tcrit, a_R0, a_ignitiontimecell
+  			   a_phiwc, a_phiwb, a_tcrit, a_R0, a_ignitiontimecell, & 
+  			   a_areaignitedcell 
   USE ncio, ONLY : open_surf_nc, read_surf_nc_2d, close_nc
   USE thrm, ONLY: rslf
   USE emission_init, ONLY: regime_limits
@@ -895,7 +896,7 @@ CONTAINS
 ! the ignition time is below the non-ignited flag of 1.0E15 s
 
 SUBROUTINE update_ignition(time)              
-   USE mo_diag_state, ONLY: a_ignitiontime, a_areaburnt, a_firespread,a_fgi
+   USE mo_diag_state, ONLY: a_ignitiontime, a_areaburnt, a_firespread
    IMPLICIT NONE
    INTEGER :: i, j
    REAL, INTENT(IN) :: time
