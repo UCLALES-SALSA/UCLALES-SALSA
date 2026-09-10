@@ -1002,20 +1002,21 @@ CONTAINS
                   ! 
                   ! corrections for transition regime and ventilation effects on diffusion coefficient
                   ssi = MAX(0.,prv(ii,jj) / prsi(ii,jj) - 1.0) ! supersaturation ratio over ice
-                  alpham = 1.0
+                  !alpham=1.
                   IF (ssi>0) THEN
                   	zdfh2oc = Dveff(ptemp(ii,jj),ppres(ii,jj),ssi,dnsp,aspect_ratio,&
                   	zmfph2o,zdfh2o,zthcond,cap)
                   	alpham = zdfh2oc/zdfh2o
                   END IF                  
-                  !zknud = 2.*zmfph2o/dnsp
+                  !zknud = 2.*zmfph2o/dnsp <-- not needed since Deff takes this into account
                   !zbeta = (zknud + 1.)/(0.377*zknud+1.+4./ &
                      ! (3.*alpham)*(zknud+zknud**2)) 
                   !zdfh2oc = zdfh2o*zbeta*vf    
                   zdfh2oc = zdfh2oc*vf      
                   ! corrections for transition regime and ventilation effects on thermal conductivity
                   zknud = 2.*zmfpth/dnsp
-                  alphat = alpham
+                  ! As in Jacobson FAM p.460 also in Harrington JOURNAL OF GEOPHYSICAL RESEARCH, VOL. 114, D06212, doi:10.1029/2008JD011050, 2009
+                  alphat = 0.96 
                   zbeta = (zknud + 1.)/(0.377*zknud+1.+4./ &
                        (3.*alphat)*(zknud+zknud**2))
                   zthcondc = zthcond*zbeta*vft
