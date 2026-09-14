@@ -936,7 +936,7 @@ SUBROUTINE surface_state()
   USE ncio, ONLY : open_surf_nc, read_surf_nc_2d, close_nc  
   USE mpi_interface, ONLY : xoffset, yoffset, wrxid, wryid, nxpg, nypg,   &
                             myid, nyprocs, nxprocs
-  USE mo_diag_state, ONLY: a_tskin, a_qskin, a_fgi, a_weight, a_fcz0, & 
+  USE mo_diag_state, ONLY: a_fgi, a_weight, a_fcz0, & 
   			   a_fuelmcg, a_ignitiontime, a_fuelburnt, &
   			   a_firespread, a_areaburnt, a_phiwc, a_phiwb, & 
   			   a_tcrit, a_R0, a_ignitiontimecell, a_areaignitedcell

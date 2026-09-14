@@ -7,7 +7,7 @@ MODULE mo_output
   USE mo_field_state, ONLY : outProg, outVector, outDiag, outDerived, outPS, outTS
   USE classFieldArray, ONLY : FieldArray
   USE mo_structured_datatypes
-  USE mo_submctl, ONLY : in1a,fn2a,in2b,fn2b,ica,fca,icb,fcb,nprc,nice,nsbg
+  USE mo_submctl, ONLY : in1a,fn2a,in2b,fn2b,ica,fca,icb,fcb,nprc,nice
   
   IMPLICIT NONE
 
@@ -60,17 +60,17 @@ MODULE mo_output
       CALL StreamMain%open_nc(fname,expnme,time,npoints,ver,author,info)
 
       IF (level < 4) THEN
-         CALL StreamMain%define_nc_dims(n1=nzp,n2=nxp-4,n3=nyp-4,insbg=nsbg)
+         CALL StreamMain%define_nc_dims(n1=nzp,n2=nxp-4,n3=nyp-4,insbg=20)
       ELSE IF (level == 4) THEN
          CALL StreamMain%define_nc_dims(n1=nzp,n2=nxp-4,n3=nyp-4,                  &
                                         inae_a=fn2a,inae_b=fn2b-fn2a,              &
                                         incld_a=fca%cur,incld_b=fcb%cur-fca%cur,   &
-                                        inprc=nprc,insbg=nsbg                        )               
+                                        inprc=nprc,insbg=20                        )               
       ELSE IF (level == 5) THEN
          CALL StreamMain%define_nc_dims(n1=nzp,n2=nxp-4,n3=nyp-4,                  &
                                         inae_a=fn2a,inae_b=fn2b-fn2a,              &
                                         incld_a=fca%cur,incld_b=fcb%cur-fca%cur,   &                              
-                                        inprc=nprc,inice=nice,insbg=nsbg            )              
+                                        inprc=nprc,inice=nice,insbg=20             )              
       END IF
 
       CALL StreamMain%define_nc_vars([outProg,outDiag,outDerived,outVector,outAxes])
@@ -287,8 +287,8 @@ MODULE mo_output
       TYPE(FieldArray), INTENT(in) :: varArray
       TYPE(StreamDef), INTENT(in)  :: stream
       
-      INTEGER :: icnt0dsd(2), icnt1d(2), icnt1dsd(3), icnt2d(3), icnt3d(4), icnt3dsd(5),icntsbg(4)! count arrays for 3d variables and 4d size distribution variables
-      INTEGER :: ibeg0d(1), ibeg1d(2), ibeg2d(3), ibeg3d(4), ibeg4d(5), ibegsbg(4)! same for beginning indices
+      INTEGER :: icnt0dsd(2), icnt1d(2), icnt1dsd(3), icnt2d(3), icnt3d(4), icnt3dsd(5) ! count arrays for 3d variables and 4d size distribution variables
+      INTEGER :: ibeg0d(1), ibeg1d(2), ibeg2d(3), ibeg3d(4), ibeg4d(5) ! same for beginning indices
 
       CHARACTER(len=50) :: vname
 
@@ -301,7 +301,7 @@ MODULE mo_output
       TYPE(FloatArray4d), POINTER :: var4d => NULL()
 
       REAL :: out2d(nxp,nyp),out3d(nzp,nxp,nyp)
-      REAL :: out1d(nzp),sbgvalues(nsbg)
+      REAL :: out1d(nzp), sbgvalues(20)
       REAL :: out0d
       REAL, ALLOCATABLE :: out3dsd(:,:,:,:), outsd(:), out1dsd(:,:)
       
@@ -315,8 +315,7 @@ MODULE mo_output
       ! Count arrays corresponding to 1 record. For non-binned outputs these are always the same
       icnt1d = [nzp,1]
       icnt2d = [nxp-4,nyp-4,1]
-      icnt3d = [nzp,nxp-4,nyp-4,1]   
-      icntsbg = [nxp-4,nyp-4,nsbg,1]
+      icnt3d = [nzp,nxp-4,nyp-4,1]      
       !icntXXsd for binned variables have to be allocated on a case by case basis in the loop below!
 
       ! Start indices for a record; i.e. ones except for the record dimension (time)
@@ -324,9 +323,7 @@ MODULE mo_output
       ibeg2d = [1,1,stream%nrec]
       ibeg3d = [1,1,1,stream%nrec]
       ibeg0d = [stream%nrec]
-      ibeg4d = [1,1,1,1,stream%nrec]
-      ibegsbg = [1,1,1,stream%nrec]
-      
+
       nvar = varArray%count
       DO n = 1,nvar
          vname = varArray%list(n)%name
@@ -369,10 +366,11 @@ MODULE mo_output
             IF (myid == mpiroot) &
                  CALL stream%write_nc(vname,out1d(:),ibeg1d,icnt=icnt1d)
           CASE('sbg')
-	    DO ss=1,nsbg
+	    DO ss = 1, 20
                sbgvalues(ss)=ss
             END DO
-            CALL stream%write_nc('sgb',sbgvalues,ibeg0d)
+            CALL stream%write_nc('sgb',sbgvalues(:),ibeg0d)
+         
          ! Physical variables
          ! -------------------------------------------------   
          CASE('xtytt')
@@ -391,7 +389,7 @@ MODULE mo_output
             ELSE
                out3d = var3d%d
             END IF
-            CALL stream%write_nc(vname,out3d(:,i1:i2,j1:j2),ibegsbg,icnt=icntsbg)
+            CALL stream%write_nc(vname,out2d(i1:i2,j1:j2),ibeg2d,icnt=icnt2d)
             
          CASE('zttaea','zttaeb','zttcla','zttclb','zttprc','zttice') ! Binned time-height for ps-stream -> from root
             CALL getSDdim(varArray%list(n)%dimension,nstr,nend) ! Check the start and end indices for the bins

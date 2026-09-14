@@ -3,6 +3,7 @@ MODULE mo_diag_state
   USE classFieldArray
   USE mo_structured_datatypes, ONLY : FloatArray2d, FloatArray3d, FloatArray4d
   USE mo_submctl, ONLY : nprc, nice, nsbg
+  USE grid, ONLY: isfctyp
   IMPLICIT NONE
 
   SAVE
@@ -13,7 +14,7 @@ MODULE mo_diag_state
   TYPE(FloatArray3D), TARGET :: a_theta  ! 1: dry potential temp (k)
   TYPE(FloatArray3D), TARGET :: a_temp   ! 2: Absolute temperature (K)
   TYPE(FloatArray3D), TARGET :: a_pexnr  ! 3: perturbation exner func
-  TYPE(FloatArray3D), TARGET :: a_press  ! 4: pressure (hpa)
+  TYPE(FloatArray3D), TARGET :: a_press  ! 4: pressure (Pa)
   TYPE(FloatArray3D), TARGET :: a_rtot   ! 5: Total water mix rat for level >= 4 (vapor + condensate)
   TYPE(FloatArray3D), TARGET :: a_rc     ! 6: Total cloud water +rain (level<=3) or aerosol+cloud (level>=4) water mixing ratio
   TYPE(FloatArray3D), TARGET :: a_ri     ! 7: Unrimed ice mixing ratio
@@ -30,28 +31,19 @@ MODULE mo_diag_state
                                 a_fus, a_fds,     &  ! 19, 20: 
                                 a_fuir, a_fdir       ! 21, 22:
   TYPE(FloatArray3D), TARGET :: a_rrate              ! 23: Precipitation flux
-  TYPE(FloatArray3D), TARGET :: a_irate              ! 24: Precipitation flux, frozen
+  TYPE(FloatArray3D), TARGET :: a_irate              ! 24: Precipitation flux, frozen  
+  
+  !-------------------------------------------------------------------
+  ! Optional 3D variables. You can request them using the output list
   TYPE(FloatArray3D), TARGET :: a_todsw, a_todlw,  &   ! 25, 26: total optical depth in sw and lw bands
   				a_codsw, a_codlw,  &   ! 27, 28: cloud optical depth in sw and lw bands
  				a_aodsw, a_aodlw,  &   ! 29, 30: aerosol optical depth in sw and lw bands
-				a_iodsw, a_iodlw, &    ! 31, 32: aerosol optical depth in sw and lw bands
-				a_aodsw470             ! 33: aerosol optical depth between 400 nm and 540 nm
-
-  REAL, ALLOCATABLE, TARGET :: a_diag3d(:,:,:,:) 
-  INTEGER, PARAMETER :: ndiag3d = 33   ! Remember to update if adding new variables!!
-
-  !-------------------------------------------------------------------
-  ! Binned diagnostic variables mainly for output
-  !
-  TYPE(FloatArray4d), TARGET :: d_VtPrc, d_VtIce ! Precipitation and ice terminal fall velocities
-  TYPE(FloatArray4d), TARGET :: d_AtPrc, d_AtIce ! Precipitation and ice cross sectional area
-  TYPE(FloatArray4d), TARGET :: d_ArPrc, d_ArIce ! Precipitation and ice particles aspect ratio
-  REAL, ALLOCATABLE, TARGET :: d_binned(:,:,:,:), d2_binned(:,:,:,:) ! Auxiliary arrays
-  REAL, ALLOCATABLE, TARGET :: d3_binned(:,:,:,:)
+				a_iodsw, a_iodlw       ! 31, 32: aerosol optical depth in sw and lw bands
   
+  INTEGER, PARAMETER :: ndiag3d = 32   ! Remember to update if adding new variables!!
+  REAL, ALLOCATABLE, TARGET :: a_diag3d(:,:,:,:) 
   !----------------------------------------------------------------------------
-  ! Two dimensional variables that need to be stored during the timestep
-  !
+  ! Mandatory two dimensional variables that need to be stored during the timestep
   TYPE(FloatArray2D), TARGET :: albedo               ! 1: Surface albedo as fus(1)/fds(1) Upwelling shortwave flux/Downwelling shortwave flux
   TYPE(FloatArray2D), TARGET :: a_ustar              ! 2: Friction velocity
   TYPE(FloatArray2D), TARGET :: a_tstar              ! 3: turbulent temperature scale 
@@ -61,12 +53,13 @@ MODULE mo_diag_state
   TYPE(FloatArray2D), TARGET :: ww_sfc               ! 7: Kinematic turbulent flux w
   TYPE(FloatArray2D), TARGET :: wt_sfc               ! 8: Sensible heat flux
   TYPE(FloatArray2D), TARGET :: wq_sfc               ! 9: Latent heat flux
-  ! -------------------------------------------------------------------------------
-  ! Do these need to be stored? If not, move to mo_derived_state?
   TYPE(FloatArray2D), TARGET :: a_sfcrrate           ! 10: Surface rain rate in W/m2
   TYPE(FloatArray2D), TARGET :: a_sfcirate           ! 11: Surface frozen precipitation in W/m2
+  
+  ! 2D diagnostic variables related to isfctyp=6  Surface fluxes from vegetation fire
+  ! You can request them using the output list
   TYPE(FloatArray2D), TARGET :: a_tskin              ! 12: Surrogate of Skin temperature in K (WORK IN PROGRESS, not available)
-  TYPE(FloatArray2D), TARGET :: a_qskin              ! 13: Surrogate of Skin moisture in kg water/kg moist air (WORK IN PROGRESS, not available)
+  TYPE(FloatArray2D), TARGET :: a_qskin              ! 13: Surrogate of Skin moisture in kg water/kg moist air (WORK IN PROGRESS, not available)  
   TYPE(FloatArray2D), TARGET :: a_fgi                ! 14: Initial total mass of ground fuel in kg/m2
   TYPE(FloatArray2D), TARGET :: a_weight             ! 15: Weighting parameter for slope of mass loss curve
   TYPE(FloatArray2D), TARGET :: a_fcz0               ! 16: Roughness length for vertical wind log interpolation in m
@@ -78,11 +71,10 @@ MODULE mo_diag_state
   TYPE(FloatArray2D), TARGET :: a_phiwc              ! 22: Wind coefficient C (premultiplied by R0) in m/s
   TYPE(FloatArray2D), TARGET :: a_phiwb              ! 23: Wind exponent in the fire spread rate R
   TYPE(FloatArray2D), TARGET :: a_tcrit              ! 24: Time at which the cell is completely ignited
-  TYPE(FloatArray2D), TARGET :: a_R0                 ! 25: Fire spread rate without wind effects R0 in m/s
-  
+  TYPE(FloatArray2D), TARGET :: a_R0                 ! 25: Fire spread rate without wind effects R0 in m/s    
+  INTEGER, PARAMETER :: ndiag2d = 25                 ! Remember to update if adding new mandatory variables!!
   REAL, ALLOCATABLE, TARGET :: a_diag2d(:,:,:)
-  INTEGER, PARAMETER :: ndiag2d = 25      ! Remember to update if adding new variables!!
-  
+
   ! Ignition time in surface sub-grid cells
   TYPE(FloatArray3d), TARGET :: a_ignitiontimecell   ! Ignition time in sub-grid cells 
   TYPE(FloatArray3d), TARGET :: a_areaignitedcell    ! Burning area in sub-grid cells 
@@ -90,8 +82,9 @@ MODULE mo_diag_state
   REAL, ALLOCATABLE, TARGET ::  d2_sbgcell(:,:,:)    ! xt yt sbg
   ! --------------------------------------------------------------------------------------------------------------------------------------------------
   ! Microphysical process rates from SALSA -- they need to be stored during the timestep because they cannot be simply diagnosed afterwards
-  ! For now, these are BULK process rates only for water/ice, except where indicated otherwise !! Number concentration rate given for particle formation processes,
-  ! mass concetration rate for others
+  ! For now, these are BULK process rates only for water/ice, except where indicated otherwise
+  ! Number concentration rate given for particle formation processes,
+  ! mass concentration rate for others
   !
   TYPE(FloatArray3d), TARGET :: s_m_autoc        ! 1: Total autoconversion rate (mass, following bin regime limits)
   TYPE(FloatArray3d), TARGET :: s_m_autoc80      ! 2: Total autoconversion rate (mass, for drops past 80um)
@@ -155,15 +148,15 @@ MODULE mo_diag_state
 
       nxyz = nxp*nyp*nzp
       nxy = nxp*nyp
-      
+
       ALLOCATE(a_diag3d(nzp,nxp,nyp,ndiag3d))
       ALLOCATE(a_diag2d(nxp,nyp,ndiag2d))
       a_diag3d = 0.
       a_diag2d = 0.
       n3d = 0
       n2d = 0
-     
-     ALLOCATE(d_sbgcell(nxp,nyp,nsbg), d2_sbgcell(nxp,nyp,nsbg))
+ 
+     ALLOCATE(d_sbgcell(nxp,nyp,20), d2_sbgcell(nxp,nyp,20))
      d_sbgcell  = 0.
      d2_sbgcell = 0.
      
@@ -176,19 +169,6 @@ MODULE mo_diag_state
       END IF         
       a_rateDiag3d = 0.
       nr3d = 0
-      
-      nbinned = 0
-      IF ( level >= 4) THEN
-         nbinned = nbinned + nprc
-         IF ( level > 4) nbinned = nbinned + nice
-         ALLOCATE(d_binned(nzp,nxp,nyp,nbinned))
-         ALLOCATE(d2_binned(nzp,nxp,nyp,nbinned))
-         ALLOCATE(d3_binned(nzp,nxp,nyp,nbinned))
-         d_binned = 0.
-         d2_binned = 0.
-         d3_binned = 0.
-         n4db = 0
-      END IF
          
       IF (lpback) THEN
          ALLOCATE(pb_diag3d(nzp,nxp,nyp,npbdiag3d))
@@ -479,15 +459,7 @@ MODULE mo_diag_state
 	a_iodlw = FloatArray3d(a_diag3d(:,:,:,n3d))
 	pipeline => a_iodlw
 	CALL Diag%newField("iodlw", "Ice optical depth Longwave", "", "tttt",   &
-		            ANY(outputlist == "iodlw"), pipeline)    
-        
-        memsize = memsize + nxy
-	n3d = n3d+1
-	pipeline => NULL()
-	a_aodsw470 = FloatArray3d(a_diag3d(:,:,:,n3d))
-	pipeline => a_aodsw470
-	CALL Diag%newField("aodsw470", "Aerosol optical depth band 400nm-540nm", "", "tttt",   &
-		            ANY(outputlist == "aodsw470"), pipeline)                         
+		            ANY(outputlist == "iodlw"), pipeline)                           
                             
       END IF
       
@@ -698,13 +670,13 @@ MODULE mo_diag_state
                          ANY(outputlist == "R0"), pipeline)               
       
       pipeline => NULL()
-      a_ignitiontimecell = FloatArray3d(d_sbgcell) !Fixed sub-grid division
+      a_ignitiontimecell = FloatArray3d(d_sbgcell(:,:,:)) !Fixed sub-grid division
       pipeline => a_ignitiontimecell
       CALL Diag%newField("ignitiontimesbg", "Ignition time in sub-grid cells", "s", "xtytsbg",   &
                             ANY(outputlist == "ignitiontimesbg"), pipeline)
       
       pipeline => NULL()
-      a_areaignitedcell = FloatArray3d(d2_sbgcell) !Fixed sub-grid division
+      a_areaignitedcell = FloatArray3d(d2_sbgcell(:,:,:)) !Fixed sub-grid division
       pipeline => a_areaignitedcell
       CALL Diag%newField("areaignitedsbg", "Burning area in sub-grid cells", "m2", "xtytsbg",   &
                             ANY(outputlist == "areaignitedsbg"), pipeline)  
@@ -901,63 +873,6 @@ MODULE mo_diag_state
                             "tttt", ANY(outputlist == "b_m_accr"), pipeline)
             
       END IF      
-        
-      ! Binned variables
-      n4db = 1
-      IF ( level >= 4) THEN
-         pipeline => NULL()
-         d_VtPrc = FloatArray4d(d_binned(:,:,:,n4db:n4db+nprc-1))
-         pipeline => d_VtPrc
-         CALL Diag%newField("VtPrc", "Terminal fall speed of raindrops", "m/s", "ttttprc",   &
-                            ANY(outputlist == "VtPrc"), pipeline)
-         n4db = n4db + nprc
-      END IF
-
-      IF (level > 4) THEN
-         pipeline => NULL()
-         d_VtIce = FloatArray4d(d_binned(:,:,:,n4db:n4db+nice-1))
-         pipeline => d_VtIce
-         CALL Diag%newField("VtIce", "Terminal fall speed of ice particles", "m/s", "ttttice",   &
-                            ANY(outputlist == "VtIce"), pipeline)
-         n4db = n4db + nice
-      END IF
-      
-      n4db = 1
-      IF ( level >= 4) THEN
-         pipeline => NULL()
-         d_AtPrc = FloatArray4d(d2_binned(:,:,:,n4db:n4db+nprc-1))
-         pipeline => d_AtPrc
-         CALL Diag%newField("AtPrc", "Raindrop cross sectional area", "m**2", "ttttprc",   &
-                            ANY(outputlist == "AtPrc"), pipeline)
-         n4db = n4db + nprc
-      END IF
-
-      IF (level > 4) THEN
-         pipeline => NULL()
-         d_AtIce = FloatArray4d(d2_binned(:,:,:,n4db:n4db+nice-1))
-         pipeline => d_AtIce
-         CALL Diag%newField("AtIce", "Ice particle cross sectional area", "m**2", "ttttice",   &
-                            ANY(outputlist == "AtIce"), pipeline)
-         n4db = n4db + nice
-      END IF
-      
-      n4db = 1
-      IF ( level >= 4) THEN
-         pipeline => NULL()
-         d_ArPrc= FloatArray4d(d3_binned(:,:,:,n4db:n4db+nprc-1))
-         pipeline => d_ArPrc
-         CALL Diag%newField("ArPrc", "Effective aspect ratio of raindrops", "", "ttttprc",   &
-                            ANY(outputlist == "ArPrc"), pipeline)
-         n4db = n4db + nprc
-      END IF
-      IF ( level > 4) THEN
-         pipeline => NULL()
-         d_ArIce = FloatArray4d(d3_binned(:,:,:,n4db:n4db+nice-1))
-         pipeline => d_ArIce
-         CALL Diag%newField("ArIce", "Effective aspect ratio of ice particles", "", "ttttice",   &
-                            ANY(outputlist == "ArIce"), pipeline)
-         n4db = n4db + nice
-      END IF
       
       ! Piggybacking variables for "slave" microphysics
       IF (lpback) THEN
