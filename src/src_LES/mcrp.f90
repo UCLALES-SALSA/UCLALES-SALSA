@@ -89,8 +89,7 @@ MODULE mcrp
     SUBROUTINE micro(level)
       USE mo_diag_state, ONLY : a_rv,a_rc,a_theta,     &
                                 a_temp,a_rsl,a_dn,a_ustar,             &
-                                a_rrate, a_irate, a_sfcrrate, a_sfcirate,   &
-                                d_VtPrc, d_VtIce, d_AtPrc, d_AtIce, d_ArPrc, d_ArIce
+                                a_rrate, a_irate, a_sfcrrate, a_sfcirate
       USE mo_progn_state, ONLY : a_rp,a_tp,a_rt,a_tt,a_rpp,a_rpt,a_npp,a_npt
       USE mo_aux_state, ONLY : dn0
       INTEGER, INTENT(in) :: level
@@ -107,7 +106,7 @@ MODULE mcrp
          nspec = spec%getNSpec(type="wet")
          ! Import tracers directly and not via arguments because theres so many...
          CALL sedim_SALSA(nspec,level,a_ustar,a_temp,a_theta,a_dn,a_rrate,   &
-                          a_sfcrrate,a_irate,a_sfcirate,d_VtPrc,d_VtIce,a_tt, d_AtPrc,d_AtIce, d_ArPrc, d_ArIce)
+                          a_sfcrrate,a_irate,a_sfcirate,a_tt)
                          
       CASE(0) ! For piggybacking call to level 3 microphysics. pb_mcrph just wraps the necessary calls to thermo and mcrph
          CALL pb_mcrph(dn0)
@@ -854,7 +853,7 @@ MODULE mcrp
       ! SEDIMENTATION/DEPOSITION OF FAST PRECIPITATING PARTICLES
       IF (sed_precp%state) THEN
          CALL DepositionFast(nprc,nspec,tk,adn,a_nprecpp,a_mprecpp,   &
-                             prnt,prmt,remprc,rrate,sfcrrate,VtPrc,3,AtPrc, ArPrc,nc)
+                             prnt,prmt,remprc,rrate,sfcrrate,3,nc)
          
          a_nprecpt%d(:,:,:,:) = a_nprecpt%d(:,:,:,:) + prnt(:,:,:,:)/dtlt
          a_mprecpt%d(:,:,:,:) = a_mprecpt%d(:,:,:,:) + prmt(:,:,:,:)/dtlt
@@ -880,7 +879,7 @@ MODULE mcrp
       
       IF (sed_ice%state .AND. level == 5) THEN                          
          CALL DepositionFast(nice,nspec+1,tk,adn,a_nicep,a_micep,     &
-                             irnt,irmt,remice,irate,sfcirate,VtIce,4,AtIce,ArIce,nc)
+                             irnt,irmt,remice,irate,sfcirate,4,nc)
          
          a_nicet%d(:,:,:,:) = a_nicet%d(:,:,:,:) + irnt(:,:,:,:)/dtlt
          a_micet%d(:,:,:,:) = a_micet%d(:,:,:,:) + irmt(:,:,:,:)/dtlt
@@ -1078,14 +1077,14 @@ MODULE mcrp
 
 
   !------------------------------------------------------------------
-  SUBROUTINE DepositionFast(nb,ns,tk,adn,numc,mass,prnt,prvt,remprc,rate,srate,Vt,flag,At,Ar,nc)
+  SUBROUTINE DepositionFast(nb,ns,tk,adn,numc,mass,prnt,prvt,remprc,rate,srate,flag,nc)
     USE mo_particle_external_properties, ONLY : calcDiamLES, terminal_vel, cross_sec_area
     USE util, ONLY : getBinMassArray
     USE mo_submctl, ONLY : nlim,prlim,pi6
     USE mo_ice_shape, ONLY : t_shape_coeffs, getShapeCoefficients
     IMPLICIT NONE
 
-    INTEGER, INTENT(in) :: ns,nb, nc ! number of species, number of bins in the category, spec%getIndex('H2O')
+    INTEGER, INTENT(in) :: ns,nb, nc! number of species, number of bins in the category, spec%getIndex('H2O')
     TYPE(FloatArray3d), INTENT(in) :: tk
     TYPE(FloatArray3d), INTENT(in) :: adn
     TYPE(FloatArray4d), INTENT(in) :: numc
@@ -1095,9 +1094,6 @@ MODULE mcrp
     REAL, INTENT(out) :: remprc(nxp,nyp,nb*ns)
     TYPE(FloatArray3d), INTENT(inout) :: rate ! Precip rate (W/m^2)
     TYPE(FloatArray2d), INTENT(inout) :: srate ! Surface precip rate (W/m^2)
-    TYPE(FloatArray4d), INTENT(inout) :: Vt   ! Binned particle terminal velocity
-    TYPE(FloatArray4d), INTENT(inout) :: At   ! Binned cross sectional area
-    TYPE(FloatArray4d), INTENT(inout) :: Ar   ! Aspect ratio
     
     INTEGER :: k,i,j,bin
     INTEGER :: istr,iend
@@ -1136,11 +1132,6 @@ MODULE mcrp
     
     clim = nlim
     IF (ANY(flag == [3,4])) clim = prlim
-    
-    ! Zero the output diagnostics for terminal velocity
-    ! Zero the output diagnostics for cross sectional area
-    Vt%d = 0.
-    At%d = 0.
     
     remprc(:,:,:) = 0.
     prnt(:,:,:,:) = 0.
@@ -1217,11 +1208,6 @@ MODULE mcrp
                   !aspect_ratio = 2 * (massice/ice(ii,jj,cc)%numc)/ rhoice / (pi/3*dnsp**3)                          
                    aspr = 2*(SUM(pmass)/zpn(bin)) / rhomean / (pi/3*dnsp**3)  
                 END IF
-                
-                ! Diagnostics
-                Vt%d(k,i,j,bin) = vc
-                At%d(k,i,j,bin) = ac  
-                Ar%d(k,i,j,bin) = aspr            
                 
                 ! Determine output flux for current level: Find the closest level to which the
                 ! current drop parcel can fall within 1 timestep. If the lowest atmospheric level
