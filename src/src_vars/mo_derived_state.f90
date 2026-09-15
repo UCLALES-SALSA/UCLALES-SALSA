@@ -1160,7 +1160,7 @@ MODULE mo_derived_state
          Atiba%onDemand => getIceArea
          pipeline => Atiba
          CALL Derived%newField("Atiba", "Cross sectional area of ice particles",  &
-                               "m/s", "ttttice", ANY(outputlist == "Atiba"), pipeline)     
+                               "m**2", "ttttice", ANY(outputlist == "Atiba"), pipeline)     
          
          pipeline => NULL()
          Ariba = FloatArray4d()
