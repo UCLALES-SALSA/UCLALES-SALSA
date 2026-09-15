@@ -1527,7 +1527,7 @@ MODULE mo_derived_procedures
         DO i = 3,nxp-2
            output(nzp,i,j) = bext(nzp,i,j)/dzt%d(nzp)   !dzt = 1/dz 
            DO k = nzp-1,1,-1
-              output(k,i,j) = output(k,i,j) + bext(k,i,j)/dzt%d(k)   !dzt = 1/dz           
+              output(k,i,j) = output(k+1,i,j) + bext(k,i,j)/dzt%d(k)   !dzt = 1/dz           
            END DO
         END DO
      END DO
@@ -1578,7 +1578,7 @@ MODULE mo_derived_procedures
         DO i = 3,nxp-2
            output(nzp,i,j) = bext(nzp,i,j)/dzt%d(nzp)   !dzt = 1/dz 
            DO k = nzp-1,1,-1
-              output(k,i,j) = output(k,i,j) + bext(k,i,j)/dzt%d(k)   !dzt = 1/dz           
+              output(k,i,j) = output(k+1,i,j) + bext(k,i,j)/dzt%d(k)   !dzt = 1/dz           
            END DO
         END DO
      END DO
