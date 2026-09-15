@@ -251,15 +251,6 @@ MODULE mo_derived_state
          CALL Derived%newField("Dwpa", "Bulk mean diameter, precip", "m", 'tttt',   &
                                ANY(outputlist == "Dwpa"), pipeline                  )
       END IF
-
-      IF (level > 4) THEN
-         pipeline => NULL()
-         Dwia = FloatArray3d()
-         Dwia%onDemand => bulkDiameter
-         pipeline => Dwia
-         CALL Derived%newField("Dwia", "Bulk mean diameter, ice", "m", 'tttt',   &
-                               ANY(outputlist == "Dwia"), pipeline               )
-      END IF
       
       IF (level >= 4) THEN
          pipeline => NULL()
@@ -1016,7 +1007,13 @@ MODULE mo_derived_state
       END IF
 
       IF ( level == 5 ) THEN
-
+	 
+	 pipeline => NULL()
+         Dwia = FloatArray3d()
+         Dwia%onDemand => bulkDiameter
+         pipeline => Dwia
+         CALL Derived%newField("Dwia", "Bulk mean diameter, ice", "m", 'tttt',   &
+                               ANY(outputlist == "Dwia"), pipeline               )
          pipeline => NULL()
          iSO4a = FloatArray3d()
          iSO4a%onDemand => bulkMixrat

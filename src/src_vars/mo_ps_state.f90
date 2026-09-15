@@ -73,7 +73,7 @@ MODULE mo_ps_state
                                 ps_aNOa, ps_aNOb, ps_cNOa, ps_cNOb, ps_pNOa, ps_iNOa,        &
                                 ps_aNHa, ps_aNHb, ps_cNHa, ps_cNHb, ps_pNHa, ps_iNHa,        &
                                 ps_todsw, ps_todlw, ps_codsw, ps_codlw, ps_aodsw, ps_aodlw,  &
-                                ps_iodsw, ps_iodlw, ps_aodsw470        
+                                ps_iodsw, ps_iodlw       
                                         
   ! Conditionally sampled profiles
   TYPE(FloatArray1d), TARGET :: psic_rc, psic_Naa, psic_Nab, psic_Nca, psic_Ncb, psic_CDNC, psic_CNC,   &
@@ -1249,12 +1249,6 @@ MODULE mo_ps_state
          CALL PS%newField(ps_iodlw%shortName, "Ice optical depth Longwave", "", "ztt",   &
                        ANY(outputlist == ps_iodlw%shortName), pipeline)  
                        
-         pipeline => NULL()
-         ps_aodsw470 = FloatArray1d("aodsw470")
-         ps_aodsw470%onDemand => globalMeanProfile
-         pipeline => ps_aodsw470
-         CALL PS%newField(ps_aodsw470%shortName, "Aerosol optical depth band 400nm-540nm", "", "ztt",   &
-                       ANY(outputlist == ps_aodsw470%shortName), pipeline)               
          
       END IF
 

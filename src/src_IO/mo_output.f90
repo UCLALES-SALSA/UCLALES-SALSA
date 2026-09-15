@@ -323,7 +323,8 @@ MODULE mo_output
       ibeg2d = [1,1,stream%nrec]
       ibeg3d = [1,1,1,stream%nrec]
       ibeg0d = [stream%nrec]
-
+      ibeg4d = [1,1,1,1,stream%nrec]
+      
       nvar = varArray%count
       DO n = 1,nvar
          vname = varArray%list(n)%name
