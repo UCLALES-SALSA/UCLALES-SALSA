@@ -1198,14 +1198,7 @@ MODULE mo_derived_procedures
         numlim = prlim
         numc => a_nprecpp
         mass => a_mprecpp
-        nb = nprc
-     CASE('swbextia')
-        flag = 4
-        numlim = prlim
-        numc => a_nicep
-        mass => a_micep 
-        nspec = nspec + 1 ! For rime
-        nb = nice        
+        nb = nprc     
      END SELECT    
 
      ALLOCATE(refrRe_all(nspec), refrIm_all(nspec), volspec(nspec))
@@ -1391,14 +1384,7 @@ MODULE mo_derived_procedures
         numlim = prlim
         numc => a_nprecpp
         mass => a_mprecpp
-        nb = nprc
-     CASE('lwbextia')
-        flag = 4
-        numlim = prlim
-        numc => a_nicep
-        mass => a_micep 
-        nspec = nspec + 1 ! For rime
-        nb = nice        
+        nb = nprc      
      END SELECT   
                                      
      ALLOCATE(refrRe_all(nspec), refrIm_all(nspec), volspec(nspec))
@@ -1493,6 +1479,10 @@ MODULE mo_derived_procedures
    ! this function is for outputs only
    ! It uses the calculation approach already employed in 
    ! Inside /src/src_rad/rad_cldwtr.f90 
+   ! IMPORTANT: 
+   ! For ice particles you must use iodsw and/or iodlw
+   ! For total values including gases (i.e. water and ozone) 
+   ! you must use todsw and/or todlw
    !
    SUBROUTINE getOpticalDepthSW(name,output,nstr,nend)
 
@@ -1517,8 +1507,6 @@ MODULE mo_derived_procedures
         CALL getExtinctionCoeffSW('swbextcb',bext,nstr,nend)       
       CASE('swCODpa')
         CALL getExtinctionCoeffSW('swbextpa',bext,nstr,nend)
-      CASE('swIODia')
-        CALL getExtinctionCoeffSW('swbextia',bext,nstr,nend) 
      END SELECT 
      
      output(:,:,:)=0.
@@ -1544,6 +1532,10 @@ MODULE mo_derived_procedures
    ! this function is for outputs only
    ! It uses the calculation approach already employed in 
    ! Inside /src/src_rad/rad_cldwtr.f90 
+   ! IMPORTANT: 
+   ! For ice particles you must use iodsw and/or iodlw
+   ! For total values including gases (i.e. water and ozone) 
+   ! you must use todsw and/or todlw
    !
    SUBROUTINE getOpticalDepthLW(name,output,nstr,nend)
    
@@ -1568,8 +1560,6 @@ MODULE mo_derived_procedures
         CALL getExtinctionCoeffLW('lwbextcb',bext,nstr,nend)       
       CASE('lwCODpa')
         CALL getExtinctionCoeffLW('lwbextpa',bext,nstr,nend)
-      CASE('lwIODia')
-        CALL getExtinctionCoeffLW('lwbextia',bext,nstr,nend) 
      END SELECT 
      
      output(:,:,:)=0.

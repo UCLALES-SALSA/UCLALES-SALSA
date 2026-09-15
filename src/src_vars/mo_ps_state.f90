@@ -1206,34 +1206,6 @@ MODULE mo_ps_state
          pipeline => ps_todlw
          CALL PS%newField(ps_todlw%shortName, "Total optical depth Longwave", "", "ztt",   &
                        ANY(outputlist == ps_todlw%shortName), pipeline)     
-                       
-         pipeline => NULL()
-         ps_codsw = FloatArray1d("codsw")
-         ps_codsw%onDemand => globalMeanProfile
-         pipeline => ps_codsw
-         CALL PS%newField(ps_codsw%shortName, "Cloud optical depth Shortwave", "", "ztt",   &
-                       ANY(outputlist == ps_codsw%shortName), pipeline)
-                       
-         pipeline => NULL()
-         ps_codlw = FloatArray1d("codlw")
-         ps_codlw%onDemand => globalMeanProfile
-         pipeline => ps_codlw
-         CALL PS%newField(ps_codlw%shortName, "Cloud optical depth Longwave", "", "ztt",   &
-                       ANY(outputlist == ps_codlw%shortName), pipeline)   
-         
-         pipeline => NULL()
-         ps_aodsw = FloatArray1d("aodsw")
-         ps_aodsw%onDemand => globalMeanProfile
-         pipeline => ps_aodsw
-         CALL PS%newField(ps_aodsw%shortName, "Aerosol optical depth Shortwave", "", "ztt",   &
-                       ANY(outputlist == ps_aodsw%shortName), pipeline)
-                       
-         pipeline => NULL()
-         ps_aodlw = FloatArray1d("aodlw")
-         ps_aodlw%onDemand => globalMeanProfile
-         pipeline => ps_aodlw
-         CALL PS%newField(ps_aodlw%shortName, "Aerosol optical depth Longwave", "", "ztt",   &
-                       ANY(outputlist == ps_aodlw%shortName), pipeline)  
          
          pipeline => NULL()
          ps_iodsw = FloatArray1d("iodsw")

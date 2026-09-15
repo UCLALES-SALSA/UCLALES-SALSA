@@ -29,14 +29,14 @@ MODULE mo_derived_state
                                 aSSa, aSSb, cSSa, cSSb, pSSa, iSSa,        &  ! Sea salt
                                 aNOa, aNOb, cNOa, cNOb, pNOa, iNOa,        &  ! Nitrate
                                 aNHa, aNHb, cNHa, cNHb, pNHa, iNHa,        &  ! Ammonia
-                                swbextaa, swbextab, swbextca, swbextcb,    &  ! Extinction coefficient at 550 nm aerosol, cloud, precip, ice
-                                swbextpa, swbextia,                        &  ! Extinction coefficient at 550 nm aerosol, cloud, precip, ice
-                                lwbextaa, lwbextab, lwbextca, lwbextcb,    &  ! Extinction coefficient at 2100 nm aerosol, cloud, precip, ice
-                                lwbextpa, lwbextia,                        &  ! Extinction coefficient at 2100 nm aerosol, cloud, precip, ice   
-                                swAODaa, swAODab, swCODca, swCODcb,        &  ! Optical depth at 550 nm aerosol, cloud, precip, ice    
-                                swCODpa, swIODia,                          &  ! Optical depth at 550 nm aerosol, cloud, precip, ice    
-                                lwAODaa, lwAODab, lwCODca, lwCODcb,        &  ! Optical depth at 2100 nm aerosol, cloud, precip, ice    
-                                lwCODpa, lwIODia                              ! Optical depth at 2100 nm aerosol, cloud, precip, ice                   
+                                swbextaa, swbextab, swbextca, swbextcb,    &  ! Extinction coefficient at 550 nm aerosol, cloud, precip
+                                swbextpa,                                  &  ! Extinction coefficient at 550 nm aerosol, cloud, precip
+                                lwbextaa, lwbextab, lwbextca, lwbextcb,    &  ! Extinction coefficient at 2100 nm aerosol, cloud, precip
+                                lwbextpa,                                  &  ! Extinction coefficient at 2100 nm aerosol, cloud, precip 
+                                swAODaa, swAODab, swCODca, swCODcb,        &  ! Optical depth at 550 nm aerosol, cloud, precip 
+                                swCODpa,                                   &  ! Optical depth at 550 nm aerosol, cloud, precip   
+                                lwAODaa, lwAODab, lwCODca, lwCODcb,        &  ! Optical depth at 2100 nm aerosol, cloud, precip   
+                                lwCODpa                                       ! Optical depth at 2100 nm aerosol, cloud, precip                  
 
   TYPE(FloatArray3d), TARGET :: gSO4, gNO3, gNH4, gOCNV, gOCSV
 
@@ -1169,34 +1169,13 @@ MODULE mo_derived_state
          CALL Derived%newField("Ariba", "Aspect ratio of ice particles",  &
                                "", "ttttice", ANY(outputlist == "Ariba"), pipeline)  
          
-         pipeline => NULL()
-         swbextia = FloatArray3d()
-         swbextia%onDemand => getExtinctionCoeffSW
-         pipeline => swbextia
-         CALL Derived%newField("swbextia", "Extinction coefficient at 550 nm ice", "1/m", 'tttt',   &
-                               ANY(outputlist == "swbextia"), pipeline                )
-         
-         pipeline => NULL()
-         lwbextia = FloatArray3d()
-         lwbextia%onDemand => getExtinctionCoeffLW
-         pipeline => lwbextia
-         CALL Derived%newField("lwbextia", "Extinction coefficient at 2100 nm ice", "1/m", 'tttt',   &
-                               ANY(outputlist == "lwbextia"), pipeline                )
-         
-         
-         pipeline => NULL()
-         swIODia = FloatArray3d()
-         swIODia%onDemand => getOpticalDepthSW
-         pipeline => swIODia
-         CALL Derived%newField("swIODia", "Optical depth at 550 nm ice", " ", 'tttt',   &
-                               ANY(outputlist == "swIODia"), pipeline                ) 
-                               
-         pipeline => NULL()
-         lwIODia = FloatArray3d()
-         lwIODia%onDemand => getOpticalDepthLW
-         pipeline => lwIODia
-         CALL Derived%newField("lwIODia", "Optical depth at 2100 nm ice", " ", 'tttt',   &
-                               ANY(outputlist == "lwIODia"), pipeline                )               
+         !------------------------------------------------------
+         ! IMPORTANT: 
+	 ! For ice particles you must use iodsw and/or iodlw
+	 ! For total values including gases (i.e. water and ozone) 
+	 ! you must use todsw and/or todlw   
+	 ! All these variables are in the diag_state.f90
+	 ! -----------------------------------------------------
                                    
       END IF
             

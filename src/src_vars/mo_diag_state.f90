@@ -32,14 +32,7 @@ MODULE mo_diag_state
   TYPE(FloatArray3D), TARGET :: a_rrate              ! 23: Precipitation flux
   TYPE(FloatArray3D), TARGET :: a_irate              ! 24: Precipitation flux, frozen  
   
-  !-------------------------------------------------------------------
-  ! Optional 3D variables. You can request them using the output list
-  TYPE(FloatArray3D), TARGET :: a_todsw, a_todlw,  &   ! 25, 26: total optical depth in sw and lw bands
-  				a_codsw, a_codlw,  &   ! 27, 28: cloud optical depth in sw and lw bands
- 				a_aodsw, a_aodlw,  &   ! 29, 30: aerosol optical depth in sw and lw bands
-				a_iodsw, a_iodlw       ! 31, 32: aerosol optical depth in sw and lw bands
-  
-  INTEGER, PARAMETER :: ndiag3d = 32   ! Remember to update if adding new variables!!
+  INTEGER, PARAMETER :: ndiag3d = 24   ! Remember to update if adding new variables!!
   REAL, ALLOCATABLE, TARGET :: a_diag3d(:,:,:,:) 
  
  !----------------------------------------------------------------------------
@@ -373,72 +366,6 @@ MODULE mo_diag_state
                             ANY(outputlist == "irate"), pipeline) 
       END IF
       
-      IF (iradtyp >= 3) THEN
-         memsize = memsize + nxy
-         n3d = n3d+1
-         pipeline => NULL()
-         a_todsw = FloatArray3d(a_diag3d(:,:,:,n3d))
-         pipeline => a_todsw
-         CALL Diag%newField("todsw", "Total optical depth Shortwave", "", "tttt",   &
-                            ANY(outputlist == "todsw"), pipeline) 
-         
-         memsize = memsize + nxy
-         n3d = n3d+1
-         pipeline => NULL()
-         a_todlw = FloatArray3d(a_diag3d(:,:,:,n3d))
-         pipeline => a_todlw
-         CALL Diag%newField("todlw", "Total optical depth Longwave", "", "tttt",   &
-                            ANY(outputlist == "todlw"), pipeline) 
-         
-         memsize = memsize + nxy
-         n3d = n3d+1
-         pipeline => NULL()
-         a_codsw = FloatArray3d(a_diag3d(:,:,:,n3d))
-         pipeline => a_codsw
-         CALL Diag%newField("codsw", "Cloud optical depth Shortwave", "", "tttt",   &
-                            ANY(outputlist == "codsw"), pipeline) 
-         
-         memsize = memsize + nxy
-         n3d = n3d+1
-         pipeline => NULL()
-         a_codlw = FloatArray3d(a_diag3d(:,:,:,n3d))
-         pipeline => a_codlw
-         CALL Diag%newField("codlw", "Cloud optical depth Longwave", "", "tttt",   &
-                            ANY(outputlist == "codlw"), pipeline) 
-         
-        
-	memsize = memsize + nxy
-	n3d = n3d+1
-	pipeline => NULL()
-	a_aodsw = FloatArray3d(a_diag3d(:,:,:,n3d))
-	pipeline => a_aodsw
-	CALL Diag%newField("aodsw", "Aerosol optical depth Shortwave", "", "tttt",   &
-		            ANY(outputlist == "aodsw"), pipeline) 
-	 
-	memsize = memsize + nxy
-	n3d = n3d+1
-	pipeline => NULL()
-	a_aodlw = FloatArray3d(a_diag3d(:,:,:,n3d))
-	pipeline => a_aodlw
-	CALL Diag%newField("aodlw", "Aerosol optical depth Longwave", "", "tttt",   &
-		            ANY(outputlist == "aodlw"), pipeline) 
-	 
-	memsize = memsize + nxy
-	n3d = n3d+1
-	pipeline => NULL()
-	a_iodsw = FloatArray3d(a_diag3d(:,:,:,n3d))
-	pipeline => a_iodsw
-	CALL Diag%newField("iodsw", "Ice optical depth Shortwave", "", "tttt",   &
-		            ANY(outputlist == "iodsw"), pipeline) 
-	 
-	memsize = memsize + nxy
-	n3d = n3d+1
-	pipeline => NULL()
-	a_iodlw = FloatArray3d(a_diag3d(:,:,:,n3d))
-	pipeline => a_iodlw
-	CALL Diag%newField("iodlw", "Ice optical depth Longwave", "", "tttt",   &
-		            ANY(outputlist == "iodlw"), pipeline)                        
-      END IF
       
 
       ! First diag2d entry
