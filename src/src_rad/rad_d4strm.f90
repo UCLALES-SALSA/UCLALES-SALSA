@@ -85,8 +85,7 @@ CONTAINS
   ! defined by input ckd file
   !
   SUBROUTINE rad (as, u0, ss, pts, ee, pp, pt, ph, po, fds, fus, fdir, fuir, &
-                  McICA, nspec, plwc, pre, piwc, pde, pgwc, maerobin, naerobin, &
-                  todir, codir, aodir, iodir, tods, cods, aods, iods) ! prwc needed?
+                  McICA, nspec, plwc, pre, piwc, pde, pgwc, maerobin, naerobin)
                   
 
     INTEGER, INTENT(in) :: nspec
@@ -120,18 +119,12 @@ CONTAINS
     REAL, DIMENSION(nv1), INTENT (out) ::  &
          fds, fus,  & ! downward and upward solar flux
          fdir, fuir   ! downward and upward ir flux
-    
-    REAL, DIMENSION(nv), INTENT (out) ::  &
-         todir, codir, aodir, iodir,  &  !total, cloud, aerosol and ice optical depth SW short IR 1.9um-2.5um
-         tods, cods, aods, iods  !total, cloud, aerosol and ice optical depth SW 200 nm-690nm
 
     CALL rad_ir(nspec,pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
-                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin,  &
-                 todir, codir,aodir,iodir) ! prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
+                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
 
     CALL rad_vis(nspec,as, u0, ss, pp, pt, ph, po, fds, fus, McICA, &
-                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin,    &
-                 tods,cods,aods,iods) ! prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
+                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
 
   END SUBROUTINE rad
 
@@ -141,8 +134,7 @@ CONTAINS
   ! defined by input ckd file
   !
   SUBROUTINE rad_ir (nspec,pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
-                     plwc, pre, piwc, pde, pgwc, maerobin, naerobin,   &
-                     tod, cod, aod, iod) ! prwc needed?
+                     plwc, pre, piwc, pde, pgwc, maerobin, naerobin)
 
 
     INTEGER, INTENT(in) :: nspec
@@ -161,7 +153,7 @@ CONTAINS
          !prwc, & ! rain water content [g/m^3]
          pgwc    ! graupel water content
 
-    REAL, OPTIONAL, INTENT(in) :: maerobin(nv,nspec*nbins), naerobin(nv,nbins) !maerobin(:,:), naerobin(:,:)
+    REAL, OPTIONAL, INTENT(in) :: maerobin(nv,nspec*nbins), naerobin(nv,nbins)
     REAL, INTENT(in) :: &
          ee, & ! broadband surface emissivity (all IR bands given this value)
          pts   ! Surface skin temperature
@@ -171,13 +163,11 @@ CONTAINS
     REAL, DIMENSION(nv1), INTENT (out) :: &
          fdir, fuir   ! downward and upward ir flux
     
-    REAL, DIMENSION(nv), INTENT (out) :: &
+    REAL, DIMENSION(nv):: &
          tod, &   ! total optical depth IR
          cod, &   ! cloud optical depth IR
          aod, iod ! aerosol optical depth IR
          
-
-
     ! ----------------------------------------
     LOGICAL, PARAMETER :: irWeighted = .FALSE. 
 
@@ -193,7 +183,6 @@ CONTAINS
     REAL    :: fuq2, xir_norm
     REAL, DIMENSION(:), ALLOCATABLE, SAVE ::bandweights
     REAL    :: randomNumber
-    REAL, DIMENSION(nv) ::  aaod, acod, atod, aiod, atodg ! auxiliary variables
     ! ----------------------------------------
 
     IF (.NOT. Initialized) CALL rad_init()
@@ -254,7 +243,7 @@ CONTAINS
       
       IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
          CALL aero_rad(ib + size(solar_bands), nbins, nspec, maerobin, naerobin, &
-                       dz, taer, waer, wwaer,.FALSE.)
+                       dz, taer, waer, wwaer)
          CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, taer, waer, wwaer)
       END IF
 
@@ -294,60 +283,7 @@ CONTAINS
     ! hk of 0.03.
     !
     fuq2 = bf(nv1) * 0.03 * pi * ee
-    fuir(:) = fuir(:) + fuq2
-    
-    ! --------------------------------------------------------------------------
-    ! - Calculation of optical properties in the mid-wave IR band
-    !  including 4 um to 5.2 um
-    !  Mid-Wave/Fire Detection (3.66–4.08 \(\mu m\)) 
-    !  Bands in this range are specialized for detecting hot spots and fires.
-    !  Band:   7:     0.00 Wm^-2, between  2500. and  1900. cm^-1
-    !  1 gase(s): and   2 g-points
-    !  Select a single band and g-point (ib, ig1) and use these as the limits
-    !  in the loop through the spectrum below. 
-    ib  = 1
-    ig1 = 1
-    ig2 = kg(ir_bands(1))
-    
-    ! For checking purposes
-    !WRITE(*,*) 'IR-ib', ib 
-    !WRITE(*,*) 'IR WF',bandweights(ib)
-    !WRITE(*,*)  llimit(ir_bands(ib)), rlimit(ir_bands(ib))
-    
-    ! Water vapor continuum optical depth    !
-    CALL gascon ( center(ir_bands(ib)), pp, pt, ph, tod)
- 
-    ! Cloud water
-    IF (present(plwc)) THEN
-        CALL cloud_water(ib + size(solar_bands), pre, plwc, dz, cod, ww, www)
-        tod = tod + cod       
-    END IF
-    
-    ! Ice
-    IF (present(piwc)) THEN
-        CALL cloud_ice(ib + size(solar_bands), pde, piwc, dz, iod, wi, wwi)
-        tod = tod + iod
-    END IF      
-    IF (present(pgwc)) THEN
-        CALL cloud_grp(ib + size(solar_bands), pgwc, dz, tgr, wgr, wwgr)
-        iod = iod + tgr
-        tod = tod + tgr
-    END IF 
-     
-    ! Aerosol
-    IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
-         CALL aero_rad(ib + size(solar_bands), nbins, nspec, maerobin, naerobin, &
-                       dz, aod, waer, wwaer,.FALSE.)
-         tod = tod + aod
-    END IF
-    
-    ! Solver expects cumulative optical depth          
-    DO k = 2, nv
-	cod(k) = cod(k) + cod(k-1)
-	aod(k) = aod(k) + aod(k-1)  
-	iod(k) = iod(k) + iod(k-1)
-	tod(k) = tod(k) + tod(k-1)
-    END DO
+    fuir(:) = fuir(:) + fuq2 
 
   END SUBROUTINE rad_ir
   ! ----------------------------------------------------------------------
@@ -356,8 +292,7 @@ CONTAINS
   !
 
   SUBROUTINE rad_vis (nspec,as, u0, ss, pp, pt, ph, po, fds, fus, McICA,  &
-                      plwc, pre, piwc, pde, pgwc, maerobin, naerobin, &
-                      tod,cod,aod,iod) !prwc needed?
+                      plwc, pre, piwc, pde, pgwc, maerobin, naerobin) 
 
 
     INTEGER, INTENT(in) :: nspec
@@ -376,7 +311,7 @@ CONTAINS
          !prwc, & ! rain water content [g/m^3]
          pgwc    ! graupel water content
 
-    REAL, OPTIONAL, INTENT(in) :: maerobin(nv,nspec*nbins), naerobin(nv,nbins) !maerobin(:,:), naerobin(:,:)
+    REAL, OPTIONAL, INTENT(in) :: maerobin(nv,nspec*nbins), naerobin(nv,nbins) 
 
     REAL, INTENT(in) :: &
          as, & ! broadband albedo (all visible bands given this value)
@@ -388,11 +323,13 @@ CONTAINS
     REAL, DIMENSION(nv1), INTENT (out)::  &
          fds, fus    ! downward and upward solar flux
          
-    REAL, DIMENSION(nv), INTENT (out) :: &
+    REAL, DIMENSION(nv):: &
          tod, &      ! total optical depth in 200 nm - 689 nm band (1)
          cod, &      ! cloud optical depthin 200 nm - 689 nm band (1)
          aod, &      ! aerosol optical depth in 200 nm - 689 nm band (1)
-         iod         ! ice optical depth in 200 nm - 689 nm band (1)
+         iod     ! ice optical depth in 200 nm - 689 nm band (1)
+
+
     ! ----------------------------------------
     LOGICAL, PARAMETER :: solarWeighted = .FALSE. ! Could be .TRUE.?
 
@@ -480,7 +417,7 @@ CONTAINS
            CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr,wwgr)
          END IF 
          IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
-            CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer,.FALSE.)
+            CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer)
             CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, taer, waer, wwaer)
          END IF
          
@@ -519,73 +456,6 @@ CONTAINS
       fuq1 = ss / totalpower
       fds(:)  = fds(:)*fuq1
       fus(:)  = fus(:)*fuq1
-      
-      !---------------------------------------------------------------------
-      !-- Calculations of optical properties in the first band
-      ! including the visible range from 200 nm to 689 nm 
-      ! Band:   1:   619.60 Wm^-2, between 50000. and 14500. cm^-1
-      !              1 gase(s): and  10 g-points
-      ! Select a single band and g-point (ib, ig1) and use these as the limits
-      !   in the loop through the spectrum below. 
-      ib  = 1
-      ig1 = 1
-      ig2 = kg(solar_bands(ib))  
-      iblimit = size(solar_bands) 
-      tgm = 0.
-      tgr = 0.
-      
-      ! Rayleigh scattering              
-      CALL rayle ( ib, u0, power(solar_bands(ib)), pp, pt, dz, tod, &
-                      wNoGas, pfNoGas)
-      ! Water vapor continuum         !
-      CALL gascon ( center(solar_bands(ib)), pp, pt, ph, tgm )
-      IF(any(tgm > 0.)) &
-           tod = tod +tgm
-         
-      ! Cloud water
-      IF (present(plwc)) THEN
-           CALL cloud_water(ib, pre, plwc, dz, cod, ww, www)
-           tod = tod + cod
-      END IF
-         
-      ! Ice
-      IF (present(piwc)) THEN
-           CALL cloud_ice(ib, pde, piwc, dz, iod, wi, wwi)
-           tod = tod + iod
-      END IF
-      IF (present(pgwc)) THEN
-           CALL cloud_grp(ib,pgwc, dz, tgr, wgr, wwgr)
-           iod = iod + tgr
-           tod = tod + tgr
-      END IF 
-      
-      IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
-            CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, aod, waer, wwaer, .FALSE.)
-            tod = tod + aod
-      END IF  
-
-      ! Solver expects cumulative optical depth
-      !            
-      DO k = 2, nv
-            cod(k) = cod(k) + cod(k-1)
-            aod(k) = aod(k) + aod(k-1)  
-            iod(k) = iod(k) + iod(k-1)
-            tod(k) = tod(k) + tod(k-1)
-      END DO
-      
-      ! Aerosol optical depth at 470 nm
-      ! 460 nm is the middle point 
-      ! in band 390nm-530nm from src_salsa/mo_salsa_optical_properties.f90
-      !IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
-            ! The calculation internally selects optical properties
-            ! at the closest wavelength in the LUT-SW
-	    !CALL aero_rad(1, nbins, nspec, maerobin, naerobin, &
-                       !dz, aod470, waer470, wwaer470, .TRUE.)           
-	    !DO k = 2, nv
-	       !aod470(k) = aod470(k) + aod470(k-1)
-	    !END DO                 
-      !END IF      
-      
     END IF 
   END SUBROUTINE rad_vis
   

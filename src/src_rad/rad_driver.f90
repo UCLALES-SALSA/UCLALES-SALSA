@@ -38,8 +38,7 @@ MODULE radiation
   LOGICAL, SAVE     :: first_time = .TRUE.
   REAL, ALLOCATABLE, SAVE ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
                               plwc(:), piwc(:), prwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:), &
-                              maerobin(:,:), naerobin(:,:), todir(:), codir(:), aodir(:), iodir(:), &
-                              tods(:), cods(:), aods(:), iods(:)
+                              maerobin(:,:), naerobin(:,:)
   INTEGER :: k,i,j, npts
   REAL    :: ee, u0, day, zz !time, alat, Juha: Time and alat given as argument already! Potential bug, hopefully harmless.
 
@@ -47,8 +46,7 @@ MODULE radiation
 
     SUBROUTINE d4stream(n1, n2, n3, nspec, alat, time, sknt, sfc_albedo, dn0, pi0, pi1, dzm, &
                         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, &
-                        albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs, maerop, naerop, &
-                        todlw, codlw, aodlw, iodlw, todsw, codsw, aodsw, iodsw)
+                        albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs, maerop, naerop)
 
       USE mpi_interface, ONLY : myid, pecount
       INTEGER, INTENT (in) :: n1, n2, n3, nspec                                ! nzp, nxp, nyp, nspec
@@ -59,8 +57,7 @@ MODULE radiation
       REAL, OPTIONAL, INTENT(in)                        :: maerop(n1,n2,n3,nspec*nbins),   & 
                                                            naerop(n1,n2,n3,nbins)
       REAL, DIMENSION (n1,n2,n3), INTENT (inout)        :: tt, rflx, sflx, afus, afds, afuir, afdir
-      REAL, DIMENSION (n1,n2,n3), INTENT (inout)        :: todlw, codlw, aodlw, iodlw, todsw, &
-                                                           codsw, aodsw, iodsw
+      
       CHARACTER(len=50), OPTIONAL, INTENT(in)           :: radsounding
       LOGICAL, OPTIONAL, INTENT(in)                     :: useMcICA, ConstPrs
       !! NEED TO FIND A BETTER WAY WITH THESE INDICES BECAUSE THEY'RE ALL OVER THE PLACE NOW: 
@@ -214,9 +211,7 @@ MODULE radiation
             IF (PRESENT(ice)) THEN
                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
                          fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
-                         piwc=piwc, pde=pde, &
-                         todir=todir, codir=codir, aodir=aodir,iodir=iodir, &
-                         tods =tods, cods=cods, aods=aods, iods=iods)
+                         piwc=piwc, pde=pde)
             !ELSE IF (PRESENT(rr)) THEN
             !   CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
             !             fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
@@ -224,14 +219,10 @@ MODULE radiation
             ELSE IF (PRESENT(maerop) .AND. PRESENT(naerop)) THEN
                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
                          fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
-                         maerobin=maerobin, naerobin=naerobin, &
-                         todir=todir, codir=codir, aodir=aodir,iodir=iodir, &
-                         tods =tods, cods=cods, aods=aods, iods=iods)
+                         maerobin=maerobin, naerobin=naerobin)
             ELSE
                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                         fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
-                         todir=todir, codir=codir, aodir=aodir,iodir=iodir, &
-                         tods=tods, cods=cods, aods=aods, iods=iods)
+                         fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre)
             END IF
 	        
             DO k = 1, n1
@@ -242,26 +233,8 @@ MODULE radiation
                afdir(k,i,j) = fdir(kk)
                sflx(k,i,j)  = fus(kk)  - fds(kk)
                rflx(k,i,j)  = sflx(k,i,j) + fuir(kk) - fdir(kk)
-               !
-               todlw(k,i,j) = todir(kk)
-               codlw(k,i,j) = codir(kk)
-               aodlw(k,i,j) = aodir(kk)
-               iodlw(k,i,j) = iodir(kk)
-               todsw(k,i,j) = tods(kk)
-               codsw(k,i,j) = cods(kk)
-               aodsw(k,i,j) = aods(kk)
-               iodsw(k,i,j) = iods(kk)
             END DO
-            ! just to be sure zero values at z< 0 m
-            todlw(1,i,j) = 0.
-            codlw(1,i,j) = 0.
-            aodlw(1,i,j) = 0.
-            iodlw(1,i,j) = 0.
-            todsw(1,i,j) = 0.
-            codsw(1,i,j) = 0.
-            aodsw(1,i,j) = 0.
-            iodsw(1,i,j) = 0.
-            
+
             IF (u0 > minSolarZenithCosForVis) THEN
                albedo(i,j) = fus(1)/fds(1)
             ELSE
@@ -364,8 +337,6 @@ MODULE radiation
     ! expect decreasing pressure grid (from TOA to surface)
     !
     ALLOCATE (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
-    ALLOCATE (todir(nv1),codir(nv1),aodir(nv1),iodir(nv1))   ! Cell interfaces
-    ALLOCATE (tods(nv1),cods(nv1),aods(nv1),iods(nv1))       ! Cell interfaces
     ALLOCATE (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
     ALLOCATE(maerobin(nv,nspec*nbins),naerobin(nv,nbins))
     
