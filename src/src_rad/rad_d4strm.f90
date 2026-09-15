@@ -86,7 +86,7 @@ CONTAINS
   !
   SUBROUTINE rad (as, u0, ss, pts, ee, pp, pt, ph, po, fds, fus, fdir, fuir, &
                   McICA, nspec, plwc, pre, piwc, pde, pgwc, maerobin, naerobin, &
-                  todir, codir, aodir, iodir, tods, cods, aods, iods, aod470) ! prwc needed?
+                  todir, codir, aodir, iodir, tods, cods, aods, iods) ! prwc needed?
                   
 
     INTEGER, INTENT(in) :: nspec
@@ -123,7 +123,7 @@ CONTAINS
     
     REAL, DIMENSION(nv), INTENT (out) ::  &
          todir, codir, aodir, iodir,  &  !total, cloud, aerosol and ice optical depth SW short IR 1.9um-2.5um
-         tods, cods, aods, iods, aod470  !total, cloud, aerosol and ice optical depth SW 200 nm-690nm
+         tods, cods, aods, iods  !total, cloud, aerosol and ice optical depth SW 200 nm-690nm
 
     CALL rad_ir(nspec,pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
                  plwc, pre, piwc, pde, pgwc, maerobin, naerobin,  &
@@ -131,7 +131,7 @@ CONTAINS
 
     CALL rad_vis(nspec,as, u0, ss, pp, pt, ph, po, fds, fus, McICA, &
                  plwc, pre, piwc, pde, pgwc, maerobin, naerobin,    &
-                 tods,cods,aods,iods, aod470) ! prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
+                 tods,cods,aods,iods) ! prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
 
   END SUBROUTINE rad
 
@@ -254,7 +254,7 @@ CONTAINS
       
       IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
          CALL aero_rad(ib + size(solar_bands), nbins, nspec, maerobin, naerobin, &
-                       dz, taer, waer, wwaer, .FALSE.)
+                       dz, taer, waer, wwaer)
          CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, taer, waer, wwaer)
       END IF
 
@@ -337,7 +337,7 @@ CONTAINS
     ! Aerosol
     IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
          CALL aero_rad(ib + size(solar_bands), nbins, nspec, maerobin, naerobin, &
-                       dz, aod, waer, wwaer, .FALSE.)
+                       dz, aod, waer, wwaer)
          tod = tod + aod
     END IF
     
@@ -357,7 +357,7 @@ CONTAINS
 
   SUBROUTINE rad_vis (nspec,as, u0, ss, pp, pt, ph, po, fds, fus, McICA,  &
                       plwc, pre, piwc, pde, pgwc, maerobin, naerobin, &
-                      tod,cod,aod,iod, aod470) !prwc needed?
+                      tod,cod,aod,iod) !prwc needed?
 
 
     INTEGER, INTENT(in) :: nspec
@@ -392,21 +392,21 @@ CONTAINS
          tod, &      ! total optical depth in 200 nm - 689 nm band (1)
          cod, &      ! cloud optical depthin 200 nm - 689 nm band (1)
          aod, &      ! aerosol optical depth in 200 nm - 689 nm band (1)
-         iod, &      ! ice optical depth in 200 nm - 689 nm band (1)
-         aod470      ! aerosol optical depth 470 nm 
+         iod     ! ice optical depth in 200 nm - 689 nm band (1)
+       
 
     ! ----------------------------------------
     LOGICAL, PARAMETER :: solarWeighted = .FALSE. ! Could be .TRUE.?
 
     REAL, DIMENSION(nv)   :: tw,ww,tg,tgm,dz, TauNoGas, wNoGas, tau, w
     REAL, DIMENSION(nv)   :: ti,wi
-    REAL, DIMENSION (nv)  :: taer,waer,waer470
+    REAL, DIMENSION (nv)  :: taer,waer
     REAL, DIMENSION(nv)   :: tgr,wgr
     REAL, DIMENSION(nv1)  :: fu1, fd1, bf
     REAL, DIMENSION(nv,4) :: www, pfNoGas, pf
     REAL, DIMENSION(nv,4) :: wwi
     REAL, DIMENSION(nv,4) :: wwgr
-    REAL, DIMENSION (nv,4):: wwaer, wwaer470
+    REAL, DIMENSION (nv,4):: wwaer
     REAL, DIMENSION(:), ALLOCATABLE, SAVE ::bandweights
 
     INTEGER :: ib, ig, k, ig1, ig2, ibandloop, iblimit
@@ -427,7 +427,6 @@ CONTAINS
     fus(:) = 0.0
     bf(:)  = 0.0
     tod(:) = 0.0; cod(:) = 0.0; aod(:)= 0.0; iod(:)= 0.0
-    aod470(:) = 0.0
     
     IF(u0 > minSolarZenithCosForVis) THEN
       CALL thicks(pp, pt, ph, dz) 
@@ -483,7 +482,7 @@ CONTAINS
            CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, tgr, wgr,wwgr)
          END IF 
          IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
-            CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer, .FALSE.)
+            CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer)
             CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, taer, waer, wwaer)
          END IF
          
@@ -563,7 +562,7 @@ CONTAINS
       END IF 
       
       IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
-            CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, aod, waer, wwaer, .FALSE.)
+            CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, aod, waer, wwaer)
             tod = tod + aod
       END IF  
 
@@ -575,19 +574,6 @@ CONTAINS
             iod(k) = iod(k) + iod(k-1)
             tod(k) = tod(k) + tod(k-1)
       END DO
-      
-      ! Aerosol optical depth at 470 nm
-      ! 460 nm is the middle point 
-      ! in band 390nm-530nm from src_salsa/mo_salsa_optical_properties.f90
-      IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
-            ! The calculation internally selects optical properties
-            ! at the closest wavelength in the LUT-SW
-	    CALL aero_rad(1, nbins, nspec, maerobin, naerobin, &
-                       dz, aod470, waer470, wwaer470, .TRUE.)           
-	    DO k = 2, nv
-	       aod470(k) = aod470(k) + aod470(k-1)
-	    END DO                 
-      END IF      
       
     END IF 
   END SUBROUTINE rad_vis

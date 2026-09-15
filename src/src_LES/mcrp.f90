@@ -745,7 +745,7 @@ MODULE mcrp
     ! Jaakko: Modified for the use of ice and snow bins
     ! 
     SUBROUTINE sedim_SALSA(nspec,level,ustar,tk,th,adn,rrate,sfcrrate,    &
-                           irate,sfcirate,VtPrc,VtIce,tlt, AtPrc, AtIce, ArPrc, ArIce)
+                           irate,sfcirate,tlt)
       USE util, ONLY : getMassIndex
       USE mo_progn_state, ONLY :  a_naerop,  a_naerot,  a_maerop,  a_maerot,         &
                                   a_ncloudp, a_ncloudt, a_mcloudp, a_mcloudt,        &
@@ -763,10 +763,6 @@ MODULE mcrp
       TYPE(FloatArray3d), INTENT(inout) :: tlt
       TYPE(FloatArray3d), INTENT(inout) :: rrate,irate
       TYPE(FloatArray2d), INTENT(inout) :: sfcrrate, sfcirate
-      TYPE(FloatArray4d), INTENT(inout) :: VtPrc,VtIce ! droplets and ice terminal velocities
-      TYPE(FloatArray4d), INTENT(inout) :: AtPrc,AtIce ! droplets and ice cross-sectional areas
-      TYPE(FloatArray4d), INTENT(inout) :: ArIce       ! Aspect ratio of ice particles
-      TYPE(FloatArray4d), INTENT(inout) :: ArPrc       ! Aspect ratio of raindrops For now =1
       
       INTEGER :: i,j,k,nc,istr,iend
 

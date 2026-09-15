@@ -409,7 +409,7 @@ CONTAINS
 
   ! Calculates the optical depth (taer), single scattering albedo (waer) and phase function (wwaer(4)) for given
   ! binned aerosol mass and number concentration arrays using lookup tables for optical properties.
-  SUBROUTINE aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer,laod470)
+  SUBROUTINE aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, taer, waer, wwaer)
     USE ckd, ONLY : band, center, IsSolar, llimit, rlimit
     USE util, ONLY : getMassIndex,closest
     USE mo_salsa_optical_properties, ONLY : aerRefrIBands_SW, aerRefrIBands_LW,  &
@@ -449,7 +449,7 @@ CONTAINS
     INTEGER :: bb
 
     REAL :: TH = 1.e-30
-    LOGICAL, INTENT(in) :: laod470 ! switch for aerosol optical depth calculations at 470 nm
+   
 
     REAL, POINTER :: aer_nre(:) => NULL(), aer_nim(:) => NULL(),          &
                      aer_alpha(:) => NULL(), aer_sigma(:,:,:) => NULL(),  &
@@ -464,15 +464,9 @@ CONTAINS
     waer_bin = 0.
     wwaer_bin = 0.
 
-    IF (laod470 .EQV. .FALSE.) THEN 
-    	lambda_r = center(band(ib)) 
-    ELSE
-        !  Band:   1:   619.60 Wm^-2, between 50000. and 14500. cm^-1
-        !  1 gase(s): and  10 g-points
-        !  200 nm - 689.7 nm
-        lambda_r = 1/4.7E-05 ! wavenumber in cm-1 for lambda=470nm
-    END IF
-    
+   
+    lambda_r = center(band(ib)) 
+
     
     IF (1./lambda_r > aerRefrIbands_SW(1)) THEN
        ! Get the refractive indices from the LUT-LW for the current band

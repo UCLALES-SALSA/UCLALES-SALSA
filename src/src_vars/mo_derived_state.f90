@@ -28,7 +28,15 @@ MODULE mo_derived_state
                                 aDUa, aDUb, cDUa, cDUb, pDUa, iDUa,        &  ! Dust
                                 aSSa, aSSb, cSSa, cSSb, pSSa, iSSa,        &  ! Sea salt
                                 aNOa, aNOb, cNOa, cNOb, pNOa, iNOa,        &  ! Nitrate
-                                aNHa, aNHb, cNHa, cNHb, pNHa, iNHa            ! Ammonia
+                                aNHa, aNHb, cNHa, cNHb, pNHa, iNHa,        &  ! Ammonia
+                                swbextaa, swbextab, swbextca, swbextcb,    &  ! Extinction coefficient at 550 nm aerosol, cloud, precip, ice
+                                swbextpa, swbextia,                        &  ! Extinction coefficient at 550 nm aerosol, cloud, precip, ice
+                                lwbextaa, lwbextab, lwbextca, lwbextcb,    &  ! Extinction coefficient at 2100 nm aerosol, cloud, precip, ice
+                                lwbextpa, lwbextia,                        &  ! Extinction coefficient at 2100 nm aerosol, cloud, precip, ice   
+                                swAODaa, swAODab, swCODca, swCODcb,        &  ! Optical depth at 550 nm aerosol, cloud, precip, ice    
+                                swCODpa, swIODia,                          &  ! Optical depth at 550 nm aerosol, cloud, precip, ice    
+                                lwAODaa, lwAODab, lwCODca, lwCODcb,        &  ! Optical depth at 2100 nm aerosol, cloud, precip, ice    
+                                lwCODpa, lwIODia                              ! Optical depth at 2100 nm aerosol, cloud, precip, ice                   
 
   TYPE(FloatArray3d), TARGET :: gSO4, gNO3, gNH4, gOCNV, gOCSV
 
@@ -47,6 +55,8 @@ MODULE mo_derived_state
   TYPE(FloatArray4d), TARGET :: maSSa, maSSb, mcSSa, mcSSb, mpSSa, miSSa        ! Sea salt mass concentration in aerosols and hydrometeors
   TYPE(FloatArray4d), TARGET :: maNOa, maNOb, mcNOa, mcNOb, mpNOa, miNOa        ! Nitrate mass concentration in aerosols and hydrometeors
   TYPE(FloatArray4d), TARGET :: maNHa, maNHb, mcNHa, mcNHb, mpNHa, miNHa        ! Ammonia mass concentration in aerosols and hydrometeors
+  TYPE(FloatArray4d), TARGET :: Vtcba,Vtcbb,Vtpba, Vtiba                        ! Terminal velocities for cloud droplets, precipitation droplets and ice particles
+  TYPE(FloatArray4d), TARGET :: Atiba,Ariba                                     ! Cross-sectional area and aspect ratio of ice particles
     
   ! Some binned diagnostics
   TYPE(FloatArray4d), TARGET :: irhob, irhoe ! Bulk mean and effective ice densities
@@ -161,7 +171,7 @@ MODULE mo_derived_state
                                ANY(outputlist == "Np"), pipeline               )
       END IF
 
-      IF (level >= 4) THEN
+      IF (level > 4) THEN
          pipeline => NULL()
          Ni = FloatArray3d()
          Ni%onDemand => bulkNumc
@@ -241,14 +251,148 @@ MODULE mo_derived_state
          CALL Derived%newField("Dwpa", "Bulk mean diameter, precip", "m", 'tttt',   &
                                ANY(outputlist == "Dwpa"), pipeline                  )
       END IF
-
+      
       IF (level >= 4) THEN
          pipeline => NULL()
-         Dwia = FloatArray3d()
-         Dwia%onDemand => bulkDiameter
-         pipeline => Dwia
-         CALL Derived%newField("Dwia", "Bulk mean diameter, ice", "m", 'tttt',   &
-                               ANY(outputlist == "Dwia"), pipeline               )
+         swbextaa = FloatArray3d()
+         swbextaa%onDemand => getExtinctionCoeffSW
+         pipeline => swbextaa
+         CALL Derived%newField("swbextaa", "Extinction coefficient at 550 nm aerosol A", "1/m", 'tttt',   &
+                               ANY(outputlist == "swbextaa"), pipeline                )
+         
+         pipeline => NULL()
+         swbextab = FloatArray3d()
+         swbextab%onDemand => getExtinctionCoeffSW
+         pipeline => swbextab
+         CALL Derived%newField("swbextab", "Extinction coefficient at 550 nm aerosol B", "1/m", 'tttt',   &
+                               ANY(outputlist == "swbextab"), pipeline                )
+                               
+         pipeline => NULL()
+         swbextca = FloatArray3d()
+         swbextca%onDemand => getExtinctionCoeffSW
+         pipeline => swbextca
+         CALL Derived%newField("swbextca", "Extinction coefficient at 550 nm cloud drops A", "1/m", 'tttt',   &
+                               ANY(outputlist == "swbextca"), pipeline                )
+         
+         pipeline => NULL()
+         swbextcb = FloatArray3d()
+         swbextcb%onDemand => getExtinctionCoeffSW
+         pipeline => swbextcb
+         CALL Derived%newField("swbextcb", "Extinction coefficient at 550 nm cloud drops B", "1/m", 'tttt',   &
+                               ANY(outputlist == "swbextcb"), pipeline                )
+         
+         pipeline => NULL()
+         swbextpa = FloatArray3d()
+         swbextpa%onDemand => getExtinctionCoeffSW
+         pipeline => swbextpa
+         CALL Derived%newField("swbextpa", "Extinction coefficient at 550 nm precipitation", "1/m", 'tttt',   &
+                               ANY(outputlist == "swbextpa"), pipeline                )
+         
+         pipeline => NULL()
+         lwbextaa = FloatArray3d()
+         lwbextaa%onDemand => getExtinctionCoeffLW
+         pipeline => lwbextaa
+         CALL Derived%newField("lwbextaa", "Extinction coefficient at 2100 nm aerosol A", "1/m", 'tttt',   &
+                               ANY(outputlist == "lwbextaa"), pipeline                )
+         
+         pipeline => NULL()
+         lwbextab = FloatArray3d()
+         lwbextab%onDemand => getExtinctionCoeffLW
+         pipeline => lwbextab
+         CALL Derived%newField("lwbextab", "Extinction coefficient at 2100 nm aerosol B", "1/m", 'tttt',   &
+                               ANY(outputlist == "lwbextab"), pipeline                )
+                               
+         pipeline => NULL()
+         lwbextca = FloatArray3d()
+         lwbextca%onDemand => getExtinctionCoeffLW
+         pipeline => lwbextca
+         CALL Derived%newField("lwbextca", "Extinction coefficient at 2100 nm cloud drops A", "1/m", 'tttt',   &
+                               ANY(outputlist == "lwbextca"), pipeline                )
+         
+         pipeline => NULL()
+         lwbextcb = FloatArray3d()
+         lwbextcb%onDemand => getExtinctionCoeffLW
+         pipeline => lwbextcb
+         CALL Derived%newField("lwbextcb", "Extinction coefficient at 2100 nm cloud drops B", "1/m", 'tttt',   &
+                               ANY(outputlist == "lwbextcb"), pipeline                )
+         
+         pipeline => NULL()
+         lwbextpa = FloatArray3d()
+         lwbextpa%onDemand => getExtinctionCoeffLW
+         pipeline => lwbextpa
+         CALL Derived%newField("lwbextpa", "Extinction coefficient at 2100 nm precipitation", "1/m", 'tttt',   &
+                               ANY(outputlist == "lwbextpa"), pipeline                )   
+         
+         pipeline => NULL()
+         swAODaa = FloatArray3d()
+         swAODaa%onDemand => getOpticalDepthSW
+         pipeline => swAODaa
+         CALL Derived%newField("swAODaa", "Optical depth at 550 nm aerosol A", " ", 'tttt',   &
+                               ANY(outputlist == "swAODaa"), pipeline                )
+         
+         pipeline => NULL()
+         swAODab = FloatArray3d()
+         swAODab%onDemand => getOpticalDepthSW
+         pipeline => swAODab
+         CALL Derived%newField("swAODab", "Optical depth at 550 nm aerosol B", " ", 'tttt',   &
+                               ANY(outputlist == "swAODab"), pipeline                )
+                               
+         pipeline => NULL()
+         swCODca = FloatArray3d()
+         swCODca%onDemand => getOpticalDepthSW
+         pipeline => swCODca
+         CALL Derived%newField("swCODca", "Optical depth at 550 nm cloud drops A", " ", 'tttt',   &
+                               ANY(outputlist == "swCODca"), pipeline                )
+         
+         pipeline => NULL()
+         swCODcb = FloatArray3d()
+         swCODcb%onDemand => getOpticalDepthSW
+         pipeline => swCODcb
+         CALL Derived%newField("swCODcb", "Optical depth at 550 nm cloud drops B", " ", 'tttt',   &
+                               ANY(outputlist == "swCODcb"), pipeline                )
+         
+         pipeline => NULL()
+         swCODpa = FloatArray3d()
+         swCODpa%onDemand => getOpticalDepthSW
+         pipeline => swCODpa
+         CALL Derived%newField("swCODpa", "Optical depth at 550 nm precipitation", " ", 'tttt',   &
+                               ANY(outputlist == "swbextpa"), pipeline                )
+         
+         pipeline => NULL()
+         lwAODaa = FloatArray3d()
+         lwAODaa%onDemand => getOpticalDepthLW
+         pipeline => lwAODaa
+         CALL Derived%newField("lwAODaa", "Optical depth at 2100 nm aerosol A", " ", 'tttt',   &
+                               ANY(outputlist == "lwAODaa"), pipeline                )
+         
+         pipeline => NULL()
+         lwAODab = FloatArray3d()
+         lwAODab%onDemand => getOpticalDepthLW
+         pipeline => lwAODab
+         CALL Derived%newField("lwAODab", "Optical depth at 2100 nm aerosol B", " ", 'tttt',   &
+                               ANY(outputlist == "lwAODab"), pipeline                )
+                               
+         pipeline => NULL()
+         lwCODca = FloatArray3d()
+         lwCODca%onDemand => getOpticalDepthLW
+         pipeline => lwCODca
+         CALL Derived%newField("lwCODca", "Optical depth at 2100 nm cloud drops A", " ", 'tttt',   &
+                               ANY(outputlist == "lwCODca"), pipeline                )
+         
+         pipeline => NULL()
+         lwCODcb = FloatArray3d()
+         lwCODcb%onDemand => getOpticalDepthLW
+         pipeline => lwCODcb
+         CALL Derived%newField("lwCODcb", "Optical depth at 2100 nm cloud drops B", " ", 'tttt',   &
+                               ANY(outputlist == "lwCODcb"), pipeline                )
+         
+         pipeline => NULL()
+         lwCODpa = FloatArray3d()
+         lwCODpa%onDemand => getOpticalDepthLW
+         pipeline => lwCODpa
+         CALL Derived%newField("lwCODpa", "Optical depth at 2100 nm precipitation", " ", 'tttt',   &
+                               ANY(outputlist == "lwCODpa"), pipeline                )
+                              
       END IF
 
       IF (level >= 4) THEN
@@ -523,11 +667,34 @@ MODULE mo_derived_state
          pipeline => mpNHa
          CALL Derived%newField("mpNHa", "Binned mass ammonia in precip", "kg/kg", 'ttttprc',   &
                                ANY(outputlist == "mpNHa"), pipeline              )
-             
+                               
+         ! You can define here variables for terminal velocities of other hydrometeors
+         ! For example Vtaba for Naba aerosol particles in regime A
+         pipeline => NULL()
+         Vtcba = FloatArray4d()
+         Vtcba%onDemand => getTerminalVelocity
+         pipeline => Vtcba
+         CALL Derived%newField("Vtcba", "Terminal velocity of cloud droplets A",  &
+                               "m/s", "ttttcla", ANY(outputlist == "Vtcba"), pipeline)
+                                        pipeline => NULL()
+         
+         Vtcbb = FloatArray4d()
+         Vtcbb%onDemand => getTerminalVelocity
+         pipeline => Vtcbb
+         CALL Derived%newField("Vtcbb", "Terminal velocity of cloud droplets B",  &
+                               "m/s", "ttttclb", ANY(outputlist == "Vtcbb"), pipeline)
+	
+	 pipeline => NULL()
+         Vtpba= FloatArray4d()
+         Vtpba%onDemand => getTerminalVelocity
+         pipeline => Vtpba
+         CALL Derived%newField("Vtpba", "Terminal velocity of precipitation droplets",  &
+                               "m/s", "ttttprc", ANY(outputlist == "Vtpba"), pipeline)             
          
       END IF
 
       IF (level == 5) THEN
+
          pipeline => NULL()
          Dwiba = FloatArray4d()
          Dwiba%onDemand => getBinDiameter
@@ -841,7 +1008,13 @@ MODULE mo_derived_state
       END IF
 
       IF ( level == 5 ) THEN
-
+	 
+	 pipeline => NULL()
+         Dwia = FloatArray3d()
+         Dwia%onDemand => bulkDiameter
+         pipeline => Dwia
+         CALL Derived%newField("Dwia", "Bulk mean diameter, ice", "m", 'tttt',   &
+                               ANY(outputlist == "Dwia"), pipeline               )
          pipeline => NULL()
          iSO4a = FloatArray3d()
          iSO4a%onDemand => bulkMixrat
@@ -974,9 +1147,57 @@ MODULE mo_derived_state
          pipeline => depThetapba
          CALL Derived%newField("depThetapba", "Initial value for deposition contact angle in precip A",  &
                                "deg", "ttttprc", ANY(outputlist == "depThetapba"), pipeline)
-
-
+	 
+	 pipeline => NULL()
+         Vtiba = FloatArray4d()
+         Vtiba%onDemand => getTerminalVelocity
+         pipeline => Vtiba
+         CALL Derived%newField("Vtiba", "Terminal velocity of ice particles",  &
+                               "m/s", "ttttice", ANY(outputlist == "Vtiba"), pipeline)     
+        
+         pipeline => NULL()
+         Atiba = FloatArray4d()
+         Atiba%onDemand => getIceArea
+         pipeline => Atiba
+         CALL Derived%newField("Atiba", "Cross sectional area of ice particles",  &
+                               "m/s", "ttttice", ANY(outputlist == "Atiba"), pipeline)     
          
+         pipeline => NULL()
+         Ariba = FloatArray4d()
+         Ariba%onDemand => getIceAspRatio
+         pipeline => Ariba
+         CALL Derived%newField("Ariba", "Aspect ratio of ice particles",  &
+                               "", "ttttice", ANY(outputlist == "Ariba"), pipeline)  
+         
+         pipeline => NULL()
+         swbextia = FloatArray3d()
+         swbextia%onDemand => getExtinctionCoeffSW
+         pipeline => swbextia
+         CALL Derived%newField("swbextia", "Extinction coefficient at 550 nm ice", "1/m", 'tttt',   &
+                               ANY(outputlist == "swbextia"), pipeline                )
+         
+         pipeline => NULL()
+         lwbextia = FloatArray3d()
+         lwbextia%onDemand => getExtinctionCoeffLW
+         pipeline => lwbextia
+         CALL Derived%newField("lwbextia", "Extinction coefficient at 2100 nm ice", "1/m", 'tttt',   &
+                               ANY(outputlist == "lwbextia"), pipeline                )
+         
+         
+         pipeline => NULL()
+         swIODia = FloatArray3d()
+         swIODia%onDemand => getOpticalDepthSW
+         pipeline => swIODia
+         CALL Derived%newField("swIODia", "Optical depth at 550 nm ice", " ", 'tttt',   &
+                               ANY(outputlist == "swIODia"), pipeline                ) 
+                               
+         pipeline => NULL()
+         lwIODia = FloatArray3d()
+         lwIODia%onDemand => getOpticalDepthLW
+         pipeline => lwIODia
+         CALL Derived%newField("lwIODia", "Optical depth at 2100 nm ice", " ", 'tttt',   &
+                               ANY(outputlist == "lwIODia"), pipeline                )               
+                                   
       END IF
             
       IF (level >= 4) THEN
