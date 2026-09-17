@@ -111,6 +111,8 @@ MODULE mo_diag_state
   CONTAINS
 
     SUBROUTINE setDiagnosticVariables(Diag,outputlist,memsize,level,iradtyp,lpback,nzp,nxp,nyp)
+      USE mpi_interface, ONLY : nypg, nxpg
+      
       TYPE(FieldArray), INTENT(inout) :: Diag
       CHARACTER(len=*), INTENT(in) :: outputlist(:)
       INTEGER, INTENT(inout) :: memsize
@@ -119,7 +121,7 @@ MODULE mo_diag_state
       CLASS(*), POINTER :: pipeline => NULL()
       INTEGER :: nxyz, nxy, n2d,n3d,nr3d,n4db, npb3d, npb2d
       INTEGER :: nbinned
-
+      
       nxyz = nxp*nyp*nzp
       nxy = nxp*nyp
       
@@ -129,7 +131,7 @@ MODULE mo_diag_state
       a_diag2d = 0.
       n3d = 0
       n2d = 0
- 
+
      
       IF (level < 4) THEN
          ALLOCATE(a_rateDiag3d(nzp,nxp,nyp,nratediag3d_bulk))

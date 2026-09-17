@@ -154,7 +154,7 @@ CONTAINS
      
       CHARACTER(len=20), PARAMETER :: name = "define_vars"
       INTEGER :: nc
-         
+      REAL :: total
       ! Instanciate the field arrays
       BasicState = FieldArray()
       
@@ -213,7 +213,36 @@ CONTAINS
 
       END IF ! level
       
-       
+      !total = 0.
+      !total = INT(nzp,KIND=8)*INT(nxp,KIND=8)*INT(nyp,KIND=8)*INT(nscl,KIND=8) + &
+      	     ! INT(nzp,KIND=8)*INT(nxp,KIND=8)*INT(nyp,KIND=8)*INT(nscl,KIND=8) + &
+      	     ! INT(nzp,KIND=8)*INT(nxp,KIND=8)*INT(nyp,KIND=8)*INT(ncld,KIND=8) + &
+      	     ! INT(nzp,KIND=8)*INT(nxp,KIND=8)*INT(nyp,KIND=8)*INT(nc*ncld,KIND=8)
+      	      
+     ! WRITE(*,*) '---------------------------------------------------------'
+     ! WRITE(*,*) '-MEMORY ALLOCATION IN grid.f90-'
+     ! WRITE(*,*) 'level',level
+     ! WRITE(*,*) 'nc-species',nc
+     ! WRITE(*,*) 'nbins',nbins
+     ! WRITE(*,*) 'ncld',ncld
+     ! WRITE(*,*) 'nprc',nprc
+     ! WRITE(*,*) 'nice',nice
+      !WRITE(*,*) 'nsalsa = (nc+1)*nbins + (nc+1)*ncld + (nc+1)*nprc + 5 +(nc+1+1)*nice + (nbins+ncld+nprc)-theta + 3*nice-SIP'
+      !WRITE(*,*) 'nsalsa',nsalsa
+      !WRITE(*,*) 'nscl=2+nsalsa',nscl
+      !WRITE(*,*) 'nzp',nzp
+      !WRITE(*,*) 'nyp',nyp
+     ! WRITE(*,*) 'nxp',nxp
+     ! WRITE(*,*) 'a_sclrp(nzp,nxp,nyp,nscl) requires (bytes) = ', &
+      !     INT(nzp,KIND=8)*INT(nxp,KIND=8)*INT(nyp,KIND=8)*INT(nscl,KIND=8)
+      !WRITE(*,*) 'a_sclrt(nzp,nxp,nyp,nscl) requires (bytes) = ', &
+           !INT(nzp,KIND=8)*INT(nxp,KIND=8)*INT(nyp,KIND=8)*INT(nscl,KIND=8)
+     ! WRITE(*,*) 'a_nactd(nzp,nxp,nyp,ncld) requires (bytes) = ', &
+           !INT(nzp,KIND=8)*INT(nxp,KIND=8)*INT(nyp,KIND=8)*INT(ncld,KIND=8)
+      !WRITE(*,*) 'a_vactd(nzp,nxp,nyp,nc*ncld) requires (bytes) = ', &
+           !INT(nzp,KIND=8)*INT(nxp,KIND=8)*INT(nyp,KIND=8)*INT(nc*ncld,KIND=8)
+      !WRITE(*,*) 'Total memory requested (Gb)', total
+      !WRITE(*,*) '---------------------------------------------------------'
            
    END SUBROUTINE define_vars
    !

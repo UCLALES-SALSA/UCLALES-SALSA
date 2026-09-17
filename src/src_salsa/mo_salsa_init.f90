@@ -705,7 +705,7 @@ CONTAINS
                              lscgca,lscgpa,lscgpc,  &
                              lscgia,lscgic,lscgii,  &
                              lscgip
-     
+        
      IF (lscgaa) THEN
         ALLOCATE(zccaa(kbdim,klev,nbins,nbins))
         zccaa = 0.
@@ -742,14 +742,15 @@ CONTAINS
      END IF     
      IF (lscgic) THEN
         ALLOCATE(zccic(kbdim,klev,ncld,nice))
-        zccic = 0.
+        zccic = 0. 
      END IF
      
      IF (lscgip) THEN
         ALLOCATE(zccip(kbdim,klev,nice,nprc))
-        zccip = 0.     
+        zccip = 0.    
      END IF
      
+  	
    END SUBROUTINE initialize_coag_kernels
 
    !
