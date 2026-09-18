@@ -31,9 +31,10 @@ MODULE mo_diag_state
                                 a_fus, a_fds,     &  ! 19, 20: 
                                 a_fuir, a_fdir       ! 21, 22:
   TYPE(FloatArray3D), TARGET :: a_rrate              ! 23: Precipitation flux
-  TYPE(FloatArray3D), TARGET :: a_irate              ! 24: Precipitation flux, frozen  
+  TYPE(FloatArray3D), TARGET :: a_irate              ! 24: Precipitation flux, frozen
+  TYPE(FloatArray3D), TARGET :: a_todlw, a_todsw     ! 25, 26: total optical depth in lw and sw bands  
   
-  INTEGER, PARAMETER :: ndiag3d = 24   ! Remember to update if adding new variables!!
+  INTEGER, PARAMETER :: ndiag3d = 26   ! Remember to update if adding new variables!!
   REAL, ALLOCATABLE, TARGET :: a_diag3d(:,:,:,:) 
   !----------------------------------------------------------------------------
   ! Mandatory two dimensional variables that need to be stored during the timestep
@@ -365,7 +366,23 @@ MODULE mo_diag_state
          a_fdir = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_fdir
          CALL Diag%newField("fdir", "Downwelling longwave flux", "W/m2", "tttt",   &
-                            ANY(outputlist == "fdir"), pipeline)               
+                            ANY(outputlist == "fdir"), pipeline)     
+        
+         memsize = memsize + nxy
+         n3d = n3d+1
+         pipeline => NULL()
+         a_todsw = FloatArray3d(a_diag3d(:,:,:,n3d))
+         pipeline => a_todsw
+         CALL Diag%newField("todsw", "Total optical depth VIS 200-690 nm", "", "tttt",   &
+                            ANY(outputlist == "todsw"), pipeline) 
+         
+         memsize = memsize + nxy
+         n3d = n3d+1
+         pipeline => NULL()
+         a_todlw = FloatArray3d(a_diag3d(:,:,:,n3d))
+         pipeline => a_todlw
+         CALL Diag%newField("todlw", "Total optical depth 3.5um-4um", "", "tttt",   &
+                            ANY(outputlist == "todlw"), pipeline)                                                          
       END IF
 
       IF (level >= 2) THEN

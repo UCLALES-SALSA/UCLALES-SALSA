@@ -1160,7 +1160,7 @@ MODULE mo_derived_procedures
      ! Real and imaginary parts of refractive indices, size parameter, extinction crossection, asymmetry parameter and omega
      filename = "datafiles/lut_uclales_salsa_sw.nc"
      CALL init_aerorad_lookuptables(filename, aer_nre_SW, aer_nim_SW, aer_alpha_SW,  &
-                                   aer_sigma_SW, aer_asym_SW, aer_omega_SW          )  
+                                   aer_sigma_SW, aer_asym_SW, aer_omega_SW)  
      aer_nre => aer_nre_SW(:)
      aer_nim => aer_nim_SW(:)
      aer_alpha => aer_alpha_SW(:)
@@ -1198,14 +1198,7 @@ MODULE mo_derived_procedures
         numlim = prlim
         numc => a_nprecpp
         mass => a_mprecpp
-        nb = nprc
-     CASE('swbextia')
-        flag = 4
-        numlim = prlim
-        numc => a_nicep
-        mass => a_micep 
-        nspec = nspec + 1 ! For rime
-        nb = nice        
+        nb = nprc     
      END SELECT    
 
      ALLOCATE(refrRe_all(nspec), refrIm_all(nspec), volspec(nspec))
@@ -1231,6 +1224,7 @@ MODULE mo_derived_procedures
               zlm(:) = mass%d(k,i,j,:)
               zln(:) = numc%d(k,i,j,:)
               tmp(:) = 0.
+              IF (SUM(zln) < numlim .OR. SUM(zlm) < 1.e-20) CYCLE
               ! Loop over chemical species
        	      DO ss = 1,nspec
           	! Mass bin indices
@@ -1353,13 +1347,13 @@ MODULE mo_derived_procedures
      ! Real and imaginary parts of refractive indices, size parameter, extinction crossection, asymmetry parameter and omega
      filename = "datafiles/lut_uclales_salsa_lw.nc"
      CALL init_aerorad_lookuptables(filename, aer_nre_LW, aer_nim_LW, aer_alpha_LW,  &
-                                   aer_sigma_LW, aer_asym_LW, aer_omega_LW          )  
+                                   aer_sigma_LW, aer_asym_LW, aer_omega_LW)  
      aer_nre => aer_nre_LW(:)
      aer_nim => aer_nim_LW(:)
      aer_alpha => aer_alpha_LW(:)
      aer_sigma => aer_sigma_LW(:,:,:)
      aer_asym => aer_asym_LW(:,:,:)
-     aer_omega => aer_omega_LW(:,:,:)
+     aer_omega => aer_omega_LW(:,:,:) 
        
      SELECT CASE(name)
      CASE('lwbextaa')
@@ -1391,27 +1385,26 @@ MODULE mo_derived_procedures
         numlim = prlim
         numc => a_nprecpp
         mass => a_mprecpp
-        nb = nprc
-     CASE('lwbextia')
-        flag = 4
-        numlim = prlim
-        numc => a_nicep
-        mass => a_micep 
-        nspec = nspec + 1 ! For rime
-        nb = nice        
+        nb = nprc      
      END SELECT   
                                      
      ALLOCATE(refrRe_all(nspec), refrIm_all(nspec), volspec(nspec))
      ALLOCATE(tmp(nb), zlm(nb*nspec), zln(nb))    
      ALLOCATE(volc(nspec,nb))! Corresponding particle volume concentrations for each bin (0 if not used)
      ALLOCATE(voltot(nb))! Total particle volume for each bin   
-     
-     ! Getting extinction efficiency in the near IR 
-     ! --------------------------------------------------------------------------
-     ! You can change the wavelength if needed
-     lambda_r = 1/(2100.*1.E-4) ! wavenumber in cm-1 for lambda=2100 nm
-     ! Get the refractive indices from the LUT-SW for the current band
-     refi_ind = closest(aerRefrIbands_LW,1./lambda_r)
+
+     ! - Calculation of optical properties in the mid-wave IR band
+     !  Mid-Wave/Fire Detection (3.66–4.08 um) 
+     !  Bands in this range are specialized for detecting hot spots and fires.
+     !  Band:   6:     5.80 Wm^-2, between  2850. and  2500. cm^-1
+     ! To be consistent with the mid point used in todlw
+     ! we use the closest band in 
+     lambda_r = 1/4.E-4 ! wavenumber for lambda=4 um
+     ! Get the refractive indices from the LUT-LW for the current band
+     ! aerRefrIBands_SW = np.array([55.56, 23.53, 17.70, 15.04,
+     !   13.16, 11.11, 9.71, 8.85,7.78, 6.97, 6.10, 5.15,
+     !  4.62, 4.32, 4.02, 3.42]) * 1e-4  # cm     
+     refi_ind = closest(aerRefrIbands_LW,1./lambda_r) ! It is 2 in this case      
      refrRe_all(:) = riReLW(:,refi_ind)
      refrIm_all(:) = riImLW(:,refi_ind)
      
@@ -1422,6 +1415,7 @@ MODULE mo_derived_procedures
               zlm(:) = mass%d(k,i,j,:)
               zln(:) = numc%d(k,i,j,:)
               tmp(:) = 0.
+              IF (SUM(zln) < numlim .OR. SUM(zlm) < 1.e-20) CYCLE
               ! Loop over chemical species
        	      DO ss = 1,nspec
           	! Mass bin indices
@@ -1483,7 +1477,7 @@ MODULE mo_derived_procedures
      
    END SUBROUTINE getExtinctionCoeffLW
    
-      ! ---------------------------------------------------
+   ! ---------------------------------------------------
    ! Silvia Calderon FMI-Kuopio 11.09.2026
    ! All based on derived procedures made by Juha Tonttila
    ! SUBROUTINE getOpticalDepthSW(name,output,nstr,nend)
@@ -1493,6 +1487,10 @@ MODULE mo_derived_procedures
    ! this function is for outputs only
    ! It uses the calculation approach already employed in 
    ! Inside /src/src_rad/rad_cldwtr.f90 
+   ! IMPORTANT: 
+   ! For ice particles you must use iodsw and/or iodlw
+   ! For total values including gases (i.e. water and ozone) 
+   ! you must use todsw and/or todlw
    !
    SUBROUTINE getOpticalDepthSW(name,output,nstr,nend)
 
@@ -1517,8 +1515,6 @@ MODULE mo_derived_procedures
         CALL getExtinctionCoeffSW('swbextcb',bext,nstr,nend)       
       CASE('swCODpa')
         CALL getExtinctionCoeffSW('swbextpa',bext,nstr,nend)
-      CASE('swIODia')
-        CALL getExtinctionCoeffSW('swbextia',bext,nstr,nend) 
      END SELECT 
      
      output(:,:,:)=0.
@@ -1544,6 +1540,10 @@ MODULE mo_derived_procedures
    ! this function is for outputs only
    ! It uses the calculation approach already employed in 
    ! Inside /src/src_rad/rad_cldwtr.f90 
+   ! IMPORTANT: 
+   ! For ice particles you must use iodsw and/or iodlw
+   ! For total values including gases (i.e. water and ozone) 
+   ! you must use todsw and/or todlw
    !
    SUBROUTINE getOpticalDepthLW(name,output,nstr,nend)
    
@@ -1558,9 +1558,9 @@ MODULE mo_derived_procedures
      bext(:,:,:) = 0.
      
      SELECT CASE(name)
-      CASE('lwAODab')
+      CASE('lwAODaa')
         CALL getExtinctionCoeffLW('lwbextaa',bext,nstr,nend)
-      CASE('lwAODbb')
+      CASE('lwAODab')
         CALL getExtinctionCoeffLW('lwbextab',bext,nstr,nend)         
       CASE('lwCODca')
         CALL getExtinctionCoeffLW('lwbextca',bext,nstr,nend)
@@ -1568,8 +1568,6 @@ MODULE mo_derived_procedures
         CALL getExtinctionCoeffLW('lwbextcb',bext,nstr,nend)       
       CASE('lwCODpa')
         CALL getExtinctionCoeffLW('lwbextpa',bext,nstr,nend)
-      CASE('lwIODia')
-        CALL getExtinctionCoeffLW('lwbextia',bext,nstr,nend) 
      END SELECT 
      
      output(:,:,:)=0.

@@ -85,7 +85,7 @@ CONTAINS
   ! defined by input ckd file
   !
   SUBROUTINE rad (as, u0, ss, pts, ee, pp, pt, ph, po, fds, fus, fdir, fuir, &
-                  McICA, nspec, plwc, pre, piwc, pde, pgwc, maerobin, naerobin)
+                  McICA, nspec, plwc, pre, piwc, pde, pgwc, maerobin, naerobin,todir,tods)
                   
 
     INTEGER, INTENT(in) :: nspec
@@ -119,12 +119,17 @@ CONTAINS
     REAL, DIMENSION(nv1), INTENT (out) ::  &
          fds, fus,  & ! downward and upward solar flux
          fdir, fuir   ! downward and upward ir flux
+    
+    REAL, DIMENSION(nv), INTENT (inout) ::  &
+         tods,      & ! total optical depth ir VIS 200-690 nm
+         todir        ! total optical depth ir Mid-IR 3.5um-4um
+         
 
     CALL rad_ir(nspec,pts, ee, pp, pt, ph, po, fdir, fuir, McICA, &
                  plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
 
     CALL rad_vis(nspec,as, u0, ss, pp, pt, ph, po, fds, fus, McICA, &
-                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin) ! prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
+                 plwc, pre, piwc, pde, pgwc, maerobin, naerobin,tods,todir) ! prwc not level<4, just if IF (RadPrecipBins > 0) in level>=4
 
   END SUBROUTINE rad
 
@@ -161,13 +166,14 @@ CONTAINS
     LOGICAL, INTENT(in) :: McICA
 
     REAL, DIMENSION(nv1), INTENT (out) :: &
-         fdir, fuir   ! downward and upward ir flux
+         fdir, fuir     ! downward and upward ir flux
     
     REAL, DIMENSION(nv):: &
          tod, &   ! total optical depth IR
          cod, &   ! cloud optical depth IR
          aod, iod ! aerosol optical depth IR
          
+ 
     ! ----------------------------------------
     LOGICAL, PARAMETER :: irWeighted = .FALSE. 
 
@@ -193,7 +199,7 @@ CONTAINS
     END IF
 
     fdir(:) = 0.0; fuir(:) = 0.0
-    
+        
     CALL thicks(pp, pt, ph, dz) 
 
     IF (McICA) THEN
@@ -211,8 +217,7 @@ CONTAINS
     END IF
    
     tod(:) = 0.0; cod(:) = 0.0; aod(:)= 0.0; iod(:)= 0.0
-    
-    
+        
     bandLoop: DO ibandloop = 1, iblimit
       IF (.NOT. McICA) THEN
          ib  = ibandloop
@@ -283,7 +288,7 @@ CONTAINS
     ! hk of 0.03.
     !
     fuq2 = bf(nv1) * 0.03 * pi * ee
-    fuir(:) = fuir(:) + fuq2 
+    fuir(:) = fuir(:) + fuq2   
 
   END SUBROUTINE rad_ir
   ! ----------------------------------------------------------------------
@@ -292,7 +297,7 @@ CONTAINS
   !
 
   SUBROUTINE rad_vis (nspec,as, u0, ss, pp, pt, ph, po, fds, fus, McICA,  &
-                      plwc, pre, piwc, pde, pgwc, maerobin, naerobin) 
+                      plwc, pre, piwc, pde, pgwc, maerobin, naerobin,tods,todir) 
 
 
     INTEGER, INTENT(in) :: nspec
@@ -321,15 +326,18 @@ CONTAINS
     LOGICAL, INTENT(in) :: McICA
 
     REAL, DIMENSION(nv1), INTENT (out)::  &
-         fds, fus    ! downward and upward solar flux
+         fds, fus    ! downward and upward solar flux        
          
     REAL, DIMENSION(nv):: &
          tod, &      ! total optical depth in 200 nm - 689 nm band (1)
          cod, &      ! cloud optical depthin 200 nm - 689 nm band (1)
          aod, &      ! aerosol optical depth in 200 nm - 689 nm band (1)
-         iod     ! ice optical depth in 200 nm - 689 nm band (1)
-
-
+         iod         ! ice optical depth in 200 nm - 689 nm band (1)
+ 
+    REAL, DIMENSION(nv), INTENT(out) :: &
+         tods,&     ! total optical depth in 200 nm - 689 nm band (1)
+         todir      ! total optical depth in 3.5um - 4 um band (6)
+         
     ! ----------------------------------------
     LOGICAL, PARAMETER :: solarWeighted = .FALSE. ! Could be .TRUE.?
 
@@ -362,6 +370,7 @@ CONTAINS
     fus(:) = 0.0
     bf(:)  = 0.0
     tod(:) = 0.0; cod(:) = 0.0; aod(:)= 0.0; iod(:)= 0.0
+    tods(:) = 0.
     
     IF(u0 > minSolarZenithCosForVis) THEN
       CALL thicks(pp, pt, ph, dz) 
@@ -456,7 +465,103 @@ CONTAINS
       fuq1 = ss / totalpower
       fds(:)  = fds(:)*fuq1
       fus(:)  = fus(:)*fuq1
+      
+      !---------------------------------------------------------------------
+      !-- Calculations of optical properties in the first band
+      ! including the visible range from 200 nm to 689 nm 
+      ! Band:   1:   619.60 Wm^-2, between 50000. and 14500. cm^-1
+      !              1 gase(s): and  10 g-points
+      ! Select a single band and g-point (ib, ig1) and use these as the limits
+      !   in the loop through the spectrum below. 
+      ib  = 1
+      ig1 = 1
+      ig2 = kg(solar_bands(ib))  
+      iblimit = size(solar_bands) 
+      ! These were already used. We can recycle :) 
+      tod(:) = 0.0; cod(:) = 0.0; aod(:)= 0.0; iod(:)= 0.0
+      tgm(:) = 0.; tgr(:)= 0.
+      
+      ! Rayleigh scattering              
+      CALL rayle ( ib, u0, power(solar_bands(ib)), pp, pt, dz, tods, &
+                      wNoGas, pfNoGas)
+      ! Water vapor continuum         !
+      CALL gascon ( center(solar_bands(ib)), pp, pt, ph, tgm )
+      IF(any(tgm > 0.)) &
+           tods = tods +tgm
+         
+      ! Cloud water
+      IF (present(plwc)) THEN
+           CALL cloud_water(ib, pre, plwc, dz, cod, ww, www)
+           tods = tods + cod
+      END IF
+         
+      ! Ice
+      IF (present(piwc)) THEN
+           CALL cloud_ice(ib, pde, piwc, dz, iod, wi, wwi)
+           tods = tods + iod
+      END IF
+      
+      IF (present(pgwc)) THEN
+           CALL cloud_grp(ib,pgwc, dz, tgr, wgr, wwgr)
+           tods = tods + tgr
+      END IF 
+      
+      IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
+            CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, dz, aod, waer, wwaer)
+            tods = tods + aod
+      END IF  
+
+      ! Cumulative optical depth
+      !            
+      DO k = 2, nv
+            tods(k) = tods(k) + tods(k-1)
+      END DO   
+      
+    END IF
+    
+    ! --------------------------------------------------------------------------
+    ! - Calculation of optical properties in the mid-wave IR band
+    !  Mid-Wave/Fire Detection (3.66–4.08um) 
+    !  Bands in this range are specialized for detecting hot spots and fires.
+    !  Band:   6:     5.80 Wm^-2, between  2850. and  2500. cm^-1
+    ib  = 6     
+    ! These were already used. We can recycle :) 
+    todir(:) = 0.0; cod(:) = 0.0; aod(:)= 0.0; iod(:)= 0.0
+    tgr(:)= 0. ; tgm(:) = 0.; 
+         
+    ! Water vapor continuum optical depth
+    !
+    CALL gascon ( center(solar_bands(ib)), pp, pt, ph, tgm )
+    todir = todir + tgm
+    
+    ! Cloud water
+    IF (present(plwc)) THEN
+        CALL cloud_water(ib, pre, plwc, dz, cod, ww, www)
+        todir = todir + cod       
+    END IF
+    
+    ! Ice
+    IF (present(piwc)) THEN
+        CALL cloud_ice(ib, pde, piwc, dz, iod, wi, wwi)
+        todir = todir + iod
+    END IF      
+    IF (present(pgwc)) THEN
+        CALL cloud_grp(ib, pgwc, dz, tgr, wgr, wwgr)
+        todir = todir + tgr
     END IF 
+     
+    ! Aerosol
+    IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
+         CALL aero_rad(ib, nbins, nspec, maerobin, naerobin, &
+                       dz, aod, waer, wwaer)
+         todir = todir + aod
+    END IF
+    
+    ! Cumulative optical depth          
+    DO k = 2, nv
+	todir(k) = todir(k) + todir(k-1)
+    END DO       
+    
   END SUBROUTINE rad_vis
   
   ! ----------------------------------------------------------------------
