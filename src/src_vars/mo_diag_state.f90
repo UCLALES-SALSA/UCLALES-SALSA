@@ -13,7 +13,7 @@ MODULE mo_diag_state
   TYPE(FloatArray3D), TARGET :: a_theta  ! 1: dry potential temp (k)
   TYPE(FloatArray3D), TARGET :: a_temp   ! 2: Absolute temperature (K)
   TYPE(FloatArray3D), TARGET :: a_pexnr  ! 3: perturbation exner func
-  TYPE(FloatArray3D), TARGET :: a_press  ! 4: pressure (hpa)
+  TYPE(FloatArray3D), TARGET :: a_press  ! 4: pressure (Pa)
   TYPE(FloatArray3D), TARGET :: a_rtot   ! 5: Total water mix rat for level >= 4 (vapor + condensate)
   TYPE(FloatArray3D), TARGET :: a_rc     ! 6: Total cloud water +rain (level<=3) or aerosol+cloud (level>=4) water mixing ratio
   TYPE(FloatArray3D), TARGET :: a_ri     ! 7: Unrimed ice mixing ratio
@@ -30,12 +30,12 @@ MODULE mo_diag_state
                                 a_fus, a_fds,     &  ! 19, 20: 
                                 a_fuir, a_fdir       ! 21, 22:
   TYPE(FloatArray3D), TARGET :: a_rrate              ! 23: Precipitation flux
-  TYPE(FloatArray3D), TARGET :: a_irate              ! 24: Precipitation flux, frozen  
+  TYPE(FloatArray3D), TARGET :: a_irate              ! 24: Precipitation flux, frozen
+  TYPE(FloatArray3D), TARGET :: a_todlw, a_todsw     ! 25, 26: total optical depth in lw and sw bands  
   
-  INTEGER, PARAMETER :: ndiag3d = 24   ! Remember to update if adding new variables!!
+  INTEGER, PARAMETER :: ndiag3d = 26   ! Remember to update if adding new variables!!
   REAL, ALLOCATABLE, TARGET :: a_diag3d(:,:,:,:) 
- 
- !----------------------------------------------------------------------------
+  !----------------------------------------------------------------------------
   ! Mandatory two dimensional variables that need to be stored during the timestep
   TYPE(FloatArray2D), TARGET :: albedo               ! 1: Surface albedo as fus(1)/fds(1) Upwelling shortwave flux/Downwelling shortwave flux
   TYPE(FloatArray2D), TARGET :: a_ustar              ! 2: Friction velocity
@@ -345,7 +345,23 @@ MODULE mo_diag_state
          a_fdir = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_fdir
          CALL Diag%newField("fdir", "Downwelling longwave flux", "W/m2", "tttt",   &
-                            ANY(outputlist == "fdir"), pipeline)               
+                            ANY(outputlist == "fdir"), pipeline)     
+        
+         memsize = memsize + nxy
+         n3d = n3d+1
+         pipeline => NULL()
+         a_todsw = FloatArray3d(a_diag3d(:,:,:,n3d))
+         pipeline => a_todsw
+         CALL Diag%newField("todsw", "Total optical depth Shortwave 0.2um-0.69um", "", "tttt",   &
+                            ANY(outputlist == "todsw"), pipeline) 
+         
+         memsize = memsize + nxy
+         n3d = n3d+1
+         pipeline => NULL()
+         a_todlw = FloatArray3d(a_diag3d(:,:,:,n3d))
+         pipeline => a_todlw
+         CALL Diag%newField("todlw", "Total optical depth Longwave 4um-5.26um", "", "tttt",   &
+                            ANY(outputlist == "todlw"), pipeline)                                                          
       END IF
 
       IF (level >= 2) THEN

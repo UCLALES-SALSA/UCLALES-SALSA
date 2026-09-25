@@ -2,9 +2,11 @@
 MODULE radiation_main
   USE mo_aux_state, ONLY : dzt, dn0, pi0, pi1
   USE mo_diag_state, ONLY : a_pexnr, a_temp, a_rv, a_rc, a_ri, a_rflx, a_sflx, &
-  			    a_fus, a_fds, a_fuir, a_fdir, albedo
+  			    a_fus, a_fds, a_fuir, a_fdir, albedo, &
+  			    a_todlw,a_todsw
   USE mo_progn_state, ONLY : a_tt, a_rp, a_npp, a_rpp, &
-  			     a_maerop, a_naerop, a_ncloudp, a_nprecpp, a_mprecpp, a_nicep
+  			     a_maerop, a_naerop, a_ncloudp, a_nprecpp, a_mprecpp, & 
+  			     a_nicep
   USE grid, ONLY : iradtyp, nxp, nyp, nzp,       &
                    sst, cntlat, CCN, level
 
@@ -52,7 +54,7 @@ MODULE radiation_main
          CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo, &
               dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rv%d, zrc, znc, a_tt%d,  &
               a_rflx%d, a_sflx%d, a_fus%d, a_fds%d, a_fuir%d, a_fdir%d, albedo%d, radsounding=radsounding, &
-              useMcICA=useMcICA, ConstPrs=RadConstPress)
+              useMcICA=useMcICA, ConstPrs=RadConstPress,todlw=a_todlw%d,todsw=a_todsw%d)
          
       ! 
       ! Level 4
@@ -70,13 +72,17 @@ MODULE radiation_main
            	          dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rp%d,  &
                           zrc, znc, a_tt%d, a_rflx%d, a_sflx%d, a_fus%d, a_fds%d,   &
                           a_fuir%d, a_fdir%d, albedo%d, radsounding=radsounding,    &
-                          useMcICA=useMcICA, ConstPrs=RadConstPress)
+                          useMcICA=useMcICA, ConstPrs=RadConstPress,                &
+                          maerop=a_maerop%d, naerop=a_naerop%d,	                    &
+                          todlw=a_todlw%d,todsw=a_todsw%d)
          ELSE
             CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo,   &
                           dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rp%d,  &
                           zrc, znc, a_tt%d, a_rflx%d, a_sflx%d, a_fus%d, a_fds%d,   &
                           a_fuir%d, a_fdir%d, albedo%d, radsounding=radsounding,    &
-                          useMcICA=useMcICA, ConstPrs=RadConstPress)
+                          useMcICA=useMcICA, ConstPrs=RadConstPress,                & 
+                          maerop=a_maerop%d, naerop=a_naerop%d,	                    &
+                          todlw=a_todlw%d,todsw=a_todsw%d)
          END IF
 
       ! 
@@ -97,7 +103,9 @@ MODULE radiation_main
                        zrc, znc, a_tt%d, a_rflx%d, a_sflx%d, a_fus%d, a_fds%d,   &
                        a_fuir%d, a_fdir%d, albedo%d, ice=zri,nice=zni,           &
                        radsounding=radsounding,useMcICA=useMcICA,                &
-                       ConstPrs=RadConstPress)
+                       ConstPrs=RadConstPress,                                   &
+                       maerop=a_maerop%d, naerop=a_naerop%d,	                 &
+                       todlw=a_todlw%d,todsw=a_todsw%d)
       END IF
 
 

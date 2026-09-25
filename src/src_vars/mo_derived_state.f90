@@ -29,14 +29,14 @@ MODULE mo_derived_state
                                 aSSa, aSSb, cSSa, cSSb, pSSa, iSSa,        &  ! Sea salt
                                 aNOa, aNOb, cNOa, cNOb, pNOa, iNOa,        &  ! Nitrate
                                 aNHa, aNHb, cNHa, cNHb, pNHa, iNHa,        &  ! Ammonia
-                                swbextaa, swbextab, swbextca, swbextcb,    &  ! Extinction coefficient at 550 nm aerosol, cloud, precip
-                                swbextpa,                                  &  ! Extinction coefficient at 550 nm aerosol, cloud, precip
-                                lwbextaa, lwbextab, lwbextca, lwbextcb,    &  ! Extinction coefficient at 2100 nm aerosol, cloud, precip
-                                lwbextpa,                                  &  ! Extinction coefficient at 2100 nm aerosol, cloud, precip 
-                                swAODaa, swAODab, swCODca, swCODcb,        &  ! Optical depth at 550 nm aerosol, cloud, precip 
-                                swCODpa,                                   &  ! Optical depth at 550 nm aerosol, cloud, precip   
-                                lwAODaa, lwAODab, lwCODca, lwCODcb,        &  ! Optical depth at 2100 nm aerosol, cloud, precip   
-                                lwCODpa                                       ! Optical depth at 2100 nm aerosol, cloud, precip                  
+                                swbextaa, swbextab, swbextca, swbextcb,    &  ! Extinction coefficient at 550 nm aerosol, cloud, precip, ice
+                                swbextpa, swbextia,                        &  ! Extinction coefficient at 550 nm aerosol, cloud, precip, ice
+                                lwbextaa, lwbextab, lwbextca, lwbextcb,    &  ! Extinction coefficient at 4000 nm aerosol, cloud, precip, ice
+                                lwbextpa, lwbextia,                        &  ! Extinction coefficient at 4000 nm aerosol, cloud, precip, ice   
+                                swAODaa, swAODab, swCODca, swCODcb,        &  ! Optical depth at 550 nm aerosol, cloud, precip, ice    
+                                swCODpa, swIODia,                          &  ! Optical depth at 550 nm aerosol, cloud, precip, ice    
+                                lwAODaa, lwAODab, lwCODca, lwCODcb,        &  ! Optical depth at 4000 nm aerosol, cloud, precip, ice    
+                                lwCODpa,lwIODia                               ! Optical depth at 4000 nm aerosol, cloud, precip, ice                   
 
   TYPE(FloatArray3d), TARGET :: gSO4, gNO3, gNH4, gOCNV, gOCSV
 
@@ -292,35 +292,35 @@ MODULE mo_derived_state
          lwbextaa = FloatArray3d()
          lwbextaa%onDemand => getExtinctionCoeffLW
          pipeline => lwbextaa
-         CALL Derived%newField("lwbextaa", "Extinction coefficient at 2100 nm aerosol A", "1/m", 'tttt',   &
+         CALL Derived%newField("lwbextaa", "Extinction coefficient at 4000 nm aerosol A", "1/m", 'tttt',   &
                                ANY(outputlist == "lwbextaa"), pipeline                )
          
          pipeline => NULL()
          lwbextab = FloatArray3d()
          lwbextab%onDemand => getExtinctionCoeffLW
          pipeline => lwbextab
-         CALL Derived%newField("lwbextab", "Extinction coefficient at 2100 nm aerosol B", "1/m", 'tttt',   &
+         CALL Derived%newField("lwbextab", "Extinction coefficient at 4000 nm aerosol B", "1/m", 'tttt',   &
                                ANY(outputlist == "lwbextab"), pipeline                )
                                
          pipeline => NULL()
          lwbextca = FloatArray3d()
          lwbextca%onDemand => getExtinctionCoeffLW
          pipeline => lwbextca
-         CALL Derived%newField("lwbextca", "Extinction coefficient at 2100 nm cloud drops A", "1/m", 'tttt',   &
+         CALL Derived%newField("lwbextca", "Extinction coefficient at 4000 nm cloud drops A", "1/m", 'tttt',   &
                                ANY(outputlist == "lwbextca"), pipeline                )
          
          pipeline => NULL()
          lwbextcb = FloatArray3d()
          lwbextcb%onDemand => getExtinctionCoeffLW
          pipeline => lwbextcb
-         CALL Derived%newField("lwbextcb", "Extinction coefficient at 2100 nm cloud drops B", "1/m", 'tttt',   &
+         CALL Derived%newField("lwbextcb", "Extinction coefficient at 4000 nm cloud drops B", "1/m", 'tttt',   &
                                ANY(outputlist == "lwbextcb"), pipeline                )
          
          pipeline => NULL()
          lwbextpa = FloatArray3d()
          lwbextpa%onDemand => getExtinctionCoeffLW
          pipeline => lwbextpa
-         CALL Derived%newField("lwbextpa", "Extinction coefficient at 2100 nm precipitation", "1/m", 'tttt',   &
+         CALL Derived%newField("lwbextpa", "Extinction coefficient at 4000 nm precipitation", "1/m", 'tttt',   &
                                ANY(outputlist == "lwbextpa"), pipeline                )   
          
          pipeline => NULL()
@@ -362,35 +362,35 @@ MODULE mo_derived_state
          lwAODaa = FloatArray3d()
          lwAODaa%onDemand => getOpticalDepthLW
          pipeline => lwAODaa
-         CALL Derived%newField("lwAODaa", "Optical depth at 2100 nm aerosol A", " ", 'tttt',   &
+         CALL Derived%newField("lwAODaa", "Optical depth at 4000 nm aerosol A", " ", 'tttt',   &
                                ANY(outputlist == "lwAODaa"), pipeline                )
          
          pipeline => NULL()
          lwAODab = FloatArray3d()
          lwAODab%onDemand => getOpticalDepthLW
          pipeline => lwAODab
-         CALL Derived%newField("lwAODab", "Optical depth at 2100 nm aerosol B", " ", 'tttt',   &
+         CALL Derived%newField("lwAODab", "Optical depth at 4000 nm aerosol B", " ", 'tttt',   &
                                ANY(outputlist == "lwAODab"), pipeline                )
                                
          pipeline => NULL()
          lwCODca = FloatArray3d()
          lwCODca%onDemand => getOpticalDepthLW
          pipeline => lwCODca
-         CALL Derived%newField("lwCODca", "Optical depth at 2100 nm cloud drops A", " ", 'tttt',   &
+         CALL Derived%newField("lwCODca", "Optical depth at 4000 nm cloud drops A", " ", 'tttt',   &
                                ANY(outputlist == "lwCODca"), pipeline                )
          
          pipeline => NULL()
          lwCODcb = FloatArray3d()
          lwCODcb%onDemand => getOpticalDepthLW
          pipeline => lwCODcb
-         CALL Derived%newField("lwCODcb", "Optical depth at 2100 nm cloud drops B", " ", 'tttt',   &
+         CALL Derived%newField("lwCODcb", "Optical depth at 4000 nm cloud drops B", " ", 'tttt',   &
                                ANY(outputlist == "lwCODcb"), pipeline                )
          
          pipeline => NULL()
          lwCODpa = FloatArray3d()
          lwCODpa%onDemand => getOpticalDepthLW
          pipeline => lwCODpa
-         CALL Derived%newField("lwCODpa", "Optical depth at 2100 nm precipitation", " ", 'tttt',   &
+         CALL Derived%newField("lwCODpa", "Optical depth at 4000 nm precipitation", " ", 'tttt',   &
                                ANY(outputlist == "lwCODpa"), pipeline                )
                               
       END IF
@@ -757,6 +757,34 @@ MODULE mo_derived_state
          pipeline => miNHa
          CALL Derived%newField("miNHa", "Binned mass NH in ice", "kg/kg", 'ttttice',   &
                                ANY(outputlist == "miNHa"), pipeline              )
+                               
+         pipeline => NULL()
+         swbextia = FloatArray3d()
+         swbextia%onDemand => getExtinctionCoeffIce
+         pipeline => swbextia
+         CALL Derived%newField("swbextia", "Extinction coefficient in the VIS band 200-700 nm", "1/m", 'tttt',   &
+                               ANY(outputlist == "swbextia"), pipeline                )
+         
+         pipeline => NULL()
+         lwbextia = FloatArray3d()
+         lwbextia%onDemand => getExtinctionCoeffIce
+         pipeline => lwbextia
+         CALL Derived%newField("lwbextia", "Extinction coefficient in the IR band 2200-1900 cm-1", "1/m", 'tttt',   &
+                               ANY(outputlist == "lwbextia"), pipeline                )  
+         
+         pipeline => NULL()
+         swIODia = FloatArray3d()
+         swIODia%onDemand => getOpticalDepthSW
+         pipeline => swIODia
+         CALL Derived%newField("swIODia", "Optical depth in the VIS band 200-700 nm", " ", 'tttt',   &
+                               ANY(outputlist == "swIODia"), pipeline                )
+         
+         pipeline => NULL()
+         lwIODia = FloatArray3d()
+         lwIODia%onDemand => getOpticalDepthLW
+         pipeline => lwIODia
+         CALL Derived%newField("lwIODia", "Optical depth in the IR band 2200-1900 cm-1", " ", 'tttt',   &
+                               ANY(outputlist == "lwIODia"), pipeline                )                              
                                
       END IF
 
@@ -1160,7 +1188,7 @@ MODULE mo_derived_state
          Atiba%onDemand => getIceArea
          pipeline => Atiba
          CALL Derived%newField("Atiba", "Cross sectional area of ice particles",  &
-                               "m**2", "ttttice", ANY(outputlist == "Atiba"), pipeline)     
+                               "m/s", "ttttice", ANY(outputlist == "Atiba"), pipeline)     
          
          pipeline => NULL()
          Ariba = FloatArray4d()
@@ -1171,7 +1199,6 @@ MODULE mo_derived_state
          
          !------------------------------------------------------
          ! IMPORTANT: 
-	 ! For ice particles you must use iodsw and/or iodlw
 	 ! For total values including gases (i.e. water and ozone) 
 	 ! you must use todsw and/or todlw   
 	 ! All these variables are in the diag_state.f90

@@ -112,10 +112,11 @@ mo_aux_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o
 mo_diag_state.o: classFieldArray.o mo_structured_datatypes.o util.o mo_submctl.o
 mo_progn_state.o: classFieldArray.o mo_structured_datatypes.o mo_submctl.o emission_types.o 
 mo_vector_state.o: classFieldArray.o mo_structured_datatypes.o 
-mo_derived_state.o: classFieldArray.o mo_structured_datatypes.o mo_derived_procedures.o 
+mo_derived_state.o: classFieldArray.o mo_structured_datatypes.o mo_derived_procedures.o \
+                    mo_particle_external_properties.o 
 mo_derived_procedures.o: mo_submctl.o util.o defs.o mo_particle_external_properties.o grid.o \
                          mo_progn_state.o mo_diag_state.o mo_aux_state.o mo_structured_datatypes.o \
-                         math_functions.o rad_cldwtr.o
+                         math_functions.o rad_cldwtr.o mo_particle_external_properties.o
 mo_ps_state.o: classFieldArray.o mo_structured_datatypes.o mo_ps_procedures.o 
 mo_ps_procedures.o: util.o mo_structured_datatypes.o grid.o mo_stats_finder.o mo_aux_state.o \
                     mo_vector_state.o advf.o advl.o defs.o $(seqmpi:.f90=.o)
@@ -128,7 +129,7 @@ mo_stats_parameters.o:
 
 constrain_SALSA.o: mo_progn_state.o mo_diag_state.o mo_aux_state.o mo_submctl.o nudg_defs.o \
                    util.o mo_structured_datatypes.o grid.o mo_derived_procedures.o          \
-	           mo_field_state.o
+	           mo_field_state.o mo_particle_external_properties.o
 mo_particle_external_properties.o: mo_submctl.o classSection.o mo_ice_shape.o
 mo_ice_shape.o: mo_submctl.o
 

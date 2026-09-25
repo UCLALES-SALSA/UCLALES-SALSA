@@ -105,6 +105,8 @@ MODULE mo_particle_external_properties
          terminal_vel = kcVt(shape,dnsp,X,visc,rhoa)                 
       END IF
       
+      terminal_vel = MAX(6.75E-9,terminal_vel)
+      
     END FUNCTION terminal_vel
     
     

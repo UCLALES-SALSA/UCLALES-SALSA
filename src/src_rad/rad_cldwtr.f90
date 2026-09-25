@@ -464,9 +464,7 @@ CONTAINS
     waer_bin = 0.
     wwaer_bin = 0.
 
-   
-    lambda_r = center(band(ib)) 
-
+   lambda_r = center(band(ib))     
     
     IF (1./lambda_r > aerRefrIbands_SW(1)) THEN
        ! Get the refractive indices from the LUT-LW for the current band

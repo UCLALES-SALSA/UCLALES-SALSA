@@ -38,7 +38,7 @@ MODULE radiation
   LOGICAL, SAVE     :: first_time = .TRUE.
   REAL, ALLOCATABLE, SAVE ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
                               plwc(:), piwc(:), prwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:), &
-                              maerobin(:,:), naerobin(:,:)
+                              maerobin(:,:), naerobin(:,:), todir(:),tods(:)
   INTEGER :: k,i,j, npts
   REAL    :: ee, u0, day, zz !time, alat, Juha: Time and alat given as argument already! Potential bug, hopefully harmless.
 
@@ -46,7 +46,8 @@ MODULE radiation
 
     SUBROUTINE d4stream(n1, n2, n3, nspec, alat, time, sknt, sfc_albedo, dn0, pi0, pi1, dzm, &
                         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, &
-                        albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs, maerop, naerop)
+                        albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs, maerop, naerop,&
+                        todlw,todsw)
 
       USE mpi_interface, ONLY : myid, pecount
       INTEGER, INTENT (in) :: n1, n2, n3, nspec                                ! nzp, nxp, nyp, nspec
@@ -57,7 +58,7 @@ MODULE radiation
       REAL, OPTIONAL, INTENT(in)                        :: maerop(n1,n2,n3,nspec*nbins),   & 
                                                            naerop(n1,n2,n3,nbins)
       REAL, DIMENSION (n1,n2,n3), INTENT (inout)        :: tt, rflx, sflx, afus, afds, afuir, afdir
-      
+      REAL, DIMENSION (n1,n2,n3), INTENT (inout)        :: todlw, todsw
       CHARACTER(len=50), OPTIONAL, INTENT(in)           :: radsounding
       LOGICAL, OPTIONAL, INTENT(in)                     :: useMcICA, ConstPrs
       !! NEED TO FIND A BETTER WAY WITH THESE INDICES BECAUSE THEY'RE ALL OVER THE PLACE NOW: 
@@ -211,7 +212,8 @@ MODULE radiation
             IF (PRESENT(ice)) THEN
                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
                          fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
-                         piwc=piwc, pde=pde)
+                         piwc=piwc, pde=pde, maerobin=maerobin, naerobin=naerobin,&
+                         todir=todir, tods=tods)
             !ELSE IF (PRESENT(rr)) THEN
             !   CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
             !             fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
@@ -219,10 +221,11 @@ MODULE radiation
             ELSE IF (PRESENT(maerop) .AND. PRESENT(naerop)) THEN
                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
                          fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
-                         maerobin=maerobin, naerobin=naerobin)
+                         maerobin=maerobin, naerobin=naerobin,todir=todir, tods=tods)
             ELSE
                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
-                         fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre)
+                         fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
+                         todir=todir, tods=tods)
             END IF
 	        
             DO k = 1, n1
@@ -233,8 +236,13 @@ MODULE radiation
                afdir(k,i,j) = fdir(kk)
                sflx(k,i,j)  = fus(kk)  - fds(kk)
                rflx(k,i,j)  = sflx(k,i,j) + fuir(kk) - fdir(kk)
+               todlw(k,i,j) = todir(kk)
+               todsw(k,i,j) = tods(kk)
             END DO
-
+            ! just to be sure zero values at z< 0 m
+            todlw(1,i,j) = 0.
+	    todsw(1,i,j) = 0.
+	    
             IF (u0 > minSolarZenithCosForVis) THEN
                albedo(i,j) = fus(1)/fds(1)
             ELSE
@@ -337,6 +345,7 @@ MODULE radiation
     ! expect decreasing pressure grid (from TOA to surface)
     !
     ALLOCATE (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
+    ALLOCATE (tods(nv1),todir(nv1))                          ! Cell interfaces
     ALLOCATE (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
     ALLOCATE(maerobin(nv,nspec*nbins),naerobin(nv,nbins))
     
