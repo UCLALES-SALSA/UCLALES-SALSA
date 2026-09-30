@@ -176,7 +176,7 @@ contains
     call surface(sst)
     IF (level > 3 .AND. time >= sea_tspinup) THEN
         if(ifSeaSpray)then
-          CALL marine_aero_flux(MAX(271.15,sst)) ! T>-2 C
+          CALL marine_aero_flux(sst)
         endif
         if(nvbs_setup>=0 .and. ifSeaVOC) then
             call marine_gas_flux(sst)

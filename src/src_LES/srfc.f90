@@ -85,7 +85,6 @@ contains
     ! Local
     INTEGER :: i, j, k
     REAL :: usum, zs, dia, rhorho, dia80, omf, omf_max, vdry, u10_bar
-    REAL :: u10(nxp,nyp) ! 10 m wind speed
     REAL :: flx(fn2a+1) ! Production rate for each size bin
     REAL :: dcdt(nxp,nyp,fn2a) ! Particle concentration tendency (#/kg/s)
 
@@ -93,19 +92,10 @@ contains
 
     ! Roughness height is needed for the 10 m wind speeds
     zs = zrough
-    IF (zrough <= 0.) THEN ! Calculate
-        usum = 0.
-        DO j=3,nyp-2
-            DO i=3,nxp-2
-                usum = usum + a_ustar(i,j)
-            END DO
-        ENDDO
-        usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
-        zs = max(0.0001,(0.016/g)*usum**2)
-    ENDIF
-    u10(:,:) = a_ustar(:,:)/vonk*log(10.0/zs)
-    ! Mean 10 m wind speed (for the domain)
-    u10_bar = get_avg2dh(nxp,nyp,u10)
+    usum = get_avg2dh(nxp,nyp,a_ustar)
+    IF (zrough <= 0.) zs = max(0.0001,(0.016/g)*max(ubmin,usum)**2)
+    ! Mean 10 m wind speed (global)
+    u10_bar = usum/vonk*log(10.0/zs)
 
     ! Calculate particle flux, dF/dlogDp, for each size bin limit
     DO k=1,fn2a+1
@@ -288,7 +278,7 @@ contains
         Bk=0.
     ENDIF
     ! Eq. 6: particle flux per whitecap area, dFp/dlog(Dp) [#/m^2/s]
-    flx=MAX(0.,Ak*sst+Bk)
+    flx=MAX(0.,Ak*max(271.0,min(298.0,sst))+Bk)
     !
     ! Whitecap cover (% => fraction) based on 10 m wind speeds (eq. 2)
     w=3.84e-6*u10**3.41
@@ -311,7 +301,7 @@ contains
     flx = 1.373*u10**3.41/rad80**3*(1.+0.057*rad80**1.05)*10.**(1.19*exp(-b**2))
     !
     ! Additional: temperature dependency from Jaegle et al. (2011)
-    tw = sst-273.15 ! Temperature in C
+    tw = min(30.0,max(0.0,sst-273.15)) ! Temperature in C
     twt = 0.3+0.1*tw-0.0076*tw**2+0.00021*tw**3
     !
     ! Convert from dF/dDp to dF/dlog10Dp: multiply by Dp*ln(10)
@@ -328,7 +318,7 @@ contains
     flx = 0.2*u10**3.5*exp(-1.5*log(dia/3e-6)**2)+6.8e-3*u10**3*exp(-3.3*log(dia/30e-6)**2)
     !
     ! Additional: temperature dependency from Jaegle et al. (2011)
-    tw = sst-273.15 ! Temperature in C
+    tw = min(30.0,max(0.0,sst-273.15)) ! Temperature in C
     twt = 0.3+0.1*tw-0.0076*tw**2+0.00021*tw**3
     !
     ! Convert from dF/dDp to dF/dlog10Dp: multiply by Dp*ln(10)
@@ -350,7 +340,7 @@ contains
     flx = 1.373*u10**3.41/rad80**a*(1.+0.057*rad80**3.45)*10.**(1.607*exp(-b**2))
     !
     ! Additional: temperature dependency from Jaegle et al. (2011)
-    tw = sst-273.15 ! Temperature in C
+    tw = min(30.0,max(0.0,sst-273.15)) ! Temperature in C
     twt = 0.3+0.1*tw-0.0076*tw**2+0.00021*tw**3
     !
     ! Convert from dF/dDp to dF/dlog10Dp: multiply by Dp*ln(10)
@@ -370,7 +360,7 @@ contains
     ! Note: the last coefficient is 6.8e-3 and not 6.8 (Smith and Harrison, 1998)
     !
     ! Temperature dependency, Eq. A7 (originally from Jaegle et al., 2011)
-    tw = sst-273.15 ! Temperature in C
+    tw = min(30.0,max(0.0,sst-273.15)) ! Temperature in C
     twt=0.3+0.1*tw-0.0076*tw**2+0.00021*tw**3
     !
     ! Convert from dF/dDp to dF/dlog10(Dp): multiply by Dp*ln(10)
@@ -447,7 +437,6 @@ contains
     ! Local
     INTEGER :: i, j
     REAL :: usum, zs, u10_bar
-    REAL :: u10(nxp,nyp)! whitecap cover, 10 m wind speed
     REAL :: flxIsop, flxMtrp ! Gas flux (kg/m2/s)
 
     real, parameter :: schmidt_ref = 660.0, & ! CO2 in 293 K
@@ -461,21 +450,12 @@ contains
 
     ! Roughness height is needed for the 10 m wind speeds
     zs = zrough
-    IF (zrough <= 0.) THEN ! Calculate
-        usum = 0.
-        DO j=3,nyp-2
-            DO i=3,nxp-2
-                usum = usum + a_ustar(i,j)
-            END DO
-        ENDDO
-        usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
-        zs = max(0.0001,(0.016/g)*usum**2)
-    ENDIF
+    usum = get_avg2dh(nxp,nyp,a_ustar)
+    IF (zrough <= 0.) zs = max(0.0001,(0.016/g)*max(ubmin,usum)**2)
 
     ! Whitecap cover (% => fraction) based on 10 m wind speeds (eq. 2)
-    u10(:,:) = a_ustar(:,:)/vonk*log(10.0/zs)
-    ! Mean 10 m wind speed (for the domain)
-    u10_bar = get_avg2dh(nxp,nyp,u10)
+    ! Mean 10 m wind speed (global)
+    u10_bar = usum/vonk*log(10.0/zs)
 
     temp_c = sst - 273.15
 
@@ -644,18 +624,19 @@ contains
     !
     case(2)
        call get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up,a_vp,umean,vmean)
-       usum = 0.
        do j=3,nyp-2
           do i=3,nxp-2
              dtdz(i,j) = a_theta(2,i,j) - sst*(p00/psrf)**rcp
              drdz(i,j) = rx(2,i,j) - rslf(psrf,sst) ! Juha: rx
              bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2)
-             usum = usum + a_ustar(i,j)
           end do
        end do
-       usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
        zs = zrough
-       if (zrough <= 0.) zs = max(0.0001,(0.016/g)*usum**2)
+       if (zrough <= 0.) then
+          usum = get_avg2dh(nxp,nyp,a_ustar)
+          usum = max(ubmin,usum)
+          zs = max(0.0001,(0.016/g)*usum**2)
+       endif
        call srfcscls(nxp,nyp,zt(2),zs,th00,wspd,dtdz,drdz,a_ustar,a_tstar     &
             ,a_rstar,obl)
        call sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar  &
@@ -778,7 +759,6 @@ contains
         !  Following is copied from case (2). No idea if this is valid or not..
         !
         call get_swnds(nzp,nxp,nyp,usfc,vsfc,wspd,a_up,a_vp,umean,vmean)
-        usum = 0.
         do j=3,nyp-2
            do i=3,nxp-2
               dtdz(i,j) = a_theta(2,i,j) - sst*(p00/psrf)**rcp
@@ -786,12 +766,14 @@ contains
               drdz(i,j) = rx(2,i,j) - ff1*rslf(psrf,min(sst,280.))
               !
               bfct(i,j) = g*zt(2)/(a_theta(2,i,j)*wspd(i,j)**2)
-              usum = usum + a_ustar(i,j)
            end do
         end do
-        usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
         zs = zrough
-        if (zrough <= 0.) zs = max(0.0001,(0.016/g)*usum**2)
+        if (zrough <= 0.) then
+           usum = get_avg2dh(nxp,nyp,a_ustar)
+           usum = max(ubmin,usum)
+           zs = max(0.0001,(0.016/g)*usum**2)
+        endif
         call srfcscls(nxp,nyp,zt(2),zs,th00,wspd,dtdz,drdz,a_ustar,a_tstar     &
              ,a_rstar,obl)
         call sfcflxs(nxp,nyp,vonk,wspd,usfc,vsfc,bfct,a_ustar,a_tstar,a_rstar  &
@@ -810,13 +792,8 @@ contains
        wq_sfc(1,1)  = ffact* drtcon/(0.5*(dn0(1)+dn0(2))*alvl)
 
        if (zrough <= 0.) then
-          usum = 0.
-          do j=3,nyp-2
-             do i=3,nxp-2
-                usum = usum + a_ustar(i,j)
-             end do
-          end do
-          usum = max(ubmin,usum/float((nxp-4)*(nyp-4)))
+          usum = get_avg2dh(nxp,nyp,a_ustar)
+          usum = max(ubmin,usum)
           zs = max(0.0001,(0.016/g)*usum**2)
        else
           zs = zrough

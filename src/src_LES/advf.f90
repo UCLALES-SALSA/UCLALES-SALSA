@@ -33,22 +33,52 @@ contains
   subroutine fadvect
     use grid, only : a_up, a_vp, a_wp, a_uc, a_vc, a_wc, a_rc, a_qp, a_rp, a_tp, newsclr  &
          , nscl, a_sp, a_st, dn0 , nxp, nyp, nzp, dtl  &
-         , dzt, dzm, zt, dxi, dyi, isgstyp
+         , dzt, dzm, zt, dxi, dyi, isgstyp, a_ri, a_rpp, a_rv, lev_sb, level
     use stat, only      : sflg, updtst
     use util, only      : get_avg3
 
-    real    :: v1da(nzp), a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp)
+    real    :: v1da(nzp), a_tmp1(nzp,nxp,nyp), a_tmp2(nzp,nxp,nyp), a_tmp3(nzp,nxp,nyp)
     integer :: n
     logical :: iw
     !
-    ! diagnose liquid water flux
+    ! diagnosed water fluxes
     !
     if (sflg) then
-       a_tmp1=a_rc
+       ! Diagnostic variable (vapor or total)
        call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.false.)
-       call mamaos(nzp,nxp,nyp,a_tmp2,a_rc,a_tmp1,zt,dzm,dn0,dtl,.false.)
+       if (level<4) then ! SB
+          ! Water vapor
+          a_tmp3=a_rv
+          call mamaos(nzp,nxp,nyp,a_tmp2,a_tmp3,a_tmp1,zt,dzm,dn0,dtl,.false.)
+          call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+          call updtst(nzp,v1da,1,'tot_rvw')
+       else              ! SALSA
+          ! Total water
+          a_tmp3=a_rp+a_rc+a_ri
+          call mamaos(nzp,nxp,nyp,a_tmp2,a_tmp3,a_tmp1,zt,dzm,dn0,dtl,.false.)
+          call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+          call updtst(nzp,v1da,1,'tot_qw ')
+       endif
+       !
+       ! Liquid water
+       if (level<4) then ! SB
+          a_tmp3=a_rc+a_rpp ! Cloud+rain water
+       else
+          a_tmp3=a_rc ! Aerosol + cloud + rain water
+       endif
+       call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.false.)
+       call mamaos(nzp,nxp,nyp,a_tmp2,a_tmp3,a_tmp1,zt,dzm,dn0,dtl,.false.)
        call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
        call updtst(nzp,v1da,1,'tot_lw ')
+       !
+       ! Ice water
+       if ((level==0 .and. lev_sb>3) .or. level==5) then
+          a_tmp3=a_ri
+          call add_vel(nzp,nxp,nyp,a_tmp2,a_wp,a_wc,.false.)
+          call mamaos(nzp,nxp,nyp,a_tmp2,a_tmp3,a_tmp1,zt,dzm,dn0,dtl,.false.)
+          call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+          call updtst(nzp,v1da,1,'tot_iw ')
+       endif
     end if
     !
     ! loop through the scalar table, setting iscp and isct to the
@@ -80,9 +110,12 @@ contains
        if (sflg .and. associated(a_sp,a_tp)) then
           call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
           call updtst(nzp,v1da,1,'tot_tw ')
-       elseif (sflg .and. associated(a_sp,a_rp)) then
+       elseif (sflg .and. associated(a_sp,a_rp) .and. level<4) then
           call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
           call updtst(nzp,v1da,1,'tot_qw ')
+       elseif (sflg .and. associated(a_sp,a_rp)) then
+          call get_avg3(nzp,nxp,nyp,a_tmp2,v1da)
+          call updtst(nzp,v1da,1,'tot_rvw ')
        end if
     end do
 

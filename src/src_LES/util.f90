@@ -125,7 +125,7 @@ contains
   ! GET_AVG2dh: Get the average of a 2 dimensional (horizontal) input field - calculated over all PUs
   !
   REAL FUNCTION get_avg2dh(n2,n3,a)
-    use mpi_interface, only : nypg,nxpg,double_scalar_par_sum
+    use mpi_interface, only : nyg,nxg,double_scalar_par_sum
 
     INTEGER, INTENT(in) :: n2,n3
     REAL, INTENT(in)    :: a(n2,n3)
@@ -143,7 +143,7 @@ contains
     lavg = get_avg2dh
     call double_scalar_par_sum(lavg,gavg)
 
-    get_avg2dh = real(gavg)/real((nypg-4)*(nxpg-4))
+    get_avg2dh = real(gavg)/real(nyg*nxg)
 
   END FUNCTION get_avg2dh
   !
@@ -155,7 +155,7 @@ contains
   ! Weighting by layer thickness implemented for non-uniform vertical resolution  - calculated over all PUs
   !
   real function get_avg_ts(n1,n2,n3,a,dz,cond,dens)
-    use mpi_interface, only : double_scalar_par_sum
+    use mpi_interface, only : double_array_par_sum
 
     integer, intent (in):: n1, n2, n3
     REAL, INTENT(in)    :: dz(n1)  ! Reciprocal of layer depth!
@@ -165,7 +165,7 @@ contains
     
     integer :: i,j,k
     REAL :: ztmp,ztot
-    REAL(kind=8) :: lavg,gavg
+    REAL(kind=8) :: lavg(2),gavg(2)
 
     IF (PRESENT(cond) .AND. PRESENT(dens)) THEN
        ! Conditional vertical integral with density weights
@@ -217,13 +217,11 @@ contains
        END DO
     END IF
 
-    lavg = ztot
-    call double_scalar_par_sum(lavg,gavg)
-    IF (gavg>0.) THEN
-        ztot = gavg
-        lavg = ztmp
-        call double_scalar_par_sum(lavg,gavg)
-        get_avg_ts = real(gavg/ztot)
+    lavg(1) = ztot
+    lavg(2) = ztmp
+    call double_array_par_sum(lavg,gavg,2)
+    IF (gavg(1)>0.) THEN
+        get_avg_ts = real(gavg(2)/gavg(1))
     ELSE
         get_avg_ts = -999.
     ENDIF
@@ -236,7 +234,7 @@ contains
   !
   subroutine get_avg3(n1,n2,n3,a,avg,normalize,cond,weight)
 
-    use mpi_interface, only : nypg,nxpg,double_array_par_sum
+    use mpi_interface, only : nyg,nxg,double_array_par_sum
 
     integer,intent(in) :: n1,n2,n3
     real,intent(in) :: a(n1,n2,n3)
@@ -302,7 +300,7 @@ contains
         ENDIF
     ELSE
         x=1.
-        IF (norm) x = 1./(real(nypg-4)*real(nxpg-4))
+        IF (norm) x = 1./real(nyg*nxg)
 
         gavg(:) = 0.
         do j=3,n3-2
@@ -323,14 +321,14 @@ contains
   !
   ! find the mean level at which sx=threshold - calculated over all PUs
   real function get_zi_val(n1, n2, n3, sx, z, threshold)
-    use mpi_interface, only : double_scalar_par_sum
+    use mpi_interface, only : double_array_par_sum
 
     integer, intent (in) :: n1, n2, n3
     real, intent (in)    :: z(n1), sx(n1,n2,n3), threshold
 
     integer :: i, j, k, n
     real    :: zibar
-    REAL(kind=8) :: lavg,gavg,nn
+    REAL(kind=8) :: lavg(2),gavg(2)
 
     n = 0
     zibar = 0.
@@ -352,13 +350,11 @@ contains
     end do
 
     ! Global mean
-    lavg = REAL(n)
-    call double_scalar_par_sum(lavg,gavg)
-    IF (gavg>0.) THEN
-        nn =gavg
-        lavg = zibar
-        call double_scalar_par_sum(lavg,gavg)
-        get_zi_val = real(gavg/nn)
+    lavg(1) = REAL(n)
+    lavg(2) = zibar
+    call double_array_par_sum(lavg,gavg,2)
+    IF (gavg(1)>0.) THEN
+        get_zi_val = real(gavg(2)/gavg(1))
     ELSE
         get_zi_val = -999.
     ENDIF
@@ -369,7 +365,7 @@ contains
   !
   ! Find the mean height where sx has its maximum gradient, positive or negative - calculated over all PUs
   real function get_zi_dmax(n1, n2, n3, sx, z)
-    use mpi_interface, only : nypg,nxpg,double_scalar_par_sum
+    use mpi_interface, only : nyg,nxg,double_scalar_par_sum
 
     integer, intent (in) :: n1, n2, n3
     real, intent (in)    :: z(n1), sx(n1,n2,n3)
@@ -396,7 +392,7 @@ contains
 
     lavg = get_zi_dmax
     call double_scalar_par_sum(lavg,gavg)
-    get_zi_dmax = real(gavg)/real((nypg-4)*(nxpg-4))
+    get_zi_dmax = real(gavg)/real(nyg*nxg)
 
   end function get_zi_dmax
   !
@@ -421,34 +417,33 @@ contains
   !
   ! Statistics of a scalar calculated over all PUs
   real function get_pustat_scalar(op, sx, wx)
-    use mpi_interface, only : pecount, double_scalar_par_max, double_scalar_par_sum
+    use mpi_interface, only : nxny, nxg, nyg, double_scalar_par_max, double_scalar_par_sum, &
+        double_array_par_sum
 
     CHARACTER(LEN=3) :: op ! Operation
     real, intent (in)    :: sx ! Data
     real, OPTIONAL, intent (in) :: wx ! Weight (optional, for average only)
 
-    REAL(kind=8) :: lavg,gavg,sw
+    REAL(kind=8) :: lavg,gavg,lvec(2),gvec(2)
 
     select case(op)
     CASE('avg')
         ! Average
         IF (PRESENT(wx)) THEN
             ! Weighted average: avg = sum(x(i)*w(i),i=1,n)/sum(w(i),i=1,n)
-            lavg = wx
-            call double_scalar_par_sum(lavg,gavg)
-            IF (ABS(gavg)>1e-30) THEN
-                sw = gavg
-                lavg = sx
-                call double_scalar_par_sum(lavg,gavg)
-                get_pustat_scalar = REAL(gavg/sw)
+            lvec(1) = sx
+            lvec(2) = wx
+            call double_array_par_sum(lvec,gvec,2)
+            IF (ABS(gvec(2))>1e-30) THEN
+                get_pustat_scalar = REAL(gvec(1)/gvec(2))
             ELSE
                 get_pustat_scalar = -999.
             ENDIF
         ELSE
             ! Average: avg = sum(x(i),i=1,n)/n
-            lavg = sx
+            lavg = sx*REAL(nxny)/REAL(nxg*nyg) ! Sub-domains can have different number of columns
             call double_scalar_par_sum(lavg,gavg)
-            get_pustat_scalar = REAL(gavg)/REAL(pecount)
+            get_pustat_scalar = REAL(gavg)
         ENDIF
     CASE('sum')
         ! Sum
@@ -474,40 +469,22 @@ contains
   ! -------------------------------------------------------------------------
   !
   ! Statistics of a vector calculated over all PUs
-  SUBROUTINE get_pustat_vector(op, n, sx, wx)
-    use mpi_interface, only : pecount, double_array_par_sum, double_scalar_par_max
+  SUBROUTINE get_pustat_vector(op, n, sx)
+    use mpi_interface, only : nxny, nyg, nxg, double_array_par_sum, double_scalar_par_max
 
     CHARACTER(LEN=3) :: op        ! Operation
     integer, intent(in) :: n      ! Dimension
     real, intent (inout) :: sx(n) ! Data
-    real, OPTIONAL, intent (in) :: wx(n) ! Weight (optional, for average only)
 
     INTEGER :: i
-    REAL(kind=8) :: lavg(n),gavg(n),sw(n),xxl,xxg
+    REAL(kind=8) :: lavg(n),gavg(n),xxl,xxg
 
     select case(op)
     CASE('avg')
         ! Average
-        IF (PRESENT(wx)) THEN
-            ! Weighted average: avg = sum(x(i)*w(i),i=1,n)/sum(w(i),i=1,n)
-            lavg = wx
-            call double_array_par_sum(lavg,gavg,n)
-            sw = gavg
-            lavg = sx
-            call double_array_par_sum(lavg,gavg,n)
-            DO i=1,n
-                IF (ABS(gavg(i))>1e-30) THEN
-                    sx(i) = REAL(gavg(i)/sw(i))
-                ELSE
-                    sx(i) = -999.
-                ENDIF
-            ENDDO
-        ELSE
-            ! Average: avg = sum(x(i),i=1,n)/n
-            lavg = sx
-            call double_array_par_sum(lavg,gavg,n)
-            sx(:) = REAL(gavg(:))/REAL(pecount)
-        ENDIF
+        lavg = sx*REAL(nxny)/REAL(nxg*nyg) ! Sub-domains can have different number of columns
+        call double_array_par_sum(lavg,gavg,n)
+        sx(:) = REAL(gavg(:))
     CASE('sum')
         ! Sum
         lavg = sx
@@ -538,7 +515,7 @@ contains
   ! Calculate histograms from concentration (num) and radius (rad) data - calculated over all PUs
   !
   SUBROUTINE HistDistr(n1,n2,n3,n4,rad,num,rbins,nout,hist)
-    use mpi_interface, only : nypg,nxpg,double_array_par_sum
+    use mpi_interface, only : nyg,nxg,double_array_par_sum
     IMPLICIT NONE
     INTEGER, INTENT(IN) :: n1, n2, n3, n4, nout ! Dimensions
     REAL, INTENT(IN) :: rad(n1,n2,n3,n4), num(n1,n2,n3,n4) ! Size and number data
@@ -575,7 +552,7 @@ contains
     hist = RESHAPE( gavg, (/n1,nout/) )
     !
     ! Normalize by the number of columns
-    hist(:,:)=hist(:,:)/(real(nypg-4)*real(nxpg-4))
+    hist(:,:)=hist(:,:)/real(nyg*nxg)
     !
   END SUBROUTINE HistDistr
   !
@@ -648,7 +625,7 @@ contains
   ! at each point along inner dimension - calculated over all PUs
   !
   subroutine get_cor3(n1,n2,n3,a,b,avg)
-    use mpi_interface, only : nypg,nxpg,double_array_par_sum
+    use mpi_interface, only : nyg,nxg,double_array_par_sum
 
     integer, intent (in) :: n1,n2,n3
     real, intent (in)    :: a(n1,n2,n3),b(n1,n2,n3)
@@ -668,7 +645,7 @@ contains
 
     lavg(:) = avg(:)
     call double_array_par_sum(lavg,gavg,n1)
-    avg(:) = real(gavg(:))/real((nypg-4)*(nxpg-4))
+    avg(:) = real(gavg(:))/real(nyg*nxg)
 
   end subroutine get_cor3
   !
@@ -676,7 +653,7 @@ contains
   ! function get_var3: gets variance for a field whose mean is known - calculated over all PUs
   !
   subroutine get_var3(n1,n2,n3,a,b,avg)
-    use mpi_interface, only : nypg,nxpg,double_array_par_sum
+    use mpi_interface, only : nyg,nxg,double_array_par_sum
 
     integer n1,n2,n3,k,i,j
     real a(n1,n2,n3),b(n1),avg(n1)
@@ -693,7 +670,7 @@ contains
 
     lavg = avg
     call double_array_par_sum(lavg,gavg,n1)
-    avg(:) = real(gavg(:))/real((nypg-4)*(nxpg-4))
+    avg(:) = real(gavg(:))/real(nyg*nxg)
 
   end subroutine get_var3
   !
@@ -701,7 +678,7 @@ contains
   ! function get_3rd3: gets the third moment for a field whose mean is known - calculated over all PUs
   !
   subroutine get_3rd3(n1,n2,n3,a,b,avg)
-    use mpi_interface, only : nypg,nxpg,double_array_par_sum
+    use mpi_interface, only : nyg,nxg,double_array_par_sum
 
     integer n1,n2,n3,k,i,j
     real a(n1,n2,n3),b(n1),avg(n1)
@@ -718,7 +695,7 @@ contains
 
     lavg = avg
     call double_array_par_sum(lavg,gavg,n1)
-    avg(:) = real(gavg(:))/real((nypg-4)*(nxpg-4))
+    avg(:) = real(gavg(:))/real(nyg*nxg)
   end subroutine get_3rd3
   !
   ! ----------------------------------------------------------------------
@@ -778,7 +755,7 @@ contains
   !
   subroutine ae1mm(n1,n2,n3,a,abar)
 
-    use mpi_interface, only : nypg,nxpg,double_array_par_sum
+    use mpi_interface, only : nyg,nxg,double_array_par_sum
 
     integer n1,n2,n3
     real, intent (inout), dimension (n1,n2,n3) :: a(n1,n2,n3)
@@ -801,7 +778,7 @@ contains
     end do
     lavg = gavg
     call double_array_par_sum(lavg,gavg,n1)
-    abar(:) = real( gavg(:)/real((nypg-4)*(nxpg-4)) )
+    abar(:) = real( gavg(:)/real(nyg*nxg) )
 
     do j=1,n3
        do i=1,n2

@@ -31,19 +31,13 @@ module mpi_interface
   !    nynzp = ny*nzp
   !    wrxid, wryid, nxprocs,nyprocs: (wrxid,wryid)=myid in 
   !        ranktable (nxprocs,nyprocs)
-  !    nxpa,nypa: arrays containing nxp and nyp for all nxprocs and nyprocs 
-  !         respectively
-  !    nynza, nxnza: arrays containing nynzp and nxnzp on nxprocs and nyprocs 
-  !         respectively
   !
 
-  integer :: myid, pecount, nxpg, nypg, nxg, nyg, nbytes, intsize, &
-       MY_SIZE, MY_CMPLX
+  integer :: myid, pecount, nxpg, nypg, nxg, nyg, nxny, MY_SIZE, MY_CMPLX
   integer :: xcomm, ycomm,commxid,commyid
   integer :: nxnzp,nynzp
   integer :: wrxid, wryid, nxprocs, nyprocs
-  integer, allocatable, dimension(:) :: xoffset, yoffset, nxpa, nypa, &
-       nynza, nxnza
+  integer, allocatable, dimension(:) :: xoffset, yoffset
 
   ! these are the parameters used in the alltoallw call in the fft
 
@@ -60,6 +54,7 @@ contains
   subroutine init_mpi
 
     integer ierror
+    integer :: nbytes, intsize
     character (len=8) date
 
     call mpi_init(ierror)  
@@ -135,7 +130,7 @@ contains
 
           if ( (nyp-4)/nyprocs .lt. 5) then
              print *, '  ABORTING: NYP too small for ',nyprocs,' processors.'
-             print *, '  Increase to ',nyprocs*9, ' or run on ',nypg/9,       &
+             print *, '  Increase to ',nyprocs*9, ' or run on ',nyp/9,       &
                   ' or fewer processors'
              call mpi_abort(MPI_COMM_WORLD,0,ierror)
           endif
@@ -170,7 +165,7 @@ contains
 
           if ( (nxp-4)/nxprocs .lt. 5) then
              print *, '  ABORTING: NXP too small for ',nxprocs,' processors.'
-             print *, '  Increase to ',nxprocs*9, ' or run on ',nxpg/9,       &
+             print *, '  Increase to ',nxprocs*9, ' or run on ',nxp/9,       &
                   ' or fewer processors'
              call mpi_abort(MPI_COMM_WORLD,0,ierror)
           endif
@@ -244,6 +239,8 @@ contains
     !
     nxpg = nxp
     nypg = nyp
+    nxg = nxpg-4
+    nyg = nypg-4
     nxp = (nxpg-4)/nxprocs + 4
     nyp = (nypg-4)/nyprocs + 4
 
@@ -264,6 +261,7 @@ contains
        endif
        xoffset(j) = xoffset(j-1)+nxpj-4
     enddo
+    if (wrxid<modx) nxp = nxp + 1
 
     yoffset = 0
 
@@ -275,6 +273,9 @@ contains
        endif
        yoffset(j) = yoffset(j-1)+nypj-4
     enddo
+    if (wryid<mody) nyp = nyp + 1
+
+    nxny = (nxp-4)*(nyp-4)
 
     if (nxpg > 5 .and. nxp == 5) then
        print *, 'ABORTING: Subdomain too finely discretized in x', nxpg, nxp
@@ -302,15 +303,22 @@ contains
     endif
 
     if (myid == 0) then
-       print 61, 'Processor count', pecount,'nxpl =', nxp,' nypl = ',nyp
-       do i=0,min(nxprocs,nyprocs)-1
-          print "(2x,A13,2I5)", 'x/y offset = ', xoffset(i), yoffset(i)
+       print "(/1x,49('-')/2x,A15,I5)", 'Processor count', pecount
+       print "(2x,A10,2A5,A6)", 'x/y offset','  nxp','  nyp',' nxnyp'
+       nxpj = nxp+1
+       nypj = nyp+1
+       do i=0,max(nxprocs,nyprocs)-1
+          if(i == modx) nxpj = nxp
+          if(i == mody) nypj = nyp
+          if (i<min(nxprocs,nyprocs)) then
+            print "(2x,4I5,I6)", xoffset(i), yoffset(i), nxpj, nypj, nxpj*nypj
+          elseif (i<nxprocs) then
+            print "(2x,I5,5x,2I5,I6)", xoffset(i), nxpj, nypj, nxpj*nypj
+          else
+            print "(2x,5x,I5,2I5,I6)", yoffset(i), nxpj, nypj, nxpj*nypj
+          endif
        end do
-       if (nxprocs>nyprocs) print "(15x,I5)", xoffset(nyprocs:nxprocs-1)
-       if (nxprocs<nyprocs) print "(15x,I5)", yoffset(nxprocs:nyprocs-1)
     end if
-
-61 format (/1x,49('-')/2x,A15,I5,2(A6,I5))
 
   end subroutine define_decomp
   !
@@ -323,12 +331,10 @@ contains
     integer, intent(in) :: nxp,nyp,nzp
 
     integer :: nx, ny, i, ii, jj, ierr, typesize,nynzg, nxnzg
-
+    integer, allocatable, dimension(:) :: nxpa, nypa, nxnza, nynza
 
     nx = max(1,nxp-4)
     ny = max(1,nyp-4)
-    nxg=nxpg-4
-    nyg=nypg-4
 
     allocate (nxpa(0:nxprocs-1), nypa(0:nyprocs-1))
     allocate (nxnza(0:nyprocs-1), nynza(0:nxprocs-1))

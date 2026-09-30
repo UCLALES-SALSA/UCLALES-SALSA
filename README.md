@@ -3,17 +3,25 @@
 This description covers UCLALES-SALSA branch **IceDevelOrg** (https://github.com/UCLALES-SALSA/UCLALES-SALSA/tree/IceDevelOrg) and branches originating from that.
 
 Branch **comble_dev** contains modifications needed for the COMBLE-MIP simulations (https://arm-development.github.io/comble-mip/README.html).
+
+### Part 1
+
 - For SB simulations, see commit 54eb6cac9d4cae0ed6dadc2749b816a512e6afcf (Mon Jun 10 15:48:53 2024 +0300).
+
+**Reference:** Juliano, T. W., Tornow, F., Fridlind, A. M., Ackerman, A. S., Elsaesser, G. S., Geerts, B., Lackner, C. P., Painemal, D., Silber, I., Ovchinnikov, M., Svensson, G., Tjernstr&ouml;m, M., Wu, P., Bar&oacute; P&eacute;rez, A., Bogenschutz, P., Chechin, D., Chandrakar, K. K., Chylik, J., Debolskiy, A., Fadeev, R., Gupta, A., Ickes, L., Karalis, M., K&ouml;hler, M., Kosovic, B., Kuma, P., Li, W., Mortikov, E., Morrison, H., Neggers, R. A. J., Possner, A., Raatikainen, T., Raillard, L., Romakkaniemi, S., Schnierstein, N., Shima, S., Silin, N., Tolstykh, M., Vignon, &Eacute;, Xue, L., Zhang, M., and Zheng, X.: The Cold-Air Outbreaks in the Marine Boundary Layer Experiment model-observation intercomparison project (COMBLE-MIP) - Part 1: Model specification, observational constraints, and preliminary findings, Atmos. Chem. Phys., 26, 13267-13302, https://doi.org/10.5194/acp-26-13267-2026, 2026.
+
+### Part 2
+
 - For SALSA simulations, see commit f56146f1f8fd5471fbdded63ac2e058bd5c9445f (Wed Jul 31 11:44:41 2024 +0300).
 
-Reference: Juliano, T.W., et al.: The Cold-Air Outbreaks in the Marine Boundary Layer Experiment model-observation intercomparison project (COMBLE-MIP), Part I: Model specification, observational constraints, and preliminary findings, Manuscrip in preparation, 2025.
-
 ## Description
+
 UCLALES-SALSA (Tonttila et al., 2017; Ahola et al., 2020) is a Large-Eddy Simulator (LES) coupled with a detailed sectional aerosol microphysics module SALSA (Kokkola et al., 2008) extended for cloud, rain, and ice microphysics. This version of SALSA includes semi-volatile organics (Prank et al., 2022) described with the Volatility Basis Set (VBS) approach. SALSA and all modifications and components related to the coupled UCLALES-SALSA have been designed and developed by the Finnish Meteorological Institute (see the MIT license in this directory).
 
 The core model UCLALES is the work of Stevens et al. (Stevens et al., 1999, 2005; Stevens and Seifert, 2008). The original two-moment warm cloud microphysics by Seifert and Beheng (2001) and the mixed-phase and ice clouds by Seifert et al. (2006, 2008, 2012, 2014) are optionally included. UCLALES code is originally from https://github.com/uclales/uclales (last access: Mar 12, 2014, for the core model and May 24, 2018, for the ice microphysics). UCLALES code is copyrighted by Bjorn Stevens and protected by the General Public License, version 3, see gpl-3.0.txt in this directory
 
 #### References
+
 - Ahola, J., Korhonen, H., Tonttila, J., Romakkaniemi, S., Kokkola, H., and Raatikainen, T.: Modelling mixed-phase clouds with the large-eddy model UCLALES-SALSA, Atmos. Chem. Phys., 20, 11639-11654, https://doi.org/10.5194/acp-20-11639-2020, 2020.
 - Kokkola, H., Korhonen, H., Lehtinen, K. E. J., Makkonen, R., Asmi, A., Jarvenoja, S., Anttila, T., Partanen, A.-I., Kulmala, M., Jarvinen, H., Laaksonen, A., and Kerminen, V.-M.: SALSA - a Sectional Aerosol module for Large Scale Applications, Atmos. Chem. Phys., 8, 2469-2483, https://doi.org/10.5194/acp-8-2469-2008, 2008.
 - Prank, M., Tonttila, J., Ahola, J., Kokkola, H., Kuhn, T., Romakkaniemi, S., and Raatikainen, T.: Impacts of marine organic emissions on low-level stratiform clouds - a large eddy simulator study, Atmos. Chem. Phys., 22, 10971-10992, https://doi.org/10.5194/acp-22-10971-2022, 2022.
@@ -28,16 +36,21 @@ The core model UCLALES is the work of Stevens et al. (Stevens et al., 1999, 2005
 - Tonttila, J., Maalick, Z., Raatikainen, T., Kokkola, H., Kuhn, T., and Romakkaniemi, S.: UCLALES-SALSA v1.0: a large-eddy model with interactive sectional microphysics for aerosol, clouds and precipitation, Geosci. Model Dev., 10, 169-188, https://doi.org/10.5194/gmd-10-169-2017, 2017.
 
 ### Compilation
-A sample makefile *Makefile_Puhti_Intel* is valid for CSC's Puhti supercomputer when using Intel Fortran compiler environment. Dependencies (netCDF, HDF5, mpi) needs to be modified according to each computing environment. The compilation with flag *seq* or *mpi* produces either single processor sequential (./bin/les.seq) or parallel (./bin/les.mpi) executable.
+
+A sample makefile *Makefile_Puhti_Intel* is for CSC's Puhti supercomputer when using Intel Fortran compiler environment. Another Makefile_Roihu_GCC is for CSC's Roihu supercomputer when using GNU Fortran compiler environment. Dependencies (netCDF, HDF5, mpi) needs to be modified according to each computing environment. The compilation with flag *seq* or *mpi* produces either single processor sequential (./bin/les.seq) or parallel (./bin/les.mpi) executable.
 
 ### Run the model
+
 The bin directory contains a sample NAMELIST (*NAMELIST_sample*) and sounding (*sound_in_sample*) for a test run. Just remove "_sample" from the file names. For a simple sequential run on a command prompt just execute **./les.seq**, but otherwise running the model depends on the computing environment.
 
 ## UCLALES-SALSA publications
+
 - Tonttila, J., Maalick, Z., Raatikainen, T., Kokkola, H., Kuhn, T., and Romakkaniemi, S.: UCLALES-SALSA v1.0: a large-eddy model with interactive sectional microphysics for aerosol, clouds and precipitation, Geosci. Model Dev., 10, 169-188, https://doi.org/10.5194/gmd-10-169-2017, 2017.
 - Stevens, R. G., Loewe, K., Dearden, C., Dimitrelos, A., Possner, A., Eirund, G. K., Raatikainen, T., Hill, A. A., Shipway, B. J., Wilkinson, J., Romakkaniemi, S., Tonttila, J., Laaksonen, A., Korhonen, H., Connolly, P., Lohmann, U., Hoose, C., Ekman, A. M. L., Carslaw, K. S., and Field, P. R.: A model intercomparison of CCN-limited tenuous clouds in the high Arctic, Atmos. Chem. Phys., 18, 11041-11071, https://doi.org/10.5194/acp-18-11041-2018, 2018.
 - Ahola, J., Korhonen, H., Tonttila, J., Romakkaniemi, S., Kokkola, H., and Raatikainen, T.: Modelling mixed-phase clouds with the large-eddy model UCLALES-SALSA, Atmos. Chem. Phys., 20, 11639-11654, https://doi.org/10.5194/acp-20-11639-2020, 2020.
 - Prank, M., Tonttila, J., Ahola, J., Kokkola, H., Kuhn, T., Romakkaniemi, S., and Raatikainen, T.: Impacts of marine organic emissions on low-level stratiform clouds - a large eddy simulator study, Atmos. Chem. Phys., 22, 10971-10992, https://doi.org/10.5194/acp-22-10971-2022, 2022.
-- Prank, M., Tonttila, J., Shang, X., Romakkaniemi, S., and Raatikainen, T.: Can pollen affect precipitation?, Atmos. Chem. Phys., 25, 183-197, https://doi.org/10.5194/acp-25-183-2025, 2025.
 - Ahola, J., Raatikainen, T., Alper, M. E., Keskinen, J.-P., Kokkola, H., Kukkurainen, A., Lipponen, A., Liu, J., Nordling, K., Partanen, A.-I., Romakkaniemi, S., Raisanen, P., Tonttila, J., and Korhonen, H.: Technical note: Parameterising cloud base updraft velocity of marine stratocumuli, Atmos. Chem. Phys., 22, 4523-4537, https://doi.org/10.5194/acp-22-4523-2022, 2022.
 - Raatikainen, T., Prank, M., Ahola, J., Kokkola, H., Tonttila, J., and Romakkaniemi, S.: The effect of marine ice-nucleating particles on mixed-phase clouds, Atmos. Chem. Phys., 22, 3763-3778, https://doi.org/10.5194/acp-22-3763-2022, 2022.
+- Prank, M., Tonttila, J., Shang, X., Romakkaniemi, S., and Raatikainen, T.: Can pollen affect precipitation?, Atmos. Chem. Phys., 25, 183-197, https://doi.org/10.5194/acp-25-183-2025, 2025.
+- Raatikainen, T., Calder&oacute;n, S., J&auml;rvinen, E., Prank, M., and Romakkaniemi, S.: Can rime splintering explain the ice production in Arctic mixed-phase clouds?, Atmos. Chem. Phys., 26, 5019-5038, https://doi.org/10.5194/acp-26-5019-2026, 2026.
+- Juliano, T. W., Tornow, F., Fridlind, A. M., Ackerman, A. S., Elsaesser, G. S., Geerts, B., Lackner, C. P., Painemal, D., Silber, I., Ovchinnikov, M., Svensson, G., Tjernstr&ouml;m, M., Wu, P., Bar&oacute; P&eacute;rez, A., Bogenschutz, P., Chechin, D., Chandrakar, K. K., Chylik, J., Debolskiy, A., Fadeev, R., Gupta, A., Ickes, L., Karalis, M., K&ouml;hler, M., Kosovic, B., Kuma, P., Li, W., Mortikov, E., Morrison, H., Neggers, R. A. J., Possner, A., Raatikainen, T., Raillard, L., Romakkaniemi, S., Schnierstein, N., Shima, S., Silin, N., Tolstykh, M., Vignon, &Eacute;., Xue, L., Zhang, M., and Zheng, X.: The Cold-Air Outbreaks in the Marine Boundary Layer Experiment model-observation intercomparison project (COMBLE-MIP) - Part 1: Model specification, observational constraints, and preliminary findings, Atmos. Chem. Phys., 26, 13267-13302, https://doi.org/10.5194/acp-26-13267-2026, 2026.

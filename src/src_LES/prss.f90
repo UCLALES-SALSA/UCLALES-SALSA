@@ -328,6 +328,7 @@ contains
   subroutine prs_cor(n1,n2,n3,p,u,v,w,dz,dx,dy,th00)
 
     use stat, only : updtst
+    use util, only : get_pustat_vector
 
     integer, intent (in) :: n1,n2,n3
     real, intent (in)    :: p(n1,n2,n3),dz(n1),dx,dy,th00
@@ -352,6 +353,9 @@ contains
           end do
        end do
     enddo
+    CALL get_pustat_vector('avg',n1,v1da)
+    CALL get_pustat_vector('avg',n1,v1db)
+    CALL get_pustat_vector('avg',n1,v1dc)
     call updtst(n1,v1da,1,'prs_u  ')
     call updtst(n1,v1db,1,'prs_v  ')
     call updtst(n1,v1dc,1,'prs_w  ')

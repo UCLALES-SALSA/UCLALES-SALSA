@@ -28,17 +28,14 @@ module mpi_interface
   !    nynzp = ny*nzp
   !    wrxid, wryid, nxprocs,nyprocs:(wrxid,wryid)=myid 
   !       in ranktable (nxprocs,nyprocs)
-  !    nxpa,nypa: arrays containing nxp and nyp for all nxprocs and nyprocs resp.
-  !    nynza, nxnza: arrays containing nynzp and nxnzp on nxprocs and nyprocs 
-  !    resp.
   !
   implicit none
 
-  integer :: myid, pecount, nxpg, nypg, nxg, nyg, nbytes, intsize
+  integer :: myid, pecount, nxpg, nypg, nxg, nyg, nxny
   integer :: xcomm, ycomm,commxid,commyid, MY_CMPLX, MY_SIZE
   integer :: nxnzp,nynzp
   integer :: wrxid, wryid, nxprocs, nyprocs
-  integer, allocatable, dimension(:) :: xoffset, yoffset, nxpa, nypa
+  integer, allocatable, dimension(:) :: xoffset, yoffset
 
   ! these are the parameters used in the alltoallw call in the fft
 
@@ -50,6 +47,7 @@ contains
   subroutine init_mpi
 
     character (len=8) date
+    integer :: nbytes, intsize
 
     myid=0
     pecount=1
@@ -90,6 +88,7 @@ contains
 
     integer, intent(inout) :: nxp, nyp
     logical, intent(in) ::  nxpart
+    integer, allocatable, dimension(:) :: nxpa, nypa
 
     nxprocs=1
     nyprocs=1
@@ -123,6 +122,8 @@ contains
     xoffset = 0
     yoffset = 0
 
+    nxny = (nxp-4)*(nyp-4)
+
     if(nxp.lt.5) then
        print *, 'ABORT: X Horizontal domain size too small for ',nxprocs,    &
             ' processors.'
@@ -152,8 +153,6 @@ contains
 
     integer, intent(in) :: nxp,nyp,nzp
 
-    nxg=nxp-4
-    nyg=nyp-4
     nxnzp=nxg*nzp
     nynzp=nyg*nzp
 

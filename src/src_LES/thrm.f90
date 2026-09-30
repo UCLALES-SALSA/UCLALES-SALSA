@@ -322,35 +322,6 @@ contains
   end function esi
 !
 ! -------------------------------------------------------------------------
-! FLL_TKRS: Updates scratch arrays with temperature and saturation mixing
-! ratio
-!
-  subroutine fll_tkrs(n1,n2,n3,th,pp,pi0,pi1,tk,rs)
-
-  use defs, only : cp, cpr, p00
-
-  integer, intent (in) :: n1,n2,n3
-  real, intent (in)    :: th(n1,n2,n3), pp(n1,n2,n3)
-  real, intent (in)    :: pi0(n1), pi1(n1)
-  real, intent (out)   :: tk(n1,n2,n3)
-  real, optional, intent (out)   :: rs(n1,n2,n3)
-
-  integer :: i, j, k
-  real    :: exner
-
-  do j=3,n3-2
-    do i=3,n2-2
-      do k=1,n1
-        exner=(pi0(k)+pi1(k)+pp(k,i,j))/cp
-        tk(k,i,j)=th(k,i,j)*exner
-        if (present(rs)) rs(k,i,j)=rslf( p00*exner**cpr ,tk(k,i,j))
-      end do
-    end do
-  end do
-
-  end subroutine fll_tkrs
-!
-! -------------------------------------------------------------------------
 ! BRUVAIS:  Calculates the brunt-vaisaila frequency in accordance with the
 ! thermodynamic level
 !

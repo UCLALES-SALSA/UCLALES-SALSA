@@ -857,7 +857,7 @@ contains
        if (itype==0) ncinfo = 'Third moment of ice-liquid water potential temperature'
        if (itype==1) ncinfo = 'K^3'
     case('tot_tw')
-       if (itype==0) ncinfo = 'Total vertical flux of theta'
+       if (itype==0) ncinfo = 'Total vertical flux of ice-liquid water potential temperature'
        if (itype==1) ncinfo = 'W/m^2'
        if (itype==2) ncinfo = 'mttt'
     case('sfs_tw')
@@ -890,10 +890,10 @@ contains
        if (itype==2) ncinfo = 'mttt'
     case('km')
        if (itype==0) ncinfo = 'Eddy viscosity'
-       if (itype==1) ncinfo = 'm^2/s'
+       if (itype==1) ncinfo = 'kg/m^3*m^2/s'
     case('kh')
        if (itype==0) ncinfo = 'Eddy diffusivity'
-       if (itype==1) ncinfo = 'm^2/s'
+       if (itype==1) ncinfo = 'kg/m^3*m^2/s'
     case('lmbd')
        if (itype==0) ncinfo = 'Mixing lengthscale'
        if (itype==1) ncinfo = 'm'
@@ -975,11 +975,35 @@ contains
        if (itype==1) ncinfo = '-'
     case('tot_qw')
        if (itype==0) ncinfo = 'Total vertical flux of water'
-       if (itype==1) ncinfo = 'kg/kg*m/s'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'mttt'
     case('sfs_qw')
-       if (itype==0) ncinfo = 'Sub-filter scale vertical flux of q'
-       if (itype==1) ncinfo = 'kg/kg*m/s'
+       if (itype==0) ncinfo = 'Sub-filter scale vertical flux of water'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'mttt'
+    case('tot_rvw')
+       if (itype==0) ncinfo = 'Total vertical flux of water vapor'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'mttt'
+    case('sfs_rvw')
+       if (itype==0) ncinfo = 'Sub-filter scale vertical flux of water vapor'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'mttt'
+    case('tot_lw')
+       if (itype==0) ncinfo = 'Total vertical flux of liquid water'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'mttt'
+    case('sfs_lw')
+       if (itype==0) ncinfo = 'Sub-filter scale vertical flux of liquid water'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'mttt'
+    case('tot_iw')
+       if (itype==0) ncinfo = 'Total vertical flux of ice water'
+       if (itype==1) ncinfo = 'kg/m^2/s'
+       if (itype==2) ncinfo = 'mttt'
+    case('sfs_iw')
+       if (itype==0) ncinfo = 'Sub-filter scale vertical flux of ice water'
+       if (itype==1) ncinfo = 'kg/m^2/s'
        if (itype==2) ncinfo = 'mttt'
     case('rflx')
        if (itype==0) ncinfo =  'Total Radiative flux'
@@ -1019,10 +1043,6 @@ contains
     case('l_3')
        if (itype==0) ncinfo = 'Third moment of liquid water mixing ratio'
        if (itype==1) ncinfo = '-'
-    case('tot_lw')
-       if (itype==0) ncinfo = 'Total vertical flux of liquid water'
-       if (itype==1) ncinfo = 'kg/kg*m/s'
-       if (itype==2) ncinfo = 'mttt'
     case('cs1')
        if (itype==0) ncinfo = 'Fraction of cloudy columns (cs1)'
        if (itype==1) ncinfo = '-'

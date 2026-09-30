@@ -34,7 +34,7 @@ module stat
                         nv1_ice = 22,             &
                         nv1_lvl4 = 5,             &
                         nv1_lvl5 = 12,            &
-                        nvar2 = 96,               &
+                        nvar2 = 101,              &
                         nv2_ice = 21,             &
                         nv2_lvl4 = 0,             &
                         nv2_lvl5 = 11,            &
@@ -110,7 +110,8 @@ module stat
         'wrt_cs1','cs2    ','cnt_cs2','w_cs2  ','tl_cs2 ','tv_cs2 ', & ! 73
         'rt_cs2 ','rc_cs2 ','wtl_cs2','wtv_cs2','wrt_cs2','Rc_ic  ', & ! 79
         'crate  ','frac_ic','Nc_ic  ','Rr_ir  ','rr     ','rrate  ', & ! 85
-        'frac_ir','Nr_ir  ','sw_up  ','sw_down','lw_up  ','lw_down'/), & ! 91, total 96
+        'frac_ir','Nr_ir  ','sw_up  ','sw_down','lw_up  ','lw_down', & ! 91
+        'tot_rvw','sfs_rvw','sfs_lw ','tot_iw ','sfs_iw '/), & ! 97, total 101
 
         s2_ice(nv2_ice)=(/ &
         'ri     ','Ni_ii  ','Ri_ii  ','frac_ii','irate  ', & ! 1
@@ -150,7 +151,7 @@ module stat
         'swp    ','Ns_is  ','Rs_is  ','sprcp  ','nscnt  '/) ! 6-10
 
   real, save, allocatable   :: tke_sgs(:), tke_res(:), tke0(:), wtv_sgs(:),  &
-       wtv_res(:), wrl_sgs(:), thvar(:), svctr(:,:), ssclr(:),               &
+       wtv_res(:), thvar(:), svctr(:,:), ssclr(:),                           &
        ssclr_ice(:), svctr_ice(:,:),                                         &
        ! Additional ssclr and svctr for BULK SALSA output
        svctr_lvl4(:,:), ssclr_lvl4(:),                                       &
@@ -235,12 +236,11 @@ contains
     LOGICAL, ALLOCATABLE :: s1bool(:), s2bool(:)
     CHARACTER (len=7), ALLOCATABLE :: s1total(:), s2total(:)
 
-    allocate (wtv_sgs(nzp),wtv_res(nzp),wrl_sgs(nzp))
+    allocate (wtv_sgs(nzp),wtv_res(nzp))
     allocate (tke_res(nzp),tke_sgs(nzp),tke0(nzp),thvar(nzp))
 
     wtv_sgs(:) = 0.
     wtv_res(:) = 0.
-    wrl_sgs(:) = 0.
     tke_res(:) = 0.
     tke_sgs(:) = 0.
     tke0(:)    = 0.
@@ -256,6 +256,7 @@ contains
     s2_bool(30:31) = .FALSE. ! Length scales
     s2_bool(39:48) = .FALSE. ! Winds from diffusion and advection
     s2_bool(64:83) = .FALSE. ! Conditional sampling
+    s2_bool(100:101) = (level==5 .OR. (level==0 .AND. lev_sb>3)) ! Ice water statistics
 
     ! User selected process rate outputs: check, count and order inputs
     CALL test_user_vars(out_ts_list,maxn_list,nv1_proc)
@@ -1774,7 +1775,7 @@ contains
   ! Outputs are calculated here to array user_ts_data(nv1_user).
   subroutine ts_user_stats()
     use grid, ONLY : CCN, nzp, nxp, nyp, dzt, a_dn, a_temp, &
-        a_rsl, a_rv, &
+        a_rsl, a_rv, a_rp, &
         a_rflx, a_sflx, a_fuir, a_fdir
     INTEGER :: i
     REAL :: a(nzp,nxp,nyp), a1
@@ -1792,7 +1793,11 @@ contains
         CASE ('SS_max')
             ! Maximum supersaturation
             a=0.
-            WHERE(a_rsl>1e-10) a=a_rv/a_rsl
+            IF (level<4) THEN
+                WHERE(a_rsl>1e-10) a=a_rv/a_rsl
+            ELSE
+                WHERE(a_rsl>1e-10) a=a_rp/a_rsl
+            ENDIF
             a1 = (MAXVAL(a)-1.0)*100.0
             user_ts_data(i) = get_pustat_scalar('max',a1)
         CASE ('T_min')
@@ -2851,6 +2856,9 @@ contains
        svctr(k,24) = svctr(k,24)+svctr(k,25)
        svctr(k,26) = svctr(k,26)+svctr(k,27)
        svctr(k,53) = svctr(k,53)+svctr(k,54)
+       svctr(k,62) = svctr(k,62)+svctr(k,99)
+       svctr(k,97) = svctr(k,97)+svctr(k,98)
+       svctr(k,100) = svctr(k,100)+svctr(k,101)
        svctr(k,21) = svctr(k,21)*cp
        svctr(k,37) = svctr(k,44) + svctr(k,47) +(                         &
             +svctr(k,45) + svctr(kp1,45) + svctr(k,46) + svctr(kp1,46)    &
@@ -3068,12 +3076,11 @@ contains
   end subroutine fill_scalar_2d
   !
   ! Scalars for ts outputs
-  subroutine fill_scalar(xval,vname,op,wg)
+  subroutine fill_scalar(xval,vname,op)
     ! Inputs
     real, intent(in) :: xval
     character(len=7), intent (in) :: vname
     CHARACTER(LEN=3), INTENT(IN), OPTIONAL :: op ! Optional operation; default='avg'
-    REAL, INTENT(IN), OPTIONAL :: wg ! Optional weight; default=none
     ! Local
     INTEGER :: i
     CHARACTER(LEN=3) :: myop
@@ -3085,11 +3092,7 @@ contains
     DO i=1,nvar1
         IF ( vname == s1(i) ) THEN
             ! Output array found, calculate result over all PUs
-            IF (present(wg)) THEN
-                ssclr(i) = get_pustat_scalar(myop,xval,wg)
-            ELSE
-                ssclr(i) = get_pustat_scalar(myop,xval)
-            ENDIF
+            ssclr(i) = get_pustat_scalar(myop,xval)
             RETURN
         ENDIF
     ENDDO
@@ -3098,11 +3101,7 @@ contains
     DO i=1,nv1_user
         IF ( vname == user_ts_list(i) ) THEN
             ! Output array found, calculate result over all PUs
-            IF (present(wg)) THEN
-                user_ts_data(i) = get_pustat_scalar(myop,xval,wg)
-            ELSE
-                user_ts_data(i) = get_pustat_scalar(myop,xval)
-            ENDIF
+            user_ts_data(i) = get_pustat_scalar(myop,xval)
             RETURN
         ENDIF
     ENDDO
@@ -3111,11 +3110,7 @@ contains
     DO i=1,nv1_lvl4
         IF ( vname == s1_lvl4(i) ) THEN
             ! Output array found, calculate result over all PUs
-            IF (present(wg)) THEN
-                ssclr_lvl4(i) = get_pustat_scalar(myop,xval,wg)
-            ELSE
-                ssclr_lvl4(i) = get_pustat_scalar(myop,xval)
-            ENDIF
+            ssclr_lvl4(i) = get_pustat_scalar(myop,xval)
             RETURN
         ENDIF
     ENDDO
@@ -3123,7 +3118,7 @@ contains
   end subroutine fill_scalar
   !
   ! --------------------------------------------------------------------------
-  ! SGSFLXS: estimates the sgs rl and tv flux from the sgs theta_l and sgs r_t
+  ! SGSFLXS: estimates the sgs tv flux from the sgs theta_l and sgs r_t
   ! fluxes
   !
   subroutine sgsflxs(n1,n2,n3,level,rl,rv,th,flx,type)
@@ -3136,17 +3131,15 @@ contains
     character (len=2)   :: type
 
     integer :: k,i,j
-    real    :: rnpts      ! reciprical of number of points and
-    real    :: fctl, fctt ! factors for liquid (l) and tv (t) fluxes
+    real    :: rnpts ! reciprical of number of points and
+    real    :: fctt  ! factor for tv (t) flux
 
-    if (type == 'tl') then
-       wrl_sgs(:) = 0.
-       wtv_sgs(:) = 0.
-    end if
     rnpts = 1./real((n2-4)*(n3-4))
     !
     ! calculate fluxes assuming liquid water.
     !
+    if (type == 'tl') then
+       wtv_sgs(:) = 0.
        do j = 3,n3-2
           do i = 3,n2-2
              do k = 1,n1-1
@@ -3154,33 +3147,32 @@ contains
                    fctt = rnpts*(1. + rv(k,i,j)*(1.+ep2 +ep2*rv(k,i,j)*alvl   &
                         /(rm*th(k,i,j))))                                     &
                         /(1.+(rv(k,i,j)*(alvl/th(k,i,j))**2)/(rm*cp))
-                   select case (type)
-                   case ('tl')
-                      fctl =-rnpts/(rm*th(k,i,j)**2/(rv(k,i,j)*alvl)+alvl/cp)
-                   case ('rt')
-                      fctl =rnpts/(1.+(rv(k,i,j)*alvl**2)/(cp*rm*th(k,i,j)**2))
-                      fctt = (alvl*fctt/cp - th(k,i,j)*rnpts)
-                   end select
-                   wrl_sgs(k) = wrl_sgs(k) + fctl*flx(k,i,j)
-                   wtv_sgs(k) = wtv_sgs(k) + fctt*flx(k,i,j)
                 else
-                   select case (type)
-                   case ('tl')
-                      fctt = rnpts*(1. + ep2*rv(k,i,j))
-                   case ('rt')
-                      fctt = rnpts*(ep2*th(k,i,j))
-                   end select
-                   wtv_sgs(k) = wtv_sgs(k) + fctt*flx(k,i,j)
+                   fctt = rnpts*(1. + ep2*rv(k,i,j))
                 end if
+                wtv_sgs(k) = wtv_sgs(k) + fctt*flx(k,i,j)
              end do
           end do
        end do
-
-    ! Global
-    if (type == 'rt') then
+    else
+       do j = 3,n3-2
+          do i = 3,n2-2
+             do k = 1,n1-1
+                if (rl(k+1,i,j) > 0.) then
+                   fctt = rnpts*(1. + rv(k,i,j)*(1.+ep2 +ep2*rv(k,i,j)*alvl   &
+                        /(rm*th(k,i,j))))                                     &
+                        /(1.+(rv(k,i,j)*(alvl/th(k,i,j))**2)/(rm*cp))
+                   fctt = (alvl*fctt/cp - th(k,i,j)*rnpts)
+                else
+                   fctt = rnpts*(ep2*th(k,i,j))
+                end if
+                wtv_sgs(k) = wtv_sgs(k) + fctt*flx(k,i,j)
+             end do
+          end do
+       end do
+       ! Global
        CALL get_pustat_vector('avg', n1, wtv_sgs)
-       CALL get_pustat_vector('avg', n1, wrl_sgs)
-    ENDIF
+    endif
 
   end subroutine sgsflxs
   !
@@ -3194,15 +3186,11 @@ contains
     character (len=7), intent (in) :: nam
 
     integer :: nn
-    REAL :: tmp(n1)
 
     DO nn=1,nvar2
         IF (nam==s2(nn)) THEN
             if (ic == 0) svctr(:,nn)=0.
-            ! Global
-            tmp(:)=values(:)
-            CALL get_pustat_vector('avg',n1,tmp)
-            svctr(:,nn)=svctr(:,nn)+tmp(:)
+            svctr(:,nn)=svctr(:,nn)+values(:)
             RETURN
         ENDIF
     ENDDO

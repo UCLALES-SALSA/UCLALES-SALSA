@@ -66,16 +66,16 @@ contains
   subroutine diffuse
 
     use grid, only : a_up, a_uc, a_ut, a_vp, a_vc, a_vt, a_wp, a_wc, a_wt    &
-         , a_rv, a_rc, a_rp, a_ri, a_tp, a_sp, a_st, a_qt, a_qp, a_pexnr, a_theta  &
-         , a_temp, a_rsl, nscl, nxp, nyp    &
+         , a_rv, a_rc, a_rp, a_ri, a_tp, a_sp, a_st, a_qt, a_qp, a_theta  &
+         , a_temp, a_rsl, a_rpp, nscl, nxp, nyp    &
          , nzp, zm, dxi, dyi, dzt, dzm, dtl, th00, dn0  &
-         , pi0, pi1, newsclr, level, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc &
+         , newsclr, level, lev_sb, isgstyp, uw_sfc, vw_sfc, ww_sfc, wt_sfc &
          , wq_sfc, a_edr
     USE defs, ONLY : cp, alvi
 
-    use util, only         : get_avg3, get_cor3
+    use util, only         : get_avg3, get_cor3, get_pustat_vector
     use mpi_interface, only: cyclics, cyclicc
-    use thrm, only         : bruvais, fll_tkrs
+    use thrm, only         : bruvais
 
     integer :: n
     REAL :: rx(nzp,nxp,nyp), rxt(nzp,nxp,nyp), a_tmp1(nzp,nxp,nyp), &
@@ -110,8 +110,6 @@ contains
     ! ----------
     ! Calculate Deformation and stability for SGS calculations
     !
-    call fll_tkrs(nzp,nxp,nyp,a_theta,a_pexnr,pi0,pi1,a_temp,rs=a_rsl)
-
     call bruvais(nzp,nxp,nyp,level,a_theta,thl,rxt,a_rsl,a_tmp3,dzm,th00)
 
     !
@@ -127,9 +125,9 @@ contains
     !
     select case (isgstyp)
     case (1)
-       call smagor(nzp,nxp,nyp,sflg,dxi,dyi,dn0,a_tmp3,a_tmp2,a_tmp1,zm,a_edr)
+       call smagor(nzp,nxp,nyp,sflg,dxi,dyi,zm,dzm,dn0,a_tmp3,a_tmp2,a_tmp1,a_edr)
     case (2)
-       call deardf(nzp,nxp,nyp,sflg,dxi,zm,dn0,a_qp,a_qt,a_tmp3,a_tmp2,a_tmp1,a_edr)
+       call deardf(nzp,nxp,nyp,sflg,dxi,dyi,zm,dn0,a_qp,a_qt,a_tmp3,a_tmp2,a_tmp1,a_edr)
        call solv_tke(nzp,nxp,nyp,a_tmp3,a_tmp1,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi,dtl)
     end select
     !
@@ -164,6 +162,9 @@ contains
        sz1(:)=sz1(:)/float((nxp-4)*(nyp-4))
        sz2(:)=sz2(:)/float((nxp-4)*(nyp-4))
        sz3(:)=sz3(:)/float((nxp-4)*(nyp-4))
+       CALL get_pustat_vector('avg',nzp,sz1)
+       CALL get_pustat_vector('avg',nzp,sz2)
+       CALL get_pustat_vector('avg',nzp,sz3)
        call updtst(nzp,sz1,1,'sfs_uw ')
        call updtst(nzp,sz2,1,'sfs_vw ')
        call updtst(nzp,sz3,1,'sfs_ww ')
@@ -174,9 +175,53 @@ contains
        sz5(:)=sz5(:)-sz3(:)
        call get_cor3(nzp,nxp,nyp,a_wc,a_wt,sz3)
        sz6(:)=sz6(:)-sz3(:)
-       call updtst(nzp,sz4,0,'diff_u ')
-       call updtst(nzp,sz5,0,'diff_v ')
-       call updtst(nzp,sz6,0,'diff_w ')
+       call updtst(nzp,sz4,1,'diff_u ')
+       call updtst(nzp,sz5,1,'diff_v ')
+       call updtst(nzp,sz6,1,'diff_w ')
+    end if
+    !
+    ! diagnosed water fluxes
+    !
+    if (sflg) then
+       sxy1=0. ! No surface fluxes here
+       sxy2=0.
+       a_tmp4=0. ! Tendency output
+       ! Diagnostic variable (vapor or total)
+       if (level<4) then ! SB
+          ! Water vapor
+          a_tmp3=a_rv
+          call diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
+               ,a_tmp3,a_tmp2,a_tmp4,a_tmp1)
+          call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
+          call updtst(nzp,sz1,1,'sfs_rvw')
+       else              ! SALSA
+          ! Total water
+          a_tmp3=a_rp+a_rc+a_ri
+          call diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
+               ,a_tmp3,a_tmp2,a_tmp4,a_tmp1)
+          call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
+          call updtst(nzp,sz1,1,'sfs_qw ')
+       endif
+       !
+       ! Liquid water
+       if (level<4) then ! SB
+          a_tmp3=a_rc+a_rpp ! Cloud+rain water
+       else
+          a_tmp3=a_rc ! Aerosol + cloud + rain water
+       endif
+       call diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
+            ,a_tmp3,a_tmp2,a_tmp4,a_tmp1)
+       call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
+       call updtst(nzp,sz1,1,'sfs_lw ')
+       !
+       ! Ice water
+       if ((level==0 .and. lev_sb>3) .or. level==5) then
+          a_tmp3=a_ri
+          call diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
+               ,a_tmp3,a_tmp2,a_tmp4,a_tmp1)
+          call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
+          call updtst(nzp,sz1,1,'tot_iw ')
+       endif
     end if
     !
     ! Diffuse scalars
@@ -205,9 +250,13 @@ contains
           call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
           call updtst(nzp,sz1,1,'sfs_tw ')
           call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'tl')
-       elseif (sflg .and. associated(a_sp,a_rp)) then
+       elseif (sflg .and. associated(a_sp,a_rp) .and. level<4) then
           call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
           call updtst(nzp,sz1,1,'sfs_qw ')
+          call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'rt')
+       elseif (sflg .and. associated(a_sp,a_rp)) then
+          call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
+          call updtst(nzp,sz1,1,'sfs_rvw ')
           call sgsflxs(nzp,nxp,nyp,level,rxt,rx,a_theta,a_tmp1,'rt')
        endif
     enddo
@@ -297,7 +346,7 @@ contains
   ! timsteps, SGS energy, dissipation, viscosity, diffusivity and
   ! lengthscales are stored.
   !
-  subroutine smagor(n1,n2,n3,sflg,dxi,dyi,dn0,ri,kh,km,zm,edr)
+  subroutine smagor(n1,n2,n3,sflg,dxi,dyi,zm,dzm,dn0,ri,kh,km,edr)
 
     use defs, only          : pi, vonk
     use stat, only          : tke_sgs
@@ -308,7 +357,7 @@ contains
 
     logical, intent(in) :: sflg
     integer, intent(in) :: n1,n2,n3
-    real, intent(in)    :: dxi,dyi,zm(n1),dn0(n1)
+    real, intent(in)    :: dxi,dyi,zm(n1),dzm(n1),dn0(n1)
     real, intent(inout) :: ri(n1,n2,n3),kh(n1,n2,n3)
     real, intent(out)   :: km(n1,n2,n3),edr(n1,n2,n3)
     real    :: delta,pr
@@ -321,6 +370,10 @@ contains
     do j=3,n3-2
        do i=3,n2-2
           do k=2,n1-1
+             ! If not uniform vertical grid: delta=(dz*dx*dy)**(1/3) [m]
+             !delta = (1./(dzm(k)*dxi*dyi))**0.333333333
+             !
+             ! Richardson Number (Ri=N2/S2=ri/kh)
              ri(k,i,j) = max( -1., ri(k,i,j)/(kh(k,i,j) + 1.e-12) )
              !
              ! variable km represents what is commonly known as Km, the eddy viscosity
@@ -332,26 +385,36 @@ contains
              ! after kh is multiplied with the factor (1-ri/pr), the product of kh
              ! and km represents the dissipation rate epsilon
              !
-             kh(k,i,j) = kh(k,i,j) *(1.-(ri(k,i,j)/pr))
+             edr(k,i,j) = km(k,i,j) * kh(k,i,j)*(1.-(ri(k,i,j)/pr)) &
+                  * 2.0/(dn0(k)+dn0(k+1)) ! m2/s3
+             !
+             ! What is known as the 'physical' eddy diffusivity, Kh, is yet calculated from Km
+             !
+             kh(k,i,j) = km(k,i,j)/pr
+             if (prndtl < 0.) then
+                kh(k,i,j) = kh(k,i,j) * exp(zm(k)/(-100.))
+             end if
           enddo
           kh(1,i,j)    = kh(2,i,j)
           kh(n1,i,j)   = kh(n1-1,i,j)
           km(1,i,j)    = km(2,i,j)
           km(n1,i,j)   = km(n1-1,i,j)
+          edr(1,i,j)   = edr(2,i,j)
+          edr(n1,i,j)  = edr(n1-1,i,j)
        enddo
     enddo
 
     call cyclics(n1,n2,n3,km,req)
     call cyclicc(n1,n2,n3,km,req)
 
+    call cyclics(n1,n2,n3,kh,req)
+    call cyclicc(n1,n2,n3,kh,req)
+
     if (sflg) then
        call get_cor3(n1,n2,n3,km,km,sz1)
-       !
-       ! The product km and kh represent the local dissipation rate
-       !
-       call get_cor3(n1,n2,n3,km,kh,sz2)
-       call updtst(n1,sz2,1,'diss   ')     ! dissipation
        do k=1,n1
+          ! If not uniform vertical grid: delta=(dz*dx*dy)**(1/3)
+          !delta = (1./(dzm(k)*dxi*dyi))**0.333333333
           !
           ! the factor 1/pi^2 probably represents the ratio of the constants
           ! Cm/Ce that appears in the definition of TKE, the factor csx^2
@@ -361,37 +424,23 @@ contains
           !tke_sgs(k) = sz1(k)/(delta*pi*(csx*0.18))**2 ! Original UCLALES-SALSA
           tke_sgs(k) = sz1(k)/(delta*pi*(csx**2))**2
           sz1(k) = 1./sqrt(1./(delta*csx)**2+1./(zm(k)*vonk+0.001)**2)
+          !
+          ! TKE without density weights
+          if (k==n1) then
+             tke_sgs(k) = tke_sgs(k) / dn0(k)*2
+          else
+             tke_sgs(k) = tke_sgs(k) / (0.5*(dn0(k)+dn0(k+1)))**2
+          endif
        end do
        call updtst(n1,tke_sgs,1,'sfs_tke') ! sgs tke
        call updtst(n1,sz1,1,'lmbd   ')     ! mixing length
        call updtst(n1,sz1,1,'lmbde  ')     ! dissipation lengthscale
-    end if
-
-    do j=3,n3-2
-       do i=3,n2-2
-          do k=1,n1
-            !
-            ! The product km and kh represent the local dissipation rate
-            !
-            edr(k,i,j) = km(k,i,j)*kh(k,i,j)
-            !
-            ! What is known as the 'physical' eddy diffusivity, Kh, is yet calculated from Km
-            !
-            kh(k,i,j) = km(k,i,j)/pr
-            if (prndtl < 0.) then
-               kh(k,i,j) = kh(k,i,j) * exp(zm(k)/(-100.))
-            end if
-          enddo
-       enddo
-    enddo
-    call cyclics(n1,n2,n3,kh,req)
-    call cyclicc(n1,n2,n3,kh,req)
-
-    if (sflg) then
+       call get_avg3(n1,n2,n3,edr,sz2)
+       call updtst(n1,sz2,1,'diss   ') ! dissipation
        call get_avg3(n1,n2,n3,km,sz3)
-       call updtst(n1,sz3,1,'km     ') ! eddy viscosity
+       call updtst(n1,sz3,1,'km     ') ! eddy viscosity (density weighted)
        call get_avg3(n1,n2,n3,kh,sz2)
-       call updtst(n1,sz2,1,'kh     ') ! eddy diffusivity
+       call updtst(n1,sz2,1,'kh     ') ! eddy diffusivity (density weighted)
     end if
 
   end subroutine smagor
@@ -408,11 +457,11 @@ contains
   !   yy =  ---
   !   zz = deform
   !
-  subroutine deardf(n1,n2,n3,sflg,dxi,zm,dn0,tke,tket,xx,zz,yy,edr)
+  subroutine deardf(n1,n2,n3,sflg,dxi,dyi,zm,dn0,tke,tket,xx,zz,yy,edr)
 
     use defs, only : vonk
     use stat, only : tke_sgs
-    use util, only : get_avg3
+    use util, only : get_avg3, get_pustat_vector
 
     implicit none
 
@@ -420,7 +469,7 @@ contains
 
     logical, intent(in) :: sflg
     integer, intent(in) :: n1,n2,n3
-    real, intent(in)    :: dxi,dn0(n1),zm(n1)
+    real, intent(in)    :: dxi,dyi,dn0(n1),zm(n1)
     real, intent(in)    :: tke(n1,n2,n3)
     real, intent(inout) :: xx(n1,n2,n3),zz(n1,n2,n3)
     real, intent(out)   :: yy(n1,n2,n3),tket(n1,n2,n3),edr(n1,n2,n3)
@@ -437,14 +486,13 @@ contains
     do k=1,n1
        sz6(k) = 0.
        sz5(k) = 0.
-       sz4(k) = 0.
     end do
     edr(:,:,:) = 0.
 
     do j=1,n3
        do i=1,n2
           do k=2,n1-2
-             ln   = sqrt(1./(dxi**2 + (0.23/(zm(k)*vonk))**2) )
+             ln   = sqrt(1./(dxi*dyi + (0.23/(zm(k)*vonk))**2) )
              lm   = min(cs*sqrt(tke(k,i,j)/max(eps,xx(k,i,j))),ln)
              ch   = (1.+2.*lm/ln)
              tket(k,i,j) = cm*lm*sqrt(tke(k,i,j))*(zz(k,i,j) - ch*xx(k,i,j))
@@ -455,7 +503,6 @@ contains
              if (sflg) then
                 sz6(k)  = sz6(k) + lm
                 sz5(k)  = sz5(k) + lm*ch
-                sz4(k)  = sz4(k) + (tke(k,i,j)**1.5)/xx(k,i,j)
              end if
           end do
        end do
@@ -467,13 +514,15 @@ contains
        call get_avg3(n1,n2,n3,tke,sz1)
        call get_avg3(n1,n2,n3,yy,sz2)
        call get_avg3(n1,n2,n3,zz,sz3)
+       call get_avg3(n1,n2,n3,edr,sz4)
 
        do k=1,n1
           sz6(k) = sz6(k)/real(n2*n3)
           sz5(k) = sz5(k)/real(n2*n3)
-          sz4(k) = sz4(k)/real(n2*n3)
           tke_sgs(k) = sz1(k)
        end do
+       CALL get_pustat_vector('avg',n1,sz5)
+       CALL get_pustat_vector('avg',n1,sz6)
        call updtst(n1,sz1,1,'sfs_tke')
        call updtst(n1,sz4,1,'diss   ')
        call updtst(n1,sz2,1,'km     ')

@@ -489,9 +489,10 @@ contains
     real, parameter :: mmt = 1.e+6   ! transformation from m to \mu m
 
     integer :: i, j, k
-    real    :: k_au, Xc, Dc, au, tau, phi
+    real    :: k_au, k_sc, Xc, Dc, au, tau, phi, sc
 
     k_au  = k_c / (20.*X_bnd) * (nu_c+2.)*(nu_c+4.)/(nu_c+1.)**2
+    k_sc  = k_c * (nu_c+2.0)/(nu_c+1.0)
 
     do j=3,n3-2
        do i=3,n2-2
@@ -516,12 +517,15 @@ contains
                    Dc = ( Xc / prw )**(1./3.)
                    au = Cau * (Dc * mmt / 2.)**Eau
                 end if
+                !
+                ! Autoconversion and selfcollection
+                sc = k_sc * dn(k,i,j) * rc(k,i,j)**2
 
                 rpt(k,i,j) = rpt(k,i,j) + au
                 npt(k,i,j) = npt(k,i,j) + au/X_bnd
                 !
                 rct(k,i,j) = rct(k,i,j) - au
-                nct(k,i,j) = nct(k,i,j) - au/Xc
+                nct(k,i,j) = nct(k,i,j) - sc !au/Xc
              end if
           end do
        end do

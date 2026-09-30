@@ -91,9 +91,9 @@ contains
         v1dd(:)=v1dd(:)-v1st(:)
         call get_cor3(nzp,nxp,nyp,a_wc,a_wt,v1st)
         v1de(:)=v1de(:)-v1st(:)
-        call updtst(nzp,v1dc,0,'adv_u  ')
-        call updtst(nzp,v1dd,0,'adv_v  ')
-        call updtst(nzp,v1de,0,'adv_w  ')
+        call updtst(nzp,v1dc,1,'adv_u  ')
+        call updtst(nzp,v1dd,1,'adv_v  ')
+        call updtst(nzp,v1de,1,'adv_w  ')
     endif
 
   end subroutine ladvect
