@@ -45,8 +45,9 @@ MODULE mo_derived_procedures
             getIceAspRatio,  &  ! Calculate the aspect ratio of ice particles 
             getExtinctionCoeffSW, & ! Calculate the extinction coefficient per model layer at 550 nm (you can change wavelength)
             getExtinctionCoeffLW, & ! Calculate the extinction coefficient per model layer at 2100 nm
-            getOpticalDepthSW, &    ! Calculate optical depth at 550 nm per model layer as cumulative values viewer at surface
-            getOpticalDepthLW       ! Calculate optical depth at 2100 nm per model layer as cumulative values viewer at surface   
+            getOpticalDepthSW,    & ! Calculate optical depth at 550 nm per model layer as cumulative values viewer at surface
+            getOpticalDepthLW,    & ! Calculate optical depth at 2100 nm per model layer as cumulative values viewer at surface   
+            getExtinctionCoeffIce ! Calculate the extinction coefficient per model layer of ice crystals as in Fu&Liou(1993) band 1 SW band 7 LW   
   
   CONTAINS
 
@@ -216,8 +217,6 @@ MODULE mo_derived_procedures
      END DO
      
    END SUBROUTINE getMeanDiameter
-
-   ! -------------------------------------------------
 
    !
    ! ---------------------------------------------------
@@ -843,7 +842,7 @@ MODULE mo_derived_procedures
      INTEGER, INTENT(in) :: nstr, nend 
      REAL, INTENT(out) :: output(nzp,nxp,nyp,nend-nstr+1)
 
-     INTEGER :: flag, k,i,j,bin, nb, ntot
+     INTEGER :: flag, k,i,j,bin, nb, ntot,is,ie
      INTEGER :: nspec
      TYPE(FloatArray4d), POINTER :: numc
      TYPE(FloatArray4d), POINTER :: mass
@@ -912,9 +911,8 @@ MODULE mo_derived_procedures
         nb = nice        
      END SELECT    
 
-     ! Could this be done with pointers or even just straight up? -Juha
-     ALLOCATE(tmp(nspec), zlm(nb*nspec), zln(nb))      
-      
+     ALLOCATE(tmp(nspec), zlm(nb*nspec), zln(nb))  
+         
      output(:,:,:,:)=0.
      DO j = 3,nyp-2
         DO i = 3,nxp-2
@@ -1109,7 +1107,7 @@ MODULE mo_derived_procedures
    ! Inside /src/src_rad/rad_cldwtr.f90 --> aero_rad
    ! bext as SUM(Qext(alpha,r)*pi*r**2*N(r)dr) 
    !
-   SUBROUTINE getExtinctionCoeffSW(name,output,nstr,nend)
+   SUBROUTINE getExtinctionCoeffSW(name,output)
      USE util, ONLY : getMassIndex,closest, getBinMassArray
      USE mo_salsa_optical_properties, ONLY : aerRefrIBands_SW, &
                                              riReSW, riImSW
@@ -1119,12 +1117,12 @@ MODULE mo_derived_procedures
     IMPLICIT NONE
      
      CHARACTER(len=*), INTENT(in) :: name
-     INTEGER, INTENT(in) :: nstr, nend 
      REAL, INTENT(out) :: output(nzp,nxp,nyp)
 
-     INTEGER :: flag, k,i,j,bb, nb, ntot, nspec,ss,istr,iend
+     INTEGER :: flag, k,i,j,bb, nb, ntot, nspec,ss,istr,iend,is,ie
      TYPE(FloatArray4d), POINTER :: numc
      TYPE(FloatArray4d), POINTER :: mass
+     
      REAL, ALLOCATABLE :: tmp(:), zlm(:), zln(:)
      REAL, ALLOCATABLE :: volc(:,:), voltot(:)
      ! Refractive index for each chemical (closest to current band from tables in submctl)
@@ -1150,10 +1148,10 @@ MODULE mo_derived_procedures
      
      ! Getting the number of chemical species 
      nspec = spec%getNSpec(type="wet")
+     ! nspec = spec%getNSpec(type="total") ! includes rime
+     ! iwa = ns-1 irim=ns
      numlim = 0.
      numc => NULL(); mass => NULL(); nb = 0.
-     !ns = spec%getNSpec(type="total") ! includes rime
-     ! iwa = ns-1 irim=ns
 
      ! Juha:
      ! Lookup table variables for aerosol optical properties for radiation calculations
@@ -1169,38 +1167,53 @@ MODULE mo_derived_procedures
      aer_omega => aer_omega_SW(:,:,:) 
 
      SELECT CASE(name)
-     CASE('swbextaa')
+     CASE DEFAULT
+   	WRITE(*,*) 'ERROR: unknown name in getextinctioncoeffsw: [', &
+              TRIM(name), ']'
+        WRITE(*,*) 'LEN(name) = ', LEN(name)
+        ERROR STOP
+     CASE('swextaa')
         flag = 1
         numlim = nlim
         numc => a_naerop
         mass => a_maerop
-        nb = nbins 
-     CASE('swbextab')
+        is = in1a
+        ie = fn2a
+        nb = nbins
+     CASE('swextab')
         flag = 1
         numlim = nlim
         numc => a_naerop
         mass => a_maerop
-        nb = nbins          
-     CASE('swbextca')
-        flag = 2
-        numlim = nlim
-        numc => a_ncloudp
-        mass => a_mcloudp     
-        nb = ncld
-     CASE('swbextcb')
+        is = in2b
+        ie = fn2b  
+        nb = nbins         
+     CASE('swextca')
         flag = 2
         numlim = nlim
         numc => a_ncloudp
         mass => a_mcloudp
+        is = ica%cur
+        ie = fca%cur  
         nb = ncld
-     CASE('swbextpa')        
+     CASE('swextcb')
+        flag = 2
+        numlim = nlim
+        numc => a_ncloudp  
+        mass => a_mcloudp  
+        is = icb%cur
+        ie = fcb%cur  
+        nb = ncld
+     CASE('swextpa')        
         flag = 3   
         numlim = prlim
         numc => a_nprecpp
         mass => a_mprecpp
-        nb = nprc     
+        is = ira
+        ie = fra 
+        nb = nprc          
      END SELECT    
-
+     
      ALLOCATE(refrRe_all(nspec), refrIm_all(nspec), volspec(nspec))
      ALLOCATE(tmp(nb), zlm(nb*nspec), zln(nb))     
      ALLOCATE(volc(nspec,nb))! Corresponding particle volume concentrations for each bin (0 if not used)
@@ -1216,8 +1229,10 @@ MODULE mo_derived_procedures
      refrRe_all(:) = riReSW(:,refi_ind)
      refrIm_all(:) = riImSW(:,refi_ind) 
      
-     output(:,:,:)=0.
-     
+     output(:,:,:)=0. 
+     zlm(:) = 0.
+     zln(:) = 0.
+   
      DO j = 3,nyp-2
         DO i = 3,nxp-2
            DO k = 1,nzp
@@ -1233,7 +1248,7 @@ MODULE mo_derived_procedures
           	!WRITE(*,*) 'Species, n+ki', spec%names(ss), refrRe_all(ss),refrIm_all(ss)
           	! Volumes for each species, 0 if not used or if nothing present
           	IF (flag < 4) THEN                
-          	   volc(ss,1:nb) = MERGE( zlm(istr:iend)/spec%rholiq(ss), 0., &
+          	   volc(ss,1:nb) = MERGE(zlm(istr:iend)/spec%rholiq(ss), 0., &
                                         (zln(1:nb)> nlim )            )
                 ELSE
                    volc(ss,1:nb) = MERGE( zlm(istr:iend)/spec%rhoice(ss), 0., &
@@ -1242,7 +1257,8 @@ MODULE mo_derived_procedures
               END DO
        	      voltot(1:nb) = SUM(volc(1:nspec,1:nb),DIM=1)
        	      !
-              DO bb = 1,nb!nstr,nend
+              DO bb = 1,nb
+                IF (bb.GE.is.AND.bb.LE.ie) THEN
                  IF (zln(bb)<numlim .OR. voltot(bb) < 1.e-30) CYCLE
                  ! Volume mean refractive indices in current bin
           	 volmean_refrRe = SUM(volc(1:nspec,bb) * refrRe_all(1:nspec)) &
@@ -1268,7 +1284,8 @@ MODULE mo_derived_procedures
 		 
 		 ! Bin contribution to the extinction coefficient of the model layer 
 		 ! bext_aer(kk,bb) = (aer_sigma(i_re,i_im,i_alpha)* 1.0e-4*(1./lambda_r)**2)*naerobin(kk,bb)
-		 tmp(bb) = aer_sigma_SW(i_re,i_im,i_alpha)* 1.0e-4*(1./lambda_r)**2*zln(bb)            
+		 tmp(bb) = aer_sigma_SW(i_re,i_im,i_alpha)* 1.0e-4*(1./lambda_r)**2*zln(bb)    
+	       END IF        
               END DO
               output(k,i,j) = SUM(tmp(1:nb))
            END DO
@@ -1296,7 +1313,7 @@ MODULE mo_derived_procedures
    ! Inside /src/src_rad/rad_cldwtr.f90 --> aero_rad
    ! bext as SUM(Qext(alpha,r)*pi*r**2*N(r)dr) 
    !
-   SUBROUTINE getExtinctionCoeffLW(name,output,nstr,nend)
+   SUBROUTINE getExtinctionCoeffLW(name,output)
      USE util, ONLY : getMassIndex,closest, getBinMassArray
      USE mo_salsa_optical_properties, ONLY : aerRefrIBands_LW,  &
                                              riReLW, riImLW
@@ -1306,10 +1323,9 @@ MODULE mo_derived_procedures
     IMPLICIT NONE
      
      CHARACTER(len=*), INTENT(in) :: name
-     INTEGER, INTENT(in) :: nstr, nend 
      REAL, INTENT(out) :: output(nzp,nxp,nyp)
 
-     INTEGER :: flag, k,i,j,bb, nb, ntot, nspec,ss, istr,iend
+     INTEGER :: flag, k,i,j,bb, nb, ntot, nspec,ss, istr,iend,is,ie
      TYPE(FloatArray4d), POINTER :: numc
      TYPE(FloatArray4d), POINTER :: mass
      REAL, ALLOCATABLE :: tmp(:), zlm(:), zln(:)
@@ -1337,10 +1353,10 @@ MODULE mo_derived_procedures
      
      ! Getting the number of chemical species 
      nspec = spec%getNSpec(type="wet")
+     ! nspec = spec%getNSpec(type="total") ! includes rime
+     ! iwa = ns-1 irim=ns
      numlim = 0.
      numc => NULL(); mass => NULL(); nb = 0.
-     !ns = spec%getNSpec(type="total") ! includes rime
-     ! iwa = ns-1 irim=ns
 
      ! Juha:
      ! Lookup table variables for aerosol optical properties for radiation calculations
@@ -1356,52 +1372,61 @@ MODULE mo_derived_procedures
      aer_omega => aer_omega_LW(:,:,:) 
        
      SELECT CASE(name)
-     CASE('lwbextaa')
+     CASE('lwextaa')
         flag = 1
         numlim = nlim
         numc => a_naerop
         mass => a_maerop
-        nb = nbins        
-     CASE('lwbextab')
+        is = in1a
+        ie = fn2a
+        nb = nbins
+     CASE('lwextab')
         flag = 1
         numlim = nlim
         numc => a_naerop
         mass => a_maerop
-        nb = nbins          
-     CASE('lwbextca')
-        flag = 2
-        numlim = nlim
-        numc => a_ncloudp
-        mass => a_mcloudp     
-        nb = ncld
-     CASE('lwbextcb')
+        is = in2b
+        ie = fn2b  
+        nb = nbins         
+     CASE('lwextca')
         flag = 2
         numlim = nlim
         numc => a_ncloudp
         mass => a_mcloudp
+        is = ica%cur
+        ie = fca%cur  
         nb = ncld
-     CASE('lwbextpa')        
+     CASE('lwextcb')
+        flag = 2
+        numlim = nlim
+        numc => a_ncloudp  
+        mass => a_mcloudp  
+        is = icb%cur
+        ie = fcb%cur  
+        nb = ncld
+     CASE('lwextpa')        
         flag = 3   
         numlim = prlim
         numc => a_nprecpp
         mass => a_mprecpp
-        nb = nprc      
-     END SELECT   
+        is = ira
+        ie = fra
+        nb = nprc     
+     END SELECT  
                                      
      ALLOCATE(refrRe_all(nspec), refrIm_all(nspec), volspec(nspec))
      ALLOCATE(tmp(nb), zlm(nb*nspec), zln(nb))    
      ALLOCATE(volc(nspec,nb))! Corresponding particle volume concentrations for each bin (0 if not used)
      ALLOCATE(voltot(nb))! Total particle volume for each bin   
 
-     ! - Calculation of optical properties in the mid-wave IR band
-     !  Mid-Wave/Fire Detection (3.66–4.08 um) 
-     !  Bands in this range are specialized for detecting hot spots and fires.
-     !  Band:   6:     5.80 Wm^-2, between  2850. and  2500. cm^-1
+     ! - Calculation of optical properties in the IR band
+     !  4 um - 5.26 um ice absorbs more than liquid water 
+     !  Band:   6:     5.80 Wm^-2, between  2500. and  1900. cm^-1
      ! To be consistent with the mid point used in todlw
      ! we use the closest band in 
      lambda_r = 1/4.E-4 ! wavenumber for lambda=4 um
      ! Get the refractive indices from the LUT-LW for the current band
-     ! aerRefrIBands_SW = np.array([55.56, 23.53, 17.70, 15.04,
+     ! aerRefrIBands_LW = np.array([55.56, 23.53, 17.70, 15.04,
      !   13.16, 11.11, 9.71, 8.85,7.78, 6.97, 6.10, 5.15,
      !  4.62, 4.32, 4.02, 3.42]) * 1e-4  # cm     
      refi_ind = closest(aerRefrIbands_LW,1./lambda_r) ! It is 2 in this case      
@@ -1409,6 +1434,9 @@ MODULE mo_derived_procedures
      refrIm_all(:) = riImLW(:,refi_ind)
      
      output(:,:,:)=0.
+     zlm(:) = 0.
+     zln(:) = 0.
+     
      DO j = 3,nyp-2
         DO i = 3,nxp-2
            DO k = 1,nzp
@@ -1433,7 +1461,8 @@ MODULE mo_derived_procedures
               END DO
        	      voltot(1:nb) = SUM(volc(1:nspec,1:nb),DIM=1)
        	      !
-              DO bb = 1, nb ! nstr,nend
+              DO bb = 1,nb 
+                IF (bb.GE.is.AND.bb.LE.ie) THEN
                  IF (zln(bb)<numlim .OR. voltot(bb) < 1.e-30) CYCLE
                  ! Volume mean refractive indices in current bin
           	 volmean_refrRe = SUM(volc(1:nspec,bb) * refrRe_all(1:nspec)) &
@@ -1459,7 +1488,8 @@ MODULE mo_derived_procedures
 		  
 		 ! Bin contribution to the extinction coefficient of the model layer 
 		 ! bext_aer(kk,bb) = (aer_sigma(i_re,i_im,i_alpha)* 1.0e-4*(1./lambda_r)**2)*naerobin(kk,bb)
-		 tmp(bb) = aer_sigma_LW(i_re,i_im,i_alpha)* 1.0e-4*(1./lambda_r)**2*zln(bb)              
+		 tmp(bb) = aer_sigma_LW(i_re,i_im,i_alpha)* 1.0e-4*(1./lambda_r)**2*zln(bb)    
+	       END IF          
               END DO
               output(k,i,j) = SUM(tmp(1:nb))
            END DO
@@ -1478,6 +1508,88 @@ MODULE mo_derived_procedures
    END SUBROUTINE getExtinctionCoeffLW
    
    ! ---------------------------------------------------
+   ! Silvia Calderon FMI-Kuopio 25.09.2026
+   ! All based on derived procedures made by Juha Tonttila
+   ! SUBROUTINE getExtinctionCoeffIceW(name,output,nstr,nend)
+   ! Calculates extinction coefficient of an extinction element
+   ! per vertical layer in the whole domain - this function is for outputs only
+   ! It uses the calculation approach already employed in 
+   ! Inside /src/src_rad/rad_cldwtr.f90 --> cloud_ice
+   ! Everything based on Fu&Liou(1993) J.Atm.Sci, (50),3
+   SUBROUTINE getExtinctionCoeffIce(name,output)
+     USE mo_submctl, ONLY : nlim,spec
+     USE defs, ONLY: roice
+    
+    IMPLICIT NONE
+     
+     CHARACTER(len=*), INTENT(in) :: name 
+     REAL, INTENT(out) :: output(nzp,nxp,nyp)
+
+     INTEGER :: k,i,j,nspec,nb
+     TYPE(FloatArray4d), POINTER :: numc
+     TYPE(FloatArray4d), POINTER :: mass
+     REAL, ALLOCATABLE :: zlm(:), zln(:)
+     REAL :: a0,a1,a2,iwc,icnc,pde,pri,numlim
+     
+     pri = (3.*sqrt(3.)/8.)*roice ! roice=900kg/m3 src_LES/defs.f90
+     
+     numc => NULL(); mass => NULL(); 
+     ! a0,a1,a2 taken from Table 3, bands 1 and 7
+     a0 = 0.
+     a1 = 0.
+     a2 = 0.
+     
+     nspec = spec%getNSpec(type="total") ! includes rime
+     ! iwa = ns-1 irim=ns
+     
+     SELECT CASE(name)
+     CASE('swextia')
+        !ib = 1  200-700 nm center 550 nm Table 2
+        a0 = -6.656E-3
+        a1 = 3.686 
+        a2 = 0.
+     CASE('lwextia')
+        !ib = 7 2200-1900 cm-1 center 4.9 um
+        a0 = -7.770E-3
+        a1 = 3.734
+        a2 = 11.85        
+     END SELECT
+                  
+     numlim = nlim
+     numc => a_nicep
+     mass => a_micep 
+     nb = nice   
+                
+     ALLOCATE(zlm(nb*nspec), zln(nb))     
+     
+     output(:,:,:)=0.
+     zlm(:) = 0.
+     zln(:) = 0.
+     
+     DO j = 3,nyp-2
+        DO i = 3,nxp-2
+           DO k = 1,nzp
+              zlm(:) = mass%d(k,i,j,:)
+              zln(:) = numc%d(k,i,j,:)
+              IF (SUM(zln) < numlim .OR. SUM(zlm) < 1.e-20) CYCLE
+              iwc = SUM(zlm)*a_dn%d(k,i,j)! kg/m3 needed in g/m3
+              icnc = SUM(zln)*a_dn%d(k,i,j)!#/m3
+              ! volume of a hexagonal prism V=3sqrt(3)/8*D**2*L
+              ! D is crystal width = 2d d is hexagonal side
+              ! L is crystal maximum length is prism height
+              ! assumption (iwc/pri/icnc)=D**2L=pde**3
+              ! Same assumption as in src/src_rad/rad_cldwtr.f90->cloud_ice
+	      pde = (iwc/icnc/pri)**(1./3.)*1.e6 ! needed in um Eq.2.1 
+	      pde = min(max(pde,20.),180.)
+	      output(k,i,j) = 1000*iwc * (a0 + a1/pde + a2/(pde**2)) ! 1/m
+	   END DO 
+	END DO
+     END DO
+   
+   END SUBROUTINE getExtinctionCoeffIce
+  
+   
+   ! ---------------------------------------------------
    ! Silvia Calderon FMI-Kuopio 11.09.2026
    ! All based on derived procedures made by Juha Tonttila
    ! SUBROUTINE getOpticalDepthSW(name,output,nstr,nend)
@@ -1492,12 +1604,11 @@ MODULE mo_derived_procedures
    ! For total values including gases (i.e. water and ozone) 
    ! you must use todsw and/or todlw
    !
-   SUBROUTINE getOpticalDepthSW(name,output,nstr,nend)
+   SUBROUTINE getOpticalDepthSW(name,output)
 
      IMPLICIT NONE
      
      CHARACTER(len=*), INTENT(in) :: name
-     INTEGER, INTENT(in) :: nstr, nend 
      REAL, INTENT(out) :: output(nzp,nxp,nyp)
      REAL :: bext(nzp,nxp,nyp)
      INTEGER :: k,i,j
@@ -1506,15 +1617,17 @@ MODULE mo_derived_procedures
       
      SELECT CASE(name)
       CASE('swAODaa')
-        CALL getExtinctionCoeffSW('swbextaa',bext,nstr,nend)
+        CALL getExtinctionCoeffSW('swextaa',bext)
       CASE('swAODab')
-        CALL getExtinctionCoeffSW('swbextab',bext,nstr,nend)         
+        CALL getExtinctionCoeffSW('swextab',bext)         
       CASE('swCODca')
-        CALL getExtinctionCoeffSW('swbextca',bext,nstr,nend)
+        CALL getExtinctionCoeffSW('swextca',bext)
       CASE('swCODcb')
-        CALL getExtinctionCoeffSW('swbextcb',bext,nstr,nend)       
+        CALL getExtinctionCoeffSW('swextcb',bext)       
       CASE('swCODpa')
-        CALL getExtinctionCoeffSW('swbextpa',bext,nstr,nend)
+        CALL getExtinctionCoeffSW('swextpa',bext)
+      CASE('swIODia')
+        CALL getExtinctionCoeffIce('swextia',bext)      
      END SELECT 
      
      output(:,:,:)=0.
@@ -1523,14 +1636,17 @@ MODULE mo_derived_procedures
         DO i = 3,nxp-2
            output(nzp,i,j) = bext(nzp,i,j)/dzt%d(nzp)   !dzt = 1/dz 
            DO k = nzp-1,1,-1
-              output(k,i,j) = output(k+1,i,j) + bext(k,i,j)/dzt%d(k)   !dzt = 1/dz           
+              output(k,i,j) = output(k+1,i,j) + bext(k,i,j)/dzt%d(k)!dzt = 1/dz           
            END DO
         END DO
      END DO
      
    END SUBROUTINE getOpticalDepthSW
    
-      ! ---------------------------------------------------
+   
+   
+   
+   ! ---------------------------------------------------
    ! Silvia Calderon FMI-Kuopio 11.09.2026
    ! All based on derived procedures made by Juha Tonttila
    ! SUBROUTINE getOpticalDepthLW(name,output,nstr,nend)
@@ -1545,12 +1661,11 @@ MODULE mo_derived_procedures
    ! For total values including gases (i.e. water and ozone) 
    ! you must use todsw and/or todlw
    !
-   SUBROUTINE getOpticalDepthLW(name,output,nstr,nend)
+   SUBROUTINE getOpticalDepthLW(name,output)
    
      IMPLICIT NONE
      
      CHARACTER(len=*), INTENT(in) :: name
-     INTEGER, INTENT(in) :: nstr, nend 
      REAL, INTENT(out) :: output(nzp,nxp,nyp)
      REAL :: bext(nzp,nxp,nyp)
      INTEGER :: k,i,j
@@ -1559,15 +1674,17 @@ MODULE mo_derived_procedures
      
      SELECT CASE(name)
       CASE('lwAODaa')
-        CALL getExtinctionCoeffLW('lwbextaa',bext,nstr,nend)
+        CALL getExtinctionCoeffLW('lwextaa',bext)
       CASE('lwAODab')
-        CALL getExtinctionCoeffLW('lwbextab',bext,nstr,nend)         
+        CALL getExtinctionCoeffLW('lwextab',bext)         
       CASE('lwCODca')
-        CALL getExtinctionCoeffLW('lwbextca',bext,nstr,nend)
+        CALL getExtinctionCoeffLW('lwextca',bext)
       CASE('lwCODcb')
-        CALL getExtinctionCoeffLW('lwbextcb',bext,nstr,nend)       
+        CALL getExtinctionCoeffLW('lwextcb',bext)       
       CASE('lwCODpa')
-        CALL getExtinctionCoeffLW('lwbextpa',bext,nstr,nend)
+        CALL getExtinctionCoeffLW('lwextpa',bext)
+      CASE('lwIODia')
+        CALL getExtinctionCoeffIce('lwextia',bext)      
      END SELECT 
      
      output(:,:,:)=0.

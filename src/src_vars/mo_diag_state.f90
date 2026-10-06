@@ -373,7 +373,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          a_todsw = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_todsw
-         CALL Diag%newField("todsw", "Total optical depth VIS 200-690 nm", "", "tttt",   &
+         CALL Diag%newField("todsw", "Total optical depth Shortwave 0.2um-0.69um", "", "tttt",   &
                             ANY(outputlist == "todsw"), pipeline) 
          
          memsize = memsize + nxy
@@ -381,7 +381,7 @@ MODULE mo_diag_state
          pipeline => NULL()
          a_todlw = FloatArray3d(a_diag3d(:,:,:,n3d))
          pipeline => a_todlw
-         CALL Diag%newField("todlw", "Total optical depth 3.5um-4um", "", "tttt",   &
+         CALL Diag%newField("todlw", "Total optical depth Longwave 4um-5.26um", "", "tttt",   &
                             ANY(outputlist == "todlw"), pipeline)                                                          
       END IF
 

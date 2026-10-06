@@ -105,6 +105,8 @@ MODULE mo_particle_external_properties
          terminal_vel = kcVt(shape,dnsp,X,visc,rhoa)                 
       END IF
       
+      terminal_vel = MAX(6.75E-9,terminal_vel)
+      
     END FUNCTION terminal_vel
     
     
@@ -238,7 +240,7 @@ MODULE mo_particle_external_properties
            END IF   
            ventilation_factor = MIN(ventilation_factor,7.)       
        END IF
-          
+                 
     END FUNCTION ventilation_factor
     
         !-----------------------------------------------------------------------------------------------
@@ -732,5 +734,4 @@ MODULE mo_particle_external_properties
 	END FUNCTION esi
     
   END MODULE mo_particle_external_properties
-  
  

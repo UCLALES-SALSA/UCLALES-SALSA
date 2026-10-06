@@ -212,7 +212,8 @@ MODULE radiation
             IF (PRESENT(ice)) THEN
                CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
                          fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
-                         piwc=piwc, pde=pde, todir=todir, tods=tods)
+                         piwc=piwc, pde=pde, maerobin=maerobin, naerobin=naerobin,&
+                         todir=todir, tods=tods)
             !ELSE IF (PRESENT(rr)) THEN
             !   CALL rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&
             !             fds, fus, fdir, fuir, McICA, nspec, plwc=plwc, pre=pre, &
