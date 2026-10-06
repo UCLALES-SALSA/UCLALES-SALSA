@@ -1107,7 +1107,7 @@ MODULE mo_derived_procedures
    ! Inside /src/src_rad/rad_cldwtr.f90 --> aero_rad
    ! bext as SUM(Qext(alpha,r)*pi*r**2*N(r)dr) 
    !
-   SUBROUTINE getExtinctionCoeffSW(name,output,nstr,nend)
+   SUBROUTINE getExtinctionCoeffSW(name,output)
      USE util, ONLY : getMassIndex,closest, getBinMassArray
      USE mo_salsa_optical_properties, ONLY : aerRefrIBands_SW, &
                                              riReSW, riImSW
@@ -1117,7 +1117,6 @@ MODULE mo_derived_procedures
     IMPLICIT NONE
      
      CHARACTER(len=*), INTENT(in) :: name
-     INTEGER, INTENT(in) :: nstr, nend 
      REAL, INTENT(out) :: output(nzp,nxp,nyp)
 
      INTEGER :: flag, k,i,j,bb, nb, ntot, nspec,ss,istr,iend,is,ie
@@ -1169,7 +1168,12 @@ MODULE mo_derived_procedures
      aer_omega => aer_omega_SW(:,:,:) 
 
      SELECT CASE(name)
-     CASE('swbextaa')
+     CASE DEFAULT
+   	WRITE(*,*) 'ERROR: unknown name in getextinctioncoeffsw: [', &
+              TRIM(name), ']'
+        WRITE(*,*) 'LEN(name) = ', LEN(name)
+        ERROR STOP
+     CASE('swextaa')
         flag = 1
         numlim = nlim
         numc => a_naerop
@@ -1177,7 +1181,7 @@ MODULE mo_derived_procedures
         is = in1a
         ie = fn2a
         nb = nbins
-     CASE('swbextab')
+     CASE('swextab')
         flag = 1
         numlim = nlim
         numc => a_naerop
@@ -1185,7 +1189,7 @@ MODULE mo_derived_procedures
         is = in2b
         ie = fn2b  
         nb = nbins         
-     CASE('swbextca')
+     CASE('swextca')
         flag = 2
         numlim = nlim
         numc => a_ncloudp
@@ -1193,7 +1197,7 @@ MODULE mo_derived_procedures
         is = ica%cur
         ie = fca%cur  
         nb = ncld
-     CASE('swbextcb')
+     CASE('swextcb')
         flag = 2
         numlim = nlim
         numc => a_ncloudp  
@@ -1201,11 +1205,13 @@ MODULE mo_derived_procedures
         is = icb%cur
         ie = fcb%cur  
         nb = ncld
-     CASE('swbextpa')        
+     CASE('swextpa')        
         flag = 3   
         numlim = prlim
         numc => a_nprecpp
         mass => a_mprecpp
+        is = ira
+        ie = fra 
         nb = nprc          
      END SELECT    
      
@@ -1224,8 +1230,10 @@ MODULE mo_derived_procedures
      refrRe_all(:) = riReSW(:,refi_ind)
      refrIm_all(:) = riImSW(:,refi_ind) 
      
-     output(:,:,:)=0.
-     
+     output(:,:,:)=0. 
+     zlm(:) = 0.
+     zln(:) = 0.
+   
      DO j = 3,nyp-2
         DO i = 3,nxp-2
            DO k = 1,nzp
@@ -1306,7 +1314,7 @@ MODULE mo_derived_procedures
    ! Inside /src/src_rad/rad_cldwtr.f90 --> aero_rad
    ! bext as SUM(Qext(alpha,r)*pi*r**2*N(r)dr) 
    !
-   SUBROUTINE getExtinctionCoeffLW(name,output,nstr,nend)
+   SUBROUTINE getExtinctionCoeffLW(name,output)
      USE util, ONLY : getMassIndex,closest, getBinMassArray
      USE mo_salsa_optical_properties, ONLY : aerRefrIBands_LW,  &
                                              riReLW, riImLW
@@ -1316,7 +1324,6 @@ MODULE mo_derived_procedures
     IMPLICIT NONE
      
      CHARACTER(len=*), INTENT(in) :: name
-     INTEGER, INTENT(in) :: nstr, nend 
      REAL, INTENT(out) :: output(nzp,nxp,nyp)
 
      INTEGER :: flag, k,i,j,bb, nb, ntot, nspec,ss, istr,iend,is,ie
@@ -1366,7 +1373,7 @@ MODULE mo_derived_procedures
      aer_omega => aer_omega_LW(:,:,:) 
        
      SELECT CASE(name)
-     CASE('lwbextaa')
+     CASE('lwextaa')
         flag = 1
         numlim = nlim
         numc => a_naerop
@@ -1374,7 +1381,7 @@ MODULE mo_derived_procedures
         is = in1a
         ie = fn2a
         nb = nbins
-     CASE('lwbextab')
+     CASE('lwextab')
         flag = 1
         numlim = nlim
         numc => a_naerop
@@ -1382,7 +1389,7 @@ MODULE mo_derived_procedures
         is = in2b
         ie = fn2b  
         nb = nbins         
-     CASE('lwbextca')
+     CASE('lwextca')
         flag = 2
         numlim = nlim
         numc => a_ncloudp
@@ -1390,7 +1397,7 @@ MODULE mo_derived_procedures
         is = ica%cur
         ie = fca%cur  
         nb = ncld
-     CASE('lwbextcb')
+     CASE('lwextcb')
         flag = 2
         numlim = nlim
         numc => a_ncloudp  
@@ -1398,11 +1405,13 @@ MODULE mo_derived_procedures
         is = icb%cur
         ie = fcb%cur  
         nb = ncld
-     CASE('lwbextpa')        
+     CASE('lwextpa')        
         flag = 3   
         numlim = prlim
         numc => a_nprecpp
         mass => a_mprecpp
+        is = ira
+        ie = fra
         nb = nprc     
      END SELECT  
                                      
@@ -1426,6 +1435,9 @@ MODULE mo_derived_procedures
      refrIm_all(:) = riImLW(:,refi_ind)
      
      output(:,:,:)=0.
+     zlm(:) = 0.
+     zln(:) = 0.
+     
      DO j = 3,nyp-2
         DO i = 3,nxp-2
            DO k = 1,nzp
@@ -1505,14 +1517,13 @@ MODULE mo_derived_procedures
    ! It uses the calculation approach already employed in 
    ! Inside /src/src_rad/rad_cldwtr.f90 --> cloud_ice
    ! Everything based on Fu&Liou(1993) J.Atm.Sci, (50),3
-   SUBROUTINE getExtinctionCoeffIce(name,output,nstr,nend)
+   SUBROUTINE getExtinctionCoeffIce(name,output)
      USE mo_submctl, ONLY : nlim,spec
      USE defs, ONLY: roice
     
     IMPLICIT NONE
      
-     CHARACTER(len=*), INTENT(in) :: name
-     INTEGER, INTENT(in) :: nstr, nend 
+     CHARACTER(len=*), INTENT(in) :: name 
      REAL, INTENT(out) :: output(nzp,nxp,nyp)
 
      INTEGER :: k,i,j,nspec,nb
@@ -1533,12 +1544,12 @@ MODULE mo_derived_procedures
      ! iwa = ns-1 irim=ns
      
      SELECT CASE(name)
-     CASE('swbextia')
+     CASE('swextia')
         !ib = 1  200-700 nm center 550 nm Table 2
         a0 = -6.656E-3
         a1 = 3.686 
         a2 = 0.
-     CASE('lwbextia')
+     CASE('lwextia')
         !ib = 7 2200-1900 cm-1 center 4.9 um
         a0 = -7.770E-3
         a1 = 3.734
@@ -1553,6 +1564,8 @@ MODULE mo_derived_procedures
      ALLOCATE(zlm(nb*nspec), zln(nb))     
      
      output(:,:,:)=0.
+     zlm(:) = 0.
+     zln(:) = 0.
      
      DO j = 3,nyp-2
         DO i = 3,nxp-2
@@ -1592,12 +1605,11 @@ MODULE mo_derived_procedures
    ! For total values including gases (i.e. water and ozone) 
    ! you must use todsw and/or todlw
    !
-   SUBROUTINE getOpticalDepthSW(name,output,nstr,nend)
+   SUBROUTINE getOpticalDepthSW(name,output)
 
      IMPLICIT NONE
      
      CHARACTER(len=*), INTENT(in) :: name
-     INTEGER, INTENT(in) :: nstr, nend 
      REAL, INTENT(out) :: output(nzp,nxp,nyp)
      REAL :: bext(nzp,nxp,nyp)
      INTEGER :: k,i,j
@@ -1606,17 +1618,17 @@ MODULE mo_derived_procedures
       
      SELECT CASE(name)
       CASE('swAODaa')
-        CALL getExtinctionCoeffSW('swbextaa',bext,nstr,nend)
+        CALL getExtinctionCoeffSW('swextaa',bext)
       CASE('swAODab')
-        CALL getExtinctionCoeffSW('swbextab',bext,nstr,nend)         
+        CALL getExtinctionCoeffSW('swextab',bext)         
       CASE('swCODca')
-        CALL getExtinctionCoeffSW('swbextca',bext,nstr,nend)
+        CALL getExtinctionCoeffSW('swextca',bext)
       CASE('swCODcb')
-        CALL getExtinctionCoeffSW('swbextcb',bext,nstr,nend)       
+        CALL getExtinctionCoeffSW('swextcb',bext)       
       CASE('swCODpa')
-        CALL getExtinctionCoeffSW('swbextpa',bext,nstr,nend)
+        CALL getExtinctionCoeffSW('swextpa',bext)
       CASE('swIODia')
-        CALL getExtinctionCoeffIce('swbextia',bext,nstr,nend)      
+        CALL getExtinctionCoeffIce('swextia',bext)      
      END SELECT 
      
      output(:,:,:)=0.
@@ -1625,7 +1637,7 @@ MODULE mo_derived_procedures
         DO i = 3,nxp-2
            output(nzp,i,j) = bext(nzp,i,j)/dzt%d(nzp)   !dzt = 1/dz 
            DO k = nzp-1,1,-1
-              output(k,i,j) = output(k+1,i,j) + bext(k,i,j)/dzt%d(k)   !dzt = 1/dz           
+              output(k,i,j) = output(k+1,i,j) + bext(k,i,j)/dzt%d(k)!dzt = 1/dz           
            END DO
         END DO
      END DO
@@ -1650,12 +1662,11 @@ MODULE mo_derived_procedures
    ! For total values including gases (i.e. water and ozone) 
    ! you must use todsw and/or todlw
    !
-   SUBROUTINE getOpticalDepthLW(name,output,nstr,nend)
+   SUBROUTINE getOpticalDepthLW(name,output)
    
      IMPLICIT NONE
      
      CHARACTER(len=*), INTENT(in) :: name
-     INTEGER, INTENT(in) :: nstr, nend 
      REAL, INTENT(out) :: output(nzp,nxp,nyp)
      REAL :: bext(nzp,nxp,nyp)
      INTEGER :: k,i,j
@@ -1664,17 +1675,17 @@ MODULE mo_derived_procedures
      
      SELECT CASE(name)
       CASE('lwAODaa')
-        CALL getExtinctionCoeffLW('lwbextaa',bext,nstr,nend)
+        CALL getExtinctionCoeffLW('lwextaa',bext)
       CASE('lwAODab')
-        CALL getExtinctionCoeffLW('lwbextab',bext,nstr,nend)         
+        CALL getExtinctionCoeffLW('lwextab',bext)         
       CASE('lwCODca')
-        CALL getExtinctionCoeffLW('lwbextca',bext,nstr,nend)
+        CALL getExtinctionCoeffLW('lwextca',bext)
       CASE('lwCODcb')
-        CALL getExtinctionCoeffLW('lwbextcb',bext,nstr,nend)       
+        CALL getExtinctionCoeffLW('lwextcb',bext)       
       CASE('lwCODpa')
-        CALL getExtinctionCoeffLW('lwbextpa',bext,nstr,nend)
+        CALL getExtinctionCoeffLW('lwextpa',bext)
       CASE('lwIODia')
-        CALL getExtinctionCoeffIce('lwbextia',bext,nstr,nend)      
+        CALL getExtinctionCoeffIce('lwextia',bext)      
      END SELECT 
      
      output(:,:,:)=0.
