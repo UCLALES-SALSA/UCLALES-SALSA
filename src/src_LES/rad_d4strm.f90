@@ -472,7 +472,7 @@ contains
     real    :: tv
 
     do  i = 1, nv
-       tv = pt(i)*(1+0. + ep2*ph(i) )
+       tv = pt(i)*(1.0 + ep2*ph(i) )
        dz(i) = (Rd/g) * tv * alog( pp(i+1) / pp(i) )
     end do
     
@@ -613,16 +613,8 @@ contains
        fq2 = 1.43884 * vmid
        do k = 2, nv
           tk = (pt(k)+pt(k-1))*0.5
-          if (tk.le.0.) then
-             print*,'tk wrong',tk,v1,v2,rlimit,llimit
-             stop
-          endif
           bf(k) = bf(k) + (fq1/(exp(fq2/tk) - 1.0))*(v1-v2)
        end do
-       if (pt(1).le.0.) then
-          print*,'pt wrong',pt(1),v1,v2,rlimit,llimit
-          stop
-       endif
        bf(1) = bf(1) + (fq1/(exp(fq2/pt(1)) - 1.0))*(v1-v2)
        bf(nv1) = bf(nv1) + (fq1/(exp(fq2/tskin) - 1.0))*(v1-v2)
        v1 = v2

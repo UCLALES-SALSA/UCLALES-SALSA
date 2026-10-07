@@ -191,9 +191,14 @@ contains
              zri(:,:,:) = zri(:,:,:) + SUM(a_msnowp(:,:,:,1:min(RadSnowBins,nsnw)),DIM=4)
              zni(:,:,:) = zni(:,:,:) + SUM(a_nsnowp(:,:,:,1:min(RadSnowBins,nsnw)),DIM=4)
           ENDIF
+          IF (RadSnowBins<nsnw) THEN
+             zrg(:,:,:) = zrg(:,:,:) + SUM(a_msnowp(:,:,:,RadSnowBins+1:nsnw),DIM=4)
+          ELSE
+             zrg(:,:,:) = 0.
+          ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
                a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
-               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr, ice=zri,nice=zni)
+               a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr, ice=zri,nice=zni,grp=zrg)
 
        END IF
 

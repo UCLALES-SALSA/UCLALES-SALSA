@@ -29,6 +29,10 @@ module ckd
   integer, save      :: ngases
   real, save         :: totalpower
   real, parameter    :: mair = 28.967 ! molar mass of air
+  !real, parameter    :: rad_co2 = 330e-6  ! CO2 mixing ratio
+  real, parameter    :: rad_co2 = 420e-6  ! COMBLE
+  real, parameter    :: rad_ch4 = 1.6e-6  ! CH4 mixing ratio
+  real, parameter    :: rad_n2o = 0.28e-6 ! N2O mixing ratio
 
   TYPE ckd_properties
      character (len=5) :: name
@@ -83,13 +87,11 @@ contains
     end do 
 
     mbs = 0
-    do ib=1,mb-1
+    do ib=1,mb
        band(ib)%center =(band(ib)%rlimit+band(ib)%llimit)*0.5
        if (band(ib)%power > 0.) mbs = mbs + 1
     end do
-    band(mb)%center =(band(mb)%rlimit+band(mb)%llimit)*0.5
 
-    if (band(mb)%power > 0.) mbs = mbs + 1
     mbir = mb - mbs
     IF (myid==0) print 600, trim(gasfile), ngases, mb, mbs, mbir, sum(band%power)
 
@@ -229,9 +231,8 @@ contains
        igg=min(ig,gas(n)%ng)
        select case(gas(n)%noverlap)
        case (1)
-          igg=min(ig,gas(n)%ng)
           call qk (gas(n)%nt, gas(n)%np, gas(n)%sp, gas(n)%tbase,            &
-               gas(n)%xk(1,1,igg,1), pp, pt, fkg )
+               gas(n)%xk(:,:,igg,1), pp, pt, fkg )
           call select_gas(gas(n)%name, gas(n)%default_conc, gas(n)%mweight,  &
                pp, ph, po, pq)
           xfct = (2.24e4/gas(n)%mweight) * 10./9.81
@@ -241,19 +242,13 @@ contains
 
        case (2)
           call qk (gas(n)%nt, gas(n)%np, gas(n)%sp, gas(n)%tbase,            &
-               gas(n)%xk(1,1,igg,1), pp, pt, fkga )
+               gas(n)%xk(:,:,igg,1), pp, pt, fkga )
           call qk (gas(n)%nt, gas(n)%np, gas(n)%sp, gas(n)%tbase,            &
-               gas(n)%xk(1,1,igg,2), pp, pt, fkgb )
+               gas(n)%xk(:,:,igg,2), pp, pt, fkgb )
           call select_gas(gas(n)%name, gas(n)%default_conc, gas(n)%mweight,  &
                pp, ph, po, pq)
           do k = 1, nv
-             fkg(k) = fkga(k) + pq(k) * fkgb(k)
-          end do
-          call select_gas('  CO2', gas(n)%default_conc, gas(n)%mweight,       &
-               pp, ph, po, pq)
-          xfct = (2.24e4/gas(n)%mweight) * 10./9.81
-          do k = 1, nv
-             tg(k) = tg(k) + fkg(k)*pq(k)*(pp(k+1)-pp(k))*xfct
+             tg(k) = tg(k) + (fkga(k)*rad_co2/330e-6 + pq(k)*fkgb(k))*(pp(k+1)-pp(k))
           end do
 
        case default
@@ -298,6 +293,12 @@ contains
              pq(k) = 0.0
           endif
        end do
+    case ('  CH4')
+       xx = rad_ch4*(mx/mair)
+       pq(:) = xx
+    case ('  N2O')
+       xx = rad_n2o*(mx/mair)
+       pq(:) = xx
     case default
        xx = conc_x*(mx/mair)
        pq(:) = xx
