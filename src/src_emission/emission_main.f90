@@ -170,7 +170,7 @@ MODULE emission_main
    CALL Dwabb%onDemand("Dwabb",diam(:,:,:,in2b:fn2b),in2b,fn2b)
    CALL Dwcba%onDemand("Dwcba",diam(:,:,:,nbins+ica%cur:nbins+fca%cur),ica%cur,fca%cur)
    CALL Dwcbb%onDemand("Dwcbb",diam(:,:,:,nbins+icb%cur:nbins+fcb%cur),icb%cur,fcb%cur)
-   CALL Dwcbb%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
+   CALL Dwpba%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
    numb = 0.
    numb(:,:,:,1:nbins) = a_naerop%d(:,:,:,1:nbins)
    numb(:,:,:,nbins+1:nbins+ncld) = a_ncloudp%d(:,:,:,1:ncld)
@@ -272,7 +272,7 @@ MODULE emission_main
    CALL Dwabb%onDemand("Dwabb",diam(:,:,:,in2b:fn2b),in2b,fn2b)
    CALL Dwcba%onDemand("Dwcba",diam(:,:,:,nbins+ica%cur:nbins+fca%cur),ica%cur,fca%cur)
    CALL Dwcbb%onDemand("Dwcbb",diam(:,:,:,nbins+icb%cur:nbins+fcb%cur),icb%cur,fcb%cur)
-   CALL Dwcbb%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
+   CALL Dwpba%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
    numb = 0.
    numb(:,:,:,1:nbins) = a_naerop%d(:,:,:,1:nbins)
    numb(:,:,:,nbins+1:nbins+ncld) = a_ncloudp%d(:,:,:,1:ncld)
@@ -342,7 +342,7 @@ MODULE emission_main
     CALL Dwabb%onDemand("Dwabb",diam(:,:,:,in2b:fn2b),in2b,fn2b)
     CALL Dwcba%onDemand("Dwcba",diam(:,:,:,nbins+ica%cur:nbins+fca%cur),ica%cur,fca%cur)
     CALL Dwcbb%onDemand("Dwcbb",diam(:,:,:,nbins+icb%cur:nbins+fcb%cur),icb%cur,fcb%cur)
-    CALL Dwcbb%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
+    CALL Dwpba%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
     numb = 0.
     numb(:,:,:,1:nbins) = a_naerop%d(:,:,:,1:nbins)
     numb(:,:,:,nbins+1:nbins+ncld) = a_ncloudp%d(:,:,:,1:ncld)
@@ -463,7 +463,7 @@ MODULE emission_main
    CALL Dwabb%onDemand("Dwabb",diam(:,:,:,in2b:fn2b),in2b,fn2b)
    CALL Dwcba%onDemand("Dwcba",diam(:,:,:,nbins+ica%cur:nbins+fca%cur),ica%cur,fca%cur)
    CALL Dwcbb%onDemand("Dwcbb",diam(:,:,:,nbins+icb%cur:nbins+fcb%cur),icb%cur,fcb%cur)
-   CALL Dwcbb%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
+   CALL Dwpba%onDemand("Dwpba",diam(:,:,:,nbins+ncld+1:nbins+ncld+nprc),1,nprc)
    numb = 0.
    numb(:,:,:,1:nbins) = a_naerop%d(:,:,:,1:nbins)
    numb(:,:,:,nbins+1:nbins+ncld) = a_ncloudp%d(:,:,:,1:ncld)
