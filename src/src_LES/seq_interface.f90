@@ -216,7 +216,7 @@ contains
   subroutine xshuffle(a,atmp,nx,ny,nz,isign)
 
     integer, intent(in):: nx,ny,nz,isign
-    complex, intent(inout):: a(nx,ny,nz),atmp((nx+1)*(ny+1)*(nz+1))
+    complex, intent(inout):: a(nx,ny,nz),atmp(nxg*nynzp)
     integer ll,i,j,k
 
     if(isign .eq. 1) then
@@ -249,7 +249,7 @@ contains
   subroutine yshuffle(a,atmp,nx,ny,nz,isign)
 
     integer, intent(in):: nx,ny,nz,isign
-    complex, intent(inout):: a(ny,nx,nz),atmp((nx+1)*(ny+1)*(nz+1))
+    complex, intent(inout):: a(ny,nx,nz),atmp(nyg*nxnzp)
     integer ll,i,j,k
 
     if(isign .eq. 1) then

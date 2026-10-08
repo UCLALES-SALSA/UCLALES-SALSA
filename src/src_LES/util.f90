@@ -802,12 +802,12 @@ contains
     real, intent(inout)    :: wsavex(4*nxg+100),wsavey(4*nyg+100)
 
     integer :: k, j, i
-    complex :: atmp((nx+1)*(ny+1)*(nz+1)),btmp(ny,nx,nz)
+    complex :: xtmp(nxg,nynzp),ytmp(nyg,nxnzp),btmp(ny,nx,nz)
     integer, save :: fftinix=1, fftiniy=1
 
-    call xshuffle(a,atmp,nx,ny,nz,1)
-    call fft1dc(nxg,nynzp,atmp,wsavex,isgn,fftinix)
-    call xshuffle(a,atmp,nx,ny,nz,-1)
+    call xshuffle(a,xtmp,nx,ny,nz,1)
+    call fft1dc(nxg,nynzp,xtmp,wsavex,isgn,fftinix)
+    call xshuffle(a,xtmp,nx,ny,nz,-1)
 
     do k=1,nz
        do j=1,ny
@@ -817,9 +817,9 @@ contains
        enddo
     enddo
 
-    call yshuffle(btmp,atmp,nx,ny,nz,1)
-    call fft1dc(nyg,nxnzp,atmp,wsavey,isgn,fftiniy)
-    call yshuffle(btmp,atmp,nx,ny,nz,-1)
+    call yshuffle(btmp,ytmp,nx,ny,nz,1)
+    call fft1dc(nyg,nxnzp,ytmp,wsavey,isgn,fftiniy)
+    call yshuffle(btmp,ytmp,nx,ny,nz,-1)
 
     do k=1,nz
        do j=1,ny

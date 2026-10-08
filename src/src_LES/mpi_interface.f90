@@ -20,8 +20,9 @@
 !
 module mpi_interface
 
-  use mpi
+  !use mpi
   implicit none
+  include 'mpif.h'
   !
   !    nxg = nxpg-4
   !    nyg = nypg-4
@@ -519,7 +520,7 @@ contains
   subroutine xshuffle(a,atmp,nx,ny,nz,isign)
 
     integer, intent(in):: nx,ny,nz,isign
-    complex, intent(inout):: a(nx,ny,nz),atmp((nx+1)*(ny+1)*(nz+1))
+    complex, intent(inout):: a(nx,ny,nz),atmp(nxg*nynzp)
     integer ierr,ll,i,j,k
 
     if(isign .eq. 1) then
@@ -536,7 +537,6 @@ contains
                 enddo
              enddo
           enddo
-
        endif
     else
        if(nxprocs .ne. 1)then
@@ -552,7 +552,6 @@ contains
                 enddo
              enddo
           enddo
-
        endif
     endif
 
@@ -561,7 +560,7 @@ contains
   subroutine yshuffle(a,atmp,nx,ny,nz,isign)
 
     integer, intent(in):: nx,ny,nz,isign
-    complex, intent(inout):: a(ny,nx,nz),atmp((nx+1)*(ny+1)*(nz+1))
+    complex, intent(inout):: a(ny,nx,nz),atmp(nyg*nxnzp)
     integer ierr,ll,i,j,k
 
     if(isign .eq. 1) then
@@ -571,10 +570,10 @@ contains
        else
           ll=0
           do k=1,nz
-             do j=1,ny
-                do i=1,nx
+             do j=1,nx
+                do i=1,ny
                    ll=ll+1
-                   atmp(ll)=a(j,i,k)  ! Fixed i & j
+                   atmp(ll)=a(i,j,k)
                 enddo
              enddo
           enddo
@@ -586,14 +585,13 @@ contains
        else
           ll=0
           do k=1,nz
-             do j=1,ny
-                do i=1,nx
+             do j=1,nx
+                do i=1,ny
                    ll=ll+1
-                   a(j,i,k)=atmp(ll)
+                   a(i,j,k)=atmp(ll)
                 enddo
              enddo
           enddo
-
        endif
     endif
 
