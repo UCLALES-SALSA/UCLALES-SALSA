@@ -280,24 +280,15 @@ contains
   !---------------------------------------------------------------------------
   ! get maximum across processors
   !
-  subroutine double_scalar_par_max(xxl,xxg)
+  subroutine double_array_par_max(xxl,xxg,n)
 
-    real(kind=8), intent(out) :: xxg
-    real(kind=8), intent(in) :: xxl
-
-    xxg=xxl
-
-  end subroutine double_scalar_par_max
-  !
-  !---------------------------------------------------------------------------
-  subroutine double_scalar_par_sum(xxl,xxg)
-
-    real(kind=8), intent(out) :: xxg
-    real(kind=8), intent(in) :: xxl
+    integer, intent(in)::n
+    real(kind=8), intent(out) :: xxg(n)
+    real(kind=8), intent(in) :: xxl(n)
 
     xxg=xxl
 
-  end subroutine double_scalar_par_sum
+  end subroutine double_array_par_max
   !
   !---------------------------------------------------------------------------
   subroutine double_array_par_sum(xxl,xxg,n)

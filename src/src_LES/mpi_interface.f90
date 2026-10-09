@@ -600,30 +600,19 @@ contains
   !---------------------------------------------------------------------------
   ! get maximum across processors
   !
-  subroutine double_scalar_par_max(xxl,xxg)
+  subroutine double_array_par_max(xxl,xxg,n)
 
-    real(kind=8), intent(out) :: xxg
-    real(kind=8), intent(in) :: xxl
+    integer, intent(in)::n
+    real(kind=8), intent(out) :: xxg(n)
+    real(kind=8), intent(in) :: xxl(n)
     integer:: ierror
 
 
-    call mpi_allreduce(xxl,xxg,1,MPI_DOUBLE_PRECISION, MPI_MAX, &
+    call mpi_allreduce(xxl,xxg,n,MPI_DOUBLE_PRECISION, MPI_MAX, &
          MPI_COMM_WORLD, ierror)
 
-  end subroutine double_scalar_par_max
+  end subroutine double_array_par_max
 
-
-  subroutine double_scalar_par_sum(xxl,xxg)
-
-    real(kind=8), intent(out) :: xxg
-    real(kind=8), intent(in) :: xxl
-    integer:: ierror
-
-
-    call mpi_allreduce(xxl,xxg,1,MPI_DOUBLE_PRECISION, MPI_SUM, &
-         MPI_COMM_WORLD, ierror)
-
-  end subroutine double_scalar_par_sum
 
   subroutine double_array_par_sum(xxl,xxg,n)
 

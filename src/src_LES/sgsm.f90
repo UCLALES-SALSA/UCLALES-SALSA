@@ -125,7 +125,7 @@ contains
     !
     select case (isgstyp)
     case (1)
-       call smagor(nzp,nxp,nyp,sflg,dxi,dyi,zm,dzm,dn0,a_tmp3,a_tmp2,a_tmp1,a_edr)
+       call smagor(nzp,nxp,nyp,sflg,dxi,dyi,zm,dzt,dn0,a_tmp3,a_tmp2,a_tmp1,a_edr)
     case (2)
        call deardf(nzp,nxp,nyp,sflg,dxi,dyi,zm,dn0,a_qp,a_qt,a_tmp3,a_tmp2,a_tmp1,a_edr)
        call solv_tke(nzp,nxp,nyp,a_tmp3,a_tmp1,a_qp,a_qt,dn0,dzm,dzt,dxi,dyi,dtl)
@@ -346,7 +346,7 @@ contains
   ! timsteps, SGS energy, dissipation, viscosity, diffusivity and
   ! lengthscales are stored.
   !
-  subroutine smagor(n1,n2,n3,sflg,dxi,dyi,zm,dzm,dn0,ri,kh,km,edr)
+  subroutine smagor(n1,n2,n3,sflg,dxi,dyi,zm,dzt,dn0,ri,kh,km,edr)
 
     use defs, only          : pi, vonk
     use stat, only          : tke_sgs
@@ -357,7 +357,7 @@ contains
 
     logical, intent(in) :: sflg
     integer, intent(in) :: n1,n2,n3
-    real, intent(in)    :: dxi,dyi,zm(n1),dzm(n1),dn0(n1)
+    real, intent(in)    :: dxi,dyi,zm(n1),dzt(n1),dn0(n1)
     real, intent(inout) :: ri(n1,n2,n3),kh(n1,n2,n3)
     real, intent(out)   :: km(n1,n2,n3),edr(n1,n2,n3)
     real    :: delta,pr
@@ -371,7 +371,7 @@ contains
        do i=3,n2-2
           do k=2,n1-1
              ! If not uniform vertical grid: delta=(dz*dx*dy)**(1/3) [m]
-             !delta = (1./(dzm(k)*dxi*dyi))**0.333333333
+             delta = (1./(dzt(k)*dxi*dyi))**0.333333333
              !
              ! Richardson Number (Ri=N2/S2=ri/kh)
              ri(k,i,j) = max( -1., ri(k,i,j)/(kh(k,i,j) + 1.e-12) )
@@ -414,7 +414,7 @@ contains
        call get_cor3(n1,n2,n3,km,km,sz1)
        do k=1,n1
           ! If not uniform vertical grid: delta=(dz*dx*dy)**(1/3)
-          !delta = (1./(dzm(k)*dxi*dyi))**0.333333333
+          delta = (1./(dzt(k)*dxi*dyi))**0.333333333
           !
           ! the factor 1/pi^2 probably represents the ratio of the constants
           ! Cm/Ce that appears in the definition of TKE, the factor csx^2

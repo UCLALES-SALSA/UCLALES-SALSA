@@ -46,7 +46,8 @@ contains
   ! satisfied.
   subroutine stepper
 
-    use mpi_interface, only : myid, double_scalar_par_max
+    use mpi_interface, only : myid
+    USE util, ONLY : get_pustat_scalar
     use grid, only : dtl, zt, zm, dzt, nzp, dxi, dyi, nxp, nyp, a_up, a_vp, a_wp, &
          dn0, u0, v0, write_hist, write_anal, close_anal, dtlong
     use stat, only : sflg, csflg, cswrite, cs_start, savg_intvl, ssam_intvl, &
@@ -54,8 +55,7 @@ contains
     use modcross, only : lcross, frqcross, triggercross, close_cross
     real, parameter :: cfl_upper = 0.5
 
-    real    :: t1,t2,tplsdt
-    REAL(kind=8) :: cflmax,gcflmax
+    real    :: t1,t2,tplsdt,cflmax,gcflmax
     integer :: istp, iret
     !
     ! Timestep loop for program
@@ -67,7 +67,7 @@ contains
     do while (time < timmax)
        ! Limit time step based on the Courant-Friedrichs-Lewy condition
        cflmax = cfll(nzp,nxp,nyp,a_up,a_vp,a_wp,dxi,dyi,dzt,dtl)
-       call double_scalar_par_max(cflmax,gcflmax)
+       gcflmax = get_pustat_scalar('max', cflmax)
        if (cflmax>0.9999*gcflmax .and. cflmax>0.95) &
             print *, 'Warning CFL Violation :', cflmax, dtl, myid
        cflmax = gcflmax

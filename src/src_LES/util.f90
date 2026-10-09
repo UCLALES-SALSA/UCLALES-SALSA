@@ -125,12 +125,12 @@ contains
   ! GET_AVG2dh: Get the average of a 2 dimensional (horizontal) input field - calculated over all PUs
   !
   REAL FUNCTION get_avg2dh(n2,n3,a)
-    use mpi_interface, only : nyg,nxg,double_scalar_par_sum
+    use mpi_interface, only : nyg,nxg,double_array_par_sum
 
     INTEGER, INTENT(in) :: n2,n3
     REAL, INTENT(in)    :: a(n2,n3)
 
-    REAL(kind=8) :: lavg,gavg
+    REAL(kind=8) :: lavg(1),gavg(1)
     INTEGER :: i,j
     
     get_avg2dh = 0.
@@ -140,10 +140,10 @@ contains
        END DO
     END DO
 
-    lavg = get_avg2dh
-    call double_scalar_par_sum(lavg,gavg)
+    lavg(1) = get_avg2dh
+    call double_array_par_sum(lavg,gavg,1)
 
-    get_avg2dh = real(gavg)/real(nyg*nxg)
+    get_avg2dh = real(gavg(1))/real(nyg*nxg)
 
   END FUNCTION get_avg2dh
   !
@@ -365,14 +365,14 @@ contains
   !
   ! Find the mean height where sx has its maximum gradient, positive or negative - calculated over all PUs
   real function get_zi_dmax(n1, n2, n3, sx, z)
-    use mpi_interface, only : nyg,nxg,double_scalar_par_sum
+    use mpi_interface, only : nyg,nxg,double_array_par_sum
 
     integer, intent (in) :: n1, n2, n3
     real, intent (in)    :: z(n1), sx(n1,n2,n3)
 
     integer :: i, j, k
     real    :: sval, dmy, scr
-    REAL(kind=8) :: lavg,gavg
+    REAL(kind=8) :: lavg(1),gavg(1)
 
     get_zi_dmax = 0.
     do j=3,n3-2
@@ -390,9 +390,9 @@ contains
         end do
     end do
 
-    lavg = get_zi_dmax
-    call double_scalar_par_sum(lavg,gavg)
-    get_zi_dmax = real(gavg)/real(nyg*nxg)
+    lavg(1) = get_zi_dmax
+    call double_array_par_sum(lavg,gavg,1)
+    get_zi_dmax = real(gavg(1))/real(nyg*nxg)
 
   end function get_zi_dmax
   !
@@ -400,16 +400,16 @@ contains
   !
   ! Find the maximum of sx - calculated over all PUs
   real function get_max_val(n1, n2, n3, sx)
-    use mpi_interface, only : double_scalar_par_max
+    use mpi_interface, only : double_array_par_max
 
     integer, intent (in) :: n1, n2, n3
     real, intent (in)    :: sx(n1,n2,n3)
 
-    REAL(kind=8) :: lavg,gavg
+    REAL(kind=8) :: lavg(1),gavg(1)
 
-    lavg = maxval(sx(2:n1,3:n2-2,3:n3-2))
-    call double_scalar_par_max(lavg,gavg)
-    get_max_val = REAL(gavg)
+    lavg(1) = maxval(sx(2:n1,3:n2-2,3:n3-2))
+    call double_array_par_max(lavg,gavg,1)
+    get_max_val = REAL(gavg(1))
 
   end function get_max_val
   !
@@ -417,14 +417,13 @@ contains
   !
   ! Statistics of a scalar calculated over all PUs
   real function get_pustat_scalar(op, sx, wx)
-    use mpi_interface, only : nxny, nxg, nyg, double_scalar_par_max, double_scalar_par_sum, &
-        double_array_par_sum
+    use mpi_interface, only : nxny, nxg, nyg, double_array_par_max, double_array_par_sum
 
     CHARACTER(LEN=3) :: op ! Operation
     real, intent (in)    :: sx ! Data
     real, OPTIONAL, intent (in) :: wx ! Weight (optional, for average only)
 
-    REAL(kind=8) :: lavg,gavg,lvec(2),gvec(2)
+    REAL(kind=8) :: lavg(1),gavg(1),lvec(2),gvec(2)
 
     select case(op)
     CASE('avg')
@@ -441,25 +440,25 @@ contains
             ENDIF
         ELSE
             ! Average: avg = sum(x(i),i=1,n)/n
-            lavg = sx*REAL(nxny)/REAL(nxg*nyg) ! Sub-domains can have different number of columns
-            call double_scalar_par_sum(lavg,gavg)
-            get_pustat_scalar = REAL(gavg)
+            lavg(1) = sx*REAL(nxny)/REAL(nxg*nyg) ! Sub-domains can have different number of columns
+            call double_array_par_sum(lavg,gavg,1)
+            get_pustat_scalar = REAL(gavg(1))
         ENDIF
     CASE('sum')
         ! Sum
-        lavg = sx
-        call double_scalar_par_sum(lavg,gavg)
-        get_pustat_scalar = REAL(gavg)
+        lavg(1) = sx
+        call double_array_par_sum(lavg,gavg,1)
+        get_pustat_scalar = REAL(gavg(1))
     CASE('max')
         ! Maximum
-        lavg = sx
-        call double_scalar_par_max(lavg,gavg)
-        get_pustat_scalar = REAL(gavg)
+        lavg(1) = sx
+        call double_array_par_max(lavg,gavg,1)
+        get_pustat_scalar = REAL(gavg(1))
     CASE('min')
         ! Minimum (<1e30)
-        lavg = -sx
-        call double_scalar_par_max(lavg,gavg)
-        get_pustat_scalar = -REAL(gavg)
+        lavg(1) = -sx
+        call double_array_par_max(lavg,gavg,1)
+        get_pustat_scalar = -REAL(gavg(1))
     case default
         WRITE(*,*) op
         STOP 'Bad option for get_pustat_scalar!'
@@ -470,14 +469,14 @@ contains
   !
   ! Statistics of a vector calculated over all PUs
   SUBROUTINE get_pustat_vector(op, n, sx)
-    use mpi_interface, only : nxny, nyg, nxg, double_array_par_sum, double_scalar_par_max
+    use mpi_interface, only : nxny, nyg, nxg, double_array_par_sum, double_array_par_max
 
     CHARACTER(LEN=3) :: op        ! Operation
     integer, intent(in) :: n      ! Dimension
     real, intent (inout) :: sx(n) ! Data
 
     INTEGER :: i
-    REAL(kind=8) :: lavg(n),gavg(n),xxl,xxg
+    REAL(kind=8) :: lavg(n),gavg(n)
 
     select case(op)
     CASE('avg')
@@ -492,18 +491,14 @@ contains
         sx(:) = REAL(gavg(:))
     CASE('max')
         ! Maximum
-        DO i=1,n
-            xxl = sx(i)
-            CALL double_scalar_par_max(xxl,xxg)
-            sx(i) = xxg
-        ENDDO
+        lavg = sx
+        CALL double_array_par_max(lavg,gavg,n)
+        sx(:) = REAL(gavg(:))
     CASE('min')
         ! Minimum
-        DO i=1,n
-            xxl = -1.*sx(i)
-            CALL double_scalar_par_max(xxl,xxg)
-            sx(i) = -1.*xxg
-        ENDDO
+        lavg = -1.*sx(i)
+        CALL double_array_par_max(lavg,gavg,n)
+        sx(:) = -1.*REAL(gavg(:))
     case default
         WRITE(*,*) op
         STOP 'Bad option for get_pustat_vector!'
