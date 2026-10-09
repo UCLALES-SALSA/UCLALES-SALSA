@@ -240,8 +240,8 @@ MODULE radiation
                todsw(k,i,j) = tods(kk)
             END DO
             ! just to be sure zero values at z< 0 m
-            todlw(1,i,j) = 0.
-	    todsw(1,i,j) = 0.
+            !todlw(1,i,j) = 0.
+	    !todsw(1,i,j) = 0.
 	    
             IF (u0 > minSolarZenithCosForVis) THEN
                albedo(i,j) = fus(1)/fds(1)
