@@ -76,11 +76,9 @@ gfortran -O2 -I/usr/include -o ./pples_binned combine_binned.f90 -lnetcdff
 !    gfortran -O2 -I/usr/include -o ./pples combine.f90 -lnetcdff
 !  Run
 !    ./pples <file name prefix>
-! b) Puhti
+! b) Roihu
 !  Compile
-!    module swap gcc intel-oneapi-compilers-classic
-!    module load intel-oneapi-mpi/2021.6.0
-!    module load netcdf-fortran/4.5.4
+!    module load netcdf-fortran/4.6.2
 !    ifort -O2 -o ./pples combine.f90 -lnetcdff
 !  Run
 !    srun --ntasks=1 --time=00:0:10 --partition=<partition> --account=<project> pples <file name prefix> <key1=value1 key2=value2 ...>
@@ -91,7 +89,7 @@ gfortran -O2 -I/usr/include -o ./pples_binned combine_binned.f90 -lnetcdff
 
 
 ************************************************************************************
-!                    To perform post processing in Puhti
+!                    To perform post processing in Roihu
 --
 ! You can build an sbatch file like this
 
@@ -104,13 +102,11 @@ gfortran -O2 -I/usr/include -o ./pples_binned combine_binned.f90 -lnetcdff
 #SBATCH --time=24:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --mem-per-cpu=24GB
+#SBATCH --mem-per-cpu=100GB
 #SBATCH --mail-type=FAIL,END
 #SBATCH --mail-user=your_login@xx.xx
 
-module swap gcc intel-oneapi-compilers-classic
-module load intel-oneapi-mpi/2021.6.0
-module load netcdf-fortran/4.5.4
+module load netcdf-fortran/4.6.2
 
 ! Remember to upload the right pples file  obtained after compilation in the
 ! same folder where your segmented files are
