@@ -26,6 +26,9 @@ of the file job.sh at the end of the script according to the specifics
 of your local batch system. The bin folder contains all the necessary files
 to perform a testrun.
 
+For the DEV-UCLALES-SALSA-Fire branch, documentation and example simulations
+are available from https://doi.org/10.5281/zenodo.23370137 
+
 Case specific runscripts and sound-in files used in publications
 will be available in another repository at 
   https://github.com/UCLALES-SALSA/CONFIGURATION-FILES
