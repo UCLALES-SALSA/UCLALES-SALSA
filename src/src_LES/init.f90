@@ -35,8 +35,8 @@ contains
   !
   subroutine initialize
 
-    use grid, only : level, runtype, isgstyp, iradtyp, filprf, expnme, nzp, nxyzp, zm, &
-                     a_qp, pi0, th0, rt0, dtl, write_hist, init_anal, write_anal, dtlong
+    use grid, only : level, runtype, isgstyp, iradtyp, filprf, expnme, nzp, nxyzp, zm, zt, &
+                     a_qp, th0, rt0, p0, dtl, write_hist, init_anal, write_anal, dtlong
     use step, only : timmax, time, anl_start, frqanl, nudging, lsvarflg
     use stat, only : init_stat
     use sgsm, only : tkeinit
@@ -81,7 +81,7 @@ contains
     end if ! runtype
 
     ! New setup for the Fu-Liou radiation
-    IF (RadNewSetup .AND. iradtyp==3) CALL rad_new_setup(nzp,pi0,th0,rt0)
+    IF (RadNewSetup .AND. iradtyp==3) CALL rad_new_setup(nzp,p0,th0,rt0,zm,zt)
 
     call sponge_init
     call init_stat(time,filprf,expnme,nzp)
@@ -422,7 +422,7 @@ contains
   !
   subroutine basic_state
 
-    use grid, only : nzp,zt,dzm,pi0,pi1,dn0,rt0,u0,v0,th0,th00,psrf,umean,vmean
+    use grid, only : nzp,zt,dzm,pi0,pi1,dn0,rt0,p0,u0,v0,th0,th00,psrf,umean,vmean
     use defs, only : cp, rcp, cpr, Rd, g, p00, p00i, ep2
     use mpi_interface, only : myid
 
@@ -490,6 +490,7 @@ contains
     u0(1) = u0(2)
     v0(1) = v0(2)
     psrf  = ps(1)
+    p0(:) = v1db(:)
 
     if(myid == 0) write (*,fmt) (zt(k),u0(k),v0(k),dn0(k),v1da(k),v1db(k), &
          th0(k),v1dc(k),rt0(k)*1000.,k=1,nzp)

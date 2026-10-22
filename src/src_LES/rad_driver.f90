@@ -38,6 +38,9 @@ module radiation
   REAL :: rad_lwp=0.0, rad_reff=10.0 ! Optional clouds to be added above LES domain
   REAL :: rad_iwp=0.0, rad_ieff=100.0
   INTEGER :: rad_nlev=2, rad_ilev=2
+  REAL :: radsounding_pmax = -1.0 ! Optional pressure limit (hPa) for soundings
+
+  INTEGER :: nt=0, nb=0 ! For radsounding_pmax>0
 
   logical, save :: calc_od = .FALSE.  ! Calculate optical depths
   real, allocatable, save :: tau_gas(:,:), tau_cloud(:,:), tau_rain(:,:), &
@@ -49,26 +52,34 @@ module radiation
 
   contains
 
-    subroutine rad_new_setup(n1,pi0,th0,rt0)
+    subroutine rad_new_setup(n1,pp0,th0,rt0,zm,zt)
       ! The new radiation setup method: initialize sounding profiles using basic state
       ! properties including pressure, temperature and total water mixing ratio. This
       ! means that the setup will be the same for restarts. This function initializes
       ! also the radiative transfer solver.
       integer, intent(in) :: n1
-      real, intent(in) :: pi0(n1), th0(n1), rt0(n1) ! Basic state p, theta and rt
-      real :: ttop, p0(n1), dz
+      real, intent(in) :: pp0(n1), th0(n1), rt0(n1) ! Basic state p, theta and rt
+      real, intent(in) :: zm(n1), zt(n1) ! Grid
+      real :: ttop, p0(n1), dz, t0(n1)
       integer :: i
       !
       ! Basic state pressure (hPa)
-      p0(:) = 0.01*(p00*(pi0(:)/cp)**cpr)
-      ! Basic state domain top temperature (K)
-      ttop = th0(n1)*pi0(n1)/cp
+      p0(:) = 0.01*pp0(:)
+      ! Basic state temperature (K)
+      t0(:) = th0(:)*(pp0(:)/p00)**rcp
+      ttop = t0(n1)
       IF ( radsounding == 'auto' ) THEN
         ! Automatic profile generation
         !   - Upper atmosphere (P > 179 hPa) from dsrt.lay
         !   - log-log or lin-log interpolation between LES and the upper atmosphere P, T and rt
         !   - Boundary layer ozone concentration fixed to 50 ppt
         call setup_auto(n1,nv1,nv,p0,ttop,MAX(4e-7,rt0(n1)),50e-9)
+      ELSEIF ( radsounding_pmax>0.0 ) THEN
+        ! Similar to the previous, but
+        !  - Interpolates sounding scalars for mid points
+        !  - Linear region can be set between LES domain and pressure radsounding_pmax (hPa)
+        !  - Updates the linear region for each column
+        call setup_les_regrid(radsounding,n1,nv1,nv,p0,t0,rt0,zm,zt)
       ELSE
         ! Works well with the LES model
         call setup_les(radsounding,n1,nv1,nv,p0,ttop,MAX(4e-7,rt0(n1)))
@@ -105,11 +116,11 @@ module radiation
       first_time = .False.
     end subroutine rad_new_setup
 
-    subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn, pi0, pi1, dzm, &
+    subroutine d4stream(n1, n2, n3, alat, time, sknt, sfc_albedo, dn, pi0, pi1, zm, zt, &
          pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, albedo, rr, ice, nice, grp)
       integer, intent (in) :: n1, n2, n3
       real, intent (in)    :: alat, time, sknt, sfc_albedo
-      real, dimension (n1), intent (in)                 :: pi0, pi1, dzm
+      real, dimension (n1), intent (in)                 :: pi0, pi1, zm, zt
       real, dimension (n1,n2,n3), intent (in)           :: dn, pip, tk, rv, rc, nc
       real, optional, dimension (n1,n2,n3), intent (in) :: rr, ice, nice, grp
       real, dimension (n1,n2,n3), intent (inout)        :: tt, rflx, sflx
@@ -155,23 +166,28 @@ module radiation
          do i=3,n2-2
             ! Grid cell pressures in the LES model (Pa)
             exner(1:n1) = (pi0(1:n1)+pi1(1:n1)+pip(1:n1,i,j))/cp
-            pres(1:n1) = p00*( exner(1:n1) )**cpr
+            pres(1:n1) = p00*( exner(1:n1) )**cpr*0.01 ! hPa
+
+            ! Calculates pressure grid, pp, for the momentum grid zm. Also, depending on
+            ! the setup, interpolates temperature and humidity for the linear transition
+            ! region between soundings and the LES domain.
+            call set_pres_grid(n1,pres,zm,zt,tk(n1,i,j),rv(n1,i,j))
 
             ! LES and background pressure levels must be separate (LES pressure levels will change)
             !      Tomi Raatikainen 17.6.2016 & 21.12.2016
-            pp(nv-n1+2) = pres(n1)/100. - 0.5*(pres(n1-1)-pres(n1)) / 100.
             if ( pp(nv-n1+2) < pp(nv-n1+1)+1.0 ) THEN
                 ! Simple solution to the problem: remove sounding level nv-n1+1, which means that LES data is written over that
                 nv1=nv1-1       ! This should do it (start from the previos location)
                 nv=nv-1
-                pp(nv-n1+2) = pres(n1)/100. - 0.5*(pres(n1-1)-pres(n1)) / 100. ! Update
+                pp(nv-n1+2) = pres(n1) - 0.5*(pres(n1-1)-pres(n1)) ! Update
 
                 WRITE(*,*) 'Warning (radiation/d4stream): overlapping pressure levels observed (i,j)!',i,j
             endif
 
+            kk = nv1 ! Surface pressure
             do k=2,n1
-               kk = nv-(k-2)
-               pp(kk+1) = 0.5*(pres(k-1)+pres(k)) / 100.
+               ! Scalars at mid points
+               kk = kk-1
                pt(kk) = tk(k,i,j)
                ph(kk) = rv(k,i,j)
 
@@ -251,8 +267,8 @@ module radiation
                albedo(i,j) = -999.
             end if
 
-            do k=2,n1-3
-               xfact  = dzm(k)/(cp*dn(k,i,j)*exner(k))
+            do k=2,n1
+               xfact  = 1./((zm(k)-zm(k-1))*cp*dn(k,i,j)*exner(k))
                tt(k,i,j) = tt(k,i,j) - (rflx(k,i,j) - rflx(k-1,i,j))*xfact
             end do
 
@@ -632,6 +648,202 @@ module radiation
     ENDIF
 
   end subroutine setup_auto
+  !
+  ! ---------------------------------------------------------------------------
+  ! This version of setup is modified for LES simulations
+  ! - Any profile can be provided
+  ! - Using pressure as interface and interpolating scalars for mid points
+  ! - Ozone is interpolated for all levels and kept constant
+  ! - Linear transition region can be added between the LES domain and the
+  !   background sounding below pressure radsounding_pmax
+  ! - Transtion region pressure and scalars (except ozone) are updated for each column
+  !
+  subroutine setup_les_regrid(background,n1,nv1,nv,zp,tt,qt,zm,zt)
+    use mpi_interface, only: myid
+    implicit none
+
+    character (len=*), intent (in) :: background
+    integer, intent (in) :: n1
+    integer, intent (out):: nv1,nv
+    real, intent (in)    :: zp(n1),zm(n1),zt(n1),tt(n1),qt(n1)
+    real, allocatable  :: sp(:), st(:), sh(:), so(:)
+    integer :: k, kk, ns
+    real    :: ptop, dp, Tsurf, pmid
+
+    ! Read backgroud profiles (p [hPa], T [K], q [kg/kg], O3 [-] and an unused concentration)
+    open ( unit = 08, file = background, status = 'old' )
+    ! Some files have surface temperature and dimensions in the first line, but these may not be correct
+    read (08,*) Tsurf, ns
+    ! ... so count the number of lines
+    ns=0; k=0
+    do while(k>=0)
+        read (8,*,iostat=k) ptop
+        ns=ns+1
+    enddo
+    ! ns is the total number of lines including the first line
+    if (Tsurf>200.) ns=ns-1 ! Total number of sounding values
+
+    ! Allocate data
+    allocate (sp(ns), st(ns), sh(ns), so(ns))
+    ! Read again
+    rewind (8)
+    if (Tsurf>200.) read (08,*) Tsurf, k
+    do k=1,ns
+        read (8,*) sp(k), st(k), sh(k), so(k)
+    enddo
+    close (08)
+
+    ! The highest LES model pressure - defined for cell interface zm(n1)
+    ptop=zp(n1)*(zp(n1-1)/zp(n1))**( (zm(n1)-zt(n1))/(zt(n1-1)-zt(n1)) )
+    !
+    ! The first sounding level must be somewhat higher (lower pressure) than the last LES pressure level
+    !  - Must avoid overlapping pressure levels when LES pressures change with time
+    !  - 10 hPa should be large enough for most cases (LES has typically high pressure resolution)
+    !  - radsounding_pmax>0 [hPa] can be set to activate thicker transition layer
+    dp=MAX(10.0,zp(n1-1)-zp(n1))
+    !
+    k=1 ! Note: increasing pressure and decreasing altitude
+    do while (sp(k) < ptop-dp .AND. (radsounding_pmax<0.0 .OR. sp(k) < radsounding_pmax))
+        k=k+1
+        if (k==ns+1) exit
+    enddo
+    nb=k-1 ! Background soundings from 1 to k (nb points)
+    !
+    ! Add layers between LES and soundings: the transition regime
+    nt=max(0,FLOOR( (ptop-sp(nb))/dp )-1)
+
+    ! Include complete LES grid (n1 points), soundings (nb points) and the transition regime (nt points)
+    nv1 = n1+nb+nt  ! Total number of pressure points (cell interfaces)
+    nv = nv1-1   ! Total number of scalars (cell centers)
+
+    ! allocate the arrays for the sounding data to be used in the radiation profile
+    allocate (pp(nv1),fds(nv1),fus(nv1),fdir(nv1),fuir(nv1)) ! Cell interfaces
+    allocate (pt(nv),ph(nv),po(nv),pre(nv),pde(nv),plwc(nv),prwc(nv),piwc(nv),pgwc(nv)) ! Cell centers
+
+    ! Levels above the transition region are fixed, so fill these with sounding data
+    do k=1,nb
+        ! Pressure as is (interface)
+        pp(k) = sp(k)
+        ! Scalars interpolated for mid points (only up to nb-1)
+        ! Linear T vs log(P)
+        pt(k) = 0.5*(st(k)+st(k+1))
+        ! Linear log(c) vs log(P)
+        ph(k) = sqrt(sh(k)*sh(k+1))
+        po(k) = sqrt(so(k)*so(k+1))
+    enddo
+
+    ! Set the remaining pressure gid for the given initial pressure profile.
+    ! Also sets water vapor and temperature.
+    call set_pres_grid(n1,zp,zm,zt,tt(n1),qt(n1))
+
+    ! Transition region: interpolate ozone for the mid point(s) based on the background sounding
+    do k=nb,nb+nt
+        pmid=sqrt(pp(k)*pp(k+1))
+        po(k) = interp_press_log(sp,so,ns,pmid)
+    enddo
+
+    ! The LES domain
+    k=nb+nt
+    do kk=n1,2,-1 ! Start from the top
+        ! Use the initial grid cell pressures
+        k=k+1
+        pmid=zp(kk)
+        ! Ozone is based on the background sounding
+        po(k) = interp_press_log(sp,so,ns,pmid)
+        ! Temperature and moisture come from the LES - here for initial information
+        pt(k) = tt(kk)
+        ph(k) = qt(kk)
+    enddo
+
+    ! Clean
+    deallocate(sp, st, sh, so)
+
+    ! Print information about sounding
+    IF (myid==0) THEN
+        WRITE(*,'(/,/,20A)') '-------------------------------------------------'
+        WRITE(*,'(/2x,20A,/)') 'Reading Background Sounding: '//trim(background)
+        WRITE(*,'(/2x,A7,5A10)') 'Source','p1 (hPa)','p2 (hPa)','T (K)','q (g/kg)','O3 (ppm)'
+
+        DO k=1,nv
+            IF (k<nb) THEN
+                ! Data from backgound soundings
+                WRITE(*,'(2x,A7,3F10.2,F10.5,F10.3)') 'Backgr',pp(k),pp(k+1),pt(k),ph(k)*1.e3,po(k)*1.e6
+            ELSEIF (k<=nb+nt) THEN
+                ! Interpolation
+                WRITE(*,'(2x,A7,3F10.2,F10.5,F10.3)') 'Interp',pp(k),pp(k+1),pt(k),ph(k)*1.e3,po(k)*1.e6
+            ELSEIF (k<=nb+nt+5) THEN
+                ! LES top + four levels
+                WRITE(*,'(2x,A7,3F10.2,F10.5,F10.3)') 'LES',pp(k),pp(k+1),pt(k),ph(k)*1.e3,po(k)*1.e6
+            ENDIF
+        ENDDO
+        WRITE(*,*) ' '
+    ENDIF
+    !
+    contains
+      real function interp_press_log(pp,dat,n,pval)
+        integer, intent (in) :: n
+        real, intent (in) :: pp(n),dat(n),pval
+        integer :: i
+        ! pp is decreasing
+        i=COUNT(pval>pp)
+        if (i==0) then
+            interp_press_log = dat(1)
+        elseif (i==n) then
+            interp_press_log = dat(n)
+        else
+            ! Interpolate between pp(i) and pp(i+1)
+            interp_press_log = dat(i)*exp(log(dat(i)/dat(i+1))/log(pp(i)/pp(i+1))*log(pval/pp(i)))
+        endif
+      end function interp_press_log
+  end subroutine setup_les_regrid
+  !
+  ! Updates radiation pressure grid for the LES and transition regions, and optionally sets
+  ! water vapor mixing ratio and temperature values for the transition region.
+  subroutine set_pres_grid(n1,pres,zm,zt,ttop,qtop)
+    implicit none
+    integer, intent (in) :: n1
+    real, intent (in) :: pres(n1),zm(n1),zt(n1),ttop,qtop ! LES inputs
+    integer :: kk, k
+    real :: dp, ptop, pmid, psnd
+
+    ! 1) LES pressure grid
+    kk = nv1 ! Surface
+    do k=2,n1
+        ! Interpolate pressure (hPa) for level zm(k-1), which is between zt(k-1) and zt(k)
+        pp(kk) = pres(k)*(pres(k-1)/pres(k))**( (zm(k-1)-zt(k))/(zt(k-1)-zt(k)) )
+        kk = kk-1
+    enddo
+    ! Extrapolate pressure (hPa) for level zm(n1) based on pressures at zt(n1-1) and zt(n1).
+    ! For radiation, this means pressure at the top of the LES domain, pp(nv-n1+2).
+    ! It is assumed that pressure is hydrostatic, i.e., exponentially decreasing with altitude.
+    pp(kk) = pres(n1)*(pres(n1-1)/pres(n1))**( (zm(n1)-zt(n1))/(zt(n1-1)-zt(n1)) )
+
+    ! 2) Transition region between sounding base pp(nb) and LES top pp(kk)
+    ptop=pres(n1) ! Pressure for ttop and qtop
+    psnd=sqrt(pp(nb)*pp(nb-1)) ! The lowest sounding midpoint for pt(nb-1) and ph(nb-1)
+    if (nt>0) then
+        ! Interpolated logarithmic pressure levels between pp(nb) and pp(kk)
+        dp=log(pp(kk)/pp(nb))/REAL(nt+1)
+        do k=nb+1,nb+nt
+            pp(k)=pp(k-1)*exp(dp)
+        enddo
+        !
+        ! Interpolate temperature and moisture for the mid points based on their values at the
+        ! LES model top (ptop, ttop, qtop) and the lowest sounding level (psnd, pt(nb-1), ph(nb-1)).
+        do k=nb,nb+nt ! include nb
+            pmid=sqrt(pp(k)*pp(k+1))
+            pt(k)=ttop+(pt(nb-1)-ttop)/log(psnd/ptop)*log(pmid/ptop)
+            ph(k)=qtop*exp( log(ph(nb-1)/qtop)/log(psnd/ptop)*log(pmid/ptop) )
+        enddo
+    elseif (nb>0) then
+        ! Single mid point between pp(nb) and pp(kk)=pp(nb+1)
+        pmid=sqrt(pp(nb)*pp(nb+1))
+        ! Interpolate
+        pt(nb)=ttop+(pt(nb-1)-ttop)/log(psnd/ptop)*log(pmid/ptop)
+        ph(nb)=qtop*exp( log(ph(nb-1)/qtop)/log(psnd/ptop)*log(pmid/ptop) )
+    endif
+
+  end subroutine set_pres_grid
   !
   ! ---------------------------------------------------------------------------
   !  locate the index closest to a value

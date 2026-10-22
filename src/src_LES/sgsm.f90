@@ -220,7 +220,7 @@ contains
           call diffsclr(nzp,nxp,nyp,dtl,dxi,dyi,dzm,dzt,dn0,sxy1,sxy2   &
                ,a_tmp3,a_tmp2,a_tmp4,a_tmp1)
           call get_avg3(nzp,nxp,nyp,a_tmp1,sz1)
-          call updtst(nzp,sz1,1,'tot_iw ')
+          call updtst(nzp,sz1,1,'sfs_iw ')
        endif
     end if
     !
@@ -371,7 +371,7 @@ contains
        do i=3,n2-2
           do k=2,n1-1
              ! If not uniform vertical grid: delta=(dz*dx*dy)**(1/3) [m]
-             delta = (1./(dzt(k)*dxi*dyi))**0.333333333
+             !delta = (1./(dzt(k)*dxi*dyi))**0.333333333
              !
              ! Richardson Number (Ri=N2/S2=ri/kh)
              ri(k,i,j) = max( -1., ri(k,i,j)/(kh(k,i,j) + 1.e-12) )
@@ -414,7 +414,7 @@ contains
        call get_cor3(n1,n2,n3,km,km,sz1)
        do k=1,n1
           ! If not uniform vertical grid: delta=(dz*dx*dy)**(1/3)
-          delta = (1./(dzt(k)*dxi*dyi))**0.333333333
+          !delta = (1./(dzt(k)*dxi*dyi))**0.333333333
           !
           ! the factor 1/pi^2 probably represents the ratio of the constants
           ! Cm/Ce that appears in the definition of TKE, the factor csx^2

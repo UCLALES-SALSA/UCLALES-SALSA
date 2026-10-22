@@ -40,10 +40,13 @@ LIBFLAGS = -I$(SRC) $(HDF5_INCLUDE) $(NETCDF_INCLUDE)
 # GNU Fortran compiler options
 # -----------------------------
 # This works
-FFLAGS = -O2 -fmax-errors=30 -fdefault-real-8 -fallow-argument-mismatch
+FFLAGS = -O3 -fdefault-real-8
 # Debug
-#FFLAGS = -O2 -fmax-errors=30 -fdefault-real-8 -fallow-argument-mismatch -fbacktrace -g -fbounds-check -ffpe-trap=invalid,zero,overflow -fcheck=all -Wall -Wno-tabs -Wextra
-#FFLAGS = -O0 -fmax-errors=30 -fdefault-real-8 -fallow-argument-mismatch -fbacktrace -g -fbounds-check -ffpe-trap=invalid,zero,overflow -fcheck=all -Wall -Wno-tabs -Wextra -fimplicit-none
+#FFLAGS = -O3 -fdefault-real-8 -fbacktrace -g -fcheck=all -Wall -ffpe-trap=invalid,zero,overflow,denormal
+#FFLAGS = -O3 -fdefault-real-8 -fbacktrace -g -fcheck=all -Wall -ffpe-trap=invalid,zero,overflow
+
+# Note: rfft.f90 needs this (gfortran 10): -fallow-argument-mismatch or -std=legacy
+F77FLAGS=$(FFLAGS) -std=legacy
 
 
 LES_OUT_MPI=$(BIN)/les.mpi
@@ -61,14 +64,14 @@ mpi: $(LES_OUT_MPI)
 $(LES_OUT_SEQ):
 	cd $(SRC); $(MAKE) LES_ARC=seq \
 	FFLAGS='$(FFLAGS) $(LIBFLAGS)' F90=$(F90) \
-	F77FLAGS='$(FFLAGS)' OUT=$(LES_OUT_SEQ) \
+	F77FLAGS='$(FF77LAGS)' OUT=$(LES_OUT_SEQ) \
 	LIBS=$(LIBS) SRCUTIL=$(SRC_VBS) \
 	SRCLES=$(SRC_LES) SRCSALSA=$(SRC_SALSA)
 
 $(LES_OUT_MPI):
 	cd $(SRC); $(MAKE) LES_ARC=mpi \
 	FFLAGS='$(FFLAGS) $(LIBFLAGS)' F90=$(MPIF90) \
-	F77FLAGS='$(FFLAGS)' OUT=$(LES_OUT_MPI) \
+	F77FLAGS='$(F77FLAGS)' OUT=$(LES_OUT_MPI) \
 	LIBS=$(LIBS) SRCUTIL=$(SRC_VBS) \
 	SRCLES=$(SRC_LES) SRCSALSA=$(SRC_SALSA)
 

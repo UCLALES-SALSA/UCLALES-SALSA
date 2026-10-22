@@ -475,7 +475,6 @@ contains
     integer, intent(in) :: n      ! Dimension
     real, intent (inout) :: sx(n) ! Data
 
-    INTEGER :: i
     REAL(kind=8) :: lavg(n),gavg(n)
 
     select case(op)
@@ -496,7 +495,7 @@ contains
         sx(:) = REAL(gavg(:))
     CASE('min')
         ! Minimum
-        lavg = -1.*sx(i)
+        lavg = -1.*sx
         CALL double_array_par_max(lavg,gavg,n)
         sx(:) = -1.*REAL(gavg(:))
     case default

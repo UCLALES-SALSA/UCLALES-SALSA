@@ -1277,11 +1277,11 @@ contains
             ! Top of atmosphere LW up
             output=a_fuir(nzp+1,:,:)
         CASE('us')
-            ! Surface wind component u
-            output=a_up(2,:,:)+umean
+            ! Surface wind component u valid at cell centers
+            output(3:nxp-2,3:nyp-2) = (a_up(2,3:nxp-2,3:nyp-2)+a_up(2,2:nxp-3,3:nyp-2))*0.5+umean
         CASE('vs')
-            ! Surface wind component v
-            output=a_vp(2,:,:)+vmean
+            ! Surface wind component v valid at cell centers
+            output(3:nxp-2,3:nyp-2) = (a_vp(2,3:nxp-2,3:nyp-2)+a_vp(2,3:nxp-2,2:nyp-3))*0.5+vmean
         CASE DEFAULT
             ! Pre-defined SALSA outputs
             fail = calc_user_data(user_cs_list(ii),a,mask,is_mass=mass)
@@ -2247,19 +2247,19 @@ contains
 
     INTEGER, INTENT(in) :: n1,n2,n3
 
-    REAL, DIMENSION(n1,n2,n3)           :: a1
+    REAL, DIMENSION(n1,n2,n3)           :: a1, a2
     REAL, DIMENSION(n1)                 :: col
     REAL, DIMENSION(n1,n2,n3,fnp2b)     :: a_Rwet
     REAL, ALLOCATABLE                   :: hist(:,:)
 
     ! Ice mass
-    a1(:,:,:) = SUM(a_micep(:,:,:,1:nice),DIM=4)
-    CALL get_avg3(n1,n2,n3,a1,col)
+    a2(:,:,:) = SUM(a_micep(:,:,:,1:nice),DIM=4)
+    CALL get_avg3(n1,n2,n3,a2,col)
     svctr_lvl5(:,1) = svctr_lvl5(:,1) + col(:)
 
     ! Generate SALSA ice mask
     CALL bulkNumc('ice','ab',a1)
-    icemask(:,:,:) = ( a1(:,:,:) > prlim .AND. a1(:,:,:) > ris_min)
+    icemask(:,:,:) = ( a1(:,:,:) > prlim .AND. a2(:,:,:) > ris_min)
 
     ! Ice number concentration
     CALL get_avg3(n1,n2,n3,a1,col,cond=icemask)
@@ -2282,12 +2282,12 @@ contains
     svctr_lvl5(:,5) = svctr_lvl5(:,5) + col(:)
 
     ! The same for snow (mass, mask, number concentration and fraction of snowy grid cells)
-    a1(:,:,:) = SUM(a_msnowp(:,:,:,1:nsnw),DIM=4)
-    CALL get_avg3(n1,n2,n3,a1,col)
+    a2(:,:,:) = SUM(a_msnowp(:,:,:,1:nsnw),DIM=4)
+    CALL get_avg3(n1,n2,n3,a2,col)
     svctr_lvl5(:,6) = svctr_lvl5(:,6) + col(:)
 
     CALL bulkNumc('snow','a',a1)
-    snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a1(:,:,:) > ris_min)
+    snowmask(:,:,:) = ( a1(:,:,:) > prlim .AND. a2(:,:,:) > ris_min)
 
     CALL get_avg3(n1,n2,n3,a1,col,cond=snowmask)
     svctr_lvl5(:,7) = svctr_lvl5(:,7) + col(:)

@@ -20,9 +20,8 @@
 !
 module mpi_interface
 
-  !use mpi
+  use mpi
   implicit none
-  include 'mpif.h'
   !
   !    nxg = nxpg-4
   !    nyg = nypg-4

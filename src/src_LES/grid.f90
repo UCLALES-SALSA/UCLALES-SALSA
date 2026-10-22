@@ -111,7 +111,7 @@ module grid
   integer           :: nxyzp
   real              :: dxi, dyi, dtl, psrf
   real, allocatable :: xt(:), xm(:), yt(:), ym(:), zt(:), zm(:), dzt(:), dzm(:)
-  real, allocatable :: u0(:), v0(:), pi0(:), pi1(:), th0(:), dn0(:), rt0(:)
+  real, allocatable :: u0(:), v0(:), pi0(:), pi1(:), th0(:), dn0(:), rt0(:), p0(:)
   real, allocatable :: spng_wfct(:), spng_tfct(:)
   REAL, ALLOCATABLE, target :: tmp_cldp(:,:,:,:), tmp_cldt(:,:,:,:)
   REAL, ALLOCATABLE, target :: tmp_prcp(:,:,:,:), tmp_prct(:,:,:,:)
@@ -223,7 +223,7 @@ contains
 
     ! Juha: Stuff that's allocated for all configurations
     !----------------------------------------------------------
-    allocate (u0(nzp),v0(nzp),pi0(nzp),pi1(nzp),th0(nzp),dn0(nzp),rt0(nzp))
+    allocate (u0(nzp),v0(nzp),pi0(nzp),pi1(nzp),th0(nzp),dn0(nzp),rt0(nzp),p0(nzp))
 
     memsize = 2*nxyzp ! complex array in pressure solver
 
@@ -812,7 +812,7 @@ contains
          'B_Rd12a','B_Rd2ab','B_Rwprc','B_Rwsnw'/)  ! 8-11
     character(len=7) :: s_base(n_base) = (/ &
          'u      ','v      ','w      ','theta  ','p      ','stke   ','rflx   ', & ! 1-7
-         'q      ','l      ','rc     ','nc     ','rr     ','nr     ','ri     ', & ! 8-14
+         'q      ','rv     ','rc     ','nc     ','rr     ','nr     ','ri     ', & ! 8-14
          'ni     ','rs     ','ns     ','rg     ','ng     ','rh     ','nh     '/)  ! 15-21
     LOGICAL, SAVE :: b_dims(n_dims)=.TRUE., b_base(n_base)=.TRUE.
     CHARACTER (len=7), ALLOCATABLE :: sanal(:), stot(:)
@@ -1036,7 +1036,7 @@ contains
        END IF
     end if
 
-    ! Always saved: u, v, w, theta, P
+    ! Always saved: u, v, w, theta, P, rv
     iret = nf90_inq_varid(ncid0, 'u', VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_up(:,i1:i2,j1:j2)+umean, start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'v', VarID)
@@ -1047,6 +1047,8 @@ contains
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_theta(:,i1:i2,j1:j2), start=ibeg, count=icnt)
     iret = nf90_inq_varid(ncid0, 'p', VarID)
     IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_press(:,i1:i2,j1:j2), start=ibeg, count=icnt)
+    iret = nf90_inq_varid(ncid0, 'rv', VarID)
+    IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0, VarID, a_rv(:,i1:i2,j1:j2), start=ibeg, count=icnt)
 
     ! Common variables (optional)
     iret = nf90_inq_varid(ncid0, 'rflx', VarID) ! Total radiative flux
@@ -1081,12 +1083,6 @@ contains
        ! Total water
        iret = nf90_inq_varid(ncid0,'q',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
-       ! Liquid water = cloud + rain
-       iret = nf90_inq_varid(ncid0,'l',VarID)
-       IF (iret==NF90_NOERR) THEN
-          zvar=a_rc+a_rpp
-          iret = nf90_put_var(ncid0, VarID, zvar(:,i1:i2,j1:j2), start=ibeg, count=icnt)
-       ENDIF
        ! Cloud water mixing ratio and number concentration
        iret = nf90_inq_varid(ncid0,'rc',VarID)
        IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rcp(:,i1:i2,j1:j2),start=ibeg,count=icnt)
@@ -1124,10 +1120,6 @@ contains
                         a_ri(:,:,:)       ! Ice + snow water (level 5)
           iret = nf90_put_var(ncid0,VarID,zvar(:,i1:i2,j1:j2),start=ibeg,count=icnt)
        END IF
-
-       ! Liquid water mixing ratio
-       iret = nf90_inq_varid(ncid0,'l',VarID)
-       IF (iret==NF90_NOERR) iret = nf90_put_var(ncid0,VarID,a_rc(:,i1:i2,j1:j2),start=ibeg,count=icnt)
 
        ! Cloud water mixing ratio and total number
        iret = nf90_inq_varid(ncid0,'rc',VarID)
@@ -1359,6 +1351,13 @@ contains
         CASE ('diss')
            ! Dissipation rate
            output(:,:,:)=a_edr(:,:,:)
+        CASE ('l')
+           ! Liquid water = (aerosol +) cloud + rain
+           IF (level<4) THEN
+              output(:,:,:)=a_rc(:,:,:)+a_rpp(:,:,:)
+           ELSE
+              output(:,:,:)=a_rc(:,:,:)
+           ENDIF
         CASE DEFAULT
             ! Pre-defined 3D SALSA outputs
             fail = calc_user_data(user_an_list(i),output)
@@ -1493,7 +1492,7 @@ contains
     open(10,file=trim(hname), form='unformatted')
 
     write(10) time,th00,umean,vmean,dtl,level,isgstyp,iradtyp,nzp,nxp,nyp,nscl
-    write(10) xt, xm, yt, ym, zt, zm, dn0, th0, u0, v0, pi0, pi1, rt0, psrf
+    write(10) xt, xm, yt, ym, zt, zm, dn0, th0, u0, v0, pi0, pi1, rt0, p0, psrf
 
     write(10) a_ustar, a_tstar, a_rstar
 
@@ -1571,7 +1570,7 @@ contains
           call appl_abort(-1)
        end if
 
-       read (10) xt, xm, yt, ym, zt, zm, dn0, th0, u0, v0, pi0, pi1, rt0, psrf
+       read (10) xt, xm, yt, ym, zt, zm, dn0, th0, u0, v0, pi0, pi1, rt0, p0, psrf
 
        read (10) a_ustar, a_tstar, a_rstar
 

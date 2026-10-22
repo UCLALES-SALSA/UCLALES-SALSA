@@ -113,8 +113,8 @@ contains
          user_cs_list, user_ps_list, user_ts_list, wbinlim
     USE forc, ONLY : case_name, sfc_albedo, RadPrecipBins, RadSnowBins, &
          div, zmaxdiv, xka, fr0, fr1, alpha, rc_limit, rt_limit
-    USE radiation, ONLY : radsounding, useMcICA, RadNewSetup, RadConstSZA, &
-         rad_lwp, rad_reff, rad_nlev, rad_iwp, rad_ieff, rad_ilev
+    USE radiation, ONLY : radsounding, useMcICA, RadNewSetup, radsounding_pmax, &
+         RadConstSZA, rad_lwp, rad_reff, rad_nlev, rad_iwp, rad_ieff, rad_ilev
     use modcross, only : frqcross, lcross, lxy, lxz, lyz, xcross, ycross, zcross, crossvars
     use mpi_interface, only : myid, appl_abort
 
@@ -174,6 +174,7 @@ contains
          sfc_albedo,         & ! Surface albedo
          useMcICA,           & ! Use the Monte Carlo Independent Column Approximation method (T/F)
          RadNewSetup,        & ! use the new radiation setup method (T/F),
+         radsounding_pmax,   & ! optional pressure limit (hPa) for radiation soundings
          RadPrecipBins,      & ! add precipitation bins to cloud water (0, 1, 2, 3,...)
          RadSnowBins,        & ! add snow bins to cloud ice (0, 1, 2, 3,...)
          RadConstSZA,        & ! Optional fixed solar zenith angle for radiation (values between -180.0 and 180.0 degrees)

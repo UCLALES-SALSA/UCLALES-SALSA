@@ -119,22 +119,22 @@ contains
           IF (ANY(zrg>0.)) THEN
              ! Graupel mass separately
              CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
+               a_dn, pi0, pi1, zm, zt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr,ice=zri,nice=zni,grp=zrg)
           ELSEIF (any(zni>0.)) THEN
              ! Include ice
              CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
+               a_dn, pi0, pi1, zm, zt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr,ice=zri,nice=zni)
           ELSEIF (any(zrr>0.)) THEN
              ! Include rain
              CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
+               a_dn, pi0, pi1, zm, zt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr)
           ELSE
              ! Just cloud
              CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
+               a_dn, pi0, pi1, zm, zt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo)
           ENDIF
 
@@ -152,7 +152,7 @@ contains
              zrr = 0.
           ENDIF
           call d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
+               a_dn, pi0, pi1, zm, zt, a_pexnr, a_temp, a_rv, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr)
 
        ELSE IF (level == 4) THEN
@@ -169,7 +169,7 @@ contains
              zrr(:,:,:) = 0.
           ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
+               a_dn, pi0, pi1, zm, zt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr)
 
        ELSE IF (level == 5) THEN
@@ -197,7 +197,7 @@ contains
              zrg(:,:,:) = 0.
           ENDIF
           CALL d4stream(nzp, nxp, nyp, cntlat, time_in, sst, sfc_albedo, &
-               a_dn, pi0, pi1, dzt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
+               a_dn, pi0, pi1, zm, zt, a_pexnr, a_temp, a_rp, zrc, znc, a_tt, &
                a_rflx, a_sflx, a_fus, a_fds, a_fuir, a_fdir, albedo, rr=zrr, ice=zri,nice=zni,grp=zrg)
 
        END IF
